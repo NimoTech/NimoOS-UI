@@ -10,6 +10,7 @@
 import { computed, type Component } from 'vue'
 import type { LayoutItem } from '../../grid/types'
 import { WIDGETS } from '../../widgets/registry'
+import AiWidget from './AiWidget.vue'
 import ClockWidget from './ClockWidget.vue'
 import StorageWidget from './StorageWidget.vue'
 import CpuWidget from './CpuWidget.vue'
@@ -22,6 +23,7 @@ const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.val
 
 // 各 widget 组件由后续任务(T6 起)逐个 import 并登记进此 map
 const WIDGET_COMPONENTS: Record<string, Component> = {
+  ai: AiWidget,
   clock: ClockWidget,
   storage: StorageWidget,
   cpu: CpuWidget,
