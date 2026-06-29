@@ -4,7 +4,10 @@ NimoOS Web UI 的 Vue 3 重写(策略 C:并行新应用 + 路由绞杀)。与 Vu
 
 ## 开发
 ```bash
-pnpm install            # 首次:依赖 ../NimoOS-Service(file: 链接)
+# 首次:先构建共享包
+cd ../NimoOS-Service && pnpm install && pnpm build && cd ../NimoOS-New-UI
+
+pnpm install            # 依赖 ../NimoOS-Service(file: 链接)
 pnpm dev                # http://localhost:5273/app/
 pnpm test               # vitest
 pnpm build              # vue-tsc + vite build → dist/
