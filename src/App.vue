@@ -1,13 +1,16 @@
 <template>
   <div class="screen">
     <header class="topbar">
-      <a class="back" href="/">← 返回主应用</a>
+      <a class="back" href="/">{{ t('backToOld') }}</a>
     </header>
     <router-view />
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+</script>
 
 <style scoped>
 .topbar { display: flex; align-items: center; padding: 12px 16px; }

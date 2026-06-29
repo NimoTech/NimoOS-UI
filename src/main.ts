@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { initService } from '@nimotech/nimoos-service'
 import App from './App.vue'
 import { router } from './router'
+import { i18n } from './i18n'
 import { useSessionStore } from './stores/session'
 import './styles/theme.css'
 
@@ -22,5 +23,6 @@ initService({
   },
 })
 
+app.use(i18n)
 app.use(router)
 app.mount('#app')
