@@ -12,6 +12,7 @@ import type { LayoutItem } from '../../grid/types'
 import { WIDGETS } from '../../widgets/registry'
 import ClockWidget from './ClockWidget.vue'
 import StorageWidget from './StorageWidget.vue'
+import CpuWidget from './CpuWidget.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
 const meta = computed(() => WIDGETS[props.item.key])
@@ -21,6 +22,7 @@ const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.val
 const WIDGET_COMPONENTS: Record<string, Component> = {
   clock: ClockWidget,
   storage: StorageWidget,
+  cpu: CpuWidget,
 }
 const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 </script>
