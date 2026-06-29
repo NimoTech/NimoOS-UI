@@ -19,11 +19,11 @@
     "vue-router": "^4.3"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5",
+    "@vitejs/plugin-vue": "^6",
     "@vue/test-utils": "^2",
     "jsdom": "^24",
     "typescript": "^5",
-    "vite": "^5",
+    "vite": "^7",
     "vitest": "^4",
     "vue-tsc": "^2"
   }
