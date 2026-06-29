@@ -16,6 +16,7 @@ import StorageWidget from './StorageWidget.vue'
 import CpuWidget from './CpuWidget.vue'
 import GpuWidget from './GpuWidget.vue'
 import NetworkWidget from './NetworkWidget.vue'
+import EventsWidget from './EventsWidget.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
 const meta = computed(() => WIDGETS[props.item.key])
@@ -29,6 +30,7 @@ const WIDGET_COMPONENTS: Record<string, Component> = {
   cpu: CpuWidget,
   gpu: GpuWidget,
   network: NetworkWidget,
+  events: EventsWidget,
 }
 const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 </script>
