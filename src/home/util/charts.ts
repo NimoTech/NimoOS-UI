@@ -26,7 +26,3 @@ export function netPeak(up: number[], down: number[]): number {
   for (const v of down) if (v > max) max = v
   return max
 }
-
-export function chartYAxis(maxLabel: string, midLabel: string): { max: string; mid: string; zero: '0' } {
-  return { max: maxLabel, mid: midLabel, zero: '0' }
-}

@@ -21,12 +21,12 @@ const layout = useLayoutStore()
 const live = useLiveStats()
 useEvents()
 const { relayout } = useGridMeasure(gridEl, dockEl)
+watch(() => live.gpu, () => reconcileGpu(layout, live))
 
 let onResize: (() => void) | null = null
 
 onMounted(async () => {
   layout.loadInitial()
-  watch(() => live.gpu, () => reconcileGpu(layout, live))
   await nextTick()
   gridEl.value = canvas.value?.gridEl ?? null
   relayout()
