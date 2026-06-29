@@ -26,7 +26,6 @@ export const useLayoutStore = defineStore('home-layout', () => {
   }
 
   function loadInitial() {
-    uid = 1
     const stored = loadFromLocal()
     items.value = (stored && stored.length ? stored : DEFAULT).map(tag)
   }
@@ -52,7 +51,6 @@ export const useLayoutStore = defineStore('home-layout', () => {
   }
 
   function replaceAll(next: Omit<LayoutItem, 'id'>[]) {
-    uid = 1
     items.value = sanitize(next).map(tag)
   }
 

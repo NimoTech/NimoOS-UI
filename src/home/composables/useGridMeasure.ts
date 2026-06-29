@@ -16,13 +16,13 @@ export function useGridMeasure(gridEl: Ref<HTMLElement | null>, dockEl: Ref<HTML
   function measure() {
     const grid = gridEl.value
     if (!grid) return
-    gap.value = parseFloat(getComputedStyle(grid).gap) || 16
+    gap.value = parseFloat(getComputedStyle(grid).columnGap) || 16
     const screen = grid.parentElement
     if (!screen) return
     const cs = getComputedStyle(screen)
     const availW = Math.min(
       1480,
-      screen.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0'),
+      screen.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
     )
     const gridTop = grid.getBoundingClientRect().top
     const dockTop = dockEl.value ? dockEl.value.getBoundingClientRect().top : window.innerHeight
