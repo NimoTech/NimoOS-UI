@@ -1,0 +1,30 @@
+{
+  "name": "nimoos-new-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@nimotech/nimoos-service": "file:../NimoOS-Service",
+    "axios": "^1.7",
+    "pinia": "^2.1",
+    "socket.io-client": "2.5.0",
+    "vue": "^3.4",
+    "vue-i18n": "^9.9",
+    "vue-router": "^4.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5",
+    "@vue/test-utils": "^2",
+    "jsdom": "^24",
+    "typescript": "^5",
+    "vite": "^5",
+    "vitest": "^4",
+    "vue-tsc": "^2"
+  }
+}

@@ -1,0 +1,8 @@
+:root {
+  --accent: #4c8dff;
+  --good: #38c172;
+  --bg: #0d1014;
+  --fg: #e8ecf1;
+  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+body { margin: 0; background: var(--bg); color: var(--fg); }
