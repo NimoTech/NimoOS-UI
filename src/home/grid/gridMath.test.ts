@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint, planMove, applyPlan } from './gridMath'
-import type { LayoutItem, Dims } from './types'
+import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint, planMove, applyPlan, clampSize, clampToGrid } from './gridMath'
+import type { LayoutItem, Dims, WidgetSize } from './types'
 
 const DIMS: Dims = { cols: 12, rows: 8 }
 const mk = (id: string, c: number, r: number, w: number, h: number): LayoutItem =>
@@ -108,5 +108,33 @@ describe('applyPlan', () => {
     expect(layout[1]).toMatchObject({ c: 2, r: 1, w: 2, h: 2 }) // 原数组未变
     expect(out.find((i) => i.id === 'b')).toMatchObject({ c: 5, r: 5, w: 3, h: 1 })
     expect(out.find((i) => i.id === 'a')).toMatchObject({ c: 1, r: 1 })
+  })
+})
+
+const sizeOf = (key: string): WidgetSize | undefined =>
+  key === 'cpu' ? { min: [2, 2], max: [4, 3] } : undefined
+
+describe('clampSize', () => {
+  it('clamps a widget to its min/max', () => {
+    const w = { id: 'i', kind: 'widget', key: 'cpu', c: 1, r: 1, w: 4, h: 2 } as LayoutItem
+    expect(clampSize(w, 9, 1, sizeOf)).toEqual([4, 2]) // w→max4, h→min2
+  })
+  it('snaps app/folder/photo to nearest of 1x1 or 2x2', () => {
+    const a = { id: 'i', kind: 'app', key: 'files', c: 1, r: 1, w: 1, h: 1 } as LayoutItem
+    expect(clampSize(a, 2, 2, sizeOf)).toEqual([2, 2])
+    expect(clampSize(a, 1, 1, sizeOf)).toEqual([1, 1])
+    expect(clampSize(a, 2, 1, sizeOf)).toEqual([1, 1]) // 距 1×1 更近
+  })
+})
+
+describe('clampToGrid', () => {
+  it('clamps oversize + off-grid items back in bounds', () => {
+    const layout = [{ id: 'i', kind: 'app', key: 'x', c: 12, r: 8, w: 3, h: 3 } as LayoutItem]
+    const out = clampToGrid(layout, DIMS)
+    const o = out[0]
+    expect(o.w).toBeLessThanOrEqual(12)
+    expect(o.c + o.w - 1).toBeLessThanOrEqual(12)
+    expect(o.r + o.h - 1).toBeLessThanOrEqual(8)
+    expect(layout[0].c).toBe(12) // 原数组未变(纯)
   })
 })

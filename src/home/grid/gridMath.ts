@@ -1,4 +1,4 @@
-import type { LayoutItem, Dims, Pos, PlanEntry } from './types'
+import type { LayoutItem, Dims, Pos, PlanEntry, WidgetSize } from './types'
 
 // 移植 engine.js 386
 export function cells(it: { c: number; r: number; w: number; h: number }): string[] {
@@ -85,5 +85,35 @@ export function applyPlan(plan: PlanEntry[], layout: LayoutItem[]): LayoutItem[]
     const p = m[it.id]
     if (!p) return it
     return { ...it, c: p.c, r: p.r, ...(p.w ? { w: p.w } : {}), ...(p.h ? { h: p.h } : {}) }
+  })
+}
+
+// 移植 engine 441-450
+export function clampSize(
+  it: LayoutItem, w: number, h: number, sizeOf: (key: string) => WidgetSize | undefined,
+): [number, number] {
+  if (it.kind === 'widget') {
+    const spec = sizeOf(it.key)
+    if (spec) {
+      return [
+        Math.max(spec.min[0], Math.min(spec.max[0], w)),
+        Math.max(spec.min[1], Math.min(spec.max[1], h)),
+      ]
+    }
+  }
+  const d1 = Math.abs(w - 1) + Math.abs(h - 1)
+  const d2 = Math.abs(w - 2) + Math.abs(h - 2)
+  const s = d2 < d1 ? 2 : 1
+  return [s, s]
+}
+
+// 移植 engine 375-379(纯化)
+export function clampToGrid(layout: LayoutItem[], dims: Dims): LayoutItem[] {
+  return layout.map((it) => {
+    const w = Math.min(it.w, dims.cols)
+    const h = Math.min(it.h, dims.rows)
+    const c = Math.min(Math.max(1, it.c), dims.cols - w + 1)
+    const r = Math.min(Math.max(1, it.r), dims.rows - h + 1)
+    return { ...it, w, h, c, r }
   })
 }
