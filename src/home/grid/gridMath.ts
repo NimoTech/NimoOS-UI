@@ -43,3 +43,27 @@ export function firstFreeIn(occ: Set<string>, w: number, h: number, dims: Dims):
     }
   return null
 }
+
+// 移植 engine.js 410-428
+export function planFootprint(
+  c: number, r: number, w: number, h: number,
+  movId: string | null, layout: LayoutItem[], dims: Dims,
+): LayoutItem[] | null {
+  if (c < 1 || r < 1 || c + w - 1 > dims.cols || r + h - 1 > dims.rows) return null
+  const items = layout.filter((it) => it.id !== movId).map((it) => ({ ...it }))
+  const occ = new Set<string>()
+  for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) occ.add(`${c + x},${r + y}`)
+  const displaced: LayoutItem[] = []
+  items.forEach((it) => {
+    const cs = cells(it)
+    if (cs.some((k) => occ.has(k))) displaced.push(it)
+    else cs.forEach((k) => occ.add(k))
+  })
+  for (const it of displaced) {
+    const pos = firstFreeIn(occ, it.w, it.h, dims)
+    if (!pos) return null
+    it.c = pos.c; it.r = pos.r
+    cells(it).forEach((k) => occ.add(k))
+  }
+  return items
+}

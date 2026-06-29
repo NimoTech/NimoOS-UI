@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cells, occupiedSet, fits, firstFree, firstFreeIn } from './gridMath'
+import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint } from './gridMath'
 import type { LayoutItem, Dims } from './types'
 
 const DIMS: Dims = { cols: 12, rows: 8 }
@@ -56,5 +56,31 @@ describe('firstFreeIn', () => {
   it('finds a slot avoiding the occupied set', () => {
     const occ = new Set<string>(['1,1'])
     expect(firstFreeIn(occ, 1, 1, DIMS)).toEqual({ c: 2, r: 1 })
+  })
+})
+
+describe('planFootprint', () => {
+  it('returns boundary null when target is off-grid', () => {
+    expect(planFootprint(12, 1, 2, 1, null, [], DIMS)).toBeNull()
+  })
+  it('leaves non-overlapping items untouched', () => {
+    const layout = [mk('a', 1, 1, 1, 1), mk('b', 5, 5, 1, 1)]
+    const out = planFootprint(8, 8, 1, 1, null, layout, DIMS)!
+    expect(out.find((i) => i.id === 'a')).toMatchObject({ c: 1, r: 1 })
+    expect(out.find((i) => i.id === 'b')).toMatchObject({ c: 5, r: 5 })
+  })
+  it('displaces an overlapped item to the first free slot', () => {
+    const layout = [mk('a', 1, 1, 1, 1)] // 占 1,1
+    const out = planFootprint(1, 1, 1, 1, null, layout, DIMS)! // 新项目要占 1,1 → a 让位
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe('a')
+    expect(out[0]).toMatchObject({ c: 2, r: 1 }) // 让到下一个行优先空位
+  })
+  it('returns null when a displaced item cannot be re-placed', () => {
+    // 整张网格被占满 → 任意落子都无法让位
+    const full: LayoutItem[] = []
+    let id = 0
+    for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
+    expect(planFootprint(1, 1, 1, 1, null, full, DIMS)).toBeNull()
   })
 })
