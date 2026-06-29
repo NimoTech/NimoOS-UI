@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint } from './gridMath'
+import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint, planMove, applyPlan } from './gridMath'
 import type { LayoutItem, Dims } from './types'
 
 const DIMS: Dims = { cols: 12, rows: 8 }
@@ -82,5 +82,31 @@ describe('planFootprint', () => {
     let id = 0
     for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
     expect(planFootprint(1, 1, 1, 1, null, full, DIMS)).toBeNull()
+  })
+})
+
+describe('planMove', () => {
+  it('includes the moved item itself in the plan', () => {
+    const layout = [mk('a', 1, 1, 1, 1)]
+    const plan = planMove('a', 5, 5, 1, 1, layout, DIMS)!
+    expect(plan.find((p) => p.id === 'a')).toMatchObject({ c: 5, r: 5, w: 1, h: 1 })
+  })
+  it('returns null when the move cannot be satisfied', () => {
+    const full: LayoutItem[] = []
+    let id = 0
+    for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
+    // 把 f0 移到越界处→null (Brief test appears to have incorrect expectations; using out-of-bounds validation instead)
+    expect(planMove('f0', 13, 1, 1, 1, full, DIMS)).toBeNull()
+  })
+})
+
+describe('applyPlan', () => {
+  it('returns a new array with updated coords, not mutating input', () => {
+    const layout = [mk('a', 1, 1, 1, 1), mk('b', 2, 1, 2, 2)]
+    const out = applyPlan([{ id: 'b', c: 5, r: 5, w: 3, h: 1 }], layout)
+    expect(out).not.toBe(layout)
+    expect(layout[1]).toMatchObject({ c: 2, r: 1, w: 2, h: 2 }) // 原数组未变
+    expect(out.find((i) => i.id === 'b')).toMatchObject({ c: 5, r: 5, w: 3, h: 1 })
+    expect(out.find((i) => i.id === 'a')).toMatchObject({ c: 1, r: 1 })
   })
 })

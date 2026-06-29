@@ -1,4 +1,4 @@
-import type { LayoutItem, Dims, Pos } from './types'
+import type { LayoutItem, Dims, Pos, PlanEntry } from './types'
 
 // 移植 engine.js 386
 export function cells(it: { c: number; r: number; w: number; h: number }): string[] {
@@ -66,4 +66,24 @@ export function planFootprint(
     cells(it).forEach((k) => occ.add(k))
   }
   return items
+}
+
+// 移植 engine.js 430-434
+export function planMove(
+  movId: string, c: number, r: number, w: number, h: number,
+  layout: LayoutItem[], dims: Dims,
+): PlanEntry[] | null {
+  const others = planFootprint(c, r, w, h, movId, layout, dims)
+  if (!others) return null
+  return (others as PlanEntry[]).concat([{ id: movId, c, r, w, h }])
+}
+
+// 纯:返回新数组,不改入参(原型 engine 436-439 是就地改;此处纯化由 store 替换)
+export function applyPlan(plan: PlanEntry[], layout: LayoutItem[]): LayoutItem[] {
+  const m = Object.fromEntries(plan.map((p) => [p.id, p]))
+  return layout.map((it) => {
+    const p = m[it.id]
+    if (!p) return it
+    return { ...it, c: p.c, r: p.r, ...(p.w ? { w: p.w } : {}), ...(p.h ? { h: p.h } : {}) }
+  })
 }
