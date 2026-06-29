@@ -6,21 +6,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import GridCanvas from '../home/components/GridCanvas.vue'
 import { useLayoutStore } from '../home/stores/layout'
 import { useGridMeasure } from '../home/composables/useGridMeasure'
+import { useLiveStats } from '../home/composables/useLiveStats'
+import { useEvents } from '../home/composables/useEvents'
+import { reconcileGpu } from '../home/composables/reconcileGpu'
 
 const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dockEl = ref<HTMLElement | null>(null)
 const gridEl = ref<HTMLElement | null>(null)
 const layout = useLayoutStore()
+const live = useLiveStats()
+useEvents()
 const { relayout } = useGridMeasure(gridEl, dockEl)
 
 let onResize: (() => void) | null = null
 
 onMounted(async () => {
   layout.loadInitial()
+  watch(() => live.gpu, () => reconcileGpu(layout, live))
   await nextTick()
   gridEl.value = canvas.value?.gridEl ?? null
   relayout()
