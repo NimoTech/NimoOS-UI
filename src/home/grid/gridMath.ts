@@ -1,4 +1,4 @@
-import type { LayoutItem, Dims } from './types'
+import type { LayoutItem, Dims, Pos } from './types'
 
 // 移植 engine.js 386
 export function cells(it: { c: number; r: number; w: number; h: number }): string[] {
@@ -23,4 +23,23 @@ export function fits(
   const occ = occupiedSet(layout, exceptId)
   for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) if (occ.has(`${c + x},${r + y}`)) return false
   return true
+}
+
+// 移植 engine.js 394-397
+export function firstFree(w: number, h: number, layout: LayoutItem[], dims: Dims): Pos | null {
+  for (let r = 1; r <= dims.rows - h + 1; r++)
+    for (let c = 1; c <= dims.cols - w + 1; c++)
+      if (fits(c, r, w, h, null, layout, dims)) return { c, r }
+  return null
+}
+
+// 移植 engine.js 399-406
+export function firstFreeIn(occ: Set<string>, w: number, h: number, dims: Dims): Pos | null {
+  for (let r = 1; r <= dims.rows - h + 1; r++)
+    for (let c = 1; c <= dims.cols - w + 1; c++) {
+      let ok = true
+      for (let x = 0; x < w && ok; x++) for (let y = 0; y < h && ok; y++) if (occ.has(`${c + x},${r + y}`)) ok = false
+      if (ok) return { c, r }
+    }
+  return null
 }

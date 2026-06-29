@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cells, occupiedSet, fits } from './gridMath'
+import { cells, occupiedSet, fits, firstFree, firstFreeIn } from './gridMath'
 import type { LayoutItem, Dims } from './types'
 
 const DIMS: Dims = { cols: 12, rows: 8 }
@@ -35,5 +35,26 @@ describe('fits', () => {
   })
   it('ignores the excepted item when checking overlap', () => {
     expect(fits(1, 1, 2, 2, 'a', layout, DIMS)).toBe(true)
+  })
+})
+
+describe('firstFree', () => {
+  it('returns row-major first free slot', () => {
+    const layout = [mk('a', 1, 1, 1, 1)]
+    expect(firstFree(1, 1, layout, DIMS)).toEqual({ c: 2, r: 1 })
+  })
+  it('returns null when nothing fits', () => {
+    // 填满整张 12x8 网格
+    const full: LayoutItem[] = []
+    let id = 0
+    for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
+    expect(firstFree(1, 1, full, DIMS)).toBeNull()
+  })
+})
+
+describe('firstFreeIn', () => {
+  it('finds a slot avoiding the occupied set', () => {
+    const occ = new Set<string>(['1,1'])
+    expect(firstFreeIn(occ, 1, 1, DIMS)).toEqual({ c: 2, r: 1 })
   })
 })
