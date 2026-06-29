@@ -6,7 +6,8 @@
     :data-kind="item.kind"
     :style="style"
   >
-    <div v-if="item.kind === 'photo'" class="photo-fill" :style="{ background: item.key }" />
+    <WidgetCard v-if="item.kind === 'widget'" :item="item" />
+    <div v-else-if="item.kind === 'photo'" class="photo-fill" :style="{ background: item.key }" />
     <span v-else class="item-label">{{ label }}</span>
   </div>
 </template>
@@ -16,6 +17,7 @@ import { computed } from 'vue'
 import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
 import { SYSTEM_APPS } from '../apps/systemApps'
+import WidgetCard from './widgets/WidgetCard.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
 
