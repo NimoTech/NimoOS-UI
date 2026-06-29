@@ -10,13 +10,16 @@
 import { computed, type Component } from 'vue'
 import type { LayoutItem } from '../../grid/types'
 import { WIDGETS } from '../../widgets/registry'
+import ClockWidget from './ClockWidget.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
 const meta = computed(() => WIDGETS[props.item.key])
 const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.icon ?? ''}</svg>`)
 
 // 各 widget 组件由后续任务(T6 起)逐个 import 并登记进此 map
-const WIDGET_COMPONENTS: Record<string, Component> = {}
+const WIDGET_COMPONENTS: Record<string, Component> = {
+  clock: ClockWidget,
+}
 const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 </script>
 <style scoped>
