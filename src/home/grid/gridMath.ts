@@ -84,7 +84,7 @@ export function applyPlan(plan: PlanEntry[], layout: LayoutItem[]): LayoutItem[]
   return layout.map((it) => {
     const p = m[it.id]
     if (!p) return it
-    return { ...it, c: p.c, r: p.r, ...(p.w ? { w: p.w } : {}), ...(p.h ? { h: p.h } : {}) }
+    return { ...it, c: p.c, r: p.r, ...(p.w !== undefined ? { w: p.w } : {}), ...(p.h !== undefined ? { h: p.h } : {}) }
   })
 }
 

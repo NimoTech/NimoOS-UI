@@ -57,6 +57,11 @@ describe('firstFreeIn', () => {
     const occ = new Set<string>(['1,1'])
     expect(firstFreeIn(occ, 1, 1, DIMS)).toEqual({ c: 2, r: 1 })
   })
+  it('returns null when no slot is free', () => {
+    const occ = new Set<string>()
+    for (let c = 1; c <= 12; c++) for (let r = 1; r <= 8; r++) occ.add(`${c},${r}`)
+    expect(firstFreeIn(occ, 1, 1, DIMS)).toBeNull()
+  })
 })
 
 describe('planFootprint', () => {
