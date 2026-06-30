@@ -8,6 +8,7 @@
   >
     <WidgetCard v-if="item.kind === 'widget'" :item="item" />
     <div v-else-if="item.kind === 'photo'" class="photo-fill" :style="{ background: item.key }" />
+    <AppTile v-else-if="item.kind === 'app'" :item="item" />
     <span v-else class="item-label">{{ label }}</span>
   </div>
 </template>
@@ -18,6 +19,7 @@ import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
 import { SYSTEM_APPS } from '../apps/systemApps'
 import WidgetCard from './widgets/WidgetCard.vue'
+import AppTile from './AppTile.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
 

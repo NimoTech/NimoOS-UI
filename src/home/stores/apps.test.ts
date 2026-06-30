@@ -1,0 +1,24 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+import { useAppsStore } from './apps'
+
+describe('useAppsStore', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+  it('exposes the 6 system apps immediately', () => {
+    const s = useAppsStore()
+    expect(s.app('files')?.system).toBe(true)
+    expect(s.app('files')?.name).toBe('文件')
+    expect(s.order).toContain('appstore')
+  })
+  it('merges container apps without overwriting system keys, picks zh_cn title', () => {
+    const s = useAppsStore()
+    s.setApps([
+      { name: 'jellyfin', title: { zh_cn: '影音', en_us: 'Jellyfin' }, icon: 'http://x/i.png', status: 'running', scheme: 'http', port: 8096, app_type: 'WebApp' },
+      { name: 'files' }, // 不能覆盖系统 files
+    ] as any)
+    expect(s.app('jellyfin')?.name).toBe('影音')
+    expect(s.app('jellyfin')?.icon).toBe('http://x/i.png')
+    expect(s.app('jellyfin')?.system).toBe(false)
+    expect(s.app('files')?.system).toBe(true) // 系统 files 未被覆盖
+  })
+})
