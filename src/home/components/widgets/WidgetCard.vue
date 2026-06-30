@@ -66,9 +66,11 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(148deg, rgba(255, 255, 255, 0.34), transparent 26%);
+  /* thin top-edge gloss only — kept small so it doesn't read as a bright patch
+     covering the top-left title/content (was transparent 26% / opacity .55) */
+  background: linear-gradient(148deg, rgba(255, 255, 255, 0.16), transparent 14%);
   mix-blend-mode: screen;
-  opacity: 0.55;
+  opacity: 0.4;
 }
 
 /* ── Hover: lift + shadow upgrade + inner accent glow ───────────────────── */

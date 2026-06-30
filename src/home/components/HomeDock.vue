@@ -12,7 +12,7 @@
         <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" />
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="dock.expanded.value" @click="dock.toggleExpanded()">
-        <span class="dock-ic ic-all">▦</span><span class="dock-label">{{ dock.expanded.value ? '完成' : '所有应用' }}</span>
+        <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ dock.expanded.value ? '完成' : '所有应用' }}</span>
       </button>
     </div>
     <!-- floating drag ghost -->
