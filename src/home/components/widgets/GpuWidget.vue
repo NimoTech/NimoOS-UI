@@ -27,12 +27,15 @@ const vram = computed(() => g.value && g.value.memory_total != null ? fmtSize(g.
 const temp = computed(() => g.value && g.value.temperature != null ? Math.round(g.value.temperature) + '℃' : '—')
 </script>
 <style scoped>
-.ring-row.solo { display: flex; justify-content: center; }
-.ring-row .ring { width: clamp(44px, 36cqmin, 96px); }
-.pill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
-.pill { background: rgba(255,255,255,.05); border-radius: 8px; padding: 4px 8px; text-align: center; }
-.pill s { display: block; font-size: 10px; opacity: .6; text-decoration: none; }
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
-.stat { display: flex; flex-direction: column; }
-.stat span { font-size: 10px; opacity: .6; }
+/* base.css:142,147,156-158,186-192 — gpu widget (ring-row.solo + stats + pill-grid) */
+.ring-row.solo { grid-template-columns: 1fr; place-items: center; }
+.stats { display: grid; gap: 2px; }
+.stat { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(11px, 5cqmin, 14px); color: var(--fg-muted); padding: 4px 0; }
+.stat b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
+.pill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.card-in > .pill-grid { flex: 1; grid-auto-rows: 1fr; }
+.card-in > .pill-grid .pill { display: flex; flex-direction: column; justify-content: center; }
+.pill { padding: 9px 11px; border: 1px solid var(--inner-border); border-radius: var(--radius-sm); background: var(--inner-bg); }
+.pill s { text-decoration: none; display: block; font-size: clamp(9px, 4.5cqmin, 12px); color: var(--fg-faint); }
+.pill b { display: block; margin-top: 4px; font-size: clamp(12px, 6cqmin, 16px); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); color: var(--num-color, var(--fg)); }
 </style>

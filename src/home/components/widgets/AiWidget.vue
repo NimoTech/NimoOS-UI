@@ -30,13 +30,22 @@ function send(preset?: string) {
 }
 </script>
 <style scoped>
+/* base.css:198-218 — AI widget interior + skin-spatial.css:160 orb box-shadow */
 .ai { display: flex; flex-direction: column; gap: 8px; height: 100%; }
-.ai-orb { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #8fd3ff, #4c8dff 60%, #2a5bd0); }
-.ai-copy { font-size: clamp(13px, 8cqmin, 20px); }
-.ai-copy.small { font-size: 13px; }
-.ai-send { display: flex; gap: 6px; }
-.ai-input { flex: 1; min-width: 0; background: rgba(255,255,255,.08); border: 0; border-radius: 10px; padding: 6px 10px; color: inherit; }
-.ai-go { background: var(--accent); color: #061018; border: 0; border-radius: 10px; width: 32px; cursor: pointer; }
-.prompts { display: flex; flex-direction: column; gap: 4px; }
-.prompt { text-align: left; font-size: 11px; padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,.05); border: 0; color: inherit; cursor: pointer; }
+.ai-orb { width: clamp(48px, 24cqmin, 96px); height: clamp(48px, 24cqmin, 96px); margin: 4px auto 14px; border-radius: 50%; background: radial-gradient(circle at 36% 34%, #fff 0 4px, transparent 5px), radial-gradient(circle at 60% 34%, #fff 0 4px, transparent 5px), radial-gradient(circle at 64% 22%, var(--accent2), transparent 30%), radial-gradient(circle at 26% 80%, var(--accent), transparent 36%), var(--orb-core, #1a2050); box-shadow: 0 0 46px var(--orb-glow), inset 0 0 22px rgba(255,255,255,.3); animation: pulse 4s var(--ease, ease) infinite; }
+.ai-copy { text-align: center; font-size: clamp(12px, 6cqmin, 16px); font-weight: 500; color: var(--fg-muted); }
+.card-in:has(.ai-copy.small) { justify-content: center; gap: 10px; }
+.ai-copy.small { font-size: clamp(13px, 7cqmin, 17px); }
+.prompts { display: grid; gap: 8px; margin-top: 14px; }
+.prompt { display: flex; align-items: center; gap: 9px; min-height: clamp(32px, 14cqmin, 42px); padding: 0 13px; border: 1px solid var(--inner-border); border-radius: var(--prompt-radius, 999px); background: var(--inner-bg); font-size: clamp(11.5px, 5cqmin, 14px); cursor: pointer; transition: background .18s, border-color .18s; }
+.prompt:hover { background: var(--inner-bg-hi); }
+.dot { width: clamp(18px, 9cqmin, 24px); height: clamp(18px, 9cqmin, 24px); flex: 0 0 auto; border-radius: 7px; display: grid; place-items: center; font-size: clamp(10px, 4.5cqmin, 12px); font-weight: 700; color: #fff; background: linear-gradient(145deg, var(--accent2), var(--accent)); }
+.ai-send { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 4px 4px 4px 14px; border: 1px solid var(--inner-border); border-radius: var(--prompt-radius, 999px); background: var(--inner-bg); }
+.ai-send:focus-within { border-color: var(--accent); }
+.ai-input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: clamp(11.5px, 5cqmin, 14px); outline: none; }
+.ai-input::placeholder { color: var(--fg-faint); }
+.ai-go { flex: 0 0 auto; display: grid; place-items: center; width: clamp(28px, 12cqmin, 36px); height: clamp(28px, 12cqmin, 36px); border: 0; border-radius: 50%; background: linear-gradient(145deg, var(--accent2), var(--accent)); color: var(--on-accent, #fff); cursor: pointer; transition: filter .18s, transform .12s var(--ease, ease); }
+.ai-go:hover { filter: brightness(1.08); }
+.ai-go:active { transform: scale(.94); }
+.ai-go .icon { width: 56%; height: 56%; stroke: currentColor; }
 </style>

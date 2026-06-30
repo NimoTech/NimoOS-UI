@@ -14,8 +14,8 @@ const arcStyle = computed(() => ({
 }))
 </script>
 <style scoped>
-.ring { aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; min-width: 0; }
-.ring > div { text-align: center; }
-.ring b { display: block; font-size: clamp(14px, 7cqmin, 28px); }
-.ring s { font-size: 11px; opacity: .7; text-decoration: none; }
+/* base.css:142-145 — ring gauge (conic-gradient w/ design tokens) */
+.ring { position: relative; display: grid; place-items: center; width: clamp(64px, 42cqmin, 124px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, var(--ring-hole) 0 56%, transparent 57%), conic-gradient(var(--good) 0 68%, var(--accent) 68% 84%, var(--ring-track) 84% 100%); min-width: 0; }
+.ring b { font-size: clamp(16px, 11cqmin, 26px); font-weight: 600; font-family: var(--num-font, inherit); }
+.ring s { text-decoration: none; display: block; margin-top: 2px; font-size: clamp(10px, 5cqmin, 13px); color: var(--fg-muted); }
 </style>

@@ -30,11 +30,10 @@ const healthTxt = computed(() => {
 })
 </script>
 <style scoped>
-.ring-row { display: flex; gap: 12px; align-items: center; height: 100%; }
-.ring-row.solo { justify-content: center; }
-.ring-row > .ring { width: clamp(48px, 40cqmin, 110px); }
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; flex: 1; }
-.stat { display: flex; flex-direction: column; }
-.stat span { font-size: 10px; opacity: .6; }
-.stat b { font-size: 13px; }
+/* base.css:142,146-158 — storage ring-row layout */
+.ring-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; flex: 1; }
+.ring-row.solo { grid-template-columns: 1fr; place-items: center; }
+.stats { display: grid; gap: 2px; }
+.stat { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(11px, 5cqmin, 14px); color: var(--fg-muted); padding: 4px 0; }
+.stat b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
 </style>

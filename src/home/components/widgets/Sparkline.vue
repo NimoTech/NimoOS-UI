@@ -18,12 +18,16 @@ const props = defineProps<{ points: number[] }>()
 const pts = computed(() => sparklinePoints(props.points))
 </script>
 <style scoped>
-.chart-box { display: flex; gap: 4px; flex: 1; min-height: 0; }
-.chart-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; opacity: .5; }
-.chart-plot { flex: 1; min-height: 24px; }
-.spark-line { width: 100%; height: 100%; }
-.spark-line polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; }
-.spark-line .fill { fill: var(--accent); opacity: .12; }
-.spark-line .grid { stroke: rgba(255,255,255,.12); stroke-width: .5; }
-.chart-empty { opacity: .5; font-size: 11px; }
+/* base.css:166-175 (chart-box/chart-y/chart-plot shared) + 425-428 (spark-line stroke/fill) */
+.chart-box { display: flex; gap: 8px; align-items: stretch; height: clamp(40px, 24cqmin, 60px); margin: 2px 0 10px; }
+.chart-box.grow { flex: 1 1 0; height: 0; min-height: 0; }
+.chart-y { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: space-between; text-align: right; white-space: nowrap; font-size: clamp(8px, 4.5cqmin, 11px); line-height: 1; color: var(--fg-faint); font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
+.chart-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: 12px; }
+.chart-plot { flex: 1 1 auto; position: relative; min-width: 0; min-height: 0; }
+.chart-plot .spark-line { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; }
+.spark-line .grid { stroke: var(--inner-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* base.css:425-428 */
+.spark-line { display: block; }
+.spark-line polyline { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.spark-line .fill { fill: var(--spark-fill); stroke: none; }
 </style>

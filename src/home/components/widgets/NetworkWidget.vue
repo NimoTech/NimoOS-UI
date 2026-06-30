@@ -27,10 +27,13 @@ const down = computed(() => hist.value.down.length ? hist.value.down[hist.value.
 const peak = computed(() => { const p = netPeak(hist.value.up, hist.value.down); return p > 1 ? p : 0 })
 </script>
 <style scoped>
-.net-devs { display: flex; gap: 4px; flex-wrap: wrap; }
-.net-dev { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.05); border: 0; color: inherit; cursor: pointer; }
-.net-dev.on { background: var(--accent); color: #061018; }
-.net-devs.single { font-size: 10px; opacity: .6; }
-.net-legend { display: flex; gap: 10px; font-size: 11px; margin-top: 4px; }
-.net-up { color: var(--accent); } .net-down { color: var(--good); } .net-peak { opacity: .6; }
+/* base.css:160-196 — network widget interiors */
+.net-devs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.net-dev { padding: 3px 10px; font-size: clamp(10px, 5cqmin, 12px); border-radius: 999px; border: 1px solid var(--inner-border); background: var(--inner-bg); color: var(--fg-muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+.net-dev.on { border-color: var(--accent); color: var(--accent); }
+.net-devs.single { color: var(--fg-muted); font-size: 12px; }
+.net-legend { display: flex; gap: 16px; align-items: baseline; font-size: clamp(11px, 6cqmin, 14px); font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
+.net-up { color: rgb(0, 143, 251); }
+.net-down { color: rgb(0, 227, 150); }
+.net-peak { color: var(--fg-faint); font-size: clamp(9px, 5cqmin, 12px); }
 </style>

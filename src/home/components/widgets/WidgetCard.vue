@@ -117,4 +117,14 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   stroke: currentColor;
   stroke-width: 1.7;
 }
+
+/* ── Per-widget card-level overrides (base.css:132,153-155,228) ─────────── */
+/* Clock: center card-in vertically */
+.card.w-clock .card-in { justify-content: center; }
+/* CPU: ring + chart-box size overrides (base.css:153-155) */
+.card.w-cpu :deep(.ring) { width: clamp(56px, 34cqmin, 96px); }
+.card.w-cpu :deep(.ring b) { font-size: clamp(15px, 9cqmin, 22px); }
+.card.w-cpu :deep(.chart-box) { flex: 1 1 0; height: 0; min-height: clamp(28px, 16cqmin, 40px); margin-bottom: 2px; }
+/* Events: tighter gap between events list (base.css:228) */
+.card.w-events .card-in { gap: 11px; }
 </style>

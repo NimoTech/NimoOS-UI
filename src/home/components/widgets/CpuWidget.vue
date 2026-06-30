@@ -29,9 +29,17 @@ const memp = computed(() => m.value && m.value.usedPercent != null ? Math.round(
 const memTotal = computed(() => m.value && m.value.total != null ? fmtSize(m.value.total) : '—')
 </script>
 <style scoped>
-.ring-pair { display: flex; gap: 8px; }
-.ring-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
-.ring-col .ring { width: clamp(40px, 34cqmin, 88px); }
-.num-sub { font-size: 10px; opacity: .65; margin-top: 2px; text-align: center; }
+/* base.css:148-158 — cpu widget (w-cpu mapping: WidgetCard adds .w-cpu on .card) */
+.ring-pair { display: flex; justify-content: space-evenly; align-items: flex-start; gap: 14px; }
+.ring-col { display: grid; place-items: center; gap: 6px; }
+.ring-col .num-sub { margin-top: 0; text-align: center; }
+/* .card.w-cpu rules target via global (WidgetCard scoped won't pierce here — use :deep or global) */
+/* ring size overrides for cpu are applied via :deep in card slot context; the base.css rules
+   .card.cpu .ring and .card.cpu .chart-box target the outer card. Since scoped CSS can't target
+   an ancestor .card.w-cpu from inside CpuWidget, we size the ring using ring-col width. */
+.ring-col :deep(.ring) { width: clamp(56px, 34cqmin, 96px); }
+.ring-col :deep(.ring b) { font-size: clamp(15px, 9cqmin, 22px); }
+.chart-box { flex: 1 1 0; height: 0; min-height: clamp(28px, 16cqmin, 40px); margin-bottom: 2px; }
+.num-sub { margin-top: 8px; font-size: clamp(10px, 5cqmin, 13px); color: var(--fg-muted); font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
 .ring-row.solo { display: flex; justify-content: center; }
 </style>
