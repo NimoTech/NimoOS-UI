@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
-import { useDock } from './useDock'
+import { useDock, __resetDockForTest } from './useDock'
 describe('useDock.reorder', () => {
-  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetDockForTest() })
   it('moves a more-key into favorites before a given key', () => {
     useAppsStore()
     const d = useDock()

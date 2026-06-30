@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { useLayoutStore } from '../stores/layout'
+import { __resetAddPanelForTest } from '../composables/useAddPanel'
 import AddPanel from './AddPanel.vue'
 describe('AddPanel spawn (click = pin)', () => {
-  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetAddPanelForTest() })
   it('a quick pointerdown+up (no move) on a widget card toggles it onto the grid', async () => {
     const layout = useLayoutStore(); layout.replaceAll([])
     vi.spyOn(layout, 'save').mockImplementation(() => {})

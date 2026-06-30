@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useLayoutStore } from '../stores/layout'
-import { useAddPanel } from './useAddPanel'
+import { useAddPanel, __resetAddPanelForTest } from './useAddPanel'
 const DIMS = { cols: 12, rows: 8 }
 
 describe('useAddPanel', () => {
-  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetAddPanelForTest() })
   it('pinToFree adds an app at the first free slot', () => {
     const layout = useLayoutStore(); layout.replaceAll([]) // 空网格
     vi.spyOn(layout, 'save').mockImplementation(() => {})

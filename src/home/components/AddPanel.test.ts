@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { useLayoutStore } from '../stores/layout'
+import { __resetAddPanelForTest } from '../composables/useAddPanel'
 import AddPanel from './AddPanel.vue'
 
 describe('AddPanel', () => {
-  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetAddPanelForTest() })
   it('widget tab lists widgets and marks used ones', async () => {
     const layout = useLayoutStore(); layout.replaceAll([{ kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 }])
     const w = mount(AddPanel, { props: { open: true } })

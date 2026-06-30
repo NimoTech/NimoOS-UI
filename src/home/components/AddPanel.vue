@@ -71,7 +71,7 @@
         class="lib-folder-row"
       >
         <span class="lib-folder-name" @click="enterFolder(folder.path)">{{ folder.name }}</span>
-        <button class="lib-pin-btn" @click="ap.pinToFree({ kind: 'folder', key: folder.name, w: 1, h: 1 })">拖到主页</button>
+        <button class="lib-pin-btn" @click="ap.pinToFree({ kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
       </div>
     </div>
 
@@ -105,13 +105,14 @@ import { useLiveStatsStore } from '../stores/liveStats'
 import { WIDGETS } from '../widgets/registry'
 import type { Kind } from '../grid/types'
 
-const props = defineProps<{ open: boolean; cell?: number; gap?: number }>()
+const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number }>()
 defineEmits<{ close: [] }>()
 
 type SpawnDesc = { kind: Kind; key: string; w: number; h: number }
 
 // Singleton — shares state with Home.vue's useAddPanel call
-const ap = useAddPanel({ cols: 12, rows: 8 })
+// cols/rows from props (passed by Home.vue) are used for spawn clamping
+const ap = useAddPanel({ cols: props.cols ?? 12, rows: props.rows ?? 8 })
 const appsStore = useAppsStore()
 
 // ─── Spawn drag/click logic ───────────────────────────────────────────────────
@@ -158,8 +159,10 @@ function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
           ev.clientY >= rect.top && ev.clientY <= rect.bottom
         ) {
           const step = CELL + GAP
-          const tc = Math.max(0, Math.floor((ev.clientX - rect.left) / step))
-          const tr = Math.max(0, Math.floor((ev.clientY - rect.top) / step))
+          const cols = props.cols ?? 12
+          const rows = props.rows ?? 8
+          const tc = Math.max(1, Math.min(cols - start.desc.w + 1, Math.round((ev.clientX - rect.left - CELL / 2) / step) + 1))
+          const tr = Math.max(1, Math.min(rows - start.desc.h + 1, Math.round((ev.clientY - rect.top  - CELL / 2) / step) + 1))
           ap.spawnPlace(start.desc, tc, tr)
           return
         }
