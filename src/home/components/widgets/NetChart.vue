@@ -24,7 +24,8 @@ const d = computed(() => netChartPoints(props.down, peak.value))
 </script>
 <style scoped>
 /* base.css:166-181 — chart container + net-chart SVG rules */
-.chart-box { display: flex; gap: 8px; align-items: stretch; height: clamp(40px, 24cqmin, 60px); margin: 2px 0 10px; }
+/* grow to fill the card height between the device chips and the legend */
+.chart-box { display: flex; gap: 8px; align-items: stretch; flex: 1 1 auto; min-height: clamp(40px, 22cqmin, 60px); margin: 2px 0 10px; }
 .chart-box.grow { flex: 1 1 0; height: 0; min-height: 0; }
 .chart-y { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: space-between; text-align: right; white-space: nowrap; font-size: clamp(8px, 4.5cqmin, 11px); line-height: 1; color: var(--fg-faint); font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
 .chart-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: 12px; }

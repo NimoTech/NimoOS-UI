@@ -98,6 +98,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAddPanel } from '../composables/useAddPanel'
+import { useHomeUiStore } from '../stores/homeUi'
 import { useAppsStore } from '../stores/apps'
 import { useFoldersStore } from '../stores/folders'
 import { usePhotosStore } from '../stores/photos'
@@ -114,6 +115,23 @@ type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string 
 // cols/rows from props (passed by Home.vue) are used for spawn clamping
 const ap = useAddPanel({ cols: props.cols ?? 12, rows: props.rows ?? 8 })
 const appsStore = useAppsStore()
+const homeUi = useHomeUiStore()
+
+// Pointer → grid cell, shared by the live drop-ghost and the final placement.
+// Returns null when the pointer isn't over the grid.
+function targetCellAt(ev: PointerEvent, desc: SpawnDesc): { tc: number; tr: number } | null {
+  const grid = props.gridEl
+  if (!grid) return null
+  const rect = grid.getBoundingClientRect()
+  if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return null
+  const cell = props.cell ?? 60
+  const step = cell + (props.gap ?? 16)
+  const cols = props.cols ?? 12
+  const rows = props.rows ?? 8
+  const tc = Math.max(1, Math.min(cols - desc.w + 1, Math.round((ev.clientX - rect.left - cell / 2) / step) + 1))
+  const tr = Math.max(1, Math.min(rows - desc.h + 1, Math.round((ev.clientY - rect.top - cell / 2) / step) + 1))
+  return { tc, tr }
+}
 
 // ─── Spawn drag/click logic ───────────────────────────────────────────────────
 // State for the in-progress spawn gesture
@@ -127,55 +145,31 @@ function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
     if (!spawnStart) return
     const dx = ev.clientX - spawnStart.x
     const dy = ev.clientY - spawnStart.y
-    if (!spawnStart.moved && Math.sqrt(dx * dx + dy * dy) > 6) {
-      spawnStart.moved = true
-      // Enter edit mode when drag starts (best-effort — ap may not have toggleEdit)
-    }
+    if (!spawnStart.moved && Math.sqrt(dx * dx + dy * dy) > 6) spawnStart.moved = true
+    if (!spawnStart.moved) return
+    // Live drop-ghost: highlight the cell the item would land in (cleared on pointerup)
+    const t = targetCellAt(ev, spawnStart.desc)
+    homeUi.spawnGhost = t ? { c: t.tc, r: t.tr, w: spawnStart.desc.w, h: spawnStart.desc.h, ok: true } : null
   }
 
   function onUp(ev: PointerEvent) {
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
+    homeUi.spawnGhost = null
     if (!spawnStart) return
     const start = spawnStart
     spawnStart = null
 
-    if (!start.moved) {
-      // Click path: pin/toggle (no drag)
-      if (start.desc.kind === 'widget') {
-        ap.toggleWidget(start.desc.key, start.desc.w, start.desc.h)
-      } else {
-        ap.pinToFree(start.desc)
-      }
+    if (start.moved) {
+      // Drag path: place at the dropped cell when released over the grid
+      const t = targetCellAt(ev, start.desc)
+      if (t) { ap.spawnPlace(start.desc, t.tc, t.tr); return }
+    }
+    // Click (no move) or released outside the grid → pin/toggle to a free cell
+    if (start.desc.kind === 'widget') {
+      ap.toggleWidget(start.desc.key, start.desc.w, start.desc.h)
     } else {
-      // Drag path: compute target cell from pointer position and place
-      const CELL = props.cell ?? 60 // real cell size passed from Home via props; falls back to ~60px
-      const GAP = props.gap ?? 16   // real gap passed from Home via props
-      // Use the actual grid element passed from Home (was a dead `.grid-canvas`
-      // query — the grid section has class `grid`, so it never matched and every
-      // drag silently fell through to the firstFree/toggle fallback below).
-      const grid = props.gridEl ?? null
-      if (grid) {
-        const rect = grid.getBoundingClientRect()
-        if (
-          ev.clientX >= rect.left && ev.clientX <= rect.right &&
-          ev.clientY >= rect.top && ev.clientY <= rect.bottom
-        ) {
-          const step = CELL + GAP
-          const cols = props.cols ?? 12
-          const rows = props.rows ?? 8
-          const tc = Math.max(1, Math.min(cols - start.desc.w + 1, Math.round((ev.clientX - rect.left - CELL / 2) / step) + 1))
-          const tr = Math.max(1, Math.min(rows - start.desc.h + 1, Math.round((ev.clientY - rect.top  - CELL / 2) / step) + 1))
-          ap.spawnPlace(start.desc, tc, tr)
-          return
-        }
-      }
-      // Pointer released outside grid — fall back to pinToFree
-      if (start.desc.kind === 'widget') {
-        ap.toggleWidget(start.desc.key, start.desc.w, start.desc.h)
-      } else {
-        ap.pinToFree(start.desc)
-      }
+      ap.pinToFree(start.desc)
     }
   }
 
@@ -328,11 +322,11 @@ function appGlyph(key: string): string {
 .lib-app-grid { flex-direction: row; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
 .lib-icon {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  width: 64px; cursor: pointer; text-align: center;
+  width: calc(var(--app-size, 64px) + 18px); cursor: pointer; text-align: center;
 }
 /* Icon glass — matches app-ic material from theme (icon-radius + icon-shadow) */
 .lib-app-ic {
-  width: 48px; height: 48px;
+  width: var(--app-size, 64px); height: var(--app-size, 64px);   /* match desktop/dock icon size */
   display: grid; place-items: center;
   border-radius: var(--icon-radius, 22px);
   color: #fff;                                    /* glyph stroke reads on the colored gradient */

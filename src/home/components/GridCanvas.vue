@@ -14,6 +14,7 @@
       @resize-down="(e: PointerEvent) => dr.onPointerDown(e, item, 'resize')"
     />
     <GridGhost :ghost="dr.ghost.value" />
+    <GridGhost :ghost="homeUi.spawnGhost" />
   </section>
 </template>
 
@@ -24,6 +25,7 @@ import GridItem from './GridItem.vue'
 import GridCells from './GridCells.vue'
 import GridGhost from './GridGhost.vue'
 import { useLayoutStore } from '../stores/layout'
+import { useHomeUiStore } from '../stores/homeUi'
 import { useEditMode } from '../composables/useEditMode'
 import { useDragResize } from '../composables/useDragResize'
 
@@ -40,6 +42,7 @@ const props = withDefaults(defineProps<{
 })
 
 const layout = useLayoutStore()
+const homeUi = useHomeUiStore()
 const { editing } = useEditMode()
 const gridEl = ref<HTMLElement | null>(null)
 
