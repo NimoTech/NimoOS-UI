@@ -15,6 +15,9 @@ const src = computed(() => store.thumbnailUrl(props.item.key))
 const gradient = computed(() => (isAssetId(props.item.key) ? PHOTO_PLACEHOLDERS[0] : props.item.key))
 </script>
 <style scoped>
-.photo-thumb { width: 100%; height: 100%; border-radius: 14px; overflow: hidden; background-size: cover; background-position: center; }
-.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* photo-thumb glass border + shadow live in global theme.css (.photo-thumb rule);
+   local keeps sizing + background-position for the gradient placeholder path */
+.photo-thumb { width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); background-size: cover; background-position: center; box-shadow: var(--icon-shadow); }
+/* has-img: overflow + img rules live in global theme.css (.photo-thumb.has-img); img duplicated locally for scoped certainty */
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 </style>
