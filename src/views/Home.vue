@@ -4,7 +4,7 @@
     <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
     <HomeDock ref="dock" />
     <HomeToast />
-    <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" :cols="cols" :rows="rows" @close="addPanel.close" />
+    <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" :cols="cols" :rows="rows" :grid-el="gridEl" @close="addPanel.close" />
   </main>
 </template>
 

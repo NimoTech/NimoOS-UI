@@ -105,7 +105,7 @@ import { useLiveStatsStore } from '../stores/liveStats'
 import { WIDGETS } from '../widgets/registry'
 import type { Kind } from '../grid/types'
 
-const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number }>()
+const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number; gridEl?: HTMLElement | null }>()
 defineEmits<{ close: [] }>()
 
 type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string }
@@ -151,7 +151,10 @@ function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
       // Drag path: compute target cell from pointer position and place
       const CELL = props.cell ?? 60 // real cell size passed from Home via props; falls back to ~60px
       const GAP = props.gap ?? 16   // real gap passed from Home via props
-      const grid = document.querySelector('.grid-canvas') as HTMLElement | null
+      // Use the actual grid element passed from Home (was a dead `.grid-canvas`
+      // query — the grid section has class `grid`, so it never matched and every
+      // drag silently fell through to the firstFree/toggle fallback below).
+      const grid = props.gridEl ?? null
       if (grid) {
         const rect = grid.getBoundingClientRect()
         if (
