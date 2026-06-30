@@ -8,6 +8,7 @@ const DEFAULT_FAV = ['files', 'photos', 'ai', 'vm', 'appstore']
 // Module-level singleton refs so all useDock() calls share state
 const favKeys = ref<string[]>([])
 const expanded = ref(false)
+const justDragged = ref(false)
 let _initialized = false
 
 function loadFav(apps: ReturnType<typeof useAppsStore>): string[] | null {
@@ -39,6 +40,16 @@ export function useDock() {
   function toggleExpanded() { expanded.value = !expanded.value; if (!expanded.value) persist() }
   function refresh() { favKeys.value = favKeys.value.filter((k) => apps.app(k)) }
   function openDockApp(key: string) { openApp(key) }
+  function reorder(key: string, toZone: 'fav' | 'more', beforeKey: string | null) {
+    const fav = favKeys.value.filter((k) => k !== key)
+    if (toZone === 'fav') {
+      const idx = beforeKey ? fav.indexOf(beforeKey) : fav.length
+      fav.splice(idx < 0 ? fav.length : idx, 0, key)
+    }
+    // toZone==='more' → 仅从 fav 移除即可(more 是 computed);顺序由 order 决定
+    favKeys.value = fav
+    persist()
+  }
 
-  return { favKeys, expanded, moreKeys, setFav, toggleExpanded, refresh, openDockApp }
+  return { favKeys, expanded, moreKeys, justDragged, setFav, toggleExpanded, refresh, openDockApp, reorder }
 }

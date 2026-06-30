@@ -11,12 +11,17 @@
 import { computed } from 'vue'
 import { useAppsStore } from '../stores/apps'
 import { useOpenAction } from '../composables/useOpenAction'
+import { useDock } from '../composables/useDock'
 const props = defineProps<{ appKey: string }>()
 const apps = useAppsStore()
 const { openApp } = useOpenAction()
+const dock = useDock()
 const meta = computed(() => apps.app(props.appKey))
 const glyphSvg = computed(() => meta.value?.glyph ? `<svg class="icon" viewBox="0 0 24 24">${meta.value.glyph}</svg>` : '')
-function onClick() { openApp(props.appKey) }
+function onClick() {
+  if (dock.justDragged.value) return // suppress post-drag click
+  openApp(props.appKey)
+}
 </script>
 <style scoped>
 .dock-app { background: none; border: 0; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding: 0; }
