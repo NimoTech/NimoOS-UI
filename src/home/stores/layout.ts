@@ -5,8 +5,10 @@ import { DEFAULT } from '../grid/defaultLayout'
 import { WIDGETS } from '../widgets/registry'
 import { applyPlan as applyPlanPure, clampToGrid } from '../grid/gridMath'
 import { isAssetId } from '../util/isAssetId'
+import { service } from '@nimotech/nimoos-service'
 
 const KEY = 'nimoos-home-layout-v2'
+const SERVER_KEY = 'home_layout'
 
 function sanitize(arr: unknown): Omit<LayoutItem, 'id'>[] {
   if (!Array.isArray(arr)) return []
@@ -16,6 +18,7 @@ function sanitize(arr: unknown): Omit<LayoutItem, 'id'>[] {
 export const useLayoutStore = defineStore('home-layout', () => {
   const items = ref<LayoutItem[]>([])
   let uid = 1
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
   const tag = (it: Omit<LayoutItem, 'id'>): LayoutItem => ({ ...it, id: 'i' + uid++ })
 
   function loadFromLocal(): Omit<LayoutItem, 'id'>[] | null {
@@ -71,5 +74,28 @@ export const useLayoutStore = defineStore('home-layout', () => {
     })
   }
 
-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos }
+  function save() {
+    saveLocal()
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      service.users.setCustomStorage(SERVER_KEY, serialize()).catch((e) => console.warn('[home] server save failed', e))
+    }, 800)
+  }
+
+  async function loadServer() {
+    try {
+      let data: unknown = await service.users.getCustomStorage(SERVER_KEY)
+      if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
+      const arr = sanitize(data)
+      if (arr.length) { replaceAll(arr) }
+    } catch (e) { console.warn('[home] server layout load failed', e) }
+  }
+
+  function reset() {
+    uid = 1
+    items.value = DEFAULT.map(tag)
+    saveLocal()
+  }
+
+  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset }
 })
