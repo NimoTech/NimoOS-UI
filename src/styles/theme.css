@@ -1,8 +1,107 @@
 :root {
-  --accent: #4c8dff;
-  --good: #38c172;
-  --bg: #0d1014;
-  --fg: #e8ecf1;
-  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color-scheme: dark;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --stroke: 1.9;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --gap: clamp(12px, 1vw, 16px);
+  --blur: blur(44px) saturate(1.7) brightness(1.08);
+
+  --radius: 28px;
+  --radius-sm: 18px;
+  --icon-radius: 22px;
+
+  /* 拖拽时的高一档投影（更"浮"）+ 文件夹玻璃 + 编辑网格点 */
+  --card-shadow-drag:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 10px 20px rgba(8, 12, 28, 0.3),
+    0 60px 90px -28px rgba(6, 10, 26, 0.85);
+  --folder-glass: linear-gradient(157deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.075));
+  --folder-mini: linear-gradient(150deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.22));
+  --grid-dot: rgba(255, 255, 255, 0.17);
+
+  --bg: #1a2138;
+  --fg: #ffffff;
+  --fg-muted: rgba(255, 255, 255, 0.74);
+  --fg-faint: rgba(255, 255, 255, 0.52);
+  --accent: #8ab4ff;
+  --accent2: #b79bff;
+  --good: #5fe3b0;
+  --on-accent: #16203a;
+
+  --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
+  --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
+
+  /* 通透玻璃 chip / 按钮 */
+  --chip-border: rgba(255, 255, 255, 0.4);
+  --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
+  --chip-bg-hi: linear-gradient(160deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.16));
+  --chip-radius: 999px;
+  --dot: rgba(255, 255, 255, 0.45);
+  --dot-on: #fff;
+
+  /* 悬浮玻璃面板：高光顶边 + 大柔投影，像浮在空中 */
+  --card-bg: linear-gradient(157deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.085) 62%);
+  --card-border: rgba(255, 255, 255, 0.36);
+  --card-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    0 2px 6px rgba(8, 12, 28, 0.18),
+    0 26px 50px -20px rgba(6, 10, 26, 0.7);
+  --card-shadow-hi:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 4px 10px rgba(8, 12, 28, 0.2),
+    0 40px 70px -22px rgba(6, 10, 26, 0.8);
+  --card-hover: translateY(-6px) scale(1.012);
+  --clock-bg: linear-gradient(157deg, rgba(168, 198, 255, 0.34), rgba(255, 255, 255, 0.08) 60%);
+  --clock-weight: 250;
+
+  --tool-bg: rgba(255, 255, 255, 0.16);
+  --tool-bg-hi: rgba(255, 255, 255, 0.3);
+  --inner-bg: rgba(255, 255, 255, 0.12);
+  --inner-bg-hi: rgba(255, 255, 255, 0.22);
+  --inner-border: rgba(255, 255, 255, 0.2);
+  --ring-hole: rgba(26, 33, 56, 0.55);
+  --ring-track: rgba(255, 255, 255, 0.18);
+  --spark-fill: rgba(138, 180, 255, 0.3);
+  --spark-grid: rgba(255, 255, 255, 0.08);
+  --num-color: #fff;
+  --orb-core: #2a3566;
+  --orb-glow: rgba(138, 180, 255, 0.5);
+
+  --folder-bg: linear-gradient(180deg, #8fd0ff, #5a8bf0);
+  --icon-shadow: 0 14px 30px -8px rgba(6, 10, 26, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  --label-color: rgba(255, 255, 255, 0.92);
+  --label-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+
+  --dock-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.09));
+  --dock-border: rgba(255, 255, 255, 0.38);
+  --dock-radius: 32px;
+  --dock-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 30px 60px -18px rgba(6, 10, 26, 0.75);
+  --all-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.12));
+  --all-fg: #fff;
+  --all-border: rgba(255, 255, 255, 0.4);
+
+  --overlay-bg: rgba(20, 26, 46, 0.46);
+  --overlay-blur: blur(50px) saturate(1.5) brightness(1.05);
+  --remove-bg: #ff708a;
+  --drop-bg: rgba(138, 180, 255, 0.22);
+  --toast-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.12));
+
+  --app-size: 64px;
 }
-body { margin: 0; background: var(--bg); color: var(--fg); }
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--fg);
+  font-family: var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif);
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: var(--stroke, 1.9); stroke-linecap: round; stroke-linejoin: round; fill: none; }
