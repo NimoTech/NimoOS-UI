@@ -161,11 +161,14 @@ function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
     spawnStart = null
 
     if (start.moved) {
-      // Drag path: place at the dropped cell when released over the grid
+      // Drag: place only if released over the grid. Released elsewhere
+      // (e.g. dragged back onto this panel to cancel) = do nothing — must NOT
+      // fall through to pinToFree, which would add it at the first free cell.
       const t = targetCellAt(ev, start.desc)
-      if (t) { ap.spawnPlace(start.desc, t.tc, t.tr); return }
+      if (t) ap.spawnPlace(start.desc, t.tc, t.tr)
+      return
     }
-    // Click (no move) or released outside the grid → pin/toggle to a free cell
+    // Click (no drag): pin/toggle to the first free cell
     if (start.desc.kind === 'widget') {
       ap.toggleWidget(start.desc.key, start.desc.w, start.desc.h)
     } else {

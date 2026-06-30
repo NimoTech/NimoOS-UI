@@ -51,4 +51,27 @@ describe('AddPanel spawn (drag = place at dropped cell)', () => {
     w.unmount()
     gridEl.remove()
   })
+
+  it('dragging then releasing OFF the grid (e.g. back onto the panel) cancels — adds nothing', async () => {
+    const layout = useLayoutStore(); layout.replaceAll([])
+    vi.spyOn(layout, 'save').mockImplementation(() => {})
+
+    const gridEl = makeGridEl()
+    const w = mount(AddPanel, {
+      props: { open: true, cell: CELL, gap: GAP, cols: 12, rows: 8, gridEl },
+      attachTo: document.body,
+    })
+
+    const card = w.get('.lib-card[data-key="clock"]')
+    await card.trigger('pointerdown', { clientX: 260, clientY: 150 })
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 260, clientY: 160 })) // >6px => moved
+    // release far to the right of the grid (x > 12*108=1296) — i.e. over the panel
+    window.dispatchEvent(new MouseEvent('pointerup', { clientX: 1500, clientY: 150 }))
+    await nextTick()
+
+    expect(layout.items.some((i) => i.key === 'clock')).toBe(false)
+
+    w.unmount()
+    gridEl.remove()
+  })
 })
