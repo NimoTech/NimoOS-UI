@@ -96,16 +96,17 @@ function onClick() {
 
 <style scoped>
 .grid-item {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
+  /* Tiles/cards provide their own visuals; grid-item is just a transparent
+     centering box. overflow:visible so the edit-mode remove badge (top:-7px)
+     is not clipped on app/folder/photo items (images still clip via their own
+     .has-img overflow:hidden). */
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   /* min-width/min-height/position/touch-action come from global theme.css */
 }
-/* widget 卡片自带背景并铺满格子;grid-item 不再画第二层框,避免双层叠加 */
-.grid-item.kind-widget { background: transparent; border-radius: 0; overflow: visible; }
 .item-label { font-size: 13px; opacity: 0.85; padding: 6px; text-align: center; }
 
 /* .remove, .resize-handle, @keyframes jiggle, .grid-item.editing animation → global theme.css (P4c) */

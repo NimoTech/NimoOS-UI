@@ -53,6 +53,9 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   transition: box-shadow .25s var(--ease), transform .2s var(--ease);
   isolation: isolate;                             /* needed for ::after mix-blend-mode:screen */
   position: relative;                             /* anchor for ::after pseudo */
+  display: flex;                                  /* head + body stack vertically… */
+  flex-direction: column;
+  padding: 16px;                                  /* …card owns the padding so the header is inset too */
 }
 
 /* ── Top-edge highlight sweep (skin-spatial.css:141-151) ────────────────── */
@@ -81,8 +84,8 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   overflow: hidden;
   position: relative;
   z-index: 1;
-  height: 100%;
-  padding: 16px;
+  flex: 1 1 auto;                                 /* fill remaining card height below the header */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -91,9 +94,11 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 .card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;                    /* icon + title together on the left */
   gap: 10px;
   margin-bottom: 12px;
+  position: relative;
+  z-index: 1;                                     /* above .card::after highlight */
 }
 
 /* ── Card title text (with readability shadow on glass) ─────────────────── */

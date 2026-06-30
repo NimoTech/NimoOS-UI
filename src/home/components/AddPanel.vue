@@ -47,7 +47,7 @@
         <span v-if="appsStore.apps[key]?.icon" class="lib-app-ic has-img">
           <img :src="appsStore.apps[key].icon!" alt="" loading="lazy" />
         </span>
-        <span v-else class="lib-app-ic" v-html="appGlyph(key)" />
+        <span v-else class="lib-app-ic" :class="appsStore.apps[key]?.cls || 'ic-app'" v-html="appGlyph(key)" />
         <span class="lib-app-label">{{ appsStore.apps[key]?.name ?? key }}</span>
       </div>
     </div>
@@ -325,7 +325,7 @@ function appGlyph(key: string): string {
 }
 
 /* ── App grid ── */
-.lib-app-grid { flex-direction: row; flex-wrap: wrap; gap: 12px; }
+.lib-app-grid { flex-direction: row; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
 .lib-icon {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   width: 64px; cursor: pointer; text-align: center;
@@ -335,10 +335,11 @@ function appGlyph(key: string): string {
   width: 48px; height: 48px;
   display: grid; place-items: center;
   border-radius: var(--icon-radius, 22px);
-  background: linear-gradient(145deg, rgba(255,255,255,.22), rgba(255,255,255,.08));
-  border: 1px solid var(--card-border, rgba(255,255,255,.36));
+  color: #fff;                                    /* glyph stroke reads on the colored gradient */
   box-shadow: var(--icon-shadow, 0 14px 30px -8px rgba(6,10,26,.6), inset 0 1px 0 rgba(255,255,255,.4));
   transition: transform .18s var(--ease, ease), box-shadow .18s;
+  /* background comes from the bound .ic-* class (global): vivid gradient for
+     system apps (ic-files/ic-photos/…), neutral glass (.ic-app) for container apps */
 }
 .lib-icon:hover .lib-app-ic {
   transform: translateY(-3px) scale(1.06);
