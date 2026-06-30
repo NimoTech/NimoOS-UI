@@ -45,6 +45,8 @@ const label = computed(() => {
   min-width: 0;
   min-height: 0;
 }
+/* widget 卡片自带背景并铺满格子;grid-item 不再画第二层框,避免双层叠加 */
+.grid-item.kind-widget { background: transparent; border-radius: 0; overflow: visible; }
 .item-label { font-size: 13px; opacity: 0.85; padding: 6px; text-align: center; }
 .photo-fill { width: 100%; height: 100%; }
 </style>
