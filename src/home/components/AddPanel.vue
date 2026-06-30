@@ -308,8 +308,6 @@ function appGlyph(key: string): string {
   transition: transform .18s var(--ease, ease), border-color .18s;
 }
 .lib-card:hover { transform: translateY(-2px); border-color: var(--accent, #8ab4ff); }
-/* Used state: accent border */
-.lib-card.used { border-color: var(--accent, #8ab4ff); }
 
 .lib-card-icon {
   width: 32px; height: 32px; flex-shrink: 0;

@@ -231,7 +231,7 @@ body::after {
 .folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }
 /* 照片磁贴 */
 .kind-photo { padding: 0; }
-.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); background: var(--thumb); background-size: cover; background-position: center; box-shadow: var(--icon-shadow); }
+.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); }
 
 /* ---- P4c: 应用图标配色（皮肤无关，鲜明渐变） ---- */
 .ic-files    { background: linear-gradient(145deg, #88dbff, #168cff 62%, #1765db); }

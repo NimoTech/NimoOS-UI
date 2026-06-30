@@ -8,7 +8,7 @@
         <DockApp v-for="k in dock.favKeys.value" :key="k" :app-key="k" />
       </div>
       <span class="dock-sep" />
-      <div class="dock-zone dock-more" data-zone="more">
+      <div class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined">
         <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" />
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="dock.expanded.value" @click="dock.toggleExpanded()">

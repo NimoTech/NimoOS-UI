@@ -45,11 +45,4 @@ function onClick() {
   max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 11px; color: var(--fg-muted);
 }
-/* dragging: icon floats fixed, follows pointer */
-.dock-app.dock-dragging { position: fixed; z-index: 80; margin: 0; pointer-events: none; }
-.dock-app.dock-dragging .dock-ic {
-  transform: scale(1.18); filter: brightness(1.08);
-  box-shadow: var(--card-shadow-drag, var(--icon-shadow));
-  transition: none;
-}
 </style>
