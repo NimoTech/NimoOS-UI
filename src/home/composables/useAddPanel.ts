@@ -7,12 +7,21 @@ import { useHomeUiStore } from '../stores/homeUi'
 
 type Desc = Omit<LayoutItem, 'id' | 'c' | 'r'>
 
+// Module-level singleton refs so all useAddPanel() calls share state (like useDock)
+const open = ref(false)
+const curTab = ref<'widget' | 'app' | 'folder' | 'photo'>('widget')
+const fsPath = ref('/DATA')
+
+/** Reset singleton state — call in test beforeEach after localStorage.clear() */
+export function __resetAddPanelForTest() {
+  open.value = false
+  curTab.value = 'widget'
+  fsPath.value = '/DATA'
+}
+
 export function useAddPanel(dims: Dims) {
   const layout = useLayoutStore()
   const ui = useHomeUiStore()
-  const open = ref(false)
-  const curTab = ref<'widget' | 'app' | 'folder' | 'photo'>('widget')
-  const fsPath = ref('/DATA')
 
   const widgetUsed = (key: string) => layout.items.some((it) => it.kind === 'widget' && it.key === key)
 

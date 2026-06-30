@@ -1,9 +1,10 @@
 <template>
   <main class="home-screen">
-    <HomeTopbar @add="onAdd" />
+    <HomeTopbar @add="addPanel.openLib" />
     <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
     <HomeDock ref="dock" />
     <HomeToast />
+    <AddPanel :open="addPanel.open.value" @close="addPanel.close" />
   </main>
 </template>
 
@@ -13,6 +14,7 @@ import GridCanvas from '../home/components/GridCanvas.vue'
 import HomeTopbar from '../home/components/HomeTopbar.vue'
 import HomeToast from '../home/components/HomeToast.vue'
 import HomeDock from '../home/components/HomeDock.vue'
+import AddPanel from '../home/components/AddPanel.vue'
 import { useLayoutStore } from '../home/stores/layout'
 import { useAppsStore } from '../home/stores/apps'
 import { usePhotosStore } from '../home/stores/photos'
@@ -21,6 +23,7 @@ import { useGridMeasure } from '../home/composables/useGridMeasure'
 import { useLiveStats } from '../home/composables/useLiveStats'
 import { useEvents } from '../home/composables/useEvents'
 import { reconcileGpu } from '../home/composables/reconcileGpu'
+import { useAddPanel } from '../home/composables/useAddPanel'
 
 const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dock = ref<InstanceType<typeof HomeDock> | null>(null)
@@ -30,6 +33,7 @@ const apps = useAppsStore()
 const photos = usePhotosStore()
 const homeUi = useHomeUiStore()
 const live = useLiveStats()
+const addPanel = useAddPanel({ cols: 12, rows: 8 })
 useEvents()
 
 // dockEl points to HomeDock root element for useGridMeasure to read dockTop
@@ -37,8 +41,6 @@ const dockEl = computed(() => dock.value?.root ?? null)
 
 const { cols, rows, cell, gap, relayout } = useGridMeasure(gridEl, dockEl)
 watch(() => live.gpu, () => reconcileGpu(layout, live))
-
-function onAdd() { homeUi.toggleEdit(true) }
 
 let onResize: (() => void) | null = null
 
