@@ -25,7 +25,7 @@
   </nav>
 </template>
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
@@ -181,81 +181,44 @@ function resetDragState() {
  * Given the drop position, find the target zone ('fav'|'more') and the key of the item
  * the dragged icon should be inserted before (null = end of zone).
  *
- * Strategy: find all visible dock-app buttons with data-app, pick nearest midpoint.
- * The zone is determined by which data-zone ancestor the nearest item lives in.
+ * Zone decision: separator midpoint rule — drop left of sep midX → 'fav', right → 'more'.
+ * beforeKey: find nearest item in the chosen zone by midX; insert-before if clientX < its
+ * midX, else end (beforeKey = null).
  */
 function computeDropTarget(clientX: number, _clientY: number): { toZone: 'fav' | 'more'; beforeKey: string | null } {
   if (!root.value) return { toZone: 'more', beforeKey: null }
 
+  // Separator-midpoint zone decision
+  const sep = root.value.querySelector<HTMLElement>('.dock-sep')
+  const sepRect = sep?.getBoundingClientRect()
+  const toZone: 'fav' | 'more' = (sepRect && clientX < (sepRect.left + sepRect.right) / 2) ? 'fav' : 'more'
+
   const favZone = root.value.querySelector<HTMLElement>('[data-zone="fav"]')
   const moreZone = root.value.querySelector<HTMLElement>('[data-zone="more"]')
 
-  // Collect all app buttons (excluding the dragged one) with their midpoints and zone
-  interface Candidate { key: string; midX: number; zone: 'fav' | 'more' }
+  // Collect candidates in the chosen zone (excluding the item being dragged)
+  interface Candidate { key: string; midX: number }
   const candidates: Candidate[] = []
+  const targetZoneEl = toZone === 'fav' ? favZone : moreZone
+  targetZoneEl?.querySelectorAll<HTMLElement>('.dock-app[data-app]').forEach((btn) => {
+    if (btn.dataset.app === drag.key) return
+    const r = btn.getBoundingClientRect()
+    candidates.push({ key: btn.dataset.app!, midX: r.left + r.width / 2 })
+  })
 
-  const collectFrom = (zone: HTMLElement | null, zoneName: 'fav' | 'more') => {
-    if (!zone) return
-    zone.querySelectorAll<HTMLElement>('.dock-app[data-app]').forEach((btn) => {
-      if (btn.dataset.app === drag.key) return
-      const r = btn.getBoundingClientRect()
-      candidates.push({ key: btn.dataset.app!, midX: r.left + r.width / 2, zone: zoneName })
-    })
-  }
-  collectFrom(favZone, 'fav')
-  collectFrom(moreZone, 'more')
+  if (candidates.length === 0) return { toZone, beforeKey: null }
 
-  if (candidates.length === 0) {
-    // No other items — decide by horizontal position relative to zones
-    const favRect = favZone?.getBoundingClientRect()
-    const moreRect = moreZone?.getBoundingClientRect()
-    if (moreRect && clientX > moreRect.left) return { toZone: 'more', beforeKey: null }
-    return { toZone: 'fav', beforeKey: null }
-  }
-
-  // Find the candidate whose midpoint is closest horizontally
-  let best: Candidate | null = null
-  let bestDist = Infinity
+  // Find nearest item in target zone by midX
+  let best = candidates[0]
+  let bestDist = Math.abs(clientX - best.midX)
   for (const c of candidates) {
     const d = Math.abs(clientX - c.midX)
     if (d < bestDist) { bestDist = d; best = c }
   }
 
-  if (!best) return { toZone: 'more', beforeKey: null }
-
-  // Insert before the best candidate if drop is to its left, after if to its right
+  // Insert before best if drop is to its left, otherwise end of zone
   const beforeKey = clientX < best.midX ? best.key : null
-  // If we're inserting "after last", beforeKey=null; zone is from best candidate
-  // But if clientX > best.midX and best is last in its zone, beforeKey is null
-  // Determine zone: where the drop landed — if moreZone exists and clientX is past fav boundary, prefer more
-  const moreRect = moreZone?.getBoundingClientRect()
-  const favRect = favZone?.getBoundingClientRect()
-
-  let toZone: 'fav' | 'more'
-  if (moreRect && moreZone?.style.display !== 'none' && clientX >= moreRect.left) {
-    toZone = 'more'
-  } else if (favRect && clientX <= (favRect.right ?? Infinity)) {
-    toZone = 'fav'
-  } else {
-    toZone = best.zone
-  }
-
-  // Compute beforeKey within the target zone
-  const zoneKeys = toZone === 'fav' ? dock.favKeys.value : dock.moreKeys.value
-  // Find nearest item in target zone by midX
-  const zoneCandidates = candidates.filter((c) => c.zone === toZone)
-  if (zoneCandidates.length === 0) return { toZone, beforeKey: null }
-
-  let zoneBest = zoneCandidates[0]
-  let zoneBestDist = Math.abs(clientX - zoneBest.midX)
-  for (const c of zoneCandidates) {
-    const d = Math.abs(clientX - c.midX)
-    if (d < zoneBestDist) { zoneBestDist = d; zoneBest = c }
-  }
-
-  const finalBeforeKey = clientX < zoneBest.midX ? zoneBest.key : null
-
-  return { toZone, beforeKey: finalBeforeKey }
+  return { toZone, beforeKey }
 }
 
 defineExpose({ root })
