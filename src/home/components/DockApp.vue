@@ -24,10 +24,32 @@ function onClick() {
 }
 </script>
 <style scoped>
-.dock-app { background: none; border: 0; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding: 0; }
-.dock-ic { width: calc(var(--app-size, 48px) * var(--mag, 1)); height: calc(var(--app-size, 48px) * var(--mag, 1)); display: grid; place-items: center; background: rgba(255,255,255,.1); border-radius: 24%; transition: width .08s, height .08s; transform-origin: bottom; }
+.dock-app {
+  display: grid; justify-items: center; gap: 6px;
+  border: 0; background: transparent; cursor: pointer; touch-action: none;
+}
+.dock-ic {
+  display: grid; place-items: center;
+  width: var(--app-size, 48px); height: var(--app-size, 48px);
+  border-radius: var(--icon-radius, 16px); color: #fff; box-shadow: var(--icon-shadow);
+  transform-origin: bottom center;
+  transform: translateY(calc((var(--mag, 1) - 1) * -12px)) scale(var(--mag, 1));
+  transition: transform .14s var(--ease, ease), filter .18s;
+}
 .dock-ic.has-img { background: none; }
-.dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: 24%; }
+.dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .dock-ic :deep(svg) { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; }
-.dock-label { font-size: 10px; opacity: .7; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-app:hover .dock-ic { filter: brightness(1.08); }
+/* label — mapped from prototype span:last-child */
+.dock-label {
+  max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; color: var(--fg-muted);
+}
+/* dragging: icon floats fixed, follows pointer */
+.dock-app.dock-dragging { position: fixed; z-index: 80; margin: 0; pointer-events: none; }
+.dock-app.dock-dragging .dock-ic {
+  transform: scale(1.18); filter: brightness(1.08);
+  box-shadow: var(--card-shadow-drag, var(--icon-shadow));
+  transition: none;
+}
 </style>

@@ -8,7 +8,7 @@
         <DockApp v-for="k in dock.favKeys.value" :key="k" :app-key="k" />
       </div>
       <span class="dock-sep" />
-      <div v-show="dock.expanded.value" class="dock-zone dock-more" data-zone="more">
+      <div class="dock-zone dock-more" data-zone="more">
         <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" />
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="dock.expanded.value" @click="dock.toggleExpanded()">
@@ -224,27 +224,48 @@ function computeDropTarget(clientX: number, _clientY: number): { toZone: 'fav' |
 defineExpose({ root })
 </script>
 <style scoped>
-.dock { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30; }
-.dock-main { display: flex; align-items: flex-end; gap: 10px; padding: 8px 14px; background: rgba(30,34,40,.6); backdrop-filter: blur(20px); border-radius: 22px; }
-.dock-zone { display: flex; align-items: flex-end; gap: 10px; }
-.dock-sep { width: 1px; align-self: stretch; background: rgba(255,255,255,.18); margin: 0 2px; }
-.dock-toggle .ic-all { font-size: 18px; }
-/* drag ghost: sized to match dock icons, positioned within dock coordinate space */
+/* ── Dock container: glass pill, bottom-center ── */
+.dock {
+  position: fixed; z-index: 20; left: 50%; bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex; max-width: calc(100vw - 40px);
+  padding: 12px 18px;
+  border: 1px solid var(--dock-border); border-radius: var(--dock-radius, 26px);
+  background: var(--dock-bg); box-shadow: var(--dock-shadow); backdrop-filter: var(--blur);
+}
+.dock-main { display: flex; align-items: flex-end; }
+.dock-zone { display: flex; align-items: flex-end; gap: 14px; }
+/* "More apps" zone: collapses to zero width, expands on .expanded */
+.dock-more {
+  max-width: 0; opacity: 0; overflow: hidden; pointer-events: none;
+  transition: max-width .38s var(--ease, ease), opacity .26s var(--ease, ease);
+}
+.dock.expanded .dock-more { max-width: 82vw; opacity: 1; overflow: visible; pointer-events: auto; }
+.dock-sep { width: 1px; align-self: stretch; margin: 4px 10px; background: var(--dock-border); }
+.dock-toggle { margin-left: 10px; }
+/* drag ghost — mapped from prototype .dock-ph (dashed placeholder) */
 .dock-ghost {
-  position: absolute;
-  pointer-events: none;
-  z-index: 100;
-  opacity: .85;
+  position: absolute; pointer-events: none; z-index: 100; opacity: .85;
+  align-self: flex-end;
+  border-radius: var(--icon-radius, 16px);
+  background: var(--drop-bg, rgba(255, 255, 255, .14));
+  border: 1px dashed var(--dock-border);
 }
 .dock-ghost .dock-ic {
-  width: var(--app-size, 48px);
-  height: var(--app-size, 48px);
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,.1);
-  border-radius: 24%;
+  display: grid; place-items: center;
+  width: var(--app-size, 48px); height: var(--app-size, 48px);
+  border-radius: var(--icon-radius, 16px);
 }
 .dock-ghost .dock-ic.has-img { background: none; }
-.dock-ghost .dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: 24%; }
+.dock-ghost .dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .dock-ghost .dock-ic :deep(svg) { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+/* ── Responsive ≤720px ── */
+@media (max-width: 720px) {
+  .dock { left: 12px; right: 12px; transform: none; max-width: none; }
+  .dock-main { justify-content: center; }
+  .dock-zone { gap: 8px; }
+  .dock.expanded .dock-more { flex-wrap: wrap; justify-content: center; }
+  /* .dock-label lives in DockApp.vue scoped, so we target it via :deep */
+  :deep(.dock-label) { display: none; }
+}
 </style>
