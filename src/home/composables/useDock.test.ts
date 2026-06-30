@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
-import { useDock } from './useDock'
+import { useDock, __resetDockForTest } from './useDock'
 
 describe('useDock', () => {
-  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetDockForTest() })
   it('defaults favKeys to the 5 dock keys and computes moreKeys as the rest', () => {
     useAppsStore() // 系统 6 应用就位
     const d = useDock()
