@@ -27,9 +27,8 @@ describe('PhotoTile', () => {
     const gradientKey = 'linear-gradient(145deg,#fff)'
     const w = mount(PhotoTile, { props: { item: item(gradientKey) } })
     expect(w.find('img').exists()).toBe(false)
-    // Vue's style binding puts the CSS property inline; check the computed style
-    const elem = w.find('.photo-thumb').element as HTMLElement
-    const computedStyle = window.getComputedStyle(elem).background
-    expect(computedStyle).toBeDefined()
+    // Verify the gradient is applied via the component's computed gradient property
+    const component = w.vm as any
+    expect(component.gradient).toContain('linear-gradient')
   })
 })

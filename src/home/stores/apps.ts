@@ -25,7 +25,7 @@ export const useAppsStore = defineStore('home-apps', () => {
       const title = (a.title && (a.title.zh_cn || a.title.en_us)) || a.name
       map[key] = {
         name: title, cls: 'ic-app', glyph: '', icon: a.icon || null, system: false,
-        app_type: a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,
+        app_type: (a as { appType?: string }).appType || a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,
       }
       ord.push(key)
     })
