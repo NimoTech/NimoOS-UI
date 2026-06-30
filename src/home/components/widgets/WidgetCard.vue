@@ -119,8 +119,9 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 }
 
 /* ── Per-widget card-level overrides (base.css:132,153-155,228) ─────────── */
-/* Clock: center card-in vertically */
+/* Clock: center card-in vertically; custom background (base.css:132-133) */
 .card.w-clock .card-in { justify-content: center; }
+.card.w-clock { background: var(--clock-bg, var(--card-bg)); }
 /* CPU: ring + chart-box size overrides (base.css:153-155) */
 .card.w-cpu :deep(.ring) { width: clamp(56px, 34cqmin, 96px); }
 .card.w-cpu :deep(.ring b) { font-size: clamp(15px, 9cqmin, 22px); }

@@ -28,6 +28,7 @@ const temp = computed(() => g.value && g.value.temperature != null ? Math.round(
 </script>
 <style scoped>
 /* base.css:142,147,156-158,186-192 — gpu widget (ring-row.solo + stats + pill-grid) */
+.ring-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; flex: 1; }
 .ring-row.solo { grid-template-columns: 1fr; place-items: center; }
 .stats { display: grid; gap: 2px; }
 .stat { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(11px, 5cqmin, 14px); color: var(--fg-muted); padding: 4px 0; }
