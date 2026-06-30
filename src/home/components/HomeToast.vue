@@ -8,7 +8,10 @@ import { useHomeUiStore } from '../stores/homeUi'
 const ui = useHomeUiStore()
 </script>
 <style scoped>
-.toast { position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); background: rgba(20,24,30,.92); color: #e8ecf1; padding: 8px 16px; border-radius: 12px; font-size: 13px; z-index: 50; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
-.toast-enter-active, .toast-leave-active { transition: opacity .2s, transform .2s; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
+/* glass pill toast — base.css:399; visible state = base .toast (v-if, no .show class needed) */
+.toast { position: fixed; z-index: 60; left: 50%; bottom: 118px; transform: translate(-50%, 0); padding: 10px 18px; border: 1px solid var(--chip-border); border-radius: 999px; background: var(--toast-bg); color: var(--toast-fg, var(--fg)); font-size: 13px; pointer-events: none; backdrop-filter: var(--blur); }
+
+/* Vue <transition name="toast"> enter/leave — maps prototype opacity+transform transition */
+.toast-enter-active, .toast-leave-active { transition: opacity 0.2s, transform 0.2s var(--ease, ease); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 12px); }
 </style>
