@@ -82,7 +82,9 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 
 /* ── Card interior: clips sparks / overflow content inside the border-radius */
 .card-in {
-  border-radius: inherit;
+  /* no border-radius here: card-in is inset by the card's 16px padding, so a
+     28px corner radius would clip the body text (y-axis labels, legend, events)
+     at the corners. The card itself owns the rounding; card-in clips square. */
   overflow: hidden;
   position: relative;
   z-index: 1;
