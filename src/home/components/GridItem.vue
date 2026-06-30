@@ -102,53 +102,11 @@ function onClick() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
+  /* min-width/min-height/position/touch-action come from global theme.css */
 }
 /* widget 卡片自带背景并铺满格子;grid-item 不再画第二层框,避免双层叠加 */
 .grid-item.kind-widget { background: transparent; border-radius: 0; overflow: visible; }
 .item-label { font-size: 13px; opacity: 0.85; padding: 6px; text-align: center; }
-.photo-fill { width: 100%; height: 100%; }
 
-.remove {
-  position: absolute;
-  top: -6px;
-  left: -6px;
-  z-index: 10;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #e53e3e;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-
-.resize-handle {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  z-index: 10;
-  width: 18px;
-  height: 18px;
-  cursor: nwse-resize;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
-}
-
-@keyframes jiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-1.5deg); }
-  75% { transform: rotate(1.5deg); }
-}
-.grid-item.editing {
-  animation: jiggle 0.3s ease-in-out infinite;
-}
+/* .remove, .resize-handle, @keyframes jiggle, .grid-item.editing animation → global theme.css (P4c) */
 </style>

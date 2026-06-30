@@ -26,9 +26,6 @@ const cells = computed(() => {
 </script>
 
 <style scoped>
-.cell {
-  border: 1px dashed rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  pointer-events: none;
-}
+/* .cell base styles (pointer-events, border-radius, border, background) come from global theme.css (P4c).
+   Scoped block kept for any future per-component overrides. */
 </style>

@@ -13,15 +13,16 @@ const style = computed(() =>
 </script>
 
 <style scoped>
+/* Token-based drop ghost — aligned to base.css:112-113 */
 .drop-ghost {
   border: 2px dashed var(--accent);
-  border-radius: 16px;
-  background: rgba(76, 141, 255, 0.08);
+  border-radius: var(--radius);
+  background: var(--drop-bg);
   pointer-events: none;
 }
 
 .drop-ghost.bad {
-  border-color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.08);
+  border-color: var(--remove-bg);
+  background: var(--drop-bad, rgba(255,80,100,.12));
 }
 </style>

@@ -156,3 +156,61 @@ body::after {
   body::before { animation: none; transition: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---- P4c: 网格项目状态（全局）---- */
+/* 通用项目 */
+.grid-item { position: relative; min-width: 0; min-height: 0; touch-action: none; }
+
+/* 移除按钮：accent-red 圆形，编辑态显示 */
+.grid-item .remove {
+  display: none; position: absolute; z-index: 4; top: -7px; left: -7px; width: 24px; height: 24px;
+  border: 0; border-radius: 50%; background: var(--remove-bg); color: #fff; font-size: 16px; line-height: 1;
+  cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.grid-item.editing .remove { display: grid; place-items: center; }
+
+/* 缩放把手：右下角 accent 圆形 + 箭头，仅编辑态对可缩放项目显示 */
+.resize-handle {
+  display: none; position: absolute; z-index: 5; right: -8px; bottom: -8px; width: 26px; height: 26px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.5);
+  cursor: nwse-resize; touch-action: none;
+}
+.resize-handle::after {
+  content: ""; position: absolute; right: 7px; bottom: 8px; width: 8px; height: 8px;
+  border-right: 2px solid var(--on-accent, #fff); border-bottom: 2px solid var(--on-accent, #fff);
+}
+.grid-item.editing .resize-handle { display: block; }
+
+/* 缩放中 */
+.grid-item.resizing { z-index: 50; animation: none; transition: none; }
+.grid-item.resizing.card { box-shadow: var(--card-shadow-drag, var(--card-shadow-hi)); }
+.grid-item.resizing.bad-size { outline: 2px solid var(--remove-bg); outline-offset: -1px; }
+.grid-item.resizing.bad-size.card { box-shadow: 0 0 0 2px var(--remove-bg) inset; }
+
+/* 编辑态 jiggle（使用全局 ±0.55deg） */
+.grid-item.editing { animation: jiggle .34s ease-in-out infinite; cursor: grab; }
+.grid-item.editing:nth-child(2n) { animation-delay: -.17s; }
+.grid-item.editing:nth-child(3n) { animation-delay: -.09s; }
+
+/* 拖拽中 */
+.grid-item.dragging { z-index: 50; cursor: grabbing; animation: none; opacity: .96; }
+.grid-item.dragging .card { box-shadow: var(--card-shadow-drag, var(--card-shadow-hi)); }
+
+/* 载入错峰淡入（intro 类由 GridCanvas 初次渲染时添加；此规则无副作用） */
+/* NOTE: GridCanvas 目前未设置 .intro 类，规则已到位，接线留待后续任务 */
+.grid.intro .grid-item { animation: itemIn .5s var(--ease, ease) backwards; animation-delay: calc(var(--i, 0) * 32ms); }
+
+/* 落位回弹 */
+.grid-item.pop { animation: pop .34s var(--ease, ease); }
+
+/* 编辑态：空格用圆角描边表示可用位置 */
+.cell {
+  pointer-events: none;
+  border-radius: var(--radius-sm, 18px);
+  border: 1.5px dashed var(--grid-dot, rgba(255,255,255,.26));
+  background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+
+/* 拖拽落点提示 */
+.drop-ghost { z-index: 1; border: 2px dashed var(--accent); border-radius: var(--radius); background: var(--drop-bg); pointer-events: none; }
+.drop-ghost.bad { border-color: var(--remove-bg); background: var(--drop-bad, rgba(255,80,100,.12)); }
