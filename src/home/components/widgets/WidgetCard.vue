@@ -35,8 +35,86 @@ const WIDGET_COMPONENTS: Record<string, Component> = {
 const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 </script>
 <style scoped>
-.card { container-type: size; width: 100%; height: 100%; box-sizing: border-box; background: rgba(255,255,255,.06); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; min-width: 0; min-height: 0; }
-.card-head { display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: .8; }
-.card-ic :deep(svg) { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
-.card-in { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* ── Base card: glass material (P4c spatial skin) ───────────────────────── */
+/* overflow:visible lets remove/resize badges on .grid-item show outside card */
+/* container-type:size + width/height:100% = P2 collapse fix — do NOT split  */
+.card {
+  overflow: visible;
+  container-type: size;
+  container-name: card;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;                         /* PRESERVED collapse fix */
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: var(--blur);
+  transition: box-shadow .25s var(--ease), transform .2s var(--ease);
+  isolation: isolate;                             /* needed for ::after mix-blend-mode:screen */
+  position: relative;                             /* anchor for ::after pseudo */
+}
+
+/* ── Top-edge highlight sweep (skin-spatial.css:141-151) ────────────────── */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(148deg, rgba(255, 255, 255, 0.34), transparent 26%);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+/* ── Hover: lift + shadow upgrade + inner accent glow ───────────────────── */
+/* Plain .card:hover (no .grid.editing guard) — editing jiggle is on .grid-item */
+.card:hover {
+  transform: var(--card-hover);
+  box-shadow: var(--card-shadow-hi), inset 0 0 34px -10px var(--accent);
+}
+
+/* ── Card interior: clips sparks / overflow content inside the border-radius */
+.card-in {
+  border-radius: inherit;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Card header row ────────────────────────────────────────────────────── */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* ── Card title text (with readability shadow on glass) ─────────────────── */
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: var(--title-size, clamp(12px, 5.2cqmin, 15px));
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--fg, #fff);
+  text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45);  /* skin-spatial.css:158 */
+}
+
+/* ── Widget icon (.card-ic wraps the svg injected via v-html) ───────────── */
+.card-ic :deep(svg) {
+  width: clamp(14px, 6cqmin, 18px);
+  height: clamp(14px, 6cqmin, 18px);
+  color: var(--accent);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
 </style>
