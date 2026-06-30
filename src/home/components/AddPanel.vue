@@ -54,25 +54,35 @@
 
     <!-- Folder tab -->
     <div v-if="ap.curTab.value === 'folder'" class="lib-content">
-      <!-- Breadcrumb -->
-      <div class="lib-breadcrumb">
-        <span
-          v-for="(seg, idx) in breadcrumbs"
-          :key="idx"
-          class="lib-bc-seg"
-          @click="navigateTo(seg.path)"
-        >{{ seg.label }}</span>
-      </div>
-      <!-- Folder list -->
-      <div v-if="currentFolders.length === 0" class="lib-empty">暂无子文件夹</div>
-      <div
-        v-for="folder in currentFolders"
-        :key="folder.path"
-        class="lib-folder-row"
-      >
-        <span class="lib-folder-name" @click="enterFolder(folder.path)">{{ folder.name }}</span>
-        <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
-      </div>
+      <!-- Top level: disk picker (NimoOS-HD / USB drives) — never the raw `/` -->
+      <template v-if="!ap.fsDisk.value">
+        <div v-if="foldersStore.disks.length === 0" class="lib-empty">未发现可用磁盘</div>
+        <div v-for="disk in foldersStore.disks" :key="disk.path" class="lib-folder-row">
+          <span class="lib-folder-name" @click="enterDisk(disk)">{{ disk.usb ? 'U盘 · ' : '' }}{{ disk.name }}</span>
+          <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: disk.name, path: disk.path, w: 1, h: 1 })">拖到主页</button>
+        </div>
+      </template>
+      <!-- Browsing within a disk: breadcrumb capped at the disk root -->
+      <template v-else>
+        <div class="lib-breadcrumb">
+          <span class="lib-bc-seg lib-bc-back" @click="backToDisks">‹ 磁盘</span>
+          <span
+            v-for="(seg, idx) in breadcrumbs"
+            :key="idx"
+            class="lib-bc-seg"
+            @click="navigateTo(seg.path)"
+          >{{ seg.label }}</span>
+        </div>
+        <div v-if="currentFolders.length === 0" class="lib-empty">暂无子文件夹</div>
+        <div
+          v-for="folder in currentFolders"
+          :key="folder.path"
+          class="lib-folder-row"
+        >
+          <span class="lib-folder-name" @click="enterFolder(folder.path)">{{ folder.name }}</span>
+          <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
+        </div>
+      </template>
     </div>
 
     <!-- Photo tab -->
@@ -96,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useAddPanel } from '../composables/useAddPanel'
 import { useHomeUiStore } from '../stores/homeUi'
 import { useAppsStore } from '../stores/apps'
@@ -197,20 +207,37 @@ const visibleWidgets = computed(() => {
   )
 })
 
-// Breadcrumbs: split fsPath into segments
+// Breadcrumbs: from the selected disk root down to the current folder.
+// Never includes segments above the disk root (so `/` is never reachable).
 const breadcrumbs = computed(() => {
-  const path = ap.fsPath.value
-  const parts = path.split('/').filter(Boolean) // e.g. ['DATA', 'Documents']
-  const segs: { label: string; path: string }[] = [{ label: '/', path: '/' }]
-  let acc = ''
+  const disk = ap.fsDisk.value
+  if (!disk) return []
+  const root = disk.path.replace(/\/+$/, '') || '/'
+  const cur = ap.fsPath.value || root
+  const rel = cur.startsWith(root) ? cur.slice(root.length) : ''
+  const parts = rel.split('/').filter(Boolean)
+  const segs: { label: string; path: string }[] = [{ label: disk.name, path: root }]
+  let acc = root
   for (const p of parts) {
-    acc += '/' + p
+    acc = acc.replace(/\/+$/, '') + '/' + p
     segs.push({ label: p, path: acc })
   }
   return segs
 })
 
 const currentFolders = computed(() => foldersStore.cache[ap.fsPath.value] ?? [])
+
+function enterDisk(disk: { name: string; path: string }) {
+  ap.fsDisk.value = disk
+  ap.fsPath.value = disk.path
+  foldersStore.loadFolder(disk.path)
+}
+
+function backToDisks() {
+  ap.fsDisk.value = null
+  ap.fsPath.value = ''
+  foldersStore.loadDisks() // refresh so a freshly-plugged USB shows up
+}
 
 function navigateTo(path: string) {
   ap.fsPath.value = path
@@ -221,6 +248,11 @@ function enterFolder(path: string) {
   ap.fsPath.value = path
   foldersStore.loadFolder(path)
 }
+
+// Load disks on mount, and refresh whenever the folder tab is (re)opened so a
+// freshly-plugged USB drive appears.
+onMounted(() => foldersStore.loadDisks())
+watch(() => ap.curTab.value, (t) => { if (t === 'folder' && !ap.fsDisk.value) foldersStore.loadDisks() })
 
 // SVG glyph helper for system apps
 const BAG = '<svg class="icon" viewBox="0 0 24 24"><path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/></svg>'

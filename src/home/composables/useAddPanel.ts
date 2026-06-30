@@ -10,13 +10,18 @@ type Desc = Omit<LayoutItem, 'id' | 'c' | 'r'>
 // Module-level singleton refs so all useAddPanel() calls share state (like useDock)
 const open = ref(false)
 const curTab = ref<'widget' | 'app' | 'folder' | 'photo'>('widget')
-const fsPath = ref('/DATA')
+// Folder picker state: fsDisk = the selected disk root (null = show the disk list);
+// fsPath = the current folder within that disk ('' = none). The picker never goes
+// above fsDisk.path, so the raw filesystem root `/` is never exposed.
+const fsDisk = ref<{ name: string; path: string } | null>(null)
+const fsPath = ref('')
 
 /** Reset singleton state — call in test beforeEach after localStorage.clear() */
 export function __resetAddPanelForTest() {
   open.value = false
   curTab.value = 'widget'
-  fsPath.value = '/DATA'
+  fsDisk.value = null
+  fsPath.value = ''
 }
 
 export function useAddPanel(dims: Dims) {
@@ -61,5 +66,5 @@ export function useAddPanel(dims: Dims) {
   function close() { open.value = false }
   function reset() { layout.reset(); close(); ui.showToast('已恢复默认布局') }
 
-  return { open, curTab, fsPath, widgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
+  return { open, curTab, fsDisk, fsPath, widgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
 }
