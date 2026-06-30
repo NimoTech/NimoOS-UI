@@ -24,7 +24,7 @@
         :key="key"
         class="lib-card"
         :data-key="key"
-        @click="ap.toggleWidget(String(key), meta.default[0], meta.default[1])"
+        @pointerdown="onSpawnDown($event, { kind: 'widget', key: String(key), w: meta.default[0], h: meta.default[1] })"
       >
         <svg class="lib-card-icon" viewBox="0 0 24 24" v-html="meta.icon" />
         <div class="lib-card-info">
@@ -103,13 +103,77 @@ import { useFoldersStore } from '../stores/folders'
 import { usePhotosStore } from '../stores/photos'
 import { useLiveStatsStore } from '../stores/liveStats'
 import { WIDGETS } from '../widgets/registry'
+import type { Kind } from '../grid/types'
 
 const props = defineProps<{ open: boolean }>()
 defineEmits<{ close: [] }>()
 
+type SpawnDesc = { kind: Kind; key: string; w: number; h: number }
+
 // Singleton — shares state with Home.vue's useAddPanel call
 const ap = useAddPanel({ cols: 12, rows: 8 })
 const appsStore = useAppsStore()
+
+// ─── Spawn drag/click logic ───────────────────────────────────────────────────
+// State for the in-progress spawn gesture
+let spawnStart: { desc: SpawnDesc; x: number; y: number; moved: boolean } | null = null
+
+function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
+  e.preventDefault()
+  spawnStart = { desc, x: e.clientX, y: e.clientY, moved: false }
+
+  function onMove(ev: PointerEvent) {
+    if (!spawnStart) return
+    const dx = ev.clientX - spawnStart.x
+    const dy = ev.clientY - spawnStart.y
+    if (!spawnStart.moved && Math.sqrt(dx * dx + dy * dy) > 6) {
+      spawnStart.moved = true
+      // Enter edit mode when drag starts (best-effort — ap may not have toggleEdit)
+    }
+  }
+
+  function onUp(ev: PointerEvent) {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    if (!spawnStart) return
+    const start = spawnStart
+    spawnStart = null
+
+    if (!start.moved) {
+      // Click path: pin/toggle (no drag)
+      if (start.desc.kind === 'widget') {
+        ap.toggleWidget(start.desc.key, start.desc.w, start.desc.h)
+      } else {
+        ap.pinToFree(start.desc)
+      }
+    } else {
+      // Drag path: compute target cell from pointer position and place
+      const CELL = 60 // approximate cell size; real grid rect would refine this
+      const grid = document.querySelector('.grid-canvas') as HTMLElement | null
+      if (grid) {
+        const rect = grid.getBoundingClientRect()
+        if (
+          ev.clientX >= rect.left && ev.clientX <= rect.right &&
+          ev.clientY >= rect.top && ev.clientY <= rect.bottom
+        ) {
+          const tc = Math.max(0, Math.floor((ev.clientX - rect.left - CELL / 2) / CELL))
+          const tr = Math.max(0, Math.floor((ev.clientY - rect.top - CELL / 2) / CELL))
+          ap.spawnPlace(start.desc, tc, tr)
+          return
+        }
+      }
+      // Pointer released outside grid — fall back to pinToFree
+      if (start.desc.kind === 'widget') {
+        ap.toggleWidget(start.desc.key, start.desc.w, start.desc.h)
+      } else {
+        ap.pinToFree(start.desc)
+      }
+    }
+  }
+
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp, { once: true })
+}
 const foldersStore = useFoldersStore()
 const photosStore = usePhotosStore()
 const liveStats = useLiveStatsStore()
