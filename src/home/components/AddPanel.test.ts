@@ -15,9 +15,13 @@ describe('AddPanel', () => {
   })
   it('clicking an app card pins it to the grid', async () => {
     const layout = useLayoutStore(); layout.replaceAll([])
-    const w = mount(AddPanel, { props: { open: true } })
+    const w = mount(AddPanel, { props: { open: true }, attachTo: document.body })
     await w.get('[data-tab="app"]').trigger('click')
-    await w.get('.lib-icon[data-key="vm"]').trigger('click')
+    // pointerdown starts the gesture; pointerup (no move) triggers the click-to-pin path
+    const icon = w.get('.lib-icon[data-key="vm"]')
+    await icon.trigger('pointerdown', { clientX: 0, clientY: 0 })
+    await icon.trigger('pointerup', { clientX: 0, clientY: 0 })
     expect(layout.items.some((i) => i.key === 'vm')).toBe(true)
+    w.unmount()
   })
 })

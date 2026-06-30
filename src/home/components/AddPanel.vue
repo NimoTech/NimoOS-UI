@@ -42,7 +42,7 @@
         :key="key"
         class="lib-icon"
         :data-key="key"
-        @click="ap.pinToFree({ kind: 'app', key, w: 1, h: 1 })"
+        @pointerdown="onSpawnDown($event, { kind: 'app', key, w: 1, h: 1 })"
       >
         <span v-if="appsStore.apps[key]?.icon" class="lib-app-ic has-img">
           <img :src="appsStore.apps[key].icon!" alt="" loading="lazy" />
@@ -71,7 +71,7 @@
         class="lib-folder-row"
       >
         <span class="lib-folder-name" @click="enterFolder(folder.path)">{{ folder.name }}</span>
-        <button class="lib-pin-btn" @click="ap.pinToFree({ kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
+        <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
       </div>
     </div>
 
@@ -82,7 +82,7 @@
         v-for="asset in photosStore.assets"
         :key="asset.id"
         class="lib-photo-thumb"
-        @click="ap.pinToFree({ kind: 'photo', key: String(asset.id), w: 2, h: 2 })"
+        @pointerdown="onSpawnDown($event, { kind: 'photo', key: String(asset.id), w: 2, h: 2 })"
       >
         <img :src="photosStore.thumbnailUrl(asset.id)" :alt="String(asset.id)" loading="lazy" />
       </div>
@@ -108,7 +108,7 @@ import type { Kind } from '../grid/types'
 const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number }>()
 defineEmits<{ close: [] }>()
 
-type SpawnDesc = { kind: Kind; key: string; w: number; h: number }
+type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string }
 
 // Singleton — shares state with Home.vue's useAddPanel call
 // cols/rows from props (passed by Home.vue) are used for spawn clamping
