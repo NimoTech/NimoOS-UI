@@ -105,7 +105,7 @@ import { useLiveStatsStore } from '../stores/liveStats'
 import { WIDGETS } from '../widgets/registry'
 import type { Kind } from '../grid/types'
 
-const props = defineProps<{ open: boolean }>()
+const props = defineProps<{ open: boolean; cell?: number; gap?: number }>()
 defineEmits<{ close: [] }>()
 
 type SpawnDesc = { kind: Kind; key: string; w: number; h: number }
@@ -148,7 +148,8 @@ function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
       }
     } else {
       // Drag path: compute target cell from pointer position and place
-      const CELL = 60 // approximate cell size; real grid rect would refine this
+      const CELL = props.cell ?? 60 // real cell size passed from Home via props; falls back to ~60px
+      const GAP = props.gap ?? 16   // real gap passed from Home via props
       const grid = document.querySelector('.grid-canvas') as HTMLElement | null
       if (grid) {
         const rect = grid.getBoundingClientRect()
@@ -156,8 +157,9 @@ function onSpawnDown(e: PointerEvent, desc: SpawnDesc) {
           ev.clientX >= rect.left && ev.clientX <= rect.right &&
           ev.clientY >= rect.top && ev.clientY <= rect.bottom
         ) {
-          const tc = Math.max(0, Math.floor((ev.clientX - rect.left - CELL / 2) / CELL))
-          const tr = Math.max(0, Math.floor((ev.clientY - rect.top - CELL / 2) / CELL))
+          const step = CELL + GAP
+          const tc = Math.max(0, Math.floor((ev.clientX - rect.left) / step))
+          const tr = Math.max(0, Math.floor((ev.clientY - rect.top) / step))
           ap.spawnPlace(start.desc, tc, tr)
           return
         }

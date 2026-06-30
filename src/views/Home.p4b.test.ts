@@ -1,0 +1,18 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
+import { createI18n } from 'vue-i18n'
+import { messages } from '../i18n/zh_cn'
+import Home from './Home.vue'
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+describe('Home P4b', () => {
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  it('renders the dock and opens add panel from topbar', async () => {
+    const w = mount(Home, { global: { plugins: [i18n] } })
+    await w.vm.$nextTick()
+    expect(w.find('.dock').exists()).toBe(true)
+    await w.get('.add-btn').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.lib-panel').exists()).toBe(true)
+  })
+})

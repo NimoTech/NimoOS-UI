@@ -4,7 +4,7 @@
     <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
     <HomeDock ref="dock" />
     <HomeToast />
-    <AddPanel :open="addPanel.open.value" @close="addPanel.close" />
+    <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" @close="addPanel.close" />
   </main>
 </template>
 
@@ -24,6 +24,7 @@ import { useLiveStats } from '../home/composables/useLiveStats'
 import { useEvents } from '../home/composables/useEvents'
 import { reconcileGpu } from '../home/composables/reconcileGpu'
 import { useAddPanel } from '../home/composables/useAddPanel'
+import { useDock } from '../home/composables/useDock'
 
 const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dock = ref<InstanceType<typeof HomeDock> | null>(null)
@@ -53,7 +54,7 @@ onMounted(async () => {
   onResize = () => relayout()
   window.addEventListener('resize', onResize)
 
-  apps.loadGrid().catch((e) => console.warn('[home] appgrid', e))
+  apps.loadGrid().then(() => useDock().refresh()).catch((e) => console.warn('[home] appgrid', e))
   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
 
