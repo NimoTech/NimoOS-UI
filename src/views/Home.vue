@@ -25,6 +25,7 @@ import { useEvents } from '../home/composables/useEvents'
 import { reconcileGpu } from '../home/composables/reconcileGpu'
 import { useAddPanel } from '../home/composables/useAddPanel'
 import { useDock } from '../home/composables/useDock'
+import { useParallax } from '../home/composables/useParallax'
 
 const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dock = ref<InstanceType<typeof HomeDock> | null>(null)
@@ -44,6 +45,7 @@ const { cols, rows, cell, gap, relayout } = useGridMeasure(gridEl, dockEl)
 watch(() => live.gpu, () => reconcileGpu(layout, live))
 
 let onResize: (() => void) | null = null
+let stopParallax: (() => void) | null = null
 
 onMounted(async () => {
   layout.loadInitial()
@@ -53,12 +55,16 @@ onMounted(async () => {
   layout.loadServer().then(() => relayout()).catch(() => {})
   onResize = () => relayout()
   window.addEventListener('resize', onResize)
+  stopParallax = useParallax().stop
 
   apps.loadGrid().then(() => useDock().refresh()).catch((e) => console.warn('[home] appgrid', e))
   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
 
-onUnmounted(() => { if (onResize) window.removeEventListener('resize', onResize) })
+onUnmounted(() => {
+  if (onResize) window.removeEventListener('resize', onResize)
+  if (stopParallax) stopParallax()
+})
 </script>
 
 <style scoped>
