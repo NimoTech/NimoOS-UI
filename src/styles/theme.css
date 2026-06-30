@@ -105,3 +105,54 @@ body {
 button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: var(--stroke, 1.9); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+/* ---- 柔光纵深背景（暗调环境，让通透面板浮起来）+ 视差 ---- */
+body {
+  background:
+    radial-gradient(62% 52% at 18% 16%, #4a5d92 0%, transparent 60%),
+    radial-gradient(58% 50% at 84% 10%, #6a5aa0 0%, transparent 60%),
+    radial-gradient(64% 58% at 62% 96%, #356f86 0%, transparent 62%),
+    linear-gradient(180deg, #2a3354 0%, #1c2339 58%, #141a2b 100%) fixed;
+}
+/* 散景光斑层（高斯模糊 + 缓动 + 随鼠标视差） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(22vw 22vw at 22% 26%, rgba(150, 185, 255, 0.5), transparent 60%),
+    radial-gradient(18vw 18vw at 78% 30%, rgba(183, 155, 255, 0.42), transparent 62%),
+    radial-gradient(20vw 20vw at 60% 80%, rgba(95, 227, 176, 0.32), transparent 62%),
+    radial-gradient(12vw 12vw at 40% 60%, rgba(255, 255, 255, 0.18), transparent 60%);
+  filter: blur(46px);
+  transform: translate(calc(var(--mx, 0) * -30px), calc(var(--my, 0) * -30px));
+  transition: transform 0.45s var(--ease);
+  animation: floatField 30s var(--ease) infinite alternate;
+}
+/* 顶部柔光 + 轻微暗角，增强纵深 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%),
+    radial-gradient(120% 80% at 50% 120%, rgba(0, 0, 0, 0.32), transparent 55%);
+}
+
+/* ---- 共享动效 ---- */
+@keyframes jiggle { 0%,100% { transform: rotate(-.55deg); } 50% { transform: rotate(.55deg); } }
+@keyframes itemIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes pop { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } 100% { transform: scale(1); } }
+@keyframes pulse { 50% { box-shadow: 0 0 54px var(--orb-glow); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes floatField { to { transform: translate(3vw, 3vh) scale(1.08); } }
+
+/* ---- 减少动效模式 ---- */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; transition: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
