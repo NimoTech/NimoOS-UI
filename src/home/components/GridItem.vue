@@ -7,7 +7,7 @@
     :style="style"
   >
     <WidgetCard v-if="item.kind === 'widget'" :item="item" />
-    <div v-else-if="item.kind === 'photo'" class="photo-fill" :style="{ background: item.key }" />
+    <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
     <AppTile v-else-if="item.kind === 'app'" :item="item" />
     <FolderTile v-else-if="item.kind === 'folder'" :item="item" />
     <span v-else class="item-label">{{ label }}</span>
@@ -20,6 +20,7 @@ import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
 import { SYSTEM_APPS } from '../apps/systemApps'
 import WidgetCard from './widgets/WidgetCard.vue'
+import PhotoTile from './PhotoTile.vue'
 import AppTile from './AppTile.vue'
 import FolderTile from './FolderTile.vue'
 

@@ -4,6 +4,7 @@ import type { LayoutItem, PlanEntry, Dims } from '../grid/types'
 import { DEFAULT } from '../grid/defaultLayout'
 import { WIDGETS } from '../widgets/registry'
 import { applyPlan as applyPlanPure, clampToGrid } from '../grid/gridMath'
+import { isAssetId } from '../util/isAssetId'
 
 const KEY = 'nimoos-home-layout-v2'
 
@@ -58,5 +59,17 @@ export const useLayoutStore = defineStore('home-layout', () => {
     items.value = clampToGrid(items.value, dims)
   }
 
-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll }
+  function bindPhotos(ids: (string | number)[]) {
+    let i = 0
+    items.value = items.value.map((it) => {
+      if (it.kind === 'photo' && !isAssetId(it.key) && ids[i] != null) {
+        const next = { ...it, key: String(ids[i]) }
+        i++
+        return next
+      }
+      return it
+    })
+  }
+
+  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos }
 })
