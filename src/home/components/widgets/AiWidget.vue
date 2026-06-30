@@ -14,8 +14,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { LayoutItem } from '../../grid/types'
+import { useOpenAction } from '../../composables/useOpenAction'
 const props = defineProps<{ item: LayoutItem }>()
 const text = ref('')
+const { sendToAI } = useOpenAction()
 const big = computed(() => props.item.w >= 4 && props.item.h >= 4)
 const tiny = computed(() => !(props.item.h >= 2 && props.item.w >= 3) && !big.value)
 const layoutClass = computed(() => (big.value ? 'big' : tiny.value ? 'tiny' : 'mid'))
@@ -24,7 +26,7 @@ const prompts = computed(() => (big.value ? allPrompts : allPrompts.slice(0, 1))
 function send(preset?: string) {
   const msg = (preset ?? text.value).trim()
   if (!msg) return
-  window.location.href = '/#/ai/agent?message=' + encodeURIComponent(msg)
+  sendToAI(msg)
 }
 </script>
 <style scoped>

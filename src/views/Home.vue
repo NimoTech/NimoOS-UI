@@ -9,6 +9,8 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import GridCanvas from '../home/components/GridCanvas.vue'
 import { useLayoutStore } from '../home/stores/layout'
+import { useAppsStore } from '../home/stores/apps'
+import { usePhotosStore } from '../home/stores/photos'
 import { useGridMeasure } from '../home/composables/useGridMeasure'
 import { useLiveStats } from '../home/composables/useLiveStats'
 import { useEvents } from '../home/composables/useEvents'
@@ -18,6 +20,8 @@ const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dockEl = ref<HTMLElement | null>(null)
 const gridEl = ref<HTMLElement | null>(null)
 const layout = useLayoutStore()
+const apps = useAppsStore()
+const photos = usePhotosStore()
 const live = useLiveStats()
 useEvents()
 const { relayout } = useGridMeasure(gridEl, dockEl)
@@ -32,6 +36,9 @@ onMounted(async () => {
   relayout()
   onResize = () => relayout()
   window.addEventListener('resize', onResize)
+
+  apps.loadGrid().catch((e) => console.warn('[home] appgrid', e))
+  photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
 
 onUnmounted(() => { if (onResize) window.removeEventListener('resize', onResize) })

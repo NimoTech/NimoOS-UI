@@ -5,6 +5,7 @@
     :data-id="item.id"
     :data-kind="item.kind"
     :style="style"
+    @click="onClick"
   >
     <WidgetCard v-if="item.kind === 'widget'" :item="item" />
     <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
@@ -19,12 +20,14 @@ import { computed } from 'vue'
 import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
 import { SYSTEM_APPS } from '../apps/systemApps'
+import { useOpenAction } from '../composables/useOpenAction'
 import WidgetCard from './widgets/WidgetCard.vue'
 import PhotoTile from './PhotoTile.vue'
 import AppTile from './AppTile.vue'
 import FolderTile from './FolderTile.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
+const { openItem } = useOpenAction()
 
 const style = computed(() => ({
   gridColumn: `${props.item.c} / span ${props.item.w}`,
@@ -37,6 +40,10 @@ const label = computed(() => {
   if (it.kind === 'app') return SYSTEM_APPS.find((a) => a.key === it.key)?.label ?? it.key
   return it.key // folder
 })
+
+function onClick() {
+  if (props.item.kind === 'app' || props.item.kind === 'folder' || props.item.kind === 'photo') openItem(props.item)
+}
 </script>
 
 <style scoped>

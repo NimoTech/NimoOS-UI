@@ -1,9 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 import AiWidget from './AiWidget.vue'
 import type { LayoutItem } from '../../grid/types'
 const item = (w: number, h: number): LayoutItem => ({ id: 'i', kind: 'widget', key: 'ai', c: 1, r: 1, w, h })
 describe('AiWidget', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
   it('submitting the input navigates to the agent with the message', async () => {
     const hrefs: string[] = []
     const orig = window.location
