@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
 import { useOpenAction } from './useOpenAction'
+import { useToast } from '../../stores/toast'
 import type { LayoutItem } from '../grid/types'
 
 let hrefs: string[]
@@ -37,6 +38,15 @@ describe('useOpenAction.openApp', () => {
     openApp('jf')
     expect(opens.length).toBe(0)
     expect(notify).toHaveBeenCalledWith(expect.stringContaining('未运行'))
+  })
+  it('default notify surfaces a toast for a stopped app', () => {
+    const s = useAppsStore()
+    s.setApps([{ name: 'jf', status: 'stopped' }] as any)
+    const toast = useToast()
+    const { openApp } = useOpenAction() // no notify arg -> default
+    openApp('jf')
+    expect(opens.length).toBe(0)
+    expect(toast.msg).toContain('未运行')
   })
 })
 

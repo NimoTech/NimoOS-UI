@@ -1,12 +1,13 @@
 import type { LayoutItem } from '../grid/types'
 import { useAppsStore } from '../stores/apps'
+import { useToast } from '../../stores/toast'
 
 const SYS_ROUTE: Record<string, string> = {
   files: '/#/files', photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
   settings: '/#/legacy', appstore: '/#/legacy',
 }
 
-export function useOpenAction(notify: (msg: string) => void = (m) => console.warn('[home]', m)) {
+export function useOpenAction(notify: (msg: string) => void = (m) => useToast().show(m)) {
   const apps = useAppsStore()
 
   function openApp(key: string) {
