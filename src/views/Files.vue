@@ -34,7 +34,7 @@ onMounted(async () => {
   await sync()
 })
 
-watch(() => route.params.path, () => { sync() })
+watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
 </script>
 
 <template>
