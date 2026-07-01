@@ -1,9 +1,12 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import Home from '../views/Home.vue'
+import Files from '../views/Files.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: Home },
+  { path: '/files', name: 'files', component: Files },
+  { path: '/files/:path(.*)*', name: 'files-path', component: Files },
 ]
 
 export const router = createRouter({
