@@ -41,7 +41,7 @@ export function useAddPanel(dims: Dims) {
     const pos = firstFree(desc.w, desc.h, layout.items, dims)
     if (!pos) { ui.showToast('这一屏放满了,先移除点东西'); return false }
     layout.pin({ ...desc, c: pos.c, r: pos.r })
-    layout.save(); ui.showToast('已固定到主页:' + desc.key)
+    layout.save()
     return true
   }
 
