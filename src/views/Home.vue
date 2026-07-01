@@ -3,7 +3,6 @@
     <HomeTopbar @add="addPanel.openLib" />
     <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
     <HomeDock ref="dock" />
-    <HomeToast />
     <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" :cols="cols" :rows="rows" :grid-el="gridEl" @close="addPanel.close" />
   </main>
 </template>
@@ -12,7 +11,6 @@
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import GridCanvas from '../home/components/GridCanvas.vue'
 import HomeTopbar from '../home/components/HomeTopbar.vue'
-import HomeToast from '../home/components/HomeToast.vue'
 import HomeDock from '../home/components/HomeDock.vue'
 import AddPanel from '../home/components/AddPanel.vue'
 import { useLayoutStore } from '../home/stores/layout'
