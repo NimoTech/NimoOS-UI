@@ -18,9 +18,10 @@ describe('useOpenAction.openApp', () => {
     const { openApp } = useOpenAction()
     openApp('files'); expect(hrefs[0]).toBe('/#/files')
   })
-  it('settings/appstore fall back to /#/', () => {
+  it('settings/appstore navigate to /#/legacy', () => {
     const { openApp } = useOpenAction()
-    openApp('settings'); expect(hrefs[0]).toBe('/#/')
+    openApp('settings'); expect(hrefs[0]).toBe('/#/legacy')
+    openApp('appstore'); expect(hrefs[1]).toBe('/#/legacy')
   })
   it('running container app opens scheme://host:port/index', () => {
     const s = useAppsStore()
