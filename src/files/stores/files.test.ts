@@ -40,4 +40,32 @@ describe('filesStore', () => {
     expect(files.currentPath).toBe('/DATA')
     expect(files.entries.map((e) => e.name)).toEqual(['Documents', 'a.txt'])
   })
+
+  it('sortedEntries puts folders first then sorts by key/order', async () => {
+    const files = useFilesStore()
+    // seed entries directly
+    files.entries = [
+      { name: 'b.txt', path: '/DATA/b.txt', is_dir: false, size: 20, date: '2026-01-02' },
+      { name: 'Zeta', path: '/DATA/Zeta', is_dir: true },
+      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 10, date: '2026-01-03' },
+      { name: 'Alpha', path: '/DATA/Alpha', is_dir: true },
+    ] as any
+    files.setSort('name', 'asc')
+    expect(files.sortedEntries.map((e) => e.name)).toEqual(['Alpha', 'Zeta', 'a.txt', 'b.txt'])
+    files.setSort('size', 'desc')
+    // folders first (no size) then files by size desc
+    const names = files.sortedEntries.map((e) => e.name)
+    expect(names.slice(0, 2).sort()).toEqual(['Alpha', 'Zeta'])
+    expect(names.slice(2)).toEqual(['b.txt', 'a.txt'])
+  })
+
+  it('setSort toggles order when same column clicked; setView persists', () => {
+    const files = useFilesStore()
+    files.setSort('name', 'asc')
+    files.setSort('name')            // same col → toggle
+    expect(files.order).toBe('desc')
+    files.setView('grid')
+    expect(files.viewMode).toBe('grid')
+    expect(localStorage.getItem('nimoos:file-view')).toBe('grid')
+  })
 })
