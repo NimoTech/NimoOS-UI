@@ -69,3 +69,70 @@ describe('filesStore', () => {
     expect(localStorage.getItem('nimoos:file-view')).toBe('grid')
   })
 })
+
+describe('filesStore selection', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  function seed() {
+    const files = useFilesStore()
+    files.entries = [
+      { name: 'Alpha', path: '/DATA/Alpha', is_dir: true },
+      { name: 'Zeta', path: '/DATA/Zeta', is_dir: true },
+      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 10 },
+      { name: 'b.txt', path: '/DATA/b.txt', is_dir: false, size: 20 },
+    ] as any
+    files.setSort('name', 'asc') // sortedEntries: Alpha, Zeta, a.txt, b.txt
+    return files
+  }
+
+  it('toggleSelect flips membership and sets the anchor', () => {
+    const files = seed()
+    files.toggleSelect('/DATA/a.txt')
+    expect(files.isSelected('/DATA/a.txt')).toBe(true)
+    expect(files.selectedCount).toBe(1)
+    files.toggleSelect('/DATA/a.txt')
+    expect(files.isSelected('/DATA/a.txt')).toBe(false)
+    expect(files.selectedCount).toBe(0)
+  })
+
+  it('selectOnly clears others; selectAll selects everything', () => {
+    const files = seed()
+    files.toggleSelect('/DATA/a.txt')
+    files.selectOnly('/DATA/b.txt')
+    expect(files.selectedCount).toBe(1)
+    expect(files.isSelected('/DATA/b.txt')).toBe(true)
+    files.selectAll()
+    expect(files.selectedCount).toBe(4)
+    expect(files.allSelected).toBe(true)
+  })
+
+  it('selectRange selects the contiguous span in sortedEntries order (anchor→target)', () => {
+    const files = seed()
+    files.toggleSelect('/DATA/Alpha')      // anchor = Alpha (index 0)
+    files.selectRange('/DATA/a.txt')       // index 2 → span [Alpha, Zeta, a.txt]
+    expect([...files.selected].sort()).toEqual(['/DATA/Alpha', '/DATA/Zeta', '/DATA/a.txt'].sort())
+  })
+
+  it('selectRange without an anchor degrades to selectOnly', () => {
+    const files = seed()
+    files.selectRange('/DATA/Zeta')
+    expect([...files.selected]).toEqual(['/DATA/Zeta'])
+  })
+
+  it('setSelection replaces the whole selection; clearSelection empties it', () => {
+    const files = seed()
+    files.setSelection(['/DATA/a.txt', '/DATA/b.txt'])
+    expect(files.selectedCount).toBe(2)
+    files.clearSelection()
+    expect(files.selectedCount).toBe(0)
+    expect(files.selectionAnchor).toBe(null)
+  })
+
+  it('load clears the selection (per-directory)', async () => {
+    const files = seed()
+    files.toggleSelect('/DATA/a.txt')
+    expect(files.selectedCount).toBe(1)
+    await files.load('/DATA')
+    expect(files.selectedCount).toBe(0)
+  })
+})

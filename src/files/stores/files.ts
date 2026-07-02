@@ -38,6 +38,7 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   async function load(realPath: string) {
+    clearSelection()
     loading.value = true
     try {
       const data = await service.folder.getList(realPath)
@@ -89,5 +90,54 @@ export const useFilesStore = defineStore('files', () => {
     localStorage.setItem('nimoos:file-order', order.value)
   }
 
-  return { displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load, viewMode, sort, order, sortedEntries, setView, setSort }
+  const selected = ref<Set<string>>(new Set())
+  const selectionAnchor = ref<string | null>(null)
+
+  function isSelected(path: string): boolean {
+    return selected.value.has(path)
+  }
+  const selectedCount = computed(() => selected.value.size)
+  const allSelected = computed(
+    () => entries.value.length > 0 && sortedEntries.value.every((e) => selected.value.has(e.path)),
+  )
+  function clearSelection() {
+    selected.value = new Set()
+    selectionAnchor.value = null
+  }
+  function setSelection(paths: string[]) {
+    selected.value = new Set(paths)
+  }
+  function toggleSelect(path: string) {
+    const next = new Set(selected.value)
+    if (next.has(path)) next.delete(path)
+    else next.add(path)
+    selected.value = next
+    selectionAnchor.value = path
+  }
+  function selectOnly(path: string) {
+    selected.value = new Set([path])
+    selectionAnchor.value = path
+  }
+  function selectRange(path: string) {
+    const list = sortedEntries.value
+    const anchor = selectionAnchor.value
+    if (!anchor) { selectOnly(path); return }
+    const ai = list.findIndex((e) => e.path === anchor)
+    const bi = list.findIndex((e) => e.path === path)
+    if (ai === -1 || bi === -1) { toggleSelect(path); return }
+    const [lo, hi] = ai <= bi ? [ai, bi] : [bi, ai]
+    const next = new Set(selected.value)
+    for (let i = lo; i <= hi; i++) next.add(list[i].path)
+    selected.value = next
+  }
+  function selectAll() {
+    selected.value = new Set(sortedEntries.value.map((e) => e.path))
+  }
+
+  return {
+    displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load,
+    viewMode, sort, order, sortedEntries, setView, setSort,
+    selected, selectionAnchor, isSelected, selectedCount, allSelected,
+    toggleSelect, selectOnly, selectRange, selectAll, clearSelection, setSelection,
+  }
 })
