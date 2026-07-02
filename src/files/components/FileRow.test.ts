@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import FileRow from './FileRow.vue'
 
-const mountOpts = { global: { stubs: { FileThumb: true } } }
+const mountOpts = { global: { stubs: { FileThumb: true, FavoriteStar: true } } }
 
 describe('FileRow', () => {
   it('renders name, a FileThumb, size for files; emits open on click', async () => {

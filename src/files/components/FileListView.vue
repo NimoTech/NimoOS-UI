@@ -25,6 +25,7 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
         :class="['head-cell', c.cls]"
         @click="emit('reorder', c.key)"
       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
+      <span class="head-cell col-star"></span>
     </div>
     <FileRow v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
   </div>
@@ -37,4 +38,5 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
 .col-format { flex: 0 0 48px; }
 .col-date { flex: 0 0 160px; }
 .col-size { flex: 0 0 80px; text-align: right; }
+.col-star { flex: 0 0 32px; }
 </style>
