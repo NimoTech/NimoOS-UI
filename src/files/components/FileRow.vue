@@ -5,12 +5,30 @@ import { fileExt } from '../util/ext'
 import FileThumb from './FileThumb.vue'
 import FavoriteStar from './FavoriteStar.vue'
 
-const props = defineProps<{ entry: FileEntry }>()
-const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
+const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
+const emit = defineEmits<{
+  (e: 'open', entry: FileEntry): void
+  (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
+}>()
+
+function onClick(e: MouseEvent) {
+  if (e.shiftKey) emit('select', { entry: props.entry, mode: 'range' })
+  else if (e.ctrlKey || e.metaKey) emit('select', { entry: props.entry, mode: 'toggle' })
+  else emit('open', props.entry)
+}
 </script>
 
 <template>
-  <div class="file-row" @click="emit('open', props.entry)">
+  <div class="file-row" :class="{ selected: props.selected }" :data-path="props.entry.path" @click="onClick">
+    <span class="file-check">
+      <input
+        type="checkbox"
+        class="row-check"
+        :checked="props.selected"
+        @click.stop
+        @change="emit('select', { entry: props.entry, mode: 'toggle' })"
+      />
+    </span>
     <FileThumb class="file-icon" :entry="props.entry" />
     <span class="file-name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
@@ -23,6 +41,10 @@ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
 <style scoped>
 .file-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; cursor: pointer; color: var(--fg); }
 .file-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+.file-row.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+.file-check { flex: 0 0 28px; display: flex; justify-content: center; }
+.row-check { opacity: 0; cursor: pointer; }
+.file-row:hover .row-check, .file-row.selected .row-check { opacity: 1; }
 .file-icon { width: 28px; height: 28px; flex: 0 0 auto; }
 .file-name { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }

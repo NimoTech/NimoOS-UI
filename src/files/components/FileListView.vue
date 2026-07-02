@@ -3,8 +3,12 @@ import { useI18n } from 'vue-i18n'
 import type { FileEntry } from '../stores/files'
 import FileRow from './FileRow.vue'
 
-const props = defineProps<{ entries: FileEntry[]; sort: string; order: string }>()
-const emit = defineEmits<{ (e: 'open', entry: FileEntry): void; (e: 'reorder', sort: string): void }>()
+const props = defineProps<{ entries: FileEntry[]; sort: string; order: string; selectedPaths?: Set<string> }>()
+const emit = defineEmits<{
+  (e: 'open', entry: FileEntry): void
+  (e: 'reorder', sort: string): void
+  (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
+}>()
 const { t } = useI18n()
 
 const COLS = [
@@ -19,6 +23,7 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
 <template>
   <div class="file-listview">
     <div class="file-listhead">
+      <span class="head-cell col-check"></span>
       <span
         v-for="c in COLS"
         :key="c.key"
@@ -27,13 +32,21 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
       <span class="head-cell col-star"></span>
     </div>
-    <FileRow v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
+    <FileRow
+      v-for="entry in props.entries"
+      :key="entry.path"
+      :entry="entry"
+      :selected="props.selectedPaths?.has(entry.path)"
+      @open="emit('open', $event)"
+      @select="emit('select', $event)"
+    />
   </div>
 </template>
 
 <style scoped>
 .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
 .head-cell { cursor: pointer; user-select: none; }
+.col-check { flex: 0 0 28px; }
 .col-name { flex: 1 1 auto; margin-left: 40px; }
 .col-format { flex: 0 0 48px; }
 .col-date { flex: 0 0 160px; }
