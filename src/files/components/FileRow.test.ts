@@ -14,10 +14,13 @@ describe('FileRow', () => {
     expect(w.emitted('open')![0][0]).toEqual(entry)
   })
 
-  it('hides size for directories', () => {
+  it('keeps the size column but shows no size text for directories (column alignment)', () => {
     const entry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
     const w = mount(FileRow, { props: { entry } })
     expect(w.text()).toContain('Docs')
-    expect(w.find('.file-size').exists()).toBe(false)
+    // The .file-size cell is retained (so folder rows align with file rows and
+    // the sortable header) but renders empty — folders have no size number.
+    expect(w.find('.file-size').exists()).toBe(true)
+    expect(w.find('.file-size').text()).toBe('')
   })
 })
