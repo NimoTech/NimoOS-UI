@@ -16,9 +16,9 @@ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
 </template>
 
 <style scoped>
-.file-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: var(--card-bg, rgba(255,255,255,0.04)); border: 1px solid var(--card-border, transparent); }
+.file-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: transparent; border: 1px solid transparent; }
 .file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
-.tile-icon { width: 56px; height: 56px; }
+.tile-icon { width: var(--app-size, 64px); height: var(--app-size, 64px); }
 .tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
 </style>
