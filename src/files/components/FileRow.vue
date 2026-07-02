@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { FileEntry } from '../stores/files'
-import { iconNameFor, iconUrl } from '../util/icons'
 import { renderSize, dateFmt } from '../util/format'
 import { fileExt } from '../util/ext'
+import FileThumb from './FileThumb.vue'
 
 const props = defineProps<{ entry: FileEntry }>()
 const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
@@ -10,7 +10,7 @@ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
 
 <template>
   <div class="file-row" @click="emit('open', props.entry)">
-    <img class="file-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
+    <FileThumb class="file-icon" :entry="props.entry" />
     <span class="file-name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>

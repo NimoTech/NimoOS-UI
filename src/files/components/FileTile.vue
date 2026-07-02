@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FileEntry } from '../stores/files'
-import { iconNameFor, iconUrl } from '../util/icons'
 import { dateFmt } from '../util/format'
+import FileThumb from './FileThumb.vue'
 
 const props = defineProps<{ entry: FileEntry }>()
 const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
@@ -9,7 +9,7 @@ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
 
 <template>
   <div class="file-tile" @click="emit('open', props.entry)">
-    <img class="tile-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
+    <FileThumb class="tile-icon" :entry="props.entry" />
     <span class="tile-name">{{ props.entry.name }}</span>
     <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
   </div>
