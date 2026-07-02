@@ -14,5 +14,8 @@ export const messages = {
     filesColType: '类型',
     filesColDate: '修改日期',
     filesColSize: '大小',
+    filesFavorites: '收藏',
+    filesDisks: '磁盘',
+    filesNoFavorites: '暂无收藏',
   },
 }

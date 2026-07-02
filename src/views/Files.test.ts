@@ -7,6 +7,7 @@ import { messages } from '../i18n/zh_cn'
 import Files from './Files.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
+import { useFavoritesStore } from '../files/stores/favorites'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -18,6 +19,8 @@ vi.mock('@nimotech/nimoos-service', () => ({
         ],
       })),
     },
+    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+    image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
 }))
@@ -36,7 +39,15 @@ function makeRouter() {
 }
 
 describe('Files.vue browse pipe', () => {
-  beforeEach(() => { setActivePinia(createPinia()) })
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
 
   it('bare /files redirects to default disk root (virtual) and lists it', async () => {
     const folders = useFoldersStore()
@@ -98,5 +109,22 @@ describe('Files.vue browse pipe', () => {
     // click a sortable header
     await w.get('.col-name').trigger('click')
     expect(files.sort).toBe('name')
+  })
+
+  it('renders the sidebar (disks) and breadcrumb for the current folder', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/Documents'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    // sidebar shows the disk root
+    expect(w.find('.files-sidebar').exists()).toBe(true)
+    expect(w.find('.files-sidebar').text()).toContain('NimoOS-HD')
+    // breadcrumb shows virtual segments, never the real path
+    const crumbs = w.findAll('.crumb').map((c) => c.text())
+    expect(crumbs).toContain('NimoOS-HD')
+    expect(crumbs).toContain('Documents')
+    expect(w.find('.breadcrumb').text()).not.toContain('/DATA')
   })
 })
