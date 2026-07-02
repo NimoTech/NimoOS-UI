@@ -3,7 +3,7 @@ const TYPE_MAP: Record<string, string[]> = {
   'image-x-generic': ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff'],
   'video-x-generic': ['mkv', 'mp4', '3gp', 'avi', 'm2ts', 'webm', 'flv', 'vob', 'ts', 'mts', 'mov', 'wmv', 'rm', 'rmvb', 'asf', 'mpg', 'm4v', 'mpeg', 'f4v'],
   'audio-x-generic': ['aac', 'aiff', 'alac', 'amr', 'ape', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wma', 'wav'],
-  'text-x-generic': ['txt', 'log', 'pages', 'conf', 'config', 'list', 'ini', 'toml', 'cfg', 'rc', 'env', 'service', 'htaccess', 'gitconfig', 'vim', 'curlrc', 'wgetrc', 'gitignore'],
+  'text-x-generic': ['txt', 'log', 'pages', 'conf', 'config', 'list', 'ini', 'toml', 'cfg', 'rc', 'env', 'service', 'conf.d', 'htaccess', 'gitconfig', 'vim', 'curlrc', 'wgetrc', 'gitignore'],
   'text-markdown': ['md'],
   'text-css': ['php', 'css', 'less', 'scss', 'sass', 'aspx', 'lua', 'vue', 'js', 'go', 'asp', 'bat', 'c', 'cpp', 'cs', 'json', 'py', 'perl', 'sh', 'xml', 'yaml', 'vb', 'vbs', 'sql', 'swift', 'rust', 'rs', 'jsp', 'yml', 'r', 'pl', 'rb', 'src', 'h', 'tex', 'rtf', 'jsonld', 'ttl', 'n3', 'rss', 'atom', 'srt', 'ass', 'tsv', 'vcard', 'asc', 'url', 'diff', 'plaintext'],
   'text-html': ['html', 'htm', 'shtml', 'shtm'],
@@ -20,6 +20,7 @@ const TYPE_MAP: Record<string, string[]> = {
   'application-x-apple': ['dmg', 'ipa', 'pkg'],
   'application-x-pem-key': ['pem', 'crt', 'ca-bundle', 'p7b', 'p7s', 'der', 'cer', 'pfx', 'p12'],
   'text-x-cmake': ['makefile', 'cmake', 'dockerfile'],
+  'text-dockerfile': ['dockerfile'],
 }
 
 // 反向索引:ext → iconName(一次构建)
@@ -37,8 +38,7 @@ const FOLDER_BY_NAME: Record<string, string> = {
 }
 
 function ext(name: string): string {
-  const i = name.lastIndexOf('.')
-  return i > 0 ? name.slice(i + 1).toLowerCase() : ''
+  return name.slice(name.lastIndexOf('.') + 1).toLowerCase()
 }
 
 export function iconNameFor(entry: { name: string; is_dir: boolean; type?: string }): string {

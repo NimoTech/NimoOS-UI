@@ -30,4 +30,18 @@ describe('iconNameFor', () => {
     expect(typeof iconUrl('does-not-exist')).toBe('string')
     expect(iconUrl('does-not-exist')).toBe(iconUrl('unknown'))
   })
+
+  it('Vue2 fidelity: getFileExt edge cases (no dot guard, last-match-wins)', () => {
+    // dockerfile: text-x-cmake entry comes first, text-dockerfile entry comes last → last wins
+    expect(iconNameFor({ name: 'Dockerfile', is_dir: false })).toBe('text-dockerfile')
+    expect(iconNameFor({ name: 'x.dockerfile', is_dir: false })).toBe('text-dockerfile')
+    // makefile: only in text-x-cmake
+    expect(iconNameFor({ name: 'Makefile', is_dir: false })).toBe('text-x-cmake')
+    // dotfiles: no i>0 guard, so ".gitignore" → ext "gitignore" → text-x-generic
+    expect(iconNameFor({ name: '.gitignore', is_dir: false })).toBe('text-x-generic')
+    expect(iconNameFor({ name: '.env', is_dir: false })).toBe('text-x-generic')
+    // iconUrl sanity for newly reachable icon
+    expect(typeof iconUrl('text-dockerfile')).toBe('string')
+    expect(iconUrl('text-dockerfile').length).toBeGreaterThan(0)
+  })
 })
