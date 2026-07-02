@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
 import type { DisplayNames } from '../util/pathUtils'
+import { fileExt } from '../util/ext'
 
 export interface FileEntry {
   name: string
@@ -56,13 +57,9 @@ export const useFilesStore = defineStore('files', () => {
   const sort = ref<'name' | 'format' | 'date' | 'size'>((localStorage.getItem('nimoos:file-sort') as any) || 'name')
   const order = ref<'asc' | 'desc'>((localStorage.getItem('nimoos:file-order') as any) || 'asc')
 
-  function extOf(name: string): string {
-    const i = name.lastIndexOf('.')
-    return i > 0 ? name.slice(i + 1).toLowerCase() : ''
-  }
   const KEY_FN: Record<string, (e: FileEntry) => string | number> = {
     name: (e) => e.name.toLowerCase(),
-    format: (e) => extOf(e.name),
+    format: (e) => fileExt(e.name),
     date: (e) => new Date(e.date || 0).getTime() || 0,
     size: (e) => Number(e.size) || 0,
   }

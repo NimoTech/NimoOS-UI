@@ -2,6 +2,7 @@
 import type { FileEntry } from '../stores/files'
 import { iconNameFor, iconUrl } from '../util/icons'
 import { renderSize, dateFmt } from '../util/format'
+import { fileExt } from '../util/ext'
 
 const props = defineProps<{ entry: FileEntry }>()
 const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
@@ -11,7 +12,7 @@ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
   <div class="file-row" @click="emit('open', props.entry)">
     <img class="file-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
     <span class="file-name">{{ props.entry.name }}</span>
-    <span class="file-format">{{ props.entry.is_dir ? '' : (props.entry.name.split('.').length > 1 ? props.entry.name.split('.').pop() : '') }}</span>
+    <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
     <span class="file-size">{{ props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0) }}</span>
   </div>

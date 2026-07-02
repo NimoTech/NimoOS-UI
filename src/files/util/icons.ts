@@ -1,3 +1,5 @@
+import { fileExt } from './ext'
+
 // 扩展名 → 图标名(逐字移植自 Vue2 mixins/mixin.js typeMap)
 const TYPE_MAP: Record<string, string[]> = {
   'image-x-generic': ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff'],
@@ -29,16 +31,15 @@ for (const [icon, exts] of Object.entries(TYPE_MAP)) {
   for (const e of exts) EXT_TO_ICON[e] = icon
 }
 
+// 图片扩展集(供 isImage 复用,来源同 typeMap 的 image-x-generic)
+export const IMAGE_EXTS: ReadonlySet<string> = new Set(TYPE_MAP['image-x-generic'])
+
 const FOLDER_BY_NAME: Record<string, string> = {
   AppData: 'folder-application',
   Media: 'folder-video',
   Downloads: 'folder-download',
   Documents: 'folder-documents',
   Gallery: 'folder-pictures',
-}
-
-function ext(name: string): string {
-  return name.slice(name.lastIndexOf('.') + 1).toLowerCase()
 }
 
 export function iconNameFor(entry: { name: string; is_dir: boolean; type?: string }): string {
@@ -51,7 +52,7 @@ export function iconNameFor(entry: { name: string; is_dir: boolean; type?: strin
     if (FOLDER_BY_NAME[entry.name]) return FOLDER_BY_NAME[entry.name]
     return 'folder-default'
   }
-  return EXT_TO_ICON[ext(entry.name)] || 'unknown'
+  return EXT_TO_ICON[fileExt(entry.name)] || 'unknown'
 }
 
 // Vite: eager-glob 所有图标为 URL
