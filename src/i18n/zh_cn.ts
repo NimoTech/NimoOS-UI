@@ -17,5 +17,8 @@ export const messages = {
     filesFavorites: '收藏',
     filesDisks: '磁盘',
     filesNoFavorites: '暂无收藏',
+    filesSelectedCount: '已选 {count} 项',
+    filesSelectAll: '全选',
+    filesClearSel: '清空',
   },
 }
