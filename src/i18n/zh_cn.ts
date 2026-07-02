@@ -8,5 +8,11 @@ export const messages = {
     filesTitle: '文件',
     filesBackHome: '回主页',
     filesEmpty: '此文件夹为空',
+    filesViewList: '列表',
+    filesViewGrid: '网格',
+    filesColName: '名称',
+    filesColType: '类型',
+    filesColDate: '修改日期',
+    filesColSize: '大小',
   },
 }
