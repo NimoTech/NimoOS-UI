@@ -23,5 +23,12 @@ export const messages = {
     filesOpFailed: '操作失败',
     filesProtectedDelete: '系统默认文件夹不能删除',
     filesCopiedPath: '已复制路径',
+    filesNewFolder: '新建文件夹',
+    filesNewFile: '新建文件',
+    filesRename: '重命名',
+    filesDefaultFolderName: 'New Folder',
+    filesDefaultFileName: 'New File',
+    filesConfirm: '确定',
+    filesCancel: '取消',
   },
 }
