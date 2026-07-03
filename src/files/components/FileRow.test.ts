@@ -43,4 +43,10 @@ describe('FileRow', () => {
     expect(w.classes()).toContain('selected')
     expect((w.get('input.row-check').element as HTMLInputElement).checked).toBe(true)
   })
+
+  it('右键 emit contextmenu 带 entry,并阻止默认', async () => {
+    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
+    await w.trigger('contextmenu')
+    expect(w.emitted('contextmenu')?.[0]?.[0]).toMatchObject({ entry: fileEntry })
+  })
 })

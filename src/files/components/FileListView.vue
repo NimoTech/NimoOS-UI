@@ -8,6 +8,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'reorder', sort: string): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
+  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
 }>()
 const { t } = useI18n()
 
@@ -39,6 +40,7 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
       :selected="props.selectedPaths?.has(entry.path)"
       @open="emit('open', $event)"
       @select="emit('select', $event)"
+      @contextmenu="emit('contextmenu', $event)"
     />
   </div>
 </template>

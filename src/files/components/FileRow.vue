@@ -9,6 +9,7 @@ const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
 const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
+  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
 }>()
 
 function onClick(e: MouseEvent) {
@@ -19,7 +20,13 @@ function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="file-row" :class="{ selected: props.selected }" :data-path="props.entry.path" @click="onClick">
+  <div
+    class="file-row"
+    :class="{ selected: props.selected }"
+    :data-path="props.entry.path"
+    @click="onClick"
+    @contextmenu.prevent="emit('contextmenu', { entry: props.entry, event: $event })"
+  >
     <span class="file-check">
       <input
         type="checkbox"

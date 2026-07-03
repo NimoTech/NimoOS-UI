@@ -5,6 +5,7 @@ const props = defineProps<{ entries: FileEntry[]; selectedPaths?: Set<string> }>
 const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
+  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
 }>()
 </script>
 
@@ -17,6 +18,7 @@ const emit = defineEmits<{
       :selected="props.selectedPaths?.has(entry.path)"
       @open="emit('open', $event)"
       @select="emit('select', $event)"
+      @contextmenu="emit('contextmenu', $event)"
     />
   </div>
 </template>
