@@ -9,7 +9,7 @@ const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
   <DialogRoot :open="open" @update:open="emit('update:open', $event)">
     <DialogPortal>
       <DialogOverlay class="ui-dialog-overlay" />
-      <DialogContent class="ui-dialog-content">
+      <DialogContent class="ui-dialog-content" :aria-describedby="undefined">
         <DialogTitle v-if="title" class="ui-dialog-title">{{ title }}</DialogTitle>
         <div class="ui-dialog-body"><slot /></div>
         <div class="ui-dialog-footer"><slot name="footer" /></div>
