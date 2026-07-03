@@ -20,4 +20,13 @@ describe('triggerIframeDownload', () => {
     expect(frames).toHaveLength(1)
     expect((frames[0] as HTMLIFrameElement).src).toContain('/v1/batch?token=t&files=%2FDATA%2FDocs')
   })
+
+  it('iframe 被移出 DOM 后再次调用 → 重新创建一个新 iframe(不复用已脱离 DOM 的旧引用)', () => {
+    triggerIframeDownload('/v3/file?token=t&path=%2FDATA%2Fa.txt')
+    document.body.innerHTML = ''
+    triggerIframeDownload('/v1/batch?token=t&files=%2FDATA%2FDocs')
+    const frames = document.body.querySelectorAll('iframe')
+    expect(frames).toHaveLength(1)
+    expect((frames[0] as HTMLIFrameElement).src).toContain('/v1/batch?token=t&files=%2FDATA%2FDocs')
+  })
 })

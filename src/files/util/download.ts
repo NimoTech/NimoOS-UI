@@ -16,6 +16,6 @@ const REFRESH_BUFFER_MS = 60_000
 // 下载(fire-and-forget iframe,无法反应式重试)前的条件式预刷新判定。
 // expiresAt 为后端下发的 unix 秒;缺失(null)保守刷新;已过期或 ≤60s 内过期则刷新。
 export function shouldRefreshBeforeDownload(expiresAt: number | null, now: number): boolean {
-  if (expiresAt == null) return true
+  if (expiresAt == null || !Number.isFinite(expiresAt)) return true
   return now > expiresAt * 1000 - REFRESH_BUFFER_MS
 }

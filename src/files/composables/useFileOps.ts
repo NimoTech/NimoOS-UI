@@ -86,7 +86,7 @@ export function useFileOps() {
     const expiresAt = raw != null && raw !== '' ? Number(raw) : null
     if (shouldRefreshBeforeDownload(expiresAt, Date.now())) {
       try { await refreshAccessToken() }
-      catch { return } // 刷新失败:共享包已 onAuthFail→/logout,不发起下载
+      catch { return } // 刷新失败:共享包已 onAuthFail→/#/login,不发起下载
     }
     const plan = planDownload(entries)
     const url = plan.kind === 'file' ? service.file.fileUrl(plan.path) : service.batch.batchUrl(plan.files)

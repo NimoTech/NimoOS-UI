@@ -37,4 +37,7 @@ describe('shouldRefreshBeforeDownload', () => {
     const farSec = Math.floor(now / 1000) + 3600 // 1h 后过期
     expect(shouldRefreshBeforeDownload(farSec, now)).toBe(false)
   })
+  it('expires_at 非法(NaN)→ 保守刷新', () => {
+    expect(shouldRefreshBeforeDownload(NaN, now)).toBe(true)
+  })
 })
