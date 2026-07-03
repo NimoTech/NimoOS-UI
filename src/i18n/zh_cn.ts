@@ -37,6 +37,10 @@ export const messages = {
     filesCtxAddFavorite: '收藏',
     filesCtxRemoveFavorite: '取消收藏',
     filesCtxDelete: '删除',
+    filesCtxCopy: '复制',
+    filesCtxCut: '剪切',
+    filesCtxPasteOverwrite: '粘贴(覆盖)',
+    filesCtxPasteSkip: '粘贴(跳过)',
     filesDeleteConfirm: '确定删除选中的 {count} 项?此操作不可恢复。',
   },
 }

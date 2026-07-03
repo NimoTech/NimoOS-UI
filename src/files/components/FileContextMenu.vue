@@ -6,11 +6,13 @@ import ContextMenu from '../../components/ui/ContextMenu.vue'
 import type { FileEntry } from '../stores/files'
 import { canOperate } from '../util/protect'
 import { useFavoritesStore } from '../stores/favorites'
+import { useClipboardStore } from '../stores/clipboard'
 
 const props = defineProps<{ entry: FileEntry | null; selectedCount: number }>()
 const emit = defineEmits<{ (e: 'action', action: string, entry: FileEntry | null): void }>()
 const { t } = useI18n()
 const favorites = useFavoritesStore()
+const clipboard = useClipboardStore()
 
 const single = computed(() => props.selectedCount <= 1)
 const operable = computed(() => (props.entry ? canOperate(props.entry) : false))
@@ -38,9 +40,16 @@ function fire(action: string) { emit('action', action, props.entry) }
         <ContextMenuItem class="ui-ctx-item ctx-new-file" @select="fire('new-file')">{{ t('filesNewFile') }}</ContextMenuItem>
         <ContextMenuSeparator class="ui-ctx-sep" />
         <ContextMenuItem class="ui-ctx-item ctx-refresh" @select="fire('refresh')">{{ t('filesCtxRefresh') }}</ContextMenuItem>
+        <template v-if="clipboard.hasPasteData">
+          <ContextMenuSeparator class="ui-ctx-sep" />
+          <ContextMenuItem class="ui-ctx-item ctx-paste-overwrite" @select="fire('paste-overwrite')">{{ t('filesCtxPasteOverwrite') }}</ContextMenuItem>
+          <ContextMenuItem class="ui-ctx-item ctx-paste-skip" @select="fire('paste-skip')">{{ t('filesCtxPasteSkip') }}</ContextMenuItem>
+        </template>
       </template>
       <!-- 文件/文件夹项菜单 -->
       <template v-else>
+        <ContextMenuItem class="ui-ctx-item ctx-copy" @select="fire('copy')">{{ t('filesCtxCopy') }}</ContextMenuItem>
+        <ContextMenuItem v-if="operable" class="ui-ctx-item ctx-cut" @select="fire('cut')">{{ t('filesCtxCut') }}</ContextMenuItem>
         <ContextMenuItem v-if="showCopyPath" class="ui-ctx-item ctx-copy-path" @select="fire('copy-path')">{{ t('filesCtxCopyPath') }}</ContextMenuItem>
         <ContextMenuItem v-if="showRename" class="ui-ctx-item ctx-rename" @select="fire('rename')">{{ t('filesRename') }}</ContextMenuItem>
         <ContextMenuItem v-if="showFavorite" class="ui-ctx-item ctx-fav" @select="fire('toggle-favorite')">{{ favorited ? t('filesCtxRemoveFavorite') : t('filesCtxAddFavorite') }}</ContextMenuItem>

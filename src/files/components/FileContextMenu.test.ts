@@ -5,6 +5,7 @@ import { createI18n } from 'vue-i18n'
 import { messages } from '../../i18n/zh_cn'
 import FileContextMenu from './FileContextMenu.vue'
 import type { FileEntry } from '../stores/files'
+import { useClipboardStore } from '../stores/clipboard'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: { users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) } },
@@ -107,5 +108,34 @@ describe('FileContextMenu', () => {
     const w = mountMenu({ entry, selectedCount: 1 })
     await w.find('.ctx-delete').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['delete', entry])
+  })
+
+  it('文件项菜单含 复制(总是) + 剪切(operable)', () => {
+    const w = mountMenu({ entry: { name: 'a', path: '/DATA/a', is_dir: false } as FileEntry, selectedCount: 1 })
+    expect(w.find('.ctx-copy').exists()).toBe(true)
+    expect(w.find('.ctx-cut').exists()).toBe(true)
+  })
+
+  it('受保护项:剪切隐藏,复制仍在', () => {
+    const w = mountMenu({ entry: { name: 'AppData', path: '/DATA/AppData', is_dir: true } as FileEntry, selectedCount: 1 })
+    expect(w.find('.ctx-cut').exists()).toBe(false)
+    expect(w.find('.ctx-copy').exists()).toBe(true)
+  })
+
+  it('空白区:有剪贴板内容时出现 粘贴(覆盖)/(跳过)', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useClipboardStore().operate('copy', ['/DATA/a'])
+    const w = mount(FileContextMenu, {
+      props: { entry: null, selectedCount: 0 },
+      global: { plugins: [pinia, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },
+    })
+    expect(w.find('.ctx-paste-overwrite').exists()).toBe(true)
+    expect(w.find('.ctx-paste-skip').exists()).toBe(true)
+  })
+
+  it('空白区:无剪贴板内容时无粘贴项', () => {
+    const w = mountMenu({ entry: null, selectedCount: 0 })
+    expect(w.find('.ctx-paste-overwrite').exists()).toBe(false)
   })
 })
