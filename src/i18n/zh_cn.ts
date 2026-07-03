@@ -41,6 +41,10 @@ export const messages = {
     filesCtxCut: '剪切',
     filesCtxPasteOverwrite: '粘贴(覆盖)',
     filesCtxPasteSkip: '粘贴(跳过)',
+    filesTasksTitle: '当前任务',
+    filesCancelAll: '全部取消',
+    filesOpCopy: '复制',
+    filesOpMove: '移动',
     filesDeleteConfirm: '确定删除选中的 {count} 项?此操作不可恢复。',
   },
 }
