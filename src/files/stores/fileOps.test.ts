@@ -47,6 +47,14 @@ describe('fileOps store', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
+  it('ingest:未完成任务即使 to===当前目录也不 reload(reload 要求 finished)', () => {
+    const files = useFilesStore(); files.currentPath = '/DATA/here'
+    const spy = vi.spyOn(files, 'load')
+    const s = useFileOpsStore()
+    s.ingest(envelope([task({ finished: false, to: '/DATA/here' })]))
+    expect(spy).not.toHaveBeenCalled()
+  })
+
   it('cancelAll 调 batch.deleteTask(0)', async () => {
     const s = useFileOpsStore()
     await s.cancelAll()
