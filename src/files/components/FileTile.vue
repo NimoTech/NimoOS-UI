@@ -24,7 +24,7 @@ function onClick(e: MouseEvent) {
     :class="{ selected: props.selected }"
     :data-path="props.entry.path"
     @click="onClick"
-    @contextmenu.prevent="emit('contextmenu', { entry: props.entry, event: $event })"
+    @contextmenu="emit('contextmenu', { entry: props.entry, event: $event })"
   >
     <span class="tile-check">
       <input

@@ -252,13 +252,13 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
 
 <style scoped>
 .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.files-main { flex: 1 1 auto; min-width: 0; align-self: stretch; } /* 撑满右侧高度,使列表下方空白也可起框 */
+.files-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
 .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
-.files-listwrap { position: relative; min-height: 200px; user-select: none; }
+.files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
 .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
 </style>

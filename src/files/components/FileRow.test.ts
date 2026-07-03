@@ -44,9 +44,13 @@ describe('FileRow', () => {
     expect((w.get('input.row-check').element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('右键 emit contextmenu 带 entry,并阻止默认', async () => {
+  it('右键 emit contextmenu 带 entry,且不 preventDefault(否则 reka-ui trigger 会 bail、菜单不弹)', async () => {
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
-    await w.trigger('contextmenu')
+    const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    w.element.dispatchEvent(ev)
     expect(w.emitted('contextmenu')?.[0]?.[0]).toMatchObject({ entry: fileEntry })
+    // reka-ui ContextMenuTrigger.handleContextMenu 里 `if (!event.defaultPrevented)` —
+    // 行/卡若吞掉默认,冒泡到 trigger 时会被判定为已处理而不弹菜单。
+    expect(ev.defaultPrevented).toBe(false)
   })
 })
