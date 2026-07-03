@@ -83,6 +83,25 @@ describe('FileContextMenu', () => {
     expect(txt).toContain('删除')
   })
 
+  it('多选文件夹:也不显示收藏(收藏是单项操作)', () => {
+    const entry: FileEntry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
+    const w = mountMenu({ entry, selectedCount: 3 })
+    expect(w.find('.menu').text()).not.toContain('收藏')
+  })
+
+  it('菜单只剩删除时,删除上方不出现分割线', () => {
+    const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
+    const w = mountMenu({ entry, selectedCount: 3 }) // 多选 → 只有删除
+    expect(w.find('.ctx-delete').exists()).toBe(true)
+    expect(w.find('.ui-ctx-sep').exists()).toBe(false)
+  })
+
+  it('单选可操作项:删除上方有分割线(其上还有复制路径等)', () => {
+    const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
+    const w = mountMenu({ entry, selectedCount: 1 })
+    expect(w.find('.ui-ctx-sep').exists()).toBe(true)
+  })
+
   it('点删除项 emit action=delete', async () => {
     const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
     const w = mountMenu({ entry, selectedCount: 1 })
