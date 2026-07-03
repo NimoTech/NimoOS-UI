@@ -148,4 +148,23 @@ describe('FileContextMenu', () => {
     const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 3 })
     expect(wrapper.find('.ctx-download').exists()).toBe(true)
   })
+
+  it('空白区:含上传文件/上传文件夹', () => {
+    const w = mountMenu({ entry: null, selectedCount: 0 })
+    const txt = w.find('.menu').text()
+    expect(txt).toContain('上传文件')
+    expect(txt).toContain('上传文件夹')
+  })
+
+  it('点上传文件项 emit action=upload-file', async () => {
+    const w = mountMenu({ entry: null, selectedCount: 0 })
+    await w.find('.ctx-upload-file').trigger('click')
+    expect(w.emitted('action')?.[0]).toEqual(['upload-file', null])
+  })
+
+  it('点上传文件夹项 emit action=upload-folder', async () => {
+    const w = mountMenu({ entry: null, selectedCount: 0 })
+    await w.find('.ctx-upload-folder').trigger('click')
+    expect(w.emitted('action')?.[0]).toEqual(['upload-folder', null])
+  })
 })

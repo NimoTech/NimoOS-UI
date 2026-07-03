@@ -45,6 +45,9 @@ function fire(action: string) { emit('action', action, props.entry) }
           <ContextMenuItem class="ui-ctx-item ctx-paste-overwrite" @select="fire('paste-overwrite')">{{ t('filesCtxPasteOverwrite') }}</ContextMenuItem>
           <ContextMenuItem class="ui-ctx-item ctx-paste-skip" @select="fire('paste-skip')">{{ t('filesCtxPasteSkip') }}</ContextMenuItem>
         </template>
+        <ContextMenuSeparator class="ui-ctx-sep" />
+        <ContextMenuItem class="ui-ctx-item ctx-upload-file" @select="fire('upload-file')">{{ t('filesCtxUploadFile') }}</ContextMenuItem>
+        <ContextMenuItem class="ui-ctx-item ctx-upload-folder" @select="fire('upload-folder')">{{ t('filesCtxUploadFolder') }}</ContextMenuItem>
       </template>
       <!-- 文件/文件夹项菜单 -->
       <template v-else>

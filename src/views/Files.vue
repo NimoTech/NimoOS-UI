@@ -13,11 +13,16 @@ import NewItemDialog from '../files/components/NewItemDialog.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
 import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+import UploadPanel from '../files/components/UploadPanel.vue'
 import { useFileOps } from '../files/composables/useFileOps'
 import { useFilesStore, type FileEntry } from '../files/stores/files'
 import { useFavoritesStore } from '../files/stores/favorites'
 import { useFileOpsStore } from '../files/stores/fileOps'
 import { useClipboardStore } from '../files/stores/clipboard'
+import { useUploadsStore } from '../files/stores/uploads'
+import { useToast } from '../stores/toast'
+import { installUnloadGuard } from '../files/upload/unloadGuard'
+import type { SelectedFile } from '../files/upload/types'
 import { useMessageBus } from '../composables/useMessageBus'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
 import {
@@ -31,6 +36,8 @@ const favorites = useFavoritesStore()
 const ops = useFileOps()
 const fileOps = useFileOpsStore()
 const clipboard = useClipboardStore()
+const uploads = useUploadsStore()
+const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
 
@@ -86,7 +93,53 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'download': ops.download(selectedOr(entry)); break
     case 'paste-overwrite': ops.paste('overwrite'); break
     case 'paste-skip': ops.paste('skip'); break
+    case 'upload-file': triggerFileSelect(); break
+    case 'upload-folder': triggerFolderSelect(); break
   }
+}
+
+// ── 上传:隐藏 input 触发 + 拖拽落区 ──
+const fileInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
+function triggerFileSelect() { fileInput.value?.click() }
+function triggerFolderSelect() { folderInput.value?.click() }
+
+function onInputChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files && input.files.length) handleSelectedFiles(input.files)
+  input.value = '' // 允许重复选择同一文件再次触发 change
+}
+
+async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
+  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
+  const sel: SelectedFile[] = Array.from(list).map((f) => {
+    const raw = (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name
+    // 防御:去掉开头的 '/' —— 下游受保护目录判断按 split('/')[0] 取首段,
+    // 前导斜杠会产生空首段从而绕过检查。
+    return { file: f, targetPath, relativePath: raw.replace(/^\/+/, '') }
+  })
+  const { rejected } = await uploads.addFilesToQueue(sel)
+  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+}
+defineExpose({ handleSelectedFiles })
+
+// ── 拖拽落区(.files-main 全域可放)──
+const isDragIn = ref(false)
+let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
+function onDragOver() {
+  if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+  isDragIn.value = true
+}
+function onDragLeave() {
+  // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
+  if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
+  dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
+}
+function onDrop(e: DragEvent) {
+  if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+  isDragIn.value = false
+  const list = e.dataTransfer?.files
+  if (list && list.length) handleSelectedFiles(list)
 }
 
 function confirmNew(name: string) {
@@ -210,19 +263,32 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
 let offOperate: (() => void) | null = null
 onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
 onUnmounted(() => { offOperate?.() })
+
+let offUnloadGuard: (() => void) | null = null
+onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+onUnmounted(() => { offUnloadGuard?.() })
 </script>
 
 <template>
   <FilesShell>
     <div class="files-layout">
       <FilesSidebar @navigate="goVirtual" />
-      <div class="files-main" @mousedown="onMarqueeDown">
+      <div
+        class="files-main"
+        @mousedown="onMarqueeDown"
+        @dragover.prevent="onDragOver"
+        @dragleave="onDragLeave"
+        @drop.prevent="onDrop"
+      >
+        <div v-if="isDragIn" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
           <div class="files-topbar-right">
             <div class="files-actions">
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
+              <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
+              <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
               <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste('overwrite')">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
@@ -280,12 +346,15 @@ onUnmounted(() => { offOperate?.() })
       @confirm="confirmDelete"
     />
     <OperationStatusBar />
+    <UploadPanel />
+    <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
+    <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
   </FilesShell>
 </template>
 
 <style scoped>
 .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.files-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+.files-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
 .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
@@ -294,4 +363,10 @@ onUnmounted(() => { offOperate?.() })
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
 .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
+.files-drop-mask {
+  position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+  border: 2px dashed var(--accent, #6ea8fe); border-radius: 12px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
+  color: var(--fg); font-size: 14px; font-weight: 600; pointer-events: none;
+}
 </style>
