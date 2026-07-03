@@ -20,5 +20,8 @@ export const messages = {
     filesSelectedCount: '已选 {count} 项',
     filesSelectAll: '全选',
     filesClearSel: '清空',
+    filesOpFailed: '操作失败',
+    filesProtectedDelete: '系统默认文件夹不能删除',
+    filesCopiedPath: '已复制路径',
   },
 }
