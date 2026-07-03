@@ -30,5 +30,10 @@ export const messages = {
     filesDefaultFileName: 'New File',
     filesConfirm: '确定',
     filesCancel: '取消',
+    filesCtxRefresh: '刷新',
+    filesCtxCopyPath: '复制路径',
+    filesCtxAddFavorite: '收藏',
+    filesCtxRemoveFavorite: '取消收藏',
+    filesCtxDelete: '删除',
   },
 }
