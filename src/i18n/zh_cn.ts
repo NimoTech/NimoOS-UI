@@ -23,6 +23,7 @@ export const messages = {
     filesOpFailed: '操作失败',
     filesProtectedDelete: '此项目受保护,无法删除',
     filesProtectedRename: '此项目受保护,无法重命名',
+    filesProtectedMove: '此项目受保护,无法移动',
     filesCopiedPath: '已复制路径',
     filesNewFolder: '新建文件夹',
     filesNewFile: '新建文件',

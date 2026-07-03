@@ -6,6 +6,8 @@ import { useToast } from '../../stores/toast'
 import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
 import { canOperate } from '../util/protect'
+import { useClipboardStore } from '../stores/clipboard'
+import { buildPastePayload } from '../util/fileOps'
 
 function errMsg(e: unknown, fallback: string): string {
   const m = (e as { message?: string } | undefined)?.message
@@ -17,6 +19,7 @@ export function useFileOps() {
   const favorites = useFavoritesStore()
   const toast = useToast()
   const { t } = useI18n()
+  const clipboard = useClipboardStore()
 
   function refresh() {
     return files.load(files.currentPath)
@@ -55,5 +58,23 @@ export function useFileOps() {
     catch { toast.show(t('filesOpFailed')) }
   }
 
-  return { createFolder, createFile, rename, remove, copyPath, refresh }
+  function copy(entries: FileEntry[]) {
+    clipboard.operate('copy', entries.map((e) => e.path))
+  }
+
+  function cut(entries: FileEntry[]) {
+    if (entries.some((e) => !canOperate(e))) { toast.show(t('filesProtectedMove')); return }
+    clipboard.operate('move', entries.map((e) => e.path))
+  }
+
+  async function paste(style: 'overwrite' | 'skip') {
+    const o = clipboard.operateObject
+    if (!o) return
+    try {
+      await service.batch.task(buildPastePayload(o, files.currentPath, style))
+      clipboard.clear()
+    } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+  }
+
+  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, refresh }
 }

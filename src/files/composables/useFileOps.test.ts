@@ -11,13 +11,14 @@ const folderCreate = vi.fn().mockResolvedValue(undefined)
 const fileCreate = vi.fn().mockResolvedValue(undefined)
 const fileRename = vi.fn().mockResolvedValue(undefined)
 const batchDelete = vi.fn().mockResolvedValue(undefined)
+const batchTask = vi.fn().mockResolvedValue(undefined)
 const getList = vi.fn().mockResolvedValue({ content: [] })
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: { create: (...a: unknown[]) => folderCreate(...a), getList: (...a: unknown[]) => getList(...a) },
     file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a) },
-    batch: { delete: (...a: unknown[]) => batchDelete(...a) },
+    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a) },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
   },
 }))
@@ -97,5 +98,40 @@ describe('useFileOps', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('/NimoOS-HD/a')
     const arg = (navigator.clipboard.writeText as any).mock.calls[0][0]
     expect(arg).not.toContain('/DATA')
+  })
+
+  it('copy 把选中项真实路径写进剪贴板(type:copy)', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    const ops = makeOps()
+    ops.copy([{ name: 'a', path: '/DATA/a', is_dir: false } as never])
+    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a' }] })
+  })
+
+  it('cut 写 type:move;受保护项被挡(不写剪贴板)', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    const ops = makeOps()
+    ops.cut([{ name: 'AppData', path: '/DATA/AppData', is_dir: true } as never])
+    expect(clip.operateObject).toBeNull() // 受保护 → 挡下
+    ops.cut([{ name: 'a', path: '/DATA/a', is_dir: false } as never])
+    expect(clip.operateObject?.type).toBe('move')
+  })
+
+  it('paste 发 batch.task({type,item,to,style}) 后清空剪贴板', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', ['/DATA/a'])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const ops = makeOps()
+    await ops.paste('overwrite')
+    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
+    expect(clip.operateObject).toBeNull()
+  })
+
+  it('paste 无剪贴板内容时不发请求', async () => {
+    const ops = makeOps()
+    await ops.paste('overwrite')
+    expect(batchTask).not.toHaveBeenCalled()
   })
 })
