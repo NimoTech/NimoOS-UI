@@ -23,4 +23,15 @@ describe('SelectionToolbar', () => {
     await w.get('.sel-delete').trigger('click')
     expect(w.emitted('delete')).toBeTruthy()
   })
+
+  it('复制/剪切按钮 emit copy/cut', async () => {
+    const wrapper = mount(SelectionToolbar, {
+      props: { count: 2, allSelected: false },
+      global: { plugins: [i18n] },
+    })
+    await wrapper.find('.sel-copy').trigger('click')
+    await wrapper.find('.sel-cut').trigger('click')
+    expect(wrapper.emitted('copy')).toBeTruthy()
+    expect(wrapper.emitted('cut')).toBeTruthy()
+  })
 })
