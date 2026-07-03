@@ -1,5 +1,5 @@
 import { useI18n } from 'vue-i18n'
-import { service } from '@nimotech/nimoos-service'
+import { service, refreshAccessToken } from '@nimotech/nimoos-service'
 import { useFilesStore, type FileEntry } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
 import { useToast } from '../../stores/toast'
@@ -8,6 +8,8 @@ import { joinPath, renameTo } from '../util/pathOps'
 import { canOperate } from '../util/protect'
 import { useClipboardStore } from '../stores/clipboard'
 import { buildPastePayload } from '../util/fileOps'
+import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
+import { triggerIframeDownload } from '../util/iframeDownload'
 
 function errMsg(e: unknown, fallback: string): string {
   const m = (e as { message?: string } | undefined)?.message
@@ -76,5 +78,20 @@ export function useFileOps() {
     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
 
-  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, refresh }
+  async function download(entries: FileEntry[]) {
+    if (!entries.length) return
+    toast.show(t('filesDownloadPreparing'))
+    // 过期预刷新:iframe 下载 fire-and-forget 无法反应式重试,过期须先刷 token(唯一修法)。
+    const raw = localStorage.getItem('expires_at') // 后端下发 unix 秒
+    const expiresAt = raw != null && raw !== '' ? Number(raw) : null
+    if (shouldRefreshBeforeDownload(expiresAt, Date.now())) {
+      try { await refreshAccessToken() }
+      catch { return } // 刷新失败:共享包已 onAuthFail→/logout,不发起下载
+    }
+    const plan = planDownload(entries)
+    const url = plan.kind === 'file' ? service.file.fileUrl(plan.path) : service.batch.batchUrl(plan.files)
+    triggerIframeDownload(url)
+  }
+
+  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, download, refresh }
 }

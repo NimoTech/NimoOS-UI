@@ -28,6 +28,7 @@ export const messages = {
     filesNewFolder: '新建文件夹',
     filesNewFile: '新建文件',
     filesPaste: '粘贴',
+    filesDownloadPreparing: '正在准备下载…',
     filesRename: '重命名',
     filesDefaultFolderName: 'New Folder',
     filesDefaultFileName: 'New File',

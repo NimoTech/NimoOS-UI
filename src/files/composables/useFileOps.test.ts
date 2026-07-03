@@ -13,15 +13,22 @@ const fileRename = vi.fn().mockResolvedValue(undefined)
 const batchDelete = vi.fn().mockResolvedValue(undefined)
 const batchTask = vi.fn().mockResolvedValue(undefined)
 const getList = vi.fn().mockResolvedValue({ content: [] })
+const fileUrl = vi.fn((p: string) => `/v3/file?token=TK&path=${encodeURIComponent(p)}`)
+const batchUrl = vi.fn((f: string) => `/v1/batch?token=TK&files=${encodeURIComponent(f)}`)
+const refreshMock = vi.fn().mockResolvedValue('new-token')
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: { create: (...a: unknown[]) => folderCreate(...a), getList: (...a: unknown[]) => getList(...a) },
-    file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a) },
-    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a) },
+    file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a), fileUrl: (...a: unknown[]) => fileUrl(...(a as [string])) },
+    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a), batchUrl: (...a: unknown[]) => batchUrl(...(a as [string])) },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
   },
+  refreshAccessToken: (...a: unknown[]) => refreshMock(...a),
 }))
+
+const triggerMock = vi.fn()
+vi.mock('../util/iframeDownload', () => ({ triggerIframeDownload: (...a: unknown[]) => triggerMock(...(a as [string])) }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
 
@@ -133,5 +140,58 @@ describe('useFileOps', () => {
     const ops = makeOps()
     await ops.paste('overwrite')
     expect(batchTask).not.toHaveBeenCalled()
+  })
+
+  it('download 单文件 → service.file.fileUrl(真实路径) 并触发 iframe', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // 充裕,不刷新
+    const ops = makeOps()
+    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
+    expect(fileUrl).toHaveBeenCalledWith('/DATA/a.txt')
+    expect(batchUrl).not.toHaveBeenCalled()
+    expect(triggerMock).toHaveBeenCalledWith('/v3/file?token=TK&path=%2FDATA%2Fa.txt')
+    expect(refreshMock).not.toHaveBeenCalled()
+  })
+
+  it('download 单目录/多选 → service.batch.batchUrl(逗号连接真实路径)', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
+    const ops = makeOps()
+    await ops.download([
+      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+      { name: 'Docs', path: '/DATA/Docs', is_dir: true },
+    ])
+    expect(batchUrl).toHaveBeenCalledWith('/DATA/a.txt,/DATA/Docs')
+    expect(fileUrl).not.toHaveBeenCalled()
+    expect(triggerMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('download token 快过期 → 先 refreshAccessToken 再构 URL', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // 10s 后过期,进缓冲
+    const ops = makeOps()
+    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+    expect(triggerMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('download expires_at 缺失 → 保守刷新', async () => {
+    localStorage.removeItem('expires_at')
+    const ops = makeOps()
+    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('download 刷新失败 → 不触发下载', async () => {
+    localStorage.removeItem('expires_at') // 触发刷新
+    refreshMock.mockRejectedValueOnce(new Error('auth fail'))
+    const ops = makeOps()
+    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
+    expect(triggerMock).not.toHaveBeenCalled()
+  })
+
+  it('download 空选区 → 无操作', async () => {
+    const ops = makeOps()
+    await ops.download([])
+    expect(fileUrl).not.toHaveBeenCalled()
+    expect(batchUrl).not.toHaveBeenCalled()
+    expect(triggerMock).not.toHaveBeenCalled()
   })
 })
