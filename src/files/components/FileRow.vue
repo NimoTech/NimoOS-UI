@@ -4,8 +4,10 @@ import { renderSize, dateFmt } from '../util/format'
 import { fileExt } from '../util/ext'
 import FileThumb from './FileThumb.vue'
 import FavoriteStar from './FavoriteStar.vue'
+import { useClipboardStore } from '../stores/clipboard'
 
 const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
+const clipboard = useClipboardStore()
 const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
@@ -22,7 +24,7 @@ function onClick(e: MouseEvent) {
 <template>
   <div
     class="file-row"
-    :class="{ selected: props.selected }"
+    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path) }"
     :data-path="props.entry.path"
     @click="onClick"
     @contextmenu="emit('contextmenu', { entry: props.entry, event: $event })"
@@ -60,4 +62,5 @@ function onClick(e: MouseEvent) {
 .file-star { flex: 0 0 32px; display: flex; justify-content: center; }
 .file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
+.file-row.cut { opacity: 0.45; }
 </style>

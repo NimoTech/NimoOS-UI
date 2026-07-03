@@ -1,11 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 import FileRow from './FileRow.vue'
+import { useClipboardStore } from '../stores/clipboard'
 
 const mountOpts = { global: { stubs: { FileThumb: true, FavoriteStar: true } } }
 const fileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 1536, date: '2026-01-02T10:00:00Z' }
 
 describe('FileRow', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
   it('renders name, a FileThumb, size; plain click emits open', async () => {
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.text()).toContain('a.txt')
@@ -52,5 +56,17 @@ describe('FileRow', () => {
     // reka-ui ContextMenuTrigger.handleContextMenu 里 `if (!event.defaultPrevented)` —
     // 行/卡若吞掉默认,冒泡到 trigger 时会被判定为已处理而不弹菜单。
     expect(ev.defaultPrevented).toBe(false)
+  })
+
+  it('剪切态给行加 cut class', () => {
+    useClipboardStore().operate('move', ['/DATA/a.txt'])
+    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
+    expect(w.find('.file-row').classes()).toContain('cut')
+  })
+
+  it('复制态不加 cut class', () => {
+    useClipboardStore().operate('copy', ['/DATA/a.txt'])
+    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
+    expect(w.find('.file-row').classes()).not.toContain('cut')
   })
 })

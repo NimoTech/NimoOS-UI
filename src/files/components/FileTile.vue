@@ -3,8 +3,10 @@ import type { FileEntry } from '../stores/files'
 import { dateFmt } from '../util/format'
 import FileThumb from './FileThumb.vue'
 import FavoriteStar from './FavoriteStar.vue'
+import { useClipboardStore } from '../stores/clipboard'
 
 const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
+const clipboard = useClipboardStore()
 const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
@@ -21,7 +23,7 @@ function onClick(e: MouseEvent) {
 <template>
   <div
     class="file-tile"
-    :class="{ selected: props.selected }"
+    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path) }"
     :data-path="props.entry.path"
     @click="onClick"
     @contextmenu="emit('contextmenu', { entry: props.entry, event: $event })"
@@ -55,4 +57,5 @@ function onClick(e: MouseEvent) {
 .file-tile:hover .tile-check-box, .file-tile.selected .tile-check-box { opacity: 1; }
 .file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
+.file-tile.cut { opacity: 0.45; }
 </style>
