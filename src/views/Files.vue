@@ -83,6 +83,7 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     }
     case 'copy': ops.copy(selectedOr(entry)); break
     case 'cut': ops.cut(selectedOr(entry)); break
+    case 'download': ops.download(selectedOr(entry)); break
     case 'paste-overwrite': ops.paste('overwrite'); break
     case 'paste-skip': ops.paste('skip'); break
   }
@@ -239,6 +240,7 @@ onUnmounted(() => { offOperate?.() })
           @delete="onToolbarDelete"
           @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
           @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
+          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
         />
         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
