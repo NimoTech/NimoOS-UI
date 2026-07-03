@@ -34,6 +34,7 @@ export function useFileOps() {
 
   async function rename(entry: FileEntry, newName: string) {
     if (!newName || newName === entry.name) return
+    if (!canOperate(entry)) { toast.show(t('filesProtectedRename')); return }
     try { await service.file.rename(entry.path, renameTo(entry.path, newName)); await refresh() }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }

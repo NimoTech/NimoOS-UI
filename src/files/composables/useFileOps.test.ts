@@ -82,6 +82,13 @@ describe('useFileOps', () => {
     expect(batchDelete).not.toHaveBeenCalled()
   })
 
+  it('rename 受保护项被前端挡下,不请求', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const ops = makeOps()
+    await ops.rename({ name: 'Documents', path: '/DATA/Documents', is_dir: true }, 'Docs')
+    expect(fileRename).not.toHaveBeenCalled()
+  })
+
   it('copyPath 写虚拟路径(不含 /DATA)', async () => {
     const files = useFilesStore()
     files.displayNames = { '/DATA': 'NimoOS-HD' }
