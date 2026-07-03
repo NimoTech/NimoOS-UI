@@ -27,6 +27,7 @@ export const messages = {
     filesCopiedPath: '已复制路径',
     filesNewFolder: '新建文件夹',
     filesNewFile: '新建文件',
+    filesPaste: '粘贴',
     filesRename: '重命名',
     filesDefaultFolderName: 'New Folder',
     filesDefaultFileName: 'New File',

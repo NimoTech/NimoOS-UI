@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, computed, ref } from 'vue'
+import { watch, onMounted, onUnmounted, computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FilesShell from '../files/components/FilesShell.vue'
@@ -12,9 +12,13 @@ import FileContextMenu from '../files/components/FileContextMenu.vue'
 import NewItemDialog from '../files/components/NewItemDialog.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
+import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import { useFileOps } from '../files/composables/useFileOps'
 import { useFilesStore, type FileEntry } from '../files/stores/files'
 import { useFavoritesStore } from '../files/stores/favorites'
+import { useFileOpsStore } from '../files/stores/fileOps'
+import { useClipboardStore } from '../files/stores/clipboard'
+import { useMessageBus } from '../composables/useMessageBus'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
 import {
   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
@@ -25,6 +29,9 @@ const router = useRouter()
 const files = useFilesStore()
 const favorites = useFavoritesStore()
 const ops = useFileOps()
+const fileOps = useFileOpsStore()
+const clipboard = useClipboardStore()
+const bus = useMessageBus()
 const { t } = useI18n()
 
 // 对话框开关 + 上下文
@@ -49,6 +56,12 @@ function onBlankContextmenu(e: MouseEvent) {
 
 function openNew(mode: 'file' | 'folder') { newDlg.value = { open: true, mode } }
 
+// 取选中或右键项(复用于 delete/copy/cut)
+function selectedOr(entry: FileEntry | null): FileEntry[] {
+  const sel = files.entries.filter((e) => files.isSelected(e.path))
+  return sel.length ? sel : entry ? [entry] : []
+}
+
 // 右键菜单动作分发
 function onCtxAction(action: string, entry: FileEntry | null) {
   switch (action) {
@@ -68,6 +81,10 @@ function onCtxAction(action: string, entry: FileEntry | null) {
       deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
       break
     }
+    case 'copy': ops.copy(selectedOr(entry)); break
+    case 'cut': ops.cut(selectedOr(entry)); break
+    case 'paste-overwrite': ops.paste('overwrite'); break
+    case 'paste-skip': ops.paste('skip'); break
   }
 }
 
@@ -188,6 +205,10 @@ onMounted(async () => {
   await sync()
 })
 watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+
+let offOperate: (() => void) | null = null
+onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+onUnmounted(() => { offOperate?.() })
 </script>
 
 <template>
@@ -201,6 +222,7 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
             <div class="files-actions">
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
+              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste('overwrite')">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
               <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
@@ -215,6 +237,8 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
           @select-all="files.selectAll"
           @clear="files.clearSelection"
           @delete="onToolbarDelete"
+          @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
+          @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
         />
         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
@@ -253,6 +277,7 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
       destructive
       @confirm="confirmDelete"
     />
+    <OperationStatusBar />
   </FilesShell>
 </template>
 
