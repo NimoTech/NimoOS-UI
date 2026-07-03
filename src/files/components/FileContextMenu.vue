@@ -48,6 +48,7 @@ function fire(action: string) { emit('action', action, props.entry) }
       </template>
       <!-- 文件/文件夹项菜单 -->
       <template v-else>
+        <ContextMenuItem class="ui-ctx-item ctx-download" @select="fire('download')">{{ t('filesCtxDownload') }}</ContextMenuItem>
         <ContextMenuItem class="ui-ctx-item ctx-copy" @select="fire('copy')">{{ t('filesCtxCopy') }}</ContextMenuItem>
         <ContextMenuItem v-if="operable" class="ui-ctx-item ctx-cut" @select="fire('cut')">{{ t('filesCtxCut') }}</ContextMenuItem>
         <ContextMenuItem v-if="showCopyPath" class="ui-ctx-item ctx-copy-path" @select="fire('copy-path')">{{ t('filesCtxCopyPath') }}</ContextMenuItem>

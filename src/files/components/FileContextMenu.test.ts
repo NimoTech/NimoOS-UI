@@ -138,4 +138,14 @@ describe('FileContextMenu', () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
     expect(w.find('.ctx-paste-overwrite').exists()).toBe(false)
   })
+
+  it('文件项菜单含「下载」项且恒显(单选)', () => {
+    const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 1 })
+    expect(wrapper.find('.ctx-download').exists()).toBe(true)
+  })
+
+  it('多选时「下载」仍显示', () => {
+    const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 3 })
+    expect(wrapper.find('.ctx-download').exists()).toBe(true)
+  })
 })

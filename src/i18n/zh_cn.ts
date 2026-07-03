@@ -40,6 +40,7 @@ export const messages = {
     filesCtxRemoveFavorite: '取消收藏',
     filesCtxDelete: '删除',
     filesCtxCopy: '复制',
+    filesCtxDownload: '下载',
     filesCtxCut: '剪切',
     filesCtxPasteOverwrite: '粘贴(覆盖)',
     filesCtxPasteSkip: '粘贴(跳过)',
