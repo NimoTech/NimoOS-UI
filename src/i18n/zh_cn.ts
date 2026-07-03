@@ -35,5 +35,6 @@ export const messages = {
     filesCtxAddFavorite: '收藏',
     filesCtxRemoveFavorite: '取消收藏',
     filesCtxDelete: '删除',
+    filesDeleteConfirm: '确定删除选中的 {count} 项?此操作不可恢复。',
   },
 }

@@ -8,6 +8,11 @@ import Breadcrumb from '../files/components/Breadcrumb.vue'
 import SelectionToolbar from '../files/components/SelectionToolbar.vue'
 import FileListView from '../files/components/FileListView.vue'
 import FileGridView from '../files/components/FileGridView.vue'
+import FileContextMenu from '../files/components/FileContextMenu.vue'
+import NewItemDialog from '../files/components/NewItemDialog.vue'
+import RenameDialog from '../files/components/RenameDialog.vue'
+import AlertDialog from '../components/ui/AlertDialog.vue'
+import { useFileOps } from '../files/composables/useFileOps'
 import { useFilesStore, type FileEntry } from '../files/stores/files'
 import { useFavoritesStore } from '../files/stores/favorites'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
@@ -19,7 +24,64 @@ const route = useRoute()
 const router = useRouter()
 const files = useFilesStore()
 const favorites = useFavoritesStore()
+const ops = useFileOps()
 const { t } = useI18n()
+
+// 对话框开关 + 上下文
+const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
+const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+
+// 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
+const ctxEntry = ref<FileEntry | null>(null)
+function onItemContextmenu(payload: { entry: FileEntry; event: MouseEvent }) {
+  // 右键未选中的项 → 只针对它;右键已选中的项 → 保留整个选区(菜单按 selectedCount 判断单/多)
+  if (!files.isSelected(payload.entry.path)) files.selectOnly(payload.entry.path)
+  ctxEntry.value = payload.entry
+}
+// 容器 contextmenu 会话 onItemContextmenu 冒泡触发(同一原生事件),但只有当右键落在
+// 空白处(target 不在任何 [data-path] 行/卡内)才应重置为 null —— 否则会清掉刚设置的 entry。
+function onBlankContextmenu(e: MouseEvent) {
+  const el = e.target as HTMLElement
+  if (el.closest('[data-path]')) return
+  ctxEntry.value = null
+}
+
+function openNew(mode: 'file' | 'folder') { newDlg.value = { open: true, mode } }
+
+// 右键菜单动作分发
+function onCtxAction(action: string, entry: FileEntry | null) {
+  switch (action) {
+    case 'new-folder': openNew('folder'); break
+    case 'new-file': openNew('file'); break
+    case 'refresh': ops.refresh(); break
+    case 'copy-path': if (entry) ops.copyPath(entry); break
+    case 'rename': if (entry) renameDlg.value = { open: true, entry }; break
+    case 'toggle-favorite':
+      if (entry) {
+        if (favorites.isFavorite(entry.path)) favorites.remove(entry.path)
+        else favorites.add({ name: entry.name, path: entry.path })
+      }
+      break
+    case 'delete': {
+      const sel = files.entries.filter((e) => files.isSelected(e.path))
+      deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
+      break
+    }
+  }
+}
+
+function confirmNew(name: string) {
+  if (newDlg.value.mode === 'folder') ops.createFolder(name)
+  else ops.createFile(name)
+}
+function confirmRename(name: string) {
+  if (renameDlg.value.entry) ops.rename(renameDlg.value.entry, name)
+}
+function confirmDelete() {
+  ops.remove(deleteDlg.value.entries)
+  deleteDlg.value.open = false
+}
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
 
@@ -130,9 +192,15 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
       <div class="files-main" @mousedown="onMarqueeDown">
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
-          <div class="files-viewtoggle">
-            <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
-            <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+          <div class="files-topbar-right">
+            <div class="files-actions">
+              <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
+              <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
+            </div>
+            <div class="files-viewtoggle">
+              <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+              <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+            </div>
           </div>
         </div>
         <SelectionToolbar
@@ -142,28 +210,43 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
           @select-all="files.selectAll"
           @clear="files.clearSelection"
         />
-        <div ref="listwrap" class="files-listwrap">
-          <FileGridView
-            v-if="files.viewMode === 'grid'"
-            :entries="files.sortedEntries"
-            :selected-paths="files.selected"
-            @open="openEntry"
-            @select="onSelect"
-          />
-          <FileListView
-            v-else
-            :entries="files.sortedEntries"
-            :sort="files.sort"
-            :order="files.order"
-            :selected-paths="files.selected"
-            @open="openEntry"
-            @reorder="files.setSort"
-            @select="onSelect"
-          />
-        </div>
-        <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
+        <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
+          <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+            <FileGridView
+              v-if="files.viewMode === 'grid'"
+              :entries="files.sortedEntries"
+              :selected-paths="files.selected"
+              @open="openEntry"
+              @select="onSelect"
+              @contextmenu="onItemContextmenu"
+            />
+            <FileListView
+              v-else
+              :entries="files.sortedEntries"
+              :sort="files.sort"
+              :order="files.order"
+              :selected-paths="files.selected"
+              @open="openEntry"
+              @reorder="files.setSort"
+              @select="onSelect"
+              @contextmenu="onItemContextmenu"
+            />
+            <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
+          </div>
+        </FileContextMenu>
       </div>
     </div>
+    <NewItemDialog v-model:open="newDlg.open" :mode="newDlg.mode" @confirm="confirmNew" />
+    <RenameDialog v-if="renameDlg.entry" v-model:open="renameDlg.open" :name="renameDlg.entry.name" @confirm="confirmRename" />
+    <AlertDialog
+      v-model:open="deleteDlg.open"
+      :title="t('filesCtxDelete')"
+      :message="t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
+      :confirm-text="t('filesCtxDelete')"
+      :cancel-text="t('filesCancel')"
+      destructive
+      @confirm="confirmDelete"
+    />
   </FilesShell>
 </template>
 
@@ -171,6 +254,8 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
 .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .files-main { flex: 1 1 auto; min-width: 0; align-self: stretch; } /* 撑满右侧高度,使列表下方空白也可起框 */
 .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+.files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }

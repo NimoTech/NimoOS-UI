@@ -147,4 +147,31 @@ describe('Files.vue browse pipe', () => {
     expect(files.selectedCount).toBe(0)
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
+
+  it('工具栏有新建文件夹/新建文件按钮', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(w.find('.tb-new-folder').exists()).toBe(true)
+    expect(w.find('.tb-new-file').exists()).toBe(true)
+  })
+
+  it('右键未选中的行会选中它(为右键菜单定目标);冒泡到容器不应清空该选中', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    const files = useFilesStore()
+    const row = w.findAll('.file-row')[0]
+    // native contextmenu bubbles from the row (data-path target) up through files-listwrap;
+    // the container's blank-area handler must not clobber the row-set selection.
+    await row.trigger('contextmenu')
+    expect(files.selectedCount).toBe(1)
+  })
 })
