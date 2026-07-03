@@ -22,7 +22,10 @@ export const useAppsStore = defineStore('home-apps', () => {
     ;(container || []).forEach((a) => {
       const key = a.name
       if (!key || map[key]) return // 不覆盖系统应用
-      const title = (a.title && (a.title.zh_cn || a.title.en_us)) || a.name
+      // 标题多语言键大小写不统一:应用市场装的 v2 应用来自 store 的 title 用 `en_US`(大写),
+      // 而 v1/容器走 DefaultLanguage=`en_us`(小写)。逐一容忍再回退到任意可用值,最后才用 id。
+      const t = a.title || {}
+      const title = t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || a.name
       map[key] = {
         name: title, cls: 'ic-app', glyph: '', icon: a.icon || null, system: false,
         app_type: (a as { appType?: string }).appType || a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,

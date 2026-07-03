@@ -21,4 +21,10 @@ describe('useAppsStore', () => {
     expect(s.app('jellyfin')?.system).toBe(false)
     expect(s.app('files')?.system).toBe(true) // 系统 files 未被覆盖
   })
+  it('falls back to en_US (uppercase) title from store-installed apps', () => {
+    const s = useAppsStore()
+    // 应用市场装的 v2 应用 title 键是大写 en_US(来自 store compose 文件),不能退化成裸 id
+    s.setApps([{ name: 'actualbudget', title: { en_US: 'Actual Budget' }, app_type: 'v2app' }] as any)
+    expect(s.app('actualbudget')?.name).toBe('Actual Budget')
+  })
 })
