@@ -82,6 +82,11 @@ function confirmDelete() {
   ops.remove(deleteDlg.value.entries)
   deleteDlg.value.open = false
 }
+function onToolbarDelete() {
+  const sel = files.entries.filter((e) => files.isSelected(e.path))
+  if (!sel.length) return
+  deleteDlg.value = { open: true, entries: sel }
+}
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
 
@@ -209,6 +214,7 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
           :all-selected="files.allSelected"
           @select-all="files.selectAll"
           @clear="files.clearSelection"
+          @delete="onToolbarDelete"
         />
         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">

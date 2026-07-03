@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 const props = defineProps<{ count: number; allSelected: boolean }>()
-const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void }>()
+const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void }>()
 const { t } = useI18n()
 </script>
 
@@ -10,6 +10,8 @@ const { t } = useI18n()
     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
     <button class="sel-btn sel-all" @click="emit('select-all')">{{ t('filesSelectAll') }}</button>
     <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>
+    <span class="sel-spacer"></span>
+    <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
   </div>
 </template>
 
@@ -18,4 +20,7 @@ const { t } = useI18n()
 .sel-count { flex: 0 0 auto; }
 .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
 .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+.sel-spacer { flex: 1 1 auto; }
+.sel-btn.danger { color: #ff8a8a; border-color: color-mix(in srgb, #ff5d5d 45%, transparent); }
+.sel-btn.danger:hover { background: color-mix(in srgb, #ff5d5d 22%, transparent); }
 </style>

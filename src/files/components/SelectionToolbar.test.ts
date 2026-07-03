@@ -5,7 +5,7 @@ import SelectionToolbar from './SelectionToolbar.vue'
 
 const i18n = createI18n({
   legacy: false, locale: 'zh_cn',
-  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空' } },
+  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxDelete: '删除' } },
 })
 
 describe('SelectionToolbar', () => {
@@ -16,5 +16,11 @@ describe('SelectionToolbar', () => {
     expect(w.emitted('select-all')).toBeTruthy()
     await w.get('.sel-clear').trigger('click')
     expect(w.emitted('clear')).toBeTruthy()
+  })
+
+  it('has a delete button that emits delete', async () => {
+    const w = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
+    await w.get('.sel-delete').trigger('click')
+    expect(w.emitted('delete')).toBeTruthy()
   })
 })
