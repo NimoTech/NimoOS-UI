@@ -5,7 +5,7 @@ import SelectionToolbar from './SelectionToolbar.vue'
 
 const i18n = createI18n({
   legacy: false, locale: 'zh_cn',
-  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxDelete: '删除' } },
+  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
 })
 
 describe('SelectionToolbar', () => {
@@ -33,5 +33,13 @@ describe('SelectionToolbar', () => {
     await wrapper.find('.sel-cut').trigger('click')
     expect(wrapper.emitted('copy')).toBeTruthy()
     expect(wrapper.emitted('cut')).toBeTruthy()
+  })
+
+  it('渲染下载按钮并 emit download', async () => {
+    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
+    const btn = wrapper.find('.sel-download')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    expect(wrapper.emitted('download')).toBeTruthy()
   })
 })
