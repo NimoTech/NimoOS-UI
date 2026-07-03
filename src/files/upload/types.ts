@@ -30,3 +30,19 @@ export interface SelectedFile {
   targetPath: string
   relativePath: string
 }
+
+export interface TusArgs {
+  file: File | Blob
+  fileName: string
+  fileType: string
+  targetPath: string
+  relativePath: string
+  batchId: string
+  batchTotal: number
+  resumed: boolean
+  conflictPolicy: string
+  resumeUrl?: string | null
+  onProgress?: (sent: number, total: number) => void
+  onUrlAvailable?: (url: string) => void
+  onStart?: (handle: { abort: () => Promise<void> }) => void
+}
