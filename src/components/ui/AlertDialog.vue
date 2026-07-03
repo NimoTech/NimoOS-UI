@@ -31,7 +31,7 @@ const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm'):
 .ui-dialog-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 101;
   min-width: 320px; max-width: 92vw; padding: 20px; border-radius: 18px;
-  background: var(--card-bg, rgba(30,32,44,0.92)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+  background: var(--popup-bg, rgba(20,23,35,0.95)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px);
   color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,0.5);
 }
 .ui-dialog-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; }

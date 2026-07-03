@@ -19,7 +19,7 @@ import { ContextMenuRoot, ContextMenuTrigger, ContextMenuPortal, ContextMenuCont
 /* 非 scoped:菜单项样式给消费方(FileContextMenu)组装的 ContextMenuItem 复用 */
 .ui-ctx-content {
   min-width: 190px; padding: 6px; border-radius: 14px; z-index: 120;
-  background: var(--card-bg, rgba(30,32,44,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+  background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px);
   box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
 }
 .ui-ctx-item {

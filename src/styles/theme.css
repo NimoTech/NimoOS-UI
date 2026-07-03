@@ -42,6 +42,8 @@
 
   /* 悬浮玻璃面板：高光顶边 + 大柔投影，像浮在空中 */
   --card-bg: linear-gradient(157deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.085) 62%);
+  /* 深色玻璃弹层底(Dialog / AlertDialog / ContextMenu 等浮层),比浅色 card 更深、对白字更稳 */
+  --popup-bg: linear-gradient(157deg, rgba(30, 34, 52, 0.9), rgba(16, 19, 30, 0.95) 62%);
   --card-border: rgba(255, 255, 255, 0.36);
   --card-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
