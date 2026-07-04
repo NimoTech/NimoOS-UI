@@ -233,6 +233,23 @@ describe('uploads restore/resume', () => {
     expect(persist.restoreFromIDB).toHaveBeenCalled()
     expect(persist.pruneOldItems).toHaveBeenCalled()
   })
+
+  it('initUploads is idempotent: a second call on the same store instance does not re-restore', async () => {
+    // Regression test for SP4-P3b: Files.vue calls initUploads() from
+    // onMounted, but the uploads Pinia store is an app-lifetime singleton
+    // while Files.vue unmounts/remounts on every SPA navigation (App.vue's
+    // <router-view /> has no <keep-alive>). Before the guard, every revisit
+    // re-pushed every still-persisted IDB row onto `queue` with no dedup.
+    ;(persist.restoreFromIDB as any).mockResolvedValue({
+      items: [{ id: 'r1', status: 'pending', file: new Blob(['x']), batchId: 'b', batchTotal: 1, size: 1, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1, targetPath: '/DATA', relativePath: 'a', fileName: 'a', fileType: '', restored: true, conflictPolicy: '', oversize: false }],
+      resumedCount: 1,
+    })
+    const store = useUploadsStore()
+    await store.initUploads()
+    await store.initUploads()
+    expect(persist.restoreFromIDB).toHaveBeenCalledTimes(1)
+    expect(store.queue).toHaveLength(1)
+  })
 })
 
 describe('uploads reattachFiles', () => {

@@ -17,6 +17,16 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   const queue = ref<UploadItem[]>([])
   const uploading = ref(false)
   const restoreNoticeCount = ref(0)
+  // Guards initUploads() to restore exactly once per store lifetime. The
+  // Pinia store is an app-lifetime singleton, but Files.vue mounts/unmounts
+  // on every SPA navigation (no <keep-alive>) and calls initUploads() from
+  // onMounted each time. Without this flag, every revisit re-pushes every
+  // still-persisted IDB row onto `queue` with no dedup, producing duplicate
+  // ids (patch()'s find() only updates the first match) and re-triggering
+  // concurrent re-uploads of the same file. A genuine page refresh recreates
+  // the store fresh (flag resets to false), so restore-on-refresh still works
+  // — this is deliberately a once-per-page-load feature, not once-per-mount.
+  const initialized = ref(false)
 
   // Batches already toasted (one toast per batch, not per file). Cleared when a
   // batch reactivates (retry) or is fully removed, so a retried batch re-toasts.
@@ -267,6 +277,13 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   }
 
   async function initUploads(): Promise<void> {
+    // Set BEFORE the await: two synchronous mounts in the same tick (e.g. a
+    // fast back-and-forth navigation) must not both observe `false` and both
+    // proceed to restore — that would double-push the same IDB rows before
+    // either call's await yields. Latching first, awaiting second, closes
+    // that race; latching only on success would leave the window open.
+    if (initialized.value) return
+    initialized.value = true
     try {
       await restoreQueue()
       await pruneOldItems(30)
