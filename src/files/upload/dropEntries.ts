@@ -22,7 +22,7 @@ function readAllEntries(reader: { readEntries: (ok: (e: FsEntry[]) => void, err?
       reader.readEntries((entries) => {
         if (!entries || entries.length === 0) return resolve(all)
         all.push(...entries)
-        Promise.resolve().then(read)
+        read()
       }, () => resolve(all))
     }
     read()

@@ -148,8 +148,8 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 // their own targetPath/relativePath (the SelectedFile.targetPath below is a
 // placeholder to satisfy the shape, not used for matching).
 const reselectInput = ref<HTMLInputElement | null>(null)
-const reselectDismissed = ref(false)
-const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectDismissed.value)
+const reselectNoticeDismissed = ref(false)
+const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectNoticeDismissed.value)
 
 function triggerReselect() {
   reselectInput.value?.click()
@@ -193,7 +193,7 @@ async function onReselect(e: Event) {
 
       <div v-if="showRestoreNotice" class="up-restore-notice">
         <span>{{ t('filesUploadRestoreNotice', { count: store.restoreNoticeCount }) }}</span>
-        <button class="up-link-btn" @click="reselectDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
+        <button class="up-link-btn" @click="reselectNoticeDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
       </div>
 
       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>

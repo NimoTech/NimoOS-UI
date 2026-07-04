@@ -1,4 +1,5 @@
 import * as tus from 'tus-js-client'
+import type { HttpRequest, DetailedError } from 'tus-js-client'
 import { UPLOAD_TUS_ENDPOINT } from '@nimotech/nimoos-service'
 import { getClientId } from './clientId'
 import type { TusArgs } from './types'
@@ -48,7 +49,7 @@ export function tusUpload(args: TusArgs): Promise<void> {
         client_id: getClientId(),
         conflictPolicy: args.conflictPolicy || '',
       },
-      onBeforeRequest: (req: any) => {
+      onBeforeRequest: (req: HttpRequest) => {
         const t = window.localStorage.getItem('access_token')
         if (t) req.setHeader('Authorization', t)
       },
@@ -100,7 +101,7 @@ export function tusUpload(args: TusArgs): Promise<void> {
 
 export function isRetryableTusError(err: unknown): boolean {
   if (!err) return false
-  const status = (err as any).originalResponse && (err as any).originalResponse.getStatus()
+  const status = (err as DetailedError).originalResponse && (err as DetailedError).originalResponse!.getStatus()
   if (!status) return true
   if (status >= 500) return true
   if (status === 408 || status === 429) return true
@@ -108,5 +109,5 @@ export function isRetryableTusError(err: unknown): boolean {
 }
 
 export function tusErrorStatus(err: unknown): number | null {
-  return ((err as any)?.originalResponse?.getStatus?.()) ?? null
+  return ((err as DetailedError)?.originalResponse?.getStatus?.()) ?? null
 }
