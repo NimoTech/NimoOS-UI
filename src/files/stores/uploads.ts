@@ -8,6 +8,8 @@ import { safeRandomUUID } from '../upload/uuid'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
+import { useToast } from '../../stores/toast'
+import { i18n } from '../../i18n'
 
 export const useUploadsStore = defineStore('files-uploads', () => {
   const queue = ref<UploadItem[]>([])
@@ -25,7 +27,23 @@ export const useUploadsStore = defineStore('files-uploads', () => {
 
   function patch(id: string, p: Partial<UploadItem>) {
     const item = queue.value.find((i) => i.id === id)
-    if (item) Object.assign(item, p)
+    if (!item) return
+    Object.assign(item, p)
+    // Auto-clear on completion: a finished upload notifies via toast and
+    // removes its own progress row — the user never manually clears. A real
+    // scheduler completion sets progress===100 (success OR server-side
+    // duplicate); a skip sets status='done' without progress, so it lingers
+    // in the "done" zone and is cleared via clearDone(). Failures/conflicts
+    // are never auto-removed (they need retry/decision).
+    if (item.status === 'done' && item.progress === 100) {
+      const name = item.fileName || item.relativePath
+      useToast().show(
+        item.error === 'duplicate'
+          ? i18n.global.t('filesUploadExists', { name })
+          : i18n.global.t('filesUploadDone', { name }),
+      )
+      queue.value = queue.value.filter((i) => i.id !== item.id)
+    }
   }
 
   function getScheduler() {

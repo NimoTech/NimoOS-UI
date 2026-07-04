@@ -57,6 +57,8 @@ export const messages = {
     filesUploadDrop: '拖放文件到此处上传',
     filesUploadOversize: '正在上传大文件——请保持本页打开直到完成;若中断需重新选择文件继续。',
     filesUploadClearDone: '清除已完成',
+    filesUploadDone: '「{name}」上传成功',
+    filesUploadExists: '「{name}」已存在,已跳过',
     filesUploadRetry: '重试',
     filesUploadCancel: '取消',
     filesUploadConflictTitle: '文件已存在',
