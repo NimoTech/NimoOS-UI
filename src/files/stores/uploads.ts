@@ -6,6 +6,7 @@ import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/c
 import { canStoreBlob } from '../upload/budget'
 import { safeRandomUUID } from '../upload/uuid'
 import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
+import { persistNewItem, persistItemMeta, dropPersisted } from '../upload/persist'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -30,10 +31,18 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     return item
   }
 
+  const VOLATILE = new Set(['progress', 'bytesSent', 'speed'])
   function patch(id: string, p: Partial<UploadItem>) {
     const item = queue.value.find((i) => i.id === id)
     if (!item) return
     Object.assign(item, p)
+    // Persistence: skip high-frequency progress ticks; done → drop; else re-persist meta.
+    const keys = Object.keys(p)
+    const volatileOnly = keys.length > 0 && keys.every((k) => VOLATILE.has(k))
+    if (!volatileOnly) {
+      if (item.status === 'done') dropPersisted(item.id)
+      else persistItemMeta(item)
+    }
     // Reactivation (retry/resume) re-arms the batch toast.
     if (item.status === 'pending' || item.status === 'uploading') toastedBatches.delete(item.batchId)
     // Terminal transition → maybe the whole batch just finished.
@@ -72,6 +81,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       useToast().show(msg, 5000)
     }
     setTimeout(() => {
+      for (const i of queue.value.filter((i) => i.batchId === batchId && i.status === 'done')) dropPersisted(i.id)
       queue.value = queue.value.filter((i) => i.batchId !== batchId || i.status !== 'done')
       if (!queue.value.some((i) => i.batchId === batchId)) toastedBatches.delete(batchId)
     }, 5000)
@@ -146,6 +156,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     }
 
     queue.value.push(...items)
+    for (const it of items) persistNewItem(it)
     if (items.some((i) => i.status === 'pending')) startUpload()
     return { rejected }
   }
@@ -167,6 +178,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
 
   function cancelItem(id: string): void {
     getScheduler().abort(id)
+    dropPersisted(id)
     queue.value = queue.value.filter((i) => i.id !== id)
   }
 
@@ -183,12 +195,16 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   }
 
   function cancelBatch(batchId: string): void {
-    for (const i of queue.value.filter((x) => x.batchId === batchId)) getScheduler().abort(i.id)
+    for (const i of queue.value.filter((x) => x.batchId === batchId)) {
+      getScheduler().abort(i.id)
+      dropPersisted(i.id)
+    }
     queue.value = queue.value.filter((i) => i.batchId !== batchId)
     toastedBatches.delete(batchId)
   }
 
   function clearDone(): void {
+    for (const i of queue.value.filter((i) => i.status === 'done')) dropPersisted(i.id)
     queue.value = queue.value.filter((i) => i.status !== 'done')
   }
 
@@ -201,6 +217,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     uploading,
     restoreNoticeCount,
     hasActive,
+    patch,
     addFilesToQueue,
     resolveConflict,
     startUpload,

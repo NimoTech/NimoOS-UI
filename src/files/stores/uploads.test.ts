@@ -25,8 +25,16 @@ vi.mock('../upload/scheduler', () => ({
 vi.mock('../stores/files', () => ({ useFilesStore: () => ({ currentPath: '/DATA/x', load: vi.fn() }) }))
 vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: h.showSpy }) }))
 vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string, p?: any) => `${k}:${p?.name ?? ''}` } } }))
+vi.mock('../upload/persist', () => ({
+  persistNewItem: vi.fn(),
+  persistItemMeta: vi.fn(),
+  dropPersisted: vi.fn(),
+  restoreFromIDB: vi.fn().mockResolvedValue({ items: [], resumedCount: 0 }),
+  pruneOldItems: vi.fn().mockResolvedValue(0),
+}))
 
 import { useUploadsStore } from './uploads'
+import * as persist from '../upload/persist'
 
 const sel = (name: string, target = '/DATA/x') =>
   ({ file: new File(['x'], name), targetPath: target, relativePath: name })
@@ -129,5 +137,60 @@ describe('uploads store', () => {
     } finally {
       ;(globalThis.crypto as { randomUUID?: unknown }).randomUUID = real
     }
+  })
+})
+
+describe('uploads persistence hooks', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('addFilesToQueue persists each new item', async () => {
+    const store = useUploadsStore()
+    const file = new File(['x'], 'a.txt', { type: 'text/plain' })
+    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    expect(persist.persistNewItem).toHaveBeenCalledTimes(1)
+  })
+
+  it('volatile-only patch (progress/bytesSent/speed) does NOT persist meta', async () => {
+    const store = useUploadsStore()
+    const file = new File(['x'], 'a.txt')
+    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    vi.clearAllMocks()
+    const id = store.queue[0].id
+    store.patch(id, { progress: 50, bytesSent: 10, speed: 5 })
+    expect(persist.persistItemMeta).not.toHaveBeenCalled()
+    expect(persist.dropPersisted).not.toHaveBeenCalled()
+  })
+
+  it('status→done patch drops persisted record', async () => {
+    const store = useUploadsStore()
+    const file = new File(['x'], 'a.txt')
+    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    vi.clearAllMocks()
+    const id = store.queue[0].id
+    store.patch(id, { status: 'done', progress: 100 })
+    expect(persist.dropPersisted).toHaveBeenCalledWith(id)
+  })
+
+  it('non-volatile status patch persists meta', async () => {
+    const store = useUploadsStore()
+    const file = new File(['x'], 'a.txt')
+    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    vi.clearAllMocks()
+    const id = store.queue[0].id
+    store.patch(id, { tusUploadUrl: '/v2/nimoos/file/upload-tus/abc' })
+    expect(persist.persistItemMeta).toHaveBeenCalled()
+  })
+
+  it('cancelItem drops persisted record', async () => {
+    const store = useUploadsStore()
+    const file = new File(['x'], 'a.txt')
+    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    const id = store.queue[0].id
+    vi.clearAllMocks()
+    store.cancelItem(id)
+    expect(persist.dropPersisted).toHaveBeenCalledWith(id)
   })
 })
