@@ -5,6 +5,7 @@ import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
 import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
 import { canStoreBlob } from '../upload/budget'
 import { safeRandomUUID } from '../upload/uuid'
+import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -15,6 +16,10 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   const queue = ref<UploadItem[]>([])
   const uploading = ref(false)
   const restoreNoticeCount = ref(0)
+
+  // Batches already toasted (one toast per batch, not per file). Cleared when a
+  // batch reactivates (retry) or is fully removed, so a retried batch re-toasts.
+  const toastedBatches = new Set<string>()
 
   let scheduler: ReturnType<typeof createScheduler> | null = null
 
@@ -29,24 +34,47 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     const item = queue.value.find((i) => i.id === id)
     if (!item) return
     Object.assign(item, p)
-    // Auto-clear on completion: a finished upload notifies via toast and
-    // removes its own progress row — the user never manually clears. A real
-    // scheduler completion sets progress===100 (success OR server-side
-    // duplicate); a skip sets status='done' without progress, so it lingers
-    // in the "done" zone and is cleared via clearDone(). Failures/conflicts
-    // are never auto-removed (they need retry/decision).
-    if (item.status === 'done' && item.progress === 100) {
-      const name = item.fileName || item.relativePath
-      const id = item.id
-      useToast().show(
-        item.error === 'duplicate'
-          ? i18n.global.t('filesUploadExists', { name })
-          : i18n.global.t('filesUploadDone', { name }),
-        5000,
-      )
-      // Keep the completed row visible for 5s, then clear it (no manual clearing).
-      setTimeout(() => { queue.value = queue.value.filter((i) => i.id !== id) }, 5000)
+    // Reactivation (retry/resume) re-arms the batch toast.
+    if (item.status === 'pending' || item.status === 'uploading') toastedBatches.delete(item.batchId)
+    // Terminal transition → maybe the whole batch just finished.
+    if (item.status === 'done' || item.status === 'error') settleBatch(item.batchId)
+  }
+
+  // Fire ONE toast per batch when it settles (all items done/error), then clear
+  // the batch's done rows after 5s (errors stay for retry). A single-file batch
+  // is just a batch of one, so this also covers single uploads.
+  function settleBatch(batchId: string) {
+    const items = queue.value.filter((i) => i.batchId === batchId)
+    if (!isBatchSettled(items) || toastedBatches.has(batchId)) return
+    toastedBatches.add(batchId)
+    // Count only files actually uploaded (progress 100, incl. server-side
+    // duplicates). A pure skip is status 'done' with progress 0 — it is not a
+    // success and must not trigger a "上传成功" toast.
+    const doneCount = items.filter((i) => i.status === 'done' && i.progress === 100).length
+    const errorCount = items.filter((i) => i.status === 'error').length
+    if (doneCount > 0) {
+      const label = batchLabel(items)
+      const t = i18n.global.t
+      let msg: string
+      if (label.kind === 'single') {
+        msg = items[0].error === 'duplicate'
+          ? t('filesUploadExists', { name: label.name })
+          : t('filesUploadDone', { name: label.name })
+      } else if (errorCount > 0) {
+        msg = label.kind === 'folder'
+          ? t('filesUploadFolderPartial', { name: label.name, failed: errorCount })
+          : t('filesUploadFilesPartial', { count: label.count, failed: errorCount })
+      } else {
+        msg = label.kind === 'folder'
+          ? t('filesUploadFolderDone', { name: label.name })
+          : t('filesUploadFilesDone', { count: label.count })
+      }
+      useToast().show(msg, 5000)
     }
+    setTimeout(() => {
+      queue.value = queue.value.filter((i) => i.batchId !== batchId || i.status !== 'done')
+      if (!queue.value.some((i) => i.batchId === batchId)) toastedBatches.delete(batchId)
+    }, 5000)
   }
 
   function getScheduler() {
@@ -142,6 +170,24 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     queue.value = queue.value.filter((i) => i.id !== id)
   }
 
+  // Batch-level controls (folder / multi-select rows). A single-file batch
+  // routes through these too when the panel renders it as one row.
+  function retryBatch(batchId: string): void {
+    toastedBatches.delete(batchId)
+    for (const i of queue.value) {
+      if (i.batchId === batchId && i.status === 'error') {
+        Object.assign(i, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+      }
+    }
+    startUpload()
+  }
+
+  function cancelBatch(batchId: string): void {
+    for (const i of queue.value.filter((x) => x.batchId === batchId)) getScheduler().abort(i.id)
+    queue.value = queue.value.filter((i) => i.batchId !== batchId)
+    toastedBatches.delete(batchId)
+  }
+
   function clearDone(): void {
     queue.value = queue.value.filter((i) => i.status !== 'done')
   }
@@ -160,6 +206,8 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     startUpload,
     retryItem,
     cancelItem,
+    retryBatch,
+    cancelBatch,
     clearDone,
   }
 })

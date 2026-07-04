@@ -4,21 +4,16 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUploadsStore } from '../stores/uploads'
 import { useFilesStore } from '../stores/files'
-import { groupUploadQueue } from '../upload/uploadListGroups'
 import { shouldAutoOpenUploadList } from '../upload/uploadListVisibility'
+import { groupByBatch, type BatchView, type BatchLabel } from '../upload/uploadBatches'
 import { toVirtualPath } from '../util/pathUtils'
 import { uploadErrorKey } from '../upload/statusText'
-import type { UploadItem } from '../upload/types'
 import Dialog from '../../components/ui/Dialog.vue'
 
 const store = useUploadsStore()
 const files = useFilesStore()
 const { t } = useI18n()
 
-// Treat the panel's initial mount as a transition from an empty queue to
-// whatever the store already holds — so a panel mounted with existing
-// queue items opens immediately, and one mounted empty opens only once
-// items are actually added (via the watcher below).
 const open = ref(shouldAutoOpenUploadList(0, store.queue.length))
 
 watch(
@@ -28,23 +23,30 @@ watch(
   },
 )
 
-const groups = computed(() => groupUploadQueue(store.queue))
+// One aggregate row per batch (a folder / multi-select collapses to one;
+// a single file stays one). Split into the three display zones.
+const batches = computed(() => groupByBatch(store.queue))
+const problemBatches = computed(() => batches.value.filter((b) => b.zone === 'problem'))
+const activeBatches = computed(() => batches.value.filter((b) => b.zone === 'active'))
+const doneBatches = computed(() => batches.value.filter((b) => b.zone === 'done'))
 
-const hasOversizeActive = computed(() => groups.value.activeItems.some((i) => i.oversize))
+const hasOversizeActive = computed(() => activeBatches.value.some((b) => b.oversize))
 
 const conflictItem = computed(() => store.queue.find((i) => i.status === 'conflict') ?? null)
+const totalCount = computed(() => store.queue.length)
 
-// PATH SAFETY: only ever show a directory if it actually converted to a
-// virtual (display-name-rooted) path. If displayNames hasn't loaded yet,
-// toVirtualPath returns the input unchanged — in that case we render
-// nothing rather than risk leaking a real /DATA or /media path.
-function itemDir(item: UploadItem): string {
-  const virtual = toVirtualPath(item.targetPath, files.displayNames)
-  return virtual === item.targetPath ? '' : virtual
+// PATH SAFETY: only show a directory once it converts to a virtual (display-
+// name-rooted) path; otherwise render nothing rather than leak /DATA or /media.
+function batchDir(b: BatchView): string {
+  const real = b.items[0]?.targetPath ?? ''
+  const virtual = toVirtualPath(real, files.displayNames)
+  return virtual === real ? '' : virtual
 }
 
-function itemName(item: UploadItem): string {
-  return item.fileName || item.relativePath.split('/').filter(Boolean).pop() || item.relativePath
+function labelText(label: BatchLabel): string {
+  if (label.kind === 'single') return label.name
+  if (label.kind === 'folder') return t('filesUploadBatchFolder', { name: label.name, count: label.count })
+  return t('filesUploadBatchFiles', { count: label.count })
 }
 
 function formatSpeed(bytesPerSec: number): string {
@@ -53,9 +55,22 @@ function formatSpeed(bytesPerSec: number): string {
   if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`
   return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
 }
+function batchSpeed(b: BatchView): number {
+  return b.items.reduce((s, i) => s + (i.status === 'uploading' ? i.speed : 0), 0)
+}
+// single-file batch: surface the file's own error code
+function singleErrorText(b: BatchView): string {
+  const it = b.items[0]
+  return !b.multi && it?.error ? t(uploadErrorKey(it.error)) : ''
+}
 
-function errorText(item: UploadItem): string {
-  return item.error ? t(uploadErrorKey(item.error)) : ''
+function onRetry(b: BatchView) {
+  if (b.multi) store.retryBatch(b.batchId)
+  else store.retryItem(b.items[0].id)
+}
+function onCancel(b: BatchView) {
+  if (b.multi) store.cancelBatch(b.batchId)
+  else store.cancelItem(b.items[0].id)
 }
 
 function resolve(choice: 'overwrite' | 'rename' | 'skip') {
@@ -65,16 +80,16 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 </script>
 
 <template>
-  <div v-if="store.queue.length" class="upload-panel-wrap">
+  <div v-if="totalCount" class="upload-panel-wrap">
     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
-      {{ t('filesUploadTitle') }} ({{ store.queue.length }})
+      {{ t('filesUploadTitle') }} ({{ totalCount }})
     </button>
 
     <div v-else class="upload-panel">
       <div class="up-head">
         <span class="up-title">{{ t('filesUploadTitle') }}</span>
         <div class="up-head-actions">
-          <button v-if="groups.doneItems.length" class="up-link-btn" @click="store.clearDone()">
+          <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
             {{ t('filesUploadClearDone') }}
           </button>
           <button class="up-close" @click="open = false" aria-label="close">×</button>
@@ -83,51 +98,53 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 
       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
 
-      <div v-if="groups.problemItems.length" class="up-zone">
+      <div v-if="problemBatches.length" class="up-zone">
         <div class="up-zone-title">{{ t('filesUploadZoneProblem') }}</div>
-        <div v-for="item in groups.problemItems" :key="item.id" class="up-item">
+        <div v-for="b in problemBatches" :key="b.batchId" class="up-item">
           <div class="up-item-line">
-            <span class="up-item-name">{{ itemName(item) }}</span>
-            <span v-if="itemDir(item)" class="up-item-dir">{{ itemDir(item) }}</span>
+            <span class="up-item-name">{{ labelText(b.label) }}</span>
+            <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
           </div>
-          <div v-if="errorText(item)" class="up-item-error">{{ errorText(item) }}</div>
+          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+          <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
           <div class="up-item-actions">
-            <button class="up-link-btn" @click="store.retryItem(item.id)">{{ t('filesUploadRetry') }}</button>
-            <button class="up-link-btn" @click="store.cancelItem(item.id)">{{ t('filesUploadCancel') }}</button>
+            <button class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
+            <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>
       </div>
 
-      <div v-if="groups.activeItems.length" class="up-zone">
+      <div v-if="activeBatches.length" class="up-zone">
         <div class="up-zone-title">{{ t('filesUploadZoneActive') }}</div>
-        <div v-for="item in groups.activeItems" :key="item.id" class="up-item">
+        <div v-for="b in activeBatches" :key="b.batchId" class="up-item">
           <div class="up-item-line">
-            <span class="up-item-name">{{ itemName(item) }}</span>
-            <span v-if="itemDir(item)" class="up-item-dir">{{ itemDir(item) }}</span>
-            <span class="up-item-pct">{{ item.progress }}%</span>
+            <span class="up-item-name">{{ labelText(b.label) }}</span>
+            <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
+            <span v-if="b.multi" class="up-item-count">{{ t('filesUploadBatchProgress', { done: b.doneCount, total: b.total }) }}</span>
+            <span class="up-item-pct">{{ b.progress }}%</span>
           </div>
-          <div class="up-progress"><div class="up-progress-fill" :style="{ width: item.progress + '%' }"></div></div>
-          <div v-if="formatSpeed(item.speed)" class="up-item-speed">{{ formatSpeed(item.speed) }}</div>
+          <div class="up-progress"><div class="up-progress-fill" :style="{ width: b.progress + '%' }"></div></div>
+          <div v-if="formatSpeed(batchSpeed(b))" class="up-item-speed">{{ formatSpeed(batchSpeed(b)) }}</div>
           <div class="up-item-actions">
-            <button class="up-link-btn" @click="store.cancelItem(item.id)">{{ t('filesUploadCancel') }}</button>
+            <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>
       </div>
 
-      <div v-if="groups.doneItems.length" class="up-zone">
+      <div v-if="doneBatches.length" class="up-zone">
         <div class="up-zone-title">{{ t('filesUploadZoneDone') }}</div>
-        <div v-for="item in groups.doneItems" :key="item.id" class="up-item">
+        <div v-for="b in doneBatches" :key="b.batchId" class="up-item">
           <div class="up-item-line">
-            <span class="up-item-name">{{ itemName(item) }}</span>
-            <span v-if="itemDir(item)" class="up-item-dir">{{ itemDir(item) }}</span>
+            <span class="up-item-name">{{ labelText(b.label) }}</span>
+            <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
+            <span class="up-item-pct">100%</span>
           </div>
-          <div v-if="errorText(item)" class="up-item-error">{{ errorText(item) }}</div>
         </div>
       </div>
     </div>
 
     <Dialog :open="!!conflictItem" :title="t('filesUploadConflictTitle')" @update:open="(v) => { if (!v) resolve('skip') }">
-      <p>{{ conflictItem ? t('filesUploadConflictMsg', { name: itemName(conflictItem) }) : '' }}</p>
+      <p>{{ conflictItem ? t('filesUploadConflictMsg', { name: conflictItem.fileName || conflictItem.relativePath }) : '' }}</p>
       <template #footer>
         <button class="ui-btn" @click="resolve('skip')">{{ t('filesUploadSkip') }}</button>
         <button class="ui-btn" @click="resolve('rename')">{{ t('filesUploadRename') }}</button>
@@ -165,6 +182,7 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 .up-item-line { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .up-item-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .up-item-dir { flex: 0 1 auto; color: var(--fg-muted, #9aa4bf); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.up-item-count { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); font-size: 11px; }
 .up-item-pct { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
 .up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); margin-top: 2px; }
 .up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }

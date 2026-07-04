@@ -84,6 +84,26 @@ describe('uploads store', () => {
     }
   })
 
+  it('fires ONE toast for a folder batch and clears it after 5s', async () => {
+    vi.useFakeTimers()
+    try {
+      h.autoComplete = true
+      const s = useUploadsStore()
+      await s.addFilesToQueue([
+        { file: new File(['x'], 'a'), targetPath: '/DATA/x', relativePath: 'Docs/a' },
+        { file: new File(['y'], 'b'), targetPath: '/DATA/x', relativePath: 'Docs/sub/b' },
+      ])
+      // exactly one toast for the whole folder, not one per file
+      expect(h.showSpy).toHaveBeenCalledTimes(1)
+      expect(h.showSpy).toHaveBeenCalledWith('filesUploadFolderDone:Docs', 5000)
+      expect(s.queue.length).toBe(2) // both linger 5s
+      vi.advanceTimersByTime(5000)
+      expect(s.queue.length).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('clearDone removes lingering (skip-done) items', async () => {
     const { service } = await import('@nimotech/nimoos-service') as any
     service.file.uploadPrecheck.mockResolvedValueOnce({ results: [{ relativePath: 'a.txt', exists: true }] })
