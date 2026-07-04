@@ -174,7 +174,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       batchTotal: survivors.length,
       restored: false,
       conflictPolicy: '',
-      oversize: !canStoreBlob(f.file.size),
+      oversize: f.file.size > 0 && !canStoreBlob(f.file.size),
     }))
 
     try {
