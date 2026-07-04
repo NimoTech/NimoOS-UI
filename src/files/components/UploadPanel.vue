@@ -111,11 +111,27 @@ function onCancel(b: BatchView) {
 
 // Delete confirmation (mirrors the file-delete AlertDialog). Each delete
 // trigger stashes a message + the actual delete closure; confirm runs it.
-const pendingDelete = ref<{ message: string; run: () => void } | null>(null)
-function askDelete(message: string, run: () => void) { pendingDelete.value = { message, run } }
+// NOTE: `pendingRun` is intentionally NOT cleared in @update:open. reka-ui's
+// AlertDialogAction fires update:open(false) on the SAME click as our confirm,
+// and it can run first — clearing the closure there would drop it before
+// confirmDelete reads it (confirm would then no-op and nothing gets deleted).
+// So update:open only toggles visibility; confirmDelete captures+runs the
+// closure itself, order-independent. A lingering pendingRun after a cancel is
+// harmless — it's only ever invoked by confirmDelete, and overwritten by the
+// next askDelete.
+const deleteOpen = ref(false)
+const deleteMessage = ref('')
+let pendingRun: (() => void) | null = null
+function askDelete(message: string, run: () => void) {
+  deleteMessage.value = message
+  pendingRun = run
+  deleteOpen.value = true
+}
 function confirmDelete() {
-  pendingDelete.value?.run()
-  pendingDelete.value = null
+  const run = pendingRun
+  pendingRun = null
+  deleteOpen.value = false
+  run?.()
 }
 
 function resolve(choice: 'overwrite' | 'rename' | 'skip') {
@@ -251,13 +267,13 @@ async function onReselect(e: Event) {
     </Dialog>
 
     <AlertDialog
-      :open="!!pendingDelete"
+      :open="deleteOpen"
       :title="t('filesUploadCancel')"
-      :message="pendingDelete?.message || ''"
+      :message="deleteMessage"
       :confirm-text="t('filesUploadCancel')"
       :cancel-text="t('filesCancel')"
       destructive
-      @update:open="(v) => { if (!v) pendingDelete = null }"
+      @update:open="(v) => { deleteOpen = v }"
       @confirm="confirmDelete"
     />
 
