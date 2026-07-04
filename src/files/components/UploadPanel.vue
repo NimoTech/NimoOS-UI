@@ -104,6 +104,10 @@ function onRetry(b: BatchView) {
   if (b.multi) store.retryBatch(b.batchId)
   else store.retryItem(b.items[0].id)
 }
+function onResume(b: BatchView) {
+  if (b.multi) store.resumeBatch(b.batchId)
+  else store.resumeItem(b.items[0].id)
+}
 function onCancel(b: BatchView) {
   if (b.multi) store.cancelBatch(b.batchId)
   else store.cancelItem(b.items[0].id)
@@ -200,13 +204,12 @@ async function onReselect(e: Event) {
             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
           </div>
           <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
-          <template v-else>
-            <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
-            <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
-          </template>
+          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+          <div v-else-if="b.errorCount > 0 && b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
           <div class="up-item-actions">
             <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
-            <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
+            <button v-if="b.errorCount > 0" class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
+            <button v-if="b.pausedCount > 0" class="up-link-btn" @click="onResume(b)">{{ t('filesUploadResume') }}</button>
             <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>
