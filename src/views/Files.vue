@@ -22,6 +22,7 @@ import { useClipboardStore } from '../files/stores/clipboard'
 import { useUploadsStore } from '../files/stores/uploads'
 import { useToast } from '../stores/toast'
 import { installUnloadGuard } from '../files/upload/unloadGuard'
+import { readDroppedEntries } from '../files/upload/dropEntries'
 import type { SelectedFile } from '../files/upload/types'
 import { useMessageBus } from '../composables/useMessageBus'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
@@ -135,11 +136,19 @@ function onDragLeave() {
   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
   dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
 }
-function onDrop(e: DragEvent) {
+async function onDrop(e: DragEvent) {
   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
   isDragIn.value = false
-  const list = e.dataTransfer?.files
-  if (list && list.length) handleSelectedFiles(list)
+  const dropped = await readDroppedEntries(e.dataTransfer)
+  if (!dropped.length) return
+  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
+  const sel: SelectedFile[] = dropped.map((d) => ({
+    file: d.file,
+    targetPath,
+    relativePath: d.relativePath.replace(/^\/+/, ''),
+  }))
+  const { rejected } = await uploads.addFilesToQueue(sel)
+  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
 }
 
 function confirmNew(name: string) {
@@ -267,6 +276,10 @@ onUnmounted(() => { offOperate?.() })
 let offUnloadGuard: (() => void) | null = null
 onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
 onUnmounted(() => { offUnloadGuard?.() })
+
+// 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
+// 失败降级为内存模式,不阻断文件区渲染。
+onMounted(() => { uploads.initUploads() })
 </script>
 
 <template>
