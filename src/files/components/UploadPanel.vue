@@ -181,7 +181,7 @@ async function onReselect(e: Event) {
             {{ t('filesUploadClearDone') }}
           </button>
           <button v-if="totalCount" class="up-link-btn up-delete-all" @click="askDelete(t('filesUploadDeleteAllConfirm'), () => store.cancelAll())">{{ t('filesUploadDeleteAll') }}</button>
-          <button class="up-close" @click="open = false" aria-label="close">×</button>
+          <button class="up-close" @click="open = false" :aria-label="t('filesUploadClose')">×</button>
         </div>
       </div>
 

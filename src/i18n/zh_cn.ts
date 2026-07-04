@@ -97,5 +97,6 @@ export const messages = {
     filesUploadPauseAll: '全部暂停',
     filesUploadResumeAll: '全部继续',
     filesUploadPaused: '已暂停',
+    filesUploadClose: '关闭',
   },
 }
