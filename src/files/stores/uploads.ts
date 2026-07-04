@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { refreshAccessToken, service } from '@nimotech/nimoos-service'
+import type { ServerUploadTask } from '@nimotech/nimoos-service'
 import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
 import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
 import { canStoreBlob } from '../upload/budget'
 import { safeRandomUUID } from '../upload/uuid'
 import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
 import { persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB, pruneOldItems as prunePersisted } from '../upload/persist'
+import { planServerSync } from '../upload/serverSync'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -338,6 +340,26 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
   }
 
+  // Cross-device / cross-browser recovery: pull the server's active upload
+  // tasks and reconcile them against the local queue. Merges resume points
+  // into content-matched local rows; appends server-only tasks as needs_file
+  // (the user re-picks the file to resume from the server offset). Silent on
+  // network error — must never block restore/resume. (Vue2 fileUpload.js:189.)
+  async function syncServerTasks(): Promise<void> {
+    let tasks: ServerUploadTask[] = []
+    try {
+      const res = await service.file.listActiveUploads()
+      tasks = res.tasks || []
+    } catch {
+      return
+    }
+    const { merges, appends } = planServerSync(queue.value, tasks)
+    for (const m of merges) patch(m.id, m.patch)
+    // Server-appended needs_file rows are transient (no blob) — not persisted
+    // to IDB, matching Vue2; they vanish on refresh and re-sync on next init.
+    if (appends.length) queue.value.push(...appends)
+  }
+
   async function initUploads(): Promise<void> {
     // Set BEFORE the await: two synchronous mounts in the same tick (e.g. a
     // fast back-and-forth navigation) must not both observe `false` and both
@@ -349,6 +371,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     try {
       await restoreQueue()
       await pruneOldItems(30)
+      await syncServerTasks()
       resumePending()
     } catch (e) {
       console.warn('[uploads] initUploads failed; memory-only mode', e)
@@ -385,5 +408,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     pruneOldItems,
     initUploads,
     reattachFiles,
+    syncServerTasks,
   }
 })
