@@ -181,7 +181,7 @@ async function onReselect(e: Event) {
           <div class="up-item-actions">
             <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
             <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
-            <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+            <button class="up-link-btn up-del" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>
       </div>
@@ -205,7 +205,7 @@ async function onReselect(e: Event) {
           <div class="up-item-actions">
             <button v-if="batchRunning(b)" class="up-link-btn" @click="store.pauseBatch(b.batchId)">{{ t('filesUploadPause') }}</button>
             <button v-else-if="batchPaused(b)" class="up-link-btn" @click="store.resumeBatch(b.batchId)">{{ t('filesUploadResume') }}</button>
-            <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+            <button class="up-link-btn up-del" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
           <div v-if="b.multi && expanded.has(b.batchId)" class="up-subitems">
             <div v-for="it in b.items" :key="it.id" class="up-subitem">
@@ -213,7 +213,7 @@ async function onReselect(e: Event) {
               <span class="up-subitem-pct">{{ it.status === 'paused' ? t('filesUploadPaused') : it.progress + '%' }}</span>
               <button v-if="it.status === 'uploading' || it.status === 'pending'" class="up-link-btn" @click="store.pauseItem(it.id)">{{ t('filesUploadPause') }}</button>
               <button v-else-if="it.status === 'paused'" class="up-link-btn" @click="store.resumeItem(it.id)">{{ t('filesUploadResume') }}</button>
-              <button class="up-link-btn" @click="store.cancelItem(it.id)">{{ t('filesUploadCancel') }}</button>
+              <button class="up-link-btn up-del" @click="store.cancelItem(it.id)">{{ t('filesUploadCancel') }}</button>
             </div>
           </div>
         </div>
@@ -245,20 +245,21 @@ async function onReselect(e: Event) {
 </template>
 
 <style scoped>
-.upload-panel-wrap { position: fixed; right: 24px; bottom: 24px; z-index: 60; }
+.upload-panel-wrap { position: fixed; right: 24px; bottom: 24px; z-index: 70; }
 .upload-panel-toggle {
   padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-border, rgba(255,255,255,0.12));
   background: var(--popup-bg, rgba(20,23,35,0.96)); color: var(--fg); cursor: pointer; font-size: 13px;
   backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5);
 }
 .upload-panel {
-  width: 360px; max-width: calc(100vw - 48px); max-height: 60vh; overflow-y: auto;
-  padding: 12px 14px; border-radius: 16px;
+  width: 460px; max-width: calc(100vw - 48px); max-height: 74vh; overflow-y: auto;
+  padding: 16px 18px; border-radius: 18px;
   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
   backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
 }
-.up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.up-title { font-size: 13px; font-weight: 600; }
+.up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.up-title { font-size: 15px; font-weight: 600; }
+.up-del { color: #ff8a8a; }
 .up-head-actions { display: flex; align-items: center; gap: 10px; }
 .up-delete-all { color: #ff8a8a; }
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
@@ -270,7 +271,7 @@ async function onReselect(e: Event) {
 .up-zone { margin-top: 6px; }
 .up-zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 8px 0 4px; }
 .up-item { margin-top: 8px; }
-.up-item-line { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.up-item-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .up-item-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .up-item-dir { flex: 0 1 auto; color: var(--fg-muted, #9aa4bf); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .up-item-count { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); font-size: 11px; }

@@ -35,7 +35,9 @@ function baseName(p: string): string {
 
 <style scoped>
 .op-status-bar {
-  position: fixed; right: 24px; bottom: 24px; z-index: 60; width: 340px; max-width: calc(100vw - 48px);
+  /* bottom-LEFT so it never overlaps the upload panel (bottom-right); they used
+     to share the exact same corner + z-index and covered each other. */
+  position: fixed; left: 24px; bottom: 24px; z-index: 60; width: 340px; max-width: calc(100vw - 48px);
   padding: 12px 14px; border-radius: 16px;
   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
   backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
