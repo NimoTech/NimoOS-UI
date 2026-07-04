@@ -213,6 +213,40 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     toastedBatches.delete(batchId)
   }
 
+  function pauseItem(id: string): void {
+    const item = queue.value.find((i) => i.id === id)
+    if (!item) return
+    if (item.status === 'uploading') getScheduler().pause(id)
+    else if (item.status === 'pending') patch(id, { status: 'paused', speed: 0 })
+  }
+
+  function resumeItem(id: string): void {
+    const item = queue.value.find((i) => i.id === id)
+    if (!item || item.status !== 'paused') return
+    patch(id, { status: 'pending', error: '' })
+    startUpload()
+  }
+
+  function pauseBatch(batchId: string): void {
+    for (const i of queue.value.filter((x) => x.batchId === batchId)) pauseItem(i.id)
+  }
+
+  function resumeBatch(batchId: string): void {
+    for (const i of queue.value.filter((x) => x.batchId === batchId && x.status === 'paused')) {
+      patch(i.id, { status: 'pending', error: '' })
+    }
+    startUpload()
+  }
+
+  function pauseAll(): void {
+    for (const i of queue.value.filter((x) => x.status === 'uploading' || x.status === 'pending')) pauseItem(i.id)
+  }
+
+  function resumeAll(): void {
+    for (const i of queue.value.filter((x) => x.status === 'paused')) patch(i.id, { status: 'pending', error: '' })
+    startUpload()
+  }
+
   function clearDone(): void {
     for (const i of queue.value.filter((i) => i.status === 'done')) dropPersisted(i.id)
     queue.value = queue.value.filter((i) => i.status !== 'done')
@@ -310,6 +344,12 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     cancelItem,
     retryBatch,
     cancelBatch,
+    pauseItem,
+    resumeItem,
+    pauseBatch,
+    resumeBatch,
+    pauseAll,
+    resumeAll,
     clearDone,
     restoreQueue,
     resumePending,

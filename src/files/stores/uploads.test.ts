@@ -15,6 +15,7 @@ vi.mock('../upload/scheduler', () => ({
   createScheduler: (deps: any) => ({
     isRunning: () => false,
     abort: vi.fn(),
+    pause: vi.fn(),
     run: async () => {
       if (!h.autoComplete) return
       let it
@@ -249,6 +250,65 @@ describe('uploads restore/resume', () => {
     await store.initUploads()
     expect(persist.restoreFromIDB).toHaveBeenCalledTimes(1)
     expect(store.queue).toHaveLength(1)
+  })
+})
+
+describe('uploads pause/resume', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  function seed(store: any, over: any = {}) {
+    store.queue.push({
+      id: 'x', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
+      relativePath: 'a', status: 'uploading', progress: 30, bytesSent: 3, speed: 5, tusUploadUrl: 'u',
+      retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
+      conflictPolicy: '', oversize: false, ...over,
+    })
+  }
+
+  it('pauseItem: pending item → paused directly (no scheduler call needed)', () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'p', status: 'pending' })
+    store.pauseItem('p')
+    expect(store.queue.find((i: any) => i.id === 'p')?.status).toBe('paused')
+  })
+
+  it('resumeItem: paused → pending + startUpload', () => {
+    // Do not spy on store.startUpload: resumeItem calls the internal
+    // `startUpload` closure directly (not `store.startUpload`), so a Pinia
+    // setup-store action spy never intercepts it. Assert the observable side
+    // effect instead — `uploading` flips synchronously true (the mocked
+    // scheduler's run() is an async no-op, so .finally() hasn't fired yet).
+    const store = useUploadsStore()
+    seed(store, { id: 'p', status: 'paused', file: new Blob(['x']) })
+    store.resumeItem('p')
+    expect(store.queue.find((i: any) => i.id === 'p')?.status).toBe('pending')
+    expect(store.uploading).toBe(true)
+  })
+
+  it('pauseAll pauses uploading+pending; resumeAll resumes paused', () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'u', status: 'pending' })
+    seed(store, { id: 'v', status: 'pending' })
+    store.pauseAll()
+    expect(store.queue.every((i: any) => i.status === 'paused')).toBe(true)
+    store.resumeAll()
+    expect(store.queue.every((i: any) => i.status === 'pending')).toBe(true)
+    expect(store.uploading).toBe(true)
+  })
+
+  it('pauseBatch pauses items in that batch only; resumeBatch resumes just that batch', () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'a1', status: 'pending', batchId: 'batch1' })
+    seed(store, { id: 'a2', status: 'pending', batchId: 'batch1' })
+    seed(store, { id: 'b1', status: 'pending', batchId: 'batch2' })
+    store.pauseBatch('batch1')
+    expect(store.queue.find((i: any) => i.id === 'a1')?.status).toBe('paused')
+    expect(store.queue.find((i: any) => i.id === 'a2')?.status).toBe('paused')
+    expect(store.queue.find((i: any) => i.id === 'b1')?.status).toBe('pending')
+    store.resumeBatch('batch1')
+    expect(store.queue.find((i: any) => i.id === 'a1')?.status).toBe('pending')
+    expect(store.queue.find((i: any) => i.id === 'a2')?.status).toBe('pending')
+    expect(store.uploading).toBe(true)
   })
 })
 
