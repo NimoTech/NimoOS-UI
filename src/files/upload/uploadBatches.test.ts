@@ -35,6 +35,8 @@ describe('groupByBatch', () => {
     expect(views[0].label).toEqual({ kind: 'folder', name: 'Docs', count: 2 })
     expect(views[0].doneCount).toBe(1)
     expect(views[0].progress).toBe(75) // (100 + 50) / 200
+    expect(views[0].sentBytes).toBe(150)
+    expect(views[0].totalBytes).toBe(200)
     expect(views[0].zone).toBe('active')
   })
   it('separates distinct batches, preserves order', () => {

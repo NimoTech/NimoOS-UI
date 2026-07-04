@@ -15,6 +15,8 @@ export interface BatchView {
   activeCount: number // pending + uploading
   conflictCount: number
   progress: number // 0-100, bytes-weighted
+  sentBytes: number // uploaded so far across the batch
+  totalBytes: number // sum of all item sizes in the batch
   zone: 'problem' | 'active' | 'done'
   oversize: boolean
   multi: boolean
@@ -66,6 +68,8 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
       activeCount,
       conflictCount,
       progress,
+      sentBytes,
+      totalBytes,
       zone,
       oversize: items.some((i) => i.oversize),
       multi: items.length > 1,

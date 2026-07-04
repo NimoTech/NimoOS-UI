@@ -36,6 +36,12 @@ describe('UploadPanel', () => {
     expect(w.text()).toContain('a.txt')
   })
 
+  it('shows uploaded / total bytes on an active row', () => {
+    seed('uploading', { size: 5 * 1024 * 1024, bytesSent: 1 * 1024 * 1024 })
+    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
+    expect(w.text()).toContain('1 MB / 5 MB')
+  })
+
   it('shows oversize banner when an active item is oversize', () => {
     seed('uploading', { oversize: true })
     const w = mount(UploadPanel, { global: { plugins: [i18n] } })

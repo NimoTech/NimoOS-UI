@@ -7,6 +7,7 @@ import { useFilesStore } from '../stores/files'
 import { shouldAutoOpenUploadList } from '../upload/uploadListVisibility'
 import { groupByBatch, type BatchView, type BatchLabel } from '../upload/uploadBatches'
 import { toVirtualPath } from '../util/pathUtils'
+import { renderSize } from '../util/format'
 import { uploadErrorKey } from '../upload/statusText'
 import Dialog from '../../components/ui/Dialog.vue'
 
@@ -57,6 +58,10 @@ function formatSpeed(bytesPerSec: number): string {
 }
 function batchSpeed(b: BatchView): number {
   return b.items.reduce((s, i) => s + (i.status === 'uploading' ? i.speed : 0), 0)
+}
+// "45.2 MB / 120 MB" — uploaded volume out of the batch total
+function sizeText(b: BatchView): string {
+  return `${renderSize(b.sentBytes)} / ${renderSize(b.totalBytes)}`
 }
 // single-file batch: surface the file's own error code
 function singleErrorText(b: BatchView): string {
@@ -124,7 +129,10 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
             <span class="up-item-pct">{{ b.progress }}%</span>
           </div>
           <div class="up-progress"><div class="up-progress-fill" :style="{ width: b.progress + '%' }"></div></div>
-          <div v-if="formatSpeed(batchSpeed(b))" class="up-item-speed">{{ formatSpeed(batchSpeed(b)) }}</div>
+          <div class="up-item-meta">
+            <span class="up-item-size">{{ sizeText(b) }}</span>
+            <span v-if="formatSpeed(batchSpeed(b))" class="up-item-speed">· {{ formatSpeed(batchSpeed(b)) }}</span>
+          </div>
           <div class="up-item-actions">
             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
@@ -137,7 +145,7 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
           <div class="up-item-line">
             <span class="up-item-name">{{ labelText(b.label) }}</span>
             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
-            <span class="up-item-pct">100%</span>
+            <span class="up-item-pct">{{ renderSize(b.totalBytes) }}</span>
           </div>
         </div>
       </div>
@@ -184,7 +192,9 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 .up-item-dir { flex: 0 1 auto; color: var(--fg-muted, #9aa4bf); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .up-item-count { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); font-size: 11px; }
 .up-item-pct { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
-.up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); margin-top: 2px; }
+.up-item-meta { display: flex; gap: 6px; align-items: baseline; margin-top: 2px; }
+.up-item-size { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
+.up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
 .up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }
 .up-progress { height: 5px; border-radius: 999px; background: var(--chip-bg, rgba(255,255,255,0.1)); overflow: hidden; margin-top: 4px; }
 .up-progress-fill { height: 100%; background: var(--accent, #6ea8fe); transition: width .2s; }
