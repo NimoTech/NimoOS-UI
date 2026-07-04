@@ -12,6 +12,10 @@ interface TusAbortError extends Error {
   isAbort: true
 }
 
+interface TusPauseError extends Error {
+  isPause: true
+}
+
 export function tusUpload(args: TusArgs): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     // We own resume ourselves: the upload URL is reported back via onUrlAvailable,
@@ -73,6 +77,19 @@ export function tusUpload(args: TusArgs): Promise<void> {
           }
           const e = new Error('upload aborted') as TusAbortError
           e.isAbort = true
+          reject(e)
+        },
+        // Pause: stop the transfer but DO NOT terminate (abort(false) keeps the
+        // server-side staging + offset), then reject with isPause so the scheduler
+        // marks the item paused (not error, not done, not retried).
+        pause: async () => {
+          try {
+            await upload.abort(false)
+          } catch (_) {
+            /* ignore */
+          }
+          const e = new Error('upload paused') as TusPauseError
+          e.isPause = true
           reject(e)
         },
       })

@@ -1,4 +1,4 @@
-export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'needs_file' | 'conflict'
+export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'needs_file' | 'conflict' | 'paused'
 
 export interface UploadItem {
   id: string
@@ -44,5 +44,5 @@ export interface TusArgs {
   resumeUrl?: string | null
   onProgress?: (sent: number, total: number) => void
   onUrlAvailable?: (url: string) => void
-  onStart?: (handle: { abort: () => Promise<void> }) => void
+  onStart?: (handle: { abort: () => Promise<void>; pause: () => Promise<void> }) => void
 }

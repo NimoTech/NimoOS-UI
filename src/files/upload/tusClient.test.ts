@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const uploadInstances: any[] = []
+const abortSpy = vi.fn()
 vi.mock('tus-js-client', () => {
   class Upload {
     file: any; options: any; url: string | null = null
     constructor(file: any, options: any) { this.file = file; this.options = options; uploadInstances.push(this) }
     start() {}
-    abort() { return Promise.resolve() }
+    abort(shouldTerminate?: boolean) { abortSpy(shouldTerminate); return Promise.resolve() }
   }
   return { Upload }
 })
@@ -14,7 +15,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ UPLOAD_TUS_ENDPOINT: '/v2/nimoos/fi
 
 import { tusUpload, isRetryableTusError, tusErrorStatus } from './tusClient'
 
-beforeEach(() => { uploadInstances.length = 0; localStorage.clear(); localStorage.setItem('access_token', 'TOK') })
+beforeEach(() => { uploadInstances.length = 0; abortSpy.mockClear(); localStorage.clear(); localStorage.setItem('access_token', 'TOK') })
 
 describe('isRetryableTusError', () => {
   it('retries network + 5xx + 408/429, not 401/other 4xx', () => {
@@ -50,5 +51,18 @@ describe('tusUpload config', () => {
       batchId: 'b', batchTotal: 1, resumed: false, conflictPolicy: '', onStart: (h) => { handle = h } })
     await handle.abort()
     await expect(p).rejects.toMatchObject({ isAbort: true })
+    expect(abortSpy).toHaveBeenCalledWith(true)
+  })
+
+  it('pause() calls upload.abort(false) and rejects with isPause (no DELETE)', async () => {
+    let handle: { abort: () => Promise<void>; pause: () => Promise<void> } | null = null
+    const p = tusUpload({
+      file: new Blob(['x']), fileName: 'a', fileType: '', targetPath: '/DATA', relativePath: 'a',
+      batchId: 'b', batchTotal: 1, resumed: false, conflictPolicy: '',
+      onStart: (h: { abort: () => Promise<void>; pause: () => Promise<void> }) => { handle = h },
+    } as any)
+    await handle!.pause()
+    await expect(p).rejects.toMatchObject({ isPause: true })
+    expect(abortSpy).toHaveBeenCalledWith(false)
   })
 })
