@@ -11,6 +11,7 @@ import { renderSize } from '../util/format'
 import { uploadErrorKey } from '../upload/statusText'
 import type { UploadItem } from '../upload/types'
 import Dialog from '../../components/ui/Dialog.vue'
+import AlertDialog from '../../components/ui/AlertDialog.vue'
 
 const store = useUploadsStore()
 const files = useFilesStore()
@@ -108,6 +109,15 @@ function onCancel(b: BatchView) {
   else store.cancelItem(b.items[0].id)
 }
 
+// Delete confirmation (mirrors the file-delete AlertDialog). Each delete
+// trigger stashes a message + the actual delete closure; confirm runs it.
+const pendingDelete = ref<{ message: string; run: () => void } | null>(null)
+function askDelete(message: string, run: () => void) { pendingDelete.value = { message, run } }
+function confirmDelete() {
+  pendingDelete.value?.run()
+  pendingDelete.value = null
+}
+
 function resolve(choice: 'overwrite' | 'rename' | 'skip') {
   const item = conflictItem.value
   if (item) store.resolveConflict(item.id, choice)
@@ -154,7 +164,7 @@ async function onReselect(e: Event) {
           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
             {{ t('filesUploadClearDone') }}
           </button>
-          <button v-if="totalCount" class="up-link-btn up-delete-all" @click="store.cancelAll()">{{ t('filesUploadDeleteAll') }}</button>
+          <button v-if="totalCount" class="up-link-btn up-delete-all" @click="askDelete(t('filesUploadDeleteAllConfirm'), () => store.cancelAll())">{{ t('filesUploadDeleteAll') }}</button>
           <button class="up-close" @click="open = false" aria-label="close">×</button>
         </div>
       </div>
@@ -181,7 +191,7 @@ async function onReselect(e: Event) {
           <div class="up-item-actions">
             <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
             <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
-            <button class="up-link-btn up-del" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+            <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>
       </div>
@@ -205,7 +215,7 @@ async function onReselect(e: Event) {
           <div class="up-item-actions">
             <button v-if="batchRunning(b)" class="up-link-btn" @click="store.pauseBatch(b.batchId)">{{ t('filesUploadPause') }}</button>
             <button v-else-if="batchPaused(b)" class="up-link-btn" @click="store.resumeBatch(b.batchId)">{{ t('filesUploadResume') }}</button>
-            <button class="up-link-btn up-del" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+            <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
           </div>
           <div v-if="b.multi && expanded.has(b.batchId)" class="up-subitems">
             <div v-for="it in b.items" :key="it.id" class="up-subitem">
@@ -213,7 +223,7 @@ async function onReselect(e: Event) {
               <span class="up-subitem-pct">{{ it.status === 'paused' ? t('filesUploadPaused') : it.progress + '%' }}</span>
               <button v-if="it.status === 'uploading' || it.status === 'pending'" class="up-link-btn" @click="store.pauseItem(it.id)">{{ t('filesUploadPause') }}</button>
               <button v-else-if="it.status === 'paused'" class="up-link-btn" @click="store.resumeItem(it.id)">{{ t('filesUploadResume') }}</button>
-              <button class="up-link-btn up-del" @click="store.cancelItem(it.id)">{{ t('filesUploadCancel') }}</button>
+              <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: itemName(it) }), () => store.cancelItem(it.id))">{{ t('filesUploadCancel') }}</button>
             </div>
           </div>
         </div>
@@ -239,6 +249,17 @@ async function onReselect(e: Event) {
         <button class="ui-btn primary" @click="resolve('overwrite')">{{ t('filesUploadOverwrite') }}</button>
       </template>
     </Dialog>
+
+    <AlertDialog
+      :open="!!pendingDelete"
+      :title="t('filesUploadCancel')"
+      :message="pendingDelete?.message || ''"
+      :confirm-text="t('filesUploadCancel')"
+      :cancel-text="t('filesCancel')"
+      destructive
+      @update:open="(v) => { if (!v) pendingDelete = null }"
+      @confirm="confirmDelete"
+    />
 
     <input ref="reselectInput" type="file" webkitdirectory multiple class="up-hidden-input" @change="onReselect" />
   </div>

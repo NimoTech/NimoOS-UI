@@ -70,6 +70,8 @@ export const messages = {
     filesUploadRetry: '重试',
     filesUploadCancel: '删除',
     filesUploadDeleteAll: '删除全部',
+    filesUploadDeleteOne: '确定删除「{name}」?已上传的部分会一并取消。',
+    filesUploadDeleteAllConfirm: '确定删除全部上传任务?已上传的部分会一并取消。',
     filesUploadConflictTitle: '文件已存在',
     filesUploadConflictMsg: '目标目录已存在同名文件「{name}」,如何处理?',
     filesUploadOverwrite: '覆盖',
