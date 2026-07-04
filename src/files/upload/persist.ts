@@ -80,7 +80,10 @@ export async function restoreFromIDB(): Promise<{ items: UploadItem[]; resumedCo
         if (blob) {
           const size = blobSizeOf({ size: it.size, file: blob })
           storedBlob.set(it.id, size)
-          items.push({ ...it, status: 'pending', file: blob, restored: true })
+          // Preserve an explicit paused state across refresh; everything else with
+          // bytes resumes automatically.
+          const status = it.status === 'paused' ? 'paused' : 'pending'
+          items.push({ ...it, status, file: blob, restored: true })
           continue
         }
         // Bytes gone (evicted/quota) — fall through to re-select.

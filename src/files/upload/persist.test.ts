@@ -66,6 +66,16 @@ describe('persist', () => {
     expect(resumedCount).toBe(1)
   })
 
+  it('restoreFromIDB keeps paused items paused (not auto-resumed)', async () => {
+    await putQueueItem({ ...stripFile(mkItem({ id: 'pz', status: 'paused' })), blobStored: true })
+    await putBlob('pz', new Blob(['data']))
+    const { items, resumedCount } = await restoreFromIDB()
+    expect(items).toHaveLength(1)
+    expect(items[0].status).toBe('paused')
+    expect(items[0].file).toBeTruthy()
+    expect(resumedCount).toBe(0) // paused does not count as auto-resumed
+  })
+
   it('restoreFromIDB: blobStored but blob gone → needs_file', async () => {
     await putQueueItem({ ...stripFile(mkItem({ id: 'r2' })), blobStored: true })
     const { items, resumedCount } = await restoreFromIDB()
