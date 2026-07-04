@@ -4,6 +4,7 @@ import { refreshAccessToken } from '@nimotech/nimoos-service'
 import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
 import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
 import { canStoreBlob } from '../upload/budget'
+import { safeRandomUUID } from '../upload/uuid'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -61,7 +62,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       else survivors.push(f)
     }
 
-    const batchId = crypto.randomUUID()
+    const batchId = safeRandomUUID()
     const items: UploadItem[] = survivors.map((f, i) => ({
       id: `fq_${Date.now()}_${i}_${Math.random().toString(36).slice(2)}`,
       file: f.file,

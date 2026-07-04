@@ -56,4 +56,21 @@ describe('uploads store', () => {
     s.clearDone()
     expect(s.queue.length).toBe(0)
   })
+
+  // Regression: NAS is reached over plain HTTP at a LAN address (non-secure
+  // context) where crypto.randomUUID is undefined. addFilesToQueue must NOT
+  // throw before enqueuing — otherwise no panel appears and nothing uploads.
+  it('still enqueues when crypto.randomUUID is unavailable (non-secure context)', async () => {
+    const real = globalThis.crypto?.randomUUID
+    try {
+      ;(globalThis.crypto as { randomUUID?: unknown }).randomUUID = undefined
+      const s = useUploadsStore()
+      const { rejected } = await s.addFilesToQueue([sel('a.txt')])
+      expect(rejected).toEqual([])
+      expect(s.queue.some(i => i.relativePath === 'a.txt')).toBe(true)
+      expect(s.queue[0].batchId).toBeTruthy()
+    } finally {
+      ;(globalThis.crypto as { randomUUID?: unknown }).randomUUID = real
+    }
+  })
 })
