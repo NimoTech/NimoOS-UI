@@ -9,6 +9,7 @@ import { groupByBatch, type BatchView, type BatchLabel } from '../upload/uploadB
 import { toVirtualPath } from '../util/pathUtils'
 import { renderSize } from '../util/format'
 import { uploadErrorKey } from '../upload/statusText'
+import type { UploadItem } from '../upload/types'
 import Dialog from '../../components/ui/Dialog.vue'
 
 const store = useUploadsStore()
@@ -80,6 +81,22 @@ function batchRunning(b: BatchView): boolean {
 }
 function batchPaused(b: BatchView): boolean {
   return b.pausedCount > 0 && b.activeCount === 0
+}
+
+// Per-file expand: multi-file batches (folders/multi-select) can be expanded
+// into their individual items for single-file pause/resume/cancel. Collapsed
+// by default so a folder with hundreds of files doesn't flood the panel.
+const expanded = ref<Set<string>>(new Set())
+function toggleExpand(batchId: string) {
+  const next = new Set(expanded.value)
+  if (next.has(batchId)) next.delete(batchId)
+  else next.add(batchId)
+  expanded.value = next
+}
+// PATH SAFETY: show only the file's basename, never the real /DATA/... path.
+function itemName(it: UploadItem): string {
+  const p = it.relativePath || it.fileName
+  return p.split('/').pop() || p
 }
 
 function onRetry(b: BatchView) {
@@ -177,6 +194,7 @@ async function onReselect(e: Event) {
             <span v-if="b.multi" class="up-item-count">{{ t('filesUploadBatchProgress', { done: b.doneCount, total: b.total }) }}</span>
             <span v-if="batchPaused(b)" class="up-item-count">{{ t('filesUploadPaused') }}</span>
             <span class="up-item-pct">{{ b.progress }}%</span>
+            <button v-if="b.multi" class="up-link-btn up-expand-btn" @click="toggleExpand(b.batchId)">{{ expanded.has(b.batchId) ? '▾' : '▸' }}</button>
           </div>
           <div class="up-progress"><div class="up-progress-fill" :style="{ width: b.progress + '%' }"></div></div>
           <div class="up-item-meta">
@@ -187,6 +205,15 @@ async function onReselect(e: Event) {
             <button v-if="batchRunning(b)" class="up-link-btn" @click="store.pauseBatch(b.batchId)">{{ t('filesUploadPause') }}</button>
             <button v-else-if="batchPaused(b)" class="up-link-btn" @click="store.resumeBatch(b.batchId)">{{ t('filesUploadResume') }}</button>
             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+          </div>
+          <div v-if="b.multi && expanded.has(b.batchId)" class="up-subitems">
+            <div v-for="it in b.items" :key="it.id" class="up-subitem">
+              <span class="up-subitem-name">{{ itemName(it) }}</span>
+              <span class="up-subitem-pct">{{ it.status === 'paused' ? t('filesUploadPaused') : it.progress + '%' }}</span>
+              <button v-if="it.status === 'uploading' || it.status === 'pending'" class="up-link-btn" @click="store.pauseItem(it.id)">{{ t('filesUploadPause') }}</button>
+              <button v-else-if="it.status === 'paused'" class="up-link-btn" @click="store.resumeItem(it.id)">{{ t('filesUploadResume') }}</button>
+              <button class="up-link-btn" @click="store.cancelItem(it.id)">{{ t('filesUploadCancel') }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -258,6 +285,14 @@ async function onReselect(e: Event) {
 .up-link-btn {
   background: transparent; border: none; padding: 0; color: var(--accent, #6ea8fe); cursor: pointer; font-size: 12px;
 }
+.up-expand-btn { flex: 0 0 auto; font-size: 11px; }
+.up-subitems {
+  margin-top: 6px; padding-left: 10px; border-left: 1px solid var(--card-border, rgba(255,255,255,0.12));
+  display: flex; flex-direction: column; gap: 6px;
+}
+.up-subitem { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.up-subitem-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-subitem-pct { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
 .ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
 .up-restore-notice {
