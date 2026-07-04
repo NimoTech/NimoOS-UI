@@ -37,7 +37,7 @@ export function createScheduler(deps: SchedulerDeps) {
   let running = false
 
   // In-flight uploads: id -> handle. abort(id) uses this to cancel a running upload.
-  const active = new Map<string, { abort: () => Promise<void> }>()
+  const active = new Map<string, { abort: () => Promise<void>; pause: () => Promise<void> }>()
 
   async function uploadOne(item: UploadItem): Promise<void> {
     deps.patch(item.id, { status: 'uploading', error: '', speed: 0 })
@@ -96,6 +96,10 @@ export function createScheduler(deps: SchedulerDeps) {
         // User-initiated cancel: don't set error, don't retry (row is usually already
         // removed by the store).
         if (err && err.isAbort) return
+        if (err && err.isPause) {
+          deps.patch(item.id, { status: 'paused', speed: 0 })
+          return
+        }
         const status = tusErrorStatus(err)
         if (status === 409) {
           deps.patch(item.id, { status: 'done', progress: 100, error: 'duplicate', speed: 0 })
@@ -151,5 +155,15 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
-  return { run, isRunning: () => running, abort }
+  // Pause an in-flight upload. No-op if there's no active handle (pending/needs_file/
+  // error). Doesn't await the underlying abort so the caller returns immediately.
+  function pause(id: string): void {
+    const h = active.get(id)
+    if (h) {
+      active.delete(id)
+      Promise.resolve().then(() => h.pause()).catch(() => {})
+    }
+  }
+
+  return { run, isRunning: () => running, abort, pause }
 }

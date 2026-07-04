@@ -63,4 +63,39 @@ describe('scheduler', () => {
     await createScheduler(deps).run()
     expect(patches.some(p => p.status === 'error' || p.status === 'done')).toBe(false)
   })
+
+  it('pause(id) triggers the in-flight handle.pause()', async () => {
+    const pauseSpy = vi.fn().mockResolvedValue(undefined)
+    const upload = (args: any) => new Promise<void>(() => {
+      args.onStart({ abort: async () => {}, pause: pauseSpy })
+    })
+    const { deps } = harness(mkItem({}), upload)
+    const sch = createScheduler(deps)
+    const run = sch.run()
+    await new Promise((r) => setTimeout(r, 0)) // let the worker start + register handle
+    sch.pause('i')
+    await new Promise((r) => setTimeout(r, 0)) // let the async pause() invocation flush
+    expect(pauseSpy).toHaveBeenCalled()
+    void run
+  })
+
+  it('pause(id) is a no-op when there is no active handle', () => {
+    const { deps } = harness(mkItem({}), () => Promise.resolve())
+    const sch = createScheduler(deps)
+    expect(() => sch.pause('nope')).not.toThrow()
+  })
+
+  it('isPause error marks item paused, not retried/errored', async () => {
+    const upload = (args: any) => new Promise<void>((_res, rej) => {
+      args.onStart({ abort: async () => {}, pause: async () => {} })
+      const e: any = new Error('p')
+      e.isPause = true
+      rej(e)
+    })
+    const { deps, patches } = harness(mkItem({}), upload)
+    await createScheduler(deps).run()
+    expect(patches.some(p => p.id === 'i' && p.status === 'paused' && p.speed === 0)).toBe(true)
+    expect(patches.some(p => p.status === 'error')).toBe(false)
+    expect(patches.some(p => p.status === 'done')).toBe(false)
+  })
 })
