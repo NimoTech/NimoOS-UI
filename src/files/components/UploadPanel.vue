@@ -259,9 +259,11 @@ async function onReselect(e: Event) {
 }
 .up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .up-title { font-size: 15px; font-weight: 600; }
-.up-del { color: #ff8a8a; }
+/* Compound selectors so red wins over .up-link-btn's accent color regardless of
+   stylesheet order (both are single-class = equal specificity otherwise). */
+.up-link-btn.up-del { color: #ff8a8a; }
 .up-head-actions { display: flex; align-items: center; gap: 10px; }
-.up-delete-all { color: #ff8a8a; }
+.up-link-btn.up-delete-all { color: #ff8a8a; }
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
 .up-oversize-banner {
   margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px;
