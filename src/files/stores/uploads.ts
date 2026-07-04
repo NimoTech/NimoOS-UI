@@ -338,6 +338,8 @@ export const useUploadsStore = defineStore('files-uploads', () => {
         conflicts.push(it)
       } else {
         patch(it.id, { file, status: 'pending', error: '', restored: true })
+        const updated = queue.value.find((x) => x.id === it.id)
+        if (updated) persistNewItem(updated) // re-store blob so a 2nd refresh stays resumable
         matched++
       }
     }
