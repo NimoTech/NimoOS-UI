@@ -221,10 +221,8 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   // routes through these too when the panel renders it as one row.
   function retryBatch(batchId: string): void {
     toastedBatches.delete(batchId)
-    for (const i of queue.value) {
-      if (i.batchId === batchId && i.status === 'error') {
-        Object.assign(i, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
-      }
+    for (const i of queue.value.filter((x) => x.batchId === batchId && x.status === 'error')) {
+      patch(i.id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
     }
     startUpload()
   }
