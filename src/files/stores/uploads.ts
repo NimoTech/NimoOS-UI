@@ -45,6 +45,17 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     return m ? m[1] : ''
   }
 
+  // Resolve the server-side tus staging id to cancel. Fresh/local items carry
+  // an fq_ id + the tus id inside tusUploadUrl; server-origin rows carry the
+  // tus id AS item.id. Mirrors Vue2 fileUpload.js:257-258.
+  function resolveTusId(item: UploadItem | undefined): string {
+    if (!item) return ''
+    const fromUrl = tusIdFromUrl(item.tusUploadUrl)
+    if (fromUrl) return fromUrl
+    if (item.tusUploadUrl) return '' // had a url but unparseable → nothing to cancel
+    return item.id.startsWith('fq_') ? '' : item.id
+  }
+
   function claimNext(): UploadItem | null {
     const item = queue.value.find((i) => i.status === 'pending' && i.file)
     if (!item) return null
@@ -200,7 +211,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   function cancelItem(id: string): void {
     getScheduler().abort(id)
     const item = queue.value.find((i) => i.id === id)
-    const tid = tusIdFromUrl(item ? item.tusUploadUrl : null)
+    const tid = resolveTusId(item)
     if (tid) service.file.cancelUpload(tid).catch(() => {})
     dropPersisted(id)
     queue.value = queue.value.filter((i) => i.id !== id)
@@ -221,7 +232,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   function cancelBatch(batchId: string): void {
     for (const i of queue.value.filter((x) => x.batchId === batchId)) {
       getScheduler().abort(i.id)
-      const tid = tusIdFromUrl(i.tusUploadUrl)
+      const tid = resolveTusId(i)
       if (tid) service.file.cancelUpload(tid).catch(() => {})
       dropPersisted(i.id)
     }
@@ -235,7 +246,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   function cancelAll(): void {
     for (const i of queue.value) {
       getScheduler().abort(i.id)
-      const tid = tusIdFromUrl(i.tusUploadUrl)
+      const tid = resolveTusId(i)
       if (tid) service.file.cancelUpload(tid).catch(() => {})
       dropPersisted(i.id)
     }

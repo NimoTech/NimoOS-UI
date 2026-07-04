@@ -338,16 +338,18 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
   })
 
   it('cancelItem on an item with NO tusUploadUrl does NOT call service.file.cancelUpload', async () => {
+    // fq_-prefixed id: a genuinely fresh/local item that never got a tus url —
+    // resolveTusId's fallback only kicks in for non-fq_ (server-origin) ids.
     const store = useUploadsStore()
-    seed(store, { id: 'p2', tusUploadUrl: null })
-    store.cancelItem('p2')
+    seed(store, { id: 'fq_p2', tusUploadUrl: null })
+    store.cancelItem('fq_p2')
     expect(service.file.cancelUpload).not.toHaveBeenCalled()
   })
 
   it('cancelBatch cancels server-side staging for every item in the batch that has a tusUploadUrl', async () => {
     const store = useUploadsStore()
     seed(store, { id: 'b1', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
-    seed(store, { id: 'b2', batchId: 'batchA', tusUploadUrl: null })
+    seed(store, { id: 'fq_b2', batchId: 'batchA', tusUploadUrl: null })
     seed(store, { id: 'b3', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/two' })
     store.cancelBatch('batchA')
     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
@@ -359,7 +361,7 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
   it('cancelAll empties the whole queue and cancels server staging for every item with a tusUploadUrl', async () => {
     const store = useUploadsStore()
     seed(store, { id: 'x1', batchId: 'A', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
-    seed(store, { id: 'x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
+    seed(store, { id: 'fq_x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
     seed(store, { id: 'x3', batchId: 'B', tusUploadUrl: '/v2/nimoos/file/upload-tus/two', status: 'error' })
     store.cancelAll()
     expect(store.queue.length).toBe(0)
