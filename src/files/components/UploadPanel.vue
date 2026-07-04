@@ -69,6 +69,19 @@ function singleErrorText(b: BatchView): string {
   return !b.multi && it?.error ? t(uploadErrorKey(it.error)) : ''
 }
 
+// Global bar: any active work → offer pause-all; once nothing is left running
+// but something is paused → offer resume-all.
+const anyRunning = computed(() => store.queue.some((i) => i.status === 'uploading' || i.status === 'pending'))
+const anyPaused = computed(() => store.queue.some((i) => i.status === 'paused'))
+// Batch-level: activeCount = pending+uploading (see uploadBatches); a batch is
+// "paused" once nothing in it is still active but at least one item is paused.
+function batchRunning(b: BatchView): boolean {
+  return b.activeCount > 0
+}
+function batchPaused(b: BatchView): boolean {
+  return b.pausedCount > 0 && b.activeCount === 0
+}
+
 function onRetry(b: BatchView) {
   if (b.multi) store.retryBatch(b.batchId)
   else store.retryItem(b.items[0].id)
@@ -119,6 +132,8 @@ async function onReselect(e: Event) {
       <div class="up-head">
         <span class="up-title">{{ t('filesUploadTitle') }}</span>
         <div class="up-head-actions">
+          <button v-if="anyRunning" class="up-link-btn" @click="store.pauseAll()">{{ t('filesUploadPauseAll') }}</button>
+          <button v-else-if="anyPaused" class="up-link-btn" @click="store.resumeAll()">{{ t('filesUploadResumeAll') }}</button>
           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
             {{ t('filesUploadClearDone') }}
           </button>
@@ -160,6 +175,7 @@ async function onReselect(e: Event) {
             <span class="up-item-name">{{ labelText(b.label) }}</span>
             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
             <span v-if="b.multi" class="up-item-count">{{ t('filesUploadBatchProgress', { done: b.doneCount, total: b.total }) }}</span>
+            <span v-if="batchPaused(b)" class="up-item-count">{{ t('filesUploadPaused') }}</span>
             <span class="up-item-pct">{{ b.progress }}%</span>
           </div>
           <div class="up-progress"><div class="up-progress-fill" :style="{ width: b.progress + '%' }"></div></div>
@@ -168,6 +184,8 @@ async function onReselect(e: Event) {
             <span class="up-item-size">{{ sizeText(b) }}</span>
           </div>
           <div class="up-item-actions">
+            <button v-if="batchRunning(b)" class="up-link-btn" @click="store.pauseBatch(b.batchId)">{{ t('filesUploadPause') }}</button>
+            <button v-else-if="batchPaused(b)" class="up-link-btn" @click="store.resumeBatch(b.batchId)">{{ t('filesUploadResume') }}</button>
             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>

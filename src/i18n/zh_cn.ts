@@ -89,5 +89,10 @@ export const messages = {
     filesUploadNeedsFile: '需重新选择文件以继续上传',
     filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
     filesUploadRestoreDismiss: '知道了',
+    filesUploadPause: '暂停',
+    filesUploadResume: '继续',
+    filesUploadPauseAll: '全部暂停',
+    filesUploadResumeAll: '全部继续',
+    filesUploadPaused: '已暂停',
   },
 }
