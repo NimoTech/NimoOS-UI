@@ -77,36 +77,15 @@ export async function removeQueueItem(id: string): Promise<void> {
   await wrap(store.delete(id))
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
-}
-
-function dataUrlToBlob(dataUrl: string, type: string): Blob {
-  const arr = dataUrl.split(',')
-  const bstr = atob(arr[1])
-  const n = bstr.length
-  const u8arr = new Uint8Array(n)
-  for (let i = 0; i < n; i++) {
-    u8arr[i] = bstr.charCodeAt(i)
-  }
-  return new Blob([u8arr], { type })
-}
-
 export async function putBlob(id: string, blob: Blob): Promise<void> {
-  const dataUrl = await blobToDataUrl(blob)
   const store = await tx(BLOB_STORE, 'readwrite')
-  await wrap(store.put({ id, dataUrl, type: blob.type }))
+  await wrap(store.put({ id, blob }))
 }
 
 export async function getBlob(id: string): Promise<Blob | undefined> {
   const store = await tx(BLOB_STORE, 'readonly')
-  const rec = await wrap<{ id: string; dataUrl: string; type: string } | undefined>(store.get(id))
-  return rec ? dataUrlToBlob(rec.dataUrl, rec.type) : undefined
+  const rec = await wrap<{ id: string; blob: Blob } | undefined>(store.get(id))
+  return rec ? rec.blob : undefined
 }
 
 export async function removeBlob(id: string): Promise<void> {
