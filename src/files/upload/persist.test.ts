@@ -5,6 +5,7 @@ import {
   persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB,
   pruneOldItems, _resetBudgetForTest,
 } from './persist'
+import { canStoreBlob, PER_FILE_BLOB_CAP, TOTAL_BLOB_BUDGET } from './budget'
 import type { UploadItem } from './types'
 
 function mkItem(over: Partial<UploadItem> = {}): UploadItem {
@@ -147,6 +148,39 @@ describe('persist', () => {
     expect(rows[0].id).toBe('m2')
     expect(rows[0].status).toBe('uploading')
     expect(rows[0].blobStored).toBe(false) // oversize items never stored
+  })
+
+  it('cumulative budget: fills TOTAL_BLOB_BUDGET across many items, then rejects the overflow item and stops accounting growth', async () => {
+    // Fill the budget with as many max-per-file-size items as fit, leaving a
+    // remainder smaller than PER_FILE_BLOB_CAP so the next full-size item cannot fit.
+    const n = Math.floor(TOTAL_BLOB_BUDGET / PER_FILE_BLOB_CAP)
+    for (let i = 0; i < n; i++) {
+      persistNewItem(mkItem({ id: `bulk${i}`, size: PER_FILE_BLOB_CAP }))
+    }
+    await flush()
+    const rowsAfterBulk = await getAllQueueItems()
+    expect(rowsAfterBulk.filter((r) => r.blobStored).length).toBe(n)
+
+    const usedAfterBulk = n * PER_FILE_BLOB_CAP
+    const remaining = TOTAL_BLOB_BUDGET - usedAfterBulk
+    expect(remaining).toBeGreaterThan(0)
+    expect(remaining).toBeLessThan(PER_FILE_BLOB_CAP) // sanity: next full-size item must not fit
+    expect(canStoreBlob(PER_FILE_BLOB_CAP, usedAfterBulk)).toBe(false)
+
+    // One more full-size item goes over budget: meta persists, but no blob is stored.
+    persistNewItem(mkItem({ id: 'overBudget', size: PER_FILE_BLOB_CAP }))
+    await flush()
+    const overRow = (await getAllQueueItems()).find((r) => r.id === 'overBudget')
+    expect(overRow?.blobStored).toBe(false)
+    expect(await getBlob('overBudget')).toBeUndefined()
+
+    // The rejected attempt must not have grown the accounting: an item sized to
+    // exactly the remaining headroom should still fit.
+    persistNewItem(mkItem({ id: 'fitsRemaining', size: remaining }))
+    await flush()
+    const fitsRow = (await getAllQueueItems()).find((r) => r.id === 'fitsRemaining')
+    expect(fitsRow?.blobStored).toBe(true)
+    expect(await getBlob('fitsRemaining')).toBeInstanceOf(Blob)
   })
 
   it('dropPersisted frees budget (observable)', async () => {

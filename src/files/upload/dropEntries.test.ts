@@ -42,6 +42,23 @@ describe('readDroppedEntries', () => {
     expect(out[0].file).toBeInstanceOf(File)
   })
 
+  it('does not filter hidden dotfiles or media files out of a dropped folder', async () => {
+    // Unlike Photos' collectFilesFromDataTransfer, the file manager's drop path
+    // must accept everything the OS handed it — no media-type allowlist, no
+    // dotfile skip.
+    const dt = dtWithEntries([
+      dirEntry('Folder', '/Folder', [
+        fileEntry('.hidden', '/Folder/.hidden'),
+        fileEntry('photo.jpg', '/Folder/photo.jpg'),
+        fileEntry('video.mp4', '/Folder/video.mp4'),
+        fileEntry('notes.txt', '/Folder/notes.txt'),
+      ]),
+    ])
+    const out = await readDroppedEntries(dt)
+    const rels = out.map((o) => o.relativePath).sort()
+    expect(rels).toEqual(['Folder/.hidden', 'Folder/notes.txt', 'Folder/photo.jpg', 'Folder/video.mp4'])
+  })
+
   it('single dropped file → relativePath is the name', async () => {
     const dt = dtWithEntries([fileEntry('c.txt', '/c.txt')])
     const out = await readDroppedEntries(dt)
