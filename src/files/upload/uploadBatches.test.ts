@@ -69,3 +69,19 @@ describe('needs_file routing', () => {
     expect(v.needsFileCount).toBe(1)
   })
 })
+
+describe('paused items routing', () => {
+  it('paused items count into pausedCount and keep the batch in active zone', () => {
+    const q = [
+      { id: 'a', batchId: 'b', batchTotal: 1, status: 'paused', size: 10, bytesSent: 3, relativePath: 'a', fileName: 'a' },
+    ] as any
+    const [v] = groupByBatch(q)
+    expect(v.pausedCount).toBe(1)
+    expect(v.zone).toBe('active')
+  })
+
+  it('a fully-paused batch is not settled', () => {
+    const q = [{ id: 'a', batchId: 'b', batchTotal: 1, status: 'paused', size: 10, bytesSent: 3, relativePath: 'a', fileName: 'a' }] as any
+    expect(isBatchSettled(q)).toBe(false)
+  })
+})
