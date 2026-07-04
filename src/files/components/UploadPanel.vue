@@ -161,7 +161,9 @@ async function onReselect(e: Event) {
     const sel = Array.from(list).map((f) => ({
       file: f,
       targetPath: files.currentPath,
-      relativePath: (f as any).webkitRelativePath || f.name,
+      // 与 commitSelectedFiles 一致:剥离前导 '/',避免受保护目录判断
+      // (split('/')[0])被空首段绕过。
+      relativePath: ((f as any).webkitRelativePath || f.name).replace(/^\/+/, ''),
     }))
     await store.reattachFiles(sel)
   }

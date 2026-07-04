@@ -23,7 +23,7 @@ import { useUploadsStore } from '../files/stores/uploads'
 import { useToast } from '../stores/toast'
 import { installUnloadGuard } from '../files/upload/unloadGuard'
 import { readDroppedEntries } from '../files/upload/dropEntries'
-import type { SelectedFile } from '../files/upload/types'
+import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
 import {
@@ -111,16 +111,23 @@ function onInputChange(e: Event) {
   input.value = '' // 允许重复选择同一文件再次触发 change
 }
 
-async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
+// Shared enqueue path for both the file/folder picker and drag-drop: normalize
+// leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
+// any files rejected for being in a protected dir.
+async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
-  const sel: SelectedFile[] = Array.from(list).map((f) => {
-    const raw = (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name
-    // 防御:去掉开头的 '/' —— 下游受保护目录判断按 split('/')[0] 取首段,
-    // 前导斜杠会产生空首段从而绕过检查。
-    return { file: f, targetPath, relativePath: raw.replace(/^\/+/, '') }
-  })
+  const sel = toSelectedFiles(entries, targetPath)
   const { rejected } = await uploads.addFilesToQueue(sel)
   for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+}
+
+async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
+  await commitSelectedFiles(
+    Array.from(list).map((f) => ({
+      file: f,
+      relativePath: (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name,
+    })),
+  )
 }
 defineExpose({ handleSelectedFiles })
 
@@ -141,14 +148,7 @@ async function onDrop(e: DragEvent) {
   isDragIn.value = false
   const dropped = await readDroppedEntries(e.dataTransfer)
   if (!dropped.length) return
-  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
-  const sel: SelectedFile[] = dropped.map((d) => ({
-    file: d.file,
-    targetPath,
-    relativePath: d.relativePath.replace(/^\/+/, ''),
-  }))
-  const { rejected } = await uploads.addFilesToQueue(sel)
-  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+  await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
 }
 
 function confirmNew(name: string) {
