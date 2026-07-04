@@ -101,6 +101,67 @@ describe('persist', () => {
     const removed = await pruneOldItems(1000)
     expect(removed).toBe(1)
   })
+
+  it('persistItemMeta re-persists metadata, preserving blobStored=true for in-budget item', async () => {
+    persistNewItem(mkItem({ id: 'm1', size: 4 }))
+    await flush()
+    expect((await getAllQueueItems())[0].blobStored).toBe(true)
+
+    // Mutate status and tusUploadUrl via persistItemMeta
+    const updated = mkItem({ id: 'm1', size: 4, status: 'uploading', tusUploadUrl: '/v2/nimoos/file/upload-tus/abc' })
+    persistItemMeta(updated)
+    await flush()
+
+    const rows = await getAllQueueItems()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('m1')
+    expect(rows[0].status).toBe('uploading')
+    expect(rows[0].tusUploadUrl).toBe('/v2/nimoos/file/upload-tus/abc')
+    expect(rows[0].blobStored).toBe(true) // preserved from storedBlob map
+    expect(rows[0].file).toBeUndefined() // stripped
+    expect(rows[0].thumbUrl).toBeUndefined() // stripped
+  })
+
+  it('persistItemMeta preserves blobStored=false for over-cap item', async () => {
+    persistNewItem(mkItem({ id: 'm2', size: 300 * 1024 * 1024, oversize: true }))
+    await flush()
+    expect((await getAllQueueItems())[0].blobStored).toBe(false)
+
+    // Update status via persistItemMeta
+    const updated = mkItem({ id: 'm2', size: 300 * 1024 * 1024, oversize: true, status: 'uploading' })
+    persistItemMeta(updated)
+    await flush()
+
+    const rows = await getAllQueueItems()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('m2')
+    expect(rows[0].status).toBe('uploading')
+    expect(rows[0].blobStored).toBe(false) // oversize items never stored
+  })
+
+  it('dropPersisted frees budget (observable)', async () => {
+    // Persist item A with blob stored
+    persistNewItem(mkItem({ id: 'a', size: 4 }))
+    await flush()
+    expect((await getAllQueueItems())[0].blobStored).toBe(true)
+
+    // Drop item A — budget slot is released
+    dropPersisted('a')
+    await flush()
+    expect(await getAllQueueItems()).toEqual([])
+
+    // Restore from IDB — rebuilds storedBlob map (now empty after drop)
+    const { items: restored } = await restoreFromIDB()
+    expect(restored).toEqual([])
+
+    // Persist item B — the freed budget from A is available
+    persistNewItem(mkItem({ id: 'b', size: 4 }))
+    await flush()
+    const rows = await getAllQueueItems()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('b')
+    expect(rows[0].blobStored).toBe(true) // B gets stored because A freed its budget
+  })
 })
 
 // helper: strip File before writing to IDB (mirrors persist stripForQueue)
