@@ -130,8 +130,8 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
           </div>
           <div class="up-progress"><div class="up-progress-fill" :style="{ width: b.progress + '%' }"></div></div>
           <div class="up-item-meta">
+            <span class="up-item-speed">{{ formatSpeed(batchSpeed(b)) }}</span>
             <span class="up-item-size">{{ sizeText(b) }}</span>
-            <span v-if="formatSpeed(batchSpeed(b))" class="up-item-speed">· {{ formatSpeed(batchSpeed(b)) }}</span>
           </div>
           <div class="up-item-actions">
             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
@@ -192,9 +192,11 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 .up-item-dir { flex: 0 1 auto; color: var(--fg-muted, #9aa4bf); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .up-item-count { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); font-size: 11px; }
 .up-item-pct { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
-.up-item-meta { display: flex; gap: 6px; align-items: baseline; margin-top: 2px; }
-.up-item-size { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
-.up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
+/* speed pinned bottom-left, size pinned bottom-right (right edge fixed so the
+   changing digits never shove the speed around); tabular digits steady width */
+.up-item-meta { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+.up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); text-align: left; font-variant-numeric: tabular-nums; }
+.up-item-size { margin-left: auto; text-align: right; font-size: 11px; color: var(--fg-muted, #9aa4bf); font-variant-numeric: tabular-nums; }
 .up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }
 .up-progress { height: 5px; border-radius: 999px; background: var(--chip-bg, rgba(255,255,255,0.1)); overflow: hidden; margin-top: 4px; }
 .up-progress-fill { height: 100%; background: var(--accent, #6ea8fe); transition: width .2s; }
