@@ -67,13 +67,21 @@ describe('uploads store', () => {
     expect(h.showSpy).not.toHaveBeenCalled()
   })
 
-  it('auto-clears a successful upload and toasts success', async () => {
-    h.autoComplete = true
-    const s = useUploadsStore()
-    await s.addFilesToQueue([sel('a.txt')])
-    // success completion → item removed from the queue, no lingering progress row
-    expect(s.queue.some(i => i.relativePath === 'a.txt')).toBe(false)
-    expect(h.showSpy).toHaveBeenCalledWith('filesUploadDone:a.txt')
+  it('toasts success and auto-clears the row after 5s', async () => {
+    vi.useFakeTimers()
+    try {
+      h.autoComplete = true
+      const s = useUploadsStore()
+      await s.addFilesToQueue([sel('a.txt')])
+      // toast fires immediately (5s duration); row lingers 5s then clears
+      expect(h.showSpy).toHaveBeenCalledWith('filesUploadDone:a.txt', 5000)
+      expect(s.queue.some(i => i.relativePath === 'a.txt')).toBe(true)
+      expect(s.queue[0].status).toBe('done')
+      vi.advanceTimersByTime(5000)
+      expect(s.queue.some(i => i.relativePath === 'a.txt')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('clearDone removes lingering (skip-done) items', async () => {

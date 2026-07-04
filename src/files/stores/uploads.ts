@@ -37,12 +37,15 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     // are never auto-removed (they need retry/decision).
     if (item.status === 'done' && item.progress === 100) {
       const name = item.fileName || item.relativePath
+      const id = item.id
       useToast().show(
         item.error === 'duplicate'
           ? i18n.global.t('filesUploadExists', { name })
           : i18n.global.t('filesUploadDone', { name }),
+        5000,
       )
-      queue.value = queue.value.filter((i) => i.id !== item.id)
+      // Keep the completed row visible for 5s, then clear it (no manual clearing).
+      setTimeout(() => { queue.value = queue.value.filter((i) => i.id !== id) }, 5000)
     }
   }
 

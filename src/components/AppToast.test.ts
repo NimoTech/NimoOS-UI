@@ -15,8 +15,19 @@ describe('AppToast', () => {
   it('renders the message from useToast', async () => {
     const t = useToast()
     const w = mount(AppToast)
-    t.msg = 'saved'
+    t.show('saved')
     await w.vm.$nextTick()
     expect(w.get('.toast').text()).toBe('saved')
+  })
+
+  it('stacks multiple toasts', async () => {
+    const t = useToast()
+    const w = mount(AppToast)
+    t.show('first')
+    t.show('second')
+    await w.vm.$nextTick()
+    const pills = w.findAll('.toast')
+    expect(pills).toHaveLength(2)
+    expect(pills.map((p) => p.text())).toEqual(['first', 'second'])
   })
 })
