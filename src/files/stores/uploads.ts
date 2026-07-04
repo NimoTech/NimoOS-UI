@@ -218,6 +218,50 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     if (queue.value.some((i) => i.status === 'pending' && !!i.file)) startUpload()
   }
 
+  async function reattachFiles(files: SelectedFile[]): Promise<{ matched: number; conflicts: UploadItem[] }> {
+    const byRel = new Map<string, File>()
+    const byName = new Map<string, File>()
+    for (const f of files) {
+      const rel = f.relativePath || f.file.name
+      if (rel) byRel.set(rel, f.file)
+      if (f.file.name) byName.set(f.file.name, f.file)
+    }
+
+    const matches: { it: UploadItem; file: File }[] = []
+    for (const it of queue.value) {
+      if (it.status !== 'needs_file') continue
+      const f = byRel.get(it.relativePath) || byName.get(it.fileName)
+      if (!f) continue
+      // Name matched — size must also match, else it's a different file (skip; let user re-pick).
+      if (it.size && f.size && f.size !== it.size) continue
+      matches.push({ it, file: f })
+    }
+    if (matches.length === 0) return { matched: 0, conflicts: [] }
+
+    let existing = new Set<string>()
+    try {
+      existing = await precheckExisting(
+        matches.map(({ it, file }) => ({ file, targetPath: it.targetPath, relativePath: it.relativePath })),
+      )
+    } catch {
+      // Precheck unavailable — upload everything.
+    }
+
+    let matched = 0
+    const conflicts: UploadItem[] = []
+    for (const { it, file } of matches) {
+      if (existing.has(conflictKey(it.targetPath, it.relativePath))) {
+        patch(it.id, { file, status: 'conflict', error: '', restored: true })
+        conflicts.push(it)
+      } else {
+        patch(it.id, { file, status: 'pending', error: '', restored: true })
+        matched++
+      }
+    }
+    if (matched > 0 && !uploading.value) startUpload()
+    return { matched, conflicts }
+  }
+
   async function pruneOldItems(days = 30): Promise<void> {
     await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
   }
@@ -254,5 +298,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     resumePending,
     pruneOldItems,
     initUploads,
+    reattachFiles,
   }
 })

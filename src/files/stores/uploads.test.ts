@@ -35,6 +35,7 @@ vi.mock('../upload/persist', () => ({
 
 import { useUploadsStore } from './uploads'
 import * as persist from '../upload/persist'
+import { service } from '@nimotech/nimoos-service'
 
 const sel = (name: string, target = '/DATA/x') =>
   ({ file: new File(['x'], name), targetPath: target, relativePath: name })
@@ -231,5 +232,55 @@ describe('uploads restore/resume', () => {
     await store.initUploads()
     expect(persist.restoreFromIDB).toHaveBeenCalled()
     expect(persist.pruneOldItems).toHaveBeenCalled()
+  })
+})
+
+describe('uploads reattachFiles', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  function seedNeedsFile(store: ReturnType<typeof useUploadsStore>, over: any = {}) {
+    store.queue.push({
+      id: 'nf', file: null, fileName: 'a.txt', fileType: 'text/plain', size: 4,
+      targetPath: '/DATA/x', relativePath: 'a.txt', status: 'needs_file', progress: 0,
+      bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1,
+      batchId: 'b', batchTotal: 1, restored: true, conflictPolicy: '', oversize: false, ...over,
+    } as any)
+  }
+
+  it('size mismatch does not match', async () => {
+    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [] })
+    const store = useUploadsStore()
+    seedNeedsFile(store)
+    const wrong = new File(['different-bytes'], 'a.txt') // size != 4
+    const res = await store.reattachFiles([{ file: wrong, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    expect(res.matched).toBe(0)
+    expect(store.queue[0].status).toBe('needs_file')
+  })
+
+  it('match + not existing → pending', async () => {
+    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: false }] })
+    const store = useUploadsStore()
+    vi.spyOn(store, 'startUpload').mockImplementation(() => {})
+    seedNeedsFile(store)
+    const f = new File(['data'], 'a.txt') // size 4
+    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    expect(res.matched).toBe(1)
+    expect(store.queue[0].status).toBe('pending')
+    // jsdom's File does not inherit from the Node Blob that vitest.setup.ts
+    // installs as globalThis.Blob (for fake-indexeddb structuredClone compat),
+    // so `toBeInstanceOf(Blob)` is unreliable here; assert the real intent —
+    // the picked file got attached to the queue item.
+    expect(store.queue[0].file).toBe(f)
+  })
+
+  it('match + existing on server → conflict', async () => {
+    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: true }] })
+    const store = useUploadsStore()
+    seedNeedsFile(store)
+    const f = new File(['data'], 'a.txt')
+    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+    expect(res.matched).toBe(0)
+    expect(res.conflicts).toHaveLength(1)
+    expect(store.queue[0].status).toBe('conflict')
   })
 })
