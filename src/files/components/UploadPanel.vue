@@ -82,6 +82,31 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
   const item = conflictItem.value
   if (item) store.resolveConflict(item.id, choice)
 }
+
+// needs_file reselect: user re-picks the same folder/files via a hidden
+// input; reattachFiles matches them back onto the needs_file queue items by
+// their own targetPath/relativePath (the SelectedFile.targetPath below is a
+// placeholder to satisfy the shape, not used for matching).
+const reselectInput = ref<HTMLInputElement | null>(null)
+const reselectDismissed = ref(false)
+const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectDismissed.value)
+
+function triggerReselect() {
+  reselectInput.value?.click()
+}
+async function onReselect(e: Event) {
+  const input = e.target as HTMLInputElement
+  const list = input.files
+  if (list && list.length) {
+    const sel = Array.from(list).map((f) => ({
+      file: f,
+      targetPath: files.currentPath,
+      relativePath: (f as any).webkitRelativePath || f.name,
+    }))
+    await store.reattachFiles(sel)
+  }
+  input.value = ''
+}
 </script>
 
 <template>
@@ -101,6 +126,11 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
         </div>
       </div>
 
+      <div v-if="showRestoreNotice" class="up-restore-notice">
+        <span>{{ t('filesUploadRestoreNotice', { count: store.restoreNoticeCount }) }}</span>
+        <button class="up-link-btn" @click="reselectDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
+      </div>
+
       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
 
       <div v-if="problemBatches.length" class="up-zone">
@@ -110,10 +140,14 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
             <span class="up-item-name">{{ labelText(b.label) }}</span>
             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
           </div>
-          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
-          <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
+          <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
+          <template v-else>
+            <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+            <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
+          </template>
           <div class="up-item-actions">
-            <button class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
+            <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
+            <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
           </div>
         </div>
@@ -159,6 +193,8 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
         <button class="ui-btn primary" @click="resolve('overwrite')">{{ t('filesUploadOverwrite') }}</button>
       </template>
     </Dialog>
+
+    <input ref="reselectInput" type="file" webkitdirectory multiple class="up-hidden-input" @change="onReselect" />
   </div>
 </template>
 
@@ -206,4 +242,11 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 }
 .ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
+.up-restore-notice {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px;
+  padding: 8px 10px; border-radius: 10px; font-size: 12px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 40%, transparent);
+}
+.up-hidden-input { display: none; }
 </style>

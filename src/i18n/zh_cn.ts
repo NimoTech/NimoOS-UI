@@ -85,5 +85,9 @@ export const messages = {
     filesUploadErrBadName: '文件名或路径无效',
     filesUploadErrServer: '服务器错误',
     filesUploadErrNetwork: '网络错误',
+    filesUploadReselect: '重选文件',
+    filesUploadNeedsFile: '需重新选择文件以继续上传',
+    filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
+    filesUploadRestoreDismiss: '知道了',
   },
 }
