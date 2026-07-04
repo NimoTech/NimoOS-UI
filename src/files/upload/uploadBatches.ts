@@ -14,6 +14,7 @@ export interface BatchView {
   errorCount: number
   activeCount: number // pending + uploading
   conflictCount: number
+  needsFileCount: number
   progress: number // 0-100, bytes-weighted
   sentBytes: number // uploaded so far across the batch
   totalBytes: number // sum of all item sizes in the batch
@@ -53,11 +54,16 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
     const errorCount = items.filter((i) => i.status === 'error').length
     const conflictCount = items.filter((i) => i.status === 'conflict').length
     const activeCount = items.filter((i) => i.status === 'pending' || i.status === 'uploading').length
+    const needsFileCount = items.filter((i) => i.status === 'needs_file').length
     const totalBytes = items.reduce((s, i) => s + i.size, 0)
     const sentBytes = items.reduce((s, i) => s + (i.status === 'done' ? i.size : i.bytesSent), 0)
     const progress = totalBytes > 0 ? Math.floor((sentBytes / totalBytes) * 100) : activeCount > 0 ? 0 : 100
     const zone: 'problem' | 'active' | 'done' =
-      errorCount > 0 ? 'problem' : activeCount > 0 || conflictCount > 0 ? 'active' : 'done'
+      errorCount > 0 || needsFileCount > 0
+        ? 'problem'
+        : activeCount > 0 || conflictCount > 0
+          ? 'active'
+          : 'done'
     return {
       batchId,
       label: batchLabel(items),
@@ -67,6 +73,7 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
       errorCount,
       activeCount,
       conflictCount,
+      needsFileCount,
       progress,
       sentBytes,
       totalBytes,

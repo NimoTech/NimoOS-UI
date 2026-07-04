@@ -57,3 +57,15 @@ describe('isBatchSettled', () => {
     expect(isBatchSettled([])).toBe(false)
   })
 })
+
+describe('needs_file routing', () => {
+  it('needs_file routes the batch to problem zone with needsFileCount', () => {
+    const q = [
+      { id: 'a', batchId: 'b', batchTotal: 2, status: 'needs_file', size: 10, bytesSent: 0, relativePath: 'a', fileName: 'a' },
+      { id: 'c', batchId: 'b', batchTotal: 2, status: 'pending', size: 10, bytesSent: 0, relativePath: 'c', fileName: 'c' },
+    ] as any
+    const [v] = groupByBatch(q)
+    expect(v.zone).toBe('problem')
+    expect(v.needsFileCount).toBe(1)
+  })
+})
