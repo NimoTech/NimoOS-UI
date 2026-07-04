@@ -210,17 +210,12 @@ export const useUploadsStore = defineStore('files-uploads', () => {
 
   async function restoreQueue(): Promise<void> {
     const { items, resumedCount } = await restoreFromIDB()
-    if (items.length) queue.value.push(...(items as UploadItem[]))
+    if (items.length) queue.value.push(...items)
     restoreNoticeCount.value = resumedCount
   }
 
   function resumePending(): void {
-    // Route through useUploadsStore() (not the bare `startUpload` closure) so
-    // this goes through Pinia's wrapped action — required for $onAction
-    // subscribers/devtools and for tests that `vi.spyOn(store, 'startUpload')`.
-    // Safe: by the time resumePending() actually runs, setup() has already
-    // returned and the store is registered, so this resolves to the singleton.
-    if (queue.value.some((i) => i.status === 'pending' && !!i.file)) useUploadsStore().startUpload()
+    if (queue.value.some((i) => i.status === 'pending' && !!i.file)) startUpload()
   }
 
   async function pruneOldItems(days = 30): Promise<void> {

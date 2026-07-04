@@ -210,14 +210,19 @@ describe('uploads restore/resume', () => {
   })
 
   it('resumePending starts upload only when a pending item has a file', () => {
+    // No spy on startUpload (that would reshape production code to fit the
+    // test). Instead observe startUpload's real, synchronous side effect:
+    // `uploading` flips to true immediately, before the (mocked) scheduler's
+    // run() promise resolves and the .finally() flips it back. The mocked
+    // scheduler's run() is an async no-op here, so `uploading` is still true
+    // at this point in the synchronous test body.
     const store = useUploadsStore()
-    const spy = vi.spyOn(store, 'startUpload').mockImplementation(() => {})
     store.queue.push({ id: 'n', status: 'needs_file', file: null } as any)
     store.resumePending()
-    expect(spy).not.toHaveBeenCalled()
+    expect(store.uploading).toBe(false)
     store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
     store.resumePending()
-    expect(spy).toHaveBeenCalled()
+    expect(store.uploading).toBe(true)
   })
 
   it('initUploads restores, prunes, then resumes', async () => {
