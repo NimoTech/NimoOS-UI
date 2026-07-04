@@ -85,6 +85,13 @@ describe('scheduler', () => {
     expect(() => sch.pause('nope')).not.toThrow()
   })
 
+  it('pause(id) with no active handle falls back to patching status: paused (retry-backoff/401-refresh gap)', () => {
+    const { deps, patches } = harness(mkItem({}), () => Promise.resolve())
+    const sch = createScheduler(deps)
+    sch.pause('gap-id')
+    expect(patches.some((p) => p.id === 'gap-id' && p.status === 'paused')).toBe(true)
+  })
+
   it('isPause error marks item paused, not retried/errored', async () => {
     const upload = (args: any) => new Promise<void>((_res, rej) => {
       args.onStart({ abort: async () => {}, pause: async () => {} })

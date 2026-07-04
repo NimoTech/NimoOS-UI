@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { refreshAccessToken } from '@nimotech/nimoos-service'
+import { refreshAccessToken, service } from '@nimotech/nimoos-service'
 import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
 import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
 import { canStoreBlob } from '../upload/budget'
@@ -33,6 +33,15 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   const toastedBatches = new Set<string>()
 
   let scheduler: ReturnType<typeof createScheduler> | null = null
+
+  // Extracts the tus upload id (server-side staging id) from a resumable
+  // upload URL like ".../upload-tus/<id>". Returns '' if there is no URL or
+  // it doesn't match the expected shape.
+  function tusIdFromUrl(url: string | null): string {
+    if (!url) return ''
+    const m = String(url).match(/upload-tus\/([^/?#]+)/)
+    return m ? m[1] : ''
+  }
 
   function claimNext(): UploadItem | null {
     const item = queue.value.find((i) => i.status === 'pending' && i.file)
@@ -188,6 +197,9 @@ export const useUploadsStore = defineStore('files-uploads', () => {
 
   function cancelItem(id: string): void {
     getScheduler().abort(id)
+    const item = queue.value.find((i) => i.id === id)
+    const tid = tusIdFromUrl(item ? item.tusUploadUrl : null)
+    if (tid) service.file.cancelUpload(tid).catch(() => {})
     dropPersisted(id)
     queue.value = queue.value.filter((i) => i.id !== id)
   }
@@ -207,6 +219,8 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   function cancelBatch(batchId: string): void {
     for (const i of queue.value.filter((x) => x.batchId === batchId)) {
       getScheduler().abort(i.id)
+      const tid = tusIdFromUrl(i.tusUploadUrl)
+      if (tid) service.file.cancelUpload(tid).catch(() => {})
       dropPersisted(i.id)
     }
     queue.value = queue.value.filter((i) => i.batchId !== batchId)

@@ -43,6 +43,13 @@ export function createScheduler(deps: SchedulerDeps) {
     deps.patch(item.id, { status: 'uploading', error: '', speed: 0 })
     let authRefreshUsed = false
     for (let attempt = 0; attempt <= 3; attempt++) {
+      // A pause requested during a gap with no active handle (retry backoff sleep,
+      // or the 401-refresh await) is caught here via the fallback patch in pause()
+      // below, which mutates this same item object. Stop re-uploading.
+      if (item.status === 'paused') {
+        active.delete(item.id)
+        return
+      }
       // Speed-sampling state resets on every attempt (incl. retries) so a resume/retry
       // gap in time doesn't produce a bogus instantaneous speed spike.
       let lastTs = 0
@@ -155,13 +162,17 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
-  // Pause an in-flight upload. No-op if there's no active handle (pending/needs_file/
-  // error). Doesn't await the underlying abort so the caller returns immediately.
+  // Pause an in-flight upload. If there's no active handle — the item is mid-retry
+  // (inside the outer backoff sleep) or mid-401-refresh — fall back to patching the
+  // status directly so the pause intent isn't lost; uploadOne's per-attempt guard
+  // observes this on the item object and stops re-uploading.
   function pause(id: string): void {
     const h = active.get(id)
     if (h) {
       active.delete(id)
       Promise.resolve().then(() => h.pause()).catch(() => {})
+    } else {
+      deps.patch(id, { status: 'paused', speed: 0 })
     }
   }
 

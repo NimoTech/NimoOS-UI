@@ -5,7 +5,12 @@ const h = vi.hoisted(() => ({ autoComplete: false, showSpy: vi.fn() }))
 
 vi.mock('@nimotech/nimoos-service', () => ({
   refreshAccessToken: vi.fn().mockResolvedValue('t'),
-  service: { file: { uploadPrecheck: vi.fn().mockResolvedValue({ results: [] }) } },
+  service: {
+    file: {
+      uploadPrecheck: vi.fn().mockResolvedValue({ results: [] }),
+      cancelUpload: vi.fn().mockResolvedValue(undefined),
+    },
+  },
 }))
 // Scheduler stub. When h.autoComplete is true it drains the queue marking each
 // claimed item done+100 (a real success); otherwise it's a no-op so items stay
@@ -309,6 +314,46 @@ describe('uploads pause/resume', () => {
     expect(store.queue.find((i: any) => i.id === 'a1')?.status).toBe('pending')
     expect(store.queue.find((i: any) => i.id === 'a2')?.status).toBe('pending')
     expect(store.uploading).toBe(true)
+  })
+})
+
+describe('uploads cancel-after-pause: DELETE server staging', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  function seed(store: any, over: any = {}) {
+    store.queue.push({
+      id: 'x', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
+      relativePath: 'a', status: 'paused', progress: 30, bytesSent: 3, speed: 0, tusUploadUrl: null,
+      retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
+      conflictPolicy: '', oversize: false, ...over,
+    })
+  }
+
+  it('cancelItem on a paused item WITH tusUploadUrl also cancels server-side via service.file.cancelUpload', async () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'p1', tusUploadUrl: '/v2/nimoos/file/upload-tus/abc123' })
+    store.cancelItem('p1')
+    expect(service.file.cancelUpload).toHaveBeenCalledWith('abc123')
+    expect(store.queue.some((i: any) => i.id === 'p1')).toBe(false)
+  })
+
+  it('cancelItem on an item with NO tusUploadUrl does NOT call service.file.cancelUpload', async () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'p2', tusUploadUrl: null })
+    store.cancelItem('p2')
+    expect(service.file.cancelUpload).not.toHaveBeenCalled()
+  })
+
+  it('cancelBatch cancels server-side staging for every item in the batch that has a tusUploadUrl', async () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'b1', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
+    seed(store, { id: 'b2', batchId: 'batchA', tusUploadUrl: null })
+    seed(store, { id: 'b3', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/two' })
+    store.cancelBatch('batchA')
+    expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
+    expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
+    expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
+    expect(store.queue.length).toBe(0)
   })
 })
 
