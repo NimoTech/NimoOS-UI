@@ -6,7 +6,7 @@ import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/c
 import { canStoreBlob } from '../upload/budget'
 import { safeRandomUUID } from '../upload/uuid'
 import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
-import { persistNewItem, persistItemMeta, dropPersisted } from '../upload/persist'
+import { persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB, pruneOldItems as prunePersisted } from '../upload/persist'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -208,6 +208,35 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     queue.value = queue.value.filter((i) => i.status !== 'done')
   }
 
+  async function restoreQueue(): Promise<void> {
+    const { items, resumedCount } = await restoreFromIDB()
+    if (items.length) queue.value.push(...(items as UploadItem[]))
+    restoreNoticeCount.value = resumedCount
+  }
+
+  function resumePending(): void {
+    // Route through useUploadsStore() (not the bare `startUpload` closure) so
+    // this goes through Pinia's wrapped action — required for $onAction
+    // subscribers/devtools and for tests that `vi.spyOn(store, 'startUpload')`.
+    // Safe: by the time resumePending() actually runs, setup() has already
+    // returned and the store is registered, so this resolves to the singleton.
+    if (queue.value.some((i) => i.status === 'pending' && !!i.file)) useUploadsStore().startUpload()
+  }
+
+  async function pruneOldItems(days = 30): Promise<void> {
+    await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
+  }
+
+  async function initUploads(): Promise<void> {
+    try {
+      await restoreQueue()
+      await pruneOldItems(30)
+      resumePending()
+    } catch (e) {
+      console.warn('[uploads] initUploads failed; memory-only mode', e)
+    }
+  }
+
   const hasActive = computed(() =>
     uploading.value || queue.value.some((i) => i.status === 'pending' && !!i.file),
   )
@@ -226,5 +255,9 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     retryBatch,
     cancelBatch,
     clearDone,
+    restoreQueue,
+    resumePending,
+    pruneOldItems,
+    initUploads,
   }
 })

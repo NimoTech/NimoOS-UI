@@ -194,3 +194,37 @@ describe('uploads persistence hooks', () => {
     expect(persist.dropPersisted).toHaveBeenCalledWith(id)
   })
 })
+
+describe('uploads restore/resume', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('restoreQueue loads items and sets restore notice count', async () => {
+    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({
+      items: [{ id: 'r1', status: 'pending', file: new Blob(['x']), batchId: 'b', batchTotal: 1, size: 1, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1, targetPath: '/DATA', relativePath: 'a', fileName: 'a', fileType: '', restored: true, conflictPolicy: '', oversize: false }],
+      resumedCount: 1,
+    })
+    const store = useUploadsStore()
+    await store.restoreQueue()
+    expect(store.queue).toHaveLength(1)
+    expect(store.restoreNoticeCount).toBe(1)
+  })
+
+  it('resumePending starts upload only when a pending item has a file', () => {
+    const store = useUploadsStore()
+    const spy = vi.spyOn(store, 'startUpload').mockImplementation(() => {})
+    store.queue.push({ id: 'n', status: 'needs_file', file: null } as any)
+    store.resumePending()
+    expect(spy).not.toHaveBeenCalled()
+    store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
+    store.resumePending()
+    expect(spy).toHaveBeenCalled()
+  })
+
+  it('initUploads restores, prunes, then resumes', async () => {
+    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({ items: [], resumedCount: 0 })
+    const store = useUploadsStore()
+    await store.initUploads()
+    expect(persist.restoreFromIDB).toHaveBeenCalled()
+    expect(persist.pruneOldItems).toHaveBeenCalled()
+  })
+})
