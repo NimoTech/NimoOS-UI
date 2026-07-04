@@ -13,7 +13,11 @@ function dirEntry(name: string, fullPath: string, children: any[]) {
   return {
     isFile: false, isDirectory: true, name, fullPath,
     createReader: () => ({
-      readEntries: (cb: (e: any[]) => void) => { cb(read ? [] : children); read = true },
+      // Set the "already read" flag before invoking cb (not after): a real
+      // readEntries callback is always async, but if a caller ever invokes it
+      // synchronously and recurses from inside cb, setting the flag first
+      // avoids a reentrant infinite loop here.
+      readEntries: (cb: (e: any[]) => void) => { const wasRead = read; read = true; cb(wasRead ? [] : children) },
     }),
   }
 }
