@@ -154,6 +154,7 @@ async function onReselect(e: Event) {
           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
             {{ t('filesUploadClearDone') }}
           </button>
+          <button v-if="totalCount" class="up-link-btn up-delete-all" @click="store.cancelAll()">{{ t('filesUploadDeleteAll') }}</button>
           <button class="up-close" @click="open = false" aria-label="close">×</button>
         </div>
       </div>
@@ -259,6 +260,7 @@ async function onReselect(e: Event) {
 .up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .up-title { font-size: 13px; font-weight: 600; }
 .up-head-actions { display: flex; align-items: center; gap: 10px; }
+.up-delete-all { color: #ff8a8a; }
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
 .up-oversize-banner {
   margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px;

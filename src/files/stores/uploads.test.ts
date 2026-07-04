@@ -355,6 +355,18 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
     expect(store.queue.length).toBe(0)
   })
+
+  it('cancelAll empties the whole queue and cancels server staging for every item with a tusUploadUrl', async () => {
+    const store = useUploadsStore()
+    seed(store, { id: 'x1', batchId: 'A', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
+    seed(store, { id: 'x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
+    seed(store, { id: 'x3', batchId: 'B', tusUploadUrl: '/v2/nimoos/file/upload-tus/two', status: 'error' })
+    store.cancelAll()
+    expect(store.queue.length).toBe(0)
+    expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
+    expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
+    expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('uploads reattachFiles', () => {

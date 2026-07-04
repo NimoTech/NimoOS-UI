@@ -227,6 +227,20 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     toastedBatches.delete(batchId)
   }
 
+  // Delete EVERY upload task: abort in-flight transfers, cancel server-side
+  // staging for any item that has a tusUploadUrl (so nothing leaks), and clear
+  // the queue + IDB. This removes done/error/paused/uploading alike.
+  function cancelAll(): void {
+    for (const i of queue.value) {
+      getScheduler().abort(i.id)
+      const tid = tusIdFromUrl(i.tusUploadUrl)
+      if (tid) service.file.cancelUpload(tid).catch(() => {})
+      dropPersisted(i.id)
+    }
+    queue.value = []
+    toastedBatches.clear()
+  }
+
   function pauseItem(id: string): void {
     const item = queue.value.find((i) => i.id === id)
     if (!item) return
@@ -358,6 +372,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     cancelItem,
     retryBatch,
     cancelBatch,
+    cancelAll,
     pauseItem,
     resumeItem,
     pauseBatch,
