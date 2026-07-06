@@ -28,7 +28,7 @@ export function authGuard(deps: AuthGuardDeps) {
     }
     try {
       const st = await deps.getStatus()
-      if (!st.initialized) { deps.onNeedInit(st.key); return '/welcome' }
+      if (st.initialized === false) { deps.onNeedInit(st.key); return '/welcome' }
       return '/login'
     } catch {
       return '/login'

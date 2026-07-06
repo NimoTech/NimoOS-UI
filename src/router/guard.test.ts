@@ -30,6 +30,12 @@ describe('authGuard', () => {
     expect(d.onNeedInit).toHaveBeenCalledWith('K9')
   })
 
+  it('protected + no token + malformed status (initialized undefined) → /login', async () => {
+    const d = deps({ getToken: () => null, getStatus: vi.fn(async () => ({ initialized: undefined as unknown as boolean })) })
+    expect(await authGuard(d)({ path: '/' })).toBe('/login')
+    expect(d.onNeedInit).not.toHaveBeenCalled()
+  })
+
   it('protected + token but missing version → clears token → /login', async () => {
     const d = deps({ getVersion: () => null })
     expect(await authGuard(d)({ path: '/' })).toBe('/login')
