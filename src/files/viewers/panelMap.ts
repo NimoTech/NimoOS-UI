@@ -1,5 +1,5 @@
 import { fileExt } from '../util/ext'
-import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_WORD, APPLICATION_VND_MS_EXCEL } from '../util/fileCategories'
+import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_EXCEL } from '../util/fileCategories'
 
 export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer' | 'doc-viewer' | 'excel-viewer'
 
@@ -14,7 +14,9 @@ const filePanelMap: Record<PanelType, string[]> = {
   'image-viewer': IMAGE_X_GENERIC,
   'markdown': TEXT_MARKDOWN,
   'pdf-viewer': APPLICATION_PDF,
-  'doc-viewer': APPLICATION_VND_MS_WORD,
+  // 仅 .docx(OOXML)可预览;旧版二进制 .doc/.wps(OLE2)docx-preview 无法解析,
+  // 落下载(优于 Vue2 的「映射后必报错」)。图标仍用 word 图标(见 icons.ts,不受此影响)。
+  'doc-viewer': ['docx'],
   'excel-viewer': APPLICATION_VND_MS_EXCEL,
 }
 

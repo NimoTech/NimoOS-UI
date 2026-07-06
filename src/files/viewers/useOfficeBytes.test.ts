@@ -35,20 +35,31 @@ describe('useOfficeBytes', () => {
     expect(api.state.value).toBe('ready')
   })
 
-  it('goes error on fetch failure', async () => {
+  it('goes error on fetch failure with friendly detail', async () => {
     getBytesMock.mockRejectedValue(new Error('boom'))
     const { api } = makeViewer()
     await nextTick(); await nextTick()
     expect(api.state.value).toBe('error')
     expect(api.buffer.value).toBeNull()
+    expect(api.errorDetail.value).toBe('获取文件失败,请重试')
   })
 
-  it('onRenderError sets error', async () => {
+  it('onRenderError maps JSZip "central directory" error to legacy-binary hint', async () => {
+    getBytesMock.mockResolvedValue(new ArrayBuffer(4))
+    const { api } = makeViewer()
+    await nextTick(); await nextTick()
+    api.onRenderError(new Error("Can't find end of central directory : is this a zip file ?"))
+    expect(api.state.value).toBe('error')
+    expect(api.errorDetail.value).toContain('旧版二进制格式')
+  })
+
+  it('onRenderError without payload falls back to generic parse-failure detail', async () => {
     getBytesMock.mockResolvedValue(new ArrayBuffer(4))
     const { api } = makeViewer()
     await nextTick(); await nextTick()
     api.onRenderError()
     expect(api.state.value).toBe('error')
+    expect(api.errorDetail.value).toBe('文件解析失败,无法预览')
   })
 
   it('disposed guard: unmount before resolve → no state/buffer flip', async () => {

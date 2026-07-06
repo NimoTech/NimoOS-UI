@@ -9,7 +9,7 @@ import type { FileEntry } from '../stores/files'
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
 const { t } = useI18n()
-const { state, buffer, onRendered, onRenderError } = useOfficeBytes(props.item)
+const { state, buffer, errorDetail, onRendered, onRenderError } = useOfficeBytes(props.item)
 </script>
 
 <template>
@@ -18,6 +18,7 @@ const { state, buffer, onRendered, onRenderError } = useOfficeBytes(props.item)
       <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
       <div v-else-if="state === 'error'" class="viewer-status">
         <p>{{ t('filesViewerError') }}</p>
+        <p v-if="errorDetail" class="detail">{{ errorDetail }}</p>
         <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
       </div>
       <div v-show="state !== 'error'" class="office-scroll">
