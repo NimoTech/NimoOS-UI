@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as pdfjsLib from 'pdfjs-dist'
 // Vite:?url 拿到 worker 资源地址,交给 pdfjs 的 GlobalWorkerOptions。
@@ -16,6 +16,7 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry)
 const { t } = useI18n()
 
 const state = ref<'loading' | 'ready' | 'error'>('loading')
+const errorDetail = ref('')
 const page = ref(1)
 const total = ref(0)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -26,6 +27,13 @@ let disposed = false
 let loadingTask: PDFDocumentLoadingTask | null = null
 let pdfDoc: PDFDocumentProxy | null = null
 let renderTask: RenderTask | null = null
+// 渲染代次:快速翻页时,只有最新一次 renderPage 有效,旧的在每个 await 后自行退出,
+// 避免两次并发渲染写同一 canvas(评审发现的竞态)。
+let renderGen = 0
+
+function isCancelled(e: unknown): boolean {
+  return e instanceof Error && e.name === 'RenderingCancelledException'
+}
 
 onMounted(async () => {
   try {
@@ -40,33 +48,38 @@ onMounted(async () => {
     await renderPage()
   } catch {
     if (disposed) return
+    errorDetail.value = 'PDF 加载失败,文件可能已损坏或加密'
     state.value = 'error'
   }
 })
 
 async function renderPage(): Promise<void> {
   if (!pdfDoc || !canvas.value || !scroll.value) return
+  const gen = ++renderGen
   if (renderTask) { renderTask.cancel(); renderTask = null }
-  const pg = await pdfDoc.getPage(page.value)
-  if (disposed || !canvas.value) return
-  const avail = scroll.value.clientWidth - 32
-  const base = pg.getViewport({ scale: 1 })
-  const scale = Math.max(0.2, Math.min(3, avail / base.width))
-  const viewport = pg.getViewport({ scale })
-  const c = canvas.value
-  const ctx = c.getContext('2d')
-  if (!ctx) return
-  c.width = viewport.width
-  c.height = viewport.height
   try {
+    const pg = await pdfDoc.getPage(page.value)
+    if (disposed || gen !== renderGen || !canvas.value || !scroll.value) return
+    const avail = scroll.value.clientWidth - 32
+    const base = pg.getViewport({ scale: 1 })
+    const scale = Math.max(0.2, Math.min(3, avail / base.width))
+    const viewport = pg.getViewport({ scale })
+    const c = canvas.value
+    const ctx = c.getContext('2d')
+    if (!ctx) return
+    c.width = viewport.width
+    c.height = viewport.height
     renderTask = pg.render({ canvasContext: ctx, viewport, canvas: c })
     await renderTask.promise
-  } catch {
-    /* 翻页取消上一次渲染会 reject(RenderingCancelledException)——忽略 */
+    if (gen === renderGen && scroll.value) scroll.value.scrollTop = 0
+  } catch (e) {
+    if (isCancelled(e)) return          // 翻页取消上一次渲染 → 预期,忽略
+    if (disposed || gen !== renderGen) return
+    errorDetail.value = 'PDF 渲染失败,当前页可能损坏'
+    state.value = 'error'
   } finally {
-    renderTask = null
+    if (gen === renderGen) renderTask = null
   }
-  if (scroll.value) scroll.value.scrollTop = 0
 }
 
 function prev(): void { if (page.value > 1) { page.value--; void renderPage() } }
@@ -93,6 +106,7 @@ onBeforeUnmount(() => {
       <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
       <div v-else-if="state === 'error'" class="viewer-status">
         <p>{{ t('filesViewerError') }}</p>
+        <p v-if="errorDetail" class="detail">{{ errorDetail }}</p>
         <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
       </div>
       <div v-show="state === 'ready'" ref="scroll" class="pdf-scroll">
