@@ -1,0 +1,7 @@
+.c-zoom-in-enter-active, .c-zoom-in-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.c-zoom-in-enter-from, .c-zoom-in-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}

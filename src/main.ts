@@ -7,6 +7,7 @@ import { i18n } from './i18n'
 import { useSessionStore } from './stores/session'
 import { makeAuthFailHandler } from './router/onAuthFail'
 import './styles/theme.css'
+import './files/viewers/viewers.css'
 
 const app = createApp(App)
 const pinia = createPinia()
