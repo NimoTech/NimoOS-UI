@@ -31,4 +31,27 @@ describe('useSessionStore', () => {
     expect(s.isAuthed).toBe(false)
     expect(localStorage.getItem('access_token')).toBeNull()
   })
+
+  it('setUser stores JSON user', () => {
+    const s = useSessionStore()
+    s.setUser({ username: 'nimo', role: 'admin' })
+    expect(JSON.parse(localStorage.getItem('user')!)).toEqual({ username: 'nimo', role: 'admin' })
+  })
+
+  it('setVersion stores version', () => {
+    const s = useSessionStore()
+    s.setVersion('local')
+    expect(localStorage.getItem('version')).toBe('local')
+  })
+
+  it('clear removes user, version and wallpaper too', () => {
+    const s = useSessionStore()
+    s.setTokens('a', 'r', '9'); s.setUser({ username: 'x' }); s.setVersion('local')
+    localStorage.setItem('wallpaper', 'w1')
+    s.clear()
+    expect(localStorage.getItem('user')).toBeNull()
+    expect(localStorage.getItem('version')).toBeNull()
+    expect(localStorage.getItem('wallpaper')).toBeNull()
+    expect(localStorage.getItem('access_token')).toBeNull()
+  })
 })
