@@ -11,28 +11,34 @@ import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 3
+const ZOOM_STEP = 0.25
+
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
 const { t } = useI18n()
 
 const state = ref<'loading' | 'ready' | 'error'>('loading')
 const errorDetail = ref('')
-const page = ref(1)
 const total = ref(0)
-const canvas = ref<HTMLCanvasElement | null>(null)
-const scroll = ref<HTMLElement | null>(null)
+const zoom = ref(1)                        // 相对「适应宽度」的倍数
+const pagesEl = ref<HTMLElement | null>(null)   // 竖排所有页 canvas 的滚动容器
 
 // 异步加载/渲染期间可能已被卸载(用户快速关闭)——卸载后放弃后续操作,销毁文档。
 let disposed = false
 let loadingTask: PDFDocumentLoadingTask | null = null
 let pdfDoc: PDFDocumentProxy | null = null
-let renderTask: RenderTask | null = null
-// 渲染代次:快速翻页时,只有最新一次 renderPage 有效,旧的在每个 await 后自行退出,
-// 避免两次并发渲染写同一 canvas(评审发现的竞态)。
+let renderTasks: RenderTask[] = []
+// 渲染代次:缩放会重渲全部页,旧的一轮在每个 await 后自行退出,避免两轮并发写同一批 canvas。
 let renderGen = 0
 
 function isCancelled(e: unknown): boolean {
   return e instanceof Error && e.name === 'RenderingCancelledException'
+}
+function cancelTasks(): void {
+  for (const tk of renderTasks) { try { tk.cancel() } catch { /* 已结束 */ } }
+  renderTasks = []
 }
 
 onMounted(async () => {
@@ -44,8 +50,8 @@ onMounted(async () => {
     if (disposed) return
     total.value = pdfDoc.numPages
     state.value = 'ready'
-    await nextTick()                                           // 等 canvas 挂载(v-show ready 后)
-    await renderPage()
+    await nextTick()                                           // 等滚动容器挂载(v-show ready 后)
+    await renderAll()
   } catch {
     if (disposed) return
     errorDetail.value = 'PDF 加载失败,文件可能已损坏或加密'
@@ -53,41 +59,48 @@ onMounted(async () => {
   }
 })
 
-async function renderPage(): Promise<void> {
-  if (!pdfDoc || !canvas.value || !scroll.value) return
+// 竖排渲染全部页;缩放变化时整体重渲(re-render 比 CSS 缩放清晰)。
+async function renderAll(): Promise<void> {
+  const el = pagesEl.value
+  if (!pdfDoc || !el) return
   const gen = ++renderGen
-  if (renderTask) { renderTask.cancel(); renderTask = null }
-  try {
-    const pg = await pdfDoc.getPage(page.value)
-    if (disposed || gen !== renderGen || !canvas.value || !scroll.value) return
-    const avail = scroll.value.clientWidth - 32
-    const base = pg.getViewport({ scale: 1 })
-    const scale = Math.max(0.2, Math.min(3, avail / base.width))
-    const viewport = pg.getViewport({ scale })
-    const c = canvas.value
-    const ctx = c.getContext('2d')
-    if (!ctx) return
-    c.width = viewport.width
-    c.height = viewport.height
-    renderTask = pg.render({ canvasContext: ctx, viewport, canvas: c })
-    await renderTask.promise
-    if (gen === renderGen && scroll.value) scroll.value.scrollTop = 0
-  } catch (e) {
-    if (isCancelled(e)) return          // 翻页取消上一次渲染 → 预期,忽略
+  cancelTasks()
+  el.innerHTML = ''
+  const containerW = el.clientWidth - 32
+  for (let n = 1; n <= total.value; n++) {
     if (disposed || gen !== renderGen) return
-    errorDetail.value = 'PDF 渲染失败,当前页可能损坏'
-    state.value = 'error'
-  } finally {
-    if (gen === renderGen) renderTask = null
+    try {
+      const pg = await pdfDoc.getPage(n)
+      if (disposed || gen !== renderGen) return
+      const base = pg.getViewport({ scale: 1 })
+      const scale = Math.max(0.1, (containerW / base.width) * zoom.value)
+      const viewport = pg.getViewport({ scale })
+      const canvas = document.createElement('canvas')
+      canvas.className = 'pdf-page-canvas'
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      el.appendChild(canvas)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) continue
+      const task = pg.render({ canvasContext: ctx, viewport, canvas })
+      renderTasks.push(task)
+      await task.promise
+    } catch (e) {
+      if (isCancelled(e)) return              // 被新一轮缩放/卸载取消 → 预期
+      if (disposed || gen !== renderGen) return
+      errorDetail.value = 'PDF 渲染失败,文件可能损坏'
+      state.value = 'error'
+      return
+    }
   }
 }
 
-function prev(): void { if (page.value > 1) { page.value--; void renderPage() } }
-function next(): void { if (page.value < total.value) { page.value++; void renderPage() } }
+function zoomIn(): void { if (zoom.value < ZOOM_MAX) { zoom.value = Math.min(ZOOM_MAX, zoom.value + ZOOM_STEP); void renderAll() } }
+function zoomOut(): void { if (zoom.value > ZOOM_MIN) { zoom.value = Math.max(ZOOM_MIN, zoom.value - ZOOM_STEP); void renderAll() } }
 
 onBeforeUnmount(() => {
   disposed = true
-  if (renderTask) { renderTask.cancel(); renderTask = null }
+  cancelTasks()
   // loadingTask.destroy() 会同时销毁文档与 worker;释放资源。
   if (loadingTask) { void loadingTask.destroy(); loadingTask = null; pdfDoc = null }
 })
@@ -96,10 +109,11 @@ onBeforeUnmount(() => {
 <template>
   <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
     <template #toolbar>
-      <div v-if="state === 'ready' && total > 0" class="pdf-nav">
-        <button type="button" class="pdf-btn" :disabled="page <= 1" @click="prev">‹</button>
-        <span class="pdf-page">{{ page }} / {{ total }}</span>
-        <button type="button" class="pdf-btn" :disabled="page >= total" @click="next">›</button>
+      <div v-if="state === 'ready'" class="pdf-tools">
+        <button type="button" class="pdf-btn" :disabled="zoom <= ZOOM_MIN" @click="zoomOut">−</button>
+        <span class="pdf-zoom">{{ Math.round(zoom * 100) }}%</span>
+        <button type="button" class="pdf-btn" :disabled="zoom >= ZOOM_MAX" @click="zoomIn">＋</button>
+        <span v-if="total" class="pdf-count">{{ total }} 页</span>
       </div>
     </template>
     <div class="office-body">
@@ -109,9 +123,7 @@ onBeforeUnmount(() => {
         <p v-if="errorDetail" class="detail">{{ errorDetail }}</p>
         <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
       </div>
-      <div v-show="state === 'ready'" ref="scroll" class="pdf-scroll">
-        <canvas ref="canvas" class="pdf-canvas"></canvas>
-      </div>
+      <div v-show="state === 'ready'" ref="pagesEl" class="pdf-scroll"></div>
     </div>
   </ViewerShell>
 </template>
@@ -119,16 +131,20 @@ onBeforeUnmount(() => {
 <style scoped>
 .pdf-scroll {
   width: 100%; height: 100%; overflow: auto;
-  display: flex; justify-content: center; align-items: flex-start;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
   padding: 16px; background: rgba(0, 0, 0, 0.25);
 }
-.pdf-canvas { max-width: 100%; height: auto; box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4); background: #fff; }
-.pdf-nav { display: flex; align-items: center; gap: 10px; }
+.pdf-scroll :deep(.pdf-page-canvas) {
+  max-width: 100%; height: auto;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4); background: #fff;
+}
+.pdf-tools { display: flex; align-items: center; gap: 10px; }
 .pdf-btn {
   width: 30px; height: 30px; border: none; border-radius: 50%; cursor: pointer;
-  background: rgba(255, 255, 255, 0.14); color: var(--fg, #fff); font-size: 18px; line-height: 1;
+  background: rgba(255, 255, 255, 0.14); color: var(--fg, #fff); font-size: 17px; line-height: 1;
 }
 .pdf-btn:disabled { opacity: 0.35; cursor: default; }
 .pdf-btn:not(:disabled):hover { background: rgba(255, 255, 255, 0.26); }
-.pdf-page { font-size: 13px; min-width: 56px; text-align: center; font-variant-numeric: tabular-nums; }
+.pdf-zoom { font-size: 13px; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+.pdf-count { font-size: 12px; opacity: 0.7; }
 </style>
