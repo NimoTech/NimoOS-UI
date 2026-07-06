@@ -43,4 +43,8 @@ describe('getPanelType', () => {
     expect(getPanelType('a.xlsx')).toBe('excel-viewer')
     expect(getPanelType('a.csv')).toBe('excel-viewer')
   })
+  it('ppt/pptx stay unmapped → download (Vue2 parity)', () => {
+    expect(getPanelType('deck.ppt')).toBeNull()
+    expect(getPanelType('deck.pptx')).toBeNull()
+  })
 })
