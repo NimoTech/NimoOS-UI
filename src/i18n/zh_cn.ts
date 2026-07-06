@@ -98,5 +98,12 @@ export const messages = {
     filesUploadResumeAll: '全部继续',
     filesUploadPaused: '已暂停',
     filesUploadClose: '关闭',
+    authUsername: '用户名',
+    authPassword: '密码',
+    authLogin: '登录',
+    authLoginFailed: '用户名或密码错误',
+    validateRequired: '必填',
+    validateMin6: '至少 6 位',
+    validateConfirm: '两次输入的密码不一致',
   },
 }
