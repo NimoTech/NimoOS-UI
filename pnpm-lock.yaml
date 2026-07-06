@@ -95,12 +95,6 @@ importers:
       tus-js-client:
         specifier: ^4
         version: 4.3.1
-      v-viewer:
-        specifier: ^3
-        version: 3.0.23(viewerjs@1.11.7)(vue@3.5.39(typescript@5.9.3))
-      viewerjs:
-        specifier: ^1.11.7
-        version: 1.11.7
       vue:
         specifier: ^3.4
         version: 3.5.39(typescript@5.9.3)
@@ -1204,9 +1198,6 @@ packages:
   linkify-it@5.0.2:
     resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
 
-  lodash-es@4.18.1:
-    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
-
   lodash._baseiteratee@4.7.0:
     resolution: {integrity: sha512-nqB9M+wITz0BX/Q2xg6fQ8mLkyfF7MU7eE+MNBNjTHFKeKaZAPEzEg+E8LWxKWf1DQVflNEn9N49yAuqKh2mWQ==}
 
@@ -1552,15 +1543,6 @@ packages:
 
   url-parse@1.5.10:
     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
-
-  v-viewer@3.0.23:
-    resolution: {integrity: sha512-u/Zd/FXTdtdE2k2YeYMf6mU4oL0ILEZ9STHnZT7myyfRwQot68GO3O+6DwxNnHTaATiiAJTrz2MXjaqYKoB7iA==}
-    peerDependencies:
-      viewerjs: ^1.11.0
-      vue: ^3.0.0
-
-  viewerjs@1.11.7:
-    resolution: {integrity: sha512-0JuVqOmL5v1jmEAlG5EBDR3XquxY8DWFQbFMprOXgaBB0F7Q/X9xWdEaQc59D8xzwkdUgXEMSSknTpriq95igg==}
 
   vite@7.3.6:
     resolution: {integrity: sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg==}
@@ -2904,8 +2886,6 @@ snapshots:
     dependencies:
       uc.micro: 2.1.0
 
-  lodash-es@4.18.1: {}
-
   lodash._baseiteratee@4.7.0:
     dependencies:
       lodash._stringtopath: 4.8.0
@@ -3283,14 +3263,6 @@ snapshots:
     dependencies:
       querystringify: 2.2.0
       requires-port: 1.0.0
-
-  v-viewer@3.0.23(viewerjs@1.11.7)(vue@3.5.39(typescript@5.9.3)):
-    dependencies:
-      lodash-es: 4.18.1
-      viewerjs: 1.11.7
-      vue: 3.5.39(typescript@5.9.3)
-
-  viewerjs@1.11.7: {}
 
   vite@7.3.6:
     dependencies:
