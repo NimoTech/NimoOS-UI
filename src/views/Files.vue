@@ -15,6 +15,9 @@ import AlertDialog from '../components/ui/AlertDialog.vue'
 import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
 import { useFileOps } from '../files/composables/useFileOps'
+import { useViewer } from '../files/viewers/useViewer'
+import ViewerHost from '../files/viewers/ViewerHost.vue'
+import { resolveOpen } from '../files/viewers/resolveOpen'
 import { useFilesStore, type FileEntry } from '../files/stores/files'
 import { useFavoritesStore } from '../files/stores/favorites'
 import { useFileOpsStore } from '../files/stores/fileOps'
@@ -35,6 +38,7 @@ const router = useRouter()
 const files = useFilesStore()
 const favorites = useFavoritesStore()
 const ops = useFileOps()
+const viewer = useViewer()
 const fileOps = useFileOpsStore()
 const clipboard = useClipboardStore()
 const uploads = useUploadsStore()
@@ -184,8 +188,10 @@ async function sync() {
   await files.load(toRealPath(vp, files.displayNames))
 }
 function openEntry(entry: FileEntry) {
-  if (!entry.is_dir) return
-  goVirtual(toVirtualPath(entry.path, files.displayNames))
+  const r = resolveOpen(entry, files.sortedEntries)
+  if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
+  if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
+  ops.download([entry])
 }
 function onSelect(payload: { entry: FileEntry; mode: 'toggle' | 'range' }) {
   if (payload.mode === 'range') files.selectRange(payload.entry.path)
@@ -362,6 +368,7 @@ onMounted(() => { uploads.initUploads() })
     <UploadPanel />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
+    <ViewerHost />
   </FilesShell>
 </template>
 
