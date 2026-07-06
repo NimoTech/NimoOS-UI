@@ -14,6 +14,9 @@ importers:
       axios:
         specifier: ^1.7
         version: 1.18.1
+      lottie-web:
+        specifier: ^5.13.0
+        version: 5.13.0
       pinia:
         specifier: ^2.1
         version: 2.3.1(typescript@5.9.3)(vue@3.5.39(typescript@5.9.3))
@@ -973,6 +976,9 @@ packages:
 
   lodash.uniqby@4.5.0:
     resolution: {integrity: sha512-IRt7cfTtHy6f1aRVA5n7kT8rgN3N1nH6MOWLcHfpWG2SH19E3JksLK38MktLxZDhlAjCP9jpIXkOnRXlu6oByQ==}
+
+  lottie-web@5.13.0:
+    resolution: {integrity: sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ==}
 
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
@@ -2292,6 +2298,8 @@ snapshots:
     dependencies:
       lodash._baseiteratee: 4.7.0
       lodash._baseuniq: 4.6.0
+
+  lottie-web@5.13.0: {}
 
   lru-cache@10.4.3: {}
 

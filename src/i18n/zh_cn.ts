@@ -105,5 +105,13 @@ export const messages = {
     validateRequired: '必填',
     validateMin6: '至少 6 位',
     validateConfirm: '两次输入的密码不一致',
+    welcomeTitle: '欢迎使用 NimoOS',
+    welcomeSubtitle: '创建你的初始账户',
+    welcomeGo: '开始 →',
+    welcomeCreateAccount: '创建账户',
+    welcomeConfirmPassword: '确认密码',
+    welcomeCreate: '创建',
+    welcomeDone: '全部完成！',
+    welcomeRegisterFailed: '注册失败',
   },
 }

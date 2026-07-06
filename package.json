@@ -12,6 +12,7 @@
   "dependencies": {
     "@nimotech/nimoos-service": "file:../NimoOS-Service",
     "axios": "^1.7",
+    "lottie-web": "^5.13.0",
     "pinia": "^2.1",
     "reka-ui": "^2.10.1",
     "socket.io-client": "2.5.0",
