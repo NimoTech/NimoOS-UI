@@ -14,6 +14,7 @@ const registry: Record<PanelType, ReturnType<typeof defineAsyncComponent>> = {
   'markdown': defineAsyncComponent(() => import('./MarkdownViewer.vue')),
   'pdf-viewer': defineAsyncComponent(() => import('./PdfViewer.vue')),
   'doc-viewer': defineAsyncComponent(() => import('./DocViewer.vue')),
+  'excel-viewer': defineAsyncComponent(() => import('./ExcelViewer.vue')),
 }
 const current = computed(() => (v.panelType.value ? registry[v.panelType.value] : null))
 

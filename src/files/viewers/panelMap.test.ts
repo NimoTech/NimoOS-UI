@@ -38,4 +38,9 @@ describe('getPanelType', () => {
     expect(getPanelType('a.docx')).toBe('doc-viewer')
     expect(getPanelType('a.wps')).toBe('doc-viewer')
   })
+  it('excel → excel-viewer', () => {
+    expect(getPanelType('a.xls')).toBe('excel-viewer')
+    expect(getPanelType('a.xlsx')).toBe('excel-viewer')
+    expect(getPanelType('a.csv')).toBe('excel-viewer')
+  })
 })
