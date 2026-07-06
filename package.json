@@ -29,6 +29,9 @@
     "@nimotech/nimoos-service": "file:../NimoOS-Service",
     "@types/markdown-it": "^14.1.2",
     "@uiw/codemirror-theme-monokai": "^4.25.10",
+    "@vue-office/docx": "^1.6.0",
+    "@vue-office/excel": "^1.6.0",
+    "@vue-office/pdf": "^1.6.0",
     "aplayer": "^1.10.1",
     "artplayer": "^5.4.0",
     "axios": "^1.7",
@@ -41,6 +44,7 @@
     "socket.io-client": "2.5.0",
     "tus-js-client": "^4",
     "vue": "^3.4",
+    "vue-demi": "^0.14.10",
     "vue-i18n": "^9.9",
     "vue-router": "^4.3"
   },
