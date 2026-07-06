@@ -9,7 +9,7 @@ import { filterImages, imageIndex } from './imageNav'
 import type { FileEntry } from '../stores/files'
 
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'download'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
 const { t } = useI18n()
 
 const items = filterImages(props.list.length ? props.list : [props.item])
@@ -72,7 +72,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <ViewerShell :title="current.name" downloadable @close="emit('close')" @download="emit('download')">
+  <ViewerShell :title="current.name" downloadable @close="emit('close')" @download="emit('download', current)">
     <div class="img-wrap" @mousemove="onMouseMove" @touchmove="onMouseMove">
       <div v-if="isMoving" class="img-toolbar">
         <button class="tb-item" :class="{ disabled: disablePrev }" :title="t('filesViewerPrev')" @click="prev">‹</button>

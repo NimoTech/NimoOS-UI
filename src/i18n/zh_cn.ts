@@ -43,6 +43,7 @@ export const messages = {
     filesViewerWantSave: '要保存吗?',
     filesViewerUnsavedHint: '如果不保存,你的更改将会丢失。',
     filesViewerDontSave: '不保存',
+    filesViewerReadFailed: '读取文件失败',
     filesRename: '重命名',
     filesDefaultFolderName: 'New Folder',
     filesDefaultFileName: 'New File',

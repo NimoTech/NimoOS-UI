@@ -15,7 +15,7 @@ import { useToast } from '../../stores/toast'
 import type { FileEntry } from '../stores/files'
 
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'download'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
 const { t } = useI18n()
 const toast = useToast()
 
@@ -23,6 +23,9 @@ const host = ref<HTMLElement | null>(null)
 const dirty = ref(false)
 const confirmOpen = ref(false)
 let view: EditorView | null = null
+// 组件在异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——
+// 卸载后必须放弃构造编辑器,否则会产生 onBeforeUnmount 跳过销毁的分离 EditorView 泄漏。
+let disposed = false
 
 // Vue2 CodeEditor showed the full path as a breadcrumb strip below the header
 // (pathArray = item.path.substr(1).split('/')); reproduce it as a static,
@@ -31,9 +34,10 @@ const pathSegments = computed(() => props.item.path.replace(/^\/+/, '').split('/
 
 async function readCode(): Promise<string> {
   // Controller-verified: /v1/file/content is a standard envelope whose `data`
-  // is the raw content STRING (not {content}) — pass straight to coerceContent.
-  const res = await service.file.getContent(props.item.path)
-  return coerceContent(res)
+  // is the raw content STRING (not {content}) — but read defensively in case
+  // the endpoint ever returns the typed `{content}` shape instead of a bare string.
+  const raw = await service.file.getContent(props.item.path)
+  return coerceContent(typeof raw === 'string' ? raw : (raw as { content?: unknown })?.content ?? raw)
 }
 
 async function save(): Promise<boolean> {
@@ -70,8 +74,16 @@ function discardClose() {
 }
 
 onMounted(async () => {
-  const content = await readCode()
+  let content: string
+  try {
+    content = await readCode()
+  } catch {
+    toast.show(t('filesViewerReadFailed'))
+    return
+  }
+  if (disposed) return
   const lang = await langFor(fileExt(props.item.name))
+  if (disposed) return
   const exts: Extension[] = [
     basicSetup,
     monokai,
@@ -84,13 +96,17 @@ onMounted(async () => {
   if (lang) exts.push(lang)
   view = new EditorView({ state: EditorState.create({ doc: content, extensions: exts }), parent: host.value! })
 })
-onBeforeUnmount(() => { view?.destroy(); view = null })
+onBeforeUnmount(() => {
+  disposed = true
+  view?.destroy()
+  view = null
+})
 </script>
 
 <template>
-  <ViewerShell :title="props.item.name" downloadable @close="requestClose" @download="emit('download')">
+  <ViewerShell :title="props.item.name" downloadable @close="requestClose" @download="emit('download', props.item)">
     <template #toolbar>
-      <button class="chip viewer-save" @click="save">{{ t('filesViewerSave') }}</button>
+      <button type="button" class="chip viewer-save" @click="save">{{ t('filesViewerSave') }}</button>
     </template>
     <div class="code-body">
       <nav class="code-breadcrumb">
@@ -106,9 +122,9 @@ onBeforeUnmount(() => { view?.destroy(); view = null })
   <Dialog v-model:open="confirmOpen" :title="t('filesViewerWantSave')">
     <p style="color:var(--fg-muted,#9aa4bf)">{{ t('filesViewerUnsavedHint') }}</p>
     <template #footer>
-      <button class="chip" @click="confirmOpen = false">{{ t('filesCancel') }}</button>
-      <button class="chip" @click="discardClose">{{ t('filesViewerDontSave') }}</button>
-      <button class="chip" @click="confirmSave">{{ t('filesViewerSave') }}</button>
+      <button type="button" class="chip" @click="confirmOpen = false">{{ t('filesCancel') }}</button>
+      <button type="button" class="chip" @click="discardClose">{{ t('filesViewerDontSave') }}</button>
+      <button type="button" class="chip" @click="confirmSave">{{ t('filesViewerSave') }}</button>
     </template>
   </Dialog>
 </template>

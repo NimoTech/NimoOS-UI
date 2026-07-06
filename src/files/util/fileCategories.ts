@@ -20,3 +20,5 @@ export const APPLICATION_X_APPLE = ['dmg', 'ipa', 'pkg']
 export const APPLICATION_X_PEM_KEY = ['pem', 'crt', 'ca-bundle', 'p7b', 'p7s', 'der', 'cer', 'pfx', 'p12']
 export const TEXT_X_CMAKE = ['makefile', 'cmake', 'dockerfile']
 export const TEXT_DOCKERFILE = ['dockerfile']
+// 播放白名单(Vue2 mixin.js:33-40)——视频图标覆盖更广(见 VIDEO_X_GENERIC),但播放器只认这 5 个
+export const BROWSER_PLAYABLE_VIDEO = ['mp4', 'm4v', 'webm', 'mov', '3gp']

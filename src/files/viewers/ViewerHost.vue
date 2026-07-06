@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onBeforeUnmount } from 'vue'
 import { useViewer } from './useViewer'
 import { useFileOps } from '../composables/useFileOps'
 import type { PanelType } from './panelMap'
+import type { FileEntry } from '../stores/files'
 
 const v = useViewer()
 const ops = useFileOps()
@@ -14,10 +15,16 @@ const registry: Record<PanelType, ReturnType<typeof defineAsyncComponent>> = {
 }
 const current = computed(() => (v.panelType.value ? registry[v.panelType.value] : null))
 
-function onDownload() {
-  const item = v.currentItem.value
-  if (item) ops.download([item])
+function onDownload(entry?: FileEntry) {
+  const items = [entry ?? v.currentItem.value].filter(Boolean) as FileEntry[]
+  if (items.length) ops.download(items)
 }
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && v.open.value) v.close()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>

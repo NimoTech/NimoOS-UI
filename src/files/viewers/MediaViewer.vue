@@ -7,7 +7,7 @@ import { mediaKind } from './mediaKind'
 import type { FileEntry } from '../stores/files'
 
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'download'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
 const { locale } = useI18n()
 
 const kind = mediaKind(props.item.name)
@@ -24,10 +24,14 @@ const audioArtist = ref('...')
 let artInst: any = null
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let apInst: any = null
+// 组件在异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——
+// 卸载后必须放弃构造播放器,否则会产生无法停止的孤儿自动播放实例/句柄泄漏。
+let disposed = false
 
 onMounted(async () => {
   if (kind === 'video') {
     const Artplayer = (await import('artplayer')).default
+    if (disposed) return
     artInst = new Artplayer({
       url,
       container: videoEl.value!,
@@ -50,7 +54,9 @@ onMounted(async () => {
     // 封面 + 标题/艺术家(Vue2 mm.fetchFromUrl)—— 元数据失败不阻断播放
     try {
       const mm = await import('music-metadata-browser')
+      if (disposed) return
       const metadata = await mm.fetchFromUrl(url)
+      if (disposed) return
       const pic = metadata.common.picture?.[0]
       if (pic) {
         const blob = new Blob([new Uint8Array(pic.data)], { type: pic.format })
@@ -67,7 +73,9 @@ onMounted(async () => {
       /* 元数据失败不阻断播放 */
     }
     const APlayer = (await import('aplayer')).default
+    if (disposed) return
     await import('aplayer/dist/APlayer.min.css')
+    if (disposed) return
     apInst = new APlayer({
       container: audioEl.value!,
       autoplay: true,
@@ -78,6 +86,7 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  disposed = true
   if (artInst?.destroy) artInst.destroy(false)
   if (apInst?.destroy) apInst.destroy()
   if (poster.value) URL.revokeObjectURL(poster.value)
@@ -85,8 +94,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download')">
-    <div ref="wrap" class="media-wrap" :class="{ audio: kind === 'audio' }">
+  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
+    <div ref="wrap" class="media-wrap">
       <div v-if="kind === 'audio' && poster" class="audio-blur"></div>
       <div v-if="kind === 'video'" ref="videoEl" class="media-video"></div>
       <div v-else-if="kind === 'audio'" ref="audioEl" class="media-audio"></div>

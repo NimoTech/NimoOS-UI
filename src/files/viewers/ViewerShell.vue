@@ -11,8 +11,8 @@ const { t } = useI18n()
       <h3 class="viewer-title one-line">{{ title }}</h3>
       <div class="viewer-actions">
         <slot name="toolbar" />
-        <button v-if="downloadable" class="chip viewer-download" @click="emit('download')">{{ t('filesDownload') }}</button>
-        <button class="viewer-close" :aria-label="t('filesViewerClose')" @click="emit('close')">✕</button>
+        <button v-if="downloadable" type="button" class="chip viewer-download" @click="emit('download')">{{ t('filesDownload') }}</button>
+        <button type="button" class="viewer-close" :aria-label="t('filesViewerClose')" @click="emit('close')">✕</button>
       </div>
     </header>
     <div class="viewer-body"><slot /></div>

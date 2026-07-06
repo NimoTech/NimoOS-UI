@@ -1,26 +1,35 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import ViewerShell from './ViewerShell.vue'
 import { renderMarkdown } from './renderMarkdown'
 import { coerceContent } from './codeContent'
+import { useToast } from '../../stores/toast'
 import type { FileEntry } from '../stores/files'
 
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'download'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
+const { t } = useI18n()
+const toast = useToast()
 const html = ref('')
 
 onMounted(async () => {
-  // Controller-verified (same as Task 6 CodeViewer): /v1/file/content is a
-  // standard envelope whose `data` is the raw content STRING — pass straight
-  // to coerceContent, do not access `.content`.
-  const res = await service.file.getContent(props.item.path)
-  html.value = renderMarkdown(coerceContent(res))
+  try {
+    // Controller-verified (same as Task 6 CodeViewer): /v1/file/content is a
+    // standard envelope whose `data` is the raw content STRING — but read
+    // defensively in case the endpoint ever returns the typed `{content}` shape.
+    const raw = await service.file.getContent(props.item.path)
+    const text = coerceContent(typeof raw === 'string' ? raw : (raw as { content?: unknown })?.content ?? raw)
+    html.value = renderMarkdown(text)
+  } catch {
+    toast.show(t('filesViewerReadFailed'))
+  }
 })
 </script>
 
 <template>
-  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download')">
+  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
     <div class="md-scroll">
       <!-- 只读渲染:renderMarkdown 已 html:false 过滤内嵌 HTML,v-html 安全 -->
       <article class="md-body" v-html="html"></article>
