@@ -33,4 +33,9 @@ describe('getPanelType', () => {
     expect(getPanelType('report.pdf')).toBe('pdf-viewer')
     expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
   })
+  it('word → doc-viewer', () => {
+    expect(getPanelType('a.doc')).toBe('doc-viewer')
+    expect(getPanelType('a.docx')).toBe('doc-viewer')
+    expect(getPanelType('a.wps')).toBe('doc-viewer')
+  })
 })

@@ -1,7 +1,7 @@
 import { fileExt } from '../util/ext'
-import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF } from '../util/fileCategories'
+import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_WORD } from '../util/fileCategories'
 
-export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer'
+export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer' | 'doc-viewer'
 
 function union(...groups: string[][]): string[] {
   return Array.from(new Set(groups.flat()))
@@ -14,6 +14,7 @@ const filePanelMap: Record<PanelType, string[]> = {
   'image-viewer': IMAGE_X_GENERIC,
   'markdown': TEXT_MARKDOWN,
   'pdf-viewer': APPLICATION_PDF,
+  'doc-viewer': APPLICATION_VND_MS_WORD,
 }
 
 export function getPanelType(name: string): PanelType | null {
