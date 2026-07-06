@@ -16,7 +16,8 @@ initService({
   getToken: () => localStorage.getItem('access_token'),
   getRefresh: () => localStorage.getItem('refresh_token'),
   setTokens: (a, r, expiresAt) => session.setTokens(a, r, expiresAt),
-  onAuthFail: () => { window.location.href = '/#/login' },
+  // 跳 New-UI 应用内登录(hash 路由 /app/#/login)
+  onAuthFail: () => { window.location.href = '/app/#/login' },
   getLang: () => {
     const l = (navigator.language || 'en').toLowerCase().replace('-', '_')
     return localStorage.getItem('lang') || l
