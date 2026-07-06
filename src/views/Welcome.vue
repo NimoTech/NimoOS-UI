@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, useTemplateRef } from 'vue'
+import { ref, watch, useTemplateRef, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import lottie from 'lottie-web'
@@ -31,6 +31,7 @@ function validate(): boolean {
 }
 
 async function create() {
+  if (busy.value) return
   error.value = ''
   if (!validate()) return
   busy.value = true
@@ -46,11 +47,17 @@ async function create() {
 }
 
 // step 3 挂载后播放完成动画,结束跳首页
+let anim: ReturnType<typeof lottie.loadAnimation> | null = null
 watch([step, doneEl], ([s, el]) => {
   if (s === 3 && el) {
-    const anim = lottie.loadAnimation({ container: el, renderer: 'svg', loop: false, autoplay: true, animationData: doneData })
+    anim = lottie.loadAnimation({ container: el, renderer: 'svg', loop: false, autoplay: true, animationData: doneData })
     anim.addEventListener('complete', () => router.push('/'))
   }
+})
+
+onUnmounted(() => {
+  anim?.destroy()
+  anim = null
 })
 </script>
 
@@ -66,19 +73,20 @@ watch([step, doneEl], ([s, el]) => {
       <div v-else-if="step === 2" class="welcome-step2">
         <h2 class="welcome-title">{{ t('welcomeCreateAccount') }}</h2>
         <p v-if="error" class="login-error">{{ error }}</p>
-        <label class="auth-label">{{ t('authUsername') }}</label>
-        <input class="auth-input welcome-username" v-model="username" type="text" @keyup.enter="create" />
-        <label class="auth-label">{{ t('authPassword') }}</label>
+        <label class="auth-label" for="welcome-username">{{ t('authUsername') }}</label>
+        <input id="welcome-username" class="auth-input welcome-username" v-model="username" type="text"
+               autocomplete="username" @keyup.enter="create" />
+        <label class="auth-label" for="welcome-password">{{ t('authPassword') }}</label>
         <div class="welcome-password-field">
-          <input class="auth-input welcome-password" v-model="password"
-                 :type="showPassword ? 'text' : 'password'" @keyup.enter="create" />
+          <input id="welcome-password" class="auth-input welcome-password" v-model="password"
+                 :type="showPassword ? 'text' : 'password'" autocomplete="new-password" @keyup.enter="create" />
           <button type="button" class="welcome-reveal" :aria-label="showPassword ? 'Hide password' : 'Show password'"
                   @click="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁' }}</button>
         </div>
-        <label class="auth-label">{{ t('welcomeConfirmPassword') }}</label>
+        <label class="auth-label" for="welcome-confirm">{{ t('welcomeConfirmPassword') }}</label>
         <div class="welcome-password-field">
-          <input class="auth-input welcome-confirm" v-model="confirmation"
-                 :type="showConfirm ? 'text' : 'password'" @keyup.enter="create" />
+          <input id="welcome-confirm" class="auth-input welcome-confirm" v-model="confirmation"
+                 :type="showConfirm ? 'text' : 'password'" autocomplete="new-password" @keyup.enter="create" />
           <button type="button" class="welcome-reveal" :aria-label="showConfirm ? 'Hide password' : 'Show password'"
                   @click="showConfirm = !showConfirm">{{ showConfirm ? '🙈' : '👁' }}</button>
         </div>
