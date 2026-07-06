@@ -29,4 +29,8 @@ describe('getPanelType', () => {
     expect(getPanelType('a.zip')).toBeNull()
     expect(getPanelType('a.exe')).toBeNull()
   })
+  it('pdf → pdf-viewer', () => {
+    expect(getPanelType('report.pdf')).toBe('pdf-viewer')
+    expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
+  })
 })
