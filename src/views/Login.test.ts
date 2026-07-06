@@ -56,4 +56,14 @@ describe('Login.vue', () => {
     await new Promise((r) => setTimeout(r))
     expect(w.find('.login-error').text()).toContain('账号被禁用')
   })
+
+  it('toggles password visibility via .login-reveal', async () => {
+    const w = await mountLogin()
+    const input = w.find('.login-password')
+    expect((input.element as HTMLInputElement).type).toBe('password')
+    await w.find('.login-reveal').trigger('click')
+    expect((input.element as HTMLInputElement).type).toBe('text')
+    await w.find('.login-reveal').trigger('click')
+    expect((input.element as HTMLInputElement).type).toBe('password')
+  })
 })
