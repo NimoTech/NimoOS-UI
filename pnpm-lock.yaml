@@ -71,9 +71,6 @@ importers:
       '@vue-office/excel':
         specifier: ^1.6.0
         version: 1.7.14(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
-      '@vue-office/pdf':
-        specifier: ^1.6.0
-        version: 1.6.5(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
       aplayer:
         specifier: ^1.10.1
         version: 1.10.1
@@ -95,6 +92,9 @@ importers:
       music-metadata-browser:
         specifier: ^2.5.11
         version: 2.5.11
+      pdfjs-dist:
+        specifier: ^6.1.200
+        version: 6.1.200
       pinia:
         specifier: ^2.1
         version: 2.3.1(typescript@5.9.3)(vue@3.5.39(typescript@5.9.3))
@@ -487,6 +487,76 @@ packages:
   '@marijn/find-cluster-break@1.0.3':
     resolution: {integrity: sha512-FY+MKLBoTsLNJF/eLWaOsXGdz6uh3Iu1axjPf6TUq92IYumcTcXWHoS747JARLkcdlJ/Waiaxc5wQfFO8jC6NA==}
 
+  '@napi-rs/canvas-android-arm64@1.0.2':
+    resolution: {integrity: sha512-IMXKVQod0ol4vt3gmClUfXz4JAgHYESGPCUqmH3lQxBoL0K/2greJaQE1HVBVxWWFKfLc4OLZVdxg7kXVyXv+g==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@napi-rs/canvas-darwin-arm64@1.0.2':
+    resolution: {integrity: sha512-Sc8tPi6cF+5lqOzCCKFALJHhDiRwyMzTPYm3bbhdXsOunU0lQO5f05ucyOzN2r55I23Hg5bsjH63uSCvWp3EgQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@napi-rs/canvas-darwin-x64@1.0.2':
+    resolution: {integrity: sha512-niDXZ9LhKB1zLrUdYB64RHQFDGz9rr0eGx061qtJJU3U20EMMIx28ADF5fVYbhtOgkWQrBjFicfaye1yM0U62A==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@1.0.2':
+    resolution: {integrity: sha512-sgatQL9JxGRH/Amzcvu0P3t8Am3duou74CisfuJ41Dwt8cWy723z/9KZ8LlgmxfypEwEZxSTNFJtU8d281lmhQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-arm64-gnu@1.0.2':
+    resolution: {integrity: sha512-dgKuX0peF3xwY6ZF5QxGS4wbfDqpoFAJYXiLSp+guZKARQUKMkRqZSDrXKj7nfrec3UCMzC0PFCPte0ES98AiA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-arm64-musl@1.0.2':
+    resolution: {integrity: sha512-qwROoDIC9upfvDoRLuPn2aNg9CGW1x0Ygr4k2Or+8paA9d0qBLwk87U+g8KQpoOviKoPoiwl97kvBYuYD7qZoA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-riscv64-gnu@1.0.2':
+    resolution: {integrity: sha512-fXRjnPihdnbO6qy1QQOgxAonb68A0TCEG7rj1x7v7rxNElsE8EVIKIEUTvyDtU+sthYSbX+8e7g3oZiLGnOmxw==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-x64-gnu@1.0.2':
+    resolution: {integrity: sha512-nPR97DXhbWIAy7yazF3jc06kEPMqYMLmPzFOVNlwKPfIoSChnI+x7dc0hTLaihz3jxrjL6j4BbA7earxfx4X3g==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-x64-musl@1.0.2':
+    resolution: {integrity: sha512-l7zZY5+jL5qnBZtDz7CoBtY6p7EkHu422g/0zWwrOrzIwWyWxZFRfZZORY1UG7YApymPLx+UbOkN206xXn/c1Q==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@napi-rs/canvas-win32-arm64-msvc@1.0.2':
+    resolution: {integrity: sha512-yE0koHCFF4PIbMc2o2SEALhnipz7WBISh5glLvQiomtIoCcW0np3H4Lw93ceJAfJttTTeIIWFbwH84F7EVzjMQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@napi-rs/canvas-win32-x64-msvc@1.0.2':
+    resolution: {integrity: sha512-okU8/t2foV6C31n0GtvEMbfD5rOFc70+/6xUNME9Guld29sgSOIGUEDScAWFlcP3k5TYQRl9TNkwJEEjh15w8A==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@napi-rs/canvas@1.0.2':
+    resolution: {integrity: sha512-EYEqlMYaCbpZDz+IgDH5xp9MTd3ui4dmGqbQYryhMLnSRxrhHKq5KQWHHKxFUcEP4Hp8/BWgvqXocX4j7iSbOQ==}
+    engines: {node: '>= 10'}
+
   '@nimotech/nimoos-service@file:../NimoOS-Service':
     resolution: {directory: ../NimoOS-Service, type: directory}
 
@@ -730,16 +800,6 @@ packages:
 
   '@vue-office/excel@1.7.14':
     resolution: {integrity: sha512-pVUgt+emDQUnW7q22CfnQ+jl43mM/7IFwYzOg7lwOwPEbiVB4K4qEQf+y/bc4xGXz75w1/e3Kz3G6wAafmFBFg==}
-    peerDependencies:
-      '@vue/composition-api': ^1.7.1
-      vue: ^2.0.0 || >=3.0.0
-      vue-demi: ^0.14.6
-    peerDependenciesMeta:
-      '@vue/composition-api':
-        optional: true
-
-  '@vue-office/pdf@1.6.5':
-    resolution: {integrity: sha512-3BePzeA5wji2JoZGJhdlc3XEXs6gMcSnBXrBXlGGfhZHjNijxcHa9V5Ibm8dDKoEwPPsfg+kf4TGP9/2GBR8jQ==}
     peerDependencies:
       '@vue/composition-api': ^1.7.1
       vue: ^2.0.0 || >=3.0.0
@@ -1372,6 +1432,10 @@ packages:
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
+  pdfjs-dist@6.1.200:
+    resolution: {integrity: sha512-o8MolyzirkkLrcdsae/HEOiIcXWI7DS5zGpvqW8xTC2YUsW30rltFw2bDGvw/fskUdEMrQm2br68jzDS5BH2vw==}
+    engines: {node: '>=22.13.0 || >=24'}
 
   peek-readable@4.1.0:
     resolution: {integrity: sha512-ZI3LnwUv5nOGbQzD9c2iDG6toheuXSZP5esSHBjopsXH4dg19soufvpUGA3uohi5anFtGb2lhAVdHzH6R/Evvg==}
@@ -2184,6 +2248,54 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.3': {}
 
+  '@napi-rs/canvas-android-arm64@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-darwin-arm64@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-darwin-x64@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-gnu@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-musl@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-linux-riscv64-gnu@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-gnu@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-musl@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-win32-arm64-msvc@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas-win32-x64-msvc@1.0.2':
+    optional: true
+
+  '@napi-rs/canvas@1.0.2':
+    optionalDependencies:
+      '@napi-rs/canvas-android-arm64': 1.0.2
+      '@napi-rs/canvas-darwin-arm64': 1.0.2
+      '@napi-rs/canvas-darwin-x64': 1.0.2
+      '@napi-rs/canvas-linux-arm-gnueabihf': 1.0.2
+      '@napi-rs/canvas-linux-arm64-gnu': 1.0.2
+      '@napi-rs/canvas-linux-arm64-musl': 1.0.2
+      '@napi-rs/canvas-linux-riscv64-gnu': 1.0.2
+      '@napi-rs/canvas-linux-x64-gnu': 1.0.2
+      '@napi-rs/canvas-linux-x64-musl': 1.0.2
+      '@napi-rs/canvas-win32-arm64-msvc': 1.0.2
+      '@napi-rs/canvas-win32-x64-msvc': 1.0.2
+    optional: true
+
   '@nimotech/nimoos-service@file:../NimoOS-Service':
     dependencies:
       axios: 1.18.1
@@ -2387,11 +2499,6 @@ snapshots:
       vue-demi: 0.14.10(vue@3.5.39(typescript@5.9.3))
 
   '@vue-office/excel@1.7.14(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))':
-    dependencies:
-      vue: 3.5.39(typescript@5.9.3)
-      vue-demi: 0.14.10(vue@3.5.39(typescript@5.9.3))
-
-  '@vue-office/pdf@1.6.5(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))':
     dependencies:
       vue: 3.5.39(typescript@5.9.3)
       vue-demi: 0.14.10(vue@3.5.39(typescript@5.9.3))
@@ -3074,6 +3181,10 @@ snapshots:
       minipass: 7.1.3
 
   pathe@2.0.3: {}
+
+  pdfjs-dist@6.1.200:
+    optionalDependencies:
+      '@napi-rs/canvas': 1.0.2
 
   peek-readable@4.1.0: {}
 
