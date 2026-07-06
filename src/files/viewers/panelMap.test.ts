@@ -33,10 +33,10 @@ describe('getPanelType', () => {
     expect(getPanelType('report.pdf')).toBe('pdf-viewer')
     expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
   })
-  it('only .docx → doc-viewer; legacy .doc/.wps (OLE2) fall to download', () => {
+  it('word doc/docx/wps → doc-viewer (legacy .doc/.wps show in-viewer error + download)', () => {
     expect(getPanelType('a.docx')).toBe('doc-viewer')
-    expect(getPanelType('a.doc')).toBeNull()
-    expect(getPanelType('a.wps')).toBeNull()
+    expect(getPanelType('a.doc')).toBe('doc-viewer')
+    expect(getPanelType('a.wps')).toBe('doc-viewer')
   })
   it('excel → excel-viewer', () => {
     expect(getPanelType('a.xls')).toBe('excel-viewer')
