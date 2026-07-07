@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
@@ -14,6 +15,8 @@ import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
 
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+const router = useRouter()
+const route = useRoute()
 const files = useFilesStore()
 const favorites = useFavoritesStore()
 const mounts = useMountsStore()
@@ -95,6 +98,14 @@ function onDiskDrop(i: number) {
       <span class="side-head-title">{{ t('filesMountManage') }}</span>
       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
     </div>
+    <section class="side-section">
+      <ul class="side-list">
+        <li class="side-item" :class="{ active: route.name === 'files-shares' }" @click="router.push('/files/shares')">
+          <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+          <span class="side-name">{{ t('filesSharesNav') }}</span>
+        </li>
+      </ul>
+    </section>
     <section class="side-section">
       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
       <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>

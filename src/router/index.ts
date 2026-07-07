@@ -4,11 +4,13 @@ import Home from '../views/Home.vue'
 import Files from '../views/Files.vue'
 import Login from '../views/Login.vue'
 import Welcome from '../views/Welcome.vue'
+import SharesPage from '../files/shares/SharesPage.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: Home },
   { path: '/files', name: 'files', component: Files },
+  { path: '/files/shares', name: 'files-shares', component: SharesPage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
