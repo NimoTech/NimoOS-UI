@@ -19,18 +19,32 @@ const HIDDEN = new Set(['lost+found'])
 
 export const useFilesStore = defineStore('files', () => {
   const displayNames = ref<DisplayNames>({})
+  const mountNames = ref<DisplayNames>({})
   const disks = ref<{ name: string; path: string; usb: boolean }[]>([])
   const entries = ref<FileEntry[]>([])
   const currentPath = ref('')
   const loading = ref(false)
 
+  // displayNames = disks 派生的 map 叠加 mountNames(网络挂载的 host 名)。
+  // 单独抽出以便 loadRoots() 重建磁盘 map 时不丢失 setMountNames 写入的网络挂载名。
+  function rebuildDisplayNames() {
+    const map: DisplayNames = {}
+    for (const d of disks.value) map[d.path] = d.name
+    displayNames.value = { ...map, ...mountNames.value }
+  }
+
   async function loadRoots() {
     const folders = useFoldersStore()
     await folders.loadDisks()
     disks.value = folders.disks.map((d) => ({ ...d }))
-    const map: DisplayNames = {}
-    for (const d of disks.value) map[d.path] = d.name
-    displayNames.value = map
+    rebuildDisplayNames()
+  }
+
+  // 由 mountsStore.loadMounts() 调用,注册网络挂载 /mnt/<host> → host 的显示名映射,
+  // 使 toVirtualPath/toRealPath 对网络挂载路径同样生效(不泄漏 /mnt/* 到 URL/面包屑/剪贴板)。
+  function setMountNames(names: DisplayNames) {
+    mountNames.value = names
+    rebuildDisplayNames()
   }
 
   function defaultRootReal(): string {
@@ -135,7 +149,7 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   return {
-    displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load,
+    displayNames, disks, entries, currentPath, loading, loadRoots, setMountNames, defaultRootReal, load,
     viewMode, sort, order, sortedEntries, setView, setSort,
     selected, selectionAnchor, isSelected, selectedCount, allSelected,
     toggleSelect, selectOnly, selectRange, selectAll, clearSelection, setSelection,

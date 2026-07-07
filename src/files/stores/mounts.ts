@@ -24,8 +24,12 @@ export const useMountsStore = defineStore('mounts', () => {
     try {
       const conns = await service.samba.listConnections()
       network.value = conns.map((c) => ({ kind: 'network' as const, id: c.id, name: c.host, realPath: c.mountPoint }))
+      // 注册 /mnt/<host> → host 的显示名,使网络挂载路径也能走 toVirtualPath/toRealPath,
+      // 不把 /mnt/* 真实路径泄漏到 URL/面包屑/剪贴板(spec §3.3)。
+      files.setMountNames(Object.fromEntries(conns.map((c) => [c.mountPoint, c.host])))
     } catch (e) {
       network.value = []
+      files.setMountNames({})
       console.warn('[mounts] loadMounts failed', e)
     } finally {
       loading.value = false

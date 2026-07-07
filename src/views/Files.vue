@@ -289,15 +289,16 @@ onUnmounted(() => { offOperate?.() })
 
 let offDiskAdd: (() => void) | undefined
 let offDiskRemove: (() => void) | undefined
-let offStorage: (() => void) | undefined
 onMounted(() => { mounts.loadMounts() })
 onMounted(() => {
+  // local-storage:storage_status 是每 5s 定时上报的心跳,不是变更事件 —— 不要订阅它,
+  // 否则文件区打开期间会永久 5s 轮询 samba.listConnections()+/storage,并可能在拖拽排序中途
+  // 打乱 disks/displayNames。disk:added/removed 才是真正的变更信号(涵盖 USB 热插拔 + 挂载变化)。
   const refresh = () => { mounts.loadMounts(); files.loadRoots() }
   offDiskAdd = bus.on('local-storage:disk:added', refresh)
   offDiskRemove = bus.on('local-storage:disk:removed', refresh)
-  offStorage = bus.on('local-storage:storage_status', refresh)
 })
-onUnmounted(() => { offDiskAdd?.(); offDiskRemove?.(); offStorage?.() })
+onUnmounted(() => { offDiskAdd?.(); offDiskRemove?.() })
 
 let offUnloadGuard: (() => void) | null = null
 onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })

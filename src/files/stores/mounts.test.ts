@@ -17,6 +17,7 @@ vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
 
 import { useMountsStore } from './mounts'
 import { useFilesStore } from './files'
+import { toVirtualPath } from '../util/pathUtils'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -65,5 +66,26 @@ describe('mountsStore', () => {
     const m = useMountsStore()
     expect(await m.ejectUsb('/media/u')).toBe(true)
     expect(umountUsb).toHaveBeenCalledWith('/media/u')
+  })
+
+  it('loadMounts 把网络挂载注册进 filesStore.displayNames(不泄漏 /mnt/* 到 UI)', async () => {
+    listConnections.mockResolvedValue([{ id: 1, host: '192.168.1.10', mountPoint: '/mnt/192.168.1.10' }])
+    const m = useMountsStore()
+    await m.loadMounts()
+    const files = useFilesStore()
+    expect(files.displayNames['/mnt/192.168.1.10']).toBe('192.168.1.10')
+    expect(toVirtualPath('/mnt/192.168.1.10/share', files.displayNames)).toBe('/192.168.1.10/share')
+  })
+
+  it('loadMounts 失败 → 清空 mountNames,不遗留旧的网络挂载映射', async () => {
+    listConnections.mockResolvedValueOnce([{ id: 1, host: '192.168.1.10', mountPoint: '/mnt/192.168.1.10' }])
+    const m = useMountsStore()
+    await m.loadMounts()
+    const files = useFilesStore()
+    expect(files.displayNames['/mnt/192.168.1.10']).toBe('192.168.1.10')
+
+    listConnections.mockRejectedValueOnce(new Error('net'))
+    await m.loadMounts()
+    expect(files.displayNames['/mnt/192.168.1.10']).toBeUndefined()
   })
 })
