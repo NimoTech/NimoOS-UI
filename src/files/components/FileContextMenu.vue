@@ -17,12 +17,14 @@ const clipboard = useClipboardStore()
 const single = computed(() => props.selectedCount <= 1)
 const operable = computed(() => (props.entry ? canOperate(props.entry) : false))
 const favorited = computed(() => (props.entry ? favorites.isFavorite(props.entry.path) : false))
+const alreadyShared = computed(() => props.entry?.extensions?.share?.shared === 'true')
 
 // 单项操作(多选时隐藏,与复制路径/重命名一致);收藏仅对文件夹
 const showCopyPath = computed(() => single.value)
 const showRename = computed(() => single.value && operable.value)
 const showFavorite = computed(() => single.value && !!props.entry?.is_dir)
-const showShare = computed(() => single.value && !!props.entry?.is_dir)
+// 共享仅对文件夹,且未共享(已共享的走「共享」列表页取消,不重复弹入口 → 避免后端 SHARE_ALREADY_EXISTS)
+const showShare = computed(() => single.value && !!props.entry?.is_dir && !alreadyShared.value)
 // 分割线只在"删除之上确实有其它项"时出现(否则只剩删除会出现悬空分割线)
 const showSeparator = computed(
   () => operable.value && (showCopyPath.value || showRename.value || showFavorite.value || showShare.value),

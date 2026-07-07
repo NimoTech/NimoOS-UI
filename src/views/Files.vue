@@ -93,7 +93,10 @@ async function onShare(entry: FileEntry | null) {
   const folders = selectedOr(entry).filter((e) => e.is_dir)
   if (!folders.length) return
   const ok = await shares.create(folders.map((f) => f.path))
-  if (ok && folders.length === 1) shareDlg.value = { open: true, name: shareName(folders[0].path) }
+  if (ok) {
+    ops.refresh() // 刷新列表,让刚共享的文件夹 extensions.share.shared 更新(否则右键仍显示「共享到局域网」)
+    if (folders.length === 1) shareDlg.value = { open: true, name: shareName(folders[0].path) }
+  }
 }
 
 // 右键菜单动作分发

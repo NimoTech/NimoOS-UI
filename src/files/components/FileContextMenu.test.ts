@@ -186,6 +186,12 @@ describe('FileContextMenu', () => {
     expect(w.find('.ctx-share').exists()).toBe(false)
   })
 
+  it('已共享的文件夹不显示「共享到局域网」(避免后端 SHARE_ALREADY_EXISTS)', () => {
+    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true, extensions: { share: { shared: 'true' } } }
+    const w = mountMenu({ entry, selectedCount: 1 })
+    expect(w.find('.ctx-share').exists()).toBe(false)
+  })
+
   it('点共享项 emit action=share', async () => {
     const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 1 })
