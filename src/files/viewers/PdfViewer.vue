@@ -54,7 +54,14 @@ onMounted(async () => {
       ? await service.file.getPreviewBytes(props.item.path)
       : await service.file.getBytes(props.item.path)
     if (disposed) return
-    loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) })
+    // cMapUrl/standardFontDataUrl 指向构建时拷入的 pdfjs 资源(base=/app/),
+    // 保证 CJK 等非拉丁编码 + 未嵌入字体的 PDF 不显方框/乱码。
+    loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(buf),
+      cMapUrl: `${import.meta.env.BASE_URL}cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${import.meta.env.BASE_URL}standard_fonts/`,
+    })
     pdfDoc = await loadingTask.promise
     if (disposed) return
     total.value = pdfDoc.numPages
