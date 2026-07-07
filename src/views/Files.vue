@@ -50,6 +50,7 @@ const { t } = useI18n()
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
 const ctxEntry = ref<FileEntry | null>(null)
@@ -191,7 +192,11 @@ function openEntry(entry: FileEntry) {
   const r = resolveOpen(entry, files.sortedEntries)
   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
-  ops.download([entry])
+  // 不可预览的文件类型:先征询,由用户决定是否下载,而非直接触发下载。
+  downloadDlg.value = { open: true, entry }
+}
+function confirmDownload() {
+  if (downloadDlg.value.entry) ops.download([downloadDlg.value.entry])
 }
 function onSelect(payload: { entry: FileEntry; mode: 'toggle' | 'range' }) {
   if (payload.mode === 'range') files.selectRange(payload.entry.path)
@@ -363,6 +368,14 @@ onMounted(() => { uploads.initUploads() })
       :cancel-text="t('filesCancel')"
       destructive
       @confirm="confirmDelete"
+    />
+    <AlertDialog
+      v-model:open="downloadDlg.open"
+      :title="t('filesDownloadPromptTitle')"
+      :message="t('filesDownloadPromptMessage', { name: downloadDlg.entry?.name ?? '' })"
+      :confirm-text="t('filesDownload')"
+      :cancel-text="t('filesCancel')"
+      @confirm="confirmDownload"
     />
     <OperationStatusBar />
     <UploadPanel />

@@ -35,6 +35,8 @@ export const messages = {
     filesViewerConverting: '正在转换预览…',
     filesViewerError: '无法预览此文件',
     filesViewerDownloadInstead: '改为下载',
+    filesDownloadPromptTitle: '无法预览',
+    filesDownloadPromptMessage: '「{name}」无法在线预览,是否下载到本地?',
     filesViewerPrev: '上一张',
     filesViewerNext: '下一张',
     filesViewerZoomIn: '放大',
