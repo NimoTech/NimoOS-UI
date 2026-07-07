@@ -8,6 +8,8 @@ import { shouldNavigateHome } from '../util/mounts'
 import { iconUrl } from '../util/icons'
 import { toVirtualPath } from '../util/pathUtils'
 import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+import { buildAuthUrl } from '../util/cloudAuth'
+import type { CloudDriver } from '@nimotech/nimoos-service'
 import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
 
@@ -40,6 +42,21 @@ async function onEjectUsb(entry: { realPath: string }) {
 }
 function onConnected(mountPoint: string) {
   emit('navigate', toVirtualPath(mountPoint, files.displayNames))
+}
+function openCloudAuth(driver: CloudDriver) {
+  const w = 1000, h = 700
+  const top = Math.max(0, (window.screen.height - h) / 2)
+  const left = Math.max(0, (window.screen.width - w) / 2)
+  window.open(
+    buildAuthUrl(driver.authUrl, window.location.origin),
+    driver.name,
+    `width=${w},height=${h},top=${top},left=${left},toolbar=no,menubar=no,scrollbars=yes`,
+  )
+}
+async function onEjectCloud(entry: { realPath: string }) {
+  const home = shouldNavigateHome(files.currentPath, entry.realPath)
+  const ok = await mounts.ejectCloud(entry.realPath)
+  if (ok && home) emit('navigate', toVirtualPath('/DATA', files.displayNames))
 }
 
 const dragIndex = ref<number | null>(null)
@@ -76,7 +93,7 @@ function onDiskDrop(i: number) {
   <aside class="files-sidebar">
     <div class="side-head">
       <span class="side-head-title">{{ t('filesMountManage') }}</span>
-      <AddMountMenu @connect-network="dialogOpen = true" />
+      <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
     </div>
     <section class="side-section">
       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
@@ -132,6 +149,22 @@ function onDiskDrop(i: number) {
           <img class="side-icon" :src="diskIcon(false)" alt="" />
           <span class="side-name">{{ m.name }}</span>
           <button class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectNetwork(m)">⏏</button>
+        </li>
+      </ul>
+    </section>
+    <section v-if="mounts.cloud.length" class="side-section">
+      <h4 class="side-title">{{ t('filesMountCloudSection') }}</h4>
+      <ul class="side-list">
+        <li
+          v-for="m in mounts.cloud"
+          :key="m.realPath"
+          class="side-item"
+          :class="{ active: isActive(m.realPath) }"
+          @click="go(m.realPath)"
+        >
+          <img class="side-icon" :src="m.icon || diskIcon(false)" alt="" />
+          <span class="side-name">{{ m.name }}</span>
+          <button class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectCloud(m)">⏏</button>
         </li>
       </ul>
     </section>

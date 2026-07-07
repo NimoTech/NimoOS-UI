@@ -34,6 +34,7 @@ import {
   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
 } from '../files/util/pathUtils'
 import { readDefault } from '../files/util/locationOrder'
+import { parseRecover } from '../files/util/recoverEvent'
 
 const route = useRoute()
 const router = useRouter()
@@ -299,6 +300,17 @@ onMounted(() => {
   offDiskRemove = bus.on('local-storage:disk:removed', refresh)
 })
 onUnmounted(() => { offDiskAdd?.(); offDiskRemove?.() })
+
+let offRecover: (() => void) | undefined
+onMounted(() => {
+  offRecover = bus.on('nimoos:file:recover', (props) => {
+    const info = parseRecover(props)
+    if (!info) return
+    mounts.loadMounts()
+    toast.show(info.message || t(info.status === 'success' ? 'filesMountCloudOk' : info.status === 'warn' ? 'filesMountCloudWarn' : 'filesMountCloudFail'))
+  })
+})
+onUnmounted(() => { offRecover?.() })
 
 let offUnloadGuard: (() => void) | null = null
 onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })

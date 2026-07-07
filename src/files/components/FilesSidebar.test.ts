@@ -10,6 +10,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     folder: { getList: vi.fn() },
+    // AddMountMenu(子组件)onMounted 里调用 service.driver.listDrivers();mounts store 的
+    // ejectCloud/loadMounts 走 service.cloud —— 均需 mock 以避免未处理拒绝的控制台告警。
+    driver: { listDrivers: vi.fn().mockResolvedValue([]) },
+    cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
   },
 }))
 
