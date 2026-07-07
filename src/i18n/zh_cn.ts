@@ -32,6 +32,7 @@ export const messages = {
     filesDownload: '下载',
     filesViewerClose: '关闭',
     filesViewerLoading: '加载中…',
+    filesViewerConverting: '正在转换预览…',
     filesViewerError: '无法预览此文件',
     filesViewerDownloadInstead: '改为下载',
     filesViewerPrev: '上一张',

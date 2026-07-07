@@ -6,6 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import ViewerShell from './ViewerShell.vue'
 import { service } from '@nimotech/nimoos-service'
+import { fileExt } from '../util/ext'
 import type { FileEntry } from '../stores/files'
 import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist'
 
@@ -18,6 +19,7 @@ const ZOOM_STEP = 0.25
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
 const { t } = useI18n()
+const isConvert = fileExt(props.item.name) !== 'pdf'
 
 const state = ref<'loading' | 'ready' | 'error'>('loading')
 const errorDetail = ref('')
@@ -47,7 +49,10 @@ function cancelTasks(): void {
 
 onMounted(async () => {
   try {
-    const buf = await service.file.getBytes(props.item.path)   // 真实路径,走共享 axios(401 自愈)
+    // 原生 .pdf → 直接取;旧版 Office → 后端 LibreOffice 转 PDF 后取(getPreviewBytes)。
+    const buf = isConvert
+      ? await service.file.getPreviewBytes(props.item.path)
+      : await service.file.getBytes(props.item.path)
     if (disposed) return
     loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) })
     pdfDoc = await loadingTask.promise
@@ -161,7 +166,7 @@ onBeforeUnmount(() => {
       </div>
     </template>
     <div class="office-body">
-      <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
+      <div v-if="state === 'loading'" class="viewer-status">{{ t(isConvert ? 'filesViewerConverting' : 'filesViewerLoading') }}</div>
       <div v-else-if="state === 'error'" class="viewer-status">
         <p>{{ t('filesViewerError') }}</p>
         <p v-if="errorDetail" class="detail">{{ errorDetail }}</p>
