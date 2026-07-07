@@ -119,6 +119,8 @@ export const messages = {
     filesUploadResumeAll: '全部继续',
     filesUploadPaused: '已暂停',
     filesUploadClose: '关闭',
+    filesMountEjectSuccess: '弹出成功',
+    filesMountEjectFailed: '弹出失败',
     authUsername: '用户名',
     authPassword: '密码',
     authLogin: '登录',
