@@ -28,7 +28,13 @@ function goVirtual(virtualPath: string) {
   router.push('/files/' + virtualPathToRouteParam(virtualPath))
 }
 function onGetLink(row: ShareRowT) { linkDlg.value = { open: true, name: row.name } }
-function onGoto(row: ShareRowT) { goVirtual(toVirtualPath(row.path, files.displayNames)) }
+// 深链直达 /files/shares 时 onMounted 的 loadRoots() 可能还没 resolve;disks 为空会让
+// toVirtualPath 原样透传 real path(泄漏 /DATA/mnt 到 URL)。这里补一道保险:disks 为空则先
+// await loadRoots() 拿到 displayNames 再映射,不依赖 onMounted 那次 fire-and-forget 调用的时序。
+async function onGoto(row: ShareRowT) {
+  if (!files.disks.length) await files.loadRoots()
+  goVirtual(toVirtualPath(row.path, files.displayNames))
+}
 function onUnshare(row: ShareRowT) { delDlg.value = { open: true, row } }
 function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row.id); delDlg.value.open = false }
 </script>
