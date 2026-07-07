@@ -63,7 +63,9 @@ onMounted(async () => {
     await renderAll()
   } catch {
     if (disposed) return
-    errorDetail.value = 'PDF 加载失败,文件可能已损坏或加密'
+    errorDetail.value = isConvert
+      ? '文档转换失败或超时,建议下载后用本地软件打开'
+      : 'PDF 加载失败,文件可能已损坏或加密'
     state.value = 'error'
   }
 })
