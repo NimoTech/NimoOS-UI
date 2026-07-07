@@ -123,6 +123,7 @@ export const messages = {
     filesMountEjectFailed: '弹出失败',
     filesMountAdd: '添加挂载',
     filesMountConnectNetwork: '连接网络存储',
+    filesMountConnectCloud: '连接 {name}',
     filesMountServerAddress: '服务器地址',
     filesMountAddressHint: '支持 Samba/NFS 地址,例:smb://192.168.1.1',
     filesMountConnectAsGuest: '以访客身份连接',
