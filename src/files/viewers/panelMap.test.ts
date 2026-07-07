@@ -33,18 +33,20 @@ describe('getPanelType', () => {
     expect(getPanelType('report.pdf')).toBe('pdf-viewer')
     expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
   })
-  it('word doc/docx/wps → doc-viewer (legacy .doc/.wps show in-viewer error + download)', () => {
+  it('docx → doc-viewer; 旧版 doc/wps → pdf-viewer(转换)', () => {
     expect(getPanelType('a.docx')).toBe('doc-viewer')
-    expect(getPanelType('a.doc')).toBe('doc-viewer')
-    expect(getPanelType('a.wps')).toBe('doc-viewer')
+    expect(getPanelType('a.doc')).toBe('pdf-viewer')
+    expect(getPanelType('a.wps')).toBe('pdf-viewer')
   })
-  it('excel → excel-viewer', () => {
-    expect(getPanelType('a.xls')).toBe('excel-viewer')
+  it('pdf + 旧版 ppt/pptx/xls → pdf-viewer', () => {
+    expect(getPanelType('a.pdf')).toBe('pdf-viewer')
+    expect(getPanelType('a.ppt')).toBe('pdf-viewer')
+    expect(getPanelType('a.pptx')).toBe('pdf-viewer')
+    expect(getPanelType('a.xls')).toBe('pdf-viewer')
+  })
+  it('新版 xlsx/csv → excel-viewer(不含 xls)', () => {
     expect(getPanelType('a.xlsx')).toBe('excel-viewer')
     expect(getPanelType('a.csv')).toBe('excel-viewer')
-  })
-  it('ppt/pptx stay unmapped → download (Vue2 parity)', () => {
-    expect(getPanelType('deck.ppt')).toBeNull()
-    expect(getPanelType('deck.pptx')).toBeNull()
+    expect(getPanelType('a.xls')).not.toBe('excel-viewer')
   })
 })
