@@ -128,9 +128,12 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
 }
 
 /* ── Per-widget card-level overrides (base.css:132,153-155,228) ─────────── */
-/* Clock: center card-in vertically; custom background (base.css:132-133) */
-.card.w-clock .card-in { justify-content: center; }
-.card.w-clock { background: var(--clock-bg, var(--card-bg)); }
+/* Clock: full-bleed — hide the card header ("时间" 标题) and drop the card's
+   16px padding so the widget's fixed-size layout fills the frame like the
+   standalone preview. The clock component owns its own per-variant padding. */
+.card.w-clock { background: var(--clock-bg, var(--card-bg)); padding: 0; }
+.card.w-clock .card-head { display: none; }
+.card.w-clock .card-in { justify-content: center; border-radius: var(--radius); }
 /* CPU: ring + chart-box size overrides (base.css:153-155) */
 .card.w-cpu :deep(.ring) { width: clamp(56px, 34cqmin, 96px); }
 .card.w-cpu :deep(.ring b) { font-size: clamp(15px, 9cqmin, 22px); }
