@@ -4,16 +4,19 @@ import { service } from '@nimotech/nimoos-service'
 import { useFilesStore } from './files'
 import { useToast } from '../../stores/toast'
 import { i18n } from '../../i18n'
+import { driverIconUrl } from '../util/cloudAuth'
 
 export interface MountEntry {
-  kind: 'network' | 'usb'
+  kind: 'network' | 'usb' | 'cloud'
   id?: number
   name: string
   realPath: string
+  icon?: string
 }
 
 export const useMountsStore = defineStore('mounts', () => {
   const network = ref<MountEntry[]>([])
+  const cloud = ref<MountEntry[]>([])
   const loading = ref(false)
   const files = useFilesStore()
   const toast = useToast()
@@ -21,19 +24,27 @@ export const useMountsStore = defineStore('mounts', () => {
 
   async function loadMounts(): Promise<void> {
     loading.value = true
+    const names: Record<string, string> = {}
     try {
       const conns = await service.samba.listConnections()
       network.value = conns.map((c) => ({ kind: 'network' as const, id: c.id, name: c.host, realPath: c.mountPoint }))
-      // 注册 /mnt/<host> → host 的显示名,使网络挂载路径也能走 toVirtualPath/toRealPath,
-      // 不把 /mnt/* 真实路径泄漏到 URL/面包屑/剪贴板(spec §3.3)。
-      files.setMountNames(Object.fromEntries(conns.map((c) => [c.mountPoint, c.host])))
+      for (const c of conns) names[c.mountPoint] = c.host
     } catch (e) {
       network.value = []
-      files.setMountNames({})
-      console.warn('[mounts] loadMounts failed', e)
-    } finally {
-      loading.value = false
+      console.warn('[mounts] samba load failed', e)
     }
+    try {
+      const clouds = await service.cloud.list()
+      const origin = window.location.origin
+      cloud.value = clouds.map((c) => ({ kind: 'cloud' as const, name: c.name, realPath: c.mountPoint, icon: driverIconUrl(c.icon, origin) }))
+      for (const c of clouds) names[c.mountPoint] = c.name
+    } catch (e) {
+      cloud.value = []
+      console.warn('[mounts] cloud load failed', e)
+    }
+    // 网络 + 云盘挂载点统一注册进 displayNames,避免真实挂载路径泄漏(P5a IMP1)。
+    files.setMountNames(names)
+    loading.value = false
   }
 
   // USB 直接派生自 filesStore.disks(不重复请求);热插由 Files.vue 的 socket 触发 files.loadRoots() 更新。
@@ -64,5 +75,17 @@ export const useMountsStore = defineStore('mounts', () => {
     }
   }
 
-  return { network, usb, loading, loadMounts, ejectNetwork, ejectUsb }
+  async function ejectCloud(mountPoint: string): Promise<boolean> {
+    try {
+      await service.cloud.umount(mountPoint)
+      await loadMounts()
+      toast.show(t('filesMountEjectSuccess'))
+      return true
+    } catch {
+      toast.show(t('filesMountEjectFailed'))
+      return false
+    }
+  }
+
+  return { network, usb, cloud, loading, loadMounts, ejectNetwork, ejectUsb, ejectCloud }
 })

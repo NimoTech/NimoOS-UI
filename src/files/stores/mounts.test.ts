@@ -5,10 +5,13 @@ import { setActivePinia, createPinia } from 'pinia'
 const listConnections = vi.fn()
 const deleteConnection = vi.fn()
 const umountUsb = vi.fn()
+const listClouds = vi.fn()
+const umountCloud = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     samba: { listConnections: (...a: unknown[]) => listConnections(...a), deleteConnection: (...a: unknown[]) => deleteConnection(...a) },
     disks: { umountUsb: (...a: unknown[]) => umountUsb(...a) },
+    cloud: { list: (...a: unknown[]) => listClouds(...a), umount: (...a: unknown[]) => umountCloud(...a) },
   },
 }))
 // toast + i18n mock
@@ -22,6 +25,8 @@ import { toVirtualPath } from '../util/pathUtils'
 beforeEach(() => {
   setActivePinia(createPinia())
   listConnections.mockReset(); deleteConnection.mockReset(); umountUsb.mockReset()
+  listClouds.mockReset(); umountCloud.mockReset()
+  listClouds.mockResolvedValue([])
 })
 
 describe('mountsStore', () => {
@@ -87,5 +92,32 @@ describe('mountsStore', () => {
     listConnections.mockRejectedValueOnce(new Error('net'))
     await m.loadMounts()
     expect(files.displayNames['/mnt/192.168.1.10']).toBeUndefined()
+  })
+
+  it('loadMounts 映射 cloud 条目(带 icon)', async () => {
+    listConnections.mockResolvedValue([])
+    listClouds.mockResolvedValue([{ fs: 'gd:', name: 'MyDrive', icon: './img/driver/GoogleDrive.svg', mountPoint: '/mnt/gd' }])
+    const m = useMountsStore()
+    await m.loadMounts()
+    expect(m.cloud).toHaveLength(1)
+    expect(m.cloud[0]).toMatchObject({ kind: 'cloud', name: 'MyDrive', realPath: '/mnt/gd' })
+    expect(m.cloud[0].icon).toContain('/img/driver/GoogleDrive.svg')
+  })
+
+  it('cloud 加载失败不影响 network', async () => {
+    listConnections.mockResolvedValue([{ id: 1, host: 'h', mountPoint: '/mnt/h' }])
+    listClouds.mockRejectedValue(new Error('x'))
+    const m = useMountsStore()
+    await m.loadMounts()
+    expect(m.network).toHaveLength(1)
+    expect(m.cloud).toEqual([])
+  })
+
+  it('ejectCloud 成功 → umount + 返回 true', async () => {
+    listConnections.mockResolvedValue([]); listClouds.mockResolvedValue([])
+    umountCloud.mockResolvedValue(undefined)
+    const m = useMountsStore()
+    expect(await m.ejectCloud('/mnt/gd')).toBe(true)
+    expect(umountCloud).toHaveBeenCalledWith('/mnt/gd')
   })
 })
