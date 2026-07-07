@@ -10,7 +10,7 @@ const i18n = createI18n({
 
 describe('SelectionToolbar', () => {
   it('shows the count and emits select-all / clear', async () => {
-    const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false }, global: { plugins: [i18n] } })
+    const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
     expect(w.text()).toContain('已选 3 项')
     await w.get('.sel-all').trigger('click')
     expect(w.emitted('select-all')).toBeTruthy()
@@ -19,14 +19,14 @@ describe('SelectionToolbar', () => {
   })
 
   it('has a delete button that emits delete', async () => {
-    const w = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
+    const w = mount(SelectionToolbar, { props: { count: 2, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
     await w.get('.sel-delete').trigger('click')
     expect(w.emitted('delete')).toBeTruthy()
   })
 
   it('复制/剪切按钮 emit copy/cut', async () => {
     const wrapper = mount(SelectionToolbar, {
-      props: { count: 2, allSelected: false },
+      props: { count: 2, allSelected: false, canShare: false },
       global: { plugins: [i18n] },
     })
     await wrapper.find('.sel-copy').trigger('click')
@@ -36,7 +36,7 @@ describe('SelectionToolbar', () => {
   })
 
   it('渲染下载按钮并 emit download', async () => {
-    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
+    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
     const btn = wrapper.find('.sel-download')
     expect(btn.exists()).toBe(true)
     await btn.trigger('click')

@@ -11,6 +11,7 @@ import FileGridView from '../files/components/FileGridView.vue'
 import FileContextMenu from '../files/components/FileContextMenu.vue'
 import NewItemDialog from '../files/components/NewItemDialog.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
+import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
 import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
@@ -24,6 +25,8 @@ import { useFileOpsStore } from '../files/stores/fileOps'
 import { useClipboardStore } from '../files/stores/clipboard'
 import { useUploadsStore } from '../files/stores/uploads'
 import { useMountsStore } from '../files/stores/mounts'
+import { useSharesStore } from '../files/stores/shares'
+import { shareName } from '../files/util/sambaPath'
 import { useToast } from '../stores/toast'
 import { installUnloadGuard } from '../files/upload/unloadGuard'
 import { readDroppedEntries } from '../files/upload/dropEntries'
@@ -46,6 +49,7 @@ const fileOps = useFileOpsStore()
 const clipboard = useClipboardStore()
 const uploads = useUploadsStore()
 const mounts = useMountsStore()
+const shares = useSharesStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -55,6 +59,7 @@ const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mo
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
 const ctxEntry = ref<FileEntry | null>(null)
@@ -77,6 +82,18 @@ function openNew(mode: 'file' | 'folder') { newDlg.value = { open: true, mode } 
 function selectedOr(entry: FileEntry | null): FileEntry[] {
   const sel = files.entries.filter((e) => files.isSelected(e.path))
   return sel.length ? sel : entry ? [entry] : []
+}
+
+// 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
+const selectionHasFolder = computed(() => files.entries.some((e) => files.isSelected(e.path) && e.is_dir))
+
+// 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
+// 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
+async function onShare(entry: FileEntry | null) {
+  const folders = selectedOr(entry).filter((e) => e.is_dir)
+  if (!folders.length) return
+  const ok = await shares.create(folders.map((f) => f.path))
+  if (ok && folders.length === 1) shareDlg.value = { open: true, name: shareName(folders[0].path) }
 }
 
 // 右键菜单动作分发
@@ -105,6 +122,7 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'paste-skip': ops.paste('skip'); break
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
+    case 'share': onShare(entry); break
   }
 }
 
@@ -353,12 +371,14 @@ onMounted(() => { uploads.initUploads() })
           v-if="files.selectedCount > 0"
           :count="files.selectedCount"
           :all-selected="files.allSelected"
+          :can-share="selectionHasFolder"
           @select-all="files.selectAll"
           @clear="files.clearSelection"
           @delete="onToolbarDelete"
           @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
           @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+          @share="onShare(null)"
         />
         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
@@ -388,6 +408,7 @@ onMounted(() => { uploads.initUploads() })
     </div>
     <NewItemDialog v-model:open="newDlg.open" :mode="newDlg.mode" @confirm="confirmNew" />
     <RenameDialog v-if="renameDlg.entry" v-model:open="renameDlg.open" :name="renameDlg.entry.name" @confirm="confirmRename" />
+    <ShareLinkDialog v-model:open="shareDlg.open" :name="shareDlg.name" />
     <AlertDialog
       v-model:open="deleteDlg.open"
       :title="t('filesCtxDelete')"

@@ -167,4 +167,29 @@ describe('FileContextMenu', () => {
     await w.find('.ctx-upload-folder').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['upload-folder', null])
   })
+
+  it('文件夹单选显示「共享到局域网」', () => {
+    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
+    const w = mountMenu({ entry, selectedCount: 1 })
+    expect(w.find('.ctx-share').exists()).toBe(true)
+  })
+
+  it('文件项不显示「共享到局域网」', () => {
+    const entry: FileEntry = { name: 'f.txt', path: '/DATA/f.txt', is_dir: false }
+    const w = mountMenu({ entry, selectedCount: 1 })
+    expect(w.find('.ctx-share').exists()).toBe(false)
+  })
+
+  it('文件夹多选不显示「共享到局域网」(共享入口仅单选)', () => {
+    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
+    const w = mountMenu({ entry, selectedCount: 3 })
+    expect(w.find('.ctx-share').exists()).toBe(false)
+  })
+
+  it('点共享项 emit action=share', async () => {
+    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
+    const w = mountMenu({ entry, selectedCount: 1 })
+    await w.find('.ctx-share').trigger('click')
+    expect(w.emitted('action')?.[0]).toEqual(['share', entry])
+  })
 })

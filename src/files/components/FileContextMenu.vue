@@ -22,9 +22,10 @@ const favorited = computed(() => (props.entry ? favorites.isFavorite(props.entry
 const showCopyPath = computed(() => single.value)
 const showRename = computed(() => single.value && operable.value)
 const showFavorite = computed(() => single.value && !!props.entry?.is_dir)
+const showShare = computed(() => single.value && !!props.entry?.is_dir)
 // 分割线只在"删除之上确实有其它项"时出现(否则只剩删除会出现悬空分割线)
 const showSeparator = computed(
-  () => operable.value && (showCopyPath.value || showRename.value || showFavorite.value),
+  () => operable.value && (showCopyPath.value || showRename.value || showFavorite.value || showShare.value),
 )
 
 function fire(action: string) { emit('action', action, props.entry) }
@@ -57,6 +58,7 @@ function fire(action: string) { emit('action', action, props.entry) }
         <ContextMenuItem v-if="showCopyPath" class="ui-ctx-item ctx-copy-path" @select="fire('copy-path')">{{ t('filesCtxCopyPath') }}</ContextMenuItem>
         <ContextMenuItem v-if="showRename" class="ui-ctx-item ctx-rename" @select="fire('rename')">{{ t('filesRename') }}</ContextMenuItem>
         <ContextMenuItem v-if="showFavorite" class="ui-ctx-item ctx-fav" @select="fire('toggle-favorite')">{{ favorited ? t('filesCtxRemoveFavorite') : t('filesCtxAddFavorite') }}</ContextMenuItem>
+        <ContextMenuItem v-if="showShare" class="ui-ctx-item ctx-share" @select="fire('share')">{{ t('filesShareToLan') }}</ContextMenuItem>
         <ContextMenuSeparator v-if="showSeparator" class="ui-ctx-sep" />
         <ContextMenuItem v-if="operable" class="ui-ctx-item danger ctx-delete" @select="fire('delete')">{{ t('filesCtxDelete') }}</ContextMenuItem>
       </template>

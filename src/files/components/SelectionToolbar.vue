@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-const props = defineProps<{ count: number; allSelected: boolean }>()
-const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void; (e: 'download'): void }>()
+const props = defineProps<{ count: number; allSelected: boolean; canShare: boolean }>()
+const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void; (e: 'download'): void; (e: 'share'): void }>()
 const { t } = useI18n()
 </script>
 
@@ -13,6 +13,7 @@ const { t } = useI18n()
     <button class="sel-btn sel-copy" @click="emit('copy')">{{ t('filesCtxCopy') }}</button>
     <button class="sel-btn sel-cut" @click="emit('cut')">{{ t('filesCtxCut') }}</button>
     <button class="sel-btn sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
+    <button v-if="props.canShare" class="sel-btn sel-share" @click="emit('share')">{{ t('filesShareToLan') }}</button>
     <span class="sel-spacer"></span>
     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
   </div>
