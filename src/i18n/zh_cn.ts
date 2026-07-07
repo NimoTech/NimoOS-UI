@@ -121,6 +121,7 @@ export const messages = {
     filesUploadClose: '关闭',
     filesMountEjectSuccess: '弹出成功',
     filesMountEjectFailed: '弹出失败',
+    filesMountAdd: '添加挂载',
     filesMountConnectNetwork: '连接网络存储',
     filesMountServerAddress: '服务器地址',
     filesMountAddressHint: '支持 Samba/NFS 地址,例:smb://192.168.1.1',
