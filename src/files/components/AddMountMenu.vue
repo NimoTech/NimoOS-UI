@@ -23,16 +23,18 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin) 
   <DropdownMenuRoot>
     <DropdownMenuTrigger class="add-mount-btn" :aria-label="t('filesMountAdd')">＋</DropdownMenuTrigger>
     <DropdownMenuPortal>
-      <DropdownMenuContent class="add-mount-menu" :side-offset="4" align="start">
-        <DropdownMenuItem class="add-mount-item" @select="emit('connect-network')">
+      <!-- 复用右键文件菜单的非 scoped 样式(ui/ContextMenu.vue):Portal 传送到 body 的内容
+           拿不到 scoped 属性,自定义 scoped 背景会失效显透明;非 scoped 的 ui-ctx-* 可靠生效。 -->
+      <DropdownMenuContent class="ui-ctx-content" :side-offset="4" align="start">
+        <DropdownMenuItem class="ui-ctx-item" @select="emit('connect-network')">
           {{ t('filesMountConnectNetwork') }}
         </DropdownMenuItem>
         <template v-if="drivers.length">
-          <DropdownMenuSeparator class="add-mount-sep" />
+          <DropdownMenuSeparator class="ui-ctx-sep" />
           <DropdownMenuItem
             v-for="d in drivers"
             :key="d.name"
-            class="add-mount-item add-mount-driver"
+            class="ui-ctx-item"
             @select="emit('connect-cloud', d)"
           >
             <img class="add-mount-driver-icon" :src="iconFor(d)" alt="" />
@@ -47,10 +49,9 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin) 
 <style scoped>
 .add-mount-btn { width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
 .add-mount-btn:hover { background: var(--chip-hover, rgba(255,255,255,0.12)); }
-.add-mount-menu { min-width: 180px; padding: 6px; border-radius: 12px; background: var(--popup-bg, rgba(20,23,35,0.95)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px); box-shadow: 0 16px 40px rgba(0,0,0,0.45); z-index: 1000; }
-.add-mount-item { padding: 8px 12px; border-radius: 8px; font-size: 13px; color: var(--fg); cursor: pointer; outline: none; }
-.add-mount-item[data-highlighted] { background: var(--chip-bg, rgba(255,255,255,0.08)); }
-.add-mount-sep { height: 1px; margin: 6px 4px; background: var(--card-border, rgba(255,255,255,0.12)); }
-.add-mount-driver { display: flex; align-items: center; gap: 8px; }
+</style>
+
+<style>
+/* 驱动图标在 Portal 传送的菜单内容里(同 ui-ctx-* 一样),用非 scoped 才可靠生效。 */
 .add-mount-driver-icon { width: 16px; height: 16px; object-fit: contain; }
 </style>
