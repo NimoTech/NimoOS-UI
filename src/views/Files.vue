@@ -23,6 +23,7 @@ import { useFavoritesStore } from '../files/stores/favorites'
 import { useFileOpsStore } from '../files/stores/fileOps'
 import { useClipboardStore } from '../files/stores/clipboard'
 import { useUploadsStore } from '../files/stores/uploads'
+import { useMountsStore } from '../files/stores/mounts'
 import { useToast } from '../stores/toast'
 import { installUnloadGuard } from '../files/upload/unloadGuard'
 import { readDroppedEntries } from '../files/upload/dropEntries'
@@ -42,6 +43,7 @@ const viewer = useViewer()
 const fileOps = useFileOpsStore()
 const clipboard = useClipboardStore()
 const uploads = useUploadsStore()
+const mounts = useMountsStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -283,6 +285,18 @@ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files]
 let offOperate: (() => void) | null = null
 onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
 onUnmounted(() => { offOperate?.() })
+
+let offDiskAdd: (() => void) | undefined
+let offDiskRemove: (() => void) | undefined
+let offStorage: (() => void) | undefined
+onMounted(() => { mounts.loadMounts() })
+onMounted(() => {
+  const refresh = () => { mounts.loadMounts(); files.loadRoots() }
+  offDiskAdd = bus.on('local-storage:disk:added', refresh)
+  offDiskRemove = bus.on('local-storage:disk:removed', refresh)
+  offStorage = bus.on('local-storage:storage_status', refresh)
+})
+onUnmounted(() => { offDiskAdd?.(); offDiskRemove?.(); offStorage?.() })
 
 let offUnloadGuard: (() => void) | null = null
 onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })

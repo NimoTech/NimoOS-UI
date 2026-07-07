@@ -3,12 +3,18 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
+import { useMountsStore } from '../stores/mounts'
+import { shouldNavigateHome } from '../util/mounts'
 import { iconUrl } from '../util/icons'
 import { toVirtualPath } from '../util/pathUtils'
+import AddMountMenu from './AddMountMenu.vue'
+import NetworkStorageDialog from './NetworkStorageDialog.vue'
 
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
 const files = useFilesStore()
 const favorites = useFavoritesStore()
+const mounts = useMountsStore()
+const dialogOpen = ref(false)
 const { t } = useI18n()
 
 function go(realPath: string) {
@@ -21,6 +27,20 @@ function diskIcon(usb: boolean): string {
   return iconUrl(usb ? 'folder-usb' : 'folder-hdd')
 }
 
+async function onEjectNetwork(entry: { id?: number; realPath: string }) {
+  const home = shouldNavigateHome(files.currentPath, entry.realPath)
+  const ok = entry.id != null && (await mounts.ejectNetwork(entry.id))
+  if (ok && home) emit('navigate', toVirtualPath('/DATA', files.displayNames))
+}
+async function onEjectUsb(entry: { realPath: string }) {
+  const home = shouldNavigateHome(files.currentPath, entry.realPath)
+  const ok = await mounts.ejectUsb(entry.realPath)
+  if (ok && home) emit('navigate', toVirtualPath('/DATA', files.displayNames))
+}
+function onConnected(mountPoint: string) {
+  emit('navigate', toVirtualPath(mountPoint, files.displayNames))
+}
+
 const dragIndex = ref<number | null>(null)
 function onDragStart(i: number) { dragIndex.value = i }
 function onDrop(i: number) {
@@ -31,6 +51,10 @@ function onDrop(i: number) {
 
 <template>
   <aside class="files-sidebar">
+    <div class="side-head">
+      <span class="side-head-title">{{ t('filesMountManage') }}</span>
+      <AddMountMenu @connect-network="dialogOpen = true" />
+    </div>
     <section class="side-section">
       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
       <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>
@@ -64,14 +88,34 @@ function onDrop(i: number) {
         >
           <img class="side-icon" :src="diskIcon(disk.usb)" alt="" />
           <span class="side-name">{{ disk.name }}</span>
+          <button v-if="disk.usb" class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectUsb({ realPath: disk.path })">⏏</button>
         </li>
       </ul>
     </section>
+    <section v-if="mounts.network.length" class="side-section">
+      <h4 class="side-title">{{ t('filesMountNetworkSection') }}</h4>
+      <ul class="side-list">
+        <li
+          v-for="m in mounts.network"
+          :key="m.realPath"
+          class="side-item"
+          :class="{ active: isActive(m.realPath) }"
+          @click="go(m.realPath)"
+        >
+          <img class="side-icon" :src="diskIcon(false)" alt="" />
+          <span class="side-name">{{ m.name }}</span>
+          <button class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectNetwork(m)">⏏</button>
+        </li>
+      </ul>
+    </section>
+    <NetworkStorageDialog v-model:open="dialogOpen" @connected="onConnected" />
   </aside>
 </template>
 
 <style scoped>
 .files-sidebar { flex: 0 0 220px; display: flex; flex-direction: column; gap: 18px; padding: 4px 12px 4px 0; overflow-y: auto; }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.side-head-title { font-size: 13px; font-weight: 600; color: var(--fg); }
 .side-section { min-width: 0; }
 .side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; }
 .side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }

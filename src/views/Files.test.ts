@@ -21,6 +21,8 @@ vi.mock('@nimotech/nimoos-service', () => ({
     },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
+    // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
+    samba: { listConnections: vi.fn().mockResolvedValue([]) },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
 }))
