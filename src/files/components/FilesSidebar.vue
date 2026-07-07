@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
@@ -7,6 +7,7 @@ import { useMountsStore } from '../stores/mounts'
 import { shouldNavigateHome } from '../util/mounts'
 import { iconUrl } from '../util/icons'
 import { toVirtualPath } from '../util/pathUtils'
+import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
 import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
 
@@ -47,6 +48,28 @@ function onDrop(i: number) {
   if (dragIndex.value !== null && dragIndex.value !== i) favorites.reorder(dragIndex.value, i)
   dragIndex.value = null
 }
+
+// localStorage 不是响应式:drop 后仅靠 files.disks 无法触发重算(读到的是缓存,拖拽项会弹回)。
+// orderVersion 作为显式响应式触发器,写入顺序后自增,强制 computed 重新读取最新 readOrder()。
+const orderVersion = ref(0)
+const orderedDisks = computed(() => {
+  orderVersion.value
+  return applyOrder(files.disks, readOrder())
+})
+const diskDragIndex = ref<number | null>(null)
+function onDiskDragStart(i: number) { diskDragIndex.value = i }
+function onDiskDrop(i: number) {
+  const from = diskDragIndex.value
+  diskDragIndex.value = null
+  if (from === null || from === i) return
+  const arr = [...orderedDisks.value]
+  const [moved] = arr.splice(from, 1)
+  arr.splice(i, 0, moved)
+  const order = arr.map((d) => d.path)
+  writeOrder(order)
+  writeDefault(order[0] || '')
+  orderVersion.value++
+}
 </script>
 
 <template>
@@ -80,11 +103,15 @@ function onDrop(i: number) {
       <h4 class="side-title">{{ t('filesDisks') }}</h4>
       <ul class="side-list">
         <li
-          v-for="disk in files.disks"
+          v-for="(disk, i) in orderedDisks"
           :key="disk.path"
           class="side-item"
           :class="{ active: isActive(disk.path) }"
+          draggable="true"
           @click="go(disk.path)"
+          @dragstart="onDiskDragStart(i)"
+          @dragover.prevent
+          @drop="onDiskDrop(i)"
         >
           <img class="side-icon" :src="diskIcon(disk.usb)" alt="" />
           <span class="side-name">{{ disk.name }}</span>

@@ -24,7 +24,7 @@ function seedFiles() {
 }
 
 describe('FilesSidebar', () => {
-  beforeEach(() => setActivePinia(createPinia()))
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
 
   it('renders disks and an empty-favorites hint', () => {
     seedFiles()
@@ -52,5 +52,32 @@ describe('FilesSidebar', () => {
     expect(w.emitted('navigate')!.some((e) => e[0] === '/NimoOS-HD/Documents')).toBe(true)
     await favItem.get('.side-remove').trigger('click')
     expect(fav.list.find((f) => f.path === '/DATA/Documents')).toBeUndefined()
+  })
+
+  it('dragging a disk reorders the rendered list in the same tick and persists order+default', async () => {
+    const files = useFilesStore()
+    files.disks = [
+      { name: 'DiskA', path: '/DATA', usb: false },
+      { name: 'DiskB', path: '/mnt/b', usb: false },
+    ] as any
+    files.displayNames = { '/DATA': 'DiskA', '/mnt/b': 'DiskB' }
+    files.currentPath = '/DATA'
+    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
+
+    const before = w.findAll('.side-item').map((li) => li.text())
+    expect(before).toEqual(['DiskA', 'DiskB'])
+
+    // drag DiskB (index 1) onto DiskA's slot (index 0)
+    const items = w.findAll('.side-item')
+    await items[1].trigger('dragstart')
+    await items[0].trigger('drop')
+
+    // rendered order updates immediately — no loadRoots / reload needed (regression: localStorage isn't reactive)
+    const after = w.findAll('.side-item').map((li) => li.text())
+    expect(after).toEqual(['DiskB', 'DiskA'])
+
+    // persisted order + default reflect the new arrangement
+    expect(JSON.parse(localStorage.getItem('nimoos:location-order')!)).toEqual(['/mnt/b', '/DATA'])
+    expect(localStorage.getItem('nimoos:location-default')).toBe('/mnt/b')
   })
 })

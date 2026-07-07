@@ -33,6 +33,7 @@ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marq
 import {
   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
 } from '../files/util/pathUtils'
+import { readDefault } from '../files/util/locationOrder'
 
 const route = useRoute()
 const router = useRouter()
@@ -183,7 +184,7 @@ function goVirtual(vp: string) {
 async function sync() {
   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
   if (vp === '/') {
-    const rootReal = files.defaultRootReal()
+    const rootReal = readDefault() || files.defaultRootReal()
     if (!rootReal) return
     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
     return
