@@ -1,5 +1,6 @@
 import { service } from '@nimotech/nimoos-service'
 import { useSessionStore } from '../stores/session'
+import { useLocaleStore } from '../stores/locale'
 
 export function useAuth() {
   const session = useSessionStore()
@@ -9,6 +10,7 @@ export function useAuth() {
     session.setTokens(token.access_token, token.refresh_token, token.expires_at)
     session.setUser(user)
     session.setVersion('local')
+    await useLocaleStore().loadFromServer()
   }
 
   async function registerAndLogin(username: string, password: string, key: string): Promise<void> {
