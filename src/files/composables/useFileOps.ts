@@ -10,6 +10,7 @@ import { useClipboardStore } from '../stores/clipboard'
 import { buildPastePayload } from '../util/fileOps'
 import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
 import { triggerIframeDownload } from '../util/iframeDownload'
+import { copyText } from '../util/clipboard'
 
 function errMsg(e: unknown, fallback: string): string {
   const m = (e as { message?: string } | undefined)?.message
@@ -56,7 +57,7 @@ export function useFileOps() {
 
   async function copyPath(entry: FileEntry) {
     const vp = toVirtualPath(entry.path, files.displayNames)
-    try { await navigator.clipboard.writeText(vp); toast.show(t('filesCopiedPath')) }
+    try { await copyText(vp); toast.show(t('filesCopiedPath')) }
     catch { toast.show(t('filesOpFailed')) }
   }
 

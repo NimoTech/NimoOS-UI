@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import Dialog from '../../components/ui/Dialog.vue'
 import { useToast } from '../../stores/toast'
 import { buildSmbPaths, getShareHost } from '../util/sambaPath'
+import { copyText } from '../util/clipboard'
 
 const props = defineProps<{ open: boolean; name: string }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
@@ -14,7 +15,7 @@ const paths = computed(() => buildSmbPaths(getShareHost(), props.name))
 
 async function copy(text: string) {
   try {
-    await navigator.clipboard.writeText(text)
+    await copyText(text)
     toast.show(t('filesShareCopied'))
   } catch { /* 剪贴板不可用时静默 */ }
 }
