@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import lottie from 'lottie-web'
 import { useAuth } from '../composables/useAuth'
 import { useValidation } from '../composables/useValidation'
-import { useLocaleStore, LOCALES, type Locale } from '../stores/locale'
+import { useLocaleStore, type Locale } from '../stores/locale'
 import doneData from '../assets/done.json'
 
 const { t } = useI18n()
