@@ -105,7 +105,12 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'new-folder': openNew('folder'); break
     case 'new-file': openNew('file'); break
     case 'refresh': ops.refresh(); break
-    case 'copy-path': if (entry) ops.copyPath(entry); break
+    case 'copy-path':
+      // reka-ui 菜单打开时会把菜单外的 DOM 置为 inert,copyPath 的 execCommand('copy')
+      // 兜底(非安全上下文下)此刻选区无效——会静默失败却仍返回 true。推迟到菜单关闭、
+      // inert 解除后再复制(execCommand 延迟执行仍有效,已实测)。
+      if (entry) { const e = entry; setTimeout(() => ops.copyPath(e), 0) }
+      break
     case 'rename': if (entry) renameDlg.value = { open: true, entry }; break
     case 'toggle-favorite':
       if (entry) {
