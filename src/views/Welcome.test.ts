@@ -1,23 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { messages } from '../i18n/zh_cn'
 
 vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
 const registerFn = vi.fn(async () => {})
 vi.mock('../composables/useAuth', () => ({ useAuth: () => ({ registerAndLogin: registerFn }) }))
+const setLocale = vi.fn()
+const persist = vi.fn(async () => {})
+vi.mock('../stores/locale', () => ({
+  LOCALES: ['zh_cn', 'en_us'],
+  useLocaleStore: () => ({ setLocale, persist }),
+}))
 
 import Welcome from './Welcome.vue'
 
 async function mountWelcome() {
   const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+  const pinia = createPinia()
   const router = createRouter({ history: createWebHashHistory('/app/'), routes: [
     { path: '/', component: { template: '<div/>' } },
     { path: '/welcome', component: Welcome },
   ] })
   router.push('/welcome'); await router.isReady()
-  return mount(Welcome, { global: { plugins: [i18n, router] } })
+  return mount(Welcome, { global: { plugins: [i18n, pinia, router] } })
 }
 
 describe('Welcome.vue', () => {
@@ -65,5 +73,23 @@ describe('Welcome.vue', () => {
     expect((confirm.element as HTMLInputElement).type).toBe('text')
     await reveals[0].trigger('click')
     expect((password.element as HTMLInputElement).type).toBe('password')
+  })
+
+  it('点击英文按钮即时切换语言', async () => {
+    const w = await mountWelcome()
+    await w.find('.welcome-go').trigger('click')
+    await w.find('.welcome-lang-en').trigger('click')
+    expect(setLocale).toHaveBeenCalledWith('en_us')
+  })
+
+  it('创建成功后以选中语言持久化', async () => {
+    const w = await mountWelcome()
+    await w.find('.welcome-go').trigger('click')
+    await w.find('.welcome-lang-en').trigger('click')
+    await w.find('.welcome-username').setValue('nimo')
+    await w.find('.welcome-password').setValue('secret1')
+    await w.find('.welcome-confirm').setValue('secret1')
+    await w.find('.welcome-create').trigger('click')
+    expect(persist).toHaveBeenCalledWith('en_us')
   })
 })

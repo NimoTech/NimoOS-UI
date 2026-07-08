@@ -5,12 +5,19 @@ import { useRouter } from 'vue-router'
 import lottie from 'lottie-web'
 import { useAuth } from '../composables/useAuth'
 import { useValidation } from '../composables/useValidation'
+import { useLocaleStore, LOCALES, type Locale } from '../stores/locale'
 import doneData from '../assets/done.json'
 
 const { t } = useI18n()
 const router = useRouter()
 const { registerAndLogin } = useAuth()
 const { required, minLen, sameAs } = useValidation()
+const localeStore = useLocaleStore()
+const chosenLang = ref<Locale>(((localStorage.getItem('lang') as Locale) ?? 'zh_cn'))
+function pickLang(l: Locale) {
+  chosenLang.value = l
+  localeStore.setLocale(l)
+}
 
 const step = ref(1)
 const username = ref('')
@@ -38,6 +45,7 @@ async function create() {
   try {
     const key = sessionStorage.getItem('init_key') || ''
     await registerAndLogin(username.value, password.value, key)
+    await localeStore.persist(chosenLang.value)
     step.value = 3
   } catch (e) {
     error.value = (e as Error)?.message || t('welcomeRegisterFailed')
@@ -72,6 +80,15 @@ onUnmounted(() => {
 
       <div v-else-if="step === 2" class="welcome-step2">
         <h2 class="welcome-title">{{ t('welcomeCreateAccount') }}</h2>
+        <div class="welcome-lang">
+          <span class="auth-label">{{ t('welcomeLanguage') }}</span>
+          <div class="welcome-lang-btns">
+            <button type="button" class="welcome-lang-zh"
+                    :class="{ active: chosenLang === 'zh_cn' }" @click="pickLang('zh_cn')">简体中文</button>
+            <button type="button" class="welcome-lang-en"
+                    :class="{ active: chosenLang === 'en_us' }" @click="pickLang('en_us')">English</button>
+          </div>
+        </div>
         <p v-if="error" class="login-error">{{ error }}</p>
         <label class="auth-label" for="welcome-username">{{ t('authUsername') }}</label>
         <input id="welcome-username" class="auth-input welcome-username" v-model="username" type="text"
@@ -139,4 +156,12 @@ onUnmounted(() => {
   color: #fecaca; padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 0.85rem;
 }
 .welcome-done-anim { width: 120px; height: 120px; margin: 1rem auto 0; }
+.welcome-lang { margin: 0.25rem 0 0.5rem; }
+.welcome-lang-btns { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
+.welcome-lang-btns button {
+  flex: 1; padding: 0.45rem 0.5rem; border-radius: 10px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.12); color: var(--fg);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.welcome-lang-btns button.active { border-color: var(--accent, #3b82f6); background: rgba(59, 130, 246, 0.25); }
 </style>

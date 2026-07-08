@@ -177,5 +177,6 @@ export const messages = {
     welcomeCreate: 'Create',
     welcomeDone: 'All done!',
     welcomeRegisterFailed: 'Registration failed',
+    welcomeLanguage: 'Language',
   },
 }

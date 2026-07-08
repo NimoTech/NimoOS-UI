@@ -176,5 +176,6 @@ export const messages = {
     welcomeCreate: '创建',
     welcomeDone: '全部完成！',
     welcomeRegisterFailed: '注册失败',
+    welcomeLanguage: '语言',
   },
 }
