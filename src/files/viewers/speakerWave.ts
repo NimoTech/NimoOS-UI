@@ -18,7 +18,7 @@ export function barSpeakers(
   duration: number,
   n: number,
 ): (string | null)[] {
-  const out = new Array<string | null>(n).fill(null)
+  const out = new Array<string | null>(Math.max(0, n)).fill(null)
   if (!(duration > 0) || n <= 0) return out
   // 段区间 [start,end):end = 下一段起始,最后一段到 duration。无 speaker 的段不参与归属。
   const spans: { start: number; end: number; speaker: string }[] = []

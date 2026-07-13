@@ -31,6 +31,10 @@ describe('barSpeakers(竖条→说话人归属,少数说话人优先)', () => {
   it('单说话人全程 → 全该人', () => {
     expect(barSpeakers([{ t: '0:00', speaker: 's1' }], 100, 4)).toEqual(['s1', 's1', 's1', 's1'])
   })
+  it('n<=0 → 空数组(不抛 RangeError)', () => {
+    expect(barSpeakers(SEGS, 100, 0)).toEqual([])
+    expect(barSpeakers(SEGS, 100, -1)).toEqual([])
+  })
 })
 
 describe('speakerToken(序号→CSS token,5 色循环)', () => {
