@@ -1,2 +1,5 @@
 node_modules
 dist
+
+# Claude Code 本地状态(隔离 worktree、会话配置),不入库
+.claude/
