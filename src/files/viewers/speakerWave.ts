@@ -60,3 +60,40 @@ export function segMatches(
   if (picked && (!seg.speaker || !picked.has(seg.speaker))) return false
   return true
 }
+
+/**
+ * 每个段落(按原始索引) → 所属章节序号。段落起始时间落在 [章节k.t, 章节k+1.t) 即属 k;
+ * 早于第一章 → -1;chapters 空 → 全 -1。chapters/segments 均要求按时间升序(既有前提)。
+ */
+export function segChapterIndex(segments: { t: string }[], chapters: { t: string }[]): number[] {
+  const starts = chapters.map((c) => parseTimestamp(c.t))
+  return segments.map((s) => {
+    const ts = parseTimestamp(s.t)
+    let idx = -1
+    for (let k = 0; k < starts.length; k++) {
+      if (starts[k] <= ts) idx = k
+      else break
+    }
+    return idx
+  })
+}
+
+/**
+ * 每根竖条(按中点时间) → 所属章节序号;duration<=0 / chapters 空 → 全 -1(长度 max(0,n))。
+ * 章节区间远长于竖条(~25s/根),中点采样即可,不需要说话人那套少数优先逻辑。
+ */
+export function barChapterIndex(chapters: { t: string }[], duration: number, n: number): number[] {
+  const out = new Array<number>(Math.max(0, n)).fill(-1)
+  if (!(duration > 0) || n <= 0 || !chapters.length) return out
+  const starts = chapters.map((c) => parseTimestamp(c.t))
+  for (let i = 0; i < n; i++) {
+    const mid = ((i + 0.5) / n) * duration
+    let idx = -1
+    for (let k = 0; k < starts.length; k++) {
+      if (starts[k] <= mid) idx = k
+      else break
+    }
+    out[i] = idx
+  }
+  return out
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { barSpeakers, speakerToken, segMatches } from './speakerWave'
+import { barSpeakers, speakerToken, segMatches, segChapterIndex, barChapterIndex } from './speakerWave'
 
 // 双说话人构造数据:s1 主导,s2 只在 0:30–0:33 有 3 秒插话。
 // duration=100s、n=4 → 每根竖条覆盖 25s。
@@ -74,5 +74,41 @@ describe('segMatches(过滤谓词:master-checkbox 语义,与 highlightsOnly AND 
   it('无 speaker 字段的段:说话人过滤启用时被过滤,null 时放行', () => {
     expect(segMatches({ t: '0:00' } as { speaker?: string }, new Set(['s1']), false)).toBe(false)
     expect(segMatches({ t: '0:00' } as { speaker?: string }, null, false)).toBe(true)
+  })
+})
+
+describe('segChapterIndex(段落→章节归属)', () => {
+  const chapters = [{ t: '0:10' }, { t: '1:00' }]
+  it('按段落起始时间归章;跨章边界正确', () => {
+    expect(
+      segChapterIndex(
+        [{ t: '0:00' }, { t: '0:10' }, { t: '0:59' }, { t: '1:00' }, { t: '2:00' }],
+        chapters,
+      ),
+    ).toEqual([-1, 0, 0, 1, 1])
+  })
+  it('chapters 空 → 全 -1', () => {
+    expect(segChapterIndex([{ t: '0:00' }, { t: '0:30' }], [])).toEqual([-1, -1])
+  })
+  it('segments 空 → 空数组', () => {
+    expect(segChapterIndex([], chapters)).toEqual([])
+  })
+})
+
+describe('barChapterIndex(竖条中点→章节归属)', () => {
+  it('按竖条中点时间归章', () => {
+    // duration=100、n=4 → 中点 12.5 / 37.5 / 62.5 / 87.5;章节起点 0 与 50
+    expect(barChapterIndex([{ t: '0:00' }, { t: '0:50' }], 100, 4)).toEqual([0, 0, 1, 1])
+  })
+  it('第一章之前的竖条 → -1', () => {
+    expect(barChapterIndex([{ t: '0:50' }], 100, 4)).toEqual([-1, -1, 0, 0])
+  })
+  it('duration=0(元数据未就绪)→ 全 -1', () => {
+    expect(barChapterIndex([{ t: '0:00' }], 0, 4)).toEqual([-1, -1, -1, -1])
+  })
+  it('chapters 空 → 全 -1;n<=0 → 空数组', () => {
+    expect(barChapterIndex([], 100, 2)).toEqual([-1, -1])
+    expect(barChapterIndex([{ t: '0:00' }], 100, 0)).toEqual([])
+    expect(barChapterIndex([{ t: '0:00' }], 100, -1)).toEqual([])
   })
 })
