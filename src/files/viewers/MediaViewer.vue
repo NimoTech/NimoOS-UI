@@ -81,7 +81,9 @@ const barSpk = computed<(string | null)[]>(() => {
   return barSpeakers(tr.segments, durTime.value, WAVE_N)
 })
 const waveSpeakerMode = computed(() => barSpk.value.length > 0)
+// 竖条内联色:dim 时直接给 var(--wave-dim)(内联样式优先级高于样式表,.dim 的 CSS 覆盖到不了内联值)。
 function barColor(i: number): string {
+  if (barDim(i)) return 'var(--wave-dim)'
   const id = barSpk.value[i]
   return id ? speakerColor(id) : 'var(--wave-none)'
 }
@@ -650,8 +652,8 @@ onBeforeUnmount(() => {
 }
 .np-wave.spk .np-wave-bar.played { background: var(--bar-c, var(--wave-none)); opacity: 1; }
 .np-wave.spk:hover .np-wave-bar.played { background: var(--bar-c, var(--wave-none)); }
-/* 过滤:未选中说话人的竖条去色转灰并进一步压暗,只留选中者的颜色跳出来 */
-.np-wave.spk .np-wave-bar.dim { --bar-c: var(--wave-dim); opacity: 0.12; }
+/* 过滤:未选中说话人的竖条去色转灰(转灰由内联 --bar-c 给 var(--wave-dim) 实现)并进一步压暗 */
+.np-wave.spk .np-wave-bar.dim { opacity: 0.12; }
 .np-wave.spk .np-wave-bar.dim.played { opacity: 0.30; }
 .np-wave.spk:hover .np-wave-bar.played:not(.dim) { filter: brightness(1.12); }
 
