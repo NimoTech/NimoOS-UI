@@ -219,13 +219,19 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--hit-bg` | 点击/高亮 背 | `rgba(255,224,138,0.3)` | `#fce8a6` |
 | `--hit-fg` | 点击/高亮 文 | `#ffe08a` | `#5a4a12` |
 | `--success` | 成功指示色 | `#5fe3b0` | `#15754c` |
-| `--hl-bg` | 高光背 | `rgba(232,192,106,0.16)` | `#fdf4d9` |
-| `--hl-bd` | 高光描边 | `rgba(232,192,106,0.4)` | `#f0d9a8` |
-| `--hl-fg` | 高光文 | `#e8c06a` | `#92600c` |
 | `--hl-star` | 高光星标（特殊标记） | `#e8c06a` | `#c9992f` |
 | `--remove-fg` | 危险/删除态文字（区别于 `--remove-bg`） | `#ff8a8a` | `#c0392b` |
 | `--drop-bad` | 非法拖放落点提示底 | `rgba(255, 80, 100, 0.12)` | `rgba(224, 70, 106, 0.12)` |
 | `--skeleton-bg` | 骨架屏/加载占位底 | `rgba(255, 255, 255, 0.06)` | `rgba(28, 27, 25, 0.05)` |
+| `--spk-1` | 说话人配色 1（蓝）；音频转录/波形，最多 5 色循环 | `oklch(0.74 0.13 250)` | `oklch(0.52 0.15 255)` |
+| `--spk-2` | 说话人配色 2（紫） | `oklch(0.72 0.13 305)` | `oklch(0.50 0.16 305)` |
+| `--spk-3` | 说话人配色 3（青） | `oklch(0.77 0.12 190)` | `oklch(0.53 0.12 200)` |
+| `--spk-4` | 说话人配色 4（珊瑚） | `oklch(0.73 0.15 18)` | `oklch(0.55 0.18 22)` |
+| `--spk-5` | 说话人配色 5（绿） | `oklch(0.79 0.14 150)` | `oklch(0.52 0.15 150)` |
+| `--wave-none` | 波形：静场/无人声竖条 | `var(--fg-subtle)` | `var(--fg-subtle)` |
+| `--wave-dim` | 波形：过滤时被弱化的竖条 | `var(--fg-faint)` | `var(--fg-faint)` |
+
+> `--hl-bg`/`--hl-bd`/`--hl-fg`（原高光背/描边/文字）已随 `feat/audio-speaker-waveform` 分支的金色高光背景退役并从 `theme.css` 移除，仅 `--hl-star` 仍有消费者，保留。
 
 > 补充：`ClockWidget` 表盘面/刻度改用 `--spark-grid`/`--fg-faint`/`--fg-muted`;`ImageViewer` 悬浮工具条用 `--popup-bg`(蓝=深玻璃、白=白卡),避免单主题下失联。散落硬编码色收编时，`var(--token, <fallback>)` 形式视为合规(token 驱动主题);裸字面量须走 token 或加 `/* theme-exception */`,由 `src/styles/color-guard.test.ts` 守卫。
 

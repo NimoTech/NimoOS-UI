@@ -63,7 +63,7 @@
   --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
   --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;
   --success: #5fe3b0;
-  --hl-bg: rgba(232, 192, 106, 0.16); --hl-bd: rgba(232, 192, 106, 0.4); --hl-fg: #e8c06a; --hl-star: #e8c06a;
+  --hl-star: #e8c06a;
   /* 说话人配色(音频转录/波形,最多 5 色循环;dark 用亮版;避开金色以免与星标混淆) */
   --spk-1: oklch(0.74 0.13 250);   /* 蓝 */
   --spk-2: oklch(0.72 0.13 305);   /* 紫 */
@@ -242,7 +242,7 @@
   --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
   --hit-bg: #fce8a6; --hit-fg: #5a4a12;
   --success: #15754c;
-  --hl-bg: #fdf4d9; --hl-bd: #f0d9a8; --hl-fg: #92600c; --hl-star: #c9992f;
+  --hl-star: #c9992f;
   /* 说话人配色(白色纸感用暗版,同 hue 系) */
   --spk-1: oklch(0.52 0.15 255);
   --spk-2: oklch(0.50 0.16 305);
