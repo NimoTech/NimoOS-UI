@@ -6,6 +6,7 @@ import ViewerShell from './ViewerShell.vue'
 import { mediaKind } from './mediaKind'
 import { lookupTranscript, parseTimestamp } from './audioTranscripts'
 import type { TranscriptSegment } from './audioTranscripts'
+import { speakerToken } from './speakerWave'
 import { WAVE_N, synthWaveform, decodeWaveform, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
 import type { FileEntry } from '../stores/files'
 
@@ -201,9 +202,7 @@ const transcriptRows = computed<TransRow[]>(() => {
 const hasChapters = computed(() => (transcript.value?.chapters?.length ?? 0) > 0)
 const hasHighlights = computed(() => !!transcript.value?.segments.some((s) => s.highlight))
 
-// 说话人分离：id → 显示名 / 固定配色（沿用主页蓝紫，多说话人各给一色）。
-// 说话人配色：适配浅色底的深色版（Azure 蓝 / 紫 / 绿 / 琥珀 / 玫红）
-const SPEAKER_COLORS = ['#3550c4', '#6e5ae0', '#15754c', '#b5730a', '#c0416a']
+// 说话人分离：id → 显示名 / 颜色 token(--spk-N,5 色循环;波形与转录共用同一映射)。
 function speakerName(id?: string): string {
   if (!id) return ''
   const found = transcript.value?.speakers?.find((s) => s.id === id)
@@ -212,7 +211,7 @@ function speakerName(id?: string): string {
 function speakerColor(id?: string): string {
   const list = transcript.value?.speakers ?? []
   const idx = Math.max(0, list.findIndex((s) => s.id === id))
-  return SPEAKER_COLORS[idx % SPEAKER_COLORS.length]
+  return speakerToken(idx)
 }
 
 // Ask Nimo AI：转录已向量化，可对本段音频提问。
@@ -466,8 +465,8 @@ onBeforeUnmount(() => {
                 <li v-else class="ap-seg" :class="{ active: row.i === activeSeg, hl: row.seg.highlight }" :data-seg="row.i" @click="seekTo(row.seg.t)">
                   <span class="ap-time">{{ row.seg.t }}</span>
                   <span class="ap-seg-body">
-                    <span v-if="row.seg.speaker" class="ap-speaker" :style="{ color: speakerColor(row.seg.speaker) }">
-                      <span class="ap-speaker-dot" :style="{ background: speakerColor(row.seg.speaker) }"></span>{{ speakerName(row.seg.speaker) }}
+                    <span v-if="row.seg.speaker" class="ap-speaker" :style="{ '--c': speakerColor(row.seg.speaker) }">
+                      <span class="ap-speaker-dot"></span>{{ speakerName(row.seg.speaker) }}
                     </span>
                     <span class="ap-seg-text">
                       <svg v-if="row.seg.highlight" class="ap-hl-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.7 6.2.6-4.7 4.1 1.4 6.1L12 16.9 6.5 20.1l1.4-6.1L3.2 9.8l6.2-.6z" /></svg>{{ row.seg.text }}
@@ -622,16 +621,13 @@ onBeforeUnmount(() => {
 .ap-seg:hover .ap-time { color: var(--accent); }
 .ap-seg-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ap-seg-text { font-size: 15px; line-height: 1.6; color: var(--fg); }
-/* 说话人分离：小圆点 + 名字（颜色由 speakerColor 内联注入） */
-.ap-speaker { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
-.ap-speaker-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+/* 说话人分离：小圆点 + 名字（颜色由 --c 注入,值为 var(--spk-N) token） */
+.ap-speaker { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; color: var(--c); }
+.ap-speaker-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--c); }
 /* 正在播放的分段高亮（Azure 蓝，沿用搜索框强调色）——左侧强调条 + 加深文字 */
 .ap-seg.active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
 .ap-seg.active .ap-time { color: var(--accent-text); }
 .ap-seg.active .ap-seg-text { color: var(--fg); font-weight: 500; }
-/* 重点句高光（金句）——柔和琥珀底 + 金色星标 */
-.ap-seg.hl { background: var(--hl-bg); }
-.ap-seg.hl:hover { background: var(--hl-bd); }
 .ap-hl-star { width: 13px; height: 13px; fill: var(--hl-star); vertical-align: -2px; margin-right: 5px; }
 
 /* 智能章节标题（点击跳转） */
@@ -651,7 +647,7 @@ onBeforeUnmount(() => {
 }
 .ap-tool svg { width: 13px; height: 13px; fill: currentColor; }
 .ap-tool:hover { background: var(--hover); color: var(--fg); }
-.ap-tool.on { background: var(--hl-bg); border-color: var(--hl-bd); color: var(--hl-fg); }
+.ap-tool.on { background: var(--accent-soft); border-color: var(--accent-soft-bd); color: var(--accent-text); }
 
 /* ── Ask Nimo（架子占位）───────────────────────────────────────── */
 .ap-ask-scroll { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 10px 20px; display: flex; flex-direction: column; }
