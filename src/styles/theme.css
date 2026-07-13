@@ -64,6 +64,14 @@
   --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;
   --success: #5fe3b0;
   --hl-bg: rgba(232, 192, 106, 0.16); --hl-bd: rgba(232, 192, 106, 0.4); --hl-fg: #e8c06a; --hl-star: #e8c06a;
+  /* 说话人配色(音频转录/波形,最多 5 色循环;dark 用亮版;避开金色以免与星标混淆) */
+  --spk-1: oklch(0.74 0.13 250);   /* 蓝 */
+  --spk-2: oklch(0.72 0.13 305);   /* 紫 */
+  --spk-3: oklch(0.77 0.12 190);   /* 青 */
+  --spk-4: oklch(0.73 0.15 18);    /* 珊瑚 */
+  --spk-5: oklch(0.79 0.14 150);   /* 绿 */
+  --wave-none: var(--fg-subtle);   /* 波形:静场/无人声竖条 */
+  --wave-dim: var(--fg-faint);     /* 波形:过滤时被弱化的竖条 */
   --remove-fg: #ff8a8a; --drop-bad: rgba(255, 80, 100, 0.12); --skeleton-bg: rgba(255, 255, 255, 0.06);
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
@@ -235,6 +243,14 @@
   --hit-bg: #fce8a6; --hit-fg: #5a4a12;
   --success: #15754c;
   --hl-bg: #fdf4d9; --hl-bd: #f0d9a8; --hl-fg: #92600c; --hl-star: #c9992f;
+  /* 说话人配色(白色纸感用暗版,同 hue 系) */
+  --spk-1: oklch(0.52 0.15 255);
+  --spk-2: oklch(0.50 0.16 305);
+  --spk-3: oklch(0.53 0.12 200);
+  --spk-4: oklch(0.55 0.18 22);
+  --spk-5: oklch(0.52 0.15 150);
+  --wave-none: var(--fg-subtle);
+  --wave-dim: var(--fg-faint);
   --remove-fg: #c0392b; --drop-bad: rgba(224, 70, 106, 0.12); --skeleton-bg: rgba(28, 27, 25, 0.05);
 }
 
