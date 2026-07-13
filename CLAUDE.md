@@ -23,6 +23,8 @@ pnpm exec vue-tsc --noEmit  # 只做类型检查
 `vite.config.ts`:`base: '/app/'`,dev 端口 5273;构建后自动把 pdfjs 的 `cmaps`/`standard_fonts` 拷进 `dist/`(PdfViewer 需要)。`tsconfig.json`:`strict: true`,`moduleResolution: Bundler`。
 部署首次需:`sudo mkdir -p /var/lib/nimoos/www/app && sudo chown nimo:nimo /var/lib/nimoos/www/app`。
 
+**实机部署约定(用户指定,长期有效)**:部署到设备一律执行 `./scripts/deploy.sh`(它做 pnpm build + rsync --delete dist/ → `/var/lib/nimoos/www/app/`)——**不要**绕过脚本手写 rsync/cp 到 `/var/lib`。脚本是部署的唯一入口;部署完成后在浏览器 `/app/` 验证。
+
 ## 共享 service 包(已知漂移坑)
 
 HTTP/认证内核来自 **`@nimotech/nimoos-service`**,通过 `file:../NimoOS-Service` 链接(见 `package.json`)。`main.ts` 用 `initService({...})` 注入 token 取存、`onAuthFail`、语言等回调。
