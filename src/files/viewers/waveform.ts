@@ -85,3 +85,54 @@ export function getCachedWave(key: string): number[] | undefined {
 export function setCachedWave(key: string, bars: number[]): void {
   cache.set(key, bars)
 }
+
+/**
+ * 解码真实波形:fetch 整个文件 → AudioContext.decodeAudioData → 取第 1 声道 → bucketPeaks。
+ * 大小闸:Content-Length > maxBytes 直接放弃;无该头则边读边计字节,超限即中止——
+ * 避免无头大文件读爆内存。任一异常(含 AbortError)→ null,调用方静默保持合成波形。
+ */
+export async function decodeWaveform(
+  url: string,
+  n: number,
+  opts: { maxBytes: number; signal: AbortSignal },
+): Promise<number[] | null> {
+  try {
+    const res = await fetch(url, { signal: opts.signal })
+    if (!res.ok || !res.body) return null
+    const lenHeader = res.headers.get('content-length')
+    if (lenHeader && Number(lenHeader) > opts.maxBytes) return null
+
+    const reader = res.body.getReader()
+    const chunks: Uint8Array[] = []
+    let total = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > opts.maxBytes) {
+        void reader.cancel()
+        return null
+      }
+      chunks.push(value)
+    }
+    // 用显式 ArrayBuffer 承接,避免 Uint8Array#buffer 的 ArrayBufferLike 类型歧义。
+    const ab = new ArrayBuffer(total)
+    const buf = new Uint8Array(ab)
+    let off = 0
+    for (const c of chunks) {
+      buf.set(c, off)
+      off += c.byteLength
+    }
+
+    const ctx = new AudioContext()
+    try {
+      const audio = await ctx.decodeAudioData(ab)
+      // 只取第 1 声道(省内存);bucketPeaks 返回后不再持有 AudioBuffer,任其回收。
+      return bucketPeaks(audio.getChannelData(0), n)
+    } finally {
+      void ctx.close()
+    }
+  } catch {
+    return null
+  }
+}
