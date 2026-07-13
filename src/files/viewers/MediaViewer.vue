@@ -843,7 +843,9 @@ onBeforeUnmount(() => {
 <style>
 /* 章节下拉菜单:Portal 传送到 body,拿不到 scoped 属性,须非 scoped(先例 AddMountMenu.vue)。
    z-index 240 盖过预览浮层(ViewerShell z-index:200;共享 ui-ctx-content 默认 120)。 */
-.ap-ch-menu { z-index: 240; max-height: 320px; overflow-y: auto; }
+/* 复合选择器(0,2,0)确定性压过 .ui-ctx-content 的 z-index:120(0,1,0)——同特异性时打包顺序说了算,不可依赖 */
+.ap-ch-menu.ui-ctx-content { z-index: 240; }
+.ap-ch-menu { max-height: 320px; overflow-y: auto; }
 .ap-ch-item { display: flex; align-items: center; gap: 8px; max-width: 22rem; }
 .ap-ch-check { flex: 0 0 auto; width: 14px; font-size: 12px; font-weight: 700; color: var(--accent-text); }
 .ap-ch-t { flex: 0 0 auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
