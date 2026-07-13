@@ -846,7 +846,9 @@ onBeforeUnmount(() => {
 /* 复合选择器(0,2,0)确定性压过 .ui-ctx-content 的 z-index:120(0,1,0)——同特异性时打包顺序说了算,不可依赖 */
 .ap-ch-menu.ui-ctx-content { z-index: 240; }
 .ap-ch-menu { max-height: 320px; overflow-y: auto; }
-.ap-ch-item { display: flex; align-items: center; gap: 8px; max-width: 22rem; }
+/* gap 与 .ui-ctx-item(gap:10px)同特异性会撞——同上,复合选择器确定性取胜 */
+.ap-ch-item.ui-ctx-item { gap: 8px; }
+.ap-ch-item { display: flex; align-items: center; max-width: 22rem; }
 .ap-ch-check { flex: 0 0 auto; width: 14px; font-size: 12px; font-weight: 700; color: var(--accent-text); }
 .ap-ch-t { flex: 0 0 auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
 .ap-ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
