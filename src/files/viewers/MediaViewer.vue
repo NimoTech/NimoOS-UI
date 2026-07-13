@@ -6,7 +6,7 @@ import ViewerShell from './ViewerShell.vue'
 import { mediaKind } from './mediaKind'
 import { lookupTranscript, parseTimestamp } from './audioTranscripts'
 import type { TranscriptSegment } from './audioTranscripts'
-import { speakerToken, segMatches } from './speakerWave'
+import { speakerToken, segMatches, barSpeakers } from './speakerWave'
 import { WAVE_N, synthWaveform, decodeWaveform, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
 import type { FileEntry } from '../stores/files'
 
@@ -72,6 +72,25 @@ function startWaveDecode(): void {
 }
 // 已播竖条数量 = 进度占比 × 总条数（决定每条染色/留白）。
 const playedBars = computed(() => Math.round((progressPct.value / 100) * WAVE_N))
+
+// 波形×说话人:仅当转录带说话人数据时启用(spec §3;无说话人音频保持旧渲染分支零变化)。
+// durTime 为 0(loadedmetadata 前)时 barSpeakers 返回全 null → 全部竖条先走 --wave-none,就绪后响应式重算。
+const barSpk = computed<(string | null)[]>(() => {
+  const tr = transcript.value
+  if (!tr?.speakers?.length) return []
+  return barSpeakers(tr.segments, durTime.value, WAVE_N)
+})
+const waveSpeakerMode = computed(() => barSpk.value.length > 0)
+function barColor(i: number): string {
+  const id = barSpk.value[i]
+  return id ? speakerColor(id) : 'var(--wave-none)'
+}
+// 过滤压暗:过滤集非空且该条说话人不在选中集(静场条也压暗,与转录列表口径一致)。
+function barDim(i: number): boolean {
+  if (!waveSpeakerMode.value || pickedSpeakers.value.size === 0) return false
+  const id = barSpk.value[i]
+  return !id || !pickedSpeakers.value.has(id)
+}
 
 function fmtTime(sec: number): string {
   if (!isFinite(sec) || sec < 0) sec = 0
@@ -417,6 +436,7 @@ onBeforeUnmount(() => {
               <div
                 ref="track"
                 class="np-wave"
+                :class="{ spk: waveSpeakerMode }"
                 @pointerdown="onBarDown"
                 @pointermove="onBarMove"
                 @pointerup="onBarUp"
@@ -427,8 +447,8 @@ onBeforeUnmount(() => {
                   v-for="(a, i) in waveBars"
                   :key="i"
                   class="np-wave-bar"
-                  :class="{ played: i < playedBars }"
-                  :style="{ height: a * 100 + '%' }"
+                  :class="{ played: i < playedBars, dim: barDim(i) }"
+                  :style="waveSpeakerMode ? { height: a * 100 + '%', '--bar-c': barColor(i) } : { height: a * 100 + '%' }"
                 ></i>
               </div>
               <span class="np-time np-time-end">{{ fmtTime(durTime) }}</span>
@@ -621,6 +641,19 @@ onBeforeUnmount(() => {
 .np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--fg-subtle); transition: background 0.12s, height 0.3s var(--ease); }
 .np-wave-bar.played { background: var(--accent); }
 .np-wave:hover .np-wave-bar.played { background: var(--accent2); }
+
+/* ── 说话人模式(.np-wave.spk,仅转录带说话人数据时):每根竖条按该时段说话人取色,
+   进度 = 不透明度(已播满色/未播同色淡出),说话人配色与播放进度同时可读。 ── */
+.np-wave.spk .np-wave-bar {
+  background: var(--bar-c, var(--wave-none)); opacity: 0.30;
+  transition: background 0.14s, opacity 0.14s, filter 0.14s, height 0.3s var(--ease);
+}
+.np-wave.spk .np-wave-bar.played { background: var(--bar-c, var(--wave-none)); opacity: 1; }
+.np-wave.spk:hover .np-wave-bar.played { background: var(--bar-c, var(--wave-none)); }
+/* 过滤:未选中说话人的竖条去色转灰并进一步压暗,只留选中者的颜色跳出来 */
+.np-wave.spk .np-wave-bar.dim { --bar-c: var(--wave-dim); opacity: 0.12; }
+.np-wave.spk .np-wave-bar.dim.played { opacity: 0.30; }
+.np-wave.spk:hover .np-wave-bar.played:not(.dim) { filter: brightness(1.12); }
 
 /* 转录/摘要面板 —— 消费全局 theme token（见 src/styles/theme.css）：
    白色模式=米白底 + 白卡 + Azure 蓝强调；蓝色模式=深色玻璃。 */
