@@ -40,6 +40,7 @@ export const messages = {
     audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',
     audioHighlightsOnly: '只看重点',
     audioShowAll: '显示全部',
+    audioSpeakerAll: '全部',
     audioSkipBack: '快退 {s} 秒',
     audioSkipForward: '快进 {s} 秒',
     audioSpeed: '播放速度',

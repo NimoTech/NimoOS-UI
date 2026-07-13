@@ -6,7 +6,7 @@ import ViewerShell from './ViewerShell.vue'
 import { mediaKind } from './mediaKind'
 import { lookupTranscript, parseTimestamp } from './audioTranscripts'
 import type { TranscriptSegment } from './audioTranscripts'
-import { speakerToken } from './speakerWave'
+import { speakerToken, segMatches } from './speakerWave'
 import { WAVE_N, synthWaveform, decodeWaveform, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
 import type { FileEntry } from '../stores/files'
 
@@ -179,10 +179,27 @@ watch(tab, (v) => { if (v === 'transcript') void nextTick(scrollActiveIntoView) 
 // 「只看重点」筛选（重点高光）。
 const highlightsOnly = ref(false)
 
+// 说话人过滤:多选集合,空集=「全部」。整体替换 Set 实例保证 watch 可靠触发。
+const pickedSpeakers = ref<Set<string>>(new Set())
+const speakers = computed(() => transcript.value?.speakers ?? [])
+const hasSpeakers = computed(() => speakers.value.length > 0)
+function toggleSpeaker(id: string): void {
+  const next = new Set(pickedSpeakers.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  pickedSpeakers.value = next
+}
+function clearSpeakerFilter(): void {
+  if (pickedSpeakers.value.size) pickedSpeakers.value = new Set()
+}
+// 过滤变化后若当前段仍在列表,平滑滚回可见（需求 5）。
+watch([pickedSpeakers, highlightsOnly], () => void nextTick(scrollActiveIntoView))
+
 // 转录展示行：把「智能章节」标题穿插进分段流。row 携带分段原始索引 i（用于高亮/跳转/定位）。
 type TransRow =
   | { type: 'chapter'; title: string; t: string }
   | { type: 'seg'; seg: TranscriptSegment; i: number }
+const filtering = computed(() => highlightsOnly.value || pickedSpeakers.value.size > 0)
 const transcriptRows = computed<TransRow[]>(() => {
   const tr = transcript.value
   if (!tr) return []
@@ -190,16 +207,15 @@ const transcriptRows = computed<TransRow[]>(() => {
   for (const c of tr.chapters ?? []) chapterAt.set(c.t, c.title)
   const rows: TransRow[] = []
   tr.segments.forEach((seg, i) => {
-    if (highlightsOnly.value && !seg.highlight) return
-    // 「只看重点」时不插章节头（避免出现空章节）。
-    if (!highlightsOnly.value && chapterAt.has(seg.t)) {
+    if (!segMatches(seg, pickedSpeakers.value, highlightsOnly.value)) return
+    // 过滤激活（只看重点 / 说话人筛选）时不插章节头（避免出现空章节）。
+    if (!filtering.value && chapterAt.has(seg.t)) {
       rows.push({ type: 'chapter', title: chapterAt.get(seg.t) as string, t: seg.t })
     }
     rows.push({ type: 'seg', seg, i })
   })
   return rows
 })
-const hasChapters = computed(() => (transcript.value?.chapters?.length ?? 0) > 0)
 const hasHighlights = computed(() => !!transcript.value?.segments.some((s) => s.highlight))
 
 // 说话人分离：id → 显示名 / 颜色 token(--spk-N,5 色循环;波形与转录共用同一映射)。
@@ -448,11 +464,28 @@ onBeforeUnmount(() => {
 
           <!-- Transcript：智能章节 + 说话人分离 + 重点高光（含「只看重点」筛选） -->
           <template v-else-if="tab === 'transcript'">
-            <div v-if="hasHighlights || hasChapters" class="ap-tools">
+            <div v-if="hasHighlights || hasSpeakers" class="ap-tools">
               <button v-if="hasHighlights" type="button" class="ap-tool" :class="{ on: highlightsOnly }" @click="highlightsOnly = !highlightsOnly">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.7 6.2.6-4.7 4.1 1.4 6.1L12 16.9 6.5 20.1l1.4-6.1L3.2 9.8l6.2-.6z" /></svg>
                 {{ highlightsOnly ? t('audioShowAll') : t('audioHighlightsOnly') }}
               </button>
+              <!-- 说话人过滤 chips:「全部」+ 每说话人一个;多选,空集=全部(与只看重点 AND 叠加) -->
+              <template v-if="hasSpeakers">
+                <button type="button" class="spk-chip spk-chip-all" :class="{ on: pickedSpeakers.size === 0 }" @click="clearSpeakerFilter">
+                  {{ t('audioSpeakerAll') }}
+                </button>
+                <button
+                  v-for="(sp, si) in speakers"
+                  :key="sp.id"
+                  type="button"
+                  class="spk-chip"
+                  :class="{ on: pickedSpeakers.has(sp.id) }"
+                  :style="{ '--c': speakerToken(si) }"
+                  @click="toggleSpeaker(sp.id)"
+                >
+                  <span class="spk-dot"></span>{{ sp.name }}
+                </button>
+              </template>
             </div>
             <ul ref="transcriptEl" class="ap-scroll ap-transcript">
               <template v-for="(row, ri) in transcriptRows" :key="ri">
@@ -638,7 +671,7 @@ onBeforeUnmount(() => {
 .ap-chapter:hover .ap-chapter-title { color: var(--accent); }
 
 /* 转录工具条（「只看重点」筛选） */
-.ap-tools { flex: 0 0 auto; display: flex; gap: 8px; padding: 4px 20px 6px; }
+.ap-tools { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 20px 6px; }
 .ap-tool {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
   font-size: 15px; font-weight: 600; color: var(--fg-muted);
@@ -648,6 +681,22 @@ onBeforeUnmount(() => {
 .ap-tool svg { width: 13px; height: 13px; fill: currentColor; }
 .ap-tool:hover { background: var(--hover); color: var(--fg); }
 .ap-tool.on { background: var(--accent-soft); border-color: var(--accent-soft-bd); color: var(--accent-text); }
+
+/* ── 说话人过滤 chip:说话人色圆点 + color-mix 光环;选中时边框/底色用该说话人色 ── */
+.spk-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px; border-radius: 999px;
+  font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--fg-muted); transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.spk-chip .spk-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 20%, transparent); transition: box-shadow 0.15s;
+}
+.spk-chip:hover { border-color: var(--fg-faint); color: var(--fg); }
+.spk-chip.on { color: var(--fg); border-color: var(--c); background: color-mix(in oklab, var(--c) 15%, transparent); }
+.spk-chip.on .spk-dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 38%, transparent); }
+/* 「全部」chip:无说话人色,选中用中性 accent */
+.spk-chip-all.on { color: var(--accent-text); border-color: var(--accent-soft-bd); background: var(--accent-soft); }
 
 /* ── Ask Nimo（架子占位）───────────────────────────────────────── */
 .ap-ask-scroll { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 10px 20px; display: flex; flex-direction: column; }

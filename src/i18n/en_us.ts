@@ -40,6 +40,7 @@ export const messages = {
     audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',
     audioHighlightsOnly: 'Highlights only',
     audioShowAll: 'Show all',
+    audioSpeakerAll: 'All',
     audioSkipBack: 'Rewind {s}s',
     audioSkipForward: 'Forward {s}s',
     audioSpeed: 'Playback speed',
