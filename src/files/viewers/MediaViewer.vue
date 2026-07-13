@@ -6,6 +6,7 @@ import ViewerShell from './ViewerShell.vue'
 import { mediaKind } from './mediaKind'
 import { lookupTranscript, parseTimestamp } from './audioTranscripts'
 import type { TranscriptSegment } from './audioTranscripts'
+import { WAVE_N, synthWaveform, decodeWaveform, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
 import type { FileEntry } from '../stores/files'
 
 const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
@@ -47,45 +48,27 @@ const progressPct = computed(() =>
 
 // ── 声波进度条（仿录音 app）──────────────────────────────────────────
 //   进度条画成语音波形：居中的圆角竖条 + 静音处的虚线基线。已播部分染强调色。
-//   波形按文件名确定性生成（本播放器为写死 demo，与转录/摘要一致，不解码真实音频）。
-const WAVE_N = 96
-function hashStr(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
+//   数据源两级：先按文件名合成占位(0 延迟)，后台解码真实音频后无缝替换；
+//   超 50MB / 解码失败 / 命中不了都静默停留在合成，详见 ./waveform 与设计 spec。
+const MAX_DECODE_BYTES = 50 * 1024 * 1024
+const waveBars = ref<number[]>(synthWaveform(props.item.name || 'audio', WAVE_N))
+let waveAbort: AbortController | null = null
+
+function startWaveDecode(): void {
+  const key = waveCacheKey(props.item)
+  const hit = getCachedWave(key)
+  if (hit) {
+    waveBars.value = hit
+    return
   }
-  return h >>> 0
+  waveAbort = new AbortController()
+  void decodeWaveform(url, WAVE_N, { maxBytes: MAX_DECODE_BYTES, signal: waveAbort.signal }).then((bars) => {
+    // 在途结果到达时组件可能已卸载(disposed)——丢弃，不写缓存也不触发渲染。
+    if (!bars || disposed) return
+    setCachedWave(key, bars)
+    waveBars.value = bars
+  })
 }
-function mulberry32(a: number): () => number {
-  return function () {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-// 语音包络：交替「说话簇」(正弦升降包络 + 抖动) 与「静音间隙」(幅值 0 → 只留虚线)。
-const waveBars = computed<number[]>(() => {
-  const rnd = mulberry32(hashStr(props.item.name || 'audio'))
-  const amps: number[] = []
-  while (amps.length < WAVE_N) {
-    if (rnd() < 0.22) {
-      const gap = 2 + Math.floor(rnd() * 4)
-      for (let k = 0; k < gap && amps.length < WAVE_N; k++) amps.push(0)
-    } else {
-      const len = 5 + Math.floor(rnd() * 16)
-      const peak = 0.35 + rnd() * 0.65
-      for (let k = 0; k < len && amps.length < WAVE_N; k++) {
-        const env = Math.sin((k / Math.max(1, len - 1)) * Math.PI)
-        const jitter = 0.7 + rnd() * 0.5
-        amps.push(Math.min(1, Math.max(0.08, env * peak * jitter)))
-      }
-    }
-  }
-  return amps
-})
 // 已播竖条数量 = 进度占比 × 总条数（决定每条染色/留白）。
 const playedBars = computed(() => Math.round((progressPct.value / 100) * WAVE_N))
 
@@ -339,6 +322,7 @@ onMounted(async () => {
       lang: locale.value.replace('_', '-'),
     })
   } else if (kind === 'audio') {
+    startWaveDecode()
     // 尝试自动播放（被浏览器策略拦截则等用户点播放按钮）。
     void audioMedia.value?.play?.().catch(() => {})
     // 封面 + 标题/艺术家(Vue2 mm.fetchFromUrl)——元数据失败不阻断播放。
@@ -366,6 +350,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   disposed = true
+  waveAbort?.abort()
   stopStream()
   if (artInst?.destroy) artInst.destroy(false)
   if (poster.value) URL.revokeObjectURL(poster.value)
@@ -601,7 +586,7 @@ onBeforeUnmount(() => {
 /* 静音虚线基线（贯穿整条，静音间隙处只剩它） */
 .np-wave-base { position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 1px dashed var(--fg-faint); transform: translateY(-50%); pointer-events: none; }
 /* 单根竖条：固定 3px 宽、圆头；未播=中性淡色，已播=强调色。height 由振幅内联控制。 */
-.np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--fg-subtle); transition: background 0.12s; }
+.np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--fg-subtle); transition: background 0.12s, height 0.3s var(--ease); }
 .np-wave-bar.played { background: var(--accent); }
 .np-wave:hover .np-wave-bar.played { background: var(--accent2); }
 
