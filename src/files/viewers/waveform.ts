@@ -98,9 +98,15 @@ export async function decodeWaveform(
 ): Promise<number[] | null> {
   try {
     const res = await fetch(url, { signal: opts.signal })
-    if (!res.ok || !res.body) return null
+    if (!res.ok || !res.body) {
+      void res.body?.cancel().catch(() => {})
+      return null
+    }
     const lenHeader = res.headers.get('content-length')
-    if (lenHeader && Number(lenHeader) > opts.maxBytes) return null
+    if (lenHeader && Number(lenHeader) > opts.maxBytes) {
+      void res.body.cancel().catch(() => {}) // 主动取消响应体,立即释放连接(否则 >50MB 挡下的请求会一直挂着)
+      return null
+    }
 
     const reader = res.body.getReader()
     const chunks: Uint8Array[] = []
@@ -110,7 +116,7 @@ export async function decodeWaveform(
       if (done) break
       total += value.byteLength
       if (total > opts.maxBytes) {
-        void reader.cancel()
+        void reader.cancel().catch(() => {})
         return null
       }
       chunks.push(value)
@@ -130,7 +136,7 @@ export async function decodeWaveform(
       // 只取第 1 声道(省内存);bucketPeaks 返回后不再持有 AudioBuffer,任其回收。
       return bucketPeaks(audio.getChannelData(0), n)
     } finally {
-      void ctx.close()
+      void ctx.close().catch(() => {})
     }
   } catch {
     return null
