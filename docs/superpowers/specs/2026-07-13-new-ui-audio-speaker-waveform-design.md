@@ -1,7 +1,7 @@
 # NimoOS-New-UI 音频说话人:过滤 + 波形分段着色 + 高光去色 设计
 
 - 日期：2026-07-13
-- 状态：设计已定，待实现
+- 状态：已实现（2026-07-13，见 plans/2026-07-13-new-ui-audio-speaker-waveform.md）
 - 范围仓库：`NimoOS-New-UI`（Vue 3 + TS + Vite，挂 `/app/`）
 - 影响文件：`src/files/viewers/MediaViewer.vue`、`src/styles/theme.css`、`src/i18n/{zh_cn,en_us}.ts`、新增 `src/files/viewers/speakerWave.ts` + 测试
 - 视觉来源：用户在 Claude Design 完成的设计稿 `design-export/design-final.html`（从 `Audio Speaker Segmentation.html` 解包）——本 spec 的 CSS 值以该文件为准
