@@ -41,6 +41,8 @@ export const messages = {
     audioHighlightsOnly: 'Highlights only',
     audioShowAll: 'Show all',
     audioSpeakerAll: 'All',
+    audioChapters: 'Chapters',
+    audioAllChapters: 'All chapters',
     audioSkipBack: 'Rewind {s}s',
     audioSkipForward: 'Forward {s}s',
     audioSpeed: 'Playback speed',

@@ -41,6 +41,8 @@ export const messages = {
     audioHighlightsOnly: '只看重点',
     audioShowAll: '显示全部',
     audioSpeakerAll: '全部',
+    audioChapters: '章节',
+    audioAllChapters: '全部章节',
     audioSkipBack: '快退 {s} 秒',
     audioSkipForward: '快进 {s} 秒',
     audioSpeed: '播放速度',
