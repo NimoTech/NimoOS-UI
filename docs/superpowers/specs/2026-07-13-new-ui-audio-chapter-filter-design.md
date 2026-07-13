@@ -1,7 +1,7 @@
 # NimoOS-New-UI 音频转录「章节」下拉多选过滤 设计
 
 - 日期：2026-07-13
-- 状态：设计已定，待实现
+- 状态：已实现（2026-07-13，见 plans/2026-07-13-new-ui-audio-chapter-filter.md）
 - 范围仓库：`NimoOS-New-UI`
 - 影响文件：`src/files/viewers/MediaViewer.vue`、`src/files/viewers/speakerWave.ts`（+测试）、`src/i18n/{zh_cn,en_us}.ts`
 
