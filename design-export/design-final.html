@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NimoOS 音频播放器 — 波形/说话人 设计工作稿</title>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   主题 token(从 NimoOS-New-UI src/styles/theme.css 摘录的真实值)。
+   设计约束:最终实现里所有颜色都必须走这些 token(或新增 token),
+   且每个颜色 token 必须在 dark / light 两套主题里都有值。
+   ══════════════════════════════════════════════════════════════════ */
+:root, [data-theme="dark"] {
+  --bg: #1a2138;
+  --fg: #ffffff;
+  --fg-muted: rgba(255, 255, 255, 0.74);
+  --fg-faint: rgba(255, 255, 255, 0.52);
+  --fg-subtle: rgba(255, 255, 255, 0.4);
+  --accent: #8ab4ff;
+  --accent2: #b79bff;
+  --accent-text: #a9c6ff;
+  --accent-soft: rgba(138, 180, 255, 0.14);
+  --accent-soft-bd: rgba(138, 180, 255, 0.36);
+  --border: rgba(255, 255, 255, 0.14);
+  --hover: rgba(255, 255, 255, 0.08);
+  --hl-bg: rgba(232, 192, 106, 0.16);   /* 现行「重点句」金色底 —— 本次设计要取消颜色区分 */
+  --hl-star: #e8c06a;                    /* 星标图标沿用金色;重点句不再用底色区分 */
+  /* 说话人配色(最多 5 色循环;色相分明、明度/彩度一致,dark 用亮版,避开金色以免与星标混淆)*/
+  --spk-1: oklch(0.74 0.13 250);   /* 蓝 · Instructor */
+  --spk-2: oklch(0.72 0.13 305);   /* 紫 · Student */
+  --spk-3: oklch(0.77 0.12 190);   /* 青 */
+  --spk-4: oklch(0.73 0.15 18);    /* 珊瑚 */
+  --spk-5: oklch(0.79 0.14 150);   /* 绿 */
+  --wave-none: var(--fg-subtle);   /* 静场 / 无人声 */
+  --wave-dim: var(--fg-faint);     /* 过滤时被弱化的竖条 */
+  --page-bg: linear-gradient(160deg, #10162a 0%, #1a2138 55%, #232a4d 100%);
+  --card-shadow-hi: 0 18px 60px rgba(0, 0, 0, 0.5);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-theme="light"] {
+  --bg: #f7f5ef;
+  --fg: #1c1b19;
+  --fg-muted: #6e6a61;
+  --fg-faint: #9a958a;
+  --fg-subtle: #9a958a;
+  --accent: #3b5bdb;
+  --accent2: #6e5ae0;
+  --accent-text: #3550c4;
+  --accent-soft: rgba(59, 91, 219, 0.11);
+  --accent-soft-bd: rgba(59, 91, 219, 0.32);
+  --border: #e7e3d9;
+  --hover: rgba(28, 27, 25, 0.045);
+  --hl-bg: #fdf4d9;
+  --hl-star: #c9992f;
+  --spk-1: oklch(0.52 0.15 255);
+  --spk-2: oklch(0.50 0.16 305);
+  --spk-3: oklch(0.53 0.12 200);
+  --spk-4: oklch(0.55 0.18 22);
+  --spk-5: oklch(0.52 0.15 150);
+  --wave-none: var(--fg-subtle);
+  --wave-dim: var(--fg-faint);
+  --page-bg: linear-gradient(160deg, #f2efe6 0%, #f7f5ef 60%, #edf0fa 100%);
+  --card-shadow-hi: 0 4px 10px rgba(60, 50, 30, 0.08), 0 40px 70px -22px rgba(60, 50, 30, 0.34);
+}
+
+* { box-sizing: border-box; margin: 0; }
+body {
+  min-height: 100vh; padding: 32px 20px 80px;
+  background: var(--page-bg); color: var(--fg);
+  font-family: -apple-system, "PingFang SC", "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 26px;
+}
+.stage { width: 100%; max-width: 60rem; display: flex; flex-direction: column; gap: 26px; }
+
+/* ── 设计任务说明卡 ─────────────────────────────────────────────── */
+.brief {
+  border: 1px solid var(--border); border-radius: 16px; padding: 20px 24px;
+  background: var(--bg); box-shadow: var(--card-shadow-hi);
+  font-size: 14px; line-height: 1.75; color: var(--fg-muted);
+}
+.brief h1 { font-size: 17px; color: var(--fg); margin-bottom: 8px; }
+.brief b { color: var(--fg); }
+.brief code { font-family: ui-monospace, monospace; font-size: 12.5px; background: var(--hover); padding: 1px 6px; border-radius: 6px; }
+.brief ol { padding-left: 20px; }
+.theme-btn {
+  float: right; margin-left: 12px; cursor: pointer; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: transparent; color: var(--fg-muted); font-size: 13px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ▼▼ 以下是「现有播放器」的 1:1 视觉还原(样式抄自 MediaViewer.vue)▼▼
+   ══════════════════════════════════════════════════════════════════ */
+.np { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 28px 22px;
+      border: 1px solid var(--border); border-radius: 20px; background: var(--bg); box-shadow: var(--card-shadow-hi); }
+.np-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+
+.np-controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; max-width: 40rem; }
+.np-center { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.np-side { display: flex; align-items: center; min-width: 0; }
+.np-side-right { justify-content: flex-end; }
+.np-skip { position: relative; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--fg-muted); }
+.np-skip:hover { background: var(--hover); color: var(--fg); }
+.np-skip svg { width: 30px; height: 30px; fill: currentColor; }
+.np-skip-fwd svg { transform: scaleX(-1); }
+.np-skip-n { position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 10px; font-weight: 700; line-height: 1; pointer-events: none; }
+.np-play { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.np-play svg { width: 26px; height: 26px; fill: currentColor; }
+.np-play svg.tri { margin-left: 3px; }
+.np-speed { min-width: 46px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  font-size: 14px; font-weight: 700; background: transparent; border: 1px solid var(--border); color: var(--fg-muted); }
+
+.np-bar-row { display: flex; align-items: center; gap: 14px; width: 100%; }
+.np-time { flex: 0 0 auto; min-width: 46px; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+.np-time-end { text-align: right; }
+
+/* ── 声波进度条(设计重点区)──────────────────────────────────────
+   96 根竖条(flex 均布,固定 3px 圆头),中央虚线基线,已播=.played。
+   每根 bar 还带说话人 class:spk-s1 / spk-s2 / spk-none(静场/无人声)。
+   ▶ 设计任务:让「按说话人着色」和「已播进度」同时清晰可读。
+   下面是现行样式;spk-* 目前没有样式,等你来定。 */
+.np-wave { position: relative; flex: 1 1 auto; height: 46px; min-width: 0;
+  display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.np-wave-base { position: absolute; left: 0; right: 0; top: 50%; height: 0;
+  border-top: 1px dashed var(--fg-faint); transform: translateY(-50%); pointer-events: none; }
+.np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px;
+  background: var(--bar-c, var(--fg-subtle)); opacity: 0.30;
+  transition: background 0.14s, opacity 0.14s, filter 0.14s, height 0.3s var(--ease); }
+/* 进度 = 不透明度:已播满色、未播同色淡出 —— 说话人配色与播放进度同时可读 */
+.np-wave-bar.played { opacity: 1; }
+/* 每根竖条按说话人取色 */
+.np-wave-bar.spk-s1 { --bar-c: var(--spk-1); }
+.np-wave-bar.spk-s2 { --bar-c: var(--spk-2); }
+.np-wave-bar.spk-none { --bar-c: var(--wave-none); }
+/* 过滤:未选中说话人的竖条去色转灰并进一步压暗,只留选中者的颜色跳出来 */
+.np-wave-bar.dim { --bar-c: var(--wave-dim); opacity: 0.12; }
+.np-wave-bar.dim.played { opacity: 0.30; }
+.np-wave:hover .np-wave-bar.played:not(.dim) { filter: brightness(1.12); }
+
+/* ══════════════════════════════════════════════════════════════════
+   ▼▼ 转录面板(节选还原)+ 说话人过滤 chips(新增,待设计)▼▼
+   ══════════════════════════════════════════════════════════════════ */
+.panel { display: flex; flex-direction: column; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--bg); box-shadow: var(--card-shadow-hi); overflow: hidden; max-height: 520px; }
+.ap-tools { display: flex; align-items: center; gap: 8px; padding: 16px 18px 10px; flex-wrap: wrap; }
+.ap-tool { padding: 7px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer;
+  background: transparent; border: 1px solid var(--border); color: var(--fg-muted); }
+.ap-tool.on { background: var(--accent-soft); border-color: var(--accent-soft-bd); color: var(--accent-text); }
+/* ── 说话人过滤 chip(占位样式,待你重设计;点击可用,全不选=显示全部)── */
+.spk-chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--fg-muted); transition: color 0.15s, border-color 0.15s, background 0.15s; }
+.spk-chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 20%, transparent); transition: box-shadow 0.15s; }
+.spk-chip:hover { border-color: var(--fg-faint); color: var(--fg); }
+.spk-chip.on { color: var(--fg); border-color: var(--c);
+  background: color-mix(in oklab, var(--c) 15%, transparent); }
+.spk-chip.on .dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 38%, transparent); }
+/* 「全部」chip:无说话人色,选中用中性 accent */
+.spk-chip-all.on { color: var(--accent-text); border-color: var(--accent-soft-bd); background: var(--accent-soft); }
+
+.ap-scroll { flex: 1 1 auto; overflow-y: auto; padding: 6px 20px 12px; }
+.ap-transcript { list-style: none; padding: 4px 0 12px; display: flex; flex-direction: column; gap: 2px; }
+.ap-seg { display: flex; gap: 14px; padding: 10px 12px; border-radius: 12px; cursor: pointer; }
+.ap-seg:hover { background: var(--hover); }
+.ap-seg.hl { background: transparent; }   /* 重点句不再用底色区分,仅保留星标图标 */
+.ap-time { flex: 0 0 auto; width: 48px; font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--accent-text); padding-top: 2px; }
+.ap-seg-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ap-speaker { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--c); }
+.ap-speaker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.ap-seg-text { font-size: 14px; line-height: 1.6; color: var(--fg); }
+.ap-hl-star { width: 13px; height: 13px; fill: var(--hl-star); vertical-align: -2px; margin-right: 5px; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <div class="brief">
+    <button class="theme-btn" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">切换 dark / light</button>
+    <h1>设计任务:音频波形 × 说话人</h1>
+    <ol>
+      <li><b>说话人过滤</b>:chips 多选(已放占位在转录面板工具栏),点选说话人 → 转录只显示其段落;全不选 = 全部。chips 样式待设计。</li>
+      <li><b>波形按说话人着色</b>:96 根竖条已按真实时间轴带上 <code>spk-s1</code>(讲师)/<code>spk-s2</code>(学生)/<code>spk-none</code> class,请设计配色方案——难点:<b>要和"已播/未播"进度(<code>.played</code>)同时可读</b>,hover、点击 seek 交互保留。</li>
+      <li><b>转录说话人着色</b>:每段的说话人名+圆点已有颜色(现行:蓝 <code>#3550c4</code>=讲师、紫 <code>#6e5ae0</code>=学生,最多 5 色循环),可重定义,但要与波形用色一致。</li>
+      <li><b>星标重点去色</b>:现在重点句有金色底(<code>--hl-bg</code>)+金星;新设计<b>不再用颜色区分重点</b>,星标图形保留(颜色/形式你定)。</li>
+    </ol>
+    <p><b>硬约束</b>:最终实现的所有颜色会映射成 theme token,dark/light 两套主题都要给值(本页右上角可切换预览);竖条保持 3px 圆头 × 96 根;不改播放器布局结构。<br>
+    <b>交回方式</b>:直接改这个 HTML 的 CSS(推荐,发回文件即可),或标注色值的截图。数据是真实的 41 分钟课堂录音(转录文本截断到 60 字符,仅供设计参考)。</p>
+  </div>
+
+  <!-- ── 播放器 ── -->
+  <div class="np">
+    <div class="np-title">New recording 21.m4a</div>
+    <div class="np-controls">
+      <div class="np-side"></div>
+      <div class="np-center">
+        <button class="np-skip"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"></path></svg><span class="np-skip-n">30</span></button>
+        <button class="np-skip"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"></path></svg><span class="np-skip-n">5</span></button>
+        <button class="np-play"><svg class="tri" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg></button>
+        <button class="np-skip np-skip-fwd"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"></path></svg><span class="np-skip-n">5</span></button>
+        <button class="np-skip np-skip-fwd"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"></path></svg><span class="np-skip-n">30</span></button>
+      </div>
+      <div class="np-side np-side-right"><button class="np-speed">1×</button></div>
+    </div>
+    <div class="np-bar-row">
+      <span class="np-time" id="cur">15:40</span>
+      <div class="np-wave" id="wave"><div class="np-wave-base"></div></div>
+      <span class="np-time np-time-end">41:14</span>
+    </div>
+  </div>
+
+  <!-- ── 转录面板(节选)── -->
+  <div class="panel">
+    <div class="ap-tools">
+      <button class="ap-tool" id="hlOnly">只看重点</button>
+      <span id="chips"></span>
+    </div>
+    <div class="ap-scroll"><ul class="ap-transcript" id="list"></ul></div>
+  </div>
+
+</div>
+
+<script>
+// ── 真实数据:说话人表 + 144 个转录分段(t=起始时间, 下一段起始即本段结束)──
+const SPEAKERS = [ { id: 's1', name: 'Instructor' }, { id: 's2', name: 'Student' } ]
+// 说话人 → 配色 token 序号(最多 5 色循环);所有颜色都走 --spk-N token,不再写死 hex
+const SPEAKER_IDX = { s1: 1, s2: 2 }
+const spkVar = (id) => 'var(--spk-' + (SPEAKER_IDX[id] || 1) + ')'
+const DURATION = 2474  // 41:14(约)
+const SEGMENTS = [{"t":"0:00","speaker":"s1","highlight":false,"text":"What's happening when I switch between vowels like that is t"},{"t":"0:23","speaker":"s1","highlight":true,"text":"On a continuum and so we'll talk more about this when we get"},{"t":"0:43","speaker":"s1","highlight":false,"text":"Just have a bunch of frequencies that are all clustered arou"},{"t":"1:09","speaker":"s1","highlight":false,"text":"How high or low my voice is for example yeah and likewise uh"},{"t":"1:30","speaker":"s1","highlight":false,"text":"To the fundamental so you might call these inharmonic sounds"},{"t":"1:35","speaker":"s1","highlight":true,"text":"Harmonic and non-harmonic sounds overall right and then fina"},{"t":"2:00","speaker":"s1","highlight":false,"text":"For example we have multiple copies of the same sound source"},{"t":"2:24","speaker":"s1","highlight":false,"text":"I would say r in their phase is going to be added or summed "},{"t":"2:57","speaker":"s1","highlight":false,"text":"Case again it's still going to be perceived as loud generall"},{"t":"3:26","speaker":"s1","highlight":false,"text":"Starting at negative half a radian this started at a negativ"},{"t":"3:45","speaker":"s1","highlight":false,"text":"Try to avoid or something we try to fix after the fact espec"},{"t":"4:08","speaker":"s1","highlight":false,"text":"To get certain audio effects things like flanging coursing e"},{"t":"4:13","speaker":"s1","highlight":false,"text":"Worth noting all right now uh with that in mind let's talk a"},{"t":"4:38","speaker":"s1","highlight":false,"text":"Actual recording formats so you can see it here we have this"},{"t":"4:59","speaker":"s1","highlight":false,"text":"What do you guys imagine is like the downside to the wax cyl"},{"t":"5:22","speaker":"s1","highlight":false,"text":"Was done in like real time right so imagine you had to like "},{"t":"5:34","speaker":"s2","highlight":false,"text":"Yeah wax is like super easy to change"},{"t":"5:36","speaker":"s1","highlight":false,"text":"Yeah exactly it's you know it's made out of freaking wax it'"},{"t":"5:54","speaker":"s1","highlight":false,"text":"They just don't hold up well over time so they were made bas"},{"t":"6:19","speaker":"s1","highlight":false,"text":"Broadly available before magnetic tape there was actually us"},{"t":"6:37","speaker":"s1","highlight":false,"text":"Now magnetic tape was invented sometime in like the late 30s"},{"t":"6:58","speaker":"s1","highlight":false,"text":"Medium they just assumed it had to be a live broadcast and t"},{"t":"7:17","speaker":"s1","highlight":false,"text":"The go-to for many many years well into the 90s and even int"},{"t":"7:37","speaker":"s1","highlight":false,"text":"What you're going to be able to do with a vinyl or onto a wa"},{"t":"7:55","speaker":"s1","highlight":false,"text":"Of sound so then from there you can cut things up you could "},{"t":"8:18","speaker":"s1","highlight":false,"text":"Uh in terms of audio generally speaking anymore so like when"},{"t":"8:43","speaker":"s1","highlight":false,"text":"Sound anywhere on any modern film that is done with analog t"},{"t":"9:13","speaker":"s1","highlight":false,"text":"Real-to-real tape machines and you know thing any minor impe"},{"t":"9:36","speaker":"s1","highlight":false,"text":"Efficient no so also imagine this every time you want to rep"},{"t":"10:00","speaker":"s1","highlight":false,"text":"Nearly as affordable as buying like a laptop at a digital au"},{"t":"10:24","speaker":"s1","highlight":false,"text":"Of space yeah so imagine like storing everything on a hard d"},{"t":"10:43","speaker":"s1","highlight":false,"text":"Really flammable magnetic tape so they lost a bunch of maste"},{"t":"11:05","speaker":"s1","highlight":false,"text":"Lot of genres along with uh neil young so like notoriously l"},{"t":"11:22","speaker":"s1","highlight":false,"text":"So it's not nearly as stable as people have assumed along wi"},{"t":"11:49","speaker":"s1","highlight":false,"text":"Or if you want to just copy and paste the same thing over an"},{"t":"12:07","speaker":"s1","highlight":false,"text":"So you know think about the amount of time people complain a"},{"t":"12:18","speaker":"s1","highlight":false,"text":"Whatever audio effect that is all right so for this reason w"},{"t":"12:43","speaker":"s1","highlight":false,"text":"Capable right it's not capable of supplanting magnetic tape "},{"t":"13:04","speaker":"s1","highlight":false,"text":"It's very easy to work with digital audio and along with tha"},{"t":"13:27","speaker":"s1","highlight":false,"text":"Overall we can sequence things uh copy basically later compu"},{"t":"13:48","speaker":"s1","highlight":false,"text":"Taken into account as we're working in a digital audio so fi"},{"t":"13:56","speaker":"s1","highlight":false,"text":"Computers think about sound of course the main thing is like"},{"t":"14:13","speaker":"s1","highlight":false,"text":"To do this by using the same way computers think period is t"},{"t":"14:38","speaker":"s1","highlight":false,"text":"The changes in the air pressure being you know directly vibr"},{"t":"14:53","speaker":"s1","highlight":false,"text":"Just just going to do it with a several standard measures yo"},{"t":"15:12","speaker":"s1","highlight":false,"text":"Store sampling we're going to necessarily use the same way s"},{"t":"15:17","speaker":"s1","highlight":false,"text":"And so, even though this means we can't ever technically hav"},{"t":"15:35","speaker":"s1","highlight":false,"text":"So, with that in mind, now that we know that we are only get"},{"t":"15:47","speaker":"s1","highlight":false,"text":"So, let's say our original waveform is this nice sine wave, "},{"t":"16:00","speaker":"s1","highlight":false,"text":"And so, it's original form, it's nice and smooth, has no poi"},{"t":"16:17","speaker":"s1","highlight":false,"text":"Does it look like the original more or less?"},{"t":"16:20","speaker":"s2","highlight":false,"text":"Yeah, I guess it seems close enough."},{"t":"16:23","speaker":"s1","highlight":false,"text":"But at the same time, we start to add these little pointy bi"},{"t":"16:34","speaker":"s1","highlight":false,"text":"Now, let's say we reduce this to 6 points of sampling. So, n"},{"t":"16:51","speaker":"s1","highlight":false,"text":"But along with that, is it still as symmetrical as like samp"},{"t":"17:04","speaker":"s1","highlight":false,"text":"This is what we call a triangle wave. So, once we talk about"},{"t":"17:15","speaker":"s1","highlight":true,"text":"So, now we have something that's completely different. So, t"},{"t":"17:36","speaker":"s1","highlight":false,"text":"So, for human beings, if we're trying to capture a maximum o"},{"t":"17:51","speaker":"s1","highlight":true,"text":"So, how many people have seen this number at some point, 44."},{"t":"18:07","speaker":"s1","highlight":false,"text":"Anyone seen a CD? I guess these days you guys are like colle"},{"t":"18:26","speaker":"s1","highlight":false,"text":"Presumably, a little bit of extra headroom would be good for"},{"t":"18:43","speaker":"s1","highlight":false,"text":"And so, that would be like the maximum that they could add a"},{"t":"18:53","speaker":"s1","highlight":false,"text":"Now, there are other really common sampling rates. So, in pa"},{"t":"19:12","speaker":"s1","highlight":false,"text":"Now, can anyone think of why 48k would be better for video t"},{"t":"19:34","speaker":"s1","highlight":false,"text":"I mean, that's part of it, but this also has to do with when"},{"t":"19:46","speaker":"s2","highlight":false,"text":"Like frame rate?"},{"t":"19:47","speaker":"s1","highlight":false,"text":"Not even necessarily. So, how many people of you guys are li"},{"t":"19:58","speaker":"s1","highlight":false,"text":"Things like that. Does anyone know what the historical frame"},{"t":"20:04","speaker":"s2","highlight":false,"text":"Is it 24?"},{"t":"20:05","speaker":"s1","highlight":false,"text":"Yeah, exactly. It's 24 frames per second. So, 24 frames per "},{"t":"20:20","speaker":"s1","highlight":false,"text":"These are all divisions of 48 or 24, more or less, right? An"},{"t":"20:40","speaker":"s1","highlight":false,"text":"So, along with that, though, the other things that we were t"},{"t":"20:58","speaker":"s1","highlight":false,"text":"And so, this is presumably something that is above the sampl"},{"t":"21:12","speaker":"s1","highlight":false,"text":"And so, as it's capturing these samples, it's trying to play"},{"t":"21:25","speaker":"s1","highlight":false,"text":"This is basically like, it's almost the same thing as like a"},{"t":"21:37","speaker":"s1","highlight":false,"text":"This causes these unintended sounds that work their way into"},{"t":"21:54","speaker":"s1","highlight":false,"text":"Yeah. So, this is visual aliasing. And basically, it's becau"},{"t":"22:08","speaker":"s1","highlight":false,"text":"And it's the same thing. It's just happening in terms of aud"},{"t":"22:25","speaker":"s1","highlight":true,"text":"And once those all get muddled together, it kind of destroys"},{"t":"22:46","speaker":"s1","highlight":false,"text":"So, that said, does that mean you should always like use 196"},{"t":"23:04","speaker":"s1","highlight":false,"text":"Now, if you're trying to mix like a Sabrina Carpenter record"},{"t":"23:20","speaker":"s1","highlight":false,"text":"No, not so much, right? So, just something to be aware of, g"},{"t":"23:37","speaker":"s1","highlight":true,"text":"So, we are going to have something called the bit depth. So,"},{"t":"24:01","speaker":"s1","highlight":false,"text":"We can record on or off, basically, at one bit, right? And t"},{"t":"24:15","speaker":"s1","highlight":false,"text":"So, now we can have off-off, on-off, off-on, on-off, right? "},{"t":"24:33","speaker":"s1","highlight":false,"text":"And so, for digital audio, we're generally starting, startin"},{"t":"24:55","speaker":"s1","highlight":false,"text":"At 24 bit, which is the minimum for most things these days, "},{"t":"25:13","speaker":"s1","highlight":false,"text":"So, in this case, we're going from 96 decibels up to 144 dec"},{"t":"25:31","speaker":"s1","highlight":false,"text":"So, we're able to be very, very, very precise. So, along wit"},{"t":"25:49","speaker":"s1","highlight":false,"text":"So, looking at this particular diagram, we have, okay, this "},{"t":"26:07","speaker":"s1","highlight":false,"text":"Yeah. Is it going to sound like a perfect sine wave? Like, i"},{"t":"26:21","speaker":"s1","highlight":false,"text":"So, 2 to the power of 3. So, 2 times 2 is 4 times 2 is 8. So"},{"t":"26:46","speaker":"s1","highlight":false,"text":"So, is that going to sound like a sine wave? No, this is goi"},{"t":"26:55","speaker":"s1","highlight":false,"text":"But it's going to add something called quantization noise, w"},{"t":"27:08","speaker":"s1","highlight":false,"text":"It's like it's bad, right? Are there some cases where maybe "},{"t":"27:22","speaker":"s1","highlight":false,"text":"Yeah. It's probably best you don't see it, honestly. It's no"},{"t":"27:35","speaker":"s1","highlight":false,"text":"And say, surely you can imagine cases where you're doing sou"},{"t":"27:40","speaker":"s1","highlight":false,"text":"So, finally, let's talk a little bit about file formats, bec"},{"t":"27:57","speaker":"s1","highlight":true,"text":"And so, an uncompressed file is going to have no loss to the"},{"t":"28:11","speaker":"s1","highlight":false,"text":"No reduction in audio quality. So, naturally, why would I wa"},{"t":"28:29","speaker":"s1","highlight":false,"text":"But then there's another concern here. So, for long-term sto"},{"t":"28:43","speaker":"s1","highlight":false,"text":"Even if you do eventually export two different file formats "},{"t":"29:07","speaker":"s1","highlight":false,"text":"Yeah?"},{"t":"29:08","speaker":"s2","highlight":false,"text":"Is WAV, like, Windows? And, like, AIFF is for Mac?"},{"t":"29:12","speaker":"s1","highlight":false,"text":"That's exactly correct. Yeah. So, WAV is, like, Windows Audi"},{"t":"29:27","speaker":"s1","highlight":false,"text":"And if you were cool like me and you had a creative zen, rig"},{"t":"29:41","speaker":"s1","highlight":false,"text":"For sure, you can play any file format. On Windows, generall"},{"t":"29:56","speaker":"s1","highlight":false,"text":"Which means that you will, like, sometimes have a colleague "},{"t":"30:12","speaker":"s1","highlight":false,"text":"Until you do."},{"t":"30:14","speaker":"s1","highlight":false,"text":"In any case, then we have compressed file formats. So, the i"},{"t":"30:30","speaker":"s1","highlight":false,"text":"So, I don't like lossy. I think that sounds like something s"},{"t":"30:43","speaker":"s1","highlight":false,"text":"So, for example. Something like a Microsoft Word document. O"},{"t":"31:00","speaker":"s1","highlight":false,"text":"As well as the RGBA values for just the letter A and just th"},{"t":"31:21","speaker":"s1","highlight":false,"text":"And we are using this font. So, reference this file somewher"},{"t":"31:35","speaker":"s1","highlight":false,"text":"Right? That is on the slide. It's basically the same thing f"},{"t":"31:52","speaker":"s1","highlight":false,"text":"You would have to actually go through a conversion process t"},{"t":"32:05","speaker":"s1","highlight":false,"text":"So, FLAC files, I will say, I don't see them very often outs"},{"t":"32:23","speaker":"s1","highlight":false,"text":"Right? Because surely no one spends that much money on Bandc"},{"t":"32:31","speaker":"s1","highlight":true,"text":"Now, next we have compressed lossy file formats. So, this me"},{"t":"32:47","speaker":"s1","highlight":false,"text":"So, how many people have heard of MP3? Yeah, surely all of y"},{"t":"33:01","speaker":"s1","highlight":false,"text":"That's wild, right? So, in any case. Basically, this was the"},{"t":"33:17","speaker":"s1","highlight":false,"text":"You just want to get the gist of it and be able to, like, li"},{"t":"33:32","speaker":"s1","highlight":false,"text":"Except it's... I don't know why you bought it with M4A, but "},{"t":"33:50","speaker":"s1","highlight":false,"text":"Yeah, so where have you guys seen OGG files?"},{"t":"33:53","speaker":"s2","highlight":false,"text":"I see a lot, like, relations with new games?"},{"t":"33:56","speaker":"s1","highlight":false,"text":"Yeah, exactly. So, this is, like, a compression format that'"},{"t":"34:15","speaker":"s1","highlight":false,"text":"Whether that's because it's something that we're streaming o"},{"t":"34:29","speaker":"s1","highlight":false,"text":"So, along with that, though, there are differences. So, ther"},{"t":"34:47","speaker":"s1","highlight":false,"text":"So, just go ahead and get those, these sound examples. For w"},{"t":"35:51","speaker":"s1","highlight":false,"text":"So, not necessarily my favorite composer. For those of you w"},{"t":"36:09","speaker":"s1","highlight":false,"text":"So, we're going to start with, this is an AIF file. And this"},{"t":"36:58","speaker":"s1","highlight":false,"text":"So, if we remember, this is going to be the difference betwe"},{"t":"37:48","speaker":"s1","highlight":false,"text":"Yep."},{"t":"37:49","speaker":"s2","highlight":false,"text":"I think it sounds pretty similar, but during some of the lou"},{"t":"37:57","speaker":"s1","highlight":false,"text":"Yep. Anyone else hear any big differences? Yep. Oh, like the"},{"t":"38:25","speaker":"s1","highlight":false,"text":"It's just, it's pretty subtle at this point, right? So, for "},{"t":"38:39","speaker":"s1","highlight":false,"text":"So, now we're going to go down to 8 bit. So, how many steps "},{"t":"39:08","speaker":"s1","highlight":false,"text":"So, 256, notable for being much less than 65,000, right? So,"},{"t":"39:55","speaker":"s2","highlight":false,"text":"It's a lot of static."},{"t":"39:56","speaker":"s1","highlight":false,"text":"Yeah."},{"t":"39:57","speaker":"s2","highlight":false,"text":"Especially the lower notes from here."},{"t":"39:59","speaker":"s1","highlight":false,"text":"Yeah, exactly. We get all this quantization noise. So, it's "},{"t":"40:14","speaker":"s1","highlight":false,"text":"Yeah, that doesn't sound fun, right? But, again, value judgm"},{"t":"40:29","speaker":"s1","highlight":false,"text":"Now, from here, we're going to go from Mahler at 24 bit AIF."}]
+
+// ── 波形生成:与线上 waveform.ts 相同的合成算法(seed 定形状,仅供设计;线上是真实解码峰值)──
+const WAVE_N = 96
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 }
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
+function synthWaveform(seed, n) {
+  const rnd = mulberry32(hashStr(seed)); const amps = []
+  while (amps.length < n) {
+    if (rnd() < 0.22) { const gap = 2 + Math.floor(rnd() * 4); for (let k = 0; k < gap && amps.length < n; k++) amps.push(0) }
+    else { const len = 5 + Math.floor(rnd() * 16), peak = 0.35 + rnd() * 0.65
+      for (let k = 0; k < len && amps.length < n; k++) { const env = Math.sin((k / Math.max(1, len - 1)) * Math.PI); amps.push(Math.min(1, Math.max(0.08, env * peak * (0.7 + rnd() * 0.5)))) } }
+  }
+  return amps
+}
+const parseT = (t) => { const [m, s] = t.split(':').map(Number); return m * 60 + s }
+
+// 每根竖条 → 覆盖该竖条时间窗 [a,b] 内「说话时长最多」的人。
+// 说明:每根竖条约占 25s,而学生插话往往只有几秒;若只按中点采样会丢失短发言,
+// 所以按时长占比取主导说话人 —— 线上实现同理(用真实分段时间轴而非合成时间)。
+const SPK_FREQ = SEGMENTS.reduce((m, s) => (m[s.speaker] = (m[s.speaker] || 0) + 1, m), {})
+function speakerForWindow(a, b) {
+  const present = new Set()
+  for (let i = 0; i < SEGMENTS.length; i++) {
+    const start = parseT(SEGMENTS[i].t)
+    const end = i + 1 < SEGMENTS.length ? parseT(SEGMENTS[i + 1].t) : DURATION
+    if (Math.min(b, end) - Math.max(a, start) > 0) present.add(SEGMENTS[i].speaker)
+  }
+  if (!present.size) return null
+  // 少数说话人优先:窗口内出现的说话人里,取全局发言次数最少的那位着色,
+  // 保证像「学生 2 秒插话」这类短发言也能在波形上留下一根有色竖条、不被平均掉。
+  // 线上可换成「时长占主导」或设阈值,颜色/交互不变。
+  return [...present].sort((x, y) => SPK_FREQ[x] - SPK_FREQ[y])[0]
+}
+
+// ── 渲染波形 ──
+const wave = document.getElementById('wave')
+const bars = synthWaveform('new recording 21.m4a', WAVE_N)
+let progress = 0.38  // 已播比例,点击波形可改
+const picked = new Set()  // 被选中的说话人(空 = 显示全部)
+function renderWave() {
+  wave.querySelectorAll('.np-wave-bar').forEach((el) => el.remove())
+  bars.forEach((a, i) => {
+    const el = document.createElement('i')
+    const sp = speakerForWindow((i / WAVE_N) * DURATION, ((i + 1) / WAVE_N) * DURATION)
+    const dim = picked.size && (!sp || !picked.has(sp)) ? ' dim' : ''
+    el.className = 'np-wave-bar spk-' + (sp || 'none') + (i < Math.round(progress * WAVE_N) ? ' played' : '') + dim
+    el.style.height = a * 100 + '%'
+    wave.appendChild(el)
+  })
+  document.getElementById('cur').textContent = (() => { const s = Math.round(progress * DURATION); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') })()
+}
+wave.addEventListener('click', (e) => { const r = wave.getBoundingClientRect(); progress = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); renderWave() })
+renderWave()
+
+// ── 渲染说话人 chips(「全部」+ 多选过滤;点「全部」= 清空筛选显示全部)──
+const chipsEl = document.getElementById('chips')
+let hlOnly = false
+const allChip = document.createElement('button')
+allChip.className = 'spk-chip spk-chip-all on'
+allChip.textContent = '全部'
+allChip.onclick = () => { if (!picked.size) return; picked.clear(); syncChips(); renderWave(); renderList() }
+chipsEl.appendChild(allChip)
+const spkChips = SPEAKERS.map((sp) => {
+  const b = document.createElement('button')
+  b.className = 'spk-chip'
+  b.dataset.spk = sp.id
+  b.style.setProperty('--c', spkVar(sp.id))
+  b.innerHTML = '<span class="dot"></span>' + sp.name
+  b.onclick = () => { picked.has(sp.id) ? picked.delete(sp.id) : picked.add(sp.id); syncChips(); renderWave(); renderList() }
+  chipsEl.appendChild(b)
+  return b
+})
+function syncChips() {
+  allChip.classList.toggle('on', picked.size === 0)
+  spkChips.forEach((b) => b.classList.toggle('on', picked.has(b.dataset.spk)))
+}
+document.getElementById('hlOnly').onclick = function () { hlOnly = !hlOnly; this.classList.toggle('on'); renderList() }
+
+// ── 渲染转录列表 ──
+const list = document.getElementById('list')
+const STAR = '<svg class="ap-hl-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.7 6.2.6-4.7 4.1 1.4 6.1L12 16.9 6.5 20.1l1.4-6.1L3.2 9.8l6.2-.6z"/></svg>'
+function renderList() {
+  list.innerHTML = ''
+  for (const s of SEGMENTS) {
+    if (picked.size && !picked.has(s.speaker)) continue
+    if (hlOnly && !s.highlight) continue
+    const name = (SPEAKERS.find((x) => x.id === s.speaker) || {}).name || ''
+    const li = document.createElement('li')
+    li.className = 'ap-seg' + (s.highlight ? ' hl' : '')
+    li.innerHTML = '<span class="ap-time">' + s.t + '</span><span class="ap-seg-body">'
+      + '<span class="ap-speaker" style="--c:' + spkVar(s.speaker) + '"><span class="dot"></span>' + name + '</span>'
+      + '<span class="ap-seg-text">' + (s.highlight ? STAR : '') + s.text + '…</span></span>'
+    list.appendChild(li)
+  }
+}
+renderList()
+</script>
+
+
+</body></html>
