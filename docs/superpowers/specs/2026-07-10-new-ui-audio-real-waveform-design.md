@@ -1,7 +1,7 @@
 # NimoOS-New-UI 音频真实波形（合成占位 + 后台解码替换）设计
 
 - 日期：2026-07-10
-- 状态：设计已定，待实现
+- 状态：已实现（2026-07-13，commit 见 git log）
 - 范围仓库：`NimoOS-New-UI`（Vue 3 + TS + Vite，挂 `/app/`）
 - 影响文件：`src/files/viewers/MediaViewer.vue`（音频分支）、新增 `src/files/viewers/waveform.ts` + `waveform.test.ts`
 
