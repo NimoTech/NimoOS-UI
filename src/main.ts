@@ -6,6 +6,7 @@ import { router } from './router'
 import { i18n } from './i18n'
 import { useSessionStore } from './stores/session'
 import { makeAuthFailHandler } from './router/onAuthFail'
+import { applyTheme, initialTheme } from './stores/theme'
 import './styles/theme.css'
 import './files/viewers/viewers.css'
 
@@ -32,4 +33,6 @@ initService({
 
 app.use(i18n)
 app.use(router)
+// 冷启动:mount 前先把 data-theme 贴到 <html>,避免先渲染默认蓝再跳白的闪烁。
+applyTheme(initialTheme())
 app.mount('#app')

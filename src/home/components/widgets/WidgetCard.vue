@@ -1,6 +1,6 @@
 <template>
   <div class="card" :class="meta?.extra ? `w-${meta.extra}` : ''">
-    <div class="card-head"><span class="card-ic" v-html="iconSvg" /><span class="card-title">{{ meta?.title }}</span></div>
+    <div class="card-head"><span class="card-ic" v-html="iconSvg" /><span class="card-title">{{ meta?.title ? t(meta.title) : '' }}</span></div>
     <div class="card-in">
       <component :is="bodyComp" v-if="bodyComp" :item="item" />
     </div>
@@ -8,6 +8,7 @@
 </template>
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../../grid/types'
 import { WIDGETS } from '../../widgets/registry'
 import AiWidget from './AiWidget.vue'
@@ -19,6 +20,7 @@ import NetworkWidget from './NetworkWidget.vue'
 import EventsWidget from './EventsWidget.vue'
 
 const props = defineProps<{ item: LayoutItem }>()
+const { t } = useI18n()
 const meta = computed(() => WIDGETS[props.item.key])
 const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.icon ?? ''}</svg>`)
 
@@ -68,7 +70,7 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   pointer-events: none;
   /* thin top-edge gloss only — kept small so it doesn't read as a bright patch
      covering the top-left title/content (was transparent 26% / opacity .55) */
-  background: linear-gradient(148deg, rgba(255, 255, 255, 0.16), transparent 14%);
+  background: linear-gradient(148deg, rgba(255, 255, 255, 0.16), transparent 14%); /* theme-exception: Top-edge gloss/shine effect on glass cards; white highlight semantic doesn't map to existing tokens */
   mix-blend-mode: screen;
   opacity: 0.4;
 }
@@ -110,11 +112,11 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: var(--title-size, clamp(12px, 5.2cqmin, 15px));
+  font-size: var(--title-size, 14px);
   font-weight: 600;
   letter-spacing: -0.1px;
   color: var(--fg, #fff);
-  text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45);  /* skin-spatial.css:158 */
+  text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45); /* theme-exception: Dark text shadow for readability on glass cards; semantic doesn't fit existing shadow tokens */
 }
 
 /* ── Widget icon (.card-ic wraps the svg injected via v-html) ───────────── */

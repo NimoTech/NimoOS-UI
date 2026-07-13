@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>NimoOS</title>
+    <script>
+      // 主题防闪:在 JS bundle 加载前就贴 data-theme(与 src/stores/theme.ts 逻辑一致)
+      try {
+        if (localStorage.getItem('theme') === 'light') {
+          document.documentElement.dataset.theme = 'light'
+        }
+      } catch (e) { /* localStorage 不可用时静默,回落默认蓝 */ }
+    </script>
   </head>
   <body>
     <div id="app"></div>

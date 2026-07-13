@@ -1,3 +1,4 @@
+// `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
 export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string }
 
 const G = {
@@ -10,12 +11,12 @@ const G = {
 }
 
 export const SYSTEM_APPS: SystemApp[] = [
-  { key: 'files', name: 'Files', label: '文件', cls: 'ic-files', glyph: G.folder },
-  { key: 'photos', name: 'Photos', label: '照片', cls: 'ic-photos', glyph: G.photos },
-  { key: 'ai', name: 'AI', label: 'AI 助手', cls: 'ic-ai', glyph: G.ai },
-  { key: 'vm', name: 'KVM', label: '虚拟机', cls: 'ic-vm', glyph: G.vm },
-  { key: 'settings', name: 'Settings', label: '设置', cls: 'ic-settings', glyph: G.gear },
-  { key: 'appstore', name: 'App Store', label: 'AppStore', cls: 'ic-appstore', glyph: G.bag },
+  { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder },
+  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos },
+  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai },
+  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm },
+  { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear },
+  { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag },
 ]
 
 export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)

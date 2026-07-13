@@ -291,26 +291,26 @@ async function onReselect(e: Event) {
 .upload-panel-toggle {
   padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-border, rgba(255,255,255,0.12));
   background: var(--popup-bg, rgba(20,23,35,0.96)); color: var(--fg); cursor: pointer; font-size: 13px;
-  backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5);
+  backdrop-filter: blur(20px); box-shadow: var(--card-shadow-hi);
 }
 .upload-panel {
   width: 460px; max-width: calc(100vw - 48px); max-height: 74vh; overflow-y: auto;
   padding: 16px 18px; border-radius: 18px;
   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
-  backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
+  backdrop-filter: blur(20px); box-shadow: var(--card-shadow-hi); color: var(--fg);
 }
 .up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .up-title { font-size: 15px; font-weight: 600; }
 /* Compound selectors so red wins over .up-link-btn's accent color regardless of
    stylesheet order (both are single-class = equal specificity otherwise). */
-.up-link-btn.up-del { color: #ff8a8a; }
+.up-link-btn.up-del { color: var(--remove-fg, #ff8a8a); }
 .up-head-actions { display: flex; align-items: center; gap: 10px; }
-.up-link-btn.up-delete-all { color: #ff8a8a; }
+.up-link-btn.up-delete-all { color: var(--remove-fg, #ff8a8a); }
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
 .up-oversize-banner {
   margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px;
-  background: color-mix(in srgb, #f5a623 20%, transparent); border: 1px solid color-mix(in srgb, #f5a623 45%, transparent);
-  color: #f5c777;
+  background: color-mix(in srgb, var(--dem-bg, #f5a623) 20%, transparent); border: 1px solid color-mix(in srgb, var(--dem-bg, #f5a623) 45%, transparent);
+  color: var(--dem-fg, #f5c777);
 }
 .up-zone { margin-top: 6px; }
 .up-zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 8px 0 4px; }
@@ -325,7 +325,7 @@ async function onReselect(e: Event) {
 .up-item-meta { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
 .up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); text-align: left; font-variant-numeric: tabular-nums; }
 .up-item-size { margin-left: auto; text-align: right; font-size: 11px; color: var(--fg-muted, #9aa4bf); font-variant-numeric: tabular-nums; }
-.up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }
+.up-item-error { font-size: 11px; color: var(--remove-fg, #ff8a8a); margin-top: 2px; }
 .up-progress { height: 5px; border-radius: 999px; background: var(--chip-bg, rgba(255,255,255,0.1)); overflow: hidden; margin-top: 4px; }
 .up-progress-fill { height: 100%; background: var(--accent, #6ea8fe); transition: width .2s; }
 .up-item-actions { display: flex; gap: 10px; margin-top: 4px; }

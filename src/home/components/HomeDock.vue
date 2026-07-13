@@ -1,5 +1,5 @@
 <template>
-  <nav ref="root" class="dock" :class="{ expanded: dock.expanded.value }" aria-label="Dock"
+  <nav ref="root" class="dock" :class="{ expanded: dock.expanded.value }" :aria-label="t('dockAria')"
     @pointermove="onMove" @pointerleave="reset"
     @pointerdown.capture="onDragStart"
   >
@@ -12,7 +12,7 @@
         <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" />
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="dock.expanded.value" @click="dock.toggleExpanded()">
-        <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ dock.expanded.value ? '完成' : '所有应用' }}</span>
+        <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ dock.expanded.value ? t('dockDone') : t('dockAllApps') }}</span>
       </button>
     </div>
     <!-- floating drag ghost -->
@@ -26,11 +26,13 @@
 </template>
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
 import { magScale } from '../grid/dockMath'
 
+const { t } = useI18n()
 const dock = useDock()
 const apps = useAppsStore()
 const root = ref<HTMLElement | null>(null)

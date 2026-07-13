@@ -1,23 +1,25 @@
 <template>
-  <div class="ring-row solo"><RingGauge :percent="usage" label="使用率" :color="col" /></div>
+  <div class="ring-row solo"><RingGauge :percent="usage" :label="t('widgetUsage')" :color="col" /></div>
   <div v-if="item.w <= 2" class="pill-grid">
-    <div class="pill"><s>温度</s><b>{{ temp }}</b></div>
-    <div class="pill"><s>显存</s><b>{{ memUse }}</b></div>
+    <div class="pill"><s>{{ t('widgetTemp') }}</s><b>{{ temp }}</b></div>
+    <div class="pill"><s>{{ t('widgetVram') }}</s><b>{{ memUse }}</b></div>
   </div>
   <div v-else class="stats">
-    <div class="stat"><span>型号</span><b>{{ g && g.name ? g.name : '—' }}</b></div>
-    <div class="stat"><span>温度</span><b>{{ temp }}</b></div>
-    <div class="stat"><span>显存</span><b>{{ vram }}</b></div>
-    <div class="stat"><span>显存占用</span><b>{{ memUse }}</b></div>
+    <div class="stat"><span>{{ t('widgetModel') }}</span><b>{{ g && g.name ? g.name : '—' }}</b></div>
+    <div class="stat"><span>{{ t('widgetTemp') }}</span><b>{{ temp }}</b></div>
+    <div class="stat"><span>{{ t('widgetVram') }}</span><b>{{ vram }}</b></div>
+    <div class="stat"><span>{{ t('widgetVramUsage') }}</span><b>{{ memUse }}</b></div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../../grid/types'
 import { useLiveStatsStore } from '../../stores/liveStats'
 import { fmtSize, heatColor } from '../../util/format'
 import RingGauge from './RingGauge.vue'
 defineProps<{ item: LayoutItem }>()
+const { t } = useI18n()
 const store = useLiveStatsStore()
 const g = computed<any>(() => store.gpu && store.gpu[0])
 const usage = computed(() => g.value && g.value.utilization_gpu != null ? Math.round(g.value.utilization_gpu) : null)

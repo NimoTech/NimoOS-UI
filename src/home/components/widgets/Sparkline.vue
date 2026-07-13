@@ -7,14 +7,16 @@
         <polygon class="fill" :points="`0,32 ${pts} 100,32`" />
         <polyline :points="pts" />
       </svg>
-      <div v-else class="chart-empty">采集中…</div>
+      <div v-else class="chart-empty">{{ t('collecting') }}</div>
     </div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { sparklinePoints } from '../../util/charts'
 const props = defineProps<{ points: number[] }>()
+const { t } = useI18n()
 const pts = computed(() => sparklinePoints(props.points))
 </script>
 <style scoped>

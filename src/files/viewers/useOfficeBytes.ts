@@ -1,6 +1,7 @@
 import { ref, shallowRef, onMounted, onBeforeUnmount, type Ref, type ShallowRef } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import type { FileEntry } from '../stores/files'
+import { i18n } from '../../i18n'
 
 export type OfficeViewerState = 'loading' | 'ready' | 'error'
 
@@ -9,8 +10,8 @@ export type OfficeViewerState = 'loading' | 'ready' | 'error'
 // "Can't find end of central directory : is this a zip file?" —— 归一成友好提示。
 function renderErrorReason(e: unknown): string {
   const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
-  if (/zip|central directory/i.test(msg)) return '文件可能是旧版二进制格式(如 .doc/.xls)或已损坏,无法预览'
-  return '文件解析失败,无法预览'
+  if (/zip|central directory/i.test(msg)) return i18n.global.t('filesViewerOfficeLegacy')
+  return i18n.global.t('filesViewerParseFailed')
 }
 
 // 三个重查看器(PDF/Word/Excel)共用:取字节 + 三态机 + 卸载守卫。
@@ -37,7 +38,7 @@ export function useOfficeBytes(item: FileEntry): {
       buffer.value = buf               // state 维持 loading,直到 @rendered
     } catch {
       if (disposed) return
-      errorDetail.value = '获取文件失败,请重试'
+      errorDetail.value = i18n.global.t('filesViewerFetchFailed')
       state.value = 'error'
     }
   })

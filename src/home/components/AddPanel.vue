@@ -1,7 +1,7 @@
 <template>
   <aside class="lib-panel" v-show="open">
     <div class="lib-header">
-      <span class="lib-title">添加</span>
+      <span class="lib-title">{{ t('addPanelTitle') }}</span>
       <button class="lib-close" @click="$emit('close')">✕</button>
     </div>
 
@@ -14,7 +14,7 @@
         :class="{ active: ap.curTab.value === tab.key }"
         :data-tab="tab.key"
         @click="ap.curTab.value = tab.key"
-      >{{ tab.label }}</button>
+      >{{ t(tab.label) }}</button>
     </div>
 
     <!-- Widget tab -->
@@ -28,10 +28,10 @@
       >
         <svg class="lib-card-icon" viewBox="0 0 24 24" v-html="meta.icon" />
         <div class="lib-card-info">
-          <span class="lib-card-title">{{ meta.title }}</span>
-          <span class="lib-card-desc">{{ meta.desc }}</span>
+          <span class="lib-card-title">{{ t(meta.title) }}</span>
+          <span class="lib-card-desc">{{ t(meta.desc) }}</span>
         </div>
-        <span v-if="ap.widgetUsed(String(key))" class="lib-used-badge">✓ 已添加</span>
+        <span v-if="ap.widgetUsed(String(key))" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
       </div>
     </div>
 
@@ -48,7 +48,7 @@
           <img :src="appsStore.apps[key].icon!" alt="" loading="lazy" />
         </span>
         <span v-else class="lib-app-ic" :class="appsStore.apps[key]?.cls || 'ic-app'" v-html="appGlyph(key)" />
-        <span class="lib-app-label">{{ appsStore.apps[key]?.name ?? key }}</span>
+        <span class="lib-app-label">{{ appLabel(key) }}</span>
       </div>
     </div>
 
@@ -56,16 +56,16 @@
     <div v-if="ap.curTab.value === 'folder'" class="lib-content">
       <!-- Top level: disk picker (NimoOS-HD / USB drives) — never the raw `/` -->
       <template v-if="!ap.fsDisk.value">
-        <div v-if="foldersStore.disks.length === 0" class="lib-empty">未发现可用磁盘</div>
+        <div v-if="foldersStore.disks.length === 0" class="lib-empty">{{ t('addPanelNoDisks') }}</div>
         <div v-for="disk in foldersStore.disks" :key="disk.path" class="lib-folder-row">
-          <span class="lib-folder-name" @click="enterDisk(disk)">{{ disk.usb ? 'U盘 · ' : '' }}{{ disk.name }}</span>
-          <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: disk.name, path: disk.path, w: 1, h: 1 })">拖到主页</button>
+          <span class="lib-folder-name" @click="enterDisk(disk)">{{ disk.usb ? t('addPanelUsbPrefix') : '' }}{{ disk.name }}</span>
+          <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: disk.name, path: disk.path, w: 1, h: 1 })">{{ t('addPanelDragToHome') }}</button>
         </div>
       </template>
       <!-- Browsing within a disk: breadcrumb capped at the disk root -->
       <template v-else>
         <div class="lib-breadcrumb">
-          <span class="lib-bc-seg lib-bc-back" @click="backToDisks">‹ 磁盘</span>
+          <span class="lib-bc-seg lib-bc-back" @click="backToDisks">‹ {{ t('addPanelDisks') }}</span>
           <span
             v-for="(seg, idx) in breadcrumbs"
             :key="idx"
@@ -73,21 +73,21 @@
             @click="navigateTo(seg.path)"
           >{{ seg.label }}</span>
         </div>
-        <div v-if="currentFolders.length === 0" class="lib-empty">暂无子文件夹</div>
+        <div v-if="currentFolders.length === 0" class="lib-empty">{{ t('addPanelNoSubfolders') }}</div>
         <div
           v-for="folder in currentFolders"
           :key="folder.path"
           class="lib-folder-row"
         >
           <span class="lib-folder-name" @click="enterFolder(folder.path)">{{ folder.name }}</span>
-          <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
+          <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">{{ t('addPanelDragToHome') }}</button>
         </div>
       </template>
     </div>
 
     <!-- Photo tab -->
     <div v-if="ap.curTab.value === 'photo'" class="lib-content lib-photo-grid">
-      <div v-if="photosStore.assets.length === 0" class="lib-empty">暂无照片</div>
+      <div v-if="photosStore.assets.length === 0" class="lib-empty">{{ t('addPanelNoPhotos') }}</div>
       <div
         v-for="asset in photosStore.assets"
         :key="asset.id"
@@ -100,13 +100,14 @@
 
     <!-- Reset button -->
     <div class="lib-footer">
-      <button class="lib-reset-btn" @click="ap.reset()">恢复默认布局</button>
+      <button class="lib-reset-btn" @click="ap.reset()">{{ t('addPanelReset') }}</button>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAddPanel } from '../composables/useAddPanel'
 import { useHomeUiStore } from '../stores/homeUi'
 import { useAppsStore } from '../stores/apps'
@@ -126,6 +127,14 @@ type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string 
 const ap = useAddPanel({ cols: props.cols ?? 12, rows: props.rows ?? 8 })
 const appsStore = useAppsStore()
 const homeUi = useHomeUiStore()
+const { t } = useI18n()
+
+// System apps store an i18n key in `name`; container apps store a literal title.
+function appLabel(key: string): string {
+  const m = appsStore.apps[key]
+  if (!m) return key
+  return m.system ? t(m.name) : m.name
+}
 
 // Pointer → grid cell, shared by the live drop-ghost and the final placement.
 // Returns null when the pointer isn't over the grid.
@@ -194,10 +203,10 @@ const photosStore = usePhotosStore()
 const liveStats = useLiveStatsStore()
 
 const TABS = [
-  { key: 'widget', label: '组件' },
-  { key: 'app',    label: '应用' },
-  { key: 'folder', label: '文件夹' },
-  { key: 'photo',  label: '照片' },
+  { key: 'widget', label: 'addPanelTabWidget' },
+  { key: 'app',    label: 'addPanelTabApp' },
+  { key: 'folder', label: 'addPanelTabFolder' },
+  { key: 'photo',  label: 'addPanelTabPhoto' },
 ] as const
 
 // Hide gpu widget when no GPU present
@@ -272,7 +281,7 @@ function appGlyph(key: string): string {
   background: var(--overlay-bg, rgba(20, 26, 46, 0.46));
   backdrop-filter: var(--overlay-blur, blur(50px) saturate(1.5) brightness(1.05));
   border-left: 1px solid var(--card-border, rgba(255,255,255,.36));
-  box-shadow: -34px 0 70px -34px rgba(0,0,0,.6);
+  box-shadow: -34px 0 70px -34px rgba(0,0,0,.6); /* theme-exception: drop shadow, theme-independent */
   display: flex; flex-direction: column;
   z-index: 200;
   overflow: hidden;
@@ -285,7 +294,7 @@ function appGlyph(key: string): string {
   border-bottom: 1px solid var(--card-border, rgba(255,255,255,.18));
   flex: 0 0 auto;
 }
-.lib-title { font-size: 16px; font-weight: 600; color: var(--fg, #fff); }
+.lib-title { font-size: 14px; font-weight: 600; color: var(--fg, #fff); }
 .lib-close {
   background: none; border: 0; color: var(--fg-muted, rgba(255,255,255,.74));
   font-size: 18px; cursor: pointer; opacity: .7;
@@ -301,7 +310,7 @@ function appGlyph(key: string): string {
   flex: 0 0 auto;
 }
 .lib-tab {
-  flex: 1; padding: 7px 10px; font-size: 12px;
+  flex: 1; padding: 7px 10px; font-size: 14px;
   background: var(--chip-bg, rgba(255,255,255,.1));
   border: 1px solid var(--chip-border, rgba(255,255,255,.4));
   border-radius: 999px;
@@ -343,13 +352,13 @@ function appGlyph(key: string): string {
   fill: none; stroke: var(--accent, #8ab4ff); stroke-width: 1.6; opacity: .9;
 }
 .lib-card-info { flex: 1; }
-.lib-card-title { display: block; font-size: 13px; font-weight: 500; color: var(--fg, #fff); }
-.lib-card-desc { display: block; font-size: 11px; color: var(--fg-muted, rgba(255,255,255,.74)); margin-top: 2px; }
+.lib-card-title { display: block; font-size: 14px; font-weight: 500; color: var(--fg, #fff); }
+.lib-card-desc { display: block; font-size: 14px; color: var(--fg-muted, rgba(255,255,255,.74)); margin-top: 2px; }
 
 /* ✓ 已添加 badge — accent text, top-right */
 .lib-used-badge {
   position: absolute; top: 12px; right: 12px;
-  font-size: 11px; font-weight: 600;
+  font-size: 14px; font-weight: 600;
   color: var(--accent, #8ab4ff); white-space: nowrap;
 }
 
@@ -364,7 +373,7 @@ function appGlyph(key: string): string {
   width: var(--app-size, 64px); height: var(--app-size, 64px);   /* match desktop/dock icon size */
   display: grid; place-items: center;
   border-radius: var(--icon-radius, 22px);
-  color: #fff;                                    /* glyph stroke reads on the colored gradient */
+  color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */
   box-shadow: var(--icon-shadow, 0 14px 30px -8px rgba(6,10,26,.6), inset 0 1px 0 rgba(255,255,255,.4));
   transition: transform .18s var(--ease, ease), box-shadow .18s;
   /* background comes from the bound .ic-* class (global): vivid gradient for
@@ -373,9 +382,9 @@ function appGlyph(key: string): string {
 .lib-icon:hover .lib-app-ic {
   transform: translateY(-3px) scale(1.06);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.6),
+    inset 0 1px 0 rgba(255,255,255,.6), /* theme-exception: inset highlight, theme-independent */
     inset 0 0 18px -4px var(--accent, #8ab4ff),
-    0 20px 38px -8px rgba(6,10,26,.6);
+    0 20px 38px -8px rgba(6,10,26,.6); /* theme-exception: drop shadow, theme-independent */
 }
 /* With real image: no background tint, overflow clip to preserve border-radius */
 .lib-app-ic.has-img {
@@ -387,7 +396,7 @@ function appGlyph(key: string): string {
 .lib-app-ic :deep(svg) { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .lib-app-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 .lib-app-label {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--fg-muted, rgba(255,255,255,.74));
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -403,7 +412,7 @@ function appGlyph(key: string): string {
   border-radius: 999px;
   background: var(--chip-bg, rgba(255,255,255,.1));
   color: var(--fg, #fff);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   backdrop-filter: var(--blur, blur(44px) saturate(1.7) brightness(1.08));
   transition: background .15s;
@@ -423,7 +432,7 @@ function appGlyph(key: string): string {
 }
 .lib-folder-row:hover { border-color: var(--accent, #8ab4ff); }
 .lib-folder-name {
-  flex: 1; cursor: pointer; font-size: 13px;
+  flex: 1; cursor: pointer; font-size: 14px;
   color: var(--fg, #fff);
 }
 .lib-folder-name:hover { color: var(--accent, #8ab4ff); }
@@ -436,7 +445,7 @@ function appGlyph(key: string): string {
   border-radius: 999px;
   background: transparent;
   color: var(--accent, #8ab4ff);
-  font-size: 12px; cursor: pointer;
+  font-size: 14px; cursor: pointer;
   transition: background .18s, color .18s;
 }
 .lib-pin-btn:hover { background: var(--accent, #8ab4ff); color: var(--on-accent, #16203a); }
@@ -456,7 +465,7 @@ function appGlyph(key: string): string {
 .lib-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* ── Empty state ── */
-.lib-empty { font-size: 12px; color: var(--fg-faint, rgba(255,255,255,.52)); padding: 24px 16px; text-align: center; }
+.lib-empty { font-size: 14px; color: var(--fg-faint, rgba(255,255,255,.52)); padding: 24px 16px; text-align: center; }
 
 /* ── Footer ── */
 .lib-footer {
@@ -472,7 +481,7 @@ function appGlyph(key: string): string {
   border-radius: 999px;
   background: var(--chip-bg, rgba(255,255,255,.1));
   color: var(--fg-muted, rgba(255,255,255,.74));
-  font-size: 13px; cursor: pointer;
+  font-size: 14px; cursor: pointer;
   transition: color .18s, border-color .18s;
 }
 .lib-reset-btn:hover { color: var(--remove-bg, #ff708a); border-color: var(--remove-bg, #ff708a); }

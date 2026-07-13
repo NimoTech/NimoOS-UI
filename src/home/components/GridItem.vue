@@ -8,18 +8,19 @@
     @pointerdown="onRootDown"
     @click="onClick"
   >
-    <button v-if="editing" class="remove" aria-label="移除" @click.stop="onRemove">−</button>
+    <button v-if="editing" class="remove" :aria-label="t('gridRemove')" @click.stop="onRemove">−</button>
     <WidgetCard v-if="item.kind === 'widget'" :item="sized" />
     <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
     <AppTile v-else-if="item.kind === 'app'" :item="item" />
     <FolderTile v-else-if="item.kind === 'folder'" :item="item" />
     <span v-else class="item-label">{{ label }}</span>
-    <span v-if="editing && canResize" class="resize-handle" aria-label="缩放" @pointerdown.stop="$emit('resize-down', $event)" />
+    <span v-if="editing && canResize" class="resize-handle" :aria-label="t('gridResize')" @pointerdown.stop="$emit('resize-down', $event)" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
 import { widgetSize } from '../widgets/registry'
@@ -46,6 +47,7 @@ const emit = defineEmits<{
   (e: 'resize-down', event: PointerEvent): void
 }>()
 
+const { t } = useI18n()
 const { openItem } = useOpenAction()
 const { editing } = useEditMode()
 const layout = useLayoutStore()
@@ -64,8 +66,8 @@ const style = computed(() => ({
 
 const label = computed(() => {
   const it = props.item
-  if (it.kind === 'widget') return WIDGETS[it.key]?.title ?? it.key
-  if (it.kind === 'app') return SYSTEM_APPS.find((a) => a.key === it.key)?.label ?? it.key
+  if (it.kind === 'widget') { const k = WIDGETS[it.key]?.title; return k ? t(k) : it.key }
+  if (it.kind === 'app') { const k = SYSTEM_APPS.find((a) => a.key === it.key)?.label; return k ? t(k) : it.key }
   return it.key // folder
 })
 
@@ -81,7 +83,7 @@ const canResize = computed(() => {
 function onRemove() {
   layout.remove(props.item.id)
   layout.save()
-  ui.showToast('已移除')
+  ui.showToast(t('addPanelRemovedToast'))
 }
 
 function onRootDown(e: PointerEvent) {
@@ -107,7 +109,7 @@ function onClick() {
   overflow: visible;
   /* min-width/min-height/position/touch-action come from global theme.css */
 }
-.item-label { font-size: 13px; opacity: 0.85; padding: 6px; text-align: center; }
+.item-label { font-size: 14px; opacity: 0.85; padding: 6px; text-align: center; }
 
 /* .remove, .resize-handle, @keyframes jiggle, .grid-item.editing animation → global theme.css (P4c) */
 </style>

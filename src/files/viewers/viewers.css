@@ -7,7 +7,12 @@
 }
 
 .office-body { width: 100%; height: 100%; position: relative; }
-.office-scroll { width: 100%; height: 100%; overflow: auto; background: #fff; }
+/* 画布透明，露出与主页一致的浮层背景；文档纸张自身仍是白色，可读性不变 */
+.office-scroll { width: 100%; height: 100%; overflow: auto; background: transparent; }
+
+/* docx 预览：去掉库默认的灰色包裹背景，只让白色纸张浮在主页背景上 */
+.vue-office-docx,
+.vue-office-docx .docx-wrapper { background: transparent !important; }
 .viewer-status {
   position: absolute; inset: 0; z-index: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -15,7 +20,7 @@
 }
 .viewer-status .chip {
   padding: 6px 14px; border: none; border-radius: 999px; cursor: pointer;
-  background: rgba(255, 255, 255, 0.16); color: var(--fg, #fff);
+  background: var(--tool-bg); color: var(--fg, #fff);
 }
 .viewer-status .detail {
   font-size: 12px; opacity: 0.7; max-width: 80%; text-align: center; word-break: break-all;

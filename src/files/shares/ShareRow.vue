@@ -41,5 +41,5 @@ const { t } = useI18n()
 .share-row-main:hover .share-actions { opacity: 1; }
 .share-act { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
 .share-act:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
-.share-act.danger { color: #ff8a8a; border-color: color-mix(in srgb, #ff5d5d 45%, transparent); }
+.share-act.danger { color: var(--remove-bg); border-color: var(--remove-bg); opacity: 0.7; }
 </style>

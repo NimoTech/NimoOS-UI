@@ -71,8 +71,8 @@ onMounted(async () => {
   } catch {
     if (disposed) return
     errorDetail.value = isConvert
-      ? '文档转换失败或超时,建议下载后用本地软件打开'
-      : 'PDF 加载失败,文件可能已损坏或加密'
+      ? t('filesViewerConvertFailed')
+      : t('filesViewerPdfLoadFailed')
     state.value = 'error'
   }
 })
@@ -108,7 +108,7 @@ async function renderAll(): Promise<void> {
     } catch (e) {
       if (isCancelled(e)) return              // 被新一轮缩放/卸载取消 → 预期
       if (disposed || gen !== renderGen) return
-      errorDetail.value = 'PDF 渲染失败,文件可能损坏'
+      errorDetail.value = t('filesViewerPdfRenderFailed')
       state.value = 'error'
       return
     }
@@ -191,24 +191,24 @@ onBeforeUnmount(() => {
   position: relative;
   width: 100%; height: 100%; overflow: auto;
   display: flex; flex-direction: column; align-items: center; gap: 16px;
-  padding: 16px; background: rgba(0, 0, 0, 0.25);
+  padding: 16px; background: var(--app-bg);
 }
 .pdf-scroll :deep(.pdf-page-canvas) {
   max-width: 100%; height: auto;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4); background: #fff;
+  box-shadow: var(--card-shadow-hi); background: #fff; /* theme-exception: PDF canvas white background for document readability */
 }
 .pdf-tools { display: flex; align-items: center; gap: 10px; }
 .pdf-btn {
   width: 30px; height: 30px; border: none; border-radius: 50%; cursor: pointer;
-  background: rgba(255, 255, 255, 0.14); color: var(--fg, #fff); font-size: 17px; line-height: 1;
+  background: var(--tool-bg); color: var(--fg, #fff); font-size: 17px; line-height: 1;
 }
 .pdf-btn:disabled { opacity: 0.35; cursor: default; }
-.pdf-btn:not(:disabled):hover { background: rgba(255, 255, 255, 0.26); }
+.pdf-btn:not(:disabled):hover { background: var(--tool-bg-hi); }
 .pdf-zoom { font-size: 13px; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
 .pdf-pager { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
 .pdf-page-input {
   width: 46px; height: 26px; text-align: center; border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--inner-border); background: var(--inner-bg);
   color: var(--fg, #fff); font-size: 13px; font-variant-numeric: tabular-nums;
 }
 .pdf-page-sep { font-size: 13px; opacity: 0.75; }

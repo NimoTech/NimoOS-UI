@@ -5,6 +5,7 @@ import { dragCell, resizeSize } from '../grid/pointerMath'
 import { widgetSize } from '../widgets/registry'
 import { useLayoutStore } from '../stores/layout'
 import { useHomeUiStore } from '../stores/homeUi'
+import { i18n } from '../../i18n'
 
 export function resizePreview(item: LayoutItem, w: number, h: number, layout: LayoutItem[], dims: Dims): { mode: 'wysiwyg' | 'ghost'; ok: boolean } {
   if (fits(item.c, item.r, w, h, item.id, layout, dims)) return { mode: 'wysiwyg', ok: true }
@@ -56,12 +57,12 @@ export function useDragResize(opts: { cell: Ref<number>; gap: Ref<number>; cols:
     const it = active.item
     if (active.mode === 'resize' && active.tw && (active.tw !== it.w || active.th !== it.h)) {
       const plan = planMove(it.id, it.c, it.r, active.tw, active.th as number, layout.items, dims)
-      if (plan) { layout.applyPlan(plan); layout.save(); ui.showToast(`已调整为 ${active.tw}×${active.th}`); pop(it.id) }
-      else ui.showToast('空间不够,放不下')
+      if (plan) { layout.applyPlan(plan); layout.save(); ui.showToast(i18n.global.t('dragResized', { w: active.tw, h: active.th })); pop(it.id) }
+      else ui.showToast(i18n.global.t('dragNoRoom'))
     } else if (active.mode === 'drag' && active.tc) {
       const plan = planMove(it.id, active.tc, active.tr as number, it.w, it.h, layout.items, dims)
-      if (plan) { layout.applyPlan(plan); layout.save(); ui.showToast('已放置,旁边组件已让位'); pop(it.id) }
-      else ui.showToast('这一屏实在放不下了,已归位')
+      if (plan) { layout.applyPlan(plan); layout.save(); ui.showToast(i18n.global.t('dragPlaced')); pop(it.id) }
+      else ui.showToast(i18n.global.t('dragCantFit'))
     }
     reset()
   }

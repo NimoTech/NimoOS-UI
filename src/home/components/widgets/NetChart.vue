@@ -9,15 +9,17 @@
         <polyline v-if="d" class="line down" :points="d" />
         <polyline v-if="u" class="line up" :points="u" />
       </svg>
-      <div v-else class="chart-empty">采集中…</div>
+      <div v-else class="chart-empty">{{ t('collecting') }}</div>
     </div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { netChartPoints, netPeak } from '../../util/charts'
 import { fmtSpeed } from '../../util/format'
 const props = defineProps<{ up: number[]; down: number[] }>()
+const { t } = useI18n()
 const peak = computed(() => netPeak(props.up, props.down))
 const u = computed(() => netChartPoints(props.up, peak.value))
 const d = computed(() => netChartPoints(props.down, peak.value))
@@ -33,9 +35,9 @@ const d = computed(() => netChartPoints(props.down, peak.value))
 .chart-plot .net-chart { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; }
 .net-chart .grid { stroke: var(--inner-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .net-chart .line { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
-.net-chart .line.up { stroke: rgb(0, 143, 251); }
-.net-chart .line.down { stroke: rgb(0, 227, 150); }
+.net-chart .line.up { stroke: var(--accent); }
+.net-chart .line.down { stroke: var(--good); }
 .net-chart .area { stroke: none; opacity: .16; }
-.net-chart .area.up { fill: rgb(0, 143, 251); }
-.net-chart .area.down { fill: rgb(0, 227, 150); }
+.net-chart .area.up { fill: var(--accent); }
+.net-chart .area.down { fill: var(--good); }
 </style>

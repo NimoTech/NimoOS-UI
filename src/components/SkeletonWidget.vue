@@ -18,7 +18,7 @@ const store = useUtilizationStore()
 </script>
 
 <style scoped>
-.widget { background: rgba(255,255,255,.06); border-radius: 16px; padding: 16px; max-width: 320px; }
+.widget { background: var(--skeleton-bg); border-radius: 16px; padding: 16px; max-width: 320px; }
 .row { display: flex; justify-content: space-between; padding: 4px 0; }
 .row b { color: var(--accent); }
 .empty { opacity: .6; }

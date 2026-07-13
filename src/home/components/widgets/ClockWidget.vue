@@ -51,9 +51,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../../grid/types'
 
 const props = defineProps<{ item: LayoutItem }>()
+const { t } = useI18n()
 
 const now = ref(new Date())
 let timer: ReturnType<typeof setInterval> | null = null
@@ -61,14 +63,15 @@ onMounted(() => { timer = setInterval(() => { now.value = new Date() }, 1000) })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 
 const pad = (n: number) => String(n).padStart(2, '0')
-const WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+const WEEK = computed(() => t('clockWeekdays').split(','))
 
 const time = computed(() => pad(now.value.getHours()) + ':' + pad(now.value.getMinutes()))
-const weekday = computed(() => WEEK[now.value.getDay()])
-const dateCN = computed(() => (now.value.getMonth() + 1) + '月' + now.value.getDate() + '日')
+const weekday = computed(() => WEEK.value[now.value.getDay()])
+const dateCN = computed(() => t('clockDate', { m: now.value.getMonth() + 1, d: now.value.getDate() }))
 const greeting = computed(() => {
   const h = now.value.getHours()
-  return h < 5 ? '凌晨好' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好'
+  const k = h < 5 ? 'clockGreetDawn' : h < 11 ? 'clockGreetMorning' : h < 13 ? 'clockGreetNoon' : h < 18 ? 'clockGreetAfternoon' : 'clockGreetEvening'
+  return t(k)
 })
 
 const hourDeg = computed(() => (now.value.getHours() % 12) * 30 + now.value.getMinutes() * 0.5)
@@ -85,7 +88,7 @@ const variant = computed<'mini' | 'wide' | 'med' | 'square'>(() => {
 </script>
 
 <style scoped>
-.clock { width: 100%; height: 100%; display: flex; color: #fff; overflow: hidden; }
+.clock { width: 100%; height: 100%; display: flex; color: var(--fg); overflow: hidden; }
 .txt { display: flex; flex-direction: column; }
 .time {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -126,14 +129,14 @@ const variant = computed<'mini' | 'wide' | 'med' | 'square'>(() => {
 
 /* —— 表盘 —— */
 .dial { flex: 0 0 auto; }
-.face { fill: rgba(255, 255, 255, .06); stroke: rgba(255, 255, 255, .38); stroke-width: 1; }
-.tick { stroke: rgba(255, 255, 255, .62); stroke-width: 1; stroke-linecap: round; }
+.face { fill: var(--spark-grid); stroke: var(--fg-faint); stroke-width: 1; }
+.tick { stroke: var(--fg-muted); stroke-width: 1; stroke-linecap: round; }
 .tick.major { stroke-width: 2; }
-.hand { stroke: #fff; stroke-linecap: round; }
+.hand { stroke: var(--fg); stroke-linecap: round; }
 .hand.hour { stroke-width: 3; }
 .hand.minute { stroke-width: 2; }
 .hand.second { stroke: var(--accent2, #b79bff); stroke-width: 1.4; }
-.pin { fill: #fff; }
+.pin { fill: var(--fg); }
 
 @media (prefers-reduced-motion: reduce) {
   .hand { transition: none; }

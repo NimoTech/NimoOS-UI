@@ -40,12 +40,12 @@ function baseName(p: string): string {
   position: fixed; left: 24px; bottom: 24px; z-index: 60; width: 340px; max-width: calc(100vw - 48px);
   padding: 12px 14px; border-radius: 16px;
   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
-  backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
+  backdrop-filter: blur(20px); box-shadow: var(--card-shadow-hi); color: var(--fg);
 }
 .op-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .op-title { font-size: 13px; font-weight: 600; }
-.op-cancel-all { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, #ff5d5d 45%, transparent); background: transparent; color: #ff8a8a; cursor: pointer; font-size: 12px; }
-.op-cancel-all:hover { background: color-mix(in srgb, #ff5d5d 22%, transparent); }
+.op-cancel-all { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); background: transparent; color: var(--remove-fg, #ff8a8a); cursor: pointer; font-size: 12px; }
+.op-cancel-all:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
 .op-task { margin-top: 8px; }
 .op-task-line { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 4px; }
 .op-task-label { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }

@@ -42,8 +42,8 @@ onMounted(async () => {
 .md-body { max-width: 820px; width: 100%; padding: 32px 28px; line-height: 1.7; color: var(--fg, #fff); }
 .md-body :deep(h1), .md-body :deep(h2), .md-body :deep(h3) { margin: 1.2em 0 0.5em; font-weight: 700; }
 .md-body :deep(h1) { font-size: 1.7em; border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.2)); padding-bottom: 0.3em; }
-.md-body :deep(code) { background: rgba(255,255,255,0.1); padding: 0.15em 0.4em; border-radius: 4px; font-family: Consolas, monospace; }
-.md-body :deep(pre) { background: rgba(0,0,0,0.35); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
+.md-body :deep(code) { background: var(--inner-bg); padding: 0.15em 0.4em; border-radius: 4px; font-family: Consolas, monospace; }
+.md-body :deep(pre) { background: var(--card-bg); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
 .md-body :deep(pre) code { background: none; padding: 0; }
 .md-body :deep(a) { color: var(--accent, #8ab4ff); }
 .md-body :deep(table) { border-collapse: collapse; }

@@ -1,21 +1,23 @@
 <template>
   <div class="ring-row" :class="{ solo: item.w <= 2 }">
-    <RingGauge :percent="pct" label="已使用" :arc="false" />
+    <RingGauge :percent="pct" :label="t('widgetUsed')" :arc="false" />
     <div v-if="item.w > 2" class="stats">
-      <div v-if="item.w >= 4" class="stat"><span>总容量</span><b>{{ total }}</b></div>
-      <div v-if="item.w >= 4" class="stat"><span>已使用</span><b>{{ used }}</b></div>
-      <div class="stat"><span>可用</span><b>{{ avail }}</b></div>
-      <div class="stat"><span>状态</span><b>{{ healthTxt }}</b></div>
+      <div v-if="item.w >= 4" class="stat"><span>{{ t('widgetTotal') }}</span><b>{{ total }}</b></div>
+      <div v-if="item.w >= 4" class="stat"><span>{{ t('widgetUsed') }}</span><b>{{ used }}</b></div>
+      <div class="stat"><span>{{ t('widgetAvail') }}</span><b>{{ avail }}</b></div>
+      <div class="stat"><span>{{ t('widgetStatus') }}</span><b>{{ healthTxt }}</b></div>
     </div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../../grid/types'
 import { useLiveStatsStore } from '../../stores/liveStats'
 import { fmtSize } from '../../util/format'
 import RingGauge from './RingGauge.vue'
 defineProps<{ item: LayoutItem }>()
+const { t } = useI18n()
 const store = useLiveStatsStore()
 const d = computed<any>(() => store.disk)
 const pct = computed(() => d.value ? Math.max(0, 100 - Math.floor(d.value.avail * 100 / d.value.size)) : null)
@@ -26,7 +28,7 @@ const healthTxt = computed(() => {
   if (!d.value) return '—'
   const hv = d.value.health
   const bad = hv === false || (typeof hv === 'string' && !/^(healthy|passed|ok|good|true)$/i.test(hv.trim()))
-  return bad ? '异常' : '正常'
+  return bad ? t('widgetHealthBad') : t('widgetHealthOk')
 })
 </script>
 <style scoped>

@@ -1,5 +1,5 @@
 <template>
-  <section ref="gridEl" class="grid" aria-label="主页画布"
+  <section ref="gridEl" class="grid" :aria-label="t('gridCanvas')"
     @pointermove="dr.onPointerMove"
     @pointerup="dr.onPointerUp"
     @pointercancel="dr.onPointerUp"
@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { ref, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../grid/types'
 import GridItem from './GridItem.vue'
 import GridCells from './GridCells.vue'
@@ -41,6 +42,7 @@ const props = withDefaults(defineProps<{
   rows: 8,
 })
 
+const { t } = useI18n()
 const layout = useLayoutStore()
 const homeUi = useHomeUiStore()
 const { editing } = useEditMode()

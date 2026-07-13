@@ -7,17 +7,19 @@
   <div class="net-legend">
     <span class="net-up">↑ {{ fmtSpeed(up) }}</span>
     <span class="net-down">↓ {{ fmtSpeed(down) }}</span>
-    <span v-if="peak" class="net-peak">峰值 {{ fmtSpeed(peak) }}</span>
+    <span v-if="peak" class="net-peak">{{ t('widgetPeak') }} {{ fmtSpeed(peak) }}</span>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../../grid/types'
 import { useLiveStatsStore } from '../../stores/liveStats'
 import { fmtSpeed } from '../../util/format'
 import { netPeak } from '../../util/charts'
 import NetChart from './NetChart.vue'
 defineProps<{ item: LayoutItem }>()
+const { t } = useI18n()
 const store = useLiveStatsStore()
 const nets = computed<any[]>(() => store.nets || [])
 const sel = computed<any>(() => nets.value.find((n) => n.name === store.netSel) || nets.value[0] || null)
@@ -33,7 +35,7 @@ const peak = computed(() => { const p = netPeak(hist.value.up, hist.value.down);
 .net-dev.on { border-color: var(--accent); color: var(--accent); }
 .net-devs.single { color: var(--fg-muted); font-size: 12px; }
 .net-legend { display: flex; gap: 16px; align-items: baseline; font-size: clamp(11px, 6cqmin, 14px); font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
-.net-up { color: rgb(0, 143, 251); }
-.net-down { color: rgb(0, 227, 150); }
+.net-up { color: var(--accent); }
+.net-down { color: var(--good); }
 .net-peak { color: var(--fg-faint); font-size: clamp(9px, 5cqmin, 12px); }
 </style>

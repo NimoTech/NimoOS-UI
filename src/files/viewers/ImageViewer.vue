@@ -133,18 +133,19 @@ onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTime
   gap: 4px;
   padding: 6px 10px;
   border-radius: 10px;
-  background: rgb(49, 49, 54);
+  background: var(--popup-bg);
+  backdrop-filter: var(--blur);
 }
 .tb-item {
   width: 34px;
   height: 34px;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--fg);
   font-size: 18px;
   cursor: pointer;
   border-radius: 6px;
 }
-.tb-item:hover { background: rgba(255, 255, 255, 0.15); }
+.tb-item:hover { background: var(--tool-bg-hi); }
 .tb-item.disabled { opacity: 0.35; pointer-events: none; }
 </style>

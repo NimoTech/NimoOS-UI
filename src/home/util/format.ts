@@ -1,3 +1,5 @@
+import { i18n } from '../../i18n'
+
 // engine.js 469-477
 function sizeUnit(bytes: number): [string, string] {
   bytes = Number(bytes) || 0
@@ -26,10 +28,11 @@ export function heatColor(t: number | null | undefined): string {
 
 // engine.js 590-597 — now 注入便于测试(默认取当前时间由调用方传)
 export function relTime(ts: number, now: number = Date.now()): string {
+  const g = i18n.global
   const diff = now - ts
-  if (diff < 0 || diff < 60000) return '刚刚'
-  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前'
-  if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前'
+  if (diff < 0 || diff < 60000) return g.t('homeRelJustNow')
+  if (diff < 3600000) return g.t('homeRelMinutes', { n: Math.floor(diff / 60000) })
+  if (diff < 86400000) return g.t('homeRelHours', { n: Math.floor(diff / 3600000) })
   const d = new Date(ts)
-  return `${d.getMonth() + 1}月${d.getDate()}日`
+  return g.t('clockDate', { m: d.getMonth() + 1, d: d.getDate() })
 }

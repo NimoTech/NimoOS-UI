@@ -48,7 +48,7 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin) 
 
 <style scoped>
 .add-mount-btn { width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
-.add-mount-btn:hover { background: var(--chip-hover, rgba(255,255,255,0.12)); }
+.add-mount-btn:hover { background: var(--chip-bg-hi); }
 </style>
 
 <style>

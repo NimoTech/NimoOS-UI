@@ -20,4 +20,11 @@ describe('HomeTopbar', () => {
     await w.get('.add-btn').trigger('click')
     expect(w.emitted('add')).toBeTruthy()
   })
+  it('search button opens the search palette', async () => {
+    const ui = useHomeUiStore()
+    const w = mount(HomeTopbar)
+    expect(ui.searchOpen).toBe(false)
+    await w.get('.search-btn').trigger('click')
+    expect(ui.searchOpen).toBe(true)
+  })
 })

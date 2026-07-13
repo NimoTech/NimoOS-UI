@@ -7,7 +7,7 @@ describe('useAppsStore', () => {
   it('exposes the 6 system apps immediately', () => {
     const s = useAppsStore()
     expect(s.app('files')?.system).toBe(true)
-    expect(s.app('files')?.name).toBe('文件')
+    expect(s.app('files')?.name).toBe('appFiles') // system apps store an i18n key, translated at render
     expect(s.order).toContain('appstore')
   })
   it('merges container apps without overwriting system keys, picks zh_cn title', () => {

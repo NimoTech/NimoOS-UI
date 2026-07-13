@@ -20,13 +20,13 @@ import { ContextMenuRoot, ContextMenuTrigger, ContextMenuPortal, ContextMenuCont
 .ui-ctx-content {
   min-width: 190px; padding: 6px; border-radius: 14px; z-index: 120;
   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px);
-  box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
+  box-shadow: var(--card-shadow-hi); color: var(--fg);
 }
 .ui-ctx-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 9px;
   font-size: 13px; cursor: pointer; user-select: none; outline: none;
 }
 .ui-ctx-item[data-highlighted] { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
-.ui-ctx-item.danger { color: #ff8a8a; }
+.ui-ctx-item.danger { color: #ff8a8a; /* theme-exception: danger text color needs dedicated token */ }
 .ui-ctx-sep { height: 1px; margin: 5px 4px; background: var(--card-border, rgba(255,255,255,0.1)); }
 </style>
