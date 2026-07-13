@@ -46,15 +46,17 @@ export function barSpeakers(
 }
 
 /**
- * 单段过滤谓词:picked(说话人多选集,空=全部)与 highlightsOnly AND 叠加。
+ * 单段过滤谓词:picked = 当前选中的说话人集合(master-checkbox 语义:全选=全显,
+ * 空集=全不选=隐藏所有带说话人的段;传 null 表示本音频无说话人数据,不做说话人过滤),
+ * 与 highlightsOnly AND 叠加。
  * MediaViewer 的转录行过滤与波形 .dim 判断共用同一 picked 集合,保证两处口径一致。
  */
 export function segMatches(
   seg: { speaker?: string; highlight?: boolean },
-  picked: ReadonlySet<string>,
+  picked: ReadonlySet<string> | null,
   highlightsOnly: boolean,
 ): boolean {
   if (highlightsOnly && !seg.highlight) return false
-  if (picked.size > 0 && (!seg.speaker || !picked.has(seg.speaker))) return false
+  if (picked && (!seg.speaker || !picked.has(seg.speaker))) return false
   return true
 }

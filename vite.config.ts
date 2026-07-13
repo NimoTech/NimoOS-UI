@@ -33,6 +33,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),
+    // 不排除的话 vitest 会递归进去跑别的会话的测试并大片报错。
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
     setupFiles: ['./vitest.setup.ts'],
     server: {
       deps: {

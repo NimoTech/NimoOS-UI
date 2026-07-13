@@ -43,14 +43,21 @@ describe('speakerToken(序号→CSS token,5 色循环)', () => {
   it('5 → var(--spk-1)(%5 循环)', () => expect(speakerToken(5)).toBe('var(--spk-1)'))
 })
 
-describe('segMatches(过滤谓词:picked 与 highlightsOnly AND 叠加)', () => {
+describe('segMatches(过滤谓词:master-checkbox 语义,与 highlightsOnly AND 叠加)', () => {
   const segs = [
     { t: '0:00', speaker: 's1', highlight: false },
     { t: '0:10', speaker: 's2', highlight: true },
     { t: '0:20', speaker: 's1', highlight: true },
   ]
-  it('picked 空 + 不只看重点 = 全显', () => {
-    for (const s of segs) expect(segMatches(s, new Set(), false)).toBe(true)
+  it('picked=null(无说话人数据,不启用过滤)= 全显', () => {
+    for (const s of segs) expect(segMatches(s, null, false)).toBe(true)
+  })
+  it('全选 = 全显', () => {
+    const picked = new Set(['s1', 's2'])
+    for (const s of segs) expect(segMatches(s, picked, false)).toBe(true)
+  })
+  it('picked 空集(全不选)= 全隐藏', () => {
+    for (const s of segs) expect(segMatches(s, new Set(), false)).toBe(false)
   })
   it('picked={s2} 只剩 s2 段', () => {
     const picked = new Set(['s2'])
@@ -64,8 +71,8 @@ describe('segMatches(过滤谓词:picked 与 highlightsOnly AND 叠加)', () => 
     const rows = segs.map((seg, i) => ({ seg, i })).filter(({ seg }) => segMatches(seg, new Set(['s1']), true))
     expect(rows).toEqual([{ seg: segs[2], i: 2 }])
   })
-  it('无 speaker 字段的段:picked 非空时被过滤', () => {
+  it('无 speaker 字段的段:说话人过滤启用时被过滤,null 时放行', () => {
     expect(segMatches({ t: '0:00' } as { speaker?: string }, new Set(['s1']), false)).toBe(false)
-    expect(segMatches({ t: '0:00' } as { speaker?: string }, new Set(), false)).toBe(true)
+    expect(segMatches({ t: '0:00' } as { speaker?: string }, null, false)).toBe(true)
   })
 })

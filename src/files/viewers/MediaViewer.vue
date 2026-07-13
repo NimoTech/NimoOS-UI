@@ -87,9 +87,10 @@ function barColor(i: number): string {
   const id = barSpk.value[i]
   return id ? speakerColor(id) : 'var(--wave-none)'
 }
-// 过滤压暗:过滤集非空且该条说话人不在选中集(静场条也压暗,与转录列表口径一致)。
+// 过滤压暗:非全选时,该条说话人不在选中集(或静场条)即压暗;
+// 全选=等效无过滤全不压暗,全不选=全压暗(与转录列表口径一致)。
 function barDim(i: number): boolean {
-  if (!waveSpeakerMode.value || pickedSpeakers.value.size === 0) return false
+  if (!waveSpeakerMode.value || allPicked.value) return false
   const id = barSpk.value[i]
   return !id || !pickedSpeakers.value.has(id)
 }
@@ -200,18 +201,22 @@ watch(tab, (v) => { if (v === 'transcript') void nextTick(scrollActiveIntoView) 
 // 「只看重点」筛选（重点高光）。
 const highlightsOnly = ref(false)
 
-// 说话人过滤:多选集合,空集=「全部」。整体替换 Set 实例保证 watch 可靠触发。
-const pickedSpeakers = ref<Set<string>>(new Set())
+// 说话人过滤(master-checkbox 语义):选中集=显示哪些人,初始全选;
+// 空集=全不选=全隐藏。「全部」不是独立状态,只是全选/全不选的主开关。
+// 整体替换 Set 实例保证 watch 可靠触发。
 const speakers = computed(() => transcript.value?.speakers ?? [])
 const hasSpeakers = computed(() => speakers.value.length > 0)
+const pickedSpeakers = ref<Set<string>>(new Set(speakers.value.map((s) => s.id)))
+// 全选时「全部」点亮;少选任何一个即灭。全选也意味着说话人过滤等效关闭。
+const allPicked = computed(() => hasSpeakers.value && pickedSpeakers.value.size === speakers.value.length)
 function toggleSpeaker(id: string): void {
   const next = new Set(pickedSpeakers.value)
   if (next.has(id)) next.delete(id)
   else next.add(id)
   pickedSpeakers.value = next
 }
-function clearSpeakerFilter(): void {
-  if (pickedSpeakers.value.size) pickedSpeakers.value = new Set()
+function toggleAll(): void {
+  pickedSpeakers.value = allPicked.value ? new Set() : new Set(speakers.value.map((s) => s.id))
 }
 // 过滤变化后若当前段仍在列表,平滑滚回可见（需求 5）。
 watch([pickedSpeakers, highlightsOnly], () => void nextTick(scrollActiveIntoView))
@@ -220,7 +225,8 @@ watch([pickedSpeakers, highlightsOnly], () => void nextTick(scrollActiveIntoView
 type TransRow =
   | { type: 'chapter'; title: string; t: string }
   | { type: 'seg'; seg: TranscriptSegment; i: number }
-const filtering = computed(() => highlightsOnly.value || pickedSpeakers.value.size > 0)
+// 说话人过滤"激活"= 非全选(全选等效于没过滤);无说话人数据时恒不激活。
+const filtering = computed(() => highlightsOnly.value || (hasSpeakers.value && !allPicked.value))
 const transcriptRows = computed<TransRow[]>(() => {
   const tr = transcript.value
   if (!tr) return []
@@ -228,7 +234,7 @@ const transcriptRows = computed<TransRow[]>(() => {
   for (const c of tr.chapters ?? []) chapterAt.set(c.t, c.title)
   const rows: TransRow[] = []
   tr.segments.forEach((seg, i) => {
-    if (!segMatches(seg, pickedSpeakers.value, highlightsOnly.value)) return
+    if (!segMatches(seg, hasSpeakers.value ? pickedSpeakers.value : null, highlightsOnly.value)) return
     // 过滤激活（只看重点 / 说话人筛选）时不插章节头（避免出现空章节）。
     if (!filtering.value && chapterAt.has(seg.t)) {
       rows.push({ type: 'chapter', title: chapterAt.get(seg.t) as string, t: seg.t })
@@ -491,9 +497,9 @@ onBeforeUnmount(() => {
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.7 6.2.6-4.7 4.1 1.4 6.1L12 16.9 6.5 20.1l1.4-6.1L3.2 9.8l6.2-.6z" /></svg>
                 {{ highlightsOnly ? t('audioShowAll') : t('audioHighlightsOnly') }}
               </button>
-              <!-- 说话人过滤 chips:「全部」+ 每说话人一个;多选,空集=全部(与只看重点 AND 叠加) -->
+              <!-- 说话人过滤 chips:「全部」=全选/全不选主开关(全选时亮),每说话人一个多选;与只看重点 AND 叠加 -->
               <template v-if="hasSpeakers">
-                <button type="button" class="spk-chip spk-chip-all" :class="{ on: pickedSpeakers.size === 0 }" @click="clearSpeakerFilter">
+                <button type="button" class="spk-chip spk-chip-all" :class="{ on: allPicked }" @click="toggleAll">
                   {{ t('audioSpeakerAll') }}
                 </button>
                 <button
