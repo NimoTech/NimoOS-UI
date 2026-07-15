@@ -4,7 +4,7 @@
  *     const q = new URLSearchParams(location.search)
  *     document.documentElement.dataset.theme = q.get('theme') || 'dark'
  *     const l = document.createElement('link'); l.rel = 'stylesheet'
- *     l.href = (q.get('home') || '') + '/app/widget-kit.css'; document.head.appendChild(l)
+ *     l.href = (q.get('home') || '') + '/app/widget-kit.css?v=2'; document.head.appendChild(l)
  *   </script>
  * 也可把本文件拷进你的应用(vendoring),离线可用。
  * token 与 NimoOS 桌面 theme.css 对齐;组件类以 .nk- 前缀。 */
