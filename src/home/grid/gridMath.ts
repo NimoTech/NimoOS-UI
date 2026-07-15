@@ -90,10 +90,10 @@ export function applyPlan(plan: PlanEntry[], layout: LayoutItem[]): LayoutItem[]
 
 // 移植 engine 441-450
 export function clampSize(
-  it: LayoutItem, w: number, h: number, sizeOf: (key: string) => WidgetSize | undefined,
+  it: LayoutItem, w: number, h: number, sizeOf: (it: LayoutItem) => WidgetSize | undefined,
 ): [number, number] {
-  if (it.kind === 'widget') {
-    const spec = sizeOf(it.key)
+  if (it.kind === 'widget' || it.kind === 'appwidget') {
+    const spec = sizeOf(it)
     if (spec) {
       return [
         Math.max(spec.min[0], Math.min(spec.max[0], w)),

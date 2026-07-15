@@ -32,3 +32,12 @@ export function widgetSize(key: string): WidgetSize | undefined {
   const w = WIDGETS[key]
   return w ? { min: w.min, max: w.max } : undefined
 }
+
+// 第三方应用 iframe 小组件的统一尺寸约束(spec §3 夹紧规则)
+export const APP_WIDGET_SIZE: WidgetSize = { min: [2, 1], max: [4, 4] }
+
+export function sizeOfItem(it: { kind: string; key: string }): WidgetSize | undefined {
+  if (it.kind === 'appwidget') return APP_WIDGET_SIZE
+  if (it.kind === 'widget') return widgetSize(it.key)
+  return undefined
+}

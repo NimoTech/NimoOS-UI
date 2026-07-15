@@ -23,7 +23,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
-import { widgetSize } from '../widgets/registry'
+import { sizeOfItem } from '../widgets/registry'
 import { SYSTEM_APPS } from '../apps/systemApps'
 import { useOpenAction } from '../composables/useOpenAction'
 import { useEditMode } from '../composables/useEditMode'
@@ -72,8 +72,8 @@ const label = computed(() => {
 })
 
 const canResize = computed(() => {
-  if (props.item.kind === 'widget') {
-    const ws = widgetSize(props.item.key)
+  if (props.item.kind === 'widget' || props.item.kind === 'appwidget') {
+    const ws = sizeOfItem(props.item)
     if (!ws) return false
     return ws.min[0] !== ws.max[0] || ws.min[1] !== ws.max[1]
   }

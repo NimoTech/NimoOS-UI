@@ -1,4 +1,4 @@
-export type Kind = 'widget' | 'app' | 'folder' | 'photo'
+export type Kind = 'widget' | 'app' | 'folder' | 'photo' | 'appwidget'
 
 export interface LayoutItem {
   id: string

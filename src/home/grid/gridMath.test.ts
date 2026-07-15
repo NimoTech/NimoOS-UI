@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint, planMove, applyPlan, clampSize, clampToGrid } from './gridMath'
 import type { LayoutItem, Dims, WidgetSize } from './types'
+import { sizeOfItem, APP_WIDGET_SIZE } from '../widgets/registry'
 
 const DIMS: Dims = { cols: 12, rows: 8 }
 const mk = (id: string, c: number, r: number, w: number, h: number): LayoutItem =>
@@ -116,8 +117,8 @@ describe('applyPlan', () => {
   })
 })
 
-const sizeOf = (key: string): WidgetSize | undefined =>
-  key === 'cpu' ? { min: [2, 2], max: [4, 3] } : undefined
+const sizeOf = (it: LayoutItem): WidgetSize | undefined =>
+  it.key === 'cpu' ? { min: [2, 2], max: [4, 3] } : undefined
 
 describe('clampSize', () => {
   it('clamps a widget to its min/max', () => {
@@ -129,6 +130,19 @@ describe('clampSize', () => {
     expect(clampSize(a, 2, 2, sizeOf)).toEqual([2, 2])
     expect(clampSize(a, 1, 1, sizeOf)).toEqual([1, 1])
     expect(clampSize(a, 2, 1, sizeOf)).toEqual([1, 1]) // 距 1×1 更近
+  })
+})
+
+describe('appwidget sizing', () => {
+  it('sizeOfItem: appwidget 用 APP_WIDGET_SIZE,widget 用 registry,其余 undefined', () => {
+    expect(sizeOfItem({ kind: 'appwidget', key: 'any-app' })).toEqual(APP_WIDGET_SIZE)
+    expect(sizeOfItem({ kind: 'widget', key: 'clock' })).toEqual({ min: [2, 1], max: [4, 2] })
+    expect(sizeOfItem({ kind: 'app', key: 'x' })).toBeUndefined()
+  })
+  it('clampSize 对 appwidget 夹紧到 [2,1]..[4,4]', () => {
+    const it = { id: 'i1', kind: 'appwidget', key: 'a', c: 1, r: 1, w: 2, h: 2 } as never
+    expect(clampSize(it, 9, 9, sizeOfItem)).toEqual([4, 4])
+    expect(clampSize(it, 1, 1, sizeOfItem)).toEqual([2, 1])
   })
 })
 

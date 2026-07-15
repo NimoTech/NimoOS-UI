@@ -2,7 +2,7 @@ import { ref, type Ref } from 'vue'
 import type { LayoutItem, Dims } from '../grid/types'
 import { fits, planMove, clampSize } from '../grid/gridMath'
 import { dragCell, resizeSize } from '../grid/pointerMath'
-import { widgetSize } from '../widgets/registry'
+import { sizeOfItem } from '../widgets/registry'
 import { useLayoutStore } from '../stores/layout'
 import { useHomeUiStore } from '../stores/homeUi'
 import { i18n } from '../../i18n'
@@ -38,7 +38,7 @@ export function useDragResize(opts: { cell: Ref<number>; gap: Ref<number>; cols:
     const r = gridRect()
     if (active.mode === 'resize') {
       const [rw, rh] = resizeSize(e.clientX - r.left, e.clientY - r.top, active.item.c, active.item.r, stride(), dims)
-      const [w, h] = clampSize(active.item, rw, rh, widgetSize)
+      const [w, h] = clampSize(active.item, rw, rh, sizeOfItem)
       active.tw = w; active.th = h
       const pv = resizePreview(active.item, w, h, layout.items, dims)
       if (pv.mode === 'wysiwyg') { previewSize.value = { ...previewSize.value, [active.item.id]: { w, h } }; ghost.value = null }
