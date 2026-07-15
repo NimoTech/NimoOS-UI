@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useAppsStore } from './apps'
+import { useAppsStore, clampWidgetDecl } from './apps'
 
 describe('useAppsStore', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -26,5 +26,42 @@ describe('useAppsStore', () => {
     // 应用市场装的 v2 应用 title 键是大写 en_US(来自 store compose 文件),不能退化成裸 id
     s.setApps([{ name: 'actualbudget', title: { en_US: 'Actual Budget' }, app_type: 'v2app' }] as any)
     expect(s.app('actualbudget')?.name).toBe('Actual Budget')
+  })
+})
+
+describe('clampWidgetDecl', () => {
+  it('缺省/非法 → 2×2', () => {
+    expect(clampWidgetDecl(undefined, undefined)).toEqual([2, 2])
+    expect(clampWidgetDecl(0, -1)).toEqual([2, 2])
+  })
+  it('夹紧 w∈[2,4] h∈[1,4]', () => {
+    expect(clampWidgetDecl(1, 1)).toEqual([2, 1])
+    expect(clampWidgetDecl(9, 9)).toEqual([4, 4])
+    expect(clampWidgetDecl(3, 2)).toEqual([3, 2])
+  })
+})
+
+describe('desktop 应用透传', () => {
+  it('setApps 透传 desktop/widget,desktopDecls 只出 desktop 应用', () => {
+    const store = useAppsStore()
+    store.setApps([
+      { name: 'my-dl', title: { en_us: '下载器' }, status: 'running', port: '8080', desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
+      { name: 'plain', title: { en_us: 'P' }, status: 'running' },
+      { name: 'no-widget', title: { en_us: 'N' }, desktop: true },
+    ] as never)
+    expect(store.app('my-dl')?.desktop).toBe(true)
+    expect(store.app('my-dl')?.widget?.path).toBe('/widget')
+    expect(store.app('plain')?.desktop).toBeUndefined()
+    const decls = store.desktopDecls()
+    expect(decls).toEqual([
+      { key: 'my-dl', widget: { w: 3, h: 2 } },
+      { key: 'no-widget', widget: undefined },
+    ])
+  })
+
+  it('desktop 应用相对 icon 绝对化到应用自身端口', () => {
+    const store = useAppsStore()
+    store.setApps([{ name: 'a', desktop: true, icon: '/icon.png', port: '8080', scheme: 'http' }] as never)
+    expect(store.app('a')?.icon).toBe(`http://${window.location.hostname}:8080/icon.png`)
   })
 })
