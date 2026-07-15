@@ -1,5 +1,5 @@
 <template>
-  <div class="app-tile" :class="{ stopped: !meta?.system && meta?.status !== 'running' }">
+  <div class="app-tile" :class="{ stopped: !meta?.system && !!meta?.status && meta?.status !== 'running' }">
     <span
       v-if="meta?.icon"
       class="app-ic has-img"
