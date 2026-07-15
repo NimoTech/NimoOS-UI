@@ -55,7 +55,12 @@ function onLoad() { if (timer) { clearTimeout(timer); timer = null } }
 function onRetry() { failed.value = false; retry.value++ }
 
 watch([src, inView, running, retry], ([s, v, r]) => {
-  if (s && v && r && !failed.value) armTimeout()
+  if (s && v && r && !failed.value) {
+    armTimeout()
+  } else {
+    if (timer) { clearTimeout(timer); timer = null }
+    if (!r) failed.value = false
+  }
 }, { immediate: true })
 onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 </script>
