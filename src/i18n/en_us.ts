@@ -265,6 +265,10 @@ export const messages = {
     addPanelAddedToast: 'Added: {key}',
     addPanelRemovedToast: 'Removed',
     addPanelResetToast: 'Reset to default layout',
+    appWidgetUnavailable: 'Unreachable',
+    appWidgetRetry: 'Retry',
+    appWidgetNotRunning: 'App not running',
+    addPanelAppWidgetDesc: 'Widget from app',
     // ── Home: drag / resize ──
     dragResized: 'Resized to {w}×{h}',
     dragNoRoom: 'Not enough space',

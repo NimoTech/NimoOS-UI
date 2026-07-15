@@ -9,7 +9,7 @@
     @click="onClick"
   >
     <button v-if="editing" class="remove" :aria-label="t('gridRemove')" @click.stop="onRemove">−</button>
-    <WidgetCard v-if="item.kind === 'widget'" :item="sized" />
+    <WidgetCard v-if="item.kind === 'widget' || item.kind === 'appwidget'" :item="sized" />
     <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
     <AppTile v-else-if="item.kind === 'app'" :item="item" />
     <FolderTile v-else-if="item.kind === 'folder'" :item="item" />
@@ -25,6 +25,7 @@ import type { LayoutItem } from '../grid/types'
 import { WIDGETS } from '../widgets/registry'
 import { sizeOfItem } from '../widgets/registry'
 import { SYSTEM_APPS } from '../apps/systemApps'
+import { useAppsStore } from '../stores/apps'
 import { useOpenAction } from '../composables/useOpenAction'
 import { useEditMode } from '../composables/useEditMode'
 import { useLayoutStore } from '../stores/layout'
@@ -67,6 +68,7 @@ const style = computed(() => ({
 const label = computed(() => {
   const it = props.item
   if (it.kind === 'widget') { const k = WIDGETS[it.key]?.title; return k ? t(k) : it.key }
+  if (it.kind === 'appwidget') return useAppsStore().app(it.key)?.name ?? it.key
   if (it.kind === 'app') { const k = SYSTEM_APPS.find((a) => a.key === it.key)?.label; return k ? t(k) : it.key }
   return it.key // folder
 })

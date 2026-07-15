@@ -1,6 +1,10 @@
 <template>
   <div class="card" :class="meta?.extra ? `w-${meta.extra}` : ''">
-    <div class="card-head"><span class="card-ic" v-html="iconSvg" /><span class="card-title">{{ meta?.title ? t(meta.title) : '' }}</span></div>
+    <div class="card-head">
+      <img v-if="isApp && appMeta?.icon" class="card-ic-img" :src="appMeta.icon" alt="" />
+      <span v-else class="card-ic" v-html="iconSvg" />
+      <span class="card-title">{{ cardTitle }}</span>
+    </div>
     <div class="card-in">
       <component :is="bodyComp" v-if="bodyComp" :item="item" />
     </div>
@@ -18,11 +22,17 @@ import CpuWidget from './CpuWidget.vue'
 import GpuWidget from './GpuWidget.vue'
 import NetworkWidget from './NetworkWidget.vue'
 import EventsWidget from './EventsWidget.vue'
+import AppIframeWidget from './AppIframeWidget.vue'
+import { useAppsStore } from '../../stores/apps'
 
 const props = defineProps<{ item: LayoutItem }>()
 const { t } = useI18n()
 const meta = computed(() => WIDGETS[props.item.key])
 const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.icon ?? ''}</svg>`)
+
+const isApp = computed(() => props.item.kind === 'appwidget')
+const appMeta = computed(() => (isApp.value ? useAppsStore().app(props.item.key) : undefined))
+const cardTitle = computed(() => (isApp.value ? appMeta.value?.name ?? props.item.key : meta.value?.title ? t(meta.value.title) : ''))
 
 // 各 widget 组件由后续任务(T6 起)逐个 import 并登记进此 map
 const WIDGET_COMPONENTS: Record<string, Component> = {
@@ -34,7 +44,7 @@ const WIDGET_COMPONENTS: Record<string, Component> = {
   network: NetworkWidget,
   events: EventsWidget,
 }
-const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
+const bodyComp = computed(() => (isApp.value ? AppIframeWidget : WIDGET_COMPONENTS[props.item.key]))
 </script>
 <style scoped>
 /* ── Base card: glass material (P4c spatial skin) ───────────────────────── */
@@ -118,6 +128,9 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
   color: var(--fg, #fff);
   text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45); /* theme-exception: Dark text shadow for readability on glass cards; semantic doesn't fit existing shadow tokens */
 }
+
+/* ── App-widget icon (WidgetCard: appwidget kind shows app icon, not svg) ── */
+.card-ic-img { width: 18px; height: 18px; border-radius: 5px; flex: none; }
 
 /* ── Widget icon (.card-ic wraps the svg injected via v-html) ───────────── */
 .card-ic :deep(svg) {

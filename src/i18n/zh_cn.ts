@@ -264,6 +264,10 @@ export const messages = {
     addPanelAddedToast: '已添加:{key}',
     addPanelRemovedToast: '已移除',
     addPanelResetToast: '已恢复默认布局',
+    appWidgetUnavailable: '无法连接',
+    appWidgetRetry: '重试',
+    appWidgetNotRunning: '应用未运行',
+    addPanelAppWidgetDesc: '来自应用的小组件',
     // ── 主页:拖拽/缩放 ──
     dragResized: '已调整为 {w}×{h}',
     dragNoRoom: '空间不够,放不下',
