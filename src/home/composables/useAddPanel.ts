@@ -30,6 +30,9 @@ export function useAddPanel(dims: Dims) {
   const ui = useHomeUiStore()
 
   const widgetUsed = (key: string) => layout.items.some((it) => it.kind === 'widget' && it.key === key)
+  const appWidgetUsed = (key: string) => layout.items.some((it) => it.kind === 'appwidget' && it.key === key)
+  const dupWidget = (desc: Desc) =>
+    (desc.kind === 'widget' && widgetUsed(desc.key)) || (desc.kind === 'appwidget' && appWidgetUsed(desc.key))
 
   function defaultSize(kind: string, key: string): [number, number] {
     if (kind === 'widget') return WIDGETS[key]?.default ?? [2, 2]
@@ -38,7 +41,7 @@ export function useAddPanel(dims: Dims) {
   }
 
   function pinToFree(desc: Desc): boolean {
-    if (desc.kind === 'widget' && widgetUsed(desc.key)) return false
+    if (dupWidget(desc)) return false
     const pos = firstFree(desc.w, desc.h, layout.items, dims)
     if (!pos) { ui.showToast(i18n.global.t('addPanelFull')); return false }
     layout.pin({ ...desc, c: pos.c, r: pos.r })
@@ -47,7 +50,7 @@ export function useAddPanel(dims: Dims) {
   }
 
   function spawnPlace(desc: Desc, tc: number, tr: number): boolean {
-    if (desc.kind === 'widget' && widgetUsed(desc.key)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
+    if (dupWidget(desc)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
     const others = planFootprint(tc, tr, desc.w, desc.h, null, layout.items, dims)
     if (!others) { ui.showToast(i18n.global.t('addPanelNoRoom')); return false }
     layout.applyPlan(others as PlanEntry[])
@@ -57,7 +60,7 @@ export function useAddPanel(dims: Dims) {
   }
 
   function toggleWidget(key: string, w: number, h: number) {
-    if (widgetUsed(key)) {
+    if (dupWidget({ kind: 'widget', key, w, h })) {
       const it = layout.items.find((i) => i.kind === 'widget' && i.key === key)
       if (it) { layout.remove(it.id); layout.save(); ui.showToast(i18n.global.t('addPanelRemovedToast')) }
     } else pinToFree({ kind: 'widget', key, w, h })
@@ -67,5 +70,5 @@ export function useAddPanel(dims: Dims) {
   function close() { open.value = false }
   function reset() { layout.reset(); close(); ui.showToast(i18n.global.t('addPanelResetToast')) }
 
-  return { open, curTab, fsDisk, fsPath, widgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
+  return { open, curTab, fsDisk, fsPath, widgetUsed, appWidgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
 }

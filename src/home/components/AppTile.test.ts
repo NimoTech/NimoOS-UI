@@ -21,4 +21,14 @@ describe('AppTile', () => {
     expect(w.find('img').attributes('src')).toBe('http://x/i.png')
     expect(w.text()).toContain('影音')
   })
+  it('dims a non-system stopped app but not a running one or a system app', () => {
+    const s = useAppsStore()
+    s.setApps([
+      { name: 'jellyfin', title: { zh_cn: '影音' }, status: 'stopped' },
+      { name: 'plex', title: { zh_cn: '播放' }, status: 'running' },
+    ] as any)
+    expect(mount(AppTile, { props: { item: item('jellyfin') } }).classes()).toContain('stopped')
+    expect(mount(AppTile, { props: { item: item('plex') } }).classes()).not.toContain('stopped')
+    expect(mount(AppTile, { props: { item: item('files') } }).classes()).not.toContain('stopped') // system app never dims
+  })
 })

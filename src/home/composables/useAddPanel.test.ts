@@ -30,4 +30,13 @@ describe('useAddPanel', () => {
     expect(layout.items.some((i) => i.key === 'vm' && i.c === 1 && i.r === 1)).toBe(true)
     expect(layout.items.some((i) => i.key === 'files')).toBe(true) // files 还在(让位)
   })
+  it('appWidgetUsed 反映桌面上的 appwidget;pinToFree 拒绝重复 appwidget', () => {
+    const layout = useLayoutStore()
+    layout.replaceAll([])
+    const ap = useAddPanel({ cols: 12, rows: 8 })
+    expect(ap.appWidgetUsed('my-dl')).toBe(false)
+    expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(true)
+    expect(ap.appWidgetUsed('my-dl')).toBe(true)
+    expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(false)
+  })
 })

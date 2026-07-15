@@ -33,6 +33,21 @@
         </div>
         <span v-if="ap.widgetUsed(String(key))" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
       </div>
+      <div
+        v-for="d in appWidgetCards"
+        :key="'aw-' + d.key"
+        class="lib-card"
+        :data-key="'aw-' + d.key"
+        @pointerdown="onSpawnDown($event, { kind: 'appwidget', key: d.key, w: d.w, h: d.h })"
+      >
+        <img v-if="d.icon" class="lib-card-icon lib-card-icon-img" :src="d.icon" alt="" />
+        <svg v-else class="lib-card-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" /></svg>
+        <div class="lib-card-info">
+          <span class="lib-card-title">{{ d.name }}</span>
+          <span class="lib-card-desc">{{ t('addPanelAppWidgetDesc') }}</span>
+        </div>
+        <span v-if="ap.appWidgetUsed(d.key)" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
+      </div>
     </div>
 
     <!-- App tab -->
@@ -110,7 +125,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAddPanel } from '../composables/useAddPanel'
 import { useHomeUiStore } from '../stores/homeUi'
-import { useAppsStore } from '../stores/apps'
+import { useAppsStore, clampWidgetDecl } from '../stores/apps'
 import { useFoldersStore } from '../stores/folders'
 import { usePhotosStore } from '../stores/photos'
 import { useLiveStatsStore } from '../stores/liveStats'
@@ -215,6 +230,18 @@ const visibleWidgets = computed(() => {
     Object.entries(WIDGETS).filter(([key]) => key !== 'gpu' || liveStats.gpuPresent)
   )
 })
+
+// App-declared widgets (Task 5/9: desktop apps with a `widget` decl) — listed
+// alongside the built-in widget cards so a manually-removed app widget can be
+// re-added from here.
+const appWidgetCards = computed(() =>
+  appsStore.desktopDecls()
+    .filter((d) => d.widget)
+    .map((d) => {
+      const a = appsStore.apps[d.key]
+      const [w, h] = clampWidgetDecl(d.widget!.w, d.widget!.h)
+      return { key: d.key, name: a?.name ?? d.key, icon: a?.icon ?? null, w, h }
+    }))
 
 // Breadcrumbs: from the selected disk root down to the current folder.
 // Never includes segments above the disk root (so `/` is never reachable).
@@ -351,6 +378,7 @@ function appGlyph(key: string): string {
   width: 32px; height: 32px; flex-shrink: 0;
   fill: none; stroke: var(--accent, #8ab4ff); stroke-width: 1.6; opacity: .9;
 }
+.lib-card-icon-img { border-radius: 8px; object-fit: cover; }
 .lib-card-info { flex: 1; }
 .lib-card-title { display: block; font-size: 14px; font-weight: 500; color: var(--fg, #fff); }
 .lib-card-desc { display: block; font-size: 14px; color: var(--fg-muted, rgba(255,255,255,.74)); margin-top: 2px; }

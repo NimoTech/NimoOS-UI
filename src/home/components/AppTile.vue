@@ -1,5 +1,5 @@
 <template>
-  <div class="app-tile">
+  <div class="app-tile" :class="{ stopped: !meta?.system && meta?.status !== 'running' }">
     <span
       v-if="meta?.icon"
       class="app-ic has-img"
@@ -36,6 +36,7 @@ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.va
 <style scoped>
 /* kind-app flex column layout lives in global theme.css (.kind-app rule) */
 .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
+.app-tile.stopped { opacity: 0.45; filter: grayscale(0.6); }
 /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
    here we set width/height for the within-tile context (kind-app .app-ic is flex:1 1 auto globally) */
 .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
