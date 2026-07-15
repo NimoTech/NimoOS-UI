@@ -44,8 +44,19 @@ const dockEl = computed(() => dock.value?.root ?? null)
 const { cols, rows, cell, gap, relayout } = useGridMeasure(gridEl, dockEl)
 watch(() => live.gpu, () => reconcileGpu(layout, live))
 
+const DIMS = { cols: 12, rows: 8 } // 与 useAddPanel 同一套固定网格(响应式网格是既有 defer 项)
+
 let onResize: (() => void) | null = null
 let stopParallax: (() => void) | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let onFocus: (() => void) | null = null
+
+function refreshApps() {
+  apps.loadGrid().then(() => {
+    useDock().refresh()
+    layout.autoPin(apps.desktopDecls(), DIMS)
+  }).catch((e) => console.warn('[home] appgrid', e))
+}
 
 onMounted(async () => {
   layout.loadInitial()
@@ -57,13 +68,19 @@ onMounted(async () => {
   window.addEventListener('resize', onResize)
   stopParallax = useParallax().stop
 
-  apps.loadGrid().then(() => useDock().refresh()).catch((e) => console.warn('[home] appgrid', e))
+  layout.loadServerSeen().finally(() => refreshApps())
+  pollTimer = setInterval(() => { if (!document.hidden) refreshApps() }, 30_000)
+  onFocus = () => refreshApps()
+  window.addEventListener('focus', onFocus)
+
   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
 
 onUnmounted(() => {
   if (onResize) window.removeEventListener('resize', onResize)
   if (stopParallax) stopParallax()
+  if (pollTimer) clearInterval(pollTimer)
+  if (onFocus) window.removeEventListener('focus', onFocus)
 })
 </script>
 
