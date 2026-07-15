@@ -3,12 +3,15 @@ import { ref } from 'vue'
 import type { LayoutItem, PlanEntry, Dims } from '../grid/types'
 import { DEFAULT } from '../grid/defaultLayout'
 import { WIDGETS } from '../widgets/registry'
-import { applyPlan as applyPlanPure, clampToGrid } from '../grid/gridMath'
+import { applyPlan as applyPlanPure, clampToGrid, firstFree } from '../grid/gridMath'
 import { isAssetId } from '../util/isAssetId'
 import { service } from '@nimotech/nimoos-service'
+import type { DesktopAppDecl } from './apps'
 
 const KEY = 'nimoos-home-layout-v2'
 const SERVER_KEY = 'home_layout'
+const SEEN_KEY = 'nimoos-home-seen-apps-v1'
+const SERVER_SEEN_KEY = 'home_seen_apps'
 
 function sanitize(arr: unknown): Omit<LayoutItem, 'id'>[] {
   if (!Array.isArray(arr)) return []
@@ -20,6 +23,25 @@ export const useLayoutStore = defineStore('home-layout', () => {
   let uid = 1
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   const tag = (it: Omit<LayoutItem, 'id'>): LayoutItem => ({ ...it, id: 'i' + uid++ })
+
+  const seen = ref<Set<string>>(loadSeenLocal())
+  let seenTimer: ReturnType<typeof setTimeout> | null = null
+
+  function loadSeenLocal(): Set<string> {
+    try {
+      const a = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')
+      if (Array.isArray(a)) return new Set(a.filter((s) => typeof s === 'string'))
+    } catch { /* ignore */ }
+    return new Set()
+  }
+
+  function saveSeen() {
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen.value])) } catch { /* ignore */ }
+    if (seenTimer) clearTimeout(seenTimer)
+    seenTimer = setTimeout(() => {
+      service.users.setCustomStorage(SERVER_SEEN_KEY, [...seen.value]).catch((e) => console.warn('[home] seen save failed', e))
+    }, 800)
+  }
 
   function loadFromLocal(): Omit<LayoutItem, 'id'>[] | null {
     try {
@@ -97,5 +119,39 @@ export const useLayoutStore = defineStore('home-layout', () => {
     saveLocal()
   }
 
-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset }
+  async function loadServerSeen() {
+    try {
+      let data: unknown = await service.users.getCustomStorage(SERVER_SEEN_KEY)
+      if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
+      if (Array.isArray(data)) data.forEach((s) => { if (typeof s === 'string') seen.value.add(s) })
+    } catch (e) { console.warn('[home] seen load failed', e) }
+  }
+
+  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 的应用(w/h 已夹紧) */
+  function autoPin(decls: DesktopAppDecl[], dims: Dims) {
+    let changed = false
+    const present = new Set(decls.map((d) => d.key))
+    for (const key of [...seen.value]) {
+      if (present.has(key)) continue
+      const before = items.value.length
+      items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
+      seen.value.delete(key)
+      changed = changed || items.value.length !== before
+      changed = true
+    }
+    for (const d of decls) {
+      if (seen.value.has(d.key)) continue
+      const pos = firstFree(1, 1, items.value, dims)
+      if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
+      if (d.widget) {
+        const wpos = firstFree(d.widget.w, d.widget.h, items.value, dims)
+        if (wpos) items.value = [...items.value, tag({ kind: 'appwidget', key: d.key, c: wpos.c, r: wpos.r, w: d.widget.w, h: d.widget.h })]
+      }
+      seen.value.add(d.key) // 满桌也记 seen:不反复尝试,用户可从添加面板手动加
+      changed = true
+    }
+    if (changed) { save(); saveSeen() }
+  }
+
+  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen }
 })
