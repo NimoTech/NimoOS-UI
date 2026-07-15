@@ -50,15 +50,16 @@ describe('AppIframeWidget', () => {
     const w = mount(AppIframeWidget, { props: { item: item() } })
     await vi.advanceTimersByTimeAsync(0)
 
-    // 停止 → 恢复运行,期间遗留计时器已被清理(上一条用例已验证行为,这里验证恢复后重新计时)
+    // 停止 → 停止期间推满 8s:修复前遗留计时器会在此触发把 failed 卡死 true,
+    // 恢复运行后 iframe 永不重挂;修复后计时器已清理,failed 保持 false
     s.setApps([
       { name: 'my-dl', title: { en_us: 'DL' }, status: 'exited', scheme: 'http', hostname: 'localhost', port: 8080, desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
     ] as never)
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(8000)
 
     seedRunning(s)
     await vi.advanceTimersByTimeAsync(0)
-    expect(w.find('iframe').exists()).toBe(true)
+    expect(w.find('iframe').exists()).toBe(true) // 恢复运行后 iframe 重新挂载(旧代码此处永不重挂)
 
     // 8s 内没有 load 事件(jsdom 不会真加载 iframe)→ 应该真正超时进入失败态
     await vi.advanceTimersByTimeAsync(8000)
