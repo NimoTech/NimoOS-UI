@@ -10,6 +10,9 @@
  * token 与 NimoOS 桌面 theme.css 对齐;组件类以 .nk- 前缀。 */
 
 :root {
+  /* 必须与宿主桌面一致:iframe 内外 color-scheme 不一致时 Chrome 会在透明 iframe
+     后强制垫不透明白底(白底白字事故 2026-07-15),透明背景全靠这行 */
+  color-scheme: dark;
   --nk-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --nk-num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
   --nk-radius: 18px;
@@ -26,6 +29,7 @@
   --nk-track: rgba(255, 255, 255, 0.14);
 }
 :root[data-theme="light"] {
+  color-scheme: light;
   --nk-fg: #1b2540;
   --nk-muted: rgba(27, 37, 64, 0.72);
   --nk-faint: rgba(27, 37, 64, 0.5);
