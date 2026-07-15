@@ -131,13 +131,19 @@ export const useLayoutStore = defineStore('home-layout', () => {
   function autoPin(decls: DesktopAppDecl[], dims: Dims) {
     let changed = false
     const present = new Set(decls.map((d) => d.key))
-    for (const key of [...seen.value]) {
-      if (present.has(key)) continue
-      const before = items.value.length
-      items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
-      seen.value.delete(key)
-      changed = changed || items.value.length !== before
-      changed = true
+    // 可疑全空守卫:appgrid 后端 docker 枚举超时等场景会返回 200 但容器列表为空(decls=[])。
+    // 若不加守卫,下面的 prune 循环会把所有已 seen 的桌面应用当"容器已删除"整批清除并持久化,
+    // docker 一次抖动就清空用户桌面(30s 后应用回来但位置全丢)。因此 decls 全空且已有 seen 记录时,
+    // 把它当可疑数据而非"用户真的删光了所有容器",整段 prune 跳过。
+    // 已知代价:用户确实删掉最后一个 desktop 应用时,其图标/小组件会残留在桌面(点击无反应),
+    // 需用户在编辑态手动删除——接受该代价以换取"docker 抖动不清桌"。
+    if (!(decls.length === 0 && seen.value.size > 0)) {
+      for (const key of [...seen.value]) {
+        if (present.has(key)) continue
+        items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
+        seen.value.delete(key)
+        changed = true
+      }
     }
     for (const d of decls) {
       if (seen.value.has(d.key)) continue

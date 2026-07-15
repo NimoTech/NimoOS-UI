@@ -1,5 +1,20 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi, MockedFunction } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+
+const setCustomStorage: MockedFunction<(key: string, data: unknown) => Promise<unknown>> = vi.fn(async () => ({}))
+const getCustomStorage: MockedFunction<(key: string) => Promise<unknown>> = vi.fn(async () => null)
+vi.mock('@nimotech/nimoos-service', async () => {
+  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
+  return {
+    ...actual,
+    service: {
+      users: {
+        setCustomStorage: (key: string, data: unknown) => setCustomStorage(key, data),
+        getCustomStorage: (key: string) => getCustomStorage(key)
+      }
+    }
+  }
+})
 import { useLayoutStore } from './layout'
 import { DEFAULT } from '../grid/defaultLayout'
 import type { DesktopAppDecl } from './apps'
@@ -50,7 +65,14 @@ const DIMS = { cols: 12, rows: 8 }
 const dl = (key: string, widget?: { w: number; h: number }): DesktopAppDecl => ({ key, widget })
 
 describe('autoPin', () => {
-  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    setCustomStorage.mockClear()
+    getCustomStorage.mockClear()
+    vi.useFakeTimers()
+  })
+  afterEach(() => { vi.useRealTimers() })
 
   it('新应用:图标 1×1 上桌;声明 widget 的再落一块 appwidget', () => {
     const s = useLayoutStore()
@@ -75,12 +97,24 @@ describe('autoPin', () => {
   it('容器消失:桌面项移除 + 清 seen,重来会再次上桌', () => {
     const s = useLayoutStore()
     s.replaceAll([])
-    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
+    s.autoPin([dl('a', { w: 2, h: 2 }), dl('b')], DIMS)
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
-    s.autoPin([], DIMS) // 容器被 docker rm
+    expect(s.items.filter((it) => it.key === 'b')).toHaveLength(1)
+    s.autoPin([dl('b')], DIMS) // a 的容器被 docker rm,b 仍在
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
-    s.autoPin([dl('a')], DIMS) // 重新 run
+    expect(s.items.filter((it) => it.key === 'b')).toHaveLength(1)
+    s.autoPin([dl('a'), dl('b')], DIMS) // a 重新 run
     expect(s.items.filter((it) => it.kind === 'app' && it.key === 'a')).toHaveLength(1)
+  })
+
+  it('全空 decls + 非空 seen → 不 prune(可疑数据守卫,防 docker 枚举超时清桌)', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a')], DIMS)
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(1)
+    s.autoPin([], DIMS) // 可疑全空(如 appgrid docker 枚举超时),不应清桌
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(1)
+    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
   })
 
   it('seen 持久化到 localStorage', () => {
