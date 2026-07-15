@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Demo Widget</title>
+<script>
+  const q = new URLSearchParams(location.search)
+  document.documentElement.dataset.theme = q.get('theme') || 'dark'
+  const l = document.createElement('link'); l.rel = 'stylesheet'
+  l.href = (q.get('home') || '') + '/app/widget-kit.css'; document.head.appendChild(l)
+</script>
+</head><body>
+  <p class="nk-title">演示任务</p>
+  <div class="nk-stat">3<small>个进行中</small></div>
+  <div class="nk-progress" style="margin:8px 0"><i style="width:62%"></i></div>
+  <ul class="nk-list">
+    <li class="nk-row"><span>速度</span><span class="nk-value nk-accent">2.1 MB/s</span></li>
+    <li class="nk-row"><span>剩余</span><span class="nk-value">14 分钟</span></li>
+    <li class="nk-row"><span>状态</span><span class="nk-badge good">健康</span></li>
+  </ul>
+</body></html>
