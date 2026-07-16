@@ -195,8 +195,8 @@ export const messages = {
     // ── Home: system app names ──
     appFiles: 'Files',
     appPhotos: 'Photos',
-    appAi: 'AI Assistant',
-    appVm: 'Virtual Machines',
+    appAi: 'Nimo AI',
+    appVm: 'KVM',
     appSettings: 'Settings',
     appAppStore: 'App Store',
     // ── Home: widget titles & descriptions ──

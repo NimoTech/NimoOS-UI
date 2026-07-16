@@ -194,8 +194,8 @@ export const messages = {
     // ── 主页:系统应用名 ──
     appFiles: '文件',
     appPhotos: '照片',
-    appAi: 'AI 助手',
-    appVm: '虚拟机',
+    appAi: 'Nimo AI',
+    appVm: 'KVM',
     appSettings: '设置',
     appAppStore: 'AppStore',
     // ── 主页:组件标题与描述 ──
