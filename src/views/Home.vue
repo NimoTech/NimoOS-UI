@@ -54,7 +54,7 @@ let onFocus: (() => void) | null = null
 function refreshApps() {
   apps.loadGrid().then(() => {
     useDock().refresh()
-    layout.autoPin(apps.desktopDecls(), DIMS)
+    layout.autoPin(apps.desktopDecls(), DIMS, apps.stoppedDesktopKeys())
   }).catch((e) => console.warn('[home] appgrid', e))
 }
 

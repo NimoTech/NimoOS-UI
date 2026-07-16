@@ -74,6 +74,15 @@ export const useAppsStore = defineStore('home-apps', () => {
       })
   }
 
+  /** 已明确停止(exited/dead)的 desktop 应用——后端积极报告的停止不是抖动,可立即清理。
+   *  restarting/paused 等中间态不算,走缺席宽限期兜底。 */
+  function stoppedDesktopKeys(): string[] {
+    return order.value.filter((k) => {
+      const a = apps.value[k]
+      return a?.desktop && (a.status === 'exited' || a.status === 'dead')
+    })
+  }
+
   setApps([]) // 系统应用立即可用
-  return { apps, order, setApps, loadGrid, app, desktopDecls }
+  return { apps, order, setApps, loadGrid, app, desktopDecls, stoppedDesktopKeys }
 })

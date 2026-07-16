@@ -136,6 +136,17 @@ describe('autoPin', () => {
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
   })
 
+  it('明确停止(stoppedKeys)的应用立即清理,不等宽限期', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
+    // 后端明确报告 a 已停止(exited):第一次轮询就清,无需缺席宽限
+    s.autoPin([], DIMS, ['a'])
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
+    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
+  })
+
   it('seen 持久化到 localStorage', () => {
     const s = useLayoutStore()
     s.replaceAll([])

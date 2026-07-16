@@ -69,6 +69,18 @@ describe('desktop 应用透传', () => {
     expect(store.desktopDecls().map((d) => d.key)).toEqual(['up', 'no-status'])
   })
 
+  it('stoppedDesktopKeys 只报 exited/dead,restarting/running/缺省不算', () => {
+    const store = useAppsStore()
+    store.setApps([
+      { name: 'up', status: 'running', desktop: true },
+      { name: 'down', status: 'exited', desktop: true },
+      { name: 'dead1', status: 'dead', desktop: true },
+      { name: 'mid', status: 'restarting', desktop: true },
+      { name: 'plain-down', status: 'exited' }, // 非 desktop 不算
+    ] as never)
+    expect(store.stoppedDesktopKeys()).toEqual(['down', 'dead1'])
+  })
+
   it('desktop 应用相对 icon 绝对化到应用自身端口', () => {
     const store = useAppsStore()
     store.setApps([{ name: 'a', desktop: true, icon: '/icon.png', port: '8080', scheme: 'http' }] as never)

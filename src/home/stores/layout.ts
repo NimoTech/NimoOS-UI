@@ -133,16 +133,21 @@ export const useLayoutStore = defineStore('home-layout', () => {
   const MISSING_GRACE_MS = 45_000
   const missingSince = new Map<string, number>()
 
-  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 且运行中的应用(w/h 已夹紧) */
-  function autoPin(decls: DesktopAppDecl[], dims: Dims) {
+  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 且运行中的应用(w/h 已夹紧)。
+   *  stoppedKeys = appgrid 明确报告已停止(exited/dead)的 desktop 应用:立即清理,不等宽限期。 */
+  function autoPin(decls: DesktopAppDecl[], dims: Dims, stoppedKeys: string[] = []) {
     let changed = false
     const present = new Set(decls.map((d) => d.key))
+    const stopped = new Set(stoppedKeys)
     const now = Date.now()
     for (const key of [...seen.value]) {
       if (present.has(key)) { missingSince.delete(key); continue }
-      const since = missingSince.get(key)
-      if (since === undefined) { missingSince.set(key, now); continue }
-      if (now - since < MISSING_GRACE_MS) continue
+      if (!stopped.has(key)) {
+        // 从列表里彻底消失:可能是 docker rm,也可能是枚举抖动 → 缺席宽限期去抖
+        const since = missingSince.get(key)
+        if (since === undefined) { missingSince.set(key, now); continue }
+        if (now - since < MISSING_GRACE_MS) continue
+      }
       items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
       seen.value.delete(key)
       missingSince.delete(key)
