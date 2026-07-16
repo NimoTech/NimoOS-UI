@@ -60,8 +60,13 @@ export const useAppsStore = defineStore('home-apps', () => {
   function app(key: string): AppMeta | undefined { return apps.value[key] }
 
   function desktopDecls(): DesktopAppDecl[] {
+    // spec §4:停止就消失——非 running 容器不算"该上桌",由 autoPin 的宽限期清理。
+    // status 缺省(非容器来源)视为运行,不误伤。
     return order.value
-      .filter((k) => apps.value[k]?.desktop)
+      .filter((k) => {
+        const a = apps.value[k]
+        return a?.desktop && (!a.status || a.status === 'running')
+      })
       .map((k) => {
         const a = apps.value[k]
         const [w, h] = clampWidgetDecl(a.widget?.w, a.widget?.h)

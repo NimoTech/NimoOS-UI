@@ -94,27 +94,46 @@ describe('autoPin', () => {
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
   })
 
-  it('容器消失:桌面项移除 + 清 seen,重来会再次上桌', () => {
+  it('容器消失(缺席满宽限期):桌面项移除 + 清 seen,重来会再次上桌', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 }), dl('b')], DIMS)
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
     expect(s.items.filter((it) => it.key === 'b')).toHaveLength(1)
-    s.autoPin([dl('b')], DIMS) // a 的容器被 docker rm,b 仍在
+    s.autoPin([dl('b')], DIMS) // a 停止/删除,第一次缺席只标记,不清
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
+    vi.advanceTimersByTime(60_000)
+    s.autoPin([dl('b')], DIMS) // 缺席满宽限期,清理
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
     expect(s.items.filter((it) => it.key === 'b')).toHaveLength(1)
     s.autoPin([dl('a'), dl('b')], DIMS) // a 重新 run
     expect(s.items.filter((it) => it.kind === 'app' && it.key === 'a')).toHaveLength(1)
   })
 
-  it('全空 decls + 非空 seen → 不 prune(可疑数据守卫,防 docker 枚举超时清桌)', () => {
+  it('单次缺席(docker 抖动)不清桌,恢复后重置计时', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a')], DIMS)
+    s.autoPin([], DIMS) // 抖动:一次全空
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(1)
-    s.autoPin([], DIMS) // 可疑全空(如 appgrid docker 枚举超时),不应清桌
+    s.autoPin([dl('a')], DIMS) // 恢复,缺席计时应重置
+    vi.advanceTimersByTime(60_000)
+    s.autoPin([dl('a')], DIMS) // 一直在场,不应被清
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(1)
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
+  })
+
+  it('删掉最后一个 desktop 应用(decls 全空)也能在宽限期后清理,不再永久残留', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
+    s.autoPin([], DIMS) // 第一次全空:只标记
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
+    vi.advanceTimersByTime(60_000)
+    s.autoPin([], DIMS) // 持续缺席满宽限期:清理
+    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
+    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
   })
 
   it('seen 持久化到 localStorage', () => {

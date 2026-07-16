@@ -127,23 +127,26 @@ export const useLayoutStore = defineStore('home-layout', () => {
     } catch (e) { console.warn('[home] seen load failed', e) }
   }
 
-  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 的应用(w/h 已夹紧) */
+  // 缺席宽限期:seen 应用从 decls 消失(容器停止/删除,或 appgrid 后端 docker 枚举超时
+  // 返回空列表)后,持续缺席满该时长才清理。约 1.5 个轮询周期(30s 轮询),使 docker 一次
+  // 抖动、容器 restarting 等瞬态不清桌,而真正停止/删除的应用在 1-2 分钟内自动消失。
+  const MISSING_GRACE_MS = 45_000
+  const missingSince = new Map<string, number>()
+
+  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 且运行中的应用(w/h 已夹紧) */
   function autoPin(decls: DesktopAppDecl[], dims: Dims) {
     let changed = false
     const present = new Set(decls.map((d) => d.key))
-    // 可疑全空守卫:appgrid 后端 docker 枚举超时等场景会返回 200 但容器列表为空(decls=[])。
-    // 若不加守卫,下面的 prune 循环会把所有已 seen 的桌面应用当"容器已删除"整批清除并持久化,
-    // docker 一次抖动就清空用户桌面(30s 后应用回来但位置全丢)。因此 decls 全空且已有 seen 记录时,
-    // 把它当可疑数据而非"用户真的删光了所有容器",整段 prune 跳过。
-    // 已知代价:用户确实删掉最后一个 desktop 应用时,其图标/小组件会残留在桌面(点击无反应),
-    // 需用户在编辑态手动删除——接受该代价以换取"docker 抖动不清桌"。
-    if (!(decls.length === 0 && seen.value.size > 0)) {
-      for (const key of [...seen.value]) {
-        if (present.has(key)) continue
-        items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
-        seen.value.delete(key)
-        changed = true
-      }
+    const now = Date.now()
+    for (const key of [...seen.value]) {
+      if (present.has(key)) { missingSince.delete(key); continue }
+      const since = missingSince.get(key)
+      if (since === undefined) { missingSince.set(key, now); continue }
+      if (now - since < MISSING_GRACE_MS) continue
+      items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
+      seen.value.delete(key)
+      missingSince.delete(key)
+      changed = true
     }
     for (const d of decls) {
       if (seen.value.has(d.key)) continue

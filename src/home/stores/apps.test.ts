@@ -59,6 +59,16 @@ describe('desktop 应用透传', () => {
     ])
   })
 
+  it('desktopDecls 排除未运行容器(停止就消失);status 缺省视为运行', () => {
+    const store = useAppsStore()
+    store.setApps([
+      { name: 'up', title: { en_us: 'U' }, status: 'running', desktop: true },
+      { name: 'down', title: { en_us: 'D' }, status: 'exited', desktop: true },
+      { name: 'no-status', title: { en_us: 'N' }, desktop: true },
+    ] as never)
+    expect(store.desktopDecls().map((d) => d.key)).toEqual(['up', 'no-status'])
+  })
+
   it('desktop 应用相对 icon 绝对化到应用自身端口', () => {
     const store = useAppsStore()
     store.setApps([{ name: 'a', desktop: true, icon: '/icon.png', port: '8080', scheme: 'http' }] as never)
