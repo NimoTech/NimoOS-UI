@@ -39,7 +39,7 @@ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.va
 .app-tile.stopped { opacity: 0.45; filter: grayscale(0.6); }
 /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
    here we set width/height for the within-tile context (kind-app .app-ic is flex:1 1 auto globally) */
-.app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
+.app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
 .app-ic :deep(svg) { width: 44%; height: 44%; fill: none; stroke: currentColor; stroke-width: 1.6; }
 /* has-img: overflow+background handled globally; local transition kept for smooth load */
 .app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }

@@ -236,7 +236,8 @@ defineExpose({ root })
   background: var(--dock-bg); box-shadow: var(--dock-shadow); backdrop-filter: var(--blur);
 }
 .dock-main { display: flex; align-items: flex-end; }
-.dock-zone { display: flex; align-items: flex-end; gap: 14px; }
+/* gap 随图标尺寸等比（0.2×70px=14px 默认观感）；≤720px 媒体查询固定 8px 兜底 */
+.dock-zone { display: flex; align-items: flex-end; gap: calc(var(--app-size, 64px) * 0.2); }
 /* "More apps" zone: collapses to zero width, expands on .expanded */
 .dock-more {
   max-width: 0; opacity: 0; overflow: hidden; pointer-events: none;
@@ -249,14 +250,14 @@ defineExpose({ root })
 .dock-ghost {
   position: absolute; pointer-events: none; z-index: 100; opacity: .85;
   align-self: flex-end;
-  border-radius: var(--icon-radius, 16px);
+  border-radius: var(--icon-radius, 31%);
   background: var(--drop-bg, rgba(255, 255, 255, .14));
   border: 1px dashed var(--dock-border);
 }
 .dock-ghost .dock-ic {
   display: grid; place-items: center;
   width: var(--app-size, 48px); height: var(--app-size, 48px);
-  border-radius: var(--icon-radius, 16px);
+  border-radius: var(--icon-radius, 31%);
 }
 .dock-ghost .dock-ic.has-img { background: none; }
 .dock-ghost .dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }

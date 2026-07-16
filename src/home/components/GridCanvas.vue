@@ -71,7 +71,8 @@ defineExpose({ gridEl })
   display: grid;
   grid-template-columns: repeat(var(--cols, 12), var(--cell, 92px));
   grid-auto-rows: var(--cell, 92px);
-  gap: 16px;
+  /* 随窗口缩放：1.08vw ≈ 16px/1480px（网格最大宽度），useGridMeasure 读渲染后实际值 */
+  gap: clamp(8px, 1.08vw, 16px);
   margin: 0 auto;
 }
 </style>

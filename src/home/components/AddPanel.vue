@@ -400,7 +400,7 @@ function appGlyph(key: string): string {
 .lib-app-ic {
   width: var(--app-size, 64px); height: var(--app-size, 64px);   /* match desktop/dock icon size */
   display: grid; place-items: center;
-  border-radius: var(--icon-radius, 22px);
+  border-radius: var(--icon-radius, 31%);
   color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */
   box-shadow: var(--icon-shadow, 0 14px 30px -8px rgba(6,10,26,.6), inset 0 1px 0 rgba(255,255,255,.4));
   transition: transform .18s var(--ease, ease), box-shadow .18s;
