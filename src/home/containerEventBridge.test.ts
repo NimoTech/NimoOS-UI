@@ -11,19 +11,19 @@ describe('containerEventBridge', () => {
 
   it('destroy 立即 evict,其余动作不 evict', () => {
     const evict = vi.fn(); const refresh = vi.fn()
-    const h = createContainerEventHandler({ evict, refresh })
-    h({ 'docker:container:action': 'destroy', 'docker:container:name': 'tasklist' })
+    const { handle } = createContainerEventHandler({ evict, refresh })
+    handle({ 'docker:container:action': 'destroy', 'docker:container:name': 'tasklist' })
     expect(evict).toHaveBeenCalledWith('tasklist')
-    h({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
-    h({ 'docker:container:action': 'start', 'docker:container:name': 'b' })
+    handle({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
+    handle({ 'docker:container:action': 'start', 'docker:container:name': 'b' })
     expect(evict).toHaveBeenCalledTimes(1)
   })
 
   it('连发事件去抖成一次 refresh', () => {
     const evict = vi.fn(); const refresh = vi.fn()
-    const h = createContainerEventHandler({ evict, refresh })
-    h({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
-    h({ 'docker:container:action': 'destroy', 'docker:container:name': 'a' })
+    const { handle } = createContainerEventHandler({ evict, refresh })
+    handle({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
+    handle({ 'docker:container:action': 'destroy', 'docker:container:name': 'a' })
     expect(refresh).not.toHaveBeenCalled()
     vi.advanceTimersByTime(500)
     expect(refresh).toHaveBeenCalledTimes(1)
@@ -31,8 +31,19 @@ describe('containerEventBridge', () => {
 
   it('畸形消息(缺属性/非对象)不抛错不触发 evict', () => {
     const evict = vi.fn(); const refresh = vi.fn()
-    const h = createContainerEventHandler({ evict, refresh })
-    expect(() => { h(null); h('x'); h({}) }).not.toThrow()
+    const { handle } = createContainerEventHandler({ evict, refresh })
+    expect(() => { handle(null); handle('x'); handle({}) }).not.toThrow()
     expect(evict).not.toHaveBeenCalled()
+  })
+
+  it('dispose 取消待触发的去抖定时器,卸载后不再 refresh', () => {
+    const evict = vi.fn(); const refresh = vi.fn()
+    const { handle, dispose } = createContainerEventHandler({ evict, refresh })
+    handle({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
+    dispose()
+    vi.advanceTimersByTime(500)
+    expect(refresh).not.toHaveBeenCalled()
+    // 幂等:重复调用无害
+    expect(() => dispose()).not.toThrow()
   })
 })

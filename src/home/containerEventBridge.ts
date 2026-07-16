@@ -6,10 +6,10 @@ export function createContainerEventHandler(opts: {
   evict: (key: string) => void
   refresh: () => void
   debounceMs?: number
-}): (props: unknown) => void {
+}): { handle: (props: unknown) => void; dispose: () => void } {
   const ms = opts.debounceMs ?? 500
   let timer: ReturnType<typeof setTimeout> | null = null
-  return (props: unknown) => {
+  function handle(props: unknown) {
     const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
     const action = typeof p['docker:container:action'] === 'string' ? p['docker:container:action'] : ''
     const name = typeof p['docker:container:name'] === 'string' ? p['docker:container:name'] : ''
@@ -17,4 +17,9 @@ export function createContainerEventHandler(opts: {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => { timer = null; opts.refresh() }, ms)
   }
+  // 取消待触发的去抖定时器(如组件卸载时),幂等 —— 重复调用无害
+  function dispose() {
+    if (timer) { clearTimeout(timer); timer = null }
+  }
+  return { handle, dispose }
 }

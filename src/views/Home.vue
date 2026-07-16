@@ -53,6 +53,7 @@ let stopParallax: (() => void) | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let onFocus: (() => void) | null = null
 let offContainerEvents: (() => void) | null = null
+let containerEventBridge: ReturnType<typeof createContainerEventHandler> | null = null
 
 function refreshApps() {
   apps.loadGrid().then(() => {
@@ -77,10 +78,8 @@ onMounted(async () => {
   window.addEventListener('focus', onFocus)
 
   // docker daemon 事件推送:destroy 立即清位,其余去抖刷新(轮询仍是兜底)
-  offContainerEvents = useMessageBus().on(
-    CONTAINER_EVENT,
-    createContainerEventHandler({ evict: (k) => layout.evict(k), refresh: refreshApps }),
-  )
+  containerEventBridge = createContainerEventHandler({ evict: (k) => layout.evict(k), refresh: refreshApps })
+  offContainerEvents = useMessageBus().on(CONTAINER_EVENT, containerEventBridge.handle)
 
   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
@@ -91,6 +90,7 @@ onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
   if (onFocus) window.removeEventListener('focus', onFocus)
   if (offContainerEvents) offContainerEvents()
+  if (containerEventBridge) containerEventBridge.dispose()
 })
 </script>
 
