@@ -26,6 +26,8 @@ import { reconcileGpu } from '../home/composables/reconcileGpu'
 import { useAddPanel } from '../home/composables/useAddPanel'
 import { useDock } from '../home/composables/useDock'
 import { useParallax } from '../home/composables/useParallax'
+import { useMessageBus } from '../composables/useMessageBus'
+import { createContainerEventHandler, CONTAINER_EVENT } from '../home/containerEventBridge'
 
 const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dock = ref<InstanceType<typeof HomeDock> | null>(null)
@@ -50,6 +52,7 @@ let onResize: (() => void) | null = null
 let stopParallax: (() => void) | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let onFocus: (() => void) | null = null
+let offContainerEvents: (() => void) | null = null
 
 function refreshApps() {
   apps.loadGrid().then(() => {
@@ -73,6 +76,12 @@ onMounted(async () => {
   onFocus = () => refreshApps()
   window.addEventListener('focus', onFocus)
 
+  // docker daemon 事件推送:destroy 立即清位,其余去抖刷新(轮询仍是兜底)
+  offContainerEvents = useMessageBus().on(
+    CONTAINER_EVENT,
+    createContainerEventHandler({ evict: (k) => layout.evict(k), refresh: refreshApps }),
+  )
+
   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
 
@@ -81,6 +90,7 @@ onUnmounted(() => {
   if (stopParallax) stopParallax()
   if (pollTimer) clearInterval(pollTimer)
   if (onFocus) window.removeEventListener('focus', onFocus)
+  if (offContainerEvents) offContainerEvents()
 })
 </script>
 
