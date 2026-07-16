@@ -167,5 +167,14 @@ export const useLayoutStore = defineStore('home-layout', () => {
     if (changed) { save(); saveSeen() }
   }
 
-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen }
+  /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期 */
+  function evict(key: string) {
+    const before = items.value.length
+    items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
+    const hadSeen = seen.value.delete(key)
+    missingSince.delete(key)
+    if (items.value.length !== before || hadSeen) { save(); saveSeen() }
+  }
+
+  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen, evict }
 })

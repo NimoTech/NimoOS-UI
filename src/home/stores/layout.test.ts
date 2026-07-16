@@ -164,4 +164,26 @@ describe('autoPin', () => {
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
   })
+
+  it('evict 立即移除图标+小组件并清 seen(重新出现可再上桌)', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('tasklist', { w: 2, h: 2 })], DIMS)
+    expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(2) // app + appwidget
+
+    s.evict('tasklist')
+    expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(0)
+
+    // seen 已清:同名容器再出现要能重新自动上桌
+    s.autoPin([dl('tasklist', { w: 2, h: 2 })], DIMS)
+    expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(2)
+  })
+
+  it('evict 不误伤其他项且无匹配时不报错', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('other')], DIMS)
+    s.evict('nonexistent')
+    expect(s.items.filter((i) => i.key === 'other').length).toBeGreaterThan(0)
+  })
 })
