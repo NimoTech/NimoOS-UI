@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
 import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint, planMove, applyPlan, clampSize, clampToGrid } from './gridMath'
 import type { LayoutItem, Dims, WidgetSize } from './types'
 import { sizeOfItem, APP_WIDGET_SIZE } from '../widgets/registry'
+import { useAppsStore } from '../stores/apps'
 
 const DIMS: Dims = { cols: 12, rows: 8 }
 const mk = (id: string, c: number, r: number, w: number, h: number): LayoutItem =>
@@ -135,11 +137,24 @@ describe('clampSize', () => {
 
 describe('appwidget sizing', () => {
   it('sizeOfItem: appwidget 用 APP_WIDGET_SIZE,widget 用 registry,其余 undefined', () => {
+    setActivePinia(createPinia())
     expect(sizeOfItem({ kind: 'appwidget', key: 'any-app' })).toEqual(APP_WIDGET_SIZE)
     expect(sizeOfItem({ kind: 'widget', key: 'clock' })).toEqual({ min: [2, 1], max: [4, 2] })
     expect(sizeOfItem({ kind: 'app', key: 'x' })).toBeUndefined()
   })
+  it('sizeOfItem: appwidget 应用自带范围 → 用自带的(夹进全局)', () => {
+    setActivePinia(createPinia())
+    useAppsStore().setApps([
+      { name: 'locked', desktop: true, status: 'running', port: '1',
+        widget: { path: '/w', w: 3, h: 2, minw: 3, maxw: 3, minh: 2, maxh: 2 } },
+      { name: 'ranged', desktop: true, status: 'running', port: '1',
+        widget: { path: '/w', w: 2, h: 1, maxw: 3, maxh: 9 } },
+    ])
+    expect(sizeOfItem({ kind: 'appwidget', key: 'locked' })).toEqual({ min: [3, 2], max: [3, 2] })
+    expect(sizeOfItem({ kind: 'appwidget', key: 'ranged' })).toEqual({ min: [2, 1], max: [3, 4] })
+  })
   it('clampSize 对 appwidget 夹紧到 [2,1]..[4,4]', () => {
+    setActivePinia(createPinia())
     const it = { id: 'i1', kind: 'appwidget', key: 'a', c: 1, r: 1, w: 2, h: 2 } as never
     expect(clampSize(it, 9, 9, sizeOfItem)).toEqual([4, 4])
     expect(clampSize(it, 1, 1, sizeOfItem)).toEqual([2, 1])

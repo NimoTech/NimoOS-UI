@@ -15,7 +15,7 @@ export function clampWidgetDecl(w?: number, h?: number): [number, number] {
 export interface AppMeta {
   name: string; cls: string; glyph: string; icon: string | null; system: boolean
   app_type?: string; status?: string; scheme?: string; port?: string | number; index?: string; hostname?: string
-  desktop?: boolean; widget?: { path: string; w?: number; h?: number }
+  desktop?: boolean; widget?: { path: string; w?: number; h?: number; minw?: number; minh?: number; maxw?: number; maxh?: number }
 }
 
 export const useAppsStore = defineStore('home-apps', () => {

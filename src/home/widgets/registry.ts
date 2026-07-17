@@ -1,5 +1,6 @@
 import type { WidgetSize } from '../grid/types'
-import { APP_WIDGET_SIZE } from './appWidgetSize'
+import { APP_WIDGET_SIZE, appWidgetRange } from './appWidgetSize'
+import { useAppsStore } from '../stores/apps'
 
 const ICON = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 1.8"/>',
@@ -37,7 +38,8 @@ export function widgetSize(key: string): WidgetSize | undefined {
 export { APP_WIDGET_SIZE } from './appWidgetSize'
 
 export function sizeOfItem(it: { kind: string; key: string }): WidgetSize | undefined {
-  if (it.kind === 'appwidget') return APP_WIDGET_SIZE
+  // 应用自带范围就用自带的(夹进全局),否则全局 2×1..4×4
+  if (it.kind === 'appwidget') return appWidgetRange(useAppsStore().app(it.key)?.widget)
   if (it.kind === 'widget') return widgetSize(it.key)
   return undefined
 }
