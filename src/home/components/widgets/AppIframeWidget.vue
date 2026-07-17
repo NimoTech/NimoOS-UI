@@ -65,8 +65,13 @@ watch([src, inView, running, retry], ([s, v, r]) => {
 onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 </script>
 <style scoped>
-.aw { width: 100%; height: 100%; display: flex; }
-.aw-frame { flex: 1; border: 0; border-radius: var(--radius-sm); background: transparent; }
+.aw { width: 100%; height: 100%; display: flex; min-width: 0; min-height: 0; }
+/* min-width/height:0 — iframe 固有尺寸 300×150 充当 flex min-content,卡片比它窄时
+   flex 压不下去,右侧内容被 .card-in overflow:hidden 硬切 */
+.aw-frame { flex: 1; min-width: 0; min-height: 0; border: 0; border-radius: var(--radius-sm); background: transparent; }
+/* 编辑模式下 iframe 会吞掉 pointerdown,网格收不到拖拽(只会在 iframe 里选字)——
+   禁用其指针事件,让整卡都能按住拖 */
+.grid-item.editing .aw-frame { pointer-events: none; }
 .aw-fallback { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
 .aw-ic { width: 36px; height: 36px; border-radius: 10px; opacity: 0.7; }
 .aw-msg { color: var(--fg-muted); font-size: 13px; }
