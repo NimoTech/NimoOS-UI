@@ -9,7 +9,7 @@ docker run -d --name nimoos-demo-widget -p 18080:80 \
   --label nimoos.title=演示小组件 \
   --label nimoos.icon=/icon.svg \
   --label nimoos.port=18080 \
-  --label nimoos.widget.path=/widget/ \
+  --label nimoos.widget.path=/widget/?v=2 \
   --label nimoos.widget.w=2 \
   --label nimoos.widget.h=2 \
   nimoos-demo-widget
