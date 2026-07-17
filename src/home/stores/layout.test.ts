@@ -184,6 +184,17 @@ describe('autoPin', () => {
     s.replaceAll([])
     s.autoPin([dl('other')], DIMS)
     s.evict('nonexistent')
-    expect(s.items.filter((i) => i.key === 'other').length).toBeGreaterThan(0)
+    expect(s.items.filter((i) => i.key === 'other')).toHaveLength(1)
+  })
+
+  it('evict 不触碰非 seen 的手动/系统图标', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    // 手动放置一个系统图标，不经过 autoPin，因此不在 seen 中
+    s.pin({ kind: 'app', key: 'files', c: 0, r: 0, w: 1, h: 1 })
+    expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
+    // evict 不应影响非 seen 的图标
+    s.evict('files')
+    expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
   })
 })

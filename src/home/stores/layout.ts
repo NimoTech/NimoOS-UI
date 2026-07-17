@@ -167,8 +167,10 @@ export const useLayoutStore = defineStore('home-layout', () => {
     if (changed) { save(); saveSeen() }
   }
 
-  /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期 */
+  /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期。
+   *  只清 autoPin 管理(seen)的项 —— 手动固定与系统图标免疫。 */
   function evict(key: string) {
+    if (!seen.value.has(key)) return
     const before = items.value.length
     items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
     const hadSeen = seen.value.delete(key)
