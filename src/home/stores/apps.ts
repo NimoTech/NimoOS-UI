@@ -59,6 +59,14 @@ export const useAppsStore = defineStore('home-apps', () => {
 
   function app(key: string): AppMeta | undefined { return apps.value[key] }
 
+  /** 已停止(可启动)的容器应用:系统应用/LinkApp/无状态来源不算。
+   *  status 缺省视为运行(与 desktopDecls 同一约定,不误伤)。 */
+  function isStopped(key: string): boolean {
+    const a = apps.value[key]
+    if (!a || a.system || a.app_type === 'LinkApp') return false
+    return !!a.status && a.status !== 'running'
+  }
+
   function desktopDecls(): DesktopAppDecl[] {
     // spec §4:停止就消失——非 running 容器不算"该上桌",由 autoPin 的宽限期清理。
     // status 缺省(非容器来源)视为运行,不误伤。
@@ -84,5 +92,5 @@ export const useAppsStore = defineStore('home-apps', () => {
   }
 
   setApps([]) // 系统应用立即可用
-  return { apps, order, setApps, loadGrid, app, desktopDecls, stoppedDesktopKeys }
+  return { apps, order, setApps, loadGrid, app, isStopped, desktopDecls, stoppedDesktopKeys }
 })

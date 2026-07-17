@@ -5,6 +5,7 @@
     <HomeDock ref="dock" />
     <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" :cols="cols" :rows="rows" :grid-el="gridEl" @close="addPanel.close" />
     <SearchDialog />
+    <StartAppDialog />
   </main>
 </template>
 
@@ -15,6 +16,7 @@ import HomeTopbar from '../home/components/HomeTopbar.vue'
 import HomeDock from '../home/components/HomeDock.vue'
 import AddPanel from '../home/components/AddPanel.vue'
 import SearchDialog from '../home/components/SearchDialog.vue'
+import StartAppDialog from '../home/components/StartAppDialog.vue'
 import { useLayoutStore } from '../home/stores/layout'
 import { useAppsStore } from '../home/stores/apps'
 import { usePhotosStore } from '../home/stores/photos'

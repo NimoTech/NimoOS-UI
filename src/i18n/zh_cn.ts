@@ -278,7 +278,13 @@ export const messages = {
     gridResize: '缩放',
     gridCanvas: '主页画布',
     // ── 主页:打开动作 ──
-    openAppNotRunning: '{name}:未运行,请到应用页启动',
+    startAppTitle: '启动应用',
+    startAppMessage: '「{name}」已停止,是否启动?',
+    startAppConfirm: '启动',
+    startAppCancel: '取消',
+    startAppStarting: '正在启动 {name}…',
+    startAppStarted: '{name} 已启动',
+    startAppFailed: '{name} 启动失败',
     // ── 主页:Dock ──
     dockDone: '完成',
     dockAllApps: '所有应用',

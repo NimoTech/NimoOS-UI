@@ -2,13 +2,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
 import { useOpenAction } from './useOpenAction'
-import { useToast } from '../../stores/toast'
+import { useStartApp, __resetStartAppForTest } from './useStartApp'
 import type { LayoutItem } from '../grid/types'
 
 let hrefs: string[]
 let opens: string[]
 beforeEach(() => {
   setActivePinia(createPinia())
+  __resetStartAppForTest()
   hrefs = []; opens = []
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
@@ -26,27 +27,25 @@ describe('useOpenAction.openApp', () => {
   })
   it('running container app opens scheme://host:port/index', () => {
     const s = useAppsStore()
-    s.setApps([{ name: 'jf', status: 'running', scheme: 'http', port: 8096, index: '/web' }] as any)
+    s.setApps([{ name: 'jf', status: 'running', scheme: 'http', port: 8096, index: '/web' }] as never)
     const { openApp } = useOpenAction()
     openApp('jf'); expect(opens[0]).toBe('http://host:8096/web')
   })
-  it('stopped container app notifies instead of opening', () => {
+  it('stopped container app opens the start prompt instead of a URL', () => {
     const s = useAppsStore()
-    s.setApps([{ name: 'jf', status: 'stopped' }] as any)
-    const notify = vi.fn()
-    const { openApp } = useOpenAction(notify)
+    s.setApps([{ name: 'jf', status: 'exited', port: 8096 }] as never)
+    const { openApp } = useOpenAction()
     openApp('jf')
     expect(opens.length).toBe(0)
-    expect(notify).toHaveBeenCalledWith(expect.stringContaining('未运行'))
+    expect(useStartApp().state.value).toEqual({ key: 'jf', phase: 'confirm' })
   })
-  it('default notify surfaces a toast for a stopped app', () => {
+  it('running app without port/index does nothing (no prompt, no open)', () => {
     const s = useAppsStore()
-    s.setApps([{ name: 'jf', status: 'stopped' }] as any)
-    const toast = useToast()
-    const { openApp } = useOpenAction() // no notify arg -> default
+    s.setApps([{ name: 'jf', status: 'running' }] as never)
+    const { openApp } = useOpenAction()
     openApp('jf')
     expect(opens.length).toBe(0)
-    expect(toast.msg).toContain('未运行')
+    expect(useStartApp().state.value).toBe(null)
   })
 })
 

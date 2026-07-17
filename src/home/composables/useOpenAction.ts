@@ -1,29 +1,28 @@
 import type { LayoutItem } from '../grid/types'
 import { useAppsStore } from '../stores/apps'
-import { useToast } from '../../stores/toast'
-import { i18n } from '../../i18n'
+import { useStartApp, appUrl } from './useStartApp'
 
 const SYS_ROUTE: Record<string, string> = {
   files: '/#/files', photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
   settings: '/#/legacy', appstore: '/#/legacy',
 }
 
-export function useOpenAction(notify: (msg: string) => void = (m) => useToast().show(m)) {
+export function useOpenAction() {
   const apps = useAppsStore()
+  const startApp = useStartApp()
 
   function openApp(key: string) {
     const a = apps.app(key)
     if (!a) return
     if (a.system) { window.location.href = SYS_ROUTE[key] || '/#/legacy'; return }
     if (a.app_type === 'LinkApp') { if (a.hostname) window.open(a.hostname, '_blank', 'noopener'); return }
-    if (a.status === 'running' && (a.port || a.index)) {
-      const scheme = a.scheme || 'http'
-      const host = a.hostname || window.location.hostname
-      const port = a.port ? ':' + a.port : ''
-      const idx = a.index || '/'
-      window.open(`${scheme}://${host}${port}${idx}`, '_blank', 'noopener')
-    } else {
-      notify(i18n.global.t('openAppNotRunning', { name: a.name }))
+    const url = appUrl(a)
+    if (a.status === 'running') {
+      if (url) window.open(url, '_blank', 'noopener')
+    } else if (a.status) {
+      // 未运行(exited/dead/unknown…):不开网页,弹"是否启动"确认框(StartAppDialog)。
+      // status 缺省的非容器来源维持无动作(与灰显判定同一约定)。
+      startApp.prompt(key)
     }
   }
 

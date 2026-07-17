@@ -1,5 +1,5 @@
 <template>
-  <button class="dock-app" :data-app="appKey" @click="onClick">
+  <button class="dock-app" :class="{ 'is-stopped': apps.isStopped(appKey) }" :data-app="appKey" @click="onClick">
     <span class="dock-ic" :class="meta?.icon ? 'has-img' : meta?.cls">
       <img v-if="meta?.icon" :src="meta.icon" alt="" loading="lazy" />
       <span v-else v-html="glyphSvg" />

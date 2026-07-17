@@ -279,7 +279,13 @@ export const messages = {
     gridResize: 'Resize',
     gridCanvas: 'Home canvas',
     // ── Home: open action ──
-    openAppNotRunning: '{name}: not running. Start it from the Apps page.',
+    startAppTitle: 'Start app',
+    startAppMessage: '"{name}" is stopped. Start it now?',
+    startAppConfirm: 'Start',
+    startAppCancel: 'Cancel',
+    startAppStarting: 'Starting {name}…',
+    startAppStarted: '{name} started',
+    startAppFailed: 'Failed to start {name}',
     // ── Home: dock ──
     dockDone: 'Done',
     dockAllApps: 'All apps',

@@ -86,4 +86,31 @@ describe('desktop 应用透传', () => {
     store.setApps([{ name: 'a', desktop: true, icon: '/icon.png', port: '8080', scheme: 'http' }] as never)
     expect(store.app('a')?.icon).toBe(`http://${window.location.hostname}:8080/icon.png`)
   })
+
+  describe('isStopped', () => {
+    it('exited/dead/unknown 容器应用算已停止', () => {
+      const s = useAppsStore()
+      s.setApps([
+        { name: 'a', status: 'exited' },
+        { name: 'b', status: 'dead' },
+        { name: 'c', status: 'unknown' },
+      ] as never)
+      expect(s.isStopped('a')).toBe(true)
+      expect(s.isStopped('b')).toBe(true)
+      expect(s.isStopped('c')).toBe(true)
+    })
+    it('running / 缺省 status / 系统应用 / LinkApp / 不存在的 key 都不算', () => {
+      const s = useAppsStore()
+      s.setApps([
+        { name: 'run', status: 'running' },
+        { name: 'nostatus' },
+        { name: 'link', status: 'exited', app_type: 'LinkApp' },
+      ] as never)
+      expect(s.isStopped('run')).toBe(false)
+      expect(s.isStopped('nostatus')).toBe(false)
+      expect(s.isStopped('link')).toBe(false)
+      expect(s.isStopped('files')).toBe(false) // 系统应用
+      expect(s.isStopped('ghost')).toBe(false) // 不存在
+    })
+  })
 })

@@ -56,6 +56,7 @@
         v-for="key in appsStore.order"
         :key="key"
         class="lib-icon"
+        :class="{ 'is-stopped': appsStore.isStopped(key) }"
         :data-key="key"
         @pointerdown="onSpawnDown($event, { kind: 'app', key, w: 1, h: 1 })"
       >
@@ -423,6 +424,8 @@ function appGlyph(key: string): string {
 }
 .lib-app-ic :deep(svg) { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .lib-app-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+/* 已停止的应用:整体灰显(与桌面 AppTile.stopped 同款) */
+.lib-icon.is-stopped { opacity: 0.45; filter: grayscale(0.6); }
 .lib-app-label {
   font-size: 14px;
   color: var(--fg-muted, rgba(255,255,255,.74));
