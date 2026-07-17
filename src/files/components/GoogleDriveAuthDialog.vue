@@ -81,12 +81,12 @@ async function connect() {
 <style scoped>
 /* 表单皮肤与 NetworkStorageDialog 同款(scoped 各自持有,P2a 已接受的重复) */
 .gdrive-form { display: flex; flex-direction: column; gap: 8px; min-width: 340px; }
-.gdrive-hint { font-size: 13px; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; line-height: 1.5; }
-.gdrive-hint a { color: var(--accent, #6ea8fe); text-decoration: underline; }
-.gdrive-label { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
-.ui-input { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--chip-border, rgba(255,255,255,0.16)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 14px; outline: none; }
-.ui-input:focus { border-color: var(--accent, #6ea8fe); }
-.ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
-.ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
+.gdrive-hint { font-size: 13px; color: var(--fg-muted); margin: 0 0 6px; line-height: 1.5; }
+.gdrive-hint a { color: var(--accent); text-decoration: underline; }
+.gdrive-label { font-size: 13px; color: var(--fg-muted); }
+.ui-input { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font-size: 14px; outline: none; }
+.ui-input:focus { border-color: var(--accent); }
+.ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px; }
+.ui-btn.primary { background: color-mix(in srgb, var(--accent) 32%, transparent); border-color: var(--accent); }
 .ui-btn:disabled { opacity: 0.4; cursor: default; }
 </style>
