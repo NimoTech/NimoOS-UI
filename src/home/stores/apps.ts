@@ -1,21 +1,26 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { service, type AppGridItem } from '@nimotech/nimoos-service'
+import { service, type AppGridItem, type AppGridWidget } from '@nimotech/nimoos-service'
+import type { WidgetSize } from '../grid/types'
+import { APP_WIDGET_SIZE, appWidgetRange } from '../widgets/appWidgetSize'
 import { SYSTEM_APPS } from '../apps/systemApps'
 
 export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
 
-/** spec §3:w∈[2,4] h∈[1,4],非法/缺省 → 2×2 */
-export function clampWidgetDecl(w?: number, h?: number): [number, number] {
-  const cw = !w || w < 2 ? 2 : Math.min(4, w)
-  const ch = !h || h < 1 ? 2 : Math.min(4, h)
-  return [!w || w <= 0 ? 2 : cw, !h || h <= 0 ? 2 : ch]
+/** spec §3:初始尺寸夹进有效范围(缺省 = 全局 w 2..4 / h 1..4);非法/缺省 → 2×2 再夹 */
+export function clampWidgetDecl(w?: number, h?: number, range: WidgetSize = APP_WIDGET_SIZE): [number, number] {
+  const iw = !w || w <= 0 ? 2 : w
+  const ih = !h || h <= 0 ? 2 : h
+  return [
+    Math.max(range.min[0], Math.min(range.max[0], iw)),
+    Math.max(range.min[1], Math.min(range.max[1], ih)),
+  ]
 }
 
 export interface AppMeta {
   name: string; cls: string; glyph: string; icon: string | null; system: boolean
   app_type?: string; status?: string; scheme?: string; port?: string | number; index?: string; hostname?: string
-  desktop?: boolean; widget?: { path: string; w?: number; h?: number; minw?: number; minh?: number; maxw?: number; maxh?: number }
+  desktop?: boolean; widget?: AppGridWidget
 }
 
 export const useAppsStore = defineStore('home-apps', () => {
@@ -77,7 +82,7 @@ export const useAppsStore = defineStore('home-apps', () => {
       })
       .map((k) => {
         const a = apps.value[k]
-        const [w, h] = clampWidgetDecl(a.widget?.w, a.widget?.h)
+        const [w, h] = clampWidgetDecl(a.widget?.w, a.widget?.h, appWidgetRange(a.widget))
         return { key: k, widget: a.widget?.path ? { w, h } : undefined }
       })
   }

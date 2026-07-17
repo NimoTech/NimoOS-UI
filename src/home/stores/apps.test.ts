@@ -39,6 +39,11 @@ describe('clampWidgetDecl', () => {
     expect(clampWidgetDecl(9, 9)).toEqual([4, 4])
     expect(clampWidgetDecl(3, 2)).toEqual([3, 2])
   })
+  it('第三参自定义范围:初始尺寸夹进范围', () => {
+    expect(clampWidgetDecl(2, 2, { min: [3, 2], max: [4, 4] })).toEqual([3, 2])
+    expect(clampWidgetDecl(4, 4, { min: [2, 1], max: [3, 2] })).toEqual([3, 2])
+    expect(clampWidgetDecl(undefined, undefined, { min: [3, 3], max: [3, 3] })).toEqual([3, 3])
+  })
 })
 
 describe('desktop 应用透传', () => {
@@ -57,6 +62,15 @@ describe('desktop 应用透传', () => {
       { key: 'my-dl', widget: { w: 3, h: 2 } },
       { key: 'no-widget', widget: undefined },
     ])
+  })
+
+  it('desktopDecls 初始尺寸夹进 label 自定义范围', () => {
+    const store = useAppsStore()
+    store.setApps([
+      { name: 'locked', title: { en_us: 'L' }, status: 'running', port: '1', desktop: true,
+        widget: { path: '/w', w: 2, h: 2, minw: 3, maxw: 3, minh: 3, maxh: 3 } },
+    ] as any)
+    expect(store.desktopDecls()).toEqual([{ key: 'locked', widget: { w: 3, h: 3 } }])
   })
 
   it('desktopDecls 排除未运行容器(停止就消失);status 缺省视为运行', () => {
