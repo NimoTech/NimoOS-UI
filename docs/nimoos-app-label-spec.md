@@ -18,6 +18,9 @@
 | `nimoos.widget.path` | 否(写了即声明有小组件) | 不写 = 该应用没有小组件,只有图标 | 小组件 iframe 页面的路径,由应用自己伺服,**必须免鉴权可访问**(桌面不会向 iframe 传任何 token) |
 | `nimoos.widget.w` | 否 | 前端夹紧默认 `2` | 小组件初始宽度(格子数),前端把非法值 / 越界值夹紧到 `2..4` |
 | `nimoos.widget.h` | 否 | 前端夹紧默认 `2` | 小组件初始高度(格子数),前端夹紧到 `1..4` |
+| `nimoos.widget.minw` / `nimoos.widget.minh` | 否 | 全局下限 `2` / `1` | 小组件可调整的最小宽/高(格子数),夹紧进全局 `2..4` / `1..4`。四个范围 label 都不写 = 现状(全局范围内可调) |
+| `nimoos.widget.maxw` / `nimoos.widget.maxh` | 否 | 全局上限 `4` / `4` | 小组件可调整的最大宽/高(格子数),同样夹紧进全局范围;min > max 时以 min 为准。**min == max 时尺寸锁死,桌面编辑模式自动隐藏该组件的调整把手**;初始 `w`/`h` 也会被夹进这个范围 |
+| `nimoos.widget.resize` | 否 | 可调整 | 写字符串 `"false"` ≡ `min=max=初始 w/h`(尺寸锁死语法糖,`w`/`h` 未声明按默认 `2×2` 锁死);显式 min/max label 优先于本糖 |
 
 补充:
 - `nimoos.enable=true` 是唯一的识别门槛;v1 老约定 `nimoos=nimoos` 原样保留,两套互不干扰。
