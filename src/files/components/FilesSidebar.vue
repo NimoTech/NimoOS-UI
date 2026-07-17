@@ -13,6 +13,7 @@ import { buildAuthUrl } from '../util/cloudAuth'
 import type { CloudDriver } from '@nimotech/nimoos-service'
 import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
+import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
 
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
 const router = useRouter()
@@ -21,6 +22,7 @@ const files = useFilesStore()
 const favorites = useFavoritesStore()
 const mounts = useMountsStore()
 const dialogOpen = ref(false)
+const gdriveOpen = ref(false)
 const { t } = useI18n()
 
 function go(realPath: string) {
@@ -46,15 +48,24 @@ async function onEjectUsb(entry: { realPath: string }) {
 function onConnected(mountPoint: string) {
   emit('navigate', toVirtualPath(mountPoint, files.displayNames))
 }
-function openCloudAuth(driver: CloudDriver) {
+function openAuthWindow(name: string, rawAuthUrl: string) {
   const w = 1000, h = 700
   const top = Math.max(0, (window.screen.height - h) / 2)
   const left = Math.max(0, (window.screen.width - w) / 2)
   window.open(
-    buildAuthUrl(driver.authUrl, window.location.origin),
-    driver.name,
+    buildAuthUrl(rawAuthUrl, window.location.origin),
+    name,
     `width=${w},height=${h},top=${top},left=${left},toolbar=no,menubar=no,scrollbars=yes`,
   )
+}
+function openCloudAuth(driver: CloudDriver) {
+  // Google Drive 走 BYO:弹表单让用户填自己的 client_id/client_secret(对齐 Vue2 auth() 分流);
+  // 其余驱动(Dropbox/OneDrive)凭据已烤入后端,直接开授权窗
+  if (driver.name === 'Google Drive') {
+    gdriveOpen.value = true
+    return
+  }
+  openAuthWindow(driver.name, driver.authUrl)
 }
 async function onEjectCloud(entry: { realPath: string }) {
   const home = shouldNavigateHome(files.currentPath, entry.realPath)
@@ -180,6 +191,7 @@ function onDiskDrop(i: number) {
       </ul>
     </section>
     <NetworkStorageDialog v-model:open="dialogOpen" @connected="onConnected" />
+    <GoogleDriveAuthDialog v-model:open="gdriveOpen" @auth-url="(u) => openAuthWindow('Google Drive', u)" />
   </aside>
 </template>
 

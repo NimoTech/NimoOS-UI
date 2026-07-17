@@ -3,7 +3,10 @@ import { setActivePinia, createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { nextTick } from 'vue'
 import FilesSidebar from './FilesSidebar.vue'
+import AddMountMenu from './AddMountMenu.vue'
+import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
 import { useFilesStore } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
 
@@ -98,5 +101,46 @@ describe('FilesSidebar', () => {
     // persisted order + default reflect the new arrangement
     expect(JSON.parse(localStorage.getItem('nimoos:location-order')!)).toEqual(['/mnt/b', '/DATA'])
     expect(localStorage.getItem('nimoos:location-default')).toBe('/mnt/b')
+  })
+
+  describe('云盘授权分流(P5b Google BYO)', () => {
+    it('Google Drive → 开 BYO 表单框,不直接 window.open', async () => {
+      seedFiles()
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      w.findComponent(AddMountMenu).vm.$emit('connect-cloud', { name: 'Google Drive', icon: '', authUrl: 'https://broken?client_id=private+build' })
+      await nextTick()
+      expect(openSpy).not.toHaveBeenCalled()
+      expect(w.findComponent(GoogleDriveAuthDialog).props('open')).toBe(true)
+      openSpy.mockRestore()
+    })
+
+    it('Dropbox → 照旧直接 window.open 授权窗(不开表单框)', async () => {
+      seedFiles()
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      w.findComponent(AddMountMenu).vm.$emit('connect-cloud', { name: 'Dropbox', icon: '', authUrl: 'https://dp?state=${HOST}%2Fv1%2Frecover%2FDropbox' })
+      await nextTick()
+      expect(openSpy).toHaveBeenCalledTimes(1)
+      const [url, name] = openSpy.mock.calls[0]
+      expect(String(url)).toContain(encodeURI(window.location.origin))
+      expect(name).toBe('Dropbox')
+      expect(w.findComponent(GoogleDriveAuthDialog).props('open')).toBe(false)
+      openSpy.mockRestore()
+    })
+
+    it('表单 emit auth-url → 经 buildAuthUrl 替换 ${HOST} 后 window.open', async () => {
+      seedFiles()
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      w.findComponent(GoogleDriveAuthDialog).vm.$emit('auth-url', 'https://accounts.google.com/auth?state=${HOST}%2Fv1%2Frecover%2FGoogleDrive%3Fsid%3Dabc')
+      await nextTick()
+      expect(openSpy).toHaveBeenCalledTimes(1)
+      const [url, name] = openSpy.mock.calls[0]
+      expect(String(url)).not.toContain('${HOST}')
+      expect(String(url)).toContain(encodeURI(window.location.origin))
+      expect(name).toBe('Google Drive')
+      openSpy.mockRestore()
+    })
   })
 })
