@@ -1,5 +1,5 @@
 import type { WidgetSize } from '../grid/types'
-import { APP_WIDGET_SIZE, appWidgetRange } from './appWidgetSize'
+import { appWidgetRange } from './appWidgetSize'
 import { useAppsStore } from '../stores/apps'
 
 const ICON = {

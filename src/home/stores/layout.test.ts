@@ -16,6 +16,7 @@ vi.mock('@nimotech/nimoos-service', async () => {
   }
 })
 import { useLayoutStore } from './layout'
+import { useAppsStore } from './apps'
 import { DEFAULT } from '../grid/defaultLayout'
 import type { DesktopAppDecl } from './apps'
 
@@ -196,5 +197,77 @@ describe('autoPin', () => {
     // evict 不应影响非 seen 的图标
     s.evict('files')
     expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
+  })
+})
+
+describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前范围)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    setCustomStorage.mockClear()
+    getCustomStorage.mockClear()
+    vi.useFakeTimers()
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  function seedWidget(key: string, w: number, h: number, range?: { minw?: number; minh?: number; maxw?: number; maxh?: number }) {
+    useAppsStore().setApps([
+      { name: key, desktop: true, status: 'running', port: '1', widget: { path: '/w', w, h, ...range } },
+    ] as never)
+  }
+
+  it('合法用户调整(仍在当前范围内)不被 autoPin 覆盖', () => {
+    seedWidget('a', 2, 2, { maxw: 4, maxh: 4 })
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
+    const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    s.applyPlan([{ id: w0.id, c: w0.c, r: w0.r, w: 3, h: 3 }]) // 用户手动拖到 3×3(仍在 2..4 范围内)
+    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS) // 范围未变的再次轮询
+    const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    expect(w1).toMatchObject({ w: 3, h: 3, c: w0.c, r: w0.r })
+  })
+
+  it('容器收紧范围后持久化尺寸超界(需缩小):原地缩小', () => {
+    seedWidget('a', 4, 4, { maxw: 4, maxh: 4 })
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a', { w: 4, h: 4 })], DIMS)
+    const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    expect(w0).toMatchObject({ w: 4, h: 4 })
+    seedWidget('a', 4, 4, { maxw: 2, maxh: 2 }) // 容器收紧: max 4×4 → 2×2
+    s.autoPin([dl('a', { w: 4, h: 4 })], DIMS)
+    const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    expect(w1).toMatchObject({ w: 2, h: 2, c: w0.c, r: w0.r })
+  })
+
+  it('容器抬高 min(需放大)且原地无碰撞:原地放大', () => {
+    seedWidget('a', 2, 1, { minw: 2, minh: 1, maxw: 4, maxh: 4 })
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
+    const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    expect(w0).toMatchObject({ w: 2, h: 1 })
+    seedWidget('a', 2, 1, { minw: 3, minh: 2, maxw: 4, maxh: 4 }) // 容器锁死抬高最小值
+    s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
+    const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    expect(w1).toMatchObject({ w: 3, h: 2, c: w0.c, r: w0.r })
+  })
+
+  it('放大后原地与邻居冲突:重新找位搬过去', () => {
+    seedWidget('a', 2, 1, { minw: 2, minh: 1, maxw: 4, maxh: 4 })
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
+    const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    // 紧贴 widget 右侧放一个占位项,放大后原地必与其重叠
+    s.pin({ kind: 'app', key: 'blocker', c: w0.c + w0.w, r: w0.r, w: 1, h: 1 })
+    seedWidget('a', 2, 1, { minw: 3, minh: 1, maxw: 4, maxh: 4 })
+    s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
+    const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
+    expect(w1.w).toBe(3)
+    expect(w1.h).toBe(1)
+    expect(w1.c !== w0.c || w1.r !== w0.r).toBe(true) // 搬走了,未与占位项重叠
+    expect(s.items.filter((it) => it.key === 'blocker')).toHaveLength(1)
   })
 })

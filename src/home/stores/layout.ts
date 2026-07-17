@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { LayoutItem, PlanEntry, Dims } from '../grid/types'
 import { DEFAULT } from '../grid/defaultLayout'
-import { WIDGETS } from '../widgets/registry'
-import { applyPlan as applyPlanPure, clampToGrid, firstFree } from '../grid/gridMath'
+import { WIDGETS, sizeOfItem } from '../widgets/registry'
+import { applyPlan as applyPlanPure, clampToGrid, firstFree, fits, clampSize } from '../grid/gridMath'
 import { isAssetId } from '../util/isAssetId'
 import { service } from '@nimotech/nimoos-service'
 import type { DesktopAppDecl } from './apps'
@@ -154,7 +154,33 @@ export const useLayoutStore = defineStore('home-layout', () => {
       changed = true
     }
     for (const d of decls) {
-      if (seen.value.has(d.key)) continue
+      if (seen.value.has(d.key)) {
+        // 已上桌:容器 label 收紧后声明范围可能收窄/位移，持久化尺寸需夹回当前范围，
+        // 否则锁死组件的把手已隐藏，尺寸永久停在范围外（无法自愈）。
+        if (d.widget) {
+          const idx = items.value.findIndex((it) => it.kind === 'appwidget' && it.key === d.key)
+          if (idx !== -1) {
+            const it = items.value[idx]
+            const [cw, ch] = clampSize(it, it.w, it.h, sizeOfItem)
+            if (cw !== it.w || ch !== it.h) {
+              if (fits(it.c, it.r, cw, ch, it.id, items.value, dims)) {
+                // 缩小,或放大后原地不与他人冲突
+                items.value = items.value.map((x) => (x.id === it.id ? { ...x, w: cw, h: ch } : x))
+                changed = true
+              } else {
+                // 放大且原地冲突/越界:以其他项为障碍重新找位搬过去；找不到位则保持原样(可接受的退化)
+                const others = items.value.filter((x) => x.id !== it.id)
+                const pos = firstFree(cw, ch, others, dims)
+                if (pos) {
+                  items.value = items.value.map((x) => (x.id === it.id ? { ...x, c: pos.c, r: pos.r, w: cw, h: ch } : x))
+                  changed = true
+                }
+              }
+            }
+          }
+        }
+        continue
+      }
       const pos = firstFree(1, 1, items.value, dims)
       if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
       if (d.widget) {
