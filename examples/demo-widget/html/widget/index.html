@@ -6,13 +6,116 @@
   const l = document.createElement('link'); l.rel = 'stylesheet'
   l.href = (q.get('home') || '') + '/app/widget-kit.css?v=2'; document.head.appendChild(l)
 </script>
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; }
+  .todo-head { flex: none; }
+  .todo-add { display: flex; gap: 6px; margin: 8px 0 6px; flex: none; }
+  .todo-add input {
+    flex: 1; min-width: 0; font: inherit; font-size: 13px; color: var(--nk-fg);
+    background: var(--nk-track); border: 1px solid var(--nk-divider);
+    border-radius: 8px; padding: 4px 8px; outline: none;
+  }
+  .todo-add input::placeholder { color: var(--nk-faint); }
+  .todo-add input:focus { border-color: var(--nk-accent); }
+  .todo-add button {
+    flex: none; width: 26px; font: inherit; font-size: 16px; line-height: 1;
+    color: var(--nk-accent); background: var(--nk-track);
+    border: 1px solid var(--nk-divider); border-radius: 8px; cursor: pointer;
+  }
+  .todo-add button:hover { border-color: var(--nk-accent); }
+  .todo-list { flex: 1; overflow-y: auto; min-height: 0; }
+  .todo-row { justify-content: flex-start; }
+  .todo-row input[type="checkbox"] { flex: none; accent-color: var(--nk-accent); margin: 0; cursor: pointer; }
+  .todo-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .todo-row.done .todo-text { text-decoration: line-through; color: var(--nk-faint); }
+  .todo-del {
+    flex: none; font-size: 14px; line-height: 1; color: var(--nk-faint);
+    background: none; border: 0; padding: 2px 4px; cursor: pointer;
+  }
+  .todo-del:hover { color: var(--nk-bad); }
+  .todo-empty { color: var(--nk-faint); font-size: 13px; padding: 10px 0; }
+</style>
 </head><body>
-  <p class="nk-title">演示任务</p>
-  <div class="nk-stat">3<small>个进行中</small></div>
-  <div class="nk-progress" style="margin:8px 0"><i style="width:62%"></i></div>
-  <ul class="nk-list">
-    <li class="nk-row"><span>速度</span><span class="nk-value nk-accent">2.1 MB/s</span></li>
-    <li class="nk-row"><span>剩余</span><span class="nk-value">14 分钟</span></li>
-    <li class="nk-row"><span>状态</span><span class="nk-badge good">健康</span></li>
-  </ul>
+  <div class="todo-head">
+    <p class="nk-title">待办事项</p>
+    <div class="nk-stat"><span id="open-count">0</span><small>个进行中</small></div>
+    <div class="nk-progress" style="margin:8px 0 0"><i id="progress" style="width:0"></i></div>
+  </div>
+  <form class="todo-add" id="add-form">
+    <input id="add-input" type="text" placeholder="输入新待办…" maxlength="200" autocomplete="off">
+    <button type="submit" title="添加">+</button>
+  </form>
+  <ul class="nk-list todo-list" id="list"></ul>
+<script>
+  const KEY = 'nimoos.demo.todos'
+  const SEED = [
+    { id: 't1', text: '体验一下这个待办小组件', done: false },
+    { id: 't2', text: '打勾、添加、删除都试试', done: false },
+  ]
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY)
+      if (raw === null) { save(SEED); return SEED.slice() }
+      const v = JSON.parse(raw)
+      if (!Array.isArray(v)) return []
+      return v.filter(t => t && typeof t.text === 'string')
+    } catch { return [] }
+  }
+  function save(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list)) } catch {}
+  }
+
+  let todos = load()
+
+  function render() {
+    const open = todos.filter(t => !t.done).length
+    document.getElementById('open-count').textContent = open
+    document.getElementById('progress').style.width =
+      todos.length ? Math.round((todos.length - open) / todos.length * 100) + '%' : '0'
+
+    const ul = document.getElementById('list')
+    ul.textContent = ''
+    if (!todos.length) {
+      const li = document.createElement('li')
+      li.className = 'todo-empty'
+      li.textContent = '没有待办'
+      ul.appendChild(li)
+      return
+    }
+    for (const t of todos) {
+      const li = document.createElement('li')
+      li.className = 'nk-row todo-row' + (t.done ? ' done' : '')
+      const cb = document.createElement('input')
+      cb.type = 'checkbox'
+      cb.checked = t.done
+      cb.onchange = () => { t.done = cb.checked; save(todos); render() }
+      const span = document.createElement('span')
+      span.className = 'todo-text'
+      span.textContent = t.text
+      span.title = t.text
+      const del = document.createElement('button')
+      del.type = 'button'
+      del.className = 'todo-del'
+      del.textContent = '×'
+      del.title = '删除'
+      del.onclick = () => { todos = todos.filter(x => x !== t); save(todos); render() }
+      li.append(cb, span, del)
+      ul.appendChild(li)
+    }
+  }
+
+  document.getElementById('add-form').onsubmit = (e) => {
+    e.preventDefault()
+    const input = document.getElementById('add-input')
+    const text = input.value.trim()
+    if (!text) return
+    todos.push({ id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, done: false })
+    input.value = ''
+    save(todos)
+    render()
+  }
+
+  render()
+</script>
 </body></html>
