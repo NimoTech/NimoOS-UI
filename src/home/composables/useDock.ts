@@ -22,6 +22,7 @@ export function __resetDockForTest() {
   favKeys.value = []
   moreKeys.value = []
   expanded.value = false
+  justDragged.value = false
   _initialized = false
 }
 

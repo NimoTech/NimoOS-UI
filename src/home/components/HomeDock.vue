@@ -85,8 +85,8 @@ function onDragStart(e: PointerEvent) {
   if (!btn) return
   const key = btn.dataset.app!
 
-  // Capture pointer on the nav so we keep getting events when pointer leaves children
-  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  // 此处刻意不 setPointerCapture:capture 生效期间 click 会派发给 nav 而不是图标,
+  // 展开态点击就打不开应用了。越过拖动阈值后才接管(见 onDragMove)。
 
   const ic = btn.querySelector<HTMLElement>('.dock-ic')
   const icRect = ic?.getBoundingClientRect() ?? btn.getBoundingClientRect()
@@ -118,6 +118,8 @@ function onDragMove(e: PointerEvent) {
   if (!drag.active) {
     if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
     drag.active = true
+    // 真拖动才把指针抓给 nav,拖动中指针离开子元素也不丢事件(纯点击不走到这里)
+    root.value?.setPointerCapture(drag.pointerId)
     // hide the source element while dragging
     const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
     if (src) src.style.opacity = '0'

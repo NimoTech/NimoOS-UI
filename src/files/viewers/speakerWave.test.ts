@@ -10,13 +10,35 @@ const SEGS = [
   { t: '1:10', speaker: 's1' },
 ]
 
-describe('barSpeakers(竖条→说话人归属,少数说话人优先)', () => {
-  it('短插话所在竖条归少数说话人(不被时长平均掉)', () => {
+describe('barSpeakers(竖条→说话人归属,窗口内覆盖时长最大者)', () => {
+  it('竖条归窗口内覆盖时长最大的说话人(3 秒插话盖不过 22 秒主导)', () => {
     const bars = barSpeakers(SEGS, 100, 4)
     expect(bars[0]).toBe('s1') // 0–25s 只有 s1
-    expect(bars[1]).toBe('s2') // 25–50s 内 s1、s2 都出现;s2 全局段数少 → 归 s2
+    expect(bars[1]).toBe('s1') // 25–50s 内 s1 覆盖 22s、s2 只有 3s 插话 → 归 s1
     expect(bars[2]).toBe('s1')
     expect(bars[3]).toBe('s1')
+  })
+  it('细粒度轮次数据:各竖条反映该时段真正的主导说话人', () => {
+    // 0–50s 由 s2 主导(s1 两次 2s 插话),50–100s 由 s1 主导 → 前后两半颜色不同。
+    const turns = [
+      { t: '0:00', speaker: 's2' },
+      { t: '0:20', speaker: 's1' },
+      { t: '0:22', speaker: 's2' },
+      { t: '0:40', speaker: 's1' },
+      { t: '0:42', speaker: 's2' },
+      { t: '0:50', speaker: 's1' },
+    ]
+    expect(barSpeakers(turns, 100, 2)).toEqual(['s2', 's1'])
+  })
+  it('覆盖时长打平 → 归全局段数少的一方', () => {
+    // duration=120、n=1:窗口内 s1(0–60)与 s2(60–120)各覆盖 60s;
+    // s1 全局 2 段、s2 全局 1 段 → 打平归 s2。
+    const tie = [
+      { t: '0:00', speaker: 's1' },
+      { t: '1:00', speaker: 's2' },
+      { t: '2:00', speaker: 's1' },
+    ]
+    expect(barSpeakers(tie, 120, 1)).toEqual(['s2'])
   })
   it('窗口内无任何分段 → null', () => {
     const bars = barSpeakers([{ t: '0:50', speaker: 's1' }], 100, 4)

@@ -8,9 +8,11 @@ export function speakerToken(idx: number): string {
 }
 
 /**
- * 每根竖条的时间窗 [a,b) 内出现过的说话人里,取「全局分段数最少」的那位。
- * 理由:竖条约 25s 一根,学生几秒的插话按中点采样/时长占比都会被平均掉;
- * 少数说话人优先保证短插话在波形上留下有色竖条。窗口内无人 → null。
+ * 每根竖条的时间窗 [a,b) 内,取「累计覆盖时长最大」的说话人;时长打平时取全局分段数少的一方
+ * (给短插话一点存在感)。窗口内无人 → null。
+ * 早期版本是「窗口内出现即候选、全局段数最少者优先」——那是为大段合并的段落数据设计的;
+ * 换成按说话轮次拆分的细粒度标注后,每个窗口内会出现三五个说话人,少数优先会让插话
+ * 刷满整条进度条、话最多的人反而一根竖条都分不到,故改为按时长占比归属。
  * duration<=0(元数据未就绪)→ 全 null,调用方在 loadedmetadata 后靠响应式重算。
  */
 export function barSpeakers(
@@ -34,10 +36,20 @@ export function barSpeakers(
   for (let i = 0; i < n; i++) {
     const a = (i / n) * duration
     const b = ((i + 1) / n) * duration
-    let best: string | null = null
+    const overlap = new Map<string, number>()
     for (const s of spans) {
-      if (Math.min(b, s.end) - Math.max(a, s.start) > 0) {
-        if (best === null || (freq.get(s.speaker) as number) < (freq.get(best) as number)) best = s.speaker
+      const o = Math.min(b, s.end) - Math.max(a, s.start)
+      if (o > 0) overlap.set(s.speaker, (overlap.get(s.speaker) ?? 0) + o)
+    }
+    let best: string | null = null
+    let bestO = 0
+    for (const [sp, o] of overlap) {
+      if (
+        o > bestO ||
+        (o === bestO && best !== null && (freq.get(sp) as number) < (freq.get(best) as number))
+      ) {
+        best = sp
+        bestO = o
       }
     }
     out[i] = best
