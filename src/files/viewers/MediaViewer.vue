@@ -301,39 +301,36 @@ const askScrollEl = ref<HTMLElement | null>(null)
 
 const PRESETS: { q: string; a: string }[] = [
   {
-    q: "What's this recording about?",
+    q: "What's this episode about?",
     a:
-      'A recording of an audio-production class where the instructor walks students through how sound becomes digital. The thread:\n' +
-      '• Timbre & harmonics — how the mouth and throat shift formants, and harmonic vs. non-harmonic vs. inharmonic sound (0:00)\n' +
-      '• Phase & phase cancellation — why multi-mic recordings cancel, and how that gets used for flanging and chorus (1:35)\n' +
-      '• A short history of recording — wax cylinder → vinyl → magnetic tape → the move to digital (4:13)\n' +
-      '• How computers represent sound — binary, sampling, the Nyquist theorem, why 44.1 kHz, and aliasing (13:56)\n' +
-      '• Bit depth & quantization — 16 / 24 / 32-bit and quantization noise (23:37)\n' +
-      '• File formats — uncompressed WAV/AIFF, lossless FLAC, lossy MP3/M4A/OGG, with a live listening test on a Mahler excerpt at different bit depths and bit rates (27:40)\n' +
-      'It plays as a back-and-forth: the instructor keeps asking questions and students answer throughout.',
+      'A full sitcom episode among six friends (labeled Speaker 1–6), with two storylines cross-cutting all night:\n' +
+      '• Speaker 3 and Speaker 4 surprise Speaker 5 with hockey tickets (0:52) — not knowing it\'s the anniversary of his first time with his ex-wife Carol (1:42)\n' +
+      '• Speaker 6 gets her first-ever paycheck and meets FICA (2:46), then a visit from old friends (3:58) leaves her doubting her fresh start\n' +
+      '• Girls\' night: Speaker 2\'s "magic beans" pep talk (9:20) and the scary question — what if it never comes together? (10:27)\n' +
+      '• At the game, a distracted Speaker 5 takes a puck to the face (10:52) and the guys land in the ER (11:32)\n' +
+      '• A misdelivered pizza reveals George Stephanopoulos lives across the street (12:55), turning girls\' night into a stakeout (15:02)\n' +
+      '• In the ER, Speaker 5 admits Carol was his first (16:24); back home the girls trade embarrassing secrets (16:55)\n' +
+      '• Everyone winds up playing Twister (19:52), and Speaker 5 takes the Visa call for Speaker 6: "I\'m fine." (20:55)',
   },
   {
-    q: 'List every student question and how it was answered.',
+    q: 'Why does Speaker 5 end up in the emergency room?',
     a:
-      'The class is Q&A-driven — here is every moment a student speaks, what was being asked, and how it resolved:\n' +
-      '1. (5:34) Downside of the wax cylinder? — Student: “wax is super easy to change.” → Right: it\'s literally made of wax, so it\'s easily damaged and degrades over time.\n' +
-      '2. (16:20) Sampled at 10 points, does it still look like the original sine wave? — Student: “Yeah, close enough.” → Close, but the pointy bits already change the sound; 10 points isn\'t enough.\n' +
-      '3. (19:46) What is a video\'s “sampling rate” called? — Student: “Frame rate?” → Right idea.\n' +
-      '4. (20:04) Historical film frame rate? — Student: “Is it 24?” → Exactly, 24 fps — which is why 48 kHz pairs with video.\n' +
-      '5. (29:08) Difference between WAV and AIFF? — Student: “WAV is Windows, AIFF is Mac?” → Exactly: WAV = Windows Audio/Video, AIFF = Apple Interleave File Format.\n' +
-      '6. (33:53) Where have you seen OGG files? — Student: “in games.” → Yes, OGG is common in game development.\n' +
-      '7. (37:49) 24-bit vs 16-bit listening test — Student: “Sounds similar, but on the loud parts I hear extra noise.” → Confirmed.\n' +
-      '8. (39:55) 8-bit Mahler — what\'s the problem? — Student: “It\'s a lot of static, especially the low notes.” → Exactly: that\'s quantization noise.',
+      'He takes a hockey puck to the face — and the whole night builds up to it:\n' +
+      '1. (1:28) Today is October 20th, the anniversary of his first time with his ex-wife Carol. He wants to skip the game and go home to brood.\n' +
+      '2. (2:03) Speaker 4 drags him along anyway — "you, me, Joey, ice — guys\' night out."\n' +
+      '3. (4:56) At the rink he keeps drifting into Carol memories: the boots, the peach pit (5:20), "there was ice there that night" (8:30).\n' +
+      '4. (10:52) Distracted — "Hey, look, we\'re on that TV thing!" — and the puck finds his face.\n' +
+      '5. (11:42) In the ER: "I\'m in a lot of pain here. My face is dented." The nurse\'s "any minute now" (11:54) stretches past an hour (14:33).\n' +
+      '6. (19:27) He finally wrestles his puck back from a kid — and admits, "Now that was fun." (19:51)',
   },
   {
-    q: 'Why is CD audio sampled at 44.1 kHz?',
+    q: 'What do the magic beans mean?',
     a:
-      'It comes from the Nyquist theorem (17:15): to capture a frequency accurately you have to sample at least twice that frequency.\n' +
-      'Human hearing tops out around 20 kHz, so the theoretical floor is 40 kHz (17:51). The extra 4.1 kHz is headroom against aliasing — ' +
-      'if the sample rate is too low, high frequencies “alias” into false lower tones and muddy the sound (20:40).\n' +
-      'As for the exact 44.1 number, the lecture repeats the well-known story: Sony\'s CEO wanted a CD to hold all of Beethoven\'s Ninth Symphony, ' +
-      'and 44.1 kHz was the most headroom they could give while still fitting the Ninth (18:26).\n' +
-      'Side note: video work prefers 48k / 96k because they divide evenly against the 24 fps film frame rate (18:53).',
+      'They\'re Speaker 2\'s metaphor for trading a safe plan for possibilities:\n' +
+      '• (9:12) She tells Speaker 6 "you are just like Jack" — Jack and the Beanstalk gave up a cow, got magic beans, and woke up to a big plant outside his window, full of possibilities. "And he lived in a village — and you live in the Village!" (9:20)\n' +
+      '• (9:36) Speaker 6 pushes back: Jack gave up a cow, she gave up an orthodontist — and now life feels "floopy" (9:48).\n' +
+      '• (10:27) Then the darker version: "What if we don\'t get magic beans? What if all we\'ve got are… beans?"\n' +
+      '• (20:45) The callback lands in the final scene — answering the Visa call, Speaker 5 deadpans "I\'ve got magic beans… no, no, never mind. I\'m fine." (20:55)',
   },
 ]
 const askChips = PRESETS.map((p) => p.q)
