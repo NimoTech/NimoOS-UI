@@ -9,9 +9,9 @@ const item = (key: string): LayoutItem => ({ id: 'i', kind: 'app', key, c: 1, r:
 
 describe('AppTile', () => {
   beforeEach(() => setActivePinia(createPinia()))
-  it('renders an inline glyph + label for a system app', () => {
+  it('renders the bundled Vue2 icon img + label for a system app', () => {
     const w = mount(AppTile, { props: { item: item('files') } })
-    expect(w.find('svg').exists()).toBe(true)
+    expect(w.find('img').attributes('src')).toContain('files.svg')
     expect(w.text()).toContain('文件')
   })
   it('renders a remote img for a container app with icon', () => {

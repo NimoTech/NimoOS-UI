@@ -26,7 +26,7 @@ export const useAppsStore = defineStore('home-apps', () => {
     const map: Record<string, AppMeta> = {}
     const ord: string[] = []
     SYSTEM_APPS.forEach((s) => {
-      map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: null, system: true, status: 'running' }
+      map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
       ord.push(s.key)
     })
     ;(container || []).forEach((a) => {

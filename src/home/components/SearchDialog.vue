@@ -124,8 +124,8 @@ interface Media { name: string; path: string; accuracy: number; isVideo?: boolea
 const ALBUM: Media[] = [
   // 收据图片：靠图片内 OCR 文字命中（放第一张，徽标标 OCR）。真实文件在 /DATA/Documents/life/。
   { name: "Nick's receipt.jpg", path: "/DATA/Documents/life/Nick's receipt.jpg", accuracy: 0, ocr: true },
-  { name: '16240722_2160_3840_30fps.mp4', path: `${GALLERY}/16240722_2160_3840_30fps.mp4`, accuracy: 95, isVideo: true },
   { name: 'images.jpg', path: `${GALLERY}/images.jpg`, accuracy: 98 },
+  { name: '16240722_2160_3840_30fps.mp4', path: `${GALLERY}/16240722_2160_3840_30fps.mp4`, accuracy: 95, isVideo: true },
   { name: 'images (2).jpg', path: `${GALLERY}/images (2).jpg`, accuracy: 94 },
   { name: 'images (1).jpg', path: `${GALLERY}/images (1).jpg`, accuracy: 90 },
   { name: 'images (3).jpg', path: `${GALLERY}/images (3).jpg`, accuracy: 85 },

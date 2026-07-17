@@ -1,5 +1,13 @@
+import iconFiles from './icons/files.svg'
+import iconPhotos from './icons/photos.svg'
+import iconAi from './icons/ai.svg'
+import iconVm from './icons/kvm.svg'
+import iconSettings from './icons/settings.png'
+import iconAppstore from './icons/appstore.svg'
+
 // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
-export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string }
+// `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
+export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string; icon: string }
 
 const G = {
   folder: '<path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1 1.3h7.1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"/>',
@@ -11,12 +19,12 @@ const G = {
 }
 
 export const SYSTEM_APPS: SystemApp[] = [
-  { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder },
-  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos },
-  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai },
-  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm },
-  { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear },
-  { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag },
+  { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder, icon: iconFiles },
+  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },
+  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },
+  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm },
+  { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
+  { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },
 ]
 
 export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)

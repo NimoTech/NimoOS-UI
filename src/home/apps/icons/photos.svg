@@ -1,0 +1,26 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" rx="12" fill="url(#paint0_linear_photos)"/>
+  <g filter="url(#filter0_f_photos)">
+    <rect x="8" y="8" width="48" height="48" rx="8" fill="white" fill-opacity="0.2"/>
+  </g>
+  <!-- Photo frame outer -->
+  <rect x="13" y="16" width="38" height="32" rx="4" fill="white" fill-opacity="0.15" stroke="white" stroke-opacity="0.6" stroke-width="1.5"/>
+  <!-- Mountain landscape inside frame -->
+  <path d="M13 36 L22 24 L30 32 L37 20 L51 36 L51 44 Q51 48 47 48 L17 48 Q13 48 13 44 Z" fill="white" fill-opacity="0.25"/>
+  <path d="M13 40 L22 28 L30 36 L37 24 L51 40 L51 44 Q51 48 47 48 L17 48 Q13 48 13 44 Z" fill="white" fill-opacity="0.45"/>
+  <!-- Sun circle -->
+  <circle cx="42" cy="25" r="4" fill="white" fill-opacity="0.8"/>
+  <!-- Small photo stack hint (bottom right) -->
+  <rect x="38" y="40" width="14" height="11" rx="2" fill="white" fill-opacity="0" stroke="white" stroke-opacity="0" stroke-width="0"/>
+  <defs>
+    <filter id="filter0_f_photos" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur"/>
+    </filter>
+    <linearGradient id="paint0_linear_photos" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8950F2"/>
+      <stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+  </defs>
+</svg>
