@@ -84,7 +84,7 @@
 | `.nk-progress` + 内层 `<i>` | 进度条外壳 + 内层填充条(用内联 `style="width:62%"` 控制百分比) | `<div class="nk-progress"><i style="width:62%"></i></div>` |
 | `.nk-badge` (`.good` / `.bad` 修饰) | 带圆点的状态徽标 | `<span class="nk-badge good">健康</span>` |
 
-完整组合示例(摘自示例容器 `examples/demo-widget/html/widget/index.html`):
+完整组合示例:
 
 ```html
 <p class="nk-title">演示任务</p>
@@ -99,13 +99,12 @@
 
 ## 5. 完整示例
 
-仓库里 `examples/demo-widget/` 是一个可以直接跑起来的最小示例(nginx + 静态页面),对应下面
-两种接入方式的 label 都取自它的 `run.sh`。
+下面两种接入方式给出同一套 label 的完整写法(任何 nginx + 静态页面的容器都可以照搬,
+widget 页面按 §2/§3 的要求写即可)。
 
 ### 5.1 `docker run`
 
 ```bash
-docker build -t nimoos-demo-widget examples/demo-widget
 docker run -d --name nimoos-demo-widget -p 18080:80 \
   --label nimoos.enable=true \
   --label nimoos.title=演示小组件 \
@@ -116,8 +115,6 @@ docker run -d --name nimoos-demo-widget -p 18080:80 \
   --label nimoos.widget.h=2 \
   nimoos-demo-widget
 ```
-
-或者直接执行仓库自带的脚本:`./examples/demo-widget/run.sh`。
 
 ### 5.2 `docker-compose.yml`
 
