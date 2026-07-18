@@ -494,6 +494,7 @@ onMounted(() => { uploads.initUploads() })
   .files-layout { gap: 0; }
   .files-topbar { flex-direction: column; align-items: stretch; gap: 8px; }
   .files-topbar-right { flex-wrap: wrap; justify-content: flex-start; row-gap: 8px; }
-  .files-actions { flex-wrap: wrap; row-gap: 8px; }
+  /* flex-basis 100% 迫使 actions 占满整行、宽度被约束,内部 chips 才会真正折行(0 0 auto 会按 max-content 溢出屏幕) */
+  .files-actions { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
 }
 </style>

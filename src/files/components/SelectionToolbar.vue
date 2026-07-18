@@ -14,7 +14,6 @@ const { t } = useI18n()
     <button class="sel-btn sel-cut" @click="emit('cut')">{{ t('filesCtxCut') }}</button>
     <button class="sel-btn sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
     <button v-if="props.canShare" class="sel-btn sel-share" @click="emit('share')">{{ t('filesShareToLan') }}</button>
-    <span class="sel-spacer"></span>
     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
   </div>
 </template>
@@ -24,12 +23,10 @@ const { t } = useI18n()
 .sel-count { flex: 0 0 auto; }
 .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
 .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
-.sel-spacer { flex: 1 1 auto; }
 .sel-btn.danger { color: var(--remove-fg, #ff8a8a); border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); }
 .sel-btn.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
 /* ≤768px:按钮流成 2-3 行(真机验收反馈);spacer 在换行布局里不再撑开,删除钮随流排列 */
 @media (max-width: 768px) {
   .selection-toolbar { flex-wrap: wrap; row-gap: 8px; }
-  .sel-spacer { flex: 0 0 0; }
 }
 </style>
