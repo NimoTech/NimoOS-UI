@@ -459,4 +459,11 @@ onMounted(() => { uploads.initUploads() })
   background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
   color: var(--fg); font-size: 14px; font-weight: 600; pointer-events: none;
 }
+/* ≤768px:侧栏已收抽屉(FilesSidebar.is-drawer 脱离文档流),布局单列;工具栏允许换行 */
+@media (max-width: 768px) {
+  .files-layout { gap: 0; }
+  .files-topbar { flex-wrap: wrap; }
+  .files-topbar-right { flex-wrap: wrap; justify-content: flex-end; }
+  .files-actions { flex-wrap: wrap; }
+}
 </style>

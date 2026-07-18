@@ -70,4 +70,7 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
 .shares-title { font-size: 16px; font-weight: 600; margin: 4px 0 14px; }
 .shares-empty { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
 .shares-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 768px) {
+  .files-layout { gap: 0; }
+}
 </style>

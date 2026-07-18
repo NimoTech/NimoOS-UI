@@ -110,4 +110,7 @@ onBeforeUnmount(() => {
   20% { opacity: 0.6; }
   100% { transform: translateX(-50%) scale(3.2); opacity: 0; }
 }
+@media (max-width: 768px) {
+  .files-layout { gap: 0; }
+}
 </style>
