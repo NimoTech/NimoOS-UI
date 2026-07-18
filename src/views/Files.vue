@@ -492,8 +492,8 @@ onMounted(() => { uploads.initUploads() })
 /* ≤768px:侧栏已收抽屉(FilesSidebar.is-drawer 脱离文档流),布局单列;工具栏允许换行 */
 @media (max-width: 768px) {
   .files-layout { gap: 0; }
-  .files-topbar { flex-wrap: wrap; }
-  .files-topbar-right { flex-wrap: wrap; justify-content: flex-end; }
-  .files-actions { flex-wrap: wrap; }
+  .files-topbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .files-topbar-right { flex-wrap: wrap; justify-content: flex-start; row-gap: 8px; }
+  .files-actions { flex-wrap: wrap; row-gap: 8px; }
 }
 </style>

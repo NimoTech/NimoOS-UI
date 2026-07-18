@@ -27,4 +27,9 @@ const { t } = useI18n()
 .sel-spacer { flex: 1 1 auto; }
 .sel-btn.danger { color: var(--remove-fg, #ff8a8a); border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); }
 .sel-btn.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
+/* ≤768px:按钮流成 2-3 行(真机验收反馈);spacer 在换行布局里不再撑开,删除钮随流排列 */
+@media (max-width: 768px) {
+  .selection-toolbar { flex-wrap: wrap; row-gap: 8px; }
+  .sel-spacer { flex: 0 0 0; }
+}
 </style>
