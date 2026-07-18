@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted, computed, ref } from 'vue'
+import { watch, onMounted, onUnmounted, computed, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FilesShell from '../files/components/FilesShell.vue'
@@ -34,7 +34,7 @@ import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
 import {
-  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath,
 } from '../files/util/pathUtils'
 import { readDefault } from '../files/util/locationOrder'
 import { parseRecover } from '../files/util/recoverEvent'
@@ -209,6 +209,18 @@ function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
 }
 async function sync() {
+  // 旧格式深链:/files?path=X(X 真实或虚拟;来源:Vue2 AI「打开文件位置」、上传通知、
+  // Home 文件夹瓦片)→ 归一化成规范 /files/<虚拟段>,highlight 透传。
+  // displayNames 已由 onMounted 的 loadRoots() 就绪(P6 SharesPage 竞态教训)。
+  const qp = route.query.path
+  if (typeof qp === 'string' && qp) {
+    const { virtualPath } = resolveInputPath(qp, files.displayNames)
+    router.replace({
+      path: '/files/' + virtualPathToRouteParam(virtualPath),
+      query: typeof route.query.highlight === 'string' ? { highlight: route.query.highlight } : undefined,
+    })
+    return
+  }
   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
   if (vp === '/') {
     const rootReal = readDefault() || files.defaultRootReal()
@@ -217,6 +229,23 @@ async function sync() {
     return
   }
   await files.load(toRealPath(vp, files.displayNames))
+  applyHighlight()
+}
+// 深链 ?highlight=<文件名>:目录加载后按名定位 → 滚动到可视区 + 闪烁 2.5s(Vue2 _highlight
+// 同款体验)。找不到(已删/改名)静默;URL 不清 highlight,刷新重闪无害(与 Vue2 一致)。
+// 命令式 DOM class(而非 prop 下钻):瞬态视觉,列表重渲染丢 class 可接受。
+function applyHighlight() {
+  const name = typeof route.query.highlight === 'string' ? route.query.highlight : ''
+  if (!name) return
+  const entry = files.sortedEntries.find((e) => e.name === name)
+  if (!entry) return
+  nextTick(() => {
+    const el = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
+    if (!el) return
+    el.scrollIntoView({ block: 'center' })
+    el.classList.add('file-flash')
+    setTimeout(() => el.classList.remove('file-flash'), 2500)
+  })
 }
 function openEntry(entry: FileEntry) {
   const r = resolveOpen(entry, files.sortedEntries)
@@ -308,7 +337,8 @@ onMounted(async () => {
   favorites.load()
   await sync()
 })
-watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+// params.path(常规导航)或 query.path(?path= 深链落到同组件)变化都要重新 sync。
+watch(() => [route.params.path, route.query.path], () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
 
 let offOperate: (() => void) | null = null
 onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })

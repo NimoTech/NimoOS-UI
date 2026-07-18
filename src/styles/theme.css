@@ -487,3 +487,7 @@ body::after {
 .grid-item:not(.editing).kind-app:active .app-ic,
 .grid-item:not(.editing).kind-folder:active .folder-tile,
 .grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }
+
+/* 文件区深链 ?highlight= 定位闪烁(挂在 FileRow/FileTile 根上,跨组件 class 放全局)*/
+@keyframes file-flash-kf { 0%, 100% { background: transparent; } 30%, 70% { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
+.file-flash { animation: file-flash-kf 1.25s ease 2; border-radius: 10px; }
