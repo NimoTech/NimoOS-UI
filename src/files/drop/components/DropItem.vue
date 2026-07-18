@@ -14,13 +14,15 @@ const props = defineProps<{
   isFloat: boolean
   position?: { left: string; top: string }
   transfer?: TransferState
+  suspended?: boolean
 }>()
 const emit = defineEmits<{ 'select-files': [files: File[]] }>()
 const { t } = useI18n()
 
 const inputEl = ref<HTMLInputElement | null>(null)
 const dragOver = ref(false)
-const disabled = computed(() => props.isSelf || !!props.device.offline)
+// suspended = 重连窗口(spec §7):store.connected 为假时禁互动,menu/picker/drop 一并失效
+const disabled = computed(() => props.isSelf || !!props.device.offline || !!props.suspended)
 const icon = computed(() => dropIconUrl(props.device.name.model, !!props.device.offline, props.isSelf))
 const tip = computed(() => {
   if (props.isSelf) return t('filesDropSelfTip')

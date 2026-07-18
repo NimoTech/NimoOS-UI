@@ -68,6 +68,7 @@ onBeforeUnmount(() => {
             :is-float="!isNarrow"
             :position="p.position"
             :transfer="drop.transfers[p.peer.id]"
+            :suspended="!drop.connected"
             @select-files="(files) => drop.sendFiles(p.peer.id, files)"
           />
         </div>

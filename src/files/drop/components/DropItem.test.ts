@@ -35,6 +35,11 @@ describe('DropItem', () => {
     await input.trigger('change')
     expect(w.emitted('select-files')![0][0]).toEqual([file])
   })
+  it('suspended 时(重连窗口内)在线设备也禁互动(spec §7)', () => {
+    const w = mountItem({ suspended: true })
+    expect(w.find('input[type=file]').attributes('disabled')).toBeDefined()
+    expect(w.find('.drop-bubble').attributes('disabled')).toBeDefined()
+  })
   it('传输中显示进度环与计数文案', () => {
     const w = mountItem({ transfer: { progress: 40, sending: true, count: 2 } })
     expect(w.find('.drop-ring').exists()).toBe(true)

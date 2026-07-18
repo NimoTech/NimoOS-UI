@@ -25,6 +25,9 @@ export const useDropStore = defineStore('drop', () => {
     arg ? i18n.global.t(key, arg) : i18n.global.t(key)
 
   function onVisibility() { if (!document.hidden) void server?.connect() }
+  // 硬关标签/刷新兜底(spec §5):非永久断开,不调 destroy()(见 serverConnection.suspend 注释)——
+  // pagehide 也在 bfcache 导航时触发,onVisibility 复活连接的路径与 Vue2 一致。
+  function onPageHide() { server?.suspend() }
 
   function handleServerMessage(msg: ServerMessage) {
     switch (msg.type) {
@@ -95,11 +98,13 @@ export const useDropStore = defineStore('drop', () => {
       onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
     })
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
     void server.connect()
   }
 
   function destroy() {
     document.removeEventListener('visibilitychange', onVisibility)
+    window.removeEventListener('pagehide', onPageHide)
     manager?.destroy(); manager = null
     server?.destroy(); server = null
     peers.value = []; transfers.value = {}; receiveQueue.value = []

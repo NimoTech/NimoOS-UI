@@ -83,6 +83,18 @@ export class ServerConnection {
     this.socket = null
   }
 
+  // 非永久断开(spec §5):pagehide 用,别用 destroy() —— pagehide 也在 bfcache 导航时触发,
+  // destroy() 的 destroyed 标记是永久的,会让 bfcache 恢复后的页面连不回来。
+  // 不设 destroyed;既有的 visibilitychange → connect() 路径会在页面恢复时自然复活连接(同 Vue2 _disconnect())。
+  suspend(): void {
+    if (!this.socket) return
+    this.send({ type: 'disconnect' })
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+    this.socket.onclose = null
+    this.socket.close()
+    this.socket = null
+  }
+
   private isConnected(): boolean {
     return !!this.socket && this.socket.readyState === this.socket.OPEN
   }

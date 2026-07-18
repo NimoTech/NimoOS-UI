@@ -96,6 +96,22 @@ describe('ServerConnection', () => {
     expect(ws.sent).toContain(JSON.stringify({ type: 'disconnect' }))
     expect(ws.readyState).toBe(3)
   })
+  it('suspend() 发 disconnect 并关闭,但不设 destroyed:不排重连,之后手动 connect() 仍可用(spec §5)', async () => {
+    const deps = makeDeps()
+    const c = new ServerConnection(deps)
+    await c.connect()
+    const ws = FakeWS.instances[0]
+    ws.open()
+    c.suspend()
+    expect(ws.sent).toContain(JSON.stringify({ type: 'disconnect' }))
+    expect(ws.readyState).toBe(3)
+    // 不像 handleDisconnect 那样自动重连:onclose 已被摘除,advance 计时器不产生新实例
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(FakeWS.instances.length).toBe(1)
+    // 之后手动 connect() 仍然可用(未被 destroyed 拦住)
+    await c.connect()
+    expect(FakeWS.instances.length).toBe(2)
+  })
   it('并发 connect() 调用被守卫堵住:第二个等待第一个完成', async () => {
     let resolve: ((value: void) => void) | null = null
     const deps = makeDeps({

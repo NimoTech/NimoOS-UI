@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 const h = vi.hoisted(() => ({
   connect: vi.fn(async () => {}),
   destroy: vi.fn(),
   send: vi.fn(),
+  suspend: vi.fn(),
   pmHandle: vi.fn(),
   pmSendFiles: vi.fn(() => true),
   pmDestroy: vi.fn(),
@@ -14,7 +15,7 @@ const h = vi.hoisted(() => ({
 vi.mock('../serverConnection', () => ({
   ServerConnection: class {
     constructor(deps: Record<string, unknown>) { h.capturedDeps = deps }
-    connect = h.connect; destroy = h.destroy; send = h.send
+    connect = h.connect; destroy = h.destroy; send = h.send; suspend = h.suspend
   },
 }))
 vi.mock('../peersManager', () => ({
@@ -28,6 +29,8 @@ vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () 
 import { useDropStore } from './drop'
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); localStorage.clear() })
+// destroy() 摘掉 window 上的 pagehide/visibilitychange 监听——不清会跨用例累积,dispatchEvent 就会打到历史用例的残留监听器
+afterEach(() => { try { useDropStore().destroy() } catch { /* noop */ } })
 
 const peerInfo = (id: string) => ({ id, name: { model: 'desktop', deviceName: 'd', displayName: 'Dev-' + id }, rtcSupported: true })
 const dispatch = (msg: unknown) => (h.capturedDeps!.onMessage as (m: unknown) => void)(msg)
@@ -88,6 +91,13 @@ describe('useDropStore', () => {
     expect(h.pmDestroy).toHaveBeenCalledOnce()
     s.init()
     expect(h.connect).toHaveBeenCalledTimes(2)
+  })
+  it('pagehide 触发非永久断开(spec §5):调 server.suspend 而非 destroy', () => {
+    const s = useDropStore()
+    s.init()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(h.suspend).toHaveBeenCalledOnce()
+    expect(h.destroy).not.toHaveBeenCalled()
   })
   it('重连 peers 替换后保留 self 显示名(评审发现 #1)', () => {
     const s = useDropStore()
