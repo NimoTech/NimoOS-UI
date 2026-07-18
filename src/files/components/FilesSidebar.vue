@@ -218,7 +218,16 @@ function onDiskDrop(i: number) {
 </template>
 
 <style scoped>
-.files-sidebar { flex: 0 0 220px; display: flex; flex-direction: column; gap: 18px; padding: 4px 12px 4px 0; overflow-y: auto; }
+/* 桌面态:整条侧栏装进一块大毛玻璃面板(复用主页小组件卡同款 token 五件套),
+   align-self:stretch 与右侧内容区等高,左右两栏视觉分离。抽屉态在 .is-drawer 里覆盖回贴边样式。 */
+.files-sidebar {
+  flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 14px; overflow-y: auto;
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: var(--radius); box-shadow: var(--card-shadow);
+  backdrop-filter: var(--blur);
+}
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .side-head-title { font-size: 13px; font-weight: 600; color: var(--fg); }
 .side-section { min-width: 0; }
@@ -239,7 +248,9 @@ function onDiskDrop(i: number) {
 .files-sidebar.is-drawer {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
   padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
-  border-right: 1px solid var(--card-border);
+  /* 覆盖桌面玻璃卡样式:抽屉贴左滑出,直角无投影,只留右描边 */
+  border: none; border-right: 1px solid var(--card-border);
+  border-radius: 0; box-shadow: none;
   transform: translateX(-105%); transition: transform 0.25s var(--ease);
 }
 .files-sidebar.is-drawer.is-open { transform: none; }
