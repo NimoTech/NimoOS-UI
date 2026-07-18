@@ -13,6 +13,7 @@ export interface TransferState { progress: number; sending: boolean; count: numb
 export const useDropStore = defineStore('drop', () => {
   const peers = ref<PeerInfo[]>([])
   const selfId = ref('')
+  const selfName = ref<{ deviceName: string; displayName: string } | null>(null)
   const connected = ref(false)
   const transfers = ref<Record<string, TransferState>>({})
   const receiveQueue = ref<{ file: ReceivedFile; from: string }[]>([])
@@ -44,6 +45,7 @@ export const useDropStore = defineStore('drop', () => {
       case 'display-name':
         selfId.value = msg.message.id
         localStorage.setItem('peerid', msg.message.id) // 与 Vue2 同键,同设备新旧页身份一致
+        selfName.value = { deviceName: msg.message.deviceName, displayName: msg.message.displayName }
         upsertSelf(msg.message)
         break
       default: break
@@ -58,7 +60,7 @@ export const useDropStore = defineStore('drop', () => {
     const existing = peers.value.find((p) => p.id === id)
     const self: PeerInfo = existing ?? {
       id,
-      name: { model: 'desktop', deviceName: m?.deviceName ?? '', displayName: m?.displayName ?? '' },
+      name: { model: 'desktop', deviceName: m?.deviceName ?? selfName.value?.deviceName ?? '', displayName: m?.displayName ?? selfName.value?.displayName ?? '' },
       rtcSupported: true,
     }
     peers.value = [self, ...rest] // self 置顶,UI 恒在第一个位
@@ -101,7 +103,7 @@ export const useDropStore = defineStore('drop', () => {
     manager?.destroy(); manager = null
     server?.destroy(); server = null
     peers.value = []; transfers.value = {}; receiveQueue.value = []
-    receivingCount = {}; connected.value = false
+    receivingCount = {}; connected.value = false; selfId.value = ''; selfName.value = null
   }
 
   function sendFiles(peerId: string, files: File[]) {

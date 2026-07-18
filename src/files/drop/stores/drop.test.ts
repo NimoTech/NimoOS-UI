@@ -89,4 +89,19 @@ describe('useDropStore', () => {
     s.init()
     expect(h.connect).toHaveBeenCalledTimes(2)
   })
+  it('重连 peers 替换后保留 self 显示名(评审发现 #1)', () => {
+    const s = useDropStore()
+    s.init()
+    // 先收到 display-name 消息,设置 selfId='me1',displayName='Me'
+    dispatch({ type: 'display-name', message: { id: 'me1', deviceName: 'nas', displayName: 'Me' } })
+    expect(s.selfId).toBe('me1')
+    expect(s.peers[0].id).toBe('me1')
+    expect(s.peers[0].name.displayName).toBe('Me')
+    // 然后收到 peers 消息,替换整个列表为仅包含 peer 'a' 的列表
+    dispatch({ type: 'peers', peers: [peerInfo('a')] })
+    // self 应该保留名字并重新置顶,即使不在新 peers 列表里
+    expect(s.peers[0].id).toBe('me1')
+    expect(s.peers[0].name.displayName).toBe('Me')
+    expect(s.peers[1].id).toBe('a')
+  })
 })
