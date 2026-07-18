@@ -1,6 +1,7 @@
 <!-- src/files/drop/components/DropPage.vue -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FilesShell from '../../components/FilesShell.vue'
 import FilesSidebar from '../../components/FilesSidebar.vue'
@@ -10,7 +11,9 @@ import DropAddButton from './DropAddButton.vue'
 import ReceivePrompt from './ReceivePrompt.vue'
 import { useDropStore } from '../stores/drop'
 import { contentsBox, positionFor, DISPLAY_ORDER } from '../dropLayout'
+import { virtualPathToRouteParam } from '../../util/pathUtils'
 
+const router = useRouter()
 const { t } = useI18n()
 const drop = useDropStore()
 
@@ -23,6 +26,10 @@ function resize() {
   if (!el) return
   isNarrow.value = el.clientWidth < 720 // 窄屏流式(替代 vue-breakpoint-mixin)
   box.value = contentsBox(el.clientWidth, el.clientHeight)
+}
+
+function goVirtual(virtualPath: string) {
+  router.push('/files/' + virtualPathToRouteParam(virtualPath))
 }
 
 // self 已由 store 置顶(index 0);展示顺序表决定圆环占位(Vue2 initIndexArray)
@@ -48,7 +55,7 @@ onBeforeUnmount(() => {
 <template>
   <FilesShell>
     <div class="files-layout">
-      <FilesSidebar />
+      <FilesSidebar @navigate="goVirtual" />
       <main ref="areaEl" class="drop-main" :class="{ narrow: isNarrow }">
         <h2 class="drop-title">{{ t('filesDropTitle') }}</h2>
         <div class="drop-pulse" aria-hidden="true"><i /><i /><i /></div>

@@ -39,4 +39,20 @@ describe('DropPage', () => {
     expect(w.findAllComponents({ name: 'DropItem' }).length).toBe(2)
     expect(w.text()).toContain('Pad')
   })
+  it('侧栏 @navigate 事件跳转到目标路径', async () => {
+    const w = mount(DropPage, {
+      global: {
+        plugins: [pinia, i18n, router],
+        stubs: {
+          FilesShell: { template: '<div><slot/></div>' },
+          FilesSidebar: { template: '<button class="nav-stub" @click="$emit(\'navigate\', \'TestDisk/docs\')" />' },
+        },
+      },
+    })
+    await router.isReady()
+    await flushPromises()
+    w.find('.nav-stub').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/files/TestDisk/docs')
+  })
 })
