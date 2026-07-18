@@ -407,7 +407,7 @@ body::after {
 /* 画布图标填充"方格高度 − 标签行"的正方形 */
 .kind-app .app-ic, .kind-folder .folder-ic, .kind-folder .folder-tile { flex: 1 1 auto; min-height: 0; width: auto; height: auto; aspect-ratio: 1; }
 /* 标签 */
-.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(9px, calc(var(--cell, 92px) * 0.13)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(11px, calc(var(--cell, 92px) * 0.15)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
 /* 文件夹：磨砂圆角容器 + 2×2 内容缩略（iPad 风） */
 .folder-tile { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12%; width: 100%; height: 100%; padding: 17%; border-radius: var(--icon-radius, 31%); background: var(--folder-glass, rgba(255,255,255,.16)); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); backdrop-filter: var(--blur); }
 .folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }
@@ -462,7 +462,7 @@ body::after {
 .dock-app:hover .dock-ic { filter: brightness(1.08); }
 /* 已停止的应用:整体灰显(与桌面 AppTile.stopped、AddPanel .is-stopped 同款) */
 .dock-app.is-stopped { opacity: 0.45; filter: grayscale(0.6); }
-.dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--fg-muted); }
+.dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: max(13px, calc(var(--app-size, 64px) * 0.22)); color: var(--fg-muted); }
 
 /* ---- P4c: 磁贴悬停 / 按压反馈（编辑态 .editing 不触发，避让 jiggle/拖拽） ---- */
 /* 图标基础过渡 */

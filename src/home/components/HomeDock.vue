@@ -233,13 +233,13 @@ defineExpose({ root })
   position: fixed; z-index: 20; left: 50%; bottom: max(20px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: flex; max-width: calc(100vw - 40px);
-  padding: 12px 18px;
+  padding: 14px 22px;
   border: 1px solid var(--dock-border); border-radius: var(--dock-radius, 26px);
   background: var(--dock-bg); box-shadow: var(--dock-shadow); backdrop-filter: var(--blur);
 }
 .dock-main { display: flex; align-items: flex-end; }
-/* gap 随图标尺寸等比（0.2×70px=14px 默认观感）；≤720px 媒体查询固定 8px 兜底 */
-.dock-zone { display: flex; align-items: flex-end; gap: calc(var(--app-size, 64px) * 0.2); }
+/* gap 随图标尺寸等比（0.3×64px≈19px,2026-07-18 用户嫌挤上调）；≤720px 媒体查询固定 8px 兜底 */
+.dock-zone { display: flex; align-items: flex-end; gap: calc(var(--app-size, 64px) * 0.3); }
 /* "More apps" zone: collapses to zero width, expands on .expanded */
 .dock-more {
   max-width: 0; opacity: 0; overflow: hidden; pointer-events: none;
