@@ -10,6 +10,7 @@ import { iconUrl } from '../util/icons'
 import { toVirtualPath } from '../util/pathUtils'
 import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
 import { buildAuthUrl } from '../util/cloudAuth'
+import { dropAsset } from '../drop/dropIcons'
 import type { CloudDriver } from '@nimotech/nimoos-service'
 import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
@@ -24,6 +25,7 @@ const mounts = useMountsStore()
 const dialogOpen = ref(false)
 const gdriveOpen = ref(false)
 const { t } = useI18n()
+const dropNavIcon = dropAsset('drop_icon')
 
 function go(realPath: string) {
   emit('navigate', toVirtualPath(realPath, files.displayNames))
@@ -114,6 +116,10 @@ function onDiskDrop(i: number) {
         <li class="side-item" :class="{ active: route.name === 'files-shares' }" @click="router.push('/files/shares')">
           <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
           <span class="side-name">{{ t('filesSharesNav') }}</span>
+        </li>
+        <li class="side-item" :class="{ active: route.name === 'files-drop' }" @click="router.push('/files/drop')">
+          <img class="side-icon" :src="dropNavIcon" alt="" />
+          <span class="side-name">{{ t('filesDropNav') }}</span>
         </li>
       </ul>
     </section>
