@@ -96,4 +96,23 @@ describe('ServerConnection', () => {
     expect(ws.sent).toContain(JSON.stringify({ type: 'disconnect' }))
     expect(ws.readyState).toBe(3)
   })
+  it('并发 connect() 调用被守卫堵住:第二个等待第一个完成', async () => {
+    let resolve: ((value: void) => void) | null = null
+    const deps = makeDeps({
+      getExpiresAt: () => 0, // 强制 refresh
+      refresh: vi.fn(() => new Promise<void>(r => { resolve = r })), // 手工延迟 resolve
+    })
+    const c = new ServerConnection(deps)
+    // 两次 connect() 不 await,第二次会被 connecting=true 的守卫拦截
+    c.connect() // 进入 await refresh(),此刻 connecting=true
+    c.connect() // 立即返回,无 socket 创建
+    await Promise.resolve() // flush 微任务
+    expect(FakeWS.instances.length).toBe(0) // 还没 resolve refresh,没创建 ws
+    // 手工 resolve refresh,继续执行第一个 connect()
+    resolve!()
+    await Promise.resolve()
+    await Promise.resolve() // 确保 finally 块执行
+    expect(deps.refresh).toHaveBeenCalledOnce() // 仅第一次 connect() 的 refresh 被调用
+    expect(FakeWS.instances.length).toBe(1) // 仅一个 socket 被创建
+  })
 })

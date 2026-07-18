@@ -23,27 +23,33 @@ export class ServerConnection {
   private socket: WebSocket | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private destroyed = false
+  private connecting = false
 
   constructor(private deps: ServerConnectionDeps) {}
 
   async connect(): Promise<void> {
-    if (this.destroyed || this.isConnected() || this.isConnecting()) return
-    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
-    // 连前预刷新:判定复用 P2c 下载的 shouldRefreshBeforeDownload(同一判定不复制)
-    if (shouldRefreshBeforeDownload(this.deps.getExpiresAt(), this.deps.now())) {
-      try { await this.deps.refresh() } catch { return } // 刷新失败:共享包 onAuthFail 已跳登录
+    if (this.destroyed || this.isConnected() || this.isConnecting() || this.connecting) return
+    this.connecting = true
+    try {
+      if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+      // 连前预刷新:判定复用 P2c 下载的 shouldRefreshBeforeDownload(同一判定不复制)
+      if (shouldRefreshBeforeDownload(this.deps.getExpiresAt(), this.deps.now())) {
+        try { await this.deps.refresh() } catch { return } // 刷新失败:共享包 onAuthFail 已跳登录
+      }
+      if (this.destroyed) return
+      const token = this.deps.getToken()
+      if (!token) return
+      const url = `${this.deps.wsBase()}/v1/file/ws?token=${token}&peer=${this.deps.getPeerId()}`
+      const ws = this.deps.makeSocket(url)
+      ws.binaryType = 'arraybuffer'
+      ws.onopen = () => this.deps.onConnectionChange(true)
+      ws.onmessage = (e) => this.handleMessage(e.data as string)
+      ws.onclose = () => this.handleDisconnect()
+      ws.onerror = () => {} // close 事件随后触发,重连在 handleDisconnect
+      this.socket = ws
+    } finally {
+      this.connecting = false
     }
-    if (this.destroyed) return
-    const token = this.deps.getToken()
-    if (!token) return
-    const url = `${this.deps.wsBase()}/v1/file/ws?token=${token}&peer=${this.deps.getPeerId()}`
-    const ws = this.deps.makeSocket(url)
-    ws.binaryType = 'arraybuffer'
-    ws.onopen = () => this.deps.onConnectionChange(true)
-    ws.onmessage = (e) => this.handleMessage(e.data as string)
-    ws.onclose = () => this.handleDisconnect()
-    ws.onerror = () => {} // close 事件随后触发,重连在 handleDisconnect
-    this.socket = ws
   }
 
   private handleMessage(raw: string): void {
