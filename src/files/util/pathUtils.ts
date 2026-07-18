@@ -32,3 +32,13 @@ export function routeParamToVirtualPath(param: string | string[] | undefined): s
   if (!joined) return '/'
   return '/' + joined.replace(/^\/+/, '')
 }
+
+// 旧格式深链归一(Vue2 utils/pathUtils.js resolveInputPath 同款):输入可能是真实路径
+// (/DATA/x、/mnt/smb-y/z)也可能是虚拟路径(/NimoOS-HD/x)。先 toRealPath(虚拟→真实,
+// 真实无虚拟前缀可匹配、原样透过)再 toVirtualPath 规范化,两边幂等。
+export function resolveInputPath(input: string, displayNames: DisplayNames): { realPath: string; virtualPath: string } {
+  if (!input) return { realPath: '/', virtualPath: '/' }
+  const realPath = toRealPath(input, displayNames)
+  const virtualPath = toVirtualPath(realPath, displayNames)
+  return { realPath, virtualPath }
+}
