@@ -125,8 +125,8 @@ function onDiskDrop(i: number) {
   <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
     <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(FilesShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
     <div v-if="!isNarrow" class="side-top">
-      <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>
       <h1 class="side-app-title">{{ t('filesTitle') }}</h1>
+      <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>
     </div>
     <div class="side-head">
       <span class="side-head-title">{{ t('filesMountManage') }}</span>
@@ -233,9 +233,10 @@ function onDiskDrop(i: number) {
   border-radius: var(--radius); box-shadow: var(--panel-shadow);
   backdrop-filter: var(--blur);
 }
-.side-top { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-.side-home-btn { font-size: 13px; }
-.side-app-title { font-size: 18px; font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
+/* 标题打头、回主页键并排贴右;标题字号随视口缩放(clamp 下 20px 上 28px) */
+.side-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.side-home-btn { font-size: 13px; flex: 0 0 auto; }
+.side-app-title { font-size: clamp(20px, 1.8vw, 28px); font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .side-head-title { font-size: 13px; font-weight: 600; color: var(--fg); }
 .side-section { min-width: 0; }
