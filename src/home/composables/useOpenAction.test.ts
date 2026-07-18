@@ -5,6 +5,10 @@ import { useOpenAction } from './useOpenAction'
 import { useStartApp, __resetStartAppForTest } from './useStartApp'
 import type { LayoutItem } from '../grid/types'
 
+// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
+vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
+import { router } from '../../router'
+
 let hrefs: string[]
 let opens: string[]
 beforeEach(() => {
@@ -13,12 +17,15 @@ beforeEach(() => {
   hrefs = []; opens = []
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
+  vi.mocked(router.push).mockClear()
 })
 
 describe('useOpenAction.openApp', () => {
-  it('system app navigates to its hash route', () => {
+  it('system app files 应用内 router.push,不整页跳', () => {
     const { openApp } = useOpenAction()
-    openApp('files'); expect(hrefs[0]).toBe('/#/files')
+    openApp('files')
+    expect(router.push).toHaveBeenCalledWith('/files')
+    expect(hrefs.length).toBe(0)
   })
   it('settings/appstore navigate to /#/legacy', () => {
     const { openApp } = useOpenAction()
@@ -50,10 +57,11 @@ describe('useOpenAction.openApp', () => {
 })
 
 describe('useOpenAction.openItem', () => {
-  it('folder navigates to files with encoded path', () => {
+  it('folder 应用内 push /files?path=(靠 Files.vue 深链归一化落目录)', () => {
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 } as LayoutItem)
-    expect(hrefs[0]).toBe('/#/files?path=' + encodeURIComponent('/DATA/Gallery'))
+    expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
+    expect(hrefs.length).toBe(0)
   })
   it('photo navigates to /#/photos', () => {
     const { openItem } = useOpenAction()
