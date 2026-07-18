@@ -10,12 +10,14 @@ import DropCenter from './DropCenter.vue'
 import DropAddButton from './DropAddButton.vue'
 import ReceivePrompt from './ReceivePrompt.vue'
 import { useDropStore } from '../stores/drop'
+import { useFilesStore } from '../../stores/files'
 import { contentsBox, positionFor, DISPLAY_ORDER } from '../dropLayout'
 import { virtualPathToRouteParam } from '../../util/pathUtils'
 
 const router = useRouter()
 const { t } = useI18n()
 const drop = useDropStore()
+const files = useFilesStore()
 
 const areaEl = ref<HTMLElement | null>(null)
 const box = ref(contentsBox(1200, 700))
@@ -45,6 +47,7 @@ onMounted(() => {
   window.addEventListener('resize', resize)
   resize()
   drop.init()
+  if (!files.disks.length) files.loadRoots() // 侧栏盘符列表(对齐 SharesPage;漏掉则 DISKS 区恒空)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resize)
@@ -81,8 +84,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.drop-main { position: relative; flex: 1; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+/* Drop 页与 SharesPage 的关键差异:本页主区内容全是绝对定位(不撑高度),
+   容器必须给出确定高度——height:100%(而非 min-height)+ drop-main 拉伸,
+   否则 .drop-main 塌缩到标题高,resize() 量出 ~56px,contentsBox 算出负几何,气泡全部飞出可视区。 */
+.files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+.drop-main { position: relative; flex: 1; align-self: stretch; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
 .drop-title { align-self: flex-start; margin: 16px 20px; font-size: 18px; color: var(--fg); }
 .drop-area { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
 .drop-main.narrow .drop-area {
