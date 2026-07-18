@@ -53,4 +53,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 /* edit-btn active — maps #editBtn[aria-pressed="true"] from base.css:41 */
 .edit-btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+
+/* ≤720px 手机启动器为只读:隐藏添加/编辑入口(排序增删在桌面做),保留搜索与主题切换 */
+@media (max-width: 720px) {
+  .add-btn, .edit-btn { display: none; }
+}
 </style>

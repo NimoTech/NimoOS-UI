@@ -21,7 +21,8 @@ const entry = computed<FileEntry>(() => ({
 </script>
 <style scoped>
 /* .kind-folder 列布局 + .folder-ic 尺寸/hover/放大规则都在全局 theme.css */
-.folder-tile-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
+/* gap/字号随 --cell 等比(锚定 108px 舒适格) — 与 theme.css .kind-folder/.app-label 同比例 */
+.folder-tile-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); height: 100%; }
 .folder-ic { width: 100%; height: 100%; }
-.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(9px, calc(var(--cell, 92px) * 0.13)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
 </style>

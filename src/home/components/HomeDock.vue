@@ -5,16 +5,25 @@
   >
     <div class="dock-main">
       <div class="dock-zone" data-zone="fav">
-        <DockApp v-for="k in dock.favKeys.value" :key="k" :app-key="k" />
+        <DockApp v-for="k in favVisible" :key="k" :app-key="k" />
       </div>
-      <span class="dock-sep" />
-      <div class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined">
+      <span v-if="!isMobile" class="dock-sep" />
+      <div v-if="!isMobile" class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined">
         <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" />
       </div>
-      <button class="dock-app dock-toggle" :aria-expanded="dock.expanded.value" @click="dock.toggleExpanded()">
-        <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ dock.expanded.value ? t('dockDone') : t('dockAllApps') }}</span>
+      <button class="dock-app dock-toggle" :aria-expanded="isMobile ? sheetOpen : dock.expanded.value" @click="onToggle">
+        <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ (isMobile ? sheetOpen : dock.expanded.value) ? t('dockDone') : t('dockAllApps') }}</span>
       </button>
     </div>
+    <!-- 手机端"全部应用":多行平铺抽屉(桌面端仍是横向 more 区展开)。
+         Teleport 到 body:.dock 的 backdrop-filter 会把内部 fixed 的定位基准劫持成 Dock 自身。 -->
+    <Teleport to="body">
+      <div v-if="isMobile && sheetOpen" class="allapps-overlay" @click.self="sheetOpen = false">
+        <div class="allapps-sheet" role="dialog" :aria-label="t('dockAllApps')" @click="sheetOpen = false">
+          <DockApp v-for="k in allKeys" :key="k" :app-key="k" />
+        </div>
+      </div>
+    </Teleport>
     <!-- floating drag ghost -->
     <div v-if="drag.active" class="dock-ghost" :style="drag.ghostStyle" aria-hidden="true">
       <span class="dock-ic" :class="drag.ghostCls">
@@ -25,17 +34,28 @@
   </nav>
 </template>
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
+import { useIsMobile } from '../composables/useIsMobile'
 import { magScale } from '../grid/dockMath'
 
 const { t } = useI18n()
 const dock = useDock()
 const apps = useAppsStore()
 const root = ref<HTMLElement | null>(null)
+
+// ── 手机端:固定 5 个位(4 常用 + 全部应用),全部应用弹多行抽屉 ────────────────
+const isMobile = useIsMobile()
+const sheetOpen = ref(false)
+const favVisible = computed(() => (isMobile.value ? dock.favKeys.value.slice(0, 4) : dock.favKeys.value))
+const allKeys = computed(() => [...dock.favKeys.value, ...dock.moreKeys.value])
+function onToggle() {
+  if (isMobile.value) { sheetOpen.value = !sheetOpen.value; return }
+  dock.toggleExpanded()
+}
 
 // ── magnification ────────────────────────────────────────────────────────────
 function onMove(e: PointerEvent) {
@@ -270,7 +290,23 @@ defineExpose({ root })
   .dock-main { justify-content: center; }
   .dock-zone { gap: 8px; }
   .dock.expanded .dock-more { flex-wrap: wrap; justify-content: center; }
-  /* .dock-label lives in DockApp.vue scoped, so we target it via :deep */
-  :deep(.dock-label) { display: none; }
+  /* .dock-label lives in DockApp.vue scoped, so we target it via :deep。
+     只隐藏 Dock 条上的标签——全部应用抽屉(.allapps-sheet)里要显示应用名 */
+  .dock-main :deep(.dock-label) { display: none; }
+}
+
+/* ── 手机端"全部应用"抽屉:玻璃底板,4 列多行平铺,超高内部滚动 ── */
+.allapps-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.allapps-sheet {
+  width: 100%; margin: 0 12px calc(104px + env(safe-area-inset-bottom));
+  max-height: 62vh; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(4, 1fr); justify-items: center; gap: 16px 8px;
+  padding: 18px 12px;
+  border: 1px solid var(--dock-border); border-radius: var(--dock-radius, 26px);
+  background: var(--dock-bg); box-shadow: var(--dock-shadow); backdrop-filter: var(--blur);
 }
 </style>

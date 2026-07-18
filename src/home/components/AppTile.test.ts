@@ -11,7 +11,8 @@ describe('AppTile', () => {
   beforeEach(() => setActivePinia(createPinia()))
   it('renders the bundled Vue2 icon img + label for a system app', () => {
     const w = mount(AppTile, { props: { item: item('files') } })
-    expect(w.find('img').attributes('src')).toContain('files.svg')
+    // 小于 Vite assetsInlineLimit 的 svg 会内联成 data URI,大于则是带 hash 的 .svg URL——两种都算打包成功
+    expect(w.find('img').attributes('src')).toMatch(/files\.svg|^data:image\/svg\+xml/)
     expect(w.text()).toContain('文件')
   })
   it('renders a remote img for a container app with icon', () => {

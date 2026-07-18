@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
@@ -72,5 +72,46 @@ describe('HomeDock', () => {
     expect(router.push).toHaveBeenCalledWith('/files')
     expect(hrefs.length).toBe(0)
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
+  })
+})
+
+// ── 手机端:固定 5 位 + 全部应用抽屉(spec 2026-07-18-mobile-home-launcher 增量)──
+describe('HomeDock mobile (≤720px)', () => {
+  const stubMobile = () =>
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+  afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = '' })
+
+  it('caps the dock at 5 slots (4 favs + all-apps) and drops the more-zone', () => {
+    stubMobile(); useAppsStore()
+    const w = mount(HomeDock)
+    expect(w.findAll('.dock-app')).toHaveLength(5)
+    expect(w.find('.dock-more').exists()).toBe(false)
+    expect(w.find('.dock-sep').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('tapping all-apps opens a multi-row sheet with every app; tapping one closes it', async () => {
+    stubMobile(); useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const sheet = document.body.querySelector('.allapps-sheet')
+    expect(sheet).not.toBeNull()
+    // 全量 = fav(5) + more(≥1,含设置),多于 dock 条上的 4+1
+    expect(sheet!.querySelectorAll('.dock-app').length).toBeGreaterThanOrEqual(6)
+    ;(sheet!.querySelector('.dock-app') as HTMLElement).click()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.allapps-sheet')).toBeNull()
+    w.unmount()
+  })
+
+  it('desktop keeps the horizontal expand behavior (no sheet)', async () => {
+    useAppsStore() // 无 matchMedia stub → isMobile=false
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    expect(document.body.querySelector('.allapps-sheet')).toBeNull()
+    expect(w.find('.dock-more').exists()).toBe(true)
+    w.unmount()
   })
 })
