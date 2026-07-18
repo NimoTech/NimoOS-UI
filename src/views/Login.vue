@@ -73,7 +73,7 @@ async function submit() {
 </template>
 
 <style scoped>
-.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.auth-page { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; }
 .auth-card {
   width: 22rem; max-width: calc(100vw - 3rem); padding: 2.5rem 2.25rem;
   display: flex; flex-direction: column; gap: 0.5rem;

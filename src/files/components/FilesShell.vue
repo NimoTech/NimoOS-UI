@@ -23,7 +23,9 @@ function goHome() { router.push('/') }
 </template>
 
 <style scoped>
-.files-shell { display: flex; flex-direction: column; height: 100vh; color: var(--fg); }
+/* 100dvh:手机浏览器的 100vh 含被地址栏/工具条遮住的区域,会把最后一行文件压到工具条背后;
+   dvh 随浏览器 UI 伸缩取真实可见高度。前一行 100vh 是旧内核兜底。 */
+.files-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; color: var(--fg); }
 .files-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
 .files-title { font-size: 18px; font-weight: 600; margin: 0; }
 .files-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }

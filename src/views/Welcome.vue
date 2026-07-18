@@ -119,7 +119,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.auth-page { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; }
 .auth-card {
   width: 24rem; max-width: calc(100vw - 3rem); padding: 2.75rem 2.5rem;
   display: flex; flex-direction: column; gap: 0.5rem; text-align: center;
