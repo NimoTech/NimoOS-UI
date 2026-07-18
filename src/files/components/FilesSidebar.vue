@@ -123,6 +123,11 @@ function onDiskDrop(i: number) {
 <template>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
   <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(FilesShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
+    <div v-if="!isNarrow" class="side-top">
+      <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>
+      <h1 class="side-app-title">{{ t('filesTitle') }}</h1>
+    </div>
     <div class="side-head">
       <span class="side-head-title">{{ t('filesMountManage') }}</span>
       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
@@ -224,10 +229,13 @@ function onDiskDrop(i: number) {
   flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 18px;
   padding: 14px; overflow-y: auto;
-  background: var(--card-bg); border: 1px solid var(--card-border);
-  border-radius: var(--radius); box-shadow: var(--card-shadow);
+  background: var(--panel-bg); border: 1px solid var(--card-border);
+  border-radius: var(--radius); box-shadow: var(--panel-shadow);
   backdrop-filter: var(--blur);
 }
+.side-top { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.side-home-btn { font-size: 13px; }
+.side-app-title { font-size: 18px; font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .side-head-title { font-size: 13px; font-weight: 600; color: var(--fg); }
 .side-section { min-width: 0; }
@@ -235,8 +243,10 @@ function onDiskDrop(i: number) {
 .side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }
 .side-list { list-style: none; margin: 0; padding: 0; }
 .side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
-.side-item:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
-.side-item.active { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+/* 悬停/选中不用 --chip-bg(纸感主题为纯白,刷在面板上白上白不可见),改用可见对比:
+   悬停=chip 高亮档,选中=accent 淡染,两套主题都有反馈 */
+.side-item:hover { background: var(--chip-bg-hi); }
+.side-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .side-icon { width: 20px; height: 20px; flex: 0 0 auto; }
 .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }

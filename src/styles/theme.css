@@ -134,6 +134,9 @@
 
   --overlay-bg: rgba(20, 26, 46, 0.46);
   --overlay-blur: blur(50px) saturate(1.5) brightness(1.05);
+  /* 侧栏大面板玻璃(比 --card-bg 更透、阴影更收敛;文件区侧栏用) */
+  --panel-bg: rgba(255, 255, 255, 0.1);
+  --panel-shadow: 0 2px 6px rgba(8, 12, 28, 0.12), 0 10px 24px -12px rgba(8, 12, 28, 0.25);
   --remove-bg: #ff708a;
   --drop-bg: rgba(138, 180, 255, 0.22);
   --toast-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.12));
@@ -218,6 +221,9 @@
 
   /* 2.9 浮层 / 背景 / 危险 / 拖放 */
   --overlay-bg: rgba(40, 36, 28, 0.28);
+  /* 侧栏大面板玻璃:纸感主题不用实心白(--card-bg=#fff),半透白 + 收敛阴影 */
+  --panel-bg: rgba(255, 255, 255, 0.42);
+  --panel-shadow: 0 2px 6px rgba(60, 50, 30, 0.05), 0 10px 24px -12px rgba(60, 50, 30, 0.18);
   --remove-bg: #e0466a;
   --drop-bg: rgba(59, 91, 219, 0.12);
   --app-bg: #f7f5ef;
@@ -379,7 +385,7 @@ body::after {
 /* 编辑态：空格用圆角描边表示可用位置 */
 .cell {
   pointer-events: none;
-  border-radius: var(--radius-sm, 18px);
+  border-radius: calc(var(--cell, 92px) * 0.167); /* 随格子等比,替代固定 --radius-sm */
   border: 1.5px dashed var(--grid-dot, rgba(255,255,255,.26));
   background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.02));
 }
@@ -390,7 +396,9 @@ body::after {
 
 /* ---- P4c: 应用 / 文件夹 / 照片 磁贴结构 ---- */
 /* 画布上的 app/folder：纵向排布 → 图标在上、标签在下 */
-.kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
+/* 磁贴内部尺寸(间距/字号/占位圆角)一律按 --cell 等比,保证格子在任意缩放下形状不变;
+   比例锚定 108px 舒适格:gap 5/108≈0.046,字号 14/108≈0.13,圆角 18/108≈0.167 */
+.kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); }
 /* 图标方格：圆角玻璃 + 白色前景 + icon-shadow */
 .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; box-shadow: var(--icon-shadow); }
 .app-ic .icon, .folder-ic .icon { width: 44%; height: 44%; }
@@ -399,7 +407,7 @@ body::after {
 /* 画布图标填充"方格高度 − 标签行"的正方形 */
 .kind-app .app-ic, .kind-folder .folder-ic, .kind-folder .folder-tile { flex: 1 1 auto; min-height: 0; width: auto; height: auto; aspect-ratio: 1; }
 /* 标签 */
-.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(9px, calc(var(--cell, 92px) * 0.13)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
 /* 文件夹：磨砂圆角容器 + 2×2 内容缩略（iPad 风） */
 .folder-tile { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12%; width: 100%; height: 100%; padding: 17%; border-radius: var(--icon-radius, 31%); background: var(--folder-glass, rgba(255,255,255,.16)); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); backdrop-filter: var(--blur); }
 .folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }
@@ -437,7 +445,9 @@ body::after {
 /* ---- Dock icons: GLOBAL so both DockApp and the HomeDock all-apps toggle button
    (class="dock-app dock-toggle", whose .dock-ic lives outside DockApp's scope) get sized
    + materialized identically. ---- */
-.dock-app { display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; cursor: pointer; touch-action: none; }
+/* 定宽格子:图标+文字作为一个 cell 参与排布(与桌面 AppTile 同模型),
+   宽度只由 --app-size 决定,文字长短不再影响布局;过长文字在 .dock-label 内省略。 */
+.dock-app { display: grid; justify-items: center; gap: 6px; width: var(--app-size, 64px); padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: none; }
 .dock-ic {
   display: grid; place-items: center;
   width: var(--app-size, 64px); height: var(--app-size, 64px);
@@ -452,7 +462,7 @@ body::after {
 .dock-app:hover .dock-ic { filter: brightness(1.08); }
 /* 已停止的应用:整体灰显(与桌面 AppTile.stopped、AddPanel .is-stopped 同款) */
 .dock-app.is-stopped { opacity: 0.45; filter: grayscale(0.6); }
-.dock-label { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--fg-muted); }
+.dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--fg-muted); }
 
 /* ---- P4c: 磁贴悬停 / 按压反馈（编辑态 .editing 不触发，避让 jiggle/拖拽） ---- */
 /* 图标基础过渡 */

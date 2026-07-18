@@ -47,7 +47,8 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin) 
 </template>
 
 <style scoped>
-.add-mount-btn { width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
+/* inline-flex 居中:裸 button 里全角＋按基线排、视觉偏下偏右(真机反馈),flex 双轴归中 */
+.add-mount-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
 .add-mount-btn:hover { background: var(--chip-bg-hi); }
 </style>
 

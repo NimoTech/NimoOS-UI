@@ -33,4 +33,9 @@ function goHome() { router.push('/') }
   .files-bar { padding: 12px; gap: 10px; }
   .files-body { padding: 0 12px 12px; }
 }
+/* 桌面态:回主页+标题已并入侧栏玻璃面板(FilesSidebar .side-top),顶栏整条隐藏、内容顶到上缘 */
+@media (min-width: 769px) {
+  .files-bar { display: none; }
+  .files-body { padding: 20px; }
+}
 </style>
