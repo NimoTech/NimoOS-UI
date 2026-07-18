@@ -5,9 +5,14 @@ import { useAppsStore } from '../stores/apps'
 import { __resetDockForTest } from '../composables/useDock'
 import HomeDock from './HomeDock.vue'
 
+// P8 cutover:dock 的 files 图标改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
+vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
+import { router } from '../../router'
+
 beforeEach(() => {
   setActivePinia(createPinia()); localStorage.clear(); __resetDockForTest()
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(_v: string) {}, get href() { return '' } } })
+  vi.mocked(router.push).mockClear()
 })
 
 describe('HomeDock', () => {
@@ -64,7 +69,8 @@ describe('HomeDock', () => {
     Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
     const w = mount(HomeDock)
     await w.get('.dock-app[data-app="files"]').trigger('click')
-    expect(hrefs[0]).toBe('/#/files')
+    expect(router.push).toHaveBeenCalledWith('/files')
+    expect(hrefs.length).toBe(0)
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
   })
 })
