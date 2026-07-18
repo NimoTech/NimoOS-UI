@@ -30,9 +30,6 @@ export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
   server: { port: 5273 },
-  build: {
-    assetsInlineLimit: 0, // 禁用资产内联(包括 SVG),总是输出为分离文件
-  },
   test: {
     environment: 'jsdom',
     globals: true,

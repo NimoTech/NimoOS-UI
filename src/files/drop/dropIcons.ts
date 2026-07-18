@@ -1,6 +1,6 @@
 // 设备图标:名字 = `${model}_${online|offline}`(Vue2 deviceIcon computed)。
 // Vue2 资产缺 mobile_offline(离线手机在 Vue2 会 require 炸)——此处兜底回退 desktop_同状态。
-const ICONS = import.meta.glob<string>('./assets/*.svg', { eager: true, import: 'default' }) as Record<string, string>
+const ICONS = import.meta.glob<string>('./assets/*.svg', { eager: true, query: '?url&no-inline', import: 'default' }) as Record<string, string>
 const URL_BY_NAME: Record<string, string> = {}
 for (const [path, url] of Object.entries(ICONS)) {
   const m = path.match(/\/([^/]+)\.svg$/)
