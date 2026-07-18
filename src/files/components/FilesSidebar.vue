@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '../stores/files'
@@ -15,6 +15,7 @@ import type { CloudDriver } from '@nimotech/nimoos-service'
 import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
 import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
+import { useSidebarDrawer } from '../composables/useSidebarDrawer'
 
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
 const router = useRouter()
@@ -26,6 +27,20 @@ const dialogOpen = ref(false)
 const gdriveOpen = ref(false)
 const { t } = useI18n()
 const dropNavIcon = dropAsset('drop_icon')
+
+// 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)
+const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
+
+// 任何路由变化(点收藏/磁盘/共享/互传导航)后抽屉自动收起;桌面态 close 是 no-op。
+watch(() => route.fullPath, () => closeDrawer())
+
+// ESC 关抽屉。注:预览器(ViewerShell)有自己的 ESC;抽屉只在窄屏打开时监听,冲突面可忽略。
+function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
+watch(drawerOpen, (o) => {
+  if (o) document.addEventListener('keydown', onDrawerKeydown)
+  else document.removeEventListener('keydown', onDrawerKeydown)
+})
+onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
 function go(realPath: string) {
   emit('navigate', toVirtualPath(realPath, files.displayNames))
@@ -106,7 +121,8 @@ function onDiskDrop(i: number) {
 </script>
 
 <template>
-  <aside class="files-sidebar">
+  <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
+  <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
     <div class="side-head">
       <span class="side-head-title">{{ t('filesMountManage') }}</span>
       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
@@ -216,4 +232,16 @@ function onDiskDrop(i: number) {
 .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
 .side-item:hover .side-remove { opacity: 1; }
+
+/* 窄屏抽屉:遮罩 + 侧栏浮层覆盖(z-index 备忘:ViewerShell=200、MediaViewer ask 面板=240、
+   ui-ctx 默认 120 → 抽屉 150/151 压住内容、避让预览器) */
+.side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
+.files-sidebar.is-drawer {
+  position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
+  padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
+  border-right: 1px solid var(--card-border);
+  transform: translateX(-105%); transition: transform 0.25s var(--ease);
+}
+.files-sidebar.is-drawer.is-open { transform: none; }
+@media (prefers-reduced-motion: reduce) { .files-sidebar.is-drawer { transition: none; } }
 </style>

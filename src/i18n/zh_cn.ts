@@ -6,6 +6,7 @@ export const messages = {
     memory: '内存',
     collecting: '采集中…',
     filesTitle: '文件',
+    filesSidebarToggle: '侧栏',
     filesBackHome: '回主页',
     filesEmpty: '此文件夹为空',
     filesViewList: '列表',
