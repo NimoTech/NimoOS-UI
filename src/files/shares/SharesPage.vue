@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import FilesShell from '../components/FilesShell.vue'
+import AreaShell from '../../components/shell/AreaShell.vue'
 import FilesSidebar from '../components/FilesSidebar.vue'
 import ShareRow from './ShareRow.vue'
 import ShareLinkDialog from './ShareLinkDialog.vue'
@@ -40,7 +40,7 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
 </script>
 
 <template>
-  <FilesShell>
+  <AreaShell :title="t('filesTitle')">
     <div class="files-layout">
       <FilesSidebar @navigate="goVirtual" />
       <main class="shares-main">
@@ -61,7 +61,7 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
       destructive
       @confirm="confirmUnshare"
     />
-  </FilesShell>
+  </AreaShell>
 </template>
 
 <style scoped>

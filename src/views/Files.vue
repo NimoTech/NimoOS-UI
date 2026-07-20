@@ -2,7 +2,7 @@
 import { watch, onMounted, onUnmounted, computed, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import FilesShell from '../files/components/FilesShell.vue'
+import AreaShell from '../components/shell/AreaShell.vue'
 import FilesSidebar from '../files/components/FilesSidebar.vue'
 import Breadcrumb from '../files/components/Breadcrumb.vue'
 import SelectionToolbar from '../files/components/SelectionToolbar.vue'
@@ -378,7 +378,7 @@ onMounted(() => { uploads.initUploads() })
 </script>
 
 <template>
-  <FilesShell>
+  <AreaShell :title="t('filesTitle')">
     <div class="files-layout">
       <FilesSidebar @navigate="goVirtual" />
       <div
@@ -469,7 +469,7 @@ onMounted(() => { uploads.initUploads() })
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
-  </FilesShell>
+  </AreaShell>
 </template>
 
 <style scoped>

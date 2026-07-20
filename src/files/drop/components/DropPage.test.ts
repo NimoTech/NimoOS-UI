@@ -15,7 +15,7 @@ const router = createRouter({ history: createWebHashHistory(), routes: [{ path: 
 describe('DropPage', () => {
   let pinia: ReturnType<typeof createPinia>
   beforeEach(() => { pinia = createPinia(); setActivePinia(pinia) })
-  const mountPage = () => mount(DropPage, { global: { plugins: [pinia, i18n, router], stubs: { FilesShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
+  const mountPage = () => mount(DropPage, { global: { plugins: [pinia, i18n, router], stubs: { AreaShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
 
   it('mount 调 store.init,unmount 调 destroy', async () => {
     const s = useDropStore()
@@ -44,7 +44,7 @@ describe('DropPage', () => {
       global: {
         plugins: [pinia, i18n, router],
         stubs: {
-          FilesShell: { template: '<div><slot/></div>' },
+          AreaShell: { template: '<div><slot/></div>' },
           FilesSidebar: { template: '<button class="nav-stub" @click="$emit(\'navigate\', \'TestDisk/docs\')" />' },
         },
       },

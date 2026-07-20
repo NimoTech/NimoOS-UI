@@ -8,6 +8,8 @@ export const messages = {
     filesTitle: 'Files',
     filesSidebarToggle: 'Sidebar',
     filesBackHome: 'Home',
+    areaSidebarToggle: 'Sidebar',
+    areaBackHome: 'Home',
     filesEmpty: 'This folder is empty',
     filesViewList: 'List',
     filesViewGrid: 'Grid',

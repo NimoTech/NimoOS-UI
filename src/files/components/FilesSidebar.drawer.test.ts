@@ -6,7 +6,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { nextTick } from 'vue'
 import FilesSidebar from './FilesSidebar.vue'
 import { useFilesStore } from '../stores/files'
-import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../composables/useSidebarDrawer'
+import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {

@@ -15,7 +15,7 @@ import type { CloudDriver } from '@nimotech/nimoos-service'
 import AddMountMenu from './AddMountMenu.vue'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
 import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
 
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
 const router = useRouter()
@@ -123,7 +123,7 @@ function onDiskDrop(i: number) {
 <template>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
   <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(FilesShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
+    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
     <div v-if="!isNarrow" class="side-top">
       <h1 class="side-app-title">{{ t('filesTitle') }}</h1>
       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>

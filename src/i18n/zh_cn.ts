@@ -8,6 +8,8 @@ export const messages = {
     filesTitle: '文件',
     filesSidebarToggle: '侧栏',
     filesBackHome: '回主页',
+    areaSidebarToggle: '侧栏',
+    areaBackHome: '回主页',
     filesEmpty: '此文件夹为空',
     filesViewList: '列表',
     filesViewGrid: '网格',

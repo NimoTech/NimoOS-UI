@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-// 模块级单例(useDock/useAddPanel 同款):FilesShell(☰ 钮)与 FilesSidebar(抽屉/遮罩)
+// 模块级单例(useDock/useAddPanel 同款):AreaShell(☰ 钮)与各区 Sidebar(files/apps)(抽屉/遮罩)
 // 以及三个页面(Files/Shares/Drop)共享同一份状态。
 // matchMedia 不存在时(jsdom)isNarrow 恒 false,一切退化为桌面常驻侧栏。
 const isNarrow = ref(false)

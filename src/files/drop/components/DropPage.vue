@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import FilesShell from '../../components/FilesShell.vue'
+import AreaShell from '../../../components/shell/AreaShell.vue'
 import FilesSidebar from '../../components/FilesSidebar.vue'
 import DropItem from './DropItem.vue'
 import DropCenter from './DropCenter.vue'
@@ -56,7 +56,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <FilesShell>
+  <AreaShell :title="t('filesTitle')">
     <div class="files-layout">
       <FilesSidebar @navigate="goVirtual" />
       <main ref="areaEl" class="drop-main" :class="{ narrow: isNarrow }">
@@ -80,7 +80,7 @@ onBeforeUnmount(() => {
         <ReceivePrompt />
       </main>
     </div>
-  </FilesShell>
+  </AreaShell>
 </template>
 
 <style scoped>
