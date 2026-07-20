@@ -14,7 +14,13 @@ const { t } = useI18n()
 const store = useInstalledAppsStore()
 const bus = useMessageBus()
 const toast = useToast()
-const uninstallTarget = ref<InstalledApp | null>(null)
+// reka-ui 的 AlertDialogAction 本身是个 DialogClose:点击红色确认按钮时,
+// update:open(false) 先于 @click 派发的 confirm 事件触发。若 open 标志和 target
+// 共用一个 ref,update:open 处理器会先把 target 置空,confirm 读到的就是 null,
+// store.uninstall 永远不会被调用(SP5-P1 终审 CRITICAL)。参照 SharesPage.vue 的
+// delDlg 模式:open 与 app 打包在同一个 ref 里,只在 confirm 读取后才关闭 open,
+// update:open 处理器只改 open,不动 app。
+const uninstallDlg = ref<{ open: boolean; app: InstalledApp | null }>({ open: false, app: null })
 
 function onOpen(a: InstalledApp) {
   if (a.webUrl) window.open(a.webUrl, '_blank', 'noopener')
@@ -33,14 +39,15 @@ async function onAction(a: InstalledApp, op: 'start' | 'stop' | 'restart' | 'upd
   }
 }
 async function onUninstallConfirm(deleteConfigFolder: boolean) {
-  const a = uninstallTarget.value
-  uninstallTarget.value = null
+  const a = uninstallDlg.value.app
   if (!a) return
   try {
     await store.uninstall(a.id, deleteConfigFolder)
   } catch (e) {
     console.warn('[apps] uninstall', a.id, e)
     toast.show(t('appsOpFailed', { name: a.title }), 4000)
+  } finally {
+    uninstallDlg.value.open = false
   }
 }
 
@@ -76,13 +83,13 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
             :app="a" :pending-op="store.pending[a.id]"
             @open="onOpen(a)"
             @action="(op) => onAction(a, op)"
-            @uninstall="uninstallTarget = a"
+            @uninstall="uninstallDlg = { open: true, app: a }"
           />
         </div>
         <UninstallConfirm
-          :open="!!uninstallTarget"
-          :name="uninstallTarget?.title ?? ''"
-          @update:open="(v) => { if (!v) uninstallTarget = null }"
+          :open="uninstallDlg.open"
+          :name="uninstallDlg.app?.title ?? ''"
+          @update:open="(v) => { uninstallDlg.open = v }"
           @confirm="onUninstallConfirm"
         />
       </main>

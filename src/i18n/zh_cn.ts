@@ -6,7 +6,6 @@ export const messages = {
     memory: '内存',
     collecting: '采集中…',
     filesTitle: '文件',
-    filesSidebarToggle: '侧栏',
     filesBackHome: '回主页',
     areaSidebarToggle: '侧栏',
     areaBackHome: '回主页',

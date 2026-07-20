@@ -6,7 +6,6 @@ export const messages = {
     memory: 'Memory',
     collecting: 'Collecting…',
     filesTitle: 'Files',
-    filesSidebarToggle: 'Sidebar',
     filesBackHome: 'Home',
     areaSidebarToggle: 'Sidebar',
     areaBackHome: 'Home',
