@@ -1,15 +1,48 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
-import { useInstalledAppsStore } from '../stores/installedApps'
+import InstalledAppCard from '../components/InstalledAppCard.vue'
+import UninstallConfirm from '../components/UninstallConfirm.vue'
+import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
 import { useMessageBus } from '../../composables/useMessageBus'
+import { useToast } from '../../stores/toast'
 import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
 
 const { t } = useI18n()
 const store = useInstalledAppsStore()
 const bus = useMessageBus()
+const toast = useToast()
+const uninstallTarget = ref<InstalledApp | null>(null)
+
+function onOpen(a: InstalledApp) {
+  if (a.webUrl) window.open(a.webUrl, '_blank', 'noopener')
+}
+async function onAction(a: InstalledApp, op: 'start' | 'stop' | 'restart' | 'update') {
+  try {
+    if (op === 'update') {
+      const msg = await store.update(a.id)
+      if (msg) toast.show(msg, 4000)
+    } else {
+      await store.setStatus(a.id, op)
+    }
+  } catch (e) {
+    console.warn('[apps]', op, a.id, e)
+    toast.show(t('appsOpFailed', { name: a.title }), 4000)
+  }
+}
+async function onUninstallConfirm(deleteConfigFolder: boolean) {
+  const a = uninstallTarget.value
+  uninstallTarget.value = null
+  if (!a) return
+  try {
+    await store.uninstall(a.id, deleteConfigFolder)
+  } catch (e) {
+    console.warn('[apps] uninstall', a.id, e)
+    toast.show(t('appsOpFailed', { name: a.title }), 4000)
+  }
+}
 
 // app:* 生命周期(spec §2.3);install-end 单列:后台装完新应用要浮出列表
 const APP_EVENTS = [
@@ -38,13 +71,20 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
       <main class="apps-main">
         <p v-if="!store.loading && !store.apps.length" class="apps-empty">{{ t('appsEmpty') }}</p>
         <div v-else class="apps-grid">
-          <!-- Task 5 用 InstalledAppCard 替换此占位卡 -->
-          <div v-for="a in store.apps" :key="a.id" class="app-card-placeholder">
-            <img v-if="a.icon" :src="a.icon" alt="" width="40" height="40" />
-            <span>{{ a.title }}</span>
-            <span>{{ a.status }}</span>
-          </div>
+          <InstalledAppCard
+            v-for="a in store.apps" :key="a.id"
+            :app="a" :pending-op="store.pending[a.id]"
+            @open="onOpen(a)"
+            @action="(op) => onAction(a, op)"
+            @uninstall="uninstallTarget = a"
+          />
         </div>
+        <UninstallConfirm
+          :open="!!uninstallTarget"
+          :name="uninstallTarget?.title ?? ''"
+          @update:open="(v) => { if (!v) uninstallTarget = null }"
+          @confirm="onUninstallConfirm"
+        />
       </main>
     </div>
   </AreaShell>
