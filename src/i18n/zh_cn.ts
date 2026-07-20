@@ -365,5 +365,9 @@ export const messages = {
     searchTabImages: '图片',
     searchTabAudio: '音频',
     searchTabVideos: '视频',
+    // ── 应用区 ──
+    appsTitle: '应用',
+    appsNavInstalled: '已装应用',
+    appsEmpty: '还没有安装任何应用',
   },
 }

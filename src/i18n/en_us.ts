@@ -366,5 +366,9 @@ export const messages = {
     searchTabImages: 'Images',
     searchTabAudio: 'Audio',
     searchTabVideos: 'Videos',
+    // ── Apps area ──
+    appsTitle: 'Apps',
+    appsNavInstalled: 'Installed',
+    appsEmpty: 'No apps installed yet',
   },
 }
