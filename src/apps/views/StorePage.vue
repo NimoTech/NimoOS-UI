@@ -9,11 +9,18 @@ import CategoryBar from '../components/CategoryBar.vue'
 import FeaturedStrip from '../components/FeaturedStrip.vue'
 import { useAppstoreStore, ALL } from '../stores/appstore'
 import { mapStoreApp, filterStoreApps } from '../util/storeApp'
+import { useToast } from '../../stores/toast'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const store = useAppstoreStore()
+const toast = useToast()
+
+/** P3 接管:真实安装编排。本期卡片安装钮与详情页同款占位 toast。 */
+function onInstall() {
+  toast.show(t('appsStoreInstallSoon'))
+}
 
 // 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query
 const category = computed(() => (typeof route.query.category === 'string' && route.query.category) || ALL)
@@ -94,6 +101,7 @@ function openDetail(id: string) {
             v-if="showFeatured"
             :items="featuredItems" :installed="store.isInstalled"
             @open="openDetail"
+            @install="onInstall"
           />
           <p v-if="!store.loading && !shown.length" class="apps-empty">{{ t('appsStoreEmpty') }}</p>
           <div v-else class="apps-grid">
@@ -101,6 +109,7 @@ function openDetail(id: string) {
               v-for="a in shown" :key="a.id"
               :app="a" :installed="store.isInstalled(a.id)"
               @open="openDetail(a.id)"
+              @install="onInstall"
             />
           </div>
         </template>

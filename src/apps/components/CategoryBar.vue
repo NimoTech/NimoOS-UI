@@ -23,8 +23,12 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
-/* 横向滚动 chips,窄屏自然溢出滑动;分类名照 Vue2 原样直出(第三方源分类不可枚举) */
+/* 桌面:横向滚动 chips;分类名照 Vue2 原样直出(第三方源分类不可枚举) */
 .cate-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+/* 窄屏:改多行换行(对齐 files 区工具栏做法)——横向溢出在手机上会把过滤项挡在屏外 */
+@media (max-width: 768px) {
+  .cate-bar { flex-wrap: wrap; overflow-x: visible; }
+}
 .cate-chip {
   flex: 0 0 auto; font-size: 12.5px; padding: 5px 12px; cursor: pointer;
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border);

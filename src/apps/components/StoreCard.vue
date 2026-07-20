@@ -3,13 +3,13 @@ import { useI18n } from 'vue-i18n'
 import type { StoreApp } from '../util/storeApp'
 
 defineProps<{ app: StoreApp; installed: boolean }>()
-defineEmits<{ open: [] }>()
+defineEmits<{ open: []; install: [] }>()
 const { t } = useI18n()
 </script>
 
 <template>
   <div class="store-card" role="button" tabindex="0" @click="$emit('open')" @keydown.enter="$emit('open')">
-    <img v-if="app.icon" :src="app.icon" alt="" class="store-icon" loading="lazy" />
+    <img v-if="app.icon" :src="app.icon" alt="" class="store-icon" loading="lazy" decoding="async" />
     <div v-else class="store-icon store-icon-fallback">{{ app.title.slice(0, 1) }}</div>
     <div class="store-meta">
       <div class="store-title-row">
@@ -19,6 +19,11 @@ const { t } = useI18n()
       <p class="store-tagline">{{ app.tagline }}</p>
       <span class="store-cate">{{ app.category }}</span>
     </div>
+    <button
+      v-if="!installed"
+      class="store-install" type="button"
+      @click.stop="$emit('install')"
+    >{{ t('appsStoreInstall') }}</button>
   </div>
 </template>
 
@@ -31,7 +36,7 @@ const { t } = useI18n()
   backdrop-filter: var(--blur);
 }
 .store-card:hover { background: var(--chip-bg-hi); }
-.store-icon { width: 48px; height: 48px; border-radius: 12px; flex: 0 0 auto; object-fit: cover; }
+.store-icon { width: 48px; height: 48px; border-radius: 12px; flex: 0 0 auto; object-fit: cover; background: var(--chip-bg); }
 .store-icon-fallback {
   display: flex; align-items: center; justify-content: center;
   font-size: 20px; font-weight: 600; color: var(--fg-muted);
@@ -49,4 +54,11 @@ const { t } = useI18n()
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .store-cate { font-size: 11.5px; color: var(--fg-muted); }
+.store-install {
+  flex: 0 0 auto; align-self: center;
+  font-size: 12.5px; padding: 5px 14px; cursor: pointer; border-radius: 999px;
+  color: var(--accent-text); background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-bd);
+}
+.store-install:hover { background: var(--accent-soft-2); }
 </style>

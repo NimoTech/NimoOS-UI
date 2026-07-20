@@ -7,6 +7,7 @@ export interface StoreApp {
   title: string
   tagline: string
   icon: string
+  thumbnail: string
   category: string
 }
 
@@ -16,6 +17,7 @@ export function mapStoreApp(id: string, raw: StoreAppInfo, lang: string): StoreA
     title: resolveAppText(raw.title, lang, id),
     tagline: resolveAppText(raw.tagline, lang, ''),
     icon: typeof raw.icon === 'string' ? raw.icon : '',
+    thumbnail: typeof raw.thumbnail === 'string' ? raw.thumbnail : '',
     category: typeof raw.category === 'string' ? raw.category : '',
   }
 }
