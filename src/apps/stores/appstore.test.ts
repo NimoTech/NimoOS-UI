@@ -61,6 +61,39 @@ describe('appstore store', () => {
     expect(s.error).toBe(false)
   })
 
+  it('loadCatalog 乱序响应守卫:先发请求晚回,不应覆盖后发请求写入的更新状态(含 loading)', async () => {
+    const s = useAppstoreStore()
+    let resolve1: (v: unknown) => void = () => {}
+    let resolve2: (v: unknown) => void = () => {}
+    svc.listApps
+      .mockImplementationOnce(() => new Promise((res) => { resolve1 = res }))
+      .mockImplementationOnce(() => new Promise((res) => { resolve2 = res }))
+
+    const p1 = s.loadCatalog('Media', ALL)
+    const p2 = s.loadCatalog('Cloud', ALL)
+
+    // 第二次发出的请求先回来
+    resolve2({ installed: [], list: { nextcloud: { title: { en_us: 'Nextcloud' }, category: 'Cloud' } } })
+    await p2
+    expect(Object.keys(s.list)).toEqual(['nextcloud'])
+    expect(s.loading).toBe(false)
+
+    // 第一次发出的请求(更旧)后回来,不应覆盖上面已经生效的更新结果
+    resolve1({ installed: [], list: { jellyfin: { title: { en_us: 'Jellyfin' }, category: 'Media' } } })
+    await p1
+    expect(Object.keys(s.list)).toEqual(['nextcloud'])
+    expect(s.loading).toBe(false)
+  })
+
+  it('categories() 失败不应连累 listApps 已成功的目录——仅 chip 栏降级,error 仍为 false', async () => {
+    const s = useAppstoreStore()
+    svc.categories.mockRejectedValueOnce(new Error('boom'))
+    await s.loadCatalog()
+    expect(s.error).toBe(false)
+    expect(Object.keys(s.list)).toEqual(['jellyfin', 'nextcloud'])
+    expect(s.categories).toEqual([])
+  })
+
   it('loadFeatured:recommend=true;失败静默置空不抛', async () => {
     const s = useAppstoreStore()
     await s.loadFeatured()

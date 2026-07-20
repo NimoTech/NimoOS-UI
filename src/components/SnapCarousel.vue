@@ -27,14 +27,34 @@ function page(dir: 1 | -1) {
 }
 
 let ro: ResizeObserver | undefined
+let mo: MutationObserver | undefined
+// 捕获元素引用于挂载时刻,而非在 onUnmounted 里重读 viewport.value——
+// Vue 卸载流程中模板 ref 可能已先于 onUnmounted 回调被置空。
+let viewportEl: HTMLElement | null = null
 onMounted(() => {
   recalc()
-  if (typeof ResizeObserver !== 'undefined' && viewport.value) {
+  viewportEl = viewport.value
+  if (!viewportEl) return
+  if (typeof ResizeObserver !== 'undefined') {
     ro = new ResizeObserver(recalc)
-    ro.observe(viewport.value)
+    ro.observe(viewportEl)
   }
+  // ResizeObserver 只测视口自身盒子;详情页截图是 <img loading="lazy"> 只固定高度,
+  // 挂载时 scrollWidth≈0,解码完成后内容变宽但视口盒子不变,recalc 不会自动重触发。
+  // 用两条兜底路径捕捉"内容变化而非容器变化":
+  //  1) MutationObserver(childList+subtree):slot 内容动态增删时重算。
+  //  2) 捕获阶段 load 监听:img 的 load 事件不冒泡,但捕获阶段能从 viewport 往下传递到位。
+  if (typeof MutationObserver !== 'undefined') {
+    mo = new MutationObserver(recalc)
+    mo.observe(viewportEl, { childList: true, subtree: true })
+  }
+  viewportEl.addEventListener('load', recalc, true)
 })
-onUnmounted(() => ro?.disconnect())
+onUnmounted(() => {
+  ro?.disconnect()
+  mo?.disconnect()
+  viewportEl?.removeEventListener('load', recalc, true)
+})
 </script>
 
 <template>

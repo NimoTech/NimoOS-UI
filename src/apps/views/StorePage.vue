@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../../components/shell/AreaShell.vue'
@@ -39,6 +39,9 @@ watch(searchInput, (v) => {
   }, 250)
 })
 watch(search, (v) => { if (v !== searchInput.value) searchInput.value = v })
+// 卸载(如点卡片跳转详情页)时清理未触发的防抖定时器——否则 250ms 窗口内残留的
+// setTimeout 会在离开本页后仍对已销毁组件捕获的 router 触发一次多余的 replace。
+onUnmounted(() => clearTimeout(timer))
 
 // 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉
 watch([category, author], () => { store.loadCatalog(category.value, author.value) })

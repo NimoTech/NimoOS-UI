@@ -14,6 +14,10 @@ export const useAppstoreStore = defineStore('appstore', () => {
   const error = ref(false)
   const catalogLoaded = ref(false)
   let lastQuery: { category: string; authorType: string } = { category: ALL, authorType: ALL }
+  // 请求序号:多次 loadCatalog 并发(如快速切换分类/作者)时,只有"最新发出的那次"的响应
+  // 才允许写入 list/installed/catalogLoaded/error,以及在 finally 里翻转 loading——
+  // 否则一个更早发出但更晚返回的响应会用陈旧数据覆盖后一次已经生效的新状态。
+  let seq = 0
 
   const detail = ref<StoreAppInfo | null>(null)
   const detailLoading = ref(false)
@@ -21,25 +25,37 @@ export const useAppstoreStore = defineStore('appstore', () => {
 
   async function loadCatalog(category: string = ALL, authorType: string = ALL) {
     lastQuery = { category, authorType }
+    const mySeq = ++seq
     loading.value = true
     error.value = false
+    const params: { category?: string; authorType?: string } = {}
+    if (category !== ALL) params.category = category
+    if (authorType !== ALL) params.authorType = authorType
+
+    // categories() 与 listApps() 解耦结算:分类拉取失败只应降级 chip 栏(留空/沿用缓存),
+    // 不该连累已经成功的 listApps 结果被打成全局错误态——因此把 categories() 的失败
+    // 在这里自行吞掉,不让它使下面的 Promise.all 整体 reject。
+    const categoriesPromise = categories.value.length
+      ? Promise.resolve(null)
+      : service.appstore.categories().catch((e) => {
+          console.warn('[appstore] loadCatalog categories', e)
+          return null
+        })
+
     try {
-      const params: { category?: string; authorType?: string } = {}
-      if (category !== ALL) params.category = category
-      if (authorType !== ALL) params.authorType = authorType
-      const [cats, catalog] = await Promise.all([
-        categories.value.length ? Promise.resolve(null) : service.appstore.categories(),
-        service.appstore.listApps(params),
-      ])
+      const [cats, catalog] = await Promise.all([categoriesPromise, service.appstore.listApps(params)])
+      if (mySeq !== seq) return // 更新的请求已经在跑/已经写入,这次陈旧响应静默丢弃
       if (cats) categories.value = cats.filter((c) => (c.count ?? 0) > 0)
       list.value = catalog.list
       installed.value = catalog.installed
       catalogLoaded.value = true
+      error.value = false
     } catch (e) {
+      if (mySeq !== seq) return
       error.value = true
       console.warn('[appstore] loadCatalog', e)
     } finally {
-      loading.value = false
+      if (mySeq === seq) loading.value = false
     }
   }
 

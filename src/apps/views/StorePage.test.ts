@@ -79,6 +79,17 @@ describe('StorePage', () => {
     vi.useRealTimers()
   })
 
+  it('组件卸载后清理防抖定时器——不应在卸载后(如已跳转详情页)仍触发 replace', async () => {
+    vi.useFakeTimers()
+    const w = mount(StorePage, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await w.get('.store-search input').setValue('jelly')
+    w.unmount()
+    vi.advanceTimersByTime(260)
+    expect(replace).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
   it('?search= 生效时前端过滤;点卡片进详情', async () => {
     routeQuery.search = 'jelly'
     const w = mount(StorePage, { global: { plugins: [i18n] } })
