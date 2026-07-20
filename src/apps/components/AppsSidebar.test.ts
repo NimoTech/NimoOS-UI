@@ -7,15 +7,19 @@ import AppsSidebar from './AppsSidebar.vue'
 import { __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
 
 const push = vi.fn()
+const routeState = { name: 'apps', fullPath: '/apps' }
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
-  useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
+  useRoute: () => routeState,
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
 
 describe('AppsSidebar', () => {
-  beforeEach(() => { setActivePinia(createPinia()); __resetSidebarDrawerForTest(); push.mockClear() })
+  beforeEach(() => {
+    setActivePinia(createPinia()); __resetSidebarDrawerForTest(); push.mockClear()
+    routeState.name = 'apps'; routeState.fullPath = '/apps'
+  })
 
   it('渲染区标题、回主页键与「已装应用」导航项(当前路由高亮)', async () => {
     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
@@ -25,5 +29,18 @@ describe('AppsSidebar', () => {
     expect(item.classes()).toContain('active')
     await w.get('.side-home-btn').trigger('click')
     expect(push).toHaveBeenCalledWith('/')
+  })
+
+  it('商店导航项存在;详情路由也高亮商店项(startsWith)', async () => {
+    routeState.name = 'apps-store-detail'
+    routeState.fullPath = '/apps/store/jellyfin'
+    const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
+    const items = w.findAll('.side-item')
+    expect(items).toHaveLength(2)
+    expect(items[1].text()).toContain('应用商店')
+    expect(items[1].classes()).toContain('active')
+    expect(items[0].classes()).not.toContain('active')
+    await items[1].trigger('click')
+    expect(push).toHaveBeenCalledWith('/apps/store')
   })
 })

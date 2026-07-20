@@ -21,8 +21,17 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// P2+ 增补:商店 /apps/store、自定义 /apps/custom、源 /apps/sources
-const nav = [{ name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' }]
+// P5/P7 增补:自定义 /apps/custom、源 /apps/sources
+const nav = [
+  { name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' },
+  { name: 'apps-store', labelKey: 'appsNavStore', to: '/apps/store' },
+]
+
+/** 商店详情(apps-store-detail)也高亮「应用商店」——子路由归属父导航项 */
+function isActive(n: { name: string }): boolean {
+  const cur = String(route.name ?? '')
+  return n.name === 'apps-store' ? cur.startsWith('apps-store') : cur === n.name
+}
 </script>
 
 <template>
@@ -37,7 +46,7 @@ const nav = [{ name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' }]
       <ul class="side-list">
         <li
           v-for="n in nav" :key="n.name"
-          class="side-item" :class="{ active: route.name === n.name }"
+          class="side-item" :class="{ active: isActive(n) }"
           @click="router.push(n.to)"
         >
           <span class="side-name">{{ t(n.labelKey) }}</span>

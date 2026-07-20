@@ -7,6 +7,7 @@ import Welcome from '../views/Welcome.vue'
 import SharesPage from '../files/shares/SharesPage.vue'
 import DropPage from '../files/drop/components/DropPage.vue'
 import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+import StorePage from '../apps/views/StorePage.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -15,6 +16,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/files/shares', name: 'files-shares', component: SharesPage },
   { path: '/files/drop', name: 'files-drop', component: DropPage },
   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+  { path: '/apps/store', name: 'apps-store', component: StorePage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
