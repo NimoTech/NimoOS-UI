@@ -400,5 +400,12 @@ export const messages = {
     appsStoreFeatured: '精选应用',
     carouselPrev: '上一屏',
     carouselNext: '下一屏',
+    appsStoreInstall: '安装',
+    appsStoreInstallSoon: '安装功能将在下一期开放',
+    appsStoreBack: '返回商店',
+    appsStoreCategory: '分类',
+    appsStoreDeveloper: '开发者',
+    appsStoreDetailFailed: '应用详情加载失败',
+    appsStoreZoomClose: '关闭预览',
   },
 }

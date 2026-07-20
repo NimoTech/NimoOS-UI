@@ -401,5 +401,12 @@ export const messages = {
     appsStoreFeatured: 'Featured Apps',
     carouselPrev: 'Previous',
     carouselNext: 'Next',
+    appsStoreInstall: 'Install',
+    appsStoreInstallSoon: 'Installing will be available in the next phase',
+    appsStoreBack: 'Back to store',
+    appsStoreCategory: 'Category',
+    appsStoreDeveloper: 'Developer',
+    appsStoreDetailFailed: 'Failed to load app details',
+    appsStoreZoomClose: 'Close preview',
   },
 }
