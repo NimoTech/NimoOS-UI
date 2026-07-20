@@ -53,6 +53,16 @@ describe('installedApps store', () => {
     expect(s.loading).toBe(false)
   })
 
+  it('refresh 过滤系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)', async () => {
+    svc.list.mockResolvedValue({
+      jellyfin: { ...RAW },
+      'nimoos-agent': { ...RAW, compose: { services: { main: { labels: { 'nimoos.system': 'true' } } } } },
+    })
+    const s = useInstalledAppsStore()
+    await s.refresh()
+    expect(s.apps.map((x) => x.id)).toEqual(['jellyfin']) // 系统容器被藏
+  })
+
   it('setStatus:置 pending → 调 service → 完成后清 pending 并重拉', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()

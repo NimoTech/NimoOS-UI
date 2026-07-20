@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { service, type ComposeAppWithStoreInfo } from '@nimotech/nimoos-service'
 import { resolveAppTitle } from '../util/appTitle'
 import { composeWebUrl, type WebUrlSource } from '../util/appUrl'
+import { isSystemComposeApp } from '../util/systemApp'
 
 export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall'
 
@@ -46,6 +47,9 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
       const map = await service.compose.list()
       const host = window.location.hostname
       apps.value = Object.entries(map)
+        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——
+        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。
+        .filter(([, raw]) => !isSystemComposeApp(raw))
         .map(([id, raw]) => mapInstalled(id, raw, host))
         .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
     } finally {
