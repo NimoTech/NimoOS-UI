@@ -397,5 +397,8 @@ export const messages = {
     appsStoreLoadFailed: '应用商店加载失败',
     appsStoreRetry: '重试',
     appsStoreInstalled: '已安装',
+    appsStoreFeatured: '精选应用',
+    carouselPrev: '上一屏',
+    carouselNext: '下一屏',
   },
 }

@@ -6,6 +6,7 @@ import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import StoreCard from '../components/StoreCard.vue'
 import CategoryBar from '../components/CategoryBar.vue'
+import FeaturedStrip from '../components/FeaturedStrip.vue'
 import { useAppstoreStore, ALL } from '../stores/appstore'
 import { mapStoreApp, filterStoreApps } from '../util/storeApp'
 
@@ -48,6 +49,11 @@ onMounted(() => {
 
 const items = computed(() => Object.entries(store.list).map(([id, raw]) => mapStoreApp(id, raw, locale.value)))
 const shown = computed(() => filterStoreApps(items.value, search.value))
+const featuredItems = computed(() =>
+  Object.entries(store.featured).map(([id, raw]) => mapStoreApp(id, raw, locale.value)),
+)
+// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音
+const showFeatured = computed(() => category.value === ALL && author.value === ALL && !search.value)
 
 function setCategory(name: string) {
   router.replace({ query: { ...route.query, category: name === ALL ? undefined : name } })
@@ -81,7 +87,11 @@ function openDetail(id: string) {
               </label>
             </div>
           </div>
-          <!-- T4: FeaturedStrip 挂此 -->
+          <FeaturedStrip
+            v-if="showFeatured"
+            :items="featuredItems" :installed="store.isInstalled"
+            @open="openDetail"
+          />
           <p v-if="!store.loading && !shown.length" class="apps-empty">{{ t('appsStoreEmpty') }}</p>
           <div v-else class="apps-grid">
             <StoreCard

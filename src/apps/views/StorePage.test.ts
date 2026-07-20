@@ -44,7 +44,9 @@ describe('StorePage', () => {
     await flushPromises()
     expect(svc.listApps).toHaveBeenCalledWith({})               // 目录
     expect(svc.listApps).toHaveBeenCalledWith({ recommend: true }) // Featured
-    expect(w.findAll('.store-card')).toHaveLength(2)
+    // 用同一份 CATALOG 兜底两路调用(目录+Featured),T4 起页面同时挂 FeaturedStrip——
+    // 主网格卡片数收窄到 .apps-grid 范围内断言,避免把 Featured 带的卡片也计入
+    expect(w.find('.apps-grid').findAll('.store-card')).toHaveLength(2)
     expect(w.text()).toContain('已安装') // jellyfin ∈ installed
   })
 
@@ -92,5 +94,17 @@ describe('StorePage', () => {
     mount(StorePage, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(svc.listApps).toHaveBeenCalledWith({ category: 'Media' })
+  })
+
+  it('Featured 带只在 无搜索+全部分类+全部来源 时显示', async () => {
+    const w = mount(StorePage, { global: { plugins: [i18n] } })
+    await flushPromises()
+    expect(w.find('.featured-strip').exists()).toBe(true)
+    w.unmount()
+
+    routeQuery.search = 'jelly'
+    const w2 = mount(StorePage, { global: { plugins: [i18n] } })
+    await flushPromises()
+    expect(w2.find('.featured-strip').exists()).toBe(false)
   })
 })

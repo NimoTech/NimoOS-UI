@@ -398,5 +398,8 @@ export const messages = {
     appsStoreLoadFailed: 'Failed to load the app store',
     appsStoreRetry: 'Retry',
     appsStoreInstalled: 'Installed',
+    appsStoreFeatured: 'Featured Apps',
+    carouselPrev: 'Previous',
+    carouselNext: 'Next',
   },
 }
