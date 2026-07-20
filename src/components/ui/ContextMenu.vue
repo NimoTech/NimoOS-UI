@@ -27,6 +27,6 @@ import { ContextMenuRoot, ContextMenuTrigger, ContextMenuPortal, ContextMenuCont
   font-size: 13px; cursor: pointer; user-select: none; outline: none;
 }
 .ui-ctx-item[data-highlighted] { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
-.ui-ctx-item.danger { color: #ff8a8a; /* theme-exception: danger text color needs dedicated token */ }
+.ui-ctx-item.danger { color: var(--remove-fg); } /* 危险色随主题切换(浅色主题=深红,深色=浅红) */
 .ui-ctx-sep { height: 1px; margin: 5px 4px; background: var(--card-border, rgba(255,255,255,0.1)); }
 </style>

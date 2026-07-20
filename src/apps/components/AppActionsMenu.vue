@@ -34,6 +34,6 @@ defineProps<{ ariaLabel: string }>()
   font-size: 13px; cursor: pointer; user-select: none; outline: none;
 }
 .ui-drop-item[data-highlighted] { background: var(--chip-bg-hi); }
-.ui-drop-item.danger { color: #ff8a8a; /* theme-exception: danger 文字色沿 ui-ctx-item.danger 既有例外 */ }
+.ui-drop-item.danger { color: var(--remove-fg); } /* 危险色随主题切换(浅色主题=深红,深色=浅红) */
 .ui-drop-sep { height: 1px; margin: 5px 4px; background: var(--card-border); }
 </style>
