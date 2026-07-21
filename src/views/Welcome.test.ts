@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { messages } from '../i18n/zh_cn'
+import zh from '../i18n/zh_cn'
 
 vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
 const registerFn = vi.fn(async () => {})
@@ -18,7 +18,7 @@ vi.mock('../stores/locale', () => ({
 import Welcome from './Welcome.vue'
 
 async function mountWelcome() {
-  const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+  const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
   const pinia = createPinia()
   const router = createRouter({ history: createWebHashHistory('/app/'), routes: [
     { path: '/', component: { template: '<div/>' } },

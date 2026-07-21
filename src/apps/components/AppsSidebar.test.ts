@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import AppsSidebar from './AppsSidebar.vue'
 import { __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
 
@@ -13,7 +13,7 @@ vi.mock('vue-router', () => ({
   useRoute: () => routeState,
 }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('AppsSidebar', () => {
   beforeEach(() => {

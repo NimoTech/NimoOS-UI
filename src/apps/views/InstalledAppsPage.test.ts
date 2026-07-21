@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
   list: vi.fn().mockResolvedValue({}),
@@ -23,7 +23,7 @@ import InstalledAppsPage from './InstalledAppsPage.vue'
 import InstalledAppCard from '../components/InstalledAppCard.vue'
 import { useInstallProgressStore } from '../stores/installProgress'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 // 显式把 pinia 实例挂到 mount 的 global.plugins——本页在 setup 里同时挂了
 // useInstalledAppsStore/useInstallProgressStore 两个 composable store,仅靠

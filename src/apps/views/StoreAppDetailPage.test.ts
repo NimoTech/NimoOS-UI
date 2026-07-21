@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
   appstore: {
@@ -36,7 +36,7 @@ import StoreAppDetailPage from './StoreAppDetailPage.vue'
 import { useInstallProgressStore } from '../stores/installProgress'
 import { __resetDeviceArchForTest } from '../composables/useDeviceArch'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const ID = 'jellyfin'
 const DETAIL = {
   title: { en_us: 'Jellyfin' },

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import CategoryBar from './CategoryBar.vue'
 import { ALL } from '../stores/appstore'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('CategoryBar', () => {
   it('首 chip=全部;后端分类带 count;当前项高亮;点击 emit select(name)', async () => {

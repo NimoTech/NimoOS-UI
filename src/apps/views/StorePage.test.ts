@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
   appstore: {
@@ -36,7 +36,7 @@ vi.mock('vue-router', () => ({
 import StorePage from './StorePage.vue'
 import { __resetDeviceArchForTest } from '../composables/useDeviceArch'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const CATALOG = {
   installed: ['jellyfin'],
   list: {

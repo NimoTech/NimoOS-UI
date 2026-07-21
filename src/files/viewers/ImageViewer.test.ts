@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import ImageViewer from './ImageViewer.vue'
 import type { FileEntry } from '../stores/files'
 
@@ -10,7 +10,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { file: { fileUrl: (p: string) => `/v3/file?path=${encodeURIComponent(p)}` } },
 }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const entry = (name: string): FileEntry => ({ name, path: `/DATA/${name}`, is_dir: false })
 
 const mountViewer = async () => {

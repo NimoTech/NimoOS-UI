@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import ViewerShell from './ViewerShell.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const mountShell = (props: { title: string; downloadable?: boolean }) =>
   mount(ViewerShell, { props, global: { plugins: [i18n] }, slots: { default: '<div class="body-slot">x</div>' } })
 

@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../i18n/zh_cn'
+import zh from '../i18n/zh_cn'
 import Home from './Home.vue'
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 describe('Home P4b', () => {
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
   it('renders the dock and opens add panel from topbar', async () => {

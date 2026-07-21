@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../i18n/zh_cn'
+import zh from '../i18n/zh_cn'
 import SnapCarousel from './SnapCarousel.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('SnapCarousel', () => {
   it('渲染 slot 项;翻页钮按视口宽度 scrollBy', async () => {

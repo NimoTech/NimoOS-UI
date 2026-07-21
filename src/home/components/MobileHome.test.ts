@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import MobileHome from './MobileHome.vue'
 import { useLayoutStore } from '../stores/layout'
 import type { LayoutItem } from '../grid/types'
@@ -12,7 +12,7 @@ vi.mock('../composables/useOpenAction', () => ({
   useOpenAction: () => ({ openItem, openApp: vi.fn(), sendToAI: vi.fn() }),
 }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 const item = (p: Partial<LayoutItem>): LayoutItem =>
   ({ id: p.key!, kind: 'app', key: 'files', c: 1, r: 1, w: 1, h: 1, ...p })

@@ -1,8 +1,8 @@
 import { createI18n } from 'vue-i18n'
-import { messages as zhMessages } from './zh_cn'
-import { messages as enMessages } from './en_us'
+import zh from './zh_cn'
+import en from './en_us'
 
-const messages = { ...zhMessages, ...enMessages }
+const messages = { zh_cn: zh, en_us: en }
 
 function initialLocale(): string {
   const stored = localStorage.getItem('lang')

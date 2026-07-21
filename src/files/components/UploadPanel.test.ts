@@ -5,9 +5,9 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import UploadPanel from './UploadPanel.vue'
 import { useUploadsStore } from '../stores/uploads'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => { document.body.innerHTML = '' })
@@ -45,14 +45,14 @@ describe('UploadPanel', () => {
   it('shows oversize banner when an active item is oversize', () => {
     seed('uploading', { oversize: true })
     const w = mount(UploadPanel, { global: { plugins: [i18n] } })
-    expect(w.text()).toContain(messages.zh_cn.filesUploadOversize)
+    expect(w.text()).toContain(zh.filesUploadOversize)
   })
 
   it('shows conflict dialog for a conflict item', async () => {
     seed('conflict')
     mount(UploadPanel, { global: { plugins: [i18n] }, attachTo: document.body })
     await nextTick()
-    expect(body().text()).toContain(messages.zh_cn.filesUploadOverwrite)
+    expect(body().text()).toContain(zh.filesUploadOverwrite)
   })
 
   it('auto-opens the panel when the queue grows from empty', async () => {
@@ -66,7 +66,7 @@ describe('UploadPanel', () => {
   it('maps error codes to zh_cn text for a problem item', () => {
     seed('error', { error: 'no_space' })
     const w = mount(UploadPanel, { global: { plugins: [i18n] } })
-    expect(w.text()).toContain(messages.zh_cn.filesUploadErrNoSpace)
+    expect(w.text()).toContain(zh.filesUploadErrNoSpace)
   })
 
   it('resolveConflict is called with the chosen policy', async () => {

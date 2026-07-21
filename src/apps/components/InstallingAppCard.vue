@@ -8,7 +8,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <article class="iac" :class="{ err: task.state === 'error' }">
+  <article class="iac">
     <img v-if="task.icon" :src="task.icon" alt="" class="iac-icon" />
     <div v-else class="iac-icon iac-icon-fallback">{{ task.title.slice(0, 1) }}</div>
     <div class="iac-meta">

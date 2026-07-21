@@ -2,10 +2,10 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { mount, DOMWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import NewItemDialog from './NewItemDialog.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const opts = { global: { plugins: [i18n] }, attachTo: document.body }
 
 // reka-ui Dialog teleports its content to <body> outside the mounted wrapper's

@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import { useFileOps } from './useFileOps'
 import { useFilesStore } from '../stores/files'
 
@@ -30,7 +30,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 const triggerMock = vi.fn()
 vi.mock('../util/iframeDownload', () => ({ triggerIframeDownload: (...a: unknown[]) => triggerMock(...(a as [string])) }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 // 在组件 setup 内实例化 composable,拿到其 API
 function makeOps() {

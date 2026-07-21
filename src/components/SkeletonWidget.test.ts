@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
-import { messages } from '../i18n/zh_cn'
+import zh from '../i18n/zh_cn'
 import { useUtilizationStore } from '../stores/utilization'
 import SkeletonWidget from './SkeletonWidget.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 function mountWidget() {
   return mount(SkeletonWidget, { global: { plugins: [i18n] } })

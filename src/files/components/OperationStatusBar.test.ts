@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import OperationStatusBar from './OperationStatusBar.vue'
 import { useFileOpsStore } from '../stores/fileOps'
 
@@ -11,7 +11,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   getHttp: () => ({ get: vi.fn() }),
 }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const task = (o: Record<string, unknown>) => ({
   id: '1', type: 'copy', finished: false, status: 'PROCESSING',
   processing_path: '/DATA/Movies/a.mkv', processed_size: 30, total_size: 60, to: '/DATA/x', ...o,

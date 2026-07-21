@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import InstalledAppCard from './InstalledAppCard.vue'
 import type { InstalledApp } from '../stores/installedApps'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 // AppActionsMenu 是 Portal 组件,stub 成直接渲染 menu slot。
 // 真实 DropdownMenuItem 在 setup() 里 inject MenuRootContext(由真实 DropdownMenuRoot 提供),

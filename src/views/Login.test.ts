@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { messages } from '../i18n/zh_cn'
+import zh from '../i18n/zh_cn'
 
 const loginFn = vi.fn(async () => {})
 vi.mock('../composables/useAuth', () => ({ useAuth: () => ({ login: loginFn }) }))
@@ -17,7 +17,7 @@ function makeRouter() {
 }
 
 async function mountLogin() {
-  const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+  const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
   const router = makeRouter()
   router.push('/login'); await router.isReady()
   return mount(Login, { global: { plugins: [i18n, router] } })

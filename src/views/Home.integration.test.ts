@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../i18n/zh_cn'
+import zh from '../i18n/zh_cn'
 
 vi.mock('@nimotech/nimoos-service', async () => {
   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
@@ -33,7 +33,7 @@ vi.mock('../composables/useMessageBus', () => ({
 import { useLayoutStore } from '../home/stores/layout'
 import Home from './Home.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 function mountHome() {
   return mount(Home, { global: { plugins: [i18n] } })

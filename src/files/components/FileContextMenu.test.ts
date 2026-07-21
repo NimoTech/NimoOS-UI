@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import FileContextMenu from './FileContextMenu.vue'
 import type { FileEntry } from '../stores/files'
 import { useClipboardStore } from '../stores/clipboard'
@@ -11,7 +11,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) } },
 }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 // reka-ui ContextMenuContent 只在打开时渲染到 Portal;测试里改用 stub 直接渲染 #menu slot,
 // 以断言"菜单里出现哪些项"的纯条件逻辑(定位/键盘/打开留真机验)。

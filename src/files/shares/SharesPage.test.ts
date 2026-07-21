@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { messages } from '../../i18n/zh_cn'
+import zh from '../../i18n/zh_cn'
 import SharesPage from './SharesPage.vue'
 
 // SharesPage 经 FilesSidebar 读取 useRoute()/useRouter(),shares.load()/files.loadRoots() 打
@@ -43,7 +43,7 @@ const testRouter = createRouter({
   ],
 })
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('SharesPage — 「前往」防 /DATA 泄漏', () => {
   beforeEach(async () => {
@@ -63,7 +63,7 @@ describe('SharesPage — 「前往」防 /DATA 泄漏', () => {
     const w = mount(SharesPage, { global: { plugins: [i18n, testRouter] } })
     await flushPromises() // shares.load() 完成,ShareRow 渲染出来;上面那次 loadRoots() 仍卡在 pending
 
-    const gotoBtn = w.findAll('.share-act').find((b) => b.text() === messages.zh_cn.filesShareGoto)
+    const gotoBtn = w.findAll('.share-act').find((b) => b.text() === zh.filesShareGoto)
     expect(gotoBtn).toBeTruthy()
 
     await gotoBtn!.trigger('click') // onGoto: disks 为空 → await files.loadRoots()(第二次调用,命中下面可控的 pending promise)
