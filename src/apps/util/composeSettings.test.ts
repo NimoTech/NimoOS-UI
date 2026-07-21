@@ -127,3 +127,45 @@ describe('parseMemoryToMB / minMemoryMB', () => {
     expect(minMemoryMB('not: yaml: [', 'x')).toBeNull()
   })
 })
+
+describe('ports pass-through (P4 挂账修复)', () => {
+  const yml = `name: crafty
+services:
+  crafty:
+    image: registry.gitlab.com/crafty-controller/crafty-4:latest
+    ports:
+      - "8443:8443"
+      - "25500-25600:25500-25600"
+      - "3000"
+      - target: 19132
+        published: 19132-19140
+        protocol: udp
+`
+  it('认不出的条目进 portsExtra,认得出的进 ports', () => {
+    const m = parseSettings(yml, 'zh_cn')
+    const svc = m.services[0]
+    expect(svc.ports).toEqual([{ published: '8443', target: '8443', protocol: 'tcp' }])
+    expect(svc.portsExtra).toEqual([
+      '25500-25600:25500-25600',
+      '3000',
+      { target: 19132, published: '19132-19140', protocol: 'udp' },
+    ])
+  })
+  it('buildYaml 原样写回 portsExtra,不塌陷不丢失', () => {
+    const m = parseSettings(yml, 'zh_cn')
+    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
+    const ports = out.services.crafty.ports
+    expect(ports).toContainEqual('25500-25600:25500-25600')
+    expect(ports).toContainEqual('3000')
+    expect(ports).toContainEqual({ target: 19132, published: '19132-19140', protocol: 'udp' })
+    // 可编辑行仍正常序列化
+    expect(ports).toContainEqual({ target: 8443, published: '8443', protocol: 'tcp' })
+  })
+  it('用户编辑可编辑行不影响透传条目', () => {
+    const m = parseSettings(yml, 'zh_cn')
+    m.services[0].ports[0].published = '9443'
+    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
+    expect(out.services.crafty.ports).toContainEqual({ target: 8443, published: '9443', protocol: 'tcp' })
+    expect(out.services.crafty.ports).toContainEqual('25500-25600:25500-25600')
+  })
+})

@@ -7,6 +7,7 @@ export interface ServiceModel {
   name: string; image: string
   environment: PairRow[]      // a=KEY b=VALUE
   ports: PortRow[]
+  portsExtra: unknown[]       // 表单认不出的 ports 原始条目,原样透传
   volumes: PairRow[]          // a=host(source) b=container(target)
   devices: PairRow[]          // a=host b=container
   privileged: boolean; capAdd: string[]
@@ -73,23 +74,24 @@ export function parseMemoryToMB(v: unknown): number | null {
 type Dict = Record<string, unknown>
 const asDict = (v: unknown): Dict => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {})
 
-function parsePortEntry(p: unknown): PortRow | null {
+type PortParse = { row: PortRow } | { extra: unknown }
+const SINGLE_PORT = /^\d+$/
+
+function classifyPortEntry(p: unknown): PortParse {
   if (p && typeof p === 'object') {
-    const o = p as Dict // compose 长语法
-    const target = o.target != null ? String(o.target).split('-')[0] : ''
-    const published = o.published != null ? String(o.published).split('-')[0] : target
-    if (!target) return null
-    const proto = String(o.protocol ?? 'tcp').toLowerCase() === 'udp' ? 'udp' : 'tcp'
-    return { published, target, protocol: proto, ...(o.host_ip ? { hostIp: String(o.host_ip) } : {}) }
+    const o = p as Dict
+    const t = o.target != null ? String(o.target) : ''
+    const pub = o.published != null ? String(o.published) : t
+    const extras = Object.keys(o).filter((k) => !['target', 'published', 'protocol', 'host_ip'].includes(k))
+    if (SINGLE_PORT.test(t) && SINGLE_PORT.test(pub) && !extras.length) {
+      const proto = String(o.protocol ?? 'tcp').toLowerCase() === 'udp' ? 'udp' : 'tcp'
+      return { row: { published: pub, target: t, protocol: proto, ...(o.host_ip ? { hostIp: String(o.host_ip) } : {}) } }
+    }
+    return { extra: p } // long-syntax range / mode:host 等异形 → 原样透传
   }
-  // 短语法 [ip:]published[-range]:target[-range][/proto](range 取首段,Vue2 同行为)
-  const m = /^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?([\d-]+):([\d-]+)(?:\/(tcp|udp))?$/i.exec(String(p).trim())
-  if (!m) return null
-  return {
-    published: m[2].split('-')[0], target: m[3].split('-')[0],
-    protocol: (m[4]?.toLowerCase() as 'tcp' | 'udp') ?? 'tcp',
-    ...(m[1] ? { hostIp: m[1] } : {}),
-  }
+  const m = /^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d+):(\d+)(?:\/(tcp|udp))?$/i.exec(String(p).trim())
+  if (!m) return { extra: p } // 裸端口 "3000"、range "a-b:a-b"、其它异形 → 原样透传
+  return { row: { published: m[2], target: m[3], protocol: (m[4]?.toLowerCase() as 'tcp' | 'udp') ?? 'tcp', ...(m[1] ? { hostIp: m[1] } : {}) } }
 }
 
 function parseService(name: string, raw: Dict): ServiceModel {
@@ -97,7 +99,12 @@ function parseService(name: string, raw: Dict): ServiceModel {
   const environment: PairRow[] = Array.isArray(envRaw)
     ? envRaw.map((e) => { const i = String(e).indexOf('='); return i < 0 ? { a: String(e), b: '' } : { a: String(e).slice(0, i), b: String(e).slice(i + 1) } })
     : Object.entries(asDict(envRaw)).map(([a, b]) => ({ a, b: b == null ? '' : String(b) }))
-  const ports = (Array.isArray(raw.ports) ? raw.ports : []).map(parsePortEntry).filter((x): x is PortRow => !!x)
+  const ports: PortRow[] = []
+  const portsExtra: unknown[] = []
+  for (const p of Array.isArray(raw.ports) ? raw.ports : []) {
+    const r = classifyPortEntry(p)
+    if ('row' in r) ports.push(r.row); else portsExtra.push(r.extra)
+  }
   const volumes: PairRow[] = (Array.isArray(raw.volumes) ? raw.volumes : []).map((v) => {
     if (v && typeof v === 'object') { const o = v as Dict; return { a: String(o.source ?? ''), b: String(o.target ?? '') } }
     const parts = String(v).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? '' } // :ro 等 flag 丢弃(Vue2 同行为)
@@ -111,7 +118,7 @@ function parseService(name: string, raw: Dict): ServiceModel {
   return {
     name,
     image: String(raw.image ?? ''),
-    environment, ports, volumes, devices,
+    environment, ports, portsExtra, volumes, devices,
     privileged: raw.privileged === true,
     capAdd: Array.isArray(raw.cap_add) ? raw.cap_add.map(String) : [],
     restart: !restartRaw || restartRaw === 'no' ? 'unless-stopped' : restartRaw,
@@ -154,9 +161,12 @@ export function buildYaml(originalYaml: string, model: SettingsModel): string {
     if (!Object.keys(svc).length && !services[sm.name]) continue // 原 YAML 没有的服务不凭空造
     if (sm.image.trim()) svc.image = sm.image.trim()
     svc.environment = sm.environment.filter((r) => r.a.trim()).map((r) => `${r.a.trim()}=${r.b}`)
-    svc.ports = sm.ports
-      .filter((r) => r.published.trim() && r.target.trim())
-      .map((r) => ({ target: Number(r.target), published: String(r.published), protocol: r.protocol, ...(r.hostIp ? { host_ip: r.hostIp } : {}) }))
+    svc.ports = [
+      ...sm.ports
+        .filter((r) => r.published.trim() && r.target.trim())
+        .map((r) => ({ target: Number(r.target), published: String(r.published), protocol: r.protocol, ...(r.hostIp ? { host_ip: r.hostIp } : {}) })),
+      ...sm.portsExtra, // 表单认不出的条目原样写回
+    ]
     svc.volumes = sm.volumes.filter((r) => r.a.trim() && r.b.trim()).map((r) => ({ type: 'bind', source: r.a.trim(), target: r.b.trim() }))
     const devs = sm.devices.filter((r) => r.a.trim() && r.b.trim()).map((r) => `${r.a.trim()}:${r.b.trim()}`)
     if (devs.length) svc.devices = devs; else delete svc.devices
