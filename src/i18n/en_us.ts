@@ -417,6 +417,12 @@ export const messages = {
     appsInstallTipsConfirm: 'Continue',
     appsStoreIncompatible: 'Not compatible with this device ({arch})',
     appsInstallStalled: 'No install progress received — check the app list later',
+    // ── App settings: row editors ──
+    appsSettingsAdd: 'Add',
+    appsSettingsRemove: 'Remove',
+    appsSettingsPortHost: 'Host port',
+    appsSettingsPortContainer: 'Container port',
+    appsSettingsPortProtocol: 'Protocol',
   },
 }
 

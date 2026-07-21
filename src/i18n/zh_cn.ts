@@ -416,6 +416,12 @@ export const messages = {
     appsInstallTipsConfirm: '继续安装',
     appsStoreIncompatible: '与本机架构({arch})不兼容',
     appsInstallStalled: '长时间未收到安装进度,请稍后在应用列表确认',
+    // ── 应用设置:行编辑器 ──
+    appsSettingsAdd: '添加',
+    appsSettingsRemove: '删除',
+    appsSettingsPortHost: '主机端口',
+    appsSettingsPortContainer: '容器端口',
+    appsSettingsPortProtocol: '协议',
   },
 }
 
