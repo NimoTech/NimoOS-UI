@@ -25,6 +25,7 @@ const rotation = ref(0)
 const tx = ref(0)
 const ty = ref(0)
 const imgEl = ref<HTMLImageElement | null>(null)
+const stageEl = ref<HTMLElement | null>(null)
 const imgStyle = computed(() => ({
   transform: `translate(${tx.value}px, ${ty.value}px) scale(${scale.value}) rotate(${rotation.value}deg)`,
   ...(committedW.value !== null && committedH.value !== null
@@ -85,6 +86,26 @@ let startX = 0
 let startY = 0
 let baseX = 0
 let baseY = 0
+
+// 平移夹边界:图片任何时候至少留 PAN_KEEP px 在可视区内,拖不丢。
+// 无布局信息(图未加载/测试环境)时不夹。
+const PAN_KEEP = 48
+function clampPan() {
+  const stage = stageEl.value
+  const el = imgEl.value
+  if (!stage || !el) return
+  const W = stage.clientWidth
+  const H = stage.clientHeight
+  let w = el.offsetWidth * scale.value
+  let h = el.offsetHeight * scale.value
+  if (!W || !H || !w || !h) return
+  if (rotation.value % 180 !== 0) [w, h] = [h, w] // 旋转 90/270°:可视宽高互换
+  const mx = (W + w) / 2 - Math.min(PAN_KEEP, w / 2)
+  const my = (H + h) / 2 - Math.min(PAN_KEEP, h / 2)
+  tx.value = Math.min(Math.max(tx.value, -mx), mx)
+  ty.value = Math.min(Math.max(ty.value, -my), my)
+}
+
 function onPointerDown(e: PointerEvent) {
   // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
   // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
@@ -95,8 +116,11 @@ function onPointerDown(e: PointerEvent) {
 }
 function onPointerMove(e: PointerEvent) {
   if (!dragging) return
+  // 窗口外松手时 pointerup 可能丢失,dragging 卡 true,图片会"粘"在指针上 —— 按键已松即自愈
+  if (e.pointerType === 'mouse' && e.buttons === 0) { dragging = false; return }
   tx.value = baseX + (e.clientX - startX)
   ty.value = baseY + (e.clientY - startY)
+  clampPan()
 }
 function onPointerUp() { dragging = false }
 
@@ -131,6 +155,7 @@ onBeforeUnmount(() => {
 <template>
   <ViewerShell :title="current.name" downloadable @close="emit('close')" @download="emit('download', current)">
     <div
+      ref="stageEl"
       class="img-stage"
       @mousemove="onMouseMove"
       @touchmove="onMouseMove"
@@ -138,7 +163,9 @@ onBeforeUnmount(() => {
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
       @pointerleave="onPointerUp"
+      @dragstart.prevent
     >
       <img ref="imgEl" class="img-el" :src="src" :style="imgStyle" alt="" draggable="false" />
 
@@ -164,6 +191,8 @@ onBeforeUnmount(() => {
   justify-content: center;
   overflow: hidden;
   cursor: grab;
+  /* 舞台内禁止选区:选区可绕过 draggable=false 触发原生拖放(幽灵图+禁止光标) */
+  user-select: none;
   /* 棋盘格透明底(忠于 Vue2) */
   background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 16 16'%3E%3Cpath fill='%23ccc' d='M8 6.5A1.5 1.5 0 1 0 8 9.5A1.5 1.5 0 1 0 8 6.5z' fill-opacity='0.1'/%3E%3C/svg%3E");
   background-repeat: repeat;
@@ -186,7 +215,7 @@ onBeforeUnmount(() => {
   transform: translateX(-50%);
   z-index: 10;
   display: flex;
-  gap: 4px;
+  gap: 6px;
   padding: 6px 10px;
   border-radius: 10px;
   background: var(--popup-bg);
@@ -198,7 +227,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   height: 34px;
   padding: 0 12px;
-  border: none;
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--fg);
   font-size: 13px;

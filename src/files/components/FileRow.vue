@@ -43,7 +43,7 @@ function onClick(e: MouseEvent) {
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
     <span class="file-size">{{ props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0) }}</span>
-    <span class="file-star"><FavoriteStar :path="props.entry.path" :name="props.entry.name" /></span>
+    <span class="file-star"><FavoriteStar v-if="props.entry.is_dir" :path="props.entry.path" :name="props.entry.name" /></span>
   </div>
 </template>
 

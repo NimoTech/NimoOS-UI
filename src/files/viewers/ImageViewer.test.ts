@@ -49,6 +49,64 @@ describe('ImageViewer', () => {
   })
 })
 
+// —— 拖拽边界:图片任何时候至少留 48px 在可视区内,拖不丢 ——
+describe('ImageViewer 拖拽边界', () => {
+  const mountWithLayout = async () => {
+    const w = await mountViewer()
+    const img = w.get('img.img-el').element as HTMLImageElement
+    const stage = w.get('.img-stage').element as HTMLElement
+    // jsdom 无布局,手工给出舞台与图片的显示尺寸
+    Object.defineProperty(img, 'offsetWidth', { value: 800, configurable: true })
+    Object.defineProperty(img, 'offsetHeight', { value: 600, configurable: true })
+    Object.defineProperty(stage, 'clientWidth', { value: 1000, configurable: true })
+    Object.defineProperty(stage, 'clientHeight', { value: 700, configurable: true })
+    return w
+  }
+
+  it('向右下暴力拖拽被夹在边界:图片不会完全离开可视区', async () => {
+    const w = await mountWithLayout()
+    const stage = w.get('.img-stage')
+    await stage.trigger('pointerdown', { clientX: 100, clientY: 100 })
+    await stage.trigger('pointermove', { clientX: 5100, clientY: 5100 })
+    // maxTx = (1000+800)/2 - 48 = 852;maxTy = (700+600)/2 - 48 = 602
+    expect(w.get('img.img-el').attributes('style')).toContain('translate(852px, 602px)')
+  })
+
+  it('向左上暴力拖拽同样被夹住(负方向)', async () => {
+    const w = await mountWithLayout()
+    const stage = w.get('.img-stage')
+    await stage.trigger('pointerdown', { clientX: 5100, clientY: 5100 })
+    await stage.trigger('pointermove', { clientX: 100, clientY: 100 })
+    expect(w.get('img.img-el').attributes('style')).toContain('translate(-852px, -602px)')
+  })
+
+  it('无布局信息(jsdom 默认 0 尺寸)时不夹,平移不受影响', async () => {
+    const w = await mountViewer()
+    const stage = w.get('.img-stage')
+    await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
+    await stage.trigger('pointermove', { clientX: 30, clientY: 40 })
+    expect(w.get('img.img-el').attributes('style')).toContain('translate(20px, 30px)')
+  })
+
+  // 浏览器原生图片拖放一旦启动会挂起指针事件(幽灵图+禁止光标,自绘平移全失效),
+  // draggable=false 存在选区拖拽等旁路 —— 舞台层必须兜底拦截 dragstart
+  it('舞台内任何元素的原生 dragstart 都被阻止(不出幽灵图)', async () => {
+    const w = await mountViewer()
+    const ev = new Event('dragstart', { bubbles: true, cancelable: true })
+    w.get('img.img-el').element.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+  })
+
+  // 真机丢 pointerup(窗口外松手)后 dragging 卡 true,图片会"粘"在指针上乱飞
+  it('鼠标已无按键(buttons=0)的 pointermove 不再平移(pointerup 丢失自愈)', async () => {
+    const w = await mountWithLayout()
+    const stage = w.get('.img-stage')
+    await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
+    await stage.trigger('pointermove', { pointerType: 'mouse', buttons: 0, clientX: 60, clientY: 80 })
+    expect(w.get('img.img-el').attributes('style')).toContain('translate(0px, 0px)')
+  })
+})
+
 // —— 停手落盘:缩放停止 150ms 后倍数烙进布局尺寸,强制重画消除合成器瓦线 ——
 describe('ImageViewer 缩放落盘', () => {
   const mountWithSize = async () => {

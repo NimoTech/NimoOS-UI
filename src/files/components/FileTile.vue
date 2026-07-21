@@ -37,7 +37,7 @@ function onClick(e: MouseEvent) {
         @change="emit('select', { entry: props.entry, mode: 'toggle' })"
       />
     </span>
-    <FavoriteStar class="tile-star" :path="props.entry.path" :name="props.entry.name" />
+    <FavoriteStar v-if="props.entry.is_dir" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
     <FileThumb class="tile-icon" :entry="props.entry" />
     <span class="tile-name">{{ props.entry.name }}</span>
     <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
