@@ -59,18 +59,26 @@ onUnmounted(() => {
 
 <template>
   <div class="snap-carousel" :aria-label="ariaLabel">
-    <button class="snap-btn snap-prev" type="button" :disabled="atStart" :aria-label="t('carouselPrev')" @click="page(-1)"><span>‹</span></button>
+    <button class="snap-btn snap-prev" type="button" :disabled="atStart" :aria-label="t('carouselPrev')" @click="page(-1)">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M15 4 L7 12 L15 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
     <div ref="viewport" class="snap-viewport" @scroll.passive="recalc">
       <slot />
     </div>
-    <button class="snap-btn snap-next" type="button" :disabled="atEnd" :aria-label="t('carouselNext')" @click="page(1)"><span>›</span></button>
+    <button class="snap-btn snap-next" type="button" :disabled="atEnd" :aria-label="t('carouselNext')" @click="page(1)">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M9 4 L17 12 L9 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
   </div>
 </template>
 
 <style scoped>
-.snap-carousel { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* 翻页钮 = 旧版 swiper 风格:覆盖在轮播两侧、垂直居中的大圆钮,SVG 箭头矢量居中(不依赖字符字形基线) */
+.snap-carousel { position: relative; min-width: 0; }
 .snap-viewport {
-  flex: 1 1 auto; min-width: 0;
   display: flex; gap: 14px; overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none; /* 翻页钮承担滚动可供性,隐藏原生条 */
@@ -78,13 +86,18 @@ onUnmounted(() => {
 .snap-viewport::-webkit-scrollbar { display: none; }
 .snap-viewport > :slotted(*) { scroll-snap-align: start; flex: 0 0 auto; }
 .snap-btn {
-  flex: 0 0 auto; width: 36px; height: 36px; padding: 0; cursor: pointer;
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: 40px; height: 40px; padding: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-size: 24px; line-height: 1; color: var(--fg);
-  background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 999px;
+  color: var(--fg);
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 50%;
+  box-shadow: var(--card-shadow); backdrop-filter: var(--blur);
+  transition: opacity 0.2s var(--ease);
 }
-/* ‹ › 字形基线偏下,光学上移 1px 才落在圆心 */
-.snap-btn > span { display: block; transform: translateY(-1px); }
+.snap-prev { left: 6px; }
+.snap-next { right: 6px; }
 .snap-btn:hover:not(:disabled) { background: var(--chip-bg-hi); }
-.snap-btn:disabled { opacity: 0.35; cursor: default; }
+/* 到端点即整颗隐去(swiper 同款),内容不足一屏时两侧都不出现 */
+.snap-btn:disabled { opacity: 0; pointer-events: none; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .snap-btn { transition: none; } }
 </style>
