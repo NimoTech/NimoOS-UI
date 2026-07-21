@@ -40,11 +40,21 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
 
   async function probe(id: string) {
     const cur = tasks.value[id]
-    if (!cur || cur.state === 'error') return
+    if (!cur || cur.state === 'error') {
+      clearTimeout(timers[id]); delete timers[id]; delete probes[id]
+      return
+    }
     try {
       const app = await service.compose.get(id)
+      // Fix2: await 落定后任务可能已被 dismiss/finish——重新读取,不存在就直接退出,
+      // 不再写 probes[id]/arm(id),也不要误触发 finish() 的 refresh/installed 副作用。
+      if (!tasks.value[id]) return
       if (app) { finish(id); return }
-    } catch { /* 网络错不计罚,下一轮再探 */ }
+    } catch {
+      // Fix3: 网络错不计罚——不递增 probes,下一轮再探(装置仍是 installing)
+      arm(id)
+      return
+    }
     probes[id] = (probes[id] ?? 0) + 1
     if (probes[id] >= WATCHDOG_MAX_PROBES) fail(id, '')
     else arm(id)
@@ -86,8 +96,19 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
     const id = typeof p['app:name'] === 'string' ? p['app:name'] : ''
     if (!id) return
     if (name === 'app:install-begin') {
-      if (!tasks.value[id]) track(id, titleFromProps(p, id), typeof p['app:icon'] === 'string' ? p['app:icon'] : '')
-      else arm(id)
+      const cur = tasks.value[id]
+      if (!cur) {
+        track(id, titleFromProps(p, id), typeof p['app:icon'] === 'string' ? p['app:icon'] : '')
+      } else if (cur.state === 'error') {
+        // Fix1: begin 要能复活 error 态任务(比如用户 dismiss 前又重装/重试)
+        tasks.value = { ...tasks.value, [id]: { ...cur, state: 'installing', percent: 0, message: '' } }
+        probes[id] = 0
+        arm(id)
+      } else {
+        // Minor#2: installing 任务重复 begin 也要重置探测计数,不只是续期定时器
+        probes[id] = 0
+        arm(id)
+      }
     } else if (name === 'app:install-progress') {
       // D5:update 流复用本事件(image.go pullImageProgress),只更新已跟踪任务
       const cur = tasks.value[id]

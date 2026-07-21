@@ -114,4 +114,69 @@ describe('installProgress store', () => {
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
     expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 progress 重置,尚未到 5
   })
+
+  // --- Task 3 修复(评审 4 洞) ---
+
+  it('Fix1: begin 复活 error 态任务——回 installing、percent 0、message 清空', () => {
+    const s = useInstallProgressStore()
+    s.track('jellyfin', 'Jellyfin', 'i.png')
+    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '77' })
+    s.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'pull failed' })
+    expect(s.tasks['jellyfin']).toMatchObject({ state: 'error', message: 'pull failed' })
+    s.onEvent('app:install-begin', { 'app:name': 'jellyfin', 'app:title': 'Jellyfin' })
+    expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing', percent: 0, message: '' })
+  })
+
+  it('Fix1: begin 对已 installing 任务状态不变(仅续期看门狗)', () => {
+    const s = useInstallProgressStore()
+    s.track('jellyfin', 'Jellyfin', 'i.png')
+    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '50' })
+    s.onEvent('app:install-begin', { 'app:name': 'jellyfin' })
+    expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing', percent: 50, title: 'Jellyfin' })
+  })
+
+  it('Fix1(Minor#2): begin 重置探测计数——已探 4 轮后 begin,再过 4 轮不应到 5 轮 error', async () => {
+    const s = useInstallProgressStore()
+    svc.compose.get.mockResolvedValue(undefined)
+    s.track('jellyfin')
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
+    expect(s.tasks['jellyfin'].state).toBe('installing')
+    s.onEvent('app:install-begin', { 'app:name': 'jellyfin' })
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
+    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 begin 重置,尚未到 5
+  })
+
+  it('Fix2: dismiss 与飞行中 probe 竞态——resolve 落定后任务不复活、不触发 finish 副作用、不再排新探测', async () => {
+    const s = useInstallProgressStore()
+    const installed = useInstalledAppsStore()
+    const store = useAppstoreStore()
+    const refreshSpy = vi.spyOn(installed, 'refresh').mockResolvedValue()
+    let resolveGet: (v: unknown) => void = () => {}
+    const callsBefore = svc.compose.get.mock.calls.length
+    svc.compose.get.mockImplementation(() => new Promise((resolve) => { resolveGet = resolve }))
+    s.track('jellyfin')
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS) // 触发 probe,compose.get 挂起
+    expect(svc.compose.get.mock.calls.length - callsBefore).toBe(1)
+    s.dismiss('jellyfin')
+    // 飞行中的 probe 落定时收到「已安装」的真值——若不重新读取 tasks.value,会误当仍在跟踪
+    // 而调用 finish() 产生 refresh()/installed 乐观 push 的副作用(任务明明已被用户 dismiss)
+    resolveGet({ status: 'running' })
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(s.tasks['jellyfin']).toBeUndefined()
+    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(store.installed).not.toContain('jellyfin')
+    // 且不应遗留死 key 导致后续再探测(退化场景:falsy 落定也不得重新 arm)
+    const callsAfterDismiss = svc.compose.get.mock.calls.length
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * 2)
+    expect(svc.compose.get.mock.calls.length).toBe(callsAfterDismiss) // 没有被重新 arm
+    expect(s.tasks['jellyfin']).toBeUndefined()
+  })
+
+  it('Fix3: probe 网络错不计罚——compose.get 连续 reject,5 轮后仍 installing', async () => {
+    const s = useInstallProgressStore()
+    svc.compose.get.mockRejectedValue(new Error('network down'))
+    s.track('jellyfin')
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * WATCHDOG_MAX_PROBES)
+    expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing' })
+  })
 })
