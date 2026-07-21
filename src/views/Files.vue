@@ -30,6 +30,7 @@ import { shareName } from '../files/util/sambaPath'
 import { useToast } from '../stores/toast'
 import { installUnloadGuard } from '../files/upload/unloadGuard'
 import { readDroppedEntries } from '../files/upload/dropEntries'
+import { extractClipboardFiles } from '../files/upload/pasteFiles'
 import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
 import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
@@ -185,6 +186,23 @@ async function onDrop(e: DragEvent) {
   if (!dropped.length) return
   await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
 }
+
+// ── Ctrl+V 粘贴上传:截图/复制的文件传到当前目录,复用 commitSelectedFiles ──
+// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。
+function isEditableTarget(el: EventTarget | null): boolean {
+  const node = el instanceof HTMLElement ? el : null
+  if (!node) return false
+  return node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.isContentEditable
+}
+async function onPaste(e: ClipboardEvent) {
+  if (isEditableTarget(e.target)) return
+  const pasted = extractClipboardFiles(e.clipboardData, t('filesPastedImage'), new Date())
+  if (!pasted.length) return
+  e.preventDefault()
+  await commitSelectedFiles(pasted)
+}
+onMounted(() => window.addEventListener('paste', onPaste))
+onUnmounted(() => window.removeEventListener('paste', onPaste))
 
 function confirmNew(name: string) {
   if (newDlg.value.mode === 'folder') ops.createFolder(name)

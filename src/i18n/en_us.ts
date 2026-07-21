@@ -119,6 +119,7 @@ export const messages = {
     filesUploadZoneActive: 'Uploading',
     filesUploadZoneDone: 'Completed',
     filesUploadProtected: '"{name}" is in a protected directory and was skipped.',
+    filesPastedImage: 'Pasted image',
     filesUploadErrDuplicate: 'File already exists (skipped)',
     filesUploadErrExpired: 'Session expired',
     filesUploadErrNoSpace: 'Not enough storage space on the NAS',

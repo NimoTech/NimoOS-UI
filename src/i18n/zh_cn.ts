@@ -118,6 +118,7 @@ export const messages = {
     filesUploadZoneActive: '上传中',
     filesUploadZoneDone: '已完成',
     filesUploadProtected: '「{name}」位于受保护目录,已跳过。',
+    filesPastedImage: '粘贴图片',
     filesUploadErrDuplicate: '文件已存在(已跳过)',
     filesUploadErrExpired: '会话已过期',
     filesUploadErrNoSpace: 'NAS 存储空间不足',
