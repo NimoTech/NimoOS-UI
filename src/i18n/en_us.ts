@@ -408,5 +408,16 @@ export const messages = {
     appsStoreDeveloper: 'Developer',
     appsStoreDetailFailed: 'Failed to load app details',
     appsStoreZoomClose: 'Close preview',
+    appsInstalling: 'Installing',
+    appsInstallingPercent: 'Installing {percent}%',
+    appsInstallFailed: 'Failed to install {name}',
+    appsInstallPortConflict: 'Ports in use: {ports}',
+    appsInstallDismiss: 'Dismiss',
+    appsInstallTipsTitle: 'Before you install',
+    appsInstallTipsConfirm: 'Continue',
+    appsStoreIncompatible: 'Not compatible with this device ({arch})',
+    appsInstallStalled: 'No install progress received — check the app list later',
   },
 }
+
+export default messages.en_us

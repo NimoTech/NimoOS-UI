@@ -407,5 +407,16 @@ export const messages = {
     appsStoreDeveloper: '开发者',
     appsStoreDetailFailed: '应用详情加载失败',
     appsStoreZoomClose: '关闭预览',
+    appsInstalling: '安装中',
+    appsInstallingPercent: '安装中 {percent}%',
+    appsInstallFailed: '{name} 安装失败',
+    appsInstallPortConflict: '端口被占用:{ports}',
+    appsInstallDismiss: '知道了',
+    appsInstallTipsTitle: '安装前须知',
+    appsInstallTipsConfirm: '继续安装',
+    appsStoreIncompatible: '与本机架构({arch})不兼容',
+    appsInstallStalled: '长时间未收到安装进度,请稍后在应用列表确认',
   },
 }
+
+export default messages.zh_cn
