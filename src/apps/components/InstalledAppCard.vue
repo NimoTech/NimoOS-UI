@@ -9,6 +9,7 @@ const props = defineProps<{ app: InstalledApp; pendingOp?: AppOp }>()
 const emit = defineEmits<{
   (e: 'open'): void
   (e: 'action', op: 'start' | 'stop' | 'restart' | 'update'): void
+  (e: 'settings'): void
   (e: 'uninstall'): void
 }>()
 const { t } = useI18n()
@@ -52,6 +53,7 @@ function onPrimary() {
             <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'stop')">{{ t('appsStop') }}</DropdownMenuItem>
             <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'restart')">{{ t('appsRestart') }}</DropdownMenuItem>
           </template>
+          <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('settings')">{{ t('appsSettings') }}</DropdownMenuItem>
           <DropdownMenuItem v-if="!app.isUncontrolled" class="ui-drop-item" :disabled="busy" @select="emit('action', 'update')">{{ t('appsCheckUpdate') }}</DropdownMenuItem>
           <DropdownMenuSeparator class="ui-drop-sep" />
           <DropdownMenuItem class="ui-drop-item danger" :disabled="busy" @select="emit('uninstall')">{{ t('appsUninstall') }}</DropdownMenuItem>

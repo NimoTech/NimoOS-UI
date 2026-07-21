@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
@@ -13,6 +14,7 @@ import { useToast } from '../../stores/toast'
 import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useInstalledAppsStore()
 const progress = useInstallProgressStore()
 const installingTasks = computed(() => Object.values(progress.tasks))
@@ -62,6 +64,7 @@ const APP_EVENTS = [
   'app:restart-begin', 'app:restart-end', 'app:restart-error',
   'app:update-begin', 'app:update-end', 'app:update-error',
   'app:uninstall-begin', 'app:uninstall-end', 'app:uninstall-error',
+  'app:apply-changes-begin', 'app:apply-changes-end', 'app:apply-changes-error',
 ]
 const offs: Array<() => void> = []
 const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refresh: () => { store.refresh().catch(() => {}) } })
@@ -92,6 +95,7 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
             :app="a" :pending-op="store.pending[a.id]"
             @open="onOpen(a)"
             @action="(op) => onAction(a, op)"
+            @settings="router.push({ name: 'apps-settings', params: { name: a.id } })"
             @uninstall="uninstallDlg = { open: true, app: a }"
           />
         </div>

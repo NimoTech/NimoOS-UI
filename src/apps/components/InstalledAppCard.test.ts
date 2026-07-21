@@ -63,6 +63,15 @@ describe('InstalledAppCard', () => {
     expect(w.text()).toContain('可更新')
   })
 
+  it('menu has settings item that emits settings', async () => {
+    const w = mountCard()
+    const items = w.get('.menu').findAll('div')
+    const settingsItem = items.find((it) => it.text() === '设置')
+    expect(settingsItem).toBeTruthy()
+    await settingsItem!.trigger('click')
+    expect(w.emitted('settings')).toHaveLength(1)
+  })
+
   it('pending:卡片处理中态,主按钮禁用', () => {
     const w = mountCard({}, 'restart')
     expect(w.text()).toContain('处理中')

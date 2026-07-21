@@ -457,6 +457,15 @@ export const messages = {
     appsSettingsCapAdd: 'Capabilities',
     appsSettingsTipsEdit: 'Edit',
     appsSettingsTipsPreview: 'Preview',
+    appsSettings: 'Settings',
+    appsSettingsBack: 'Back to apps',
+    appsSettingsLoading: 'Loading settings…',
+    appsSettingsLoadFailed: 'Failed to load settings',
+    appsSettingsSave: 'Save & apply',
+    appsSettingsCancel: 'Cancel',
+    appsSettingsApplying: 'Applying changes; containers will be recreated',
+    appsSettingsSaveFailed: 'Save failed',
+    appsSettingsPortConflict: 'Ports already in use: {ports}',
   },
 }
 

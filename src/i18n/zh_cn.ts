@@ -456,6 +456,15 @@ export const messages = {
     appsSettingsCapAdd: '附加内核权限',
     appsSettingsTipsEdit: '编辑',
     appsSettingsTipsPreview: '预览',
+    appsSettings: '设置',
+    appsSettingsBack: '返回应用',
+    appsSettingsLoading: '正在读取设置…',
+    appsSettingsLoadFailed: '设置加载失败',
+    appsSettingsSave: '保存并应用',
+    appsSettingsCancel: '取消',
+    appsSettingsApplying: '正在应用更改,容器将重建',
+    appsSettingsSaveFailed: '保存失败',
+    appsSettingsPortConflict: '端口已被占用:{ports}',
   },
 }
 
