@@ -2,7 +2,10 @@
 import { useI18n } from 'vue-i18n'
 import type { StoreApp } from '../util/storeApp'
 
-defineProps<{ app: StoreApp; installed: boolean }>()
+withDefaults(
+  defineProps<{ app: StoreApp; installed: boolean; compatible?: boolean; percent?: number | null }>(),
+  { compatible: true, percent: null },
+)
 defineEmits<{ open: []; install: [] }>()
 const { t } = useI18n()
 </script>
@@ -20,8 +23,12 @@ const { t } = useI18n()
       <span class="store-cate">{{ app.category }}</span>
     </div>
     <button
-      v-if="!installed"
-      class="store-install" type="button"
+      v-if="!installed && percent !== null"
+      class="store-install" type="button" disabled
+    >{{ t('appsInstallingPercent', { percent }) }}</button>
+    <button
+      v-else-if="!installed"
+      class="store-install" type="button" :disabled="!compatible"
       @click.stop="$emit('install')"
     >{{ t('appsStoreInstall') }}</button>
   </div>
@@ -61,4 +68,6 @@ const { t } = useI18n()
   border: 1px solid var(--accent-soft-bd);
 }
 .store-install:hover { background: var(--accent-soft-2); }
+.store-install:disabled { opacity: 0.55; cursor: default; }
+.store-install:disabled:hover { background: var(--accent-soft); }
 </style>

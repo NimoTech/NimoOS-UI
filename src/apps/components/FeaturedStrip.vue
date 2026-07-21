@@ -3,7 +3,12 @@ import { useI18n } from 'vue-i18n'
 import SnapCarousel from '../../components/SnapCarousel.vue'
 import type { StoreApp } from '../util/storeApp'
 
-defineProps<{ items: StoreApp[]; installed: (id: string) => boolean }>()
+defineProps<{
+  items: StoreApp[]
+  installed: (id: string) => boolean
+  progress: (id: string) => number | null
+  compatible: (id: string) => boolean
+}>()
 defineEmits<{ open: [id: string]; install: [id: string] }>()
 const { t } = useI18n()
 
@@ -37,7 +42,11 @@ function hideBroken(e: Event) {
           </div>
           <span v-if="installed(a.id)" class="store-badge">{{ t('appsStoreInstalled') }}</span>
           <button
-            v-else class="featured-install" type="button"
+            v-else-if="progress(a.id) !== null"
+            class="featured-install" type="button" disabled
+          >{{ t('appsInstallingPercent', { percent: progress(a.id) }) }}</button>
+          <button
+            v-else class="featured-install" type="button" :disabled="!compatible(a.id)"
             @click.stop="$emit('install', a.id)"
           >{{ t('appsStoreInstall') }}</button>
         </div>
@@ -86,4 +95,6 @@ function hideBroken(e: Event) {
   border: 1px solid var(--accent-soft-bd);
 }
 .featured-install:hover { background: var(--accent-soft-2); }
+.featured-install:disabled { opacity: 0.55; cursor: default; }
+.featured-install:disabled:hover { background: var(--accent-soft); }
 </style>

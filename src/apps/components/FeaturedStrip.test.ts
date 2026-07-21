@@ -6,14 +6,14 @@ import FeaturedStrip from './FeaturedStrip.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
 const ITEMS = [
-  { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: 'https://cdn/t.png', category: 'Media' },
-  { id: 'nextcloud', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud' },
+  { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: 'https://cdn/t.png', category: 'Media', architectures: [], tips: undefined },
+  { id: 'nextcloud', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud', architectures: [], tips: undefined },
 ]
 
 describe('FeaturedStrip', () => {
   it('渲染标题、缩略图与卡片;点卡片 emit open(id);已装徽章走注入函数', async () => {
     const w = mount(FeaturedStrip, {
-      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin' },
+      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin', progress: () => null, compatible: () => true },
       global: { plugins: [i18n] },
     })
     expect(w.text()).toContain('精选应用')
@@ -28,7 +28,7 @@ describe('FeaturedStrip', () => {
   })
   it('未装卡片有安装按钮:emit install(id) 且不冒泡成 open;已装卡片无按钮', async () => {
     const w = mount(FeaturedStrip, {
-      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin' },
+      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin', progress: () => null, compatible: () => true },
       global: { plugins: [i18n] },
     })
     const cards = w.findAll('.featured-card')
@@ -40,9 +40,22 @@ describe('FeaturedStrip', () => {
   })
   it('items 空整块不渲染', () => {
     const w = mount(FeaturedStrip, {
-      props: { items: [], installed: () => false },
+      props: { items: [], installed: () => false, progress: () => null, compatible: () => true },
       global: { plugins: [i18n] },
     })
     expect(w.find('.featured-strip').exists()).toBe(false)
+  })
+  it('progress/compatible 函数 prop 驱动按钮态', () => {
+    const items = [{ id: 'a', title: 'A', tagline: '', icon: '', thumbnail: '', category: '', architectures: [], tips: undefined }]
+    const w = mount(FeaturedStrip, {
+      props: {
+        items, installed: () => false,
+        progress: () => 60, compatible: () => true,
+      },
+      global: { plugins: [i18n] },
+    })
+    const btn = w.find('.featured-install')
+    expect(btn.text()).toContain('60')
+    expect((btn.element as HTMLButtonElement).disabled).toBe(true)
   })
 })

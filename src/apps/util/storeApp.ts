@@ -9,6 +9,8 @@ export interface StoreApp {
   icon: string
   thumbnail: string
   category: string
+  architectures: string[]
+  tips: unknown
 }
 
 export function mapStoreApp(id: string, raw: StoreAppInfo, lang: string): StoreApp {
@@ -19,6 +21,8 @@ export function mapStoreApp(id: string, raw: StoreAppInfo, lang: string): StoreA
     icon: typeof raw.icon === 'string' ? raw.icon : '',
     thumbnail: typeof raw.thumbnail === 'string' ? raw.thumbnail : '',
     category: typeof raw.category === 'string' ? raw.category : '',
+    architectures: Array.isArray(raw.architectures) ? raw.architectures.filter((x): x is string => typeof x === 'string') : [],
+    tips: raw.tips ?? undefined,
   }
 }
 

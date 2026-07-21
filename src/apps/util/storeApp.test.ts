@@ -15,19 +15,29 @@ describe('mapStoreApp', () => {
     expect(mapStoreApp('jellyfin', RAW, 'zh_cn')).toEqual({
       id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统',
       icon: 'https://cdn/icon.png', thumbnail: 'https://cdn/thumbnail.png', category: 'Media',
+      architectures: [], tips: undefined,
     })
   })
   it('全缺字段不炸:title 退 id,其余空串', () => {
     expect(mapStoreApp('ghost', {} as never, 'zh_cn')).toEqual({
       id: 'ghost', title: 'ghost', tagline: '', icon: '', thumbnail: '', category: '',
+      architectures: [], tips: undefined,
     })
+  })
+  it('mapStoreApp 透传 architectures/tips,非法形态退化', () => {
+    const a = mapStoreApp('x', { title: { en_us: 'X' }, architectures: ['amd64'], tips: { before_install: { zh_cn: 'hi' } } } as never, 'zh_cn')
+    expect(a.architectures).toEqual(['amd64'])
+    expect(a.tips).toEqual({ before_install: { zh_cn: 'hi' } })
+    const b = mapStoreApp('y', { title: { en_us: 'Y' }, architectures: 'nope' } as never, 'zh_cn')
+    expect(b.architectures).toEqual([])
+    expect(b.tips).toBeUndefined()
   })
 })
 
 describe('filterStoreApps', () => {
   const items: StoreApp[] = [
-    { id: 'a', title: 'Jellyfin', tagline: '个人媒体系统', icon: '', thumbnail: '', category: 'Media' },
-    { id: 'b', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud' },
+    { id: 'a', title: 'Jellyfin', tagline: '个人媒体系统', icon: '', thumbnail: '', category: 'Media', architectures: [], tips: undefined },
+    { id: 'b', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud', architectures: [], tips: undefined },
   ]
   it('空格分词 OR 匹配 title+tagline,大小写不敏感(Vue2 同款)', () => {
     expect(filterStoreApps(items, 'jelly').map((x) => x.id)).toEqual(['a'])

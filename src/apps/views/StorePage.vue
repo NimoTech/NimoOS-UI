@@ -100,6 +100,7 @@ function openDetail(id: string) {
           <FeaturedStrip
             v-if="showFeatured"
             :items="featuredItems" :installed="store.isInstalled"
+            :progress="() => null" :compatible="() => true"
             @open="openDetail"
             @install="onInstall"
           />
