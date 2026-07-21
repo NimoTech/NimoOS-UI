@@ -423,6 +423,7 @@ export default {
   appsSettingsPortHost: 'Host port',
   appsSettingsPortContainer: 'Container port',
   appsSettingsPortProtocol: 'Protocol',
+  appsSettingsPortExtraNote: 'The following port entries are preserved as-is and cannot be edited here',
   // ── App settings: form (service tabs / WebUI / advanced / tips) ──
   appsSettingsSectionWeb: 'Web UI',
   appsSettingsSectionPorts: 'Ports',

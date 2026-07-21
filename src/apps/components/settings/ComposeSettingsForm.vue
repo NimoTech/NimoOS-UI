@@ -49,7 +49,7 @@ const publishedPorts = computed(() => props.model.services.flatMap((s) => s.port
 
     <section class="set-section">
       <h3>{{ t('appsSettingsSectionPorts') }}</h3>
-      <PortsEditor :rows="svc.ports" :conflicts="conflicts" />
+      <PortsEditor :rows="svc.ports" :conflicts="conflicts" :extras="svc.portsExtra" />
     </section>
     <section class="set-section">
       <h3>{{ t('appsSettingsSectionEnv') }}</h3>

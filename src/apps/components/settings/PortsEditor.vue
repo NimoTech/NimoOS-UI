@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { PortRow } from '../../util/composeSettings'
-const props = defineProps<{ rows: PortRow[]; conflicts?: string[] }>()
+const props = defineProps<{ rows: PortRow[]; conflicts?: string[]; extras?: unknown[] }>()
 const { t } = useI18n()
 function isConflict(r: PortRow) { return (props.conflicts ?? []).includes(`${r.published}/${r.protocol}`) }
 function add() { props.rows.push({ published: '', target: '', protocol: 'tcp' }) }
 function del(i: number) { props.rows.splice(i, 1) }
+function extraLabel(e: unknown): string {
+  if (typeof e !== 'object' || e === null) return String(e)
+  const o = e as Record<string, unknown>
+  return `${o.published ?? ''}:${o.target ?? ''}${o.protocol ? '/' + o.protocol : ''}`
+}
 </script>
 
 <template>
@@ -18,6 +23,10 @@ function del(i: number) { props.rows.splice(i, 1) }
       <button class="row-del" type="button" :aria-label="t('appsSettingsRemove')" @click="del(i)">✕</button>
     </div>
     <button class="row-add" type="button" data-test="port-add" @click="add">+ {{ t('appsSettingsAdd') }}</button>
+    <div v-if="extras?.length" class="extra-box">
+      <div class="extra-note">{{ t('appsSettingsPortExtraNote') }}</div>
+      <span v-for="(e, i) in extras" :key="i" class="extra-chip" data-test="port-extra">{{ extraLabel(e) }}</span>
+    </div>
   </div>
 </template>
 
@@ -35,4 +44,7 @@ function del(i: number) { props.rows.splice(i, 1) }
 .row-del:hover { background: var(--chip-bg-hi); color: var(--remove-fg); }
 .row-add { align-self: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
 .row-add:hover { background: var(--chip-bg-hi); }
+.extra-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--card-border); }
+.extra-note { font-size: 11px; color: var(--fg-muted); }
+.extra-chip { display: inline-block; margin: 2px 6px 0 0; padding: 4px 10px; font-size: 12px; color: var(--fg); background: var(--chip-bg); border: 1px dashed var(--card-border); border-radius: 9px; }
 </style>

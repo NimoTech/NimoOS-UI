@@ -422,6 +422,7 @@ export default {
   appsSettingsPortHost: '主机端口',
   appsSettingsPortContainer: '容器端口',
   appsSettingsPortProtocol: '协议',
+  appsSettingsPortExtraNote: '以下端口条目由系统原样保留,不支持在表单中编辑',
   // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
   appsSettingsSectionWeb: 'Web 界面',
   appsSettingsSectionPorts: '端口',
