@@ -174,10 +174,16 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
 .detail-shots { margin-bottom: 18px; }
 .detail-shot { height: 210px; border-radius: var(--radius); cursor: zoom-in; object-fit: cover; }
 
-.detail-desc { font-size: 14px; line-height: 1.7; color: var(--fg); max-width: 760px; }
+.detail-desc { font-size: 14px; line-height: 1.7; color: var(--fg); max-width: 760px; overflow-wrap: anywhere; }
 .detail-desc :deep(a) { color: var(--accent); }
 .detail-desc :deep(img) { max-width: 100%; }
-.detail-desc :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; }
+.detail-desc :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
+/* 同 PreInstallTips:围栏代码块折行,不横向撑破描述区 */
+.detail-desc :deep(pre) {
+  background: var(--chip-bg); border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+  white-space: pre-wrap; word-break: break-all; max-width: 100%;
+}
+.detail-desc :deep(pre code) { background: none; padding: 0; }
 
 .shot-zoom {
   position: fixed; inset: 0; z-index: 200; cursor: zoom-out;

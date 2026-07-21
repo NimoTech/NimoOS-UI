@@ -43,9 +43,16 @@ const html = computed(() => renderMarkdown(props.text))
   color: var(--fg); box-shadow: var(--card-shadow-hi);
 }
 .pit-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
-.pit-body { font-size: 13.5px; line-height: 1.7; color: var(--fg); }
+/* overflow-wrap:anywhere:长 URL/长命令(哪怕无空格)也在弹窗内折行,不撑破容器 */
+.pit-body { font-size: 13.5px; line-height: 1.7; color: var(--fg); overflow-wrap: anywhere; }
 .pit-body :deep(a) { color: var(--accent); }
-.pit-body :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; }
+.pit-body :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
+/* 围栏代码块(整行命令):在框内折行显示完整命令,不横向溢出 */
+.pit-body :deep(pre) {
+  background: var(--chip-bg); border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+  white-space: pre-wrap; word-break: break-all; max-width: 100%;
+}
+.pit-body :deep(pre code) { background: none; padding: 0; }
 .pit-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .pit-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px; }
 .pit-btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
