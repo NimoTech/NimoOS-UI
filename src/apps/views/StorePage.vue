@@ -7,19 +7,40 @@ import AppsSidebar from '../components/AppsSidebar.vue'
 import StoreCard from '../components/StoreCard.vue'
 import CategoryBar from '../components/CategoryBar.vue'
 import FeaturedStrip from '../components/FeaturedStrip.vue'
+import PreInstallTips from '../components/PreInstallTips.vue'
 import { useAppstoreStore, ALL } from '../stores/appstore'
 import { mapStoreApp, filterStoreApps } from '../util/storeApp'
-import { useToast } from '../../stores/toast'
+import { useInstallFlow } from '../composables/useInstallFlow'
+import { useDeviceArch } from '../composables/useDeviceArch'
+import { useInstallProgressStore } from '../stores/installProgress'
+import type { StoreApp } from '../util/storeApp'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const store = useAppstoreStore()
-const toast = useToast()
 
-/** P3 接管:真实安装编排。本期卡片安装钮与详情页同款占位 toast。 */
-function onInstall() {
-  toast.show(t('appsStoreInstallSoon'))
+const { isCompatible } = useDeviceArch()
+const { tipsDlg, requestInstall, confirmTips } = useInstallFlow()
+const progress = useInstallProgressStore()
+
+function onInstall(a: StoreApp) {
+  requestInstall({ id: a.id, title: a.title, icon: a.icon, tips: a.tips })
+}
+/** Featured 卡只带 id:原始数据在 store.featured/list 里查 */
+function onInstallById(id: string) {
+  const raw = store.featured[id] ?? store.list[id]
+  if (!raw) return
+  const a = mapStoreApp(id, raw, locale.value)
+  onInstall(a)
+}
+const percentOf = (id: string) => {
+  const task = progress.tasks[id]
+  return task && task.state === 'installing' ? task.percent : null
+}
+const compatibleOf = (id: string) => {
+  const raw = store.list[id] ?? store.featured[id]
+  return isCompatible(Array.isArray(raw?.architectures) ? (raw!.architectures as string[]) : undefined)
 }
 
 // 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query
@@ -100,22 +121,28 @@ function openDetail(id: string) {
           <FeaturedStrip
             v-if="showFeatured"
             :items="featuredItems" :installed="store.isInstalled"
-            :progress="() => null" :compatible="() => true"
+            :progress="percentOf" :compatible="compatibleOf"
             @open="openDetail"
-            @install="onInstall"
+            @install="onInstallById"
           />
           <p v-if="!store.loading && !shown.length" class="apps-empty">{{ t('appsStoreEmpty') }}</p>
           <div v-else class="apps-grid">
             <StoreCard
               v-for="a in shown" :key="a.id"
               :app="a" :installed="store.isInstalled(a.id)"
+              :compatible="compatibleOf(a.id)" :percent="percentOf(a.id)"
               @open="openDetail(a.id)"
-              @install="onInstall"
+              @install="onInstall(a)"
             />
           </div>
         </template>
       </main>
     </div>
+    <PreInstallTips
+      :open="tipsDlg.open" :text="tipsDlg.text"
+      @update:open="(v) => { if (!v) tipsDlg.open = false }"
+      @confirm="confirmTips"
+    />
   </AreaShell>
 </template>
 
