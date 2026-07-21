@@ -8,6 +8,7 @@ import { messages } from '../../i18n/zh_cn'
 const svc = vi.hoisted(() => ({
   list: vi.fn().mockResolvedValue({}),
   uninstall: vi.fn().mockResolvedValue(undefined),
+  get: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
 
@@ -20,14 +21,32 @@ vi.mock('vue-router', () => ({
 
 import InstalledAppsPage from './InstalledAppsPage.vue'
 import InstalledAppCard from '../components/InstalledAppCard.vue'
+import { useInstallProgressStore } from '../stores/installProgress'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
 
+// 显式把 pinia 实例挂到 mount 的 global.plugins——本页在 setup 里同时挂了
+// useInstalledAppsStore/useInstallProgressStore 两个 composable store,仅靠
+// setActivePinia() 在多用例连续 mount 时曾观测到组件绑定到早前某次 beforeEach
+// 创建的 pinia 实例(参照 StorePage.test.ts 的 T6 踩坑经验)。显式传入杜绝漂移。
+let pinia: ReturnType<typeof createPinia>
+
+function mountPage() {
+  return mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] } })
+}
+
 describe('InstalledAppsPage', () => {
-  beforeEach(() => { setActivePinia(createPinia()); svc.list.mockClear(); svc.uninstall.mockClear(); busOn.mockClear() })
+  beforeEach(() => {
+    pinia = createPinia()
+    setActivePinia(pinia)
+    svc.list.mockClear().mockResolvedValue({})
+    svc.uninstall.mockClear()
+    svc.get.mockClear().mockResolvedValue(undefined)
+    busOn.mockClear()
+  })
 
   it('进区拉列表;空列表渲染空态;订阅容器事件与 app 生命周期事件', async () => {
-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
+    const w = mountPage()
     await flushPromises()
     expect(svc.list).toHaveBeenCalledTimes(1)
     expect(w.text()).toContain('还没有安装任何应用')
@@ -35,17 +54,37 @@ describe('InstalledAppsPage', () => {
     expect(events).toContain('docker:container:state-changed')
     expect(events).toContain('app:start-begin')
     expect(events).toContain('app:uninstall-end')
-    expect(events).toContain('app:install-end')
   })
 
   it('有应用时渲染卡片网格', async () => {
     svc.list.mockResolvedValue({
       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
     })
-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
+    const w = mountPage()
     await flushPromises()
     expect(w.find('.apps-grid').exists()).toBe(true)
     expect(w.text()).toContain('Jellyfin')
+  })
+
+  it('installProgress 有任务时页面顶部渲染安装中卡片;end 后消失', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const progress = useInstallProgressStore()
+    progress.track('navidrome', 'Navidrome')
+    await nextTick()
+    expect(w.text()).toContain('Navidrome')
+    expect(w.find('.op-progress').exists()).toBe(true)
+    progress.onEvent('app:install-end', { 'app:name': 'navidrome' })
+    await flushPromises()
+    expect(w.find('.op-progress').exists()).toBe(false)
+  })
+
+  it('页面不再自订阅 app:install-end(D6:职责在 store)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    void w
+    const evs = busOn.mock.calls.map((c) => c[0])
+    expect(evs.filter((e) => e === 'app:install-end').length).toBeLessThanOrEqual(1)
   })
 
   // 回归用例(SP5-P1 终审 CRITICAL):reka-ui 的 AlertDialogAction 本身是 DialogClose,
@@ -58,7 +97,7 @@ describe('InstalledAppsPage', () => {
     svc.list.mockResolvedValue({
       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
     })
-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    const w = mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
     await flushPromises()
 
     // 打开卸载确认弹窗:等价于用户点了卡片操作菜单里的「卸载」项(该项只是 emit('uninstall'),

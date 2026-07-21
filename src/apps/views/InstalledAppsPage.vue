@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import InstalledAppCard from '../components/InstalledAppCard.vue'
+import InstallingAppCard from '../components/InstallingAppCard.vue'
 import UninstallConfirm from '../components/UninstallConfirm.vue'
 import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
+import { useInstallProgressStore } from '../stores/installProgress'
 import { useMessageBus } from '../../composables/useMessageBus'
 import { useToast } from '../../stores/toast'
 import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
 
 const { t } = useI18n()
 const store = useInstalledAppsStore()
+const progress = useInstallProgressStore()
+const installingTasks = computed(() => Object.values(progress.tasks))
 const bus = useMessageBus()
 const toast = useToast()
 // reka-ui 的 AlertDialogAction 本身是个 DialogClose:点击红色确认按钮时,
@@ -51,7 +55,7 @@ async function onUninstallConfirm(deleteConfigFolder: boolean) {
   }
 }
 
-// app:* 生命周期(spec §2.3);install-end 单列:后台装完新应用要浮出列表
+// app:* 生命周期(spec §2.3);install-* 由 installProgress store 全局订阅收敛(D6)
 const APP_EVENTS = [
   'app:start-begin', 'app:start-end', 'app:start-error',
   'app:stop-begin', 'app:stop-end', 'app:stop-error',
@@ -65,7 +69,6 @@ const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refre
 onMounted(() => {
   store.refresh().catch((e) => console.warn('[apps] load', e))
   APP_EVENTS.forEach((ev) => offs.push(bus.on(ev, (props) => store.onAppEvent(ev, props))))
-  offs.push(bus.on('app:install-end', () => { store.refresh().catch(() => {}) }))
   offs.push(bus.on(CONTAINER_EVENT, (props) => bridge.handle(props)))
 })
 onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
@@ -76,7 +79,13 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
     <div class="apps-layout">
       <AppsSidebar />
       <main class="apps-main">
-        <p v-if="!store.loading && !store.apps.length" class="apps-empty">{{ t('appsEmpty') }}</p>
+        <div v-if="installingTasks.length" class="apps-grid iac-grid">
+          <InstallingAppCard
+            v-for="tk in installingTasks" :key="tk.id"
+            :task="tk" @dismiss="progress.dismiss(tk.id)"
+          />
+        </div>
+        <p v-if="!store.loading && !store.apps.length && !installingTasks.length" class="apps-empty">{{ t('appsEmpty') }}</p>
         <div v-else class="apps-grid">
           <InstalledAppCard
             v-for="a in store.apps" :key="a.id"
@@ -102,5 +111,6 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
 .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
 .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.iac-grid { margin-bottom: 14px; }
 @media (max-width: 768px) { .apps-layout { gap: 0; } }
 </style>
