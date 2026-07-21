@@ -406,6 +406,7 @@ export const messages = {
     appsStoreBack: 'Back to store',
     appsStoreCategory: 'Category',
     appsStoreDeveloper: 'Developer',
+    appsStoreMinMemory: 'Memory required',
     appsStoreDetailFailed: 'Failed to load app details',
     appsStoreZoomClose: 'Close preview',
     appsInstalling: 'Installing',

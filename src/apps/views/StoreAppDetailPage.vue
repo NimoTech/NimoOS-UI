@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import SnapCarousel from '../../components/SnapCarousel.vue'
@@ -12,6 +13,7 @@ import { renderMarkdown } from '../../files/viewers/renderMarkdown'
 import { useInstallFlow } from '../composables/useInstallFlow'
 import { useDeviceArch } from '../composables/useDeviceArch'
 import { useInstallProgressStore } from '../stores/installProgress'
+import { minMemoryMB } from '../util/composeSettings'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -23,11 +25,18 @@ const { tipsDlg, requestInstall, confirmTips } = useInstallFlow()
 const progress = useInstallProgressStore()
 
 const id = computed(() => String(route.params.id ?? ''))
+const minMB = ref<number | null>(null)
 
 onMounted(() => {
   store.loadDetail(id.value)
   // 深链直达详情时目录未加载 → 补拉一次以判「已装」(全量目录本就无分页,代价可接受)
   if (!store.catalogLoaded) store.loadCatalog().catch(() => {})
+})
+
+onMounted(() => {
+  service.appstore.getAppCompose(id.value)
+    .then((y) => { minMB.value = minMemoryMB(y, id.value) })
+    .catch(() => { minMB.value = null }) // 拿不到就不显示(失败静默,Featured 同款)
 })
 
 const title = computed(() => resolveAppText(store.detail?.title, locale.value, id.value))
@@ -107,7 +116,10 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
               <dt>{{ t('appsStoreDeveloper') }}</dt>
               <dd>{{ store.detail.developer }}</dd>
             </div>
-            <!-- REQUIRE MEMORY:§3.8-3 挂账 P4(需解析 compose YAML),此处刻意留空 -->
+            <div v-if="minMB" class="detail-meta-item" data-test="detail-min-memory">
+              <dt>{{ t('appsStoreMinMemory') }}</dt>
+              <dd>{{ minMB }} MB</dd>
+            </div>
           </dl>
 
           <SnapCarousel v-if="shots.length" class="detail-shots">

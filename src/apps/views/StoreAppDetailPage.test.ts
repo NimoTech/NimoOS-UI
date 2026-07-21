@@ -159,4 +159,22 @@ describe('StoreAppDetailPage', () => {
     expect((w.find('.detail-install').element as HTMLButtonElement).disabled).toBe(true)
     expect(w.text()).toContain('amd64')
   })
+
+  it('shows REQUIRE MEMORY meta item when store compose declares reservations.memory', async () => {
+    svc.appstore.getAppCompose.mockResolvedValue(
+      'services:\n  demo:\n    deploy:\n      resources:\n        reservations:\n          memory: 256M\n',
+    )
+    const w = await mountDetail()
+    await flushPromises()
+    const memItem = w.find('[data-test="detail-min-memory"]')
+    expect(memItem.exists()).toBe(true)
+    expect(memItem.text()).toContain('256 MB')
+  })
+
+  it('hides the item when compose fetch fails or no reservation', async () => {
+    svc.appstore.getAppCompose.mockRejectedValue(new Error('nope'))
+    const w = await mountDetail()
+    await flushPromises()
+    expect(w.find('[data-test="detail-min-memory"]').exists()).toBe(false)
+  })
 })

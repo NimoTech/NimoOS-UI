@@ -405,6 +405,7 @@ export const messages = {
     appsStoreBack: '返回商店',
     appsStoreCategory: '分类',
     appsStoreDeveloper: '开发者',
+    appsStoreMinMemory: '内存需求',
     appsStoreDetailFailed: '应用详情加载失败',
     appsStoreZoomClose: '关闭预览',
     appsInstalling: '安装中',
