@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { DockerNetwork } from '@nimotech/nimoos-service'
 import type { SettingsModel } from '../../util/composeSettings'
-import { RESTART_OPTIONS, CPU_OPTIONS, CAP_OPTIONS } from '../../util/composeSettings'
+import { RESTART_OPTIONS, CPU_OPTIONS, CAP_OPTIONS, rewriteImageTag } from '../../util/composeSettings'
 import { renderMarkdown } from '../../../files/viewers/renderMarkdown'
 import PairRowsEditor from './PairRowsEditor.vue'
 import PortsEditor from './PortsEditor.vue'
 
-const props = defineProps<{ model: SettingsModel; conflicts?: string[] }>()
+const props = defineProps<{
+  model: SettingsModel; conflicts?: string[]
+  networks?: DockerNetwork[]
+  stableTags?: Record<string, string | null>
+}>()
 const { t } = useI18n()
+
+const NETWORK_MODE_VALUES = ['bridge', 'host', 'none']
 
 const cur = ref(0)
 const svc = computed(() => props.model.services[cur.value])
@@ -21,6 +28,44 @@ const memoryStr = computed({
 })
 
 const publishedPorts = computed(() => props.model.services.flatMap((s) => s.ports.map((p) => p.published)).filter(Boolean))
+
+// ── D5: command 逐 token 编辑 ──
+function addCmd() { svc.value.commandTokens.push(''); svc.value.commandDirty = true }
+function delCmd(i: number) { svc.value.commandTokens.splice(i, 1); svc.value.commandDirty = true }
+function setCmd(i: number, ev: Event) { svc.value.commandTokens[i] = (ev.target as HTMLInputElement).value; svc.value.commandDirty = true }
+
+// ── D5: 网络下拉,按 driver 分组,bridge/host/none 置顶 ──
+const networkGroups = computed(() => {
+  const groups = new Map<string, DockerNetwork[]>()
+  for (const n of props.networks ?? []) {
+    if (NETWORK_MODE_VALUES.includes(n.name)) continue // 默认网络已固定置顶,不重复列出
+    if (!groups.has(n.driver)) groups.set(n.driver, [])
+    groups.get(n.driver)!.push(n)
+  }
+  return [...groups.entries()].map(([driver, nets]) => ({ driver, nets }))
+})
+function onNetworkChange() { svc.value.networkDirty = true }
+
+// ── D5: stable tag 下拉,贴在 image 输入框旁 ──
+const currentStableTag = computed(() => props.stableTags?.[svc.value.name] ?? null)
+function imageTagOf(image: string): string {
+  const i = image.lastIndexOf(':')
+  if (i < 0) return ''
+  const after = image.slice(i + 1)
+  return after.includes('/') ? '' : after
+}
+const tagSelect = computed<string>({
+  get: () => {
+    const cur = imageTagOf(svc.value.image)
+    if (currentStableTag.value && cur === currentStableTag.value) return 'stable'
+    if (cur === 'latest') return 'latest'
+    return ''
+  },
+  set: (v: string) => {
+    if (v === 'latest') svc.value.image = rewriteImageTag(svc.value.image, 'latest')
+    else if (v === 'stable' && currentStableTag.value) svc.value.image = rewriteImageTag(svc.value.image, currentStableTag.value)
+  },
+})
 </script>
 
 <template>
@@ -63,11 +108,41 @@ const publishedPorts = computed(() => props.model.services.flatMap((s) => s.port
       <h3>{{ t('appsSettingsSectionDevices') }}</h3>
       <PairRowsEditor :rows="svc.devices" :label-a="t('appsSettingsDevHost')" :label-b="t('appsSettingsDevContainer')" />
     </section>
+    <section class="set-section">
+      <h3>{{ t('appsSettingsCommand') }}</h3>
+      <div class="pair-editor">
+        <div v-for="(tok, i) in svc.commandTokens" :key="i" class="cmd-row">
+          <input :value="tok" class="set-input" type="text" data-test="cmd-input" @input="setCmd(i, $event)" />
+          <button class="row-del" type="button" data-test="cmd-del" :aria-label="t('appsSettingsRemove')" @click="delCmd(i)">✕</button>
+        </div>
+        <button class="row-add" type="button" data-test="cmd-add" @click="addCmd">+ {{ t('appsSettingsAdd') }}</button>
+      </div>
+    </section>
+    <section class="set-section">
+      <h3>{{ t('appsSettingsNetwork') }}</h3>
+      <select v-model="svc.network" class="set-input" data-test="svc-network" @change="onNetworkChange">
+        <option value="">—</option>
+        <option value="bridge">bridge</option>
+        <option value="host">host</option>
+        <option value="none">none</option>
+        <optgroup v-for="g in networkGroups" :key="g.driver" :label="g.driver">
+          <option v-for="n in g.nets" :key="n.id" :value="n.name">{{ n.name }}</option>
+        </optgroup>
+      </select>
+    </section>
 
     <section class="set-section">
       <h3>{{ t('appsSettingsSectionAdvanced') }}</h3>
       <div class="set-grid">
-        <label>{{ t('appsSettingsImage') }}<input v-model="svc.image" class="set-input" data-test="svc-image" /></label>
+        <label>{{ t('appsSettingsImage') }}
+          <div class="image-row">
+            <input v-model="svc.image" class="set-input" data-test="svc-image" />
+            <select v-if="currentStableTag != null" v-model="tagSelect" class="set-input tag-select" data-test="tag-select">
+              <option value="latest">{{ t('appsSettingsTagLatest') }}</option>
+              <option value="stable">{{ t('appsSettingsTagStable') }} ({{ currentStableTag }})</option>
+            </select>
+          </div>
+        </label>
         <label>{{ t('appsSettingsContainerName') }}<input v-model="svc.containerName" class="set-input" /></label>
         <label>{{ t('appsSettingsRestart') }}
           <select v-model="svc.restart" class="set-input"><option v-for="r in RESTART_OPTIONS" :key="r" :value="r">{{ r }}</option></select>
@@ -127,9 +202,18 @@ const publishedPorts = computed(() => props.model.services.flatMap((s) => s.port
 .set-input:focus { border-color: var(--accent); }
 .tips-area { resize: vertical; font-family: inherit; }
 
+.pair-editor { display: flex; flex-direction: column; gap: 8px; }
+.cmd-row { display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: center; }
+
+.image-row { display: flex; gap: 8px; }
+.image-row .set-input { flex: 1 1 auto; min-width: 0; }
+.tag-select { flex: 0 0 auto; width: auto; }
+
 .row-add { padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
 .row-add:hover { background: var(--chip-bg-hi); }
 .row-add.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-bd); }
+.row-del { width: 28px; height: 28px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--fg-muted); }
+.row-del:hover { background: var(--chip-bg-hi); color: var(--remove-fg); }
 
 .tips-toolbar { display: flex; gap: 8px; }
 

@@ -53,4 +53,55 @@ describe('ComposeSettingsForm', () => {
     await w.find('[data-test="svc-memory"]').setValue('')
     expect(model.services[0].memoryMB).toBeNull()
   })
+  it('command 编辑器:加/删 token 置 commandDirty', async () => {
+    const { w, model } = mk()
+    expect(model.services[0].commandDirty).toBe(false)
+    await w.find('[data-test="cmd-add"]').trigger('click')
+    expect(model.services[0].commandTokens).toEqual([''])
+    expect(model.services[0].commandDirty).toBe(true)
+    await w.find('[data-test="cmd-input"]').setValue('redis-server')
+    expect(model.services[0].commandTokens).toEqual(['redis-server'])
+    model.services[0].commandDirty = false // 复位再验证删除也置 dirty
+    await w.find('[data-test="cmd-del"]').trigger('click')
+    expect(model.services[0].commandTokens).toEqual([])
+    expect(model.services[0].commandDirty).toBe(true)
+  })
+  it('networks prop 渲染下拉且按 driver 分组,选择置 networkDirty', async () => {
+    const model = reactive(parseSettings(YAML2, 'zh_cn'))
+    const w = mount(ComposeSettingsForm, {
+      props: {
+        model,
+        networks: [
+          { name: 'bridge', driver: 'bridge', id: '1' },
+          { name: 'host', driver: 'host', id: '2' },
+          { name: 'mynet', driver: 'bridge', id: '3' },
+          { name: 'vlan1', driver: 'macvlan', id: '4' },
+        ],
+      },
+      global: { plugins: [i18n] },
+    })
+    const select = w.find('[data-test="svc-network"]')
+    expect(select.exists()).toBe(true)
+    const groups = select.findAll('optgroup')
+    expect(groups.length).toBeGreaterThan(0)
+    expect(select.html()).toContain('mynet')
+    expect(select.html()).toContain('vlan1')
+    await select.setValue('host')
+    expect(model.services[0].network).toBe('host')
+    expect(model.services[0].networkDirty).toBe(true)
+  })
+  it('stableTags 有值时 tag 下拉出现,选 stable 改写 image tag;非商店应用(null)不渲染', async () => {
+    const model = reactive(parseSettings(YAML2, 'zh_cn'))
+    const w = mount(ComposeSettingsForm, {
+      props: { model, stableTags: { a: '1.2.3', b: null } },
+      global: { plugins: [i18n] },
+    })
+    const tagSelect = w.find('[data-test="tag-select"]')
+    expect(tagSelect.exists()).toBe(true)
+    expect(tagSelect.html()).toContain('1.2.3')
+    await tagSelect.setValue('stable')
+    expect(model.services[0].image).toBe('img/a:1.2.3')
+    await w.findAll('[data-test="svc-tab"]')[1].trigger('click')
+    expect(w.find('[data-test="tag-select"]').exists()).toBe(false)
+  })
 })

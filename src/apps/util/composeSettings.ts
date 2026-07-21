@@ -15,6 +15,10 @@ export interface ServiceModel {
   containerName: string
   cpuShares: number           // 10 | 50 | 90(归一化)
   memoryMB: number | null     // limits.memory;null=未设限
+  commandTokens: string[]     // command 逐 token 展示;数组→逐项,字符串→保守单 token
+  commandDirty: boolean       // 编辑任一 token/增删 才置 true;false 时 buildYaml 不动 command
+  network: string             // network_mode 优先,否则 networks 首个 key/元素,缺省 ''
+  networkDirty: boolean       // 编辑网络下拉才置 true;false 时 buildYaml 不动 network_mode/networks
 }
 export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
 export interface SettingsModel {
@@ -115,6 +119,17 @@ function parseService(name: string, raw: Dict): ServiceModel {
   const restartRaw = String(raw.restart ?? '')
   const cpuRaw = Number(raw.cpu_shares)
   const deploy = asDict(asDict(asDict(raw.deploy).resources).limits)
+  const cmdRaw = raw.command
+  const commandTokens: string[] = Array.isArray(cmdRaw)
+    ? cmdRaw.map(String)
+    : (cmdRaw != null && cmdRaw !== '' ? [String(cmdRaw)] : [])
+  const networkMode = raw.network_mode != null ? String(raw.network_mode) : ''
+  let network = networkMode
+  if (!network) {
+    const nets = raw.networks
+    if (Array.isArray(nets)) network = nets.length ? String(nets[0]) : ''
+    else network = Object.keys(asDict(nets))[0] ?? ''
+  }
   return {
     name,
     image: String(raw.image ?? ''),
@@ -125,7 +140,20 @@ function parseService(name: string, raw: Dict): ServiceModel {
     containerName: String(raw.container_name ?? ''),
     cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 归一化(ComposeConfig.vue:550-559)
     memoryMB: parseMemoryToMB(deploy.memory),
+    commandTokens, commandDirty: false,
+    network, networkDirty: false,
   }
+}
+
+const NETWORK_MODE_VALUES = new Set(['host', 'bridge', 'none'])
+
+/** image 的 tag 段改写:最后一个冒号后若含 '/' 说明那是 registry:port,不是 tag,直接追加;否则替换该段(Vue2 patchNetworkValue 邻域,但这里是 tag 不是 network)。 */
+export function rewriteImageTag(image: string, tag: string): string {
+  const i = image.lastIndexOf(':')
+  if (i < 0) return `${image}:${tag}`
+  const after = image.slice(i + 1)
+  if (after.includes('/')) return `${image}:${tag}`
+  return `${image.slice(0, i)}:${tag}`
 }
 
 export function parseSettings(yamlText: string, lang: string): SettingsModel {
@@ -184,6 +212,24 @@ export function buildYaml(originalYaml: string, model: SettingsModel): string {
       if (!Object.keys(limits).length) delete resources.limits
       if (Object.keys(resources).length) { deploy.resources = resources; svc.deploy = deploy }
       else { delete deploy.resources; if (Object.keys(deploy).length) svc.deploy = deploy; else delete svc.deploy }
+    }
+    if (sm.commandDirty) {
+      if (sm.commandTokens.length) svc.command = [...sm.commandTokens]
+      else delete svc.command
+    }
+    if (sm.networkDirty) {
+      delete svc.network_mode
+      delete svc.networks
+      if (sm.network) {
+        if (NETWORK_MODE_VALUES.has(sm.network)) {
+          svc.network_mode = sm.network
+        } else {
+          svc.networks = [sm.network]
+          const topNetworks = asDict(doc.networks)
+          if (!topNetworks[sm.network]) topNetworks[sm.network] = { external: false, name: sm.network }
+          doc.networks = topNetworks
+        }
+      }
     }
     services[sm.name] = svc
   }

@@ -6,6 +6,8 @@ import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
   compose: { getYaml: vi.fn(), applySettings: vi.fn(), list: vi.fn().mockResolvedValue({}) },
+  container: { getNetworks: vi.fn().mockResolvedValue([]) },
+  appstore: { stableTag: vi.fn().mockResolvedValue(null) },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 const routerMock = vi.hoisted(() => ({ push: vi.fn() }))

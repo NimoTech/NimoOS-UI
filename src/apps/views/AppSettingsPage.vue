@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle,
 } from 'reka-ui'
+import { service, type DockerNetwork } from '@nimotech/nimoos-service'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import ComposeSettingsForm from '../components/settings/ComposeSettingsForm.vue'
@@ -21,9 +22,20 @@ const id = computed(() => String(route.params.name ?? ''))
 const s = useAppSettings(id)
 const app = computed(() => installed.apps.find((a) => a.id === id.value))
 
+const networks = ref<DockerNetwork[]>([])
+const stableTags = ref<Record<string, string | null>>({})
+
 onMounted(() => {
-  void s.load()
+  void s.load().then(() => {
+    const m = s.model.value
+    if (!m) return
+    // 逐 service 查 stable tag;非商店应用(如手动导入)返回 null,tag 下拉自动隐藏
+    void Promise.all(m.services.map((svc) =>
+      service.appstore.stableTag(id.value, svc.name).then((tag) => [svc.name, tag] as const).catch(() => [svc.name, null] as const),
+    )).then((entries) => { stableTags.value = Object.fromEntries(entries) })
+  })
   if (!installed.apps.length) installed.refresh().catch(() => {})  // 深链直达补一次(标题/图标用)
+  service.container.getNetworks().then((n) => { networks.value = n }).catch(() => { networks.value = [] })
 })
 
 // 端口冲突先弹窗:保存钮在长表单最底部,顶部红条在视野外,用户看不到(真机验收反馈)。
@@ -71,7 +83,7 @@ function back() { router.push({ name: 'apps' }) }
           <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
             {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
           </div>
-          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" />
+          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" :networks="networks" :stable-tags="stableTags" />
           <div class="set-actions">
             <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
             <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
