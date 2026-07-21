@@ -16,7 +16,11 @@ export interface ServiceModel {
   memoryMB: number | null     // limits.memory;null=未设限
 }
 export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
-export interface SettingsModel { services: ServiceModel[]; webui: WebUiModel; tipsCustom: string; extKey: 'x-nimoos' | 'x-casaos' }
+export interface SettingsModel {
+  services: ServiceModel[]; webui: WebUiModel; tipsCustom: string; extKey: 'x-nimoos' | 'x-casaos'
+  /** true = tips.custom 缺省时借 before_install 回落文案预填 tipsCustom(仅用于预填 UI,不代表用户已确认此文案要落盘) */
+  tipsFromFallback: boolean
+}
 
 export const RESTART_OPTIONS = ['unless-stopped', 'always', 'on-failure']
 export const CPU_OPTIONS = [
@@ -124,6 +128,8 @@ export function parseSettings(yamlText: string, lang: string): SettingsModel {
   const ext = asDict(doc['x-nimoos'] ?? doc['x-casaos'])
   const tips = asDict(ext.tips)
   const title = asDict(ext.title)
+  const hasCustomTip = typeof tips.custom === 'string' && tips.custom
+  const fallbackTip = resolveAppText(tips.before_install as Record<string, string> | undefined, lang, '')
   return {
     services,
     webui: {
@@ -134,9 +140,8 @@ export function parseSettings(yamlText: string, lang: string): SettingsModel {
       portMap: String(ext.port_map ?? ''),
       index: String(ext.index ?? ''),
     },
-    tipsCustom: typeof tips.custom === 'string' && tips.custom
-      ? tips.custom
-      : resolveAppText(tips.before_install as Record<string, string> | undefined, lang, ''),
+    tipsCustom: hasCustomTip ? (tips.custom as string) : fallbackTip,
+    tipsFromFallback: !hasCustomTip && !!fallbackTip,
     extKey,
   }
 }

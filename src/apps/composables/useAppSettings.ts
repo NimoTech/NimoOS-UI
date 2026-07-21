@@ -15,12 +15,14 @@ export function useAppSettings(id: Ref<string>) {
   const saveError = ref('')
   const conflicts = ref<string[]>([])
   let originalYaml = ''
+  let initialTips = ''
 
   async function load() {
     loading.value = true; loadError.value = false; model.value = null
     try {
       originalYaml = await service.compose.getYaml(id.value)
       model.value = parseSettings(originalYaml, locale.value)
+      initialTips = model.value.tipsCustom
     } catch (e) {
       console.warn('[apps] settings load', id.value, e)
       loadError.value = true
@@ -32,7 +34,11 @@ export function useAppSettings(id: Ref<string>) {
     if (!model.value || saving.value) return false
     saving.value = true; saveError.value = ''; conflicts.value = []
     try {
-      const yaml = buildYaml(originalYaml, model.value)
+      // tipsCustom 若只是 parseSettings 借 before_install 回落预填、用户从未编辑过,不能当用户确认的自定义提示落盘
+      // (否则会把当前语言的回落文案冻结进 tips.custom,遮蔽未来的多语言回落解析)——此时清空后再喂给 buildYaml。
+      const untouchedFallback = model.value.tipsFromFallback && model.value.tipsCustom === initialTips
+      const forBuild = untouchedFallback ? { ...model.value, tipsCustom: '' } : model.value
+      const yaml = buildYaml(originalYaml, forBuild)
       await service.compose.applySettings(id.value, yaml, { dryRun: true, checkPortConflict: true })
       await service.compose.applySettings(id.value, yaml, { checkPortConflict: true })
       installed.markApplying(id.value)

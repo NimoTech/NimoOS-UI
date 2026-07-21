@@ -55,6 +55,19 @@ describe('parseSettings', () => {
     expect(m.webui.titleCustom).toBe('我的同步')
     expect(m.extKey).toBe('x-nimoos')
     expect(m.tipsCustom).toBe('Initial admin setup required.')  // custom 缺省时回落 before_install
+    expect(m.tipsFromFallback).toBe(true)                       // 标记:该值是借回落预填,非用户已确认的 custom
+  })
+  it('tipsFromFallback is false when tips.custom pre-exists', () => {
+    const y = FIXTURE.replace('  tips:\n    before_install:\n      en_us: Initial admin setup required.\n', '  tips:\n    custom: 已有自定义提示\n')
+    const m = parseSettings(y, 'zh_cn')
+    expect(m.tipsCustom).toBe('已有自定义提示')
+    expect(m.tipsFromFallback).toBe(false)
+  })
+  it('tipsFromFallback is false when both custom and before_install are absent', () => {
+    const y = FIXTURE.replace('  tips:\n    before_install:\n      en_us: Initial admin setup required.\n', '')
+    const m = parseSettings(y, 'zh_cn')
+    expect(m.tipsCustom).toBe('')
+    expect(m.tipsFromFallback).toBe(false)
   })
   it('extKey falls back to x-casaos when only x-casaos exists', () => {
     const y = FIXTURE.replace(/x-nimoos:/, 'x-casaos:')
