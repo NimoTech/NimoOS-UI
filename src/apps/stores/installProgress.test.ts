@@ -15,12 +15,56 @@ import { useAppstoreStore } from './appstore'
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  localStorage.clear()
   svc.compose.list.mockResolvedValue({})
   svc.compose.get.mockResolvedValue(undefined)
   busOn.mockClear()
   vi.useFakeTimers()
 })
 afterEach(() => { vi.useRealTimers() })
+
+describe('installProgress 刷新恢复(localStorage 持久化)', () => {
+  it('track/progress 落盘;新 store 实例(模拟整页刷新)恢复任务并继续吃 progress 事件', () => {
+    const s = useInstallProgressStore()
+    s.track('jellyfin', 'Jellyfin', 'i.png')
+    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '42' })
+    // 模拟刷新:全新 pinia + 全新 store,只剩 localStorage
+    setActivePinia(createPinia())
+    const s2 = useInstallProgressStore()
+    expect(s2.tasks['jellyfin']).toMatchObject({ title: 'Jellyfin', icon: 'i.png', percent: 42, state: 'installing' })
+    // 恢复后是已跟踪任务:progress 事件不再被 D5 当陌生人丢弃
+    s2.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '77' })
+    expect(s2.tasks['jellyfin'].percent).toBe(77)
+  })
+
+  it('恢复的任务重新武装 watchdog:装完(compose.get 命中)→ finish 清卡并清盘', async () => {
+    const s = useInstallProgressStore()
+    s.track('jellyfin')
+    setActivePinia(createPinia())
+    svc.compose.get.mockResolvedValue({ status: 'running' })
+    const s2 = useInstallProgressStore()
+    const installed = useInstalledAppsStore()
+    vi.spyOn(installed, 'refresh').mockResolvedValue()
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS)
+    expect(s2.tasks['jellyfin']).toBeUndefined()
+    expect(JSON.parse(localStorage.getItem('nimoos:install-progress') || 'null')).toEqual({})
+  })
+
+  it('error 任务也随刷新恢复(可 dismiss 清盘);坏 JSON 静默忽略', () => {
+    const s = useInstallProgressStore()
+    s.track('a')
+    s.onEvent('app:install-error', { 'app:name': 'a', message: 'boom' })
+    setActivePinia(createPinia())
+    const s2 = useInstallProgressStore()
+    expect(s2.tasks['a']).toMatchObject({ state: 'error', message: 'boom' })
+    s2.dismiss('a')
+    expect(JSON.parse(localStorage.getItem('nimoos:install-progress') || 'null')).toEqual({})
+
+    localStorage.setItem('nimoos:install-progress', '{oops')
+    setActivePinia(createPinia())
+    expect(useInstallProgressStore().tasks).toEqual({})
+  })
+})
 
 describe('installProgress store', () => {
   it('setup 即订阅 4 个 install 事件(应用级=后台继续)', () => {

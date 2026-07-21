@@ -29,6 +29,7 @@ function mountFlow() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  localStorage.clear() // installProgress 任务表落盘,不清会跨用例恢复出上个用例的任务
   svc.appstore.getAppCompose.mockReset().mockResolvedValue('services: {}')
   svc.compose.install.mockReset().mockResolvedValue(undefined)
 })
