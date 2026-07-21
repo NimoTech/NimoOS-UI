@@ -5,7 +5,7 @@ import { resolveAppTitle } from '../util/appTitle'
 import { composeWebUrl, type WebUrlSource } from '../util/appUrl'
 import { isSystemComposeApp } from '../util/systemApp'
 
-export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall'
+export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall' | 'apply-changes'
 
 export interface InstalledApp {
   id: string
@@ -33,7 +33,7 @@ export function mapInstalled(id: string, raw: ComposeAppWithStoreInfo, currentHo
   }
 }
 
-const EVENT_RE = /^app:(start|stop|restart|update|uninstall)-(begin|end|error)$/
+const EVENT_RE = /^app:(start|stop|restart|update|uninstall|apply-changes)-(begin|end|error)$/
 
 export const useInstalledAppsStore = defineStore('installed-apps', () => {
   const apps = ref<InstalledApp[]>([])
@@ -123,5 +123,8 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
     else resolve(id) // end 与 error 都收敛;error 的 toast 由页面层做
   }
 
-  return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent }
+  /** 设置保存受理后置 pending(PUT 受理即返,Apply 是 go func 异步;收敛靠 apply-changes 事件/30s 兜底) */
+  function markApplying(id: string) { begin(id, 'apply-changes') }
+
+  return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent, markApplying }
 })

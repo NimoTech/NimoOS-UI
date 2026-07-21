@@ -146,4 +146,18 @@ describe('installedApps store', () => {
     expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
     expect(s.pending['a']).toBeUndefined()
   })
+
+  it('markApplying sets pending and app:apply-changes-end resolves it', async () => {
+    const s = useInstalledAppsStore()
+    s.markApplying('syncthing')
+    expect(s.pending['syncthing']).toBe('apply-changes')
+    s.onAppEvent('app:apply-changes-end', { 'app:name': 'syncthing' })
+    expect(s.pending['syncthing']).toBeUndefined()
+  })
+
+  it('app:apply-changes-begin from another client also marks pending', () => {
+    const s = useInstalledAppsStore()
+    s.onAppEvent('app:apply-changes-begin', { 'app:name': 'jellyfin' })
+    expect(s.pending['jellyfin']).toBe('apply-changes')
+  })
 })
