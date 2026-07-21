@@ -16,16 +16,63 @@ const current = computed(() => items[index.value] ?? props.item)
 const src = computed(() => service.file.fileUrl(current.value.path))
 
 // —— 变换状态(自实现 缩放/旋转/平移,取代 viewerjs inline)——
-const scale = ref(1)
+const scale = ref(1) // 交互增量倍数(落盘后归 1)
+const committedZoom = ref(1) // 已落盘总倍数;有效倍数 = committedZoom × scale
+const committedW = ref<number | null>(null)
+const committedH = ref<number | null>(null)
+const suppressTransition = ref(false)
 const rotation = ref(0)
 const tx = ref(0)
 const ty = ref(0)
+const imgEl = ref<HTMLImageElement | null>(null)
 const imgStyle = computed(() => ({
   transform: `translate(${tx.value}px, ${ty.value}px) scale(${scale.value}) rotate(${rotation.value}deg)`,
+  ...(committedW.value !== null && committedH.value !== null
+    ? { width: `${committedW.value}px`, height: `${committedH.value}px`, maxWidth: 'none', maxHeight: 'none' }
+    : {}),
+  ...(suppressTransition.value ? { transition: 'none' } : {}),
 }))
-function resetTransform() { scale.value = 1; rotation.value = 0; tx.value = 0; ty.value = 0 }
-function zoomIn() { scale.value = Math.min(scale.value + 0.1, 8) }
-function zoomOut() { scale.value = Math.max(scale.value - 0.1, 0.1) }
+
+// —— 停手落盘:缩放停止 150ms 后把倍数烙进布局尺寸,强制按最终倍数重画 ——
+// 合成器快路径拉伸缓存瓷砖会在砖缝处露 1px 细线(瓦线);重画路径逐砖从原图采样,
+// 无缝且比拉伸态更锐。交互中仍走 transform 快路径保流畅,缝只可能一闪而过。
+const COMMIT_DELAY = 150
+let commitTimer: ReturnType<typeof setTimeout> | null = null
+let suppressTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleCommit() {
+  if (commitTimer) clearTimeout(commitTimer)
+  commitTimer = setTimeout(commitZoom, COMMIT_DELAY)
+}
+function commitZoom() {
+  commitTimer = null
+  const el = imgEl.value
+  if (!el || scale.value === 1) return
+  const w = el.offsetWidth
+  const h = el.offsetHeight
+  if (!w || !h) return // 图未加载完(布局尺寸为 0),跳过本次落盘
+  committedW.value = Math.round(w * scale.value)
+  committedH.value = Math.round(h * scale.value)
+  committedZoom.value *= scale.value
+  scale.value = 1
+  // 落盘帧 scale N→1 会被 transition 动画化而宽高瞬变 —— 暂禁过渡,过渡时长后恢复
+  suppressTransition.value = true
+  if (suppressTimer) clearTimeout(suppressTimer)
+  suppressTimer = setTimeout(() => { suppressTransition.value = false; suppressTimer = null }, 50)
+}
+
+function resetTransform() {
+  if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
+  scale.value = 1; committedZoom.value = 1
+  committedW.value = null; committedH.value = null
+  rotation.value = 0; tx.value = 0; ty.value = 0
+}
+function setZoom(effective: number) {
+  const clamped = Math.min(Math.max(effective, 0.1), 8)
+  scale.value = clamped / committedZoom.value
+  scheduleCommit()
+}
+function zoomIn() { setZoom(committedZoom.value * scale.value + 0.1) }
+function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
 function rotate() { rotation.value += 90 }
 function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
 
@@ -39,6 +86,9 @@ let startY = 0
 let baseX = 0
 let baseY = 0
 function onPointerDown(e: PointerEvent) {
+  // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
+  // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
+  if ((e.target as HTMLElement).closest('.img-toolbar')) return
   dragging = true
   startX = e.clientX; startY = e.clientY; baseX = tx.value; baseY = ty.value
   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -70,7 +120,12 @@ function onKey(e: KeyboardEvent) {
   else if (e.code === 'ArrowLeft') prev()
 }
 onMounted(() => { window.addEventListener('keyup', onKey); onMouseMove() })
-onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTimer) clearTimeout(hideTimer) })
+onBeforeUnmount(() => {
+  window.removeEventListener('keyup', onKey)
+  if (hideTimer) clearTimeout(hideTimer)
+  if (commitTimer) clearTimeout(commitTimer)
+  if (suppressTimer) clearTimeout(suppressTimer)
+})
 </script>
 
 <template>
@@ -85,15 +140,15 @@ onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTime
       @pointerup="onPointerUp"
       @pointerleave="onPointerUp"
     >
-      <img class="img-el" :src="src" :style="imgStyle" alt="" draggable="false" />
+      <img ref="imgEl" class="img-el" :src="src" :style="imgStyle" alt="" draggable="false" />
 
       <div v-if="isMoving" class="img-toolbar">
-        <button type="button" class="tb-item" :class="{ disabled: disablePrev }" :title="t('filesViewerPrev')" @click="prev">‹</button>
-        <button type="button" class="tb-item" :title="t('filesViewerZoomIn')" @click="zoomIn">＋</button>
-        <button type="button" class="tb-item" :title="t('filesViewerRotate')" @click="rotate">⟳</button>
-        <button type="button" class="tb-item" :title="t('filesViewerReset')" @click="resetTransform">⤢</button>
-        <button type="button" class="tb-item" :title="t('filesViewerZoomOut')" @click="zoomOut">－</button>
-        <button type="button" class="tb-item" :class="{ disabled: disableNext }" :title="t('filesViewerNext')" @click="next">›</button>
+        <button type="button" class="tb-item" :class="{ disabled: disablePrev }" @click="prev">{{ t('filesViewerPrev') }}</button>
+        <button type="button" class="tb-item" @click="zoomIn">{{ t('filesViewerZoomIn') }}</button>
+        <button type="button" class="tb-item" @click="rotate">{{ t('filesViewerRotate') }}</button>
+        <button type="button" class="tb-item" @click="resetTransform">{{ t('filesViewerReset') }}</button>
+        <button type="button" class="tb-item" @click="zoomOut">{{ t('filesViewerZoomOut') }}</button>
+        <button type="button" class="tb-item" :class="{ disabled: disableNext }" @click="next">{{ t('filesViewerNext') }}</button>
       </div>
     </div>
   </ViewerShell>
@@ -121,7 +176,8 @@ onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTime
   user-select: none;
   -webkit-user-drag: none;
   transition: transform 0.05s linear;
-  will-change: transform;
+  /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
+     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
 }
 .img-toolbar {
   position: absolute;
@@ -137,12 +193,16 @@ onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTime
   backdrop-filter: var(--blur);
 }
 .tb-item {
-  width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 34px;
+  padding: 0 12px;
   border: none;
   background: transparent;
   color: var(--fg);
-  font-size: 18px;
+  font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
   border-radius: 6px;
 }
