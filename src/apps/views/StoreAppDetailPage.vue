@@ -5,16 +5,22 @@ import { useI18n } from 'vue-i18n'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import SnapCarousel from '../../components/SnapCarousel.vue'
+import PreInstallTips from '../components/PreInstallTips.vue'
 import { useAppstoreStore } from '../stores/appstore'
 import { resolveAppText } from '../util/appTitle'
 import { renderMarkdown } from '../../files/viewers/renderMarkdown'
-import { useToast } from '../../stores/toast'
+import { useInstallFlow } from '../composables/useInstallFlow'
+import { useDeviceArch } from '../composables/useDeviceArch'
+import { useInstallProgressStore } from '../stores/installProgress'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const store = useAppstoreStore()
-const toast = useToast()
+
+const { isCompatible, archLabel } = useDeviceArch()
+const { tipsDlg, requestInstall, confirmTips } = useInstallFlow()
+const progress = useInstallProgressStore()
 
 const id = computed(() => String(route.params.id ?? ''))
 
@@ -31,9 +37,18 @@ const descHtml = computed(() => renderMarkdown(resolveAppText(store.detail?.desc
 const shots = computed(() => (Array.isArray(store.detail?.screenshot_link) ? store.detail.screenshot_link : []))
 const installed = computed(() => store.isInstalled(id.value))
 
-/** P3 接管:真实安装编排(dry_run→install→进度)。本期占位 toast。 */
+const task = computed(() => progress.tasks[id.value])
+const compatible = computed(() =>
+  isCompatible(Array.isArray(store.detail?.architectures) ? (store.detail!.architectures as string[]) : undefined),
+)
 function onInstall() {
-  toast.show(t('appsStoreInstallSoon'))
+  if (!store.detail) return
+  requestInstall({
+    id: id.value,
+    title: title.value,
+    icon: typeof store.detail.icon === 'string' ? store.detail.icon : '',
+    tips: store.detail.tips,
+  })
 }
 function backToStore() {
   router.push({ name: 'apps-store' })
@@ -66,7 +81,20 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
               <h2 class="detail-title">{{ title }}</h2>
               <p class="detail-tagline">{{ tagline }}</p>
               <span v-if="installed" class="store-badge">{{ t('appsStoreInstalled') }}</span>
-              <button v-else class="detail-install" type="button" @click="onInstall">{{ t('appsStoreInstall') }}</button>
+              <div v-else-if="task && task.state === 'installing'" class="detail-progress">
+                <div class="op-progress"><div class="op-progress-fill" :style="{ width: task.percent + '%' }" /></div>
+                <span class="detail-progress-text">{{ t('appsInstallingPercent', { percent: task.percent }) }}</span>
+              </div>
+              <div v-else-if="task" class="detail-install-error">
+                <span class="detail-error-text">{{ task.message || t('appsInstallStalled') }}</span>
+                <button class="detail-install" type="button" @click="onInstall">{{ t('appsStoreInstall') }}</button>
+              </div>
+              <template v-else>
+                <button class="detail-install" type="button" :disabled="!compatible" @click="onInstall">
+                  {{ t('appsStoreInstall') }}
+                </button>
+                <p v-if="!compatible" class="detail-incompat">{{ t('appsStoreIncompatible', { arch: archLabel }) }}</p>
+              </template>
             </div>
           </header>
 
@@ -99,6 +127,12 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
     <div v-if="zoomSrc" class="shot-zoom" role="dialog" :aria-label="t('appsStoreZoomClose')" @click="zoomSrc = null">
       <img :src="zoomSrc" alt="" />
     </div>
+
+    <PreInstallTips
+      :open="tipsDlg.open" :text="tipsDlg.text"
+      @update:open="(v) => { if (!v) tipsDlg.open = false }"
+      @confirm="confirmTips"
+    />
   </AreaShell>
 </template>
 
@@ -123,6 +157,15 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
   border: none; border-radius: 10px;
 }
 .detail-install:hover { filter: brightness(1.08); }
+.detail-install:disabled { opacity: 0.55; cursor: default; filter: none; }
+
+.detail-progress { display: flex; align-items: center; gap: 10px; min-width: 240px; }
+.op-progress { flex: 1 1 auto; height: 6px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
+.op-progress-fill { height: 100%; background: var(--accent); transition: width 0.2s; }
+.detail-progress-text { font-size: 12.5px; color: var(--fg-muted); white-space: nowrap; }
+.detail-install-error { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.detail-error-text { font-size: 13px; color: var(--remove-fg); }
+.detail-incompat { margin: 8px 0 0; font-size: 12.5px; color: var(--fg-muted); }
 
 .detail-meta { display: flex; gap: 28px; margin: 0 0 18px; }
 .detail-meta-item dt { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 2px; }

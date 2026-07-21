@@ -402,7 +402,6 @@ export const messages = {
     carouselPrev: 'Previous',
     carouselNext: 'Next',
     appsStoreInstall: 'Install',
-    appsStoreInstallSoon: 'Installing will be available in the next phase',
     appsStoreBack: 'Back to store',
     appsStoreCategory: 'Category',
     appsStoreDeveloper: 'Developer',
