@@ -466,4 +466,6 @@ export default {
   appsSettingsApplying: 'Applying changes; containers will be recreated',
   appsSettingsSaveFailed: 'Save failed',
   appsSettingsPortConflict: 'Ports already in use: {ports}',
+  appsSettingsPortConflictTitle: 'Ports in use',
+  appsSettingsConflictOk: 'OK',
 }

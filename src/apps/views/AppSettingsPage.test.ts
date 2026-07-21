@@ -38,14 +38,27 @@ describe('AppSettingsPage', () => {
     await flushPromises()
     expect(routerMock.push).toHaveBeenCalledWith({ name: 'apps' })
   })
-  it('port conflict -> banner shown, stays on page', async () => {
+  it('port conflict -> dialog first; confirm closes it, banner stays, no navigation', async () => {
     svc.compose.getYaml.mockResolvedValue(Y)
     svc.compose.applySettings.mockRejectedValueOnce({ response: { status: 400, data: { message: 'there are ports in use', data: { ports_in_use: { TCP: ['80'] } } } } })
-    const w = mk()
+    // attachTo:reka Dialog 经 Portal 渲染到 body,原生 click 需要真 DOM(PreInstallTips.test 先例)
+    const w = mount(AppSettingsPage, {
+      global: { plugins: [i18n, pinia], stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true } },
+      attachTo: document.body,
+    })
     await flushPromises()
     await w.find('[data-test="settings-save"]').trigger('click')
     await flushPromises()
+    // 弹窗先出(保存钮在长表单底部,顶部红条在视野外——验收补丁根因)
+    expect(document.body.querySelector('[data-test="settings-conflict-dlg"]')).not.toBeNull()
+    expect(document.body.textContent).toContain('80/tcp')
+    ;(document.body.querySelector('[data-test="settings-conflict-ok"]') as HTMLButtonElement).click()
+    await flushPromises()
+    // 确认后弹窗关、顶部红条保留、端口行冲突标红保留、不跳页
+    expect(document.body.querySelector('[data-test="settings-conflict-dlg"]')).toBeNull()
     expect(w.find('[data-test="settings-conflict"]').exists()).toBe(true)
+    expect(w.find('[data-test="port-row"].conflict').exists()).toBe(true)
     expect(routerMock.push).not.toHaveBeenCalled()
+    w.unmount()
   })
 })

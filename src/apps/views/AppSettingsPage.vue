@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import {
+  DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle,
+} from 'reka-ui'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import ComposeSettingsForm from '../components/settings/ComposeSettingsForm.vue'
@@ -23,14 +26,26 @@ onMounted(() => {
   if (!installed.apps.length) installed.refresh().catch(() => {})  // 深链直达补一次(标题/图标用)
 })
 
+// 端口冲突先弹窗:保存钮在长表单最底部,顶部红条在视野外,用户看不到(真机验收反馈)。
+// 确认后关弹窗,顶部红条 + 端口行标红保留,并滚回红条处。
+const conflictDlg = ref(false)
+const bannerEl = ref<HTMLElement | null>(null)
+
 async function onSave() {
   const ok = await s.save()
   if (ok) {
     toast.show(t('appsSettingsApplying'), 5000)
     router.push({ name: 'apps' })
-  } else if (!s.conflicts.value.length) {
+  } else if (s.conflicts.value.length) {
+    conflictDlg.value = true
+  } else {
     toast.show(s.saveError.value || t('appsSettingsSaveFailed'), 5000)
   }
+}
+function onConflictAck() {
+  conflictDlg.value = false
+  // scrollIntoView 在 jsdom 未实现,可选链保护
+  void nextTick(() => bannerEl.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
 }
 function back() { router.push({ name: 'apps' }) }
 </script>
@@ -53,7 +68,7 @@ function back() { router.push({ name: 'apps' }) }
         </div>
 
         <template v-else-if="s.model.value">
-          <div v-if="s.conflicts.value.length" class="set-conflict" data-test="settings-conflict">
+          <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
             {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
           </div>
           <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" />
@@ -66,6 +81,21 @@ function back() { router.push({ name: 'apps' }) }
         </template>
       </main>
     </div>
+
+    <DialogRoot :open="conflictDlg" @update:open="(v) => { if (!v) onConflictAck() }">
+      <DialogPortal>
+        <DialogOverlay class="cfl-overlay" />
+        <DialogContent class="cfl-content" data-test="settings-conflict-dlg">
+          <DialogTitle class="cfl-title">{{ t('appsSettingsPortConflictTitle') }}</DialogTitle>
+          <p class="cfl-body">{{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}</p>
+          <div class="cfl-footer">
+            <button class="cfl-btn primary" type="button" data-test="settings-conflict-ok" @click="onConflictAck">
+              {{ t('appsSettingsConflictOk') }}
+            </button>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
   </AreaShell>
 </template>
 
@@ -89,4 +119,18 @@ function back() { router.push({ name: 'apps' }) }
 .set-save:hover { filter: brightness(1.08); }
 .set-save:disabled { opacity: 0.55; cursor: default; filter: none; }
 @media (max-width: 768px) { .apps-layout { gap: 0; } }
+
+/* 端口冲突确认弹窗(PreInstallTips pit-* 同款;scoped 经 Portal 仍生效,data-v 随模板 vnode 走) */
+.cfl-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
+.cfl-content {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
+  min-width: 320px; max-width: min(480px, 92vw); padding: 20px; border-radius: 18px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); backdrop-filter: blur(20px);
+  color: var(--fg); box-shadow: var(--card-shadow-hi);
+}
+.cfl-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; color: var(--remove-fg); }
+.cfl-body { font-size: 13.5px; line-height: 1.7; margin: 0; color: var(--fg); overflow-wrap: anywhere; }
+.cfl-footer { display: flex; justify-content: flex-end; margin-top: 18px; }
+.cfl-btn { padding: 7px 20px; border-radius: 999px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px; }
+.cfl-btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 </style>

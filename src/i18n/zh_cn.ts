@@ -465,4 +465,6 @@ export default {
   appsSettingsApplying: '正在应用更改,容器将重建',
   appsSettingsSaveFailed: '保存失败',
   appsSettingsPortConflict: '端口已被占用:{ports}',
+  appsSettingsPortConflictTitle: '端口被占用',
+  appsSettingsConflictOk: '确认',
 }
