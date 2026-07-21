@@ -82,7 +82,9 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
   async function setStatus(id: string, action: 'start' | 'stop' | 'restart') {
     begin(id, action)
     try { await service.compose.setStatus(id, action) } catch (e) { clearPendingOnly(id); throw e }
-    resolve(id)
+    // 后端受理即返(SetStatus 内 go func 异步执行),这里不收敛——否则「处理中」闪没、
+    // 且 begin 挂的 30s 兜底被取消,end 事件一丢(buffer=1)列表就永久陈旧。
+    // 收敛路径:app:*-end/-error 事件 → resolve;事件丢失 → 30s 兜底 resolve。
   }
 
   /** 检查并更新:返回后端 message(「已是最新」/「异步更新中」),真在更新时 app:update-* 事件接管 pending */
@@ -98,7 +100,8 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
   async function uninstall(id: string, deleteConfigFolder: boolean) {
     begin(id, 'uninstall')
     try { await service.compose.uninstall(id, { deleteConfigFolder }) } catch (e) { clearPendingOnly(id); throw e }
-    resolve(id)
+    // 同 setStatus:受理即返,不提前收敛;uninstall-end 事件走 evict(图标立即消失)+重拉,
+    // 事件丢失由 30s 兜底重拉收敛。
   }
 
   /** 立即移除(容器 destroy / uninstall-end),后续 refresh 再收敛一次 */
@@ -116,6 +119,7 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
     if (!id) return
     const [, op, phase] = m
     if (phase === 'begin') begin(id, op as AppOp)
+    else if (op === 'uninstall' && phase === 'end') { evict(id); resolve(id) } // 图标立即消失,再重拉收敛
     else resolve(id) // end 与 error 都收敛;error 的 toast 由页面层做
   }
 

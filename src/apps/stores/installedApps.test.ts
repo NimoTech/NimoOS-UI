@@ -63,22 +63,52 @@ describe('installedApps store', () => {
     expect(s.apps.map((x) => x.id)).toEqual(['jellyfin']) // 系统容器被藏
   })
 
-  it('setStatus:置 pending → 调 service → 完成后清 pending 并重拉', async () => {
+  it('setStatus:置 pending → 受理后仍 pending(后端 go func 异步),end 事件才收敛', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     const p = s.setStatus('a', 'start')
     expect(s.pending['a']).toBe('start')
     await p
-    expect(s.pending['a']).toBeUndefined()
+    // POST 只是受理:不提前收敛,否则 end 事件丢失(buffer=1)时列表永久陈旧
+    expect(s.pending['a']).toBe('start')
     expect(svc.setStatus).toHaveBeenCalledWith('a', 'start')
+    expect(svc.list).toHaveBeenCalledTimes(1)
+    s.onAppEvent('app:start-end', { 'app:name': 'a' })
+    expect(s.pending['a']).toBeUndefined()
+    await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
+  })
+
+  it('setStatus 受理后事件丢失 → 30s 兜底重拉收敛', async () => {
+    const s = useInstalledAppsStore()
+    await s.refresh()
+    await s.setStatus('a', 'stop')
+    expect(s.pending['a']).toBe('stop')
+    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS + 10)
+    expect(s.pending['a']).toBeUndefined()
     expect(svc.list).toHaveBeenCalledTimes(2)
   })
 
-  it('uninstall 显式透传 deleteConfigFolder(后端缺省 true 的坑)', async () => {
+  it('setStatus POST 失败 → 清 pending 且抛错(不留假处理中)', async () => {
+    svc.setStatus.mockRejectedValueOnce(new Error('boom'))
+    const s = useInstalledAppsStore()
+    await s.refresh()
+    await expect(s.setStatus('a', 'start')).rejects.toThrow('boom')
+    expect(s.pending['a']).toBeUndefined()
+  })
+
+  it('uninstall 显式透传 deleteConfigFolder,受理后仍 pending;uninstall-end 立即 evict + 重拉', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     await s.uninstall('a', false)
     expect(svc.uninstall).toHaveBeenCalledWith('a', { deleteConfigFolder: false })
+    // 受理即返:卸载还在后台跑,「处理中」保持
+    expect(s.pending['a']).toBe('uninstall')
+    expect(s.apps.find((x) => x.id === 'a')).toBeDefined()
+    s.onAppEvent('app:uninstall-end', { 'app:name': 'a' })
+    // end 事件:图标立刻消失(evict),不等重拉往返
+    expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
+    expect(s.pending['a']).toBeUndefined()
+    await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
   })
 
   it('onAppEvent:begin 置 pending,end 清 pending 并重拉', async () => {
