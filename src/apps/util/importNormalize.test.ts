@@ -56,8 +56,17 @@ describe('ensureComposeMeta', () => {
   it('guesses the icon URL from the final slugified name', () => {
     const src = `services:\n  My App:\n    image: foo\n`
     const { yaml, name } = ensureComposeMeta(src)
+    expect(name).toBe('my-app')
     const doc = YAML.parse(yaml)
-    expect(doc['x-nimoos'].icon).toBe(`https://icon.nimoos.io/main/all/${name}.png`)
+    expect(doc['x-nimoos'].icon).toBe('https://icon.nimoos.io/main/all/my-app.png')
+  })
+
+  it('falls back to the "app" name when the YAML has no name and no services at all', () => {
+    const { yaml, name } = ensureComposeMeta('{}')
+    expect(name).toBe('app')
+    const doc = YAML.parse(yaml)
+    expect(doc.name).toBe('app')
+    expect(doc['x-nimoos'].title).toEqual({ custom: 'app', en_us: 'app' })
   })
 })
 
@@ -77,8 +86,19 @@ describe('volumeAutoCheck', () => {
     expect(volumeAutoCheck(containerPath, appName)).toBe(expected)
   })
 
-  it('is case-insensitive', () => {
+  it('pins Vue2 per-keyword case-sensitivity: config/download/pictures/photo/media are lowercase-literal only', () => {
+    // 'config' has no case variant in the Vue2 checkArray — but its mapped value is the *same formula*
+    // as the default fallback, so this only proves the default path, not a genuine config match.
     expect(volumeAutoCheck('/CONFIG', 'myapp')).toBe('/DATA/AppData/myapp/CONFIG')
+    // 'download' is lowercase-only in Vue2 — capitalized "Downloads" must NOT match, falls to default.
+    expect(volumeAutoCheck('/Downloads', 'myapp')).toBe('/DATA/AppData/myapp/Downloads')
+    // 'photo'/'pictures' are lowercase-only in Vue2 — capitalized "Photo" must NOT match, falls to default.
+    expect(volumeAutoCheck('/Photo', 'myapp')).toBe('/DATA/AppData/myapp/Photo')
+  })
+
+  it('pins Vue2 dual-case keyword variants: tv/movie/music each list a handful of explicit cases', () => {
+    expect(volumeAutoCheck('/TV', 'myapp')).toBe('/DATA/Media/TV Shows')
+    expect(volumeAutoCheck('/Movie', 'myapp')).toBe('/DATA/Media/Movies')
     expect(volumeAutoCheck('/Music', 'myapp')).toBe('/DATA/Media/Music')
   })
 
@@ -129,14 +149,22 @@ describe('normalizeVolumes', () => {
     expect(doc.volumes).toBeUndefined()
   })
 
-  it('keeps a top-level named volume that is still referenced by an untouched absolute-source entry elsewhere', () => {
-    // contrived: an entry whose source equals the volume name is impossible once rewritten,
-    // so pin the case where a *different*, still-relevant top-level key survives because it matches
-    // an absolute path some service still points at (defensive: unrelated keys aren't touched).
+  it('drops a top-level named-volume declaration that was never referenced by any service in the first place', () => {
+    // "unrelated" never appears as any service's volume source (rewritten or not) — the cleanup rule
+    // removes any top-level key not found among current sources, referenced-or-never-referenced alike.
     const src = `services:\n  app:\n    image: foo\n    volumes:\n      - /DATA/keep:/keep\nvolumes:\n  unrelated: {}\n`
     const out = normalizeVolumes(src, 'app')
     const doc = YAML.parse(out)
-    expect(doc.volumes).toBeUndefined() // "unrelated" was never referenced as a source -> dropped
+    expect(doc.volumes).toBeUndefined()
+  })
+
+  it('leaves a non-bind/volume long-syntax entry (tmpfs) byte-identical — no source injected, type untouched', () => {
+    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - type: tmpfs\n        target: /app/cache\n        tmpfs:\n          size: 100000000\n`
+    const out = normalizeVolumes(src, 'app')
+    const doc = YAML.parse(out)
+    expect(doc.services.app.volumes).toEqual([
+      { type: 'tmpfs', target: '/app/cache', tmpfs: { size: 100000000 } },
+    ])
   })
 })
 

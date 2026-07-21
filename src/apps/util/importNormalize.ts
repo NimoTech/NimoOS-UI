@@ -53,24 +53,28 @@ export function ensureComposeMeta(yamlText: string): { yaml: string; name: strin
 }
 
 /**
- * Vue2 关键词映射逐字移植(NimoOS-UI ImportPanel.vue volumeAutoCheck)。
+ * Vue2 关键词映射逐字移植,实际调用点为
+ * `NimoOS-UI/src/components/Apps/ComposeConfig.vue:585-608`(ImportPanel.vue 里也有一份同源拷贝)。
+ * **逐字**包括大小写:除 config/download/pictures/photo/media 外,原版只有 tv 系列与
+ * movie/music 系列各自罗列了几个大小写变体(`['tvshows','TV','tv']`、`['movies','Movie','movie']`、
+ * `['Music','music']`),不是整体大小写不敏感 —— 因此这里逐关键词做区分大小写的 `includes`,
+ * 不对 containerPath 做 toLowerCase()。
  * 保留其 forEach 逐条覆盖语义:数组靠后的关键词命中会覆盖靠前的命中结果
  * (例如 `/media/config` 同时命中 config 与 media,最终落在 media —— 这是刻意保留的原版怪癖,非 bug)。
  */
 export function volumeAutoCheck(containerPath: string, appName: string): string {
   const checkOrder: { keywords: string[]; value: string }[] = [
     { keywords: ['config'], value: `/DATA/AppData/${appName}${containerPath}` },
-    { keywords: ['tvshows', 'tv'], value: '/DATA/Media/TV Shows' },
-    { keywords: ['movies'], value: '/DATA/Media/Movies' },
-    { keywords: ['music'], value: '/DATA/Media/Music' },
+    { keywords: ['tvshows', 'TV', 'tv'], value: '/DATA/Media/TV Shows' },
+    { keywords: ['movies', 'Movie', 'movie'], value: '/DATA/Media/Movies' },
+    { keywords: ['Music', 'music'], value: '/DATA/Media/Music' },
     { keywords: ['download'], value: '/DATA/Downloads' },
     { keywords: ['pictures', 'photo'], value: '/DATA/Gallery' },
     { keywords: ['media'], value: '/DATA/Media' },
   ]
   let result = `/DATA/AppData/${appName}${containerPath}`
-  const lower = containerPath.toLowerCase()
   for (const item of checkOrder) {
-    if (item.keywords.some((k) => lower.includes(k))) result = item.value
+    if (item.keywords.some((k) => containerPath.includes(k))) result = item.value
   }
   return result
 }
@@ -93,7 +97,12 @@ function rewriteShortVolume(entry: string, appName: string): string {
   return [newSource, target, ...rest].join(':')
 }
 
+const REWRITABLE_VOLUME_TYPES = new Set([undefined, 'bind', 'volume'])
+
+/** tmpfs/npipe/cluster 等非 bind/volume 类型没有真正的 host source 概念 —— 原样透传,绝不注入 source。 */
 function rewriteLongVolume(entry: Dict, appName: string): Dict {
+  const type = typeof entry.type === 'string' ? entry.type : undefined
+  if (!REWRITABLE_VOLUME_TYPES.has(type)) return entry
   const source = typeof entry.source === 'string' ? entry.source : ''
   const target = typeof entry.target === 'string' ? entry.target : ''
   if (source && !needsRewrite(source)) return entry
