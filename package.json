@@ -35,6 +35,7 @@
     "artplayer": "^5.4.0",
     "axios": "^1.7",
     "codemirror": "^6.0.2",
+    "composerize": "^1.7.6",
     "lottie-web": "^5.13.0",
     "markdown-it": "^14.3.0",
     "music-metadata-browser": "^2.5.11",
