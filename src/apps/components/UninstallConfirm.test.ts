@@ -10,7 +10,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
 describe('UninstallConfirm', () => {
   beforeEach(() => { document.body.innerHTML = '' })
 
-  it('默认不勾删数据 → confirm(false);勾选后 → confirm(true)', async () => {
+  it('默认勾选删数据 → confirm(true);取消勾选后 → confirm(false)(2026-07-21 用户拍板改默认)', async () => {
     const w = mount(UninstallConfirm, {
       props: { open: true, name: 'Jellyfin' },
       global: { plugins: [i18n] },
@@ -20,13 +20,14 @@ describe('UninstallConfirm', () => {
     // one tick is enough for it to land in jsdom (AlertDialog.test.ts precedent).
     await nextTick()
     expect(document.body.textContent).toContain('确定要卸载 Jellyfin 吗')
+    const box = document.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+    expect(box.checked).toBe(true)
     const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('卸载'))!
     confirmBtn.click()
-    expect(w.emitted('confirm')![0]).toEqual([false])
+    expect(w.emitted('confirm')![0]).toEqual([true])
 
-    const box = document.querySelector<HTMLInputElement>('input[type="checkbox"]')!
     box.click()
     confirmBtn.click()
-    expect(w.emitted('confirm')![1]).toEqual([true])
+    expect(w.emitted('confirm')![1]).toEqual([false])
   })
 })

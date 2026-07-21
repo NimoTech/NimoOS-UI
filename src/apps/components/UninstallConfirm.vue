@@ -9,8 +9,9 @@ import {
 const props = defineProps<{ open: boolean; name: string }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', deleteConfigFolder: boolean) : void }>()
 const { t } = useI18n()
-const delData = ref(false)
-watch(() => props.open, (o) => { if (o) delData.value = false }) // 每次打开重置,防上次勾选残留误删
+const delData = ref(true)
+// 默认勾选「同时删除用户数据」(2026-07-21 用户拍板,推翻 P1 的默认不勾);每次打开重置回默认
+watch(() => props.open, (o) => { if (o) delData.value = true })
 </script>
 
 <template>

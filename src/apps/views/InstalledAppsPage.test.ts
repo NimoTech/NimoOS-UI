@@ -93,7 +93,7 @@ describe('InstalledAppsPage', () => {
   // confirm 读到 null 直接短路,store.uninstall(=service.compose.uninstall) 永远不会被调用。
   // 本用例挂载真实页面 + 真实 UninstallConfirm(不 mock reka),点击 Portal 到 document.body
   // 的真实按钮,复现该事件顺序;仅 mock 最外层的 service.compose 网络层。
-  it('点击真实卸载确认弹窗的确认按钮,真正调用 service.compose.uninstall(id, {deleteConfigFolder:false})', async () => {
+  it('点击真实卸载确认弹窗的确认按钮,真正调用 service.compose.uninstall(id, {deleteConfigFolder:true})(默认勾选删数据,2026-07-21 用户拍板)', async () => {
     svc.list.mockResolvedValue({
       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
     })
@@ -115,7 +115,7 @@ describe('InstalledAppsPage', () => {
     await flushPromises()
 
     expect(svc.uninstall).toHaveBeenCalledTimes(1)
-    expect(svc.uninstall).toHaveBeenCalledWith('jellyfin', { deleteConfigFolder: false })
+    expect(svc.uninstall).toHaveBeenCalledWith('jellyfin', { deleteConfigFolder: true })
 
     w.unmount()
   })
