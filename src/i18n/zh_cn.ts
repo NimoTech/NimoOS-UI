@@ -505,4 +505,6 @@ export default {
   appsConsoleDisconnected: '连接已断开',
   appsConsoleReconnect: '重新连接',
   appsConsoleConnecting: '连接中…',
+  appsConsoleRefresh: '刷新',
+  appsConsoleLogsEmpty: '暂无日志',
 }

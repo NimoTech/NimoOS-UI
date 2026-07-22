@@ -506,4 +506,6 @@ export default {
   appsConsoleDisconnected: 'Connection closed',
   appsConsoleReconnect: 'Reconnect',
   appsConsoleConnecting: 'Connecting…',
+  appsConsoleRefresh: 'Refresh',
+  appsConsoleLogsEmpty: 'No logs yet',
 }
