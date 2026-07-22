@@ -124,8 +124,7 @@ const DOCS: DocResult[] = [
 const GALLERY = '/DATA/Gallery/Fishing'
 const VIDEO_POSTER = import.meta.env.BASE_URL + 'demo/fish_video_poster.jpg'
 // ocr=true 的媒体表示「靠 OCR 文字识别命中」——徽标显示 "OCR" 而非准确率百分比。
-// desc = Images 标签单行里 OCR 徽标旁的一行小字（店名 + 关键商品 + 金额 + 日期），仅小票 demo 用。
-interface Media { name: string; path: string; accuracy: number; isVideo?: boolean; ocr?: boolean; desc?: string }
+interface Media { name: string; path: string; accuracy: number; isVideo?: boolean; ocr?: boolean }
 const ALBUM: Media[] = [
   // 收据图片：靠图片内 OCR 文字命中（放第一张，徽标标 OCR）。真实文件在 /DATA/Documents/life/。
   { name: "Nick's receipt.jpg", path: "/DATA/Documents/life/Nick's receipt.jpg", accuracy: 0, ocr: true },
@@ -141,11 +140,11 @@ const ALBUM: Media[] = [
 // 1 "moving boxes" 字面直接命中 → 2-3 同日(12/27)采购链 → 4 新家置办(语义) → 5 同店工具弱相关垫底。
 const RECEIPTS_DIR = '/DATA/Documents/Recipes'
 const RECEIPTS: Media[] = [
-  { name: '20260722-031032.jpg', path: `${RECEIPTS_DIR}/20260722-031032.jpg`, accuracy: 0, ocr: true, desc: 'Home Depot · moving boxes ×6 + rolling trash can · $55.72 · Dec 27, 2024' },
-  { name: '20260722-031024.jpg', path: `${RECEIPTS_DIR}/20260722-031024.jpg`, accuracy: 0, ocr: true, desc: 'Walmart · OFFICE CHAIR $75 ×4 + trash bags · $389.87 · Dec 27, 2024' },
-  { name: '20260722-031029.jpg', path: `${RECEIPTS_DIR}/20260722-031029.jpg`, accuracy: 0, ocr: true, desc: 'Staples · desk + standing desk riser + mouse · $124.19 · Dec 27, 2024' },
-  { name: '20260722-031001.jpg', path: `${RECEIPTS_DIR}/20260722-031001.jpg`, accuracy: 0, ocr: true, desc: 'Walmart · bedding set + floor lamp + pillow · $73.48 · Jan 12, 2025' },
-  { name: '20260722-030940.jpg', path: `${RECEIPTS_DIR}/20260722-030940.jpg`, accuracy: 0, ocr: true, desc: 'Home Depot · Bosch rotary hammer + drill bit · $217.22 · Jan 16, 2025' },
+  { name: '20260722-031032.jpg', path: `${RECEIPTS_DIR}/20260722-031032.jpg`, accuracy: 0, ocr: true }, // Home Depot 搬家箱×6+带轮垃圾桶 $55.72 · 2024-12-27
+  { name: '20260722-031024.jpg', path: `${RECEIPTS_DIR}/20260722-031024.jpg`, accuracy: 0, ocr: true }, // Walmart 办公椅$75×4+垃圾袋 $389.87 · 2024-12-27
+  { name: '20260722-031029.jpg', path: `${RECEIPTS_DIR}/20260722-031029.jpg`, accuracy: 0, ocr: true }, // Staples 书桌+站立桌+鼠标 $124.19 · 2024-12-27
+  { name: '20260722-031001.jpg', path: `${RECEIPTS_DIR}/20260722-031001.jpg`, accuracy: 0, ocr: true }, // Walmart 床品+落地灯+枕头 $73.48 · 2025-01-12
+  { name: '20260722-030940.jpg', path: `${RECEIPTS_DIR}/20260722-030940.jpg`, accuracy: 0, ocr: true }, // Home Depot Bosch电锤+钻头 $217.22 · 2025-01-16
 ]
 
 // 查询词含搬家/小票/冬天类关键词 → demo 2；其余一律 fish（demo 1）。
@@ -390,7 +389,6 @@ const showResults = computed(() => searched.value && !!query.value.trim())
                 <span class="media-info">
                   <span class="media-acc-num" :class="{ 'media-acc-ocr': it.media.ocr }">{{ it.media.ocr ? 'OCR' : it.media.accuracy + '%' }}</span>
                   <span class="media-acc-label">{{ it.media.ocr ? 'text recognized' : 'match accuracy' }}</span>
-                  <span v-if="it.media.desc" class="media-desc">{{ it.media.desc }}</span>
                 </span>
                 <button class="row-open" @click.stop="openPhotos">{{ t('searchOpenAlbum') }}</button>
               </div>
@@ -573,7 +571,6 @@ const showResults = computed(() => searched.value && !!query.value.trim())
 .media-acc-num { font-size: 18px; font-weight: 700; color: var(--success); }
 .media-acc-num.media-acc-ocr { color: var(--accent-text); letter-spacing: 0.03em; }
 .media-acc-label { font-size: 12px; color: var(--fg-muted); }
-.media-desc { font-size: 12.5px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 排序理由标签（primary 跟随强调色；其余用固定语义色） */
 .rz { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }

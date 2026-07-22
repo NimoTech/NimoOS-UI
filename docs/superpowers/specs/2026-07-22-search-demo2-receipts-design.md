@@ -29,8 +29,9 @@
   每张右下角 `OCR` 徽标(复用 fish 里 Nick's receipt 的样式)。卡片标题/按钮/点击
   行为与 fish **完全一致**(searchAlbumMatches + Open Album ›,点击进 AI 相册)——
   用户 07-22 修订:不要单独的小票文案,也不要跳文件夹。
-- **Images 标签**:5 张拆单行按 1–5 排名(复用 media-row),每行 OCR 徽标旁新增一行
-  英文小字描述:店名 + 关键商品 + 金额 + 日期(`Media.desc` 字段,唯一的组件扩展)。
+- **Images 标签**:5 张拆单行按 1–5 排名(复用 media-row),显示与 fish 的 OCR 行
+  完全一致:`OCR` + "text recognized"(用户 07-22 修订:曾加过每行店名+金额+日期
+  描述小字 `Media.desc`,已移除,内容说明留在代码注释里)。
 - 单行左键 = ViewerHost 就地预览原图(真实文件,直接可用)。
 
 ## 不改的东西
