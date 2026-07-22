@@ -66,7 +66,9 @@ onBeforeUnmount(() => {
   scrollbar-color: var(--console-scroll-thumb) transparent;
 }
 .yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 12px; height: 12px; }
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; }
+/* 轨道从两端各让开一个圆角距离,滚动条只落在直边段内,不穿圆角
+   (终端没这问题是因为 xterm 内容区本来就从圆角框内缩 8px;WebKit 轨道 margin 只在滚动条自身轴向生效) */
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; margin: var(--radius); }
 .yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb {
   background: var(--console-scroll-thumb);
   border: 3px solid transparent;
