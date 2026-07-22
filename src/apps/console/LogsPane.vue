@@ -34,4 +34,11 @@ onBeforeUnmount(() => logs.stop())
 .logs-err { color: var(--remove-fg); font-size: 12px; margin-right: auto; }
 .logs-refresh { padding: 3px 12px; border-radius: 8px; border: 1px solid var(--card-border); background: var(--chip-bg-hi); color: var(--fg); cursor: pointer; font-size: 12px; }
 .logs-pre { flex: 1; margin: 0; padding: 10px 14px; overflow: auto; color: var(--console-fg); font: 13px/1.5 Consolas, Monaco, monospace; white-space: pre-wrap; word-break: break-all; }
+/* 固定深底上的滚动条:全局拇指色随主题翻转,浅色主题下深拇指落在 --console-bg 上不可见,
+   改用固定亮色 token(与 YamlEditor 同,见 theme.css --console-scroll-thumb) */
+.logs-pre { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
+.logs-pre::-webkit-scrollbar { width: 12px; height: 12px; }
+.logs-pre::-webkit-scrollbar-track { background: transparent; }
+.logs-pre::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
+.logs-pre::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
 </style>

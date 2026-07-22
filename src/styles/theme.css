@@ -78,6 +78,10 @@
   /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
   --console-bg: #1e1e1e;
   --console-fg: #d4d4d4;
+  /* 固定深底区域(monokai 编辑器/日志/终端)的滚动条拇指:全局滚动条颜色随主题翻转,
+     浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
+  --console-scroll-thumb: rgba(255, 255, 255, 0.32);
+  --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -267,6 +271,10 @@
   /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
   --console-bg: #1e1e1e;
   --console-fg: #d4d4d4;
+  /* 固定深底区域(monokai 编辑器/日志/终端)的滚动条拇指:全局滚动条颜色随主题翻转,
+     浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
+  --console-scroll-thumb: rgba(255, 255, 255, 0.32);
+  --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 }
 
 /* 白色主题:滚动条滑块贴浅底改深色;关闭散景光斑与暗角(纸感不要 bokeh)。见 THEMING.md §2.11 */

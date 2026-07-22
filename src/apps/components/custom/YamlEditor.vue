@@ -55,8 +55,25 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.yaml-editor { width: 100%; height: 100%; overflow: auto; border-radius: var(--radius); border: 1px solid var(--card-border); }
+.yaml-editor { width: 100%; height: 100%; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--card-border); }
 .yaml-editor :deep(.cm-editor) { height: 100%; }
+/* CM6 固定高度的标准配方:滚动发生在内部 .cm-scroller(行号 gutter 保持粘住),
+   而不是外层盒子滚走整个编辑器——外层因此改 overflow:hidden。 */
+.yaml-editor :deep(.cm-scroller) {
+  overflow: auto;
+  /* 编辑器永远是 monokai 深底:滚动条拇指用固定亮色 token,不随主题翻转(见 theme.css --console-scroll-thumb) */
+  scrollbar-width: thin;
+  scrollbar-color: var(--console-scroll-thumb) transparent;
+}
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 12px; height: 12px; }
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; }
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb {
+  background: var(--console-scroll-thumb);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
 /* 行号/正文默认紧贴边框,加内边距留出呼吸空间(gutter 有主题底色,padding 保持底色连续) */
 .yaml-editor :deep(.cm-gutters) { padding-left: 10px; }
 .yaml-editor :deep(.cm-gutter.cm-lineNumbers .cm-gutterElement) { padding-right: 10px; }
