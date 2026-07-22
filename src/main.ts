@@ -7,8 +7,13 @@ import { i18n } from './i18n'
 import { useSessionStore } from './stores/session'
 import { makeAuthFailHandler } from './router/onAuthFail'
 import { applyTheme, initialTheme } from './stores/theme'
+import { installChunkReloadGuard } from './chunkReloadGuard'
 import './styles/theme.css'
 import './files/viewers/viewers.css'
+
+// 尽早安装:旧标签页撞上重新部署时,懒加载 chunk 404 会让点击看似"没反应",
+// 自动整页刷新自愈(详见 chunkReloadGuard.ts)。
+installChunkReloadGuard()
 
 const app = createApp(App)
 const pinia = createPinia()

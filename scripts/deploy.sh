@@ -5,5 +5,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 pnpm build
-rsync -a --delete dist/ /var/lib/nimoos/www/app/
+# protect assets/*:保留旧哈希 chunk——部署前已打开的标签页仍会按旧 index.html 懒加载
+# 旧哈希文件,删掉会让"点开预览/懒路由"404 且不可自愈(表现为点击没反应,必须手动刷新)。
+# 陈旧 chunk 由下面的 find 按 mtime 清理(每次构建产物都是新 mtime,只会清到真正的旧版本)。
+rsync -a --delete --filter='protect assets/*' dist/ /var/lib/nimoos/www/app/
+find /var/lib/nimoos/www/app/assets -type f -mtime +14 -delete 2>/dev/null || true
 echo "Deployed to /var/lib/nimoos/www/app/  →  http://<host>/app/#/"
