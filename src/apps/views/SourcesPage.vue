@@ -73,7 +73,7 @@ onMounted(() => {
             :placeholder="t('appsSourcesAddPlaceholder')"
             :disabled="!!store.registeringUrl"
           />
-          <button class="ui-btn src-add-btn" type="submit" :disabled="!canSubmit">
+          <button class="bar-btn src-add-btn" type="submit" :disabled="!canSubmit">
             {{ t('appsSourcesAdd') }}
           </button>
         </form>
@@ -91,7 +91,7 @@ onMounted(() => {
         <div v-if="store.loading && !store.loaded" class="apps-empty">{{ t('appsSourcesLoading') }}</div>
         <div v-else-if="store.error" class="apps-empty">
           {{ t('appsSourcesLoadFailed') }}
-          <button class="ui-btn" type="button" @click="store.load()">{{ t('appsSourcesRetry') }}</button>
+          <button class="bar-btn" type="button" @click="store.load()">{{ t('appsSourcesRetry') }}</button>
         </div>
         <ul v-else-if="store.sources.length" class="src-list">
           <li v-for="s in store.sources" :key="s.id" class="src-item">
@@ -104,7 +104,7 @@ onMounted(() => {
             </div>
             <button
               v-if="!isOfficialSource(s.url)"
-              class="ui-btn src-remove"
+              class="bar-btn src-remove"
               type="button"
               @click="askRemove(s)"
             >
@@ -141,11 +141,19 @@ onMounted(() => {
 
 .src-add { display: flex; gap: 8px; }
 .src-input {
-  flex: 1 1 auto; min-width: 0; padding: 8px 10px; border-radius: 10px;
-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit;
+  flex: 1 1 auto; min-width: 0; height: 34px; box-sizing: border-box; padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13px;
 }
 .src-input:focus { outline: none; border-color: var(--accent); }
-.src-add-btn { flex: 0 0 auto; }
+/* 主行动:bar-btn 底座 + 商店「安装」同款 accent 药丸配色(StoreCard .store-install) */
+.src-add-btn {
+  flex: 0 0 auto;
+  color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-soft-bd);
+}
+.src-add-btn:hover { background: var(--accent-soft-2); }
+.src-add-btn:disabled { opacity: 0.55; cursor: default; }
+.src-add-btn:disabled:hover { background: var(--accent-soft); }
 .src-form-error { color: var(--remove-fg); font-size: 12px; margin: 6px 0 0; }
 
 .src-pending {
@@ -176,5 +184,6 @@ onMounted(() => {
   font-family: var(--font-mono, monospace); font-size: 12px; color: var(--fg-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 危险动作:bar-btn 底座 + 危险色字(卡片按钮同款 token 约定) */
 .src-remove { color: var(--remove-fg); flex: 0 0 auto; }
 </style>

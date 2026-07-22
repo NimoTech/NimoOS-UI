@@ -20,4 +20,16 @@ describe('sourceMeta', () => {
     expect(isOfficialSource('https://github.com/WisdomSky/CasaOS-Coolstore/archive/main.zip')).toBe(false)
     expect(isOfficialSource('not a url')).toBe(false)
   })
+
+  it('官方源:出厂默认主店(jsDelivr IceWhaleTech/CasaOS-AppStore)', () => {
+    expect(isOfficialSource('https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip')).toBe(true)
+    // 同 org 其它仓 / 其它 org 的 jsDelivr 源不是官方
+    expect(isOfficialSource('https://cdn.jsdelivr.net/gh/IceWhaleTech/OtherRepo@main/store.zip')).toBe(false)
+    expect(isOfficialSource('https://cdn.jsdelivr.net/gh/bigbeartechworld/big-bear-casaos@master/store.zip')).toBe(false)
+  })
+
+  it('jsDelivr gh 镜像名称 = org(首段 gh 无辨识度)', () => {
+    expect(sourceDisplayName('https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip')).toBe('IceWhaleTech')
+    expect(sourceDisplayName('https://cdn.jsdelivr.net/gh/bigbeartechworld/big-bear-casaos@master/store.zip')).toBe('bigbeartechworld')
+  })
 })
