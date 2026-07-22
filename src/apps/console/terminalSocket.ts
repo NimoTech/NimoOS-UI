@@ -22,25 +22,36 @@ export function buildTerminalWsUrl(base: string, containerId: string, token: str
 
 export class TerminalSocket {
   private socket: WebSocket | null = null
+  // 代际计数器:close() 递增代际,connect() 在每个恢复点(await 之后)核对代际是否被换代,
+  // 换代即视为"已被取消"—— 不再建 socket、不再翻状态(close() 已经把状态钉在 closed 了),直接 resolve null。
+  // 目的是堵住"卸载期间 close() 打在 refresh() 挂起时,refresh 落定后仍复活连接"的竞态。
+  private generation = 0
+
   constructor(private deps: TerminalSocketDeps) {}
 
   async connect(containerId: string, cols: number, rows: number): Promise<WebSocket | null> {
+    const myGeneration = this.generation
     this.deps.onStatus('connecting')
     if (shouldRefreshToken(this.deps.getExpiresAt(), this.deps.now())) {
       try { await this.deps.refresh() } catch { this.deps.onStatus('closed'); return null }
+      if (myGeneration !== this.generation) return null // 等 refresh 的当口被 close() 取消,不再建连
     }
     const token = this.deps.getToken()
     if (!token) { this.deps.onStatus('closed'); return null }
     const ws = this.deps.makeSocket(buildTerminalWsUrl(this.deps.wsBase(), containerId, token, cols, rows))
     this.socket = ws
     return new Promise((resolve) => {
-      ws.onopen = () => { this.deps.onStatus('open'); resolve(ws) }
+      ws.onopen = () => {
+        if (myGeneration !== this.generation) return // 已被 close() 取消,吞掉迟到的 onopen,不翻回 open
+        this.deps.onStatus('open'); resolve(ws)
+      }
       ws.onclose = () => { this.socket = null; this.deps.onStatus('closed'); resolve(null) }
       ws.onerror = () => {} // close 随后触发
     })
   }
 
   close(): void {
+    this.generation++
     const s = this.socket
     this.socket = null
     if (s) s.close()

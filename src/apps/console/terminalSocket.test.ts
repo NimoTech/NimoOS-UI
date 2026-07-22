@@ -66,3 +66,17 @@ it('无 token → resolve null 不建连', async () => {
   await expect(new TerminalSocket(deps).connect('c1', 80, 24)).resolves.toBeNull()
   expect(deps.makeSocket).not.toHaveBeenCalled()
 })
+it('close() 打在 refresh() 挂起期间 → refresh 落定后不建 socket,resolve null,status=closed(代际守卫)', async () => {
+  let resolveRefresh: (() => void) | undefined
+  const refresh = vi.fn(() => new Promise<void>((resolve) => { resolveRefresh = resolve }))
+  const { deps } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000, refresh })
+  const s = new TerminalSocket(deps)
+  const p = s.connect('c1', 80, 24)
+  await vi.waitFor(() => expect(refresh).toHaveBeenCalled())
+  s.close() // 卸载场景:refresh 还没落定,调用方已经 close()
+  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
+  resolveRefresh?.()
+  await expect(p).resolves.toBeNull()
+  expect(deps.makeSocket).not.toHaveBeenCalled()
+  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
+})
