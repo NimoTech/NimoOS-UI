@@ -61,7 +61,7 @@ onBeforeUnmount(() => {
    缩容器是让它离开边框的唯一通用做法;padding 区域由 monokai 的 .cm-editor 底色填充,视觉连续
    (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
    因此禁用全部 ::-webkit-scrollbar 定制,此前的宽度/track margin 都是死代码) */
-.yaml-editor :deep(.cm-editor) { height: 100%; box-sizing: border-box; padding: 10px 10px 10px 0; }
+.yaml-editor :deep(.cm-editor) { height: 100%; box-sizing: border-box; padding: 10px; }
 /* CM6 固定高度的标准配方:滚动发生在内部 .cm-scroller(行号 gutter 保持粘住),
    而不是外层盒子滚走整个编辑器——外层因此改 overflow:hidden。 */
 .yaml-editor :deep(.cm-scroller) {
@@ -70,8 +70,9 @@ onBeforeUnmount(() => {
   scrollbar-width: thin;
   scrollbar-color: var(--console-scroll-thumb) transparent;
 }
-/* 行号/正文默认紧贴边框,加内边距留出呼吸空间(gutter 有主题底色,padding 保持底色连续) */
-.yaml-editor :deep(.cm-gutters) { padding-left: 10px; }
+/* 左侧呼吸距主要由 .cm-editor 的 10px 外圈 padding 提供(水平滚动条左端也因此离框),
+   gutter 自身只留小内边距避免叠加过宽 */
+.yaml-editor :deep(.cm-gutters) { padding-left: 4px; }
 .yaml-editor :deep(.cm-gutter.cm-lineNumbers .cm-gutterElement) { padding-right: 10px; }
 /* 上下呼吸距已由 .cm-editor 的 10px 外圈 padding 提供,这里只留左右 */
 .yaml-editor :deep(.cm-content) { padding: 2px 12px 2px 4px; }

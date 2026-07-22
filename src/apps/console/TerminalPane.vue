@@ -76,7 +76,9 @@ onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
    没有属性能调"离边框的距离"——把滚动容器整体从外框内缩是唯一各浏览器通用的做法
    (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
    因此禁用全部 ::-webkit-scrollbar 定制,此前调的宽度/track margin 都是死代码) */
-.term-host { position: absolute; inset: 10px; }
+/* xterm 高度只能取整数行,面板高度的余数(0~一行高)会堆在网格下方,使滚动条下端离框
+   明显比右侧远;列向 flex 垂直居中把余数对半分到上下,四边间距视觉对称 */
+.term-host { position: absolute; inset: 10px; display: flex; flex-direction: column; justify-content: center; }
 /* 深底面板拇指用固定亮色 token:全局滚动条色随主题翻转,浅色主题下深拇指落在深底上隐形 */
 .term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
 .term-fs { position: absolute; top: 8px; right: 12px; z-index: 10; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; }
