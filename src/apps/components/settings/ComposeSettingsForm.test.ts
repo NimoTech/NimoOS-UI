@@ -90,6 +90,27 @@ describe('ComposeSettingsForm', () => {
     expect(model.services[0].network).toBe('host')
     expect(model.services[0].networkDirty).toBe(true)
   })
+  it('command 区展示格式引导文案,token 输入框有 placeholder', async () => {
+    const { w } = mk()
+    await w.find('[data-test="cmd-add"]').trigger('click')
+    expect(w.text()).toContain('每格填一个参数')
+    const inputs = w.findAll('[data-test="cmd-input"]')
+    expect(inputs[0].attributes('placeholder')).toBeTruthy()
+  })
+  it('多网络服务:网络下拉禁用 + 展示说明', async () => {
+    const model = reactive(parseSettings(YAML2, 'zh_cn'))
+    model.services[0].networksMultiple = true
+    const w = mount(ComposeSettingsForm, { props: { model }, global: { plugins: [i18n] } })
+    const sel = w.find('[data-test="svc-network"]')
+    expect(sel.attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain('多个网络')
+  })
+  it('单网络服务:下拉可用、无多网络说明', () => {
+    const { w } = mk()
+    const sel = w.find('[data-test="svc-network"]')
+    expect(sel.attributes('disabled')).toBeUndefined()
+    expect(w.text()).not.toContain('多个网络')
+  })
   it('stableTags 有值时 tag 下拉出现,选 stable 改写 image tag;非商店应用(null)不渲染', async () => {
     const model = reactive(parseSettings(YAML2, 'zh_cn'))
     const w = mount(ComposeSettingsForm, {

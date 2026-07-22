@@ -110,9 +110,11 @@ const tagSelect = computed<string>({
     </section>
     <section class="set-section">
       <h3>{{ t('appsSettingsCommand') }}</h3>
+      <p class="set-hint">{{ t('appsSettingsCmdHint') }}</p>
       <div class="pair-editor">
         <div v-for="(tok, i) in svc.commandTokens" :key="i" class="cmd-row">
-          <input :value="tok" class="set-input" type="text" data-test="cmd-input" @input="setCmd(i, $event)" />
+          <input :value="tok" class="set-input" type="text" data-test="cmd-input"
+            :placeholder="t('appsSettingsCmdTokenPh')" @input="setCmd(i, $event)" />
           <button class="row-del" type="button" data-test="cmd-del" :aria-label="t('appsSettingsRemove')" @click="delCmd(i)">✕</button>
         </div>
         <button class="row-add" type="button" data-test="cmd-add" @click="addCmd">+ {{ t('appsSettingsAdd') }}</button>
@@ -120,7 +122,9 @@ const tagSelect = computed<string>({
     </section>
     <section class="set-section">
       <h3>{{ t('appsSettingsNetwork') }}</h3>
-      <select v-model="svc.network" class="set-input" data-test="svc-network" @change="onNetworkChange">
+      <p v-if="svc.networksMultiple" class="set-hint">{{ t('appsSettingsNetworkMulti') }}</p>
+      <select v-model="svc.network" class="set-input" data-test="svc-network"
+        :disabled="svc.networksMultiple" @change="onNetworkChange">
         <option value="">—</option>
         <option value="bridge">bridge</option>
         <option value="host">host</option>
@@ -201,6 +205,8 @@ const tagSelect = computed<string>({
 }
 .set-input:focus { border-color: var(--accent); }
 .tips-area { resize: vertical; font-family: inherit; }
+
+.set-hint { margin: 2px 0 8px; font-size: 12px; color: var(--fg-muted); }
 
 .pair-editor { display: flex; flex-direction: column; gap: 8px; }
 .cmd-row { display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: center; }
