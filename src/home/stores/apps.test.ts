@@ -128,3 +128,48 @@ describe('desktop 应用透传', () => {
     })
   })
 })
+
+describe('LinkApp 桌面拼接(setApps 第二参)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('setApps([], links) 追加 LinkApp 项:app_type 透传,order 含之', () => {
+    const s = useAppsStore()
+    s.setApps([], [{ name: 'MyNAS', hostname: 'http://nas.local', icon: '', app_type: 'LinkApp', status: 'running' }])
+    expect(s.app('MyNAS')?.app_type).toBe('LinkApp')
+    expect(s.app('MyNAS')?.status).toBe('running')
+    expect(s.app('MyNAS')?.hostname).toBe('http://nas.local')
+    expect(s.order).toContain('MyNAS')
+  })
+
+  it('name 与容器应用同名时,容器应用胜出,不被 LinkApp 覆盖', () => {
+    const s = useAppsStore()
+    s.setApps(
+      [{ name: 'jellyfin', title: { en_us: 'Jellyfin' }, status: 'running', app_type: 'WebApp' }] as never,
+      [{ name: 'jellyfin', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }],
+    )
+    expect(s.app('jellyfin')?.app_type).toBe('WebApp')
+    expect(s.app('jellyfin')?.name).toBe('Jellyfin')
+  })
+
+  it('glyph = name 首字符大写(无 icon 时的兜底),icon 为空字符串时落 null', () => {
+    const s = useAppsStore()
+    s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }])
+    expect(s.app('myapp')?.glyph).toBe('M')
+    expect(s.app('myapp')?.icon).toBeNull()
+    expect(s.app('myapp')?.cls).toBe('ic-app')
+    expect(s.app('myapp')?.system).toBe(false)
+  })
+
+  it('icon 有值时透传用户填的 URL', () => {
+    const s = useAppsStore()
+    s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: 'http://icon', app_type: 'LinkApp', status: 'running' }])
+    expect(s.app('myapp')?.icon).toBe('http://icon')
+  })
+
+  it('links 缺省(不传)不影响既有行为', () => {
+    const s = useAppsStore()
+    s.setApps([{ name: 'jellyfin', title: { en_us: 'J' }, status: 'running' }] as never)
+    expect(s.app('jellyfin')?.name).toBe('J')
+    expect(s.order).not.toContain('MyNAS')
+  })
+})

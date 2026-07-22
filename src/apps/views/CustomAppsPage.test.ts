@@ -9,6 +9,7 @@ import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
   compose: { install: vi.fn(), list: vi.fn().mockResolvedValue({}), get: vi.fn() },
+  users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: vi.fn(() => () => {}) }) }))
@@ -43,8 +44,11 @@ beforeEach(() => {
   pinia = createPinia()
   setActivePinia(pinia)
   localStorage.clear()
+  document.body.innerHTML = ''
   svc.compose.install.mockReset().mockResolvedValue(undefined)
   svc.compose.list.mockReset().mockResolvedValue({})
+  svc.users.getCustomStorage.mockReset().mockResolvedValue([])
+  svc.users.setCustomStorage.mockReset().mockResolvedValue(undefined)
 })
 
 describe('CustomAppsPage — tab 路由 query', () => {
@@ -141,5 +145,102 @@ describe('CustomAppsPage — tab1 安装', () => {
     await flushPromises()
     expect(svc.compose.install).toHaveBeenCalledTimes(1) // 只 dry_run
     expect(svc.compose.install).toHaveBeenCalledWith(expect.any(String), { dryRun: true, checkPortConflict: true })
+  })
+})
+
+describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
+  it('挂载即读 link 列表并展示 name/hostname', async () => {
+    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+    expect(svc.users.getCustomStorage).toHaveBeenCalledWith('link')
+    const row = w.find('[data-test="link-row"]')
+    expect(row.exists()).toBe(true)
+    expect(row.text()).toContain('MyNAS')
+    expect(row.text()).toContain('http://nas.local')
+  })
+
+  it('列表为空时显示空态提示', async () => {
+    svc.users.getCustomStorage.mockResolvedValue([])
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+    expect(w.find('[data-test="link-empty"]').exists()).toBe(true)
+  })
+
+  it('地址留空提交 → 就地报错,不调 saveLinkApp(setCustomStorage 不发)', async () => {
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+    await w.find('[data-test="link-name"]').setValue('Router')
+    await w.find('[data-test="link-submit"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="link-error"]').exists()).toBe(true)
+    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
+  })
+
+  it('地址不以 http(s):// 开头 → 报 appsCustomLinkHostInvalid,不提交', async () => {
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+    await w.find('[data-test="link-name"]').setValue('Router')
+    await w.find('[data-test="link-hostname"]').setValue('ftp://nope')
+    await w.find('[data-test="link-submit"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="link-error"]').text()).toBe(zh.appsCustomLinkHostInvalid)
+    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
+  })
+
+  it('新增:填名称+地址提交 → saveLinkApp 落盘,刷新列表并清空表单', async () => {
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+    await w.find('[data-test="link-name"]').setValue('Router')
+    await w.find('[data-test="link-hostname"]').setValue('http://192.168.1.1')
+    await w.find('[data-test="link-submit"]').trigger('click')
+    await flushPromises()
+    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [
+      { name: 'Router', hostname: 'http://192.168.1.1', icon: '', app_type: 'LinkApp', status: 'running' },
+    ])
+    expect((w.find('[data-test="link-name"]').element as HTMLInputElement).value).toBe('')
+    expect(w.find('[data-test="link-row"]').text()).toContain('Router')
+  })
+
+  it('编辑:点「编辑」回填表单且名称字段锁定(Vue2 disableEditName 同款),提交只改 hostname/icon', async () => {
+    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://old', icon: '' }])
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+    await w.find('[data-test="link-edit"]').trigger('click')
+    await nextTick()
+    const nameInput = w.find('[data-test="link-name"]').element as HTMLInputElement
+    expect(nameInput.value).toBe('MyNAS')
+    expect(nameInput.disabled).toBe(true)
+
+    await w.find('[data-test="link-hostname"]').setValue('http://new')
+    await w.find('[data-test="link-submit"]').trigger('click')
+    await flushPromises()
+    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [
+      { name: 'MyNAS', hostname: 'http://new', icon: '', app_type: 'LinkApp', status: 'running' },
+    ])
+  })
+
+  it('删除:AlertDialog 确认后调 deleteLinkApp,取消不删', async () => {
+    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+
+    await w.find('[data-test="link-delete"]').trigger('click')
+    await nextTick()
+    expect(document.body.textContent).toContain(zh.appsCustomLinkDeleteConfirm)
+
+    // 取消:不落盘
+    const cancelBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCancel)!
+    cancelBtn.click()
+    await flushPromises()
+    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
+
+    // 再次删除并确认
+    await w.find('[data-test="link-delete"]').trigger('click')
+    await nextTick()
+    const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCustomLinkDelete)!
+    confirmBtn.click()
+    await flushPromises()
+    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [])
   })
 })

@@ -4,6 +4,7 @@ import { service, type AppGridItem, type AppGridWidget } from '@nimotech/nimoos-
 import type { WidgetSize } from '../grid/types'
 import { APP_WIDGET_SIZE, appWidgetRange } from '../widgets/appWidgetSize'
 import { SYSTEM_APPS } from '../apps/systemApps'
+import { listLinkApps, type LinkApp } from '../../apps/util/linkApps'
 
 export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
 
@@ -27,7 +28,7 @@ export const useAppsStore = defineStore('home-apps', () => {
   const apps = ref<Record<string, AppMeta>>({})
   const order = ref<string[]>([])
 
-  function setApps(container: AppGridItem[]) {
+  function setApps(container: AppGridItem[], links?: LinkApp[]) {
     const map: Record<string, AppMeta> = {}
     const ord: string[] = []
     SYSTEM_APPS.forEach((s) => {
@@ -53,13 +54,22 @@ export const useAppsStore = defineStore('home-apps', () => {
       }
       ord.push(key)
     })
+    ;(links || []).forEach((l) => {
+      const key = l.name
+      if (!key || map[key]) return // 系统/容器应用已占用该 key,外部链接不覆盖(容器应用胜出)
+      map[key] = {
+        name: l.name, cls: 'ic-app', glyph: (l.name[0] || '').toUpperCase(), icon: l.icon || null, system: false,
+        app_type: l.app_type, status: l.status, hostname: l.hostname,
+      }
+      ord.push(key)
+    })
     apps.value = map
     order.value = ord
   }
 
   async function loadGrid() {
-    const list = await service.apps.getGrid()
-    setApps(list || [])
+    const [list, links] = await Promise.all([service.apps.getGrid(), listLinkApps().catch(() => [])])
+    setApps(list || [], links)
   }
 
   function app(key: string): AppMeta | undefined { return apps.value[key] }
