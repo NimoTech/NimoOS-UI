@@ -521,4 +521,5 @@ export default {
   appsSourcesRegisterFail: '商店源注册失败:{msg}',
   appsSourcesRemoveOk: '商店源已移除',
   appsSourcesRemoveFail: '移除商店源失败:{msg}',
+  appsSourcesBusy: '已有一个源正在注册,请等它完成',
 }

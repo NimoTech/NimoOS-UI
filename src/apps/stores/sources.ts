@@ -71,8 +71,13 @@ export const useSourcesStore = defineStore('appSources', () => {
   }
 
   /** 注册第三方源。同步 HTTP 错误(409 重复/400 坏 URL)抛 Error(message) 给调用方就地展示;
-   *  受理(200)后是后端异步任务,由 app-store:register-end/-error 事件或轮询收敛。 */
+   *  受理(200)后是后端异步任务,由 app-store:register-end/-error 事件或轮询收敛。
+   *  一次只允许一个注册在途(店级约束):registeringUrl 是单一 ref,轮询的 needle 在
+   *  发起时闭包捕获——若并发第二个 register() 覆盖 registeringUrl,前一个的收敛会把
+   *  ref 置 null,导致后一个的轮询守卫(见下方 setInterval 里的 null 检查)和事件处理器
+   *  的 null 守卫都永久失效,后一个注册的结果被无声吞掉。因此在这里前置守卫拒绝。 */
   async function register(url: string) {
+    if (registeringUrl.value !== null) throw new Error(t('appsSourcesBusy'))
     const target = url.trim()
     registeringUrl.value = target
     try {

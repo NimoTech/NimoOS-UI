@@ -95,6 +95,18 @@ describe('sources store', () => {
     busHandlers.get('app-store:register-error')!({ message: 'not an appstore' })
     expect(store.registeringUrl).toBeNull()
     expect(show).toHaveBeenCalledWith(expect.stringContaining('not an appstore'), expect.any(Number))
+    expect(svc.appstore.listSources).not.toHaveBeenCalled()
+  })
+
+  it('并发守卫:注册在途时再次 register() 直接拒绝,不二次调用 service,不清在途 URL', async () => {
+    const store = useSourcesStore()
+    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
+    await store.register('https://a.example.com/store.zip')
+    expect(store.registeringUrl).toBe('https://a.example.com/store.zip')
+
+    await expect(store.register('https://b.example.com/store.zip')).rejects.toThrow()
+    expect(svc.appstore.registerSource).toHaveBeenCalledTimes(1)
+    expect(store.registeringUrl).toBe('https://a.example.com/store.zip')
   })
 
   it('事件丢失兜底:15s 轮询 listSources 看到新 URL 即收敛(大小写不敏感)', async () => {
@@ -114,6 +126,11 @@ describe('sources store', () => {
     await vi.advanceTimersByTimeAsync(15_000)
     expect(store.registeringUrl).toBeNull()
     expect(inv).toHaveBeenCalled()
+
+    // 收敛后轮询必须真的停了:再推 15s,listSources 调用数不应再增长
+    const callsAfterConverge = svc.appstore.listSources.mock.calls.length
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(svc.appstore.listSources.mock.calls.length).toBe(callsAfterConverge)
   })
 
   it('unregister 成功:重拉 + invalidate;失败:toast 后端 message', async () => {

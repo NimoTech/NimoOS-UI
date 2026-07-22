@@ -522,4 +522,5 @@ export default {
   appsSourcesRegisterFail: 'Failed to register source: {msg}',
   appsSourcesRemoveOk: 'App store source removed',
   appsSourcesRemoveFail: 'Failed to remove source: {msg}',
+  appsSourcesBusy: 'A source registration is already in progress',
 }
