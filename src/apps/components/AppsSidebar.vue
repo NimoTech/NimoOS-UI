@@ -21,16 +21,19 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// P5/P7 增补:自定义 /apps/custom、源 /apps/sources
+// P7 增补:源 /apps/sources
 const nav = [
   { name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' },
   { name: 'apps-store', labelKey: 'appsNavStore', to: '/apps/store' },
+  { name: 'apps-custom', labelKey: 'appsNavCustom', to: '/apps/custom' },
 ]
 
-/** 商店详情(apps-store-detail)也高亮「应用商店」——子路由归属父导航项 */
+/** 商店详情(apps-store-detail)也高亮「应用商店」;自定义安装同款前缀匹配预留给未来子路由——子路由归属父导航项 */
 function isActive(n: { name: string }): boolean {
   const cur = String(route.name ?? '')
-  return n.name === 'apps-store' ? cur.startsWith('apps-store') : cur === n.name
+  if (n.name === 'apps-store') return cur.startsWith('apps-store')
+  if (n.name === 'apps-custom') return cur.startsWith('apps-custom')
+  return cur === n.name
 }
 </script>
 

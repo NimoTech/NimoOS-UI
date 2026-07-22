@@ -10,6 +10,7 @@ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
 import StorePage from '../apps/views/StorePage.vue'
 import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
 import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
+import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -20,6 +21,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/apps', name: 'apps', component: InstalledAppsPage },
   { path: '/apps/store', name: 'apps-store', component: StorePage },
   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
+  { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },

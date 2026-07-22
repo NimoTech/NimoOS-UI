@@ -36,11 +36,26 @@ describe('AppsSidebar', () => {
     routeState.fullPath = '/apps/store/jellyfin'
     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
     const items = w.findAll('.side-item')
-    expect(items).toHaveLength(2)
+    expect(items).toHaveLength(3)
     expect(items[1].text()).toContain('应用商店')
     expect(items[1].classes()).toContain('active')
     expect(items[0].classes()).not.toContain('active')
+    expect(items[2].classes()).not.toContain('active')
     await items[1].trigger('click')
     expect(push).toHaveBeenCalledWith('/apps/store')
+  })
+
+  it('自定义安装导航项存在,当前路由为其前缀时高亮并可跳转', async () => {
+    routeState.name = 'apps-custom'
+    routeState.fullPath = '/apps/custom'
+    const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
+    const items = w.findAll('.side-item')
+    expect(items).toHaveLength(3)
+    expect(items[2].text()).toContain('自定义安装')
+    expect(items[2].classes()).toContain('active')
+    expect(items[0].classes()).not.toContain('active')
+    expect(items[1].classes()).not.toContain('active')
+    await items[2].trigger('click')
+    expect(push).toHaveBeenCalledWith('/apps/custom')
   })
 })
