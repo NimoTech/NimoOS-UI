@@ -25,7 +25,17 @@ const selectedService = ref('')
 const containerId = computed(() => info.value?.containers[selectedService.value]?.ID ?? '')
 const serviceNames = computed(() => Object.keys(info.value?.containers ?? {}))
 
+// Monotonic request-sequence guard (same pattern as appstore.ts's loadCatalog `mySeq`):
+// rapid successive route-param changes (app A → app B before A's fetch resolves) fire
+// load() twice with both in flight. Without this, whichever `containers()` response lands
+// LAST wins unconditionally — a stale response can overwrite the newer app's info/selectedService,
+// or worse, fire the invalid-app toast + router.push({name:'apps'}) and yank the user off an
+// app's console they've since navigated to. Capture `mySeq` at entry; after every await,
+// bail out silently (no state write, no toast, no redirect) if a newer load() has since started.
+let seq = 0
+
 async function load() {
+  const mySeq = ++seq
   // Reset per-app UI state up front. vue-router reuses this component instance when only
   // the `:name` route param changes (same route name `apps-console`), so navigating from one
   // app's console straight to another's does NOT remount AppConsolePage. TerminalPane/LogsPane
@@ -40,6 +50,7 @@ async function load() {
   selectedService.value = ''
   try {
     const r = await service.compose.containers(id.value)
+    if (mySeq !== seq) return // a newer load() has since started — this response is stale, drop it silently
     if (!r || !Object.keys(r.containers).length) {
       toast.show(t('appsConsoleNotFound'))
       void router.push({ name: 'apps' })
@@ -48,6 +59,7 @@ async function load() {
     info.value = r
     selectedService.value = r.main && r.containers[r.main] ? r.main : Object.keys(r.containers)[0]
   } catch {
+    if (mySeq !== seq) return
     toast.show(t('appsConsoleLoadFailed'))
     void router.push({ name: 'apps' })
   }

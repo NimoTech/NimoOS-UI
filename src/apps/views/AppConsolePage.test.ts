@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
+import { reactive } from 'vue'
 import zh from '../../i18n/zh_cn'
 import { useToast } from '../../stores/toast'
 
@@ -11,9 +12,13 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 const routerMock = vi.hoisted(() => ({ push: vi.fn() }))
+// Reactive so tests can mutate `.params.name` in place to simulate an in-place route-param
+// change (same route name `apps-console`, vue-router reuses the component instance) — this
+// is what drives AppConsolePage's `watch(id, load)` without a remount.
+const routeMock = reactive({ params: { name: 'demo' } })
 vi.mock('vue-router', async (orig) => ({
   ...(await orig()),
-  useRoute: () => ({ params: { name: 'demo' } }),
+  useRoute: () => routeMock,
   useRouter: () => routerMock,
 }))
 
@@ -37,11 +42,17 @@ import AppConsolePage from './AppConsolePage.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 let pinia: Pinia
 
+// routeMock is a shared reactive object (see above) — without auto-unmount, a wrapper left
+// mounted from an earlier test keeps its `watch(id, load)` alive and reacts to a later test's
+// `routeMock.params.name = ...` mutation too, double-firing containers() calls across tests.
+enableAutoUnmount(afterEach)
+
 beforeEach(() => {
   pinia = createPinia()
   setActivePinia(pinia)
   vi.clearAllMocks()
   svc.compose.list.mockResolvedValue({})
+  routeMock.params.name = 'demo' // routeMock is shared/mutable across tests (regression test below mutates it) — reset each run
 })
 
 const mk = () =>
@@ -118,5 +129,39 @@ describe('AppConsolePage', () => {
     await flushPromises()
     expect(routerMock.push).toHaveBeenCalledWith({ name: 'apps' })
     expect(toast.toasts.length).toBe(1)
+  })
+
+  it('快速切换应用(A→B)后 A 的陈旧响应落地:不覆盖 B 的状态,不误弹 toast/跳转', async () => {
+    // Two controllable deferred promises — containers() call #1 (for app A, "demo") resolves
+    // LAST with app B's own stale-invalid-app shape (empty containers, the 404-ish branch),
+    // call #2 (for app B, "other") resolves FIRST with valid data. Regression: without the
+    // seq guard, A's late resolution would win, toast + router.push({name:'apps'}) firing and
+    // yanking the user off B's now-current, valid console.
+    let resolveA!: (v: unknown) => void
+    let resolveB!: (v: unknown) => void
+    const pA = new Promise((res) => { resolveA = res })
+    const pB = new Promise((res) => { resolveB = res })
+    svc.compose.containers.mockImplementationOnce(() => pA)
+    svc.compose.containers.mockImplementationOnce(() => pB)
+
+    const toast = useToast()
+    const w = mk()
+    await flushPromises() // onMounted's load() (id="demo") issues call #1, awaiting pA
+
+    routeMock.params.name = 'other' // in-place route-param change — watch(id, load) fires, issues call #2, awaiting pB
+    await flushPromises()
+
+    // B resolves first (in flight order), with valid single-container data
+    resolveB({ main: 'app', containers: { app: { ID: 'c-b' } } })
+    await flushPromises()
+    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c-b')
+
+    // A's stale call resolves last with the invalid-app shape (empty containers) — must be a no-op
+    resolveA({ main: '', containers: {} })
+    await flushPromises()
+
+    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c-b') // still B's container — not overwritten
+    expect(routerMock.push).not.toHaveBeenCalled() // stale invalid-app branch must NOT redirect
+    expect(toast.toasts.length).toBe(0) // ...and must NOT toast
   })
 })
