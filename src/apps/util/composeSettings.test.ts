@@ -282,6 +282,56 @@ services:
   })
 })
 
+describe('command 保守写回(P6 修复:string 不再塌成单元素 exec 数组)', () => {
+  it('string command 解析时标记 commandWasString', () => {
+    const m = parseSettings('services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n', 'zh_cn')
+    expect(m.services[0].commandWasString).toBe(true)
+    expect(m.services[0].commandTokens).toEqual(['redis-server --appendonly yes'])
+  })
+  it('数组 command 标记为 false', () => {
+    const m = parseSettings('services:\n  app:\n    image: redis\n    command: ["redis-server", "--appendonly"]\n', 'zh_cn')
+    expect(m.services[0].commandWasString).toBe(false)
+  })
+  it('原 string + 编辑后仍单 token → 写回 string(不是单元素数组)', () => {
+    const yml = 'services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n'
+    const m = parseSettings(yml, 'zh_cn')
+    m.services[0].commandTokens = ['redis-server --appendonly no']
+    m.services[0].commandDirty = true
+    const doc = YAML.parse(buildYaml(yml, m))
+    expect(doc.services.app.command).toBe('redis-server --appendonly no')
+  })
+  it('原 string + 编辑成多 token → 正常写数组', () => {
+    const yml = 'services:\n  app:\n    image: redis\n    command: redis-server\n'
+    const m = parseSettings(yml, 'zh_cn')
+    m.services[0].commandTokens = ['redis-server', '--appendonly', 'yes']
+    m.services[0].commandDirty = true
+    const doc = YAML.parse(buildYaml(yml, m))
+    expect(doc.services.app.command).toEqual(['redis-server', '--appendonly', 'yes'])
+  })
+})
+
+describe('多网络防护(P6 修复:networksMultiple 时 buildYaml 不动网络)', () => {
+  const MULTI = 'services:\n  app:\n    image: x\n    networks:\n      - net_a\n      - net_b\n'
+  it('多网络解析时标记 networksMultiple', () => {
+    expect(parseSettings(MULTI, 'zh_cn').services[0].networksMultiple).toBe(true)
+  })
+  it('单网络/network_mode 标记为 false', () => {
+    expect(parseSettings('services:\n  app:\n    image: x\n    networks: [net_a]\n', 'zh_cn').services[0].networksMultiple).toBe(false)
+    expect(parseSettings('services:\n  app:\n    image: x\n    network_mode: host\n', 'zh_cn').services[0].networksMultiple).toBe(false)
+  })
+  it('dict 形式多网络同样标记', () => {
+    expect(parseSettings('services:\n  app:\n    image: x\n    networks:\n      net_a: {}\n      net_b: {}\n', 'zh_cn').services[0].networksMultiple).toBe(true)
+  })
+  it('即使 networkDirty 被误置 true,多网络服务的 networks 也原样保留(带刹车)', () => {
+    const m = parseSettings(MULTI, 'zh_cn')
+    m.services[0].network = 'bridge'
+    m.services[0].networkDirty = true
+    const doc = YAML.parse(buildYaml(MULTI, m))
+    expect(doc.services.app.networks).toEqual(['net_a', 'net_b'])
+    expect(doc.services.app.network_mode).toBeUndefined()
+  })
+})
+
 describe('mode:ingress 容忍(后端 GET yaml 归一化产物,Crafty 验收实锤)', () => {
   const yml = `name: crafty
 services:

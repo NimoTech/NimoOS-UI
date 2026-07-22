@@ -17,8 +17,10 @@ export interface ServiceModel {
   memoryMB: number | null     // limits.memory;null=未设限
   commandTokens: string[]     // command 逐 token 展示;数组→逐项,字符串→保守单 token
   commandDirty: boolean       // 编辑任一 token/增删 才置 true;false 时 buildYaml 不动 command
+  commandWasString: boolean   // 原 YAML 里 command 是 string 写法;编辑后单 token 时保 string 写回(P6 保守修)
   network: string             // network_mode 优先,否则 networks 首个 key/元素,缺省 ''
   networkDirty: boolean       // 编辑网络下拉才置 true;false 时 buildYaml 不动 network_mode/networks
+  networksMultiple: boolean   // 服务挂了 >1 个网络;表单下拉禁用,buildYaml 双保险不写回(P6 防静默塌单网络)
 }
 export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
 export interface SettingsModel {
@@ -125,15 +127,18 @@ function parseService(name: string, raw: Dict): ServiceModel {
   const cpuRaw = Number(raw.cpu_shares)
   const deploy = asDict(asDict(asDict(raw.deploy).resources).limits)
   const cmdRaw = raw.command
+  const commandWasString = !Array.isArray(cmdRaw) && cmdRaw != null && cmdRaw !== ''
   const commandTokens: string[] = Array.isArray(cmdRaw)
     ? cmdRaw.map(String)
     : (cmdRaw != null && cmdRaw !== '' ? [String(cmdRaw)] : [])
   const networkMode = raw.network_mode != null ? String(raw.network_mode) : ''
   let network = networkMode
+  const netsRaw = raw.networks
+  const netCount = Array.isArray(netsRaw) ? netsRaw.length : Object.keys(asDict(netsRaw)).length
+  const networksMultiple = netCount > 1
   if (!network) {
-    const nets = raw.networks
-    if (Array.isArray(nets)) network = nets.length ? String(nets[0]) : ''
-    else network = Object.keys(asDict(nets))[0] ?? ''
+    if (Array.isArray(netsRaw)) network = netsRaw.length ? String(netsRaw[0]) : ''
+    else network = Object.keys(asDict(netsRaw))[0] ?? ''
   }
   return {
     name,
@@ -145,8 +150,8 @@ function parseService(name: string, raw: Dict): ServiceModel {
     containerName: String(raw.container_name ?? ''),
     cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 归一化(ComposeConfig.vue:550-559)
     memoryMB: parseMemoryToMB(deploy.memory),
-    commandTokens, commandDirty: false,
-    network, networkDirty: false,
+    commandTokens, commandDirty: false, commandWasString,
+    network, networkDirty: false, networksMultiple,
   }
 }
 
@@ -219,10 +224,11 @@ export function buildYaml(originalYaml: string, model: SettingsModel): string {
       else { delete deploy.resources; if (Object.keys(deploy).length) svc.deploy = deploy; else delete svc.deploy }
     }
     if (sm.commandDirty) {
-      if (sm.commandTokens.length) svc.command = [...sm.commandTokens]
-      else delete svc.command
+      if (!sm.commandTokens.length) delete svc.command
+      else if (sm.commandWasString && sm.commandTokens.length === 1) svc.command = sm.commandTokens[0]
+      else svc.command = [...sm.commandTokens]
     }
-    if (sm.networkDirty) {
+    if (sm.networkDirty && !sm.networksMultiple) {
       delete svc.network_mode
       delete svc.networks
       if (sm.network) {
