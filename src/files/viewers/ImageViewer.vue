@@ -218,6 +218,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 6px 10px;
   border-radius: 10px;
+  box-shadow: var(--media-overlay-shadow);
   background: var(--popup-bg);
   backdrop-filter: var(--blur);
 }
