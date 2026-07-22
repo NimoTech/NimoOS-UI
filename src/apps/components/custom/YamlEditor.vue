@@ -66,13 +66,13 @@ onBeforeUnmount(() => {
   scrollbar-width: thin;
   scrollbar-color: var(--console-scroll-thumb) transparent;
 }
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 16px; height: 16px; }
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 22px; height: 22px; }
 /* 轨道从两端各让开圆角距离+余量,滚动条只落在直边段内,不穿圆角
    (WebKit 轨道 margin 只在滚动条自身轴向生效) */
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; margin: 16px; }
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; margin: 22px; }
 .yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb {
   background: var(--console-scroll-thumb);
-  border: 5px solid transparent;
+  border: 8px solid transparent;
   background-clip: padding-box;
   border-radius: 8px;
 }
