@@ -9,6 +9,7 @@ import { service, type DockerNetwork } from '@nimotech/nimoos-service'
 import AreaShell from '../../components/shell/AreaShell.vue'
 import AppsSidebar from '../components/AppsSidebar.vue'
 import ComposeSettingsForm from '../components/settings/ComposeSettingsForm.vue'
+import YamlEditor from '../components/custom/YamlEditor.vue'
 import { useAppSettings } from '../composables/useAppSettings'
 import { useInstalledAppsStore } from '../stores/installedApps'
 import { useToast } from '../../stores/toast'
@@ -24,6 +25,16 @@ const app = computed(() => installed.apps.find((a) => a.id === id.value))
 
 const networks = ref<DockerNetwork[]>([])
 const stableTags = ref<Record<string, string | null>>({})
+
+// 表单⇄YAML 逃生口(P6 验收补丁②):默认 form,yamlText 只在切到 yaml tab 时由 toYaml() 现取一次
+// (带过表单已做的修改);切回 form 走 replaceFromYaml,失败则不切换、留在 yaml tab 看红条。
+const tab = ref<'form' | 'yaml'>('form')
+const yamlText = ref('')
+function selectTab(next: 'form' | 'yaml') {
+  if (next === tab.value) return
+  if (next === 'yaml') { yamlText.value = s.toYaml(); tab.value = 'yaml' }
+  else if (s.replaceFromYaml(yamlText.value)) tab.value = 'form'
+}
 
 onMounted(() => {
   void s.load().then(() => {
@@ -59,6 +70,16 @@ function onConflictAck() {
   // scrollIntoView 在 jsdom 未实现,可选链保护
   void nextTick(() => bannerEl.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
 }
+
+// YAML tab 内保存:直接以原文 dry_run→PUT,不经表单弹窗,冲突/其它错误都走 tab 内红条(brief 明确
+// 不做表单那套行级标红+弹窗,直接红条即可)。
+async function onSaveYaml() {
+  const ok = await s.saveYaml(yamlText.value)
+  if (ok) {
+    toast.show(t('appsSettingsApplying'), 5000)
+    router.push({ name: 'apps' })
+  }
+}
 function back() { router.push({ name: 'apps' }) }
 </script>
 
@@ -80,15 +101,47 @@ function back() { router.push({ name: 'apps' }) }
         </div>
 
         <template v-else-if="s.model.value">
-          <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
-            {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
-          </div>
-          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" :networks="networks" :stable-tags="stableTags" />
-          <div class="set-actions">
-            <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
-            <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
-              {{ s.saving.value ? t('appsWorking') : t('appsSettingsSave') }}
-            </button>
+          <nav class="settings-tabs" role="tablist">
+            <button
+              type="button" role="tab" data-test="settings-tab-form"
+              :aria-selected="tab === 'form'" :class="{ on: tab === 'form' }"
+              @click="selectTab('form')"
+            >{{ t('appsSettingsTabForm') }}</button>
+            <button
+              type="button" role="tab" data-test="settings-tab-yaml"
+              :aria-selected="tab === 'yaml'" :class="{ on: tab === 'yaml' }"
+              @click="selectTab('yaml')"
+            >{{ t('appsSettingsTabYaml') }}</button>
+          </nav>
+
+          <template v-if="tab === 'form'">
+            <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
+              {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
+            </div>
+            <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" :networks="networks" :stable-tags="stableTags" />
+            <div class="set-actions">
+              <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
+              <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
+                {{ s.saving.value ? t('appsWorking') : t('appsSettingsSave') }}
+              </button>
+            </div>
+          </template>
+
+          <div v-else class="settings-yaml-panel" data-test="settings-yaml-panel">
+            <div v-if="s.parseError.value" class="set-conflict" data-test="yaml-parse-error">
+              {{ t('appsSettingsYamlParseError') }}{{ s.parseError.value }}
+            </div>
+            <div v-else-if="s.conflicts.value.length" class="set-conflict" data-test="settings-conflict">
+              {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
+            </div>
+            <div v-else-if="s.saveError.value" class="set-conflict" data-test="yaml-save-error">{{ s.saveError.value }}</div>
+            <YamlEditor v-model="yamlText" class="settings-yaml-editor" />
+            <div class="set-actions">
+              <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
+              <button class="set-save" type="button" data-test="settings-yaml-save" :disabled="s.saving.value" @click="onSaveYaml">
+                {{ s.saving.value ? t('appsWorking') : t('appsSettingsYamlSave') }}
+              </button>
+            </div>
           </div>
         </template>
       </main>
@@ -113,12 +166,20 @@ function back() { router.push({ name: 'apps' }) }
 
 <style scoped>
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
+.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
 .detail-back { font-size: 13px; margin-bottom: 14px; }
 .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
 .set-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .set-icon { width: 44px; height: 44px; border-radius: 11px; object-fit: contain; }
 .set-title { font-size: 18px; font-weight: 600; margin: 0; color: var(--fg); }
+.settings-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.settings-tabs button {
+  padding: 5px 16px; border-radius: 9px; border: 1px solid var(--card-border);
+  background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 13px;
+}
+.settings-tabs button.on { background: var(--chip-bg-hi); color: var(--fg); }
+.settings-yaml-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.settings-yaml-editor { flex: 1 1 auto; min-height: 320px; }
 .set-conflict {
   /* 全仓库其它「危险/冲突」提示均用半透明 --drop-bad 当底 + --remove-fg 当字(见 GridGhost.vue .bad、
      OperationStatusBar.vue 等)——brief 原稿写的 background: var(--remove-bg) 与本行 color 撞色(两者色相/明度
