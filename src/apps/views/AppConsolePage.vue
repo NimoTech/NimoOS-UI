@@ -136,10 +136,13 @@ function back() { router.push({ name: 'apps' }) }
 </template>
 
 <style scoped>
-.apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
-.detail-back { font-size: 13px; margin-bottom: 14px; }
-.console-page { display: flex; flex-direction: column; gap: 14px; }
+/* 控制台页天然是"应用式"定高布局(只有 tabs+面板,无长文档内容):
+   height:100% 给下游一个确定分母,终端/日志面板才能占满剩余空间在内部滚
+   (min-height:100% 是内容驱动高度,面板会随内容长高——YAML 标签同款教训) */
+.apps-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+.detail-back { font-size: 13px; margin-bottom: 14px; align-self: flex-start; }
+.console-page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
 .console-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .console-title { margin: 0; font-size: 18px; font-weight: 600; color: var(--fg); }
 .console-svc {

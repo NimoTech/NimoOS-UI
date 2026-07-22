@@ -69,7 +69,8 @@ onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
 </template>
 
 <style scoped>
-.term-wrap { position: relative; height: 480px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
+/* flex 填满父容器剩余空间(AppConsolePage 定高布局给分母);min-height 兜底极矮视口 */
+.term-wrap { position: relative; flex: 1 1 auto; min-height: 320px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
 .term-wrap.fullscreen { position: fixed; inset: 0; z-index: 200; height: auto; border-radius: 0; }
 .term-host { position: absolute; inset: 8px; }
 .term-fs { position: absolute; top: 8px; right: 12px; z-index: 10; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; }

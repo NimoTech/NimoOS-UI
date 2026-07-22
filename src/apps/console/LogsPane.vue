@@ -29,7 +29,8 @@ onBeforeUnmount(() => logs.stop())
 </template>
 
 <style scoped>
-.logs-wrap { display: flex; flex-direction: column; height: 480px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
+/* flex 填满父容器剩余空间(AppConsolePage 定高布局给分母);min-height 兜底极矮视口 */
+.logs-wrap { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 320px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
 .logs-bar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 6px 10px; }
 .logs-err { color: var(--remove-fg); font-size: 12px; margin-right: auto; }
 .logs-refresh { padding: 3px 12px; border-radius: 8px; border: 1px solid var(--card-border); background: var(--chip-bg-hi); color: var(--fg); cursor: pointer; font-size: 12px; }
