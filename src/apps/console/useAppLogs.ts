@@ -25,7 +25,11 @@ export function useAppLogs(appId: () => string) {
   function start() {
     if (timer) return
     void refresh()
-    timer = setInterval(() => { void refresh() }, POLL_MS)
+    // Tick-only guard: skip firing a new refresh() while one is still in flight (slow
+    // network/backend). Without this, an overlapping request can resolve out of order —
+    // an older response landing after a newer one would briefly flash stale logs back into
+    // `text`. Manual refresh() (button click) intentionally has no such guard.
+    timer = setInterval(() => { if (!loading.value) void refresh() }, POLL_MS)
   }
 
   function stop() {

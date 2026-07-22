@@ -25,7 +25,10 @@ const selectedService = ref('')
 const containerId = computed(() => info.value?.containers[selectedService.value]?.ID ?? '')
 const serviceNames = computed(() => Object.keys(info.value?.containers ?? {}))
 
-// Monotonic request-sequence guard (same pattern as appstore.ts's loadCatalog `mySeq`):
+// Monotonic request-sequence guard (same pattern as appstore.ts's loadCatalog `mySeq`,
+// but instance/closure-scoped here, not module-scoped — this `seq` lives in this
+// AppConsolePage instance's setup() closure, reset fresh on every mount, not shared
+// across instances like a module-level singleton would be):
 // rapid successive route-param changes (app A → app B before A's fetch resolves) fire
 // load() twice with both in flight. Without this, whichever `containers()` response lands
 // LAST wins unconditionally — a stale response can overwrite the newer app's info/selectedService,
@@ -85,11 +88,26 @@ function back() { router.push({ name: 'apps' }) }
         <div class="console-page">
           <header class="console-head">
             <h2 class="console-title">{{ app?.title ?? id }}</h2>
+            <!--
+              @change forces tab back to 'terminal' when the user picks a different service
+              here while sitting on the Logs tab. Switching the service changes containerId,
+              which remounts a fresh, :key-ed TerminalPane under v-show="tab === 'terminal'".
+              If that remount happens while tab === 'logs', the new TerminalPane mounts hidden
+              (display:none) — FitAddon.fit() is a no-op against a hidden host, so it connects
+              at xterm's default 80×24 and the PTY (fixed-size at connect, no resize support by
+              design) stays wrong-sized until the user manually reconnects. Using @change here
+              (rather than a watch(selectedService, ...)) matters: load() also assigns
+              selectedService programmatically on app switch, and load() already resets
+              tab to 'terminal' itself — a watcher would double-handle that path for no
+              reason and risk fighting load()'s own reset order. @change only fires on real
+              user interaction with this <select>, so it can't clash with load().
+            -->
             <select
               v-if="serviceNames.length > 1"
               v-model="selectedService"
               class="console-svc"
               data-test="console-svc-select"
+              @change="tab = 'terminal'"
             >
               <option v-for="s in serviceNames" :key="s" :value="s">{{ s }}</option>
             </select>

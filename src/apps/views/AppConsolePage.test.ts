@@ -122,6 +122,60 @@ describe('AppConsolePage', () => {
     w.unmount()
   })
 
+  it('日志 tab 上切服务选择器:强制切回终端 tab(隐藏挂载会把新 TerminalPane 的 fit 锁死在 80×24)', async () => {
+    svc.compose.containers.mockResolvedValue({
+      main: 'web',
+      containers: { db: { ID: 'cdb' }, web: { ID: 'cweb' } },
+    })
+    const w = mount(AppConsolePage, {
+      global: {
+        plugins: [i18n, pinia],
+        stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true },
+      },
+      attachTo: document.body, // isVisible() 需要挂在真实 document 上才读得到 v-show 的 inline style
+    })
+    await flushPromises()
+
+    await w.find('[data-test="console-tab-logs"]').trigger('click')
+    expect(w.find('[data-test="console-tab-logs"]').attributes('aria-selected')).toBe('true')
+    expect(w.findComponent({ name: 'LogsPane' }).isVisible()).toBe(true)
+
+    const sel = w.find('[data-test="console-svc-select"]')
+    await sel.setValue('db')
+
+    // 服务选择器的 @change 把 tab 强制拉回 'terminal':新容器 = 新 :key = TerminalPane 重挂载,
+    // 若还停在 logs tab,这次重挂载会发生在 v-show="tab==='terminal'" 隐藏之下,FitAddon.fit()
+    // 对隐藏宿主是 no-op,连接时就以 xterm 默认 80×24 定size(PTY 不支持事后 resize)。
+    expect(w.find('[data-test="console-tab-terminal"]').attributes('aria-selected')).toBe('true')
+    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('cdb')
+    expect(w.findComponent({ name: 'TerminalPane' }).isVisible()).toBe(true)
+    expect(w.findComponent({ name: 'LogsPane' }).isVisible()).toBe(false)
+    w.unmount()
+  })
+
+  it('切应用(路由 name 变化)期间在日志 tab:load() 自身把 tab 重置为终端,不被 select 的 @change 二次触发', async () => {
+    svc.compose.containers.mockResolvedValueOnce({
+      main: 'web',
+      containers: { db: { ID: 'cdb' }, web: { ID: 'cweb' } },
+    })
+    const w = mk()
+    await flushPromises() // onMounted 的 load()(id="demo")
+
+    await w.find('[data-test="console-tab-logs"]').trigger('click')
+    expect(w.find('[data-test="console-tab-logs"]').attributes('aria-selected')).toBe('true')
+
+    // 换应用:load() 内部已经把 tab.value = 'terminal' 写死在 try 之前 —— 这条路径完全不经过
+    // 服务选择器的 @change 处理器,不存在“load 已重置 + @change 又重置一次”的双重触发。
+    svc.compose.containers.mockResolvedValueOnce({ main: 'app', containers: { app: { ID: 'c-other' } } })
+    routeMock.params.name = 'other-app'
+    await flushPromises()
+
+    expect(w.find('[data-test="console-tab-terminal"]').attributes('aria-selected')).toBe('true')
+    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c-other')
+    // 单服务应用,选择器不渲染 —— 顺带确认没有遗留上一个应用的多服务选择器状态
+    expect(w.find('[data-test="console-svc-select"]').exists()).toBe(false)
+  })
+
   it('应用不存在(containers→undefined):toast + 跳回 /apps', async () => {
     svc.compose.containers.mockResolvedValue(undefined)
     const toast = useToast()
