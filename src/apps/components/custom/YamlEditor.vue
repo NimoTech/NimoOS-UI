@@ -55,7 +55,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.yaml-editor { width: 100%; height: 100%; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--card-border); }
+/* 12px 与终端/日志面板同档(2026-07-22 用户拍板:深底控制台类面板统一 12px,不用大卡片档 --radius) */
+.yaml-editor { width: 100%; height: 100%; overflow: hidden; border-radius: 12px; border: 1px solid var(--card-border); }
 .yaml-editor :deep(.cm-editor) { height: 100%; }
 /* CM6 固定高度的标准配方:滚动发生在内部 .cm-scroller(行号 gutter 保持粘住),
    而不是外层盒子滚走整个编辑器——外层因此改 overflow:hidden。 */
@@ -68,7 +69,7 @@ onBeforeUnmount(() => {
 .yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 12px; height: 12px; }
 /* 轨道从两端各让开一个圆角距离,滚动条只落在直边段内,不穿圆角
    (终端没这问题是因为 xterm 内容区本来就从圆角框内缩 8px;WebKit 轨道 margin 只在滚动条自身轴向生效) */
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; margin: var(--radius); }
+.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; margin: 12px; }
 .yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb {
   background: var(--console-scroll-thumb);
   border: 3px solid transparent;
