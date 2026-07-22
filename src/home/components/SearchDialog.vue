@@ -36,8 +36,9 @@ const searching = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 const SEARCH_DELAY_MS = 1000
 
-// 建议词（空态展示）；点击即填入并直接搜索，方便演示。第一个 chip 即 demo 2 的入口。
-const suggestions = ['receipts from when I moved house last winter', 'product spec', 'launch replay', 'morning podcast', 'wallpaper']
+// 建议词（空态展示）；点击即填入并直接搜索，方便演示。
+// demo 2（搬家小票）不放建议词——演示时手动输入含 move/receipt/winter 的描述句触发。
+const suggestions = ['product spec', 'launch replay', 'morning podcast', 'wallpaper']
 
 type Category = 'Documents' | 'Audio'
 
