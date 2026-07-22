@@ -193,6 +193,8 @@ function back() { router.push({ name: 'apps' }) }
   color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
 }
 .set-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+/* YAML 标签:按钮栏与编辑器的间距只留面板 gap(12px),多出的 margin 让给编辑器高度 */
+.settings-yaml-panel .set-actions { margin-top: 0; }
 .set-save { font-size: 13.5px; padding: 8px 24px; cursor: pointer; color: var(--on-accent); background: var(--accent); border: none; border-radius: 10px; }
 .set-save:hover { filter: brightness(1.08); }
 .set-save:disabled { opacity: 0.55; cursor: default; filter: none; }
