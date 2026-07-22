@@ -209,7 +209,7 @@ const tagSelect = computed<string>({
 .image-row .set-input { flex: 1 1 auto; min-width: 0; }
 .tag-select { flex: 0 0 auto; width: auto; }
 
-.row-add { padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
+.row-add { align-self: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
 .row-add:hover { background: var(--chip-bg-hi); }
 .row-add.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-bd); }
 .row-del { width: 28px; height: 28px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--fg-muted); }
