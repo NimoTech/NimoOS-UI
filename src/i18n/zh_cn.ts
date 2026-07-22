@@ -516,4 +516,9 @@ export default {
   appsConsoleLogs: '日志',
   appsConsoleNotFound: '应用不存在或没有运行中的容器',
   appsConsoleLoadFailed: '加载失败,请重试',
+  // ── 商店源(/apps/sources,P7-T3 store 先落,页面在 T4)──
+  appsSourcesRegisterOk: '商店源注册成功',
+  appsSourcesRegisterFail: '商店源注册失败:{msg}',
+  appsSourcesRemoveOk: '商店源已移除',
+  appsSourcesRemoveFail: '移除商店源失败:{msg}',
 }

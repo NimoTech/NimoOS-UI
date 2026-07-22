@@ -517,4 +517,9 @@ export default {
   appsConsoleLogs: 'Logs',
   appsConsoleNotFound: 'App not found or has no running container',
   appsConsoleLoadFailed: 'Failed to load, please retry',
+  // ── App store sources (/apps/sources, store lands in P7-T3; page in T4) ──
+  appsSourcesRegisterOk: 'App store source registered',
+  appsSourcesRegisterFail: 'Failed to register source: {msg}',
+  appsSourcesRemoveOk: 'App store source removed',
+  appsSourcesRemoveFail: 'Failed to remove source: {msg}',
 }
