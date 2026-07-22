@@ -26,9 +26,9 @@
 ## 展示(沿用 fish 的结构)
 
 - **All 标签**:该 demo 无文档行,相册卡自然排第 1 —— 横排 5 张缩略图按名次排列,
-  每张右下角 `OCR` 徽标(复用 fish 里 Nick's receipt 的样式)。卡片标题用新 i18n 键
-  `searchReceiptMatches`;右上按钮与点击行为改为**打开 Recipes 文件夹**(这批小票不在
-  AI 相册库里,不跳相册)。
+  每张右下角 `OCR` 徽标(复用 fish 里 Nick's receipt 的样式)。卡片标题/按钮/点击
+  行为与 fish **完全一致**(searchAlbumMatches + Open Album ›,点击进 AI 相册)——
+  用户 07-22 修订:不要单独的小票文案,也不要跳文件夹。
 - **Images 标签**:5 张拆单行按 1–5 排名(复用 media-row),每行 OCR 徽标旁新增一行
   英文小字描述:店名 + 关键商品 + 金额 + 日期(`Media.desc` 字段,唯一的组件扩展)。
 - 单行左键 = ViewerHost 就地预览原图(真实文件,直接可用)。
@@ -41,4 +41,5 @@
 
 ## i18n
 
-新增键 `searchReceiptMatches`(zh_cn + en_us 同步,parity 测试约束)。
+无新增键(复用 searchAlbumMatches / searchOpenAlbum;曾加过 searchReceiptMatches,
+按用户修订已移除)。

@@ -15,7 +15,7 @@ import type { FileEntry } from '../../files/stores/files'
 //   demo 1 "fish"：跨模态排序（1-2 文档 · 3 相册卡 · 4 起文档/音频正常排序）。
 //   demo 2 搬家小票：描述式查询(receipts from when I moved house last winter)，
 //     命中 /DATA/Documents/Recipes/ 下 5 张真实小票照片(全 OCR)——无文档行，
-//     All 标签相册卡排第 1，Images 标签拆单行按名次排序；跳转走文件夹而非 AI 相册。
+//     All 标签相册卡排第 1，Images 标签拆单行按名次排序；文案/跳转与 fish 完全一致(进 AI 相册)。
 // Ask Nimo AI 入口在搜索输入框右侧：渐变胶囊按钮(星标图标 + “Ask Nimo”文字，仿 Gemini)，高度与关闭(✕)按钮一致(36px)。
 // 交互：左键点击结果 = 直接复用文件页的 ViewerHost 就地预览（docx/pdf/xlsx/图片/视频/音频/文本全支持）；
 //       每行右上「打开文件夹」= 新窗口跳到该文件所在文件夹；相册卡 = 进 AI 相册并搜索。
@@ -139,7 +139,6 @@ const ALBUM: Media[] = [
 // 全部为 /DATA/Documents/Recipes/ 下真实小票照片，靠 OCR 文字命中；顺序即排名：
 // 1 "moving boxes" 字面直接命中 → 2-3 同日(12/27)采购链 → 4 新家置办(语义) → 5 同店工具弱相关垫底。
 const RECEIPTS_DIR = '/DATA/Documents/Recipes'
-const RECEIPTS_FOLDER = '/files/NimoOS-HD/Documents/Recipes'
 const RECEIPTS: Media[] = [
   { name: '20260722-031032.jpg', path: `${RECEIPTS_DIR}/20260722-031032.jpg`, accuracy: 0, ocr: true, desc: 'Home Depot · moving boxes ×6 + rolling trash can · $55.72 · Dec 27, 2024' },
   { name: '20260722-031024.jpg', path: `${RECEIPTS_DIR}/20260722-031024.jpg`, accuracy: 0, ocr: true, desc: 'Walmart · OFFICE CHAIR $75 ×4 + trash bags · $389.87 · Dec 27, 2024' },
@@ -247,15 +246,10 @@ function openResult(row: DocResult): void {
   const entry: FileEntry = { name: row.name, path: row.realPath, is_dir: false }
   if (!viewer.openItem(entry, [entry])) openFolder(row.folder)
 }
-// 单张图片 / 视频行：左键就地预览（不支持则回退到相册卡的跳转目标）。
+// 单张图片 / 视频行：左键就地预览（不支持则回退进 AI 相册）。
 function openMedia(m: Media): void {
   const entry: FileEntry = { name: m.name, path: m.path, is_dir: false }
-  if (!viewer.openItem(entry, [entry])) openAlbumTarget()
-}
-// 相册卡（及媒体行右上按钮）的跳转目标：小票 demo 的照片不在 AI 相册库里，跳 Recipes 文件夹；fish demo 进 AI 相册。
-function openAlbumTarget(): void {
-  if (isReceiptDemo.value) openFolder(RECEIPTS_FOLDER)
-  else openPhotos()
+  if (!viewer.openItem(entry, [entry])) openPhotos()
 }
 // 打开文件夹：新窗口跳到前端文件页对应目录（/app/#/files/...）。
 function openFolder(folder: string): void {
@@ -368,13 +362,13 @@ const showResults = computed(() => searched.value && !!query.value.trim())
 
           <div class="results">
             <template v-for="it in displayList" :key="it.type === 'album' ? 'album' : it.type === 'media' ? it.media.name : it.row.name">
-              <!-- 相册卡：图片+视频合并，缩略图按准确率排序；fish 进 AI 相册，小票 demo 跳文件夹 -->
-              <button v-if="it.type === 'album'" class="album" @click="openAlbumTarget">
+              <!-- 相册卡：图片+视频合并，缩略图按准确率排序，点击进 AI 相册 -->
+              <button v-if="it.type === 'album'" class="album" @click="openPhotos">
                 <span class="rank">{{ it.rank }}</span>
                 <span class="album-body">
                   <span class="album-head">
-                    <span class="album-title">{{ isReceiptDemo ? t('searchReceiptMatches', { count: it.media.length }) : t('searchAlbumMatches', { count: it.media.length }) }}</span>
-                    <span class="album-go">{{ isReceiptDemo ? t('searchOpenFolder') : t('searchOpenAlbum') }}</span>
+                    <span class="album-title">{{ t('searchAlbumMatches', { count: it.media.length }) }}</span>
+                    <span class="album-go">{{ t('searchOpenAlbum') }}</span>
                   </span>
                   <span class="album-strip">
                     <span v-for="m in it.media" :key="m.name" class="album-thumb">
@@ -397,7 +391,7 @@ const showResults = computed(() => searched.value && !!query.value.trim())
                   <span class="media-acc-label">{{ it.media.ocr ? 'text recognized' : 'match accuracy' }}</span>
                   <span v-if="it.media.desc" class="media-desc">{{ it.media.desc }}</span>
                 </span>
-                <button class="row-open" @click.stop="openAlbumTarget">{{ isReceiptDemo ? t('searchOpenFolder') : t('searchOpenAlbum') }}</button>
+                <button class="row-open" @click.stop="openPhotos">{{ t('searchOpenAlbum') }}</button>
               </div>
 
               <!-- 文档 / 音频行：左键预览，右上「打开文件夹」新窗口 -->

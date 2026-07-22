@@ -352,7 +352,6 @@ export default {
   searchResultsCount: '{count} 条结果',
   searchOpenAlbum: '打开相册 ›',
   searchAlbumMatches: '在 AI 相册找到 {count} 个匹配(图片 / 视频)',
-  searchReceiptMatches: '找到 {count} 张小票 · OCR 文字识别命中',
   searchOpenFolder: '打开文件夹 ›',
   searchOpenFolderTitle: '在文件中打开此文件夹',
   searchAskTitle: '向 Nimo AI 询问「{query}」',
