@@ -47,7 +47,8 @@ function confirmRemove() {
   if (s) void store.unregister(s.id)
 }
 
-const MORE_URL = 'https://awesome.nimoos.io/content/3rd-party-app-stores/list.html'
+// 社区维护的第三方商店大全(CasaOS 生态原版;Vue2 写的 awesome.nimoos.io 是品牌重命名死链,域名不存在)
+const MORE_URL = 'https://awesome.casaos.io/content/3rd-party-app-stores/list.html'
 
 onMounted(() => {
   void store.load()
@@ -66,12 +67,13 @@ onMounted(() => {
         </p>
 
         <form class="src-add" @submit.prevent="onAdd">
+          <!-- 注册中不锁输入(用户可先备好下一个地址),只锁提交(canSubmit)——
+               单飞约束在 store.register 前置守卫,完成事件不带 URL,并发注册无法归属 -->
           <input
             v-model="url"
             class="src-input"
             type="text"
             :placeholder="t('appsSourcesAddPlaceholder')"
-            :disabled="!!store.registeringUrl"
           />
           <button class="bar-btn src-add-btn" type="submit" :disabled="!canSubmit">
             {{ t('appsSourcesAdd') }}

@@ -10,6 +10,24 @@ import { useAppstoreStore } from './appstore'
  *  register-end 丢失时靠轮询 listSources 看到新 URL 收敛,不永久转圈(Vue2 只靠事件,是旧 bug)。 */
 const REGISTER_POLL_MS = 15_000
 
+/** 注册中状态落盘:刷新页面后恢复"添加中"行并继续收敛(用户验收反馈——刷新后 pending 行消失)。
+ *  带时间戳,恢复时超过 TTL 视为陈旧丢弃(防注册早已失败、error 事件错过后 pending 永久复活)。 */
+const REGISTER_PERSIST_KEY = 'nimoos:sources-registering'
+const REGISTER_PERSIST_TTL_MS = 10 * 60_000
+
+function readPersistedRegistering(): string | null {
+  try {
+    const raw = localStorage.getItem(REGISTER_PERSIST_KEY)
+    if (!raw) return null
+    const v = JSON.parse(raw) as { url?: unknown; at?: unknown }
+    if (typeof v.url !== 'string' || typeof v.at !== 'number') return null
+    if (Date.now() - v.at > REGISTER_PERSIST_TTL_MS) return null
+    return v.url
+  } catch {
+    return null
+  }
+}
+
 function errMsg(e: unknown): string {
   const r = (e as { response?: { data?: { message?: string } } })?.response
   if (r?.data?.message) return r.data.message
@@ -59,6 +77,27 @@ export const useSourcesStore = defineStore('appSources', () => {
   function settleRegister() {
     registeringUrl.value = null
     stopPoll()
+    try {
+      localStorage.removeItem(REGISTER_PERSIST_KEY)
+    } catch {
+      /* 存储不可用时静默——落盘只是刷新恢复的增强 */
+    }
+  }
+
+  /** 兜底轮询:看到目标 URL 出现在源列表即收敛(needle 已小写,后端重复判定不区分大小写) */
+  function startPoll(needle: string) {
+    stopPoll()
+    pollTimer = setInterval(async () => {
+      if (registeringUrl.value === null) return
+      try {
+        const list = await service.appstore.listSources()
+        if (registeringUrl.value !== null && list.some((s) => s.url.toLowerCase() === needle)) {
+          convergeRegistered()
+        }
+      } catch {
+        /* 轮询失败静默,下个周期再试 */
+      }
+    }, REGISTER_POLL_MS)
   }
 
   /** 注册成功收敛(事件或轮询,谁先到谁生效):清 pending + toast + 重拉列表 + 失效商店目录缓存 */
@@ -86,19 +125,12 @@ export const useSourcesStore = defineStore('appSources', () => {
       settleRegister()
       throw new Error(errMsg(e))
     }
-    const needle = target.toLowerCase() // 后端重复判定不区分大小写,轮询对齐
-    stopPoll()
-    pollTimer = setInterval(async () => {
-      if (registeringUrl.value === null) return
-      try {
-        const list = await service.appstore.listSources()
-        if (registeringUrl.value !== null && list.some((s) => s.url.toLowerCase() === needle)) {
-          convergeRegistered()
-        }
-      } catch {
-        /* 轮询失败静默,下个周期再试 */
-      }
-    }, REGISTER_POLL_MS)
+    try {
+      localStorage.setItem(REGISTER_PERSIST_KEY, JSON.stringify({ url: target, at: Date.now() }))
+    } catch {
+      /* 存储不可用时静默 */
+    }
+    startPoll(target.toLowerCase())
   }
 
   /** 注销:后端无事件,同步等待(Vue2 同款)。错误(如删最后一个源的 400)toast 透出,不抛。 */
@@ -111,6 +143,14 @@ export const useSourcesStore = defineStore('appSources', () => {
     } catch (e) {
       toast.show(t('appsSourcesRemoveFail', { msg: errMsg(e) }), 5000)
     }
+  }
+
+  // 刷新恢复:上个页面生命周期里发起的注册还在后端跑,恢复 pending 行并重新武装轮询;
+  // 完成收敛走轮询或下面的事件订阅(事件不带 URL,单飞语义保证归属无歧义)
+  const persisted = readPersistedRegistering()
+  if (persisted !== null) {
+    registeringUrl.value = persisted
+    startPoll(persisted.toLowerCase())
   }
 
   // 订阅挂 store 生命周期(应用级单例):注册是慢任务(下载 tarball),

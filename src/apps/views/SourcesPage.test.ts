@@ -33,6 +33,7 @@ function mountPage() {
 
 describe('SourcesPage', () => {
   beforeEach(() => {
+    localStorage.clear() // 注册中状态落盘,防上一用例的 pending 被新 pinia 恢复
     vi.clearAllMocks()
     svc.appstore.listSources.mockResolvedValue([OFFICIAL, THIRD])
   })
@@ -68,8 +69,12 @@ describe('SourcesPage', () => {
     expect(svc.appstore.registerSource).toHaveBeenCalledWith('https://example.com/s.zip')
     expect((w.find('.src-input').element as HTMLInputElement).value).toBe('')
     expect(w.find('.src-pending').exists()).toBe(true) // 注册中行可见
+    // 注册中输入框不锁(可先备好下一个地址),只锁提交
+    expect((w.find('.src-input').element as HTMLInputElement).disabled).toBe(false)
+    expect((w.find('.src-add-btn').element as HTMLButtonElement).disabled).toBe(true)
 
     // 同步 409 就地展示(新 mount,干净 store)
+    localStorage.clear() // 上面的注册已落盘,清掉防 w2 恢复 pending 撞 busy 守卫
     const w2 = mountPage()
     await flushPromises()
     svc.appstore.registerSource.mockRejectedValueOnce({ response: { data: { message: 'already exists' } } })

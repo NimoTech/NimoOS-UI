@@ -29,6 +29,7 @@ const THIRD = { id: 1, url: 'https://github.com/WisdomSky/CasaOS-Coolstore/archi
 
 describe('sources store', () => {
   beforeEach(() => {
+    localStorage.clear() // 注册中状态落盘,防跨用例污染(fresh pinia 会跑恢复逻辑)
     setActivePinia(createPinia())
     busHandlers.clear()
     vi.clearAllMocks()
@@ -151,5 +152,43 @@ describe('sources store', () => {
     })
     await store.unregister(0)
     expect(show).toHaveBeenCalledWith(expect.stringContaining('cannot unregister the last app store'), expect.any(Number))
+  })
+
+  it('注册中状态落盘:register 写 localStorage,收敛后清除', async () => {
+    const store = useSourcesStore()
+    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
+    await store.register('https://example.com/store.zip')
+    const raw = localStorage.getItem('nimoos:sources-registering')
+    expect(raw).not.toBeNull()
+    expect(JSON.parse(raw!)).toMatchObject({ url: 'https://example.com/store.zip' })
+
+    svc.appstore.listSources.mockResolvedValue([SRC])
+    busHandlers.get('app-store:register-end')!({})
+    expect(store.registeringUrl).toBeNull()
+    expect(localStorage.getItem('nimoos:sources-registering')).toBeNull()
+  })
+
+  it('刷新恢复:新 store 实例从落盘恢复 pending 并重新武装轮询收敛', async () => {
+    localStorage.setItem(
+      'nimoos:sources-registering',
+      JSON.stringify({ url: 'https://Example.com/Store.zip', at: Date.now() }),
+    )
+    const store = useSourcesStore()
+    expect(store.registeringUrl).toBe('https://Example.com/Store.zip')
+
+    // 轮询看到 URL(后端存小写)→ 收敛 + 清落盘
+    svc.appstore.listSources.mockResolvedValue([SRC, { id: 1, url: 'https://example.com/store.zip' }])
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(store.registeringUrl).toBeNull()
+    expect(localStorage.getItem('nimoos:sources-registering')).toBeNull()
+  })
+
+  it('刷新恢复:落盘超过 10 分钟 TTL 视为陈旧丢弃', () => {
+    localStorage.setItem(
+      'nimoos:sources-registering',
+      JSON.stringify({ url: 'https://example.com/store.zip', at: Date.now() - 11 * 60_000 }),
+    )
+    const store = useSourcesStore()
+    expect(store.registeringUrl).toBeNull()
   })
 })
