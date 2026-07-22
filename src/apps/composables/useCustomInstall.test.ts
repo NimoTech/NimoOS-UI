@@ -35,14 +35,14 @@ beforeEach(() => {
 })
 
 describe('useCustomInstall.installYaml', () => {
-  it('无 name YAML 自动得名并 track(icon 取 ensureComposeMeta 注入的 x-nimoos.icon)', async () => {
+  it('无 name YAML 自动得名并 track(icon 不再注入死链域名,用户没写就是空)', async () => {
     const flow = mountFlow()
     const progress = useInstallProgressStore()
     const res = await flow.installYaml(NAMELESS)
     expect(res).toEqual({ ok: true, name: 'sonarr' })
     expect(progress.tasks['sonarr']).toMatchObject({
       title: 'sonarr',
-      icon: 'https://icon.nimoos.io/main/all/sonarr.png',
+      icon: '',
       state: 'installing',
     })
   })

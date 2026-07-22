@@ -22,6 +22,23 @@ function shortImageName(image: string): string {
   return img.slice(img.lastIndexOf('/') + 1)
 }
 
+/** 首个 service 里第一个可解析出的单端口 host 侧发布端口(短语法/长语法);找不到返 ''。
+ *  range/裸端口条目解析不出确定的 host 端口,跳过。 */
+function firstPublishedPort(doc: Dict): string {
+  const services = asDict(doc.services)
+  const firstSvc = asDict(Object.values(services)[0])
+  for (const p of Array.isArray(firstSvc.ports) ? firstSvc.ports : []) {
+    if (p && typeof p === 'object') {
+      const pub = String((p as Dict).published ?? '')
+      if (/^\d+$/.test(pub)) return pub
+    } else {
+      const m = /^(?:\d{1,3}(?:\.\d{1,3}){3}:)?(\d+):\d+(?:\/(?:tcp|udp))?$/i.exec(String(p).trim())
+      if (m) return m[1]!
+    }
+  }
+  return ''
+}
+
 /** name 派生级联:顶层 name → 首个可用 service key → 首个 service 的 image 短名 → 'app' 兜底。 */
 function deriveRawName(doc: Dict): string {
   if (typeof doc.name === 'string' && doc.name.trim()) return doc.name.trim()
@@ -46,7 +63,13 @@ export function ensureComposeMeta(yamlText: string): { yaml: string; name: strin
   if (typeof title.custom !== 'string' || !title.custom) title.custom = name
   if (typeof title.en_us !== 'string' || !title.en_us) title.en_us = name
   ext.title = title
-  if (typeof ext.icon !== 'string' || !ext.icon) ext.icon = `https://icon.nimoos.io/main/all/${name}.png`
+  // 不注入 icon:icon.nimoos.io 域名不存在(Vue2 遗留死链,ERR_NAME_NOT_RESOLVED),
+  // 注入只会得到坏图;缺 icon 时磁贴/卡片用默认 glyph 兜底。用户自带的 icon 原样保留。
+  // 注入 port_map:桌面/已装列表靠它拼「打开」地址(appUrl 无 port 无 index 即无动作)。
+  if (typeof ext.port_map !== 'string' || !ext.port_map) {
+    const port = firstPublishedPort(doc)
+    if (port) ext.port_map = port
+  }
   doc[extKey] = ext
 
   return { yaml: YAML.stringify(doc), name }

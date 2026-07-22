@@ -1,10 +1,10 @@
 <template>
   <div class="app-tile" :class="{ stopped: store.isStopped(item.key) }">
     <span
-      v-if="meta?.icon"
+      v-if="meta?.icon && !imgFailed"
       class="app-ic has-img"
       :class="meta?.cls || 'ic-app'"
-    ><img :src="meta.icon" alt="" loading="lazy" /></span>
+    ><img :src="meta.icon" alt="" loading="lazy" @error="imgFailed = true" /></span>
     <span
       v-else
       class="app-ic"
@@ -15,15 +15,18 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../grid/types'
 import { useAppsStore } from '../stores/apps'
 
 const props = defineProps<{ item: LayoutItem }>()
+// 坏 icon URL(404/域名不存在)回落默认 glyph;icon 换新值时重试加载
+const imgFailed = ref(false)
 const store = useAppsStore()
 const { t } = useI18n()
 const meta = computed(() => store.app(props.item.key))
+watch(() => meta.value?.icon, () => { imgFailed.value = false })
 // System apps store an i18n key in `name`; container apps store a literal title.
 const displayName = computed(() => {
   const m = meta.value

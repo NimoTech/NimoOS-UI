@@ -22,6 +22,14 @@ describe('AppTile', () => {
     expect(w.find('img').attributes('src')).toBe('http://x/i.png')
     expect(w.text()).toContain('影音')
   })
+  it('falls back to the default glyph when the icon img fails to load (dead URL)', async () => {
+    const s = useAppsStore()
+    s.setApps([{ name: 'testapp', title: { zh_cn: '测试' }, icon: 'https://icon.nimoos.io/main/all/testapp.png' }] as any)
+    const w = mount(AppTile, { props: { item: item('testapp') } })
+    await w.find('img').trigger('error')
+    expect(w.find('img').exists()).toBe(false)
+    expect(w.find('.app-ic').html()).toContain('<svg')
+  })
   it('dims a non-system stopped app but not a running one, undefined-status one, or a system app', () => {
     const s = useAppsStore()
     s.setApps([

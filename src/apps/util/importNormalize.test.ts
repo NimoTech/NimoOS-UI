@@ -3,14 +3,33 @@ import YAML from 'yaml'
 import { ensureComposeMeta, volumeAutoCheck, normalizeVolumes, dockerRunToCompose } from './importNormalize'
 
 describe('ensureComposeMeta', () => {
-  it('injects top-level name + x-nimoos title/icon when both absent', () => {
+  it('injects top-level name + x-nimoos title when both absent; never injects icon (dead domain)', () => {
     const src = `services:\n  sonarr:\n    image: linuxserver/sonarr:latest\n`
     const { yaml, name } = ensureComposeMeta(src)
     expect(name).toBe('sonarr')
     const doc = YAML.parse(yaml)
     expect(doc.name).toBe('sonarr')
     expect(doc['x-nimoos'].title).toEqual({ custom: 'sonarr', en_us: 'sonarr' })
-    expect(doc['x-nimoos'].icon).toBe('https://icon.nimoos.io/main/all/sonarr.png')
+    expect(doc['x-nimoos'].icon).toBeUndefined()
+  })
+
+  it('injects port_map from the first published host port (short syntax)', () => {
+    const src = `services:\n  web:\n    image: nginx:alpine\n    ports:\n      - "18080:80"\n`
+    const { yaml } = ensureComposeMeta(src)
+    expect(YAML.parse(yaml)['x-nimoos'].port_map).toBe('18080')
+  })
+
+  it('injects port_map from long syntax and skips range/bare entries', () => {
+    const src = `services:\n  web:\n    image: foo\n    ports:\n      - "25500-25600:25500-25600"\n      - "3000"\n      - target: 80\n        published: 8081\n`
+    const { yaml } = ensureComposeMeta(src)
+    expect(YAML.parse(yaml)['x-nimoos'].port_map).toBe('8081')
+  })
+
+  it('does not overwrite an existing port_map and omits the key when no port is derivable', () => {
+    const kept = ensureComposeMeta(`services:\n  web:\n    image: foo\n    ports: ["18080:80"]\nx-nimoos:\n  port_map: "9999"\n`)
+    expect(YAML.parse(kept.yaml)['x-nimoos'].port_map).toBe('9999')
+    const none = ensureComposeMeta(`services:\n  worker:\n    image: foo\n`)
+    expect(YAML.parse(none.yaml)['x-nimoos'].port_map).toBeUndefined()
   })
 
   it('does not overwrite an existing top-level name', () => {
@@ -33,13 +52,13 @@ describe('ensureComposeMeta', () => {
     expect(name).toBe('foo-bar')
   })
 
-  it('does not inject x-nimoos when x-casaos is already present — injects missing title/icon into x-casaos instead', () => {
+  it('does not inject x-nimoos when x-casaos is already present — injects missing title into x-casaos instead', () => {
     const src = `name: plexy\nservices:\n  plex:\n    image: plexinc/pms-docker\nx-casaos:\n  scheme: http\n`
     const { yaml } = ensureComposeMeta(src)
     const doc = YAML.parse(yaml)
     expect(doc['x-nimoos']).toBeUndefined()
     expect(doc['x-casaos'].title).toEqual({ custom: 'plexy', en_us: 'plexy' })
-    expect(doc['x-casaos'].icon).toBe('https://icon.nimoos.io/main/all/plexy.png')
+    expect(doc['x-casaos'].icon).toBeUndefined()
     expect(doc['x-casaos'].scheme).toBe('http') // untouched existing field
   })
 
@@ -53,12 +72,12 @@ describe('ensureComposeMeta', () => {
     expect(doc['x-nimoos'].title.en_us).toBe('keepme')
   })
 
-  it('guesses the icon URL from the final slugified name', () => {
+  it('keeps icon absent for a derived name (dead icon domain is never guessed)', () => {
     const src = `services:\n  My App:\n    image: foo\n`
     const { yaml, name } = ensureComposeMeta(src)
     expect(name).toBe('my-app')
     const doc = YAML.parse(yaml)
-    expect(doc['x-nimoos'].icon).toBe('https://icon.nimoos.io/main/all/my-app.png')
+    expect(doc['x-nimoos'].icon).toBeUndefined()
   })
 
   it('falls back to the "app" name when the YAML has no name and no services at all', () => {
