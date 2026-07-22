@@ -23,3 +23,19 @@ export function createContainerEventHandler(opts: {
   }
   return { handle, dispose }
 }
+
+/** 应用卸载完成事件。与容器 destroy 不同,它是明确的「应用已不存在」信号
+ *  (更新/重建不发)——桌面可放心强制清位,手动固定的磁贴也一并移除。 */
+export const APP_UNINSTALL_END = 'app:uninstall-end'
+
+export function createUninstallEndHandler(opts: {
+  evictForce: (key: string) => void
+  refresh: () => void
+}): (props: unknown) => void {
+  return (props: unknown) => {
+    const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
+    const name = typeof p['app:name'] === 'string' ? p['app:name'] : ''
+    if (name) opts.evictForce(name)
+    opts.refresh()
+  }
+}

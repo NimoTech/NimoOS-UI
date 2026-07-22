@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createContainerEventHandler, CONTAINER_EVENT } from './containerEventBridge'
+import { createContainerEventHandler, CONTAINER_EVENT, createUninstallEndHandler, APP_UNINSTALL_END } from './containerEventBridge'
 
 describe('containerEventBridge', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -45,5 +45,22 @@ describe('containerEventBridge', () => {
     expect(refresh).not.toHaveBeenCalled()
     // 幂等:重复调用无害
     expect(() => dispose()).not.toThrow()
+  })
+})
+
+describe('createUninstallEndHandler', () => {
+  it('事件名与后端契约一致', () => {
+    expect(APP_UNINSTALL_END).toBe('app:uninstall-end')
+  })
+
+  it('解析 app:name 强制清位并刷新;缺 name 只刷新', () => {
+    const evictForce = vi.fn(); const refresh = vi.fn()
+    const handle = createUninstallEndHandler({ evictForce, refresh })
+    handle({ 'app:name': 'test-nginx' })
+    expect(evictForce).toHaveBeenCalledWith('test-nginx')
+    expect(refresh).toHaveBeenCalledTimes(1)
+    handle({})
+    expect(evictForce).toHaveBeenCalledTimes(1)
+    expect(refresh).toHaveBeenCalledTimes(2)
   })
 })

@@ -65,6 +65,40 @@ describe('useLayoutStore', () => {
 const DIMS = { cols: 12, rows: 8 }
 const dl = (key: string, widget?: { w: number; h: number }): DesktopAppDecl => ({ key, widget })
 
+describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('手动固定的磁贴:应用消失满宽限期后被清,宽限期内保留', () => {
+    const s = useLayoutStore(); s.loadInitial()
+    s.pin({ kind: 'app', key: 'test-nginx', c: 1, r: 1, w: 1, h: 1 })
+    s.sweepGone(['files']) // 第一次缺席:只起计时
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(true)
+    vi.advanceTimersByTime(46_000)
+    s.sweepGone(['files']) // 缺席满宽限期:清
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
+  })
+
+  it('仍在应用列表里的磁贴不清,且缺席计时被重置', () => {
+    const s = useLayoutStore(); s.loadInitial()
+    s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 })
+    s.sweepGone([]) // 抖动:一次全空,起计时
+    s.sweepGone(['jellyfin']) // 恢复:计时重置
+    vi.advanceTimersByTime(46_000)
+    s.sweepGone([]) // 再次缺席:重新只起计时,不清
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'jellyfin')).toBe(true)
+  })
+
+  it('evict force 立即清手动固定磁贴(非 seen);缺省仍豁免', () => {
+    const s = useLayoutStore(); s.loadInitial()
+    s.pin({ kind: 'app', key: 'test-nginx', c: 1, r: 1, w: 1, h: 1 })
+    s.evict('test-nginx')
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(true) // seen 守卫豁免
+    s.evict('test-nginx', { force: true })
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
+  })
+})
+
 describe('autoPin', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

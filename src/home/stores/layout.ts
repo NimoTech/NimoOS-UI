@@ -193,10 +193,33 @@ export const useLayoutStore = defineStore('home-layout', () => {
     if (changed) { save(); saveSeen() }
   }
 
+  /** 应用统一清扫:桌面 app/appwidget 磁贴的 key 已不在应用列表(liveKeys)里 → 走同一
+   *  缺席宽限期后移除,手动固定与自动上桌一视同仁(卸载/删除后桌面与 Dock/已装列表对齐)。
+   *  liveKeys 必须来自一次成功的 loadGrid(含系统应用与 LinkApp),加载失败时不要调用,
+   *  否则一次接口抖动会给全桌面起缺席计时。 */
+  function sweepGone(liveKeys: Iterable<string>) {
+    const live = new Set(liveKeys)
+    const now = Date.now()
+    const gone = new Set<string>()
+    for (const it of items.value) {
+      if (it.kind !== 'app' && it.kind !== 'appwidget') continue
+      if (live.has(it.key)) { missingSince.delete(it.key); continue }
+      const since = missingSince.get(it.key)
+      if (since === undefined) { missingSince.set(it.key, now); continue }
+      if (now - since >= MISSING_GRACE_MS) gone.add(it.key)
+    }
+    if (!gone.size) return
+    items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && gone.has(it.key)))
+    gone.forEach((k) => { seen.value.delete(k); missingSince.delete(k) })
+    save(); saveSeen()
+  }
+
   /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期。
-   *  只清 autoPin 管理(seen)的项 —— 手动固定与系统图标免疫。 */
-  function evict(key: string) {
-    if (!seen.value.has(key)) return
+   *  默认只清 autoPin 管理(seen)的项 —— 手动固定与系统图标免疫(destroy 在应用更新/
+   *  重建时也会发,不能拿它清手动磁贴)。`force` 供「应用已卸载」这类明确信号用:
+   *  连手动固定的一并清(uninstall-end 不会在更新/重建时发,无误伤)。 */
+  function evict(key: string, opts?: { force?: boolean }) {
+    if (!opts?.force && !seen.value.has(key)) return
     const before = items.value.length
     items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
     const hadSeen = seen.value.delete(key)
@@ -204,5 +227,5 @@ export const useLayoutStore = defineStore('home-layout', () => {
     if (items.value.length !== before || hadSeen) { save(); saveSeen() }
   }
 
-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen, evict }
+  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen, evict, sweepGone }
 })

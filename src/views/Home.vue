@@ -33,7 +33,7 @@ import { useAddPanel } from '../home/composables/useAddPanel'
 import { useDock } from '../home/composables/useDock'
 import { useParallax } from '../home/composables/useParallax'
 import { useMessageBus } from '../composables/useMessageBus'
-import { createContainerEventHandler, CONTAINER_EVENT } from '../home/containerEventBridge'
+import { createContainerEventHandler, CONTAINER_EVENT, createUninstallEndHandler, APP_UNINSTALL_END } from '../home/containerEventBridge'
 
 const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
 const dock = ref<InstanceType<typeof HomeDock> | null>(null)
@@ -67,12 +67,15 @@ let stopParallax: (() => void) | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let onFocus: (() => void) | null = null
 let offContainerEvents: (() => void) | null = null
+let offUninstallEvents: (() => void) | null = null
 let containerEventBridge: ReturnType<typeof createContainerEventHandler> | null = null
 
 function refreshApps() {
   apps.loadGrid().then(() => {
     useDock().refresh()
     layout.autoPin(apps.desktopDecls(), DIMS, apps.stoppedDesktopKeys())
+    // 统一清扫:已卸载/已删除的应用(含手动固定、LinkApp),缺席满宽限期后磁贴移除
+    layout.sweepGone(Object.keys(apps.apps))
   }).catch((e) => console.warn('[home] appgrid', e))
 }
 
@@ -94,6 +97,11 @@ onMounted(async () => {
   // docker daemon 事件推送:destroy 立即清位,其余去抖刷新(轮询仍是兜底)
   containerEventBridge = createContainerEventHandler({ evict: (k) => layout.evict(k), refresh: refreshApps })
   offContainerEvents = useMessageBus().on(CONTAINER_EVENT, containerEventBridge.handle)
+  // 卸载完成 = 明确的应用消失信号:立即清位(含手动固定磁贴),不等宽限期
+  offUninstallEvents = useMessageBus().on(APP_UNINSTALL_END, createUninstallEndHandler({
+    evictForce: (k) => layout.evict(k, { force: true }),
+    refresh: refreshApps,
+  }))
 
   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
 })
@@ -104,6 +112,7 @@ onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
   if (onFocus) window.removeEventListener('focus', onFocus)
   if (offContainerEvents) offContainerEvents()
+  if (offUninstallEvents) offUninstallEvents()
   if (containerEventBridge) containerEventBridge.dispose()
 })
 </script>
