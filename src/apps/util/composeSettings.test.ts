@@ -281,3 +281,31 @@ services:
     expect(out.services.x.ports).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
   })
 })
+
+describe('mode:ingress 容忍(后端 GET yaml 归一化产物,Crafty 验收实锤)', () => {
+  const yml = `name: crafty
+services:
+  crafty:
+    image: crafty:latest
+    ports:
+      - target: 8443
+        published: "8111"
+        protocol: tcp
+        mode: ingress
+      - target: 25565
+        published: "25565"
+        protocol: tcp
+        mode: host
+`
+  it('mode:ingress 的单端口进可编辑行,mode:host 进透传', () => {
+    const m = parseSettings(yml, 'zh_cn')
+    expect(m.services[0].ports).toEqual([{ published: '8111', target: '8443', protocol: 'tcp' }])
+    expect(m.services[0].portsExtra).toEqual([{ target: 25565, published: '25565', protocol: 'tcp', mode: 'host' }])
+  })
+  it('重建时省略 mode(ingress 即默认,同义),mode:host 原样保留', () => {
+    const m = parseSettings(yml, 'zh_cn')
+    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
+    expect(out.services.crafty.ports).toContainEqual({ target: 8443, published: '8111', protocol: 'tcp' })
+    expect(out.services.crafty.ports).toContainEqual({ target: 25565, published: '25565', protocol: 'tcp', mode: 'host' })
+  })
+})

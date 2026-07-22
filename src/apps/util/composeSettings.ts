@@ -86,7 +86,9 @@ function classifyPortEntry(p: unknown): PortParse {
     const o = p as Dict
     const t = o.target != null ? String(o.target) : ''
     const pub = o.published != null ? String(o.published) : t
-    const extras = Object.keys(o).filter((k) => !['target', 'published', 'protocol', 'host_ip'].includes(k))
+    // `mode: ingress` 是 compose-go 归一化后 GET yaml 必带的默认值(商店应用每个端口都有),
+    // 语义等同缺省,视作已识别键(重建时省略=同义);`mode: host` 语义不同,保持进透传。
+    const extras = Object.keys(o).filter((k) => !['target', 'published', 'protocol', 'host_ip'].includes(k) && !(k === 'mode' && o.mode === 'ingress'))
     const protoRaw = o.protocol != null ? String(o.protocol).toLowerCase() : ''
     // protocol 显式给了非 tcp/udp 的值(如 sctp)→ 不可编辑,原样透传(与短语法正则只认 tcp|udp 保持一致)。
     if (protoRaw && protoRaw !== 'tcp' && protoRaw !== 'udp') return { extra: p }
