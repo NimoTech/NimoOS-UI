@@ -112,6 +112,7 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
             @open="onOpen(a)"
             @action="(op) => onAction(a, op)"
             @settings="router.push({ name: 'apps-settings', params: { name: a.id } })"
+            @console="router.push({ name: 'apps-console', params: { name: a.id } })"
             @uninstall="uninstallDlg = { open: true, app: a }"
           />
         </div>

@@ -507,4 +507,9 @@ export default {
   appsConsoleConnecting: '连接中…',
   appsConsoleRefresh: '刷新',
   appsConsoleLogsEmpty: '暂无日志',
+  appsConsole: '终端与日志',
+  appsConsoleTerminal: '终端',
+  appsConsoleLogs: '日志',
+  appsConsoleNotFound: '应用不存在或没有运行中的容器',
+  appsConsoleLoadFailed: '加载失败,请重试',
 }

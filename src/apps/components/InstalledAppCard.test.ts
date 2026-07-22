@@ -72,6 +72,15 @@ describe('InstalledAppCard', () => {
     expect(w.emitted('settings')).toHaveLength(1)
   })
 
+  it('⋮ 菜单含「终端与日志」,点击 emit console', async () => {
+    const w = mountCard()
+    const items = w.get('.menu').findAll('div')
+    const consoleItem = items.find((it) => it.text() === '终端与日志')
+    expect(consoleItem).toBeTruthy()
+    await consoleItem!.trigger('click')
+    expect(w.emitted('console')).toHaveLength(1)
+  })
+
   it('pending:卡片处理中态,主按钮禁用', () => {
     const w = mountCard({}, 'restart')
     expect(w.text()).toContain('处理中')

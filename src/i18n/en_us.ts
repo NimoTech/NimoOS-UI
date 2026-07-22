@@ -508,4 +508,9 @@ export default {
   appsConsoleConnecting: 'Connecting…',
   appsConsoleRefresh: 'Refresh',
   appsConsoleLogsEmpty: 'No logs yet',
+  appsConsole: 'Terminal & Logs',
+  appsConsoleTerminal: 'Terminal',
+  appsConsoleLogs: 'Logs',
+  appsConsoleNotFound: 'App not found or has no running container',
+  appsConsoleLoadFailed: 'Failed to load, please retry',
 }

@@ -10,6 +10,14 @@ import { vi } from 'vitest'
 // 在此全局 mock 一处封掉 —— router/index.test.ts 的同款 workaround 上移为全局。
 vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
 
+// Same problem, new source (T7): router/index.ts now also statically imports AppConsolePage.vue
+// → TerminalPane.vue → '@xterm/xterm', which does canvas feature-detection at module *import*
+// time (not just on `new Terminal()`) — jsdom has no canvas, so any test that transitively
+// imports router (nearly all of them) would print a jsdom "getContext not implemented" error.
+// Global mock, same remedy as lottie-web above; components that need real xterm behavior
+// (TerminalPane.test.ts, AppConsolePage.test.ts) mock it themselves with more detail anyway.
+vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn(function () { return { open: vi.fn(), loadAddon: vi.fn(), dispose: vi.fn(), cols: 80, rows: 24 } }) }))
+
 // Install i18n globally for all component mounts so any component using
 // useI18n()/$t works without each test wiring the plugin. Tests that pass their
 // own i18n instance via `global.plugins` still override this (applied later).
