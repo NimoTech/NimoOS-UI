@@ -90,9 +90,13 @@ export const useAppstoreStore = defineStore('appstore', () => {
     }
   }
 
-  /** 商店源增删后目录已变:清 categories 缓存(loadCatalog 有 length 守卫,不清不会重拉)
-   *  并复位 catalogLoaded,下次进商店页整体重拉。featured 每次 mounted 都重拉,无缓存守卫,不用清。 */
+  /** 商店源增删后目录已变:seq++ 孤儿化在途 loadCatalog(防陈旧响应复活缓存),
+   *  清 categories 缓存(loadCatalog 有 length 守卫,不清不会重拉)并复位 catalogLoaded;
+   *  loading 一并复位——被孤儿化的请求的 finally 因 mySeq !== seq 不会再翻转它。
+   *  featured 每次 mounted 都重拉,无缓存守卫,不用清。 */
   function invalidate() {
+    seq++
+    loading.value = false
     categories.value = []
     catalogLoaded.value = false
   }

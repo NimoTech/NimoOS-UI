@@ -136,4 +136,26 @@ describe('appstore store', () => {
     await s.loadCatalog()
     expect(svc.categories).toHaveBeenCalledTimes(2) // 缓存已失效,重拉
   })
+
+  it('invalidate 孤儿化在途 loadCatalog:陈旧响应落地不应复活 catalogLoaded/categories', async () => {
+    const s = useAppstoreStore()
+    await s.loadCatalog() // 先跑一次,让 list/installed 落一个基线值
+    const prevList = s.list
+    const prevInstalled = s.installed
+
+    let resolveInFlight: (v: unknown) => void = () => {}
+    svc.listApps.mockImplementationOnce(() => new Promise((res) => { resolveInFlight = res }))
+
+    const p = s.loadCatalog('Media', ALL) // 在途请求
+    s.invalidate() // 商店源变了,孤儿化上面这次在途请求
+
+    resolveInFlight({ installed: ['ghost'], list: { ghost: { title: { en_us: 'Ghost' }, category: 'Media' } } })
+    await p
+
+    expect(s.catalogLoaded).toBe(false)
+    expect(s.categories).toEqual([])
+    expect(s.loading).toBe(false)
+    expect(s.list).toBe(prevList) // invalidate 本身不碰 list/installed,陈旧响应也不应写入
+    expect(s.installed).toBe(prevInstalled)
+  })
 })
