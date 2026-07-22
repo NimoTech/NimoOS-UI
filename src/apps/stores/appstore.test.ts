@@ -121,4 +121,19 @@ describe('appstore store', () => {
     expect(s.detailError).toBe(true)
     expect(s.detailLoading).toBe(false)
   })
+
+  it('invalidate 清 categories 缓存:下次 loadCatalog 重拉分类', async () => {
+    const s = useAppstoreStore()
+    svc.categories.mockResolvedValue([{ name: 'Media', count: 2 }])
+    svc.listApps.mockResolvedValue({ installed: [], list: {} })
+
+    await s.loadCatalog()
+    await s.loadCatalog()
+    expect(svc.categories).toHaveBeenCalledTimes(1) // length 守卫命中
+
+    s.invalidate()
+    expect(s.catalogLoaded).toBe(false)
+    await s.loadCatalog()
+    expect(svc.categories).toHaveBeenCalledTimes(2) // 缓存已失效,重拉
+  })
 })

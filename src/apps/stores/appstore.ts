@@ -90,11 +90,18 @@ export const useAppstoreStore = defineStore('appstore', () => {
     }
   }
 
+  /** 商店源增删后目录已变:清 categories 缓存(loadCatalog 有 length 守卫,不清不会重拉)
+   *  并复位 catalogLoaded,下次进商店页整体重拉。featured 每次 mounted 都重拉,无缓存守卫,不用清。 */
+  function invalidate() {
+    categories.value = []
+    catalogLoaded.value = false
+  }
+
   const isInstalled = (id: string) => installed.value.includes(id)
 
   return {
     categories, list, installed, featured, loading, error, catalogLoaded,
     detail, detailLoading, detailError,
-    loadCatalog, retry, loadFeatured, loadDetail, isInstalled,
+    loadCatalog, retry, loadFeatured, loadDetail, invalidate, isInstalled,
   }
 })
