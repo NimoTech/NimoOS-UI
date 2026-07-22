@@ -353,6 +353,7 @@ export default {
   searchResultsCount: '{count} results',
   searchOpenAlbum: 'Open Album ›',
   searchAlbumMatches: 'Found {count} matches in AI Album (images / videos)',
+  searchReceiptMatches: 'Found {count} receipts · matched by OCR text',
   searchOpenFolder: 'Open folder ›',
   searchOpenFolderTitle: 'Open this folder in Files',
   searchAskTitle: 'Ask Nimo AI about “{query}”',

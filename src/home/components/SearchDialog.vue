@@ -11,8 +11,11 @@ import { useViewer } from '../../files/viewers/useViewer'
 import type { FileEntry } from '../../files/stores/files'
 
 // 弹窗内的统一搜索：⌘K 打开这个玻璃命令面板，回车（或点建议词）后在下方显示分组结果。
-// 当前为「写死 demo」——固定演示搜索 "fish" 的跨模态排序，暂不接后端(NimoOS-Search)。
-// 排序（demo）：1-2 文档 · 3 相册卡(图片+视频合并) · 4 起文档/音频正常排序。
+// 当前为「写死 demo」——暂不接后端(NimoOS-Search)，按查询词二选一：
+//   demo 1 "fish"：跨模态排序（1-2 文档 · 3 相册卡 · 4 起文档/音频正常排序）。
+//   demo 2 搬家小票：描述式查询(receipts from when I moved house last winter)，
+//     命中 /DATA/Documents/Recipes/ 下 5 张真实小票照片(全 OCR)——无文档行，
+//     All 标签相册卡排第 1，Images 标签拆单行按名次排序；跳转走文件夹而非 AI 相册。
 // Ask Nimo AI 入口在搜索输入框右侧：渐变胶囊按钮(星标图标 + “Ask Nimo”文字，仿 Gemini)，高度与关闭(✕)按钮一致(36px)。
 // 交互：左键点击结果 = 直接复用文件页的 ViewerHost 就地预览（docx/pdf/xlsx/图片/视频/音频/文本全支持）；
 //       每行右上「打开文件夹」= 新窗口跳到该文件所在文件夹；相册卡 = 进 AI 相册并搜索。
@@ -33,8 +36,8 @@ const searching = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 const SEARCH_DELAY_MS = 1000
 
-// 建议词（空态展示）；点击即填入并直接搜索，方便演示。
-const suggestions = ['product spec', 'launch replay', 'morning podcast', 'wallpaper']
+// 建议词（空态展示）；点击即填入并直接搜索，方便演示。第一个 chip 即 demo 2 的入口。
+const suggestions = ['receipts from when I moved house last winter', 'product spec', 'launch replay', 'morning podcast', 'wallpaper']
 
 type Category = 'Documents' | 'Audio'
 
@@ -120,7 +123,8 @@ const DOCS: DocResult[] = [
 const GALLERY = '/DATA/Gallery/Fishing'
 const VIDEO_POSTER = import.meta.env.BASE_URL + 'demo/fish_video_poster.jpg'
 // ocr=true 的媒体表示「靠 OCR 文字识别命中」——徽标显示 "OCR" 而非准确率百分比。
-interface Media { name: string; path: string; accuracy: number; isVideo?: boolean; ocr?: boolean }
+// desc = Images 标签单行里 OCR 徽标旁的一行小字（店名 + 关键商品 + 金额 + 日期），仅小票 demo 用。
+interface Media { name: string; path: string; accuracy: number; isVideo?: boolean; ocr?: boolean; desc?: string }
 const ALBUM: Media[] = [
   // 收据图片：靠图片内 OCR 文字命中（放第一张，徽标标 OCR）。真实文件在 /DATA/Documents/life/。
   { name: "Nick's receipt.jpg", path: "/DATA/Documents/life/Nick's receipt.jpg", accuracy: 0, ocr: true },
@@ -130,6 +134,24 @@ const ALBUM: Media[] = [
   { name: 'images (1).jpg', path: `${GALLERY}/images (1).jpg`, accuracy: 90 },
   { name: 'images (3).jpg', path: `${GALLERY}/images (3).jpg`, accuracy: 85 },
 ]
+
+// ── demo 2:搬家小票 ─────────────────────────────────────────────────────
+// 全部为 /DATA/Documents/Recipes/ 下真实小票照片，靠 OCR 文字命中；顺序即排名：
+// 1 "moving boxes" 字面直接命中 → 2-3 同日(12/27)采购链 → 4 新家置办(语义) → 5 同店工具弱相关垫底。
+const RECEIPTS_DIR = '/DATA/Documents/Recipes'
+const RECEIPTS_FOLDER = '/files/NimoOS-HD/Documents/Recipes'
+const RECEIPTS: Media[] = [
+  { name: '20260722-031032.jpg', path: `${RECEIPTS_DIR}/20260722-031032.jpg`, accuracy: 0, ocr: true, desc: 'Home Depot · moving boxes ×6 + rolling trash can · $55.72 · Dec 27, 2024' },
+  { name: '20260722-031024.jpg', path: `${RECEIPTS_DIR}/20260722-031024.jpg`, accuracy: 0, ocr: true, desc: 'Walmart · OFFICE CHAIR $75 ×4 + trash bags · $389.87 · Dec 27, 2024' },
+  { name: '20260722-031029.jpg', path: `${RECEIPTS_DIR}/20260722-031029.jpg`, accuracy: 0, ocr: true, desc: 'Staples · desk + standing desk riser + mouse · $124.19 · Dec 27, 2024' },
+  { name: '20260722-031001.jpg', path: `${RECEIPTS_DIR}/20260722-031001.jpg`, accuracy: 0, ocr: true, desc: 'Walmart · bedding set + floor lamp + pillow · $73.48 · Jan 12, 2025' },
+  { name: '20260722-030940.jpg', path: `${RECEIPTS_DIR}/20260722-030940.jpg`, accuracy: 0, ocr: true, desc: 'Home Depot · Bosch rotary hammer + drill bit · $217.22 · Jan 16, 2025' },
+]
+
+// 查询词含搬家/小票/冬天类关键词 → demo 2；其余一律 fish（demo 1）。
+const isReceiptDemo = computed(() => /\b(receipts?|move|moved|moving|winter)\b/i.test(query.value))
+const activeDocs = computed<DocResult[]>(() => (isReceiptDemo.value ? [] : DOCS))
+const activeAlbum = computed<Media[]>(() => (isReceiptDemo.value ? RECEIPTS : ALBUM))
 
 function mediaThumb(m: Media): string {
   return m.isVideo ? VIDEO_POSTER : service.image.thumbUrl(m.path)
@@ -142,20 +164,18 @@ function onThumbErr(e: Event, m: Media): void {
 
 // ── 标签（全部结果 + 按命中数排序的分类）────────────────────────────────────
 interface Tab { key: string; label: string; count: number }
-const docCount = (c: Category) => DOCS.filter((r) => r.category === c).length
-const imgCount = ALBUM.filter((m) => !m.isVideo).length
-const vidCount = ALBUM.filter((m) => m.isVideo).length
+const docCount = (c: Category) => activeDocs.value.filter((r) => r.category === c).length
 const tabs = computed<Tab[]>(() => {
   const cats = [
     { key: 'Documents', count: docCount('Documents') },
-    { key: 'Images', count: imgCount },
+    { key: 'Images', count: activeAlbum.value.filter((m) => !m.isVideo).length },
     { key: 'Audio', count: docCount('Audio') },
-    { key: 'Videos', count: vidCount },
+    { key: 'Videos', count: activeAlbum.value.filter((m) => m.isVideo).length },
   ]
     .filter((c) => c.count > 0)
     .sort((a, b) => b.count - a.count)
     .map((c) => ({ key: c.key, label: tabLabel(c.key), count: c.count }))
-  return [{ key: 'all', label: tabLabel('all'), count: DOCS.length + ALBUM.length }, ...cats]
+  return [{ key: 'all', label: tabLabel('all'), count: activeDocs.value.length + activeAlbum.value.length }, ...cats]
 })
 
 const activeTab = ref('all')
@@ -166,14 +186,14 @@ type ListItem = { type: 'row'; row: DocResult } | { type: 'album'; media: Media[
 const displayList = computed<(ListItem & { rank: number })[]>(() => {
   const tab = activeTab.value
   const docs =
-    tab === 'all' ? DOCS
-    : tab === 'Documents' ? DOCS.filter((r) => r.category === 'Documents')
-    : tab === 'Audio' ? DOCS.filter((r) => r.category === 'Audio')
+    tab === 'all' ? activeDocs.value
+    : tab === 'Documents' ? activeDocs.value.filter((r) => r.category === 'Documents')
+    : tab === 'Audio' ? activeDocs.value.filter((r) => r.category === 'Audio')
     : []
   const media =
-    tab === 'all' ? ALBUM
-    : tab === 'Images' ? ALBUM.filter((m) => !m.isVideo)
-    : tab === 'Videos' ? ALBUM.filter((m) => m.isVideo)
+    tab === 'all' ? activeAlbum.value
+    : tab === 'Images' ? activeAlbum.value.filter((m) => !m.isVideo)
+    : tab === 'Videos' ? activeAlbum.value.filter((m) => m.isVideo)
     : []
   const out: ListItem[] = []
   if (tab === 'all') {
@@ -227,10 +247,15 @@ function openResult(row: DocResult): void {
   const entry: FileEntry = { name: row.name, path: row.realPath, is_dir: false }
   if (!viewer.openItem(entry, [entry])) openFolder(row.folder)
 }
-// 单张图片 / 视频行：左键就地预览（不支持则回退进 AI 相册）。
+// 单张图片 / 视频行：左键就地预览（不支持则回退到相册卡的跳转目标）。
 function openMedia(m: Media): void {
   const entry: FileEntry = { name: m.name, path: m.path, is_dir: false }
-  if (!viewer.openItem(entry, [entry])) openPhotos()
+  if (!viewer.openItem(entry, [entry])) openAlbumTarget()
+}
+// 相册卡（及媒体行右上按钮）的跳转目标：小票 demo 的照片不在 AI 相册库里，跳 Recipes 文件夹；fish demo 进 AI 相册。
+function openAlbumTarget(): void {
+  if (isReceiptDemo.value) openFolder(RECEIPTS_FOLDER)
+  else openPhotos()
 }
 // 打开文件夹：新窗口跳到前端文件页对应目录（/app/#/files/...）。
 function openFolder(folder: string): void {
@@ -343,13 +368,13 @@ const showResults = computed(() => searched.value && !!query.value.trim())
 
           <div class="results">
             <template v-for="it in displayList" :key="it.type === 'album' ? 'album' : it.type === 'media' ? it.media.name : it.row.name">
-              <!-- 相册卡：图片+视频合并，缩略图按准确率排序，点击进 AI 相册 -->
-              <button v-if="it.type === 'album'" class="album" @click="openPhotos">
+              <!-- 相册卡：图片+视频合并，缩略图按准确率排序；fish 进 AI 相册，小票 demo 跳文件夹 -->
+              <button v-if="it.type === 'album'" class="album" @click="openAlbumTarget">
                 <span class="rank">{{ it.rank }}</span>
                 <span class="album-body">
                   <span class="album-head">
-                    <span class="album-title">{{ t('searchAlbumMatches', { count: it.media.length }) }}</span>
-                    <span class="album-go">{{ t('searchOpenAlbum') }}</span>
+                    <span class="album-title">{{ isReceiptDemo ? t('searchReceiptMatches', { count: it.media.length }) : t('searchAlbumMatches', { count: it.media.length }) }}</span>
+                    <span class="album-go">{{ isReceiptDemo ? t('searchOpenFolder') : t('searchOpenAlbum') }}</span>
                   </span>
                   <span class="album-strip">
                     <span v-for="m in it.media" :key="m.name" class="album-thumb">
@@ -370,8 +395,9 @@ const showResults = computed(() => searched.value && !!query.value.trim())
                 <span class="media-info">
                   <span class="media-acc-num" :class="{ 'media-acc-ocr': it.media.ocr }">{{ it.media.ocr ? 'OCR' : it.media.accuracy + '%' }}</span>
                   <span class="media-acc-label">{{ it.media.ocr ? 'text recognized' : 'match accuracy' }}</span>
+                  <span v-if="it.media.desc" class="media-desc">{{ it.media.desc }}</span>
                 </span>
-                <button class="row-open" @click.stop="openPhotos">{{ t('searchOpenAlbum') }}</button>
+                <button class="row-open" @click.stop="openAlbumTarget">{{ isReceiptDemo ? t('searchOpenFolder') : t('searchOpenAlbum') }}</button>
               </div>
 
               <!-- 文档 / 音频行：左键预览，右上「打开文件夹」新窗口 -->
@@ -552,6 +578,7 @@ const showResults = computed(() => searched.value && !!query.value.trim())
 .media-acc-num { font-size: 18px; font-weight: 700; color: var(--success); }
 .media-acc-num.media-acc-ocr { color: var(--accent-text); letter-spacing: 0.03em; }
 .media-acc-label { font-size: 12px; color: var(--fg-muted); }
+.media-desc { font-size: 12.5px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 排序理由标签（primary 跟随强调色；其余用固定语义色） */
 .rz { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
