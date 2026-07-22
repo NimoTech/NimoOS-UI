@@ -57,4 +57,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .yaml-editor { width: 100%; height: 100%; overflow: auto; border-radius: var(--radius); border: 1px solid var(--card-border); }
 .yaml-editor :deep(.cm-editor) { height: 100%; }
+/* 行号/正文默认紧贴边框,加内边距留出呼吸空间(gutter 有主题底色,padding 保持底色连续) */
+.yaml-editor :deep(.cm-gutters) { padding-left: 10px; }
+.yaml-editor :deep(.cm-gutter.cm-lineNumbers .cm-gutterElement) { padding-right: 10px; }
+.yaml-editor :deep(.cm-content) { padding: 10px 12px 10px 4px; }
 </style>
