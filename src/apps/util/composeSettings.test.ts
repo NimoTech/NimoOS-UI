@@ -262,4 +262,22 @@ services:
     expect(out.services.crafty.ports).toContainEqual({ target: 8443, published: '9443', protocol: 'tcp' })
     expect(out.services.crafty.ports).toContainEqual('25500-25600:25500-25600')
   })
+
+  it('长格式 protocol 非 tcp/udp(如 sctp)→ 原样透传,不被夹成 tcp 可编辑行', () => {
+    const y = `name: x
+services:
+  x:
+    image: img
+    ports:
+      - target: 132
+        published: 132
+        protocol: sctp
+`
+    const m = parseSettings(y, 'zh_cn')
+    const svc = m.services[0]
+    expect(svc.ports).toEqual([])
+    expect(svc.portsExtra).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
+    const out = YAML.parse(buildYaml(y, m)) as { services: Record<string, { ports: unknown[] }> }
+    expect(out.services.x.ports).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
+  })
 })

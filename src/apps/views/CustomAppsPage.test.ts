@@ -63,9 +63,9 @@ describe('CustomAppsPage — tab 路由 query', () => {
     expect(w.find('[data-test="panel-yaml"]').exists()).toBe(false)
   })
 
-  it('?tab=link → 显示 tab3 占位', async () => {
+  it('?tab=link → 显示 tab3 面板(断言面板而非恒渲染的 tab 按钮)', async () => {
     const { w } = await mountPage('/apps/custom?tab=link')
-    expect(w.find('[data-test="tab-link"]').exists()).toBe(true)
+    expect(w.find('[data-test="tab-link-panel"]').exists()).toBe(true)
   })
 
   it('?tab=garbage → 兜底回 tab1(非法值不识别)', async () => {
@@ -242,5 +242,22 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     confirmBtn.click()
     await flushPromises()
     expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [])
+  })
+
+  it('删除失败(deleteLinkApp reject)→ linkError 就地提示,不静默丢失(回归测试:防未捕获 rejection)', async () => {
+    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
+    const { w } = await mountPage('/apps/custom?tab=link')
+    await flushPromises()
+
+    await w.find('[data-test="link-delete"]').trigger('click')
+    await nextTick()
+    svc.users.setCustomStorage.mockRejectedValueOnce(new Error('boom'))
+    const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCustomLinkDelete)!
+    confirmBtn.click()
+    await flushPromises()
+
+    expect(w.find('[data-test="link-error"]').text()).toBe('boom')
+    // 删除失败时列表不应被清空(deleteLinkApp 抛出后 links 未被赋值)
+    expect(w.find('[data-test="link-row"]').exists()).toBe(true)
   })
 })

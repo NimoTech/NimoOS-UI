@@ -154,8 +154,13 @@ function onDeleteLink(l: LinkApp) { linkDelTarget.value = l; linkDelOpen.value =
 async function confirmDeleteLink() {
   const target = linkDelTarget.value
   if (!target) return
-  links.value = await deleteLinkApp(target.name)
-  if (editingName.value === target.name) resetLinkForm()
+  linkError.value = ''
+  try {
+    links.value = await deleteLinkApp(target.name)
+    if (editingName.value === target.name) resetLinkForm()
+  } catch (e) {
+    linkError.value = e instanceof Error ? e.message : String(e)
+  }
 }
 </script>
 

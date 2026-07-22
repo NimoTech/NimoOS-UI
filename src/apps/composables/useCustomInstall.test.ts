@@ -60,6 +60,24 @@ describe('useCustomInstall.installYaml', () => {
     const flow = mountFlow()
     const installed = useInstalledAppsStore()
     installed.apps = [{ id: 'sonarr', title: 'Sonarr', icon: '', status: 'running', updateAvailable: false, isUncontrolled: false, webUrl: null }]
+    // installYaml 现在无条件 refresh(D4 修复),refresh 会拿这次 mock 的列表覆盖 store——
+    // 让它照样含 sonarr,验证「无条件刷新」不会把预置的冲突场景刷没。
+    svc.compose.list.mockResolvedValueOnce({ sonarr: { store_info: {}, status: 'running' } })
+    const res = await flow.installYaml(NAMELESS)
+    expect(res.ok).toBe(false)
+    expect(svc.compose.install).not.toHaveBeenCalled()
+    expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
+  })
+
+  it('store 非空但陈旧(不含刚被别处装上的同名应用)→ 无条件 refresh 后仍检出 D4 冲突(回归测试:防第二标签页/旧版 UI 装同名后本 store 未感知,守卫被"非空即跳过刷新"绕过)', async () => {
+    const flow = mountFlow()
+    const installed = useInstalledAppsStore()
+    // store 非空(有别的已装应用),但不含 sonarr——模拟"用户开着这个页面挂着,另一个标签页/旧版 UI 装了同名应用"。
+    installed.apps = [{ id: 'other-app', title: 'Other', icon: '', status: 'running', updateAvailable: false, isUncontrolled: false, webUrl: null }]
+    svc.compose.list.mockResolvedValueOnce({
+      'other-app': { store_info: {}, status: 'running' },
+      sonarr: { store_info: {}, status: 'running' },
+    })
     const res = await flow.installYaml(NAMELESS)
     expect(res.ok).toBe(false)
     expect(svc.compose.install).not.toHaveBeenCalled()

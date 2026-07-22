@@ -87,8 +87,11 @@ function classifyPortEntry(p: unknown): PortParse {
     const t = o.target != null ? String(o.target) : ''
     const pub = o.published != null ? String(o.published) : t
     const extras = Object.keys(o).filter((k) => !['target', 'published', 'protocol', 'host_ip'].includes(k))
+    const protoRaw = o.protocol != null ? String(o.protocol).toLowerCase() : ''
+    // protocol 显式给了非 tcp/udp 的值(如 sctp)→ 不可编辑,原样透传(与短语法正则只认 tcp|udp 保持一致)。
+    if (protoRaw && protoRaw !== 'tcp' && protoRaw !== 'udp') return { extra: p }
     if (SINGLE_PORT.test(t) && SINGLE_PORT.test(pub) && !extras.length) {
-      const proto = String(o.protocol ?? 'tcp').toLowerCase() === 'udp' ? 'udp' : 'tcp'
+      const proto = protoRaw === 'udp' ? 'udp' : 'tcp'
       return { row: { published: pub, target: t, protocol: proto, ...(o.host_ip ? { hostIp: String(o.host_ip) } : {}) } }
     }
     return { extra: p } // long-syntax range / mode:host 等异形 → 原样透传

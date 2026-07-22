@@ -62,8 +62,9 @@ export function useCustomInstall() {
     const { yaml, name } = meta
 
     // D4:后端对同名应用是静默覆盖已装应用的工作目录——宁可在前端硬挡,也不让用户无声丢数据。
-    // 深链 /apps/custom 时 store 可能为空,需先补拉已装列表(离线情况下兜底)。
-    if (!installedApps.apps.length) await installedApps.refresh().catch(() => {})
+    // 无条件刷新已装列表(不只在 store 为空时才刷新)——否则 store 在填表期间变陈旧
+    // (旧版 UI/另一标签页装了同名应用后本 store 未感知),硬挡会静默失效,后端仍会覆盖对方工作目录。
+    await installedApps.refresh().catch(() => {})
     if (installedApps.apps.some((a) => a.id === name)) {
       return { ok: false, message: t('appsCustomNameConflict') }
     }
