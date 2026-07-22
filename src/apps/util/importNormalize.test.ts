@@ -208,3 +208,31 @@ describe('dockerRunToCompose', () => {
     expect(() => dockerRunToCompose('')).toThrow()
   })
 })
+
+describe('docker run 导入命名(验收实锤:composerize 占位名 + --name 被无视)', () => {
+  it('dockerRunToCompose 剥掉 composerize 的 <your project name> 占位名', () => {
+    const out = dockerRunToCompose('docker run -d -p 18082:80 --name import-test nginx:alpine')
+    const doc = YAML.parse(out)
+    expect(doc.name).toBeUndefined()
+    expect(doc.services.nginx.container_name).toBe('import-test')
+  })
+
+  it('导入链路端到端:应用名取 --name(container_name 优先于 service key)', () => {
+    const converted = dockerRunToCompose('docker run -d -p 18082:80 --name import-test nginx:alpine')
+    const { yaml, name } = ensureComposeMeta(converted)
+    expect(name).toBe('import-test')
+    expect(YAML.parse(yaml).name).toBe('import-test')
+  })
+
+  it('顶层 name 不合法时合法化写回,返回值与 YAML 严格一致(幽灵进度卡根因)', () => {
+    const { yaml, name } = ensureComposeMeta('name: "My App"\nservices:\n  nginx:\n    image: nginx\n')
+    expect(YAML.parse(yaml).name).toBe(name)
+    expect(name).toBe('my-app') // 不合法既有名 → slug 保留用户意图,而非丢弃
+  })
+
+  it('合法但含下划线的既有 name 原样保留且返回一致', () => {
+    const { yaml, name } = ensureComposeMeta('name: my_app\nservices:\n  a:\n    image: x\n')
+    expect(name).toBe('my_app')
+    expect(YAML.parse(yaml).name).toBe('my_app')
+  })
+})

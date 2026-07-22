@@ -43,19 +43,29 @@ function firstPublishedPort(doc: Dict): string {
 function deriveRawName(doc: Dict): string {
   if (typeof doc.name === 'string' && doc.name.trim()) return doc.name.trim()
   const services = asDict(doc.services)
+  // container_name 优先于 service key:docker run 导入时用户的 --name 落在
+  // container_name 上,而 composerize 的 service key 只是镜像名(nginx 之类)。
+  const firstSvc = asDict(Object.values(services)[0])
+  const cname = typeof firstSvc.container_name === 'string' ? firstSvc.container_name.trim() : ''
+  if (cname) return cname
   const keys = Object.keys(services).filter((k) => k.trim())
   if (keys.length) return keys[0]!
-  const firstSvc = asDict(Object.values(services)[0])
   const image = typeof firstSvc.image === 'string' ? firstSvc.image : ''
   if (image) return shortImageName(image)
   return 'app'
 }
 
+/** 合法 compose 项目名(后端 compose-go 同规):不合法的名字后端会另行归一,
+ *  与前端进度跟踪 key 对不上号 → 幽灵 0% 卡。 */
+const VALID_COMPOSE_NAME = /^[a-z0-9][a-z0-9_-]*$/
+
 export function ensureComposeMeta(yamlText: string): { yaml: string; name: string } {
   const doc = asDict(YAML.parse(yamlText))
-  const name = slugify(deriveRawName(doc)) || 'app'
-
-  if (!(typeof doc.name === 'string' && doc.name.trim())) doc.name = name
+  // 返回的 name 与写进 YAML 的顶层 name 必须严格一致(它同时是后端安装名、事件
+  // app:name、前端 track key)。已有且合法 → 原样用;缺失/不合法 → 派生 + slug 后写回。
+  const existing = typeof doc.name === 'string' ? doc.name.trim() : ''
+  const name = VALID_COMPOSE_NAME.test(existing) ? existing : slugify(deriveRawName(doc)) || 'app'
+  doc.name = name
 
   const extKey: 'x-nimoos' | 'x-casaos' = !doc['x-nimoos'] && doc['x-casaos'] ? 'x-casaos' : 'x-nimoos'
   const ext = asDict(doc[extKey])
@@ -178,5 +188,13 @@ export function normalizeVolumes(yamlText: string, appName: string): string {
 /** composerize 是 CJS(module.exports = fn);esModuleInterop 下按默认导出使用即可,行为已在测试里锁定。 */
 export function dockerRunToCompose(cmd: string): string {
   const cleaned = cmd.replace(/`#.*?`/g, '').replace(/#.*$/gm, '').trim()
-  return composerize(cleaned)
+  const out = composerize(cleaned)
+  // composerize 顶部固定输出占位名 `name: <your project name>`(模板字样,非用户意图)。
+  // 剥掉它,让 ensureComposeMeta 的派生级联接手(container_name=用户的 --name 优先)。
+  const doc = asDict(YAML.parse(out))
+  if (typeof doc.name === 'string' && /^<.*>$/.test(doc.name.trim())) {
+    delete doc.name
+    return YAML.stringify(doc)
+  }
+  return out
 }
