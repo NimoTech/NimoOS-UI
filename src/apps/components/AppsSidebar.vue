@@ -21,11 +21,11 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// P7 增补:源 /apps/sources
 const nav = [
   { name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' },
   { name: 'apps-store', labelKey: 'appsNavStore', to: '/apps/store' },
   { name: 'apps-custom', labelKey: 'appsNavCustom', to: '/apps/custom' },
+  { name: 'apps-sources', labelKey: 'appsNavSources', to: '/apps/sources' },
 ]
 
 /** 商店详情(apps-store-detail)也高亮「应用商店」;自定义安装同款前缀匹配预留给未来子路由——子路由归属父导航项 */

@@ -12,6 +12,7 @@ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
 import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
 import AppConsolePage from '../apps/views/AppConsolePage.vue'
 import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
+import SourcesPage from '../apps/views/SourcesPage.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -23,6 +24,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/apps/store', name: 'apps-store', component: StorePage },
   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
   { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
+  { path: '/apps/sources', name: 'apps-sources', component: SourcesPage },
   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
   { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
