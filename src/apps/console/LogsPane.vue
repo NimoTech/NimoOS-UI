@@ -29,9 +29,9 @@ onBeforeUnmount(() => logs.stop())
 <style scoped>
 /* flex 填满父容器剩余空间(AppConsolePage 定高布局给分母);min-height 兜底极矮视口 */
 .logs-wrap { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 320px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
-/* Refresh 悬浮右上角(与 TerminalPane 的全屏按钮同款),不再独占一整行顶栏 */
-.logs-refresh { position: absolute; top: 8px; right: 12px; z-index: 10; padding: 2px 8px; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; font-size: 12px; }
-.logs-refresh:hover { opacity: 1; }
+/* Refresh 悬浮右上角实体按钮,不独占顶栏;右距放大避免压着滚动条 */
+.logs-refresh { position: absolute; top: 10px; right: 28px; z-index: 10; padding: 3px 12px; border-radius: 8px; border: 1px solid var(--card-border); background: var(--chip-bg-hi); color: var(--fg); cursor: pointer; font-size: 12px; }
+.logs-refresh:disabled { opacity: .5; cursor: default; }
 .logs-err { position: absolute; top: 8px; left: 14px; z-index: 10; color: var(--remove-fg); font-size: 12px; }
 /* margin 上/右/下 10px:滚动条贴死滚动容器边缘且不可调距,把容器内缩才能让它离开圆角框
    (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
