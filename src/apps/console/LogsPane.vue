@@ -38,9 +38,9 @@ onBeforeUnmount(() => logs.stop())
 /* 固定深底上的滚动条:全局拇指色随主题翻转,浅色主题下深拇指落在 --console-bg 上不可见,
    改用固定亮色 token(与 YamlEditor 同,见 theme.css --console-scroll-thumb) */
 .logs-pre { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
-.logs-pre::-webkit-scrollbar { width: 12px; height: 12px; }
-/* 轨道两端让开容器圆角(logs-wrap 12px),滚动条只落在直边段,不穿圆角 */
-.logs-pre::-webkit-scrollbar-track { background: transparent; margin: 12px; }
-.logs-pre::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
+.logs-pre::-webkit-scrollbar { width: 16px; height: 16px; }
+/* 轨道两端让开容器圆角(logs-wrap 12px)再多留余量,滚动条只落在直边段,不穿圆角 */
+.logs-pre::-webkit-scrollbar-track { background: transparent; margin: 16px; }
+.logs-pre::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 5px solid transparent; background-clip: padding-box; border-radius: 8px; }
 .logs-pre::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
 </style>

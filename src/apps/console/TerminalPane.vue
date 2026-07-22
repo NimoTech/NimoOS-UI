@@ -76,11 +76,11 @@ onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
    由拇指自身 3px 透明边框提供与边框的间距;上下左 8px 是内容呼吸边距 */
 .term-host { position: absolute; inset: 8px 0 8px 8px; }
 /* 滚动条与 YAML/日志同一套观感:拇指 token 固定亮色(全局滚动条色随主题翻转,深底上会隐形)、
-   宽 12/边 3;track margin 4px + host 上下 inset 8px = 距框 12px,与 YAML/日志的 12px 对齐 */
+   宽 16/边 5(拇指两侧各留 5px);track margin 8px + host 上下 inset 8px = 距框 16px,与 YAML/日志的 16px 对齐 */
 .term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar { width: 12px; height: 12px; }
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar-track { background: transparent; margin: 4px; }
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
+.term-host :deep(.xterm-viewport)::-webkit-scrollbar { width: 16px; height: 16px; }
+.term-host :deep(.xterm-viewport)::-webkit-scrollbar-track { background: transparent; margin: 8px; }
+.term-host :deep(.xterm-viewport)::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 5px solid transparent; background-clip: padding-box; border-radius: 8px; }
 .term-host :deep(.xterm-viewport)::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
 .term-fs { position: absolute; top: 8px; right: 12px; z-index: 10; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; }
 .term-fs:hover { opacity: 1; }
