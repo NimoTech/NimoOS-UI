@@ -501,4 +501,8 @@ export default {
   appsSettingsPortConflict: '端口已被占用:{ports}',
   appsSettingsPortConflictTitle: '端口被占用',
   appsSettingsConflictOk: '确认',
+  appsConsoleFullscreen: '全屏',
+  appsConsoleDisconnected: '连接已断开',
+  appsConsoleReconnect: '重新连接',
+  appsConsoleConnecting: '连接中…',
 }

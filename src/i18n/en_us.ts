@@ -502,4 +502,8 @@ export default {
   appsSettingsPortConflict: 'Ports already in use: {ports}',
   appsSettingsPortConflictTitle: 'Ports in use',
   appsSettingsConflictOk: 'OK',
+  appsConsoleFullscreen: 'Fullscreen',
+  appsConsoleDisconnected: 'Connection closed',
+  appsConsoleReconnect: 'Reconnect',
+  appsConsoleConnecting: 'Connecting…',
 }
