@@ -166,7 +166,8 @@ async function confirmDeleteLink() {
 
 <template>
   <AreaShell :title="t('appsTitle')">
-    <div class="apps-layout">
+    <!-- yaml-mode:同 AppSettingsPage——YAML 标签下定高布局,编辑器内部滚而非整页滚 -->
+    <div class="apps-layout" :class="{ 'yaml-mode': tab === 'yaml' }">
       <AppsSidebar />
       <main class="apps-main">
         <div class="custom-tabs" role="tablist">
@@ -279,6 +280,9 @@ async function confirmDeleteLink() {
 <style scoped>
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
+/* YAML 标签:定高布局,编辑器占满剩余空间在内部滚(其余标签保持文档式滚动) */
+.apps-layout.yaml-mode { height: 100%; }
+.apps-layout.yaml-mode .apps-main { min-height: 0; }
 
 .custom-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
 .custom-tab {

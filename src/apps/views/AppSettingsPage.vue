@@ -85,7 +85,9 @@ function back() { router.push({ name: 'apps' }) }
 
 <template>
   <AreaShell :title="t('appsTitle')">
-    <div class="apps-layout">
+    <!-- yaml-mode:YAML 标签下布局切定高(min-height→height),否则编辑器 height:100% 的分母
+         是内容驱动的(编辑器随内容长高、永不内部溢出),滚动条只会出现在整页上 -->
+    <div class="apps-layout" :class="{ 'yaml-mode': tab === 'yaml' }">
       <AppsSidebar />
       <main class="apps-main">
         <button class="bar-btn detail-back" type="button" @click="back">‹ {{ t('appsSettingsBack') }}</button>
@@ -167,6 +169,9 @@ function back() { router.push({ name: 'apps' }) }
 <style scoped>
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
+/* YAML 标签:定高布局,编辑器占满剩余空间在内部滚(表单标签保持整页文档式滚动不受影响) */
+.apps-layout.yaml-mode { height: 100%; }
+.apps-layout.yaml-mode .apps-main { min-height: 0; }
 .detail-back { font-size: 13px; margin-bottom: 14px; }
 .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
 .set-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
