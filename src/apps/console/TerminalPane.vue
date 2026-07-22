@@ -72,20 +72,13 @@ onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
 /* flex 填满父容器剩余空间(AppConsolePage 定高布局给分母);min-height 兜底极矮视口 */
 .term-wrap { position: relative; flex: 1 1 auto; min-height: 320px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
 .term-wrap.fullscreen { position: fixed; inset: 0; z-index: 200; height: auto; border-radius: 0; }
-/* 右侧贴边(inset-right 0):让 xterm 滚动条和 YAML/日志一样落在框边,
-   由拇指自身 3px 透明边框提供与边框的间距;上下左 8px 是内容呼吸边距 */
-.term-host { position: absolute; inset: 8px 0 8px 8px; }
-/* 滚动条与 YAML/日志同一套观感:拇指 token 固定亮色(全局滚动条色随主题翻转,深底上会隐形)、
-   宽 22/边 8(拇指两侧各留 8px);track margin 14px + host 上下 inset 8px = 距框 22px,与 YAML/日志的 22px 对齐 */
-/* 标准属性只给 Firefox:Chrome 121+ 只要设了 scrollbar-width/color 就整个忽略
-   ::-webkit-scrollbar 定制,宽度/边距会全部失效(2026-07-22 真机踩坑) */
-@supports not selector(::-webkit-scrollbar) {
-  .term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
-}
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar { width: 22px; height: 22px; }
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar-track { background: transparent; margin: 14px; }
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 8px solid transparent; background-clip: padding-box; border-radius: 8px; }
-.term-host :deep(.xterm-viewport)::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
+/* 四边各内缩 10px,滚动条随内容一起离开圆角框。原生/标准滚动条永远贴死滚动容器边缘,
+   没有属性能调"离边框的距离"——把滚动容器整体从外框内缩是唯一各浏览器通用的做法
+   (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
+   因此禁用全部 ::-webkit-scrollbar 定制,此前调的宽度/track margin 都是死代码) */
+.term-host { position: absolute; inset: 10px; }
+/* 深底面板拇指用固定亮色 token:全局滚动条色随主题翻转,浅色主题下深拇指落在深底上隐形 */
+.term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
 .term-fs { position: absolute; top: 8px; right: 12px; z-index: 10; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; }
 .term-fs:hover { opacity: 1; }
 .term-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; color: var(--console-fg); background: color-mix(in srgb, var(--console-bg) 82%, transparent); }

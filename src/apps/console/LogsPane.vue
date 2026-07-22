@@ -34,17 +34,10 @@ onBeforeUnmount(() => logs.stop())
 .logs-bar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 6px 10px; }
 .logs-err { color: var(--remove-fg); font-size: 12px; margin-right: auto; }
 .logs-refresh { padding: 3px 12px; border-radius: 8px; border: 1px solid var(--card-border); background: var(--chip-bg-hi); color: var(--fg); cursor: pointer; font-size: 12px; }
-.logs-pre { flex: 1; margin: 0; padding: 10px 14px; overflow: auto; color: var(--console-fg); font: 13px/1.5 Consolas, Monaco, monospace; white-space: pre-wrap; word-break: break-all; }
-/* 固定深底上的滚动条:全局拇指色随主题翻转,浅色主题下深拇指落在 --console-bg 上不可见,
-   改用固定亮色 token(与 YamlEditor 同,见 theme.css --console-scroll-thumb) */
-/* 标准属性只给 Firefox:Chrome 121+ 只要设了 scrollbar-width/color 就整个忽略
-   ::-webkit-scrollbar 定制,宽度/边距会全部失效(2026-07-22 真机踩坑) */
-@supports not selector(::-webkit-scrollbar) {
-  .logs-pre { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
-}
-.logs-pre::-webkit-scrollbar { width: 22px; height: 22px; }
-/* 轨道两端让开容器圆角(logs-wrap 12px)再多留余量,滚动条只落在直边段,不穿圆角 */
-.logs-pre::-webkit-scrollbar-track { background: transparent; margin: 22px; }
-.logs-pre::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 8px solid transparent; background-clip: padding-box; border-radius: 8px; }
-.logs-pre::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
+/* margin 右/下 10px:滚动条贴死滚动容器边缘且不可调距,把容器内缩才能让它离开圆角框
+   (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
+   因此禁用全部 ::-webkit-scrollbar 定制,此前的宽度/track margin 都是死代码) */
+.logs-pre { flex: 1; margin: 0 10px 10px 0; padding: 10px 14px; overflow: auto; color: var(--console-fg); font: 13px/1.5 Consolas, Monaco, monospace; white-space: pre-wrap; word-break: break-all; }
+/* 固定深底上的拇指用固定亮色 token:全局滚动条色随主题翻转,浅色主题下深拇指在 --console-bg 上不可见 */
+.logs-pre { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
 </style>

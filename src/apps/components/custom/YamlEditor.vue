@@ -57,31 +57,22 @@ onBeforeUnmount(() => {
 <style scoped>
 /* 12px 与终端/日志面板同档(2026-07-22 用户拍板:深底控制台类面板统一 12px,不用大卡片档 --radius) */
 .yaml-editor { width: 100%; height: 100%; overflow: hidden; border-radius: 12px; border: 1px solid var(--card-border); }
-.yaml-editor :deep(.cm-editor) { height: 100%; }
+/* padding 上/右/下 10px 把 .cm-scroller 从圆角框内缩:滚动条贴死滚动容器边缘且不可调距,
+   缩容器是让它离开边框的唯一通用做法;padding 区域由 monokai 的 .cm-editor 底色填充,视觉连续
+   (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
+   因此禁用全部 ::-webkit-scrollbar 定制,此前的宽度/track margin 都是死代码) */
+.yaml-editor :deep(.cm-editor) { height: 100%; box-sizing: border-box; padding: 10px 10px 10px 0; }
 /* CM6 固定高度的标准配方:滚动发生在内部 .cm-scroller(行号 gutter 保持粘住),
    而不是外层盒子滚走整个编辑器——外层因此改 overflow:hidden。 */
 .yaml-editor :deep(.cm-scroller) {
   overflow: auto;
+  /* 编辑器永远是 monokai 深底:拇指用固定亮色 token,不随主题翻转(见 theme.css --console-scroll-thumb) */
+  scrollbar-width: thin;
+  scrollbar-color: var(--console-scroll-thumb) transparent;
 }
-/* 编辑器永远是 monokai 深底:滚动条拇指用固定亮色 token,不随主题翻转(见 theme.css --console-scroll-thumb)。
-   标准属性只给 Firefox:Chrome 121+ 只要设了 scrollbar-width/color 就整个忽略
-   ::-webkit-scrollbar 定制,宽度/边距会全部失效(2026-07-22 真机踩坑) */
-@supports not selector(::-webkit-scrollbar) {
-  .yaml-editor :deep(.cm-scroller) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
-}
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 22px; height: 22px; }
-/* 轨道从两端各让开圆角距离+余量,滚动条只落在直边段内,不穿圆角
-   (WebKit 轨道 margin 只在滚动条自身轴向生效) */
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-track { background: transparent; margin: 22px; }
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb {
-  background: var(--console-scroll-thumb);
-  border: 8px solid transparent;
-  background-clip: padding-box;
-  border-radius: 8px;
-}
-.yaml-editor :deep(.cm-scroller)::-webkit-scrollbar-thumb:hover { background: var(--console-scroll-thumb-hover); background-clip: padding-box; }
 /* 行号/正文默认紧贴边框,加内边距留出呼吸空间(gutter 有主题底色,padding 保持底色连续) */
 .yaml-editor :deep(.cm-gutters) { padding-left: 10px; }
 .yaml-editor :deep(.cm-gutter.cm-lineNumbers .cm-gutterElement) { padding-right: 10px; }
-.yaml-editor :deep(.cm-content) { padding: 10px 12px 10px 4px; }
+/* 上下呼吸距已由 .cm-editor 的 10px 外圈 padding 提供,这里只留左右 */
+.yaml-editor :deep(.cm-content) { padding: 2px 12px 2px 4px; }
 </style>
