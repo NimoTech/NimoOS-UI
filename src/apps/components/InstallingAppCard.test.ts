@@ -8,11 +8,13 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const base = { id: 'jellyfin', title: 'Jellyfin', icon: '', percent: 42, state: 'installing' as const, message: '' }
 
 describe('InstallingAppCard', () => {
-  it('installing:标题 + 进度条 42%', () => {
+  it('installing:标题 + 进度条 42% + 停止并删除 ✕(emit cancel)', async () => {
     const w = mount(InstallingAppCard, { props: { task: base }, global: { plugins: [i18n] } })
     expect(w.text()).toContain('Jellyfin')
     expect(w.find('.op-progress-fill').attributes('style')).toContain('42%')
-    expect(w.find('.iac-dismiss').exists()).toBe(false)
+    await w.find('[data-test="install-cancel"]').trigger('click')
+    expect(w.emitted('cancel')).toHaveLength(1)
+    expect(w.emitted('dismiss')).toBeUndefined()
   })
 
   it('error:后端 message + dismiss;message 空用 i18n 兜底', async () => {

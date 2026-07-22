@@ -7,6 +7,8 @@ import AppsSidebar from '../components/AppsSidebar.vue'
 import InstalledAppCard from '../components/InstalledAppCard.vue'
 import InstallingAppCard from '../components/InstallingAppCard.vue'
 import UninstallConfirm from '../components/UninstallConfirm.vue'
+import AlertDialog from '../../components/ui/AlertDialog.vue'
+import { service } from '@nimotech/nimoos-service'
 import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
 import { useInstallProgressStore } from '../stores/installProgress'
 import { useMessageBus } from '../../composables/useMessageBus'
@@ -27,6 +29,8 @@ const toast = useToast()
 // delDlg 模式:open 与 app 打包在同一个 ref 里,只在 confirm 读取后才关闭 open,
 // update:open 处理器只改 open,不动 app。
 const uninstallDlg = ref<{ open: boolean; app: InstalledApp | null }>({ open: false, app: null })
+// 安装中卡片的「停止并删除」确认框(同 delDlg 模式:open 与 task 同包,update:open 不动 task)
+const cancelDlg = ref<{ open: boolean; taskId: string; taskTitle: string }>({ open: false, taskId: '', taskTitle: '' })
 
 function onOpen(a: InstalledApp) {
   if (a.webUrl) window.open(a.webUrl, '_blank', 'noopener')
@@ -44,6 +48,17 @@ async function onAction(a: InstalledApp, op: 'start' | 'stop' | 'restart' | 'upd
     toast.show(t('appsOpFailed', { name: a.title }), 4000)
   }
 }
+async function onCancelInstallConfirm() {
+  const id = cancelDlg.value.taskId
+  cancelDlg.value.open = false
+  if (!id) return
+  progress.dismiss(id)
+  // 尽力而为删除已落盘内容:应用可能已装成(幽灵卡)或半装;404/未装成时无事可删,静默。
+  // 后端无「中止安装」API——正在拉取的镜像层由 docker daemon 自行收尾,不影响删除结果。
+  try { await service.compose.uninstall(id, { deleteConfigFolder: true }) } catch { /* not installed */ }
+  store.refresh().catch(() => {})
+}
+
 async function onUninstallConfirm(deleteConfigFolder: boolean) {
   const a = uninstallDlg.value.app
   if (!a) return
@@ -86,6 +101,7 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
           <InstallingAppCard
             v-for="tk in installingTasks" :key="tk.id"
             :task="tk" @dismiss="progress.dismiss(tk.id)"
+            @cancel="cancelDlg = { open: true, taskId: tk.id, taskTitle: tk.title }"
           />
         </div>
         <p v-if="!store.loading && !store.apps.length && !installingTasks.length" class="apps-empty">{{ t('appsEmpty') }}</p>
@@ -104,6 +120,16 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
           :name="uninstallDlg.app?.title ?? ''"
           @update:open="(v) => { uninstallDlg.open = v }"
           @confirm="onUninstallConfirm"
+        />
+        <AlertDialog
+          :open="cancelDlg.open"
+          :title="t('appsInstallCancelTitle', { name: cancelDlg.taskTitle })"
+          :message="t('appsInstallCancelDesc')"
+          :confirm-text="t('appsInstallCancel')"
+          :cancel-text="t('appsCancel')"
+          destructive
+          @update:open="(v) => { cancelDlg.open = v }"
+          @confirm="onCancelInstallConfirm"
         />
       </main>
     </div>

@@ -3,7 +3,7 @@ import { useI18n } from 'vue-i18n'
 import type { InstallTask } from '../stores/installProgress'
 
 const props = defineProps<{ task: InstallTask }>()
-defineEmits<{ dismiss: [] }>()
+defineEmits<{ dismiss: []; cancel: [] }>()
 const { t } = useI18n()
 </script>
 
@@ -22,6 +22,14 @@ const { t } = useI18n()
     <button v-if="task.state === 'error'" class="iac-dismiss" type="button" @click="$emit('dismiss')">
       {{ t('appsInstallDismiss') }}
     </button>
+    <button
+      v-else
+      class="iac-dismiss iac-cancel"
+      type="button"
+      data-test="install-cancel"
+      :aria-label="t('appsInstallCancel')"
+      @click="$emit('cancel')"
+    >✕</button>
   </article>
 </template>
 
@@ -44,4 +52,6 @@ const { t } = useI18n()
   flex: 0 0 auto; font-size: 12.5px; padding: 5px 14px; cursor: pointer; border-radius: 999px;
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--chip-border);
 }
+.iac-cancel { padding: 5px 10px; color: var(--fg-muted); }
+.iac-cancel:hover { color: var(--remove-fg); background: var(--chip-bg-hi); }
 </style>
