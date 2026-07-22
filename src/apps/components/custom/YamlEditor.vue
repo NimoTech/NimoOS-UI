@@ -62,9 +62,12 @@ onBeforeUnmount(() => {
    而不是外层盒子滚走整个编辑器——外层因此改 overflow:hidden。 */
 .yaml-editor :deep(.cm-scroller) {
   overflow: auto;
-  /* 编辑器永远是 monokai 深底:滚动条拇指用固定亮色 token,不随主题翻转(见 theme.css --console-scroll-thumb) */
-  scrollbar-width: thin;
-  scrollbar-color: var(--console-scroll-thumb) transparent;
+}
+/* 编辑器永远是 monokai 深底:滚动条拇指用固定亮色 token,不随主题翻转(见 theme.css --console-scroll-thumb)。
+   标准属性只给 Firefox:Chrome 121+ 只要设了 scrollbar-width/color 就整个忽略
+   ::-webkit-scrollbar 定制,宽度/边距会全部失效(2026-07-22 真机踩坑) */
+@supports not selector(::-webkit-scrollbar) {
+  .yaml-editor :deep(.cm-scroller) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
 }
 .yaml-editor :deep(.cm-scroller)::-webkit-scrollbar { width: 22px; height: 22px; }
 /* 轨道从两端各让开圆角距离+余量,滚动条只落在直边段内,不穿圆角

@@ -37,7 +37,11 @@ onBeforeUnmount(() => logs.stop())
 .logs-pre { flex: 1; margin: 0; padding: 10px 14px; overflow: auto; color: var(--console-fg); font: 13px/1.5 Consolas, Monaco, monospace; white-space: pre-wrap; word-break: break-all; }
 /* 固定深底上的滚动条:全局拇指色随主题翻转,浅色主题下深拇指落在 --console-bg 上不可见,
    改用固定亮色 token(与 YamlEditor 同,见 theme.css --console-scroll-thumb) */
-.logs-pre { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
+/* 标准属性只给 Firefox:Chrome 121+ 只要设了 scrollbar-width/color 就整个忽略
+   ::-webkit-scrollbar 定制,宽度/边距会全部失效(2026-07-22 真机踩坑) */
+@supports not selector(::-webkit-scrollbar) {
+  .logs-pre { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
+}
 .logs-pre::-webkit-scrollbar { width: 22px; height: 22px; }
 /* 轨道两端让开容器圆角(logs-wrap 12px)再多留余量,滚动条只落在直边段,不穿圆角 */
 .logs-pre::-webkit-scrollbar-track { background: transparent; margin: 22px; }

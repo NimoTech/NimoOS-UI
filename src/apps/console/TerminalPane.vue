@@ -77,7 +77,11 @@ onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
 .term-host { position: absolute; inset: 8px 0 8px 8px; }
 /* 滚动条与 YAML/日志同一套观感:拇指 token 固定亮色(全局滚动条色随主题翻转,深底上会隐形)、
    宽 22/边 8(拇指两侧各留 8px);track margin 14px + host 上下 inset 8px = 距框 22px,与 YAML/日志的 22px 对齐 */
-.term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
+/* 标准属性只给 Firefox:Chrome 121+ 只要设了 scrollbar-width/color 就整个忽略
+   ::-webkit-scrollbar 定制,宽度/边距会全部失效(2026-07-22 真机踩坑) */
+@supports not selector(::-webkit-scrollbar) {
+  .term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
+}
 .term-host :deep(.xterm-viewport)::-webkit-scrollbar { width: 22px; height: 22px; }
 .term-host :deep(.xterm-viewport)::-webkit-scrollbar-track { background: transparent; margin: 14px; }
 .term-host :deep(.xterm-viewport)::-webkit-scrollbar-thumb { background: var(--console-scroll-thumb); border: 8px solid transparent; background-clip: padding-box; border-radius: 8px; }
