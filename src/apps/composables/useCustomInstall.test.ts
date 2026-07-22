@@ -66,6 +66,22 @@ describe('useCustomInstall.installYaml', () => {
     expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
   })
 
+  it('深链空 store → refresh 补拉 → D4 同名检出(回归测试:防深链绕过守卫)', async () => {
+    // store 初始空,refresh 会拉已装列表;这防止深链 /apps/custom 时 store 未初始化导致名冲突守卫失效
+    svc.compose.list.mockResolvedValueOnce({
+      sonarr: { store_info: {}, status: 'running' },
+    })
+    const flow = mountFlow()
+    const installed = useInstalledAppsStore()
+    // 验证初始确实为空
+    expect(installed.apps).toEqual([])
+    const res = await flow.installYaml(NAMELESS)
+    // refresh 被 installYaml 触发,补拉列表后检出冲突
+    expect(res.ok).toBe(false)
+    expect(svc.compose.install).not.toHaveBeenCalled()
+    expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
+  })
+
   it('YAML 解析失败 → ok:false,不发 install', async () => {
     const flow = mountFlow()
     const res = await flow.installYaml(': not: valid: yaml: [')
