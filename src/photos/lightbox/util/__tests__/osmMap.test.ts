@@ -13,3 +13,8 @@ it('缺经纬度返空串', () => {
   expect(osmEmbedSrc(null, 120)).toBe('')
   expect(osmEmbedSrc(30, undefined)).toBe('')
 })
+it('0 值视为缺失(Vue2 用 falsy 检查 !photo.latitude)', () => {
+  // Vue2 mapSrc 用 !photo.latitude,所以 0 → 缺失 → ''
+  expect(osmEmbedSrc(0, 120)).toBe('')
+  expect(osmEmbedSrc(30, 0)).toBe('')
+})

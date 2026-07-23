@@ -1,5 +1,5 @@
 export function containContentRect(elemW: number, elemH: number, natW: number, natH: number): { x: number; y: number; w: number; h: number } | null {
-  if (!elemW || !elemH || !natW || !natH) return null
+  if (!(elemW > 0) || !(elemH > 0) || !(natW > 0) || !(natH > 0)) return null
   const scale = Math.min(elemW / natW, elemH / natH)
   const w = natW * scale
   const h = natH * scale
@@ -7,7 +7,7 @@ export function containContentRect(elemW: number, elemH: number, natW: number, n
 }
 
 export function quadBounds(box: number[]): { x0: number; y0: number; x1: number; y1: number } | null {
-  if (!Array.isArray(box) || box.length < 8) return null
+  if (!Array.isArray(box) || box.length !== 8) return null
   const xs = [box[0], box[2], box[4], box[6]]
   const ys = [box[1], box[3], box[5], box[7]]
   const x0 = Math.max(0, Math.min(...xs))

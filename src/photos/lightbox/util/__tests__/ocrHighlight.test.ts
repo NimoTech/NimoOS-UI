@@ -10,6 +10,13 @@ describe('containContentRect', () => {
     expect(containContentRect(0, 200, 100, 50)).toBeNull()
     expect(containContentRect(200, 200, 0, 50)).toBeNull()
   })
+  it('负尺寸返 null(Vue2 用 > 0 而非 falsy)', () => {
+    // 负数也该拒绝,-200 作为 elemW 不满足 !(elemW > 0),应返 null
+    expect(containContentRect(-200, 200, 100, 50)).toBeNull()
+    expect(containContentRect(200, -200, 100, 50)).toBeNull()
+    expect(containContentRect(200, 200, -100, 50)).toBeNull()
+    expect(containContentRect(200, 200, 100, -50)).toBeNull()
+  })
 })
 
 describe('quadBounds', () => {
@@ -19,6 +26,10 @@ describe('quadBounds', () => {
   it('畸形/零面积返 null', () => {
     expect(quadBounds([0.1, 0.2])).toBeNull()
     expect(quadBounds([0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3])).toBeNull()
+  })
+  it('数组长度 !== 8 返 null(10 元素数组)', () => {
+    // Vue2 用 !== 而非 < ,所以超长数组也拒绝
+    expect(quadBounds([0.1, 0.2, 0.5, 0.2, 0.5, 0.6, 0.1, 0.6, 0.8, 0.8])).toBeNull()
   })
 })
 
