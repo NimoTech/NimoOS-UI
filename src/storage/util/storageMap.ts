@@ -105,3 +105,35 @@ export function usageLevel(pct: number): 'ok' | 'warn' | 'danger' {
 export function toFahrenheit(c: number): string {
   return (32 + c * 1.8).toFixed(1)
 }
+
+export interface AvailDisk {
+  path: string
+  name: string
+  model: string
+  size: number
+  needFormat: boolean
+  serial: string
+}
+
+interface RawAvail {
+  path?: string
+  name?: string
+  model?: string
+  size?: unknown
+  need_format?: unknown
+  serial?: string
+}
+
+// GET /v1/disks 响应的 avail 字段 → 创建存储候选盘。
+// need_format 同 health:后端可能给字符串 "true"/"false",严格判定。
+export function mapAvailDisks(avail: unknown): AvailDisk[] {
+  const arr = Array.isArray(avail) ? (avail as RawAvail[]) : []
+  return arr.map((d) => ({
+    path: d.path || '',
+    name: d.name || '',
+    model: d.model || '',
+    size: Number(d.size) || 0,
+    needFormat: d.need_format === true || d.need_format === 'true',
+    serial: d.serial || '',
+  }))
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mapVolumes, mapDrives, usageLevel, toFahrenheit } from './storageMap'
+import { mapVolumes, mapDrives, usageLevel, toFahrenheit, mapAvailDisks } from './storageMap'
 
 // 真机 2026-07-23 实拍:size/avail 是字符串
 const LIVE_GROUPS = [
@@ -96,5 +96,28 @@ describe('toFahrenheit', () => {
   it('与 Vue2 filter 一致:(32 + c*1.8).toFixed(1)', () => {
     expect(toFahrenheit(35)).toBe('95.0')
     expect(toFahrenheit(0)).toBe('32.0')
+  })
+})
+
+describe('mapAvailDisks', () => {
+  it('映射候选盘字段,size 字符串转数值', () => {
+    const out = mapAvailDisks([
+      { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: '1000204886016', need_format: true, serial: 'S1' },
+    ])
+    expect(out).toEqual([
+      { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1000204886016, needFormat: true, serial: 'S1' },
+    ])
+  })
+  it('need_format 字符串 "true"/"false" 严格判定(后端布尔字符串化,P1 health 同款)', () => {
+    const out = mapAvailDisks([
+      { path: '/dev/sdb', need_format: 'true' },
+      { path: '/dev/sdc', need_format: 'false' },
+      { path: '/dev/sdd' },
+    ])
+    expect(out.map((d) => d.needFormat)).toEqual([true, false, false])
+  })
+  it('非数组输入返回空数组', () => {
+    expect(mapAvailDisks(undefined)).toEqual([])
+    expect(mapAvailDisks({})).toEqual([])
   })
 })
