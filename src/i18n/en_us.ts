@@ -219,6 +219,7 @@ export default {
   welcomeLanguage: 'Language',
   // ── Home: system app names ──
   appFiles: 'Files',
+  appStorage: 'Storage',
   appPhotos: 'Photos',
   appAi: 'Nimo AI',
   appVm: 'KVM',

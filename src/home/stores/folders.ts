@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { service, getHttp } from '@nimotech/nimoos-service'
+import { service } from '@nimotech/nimoos-service'
 
 export interface DiskRoot { name: string; path: string; usb: boolean }
 
@@ -23,16 +23,19 @@ export const useFoldersStore = defineStore('home-folders', () => {
   // "NimoOS-HD" — remap it to /DATA so we never browse from `/`.
   async function loadDisks() {
     try {
-      const res = await getHttp().get('/storage', { params: { system: 'show' } })
-      const groups: any[] = res?.data?.data || []
+      // SP6-P1:统一走 service.storage.list(行为等价,原 getHttp 直打 /storage)
+      const groups = ((await service.storage.list({ system: 'show' })) as any[]) || []
       const out: DiskRoot[] = []
       const seen = new Set<string>()
       for (const g of groups) {
         const usb = g?.type === 'usb'
-        for (const child of (g?.children || [])) {
-          let mp: string = child?.mount_point || ''
-          let label: string = child?.label || ''
-          if (mp === '/') { mp = '/DATA'; if (!label) label = 'NimoOS-HD' }
+        for (const child of g?.children || []) {
+          let mp = child?.mount_point || ''
+          let label = child?.label || ''
+          if (mp === '/') {
+            mp = '/DATA'
+            if (!label) label = 'NimoOS-HD'
+          }
           if (!mp || seen.has(mp)) continue
           if (!label) label = mp.split('/').filter(Boolean).pop() || mp
           seen.add(mp)

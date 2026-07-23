@@ -3,7 +3,7 @@ import { useAppsStore } from '../stores/apps'
 import { useStartApp, appUrl } from './useStartApp'
 import { router } from '../../router'
 
-// P8 cutover 起文件区活在本应用(/files);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+// P8 cutover 起文件区活在本应用(/files);存储区也活在本应用(/storage);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
 // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
 const SYS_ROUTE: Record<string, string> = {
   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
@@ -19,6 +19,7 @@ export function useOpenAction() {
     if (!a) return
     if (a.system) {
       if (key === 'files') { router.push('/files'); return }
+      if (key === 'storage') { router.push('/storage'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }

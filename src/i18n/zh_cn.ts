@@ -218,6 +218,7 @@ export default {
   welcomeLanguage: '语言',
   // ── 主页:系统应用名 ──
   appFiles: '文件',
+  appStorage: '存储',
   appPhotos: '照片',
   appAi: 'Nimo AI',
   appVm: 'KVM',
