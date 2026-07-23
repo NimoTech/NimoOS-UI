@@ -192,6 +192,7 @@ export const useStorageStore = defineStore('storage', () => {
     if (!cur) return
     try {
       const raw = (await service.raid.getTask(cur.taskId)) as Record<string, unknown>
+      // 保留身份字段(name/level/filesystem/diskCount);step/progress/error/elapsed 每拍以后端最新为准(总是回传)
       const merged = mapTask({ ...raw, task_id: cur.taskId, name: raw.name ?? cur.name, level: raw.level ?? cur.level, filesystem: raw.filesystem ?? cur.filesystem, disk_count: raw.disk_count ?? cur.diskCount })
       creatingTask.value = merged
       if (merged.status === 'done') {

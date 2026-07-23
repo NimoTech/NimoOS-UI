@@ -591,7 +591,6 @@ export default {
   raidMemberFaulty: '故障',
   raidMemberRebuilding: '重建中',
   raidNoArrays: '暂无 RAID 阵列',
-  raidCapacity: '容量',
   raidCreating: '创建中',
   raidCreateFailed: '创建失败',
   raidTaskMeta: 'RAID-{level} · {n} 块盘 · {fs}',

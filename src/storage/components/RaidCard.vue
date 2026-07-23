@@ -38,7 +38,7 @@ const squares = computed(() => members.value.map((m) => ({ ...memberSquare(m.sta
     </div>
     <p class="rc-usage">{{ fmtSize(used) }} / {{ fmtSize(total) }}
       <span class="rc-online">· {{ t('raidDisksOnline', { n: activeDisks, total: totalDisks }) }}</span></p>
-    <div class="rc-track"><div class="rc-fill" :class="usageLevel(pct)" :style="{ width: Math.min(100, Math.max(0, pct)) + '%' }" /></div>
+    <div class="rc-track" role="progressbar" :aria-valuenow="pct" aria-valuemin="0" aria-valuemax="100"><div class="rc-fill" :class="usageLevel(pct)" :style="{ width: Math.min(100, Math.max(0, pct)) + '%' }" /></div>
     <p v-if="flags.isRebuilding" class="rc-rebuild">
       {{ t('raidStateRebuilding') }} {{ rebuildPct }}%
       <span v-if="status?.rebuild_finish"> · {{ t('raidRebuildFinish') }} {{ status.rebuild_finish }}</span>

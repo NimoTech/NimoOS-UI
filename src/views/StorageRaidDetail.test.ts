@@ -40,8 +40,8 @@ describe('StorageRaidDetail', () => {
     await router.push('/storage/raid/7'); await router.isReady()
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
-    expect(w.find('.rd-recover').exists()).toBe(false)
-    expect(w.find('.rd-delete').exists()).toBe(false)
-    expect(w.find('.rd-replace').exists()).toBe(false)
+    // P4 边界守卫:只读页只应有 2 个按钮(StorageShell 回主页 + rd-back 返回列表);新增任何写操作按钮(recover/delete/replace)会使计数上升而红
+    expect(w.findAll('button').length).toBe(2)
+    expect(w.find('.rd-back').exists()).toBe(true)
   })
 })

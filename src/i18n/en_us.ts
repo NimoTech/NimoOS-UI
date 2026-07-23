@@ -592,7 +592,6 @@ export default {
   raidMemberFaulty: 'Faulty',
   raidMemberRebuilding: 'Rebuilding',
   raidNoArrays: 'No RAID arrays',
-  raidCapacity: 'Capacity',
   raidCreating: 'Creating',
   raidCreateFailed: 'Creation failed',
   raidTaskMeta: 'RAID-{level} · {n} disks · {fs}',
