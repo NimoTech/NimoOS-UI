@@ -3,6 +3,8 @@ import { setActivePinia, createPinia } from 'pinia'
 
 const storageList = vi.fn()
 const raidList = vi.fn()
+const raidGetStatus = vi.fn()
+const raidGetUsage = vi.fn()
 const getDiskList = vi.fn()
 const umount = vi.fn()
 const createMock = vi.fn()
@@ -14,7 +16,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
       create: (...a: unknown[]) => createMock(...a),
       format: (...a: unknown[]) => formatMock(...a),
     },
-    raid: { list: (...a: unknown[]) => raidList(...a) },
+    raid: {
+      list: (...a: unknown[]) => raidList(...a),
+      getStatus: (...a: unknown[]) => raidGetStatus(...a),
+      getUsage: (...a: unknown[]) => raidGetUsage(...a),
+    },
     disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
   },
 }))
@@ -209,5 +215,62 @@ describe('loadDrives 候选盘', () => {
     await s.loadDrives()
     expect(s.availDisks).toHaveLength(1)
     expect(s.availDisks[0].needFormat).toBe(true)
+  })
+})
+
+describe('loadRaid', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('list + 逐阵列 getStatus 填 raidArrays/raidStatusMap', async () => {
+    raidList.mockResolvedValue([{ id: 1, name: 'md0', level: 1, state: 'active' }])
+    raidGetStatus.mockResolvedValue({ live_state: 'active', state: 'active', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [] })
+    const store = useStorageStore()
+    await store.loadRaid()
+    expect(store.raidArrays.length).toBe(1)
+    expect(store.raidArrays[0].name).toBe('md0')
+    expect(store.raidStatusMap['1'].used_bytes).toBe(40)
+  })
+
+  it('raid.list 失败 → raidArrays 复位空,不抛', async () => {
+    raidList.mockRejectedValue(new Error('boom'))
+    const store = useStorageStore()
+    await store.loadRaid()
+    expect(store.raidArrays).toEqual([])
+  })
+
+  it('单个 getStatus 失败不拖垮整表', async () => {
+    raidList.mockResolvedValue([{ id: 1, name: 'a', level: 1, state: 'active' }, { id: 2, name: 'b', level: 1, state: 'active' }])
+    raidGetStatus.mockImplementation((id: number) => id === 1 ? Promise.reject(new Error('x')) : Promise.resolve({ live_state: 'active', members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0, rebuild_pct: 0 }))
+    const store = useStorageStore()
+    await store.loadRaid()
+    expect(store.raidArrays.length).toBe(2)
+    expect(store.raidStatusMap['2']).toBeTruthy()
+    expect(store.raidStatusMap['1']).toBeUndefined()
+  })
+
+  it('在途守卫:loadRaid 并发时第二次早退', async () => {
+    let resolve1: (v: unknown) => void = () => {}
+    raidList.mockReturnValue(new Promise((r) => { resolve1 = r }))
+    const store = useStorageStore()
+    const p1 = store.loadRaid()
+    const p2 = store.loadRaid() // 应早退
+    resolve1([])
+    await Promise.all([p1, p2])
+    expect(raidList).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('loadRaidDetail', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+  it('getStatus + getUsage 填 raidDetail', async () => {
+    raidList.mockResolvedValue([{ id: 7, name: 'md7', level: 5, state: 'active' }])
+    raidGetStatus.mockResolvedValue({ live_state: 'active', members: [], total_bytes: 9, used_bytes: 3, free_bytes: 6, rebuild_pct: 0 })
+    raidGetUsage.mockResolvedValue({ filesystem: 'btrfs', btrfs_usage: { free_estimated_bytes: 5, cached_at: 123 } })
+    const store = useStorageStore()
+    await store.loadRaid()
+    await store.loadRaidDetail(7)
+    expect(store.raidDetail?.array.name).toBe('md7')
+    expect(store.raidDetail?.status?.used_bytes).toBe(3)
+    expect((store.raidDetail?.usage as { filesystem?: string })?.filesystem).toBe('btrfs')
   })
 })

@@ -1,15 +1,22 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
+import type { RaidStatus } from '@nimotech/nimoos-service'
 import { i18n } from '../../i18n'
 import { useToast } from '../../stores/toast'
 import { mapVolumes, mapDrives, mapAvailDisks, type StorageVolume, type PhysicalDrive, type AvailDisk } from '../util/storageMap'
+import { asRaidArray, type RaidArray, type RaidUsage } from '../util/raidView'
 
 export const useStorageStore = defineStore('storage', () => {
   const volumes = ref<StorageVolume[]>([])
   const drives = ref<PhysicalDrive[]>([])
   const availDisks = ref<AvailDisk[]>([])
   const raidNames = ref<string[]>([])
+  const raidArrays = ref<RaidArray[]>([])
+  const raidStatusMap = ref<Record<string, RaidStatus>>({})
+  const raidLoading = ref(false)
+  const raidDetail = ref<{ array: RaidArray; status: RaidStatus | null; usage: RaidUsage | null } | null>(null)
+  const raidDetailLoading = ref(false)
   const loading = ref(false)
   const unmounting = ref(false)
   const creating = ref(false)
@@ -121,11 +128,56 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  async function loadRaid() {
+    if (raidLoading.value) return // 在途守卫:防轮询/热插拔重叠拉取
+    raidLoading.value = true
+    try {
+      const listRes = await service.raid.list()
+      const arrays = (Array.isArray(listRes) ? listRes : []).map(asRaidArray)
+      raidArrays.value = arrays
+      // 并发逐阵列拉 status;单个失败不拖垮整表(allSettled)
+      const results = await Promise.allSettled(arrays.map((a) => service.raid.getStatus(a.id)))
+      const map: Record<string, RaidStatus> = {}
+      results.forEach((r, i) => { if (r.status === 'fulfilled') map[String(arrays[i].id)] = r.value })
+      raidStatusMap.value = map
+    } catch (e) {
+      console.warn('[storage] raid load failed', (e as Error)?.message)
+      raidArrays.value = []
+      raidStatusMap.value = {}
+    } finally {
+      raidLoading.value = false
+    }
+  }
+
+  async function loadRaidDetail(id: number | string) {
+    if (raidDetailLoading.value) return
+    raidDetailLoading.value = true
+    try {
+      const array = raidArrays.value.find((a) => String(a.id) === String(id))
+        || asRaidArray({ id } as Record<string, unknown>)
+      const [status, usage] = await Promise.all([
+        service.raid.getStatus(id).catch(() => null),
+        service.raid.getUsage(id).catch(() => null),
+      ])
+      raidDetail.value = { array, status: status as RaidStatus | null, usage: usage as RaidUsage | null }
+    } catch (e) {
+      console.warn('[storage] raid detail failed', (e as Error)?.message)
+      raidDetail.value = null
+    } finally {
+      raidDetailLoading.value = false
+    }
+  }
+
   return {
     volumes,
     drives,
     availDisks,
     raidNames,
+    raidArrays,
+    raidStatusMap,
+    raidLoading,
+    raidDetail,
+    raidDetailLoading,
     loading,
     creating,
     formatting,
@@ -136,5 +188,7 @@ export const useStorageStore = defineStore('storage', () => {
     unmount,
     createStorage,
     formatVolume,
+    loadRaid,
+    loadRaidDetail,
   }
 })
