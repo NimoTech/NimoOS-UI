@@ -640,8 +640,8 @@ export default {
   // tolerance:'half' 对应 toleranceText() 的 "up to N (1 per pair)" 分支(此处为通用静态文案,略去具体盘数 n);
   // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。
   raidLevel10Tolerance: '至多一半磁盘(每镜像对 1 块)',
-  raidLevel10Read: '5 / 5',
-  raidLevel10Write: '4 / 5',
+  raidLevel10Read: '—',
+  raidLevel10Write: '—',
   // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)
   raidLevel0Desc: 'RAID 0 说明',
   raidLevel1Desc: 'RAID 1 说明',

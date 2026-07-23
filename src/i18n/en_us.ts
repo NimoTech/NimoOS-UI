@@ -641,8 +641,8 @@ export default {
   // tolerance:'half' mirrors the toleranceText() "up to N (1 per pair)" branch (static, disk-count-agnostic phrasing here);
   // read/write are that table's raw 1-5 ratings (5, 4), transcribed as rating text.
   raidLevel10Tolerance: 'Up to half the disks (1 per mirror pair)',
-  raidLevel10Read: '5 / 5',
-  raidLevel10Write: '4 / 5',
+  raidLevel10Read: '—',
+  raidLevel10Write: '—',
   // desc: raidUtils.js source literally has placeholder desc strings (e.g. 'RAID 0 Description') — transcribed verbatim, not invented
   raidLevel0Desc: 'RAID 0 Description',
   raidLevel1Desc: 'RAID 1 Description',
