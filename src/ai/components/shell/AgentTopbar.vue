@@ -102,9 +102,10 @@ function goHome() {
   // if there's no history (we were the entry point) fall back to a hard
   // navigation so the back button always works.
   if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
-    router.push('/').catch(() => { window.location.href = '/' })
+    router.push('/').catch(() => { window.location.href = '/app/' })
   } else {
-    window.location.href = '/'
+    // strangler 语境下 '/' 是旧 Vue2 应用,新应用的落点是 '/app/'
+    window.location.href = '/app/'
   }
 }
 </script>

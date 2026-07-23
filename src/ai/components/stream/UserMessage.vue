@@ -26,6 +26,7 @@ const props = defineProps<{ msg: UserMsgLike }>()
 const { t } = useI18n()
 // Vue2 版本通过 `inject: { agentStore: { default: null } }` 拿会话 id;
 // Vue3 侧直接调用 Pinia store(工厂形态,默认 'general' profile)。
+// 1b: 恢复注入缝(Vue2 inject agentStore)——photos profile 嵌入时不能写死 general store
 const store = useAgentStore()
 
 const sessionId = computed(() => store.activeSessionId)

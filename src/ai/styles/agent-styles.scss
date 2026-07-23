@@ -1316,3 +1316,16 @@
   0%, 100% { height: 30%; }
   50% { height: 90%; }
 }
+
+/* P1a 终审#5:theme.css 的 :root[data-theme=light] *::-webkit-scrollbar-thumb 与本文件同特异度且后加载生效,这里加倍类名夺回 */
+.agent-app .scroll.scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.agent-app .scroll.scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}

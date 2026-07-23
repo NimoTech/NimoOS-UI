@@ -7,6 +7,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '../../../stores/toast'
+import { copyText } from '../../../files/util/clipboard'
 import BlockRenderer from '../blocks/BlockRenderer.vue'
 import AgentIcon from '../icons/AgentIcon.vue'
 
@@ -59,13 +60,17 @@ const statsLine = computed(() => {
   return parts.join(' · ')
 })
 
-function copy() {
+async function copy() {
   const text = (props.msg.blocks || [])
     .filter((b) => b.type === 'md')
     .map((b) => b.text)
     .join('\n\n')
-  navigator.clipboard.writeText(text)
-  toast.show(t('aiCopied'))
+  try {
+    await copyText(text)
+    toast.show(t('aiCopied'))
+  } catch {
+    /* 静默:与 Vue2 行为一致,复制失败无反馈 */
+  }
 }
 </script>
 

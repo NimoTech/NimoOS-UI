@@ -51,7 +51,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const router = useRouter()
 
-const AVATAR_URL = 'v1/users/avatar?token='
+const AVATAR_URL = '/v1/users/avatar?token='
 
 const avatarVersion = ref(1)
 const avatarFailed = ref(false)

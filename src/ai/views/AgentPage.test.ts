@@ -100,13 +100,13 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: 'bar' } })
   })
 
-  it('侧栏 open-settings(设置齿轮)→ 弹 aiComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {
+  it('侧栏 open-settings(设置齿轮)→ 弹 aiSettingsComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
     await w.find('.sidebar-foot .icon-btn').trigger('click')
-    expect(showSpy).toHaveBeenCalledWith('对话发送将在下一期开启')
+    expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
     expect(push).not.toHaveBeenCalled()
     w.unmount()
   })

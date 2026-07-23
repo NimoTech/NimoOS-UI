@@ -565,4 +565,5 @@ export default {
   aiConfirm: '删除',
   aiCancel: '取消',
   aiComingSoon: '对话发送将在下一期开启',
+  aiSettingsComingSoon: '设置页将在后续阶段开启',
 }

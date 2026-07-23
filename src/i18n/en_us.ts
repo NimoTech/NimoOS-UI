@@ -566,4 +566,5 @@ export default {
   aiConfirm: 'Delete',
   aiCancel: 'Cancel',
   aiComingSoon: 'Sending will be enabled in the next phase',
+  aiSettingsComingSoon: 'Settings will be enabled in a later phase',
 }
