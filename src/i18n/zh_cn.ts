@@ -541,4 +541,13 @@ export default {
   // ── storage 存储区 ──
   storageUnmountSuccess: '存储已移除',
   storageUnmountFailed: '移除失败,请检查密码后重试',
+  storageTitle: '存储',
+  storageTabVolumes: '存储卷',
+  storageTabDrives: '物理硬盘',
+  storageLoading: '加载中…',
+  storageDrivesEmpty: '未检测到硬盘',
+  storageDriveHealth: '健康',
+  storageDriveHealthy: '正常',
+  storageDriveDamaged: '损坏',
+  storageDriveTemp: '温度',
 }

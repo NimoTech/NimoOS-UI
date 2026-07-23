@@ -542,4 +542,13 @@ export default {
   // ── storage 存储区 ──
   storageUnmountSuccess: 'Storage removed',
   storageUnmountFailed: 'Failed to remove, check your password and try again',
+  storageTitle: 'Storage',
+  storageTabVolumes: 'Volumes',
+  storageTabDrives: 'Drives',
+  storageLoading: 'Loading…',
+  storageDrivesEmpty: 'No drives detected',
+  storageDriveHealth: 'Health',
+  storageDriveHealthy: 'Healthy',
+  storageDriveDamaged: 'Damaged',
+  storageDriveTemp: 'Temp',
 }

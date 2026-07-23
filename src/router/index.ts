@@ -13,6 +13,7 @@ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
 import AppConsolePage from '../apps/views/AppConsolePage.vue'
 import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
 import SourcesPage from '../apps/views/SourcesPage.vue'
+import StorageDrives from '../views/StorageDrives.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -27,6 +28,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/apps/sources', name: 'apps-sources', component: SourcesPage },
   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
   { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
+  { path: '/storage/drives', name: 'storage-drives', component: StorageDrives },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
