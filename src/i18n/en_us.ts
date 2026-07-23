@@ -653,4 +653,13 @@ export default {
   aiViewAllFiles: 'View all {n} files',
   aiViewAllSemanticPassages: 'View all {n} semantic passages',
   aiViewAllResults: 'View all results',
+  // SP8-P1b Task 10 — ProcessStrip (merged thinking+tool step strip) / TimelineMinimap
+  aiProcWorking: 'Working',
+  aiProcProcessed: 'Processed',
+  aiProcThinkingWord: 'thinking',
+  aiProcSteps: '{n} steps',
+  aiProcReasoned: 'Reasoned',
+  aiProcTool: 'Tool',
+  aiProcNoDetails: 'No details',
+  aiTimelineYou: 'You',
 }

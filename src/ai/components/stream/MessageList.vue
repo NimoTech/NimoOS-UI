@@ -1,12 +1,14 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/stream/MessageList.vue,去掉 TimelineMinimap
-  (1b 才接回来)。busy 占位markup 原样保留(1a 阶段 store.busy 恒 false,不会触发)。
+  1:1 移植自 Vue2 src/views/AI/Agent/stream/MessageList.vue。
+  1b 接回 TimelineMinimap(1a 版本去掉了它,busy 占位 markup 原样保留——1a 阶段
+  store.busy 恒 false 不会触发,1b 起 store.busy 真实随流式切换,故随之激活)。
 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UserMessage from './UserMessage.vue'
 import AssistantMessage from './AssistantMessage.vue'
+import TimelineMinimap from './TimelineMinimap.vue'
 
 interface AgentMsgLike {
   id?: string | number
@@ -40,7 +42,7 @@ function onScroll() {
   activeIdx.value = idx
 }
 
-// 1b: TimelineMinimap 的 @jump 会调用这个;目前无消费者,保留以便 1b 直接接回。
+// TimelineMinimap 的 @jump 调用这个,滚动到对应消息。
 function jumpTo(i: number) {
   const sc = wrap.value
   if (!sc) return
@@ -49,7 +51,6 @@ function jumpTo(i: number) {
   const top = b.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 28
   sc.scrollTo({ top, behavior: 'smooth' })
 }
-void jumpTo
 
 watch(
   () => props.messages,
@@ -69,7 +70,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="wrap" class="stream-wrap scroll">
-    <!-- 1b: TimelineMinimap -->
+    <TimelineMinimap :messages="messages" :active="activeIdx" @jump="jumpTo" />
     <div class="stream">
       <div
         v-for="m in messages"

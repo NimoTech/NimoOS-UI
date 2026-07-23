@@ -31,4 +31,21 @@ describe('AssistantMessage', () => {
     expect(copyText).toHaveBeenCalledWith('hello')
     expect(toast.toasts.some((t) => t.text === '已复制')).toBe(false)
   })
+
+  it('连续的 thinking+tool block 经 groupBlocks 合并渲染成一个 ProcessStrip,后续 md block 走 BlockRenderer', () => {
+    const msg = {
+      id: 'm2',
+      blocks: [
+        { type: 'thinking', text: '推理中…' },
+        { type: 'tool', name: 'search_files', argsPreview: 'q=foo' },
+        { type: 'md', text: '**结果**' },
+      ],
+      streaming: false,
+    }
+    const w = mount(AssistantMessage, { props: { msg }, global: { plugins: [i18n] } })
+
+    expect(w.findAll('.proc').length).toBe(1)
+    expect(w.find('.md').exists()).toBe(true)
+    expect(w.html()).toContain('<strong>结果</strong>')
+  })
 })

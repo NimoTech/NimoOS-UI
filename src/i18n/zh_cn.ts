@@ -653,4 +653,13 @@ export default {
   aiViewAllFiles: '查看全部 {n} 个文件',
   aiViewAllSemanticPassages: '查看全部 {n} 条语义段落',
   aiViewAllResults: '查看全部结果',
+  // SP8-P1b Task 10 — ProcessStrip (合并 thinking+tool 步骤条) / TimelineMinimap
+  aiProcWorking: '处理中',
+  aiProcProcessed: '已处理',
+  aiProcThinkingWord: '思考',
+  aiProcSteps: '{n} 步',
+  aiProcReasoned: '已推理',
+  aiProcTool: '工具',
+  aiProcNoDetails: '无详情',
+  aiTimelineYou: '你',
 }

@@ -1,6 +1,6 @@
 <!--
-  1a 版:对齐 Vue2 src/views/AI/Agent/stream/AssistantMessage.vue,
-  但不用 groupBlocks/ProcessStrip —— `v-for="b in msg.blocks"` 直接过 BlockRenderer。
+  1:1 移植自 Vue2 src/views/AI/Agent/stream/AssistantMessage.vue,
+  1b 接回 groupBlocks/ProcessStrip(1a 版本是 `v-for="b in msg.blocks"` 直接过 BlockRenderer 的占位)。
   footer 只保 Copy 按钮;Regenerate/Read-aloud 记 1c 账。
 -->
 <script setup lang="ts">
@@ -8,7 +8,10 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '../../../stores/toast'
 import { copyText } from '../../../files/util/clipboard'
+import { groupBlocks, type AgentBlockLike, type ProcessGroup } from '../../util/groupBlocks'
+import { formatMs } from '../../services/streamMappers'
 import BlockRenderer from '../blocks/BlockRenderer.vue'
+import ProcessStrip from '../blocks/ProcessStrip.vue'
 import AgentIcon from '../icons/AgentIcon.vue'
 
 interface AssistantBlock {
@@ -38,12 +41,12 @@ const toast = useToast()
 
 const toolCount = computed(() => (props.msg.blocks || []).filter((b) => b.type === 'tool').length)
 
-// 1:1 移植自 Vue2 src/views/AI/Agent/services/agentStream.js:654-658
-// (agentStream.js 整体是 1b 的流式模块,这里只借它这一个纯格式化函数)
-function formatMs(ms?: number | null): string {
-  if (ms == null) return ''
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+// 1b: groupBlocks 把连续的 thinking/tool block 合并成一个 ProcessStrip 条目
+// (`__process: true`),其余 block 原样直通 BlockRenderer。
+const renderItems = computed(() => groupBlocks(props.msg.blocks ?? []))
+
+function isProcessGroup(item: AgentBlockLike | ProcessGroup): item is ProcessGroup {
+  return (item as ProcessGroup).__process === true
 }
 
 const statsLine = computed(() => {
@@ -82,10 +85,10 @@ async function copy() {
       <span v-if="toolCount > 0">·</span>
       <span v-if="toolCount > 0">used {{ toolCount }} tool{{ toolCount > 1 ? 's' : '' }}</span>
     </div>
-    <!-- 1b: groupBlocks/ProcessStrip -->
-    <div v-for="(b, i) in msg.blocks || []" :key="i">
-      <BlockRenderer :block="b" />
-    </div>
+    <template v-for="(item, i) in renderItems" :key="i">
+      <ProcessStrip v-if="isProcessGroup(item)" :steps="item.steps" :streaming="!!msg.streaming" />
+      <BlockRenderer v-else :block="item" />
+    </template>
     <div
       v-if="!msg.streaming"
       style="display: flex; align-items: center; gap: 8px; margin-top: 4px;
