@@ -9,6 +9,9 @@
 // 再登记一类:**生成式、按 seed 取色的占位马赛克色板**——
 //   - `VideoCard.vue` 的 `PAL`(视频缩略图占位渐变)
 //   - `ImageGridCard.vue` 的 `PALETTES`(图片格无缩略图时的占位马赛克)
+//   - `SearchFullResults.vue` 的 `PALETTES`、`SemanticSearchCard.vue` 的 `PALETTES`
+//     (SP8-P1b Task 9 —— Vue2 源里就是同一份 PALETTES 数组复制到两个文件,同属
+//     "图片无缩略图时的占位马赛克"这一类,不是新例外)
 // 这两处的十六进制字面量是"皮肤无关"的装饰性生成色(按 block 里的 seed 索引取值,
 // 不代表任何语义状态),与 `.ic-*` 品牌识别色同属"两套主题都原样保留"的例外类目,
 // 不接入 token 体系。组件内注释均指回本节。
@@ -127,6 +130,62 @@
   --scrim-dark: rgba(0, 0, 0, 0.35);
   /* Tiny inset gloss highlight on colored tiles (McpCallCard) — same in both themes. */
   --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+
+  /* SP8-P1b Task 9 — SearchImageLightbox is a fullscreen black "stage" (a photo
+     viewer chrome, like Photos/Preview), intentionally theme-invariant — same
+     rationale as --scrim-dark/--gloss-inset above, not a skin surface. */
+  --overlay-scrim: rgba(0, 0, 0, 0.92);
+  --overlay-fg-strong: rgba(255, 255, 255, 0.95);
+  --overlay-fg-soft: rgba(255, 255, 255, 0.6);
+  --overlay-chip-bg: rgba(255, 255, 255, 0.1);
+  --overlay-chip-bg-hover: rgba(255, 255, 255, 0.2);
+  --overlay-chip-border: rgba(255, 255, 255, 0.16);
+  --overlay-btn-bg: rgba(255, 255, 255, 0.08);
+  --overlay-btn-bg-hover: rgba(255, 255, 255, 0.16);
+  --overlay-nav-bg: rgba(0, 0, 0, 0.5);
+  --overlay-nav-bg-hover: rgba(0, 0, 0, 0.8);
+  --overlay-nav-border: rgba(255, 255, 255, 0.1);
+  --overlay-img-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+
+  /* Dim-behind-blur backdrop shared by SearchFileDrawer/SearchFullResults modals
+     — a scrim, not a skin surface, same value both themes (--scrim-dark sibling). */
+  --modal-scrim: rgba(0, 0, 0, 0.5);
+
+  /* "Paper" file-icon face (SearchFileDrawer/SearchFullResults/SemanticSearchCard
+     file-kind icons) — a white sheet-of-paper look, same convention real file
+     managers use in dark mode too; theme-invariant like --paper items above. */
+  --paper-surface: #ffffff;
+
+  /* File-extension color badges (kindColor ext→color map). Brand/semantic file-type
+     coding (à la Finder tags), theme-invariant like --purple/--pink/--teal above. */
+  --kind-pdf: #FF3B30;
+  --kind-doc: #007AFF;
+  --kind-xls: #34C759;
+  --kind-md: #1a1a1a;
+  --kind-txt: #8E8E93; /* also the default/unknown-kind fallback */
+  --kind-archive: #FF9500; /* zip / ppt / pptx */
+
+  /* Dark caption/badge scrim laid over photo thumbnails (score chip, bottom name
+     gradient) in SearchFullResults/SemanticSearchCard image grids — theme-invariant
+     (a darkening overlay on an image, same family as --scrim-dark). */
+  --photo-caption-scrim: rgba(0, 0, 0, 0.55);
+  /* "Open in Photos" glass pill shown on thumbnail hover (stronger than the lightbox's
+     own --overlay-chip-* since it must stand out over a dimmed photo, not near-black). */
+  --photo-chip-bg: rgba(255, 255, 255, 0.16);
+  --photo-chip-bg-hover: rgba(255, 255, 255, 0.3);
+  --photo-chip-border: rgba(255, 255, 255, 0.22);
+  --photo-overlay-fg: rgba(255, 255, 255, 0.85);
+
+  /* Composed from existing tokens (var()-in-var()) so a single declaration already
+     adapts per theme — same convention as --tl-active: var(--accent) above, not
+     redefined in the dark block. */
+  --icon-tile-glow: 0 3px 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  --grad-photo: linear-gradient(135deg, var(--purple), var(--pink));
+  --grad-file: linear-gradient(135deg, var(--accent), var(--teal));
+
+  /* Dim meta-row icon tint on TerminalCard's dark chrome (`.term-meta` in the
+     already-exempted global agent-styles.scss) — same theme-invariant family. */
+  --term-icon-dim: rgba(255, 255, 255, 0.5);
 }
 
 .agent-app[data-theme="dark"] {
@@ -186,6 +245,36 @@
   --teal-soft: rgba(48, 176, 199, 0.2);
   --scrim-dark: rgba(0, 0, 0, 0.35);
   --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+
+  /* SP8-P1b Task 9 — same values as light block (all theme-invariant chrome, see
+     comments there); dark-theme copies exist only to satisfy "every token has a
+     value in both blocks" for tokens that aren't var()-composed. */
+  --overlay-scrim: rgba(0, 0, 0, 0.92);
+  --overlay-fg-strong: rgba(255, 255, 255, 0.95);
+  --overlay-fg-soft: rgba(255, 255, 255, 0.6);
+  --overlay-chip-bg: rgba(255, 255, 255, 0.1);
+  --overlay-chip-bg-hover: rgba(255, 255, 255, 0.2);
+  --overlay-chip-border: rgba(255, 255, 255, 0.16);
+  --overlay-btn-bg: rgba(255, 255, 255, 0.08);
+  --overlay-btn-bg-hover: rgba(255, 255, 255, 0.16);
+  --overlay-nav-bg: rgba(0, 0, 0, 0.5);
+  --overlay-nav-bg-hover: rgba(0, 0, 0, 0.8);
+  --overlay-nav-border: rgba(255, 255, 255, 0.1);
+  --overlay-img-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+  --modal-scrim: rgba(0, 0, 0, 0.5);
+  --paper-surface: #ffffff;
+  --kind-pdf: #FF3B30;
+  --kind-doc: #007AFF;
+  --kind-xls: #34C759;
+  --kind-md: #1a1a1a;
+  --kind-txt: #8E8E93;
+  --kind-archive: #FF9500;
+  --photo-caption-scrim: rgba(0, 0, 0, 0.55);
+  --photo-chip-bg: rgba(255, 255, 255, 0.16);
+  --photo-chip-bg-hover: rgba(255, 255, 255, 0.3);
+  --photo-chip-border: rgba(255, 255, 255, 0.22);
+  --photo-overlay-fg: rgba(255, 255, 255, 0.85);
+  --term-icon-dim: rgba(255, 255, 255, 0.5);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

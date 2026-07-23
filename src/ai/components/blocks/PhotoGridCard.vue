@@ -21,7 +21,9 @@ const { t } = useI18n()
 const lightboxIndex = ref<number | null>(null)
 
 const lightboxPhotos = computed(() =>
-  (props.photos || []).filter((p) => !!p.id).map((p) => ({ id: p.id, title: p.name })),
+  (props.photos || [])
+    .filter((p): p is GridPhoto & { id: string | number } => !!p.id)
+    .map((p) => ({ id: p.id, title: p.name })),
 )
 
 function open(i: number) {
