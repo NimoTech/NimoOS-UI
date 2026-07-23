@@ -23,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import type { Month, Photo } from '../util/assetToPhoto'
 import { computeFrameFromX } from '../util/hoverScrub'
+import { matchesTab } from '../util/tabFilter'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
 const props = withDefaults(defineProps<{
@@ -50,7 +51,12 @@ const wrapRef = ref<HTMLElement | null>(null)
 const scrubberRef = ref<HTMLElement | null>(null)
 const tickRefs = ref<Array<HTMLElement | null>>([])
 function setTickRef(el: Element | null, i: number) { tickRefs.value[i] = el as HTMLElement | null }
-const hoverPreviewRef = ref<InstanceType<typeof VideoHoverPreview> | null>(null)
+// `ref="hoverPreviewRef"` sits inside v-for (ref_for) so at runtime Vue
+// collects it as an ARRAY of instances, not a single instance — the type
+// must admit that shape or callers reading .value would be lying to
+// themselves. Normalized in onTileClick exactly like Vue2 did:
+// `[].concat(this.$refs.hoverPreview || [])[0]` (NimoOS-UI/src/views/Photos/PhotosGrid.vue:263).
+const hoverPreviewRef = ref<InstanceType<typeof VideoHoverPreview> | InstanceType<typeof VideoHoverPreview>[] | null>(null)
 
 // ─── month scrubber ──────────────────────────────────────────────────────
 const activeMonth = ref('')
@@ -59,12 +65,7 @@ const TICK_PAD = 12
 
 const filteredMonths = computed(() => (props.months || []).map(m => ({
   ...m,
-  filtered: m.photos.filter(p =>
-    props.tab === 'all' ? true
-      : props.tab === 'video' ? p.isVideo
-        : props.tab === 'ocr' ? p.hasOcr
-          : (!p.isVideo && !p.hasOcr),
-  ),
+  filtered: m.photos.filter(p => matchesTab(p, props.tab)),
 })))
 
 const selecting = computed(() => props.selected.length > 0)
@@ -137,7 +138,10 @@ function onTileClick(p: Photo) {
   if (selecting.value) { toggleSelect(p.id); return }
   let startMs = 0
   if (p.isVideo && hoveredVideo.value === p && previewVisible.value) {
-    const inst = hoverPreviewRef.value
+    // ref_for -> array at runtime; normalize like Vue2's
+    // `[].concat(this.$refs.hoverPreview || [])[0]`.
+    const raw = hoverPreviewRef.value
+    const inst = Array.isArray(raw) ? raw[0] : raw
     if (inst) startMs = Math.floor(inst.currentPreviewTimeMs())
   }
   emit('open', p, undefined, startMs)
@@ -264,7 +268,7 @@ onBeforeUnmount(() => {
         <template v-for="m in filteredMonths" :key="m.key">
           <div v-if="m.filtered.length > 0" :id="'m-' + m.key" class="month-group">
             <div class="month-head">
-              <div class="month-title">{{ m.title }}</div>
+              <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
               <div class="month-count">{{ t('photosItemsCount', { count: m.filtered.length }) }}</div>
             </div>
             <div class="grid" :data-density="density">

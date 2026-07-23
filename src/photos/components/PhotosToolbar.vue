@@ -35,7 +35,7 @@ function setDensity(v: string) { emit('update:density', v) }
       <button class="tab" :data-active="props.tab === 'video'" @click="setTab('video')">{{ t('photosTabVideos') }}</button>
     </div>
     <div style="flex:1"></div>
-    <span class="muted-text">{{ t('photosItemsCount', { count: props.count.toLocaleString() }) }}</span>
+    <span class="muted-text">{{ t('photosItemsCount', { count: props.count }) }}</span>
     <div class="density">
       <button
         :data-active="props.density === 'compact'" @click="setDensity('compact')"

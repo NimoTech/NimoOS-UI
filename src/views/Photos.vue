@@ -20,6 +20,7 @@ import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../photos/util/taskBus'
 import { createTaskDoneCoalescer } from '../photos/util/taskDoneCoalescer'
+import { matchesTab } from '../photos/util/tabFilter'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
@@ -27,21 +28,18 @@ const store = useTimelineStore()
 const toast = useToast()
 const bus = useMessageBus()
 
-const tab = ref('all')
+// Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
+// `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
+// the port (SP7-P1 review finding), sanctioned fix.
+const tab = ref('photo')
 const density = ref('comfortable')
 const selected = ref<Array<string | number>>([])
 
-// Grid does tab-filtering internally; mirror the same predicate here to feed
-// the toolbar's item count (Vue2 passed the filtered count, PhotosGrid.vue
-// filteredMonths logic ported at task-7).
-function matchesTab(p: Photo): boolean {
-  if (tab.value === 'video') return p.isVideo
-  if (tab.value === 'ocr') return p.hasOcr
-  if (tab.value === 'photo') return !p.isVideo && !p.hasOcr
-  return true // 'all'
-}
+// Grid does tab-filtering internally; mirror the same predicate here (hoisted
+// to photos/util/tabFilter.ts, Fix 3) to feed the toolbar's item count (Vue2
+// passed the filtered count, PhotosGrid.vue filteredMonths logic ported at task-7).
 const filteredCount = computed(() =>
-  store.months.reduce((sum, m) => sum + m.photos.filter(matchesTab).length, 0),
+  store.months.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
 )
 
 function toggleSelect(id: string | number) {
@@ -53,7 +51,10 @@ function cancelSelection() { selected.value = [] }
 
 async function onBatchDelete(ids: Array<string | number>) {
   const count = await store.deleteAssets(ids.map(String))
-  toast.show(t('photosDeletedToast', { count }))
+  // 4000ms, aligned with Vue2's delete/task-done toasts (NimoOS-UI
+  // src/views/Photos/PhotosTimeline.vue:329, :574) — longer than the app
+  // default (1500ms) so the user has time to register what happened.
+  toast.show(t('photosDeletedToast', { count }), 4000)
   selected.value = []
 }
 
@@ -76,12 +77,16 @@ function messageFor(task: TaskBusPayload): string | null {
 
 const doneCoalescer = createTaskDoneCoalescer<TaskBusPayload>({
   messageFor,
-  emit: (message) => toast.show(message),
+  // 4000ms, aligned with Vue2's task-done toast duration (NimoOS-UI
+  // src/views/Photos/PhotosTimeline.vue:329 `$buefy.toast.open({..., duration: 4000})`).
+  emit: (message) => toast.show(message, 4000),
 })
 
 // Ingest-time done-transition detection: capture whether this task was
 // already 'done' before the store merges the new event in, so a task that
 // stays 'done' across repeated events (or re-ingests) is only announced once.
+// 已知边界——fetchIndexStatus 的 idle 对账会移除 index 任务,若其后迟到重复
+// done 事件会二次 toast;P8 任务条落地时与 scheduleTaskRemove 一并收口。
 function onTaskProgress(_props: unknown, raw: unknown) {
   const payload = unwrapTaskBusPayload(raw)
   if (!payload || payload.id == null) return

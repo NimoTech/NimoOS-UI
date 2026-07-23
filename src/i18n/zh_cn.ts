@@ -560,5 +560,4 @@ export default {
   photosDensityCompact: '紧凑',
   photosDensityComfortable: '舒适',
   photosDensityLoose: '宽松',
-  photosSidebarToggle: '切换侧栏',
 }

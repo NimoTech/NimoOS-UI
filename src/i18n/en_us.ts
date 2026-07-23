@@ -561,5 +561,4 @@ export default {
   photosDensityCompact: 'Compact',
   photosDensityComfortable: 'Comfortable',
   photosDensityLoose: 'Loose',
-  photosSidebarToggle: 'Toggle sidebar',
 }

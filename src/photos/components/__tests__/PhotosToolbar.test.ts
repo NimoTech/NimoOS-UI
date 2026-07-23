@@ -34,8 +34,8 @@ describe('PhotosToolbar', () => {
     expect(w.emitted('update:density')?.[1]).toEqual(['loose'])
   })
 
-  it('shows the item count text', () => {
+  it('shows the item count text (raw number, same i18n arg shape as PhotosGrid month header — Fix 8)', () => {
     const w = mount(PhotosToolbar, { props: { tab: 'all', density: 'comfortable', count: 1234 } })
-    expect(w.text()).toContain('1,234')
+    expect(w.text()).toContain('1234')
   })
 })

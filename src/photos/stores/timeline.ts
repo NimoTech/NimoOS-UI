@@ -118,9 +118,9 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       if (indexIdle && !uploadsActive) {
         tasks.value = tasks.value.filter(t => t.type !== 'index')
       }
-    } catch (e) {
-      // ignore — poll retries on next tick
-      console.error('[photos-timeline] fetchIndexStatus', e)
+    } catch {
+      // 对齐 Vue2:轮询失败静默,恢复由下轮补 —— 后端下线时这条 5s 轮询会持续
+      // 报错刷屏(NimoOS-UI src/store/modules/photos.js 的等价轮询同样吞掉异常)。
     }
   }
 

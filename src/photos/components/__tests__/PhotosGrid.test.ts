@@ -56,6 +56,14 @@ describe('PhotosGrid', () => {
     expect(w.text()).toContain('June 2026')
   })
 
+  it("a month group with key 'unknown' renders the i18n photosUnknownDate label instead of m.title (Fix 5a)", () => {
+    // groupToMonth hardcodes title='Unknown Date' (English) for month===0 groups
+    // — PhotosGrid must override that with the localized key at render time.
+    const months = [month('unknown', 'Unknown Date', [photo('a')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+    expect(w.get('.month-title').text()).toBe('未知日期')
+  })
+
   it('empty months are not rendered as a group at all', () => {
     const months = [month('2026-07', 'July 2026', [])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
@@ -209,6 +217,34 @@ describe('PhotosGrid', () => {
       expect(preview.exists()).toBe(true)
       expect(preview.props('frameCount')).not.toBe(24)
       expect(preview.props('durationMs')).not.toBe(9999)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clicking a video tile after the hover preview is visible reads startMs via hoverPreviewRef without throwing (ref_for array normalization)', async () => {
+    // Regression test for Fix 1: ref="hoverPreviewRef" sits inside v-for
+    // (ref_for) so at runtime Vue populates it as an ARRAY of instances, not
+    // a single instance. onTileClick must normalize `[].concat(ref||[])[0]`
+    // like Vue2 did — calling `.currentPreviewTimeMs()` directly on the raw
+    // (array) ref throws a TypeError.
+    vi.useFakeTimers()
+    try {
+      svc.photos.spriteMeta.mockResolvedValueOnce({ frames: 10, durationMs: 5000, frameW: 240, frameH: 135 })
+      const months = [month('2026-07', 'July 2026', [photo('v', { isVideo: true, durationMs: 5000 })])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      const tile = w.get('.tile')
+      await tile.trigger('mouseenter')
+      vi.advanceTimersByTime(300)
+      await flushPromises()
+      expect(w.findComponent(VideoHoverPreview).exists()).toBe(true)
+
+      await expect(tile.trigger('click')).resolves.not.toThrow()
+
+      const evt = w.emitted('open')?.[0]
+      expect(evt).toBeTruthy()
+      expect(typeof evt?.[2]).toBe('number')
+      expect(Number.isNaN(evt?.[2] as number)).toBe(false)
     } finally {
       vi.useRealTimers()
     }

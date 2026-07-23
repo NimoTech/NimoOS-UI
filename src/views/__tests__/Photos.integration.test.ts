@@ -114,7 +114,9 @@ describe('Photos.vue integration', () => {
     ]
     await flushPromises()
     await w.vm.$nextTick()
-    expect(w.findAll('.tile')).toHaveLength(2)
+    // Default tab is 'photo' (Fix 4, aligned with Vue2 PhotosTimeline default) —
+    // only the non-video, non-OCR asset ('a') matches initially.
+    expect(w.findAll('.tile')).toHaveLength(1)
 
     await w.find('.tab[data-active]').exists() // sanity: toolbar rendered
     const videoTab = w.findAll('.tab').find((btn) => btn.text() === '视频')
@@ -122,6 +124,12 @@ describe('Photos.vue integration', () => {
     await videoTab!.trigger('click')
     await w.vm.$nextTick()
     expect(w.findAll('.tile')).toHaveLength(1)
+
+    const allTab = w.findAll('.tab').find((btn) => btn.text() === '全部')
+    expect(allTab).toBeTruthy()
+    await allTab!.trigger('click')
+    await w.vm.$nextTick()
+    expect(w.findAll('.tile')).toHaveLength(2)
   })
 
   it('批量删除:grid batch-delete → store.deleteAssets → notify photosDeletedToast → 清空 selected', async () => {
@@ -147,7 +155,8 @@ describe('Photos.vue integration', () => {
     await flushPromises()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a', 'b'])
-    expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('2'))
+    // 4000ms duration (Fix 7, aligned with Vue2's delete/task-done toast duration).
+    expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('2'), 4000)
     expect(w.find('.selectbar').exists()).toBe(false) // selected cleared -> selectbar gone
   })
 
