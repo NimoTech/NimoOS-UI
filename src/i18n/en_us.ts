@@ -574,4 +574,8 @@ export default {
   storageCreateOk: 'Format and create',
   storageCreateDirect: 'Create',
   storageCreating: 'Creating…',
+  storageFormat: 'Format',
+  storageFormatTitle: 'Format storage',
+  storageFormatMsg: 'Storage "{name}" will be formatted. All data on it will be erased and cannot be recovered. Enter your login password to continue:',
+  storageFormatOk: 'Format',
 }

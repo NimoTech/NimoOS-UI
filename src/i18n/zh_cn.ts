@@ -573,4 +573,8 @@ export default {
   storageCreateOk: '格式化并创建',
   storageCreateDirect: '直接创建',
   storageCreating: '创建中…',
+  storageFormat: '格式化',
+  storageFormatTitle: '格式化存储',
+  storageFormatMsg: '将格式化存储「{name}」,其中所有数据将被清空且无法恢复。输入登录密码以继续:',
+  storageFormatOk: '确认格式化',
 }

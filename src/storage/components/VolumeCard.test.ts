@@ -24,14 +24,21 @@ describe('VolumeCard', () => {
     const danger = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 95 } } })
     expect(danger.find('.vc-fill.danger').exists()).toBe(true)
   })
-  it('系统卷:显示 OS 徽标、无移除按钮', () => {
+  it('系统卷:显示 OS 徽标、无移除按钮、无格式化按钮', () => {
     const w = mount(VolumeCard, { props: { volume: { ...VOL, isSystem: true } } })
     expect(w.find('.vc-os').exists()).toBe(true)
-    expect(w.find('.vc-remove').exists()).toBe(false)
+    expect(w.find('.vc-act.danger').exists()).toBe(false)
+    expect(w.find('.vc-act').exists()).toBe(false)
   })
   it('非系统卷:点移除按钮 emit unmount', async () => {
     const w = mount(VolumeCard, { props: { volume: VOL } })
-    await w.find('.vc-remove').trigger('click')
+    await w.find('.vc-act.danger').trigger('click')
     expect(w.emitted('unmount')).toHaveLength(1)
+  })
+  it('非系统卷:点格式化按钮 emit format', async () => {
+    const w = mount(VolumeCard, { props: { volume: VOL } })
+    const fmtBtn = w.findAll('.vc-act').find((b) => !b.classes('danger'))!
+    await fmtBtn.trigger('click')
+    expect(w.emitted('format')).toHaveLength(1)
   })
 })
