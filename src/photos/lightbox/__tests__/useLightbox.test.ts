@@ -56,4 +56,32 @@ describe('useLightbox 开合/翻页', () => {
     const lb = useLightbox(); lb.openAt(P('a'), [], 0, '  hello  ')
     expect(lb.searchQuery.value).toBe('hello')
   })
+
+  describe('goTo 跳转', () => {
+    it('范围内跳转成功:goTo(2) 三项列表 → index=2,current 是第三项', () => {
+      const lb = useLightbox()
+      lb.openAt(P('a'), [P('a'), P('b'), P('c')])
+      push.mockClear()
+      lb.goTo(2)
+      expect(lb.index.value).toBe(2)
+      expect(lb.current.value?.id).toBe('c')
+      expect(push).not.toHaveBeenCalled()
+    })
+    it('越界下 goTo(-1) → index 不变', () => {
+      const lb = useLightbox()
+      lb.openAt(P('a'), [P('a'), P('b')])
+      push.mockClear()
+      lb.goTo(-1)
+      expect(lb.index.value).toBe(0)
+      expect(push).not.toHaveBeenCalled()
+    })
+    it('越界上 goTo(99) → index 不变', () => {
+      const lb = useLightbox()
+      lb.openAt(P('a'), [P('a'), P('b'), P('c')])
+      push.mockClear()
+      lb.goTo(99)
+      expect(lb.index.value).toBe(0) // 仍在 openAt 后的位置
+      expect(push).not.toHaveBeenCalled()
+    })
+  })
 })
