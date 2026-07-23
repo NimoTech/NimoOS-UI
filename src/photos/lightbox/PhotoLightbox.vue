@@ -3,7 +3,7 @@
 // 状态全读 useLightbox() 单例(T2/T3),静图舞台委托 PhotoImageViewer(T5,自带底部缩放条)。
 // delta(见 task-6-brief.md):1) 删「加入相册」「交给 Nimo」两钮;2) 详情栏改可 toggle(占位到 T7);
 // 3) 顶栏不放缩放钮(PhotoImageViewer 自持底部缩放条,减少跨组件 ref);4) 当前项一律按 id 比较。
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useLightbox } from './useLightbox'
@@ -50,9 +50,22 @@ function doDelete(): void {
 }
 
 // —— 视频起播位续播 ——(照 Vue2 applyStartTime :335-344:仅本次打开首张匹配视频 seek 一次)
+// 本组件被父级持久挂载(内部靠 v-if="lb.open.value" 自门控),onMounted 时灯箱通常还没开,
+// 那一刻 lb.current 为空,锚点只能在 open 由假变真的瞬间捕获(见 watch),否则 startPhotoId 恒为 null、
+// applyStartTime 永远 early-return,悬停位续播失效。
 const videoEl = ref<HTMLVideoElement | null>(null)
 let startApplied = false
 let startPhotoId: string | number | null = null
+watch(
+  () => lb.open.value,
+  (isOpen) => {
+    if (isOpen) {
+      startApplied = false
+      startPhotoId = lb.current.value?.id ?? null
+    }
+  },
+  { immediate: true }, // 兼容组件在灯箱已开时才挂载的边缘情况
+)
 function applyStartTime(): void {
   const cur = lb.current.value
   if (startApplied || !(lb.startMs.value > 0)) return
@@ -103,9 +116,6 @@ function onKey(e: KeyboardEvent): void {
 
 onMounted(() => {
   onMouseMove()
-  // 本次打开首张视频的续播锚点(翻页到别的视频不适用)
-  startApplied = false
-  startPhotoId = lb.current.value?.id ?? null
   window.addEventListener('keydown', onKey)
 })
 onBeforeUnmount(() => {

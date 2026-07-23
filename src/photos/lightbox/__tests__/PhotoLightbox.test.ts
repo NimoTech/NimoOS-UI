@@ -274,6 +274,50 @@ describe('PhotoLightbox chrome 自隐', () => {
   })
 })
 
+describe('PhotoLightbox 视频起播位续播', () => {
+  // 关键回归:组件持久挂载,openAt 先于 loadedmetadata 把 open 由假变真,
+  // 锚点须在 open 变真时捕获(而非 onMounted 时,那一刻灯箱未开、current 为空)。
+  function trackCurrentTime(el: HTMLVideoElement, durationS: number): () => number {
+    Object.defineProperty(el, 'duration', { value: durationS, configurable: true })
+    let ct = 0
+    Object.defineProperty(el, 'currentTime', {
+      get: () => ct,
+      set: (v: number) => { ct = v },
+      configurable: true,
+    })
+    return () => ct
+  }
+
+  it('悬停位打开视频,loadedmetadata 后真的 seek 到 16s(startMs 16000)', async () => {
+    const VID_A = makePhoto({ id: 'vA', title: 'ClipA', isVideo: true, mimeType: 'video/mp4' })
+    const w = mountLb()
+    lb.openAt(VID_A, [VID_A], 16000)
+    await nextTick()
+    const video = w.find('video')
+    expect(video.exists()).toBe(true)
+    const readCt = trackCurrentTime(video.element as HTMLVideoElement, 60)
+    await video.trigger('loadedmetadata')
+    expect(readCt()).toBe(16) // 16000ms / 1000 = 16s
+  })
+
+  it('翻页到另一视频不再 seek(startApplied 一次性守卫)', async () => {
+    const VID_A = makePhoto({ id: 'vA', title: 'ClipA', isVideo: true, mimeType: 'video/mp4' })
+    const VID_B = makePhoto({ id: 'vB', title: 'ClipB', isVideo: true, mimeType: 'video/mp4' })
+    const w = mountLb()
+    lb.openAt(VID_A, [VID_A, VID_B], 16000)
+    await nextTick()
+    const readA = trackCurrentTime(w.find('video').element as HTMLVideoElement, 60)
+    await w.find('video').trigger('loadedmetadata')
+    expect(readA()).toBe(16)
+    // 翻页到第二个视频:元素按 id 重建,新视频不应被 seek 到 16s
+    lb.next()
+    await nextTick()
+    const readB = trackCurrentTime(w.find('video').element as HTMLVideoElement, 60)
+    await w.find('video').trigger('loadedmetadata')
+    expect(readB()).toBe(0)
+  })
+})
+
 describe('PhotoLightbox 实况照片', () => {
   it('实况项渲染实况徽标;按住播 <video src=liveUrl>,松开消失', async () => {
     const w = mountLb()
