@@ -185,6 +185,34 @@ describe('PhotosGrid', () => {
     }
   })
 
+  it('keeps the hover preview mounted after a timeline refresh rebuilds the photo object (match by id, not reference)', async () => {
+    // Regression (SP7-P1 acceptance): the timeline's quiet refresh (index poll)
+    // replaces `timelineGroups`, so assetToPhoto rebuilds each Photo as a NEW
+    // object with the SAME id. The old `hoveredVideo === p` reference check then
+    // went false and the preview silently unmounted (Vue2 kept refs stable; Vue3
+    // does not). The v-if must match on the stable id instead.
+    vi.useFakeTimers()
+    try {
+      svc.photos.spriteMeta.mockResolvedValue({ frames: 12, durationMs: 5000, frameW: 240, frameH: 135 })
+      const months1 = [month('2026-07', 'July 2026', [photo('v', { isVideo: true, durationMs: 5000 })])]
+      const w = mount(PhotosGrid, { props: { months: months1, tab: 'all', density: 'comfortable', selected: [] } })
+      await w.get('.tile').trigger('mouseenter')
+      vi.advanceTimersByTime(300)
+      await flushPromises()
+      expect(w.findComponent(VideoHoverPreview).exists()).toBe(true)
+
+      // Simulate the quiet refresh: same id 'v', brand-new object reference.
+      const months2 = [month('2026-07', 'July 2026', [photo('v', { isVideo: true, durationMs: 5000 })])]
+      expect(months2[0].photos[0]).not.toBe(months1[0].photos[0]) // sanity: reference changed
+      await w.setProps({ months: months2 })
+      await nextTick()
+      // Reference equality would have unmounted it here; id equality keeps it.
+      expect(w.findComponent(VideoHoverPreview).exists()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a spriteMeta reply that resolves AFTER the user has left (stale token) is discarded, not written to state', async () => {
     vi.useFakeTimers()
     try {

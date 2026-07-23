@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
               >
                 <img :src="thumbnailSrc(p.id)" alt="" loading="lazy" @error="onThumbError">
                 <VideoHoverPreview
-                  v-if="p.isVideo && hoveredVideo === p"
+                  v-if="p.isVideo && hoveredVideo != null && hoveredVideo.id === p.id"
                   ref="hoverPreviewRef"
                   :visible="previewVisible"
                   :sprite-url="spriteUrl"
