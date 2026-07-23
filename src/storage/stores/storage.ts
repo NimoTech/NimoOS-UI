@@ -36,6 +36,7 @@ export const useStorageStore = defineStore('storage', () => {
     } catch (e) {
       console.warn('[storage] volumes load failed', e)
       volumes.value = []
+      raidNames.value = []
     }
   }
 

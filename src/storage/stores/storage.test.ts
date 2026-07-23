@@ -58,6 +58,16 @@ describe('loadVolumes', () => {
     await expect(s.loadVolumes()).resolves.toBeUndefined()
     expect(s.volumes).toEqual([])
   })
+  it('失败复位 raidNames,不残留上次成功值', async () => {
+    storageList.mockResolvedValue(GROUPS)
+    raidList.mockResolvedValue([{ id: 1, mount_point: '/mnt/r0', name: 'raid0' }])
+    const s = useStorageStore()
+    await s.loadVolumes()
+    expect(s.raidNames).toEqual(['raid0'])
+    storageList.mockRejectedValue(new Error('boom'))
+    await s.loadVolumes()
+    expect(s.raidNames).toEqual([])
+  })
 })
 
 describe('loadDrives', () => {
