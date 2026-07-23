@@ -32,15 +32,17 @@ describe('UnmountDialog', () => {
     expect(btns.length).toBeGreaterThan(0)
     expect(Array.from(btns).every((b) => b.disabled)).toBe(true)
   })
-  it('弹窗关闭时清空密码(P1 债③:取消后明文不驻留)', async () => {
+  it('弹窗关闭时清空密码(P1 债③:取消后明文不驻留,不重新打开也须已清空)', async () => {
     const w = mount(UnmountDialog, { props: { open: true, name: 'A' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.ud-input')!
     input.value = 'secret'
     input.dispatchEvent(new Event('input'))
-    await w.setProps({ open: false })
-    await w.setProps({ open: true })
     await w.vm.$nextTick()
+    await w.setProps({ open: false })
+    await w.vm.$nextTick()
+    // 故意不重新打开:只有「关闭本身清空」这条被修复的路径才能让此断言通过——
+    // 旧的 `if (o) password.value = ''` 实现在此处仍残留明文 'secret'。
     expect(document.body.querySelector<HTMLInputElement>('.ud-input')!.value).toBe('')
   })
 })
