@@ -202,4 +202,51 @@ describe('useLightbox 水合+收藏', () => {
     expect(service.photos.favorite).toHaveBeenCalledWith('a')
     expect(lb.isFav.value).toBe(true)
   })
+
+  it('seq 守卫同 id 重访竞态覆盖(隔离 seq 机制):openAt a → next b → prev a(同 id!)→ 解析新的 a 再旧的 a,detail 反映新的', async () => {
+    // 目标: 用同一个 id 的两个 getAsset 调用来隔离 seq 守卫。
+    // 场景: openAt(a) [call 0, pending] → next() [call 1, pending] → prev() [call 2, pending, same id 'a']
+    // 然后先解析 call 2(新的) → detail 应为 'NEW',再解析 call 0(旧的) → detail 仍应为 'NEW'
+    // (不能用 id 检查来区别,因为两个都是 id='a',必须靠 seq 机制丢弃 call 0)
+
+    const deferreds: Array<{ resolve: (v: any) => void; reject: (e: any) => void }> = []
+    let callCount = 0
+    vi.mocked(service.photos.getAsset).mockImplementation(() => {
+      const idx = callCount++
+      let resolve: (v: any) => void = () => {}
+      let reject: (e: any) => void = () => {}
+      const promise = new Promise((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      deferreds[idx] = { resolve, reject }
+      return promise as any
+    })
+
+    const lb = useLightbox()
+    // call 0: openAt 触发 hydrateDetail,开始 getAsset('a'),保持 pending
+    lb.openAt(P('a'), [P('a'), P('b'), P('c')])
+    // call 1: next 触发 hydrateDetail,开始 getAsset('b')
+    lb.next()
+    // call 2: prev 触发 hydrateDetail,开始 getAsset('a') —— 同一个 id 的第二次调用!
+    lb.prev()
+
+    expect(lb.current.value?.id).toBe('a')
+
+    // 先解析 call 2(最新) 的结果,带 status='NEW'(status 字段在 assetToPhoto 中被保留)
+    deferreds[2].resolve({ id: 'a', status: 'NEW' } as any)
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(lb.detail.value?.id).toBe('a')
+    expect(lb.detail.value?.status).toBe('NEW')
+
+    // 再解析 call 0(最旧) 的结果,带 status='STALE'
+    // 如果 seq 检查工作,这个结果应该被丢弃;detail 应仍为 'NEW'
+    deferreds[0].resolve({ id: 'a', status: 'STALE' } as any)
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+
+    // 关键断言: detail 仍然是 NEW,不会被 STALE 覆盖
+    // (id 检查无法区别,因为两个都是 id='a';只有 seq 检查能丢弃 call 0)
+    expect(lb.detail.value?.id).toBe('a')
+    expect(lb.detail.value?.status).toBe('NEW')
+  })
 })
