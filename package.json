@@ -39,6 +39,7 @@
     "axios": "^1.7",
     "codemirror": "^6.0.2",
     "composerize": "^1.7.6",
+    "dompurify": "^3.4.12",
     "lottie-web": "^5.13.0",
     "markdown-it": "^14.3.0",
     "music-metadata-browser": "^2.5.11",
@@ -54,10 +55,12 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
     "@vitejs/plugin-vue": "^6",
     "@vue/test-utils": "^2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^24",
+    "sass": "^1.101.6",
     "typescript": "^5",
     "vite": "^7",
     "vitest": "^4",

@@ -1,0 +1,133 @@
+// 1:1 移植自 Vue2 Agent;字面色值为作用域内既有体系,豁免全局 token 规则。
+// Tokens for AI Agent page. Imported once by Agent.vue.
+// Redesign: warm-neutral flat palette + muted blue accent (2026-06-30).
+// Token NAMES are stable; only values changed/added so long-tail
+// components re-skin automatically.
+
+/* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */
+.agent-app {
+  /* Surfaces */
+  --bg-app: #FAF9F6;
+  --bg-canvas: #FAF9F6;
+  --bg-elevated: #FFFFFF;
+  --bg-sunken: #F2F0EA;
+  --bg-chip: #ECEAE3;
+  --bg-hover: #ECEAE3;
+  --bg-code: #F4F2EC;
+
+  /* Translucent surfaces (kept for any leftover backdrop use; flattened) */
+  --glass-strong: rgba(250, 249, 246, 0.82);
+  --glass-medium: rgba(250, 249, 246, 0.6);
+  --glass-weak: rgba(250, 249, 246, 0.45);
+
+  /* Text */
+  --text-primary: #2A2723;
+  --text-secondary: #6C6860;
+  --text-tertiary: #9C988E;
+  --text-quaternary: #BCB8AD;
+  --text-on-accent: #ffffff;
+
+  /* Accent — muted blue */
+  --accent: #3B6FD4;
+  --accent-hover: #2F5CB8;
+  --accent-soft: rgba(59, 111, 212, 0.10);
+  --accent-softer: rgba(59, 111, 212, 0.06);
+
+  /* Semantic */
+  --success: #2E9E54;
+  --warning: #C8860A;
+  --danger: #D7493B;
+  --purple: #AF52DE;
+  --pink: #FF2D55;
+  --teal: #30B0C7;
+  --amber: #C8860A;
+  --photos-accent: #6E5BFF;
+
+  /* Diff */
+  --add: #2E9E54;
+  --add-bg: rgba(46, 158, 84, 0.08);
+  --add-gutter: rgba(46, 158, 84, 0.16);
+  --del: #D7493B;
+  --del-bg: rgba(215, 73, 59, 0.07);
+
+  /* Lines */
+  --line: #E6E2D9;
+  --line-strong: #D8D3C7;
+  --line-faint: #EEEBE3;
+
+  /* Timeline minimap */
+  --tl-tick: #CFCABD;
+  --tl-active: var(--accent);
+
+  /* Radii — unchanged */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  /* Shadows — soft, warm-tinted, lighter */
+  --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04);
+  --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05);
+  --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04);
+  --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06);
+  --shadow-pop: 0 16px 48px rgba(40, 35, 25, 0.16);
+
+  /* Type — unchanged */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-serif: "New York", "Times New Roman", serif;
+
+  /* Iridescent gradient — retained for incidental accents only (no longer drives orb) */
+  --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%);
+  --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%);
+}
+
+.agent-app[data-theme="dark"] {
+  --bg-app: #1C1C1E;
+  --bg-canvas: #1C1C1E;
+  --bg-elevated: #242426;
+  --bg-sunken: #161617;
+  --bg-chip: #2A2A2C;
+  --bg-hover: #2A2A2C;
+  --bg-code: #15171C;
+
+  --glass-strong: rgba(28, 28, 30, 0.82);
+  --glass-medium: rgba(28, 28, 30, 0.6);
+  --glass-weak: rgba(28, 28, 30, 0.45);
+
+  --text-primary: #E9E7E3;
+  --text-secondary: #A3A09A;
+  --text-tertiary: #6E6C68;
+  --text-quaternary: #4D4B48;
+
+  --accent: #5E97F2;
+  --accent-hover: #7AABF5;
+  --accent-soft: rgba(94, 151, 242, 0.14);
+  --accent-softer: rgba(94, 151, 242, 0.10);
+
+  --success: #4FB870;
+  --warning: #E0A53B;
+  --danger: #F0776B;
+  --amber: #E0A53B;
+
+  --add: #4FB870;
+  --add-bg: rgba(46, 160, 67, 0.12);
+  --add-gutter: rgba(46, 160, 67, 0.30);
+  --del: #F0776B;
+  --del-bg: rgba(240, 119, 107, 0.10);
+
+  --line: #2E2E31;
+  --line-strong: #3A3A3D;
+  --line-faint: #262628;
+
+  --tl-tick: #3C3C3F;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
