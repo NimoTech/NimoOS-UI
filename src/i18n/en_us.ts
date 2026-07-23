@@ -568,6 +568,8 @@ export default {
   aiComingSoon: 'Sending will be enabled in the next phase',
   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
+  // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
+  'ai.searchMyNas': 'Search my NAS for "{query}".',
   // SP8-P1b Task 8 —— block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
   aiMcpConnectFailed: 'MCP server {server} failed to connect: {error}',
   aiConfirmRequiredTitle: 'Confirmation required: {action}',

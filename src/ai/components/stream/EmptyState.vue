@@ -1,17 +1,17 @@
 <!--
   1:1 移植自 Vue2 src/views/AI/Agent/stream/EmptyState.vue。
-  @pick 在 1a 不发送(send 是 1b 的事):暂存 store.pendingPrompt + toast aiComingSoon。
+  SP8-P1b Task 11:@pick 直接 store.send(prompt) —— send() 存在后不再需要
+  暂存 pendingPrompt + "coming soon" toast 的占位行为。store 走
+  useProvidedAgentStore(),供 Photos 受限 profile 嵌入时解析到正确的祖先 store。
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAgentStore } from '../../stores/agentStore'
-import { useToast } from '../../../stores/toast'
+import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
 import AgentIcon from '../icons/AgentIcon.vue'
 
 const { t } = useI18n()
-const store = useAgentStore()
-const toast = useToast()
+const store = useProvidedAgentStore()
 
 const suggestions = computed(() => [
   {
@@ -41,8 +41,7 @@ const suggestions = computed(() => [
 ])
 
 function pick(prompt: string) {
-  store.pendingPrompt = prompt
-  toast.show(t('aiComingSoon'))
+  store.send(prompt)
 }
 </script>
 

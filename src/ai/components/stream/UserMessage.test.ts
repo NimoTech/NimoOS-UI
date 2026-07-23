@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { defineComponent, h } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
@@ -13,6 +14,7 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
 })
 import { service } from '@nimotech/nimoos-service'
 import { useAgentStore } from '../../stores/agentStore'
+import { provideAgentStore } from '../../composables/useProvidedAgentStore'
 import UserMessage from './UserMessage.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -83,5 +85,25 @@ describe('UserMessage', () => {
     expect(w.findAll('.msg-image-link').length).toBe(1)
     expect(w.findAll('.msg-file-chip').length).toBe(1)
     expect(w.find('.msg-file-chip').attributes('href')).toBe('/v1/ai/attachments/sess-2/doc-1/raw?token=t')
+  })
+
+  it('债③——祖先 provide 了受限 profile store(如 photos)时,解析祖先的会话 id,而非硬编码的默认 general store', () => {
+    const generalStore = useAgentStore()
+    generalStore.activeSessionId = 'general-sess'
+    const photosStore = useAgentStore('photos')
+    photosStore.activeSessionId = 'photos-sess'
+
+    const Wrapper = defineComponent({
+      setup() {
+        provideAgentStore(photosStore)
+        return () => h(UserMessage, {
+          msg: { content: '', attachments: [{ id: 'att-1', filename: 'cat.png', kind: 'image' }] },
+        })
+      },
+    })
+
+    const w = mount(Wrapper, { global: { plugins: [i18n] } })
+    expect(service.ai.attachmentRawUrl).toHaveBeenCalledWith('photos-sess', 'att-1')
+    expect(w.find('.msg-image-link img').attributes('src')).toBe('/v1/ai/attachments/photos-sess/att-1/raw?token=t')
   })
 })

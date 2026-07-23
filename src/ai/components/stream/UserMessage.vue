@@ -3,7 +3,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
-import { useAgentStore } from '../../stores/agentStore'
+import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
 import { isContinueChip, textOf, type UserMsgLike } from '../../util/userMessageView'
 import KindIcon from '../shell/KindIcon.vue'
 import AgentIcon from '../icons/AgentIcon.vue'
@@ -25,9 +25,10 @@ function extOf(name?: string): string {
 const props = defineProps<{ msg: UserMsgLike }>()
 const { t } = useI18n()
 // Vue2 版本通过 `inject: { agentStore: { default: null } }` 拿会话 id;
-// Vue3 侧直接调用 Pinia store(工厂形态,默认 'general' profile)。
-// 1b: 恢复注入缝(Vue2 inject agentStore)——photos profile 嵌入时不能写死 general store
-const store = useAgentStore()
+// Vue3 侧对应改用 useProvidedAgentStore()(SP8-P1b Task 11,债③已还)——
+// 有祖先 provideAgentStore(如 Photos 受限 profile 嵌入)时解析到那个实例,
+// 独立使用(当前 AgentPage 根)时回退到默认 'general' store,不再写死后者。
+const store = useProvidedAgentStore()
 
 const sessionId = computed(() => store.activeSessionId)
 const textContent = computed(() => textOf(props.msg))

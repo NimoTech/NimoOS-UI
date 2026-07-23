@@ -117,7 +117,6 @@ export function useAgentStore(agentType?: string) {
     const leftCollapsed = ref(false)
     // 1a 阶段恒 true——右侧面板(活动日志/资源等)要到 streaming 落地才有内容可看。
     const rightCollapsed = ref(true)
-    const pendingPrompt = ref<string | null>(null)
     // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
     // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
@@ -729,7 +728,6 @@ export function useAgentStore(agentType?: string) {
       theme,
       leftCollapsed,
       rightCollapsed,
-      pendingPrompt,
       abortController,
       activitySteps,
       pendingCancel,

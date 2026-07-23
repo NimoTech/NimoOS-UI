@@ -71,33 +71,92 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('?search=foo → pendingPrompt 落 "foo" 且 router.replace 剥掉 search 参数', async () => {
-    routeQuery.search = 'foo'
+  it('?search=cats → 总是新建会话(createSession)再发送 locale 包装后的搜索文案,且 router.replace 一次性剥掉 search 参数', async () => {
+    routeQuery.search = 'cats'
+    const store = useAgentStore()
+    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
     mountPage()
     await flushPromises()
-    const store = useAgentStore()
-    expect(store.pendingPrompt).toBe('foo')
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledWith('在我的 NAS 中搜索"cats"。')
+    // createSession 必须先于 send 完成(fresh session),顺序不可颠倒
+    expect(createSpy.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
   })
 
-  it('?message=bar(无 search)→ pendingPrompt 落 "bar" 且 router.replace 剥掉 message 参数', async () => {
-    routeQuery.message = 'bar'
+  it('?search=cats 即便已有 activeSessionId 仍新建会话(search 恒 fresh,不复用)', async () => {
+    routeQuery.search = 'cats'
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-old'
+    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
     mountPage()
     await flushPromises()
-    const store = useAgentStore()
-    expect(store.pendingPrompt).toBe('bar')
-    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('cats'))
   })
 
-  it('search 与 message 同时存在 → search 生效,message 被跳过(不覆盖 pendingPrompt)', async () => {
-    routeQuery.search = 'foo'
-    routeQuery.message = 'bar'
+  it('?message=hi(无 search)且无 activeSessionId → 先建会话再原文发送(不做 locale 包装)', async () => {
+    routeQuery.message = 'hi'
+    const store = useAgentStore()
+    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
     mountPage()
     await flushPromises()
+    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledWith('hi')
+  })
+
+  it('?message=hi 且已有 activeSessionId → 复用会话,不建新会话', async () => {
+    routeQuery.message = 'hi'
     const store = useAgentStore()
-    expect(store.pendingPrompt).toBe('foo')
+    store.activeSessionId = 'sess-existing'
+    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(sendSpy).toHaveBeenCalledWith('hi')
+  })
+
+  it('search 与 message 同时存在 → 只有 search 生效(message 被完全跳过,只发一次)', async () => {
+    routeQuery.search = 'foo'
+    routeQuery.message = 'bar'
+    const store = useAgentStore()
+    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('foo'))
     expect(replace).toHaveBeenCalledTimes(1)
-    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: 'bar' } })
+    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
+  })
+
+  it('one-shot:router.replace 剥离 search/message 但保留其它 query 参数不变', async () => {
+    routeQuery.search = 'cats'
+    routeQuery.tab = 'x'
+    const store = useAgentStore()
+    vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { tab: 'x' } })
+  })
+
+  it('?skill=abc → 暂存 store.pendingSkillId,不触发发送', async () => {
+    routeQuery.skill = 'abc'
+    const store = useAgentStore()
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(store.pendingSkillId).toBe('abc')
+    expect(sendSpy).not.toHaveBeenCalled()
+    expect(replace).not.toHaveBeenCalled()
   })
 
   it('侧栏 open-settings(设置齿轮)→ 弹 aiSettingsComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {

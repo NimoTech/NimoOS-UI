@@ -1,9 +1,10 @@
 <!--
   1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
-  去 AgentComposer(发送链路,1b/1c)、AgentRightPanel(1c),以及
-  systemMetrics/disks/thinking/models 的装载段(1b/1c)。右侧面板在 1a
-  永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store 状态——
-  1a store 里 rightCollapsed 恒 true,直接写死更直白)。
+  去 AgentComposer(1b 无输入框 UI —— 本期唯一发送入口是 Task 11 的
+  ?search=/?message= 自动发送 + EmptyState 建议卡,composer 组件本身留 1c)、
+  AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。右侧面板在
+  本期永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store
+  状态——store 里 rightCollapsed 恒 true,直接写死更直白)。
 
   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
@@ -68,30 +69,34 @@ onMounted(async () => {
     /* ignore — 拉模型失败不该挡住页面渲染,send() 自己会兜底提示无模型 */
   }
 
-  // 1c: pendingSkillId (?skill= handoff)
+  // Vue2 Agent.vue:145-148 —— ?skill= 挂号:只暂存,消费点在 send()(agentStore.ts
+  // send() 的 X-Skill-Id 组装段),这里不发送。
+  const skill = route.query.skill
+  if (skill) store.pendingSkillId = String(skill)
 
   // Handoff from the global search page / homepage AI widget
-  // (/ai/agent?search=<query> or ?message=<text>): 1a only stashes the raw
-  // intent on the store — the Vue2 blueprint's send-immediately behaviour
-  // (Agent.vue:166-192, including the locale-aware "Search my NAS for…"
-  // wrapper) is 1b's job once streaming send exists. The one-shot
-  // router.replace guard is ported verbatim so a page refresh doesn't
-  // re-populate pendingPrompt from a stale query string. search wins over
-  // message when both are present (message is skipped entirely, matching
-  // Vue2's `seedMessage && !seedQuery` guard).
-  const seedQuery = (route.query.search || '').toString().trim()
-  if (seedQuery) {
-    store.pendingPrompt = seedQuery
-    const cleanQuery = { ...route.query }
-    delete cleanQuery.search
-    router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
-  }
-  const seedMessage = (route.query.message || '').toString().trim()
-  if (seedMessage && !seedQuery) {
-    store.pendingPrompt = seedMessage
-    const cleanQuery = { ...route.query }
-    delete cleanQuery.message
-    router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
+  // (/ai/agent?search=<query> or ?message=<text>) — Vue2 Agent.vue:166-192.
+  // search wins over message when both are present (message is skipped
+  // entirely). One-shot: router.replace strips both query keys BEFORE
+  // sending so a page refresh doesn't re-send the seed turn.
+  const seedSearch = (route.query.search ?? '').toString().trim()
+  const seedMessage = (route.query.message ?? '').toString().trim()
+  if (seedSearch || seedMessage) {
+    const clean = { ...route.query }
+    delete clean.search
+    delete clean.message
+    await router.replace({ path: '/ai/agent', query: clean })
+    try {
+      if (seedSearch) {
+        await store.createSession() // always fresh
+        await store.send(t('ai.searchMyNas', { query: seedSearch }))
+      } else {
+        if (!store.activeSessionId) await store.createSession() // reuse if present
+        await store.send(seedMessage) // raw verbatim
+      }
+    } catch {
+      /* onError already surfaced a block */
+    }
   }
 })
 </script>
