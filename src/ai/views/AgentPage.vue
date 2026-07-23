@@ -60,6 +60,13 @@ onMounted(async () => {
   } catch {
     /* ignore — mirrors Vue2 Agent.vue's swallow-per-call mounted sequence */
   }
+  try {
+    // 在 auto-send 交接(Task 11)之前先把默认模型定下来,否则那时
+    // selectedModel 还是 null,send() 会先落一个 "无模型" 的错误 block。
+    await store.loadAvailableModels()
+  } catch {
+    /* ignore — 拉模型失败不该挡住页面渲染,send() 自己会兜底提示无模型 */
+  }
 
   // 1c: pendingSkillId (?skill= handoff)
 

@@ -2,10 +2,79 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { migrateLegacyMessages } from '../services/streamMappers'
-import type { AgentBlock, AgentStats, AttachmentRef } from '../types'
+import { runAgentRun, attachAgentStream } from '../services/agentTransport'
+import { i18n } from '../../i18n'
+import type { AgentBlock, AgentStats, AttachmentRef, StreamActions } from '../types'
 
 // AI Agent 主题偏好持久化 key —— 与 Vue2 blueprint(Agent.vue:80,90-96,117-119)逐字对齐。
 const THEME_KEY = 'nimoos.ai.agent.theme'
+// agentStore.js:626,638,650 —— 已选模型持久化 key(逐字对齐)。
+const MODEL_KEY = 'nimoos.ai.agent.selectedModel'
+
+/** agentStore.js 里的模型选择器条目(local/cloud 归一化)。 */
+export interface AgentModel {
+  key: string
+  source: 'local' | 'cloud'
+  displayName: string
+  size?: number
+  supports_thinking?: boolean
+  provider_type?: string
+  providerName?: string
+  providerId?: string | number
+}
+
+/** agentStore.js:34,46-52 —— thinking 强度状态(无 ThinkingBar UI,只留状态)。 */
+export interface ThinkingState {
+  enabled: boolean
+  level: string
+  supportsThinking: boolean
+  providerType: string
+  defaults: { enabled: boolean; level: string }
+}
+
+/** send() 接受的 payload 形态 —— agentStore.js:295-301。 */
+export interface SendPayload {
+  text: string
+  attachmentIds?: string[]
+  attachmentRefs?: AttachmentRef[]
+  contextPhoto?: unknown
+  contextAlbum?: unknown
+}
+
+/**
+ * agentStore.js:8-26 —— 把 enabled provider 下 favorite 的模型拍平成选择器条目。
+ * 导出供单测直接验证(与 Vue2 对齐,便于独立测试这段纯函数)。
+ */
+export function buildCloudModelList(providers: unknown): AgentModel[] {
+  const out: AgentModel[] = []
+  for (const p of (Array.isArray(providers) ? providers : []) as Record<string, unknown>[]) {
+    if (!p.enabled) continue
+    const models = Array.isArray(p.models) ? (p.models as Record<string, unknown>[]) : []
+    for (const m of models) {
+      if (!m.favorite) continue
+      out.push({
+        key: `cloud:${p.id}:${m.name}`,
+        source: 'cloud',
+        displayName: String(m.name),
+        providerName: p.name as string | undefined,
+        providerId: p.id as string | number,
+        supports_thinking: !!m.supports_thinking,
+        provider_type: (p.provider_type as string) || '',
+      })
+    }
+  }
+  return out
+}
+
+/** agentStore.js:337-348 —— 把 selectedModel key 拆成 { source, modelName }。 */
+function parseModelKey(key: string): { source: string; modelName: string } {
+  const idx = key.indexOf(':')
+  const source = key.slice(0, idx)
+  const rest = key.slice(idx + 1)
+  if (source === 'local') return { source, modelName: rest }
+  const idx2 = rest.indexOf(':')
+  return { source, modelName: idx2 >= 0 ? rest.slice(idx2 + 1) : rest }
+}
 
 export type AgentTheme = 'light' | 'dark'
 
@@ -49,13 +118,28 @@ export function useAgentStore(agentType?: string) {
     // 1a 阶段恒 true——右侧面板(活动日志/资源等)要到 streaming 落地才有内容可看。
     const rightCollapsed = ref(true)
     const pendingPrompt = ref<string | null>(null)
-    // Streaming-primitive state (SP8-P1b Task 4) — verbatim port target of
-    // Vue2 store/agentStore.js:34,39-40. abortController/pendingCancel are
-    // typed loose (any) here: their concrete shapes (AbortController /
-    // cancel-confirmation payload) belong to the transport layer (Task 6/8).
-    const abortController = ref<unknown>(null)
+    // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
+    // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
+    // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
+    // controller is a real AbortController, pendingCancel is the in-flight
+    // ai.cancelAgentRun() promise (or null when no cancel is pending).
+    const abortController = ref<AbortController | null>(null)
     const activitySteps = ref<Record<string, unknown>[]>([])
-    const pendingCancel = ref<unknown>(null)
+    const pendingCancel = ref<Promise<unknown> | null>(null)
+
+    // ---- Model bootstrap (SP8-P1b Task 7) — agentStore.js:43-52,599-698 ----
+    const availableModels = ref<AgentModel[]>([])
+    const selectedModel = ref<string | null>(null)
+    const lastFallbackNotice = ref<{ from: string | null; to: string | null } | null>(null)
+    const thinking = ref<ThinkingState>({
+      enabled: true,
+      level: 'medium',
+      supportsThinking: false,
+      providerType: '',
+      defaults: { enabled: true, level: 'medium' },
+    })
+    // agentStore.js:60 —— 待consume一次的技能挂号(X-Skill-Id),1c(?skill=)接入前先留位。
+    const pendingSkillId = ref<string | null>(null)
 
     /** agentStore.js:160-164 —— 装载会话列表,body 非数组时兜底空数组。 */
     async function loadSessions() {
@@ -113,16 +197,47 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:246-293 —— 只搬装载消息这一段:切 activeSessionId + 拉消息列表。
-     * abort/attach/资源/附件/staged 全部不搬(streaming transport 是 Task 5/6 的事)。
-     * legacy 消息迁移 `migrateLegacyMessages`(Task 3)在此接入——历史消息装载后
-     * 立刻跑一遍旧 block 形态迁移(run_command→terminal 等),再赋值给 messages。
+     * agentStore.js:246-293 —— 切 activeSessionId + 拉消息列表 + attach 尾巴。
+     * 资源/附件/staged 装载仍不搬(1c 的事)。legacy 消息迁移 `migrateLegacyMessages`
+     * (Task 3)在此接入——历史消息装载后立刻跑一遍旧 block 形态迁移
+     * (run_command→terminal 等),再赋值给 messages。
+     *
+     * attach 尾巴与 Vue2 有意的一处偏差:Vue2 里 attachAgentStream(...).then(...) 是
+     * fire-and-forget(不 await),这里改成 `await` —— 让 selectSession() 在 attach
+     * 结果落定后才 resolve,行为更好测试/推理,busy 语义不变(命中运行中的流→保持
+     * busy 到 dispatchEvent 看到 done;未命中→立刻清 busy)。
      */
     async function selectSession(id: string | number) {
+      // 切会话前先掐掉上一个会话的在途流,防止其事件混进新会话。
+      if (abortController.value) {
+        abortController.value.abort()
+        abortController.value = null
+      }
       activeSessionId.value = id
       const body = await service.ai.listAgentMessages(id)
       const raw = Array.isArray(body) ? (body as AgentMessage[]) : []
       messages.value = migrateLegacyMessages(raw as any) as unknown as AgentMessage[]
+
+      // 乐观置 busy,直到 attach 回报为止。send() 会在 busy 上守卫,防止
+      // "刚切换会话就手快发送" 和一次 replay 的 user_message 事件赛跑,
+      // 造成重复的 user 轮次。
+      const ctl = new AbortController()
+      abortController.value = ctl
+      busy.value = true
+      const { attached, error } = await attachAgentStream(id, ctl.signal, createStreamActions())
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.warn('[agentStore] attachAgentStream error', error)
+      }
+      // 竞态守卫:mid-await 期间若又发生了一次 selectSession(会替换掉
+      // abortController),就不要再动 busy/abortController——那是新调用的事。
+      if (abortController.value === ctl) {
+        abortController.value = null
+        // 未命中(204/非 ok)→ 清 busy。命中且带 replay 的话,dispatchEvent
+        // 早已看到 'done' 并调过 setStreamingDone();若命中但流仍在跑(还没
+        // done),继续保持 busy。
+        if (!attached) busy.value = false
+      }
     }
 
     /** Agent.vue:80,90-96 —— localStorage > matchMedia(prefers-color-scheme: dark) > 'light'。 */
@@ -261,6 +376,351 @@ export function useAgentStore(agentType?: string) {
       console.debug('[agentStore] markRunningStepDone: no running step to mark')
     }
 
+    /**
+     * 把这份 store 的 9 个流式 primitive 装订成一个 `StreamActions`,喂给
+     * Task 6 transport(runAgentRun/attachAgentStream)→ Task 5 reducer
+     * (dispatchEvent)。1b 阶段刻意不含 appendStagedChange/appendVisibleResource/
+     * removeVisibleResourceFromList —— reducer 里这三个都是可选链调用,缺席时
+     * 静默 no-op,留给 1c 补上。`_lastNimoosSearchQuery` 是 tool_call/tool_result
+     * 之间传递 query 文本的可变载体,每次调用都给一份新的空字符串起点。
+     */
+    function createStreamActions(): StreamActions {
+      return {
+        pushUserMessage,
+        startAssistant,
+        appendBlock,
+        patchBlock,
+        setStreamingDone,
+        setBusy,
+        patchAssistantStats,
+        pushActivityStep,
+        markRunningStepDone,
+        _lastNimoosSearchQuery: '',
+      }
+    }
+
+    /**
+     * agentStore.js:599-645 —— 并行拉 local(ollama)模型 + cloud provider 列表,
+     * 拍平成统一的选择器条目;之前存在 localStorage 里的选择若仍在新列表中就沿用,
+     * 否则本地模型优先兜底(没有本地模型再退 list[0]),兜底发生时记一条
+     * lastFallbackNotice 供 1c 的提示 UI 使用。
+     */
+    async function loadAvailableModels() {
+      const [modelsResp, providersResp] = await Promise.allSettled([
+        service.ai.listModels(),
+        service.ai.listProviders(),
+      ])
+
+      const list: AgentModel[] = []
+
+      if (modelsResp.status === 'fulfilled') {
+        const body = (modelsResp.value || {}) as Record<string, unknown>
+        const arr = Array.isArray(body.data) ? (body.data as Record<string, unknown>[]) : []
+        for (const m of arr) {
+          list.push({
+            key: 'local:' + String(m.name),
+            source: 'local',
+            displayName: String(m.name),
+            size: m.size_bytes as number | undefined,
+            supports_thinking: !!m.supports_thinking,
+            provider_type: 'ollama',
+          })
+        }
+      }
+
+      if (providersResp.status === 'fulfilled') {
+        const body = (providersResp.value || {}) as Record<string, unknown>
+        list.push(...buildCloudModelList(body.data))
+      }
+
+      availableModels.value = list
+
+      const stored = localStorage.getItem(MODEL_KEY)
+      const valid = !!stored && list.some((m) => m.key === stored)
+
+      if (valid) {
+        selectedModel.value = stored
+        return
+      }
+
+      const fallback = list.find((m) => m.source === 'local') || list[0] || null
+      const newKey = fallback ? fallback.key : null
+      selectedModel.value = newKey
+      if (newKey) {
+        localStorage.setItem(MODEL_KEY, newKey)
+      } else {
+        localStorage.removeItem(MODEL_KEY)
+      }
+      if (stored && stored !== newKey) {
+        lastFallbackNotice.value = { from: stored, to: newKey }
+      }
+    }
+
+    /** agentStore.js:647-652 —— 切换选中模型(必须是列表里已有的 key),持久化 + 刷新 thinking 状态。 */
+    function selectModel(key: string) {
+      if (!availableModels.value.some((m) => m.key === key)) return
+      selectedModel.value = key
+      localStorage.setItem(MODEL_KEY, key)
+      updateThinkingForModel()
+    }
+
+    /** agentStore.js:689-698 —— 按选中模型刷新 thinking.supportsThinking/providerType。 */
+    function updateThinkingForModel() {
+      const sel = availableModels.value.find((m) => m.key === selectedModel.value)
+      if (!sel) {
+        thinking.value.supportsThinking = false
+        thinking.value.providerType = ''
+        return
+      }
+      thinking.value.supportsThinking = !!sel.supports_thinking
+      thinking.value.providerType = sel.provider_type || ''
+    }
+
+    /**
+     * agentStore.js:210-244(regenerateTitle)裁剪 —— send() 首轮成功后台自动补标题,
+     * 不在 1b 暴露的 action 面里(没有 regeneratingTitleFor 这类 UI 状态,那是 1c 的
+     * picker/spinner 的事),只留 send() finally 需要的最小行为:标题为空时尝试一次,
+     * 失败静默吞掉(background best-effort,不影响本轮发送结果)。
+     */
+    async function autoTitleFirstTurn(id: string | number) {
+      const key = selectedModel.value
+      if (!key) return
+      const { source, modelName } = parseModelKey(key)
+      if (!modelName) return
+      const sel = availableModels.value.find((m) => m.key === key)
+      const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
+      try {
+        const body = await service.ai.regenerateAgentSessionTitle(id, modelName, providerType)
+        const data = (body || {}) as Record<string, unknown>
+        if (data.title) {
+          const idx = sessions.value.findIndex((s) => s.id === id)
+          if (idx >= 0) sessions.value[idx].title = data.title as string
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[agentStore] autoTitleFirstTurn failed', e)
+      }
+    }
+
+    /**
+     * agentStore.js:295-421 —— 发一轮消息。字符串 payload 视为纯文本(向后兼容);
+     * busy 守卫防止重复发送;等待上一次 stop() 触发的 pendingCancel 落定,让服务端
+     * 每会话锁先释放掉;无选中模型时直接落一个错误 tool block;否则新建
+     * AbortController → (无会话则先建)→ push user+assistant 消息 → 解析模型 key
+     * (local:<name> / cloud:<id>:<name>)→ 算 providerType → 拼 extraHeaders
+     * (X-Skill-Id 消费一次 + X-Agent-Provider-Id)→ 调 Task 6 runAgentRun,onError
+     * 落一个 error tool block(dual-shape:RAW error 或 {status,body},统一
+     * JSON.stringify 兜底渲染,与 Vue2 一致)→ finally 收尾 busy + 首轮自动补标题。
+     */
+    async function send(payload: string | SendPayload): Promise<void> {
+      const isObj = typeof payload === 'object' && payload !== null
+      const text = typeof payload === 'string' ? payload : (isObj ? payload.text : '') || ''
+      const attachmentIds = (isObj && payload.attachmentIds) || []
+      const attachmentRefs = (isObj && payload.attachmentRefs) || []
+      const contextPhoto = (isObj ? payload.contextPhoto : null) ?? null
+      const contextAlbum = (isObj ? payload.contextAlbum : null) ?? null
+
+      if (busy.value) return
+      // 等待最近一次 stop() 触发的取消完成,让服务端的 per-session 锁先释放,
+      // 否则紧接着的 /run 会 409 agent_busy。
+      if (pendingCancel.value) {
+        try { await pendingCancel.value } catch { /* 已在 stop() 里吞过 */ }
+      }
+      const wasFirstTurn = messages.value.length === 0
+      let errorOccurred = false
+
+      if (!selectedModel.value) {
+        startAssistant()
+        appendBlock({
+          type: 'tool',
+          state: 'error',
+          name: 'config',
+          sections: [{ label: 'NO_MODEL', code: i18n.global.t('aiNoModelsAvailable') }],
+        })
+        setStreamingDone()
+        return
+      }
+
+      busy.value = true
+      abortController.value = new AbortController()
+
+      try {
+        if (!activeSessionId.value) {
+          await createSession()
+        }
+
+        pushUserMessage(text, attachmentRefs)
+        startAssistant()
+
+        const key = selectedModel.value
+        const { source, modelName } = parseModelKey(key)
+        // 发具体的 provider_type(deepseek/openai/qwen/anthropic/ollama),不发粗粒度
+        // "cloud" —— Python agent 靠它套 provider 专属设置(如 DeepSeek 需要
+        // parallel_tool_calls=False,防止 asyncio.gather 里兄弟 tool call 被取消时 400)。
+        const sel = availableModels.value.find((m) => m.key === key)
+        const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
+
+        const extraHeaders: Record<string, string> = {}
+        if (pendingSkillId.value) {
+          extraHeaders['X-Skill-Id'] = pendingSkillId.value
+          pendingSkillId.value = null // 消费一次
+        }
+        if (sel?.source === 'cloud' && sel?.providerId) {
+          extraHeaders['X-Agent-Provider-Id'] = String(sel.providerId)
+        }
+
+        await runAgentRun(
+          activeSessionId.value as string | number,
+          {
+            message: text,
+            model: modelName,
+            attachment_ids: attachmentIds,
+            context_photo: contextPhoto,
+            context_album: contextAlbum,
+            thinking: thinking.value.supportsThinking
+              ? { enabled: thinking.value.enabled, level: thinking.value.level }
+              : null,
+          },
+          providerType,
+          (abortController.value as AbortController).signal,
+          createStreamActions(),
+          (err: unknown) => {
+            // onError 是双形态:非 abort 的 fetch rejection(RAW error)或
+            // { status, body }(!ok)。两种形态都统一 JSON.stringify 兜底渲染
+            // 到 ERROR 区块——与 Vue2 agentStore.js:381-390 逐字对齐。
+            errorOccurred = true
+            appendBlock({
+              type: 'tool',
+              state: 'error',
+              name: 'request',
+              sections: [{ label: 'ERROR', code: typeof err === 'string' ? err : JSON.stringify(err, null, 2) }],
+            })
+            setStreamingDone()
+          },
+          extraHeaders,
+        )
+      } catch (e) {
+        errorOccurred = true
+        const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
+        if (!last || last.role !== 'assistant') {
+          startAssistant()
+        }
+        appendBlock({
+          type: 'tool',
+          state: 'error',
+          name: 'request',
+          sections: [{ label: 'ERROR', code: typeof e === 'string' ? e : ((e as Error)?.message || JSON.stringify(e)) }],
+        })
+        setStreamingDone()
+      } finally {
+        if (busy.value) setStreamingDone()
+        const aborted = !!(abortController.value && (abortController.value as AbortController).signal.aborted)
+        abortController.value = null
+        if (wasFirstTurn && !aborted && !errorOccurred && activeSessionId.value) {
+          const sess = sessions.value.find((s) => s.id === activeSessionId.value)
+          if (sess && (!sess.title || String(sess.title).trim() === '')) {
+            autoTitleFirstTurn(activeSessionId.value)
+          }
+        }
+      }
+    }
+
+    /**
+     * agentStore.js:491-511 —— 中止当前流。POST /cancel(而非只 abort 请求)有两个理由:
+     * 1) 服务端的 agent task 与请求本身是分离的,只 abort fetch 留任务继续跑,还占着
+     *    per-session 锁 —— 下一次 send() 会 409 agent_busy。
+     * 2) /cancel 会等任务真正终止才响应,给了一个 send() 可以等的同步点。
+     * cancel 的 promise 挂在 pendingCancel 上供 send()/continueRun() 等待;UI 自己可以
+     * 立刻切回非 busy(setStreamingDone 已经做了)。
+     */
+    async function stop(): Promise<void> {
+      const sid = activeSessionId.value
+      if (abortController.value) abortController.value.abort()
+      if (sid) {
+        pendingCancel.value = service.ai.cancelAgentRun(sid)
+          .catch(() => {})
+          .finally(() => {
+            pendingCancel.value = null
+          })
+      }
+      setStreamingDone()
+    }
+
+    /** agentStore.js:513-517 —— 委托给 service 层,confirm_id 缺失时直接抛错。 */
+    async function confirmAgentAction(confirmId: string, confirmed: boolean, remember = false): Promise<void> {
+      if (!activeSessionId.value) return
+      if (!confirmId) throw new Error('confirm_id missing')
+      await service.ai.confirmAgentAction(activeSessionId.value, confirmId, confirmed, remember)
+    }
+
+    /**
+     * agentStore.js:519-597 —— 继续一个因 max_turns 而暂停的 run。busy 守卫 + 等
+     * pendingCancel 落定,与 send() 同一套节奏。先把最近一张未继续的 max_turns 卡
+     * 标记为 resumed=true(幂等:防止 busy 恢复后或 run-stream 重连回放时被误点
+     * 重复触发)。onError 这里只做 console.warn,不落 error tool block —— 与
+     * Vue2 continueRun 的错误处理方式一致(比 send() 更轻)。
+     */
+    async function continueRun(): Promise<void> {
+      if (busy.value) return
+      if (pendingCancel.value) {
+        try { await pendingCancel.value } catch { /* 已吞过 */ }
+      }
+      if (!activeSessionId.value || !selectedModel.value) return
+
+      for (let i = messages.value.length - 1; i >= 0; i--) {
+        const msg = messages.value[i] as Record<string, unknown>
+        const blocks = msg?.blocks as Record<string, unknown>[] | undefined
+        if (!Array.isArray(blocks)) continue
+        let marked = false
+        for (let j = blocks.length - 1; j >= 0; j--) {
+          const b = blocks[j]
+          if (b.type === 'max_turns' && !b.resumed) {
+            b.resumed = true
+            marked = true
+            break
+          }
+        }
+        if (marked) break
+      }
+
+      busy.value = true
+      abortController.value = new AbortController()
+      try {
+        startAssistant()
+
+        const key = selectedModel.value
+        const { source, modelName } = parseModelKey(key)
+        const sel = availableModels.value.find((m) => m.key === key)
+        const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
+        const extraHeaders: Record<string, string> = {}
+        if (sel?.source === 'cloud' && sel?.providerId) {
+          extraHeaders['X-Agent-Provider-Id'] = String(sel.providerId)
+        }
+
+        await runAgentRun(
+          activeSessionId.value as string | number,
+          {
+            continue_run: true,
+            model: modelName,
+            thinking: thinking.value.supportsThinking
+              ? { enabled: thinking.value.enabled, level: thinking.value.level }
+              : null,
+          },
+          providerType,
+          (abortController.value as AbortController).signal,
+          createStreamActions(),
+          (err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn('[agentStore] continueRun error', err)
+          },
+          extraHeaders,
+        )
+      } finally {
+        if (abortController.value) abortController.value = null
+        busy.value = false
+      }
+    }
+
     return {
       sessions,
       activeSessionId,
@@ -273,6 +733,11 @@ export function useAgentStore(agentType?: string) {
       abortController,
       activitySteps,
       pendingCancel,
+      availableModels,
+      selectedModel,
+      lastFallbackNotice,
+      thinking,
+      pendingSkillId,
       loadSessions,
       createSession,
       deleteSession,
@@ -290,6 +755,14 @@ export function useAgentStore(agentType?: string) {
       patchAssistantStats,
       pushActivityStep,
       markRunningStepDone,
+      createStreamActions,
+      loadAvailableModels,
+      selectModel,
+      updateThinkingForModel,
+      send,
+      stop,
+      continueRun,
+      confirmAgentAction,
     }
   })()
 }

@@ -566,4 +566,5 @@ export default {
   aiCancel: '取消',
   aiComingSoon: '对话发送将在下一期开启',
   aiSettingsComingSoon: '设置页将在后续阶段开启',
+  aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
 }

@@ -567,4 +567,5 @@ export default {
   aiCancel: 'Cancel',
   aiComingSoon: 'Sending will be enabled in the next phase',
   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+  aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
 }
