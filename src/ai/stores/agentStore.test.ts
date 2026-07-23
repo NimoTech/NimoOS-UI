@@ -194,36 +194,36 @@ describe('agentStore (session slice)', () => {
   it('startAssistant + appendBlock + patchBlock roundtrip', () => {
     const s = useAgentStore('t-prims')
     s.startAssistant()
-    expect(s.messages.at(-1)).toMatchObject({ role: 'assistant', blocks: [], streaming: true })
+    expect(s.messages[s.messages.length - 1]).toMatchObject({ role: 'assistant', blocks: [], streaming: true })
     s.appendBlock({ type: 'md', text: 'hi', streaming: true })
     const ok = s.patchBlock(b => b.type === 'md' && !!b.streaming, old => ({ text: (old.text as string) + '!' }))
     expect(ok).toBe(true)
-    expect((s.messages.at(-1) as any).blocks[0].text).toBe('hi!')
+    expect((s.messages[s.messages.length - 1] as any).blocks[0].text).toBe('hi!')
   })
 
   it('setStreamingDone flips busy false and clears streaming', () => {
     const s = useAgentStore('t-done'); s.setBusy(true); s.startAssistant(); s.setStreamingDone()
     expect(s.busy).toBe(false)
-    expect((s.messages.at(-1) as any).streaming).toBe(false)
+    expect((s.messages[s.messages.length - 1] as any).streaming).toBe(false)
   })
 
   it('patchAssistantStats merges stats on last assistant', () => {
     const s = useAgentStore('t-stats'); s.startAssistant()
     s.patchAssistantStats({ ttftMs: 12 }); s.patchAssistantStats({ outputTokens: 5 })
-    expect((s.messages.at(-1) as any).stats).toMatchObject({ ttftMs: 12, outputTokens: 5 })
+    expect((s.messages[s.messages.length - 1] as any).stats).toMatchObject({ ttftMs: 12, outputTokens: 5 })
   })
 
   it('pushActivityStep + markRunningStepDone', () => {
     const s = useAgentStore('t-steps'); s.pushActivityStep({ name: 'ls' })
-    expect(s.activitySteps.at(-1)).toMatchObject({ name: 'ls', state: 'running' })
+    expect(s.activitySteps[s.activitySteps.length - 1]).toMatchObject({ name: 'ls', state: 'running' })
     s.markRunningStepDone()
-    expect(s.activitySteps.at(-1)).toMatchObject({ state: 'success' })
+    expect(s.activitySteps[s.activitySteps.length - 1]).toMatchObject({ state: 'success' })
   })
 
   it('pushUserMessage:压入 user 消息带 id/role/content/attachments', () => {
     const s = useAgentStore('t-user')
     s.pushUserMessage('hello', [{ id: 'f1' }])
-    const last = s.messages.at(-1) as any
+    const last = s.messages[s.messages.length - 1] as any
     expect(last.role).toBe('user')
     expect(last.content).toBe('hello')
     expect(last.attachments).toEqual([{ id: 'f1' }])
@@ -249,7 +249,7 @@ describe('agentStore (session slice)', () => {
     ])
     const s = useAgentStore('t-migrate')
     await s.selectSession('sess-migrate')
-    const last = s.messages.at(-1) as any
+    const last = s.messages[s.messages.length - 1] as any
     expect(last.blocks[0]).toMatchObject({ type: 'terminal', command: 'ls', state: 'success' })
   })
 })
