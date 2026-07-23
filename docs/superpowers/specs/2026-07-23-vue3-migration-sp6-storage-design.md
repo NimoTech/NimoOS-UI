@@ -96,10 +96,13 @@
   基线已验:New-UI 1197/1197 + tsc 清,Service build+test 过。
 - **禁区**:不跑 `deploy.sh`、不写 `/var/lib/nimoos/www`、不改 NimoOS-UI 仓、
   不改 roadmap——全部推迟到 P6。
-- **预览部署(用户已批准"新端口")**:SP6 worktree 起 vite dev server(:5273,`--host` 暴露
-  LAN),加 catch-all 代理:凡非 `/app/` 前缀(API `/v1|/v2|/v3`、socket.io ws、Vue2 登录页)
-  转发 `http://127.0.0.1:80`。浏览器访问 `http://<设备IP>:5273/app/#/storage`。
-  注意:新端口 localStorage 独立,首次需登录一次。
+- **独立端口部署(用户拍板 2026-07-23:真部署,非 dev 预览)**:每期收尾 `pnpm build`
+  构建生产产物 → `vite preview`(:5273,`--host` 暴露 LAN)**后台常驻**伺服构建产物,
+  配 catch-all 代理:凡非 `/app/` 前缀(API `/v1|/v2|/v3`、socket.io ws、Vue2 登录页)
+  转发 `http://127.0.0.1:80`。浏览器随时访问 `http://<设备IP>:5273/app/#/storage`。
+  构建产物与正式部署同源(压缩/分包/base 路径问题每期即暴露)。开发中途迭代可临时用
+  vite dev(HMR),但**每期验收门只认构建产物**。注意:新端口 localStorage 独立,
+  首次需登录一次。
 - **合并收尾**:SP5 合入 master 后,`sp6-storage` merge master 解冲突(预计:路由表、
   systemApps、i18n 文件),全量测试,合回 master,进 P6。
 
