@@ -29,7 +29,22 @@ function copyPdfjsAssets(): Plugin {
 export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
-  server: { port: 5273 },
+  server: {
+    port: 5273,
+    // SP7 起给 dev 配网关反代:API(/v1、/v2 含 socket.io WS)与 Vue2 登录页(/ 根路径)
+    // 都透传到本机网关,使 http://<IP>:<port>/app/ 可独立于生产 /app/ 做真机验收。
+    // 端口用 CLI 覆盖(pnpm dev --host --port 5277),默认 5273 不变。
+    proxy: (() => {
+      const target = process.env.NIMO_PROXY_TARGET || 'http://127.0.0.1:80'
+      return {
+        '/v1': { target, changeOrigin: false },
+        '/v2': { target, changeOrigin: false, ws: true },
+        // 非 /app/ 的一切(Vue2 index/js/css/img 等)透传,登录页在同源 :5277 可用,
+        // token 写进本源 localStorage 后 New-UI 直接读到。
+        '^/(?!app($|/)|v1|v2)': { target, changeOrigin: false },
+      }
+    })(),
+  },
   test: {
     environment: 'jsdom',
     globals: true,
