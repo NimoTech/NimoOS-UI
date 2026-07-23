@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
@@ -20,6 +20,13 @@ useDiskHotplug(() => store.loadRaid())
 const anyRebuilding = () =>
   isRebuildingList(store.raidArrays.map((a) => resolveRaidState(a, store.raidStatusMap[String(a.id)])))
 useGuardedPoll(() => store.loadRaid(), { intervalMs: 5000, active: anyRebuilding })
+
+// 创建任务检测:mount 时探测一次,命中 creating 后 1500ms 单飞轮询(卡片 UI 见 T8)
+onMounted(() => { store.detectCreatingTask() })
+useGuardedPoll(() => store.pollCreateTaskOnce(), {
+  intervalMs: 1500,
+  active: () => !!store.creatingTask && store.creatingTask.status === 'creating',
+})
 
 const arrays = computed(() => store.raidArrays)
 function openDetail(id: number | string) { router.push(`/storage/raid/${id}`) }

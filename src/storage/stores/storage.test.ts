@@ -5,6 +5,8 @@ const storageList = vi.fn()
 const raidList = vi.fn()
 const raidGetStatus = vi.fn()
 const raidGetUsage = vi.fn()
+const listTasks = vi.fn()
+const getTask = vi.fn()
 const getDiskList = vi.fn()
 const umount = vi.fn()
 const createMock = vi.fn()
@@ -20,6 +22,8 @@ vi.mock('@nimotech/nimoos-service', () => ({
       list: (...a: unknown[]) => raidList(...a),
       getStatus: (...a: unknown[]) => raidGetStatus(...a),
       getUsage: (...a: unknown[]) => raidGetUsage(...a),
+      listTasks: (...a: unknown[]) => listTasks(...a),
+      getTask: (...a: unknown[]) => getTask(...a),
     },
     disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
   },
@@ -272,5 +276,68 @@ describe('loadRaidDetail', () => {
     expect(store.raidDetail?.array.name).toBe('md7')
     expect(store.raidDetail?.status?.used_bytes).toBe(3)
     expect((store.raidDetail?.usage as { filesystem?: string })?.filesystem).toBe('btrfs')
+  })
+})
+
+describe('创建任务检测/轮询', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('detectCreatingTask 命中 creating 任务', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't1', name: 'md0', level: 5, disk_count: 3, status: 'done' }, { task_id: 't2', name: 'md1', level: 1, disk_count: 2, status: 'creating', step: 2, progress: 20 }])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    expect(store.creatingTask?.taskId).toBe('t2')
+    expect(store.creatingTask?.status).toBe('creating')
+  })
+
+  it('无 creating 任务时 creatingTask 保持 null', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't1', status: 'done' }])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    expect(store.creatingTask).toBeNull()
+  })
+
+  it('pollCreateTaskOnce: status=done → 停并 loadRaid,1000ms 后清卡', async () => {
+    vi.useFakeTimers()
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
+    getTask.mockResolvedValue({ task_id: 't2', status: 'done', step: 6, progress: 100 })
+    raidList.mockResolvedValue([])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    await store.pollCreateTaskOnce()
+    expect(store.creatingTask?.status).toBe('done')
+    expect(raidList).toHaveBeenCalled() // done 触发 loadRaid
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(store.creatingTask).toBeNull() // 1000ms 后清
+    vi.useRealTimers()
+  })
+
+  it('pollCreateTaskOnce: status=failed → 卡保留', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
+    getTask.mockResolvedValue({ task_id: 't2', status: 'failed', error: 'boom', step: 3 })
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    await store.pollCreateTaskOnce()
+    expect(store.creatingTask?.status).toBe('failed')
+    expect(store.creatingTask?.error).toBe('boom')
+  })
+
+  it('pollCreateTaskOnce: getTask 404 → 清卡 + loadRaid', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
+    const err = Object.assign(new Error('nf'), { code: 404 }) // service unwrap 把 success 写进 .code;真 404 也可能是 axios status
+    getTask.mockRejectedValue(err)
+    raidList.mockResolvedValue([])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    await store.pollCreateTaskOnce()
+    expect(store.creatingTask).toBeNull()
+  })
+
+  it('dismissCreateTask 清卡', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    store.dismissCreateTask()
+    expect(store.creatingTask).toBeNull()
   })
 })

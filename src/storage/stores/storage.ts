@@ -5,7 +5,7 @@ import type { RaidStatus } from '@nimotech/nimoos-service'
 import { i18n } from '../../i18n'
 import { useToast } from '../../stores/toast'
 import { mapVolumes, mapDrives, mapAvailDisks, type StorageVolume, type PhysicalDrive, type AvailDisk } from '../util/storageMap'
-import { asRaidArray, type RaidArray, type RaidUsage } from '../util/raidView'
+import { asRaidArray, mapTask, type RaidArray, type RaidUsage, type RaidTask } from '../util/raidView'
 
 export const useStorageStore = defineStore('storage', () => {
   const volumes = ref<StorageVolume[]>([])
@@ -17,6 +17,8 @@ export const useStorageStore = defineStore('storage', () => {
   const raidLoading = ref(false)
   const raidDetail = ref<{ array: RaidArray; status: RaidStatus | null; usage: RaidUsage | null } | null>(null)
   const raidDetailLoading = ref(false)
+  const creatingTask = ref<RaidTask | null>(null)
+  let clearTimer: number | undefined
   const loading = ref(false)
   const unmounting = ref(false)
   const creating = ref(false)
@@ -168,6 +170,45 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  async function detectCreatingTask() {
+    try {
+      const res = await service.raid.listTasks()
+      const tasks = Array.isArray(res) ? (res as Record<string, unknown>[]) : []
+      const creatingRaw = tasks.find((t) => (t as { status?: string }).status === 'creating')
+      if (creatingRaw) creatingTask.value = mapTask(creatingRaw)
+    } catch (e) {
+      console.warn('[storage] listTasks failed', (e as Error)?.message)
+    }
+  }
+
+  function startCreateTask(task: RaidTask) { creatingTask.value = task } // P4 向导用
+  function dismissCreateTask() { creatingTask.value = null }
+
+  async function pollCreateTaskOnce() {
+    const cur = creatingTask.value
+    if (!cur) return
+    try {
+      const raw = (await service.raid.getTask(cur.taskId)) as Record<string, unknown>
+      const merged = mapTask({ ...raw, task_id: cur.taskId, name: raw.name ?? cur.name, level: raw.level ?? cur.level, filesystem: raw.filesystem ?? cur.filesystem, disk_count: raw.disk_count ?? cur.diskCount })
+      creatingTask.value = merged
+      if (merged.status === 'done') {
+        await loadRaid()
+        clearTimeout(clearTimer)
+        clearTimer = window.setTimeout(() => { creatingTask.value = null }, 1000)
+      }
+      // failed:卡保留(不清),交给用户 dismiss
+    } catch (e) {
+      // 404 视为任务已消失:清卡 + 刷新
+      const code = (e as { code?: number; response?: { status?: number } })?.code ?? (e as { response?: { status?: number } })?.response?.status
+      if (code === 404) {
+        creatingTask.value = null
+        await loadRaid()
+      } else {
+        console.warn('[storage] getTask failed', (e as Error)?.message)
+      }
+    }
+  }
+
   return {
     volumes,
     drives,
@@ -182,6 +223,7 @@ export const useStorageStore = defineStore('storage', () => {
     creating,
     formatting,
     unmounting,
+    creatingTask,
     loadVolumes,
     loadDrives,
     loadAll,
@@ -190,5 +232,9 @@ export const useStorageStore = defineStore('storage', () => {
     formatVolume,
     loadRaid,
     loadRaidDetail,
+    detectCreatingTask,
+    pollCreateTaskOnce,
+    startCreateTask,
+    dismissCreateTask,
   }
 })

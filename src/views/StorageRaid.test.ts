@@ -5,16 +5,18 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { createI18n } from 'vue-i18n'
 import { defineComponent } from 'vue'
 import StorageRaid from './StorageRaid.vue'
+import { useStorageStore } from '../storage/stores/storage'
 import zh from '../i18n/zh_cn'
 
 const raidList = vi.fn().mockResolvedValue([])
 const raidGetStatus = vi.fn().mockResolvedValue({ live_state: 'active', members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0, rebuild_pct: 0 })
 const listTasks = vi.fn().mockResolvedValue([])
+const getTaskFn = vi.fn().mockResolvedValue({ status: 'creating' })
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     storage: { list: vi.fn().mockResolvedValue([]) },
     disks: { getDiskList: vi.fn().mockResolvedValue({ disks: [] }) },
-    raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), listTasks: (...a: unknown[]) => listTasks(...a) },
+    raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), listTasks: (...a: unknown[]) => listTasks(...a), getTask: (...a: unknown[]) => getTaskFn(...a) },
   },
 }))
 const handlers: Record<string, (...a: unknown[]) => void> = {}
@@ -64,5 +66,15 @@ describe('StorageRaid', () => {
     mount(StorageRaid, { global: { plugins: [router, i18n] } })
     expect(typeof handlers['local-storage:disk:added']).toBe('function')
     expect(typeof handlers['local-storage:disk:removed']).toBe('function')
+  })
+
+  it('mount 探测创建任务;有 creating 时启动 1500ms 轮询', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'md1', level: 1, disk_count: 2, step: 1, progress: 5 }])
+    getTaskFn.mockResolvedValue({ task_id: 't2', status: 'creating', step: 2, progress: 30 })
+    await router.push('/storage/raid'); await router.isReady()
+    mount(StorageRaid, { global: { plugins: [router, i18n] } })
+    await vi.runOnlyPendingTimersAsync()
+    const store = useStorageStore()
+    expect(store.creatingTask?.taskId).toBe('t2')
   })
 })
