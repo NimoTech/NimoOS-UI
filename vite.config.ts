@@ -29,7 +29,20 @@ function copyPdfjsAssets(): Plugin {
 export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
-  server: { port: 5273 },
+  // SP8 验收约定:三会话并行期间真机 /app/ 部署共享,SP8 每期用 :5288 独立端口
+  // 人眼验收(sp6/sp7 如需可各用 5286/5287)。代理让 :5288 完整模拟生产源:
+  // /v1|/v2 → 本机网关;根路径与 Vue2 静态目录也代理,用户可直接在 :5288 走
+  // Vue2 登录拿 token(同源 localStorage),再进 /app/#/ai/* 验收。
+  server: {
+    port: 5288,
+    host: true,
+    proxy: {
+      '/v1': { target: 'http://127.0.0.1:80', changeOrigin: true },
+      '/v2': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
+      '^/$': { target: 'http://127.0.0.1:80', changeOrigin: true },
+      '^/(js|css|ui|img|fonts|favicon\\.ico)(/|$)': { target: 'http://127.0.0.1:80', changeOrigin: true },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
