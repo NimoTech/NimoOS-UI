@@ -546,6 +546,7 @@ export default {
   storageTitle: 'Storage',
   storageTabVolumes: 'Volumes',
   storageTabDrives: 'Drives',
+  storageTabRaid: 'RAID',
   storageLoading: 'Loading…',
   storageVolumesEmpty: 'No storage volumes yet',
   storageVolumeSingle: 'Single drive storage',

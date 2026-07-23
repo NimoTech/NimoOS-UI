@@ -18,6 +18,7 @@ function goHome() {
       <nav class="st-tabs">
         <RouterLink to="/storage" class="st-tab" :class="{ active: route.path === '/storage' }">{{ t('storageTabVolumes') }}</RouterLink>
         <RouterLink to="/storage/drives" class="st-tab" :class="{ active: route.path === '/storage/drives' }">{{ t('storageTabDrives') }}</RouterLink>
+        <RouterLink to="/storage/raid" class="st-tab" :class="{ active: route.path.startsWith('/storage/raid') }">{{ t('storageTabRaid') }}</RouterLink>
       </nav>
     </header>
     <main class="st-body"><slot /></main>

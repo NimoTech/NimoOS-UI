@@ -545,6 +545,7 @@ export default {
   storageTitle: '存储',
   storageTabVolumes: '存储卷',
   storageTabDrives: '物理硬盘',
+  storageTabRaid: 'RAID',
   storageLoading: '加载中…',
   storageVolumesEmpty: '还没有存储卷',
   storageVolumeSingle: '单盘存储',
