@@ -83,6 +83,29 @@
   /* Iridescent gradient — retained for incidental accents only (no longer drives orb) */
   --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%);
   --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%);
+
+  /* SP8-P1b Task 8 — soft semantic backgrounds/borders for ported block-renderer
+     badges/rings (icon-bg chips, MCP call/permission cards, confirm-card ring).
+     Kept as a small fixed set (not one-per-Vue2-opacity) so ported components share
+     a single consistent "soft badge" language instead of re-deriving ad hoc rgba(). */
+  --warning-soft: rgba(200, 134, 10, 0.12);
+  --warning-soft-border: rgba(200, 134, 10, 0.24);
+  --warning-ring: rgba(200, 134, 10, 0.08);
+  --success-soft: rgba(46, 158, 84, 0.12);
+  --success-soft-border: rgba(46, 158, 84, 0.2);
+  --danger-soft: rgba(215, 73, 59, 0.1);
+  --danger-soft-border: rgba(215, 73, 59, 0.16);
+  --purple-soft: rgba(175, 82, 222, 0.1);
+  --purple-soft-border: rgba(175, 82, 222, 0.16);
+  /* Lighter purple gradient stop (McpCallCard tile) — decorative, not redefined
+     per-theme, same convention as --purple itself not being redefined in dark. */
+  --purple-light: #C18CFF;
+  --teal-soft: rgba(48, 176, 199, 0.12);
+  /* Fixed-darkness scrim for photo-thumbnail hover overlays — intentionally same
+     value in both themes (a darkening overlay on an image, not a UI surface). */
+  --scrim-dark: rgba(0, 0, 0, 0.35);
+  /* Tiny inset gloss highlight on colored tiles (McpCallCard) — same in both themes. */
+  --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
 }
 
 .agent-app[data-theme="dark"] {
@@ -124,6 +147,21 @@
   --line-faint: #262628;
 
   --tl-tick: #3C3C3F;
+
+  /* SP8-P1b Task 8 — dark-theme values for the soft-badge tokens added above. */
+  --warning-soft: rgba(224, 165, 59, 0.18);
+  --warning-soft-border: rgba(224, 165, 59, 0.3);
+  --warning-ring: rgba(224, 165, 59, 0.14);
+  --success-soft: rgba(79, 184, 112, 0.18);
+  --success-soft-border: rgba(79, 184, 112, 0.28);
+  --danger-soft: rgba(240, 119, 107, 0.16);
+  --danger-soft-border: rgba(240, 119, 107, 0.24);
+  --purple-soft: rgba(175, 82, 222, 0.18);
+  --purple-soft-border: rgba(175, 82, 222, 0.26);
+  --purple-light: #C18CFF;
+  --teal-soft: rgba(48, 176, 199, 0.2);
+  --scrim-dark: rgba(0, 0, 0, 0.35);
+  --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
