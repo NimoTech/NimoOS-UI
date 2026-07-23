@@ -26,6 +26,7 @@
 
   --radius: 28px;
   --radius-sm: 18px;
+  --radius-xs: 6px;
   /* 百分比圆角：按元素自身尺寸等比缩放（≈22px/70px 默认观感），图标各处必须保持正方形 */
   --icon-radius: 31%;
 

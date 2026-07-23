@@ -32,9 +32,13 @@ const steps = computed(() =>
 )
 
 const currentStepLabel = computed(() => {
-  if (props.task.status === 'done') return t('raidCreateDone')
-  if (props.task.status === 'failed') return t('raidCreateFailed')
-  return t('raidStep' + props.task.step) || t('raidPreparing')
+  const s = props.task
+  if (s.status === 'done') return t('raidCreateDone')
+  if (s.status === 'failed') return t('raidCreateFailed')
+  if (s.step >= 1 && s.step <= 6) {
+    return s.step === 4 && s.filesystem ? t('raidStepInitFs', { fs: s.filesystem }) : t('raidStep' + s.step)
+  }
+  return t('raidPreparing')
 })
 </script>
 

@@ -32,4 +32,11 @@ describe('RaidCreateProgressModal', () => {
     await w.vm.$nextTick()
     expect(document.body.querySelectorAll('.rpm-step.done').length).toBe(6)
   })
+  it('step=0(尚未进入首个真实步骤)→ 当前步标签回退 raidPreparing,而非字面量 raidStep0', async () => {
+    const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ step: 0, status: 'creating' }) }, global: { plugins: [i18n] } })
+    await w.vm.$nextTick()
+    const body = document.body.textContent || ''
+    expect(body).toContain(zh.raidPreparing)
+    expect(body).not.toContain('raidStep0')
+  })
 })
