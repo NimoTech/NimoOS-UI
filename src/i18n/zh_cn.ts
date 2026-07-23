@@ -538,4 +538,7 @@ export default {
   appsSourcesLoadFailed: '加载失败,请重试',
   appsSourcesRetry: '重试',
   appsSourcesEmpty: '暂无商店源',
+  // ── storage 存储区 ──
+  storageUnmountSuccess: '存储已移除',
+  storageUnmountFailed: '移除失败,请检查密码后重试',
 }

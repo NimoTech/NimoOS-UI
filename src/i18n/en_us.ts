@@ -539,4 +539,7 @@ export default {
   appsSourcesLoadFailed: 'Failed to load, please retry',
   appsSourcesRetry: 'Retry',
   appsSourcesEmpty: 'No app sources',
+  // ── storage 存储区 ──
+  storageUnmountSuccess: 'Storage removed',
+  storageUnmountFailed: 'Failed to remove, check your password and try again',
 }
