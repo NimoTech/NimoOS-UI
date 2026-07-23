@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
 import VolumeCard from '../storage/components/VolumeCard.vue'
@@ -7,13 +7,12 @@ import UnmountDialog from '../storage/components/UnmountDialog.vue'
 import CreateStorageDialog from '../storage/components/CreateStorageDialog.vue'
 import FormatDialog from '../storage/components/FormatDialog.vue'
 import { useStorageStore } from '../storage/stores/storage'
-import { useMessageBus } from '../composables/useMessageBus'
+import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { computeNextStorageName, DEFAULT_STORAGE_NAME } from '../storage/util/storageNaming'
 import type { StorageVolume } from '../storage/util/storageMap'
 
 const store = useStorageStore()
 const { t } = useI18n()
-const bus = useMessageBus()
 
 const dialogOpen = ref(false)
 const pending = ref<StorageVolume | null>(null)
@@ -57,27 +56,7 @@ async function doFormat(password: string) {
   if (ok) formatOpen.value = false
 }
 
-// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
-let hotplugTimer: number | undefined
-function onHotplug() {
-  clearTimeout(hotplugTimer)
-  hotplugTimer = window.setTimeout(() => {
-    store.loadAll()
-  }, 500)
-}
-
-let offAdd: (() => void) | undefined
-let offRemove: (() => void) | undefined
-onMounted(() => {
-  store.loadAll()
-  offAdd = bus.on('local-storage:disk:added', onHotplug)
-  offRemove = bus.on('local-storage:disk:removed', onHotplug)
-})
-onUnmounted(() => {
-  offAdd?.()
-  offRemove?.()
-  clearTimeout(hotplugTimer)
-})
+useDiskHotplug(() => store.loadAll())
 </script>
 
 <template>
