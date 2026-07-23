@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
 import RaidCard from '../storage/components/RaidCard.vue'
+import RaidCreatingCard from '../storage/components/RaidCreatingCard.vue'
+import RaidCreateProgressModal from '../storage/components/RaidCreateProgressModal.vue'
 import { useStorageStore } from '../storage/stores/storage'
 import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
@@ -30,10 +32,18 @@ useGuardedPoll(() => store.pollCreateTaskOnce(), {
 
 const arrays = computed(() => store.raidArrays)
 function openDetail(id: number | string) { router.push(`/storage/raid/${id}`) }
+const progressOpen = ref(false)
 </script>
 
 <template>
   <StorageShell>
+    <RaidCreatingCard
+      v-if="store.creatingTask"
+      :task="store.creatingTask"
+      @open-modal="progressOpen = true"
+      @dismiss="store.dismissCreateTask()"
+    />
+    <RaidCreateProgressModal v-if="store.creatingTask" v-model:open="progressOpen" :task="store.creatingTask" />
     <div v-if="store.raidLoading && !arrays.length" class="st-hint">{{ t('storageLoading') }}</div>
     <div v-else-if="!arrays.length" class="st-hint">{{ t('raidNoArrays') }}</div>
     <template v-else>
