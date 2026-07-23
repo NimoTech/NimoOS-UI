@@ -556,6 +556,7 @@ export default {
   photosUnknownDate: '未知日期',
   photosDeletedToast: '{count} 项已移入最近删除',
   photosIndexedToast: '已索引 {n} 张照片',
+  photosTaskCompletedToast: '{label} 已完成',
   photosDensityCompact: '紧凑',
   photosDensityComfortable: '舒适',
   photosDensityLoose: '宽松',

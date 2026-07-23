@@ -16,6 +16,12 @@ vi.mock('@nimotech/nimoos-service', () => ({
   },
 }))
 
+// useMessageBus opens a real socket.io connection — not needed for this
+// route/lifecycle-only test (see Home.integration.test.ts's precedent).
+vi.mock('../../composables/useMessageBus', () => ({
+  useMessageBus: () => ({ on: () => () => {} }),
+}))
+
 import Photos from '../Photos.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { router as appRouter } from '../../router'

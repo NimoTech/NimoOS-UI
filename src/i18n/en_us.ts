@@ -557,6 +557,7 @@ export default {
   photosUnknownDate: 'Unknown Date',
   photosDeletedToast: '{count} item(s) moved to Recently Deleted',
   photosIndexedToast: 'Indexed {n} photos',
+  photosTaskCompletedToast: '{label} completed',
   photosDensityCompact: 'Compact',
   photosDensityComfortable: 'Comfortable',
   photosDensityLoose: 'Loose',
