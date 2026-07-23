@@ -145,6 +145,23 @@ describe('createStorage', () => {
     resolve({})
     await expect(p1).resolves.toBe(true)
   })
+  it('失败路径守卫跨刷新持有:刷新挂起窗口内再调仍返回 false,只发一次请求', async () => {
+    createMock.mockRejectedValue(new Error('boom'))
+    raidList.mockResolvedValue([])
+    getDiskList.mockResolvedValue({ disks: [], avail: [] })
+    let resolveList!: (v: unknown) => void
+    storageList.mockReturnValue(new Promise((r) => (resolveList = r)))
+    const s = useStorageStore()
+    const p1 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
+    // 让 create() 的 reject 落定、进入 finally 的 loadAll 挂起窗口(storage.list 未 resolve)
+    await Promise.resolve()
+    await Promise.resolve()
+    const p2 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
+    await expect(p2).resolves.toBe(false)
+    expect(createMock).toHaveBeenCalledTimes(1)
+    resolveList([])
+    await expect(p1).resolves.toBe(false)
+  })
 })
 
 describe('formatVolume', () => {

@@ -95,9 +95,9 @@ export const useStorageStore = defineStore('storage', () => {
       console.warn('[storage] create failed', (e as Error)?.message)
       toast.show(t('storageCreateFailed'))
     } finally {
+      await loadAll() // 成败都刷新;置于 finally 内,守卫持有至刷新完成
       creating.value = false
     }
-    await loadAll() // Vue2 语义:成败都刷新
     return ok
   }
 
