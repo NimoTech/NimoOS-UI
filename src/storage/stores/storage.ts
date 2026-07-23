@@ -175,14 +175,17 @@ export const useStorageStore = defineStore('storage', () => {
       const res = await service.raid.listTasks()
       const tasks = Array.isArray(res) ? (res as Record<string, unknown>[]) : []
       const creatingRaw = tasks.find((t) => (t as { status?: string }).status === 'creating')
-      if (creatingRaw) creatingTask.value = mapTask(creatingRaw)
+      if (creatingRaw) {
+        clearTimeout(clearTimer)
+        creatingTask.value = mapTask(creatingRaw)
+      }
     } catch (e) {
       console.warn('[storage] listTasks failed', (e as Error)?.message)
     }
   }
 
-  function startCreateTask(task: RaidTask) { creatingTask.value = task } // P4 向导用
-  function dismissCreateTask() { creatingTask.value = null }
+  function startCreateTask(task: RaidTask) { clearTimeout(clearTimer); creatingTask.value = task } // P4 向导用
+  function dismissCreateTask() { clearTimeout(clearTimer); creatingTask.value = null }
 
   async function pollCreateTaskOnce() {
     const cur = creatingTask.value
@@ -194,13 +197,18 @@ export const useStorageStore = defineStore('storage', () => {
       if (merged.status === 'done') {
         await loadRaid()
         clearTimeout(clearTimer)
-        clearTimer = window.setTimeout(() => { creatingTask.value = null }, 1000)
+        const doneId = merged.taskId
+        clearTimer = window.setTimeout(() => {
+          if (creatingTask.value?.taskId === doneId) creatingTask.value = null
+        }, 1000)
       }
       // failed:卡保留(不清),交给用户 dismiss
     } catch (e) {
-      // 404 视为任务已消失:清卡 + 刷新
-      const code = (e as { code?: number; response?: { status?: number } })?.code ?? (e as { response?: { status?: number } })?.response?.status
-      if (code === 404) {
+      // 404 视为任务已消失:清卡 + 刷新。两种形状都要接住——
+      // axios 真 404 的 .code 是字符串('ERR_BAD_REQUEST'),数字状态码在 .response.status;
+      // service unwrap() 抛的 Error 则把后端 success 数字塞进 .code。真 OR,不能用 ??。
+      const err = e as { code?: unknown; response?: { status?: number } }
+      if (err.code === 404 || err.response?.status === 404) {
         creatingTask.value = null
         await loadRaid()
       } else {

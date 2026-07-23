@@ -322,15 +322,70 @@ describe('创建任务检测/轮询', () => {
     expect(store.creatingTask?.error).toBe('boom')
   })
 
-  it('pollCreateTaskOnce: getTask 404 → 清卡 + loadRaid', async () => {
+  it('pollCreateTaskOnce: getTask 404(envelope 形状 {code:404}) → 清卡 + loadRaid', async () => {
     listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
-    const err = Object.assign(new Error('nf'), { code: 404 }) // service unwrap 把 success 写进 .code;真 404 也可能是 axios status
+    const err = Object.assign(new Error('nf'), { code: 404 }) // service unwrap 把 success 写进 .code
     getTask.mockRejectedValue(err)
     raidList.mockResolvedValue([])
     const store = useStorageStore()
     await store.detectCreatingTask()
     await store.pollCreateTaskOnce()
     expect(store.creatingTask).toBeNull()
+  })
+
+  it('pollCreateTaskOnce: getTask 404(真实 axios 形状 code=字符串+response.status) → 清卡 + loadRaid', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
+    // 真实 AxiosError:.code 是非数字字符串('ERR_BAD_REQUEST'),数字状态码在 .response.status —— ?? 链会误判非 404
+    const err = Object.assign(new Error('nf'), { code: 'ERR_BAD_REQUEST', response: { status: 404 } })
+    getTask.mockRejectedValue(err)
+    raidList.mockResolvedValue([])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    await store.pollCreateTaskOnce()
+    expect(store.creatingTask).toBeNull()
+  })
+
+  it('pollCreateTaskOnce: done 清卡定时器身份守卫 —— 窗口内换新任务不被误清', async () => {
+    vi.useFakeTimers()
+    listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
+    getTask.mockResolvedValue({ task_id: 't2', status: 'done', step: 6, progress: 100 })
+    raidList.mockResolvedValue([])
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    await store.pollCreateTaskOnce()
+    expect(store.creatingTask?.status).toBe('done') // done 定时器(清 t2)已排队,尚未触发
+    store.startCreateTask({
+      taskId: 't3',
+      name: 'y',
+      level: 5,
+      filesystem: 'btrfs',
+      diskCount: 3,
+      step: 1,
+      stepName: '',
+      progress: 10,
+      elapsedSeconds: 0,
+      error: '',
+      status: 'creating',
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    // 旧定时器只认 t2,不应清掉新挂上的 t3
+    expect(store.creatingTask).not.toBeNull()
+    expect(store.creatingTask?.taskId).toBe('t3')
+    vi.useRealTimers()
+  })
+
+  it('pollCreateTaskOnce: getTask 返回稀疏 payload 时保留当前 name/level/filesystem/diskCount(不被清空)', async () => {
+    listTasks.mockResolvedValue([{ task_id: 't2', name: 'md-a', level: 5, filesystem: 'btrfs', disk_count: 4, status: 'creating', step: 1, progress: 10 }])
+    getTask.mockResolvedValue({ task_id: 't2', status: 'creating', step: 2, progress: 30 }) // 无 name/level/filesystem/disk_count
+    const store = useStorageStore()
+    await store.detectCreatingTask()
+    expect(store.creatingTask?.name).toBe('md-a')
+    await store.pollCreateTaskOnce()
+    expect(store.creatingTask?.name).toBe('md-a')
+    expect(store.creatingTask?.level).toBe(5)
+    expect(store.creatingTask?.filesystem).toBe('btrfs')
+    expect(store.creatingTask?.diskCount).toBe(4)
+    expect(store.creatingTask?.progress).toBe(30) // 确认确实用了新 payload,不是压根没合并
   })
 
   it('dismissCreateTask 清卡', async () => {
