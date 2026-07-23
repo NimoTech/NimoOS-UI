@@ -565,6 +565,7 @@ export default {
   storageFormatSuccess: 'Storage formatted',
   storageFormatFailed: 'Failed to format, check your password and try again',
   storageCreate: 'Create storage',
+  storageCreateNoDisk: 'Insert a drive to create storage',
   storageCreateName: 'Storage name',
   storageCreateChooseDisk: 'Choose drive',
   storageCreateWarnTitle: 'Warning',

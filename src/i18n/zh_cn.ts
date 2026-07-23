@@ -564,6 +564,7 @@ export default {
   storageFormatSuccess: '存储已格式化',
   storageFormatFailed: '格式化失败,请检查密码后重试',
   storageCreate: '创建存储',
+  storageCreateNoDisk: '请先插入硬盘,再创建存储',
   storageCreateName: '存储名称',
   storageCreateChooseDisk: '选择硬盘',
   storageCreateWarnTitle: '警告',
