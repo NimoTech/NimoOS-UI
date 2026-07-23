@@ -54,7 +54,7 @@ onUnmounted(() => {
     <div v-else>
       <VolumeCard v-for="v in store.volumes" :key="v.uuid || v.path" :volume="v" @unmount="askUnmount(v)" />
     </div>
-    <UnmountDialog v-model:open="dialogOpen" :name="pending?.name || ''" @confirm="doUnmount" />
+    <UnmountDialog v-model:open="dialogOpen" :name="pending?.name || ''" :busy="store.unmounting" @confirm="doUnmount" />
   </StorageShell>
 </template>
 

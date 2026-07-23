@@ -3,15 +3,15 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Dialog from '../../components/ui/Dialog.vue'
 
-const props = defineProps<{ open: boolean; name: string }>()
+const props = defineProps<{ open: boolean; name: string; busy?: boolean }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', password: string): void }>()
 const { t } = useI18n()
 const password = ref('')
-// 每次打开清空上次输入
+// 开/关都清空:关闭后明文密码不得驻留内存(P1 债③)
 watch(
   () => props.open,
-  (o) => {
-    if (o) password.value = ''
+  () => {
+    password.value = ''
   },
 )
 </script>
@@ -24,11 +24,11 @@ watch(
       type="password"
       class="ud-input"
       :placeholder="t('storageUnmountPassword')"
-      @keyup.enter="password && emit('confirm', password)"
+      @keyup.enter="password && !busy && emit('confirm', password)"
     />
     <template #footer>
-      <button class="ud-btn" type="button" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
-      <button class="ud-btn danger" type="button" :disabled="!password" @click="emit('confirm', password)">
+      <button class="ud-btn" type="button" :disabled="busy" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
+      <button class="ud-btn danger" type="button" :disabled="!password || busy" @click="emit('confirm', password)">
         {{ t('storageUnmountOk') }}
       </button>
     </template>
