@@ -58,7 +58,8 @@ export const useStorageStore = defineStore('storage', () => {
       await loadAll()
       return true
     } catch (e) {
-      console.warn('[storage] unmount failed', e)
+      // 只记 message:AxiosError 携带请求体(含明文密码),不可整个打日志
+      console.warn('[storage] unmount failed', (e as Error)?.message)
       toast.show(t('storageUnmountFailed'))
       return false
     }
