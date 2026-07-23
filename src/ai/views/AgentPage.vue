@@ -11,7 +11,9 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
+import { useToast } from '../../stores/toast'
 import AgentSidebar from '../components/shell/AgentSidebar.vue'
 import AgentTopbar from '../components/shell/AgentTopbar.vue'
 import MessageList from '../components/stream/MessageList.vue'
@@ -22,6 +24,8 @@ import '../styles/agent-styles.scss'
 const store = useAgentStore()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
+const toast = useToast()
 
 // store.messages is typed as the loose AgentMessage (Record<string, unknown>) —
 // MessageList needs `role` to be known-present. Runtime shape always has it
@@ -38,8 +42,9 @@ const currentSessionTitle = computed(() => {
 })
 
 function onOpenSettings() {
-  // P2 route: /ai/settings does not exist yet in 1a.
-  router.push('/ai/settings')
+  // P2: router.push('/ai/settings') — 路由该期才存在,先占位(评审跟进:
+  // 路由不存在且无 catch-all,push 会落到空白死页)。
+  toast.show(t('aiComingSoon'))
 }
 
 function onUpdateTitle(title: string) {

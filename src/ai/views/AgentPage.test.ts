@@ -23,6 +23,7 @@ vi.mock('vue-router', () => ({
 
 import AgentPage from './AgentPage.vue'
 import { useAgentStore } from '../stores/agentStore'
+import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -97,5 +98,16 @@ describe('AgentPage', () => {
     expect(store.pendingPrompt).toBe('foo')
     expect(replace).toHaveBeenCalledTimes(1)
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: 'bar' } })
+  })
+
+  it('侧栏 open-settings(设置齿轮)→ 弹 aiComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    await w.find('.sidebar-foot .icon-btn').trigger('click')
+    expect(showSpy).toHaveBeenCalledWith('对话发送将在下一期开启')
+    expect(push).not.toHaveBeenCalled()
+    w.unmount()
   })
 })
