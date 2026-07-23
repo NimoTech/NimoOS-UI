@@ -560,4 +560,8 @@ export default {
   storageDriveHealthy: 'Healthy',
   storageDriveDamaged: 'Damaged',
   storageDriveTemp: 'Temp',
+  storageCreateSuccess: 'Storage created',
+  storageCreateFailed: 'Failed to create storage, please try again',
+  storageFormatSuccess: 'Storage formatted',
+  storageFormatFailed: 'Failed to format, check your password and try again',
 }

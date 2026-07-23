@@ -559,4 +559,8 @@ export default {
   storageDriveHealthy: '正常',
   storageDriveDamaged: '损坏',
   storageDriveTemp: '温度',
+  storageCreateSuccess: '存储已创建',
+  storageCreateFailed: '创建失败,请重试',
+  storageFormatSuccess: '存储已格式化',
+  storageFormatFailed: '格式化失败,请检查密码后重试',
 }

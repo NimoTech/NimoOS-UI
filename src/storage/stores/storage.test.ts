@@ -5,9 +5,15 @@ const storageList = vi.fn()
 const raidList = vi.fn()
 const getDiskList = vi.fn()
 const umount = vi.fn()
+const createMock = vi.fn()
+const formatMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
-    storage: { list: (...a: unknown[]) => storageList(...a) },
+    storage: {
+      list: (...a: unknown[]) => storageList(...a),
+      create: (...a: unknown[]) => createMock(...a),
+      format: (...a: unknown[]) => formatMock(...a),
+    },
     raid: { list: (...a: unknown[]) => raidList(...a) },
     disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
   },
@@ -89,5 +95,92 @@ describe('unmount', () => {
     const ok = await s.unmount('/dev/sda', 'bad')
     expect(toastShow).toHaveBeenCalledWith('storageUnmountFailed')
     expect(ok).toBe(false)
+  })
+})
+
+describe('createStorage', () => {
+  it('POST /storage 请求体逐字 {path,name,format},成功 toast + 返回 true', async () => {
+    createMock.mockResolvedValue({})
+    storageList.mockResolvedValue([])
+    raidList.mockResolvedValue([])
+    getDiskList.mockResolvedValue({ disks: [], avail: [] })
+    const s = useStorageStore()
+    const ok = await s.createStorage({ path: '/dev/sdb', name: 'Main-storage', format: true })
+    expect(ok).toBe(true)
+    expect(createMock).toHaveBeenCalledWith({ path: '/dev/sdb', name: 'Main-storage', format: true })
+    expect(toastShow).toHaveBeenCalledWith('storageCreateSuccess')
+  })
+  it('失败返回 false + 失败 toast,且成败都刷新列表(Vue2 语义)', async () => {
+    createMock.mockRejectedValue(new Error('boom'))
+    storageList.mockResolvedValue([])
+    raidList.mockResolvedValue([])
+    getDiskList.mockResolvedValue({ disks: [], avail: [] })
+    const s = useStorageStore()
+    const ok = await s.createStorage({ path: '/dev/sdb', name: 'a', format: false })
+    expect(ok).toBe(false)
+    expect(toastShow).toHaveBeenCalledWith('storageCreateFailed')
+    expect(storageList).toHaveBeenCalled() // loadAll 触达 storage.list
+  })
+  it('在途守卫:创建进行中再调直接返回 false,不重复发请求', async () => {
+    let resolve!: (v: unknown) => void
+    createMock.mockReturnValue(new Promise((r) => (resolve = r)))
+    storageList.mockResolvedValue([])
+    raidList.mockResolvedValue([])
+    getDiskList.mockResolvedValue({ disks: [], avail: [] })
+    const s = useStorageStore()
+    const p1 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
+    const p2 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
+    await expect(p2).resolves.toBe(false)
+    expect(createMock).toHaveBeenCalledTimes(1)
+    resolve({})
+    await expect(p1).resolves.toBe(true)
+  })
+})
+
+describe('formatVolume', () => {
+  it('PUT /storage 请求体逐字 {path,volume,password},仅成功刷新', async () => {
+    formatMock.mockResolvedValue({})
+    storageList.mockResolvedValue([])
+    raidList.mockResolvedValue([])
+    getDiskList.mockResolvedValue({ disks: [], avail: [] })
+    const s = useStorageStore()
+    const ok = await s.formatVolume({ path: '/dev/sdb1', volume: '/mnt/a', password: 'pw' })
+    expect(ok).toBe(true)
+    expect(formatMock).toHaveBeenCalledWith({ path: '/dev/sdb1', volume: '/mnt/a', password: 'pw' })
+  })
+  it('失败只记 message(不打整个 error,防明文密码)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    formatMock.mockRejectedValue(Object.assign(new Error('bad'), { config: { data: 'password=pw' } }))
+    const s = useStorageStore()
+    const ok = await s.formatVolume({ path: '/dev/sdb1', volume: '/mnt/a', password: 'pw' })
+    expect(ok).toBe(false)
+    for (const call of warn.mock.calls) {
+      expect(JSON.stringify(call)).not.toContain('password=pw')
+    }
+    warn.mockRestore()
+  })
+})
+
+describe('unmount 在途守卫(P1 债①)', () => {
+  it('进行中再调返回 false 且只发一次请求', async () => {
+    let resolve!: (v: unknown) => void
+    umount.mockReturnValue(new Promise((r) => (resolve = r)))
+    const s = useStorageStore()
+    const p1 = s.unmount('/dev/sda', 'pw')
+    const p2 = s.unmount('/dev/sda', 'pw')
+    await expect(p2).resolves.toBe(false)
+    expect(umount).toHaveBeenCalledTimes(1)
+    resolve({})
+    await expect(p1).resolves.toBe(true)
+  })
+})
+
+describe('loadDrives 候选盘', () => {
+  it('avail 字段映射进 availDisks', async () => {
+    getDiskList.mockResolvedValue({ disks: [], avail: [{ path: '/dev/sdb', name: 'sdb', need_format: 'true' }] })
+    const s = useStorageStore()
+    await s.loadDrives()
+    expect(s.availDisks).toHaveLength(1)
+    expect(s.availDisks[0].needFormat).toBe(true)
   })
 })
