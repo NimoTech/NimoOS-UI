@@ -1,5 +1,16 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-vi.mock('@nimotech/nimoos-service', () => ({ service: { photos: { recordView: vi.fn(() => Promise.resolve()) } } }))
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    photos: {
+      recordView: vi.fn(() => Promise.resolve()),
+      getAsset: vi.fn(() => Promise.resolve({ id: 'x' })),
+      getAssetOcr: vi.fn(() => Promise.resolve({ lines: [] })),
+      listFavoriteIds: vi.fn(() => Promise.resolve([])),
+      favorite: vi.fn(() => Promise.resolve()),
+      unfavorite: vi.fn(() => Promise.resolve()),
+    },
+  },
+}))
 import { service } from '@nimotech/nimoos-service'
 import { useLightbox } from '../useLightbox'
 const P = (id: string, extra: Record<string, unknown> = {}) => ({ id, isVideo: false, ...extra }) as any
@@ -83,5 +94,112 @@ describe('useLightbox 开合/翻页', () => {
       expect(lb.index.value).toBe(0) // 仍在 openAt 后的位置
       expect(push).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('useLightbox 水合+收藏', () => {
+  beforeEach(() => {
+    useLightbox().__resetForTest()
+    vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    vi.mocked(service.photos.getAsset).mockReset().mockResolvedValue({ id: 'x' } as any)
+    vi.mocked(service.photos.getAssetOcr).mockReset().mockResolvedValue({ lines: [] } as any)
+    vi.mocked(service.photos.listFavoriteIds).mockReset().mockResolvedValue([])
+    vi.mocked(service.photos.favorite).mockReset().mockResolvedValue(undefined as any)
+    vi.mocked(service.photos.unfavorite).mockReset().mockResolvedValue(undefined as any)
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('openAt 后 detail 先等于当前项、getAsset 到达后合并', async () => {
+    vi.mocked(service.photos.getAsset).mockResolvedValue({ id: 'b', make: 'Nikon' } as any)
+    const lb = useLightbox()
+    lb.openAt(P('b'), [P('a'), P('b'), P('c')])
+    // synchronously (before await resolves) detail already mirrors current
+    expect(lb.detail.value?.id).toBe('b')
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(lb.detail.value?.camera).toBe('Nikon')
+  })
+
+  it('翻页时过期 getAsset 结果被 seq 守卫丢弃(先解析旧的、当前已是新项 → detail 不被旧值覆盖)', async () => {
+    let resolveFirst: (v: any) => void = () => {}
+    let resolveSecond: (v: any) => void = () => {}
+    const firstPromise = new Promise((res) => { resolveFirst = res })
+    const secondPromise = new Promise((res) => { resolveSecond = res })
+    vi.mocked(service.photos.getAsset)
+      .mockImplementationOnce(() => firstPromise as any)
+      .mockImplementationOnce(() => secondPromise as any)
+
+    const lb = useLightbox()
+    lb.openAt(P('a'), [P('a'), P('b'), P('c')]) // issues first (slow) getAsset for 'a'
+    lb.next() // issues second (fast) getAsset for 'b'
+
+    // resolve the newer (second) call first, then the older (first) call after
+    resolveSecond({ id: 'b', make: 'Sony' })
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(lb.detail.value?.id).toBe('b')
+
+    resolveFirst({ id: 'a', make: 'Nikon' }) // stale — must be dropped by seq guard
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(lb.detail.value?.id).toBe('b')
+    expect(lb.detail.value?.camera).toBe('Sony')
+  })
+
+  it('searchQuery 为空不发 getAssetOcr;非空且非视频才发', async () => {
+    const lb = useLightbox()
+    lb.openAt(P('a'), [P('a')])
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(service.photos.getAssetOcr).not.toHaveBeenCalled()
+    expect(lb.ocrLines.value).toEqual([])
+
+    vi.mocked(service.photos.getAssetOcr).mockResolvedValue({ lines: [{ box: [1, 2, 3, 4] }] } as any)
+    lb.__resetForTest()
+    lb.openAt(P('a'), [P('a')], 0, 'hello')
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(service.photos.getAssetOcr).toHaveBeenCalledWith('a', 'hello')
+    expect(lb.ocrLines.value).toEqual([{ box: [1, 2, 3, 4] }])
+
+    vi.mocked(service.photos.getAssetOcr).mockClear()
+    lb.__resetForTest()
+    lb.openAt(P('v', { isVideo: true }), [P('v', { isVideo: true })], 0, 'hello')
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(service.photos.getAssetOcr).not.toHaveBeenCalled()
+  })
+
+  it('reconcileFav 播种 favIds、isFav 反映当前项', async () => {
+    vi.mocked(service.photos.listFavoriteIds).mockResolvedValue(['a', 42])
+    const lb = useLightbox()
+    lb.openAt(P('a'), [P('a'), P(String(42))])
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(lb.isFav.value).toBe(true)
+    lb.goTo(1)
+    expect(lb.isFav.value).toBe(true)
+  })
+
+  it('toggleFav 乐观翻转并调 favorite/unfavorite;失败回滚', async () => {
+    vi.mocked(service.photos.listFavoriteIds).mockResolvedValue(['a'])
+    const lb = useLightbox()
+    lb.openAt(P('a'), [P('a')])
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(lb.isFav.value).toBe(true)
+
+    vi.mocked(service.photos.unfavorite).mockRejectedValueOnce(new Error('boom'))
+    await lb.toggleFav()
+    expect(lb.isFav.value).toBe(true) // rolled back after rejection
+
+    vi.mocked(service.photos.unfavorite).mockResolvedValue(undefined as any)
+    await lb.toggleFav()
+    expect(service.photos.unfavorite).toHaveBeenCalledWith('a')
+    expect(lb.isFav.value).toBe(false)
+
+    vi.mocked(service.photos.favorite).mockResolvedValue(undefined as any)
+    await lb.toggleFav()
+    expect(service.photos.favorite).toHaveBeenCalledWith('a')
+    expect(lb.isFav.value).toBe(true)
   })
 })
