@@ -335,6 +335,38 @@ describe('PhotoLightbox 视频起播位续播', () => {
   })
 })
 
+describe('PhotoLightbox 持久挂载:onMounted 时灯箱未开', () => {
+  // 回归(评审 finding #1):父级只挂载一次、内部靠 v-if="lb.open.value" 自门控,onMounted 时
+  // 灯箱通常还关着 —— 若 isMoving 的 5s 自隐计时只在 onMounted arm 一次,组件常年挂着、这个计时
+  // 早就过期,真正 openAt 打开时顶栏 + 翻页箭头会因 isMoving=false 而全部不可见,看起来像没渲染。
+  it('mount 时灯箱已关、且早于任何 openAt 的 5s 计时已过期 —— openAt 后工具栏 + 翻页箭头必须可见', async () => {
+    vi.useFakeTimers()
+    const w = mountLb() // 挂载时 lb.open.value === false(beforeEach 已 __resetForTest)
+    expect(w.find('.lightbox').exists()).toBe(false)
+    // 早于任何 open 就把 onMounted 里 arm 的计时熬过期
+    vi.advanceTimersByTime(5000)
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    expect(w.find('.lightbox').exists()).toBe(true)
+    expect(w.find('.lb-top').exists()).toBe(true) // 顶栏工具栏(收藏/下载/详情/删除等)
+    expect(w.find('.lb-nav-next').exists()).toBe(true) // 翻页箭头
+  })
+
+  it('open 时 showInfo 复位为 false,即便上一次打开曾切到 true', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    await w.find('.lb-info-toggle').trigger('click')
+    await nextTick()
+    expect(w.find('.lb-info').exists()).toBe(true) // 上一次打开切开了详情栏
+    lb.close()
+    await nextTick()
+    lb.openAt(IMG_B, THREE)
+    await nextTick()
+    expect(w.find('.lb-info').exists()).toBe(false) // 重开应默认收起
+  })
+})
+
 describe('PhotoLightbox 实况照片', () => {
   it('实况项渲染实况徽标;按住播 <video src=liveUrl>,松开消失', async () => {
     const w = mountLb()

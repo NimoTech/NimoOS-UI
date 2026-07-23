@@ -56,10 +56,26 @@ function doDelete(): void {
   lb.close()
 }
 
+// —— chrome 5s 无操作自隐 ——(复用 T5 同款 isMoving + 计时;提到视频锚点 watch 之前声明,
+// 避免下方 open-watch 的 immediate:true 分支在边缘情况下引用到尚未初始化的 hideTimer)
+const isMoving = ref(false)
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+function onMouseMove(): void {
+  isMoving.value = true
+  if (hideTimer) clearTimeout(hideTimer)
+  hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
+}
+
 // —— 视频起播位续播 ——(照 Vue2 applyStartTime :335-344:仅本次打开首张匹配视频 seek 一次)
 // 本组件被父级持久挂载(内部靠 v-if="lb.open.value" 自门控),onMounted 时灯箱通常还没开,
 // 那一刻 lb.current 为空,锚点只能在 open 由假变真的瞬间捕获(见 watch),否则 startPhotoId 恒为 null、
 // applyStartTime 永远 early-return,悬停位续播失效。
+// 同一持久挂载坑还连累另外两处状态,故这个 open-watch 一并兜底:
+// 1) chrome 自隐(isMoving)只在 onMounted 里 arm 一次 5s 计时 —— 组件常年挂着、灯箱关着,
+//    计时早就过期,真正 openAt 打开时 isMoving 已是 false,顶栏+翻页箭头全隐,看着像没渲染。
+//    每次 open 都重新 onMouseMove() 一次,保证"刚打开"必是 chrome 可见 + 计时器重新起跑。
+// 2) showInfo 是组件级 ref,open→close→reopen 会带着上一次的开合状态过来,不符合"详情栏默认收起"
+//    的设计;每次 open 显式重置为 false。
 const videoEl = ref<HTMLVideoElement | null>(null)
 let startApplied = false
 let startPhotoId: string | number | null = null
@@ -69,6 +85,8 @@ watch(
     if (isOpen) {
       startApplied = false
       startPhotoId = lb.current.value?.id ?? null
+      onMouseMove()
+      showInfo.value = false
     }
   },
   { immediate: true }, // 兼容组件在灯箱已开时才挂载的边缘情况
@@ -96,15 +114,6 @@ function liveStop(): void {
   const v = liveVideoEl.value
   try { v?.pause?.() } catch { /* jsdom / 未就绪 */ }
   liveActive.value = false
-}
-
-// —— chrome 5s 无操作自隐 ——(复用 T5 同款 isMoving + 计时)
-const isMoving = ref(false)
-let hideTimer: ReturnType<typeof setTimeout> | null = null
-function onMouseMove(): void {
-  isMoving.value = true
-  if (hideTimer) clearTimeout(hideTimer)
-  hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
 }
 
 // —— 键盘 ——(照 Vue2 :360-370;confirmDelete 开时 Escape 只关模态)
@@ -300,7 +309,7 @@ onBeforeUnmount(() => {
 }
 .lb-titlebox { display: flex; flex-direction: column; min-width: 0; }
 .lb-title { font-size: 14px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lb-sub { font-size: 12px; color: var(--text-3, var(--fg)); }
+.lb-sub { font-size: 12px; color: var(--fg-muted); }
 .lb-spacer { flex: 1; }
 .lb-icon-btn {
   display: inline-flex;
@@ -423,7 +432,7 @@ onBeforeUnmount(() => {
   box-shadow: var(--media-overlay-shadow, 0 12px 40px rgba(0, 0, 0, 0.4));
 }
 .lb-confirm-title { font-size: 16px; font-weight: 600; }
-.lb-confirm-body { margin-top: 8px; font-size: 13px; color: var(--text-3, var(--fg)); line-height: 1.5; }
+.lb-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
 .lb-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
 .lb-confirm-cancel,
 .lb-confirm-ok {
