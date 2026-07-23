@@ -84,6 +84,9 @@
 - **P4 RAID 写操作**:创建向导(盘位图 RaidDriveBay + 级别矩阵 RaidMatrix 重写)、
   换盘、恢复、删除(AlertDialog 确认 + 密码/明确输入确认,照 Vue2 交互强度)。
 - **P5 快照**:RAID 详情内快照面板 + 时间线 + 策略编辑(v2 /snapshot 全量)。
+  **前置**:设备 local-storage 二进制为 2026-06-22 版,早于快照后端代码(07-12),
+  `/v2/snapshot/*` 现网 404(2026-07-23 核实,直连与网关同)——P5 开工前需
+  `nimo_os_docs/scripts/deploy.sh local-storage` 部署新后端(动真机,挑窗口与 SP5 协调)。
 - **P6 收口 + cutover(唯一动 Vue2 仓与真机的一期,前置条件 = SP5 已合入 master、
   本分支已合回)**:i18n 审计;Vue2 三入口改跳 `/app/#/storage`(每入口带回退 flag,
   `strangler:disabled:storage-entry` 口径,验回退可逆);`deploy.sh` 正式部署 `/app/`;
@@ -116,7 +119,9 @@
 - **台账(合并时写进 roadmap)**:
   1. **MergerFS 不迁**:前端死代码 + 后端端点未注册,双双下线;待产品拍板复活时
      作为独立项目(后端复活 + 前端向导)一起做;Vue2 侧死代码随 SP10 删。
-  2. **`local_storage` 域**:按 P0 核查结论记生死。
+  2. **`local_storage` 域:不迁(2026-07-23 核查定案)**——`/v2/nimoos/local_storage/{mount,merge}`
+     404 死;`display_names` 在 core NimoOS 服务上 200 活但全仓唯二消费者是 MergerFS
+     死组件(grep 留证),无人使用→与 MergerFS 同待遇记账。
   3. **`port` 域**:推迟 SP9(设置区)。
   4. Vue2 桌面「存储状态」小组件、设置面板 StorageDriveDetailModal:不属 SP6
      (前者 New-UI 已有 StorageWidget,后者归 SP9 设置区)。
