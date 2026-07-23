@@ -111,9 +111,11 @@ export function raidStateLabelKey(f: RaidStateFlags): string {
   return 'raidStateHealthy'
 }
 
-// RaidCard.vue activeDisks L114-118:前缀匹配 "active sync"。
-export function countActiveDisks(members: RaidMemberDisk[], _total: number): number {
-  return (members || []).filter((m) => (m?.state || '').startsWith('active sync')).length
+// RaidCard.vue activeDisks L114-118:有 members 时前缀匹配 "active sync";members 为空则回退 total(member_disks 计数)。
+export function countActiveDisks(members: RaidMemberDisk[], total: number): number {
+  const list = members || []
+  if (list.length) return list.filter((m) => (m?.state || '').startsWith('active sync')).length
+  return total || 0
 }
 
 export interface MemberSquare {
@@ -124,6 +126,7 @@ export interface MemberSquare {
 }
 
 // RaidCard.vue memberSquares L125-136 + RaidDetailPanel memberColor/memberStateLabel L343-375。
+// 默认分支有意区别于 Vue2(未知态不伪装成 ok):Vue2 default 落到 "ok ✓",这里改为 'unknown' 中性态,更安全。
 export function memberSquare(state: string): MemberSquare {
   const s = state || ''
   if (s.startsWith('active sync')) return { kind: 'ok', token: '--sem-fg', labelKey: 'raidMemberActive', glyph: '✓' }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
   countActiveDisks, memberSquare, raidUsagePercent, mirrorPairs, isRebuildingList,
-  levelInfo,
+  levelInfo, asRaidArray,
 } from './raidView'
 import type { RaidArray } from './raidView'
 
@@ -70,7 +70,24 @@ describe('countActiveDisks', () => {
     expect(countActiveDisks(members, 3)).toBe(2)
   })
   it('members 为空时回退 fallback 计数', () => {
-    expect(countActiveDisks([], 4)).toBe(0) // 空数组 → 0 active(fallback 只用于 total)
+    expect(countActiveDisks([], 4)).toBe(4) // 空数组 → 回退 total(member_disks 计数)
+  })
+})
+
+describe('asRaidArray', () => {
+  it('映射 id/name/level/state,level 转为 Number', () => {
+    const a = asRaidArray({ id: 3, name: 'md3', level: 5, state: 'active' })
+    expect(a.id).toBe(3)
+    expect(a.name).toBe('md3')
+    expect(a.level).toBe(5)
+    expect(a.state).toBe('active')
+  })
+  it('缺字段给安全默认', () => {
+    const a = asRaidArray({})
+    expect(a.name).toBe('')
+    expect(a.level).toBe(0)
+    expect(a.state).toBe('')
+    expect(a.member_disks).toEqual([])
   })
 })
 
