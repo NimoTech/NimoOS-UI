@@ -13,6 +13,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
+import { provideAgentStore } from '../composables/useProvidedAgentStore'
 import { useToast } from '../../stores/toast'
 import AgentSidebar from '../components/shell/AgentSidebar.vue'
 import AgentTopbar from '../components/shell/AgentTopbar.vue'
@@ -22,6 +23,7 @@ import '../styles/tokens.scss'
 import '../styles/agent-styles.scss'
 
 const store = useAgentStore()
+provideAgentStore(store)
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()

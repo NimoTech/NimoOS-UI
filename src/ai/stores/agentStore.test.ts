@@ -175,7 +175,9 @@ describe('agentStore (session slice)', () => {
     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('light')
   })
 
-  it('初始态:busy 恒 false、rightCollapsed 恒 true、pendingPrompt 为 null', () => {
+  it('初始态(新鲜 store):busy===false、rightCollapsed 恒 true、pendingPrompt 为 null', () => {
+    // 注:busy 从本任务(P1b)起可被 setBusy/setStreamingDone 翻转,这里只断言
+    // 一个全新 store 的初始值,不再假设 busy "永不写入"。
     const s = useAgentStore()
     expect(s.busy).toBe(false)
     expect(s.rightCollapsed).toBe(true)
@@ -187,5 +189,67 @@ describe('agentStore (session slice)', () => {
     const before = s.leftCollapsed
     s.toggleLeft()
     expect(s.leftCollapsed).toBe(!before)
+  })
+
+  it('startAssistant + appendBlock + patchBlock roundtrip', () => {
+    const s = useAgentStore('t-prims')
+    s.startAssistant()
+    expect(s.messages.at(-1)).toMatchObject({ role: 'assistant', blocks: [], streaming: true })
+    s.appendBlock({ type: 'md', text: 'hi', streaming: true })
+    const ok = s.patchBlock(b => b.type === 'md' && !!b.streaming, old => ({ text: (old.text as string) + '!' }))
+    expect(ok).toBe(true)
+    expect((s.messages.at(-1) as any).blocks[0].text).toBe('hi!')
+  })
+
+  it('setStreamingDone flips busy false and clears streaming', () => {
+    const s = useAgentStore('t-done'); s.setBusy(true); s.startAssistant(); s.setStreamingDone()
+    expect(s.busy).toBe(false)
+    expect((s.messages.at(-1) as any).streaming).toBe(false)
+  })
+
+  it('patchAssistantStats merges stats on last assistant', () => {
+    const s = useAgentStore('t-stats'); s.startAssistant()
+    s.patchAssistantStats({ ttftMs: 12 }); s.patchAssistantStats({ outputTokens: 5 })
+    expect((s.messages.at(-1) as any).stats).toMatchObject({ ttftMs: 12, outputTokens: 5 })
+  })
+
+  it('pushActivityStep + markRunningStepDone', () => {
+    const s = useAgentStore('t-steps'); s.pushActivityStep({ name: 'ls' })
+    expect(s.activitySteps.at(-1)).toMatchObject({ name: 'ls', state: 'running' })
+    s.markRunningStepDone()
+    expect(s.activitySteps.at(-1)).toMatchObject({ state: 'success' })
+  })
+
+  it('pushUserMessage:压入 user 消息带 id/role/content/attachments', () => {
+    const s = useAgentStore('t-user')
+    s.pushUserMessage('hello', [{ id: 'f1' }])
+    const last = s.messages.at(-1) as any
+    expect(last.role).toBe('user')
+    expect(last.content).toBe('hello')
+    expect(last.attachments).toEqual([{ id: 'f1' }])
+    expect(typeof last.id).toBe('string')
+  })
+
+  it('selectSession:通过 migrateLegacyMessages 迁移历史消息(run_command → terminal)', async () => {
+    svc.listAgentMessages.mockResolvedValue([
+      {
+        id: 'm1',
+        role: 'assistant',
+        blocks: [
+          {
+            type: 'tool',
+            name: 'run_command',
+            sections: [
+              { label: 'ARGUMENTS', code: '{"command":"ls"}' },
+              { label: 'RESULT', code: '[exit 0]\nfile.txt' },
+            ],
+          },
+        ],
+      },
+    ])
+    const s = useAgentStore('t-migrate')
+    await s.selectSession('sess-migrate')
+    const last = s.messages.at(-1) as any
+    expect(last.blocks[0]).toMatchObject({ type: 'terminal', command: 'ls', state: 'success' })
   })
 })
