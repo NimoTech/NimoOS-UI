@@ -15,6 +15,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   __resetStartAppForTest()
   hrefs = []; opens = []
+  localStorage.removeItem('strangler:disabled:/apps')
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
   vi.mocked(router.push).mockClear()
@@ -27,10 +28,24 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).toHaveBeenCalledWith('/files')
     expect(hrefs.length).toBe(0)
   })
-  it('settings/appstore navigate to /#/legacy', () => {
+  it('settings 维持 /#/legacy(P8 cutover 不动它)', () => {
     const { openApp } = useOpenAction()
     openApp('settings'); expect(hrefs[0]).toBe('/#/legacy')
-    openApp('appstore'); expect(hrefs[1]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
+  })
+  it('appstore 磁贴应用内 router.push /apps/store(SP5-P8 cutover)', () => {
+    const { openApp } = useOpenAction()
+    openApp('appstore')
+    expect(router.push).toHaveBeenCalledWith('/apps/store')
+    expect(hrefs.length).toBe(0)
+  })
+  it('回退 flag strangler:disabled:/apps==1 时 appstore 退回 /#/legacy', () => {
+    localStorage.setItem('strangler:disabled:/apps', '1')
+    const { openApp } = useOpenAction()
+    openApp('appstore')
+    expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/apps')
   })
   it('running container app opens scheme://host:port/index', () => {
     const s = useAppsStore()

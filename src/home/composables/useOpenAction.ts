@@ -3,11 +3,17 @@ import { useAppsStore } from '../stores/apps'
 import { useStartApp, appUrl } from './useStartApp'
 import { router } from '../../router'
 
-// P8 cutover 起文件区活在本应用(/files);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+// P8 cutover 起文件区(/files)与应用区(/apps,SP5-P8)活在本应用;其余系统入口仍指 Vue2,各自 SP 迁移时再改。
 // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
 const SYS_ROUTE: Record<string, string> = {
   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
-  settings: '/#/legacy', appstore: '/#/legacy',
+  settings: '/#/legacy',
+}
+
+// SP5-P8 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
+// == '1' 时磁贴退回 Vue2 /#/legacy 老弹窗,可逆 cutover。
+function appsCutoverDisabled(): boolean {
+  try { return localStorage.getItem('strangler:disabled:/apps') === '1' } catch { return false }
 }
 
 export function useOpenAction() {
@@ -19,6 +25,7 @@ export function useOpenAction() {
     if (!a) return
     if (a.system) {
       if (key === 'files') { router.push('/files'); return }
+      if (key === 'appstore' && !appsCutoverDisabled()) { router.push('/apps/store'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }
