@@ -3,6 +3,16 @@
 // Redesign: warm-neutral flat palette + muted blue accent (2026-06-30).
 // Token NAMES are stable; only values changed/added so long-tail
 // components re-skin automatically.
+//
+// ===== 例外清单(刻意跳过 token,与 docs/THEMING.md §6 同一登记表)=====
+// 除该文档 §6 已登记的 `.ic-*` 品牌图标渐变 / 第三方库内部主题外,本子树(src/ai/)
+// 再登记一类:**生成式、按 seed 取色的占位马赛克色板**——
+//   - `VideoCard.vue` 的 `PAL`(视频缩略图占位渐变)
+//   - `ImageGridCard.vue` 的 `PALETTES`(图片格无缩略图时的占位马赛克)
+// 这两处的十六进制字面量是"皮肤无关"的装饰性生成色(按 block 里的 seed 索引取值,
+// 不代表任何语义状态),与 `.ic-*` 品牌识别色同属"两套主题都原样保留"的例外类目,
+// 不接入 token 体系。组件内注释均指回本节。
+// =====================================================================
 
 /* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */
 .agent-app {
@@ -97,6 +107,17 @@
   --danger-soft-border: rgba(215, 73, 59, 0.16);
   --purple-soft: rgba(175, 82, 222, 0.1);
   --purple-soft-border: rgba(175, 82, 222, 0.16);
+  /* SP8-P1b Task 8 fix — a fainter "wash" tier per hue, ~60% of -soft's opacity.
+     Vue2 McpCallCard.vue used two distinct opacities per hue: the state-badge
+     PILL (bolder, matches -soft above) vs. the segment-head background WASH
+     behind "Call · ARGUMENTS"/"Return · RESULT"/"Return · ERROR" (fainter).
+     Collapsing both onto -soft made the wash as saturated as the pill — this
+     tier restores that pill>wash hierarchy. Use -soft for pills, -soft-faint
+     for washes; -soft-border is unaffected (still used for the wash's
+     border-bottom, matching Vue2's border opacity being its own third value). */
+  --purple-soft-faint: rgba(175, 82, 222, 0.06);
+  --success-soft-faint: rgba(46, 158, 84, 0.07);
+  --danger-soft-faint: rgba(215, 73, 59, 0.06);
   /* Lighter purple gradient stop (McpCallCard tile) — decorative, not redefined
      per-theme, same convention as --purple itself not being redefined in dark. */
   --purple-light: #C18CFF;
@@ -158,6 +179,9 @@
   --danger-soft-border: rgba(240, 119, 107, 0.24);
   --purple-soft: rgba(175, 82, 222, 0.18);
   --purple-soft-border: rgba(175, 82, 222, 0.26);
+  --purple-soft-faint: rgba(175, 82, 222, 0.11);
+  --success-soft-faint: rgba(79, 184, 112, 0.11);
+  --danger-soft-faint: rgba(240, 119, 107, 0.1);
   --purple-light: #C18CFF;
   --teal-soft: rgba(48, 176, 199, 0.2);
   --scrim-dark: rgba(0, 0, 0, 0.35);

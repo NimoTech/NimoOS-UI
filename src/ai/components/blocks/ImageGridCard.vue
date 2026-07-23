@@ -11,7 +11,9 @@ interface GridImage {
 }
 
 // 装饰性占位马赛克色板——按每张图的 seed 取色,生成式、与浅/深主题无关的占位色
-// (没有真实缩略图时使用),理由同 VideoCard.vue 顶部注释,不接入 token 体系。
+// (没有真实缩略图时使用),不接入 token 体系。登记在案的例外:见 src/ai/styles/
+// tokens.scss 文件头「例外清单」一节 + docs/THEMING.md §6(与 VideoCard.vue 的
+// PAL、`.ic-*` 品牌图标渐变同属一类)。
 const PALETTES = [
   ['#FF9A8B', '#FF6A88', '#FF99AC'], ['#A1C4FD', '#C2E9FB'],
   ['#FBC2EB', '#A6C1EE'], ['#84FAB0', '#8FD3F4'],

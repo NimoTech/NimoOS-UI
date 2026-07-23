@@ -89,9 +89,9 @@ const stateLabel = computed(() => {
 }
 .mcc-seg { border-radius: var(--r-md); border: 1px solid var(--line-faint); overflow: hidden; background: var(--bg-elevated); }
 .mcc-seg-head { display: flex; align-items: center; gap: 7px; padding: 6px 11px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
-.mcc-seg[data-kind="call"] .mcc-seg-head { color: var(--purple); background: var(--purple-soft); border-bottom: 1px solid var(--purple-soft-border); }
-.mcc-seg[data-kind="return"] .mcc-seg-head { color: var(--success); background: var(--success-soft); border-bottom: 1px solid var(--success-soft-border); }
-.mcc-seg[data-kind="return"][data-error="true"] .mcc-seg-head { color: var(--danger); background: var(--danger-soft); border-bottom: 1px solid var(--danger-soft-border); }
+.mcc-seg[data-kind="call"] .mcc-seg-head { color: var(--purple); background: var(--purple-soft-faint); border-bottom: 1px solid var(--purple-soft-border); }
+.mcc-seg[data-kind="return"] .mcc-seg-head { color: var(--success); background: var(--success-soft-faint); border-bottom: 1px solid var(--success-soft-border); }
+.mcc-seg[data-kind="return"][data-error="true"] .mcc-seg-head { color: var(--danger); background: var(--danger-soft-faint); border-bottom: 1px solid var(--danger-soft-border); }
 .mcc-seg pre {
   margin: 0; padding: 9px 12px; font-family: var(--font-mono); font-size: 12px; line-height: 1.55;
   color: var(--text-primary); white-space: pre-wrap; word-break: break-word;

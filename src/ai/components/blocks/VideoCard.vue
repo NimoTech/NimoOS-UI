@@ -4,8 +4,10 @@ import { computed } from 'vue'
 import AgentIcon from '../icons/AgentIcon.vue'
 
 // 装饰性缩略图占位渐变——按 seed 取值,与应用主题(浅/深色)无关:没有真实视频帧
-// 时的马赛克占位色,纯生成式,类比桌面 app 图标 .ic-* 品牌渐变的豁免,不接入
-// token 体系(理由与 ImageGridCard.vue 的 PALETTES 相同)。
+// 时的马赛克占位色,纯生成式,不接入 token 体系。这是登记在案的例外(不是临时豁免):
+// 见 src/ai/styles/tokens.scss 文件头「例外清单」一节 + docs/THEMING.md §6(与
+// `.ic-*` 品牌图标渐变同属"皮肤无关,两套主题都原样保留"一类)。理由与
+// ImageGridCard.vue 的 PALETTES 相同。
 const PAL = [['#1FA2FF', '#12D8FA', '#A6FFCB'], ['#667EEA', '#764BA2'], ['#0BA360', '#3CBA92']]
 
 const props = withDefaults(
