@@ -8,7 +8,10 @@
 //    (photosTaskCompletedToast) instead of Vue2's per-type messages.
 //  - no 5s pre-removal delay before announcing — a status:'done' transition
 //    observed at ingest time goes straight into the coalescer.
-//  - tile `open` is an intentional no-op (lightbox is P2, see TODO below).
+// Task 9: 灯箱集成(P2 收官)——tile `open` 不再是空 handler:构造当前 tab 过滤后的
+// 翻页集(与用户网格所见一致,grid 自己 emit 的 list 恒为 undefined)交给
+// useLightbox().openAt;PhotoLightbox 挂在模板末尾,delete 事件落到 store.deleteAssets +
+// 4000ms toast(灯箱已在 confirm 时自行 close,这里不重复关)。
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../components/shell/AreaShell.vue'
@@ -16,6 +19,8 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import { useLightbox } from '../photos/lightbox/useLightbox'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -28,6 +33,7 @@ const { t } = useI18n()
 const store = useTimelineStore()
 const toast = useToast()
 const bus = useMessageBus()
+const lb = useLightbox()
 
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
@@ -59,8 +65,17 @@ async function onBatchDelete(ids: Array<string | number>) {
   selected.value = []
 }
 
-function onOpenTile(_photo: Photo, _list: undefined, _startMs: number) {
-  // TODO(SP7-P2): 灯箱 — intentionally left empty for P1.
+function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
+  // grid 自己不知道当前 tab(它内部过滤是为展示,不为翻页集),此处用同一个 matchesTab
+  // 谓词重建"用户所见"的翻页集 —— 与 PhotosToolbar 的 filteredCount 用同一份数据源同一谓词。
+  const filtered = store.months.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  lb.openAt(photo, filtered, startMs)
+}
+
+async function onLightboxDelete(id: string | number) {
+  // 灯箱已在用户确认删除时自行 close(见 PhotoLightbox.vue doDelete),这里不再重复关闭。
+  await store.deleteAssets([String(id)])
+  toast.show(t('photosDeletedToast', { count: 1 }), 4000)
 }
 
 // ─── task-done toast coalescing ───────────────────────────────────────────
@@ -154,6 +169,7 @@ onUnmounted(() => {
       </main>
     </div>
   </AreaShell>
+  <PhotoLightbox @delete="onLightboxDelete" @toggle-fav="() => {}" />
 </template>
 
 <style scoped>

@@ -3,11 +3,18 @@
 // 状态全读 useLightbox() 单例(T2/T3),静图舞台委托 PhotoImageViewer(T5,自带底部缩放条)。
 // delta(见 task-6-brief.md):1) 删「加入相册」「交给 Nimo」两钮;2) 详情栏改可 toggle(占位到 T7);
 // 3) 顶栏不放缩放钮(PhotoImageViewer 自持底部缩放条,减少跨组件 ref);4) 当前项一律按 id 比较。
+// Task 9 收尾:挂载 T7 的 PhotoInfoPanel(读 lb.detail,水合后的明细,而非 list-item 占位的
+// current)与 T8 的 PhotoFilmstrip(绝对下标 select → lb.goTo)。PhotoInfoPanel 自身样式假设
+// "并排 flex row" 布局(它内部就带 flex:0 0 auto),故把舞台从 lb-stage 单飞的 flex:1 列项
+// 改包一层 .lb-body(行 flex),让详情栏与舞台并排,而不是硬套 T6 之前留的绝对定位 .lb-info 占位
+// (已删除,详情栏定位改由 PhotoInfoPanel 自己的样式承担)。
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useLightbox } from './useLightbox'
 import PhotoImageViewer from './PhotoImageViewer.vue'
+import PhotoInfoPanel from './PhotoInfoPanel.vue'
+import PhotoFilmstrip from './PhotoFilmstrip.vue'
 
 const emit = defineEmits<{
   (e: 'delete', id: string | number): void
@@ -171,7 +178,8 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 舞台:按 current 分发(视频 / 实况 / 静图) -->
+    <!-- 舞台 + 详情栏:并排 flex row(详情栏样式假设自己是 row 内 flex 项,见头部注释) -->
+    <div class="lb-body">
     <div class="lb-stage">
       <div class="lb-media" :key="String(lb.current.value?.id ?? '')">
         <!-- (a) 视频 -->
@@ -247,16 +255,12 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 详情面板占位(T7 填充);挂载点透传 detail -->
-    <aside v-if="showInfo" class="lb-info">
-      <slot name="info" :detail="lb.detail.value">
-        <div class="lb-info-title">{{ lb.detail.value?.title }}</div>
-        <div class="lb-info-sub">
-          <template v-if="lb.detail.value?.date">{{ lb.detail.value?.date }}</template>
-          <template v-if="lb.detail.value?.time"> · {{ lb.detail.value?.time }}</template>
-        </div>
-      </slot>
-    </aside>
+    <!-- 详情栏(T7):读水合后的 lb.detail,而非 list-item 占位的 lb.current -->
+    <PhotoInfoPanel :photo="lb.detail.value" :visible="showInfo" />
+    </div>
+
+    <!-- 缩略图条(T8):绝对下标 select → lb.goTo -->
+    <PhotoFilmstrip :list="lb.list.value" :index="lb.index.value" @select="lb.goTo" />
 
     <!-- 删除确认模态 -->
     <div v-if="confirmDelete" class="lb-confirm-scrim" @click.self="confirmDelete = false">
@@ -316,6 +320,14 @@ onBeforeUnmount(() => {
 .lb-info-toggle.active { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); color: var(--accent); }
 .lb-icon-btn.danger:hover { color: var(--remove-fg, #ff5d5d); }
 
+.lb-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
 .lb-stage {
   position: relative;
   flex: 1;
@@ -386,22 +398,9 @@ onBeforeUnmount(() => {
 .lb-nav-prev { left: 16px; }
 .lb-nav-next { right: 16px; }
 
-.lb-info {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  width: 320px;
-  max-width: 85vw;
-  padding: 64px 20px 20px;
-  overflow-y: auto;
-  background: var(--card-bg);
-  border-left: 1px solid var(--border);
-  color: var(--fg);
-}
-.lb-info-title { font-size: 15px; font-weight: 600; }
-.lb-info-sub { margin-top: 4px; font-size: 12px; color: var(--text-3, var(--fg)); }
+/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(.info-panel),这里只需在灯箱内让出
+   顶栏遮挡的空间,不重复定义外观。*/
+:deep(.info-panel) { margin: 64px 16px 16px 0; }
 
 .lb-confirm-scrim {
   position: absolute;

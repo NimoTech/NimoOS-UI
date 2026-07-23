@@ -24,6 +24,16 @@ const svc = vi.hoisted(() => ({
     previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
     spriteUrl: vi.fn((id: string | number) => `mock://sprite/${id}`),
     spriteMeta: vi.fn(),
+    // Task 9: Photos.vue 现在真的挂了 <PhotoLightbox>(v-if="lb.open.value" 内部门控,
+    // 平时不渲染),但点开一张图会真的触发 useLightbox().openAt → 下列三件套。
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
+    recordView: vi.fn().mockResolvedValue(undefined),
+    getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
+    getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
+    listFavoriteIds: vi.fn().mockResolvedValue([]),
+    favorite: vi.fn().mockResolvedValue(undefined),
+    unfavorite: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -37,6 +47,9 @@ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: 
 import Photos from '../Photos.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
+import { useLightbox } from '../../photos/lightbox/useLightbox'
+
+const lb = useLightbox()
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -73,10 +86,12 @@ beforeEach(() => {
   svc.photos.getStatus.mockClear().mockResolvedValue({})
   svc.photos.listTasks.mockClear().mockResolvedValue({ tasks: [] })
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
+  lb.__resetForTest()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  lb.__resetForTest()
 })
 
 describe('Photos.vue integration', () => {
@@ -278,7 +293,9 @@ describe('Photos.vue integration', () => {
     expect(showSpy).not.toHaveBeenCalled()
   })
 
-  it('tile open 是空 handler(P1 不弹灯箱)', async () => {
+  // P1 时是空 handler;P2(Task 9)起真的接了灯箱 —— 细节(翻页集按 tab 过滤/删除/toast)
+  // 见专门的 Photos.lightbox.test.ts,这里只做冒烟:点开不炸、灯箱状态确实翻转。
+  it('点开一张图 → 灯箱打开(P2 已接线)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
@@ -287,5 +304,7 @@ describe('Photos.vue integration', () => {
     const tile = w.find('.tile')
     expect(tile.exists()).toBe(true)
     await expect(tile.trigger('click')).resolves.not.toThrow()
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
   })
 })

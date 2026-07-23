@@ -51,7 +51,24 @@ const THREE = [IMG_A, IMG_B, IMG_C]
 let wrapper: VueWrapper | null = null
 function mountLb(): VueWrapper {
   wrapper = mount(PhotoLightbox, {
-    global: { stubs: { PhotoImageViewer: { name: 'PhotoImageViewer', template: '<div class="stub-viewer" />' } } },
+    global: {
+      stubs: {
+        PhotoImageViewer: { name: 'PhotoImageViewer', template: '<div class="stub-viewer" />' },
+        // Task 9 起 PhotoLightbox 真挂了 T7/T8 —— 本文件只测灯箱壳(开合/翻页/收藏/删除/
+        // chrome 自隐等),详情栏/缩略图条各自的行为在 PhotoInfoPanel.test.ts / PhotoFilmstrip.test.ts
+        // 覆盖。stub 保留 visible 门控 + class="lb-info",维持既有「详情开关」断言不变。
+        PhotoInfoPanel: {
+          name: 'PhotoInfoPanel',
+          props: ['photo', 'visible'],
+          template: '<aside v-if="visible" class="lb-info" />',
+        },
+        PhotoFilmstrip: {
+          name: 'PhotoFilmstrip',
+          props: ['list', 'index'],
+          template: '<div class="stub-filmstrip" />',
+        },
+      },
+    },
   })
   return wrapper
 }
