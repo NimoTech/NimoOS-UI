@@ -132,7 +132,7 @@ describe('Photos.vue integration', () => {
     expect(w.findAll('.tile')).toHaveLength(2)
   })
 
-  it('批量删除:grid batch-delete → store.deleteAssets → notify photosDeletedToast → 清空 selected', async () => {
+  it('批量删除:top PhotosSelectionToolbar delete → store.deleteAssets → notify photosDeletedToast → 清空 selected', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     const toast = useToast()
@@ -142,22 +142,53 @@ describe('Photos.vue integration', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    // Select both tiles via their checkbox, then trigger the selectbar's delete button.
-    const checkboxes = w.findAll('.tile-checkbox')
+    // Selection toolbar absent until something is selected.
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
+
+    // Select both tiles via their native checkbox (Files-region pattern, P1 restyle).
+    const checkboxes = w.findAll('.tile-check-box')
     expect(checkboxes).toHaveLength(2)
-    await checkboxes[0].trigger('click')
-    await checkboxes[1].trigger('click')
+    await checkboxes[0].trigger('change')
+    await checkboxes[1].trigger('change')
     await w.vm.$nextTick()
 
-    const deleteBtn = w.find('.selectbar-btn[data-danger="true"]')
+    // Bar now lives at the TOP of the content, styled like Files' SelectionToolbar.
+    const bar = w.find('.selection-toolbar')
+    expect(bar.exists()).toBe(true)
+    const deleteBtn = bar.find('.sel-delete')
     expect(deleteBtn.exists()).toBe(true)
+    expect(deleteBtn.classes()).toContain('danger')
     await deleteBtn.trigger('click')
     await flushPromises()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a', 'b'])
     // 4000ms duration (Fix 7, aligned with Vue2's delete/task-done toast duration).
     expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('2'), 4000)
-    expect(w.find('.selectbar').exists()).toBe(false) // selected cleared -> selectbar gone
+    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected cleared -> bar gone
+  })
+
+  it('顶部选择栏出现在 PhotosToolbar 之上(DOM 顺序)', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.get('.tile-check-box').trigger('change')
+    await w.vm.$nextTick()
+
+    const main = w.find('.photos-main')
+    const html = main.html()
+    const barIdx = html.indexOf('selection-toolbar')
+    const toolbarIdx = html.indexOf('photos-toolbar')
+    expect(barIdx).toBeGreaterThan(-1)
+    expect(toolbarIdx).toBeGreaterThan(-1)
+    expect(barIdx).toBeLessThan(toolbarIdx)
+
+    // Clear button in the top bar cancels the selection.
+    await w.get('.sel-clear').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
   it('socket connect → 重同步 fetchTasks/fetchIndexStatus/fetchTimeline', async () => {

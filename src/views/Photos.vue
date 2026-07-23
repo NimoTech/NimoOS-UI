@@ -15,6 +15,7 @@ import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
+import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -132,6 +133,12 @@ onUnmounted(() => {
           <div class="photos-summary">
             {{ t('photosCountSummary', { photos: store.photoCount, videos: store.videoCount }) }}
           </div>
+          <PhotosSelectionToolbar
+            v-if="selected.length"
+            :count="selected.length"
+            @clear="cancelSelection"
+            @delete="onBatchDelete([...selected])"
+          />
           <PhotosToolbar
             :tab="tab" :density="density" :count="filteredCount"
             @update:tab="tab = $event" @update:density="density = $event"
@@ -141,8 +148,6 @@ onUnmounted(() => {
               :months="store.months" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
               @toggle-select="toggleSelect"
-              @batch-delete="onBatchDelete"
-              @cancel="cancelSelection"
             />
           </div>
         </template>

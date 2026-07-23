@@ -40,8 +40,6 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'open', photo: Photo, list: undefined, startMs: number): void
   (e: 'toggle-select', id: string | number): void
-  (e: 'batch-delete', ids: Array<string | number>): void
-  (e: 'cancel'): void
 }>()
 
 const { t } = useI18n()
@@ -132,7 +130,6 @@ function onScroll() {
 // ─── selection ───────────────────────────────────────────────────────────
 function isSelected(id: string | number): boolean { return props.selected.includes(id) }
 function toggleSelect(id: string | number) { emit('toggle-select', id) }
-function onBatchDelete() { emit('batch-delete', [...props.selected]) }
 
 function onTileClick(p: Photo) {
   if (selecting.value) { toggleSelect(p.id); return }
@@ -295,9 +292,15 @@ onBeforeUnmount(() => {
                   :video-src="hoverVideoSrc"
                   :scrub-ratio="scrubRatio"
                 />
-                <div class="tile-checkbox" @click.stop="toggleSelect(p.id)">
-                  <span class="check-mark">✓</span>
-                </div>
+                <span class="tile-check">
+                  <input
+                    type="checkbox"
+                    class="tile-check-box"
+                    :checked="isSelected(p.id)"
+                    @click.stop
+                    @change="toggleSelect(p.id)"
+                  />
+                </span>
                 <div v-if="p.isVideo" class="tile-vid">
                   <span class="vid-play">▶</span> {{ p.duration }}
                 </div>
@@ -324,12 +327,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
-
-    <div v-if="selecting" class="selectbar">
-      <div class="selectbar-count">{{ t('photosSelectedCount', { count: selected.length }) }}</div>
-      <button class="selectbar-btn" data-danger="true" @click="onBatchDelete">{{ t('photosDelete') }}</button>
-      <button class="selectbar-btn" @click="emit('cancel')">{{ t('photosCancel') }}</button>
-    </div>
   </div>
 </template>
 
@@ -354,16 +351,9 @@ onBeforeUnmount(() => {
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
 
-.tile-checkbox {
-  position: absolute; top: 6px; left: 6px; z-index: 2;
-  width: 20px; height: 20px; border-radius: 999px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--chip-bg-hi); border: 1px solid var(--chip-border);
-  opacity: 0; transition: opacity .12s;
-}
-.tile:hover .tile-checkbox, .tile[data-selected="true"] .tile-checkbox { opacity: 1; }
-.tile[data-selected="true"] .tile-checkbox { background: var(--accent); border-color: var(--accent); }
-.check-mark { font-size: 11px; line-height: 1; color: var(--on-accent); }
+.tile-check { position: absolute; top: 6px; left: 6px; z-index: 2; }
+.tile-check-box { opacity: 0; cursor: pointer; }
+.tile:hover .tile-check-box, .tile[data-selected="true"] .tile-check-box { opacity: 1; }
 
 .tile-vid {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;
@@ -393,18 +383,4 @@ onBeforeUnmount(() => {
   padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600;
   background: var(--accent); color: var(--on-accent);
 }
-
-.selectbar {
-  position: sticky; bottom: 0; left: 0; right: 0; z-index: 5;
-  display: flex; align-items: center; gap: 10px; margin-top: 8px;
-  padding: 10px 14px; border-radius: var(--radius-sm);
-  background: var(--panel-bg); border: 1px solid var(--card-border);
-  box-shadow: var(--panel-shadow); backdrop-filter: var(--blur);
-  color: var(--fg);
-}
-.selectbar-count { font-size: 13px; color: var(--fg-muted); margin-right: auto; }
-.selectbar-btn { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px; }
-.selectbar-btn:hover { background: var(--chip-bg-hi); }
-.selectbar-btn[data-danger="true"] { color: var(--remove-fg); border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent); }
-.selectbar-btn[data-danger="true"]:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
 </style>

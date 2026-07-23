@@ -5,7 +5,11 @@
 //  - spriteMeta resolves { frames, durationMs, frameW, frameH } directly (no
 //    {ok,stale,url} envelope) — the component itself must guard staleness via
 //    hoverToken, matching Vue2's loadSpriteMeta semantics.
-//  - selectbar renders ONLY delete + cancel (favorite/album/ask-nimo cut to P3/P4/SP8).
+//  - P1 restyle (SP7 acceptance feedback): per-tile checkbox is now the
+//    Files-region native-checkbox pattern (`.tile-check`/`.tile-check-box`),
+//    and the selection action bar moved out of this component entirely — it
+//    now lives in the parent as PhotosSelectionToolbar.vue, so this component
+//    no longer emits batch-delete/cancel.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -93,10 +97,28 @@ describe('PhotosGrid', () => {
     expect(w.get('img').attributes('src')).toBe('mock://thumb/a/small')
   })
 
-  it('clicking the tile checkbox emits toggle-select with the photo id, not open', async () => {
+  it('the tile checkbox is a native <input type="checkbox"> (Files-region pattern), not a custom check-mark', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-    await w.get('.tile-checkbox').trigger('click')
+    const box = w.get('.tile-check-box')
+    expect(box.element.tagName).toBe('INPUT')
+    expect(box.attributes('type')).toBe('checkbox')
+    expect(w.find('.check-mark').exists()).toBe(false)
+    expect(w.find('.tile-checkbox').exists()).toBe(false)
+  })
+
+  it('the checkbox reflects the selected prop via :checked', () => {
+    const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
+    const boxes = w.findAll('.tile-check-box')
+    expect((boxes[0].element as HTMLInputElement).checked).toBe(false)
+    expect((boxes[1].element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('changing the tile checkbox emits toggle-select with the photo id, not open, and does not bubble to the tile click handler', async () => {
+    const months = [month('2026-07', 'July 2026', [photo('a')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+    await w.get('.tile-check-box').trigger('change')
     expect(w.emitted('toggle-select')?.[0]).toEqual(['a'])
     expect(w.emitted('open')).toBeUndefined()
   })
@@ -119,27 +141,11 @@ describe('PhotosGrid', () => {
     expect(evt?.[2]).toBe(0)
   })
 
-  it('selectbar is absent when nothing is selected', () => {
-    const months = [month('2026-07', 'July 2026', [photo('a')])]
-    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-    expect(w.find('.selectbar').exists()).toBe(false)
-  })
-
-  it('selectbar renders exactly two buttons (delete, cancel); delete emits a COPY of the selected ids', async () => {
+  it('PhotosGrid no longer renders any selection action bar itself (moved to the parent as PhotosSelectionToolbar)', () => {
     const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
-    const selected = ['a', 'b']
-    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected } })
-    const bar = w.get('.selectbar')
-    const buttons = bar.findAll('button')
-    expect(buttons).toHaveLength(2)
-
-    await buttons[0].trigger('click')
-    const emittedIds = w.emitted('batch-delete')?.[0]?.[0] as unknown[]
-    expect(emittedIds).toEqual(['a', 'b'])
-    expect(emittedIds).not.toBe(selected) // must be a copy, not the same array reference
-
-    await buttons[1].trigger('click')
-    expect(w.emitted('cancel')).toBeTruthy()
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['a', 'b'] } })
+    expect(w.find('.selectbar').exists()).toBe(false)
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
   it('hovering a video tile for less than 300ms and leaving never calls spriteMeta (debounce)', async () => {
