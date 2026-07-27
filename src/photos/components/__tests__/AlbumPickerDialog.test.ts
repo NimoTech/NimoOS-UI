@@ -154,6 +154,22 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
+  it('createAlbum 抛无 response 字段但 message 含 409 的错误 → 仍判定为重名(brief 的 message 兜底)', async () => {
+    svc.photos.createAlbum.mockRejectedValueOnce(new Error('request failed with status code 409'))
+    const w = mountDialog({ open: true, assetIds: ['a1'] })
+    await flushPromises()
+    const toast = useToast()
+
+    await w.get('[data-test="album-picker-new"]').trigger('click')
+    const input = w.get('[data-test="album-picker-new-input"]')
+    await input.setValue('Trip')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(toast.toasts[0]!.text).toBe(zh.photosAlbumNameExists)
+    expect(toast.toasts[0]!.text).not.toBe(zh.photosAlbumCreateFailed)
+  })
+
   it('相册列表为空 → 渲染 photosAddToAlbumEmpty,「新建」行仍在', async () => {
     svc.photos.listAlbums.mockResolvedValue([])
     const w = mountDialog({ open: true, assetIds: ['a1'] })
@@ -164,7 +180,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.find('[data-test="album-picker-new"]').exists()).toBe(true)
   })
 
-  it('assetIds 为空 → 相册项 disabled,点击不触发 store', async () => {
+  it('assetIds 为空 → 相册项 disabled,点击不触发 store;「+ 新建相册」入口同样 disabled(避免建了相册却无反馈)', async () => {
     const w = mountDialog({ open: true, assetIds: [] })
     await flushPromises()
 
@@ -176,21 +192,43 @@ describe('AlbumPickerDialog.vue', () => {
     await items[0]!.trigger('click')
     await flushPromises()
     expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalled()
+
+    const newBtn = w.get<HTMLButtonElement>('[data-test="album-picker-new"]')
+    expect(newBtn.element.disabled).toBe(true)
+    await newBtn.trigger('click')
+    await flushPromises()
+    expect(svc.photos.createAlbum).not.toHaveBeenCalled()
+    expect(w.find('[data-test="album-picker-new-input"]').exists()).toBe(false)
   })
 
-  it('Esc 分层:输入展开时先收起输入行,再次 Esc 才关闭面板', async () => {
+  // 焦点在真实使用中大概率不落在面板 DOM 子树内(用户从触发按钮打开面板、不点面板内部
+  // 直接按 Esc),所以必须在 document 上派发 keydown 才是真的场景——绝不在 overlay/input
+  // 元素上 .trigger('keydown'),那只测得到"元素恰好持有焦点"这个不成立的前提。
+  it('Esc 分层(document 级派发,不依赖真实焦点):输入展开时先收起输入行,再次 Esc 才关闭面板', async () => {
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
     await w.get('[data-test="album-picker-new"]').trigger('click')
     expect(w.find('[data-test="album-picker-new-input"]').exists()).toBe(true)
 
-    const input = w.get('[data-test="album-picker-new-input"]')
-    await input.trigger('keydown', { key: 'Escape' })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
     expect(w.find('[data-test="album-picker-new-input"]').exists()).toBe(false)
     expect(w.emitted('update:open')).toBeUndefined()
 
-    await w.get('[data-test="album-picker-overlay"]').trigger('keydown', { key: 'Escape' })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
     expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('面板关闭(open===false)后 Esc 不再有任何效果(监听已摘除)', async () => {
+    const w = mountDialog({ open: true, assetIds: ['a1'] })
+    await flushPromises()
+    await w.setProps({ open: false })
+    await flushPromises()
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(w.emitted('update:open')).toBeUndefined()
   })
 
   it('封面缺失时不调用 thumbnailUrl(渲染渐变占位而非拼 URL)', async () => {

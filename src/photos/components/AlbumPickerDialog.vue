@@ -10,7 +10,7 @@
 // 关键与 Vue2 的语义差异(brief 明确、非疏漏):失败路径不关闭面板 —— Vue2 的
 // createAndPickAlbum 只 console.error 吞掉异常,本组件改为 toast 失败文案且保持面板打开
 // (含新建输入行保留内容),这样用户能看到失败原因并重试,而不是静默无反应。
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosAlbums } from '../stores/albums'
@@ -37,10 +37,29 @@ function sameId(a: string | number, b: string | number): boolean {
 }
 
 const views = computed(() => albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))))
+// assetIds 为空时不但已有相册项要 disabled(brief 明确要求),「+ 新建相册」入口也同样
+// disabled——否则 createAlbum 这个有持久副作用的操作会执行(真建了个相册),但紧接着的
+// pick() 被这同一个 canSubmit 短路掉,用户对着还在的输入行毫无反馈(评审 Minor 2)。
 const canSubmit = computed(() => props.assetIds.length > 0)
 
 function thumb(cover: string | number): string {
   return service.photos.thumbnailUrl(cover, 'small')
+}
+
+function close(): void {
+  emit('update:open', false)
+}
+
+// Esc 分层,document 级监听(不用模板 @keydown.esc)—— 评审指出的功能性 bug:模板绑定的
+// keydown 依赖真实 DOM 焦点落在 overlay/input 上,但用户从面板外的触发按钮打开面板、不点
+// 面板内部直接按 Esc 时,焦点还停在触发按钮上,事件永远到不了 overlay,面板就关不掉;第一次
+// Esc 收起输入行后 input 被 v-else 卸载、焦点回落到 body,第二次 Esc 同样断链。照
+// PhotosSidebar.vue:22-27 / PhotoLightbox.vue:119-140 的既有范式改为 document 监听,
+// 由 watch(open) 负责挂/摘,onUnmounted 兜底摘干净。
+function onDocumentKeydown(e: KeyboardEvent): void {
+  if (e.key !== 'Escape') return
+  if (creating.value) cancelCreate()
+  else close()
 }
 
 // 照 Vue2 onBatchAlbum:584 —— 打开前刷新相册列表;Vue2 未 await 不阻塞渲染,这里同样。
@@ -51,23 +70,16 @@ watch(
   (isOpen) => {
     if (isOpen) {
       void albums.fetchAlbums()
+      document.addEventListener('keydown', onDocumentKeydown)
     } else {
       creating.value = false
       newName.value = ''
+      document.removeEventListener('keydown', onDocumentKeydown)
     }
   },
   { immediate: true },
 )
-
-function close(): void {
-  emit('update:open', false)
-}
-
-// Esc 分层:overlay 上的 @keydown.esc 只在事件冒泡到这一层时触发——内联输入行自己的
-// @keydown.esc.stop 会先消费掉这次按键(收起输入),不会再冒泡到这里关闭整面板。
-function onOverlayEsc(): void {
-  close()
-}
+onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
 async function pick(albumId: string | number): Promise<void> {
   if (!canSubmit.value) return
@@ -95,12 +107,16 @@ function cancelCreate(): void {
   creating.value = false
 }
 
-// 判断 409(重名):对未知形状的异常安全——不假设 e 一定带 response,避免二次抛错。
+// 判断 409(重名):brief 要求 `e?.response?.status === 409` 或 message 含 409——对未知形状
+// 的异常安全,不假设 e 一定带 response/message,避免二次抛错。
 function isConflict(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
   const response = (e as { response?: unknown }).response
-  if (!response || typeof response !== 'object') return false
-  return (response as { status?: unknown }).status === 409
+  if (response && typeof response === 'object' && (response as { status?: unknown }).status === 409) {
+    return true
+  }
+  const message = (e as { message?: unknown }).message
+  return /409/.test(String(message ?? ''))
 }
 
 async function submitCreate(): Promise<void> {
@@ -123,9 +139,7 @@ async function submitCreate(): Promise<void> {
     v-if="open"
     class="alb-picker-overlay"
     data-test="album-picker-overlay"
-    tabindex="-1"
     @click.self="close"
-    @keydown.esc="onOverlayEsc"
   >
     <div class="alb-picker-panel">
       <div class="alb-picker-head">
@@ -157,14 +171,16 @@ async function submitCreate(): Promise<void> {
           </span>
         </button>
 
-        <div
+        <button
           v-if="!creating"
+          type="button"
           class="alb-picker-item alb-picker-new"
           data-test="album-picker-new"
+          :disabled="!canSubmit"
           @click="startCreate"
         >
           {{ t('photosAddToAlbumNew') }}
-        </div>
+        </button>
         <div v-else class="alb-picker-new-row">
           <input
             ref="newInputRef"
@@ -173,7 +189,6 @@ async function submitCreate(): Promise<void> {
             class="alb-picker-new-input"
             data-test="album-picker-new-input"
             @keydown.enter="submitCreate"
-            @keydown.esc.stop="cancelCreate"
           >
         </div>
       </div>
