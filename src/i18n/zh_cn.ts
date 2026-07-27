@@ -664,4 +664,6 @@ export default {
   aiProcTool: '工具',
   aiProcNoDetails: '无详情',
   aiTimelineYou: '你',
+  // SP8-P1c1 Task 6 — ContextUsageBar(上下文占用环)
+  aiCtxLabel: '上下文',
 }

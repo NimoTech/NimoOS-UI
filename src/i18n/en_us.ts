@@ -664,4 +664,6 @@ export default {
   aiProcTool: 'Tool',
   aiProcNoDetails: 'No details',
   aiTimelineYou: 'You',
+  // SP8-P1c1 Task 6 — ContextUsageBar (context usage ring)
+  aiCtxLabel: 'Context',
 }
