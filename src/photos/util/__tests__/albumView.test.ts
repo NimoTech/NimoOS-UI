@@ -34,14 +34,17 @@ describe('albumToView', () => {
 describe('sortAlbums', () => {
   const V = (id: string, title: string, count: number, createdAt: string | null, dateEnd: string | null) =>
     ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '' })
-  const list = [V('a', 'Beta', 3, '2025-01-01', '2024-05-01'), V('b', 'Alpha', 9, '2026-01-01', '2026-09-01'), V('c', 'Gamma', 1, null, null)]
+  // a/b 在 createdAt 与 dateEnd 上名次互换(仿 sortAlbumPhotos 夹具的手法),
+  // 让 'created' 与 'date' 两个分支产生不同排序结果 —— 若未来 'date' 分支被
+  // 误改回读 createdAt,这里必须挂红。
+  const list = [V('a', 'Beta', 3, '2026-01-01', '2024-01-01'), V('b', 'Alpha', 9, '2025-01-01', '2026-01-01'), V('c', 'Gamma', 1, null, null)]
 
   it('name 正序 / name-r 逆序', () => {
     expect(sortAlbums(list, 'name').map((x) => x.title)).toEqual(['Alpha', 'Beta', 'Gamma'])
     expect(sortAlbums(list, 'name-r').map((x) => x.title)).toEqual(['Gamma', 'Beta', 'Alpha'])
   })
   it('count 降序', () => { expect(sortAlbums(list, 'count').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
-  it('created 按 createdAt 降序,缺失记 0 排最后', () => { expect(sortAlbums(list, 'created').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
+  it('created 按 createdAt 降序,缺失记 0 排最后', () => { expect(sortAlbums(list, 'created').map((x) => x.id)).toEqual(['a', 'b', 'c']) })
   it('date 按 dateEnd 降序(不是 createdAt),缺失排最后', () => { expect(sortAlbums(list, 'date').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
   it('updated / 未知值 → 原序', () => {
     expect(sortAlbums(list, 'updated').map((x) => x.id)).toEqual(['a', 'b', 'c'])
