@@ -23,6 +23,10 @@ export const useStorageStore = defineStore('storage', () => {
   const unmounting = ref(false)
   const creating = ref(false)
   const formatting = ref(false)
+  const raidCreating = ref(false)
+  const raidRemoving = ref(false)
+  const raidReplacing = ref(false)
+  const raidRecovering = ref(false)
   const t = i18n.global.t
 
   async function loadVolumes() {
@@ -187,6 +191,92 @@ export const useStorageStore = defineStore('storage', () => {
   function startCreateTask(task: RaidTask) { clearTimeout(clearTimer); creatingTask.value = task } // P4 向导用
   function dismissCreateTask() { clearTimeout(clearTimer); creatingTask.value = null }
 
+  // 创建:成功后不在此刷新列表(阵列进"创建中"任务流,由 startCreateTask + 轮询接管),
+  // 从响应取 task 供向导调 startCreateTask。
+  async function createRaid(body: {
+    name: string; level: number; disk_paths: string[]
+    chunk_kb: 512; filesystem: 'btrfs' | 'ext4'; enable_snapshots: boolean
+  }): Promise<RaidTask | null> {
+    if (raidCreating.value) return null
+    raidCreating.value = true
+    const toast = useToast()
+    try {
+      const res = (await service.raid.create(body)) as { data?: { task_id?: string } } | undefined
+      const taskId = res?.data?.task_id
+      // 用请求信息 + task_id 组装 creatingTask(step 未知先给初值,轮询会填)
+      const task: RaidTask = {
+        taskId: taskId ?? '', name: body.name, level: body.level,
+        filesystem: body.filesystem, diskCount: body.disk_paths.length,
+        step: 0, stepName: '', progress: 0, elapsedSeconds: 0, error: '', status: 'creating',
+      }
+      return task
+    } catch (e) {
+      console.warn('[storage] raid create failed', (e as Error)?.message)
+      toast.show(t('raidCreateFailedToast'))
+      return null
+    } finally {
+      raidCreating.value = false
+    }
+  }
+
+  async function removeRaid(id: number | string): Promise<boolean> {
+    if (raidRemoving.value) return false
+    raidRemoving.value = true
+    const toast = useToast()
+    let ok = false
+    try {
+      await service.raid.remove(id)
+      toast.show(t('raidRemoveSuccess'))
+      ok = true
+    } catch (e) {
+      console.warn('[storage] raid remove failed', (e as Error)?.message)
+      toast.show(t('raidRemoveFailed'))
+    } finally {
+      await loadRaid()
+      raidRemoving.value = false
+    }
+    return ok
+  }
+
+  async function replaceRaidDisk(id: number | string, body: { old_disk_path: string; new_disk_path: string }): Promise<boolean> {
+    if (raidReplacing.value) return false
+    raidReplacing.value = true
+    const toast = useToast()
+    let ok = false
+    try {
+      await service.raid.replaceDisk(id, body)
+      toast.show(t('raidReplaceSuccess'))
+      ok = true
+    } catch (e) {
+      console.warn('[storage] raid replace failed', (e as Error)?.message)
+      toast.show(t('raidReplaceFailed'))
+    } finally {
+      await loadRaid()
+      raidReplacing.value = false
+    }
+    return ok
+  }
+
+  async function recoverRaid(id: number | string): Promise<{ state: string } | null> {
+    if (raidRecovering.value) return null
+    raidRecovering.value = true
+    const toast = useToast()
+    try {
+      const res = (await service.raid.recover(id)) as { data?: { data?: { state?: string } } } | undefined
+      const state = res?.data?.data?.state ?? 'retrying'
+      if (state === 'active' || state === 'degraded' || state === 'rebuilding') toast.show(t('raidRecoverSuccess'))
+      else toast.show(t('raidRecoverFailed'))
+      await loadRaid()
+      return { state }
+    } catch (e) {
+      console.warn('[storage] raid recover failed', (e as Error)?.message)
+      toast.show(t('raidRecoverFailed'))
+      return null
+    } finally {
+      raidRecovering.value = false
+    }
+  }
+
   async function pollCreateTaskOnce() {
     const cur = creatingTask.value
     if (!cur) return
@@ -233,6 +323,10 @@ export const useStorageStore = defineStore('storage', () => {
     formatting,
     unmounting,
     creatingTask,
+    raidCreating,
+    raidRemoving,
+    raidReplacing,
+    raidRecovering,
     loadVolumes,
     loadDrives,
     loadAll,
@@ -245,5 +339,9 @@ export const useStorageStore = defineStore('storage', () => {
     pollCreateTaskOnce,
     startCreateTask,
     dismissCreateTask,
+    createRaid,
+    removeRaid,
+    replaceRaidDisk,
+    recoverRaid,
   }
 })

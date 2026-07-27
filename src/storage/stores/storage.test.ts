@@ -11,6 +11,10 @@ const getDiskList = vi.fn()
 const umount = vi.fn()
 const createMock = vi.fn()
 const formatMock = vi.fn()
+const raidCreateMock = vi.fn()
+const raidRemoveMock = vi.fn()
+const raidReplaceDiskMock = vi.fn()
+const raidRecoverMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     storage: {
@@ -24,6 +28,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
       getUsage: (...a: unknown[]) => raidGetUsage(...a),
       listTasks: (...a: unknown[]) => listTasks(...a),
       getTask: (...a: unknown[]) => getTask(...a),
+      create: (...a: unknown[]) => raidCreateMock(...a),
+      remove: (...a: unknown[]) => raidRemoveMock(...a),
+      replaceDisk: (...a: unknown[]) => raidReplaceDiskMock(...a),
+      recover: (...a: unknown[]) => raidRecoverMock(...a),
     },
     disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
   },
@@ -394,5 +402,65 @@ describe('创建任务检测/轮询', () => {
     await store.detectCreatingTask()
     store.dismissCreateTask()
     expect(store.creatingTask).toBeNull()
+  })
+})
+
+describe('RAID 写 action', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('createRaid 发 POST body 逐字 {name,level,disk_paths,chunk_kb:512,filesystem,enable_snapshots};单飞守卫', async () => {
+    raidCreateMock.mockResolvedValue({ data: { task_id: 't1' } })
+    const s = useStorageStore()
+    const body = { name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb', '/dev/sdc'], chunk_kb: 512 as const, filesystem: 'btrfs' as const, enable_snapshots: true }
+    const p1 = s.createRaid(body)
+    const p2 = s.createRaid(body) // 并发第二发被守卫吞掉
+    const [r1, r2] = await Promise.all([p1, p2])
+    expect(raidCreateMock).toHaveBeenCalledTimes(1)
+    expect(raidCreateMock).toHaveBeenCalledWith(body)
+    expect(r2).toBeNull() // 单飞:第二发直接 null
+    expect(r1).not.toBeNull()
+    expect(s.raidCreating).toBe(false) // finally 释放
+  })
+
+  it('createRaid 失败 → 返回 null、warn 只记 message、busy 复位', async () => {
+    raidCreateMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const s = useStorageStore()
+    const r = await s.createRaid({ name: 'a', level: 0, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'ext4', enable_snapshots: false })
+    expect(r).toBeNull()
+    expect(warn).toHaveBeenCalled()
+    // 断言日志不带整个 error 对象(不含 config)
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
+    expect(s.raidCreating).toBe(false)
+    warn.mockRestore()
+  })
+
+  it('removeRaid 发 DELETE {id} 无 body;成功 loadRaid 刷新、返回 true', async () => {
+    raidRemoveMock.mockResolvedValue(undefined)
+    raidList.mockResolvedValue([]) // loadRaid 内部
+    const s = useStorageStore()
+    const ok = await s.removeRaid(7)
+    expect(raidRemoveMock).toHaveBeenCalledWith(7)
+    expect(raidRemoveMock).toHaveBeenCalledTimes(1)
+    expect(raidList).toHaveBeenCalled() // 刷新发生
+    expect(ok).toBe(true)
+  })
+
+  it('replaceRaidDisk 发 POST(id, {old_disk_path,new_disk_path}) 逐字', async () => {
+    raidReplaceDiskMock.mockResolvedValue(undefined)
+    raidList.mockResolvedValue([])
+    const s = useStorageStore()
+    const ok = await s.replaceRaidDisk(3, { old_disk_path: '/dev/sdb', new_disk_path: '/dev/sdd' })
+    expect(raidReplaceDiskMock).toHaveBeenCalledWith(3, { old_disk_path: '/dev/sdb', new_disk_path: '/dev/sdd' })
+    expect(ok).toBe(true)
+  })
+
+  it('recoverRaid 返回后端 data.state', async () => {
+    raidRecoverMock.mockResolvedValue({ data: { data: { state: 'rebuilding' } } })
+    raidList.mockResolvedValue([])
+    const s = useStorageStore()
+    const r = await s.recoverRaid(9)
+    expect(raidRecoverMock).toHaveBeenCalledWith(9)
+    expect(r).toEqual({ state: 'rebuilding' })
   })
 })
