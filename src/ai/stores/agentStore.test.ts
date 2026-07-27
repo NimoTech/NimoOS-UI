@@ -12,6 +12,8 @@ const svc = vi.hoisted(() => ({
   listProviders: vi.fn(),
   cancelAgentRun: vi.fn(),
   confirmAgentAction: vi.fn(),
+  listVisibleResources: vi.fn(),
+  listAttachments: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
 
