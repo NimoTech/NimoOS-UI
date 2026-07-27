@@ -15,7 +15,7 @@ export interface RaidDisk {
 
 export type RaidRole = 'data' | 'mirror' | 'parity' | 'parity2'
 
-export interface RaidLevelInfo {
+export interface RaidLevelSpec {
   id: number
   name: string
   min: number
@@ -29,7 +29,7 @@ export interface RaidLevelInfo {
   layout: (n: number) => RaidRole[]
 }
 
-export const RAID_LEVELS: RaidLevelInfo[] = [
+export const RAID_LEVELS: RaidLevelSpec[] = [
   {
     id: 0,
     name: 'RAID 0',
