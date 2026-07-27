@@ -2,8 +2,11 @@
 // 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue 的对应片段(见组件顶部注释)。
 // 附件上传管线(Task 10)与 @mention/slash 接线(Task 11)不在本任务范围,测试用例
 // 逐字取自 .superpowers/sdd/p1c1-task-9-brief.md Step 1。
+//
+// SP8-P1c1 Task 10 —— 附件管线 describe 块追加自 p1c1-task-10-brief.md Step 1
+// (逐字取自 brief,未改动断言)。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -82,5 +85,107 @@ describe('AgentComposer 骨架', () => {
     // toast store 里应有一条
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
+  })
+})
+
+describe('AgentComposer 附件管线', () => {
+  beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
+
+  const pickFiles = async (w: any, files: File[]) => {
+    const input = w.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: files, configurable: true })
+    await input.trigger('change')
+  }
+
+  it('无会话时先建会话再上传,成功后 chip 显示已上传', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'createSession').mockImplementation(async () => { store.activeSessionId = 'sess-new' })
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'image', mime: 'image/png' })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'p.png', { type: 'image/png' })])
+    await flushPromises()
+    expect(store.createSession).toHaveBeenCalled()
+    expect(svc.uploadAttachment).toHaveBeenCalledWith('sess-new', expect.any(File), expect.objectContaining({ onProgress: expect.any(Function) }))
+    expect(w.find('.ctx-chip-att').text()).toContain('p.png')
+  })
+
+  it('超过 500MB 直接拒绝、不发请求、给 toast', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    const big = new File(['x'], 'big.bin')
+    Object.defineProperty(big, 'size', { value: 500 * 1024 * 1024 + 1 })
+    const w = mountComposer()
+    await pickFiles(w, [big])
+    await flushPromises()
+    expect(svc.uploadAttachment).not.toHaveBeenCalled()
+    const { useToast } = await import('../../../stores/toast')
+    expect(useToast().toasts.length).toBe(1)
+  })
+
+  it('上传中 chip 显示百分比,且 canSend 为假', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    let emit!: (p: number) => void
+    svc.uploadAttachment.mockImplementation((_s: any, _f: any, o: any) => new Promise((res) => { emit = o.onProgress; setTimeout(() => res({ id: 'a1', kind: 'text' }), 0) }))
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.txt')])
+    emit(42); await w.vm.$nextTick()
+    expect(w.find('.ctx-chip-prog').text()).toContain('42')
+    await w.find('textarea').setValue('hi')
+    expect(w.find('.send-btn').attributes('disabled')).toBeDefined()   // 上传中禁发
+  })
+
+  it('上传失败 chip 标失败态', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockRejectedValue({ response: { data: { detail: 'nope' } } })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.txt')])
+    await flushPromises()
+    expect(w.find('.ctx-chip-att.is-failed').exists()).toBe(true)
+  })
+
+  it('文档抽取报错时 chip 出警告角标', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'document', meta: { extract_error: 'timeout' } })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.pdf')])
+    await flushPromises()
+    expect(w.find('.ctx-chip-att.is-doc-warn').exists()).toBe(true)
+  })
+
+  it('删除已上传附件:调 deleteAttachment 并移除 chip', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'text' })
+    svc.deleteAttachment.mockResolvedValue({})
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.txt')])
+    await flushPromises()
+    await w.find('.ctx-chip-att .ctx-chip-x').trigger('click')
+    await flushPromises()
+    expect(svc.deleteAttachment).toHaveBeenCalledWith('sess-1', 'a1')
+    expect(w.find('.ctx-chip-att').exists()).toBe(false)
+  })
+
+  it('submit 带上 attachmentIds/attachmentRefs 并清空本地列表', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'image', mime: 'image/png' })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'p.png', { type: 'image/png' })])
+    await flushPromises()
+    await w.find('.send-btn').trigger('click')
+    expect(w.emitted('send')![0][0]).toEqual({
+      text: '', attachmentIds: ['a1'],
+      attachmentRefs: [{ id: 'a1', filename: 'p.png', kind: 'image', mime: 'image/png', url: '/raw' }],
+    })
+    expect(w.find('.ctx-chip-att').exists()).toBe(false)
+  })
+
+  it('切会话清空本地待发附件', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'text' })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.txt')])
+    await flushPromises()
+    store.activeSessionId = 'sess-2'
+    await w.vm.$nextTick()
+    expect(w.find('.ctx-chip-att').exists()).toBe(false)
   })
 })

@@ -708,4 +708,38 @@ export default {
   // helper shared by removeChip/pickItem/onBrowserPick, mapping to Vue2 en_US.json's
   // "Authorization failed: {msg}" key verbatim (not a "remove"-specific string).
   aiAuthFailed: 'Authorization failed: {msg}',
+  // SP8-P1c1 Task 10 — AgentComposer attachment pipeline. All English strings are
+  // the literal source text Vue2 passes to this.$t(...) (AgentComposer.vue) —
+  // en_US.json is an identity map (key === value) for these, so quoting the Vue2
+  // source verbatim is equivalent to reusing the shipped translation.
+  aiDocErrEmptyScanned: 'Appears to be a scanned document; text cannot be recognized. Please provide a text-based PDF or paste the content directly.',
+  aiDocErrEncrypted: 'PDF is encrypted and cannot be read. Please provide an unencrypted version.',
+  aiDocErrZipBomb: 'File is too large after decompression; read rejected.',
+  aiDocErrTimeout: 'Parse timed out; document may be too large or complex. Try splitting it before uploading.',
+  aiDocErrParseError: 'Cannot parse; file may be corrupted or in an unsupported format.',
+  aiDocErrSidecarWriteFailed: 'Server failed to cache extraction result; please re-upload.',
+  aiDocErrNotInstalled: 'Server is missing the required parser; contact your administrator.',
+  aiDocErrVanished: 'Extraction result has been lost; please re-upload.',
+  aiDocErrGeneric: 'Document extraction failed: {code}',
+  aiDocErrShortScannedDoc: 'Scanned doc',
+  aiDocErrShortEncrypted: 'Encrypted',
+  aiDocErrShortTooLarge: 'Too large',
+  aiDocErrShortTimedOut: 'Timed out',
+  aiDocErrShortParseFailed: 'Parse failed',
+  aiDocErrShortCacheFailed: 'Cache failed',
+  aiDocErrShortParserMissing: 'Parser missing',
+  aiDocErrShortLost: 'Lost',
+  aiDocErrShortParse: 'Parse failed',
+  aiDocOkExtracted: 'Extracted to Markdown; model can read contents',
+  aiDocPages: '{n} pages',
+  aiDocTruncated: 'Content truncated (too long)',
+  aiAttachHint1: 'Supported attachment types',
+  aiAttachHint2: '· Images: PNG / JPG / GIF / WebP / AVIF etc. (model reads images directly)',
+  aiAttachHint3: '· Documents: PDF / DOCX / XLSX / XLSM / PPTX (extracted to Markdown for model)',
+  aiAttachHint4: '· Video / Audio: metadata only (duration, resolution, codec)',
+  aiAttachHint5: 'Text / Code:',
+  aiAttachHint6: '· Other files can be uploaded but the model can only see the filename',
+  aiAttachHint7: 'Single file limit 500 MB, session total 50 files',
+  aiAttachTooLarge: '{name} exceeds 500 MB limit',
+  aiAttachSessionFailed: 'Failed to create session: {err}',
 }

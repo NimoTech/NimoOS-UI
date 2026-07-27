@@ -705,4 +705,49 @@ export default {
   // 三处共用的通用错误提示,对应 Vue2 zh_CN.json "Authorization failed: {msg}" 键
   // (译文"授权失败：{msg}"),不是"移除失败"专属文案。
   aiAuthFailed: '授权失败：{msg}',
+  // SP8-P1c1 Task 10 — AgentComposer 附件管线。以下中文全部逐字复用 Vue2 既有
+  // src/assets/lang/zh_CN.json 的既有译文(用与 Vue2 源码里 this.$t(...) 调用时
+  // 完全相同的英文字符串去查 zh_CN.json,取回对应中文),未在该文件里出现的键
+  // (仅 aiAttachSessionFailed 因 zh_CN.json 里实际键是 "Failed to create session:
+  // {err}" → "创建会话失败：{err}"，与 brief 建议的“建会话失败”不同，按“复用既有
+  // 译文优先”取 zh_CN.json 原文)。
+  //
+  // docErrorKey/docErrorShortKey(attachmentMeta.ts)的 8 长句 + 8 短标签 + 2 个
+  // 通用兜底键,对应 Vue2 docErrorLabel/docErrorShort 里的 8 组 code→label 映射
+  // (AgentComposer.vue:460-486)。
+  aiDocErrEmptyScanned: '看起来是扫描件，无法识别其中的文字。请提供文字版 PDF 或直接粘贴内容。',
+  aiDocErrEncrypted: 'PDF 已加密，无法读取。请提供未加密的版本。',
+  aiDocErrZipBomb: '文件解压后过大，已拒绝读取。',
+  aiDocErrTimeout: '解析超时，文档过大或过于复杂。请尝试切分后再上传。',
+  aiDocErrParseError: '无法解析，文件可能已损坏或格式异常。',
+  aiDocErrSidecarWriteFailed: '服务端缓存抽取结果失败，请重新上传。',
+  aiDocErrNotInstalled: '服务端缺少解析器，请联系管理员。',
+  aiDocErrVanished: '抽取结果已丢失，请重新上传。',
+  aiDocErrGeneric: '文档抽取失败：{code}',
+  aiDocErrShortScannedDoc: '扫描件',
+  aiDocErrShortEncrypted: '已加密',
+  aiDocErrShortTooLarge: '文件过大',
+  aiDocErrShortTimedOut: '解析超时',
+  aiDocErrShortParseFailed: '解析失败',
+  aiDocErrShortCacheFailed: '缓存失败',
+  aiDocErrShortParserMissing: '解析器缺失',
+  aiDocErrShortLost: '已丢失',
+  aiDocErrShortParse: '解析失败',
+  // docOkLabel(AgentComposer.vue:488-494)三段拼接文案。
+  aiDocOkExtracted: '已抽取为 Markdown，模型可读取内容',
+  aiDocPages: '{n} 页',
+  aiDocTruncated: '内容过长已截断',
+  // attachmentHint(AgentComposer.vue:234-244)七行,顺序与 Vue2 数组顺序一致。
+  aiAttachHint1: '支持的附件类型',
+  aiAttachHint2: '· 图片：PNG / JPG / GIF / WebP / AVIF 等（模型直接识图）',
+  aiAttachHint3: '· 文档：PDF / DOCX / XLSX / XLSM / PPTX（抽取成 Markdown 供模型阅读）',
+  aiAttachHint4: '· 视频 / 音频：仅读元数据（时长、分辨率、编码）',
+  aiAttachHint5: '文本/代码：',
+  aiAttachHint6: '· 其他文件可上传但模型只能看到文件名',
+  aiAttachHint7: '单文件上限 500 MB，会话累计 50 个',
+  // onFilesPicked(AgentComposer.vue:531-537,517-527)的两条 toast 文案,逐字复用
+  // zh_CN.json 既有译文(见上方注释——500MB 提示的既有译文实际写的是 "500MB"
+  // 无空格,与 zh_CN.json 保持一致而非按 brief 字面拼写)。
+  aiAttachTooLarge: '{name} 超过 500MB 上限',
+  aiAttachSessionFailed: '创建会话失败：{err}',
 }
