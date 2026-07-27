@@ -628,3 +628,118 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(false)
   })
 })
+
+// P1c1 验收补丁 Task 5(2026-07-27,验收第 2 轮 Item A)—— Esc 关闭 @ 面板缺少
+// slashDismissedText 那样的"关闭后不自动重开"记忆:type '@doc' → Esc → 点回输入
+// 框 → onFocus → syncMentionFromCaret → scanMention 重新发现同一个 @doc token,
+// 面板不请自开。用例逐字对应 brief Item A 1-4。
+describe('AgentComposer @提及面板 Esc 关闭记忆(P1c1 补丁验收第 2 轮 Item A)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((f: any) => f.mockClear?.())
+  })
+
+  it('1. Esc 关闭后重新聚焦不复活', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    expect(pop.props('open')).toBe(true)
+
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+
+    await ta.trigger('focus')
+    expect(pop.props('open')).toBe(false)
+  })
+
+  it('2. 关闭后文本变了才重开', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+
+    await ta.setValue('@docx')
+    expect(pop.props('open')).toBe(true)
+  })
+
+  it('3. 清空文本后重新打出全新 @ 词不会被旧记忆卡住', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+
+    await ta.setValue('')
+    await ta.setValue('@x')
+    expect(pop.props('open')).toBe(true)
+  })
+
+  it('4. 钻取过的词被 Esc 关闭后同样不复活;切会话重置记忆后新词仍可打开', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-1'
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@Dr')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    await pop.vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
+    await w.vm.$nextTick()
+    expect((ta.element as HTMLTextAreaElement).value).toBe('@Drive1/')
+
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+
+    await ta.trigger('focus')
+    expect(pop.props('open')).toBe(false)
+
+    store.activeSessionId = 'sess-2'
+    await w.vm.$nextTick()
+    await ta.setValue('@y')
+    expect(pop.props('open')).toBe(true)
+  })
+})
+
+// P1c1 验收补丁 Task 5(2026-07-27,验收第 2 轮 Item B)—— drillIn 的 nextTick 里
+// `el.focus()` 会同步再入 onFocus → syncMentionFromCaret(见文件头注释已有先例),
+// 若这次再入发生在 `el.setSelectionRange(caretPos, caretPos)` 之前,读到的 caret
+// 会是 DOM 赋值 `.value` 后浏览器默认落到的字符串末尾,而不是钻取应该落回的位置
+// ——token 后面还有文字时,这会把尾部文字错误地当成 mentionQuery。用例逐字对应
+// brief Item B。
+describe('AgentComposer drillIn 光标数学(P1c1 补丁验收第 2 轮 Item B)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((f: any) => f.mockClear?.())
+  })
+
+  it('钻取时 token 后面还有文字:query 不能被尾部文字污染', async () => {
+    // Regression note: an earlier draft of this test checked props right after
+    // a single `await w.vm.$nextTick()` and passed *even against the buggy
+    // implementation* — that single tick observes a stale (pre-focus-handler)
+    // prop snapshot, before Vue's scheduler has flushed the render caused by
+    // the focus-triggered re-entrant sync. `flushPromises()` drains enough
+    // microtask rounds to observe the true converged state; without it this
+    // test is a false negative that can't catch the bug it's named for.
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    const el = ta.element as HTMLTextAreaElement
+    await ta.setValue('@Dr tail')
+    el.setSelectionRange(3, 3) // caret 紧跟在 "@Dr" 之后,落在 " tail" 之前
+    await ta.trigger('click')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    expect(pop.props('open')).toBe(true)
+
+    await pop.vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
+    await flushPromises()
+
+    expect(el.value).toBe('@Drive1/ tail')
+    expect(pop.props('segments')).toEqual(['Drive1'])
+    expect(pop.props('query')).toBe('')
+  })
+})

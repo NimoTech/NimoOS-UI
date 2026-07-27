@@ -84,6 +84,35 @@
   (Vue2 398、630),这里改用仓库的 reka-ui `AlertDialog`。注意 AlertDialog 走
   `DialogPortal`,渲染在 `.agent-app` 子树之外,`.agent-app` 的 token 不对它生效
   ——这是既有约定(AgentSidebar 的删除确认已是同样处境),不是本任务引入的新问题。
+
+  P1c1 补丁验收第 2 轮 Task 5(2026-07-27,评审第 2 轮 Item A + Item B)——
+
+  Item A:@ 面板缺一层 Esc 关闭记忆,与斜杠面板的 `slashDismissedText`/
+  `openSlashIfNotDismissed` 不对称。缺陷复现:type '@doc' → MentionPopover 的
+  Esc(`close`)关闭面板 → 点回 textarea → onFocus → syncMentionFromCaret →
+  scanMention 重新发现同一个 `@doc` token → 面板不请自开。之前看起来"已经修好"
+  只是因为已有测试恰好用了含空格的挂载点名(`scanMention` 遇空格必然发现失败,
+  与这层记忆无关,纯属巧合掩盖)。修法:新增 `mentionDismissedText` ref + 新增
+  `openMentionIfNotDismissed()` 助手,逐字镜像斜杠那一套的形状/命名。写入点是
+  `onMentionPopClose()`(替换原来直接绑 `resetMention` 的 `@close`);读取点是
+  `syncMentionFromCaret()` 的两个分支(状态优先的 parseActiveMention、发现式的
+  scanMention)都要过这一关;清空点收口在 `resetMention()` 里(select/submit/
+  session-switch/清空文本各处全量重置路径统一清掉,保证这层记忆绝不会永久卡死
+  面板)。**Vue2 同文件没有这层机制**——Vue2 从来没有过这个"Esc 后 focus 不复活"
+  的行为,这是本仓库自己发现并修的缺陷,不是移植缺项。项目 2026-07-27 移植纪律:
+  UI 与 Vue2 1:1,但逻辑跟正确性,不跟字面一致。逐条改动理由见
+  `mentionDismissedText`/`openMentionIfNotDismissed`/`onMentionPopClose` 声明处
+  注释。
+
+  Item B(评审提出的疑点,已用组件测试验证并钉住,非臆测):`drillIn()` 的
+  `nextTick(() => { el.focus(); el.setSelectionRange(caretPos, caretPos); grow() })`
+  原来的顺序在 token 后面还跟着别的文字时(例如 `@Dr tail` 钻成
+  `@Drive1/ tail`)是不安全的——`el.focus()` 会同步再入 `onFocus` →
+  `syncMentionFromCaret`,而此时 `setSelectionRange` 还没执行,读到的
+  `el.selectionStart` 是 textarea `.value` 刚被整体替换后浏览器原生落在的
+  字符串末尾,于是把尾部文字当成了 mentionQuery。改法:调换成先
+  `setSelectionRange` 再 `focus()`——前者不要求元素已经 focus,后者也不会重置
+  已经存在的 selection,顺序调换即可修好,见 `drillIn` 声明处注释。
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
@@ -175,6 +204,21 @@ const slashQuery = ref('')
 // focus/click 的重新同步都不应把面板复活——见 deriveSlashState() 里
 // openSlashIfNotDismissed() 的用法。文本被清空或首字符不再是 '/' 时清掉。
 const slashDismissedText = ref<string | null>(null)
+// P1c1 补丁验收第 2 轮 Task 5 Item A(2026-07-27)—— @ 面板的对称记忆,镜像上面
+// `slashDismissedText`/`openSlashIfNotDismissed` 的写法。缺陷复现:type '@doc' →
+// MentionPopover 的 Esc(`close`)关闭面板 → 点回 textarea → onFocus →
+// syncMentionFromCaret → scanMention 重新发现同一个 `@doc` token → 面板不请自开。
+// 斜杠面板早有这层记忆,@ 面板一直没有——本来就该对称,属于遗漏而非有意不做。
+// 写入点:`onMentionPopClose()`(MentionPopover `@close`,即 Esc)。
+// 读取点:`openMentionIfNotDismissed()`,`syncMentionFromCaret()` 的两个分支
+// (状态优先的 parseActiveMention 分支、以及发现式的 scanMention 分支)都要过这一关
+// ——见 `openMentionIfNotDismissed` 声明处注释,为什么两个分支都要挡。
+// 清空点:`resetMention()`(select/submit/session-switch/清空文本各处收口的地方)
+// 统一清掉,保证这层记忆绝不会永久卡死面板;`onMentionPopClose()`自己也调用
+// `resetMention()`,所以要在调用之后再写入记忆(否则前脚清、后脚被自己清空)。
+// Vue2 同文件没有这层记忆(Vue2 从来没修过这个 bug,这是本仓库自己发现的缺陷)——
+// 项目 2026-07-27 移植纪律:UI 与 Vue2 1:1,但逻辑跟正确性,不跟字面一致。
+const mentionDismissedText = ref<string | null>(null)
 // Vue2 缺陷修复 (a)(见文件头注释):onBlur 的 setTimeout 句柄要能在
 // onBeforeUnmount 里清掉,Vue2 从未存储这个句柄。
 const blurTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -253,6 +297,28 @@ function updateAnchor() {
  * 状态),所以这条路径继续交给 `scanMention` 重新发现——两段判定合起来才是
  * brief「组件改造」步骤 2 说的"两级判定"。
  */
+/**
+ * P1c1 补丁验收第 2 轮 Task 5 Item A —— 镜像 `openSlashIfNotDismissed()`:只有
+ * 当前文本与 `mentionDismissedText`(上一次 Esc 关闭时的文本)不同,才真的打开;
+ * 否则保持关闭。`syncMentionFromCaret()` 的两个分支(状态优先的
+ * parseActiveMention、发现式的 scanMention)都经过这里,不会各写一份判断而漂移
+ * ——两个分支都要挡是因为：即使 `resetMention()`(Esc 关闭路径的一部分)已经把
+ * `mentionSegs` 清空、下一次几乎总是落进 scanMention 分支重新发现同一个 token,
+ * 但这条记忆检查本身不依赖"哪个分支发现的",两个分支都可能在文本不变时重新算出
+ * 同一个 start/segments/query,必须在两处都拦，不能只信任其中一条调用路径。
+ */
+function openMentionIfNotDismissed(v: string, start: number, segs: string[], query: string) {
+  if (mentionDismissedText.value !== null && mentionDismissedText.value === v) {
+    mentionOpen.value = false
+    return
+  }
+  mentionStart.value = start
+  mentionSegs.value = segs
+  mentionQuery.value = query
+  mentionOpen.value = true
+  updateAnchor()
+}
+
 function syncMentionFromCaret() {
   const v = text.value
   const el = ta.value
@@ -261,20 +327,14 @@ function syncMentionFromCaret() {
   if (mentionSegs.value.length > 0) {
     const parsed = parseActiveMention(v, mentionStart.value, mentionSegs.value, caret)
     if (parsed.active) {
-      mentionQuery.value = parsed.query
-      mentionOpen.value = true
-      updateAnchor()
+      openMentionIfNotDismissed(v, mentionStart.value, mentionSegs.value, parsed.query)
       return
     }
   }
 
   const scan = scanMention(v, caret)
   if (scan.open) {
-    mentionStart.value = scan.start
-    mentionSegs.value = scan.segments
-    mentionQuery.value = scan.query
-    mentionOpen.value = true
-    updateAnchor()
+    openMentionIfNotDismissed(v, scan.start, scan.segments, scan.query)
     return
   }
   resetMention()
@@ -519,6 +579,23 @@ function resetMention() {
   mentionStart.value = -1
   mentionSegs.value = []
   mentionQuery.value = ''
+  // P1c1 补丁验收第 2 轮 Task 5 Item A —— 每一条全量重置路径都顺带清掉 Esc 记忆,
+  // 这样它绝不会永久卡死面板(brief 要求"select/submit/session-switch/文本清空
+  // 各处清掉")。`onMentionPopClose()`(Esc 本身)必须在调用这个函数*之后*再写入
+  // `mentionDismissedText`,否则前脚记、后脚被这里清空。
+  mentionDismissedText.value = null
+}
+
+/**
+ * P1c1 补丁验收第 2 轮 Task 5 Item A —— MentionPopover `@close`(Esc)的处理器。
+ * 取代原来直接绑的 `resetMention`:先整体重置(语义不变——提及真正结束),再把
+ * "关闭时的文本"记进 `mentionDismissedText`,供 `openMentionIfNotDismissed()`
+ * 在文本不变期间拒绝重开。**不清空文本**——用户可能想继续编辑，这与
+ * `onSlashPopClose()` 的语义一致。
+ */
+function onMentionPopClose() {
+  resetMention()
+  mentionDismissedText.value = text.value
 }
 
 /**
@@ -549,8 +626,23 @@ function onBlur() {
   }, 180)
 }
 
-/** Vue2 355-371 drillIn() —— 钻进一层文件夹/挂载点,把 "<name>/" 写回 @token
- *  末尾。用 Task 5 composerText.ts 的 buildDrillText 做文本+光标数学。 */
+/**
+ * Vue2 355-371 drillIn() —— 钻进一层文件夹/挂载点,把 "<name>/" 写回 @token
+ * 末尾。用 Task 5 composerText.ts 的 buildDrillText 做文本+光标数学。
+ *
+ * P1c1 补丁验收第 2 轮 Task 5 Item B(2026-07-27,评审提出的时序问题,已用组件
+ * 测试钉住)—— `el.setSelectionRange` **必须排在 `el.focus()` 之前**:
+ * `el.focus()` 会同步再入 `onFocus()`(见其声明处注释——这不是猜测,已有先例证实),
+ * 而 `onFocus` 转手就调 `syncMentionFromCaret()`,后者读的是"当前"
+ * `el.selectionStart`。textarea 的 `.value` 刚被这次钻取整体替换过(Vue 的
+ * v-model patch 在这个 nextTick 回调运行前已经落地),原生行为是把光标重置到新
+ * 字符串末尾——如果 token 后面还跟着别的文字(例如 `@Dr tail` 钻成
+ * `@Drive1/ tail`),focus 触发的这次重新同步会在 `setSelectionRange` 还没来得及
+ * 把光标挪回 token 末尾之前,把光标读成整串末尾,导致 `mentionQuery` 被尾部文字
+ * (` tail`)污染。先设光标位置、再 focus,能避免这次重入用错误的位置读值——
+ * 设置 selectionRange 不要求元素已经 focus,而 focus() 本身不会重置已经存在的
+ * selection,所以调换顺序是安全的。
+ */
 function drillIn(item: { name: string }) {
   const el = ta.value
   const caret = el ? (el.selectionStart ?? text.value.length) : text.value.length
@@ -559,8 +651,8 @@ function drillIn(item: { name: string }) {
   mentionSegs.value = result.segments
   mentionQuery.value = ''
   nextTick(() => {
-    el?.focus()
     el?.setSelectionRange(result.caretPos, result.caretPos)
+    el?.focus()
     grow()
   })
 }
@@ -1070,10 +1162,15 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <!-- P1c1 补丁 task 4: `@close`(Esc)必须是 resetMention(),不能只 hide——
-           否则用户按 Esc 关掉面板后,下一次 focus 会被 syncMentionFromCaret 的
+      <!-- P1c1 补丁 task 4: `@close`(Esc)必须整体重置(不能只 hide)——否则用户
+           按 Esc 关掉面板后,下一次 focus 会被 syncMentionFromCaret 的
            parseActiveMention 分支认成"提及词仍然有效"而立刻重开,Esc 就白按了。
-           见 brief「组件改造」步骤 3「面板 close(Esc)」。 -->
+           见 brief「组件改造」步骤 3「面板 close(Esc)」。
+           P1c1 补丁验收第 2 轮 Task 5 Item A:光整体重置还不够——重置之后
+           `mentionSegs` 清空,下一次 focus 会落进 scanMention 分支,从文本本身
+           重新"发现"同一个 token 并弹回来(斜杠面板早年也踩过这个坑,这里补的是
+           @ 面板的对称记忆)。改绑 `onMentionPopClose`:整体重置 + 记下关闭时的
+           文本,交给 `openMentionIfNotDismissed()` 在文本不变期间拒绝重开。 -->
       <MentionPopover
         :open="mentionOpen"
         :query="mentionQuery"
@@ -1082,7 +1179,7 @@ onBeforeUnmount(() => {
         @drill-in="drillIn"
         @pick="pickItem"
         @pop-segment="popSegment"
-        @close="resetMention"
+        @close="onMentionPopClose"
       />
 
       <!-- P1c1 补丁 Task 3 —— 退役全屏 SlashMenu,换成与 MentionPopover 同款的
