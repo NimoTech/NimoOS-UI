@@ -688,6 +688,8 @@ export default {
   raidCreateConfig: 'RAID Configuration',
   raidCreateEstCapacity: 'Estimated Capacity',
   raidCreateName: 'Array Name',
+  raidCreateNameRequired: 'Array name is required',
+  raidCreateNameExists: 'Array name already exists',
   raidCreateFilesystem: 'File System',
   raidCreateSnapshot: 'Enable snapshot protection',
   raidCreateSnapshotHint: 'Automatic periodic snapshots let you quickly recover from accidental deletion or corruption',

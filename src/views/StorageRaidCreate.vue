@@ -2,16 +2,16 @@
   RAID 创建向导(P4 T5)。迁移自 NimoOS-UI RaidCreateWizard.vue(2 步:选盘+级别 / 确认),
   组装 T1(RAID_LEVELS/recommendRaidLevel)、T3(RaidDriveBay)、T4(RaidMatrix)已完成的零件。
 
-  与 Vue2 源的两处刻意简化(缩小本任务范围,非遗漏):
-  1) 不迁移 selectedDisks 变化时的"自动挑推荐级别"watch —— 该行为会在磁盘数满足任意
-     级别时持续把 selectedLevel 拉回一个可行值,导致"盘数 < 所选级别 min → 禁用确认"
-     这条契约明确要求的场景永远无法触发(推荐函数对 n>=2 恒能给出可行级别)。
-     级别推荐只保留 ⭐ 徽章(装饰),级别选择改为纯手动(快捷卡/矩阵点击)。
-  2) 不迁移混规格容量警告/故障容错文案说明等纯装饰性文案 —— 已有 RaidDriveBay/RaidMatrix
+  与 Vue2 源的一处刻意简化(缩小本任务范围,非遗漏):
+  1) 不迁移混规格容量警告/故障容错文案说明等纯装饰性文案 —— 已有 RaidDriveBay/RaidMatrix
      承担对应可视化,此页只负责编排 + 请求体组装。
+
+  选盘变化时"自动挑推荐级别" watcher(Vue2 RaidCreateWizard.vue:365-383)已逐字对齐恢复:
+  userPickedLevel 标记用户手动选级别(快捷卡/矩阵点击)后锁定自动推荐;盘数变化令当前级别
+  失效时解锁并清空,再在未锁定时把 selectedLevel 拉回 recommendRaidLevel(diskCount)。
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
@@ -33,10 +33,17 @@ const { t } = useI18n()
 useDiskHotplug(() => store.loadDrives())
 const candidateDisks = computed<RaidDisk[]>(() => store.availDisks)
 const hasNoDisk = computed(() => candidateDisks.value.length === 0)
+// 冷深链(直接进 /storage/raid/create)时 store.raidArrays/volumes 可能为空 —— 补加载,
+// 使 existingNames 去重(默认名 + nameError 重名校验)在深链场景也生效。
+onMounted(() => {
+  store.loadRaid()
+  store.loadVolumes()
+})
 
 const currentStep = ref<0 | 1>(0)
 const selectedDisks = ref<RaidDisk[]>([])
 const selectedLevel = ref<number | null>(null)
+const userPickedLevel = ref(false)
 const showMatrix = ref(false)
 const arrayName = ref('')
 const arrayNameTouched = ref(false)
@@ -68,18 +75,28 @@ function cardCapacity(lv: RaidLevelSpec): string {
 const canProceed = computed(
   () => diskCount.value >= 2 && !!currentLevel.value && levelMinOk(currentLevel.value, diskCount.value),
 )
+// RAID 名与存储名共享命名空间(Vue2 existingRaidNames 同款合并)。
+const existingNames = computed(() =>
+  [...store.raidArrays.map((a) => a.name), ...store.volumes.map((v) => v.name)].filter(Boolean),
+)
+const existingNamesLower = computed(() => existingNames.value.map((n) => n.toLowerCase()))
+// Vue2 nameError computed(RaidCreateWizard.vue:322-331)逐字对齐:未 touch 前不提示必填,
+// 已 touch 且为空 → 必填提示;非空且与既有阵列/卷重名(大小写不敏感)→ 重名提示。
+const nameError = computed(() => {
+  const n = arrayName.value.trim()
+  if (!n) return arrayNameTouched.value ? t('raidCreateNameRequired') : ''
+  if (existingNamesLower.value.includes(n.toLowerCase())) return t('raidCreateNameExists')
+  return ''
+})
 const canCreate = computed(
   () =>
     !!arrayName.value.trim() &&
+    !nameError.value &&
     !!currentLevel.value &&
     levelMinOk(currentLevel.value, diskCount.value) &&
     !store.raidCreating,
 )
 
-// RAID 名与存储名共享命名空间(Vue2 existingRaidNames 同款合并)。
-const existingNames = computed(() =>
-  [...store.raidArrays.map((a) => a.name), ...store.volumes.map((v) => v.name)].filter(Boolean),
-)
 const defaultName = computed(() => computeNextStorageName(DEFAULT_STORAGE_NAME, existingNames.value))
 watch(
   defaultName,
@@ -88,12 +105,31 @@ watch(
   },
   { immediate: true },
 )
+// Vue2 selectedDisks watch(RaidCreateWizard.vue:365-383)逐字对齐恢复:
+// 1) 盘数变化令当前已选级别失效 → 清空并解锁(userPickedLevel=false);
+// 2) 未被用户手动锁定时,把 selectedLevel 拉回 recommendRaidLevel(diskCount)。
+watch(selectedDisks, (disks) => {
+  if (selectedLevel.value !== null && currentLevel.value) {
+    const invalid = !levelMinOk(currentLevel.value, disks.length)
+    if (invalid) {
+      selectedLevel.value = null
+      userPickedLevel.value = false
+    }
+  }
+  if (!userPickedLevel.value && recommendedLevel.value !== null) {
+    selectedLevel.value = recommendedLevel.value
+  }
+})
 
 function selectQuickLevel(lv: RaidLevelSpec): void {
-  if (isCardAvailable(lv)) selectedLevel.value = lv.id
+  if (isCardAvailable(lv)) {
+    selectedLevel.value = lv.id
+    userPickedLevel.value = true
+  }
 }
 function onLevelSelected(id: number): void {
   selectedLevel.value = Number(id)
+  userPickedLevel.value = true
 }
 function onNameInput(e: Event): void {
   arrayNameTouched.value = true
@@ -198,6 +234,7 @@ async function doCreate(): Promise<void> {
           <div class="field">
             <label class="rcv-label">{{ t('raidCreateName') }}</label>
             <input class="rcv-name-input" type="text" :value="arrayName" @input="onNameInput" />
+            <p v-if="nameError" class="rc-name-error">{{ nameError }}</p>
           </div>
           <div class="field">
             <label class="rcv-label">{{ t('raidCreateFilesystem') }}</label>
@@ -302,6 +339,7 @@ async function doCreate(): Promise<void> {
   width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
   border-radius: 10px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
 }
+.rc-name-error { margin: 6px 0 0; font-size: 11.5px; color: var(--remove-fg); }
 .rcv-snapshot { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg); }
 .rcv-snapshot-hint { font-size: 11px; color: var(--fg-muted); margin: -4px 0 0 24px; }
 

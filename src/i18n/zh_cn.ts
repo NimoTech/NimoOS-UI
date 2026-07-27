@@ -687,6 +687,8 @@ export default {
   raidCreateConfig: 'RAID 配置',
   raidCreateEstCapacity: '预估容量',
   raidCreateName: '阵列名称',
+  raidCreateNameRequired: '请输入阵列名称',
+  raidCreateNameExists: '阵列名称已存在',
   raidCreateFilesystem: '文件系统',
   raidCreateSnapshot: '启用快照保护',
   raidCreateSnapshotHint: '定期自动生成快照,文件误删或损坏时可快速恢复',

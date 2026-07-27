@@ -6,7 +6,7 @@ import { createI18n } from 'vue-i18n'
 import { defineComponent } from 'vue'
 import StorageRaidCreate from './StorageRaidCreate.vue'
 import { useStorageStore } from '../storage/stores/storage'
-import type { RaidTask } from '../storage/util/raidView'
+import type { RaidArray, RaidTask } from '../storage/util/raidView'
 import zh from '../i18n/zh_cn'
 
 const getDiskList = vi.fn().mockResolvedValue({ disks: [], avail: [] })
@@ -171,5 +171,34 @@ describe('StorageRaidCreate', () => {
     await selectDisks(w, [DISK_A, DISK_B, DISK_C])
     await selectLevel(w, 6)
     expect(w.find('.rcv-next').attributes('disabled')).toBeDefined()
+  })
+
+  it('选盘变化 → selectedLevel 自动设为 recommendRaidLevel(盘数)(Vue2 watcher 逐字对齐)', async () => {
+    const DISK_D = { path: '/dev/sdd', name: 'sdd', model: 'WD-Blue', size: 1000, needFormat: false, serial: 's-d' }
+    const { w } = await mountReady([DISK_A, DISK_B, DISK_C, DISK_D])
+    await selectDisks(w, [DISK_A, DISK_B, DISK_C, DISK_D])
+    // recommendRaidLevel(4) === 10(偶数盘);未手动选级别时 watcher 自动拉到推荐级别。
+    expect(w.find('[data-level="10"]').classes()).toContain('rcv-lv-card--selected')
+  })
+
+  it('阵列名与已有阵列重名 → canCreate 为 false + 错误文案渲染;改唯一名 → 恢复可提交', async () => {
+    const { w } = await mountReady()
+    const store = useStorageStore()
+    const existing: RaidArray = { id: 1, name: 'Taken', level: 5, state: 'active' }
+    store.raidArrays = [existing]
+
+    await selectDisks(w, [DISK_A, DISK_B, DISK_C])
+    await selectLevel(w, 5)
+    await w.find('.rcv-next').trigger('click')
+
+    await setName(w, 'Taken')
+    expect(w.find('.rcv-confirm').attributes('disabled')).toBeDefined()
+    const errNodes = w.findAll('.rc-name-error')
+    expect(errNodes.length).toBeGreaterThan(0)
+    expect(errNodes[errNodes.length - 1].text()).toBe(zh.raidCreateNameExists)
+
+    await setName(w, 'UniqueName')
+    expect(w.find('.rc-name-error').exists()).toBe(false)
+    expect(w.find('.rcv-confirm').attributes('disabled')).toBeUndefined()
   })
 })
