@@ -385,6 +385,14 @@ onBeforeUnmount(() => {
    same precedent as PhotoLightbox.vue's .lb-fav.is-fav) — the var() fallback
    always applies, so this stays token-driven per color-guard §0. */
 .tile-fav.is-fav { color: var(--star-fg, #ffd60a); }
+/* 浅色主题真机反馈:收藏态改为"金色实心底 + 白色挖空星"(金底上反差更清晰)。
+   深色主题维持现状不变,故用 :global() 只覆盖 light 皮肤。白色复用本文件已用过
+   的 var(--on-accent)("饱和填充色之上的可读前景色"语义 token,见下方 .density
+   按钮用法),不新增 token 也不写裸色字面量。 */
+:global(:root[data-theme="light"]) .tile-fav.is-fav {
+  background: var(--star-fg, #ffd60a);
+  color: var(--on-accent, #fff);
+}
 
 .tile-vid {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;

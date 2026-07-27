@@ -1,7 +1,7 @@
 // Task 9 (SP7-P3): PhotosTrash.vue —— 挂 Pinia + i18n + router stub,mock 共享包
 // trash 方法(参照 trash.test.ts 的 mock 形状)+ thumbnailUrl。覆盖 brief 的 7 条测试要点:
 // 空态门控+hero 按钮 disabled、分桶渲染+缩略图走生成器+倒计时角标、勾选圈选择+bulk bar 出现、
-// 恢复选中不走确认直接执行+成功 toast 带 Undo、点 Undo 调 undoRestore、清空回收站走二次确认、
+// 恢复选中不走确认直接执行+成功 toast 带 Undo、点 Undo 调 undoRestore、清空最近删除走二次确认、
 // ESC 关确认模态。
 //
 // Undo 用真实 AppToast.vue 同挂载(而非仅 spy 回调)——两者共享同一个 Pinia toast store 实例,
@@ -96,7 +96,7 @@ describe('PhotosTrash.vue', () => {
     const trash = usePhotosTrash()
     expect(trash.loaded).toBe(true)
     expect(w.find('[data-test="trash-empty"]').exists()).toBe(true)
-    expect(w.text()).toContain('回收站是空的')
+    expect(w.text()).toContain('最近删除是空的')
     expect(w.text()).toContain('30') // retentionDays 插值进 hint
     expect(w.find('[data-test="trash-restore-all"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-test="trash-empty-btn"]').attributes('disabled')).toBeDefined()
@@ -161,7 +161,7 @@ describe('PhotosTrash.vue', () => {
     expect(undoSpy).toHaveBeenCalledWith(['a'])
   })
 
-  it('点「清空回收站」→ 开确认模态 → 确认 → trash.empty() 被调', async () => {
+  it('点「清空最近删除」→ 开确认模态 → 确认 → trash.empty() 被调', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
     const trash = usePhotosTrash()

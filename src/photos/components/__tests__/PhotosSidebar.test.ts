@@ -33,13 +33,13 @@ describe('PhotosSidebar', () => {
     await testRouter.isReady()
   })
 
-  it('渲染三条导航项(照片库/收藏/回收站),当前路由高亮', async () => {
+  it('渲染三条导航项(照片库/收藏/最近删除),当前路由高亮', async () => {
     const w = mountSidebar()
     const items = w.findAll('.side-item')
     expect(items).toHaveLength(3)
     expect(items[0].text()).toContain('照片库')
     expect(items[1].text()).toContain('收藏')
-    expect(items[2].text()).toContain('回收站')
+    expect(items[2].text()).toContain('最近删除')
     // 当前在 /photos,仅照片库项 active
     expect(items[0].classes()).toContain('active')
     expect(items[1].classes()).not.toContain('active')
