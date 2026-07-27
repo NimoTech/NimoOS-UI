@@ -691,7 +691,6 @@ export default {
   // (the `/init` literal itself is not translated).
   aiSlashInitDesc: 'Generate agent.md for a directory',
   aiSlashNoFolders: "No visible directories — use {'@'} to select one first",
-  aiSlashInitialize: 'Initialize',
   // SP8-P1c1 patch task 2 — SlashPopover (inline slash-command panel matching
   // the @ panel's look, replacing the rejected full-screen SlashMenu above),
   // command-stage empty state + footer key-hint strings.

@@ -688,7 +688,6 @@ export default {
   // src/views/AI/Agent/shell/SlashMenu.vue 模板 1-23 的全部可见文案(`/init` 字面量不译)。
   aiSlashInitDesc: '为某个目录生成 agent.md',
   aiSlashNoFolders: "还没有可见目录 —— 先用 {'@'} 选一个",
-  aiSlashInitialize: '初始化',
   // SP8-P1c1 patch task 2 — SlashPopover(与 @ 面板同款的内联斜杠命令面板,
   // 替代上面被否掉的全屏 SlashMenu),command 阶段空态 + 底部键位提示新键。
   aiSlashNoCommand: '没有匹配的命令',

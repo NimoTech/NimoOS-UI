@@ -29,6 +29,27 @@
   Task 10 留的座)。MentionPopover 挂载(115-124)、SlashMenu 挂载(131-136)。
   **不移植** BrowserModal 挂载(138-142)——本期延后,Browse 按钮仍是占位 toast。
 
+  SP8-P1c1 验收补丁 Task 3(2026-07-27,用户验收第 1 轮否掉全屏 SlashMenu)——
+  退役上面 Task 11 挂的 `SlashMenu`(全屏遮罩+居中卡片+单选列表),换成
+  `SlashPopover.vue`(与 MentionPopover 同款外壳,内联/锚定/↑↓/Enter/Tab/Esc/
+  Backspace,两阶段 command→target)。这不是缺陷修复,是用户重新拍板的交互
+  设计,故本期直接删除上一期自己写的组件(不受"删除一律推迟到 SP10"约束——那条
+  铁律只管 Vue2 老仓,不管本期自己刚写、又被否掉的返工)。
+  状态机(取代 Task 11 里 onInput 307-310 那条"整串只有一个 `/`"规则):
+  `slashOpen`/`slashStage`/`slashQuery` 三个 ref 逐次 onInput(以及 Task 1 的
+  focus/click 同步路径)重新推导——见 `deriveSlashState()`。新增
+  `slashDismissedText`:记住上一次 Esc 关闭时的文本,避免 focus/click 把用户刚
+  用 Esc 关掉的面板重新弹出来(只有文本变成不同的值才重开,见
+  `onSlashPopClose()`)。`@`/`/` 两个面板互斥,由 `syncPanelsFromText()` 统一
+  收口——斜杠推导赢的时候强制关掉提及面板,反之才走原有的 `syncMentionFromCaret()`。
+  `onKeydown` 补一行 `if (slashOpen.value) return`(紧跟既有的
+  `if (mentionOpen.value) return`,两者互斥所以顺序其实不敏感,但都必须在 Enter
+  发送逻辑之前)。三个 emit(`pick-command`/`pick-target`/`back`,以及原生的
+  `close`)分别对应 `onSlashPickCommand`/`onSlashPickTarget`/`onSlashBack`/
+  `onSlashPopClose`,逐条对齐 brief「状态机」一节;`activeSessionId` watcher
+  里追加清斜杠面板(回 command 阶段 + 清 dismiss 记忆),与已有的 `closeMention()`
+  并列。
+
   Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1):
   (a) Vue2 onBlur 的 setTimeout 句柄从未存储/清理,组件卸载后仍可能触发—— 这里
       存进 `blurTimer` 并在 onBeforeUnmount 里 clearTimeout。
@@ -55,7 +76,7 @@ import AgentIcon from '../icons/AgentIcon.vue'
 import KindIcon from './KindIcon.vue'
 import ContextUsageBar from '../blocks/ContextUsageBar.vue'
 import MentionPopover from './MentionPopover.vue'
-import SlashMenu from './SlashMenu.vue'
+import SlashPopover from './SlashPopover.vue'
 import AlertDialog from '../../../components/ui/AlertDialog.vue'
 import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
 import { useToast } from '../../../stores/toast'
@@ -124,7 +145,16 @@ const mentionOpen = ref(false)
 const mentionStart = ref(-1)
 const mentionSegs = ref<string[]>([])
 const mentionQuery = ref('')
+// P1c1 补丁 Task 3 —— SlashPopover 驱动状态(取代 Task 11 那个只会整串一个 '/'
+// 就弹、敲第二个字就失效的 slashOpen 单变量)。见文件头「SP8-P1c1 验收补丁
+// Task 3」一节的状态机总述,以及 deriveSlashState() 声明处的逐条注释。
 const slashOpen = ref(false)
+const slashStage = ref<'command' | 'target'>('command')
+const slashQuery = ref('')
+// Esc(command 阶段的 close 事件)关闭时记下当时的文本;只要文本没变,
+// focus/click 的重新同步都不应把面板复活——见 deriveSlashState() 里
+// openSlashIfNotDismissed() 的用法。文本被清空或首字符不再是 '/' 时清掉。
+const slashDismissedText = ref<string | null>(null)
 // Vue2 缺陷修复 (a)(见文件头注释):onBlur 的 setTimeout 句柄要能在
 // onBeforeUnmount 里清掉,Vue2 从未存储这个句柄。
 const blurTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -200,23 +230,93 @@ function syncMentionFromCaret() {
 }
 
 /**
- * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再斜杠触发(307-310——
- * **仅当**整串正好是 `'/'` 且斜杠菜单未打开时才触发,不会在任何别的位置的
- * `/` 上误触发),否则走 `syncMentionFromCaret()`(Task 5 composerText.ts 的
- * `scanMention`,逐字对齐 Vue2 312-334 的"从光标往回扫,遇到非转义 @ 才算命中、
- * 遇到空白直接放弃"规则——现在与 onFocus/onClick 共用,见上面的抽取注释)。
+ * P1c1 补丁 Task 3 —— SlashPopover 的开合助手:只有当当前文本与
+ * `slashDismissedText`(上一次 Esc 关闭时的文本)不同,才真的打开;否则保持
+ * 关闭。这是"关掉后不自动重开、文本变了才重开"规则的唯一落地点——`onInput`/
+ * `onFocus`/`onClick` 三条路径都经过这里,不会各写一份判断而漂移。
  */
-function onInput() {
-  grow()
-  const v = text.value
+function openSlashIfNotDismissed(v: string) {
+  if (slashDismissedText.value !== null && slashDismissedText.value === v) {
+    slashOpen.value = false
+    return
+  }
+  slashOpen.value = true
+  updateAnchor()
+}
 
-  // Vue2 307-310: slash command only at the very start of input.
-  if (v.length === 1 && v === '/' && !slashOpen.value) {
-    slashOpen.value = true
+/**
+ * P1c1 补丁 Task 3 —— 取代 Task 11 里 onInput 307-310 那条"整串正好是 '/'
+ * 才弹、敲第二个字就失效"的规则。每次调用都是从当前 `text.value` 和当前
+ * `slashStage` 纯推导(不依赖上一次调用的历史),所以 onInput/onFocus/onClick
+ * 共用同一份逻辑不会漂移。见文件头「SP8-P1c1 验收补丁 Task 3」一节。
+ *
+ * - 首字符不是 `/`(或文本已清空):强制关闭、退回 command 阶段、清空
+ *   query,并清掉 `slashDismissedText`(brief:"文本被清空或首字符不再是 `/`
+ *   时清掉这个记忆值")。
+ * - target 阶段:文本仍以 `/init `(命令名+一个空格)开头才继续停留在 target,
+ *   query = 该前缀之后的剩余文本(用来按目录 path 筛选);否则退回 command
+ *   阶段,落到下面的 command 分支重新推导(例如用户把 "/init " 删成
+ *   "/in",应该回到 command 阶段列表并筛到 "in")。
+ * - command 阶段:`/` 之后不含任何空白字符才打开,query = `/` 之后的剩余
+ *   文本;一旦出现空白(用户敲了空格)就关闭(仍停留在 command 阶段——这与
+ *   Vue2 的两阶段编排一致:进入 target 阶段是 `pick-command` 事件驱动的,
+ *   不是靠打空格)。
+ */
+function deriveSlashState() {
+  const v = text.value
+  if (v.length === 0 || v[0] !== '/') {
+    slashOpen.value = false
+    slashStage.value = 'command'
+    slashQuery.value = ''
+    slashDismissedText.value = null
     return
   }
 
+  if (slashStage.value === 'target') {
+    const prefix = '/init ' // 目前只有一个命令;多命令时这里要按当前命令名拼前缀。
+    if (v.startsWith(prefix)) {
+      slashQuery.value = v.slice(prefix.length)
+      openSlashIfNotDismissed(v)
+      return
+    }
+    // 文本不再以 "/init " 开头(用户删掉了空格或命令名)——退回 command 阶段,
+    // 落到下面重新按 command 规则推导。
+    slashStage.value = 'command'
+  }
+
+  const rest = v.slice(1)
+  if (/\s/.test(rest)) {
+    slashOpen.value = false
+    slashQuery.value = ''
+    return
+  }
+  slashQuery.value = rest
+  openSlashIfNotDismissed(v)
+}
+
+/**
+ * P1c1 补丁 Task 3 —— `@` 与 `/` 互斥的唯一收口点:先推导斜杠状态,斜杠赢了
+ * (`slashOpen` 为真)就强制关掉提及面板、不再推导提及;否则走原有的
+ * `syncMentionFromCaret()`。两个面板永不同时 open——无论从哪个方向切换
+ * (斜杠→提及,或反过来),都在这一个函数里判定,不会漂移成两份逻辑。
+ */
+function syncPanelsFromText() {
+  deriveSlashState()
+  if (slashOpen.value) {
+    if (mentionOpen.value) closeMention()
+    return
+  }
   syncMentionFromCaret()
+}
+
+/**
+ * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再 `syncPanelsFromText()`
+ * ——取代 Task 11 里"斜杠触发 + syncMentionFromCaret()"的手写分支(见上面两个
+ * 函数的注释)。
+ */
+function onInput() {
+  grow()
+  syncPanelsFromText()
 }
 
 /**
@@ -230,25 +330,28 @@ function onInput() {
  *      既有交互会被自己刚排的 180ms 定时器紧接着关掉;
  *   2) 再用 syncMentionFromCaret() 按光标位置决定面板开/关——层级/查询词由
  *      scanMention 从文本本身还原,天然保持已钻入的层级,不需要额外状态。
- * 不触发斜杠菜单:那是 Task 3 的范围,且 `/` 的触发条件(整串正好是 '/')不同,
- * 重新聚焦本身不该触发它。
+ * P1c1 补丁 Task 3 更新:原来这里只调 `syncMentionFromCaret()`;现在改调
+ * `syncPanelsFromText()`,同时按当前文本重新推导斜杠面板——brief 明确要求
+ * "每次 onInput 里(以及 Task 1 新增的 focus/click 同步路径中)重新推导"斜杠
+ * 状态。`slashDismissedText` 机制保证这条路径不会把用户刚用 Esc 关掉、且文本
+ * 没变化的面板复活。
  */
 function onFocus() {
   if (blurTimer.value !== null) {
     clearTimeout(blurTimer.value)
     blurTimer.value = null
   }
-  syncMentionFromCaret()
+  syncPanelsFromText()
 }
 
 /**
  * P1c1 验收补丁 Task 1 续,同一缺陷 (c) 的另一半:用户可能在已有文本里点一下,
  * 把光标移进/移出一个 `@` 词,面板要跟着开/关(而不是只在打字时响应)。与
- * onFocus 调用同一个幂等函数 `syncMentionFromCaret()`——点击输入框时 focus 和
- * click 两个事件都会触发,重复调用无副作用。
+ * onFocus 调用同一个幂等函数——P1c1 补丁 Task 3 起改为 `syncPanelsFromText()`
+ * (同时覆盖斜杠状态推导,理由同 onFocus 处注释)。
  */
 function onClick() {
-  syncMentionFromCaret()
+  syncPanelsFromText()
 }
 
 /**
@@ -258,9 +361,15 @@ function onClick() {
  * Tab/Enter/Esc/Backspace,见 MentionPopover.vue 的 onKey),composer 自己不再
  * 抢 Enter 发送。IME 双重守卫逐字保留(`e.isComposing || keyCode === 229`,
  * 后者是历史上部分浏览器/输入法不设置 isComposing 时的兜底,两个都要留)。
+ *
+ * P1c1 补丁 Task 3:补上 `if (slashOpen.value) return`,让 SlashPopover 的
+ * capture 阶段 window keydown 监听独占 ↑↓/Enter/Tab/Esc/Backspace(见
+ * SlashPopover.vue 的 onKey)。两个面板互斥(syncPanelsFromText() 保证),所以
+ * 这两行 return 谁先谁后不影响行为,但都必须在 Enter 发送逻辑之前。
  */
 function onKeydown(e: KeyboardEvent) {
   if (mentionOpen.value) return // popover handles keys
+  if (slashOpen.value) return // SlashPopover handles keys
   if (e.key !== 'Enter' || e.shiftKey) return
   if (e.isComposing || (e as unknown as { keyCode?: number }).keyCode === 229) return
   e.preventDefault()
@@ -328,7 +437,8 @@ async function removeChip(c: { id?: string | number }) {
   }
 }
 
-/** Vue2 257-259 visibleFolders() —— SlashMenu 的 `folders` prop 喂料。 */
+/** Vue2 257-259 visibleFolders() —— SlashPopover 的 `folders` prop 喂料(P1c1
+ *  补丁 Task 3 起;此前是已退役的 SlashMenu)。 */
 const visibleFolders = computed(() => store.visibleResources.filter((r) => r.kind === 'folder'))
 
 /** Vue2 347-352 closeMention()。 */
@@ -430,12 +540,70 @@ function popSegment() {
   })
 }
 
-/** Vue2 613-617 onInit() —— `/init` 确认后清空输入并把目标目录上抛给
- *  AgentPage(Task 12 接线)。 */
-function onInit(target: string) {
-  slashOpen.value = false
+/**
+ * P1c1 补丁 Task 3 —— SlashPopover `pick-command(name)`。目前只有 'init' 一个
+ * 命令。规范化文本为 `` `/${name} ` ``(命令名 + 一个空格)、切到 target 阶段、
+ * 清空 query(target 阶段的候选是全部已授权目录,不需要预筛)。**不**在这一步
+ * 发任何请求——请求要等用户在 target 阶段选完目录(见 onSlashPickTarget)。
+ */
+function onSlashPickCommand(name: string) {
+  text.value = `/${name} `
+  slashStage.value = 'target'
+  slashQuery.value = ''
+  nextTick(() => {
+    const el = ta.value
+    el?.focus()
+    el?.setSelectionRange(text.value.length, text.value.length)
+    grow()
+  })
+}
+
+/**
+ * P1c1 补丁 Task 3 —— SlashPopover `pick-target(path)`。等价于 Vue2 `onInit`
+ * (613-617)"关菜单 + 清输入 + 发 send-init":清空输入、关闭面板并回到 command
+ * 阶段、`nextTick(grow)`,再把目标目录上抛给 AgentPage(`store.sendInit` 接线
+ * 在那一侧,这里不改)。
+ */
+function onSlashPickTarget(path: string) {
   text.value = ''
-  emit('send-init', target)
+  slashOpen.value = false
+  slashStage.value = 'command'
+  slashQuery.value = ''
+  slashDismissedText.value = null
+  nextTick(grow)
+  emit('send-init', path)
+}
+
+/**
+ * P1c1 补丁 Task 3 —— SlashPopover `back()`(target 阶段按 Esc/Backspace 触发)。
+ * 退回 command 阶段,把文本从 `` `/${cmd} <query>` `` 收回成 `` `/${cmd}` ``
+ * (去掉命令名之后的一切,包括那个空格),再用 `deriveSlashState()` 按新文本
+ * 重新推导 —— 这样 command 阶段的列表会自然高亮/筛到刚才那个命令(brief 的
+ * "据此重新推导 slashQuery"要求),不需要单独再写一遍筛选逻辑。
+ */
+function onSlashBack() {
+  const v = text.value
+  const spaceIdx = v.indexOf(' ')
+  const cmdName = spaceIdx === -1 ? v.slice(1) : v.slice(1, spaceIdx)
+  text.value = `/${cmdName}`
+  slashStage.value = 'command'
+  deriveSlashState()
+  nextTick(() => {
+    const el = ta.value
+    el?.setSelectionRange(text.value.length, text.value.length)
+  })
+}
+
+/**
+ * P1c1 补丁 Task 3 —— SlashPopover `close()`(command 阶段按 Esc 触发)。关闭
+ * 面板、回 command 阶段,并记下当时的文本到 `slashDismissedText`——这是
+ * "Esc 关闭后不要立刻自动重开"规则的写入点(读取点在 `openSlashIfNotDismissed`)。
+ * **不清空文本**:用户可能想继续编辑,这与 `closeMention()` 的语义一致。
+ */
+function onSlashPopClose() {
+  slashDismissedText.value = text.value
+  slashOpen.value = false
+  slashStage.value = 'command'
 }
 
 /** gitignore 409 确认框的 `@confirm` 处理器 —— 读完 pending 之后才清空(见
@@ -665,11 +833,19 @@ function onBrowseClick() {
  * Vue2 275-281 `activeSessionId` watcher。关闭 mention 面板(`closeMention()`)
  * + 清空待发附件列表。服务端附件仍归属旧会话,这里只是丢弃本地 chip 引用,
  * 不发任何请求。
+ *
+ * P1c1 补丁 Task 3:并列补上关闭斜杠面板——回 command 阶段并清掉
+ * `slashDismissedText`(不是记一次 dismiss,是整体重置:新会话是全新上下文,
+ * 不应该继承上一个会话里"这段文本刚被 Esc 关过"的记忆)。避免切会话后残留
+ * 半截状态(例如卡在 target 阶段但目录列表已经是新会话的)。
  */
 watch(
   () => store.activeSessionId,
   () => {
     closeMention()
+    slashOpen.value = false
+    slashStage.value = 'command'
+    slashDismissedText.value = null
     attachments.value = []
   },
 )
@@ -804,18 +980,27 @@ onBeforeUnmount(() => {
         @pop-segment="popSegment"
         @close="closeMention"
       />
+
+      <!-- P1c1 补丁 Task 3 —— 退役全屏 SlashMenu,换成与 MentionPopover 同款的
+           内联/锚定 SlashPopover(两阶段 command → target)。always-mounted
+           (不用 v-if 包组件本身,只是它内部模板自己 v-if="open"),与
+           MentionPopover 的挂载方式对齐——组件实例始终存在,:open 控制显隐。 -->
+      <SlashPopover
+        :open="slashOpen"
+        :stage="slashStage"
+        :query="slashQuery"
+        :folders="visibleFolders"
+        :anchor-rect="anchorRect"
+        @pick-command="onSlashPickCommand"
+        @pick-target="onSlashPickTarget"
+        @back="onSlashBack"
+        @close="onSlashPopClose"
+      />
     </div>
 
     <div class="composer-caption">
       {{ t('aiComposerCaption') }}
     </div>
-
-    <SlashMenu
-      v-if="slashOpen"
-      :folders="visibleFolders"
-      @init="onInit"
-      @close="slashOpen = false"
-    />
 
     <AlertDialog
       v-model:open="gitignoreOpen"

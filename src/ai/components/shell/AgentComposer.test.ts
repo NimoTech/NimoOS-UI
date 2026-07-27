@@ -307,19 +307,6 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
   })
 
-  it('单独输入 "/" 打开斜杠菜单;确认 init 后清空输入并 emit send-init', async () => {
-    const store = useAgentStore()
-    store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
-    const w = mountComposer()
-    await w.find('textarea').setValue('/')
-    const menu = w.findComponent({ name: 'SlashMenu' })
-    expect(menu.exists()).toBe(true)
-    expect(menu.props('folders').map((f: any) => f.path)).toEqual(['/DATA/docs'])
-    await menu.vm.$emit('init', '/DATA/docs')
-    expect(w.emitted('send-init')).toEqual([['/DATA/docs']])
-    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
-  })
-
   it('提及面板打开时 Enter 不发送(交给面板处理)', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
@@ -400,5 +387,137 @@ describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', ()
     // The pending blur timer must have been cancelled by focus — the panel
     // stays open, it does not get closed a moment later by the stale timer.
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+  })
+})
+
+// SP8-P1c1 patch task 3 — retire the rejected full-screen SlashMenu, wire up
+// SlashPopover instead. Ten cases verbatim from
+// .superpowers/sdd/p1c1-patch-task-3-brief.md「测试要求」1-10. The old single
+// test above exercising SlashMenu + the "whole string is exactly '/'" trigger
+// rule was deleted (not just superseded) because that rule and that component
+// are exactly what this patch replaces — keeping it would either duplicate
+// coverage or force it to assert retired behavior.
+describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((f: any) => f.mockClear?.())
+  })
+
+  it('1. 开头的 "/" 才弹;句中的 "/" 不弹', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('/')
+    let pop = w.findComponent({ name: 'SlashPopover' })
+    expect(pop.props('open')).toBe(true)
+    expect(pop.props('stage')).toBe('command')
+
+    await ta.setValue('hi /')
+    pop = w.findComponent({ name: 'SlashPopover' })
+    expect(pop.props('open')).toBe(false)
+  })
+
+  it('2. 边敲边筛:query 跟随输入更新', async () => {
+    const w = mountComposer()
+    await w.find('textarea').setValue('/in')
+    const pop = w.findComponent({ name: 'SlashPopover' })
+    expect(pop.props('open')).toBe(true)
+    expect(pop.props('query')).toBe('in')
+  })
+
+  it('3. command 阶段敲空格关闭', async () => {
+    const w = mountComposer()
+    await w.find('textarea').setValue('/init ')
+    expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(false)
+  })
+
+  it('4. 两阶段流程:pick-command 后文本变 "/init "、进入 target 阶段、folders 收到已授权目录', async () => {
+    const store = useAgentStore()
+    store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
+    store.visibleResources.push({ id: 2, path: '/DATA/notes.txt', kind: 'file' })
+    const w = mountComposer()
+    await w.find('textarea').setValue('/')
+    const pop = w.findComponent({ name: 'SlashPopover' })
+    await pop.vm.$emit('pick-command', 'init')
+    await w.vm.$nextTick()
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('/init ')
+    expect(pop.props('stage')).toBe('target')
+    expect(pop.props('folders').map((f: any) => f.path)).toEqual(['/DATA/docs'])
+  })
+
+  it('5. 选目录即发送:pick-target 后 emit send-init 且输入框清空', async () => {
+    const store = useAgentStore()
+    store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
+    const w = mountComposer()
+    await w.find('textarea').setValue('/')
+    const pop = w.findComponent({ name: 'SlashPopover' })
+    await pop.vm.$emit('pick-command', 'init')
+    await pop.vm.$emit('pick-target', '/DATA/docs')
+    await w.vm.$nextTick()
+    expect(w.emitted('send-init')).toEqual([['/DATA/docs']])
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('6. Esc 退层再退出:back() 回 command 阶段(文本 "/init"),再 close() 关闭面板', async () => {
+    const store = useAgentStore()
+    store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
+    const w = mountComposer()
+    await w.find('textarea').setValue('/')
+    const pop = w.findComponent({ name: 'SlashPopover' })
+    await pop.vm.$emit('pick-command', 'init')
+    await pop.vm.$emit('back')
+    await w.vm.$nextTick()
+    expect(pop.props('stage')).toBe('command')
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('/init')
+
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+  })
+
+  it('7. 关掉后不自动重开;文本变了才重开', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('/')
+    const pop = w.findComponent({ name: 'SlashPopover' })
+    expect(pop.props('open')).toBe(true)
+
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+
+    // Re-sync without changing the text (e.g. a refocus) — must stay closed.
+    await ta.trigger('focus')
+    expect(pop.props('open')).toBe(false)
+
+    await ta.setValue('/i')
+    expect(pop.props('open')).toBe(true)
+  })
+
+  it('8. 面板打开时 Enter 不发送', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('/')
+    await ta.trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('send')).toBeFalsy()
+  })
+
+  it('9. "@" 与 "/" 不同时打开', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('/')
+    expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(true)
+    await ta.setValue('@doc')
+    expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(false)
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+  })
+
+  it('10. 切会话关闭斜杠面板', async () => {
+    const store = useAgentStore()
+    const w = mountComposer()
+    await w.find('textarea').setValue('/')
+    expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(true)
+    store.activeSessionId = 'sess-2'
+    await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(false)
   })
 })
