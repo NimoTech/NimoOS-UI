@@ -722,4 +722,13 @@ export default {
   snapCreateFailed: 'Failed to create snapshot',
   snapDeleted: 'Snapshot deleted',
   snapDeleteFailed: 'Failed to delete snapshot',
+  snapTitle: 'Snapshot Protection',
+  snapUnsupported: "This volume's filesystem does not support snapshots",
+  snapDisabledHint: 'Automatically snapshot this volume so you can restore from an earlier point in time',
+  snapNoneYet: 'No snapshots yet',
+  snapNever: 'Never',
+  snapStatus: '{n} snapshots so far · last at {time}',
+  snapPaused: 'Snapshot protection paused: {reason}. Free up space on this volume or lower the retention counts to resume automatic snapshots.',
+  snapKept: 'Existing snapshots are kept when protection is turned off',
+  snapPolicySummary: 'Hourly snapshots: keep {hourly} · Daily: keep {daily} · Weekly: keep {weekly}',
 }

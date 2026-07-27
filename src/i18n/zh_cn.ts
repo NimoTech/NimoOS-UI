@@ -721,4 +721,13 @@ export default {
   snapCreateFailed: '快照创建失败',
   snapDeleted: '快照已删除',
   snapDeleteFailed: '快照删除失败',
+  snapTitle: '快照保护',
+  snapUnsupported: '此卷的文件系统不支持快照',
+  snapDisabledHint: '自动为此卷创建快照,可随时恢复到过去的某个时间点',
+  snapNoneYet: '暂无快照',
+  snapNever: '从未',
+  snapStatus: '已有 {n} 个快照 · 最近 {time}',
+  snapPaused: '快照保护已暂停:{reason}。请释放此卷空间或调低保留数量以恢复自动快照。',
+  snapKept: '关闭保护后,已有快照仍会保留',
+  snapPolicySummary: '每小时快照:保留 {hourly} · 每天:保留 {daily} · 每周:保留 {weekly}',
 }
