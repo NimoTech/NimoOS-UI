@@ -196,6 +196,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     indexStatus,
     tasks,
     months,
+    allPhotos,
     isIndexing,
     photoCount,
     videoCount,
