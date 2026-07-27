@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
 import RaidMemberList from '../storage/components/RaidMemberList.vue'
 import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
+import RaidReplaceDialog from '../storage/components/RaidReplaceDialog.vue'
 import { useStorageStore } from '../storage/stores/storage'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { fmtSize } from '../home/util/format'
@@ -101,6 +102,19 @@ async function onDelete() {
     router.push('/storage/raid')
   }
 }
+
+// 换盘(P4 T7):RaidMemberList 的 faulty 成员行 emit replace-disk(diskPath) → 开弹窗;
+// 弹窗 emit confirm(newDiskPath) 才真正调 store(store 调用留在视图,不在弹窗内)。
+const replaceOpen = ref(false)
+const replaceTarget = ref('')
+function onReplaceRequested(diskPath: string) {
+  replaceTarget.value = diskPath
+  replaceOpen.value = true
+}
+async function onReplace(newDiskPath: string) {
+  const ok = await store.replaceRaidDisk(idStr.value, { old_disk_path: replaceTarget.value, new_disk_path: newDiskPath })
+  if (ok) replaceOpen.value = false
+}
 </script>
 
 <template>
@@ -120,6 +134,16 @@ async function onDelete() {
         :busy="store.raidRemoving"
         @update:open="deleteOpen = $event"
         @confirm="onDelete"
+      />
+
+      <RaidReplaceDialog
+        :open="replaceOpen"
+        :raid-id="idStr"
+        :faulty-disk-path="replaceTarget"
+        :available-disks="store.availDisks"
+        :busy="store.raidReplacing"
+        @update:open="replaceOpen = $event"
+        @confirm="onReplace"
       />
 
       <div class="rd-cols">
@@ -172,7 +196,12 @@ async function onDelete() {
 
           <div class="rd-card">
             <div class="rd-card-title">{{ t('raidMembers') }} ({{ members.length }})</div>
-            <RaidMemberList :level="array.level" :members="members" />
+            <RaidMemberList
+              :level="array.level"
+              :members="members"
+              :is-degraded="flags.isDegraded"
+              @replace-disk="onReplaceRequested"
+            />
           </div>
         </div>
       </div>

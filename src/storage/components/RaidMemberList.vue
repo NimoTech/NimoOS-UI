@@ -9,7 +9,11 @@ import { memberSquare, mirrorPairs } from '../util/raidView'
 // 本地扩一层类型即可,不改共享包。
 export type RaidMember = RaidMemberDisk & { rebuild_pct?: number }
 
-const props = defineProps<{ level: number; members: RaidMember[] }>()
+// isDegraded:复用父视图(StorageRaidDetail.vue)既有的 resolveRaidState().isDegraded 计算结果,
+// 不在本组件内重复推导阵列级 degraded 状态(该判定跨 members 之外还看 array.state/isRebuilding 互斥,
+// 详见 raidView.ts resolveRaidState)。
+const props = defineProps<{ level: number; members: RaidMember[]; isDegraded?: boolean }>()
+const emit = defineEmits<{ (e: 'replace-disk', diskPath: string): void }>()
 const { t } = useI18n()
 
 const pairGroups = computed<RaidMember[][]>(() =>
@@ -24,6 +28,12 @@ function labelFor(m: RaidMember): string {
   const sq = memberSquare(m.state)
   return sq.labelKey ? t(sq.labelKey) : m.state
 }
+// 严格对齐 Vue2 RaidTab.vue:238-251 openReplaceDisk 的判定(m.state === "faulty"),
+// 不复用 memberSquare().kind==='fail'(它还把 'removed' 归为同类)——'removed' 盘不提供替换入口,
+// 与 Vue2 行为一致。
+function showReplace(m: RaidMember): boolean {
+  return !!props.isDegraded && m.state === 'faulty'
+}
 </script>
 
 <template>
@@ -35,6 +45,9 @@ function labelFor(m: RaidMember): string {
           <span class="rml-path">{{ m.path }}</span>
           <span class="rml-label">{{ labelFor(m) }}</span>
           <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
+          <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">
+            {{ t('raidReplace') }}
+          </button>
         </div>
       </div>
     </template>
@@ -44,6 +57,9 @@ function labelFor(m: RaidMember): string {
         <span class="rml-path">{{ m.path }}</span>
         <span class="rml-label">{{ labelFor(m) }}</span>
         <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
+        <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">
+          {{ t('raidReplace') }}
+        </button>
       </div>
     </template>
   </div>
@@ -63,4 +79,9 @@ function labelFor(m: RaidMember): string {
 .rml-path { font-family: var(--num-font); font-weight: 500; }
 .rml-label { color: var(--fg-muted); }
 .rml-pct { margin-left: auto; font-weight: 600; color: var(--accent); }
+.rml-replace {
+  margin-left: auto; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--remove-fg);
+  background: var(--chip-bg); color: var(--remove-fg); cursor: pointer; font-size: 11.5px;
+}
+.rml-replace:hover { background: var(--chip-bg-hi); }
 </style>
