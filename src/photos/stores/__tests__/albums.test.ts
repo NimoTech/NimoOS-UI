@@ -57,12 +57,49 @@ describe('photosAlbums store', () => {
       expect(s.albumById('7')).toEqual({ id: 7, name: 'A' })
       expect(s.albumById(7)).toEqual({ id: 7, name: 'A' })
     })
-    it('assetsOf/isLoadingAssets 同理按 key 归一', async () => {
+    it('assetsOf 按 key 归一(数字 id 存,字符串查命中)', async () => {
       const s = usePhotosAlbums()
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({ assets: [{ id: 'p1', takenAt: '2026-01-01T00:00:00Z' }] })
       await s.fetchAlbumAssets(7)
       expect(s.assetsOf('7').length).toBe(1)
+    })
+    it('isLoadingAssets 按 key 归一——in-flight 时数字存/字符串查也命中 true(非零区分力的"早已结束"断言)', async () => {
+      let resolveFn: (v: unknown) => void
+      ;(service.photos.getAlbum as any).mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFn = resolve }),
+      )
+      const s = usePhotosAlbums()
+      const p = s.fetchAlbumAssets(7) // 数字 id 发起
+      expect(s.isLoadingAssets('7')).toBe(true) // 字符串查,in-flight 时必须命中
+      resolveFn!({ assets: [] })
+      await p
       expect(s.isLoadingAssets('7')).toBe(false)
+    })
+    // 写路径归一(updateAlbumLocal,经 renameAlbum 驱动):后端相册 id 是数字 7,
+    // 调用方传字符串 '7'(模拟路由 params.id 恒为字符串)必须命中同一条并原地改写。
+    it('updateAlbumLocal(经 renameAlbum)按 key 归一:数字 id 存,字符串 id 改', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 7, name: 'Old' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.updateAlbum as any).mockResolvedValueOnce({ name: '新名' })
+      await s.renameAlbum('7', '新名') // 字符串 id,后端存的是数字 7
+      expect(service.photos.updateAlbum).toHaveBeenCalledWith('7', { name: '新名' })
+      expect(s.albumById(7)?.name).toBe('新名')
+      expect(s.albums).toHaveLength(1) // 确认是原地改写而非误插一条新记录
+    })
+    // 写路径归一(removeAssetsFromAlbum 的 remove Set):Photo.id 类型是 string | number,
+    // 后端资产 id 可能是数字,调用方传字符串 assetIds(真实可能发生的组合)。
+    it('removeAssetsFromAlbum 的 remove Set 按 key 归一:资产数字 id,传入字符串 id 仍能移除', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', assetCount: 2 }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.getAlbum as any).mockResolvedValueOnce({
+        assets: [{ id: 101, takenAt: null }, { id: 102, takenAt: null }],
+      })
+      await s.fetchAlbumAssets('a1')
+      await s.removeAssetsFromAlbum('a1', ['101']) // 字符串,资产实际 id 是数字 101
+      expect(s.assetsOf('a1').map((x) => x.id)).toEqual([102])
+      expect(service.photos.removeFromAlbum).toHaveBeenCalledWith('a1', '101')
     })
   })
 
@@ -92,6 +129,21 @@ describe('photosAlbums store', () => {
       expect(s.assetsOf('9')).toEqual([])
       expect(service.photos.listAlbums).toHaveBeenCalledTimes(1)
     })
+    // 负向:deleteAlbum 无乐观删除(Vue2 :905-909 先 await 后端,成功后才 commit)——
+    // 在后端调用尚未 resolve 期间,albums 列表必须原封不动。
+    it('无乐观删除:后端调用 in-flight 期间 albums 列表未变', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'A' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      let resolveFn: (v: unknown) => void
+      ;(service.photos.deleteAlbum as any).mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFn = resolve }),
+      )
+      const p = s.deleteAlbum('a1')
+      expect(s.albums).toEqual([{ id: 'a1', name: 'A' }]) // 未被乐观移除
+      resolveFn!({})
+      await p
+    })
   })
 
   describe('fetchAlbumAssets', () => {
@@ -117,12 +169,19 @@ describe('photosAlbums store', () => {
       await Promise.all([p1, p2])
       expect(service.photos.getAlbum).toHaveBeenCalledTimes(1)
     })
-    it('reject → assetsOf 变 [] + loading 收尾为 false + console.error', async () => {
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      ;(service.photos.getAlbum as any).mockRejectedValueOnce(new Error('x'))
+    // 评审挡门项:必须先填充旧值再让第二次拉取失败,否则「清空为 []」和"未知 key 本来
+    // 就返回 []"（albums.ts 的 `?? []`）无法区分——把实现里清空那行整行删掉这条测试也会
+    // 通过。见 Vue2 photos.js:928(拉失败要抹掉旧内容,不能让用户对着陈旧列表操作)。
+    it('reject → assetsOf 从「有旧值」变为 []（非保留旧值)+ loading 收尾为 false + console.error', async () => {
+      ;(service.photos.getAlbum as any).mockResolvedValueOnce({ assets: [{ id: 'p1', takenAt: null }] })
       const s = usePhotosAlbums()
       await s.fetchAlbumAssets('a1')
-      expect(s.assetsOf('a1')).toEqual([])
+      expect(s.assetsOf('a1')).toHaveLength(1) // 先证明有旧值
+
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(service.photos.getAlbum as any).mockRejectedValueOnce(new Error('x'))
+      await s.fetchAlbumAssets('a1')
+      expect(s.assetsOf('a1')).toEqual([]) // 这句现在才有区分力:证明旧值被真的抹掉了
       expect(s.isLoadingAssets('a1')).toBe(false)
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
@@ -138,6 +197,9 @@ describe('photosAlbums store', () => {
       await s.renameAlbum('a1', 'New Name')
       expect(service.photos.updateAlbum).toHaveBeenCalledWith('a1', { name: 'New Name' })
       expect(s.albumById('a1')?.name).toBe('服务端名')
+      // 负向:renameAlbum 不重拉列表(Vue2 :933-936 只 commit 本地,不 dispatch fetchAlbums)——
+      // listAlbums 只应有 setup 阶段的 1 次调用。
+      expect(service.photos.listAlbums).toHaveBeenCalledTimes(1)
     })
     it('reject → 抛出且本地未改', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Old' }])
@@ -292,7 +354,12 @@ describe('photosAlbums store', () => {
         ],
       })
       await s.fetchAlbumAssets('a1')
-      ;(service.photos.removeFromAlbum as any).mockRejectedValue(new Error('x'))
+      // .mockRejectedValueOnce 两次(对应 assetIds 长度 2 次调用),避免 mockRejectedValue
+      // (非 Once)让 mock 实现在本文件余生永久 reject——vi.clearAllMocks() 只清调用记录,
+      // 不清实现,是 brief 警告的跨用例"实现泄漏"。
+      ;(service.photos.removeFromAlbum as any)
+        .mockRejectedValueOnce(new Error('x'))
+        .mockRejectedValueOnce(new Error('x'))
       await expect(s.removeAssetsFromAlbum('a1', ['p1', 'p2'])).rejects.toThrow('x')
       expect(s.assetsOf('a1').map((x) => x.id)).toEqual(['p1', 'p2', 'p3'])
       expect(s.albumById('a1')?.assetCount).toBe(3)
@@ -313,7 +380,9 @@ describe('photosAlbums store', () => {
         ],
       })
       await s.fetchAlbumAssets('a1')
-      ;(service.photos.removeFromAlbum as any).mockRejectedValue(new Error('x'))
+      ;(service.photos.removeFromAlbum as any)
+        .mockRejectedValueOnce(new Error('x'))
+        .mockRejectedValueOnce(new Error('x'))
       await expect(s.removeAssetsFromAlbum('a1', ['p1', 'p2'])).rejects.toThrow('x')
       expect(s.albumById('a1')?.assetCount).toBe(0)
     })
