@@ -205,6 +205,78 @@ describe('PhotosAlbums.vue', () => {
     expect(addSpy).toHaveBeenCalledWith('new1', ['recent1'])
   })
 
+  // 评审 Important:恰好 30 天前的边界项——Vue2 :321 的逐字语义是 `t >= cutoff`(闭区间,
+  // 含边界),这里单独断言,不要在实现里改成 `>`。
+  it("source==='recent' 边界:恰好 30 天前(cutoff 本身)按 >= 语义被包含", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Boundary' })
+    svc.photos.getTimeline.mockResolvedValue([
+      {
+        year: 2026,
+        month: 6,
+        // now - 30*86400000 == 2026-06-27T00:00:00Z 的时间戳,与 cutoff 完全相等。
+        assets: [{ id: 'boundary1', takenAt: '2026-06-27T00:00:00Z', mimeType: 'image/jpeg' }],
+      },
+    ])
+    const { w } = await mountView()
+    const timeline = useTimelineStore()
+    await timeline.fetchTimeline()
+    const albums = usePhotosAlbums()
+    const addSpy = vi.spyOn(albums, 'addAssetsToAlbum')
+
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Boundary')
+    await w.find('[data-test="source-recent"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(addSpy).toHaveBeenCalledWith('new1', ['boundary1'])
+  })
+
+  // 评审 Important(裁定为新缺陷,非照抄 Vue2):Vue2 的相册列表从来不是独立路由——它是
+  // PhotosTimeline.vue 内部按 activeNav 切换的子块,时间线数据由父组件 PhotosTimeline.mounted()
+  // 无条件预热。New-UI 把相册做成了独立真路由 /photos/albums,用户可能直链/刷新进来、
+  // 从未访问过 /photos,此时 timeline store 是全新的(allPhotos===[])。修复前:'recent' 分支
+  // 会静默算出空 id 集,addAssetsToAlbum 被跳过,但仍然弹"已创建"成功 toast——用户拿到一个
+  // 空相册和一条假成功提示,零错误信号。断言:timeline 全新时,选 recent 提交 → 组件自己补一次
+  // fetchTimeline,addAssetsToAlbum 最终收到非空 id 集(而不是被静默跳过)。
+  it("source==='recent' 且 timeline store 全新(未预热)→ 组件自己补 fetchTimeline,addAssetsToAlbum 收到非空 id 集", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'ColdStart' })
+    svc.photos.getTimeline.mockResolvedValue([
+      {
+        year: 2026,
+        month: 7,
+        assets: [{ id: 'warm1', takenAt: '2026-07-20T00:00:00Z', mimeType: 'image/jpeg' }],
+      },
+    ])
+    // 关键:与其它 'recent' 用例不同,这里刻意不预先调用 timeline.fetchTimeline() ——
+    // 模拟用户从未访问过 /photos、timeline store 仍是初始空状态。
+    const { w } = await mountView()
+    const timeline = useTimelineStore()
+    expect(timeline.allPhotos).toHaveLength(0) // 前置条件:确实是冷启动
+    const fetchSpy = vi.spyOn(timeline, 'fetchTimeline')
+    const albums = usePhotosAlbums()
+    const addSpy = vi.spyOn(albums, 'addAssetsToAlbum')
+
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('ColdStart')
+    await w.find('[data-test="source-recent"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(addSpy).toHaveBeenCalledWith('new1', ['warm1']) // 非空 id 集,不是被静默跳过
+  })
+
   it("source==='select' → 提交后 AlbumLibraryPicker 渲染(open===true)", async () => {
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
     const { w } = await mountView()

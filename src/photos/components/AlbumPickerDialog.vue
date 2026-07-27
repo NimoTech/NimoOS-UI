@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosAlbums } from '../stores/albums'
 import { albumToView } from '../util/albumView'
+import { isConflict } from '../util/httpErrors'
 import { useToast } from '../../stores/toast'
 
 const props = defineProps<{ open: boolean; assetIds: Array<string | number> }>()
@@ -105,18 +106,6 @@ function startCreate(): void {
 
 function cancelCreate(): void {
   creating.value = false
-}
-
-// 判断 409(重名):brief 要求 `e?.response?.status === 409` 或 message 含 409——对未知形状
-// 的异常安全,不假设 e 一定带 response/message,避免二次抛错。
-function isConflict(e: unknown): boolean {
-  if (!e || typeof e !== 'object') return false
-  const response = (e as { response?: unknown }).response
-  if (response && typeof response === 'object' && (response as { status?: unknown }).status === 409) {
-    return true
-  }
-  const message = (e as { message?: unknown }).message
-  return /409/.test(String(message ?? ''))
 }
 
 async function submitCreate(): Promise<void> {
