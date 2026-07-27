@@ -5,7 +5,8 @@
   caption(127-129)。**不做**(留给 Task 10/11,接线处见下方注释):
     - 附件 chips(Vue2 18-42)、上传/删除管线(onFilesPicked/removeAttachment,
       Vue2 506-611)——`attachments` 数组在本任务里恒为空数组。
-    - @mention 面板(MentionPopover)与 `/init` 斜杠面板(SlashMenu)——onInput 的
+    - @mention 面板(MentionPopover)与 `/init` 斜杠面板(P1c1 补丁 Task 3 起为
+      SlashPopover;初版移植的 SlashMenu 已被用户否掉并退役)——onInput 的
       mention 扫描(Vue2 306-334)、drillIn/pickItem/popSegment、onInit 均未接入。
     - Vue2 的 BrowserModal(浏览 NAS 弹窗)——本期用户决定延后,Browse 按钮改为
       toast 占位提示。
@@ -591,6 +592,9 @@ function onSlashBack() {
   nextTick(() => {
     const el = ta.value
     el?.setSelectionRange(text.value.length, text.value.length)
+    // 退层会缩短文本(去掉 target 阶段敲的筛选词),不重算高度的话 textarea
+    // 会僵在之前撑开的高度上,直到下一次按键才回缩。
+    grow()
   })
 }
 
