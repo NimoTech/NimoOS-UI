@@ -211,7 +211,7 @@ export function useAgentStore(agentType?: string) {
 
     /**
      * agentStore.js:246-293 —— 切 activeSessionId + 拉消息列表 + attach 尾巴。
-     * 资源/附件装载已接入(本任务);staged 装载留给 Task 3 补齐第三个 loader。
+     * 三域装载已在此完成(1c-1):资源/附件/暂存区。
      * legacy 消息迁移 `migrateLegacyMessages`
      * (Task 3)在此接入——历史消息装载后立刻跑一遍旧 block 形态迁移
      * (run_command→terminal 等),再赋值给 messages。
@@ -233,8 +233,7 @@ export function useAgentStore(agentType?: string) {
       messages.value = migrateLegacyMessages(raw as any) as unknown as AgentMessage[]
 
       // agentStore.js:259-265 —— 并发装载,单个失败不阻断整条切换。
-      // 本任务先接两个(visible + attachments);第三个(staged)由 Task 3 补入同一行。
-      await Promise.allSettled([loadVisibleResources(), loadAttachments()])
+      await Promise.allSettled([loadVisibleResources(), loadAttachments(), loadStagedChanges()])
 
       // 乐观置 busy,直到 attach 回报为止。send() 会在 busy 上守卫,防止
       // "刚切换会话就手快发送" 和一次 replay 的 user_message 事件赛跑,
@@ -465,6 +464,73 @@ export function useAgentStore(agentType?: string) {
       if (!activeSessionId.value) return
       await service.ai.deleteAttachment(activeSessionId.value, aid)
       attachments.value = attachments.value.filter((a) => a.id !== aid)
+    }
+
+    // ── 1c:暂存区(agentStore.js:779-847)──
+
+    /** 无会话直接清空、不发请求;有会话则整表覆盖。 */
+    async function loadStagedChanges() {
+      if (!activeSessionId.value) { stagedChanges.value = []; return }
+      const body = await service.ai.listStagedChanges(activeSessionId.value)
+      stagedChanges.value = (body as StagedGroup[]) || []
+    }
+
+    /** 成功即清空整表;失败保留列表、错误冒泡;committing 一定在 finally 复位。 */
+    async function commitStagedAll() {
+      if (!activeSessionId.value) return
+      committing.value = true
+      try {
+        await service.ai.commitStagedChanges(activeSessionId.value)
+        stagedChanges.value = []
+      } finally { committing.value = false }
+    }
+
+    /** agentStore.js:799-810 —— 整轮回滚;**不看响应状态**,成功即丢整组。 */
+    async function revertStagedRun(runId: string | number) {
+      if (!activeSessionId.value) return
+      const key = String(runId)
+      reverting.value[key] = true
+      try {
+        await service.ai.revertStagedRun(activeSessionId.value, runId)
+        stagedChanges.value = stagedChanges.value.filter((g) => g.run_id !== runId)
+      } finally { delete reverting.value[key] }
+    }
+
+    /**
+     * agentStore.js:812-828 —— 批量回滚。status ∈ ok|partial → 就地剪掉该 batch 的项
+     * 并丢掉变空的组;其余(conflict/nothing_to_revert/snapshot_missing)→ 整表重拉。
+     */
+    async function revertStagedBatch(batchId: string | number) {
+      if (!activeSessionId.value) return
+      const key = String(batchId)
+      reverting.value[key] = true
+      try {
+        const body = (await service.ai.revertStagedBatch(activeSessionId.value, batchId)) as { status?: string } | null
+        const status = (body && body.status) || 'ok'
+        if (status === 'ok' || status === 'partial') {
+          stagedChanges.value.forEach((g) => { g.items = g.items.filter((it) => it.batch_id !== batchId) })
+          stagedChanges.value = stagedChanges.value.filter((g) => g.items.length > 0)
+        } else {
+          await loadStagedChanges()
+        }
+      } finally { delete reverting.value[key] }
+    }
+
+    /** agentStore.js:830-847 —— 单项回滚:复数端点 + 单元素数组;reverting 键前缀 'item:'。 */
+    async function revertStagedItem(stagedId: string | number) {
+      if (!activeSessionId.value) return
+      const revertKey = 'item:' + stagedId
+      reverting.value[revertKey] = true
+      try {
+        const body = (await service.ai.revertStagedItems(activeSessionId.value, [stagedId])) as { status?: string } | null
+        const status = (body && body.status) || 'ok'
+        if (status === 'ok' || status === 'partial') {
+          stagedChanges.value.forEach((g) => { g.items = g.items.filter((it) => it.staged_id !== stagedId) })
+          stagedChanges.value = stagedChanges.value.filter((g) => g.items.length > 0)
+        } else {
+          await loadStagedChanges()
+        }
+      } finally { delete reverting.value[revertKey] }
     }
 
     /**
@@ -863,6 +929,11 @@ export function useAgentStore(agentType?: string) {
       removeVisibleResource,
       loadAttachments,
       removeAttachment,
+      loadStagedChanges,
+      commitStagedAll,
+      revertStagedRun,
+      revertStagedBatch,
+      revertStagedItem,
       createStreamActions,
       loadAvailableModels,
       selectModel,

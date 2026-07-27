@@ -161,14 +161,16 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.attachments).toEqual([{ id: 'a2' }])
   })
 
-  it('selectSession:装载消息后并发跑两个 loader(顺序在 attach 之前)', async () => {
+  it('selectSession:装载消息后并发跑三个 loader(顺序在 attach 之前)', async () => {
     const s = useAgentStore('t2i')
     svc.listAgentMessages.mockResolvedValue([])
     svc.listVisibleResources.mockResolvedValue([])
     svc.listAttachments.mockResolvedValue([])
+    svc.listStagedChanges.mockResolvedValue([])
     await s.selectSession('sess-9')
     expect(svc.listVisibleResources).toHaveBeenCalledWith('sess-9')
     expect(svc.listAttachments).toHaveBeenCalledWith('sess-9')
+    expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-9')
   })
 
   it('selectSession:单个 loader 失败不阻断(allSettled)', async () => {
@@ -178,5 +180,104 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     svc.listAttachments.mockResolvedValue([{ id: 'a1' }])
     await expect(s.selectSession('sess-10')).resolves.toBeUndefined()
     expect(s.attachments).toEqual([{ id: 'a1' }])
+  })
+})
+
+describe('agentStore P1c Task3:staged changes', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((fn) => fn.mockReset())
+    localStorage.clear()
+  })
+
+  const seed = (s: any) => {
+    s.stagedChanges.push({
+      run_id: 'r1', created_at: 1,
+      items: [
+        { seq: 1, staged_id: 10, batch_id: 'bx', op: 'mkdir', path: '/a' },
+        { seq: 2, staged_id: 11, batch_id: 'bx', op: 'rename', path: '/b', dst_path: '/c' },
+        { seq: 3, op: 'write', path: '/loose' },
+      ],
+    })
+  }
+
+  it('loadStagedChanges:无会话清空;有会话整表覆盖', async () => {
+    const s = useAgentStore('t3a')
+    await s.loadStagedChanges()
+    expect(s.stagedChanges).toEqual([])
+    s.activeSessionId = 'sess-1'
+    svc.listStagedChanges.mockResolvedValue([{ run_id: 'r9', created_at: 2, items: [] }])
+    await s.loadStagedChanges()
+    expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-1')
+    expect(s.stagedChanges).toHaveLength(1)
+  })
+
+  it('commitStagedAll:成功清空,committing 一定复位', async () => {
+    const s = useAgentStore('t3b')
+    s.activeSessionId = 'sess-1'
+    seed(s)
+    svc.commitStagedChanges.mockResolvedValue({})
+    await s.commitStagedAll()
+    expect(svc.commitStagedChanges).toHaveBeenCalledWith('sess-1')
+    expect(s.stagedChanges).toEqual([])
+    expect(s.committing).toBe(false)
+  })
+
+  it('commitStagedAll:失败时保留列表、committing 复位、错误冒泡', async () => {
+    const s = useAgentStore('t3c')
+    s.activeSessionId = 'sess-1'
+    seed(s)
+    svc.commitStagedChanges.mockRejectedValue(new Error('boom'))
+    await expect(s.commitStagedAll()).rejects.toThrow('boom')
+    expect(s.stagedChanges).toHaveLength(1)
+    expect(s.committing).toBe(false)
+  })
+
+  it('revertStagedRun:成功后整组移除,reverting 键清掉', async () => {
+    const s = useAgentStore('t3d')
+    s.activeSessionId = 'sess-1'
+    seed(s)
+    svc.revertStagedRun.mockResolvedValue({})
+    await s.revertStagedRun('r1')
+    expect(svc.revertStagedRun).toHaveBeenCalledWith('sess-1', 'r1')
+    expect(s.stagedChanges).toEqual([])
+    expect(s.reverting).toEqual({})
+  })
+
+  it('revertStagedBatch:ok 时按 batch_id 剪项并丢空组', async () => {
+    const s = useAgentStore('t3e')
+    s.activeSessionId = 'sess-1'
+    seed(s)
+    svc.revertStagedBatch.mockResolvedValue({ status: 'ok' })
+    await s.revertStagedBatch('bx')
+    expect(svc.revertStagedBatch).toHaveBeenCalledWith('sess-1', 'bx')
+    expect(s.stagedChanges[0].items.map((i: any) => i.seq)).toEqual([3])
+  })
+
+  it('revertStagedBatch:非 ok/partial 状态改为整表重拉', async () => {
+    const s = useAgentStore('t3f')
+    s.activeSessionId = 'sess-1'
+    seed(s)
+    svc.revertStagedBatch.mockResolvedValue({ status: 'conflict' })
+    svc.listStagedChanges.mockResolvedValue([])
+    await s.revertStagedBatch('bx')
+    expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-1')
+    expect(s.stagedChanges).toEqual([])
+  })
+
+  it('revertStagedItem:走复数端点单元素数组,reverting 键带 item: 前缀', async () => {
+    const s = useAgentStore('t3g')
+    s.activeSessionId = 'sess-1'
+    seed(s)
+    let keyDuringCall: string[] = []
+    svc.revertStagedItems.mockImplementation(async () => {
+      keyDuringCall = Object.keys(s.reverting)
+      return { status: 'ok' }
+    })
+    await s.revertStagedItem(10)
+    expect(svc.revertStagedItems).toHaveBeenCalledWith('sess-1', [10])
+    expect(keyDuringCall).toEqual(['item:10'])
+    expect(s.stagedChanges[0].items.map((i: any) => i.seq)).toEqual([2, 3])
+    expect(s.reverting).toEqual({})
   })
 })
