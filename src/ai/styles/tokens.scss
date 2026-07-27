@@ -71,6 +71,10 @@
   --line-strong: #D8D3C7;
   --line-faint: #EEEBE3;
 
+  /* SP8-P1c1 Task 7 — glass-layer outer hairline ring (MentionPopover popover
+     shadow); a skin-agnostic ultra-faint stroke, not a semantic color. */
+  --hairline-ring: rgba(0, 0, 0, 0.04);
+
   /* Timeline minimap */
   --tl-tick: #CFCABD;
   --tl-active: var(--accent);
@@ -228,6 +232,9 @@
   --line: #2E2E31;
   --line-strong: #3A3A3D;
   --line-faint: #262628;
+
+  /* SP8-P1c1 Task 7 — dark-theme value for --hairline-ring above. */
+  --hairline-ring: rgba(255, 255, 255, 0.06);
 
   --tl-tick: #3C3C3F;
 

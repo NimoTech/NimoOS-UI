@@ -666,4 +666,21 @@ export default {
   aiTimelineYou: '你',
   // SP8-P1c1 Task 6 — ContextUsageBar(上下文占用环)
   aiCtxLabel: '上下文',
+  // SP8-P1c1 Task 7 — MentionPopover(@ 提及/文件抽屉钻取面板),对齐 Vue2
+  // src/views/AI/Agent/shell/MentionPopover.vue 模板 1-80 的全部可见文案。
+  aiMentionAllDrives: '全部磁盘',
+  aiMentionDrives: '个磁盘',
+  aiMentionItems: '项',
+  aiMentionLoading: '加载中…',
+  aiMentionNoMatch: '没有匹配 "{query}" 的结果',
+  aiMentionEmptyHere: '这里没有内容',
+  aiMentionTryDifferentName: '换个名字试试,或按',
+  aiMentionUpHint: '返回上一级',
+  aiMentionFolder: '文件夹',
+  aiMentionIgnored: '.gitignore',
+  aiMentionKbdNav: '导航',
+  aiMentionKbdDrill: '进入',
+  aiMentionKbdSelect: '选择',
+  aiMentionKbdUp: '上一级',
+  aiMentionKbdClose: '关闭',
 }

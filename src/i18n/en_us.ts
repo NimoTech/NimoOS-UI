@@ -666,4 +666,22 @@ export default {
   aiTimelineYou: 'You',
   // SP8-P1c1 Task 6 — ContextUsageBar (context usage ring)
   aiCtxLabel: 'Context',
+  // SP8-P1c1 Task 7 — MentionPopover (@ mention / file-drawer drill-down panel),
+  // verbatim English strings from Vue2 src/views/AI/Agent/shell/MentionPopover.vue
+  // template lines 1-80.
+  aiMentionAllDrives: 'All drives',
+  aiMentionDrives: 'drives',
+  aiMentionItems: 'items',
+  aiMentionLoading: 'Loading…',
+  aiMentionNoMatch: 'No matches for "{query}"',
+  aiMentionEmptyHere: 'No items here',
+  aiMentionTryDifferentName: 'Try a different name, or press',
+  aiMentionUpHint: 'to go up',
+  aiMentionFolder: 'folder',
+  aiMentionIgnored: '.gitignore',
+  aiMentionKbdNav: 'Navigate',
+  aiMentionKbdDrill: 'Drill in',
+  aiMentionKbdSelect: 'Select',
+  aiMentionKbdUp: 'Up',
+  aiMentionKbdClose: 'Close',
 }
