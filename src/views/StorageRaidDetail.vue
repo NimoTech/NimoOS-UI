@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
 import RaidMemberList from '../storage/components/RaidMemberList.vue'
+import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
 import { useStorageStore } from '../storage/stores/storage'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { fmtSize } from '../home/util/format'
@@ -91,6 +92,15 @@ const members = computed(() => status.value?.members || [])
 function backToList() {
   router.push('/storage/raid')
 }
+
+const deleteOpen = ref(false)
+async function onDelete() {
+  const ok = await store.removeRaid(idStr.value)
+  if (ok) {
+    deleteOpen.value = false
+    router.push('/storage/raid')
+  }
+}
 </script>
 
 <template>
@@ -101,7 +111,16 @@ function backToList() {
         <h2 class="rd-name">{{ array.name }}</h2>
         <span class="rd-level">RAID {{ array.level }}</span>
         <span class="rc-badge" :class="severity">{{ t(labelKey) }}</span>
+        <button class="rd-delete" type="button" @click="deleteOpen = true">{{ t('raidRemove') }}</button>
       </header>
+
+      <RaidDeleteDialog
+        :open="deleteOpen"
+        :name="array.name"
+        :busy="store.raidRemoving"
+        @update:open="deleteOpen = $event"
+        @confirm="onDelete"
+      />
 
       <div class="rd-cols">
         <div class="rd-col-left">
@@ -175,6 +194,11 @@ function backToList() {
 .rc-badge.info { color: var(--accent); }
 .rc-badge.warning { color: var(--dem-fg); }
 .rc-badge.danger { color: var(--remove-fg); }
+.rd-delete {
+  margin-left: auto; border: 1px solid var(--remove-fg); background: var(--chip-bg); color: var(--remove-fg);
+  border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.rd-delete:hover { background: var(--chip-bg-hi); }
 
 .rd-cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: start; }
 @media (max-width: 768px) { .rd-cols { grid-template-columns: 1fr; } }

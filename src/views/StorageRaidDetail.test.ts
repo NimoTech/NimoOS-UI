@@ -36,12 +36,16 @@ describe('StorageRaidDetail', () => {
     expect(w.text()).toContain('/dev/sda')
     expect(raidGetUsage).toHaveBeenCalledWith('7')
   })
-  it('不渲染写操作按钮(recover/delete/replace)——P4 边界', async () => {
+  it('写操作按钮边界:delete 出现,recover/replace 仍缺席——P4 T6', async () => {
+    // P3 终审加的是硬计数不变式(===2);P4 T6 加了 .rd-delete 后计数必然变化,
+    // 改为语义化断言:该出现的(back + delete)出现,不该出现的(recover/replace)缺席。
+    // recover 是 T8 的事——T8 完成后需回来把 recover 按钮也纳入本测试(brief 明确要求留此注释)。
     await router.push('/storage/raid/7'); await router.isReady()
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
-    // P4 边界守卫:只读页只应有 2 个按钮(StorageShell 回主页 + rd-back 返回列表);新增任何写操作按钮(recover/delete/replace)会使计数上升而红
-    expect(w.findAll('button').length).toBe(2)
     expect(w.find('.rd-back').exists()).toBe(true)
+    expect(w.find('.rd-delete').exists()).toBe(true)
+    expect(w.find('.rd-recover').exists()).toBe(false)
+    expect(w.find('.rd-replace').exists()).toBe(false)
   })
 })
