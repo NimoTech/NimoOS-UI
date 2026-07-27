@@ -24,6 +24,7 @@ vi.mock('../../composables/useMessageBus', () => ({
 
 import Photos from '../Photos.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
+import { usePhotosFavorites } from '../../photos/stores/favorites'
 import { router as appRouter } from '../../router'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -59,5 +60,15 @@ describe('/photos route', () => {
     expect(store.stopIndexPoll).not.toHaveBeenCalled()
     w.unmount()
     expect(store.stopIndexPoll).toHaveBeenCalledTimes(1)
+  })
+
+  it('mount 触发 usePhotosFavorites().reconcileFavIds()(时间线首屏收藏态 reconcile)', async () => {
+    const fav = usePhotosFavorites()
+    fav.reconcileFavIds = vi.fn()
+    const router = makeRouter()
+    router.push('/photos'); await router.isReady()
+    const w = mount(Photos, { global: { plugins: [i18n, router] } })
+    expect(fav.reconcileFavIds).toHaveBeenCalledTimes(1)
+    w.unmount()
   })
 })

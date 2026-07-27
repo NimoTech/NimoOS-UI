@@ -22,6 +22,7 @@ import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosFavorites } from '../photos/stores/favorites'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../photos/util/taskBus'
@@ -128,6 +129,10 @@ onMounted(() => {
   store.fetchTimeline()
   store.startIndexPoll()
   store.fetchTasks()
+  // Task 10: 时间线首屏收藏态 reconcile —— 若用户本次会话未开过灯箱/收藏视图,
+  // per-tile 星标(PhotosGrid)会因 favorites store 的 favIds 尚未拉取而全部
+  // 呈描边(误报未收藏)。此处强制一次 reconcile 让时间线一进来星标即准。
+  usePhotosFavorites().reconcileFavIds()
   unsubs.push(bus.on('nimoos.photos.task.progress', onTaskProgress))
   unsubs.push(bus.on('connect', onSocketConnect))
 })
@@ -169,6 +174,8 @@ onUnmounted(() => {
       </main>
     </div>
   </AreaShell>
+  <!-- 收藏态由 photosFavorites store 同源(灯箱内部已直接调用 usePhotosFavorites().toggle),
+       此处空接即可,无需再往上冒泡处理。 -->
   <PhotoLightbox @delete="onLightboxDelete" @toggle-fav="() => {}" />
 </template>
 

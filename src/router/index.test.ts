@@ -15,4 +15,12 @@ describe('router', () => {
     const m = router.resolve('/files/NimoOS-HD/Documents')
     expect(m.name).toBe('files-path')
   })
+  it('/photos/favorites 命中 photos-favorites 路由', () => {
+    const m = router.resolve('/photos/favorites')
+    expect(m.name).toBe('photos-favorites')
+  })
+  it('/photos/trash 命中 photos-trash 路由', () => {
+    const m = router.resolve('/photos/trash')
+    expect(m.name).toBe('photos-trash')
+  })
 })
