@@ -27,16 +27,21 @@ describe('formatBytes(MentionPopover.vue:95-101)', () => {
 })
 
 describe('formatTime(MentionPopover.vue:287-299)', () => {
-  it('unix 秒(≤1e12)要 ×1000', () => {
-    const now = new Date()
-    const seconds = Math.floor(now.getTime() / 1000)
-    const out = formatTime(seconds)
-    expect(out.length).toBeGreaterThan(0)
+  it('unix 秒(≤1e12)要 ×1000:与对应毫秒值渲染同一天(同年:含月日、不含年份)', () => {
+    const currentYear = new Date().getFullYear()
+    // 固定锚点(当年 1 月 15 日正午),不依赖"今天"漂移
+    const anchorMs = new Date(currentYear, 0, 15, 12, 0, 0).getTime()
+    const anchorSeconds = Math.floor(anchorMs / 1000)
+    expect(formatTime(anchorSeconds)).toBe(formatTime(anchorMs))
+    expect(formatTime(anchorSeconds)).not.toMatch(new RegExp(String(currentYear)))
+    expect(formatTime(anchorSeconds)).toContain('15')
   })
-  it('unix 毫秒直接使用', () => {
-    const ms = Date.now()
-    const out = formatTime(ms)
-    expect(out.length).toBeGreaterThan(0)
+  it('unix 毫秒直接使用:与手动 ×1000 的秒值渲染一致(跨年:含年份)', () => {
+    const pastYear = new Date().getFullYear() - 3
+    const anchorMs = new Date(pastYear, 5, 20, 12, 0, 0).getTime()
+    const anchorSeconds = Math.floor(anchorMs / 1000)
+    expect(formatTime(anchorMs)).toBe(formatTime(anchorSeconds))
+    expect(formatTime(anchorMs)).toMatch(new RegExp(String(pastYear)))
   })
   it('ISO 串同年只出月日,跨年出年月', () => {
     const now = new Date()

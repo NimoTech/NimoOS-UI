@@ -38,6 +38,11 @@ describe('scanMention 触发判定(AgentComposer.vue:300-335)', () => {
   it('无 @ 时不触发', () => {
     expect(scanMention('hello', 5).open).toBe(false)
   })
+  it('caret 在字符串中间:只应扫描到 caret 为止,忽略其后的文本', () => {
+    const t = '@Drive1/do tail'
+    const caret = t.indexOf('do') + 'do'.length // 紧跟在 "do" 之后,tail 部分不应被看到
+    expect(scanMention(t, caret)).toEqual({ open: true, start: 0, segments: ['Drive1'], query: 'do' })
+  })
 })
 
 describe('mention 文本改写与光标(AgentComposer.vue:355-428)', () => {
@@ -58,6 +63,11 @@ describe('mention 文本改写与光标(AgentComposer.vue:355-428)', () => {
     const r2 = buildPopText('@Drive1/', 0, 8, ['Drive1'])
     expect(r2.text).toBe('@')
     expect(r2.segments).toEqual([])
+  })
+  it('buildPopText:保留光标之后的原文(caret 在字符串中间)', () => {
+    const r = buildPopText('@Drive1/docs/ tail', 0, 13, ['Drive1', 'docs'])
+    expect(r.text).toBe('@Drive1/ tail')
+    expect(r.segments).toEqual(['Drive1'])
   })
   it('stripMentionToken:整段 @token 删掉、不插入任何文本', () => {
     const r = stripMentionToken('see @Drive1/a.txt now', 4, 17)

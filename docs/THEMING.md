@@ -304,6 +304,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `.ic-*` app 图标渐变（`.ic-files` / `.ic-photos` / `.ic-video` / `.ic-music` / `.ic-ai` / `.ic-backup` / `.ic-download` / `.ic-docker` / `.ic-vm` / `.ic-share` / `.ic-search` / `.ic-settings` / `.ic-users` / `.ic-storage` / `.ic-appstore` / `.ic-terminal` 等） | `theme.css` §「应用图标配色」 | **品牌识别色，皮肤无关**——文件蓝、照片虹彩、音乐粉紫等是产品视觉资产，两套主题都保持一致，不应随皮肤变。用户靠颜色识别应用。 |
 | 第三方库内部主题（如 CodeMirror 编辑器配色） | 引入该库的组件 | 库有自己的主题机制，颜色由库内部管理，无法用 CSS 变量穿透。应走该库自身的 theme 配置，而非硬塞 token。 |
 | 生成式、按 seed 取色的占位马赛克色板（`src/ai/components/blocks/VideoCard.vue` 的 `PAL`、`ImageGridCard.vue` 的 `PALETTES`） | AI Agent 区（`src/ai/`，用的是自己一套 `src/ai/styles/tokens.scss`，见该文件头「例外清单」一节的同一登记） | **皮肤无关，占位马赛克**——没有真实视频帧/图片缩略图时按 block 数据里的 `seed` 索引取一组装饰性渐变色，不代表任何语义状态，纯生成式展示效果。与 `.ic-*` 品牌渐变同属"两套主题都原样保留"一类，不接入 token 体系。 |
+| `DRIVE_PALETTE`（按 drive/挂载点标签哈希取色的身份识别色） | `src/ai/util/mentionFormat.ts`（AI Agent 区 `src/ai/`，见该目录 `src/ai/styles/tokens.scss` 文件头「例外清单」一节的同一登记） | **皮肤无关，身份识别色**——按 drive/挂载点标签哈希索引固定色板，标识"这是哪个盘"，不代表语义状态，两套主题都原样保留，与 `.ic-*` 品牌渐变同属一类。 |
 
 注：`.ic-ai` 与 `.ic-all` / `.ic-app` 例外地**引用了** token（`--accent` / `--accent2` /
 `--orb-core` / `--all-bg` 等）——这部分仍随主题走，只有各图标的**固定品牌渐变**是例外。
