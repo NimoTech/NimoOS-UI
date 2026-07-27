@@ -61,6 +61,7 @@ function onToggle() {
           class="sp-switch"
           role="switch"
           :aria-checked="store.volume?.enabled === true"
+          :aria-label="t('snapTitle')"
           :class="{ on: store.volume?.enabled }"
           :disabled="store.toggling"
           @click="onToggle"

@@ -53,6 +53,11 @@ describe('SnapshotPanel 三态', () => {
     expect(w.find('.sp-policy-summary').exists()).toBe(false)
     expect(getPolicy).not.toHaveBeenCalled()
   })
+  it('开关有可访问名称(aria-label),不依赖旁边 .sp-key 的兄弟节点关系', async () => {
+    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
+    const w = mountPanel(); await flush(w)
+    expect(w.find('.sp-switch').attributes('aria-label')).toBe(zh.snapTitle)
+  })
   it('已关闭但仍有历史快照 → 额外出"已有快照仍会保留"行', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 3 }])
     const w = mountPanel(); await flush(w)
