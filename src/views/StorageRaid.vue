@@ -37,6 +37,11 @@ const progressOpen = ref(false)
 
 <template>
   <StorageShell>
+    <div class="sv-toolbar">
+      <button class="sv-create" type="button" @click="router.push('/storage/raid/create')">
+        {{ t('raidCreateBtn') }}
+      </button>
+    </div>
     <RaidCreatingCard
       v-if="store.creatingTask"
       :task="store.creatingTask"
@@ -54,4 +59,10 @@ const progressOpen = ref(false)
 
 <style scoped>
 .st-hint { padding: 24px 4px; color: var(--fg-muted); font-size: 14px; }
+.sv-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.sv-create {
+  padding: 7px 18px; border-radius: 999px; border: 1px solid var(--chip-border);
+  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
+}
+.sv-create:hover { background: var(--chip-bg-hi); }
 </style>
