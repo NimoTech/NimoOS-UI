@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSnapshotStore } from '../stores/snapshot'
 import { groupSnapshotsByDay, defaultExpandedDayKeys } from '../util/snapshotView'
+import type { SnapshotItemView } from '../util/snapshotView'
+import SnapshotDeleteDialog from './SnapshotDeleteDialog.vue'
 
 defineOptions({ name: 'SnapshotTimeline' })
 const props = defineProps<{ volumeUuid: string }>()
@@ -11,6 +13,25 @@ const { t } = useI18n()
 
 const expandedKeys = ref<string[]>([])
 let expandInitialized = false
+
+const deleteOpen = ref(false)
+const deleteTarget = ref<SnapshotItemView | null>(null)
+// 弹窗正文里的时间:Vue2 用 new Date(item.createdAt).toLocaleString()
+const deleteTimeText = computed(() =>
+  deleteTarget.value ? new Date(deleteTarget.value.createdAt).toLocaleString() : '',
+)
+
+function confirmDelete(item: SnapshotItemView) {
+  deleteTarget.value = item
+  deleteOpen.value = true
+}
+
+async function onDeleteConfirmed() {
+  const target = deleteTarget.value
+  if (!target) return
+  const ok = await store.removeSnapshot(props.volumeUuid, target.name)
+  if (ok) { deleteOpen.value = false; deleteTarget.value = null }
+}
 
 const groups = computed(() => groupSnapshotsByDay(store.snapshots))
 
@@ -70,12 +91,26 @@ function toggleGroup(dayKey: string) {
               <div class="st-actions">
                 <!-- [浏览] 未迁:跳文件区快照只读浏览属文件区快照套件(只读横幅/禁写/退出),
                      SP4 未迁、SP6-P5 决策推迟到独立一期(见 P5 计划台账)。删除按钮:P5 T6 -->
+                <button
+                  class="st-delete"
+                  type="button"
+                  :disabled="store.deletingName !== null"
+                  @click="confirmDelete(item)"
+                >{{ t('snapDelete') }}</button>
               </div>
             </li>
           </ul>
         </transition>
       </div>
     </div>
+
+    <SnapshotDeleteDialog
+      :open="deleteOpen"
+      :time-text="deleteTimeText"
+      :busy="store.deletingName !== null"
+      @update:open="deleteOpen = $event"
+      @confirm="onDeleteConfirmed"
+    />
   </div>
 </template>
 
@@ -119,6 +154,11 @@ function toggleGroup(dayKey: string) {
 .st-label { font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
 /* hover 才显形,但保留在 DOM 里可 tab(Vue2 注释同款理由) */
 .st-actions { display: flex; flex: none; gap: 6px; opacity: 0; pointer-events: none; transition: opacity 0.15s var(--ease); }
+.st-delete {
+  padding: 3px 10px; border-radius: 999px; font-size: 11px; cursor: pointer;
+  border: 1px solid var(--remove-fg); background: var(--chip-bg); color: var(--remove-fg);
+}
+.st-delete:disabled { opacity: 0.45; cursor: not-allowed; }
 
 @keyframes st-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 

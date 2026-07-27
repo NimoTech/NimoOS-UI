@@ -747,4 +747,7 @@ export default {
   snapTypeAuto: '自动',
   snapTypeManual: '手动',
   snapTypePreop: '操作前保护',
+  snapDelete: '删除',
+  snapDeleteTitle: '删除快照',
+  snapDeleteMsg: '仅删除 {time} 的这个快照,你当前的文件不受影响。',
 }

@@ -748,4 +748,7 @@ export default {
   snapTypeAuto: 'Auto',
   snapTypeManual: 'Manual',
   snapTypePreop: 'Pre-op protection',
+  snapDelete: 'Delete',
+  snapDeleteTitle: 'Delete Snapshot',
+  snapDeleteMsg: 'This deletes only the snapshot from {time}. Your current files are not affected.',
 }

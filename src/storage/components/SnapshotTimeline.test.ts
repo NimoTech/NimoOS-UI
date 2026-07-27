@@ -6,11 +6,13 @@ import SnapshotTimeline from './SnapshotTimeline.vue'
 import zh from '../../i18n/zh_cn'
 
 const listMock = vi.fn()
+const removeMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: { snapshot: {
     list: (...a: unknown[]) => listMock(...a),
     listVolumes: vi.fn().mockResolvedValue([]), getPolicy: vi.fn(), patchPolicy: vi.fn(),
-    togglePolicy: vi.fn(), create: vi.fn(), remove: vi.fn(),
+    togglePolicy: vi.fn(), create: vi.fn(),
+    remove: (...a: unknown[]) => removeMock(...a),
   } },
 }))
 
@@ -21,7 +23,7 @@ const flush = async (w: ReturnType<typeof mountIt>) => {
 }
 const day = (d: number, h: number) => new Date(2026, 6, d, h, 0).toISOString()
 
-beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); document.body.innerHTML = '' })
 
 describe('SnapshotTimeline', () => {
   it('挂载即按卷拉列表', async () => {
@@ -104,5 +106,39 @@ describe('SnapshotTimeline', () => {
     // 新卷按默认展开最近 2 组渲染(2 条 + 1 条 = 3 条可见,第三组收起)——
     // 这就是"展开态被重置、按新卷重新计算默认展开"的直接证据。
     expect(w.findAll('.st-item')).toHaveLength(3)
+  })
+})
+
+describe('SnapshotTimeline 删除', () => {
+  const one = [{ id: 1, name: '20260727T090000Z_manual_升级前', type: 'manual', created_at: day(27, 9) }]
+
+  it('条目有删除按钮;点击弹确认框(此时还没发请求)', async () => {
+    listMock.mockResolvedValue(one)
+    const w = mountIt(); await flush(w)
+    expect(w.find('.st-delete').exists()).toBe(true)
+    await w.find('.st-delete').trigger('click'); await flush(w)
+    expect(document.body.querySelector('.sdd-ok')).not.toBeNull()
+    expect(removeMock).not.toHaveBeenCalled()
+  })
+
+  it('确认后才发 remove(name, uuid),成功则该条从列表消失', async () => {
+    listMock.mockResolvedValue(one)
+    removeMock.mockResolvedValue(undefined)
+    const w = mountIt(); await flush(w)
+    await w.find('.st-delete').trigger('click'); await flush(w)
+    ;(document.body.querySelector('.sdd-ok') as HTMLButtonElement).click()
+    await flush(w)
+    expect(removeMock).toHaveBeenCalledWith('20260727T090000Z_manual_升级前', 'u1')
+    expect(w.findAll('.st-item')).toHaveLength(0)
+  })
+
+  it('取消 → 不发请求,条目还在', async () => {
+    listMock.mockResolvedValue(one)
+    const w = mountIt(); await flush(w)
+    await w.find('.st-delete').trigger('click'); await flush(w)
+    ;(document.body.querySelector('.sdd-cancel') as HTMLButtonElement).click()
+    await flush(w)
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(w.findAll('.st-item')).toHaveLength(1)
   })
 })
