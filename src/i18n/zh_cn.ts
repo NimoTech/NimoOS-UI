@@ -541,6 +541,8 @@ export default {
   // ── 相册 ──
   photosTitle: '相册',
   photosLibrary: '照片库',
+  photosFavorites: '收藏',
+  photosTrash: '回收站',
   photosStorage: '存储空间',
   photosCountSummary: '{photos} 张照片 · {videos} 个视频',
   photosTabAll: '全部',

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
 import { useTimelineStore } from '../stores/timeline'
 import { renderSize } from '../../files/util/format'
+import { activeNavId } from '../util/activeNavId'
 
 const router = useRouter()
 const route = useRoute()
@@ -25,13 +26,15 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// 导航条目注册表:数组结构预留后续阶段追加(收藏夹/回收站等)。
+// 导航条目注册表。
 const NAV = [
   { id: 'library', route: '/photos', labelKey: 'photosLibrary' },
+  { id: 'favorites', route: '/photos/favorites', labelKey: 'photosFavorites' },
+  { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
 ]
 
-function isActive(n: { route: string }): boolean {
-  return route.path.startsWith(n.route)
+function isActive(n: { id: string }): boolean {
+  return activeNavId(route.path, NAV) === n.id
 }
 
 // 存储条:usedText = totalBytes 人类可读;percent = (diskTotal-diskAvail)/diskTotal,除零守卫。

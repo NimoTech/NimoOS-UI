@@ -542,6 +542,8 @@ export default {
   // ── Photos ──
   photosTitle: 'Photos',
   photosLibrary: 'Photo library',
+  photosFavorites: 'Favorites',
+  photosTrash: 'Recently Deleted',
   photosStorage: 'Storage',
   photosCountSummary: '{photos} photos · {videos} videos',
   photosTabAll: 'All',
