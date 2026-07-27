@@ -220,3 +220,24 @@ describe('SnapshotPanel 手动创建快照', () => {
     expect((w.find('.sp-create').element as HTMLButtonElement).disabled).toBe(false)
   })
 })
+
+describe('SnapshotPanel 内嵌时间线可见性(1:1 照 Vue2)', () => {
+  it('已启用 → 时间线出现', async () => {
+    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 0 }])
+    const w = mountPanel(); await flush(w)
+    expect(w.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(true)
+  })
+  it('已关闭且有历史快照 → 时间线仍出现(保住"快照仍保留"的承诺)', async () => {
+    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 3 }])
+    const w = mountPanel(); await flush(w)
+    expect(w.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(true)
+  })
+  it('已关闭且无历史 → 无时间线;不支持 → 无时间线', async () => {
+    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
+    const w1 = mountPanel(); await flush(w1)
+    expect(w1.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(false)
+    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: false }])
+    const w2 = mountPanel(); await flush(w2)
+    expect(w2.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(false)
+  })
+})

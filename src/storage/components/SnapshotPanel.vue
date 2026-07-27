@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSnapshotStore } from '../stores/snapshot'
 import { resolveSnapshotState, validatePolicyForm, type PolicyForm } from '../util/snapshotView'
+import SnapshotTimeline from './SnapshotTimeline.vue'
 
 defineOptions({ name: 'SnapshotPanel' })
 
@@ -164,7 +165,11 @@ async function onCreateSnapshot() {
         <span class="sp-muted">{{ t('snapKept') }}</span>
       </div>
 
-      <!-- 快照历史时间线:P5 T5 -->
+      <!-- 可见性 1:1 照 Vue2 SnapshotPanel.vue:99-102:启用时,或已关闭但仍有历史快照时 -->
+      <SnapshotTimeline
+        v-if="state === 'enabled' || (state === 'disabled' && (store.volume?.count ?? 0) > 0)"
+        :volume-uuid="volumeUuid"
+      />
     </template>
   </div>
 </template>

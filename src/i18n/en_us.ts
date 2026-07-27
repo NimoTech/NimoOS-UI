@@ -741,4 +741,11 @@ export default {
   snapSave: 'Save',
   snapCreateNow: 'Create Snapshot Now',
   snapLabelPlaceholder: 'Optional note (e.g. before upgrade)',
+  snapHistory: 'Snapshot History',
+  snapEmptyHint: 'Create your first snapshot to start building a restore history',
+  snapToday: 'Today',
+  snapYesterday: 'Yesterday',
+  snapTypeAuto: 'Auto',
+  snapTypeManual: 'Manual',
+  snapTypePreop: 'Pre-op protection',
 }

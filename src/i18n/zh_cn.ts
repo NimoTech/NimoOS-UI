@@ -740,4 +740,11 @@ export default {
   snapSave: '保存',
   snapCreateNow: '立即创建快照',
   snapLabelPlaceholder: '可选备注(例如:升级前)',
+  snapHistory: '快照历史',
+  snapEmptyHint: '创建第一个快照,开始积累可恢复的历史',
+  snapToday: '今天',
+  snapYesterday: '昨天',
+  snapTypeAuto: '自动',
+  snapTypeManual: '手动',
+  snapTypePreop: '操作前保护',
 }
