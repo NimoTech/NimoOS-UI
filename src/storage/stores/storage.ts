@@ -266,13 +266,13 @@ export const useStorageStore = defineStore('storage', () => {
       const state = res?.data?.data?.state ?? 'retrying'
       if (state === 'active' || state === 'degraded' || state === 'rebuilding') toast.show(t('raidRecoverSuccess'))
       else toast.show(t('raidRecoverFailed'))
-      await loadRaid()
       return { state }
     } catch (e) {
       console.warn('[storage] raid recover failed', (e as Error)?.message)
       toast.show(t('raidRecoverFailed'))
       return null
     } finally {
+      await loadRaid()
       raidRecovering.value = false
     }
   }

@@ -446,6 +446,19 @@ describe('RAID 写 action', () => {
     expect(ok).toBe(true)
   })
 
+  it('removeRaid 失败 → warn 只记 message(不含 config)、finally 仍刷新、busy 复位', async () => {
+    raidRemoveMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
+    raidList.mockResolvedValue([]) // loadRaid 内部
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const s = useStorageStore()
+    const ok = await s.removeRaid(7)
+    expect(ok).toBe(false)
+    expect(warn).toHaveBeenCalled()
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
+    expect(s.raidRemoving).toBe(false) // finally 释放
+    warn.mockRestore()
+  })
+
   it('replaceRaidDisk 发 POST(id, {old_disk_path,new_disk_path}) 逐字', async () => {
     raidReplaceDiskMock.mockResolvedValue(undefined)
     raidList.mockResolvedValue([])
@@ -455,6 +468,19 @@ describe('RAID 写 action', () => {
     expect(ok).toBe(true)
   })
 
+  it('replaceRaidDisk 失败 → warn 只记 message(不含 config)、finally 仍刷新、busy 复位', async () => {
+    raidReplaceDiskMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
+    raidList.mockResolvedValue([])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const s = useStorageStore()
+    const ok = await s.replaceRaidDisk(3, { old_disk_path: '/dev/sdb', new_disk_path: '/dev/sdd' })
+    expect(ok).toBe(false)
+    expect(warn).toHaveBeenCalled()
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
+    expect(s.raidReplacing).toBe(false) // finally 释放
+    warn.mockRestore()
+  })
+
   it('recoverRaid 返回后端 data.state', async () => {
     raidRecoverMock.mockResolvedValue({ data: { data: { state: 'rebuilding' } } })
     raidList.mockResolvedValue([])
@@ -462,5 +488,18 @@ describe('RAID 写 action', () => {
     const r = await s.recoverRaid(9)
     expect(raidRecoverMock).toHaveBeenCalledWith(9)
     expect(r).toEqual({ state: 'rebuilding' })
+  })
+
+  it('recoverRaid 失败 → warn 只记 message(不含 config)、finally 仍刷新、busy 复位', async () => {
+    raidRecoverMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
+    raidList.mockResolvedValue([])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const s = useStorageStore()
+    const r = await s.recoverRaid(9)
+    expect(r).toBeNull()
+    expect(warn).toHaveBeenCalled()
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
+    expect(s.raidRecovering).toBe(false) // finally 释放
+    warn.mockRestore()
   })
 })
