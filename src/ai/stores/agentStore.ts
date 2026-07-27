@@ -32,6 +32,12 @@ export interface ThinkingState {
   defaults: { enabled: boolean; level: string }
 }
 
+/** agentStore.js:54 —— 会话已授权的可见资源。stream 注入的条目没有 id(见 dispatchEvent 'visible_resource_added')。 */
+export interface VisibleResource { id?: string | number; path: string; kind: string; has_agent_md?: boolean; [k: string]: unknown }
+/** agentStore.js:56 —— staged 项;loose 项(无 batch_id/staged_id)不可单项回滚。 */
+export interface StagedItem { seq: number; staged_id?: string | number; batch_id?: string | number | null; op: string; path: string; dst_path?: string | null; size_bytes?: number; snapshot_missing?: boolean; [k: string]: unknown }
+export interface StagedGroup { run_id: string | number; created_at: number; items: StagedItem[]; [k: string]: unknown }
+
 /** send() 接受的 payload 形态 —— agentStore.js:295-301。 */
 export interface SendPayload {
   text: string
@@ -139,6 +145,14 @@ export function useAgentStore(agentType?: string) {
     })
     // agentStore.js:60 —— 待consume一次的技能挂号(X-Skill-Id),1c(?skill=)接入前先留位。
     const pendingSkillId = ref<string | null>(null)
+
+    // ── 1c:资源 / 附件 / 暂存区(agentStore.js:54-59)──
+    const visibleResources = ref<VisibleResource[]>([])
+    const attachments = ref<Record<string, unknown>[]>([])
+    const stagedChanges = ref<StagedGroup[]>([])
+    const committing = ref(false)
+    /** 三种键命名空间共用一张表:raw run_id / raw batch_id / 'item:'+staged_id(agentStore.js:59)。 */
+    const reverting = ref<Record<string, boolean>>({})
 
     /** agentStore.js:160-164 —— 装载会话列表,body 非数组时兜底空数组。 */
     async function loadSessions() {
@@ -376,12 +390,39 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * 把这份 store 的 9 个流式 primitive 装订成一个 `StreamActions`,喂给
+     * agentStore.js:702-720 —— 流式 staged 项入组。按 run_id 归组(不存在则新建,
+     * created_at 用**秒**浮点以对齐服务端 unix 秒);组内按 (seq, path) 对去重,
+     * 命中则就地替换保位置。无上限、不排序、新组追加在末尾。
+     */
+    function appendStagedChange(item: Record<string, unknown>) {
+      const runId = item.run_id as string | number
+      let group = stagedChanges.value.find((g) => g.run_id === runId)
+      if (!group) {
+        group = { run_id: runId, created_at: Date.now() / 1000, items: [] }
+        stagedChanges.value.push(group)
+      }
+      const existingIdx = group.items.findIndex((x) => x.seq === item.seq && x.path === item.path)
+      if (existingIdx >= 0) group.items.splice(existingIdx, 1, item as unknown as StagedItem)
+      else group.items.push(item as unknown as StagedItem)
+    }
+
+    /** agentStore.js:722-726 —— 仅按 path 去重(不看 id),浅拷贝入列。 */
+    function appendVisibleResource(vr: { id?: string | number; path: string; kind: string }) {
+      if (!visibleResources.value.some((r) => r.path === vr.path)) visibleResources.value.push({ ...vr })
+    }
+
+    /** agentStore.js:728-732 —— 按 path 整表过滤。 */
+    function removeVisibleResourceFromList(path: string) {
+      visibleResources.value = visibleResources.value.filter((r) => r.path !== path)
+    }
+
+    /**
+     * 把这份 store 的流式 primitive 装订成一个 `StreamActions`,喂给
      * Task 6 transport(runAgentRun/attachAgentStream)→ Task 5 reducer
-     * (dispatchEvent)。1b 阶段刻意不含 appendStagedChange/appendVisibleResource/
-     * removeVisibleResourceFromList —— reducer 里这三个都是可选链调用,缺席时
-     * 静默 no-op,留给 1c 补上。`_lastNimoosSearchQuery` 是 tool_call/tool_result
-     * 之间传递 query 文本的可变载体,每次调用都给一份新的空字符串起点。
+     * (dispatchEvent)。1c 补上 appendStagedChange/appendVisibleResource/
+     * removeVisibleResourceFromList —— reducer 里这三个可选链调用不再 no-op。
+     * `_lastNimoosSearchQuery` 是 tool_call/tool_result 之间传递 query 文本的
+     * 可变载体,每次调用都给一份新的空字符串起点。
      */
     function createStreamActions(): StreamActions {
       return {
@@ -395,6 +436,9 @@ export function useAgentStore(agentType?: string) {
         pushActivityStep,
         markRunningStepDone,
         _lastNimoosSearchQuery: '',
+        appendStagedChange,
+        appendVisibleResource,
+        removeVisibleResourceFromList,
       }
     }
 
@@ -736,6 +780,11 @@ export function useAgentStore(agentType?: string) {
       lastFallbackNotice,
       thinking,
       pendingSkillId,
+      visibleResources,
+      attachments,
+      stagedChanges,
+      committing,
+      reverting,
       loadSessions,
       createSession,
       deleteSession,
@@ -753,6 +802,9 @@ export function useAgentStore(agentType?: string) {
       patchAssistantStats,
       pushActivityStep,
       markRunningStepDone,
+      appendStagedChange,
+      appendVisibleResource,
+      removeVisibleResourceFromList,
       createStreamActions,
       loadAvailableModels,
       selectModel,
