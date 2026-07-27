@@ -625,8 +625,11 @@ watch([edit, sortBy], () => {
   background: color-mix(in srgb, var(--accent) 85%, transparent);
   backdrop-filter: var(--blur);
 }
-.album-photo-grid[class*="is-compact"] .tile[data-selected="true"]::after,
-.tile[data-selected="true"]::after { display: none; }
+/* 修正(自审发现,与 Vue2 :3743-3745 对齐):edit 态下所有瓦片的 ★ Cover 徽章都要让位给
+   多选勾选圈(两者同占左上角),不是只让位给"当前已选中"的瓦片——用 .album-toolbar[data-edit]
+   的通用兄弟选择器命中整个网格,而不是按单瓦片 data-selected 判断(后者会让 edit 态里"尚未
+   勾选"的封面瓦片仍然显示徽章,与选择圈重叠)。 */
+.album-toolbar[data-edit="true"] ~ .album-photos-wrap .tile[data-cover="true"]::after { display: none; }
 
 /* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;color="white" → --on-accent。 */
 .tile-cover-btn {
