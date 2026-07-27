@@ -328,3 +328,77 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(w.emitted('send')).toBeFalsy()
   })
 })
+
+// P1c-1 验收补丁 Task 1 —— 失焦关闭后重新聚焦/点击要能重开面板(Vue2 同样缺
+// @focus 处理器,按项目"逻辑跟正确性"规则修的缺陷,见 p1c1-patch-task-1-brief.md)。
+// 用例逐字取自 brief「测试要求」1-4,fake timers 用法对齐 AgentTopbar.test.ts。
+describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((f: any) => f.mockClear?.())
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('失焦→重新聚焦会重开面板', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+
+    await ta.trigger('blur')
+    vi.advanceTimersByTime(200)
+    await flushPromises()
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+
+    await ta.trigger('focus')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+    expect(w.findComponent({ name: 'MentionPopover' }).props('query')).toBe('doc')
+  })
+
+  it('重新聚焦时不重开无关面板', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('hello')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+
+    await ta.trigger('blur')
+    vi.advanceTimersByTime(200)
+    await flushPromises()
+    await ta.trigger('focus')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+  })
+
+  it('点击把光标移出 @ 词会关闭面板', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    const el = ta.element as HTMLTextAreaElement
+    await ta.setValue('@Drive1/docs/ tail')
+
+    // Caret inside the @ segment, click there first — panel opens.
+    el.setSelectionRange(5, 5)
+    await ta.trigger('click')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+
+    // Move the caret into ' tail' (outside the mention) and click again.
+    el.setSelectionRange(el.value.length, el.value.length)
+    await ta.trigger('click')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+  })
+
+  it('聚焦会取消挂起的 blur 关闭', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    await ta.trigger('blur')
+    vi.advanceTimersByTime(100) // less than the 180ms blur-close delay
+    await ta.trigger('focus')
+    vi.advanceTimersByTime(200)
+    await flushPromises()
+    // The pending blur timer must have been cancelled by focus — the panel
+    // stays open, it does not get closed a moment later by the stale timer.
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+  })
+})

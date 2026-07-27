@@ -35,6 +35,12 @@
   (b) 见下方 pickItem 内注释——gitignore 409 确认框的 pending 状态用独立的
       open/target 两个 ref,而不是字面按 brief 描述"合并成一个 ref、在
       update:open 里清空"——原因见 pickItem 旁注释。
+  (c) P1c1 验收补丁 Task 1(2026-07-27,用户验收反馈):Vue2 同文件 45-53 的
+      textarea 没有 `@focus` 处理器——onBlur(343-346)180ms 后关闭面板,但没有
+      任何路径在重新聚焦时重开它,于是切标签页/点别处再切回来,面板永久消失。
+      这里新增 onFocus(先清挂起的 blurTimer 再按光标重开)+ onClick(点击移动
+      光标进出 @ 词也要跟着开/关),两者共用新抽出的 syncMentionFromCaret()
+      (原 onInput 里的扫描逻辑,一字未改,只是抽出复用)。见各自声明处注释。
 
   gitignore 409 确认(本期唯一有意的交互偏离):Vue2 用阻塞的 `window.confirm`
   (Vue2 398、630),这里改用仓库的 reka-ui `AlertDialog`。注意 AlertDialog 走
@@ -170,22 +176,16 @@ function updateAnchor() {
 }
 
 /**
- * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再斜杠触发(307-310——
- * **仅当**整串正好是 `'/'` 且斜杠菜单未打开时才触发,不会在任何别的位置的
- * `/` 上误触发),否则走 `scanMention`(Task 5 composerText.ts,逐字对齐 Vue2
- * 312-334 的"从光标往回扫,遇到非转义 @ 才算命中、遇到空白直接放弃"规则)。
+ * P1c1 验收补丁 Task 1(见文件头「Vue2 缺陷修复」新增项 (c)):抽出 onInput 里
+ * `scanMention` 那段——扫描光标处是否在一个有效的 `@` 词内,是则(重)开面板并
+ * 还原层级/查询词,否则关闭面板。抽出来的原因是 onFocus/onClick 两个新处理器
+ * 要复用同一份逻辑,不能各写一份(避免两份实现漂移)。**未改动扫描规则本身**,
+ * 逐字保留原来 onInput 里的分支。
  */
-function onInput() {
-  grow()
+function syncMentionFromCaret() {
   const v = text.value
   const el = ta.value
   const caret = el ? (el.selectionStart ?? v.length) : v.length
-
-  // Vue2 307-310: slash command only at the very start of input.
-  if (v.length === 1 && v === '/' && !slashOpen.value) {
-    slashOpen.value = true
-    return
-  }
 
   const scan = scanMention(v, caret)
   if (scan.open) {
@@ -197,6 +197,58 @@ function onInput() {
     return
   }
   closeMention()
+}
+
+/**
+ * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再斜杠触发(307-310——
+ * **仅当**整串正好是 `'/'` 且斜杠菜单未打开时才触发,不会在任何别的位置的
+ * `/` 上误触发),否则走 `syncMentionFromCaret()`(Task 5 composerText.ts 的
+ * `scanMention`,逐字对齐 Vue2 312-334 的"从光标往回扫,遇到非转义 @ 才算命中、
+ * 遇到空白直接放弃"规则——现在与 onFocus/onClick 共用,见上面的抽取注释)。
+ */
+function onInput() {
+  grow()
+  const v = text.value
+
+  // Vue2 307-310: slash command only at the very start of input.
+  if (v.length === 1 && v === '/' && !slashOpen.value) {
+    slashOpen.value = true
+    return
+  }
+
+  syncMentionFromCaret()
+}
+
+/**
+ * P1c1 验收补丁 Task 1 —— 修 Vue2 缺陷 (c):Vue2 `shell/AgentComposer.vue`
+ * 的 textarea(45-53)只绑了 `@input`/`@keydown`/`@blur`,没有 `@focus`。
+ * `onBlur`(343-346)会在 180ms 后调 `closeMention()`,而唯一能重开面板的路径
+ * 是 `onInput` 里的扫描——于是切标签页/点页面别处再切回来,面板永久消失,直到
+ * 用户再敲一个字符。这不是 UI 差异,是逻辑缺陷;按项目 2026-07-27 移植纪律
+ * (界面照 Vue2、逻辑按正确的来)在此修:重新聚焦时,
+ *   1) 先清掉挂起的 blur 关闭定时器——否则"点面板条目→输入框重获焦点"这个
+ *      既有交互会被自己刚排的 180ms 定时器紧接着关掉;
+ *   2) 再用 syncMentionFromCaret() 按光标位置决定面板开/关——层级/查询词由
+ *      scanMention 从文本本身还原,天然保持已钻入的层级,不需要额外状态。
+ * 不触发斜杠菜单:那是 Task 3 的范围,且 `/` 的触发条件(整串正好是 '/')不同,
+ * 重新聚焦本身不该触发它。
+ */
+function onFocus() {
+  if (blurTimer.value !== null) {
+    clearTimeout(blurTimer.value)
+    blurTimer.value = null
+  }
+  syncMentionFromCaret()
+}
+
+/**
+ * P1c1 验收补丁 Task 1 续,同一缺陷 (c) 的另一半:用户可能在已有文本里点一下,
+ * 把光标移进/移出一个 `@` 词,面板要跟着开/关(而不是只在打字时响应)。与
+ * onFocus 调用同一个幂等函数 `syncMentionFromCaret()`——点击输入框时 focus 和
+ * click 两个事件都会触发,重复调用无副作用。
+ */
+function onClick() {
+  syncMentionFromCaret()
 }
 
 /**
@@ -680,6 +732,8 @@ onBeforeUnmount(() => {
         @input="onInput"
         @keydown="onKeydown"
         @blur="onBlur"
+        @focus="onFocus"
+        @click="onClick"
       />
 
       <div class="composer-row">
