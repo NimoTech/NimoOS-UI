@@ -564,7 +564,6 @@ export default {
   aiEmptyScriptExample: '搭一个小工具或自动化脚本',
   aiConfirm: '删除',
   aiCancel: '取消',
-  aiComingSoon: '对话发送将在下一期开启',
   aiSettingsComingSoon: '设置页将在后续阶段开启',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
@@ -690,4 +689,19 @@ export default {
   aiSlashInitDesc: '为某个目录生成 agent.md',
   aiSlashNoFolders: '还没有可见目录 —— 先用 @ 选一个',
   aiSlashInitialize: '初始化',
+  // SP8-P1c1 Task 9 — AgentComposer(输入框骨架:chips + textarea + 工具栏)。
+  // aiComposerPlaceholder 取自 Vue2 src/assets/lang/zh_CN.json 里
+  // agent.composerPlaceholder 的既有译文,逐字复用。
+  aiComposerPlaceholder: '问 Nimo，或输入 @ 引用文件…',
+  aiComposerVoice: '语音',
+  // Vue2 AgentComposer.vue:128 的整句 caption(对齐既有 zh_CN.json 译文)。
+  aiComposerCaption: '文件保留在你的 NAS。Nimo 可以读取、整理、操作它们。',
+  aiComposerBrowse: '浏览',
+  aiComposerBrowseTitle: '浏览 NAS',
+  // Browse 弹窗(BrowserModal)本期不做,点击后的占位提示(用户决定,见 Task 9 brief)。
+  aiBrowseComingSoon: '浏览弹窗将在后续版本开启',
+  aiNotSupportedYet: '该功能暂未支持',
+  // brief 未列举此键——removeChip(Vue2 430-434)失败分支需要一条提示,否则会被
+  // 静默吞掉;沿用 Vue2 toastError() 的语义("Authorization failed: {msg}"的等价物)。
+  aiComposerRemoveFailed: '移除失败：{msg}',
 }

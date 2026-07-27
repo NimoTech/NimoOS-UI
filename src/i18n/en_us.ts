@@ -565,7 +565,6 @@ export default {
   aiEmptyScriptExample: 'Build a small tool or automation',
   aiConfirm: 'Delete',
   aiCancel: 'Cancel',
-  aiComingSoon: 'Sending will be enabled in the next phase',
   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
   // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
@@ -693,4 +692,20 @@ export default {
   aiSlashInitDesc: 'Generate agent.md for a directory',
   aiSlashNoFolders: 'No visible directories — use @ to select one first',
   aiSlashInitialize: 'Initialize',
+  // SP8-P1c1 Task 9 — AgentComposer (input skeleton: chips + textarea + toolbar).
+  // aiComposerPlaceholder reuses the existing English string from Vue2
+  // src/assets/lang/en_US.json's agent.composerPlaceholder key, verbatim.
+  aiComposerPlaceholder: 'Ask Nimo, or type @ to reference a file…',
+  aiComposerVoice: 'Voice',
+  // Full sentence from Vue2 AgentComposer.vue:128 (matches existing en_US.json translation).
+  aiComposerCaption: 'Files stay on your NAS. Nimo can read, organize, and manage them.',
+  aiComposerBrowse: 'Browse',
+  aiComposerBrowseTitle: 'Browse NAS',
+  // BrowserModal is deferred this phase (user decision, see Task 9 brief) — placeholder toast.
+  aiBrowseComingSoon: 'The browser dialog is coming in a later release',
+  aiNotSupportedYet: 'This feature is not yet supported',
+  // Not enumerated by the brief — removeChip (Vue2 430-434)'s error branch needs
+  // a message or it would be silently swallowed; mirrors Vue2 toastError()'s
+  // "Authorization failed: {msg}" semantics.
+  aiComposerRemoveFailed: 'Failed to remove: {msg}',
 }
