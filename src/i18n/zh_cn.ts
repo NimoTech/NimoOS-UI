@@ -750,4 +750,11 @@ export default {
   // 无空格,与 zh_CN.json 保持一致而非按 brief 字面拼写)。
   aiAttachTooLarge: '{name} 超过 500MB 上限',
   aiAttachSessionFailed: '创建会话失败：{err}',
+  // SP8-P1c1 Task 11 — AgentComposer @提及/斜杠接线,gitignore 409 确认框
+  // (AlertDialog 取代 Vue2 window.confirm,见 AgentComposer.vue pickItem 注释)。
+  // aiGitignoreBlockedMsg 逐字复用 Vue2 既有 zh_CN.json 对 "{path} is blocked by
+  // .gitignore. Authorize anyway?" 的译文;aiGitignoreBlockedTitle 是 AlertDialog
+  // 需要而 window.confirm 没有的标题,新写,词根与既有译文的"屏蔽"保持一致。
+  aiGitignoreBlockedTitle: '路径被 .gitignore 屏蔽',
+  aiGitignoreBlockedMsg: '{path} 被 .gitignore 屏蔽，确认仍要授权？',
 }

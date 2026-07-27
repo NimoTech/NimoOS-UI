@@ -742,4 +742,12 @@ export default {
   aiAttachHint7: 'Single file limit 500 MB, session total 50 files',
   aiAttachTooLarge: '{name} exceeds 500 MB limit',
   aiAttachSessionFailed: 'Failed to create session: {err}',
+  // SP8-P1c1 Task 11 — AgentComposer @mention/slash wiring, gitignore 409 confirm
+  // (AlertDialog replaces Vue2's window.confirm, see the pickItem comment in
+  // AgentComposer.vue). aiGitignoreBlockedMsg is Vue2's exact source string
+  // (AgentComposer.vue:398/631, en_US.json is an identity map for it).
+  // aiGitignoreBlockedTitle is new — AlertDialog needs a title, window.confirm
+  // never had one.
+  aiGitignoreBlockedTitle: 'Blocked by .gitignore',
+  aiGitignoreBlockedMsg: '{path} is blocked by .gitignore. Authorize anyway?',
 }

@@ -240,3 +240,82 @@ describe('AgentComposer 附件管线', () => {
     expect(w.find('.ctx-chip-att').exists()).toBe(false)
   })
 })
+
+// SP8-P1c1 Task 11 — @提及/斜杠接线 + gitignore 409 确认框 describe 块,
+// 逐字取自 p1c1-task-11-brief.md Step 1(未改断言)。
+describe('AgentComposer @提及 / 斜杠', () => {
+  beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
+
+  it('输入 @ 触发提及面板;输入空格后关闭', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+    await ta.setValue('@doc ')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+  })
+
+  it('drill-in 把 "<name>/" 写回输入框并更新 segments', async () => {
+    const w = mountComposer()
+    await w.find('textarea').setValue('@Dr')
+    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
+    await w.vm.$nextTick()
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('segments')).toEqual(['Drive1'])
+  })
+
+  it('pick 文件:删掉 @token、调 addVisibleResource', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    const spy = vi.spyOn(store, 'addVisibleResource').mockResolvedValue(undefined)
+    const w = mountComposer()
+    await w.find('textarea').setValue('@Drive1/a')
+    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pick', { name: 'a.txt', kind: 'file', resolvedPath: '/DATA/a.txt' })
+    await flushPromises()
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
+    expect(spy).toHaveBeenCalledWith('/DATA/a.txt', 'file', false)
+  })
+
+  it('pick 命中 409 gitignore:弹确认框,确认后 force 重试', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    const err = Object.assign(new Error('x'), { response: { status: 409, data: { detail: 'path blocked by .gitignore' } } })
+    const spy = vi.spyOn(store, 'addVisibleResource').mockRejectedValueOnce(err).mockResolvedValueOnce(undefined)
+    const w = mountComposer()
+    await w.find('textarea').setValue('@Drive1/x')
+    w.findComponent({ name: 'MentionPopover' }).vm.$emit('pick', { name: 'x', kind: 'folder', resolvedPath: '/DATA/x' })
+    await flushPromises()
+    const dlg = w.findComponent({ name: 'AlertDialog' })
+    expect(dlg.props('open')).toBe(true)
+    dlg.vm.$emit('confirm')
+    await flushPromises()
+    expect(spy).toHaveBeenNthCalledWith(2, '/DATA/x', 'folder', true)
+  })
+
+  it('pop-segment 弹掉最后一段', async () => {
+    const w = mountComposer()
+    await w.find('textarea').setValue('@Drive1/docs/')
+    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pop-segment')
+    await w.vm.$nextTick()
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
+  })
+
+  it('单独输入 "/" 打开斜杠菜单;确认 init 后清空输入并 emit send-init', async () => {
+    const store = useAgentStore()
+    store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
+    const w = mountComposer()
+    await w.find('textarea').setValue('/')
+    const menu = w.findComponent({ name: 'SlashMenu' })
+    expect(menu.exists()).toBe(true)
+    expect(menu.props('folders').map((f: any) => f.path)).toEqual(['/DATA/docs'])
+    await menu.vm.$emit('init', '/DATA/docs')
+    expect(w.emitted('send-init')).toEqual([['/DATA/docs']])
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('提及面板打开时 Enter 不发送(交给面板处理)', async () => {
+    const w = mountComposer()
+    const ta = w.find('textarea')
+    await ta.setValue('@doc')
+    await ta.trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('send')).toBeFalsy()
+  })
+})
