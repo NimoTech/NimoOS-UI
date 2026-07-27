@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -20,6 +21,9 @@ const svc = vi.hoisted(() => ({
     previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
     spriteUrl: vi.fn((id: string | number) => `mock://sprite/${id}`),
     spriteMeta: vi.fn(),
+    listFavoriteIds: vi.fn<() => Promise<Array<string | number>>>(() => Promise.resolve([])),
+    favorite: vi.fn(() => Promise.resolve()),
+    unfavorite: vi.fn(() => Promise.resolve()),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -27,6 +31,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 import PhotosGrid from '../PhotosGrid.vue'
 import VideoHoverPreview from '../VideoHoverPreview.vue'
 import { assetToPhoto, type Month, type Photo } from '../../util/assetToPhoto'
+import { usePhotosFavorites } from '../../stores/favorites'
 
 function photo(id: string, opts: Partial<{ isVideo: boolean; hasOcr: boolean; durationMs: number }> = {}): Photo {
   return assetToPhoto({
@@ -46,6 +51,12 @@ beforeEach(() => {
   svc.photos.thumbnailUrl.mockImplementation((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
   svc.photos.previewUrl.mockImplementation((id: string | number) => `mock://preview/${id}`)
   svc.photos.spriteUrl.mockImplementation((id: string | number) => `mock://sprite/${id}`)
+  svc.photos.listFavoriteIds.mockImplementation(() => Promise.resolve([]))
+  svc.photos.favorite.mockImplementation(() => Promise.resolve())
+  svc.photos.unfavorite.mockImplementation(() => Promise.resolve())
+  // PhotosGrid consumes usePhotosFavorites() unconditionally at setup — every
+  // mount needs an active pinia, even tests that don't touch favorites at all.
+  setActivePinia(createPinia())
 })
 
 describe('PhotosGrid', () => {
@@ -335,5 +346,54 @@ describe('PhotosGrid', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  describe('per-tile favorite star (SP7-P3 Task 5: consumes photosFavorites store)', () => {
+    it('a favorited photo renders .tile-fav with is-fav (value comparison via fav.isFav(id), not object identity)', async () => {
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
+      const fav = usePhotosFavorites()
+      await fav.reconcileFavIds()
+      const months = [month('2026-07', 'July 2026', [photo('a')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      expect(w.get('.tile-fav').classes()).toContain('is-fav')
+    })
+
+    it('an unfavorited photo renders .tile-fav without is-fav', () => {
+      const months = [month('2026-07', 'July 2026', [photo('b')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      expect(w.get('.tile-fav').classes()).not.toContain('is-fav')
+    })
+
+    it('clicking the star calls fav.toggle(id) and does not bubble to open/toggle-select (@click.stop)', async () => {
+      const fav = usePhotosFavorites()
+      const spy = vi.spyOn(fav, 'toggle').mockResolvedValue()
+      const months = [month('2026-07', 'July 2026', [photo('a')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      await w.get('.tile-fav').trigger('click')
+      expect(spy).toHaveBeenCalledWith('a')
+      expect(w.emitted('open')).toBeUndefined()
+      expect(w.emitted('toggle-select')).toBeUndefined()
+    })
+
+    it('clicking the star while selecting still toggles favorite, not selection', async () => {
+      const fav = usePhotosFavorites()
+      const spy = vi.spyOn(fav, 'toggle').mockResolvedValue()
+      const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
+      await w.findAll('.tile-fav')[0].trigger('click')
+      expect(spy).toHaveBeenCalledWith('a')
+      expect(w.emitted('toggle-select')).toBeUndefined()
+    })
+
+    it('aria-label switches between photosFavorite and photosUnfavorite based on fav state', async () => {
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
+      const fav = usePhotosFavorites()
+      await fav.reconcileFavIds()
+      const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      const stars = w.findAll('.tile-fav')
+      expect(stars[0].attributes('aria-label')).toBe('取消收藏')
+      expect(stars[1].attributes('aria-label')).toBe('收藏')
+    })
   })
 })

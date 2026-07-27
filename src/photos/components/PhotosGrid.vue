@@ -24,6 +24,7 @@ import { service } from '@nimotech/nimoos-service'
 import type { Month, Photo } from '../util/assetToPhoto'
 import { computeFrameFromX } from '../util/hoverScrub'
 import { matchesTab } from '../util/tabFilter'
+import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
 const props = withDefaults(defineProps<{
@@ -43,6 +44,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+// 收藏是全局横切态(与 open/toggle-select 的视图级 emit 分工不同)——grid 直接消费
+// store,不新增 emit。星标显隐/is-fav 判定一律走 fav.isFav(id) 值比较,不用对象引用
+// (P1 铁律:时间线静默刷新在同一 keyed 节点上重建 Photo 对象,引用比较会误判)。
+const fav = usePhotosFavorites()
 
 // ─── DOM refs ────────────────────────────────────────────────────────────
 const wrapRef = ref<HTMLElement | null>(null)
@@ -304,6 +310,15 @@ onBeforeUnmount(() => {
                     @change="toggleSelect(p.id)"
                   />
                 </span>
+                <button
+                  type="button"
+                  class="tile-fav"
+                  :class="{ 'is-fav': fav.isFav(p.id) }"
+                  :aria-label="fav.isFav(p.id) ? t('photosUnfavorite') : t('photosFavorite')"
+                  @click.stop="fav.toggle(p.id)"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" :fill="fav.isFav(p.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
+                </button>
                 <div v-if="p.isVideo" class="tile-vid">
                   <span class="vid-play">▶</span> {{ p.duration }}
                 </div>
@@ -357,6 +372,19 @@ onBeforeUnmount(() => {
 .tile-check { position: absolute; top: 6px; left: 6px; z-index: 2; }
 .tile-check-box { opacity: 0; cursor: pointer; }
 .tile:hover .tile-check-box, .tile[data-selected="true"] .tile-check-box { opacity: 1; }
+
+.tile-fav {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
+  background: var(--overlay-bg); color: var(--fg);
+  cursor: pointer; opacity: 0; transition: opacity 0.15s ease;
+}
+.tile:hover .tile-fav, .tile-fav.is-fav { opacity: 1; }
+/* --star-fg has no per-theme definition (both themes keep the same gold star,
+   same precedent as PhotoLightbox.vue's .lb-fav.is-fav) — the var() fallback
+   always applies, so this stays token-driven per color-guard §0. */
+.tile-fav.is-fav { color: var(--star-fg, #ffd60a); }
 
 .tile-vid {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;
