@@ -685,4 +685,9 @@ export default {
   aiMentionKbdSelect: '选择',
   aiMentionKbdUp: '上一级',
   aiMentionKbdClose: '关闭',
+  // SP8-P1c1 Task 8 — SlashMenu(`/init` 斜杠面板),对齐 Vue2
+  // src/views/AI/Agent/shell/SlashMenu.vue 模板 1-23 的全部可见文案(`/init` 字面量不译)。
+  aiSlashInitDesc: '为某个目录生成 agent.md',
+  aiSlashNoFolders: '还没有可见目录 —— 先用 @ 选一个',
+  aiSlashInitialize: '初始化',
 }

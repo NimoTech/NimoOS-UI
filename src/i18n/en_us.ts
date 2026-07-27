@@ -687,4 +687,10 @@ export default {
   aiMentionKbdSelect: 'Select',
   aiMentionKbdUp: 'Up',
   aiMentionKbdClose: 'Close',
+  // SP8-P1c1 Task 8 — SlashMenu (`/init` slash panel), verbatim English strings
+  // from Vue2 src/views/AI/Agent/shell/SlashMenu.vue template lines 1-23
+  // (the `/init` literal itself is not translated).
+  aiSlashInitDesc: 'Generate agent.md for a directory',
+  aiSlashNoFolders: 'No visible directories — use @ to select one first',
+  aiSlashInitialize: 'Initialize',
 }
