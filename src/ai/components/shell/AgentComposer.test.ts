@@ -47,6 +47,15 @@ describe('AgentComposer 骨架', () => {
     expect((ta.element as HTMLTextAreaElement).value).toBe('')
   })
 
+  it('final-review fix: busy 时按 Enter 既不 emit send 也不清空文本(AgentComposer.vue submit() 的 busy 守卫)', async () => {
+    const w = mountComposer({ busy: true })
+    const ta = w.find('textarea')
+    await ta.setValue('hi there')
+    await ta.trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('send')).toBeFalsy()
+    expect((ta.element as HTMLTextAreaElement).value).toBe('hi there')
+  })
+
   it('IME 组合中的 Enter 不发送', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('中')

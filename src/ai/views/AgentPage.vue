@@ -80,7 +80,17 @@ let ctxUsageSeq = 0
  * 不是裸模型名;失败置 null。
  */
 async function refreshContextUsage() {
-  if (!store.activeSessionId) return
+  // Final-review fix (2026-07-27, 项目移植纪律:逻辑跟正确性,Vue2 Agent.vue
+  // 198-207 在这个早退分支上完全没有守卫,不是"跟 Vue2 不一样"而是补一个 Vue2
+  // 从没做过的守卫):no-session 早退必须一样地(a) 递增 ctxUsageSeq,使一个
+  // "刚被删掉的会话"仍在途的请求落地时,因 seq 已过期而被 catch/then 里的
+  // `seq === ctxUsageSeq` 检查丢弃,不会覆盖当前(空)状态;(b) 清空 ctxUsage,
+  // 否则环形进度条会继续显示已经不存在的会话的旧 token 数。
+  if (!store.activeSessionId) {
+    ++ctxUsageSeq
+    ctxUsage.value = null
+    return
+  }
   const seq = ++ctxUsageSeq
   try {
     const usage = (await service.ai.getContextUsage(

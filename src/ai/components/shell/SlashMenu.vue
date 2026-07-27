@@ -17,9 +17,11 @@
   处理,后续任务若做键盘一致性可以统一补上。
 
   三处裸色换 token(见 src/ai/styles/tokens.scss):
-  - 遮罩的透明黑(alpha 0.3)→ var(--modal-scrim)(该 token 值 alpha 为 0.5,
-    同一"暗遮罩"语义家族,是 SearchFileDrawer 等 modal 遮罩已在用的既有 token,
-    复用而非新增)。
+  - 遮罩的透明黑(alpha 0.3)→ var(--modal-scrim-soft)。
+    Final review fix(2026-07-27):这里原先复用了 --modal-scrim(alpha 0.5),
+    比 Vue2 字面值 alpha 0.3 明显更暗,是一处未申报的可见视觉偏离——1:1 铁律不
+    允许。改为新增的 --modal-scrim-soft(alpha 0.3,两套主题同值),精确对齐
+    Vue2 字面量;--shadow-pop 那处差异经复审判定可忽略,原样保留不动。
   - 卡片阴影(0 16px 48px,透明黑 alpha 0.18)→ var(--shadow-pop)。
   - .primary 的白色文字 → var(--text-on-accent)。
   半径:Vue2 硬编码 14px/8px/6px。--r-md 恰好是 14px,--r-xs 恰好是 6px——两处精确
@@ -80,7 +82,7 @@ function confirmInit(): void {
 
 <style scoped>
 .slash-menu {
-  position: fixed; inset: 0; background: var(--modal-scrim);
+  position: fixed; inset: 0; background: var(--modal-scrim-soft);
   z-index: 1000; display: flex; align-items: flex-end; justify-content: center;
   padding-bottom: 90px;
   /* Re-enable clicks: ancestor .composer-wrap is pointer-events:none */

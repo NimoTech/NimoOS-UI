@@ -157,6 +157,12 @@
   /* Dim-behind-blur backdrop shared by SearchFileDrawer/SearchFullResults modals
      — a scrim, not a skin surface, same value both themes (--scrim-dark sibling). */
   --modal-scrim: rgba(0, 0, 0, 0.5);
+  /* SP8-P1c1 (final review, 2026-07-27) — a lighter scrim tier for SlashMenu.
+     Vue2 shell/SlashMenu.vue's overlay literal was rgba(0,0,0,0.3), noticeably
+     lighter than --modal-scrim's 0.5; reusing --modal-scrim there would be a
+     visible 1:1 deviation, so this is a separate token, same value both themes
+     (a scrim, not a skin surface — same family as --modal-scrim/--scrim-dark). */
+  --modal-scrim-soft: rgba(0, 0, 0, 0.3);
 
   /* "Paper" file-icon face (SearchFileDrawer/SearchFullResults/SemanticSearchCard
      file-kind icons) — a white sheet-of-paper look, same convention real file
@@ -272,6 +278,9 @@
   --overlay-nav-border: rgba(255, 255, 255, 0.1);
   --overlay-img-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
   --modal-scrim: rgba(0, 0, 0, 0.5);
+  /* SP8-P1c1 (final review, 2026-07-27) — dark-theme value for --modal-scrim-soft
+     above (see light block comment); same value both themes, like --modal-scrim. */
+  --modal-scrim-soft: rgba(0, 0, 0, 0.3);
   --paper-surface: #ffffff;
   --kind-pdf: #FF3B30;
   --kind-doc: #007AFF;

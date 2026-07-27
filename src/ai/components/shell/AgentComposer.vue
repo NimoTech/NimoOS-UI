@@ -251,7 +251,22 @@ function toastError(e: unknown) {
   toast.show(t('aiAuthFailed', { msg }), 5000)
 }
 
-/** Vue2 430-434 removeChip()。 */
+/**
+ * Vue2 430-434 removeChip()。
+ *
+ * Known gap (final review, 2026-07-27, deferred to 1c-2): chips the agent
+ * itself authorizes mid-run arrive with no `id` — Vue2 agentStream.js:539-542
+ * and this repo's dispatchEvent.ts (`case 'visible_resource_added'`, ~line
+ * 310-315) both forward the stream event to `appendVisibleResource`/
+ * `addVisibleResource` with only `{path, kind}`, never an id (see the same
+ * observation in agentStore.ts:35). Vue2 has no guard here at all — it calls
+ * `removeVisibleResource(undefined)` unconditionally and lets the resulting
+ * failure surface through its existing `catch { toastError(e) }`, i.e. the
+ * user does see an error toast. This port's `id === undefined` guard instead
+ * no-ops silently: clicking × on such a chip does nothing and gives no
+ * feedback. A proper fix needs either the reducer to carry the id or a
+ * remove-by-path path — both out of scope here; not attempted in this task.
+ */
 async function removeChip(c: { id?: string | number }) {
   if (c.id === undefined) return
   try {
@@ -277,8 +292,16 @@ function closeMention() {
  * blur 关闭生效。**修 Vue2 缺陷 (a)**(见文件头注释):把 timer 句柄存进
  * `blurTimer`,onBeforeUnmount 里 clearTimeout——Vue2 从未存这个句柄,组件卸载
  * 后这个 setTimeout 仍可能触发(此时 this 已经是死组件实例)。
+ *
+ * Final-review fix (2026-07-27): storing only the *latest* handle was still
+ * incomplete — a blur→focus→blur sequence overwrote `blurTimer` with the
+ * second timer's handle without ever clearing the first one, so the first
+ * timer kept running and could fire `closeMention()` after the user had
+ * already refocused and reopened the popover. Clear any pending handle
+ * before scheduling a new one so at most one blur-close timer is ever live.
  */
 function onBlur() {
+  if (blurTimer.value !== null) clearTimeout(blurTimer.value)
   blurTimer.value = setTimeout(() => {
     closeMention()
     blurTimer.value = null
@@ -533,8 +556,15 @@ async function removeAttachment(entry: PendingAttachment) {
  * (readyAttachments),据此派生 attachmentIds/attachmentRefs;仍在上传中的
  * 附件存在时二次拦截(与 canSend 的守卫重复,但 submit 也可能被 Enter 键直接
  * 调用,不经过 disabled 按钮态,所以这层守卫不可省)。
+ *
+ * Vue2 缺陷修复(final review, 2026-07-27,项目移植纪律:逻辑跟正确性):Vue2
+ * AgentComposer.vue:436-454 的 submit() 无 busy 守卫,无条件清空 this.text/
+ * this.attachments;但对应 store 的 send() 一开头就 `if (busy.value) return`
+ * ——于是流式回复期间按 Enter,文本和已上传附件 chip 被原地清空,消息却根本没发
+ * 出去,静默吞掉用户输入。这里在做任何清空/emit 之前先挡一道 busy。
  */
 function submit() {
+  if (props.busy) return
   const trimmed = text.value.trim()
   const readyAttachments = attachments.value.filter((a) => a.status === 'uploaded' && a.aid)
   const attachmentIds = readyAttachments.map((a) => a.aid as string)

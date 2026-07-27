@@ -348,6 +348,12 @@ onBeforeUnmount(() => {
           <KindIcon :kind="item.kind" :ext="item.ext" :color="item.color" :size="16" />
           <div class="mention-name" v-html="highlight(item.name)" />
           <div class="mention-meta">
+            <!-- Declared deviation (final review, 2026-07-27): Vue2 MentionPopover.vue:59
+                 prints the raw byte counts `{{ item.used }} / {{ item.capacity }}` (e.g.
+                 "500107862016 / 1000204885504"). Treated as a Vue2 presentation defect under
+                 the project rule (logic follows correctness) — every sibling row in this same
+                 list already goes through formatSize, so raw bytes here would be the odd one
+                 out. Intentionally formatted; not a missed 1:1 port. -->
             <span v-if="item.kind === 'drive' && item.used && item.capacity">{{ formatSize(item.used) }} / {{ formatSize(item.capacity) }}</span>
             <span v-else-if="item.kind === 'folder'">{{ t('aiMentionFolder') }}</span>
             <span v-else-if="item.kind === 'file' && item.size != null">{{ formatSize(item.size) }}</span>
