@@ -41,7 +41,7 @@ const { t } = useI18n()
   </div>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
 .ctx-usage {
   position: relative;
   display: inline-flex;
@@ -57,10 +57,11 @@ const { t } = useI18n()
 }
 .ctx-ring-arc {
   transition: stroke-dasharray 0.3s ease, stroke 0.3s ease;
+
+  &.ok     { stroke: var(--accent); }
+  &.warn   { stroke: var(--warning); }
+  &.danger { stroke: var(--danger); }
 }
-.ctx-ring-arc.ok     { stroke: var(--accent); }
-.ctx-ring-arc.warn   { stroke: var(--warning); }
-.ctx-ring-arc.danger { stroke: var(--danger); }
 
 .ctx-usage-tip {
   position: absolute;
