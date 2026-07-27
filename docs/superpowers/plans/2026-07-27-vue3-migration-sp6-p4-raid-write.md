@@ -69,8 +69,8 @@
 **Interfaces:**
 - Consumes: 无(纯常量/函数)。可 `import type { RaidDisk }` —— 若 `raidView.ts` 未导出磁盘视图类型,本 Task 在 `raidLevels.ts` 定义本地最小 `RaidDisk = { path: string; size: number; disk_type?: string; health?: string }`(对齐 Vue2 `disk.path/size/disk_type/health` 读法)并 export。
 - Produces:
-  - `export interface RaidLevelInfo { id: number; name: string; min: number; tolerance: string; read: number; write: number; cost: number; desc: string; usecase: string; capacity: (n: number, sizeBytes: number) => number; layout: (n: number) => Array<'data'|'mirror'|'parity'|'parity2'> }`
-  - `export const RAID_LEVELS: RaidLevelInfo[]`(顺序 0,1,5,6,10)
+  - `export interface RaidLevelSpec { id: number; name: string; min: number; tolerance: string; read: number; write: number; cost: number; desc: string; usecase: string; capacity: (n: number, sizeBytes: number) => number; layout: (n: number) => Array<'data'|'mirror'|'parity'|'parity2'> }`(**注:改名 `RaidLevelSpec` 避免与 `raidView.ts` 已有的 P3 `RaidLevelInfo` 撞名——T1 fix `d16adea`**)
+  - `export const RAID_LEVELS: RaidLevelSpec[]`(顺序 0,1,5,6,10)
   - `export function recommendRaidLevel(n: number): number`
   - `export function isDiskAtRisk(disk: RaidDisk): boolean`
   - `export function groupColorKey(disk: RaidDisk, groups: Array<{ key: string }>): string`(返回分组序号→token 语义,供组件映射到 `--nrm-*`/`--accent` 等,**不返回字面色**)
@@ -437,7 +437,7 @@ git commit -m "feat(storage): RAID 选盘 DriveBay+DriveCard(P4 T3)"
 - Test: `src/storage/components/RaidMatrix.test.ts`
 
 **Interfaces:**
-- Consumes: `RAID_LEVELS`、`RaidLevelInfo`(T1);`fmtSize`;`useI18n`。
+- Consumes: `RAID_LEVELS`、`RaidLevelSpec`(T1);`fmtSize`;`useI18n`。
 - Produces: props `{ diskCount: number; sizeBytes: number; selectedLevel: number | null }`,emits `{ (e:'update:selectedLevel', id: number): void; (e:'details', id: number): void }`。
 
 - [ ] **Step 1: 写失败测试**
