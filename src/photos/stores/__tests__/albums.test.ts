@@ -147,6 +147,17 @@ describe('photosAlbums store', () => {
       await expect(s.renameAlbum('a1', 'New Name')).rejects.toThrow('x')
       expect(s.albumById('a1')?.name).toBe('Old')
     })
+    // 回归保护(逐行核对 Vue2 :934-935 发现的出入):Vue2 是 res.data.name **无兜底**,
+    // brief 快照误加了 `?? name`。若这里被误改回加兜底,后端漏返回 name 时本测试会挂红
+    // (期望 undefined,兜底实现会得到入参 'New Name')。
+    it('Vue2 保真:后端响应缺 name 字段时写回 undefined,不兜底成入参', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Old' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.updateAlbum as any).mockResolvedValueOnce({})
+      await s.renameAlbum('a1', 'New Name')
+      expect(s.albumById('a1')?.name).toBeUndefined()
+    })
   })
 
   describe('setAlbumCover', () => {
@@ -170,6 +181,17 @@ describe('photosAlbums store', () => {
       ;(service.photos.updateAlbum as any).mockRejectedValueOnce(new Error('x'))
       await expect(s.setAlbumCover('a1', 'p1')).rejects.toThrow('x')
       expect(s.albumById('a1')?.coverAssetId).toBe('p0')
+    })
+    // 回归保护(逐行核对 Vue2 :938-939 发现的出入):Vue2 的 prev 在相册存在但
+    // coverAssetId 字段缺失时是 undefined(属性直读),不是 null;brief 快照用 `?? null`
+    // 把这种情况也归一成了 null。若这里被误改回 `?? null`,本测试会挂红(期望 undefined)。
+    it('Vue2 保真:相册存在但 coverAssetId 字段缺失时,回滚值是 undefined 不是 null', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1' }]) // 无 coverAssetId 字段
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.updateAlbum as any).mockRejectedValueOnce(new Error('x'))
+      await expect(s.setAlbumCover('a1', 'p1')).rejects.toThrow('x')
+      expect(s.albumById('a1')?.coverAssetId).toBeUndefined()
     })
   })
 
@@ -274,6 +296,26 @@ describe('photosAlbums store', () => {
       await expect(s.removeAssetsFromAlbum('a1', ['p1', 'p2'])).rejects.toThrow('x')
       expect(s.assetsOf('a1').map((x) => x.id)).toEqual(['p1', 'p2', 'p3'])
       expect(s.albumById('a1')?.assetCount).toBe(3)
+    })
+    // 回归保护(逐行核对 Vue2 :979-980 发现的出入):Vue2 的 prevCount 在相册存在但
+    // assetCount 字段缺失时兜底 0(`album.assetCount || 0`),只有相册整个找不到时才兜底
+    // snapshot.length;brief 快照用 `?? snapshot.length` 把两种情况都兜底成了
+    // snapshot.length。若这里被误改回 `??`,本测试会挂红(期望 0,误实现会得到 3)。
+    it('Vue2 保真:相册存在但 assetCount 字段缺失时,回滚计数是 0 不是 snapshot.length', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1' }]) // 无 assetCount 字段
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.getAlbum as any).mockResolvedValueOnce({
+        assets: [
+          { id: 'p1', takenAt: null },
+          { id: 'p2', takenAt: null },
+          { id: 'p3', takenAt: null },
+        ],
+      })
+      await s.fetchAlbumAssets('a1')
+      ;(service.photos.removeFromAlbum as any).mockRejectedValue(new Error('x'))
+      await expect(s.removeAssetsFromAlbum('a1', ['p1', 'p2'])).rejects.toThrow('x')
+      expect(s.albumById('a1')?.assetCount).toBe(0)
     })
   })
 
