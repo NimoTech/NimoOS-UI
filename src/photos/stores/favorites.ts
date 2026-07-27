@@ -31,8 +31,9 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       const ids = await service.photos.listFavoriteIds()
       favIds.value = new Set(((ids as unknown[]) ?? []).map((v) => String(v)))
       favIdsLoaded.value = true
-    } catch {
+    } catch (e) {
       // leave favIds as-is on failure
+      console.error('[photos-favorites] reconcileFavIds', e)
     }
   }
 
@@ -40,10 +41,15 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     try {
       const list = (await service.photos.listFavorites()) as unknown[]
       favoritesList.value = (list ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
-    } catch {
+      // Only mark loaded on success — a transient fetch failure must stay
+      // distinguishable from "confirmed zero favorites", otherwise consumers
+      // gating a refetch on `!favoritesLoaded` (e.g. the Favorites view) would
+      // permanently mask real favorites behind an empty state.
+      favoritesLoaded.value = true
+    } catch (e) {
       favoritesList.value = []
+      console.error('[photos-favorites] fetchFavorites', e)
     }
-    favoritesLoaded.value = true
   }
 
   // Single-item optimistic flip + failure rollback (true to Vue2 toggleFav:
@@ -60,11 +66,17 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       else await service.photos.favorite(id)
       // Invalidate the cached favorites list — next view re-fetches.
       favoritesLoaded.value = false
-    } catch {
+    } catch (e) {
+      // Roll back + log only — do NOT rethrow. Every caller invokes this
+      // fire-and-forget (`void fav.toggle(id)`, mirroring P2's
+      // useLightbox.toggleFav precedent); rethrowing here would surface as an
+      // unhandled promise rejection instead of the UI-consistent rollback +
+      // diagnostic log this store already provides.
       const rollback = new Set(favIds.value)
       if (wasFav) rollback.add(key)
       else rollback.delete(key)
       favIds.value = rollback
+      console.error('[photos-favorites] toggle', e)
     }
   }
 
@@ -75,7 +87,9 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     const last = _viewTs.has(key) ? (_viewTs.get(key) as number) : -Infinity
     if (now - last < VIEW_THROTTLE_MS) return
     _viewTs.set(key, now)
-    void service.photos.recordView(id).then(undefined, () => {})
+    void service.photos.recordView(id).then(undefined, (e) => {
+      console.error('[photos-favorites] recordView', e)
+    })
   }
 
   function exportZip(): void {

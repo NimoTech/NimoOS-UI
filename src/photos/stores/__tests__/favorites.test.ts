@@ -14,7 +14,14 @@ import { service } from '@nimotech/nimoos-service'
 import { usePhotosFavorites } from '../favorites'
 
 describe('photosFavorites store', () => {
-  beforeEach(() => { setActivePinia(createPinia()) })
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    // vi.restoreAllMocks() (afterEach) doesn't clear call counts on plain
+    // vi.fn() mocks (only spies with an original impl to restore to) — clear
+    // explicitly so call-count assertions (e.g. recordView throttling) don't
+    // depend on test execution order.
+    vi.clearAllMocks()
+  })
   afterEach(() => vi.restoreAllMocks())
 
   it('reconcileFavIds 播种 favIds(String 归一)、isFav 按值比较', async () => {
@@ -54,11 +61,28 @@ describe('photosFavorites store', () => {
     expect(service.photos.recordView).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
   })
+  it('recordView 节流边界:恰好 60_000ms 时应上报(< 而非 <=)', () => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    const s = usePhotosFavorites()
+    s.recordView('b')
+    expect(service.photos.recordView).toHaveBeenCalledTimes(1)
+    vi.setSystemTime(60_000) // 60000 - 0 = 60000, not < 60000 → should report
+    s.recordView('b')
+    expect(service.photos.recordView).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
   it('fetchFavorites 映射 assetToPhoto + favoritesMonths 分组', async () => {
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.favoritesList?.length).toBe(1)
     expect(s.favoritesMonths[0].key).toBe('2026-05')
+  })
+  it('fetchFavorites 失败:favoritesList 置空但 favoritesLoaded 保持 false(与"确认零收藏"可区分,留给视图重试)', async () => {
+    ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('network'))
+    const s = usePhotosFavorites()
+    await s.fetchFavorites()
+    expect(s.favoritesList).toEqual([])
+    expect(s.favoritesLoaded).toBe(false)
   })
   it('exportZip 走 exportFavoritesUrl', () => {
     const s = usePhotosFavorites()
