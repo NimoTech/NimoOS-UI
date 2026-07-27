@@ -426,7 +426,10 @@ onBeforeUnmount(() => {
   max-width: 90vw;
   padding: 22px;
   border-radius: 16px;
-  background: var(--card-bg);
+  /* 用 --popup-bg(不透明弹层色:深色主题深蓝玻璃 0.9/0.95、浅色主题实心白),
+     不用 --card-bg —— 后者深色下是近透明白玻璃(alpha 0.085~0.26),叠在灯箱暗底上
+     会看穿(真机验收反馈:删除弹窗"透明")。两套主题各自不同的实底色。 */
+  background: var(--popup-bg);
   border: 1px solid var(--border);
   color: var(--fg);
   box-shadow: var(--media-overlay-shadow, 0 12px 40px rgba(0, 0, 0, 0.4));

@@ -284,6 +284,43 @@ describe('PhotosGrid', () => {
     }
   })
 
+  it('captures startMs after a timeline refresh rebuilds the hovered video object (match by id, not reference)', async () => {
+    // Regression (SP7-P2 real-machine acceptance): onTileClick guarded the
+    // start-position capture with `hoveredVideo === p` (object reference). The
+    // quiet index-poll refresh rebuilds the Photo as a NEW object with the SAME
+    // id on the same keyed DOM node (no mouseleave fires), so the reference
+    // check went false and startMs collapsed to 0 — the lightbox opened the
+    // video from the start instead of the hovered position. Must match on id.
+    vi.useFakeTimers()
+    try {
+      svc.photos.spriteMeta.mockResolvedValue({ frames: 10, durationMs: 5000, frameW: 240, frameH: 135 })
+      const months1 = [month('2026-07', 'July 2026', [photo('v', { isVideo: true, durationMs: 5000 })])]
+      const w = mount(PhotosGrid, { props: { months: months1, tab: 'all', density: 'comfortable', selected: [] } })
+      const tile = w.get('.tile')
+      await tile.trigger('mouseenter')
+      vi.advanceTimersByTime(300)
+      await flushPromises()
+      expect(w.findComponent(VideoHoverPreview).exists()).toBe(true)
+      // let the sprite auto-advance move the playhead off frame 0 so startMs > 0
+      vi.advanceTimersByTime(450)
+      await nextTick()
+
+      // Quiet refresh: same id 'v', brand-new object reference on the same node.
+      const months2 = [month('2026-07', 'July 2026', [photo('v', { isVideo: true, durationMs: 5000 })])]
+      expect(months2[0].photos[0]).not.toBe(months1[0].photos[0]) // sanity: reference changed
+      await w.setProps({ months: months2 })
+      await nextTick()
+
+      await tile.trigger('click')
+      const events = w.emitted('open') as unknown[][]
+      const startMs = events[events.length - 1][2] as number
+      // reference-equality guard yields 0 here; id-equality preserves the hovered position
+      expect(startMs).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a spriteMeta error closes the preview and does not throw', async () => {
     vi.useFakeTimers()
     try {

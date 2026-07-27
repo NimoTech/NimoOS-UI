@@ -134,7 +134,10 @@ function toggleSelect(id: string | number) { emit('toggle-select', id) }
 function onTileClick(p: Photo) {
   if (selecting.value) { toggleSelect(p.id); return }
   let startMs = 0
-  if (p.isVideo && hoveredVideo.value === p && previewVisible.value) {
+  // 按稳定 id 比较,不用对象引用(P1 铁律):时间线 5s 静默刷新会在同一 keyed 节点上
+  // 重建 Photo 对象(不触发 mouseleave),hoveredVideo 仍指向旧对象而 p 已是新对象,
+  // `=== p` 会误判为未悬停 → startMs 归 0 → 灯箱视频从头播(而非悬停位续播)。
+  if (p.isVideo && hoveredVideo.value?.id === p.id && previewVisible.value) {
     // ref_for -> array at runtime; normalize like Vue2's
     // `[].concat(this.$refs.hoverPreview || [])[0]`.
     const raw = hoverPreviewRef.value
