@@ -660,7 +660,7 @@ export default {
   photosAlbumUntitled: '未命名',
   photosAlbumsEmptyTitle: '还没有相册',
   photosAlbumsEmptyHint: '新建一个相册,把照片归到一起。',
-  photosAlbumSort: '排序: ',
+  photosAlbumSort: '排序:',
   photosAlbumSortUpdated: '最近更新',
   photosAlbumSortUpdatedHint: '保持服务端顺序',
   photosAlbumSortCreated: '最近添加',
