@@ -142,13 +142,64 @@ describe('AgentComposer 附件管线', () => {
     expect(w.find('.ctx-chip-att.is-failed').exists()).toBe(true)
   })
 
-  it('文档抽取报错时 chip 出警告角标', async () => {
+  it('文档抽取报错时 chip 出警告角标(且角标文案对应 docErrorShortKey 的 zh_cn 译文)', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'document', meta: { extract_error: 'timeout' } })
     const w = mountComposer()
     await pickFiles(w, [new File(['x'], 'a.pdf')])
     await flushPromises()
-    expect(w.find('.ctx-chip-att.is-doc-warn').exists()).toBe(true)
+    const chip = w.find('.ctx-chip-att.is-doc-warn')
+    expect(chip.exists()).toBe(true)
+    // Fix 3: pin the actual rendered label text, not just the CSS class — this
+    // must be able to fail if docErrorShortKey('timeout') → 'aiDocErrShortTimedOut'
+    // regresses (e.g. mapped to the wrong key or the zh_cn string changes).
+    expect(chip.find('.ctx-chip-doc-warn').text()).toContain(zh.aiDocErrShortTimedOut)
+  })
+
+  it('kind=binary 且 extract_error=not_installed、文档扩展名:给 7000ms 警告 toast', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'binary', meta: { extract_error: 'not_installed' } })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.pdf')])
+    await flushPromises()
+    const { useToast } = await import('../../../stores/toast')
+    const toasts = useToast().toasts
+    expect(toasts.length).toBe(1)
+    expect(toasts[0].text).toContain(zh.aiDocErrNotInstalled)
+  })
+
+  it('kind=binary 且 extract_error=not_installed、非文档扩展名:不弹该 toast', async () => {
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'binary', meta: { extract_error: 'not_installed' } })
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'a.bin')])
+    await flushPromises()
+    const { useToast } = await import('../../../stores/toast')
+    expect(useToast().toasts.length).toBe(0)
+  })
+
+  it('批次中途切换会话:后续文件停止上传,不产生跨会话孤儿附件', async () => {
+    // Fix 1 (review): Vue2 (AgentComposer.vue:547) re-reads a *computed*
+    // `this.sessionId` every loop iteration, so a mid-batch session switch just
+    // redirects the remaining uploads into whatever session is now active. This
+    // port instead stops the batch — see the comment at the break site in
+    // AgentComposer.vue for why continuing would only create invisible orphans.
+    const store = useAgentStore(); store.activeSessionId = 'sess-1'
+    let resolveFirst!: (v: unknown) => void
+    svc.uploadAttachment.mockImplementationOnce(
+      () => new Promise((res) => { resolveFirst = res }),
+    )
+    const w = mountComposer()
+    await pickFiles(w, [
+      new File(['x'], 'a.txt'),
+      new File(['x'], 'b.txt'),
+    ])
+    // First upload (a.txt) is in flight — the loop is suspended on its await,
+    // so it has not started processing b.txt yet. Switch sessions now.
+    store.activeSessionId = 'sess-2'
+    resolveFirst({ id: 'a1', kind: 'text' })
+    await flushPromises()
+    expect(svc.uploadAttachment).toHaveBeenCalledTimes(1)
   })
 
   it('删除已上传附件:调 deleteAttachment 并移除 chip', async () => {

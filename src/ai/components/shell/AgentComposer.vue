@@ -274,6 +274,23 @@ async function onFilesPicked(e: Event) {
     // reference correctly notify the template.
     const entry = reactive<PendingAttachment>({ tmpId, file, status: 'uploading', progress: 0 })
     attachments.value.push(entry)
+    // Fix (review, 2026-07-27): Vue2 (AgentComposer.vue:547) reads `this.sessionId`
+    // — a *computed* — fresh on every loop iteration, so a session switch mid-batch
+    // just silently redirects the remaining uploads into whatever session happens
+    // to be active now. That is wrong, not merely different: the `activeSessionId`
+    // watcher above has already cleared every local chip for this batch (including
+    // the one just pushed above, on the very next reactive flush), so the user has
+    // no way to see or manage an attachment that lands in the new session — it's
+    // an orphaned server-side draft. Per project rule (logic follows correctness,
+    // not 1:1 UI parity), we re-read the session id here and stop the whole batch
+    // the moment it no longer matches the id the batch started with, instead of
+    // continuing to upload into it. Drop the entry we just pushed for this file
+    // (it was never uploaded) before breaking, so no stale "uploading" chip can
+    // flash before the watcher's clear takes effect.
+    if (store.activeSessionId !== sid) {
+      attachments.value = attachments.value.filter((a) => a.tmpId !== tmpId)
+      break
+    }
     try {
       const body = (await service.ai.uploadAttachment(sid, file, {
         onProgress: (p: number) => { entry.progress = p },
