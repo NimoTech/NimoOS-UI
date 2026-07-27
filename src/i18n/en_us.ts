@@ -692,6 +692,14 @@ export default {
   aiSlashInitDesc: 'Generate agent.md for a directory',
   aiSlashNoFolders: "No visible directories — use {'@'} to select one first",
   aiSlashInitialize: 'Initialize',
+  // SP8-P1c1 patch task 2 — SlashPopover (inline slash-command panel matching
+  // the @ panel's look, replacing the rejected full-screen SlashMenu above),
+  // command-stage empty state + footer key-hint strings.
+  aiSlashNoCommand: 'No matching command',
+  aiSlashKbdNav: 'Navigate',
+  aiSlashKbdSelect: 'Select',
+  aiSlashKbdClose: 'Close',
+  aiSlashKbdBack: 'Back',
   // SP8-P1c1 Task 9 — AgentComposer (input skeleton: chips + textarea + toolbar).
   // aiComposerPlaceholder reuses the existing English string from Vue2
   // src/assets/lang/en_US.json's agent.composerPlaceholder key, verbatim.

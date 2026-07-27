@@ -378,38 +378,24 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+// SP8-P1c1 patch task 2 — shell rules (container/list/item/empty/foot/kbd)
+// moved into shared mixins (src/ai/styles/popover.scss) so SlashPopover.vue
+// can render as the visually identical panel the user asked for. Every
+// `@include` below reproduces its prior literal declaration block unchanged —
+// see the task report for the rule-by-rule before/after diff. Panel-specific
+// rules (crumb glyph, typing caret, drill chevron, ignored/meta styling) are
+// untouched, still written out here directly.
+@use '../../styles/popover.scss' as pop;
+
 .mention-pop {
-  position: fixed; z-index: 1000;
-  pointer-events: auto;
-  background: var(--glass-strong);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg), 0 0 0 0.5px var(--hairline-ring);
-  overflow: hidden;
-  display: flex; flex-direction: column;
-  max-height: 360px;
-  animation: mention-rise 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  transform-origin: bottom left;
-  font-size: 13px;
-}
-@keyframes mention-rise {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  @include pop.pop-container;
 }
 
 .mention-crumbs {
-  display: flex; align-items: center; gap: 6px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--line-faint);
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex-wrap: nowrap;
-  overflow: hidden;
+  @include pop.crumbs-bar;
 }
-.mention-spacer { flex: 1; }
+.mention-spacer { @include pop.crumbs-spacer; }
 .mention-at { font-family: var(--font-mono); font-weight: 700; color: var(--accent); font-size: 13px; margin-right: 1px; }
 .mention-crumb { font-weight: 500; white-space: nowrap; color: var(--text-secondary); }
 .mention-crumb[data-root="true"] { color: var(--text-tertiary); }
@@ -421,25 +407,19 @@ onBeforeUnmount(() => {
 }
 @keyframes blink { 50% { opacity: 0; } }
 .mention-count {
-  font-size: 11px; color: var(--text-quaternary);
-  font-variant-numeric: tabular-nums; flex-shrink: 0;
+  @include pop.crumbs-count;
 }
 
-.mention-list { flex: 1; overflow-y: auto; padding: 4px; min-height: 0; }
+.mention-list { @include pop.pop-list; }
 .mention-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 10px;
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  transition: background 80ms ease;
+  @include pop.pop-item;
 }
-.mention-item[data-active="true"] { background: var(--accent-soft); }
+.mention-item[data-active="true"] { @include pop.pop-item-active-bg; }
 .mention-item[data-active="true"] .mention-name { color: var(--accent); }
 .mention-item[data-active="true"] .mention-drill { color: var(--accent); opacity: 1; }
 .mention-item[data-ignored="true"] { opacity: 0.55; }
 .mention-name {
-  flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  @include pop.pop-name;
 }
 .mention-name :deep(mark) {
   background: transparent; color: var(--accent); font-weight: 700;
@@ -455,29 +435,14 @@ onBeforeUnmount(() => {
 .mention-drill { opacity: 0.5; flex-shrink: 0; display: grid; place-items: center; }
 
 .mention-empty {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 28px 16px; gap: 8px;
-  color: var(--text-tertiary); font-size: 13px;
+  @include pop.pop-empty;
 }
-.mention-empty-hint { font-size: 11px; color: var(--text-quaternary); }
+.mention-empty-hint { @include pop.pop-empty-hint; }
 
 .mention-foot {
-  display: flex; align-items: center; gap: 12px;
-  padding: 7px 12px;
-  border-top: 1px solid var(--line-faint);
-  background: var(--bg-sunken);
-  font-size: 11px; color: var(--text-tertiary);
-  flex-wrap: wrap;
+  @include pop.pop-foot;
 }
 .mention-kbd {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 4px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 10px; font-weight: 600;
-  color: var(--text-secondary); margin-right: 4px;
-  box-shadow: 0 1px 0 var(--line); vertical-align: -2px;
+  @include pop.pop-kbd;
 }
 </style>

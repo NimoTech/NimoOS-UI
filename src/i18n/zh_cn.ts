@@ -689,6 +689,13 @@ export default {
   aiSlashInitDesc: '为某个目录生成 agent.md',
   aiSlashNoFolders: "还没有可见目录 —— 先用 {'@'} 选一个",
   aiSlashInitialize: '初始化',
+  // SP8-P1c1 patch task 2 — SlashPopover(与 @ 面板同款的内联斜杠命令面板,
+  // 替代上面被否掉的全屏 SlashMenu),command 阶段空态 + 底部键位提示新键。
+  aiSlashNoCommand: '没有匹配的命令',
+  aiSlashKbdNav: '导航',
+  aiSlashKbdSelect: '选择',
+  aiSlashKbdClose: '关闭',
+  aiSlashKbdBack: '返回',
   // SP8-P1c1 Task 9 — AgentComposer(输入框骨架:chips + textarea + 工具栏)。
   // aiComposerPlaceholder 取自 Vue2 src/assets/lang/zh_CN.json 里
   // agent.composerPlaceholder 的既有译文,逐字复用。
