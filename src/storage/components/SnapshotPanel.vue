@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSnapshotStore } from '../stores/snapshot'
-import { resolveSnapshotState } from '../util/snapshotView'
+import { resolveSnapshotState, validatePolicyForm, type PolicyForm } from '../util/snapshotView'
 
 defineOptions({ name: 'SnapshotPanel' })
 
@@ -42,6 +42,43 @@ onMounted(() => { store.loadVolume(props.volumeUuid) })
 function onToggle() {
   store.toggle(props.volumeUuid, !(store.volume?.enabled ?? false))
 }
+
+// --- 高级保留策略表单(Vue2 SnapshotPanel.vue:209-223) ----------------------
+const advancedOpen = ref(false)
+const policyForm = ref<PolicyForm>({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
+const fieldErrors = ref<Partial<Record<keyof PolicyForm, string>>>({})
+const manualLabel = ref('')
+
+function openAdvanced() {
+  const p = store.policy
+  policyForm.value = {
+    hourly_keep: Number(p?.hourly_keep ?? 24),
+    daily_keep: Number(p?.daily_keep ?? 7),
+    weekly_keep: Number(p?.weekly_keep ?? 4),
+    pause_threshold_pct: Number(p?.pause_threshold_pct ?? 90),
+  }
+  fieldErrors.value = {}
+  advancedOpen.value = true
+}
+
+function cancelAdvanced() {
+  advancedOpen.value = false
+  fieldErrors.value = {}
+}
+
+async function onSavePolicy() {
+  const { valid, errors } = validatePolicyForm(policyForm.value)
+  fieldErrors.value = errors
+  if (!valid) return
+  const ok = await store.savePolicy(props.volumeUuid, { ...policyForm.value })
+  if (ok) advancedOpen.value = false
+}
+
+// --- 手动创建快照(Vue2 SnapshotPanel.vue:240-254) --------------------------
+async function onCreateSnapshot() {
+  const ok = await store.createSnapshot(props.volumeUuid, manualLabel.value)
+  if (ok) manualLabel.value = ''   // Vue2 同款:只有成功才清备注
+}
 </script>
 
 <template>
@@ -77,10 +114,50 @@ function onToggle() {
         <div v-if="pausedText" class="sp-row sp-paused"><span>⚠️ {{ pausedText }}</span></div>
         <div class="sp-row sp-kept"><span class="sp-muted">{{ t('snapKept') }}</span></div>
         <div class="sp-row sp-policy-row">
-          <div class="sp-policy-summary sp-muted">{{ policySummaryText }}</div>
-          <!-- 高级设置按钮 + 表单:P5 T4 -->
+          <div class="sp-policy-wrap">
+            <div v-if="!advancedOpen" class="sp-policy-summary sp-muted">{{ policySummaryText }}</div>
+            <div v-else class="sp-advanced">
+              <label class="sp-field">
+                <span class="sp-field-label">{{ t('snapHourlyKeep') }}</span>
+                <input class="sp-num sp-in-hourly" type="number" min="1" v-model.number="policyForm.hourly_keep" />
+                <span v-if="fieldErrors.hourly_keep" class="sp-err sp-err-hourly">{{ t(fieldErrors.hourly_keep) }}</span>
+              </label>
+              <label class="sp-field">
+                <span class="sp-field-label">{{ t('snapDailyKeep') }}</span>
+                <input class="sp-num sp-in-daily" type="number" min="1" v-model.number="policyForm.daily_keep" />
+                <span v-if="fieldErrors.daily_keep" class="sp-err sp-err-daily">{{ t(fieldErrors.daily_keep) }}</span>
+              </label>
+              <label class="sp-field">
+                <span class="sp-field-label">{{ t('snapWeeklyKeep') }}</span>
+                <input class="sp-num sp-in-weekly" type="number" min="1" v-model.number="policyForm.weekly_keep" />
+                <span v-if="fieldErrors.weekly_keep" class="sp-err sp-err-weekly">{{ t(fieldErrors.weekly_keep) }}</span>
+              </label>
+              <label class="sp-field">
+                <span class="sp-field-label">{{ t('snapPauseThreshold') }}</span>
+                <input class="sp-num sp-in-pct" type="number" min="1" max="100" v-model.number="policyForm.pause_threshold_pct" />
+                <span v-if="fieldErrors.pause_threshold_pct" class="sp-err sp-err-pct">{{ t(fieldErrors.pause_threshold_pct) }}</span>
+              </label>
+              <div class="sp-adv-actions">
+                <button class="sp-save" type="button" :disabled="store.policySaving" @click="onSavePolicy">{{ t('snapSave') }}</button>
+                <button class="sp-cancel-adv" type="button" :disabled="store.policySaving" @click="cancelAdvanced">{{ t('storageCancel') }}</button>
+              </div>
+            </div>
+          </div>
+          <button v-if="!advancedOpen" class="sp-advanced-btn" type="button" @click="openAdvanced">{{ t('snapAdvanced') }}</button>
         </div>
-        <!-- 手动创建快照行:P5 T4 -->
+
+        <div class="sp-row sp-manual-row">
+          <input
+            class="sp-label-input"
+            type="text"
+            v-model="manualLabel"
+            :placeholder="t('snapLabelPlaceholder')"
+            :disabled="store.creatingSnapshot"
+          />
+          <button class="sp-create" type="button" :disabled="store.creatingSnapshot" @click="onCreateSnapshot">
+            {{ t('snapCreateNow') }}
+          </button>
+        </div>
       </template>
 
       <div v-if="state === 'disabled' && (store.volume?.count ?? 0) > 0" class="sp-row sp-kept">
@@ -116,4 +193,27 @@ function onToggle() {
   background: var(--fg); transition: transform 0.15s var(--ease);
 }
 .sp-switch.on .sp-switch-thumb { transform: translateX(17px); background: var(--on-accent); }
+
+.sp-policy-wrap { flex: 1 1 auto; min-width: 0; }
+.sp-advanced { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.sp-field { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--fg-muted); }
+.sp-field-label { flex: 1 1 auto; }
+.sp-num, .sp-label-input {
+  box-sizing: border-box; padding: 5px 9px; font-size: 12.5px; border-radius: 8px;
+  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); outline: none;
+}
+.sp-num { width: 88px; font-family: var(--num-font); }
+.sp-num:focus, .sp-label-input:focus { border-color: var(--accent); }
+.sp-num:disabled, .sp-label-input:disabled { opacity: 0.55; }
+.sp-err { flex: 1 0 100%; color: var(--remove-fg); font-size: 11px; }
+.sp-adv-actions { display: flex; gap: 8px; margin-top: 2px; }
+.sp-manual-row { gap: 8px; }
+.sp-label-input { flex: 1 1 auto; min-width: 0; }
+.sp-advanced-btn, .sp-save, .sp-cancel-adv, .sp-create {
+  padding: 5px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
+}
+.sp-save, .sp-create { border-color: var(--accent); color: var(--accent); }
+.sp-advanced-btn:hover, .sp-save:hover, .sp-cancel-adv:hover, .sp-create:hover { background: var(--chip-bg-hi); }
+.sp-save:disabled, .sp-cancel-adv:disabled, .sp-create:disabled { opacity: 0.45; cursor: not-allowed; }
 </style>
