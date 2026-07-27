@@ -9,6 +9,7 @@ import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
+import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosFavorites } from '../photos/stores/favorites'
@@ -28,6 +29,7 @@ const lb = useLightbox()
 // 收藏视图默认 tab='all'(与时间线默认 'photo' 不同——收藏本就是用户手动挑的小集合,
 // 不该预先按类型滤掉里面的视频/OCR 收藏)。
 const tab = ref('all')
+const density = ref('comfortable')
 const selected = ref<Array<string | number>>([])
 
 const isEmpty = computed(() => fav.favoritesLoaded && (fav.favoritesList?.length ?? 0) === 0)
@@ -40,6 +42,18 @@ function toggleSelect(id: string | number) {
   const idx = selected.value.indexOf(id)
   if (idx >= 0) selected.value = selected.value.filter((x) => x !== id)
   else selected.value = [...selected.value, id]
+}
+function cancelSelection() { selected.value = [] }
+
+// PhotosGrid 一旦有非空 selected,onTileClick 内部就切进「继续勾选」分支而非「开图」——
+// 没有配套的选择工具栏会让用户勾一个框就把整个网格的单击行为锁死、且无处可退出选择态
+// (评审 Finding 1,照 Photos.vue:59-66 的批量删除前例补齐,不是新功能面,只是把已经接给
+// PhotosGrid 的 selected/toggle-select 落到一个有出口的 UI 上)。
+async function onBatchDelete(ids: Array<string | number>) {
+  const count = await store.deleteAssets(ids.map(String))
+  toast.show(t('photosDeletedToast', { count }), 4000)
+  selected.value = []
+  await fav.fetchFavorites()
 }
 
 function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
@@ -86,13 +100,19 @@ onMounted(() => {
           <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
         </div>
         <template v-else>
+          <PhotosSelectionToolbar
+            v-if="selected.length"
+            :count="selected.length"
+            @clear="cancelSelection"
+            @delete="onBatchDelete([...selected])"
+          />
           <PhotosToolbar
-            :tab="tab" :count="filteredCount"
-            @update:tab="tab = $event"
+            :tab="tab" :density="density" :count="filteredCount"
+            @update:tab="tab = $event" @update:density="density = $event"
           />
           <div class="photos-grid-slot">
             <PhotosGrid
-              :months="fav.favoritesMonths" :tab="tab" :selected="selected"
+              :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
               @toggle-select="toggleSelect"
             />

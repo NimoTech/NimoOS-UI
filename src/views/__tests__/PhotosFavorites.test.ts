@@ -162,4 +162,67 @@ describe('PhotosFavorites.vue', () => {
     expect(fetchFavSpy).toHaveBeenCalled()
     expect(lb.open.value).toBe(false) // PhotoLightbox 自己已在 doDelete 里 close
   })
+
+  // 评审 Finding 1:PhotosGrid 接了 :selected/@toggle-select 但没有配套选择工具栏——勾选
+  // 一个框会让整个网格的单击行为切进「继续勾选」分支且无退出入口。补 PhotosSelectionToolbar
+  // (照 Photos.vue 批量删除前例)后,这里验证它确实出现、批量删除落到时间线 store + 收藏
+  // 列表刷新、clear 能退出选择态。
+  it('勾选一个瓦片 → PhotosSelectionToolbar 出现;@delete → 时间线 store.deleteAssets + fav.fetchFavorites + 清空选择', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+    const w = await mountView()
+    const store = useTimelineStore()
+    const fav = usePhotosFavorites()
+    const deleteSpy = vi.spyOn(store, 'deleteAssets').mockResolvedValue(1)
+    const fetchFavSpy = vi.spyOn(fav, 'fetchFavorites')
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
+
+    const checkbox = w.find('.tile-check-box')
+    expect(checkbox.exists()).toBe(true)
+    await checkbox.trigger('change')
+    await w.vm.$nextTick()
+
+    const bar = w.find('.selection-toolbar')
+    expect(bar.exists()).toBe(true)
+    expect(bar.text()).toContain('1')
+
+    await bar.find('.sel-delete').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(deleteSpy).toHaveBeenCalledWith(['a'])
+    expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
+    expect(fetchFavSpy).toHaveBeenCalled()
+    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+  })
+
+  it('选择态下点 @clear(sel-clear)→ 清空选择,工具栏消失', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a')])
+    const w = await mountView()
+
+    await w.find('.tile-check-box').trigger('change')
+    await w.vm.$nextTick()
+    expect(w.find('.selection-toolbar').exists()).toBe(true)
+
+    await w.find('.sel-clear').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
+  })
+
+  // 评审 Finding 2:PhotosToolbar 的 3 个密度按钮此前没绑 :density/@update:density,是
+  // 死控件。补线后验证点击真的把 density 传给 PhotosGrid(通过 .grid[data-density] 观察)。
+  it('切换密度按钮 → PhotosGrid 的 data-density 跟着变(此前是死控件)', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a')])
+    const w = await mountView()
+
+    expect(w.find('.grid').attributes('data-density')).toBe('comfortable')
+
+    const compactBtn = w.findAll('.density button')[0]
+    await compactBtn.trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.find('.grid').attributes('data-density')).toBe('compact')
+  })
 })
