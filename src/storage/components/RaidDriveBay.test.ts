@@ -32,6 +32,13 @@ describe('RaidDriveBay', () => {
     const evt = lastCall(w.emitted('update:modelValue'))[0] as any[]
     expect(evt.map((d) => d.path).sort()).toEqual(['/dev/sda', '/dev/sdb'])
   })
+  it('先切到 SSD 过滤再全选健康 → 只含健康 SSD 盘,不含健康 HDD 盘(作用域=过滤视图非全量)', async () => {
+    const w = mount(RaidDriveBay, { props: { disks, modelValue: [] }, global: { plugins: [i18n] } })
+    await w.find('.rdb-filter-ssd').trigger('click')
+    await w.find('.rdb-select-all').trigger('click')
+    const evt = lastCall(w.emitted('update:modelValue'))[0] as any[]
+    expect(evt.map((d) => d.path)).toEqual(['/dev/sda'])
+  })
   it('过滤 SSD → 只显示 SSD 盘', async () => {
     const w = mount(RaidDriveBay, { props: { disks, modelValue: [] }, global: { plugins: [i18n] } })
     await w.find('.rdb-filter-ssd').trigger('click')

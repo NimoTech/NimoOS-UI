@@ -413,7 +413,7 @@ describe('RaidDriveBay', () => {
 - [ ] **Step 3: 实现两组件**
 
 对照 Vue2 `RaidDriveBay.vue`(:16-21 过滤/操作、:80-83 filteredDisks、:120-130 toggle/selectAllHealthy、汇总条)+ `RaidDriveCard.vue`(整卡 `@click="$emit('toggle')"`、勾选圈 `.rdc__check--on`、容量/类型/风险标)。改写为 `<script setup>`:
-- `RaidDriveBay` 内 `filter = ref<'all'|'ssd'|'hdd'>('all')`,`filteredDisks = computed`;toggle 用 `props.modelValue` 增删后 `emit('update:modelValue', next)`;`selectAllHealthy` = `disks.filter(d => !isDiskAtRisk(d))`;`clear` emit `[]`。全选/清空/过滤按钮各带稳定 class(`.rdb-select-all`/`.rdb-clear`/`.rdb-filter-all|-ssd|-hdd`)。
+- `RaidDriveBay` 内 `filter = ref<'all'|'ssd'|'hdd'>('all')`,`filteredDisks = computed`;toggle 用 `props.modelValue` 增删后 `emit('update:modelValue', next)`;`selectAllHealthy` = `filteredDisks.filter(d => !isDiskAtRisk(d))`;`clear` emit `[]`。全选/清空/过滤按钮各带稳定 class(`.rdb-select-all`/`.rdb-clear`/`.rdb-filter-all|-ssd|-hdd`)。
 - 网格 CSS 用 `grid-template-columns: repeat(auto-fill, minmax(...))`;颜色全 token;混规格分组色经 `groupColorKey` → 映射到 `--nrm-*`/`--accent`(禁字面色)。
 - `RaidDriveCard` 根 `@click="emit('toggle')"`,选中态 class 切换,勾选圈 SVG √;风险盘用 `--remove-fg` 标记;容量 `fmtSize(disk.size)`。
 

@@ -52,7 +52,9 @@ function toggle(disk: RaidDisk): void {
 }
 
 function selectAllHealthy(): void {
-  emit('update:modelValue', props.disks.filter((d) => !isDiskAtRisk(d)))
+  // Vue2 源(RaidDriveBay.vue:128-130)对当前过滤视图 filteredDisks 取健康盘,
+  // 整体替换 selectedDisks(非并集合并)——逐字对齐,不对 props.disks 全量操作。
+  emit('update:modelValue', filteredDisks.value.filter((d) => !isDiskAtRisk(d)))
 }
 
 function clear(): void {
