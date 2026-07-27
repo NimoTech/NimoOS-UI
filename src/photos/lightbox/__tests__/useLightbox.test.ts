@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     photos: {
@@ -13,25 +14,29 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 import { service } from '@nimotech/nimoos-service'
 import { useLightbox } from '../useLightbox'
+import { usePhotosFavorites } from '../../stores/favorites'
 const P = (id: string, extra: Record<string, unknown> = {}) => ({ id, isVideo: false, ...extra }) as any
 
 describe('useLightbox 开合/翻页', () => {
   let back: any, push: any
   beforeEach(() => {
+    setActivePinia(createPinia())
     useLightbox().__resetForTest()
     back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
     push = vi.spyOn(window.history, 'pushState')
   })
   afterEach(() => vi.restoreAllMocks())
 
-  it('openAt 打开、定位当前项、pushState 一次、recordView', () => {
+  it('openAt 打开、定位当前项、pushState 一次、委托 store.recordView(节流)', () => {
+    const fav = usePhotosFavorites()
+    const spy = vi.spyOn(fav, 'recordView')
     const lb = useLightbox()
     lb.openAt(P('b'), [P('a'), P('b'), P('c')])
     expect(lb.open.value).toBe(true)
     expect(lb.index.value).toBe(1)
     expect(lb.current.value?.id).toBe('b')
     expect(push).toHaveBeenCalledTimes(1)
-    expect(service.photos.recordView).toHaveBeenCalledWith('b')
+    expect(spy).toHaveBeenCalledWith('b')
   })
   it('list 为空退化为单项', () => {
     const lb = useLightbox(); lb.openAt(P('x'), [])
@@ -99,6 +104,7 @@ describe('useLightbox 开合/翻页', () => {
 
 describe('useLightbox 水合+收藏', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     useLightbox().__resetForTest()
     vi.spyOn(window.history, 'back').mockImplementation(() => {})
     vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
@@ -179,6 +185,16 @@ describe('useLightbox 水合+收藏', () => {
     expect(lb.isFav.value).toBe(true)
     lb.goTo(1)
     expect(lb.isFav.value).toBe(true)
+  })
+
+  it('toggleFav 委托 store.toggle', async () => {
+    const fav = usePhotosFavorites()
+    const spy = vi.spyOn(fav, 'toggle').mockResolvedValue()
+    const lb = useLightbox()
+    lb.openAt(P('a'), [P('a')])
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    await lb.toggleFav()
+    expect(spy).toHaveBeenCalledWith('a')
   })
 
   it('toggleFav 乐观翻转并调 favorite/unfavorite;失败回滚', async () => {

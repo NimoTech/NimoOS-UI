@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import PhotoLightbox from '../PhotoLightbox.vue'
 import { useLightbox } from '../useLightbox'
+import { usePhotosFavorites } from '../../stores/favorites'
 import type { Photo } from '../../util/assetToPhoto'
 
 // service mock —— bare shapes(URL 生成器 token 化 + 单例开态时调的水合/收藏三件套)
@@ -73,6 +75,13 @@ function mountLb(): VueWrapper {
   return wrapper
 }
 
+// 只建一次 pinia(而非每个 beforeEach 重建):useLightbox 的 isFav computed 是模块级单例,
+// 其 `current.value && fav.isFav(...)` 短路结构导致——当 current 引用值在两次求值间恰好复用
+// 同一对象(本文件 IMG_A/B/C 是跨用例共享的模块级常量)时,Vue 判定“无变化”而跳过重新求值,
+// isFav 会一直挂在上一个(已随 createPinia() 报废的)store 实例的 favIds 上,永远收不到新
+// store 的翻转通知。保留同一个 pinia/store,改为每个用例用 store 自身的 __resetForTest()
+// 清空状态——语义上等价于重构前「同一个模块级 favIds ref,每次用例重置 .value」的做法。
+setActivePinia(createPinia())
 const lb = useLightbox()
 
 beforeEach(() => {
@@ -80,6 +89,7 @@ beforeEach(() => {
   unfavorite.mockClear()
   listFavoriteIds.mockReset()
   listFavoriteIds.mockResolvedValue([])
+  usePhotosFavorites().__resetForTest()
   lb.__resetForTest()
 })
 

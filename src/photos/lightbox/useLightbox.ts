@@ -2,6 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { photoIndexById } from './util/photoNav'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
+import { usePhotosFavorites } from '../stores/favorites'
 
 // 模块级单例状态
 const open = ref(false)
@@ -11,13 +12,17 @@ const searchQuery = ref('')
 const startMs = ref(0)
 const detail = ref<Photo | null>(null)
 const ocrLines = ref<Array<{ box: number[] }>>([])
-const favIds = ref<Set<string>>(new Set())
 let _hydrateSeq = 0
 
 const current = computed<Photo | null>(() => list.value[index.value] ?? null)
 const hasPrev = computed(() => index.value > 0)
 const hasNext = computed(() => index.value < list.value.length - 1)
-const isFav = computed<boolean>(() => !!(current.value && favIds.value.has(String(current.value.id))))
+// 收藏态委托 photosFavorites store(P3 三处同源之一;usePhotosFavorites() 惰性调用——
+// 求值时 pinia 已激活,不能在模块顶层调用)。
+const isFav = computed<boolean>(() => {
+  const fav = usePhotosFavorites()
+  return !!(current.value && fav.isFav(current.value.id))
+})
 
 // ── 历史集成:灯箱开着时按"返回"应只关灯箱,而不是让路由退到上级页面还盖着灯箱层。
 // 打开时 pushState 压一条同 URL 的记录(hash 路由不变,vue-router 视为无导航);
@@ -58,7 +63,7 @@ function openAt(photo: Photo, entryList: Photo[], startMsArg?: number, query?: s
     pushedHistory = true
     window.addEventListener('popstate', onPop)
   }
-  void service.photos.recordView(photo.id).then(undefined, () => {})
+  usePhotosFavorites().recordView(photo.id)
   onCurrentChanged()
   void reconcileFav()
 }
@@ -119,40 +124,19 @@ async function hydrateDetail(): Promise<void> {
 }
 
 async function reconcileFav(): Promise<void> {
-  try {
-    const ids = await service.photos.listFavoriteIds()
-    favIds.value = new Set((ids ?? []).map((v) => String(v)))
-  } catch {
-    // leave favIds as-is on failure
-  }
+  await usePhotosFavorites().reconcileFavIds()
 }
 
 async function toggleFav(): Promise<void> {
   const item = current.value
   if (!item) return
-  const id = item.id
-  const key = String(id)
-  const wasFav = favIds.value.has(key)
-  const flipped = new Set(favIds.value)
-  if (wasFav) flipped.delete(key)
-  else flipped.add(key)
-  favIds.value = flipped
-  try {
-    if (wasFav) await service.photos.unfavorite(id)
-    else await service.photos.favorite(id)
-  } catch {
-    const rollback = new Set(favIds.value)
-    if (wasFav) rollback.add(key)
-    else rollback.delete(key)
-    favIds.value = rollback
-  }
+  await usePhotosFavorites().toggle(item.id)
 }
 
 function __resetForTest(): void {
   if (typeof window !== 'undefined') window.removeEventListener('popstate', onPop)
   pushedHistory = false
   _hydrateSeq = 0
-  favIds.value = new Set()
   resetState()
 }
 
@@ -164,7 +148,6 @@ export function useLightbox(): {
   startMs: Ref<number>
   detail: Ref<Photo | null>
   ocrLines: Ref<Array<{ box: number[] }>>
-  favIds: Ref<Set<string>>
   current: ComputedRef<Photo | null>
   hasPrev: ComputedRef<boolean>
   hasNext: ComputedRef<boolean>
@@ -187,7 +170,6 @@ export function useLightbox(): {
     startMs,
     detail,
     ocrLines,
-    favIds,
     current,
     hasPrev,
     hasNext,
