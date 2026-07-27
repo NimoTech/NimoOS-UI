@@ -81,11 +81,28 @@ describe('SnapshotTimeline', () => {
     expect(w.find('.st-browse').exists()).toBe(false)
     expect(w.text()).not.toContain(zh.filesTitle ?? '文件')
   })
-  it('换卷 → 重置展开态并重拉', async () => {
-    listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
+  it('换卷 → 重置展开态并重拉(不沿用旧卷的展开集合)', async () => {
+    // 旧卷:单条,落在与新卷完全不同的日期(2026-07-15),默认展开。
+    // 新卷:3 组(2+1+1),默认展开规则是"最近 2 组" —— 若换卷不重置
+    // expandedKeys/expandInitialized,旧卷的展开键('2026-07-15')在新卷分组里
+    // 找不到任何匹配,会导致新卷的三组全部维持"收起"(0 条可见),而不是新卷
+    // 自己应有的默认展开结果(2 条 + 1 条 = 3 条可见、第三组收起)。
+    listMock
+      .mockResolvedValueOnce([{ id: 1, name: 'old', type: 'manual', created_at: day(15, 9) }])
+      .mockResolvedValueOnce([
+        { id: 2, name: 'a', type: 'auto-hourly', created_at: day(27, 9) },
+        { id: 3, name: 'b', type: 'manual', label: '新卷', created_at: day(27, 20) },
+        { id: 4, name: 'c', type: 'preop', created_at: day(26, 8) },
+        { id: 5, name: 'd', type: 'auto-daily', created_at: day(20, 8) },
+      ])
     const w = mountIt(); await flush(w)
+    expect(w.findAll('.st-item')).toHaveLength(1)   // 旧卷:单条,默认展开
     listMock.mockClear()
     await w.setProps({ volumeUuid: 'u2' }); await flush(w)
     expect(listMock).toHaveBeenCalledWith('u2')
+    expect(w.findAll('.st-group-header')).toHaveLength(3)
+    // 新卷按默认展开最近 2 组渲染(2 条 + 1 条 = 3 条可见,第三组收起)——
+    // 这就是"展开态被重置、按新卷重新计算默认展开"的直接证据。
+    expect(w.findAll('.st-item')).toHaveLength(3)
   })
 })

@@ -58,20 +58,22 @@ function toggleGroup(dayKey: string) {
           <span class="st-group-label">{{ group.label.i18nKey ? t(group.label.i18nKey) : group.label.text }}</span>
           <span class="st-group-count">{{ group.items.length }}</span>
         </button>
-        <ul v-if="isExpanded(group.dayKey)" class="st-list">
-          <li v-for="item in group.items" :key="item.id != null ? item.id : item.name" class="st-item">
-            <span class="st-dot" :class="item.typeKind"></span>
-            <div class="st-info">
-              <span class="st-time">{{ item.time }}</span>
-              <span class="st-badge" :class="item.typeKind">{{ t(item.typeLabelKey) }}</span>
-              <span v-if="item.label" class="st-label">{{ item.label }}</span>
-            </div>
-            <div class="st-actions">
-              <!-- [浏览] 未迁:跳文件区快照只读浏览属文件区快照套件(只读横幅/禁写/退出),
-                   SP4 未迁、SP6-P5 决策推迟到独立一期(见 P5 计划台账)。删除按钮:P5 T6 -->
-            </div>
-          </li>
-        </ul>
+        <transition name="st-collapse">
+          <ul v-if="isExpanded(group.dayKey)" class="st-list">
+            <li v-for="item in group.items" :key="item.id != null ? item.id : item.name" class="st-item">
+              <span class="st-dot" :class="item.typeKind"></span>
+              <div class="st-info">
+                <span class="st-time">{{ item.time }}</span>
+                <span class="st-badge" :class="item.typeKind">{{ t(item.typeLabelKey) }}</span>
+                <span v-if="item.label" class="st-label">{{ item.label }}</span>
+              </div>
+              <div class="st-actions">
+                <!-- [浏览] 未迁:跳文件区快照只读浏览属文件区快照套件(只读横幅/禁写/退出),
+                     SP4 未迁、SP6-P5 决策推迟到独立一期(见 P5 计划台账)。删除按钮:P5 T6 -->
+              </div>
+            </li>
+          </ul>
+        </transition>
       </div>
     </div>
   </div>
@@ -119,4 +121,17 @@ function toggleGroup(dayKey: string) {
 .st-actions { display: flex; flex: none; gap: 6px; opacity: 0; pointer-events: none; transition: opacity 0.15s var(--ease); }
 
 @keyframes st-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+/* Vue2 SnapshotTimeline.vue:353-361 的折叠/展开过渡 1:1 移植 —— 颜色/时长照搬,
+   仅类名按 Vue3 Transition 语义改写:Vue2 用 `-enter`,Vue3 用 `-enter-from`
+  (`-leave-to`/`-enter-active`/`-leave-active` 两版同名)。 */
+.st-collapse-enter-active,
+.st-collapse-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.st-collapse-enter-from,
+.st-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
 </style>
