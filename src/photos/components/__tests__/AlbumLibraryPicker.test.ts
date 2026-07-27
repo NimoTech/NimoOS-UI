@@ -204,6 +204,33 @@ describe('AlbumLibraryPicker.vue', () => {
     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
   })
 
+  // 评审补漏:Vue2 源(PhotosAlbumLibraryPicker.vue:10-12)头部确有一个 X 关闭按钮
+  // (@click="onScrimClose"),行为与点遮罩/点取消同一套「有未保存选择先确认」的分层逻辑。
+  // brief 结构清单没列出它,但本期「界面严格 1:1 照 Vue2」的纪律要求补上。
+  it('头部 X 关闭按钮:有选中时点击 → 出确认条,update:open 未 emit;无选中时点击 → 直接关闭', async () => {
+    seedTimeline()
+    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    await flushPromises()
+
+    // 有选中 → 出确认条,不直接关
+    const tiles = w.findAll('[data-test="lib-picker-tile"]')
+    await tiles[0]!.trigger('click')
+    await w.get('[data-test="lib-picker-close"]').trigger('click')
+    expect(w.find('[data-test="lib-picker-discard-bar"]').exists()).toBe(true)
+    expect(w.emitted('update:open')).toBeUndefined()
+
+    // 确认放弃后关闭(模拟宿主真实响应 update:open,把 prop 真的翻回 false 再重新打开——
+    // 否则 open 停在 true,false→true 的 watch 不会触发,selected 不会被清空)
+    await w.get('[data-test="lib-picker-discard-confirm"]').trigger('click')
+    expect(w.emitted('update:open')).toEqual([[false]])
+
+    await w.setProps({ open: false })
+    await w.setProps({ open: true })
+    await flushPromises()
+    await w.get('[data-test="lib-picker-close"]').trigger('click')
+    expect(w.emitted('update:open')).toEqual([[false], [false]])
+  })
+
   it('无可添加照片(时间线为空)→ 渲染 photosAlbumPickerEmpty', async () => {
     svc.photos.getTimeline.mockResolvedValue([])
     const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })

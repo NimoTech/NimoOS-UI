@@ -730,6 +730,7 @@ export default {
   photosAlbumPickerAdding: 'Adding…',
   photosAlbumPickerAdd: 'Add ({count})',
   photosAlbumPickerDiscard: 'You have unsaved selections. Close anyway?',
+  photosAlbumPickerDiscardConfirm: 'OK',
   photosAlbumAddedToast: 'Added {count} to {name}',
   photosAlbumAddFailed: 'Add failed',
   // ── Photos: Album picker (add to album) ──

@@ -150,8 +150,17 @@ async function confirmAdd(): Promise<void> {
   >
     <div class="lib-picker-panel">
       <div class="lib-picker-head">
-        <div class="lib-picker-title">{{ t('photosAlbumPickerTitle', { name: albumName }) }}</div>
-        <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
+        <div class="lib-picker-head-text">
+          <div class="lib-picker-title">{{ t('photosAlbumPickerTitle', { name: albumName }) }}</div>
+          <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
+        </div>
+        <button
+          type="button"
+          class="lib-picker-close"
+          data-test="lib-picker-close"
+          :aria-label="t('photosCancel')"
+          @click="attemptClose"
+        >&#215;</button>
       </div>
 
       <div class="lib-picker-body">
@@ -200,7 +209,7 @@ async function confirmAdd(): Promise<void> {
             {{ t('photosCancel') }}
           </button>
           <button type="button" class="lib-picker-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
-            {{ t('filesConfirm') }}
+            {{ t('photosAlbumPickerDiscardConfirm') }}
           </button>
         </div>
       </div>
@@ -236,12 +245,35 @@ async function confirmAdd(): Promise<void> {
 }
 
 .lib-picker-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--divider);
   flex: 0 0 auto;
 }
+.lib-picker-head-text { flex: 1 1 auto; min-width: 0; }
 .lib-picker-title { font-size: 14.5px; font-weight: 600; color: var(--fg); }
 .lib-picker-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
+
+/* 头部 X 关闭按钮(评审补漏:Vue2 :10-12 确有,brief 结构清单漏列)—— 写法照
+   AlbumPickerDialog.vue 的 .alb-picker-close 既有范式,不引 Vue2 的 photos-icon 组件。 */
+.lib-picker-close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lib-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
 
 .lib-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 18px; }
 .lib-picker-empty { padding: 48px 8px; color: var(--fg-muted); font-size: 12.5px; text-align: center; }
@@ -266,7 +298,8 @@ async function confirmAdd(): Promise<void> {
 .lib-picker-tile[data-disabled="true"] { cursor: default; }
 
 .lib-picker-tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lib-picker-tile-img.is-dimmed { opacity: 0.45; }
+/* 0.4 与 Vue2 photos.scss :4402 的 [data-disabled="true"] { opacity: 0.4 } 保持像素级一致。 */
+.lib-picker-tile-img.is-dimmed { opacity: 0.4; }
 
 /* 覆盖标记:满铺半透明遮罩 + 文案。--overlay-bg/--fg 这一组合已在 PhotosGrid.vue 的
    .tile-fav 上验证过(深浅主题都可读),这里沿用而非另造新 token。 */

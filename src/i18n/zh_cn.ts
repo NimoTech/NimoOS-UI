@@ -729,6 +729,7 @@ export default {
   photosAlbumPickerAdding: '添加中…',
   photosAlbumPickerAdd: '添加({count})',
   photosAlbumPickerDiscard: '还有未保存的选择,确定关闭吗?',
+  photosAlbumPickerDiscardConfirm: '确定',
   photosAlbumAddedToast: '已添加 {count} 项到「{name}」',
   photosAlbumAddFailed: '添加失败',
   // ── 相册:相册选择器(加入相册) ──
