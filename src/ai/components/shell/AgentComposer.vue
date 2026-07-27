@@ -14,7 +14,7 @@
       一个空 watcher 体只会是死代码,故整体挪到 Task 10。
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AgentIcon from '../icons/AgentIcon.vue'
 import KindIcon from './KindIcon.vue'
@@ -112,13 +112,14 @@ const chips = computed(() =>
   }),
 )
 
-/** Vue2 654-657 toastError()——removeChip 失败时的提示;本任务新增
- *  `aiComposerRemoveFailed` 键(brief 未列举,但 removeChip 的错误分支需要它,
- *  否则移除资源失败会被静默吞掉)。 */
+/** Vue2 654-657 toastError()——removeChip/pickItem/onBrowserPick 三处共用的通用
+ *  错误提示,对应 Vue2 的 `$t('Authorization failed: {msg}')`,本任务用
+ *  `aiAuthFailed` 键接住;removeChip 是本任务唯一接入的调用点,否则移除资源失败
+ *  会被静默吞掉。 */
 function toastError(e: unknown) {
   const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
   const msg = err?.response?.data?.detail || err?.message || 'unknown'
-  toast.show(t('aiComposerRemoveFailed', { msg }), 5000)
+  toast.show(t('aiAuthFailed', { msg }), 5000)
 }
 
 /** Vue2 430-434 removeChip()。 */
@@ -140,12 +141,7 @@ function submit() {
   if (!trimmed) return
   emit('send', { text: trimmed, attachmentIds: [], attachmentRefs: [] })
   text.value = ''
-  onSubmitted()
-}
-
-function onSubmitted() {
-  // nextTick 避免在 DOM 更新前读 scrollHeight;用普通函数包一层方便这里独立注释。
-  requestAnimationFrame(grow)
+  nextTick(grow)
 }
 
 /** Vue2 651-653 notSupported()(语音键)。Vue2 用 'is-warning' 类型,不是错误,

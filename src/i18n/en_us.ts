@@ -704,8 +704,8 @@ export default {
   // BrowserModal is deferred this phase (user decision, see Task 9 brief) — placeholder toast.
   aiBrowseComingSoon: 'The browser dialog is coming in a later release',
   aiNotSupportedYet: 'This feature is not yet supported',
-  // Not enumerated by the brief — removeChip (Vue2 430-434)'s error branch needs
-  // a message or it would be silently swallowed; mirrors Vue2 toastError()'s
-  // "Authorization failed: {msg}" semantics.
-  aiComposerRemoveFailed: 'Failed to remove: {msg}',
+  // Not enumerated by the brief — Vue2 toastError() (654-657) is the generic error
+  // helper shared by removeChip/pickItem/onBrowserPick, mapping to Vue2 en_US.json's
+  // "Authorization failed: {msg}" key verbatim (not a "remove"-specific string).
+  aiAuthFailed: 'Authorization failed: {msg}',
 }

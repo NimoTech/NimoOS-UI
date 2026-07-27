@@ -700,8 +700,9 @@ export default {
   aiComposerBrowseTitle: '浏览 NAS',
   // Browse 弹窗(BrowserModal)本期不做,点击后的占位提示(用户决定,见 Task 9 brief)。
   aiBrowseComingSoon: '浏览弹窗将在后续版本开启',
-  aiNotSupportedYet: '该功能暂未支持',
-  // brief 未列举此键——removeChip(Vue2 430-434)失败分支需要一条提示,否则会被
-  // 静默吞掉;沿用 Vue2 toastError() 的语义("Authorization failed: {msg}"的等价物)。
-  aiComposerRemoveFailed: '移除失败：{msg}',
+  aiNotSupportedYet: '该功能尚未支持',
+  // brief 未列举此键——Vue2 toastError()(654-657)是 removeChip/pickItem/onBrowserPick
+  // 三处共用的通用错误提示,对应 Vue2 zh_CN.json "Authorization failed: {msg}" 键
+  // (译文"授权失败：{msg}"),不是"移除失败"专属文案。
+  aiAuthFailed: '授权失败：{msg}',
 }
