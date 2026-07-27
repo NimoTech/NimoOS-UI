@@ -687,12 +687,12 @@ export default {
   // SP8-P1c1 Task 8 — SlashMenu(`/init` 斜杠面板),对齐 Vue2
   // src/views/AI/Agent/shell/SlashMenu.vue 模板 1-23 的全部可见文案(`/init` 字面量不译)。
   aiSlashInitDesc: '为某个目录生成 agent.md',
-  aiSlashNoFolders: '还没有可见目录 —— 先用 @ 选一个',
+  aiSlashNoFolders: "还没有可见目录 —— 先用 {'@'} 选一个",
   aiSlashInitialize: '初始化',
   // SP8-P1c1 Task 9 — AgentComposer(输入框骨架:chips + textarea + 工具栏)。
   // aiComposerPlaceholder 取自 Vue2 src/assets/lang/zh_CN.json 里
   // agent.composerPlaceholder 的既有译文,逐字复用。
-  aiComposerPlaceholder: '问 Nimo，或输入 @ 引用文件…',
+  aiComposerPlaceholder: "问 Nimo，或输入 {'@'} 引用文件…",
   aiComposerVoice: '语音',
   // Vue2 AgentComposer.vue:128 的整句 caption(对齐既有 zh_CN.json 译文)。
   aiComposerCaption: '文件保留在你的 NAS。Nimo 可以读取、整理、操作它们。',

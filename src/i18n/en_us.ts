@@ -690,12 +690,12 @@ export default {
   // from Vue2 src/views/AI/Agent/shell/SlashMenu.vue template lines 1-23
   // (the `/init` literal itself is not translated).
   aiSlashInitDesc: 'Generate agent.md for a directory',
-  aiSlashNoFolders: 'No visible directories — use @ to select one first',
+  aiSlashNoFolders: "No visible directories — use {'@'} to select one first",
   aiSlashInitialize: 'Initialize',
   // SP8-P1c1 Task 9 — AgentComposer (input skeleton: chips + textarea + toolbar).
   // aiComposerPlaceholder reuses the existing English string from Vue2
   // src/assets/lang/en_US.json's agent.composerPlaceholder key, verbatim.
-  aiComposerPlaceholder: 'Ask Nimo, or type @ to reference a file…',
+  aiComposerPlaceholder: "Ask Nimo, or type {'@'} to reference a file…",
   aiComposerVoice: 'Voice',
   // Full sentence from Vue2 AgentComposer.vue:128 (matches existing en_US.json translation).
   aiComposerCaption: 'Files stay on your NAS. Nimo can read, organize, and manage them.',
