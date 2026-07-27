@@ -5,16 +5,25 @@ import { ref, computed } from 'vue'
 // new toast that removes itself after its own duration (default 1500ms; callers
 // may pass a longer one, e.g. uploads use 5000ms). `msg` is kept as a
 // backward-compatible computed = the latest toast's text for legacy readers.
-export interface ToastItem { id: number; text: string }
+//
+// `action` (Task 9, SP7-P3 photos trash view): optional inline affordance (e.g.
+// "Undo") rendered as a clickable pill inside the toast by AppToast.vue.
+// Third, optional `show()` param — fully backward compatible with the dozens
+// of existing `toast.show(text[, duration])` call sites across the app.
+export interface ToastAction { label: string; onClick: () => void }
+export interface ToastItem { id: number; text: string; action?: ToastAction }
 
 export const useToast = defineStore('toast', () => {
   const toasts = ref<ToastItem[]>([])
   let seq = 0
-  function show(text: string, duration = 1500) {
+  function show(text: string, duration = 1500, action?: ToastAction) {
     const id = ++seq
-    toasts.value.push({ id, text })
+    toasts.value.push({ id, text, action })
     setTimeout(() => { toasts.value = toasts.value.filter((t) => t.id !== id) }, duration)
   }
+  function dismiss(id: number) {
+    toasts.value = toasts.value.filter((t) => t.id !== id)
+  }
   const msg = computed(() => (toasts.value.length ? toasts.value[toasts.value.length - 1].text : ''))
-  return { toasts, msg, show }
+  return { toasts, msg, show, dismiss }
 })
