@@ -10,6 +10,7 @@ const svc = vi.hoisted(() => ({
   deleteAgentSession: vi.fn(),
   listAgentMessages: vi.fn(),
   updateAgentSessionTitle: vi.fn(),
+  getContextUsage: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
 
@@ -168,5 +169,50 @@ describe('AgentPage', () => {
     expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
     expect(push).not.toHaveBeenCalled()
     w.unmount()
+  })
+
+  it('挂载 composer,并把 send/stop/send-init 接到 store', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const composer = w.findComponent({ name: 'AgentComposer' })
+    expect(composer.exists()).toBe(true)
+    const store = useAgentStore()
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    const stopSpy = vi.spyOn(store, 'stop').mockResolvedValue(undefined)
+    const initSpy = vi.spyOn(store, 'sendInit').mockResolvedValue(undefined)
+    composer.vm.$emit('send', { text: 'hi', attachmentIds: [], attachmentRefs: [] })
+    composer.vm.$emit('stop')
+    composer.vm.$emit('send-init', '/DATA/docs')
+    expect(sendSpy).toHaveBeenCalledWith({ text: 'hi', attachmentIds: [], attachmentRefs: [] })
+    expect(stopSpy).toHaveBeenCalled()
+    expect(initSpy).toHaveBeenCalledWith('/DATA/docs')
+  })
+
+  it('ctxUsage:挂载后拉一次;切会话拉一次;busy 由 true→false 再拉一次', async () => {
+    svc.getContextUsage.mockResolvedValue({ tokens: 10, window: 100, pct: 10 })
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const base = svc.getContextUsage.mock.calls.length
+    store.activeSessionId = 'sess-x'
+    await flushPromises()
+    expect(svc.getContextUsage.mock.calls.length).toBe(base + 1)
+    store.busy = true
+    await flushPromises()
+    expect(svc.getContextUsage.mock.calls.length).toBe(base + 1) // 上升沿不拉
+    store.busy = false
+    await flushPromises()
+    expect(svc.getContextUsage.mock.calls.length).toBe(base + 2) // 下降沿拉
+    expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toEqual({ tokens: 10, window: 100, pct: 10 })
+  })
+
+  it('ctxUsage:无会话不拉;请求失败置 null', async () => {
+    svc.getContextUsage.mockRejectedValue(new Error('x'))
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-y'
+    await flushPromises()
+    expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
   })
 })

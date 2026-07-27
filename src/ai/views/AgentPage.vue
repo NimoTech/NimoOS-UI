@@ -1,23 +1,34 @@
 <!--
   1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
   去 AgentComposer(1b 无输入框 UI —— 本期唯一发送入口是 Task 11 的
-  ?search=/?message= 自动发送 + EmptyState 建议卡,composer 组件本身留 1c)、
+  ?search=/?message= 自动发送 + EmptyState 建议卡)、
   AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。右侧面板在
   本期永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store
   状态——store 里 rightCollapsed 恒 true,直接写死更直白)。
+
+  SP8-P1c1 Task 12 —— AgentComposer 已挂载(Vue2 Agent.vue:38-42 挂载契约,
+  1:1):props busy/ctx-usage,emits send/stop/send-init 直连 store 同名 action。
+  ctxUsage 状态 + refreshContextUsage() 移植自 Vue2 Agent.vue:99/198-207,
+  三个刷新触发点(mounted 一次、activeSessionId 变化一次、busy true→false 下降
+  沿一次)移植自 Vue2 120-132(**不**移植同一会话 watcher 里的
+  loadSessionThinking/updateThinkingForModel,也**不**移植 lastFallbackNotice
+  toast watcher——两者都属于 ThinkingBar/ModelPicker,留给 1c-2)。
+  右栏(AgentRightPanel)、ModelPicker、ThinkingBar 仍留 1c-2。
 
   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
 -->
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { service } from '@nimotech/nimoos-service'
 import { useAgentStore } from '../stores/agentStore'
 import { provideAgentStore } from '../composables/useProvidedAgentStore'
 import { useToast } from '../../stores/toast'
 import AgentSidebar from '../components/shell/AgentSidebar.vue'
 import AgentTopbar from '../components/shell/AgentTopbar.vue'
+import AgentComposer from '../components/shell/AgentComposer.vue'
 import MessageList from '../components/stream/MessageList.vue'
 import EmptyState from '../components/stream/EmptyState.vue'
 import '../styles/tokens.scss'
@@ -54,6 +65,50 @@ function onUpdateTitle(title: string) {
   if (store.activeSessionId) store.setSessionTitle(store.activeSessionId, title)
 }
 
+// Agent.vue:99 ctxUsage state, populated by refreshContextUsage() below.
+const ctxUsage = ref<{ tokens: number; window: number; pct: number } | null>(null)
+
+// Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1)—— Agent.vue
+// 198-207 的 refreshContextUsage 没有 in-flight/顺序守卫:一次快速切会话可能触发
+// 两次重叠请求,若旧请求晚落地,会用上一个会话的用量覆盖当前会话的 ctxUsage。这里
+// 加一个自增序号,只有仍是"最新一次调用"的结果才写回 ctxUsage,过期结果直接丢弃 ——
+// 不改变三个触发点各自的调用次数/时机语义,修复面仅限"谁能写回"。
+let ctxUsageSeq = 0
+
+/**
+ * Agent.vue:198-207 —— 无会话早退;传**原始 model key**(如 'local:llama3'),
+ * 不是裸模型名;失败置 null。
+ */
+async function refreshContextUsage() {
+  if (!store.activeSessionId) return
+  const seq = ++ctxUsageSeq
+  try {
+    const usage = (await service.ai.getContextUsage(
+      store.activeSessionId,
+      store.selectedModel as string,
+    )) as { tokens: number; window: number; pct: number }
+    if (seq === ctxUsageSeq) ctxUsage.value = usage
+  } catch {
+    if (seq === ctxUsageSeq) ctxUsage.value = null
+  }
+}
+
+// Agent.vue:120-126 会话 watcher —— 本任务只接 ctxUsage。**不移植**同一个 watcher
+// 里的 loadSessionThinking/updateThinkingForModel(那两条属于 ThinkingBar,留给 1c-2,
+// 提前塞会是死代码)。
+watch(
+  () => store.activeSessionId,
+  () => refreshContextUsage(),
+)
+// Agent.vue:127-132 —— 只在 busy true→false 下降沿刷新(一轮结束之后);没有针对
+// selectedModel 的 watcher,与 Vue2 一致(切模型不会自动重拉用量)。
+watch(
+  () => store.busy,
+  (v, old) => {
+    if (old === true && v === false) refreshContextUsage()
+  },
+)
+
 onMounted(async () => {
   store.initTheme()
   try {
@@ -68,6 +123,8 @@ onMounted(async () => {
   } catch {
     /* ignore — 拉模型失败不该挡住页面渲染,send() 自己会兜底提示无模型 */
   }
+  // Agent.vue:154 —— models 加载完之后拉一次 ctxUsage(mounted 触发,三个触发点之一)。
+  refreshContextUsage()
 
   // Vue2 Agent.vue:145-148 —— ?skill= 挂号:只暂存,消费点在 send()(agentStore.ts
   // send() 的 X-Skill-Id 组装段),这里不发送。
@@ -128,7 +185,23 @@ onMounted(async () => {
       />
       <EmptyState v-if="store.messages.length === 0" />
       <MessageList v-else :messages="messagesForList" :busy="store.busy" />
-      <!-- 1b/1c: composer -->
+      <!--
+        Agent.vue:38-42 挂载契约 —— 1:1(props/emits 名与语义)。emit 处理器写成
+        内联箭头函数、而不是像 Vue2 那样直接 `@send="store.actions.send"` 裸引用
+        方法 —— Vue3 里裸方法引用会在渲染时把 `store.send` 这个函数值本身固化进
+        vnode 的 onSend prop;此后若外部整体替换了 `store.send`(如测试用
+        `vi.spyOn(store, 'send')`,底层走 `Object.defineProperty`,不经过 Vue
+        reactive 的 set 陷阱,不会触发 AgentPage 重渲染),裸引用不会跟着变,仍会
+        调到替换前的旧函数。内联箭头在**调用时**才去读 `store.send`,读到的是
+        当前值,行为才和"调用方法当前实现"一致。
+      -->
+      <AgentComposer
+        :busy="store.busy"
+        :ctx-usage="ctxUsage"
+        @send="(payload) => store.send(payload)"
+        @stop="() => store.stop()"
+        @send-init="(target) => store.sendInit(target)"
+      />
     </main>
     <!-- 1c: right panel -->
   </div>
