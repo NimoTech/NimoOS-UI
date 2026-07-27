@@ -85,4 +85,65 @@ describe('MentionPopover', () => {
     await flushPromises()
     expect(w.findAll('.mention-item')).toHaveLength(0)
   })
+
+  // Review fix 1 — capture-phase keydown listener must attach synchronously,
+  // before the mounts fetch resolves (see MentionPopover.vue header comment).
+  it('open 时同步挂载 keydown 监听——mounts 请求未完成时按键也生效', async () => {
+    let resolveMounts: (v: unknown[]) => void = () => {}
+    svc.listMounts.mockReturnValue(new Promise((resolve) => { resolveMounts = resolve }))
+    const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
+    // Deliberately do NOT flush/await before dispatching — listMounts is still pending.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.emitted('close')).toBeTruthy()
+    resolveMounts([])
+    await flushPromises()
+    w.unmount()
+  })
+
+  // Review fix 1 — unmounting while the first mounts fetch is still in flight
+  // must not leave a dangling capture-phase window listener. Note: this suite
+  // never calls w.unmount() in most earlier tests, so jsdom's shared `window`
+  // can carry stale keydown listeners from sibling tests by the time this one
+  // runs — a live dispatchEvent()/emitted() check would be polluted by that
+  // and can't tell "our listener leaked" from "some earlier test's listener
+  // fired". Instead, track add/remove calls made *during this test* by fn
+  // reference and simulate the resulting attached/detached state directly —
+  // immune to what other tests left on `window`.
+  it('打开后 mounts 请求未完成即卸载——不遗留监听(add/remove 不成对,监听永久挂着)', async () => {
+    const originalAdd = window.addEventListener.bind(window)
+    const originalRemove = window.removeEventListener.bind(window)
+    const attached = new Map<EventListenerOrEventListenerObject, boolean>()
+    const addSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type: any, fn: any, opts?: any) => {
+      if (type === 'keydown' && opts === true) attached.set(fn, true)
+      return originalAdd(type, fn, opts)
+    })
+    const removeSpy = vi.spyOn(window, 'removeEventListener').mockImplementation((type: any, fn: any, opts?: any) => {
+      if (type === 'keydown' && opts === true) attached.set(fn, false)
+      return originalRemove(type, fn, opts)
+    })
+    try {
+      let resolveMounts: (v: unknown[]) => void = () => {}
+      svc.listMounts.mockReturnValue(new Promise((resolve) => { resolveMounts = resolve }))
+      const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
+      w.unmount()
+      resolveMounts([])
+      await flushPromises()
+      const stillAttached = [...attached.values()].some((v) => v)
+      expect(stillAttached).toBe(false)
+    } finally {
+      addSpy.mockRestore()
+      removeSpy.mockRestore()
+    }
+  })
+
+  // Review fix 2 — empty-state "no matches" text must bold the quoted query
+  // (Vue2 MentionPopover.vue:38 wraps it in <b>), even though it's now i18n'd.
+  it('无匹配空态:引号内的 query 用 <b> 加粗渲染', async () => {
+    svc.listFsEntries.mockResolvedValue([])
+    const w = mount(MentionPopover, { props: { open: true, query: 'zzz', segments: ['Drive1'] }, global: g })
+    await flushPromises()
+    const b = w.find('.mention-empty b')
+    expect(b.exists()).toBe(true)
+    expect(b.text()).toContain('zzz')
+  })
 })

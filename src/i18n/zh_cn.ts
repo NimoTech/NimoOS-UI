@@ -672,7 +672,9 @@ export default {
   aiMentionDrives: '个磁盘',
   aiMentionItems: '项',
   aiMentionLoading: '加载中…',
-  aiMentionNoMatch: '没有匹配 "{query}" 的结果',
+  // aiMentionNoMatchTpl 的 {query} 是 <i18n-t> 具名插槽占位符,由 MentionPopover.vue
+  // 用 <b>"{{ query }}"</b> 填充——引号+加粗都在插槽里,不在译文字符串里(见 Fix 2)。
+  aiMentionNoMatchTpl: '没有匹配 {query} 的结果',
   aiMentionEmptyHere: '这里没有内容',
   aiMentionTryDifferentName: '换个名字试试,或按',
   aiMentionUpHint: '返回上一级',

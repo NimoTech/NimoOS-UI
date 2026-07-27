@@ -673,7 +673,10 @@ export default {
   aiMentionDrives: 'drives',
   aiMentionItems: 'items',
   aiMentionLoading: 'Loading…',
-  aiMentionNoMatch: 'No matches for "{query}"',
+  // aiMentionNoMatchTpl's {query} is an <i18n-t> named-slot placeholder, filled by
+  // MentionPopover.vue with <b>"{{ query }}"</b> — quotes+bold live in the slot
+  // markup, not the translated string (see Fix 2; restores Vue2's <b> wrap).
+  aiMentionNoMatchTpl: 'No matches for {query}',
   aiMentionEmptyHere: 'No items here',
   aiMentionTryDifferentName: 'Try a different name, or press',
   aiMentionUpHint: 'to go up',

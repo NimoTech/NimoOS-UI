@@ -30,6 +30,14 @@
   currentAbsolute 算出来是 '',loadCurrent 会直接空跑且此后再无人重试,导致这类
   "带初始 segments 打开"的场景永远拉不到条目。这里在需要先加载 mounts 时
   await 一下再决定是否 loadCurrent,修掉这个时序坑。
+
+  Review fix(2026-07-27):上面这个 await 本身又引入了新问题——window.addEventListener
+  必须在 open 变 true 的同一个 tick、await 之前同步挂上,否则(a)mounts 请求未返回期间
+  按键无效,(b)组件在该 await 挂起期间卸载时,onBeforeUnmount 先跑(摘不掉还没挂上的
+  监听),await 恢复后再挂,监听从此再无人摘,永久挂着一个 capture-phase 的 window
+  监听。修法见下方 watch(open):挂监听这行必须保持在任何 await 之前同步执行,
+  mounts/loadCurrent 的加载移进一个内层 async IIFE,不阻塞挂监听、也不让挂监听这行
+  出现在任何 await 之后。
 -->
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
@@ -222,15 +230,30 @@ function formatSize(n: number): string {
 
 watch(
   () => props.open,
-  async (v) => {
+  (v) => {
     if (v) {
       hi.value = 0
+      // Attach the capture-phase listener synchronously, in the same tick
+      // `open` becomes true — before any await. This matters for two reasons:
+      // (1) keys pressed while the mounts fetch is still in flight must work
+      // (Vue2 attached synchronously too, since its fetches were fire-and-forget);
+      // (2) it guarantees nothing ever attaches a listener *after* this watcher
+      // callback has already returned — so if the component unmounts while the
+      // mounts fetch is still pending, onBeforeUnmount's removeEventListener is
+      // always the last word and no listener is left dangling with no cleanup
+      // path (review fix — real trigger: open the popover, then close/navigate
+      // away before the network round-trip finishes).
+      window.addEventListener('keydown', onKey, true)
       // See file-header note: await the mounts fetch first when it's needed,
       // so currentAbsolute (which depends on `mounts`) is resolvable before
       // loadCurrent runs — fixes a Vue2 ordering bug (see header comment).
-      if (mounts.value.length === 0) await loadMounts()
-      if (props.segments.length > 0) loadCurrent()
-      window.addEventListener('keydown', onKey, true)
+      // Run this in an inner async IIFE (rather than making the watcher
+      // callback itself async) so the listener attach above always happens
+      // synchronously and this awaited work never gates it.
+      ;(async () => {
+        if (mounts.value.length === 0) await loadMounts()
+        if (props.segments.length > 0) loadCurrent()
+      })()
     } else {
       window.removeEventListener('keydown', onKey, true)
     }
@@ -302,7 +325,9 @@ onBeforeUnmount(() => {
       </div>
       <div v-else-if="filtered.length === 0" class="mention-empty">
         <AgentIcon name="search" :size="18" color="var(--text-quaternary)" />
-        <span v-if="query">{{ t('aiMentionNoMatch', { query }) }}</span>
+        <i18n-t v-if="query" keypath="aiMentionNoMatchTpl" tag="span">
+          <template #query><b>"{{ query }}"</b></template>
+        </i18n-t>
         <span v-else>{{ t('aiMentionEmptyHere') }}</span>
         <span class="mention-empty-hint">
           {{ t('aiMentionTryDifferentName') }} <span class="mention-kbd">⌫</span> {{ t('aiMentionUpHint') }}
