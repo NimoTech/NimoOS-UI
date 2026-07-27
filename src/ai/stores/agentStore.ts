@@ -211,7 +211,8 @@ export function useAgentStore(agentType?: string) {
 
     /**
      * agentStore.js:246-293 —— 切 activeSessionId + 拉消息列表 + attach 尾巴。
-     * 资源/附件/staged 装载仍不搬(1c 的事)。legacy 消息迁移 `migrateLegacyMessages`
+     * 资源/附件装载已接入(本任务);staged 装载留给 Task 3 补齐第三个 loader。
+     * legacy 消息迁移 `migrateLegacyMessages`
      * (Task 3)在此接入——历史消息装载后立刻跑一遍旧 block 形态迁移
      * (run_command→terminal 等),再赋值给 messages。
      *
@@ -230,6 +231,10 @@ export function useAgentStore(agentType?: string) {
       const body = await service.ai.listAgentMessages(id)
       const raw = Array.isArray(body) ? (body as AgentMessage[]) : []
       messages.value = migrateLegacyMessages(raw as any) as unknown as AgentMessage[]
+
+      // agentStore.js:259-265 —— 并发装载,单个失败不阻断整条切换。
+      // 本任务先接两个(visible + attachments);第三个(staged)由 Task 3 补入同一行。
+      await Promise.allSettled([loadVisibleResources(), loadAttachments()])
 
       // 乐观置 busy,直到 attach 回报为止。send() 会在 busy 上守卫,防止
       // "刚切换会话就手快发送" 和一次 replay 的 user_message 事件赛跑,
@@ -414,6 +419,52 @@ export function useAgentStore(agentType?: string) {
     /** agentStore.js:728-732 —— 按 path 整表过滤。 */
     function removeVisibleResourceFromList(path: string) {
       visibleResources.value = visibleResources.value.filter((r) => r.path !== path)
+    }
+
+    // ── 1c:可见资源(agentStore.js:734-758)──
+
+    /** 无会话直接清空、不发请求;有会话则整表覆盖。**不 try/catch** —— 由 selectSession 的 allSettled 兜。 */
+    async function loadVisibleResources() {
+      if (!activeSessionId.value) { visibleResources.value = []; return }
+      const body = await service.ai.listVisibleResources(activeSessionId.value)
+      visibleResources.value = (body as VisibleResource[]) || []
+    }
+
+    /**
+     * agentStore.js:743-752 —— 无会话先懒建会话;服务端返回值优先、参数兜底。
+     * **错误必须原样冒泡**:composer 靠 e.response.status===409 + detail 里的
+     * "gitignore" 判定要不要 force 重试。
+     */
+    async function addVisibleResource(path: string, kind = 'folder', force = false) {
+      if (!activeSessionId.value) await createSession()
+      const body = await service.ai.addVisibleResource(activeSessionId.value as string | number, path, kind, force)
+      const data = (body || {}) as { id?: string | number; path?: string; kind?: string }
+      appendVisibleResource({ id: data.id, path: data.path || path, kind: data.kind || kind })
+    }
+
+    /** agentStore.js:754-758 —— 先抓本地条目拿 path,成功后按 path 移除(id 未知则不动本地)。 */
+    async function removeVisibleResource(resId: string | number) {
+      const target = visibleResources.value.find((r) => r.id === resId)
+      await service.ai.removeVisibleResource(activeSessionId.value as string | number, resId)
+      if (target) removeVisibleResourceFromList(target.path)
+    }
+
+    // ── 1c:附件(agentStore.js:760-777)──
+
+    /** 与 Vue2 一致:**吞错并清空**(不同于 loadVisibleResources 会抛)。 */
+    async function loadAttachments() {
+      if (!activeSessionId.value) { attachments.value = []; return }
+      try {
+        const body = await service.ai.listAttachments(activeSessionId.value)
+        attachments.value = (body as Record<string, unknown>[]) || []
+      } catch { attachments.value = [] }
+    }
+
+    /** agentStore.js:773-777 —— 抛错时本地列表不动。 */
+    async function removeAttachment(aid: string | number) {
+      if (!activeSessionId.value) return
+      await service.ai.deleteAttachment(activeSessionId.value, aid)
+      attachments.value = attachments.value.filter((a) => a.id !== aid)
     }
 
     /**
@@ -642,6 +693,8 @@ export function useAgentStore(agentType?: string) {
           },
           extraHeaders,
         )
+        // 刷新附件:刚上传的草稿此刻服务端已带上 message_id,应显示为"已发送"。
+        loadAttachments().catch(() => {})
       } catch (e) {
         errorOccurred = true
         const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
@@ -805,6 +858,11 @@ export function useAgentStore(agentType?: string) {
       appendStagedChange,
       appendVisibleResource,
       removeVisibleResourceFromList,
+      loadVisibleResources,
+      addVisibleResource,
+      removeVisibleResource,
+      loadAttachments,
+      removeAttachment,
       createStreamActions,
       loadAvailableModels,
       selectModel,
