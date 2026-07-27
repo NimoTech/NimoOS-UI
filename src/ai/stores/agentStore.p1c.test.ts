@@ -281,3 +281,52 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.reverting).toEqual({})
   })
 })
+
+describe('agentStore P1c Task4:sendInit', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((fn) => fn.mockReset())
+    localStorage.clear()
+    svc.createAgentSession.mockResolvedValue({ session_id: 'sess-init' })
+    svc.listAgentSessions.mockResolvedValue([])
+  })
+
+  it('sendInit:先 push [/init] user + assistant 占位,再按 kind=init 发 run', async () => {
+    const { runAgentRun } = await import('../services/agentTransport')
+    const s = useAgentStore('t4a')
+    s.availableModels = [{ key: 'local:llama3', source: 'local', displayName: 'llama3', provider_type: 'ollama' } as any]
+    s.selectedModel = 'local:llama3'
+    await s.sendInit('/DATA/docs')
+    expect(s.messages[0]).toMatchObject({ role: 'user', content: '[/init] /DATA/docs' })
+    expect(s.messages[1]).toMatchObject({ role: 'assistant' })
+    expect(runAgentRun).toHaveBeenCalledWith(
+      'sess-init',
+      { message: 'Please generate agent.md for /DATA/docs.', model: 'llama3', kind: 'init', init_target: '/DATA/docs' },
+      'ollama',
+      expect.anything(), expect.anything(), expect.any(Function), {},
+    )
+    expect(s.busy).toBe(false)
+  })
+
+  it('sendInit:无选中模型时落一个 error tool block 并收尾', async () => {
+    const s = useAgentStore('t4b')
+    s.selectedModel = null
+    await s.sendInit('/DATA/docs')
+    const last: any = s.messages[s.messages.length - 1]
+    expect(last.blocks[0]).toMatchObject({ type: 'tool', state: 'error', name: 'request' })
+    expect(s.busy).toBe(false)
+  })
+
+  it('sendInit:云模型带 X-Agent-Provider-Id 头', async () => {
+    const { runAgentRun } = await import('../services/agentTransport')
+    const s = useAgentStore('t4c')
+    s.activeSessionId = 'sess-1'
+    s.availableModels = [{ key: 'cloud:6:deepseek-chat', source: 'cloud', displayName: 'deepseek-chat', providerId: 6, provider_type: 'deepseek' } as any]
+    s.selectedModel = 'cloud:6:deepseek-chat'
+    await s.sendInit('/DATA/x')
+    expect(runAgentRun).toHaveBeenCalledWith(
+      'sess-1', expect.objectContaining({ model: 'deepseek-chat', kind: 'init' }), 'deepseek',
+      expect.anything(), expect.anything(), expect.any(Function), { 'X-Agent-Provider-Id': '6' },
+    )
+  })
+})

@@ -788,6 +788,89 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
+     * agentStore.js:423-489 —— `/init` 斜杠命令的执行体:让 agent 为某个目录生成
+     * agent.md。与 send() 的关键差异(逐字对齐 Vue2,不是疏漏):
+     * 1) user/assistant 两条消息直接 `messages.value.push`,不走
+     *    pushUserMessage/startAssistant(user 消息内容固定为 `[/init] <target>`,
+     *    不是原始输入文本)。
+     * 2) payload 用 `kind: 'init', init_target: target`,**不带 thinking 字段**。
+     * 3) finally **不做首轮自动补标题**(Vue2 sendInit 就没有这段)。
+     * message 文本是发给后端的英文提示词模板,不是 UI 文案,不 i18n。
+     *
+     * 一处**有意偏离** Vue2 逐字顺序:Vue2 源码里两条消息是在 `createSession()`
+     * *之前* push 的(agentStore.js:426-436 先 push,441 才 `await
+     * actions.createSession()`)。但 `createSession()` 会整体覆盖
+     * `messages.value = []`(见上方 createSession),这意味着"无会话时调用
+     * sendInit"会把刚 push 的两条消息立刻冲掉——这是 Vue2 自身的潜在 bug(send()
+     * 就没有这个问题,因为 send() 是先 createSession() 再 push)。这里改成与
+     * send() 一致的顺序:先确保会话存在,再 push 两条消息,payload/校验/收尾
+     * 逻辑其余部分保持逐字对齐。
+     */
+    async function sendInit(target: string): Promise<void> {
+      const message = `Please generate agent.md for ${target}.`
+      busy.value = true
+      abortController.value = new AbortController()
+
+      try {
+        if (!activeSessionId.value) {
+          await createSession()
+        }
+        messages.value.push({
+          id: `u${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          role: 'user',
+          content: `[/init] ${target}`,
+        })
+        messages.value.push({
+          id: `a${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          role: 'assistant',
+          blocks: [],
+          streaming: true,
+        })
+        if (!selectedModel.value) {
+          throw new Error('No model selected')
+        }
+        const key = selectedModel.value
+        const { source, modelName } = parseModelKey(key)
+        const sel = availableModels.value.find((m) => m.key === key)
+        const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
+
+        const extraHeaders: Record<string, string> = {}
+        if (sel?.source === 'cloud' && sel?.providerId) {
+          extraHeaders['X-Agent-Provider-Id'] = String(sel.providerId)
+        }
+
+        await runAgentRun(
+          activeSessionId.value as string | number,
+          { message, model: modelName, kind: 'init', init_target: target },
+          providerType,
+          (abortController.value as AbortController).signal,
+          createStreamActions(),
+          (err: unknown) => {
+            appendBlock({
+              type: 'tool',
+              state: 'error',
+              name: 'request',
+              sections: [{ label: 'ERROR', code: typeof err === 'string' ? err : JSON.stringify(err, null, 2) }],
+            })
+            setStreamingDone()
+          },
+          extraHeaders,
+        )
+      } catch (e) {
+        appendBlock({
+          type: 'tool',
+          state: 'error',
+          name: 'request',
+          sections: [{ label: 'ERROR', code: typeof e === 'string' ? e : ((e as Error)?.message || JSON.stringify(e)) }],
+        })
+        setStreamingDone()
+      } finally {
+        if (busy.value) setStreamingDone()
+        abortController.value = null
+      }
+    }
+
+    /**
      * agentStore.js:491-511 —— 中止当前流。POST /cancel(而非只 abort 请求)有两个理由:
      * 1) 服务端的 agent task 与请求本身是分离的,只 abort fetch 留任务继续跑,还占着
      *    per-session 锁 —— 下一次 send() 会 409 agent_busy。
@@ -939,6 +1022,7 @@ export function useAgentStore(agentType?: string) {
       selectModel,
       updateThinkingForModel,
       send,
+      sendInit,
       stop,
       continueRun,
       confirmAgentAction,
