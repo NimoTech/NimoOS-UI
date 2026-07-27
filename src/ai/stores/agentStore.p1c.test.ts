@@ -329,4 +329,16 @@ describe('agentStore P1c Task4:sendInit', () => {
       expect.anything(), expect.anything(), expect.any(Function), { 'X-Agent-Provider-Id': '6' },
     )
   })
+
+  it('sendInit:createSession 失败时补齐 assistant 占位(安全网)', async () => {
+    const s = useAgentStore('t4d')
+    s.availableModels = [{ key: 'local:llama3', source: 'local', displayName: 'llama3', provider_type: 'ollama' } as any]
+    s.selectedModel = 'local:llama3'
+    svc.createAgentSession.mockRejectedValue(new Error('session creation failed'))
+    await s.sendInit('/DATA/x')
+    const last: any = s.messages[s.messages.length - 1]
+    expect(last.role).toBe('assistant')
+    expect(last.blocks[0]).toMatchObject({ type: 'tool', state: 'error', name: 'request' })
+    expect(s.busy).toBe(false)
+  })
 })

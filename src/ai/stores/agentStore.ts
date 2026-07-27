@@ -857,6 +857,12 @@ export function useAgentStore(agentType?: string) {
           extraHeaders,
         )
       } catch (e) {
+        // 安全网:与 send() 一致。Vue2 agentStore.js:423-490 无此守卫,是潜在缺陷
+        // (错误会被静默吞掉)。这里补齐确保错误 block 总有宿主 assistant 消息。
+        const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
+        if (!last || last.role !== 'assistant') {
+          startAssistant()
+        }
         appendBlock({
           type: 'tool',
           state: 'error',
