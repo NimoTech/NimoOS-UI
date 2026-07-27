@@ -612,6 +612,7 @@ export default {
   raidReplaceWarning: 'Replacing triggers an array rebuild; performance is reduced during rebuild.',
   raidReplaceSuccess: 'Disk replacement started',
   raidReplaceFailed: 'Failed to replace disk',
+  raidRecover: 'Rediscover',
   raidRecoverSuccess: 'Array recovered',
   raidRecoverFailed: 'Discovery failed, check disk connections',
   raidBaySelectAll: 'Select all healthy',

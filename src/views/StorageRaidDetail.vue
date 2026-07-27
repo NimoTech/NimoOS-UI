@@ -125,6 +125,13 @@ async function onReplace(newDiskPath: string) {
         <h2 class="rd-name">{{ array.name }}</h2>
         <span class="rd-level">RAID {{ array.level }}</span>
         <span class="rc-badge" :class="severity">{{ t(labelKey) }}</span>
+        <button
+          v-if="flags.isRetrying || flags.isFailed"
+          class="rd-recover"
+          type="button"
+          :disabled="store.raidRecovering"
+          @click="store.recoverRaid(idStr)"
+        >{{ t('raidRecover') }}</button>
         <button class="rd-delete" type="button" @click="deleteOpen = true">{{ t('raidRemove') }}</button>
       </header>
 
@@ -223,6 +230,13 @@ async function onReplace(newDiskPath: string) {
 .rc-badge.info { color: var(--accent); }
 .rc-badge.warning { color: var(--dem-fg); }
 .rc-badge.danger { color: var(--remove-fg); }
+.rd-recover {
+  margin-left: auto; border: 1px solid var(--dem-fg); background: var(--chip-bg); color: var(--dem-fg);
+  border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.rd-recover:hover { background: var(--chip-bg-hi); }
+.rd-recover:disabled { opacity: 0.6; cursor: not-allowed; }
+.rd-recover + .rd-delete { margin-left: 0; }
 .rd-delete {
   margin-left: auto; border: 1px solid var(--remove-fg); background: var(--chip-bg); color: var(--remove-fg);
   border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;

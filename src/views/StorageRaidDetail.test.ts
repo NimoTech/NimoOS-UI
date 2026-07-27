@@ -36,10 +36,9 @@ describe('StorageRaidDetail', () => {
     expect(w.text()).toContain('/dev/sda')
     expect(raidGetUsage).toHaveBeenCalledWith('7')
   })
-  it('写操作按钮边界:delete 出现,recover/replace 仍缺席——P4 T6', async () => {
+  it('写操作按钮边界:active 阵列头部写按钮 = [delete](P4 T8 回填:recover 缺席)', async () => {
     // P3 终审加的是硬计数不变式(===2);P4 T6 加了 .rd-delete 后计数必然变化,
     // 改为语义化断言:该出现的(back + delete)出现,不该出现的(recover/replace)缺席。
-    // recover 是 T8 的事——T8 完成后需回来把 recover 按钮也纳入本测试(brief 明确要求留此注释)。
     await router.push('/storage/raid/7'); await router.isReady()
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
@@ -47,5 +46,34 @@ describe('StorageRaidDetail', () => {
     expect(w.find('.rd-delete').exists()).toBe(true)
     expect(w.find('.rd-recover').exists()).toBe(false)
     expect(w.find('.rd-replace').exists()).toBe(false)
+  })
+  it('写操作按钮边界:retrying 阵列头部写按钮 = [delete, recover]', async () => {
+    // getStatus 被调两次:loadRaid() 拉列表状态一次 + loadRaidDetail() 拉详情状态一次——两次都须是 retrying
+    const retryingStatus = { live_state: 'retrying', state: 'retrying', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [] }
+    raidGetStatus.mockResolvedValueOnce(retryingStatus).mockResolvedValueOnce(retryingStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+    expect(w.find('.rd-delete').exists()).toBe(true)
+    expect(w.find('.rd-recover').exists()).toBe(true)
+    expect(w.find('.rd-replace').exists()).toBe(false)
+  })
+  it('recover 按钮:failed 也渲染;点击调用 store.recoverRaid(id) 一次;busy 时禁用', async () => {
+    const failedStatus = { live_state: 'failed', state: 'failed', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [] }
+    raidGetStatus.mockResolvedValueOnce(failedStatus).mockResolvedValueOnce(failedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    const recoverSpy = vi.spyOn(store, 'recoverRaid').mockResolvedValue({ state: 'active' })
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+    const btn = w.find('.rd-recover')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    expect(recoverSpy).toHaveBeenCalledTimes(1)
+    expect(recoverSpy).toHaveBeenCalledWith('7')
+
+    store.raidRecovering = true
+    await w.vm.$nextTick()
+    expect(w.find('.rd-recover').attributes('disabled')).toBeDefined()
   })
 })

@@ -611,6 +611,7 @@ export default {
   raidReplaceWarning: '更换将触发阵列重建,期间性能下降。',
   raidReplaceSuccess: '已开始更换硬盘',
   raidReplaceFailed: '更换失败',
+  raidRecover: '重新识别',
   raidRecoverSuccess: '阵列已恢复',
   raidRecoverFailed: '识别失败,请检查磁盘连接',
   raidBaySelectAll: '全选健康盘',
