@@ -10,9 +10,20 @@ import zh from '../i18n/zh_cn'
 const raidList = vi.fn().mockResolvedValue([{ id: 7, name: 'md7', level: 5, state: 'active', mount_point: '/DATA', uuid: 'u-7' }])
 const raidGetStatus = vi.fn().mockResolvedValue({ live_state: 'active', state: 'active', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [{ path: '/dev/sda', state: 'active sync', number: 0 }] })
 const raidGetUsage = vi.fn().mockResolvedValue({ filesystem: 'btrfs', btrfs_usage: { free_estimated_bytes: 55, cached_at: 1700000000 } })
+const snapListVolumes = vi.fn().mockResolvedValue([])
+const snapList = vi.fn().mockResolvedValue([])
 vi.mock('@nimotech/nimoos-service', () => ({ service: {
   storage: { list: vi.fn().mockResolvedValue([]) }, disks: { getDiskList: vi.fn().mockResolvedValue({ disks: [] }) },
   raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), getUsage: (...a: unknown[]) => raidGetUsage(...a) },
+  snapshot: {
+    listVolumes: (...a: unknown[]) => snapListVolumes(...a),
+    list: (...a: unknown[]) => snapList(...a),
+    getPolicy: vi.fn().mockResolvedValue({}),
+    patchPolicy: vi.fn(),
+    togglePolicy: vi.fn(),
+    create: vi.fn(),
+    remove: vi.fn(),
+  },
 } }))
 vi.mock('../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: () => vi.fn() }) }))
 
@@ -75,5 +86,29 @@ describe('StorageRaidDetail', () => {
     store.raidRecovering = true
     await w.vm.$nextTick()
     expect(w.find('.rd-recover').attributes('disabled')).toBeDefined()
+  })
+  it('左栏挂载快照面板,并按本阵列 uuid 查卷', async () => {
+    snapListVolumes.mockResolvedValue([{ volume_uuid: 'u-7', supported: true, enabled: true, count: 1, last_at: '2026-07-27T01:00:00Z' }])
+    await router.push('/storage/raid/7'); await router.isReady()
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    await store.loadRaid()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'SnapshotPanel' }).exists()).toBe(true)
+    expect(w.find('.sp-switch').attributes('aria-checked')).toBe('true')
+  })
+
+  it('快照端点 404 → 面板落"不支持"态,详情页其余内容照常渲染', async () => {
+    snapListVolumes.mockRejectedValue(new Error('404'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await router.push('/storage/raid/7'); await router.isReady()
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    await store.loadRaid()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    expect(w.find('.sp-unsupported').exists()).toBe(true)
+    expect(w.text()).toContain('md7')          // 阵列名还在
+    expect(w.text()).toContain('/dev/sda')     // 成员列表还在
+    expect(w.find('.rd-delete').exists()).toBe(true)
   })
 })

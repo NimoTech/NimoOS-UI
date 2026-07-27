@@ -6,6 +6,7 @@ import StorageShell from '../storage/components/StorageShell.vue'
 import RaidMemberList from '../storage/components/RaidMemberList.vue'
 import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
 import RaidReplaceDialog from '../storage/components/RaidReplaceDialog.vue'
+import SnapshotPanel from '../storage/components/SnapshotPanel.vue'
 import { useStorageStore } from '../storage/stores/storage'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { fmtSize } from '../home/util/format'
@@ -181,7 +182,11 @@ async function onReplace(newDiskPath: string) {
             <div class="rd-row"><span class="rd-key">{{ t('raidLevelWrite') }}</span><span class="rd-val">{{ t(info.writeSpeedKey) }}</span></div>
           </div>
 
-          <!-- 快照面板 P5 -->
+          <!-- v-if="detail" 门:SnapshotPanel 只在 raidDetail(array.uuid 真正加载完)后才挂载。
+               Vue2(RaidDetailPanel.vue)靠父级 v-if="selectedRaid" 保证同款前提;这里若不设
+               v-if,子组件 onMounted 早于本页 onMounted(Vue3 生命周期子先父后),快照面板会
+               带着占位 uuid=''首次加载并再也不会重试,永远落"不支持"态。 -->
+          <SnapshotPanel v-if="detail" :volume-uuid="array.uuid ?? ''" />
         </div>
 
         <div class="rd-col-right">
