@@ -712,4 +712,13 @@ export default {
   raidCreateConfirmTitle: '创建 RAID 阵列',
   raidCreateConfirmMsg: '确定创建 RAID {level}「{name}」,使用 {n} 块磁盘?',
   raidCreateConfirmOk: '创建',
+  snapToggleOn: '快照保护已开启',
+  snapToggleOff: '快照保护已关闭',
+  snapToggleFailed: '更新快照保护状态失败',
+  snapPolicySaved: '快照计划已更新',
+  snapPolicySaveFailed: '更新快照计划失败',
+  snapCreated: '快照已创建',
+  snapCreateFailed: '创建快照失败',
+  snapDeleted: '快照已删除',
+  snapDeleteFailed: '删除快照失败',
 }

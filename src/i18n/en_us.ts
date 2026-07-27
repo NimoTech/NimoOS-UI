@@ -713,4 +713,13 @@ export default {
   raidCreateConfirmTitle: 'Create RAID Array',
   raidCreateConfirmMsg: 'Create RAID {level} "{name}" using {n} disks?',
   raidCreateConfirmOk: 'Create',
+  snapToggleOn: 'Snapshot protection enabled',
+  snapToggleOff: 'Snapshot protection disabled',
+  snapToggleFailed: 'Failed to update snapshot protection',
+  snapPolicySaved: 'Snapshot schedule updated',
+  snapPolicySaveFailed: 'Failed to update snapshot schedule',
+  snapCreated: 'Snapshot created',
+  snapCreateFailed: 'Failed to create snapshot',
+  snapDeleted: 'Snapshot deleted',
+  snapDeleteFailed: 'Failed to delete snapshot',
 }
