@@ -63,6 +63,22 @@
       这里新增 onFocus(先清挂起的 blurTimer 再按光标重开)+ onClick(点击移动
       光标进出 @ 词也要跟着开/关),两者共用新抽出的 syncMentionFromCaret()
       (原 onInput 里的扫描逻辑,一字未改,只是抽出复用)。见各自声明处注释。
+  (d) P1c1 验收补丁 task 4(2026-07-27,用户复验第 2 轮,@ 仍未修好):Vue2
+      shell/AgentComposer.vue:331(以及上面 (c) 抽出的 syncMentionFromCaret)
+      靠 `scanMention` 从光标往前扫文字反推提及词,一遇空白就 `break` 判定
+      `{open:false}`。NimoOS 挂载点显示名 `System (/DATA)` 既含空格又含斜杠,
+      钻进去之后文本变成 `@System (/DATA)/.system_data/`——只要再触发一次这个
+      扫描(下一次按键、blur→focus,甚至 drillIn 自己 nextTick 里 el.focus()
+      顺带触发的 onFocus),往前扫到空格就直接放弃,面板从此再也开不回来。
+      改法:`composerText.ts` 新增 `mentionPrefix`/`parseActiveMention` 两个纯
+      函数(纯切片比较,不逐字符扫描);`syncMentionFromCaret` 改两级判定——已
+      钻取过至少一层(`mentionSegs.length>0`)时优先信任记录的 segments/start,
+      只有还没钻取时才继续用 `scanMention` 发现新词。同时把原来的
+      `closeMention()` 拆成 `hideMentionPanel()`(只隐藏,onBlur 用)与
+      `resetMention()`(全量重置,Esc/选中/发送/切会话/清空文本各处用)——失焦
+      不再销毁已钻取的层级,真正结束时才重置。逐条改动理由见
+      `syncMentionFromCaret`/`hideMentionPanel`/`resetMention` 声明处注释,以及
+      `.superpowers/sdd/p1c1-patch-task-4-brief.md`。
 
   gitignore 409 确认(本期唯一有意的交互偏离):Vue2 用阻塞的 `window.confirm`
   (Vue2 398、630),这里改用仓库的 reka-ui `AlertDialog`。注意 AlertDialog 走
@@ -81,7 +97,10 @@ import SlashPopover from './SlashPopover.vue'
 import AlertDialog from '../../../components/ui/AlertDialog.vue'
 import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
 import { useToast } from '../../../stores/toast'
-import { getExt, basename, dirname, scanMention, buildDrillText, buildPopText, stripMentionToken } from '../../util/composerText'
+import {
+  getExt, basename, dirname, scanMention, buildDrillText, buildPopText, stripMentionToken,
+  parseActiveMention,
+} from '../../util/composerText'
 import { ACCEPT_TYPES, MAX_ATTACHMENT_BYTES, TEXT_EXTS, docErrorKey, docErrorShortKey } from '../../util/attachmentMeta'
 
 const props = withDefaults(
@@ -207,16 +226,47 @@ function updateAnchor() {
 }
 
 /**
- * P1c1 验收补丁 Task 1(见文件头「Vue2 缺陷修复」新增项 (c)):抽出 onInput 里
- * `scanMention` 那段——扫描光标处是否在一个有效的 `@` 词内,是则(重)开面板并
- * 还原层级/查询词,否则关闭面板。抽出来的原因是 onFocus/onClick 两个新处理器
- * 要复用同一份逻辑,不能各写一份(避免两份实现漂移)。**未改动扫描规则本身**,
- * 逐字保留原来 onInput 里的分支。
+ * P1c1 验收补丁 task 4(2026-07-27,用户复验第 2 轮):把 @ 提及词从"每次都从
+ * 文字反推"改成"状态优先,文字只用来发现新词/取筛选词"。
+ *
+ * 根因(见 p1c1-patch-task-4-brief.md「根因」一节,读代码定死非猜测):
+ * `scanMention`(composerText.ts:48-67,对应 Vue2 shell/AgentComposer.vue:331 的
+ * 同款注释"mention 路径不含空格")是从光标往前扫的发现式算法,一遇空白就
+ * `break` 判定 `{open:false}`。NimoOS 的挂载点显示名 `System (/DATA)` 既含空格
+ * 又含斜杠——钻进去之后文本变成 `@System (/DATA)/.system_data/`,只要再触发一次
+ * 这个函数(下一次按键、blur→focus,甚至 drillIn 自己 nextTick 里 `el.focus()`
+ * 顺带触发的 onFocus——用真实交互写组件测试时意外证实了这一点),往前扫到空格
+ * 就直接放弃,面板从此再也开不回来。
+ *
+ * 修法:`mentionSegs`(层级)由 `drillIn`/`popSegment` 写入,是权威值,永不从文字
+ * 反推。只要已经钻过至少一层(`mentionSegs.value.length > 0`),就用
+ * `parseActiveMention` 按"记录的前缀是否仍是当前文本这一段"做一次纯切片比较
+ * (不逐字符扫描,天然不受嵌入的空格/斜杠影响),命中就直接复用/更新
+ * `mentionQuery`,**不再跑 `scanMention`**。
+ *
+ * 没有 gate 在 `mentionSegs.value.length > 0` 上不行:`mentionPrefix([])` 只是
+ * 裸的 `'@'`,如果对"尚未钻取过、只是刚敲了 `@xxx` 还没选任何层级"的状态也无条件
+ * 信任 `parseActiveMention`,那么这个前缀会对任何后续文本都判定"仍然成立"
+ * (只要 caret 在 `@` 之后),包括用户敲空格结束这次提及的场景——这会让
+ * `AgentComposer @提及 / 斜杠`(Task 11)"输入空格后关闭"那条既有用例失败。
+ * 尚未钻取时"逐字符发现"本来就是安全的(还没有可能包含空格的挂载点名混进
+ * 状态),所以这条路径继续交给 `scanMention` 重新发现——两段判定合起来才是
+ * brief「组件改造」步骤 2 说的"两级判定"。
  */
 function syncMentionFromCaret() {
   const v = text.value
   const el = ta.value
   const caret = el ? (el.selectionStart ?? v.length) : v.length
+
+  if (mentionSegs.value.length > 0) {
+    const parsed = parseActiveMention(v, mentionStart.value, mentionSegs.value, caret)
+    if (parsed.active) {
+      mentionQuery.value = parsed.query
+      mentionOpen.value = true
+      updateAnchor()
+      return
+    }
+  }
 
   const scan = scanMention(v, caret)
   if (scan.open) {
@@ -227,7 +277,7 @@ function syncMentionFromCaret() {
     updateAnchor()
     return
   }
-  closeMention()
+  resetMention()
 }
 
 /**
@@ -300,11 +350,17 @@ function deriveSlashState() {
  * (`slashOpen` 为真)就强制关掉提及面板、不再推导提及;否则走原有的
  * `syncMentionFromCaret()`。两个面板永不同时 open——无论从哪个方向切换
  * (斜杠→提及,或反过来),都在这一个函数里判定,不会漂移成两份逻辑。
+ *
+ * P1c1 补丁 task 4:这里必须是 `resetMention()`(全量重置),不能只
+ * `hideMentionPanel()`——斜杠面板赢了之后,提及的 `mentionSegs`/`mentionStart`
+ * 若还留着,下一次斜杠面板关闭、文本又变回一个"仍然匹配已记录前缀"的样子时,
+ * `syncMentionFromCaret` 会把提及面板诈尸重开(见 brief「组件改造」步骤 3 最后
+ * 一条)。
  */
 function syncPanelsFromText() {
   deriveSlashState()
   if (slashOpen.value) {
-    if (mentionOpen.value) closeMention()
+    if (mentionOpen.value) resetMention()
     return
   }
   syncMentionFromCaret()
@@ -442,8 +498,23 @@ async function removeChip(c: { id?: string | number }) {
  *  补丁 Task 3 起;此前是已退役的 SlashMenu)。 */
 const visibleFolders = computed(() => store.visibleResources.filter((r) => r.kind === 'folder'))
 
-/** Vue2 347-352 closeMention()。 */
-function closeMention() {
+/**
+ * P1c1 补丁 task 4 —— 拆分"隐藏"与"重置"(brief「组件改造」步骤 1):
+ *
+ * - `hideMentionPanel()`:只把面板收起来(`mentionOpen=false`),**保留**
+ *   `mentionStart`/`mentionSegs`/`mentionQuery`——用在 `onBlur` 的延迟关闭上,
+ *   这样重新聚焦时 `syncMentionFromCaret` 还能用 `parseActiveMention` 认出
+ *   "这仍是刚才那个提及词"并把面板复原到原来的层级(不受挂载点名里的空格/斜杠
+ *   影响,这正是本补丁要修的缺陷)。
+ * - `resetMention()`:全量清空,即原来 `closeMention()` 的语义——用在"提及真正
+ *   结束"的各个终点:Esc 关闭面板、选中条目、发送、切会话、斜杠面板互斥抢占、
+ *   清空输入框的路径。逐个调用点见各自声明处的注释。
+ */
+function hideMentionPanel() {
+  mentionOpen.value = false
+}
+
+function resetMention() {
   mentionOpen.value = false
   mentionStart.value = -1
   mentionSegs.value = []
@@ -462,11 +533,18 @@ function closeMention() {
  * timer kept running and could fire `closeMention()` after the user had
  * already refocused and reopened the popover. Clear any pending handle
  * before scheduling a new one so at most one blur-close timer is ever live.
+ *
+ * P1c1 补丁 task 4(关键修复):延迟回调改调 `hideMentionPanel()`,不再调
+ * `resetMention()`。原来的 `closeMention()` 是全量重置——一旦失焦关闭,
+ * `mentionSegs`/`mentionStart` 就被清空,重新聚焦时只能靠 `scanMention` 从文字
+ * 重新反推,而挂载点名里的空格会让这次反推必然失败(brief「根因」)。改成只隐藏
+ * 之后,状态原样保留,重新聚焦时 `syncMentionFromCaret` 才有东西可以拿去跟
+ * `parseActiveMention` 核对。
  */
 function onBlur() {
   if (blurTimer.value !== null) clearTimeout(blurTimer.value)
   blurTimer.value = setTimeout(() => {
-    closeMention()
+    hideMentionPanel()
     blurTimer.value = null
   }, 180)
 }
@@ -498,7 +576,9 @@ async function pickItem(item: { kind: string; resolvedPath: string }) {
 
   const kind = item.kind === 'file' ? 'file' : 'folder'
   const path = item.resolvedPath
-  closeMention()
+  // P1c1 补丁 task 4:选中之后提及真正结束,须 resetMention()(而非只 hide)——
+  // 见 brief「组件改造」步骤 3「pickItem 选中后」。
+  resetMention()
   nextTick(() => {
     el?.focus()
     el?.setSelectionRange(result.caretPos, result.caretPos)
@@ -564,9 +644,14 @@ function onSlashPickCommand(name: string) {
  * (613-617)"关菜单 + 清输入 + 发 send-init":清空输入、关闭面板并回到 command
  * 阶段、`nextTick(grow)`,再把目标目录上抛给 AgentPage(`store.sendInit` 接线
  * 在那一侧,这里不改)。
+ *
+ * P1c1 补丁 task 4:补上 `resetMention()`——这里把输入框整个清空,提及词(若有)
+ * 也该跟着结束,不能让 mentionStart/mentionSegs 悬空指向一段已经不存在的文本。
+ * 见 brief「组件改造」步骤 3「onSlashPickTarget 等清空文本的路径」。
  */
 function onSlashPickTarget(path: string) {
   text.value = ''
+  resetMention()
   slashOpen.value = false
   slashStage.value = 'command'
   slashQuery.value = ''
@@ -786,6 +871,10 @@ async function removeAttachment(entry: PendingAttachment) {
  * this.attachments;但对应 store 的 send() 一开头就 `if (busy.value) return`
  * ——于是流式回复期间按 Enter,文本和已上传附件 chip 被原地清空,消息却根本没发
  * 出去,静默吞掉用户输入。这里在做任何清空/emit 之前先挡一道 busy。
+ *
+ * P1c1 补丁 task 4:清空 `text`/`attachments` 的同时补上 `resetMention()`——
+ * 发送之后输入框是全新的一段文本,任何还挂着的提及层级/查询词都该跟着结束。
+ * 见 brief「组件改造」步骤 3「submit() 发送后」。
  */
 function submit() {
   if (props.busy) return
@@ -804,6 +893,7 @@ function submit() {
   emit('send', { text: trimmed, attachmentIds, attachmentRefs })
   text.value = ''
   attachments.value = []
+  resetMention()
   nextTick(grow)
 }
 
@@ -834,9 +924,15 @@ function onBrowseClick() {
 }
 
 /**
- * Vue2 275-281 `activeSessionId` watcher。关闭 mention 面板(`closeMention()`)
+ * Vue2 275-281 `activeSessionId` watcher。关闭 mention 面板(`resetMention()`)
  * + 清空待发附件列表。服务端附件仍归属旧会话,这里只是丢弃本地 chip 引用,
  * 不发任何请求。
+ *
+ * P1c1 补丁 task 4:原来这里调的是 `closeMention()`,现按 brief「组件改造」
+ * 步骤 3「activeSessionId watcher」改名调 `resetMention()`——语义不变(这本来
+ * 就是全量重置:切会话是全新上下文,不应该继承上一个会话的提及层级/查询词),
+ * 只是与新拆出的 `hideMentionPanel()` 区分开,避免以后有人在这里误用只隐藏的
+ * 那个函数。
  *
  * P1c1 补丁 Task 3:并列补上关闭斜杠面板——回 command 阶段并清掉
  * `slashDismissedText`(不是记一次 dismiss,是整体重置:新会话是全新上下文,
@@ -846,7 +942,7 @@ function onBrowseClick() {
 watch(
   () => store.activeSessionId,
   () => {
-    closeMention()
+    resetMention()
     slashOpen.value = false
     slashStage.value = 'command'
     slashDismissedText.value = null
@@ -974,6 +1070,10 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
+      <!-- P1c1 补丁 task 4: `@close`(Esc)必须是 resetMention(),不能只 hide——
+           否则用户按 Esc 关掉面板后,下一次 focus 会被 syncMentionFromCaret 的
+           parseActiveMention 分支认成"提及词仍然有效"而立刻重开,Esc 就白按了。
+           见 brief「组件改造」步骤 3「面板 close(Esc)」。 -->
       <MentionPopover
         :open="mentionOpen"
         :query="mentionQuery"
@@ -982,7 +1082,7 @@ onBeforeUnmount(() => {
         @drill-in="drillIn"
         @pick="pickItem"
         @pop-segment="popSegment"
-        @close="closeMention"
+        @close="resetMention"
       />
 
       <!-- P1c1 补丁 Task 3 —— 退役全屏 SlashMenu,换成与 MentionPopover 同款的

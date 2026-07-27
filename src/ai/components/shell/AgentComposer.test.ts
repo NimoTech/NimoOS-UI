@@ -390,6 +390,113 @@ describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', ()
   })
 })
 
+// P1c-1 验收补丁 task 4 —— @ 提及词改为「状态跟踪」,而不是每次都从文字反推
+// (scanMention 一遇空白就 break)。NimoOS 的挂载点显示名 `System (/DATA)` 既含
+// 空格又含斜杠,钻进去之后原实现会在下一次 blur/focus 或任何一次按键时把面板判丢
+// ——用例逐字取自 .superpowers/sdd/p1c1-patch-task-4-brief.md「组件测试」1-6,
+// fake timers 用法对齐上面「focus/click 重新同步」describe 块。
+describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名含空格/斜杠)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((f: any) => f.mockClear?.())
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** 钻两层,复现用户报告的路径前缀:`@System (/DATA)/.system_data/`。
+   *  drillIn 是纯状态写入(buildDrillText 用 mentionStart/mentionSegs,不扫描
+   *  文本),所以这一步本身不受本补丁修的 bug 影响,可以直接当夹具用。 */
+  async function drillIntoSpacedMount(w: ReturnType<typeof mountComposer>) {
+    await w.find('textarea').setValue('@Sys')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    await pop.vm.$emit('drill-in', { name: 'System (/DATA)', kind: 'drive', resolvedPath: '/DATA' })
+    await w.vm.$nextTick()
+    await pop.vm.$emit('drill-in', { name: '.system_data', kind: 'folder', resolvedPath: '/DATA/.system_data' })
+    await w.vm.$nextTick()
+  }
+
+  it('1. 用户原始复现:失焦隐藏、重新聚焦按记录的 segments/query 复原(不因空格丢面板)', async () => {
+    const w = mountComposer()
+    await drillIntoSpacedMount(w)
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@System (/DATA)/.system_data/')
+
+    await w.find('textarea').trigger('blur')
+    vi.advanceTimersByTime(200)
+    await flushPromises()
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+
+    await w.find('textarea').trigger('focus')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    expect(pop.props('open')).toBe(true)
+    expect(pop.props('segments')).toEqual(['System (/DATA)', '.system_data'])
+    expect(pop.props('query')).toBe('')
+  })
+
+  it('2. 钻完再敲字符面板不掉(旧实现会因为 scanMention 遇空格 break 而关闭 —— 修复前此例必须失败)', async () => {
+    const w = mountComposer()
+    await drillIntoSpacedMount(w)
+    const ta = w.find('textarea')
+    await ta.setValue((ta.element as HTMLTextAreaElement).value + 're')
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    expect(pop.props('open')).toBe(true)
+    expect(pop.props('query')).toBe('re')
+  })
+
+  it('3. Esc 之后 focus 不复活', async () => {
+    const w = mountComposer()
+    await drillIntoSpacedMount(w)
+    const pop = w.findComponent({ name: 'MentionPopover' })
+    expect(pop.props('open')).toBe(true)
+
+    await pop.vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(pop.props('open')).toBe(false)
+
+    await w.find('textarea').trigger('focus')
+    expect(pop.props('open')).toBe(false)
+  })
+
+  it('4. 发现规则不放宽:邮箱和句中孤立的 "@" 不触发', async () => {
+    const w = mountComposer()
+    await w.find('textarea').setValue('me@host')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+    await w.find('textarea').setValue('hi @ x')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+  })
+
+  it('5. 切会话重置(而非只隐藏):面板关闭,且随后 focus 不会重开', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-1'
+    const w = mountComposer()
+    await drillIntoSpacedMount(w)
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
+
+    store.activeSessionId = 'sess-2'
+    await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+
+    await w.find('textarea').trigger('focus')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+  })
+
+  it('6. 发送后重置:文本清空且随后 focus 不重开面板', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-1'
+    const w = mountComposer()
+    await drillIntoSpacedMount(w)
+    const ta = w.find('textarea')
+    await ta.setValue((ta.element as HTMLTextAreaElement).value + 'hello')
+    await w.find('.send-btn').trigger('click')
+    await flushPromises()
+    expect((ta.element as HTMLTextAreaElement).value).toBe('')
+
+    await ta.trigger('focus')
+    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
+  })
+})
+
 // SP8-P1c1 patch task 3 — retire the rejected full-screen SlashMenu, wire up
 // SlashPopover instead. Ten cases verbatim from
 // .superpowers/sdd/p1c1-patch-task-3-brief.md「测试要求」1-10. The old single

@@ -66,6 +66,18 @@ export function scanMention(text: string, caret: number): MentionScan {
   return { open: false, start: -1, segments: [], query: '' }
 }
 
+/**
+ * P1c1 验收补丁 task 4 —— 钻取写进文本的前缀:`'@' + segments.join('/') + '/'`
+ * (段落为空时只是裸 `'@'`,没有多余的斜杠)。原先 `buildDrillText`/
+ * `buildPopText` 各自内联拼了一遍这段逻辑,现在两处都改调这个函数——纯粹去重,
+ * 两者现有行为/单测不变。也是 `parseActiveMention` 判断"已记录的提及词是否仍然
+ * 成立"时用来切片比较的唯一权威前缀来源。见 p1c1-patch-task-4-brief.md「根因」
+ * 「目标设计」两节。
+ */
+export function mentionPrefix(segments: string[]): string {
+  return '@' + (segments.length ? segments.join('/') + '/' : '')
+}
+
 /** Drill into a folder/drive: append "<name>/" after the @ pattern
  *  (AgentComposer.vue:355-371, `drillIn`). */
 export function buildDrillText(
@@ -76,7 +88,7 @@ export function buildDrillText(
   name: string,
 ): { text: string; segments: string[]; caretPos: number } {
   const newSegs = [...segments, name]
-  const newPath = '@' + newSegs.join('/') + '/'
+  const newPath = mentionPrefix(newSegs)
   const before = text.slice(0, start)
   const after = text.slice(caret)
   return {
@@ -95,7 +107,7 @@ export function buildPopText(
   segments: string[],
 ): { text: string; segments: string[]; caretPos: number } {
   const newSegs = segments.slice(0, -1)
-  const newPath = '@' + (newSegs.length ? newSegs.join('/') + '/' : '')
+  const newPath = mentionPrefix(newSegs)
   const before = text.slice(0, start)
   const after = text.slice(caret)
   return {
@@ -103,6 +115,32 @@ export function buildPopText(
     segments: newSegs,
     caretPos: (before + newPath).length,
   }
+}
+
+/**
+ * P1c1 验收补丁 task 4 —— 判断"已记录的提及词"(`start`/`segments`,由
+ * `drillIn`/`popSegment` 写入组件状态,权威值)在当前文本里是否仍然成立,并取出
+ * 其后用户敲的筛选词。**不做任何文字反推/分词**——只做一次前缀切片比较,天然
+ * 不受挂载点显示名里的空格/斜杠影响(这正是 `scanMention` 从文字反推做不到的
+ * 点,见本文件同名对照测试)。
+ *
+ * 成立条件:`start >= 0`、`text.slice(start, start + prefix.length) === prefix`、
+ * `caret >= start + prefix.length`。三者但凡一个不满足就判定不成立——调用方
+ * (`AgentComposer.vue` 的 `syncMentionFromCaret`)据此决定要不要退回
+ * `scanMention` 重新发现一个新词。
+ */
+export function parseActiveMention(
+  text: string,
+  start: number,
+  segments: string[],
+  caret: number,
+): { active: boolean; query: string } {
+  if (start < 0) return { active: false, query: '' }
+  const prefix = mentionPrefix(segments)
+  const prefixEnd = start + prefix.length
+  if (text.slice(start, prefixEnd) !== prefix) return { active: false, query: '' }
+  if (caret < prefixEnd) return { active: false, query: '' }
+  return { active: true, query: text.slice(prefixEnd, caret) }
 }
 
 /** Remove the whole @token with nothing inserted in its place
