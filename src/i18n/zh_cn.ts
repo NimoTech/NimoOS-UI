@@ -713,6 +713,9 @@ export default {
   photosAlbumSetCover: '设为相册封面',
   photosAlbumEmptyTitle: '相册是空的',
   photosAlbumEmptyHint: '点「添加照片」从图库中挑选。',
+  // New-UI 补齐项(Vue2 无独立详情路由,不会出现此情形):直链/刷新进入一个不存在的相册 id。
+  photosAlbumNotFoundTitle: '相册不存在',
+  photosAlbumNotFoundHint: '它可能已被删除,或链接有误。',
   photosAlbumRenamedToast: '相册已重命名',
   photosAlbumRenameFailed: '重命名失败',
   photosAlbumDeletedToast: '相册已删除:{name}',

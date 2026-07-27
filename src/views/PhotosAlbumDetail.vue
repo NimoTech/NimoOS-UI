@@ -1,0 +1,679 @@
+<script setup lang="ts">
+// Task 8 (SP7-P4 相册): 相册详情视图——本期最大的一件。结构/时序逐段对照 Vue2 NimoOS-UI
+// src/views/Photos/PhotosAlbumDetail.vue(419 行)移植:hero(封面/改名/编辑切换/⋯菜单删除)
+// + 工具条(批量移除/添加照片,或排序+密度)+ 自绘网格(拖拽排序/封面星标/多选)+ 删除确认模态
+// + AlbumLibraryPicker(T6,添加照片)+ PhotoLightbox(P2,查看/删除)。路由 /photos/albums/:id
+// 注册留给 T11。去掉 Slideshow(Vue2 本身也只弹"敬请期待" toast)与 Ask Nimo(归 SP8)。
+//
+// 铁律(逐条落实,见文件内注释登记):
+//  1) route.params.id 恒为字符串;albumId 统一走 String(route.params.id),所有对 store 的调用
+//     (fetchAlbumAssets/renameAlbum/setAlbumCover/removeAssetsFromAlbum/deleteAlbum/
+//     reorderAlbumAssets)都传这个归一后的字符串——T2 store 内部本就按 String(key) 比较,
+//     传字符串永远安全,不需要在这里猜后端 id 的真实类型。
+//  2) 封面判定 isCover(p) = String(p.id) === String(album.cover)(album.cover 可能是数字)。
+//  3) selected 用 Set<string>(String 归一)。
+//  4) 全程无对象引用 ===。
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
+import { service } from '@nimotech/nimoos-service'
+import AreaShell from '../components/shell/AreaShell.vue'
+import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import { useLightbox } from '../photos/lightbox/useLightbox'
+import { usePhotosAlbums } from '../photos/stores/albums'
+import { useTimelineStore } from '../photos/stores/timeline'
+import { useToast } from '../stores/toast'
+import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
+import { albumToView, sortAlbumPhotos } from '../photos/util/albumView'
+import { isConflict } from '../photos/util/httpErrors'
+import type { Photo } from '../photos/util/assetToPhoto'
+
+type SortBy = 'manual' | 'taken' | 'added'
+
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const albums = usePhotosAlbums()
+const timeline = useTimelineStore()
+const toast = useToast()
+const lb = useLightbox()
+
+// 铁律 1:route.params.id 恒为字符串——统一在这一处归一,下游所有 store 调用都用它。
+const albumId = computed(() => String(route.params.id))
+
+// ── 本地状态(照 brief 结构清单命名)──
+const edit = ref(false)
+const selected = ref<Set<string>>(new Set())
+const sortBy = ref<SortBy>('manual')
+const density = ref<'comfortable' | 'compact'>('comfortable')
+const titleEditing = ref(false)
+const titleDraft = ref('')
+const titleCommitting = ref(false)
+const menuOpen = ref(false)
+const sortMenuOpen = ref(false)
+const confirmDelete = ref(false)
+const pickerOpen = ref(false)
+
+const titleInputRef = ref<HTMLInputElement | null>(null)
+const morePopRef = ref<HTMLElement | null>(null)
+const sortMenuRef = ref<HTMLElement | null>(null)
+const gridRef = ref<HTMLElement | null>(null)
+
+// ── 派生数据 ──
+// album 为 null 有两种子情形(区分见模板):albumsLoaded===false → 还没加载完,渲染骨架;
+// albumsLoaded===true 但仍是 null → 相册真不存在(New-UI 补齐项,Vue2 因页内 state 不会
+// 出现此情形,记账)。
+const album = computed(() => {
+  const raw = albums.albumById(albumId.value)
+  return raw ? albumToView(raw, t('photosAlbumUntitled')) : null
+})
+const notFound = computed(() => albums.albumsLoaded && album.value === null)
+
+// Vue2 :224-242(photos computed)—— 由 T1 sortAlbumPhotos 提供排序,这里只接线数据源。
+const photos = computed<Photo[]>(() => sortAlbumPhotos(albums.assetsOf(albumId.value), sortBy.value))
+const isLoadingPhotos = computed(() => albums.isLoadingAssets(albumId.value))
+const isAlbumEmpty = computed(() => !isLoadingPhotos.value && photos.value.length === 0)
+
+// hero 背景:有封面走共享包缩略图生成器(带 token),无封面渐变占位。
+// 偏离登记:Vue2 coverUrl(:282-289) 只认 typeof seed==='string' 的封面 id,数字 id 一律
+// 返回空串退化到渐变——这是 Vue2 自身的历史遗留限制(注释称"only real asset id"),而 T1/T2
+// 早已把 album.cover 定义为 string|number 通用 id(封面判定铁律本身就要求支持数字 cover)。
+// T7 PhotosAlbums.vue 的同名 coverUrl 逻辑已经统一按"非 null/非空即认为是有效 id"处理
+// (不做 typeof 限制),这里跟随该已定型的姐妹页写法,不复刻 Vue2 的 typeof 限制。
+// var(--hero-tint) 在本仓库 theme.css 中不存在,T7 同一处 fallback 已用
+// color-mix(accent 35% + panel-bg) 替代——这里复用同一方案,不新增 token。
+const coverBgImage = computed(() => {
+  const cover = album.value?.cover
+  if (cover != null && cover !== '') {
+    return `url(${service.photos.thumbnailUrl(cover, 'large')})`
+  }
+  return 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent))'
+})
+
+function isCover(p: Photo): boolean {
+  // 铁律 2:值比较,不管两边谁是字符串谁是数字。
+  return String(p.id) === String(album.value?.cover)
+}
+function isSelected(p: Photo): boolean {
+  return selected.value.has(String(p.id))
+}
+function thumbnailUrl(id: string | number, size: string): string {
+  return service.photos.thumbnailUrl(id, size)
+}
+
+const sortOptions = computed(() => [
+  { id: 'manual' as SortBy, label: t('photosAlbumSortManual') },
+  { id: 'taken' as SortBy, label: t('photosAlbumSortTaken') },
+  { id: 'added' as SortBy, label: t('photosAlbumSortAdded') },
+])
+const currentSortLabel = computed(() => sortOptions.value.find((s) => s.id === sortBy.value)?.label ?? '')
+
+// Vue2 tileTitle()/:377-378 的提示语——edit 态且手动排序才提"拖拽排序"。
+const editHintText = computed(() => {
+  if (selected.value.size > 0) return t('photosSelectedCount', { count: selected.value.size })
+  return sortBy.value === 'manual' ? t('photosAlbumHintSelectDragCover') : t('photosAlbumHintSelectCover')
+})
+const tileHintTitle = computed(() => {
+  if (!edit.value) return ''
+  return sortBy.value === 'manual' ? t('photosAlbumHintSelectDragCover') : t('photosAlbumHintSelectCover')
+})
+
+// ── T4 拖拽排序接线 ──
+const drag = useAlbumDragSort({
+  container: gridRef,
+  enabled: () => edit.value && sortBy.value === 'manual',
+  onOrder: (ids) => {
+    albums.reorderAlbumAssets(albumId.value, ids).catch((e) => {
+      console.error('[album-detail] reorder', e)
+      toast.show(t('photosAlbumOrderFailed'))
+    })
+  },
+})
+
+// ── 瓦片交互 ──
+function toggleSelect(p: Photo): void {
+  const key = String(p.id)
+  if (selected.value.has(key)) selected.value.delete(key)
+  else selected.value.add(key)
+}
+
+// 拖拽守卫(照 Vue2 :380-384 `_dragging`)—— 必须在最前面,否则拖完那一下会误触发选中/开灯箱。
+function onTileClick(p: Photo): void {
+  if (drag.isDragging()) return
+  if (edit.value) toggleSelect(p)
+  else lb.openAt(p, photos.value, 0)
+}
+
+async function setCover(p: Photo): Promise<void> {
+  try {
+    await albums.setAlbumCover(albumId.value, p.id)
+    toast.show(t('photosAlbumCoverUpdatedToast'))
+  } catch (e) {
+    console.error('[album-detail] setCover', e)
+    toast.show(t('photosAlbumCoverFailed'))
+  }
+}
+
+// ── Hero:标题编辑 ──
+function startTitleEdit(): void {
+  titleDraft.value = album.value?.title ?? ''
+  titleEditing.value = true
+  void nextTick(() => {
+    titleInputRef.value?.focus()
+    titleInputRef.value?.select()
+  })
+}
+function cancelTitleEdit(): void {
+  titleEditing.value = false
+}
+async function commitTitle(): Promise<void> {
+  if (titleCommitting.value) return
+  const v = titleDraft.value.trim()
+  const original = album.value?.title ?? ''
+  if (!v || v === original) {
+    titleEditing.value = false
+    return
+  }
+  titleCommitting.value = true
+  try {
+    await albums.renameAlbum(albumId.value, v)
+    toast.show(t('photosAlbumRenamedToast'))
+  } catch (e) {
+    // 失败时 store 从未写回本地(T2 renameAlbum 只在成功后才 updateAlbumLocal),album.title
+    // 这个 computed 因此自然保持原值——不需要额外代码"还原标题"。
+    toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumRenameFailed'))
+  } finally {
+    titleCommitting.value = false
+    titleEditing.value = false
+  }
+}
+
+// ── Hero:编辑态/⋯菜单 ──
+function toggleEditMode(): void {
+  edit.value = !edit.value
+  if (!edit.value) selected.value.clear()
+}
+function askConfirmDelete(): void {
+  menuOpen.value = false
+  confirmDelete.value = true
+}
+
+// ── 工具条:批量移除 ──
+async function removeSelected(): Promise<void> {
+  if (!selected.value.size) return
+  const ids = Array.from(selected.value)
+  try {
+    await albums.removeAssetsFromAlbum(albumId.value, ids)
+    selected.value.clear()
+    toast.show(t('photosAlbumRemovedToast', { count: ids.length }))
+  } catch (e) {
+    console.error('[album-detail] removeSelected', e)
+    toast.show(t('photosAlbumRemoveFailed'))
+  }
+}
+
+// ── 删除相册(唯一带二次确认的操作)──
+async function doDelete(): Promise<void> {
+  confirmDelete.value = false
+  const name = album.value?.title ?? ''
+  try {
+    await albums.deleteAlbum(albumId.value)
+    toast.show(t('photosAlbumDeletedToast', { name }))
+    void router.push('/photos/albums')
+  } catch (e) {
+    console.error('[album-detail] deleteAlbum', e)
+    toast.show(t('photosAlbumDeleteFailed'))
+  }
+}
+
+// ── 排序下拉 ──
+function pickSort(s: SortBy): void {
+  sortBy.value = s
+  sortMenuOpen.value = false
+}
+
+// ── AlbumLibraryPicker(T6)接线 ──
+function onPickerAdded(): void {
+  void albums.fetchAlbumAssets(albumId.value)
+}
+
+// ── PhotoLightbox(P2)接线——只挂 @delete(brief 明确:@add-to-album 归 T9)──
+// 照 P3 收藏视图 T8 的同款处理:灯箱已在真实资产层面删除,相册内的引用也要跟着消失,
+// 靠重新拉取该相册的资产列表实现(而不是本地过滤,store 才是真源)。
+async function onLightboxDelete(assetId: string | number): Promise<void> {
+  await timeline.deleteAssets([String(assetId)])
+  toast.show(t('photosDeletedToast', { count: 1 }))
+  void albums.fetchAlbumAssets(albumId.value)
+}
+
+// ── document 级监听(⋯菜单/排序菜单点外部关闭,删除确认模态 Esc)──
+// 照既有范式(T5/T6/T7/PhotoLightbox.vue):不用模板 @keydown.esc,依赖真实焦点会漏判。
+function onDocMousedown(e: MouseEvent): void {
+  if (menuOpen.value && morePopRef.value && !morePopRef.value.contains(e.target as Node)) {
+    menuOpen.value = false
+  }
+  if (sortMenuOpen.value && sortMenuRef.value && !sortMenuRef.value.contains(e.target as Node)) {
+    sortMenuOpen.value = false
+  }
+}
+function onDocKeydown(e: KeyboardEvent): void {
+  if (e.key !== 'Escape') return
+  if (confirmDelete.value) { confirmDelete.value = false; return }
+  if (menuOpen.value) { menuOpen.value = false; return }
+  if (sortMenuOpen.value) sortMenuOpen.value = false
+}
+
+// ── 生命周期 / watch(照 Vue2 :257-280 的三个触发点 + brief 补的 route watch)──
+onMounted(() => {
+  if (!albums.albumsLoaded) void albums.fetchAlbums()
+  void albums.fetchAlbumAssets(albumId.value)
+  void nextTick(() => drag.refresh())
+  document.addEventListener('mousedown', onDocMousedown)
+  document.addEventListener('keydown', onDocKeydown)
+})
+onBeforeUnmount(() => {
+  drag.destroy()
+  document.removeEventListener('mousedown', onDocMousedown)
+  document.removeEventListener('keydown', onDocKeydown)
+})
+
+watch(() => route.params.id, () => {
+  selected.value.clear()
+  void albums.fetchAlbumAssets(albumId.value)
+  void nextTick(() => drag.refresh())
+})
+watch([edit, sortBy], () => {
+  void nextTick(() => drag.refresh())
+})
+</script>
+
+<template>
+  <AreaShell :title="album ? album.title : t('photosAlbumsTitle')">
+    <div class="photos-layout">
+      <PhotosSidebar />
+      <main class="photos-main">
+        <!-- 还没加载完:骨架 -->
+        <div v-if="!album && !albums.albumsLoaded" class="album-loading" data-test="album-loading">
+          <div class="album-hero album-hero-skeleton"></div>
+        </div>
+
+        <!-- 加载完了确实没有:New-UI 补齐项 -->
+        <div v-else-if="notFound" class="empty-state" data-test="album-not-found">
+          <div class="empty-state-title">{{ t('photosAlbumNotFoundTitle') }}</div>
+          <div class="empty-state-desc">{{ t('photosAlbumNotFoundHint') }}</div>
+          <button
+            type="button"
+            class="bar-btn"
+            data-test="album-not-found-back"
+            @click="router.push('/photos/albums')"
+          >{{ t('photosAlbumBack') }}</button>
+        </div>
+
+        <template v-else-if="album">
+          <!-- Hero -->
+          <div class="album-hero">
+            <div class="album-hero-bg" :style="{ backgroundImage: coverBgImage }"></div>
+            <button
+              type="button"
+              class="album-hero-back"
+              data-test="album-back"
+              @click="router.push('/photos/albums')"
+            >‹ {{ t('photosAlbumBack') }}</button>
+            <div class="album-hero-inner">
+              <div class="album-hero-text">
+                <div class="album-hero-badge">{{ t('photosAlbumLabel') }}</div>
+                <div
+                  v-if="!titleEditing"
+                  class="album-hero-title"
+                  data-test="album-title"
+                  :title="t('photosAlbumClickToRename')"
+                  @click="startTitleEdit"
+                >{{ album.title }}</div>
+                <input
+                  v-else
+                  ref="titleInputRef"
+                  v-model="titleDraft"
+                  class="album-hero-title album-hero-title-input"
+                  data-test="album-title-input"
+                  @keydown.enter.prevent="commitTitle"
+                  @keydown.esc.prevent="cancelTitleEdit"
+                  @blur="commitTitle"
+                >
+                <div class="album-hero-sub">
+                  <span>{{ t('photosItemsCount', { count: album.count }) }}</span>
+                  <template v-if="album.dateRange">
+                    <span class="dot"></span>
+                    <span>{{ album.dateRange }}</span>
+                  </template>
+                </div>
+              </div>
+              <div class="album-hero-actions">
+                <button
+                  type="button"
+                  class="bar-btn"
+                  data-test="album-edit-toggle"
+                  :data-active="edit"
+                  @click="toggleEditMode"
+                >{{ edit ? t('photosAlbumDone') : t('photosAlbumEdit') }}</button>
+                <div ref="morePopRef" class="album-more-wrap">
+                  <button
+                    type="button"
+                    class="bar-btn album-more-btn"
+                    data-test="album-more-btn"
+                    :data-active="menuOpen"
+                    @click="menuOpen = !menuOpen"
+                  >⋯</button>
+                  <div v-if="menuOpen" class="album-more-menu" data-test="album-menu">
+                    <button
+                      type="button"
+                      class="album-more-item"
+                      data-test="album-menu-rename"
+                      @click="menuOpen = false; startTitleEdit()"
+                    >{{ t('photosAlbumRename') }}</button>
+                    <div class="album-more-sep"></div>
+                    <button
+                      type="button"
+                      class="album-more-item danger"
+                      data-test="album-menu-delete"
+                      @click="askConfirmDelete"
+                    >
+                      <div>{{ t('photosAlbumDelete') }}</div>
+                      <div class="album-more-item-hint">{{ t('photosAlbumDeleteHint') }}</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Toolbar -->
+          <div class="album-toolbar" :data-edit="edit">
+            <span class="album-toolbar-muted">{{ t('photosAlbumItemsShown', { count: photos.length }) }}</span>
+            <div class="album-toolbar-spacer"></div>
+            <template v-if="edit">
+              <span class="album-toolbar-group">{{ editHintText }}</span>
+              <button
+                type="button"
+                class="bar-btn"
+                data-test="album-remove-selected"
+                :disabled="!selected.size"
+                @click="removeSelected"
+              >{{ t('photosAlbumRemoveFrom') }}</button>
+              <button
+                type="button"
+                class="bar-btn"
+                data-test="album-add-photos"
+                @click="pickerOpen = true"
+              >{{ t('photosAlbumAddPhotos') }}</button>
+            </template>
+            <template v-else>
+              <div ref="sortMenuRef" class="album-sort-wrap">
+                <button
+                  type="button"
+                  class="bar-btn"
+                  data-test="album-sort-btn"
+                  @click.stop="sortMenuOpen = !sortMenuOpen"
+                >{{ currentSortLabel }}</button>
+                <div v-if="sortMenuOpen" class="album-sort-menu" data-test="album-sort-menu">
+                  <button
+                    v-for="s in sortOptions" :key="s.id"
+                    type="button"
+                    class="album-sort-item"
+                    data-test="album-sort-item"
+                    :data-sort-id="s.id"
+                    :data-active="s.id === sortBy"
+                    @click="pickSort(s.id)"
+                  >{{ s.label }}</button>
+                </div>
+              </div>
+              <div class="album-density">
+                <button
+                  type="button"
+                  :data-active="density === 'comfortable'"
+                  :title="t('photosDensityComfortable')"
+                  @click="density = 'comfortable'"
+                >▦</button>
+                <button
+                  type="button"
+                  :data-active="density === 'compact'"
+                  :title="t('photosDensityCompact')"
+                  @click="density = 'compact'"
+                >▪</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Grid -->
+          <div class="album-photos-wrap scroll">
+            <div v-if="isLoadingPhotos && photos.length === 0" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
+              <div v-for="i in 6" :key="'sk' + i" class="tile album-tile-skeleton"></div>
+            </div>
+            <div v-else-if="isAlbumEmpty" class="empty-state" data-test="album-empty">
+              <div class="empty-state-title">{{ t('photosAlbumEmptyTitle') }}</div>
+              <div class="empty-state-desc">{{ t('photosAlbumEmptyHint') }}</div>
+            </div>
+            <div v-else ref="gridRef" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
+              <div
+                v-for="p in photos" :key="p.id"
+                class="tile"
+                :data-id="p.id"
+                :data-cover="isCover(p)"
+                :data-selected="edit && isSelected(p)"
+                :title="tileHintTitle"
+                @click="onTileClick(p)"
+                @contextmenu.prevent="setCover(p)"
+              >
+                <img :src="thumbnailUrl(p.id, 'small')" alt="">
+                <button
+                  type="button"
+                  class="tile-cover-btn"
+                  :data-on="isCover(p)"
+                  :title="isCover(p) ? t('photosAlbumCurrentCover') : t('photosAlbumSetCover')"
+                  @click.stop="setCover(p)"
+                >★</button>
+                <div v-if="edit" class="tile-select-check" :data-checked="isSelected(p)">
+                  <span v-if="isSelected(p)">✓</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </main>
+    </div>
+  </AreaShell>
+
+  <!-- 删除相册确认模态(唯一带二次确认的操作) -->
+  <div
+    v-if="confirmDelete"
+    class="album-confirm-scrim"
+    data-test="album-delete-confirm"
+    @click.self="confirmDelete = false"
+  >
+    <div class="album-confirm">
+      <div class="album-confirm-title">{{ t('photosAlbumDeleteTitle', { name: album?.title ?? '' }) }}</div>
+      <div class="album-confirm-body">{{ t('photosAlbumDeleteBody', { count: album?.count ?? 0 }) }}</div>
+      <div class="album-confirm-foot">
+        <button type="button" class="album-confirm-cancel" @click="confirmDelete = false">{{ t('photosCancel') }}</button>
+        <button type="button" class="album-confirm-ok" data-test="album-delete-confirm-btn" @click="doDelete">
+          {{ t('photosAlbumDelete') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <AlbumLibraryPicker
+    :open="pickerOpen"
+    :album-id="albumId"
+    :album-name="album?.title ?? ''"
+    @update:open="pickerOpen = $event"
+    @added="onPickerAdded"
+  />
+
+  <PhotoLightbox @delete="onLightboxDelete" @toggle-fav="() => {}" />
+</template>
+
+<style scoped>
+.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+.photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px; color: var(--fg-muted); text-align: center; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+.empty-state-desc { font-size: 13px; max-width: 340px; }
+.empty-state .bar-btn { margin-top: 10px; }
+
+/* ── Hero ── */
+.album-hero { position: relative; height: 260px; border-radius: 20px; overflow: hidden; margin: 4px 4px 16px; flex: 0 0 auto; }
+.album-hero-skeleton { background: var(--skeleton-bg); }
+.album-hero-bg {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+  filter: brightness(0.55) saturate(1.1);
+}
+.album-hero-bg::after {
+  content: ""; position: absolute; inset: 0;
+  /* theme-exception: 叠在任意封面照片上的固定暗化渐变,保证文字/按钮对比度,皮肤无关。 */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+.album-hero-back {
+  position: absolute; top: 16px; left: 16px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border-radius: 999px; border: 1px solid var(--card-border); background: var(--overlay-bg);
+  color: var(--on-accent); backdrop-filter: var(--blur); cursor: pointer; font-size: 12.5px;
+}
+.album-hero-inner { position: relative; height: 100%; display: flex; align-items: flex-end; padding: 22px 26px; gap: 24px; }
+.album-hero-text { flex: 1 1 auto; min-width: 0; }
+.album-hero-badge {
+  display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; background: var(--overlay-bg); color: var(--on-accent);
+  margin-bottom: 8px;
+}
+.album-hero-title {
+  font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; cursor: text;
+  color: var(--on-accent);
+  /* theme-exception: 标题叠在任意封面照片上,需固定浅色保证可读,皮肤无关。 */
+}
+.album-hero-title-input {
+  background: var(--overlay-bg); border: 1px solid var(--card-border); border-radius: 8px;
+  padding: 2px 10px; color: var(--on-accent); font: inherit; outline: none; width: 100%; max-width: 480px;
+}
+.album-hero-sub { font-size: 13px; color: var(--on-accent); opacity: 0.85; margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+.album-hero-sub .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+.album-hero-actions { display: flex; gap: 8px; align-self: flex-end; flex: 0 0 auto; }
+.album-hero-actions .bar-btn { background: var(--overlay-bg); border-color: var(--card-border); color: var(--on-accent); }
+.album-more-wrap { position: relative; }
+.album-more-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; z-index: 20;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
+  padding: 4px; box-shadow: var(--card-shadow-hi);
+}
+.album-more-item {
+  display: flex; flex-direction: column; width: 100%; align-items: flex-start; gap: 2px;
+  padding: 8px 10px; background: transparent; border: 0; border-radius: 8px; color: var(--fg);
+  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+}
+.album-more-item:hover { background: var(--chip-bg-hi); }
+.album-more-item.danger { color: var(--remove-fg); }
+.album-more-item-hint { font-size: 11px; color: var(--fg-muted); }
+.album-more-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
+
+/* ── Toolbar ── */
+.album-toolbar { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 4px; flex: 0 0 auto; }
+.album-toolbar-muted { font-size: 12px; color: var(--fg-muted); }
+.album-toolbar-spacer { flex: 1; }
+.album-toolbar-group { font-size: 12px; color: var(--fg-muted); }
+.album-sort-wrap { position: relative; }
+.album-sort-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; z-index: 20;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
+  padding: 4px; box-shadow: var(--card-shadow-hi);
+}
+.album-sort-item {
+  display: block; width: 100%; padding: 8px 10px; background: transparent; border: 0; border-radius: 8px;
+  color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+}
+.album-sort-item:hover { background: var(--chip-bg-hi); }
+.album-sort-item[data-active="true"] { background: var(--accent-soft); }
+.album-density { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
+.album-density button { width: 26px; height: 26px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); cursor: pointer; }
+.album-density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+
+/* ── Grid(列宽照 Vue2 photos.scss :3629-3691:comfortable=6 列,compact=9 列)── */
+.album-photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
+.album-photo-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
+.album-photo-grid.is-compact { grid-template-columns: repeat(9, 1fr); }
+.tile { aspect-ratio: 1; position: relative; border-radius: 3px; overflow: hidden; background: var(--chip-bg); cursor: pointer; }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s ease; }
+.tile:hover img { transform: scale(1.04); }
+.album-tile-skeleton { background: var(--skeleton-bg); }
+
+/* T4 useAlbumDragSort 的 ghostClass(sortablejs 拖拽占位元素)。Vue2 原值 rgba 137/80/242
+   alpha .15 底 + alpha .6 虚线描边 → color-mix(accent) 替代,不写死颜色字面量。 */
+.tile-drag-ghost {
+  opacity: 0.4;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: -1px;
+}
+
+/* ★ Cover 徽章:Vue2 原色值 rgba 110/91/255 alpha .85 → color-mix(accent 85% + transparent)。
+   edit 态下隐藏(与多选勾选圈同占左上角,选中圈优先——同 Vue2 :3743-3745)。 */
+.tile[data-cover="true"]::after {
+  content: "★ Cover"; position: absolute; top: 6px; left: 6px; z-index: 2; pointer-events: none;
+  padding: 2px 8px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  border-radius: 999px; color: var(--on-accent);
+  background: color-mix(in srgb, var(--accent) 85%, transparent);
+  backdrop-filter: var(--blur);
+}
+.album-photo-grid[class*="is-compact"] .tile[data-selected="true"]::after,
+.tile[data-selected="true"]::after { display: none; }
+
+/* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;color="white" → --on-accent。 */
+.tile-cover-btn {
+  position: absolute; top: 6px; right: 6px; z-index: 3; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; border: 0;
+  background: var(--overlay-bg); color: var(--on-accent); opacity: 0; transform: scale(0.85);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease; cursor: pointer; font-size: 11px;
+}
+.tile:hover .tile-cover-btn { opacity: 1; transform: scale(1); }
+.tile-cover-btn:hover { background: var(--accent); }
+.tile-cover-btn[data-on="true"] { opacity: 1; transform: scale(1); background: var(--accent); }
+
+.tile-select-check {
+  position: absolute; top: 6px; left: 6px; z-index: 4; width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: var(--overlay-bg);
+  border: 1.5px solid var(--card-border); color: var(--on-accent); font-size: 11px;
+}
+.tile[data-selected="true"] .tile-select-check { background: var(--accent); border-color: var(--accent); }
+
+/* ── 删除相册确认模态 ── */
+.album-confirm-scrim {
+  position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
+  display: flex; align-items: center; justify-content: center; padding: 32px 20px;
+}
+/* P2/P3 血泪(brief 明确点名):模态底色须用 --popup-bg,不用 --card-bg(深色主题下
+   --card-bg 近透明,叠在暗底上会看穿)。 */
+.album-confirm {
+  width: min(380px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
+  border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 22px;
+}
+.album-confirm-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+.album-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
+.album-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+.album-confirm-cancel, .album-confirm-ok {
+  padding: 8px 16px; border-radius: 9px; border: 1px solid var(--chip-border); background: var(--chip-bg);
+  color: var(--fg); font: inherit; font-size: 13px; cursor: pointer;
+}
+.album-confirm-cancel:hover { background: var(--chip-bg-hi); }
+.album-confirm-ok {
+  border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent); color: var(--remove-fg);
+}
+.album-confirm-ok:hover { background: color-mix(in srgb, var(--remove-fg) 16%, transparent); }
+
+/* ≤768px:侧栏已收抽屉,布局单列 */
+@media (max-width: 768px) {
+  .photos-layout { gap: 0; }
+  .album-hero { height: 200px; }
+  .album-hero-title { font-size: 24px; }
+}
+</style>

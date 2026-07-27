@@ -714,6 +714,10 @@ export default {
   photosAlbumSetCover: 'Set as album cover',
   photosAlbumEmptyTitle: 'This album is empty',
   photosAlbumEmptyHint: 'Use "Add photos" to pick from your library.',
+  // New-UI addition (Vue2 has no standalone detail route, so this can't occur there):
+  // deep-linking / refreshing into an album id that doesn't exist.
+  photosAlbumNotFoundTitle: 'Album not found',
+  photosAlbumNotFoundHint: 'It may have been deleted, or the link is incorrect.',
   photosAlbumRenamedToast: 'Album renamed',
   photosAlbumRenameFailed: 'Rename failed',
   photosAlbumDeletedToast: 'Album deleted: {name}',
