@@ -885,4 +885,7 @@ export default {
   // (:2072 / :2079)。追加在段末,不重排既有键。
   photosPeopleMinScore: '最低人脸匹配分数', // 置信度下拉小标题,Vue2 PhotosPeopleView.vue:24-26
   photosPeopleClusterHint: '+ 命名 / 合并 / 删除', // 未命名卡片悬停提示,Vue2 :204
+  // T7 协调者补:ClusterActionDialog 命名模式的 <label>,原文 zh_CN.json:49 "Name": "名称"。
+  // 追加在段末,不重排既有键。
+  photosPersonNameLabel: '名称',
 }

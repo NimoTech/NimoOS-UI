@@ -8,15 +8,17 @@
 // emit**,不调用任何 store 或 toast —— 三条提交路径(renamePerson / mergePersonInto /
 // purgePersonWithUndo)的真实调用、重入守卫、toast 全部在宿主 PhotosPeople.vue。
 //
-// 偏离登记(Vue2 的 bug 不照抄,brief 已明确要求改的两条不在这里,在宿主组件里):
-//  1) Vue2 mode='name' 的 <label>{{ $t('Name') }}</label> 没有对应的 New-UI i18n 键
-//     (locale 里没有裸的 "Name" 词条,只有更具体的 photosPersonNameTitle/Placeholder/Hint)。
-//     不新增键去只为一个视觉上与 placeholder/标题语义重复的小标签——省略这个 <label>,
-//     placeholder 已经说明输入用途,标题也已经是"为这个人命名"。如认为需要恢复,请求补
-//     一个专门的 label 键。
-//  2) Vue2 头部头像外圈有一条 2px solid var(--accent-soft) 的装饰描边(:246-247)。brief
-//     的结构描述只写了 `PersonAvatar :size="48"`,未提这条描边;PersonAvatar 组件自身已有
-//     一圈 --card-border 描边,这里不额外包一层装饰环,避免脱离 brief 字面描述去猜测视觉细节。
+// 协调者复核修正(评审后 3 条改回 Vue2 字面写法,本期纪律"界面严格 1:1,只有 bug/竞态/
+// 吞错才改"——brief 的结构清单是快照,Vue2 源码才是权威,清单没提不等于可以砍):
+//  1) mode='name' 的 <label> 补上,键 photosPersonNameLabel(协调者已核 zh_CN.json:49
+//     "Name": "名称" 并批准新增,en/zh 两个 locale 都加在段末,未重排既有键)。
+//  2) 头部头像外圈的 2px solid var(--accent-soft) 装饰描边补上(Vue2 :246-247 的
+//     border-box 48px 容器,内容区实际是 44px——这里用外层 .cad-avatar-ring 还原同一
+//     几何,PersonAvatar 本身按 44 传 size)。
+//  3) 删除确认按钮改回 Vue2 的实底红填充(:351-357):渐变走 --remove-fg/--remove-bg
+//     两个既有 token(同 PhotosTrash.vue:446 `.trash-btn-cta.danger` 的既定惯例,不是
+//     新发明),前景钉死白色 + theme-exception(理由见该处样式注释,不用 --on-accent——
+//     它只在背景确为 var(--accent) 饱和实底时才可读,这里背景是危险红渐变,不满足前提)。
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
@@ -138,7 +140,9 @@ function submitDelete(): void {
   <div v-if="open" class="cad-overlay" data-test="cad-overlay" @click.self="close">
     <div class="cad-panel" data-test="cad-panel">
       <div class="cad-head">
-        <PersonAvatar :person-id="person?.id ?? null" :name="person?.name" :ver="person?.coverFaceId ?? null" :size="48" />
+        <div class="cad-avatar-ring" data-test="cad-avatar-ring">
+          <PersonAvatar :person-id="person?.id ?? null" :name="person?.name" :ver="person?.coverFaceId ?? null" :size="44" />
+        </div>
         <div class="cad-head-text">
           <div class="cad-title" data-test="cad-title">{{ t(titleKey) }}</div>
           <div class="cad-subtitle" data-test="cad-subtitle">{{ subtitleText }}</div>
@@ -147,6 +151,7 @@ function submitDelete(): void {
       </div>
 
       <template v-if="mode === 'name'">
+        <label class="cad-label" data-test="cad-name-label">{{ t('photosPersonNameLabel') }}</label>
         <input
           ref="nameInputRef"
           v-model="nameInput"
@@ -210,6 +215,7 @@ function submitDelete(): void {
         <div class="cad-actions">
           <button type="button" class="cad-btn" data-test="cad-cancel" @click="close">{{ t('photosCancel') }}</button>
           <button type="button" class="cad-btn cad-btn-danger" data-test="cad-confirm-delete" @click="submitDelete">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
             {{ t('photosPersonConfirmDelete') }}
           </button>
         </div>
@@ -244,6 +250,13 @@ function submitDelete(): void {
 }
 
 .cad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+/* Vue2 :246-247 的头像外圈装饰环:48px border-box 容器 + 2px 描边,内容区实际 44px——
+   PersonAvatar 按 size=44 传,这里只负责外圈几何,不改组件契约。 */
+.cad-avatar-ring {
+  width: 48px; height: 48px; box-sizing: border-box; flex: 0 0 auto;
+  border-radius: 50%; border: 2px solid var(--accent-soft); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
 .cad-head-text { flex: 1 1 auto; min-width: 0; }
 .cad-title { font-size: 15px; font-weight: 600; color: var(--fg); }
 .cad-subtitle { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; }
@@ -262,6 +275,8 @@ function submitDelete(): void {
 }
 .cad-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+.cad-label { display: block; font-size: 11.5px; color: var(--fg-muted); margin-bottom: 6px; }
+
 .cad-hint { font-size: 11px; color: var(--fg-muted); line-height: 1.5; padding: 8px 0 16px; }
 
 .cad-actions { display: flex; gap: 10px; padding-top: 6px; border-top: 1px solid var(--divider); }
@@ -276,11 +291,20 @@ function submitDelete(): void {
 }
 .cad-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .cad-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 照 Vue2 :351-357 的实底红填充(不是描边)——渐变复用 PhotosTrash.vue:446
+   `.trash-btn-cta.danger` 的既有惯例(--remove-fg → --remove-bg),不是新配色。 */
 .cad-btn-danger {
-  flex: 1.4; background: transparent; color: var(--remove-fg); font-weight: 600;
-  border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
+  flex: 1.4; border: 0; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg));
+  color: #fff; /* theme-exception: 危险渐变胶囊按钮文字,背景恒为危险红渐变
+    (--remove-fg/--remove-bg),两套主题下白字对比度都稳定——同 PhotosTrash.vue
+    .trash-btn-cta.danger 惯例,不用 --on-accent(它只在背景确为 var(--accent) 饱和
+    实底时才可读,这里背景不是 accent) */
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--remove-bg) 35%, transparent);
 }
-.cad-btn-danger:hover { background: color-mix(in srgb, var(--remove-fg) 16%, transparent); }
+.cad-btn-danger svg { color: #fff; /* theme-exception: 同上,图标随按钮文字钉死白色 */ }
+.cad-btn-danger:hover { filter: brightness(1.08); }
 
 .cad-candidates {
   max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;

@@ -58,16 +58,32 @@ afterEach(() => {
 })
 
 describe('ClusterActionDialog.vue — 三态渲染', () => {
-  it('mode=name:渲染标题、副标题、输入框,无候选列表/危险按钮', async () => {
+  it('mode=name:渲染标题、副标题、label、输入框,无候选列表/危险按钮', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     expect(w.find('[data-test="cad-title"]').text()).toBe('为这个人命名')
     expect(w.find('[data-test="cad-subtitle"]').text()).toContain('9 张照片')
     expect(w.find('[data-test="cad-subtitle"]').text()).toContain('87%')
+    // 协调者复核修正:补上 Vue2 的 <label>(照 Vue2 :272,New-UI 键 photosPersonNameLabel)。
+    expect(w.find('[data-test="cad-name-label"]').text()).toBe('名称')
     expect(w.find('[data-test="cad-name-input"]').exists()).toBe(true)
     expect(w.find('[data-test="cad-save-name"]').exists()).toBe(true)
     expect(w.find('[data-test="cad-merge-input"]').exists()).toBe(false)
     expect(w.find('[data-test="cad-confirm-delete"]').exists()).toBe(false)
+  })
+
+  // 协调者复核修正:头部头像外圈补上 Vue2 :246-247 的 2px accent-soft 装饰环(48px 外圈
+  // border-box,PersonAvatar 本体按 44 传 size,44 + 2*2 = 48 还原同一几何。装饰环的
+  // 48px/2px 描边走 scoped CSS class,jsdom 不跑真实布局引擎测不到计算值,这里断言
+  // 结构(装饰环节点存在 + 内部头像的 size 是 44,不是 48)。
+  it('头部头像外圈装饰环存在,内部 PersonAvatar 按 44(不是 48)传 size', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
+    await w.vm.$nextTick()
+    const ring = w.get('[data-test="cad-avatar-ring"]')
+    const avatar = ring.find('.person-avatar')
+    expect(avatar.exists()).toBe(true)
+    expect(avatar.attributes('style')).toContain('width: 44px')
+    expect(avatar.attributes('style')).toContain('height: 44px')
   })
 
   it('mode=merge:渲染搜索框 + 候选列表,无主按钮(只有取消)', async () => {

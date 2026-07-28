@@ -889,4 +889,7 @@ export default {
   // photos block — existing keys are not reordered.
   photosPeopleMinScore: 'Min face match score', // confidence dropdown header, Vue2 PhotosPeopleView.vue:24-26
   photosPeopleClusterHint: '+ Name / Merge / Delete', // unnamed cluster hover hint, Vue2 :204
+  // T7 coordinator addition: <label> for ClusterActionDialog's name mode, wording
+  // "Name" per zh_CN.json:49. Appended at the end of the block, existing keys not reordered.
+  photosPersonNameLabel: 'Name',
 }
