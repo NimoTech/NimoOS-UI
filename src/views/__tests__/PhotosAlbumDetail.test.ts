@@ -441,6 +441,33 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh).toHaveBeenCalled()
   })
 
+  it('Minor 回归:同实例路由切换须清掉未提交的标题编辑草稿(否则相册 7 的草稿名会被提交给相册 8)', async () => {
+    svc.photos.listAlbums.mockResolvedValue([
+      rawAlbum(7, { name: 'Trip' }),
+      rawAlbum(8, { name: 'Other' }),
+    ])
+    const { w, router } = await mountView('7')
+    const albums = usePhotosAlbums()
+    const renameSpy = vi.spyOn(albums, 'renameAlbum')
+
+    // 给相册 7 改名,但还没提交(不回车/不 blur)——titleEditing/titleDraft 停在编辑态。
+    await w.find('[data-test="album-title"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="album-title-input"]').setValue('Draft For 7')
+    expect(w.find('[data-test="album-title-input"]').exists()).toBe(true)
+
+    // 同一组件实例切到相册 8(hash 路由不销毁重建)。
+    await router.push('/photos/albums/8')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // 编辑态必须已复位——input 消失,标题态回到普通展示态,残留草稿不会在下次 blur/回车时
+    // 被误提交给相册 8。
+    expect(w.find('[data-test="album-title-input"]').exists()).toBe(false)
+    expect(w.find('[data-test="album-title"]').text()).toBe('Other')
+    expect(renameSpy).not.toHaveBeenCalled()
+  })
+
   it('onOrder(T4 回调)触发且 store 抛错 → toast photosAlbumOrderFailed', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     svc.photos.reorderAlbumAssets.mockRejectedValue(new Error('boom'))
@@ -455,6 +482,28 @@ describe('PhotosAlbumDetail.vue', () => {
 
     expect(showSpy).toHaveBeenCalledWith('排序保存失败')
     void w
+  })
+
+  it('评审 Important 2 回归:空相册 edit 态下添加照片,网格从「不存在」变为「存在」时须重新挂载拖拽(gridRef watch)', async () => {
+    // 复现路径:空相册挂载(gridRef 只绑在 v-else 第三分支,骨架/空态两支都拿不到它)→ 进 edit
+    // (watch([edit,sortBy]) 触发过一次 refresh,但此刻 gridRef 仍是 null)→ 添加照片 →
+    // fetchAlbumAssets 回来资产非空 → 模板切到 v-else 分支、gridRef 才第一次有值 → 除非专门
+    // watch(gridRef),否则没有任何现有触发点会在这一刻再调 refresh(),Sortable 永远建不起来。
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="album-empty"]').exists()).toBe(true)
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    svc.photos.getAlbum.mockResolvedValueOnce({ assets: [asset('a'), asset('b')] })
+    dragMock.refresh.mockClear()
+    const picker = w.findComponent(AlbumLibraryPicker)
+    picker.vm.$emit('added', 2)
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.findAll('.tile').filter((t) => !t.classes().includes('album-tile-skeleton'))).toHaveLength(2)
+    expect(dragMock.refresh).toHaveBeenCalled()
   })
 
   it('灯箱 delete → timeline.deleteAssets([String(id)]) + toast + albums.fetchAlbumAssets 刷新', async () => {

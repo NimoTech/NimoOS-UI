@@ -190,6 +190,14 @@ async function commitTitle(): Promise<void> {
   }
 }
 
+// Minor 修正:同 PhotosAlbums.vue:85-87 的具名函数写法,把导航调用从模板内联表达式挪出来——
+// 模板里内联 `@click="router.push(...)"` 会把返回的 promise 挂在事件处理器上不管,导航被
+// 取消/重复时 reject 没人接住(vue-router 的已知坑,console 会打未捕获 rejection);这里额外
+// 加 `void` 显式标记"不关心其 resolve/reject"。
+function goToAlbumsList(): void {
+  void router.push('/photos/albums')
+}
+
 // ── Hero:编辑态/⋯菜单 ──
 function toggleEditMode(): void {
   edit.value = !edit.value
@@ -243,8 +251,12 @@ function onPickerAdded(): void {
 // 照 P3 收藏视图 T8 的同款处理:灯箱已在真实资产层面删除,相册内的引用也要跟着消失,
 // 靠重新拉取该相册的资产列表实现(而不是本地过滤,store 才是真源)。
 async function onLightboxDelete(assetId: string | number): Promise<void> {
-  await timeline.deleteAssets([String(assetId)])
-  toast.show(t('photosDeletedToast', { count: 1 }))
+  // Minor 修正:timeline.deleteAssets 逐项删除、吞掉单项失败,返回真实成功计数
+  // (src/photos/stores/timeline.ts:162-176)——原实现忽略返回值恒报 count:1,单项删除这里
+  // 恒真但仍是错的语义;照 PhotosFavorites.vue:52-57 的批量写法读返回值,并用同一个 4000ms
+  // 时长(默认 1500ms 太短,是 P3 定的时长)。
+  const n = await timeline.deleteAssets([String(assetId)])
+  toast.show(t('photosDeletedToast', { count: n }), 4000)
   void albums.fetchAlbumAssets(albumId.value)
 }
 
@@ -266,9 +278,16 @@ function onDocKeydown(e: KeyboardEvent): void {
 }
 
 // ── 生命周期 / watch(照 Vue2 :257-280 的三个触发点 + brief 补的 route watch)──
+// Minor 3 修正:首次资产 fetch 从 onMounted 挪到 setup 阶段直接发起(不等 onMounted 回调)——
+// fetchAlbumAssets 内部同步(await 之前)就会把 isLoadingAssets 标志置位,挪到这里意味着首次
+// render 提交前该标志已经是 true 了。不挪的话:从相册列表页跳进来时 album 已加载、album.value
+// 立即非 null,而 isLoadingPhotos 首帧仍是 false(loading 标志要等 onMounted 跑完才置位)、
+// photos.length 也是 0 → isAlbumEmpty 首帧判 true,先闪一帧"相册是空的"再翻到骨架分支。
+// fetchAlbumAssets 自带 isLoadingAssets 防重入 guard,提前调用是安全的,不会重复请求。
+void albums.fetchAlbumAssets(albumId.value)
+
 onMounted(() => {
   if (!albums.albumsLoaded) void albums.fetchAlbums()
-  void albums.fetchAlbumAssets(albumId.value)
   void nextTick(() => drag.refresh())
   document.addEventListener('mousedown', onDocMousedown)
   document.addEventListener('keydown', onDocKeydown)
@@ -281,10 +300,28 @@ onBeforeUnmount(() => {
 
 watch(() => route.params.id, () => {
   selected.value.clear()
+  // Minor 修正(刻意不照抄 Vue2 的潜在 bug——本期纪律:界面照 Vue2,逻辑 bug 不照抄):Vue2
+  // 同名 watch(PhotosAlbumDetail.vue:258-260)只重拉资产,没清标题编辑态。同一组件实例路由切换
+  // (hash 跳到另一个相册,组件不销毁重建)场景下:给相册 7 改名,还没提交就切到相册 8,
+  // titleEditing/titleDraft 会带着相册 7 的草稿名残留到相册 8 上,之后 blur/回车会把草稿名
+  // 提交给相册 8——这是真实数据损坏路径,不是"细枝末节",所以在此清掉。
+  titleEditing.value = false
+  titleDraft.value = ''
   void albums.fetchAlbumAssets(albumId.value)
   void nextTick(() => drag.refresh())
 })
 watch([edit, sortBy], () => {
+  void nextTick(() => drag.refresh())
+})
+// 评审 Important 2 修正:`gridRef` 只绑在骨架/空态/真实网格三个 v-if 分支里最后一支——
+// 骨架态和空态是不同元素,Vue 3 给每个 v-if 分支各自隐式 key,元素不复用,所以这两支渲染期间
+// gridRef 恒为 null(useAlbumDragSort.refresh() 见容器为 null 直接 bail)。原有三个触发点
+// (onMounted / route.params.id watch / [edit,sortBy] watch)全部挂在"用户改的状态"上,没有一个
+// 在"网格自己从无到有出现"这一刻触发——典型复现路径:空相册 → 进 edit(此时 gridRef 仍 null)→
+// 添加照片 → fetchAlbumAssets 回来资产非空 → 模板才第一次切到真实网格分支、gridRef 才第一次有
+// 值 → 但没有 watch 命中这个时机,Sortable 永远不会被创建,拖拽静默失效。这里专门加一个键在
+// 容器本身上的 watch 补上这个触发点。
+watch(gridRef, () => {
   void nextTick(() => drag.refresh())
 })
 </script>
@@ -307,7 +344,7 @@ watch([edit, sortBy], () => {
             type="button"
             class="bar-btn"
             data-test="album-not-found-back"
-            @click="router.push('/photos/albums')"
+            @click="goToAlbumsList"
           >{{ t('photosAlbumBack') }}</button>
         </div>
 
@@ -319,7 +356,7 @@ watch([edit, sortBy], () => {
               type="button"
               class="album-hero-back"
               data-test="album-back"
-              @click="router.push('/photos/albums')"
+              @click="goToAlbumsList"
             >‹ {{ t('photosAlbumBack') }}</button>
             <div class="album-hero-inner">
               <div class="album-hero-text">
@@ -409,6 +446,7 @@ watch([edit, sortBy], () => {
               >{{ t('photosAlbumAddPhotos') }}</button>
             </template>
             <template v-else>
+              <span class="album-toolbar-group">{{ t('photosAlbumSort') }}</span>
               <div ref="sortMenuRef" class="album-sort-wrap">
                 <button
                   type="button"
@@ -539,28 +577,51 @@ watch([edit, sortBy], () => {
   position: absolute; top: 16px; left: 16px; z-index: 2;
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
   border-radius: 999px; border: 1px solid var(--card-border); background: var(--overlay-bg);
-  color: var(--on-accent); backdrop-filter: var(--blur); cursor: pointer; font-size: 12.5px;
+  backdrop-filter: var(--blur); cursor: pointer; font-size: 12.5px;
+  /* theme-exception: 叠在暗化封面照片上的 hero chrome,两套主题都需固定浅色(同 Vue2
+     photos.scss:3571 "pinned … in both themes" 与 PhotosTrash.vue .trash-tile-countdown 惯例)。 */
+  color: #fff;
 }
 .album-hero-inner { position: relative; height: 100%; display: flex; align-items: flex-end; padding: 22px 26px; gap: 24px; }
 .album-hero-text { flex: 1 1 auto; min-width: 0; }
 .album-hero-badge {
   display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
-  letter-spacing: 0.04em; text-transform: uppercase; background: var(--overlay-bg); color: var(--on-accent);
+  letter-spacing: 0.04em; text-transform: uppercase; background: var(--overlay-bg);
   margin-bottom: 8px;
+  /* theme-exception: 叠在暗化封面照片上的 hero chrome,两套主题都需固定浅色(同 Vue2
+     photos.scss:3571 "pinned … in both themes" 惯例)。 */
+  color: #fff;
 }
 .album-hero-title {
   font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; cursor: text;
-  color: var(--on-accent);
-  /* theme-exception: 标题叠在任意封面照片上,需固定浅色保证可读,皮肤无关。 */
+  /* theme-exception: 标题叠在任意封面照片上,两套主题都需固定浅色保证可读(同 Vue2
+     photos.scss:3571 "pinned … in both themes" 惯例——--on-accent 默认深色主题下是深藏青
+     16 进制那个深蓝色,铺在暗化封面上不可读,评审 Critical 1 修正)。 */
+  color: #fff;
+  /* theme-exception: 同上,配套阴影保证可读性(照 Vue2 photos.scss:3507),固定黑色不随主题翻转。 */
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
 }
 .album-hero-title-input {
   background: var(--overlay-bg); border: 1px solid var(--card-border); border-radius: 8px;
-  padding: 2px 10px; color: var(--on-accent); font: inherit; outline: none; width: 100%; max-width: 480px;
+  padding: 2px 10px; font: inherit; outline: none; width: 100%; max-width: 480px;
+  /* theme-exception: 同 .album-hero-title,input 叠在同一块暗化封面上,需同款固定浅色。 */
+  color: #fff;
 }
-.album-hero-sub { font-size: 13px; color: var(--on-accent); opacity: 0.85; margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+.album-hero-sub {
+  font-size: 13px; opacity: 0.85; margin-top: 8px; display: flex; align-items: center; gap: 10px;
+  /* theme-exception: 同 .album-hero-title,叠在暗化封面上需固定浅色(照 Vue2 photos.scss:3521-3530)。 */
+  color: #fff;
+  /* theme-exception: 配套阴影(照 Vue2 photos.scss:3529),固定黑色不随主题翻转。 */
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
 .album-hero-sub .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.6; }
 .album-hero-actions { display: flex; gap: 8px; align-self: flex-end; flex: 0 0 auto; }
-.album-hero-actions .bar-btn { background: var(--overlay-bg); border-color: var(--card-border); color: var(--on-accent); }
+.album-hero-actions .bar-btn {
+  background: var(--overlay-bg); border-color: var(--card-border);
+  /* theme-exception: hero 里的 Edit/Done、⋯ 按钮叠在暗化封面上,需固定浅色(同 Vue2
+     photos.scss:3563-3575 "pinned: dark pill sits on the darkened cover photo in both themes")。 */
+  color: #fff;
+}
 .album-more-wrap { position: relative; }
 .album-more-menu {
   position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; z-index: 20;
@@ -582,6 +643,9 @@ watch([edit, sortBy], () => {
 .album-toolbar-muted { font-size: 12px; color: var(--fg-muted); }
 .album-toolbar-spacer { flex: 1; }
 .album-toolbar-group { font-size: 12px; color: var(--fg-muted); }
+/* Minor 补齐:.bar-btn(theme.css:308)显式设了 background+color,盖掉浏览器默认的 disabled
+   变淡视觉——同期 PhotosTrash.vue:341 的写法,"移除选中" 0 选中时 disabled 但看起来和平时一样。 */
+.bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 .album-sort-wrap { position: relative; }
 .album-sort-menu {
   position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; z-index: 20;
@@ -618,6 +682,8 @@ watch([edit, sortBy], () => {
 
 /* ★ Cover 徽章:Vue2 原色值 rgba 110/91/255 alpha .85 → color-mix(accent 85% + transparent)。
    edit 态下隐藏(与多选勾选圈同占左上角,选中圈优先——同 Vue2 :3743-3745)。 */
+/* Minor 补齐(Vue2 photos.scss:3649-3652):当前封面瓦片描一圈 accent 实线,与其余瓦片区分。 */
+.tile[data-cover="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tile[data-cover="true"]::after {
   content: "★ Cover"; position: absolute; top: 6px; left: 6px; z-index: 2; pointer-events: none;
   padding: 2px 8px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
@@ -630,13 +696,23 @@ watch([edit, sortBy], () => {
    的通用兄弟选择器命中整个网格,而不是按单瓦片 data-selected 判断(后者会让 edit 态里"尚未
    勾选"的封面瓦片仍然显示徽章,与选择圈重叠)。 */
 .album-toolbar[data-edit="true"] ~ .album-photos-wrap .tile[data-cover="true"]::after { display: none; }
+/* Minor 补齐(Vue2 photos.scss:3685-3688):edit 态每个瓦片加虚线描边,提示"可选中/可拖拽"。
+   Vue2 原 token `--line-strong` 在本仓库 theme.css 两套主题里都不存在(只在 Vue2 自己的
+   AI/Agent/tokens.scss 局部定义过,不是全局 token)——换用本仓已有、语义等价的 --card-border
+   (专门用于卡片/瓦片描边,两套主题都有定义),不新增 token。 */
+.album-toolbar[data-edit="true"] ~ .album-photos-wrap .tile { outline: 1px dashed var(--card-border); outline-offset: -1px; }
 
-/* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;color="white" → --on-accent。 */
+/* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;字形色见下方
+   theme-exception(评审 Critical 1 修正:固定 #fff,不用 --on-accent,理由见该行注释)。 */
 .tile-cover-btn {
   position: absolute; top: 6px; right: 6px; z-index: 3; width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; border: 0;
-  background: var(--overlay-bg); color: var(--on-accent); opacity: 0; transform: scale(0.85);
+  background: var(--overlay-bg); opacity: 0; transform: scale(0.85);
   transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease; cursor: pointer; font-size: 11px;
+  /* theme-exception: 底色平时是 --overlay-bg(暗化封面上的固定深底),hover/data-on 才切到
+     --accent 实底——星形字符在两种底色下都需要固定浅色可读,不能用 --on-accent(默认深色
+     主题下是深藏青色,叠在 --overlay-bg 上不可读——评审 Critical 1 修正)。 */
+  color: #fff;
 }
 .tile:hover .tile-cover-btn { opacity: 1; transform: scale(1); }
 .tile-cover-btn:hover { background: var(--accent); }
