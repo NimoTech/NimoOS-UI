@@ -881,4 +881,8 @@ export default {
   photosPersonInsightPlace1: '他们的照片集中在 <b>{place}</b>。',
   photosPersonInsightNone: '{name} 的照片还不够多，暂无法生成洞察。',
   photosPersonUnknownPlace: '未知', // zh_CN.json 无裸 "Unknown" 条目,按同文件 "Unknown date"→"未知日期" 的既有惯例取"未知",见报告疑虑项
+  // SP7-P5 task-6 补:T3 漏掉的两条界面文案,协调者已从 zh_CN.json 查得原译文给定
+  // (:2072 / :2079)。追加在段末,不重排既有键。
+  photosPeopleMinScore: '最低人脸匹配分数', // 置信度下拉小标题,Vue2 PhotosPeopleView.vue:24-26
+  photosPeopleClusterHint: '+ 命名 / 合并 / 删除', // 未命名卡片悬停提示,Vue2 :204
 }

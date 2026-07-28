@@ -22,10 +22,9 @@
 //  5) Vue2 :575-579 的索引日期写死 'en' locale;这里跟随 i18n locale(偏离登记 9)。
 //  6) 铁律:一切「当前项 === 循环项」「按 id 找对象」用 String 值比较,不用引用相等。
 //
-// 缺 i18n 键(未新增,报给协调者,见 task-6-report.md):
-//  a) Vue2 :24-26 置信度下拉顶部的小标题 "Min face match score" —— 无对应键,本次不渲染。
-//  b) Vue2 :204 未命名卡片悬停文案 "+ Name / Merge / Delete" —— 无对应键,本次不渲染;
-//     连带不复制 scss:243 的 `:hover .ct { display:none }`(否则悬停整行变空白)。
+// T3 漏掉的两条文案由协调者补给(zh_CN.json:2072 / :2079),已加进两个 locale 并照 Vue2 渲染:
+// photosPeopleMinScore(置信度下拉小标题,:24-26)、photosPeopleClusterHint(未命名卡片
+// 悬停提示,:204,连同 scss:242-243 的 .ct / .name-action 悬停互换一起补齐)。
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -115,7 +114,8 @@ function verOf(id: string | number | null): string | number | null {
   return id == null ? null : (people.personById(id)?.coverFaceId ?? null)
 }
 
-// Vue2 :575-580,偏离登记 5:跟随 i18n locale('zh_cn' → BCP47 'zh-cn'),非法日期返回 ''。
+// 偏离登记(计划第 9 条):Vue2 :575-580 把 locale 写死成 'en',中文界面下会显示英文月份。
+// 这里跟随当前 i18n locale('zh_cn' → BCP47 'zh-cn');非法日期仍返回 ''(照 Vue2)。
 function formatIndexedDate(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -231,6 +231,7 @@ onUnmounted(() => {
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div v-if="confidenceOpen" class="people-menu people-menu-conf" data-test="conf-menu">
+                <div class="people-menu-head" data-test="conf-head">{{ t('photosPeopleMinScore') }}</div>
                 <button
                   v-for="v in CONFIDENCE_OPTIONS" :key="v"
                   type="button"
@@ -419,6 +420,8 @@ onUnmounted(() => {
                 <!-- 角标必须是头像圆环的兄弟节点:圆环 overflow:hidden 会把它裁掉(Vue2 :201)-->
                 <div class="badge" data-test="cluster-badge">{{ mergeConfidencePct(p.confidence) }}%</div>
                 <div class="ct">{{ t('photosPeoplePhotosCount', { n: p.count }) }}</div>
+                <!-- 悬停时与 .ct 互换(scss:242-243):照片数隐、操作提示显 -->
+                <div class="name-action" data-test="cluster-hint">{{ t('photosPeopleClusterHint') }}</div>
               </div>
             </div>
           </template>
@@ -505,6 +508,11 @@ onUnmounted(() => {
   box-shadow: var(--card-shadow-hi);
 }
 .people-menu-conf { min-width: 200px; padding: 8px; }
+/* 置信度下拉小标题(Vue2 :24-26 的内联样式) */
+.people-menu-head {
+  font-size: 10.5px; color: var(--fg-muted); text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 4px 6px 8px;
+}
 .people-menu-sort { min-width: 220px; padding: 4px; }
 .people-menu-item {
   display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 8px;
@@ -580,6 +588,10 @@ onUnmounted(() => {
 /* theme-exception: 同上,恒定浅色描边 */
 .cluster-card .badge { border: 1px solid rgba(255, 255, 255, 0.1); }
 .cluster-card .ct { font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+/* 悬停互换(scss:237-243):平时只显照片数,悬停换成「+ 命名 / 合并 / 删除」 */
+.cluster-card .name-action { font-size: 11.5px; color: var(--accent-text); display: none; }
+.cluster-card:hover .name-action { display: block; }
+.cluster-card:hover .ct { display: none; }
 
 /* ── 横幅条(scss:246-274)── */
 .merge-banner {

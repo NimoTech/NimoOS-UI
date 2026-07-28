@@ -129,6 +129,19 @@ describe('PhotosPeople.vue — 置信度', () => {
     expect(ring.contains(badge.element)).toBe(false)
   })
 
+  it('下拉顶部渲染 Vue2 :24-26 的小标题', async () => {
+    const { w } = await mountView()
+    await w.find('[data-test="conf-btn"]').trigger('click')
+    expect(w.find('[data-test="conf-head"]').text()).toBe('最低人脸匹配分数')
+  })
+
+  it('未命名卡片渲染 Vue2 :204 的悬停操作提示', async () => {
+    const { w } = await mountView()
+    const hint = w.findAll('[data-test="cluster-card"]')[0].find('[data-test="cluster-hint"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toBe('+ 命名 / 合并 / 删除')
+  })
+
   it('下拉每档旁的预览计数正确(当前 showSingletons=false)', async () => {
     const { w } = await mountView()
     await w.find('[data-test="conf-btn"]').trigger('click')

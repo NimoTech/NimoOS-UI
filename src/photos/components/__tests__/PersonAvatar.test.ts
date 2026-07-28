@@ -121,4 +121,18 @@ describe('PersonAvatar', () => {
     const w2 = mountAvatar({ personId: null })
     expect(w2.find('[data-test="avatar-fav"]').exists()).toBe(false)
   })
+
+  // 收藏星标改成「圆环上方偏右」(照 Vue2 photos-people.scss:150-165),水平偏移随 size 变:
+  // 过 Vue2 明确给出的两档 (124→34px)、(84→20px) 的直线 0.35*size-9.4。
+  it('收藏星标偏移随 size 变化,精确复现 Vue2 的两档取值', () => {
+    const offsetOf = (size: number) =>
+      mountAvatar({ personId: null, fav: true, size }).find('[data-test="avatar-fav"]').attributes('style')
+
+    expect(offsetOf(124)).toContain('translateX(34px)')   // Vue2 scss:154 大号
+    expect(offsetOf(84)).toContain('translateX(20px)')    // Vue2 scss:165 中号
+    // 同一直线上的中间尺寸,证明不是写死两档而是按公式连续取值
+    expect(offsetOf(72)).toContain('translateX(16px)')
+    // 极小头像外推会得到负偏移(星标跑到圆心左边),夹到 0
+    expect(offsetOf(24)).toContain('translateX(0px)')
+  })
 })

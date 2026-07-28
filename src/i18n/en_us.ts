@@ -884,4 +884,9 @@ export default {
   photosPersonInsightPlace1: 'Their photos cluster in <b>{place}</b>.',
   photosPersonInsightNone: 'Not enough photos of {name} yet for an insight.',
   photosPersonUnknownPlace: 'Unknown', // no bare "Unknown" entry in zh_CN.json, see report caveats
+  // SP7-P5 task-6 addition: two UI strings missed by T3; wording taken from Vue2
+  // zh_CN.json (:2072 / :2079) by the coordinator. Appended at the end of the
+  // photos block — existing keys are not reordered.
+  photosPeopleMinScore: 'Min face match score', // confidence dropdown header, Vue2 PhotosPeopleView.vue:24-26
+  photosPeopleClusterHint: '+ Name / Merge / Delete', // unnamed cluster hover hint, Vue2 :204
 }

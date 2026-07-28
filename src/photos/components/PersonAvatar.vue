@@ -54,6 +54,15 @@ const initial = computed(() => personInitial(props.name))
 // 首字母字号 = size * 0.32 向下取整(brief 明确公式)。
 const initialFontSize = computed(() => Math.floor(props.size * 0.32))
 
+// 收藏星标的水平偏移(相对头像水平中心)随头像尺寸变化,不写死一档。
+// 取值来源是 Vue2 photos-people.scss 明确给出的两档:
+//   :154  .face-card .fav-mark      { transform: translateX(34px) }  ← 大号 size=124
+//   :165  .face-grid-md … .fav-mark { transform: translateX(20px) }  ← 中号 size=84
+// 过这两点的直线是 0.35 * size - 9.4(斜率 14/40,代回 124→34.0、84→20.0 精确复现),
+// 效果是 24px 宽的星标始终擦着圆环的右上弧。更小的头像按同一直线外推会得到负偏移
+// (把星标推到圆心左侧),故夹到 0 起步。
+const favOffset = computed(() => Math.max(0, Math.round(props.size * 0.35 - 9.4)))
+
 function onImgError(): void {
   failed.value = true
 }
@@ -94,8 +103,14 @@ function onImgError(): void {
         ><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
       </div>
     </div>
-    <div v-if="fav" data-test="avatar-fav" class="person-avatar-fav" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
+    <div
+      v-if="fav"
+      data-test="avatar-fav"
+      class="person-avatar-fav"
+      :style="{ transform: `translateX(${favOffset}px)` }"
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
     </div>
   </div>
 </template>
@@ -149,25 +164,28 @@ function onImgError(): void {
 .person-avatar-icon {
   color: #fff;
 }
+/* 几何逐条照 Vue2 photos-people.scss:150-165 的 .fav-mark:圆环「上方偏右」而不是右下角。
+   水平偏移由 :style 的 translateX 注入(随 size 变,见 script 的 favOffset 注释)。 */
 .person-avatar-fav {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 36%;
-  height: 36%;
-  min-width: 15px;
-  min-height: 15px;
+  top: 4px;
+  left: 50%;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
   /* --overlay-bg 是两套主题各自定义的半透明暗底(非固定跨皮肤值),用于在不可控的
      真实人脸缩略图之上垂放收藏星标,不需要 theme-exception。 */
   background: var(--overlay-bg);
+  backdrop-filter: var(--blur);
 }
+/* theme-exception: 星标压在不可控的人脸照片上,暗底之上需要恒定的半透明浅色描边勾边 */
+.person-avatar-fav { border: 1px solid rgba(255, 255, 255, 0.12); }
 .person-avatar-fav svg {
-  width: 60%;
-  height: 60%;
   /* --star-fg 未在 theme.css 定义具体值,是本仓已确立的先例(PhotosGrid.vue:389,395 /
      PhotoLightbox.vue:345 均为 var(--star-fg, #ffd60a)):固定金色星标跨皮肤不变,用
      var(fallback) 形式表达而非字面量,color-guard 按 token 用法放行,这里复用同一先例
