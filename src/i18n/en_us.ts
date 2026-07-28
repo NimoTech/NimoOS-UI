@@ -575,6 +575,25 @@ export default {
   aiConfirm: 'Delete',
   aiCancel: 'Cancel',
   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+  // SP8-P2a Task 3 — Settings section navigation config (sections.ts).
+  // English values per Vue2 en_US.json or source code literals.
+  aiCfgGroupModel: 'Models',
+  aiCfgGroupAgent: 'Agent',
+  aiCfgGroupPlugin: 'Plugins',
+  aiCfgGroupChannel: 'Channels',
+  aiCfgLocalModels: 'Local models',
+  aiCfgCloudProviders: 'Cloud providers',
+  aiCfgPrivacyCloud: 'Privacy & cloud',
+  aiCfgThinkingIntensity: 'Thinking intensity',
+  aiCfgFilesystem: 'Filesystem',
+  aiCfgExecutionSteps: 'Execution steps',
+  aiCfgSearch: 'Search',
+  aiCfgMemory: 'AI memory',
+  aiCfgObservability: 'Agent monitoring',
+  aiCfgSkills: 'Skills',
+  aiCfgMcpConnections: 'MCP connections',
+  aiCfgMcpTokens: 'Expose as MCP server',
+  aiCfgChannels: 'Channels',
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2

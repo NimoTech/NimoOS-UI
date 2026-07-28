@@ -576,6 +576,25 @@ export default {
   aiConfirm: '删除',
   aiCancel: '取消',
   aiSettingsComingSoon: '设置页将在后续阶段开启',
+  // SP8-P2a Task 3 —— 设置区导航配置 sections.ts。
+  // 中文值逐字取自 Vue2 生产 zh_CN.json 对应 English key 的既有译文。
+  aiCfgGroupModel: '模型选择',
+  aiCfgGroupAgent: 'Agent 配置',
+  aiCfgGroupPlugin: '插件',
+  aiCfgGroupChannel: '聊天通道',
+  aiCfgLocalModels: '本地模型',
+  aiCfgCloudProviders: '云端提供商',
+  aiCfgPrivacyCloud: '隐私与云端',
+  aiCfgThinkingIntensity: '思考强度',
+  aiCfgFilesystem: '文件系统',
+  aiCfgExecutionSteps: '执行步数',
+  aiCfgSearch: '搜索',
+  aiCfgMemory: 'AI 记忆',
+  aiCfgObservability: 'Agent 监控',
+  aiCfgSkills: '技能',
+  aiCfgMcpConnections: 'MCP 连接',
+  aiCfgMcpTokens: '对外暴露 MCP 服务',
+  aiCfgChannels: '聊天通道',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
