@@ -40,6 +40,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosFavorites from '../PhotosFavorites.vue'
 import { usePhotosFavorites } from '../../photos/stores/favorites'
+import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
@@ -282,5 +283,118 @@ describe('PhotosFavorites.vue', () => {
     await w.vm.$nextTick()
 
     expect(w.find('.grid').attributes('data-density')).toBe('compact')
+  })
+
+  // Task 10 (SP7-P4 相册,P3 推迟项收口):收藏视图「存为相册」——照 Vue2
+  // PhotosFavoritesView.vue :21-23(入口)/:455-478(openSaveAlbum/confirmSaveAlbum)。
+  describe('存为相册', () => {
+    it('收藏为空 → 「存为相册」按钮 disabled;非空 → 可用', async () => {
+      const wEmpty = await mountView()
+      expect(wEmpty.find('.fav-save-album').attributes('disabled')).toBeDefined()
+
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const wFull = await mountView()
+      expect(wFull.find('.fav-save-album').attributes('disabled')).toBeUndefined()
+    })
+
+    it('点击「存为相册」→ 模态出现,input 预填含当前年份的默认名', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
+      const input = w.find('[data-test="fav-savealbum-input"]')
+      expect((input.element as HTMLInputElement).value).toContain(String(new Date().getFullYear()))
+    })
+
+    it('提交 → albums.saveAsAlbum(name, [收藏 ids]) 被调 + 成功 toast + 模态关闭', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+      const w = await mountView()
+      const albums = usePhotosAlbums()
+      const toast = useToast()
+      const saveSpy = vi.spyOn(albums, 'saveAsAlbum').mockResolvedValue({ id: 9, name: 'Trip' })
+      const showSpy = vi.spyOn(toast, 'show')
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      const input = w.find('[data-test="fav-savealbum-input"]')
+      await input.setValue('Trip')
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(saveSpy).toHaveBeenCalledWith('Trip', ['a', 'b'])
+      expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('Trip'))
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    })
+
+    it('名称 trim 为空时主按钮 disabled', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      const input = w.find('[data-test="fav-savealbum-input"]')
+      await input.setValue('   ')
+
+      expect(w.find('[data-test="fav-savealbum-confirm"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('saveAsAlbum 抛 409 → 重名 toast,模态仍在且输入内容保留', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+      const albums = usePhotosAlbums()
+      const toast = useToast()
+      vi.spyOn(albums, 'saveAsAlbum').mockRejectedValue({ response: { status: 409 } })
+      const showSpy = vi.spyOn(toast, 'show')
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      const input = w.find('[data-test="fav-savealbum-input"]')
+      await input.setValue('Dup')
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(showSpy).toHaveBeenCalledWith('已存在同名相册')
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
+      expect((w.find('[data-test="fav-savealbum-input"]').element as HTMLInputElement).value).toBe('Dup')
+    })
+
+    it('saveAsAlbum 抛其它错误 → 通用失败 toast,模态仍在', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+      const albums = usePhotosAlbums()
+      const toast = useToast()
+      vi.spyOn(albums, 'saveAsAlbum').mockRejectedValue(new Error('boom'))
+      const showSpy = vi.spyOn(toast, 'show')
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="fav-savealbum-input"]').setValue('Whatever')
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(showSpy).toHaveBeenCalledWith('保存失败')
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
+    })
+
+    it('Esc(document 级)→ 模态关闭', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await w.vm.$nextTick()
+
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    })
   })
 })
