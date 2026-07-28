@@ -968,4 +968,14 @@ export default {
   aiCfgNoCustomPatterns: '还没有自定义 pattern。',
   aiCfgAddFailed: '添加失败',
   // <<< SP8-P2b Task 4
+  // >>> SP8-P2b Task 5 —— ExecutionSection(执行步数)
+  aiCfgExecutionDesc: '限制 Agent 处理单个任务时的最大步数,避免失控的长时间运行。',
+  aiCfgMaxStepsPerTask: '单次任务最大步数',
+  aiCfgExecutionBanner: 'Agent 处理一个任务时最多执行的步数(每次调用工具或模型算一步)。达到上限会暂停并给出「继续」按钮。设为无限可能更慢、更耗资源。',
+  aiCfgUnlimitedSteps: '无限(不限制步数)',
+  aiCfgMaxSteps: '最大步数',
+  aiCfgSaving: '保存中…',
+  aiCfgSaved: '已保存',
+  aiCfgSaveFailed: '保存失败',
+  // <<< SP8-P2b Task 5
 }

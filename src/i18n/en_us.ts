@@ -953,4 +953,14 @@ export default {
   aiCfgNoCustomPatterns: 'No custom patterns yet.',
   aiCfgAddFailed: 'Failed to add',
   // <<< SP8-P2b Task 4
+  // >>> SP8-P2b Task 5 —— ExecutionSection(执行步数)
+  aiCfgExecutionDesc: 'Limit the maximum number of steps the Agent takes on a single task to avoid runaway long runs.',
+  aiCfgMaxStepsPerTask: 'Max steps per task',
+  aiCfgExecutionBanner: 'The maximum number of steps the Agent runs for one task (each tool or model call counts as one step). When the limit is reached it pauses and shows a Continue button. Unlimited may be slower and use more resources.',
+  aiCfgUnlimitedSteps: 'Unlimited (no step limit)',
+  aiCfgMaxSteps: 'Max steps',
+  aiCfgSaving: 'Saving…',
+  aiCfgSaved: 'Saved',
+  aiCfgSaveFailed: 'Save failed',
+  // <<< SP8-P2b Task 5
 }
