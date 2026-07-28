@@ -1018,4 +1018,27 @@ export default {
   aiCfgSaved: '已保存',
   aiCfgSaveFailed: '保存失败',
   // <<< SP8-P2b Task 5
+  // >>> SP8-P2b Task 6 —— MemorySection(AI 记忆)
+  aiCfgMemoryDesc: '助手跨会话记住的、关于你的事实与偏好。记忆开启时，会在每次对话开始前注入到上下文中。',
+  aiCfgCrossSessionMemory: '跨会话记忆',
+  aiCfgMemoryOffBanner: '记忆已关闭 —— 不再记录或注入新内容。已有条目保留,仍可删除。',
+  aiCfgEnableMemory: '启用记忆',
+  aiCfgEnableMemorySub: '助手跨会话记住的关于你的事实;记忆开启时会注入到每次对话中。',
+  aiCfgContextCompaction: '上下文压缩',
+  aiCfgContextWindow: '上下文窗口(留空=自动)',
+  aiCfgAutoPlaceholder: '自动',
+  aiCfgSavedMemories: '已保存的记忆',
+  aiCfgMemoryLoadFailed: '加载记忆失败。',
+  aiCfgNoMemories: '暂无记忆。',
+  aiCfgRecalledTimes: '被召回 {n} 次',
+  aiCfgDeleteMemory: '删除记忆',
+  aiCfgMemKindPreference: '偏好',
+  aiCfgMemKindFact: '事实',
+  aiCfgMemKindGoal: '目标',
+  aiCfgMemSourceAuto: '自动',
+  // aiCfgMemSourceTool 与 aiCfgSaved 字面都是「已保存」但语义不同(记忆来源标签 vs
+  // 保存态提示)——刻意分成两个键,不合并,见 brief 表格下方警告。
+  aiCfgMemSourceTool: '已保存',
+  aiCfgMemSourceUser: '手动',
+  // <<< SP8-P2b Task 6
 }

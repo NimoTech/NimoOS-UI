@@ -1004,4 +1004,28 @@ export default {
   aiCfgSaved: 'Saved',
   aiCfgSaveFailed: 'Save failed',
   // <<< SP8-P2b Task 5
+  // >>> SP8-P2b Task 6 —— MemorySection(AI 记忆)
+  aiCfgMemoryDesc: "Facts and preferences the assistant remembers about you across sessions. While memory is on, they're injected into the context at the start of every conversation.",
+  aiCfgCrossSessionMemory: 'Cross-session memory',
+  aiCfgMemoryOffBanner: 'Memory is off — nothing new is remembered or injected. Existing items are kept and can still be deleted.',
+  aiCfgEnableMemory: 'Enable memory',
+  aiCfgEnableMemorySub: 'Facts the assistant remembers about you across sessions, injected into every conversation while memory is on.',
+  aiCfgContextCompaction: 'Context compaction',
+  aiCfgContextWindow: 'Context window (blank = auto)',
+  aiCfgAutoPlaceholder: 'auto',
+  aiCfgSavedMemories: 'Saved memories',
+  aiCfgMemoryLoadFailed: 'Failed to load memories.',
+  aiCfgNoMemories: 'No memories yet.',
+  aiCfgRecalledTimes: 'recalled {n}×',
+  aiCfgDeleteMemory: 'Delete memory',
+  aiCfgMemKindPreference: 'Preference',
+  aiCfgMemKindFact: 'Fact',
+  aiCfgMemKindGoal: 'Goal',
+  aiCfgMemSourceAuto: 'Auto',
+  // aiCfgMemSourceTool and aiCfgSaved are both literally "Saved" but mean different
+  // things (memory-source tag vs. save-state hint) — kept as two separate keys on
+  // purpose, not merged; see the warning under the brief's table.
+  aiCfgMemSourceTool: 'Saved',
+  aiCfgMemSourceUser: 'Manual',
+  // <<< SP8-P2b Task 6
 }
