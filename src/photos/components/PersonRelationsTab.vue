@@ -110,7 +110,7 @@ const nimoReadHtml = computed(() => {
           v-for="r in sortedRelations" :key="r.personId" class="rel-row"
           @click="emit('open-person', r.personId)"
         >
-          <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="32" />
+          <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="36" />
           <div class="body">
             <div class="nm">{{ r.name }}</div>
             <div class="ct">{{ t('photosPersonPhotosTogether', { n: r.count }) }}</div>
@@ -136,6 +136,11 @@ const nimoReadHtml = computed(() => {
   gap: 24px;
   align-items: start;
 }
+/* Vue2 用 --font-display/--font-sans 两个字体 token 区分标题/副标题字重来源;
+   New-UI 只有一个统一的 --font token(已在 theme.css 核实),两处都用它,同
+   PersonPlacesTab.vue 的 .detail-section-title/.sub 既有先例(T12,同款
+   flex+baseline+gap 结构,同款 --fg/--fg-muted 配色)——两个 tab 各自渲染自己
+   的段落标题(协调者裁定),CSS 规则因此各写一份,不是漏共享。 */
 .detail-section-title {
   font-family: var(--font);
   font-size: 16px;
@@ -154,6 +159,9 @@ const nimoReadHtml = computed(() => {
   color: var(--fg-muted);
   letter-spacing: 0;
 }
+/* Vue2 这张卡用 --surface-1(背景)/--line(边框)/--r-lg(圆角)三个 token,
+   本仓均不存在(已 grep 确认两套主题块都没有)——分别代以 --card(同 T12
+   .map-card 先例)/--card-border/--radius-sm。 */
 .rel-graph-wrap {
   background: var(--card);
   border: 1px solid var(--card-border);
@@ -163,6 +171,7 @@ const nimoReadHtml = computed(() => {
   min-height: 420px;
   overflow: hidden;
 }
+/* Vue2 图例文字用 --text-3,本仓不存在,代以语义对应的 --fg-muted。 */
 .rel-graph-wrap .legend {
   position: absolute;
   top: 14px;
@@ -202,6 +211,8 @@ const nimoReadHtml = computed(() => {
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
+/* Vue2 用 --surface-2,本仓不存在,代以 --hover(同 PersonHero.vue
+   .hero-menu-item:hover 先例:透明背景上的行级 hover 淡叠层)。 */
 .rel-row:hover {
   background: var(--hover);
 }

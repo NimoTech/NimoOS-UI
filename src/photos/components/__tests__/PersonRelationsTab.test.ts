@@ -100,7 +100,7 @@ describe('PersonRelationsTab.vue', () => {
     expect(bars[1].attributes('style')).toContain('width: 25%')
   })
 
-  it('共现列表每行用 32px PersonAvatar,不手拼头像 URL', () => {
+  it('共现列表每行用 36px PersonAvatar(照 photos-people.scss:547-548 .rel-row .av,brief 原写 32px 是笔误,以 Vue2 源为准),不手拼头像 URL', () => {
     const relations: PersonRelation[] = [{ personId: 9, name: 'A', coverFaceId: 'f9', count: 1 }]
     const w = mountTab({ relations, person: P(), places: [] })
     const img = w.get('.rel-row [data-test="avatar-img"]')
@@ -168,12 +168,13 @@ describe('PersonRelationsTab.vue', () => {
     expect(w.find('.nimo-btn').exists()).toBe(false)
   })
 
-  it('模板里不出现任何 # 开头的裸颜色字面量(兜底断言)', () => {
+  it('模板里不出现任何裸颜色字面量(十六进制或 rgba()/hsla() 函数式,兜底断言)', () => {
+    // 评审 Important 修正:同 PersonRelGraph.test.ts,原正则漏了函数式颜色。
     const w = mountTab({
       relations: [{ personId: 1, name: 'A', count: 1 }],
       person: P(),
       places: [PG('北京'), PG('上海')],
     })
-    expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\s*\(/)
   })
 })

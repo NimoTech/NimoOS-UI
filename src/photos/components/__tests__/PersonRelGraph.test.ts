@@ -167,9 +167,12 @@ describe('PersonRelGraph.vue', () => {
     expect(w.emitted('open-person')).toEqual([[102]])
   })
 
-  it('模板里不出现任何 # 开头的裸颜色字面量(兜底断言,防照搬漏改)', () => {
+  it('模板里不出现任何裸颜色字面量(十六进制或 rgba()/hsla() 函数式,兜底断言,防照搬漏改)', () => {
+    // 评审 Important 修正:原正则只认十六进制,漏了函数式颜色 —— Vue2 源码里
+    // 恰好就有一处 fill="rgba(255,255,255,0.8)"(PhotosRelGraph.vue:20,已改成
+    // .rg-pill-text class),说明这条路径真实存在过,必须一起堵上。
     const relations: PersonRelation[] = [{ personId: 1, name: 'A', count: 10 }]
     const w = mountGraph({ relations, person: P() })
-    expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\s*\(/)
   })
 })
