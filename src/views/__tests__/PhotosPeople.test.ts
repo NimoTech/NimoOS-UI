@@ -25,6 +25,7 @@ const svc = vi.hoisted(() => ({
     updatePerson: vi.fn().mockResolvedValue(undefined),
     mergePersons: vi.fn().mockResolvedValue(undefined),
     purgePerson: vi.fn().mockResolvedValue(undefined),
+    rejectMergeSuggestion: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -84,6 +85,7 @@ beforeEach(() => {
   svc.photos.updatePerson.mockClear().mockResolvedValue(undefined)
   svc.photos.mergePersons.mockClear().mockResolvedValue(undefined)
   svc.photos.purgePerson.mockClear().mockResolvedValue(undefined)
+  svc.photos.rejectMergeSuggestion.mockClear().mockResolvedValue(undefined)
 })
 // 关键隔离(同 people.test.ts:46-54 的既有教训):_purgeTimers 是 people store 模块作用域
 // 单例,不随 setActivePinia(createPinia()) 重置。T7 的删除测试用同一个 id('u1')反复调
@@ -307,12 +309,13 @@ describe('PhotosPeople.vue — 合并建议横幅', () => {
     expect(w.find('[data-test="merge-banner"]').exists()).toBe(false)
   })
 
-  it('点 Review → 置 reviewOpen/reviewIdx(T8 接管前的占位状态)', async () => {
+  it('点 Review → 打开真实的 MergeReviewDialog,定位到第 1 条', async () => {
     svc.photos.mergeSuggestions.mockResolvedValue([SUGGESTION])
     const { w } = await mountView()
-    expect(w.find('[data-test="review-state"]').exists()).toBe(false)
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
     await w.find('[data-test="merge-review"]').trigger('click')
-    expect(w.find('[data-test="review-state"]').attributes('data-idx')).toBe('0')
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(true)
+    expect(w.find('[data-test="mrd-title"]').text()).toBe('可能的合并 1 / 1')
   })
 
   it('警告横幅与合并横幅可同时出现(照 Vue2:两个独立 v-if)', async () => {
@@ -606,5 +609,157 @@ describe('PhotosPeople.vue — T7 三态弹窗接线:删除', () => {
     await Promise.all([p1, p2])
 
     expect(spy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── T8:合并建议审阅弹窗接线(accept/reject 两条提交路径 + 防重入回归 + index 钳制)──
+// 防重入的说明(评审必修,同 T7 §11 delete 路径的先例):onReviewAccept/onReviewReject 起草
+// 时各加了一个独立 in-flight 守卫 ref,删码验证(把 `if (guard) return` 改成 `if (false)
+// return`)后下面两条"连点两次…只被调一次"回归测试依然全绿——真正挡住第二次调用的是
+// MergeReviewDialog 自己的 `if (!current.value) return`(store 的 accept/rejectMergeSuggestion
+// 在函数体最开头就同步把这条建议从数组里摘掉,current.value 早于任何 await 就已经变成
+// undefined)+ store 自身 `if (s) {...}` 的幂等判定,两层都已经在,独立 ref 没有实际保护
+// 价值,已删除(详见 PhotosPeople.vue 的 onReviewAccept 头部注释)。测试标题反映真实机制,
+// 不再写"重入守卫"。
+const S1 = { id: 'm1', fromId: 'u1', intoId: 42, intoName: 'Alice', confidence: 0.91 }
+const S2 = { id: 'm2', fromId: 'u2', intoId: 3, intoName: '', confidence: 0.6 }
+const S3 = { id: 'm3', fromId: 'b7', intoId: 3, intoName: 'Carol', confidence: 0.55 }
+
+async function openReview(w: Awaited<ReturnType<typeof mountView>>['w']) {
+  await w.find('[data-test="merge-review"]').trigger('click')
+}
+
+describe('PhotosPeople.vue — T8 合并建议审阅弹窗接线:接受', () => {
+  it('成功:调 mergePersons(fromId, intoId) → 成功 toast 带 intoName → 只剩这一条时弹窗关闭', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    const { w } = await mountView()
+    const toast = useToast()
+    await openReview(w)
+    await w.get('[data-test="mrd-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('u1', 42)
+    expect(toast.toasts[0]!.text).toContain('Alice')
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
+  })
+
+  // 不断言弹窗开/关:store 的 acceptMergeSuggestion 失败路径会 `void fetchMergeSuggestions()`
+  // 纠正性重拉(people.ts 头部注释"先乐观移除建议,失败重拉建议列表纠正"),这条重拉与
+  // 本组件 finally 里的 clampReviewIndex 谁先跑,取决于两者各自还剩几个 await 跳,在真实
+  // 网络延迟下几乎总是 clamp 先跑(建议仍是空 → 关弹窗);但在本测试用的全同步 mock 下
+  // 顺序会反过来(重拉先落地、建议已经恢复 → 不关)。这是设计里天然存在的竞态,不是本次
+  // 要修的 bug,这里只断言与竞态无关的确定性事实(调用参数 + 失败 toast)。
+  it('失败:mergePersons 拒绝 → 失败 toast', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    svc.photos.mergePersons.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView()
+    const toast = useToast()
+    await openReview(w)
+    await w.get('[data-test="mrd-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('u1', 42)
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeFailed)
+  })
+
+  it('主按钮文案缺 intoName 时用 photosPersonMergeAsSame 填充,accept 后 toast 同样落到这句', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S2])
+    const { w } = await mountView()
+    const toast = useToast()
+    await openReview(w)
+    expect(w.get('[data-test="mrd-accept"]').text()).toContain(zh.photosPersonMergeAsSame)
+    await w.get('[data-test="mrd-accept"]').trigger('click')
+    await flushPromises()
+    expect(toast.toasts[0]!.text).toContain(zh.photosPersonMergeAsSame)
+  })
+
+  // index 钳制(brief 明确要求放宿主):3 条建议,定位到最后一条(index=2)并接受它 → 剩 2
+  // 条,index(2) 越界 → 钳到 max(0,2-1)=1,弹窗改显示"剩下两条里的第 2 条"而不是崩或停在
+  // 越界位置。
+  it('index 钳制:接受最后一条建议后,index 收回到 max(0, 新长度-1)', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S1, S2, S3])
+    const { w } = await mountView()
+    await openReview(w)
+    // 手动把 reviewIdx 推到最后一条(Review 按钮只会置 0,这里模拟用户已经看到第 3 条的场景:
+    // 直接调用 store 之外没有导航 UI,所以用 vm 直接改内部 ref 来复现"当前停在最后一条"这个前提)。
+    ;(w.vm as unknown as { reviewIdx: number }).reviewIdx = 2
+    await w.vm.$nextTick()
+    expect(w.get('[data-test="mrd-title"]').text()).toBe('可能的合并 3 / 3')
+
+    await w.get('[data-test="mrd-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('b7', 3)
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(true)
+    // 剩 S1、S2 两条,index 钳到 1 → 显示 "2 / 2",且是 S2(intoName 为空,走 AsSame 填充)
+    expect(w.get('[data-test="mrd-title"]').text()).toBe('可能的合并 2 / 2')
+    expect(w.get('[data-test="mrd-accept"]').text()).toContain(zh.photosPersonMergeAsSame)
+  })
+
+  // 防重入回归(见本 describe 块头部的删码验证说明):连点两次接受按钮,第二次在第一次的
+  // 请求 resolve 前触发 —— 由 MergeReviewDialog 的 current.value 置空天然挡住,不是独立守卫 ref。
+  it('连点两次接受按钮(第二次在第一次未 resolve 前触发)→ mergePersons 只被调一次(current.value 天然防重入)', async () => {
+    let resolveMerge: (() => void) | undefined
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    svc.photos.mergePersons.mockImplementation(() => new Promise((resolve) => { resolveMerge = () => resolve(undefined) }))
+    const { w } = await mountView()
+    await openReview(w)
+    const btn = w.get('[data-test="mrd-accept"]')
+    const p1 = btn.trigger('click')
+    const p2 = btn.trigger('click') // 第二次点击在第一次未 resolve 前触发(弹窗此刻仍开着)
+    await Promise.all([p1, p2])
+    await flushPromises()
+
+    expect(svc.photos.mergePersons).toHaveBeenCalledTimes(1)
+    resolveMerge?.()
+    await flushPromises()
+  })
+})
+
+describe('PhotosPeople.vue — T8 合并建议审阅弹窗接线:拒绝', () => {
+  it('成功:调 rejectMergeSuggestion(fromId, intoId) → 忽略 toast → 只剩这一条时弹窗关闭', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    const { w } = await mountView()
+    const toast = useToast()
+    await openReview(w)
+    await w.get('[data-test="mrd-reject"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.rejectMergeSuggestion).toHaveBeenCalledWith('u1', 42)
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeDismissedToast)
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
+  })
+
+  // 同上一条的竞态说明:rejectMergeSuggestion 失败同样会 void fetchMergeSuggestions() 纠正,
+  // 弹窗开/关取决于两条 await 链谁先落地,不在这里断言。
+  it('失败:rejectMergeSuggestion 拒绝 → 失败 toast', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    svc.photos.rejectMergeSuggestion.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView()
+    const toast = useToast()
+    await openReview(w)
+    await w.get('[data-test="mrd-reject"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.rejectMergeSuggestion).toHaveBeenCalledWith('u1', 42)
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeFailed)
+  })
+
+  // 同上一条 accept 的删码验证结论,同一套天然机制。
+  it('连点两次拒绝按钮(第二次在第一次未 resolve 前触发)→ rejectMergeSuggestion 只被调一次(current.value 天然防重入)', async () => {
+    let resolveReject: (() => void) | undefined
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    svc.photos.rejectMergeSuggestion.mockImplementation(() => new Promise((resolve) => { resolveReject = () => resolve(undefined) }))
+    const { w } = await mountView()
+    await openReview(w)
+    const btn = w.get('[data-test="mrd-reject"]')
+    const p1 = btn.trigger('click')
+    const p2 = btn.trigger('click')
+    await Promise.all([p1, p2])
+    await flushPromises()
+
+    expect(svc.photos.rejectMergeSuggestion).toHaveBeenCalledTimes(1)
+    resolveReject?.()
+    await flushPromises()
   })
 })

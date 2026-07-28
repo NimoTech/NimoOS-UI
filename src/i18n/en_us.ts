@@ -824,6 +824,19 @@ export default {
   // Vue2 is $t('Merge as') + inline name; New-UI composes a single key
   photosPersonMergeAs: 'Merge as {name}',
   photosPersonMergeAsSame: 'same person',
+  // T8 addition (not in the brief's enumerated key list; confirmed missing, added per the
+  // "确实缺了报上来" instruction — flagged in the task report). Vue2's review dialog fixed
+  // labels under the two comparison columns: $t('Cluster A')/$t('Cluster B') (:400,418).
+  photosPersonMergeGroupA: 'Cluster A',
+  photosPersonMergeGroupB: 'Cluster B',
+  // T8 addition: brand prefix on the reason bar, $t('Nimo:') (:423) — literal in both locales.
+  photosPersonMergeNimoLead: 'Nimo:',
+  // T8 addition: onRejectReview's toast text, $t('Suggestion dismissed') (:613). The accept
+  // path deliberately reuses the existing photosPersonMergedToast instead of adding a second
+  // "Merged as …" key — same consolidation pattern already used for mergeReason/PersonAvatar
+  // (Vue2 has two literally-different but semantically-identical toasts here); flagged in the
+  // task report as an intentional consolidation, not an oversight.
+  photosPersonMergeDismissedToast: 'Suggestion dismissed',
   photosPersonSubtitle: 'Person details · faces & relationships',
   photosPersonTabTimeline: 'Timeline',
   photosPersonTabPlaces: 'Places',

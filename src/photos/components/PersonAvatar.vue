@@ -25,6 +25,11 @@ const props = withDefaults(
     size?: number
     dashed?: boolean
     fav?: boolean
+    // Task 8 加性扩展(SP7-P5 人物,MergeReviewDialog):Vue2 合并建议审阅弹窗的两侧头像是
+    // 方形圆角(border-radius:12px + aspect-ratio:1),是全区唯一的方形头像处
+    // (PhotosPeopleView.vue:387,390,405,408)。默认仍是 'circle',不改变任何既有调用点的
+    // 渲染结果 —— 只在传 'square' 时切换圆环的 border-radius,三级兜底逻辑完全不变。
+    shape?: 'circle' | 'square'
   }>(),
   {
     name: '',
@@ -32,6 +37,7 @@ const props = withDefaults(
     size: 72,
     dashed: false,
     fav: false,
+    shape: 'circle',
   },
 )
 
@@ -79,7 +85,7 @@ function onImgError(): void {
 <template>
   <div
     class="person-avatar"
-    :class="{ 'is-dashed': dashed }"
+    :class="{ 'is-dashed': dashed, 'is-square': shape === 'square' }"
     :style="{ width: `${size}px`, height: `${size}px` }"
   >
     <div class="person-avatar-ring">
@@ -147,6 +153,11 @@ function onImgError(): void {
    字面 token 名的替代,而非新增或臆造。 */
 .person-avatar.is-dashed .person-avatar-ring {
   border-style: dashed;
+}
+/* Task 8 加性扩展:方形圆角变体(默认仍是圆形 border-radius:50%,见上方规则),
+   仅 MergeReviewDialog 的两侧对比头像使用。 */
+.person-avatar.is-square .person-avatar-ring {
+  border-radius: 12px;
 }
 .person-avatar-img {
   display: block;

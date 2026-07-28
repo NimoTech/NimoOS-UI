@@ -9,8 +9,12 @@
 // T7(本次追加):接入 ClusterActionDialog(命名/合并/删除三态弹窗),`dialog` 状态从
 // T6 的隐藏占位节点换成真实弹窗;三条提交路径(renamePerson/mergePersonInto/
 // purgePersonWithUndo)的 store 调用、重入守卫、toast 全部收在这里 —— 弹窗本身只 emit
-// (分工同 ClusterActionDialog.vue 头部注释)。合并建议审阅弹窗仍是 T8 的占位节点,本次不碰
-// `reviewOpen`/`reviewIdx`。路由注册与侧栏条目归 T16。
+// (分工同 ClusterActionDialog.vue 头部注释)。路由注册与侧栏条目归 T16。
+//
+// T8(本次追加):接入 MergeReviewDialog(合并建议逐条审阅弹窗),`reviewOpen`/`reviewIdx`
+// 从 T7 遗留的隐藏占位节点换成真实弹窗。accept/reject 两条提交路径的 store 调用、独立
+// in-flight 守卫、toast、index 钳制全部收在这里(分工同上,弹窗本身只 emit)——钳制逻辑
+// 之所以放宿主而不是弹窗:宿主才持有 suggestions 数组与 index 这两份状态(brief 明确要求)。
 //
 // T7 两条 Vue2 bug 修正(brief 明确要求改的,不照抄):
 //  8) Vue2 confirmMergeTo :654-660 不 await 会拒绝的 mergeClusterInto、且**先弹"已合并"
@@ -45,6 +49,7 @@ import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
+import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
@@ -190,6 +195,75 @@ function openDialog(mode: DialogMode): void {
 function openReview(): void {
   reviewIdx.value = 0
   reviewOpen.value = true
+}
+
+// T8:store 的 mergeSuggestions 是后端 JSON 直通的宽松类型(Array<Record<string, unknown>>),
+// MergeReviewDialog 的契约要求更窄的 MergeSuggestion[] 形状——两者运行时字段实际一致
+// (id/fromId/intoId/intoName/confidence),这里只是收紧类型给弹窗用,不做数据转换。
+const reviewSuggestions = computed<MergeSuggestion[]>(
+  () => people.mergeSuggestions as unknown as MergeSuggestion[],
+)
+
+// 照 brief:index 钳制逻辑放宿主(它持有 suggestions 与 index),弹窗只 emit。
+// store 的 acceptMergeSuggestion/rejectMergeSuggestion 内部已经在函数最开头**同步**把这条
+// 建议从 mergeSuggestions 里摘掉了(见 people.ts 头部注释),所以这里在 await 完成之后
+// 看到的 suggestions.length 已经反映了摘除后的结果——不需要再自己减一次。
+function clampReviewIndex(): void {
+  const len = people.mergeSuggestions.length
+  if (len === 0) { reviewOpen.value = false; return }
+  if (reviewIdx.value >= len) reviewIdx.value = Math.max(0, len - 1)
+}
+
+// 照 Vue2 onAcceptReview :595-604,改成 await(Vue2 原版不 await,fire-and-forget)。
+// toast 复用既有 photosPersonMergedToast(brief 未单独给"Merged as…"这句的键;与 T7
+// onSubmitMerge 的成功 toast 同属"已合并到 X"这一类语义,已在报告登记为有意的一次统一,
+// 不是遗漏)。intoName 必须在调用 store **之前**捕获——store 会同步先把这条建议从数组里
+// 摘掉,调用之后再找就找不到了。
+//
+// 评审必修(第二轮,同 T7 §11 的先例):brief 要求"两条路径都要独立 in-flight 守卫 ref",
+// 起草时确实各加了一个(reviewAccepting/reviewRejecting)。删码验证:把两处 `if (guard)
+// return` 临时改成 `if (false) return`(guard 判定整段失效,其余逻辑不变),重跑
+// "T8 合并建议审阅弹窗接线" 整个 describe 块——两条"连点两次…只被调一次"的回归测试
+// 依然全绿,包括 T7/T8 全量测试(50/50)都没有变红。真正挡住第二次调用的是两层已有机制,
+// 不是这两个 ref:
+//   1) 本组件的 MergeReviewDialog.onAccept/onReject 各自开头 `if (!current.value) return`
+//      (MergeReviewDialog.vue)——store 的 acceptMergeSuggestion/rejectMergeSuggestion
+//      在函数体最开头就**同步**把这条建议从 mergeSuggestions 数组里摘掉了(people.ts 头部
+//      注释),这个移除发生在任何 await 之前,不等网络。第一次点击的整条同步链路(dispatch
+//      → emit → 这里的函数体开头到第一个 await)跑完之后,`current.value` 已经是
+//      `undefined`——无论第二次点击隔多久(哪怕两次点击间隔为 0,浏览器也是顺序派发两个
+//      独立的 click 事件,不会把两个事件处理器交叠在同一个同步执行栈里),弹窗自己的
+//      按钮从源头就不会再 emit 第二次。
+//   2) 即使真有什么路径绕过弹窗直接调了两次(假设的场景,当前不存在),store 侧
+//      `if (s) { ... }` 的判定本身就是幂等的——找不到这条建议(已被第一次摘掉)时整段
+//      try/catch/finally 都不会跑,第二次调用是安全的空操作。
+// 两层保护都已经在,独立 ref 只是"标准形状"的装饰,没有实际保护价值——同 T7 delete 路径
+// 的 `deletingSubmitting` 一样,删掉。还原 `if (false) return` 为空(即整段判断连同 ref
+// 一起去掉)后复跑,测试依然绿。
+async function onReviewAccept(id: string | number): Promise<void> {
+  const s = people.mergeSuggestions.find((m) => String(m.id) === String(id))
+  const intoName = (s?.intoName as string | undefined) ?? ''
+  try {
+    await people.acceptMergeSuggestion(id)
+    toast.show(t('photosPersonMergedToast', { name: intoName || t('photosPersonMergeAsSame') }))
+  } catch {
+    toast.show(t('photosPersonMergeFailed'))
+  } finally {
+    clampReviewIndex()
+  }
+}
+
+// 照 Vue2 onRejectReview :605-614,改成 await。失败 toast 复用 photosPersonMergeFailed,
+// 不为"忽略失败"单开一个新键(已在报告登记)。同上一段的删码验证结论,不加独立守卫 ref。
+async function onReviewReject(id: string | number): Promise<void> {
+  try {
+    await people.rejectMergeSuggestion(id)
+    toast.show(t('photosPersonMergeDismissedToast'))
+  } catch {
+    toast.show(t('photosPersonMergeFailed'))
+  } finally {
+    clampReviewIndex()
+  }
 }
 
 // ClusterActionDialog 只 emit,不碰 store/toast(分工见该组件头部注释)——三条提交路径的
@@ -566,8 +640,19 @@ onUnmounted(() => {
     @submit-delete="onSubmitDelete"
   />
 
-  <!-- T8 占位:合并建议审阅弹窗仍未接入,本次不碰。 -->
-  <div v-if="reviewOpen" hidden data-test="review-state" :data-idx="reviewIdx"></div>
+  <!-- T8:合并建议审阅弹窗接上。update:index 声明了但从不会被 emit(见 MergeReviewDialog
+       头部注释——没有独立的"跳到第 N 条"导航控件),接线仍然完整覆盖以保持契约一致;宿主侧
+       目前唯一改变 reviewIdx 的路径是 accept/reject 之后的 clampReviewIndex。 -->
+  <MergeReviewDialog
+    :open="reviewOpen"
+    :suggestions="reviewSuggestions"
+    :index="reviewIdx"
+    :people="people.people"
+    @update:open="(v) => { if (!v) reviewOpen = false }"
+    @update:index="(v) => { reviewIdx = v }"
+    @accept="onReviewAccept"
+    @reject="onReviewReject"
+  />
 </template>
 
 <style scoped>

@@ -27,6 +27,7 @@ interface AvatarProps {
   size?: number
   dashed?: boolean
   fav?: boolean
+  shape?: 'circle' | 'square'
 }
 
 function mountAvatar(props: AvatarProps) {
@@ -155,6 +156,20 @@ describe('PersonAvatar', () => {
     }
     // 回归钉子:修正前 48px 头像配的是钉死的 24px 星标(占半个头像宽、压在人脸正中)
     expect(favStyleOf(48)).toContain('width: 15px')
+  })
+
+  // Task 8 加性扩展(MergeReviewDialog 专用):shape='square' 时圆环切成方形圆角
+  // (border-radius:12px),默认('circle' 或不传)必须完全不变——这是对 T5 契约的加性
+  // 扩展,不能改变既有默认行为。
+  it("shape='square' 时加 is-square class;默认('circle'/不传)不加", () => {
+    const w = mountAvatar({ personId: null, shape: 'square' })
+    expect(w.classes()).toContain('is-square')
+
+    const w2 = mountAvatar({ personId: null, shape: 'circle' })
+    expect(w2.classes()).not.toContain('is-square')
+
+    const w3 = mountAvatar({ personId: null })
+    expect(w3.classes()).not.toContain('is-square')
   })
 
   it('圆环无条件带一圈发丝描边(Vue2 scss:124),dashed 只改线型', () => {

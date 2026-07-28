@@ -822,6 +822,19 @@ export default {
   // Vue2 是 $t('Merge as') + 内嵌名字,New-UI 合成单键
   photosPersonMergeAs: '合并为 {name}',
   photosPersonMergeAsSame: '同一个人',
+  // T8 新增(brief 列举的键里没有,确认缺失后补的):Vue2 审阅弹窗两列对比下方的固定标签
+  // $t('Cluster A')/$t('Cluster B')(:400,418),旧仓 zh_CN.json:1993-1994 原译"集群 A/B"——
+  // "集群"触犯本期术语红线(同 :803 fix-1 的先例),改用"组 A/B"。
+  photosPersonMergeGroupA: '组 A',
+  photosPersonMergeGroupB: '组 B',
+  // T8 新增:Vue2 审阅弹窗理由条的品牌前缀 $t('Nimo:')(:423),旧仓 zh_CN.json:2091 原译
+  // 就是字面 "Nimo:"(品牌名,中英一致,不翻译)。
+  photosPersonMergeNimoLead: 'Nimo:',
+  // T8 新增:Vue2 onRejectReview 拒绝后的 toast 文案 $t('Suggestion dismissed')(:613)。
+  // accept 路径复用既有 photosPersonMergedToast(:812)而不是另建一个"Merged as…"键——
+  // 两句在 Vue2 里字面不同,但语义都是"已合并到 X",同 mergeReason/PersonAvatar 的既有
+  // 统一惯例(把 Vue2 里重复的同义文案收成一份),已在任务报告里登记这条不是疏漏。
+  photosPersonMergeDismissedToast: '已忽略该合并建议',
   photosPersonSubtitle: '人物详情 · 面孔与关系',
   photosPersonTabTimeline: '时间线',
   photosPersonTabPlaces: '地点',
