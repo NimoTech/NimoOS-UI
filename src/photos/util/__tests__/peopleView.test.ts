@@ -1,0 +1,138 @@
+import { describe, it, expect } from 'vitest'
+import {
+  toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
+  hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
+  mergeReasonKey,
+  type Person,
+} from '../peopleView'
+
+const P = (over: Partial<Person>): Person => ({
+  id: 'x', name: '', confidence: 1, count: 5, favorite: false, relation: '',
+  coverFaceId: null, heroAssetId: null, firstSeen: null, lastSeen: null, placesCount: 0, ...over,
+})
+
+describe('toPerson', () => {
+  it('缺字段全部落到安全缺省', () => {
+    expect(toPerson({ id: 7 })).toMatchObject({
+      id: 7, name: '', confidence: 0, count: 0, favorite: false, relation: '',
+      coverFaceId: null, heroAssetId: null, firstSeen: null, lastSeen: null, placesCount: 0,
+    })
+  })
+  it('保留数字 id 不做字符串化', () => { expect(toPerson({ id: 12 }).id).toBe(12) })
+  it('confidence/count 走 Number 归一', () => {
+    expect(toPerson({ id: 1, confidence: 0.82, count: 3 })).toMatchObject({ confidence: 0.82, count: 3 })
+  })
+})
+
+describe('personInitial', () => {
+  it('取 trim 后首字母大写', () => { expect(personInitial(' sara')).toBe('S') })
+  it('空/纯空白/非字符串 → 空串', () => {
+    expect(personInitial('')).toBe(''); expect(personInitial('   ')).toBe(''); expect(personInitial(null)).toBe('')
+  })
+})
+
+describe('namedOf / unnamedOf', () => {
+  const list = [P({ id: 1, name: '小明' }), P({ id: 2, name: '' }), P({ id: 3, name: '   ' })]
+  it('已命名 = name 非空白', () => { expect(namedOf(list).map((p) => p.id)).toEqual([1]) })
+  it('未命名 = 已命名的补集,两者并集等于全集', () => {
+    expect(unnamedOf(list).map((p) => p.id)).toEqual([2, 3])
+    expect(namedOf(list).length + unnamedOf(list).length).toBe(list.length)
+  })
+  it('不改变原顺序、不原地修改入参', () => {
+    const src = [...list]; namedOf(src); expect(src.map((p) => p.id)).toEqual([1, 2, 3])
+  })
+})
+
+describe('visibleUnnamedOf', () => {
+  const un = [
+    P({ id: 'a', confidence: 0.8, count: 5 }),   // 恰好等于阈值 80
+    P({ id: 'b', confidence: 0.79, count: 5 }),  // 低于阈值
+    P({ id: 'c', confidence: 0.95, count: 1 }),  // 单照片
+  ]
+  it('阈值是闭区间 >=(0.8*100 === 80 要保留)', () => {
+    expect(visibleUnnamedOf(un, { confidence: 80, showSingletons: false }).map((p) => p.id)).toEqual(['a'])
+  })
+  it('showSingletons 打开时放行单照片', () => {
+    expect(visibleUnnamedOf(un, { confidence: 80, showSingletons: true }).map((p) => p.id)).toEqual(['a', 'c'])
+  })
+  it('与 hiddenSingletonCountOf 严格互补', () => {
+    const f = { confidence: 80, showSingletons: false }
+    const atThreshold = un.filter((p) => p.confidence * 100 >= f.confidence).length
+    expect(visibleUnnamedOf(un, f).length + hiddenSingletonCountOf(un, f)).toBe(atThreshold)
+  })
+  it('showSingletons 打开时 hidden 恒为 0', () => {
+    expect(hiddenSingletonCountOf(un, { confidence: 50, showSingletons: true })).toBe(0)
+  })
+})
+
+describe('unnamedCountAt', () => {
+  const un = [P({ id: 'a', confidence: 0.9, count: 4 }), P({ id: 'b', confidence: 0.6, count: 4 }), P({ id: 'c', confidence: 0.9, count: 1 })]
+  it('按传入阈值预览,不受当前阈值影响', () => {
+    expect(unnamedCountAt(un, 50, false)).toBe(2)
+    expect(unnamedCountAt(un, 90, false)).toBe(1)
+  })
+  it('showSingletons 参与判定', () => { expect(unnamedCountAt(un, 90, true)).toBe(2) })
+})
+
+describe('sortNamed', () => {
+  const NOW = Date.parse('2026-07-28T00:00:00Z')
+  const day = (n: number) => new Date(NOW - n * 864e5).toISOString()
+  const list = [
+    P({ id: 'a', name: 'Beta', relation: 'family', lastSeen: day(10), firstSeen: day(400) }),
+    P({ id: 'b', name: 'Alpha', relation: 'work', lastSeen: day(200), firstSeen: day(30) }),
+    P({ id: 'c', name: 'Gamma', relation: 'family', lastSeen: null, firstSeen: null }),
+  ]
+  it('all + freq → 原序(信任后端顺序)', () => {
+    expect(sortNamed(list, 'all', 'freq', NOW).map((p) => p.id)).toEqual(['a', 'b', 'c'])
+  })
+  it('按关系分组过滤', () => {
+    expect(sortNamed(list, 'family', 'freq', NOW).map((p) => p.id)).toEqual(['a', 'c'])
+  })
+  it('recent 过滤 = 90 天内且 lastSeen 存在', () => {
+    expect(sortNamed(list, 'recent', 'freq', NOW).map((p) => p.id)).toEqual(['a'])
+  })
+  it('recent 的 90 天是闭区间(整 90 天前仍保留)', () => {
+    const edge = [P({ id: 'e', name: 'E', lastSeen: new Date(NOW - 90 * 864e5).toISOString() })]
+    expect(sortNamed(edge, 'recent', 'freq', NOW).map((p) => p.id)).toEqual(['e'])
+  })
+  it('name 字母序 / recent 最近优先 / oldest 最早优先', () => {
+    expect(sortNamed(list, 'all', 'name', NOW).map((p) => p.name)).toEqual(['Alpha', 'Beta', 'Gamma'])
+    expect(sortNamed(list, 'all', 'recent', NOW).map((p) => p.id)).toEqual(['a', 'b', 'c'])
+    expect(sortNamed(list, 'all', 'oldest', NOW).map((p) => p.id)).toEqual(['c', 'a', 'b'])
+  })
+  it('不原地修改入参数组', () => {
+    const src = [...list]; sortNamed(src, 'all', 'name', NOW); expect(src.map((p) => p.id)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('monthKeyLabel', () => {
+  it('YYYY-MM → 英文全称月份 + 年', () => { expect(monthKeyLabel('2026-03')).toBe('March 2026') })
+  it('非法月份原样返回 key', () => {
+    expect(monthKeyLabel('2026-13')).toBe('2026-13')
+    expect(monthKeyLabel('unknown')).toBe('unknown')
+  })
+  it('空/非字符串 → 空串', () => { expect(monthKeyLabel('')).toBe(''); expect(monthKeyLabel(null)).toBe('') })
+})
+
+describe('mergeConfidencePct', () => {
+  it('0~1 → 整数百分比,缺失记 0', () => {
+    expect(mergeConfidencePct(0.876)).toBe(88); expect(mergeConfidencePct(undefined)).toBe(0)
+  })
+})
+
+describe('mergeReasonKey', () => {
+  it('s 为空 → unnamed key,pct 为 0', () => {
+    expect(mergeReasonKey(null)).toEqual({ key: 'photosPeopleMergeReasonUnnamed', params: { pct: 0 } })
+    expect(mergeReasonKey(undefined)).toEqual({ key: 'photosPeopleMergeReasonUnnamed', params: { pct: 0 } })
+  })
+  it('intoName 非空 → named key,带 name 与 pct', () => {
+    expect(mergeReasonKey({ confidence: 0.876, intoName: '小明' })).toEqual({
+      key: 'photosPeopleMergeReasonNamed', params: { pct: 88, name: '小明' },
+    })
+  })
+  it('无 intoName → unnamed key,带 pct', () => {
+    expect(mergeReasonKey({ confidence: 0.5 })).toEqual({
+      key: 'photosPeopleMergeReasonUnnamed', params: { pct: 50 },
+    })
+  })
+})
