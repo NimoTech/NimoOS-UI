@@ -43,8 +43,11 @@ describe('SettingsRail', () => {
 
   it('点分区 emit select', async () => {
     const w = mountRail({ activeId: 'search' })
-    const items = w.findAll('.set-nav-item')
-    await items[0].trigger('click')
+    // ⚠️ 必须在该组的 groupbody 内取项,不能用全局 findAll 的下标 ——
+    // 折叠用 v-show(照 Vue2 :22),13 项始终在 DOM 里,
+    // 全局 [0] 取到的是 model 组的 'models' 而不是 agent 组的 'blacklist'。
+    const agentBody = w.findAll('.set-nav-groupbody')[1]   // agent 组
+    await agentBody.findAll('.set-nav-item')[0].trigger('click')
     expect(w.emitted('select')![0]).toEqual(['blacklist'])
   })
 
@@ -110,5 +113,13 @@ describe('SettingsRail', () => {
   it('无 token 时回落到自带默认头像', () => {
     const w = mountRail()
     expect(w.find('.set-foot img').attributes('src')).not.toContain('token=')
+  })
+
+  it('折叠的组其导航项仍留在 DOM 里(窄屏 CSS 靠 display:flex!important 平铺,v-if 会让它失效)', () => {
+    const w = mountRail({ activeId: 'models' })
+    // model 组展开、其余三组折叠;13 项应当全部渲染
+    expect(w.findAll('.set-nav-item')).toHaveLength(13)
+    const bodies = w.findAll('.set-nav-groupbody')
+    expect(bodies).toHaveLength(4)
   })
 })

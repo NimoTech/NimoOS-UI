@@ -119,19 +119,19 @@ function onAvatarError() {
           <span class="set-nav-grouptt">{{ t(g.labelKey) }}</span>
           <span class="set-nav-chev"><AgentIcon name="chev" :size="13" /></span>
         </button>
-        <!-- Vue2 :22 uses v-show here (items stay in the DOM, hidden via
-             inline style) so the narrow-screen override in settings-styles.scss
-             (`@media (max-width:720px) .set-nav-groupbody{display:flex!important}`)
-             can force every item visible regardless of expand state. This repo's
-             canonical Task 7 test suite ("点分区 emit select") asserts that
-             `.set-nav-item` queries only return the currently-open group's
-             items, which only holds with conditional rendering — so this uses
-             v-if instead. Concrete, documented trade-off: on narrow screens the
-             icon-only rail will only show the initially-active group's items,
-             not every item, until that group is opened. Flagged in the task
-             report; not a "Vue2 bug fix", a rendering-strategy choice forced by
-             the given test contract. -->
-        <div v-if="isOpen(g.id)" class="set-nav-groupbody">
+        <!-- Vue2 :22 uses v-show here — collapsed groups' items must stay in
+             the DOM (only hidden via inline `display:none`), because
+             settings-styles.scss's narrow-screen override
+             (`@media (max-width:720px) { .set-nav-grouphead{display:none}
+             .set-nav-groupbody{display:flex!important} }`) relies on that
+             `!important` to force every item visible and flatten the rail
+             into an icon-only column with no group headers. Swapping this to
+             v-if (fix round 1's earlier mistake, reverted) removes collapsed
+             items from the DOM entirely, making that CSS rule dead and
+             breaking the narrow-screen rail — a real 1:1 visual regression.
+             `v-show` is required; the test that assumed v-if semantics was
+             the bug, not this template (see SettingsRail.test.ts). -->
+        <div v-show="isOpen(g.id)" class="set-nav-groupbody">
           <a v-for="item in g.items" :key="item.id"
              class="set-nav-item"
              :data-active="item.id === activeId ? 'true' : 'false'"
