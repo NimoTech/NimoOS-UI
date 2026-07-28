@@ -1028,4 +1028,24 @@ export default {
   aiCfgMemSourceTool: 'Saved',
   aiCfgMemSourceUser: 'Manual',
   // <<< SP8-P2b Task 6
+  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection. English
+  // values are the literal Vue2 source strings (the production zh_CN.json
+  // English keys, verbatim).
+  aiCfgPrivacyDesc: 'Control whether data leaves the device and which backend is used by default. Everything runs locally by default.',
+  aiCfgDataBackend: 'Data & backend',
+  aiCfgAllowCloudRequests: 'Allow cloud requests',
+  aiCfgAllowCloudRequestsSub: 'When enabled, conversations may be sent to configured cloud AI providers.',
+  aiCfgDefaultBackend: 'Default backend',
+  aiCfgDefaultBackendSub: 'Sets the default selection in the model picker.',
+  aiCfgBackendLocal: 'Local (prefer local models)',
+  aiCfgBackendCloud: 'Cloud (use cloud directly)',
+  aiCfgConfirmLocalFailure: 'Confirm on local failure',
+  aiCfgConfirmLocalFailureSub: 'When a local model fails, show a prompt asking whether to fall back to cloud.',
+  aiCfgUnableLoadPolicy: 'Unable to load policy',
+  aiCfgThinkingDesc: "Default thinking settings for new sessions. Models that don't support thinking ignore them.",
+  aiCfgThinkingDefaultsTitle: 'Thinking intensity defaults',
+  aiCfgThinkingBanner: 'These settings are used as the initial values for new sessions. Models that do not support thinking will ignore them.',
+  aiCfgEnableThinkingDefault: 'Enable thinking by default',
+  aiCfgDefaultIntensity: 'Default intensity:',
+  // <<< SP8-P2a Task 11
 }

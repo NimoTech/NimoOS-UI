@@ -43,6 +43,8 @@ import SettingsRail from '../components/settings/SettingsRail.vue'
 import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
 import ModelsSection from '../components/settings/sections/ModelsSection.vue'
 import ProvidersSection from '../components/settings/sections/ProvidersSection.vue'
+import PrivacySection from '../components/settings/sections/PrivacySection.vue'
+import ThinkingDefaultsSection from '../components/settings/sections/ThinkingDefaultsSection.vue'
 import AgentIcon from '../components/icons/AgentIcon.vue'
 import {
   ALL_ITEMS,
@@ -68,8 +70,8 @@ import '../styles/settings-styles.scss'
 const SECTION_COMPONENTS: Record<SectionId, Component> = {
   models: ModelsSection, // Task 9 —— 已替换
   providers: ProvidersSection, // Task 10 —— 已替换
-  privacy: SectionPlaceholder, // Task 11 替换
-  thinking: SectionPlaceholder, // Task 11 替换
+  privacy: PrivacySection, // Task 11 —— 已替换
+  thinking: ThinkingDefaultsSection, // Task 11 —— 已替换
   blacklist: SectionPlaceholder,
   execution: SectionPlaceholder,
   search: SectionPlaceholder,

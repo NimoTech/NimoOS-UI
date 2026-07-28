@@ -1041,4 +1041,23 @@ export default {
   aiCfgMemSourceTool: '已保存',
   aiCfgMemSourceUser: '手动',
   // <<< SP8-P2b Task 6
+  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection。中文值逐字
+  // 取自 Vue2 生产 zh_CN.json 对应英文 key 的既有译文(权威查法见 brief)。
+  aiCfgPrivacyDesc: '控制数据是否离开本机、以及默认使用哪一类模型后端。默认一切在本地运行。',
+  aiCfgDataBackend: '数据与后端',
+  aiCfgAllowCloudRequests: '允许云端请求',
+  aiCfgAllowCloudRequestsSub: '开启后允许将对话发送到已配置的云端 AI 提供商',
+  aiCfgDefaultBackend: '默认后端',
+  aiCfgDefaultBackendSub: '影响模型选择器中的默认选项',
+  aiCfgBackendLocal: '本地（优先本地模型）',
+  aiCfgBackendCloud: '云端（直接使用云端）',
+  aiCfgConfirmLocalFailure: '本地失败时弹出确认',
+  aiCfgConfirmLocalFailureSub: '本地模型失败时，是否弹窗询问是否切到云端',
+  aiCfgUnableLoadPolicy: '无法加载策略',
+  aiCfgThinkingDesc: '新建会话时的默认思考设置。不支持思考的模型会自动忽略这些设置。',
+  aiCfgThinkingDefaultsTitle: '思考强度默认值',
+  aiCfgThinkingBanner: '新建会话时使用以下设置作为初始值。不支持思考的模型会自动忽略。',
+  aiCfgEnableThinkingDefault: '默认开启思考',
+  aiCfgDefaultIntensity: '默认强度:',
+  // <<< SP8-P2a Task 11
 }
