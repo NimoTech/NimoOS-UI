@@ -54,6 +54,15 @@ describe('settings-styles.scss', () => {
     expect(css).toContain('@media (max-width: 720px)')
     expect(css).toContain('grid-template-columns: 60px 1fr')
   })
+
+  // SP8-P2b Task 10 评审补漏 —— McpTokensSection.vue 用了 .mcp-label/.mcp-reveal-warn
+  // 但组件零 <style> 块,首次落地时漏收 Vue2 McpTokensSection.vue:245/246 的对应规则,
+  // 补进本档后用这两条钉住选择器不会再被静默删掉。**只证明选择器存在**,不断言具体
+  // 颜色/字号取值(那部分由评审逐行比对 Vue2 源码负责,同本文件头注释的既定分工)。
+  it('保留 McpTokensSection 明文弹窗的 .mcp-label / .mcp-reveal-warn(Vue2 :245/246 scoped 样式迁移)', () => {
+    expect(css).toContain('.mcp-label')
+    expect(css).toContain('.mcp-reveal-warn')
+  })
 })
 
 describe('sk-shared.scss', () => {

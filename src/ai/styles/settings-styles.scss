@@ -191,6 +191,19 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .px-msg { font-size: 13px; color: var(--text-secondary); margin: 8px 18px; }
 .px-msg.err { color: var(--danger); }
 
+// SP8-P2b Task 10 review fix —— McpTokensSection.vue 组件走「零 <style> 块」惯例,
+// 但 Vue2 McpTokensSection.vue:245/246(scoped)确实给 `.mcp-label`/`.mcp-reveal-warn`
+// 定了样(`.mcp-x` 那条已被 SkModal 的 `.sk-x` 收编,不用再补)。漏收会让明文弹窗里的
+// 两处说明标签与警示文案渲染成无样式默认字体/黑色文字 —— 未申报的 1:1 视觉回归,
+// 评审发现后在这里补上,同 Task 8 `.px-msg` 的先例:放进全局设置样式档而不是给组件
+// 补 <style> 块(**范围扩张,已申报**:这是本文件第二次因为「组件零 <style> 惯例」把
+// Vue2 scoped 样式挪到这个全局档)。`mcp-` 前缀已避开撞名,类名原样保留、未改名
+// (与 `.px-msg` 那次不同,`.px-msg` 当时是因为 Vue2 裸 `.status` 太容易撞名才改名,
+// 这里 Vue2 本来就是 `mcp-` 前缀,不用再改)。值逐字保留,Vue2 两条都已经是纯 token
+// (`var(--text-secondary)`/`var(--danger)`),无需摘掉裸色 fallback。
+.mcp-label { display: block; margin: 0; color: var(--text-secondary); font-size: 13px; }
+.mcp-reveal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
+
 /* ---------- Card with internal toolbar ---------- */
 .set-cardhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 18px; border-bottom: 1px solid var(--line-faint); }
 .set-cardhead .t { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }

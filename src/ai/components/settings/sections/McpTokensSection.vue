@@ -31,6 +31,18 @@
   `inputAttrs.maxlength = 64` 在 PromptDialog(P2a 共享原语)上没有对应 prop;本期不给它
   加 prop(会动 P2a 在途文件),改为在 `createToken()` 里 `label.slice(0, 64)`——用户能多打
   但存不进去多的字符,行为等价降级,不是静默丢弃需求。
+
+  【评审补漏,声明】Vue2 :238-247(scoped `<style>`)给三个类定了样:`.mcp-x`(已被 D1 的
+  SkModal `.sk-x` 收编,见上)、`.mcp-label`(:245)、`.mcp-reveal-warn`(:246)。首次落地时
+  只顾上 `.mcp-x` 的替代,漏收后两条 —— 模板里仍在用这两个类(明文弹窗里的两处“把下面这段
+  交给…”标签 + 顶部警示文案),没有对应 CSS,渲染成无样式默认字体/黑色文字,是未申报的 1:1
+  视觉回归。修复:值逐字保留(两条本来就是纯 token,`var(--text-secondary)`/`var(--danger)`,
+  不含裸色 fallback,不用摘),**放进 `src/ai/styles/settings-styles.scss`**(不给本组件补
+  `<style>` 块)——同 Task 8 把 Vue2 `ObservabilitySection.vue` 的 scoped `.status` 挪去该档
+  的先例,**范围扩张,已申报**:这是本组件第二次因为「分区组件零 `<style>` 块」的惯例把 Vue2
+  scoped 样式挪到那个全局档。类名未改(`mcp-` 前缀已避开撞名,不像 `.px-msg` 那次需要改名)。
+  见 `settings-styles.scss` 里同一处的注释;回归测试见
+  `src/ai/styles/settingsStyles.test.ts`(McpTokensSection 描述块的两条断言)。
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
