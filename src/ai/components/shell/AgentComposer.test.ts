@@ -109,6 +109,8 @@ describe('AgentComposer 骨架', () => {
     await flushPromises()
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
+    // SP8-P1c2 Task 6: 授权失败(toastError)→ danger 档。
+    expect(useToast().toasts[0].tier).toBe('danger')
   })
 
   it('ctxUsage 存在时渲染占用环', () => {
@@ -147,6 +149,21 @@ describe('AgentComposer 附件管线', () => {
     expect(w.find('.ctx-chip-att').text()).toContain('p.png')
   })
 
+  // SP8-P1c2 Task 6: 建会话失败 → danger 档(p1c2-task-6-brief.md「AgentComposer
+  // 的 7 处」)。onFilesPicked() 507-514 的懒建会话分支,失败即 return,不发上传。
+  it('无会话时懒建会话失败:给 danger toast,不发上传', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'createSession').mockRejectedValue(new Error('network down'))
+    const w = mountComposer()
+    await pickFiles(w, [new File(['x'], 'p.png', { type: 'image/png' })])
+    await flushPromises()
+    expect(svc.uploadAttachment).not.toHaveBeenCalled()
+    const { useToast } = await import('../../../stores/toast')
+    const toasts = useToast().toasts
+    expect(toasts.length).toBe(1)
+    expect(toasts[0].tier).toBe('danger')
+  })
+
   it('超过 500MB 直接拒绝、不发请求、给 toast', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     const big = new File(['x'], 'big.bin')
@@ -157,6 +174,8 @@ describe('AgentComposer 附件管线', () => {
     expect(svc.uploadAttachment).not.toHaveBeenCalled()
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
+    // SP8-P1c2 Task 6: 超限 → danger 档。
+    expect(useToast().toasts[0].tier).toBe('danger')
   })
 
   it('上传中 chip 显示百分比,且 canSend 为假', async () => {
@@ -178,6 +197,9 @@ describe('AgentComposer 附件管线', () => {
     await pickFiles(w, [new File(['x'], 'a.txt')])
     await flushPromises()
     expect(w.find('.ctx-chip-att.is-failed').exists()).toBe(true)
+    // SP8-P1c2 Task 6: 上传失败 → danger 档。
+    const { useToast } = await import('../../../stores/toast')
+    expect(useToast().toasts[0].tier).toBe('danger')
   })
 
   it('文档抽取报错时 chip 出警告角标(且角标文案对应 docErrorShortKey 的 zh_cn 译文)', async () => {
@@ -192,6 +214,9 @@ describe('AgentComposer 附件管线', () => {
     // must be able to fail if docErrorShortKey('timeout') → 'aiDocErrShortTimedOut'
     // regresses (e.g. mapped to the wrong key or the zh_cn string changes).
     expect(chip.find('.ctx-chip-doc-warn').text()).toContain(zh.aiDocErrShortTimedOut)
+    // SP8-P1c2 Task 6: 文档抽取警告(7000ms)→ warning 档,非 danger。
+    const { useToast } = await import('../../../stores/toast')
+    expect(useToast().toasts[0].tier).toBe('warning')
   })
 
   it('kind=binary 且 extract_error=not_installed、文档扩展名:给 7000ms 警告 toast', async () => {
@@ -204,6 +229,8 @@ describe('AgentComposer 附件管线', () => {
     const toasts = useToast().toasts
     expect(toasts.length).toBe(1)
     expect(toasts[0].text).toContain(zh.aiDocErrNotInstalled)
+    // SP8-P1c2 Task 6: 同上,not_installed 警告也是 warning 档。
+    expect(toasts[0].tier).toBe('warning')
   })
 
   it('kind=binary 且 extract_error=not_installed、非文档扩展名:不弹该 toast', async () => {

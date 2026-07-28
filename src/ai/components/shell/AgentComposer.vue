@@ -522,11 +522,12 @@ const chips = computed(() =>
 /** Vue2 654-657 toastError()——removeChip/pickItem/onBrowserPick 三处共用的通用
  *  错误提示,对应 Vue2 的 `$t('Authorization failed: {msg}')`,本任务用
  *  `aiAuthFailed` 键接住;removeChip 是本任务唯一接入的调用点,否则移除资源失败
- *  会被静默吞掉。 */
+ *  会被静默吞掉。SP8-P1c2 Task 6:授权失败 → danger 档(p1c2-task-6-brief.md
+ *  「AgentComposer 的 7 处」)。 */
 function toastError(e: unknown) {
   const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
   const msg = err?.response?.data?.detail || err?.message || 'unknown'
-  toast.show(t('aiAuthFailed', { msg }), 5000)
+  toast.show(t('aiAuthFailed', { msg }), 5000, 'danger')
 }
 
 /**
@@ -867,7 +868,7 @@ async function onFilesPicked(e: Event) {
       await store.createSession()
     } catch (err) {
       const msg = (err as Error)?.message || String(err)
-      toast.show(t('aiAttachSessionFailed', { err: msg }), 5000)
+      toast.show(t('aiAttachSessionFailed', { err: msg }), 5000, 'danger')
       return
     }
   }
@@ -876,7 +877,7 @@ async function onFilesPicked(e: Event) {
 
   for (const file of files) {
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.show(t('aiAttachTooLarge', { name: file.name }), 5000)
+      toast.show(t('aiAttachTooLarge', { name: file.name }), 5000, 'danger')
       continue
     }
     const tmpId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -920,7 +921,7 @@ async function onFilesPicked(e: Event) {
       if (body.kind === 'document' && body.meta) {
         if (body.meta.extract_error) {
           entry.docError = body.meta.extract_error as string
-          toast.show(`${file.name}:${docErrorLabel(entry.docError)}`, 7000)
+          toast.show(`${file.name}:${docErrorLabel(entry.docError)}`, 7000, 'warning')
         } else {
           entry.docMeta = {
             extractor: (body.meta.extractor as string) || undefined,
@@ -936,13 +937,13 @@ async function onFilesPicked(e: Event) {
         && body.meta && body.meta.extract_error === 'not_installed'
         && /\.(pdf|docx|xlsx|xlsm|pptx)$/i.test(file.name)
       ) {
-        toast.show(`${file.name}:${docErrorLabel('not_installed')}`, 7000)
+        toast.show(`${file.name}:${docErrorLabel('not_installed')}`, 7000, 'warning')
       }
     } catch (err) {
       entry.status = 'failed'
       const errObj = err as { response?: { data?: { detail?: string } }; message?: string } | null
       entry.error = errObj?.response?.data?.detail || errObj?.message || 'upload failed'
-      toast.show(`${file.name}: ${entry.error}`, 5000)
+      toast.show(`${file.name}: ${entry.error}`, 5000, 'danger')
     }
   }
 }
@@ -1009,7 +1010,9 @@ function openFilePicker() {
 }
 
 /** Vue2 651-653 notSupported()(语音键)。Vue2 用 'is-warning' 类型,不是错误,
- *  用默认 toast 时长。 */
+ *  用默认 toast 时长。SP8-P1c2 Task 6:brief 把"该功能暂未支持"归为 info 档
+ *  (p1c2-task-6-brief.md「AgentComposer 的 7 处」)——即不传 tier 参数,吃
+ *  show() 的默认值,故本调用点无需改动。 */
 function notSupported() {
   toast.show(t('aiNotSupportedYet'))
 }
@@ -1019,6 +1022,7 @@ function notSupported() {
  * (浏览 NAS 弹窗)。该弹窗本阶段不做(用户决定,见 Task 9 brief「Browse 按钮」
  * 一节),这里改为 toast 占位提示,不设 browserOpen 状态、不渲染
  * `data-active`(Vue2 59 行的 `:data-active="browserOpen"` 因此一并去掉)。
+ * SP8-P1c2 Task 6:同上,Browse 占位 → info 档,即不传 tier,本调用点无需改动。
  */
 function onBrowseClick() {
   toast.show(t('aiBrowseComingSoon'))
