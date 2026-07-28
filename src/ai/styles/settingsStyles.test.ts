@@ -72,4 +72,18 @@ describe('sk-shared.scss', () => {
     const declarations = css.split('\n').filter((l: string) => /^\s*--[a-z-]+\s*:/.test(l))
     expect(declarations).toEqual([])
   })
+
+  it('SP8-P2b Task 1 —— 导出弹窗外壳与表单字段两组类', () => {
+    for (const sel of [
+      '.sk-modal-bg', '.sk-modal', '.sk-modal-head', '.sk-modal-title',
+      '.sk-modal-body', '.sk-modal-foot', '.sk-field', '.sk-field-label', '.sk-field-hint',
+    ]) {
+      expect(css).toContain(sel)
+    }
+  })
+
+  it('SP8-P2b Task 1 —— 保留两个入场动画关键帧', () => {
+    expect(css).toContain('@keyframes sk-fade-in')
+    expect(css).toContain('@keyframes sk-pop')
+  })
 })

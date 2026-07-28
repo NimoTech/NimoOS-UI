@@ -26,3 +26,18 @@ describe('AgentIcon — SP8-P2a 新增图标', () => {
     expect(w.find('svg').html()).not.toContain('scale(')
   })
 })
+
+describe('SP8-P2b Task 1 —— user 图标', () => {
+  it('user 渲染出 circle + path,且按 24→20 单位缩放', () => {
+    const w = mount(AgentIcon, { props: { name: 'user' } })
+    const html = w.html()
+    expect(html).toContain('transform="scale(0.8333)"')
+    expect(html).toContain('cx="12"')
+    expect(html).toContain('r="4"')
+    expect(html).toContain('M4 21a8 8 0 0116 0')
+  })
+
+  it('对照组:20 单位的 folder 不带 scale 包裹', () => {
+    expect(mount(AgentIcon, { props: { name: 'folder' } }).html()).not.toContain('scale(')
+  })
+})

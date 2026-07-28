@@ -86,3 +86,98 @@
     &::after { transform: translateX(17px); }
   }
 }
+
+// ===== SP8-P2b Task 1 —— 弹窗外壳 =====
+// 1:1 移植自 Vue2 src/views/AI/Skills/skills-styles.scss:575-613。
+// Vue2 的三处弹窗(令牌明文 / 加机器人 / 配对码)是手写裸 div 吃这套类;本仓改用
+// reka Dialog(见 SkModal.vue),但视觉规则原样保留,故这些类照搬。
+// .sk-modal-bg 的遮罩底色是深蓝灰半透明字面量,属本档「整档移植件」豁免范围
+// (登记在 tokens.scss 头部例外清单),不接 token。
+.sk-modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(15, 20, 30, 0.32);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid; place-items: center;
+  z-index: 1100;
+  padding: 40px;
+  animation: sk-fade-in 180ms ease;
+}
+@keyframes sk-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sk-modal {
+  width: min(560px, 100%);
+  max-height: min(90vh, 720px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: sk-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sk-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+.sk-modal-head {
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--line-faint);
+}
+.sk-modal-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex: 1; }
+
+.sk-modal-body {
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  overflow-y: auto;
+}
+
+// 1:1 移植自 Vue2 skills-styles.scss:686-694。
+.sk-modal-foot {
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 8px;
+  border-top: 1px solid var(--line-faint);
+  background: var(--bg-canvas);
+  .save-note {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .right { margin-left: auto; display: flex; gap: 8px; }
+}
+
+// ===== SP8-P2b Task 1 —— 弹窗内的表单字段 =====
+// 1:1 移植自 Vue2 skills-styles.scss:617-646。Task 12 的「添加机器人」表单用。
+.sk-field { display: flex; flex-direction: column; gap: 6px; }
+.sk-field-label {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: -0.005em;
+  .sk-field-optional {
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+}
+.sk-field-hint { font-size: 11px; color: var(--text-tertiary); }
+.sk-field input[type="text"],
+.sk-field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  outline: none;
+  transition: all 120ms ease;
+  font-family: var(--font-sans);
+  &:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-softer);
+    background: var(--bg-elevated);
+  }
+}
+.sk-field textarea { min-height: 88px; resize: vertical; line-height: 1.5; }

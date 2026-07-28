@@ -23,6 +23,8 @@
 // 内含约 20 处半透明色字面量(多为 --success/--danger/--accent/--warning/--purple
 // 的透明变体)。与 `agent-styles.scss` 同属「整档移植件」例外,原值保留以保证
 // 视觉 1:1;**两档均不许再塞新裸色**,新写的 .vue 组件 <style> 块不在豁免范围内。
+// SP8-P2b Task 1 追加:`sk-shared.scss` 末尾的 `.sk-modal-bg` 遮罩底色
+// `rgba(15, 20, 30, 0.32)` 同属该整档移植件豁免(Vue2 skills-styles.scss:577)。
 // =====================================================================
 
 /* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */
