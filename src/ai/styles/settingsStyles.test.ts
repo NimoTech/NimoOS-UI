@@ -33,8 +33,22 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
 
+// SP8-P2b Task 10 二次评审补漏 —— 之前 `.mcp-label`/`.mcp-reveal-warn` 那条 `toContain`
+// 断言只查子串,而修复本身的**注释**里就带反引号引的类名(`` `.mcp-label` ``),删掉真正
+// 的 CSS 规则、只留注释也能让断言通过(已用 RED 探针实测确认)。这里在 fixture 层面统一
+// 剥掉注释(`//` 整行注释 + `/* … */` 块注释)后再断言,本档全部 `toContain` 检查因此都
+// 只能被真实声明满足,不会被注释里提到的类名/字符串撞对。
+// 只剥「整行以 // 开头」的行注释(本档惯例,行注释永不跟在真代码后面),不做「行内任意位置
+// 的 //」全局替换 —— `.set-select` 那条 `background-image: url("data:image/svg+xml,...
+// http://www.w3.org/2000/svg...")` 规则里,数据 URI 本身含 `//`,不是注释,不能被切断。
+function stripComments(css: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^[ \t]*\/\/.*$/gm, '')
+}
+
 describe('settings-styles.scss', () => {
-  const css = read('./settings-styles.scss')
+  const css = stripComments(read('./settings-styles.scss'))
 
   it('不重复定义 token(token 只能来自 tokens.scss 的 .agent-app 作用域)', () => {
     const declarations = css.split('\n').filter((l: string) => /^\s*--[a-z-]+\s*:/.test(l))
@@ -57,16 +71,21 @@ describe('settings-styles.scss', () => {
 
   // SP8-P2b Task 10 评审补漏 —— McpTokensSection.vue 用了 .mcp-label/.mcp-reveal-warn
   // 但组件零 <style> 块,首次落地时漏收 Vue2 McpTokensSection.vue:245/246 的对应规则,
-  // 补进本档后用这两条钉住选择器不会再被静默删掉。**只证明选择器存在**,不断言具体
-  // 颜色/字号取值(那部分由评审逐行比对 Vue2 源码负责,同本文件头注释的既定分工)。
+  // 补进本档后用这两条钉住选择器不会再被静默删掉。断言选择器**紧跟一个 `{`**(而不是裸
+  // 子串)、且 `.mcp-reveal-warn` 后面确实带着 `color: var(--danger)` 声明 —— 光删规则、
+  // 留注释这条会先因为上面 fixture 层的 stripComments() 就抓不到注释了,这里的 `{`/声明
+  // 断言是第二道保险(即便日后 stripComments 被削弱,裸删规则本身也过不了)。仍然**只证明
+  // 选择器与其声明存在**,不逐字比对全部取值(那部分由评审逐行比对 Vue2 源码负责,同本文件
+  // 头注释的既定分工)。
   it('保留 McpTokensSection 明文弹窗的 .mcp-label / .mcp-reveal-warn(Vue2 :245/246 scoped 样式迁移)', () => {
-    expect(css).toContain('.mcp-label')
-    expect(css).toContain('.mcp-reveal-warn')
+    expect(css).toContain('.mcp-label {')
+    expect(css).toContain('.mcp-reveal-warn {')
+    expect(css).toContain('color: var(--danger)')
   })
 })
 
 describe('sk-shared.scss', () => {
-  const css = read('./sk-shared.scss')
+  const css = stripComments(read('./sk-shared.scss'))
 
   it('导出设置区依赖的 6 条通用类', () => {
     for (const sel of [
