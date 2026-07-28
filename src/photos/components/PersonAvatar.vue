@@ -131,22 +131,23 @@ function onImgError(): void {
   justify-content: center;
   background: var(--avatar-fallback);
 }
-/* 首字母/图标前景色实算(完整过程见任务报告,数值细节看 theme.css 里 --accent/
-   --on-accent 的实际取值,这里不重复写十六进制字面量以免被 color-guard 误判成裸颜色):
-   兜底渐变两个色标是 --accent 与「--accent 与黑混色」,取渐变对角线中点(单个居中字形
-   实际落点的代表色,而非角落极值)算对比度 —— 深色主题、浅色主题的 --on-accent 对中点色
-   均 ≥ WCAG AA 4.5:1 门槛(深色主题约 4.76:1,浅色主题约 7.16:1),故用 --on-accent
-   (饱和填充色之上的可读前景语义 token),不钉死字面量;与 PhotosAlbums.vue
-   .album-cover-icon 用法同一先例。 */
 .person-avatar-initial {
   font-weight: 600;
   line-height: 1;
-  color: var(--on-accent);
 }
 .person-avatar-icon {
   width: 32%;
   height: 32%;
-  color: var(--on-accent);
+}
+/* theme-exception: --avatar-fallback 不是纯 accent 实底（暗色主题一端混了 55% 黑，
+   见 theme.css 同名 token），--on-accent 默认暗色主题下是深藏青，叠在这种偏暗渐变上
+   会深底深字（评审 Critical 修正，同 PhotosAlbumDetail.vue:733 的 tile-cover-btn
+   先例）。沿渐变对角轴只偏移约 10% 对比度就跌破小字 4.5:1 门槛，字形笔画范围本身就
+   落在这个偏移量之外，圆形裁切裁不掉这个风险，合并候选行等小尺寸头像的字号更小，
+   没有大字 3:1 豁免。两套主题统一钉死浅色，不只改暗色分支。 */
+.person-avatar-initial,
+.person-avatar-icon {
+  color: #fff;
 }
 .person-avatar-fav {
   position: absolute;
