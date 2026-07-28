@@ -594,6 +594,12 @@ export default {
   aiCfgMcpConnections: 'MCP connections',
   aiCfgMcpTokens: 'Expose as MCP server',
   aiCfgChannels: 'Channels',
+  // SP8-P2a Task 5 fix (review Important) — settingsStore.js:211 saveProvider
+  // validation error text. ProvidersSection.vue:175-182 shows e.message first
+  // (`e.message || t('Save failed')`), so a hardcoded literal would leak
+  // English into a Chinese UI — must go through i18n. Verbatim from Vue2
+  // production en_US.json['Name and Base URL are required'].
+  aiCfgProviderNameUrlRequired: 'Name and Base URL are required',
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2

@@ -307,19 +307,23 @@ describe('settingsStore — Providers', () => {
     expect(store.providerForm.data.api_key).toBe('sk-untouched')
   })
 
-  it('20. saveProvider name 或 base_url 空白 → 抛错且不发请求(两条)', async () => {
+  it('20. saveProvider name 或 base_url 空白 → 抛错且不发请求(两条),消息走 i18n', async () => {
     const store = useSettingsStore()
+    // 评审 Important(Task 5 fix)—— e.message 会被 ProvidersSection.vue:175-182
+    // 原样弹给用户,必须走 i18n,不能是硬编码英文。默认 locale 是 zh_cn,断言
+    // 中文译文,而不只是"抛了个什么错"。
+    const expectedMessage = '名称和 Base URL 为必填项'
 
     store.showProviderForm()
     store.providerForm.data.name = '   '
     store.providerForm.data.base_url = 'https://api.example.com/v1'
-    await expect(store.saveProvider()).rejects.toThrow()
+    await expect(store.saveProvider()).rejects.toThrow(expectedMessage)
     expect(ai.createProvider).not.toHaveBeenCalled()
     expect(ai.updateProvider).not.toHaveBeenCalled()
 
     store.providerForm.data.name = 'Example'
     store.providerForm.data.base_url = '   '
-    await expect(store.saveProvider()).rejects.toThrow()
+    await expect(store.saveProvider()).rejects.toThrow(expectedMessage)
     expect(ai.createProvider).not.toHaveBeenCalled()
     expect(ai.updateProvider).not.toHaveBeenCalled()
   })

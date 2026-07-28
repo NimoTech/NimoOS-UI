@@ -20,15 +20,22 @@
 //
 // 【主题】不在本 store —— 见 `./aiTheme`(Agent 页与设置页共享)。
 //
-// 【i18n 偏离说明】Vue2 `saveProvider()`(settingsStore.js:211)用
-// `i18n.t('Name and Base URL are required')` 取生产译文。本任务的文件清单
-// (brief Step 6)只包含本 store 的两个文件,不含 `src/i18n/*`——因此这里不
-// 新增 i18n 键,直接用与 Vue2 英文源字面量一致的硬编码 Error message。
-// 该文案的 i18n 化留给消费方(Task 10 ProvidersSection,catch 处按需转译)。
+// 【i18n】Vue2 `saveProvider()`(settingsStore.js:211)用
+// `i18n.t('Name and Base URL are required')` 取生产译文。本仓 vue-i18n 9 走
+// composition 模式,对应写法是 `i18n.global.t(...)`(与 agentStore.ts:6,893
+// 的既有先例一致),键名 `aiCfgProviderNameUrlRequired`。
+// 【Task 5 fix,评审 Important】实现者最初判断 i18n 化可以延到 Task 10(理由:
+// brief Step 6 的 `git add` 清单没列 i18n 文件),改成了硬编码英文 Error
+// message——评审指出这个判断错了:`ProvidersSection.vue:175-182` 的 catch 是
+// `e.message || t('Save failed')`,**e.message 优先**,硬编码英文会原样弹给
+// 中文用户,是接线即暴露的生产缺陷,不是可以拖延的债。协调者裁定：Step 6
+// 文件清单的疏漏让位于"用户可见文案必须走 i18n"的全局硬约束,当场修正,
+// 已在 `src/i18n/zh_cn.ts`/`en_us.ts` 补上 `aiCfgProviderNameUrlRequired` 键。
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
+import { i18n } from '../../i18n'
 import type { SectionId } from '../components/settings/sections'
 
 // ── 类型:服务端返回体在共享包里都是 `unknown`,这里按 Vue2 的实际用法窄化 ──
@@ -416,13 +423,14 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * settingsStore.js:208-233 —— 校验错误文案见文件头【i18n 偏离说明】:本任务
-   * 不新增 i18n 键,直接沿用 Vue2 英文源字面量作为 Error message。
+   * settingsStore.js:208-233 —— 校验错误文案走 i18n,见文件头【i18n】说明:
+   * `ProvidersSection.vue:175-182` 的 catch 优先展示 `e.message`,硬编码英文
+   * 会原样弹给中文用户,故用 `i18n.global.t('aiCfgProviderNameUrlRequired')`。
    */
   async function saveProvider() {
     const data = providerForm.value.data
     if (!data.name.trim() || !data.base_url.trim()) {
-      throw new Error('Name and Base URL are required')
+      throw new Error(i18n.global.t('aiCfgProviderNameUrlRequired'))
     }
     providerForm.value.saving = true
     try {

@@ -595,6 +595,11 @@ export default {
   aiCfgMcpConnections: 'MCP 连接',
   aiCfgMcpTokens: '对外 MCP 服务',
   aiCfgChannels: '聊天渠道',
+  // SP8-P2a Task 5 fix(评审 Important)—— settingsStore.js:211 saveProvider
+  // 校验报错文案。ProvidersSection.vue:175-182 消费方 `e.message || t('Save
+  // failed')` 优先展示 e.message,硬编码英文会原样弹给中文用户,故必须走
+  // i18n。中文值逐字取自 Vue2 生产 zh_CN.json['Name and Base URL are required']。
+  aiCfgProviderNameUrlRequired: '名称和 Base URL 为必填项',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
