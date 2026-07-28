@@ -53,3 +53,36 @@
     &:hover { background: #e6342a; }
   }
 }
+
+// SP8-P2a Task 6 —— iOS 风格开关(SetSwitch.vue 用)。
+// 来源:NimoOS-UI(Vue2)`src/views/AI/Skills/skills-styles.scss:235-249`。
+// Task 2 抽取本档时按行号范围 338-353,698-726 摘录,漏收了这一段(brief 明确
+// 记录的查证项);Task 6 grep 复核后在这里补上,追加、不重排既有内容。
+// 裸色处理:Vue2 原值 `background: white` 与
+// `box-shadow: 0 2px 4px rgba(0,0,0,0.18)` 是滑块本身的颜色,已改用
+// tokens.scss 新增的 --switch-thumb / --switch-thumb-shadow(两套主题同值,
+// 见该档注释);--line-strong / --success 两个 token Vue2 源里已经在用,直接
+// 沿用,无需改动。
+.sw {
+  position: relative;
+  width: 42px; height: 25px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background 200ms ease;
+  flex-shrink: 0;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 21px; height: 21px;
+    border-radius: 50%;
+    background: var(--switch-thumb);
+    box-shadow: var(--switch-thumb-shadow);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  &[data-on="true"] {
+    background: var(--success);
+    &::after { transform: translateX(17px); }
+  }
+}
