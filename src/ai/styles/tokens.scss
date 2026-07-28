@@ -18,6 +18,11 @@
 // 另登记一项(非占位马赛克,是身份识别色):`src/ai/util/mentionFormat.ts` 的
 // `DRIVE_PALETTE`——按 drive/挂载点标签哈希取色,标识"这是哪个盘",皮肤无关,
 // 两套主题都原样保留,与 `.ic-*` 品牌渐变同属一类。
+// 另登记一项(SP8-P2a Task 2):`src/ai/styles/settings-styles.scss` 与
+// `src/ai/styles/sk-shared.scss` —— 从 Vue2 设置区/技能区整档 1:1 移植的样式档,
+// 内含约 20 处半透明色字面量(多为 --success/--danger/--accent/--warning/--purple
+// 的透明变体)。与 `agent-styles.scss` 同属「整档移植件」例外,原值保留以保证
+// 视觉 1:1;**两档均不许再塞新裸色**,新写的 .vue 组件 <style> 块不在豁免范围内。
 // =====================================================================
 
 /* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */

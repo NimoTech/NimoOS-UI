@@ -1,0 +1,55 @@
+// SP8-P2a Task 2 —— 从 Vue2 `src/views/AI/Skills/skills-styles.scss` 抽出的通用
+// 卡片/按钮类。设置区(P2a/P2b)与将来的 Skills 区(P3)共用同一套,故独立成档,
+// 不并进 settings-styles.scss。
+//
+// 来源逐行对照:
+//   .sk-section / -head / -title / -hint / -body → skills-styles.scss:338-353
+//   .sk-btn(+ ghost / primary / danger)          → skills-styles.scss:698-726
+//
+// 裸色例外:本档沿用 Vue2 原值(见 settings-styles.scss 头部的例外登记说明)。
+// 不许再往本档塞新裸色。
+
+.sk-section { display: flex; flex-direction: column; gap: 10px; }
+.sk-section-head { display: flex; align-items: baseline; gap: 8px; }
+.sk-section-title {
+  font-size: 12px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.sk-section-hint { font-size: 11px; color: var(--text-quaternary); }
+.sk-section-body {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.sk-btn {
+  padding: 8px 16px;
+  border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 120ms ease;
+  cursor: pointer;
+  border: 0;
+  &.ghost { background: var(--bg-chip); color: var(--text-primary); &:hover { background: var(--line); } }
+  &.primary {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,122,255,0.22);
+    &:hover { background: var(--accent-hover); }
+    &[disabled] {
+      background: var(--bg-chip);
+      color: var(--text-quaternary);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  }
+  &.danger {
+    background: var(--danger);
+    color: white;
+    &:hover { background: #e6342a; }
+  }
+}
