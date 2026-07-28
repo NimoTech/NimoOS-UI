@@ -32,6 +32,17 @@ const creating = ref(false)
 const newName = ref('')
 const newInputRef = ref<HTMLInputElement | null>(null)
 
+// 终审必修 2:重入守卫。`creating` 只是「输入行是否展开」的显示标志,不是 in-flight 守卫——
+// 两个独立的异步入口各自需要一个:`adding` 挡 pick()(连点同一相册项重复 addAssetsToAlbum),
+// `submitting` 挡 submitCreate()(连按回车重复 createAlbum)。刻意不共用同一个 ref——
+// submitCreate 成功后会内部调用 pick(),若两者共享一个标志,submitCreate 置位后 pick() 的
+// 守卫会把这次内部调用也一并挡掉(createAlbum 成功了却漏掉紧跟着的 addAssetsToAlbum,
+// 现有「创建后加入」流程会被自己的重入守卫误伤)。这是本期第三次出现的同类 bug(T7
+// PhotosAlbums.vue `creating`、T10 PhotosFavorites.vue `saveAlbumSaving` 均已补过守卫),
+// 四个新建入口里本组件是最后一个补齐的。
+const adding = ref(false)
+const submitting = ref(false)
+
 // 铁律:id 比较一律 String() 归一,禁对象引用 ===。
 function sameId(a: string | number, b: string | number): boolean {
   return String(a) === String(b)
@@ -57,8 +68,15 @@ function close(): void {
 // Esc 收起输入行后 input 被 v-else 卸载、焦点回落到 body,第二次 Esc 同样断链。照
 // PhotosSidebar.vue:22-27 / PhotoLightbox.vue:119-140 的既有范式改为 document 监听,
 // 由 watch(open) 负责挂/摘,onUnmounted 兜底摘干净。
+//
+// 终审必修 1:本组件常被灯箱(T9)在其顶栏「加入相册」按钮打开,灯箱自己在 window 上挂了
+// 一个 keydown(PhotoLightbox.vue:144)。原生 keydown 默认冒泡(bubbles:true),冒泡顺序是
+// document 先于 window——不加 stopPropagation 的话,这里关完面板,同一次 Esc 接着冒泡到
+// window 又把灯箱也关了(T9 设计明确「灯箱本身不关闭」,PhotoLightbox.vue:51-52 注释)。
+// 在 document 阶段挡住,不让它继续冒泡到 window 即可。
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
+  e.stopPropagation()
   if (creating.value) cancelCreate()
   else close()
 }
@@ -83,7 +101,8 @@ watch(
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
 async function pick(albumId: string | number): Promise<void> {
-  if (!canSubmit.value) return
+  if (!canSubmit.value || adding.value) return
+  adding.value = true
   const view = views.value.find((v) => sameId(v.id, albumId))
   const name = view?.title ?? t('photosAlbumUntitled')
   const count = props.assetIds.length
@@ -95,6 +114,8 @@ async function pick(albumId: string | number): Promise<void> {
   } catch {
     toast.show(t('photosAlbumAddFailed'))
     // 面板保持打开——不 close()。
+  } finally {
+    adding.value = false
   }
 }
 
@@ -110,15 +131,19 @@ function cancelCreate(): void {
 
 async function submitCreate(): Promise<void> {
   const name = newName.value.trim()
-  if (!name) return
+  if (!name || submitting.value) return
+  submitting.value = true
   try {
     const created = await albums.createAlbum(name)
     await pick(created.id as string | number)
     // pick 成功会自己 close();若 pick 内部失败(addAssetsToAlbum 抛错),pick 已经
-    // toast 了失败文案且不关面板——这里不重复处理,创建本身是成功的。
+    // toast 了失败文案且不关面板——这里不重复处理,创建本身是成功的。pick() 内部用的是
+    // 独立的 `adding` 守卫,不受这里 `submitting` 已置位影响,两次真实网络调用都会照常发生。
   } catch (e) {
     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumCreateFailed'))
     // 面板不关,输入行保留内容(newName 不清空)。
+  } finally {
+    submitting.value = false
   }
 }
 </script>

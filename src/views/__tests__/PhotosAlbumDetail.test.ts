@@ -563,4 +563,54 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(7, ['a'])
     expect(fetchAssetsSpy).not.toHaveBeenCalled() // 加到的是别的相册,不刷新本相册
   })
+
+  // 终审必修 1:灯箱在 window 上挂 keydown(PhotoLightbox.vue:144),AlbumPickerDialog 在
+  // document 上挂(:74)。同一次 Esc 冒泡顺序是 document 先于 window——不做任何处理时,
+  // document 监听先关掉选择器,冒泡继续到 window 又把灯箱也关了(T9 设计明确「灯箱本身不
+  // 关闭」,PhotoLightbox.vue:51-52)。断言:选择器关闭,但灯箱仍 open。
+  it('必修1回归:灯箱开着时按 Esc,加入相册选择器随 Esc 关闭,但灯箱不跟着被误关', async () => {
+    svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
+    const { w } = await mountView('7')
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-add-album').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
+
+    // bubbles:true——真实用户按键的原生 keydown 默认冒泡到 window;这里显式带上,
+    // 才是复现「document 冒泡先关面板,继续冒泡到 window 又把灯箱关了」的真实路径。
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(false)
+    expect(lb.open.value).toBe(true)
+  })
+
+  // 终审 Minor 6:removeSelected 请求飞行期不 disable,连点会对同一批 id 发两轮并发 DELETE。
+  it('Minor 6 回归:连点两次「移除选中」→ removeAssetsFromAlbum 只被调一次(重入守卫)', async () => {
+    svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
+    let resolveRemove: (() => void) | undefined
+    const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(
+      () => new Promise((resolve) => { resolveRemove = () => resolve(undefined) }),
+    )
+    const { w } = await mountView('7')
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.tile').trigger('click')
+    await w.vm.$nextTick()
+
+    const removeBtn = w.find('[data-test="album-remove-selected"]')
+    await removeBtn.trigger('click')
+    await removeBtn.trigger('click') // 第二次点击在第一次未 resolve 前触发
+    await flushPromises()
+
+    expect(removeSpy).toHaveBeenCalledTimes(1)
+    resolveRemove?.()
+    await flushPromises()
+  })
 })

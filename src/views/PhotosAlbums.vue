@@ -115,7 +115,10 @@ async function confirmCreate(): Promise<void> {
       // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
       // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
       // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
-      if (timeline.timelineGroups.length === 0) {
+      // 终审 Minor 5:判空条件统一改用 timeline.months(AlbumLibraryPicker.vue:114 已是这个
+      // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
+      // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
+      if (timeline.months.length === 0) {
         await timeline.fetchTimeline()
       }
       const cutoff = Date.now() - 30 * 86400000
@@ -223,34 +226,50 @@ onUnmounted(() => {
           <div class="empty-state-desc">{{ t('photosAlbumsEmptyHint') }}</div>
         </div>
 
-        <div class="album-grid scroll">
-          <div class="album-create" data-test="album-create-tile" @click="openCreate">
-            <div class="plus">+</div>
-            <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
-            <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
-          </div>
-          <div
-            v-for="view in views" :key="view.id"
-            class="album-card"
-            data-test="album-card"
-            :data-id="view.id"
-            @click="openCard(view)"
-          >
-            <div class="album-cover">
-              <img v-if="coverUrl(view)" :src="coverUrl(view)" :alt="view.title">
-              <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
-                <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+        <!-- 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染的分区头
+             (「我的相册 / 你创建的相册」)——New-UI 曾直接从 banner 落到网格,漏渲染整段,
+             连带两个专为它准备的 i18n 键(photosAlbumsMine/photosAlbumsMineHint)成了死码。
+             滚动容器安置:Vue2 的滚动容器是外层 .albums-body(photos.scss:3202-3206),分区头
+             和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构,把
+             flex:1+overflow-y:auto 从 .album-grid 挪到新包一层的 .albums-scroll 上,
+             .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
+             .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
+        <div class="albums-scroll scroll">
+          <section class="albums-section">
+            <div class="albums-section-head">
+              <h2>{{ t('photosAlbumsMine') }}</h2>
+              <span class="albums-section-hint">{{ t('photosAlbumsMineHint') }}</span>
+            </div>
+            <div class="album-grid">
+              <div class="album-create" data-test="album-create-tile" @click="openCreate">
+                <div class="plus">+</div>
+                <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
+                <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
+              </div>
+              <div
+                v-for="view in views" :key="view.id"
+                class="album-card"
+                data-test="album-card"
+                :data-id="view.id"
+                @click="openCard(view)"
+              >
+                <div class="album-cover">
+                  <img v-if="coverUrl(view)" :src="coverUrl(view)" :alt="view.title">
+                  <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
+                    <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+                  </div>
+                </div>
+                <div class="album-title">{{ view.title }}</div>
+                <div class="album-meta">
+                  <span>{{ t('photosItemsCount', { count: view.count }) }}</span>
+                  <template v-if="view.dateRange">
+                    <span class="sep"></span>
+                    <span>{{ view.dateRange }}</span>
+                  </template>
+                </div>
               </div>
             </div>
-            <div class="album-title">{{ view.title }}</div>
-            <div class="album-meta">
-              <span>{{ t('photosItemsCount', { count: view.count }) }}</span>
-              <template v-if="view.dateRange">
-                <span class="sep"></span>
-                <span>{{ view.dateRange }}</span>
-              </template>
-            </div>
-          </div>
+          </section>
         </div>
       </main>
     </div>
@@ -355,11 +374,15 @@ onUnmounted(() => {
 .sort-text .lbl { font-weight: 500; }
 .sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
 
-/* ── Grid ── */
+/* ── 分区头 + Grid ──
+   滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
+   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。 */
+.albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
+.albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
+.albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
+.albums-section-hint { font-size: 12px; color: var(--fg-muted); }
 .album-grid {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
-  padding: 4px 4px 20px;
 }
 .album-create {
   aspect-ratio: 4 / 5; border-radius: 16px; border: 1.5px dashed var(--chip-border);
@@ -377,11 +400,11 @@ onUnmounted(() => {
 .album-cover { position: relative; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; background: var(--chip-bg); box-shadow: var(--card-shadow-hi); }
 .album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s ease; }
 .album-card:hover .album-cover img { transform: scale(1.04); }
-/* Vue2 起色是写死的深紫十六进制字面量 → 改用 color-mix(accent 35% + panel-bg),终色沿用
-   --accent(brief 指定的替换方案,不新增 token)。 */
+/* 终审 Minor 4:原来这里与 PhotosAlbumDetail.vue:104 各写一份逐字相同的渐变表达式,
+   提成 theme.css 的 --album-cover-fallback token,两处都改用它,不再重复。 */
 .album-cover-fallback {
   position: absolute; inset: 0;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+  background: var(--album-cover-fallback);
   display: flex; align-items: center; justify-content: center;
 }
 /* Vue2 图标色是写死的半透明白色字面量(叠在彩色渐变上的语义前景)——改用 --on-accent(atop

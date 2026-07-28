@@ -254,4 +254,48 @@ describe('AlbumPickerDialog.vue', () => {
     await w.get('[data-test="album-picker-overlay"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
+
+  // 终审必修 2:submitCreate 绑在 @keydown.enter,`creating` 只是「输入行是否展开」的显示
+  // 标志,不是 in-flight 守卫——长按/连按回车会重复发 createAlbum。这是本期第三次出现的同类
+  // bug(T7 PhotosAlbums.vue `creating`、T10 PhotosFavorites.vue `saveAlbumSaving` 都已补过
+  // 守卫),AlbumPickerDialog 的内联新建是四个入口里唯一还没补的。
+  it('必修2回归:连按两次回车提交新建相册(第二次在第一次未 resolve 前触发)→ createAlbum 只被调一次', async () => {
+    let resolveCreate: ((v: { id: number; name: string }) => void) | undefined
+    svc.photos.createAlbum.mockImplementation(
+      () => new Promise((resolve) => { resolveCreate = resolve }),
+    )
+    const w = mountDialog({ open: true, assetIds: ['a1'] })
+    await flushPromises()
+
+    await w.get('[data-test="album-picker-new"]').trigger('click')
+    const input = w.get('[data-test="album-picker-new-input"]')
+    await input.setValue('Dup Trip')
+    await input.trigger('keydown', { key: 'Enter' })
+    await input.trigger('keydown', { key: 'Enter' }) // 第二次回车在第一次未 resolve 前触发
+    await flushPromises()
+
+    expect(svc.photos.createAlbum).toHaveBeenCalledTimes(1)
+    resolveCreate?.({ id: 101, name: 'Dup Trip' })
+    await flushPromises()
+  })
+
+  // 终审必修 2(同一类守卫的另一半):pick() 本身也没有 in-flight 守卫,连点同一个相册项会
+  // 对同一批 assetIds 重复发 addAssetsToAlbum。
+  it('必修2回归:连点两次同一相册项(第二次在第一次未 resolve 前触发)→ addAssetsToAlbum 只被调一次', async () => {
+    let resolveAdd: (() => void) | undefined
+    svc.photos.batchAddToAlbum.mockImplementation(
+      () => new Promise((resolve) => { resolveAdd = () => resolve(undefined) }),
+    )
+    const w = mountDialog({ open: true, assetIds: ['a1'] })
+    await flushPromises()
+    const items = w.findAll('[data-test="album-picker-item"]')
+
+    await items[0]!.trigger('click')
+    await items[0]!.trigger('click') // 第二次点击在第一次未 resolve 前触发
+    await flushPromises()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledTimes(1)
+    resolveAdd?.()
+    await flushPromises()
+  })
 })

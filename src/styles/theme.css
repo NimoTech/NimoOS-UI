@@ -56,6 +56,10 @@
   --accent-text: #a9c6ff;
   --grad-a: #7a98ff;
   --grad-b: #b79bff;
+  /* 相册无封面渐变占位(PhotosAlbums.vue / PhotosAlbumDetail.vue 曾各写一份逐字相同的
+     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent),提成本 token 消灭
+     重复;两处均改用它,见 THEMING.md 例外清单外的普通语义 token 用法)。 */
+  --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
   --accent-soft: rgba(138, 180, 255, 0.14);
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
@@ -254,6 +258,9 @@
   --accent-text: #3550c4;
   --grad-a: #4c6fe8;
   --grad-b: #6e5ae0;
+  /* 相册无封面渐变占位(见 :root 同名 token 注释),白色纸感主题下取值同一份公式,
+     --accent/--panel-bg 各自已按本主题定义,结果自然是本主题配色。 */
+  --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
   --accent-soft: rgba(59, 91, 219, 0.11);
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);

@@ -312,6 +312,17 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
   })
 
+  // 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染「我的相册 / 你创建的
+  // 相册」分区头,New-UI 从 banner 直接落到 .album-grid,整段分区头丢失——两个专为它准备的
+  // i18n 键(photosAlbumsMine/photosAlbumsMineHint)因此成了死码。界面严格 1:1 照 Vue2,这是
+  // 纯视觉删减,必须补。
+  it('必修3回归:网格之上渲染「我的相册 / 你创建的相册」分区标题(Vue2 :52-58 对应,New-UI 曾漏渲染)', async () => {
+    svc.photos.listAlbums.mockResolvedValue([rawAlbum(1, { name: 'Tokyo' })])
+    const { w } = await mountView()
+    expect(w.text()).toContain(zh.photosAlbumsMine)
+    expect(w.text()).toContain(zh.photosAlbumsMineHint)
+  })
+
   it('Esc(document 级)关闭新建模态', async () => {
     const { w } = await mountView()
 

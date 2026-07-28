@@ -95,8 +95,14 @@ function confirmDiscard(): void {
 // PhotoLightbox.vue:119-139 的既有范式:模板绑定的 keydown 依赖真实 DOM 焦点,用户从触发
 // 按钮打开面板、不点面板内部直接按 Esc 时事件到不了面板内的元素。确认条展开时 Esc 只收起
 // 确认条(不强制关闭面板——放弃选择必须显式点确认按钮,同 attemptClose 的安全语义一致)。
+//
+// 终审必修 1(统一防御):本组件目前没有被灯箱层叠挂载,但同一份「document 先冒泡关面板、
+// 原生 keydown 默认继续冒泡到 window」的风险与 AlbumPickerDialog.vue 完全一致——未来一旦
+// 有宿主把它叠在灯箱之上打开(同款用法迟早出现),同样会把灯箱一起误关。这里同步补上
+// stopPropagation,不等真的踩到才修。
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
+  e.stopPropagation()
   if (discardConfirm.value) {
     cancelDiscard()
     return

@@ -55,6 +55,10 @@ const titleCommitting = ref(false)
 const menuOpen = ref(false)
 const sortMenuOpen = ref(false)
 const confirmDelete = ref(false)
+// 终审 Minor 6:「移除选中」请求飞行期不 disable,连点会对同一批 id 发两轮并发 DELETE——
+// 第二轮基于已移除后的快照回滚,失败时会恢复错的快照。同款重入守卫(照 T7
+// PhotosAlbums.vue `creating` / AlbumPickerDialog.vue `submitting`/`adding` 的既定写法)。
+const removing = ref(false)
 const pickerOpen = ref(false)
 // Task 9(SP7-P4 相册):灯箱「加入相册」→ 加到别的相册(不是本相册)—— 命名与上面
 // AlbumLibraryPicker 的 pickerOpen(本相册「添加照片」)区分,避免同名 ref 混淆两个不同面板。
@@ -95,13 +99,15 @@ const isAlbumEmpty = computed(() => !isLoadingPhotos.value && photos.value.lengt
 // T7 PhotosAlbums.vue 的同名 coverUrl 逻辑已经统一按"非 null/非空即认为是有效 id"处理
 // (不做 typeof 限制),这里跟随该已定型的姐妹页写法,不复刻 Vue2 的 typeof 限制。
 // var(--hero-tint) 在本仓库 theme.css 中不存在,T7 同一处 fallback 已用
-// color-mix(accent 35% + panel-bg) 替代——这里复用同一方案,不新增 token。
+// color-mix(accent 35% + panel-bg) 替代——这里复用同一方案。
+// 终审 Minor 4:与 PhotosAlbums.vue 的 .album-cover-fallback 逐字相同的渐变表达式已提成
+// theme.css 的 --album-cover-fallback token,这里改用 var() 引用而非重复内联公式。
 const coverBgImage = computed(() => {
   const cover = album.value?.cover
   if (cover != null && cover !== '') {
     return `url(${service.photos.thumbnailUrl(cover, 'large')})`
   }
-  return 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent))'
+  return 'var(--album-cover-fallback)'
 })
 
 function isCover(p: Photo): boolean {
@@ -222,7 +228,8 @@ function askConfirmDelete(): void {
 
 // ── 工具条:批量移除 ──
 async function removeSelected(): Promise<void> {
-  if (!selected.value.size) return
+  if (!selected.value.size || removing.value) return
+  removing.value = true
   const ids = Array.from(selected.value)
   try {
     await albums.removeAssetsFromAlbum(albumId.value, ids)
@@ -231,6 +238,8 @@ async function removeSelected(): Promise<void> {
   } catch (e) {
     console.error('[album-detail] removeSelected', e)
     toast.show(t('photosAlbumRemoveFailed'))
+  } finally {
+    removing.value = false
   }
 }
 
@@ -448,7 +457,7 @@ watch(gridRef, () => {
                 type="button"
                 class="bar-btn"
                 data-test="album-remove-selected"
-                :disabled="!selected.size"
+                :disabled="!selected.size || removing"
                 @click="removeSelected"
               >{{ t('photosAlbumRemoveFrom') }}</button>
               <button
