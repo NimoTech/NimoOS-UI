@@ -132,6 +132,23 @@ describe('MemorySection', () => {
     expect(show).toHaveBeenCalledWith('删不掉', 3000, 'danger')
   })
 
+  // final review Fix 2 — pin the no-message fallback so it can't silently drift back to
+  // t('aiCfgSaveFailed')「保存失败」(this is a delete path, not a save path): must be
+  // t('aiCfgDeleteFailed')「删除失败」, matching McpTokensSection.vue:146 /
+  // ChannelsSection.vue:223,276.
+  it('remove() 失败且后端无 message 时兜底「删除失败」（而非「保存失败」）', async () => {
+    h.getMemorySettings.mockResolvedValue({ enabled: true })
+    h.listUserMemory.mockResolvedValue([{ id: 'a', kind: 'fact', text: 'x', source: 'auto' }])
+    h.deleteUserMemory.mockRejectedValue({})
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    const w = mountSection()
+    await flush()
+    await w.find('.mem-del').trigger('click')
+    await flush()
+    expect(show).toHaveBeenCalledWith('删除失败', 3000, 'danger')
+  })
+
   // 7. saveEnabled() reverts the toggle on failure
   it('saveEnabled() 失败时把开关翻回去', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: false })
@@ -251,8 +268,17 @@ describe('MemorySection', () => {
     const w = mountSection()
     await flush()
     h.putMemorySettings.mockImplementation(async () => {
-      // concurrent mutation during the await — simulated by writing to the input directly
-      await w.find('.set-input.num').setValue('99999')
+      // concurrent mutation during the await — write the input's value and fire only
+      // 'input' (mirrors what v-model itself listens to), not `setValue()`, which is
+      // VTU's trigger('input') + trigger('change'). The component's @change handler is
+      // saveContextWindow, so re-firing 'change' here would re-enter saveContextWindow
+      // synchronously (its own mock calls back into itself) → unbounded recursion →
+      // RangeError: Maximum call stack size exceeded as an unhandled rejection on every
+      // run. Firing only 'input' updates contextWindow (simulating the concurrent
+      // mutation) without re-triggering the save path.
+      const input = w.find('.set-input.num')
+      ;(input.element as HTMLInputElement).value = '99999'
+      await input.trigger('input')
       throw new Error('boom')
     })
     await w.find('.set-input.num').setValue('8192')

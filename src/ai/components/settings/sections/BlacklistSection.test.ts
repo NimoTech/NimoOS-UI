@@ -190,4 +190,22 @@ describe('BlacklistSection', () => {
     await nextTick(); await nextTick()
     expect(show).toHaveBeenCalledWith('删不掉', 3000, 'danger')
   })
+
+  // final review Fix 2 — pin the no-message fallback so it can't silently drift back to
+  // the bare noun t('aiCfgDelete')「删除」(brief's original choice, superseded by final
+  // review in favor of aiCfgDeleteFailed「删除失败」, matching McpTokensSection.vue:146 /
+  // ChannelsSection.vue:223,276).
+  it('删除失败且后端无 message 时兜底「删除失败」（而非「删除」）', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    vi.spyOn(store, 'removeBlacklist').mockRejectedValue({})
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    store.blacklist = [{ id: 7, pattern: 'x' }] as never
+    const w = mountSection()
+    await nextTick()
+    await w.find('.dir-del').trigger('click')
+    await nextTick(); await nextTick()
+    expect(show).toHaveBeenCalledWith('删除失败', 3000, 'danger')
+  })
 })

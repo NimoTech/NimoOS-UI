@@ -249,14 +249,16 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('12. 安装确认框点取消 → 开关回到关、不发任何请求', async () => {
+  it('12. 安装确认框点取消 → 开关全程留在关、不发任何请求（final review Fix 4:确认框开着期间不乐观写 enabled，与 Vue2 :124-131 一致）', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue({})
     const w = mountSection()
     await flush()
     await w.find('.sw').trigger('click')
     await nextTick()
-    expect(w.find('.sw').attributes('data-on')).toBe('true') // 乐观先视觉置开
+    // Vue2 :124-131 弹确认框前不碰 this.enabled，SetSwitch 是受控组件，确认框开着期间
+    // 开关应保持原值(关)，不应先跳到「开」再跳回来(final review Fix 4 撤销的乐观写)。
+    expect(w.find('.sw').attributes('data-on')).toBe('false')
     const cancelBtn = findButtonByText('取消')
     expect(cancelBtn).toBeTruthy()
     cancelBtn!.click()
@@ -267,14 +269,15 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('13. 停止确认框点取消 → 开关留在开、不发请求', async () => {
+  it('13. 停止确认框点取消 → 开关全程留在开、不发请求（final review Fix 4:确认框开着期间不乐观写 enabled，与 Vue2 :135-142 一致）', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: true })
     h.composeList.mockResolvedValue(entry('running'))
     const w = mountSection()
     await flush()
     await w.find('.sw').trigger('click')
     await nextTick()
-    expect(w.find('.sw').attributes('data-on')).toBe('false') // 乐观先视觉置关
+    // Vue2 :135-142 弹确认框前不碰 this.enabled，确认框开着期间开关应保持原值(开)。
+    expect(w.find('.sw').attributes('data-on')).toBe('true')
     const cancelBtn = findButtonByText('取消')
     expect(cancelBtn).toBeTruthy()
     cancelBtn!.click()
@@ -282,6 +285,22 @@ describe('ObservabilitySection', () => {
     expect(w.find('.sw').attributes('data-on')).toBe('true')
     expect(h.putTracingSetting).not.toHaveBeenCalled()
     expect(h.composeSetStatus).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  // final review Fix 4 — 直接证明「Phoenix running but monitoring off」警告条不再在
+  // 确认框打开期间短暂冒出来:running 且 enabled=true 时拨关，确认框打开期间警告条的
+  // 显示条件是 `phoenixStatus === 'running' && !enabled`，乐观写会让它满足、真实行为
+  // 不该满足(enabled 尚未真正改变)。
+  it('20. 运行中拨开关到关时，确认框打开期间警告条不应提前出现（enabled 尚未真正改变）', async () => {
+    h.getTracingSetting.mockResolvedValue({ enabled: true })
+    h.composeList.mockResolvedValue(entry('running'))
+    const w = mountSection()
+    await flush()
+    expect(w.find('.set-banner.warn').exists()).toBe(false)
+    await w.find('.sw').trigger('click')
+    await nextTick()
+    expect(w.find('.set-banner.warn').exists()).toBe(false)
     w.unmount()
   })
 
@@ -398,5 +417,25 @@ describe('ObservabilitySection', () => {
     // alive 守卫拦在 refreshStatus 与 pollStatus 各自的 await 之后,turnOn()(→putTracingSetting)
     // 不应该被继续调用——这是文件头「逻辑修正」declares 的卸载守卫,证明它真的生效。
     expect(h.putTracingSetting.mock.calls.length).toBe(putCallsBefore)
+  })
+
+  // final review Fix 6 — ObservabilitySection.vue:245 是 apiErrorMessage 唯一没有测试
+  // 覆盖后端消息路径的调用点(最终评审破坏 apiErrorMessage 实测:6 个分区 10 个用例
+  // 变红,唯独本分区全绿)。composeInstall 失败且带 response.data.message 时,
+  // confirmInstall() 的 catch 必须把该消息(不是兜底文案)渲染进 .px-msg.err。
+  it('21. compose.install() 失败且带后端 message → .px-msg.err 显示后端消息（而非兜底文案，证明走了 apiErrorMessage）', async () => {
+    h.getTracingSetting.mockResolvedValue({ enabled: false })
+    h.composeList.mockResolvedValueOnce({})
+    h.getObservabilityCompose.mockResolvedValue('name: arize-phoenix')
+    h.putTracingSetting.mockResolvedValue({ enabled: true })
+    h.composeInstall.mockRejectedValue({ response: { data: { message: '磁盘空间不足' } } })
+    const w = mountSection()
+    await flush()
+    await w.find('.sw').trigger('click')
+    await nextTick()
+    findButtonByText('下载并安装')!.click()
+    await flush()
+    expect(w.find('.px-msg.err').text()).toBe('磁盘空间不足')
+    w.unmount()
   })
 })

@@ -27,9 +27,22 @@
   取消事件,所以「取消要把开关拨回去」改用 `watch(open)`:开时置一个
   `xxxConfirmed = false` 哨兵,`@confirm` 处理函数第一行把哨兵置 true;
   关闭时哨兵仍是 false 就说明是「取消/点遮罩关闭」,补调 Vue2 `onCancel` 的等价逻辑。
-  其中 `onStopCancel` 把开关拨回**开**——Vue2 那个 `onCancel` 是空函数,是因为 Buefy
-  的开关在 confirm 前根本没跟着变;本仓的开关在 `onToggle` 里已经乐观视觉置关了,
-  取消时必须显式拨回去,否则开关视觉状态和实际 enabled 会不一致。
+
+  【final review Fix 4,撤销一处未申报且无必要的偏离】`onToggle` 曾在**仅仅打开**两个
+  确认框(`confirmInstallOpen`/`confirmStopOpen` 置 true)的分支里顺手把
+  `enabled.value = v` 乐观写掉。Vue2(ObservabilitySection.vue:118-146)两处弹
+  `$buefy.dialog.confirm` 前都**不**碰 `this.enabled`——只在各自的 `onConfirm`
+  (`confirmInstall()`/`turnOff()`)里等真正成功之后才改。`SetSwitch` 是完全受控组件
+  (`:model-value="enabled"`),乐观写的后果是:开关先跳到新状态,但「Phoenix 正在运行但
+  监控未开启」警告条的显示条件是 `phoenixStatus === 'running' && !enabled`——乐观写发生
+  在确认框**还开着**的时候,会让警告条在确认框背后先冒出来又消失,是个视觉缺陷,且不
+  在原实现的申报清单里。现按 Vue2 改回:两处弹确认框的分支都不再写 `enabled.value`,
+  开关在对话框打开期间保持原值不动;`turnOnFlow()`/`turnOff()` 直调分支(不经确认框的
+  两条路径)不受影响,继续在各自异步流程成功后才改 `enabled`。`onInstallCancel`
+  (对应 Vue2 :130 `onCancel: () => { this.enabled = false }`)照 Vue2 保留显式置 false。
+  `onStopCancel` 原先的「乐观写需要取消时手动拨回开」的理由(此块之前的版本)随乐观写
+  一起撤销——不再乐观写之后,取消时 `enabled` 本就没被动过,`onStopCancel` 现在是
+  Vue2 `onCancel: () => {}` 的等价空操作(留一行注释说明,不留死代码赋值)。
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
@@ -138,14 +151,15 @@ async function pollStatus(pred: (s: string) => boolean, tries: number, intervalM
 function onToggle(v: boolean) {
   if (v) {
     if (phoenixStatus.value === 'absent') {
-      confirmInstallOpen.value = true // 等用户确认;开关先视觉置开
+      // final review Fix 4:等用户确认;不在这里乐观写 enabled,见文件头注释。
+      confirmInstallOpen.value = true
     } else {
+      enabled.value = v
       void turnOnFlow()
     }
-    enabled.value = v
   } else if (phoenixStatus.value === 'running') {
+    // final review Fix 4:等用户确认;不在这里乐观写 enabled,见文件头注释。
     confirmStopOpen.value = true
-    enabled.value = v
   } else {
     enabled.value = v
     void turnOff()
@@ -164,7 +178,9 @@ watch(confirmStopOpen, (open) => {
 })
 
 function onInstallCancel() { enabled.value = false } // Vue2 :130 onCancel
-function onStopCancel() { enabled.value = true } // 见文件头注释,非 Vue2 :141 逐字照搬
+// final review Fix 4:不再乐观写,取消时 enabled 本就没被动过 —— 与 Vue2 :141
+// `onCancel: () => {}` 等价的空操作,不留死代码赋值。
+function onStopCancel() { /* no-op, 见文件头 final review Fix 4 注释 */ }
 
 function onConfirmInstallClick() {
   installConfirmed = true

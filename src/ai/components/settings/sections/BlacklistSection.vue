@@ -59,7 +59,13 @@ async function remove(id: string | number) {
   try {
     await store.removeBlacklist(id)
   } catch (e) {
-    toast.show(apiErrorMessage(e, t('aiCfgDelete')), 3000, 'danger')
+    // 逻辑修正(final review Fix 2):原先此处兜底文案用的是 t('aiCfgDelete')(裸名词
+    // 「删除」),是本任务 brief 原文要求的写法,但最终评审判定与 McpTokensSection.vue:146 /
+    // ChannelsSection.vue:223,276 三处的既有做法不一致 —— 那三处删除失败一律兜底
+    // t('aiCfgDeleteFailed')(「删除失败」)。Vue2 两处都不构成约束(Vue2 只是裸显示
+    // e.message,可能是空串),所以这属于可改的逻辑修正,不是 1:1 违规:brief 的选择
+    // 被最终评审推翻,改成与另外三处一致的 aiCfgDeleteFailed。
+    toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
   }
 }
 </script>

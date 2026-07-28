@@ -16,6 +16,12 @@
   没人清 —— 组件卸载后定时器仍会触发,回来调 `loadStatus()` 写一个已卸载组件的 state。
   这里补 `rescanTimer` 引用 + `onUnmounted` 清掉。
 
+  【逻辑修正 4】Vue2 `savedAt` 一旦置上永不清零(SearchSection.vue:199/212 —— 只在
+  saveParams/saveFileindex 成功时置 `Date.now()`,没有任何地方再置回 0),「已保存」
+  字样会永久挂在页面上(即使之后又改了值没保存)。这里改成 2 秒后自动消失
+  (`markSaved()`,并在卸载时清掉定时器),与 ExecutionSection.vue 头注释「逻辑修正 2」
+  修的是同一个 Vue2 缺陷,这里之前漏了申报,现补上。
+
   【逻辑修正 3】Vue2 `copyCmd()`(:220-222)只写 `navigator.clipboard?.writeText(...)`。
   设备走明文 HTTP 局域网 IP 访问(http://192.168.x.x/)时不是安全上下文,
   `navigator.clipboard` 为 `undefined`,可选链直接短路 —— 点了毫无反应也无提示,这是

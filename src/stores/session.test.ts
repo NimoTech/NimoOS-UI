@@ -93,4 +93,22 @@ describe('SP8-P2b Task 2 —— user / isAdmin 读口', () => {
     const s = useSessionStore()
     expect(s.user).toBeNull()
   })
+
+  // final review Fix 7 —— 证明同一个 store 实例内 setUser 之后 user/isAdmin 立刻重算
+  // (不依赖整页重载)。Login.vue:44 用的是 router.push,不是整页刷新,所以这条必须成立。
+  it('同一实例内 setUser 之后 user / isAdmin 立刻更新,不需要重新拿实例或刷新页面', () => {
+    const s = useSessionStore()
+    expect(s.user).toBeNull()
+    expect(s.isAdmin).toBe(false)
+
+    s.setUser({ username: 'nimo', role: 'admin' })
+    expect(s.user).toEqual({ username: 'nimo', role: 'admin' })
+    expect(s.isAdmin).toBe(true)
+
+    // 模拟同一会话里登出又登录成另一个非管理员账号(无整页重载)
+    s.clear()
+    s.setUser({ username: 'guest', role: 'user' })
+    expect(s.user).toEqual({ username: 'guest', role: 'user' })
+    expect(s.isAdmin).toBe(false)
+  })
 })

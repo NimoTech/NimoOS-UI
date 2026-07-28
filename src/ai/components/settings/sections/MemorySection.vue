@@ -72,6 +72,10 @@ async function load() {
     enabled.value = !!s.enabled // 逻辑修正 1,见文件头注释
     compactionEnabled.value = !!s.compaction_enabled
     contextWindow.value = s.context_window != null ? String(s.context_window) : ''
+    // 逻辑修正 3(final review Fix 5):`|| []` 是本处新增的防御性兜底,Vue2 对应处
+    // (MemorySection.vue:108,`this.memories = await ai.listUserMemory()`)没有这一层 ——
+    // 后端返回 null/undefined 时 Vue2 会把 memories 直接置为 falsy 值,后续
+    // `memories.length` 抛错、`v-for` 渲染异常,是可复现的错误行为,故加固并保留。
     memories.value = ((await service.ai.listUserMemory()) as MemoryItem[]) || []
   } catch {
     error.value = true
@@ -114,7 +118,11 @@ async function remove(m: MemoryItem) {
     memories.value = memories.value.filter((x) => x.id !== m.id)
   } catch (e) {
     // Vue2 :152 注释是「keep the item on failure」——保留条目这条照搬,但补提示(逻辑修正 2)。
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger')
+    // 逻辑修正(final review Fix 2):这是一条**删除**失败路径,兜底文案原先误用了
+    // t('aiCfgSaveFailed')(「保存失败」),与 McpTokensSection.vue:146 / ChannelsSection.vue:
+    // 223,276 三处删除失败统一用 t('aiCfgDeleteFailed')(「删除失败」)不一致。Vue2 :152-155
+    // 不构成约束(裸 e.message),改用 aiCfgDeleteFailed 与另外三处对齐。
+    toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
   }
 }
 
