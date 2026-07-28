@@ -589,12 +589,12 @@ export default {
   aiCfgFilesystem: '文件系统',
   aiCfgExecutionSteps: '执行步数',
   aiCfgSearch: '搜索',
-  aiCfgMemory: 'AI 记忆',
+  aiCfgMemory: '记忆',
   aiCfgObservability: 'Agent 监控',
   aiCfgSkills: '技能',
   aiCfgMcpConnections: 'MCP 连接',
-  aiCfgMcpTokens: '对外暴露 MCP 服务',
-  aiCfgChannels: '聊天通道',
+  aiCfgMcpTokens: '对外 MCP 服务',
+  aiCfgChannels: '聊天渠道',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。

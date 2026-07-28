@@ -580,7 +580,7 @@ export default {
   aiCfgGroupModel: 'Models',
   aiCfgGroupAgent: 'Agent',
   aiCfgGroupPlugin: 'Plugins',
-  aiCfgGroupChannel: 'Channels',
+  aiCfgGroupChannel: 'Chat channels',
   aiCfgLocalModels: 'Local models',
   aiCfgCloudProviders: 'Cloud providers',
   aiCfgPrivacyCloud: 'Privacy & cloud',
