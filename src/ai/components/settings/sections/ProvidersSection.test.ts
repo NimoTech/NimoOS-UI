@@ -317,6 +317,19 @@ describe('ProvidersSection', () => {
     expect(toast.toasts[0].tier).toBe('danger')
   })
 
+  it('15c. saveProvider reject 用一个「非 Error 实例但带 message 字段」的普通对象 → 仍取其 message(duck-typing,非 instanceof Error 收窄)', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'saveProvider').mockRejectedValue({ message: '后端拒绝' })
+    const toast = useToast()
+    store.showProviderForm()
+    const w = mountSection()
+    await w.findAll('.set-actions .sk-btn.primary')[0].trigger('click')
+    await nextTick()
+    await nextTick()
+    expect(toast.toasts[0].text).toBe('后端拒绝')
+    expect(toast.toasts[0].tier).toBe('danger')
+  })
+
   // ── 16. 取消按钮调 store.hideProviderForm ──
 
   it('16. 取消按钮调 store.hideProviderForm', async () => {

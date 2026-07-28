@@ -101,14 +101,24 @@ async function onToggle(p: Provider, value: boolean) {
   }
 }
 
-/** Vue2 :175-182 —— catch 优先展示 e.message,不带 message 才用兜底文案。 */
+/**
+ * Vue2 :175-182 —— catch 优先展示 e.message,不带 message 才用兜底文案。
+ *
+ * 【类型收窄,非行为改动】Vue2 是 JS 的 duck-typed `e.message`(任何带
+ * `.message` 字段的抛出值都读得到,不要求是 Error 实例)。TS strict 下
+ * catch 变量类型是 `unknown`,这里按 `(e as { message?: unknown })?.message`
+ * 断言窄化,而不是 `e instanceof Error`(后者会漏掉「抛出一个带 message 字段
+ * 的普通对象」这种非 Error 实例的场景,比 Vue2 更严格,是需要避免的收窄)。
+ * 断言写法与本文件同目录 settingsStore.ts:179-182 `isNotFound()` 的既定手法
+ * 一致。
+ */
 async function onSave() {
   try {
     await store.saveProvider()
     toast.show(t('aiCfgSaved'))
   } catch (e) {
-    const message = e instanceof Error ? e.message : ''
-    toast.show(message || t('aiCfgSaveFailed'), 1500, 'danger')
+    const message = (e as { message?: unknown } | null | undefined)?.message
+    toast.show((typeof message === 'string' && message) || t('aiCfgSaveFailed'), 1500, 'danger')
   }
 }
 
