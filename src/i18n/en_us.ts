@@ -667,6 +667,47 @@ export default {
   aiCfgPullRequestFailed: 'Pull request failed',
   aiCfgSearchFailed: 'Search failed',
   aiCfgImportStartedFor: 'Import started for {file}',
+
+  // SP8-P2a Task 10 — ProvidersSection (cloud providers). Values reuse Vue2
+  // production en_US.json literals where present (see zh_cn.ts sibling
+  // comment for the lookup method); ad-hoc ones are listed in the report's
+  // "自拟文案清单".
+  // aiCfgCloudProviders (title) reuses the existing Task 3 key, not redefined here.
+  aiCfgProvidersDesc: 'Configure OpenAI-compatible cloud model services. Effective only when the privacy policy allows cloud requests.',
+  aiCfgConfiguredProviders: 'Configured providers',
+  aiCfgAdd: 'Add',
+  aiCfgAddProvider: 'Add provider',
+  aiCfgEditProvider: 'Edit provider',
+  aiCfgShowModels: 'Show models',
+  aiCfgEdit: 'Edit',
+  aiCfgNoProvidersYet: 'No providers configured yet.',
+  aiCfgProtocol: 'Protocol',
+  aiCfgEnabled: 'Enabled',
+  aiCfgRefreshModels: 'Refresh models',
+  aiCfgAddManually: '+ Add manually',
+  aiCfgModelsCheckedHint: 'Models (checked = shown in picker)',
+  aiCfgNoModelsFoundHint: 'No models found. Click "Refresh models" to auto-fetch or "+ Add manually".',
+  aiCfgSupportsThinking: 'Supports thinking',
+  aiCfgProviderNamePlaceholder: 'Provider name',
+  aiCfgLeaveBlankKeepCurrent: 'Leave blank to keep current',
+  aiCfgDefaultModel: 'Default model',
+  aiCfgEgGpt4o: 'e.g. gpt-4o',
+  aiCfgProtocolHint: 'For services compatible with the OpenAI format (e.g. DeepSeek, Moonshot), choose OpenAI.',
+  aiCfgSave: 'Save',
+  aiCfgToggleFailed: 'Toggle failed',
+  aiCfgDeleted: 'Deleted',
+  aiCfgConfirmDeleteProvider: 'Are you sure you want to delete provider "{name}"? The API Key will also be removed.',
+  aiCfgFailedToLoadModels: 'Failed to load models',
+  aiCfgRefreshed: 'Refreshed',
+  aiCfgAutoFetchFailedManual: 'Auto-fetch failed. You can add models manually.',
+  aiCfgEnterModelNamePrompt: 'Enter model name (e.g. gpt-4o)',
+  aiCfgModelNamePromptPlaceholder: 'Model name',
+  // Two bare English literals Vue2 never wrapped in $t() at all (:25/:107
+  // table header/form label, :111 form label) — technical terms, kept as-is
+  // in both locales (see component header comment).
+  aiCfgBaseUrl: 'Base URL',
+  aiCfgApiKey: 'API Key',
+
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2

@@ -674,6 +674,46 @@ export default {
   aiCfgPullRequestFailed: '拉取请求失败',
   aiCfgSearchFailed: '搜索失败',
   aiCfgImportStartedFor: '已发起导入 {file}',
+
+  // SP8-P2a Task 10 —— ProvidersSection(云端提供商)。中文值优先逐字复用
+  // Vue2 生产 zh_CN.json 对应英文 key 的既有译文(查法见 brief 头部);查不到
+  // 的自拟,已在报告的「自拟文案清单」单列。
+  // aiCfgCloudProviders(标题)复用 Task 3 已建的既有键,这里不重复定义。
+  aiCfgProvidersDesc: '配置兼容 OpenAI 协议的云端模型服务。仅在隐私策略允许云端请求时生效。',
+  aiCfgConfiguredProviders: '已配置提供商',
+  aiCfgAdd: '添加',
+  aiCfgAddProvider: '添加提供商',
+  aiCfgEditProvider: '编辑提供商',
+  aiCfgShowModels: '模型',
+  aiCfgEdit: '编辑',
+  aiCfgNoProvidersYet: '暂无已配置提供商',
+  aiCfgProtocol: '协议',
+  aiCfgEnabled: '启用',
+  aiCfgRefreshModels: '刷新模型',
+  aiCfgAddManually: '+ 手动添加',
+  aiCfgModelsCheckedHint: '模型(勾选 = 在选择器中显示)',
+  aiCfgNoModelsFoundHint: '暂无模型，点「刷新模型」自动拉取或「手动添加」。',
+  aiCfgSupportsThinking: '支持思考',
+  aiCfgProviderNamePlaceholder: '提供商名称',
+  aiCfgLeaveBlankKeepCurrent: '留空则不修改',
+  aiCfgDefaultModel: '默认模型',
+  aiCfgEgGpt4o: '如 gpt-4o',
+  aiCfgProtocolHint: 'DeepSeek、Moonshot 等兼容 OpenAI 格式的服务选 OpenAI',
+  aiCfgSave: '保存',
+  aiCfgToggleFailed: '切换失败',
+  aiCfgDeleted: '已删除',
+  aiCfgConfirmDeleteProvider: '确定删除提供商 "{name}"？API Key 也会被清除。',
+  aiCfgFailedToLoadModels: '加载模型失败',
+  aiCfgRefreshed: '已刷新',
+  aiCfgAutoFetchFailedManual: '自动拉取失败，可手动添加',
+  aiCfgEnterModelNamePrompt: '输入模型名(如 gpt-4o)',
+  aiCfgModelNamePromptPlaceholder: '模型名',
+  // 两个 Vue2 从未 $t() 包裹的裸英文字面量(:25/:107 表头/表单 label、:111
+  // 表单 label)—— 技术术语,生产 zh_CN.json 里也没有中译先例,中英文保留
+  // 原文(见组件头注释「i18n:两个从未被 Vue2 $t() 包裹的英文字面量」)。
+  aiCfgBaseUrl: 'Base URL',
+  aiCfgApiKey: 'API Key',
+
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
