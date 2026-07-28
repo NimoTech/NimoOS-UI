@@ -282,7 +282,8 @@ function isRevertingItem(stagedId: string | number | undefined): boolean {
 .rt-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .rt-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rt-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
-// Vue2 裸色 1/2: rgba(255,149,0,0.12) 背景 + var(--warning, #ff9500) 兜底色字 → 既有 token。
+// Vue2 裸色 1/2(ResourcesTab.vue:247-250): 橙色半透明背景 + 橙色兜底字色 → 既有 token。
+// 注:此处不写出原字面值 —— color-guard 扫描 <style> 块时不跳注释行,写了会误判。
 .rt-tag-draft {
   background: var(--warning-soft);
   color: var(--warning);
@@ -305,7 +306,7 @@ function isRevertingItem(stagedId: string | number | undefined): boolean {
 .badge-REN { background: var(--teal-soft); color: var(--teal); }
 .badge-MKD { background: var(--teal-soft); color: var(--teal); }
 .rt-size { color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
-// Vue2 裸色 7: rgba(255,59,48,0.1) 背景 → --danger-soft。
+// Vue2 裸色 7(ResourcesTab.vue:267): 红色半透明背景 → --danger-soft。
 .rt-orphan-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--danger-soft); color: var(--danger); }
 .rt-commit-row { padding-top: 8px; }
 // Vue2 裸色 8: color: white → --text-on-accent。
