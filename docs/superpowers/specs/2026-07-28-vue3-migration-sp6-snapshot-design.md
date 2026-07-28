@@ -54,9 +54,34 @@ P3/P4/P5 的 1505 个单测锁的是**前端内部逻辑与请求形状**,锁不
 | 可用内存 | 10 GiB |
 | sudo | 可用 |
 
-**选定 `scsi_debug`,4 块 × 512 MB。** 决定性理由:`service/disk.go:283,298` 明确 `if blk.Type == "loop" || blk.RO { continue }` —— **loop 设备被后端从磁盘列表里过滤掉**,走 loop 的话创建向导和换盘下拉都选不到盘,P4 的创建/换盘直接验不了。`scsi_debug` 造出来的是 `TYPE=disk` 的 `/dev/sdX`,后端分辨不出真假。
+**选定 `scsi_debug` 4 块 × 512 MB + 后端白名单加一行。**
 
-代价:占 2 GB 内存,重启后自动消失(对测试台反而是优点)。
+排除 loop 的理由:`service/disk.go:283,298` 明确 `if blk.Type == "loop" || blk.RO { continue }` —— **loop 设备被后端从磁盘列表里过滤掉**,创建向导和换盘下拉都选不到盘,P4 写操作直接验不了。
+
+**⚠️ 实测修正(2026-07-28,初稿判断有误)**:`scsi_debug` 造出来的盘**后端也看不见**,原因不是上面那个 loop 过滤,而是更深一层的 `service/disk.go:774 IsDiskSupported` —— 它是个**传输方式白名单**:
+
+```go
+func IsDiskSupported(d model.LSBLKModel) bool {
+	return d.Tran == "sata" || d.Tran == "nvme" || d.Tran == "spi" || d.Tran == "sas" ||
+		strings.Contains(d.SubSystems, "virtio") ||
+		strings.Contains(d.SubSystems, "block:scsi:vmbus:acpi") ||
+		strings.Contains(d.SubSystems, "block:mmc:mmc_host:pci") ||
+		strings.Contains(d.SubSystems, "block:mmc:mmc_host:platform") ||
+		strings.Contains(d.SubSystems, "block:scsi:pci") || d.Tran == "usb"
+}
+```
+
+`route/v1/disk.go:128` 一句 `if !service.IsDiskSupported(currentDisk) { continue }` 就把盘从 `disks` 和 `avail` **两个数组里同时抹掉**。而 scsi_debug 的实测特征是 `tran=None`、`subsystems=block:scsi:pseudo`,白名单里一条都不沾。
+
+实证:4 块假盘在 `lsblk -O -J -b` 里 `type=disk`/`ro=false` 一切正常,`GET /v1/disks` 依然只返回 `nvme0n1`,`avail` 为 `[]`。且已核实 P4 创建向导确实走 `service.disks.getDiskList()` → `GET /v1/disks`,躲不开这个过滤。
+
+**解法(用户 2026-07-28 拍板):给白名单加一行 `block:scsi:pseudo`**,重建并部署 `nimoos-local-storage`。判断依据:
+
+- 生产影响惰性 —— `block:scsi:pseudo` 只可能来自主动 `modprobe scsi_debug`,真实 NAS 上不会出现;
+- 假盘 `rota=0` → 后端判为 SSD → **选盘界面、SSD/HDD 筛选片、`selectAllHealthy` 作用于过滤视图(P4-T3 的修复)全部走真实路径**,这是最需要验的一段逻辑;
+- 备选的 USB gadget 路线(`dummy_hcd` + configfs `usb_f_mass_storage`,三个模块在设备上均可用、`tran=usb` 天然过白名单)虽不需改后端,但所有盘会报 `disk_type=USB`,恰好把上面那段选盘逻辑变成盲区 —— 故不采用。
+
+代价:占 2 GB 内存;重启后模块自动消失(对测试台反而是优点);**混规格盘仍验不了**(一次 `modprobe` 所有 target 共用同一 `dev_size_mb`),见 §7 与 roadmap 台账 B8。
 
 ### 4.2 测试台脚本 `raidlab.sh`
 
@@ -65,6 +90,7 @@ P3/P4/P5 的 1505 个单测锁的是**前端内部逻辑与请求形状**,锁不
 **硬护栏(不可省略)**:脚本的每一个破坏性操作前,都要把目标设备的 `/sys/block/<dev>/device/model` 读出来断言等于 `scsi_debug`;凡目标名字里出现 `nvme`,立即 `exit 1`。理由:后端创建 RAID 前会**清扫成员盘**(NimoOS-LocalStorage @`1ab91a9`),选错盘 = 抹掉 `/DATA`。
 
 - **`up`**:`modprobe scsi_debug num_tgts=4 dev_size_mb=512` → 等待 `/dev/sd{a,b,c,d}` 出现 → 核对 `GET /v1/disks` 的 `avail` 数组**只含这 4 块假盘**(基线:现在 `avail` 是 `[]`,nvme 因已挂载不在其中)→ 打印设备清单。核对不通过就报错退出,不让用户在不确定的状态下点创建。
+  **注**:`avail` 能看见假盘的前提是 §4.1 的白名单补丁已部署;`up` 的核对步骤同时充当补丁是否生效的自检 —— 未部署时 `avail` 恒为 `[]`,脚本会明确报「白名单补丁未生效」而不是含糊地说没盘。
 - **`down`**:停所有 md 阵列 → 删 `/etc/fstab` 里指向假盘的 `@snapshots` 条目 → 从 `mdadm.conf` 摘掉测试阵列 → `rmmod scsi_debug` → 复核 `/proc/mdstat` 与 `avail` 回到基线。
 - **`status`**:打印 `/proc/mdstat`、`lsblk`、`/v2/snapshot/volumes`、`/v2/raid` 四个视图,验收时随时对账用。
 
@@ -103,6 +129,7 @@ P3/P4/P5 的 1505 个单测锁的是**前端内部逻辑与请求形状**,锁不
 
 ### 4.6 完成定义
 
+- [ ] `IsDiskSupported` 白名单补丁 + Go 单测(`service/disk_test.go` 现无 `IsDiskSupported` 覆盖,本期顺带补齐),`deploy.sh local-storage` 部署生效
 - [ ] `raidlab.sh` up/down/status 三命令可用,护栏经过反向测试(喂 nvme 路径必须拒绝)
 - [ ] 两轮验收清单逐条走完,每条标 ✅ / ❌ / N/A
 - [ ] 暴露的缺陷全部修完并有回归测试,或明确记账推迟
