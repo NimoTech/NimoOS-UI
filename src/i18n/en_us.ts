@@ -967,4 +967,16 @@ export default {
   // error state, no retry) that we are not repeating here.
   photosPersonLoadFailed: 'Could not load this person',
   photosPersonRetry: 'Retry',
+  // T14 review Minor 4: the detail page's delete-confirm dialog heading. Vue2 :304 is
+  // `Delete person?` — a different sentence from T7's in-warning-box
+  // photosPersonDeleteTitle (`Delete this person group?`), which
+  // ClusterActionDialog.vue:66 already documented as non-shareable. The original
+  // implementation wrongly reused the latter.
+  photosPersonDeletePersonTitle: 'Delete person?',
+  // T14 review Minor 6: Vue2 :310-312 renders the body as two sentences in two greys.
+  // The existing photosPersonDeleteBody merges them into one string and is already
+  // consumed by T7 (ClusterActionDialog.vue:230), so it must not change — these two
+  // keys are the same text split in two for the detail page's two-tone rendering.
+  photosPersonDeleteKeptBody: 'Photos are kept. Face group and recognition records will be permanently removed.',
+  photosPersonDeleteUndoHint: 'You can undo within 5 seconds.',
 }

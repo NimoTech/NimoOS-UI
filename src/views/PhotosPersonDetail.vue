@@ -3,8 +3,10 @@
 // src/views/Photos/PhotosPersonDetail.vue(1561 行)移植:四态门控(骨架 / 加载失败+重试 /
 // 人物不存在 / 正常)+ PersonHero(T10)+
 // 三个 tab(时间线自绘共现横条 + PersonAssetGrid T11 / PersonPlacesTab T12 /
-// PersonRelationsTab T13)+ 选择态浮动条 + **六个自绘弹窗**(改名 / 建相册 / 移出确认 /
-// 删除确认 / 背景选择 / 合并到他人)+ PhotoLightbox(P2)接线。
+// PersonRelationsTab T13)+ 选择态浮动条 + **七个自绘弹窗**(改名 / 建相册 /
+// 「暂无可用照片」提示 / 移出确认 / 删除确认 / 背景选择 / 合并到他人 —— brief 的清单列了
+// 六个,第三个是 Vue2 promptDialog 的 info 模式 :845-851,补齐见偏离登记 B)+
+// PhotoLightbox(P2)接线。
 //
 // 本文件只做编排:数据在 usePersonDetail(T9),写入在 usePhotosPeople(T2)/
 // usePhotosAlbums(P4),展示在 T10-T13。九条动作的调用/成功/失败三段都在这里。
@@ -55,7 +57,7 @@
 //     这里 failed 单独一支:photosPersonLoadFailed + 重试钮(P4 遗留过一条同类账:详情页
 //     加载失败 → 永久骨架、无错误态无重试,本期不再留)。
 //
-// ── Esc 分层(P4 终审同款,六+一个弹窗全覆盖)──────────────────────────────────
+// ── Esc 分层(P4 终审同款,七个弹窗全覆盖)────────────────────────────────────
 //  本页挂着 PhotoLightbox,它在 **window** 上挂 keydown(PhotoLightbox.vue:144)。弹窗的
 //  Esc 一律 **document** 级 + watch(anyDialogOpen) 挂/摘,分支内**必须** e.stopPropagation()
 //  —— 原生 keydown 冒泡顺序是 document 先于 window,不挡住就一次 Esc 关两层。
@@ -231,8 +233,17 @@ function openDelete(): void { deleteOpen.value = true }
 function closeDelete(): void { deleteOpen.value = false }
 
 // 照 Vue2 onOpenHeroDialog :665-672 —— 打开时预选当前 heroAssetId。
+// 评审 Minor 7:原来用 `?? null` 只挡 null/undefined,但「无 hero」发给后端的值是**空串**
+// (people.ts:194 `heroAssetId: assetId ?? ''`)。若后端原样回吐 `''`,`?? null` 会让
+// heroSelectedId 变成 `''` —— 网格里没有任何瓦片高亮(没有 id 为空串的照片),而保存钮的
+// disabled 条件 `heroSelectedId === null` 却是 false,于是「看不出选了谁但保存钮可点」,
+// 点下去把空串再发一遍还 toast「背景已更新」。这里改成真值判断(照 Vue2 :667 的
+// `person.heroAssetId ? … : null`),但**显式只排除 null/undefined/''**,不用 `||` ——
+// 后者会把数字 id `0` 也当成"没有 hero"(与 people.ts:186-192 已登记的同一条推理一致:
+// falsy 的 id 可能是合法 id,不该被静默清空)。
 function openHeroPicker(): void {
-  heroSelectedId.value = detail.person.value?.heroAssetId ?? null
+  const h = detail.person.value?.heroAssetId
+  heroSelectedId.value = (h === null || h === undefined || h === '') ? null : h
   heroOpen.value = true
 }
 function closeHeroPicker(): void {
@@ -325,7 +336,12 @@ async function onSetKeyPhoto(): Promise<void> {
   try {
     const coverFaceId = await people.setPersonCover(personId.value, assetId)
     // 头像/hero 背景的 URL 都把 coverFaceId 当 ?v= 用,patch 后自动 cache-bust(Vue2 :648-652)。
-    detail.patchPerson({ coverFaceId })
+    // 评审必修 1:**必须**区分 undefined(后端响应里没带这个字段 → 保持本地原值)与
+    // 显式 null(后端要求清空封面 → 写 null)。无条件 patch 的话,后端返回 `200 {}` 时
+    // 本地 coverFaceId 会被抹成 null,PersonHero.vue:76 的 isFallback 立刻为真 ——
+    // hero 大图退成渐变、200px 头像退成首字母,刷新才恢复。Vue2 :648-652 是从 store 列表
+    // 读值,字段缺席时读到的就是原值,同样不会退化。
+    if (coverFaceId !== undefined) detail.patchPerson({ coverFaceId })
     toast.show(t('photosPersonKeyPhotoToast'))
     selectedIds.value = []
   } catch (e) {
@@ -467,11 +483,16 @@ function openAlbumPicker(ids: Array<string | number>): void {
 // 处理器上不管,导航被取消/重复时 reject 没人接住。
 function goToPeopleList(): void { void router.push('/photos/people') }
 
-// 加载失败态的重试(协调者裁定 4)。in-flight 处理是双保险:①`loading` 期间短路;
-// ②按钮 :disabled。实际上门控条件里带了 !loading,重试一开始整个分支就切回骨架、按钮
-// 已经不在 DOM 上了 —— 但 load 是异步的,短路那一行才是唯一在同一 tick 内生效的保护。
+// 加载失败态的重试(协调者裁定 4)。
+// 评审 Minor 3(自我修正):原实现在这里加了 `if (detail.loading.value) return` 短路、模板上
+// 又加了 `:disabled="detail.loading.value"` —— 两层**都不可达**:门控分支②的前提本就是
+// `!loading`,按钮只在 loading 为 false 时才存在,所以 `:disabled` 恒为 false;而
+// `detail.load()` 在 await 之前就同步置 loading=true,门控当帧把这个按钮整个卸载掉,
+// 第二次点击根本无处可点。两层拿掉后测试仍全绿 —— 这正是 T7/T8 定过性的「装饰性守卫」,
+// 按本期纪律删掉,不留下让人误以为此处有保护的代码。
+// **真实防护机制 = 门控切换把按钮卸载**(有测试钉住:点一次后按钮已不在 DOM、骨架出现、
+// getPerson 调用次数只 +1)。
 function retryLoad(): void {
-  if (detail.loading.value) return
   void detail.load(personId.value)
 }
 function goToPerson(id: string | number): void {
@@ -539,9 +560,11 @@ watch(() => route.params.id, (raw) => {
              两者在界面上完全一样。 -->
         <div v-else-if="!detail.person.value && detail.failed.value" class="empty-state" data-test="person-load-failed">
           <div class="empty-state-title">{{ t('photosPersonLoadFailed') }}</div>
+          <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
+               !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
           <button
             type="button" class="pd-btn" data-test="person-retry"
-            :disabled="detail.loading.value" @click="retryLoad"
+            @click="retryLoad"
           >{{ t('photosPersonRetry') }}</button>
         </div>
 
@@ -665,6 +688,8 @@ watch(() => route.params.id, (raw) => {
       type="button" class="selection-btn selection-btn-danger" data-test="person-remove-from"
       @click="openDetach(selectedIds)"
     >
+      <!-- 评审必修 2:Vue2 :240 这个钮内有 x 图标(size 13),原实现漏了 -->
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
       {{ t('photosPersonRemoveFrom', { name: displayName }) }}
     </button>
     <button type="button" class="selection-btn" data-test="person-selection-cancel" @click="exitSelectionMode">
@@ -791,17 +816,29 @@ watch(() => route.params.id, (raw) => {
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
         <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonDeleteTitle') }}</div>
+          <!-- 评审 Minor 4:原来错用了 photosPersonDeleteTitle(= "删除这个人物分组?",
+               T7 警示条专用的另一句,ClusterActionDialog.vue:66 注释已声明不可共用)。
+               Vue2 :304 是 "Delete person?",另开专属键。 -->
+          <div class="pd-title">{{ t('photosPersonDeletePersonTitle') }}</div>
         </div>
         <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeDelete">×</button>
       </div>
-      <div class="pd-body">{{ t('photosPersonDeleteBody') }}</div>
+      <!-- 评审 Minor 6:Vue2 :310-312 是两档灰 —— 正文(--text-2)+ 更淡的
+           "You can undo within 5 seconds."(--text-3)。原实现合成了单色一条。 -->
+      <div class="pd-body">
+        {{ t('photosPersonDeleteKeptBody') }}
+        <span class="pd-body-dim">{{ t('photosPersonDeleteUndoHint') }}</span>
+      </div>
       <div class="pd-actions">
         <button type="button" class="pd-btn" @click="closeDelete">{{ t('photosCancel') }}</button>
         <button
           type="button" class="pd-btn pd-btn-danger" data-test="person-delete-confirm"
           @click="confirmDeletePerson"
-        >{{ t('photosPersonDelete') }}</button>
+        >
+          <!-- 评审必修 2:Vue2 :319 钮内有 trash 图标(size 11),原实现漏了 -->
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+          {{ t('photosPersonDelete') }}
+        </button>
       </div>
     </div>
   </div>
@@ -829,7 +866,11 @@ watch(() => route.params.id, (raw) => {
           @click="heroSelectedId = p.id"
         >
           <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="">
-          <span v-if="p.isVideo" class="hero-picker-vid">{{ p.duration }}</span>
+          <!-- 评审必修 2:Vue2 :352 角标是 play 图标 + 时长;同期 T11
+               PersonAssetGrid.vue:118 的同一视觉元素已经渲染了 ▶,这里按同一手法补齐。 -->
+          <span v-if="p.isVideo" class="hero-picker-vid">
+            <span class="vid-play">▶</span> {{ p.duration }}
+          </span>
           <span v-if="String(heroSelectedId) === String(p.id)" class="hero-picker-check">
             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
           </span>
@@ -898,6 +939,9 @@ watch(() => route.params.id, (raw) => {
           type="button" class="pd-btn pd-btn-primary" data-test="person-merge-confirm"
           :disabled="mergeTarget === null" @click="confirmMerge"
         >
+          <!-- 评审必修 2:Vue2 :427 选中目标后钮内有 sparkles 图标(size 13),未选中时不渲染
+               (`v-if="mergeConfirmTarget"`),原实现漏了整个图标。 -->
+          <svg v-if="mergeTarget !== null" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
           {{ mergeTarget
             ? t('photosPersonMergeConfirm', { name: mergeTarget.name })
             : t('photosPersonMergeSelectPrompt') }}
@@ -1035,6 +1079,9 @@ watch(() => route.params.id, (raw) => {
 .pd-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
 .pd-label { font-size: 11.5px; color: var(--fg-muted); margin-bottom: -6px; }
 .pd-body { font-size: 12.5px; color: var(--fg-muted); line-height: 1.6; }
+/* 评审 Minor 6:Vue2 :312 的第二档灰(--text-3)。本仓 --fg-subtle 两套主题都有定义
+   (已 grep theme.css 确认),与 .pd-sub 用的是同一档,语义一致:比正文更淡的补充说明。 */
+.pd-body-dim { color: var(--fg-subtle); }
 .pd-input {
   width: 100%; height: 38px; padding: 0 12px; box-sizing: border-box;
   background: var(--chip-bg); border: 1px solid var(--chip-border);
@@ -1084,10 +1131,13 @@ watch(() => route.params.id, (raw) => {
 .hero-picker-vid {
   position: absolute; right: 4px; bottom: 4px; padding: 1px 5px; border-radius: 999px;
   font-size: 9px; background: var(--overlay-bg);
+  display: inline-flex; align-items: center; gap: 3px;
   /* theme-exception: 叠在照片缩略图上的时长角标,需跨主题恒定浅色前景(同
      PersonAssetGrid.vue .tile-vid 的既有先例,理由见 PersonHero.vue 文件头"配色红线")。 */
   color: #fff;
 }
+/* 与 T11 PersonAssetGrid.vue 的 .vid-play 逐字同款(同一视觉元素,同一字号)。 */
+.vid-play { font-size: 7px; }
 .hero-picker-check {
   position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;

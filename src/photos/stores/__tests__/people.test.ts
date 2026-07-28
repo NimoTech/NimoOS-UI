@@ -309,6 +309,14 @@ describe('photosPeople store', () => {
       await s.setPersonCover(1, 'asset9')
       expect(s.personById(1)?.coverFaceId).toBe('orig')
     })
+    // T14 评审必修 1:「字段缺席」必须以 undefined 出栈,不能被 `?? null` 压成 null ——
+    // 否则调用方分不清「后端说要清空封面」(显式 null,见下一条测试)与「后端根本没提封面」,
+    // 无条件 patch 会在后端返回 `200 {}` 时把本地封面抹掉、详情页 hero 退化成渐变兜底。
+    it('后端不带该字段 → 返回 undefined(与"显式 null"必须可区分)', async () => {
+      ;(service.photos.setPersonCover as any).mockResolvedValueOnce({})
+      const s = usePhotosPeople()
+      expect(await s.setPersonCover(1, 'asset9')).toBeUndefined()
+    })
     it('reject → 抛出', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.setPersonCover as any).mockRejectedValueOnce(new Error('x'))

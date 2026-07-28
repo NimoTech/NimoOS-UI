@@ -958,4 +958,14 @@ export default {
   // 同类账(详情页加载失败 → 永久骨架、无错误态无重试),本期不再留。
   photosPersonLoadFailed: '无法加载这个人物',
   photosPersonRetry: '重试',
+  // T14 评审 Minor 4:详情页删除确认弹窗的头部标题。Vue2 :304 是 `Delete person?`,
+  // 与 T7 警示条内部那句 photosPersonDeleteTitle(`Delete this person group?` /
+  // "删除这个人物分组?")是两句不同文案 —— ClusterActionDialog.vue:66 的注释早已声明
+  // 二者不可共用键,原实现错用了后者。译文取自旧仓 zh_CN.json:2009。
+  photosPersonDeletePersonTitle: '删除人物？',
+  // T14 评审 Minor 6:Vue2 :310-312 的正文是两档灰的两句话。既有 photosPersonDeleteBody
+  // 把三句合成了一条(且已被 T7 ClusterActionDialog.vue:230 消费,不能改动),这里为详情页
+  // 的两档渲染另开两键;文字与既有那条逐字一致,只是拆开。
+  photosPersonDeleteKeptBody: '照片会保留。人物分组与识别记录将被永久删除。',
+  photosPersonDeleteUndoHint: '你可以在 5 秒内撤销。',
 }

@@ -1,6 +1,8 @@
-// Task 14 (SP7-P5 人物): PhotosPersonDetail.vue —— 人物详情视图容器(三态门控 + 共现横条 +
-// 三 tab + 选择态浮动条 + 六个自绘弹窗 + 灯箱接线)。逐段对照 Vue2 NimoOS-UI
+// Task 14 (SP7-P5 人物): PhotosPersonDetail.vue —— 人物详情视图容器(**四态门控** + 共现
+// 横条 + 三 tab + 选择态浮动条 + **七个自绘弹窗** + 灯箱接线)。逐段对照 Vue2 NimoOS-UI
 // src/views/Photos/PhotosPersonDetail.vue(1561 行)。
+// 四态 = 骨架 / 加载失败+重试 / 人物不存在 / 正常(协调者裁定 4 由三态扩来)。
+// 七弹窗 = brief 清单的六个 + Vue2 promptDialog 的 info 模式(:845-851「暂无可用照片」)。
 //
 // 测试策略(与 brief 的建议有一处刻意加强,已在报告登记):brief 建议「mock 共享包与
 // usePersonDetail」。这里只 mock 共享包(service),**usePersonDetail 用真实实现** ——
@@ -154,7 +156,7 @@ afterEach(() => {
   lb.__resetForTest()
 })
 
-describe('PhotosPersonDetail.vue —— 三态门控', () => {
+describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重试 / 人物不存在 / 正常)', () => {
   it('loading 且无 person → 骨架', async () => {
     // 永不 resolve 的 getPerson:停在 loading 态
     svc.photos.getPerson.mockReturnValue(new Promise(() => {}))
@@ -469,6 +471,34 @@ describe('PhotosPersonDetail.vue —— 选择态与关键照片', () => {
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith(7, 'face-9')
   })
 
+  // 评审必修 1:后端返回 `200 {}`(成功但不带 coverFaceId)时,本地封面**必须保持原值** ——
+  // 无条件 patch 会把它抹成 null,PersonHero 的 isFallback 当场为真、hero 退成渐变兜底。
+  it('设关键照片:后端不带 coverFaceId(200 {}) → 本地封面保持原值,hero 不退化', async () => {
+    svc.photos.setPersonCover.mockResolvedValue({})
+    const { w } = await mountView('7')
+    w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
+    await w.vm.$nextTick()
+    await w.find('[data-test="person-set-key-photo"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.setPersonCover).toHaveBeenCalledWith('7', 'a1')
+    // 原值 'face-1' 必须还在(不是 null)
+    expect(w.findComponent(PersonHero).props('person').coverFaceId).toBe('face-1')
+    // 有封面 ⇒ 不是渐变兜底态
+    expect(w.find('[data-test="hero-bg"]').classes()).not.toContain('is-fallback')
+    expect(useToast().msg).toBe(zh.photosPersonKeyPhotoToast)
+  })
+
+  // 与上一条成对:后端**显式** null = 要求清空封面,这时必须写进去(两种情况不可混为一谈)。
+  it('设关键照片:后端显式返回 coverFaceId: null → 写入 null(清空封面)', async () => {
+    svc.photos.setPersonCover.mockResolvedValue({ coverFaceId: null })
+    const { w } = await mountView('7')
+    w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
+    await w.vm.$nextTick()
+    await w.find('[data-test="person-set-key-photo"]').trigger('click')
+    await flushPromises()
+    expect(w.findComponent(PersonHero).props('person').coverFaceId).toBeNull()
+  })
+
   it('设关键照片 404 → 专用文案「那张照片里没有这个人的脸」', async () => {
     svc.photos.setPersonCover.mockRejectedValue({ response: { status: 404 } })
     const { w } = await mountView('7')
@@ -608,6 +638,26 @@ describe('PhotosPersonDetail.vue —— 删除人物', () => {
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
+  // 评审 Minor 4:标题必须是 Vue2 :304 的「删除人物?」,不是 T7 警示条那句「删除这个人物分组?」
+  it('删除弹窗标题用人物专属键,不复用 T7 警示条那句', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'delete')
+    const dlg = w.find('[data-test="person-delete-dialog"]')
+    expect(dlg.text()).toContain(zh.photosPersonDeletePersonTitle)
+    expect(dlg.text()).not.toContain(zh.photosPersonDeleteTitle)
+  })
+
+  // 评审 Minor 6:正文两档灰 —— 第二句在自己的 <span> 里(才能上更淡的一档 token)
+  it('删除弹窗正文分两档:正文句 + 更淡的「5 秒内可撤销」', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'delete')
+    const dlg = w.find('[data-test="person-delete-dialog"]')
+    expect(dlg.text()).toContain(zh.photosPersonDeleteKeptBody)
+    const dim = dlg.find('.pd-body-dim')
+    expect(dim.exists()).toBe(true)
+    expect(dim.text()).toBe(zh.photosPersonDeleteUndoHint)
+  })
+
   it('未命名人物用占位标签', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
     const { w } = await mountView('7')
@@ -704,6 +754,18 @@ describe('PhotosPersonDetail.vue —— 背景选择弹窗', () => {
     expect(tiles).toHaveLength(2)
     expect(tiles[1].attributes('data-selected')).toBe('true')
     expect(w.find('[data-test="person-hero-save"]').attributes('disabled')).toBeUndefined()
+  })
+
+  // 评审 Minor 7:后端把「无 hero」原样回吐成空串时,不能落进"已选中"状态 ——
+  // 否则没有任何瓦片高亮、保存钮却可点,点下去把空串再发一遍还报「背景已更新」。
+  it('heroAssetId 为空串 → 视为未选中(无瓦片高亮 + 保存钮 disabled)', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ heroAssetId: '' }), relations: [] })
+    const { w } = await mountView('7')
+    w.findComponent(PersonHero).vm.$emit('open-hero-picker')
+    await w.vm.$nextTick()
+    const tiles = w.findAll('[data-test="hero-picker-tile"]')
+    expect(tiles.every((n) => n.attributes('data-selected') === 'false')).toBe(true)
+    expect(w.find('[data-test="person-hero-save"]').attributes('disabled')).toBeDefined()
   })
 
   it('未选时保存钮 disabled;选一张后可保存 → patch + toast + 关弹窗', async () => {
@@ -871,7 +933,47 @@ describe('PhotosPersonDetail.vue —— 灯箱接线', () => {
   })
 })
 
-describe('PhotosPersonDetail.vue —— 六个弹窗的 Esc 都要挡住灯箱', () => {
+// 评审必修 2(界面 1:1 红线):Vue2 这四个按钮/角标内各有一个图标,原实现漏渲染。
+describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', () => {
+  it('选择态移除钮内有 x 图标(Vue2 :240)', async () => {
+    const { w } = await mountView('7')
+    w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="person-remove-from"] svg').exists()).toBe(true)
+  })
+
+  it('删除确认钮内有 trash 图标(Vue2 :319)', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'delete')
+    expect(w.find('[data-test="person-delete-confirm"] svg').exists()).toBe(true)
+  })
+
+  it('合并确认钮:选中目标后才出 sparkles 图标(Vue2 :427 的 v-if)', async () => {
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson(), rawPerson({ id: 9, name: '小红', count: 90 })], facesIndexedUpTo: null,
+    })
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'merge')
+    expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(false)
+    await w.findAll('[data-test="person-merge-candidate"]')[0].trigger('click')
+    expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
+  })
+
+  it('背景网格视频角标有 ▶ + 时长(Vue2 :352;同 T11 PersonAssetGrid 的同一元素)', async () => {
+    svc.photos.getPersonAssets.mockResolvedValue([
+      { id: 'v1', takenAt: '2026-05-01T10:00:00Z', mimeType: 'video/mp4', originalName: 'v1.mp4', durationMs: 5000 },
+    ])
+    const { w } = await mountView('7')
+    w.findComponent(PersonHero).vm.$emit('open-hero-picker')
+    await w.vm.$nextTick()
+    const badge = w.find('.hero-picker-vid')
+    expect(badge.exists()).toBe(true)
+    expect(badge.find('.vid-play').text()).toBe('▶')
+    expect(badge.text()).toContain('0:05')
+  })
+})
+
+describe('PhotosPersonDetail.vue —— 七个弹窗的 Esc 都要挡住灯箱(六 + info 提示)', () => {
   const cases: Array<[string, string, (w: ReturnType<typeof mount>) => Promise<void>]> = [
     ['改名', 'person-rename-dialog', async (w) => { await pickEditMenu(w, 'rename') }],
     ['合并', 'person-merge-dialog', async (w) => { await pickEditMenu(w, 'merge') }],

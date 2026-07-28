@@ -170,13 +170,23 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // 返回 coverFaceId: null 也会 patch 成 null(清空本地封面);brief 快照用 `res?.coverFaceId ?? null`
   // 把"显式 null"和"字段缺席"归一成了同一个值,会让显式清空的响应被误判成"没带字段"从而
   // 不写,留着陈旧封面。以 Vue2 源为准,改成对原始字段做 `!== undefined` 判定。
-  async function setPersonCover(id: string | number, assetId: string | number): Promise<string | number | null> {
+  //
+  // T14 评审必修 1(纯加性修正,不改任何既有行为):返回类型补上 `| undefined`,**不再**用
+  // `?? null` 把"字段缺席"压成 null。原来那个 `?? null` 把上面这行小心区分出来的两种情况
+  // 又在返回值上合并了 —— 调用方(详情页容器)拿到 null 无法分辨「后端说要清空封面」与
+  // 「后端根本没提封面」,无条件 patch 就会在后端返回 `200 {}` 时把本地 coverFaceId 抹成
+  // null,详情页 hero 当场退化成渐变兜底(PersonHero.vue:76 的 isFallback 立刻为真)。
+  // 现在语义在整条边界上一致:undefined = 字段缺席(调用方应保持原值),null = 显式清空。
+  // 既有三条 store 测试不受影响(「字段缺席」那条不断言返回值,「显式 null」那条仍得 null)。
+  async function setPersonCover(
+    id: string | number, assetId: string | number,
+  ): Promise<string | number | null | undefined> {
     try {
       const res = (await service.photos.setPersonCover(id, assetId)) as
         { coverFaceId?: string | number | null } | undefined
       const coverFaceId = res?.coverFaceId
       if (coverFaceId !== undefined) patchPerson(id, { coverFaceId })
-      return coverFaceId ?? null
+      return coverFaceId
     } catch (e) {
       console.error('[photos-people] setPersonCover', e)
       throw e
