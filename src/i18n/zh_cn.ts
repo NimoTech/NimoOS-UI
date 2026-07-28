@@ -832,7 +832,7 @@ export default {
   aiResEmptyAuthorized: '还没有授权任何文件夹 — 在消息框中输入 {at} 以授予访问权限。',
   aiResEmptyAttachments: '暂无附件 — 点击输入框的回形针图标即可上传。',
   aiResSent: '已发送',
-  aiResSentTitle: '已发送至模型，无法移除',
+  aiResSentTitle: '已发送给模型，无法移除',
   aiResDraft: '草稿',
   aiResDownload: '下载',
   aiResRemoveAuth: '移除授权',

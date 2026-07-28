@@ -214,17 +214,54 @@ describe('ResourcesTab — attachments section (new)', () => {
 })
 
 describe('ResourcesTab — turn-level revert disabled by snapshot_missing (new)', () => {
-  it('disables the whole-turn revert button when any item has snapshot_missing', () => {
+  // 两项:仅其中一项 snapshot_missing,用于区分 .some()(正确实现,禁用)与
+  // .every()(回归后的错误实现,不禁用)—— 单项分组两者结果一致,无法做判别。
+  it('disables the whole-turn revert button when any (not all) item has snapshot_missing', () => {
     const g: StagedGroup = {
       run_id: 'run3',
       created_at: Math.floor(Date.now() / 1000) - 10,
       items: [
         { seq: 1, op: 'write', path: '/a', staged_id: 30, batch_id: 'b', snapshot_missing: true },
+        { seq: 2, op: 'write', path: '/b', staged_id: 31, batch_id: 'b', snapshot_missing: false },
       ],
     }
     const w = track(mountTab({ stagedChanges: [g] }))
     const btn = w.find('.rt-turn-head .rt-revert')
     expect(btn.attributes('disabled')).toBeDefined()
+  })
+
+  it('leaves the whole-turn revert button enabled when no item has snapshot_missing', () => {
+    const g: StagedGroup = {
+      run_id: 'run4',
+      created_at: Math.floor(Date.now() / 1000) - 10,
+      items: [
+        { seq: 1, op: 'write', path: '/a', staged_id: 32, batch_id: 'b', snapshot_missing: false },
+        { seq: 2, op: 'write', path: '/b', staged_id: 33, batch_id: 'b' },
+      ],
+    }
+    const w = track(mountTab({ stagedChanges: [g] }))
+    const btn = w.find('.rt-turn-head .rt-revert')
+    expect(btn.attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('ResourcesTab — staged item size 0-byte deviation (new, F1)', () => {
+  // 有意背离 Vue2(ResourcesTab.vue:99/:117 `it.size_bytes ? … : '—'` 短路):
+  // 0 字节暂存项这里渲染 '0 B',不是 '—'。断言必须同时覆盖 size_bytes 缺失仍显示 '—',
+  // 否则测试无法区分"0 → '0 B'"与"任何 falsy → '0 B'"这两种(错误的)实现。
+  it('renders "0 B" for a staged item with size_bytes: 0, and "—" when size_bytes is absent', () => {
+    const g: StagedGroup = {
+      run_id: 'run5',
+      created_at: Math.floor(Date.now() / 1000) - 10,
+      items: [
+        { seq: 1, op: 'write', path: '/zero.txt', staged_id: 40, size_bytes: 0 },
+        { seq: 2, op: 'write', path: '/nosize.txt', staged_id: 41 },
+      ],
+    }
+    const w = track(mountTab({ stagedChanges: [g] }))
+    const sizes = w.findAll('.rt-size').map((el) => el.text())
+    expect(sizes).toContain('0 B')
+    expect(sizes).toContain('—')
   })
 })
 

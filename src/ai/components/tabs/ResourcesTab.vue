@@ -230,6 +230,10 @@ function isRevertingItem(stagedId: string | number | undefined): boolean {
               <span class="rt-badge" :class="`badge-${badgeFor(it.op)}`">{{ badgeFor(it.op) }}</span>
               <span class="rt-icon">📄</span>
               <span class="rt-path">{{ formatStagedPath(it) }}</span>
+              <!-- 有意背离 Vue2:Vue2 ResourcesTab.vue:99/:117 用 `it.size_bytes ? … : '—'`
+                   模板短路,导致 0 字节暂存项显示 '—'(与 formatSize 自身 `n !== 0` 分支及
+                   Vue2 附件行 :40 直接调 formatSize 的行为矛盾——Vue2 自相不一致)。
+                   这里直接调 formatStagedSize,0 → '0 B'。已登记(见任务 12 报告)。 -->
               <span class="rt-size">{{ formatStagedSize(it.size_bytes) }}</span>
               <span v-if="it.snapshot_missing" class="rt-orphan-tag" :title="t('aiResOrphanTitle')">{{ t('aiResOrphan') }}</span>
               <button
@@ -248,6 +252,8 @@ function isRevertingItem(stagedId: string | number | undefined): boolean {
             <span class="rt-badge" :class="`badge-${badgeFor(it.op)}`">{{ badgeFor(it.op) }}</span>
             <span class="rt-icon">📄</span>
             <span class="rt-path">{{ formatStagedPath(it) }}</span>
+            <!-- 同上方 batch items 处的有意背离说明(Vue2 ResourcesTab.vue:99/:117 短路 → '—',
+                 这里 0 → '0 B'),已登记。 -->
             <span class="rt-size">{{ formatStagedSize(it.size_bytes) }}</span>
             <span v-if="it.snapshot_missing" class="rt-orphan-tag" :title="t('aiResOrphanTitle')">{{ t('aiResOrphan') }}</span>
           </li>
