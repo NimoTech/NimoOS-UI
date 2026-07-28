@@ -643,6 +643,38 @@ describe('PhotosPeople.vue — T8 合并建议审阅弹窗接线:接受', () => 
     expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
   })
 
+  // 评审 Important(独立复现):上面这条"只剩这一条时弹窗关闭"的断言只看 mrd-overlay 是否
+  // 存在,而 MergeReviewDialog 的根节点是 `v-if="open && current"`——suggestions 空数组时
+  // `current`(= suggestions[index])本来就是 undefined,这条 v-if 天然为假,跟 reviewOpen
+  // 的真实值无关。评审做了删码实验:把 clampReviewIndex 里 `reviewOpen.value = false` 这行
+  // 赋值删掉、只留 return,上面那条测试依然全绿——没有任何用例证伪过 `reviewOpen.value =
+  // false` 这一行真的执行了。
+  //
+  // 真实会出问题的场景:mergeSuggestions 还有另一条填充路径——T7 的 mergePersonInto 在
+  // finally 里会调用 fetchMergeSuggestions()(people.ts:211-212)。如果 reviewOpen 卡在
+  // true(赋值被删掉/被漏掉),用户在审阅弹窗因列表空而"关闭"之后,只要再走一次别的合并
+  // 操作(哪怕跟审阅弹窗毫无关系)把 mergeSuggestions 重新拉回,`current` 就会重新有值,
+  // 弹窗会在用户完全没点 Review 的情况下自己弹出来。这条测试直接复现这个场景:accept 到
+  // 最后一条 → 弹窗关闭 → 模拟 fetchMergeSuggestions 被重新拉回(同 T7 finally 里的调用)→
+  // 断言弹窗**没有**自己弹出来。
+  it('回归:审阅到最后一条后弹窗关闭,之后 mergeSuggestions 被重新填充(如 T7 合并流程触发的 fetchMergeSuggestions)不应自动弹出', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([S1])
+    const { w } = await mountView()
+    await openReview(w)
+    await w.get('[data-test="mrd-accept"]').trigger('click')
+    await flushPromises()
+    // 前提:这一步此刻应该已经关闭(与上一条测试的断言相同)。
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
+
+    // 模拟 T7 mergePersonInto 的 finally 会触发的同一个 fetchMergeSuggestions,建议被重新
+    // 拉回——这与用户点 Review 按钮完全无关,不该让审阅弹窗自己弹出来。
+    svc.photos.mergeSuggestions.mockResolvedValue([S2])
+    await usePhotosPeople().fetchMergeSuggestions()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
+  })
+
   // 不断言弹窗开/关:store 的 acceptMergeSuggestion 失败路径会 `void fetchMergeSuggestions()`
   // 纠正性重拉(people.ts 头部注释"先乐观移除建议,失败重拉建议列表纠正"),这条重拉与
   // 本组件 finally 里的 clampReviewIndex 谁先跑,取决于两者各自还剩几个 await 跳,在真实
