@@ -1086,4 +1086,25 @@ export default {
   aiCfgIndexDisabled: 'Disabled',
   aiCfgCopyFailed: 'Copy failed — please select manually',
   // <<< SP8-P2b Task 7
+  // >>> SP8-P2b Task 8 —— ObservabilitySection (Agent monitoring / Phoenix). English
+  // values are the literal Vue2 source strings (brief already reconciled against the
+  // production zh_CN.json). Reused keys (not redefined here): aiCfgObservability/aiCancel.
+  aiCfgObservabilityDesc: 'Trace and visualize every Agent run with a local Phoenix instance to debug prompt, tool, and memory usage.',
+  aiCfgPhoenixTracing: 'Phoenix tracing',
+  aiCfgEnableAgentMonitoring: 'Enable agent monitoring',
+  aiCfgObservabilityBanner: 'Visualize each agent run (system prompt, tools, memory, tool calls) in a local Phoenix UI. Traces never leave this device.',
+  aiCfgPhoenixStatus: 'Phoenix status:',
+  aiCfgOpenPhoenix: 'Open Phoenix',
+  aiCfgInstallingPhoenix: 'Installing Phoenix…',
+  aiCfgPhoenixRunningButOff: 'Phoenix is running but monitoring is off. Turn it on to record traces.',
+  aiCfgPhoenixInstallConfirm: 'Agent monitoring needs the Phoenix app (Docker). Download and install it now?',
+  aiCfgDownloadAndInstall: 'Download & install',
+  aiCfgPhoenixStopConfirm: 'Turning off will also stop the Phoenix container to save resources. Continue?',
+  aiCfgContinue: 'Continue',
+  aiCfgInstallationFailed: 'Installation failed',
+  aiCfgFailedToSaveSetting: 'Failed to save setting',
+  aiCfgPhoenixRunning: 'Running',
+  aiCfgPhoenixNotInstalled: 'Not installed',
+  aiCfgPhoenixStopped: 'Stopped',
+  // <<< SP8-P2b Task 8
 }

@@ -181,6 +181,15 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .px-status .state .d { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(52,199,89,0.18); }
 .px-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--accent); padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent-softer); cursor: pointer; border: 0; }
 .px-open:hover { background: var(--accent-soft); }
+// SP8-P2b Task 8 —— Task 2 整档移植时把 Vue2 ObservabilitySection.vue:208-211 的
+// scoped `<style>`(`.status` / `.status.err`,installing/error 行内提示)漏收
+// 了(同 SetSwitch.vue 头注释记的 sk-shared.scss 漏收是同一类疏漏)。这里补上,
+// 但改名为 `.px-msg`——Vue2 那条是 `scoped`,裸 `.status` 出不了组件;这里是全局
+// 共享档,裸 `.status` 太容易和别处撞名,加 `px-` 前缀避免污染,视觉与选择器结构
+// 不变(仅改名,非视觉改动)。Vue2 原值 `color: var(--danger, #d33)` 的裸色 fallback
+// 按本仓约定去掉,只留 token。
+.px-msg { font-size: 13px; color: var(--text-secondary); margin: 8px 18px; }
+.px-msg.err { color: var(--danger); }
 
 /* ---------- Card with internal toolbar ---------- */
 .set-cardhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 18px; border-bottom: 1px solid var(--line-faint); }

@@ -1096,4 +1096,25 @@ export default {
   aiCfgIndexDisabled: '未启用',
   aiCfgCopyFailed: '复制失败,请手动选择',
   // <<< SP8-P2b Task 7
+  // >>> SP8-P2b Task 8 —— ObservabilitySection(Agent 监控 / Phoenix)。值逐字取自
+  // brief 表(brief 已回查 Vue2 生产 zh_CN.json)。复用键(未在此重复定义):
+  // aiCfgObservability/aiCancel。
+  aiCfgObservabilityDesc: '用本地 Phoenix 追踪并可视化每一次 Agent 运行,便于调试提示词、工具与记忆的使用情况。',
+  aiCfgPhoenixTracing: 'Phoenix 追踪',
+  aiCfgEnableAgentMonitoring: '启用 Agent 监控',
+  aiCfgObservabilityBanner: '在本地 Phoenix 界面可视化每次 Agent 运行(系统提示词、工具、记忆、工具调用)。追踪数据不出本机。',
+  aiCfgPhoenixStatus: 'Phoenix 状态:',
+  aiCfgOpenPhoenix: '打开 Phoenix',
+  aiCfgInstallingPhoenix: '正在安装 Phoenix…',
+  aiCfgPhoenixRunningButOff: 'Phoenix 正在运行但监控未开启。开启后才会记录追踪。',
+  aiCfgPhoenixInstallConfirm: 'Agent 监控需要 Phoenix 应用(Docker)。现在下载并安装?',
+  aiCfgDownloadAndInstall: '下载并安装',
+  aiCfgPhoenixStopConfirm: '关闭将同时停止 Phoenix 容器以节省资源,是否继续?',
+  aiCfgContinue: '继续',
+  aiCfgInstallationFailed: '安装失败',
+  aiCfgFailedToSaveSetting: '保存设置失败',
+  aiCfgPhoenixRunning: '运行中',
+  aiCfgPhoenixNotInstalled: '未安装',
+  aiCfgPhoenixStopped: '已停止',
+  // <<< SP8-P2b Task 8
 }
