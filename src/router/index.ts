@@ -18,6 +18,8 @@ import PhotosFavorites from '../views/PhotosFavorites.vue'
 import PhotosTrash from '../views/PhotosTrash.vue'
 import PhotosAlbums from '../views/PhotosAlbums.vue'
 import PhotosAlbumDetail from '../views/PhotosAlbumDetail.vue'
+import PhotosPeople from '../views/PhotosPeople.vue'
+import PhotosPersonDetail from '../views/PhotosPersonDetail.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -38,6 +40,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/photos/trash', name: 'photos-trash', component: PhotosTrash },
   { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
   { path: '/photos/albums/:id', name: 'photos-album-detail', component: PhotosAlbumDetail },
+  { path: '/photos/people', name: 'photos-people', component: PhotosPeople },
+  { path: '/photos/people/:id', name: 'photos-person-detail', component: PhotosPersonDetail },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
 ]

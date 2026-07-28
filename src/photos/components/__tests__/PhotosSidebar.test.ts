@@ -20,6 +20,8 @@ const testRouter = createRouter({
     { path: '/photos/trash', name: 'photos-trash', component: { template: '<div/>' } },
     { path: '/photos/albums', name: 'photos-albums', component: { template: '<div/>' } },
     { path: '/photos/albums/:id', name: 'photos-album-detail', component: { template: '<div/>' } },
+    { path: '/photos/people', name: 'photos-people', component: { template: '<div/>' } },
+    { path: '/photos/people/:id', name: 'photos-person-detail', component: { template: '<div/>' } },
   ],
 })
 
@@ -35,19 +37,21 @@ describe('PhotosSidebar', () => {
     await testRouter.isReady()
   })
 
-  it('渲染四条导航项(照片库/相册/收藏/最近删除),当前路由高亮', async () => {
+  it('渲染五条导航项(照片库/相册/人物/收藏/最近删除),当前路由高亮', async () => {
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items).toHaveLength(4)
+    expect(items).toHaveLength(5)
     expect(items[0].text()).toContain('照片库')
     expect(items[1].text()).toContain('相册')
-    expect(items[2].text()).toContain('收藏')
-    expect(items[3].text()).toContain('最近删除')
+    expect(items[2].text()).toContain('人物')
+    expect(items[3].text()).toContain('收藏')
+    expect(items[4].text()).toContain('最近删除')
     // 当前在 /photos,仅照片库项 active
     expect(items[0].classes()).toContain('active')
     expect(items[1].classes()).not.toContain('active')
     expect(items[2].classes()).not.toContain('active')
     expect(items[3].classes()).not.toContain('active')
+    expect(items[4].classes()).not.toContain('active')
   })
 
   it('/photos/favorites 时仅 favorites 项 active,library 不 active', async () => {
@@ -57,8 +61,9 @@ describe('PhotosSidebar', () => {
     const items = w.findAll('.side-item')
     expect(items[0].classes()).not.toContain('active') // library 不 active
     expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).toContain('active') // favorites active
-    expect(items[3].classes()).not.toContain('active') // trash 不 active
+    expect(items[2].classes()).not.toContain('active') // people 不 active
+    expect(items[3].classes()).toContain('active') // favorites active
+    expect(items[4].classes()).not.toContain('active') // trash 不 active
   })
 
   it('/photos/albums 时仅 albums 项 active', async () => {
@@ -68,8 +73,9 @@ describe('PhotosSidebar', () => {
     const items = w.findAll('.side-item')
     expect(items[0].classes()).not.toContain('active') // library 不 active
     expect(items[1].classes()).toContain('active') // albums active
-    expect(items[2].classes()).not.toContain('active') // favorites 不 active
-    expect(items[3].classes()).not.toContain('active') // trash 不 active
+    expect(items[2].classes()).not.toContain('active') // people 不 active
+    expect(items[3].classes()).not.toContain('active') // favorites 不 active
+    expect(items[4].classes()).not.toContain('active') // trash 不 active
   })
 
   it('/photos/albums/7(三级路径,相册详情)时仍只有 albums 项 active,library 不误伤', async () => {
@@ -81,6 +87,31 @@ describe('PhotosSidebar', () => {
     expect(items[1].classes()).toContain('active') // albums active
     expect(items[2].classes()).not.toContain('active')
     expect(items[3].classes()).not.toContain('active')
+    expect(items[4].classes()).not.toContain('active')
+  })
+
+  it('/photos/people 时仅 people 项 active', async () => {
+    await testRouter.push('/photos/people')
+    await testRouter.isReady()
+    const w = mountSidebar()
+    const items = w.findAll('.side-item')
+    expect(items[0].classes()).not.toContain('active') // library 不 active
+    expect(items[1].classes()).not.toContain('active') // albums 不 active
+    expect(items[2].classes()).toContain('active') // people active
+    expect(items[3].classes()).not.toContain('active') // favorites 不 active
+    expect(items[4].classes()).not.toContain('active') // trash 不 active
+  })
+
+  it('/photos/people/7(三级路径,人物详情)时仍只有 people 项 active,library 不误伤——核心回归点', async () => {
+    await testRouter.push('/photos/people/7')
+    await testRouter.isReady()
+    const w = mountSidebar()
+    const items = w.findAll('.side-item')
+    expect(items[0].classes()).not.toContain('active') // library 不 active(回归点:/photos 前缀不能双高亮)
+    expect(items[1].classes()).not.toContain('active') // albums 不 active
+    expect(items[2].classes()).toContain('active') // people active
+    expect(items[3].classes()).not.toContain('active')
+    expect(items[4].classes()).not.toContain('active')
   })
 
   it('存储条:按 indexStatus 渲染人类可读用量与百分比', () => {

@@ -32,4 +32,13 @@ describe('router', () => {
     expect(m.name).toBe('photos-album-detail')
     expect(m.params.id).toBe('7')
   })
+  it('/photos/people 命中 photos-people 路由', () => {
+    const m = router.resolve('/photos/people')
+    expect(m.name).toBe('photos-people')
+  })
+  it('/photos/people/7 命中 photos-person-detail 路由,params.id 为字符串 "7"', () => {
+    const m = router.resolve('/photos/people/7')
+    expect(m.name).toBe('photos-person-detail')
+    expect(m.params.id).toBe('7')
+  })
 })
