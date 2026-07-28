@@ -6,6 +6,7 @@ import StorageShell from '../storage/components/StorageShell.vue'
 import RaidCard from '../storage/components/RaidCard.vue'
 import RaidCreatingCard from '../storage/components/RaidCreatingCard.vue'
 import RaidCreateProgressModal from '../storage/components/RaidCreateProgressModal.vue'
+import RaidReplacingCard from '../storage/components/RaidReplacingCard.vue'
 import { useStorageStore } from '../storage/stores/storage'
 import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
@@ -21,7 +22,13 @@ useDiskHotplug(() => store.loadRaid())
 // 重建中时 5000ms 单飞重拉状态(活体进度);无重建则不发请求
 const anyRebuilding = () =>
   isRebuildingList(store.raidArrays.map((a) => resolveRaidState(a, store.raidStatusMap[String(a.id)])))
-useGuardedPoll(() => store.loadRaid(), { intervalMs: 5000, active: anyRebuilding })
+// 换盘看板在场时也必须轮询,不能只看 anyRebuilding:刚提交那几秒内核还没接手,
+// rebuild_pct 是 -1、live_state 也还没出现 recovering,isRebuilding 为 false ——
+// 只挂 anyRebuilding 会一拍都不发请求,看板永远转下去、完成也观察不到。
+useGuardedPoll(() => store.loadRaid(), {
+  intervalMs: 5000,
+  active: () => anyRebuilding() || !!store.replaceTask,
+})
 
 // 创建任务检测:mount 时探测一次,命中 creating 后 1500ms 单飞轮询(卡片 UI 见 T8)
 onMounted(() => { store.detectCreatingTask() })
@@ -49,6 +56,12 @@ const progressOpen = ref(false)
       @dismiss="store.dismissCreateTask()"
     />
     <RaidCreateProgressModal v-if="store.creatingTask" v-model:open="progressOpen" :task="store.creatingTask" />
+    <RaidReplacingCard
+      v-if="store.replaceTask"
+      :task="store.replaceTask"
+      :status="store.raidStatusMap[store.replaceTask.arrayId]"
+      @dismiss="store.dismissReplaceTask()"
+    />
     <div v-if="store.raidLoading && !arrays.length" class="st-hint">{{ t('storageLoading') }}</div>
     <div v-else-if="!arrays.length" class="st-hint">{{ t('raidNoArrays') }}</div>
     <template v-else>

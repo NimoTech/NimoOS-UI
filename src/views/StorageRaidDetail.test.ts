@@ -26,11 +26,12 @@ const degradedStatus = {
     { path: '/dev/sda', state: 'faulty', number: 0 },
   ],
 }
+const raidReplaceDisk = vi.fn().mockResolvedValue(undefined)
 const snapListVolumes = vi.fn().mockResolvedValue([])
 const snapList = vi.fn().mockResolvedValue([])
 vi.mock('@nimotech/nimoos-service', () => ({ service: {
   storage: { list: vi.fn().mockResolvedValue([]) }, disks: { getDiskList: (...a: unknown[]) => getDiskList(...a) },
-  raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), getUsage: (...a: unknown[]) => raidGetUsage(...a) },
+  raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), getUsage: (...a: unknown[]) => raidGetUsage(...a), replaceDisk: (...a: unknown[]) => raidReplaceDisk(...a) },
   snapshot: {
     listVolumes: (...a: unknown[]) => snapListVolumes(...a),
     list: (...a: unknown[]) => snapList(...a),
@@ -169,5 +170,52 @@ describe('StorageRaidDetail', () => {
     const values = [...select!.querySelectorAll('option')]
       .map((o) => o.getAttribute('value')).filter((v) => v)
     expect(values).toEqual([])
+  })
+
+  // 换盘提交成功后退回列表页看进度(用户指定的交互)。重建是长活儿(真实硬盘可达
+  // 数小时),列表页有换盘看板卡 + 5 秒轮询,停在详情页干等没有意义。
+  it('换盘提交成功 → 关弹窗 + 建立换盘看板任务 + 跳回 RAID 列表页', async () => {
+    document.body.innerHTML = ''
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { attachTo: document.body, global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+
+    await w.findAll('.rml-replace')[0].trigger('click')
+    await w.vm.$nextTick(); await w.vm.$nextTick()
+    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
+    select.value = '/dev/sdd'
+    select.dispatchEvent(new Event('change'))
+    await w.vm.$nextTick()
+    document.body.querySelector<HTMLButtonElement>('.rrd-ok')!.click()
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+
+    expect(raidReplaceDisk).toHaveBeenCalledWith('7', { old_disk_path: '/dev/sda', new_disk_path: '/dev/sdd' })
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    expect(store.replaceTask).toMatchObject({ arrayId: '7', oldPath: '/dev/sda', newPath: '/dev/sdd' })
+    expect(router.currentRoute.value.path).toBe('/storage/raid')
+  })
+
+  it('换盘接口失败 → 不建看板任务、不跳页(留在详情页)', async () => {
+    document.body.innerHTML = ''
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    raidReplaceDisk.mockRejectedValueOnce(new Error('500'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { attachTo: document.body, global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+
+    await w.findAll('.rml-replace')[0].trigger('click')
+    await w.vm.$nextTick(); await w.vm.$nextTick()
+    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
+    select.value = '/dev/sdd'
+    select.dispatchEvent(new Event('change'))
+    await w.vm.$nextTick()
+    document.body.querySelector<HTMLButtonElement>('.rrd-ok')!.click()
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    expect(store.replaceTask).toBeNull()
+    expect(router.currentRoute.value.path).toBe('/storage/raid/7')
   })
 })

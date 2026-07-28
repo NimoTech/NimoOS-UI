@@ -217,3 +217,39 @@ export const RAID_LEVEL_INFO: Record<number, RaidLevelInfo> = {
 export function levelInfo(level: number): RaidLevelInfo | null {
   return RAID_LEVEL_INFO[level] ?? null
 }
+
+// ── 换盘看板任务 ───────────────────────────────────────────────────────
+// 后端换盘接口是同步的、没有 task_id(见 storage.ts replaceTask 处的说明),
+// 所以这份任务态由前端维护,完成判定靠核对 status.members。
+export interface ReplaceTask {
+  arrayId: string
+  arrayName: string
+  oldPath: string
+  newPath: string
+}
+
+export type ReplaceOutcome = 'gone' | 'pending' | 'rebuilding' | 'done'
+
+// replaceOutcome —— 换盘任务此刻处于哪一步。
+//   gone       阵列已不在列表里(被删/被卸),看板该撤掉,不报完成
+//   pending    还看不出来:status 拉不到,或新盘尚未出现在成员表
+//              (mdadm --add 后内核尚未把它登记为 spare / 尚未开始 recovery)
+//   rebuilding 新盘已就位、正在同步
+//   done       新盘已 active sync —— 这一次**替换**完成了
+//
+// 判定盯的是"新盘自己的成员态",不是阵列级健康度:阵列可能因为**另一块**盘也坏了
+// 而仍然 degraded,那属于另一个故障,不该让这次替换的看板永远转下去。
+export function replaceOutcome(
+  task: ReplaceTask,
+  status: { members?: RaidMemberDisk[] } | null | undefined,
+  arrayExists: boolean,
+): ReplaceOutcome {
+  if (!arrayExists) return 'gone'
+  if (!status) return 'pending'
+  const m = (status.members || []).find((x) => x?.path === task.newPath)
+  if (!m) return 'pending'
+  const s = m.state || ''
+  if (s.startsWith('active sync')) return 'done'
+  if (s.includes('rebuilding')) return 'rebuilding'
+  return 'pending'
+}

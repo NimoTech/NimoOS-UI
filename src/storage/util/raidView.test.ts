@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
-  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList,
+  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome,
   levelInfo, asRaidArray,
 } from './raidView'
 import type { RaidArray } from './raidView'
@@ -187,5 +187,48 @@ describe('levelInfo', () => {
   })
   it('未知级别返回 null', () => {
     expect(levelInfo(99)).toBeNull()
+  })
+})
+
+describe('replaceOutcome', () => {
+  const task = { arrayId: '1', arrayName: 'md0', oldPath: '/dev/sda', newPath: '/dev/sdd' }
+
+  it('阵列已不在列表 → gone(不报完成)', () => {
+    expect(replaceOutcome(task, { members: [] }, false)).toBe('gone')
+  })
+  it('status 拉不到 → pending', () => {
+    expect(replaceOutcome(task, null, true)).toBe('pending')
+    expect(replaceOutcome(task, undefined, true)).toBe('pending')
+  })
+  it('新盘还没出现在成员表 → pending(mdadm --add 后内核尚未登记)', () => {
+    expect(replaceOutcome(task, { members: [
+      { path: '', state: 'removed', number: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1 },
+    ] }, true)).toBe('pending')
+  })
+  it('新盘 spare rebuilding → rebuilding', () => {
+    expect(replaceOutcome(task, { members: [
+      { path: '/dev/sdd', state: 'spare rebuilding', number: 4 },
+      { path: '/dev/sdb', state: 'active sync', number: 1 },
+    ] }, true)).toBe('rebuilding')
+  })
+  it('新盘 active sync → done', () => {
+    expect(replaceOutcome(task, { members: [
+      { path: '/dev/sdd', state: 'active sync', number: 4 },
+      { path: '/dev/sdb', state: 'active sync', number: 1 },
+    ] }, true)).toBe('done')
+  })
+  it('盯的是新盘自身状态,不是阵列健康度:另一块盘 faulty 也算 done', () => {
+    // 换的这块盘已经同步好了 —— 阵列仍 degraded 是另一块盘的故障,
+    // 不该让这次替换的看板永远转下去。
+    expect(replaceOutcome(task, { members: [
+      { path: '/dev/sdd', state: 'active sync', number: 4 },
+      { path: '/dev/sdb', state: 'faulty', number: 1 },
+    ] }, true)).toBe('done')
+  })
+  it('新盘变 faulty(换上去又坏了)→ pending,不误报完成', () => {
+    expect(replaceOutcome(task, { members: [
+      { path: '/dev/sdd', state: 'faulty', number: 4 },
+    ] }, true)).toBe('pending')
   })
 })

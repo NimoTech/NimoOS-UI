@@ -30,6 +30,14 @@ const router = createRouter({ history: createMemoryHistory(), routes: [
   { path: '/', name: 'home', component: Stub },
 ] })
 
+// toast 每条 1500ms 后自我移除,假定时器下读 store.msg 不可靠 —— 直接收集 show() 的入参。
+function spyToast(mod: { useToast: () => { show: (t: string, d?: number) => void } }): string[] {
+  const texts: string[] = []
+  const toast = mod.useToast()
+  vi.spyOn(toast, 'show').mockImplementation((text: string) => { texts.push(text) })
+  return texts
+}
+
 describe('StorageRaid', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); vi.useFakeTimers() })
   afterEach(() => vi.useRealTimers())
@@ -76,5 +84,90 @@ describe('StorageRaid', () => {
     await vi.runOnlyPendingTimersAsync()
     const store = useStorageStore()
     expect(store.creatingTask?.taskId).toBe('t2')
+  })
+
+  // ── 换盘看板卡 ───────────────────────────────────────────────────────
+  const arrayRow = { id: 1, name: 'Main-storage', level: 5, state: 'degraded', member_disks: [{}, {}, {}] }
+  const task = { arrayId: '1', arrayName: 'Main-storage', oldPath: '/dev/sda', newPath: '/dev/sdd' }
+
+  it('replaceTask 在场 → 渲染换盘看板卡', async () => {
+    raidList.mockResolvedValue([arrayRow])
+    raidGetStatus.mockResolvedValue({
+      live_state: 'clean, degraded', state: 'degraded', rebuild_pct: 42,
+      rebuild_finish: '3.1min', rebuild_speed: '900K/sec', total_bytes: 100, used_bytes: 1, free_bytes: 99,
+      members: [{ path: '/dev/sdd', state: 'spare rebuilding', number: 4 }],
+    })
+    await router.push('/storage/raid'); await router.isReady()
+    const store = useStorageStore()
+    store.replaceTask = { ...task }
+    const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
+    await vi.runOnlyPendingTimersAsync()
+    expect(w.findComponent({ name: 'RaidReplacingCard' }).exists()).toBe(true)
+    expect(w.text()).toContain('替换中')
+    expect(w.find('.rpc-pct').text()).toBe('42%')
+  })
+
+  it('replaceTask 为空 → 不渲染看板卡', async () => {
+    raidList.mockResolvedValue([arrayRow])
+    await router.push('/storage/raid'); await router.isReady()
+    const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
+    await vi.runOnlyPendingTimersAsync()
+    expect(w.findComponent({ name: 'RaidReplacingCard' }).exists()).toBe(false)
+  })
+
+  // 重建完成没有任何后端回调,只能靠轮询发现 —— 这条钉住「换完没提示」那条缺陷的修法。
+  it('轮询发现新盘已 active sync → 撤看板 + 弹完成提示', async () => {
+    raidList.mockResolvedValue([{ ...arrayRow, state: 'active' }])
+    raidGetStatus.mockResolvedValue({
+      live_state: 'clean', state: 'active', rebuild_pct: -1, total_bytes: 100, used_bytes: 1, free_bytes: 99,
+      members: [
+        { path: '/dev/sdd', state: 'active sync', number: 4 },
+        { path: '/dev/sdb', state: 'active sync', number: 1 },
+        { path: '/dev/sdc', state: 'active sync', number: 3 },
+      ],
+    })
+    await router.push('/storage/raid'); await router.isReady()
+    const store = useStorageStore()
+    // toast 1500ms 后自我移除,假定时器下读 msg 会读到空串 —— 监听 show 更可靠
+    const shown = spyToast(await import('../stores/toast'))
+    store.replaceTask = { ...task }
+    const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
+    await vi.runOnlyPendingTimersAsync()
+    expect(store.replaceTask).toBeNull()
+    expect(w.findComponent({ name: 'RaidReplacingCard' }).exists()).toBe(false)
+    expect(shown.join('|')).toContain('阵列已恢复健康')
+  })
+
+  // 阵列健康度与"这一次替换是否完成"是两件事:换上去的盘同步好了,但另一块盘也坏着,
+  // 报"已恢复健康"就是撒谎。
+  it('新盘 active sync 但另一块盘 faulty → 撤看板,但提示不声称已恢复健康', async () => {
+    raidList.mockResolvedValue([arrayRow])
+    raidGetStatus.mockResolvedValue({
+      live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 100, used_bytes: 1, free_bytes: 99,
+      members: [
+        { path: '/dev/sdd', state: 'active sync', number: 4 },
+        { path: '/dev/sdb', state: 'faulty', number: 1 },
+      ],
+    })
+    await router.push('/storage/raid'); await router.isReady()
+    const store = useStorageStore()
+    const shown = spyToast(await import('../stores/toast'))
+    store.replaceTask = { ...task }
+    mount(StorageRaid, { global: { plugins: [router, i18n] } })
+    await vi.runOnlyPendingTimersAsync()
+    expect(store.replaceTask).toBeNull()
+    expect(shown.join('|')).toContain('仍未恢复健康')
+  })
+
+  it('阵列已从列表消失(被删)→ 静默撤看板,不报完成', async () => {
+    raidList.mockResolvedValue([])
+    const store = useStorageStore()
+    const shown = spyToast(await import('../stores/toast'))
+    store.replaceTask = { ...task }
+    await router.push('/storage/raid'); await router.isReady()
+    mount(StorageRaid, { global: { plugins: [router, i18n] } })
+    await vi.runOnlyPendingTimersAsync()
+    expect(store.replaceTask).toBeNull()
+    expect(shown.join('|')).not.toContain('更换完成')
   })
 })

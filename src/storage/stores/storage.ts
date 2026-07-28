@@ -5,7 +5,7 @@ import type { RaidStatus } from '@nimotech/nimoos-service'
 import { i18n } from '../../i18n'
 import { useToast } from '../../stores/toast'
 import { mapVolumes, mapDrives, mapAvailDisks, type StorageVolume, type PhysicalDrive, type AvailDisk } from '../util/storageMap'
-import { asRaidArray, mapTask, type RaidArray, type RaidUsage, type RaidTask } from '../util/raidView'
+import { asRaidArray, mapTask, replaceOutcome, raidSeverity, resolveRaidState, type RaidArray, type RaidUsage, type RaidTask, type ReplaceTask } from '../util/raidView'
 
 export const useStorageStore = defineStore('storage', () => {
   const volumes = ref<StorageVolume[]>([])
@@ -18,6 +18,12 @@ export const useStorageStore = defineStore('storage', () => {
   const raidDetail = ref<{ array: RaidArray; status: RaidStatus | null; usage: RaidUsage | null } | null>(null)
   const raidDetailLoading = ref(false)
   const creatingTask = ref<RaidTask | null>(null)
+  // 换盘进行中的看板任务。后端 PUT /v2/raid/:id/replace-disk 是**同步**的
+  // (route/v2/raid.go:266 ReplaceDisk,mdadm --fail/--remove/--add 完成即返回),
+  // 没有创建流程那样的 task_id / 6 步进度 —— 真正的重建在内核里跑,进度只能从
+  // status 接口的 rebuild_pct 读。所以这份任务态由前端自己维护:提交成功时建立,
+  // 每次刷新阵列状态时核对"新盘是否已 active sync",是则算完成。
+  const replaceTask = ref<ReplaceTask | null>(null)
   let clearTimer: number | undefined
   const loading = ref(false)
   const unmounting = ref(false)
@@ -146,6 +152,7 @@ export const useStorageStore = defineStore('storage', () => {
       const map: Record<string, RaidStatus> = {}
       results.forEach((r, i) => { if (r.status === 'fulfilled') map[String(arrays[i].id)] = r.value })
       raidStatusMap.value = map
+      syncReplaceTask()
     } catch (e) {
       console.warn('[storage] raid load failed', (e as Error)?.message)
       raidArrays.value = []
@@ -242,6 +249,28 @@ export const useStorageStore = defineStore('storage', () => {
     return ok
   }
 
+  function dismissReplaceTask() { replaceTask.value = null }
+
+  // syncReplaceTask —— 每次刷新阵列状态后核对换盘看板任务。
+  // 完成/阵列消失时撤掉看板;完成额外弹一次 toast(内核重建结束没有任何回调,
+  // 只能靠轮询发现 —— 这也是「换完没有完成提示」那条缺陷的修法)。
+  //
+  // toast 文案分两种,不是同一句:新盘 active sync 只说明**这一次替换**完成了,
+  // 阵列可能因为另一块盘也坏而仍未恢复健康。那种情况下报"阵列已恢复健康"是撒谎。
+  function syncReplaceTask() {
+    const task = replaceTask.value
+    if (!task) return
+    const arrayExists = raidArrays.value.some((a) => String(a.id) === task.arrayId)
+    const status = raidStatusMap.value[task.arrayId]
+    const outcome = replaceOutcome(task, status, arrayExists)
+    if (outcome === 'gone') { replaceTask.value = null; return }
+    if (outcome !== 'done') return
+    replaceTask.value = null
+    const array = raidArrays.value.find((a) => String(a.id) === task.arrayId)
+    const healthy = array ? raidSeverity(resolveRaidState(array, status)) === 'ok' : false
+    useToast().show(healthy ? t('raidReplaceDoneHealthy') : t('raidReplaceDoneStillDegraded'))
+  }
+
   async function replaceRaidDisk(id: number | string, body: { old_disk_path: string; new_disk_path: string }): Promise<boolean> {
     if (raidReplacing.value) return false
     raidReplacing.value = true
@@ -250,12 +279,27 @@ export const useStorageStore = defineStore('storage', () => {
     try {
       await service.raid.replaceDisk(id, body)
       toast.show(t('raidReplaceSuccess'))
+      // 看板任务须在 loadRaid() **之前**建立:loadRaid 结束时会调 syncReplaceTask,
+      // 512MB 假盘上重建可能在这一拍就已完成,那一拍必须已经看得见任务。
+      replaceTask.value = {
+        arrayId: String(id),
+        arrayName: raidArrays.value.find((a) => String(a.id) === String(id))?.name || '',
+        oldPath: body.old_disk_path,
+        newPath: body.new_disk_path,
+      }
       ok = true
     } catch (e) {
       console.warn('[storage] raid replace failed', (e as Error)?.message)
       toast.show(t('raidReplaceFailed'))
     } finally {
       await loadRaid()
+      // 详情页渲染的是 raidDetail,只有 loadRaidDetail 会更新它 —— 此前这里只刷了
+      // 列表数据,详情页的成员列表会一直停在替换前那一帧(还显示空槽位 + 故障盘),
+      // 而"重建中每 5 秒自动刷新"的开关又是从这份过期数据算的,于是轮询永不启动、
+      // 完成也永远观察不到(2026-07-28 实盘验收发现)。
+      if (raidDetail.value && String(raidDetail.value.array.id) === String(id)) {
+        await loadRaidDetail(id)
+      }
       raidReplacing.value = false
     }
     return ok
@@ -346,6 +390,8 @@ export const useStorageStore = defineStore('storage', () => {
     createRaid,
     removeRaid,
     replaceRaidDisk,
+    replaceTask,
+    dismissReplaceTask,
     recoverRaid,
   }
 })

@@ -125,7 +125,13 @@ function onReplaceRequested(diskPath: string) {
 }
 async function onReplace(newDiskPath: string) {
   const ok = await store.replaceRaidDisk(idStr.value, { old_disk_path: replaceTarget.value, new_disk_path: newDiskPath })
-  if (ok) replaceOpen.value = false
+  if (!ok) return
+  replaceOpen.value = false
+  // 提交成功即退回列表页看进度(用户指定):重建是长活儿(真实硬盘可达数小时),
+  // 列表页有换盘看板卡 + 5 秒轮询,比停在详情页干等更合适。
+  // store.replaceTask 已在 replaceRaidDisk 里建立,若重建已完成则那一拍就已撤掉,
+  // 列表页不会闪一张已完成的卡。
+  router.push('/storage/raid')
 }
 </script>
 
