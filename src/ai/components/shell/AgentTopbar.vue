@@ -13,14 +13,24 @@
   ThinkingBar 四个 prop；ThinkingBar 的 `update:enabled`/`update:level` 在此处
   重映射成 `thinking-enabled`/`thinking-level` 往上抛给 AgentPage（Vue2 同名两行
   `@update:enabled="$emit('thinking-enabled', ...)"` / `@update:level="..."`）。
-  ModelPicker、AI 改名按钮仍留给后续任务。
+
+  SP8-P1c2 Task 9 —— ModelPicker 挂载 + AI 改名按钮回填(Vue2 shell/AgentTopbar.vue
+  逐字):新增 prop `availableModels`/`selectedModel`(直传 ModelPicker)、
+  `regeneratingTitleFor`(与 sessionId 一起推导 isAnyRegenerating/
+  isExplicitRegenerating,Vue2 :93-100);新增 emit `select-model`(ModelPicker
+  的 `select`)、`open-settings`(ModelPicker 的空态"去设置"按钮,与顶栏本身未来
+  可能有的设置入口共用同一上抛事件名)、`regenerate-title`(sparkle 按钮点击)。
+  标题输入框在 `isExplicitRegenerating` 时禁用(Vue2 :17);sparkle 按钮在
+  `isAnyRegenerating || isFocused` 时禁用(Vue2 :24)。
 -->
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AgentIcon from '../icons/AgentIcon.vue'
+import ModelPicker from './ModelPicker.vue'
 import ThinkingBar from './ThinkingBar.vue'
+import type { AgentModel } from '../../stores/agentStore'
 
 const DEBOUNCE_MS = 500
 
@@ -39,6 +49,11 @@ const props = withDefaults(
       supportsThinking: boolean
       providerType: string
     }
+    // Vue2 shell/AgentTopbar.vue:74-75,71 —— ModelPicker 直传 + regenerate-title
+    // 禁用矩阵所需的当前重生成状态。
+    availableModels?: AgentModel[]
+    selectedModel?: string | null
+    regeneratingTitleFor?: { id: string | number; background: boolean } | null
   }>(),
   {
     sessionId: '',
@@ -51,6 +66,9 @@ const props = withDefaults(
       supportsThinking: false,
       providerType: '',
     }),
+    availableModels: () => [],
+    selectedModel: null,
+    regeneratingTitleFor: null,
   },
 )
 
@@ -61,6 +79,9 @@ const emit = defineEmits<{
   (e: 'update-title', title: string): void
   (e: 'thinking-enabled', value: boolean): void
   (e: 'thinking-level', value: string): void
+  (e: 'select-model', key: string): void
+  (e: 'open-settings'): void
+  (e: 'regenerate-title'): void
 }>()
 
 const { t } = useI18n()
@@ -69,6 +90,22 @@ const router = useRouter()
 const localTitle = ref(props.storedTitle || '')
 const isFocused = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// Vue2 shell/AgentTopbar.vue:93-100 —— disable matrix for the title input /
+// sparkle button. `isExplicitRegenerating` is true only for a foreground
+// (non-background) regenerate targeting *this* session — it locks the title
+// input so the user doesn't edit a value that's about to be overwritten.
+// `isAnyRegenerating` also covers the background auto-title-on-first-turn
+// case and only gates the sparkle button (still clickable-but-disabled while
+// either kind of regenerate is in flight for this session).
+const isExplicitRegenerating = computed(() => {
+  const r = props.regeneratingTitleFor
+  return !!(r && r.id === props.sessionId && !r.background)
+})
+const isAnyRegenerating = computed(() => {
+  const r = props.regeneratingTitleFor
+  return !!(r && r.id === props.sessionId)
+})
 
 function clearTimer() {
   if (debounceTimer) {
@@ -157,16 +194,29 @@ function goHome() {
             class="topbar-title-input"
             v-model="localTitle"
             :placeholder="storedTitle || t('aiNewConversation')"
+            :disabled="isExplicitRegenerating"
             @input="onInput"
             @focus="onFocus"
             @blur="onBlur"
           />
-          <!-- 1c: AI-rename button -->
+          <button
+            class="icon-btn ai-rename-btn"
+            :disabled="isAnyRegenerating || isFocused"
+            :title="t('aiRename')"
+            @click="emit('regenerate-title')"
+          >
+            <AgentIcon name="sparkle" :size="14" />
+          </button>
         </div>
         <div class="topbar-sub">Connected to NimoOS</div>
       </div>
       <div class="topbar-spacer" />
-      <!-- 1c: ModelPicker -->
+      <ModelPicker
+        :available-models="availableModels"
+        :selected-key="selectedModel"
+        @select="emit('select-model', $event)"
+        @open-settings="emit('open-settings')"
+      />
       <button class="icon-btn" @click="emit('toggle-theme')">
         <AgentIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="16" />
       </button>
@@ -239,5 +289,13 @@ function goHome() {
 .topbar-title-input:focus {
   background: var(--bg-elevated);
   border-color: var(--line-strong);
+}
+.topbar-title-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ai-rename-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

@@ -28,6 +28,19 @@
 
   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
+
+  SP8-P1c2 Task 9 —— ModelPicker 挂载 + 模型回退提示 + AI-rename 按钮(Vue2
+  Agent.vue:15-33 的 AgentTopbar 挂载契约剩余部分):
+  - AgentTopbar 新增 `available-models`/`selected-model`/`regenerating-title-for`
+    三个 prop 直传 store 同名字段;`select-model` → `store.selectModel(key)`,
+    `regenerate-title` → `onRegenerateTitle`(Vue2 Agent.vue:216-220,带
+    activeSessionId 非空守卫)。
+  - ModelPicker 空态的"去设置" 与顶栏未来的设置入口共用同一个 `open-settings`
+    事件名,复用已有的 `onOpenSettings`(P2 前占位 toast,不路由跳转)。
+  - `lastFallbackNotice` watcher 逐字港 Vue2 Agent.vue:133-142:非空时弹一条
+    4000ms 的 warning toast(Task 6 的 tier),`to` 为空时兜底显示
+    `t('aiNoModelAvailable')`;**watcher 自己把 store.lastFallbackNotice 置回
+    null**——store 侧(agentStore.ts)特意不清空这个字段,清空职责在消费它的视图。
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
@@ -75,6 +88,32 @@ function onOpenSettings() {
 function onUpdateTitle(title: string) {
   if (store.activeSessionId) store.setSessionTitle(store.activeSessionId, title)
 }
+
+// Vue2 Agent.vue:216-220 —— sparkle click, guarded by activeSessionId (no-op
+// with no active session, mirrors the same guard onUpdateTitle uses above).
+function onRegenerateTitle() {
+  if (store.activeSessionId) store.regenerateTitle(store.activeSessionId)
+}
+
+// Vue2 Agent.vue:133-142 —— model-fallback toast. The store deliberately
+// never clears `lastFallbackNotice` itself (see agentStore.ts) — clearing it
+// is this watcher's job, same as Vue2 did inline (`this.store.state
+// .lastFallbackNotice = null`), so a second identical fallback later still
+// re-fires the watcher instead of being silently swallowed by an unchanged
+// (falsy) value.
+watch(
+  () => store.lastFallbackNotice,
+  (notice) => {
+    if (notice) {
+      toast.show(
+        t('aiModelFallback', { from: notice.from, to: notice.to || t('aiNoModelAvailable') }),
+        4000,
+        'warning',
+      )
+      store.lastFallbackNotice = null
+    }
+  },
+)
 
 // Agent.vue:99 ctxUsage state, populated by refreshContextUsage() below.
 const ctxUsage = ref<{ tokens: number; window: number; pct: number } | null>(null)
@@ -217,13 +256,19 @@ onMounted(async () => {
       <AgentTopbar
         :session-id="String(store.activeSessionId ?? '')"
         :stored-title="currentSessionTitle"
+        :regenerating-title-for="store.regeneratingTitleFor"
         :theme="store.theme"
         :right-collapsed="store.rightCollapsed"
+        :available-models="store.availableModels"
+        :selected-model="store.selectedModel"
         :thinking="store.thinking"
         @toggle-left="store.toggleLeft"
         @toggle-theme="store.toggleTheme"
         @toggle-right="store.toggleRight"
         @update-title="onUpdateTitle"
+        @select-model="(key) => store.selectModel(key)"
+        @open-settings="onOpenSettings"
+        @regenerate-title="onRegenerateTitle"
         @thinking-enabled="(v) => store.setThinkingEnabled(v)"
         @thinking-level="(v) => store.setThinkingLevel(v)"
       />

@@ -575,6 +575,20 @@ export default {
   aiCancel: '取消',
   aiSettingsComingSoon: '设置页将在后续阶段开启',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
+  // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
+  // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
+  // 中文值取自 Vue2 src/assets/lang/zh_CN.json 里对应英文 key 的既有译文,保持
+  // 与旧应用一致的措辞。
+  aiLocalOllama: '本地 Ollama',
+  aiCloudModels: '云端',
+  aiSearchModelsPlaceholder: '搜索模型…',
+  aiModelSelect: '选择模型',
+  aiModelNotSelected: '未选择',
+  aiModelEmptyText: '还没有可用模型',
+  aiGoToSettings: '前往设置',
+  aiModelFallback: '原模型 {from} 不可用，已切换到 {to}',
+  aiNoModelAvailable: '无可用模型',
+  aiRename: 'AI 重命名',
   // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
   'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',
   // SP8-P1b Task 8 —— 块渲染器批次 A(confirm/mcp 系列卡片),1:1 对齐 Vue2

@@ -308,4 +308,98 @@ describe('AgentPage', () => {
     expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
     w.unmount()
   })
+
+  it('SP8-P1c2 Task 9:AgentTopbar 的 select-model 接到 store.selectModel,available-models/selected-model 直传', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.availableModels = [{ key: 'local:a', source: 'local', displayName: 'A' }]
+    store.selectedModel = 'local:a'
+    await flushPromises()
+    const topbar = w.findComponent({ name: 'AgentTopbar' })
+    expect(topbar.props('availableModels')).toEqual(store.availableModels)
+    expect(topbar.props('selectedModel')).toBe('local:a')
+    const selectSpy = vi.spyOn(store, 'selectModel')
+    topbar.vm.$emit('select-model', 'local:b')
+    expect(selectSpy).toHaveBeenCalledWith('local:b')
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 9:AgentTopbar 的 open-settings 与侧栏共用同一占位 toast(不 router.push)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const topbar = w.findComponent({ name: 'AgentTopbar' })
+    topbar.vm.$emit('open-settings')
+    expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
+    expect(push).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 9:regenerate-title → store.regenerateTitle(activeSessionId);无活跃会话时不调用(Vue2 Agent.vue:216-220)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const regenSpy = vi.spyOn(store, 'regenerateTitle').mockResolvedValue(undefined)
+    const topbar = w.findComponent({ name: 'AgentTopbar' })
+
+    topbar.vm.$emit('regenerate-title')
+    expect(regenSpy).not.toHaveBeenCalled()
+
+    store.activeSessionId = 'sess-1'
+    await flushPromises()
+    topbar.vm.$emit('regenerate-title')
+    expect(regenSpy).toHaveBeenCalledWith('sess-1')
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 9:regeneratingTitleFor 直传顶栏(禁用矩阵由 AgentTopbar 自己算,这里只验证透传)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.regeneratingTitleFor = { id: 'sess-1', background: true }
+    await flushPromises()
+    const topbar = w.findComponent({ name: 'AgentTopbar' })
+    expect(topbar.props('regeneratingTitleFor')).toEqual({ id: 'sess-1', background: true })
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 9:lastFallbackNotice 变化 → 4000ms warning toast,随后被置回 null(Vue2 Agent.vue:133-142)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    store.lastFallbackNotice = { from: 'cloud:openai:gpt-4', to: 'local:llama3' }
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledWith(
+      '原模型 cloud:openai:gpt-4 不可用，已切换到 local:llama3',
+      4000,
+      'warning',
+    )
+    // The store itself never clears this — the view must, so a later
+    // identical fallback still re-fires the watcher instead of being
+    // swallowed by an unchanged (still-truthy) value.
+    expect(store.lastFallbackNotice).toBe(null)
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 9:lastFallbackNotice.to 为空 → 用 aiNoModelAvailable 兜底文案', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    store.lastFallbackNotice = { from: 'cloud:openai:gpt-4', to: null }
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledWith(
+      '原模型 cloud:openai:gpt-4 不可用，已切换到 无可用模型',
+      4000,
+      'warning',
+    )
+    w.unmount()
+  })
 })
