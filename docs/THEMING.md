@@ -205,6 +205,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--grad-a` | 渐变左/起点色 | `#7a98ff` | `#4c6fe8` |
 | `--grad-b` | 渐变右/终点色 | `#b79bff` | `#6e5ae0` |
 | `--album-cover-fallback` | 相册无封面渐变占位（PhotosAlbums/PhotosAlbumDetail 共用） | `linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent))` | 同公式（两套主题各自的 `--accent`/`--panel-bg`） |
+| `--avatar-fallback` | 人物头像三级兜底渐变实底（`PersonAvatar.vue`，SP7-P5；对齐 Vue2 5 处重复的紫渐变，统一成一份 token） | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000))` | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000))`（mix 百分比更高，避免纸感主题的深蓝 accent 糊成近黑） |
 | `--accent-soft` | 强调软底（最浅） | `rgba(138,180,255,0.14)` | `rgba(59,91,219,0.11)` |
 | `--accent-soft-2` | 强调软底（中浅） | `rgba(138,180,255,0.24)` | `rgba(59,91,219,0.2)` |
 | `--accent-soft-bd` | 强调软底描边 | `rgba(138,180,255,0.36)` | `rgba(59,91,219,0.3)` |

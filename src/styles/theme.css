@@ -60,6 +60,11 @@
      linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent),提成本 token 消灭
      重复;两处均改用它,见 THEMING.md 例外清单外的普通语义 token 用法)。 */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+  /* 人物头像三级兜底的渐变实底(PersonAvatar.vue,SP7-P5)。目标是贴近 Vue2 5 处重复的
+     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd)(两套并存本身不一致,
+     这里统一成一份 token)。用 --accent 混黑代替写死紫色,保持"颜色一律走 token"红线;
+     对比度实算见 PersonAvatar.vue 顶部注释与任务报告。 */
+  --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
   --accent-soft: rgba(138, 180, 255, 0.14);
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
@@ -261,6 +266,9 @@
   /* 相册无封面渐变占位(见 :root 同名 token 注释),白色纸感主题下取值同一份公式,
      --accent/--panel-bg 各自已按本主题定义,结果自然是本主题配色。 */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+  /* 见 :root 同名 token 注释;白色纸感主题下 accent 更深,mix 百分比调到 70% 才不至于
+     整块糊成近黑(对比度实算见 PersonAvatar.vue / 任务报告)。 */
+  --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
   --accent-soft: rgba(59, 91, 219, 0.11);
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);
