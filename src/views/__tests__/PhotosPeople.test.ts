@@ -3,7 +3,12 @@
 // 挂 Pinia + i18n + 真实 router(spy push,不 mock 整个 vue-router —— AreaShell/PhotosSidebar
 // 都用 useRouter(),照 PhotosAlbums.test.ts 的既有挂载套路),mock 共享包 photos 方法。
 // 覆盖 brief Step 1 的 12 条行为清单 + facesEnabled 的三种来源(false / 缺字段 / 请求失败)。
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+//
+// Task 7(本次追加):ClusterActionDialog 真正接上后的三条提交路径接线用例 —— 见文件末尾
+// "T7 三态弹窗接线" describe 块。updatePerson/mergePersons/purgePerson 是 usePhotosPeople()
+// store 内部经由 service.photos 调用的真实端点,这里 mock 到 svc 上而不是 mock 整个 store,
+// 端到端验证 store 与弹窗真的接上了(同 AlbumPickerDialog.test.ts 的既有套路)。
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -17,6 +22,9 @@ const svc = vi.hoisted(() => ({
     getConfig: vi.fn().mockResolvedValue({}),
     personFaceThumbnailUrl: vi.fn((id: string | number, ver?: string | number | null) => `mock://face/${id}/${ver ?? ''}`),
     getTimeline: vi.fn().mockResolvedValue([]),
+    updatePerson: vi.fn().mockResolvedValue(undefined),
+    mergePersons: vi.fn().mockResolvedValue(undefined),
+    purgePerson: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -24,6 +32,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 import PhotosPeople from '../PhotosPeople.vue'
 import { usePhotosPeople } from '../../photos/stores/people'
 import { useTimelineStore } from '../../photos/stores/timeline'
+import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -72,6 +81,17 @@ beforeEach(() => {
   svc.photos.mergeSuggestions.mockClear().mockResolvedValue([])
   svc.photos.getConfig.mockClear().mockResolvedValue({})
   svc.photos.personFaceThumbnailUrl.mockClear()
+  svc.photos.updatePerson.mockClear().mockResolvedValue(undefined)
+  svc.photos.mergePersons.mockClear().mockResolvedValue(undefined)
+  svc.photos.purgePerson.mockClear().mockResolvedValue(undefined)
+})
+// 关键隔离(同 people.test.ts:46-54 的既有教训):_purgeTimers 是 people store 模块作用域
+// 单例,不随 setActivePinia(createPinia()) 重置。T7 的删除测试用同一个 id('u1')反复调
+// purgePersonWithUndo,若不清,上一条用例留下的悬挂 entry(未 advanceTimers 也未 undo())
+// 会在下一条用例里被"复用首次 idx/snapshot"分支捡到,插回的是上一个 store 实例的快照——
+// 用 afterEach(不是 beforeEach,理由同上引处)兜底清空。
+afterEach(() => {
+  usePhotosPeople().__resetForTest()
 })
 
 describe('PhotosPeople.vue — 生命周期与分区', () => {
@@ -329,15 +349,20 @@ describe('PhotosPeople.vue — 跳转与浮动菜单', () => {
     expect(menu.attributes('style')).toContain('top: 208px')
   })
 
-  it('菜单三项分别置 dialog 状态(name/merge/delete),不打开任何真实弹窗', async () => {
-    for (const [testId, mode] of [['menu-name', 'name'], ['menu-merge', 'merge'], ['menu-delete', 'delete']] as const) {
+  // T7:菜单三项打开对应 mode 的真实 ClusterActionDialog(此前 T6 只置一个隐藏占位状态,
+  // T7 把它换成真弹窗——断言各 mode 特有的 DOM 而不是占位属性)。
+  it('菜单三项分别打开对应 mode 的真实弹窗(name/merge/delete),菜单点完即关', async () => {
+    const checks: Record<'menu-name' | 'menu-merge' | 'menu-delete', (w: Awaited<ReturnType<typeof mountView>>['w']) => void> = {
+      'menu-name': (w) => expect(w.find('[data-test="cad-name-input"]').exists()).toBe(true),
+      'menu-merge': (w) => expect(w.find('[data-test="cad-merge-input"]').exists()).toBe(true),
+      'menu-delete': (w) => expect(w.find('[data-test="cad-confirm-delete"]').exists()).toBe(true),
+    }
+    for (const testId of ['menu-name', 'menu-merge', 'menu-delete'] as const) {
       const { w } = await mountView()
       await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
       await w.find(`[data-test="${testId}"]`).trigger('click')
-      const state = w.find('[data-test="cluster-dialog-state"]')
-      expect(state.exists()).toBe(true)
-      expect(state.attributes('data-mode')).toBe(mode)
-      expect(state.attributes('data-person-id')).toBe('u1')
+      expect(w.find('[data-test="cad-overlay"]').exists()).toBe(true)
+      checks[testId](w)
       // 菜单点完即关
       expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
     }
@@ -424,5 +449,155 @@ describe('PhotosPeople.vue — 空态', () => {
     const { w } = await mountView()
     expect(usePhotosPeople().peopleLoaded).toBe(false)
     expect(w.find('[data-test="people-empty"]').exists()).toBe(false)
+  })
+})
+
+// ── T7:三态弹窗接线(命名/合并/删除三条提交路径 + 各自的重入守卫)──
+// u1/u2 是未命名(候选自身),ALICE/CAROL/BOB 是已命名(合并候选来源 = people.named)。
+async function openMenuDialog(w: Awaited<ReturnType<typeof mountView>>['w'], menuTestId: 'menu-name' | 'menu-merge' | 'menu-delete', cardIdx = 0) {
+  await w.findAll('[data-test="cluster-card"]')[cardIdx].trigger('click')
+  await w.find(`[data-test="${menuTestId}"]`).trigger('click')
+}
+
+describe('PhotosPeople.vue — T7 三态弹窗接线:命名', () => {
+  it('成功:调 renamePerson(id, name) → 成功 toast 带名字与照片数 → 弹窗关闭', async () => {
+    const { w } = await mountView()
+    const toast = useToast()
+    await openMenuDialog(w, 'menu-name')
+    await w.get('[data-test="cad-name-input"]').setValue('Sara')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('u1', { name: 'Sara' })
+    expect(toast.toasts[0]!.text).toContain('Sara')
+    expect(toast.toasts[0]!.text).toContain('9') // u1.count === 9
+    expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
+  })
+
+  it('失败:renamePerson 拒绝 → 失败 toast,弹窗保持打开(可重试)', async () => {
+    svc.photos.updatePerson.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView()
+    const toast = useToast()
+    await openMenuDialog(w, 'menu-name')
+    await w.get('[data-test="cad-name-input"]').setValue('Sara')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await flushPromises()
+
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonRenamedFailed)
+    expect(w.find('[data-test="cad-overlay"]').exists()).toBe(true)
+  })
+
+  // 重入守卫回归(P4 期同类 bug 被抓三次):连按两次回车,第二次在第一次的请求 resolve 前触发。
+  it('重入守卫:连按两次回车提交命名 → updatePerson 只被调一次', async () => {
+    let resolveUpdate: (() => void) | undefined
+    svc.photos.updatePerson.mockImplementation(() => new Promise((resolve) => { resolveUpdate = () => resolve(undefined) }))
+    const { w } = await mountView()
+    await openMenuDialog(w, 'menu-name')
+    const input = w.get('[data-test="cad-name-input"]')
+    await input.setValue('Sara')
+    await input.trigger('keydown', { key: 'Enter' })
+    await input.trigger('keydown', { key: 'Enter' }) // 第二次回车在第一次未 resolve 前触发
+    await flushPromises()
+
+    expect(svc.photos.updatePerson).toHaveBeenCalledTimes(1)
+    resolveUpdate?.()
+    await flushPromises()
+  })
+})
+
+describe('PhotosPeople.vue — T7 三态弹窗接线:合并', () => {
+  it('成功:调 mergePersonInto(fromId, targetId) → 成功 toast 带目标名字 → 弹窗关闭', async () => {
+    const { w } = await mountView()
+    const toast = useToast()
+    await openMenuDialog(w, 'menu-merge')
+    // 候选来源 = people.named,按 count 降序:Alice(120) > Bob(90) > Carol(50) —— 第一项是 Alice。
+    const first = w.get('[data-test="cad-candidate"]')
+    expect(first.attributes('data-id')).toBe('42')
+    await first.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('u1', 42)
+    expect(toast.toasts[0]!.text).toContain('Alice')
+    expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
+  })
+
+  it('失败:mergePersons 拒绝 → 失败 toast(T7 偏离登记 8:Vue2 不 await 且先弹假成功);弹窗仍关闭', async () => {
+    svc.photos.mergePersons.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView()
+    const toast = useToast()
+    await openMenuDialog(w, 'menu-merge')
+    await w.get('[data-test="cad-candidate"]').trigger('click')
+    await flushPromises()
+
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeFailed)
+    // 唯一成功 toast 的文案不应该出现——回归"先弹成功再报错"的 Vue2 bug
+    expect(toast.toasts.some((tt) => tt.text.includes('已合并到'))).toBe(false)
+    expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
+  })
+
+  it('重入守卫:连点两次同一候选(第二次在第一次未 resolve 前触发)→ mergePersons 只被调一次', async () => {
+    let resolveMerge: (() => void) | undefined
+    svc.photos.mergePersons.mockImplementation(() => new Promise((resolve) => { resolveMerge = () => resolve(undefined) }))
+    const { w } = await mountView()
+    await openMenuDialog(w, 'menu-merge')
+    const candidate = w.get('[data-test="cad-candidate"]')
+    await candidate.trigger('click')
+    await candidate.trigger('click') // 第二次点击在第一次未 resolve 前触发(弹窗此刻仍开着)
+    await flushPromises()
+
+    expect(svc.photos.mergePersons).toHaveBeenCalledTimes(1)
+    resolveMerge?.()
+    await flushPromises()
+  })
+})
+
+describe('PhotosPeople.vue — T7 三态弹窗接线:删除', () => {
+  it('成功:purgePersonWithUndo 被调 → 弹窗关闭 → toast 带 5000ms 与 undo action', async () => {
+    const { w } = await mountView()
+    const people = usePhotosPeople()
+    const toast = useToast()
+    const purgeSpy = vi.spyOn(people, 'purgePersonWithUndo')
+    const toastSpy = vi.spyOn(toast, 'show')
+    await openMenuDialog(w, 'menu-delete')
+    await w.get('[data-test="cad-confirm-delete"]').trigger('click')
+
+    expect(purgeSpy).toHaveBeenCalledWith('u1')
+    expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
+    // 未命名人物(name==='')落到 photosPersonThisPerson 兜底,不加引号(照 confirmDelete
+    // 的兜底逻辑,有名字才加双引号)。
+    expect(toastSpy).toHaveBeenCalledWith(`${zh.photosPersonThisPerson} 已删除`, 5000, {
+      label: zh.photosPersonUndo,
+      onClick: expect.any(Function),
+    })
+    // 删除立即从网格里消失(purgePersonWithUndo 是乐观本地移除)
+    expect(ids(w, '[data-test="cluster-card"]')).not.toContain('u1')
+  })
+
+  it('点 toast 里的撤销 action → 调用 undo,人物重新出现在未命名网格', async () => {
+    const { w } = await mountView()
+    const toast = useToast()
+    await openMenuDialog(w, 'menu-delete')
+    await w.get('[data-test="cad-confirm-delete"]').trigger('click')
+    expect(ids(w, '[data-test="cluster-card"]')).not.toContain('u1')
+
+    const action = toast.toasts[0]!.action!
+    action.onClick()
+    await w.vm.$nextTick()
+    expect(ids(w, '[data-test="cluster-card"]')).toContain('u1')
+  })
+
+  // 重入守卫回归:两次点击在 Vue 把面板从 DOM 摘掉之前的同一个同步窗口内都打在同一个按钮上
+  // (purgePersonWithUndo 本身是同步函数,不像命名/合并那样有天然的 await 间隙可以卡)。
+  it('重入守卫:连点两次确认删除(不等待中间重渲染)→ purgePersonWithUndo 只被调一次', async () => {
+    const { w } = await mountView()
+    const people = usePhotosPeople()
+    const spy = vi.spyOn(people, 'purgePersonWithUndo')
+    await openMenuDialog(w, 'menu-delete')
+    const btn = w.get('[data-test="cad-confirm-delete"]')
+    const p1 = btn.trigger('click')
+    const p2 = btn.trigger('click')
+    await Promise.all([p1, p2])
+
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 })

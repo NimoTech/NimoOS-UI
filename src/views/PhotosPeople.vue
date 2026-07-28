@@ -6,9 +6,19 @@
 // 壳照 PhotosAlbums.vue:185-188 的 AreaShell/.photos-layout/PhotosSidebar/.photos-main 复制
 // (不抽公共,P3/P4 既定)。document 级监听照 PhotosAlbums.vue:159-181。
 //
-// 本任务不做:三态操作弹窗(T7)与合并建议审阅弹窗(T8)。菜单三项/Review 只把状态写进
-// `dialog` / `reviewOpen`+`reviewIdx`,模板里各留一个隐藏的 v-if 占位节点(T7/T8 会把它
-// 换成真实弹窗);路由注册与侧栏条目归 T16。
+// T7(本次追加):接入 ClusterActionDialog(命名/合并/删除三态弹窗),`dialog` 状态从
+// T6 的隐藏占位节点换成真实弹窗;三条提交路径(renamePerson/mergePersonInto/
+// purgePersonWithUndo)的 store 调用、重入守卫、toast 全部收在这里 —— 弹窗本身只 emit
+// (分工同 ClusterActionDialog.vue 头部注释)。合并建议审阅弹窗仍是 T8 的占位节点,本次不碰
+// `reviewOpen`/`reviewIdx`。路由注册与侧栏条目归 T16。
+//
+// T7 两条 Vue2 bug 修正(brief 明确要求改的,不照抄):
+//  8) Vue2 confirmMergeTo :654-660 不 await 会拒绝的 mergeClusterInto、且**先弹"已合并"
+//     成功 toast 再关弹窗**——合并失败时用户仍会看到"已合并到 xxx"的假成功提示,promise
+//     rejection 也完全没处理(未捕获拒绝)。这里改成 await + 只在成功路径 toast 成功文案,
+//     失败路径 toast `photosPersonMergeFailed`。
+//  9) Vue2 本页的 toast 引用是坏的(T6 偏离登记 1 已记录:默认导入了没有对应 export 的
+//     photosToast.js,四处调用实际抛 TypeError)。三条提交路径的 toast 一律走本仓 useToast()。
 //
 // 偏离 Vue2 登记(Vue2 的 bug 不照抄):
 //  1) Vue2 本页的 toast 是坏的:PhotosPeopleView.vue:441 默认导入了没有对应 export 的
@@ -34,8 +44,10 @@ import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
+import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
+import { useToast } from '../stores/toast'
 import {
   mergeConfidencePct, mergeReasonKey, sortNamed, unnamedCountAt, type Person,
 } from '../photos/util/peopleView'
@@ -48,6 +60,7 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const people = usePhotosPeople()
 const timeline = useTimelineStore()
+const toast = useToast()
 
 // Vue2 :448
 const CONFIDENCE_OPTIONS = [50, 60, 70, 80, 90, 95]
@@ -59,10 +72,17 @@ const showUnnamed = ref(true)
 const confidenceOpen = ref(false)
 const sortOpen = ref(false)
 const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
-// T7 三态弹窗状态 / T8 审阅弹窗状态 —— 本任务只写不读(模板里各有一个隐藏占位节点)。
+// T7 三态弹窗状态(本次接了真实弹窗)/ T8 审阅弹窗状态(仍是占位节点)。
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
 const reviewOpen = ref(false)
 const reviewIdx = ref(0)
+// 三条提交路径各自独立的 in-flight 守卫(brief 硬约束:P4 期这类 bug 被抓了三次)。
+// 三个 ref 分开、不共用——理由同 AlbumPickerDialog.vue:35-42 的先例:任何两条路径都可能
+// 在真实使用中被连续触发(比如命名成功后立刻又点了删除),共用一个标志会让互不相干的操作
+// 彼此误伤。
+const namingSubmitting = ref(false)
+const mergingSubmitting = ref(false)
+const deletingSubmitting = ref(false)
 // aiFeatures.faces 的临时来源:本仓没有 settings store(归 P8),onMounted 直接读一次
 // /photos/config。失败或字段缺失一律按 true(不显示警告横幅,宁可不吓用户)。
 const facesEnabled = ref(true)
@@ -163,6 +183,71 @@ function openDialog(mode: DialogMode): void {
 function openReview(): void {
   reviewIdx.value = 0
   reviewOpen.value = true
+}
+
+// ClusterActionDialog 只 emit,不碰 store/toast(分工见该组件头部注释)——三条提交路径的
+// 真实调用、重入守卫、toast 全部在这里。`update:open(false)` 统一走 closeDialog(取消/Esc/
+// 点遮罩/关闭按钮都走这一条路)。
+function closeDialog(): void {
+  dialog.value = null
+}
+
+// 照 Vue2 confirmName :645-652,乐观关弹窗改为等 store 成功才关(brief 明确的路径):
+// 短路 → await renamePerson → 成功 toast + 关弹窗;失败 toast 失败文案,弹窗留着(照
+// AlbumPickerDialog submitCreate 失败不关面板的先例,让用户能看清失败原因并重试)。
+async function onSubmitName(name: string): Promise<void> {
+  if (!dialog.value || namingSubmitting.value) return
+  const person = dialog.value.person
+  namingSubmitting.value = true
+  try {
+    await people.renamePerson(person.id, name)
+    toast.show(t('photosPersonNamedToast', { name, count: person.count }))
+    dialog.value = null
+  } catch {
+    // store 已经 console.error 过,这里只管用户可见的失败反馈。
+    toast.show(t('photosPersonRenamedFailed'))
+  } finally {
+    namingSubmitting.value = false
+  }
+}
+
+// T7 偏离登记(brief 明确要求改的 Vue2 bug,见文件头注释第 8 条):Vue2 confirmMergeTo
+// :654-660 不 await mergeClusterInto、且在发起请求后立刻弹"已合并"成功 toast、再无条件关
+// 弹窗——请求真失败时用户看到的是假成功提示,而且返回的 rejected promise 完全没人处理
+// (未捕获拒绝)。这里改成 await + 只在成功路径弹成功 toast;失败弹 photosPersonMergeFailed;
+// 无论成败都在 finally 关弹窗(照 brief:"finally 关弹窗 + 复位",合并这条不像命名那样让
+// 用户留在弹窗里重试——目标人物是从候选列表里点的,不是打字输入,失败重开菜单重新选更清楚)。
+async function onSubmitMerge(targetId: string | number): Promise<void> {
+  if (!dialog.value || mergingSubmitting.value) return
+  const fromId = dialog.value.person.id
+  const targetName = people.personById(targetId)?.name ?? ''
+  mergingSubmitting.value = true
+  try {
+    await people.mergePersonInto(fromId, targetId)
+    toast.show(t('photosPersonMergedToast', { name: targetName }))
+  } catch {
+    toast.show(t('photosPersonMergeFailed'))
+  } finally {
+    dialog.value = null
+    mergingSubmitting.value = false
+  }
+}
+
+// 照 Vue2 confirmDelete :661-674,purgePersonWithUndo 同步返回 undo 闭包(不是 Promise,
+// 不 await)。重入守卫仍然要:两次连点在 Vue 把弹窗从 DOM 摘掉之前的那个同步窗口里都能摸到
+// 同一个按钮(P4 回归同款场景,见 ClusterActionDialog.test.ts 的双击测试)。
+function onSubmitDelete(): void {
+  if (!dialog.value || deletingSubmitting.value) return
+  deletingSubmitting.value = true
+  try {
+    const person = dialog.value.person
+    const undo = people.purgePersonWithUndo(person.id)
+    dialog.value = null
+    const label = person.name && person.name.trim() ? `"${person.name.trim()}"` : t('photosPersonThisPerson')
+    toast.show(t('photosPersonDeletedToast', { label }), 5000, { label: t('photosPersonUndo'), onClick: undo })
+  } finally {
+    deletingSubmitting.value = false
+  }
 }
 
 // ── document 级浮层监听(Vue2 mounted :525-540 的 _onDoc + 本仓补的 Esc)──
@@ -463,14 +548,19 @@ onUnmounted(() => {
     </button>
   </div>
 
-  <!-- T7/T8 占位:本任务只置状态,不渲染真实弹窗。两个节点隐藏,仅供 T7/T8 接管与测试断言。 -->
-  <div
-    v-if="dialog"
-    hidden
-    data-test="cluster-dialog-state"
-    :data-mode="dialog.mode"
-    :data-person-id="dialog.person.id"
-  ></div>
+  <!-- T7:三态操作弹窗真正接上。候选传全量 named——排序/过滤/截断在弹窗内部(brief 定案)。 -->
+  <ClusterActionDialog
+    :open="dialog !== null"
+    :mode="dialog?.mode ?? 'name'"
+    :person="dialog?.person ?? null"
+    :candidates="people.named"
+    @update:open="(v) => { if (!v) closeDialog() }"
+    @submit-name="onSubmitName"
+    @submit-merge="onSubmitMerge"
+    @submit-delete="onSubmitDelete"
+  />
+
+  <!-- T8 占位:合并建议审阅弹窗仍未接入,本次不碰。 -->
   <div v-if="reviewOpen" hidden data-test="review-state" :data-idx="reviewIdx"></div>
 </template>
 
