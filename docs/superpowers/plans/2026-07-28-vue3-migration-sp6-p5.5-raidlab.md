@@ -8,6 +8,14 @@
 
 **Tech Stack:** Go 1.x + `gotest.tools/v3/assert`(后端);Bash + 手写测试 harness + `python3`(JSON 解析)+ `awk`(文本过滤);`scsi_debug` 内核模块;`mdadm`。
 
+## 执行期变更（2026-07-28，已生效，覆盖下方原文）
+
+三处偏离原始计划，均已定案，实施时以本节为准：
+
+1. **Task 1 的白名单补丁改为标记文件门控**（用户拍板）。原文是无条件放开 `block:scsi:pseudo`，那等于把测试脚手架漏进产品——`IsDiskSupported` 是「什么设备可被格式化建 RAID」的安全边界，出厂产品不该接受内存假盘。改为：只在 `/etc/nimoos/allow-pseudo-disks` 存在时才认 pseudo。产品默认行为与打补丁前完全一致。用标记文件而非环境变量/配置项，因为服务在 systemd 下、前者要改 unit、后者要重启；不用 build tag，因为那样验证的就不是出厂二进制。
+2. **Task 5 的 `cmd_up`/`cmd_down` 各加一行**管理该标记文件：`up` 在 `modprobe` 之后 `sudo touch`，`down` 在 `rmmod` 之后 `sudo rm -f`。与假盘生命周期绑定。
+3. **Task 5 的 `cmd_down` 加一道前置断言**（控制者裁定）。原因:两个过滤器是按行全局删除（凡 md 源的 `.snapshots` 行、凡 `ARRAY` 行），而 `assert_md_all_fake` 只核查**已组装**的阵列——一台有真实但未组装阵列的机器上，`down` 不核查它却照样删它的配置行。**过滤器签名保持无参 stdin 不变**（那是 Task 4 已定的对外契约），改法是在 `cmd_down` 步骤 1 之后、步骤 2 之前插入：从 fstab 提取全部 `/dev/md*` 源、从 mdadm.conf 提取全部 `ARRAY` 行涉及的设备，凡有一个不在「已通过 `assert_md_all_fake` 的阵列」集合里 → 报错退出、不动任何文件。把「默默删错」变成「安全拒绝」。
+
 ## Global Constraints
 
 - **只动两个仓**:`NimoOS-LocalStorage`(Task 1)和 `nimo_os_docs`(Task 2–6)。**禁止改 `NimoOS-UI` / `NimoOS-New-UI` / `NimoOS-Service` 任何代码** —— 本期不迁 UI,只清环境挂账。roadmap/spec 文档已由上游会话改完,也不要再动。

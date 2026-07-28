@@ -75,9 +75,17 @@ func IsDiskSupported(d model.LSBLKModel) bool {
 
 实证:4 块假盘在 `lsblk -O -J -b` 里 `type=disk`/`ro=false` 一切正常,`GET /v1/disks` 依然只返回 `nvme0n1`,`avail` 为 `[]`。且已核实 P4 创建向导确实走 `service.disks.getDiskList()` → `GET /v1/disks`,躲不开这个过滤。
 
-**解法(用户 2026-07-28 拍板):给白名单加一行 `block:scsi:pseudo`**,重建并部署 `nimoos-local-storage`。判断依据:
+**解法(用户 2026-07-28 拍板):白名单加认 `block:scsi:pseudo`,但由标记文件门控**,重建并部署 `nimoos-local-storage`。
 
-- 生产影响惰性 —— `block:scsi:pseudo` 只可能来自主动 `modprobe scsi_debug`,真实 NAS 上不会出现;
+> **⚠️ 二次修正(2026-07-28,用户在执行期提出的产品质量意见)**:初版方案是**无条件**放开 `block:scsi:pseudo`,这是错的。`IsDiskSupported` 实际上是一道**安全边界** —— 它决定「什么设备可以被当成用户存储盘拿去格式化、建 RAID」。无条件拓宽等于把测试脚手架漏进产品:万一某台机器上 `scsi_debug` 被加载(管理员手滑、诊断脚本、镜像预置),产品就会把几块内存盘推给用户当真存储,用户建了 RAID 存了数据、一重启全没。概率极低,但那是我们自己引进去的陷阱。**测试台的便利不该以放宽产品安全边界为代价。**
+>
+> **改为默认关闭、显式开启**:只在标记文件 `/etc/nimoos/allow-pseudo-disks` 存在时才认 pseudo。出厂产品无此文件 → 行为与打补丁前完全一致。测试台由 `raidlab.sh up` 建、`down` 删,与假盘生命周期绑定。
+>
+> 用标记文件而非环境变量或配置项:服务跑在 systemd 下,环境变量要改 unit 或写 drop-in、配置项要重启才生效;标记文件在调用时读,脚本一句 `touch`/`rm` 即可。**不用 build tag 做两个二进制**:那样验证的就不是出厂的那个二进制,测试台的意义会被削掉一半。
+
+判断依据:
+
+- 门控后生产行为零变化 —— 无标记文件时 `block:scsi:pseudo` 照样被拒;
 - 假盘 `rota=0` → 后端判为 SSD → **选盘界面、SSD/HDD 筛选片、`selectAllHealthy` 作用于过滤视图(P4-T3 的修复)全部走真实路径**,这是最需要验的一段逻辑;
 - 备选的 USB gadget 路线(`dummy_hcd` + configfs `usb_f_mass_storage`,三个模块在设备上均可用、`tran=usb` 天然过白名单)虽不需改后端,但所有盘会报 `disk_type=USB`,恰好把上面那段选盘逻辑变成盲区 —— 故不采用。
 
