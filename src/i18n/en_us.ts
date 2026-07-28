@@ -893,4 +893,14 @@ export default {
   aiResMinutesAgo: '{n}m ago',
   aiResHoursAgo: '{n}h ago',
   aiResDaysAgo: '{n}d ago',
+  // >>> SP8-P2b Task 4 —— BlacklistSection(文件系统)
+  aiCfgBlacklistDesc: "No matter which folders you authorize, files matching these patterns are never readable or writable by the Agent. Built-in patterns can't be changed; below are the ones you added.",
+  aiCfgBuiltinReadonly: 'Built-in (read-only)',
+  aiCfgYourPatterns: 'Your patterns',
+  aiCfgPatternPlaceholder: 'e.g. /DATA/private/** or *.bak',
+  aiCfgAddPattern: '+ Add',
+  aiCfgAddingPattern: 'Adding…',
+  aiCfgNoCustomPatterns: 'No custom patterns yet.',
+  aiCfgAddFailed: 'Failed to add',
+  // <<< SP8-P2b Task 4
 }

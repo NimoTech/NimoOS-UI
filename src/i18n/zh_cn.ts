@@ -911,4 +911,14 @@ export default {
   aiResMinutesAgo: '{n} 分钟前',
   aiResHoursAgo: '{n} 小时前',
   aiResDaysAgo: '{n} 天前',
+  // >>> SP8-P2b Task 4 —— BlacklistSection(文件系统)
+  aiCfgBlacklistDesc: '无论你授权哪些文件夹,匹配这些 pattern 的文件 Agent 一律读不到、改不了。内置 pattern 不可修改;下面是你自己追加的。',
+  aiCfgBuiltinReadonly: '内置（只读）',
+  aiCfgYourPatterns: '你的 pattern',
+  aiCfgPatternPlaceholder: '例如 /DATA/private/** 或 *.bak',
+  aiCfgAddPattern: '+ 添加',
+  aiCfgAddingPattern: '添加中…',
+  aiCfgNoCustomPatterns: '还没有自定义 pattern。',
+  aiCfgAddFailed: '添加失败',
+  // <<< SP8-P2b Task 4
 }
