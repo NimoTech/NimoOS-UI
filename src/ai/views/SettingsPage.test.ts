@@ -35,10 +35,10 @@ const ai = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
-import SettingsPage, { SECTION_COMPONENTS } from './SettingsPage.vue'
-import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
+import SettingsPage from './SettingsPage.vue'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { ImportJob } from '../stores/settingsStore'
+import type { SectionId } from '../components/settings/sections'
 import { useAiTheme } from '../stores/aiTheme'
 import { useToast } from '../../stores/toast'
 
@@ -283,6 +283,49 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
     expect(w.find('.set-body').classes()).not.toContain('set-body-split')
     w.unmount()
   })
+
+  // SP8-P2b Task 14 修复轮 1 —— 收口守卫,取代原先直接断言内部常量
+  // `SECTION_COMPONENTS` 的写法(协调者裁定:`export` 会让 `<script setup>`
+  // 编译失败,而为了可测去拆额外 `<script>` 块是不必要的公开面扩张;改成断言
+  // *渲染结果*,不碰组件内部实现)。
+  //
+  // 判别依据:`SectionPlaceholder.vue` 把 `bodyKey` prop 渲染成
+  // `<p class="set-desc">{{ t(props.bodyKey) }}</p>`,而 `SettingsPage.vue`
+  // 的 `placeholderProps()` 对占位分区永远传 `bodyKey: 'aiCfgPlaceholderBody'`
+  // ——这段文案(`zh.aiCfgPlaceholderBody`)是占位面板独有的,11 个真分区各自
+  // 用的是自己的 `aiCfgXxxDesc` 文案键(逐一核对过 `sections/*.vue` 源码,没有
+  // 一个真分区复用这个键),所以「页面渲染文本里是否出现这段占位文案」可以
+  // 精确区分「真组件」与「SectionPlaceholder」,不需要拿到 `SECTION_COMPONENTS`
+  // 本身。
+  //
+  // agent 组(blacklist/execution/search/memory/observability)是 stack 组,
+  // 一次 setActiveSection 会把组内 5 个分区一起渲染出来,断言力度比逐个切更强
+  // (5 个分区的真实现只要有 1 个不小心留了占位就会被抓到)。
+  it('SP8-P2b 收口 —— 11 个已实现分区渲染后页面不含占位文案，skills/mcp 仍含占位文案', async () => {
+    const store = useSettingsStore()
+    stubNetworkActions(store)
+    const { w } = await mountPage()
+    await flushPromises()
+
+    const implemented: SectionId[] = [
+      'models', 'providers', 'privacy', 'thinking',
+      'blacklist', 'execution', 'search', 'memory', 'observability', 'mcptokens', 'channels',
+    ]
+    for (const id of implemented) {
+      store.setActiveSection(id)
+      await flushPromises()
+      expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
+    }
+
+    const deferred: SectionId[] = ['skills', 'mcp']
+    for (const id of deferred) {
+      store.setActiveSection(id)
+      await flushPromises()
+      expect(w.text()).toContain(zh.aiCfgPlaceholderBody)
+    }
+
+    w.unmount()
+  })
 })
 
 describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
@@ -524,18 +567,5 @@ describe('SettingsPage — scroll-spy(非清单要求,自选补充覆盖)', () =
     expect(store.activeSection).toBe('providers')
     expect(router.currentRoute.value.query.section).toBeUndefined()
     w.unmount()
-  })
-
-  it('SP8-P2b 收口 —— 11 个已实现分区都不是占位，skills/mcp 仍是占位', () => {
-    const implemented: (keyof typeof SECTION_COMPONENTS)[] = [
-      'models', 'providers', 'privacy', 'thinking',
-      'blacklist', 'execution', 'search', 'memory', 'observability', 'mcptokens', 'channels',
-    ]
-    for (const id of implemented) {
-      expect(SECTION_COMPONENTS[id]).toBeDefined()
-      expect(SECTION_COMPONENTS[id]).not.toBe(SectionPlaceholder)
-    }
-    expect(SECTION_COMPONENTS.skills).toBe(SectionPlaceholder)
-    expect(SECTION_COMPONENTS.mcp).toBe(SectionPlaceholder)
   })
 })

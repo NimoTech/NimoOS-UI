@@ -31,15 +31,15 @@
     这个概念(它们本就是真组件),本仓这两个分区的真实现要等 SP8-P3/P4,
     这里只是本阶段的范围提示,不是对 Vue2 行为的偏离。
 -->
-<script lang="ts">
-// SP8-P2b Task 14 —— `SECTION_COMPONENTS` 需要以具名导出的形式给
-// `SettingsPage.test.ts` 的收口守卫测试直接 import(见下方守卫测试),而
-// `<script setup>` 不能包含 ES module 具名导出(Vue SFC 编译器硬限制)。
-// 拆成一个不带 setup 的普通 `<script>` 块承载它 + 它依赖的 import/类型/
-// `placeholderProps`,`<script setup>` 里其余代码通过模块作用域闭包直接读取
-// 这里的绑定(Vue 官方支持的双 script 合并写法,https://vuejs.org/api/sfc-script-setup.html#usage-alongside-normal-script)。
-// 纯结构性搬动,不改变任何绑定的值/逻辑。
+<script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { Component } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { useSettingsStore } from '../stores/settingsStore'
+import { useAiTheme } from '../stores/aiTheme'
+import { useToast } from '../../stores/toast'
+import SettingsRail from '../components/settings/SettingsRail.vue'
 import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
 import ModelsSection from '../components/settings/sections/ModelsSection.vue'
 import ProvidersSection from '../components/settings/sections/ProvidersSection.vue'
@@ -52,6 +52,7 @@ import MemorySection from '../components/settings/sections/MemorySection.vue'
 import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
 import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
 import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
+import AgentIcon from '../components/icons/AgentIcon.vue'
 import {
   ALL_ITEMS,
   DEFERRED_SECTIONS,
@@ -60,6 +61,9 @@ import {
   groupOf,
   type SectionId,
 } from '../components/settings/sections'
+import '../styles/tokens.scss'
+import '../styles/sk-shared.scss'
+import '../styles/settings-styles.scss'
 
 // SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
 // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
@@ -69,7 +73,12 @@ import {
 // 其余 11 个(models/providers/privacy/thinking 为 P2a 已接;
 // blacklist/execution/search/memory/observability/mcptokens/channels 为
 // P2b 本任务接)均已指向各自的真组件。
-export const SECTION_COMPONENTS: Record<SectionId, Component> = {
+//
+// SP8-P2b Task 14 修复轮 1 —— 不 export 这个常量:`<script setup>` 不允许 ES
+// module 具名导出(试过,编译直接报错),而协调者裁定"可测试性"不值得为此拆
+// 出额外的 `<script>` 块(公开面收窄)。收口守卫测试改成断言渲染结果(是否
+// 渗出占位文案),不再需要拿到这个常量本身。
+const SECTION_COMPONENTS: Record<SectionId, Component> = {
   models: ModelsSection, // Task 9 —— 已替换
   providers: ProvidersSection, // Task 10 —— 已替换
   privacy: PrivacySection, // Task 11 —— 已替换
@@ -96,20 +105,6 @@ function placeholderProps(id: SectionId): Record<string, string> {
   const item = ALL_ITEMS.find((i) => i.id === id)
   return { titleKey: item ? item.labelKey : '', bodyKey: 'aiCfgPlaceholderBody' }
 }
-</script>
-
-<script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { useSettingsStore } from '../stores/settingsStore'
-import { useAiTheme } from '../stores/aiTheme'
-import { useToast } from '../../stores/toast'
-import SettingsRail from '../components/settings/SettingsRail.vue'
-import AgentIcon from '../components/icons/AgentIcon.vue'
-import '../styles/tokens.scss'
-import '../styles/sk-shared.scss'
-import '../styles/settings-styles.scss'
 
 const store = useSettingsStore()
 const aiTheme = useAiTheme()
