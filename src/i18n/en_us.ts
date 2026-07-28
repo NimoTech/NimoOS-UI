@@ -984,6 +984,26 @@ export default {
   aiResMinutesAgo: '{n}m ago',
   aiResHoursAgo: '{n}h ago',
   aiResDaysAgo: '{n}d ago',
+  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection. English
+  // values are the literal Vue2 source strings (the production zh_CN.json
+  // English keys, verbatim).
+  aiCfgPrivacyDesc: 'Control whether data leaves the device and which backend is used by default. Everything runs locally by default.',
+  aiCfgDataBackend: 'Data & backend',
+  aiCfgAllowCloudRequests: 'Allow cloud requests',
+  aiCfgAllowCloudRequestsSub: 'When enabled, conversations may be sent to configured cloud AI providers.',
+  aiCfgDefaultBackend: 'Default backend',
+  aiCfgDefaultBackendSub: 'Sets the default selection in the model picker.',
+  aiCfgBackendLocal: 'Local (prefer local models)',
+  aiCfgBackendCloud: 'Cloud (use cloud directly)',
+  aiCfgConfirmLocalFailure: 'Confirm on local failure',
+  aiCfgConfirmLocalFailureSub: 'When a local model fails, show a prompt asking whether to fall back to cloud.',
+  aiCfgUnableLoadPolicy: 'Unable to load policy',
+  aiCfgThinkingDesc: "Default thinking settings for new sessions. Models that don't support thinking ignore them.",
+  aiCfgThinkingDefaultsTitle: 'Thinking intensity defaults',
+  aiCfgThinkingBanner: 'These settings are used as the initial values for new sessions. Models that do not support thinking will ignore them.',
+  aiCfgEnableThinkingDefault: 'Enable thinking by default',
+  aiCfgDefaultIntensity: 'Default intensity:',
+  // <<< SP8-P2a Task 11
   // >>> SP8-P2b Task 4 —— BlacklistSection(文件系统)
   aiCfgBlacklistDesc: "No matter which folders you authorize, files matching these patterns are never readable or writable by the Agent. Built-in patterns can't be changed; below are the ones you added.",
   aiCfgBuiltinReadonly: 'Built-in (read-only)',
@@ -1028,24 +1048,40 @@ export default {
   aiCfgMemSourceTool: 'Saved',
   aiCfgMemSourceUser: 'Manual',
   // <<< SP8-P2b Task 6
-  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection. English
-  // values are the literal Vue2 source strings (the production zh_CN.json
-  // English keys, verbatim).
-  aiCfgPrivacyDesc: 'Control whether data leaves the device and which backend is used by default. Everything runs locally by default.',
-  aiCfgDataBackend: 'Data & backend',
-  aiCfgAllowCloudRequests: 'Allow cloud requests',
-  aiCfgAllowCloudRequestsSub: 'When enabled, conversations may be sent to configured cloud AI providers.',
-  aiCfgDefaultBackend: 'Default backend',
-  aiCfgDefaultBackendSub: 'Sets the default selection in the model picker.',
-  aiCfgBackendLocal: 'Local (prefer local models)',
-  aiCfgBackendCloud: 'Cloud (use cloud directly)',
-  aiCfgConfirmLocalFailure: 'Confirm on local failure',
-  aiCfgConfirmLocalFailureSub: 'When a local model fails, show a prompt asking whether to fall back to cloud.',
-  aiCfgUnableLoadPolicy: 'Unable to load policy',
-  aiCfgThinkingDesc: "Default thinking settings for new sessions. Models that don't support thinking ignore them.",
-  aiCfgThinkingDefaultsTitle: 'Thinking intensity defaults',
-  aiCfgThinkingBanner: 'These settings are used as the initial values for new sessions. Models that do not support thinking will ignore them.',
-  aiCfgEnableThinkingDefault: 'Enable thinking by default',
-  aiCfgDefaultIntensity: 'Default intensity:',
-  // <<< SP8-P2a Task 11
+  // >>> SP8-P2b Task 7 —— SearchSection. English values are the literal Vue2 source
+  // strings (brief already reconciled against the production zh_CN.json). Reused keys
+  // (not redefined here): aiCfgSearch/aiCfgSave/aiCopy/aiCopied/aiCfgDelete/
+  // aiCfgSaved/aiCfgSaveFailed/aiFailed.
+  aiCfgSearchDesc: "Configure the Agent's default behavior for unified search, and the scan scope and status of the local filename index.",
+  aiCfgSearchRestartRequired: 'Root directory / index settings changed — restart the search service to apply.',
+  aiCfgRetrievalParams: 'Retrieval parameters (live)',
+  aiCfgLive: 'Live',
+  aiCfgRetrievalBanner: "Default sources and per-source result limits used when the Agent calls unified search.",
+  aiCfgDefaultSources: 'Default sources:',
+  aiCfgSourceSemantic: 'Semantic',
+  aiCfgSourceFilenames: 'Filenames',
+  aiCfgSourceImages: 'Images',
+  aiCfgSelectAtLeastOneSource: 'Select at least one source.',
+  aiCfgSemanticTopK: 'Semantic results:',
+  aiCfgFilenameTopK: 'Filename results:',
+  aiCfgImageTopK: 'Image results:',
+  aiCfgTotalCap: 'Total cap:',
+  aiCfgFilenameIndex: 'Filename index',
+  aiCfgEnableFilenameIndex: 'Enable filename index',
+  aiCfgScanIntervalHours: 'Scan interval (hours):',
+  aiCfgAddRoot: 'Add root',
+  aiCfgRescanNow: 'Rescan now',
+  aiCfgFileindexSaveHint: 'Root directory changes take effect immediately (index rebuilds in background). Enable / interval changes require a restart.',
+  aiCfgDiagnostics: 'Diagnostics',
+  aiCfgIndexStatus: 'Index status:',
+  aiCfgIndexedFiles: 'Indexed files:',
+  aiCfgInotifyLimit: 'inotify limit:',
+  aiCfgInotifyRecommended: ' (recommended: {n})',
+  aiCfgRaiseLimitHint: 'Increase the limit (run on host):',
+  aiCfgWatchDegraded: '⚠ File watching degraded to polling only (inotify quota may be exhausted). Real-time updates will be delayed.',
+  aiCfgIndexReady: 'Ready',
+  aiCfgIndexBuilding: 'Building',
+  aiCfgIndexDisabled: 'Disabled',
+  aiCfgCopyFailed: 'Copy failed — please select manually',
+  // <<< SP8-P2b Task 7
 }
