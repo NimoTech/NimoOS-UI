@@ -1117,4 +1117,36 @@ export default {
   aiCfgPhoenixNotInstalled: '未安装',
   aiCfgPhoenixStopped: '已停止',
   // <<< SP8-P2b Task 8
+  // >>> SP8-P2b Task 10 —— McpTokensSection(对外 MCP 服务)。值逐字取自 brief 表(brief
+  // 已回查 Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgMcpTokens(导航 h1,
+  // P2a 已建)/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed
+  // (发现已存在且值相同,直接复用,未重复定义)。
+  aiCfgMcpTokensDesc: '外部 AI Agent 通过 MCP 连接本 NAS 时所用的长期令牌。令牌仅授予只读工具,可随时吊销。',
+  aiCfgMcpEndpoint: 'MCP 端点',
+  aiCfgMcpEndpointUrl: 'MCP 端点 URL',
+  aiCfgMcpEndpointBanner: '把它作为 MCP 客户端的服务器 URL,令牌放在 Authorization: Bearer 请求头里。提供搜索 / 读文档 / Wiki / 相册等只读工具。',
+  aiCfgConnectAnAgent: '接入 AI Agent',
+  aiCfgGiveThisToAgent: '把下面这段交给别的 AI Agent，它就能把本 NAS 加为 MCP 服务器：',
+  aiCfgOrPasteIntoConfig: '或把下面的配置粘贴到它的 MCP 配置文件：',
+  // {url}/{token} 是本组件自己的占位标记(见 mcpConnect.ts buildMcpInstruction 的
+  // split/join),不是 vue-i18n 的命名插值 —— 必须转义成 {'{'}url{'}'} / {'{'}token{'}'}，
+  // 否则 t() 在不传 params 时会把裸 {url}/{token} 当成插值变量,解析成空串(已用组件测试
+  // 实测确认;同 messageSyntax.test.ts 对字面 @ 的 {'@'} 转义是同一套机制)。
+  aiCfgMcpInstructionTemplate: '你将获得一台 NimoOS 个人云 MCP 服务器的访问权限。请使用 Streamable HTTP 传输方式，把它添加为一个 MCP server。\n\n端点 URL：{\'{\'}url{\'}\'}\n鉴权：发送 HTTP 请求头  Authorization: Bearer {\'{\'}token{\'}\'}\n\n它提供只读工具：搜索文件、读取文档、查看文档页、浏览 Wiki、搜索相册。添加完成后，请调用 tools/list 确认连接。',
+  aiCfgTokens: '令牌',
+  aiCfgCreateToken: '创建令牌',
+  aiCfgLoadingDots: '加载中...',
+  aiCfgLoadFailed: '加载失败。',
+  aiCfgNoTokensYet: '还没有令牌。创建一个,让外部 AI agent 能连接你的 NAS。',
+  aiCfgNoLabel: '(无标签)',
+  aiCfgCreatedAt: '创建于',
+  aiCfgLastUsed: '最近使用',
+  aiCfgNeverUsed: '从未使用',
+  aiCfgTokenCreated: '令牌已创建',
+  aiCfgTokenShownOnce: '此令牌只显示这一次,请立即复制保存;关闭后将无法再查看。',
+  aiCfgTokenLabelPrompt: '标签(如「笔记本上的 Claude」)',
+  aiCfgTokenLabel: '标签',
+  aiCfgCreateFailed: '创建失败',
+  aiCfgDeleteTokenConfirm: '确定要删除此令牌吗?',
+  // <<< SP8-P2b Task 10
 }

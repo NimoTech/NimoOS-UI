@@ -1107,4 +1107,39 @@ export default {
   aiCfgPhoenixNotInstalled: 'Not installed',
   aiCfgPhoenixStopped: 'Stopped',
   // <<< SP8-P2b Task 8
+  // >>> SP8-P2b Task 10 —— McpTokensSection (Expose as MCP server). English values are the
+  // literal Vue2 source strings (brief already reconciled against the production
+  // zh_CN.json). Reused keys (not redefined here): aiCfgMcpTokens (nav h1, built by P2a) /
+  // aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed (found
+  // already present with an identical value, reused instead of redefining).
+  aiCfgMcpTokensDesc: 'Long-lived tokens external AI agents use to connect to this NAS over MCP. Tokens grant read-only tools and can be revoked anytime.',
+  aiCfgMcpEndpoint: 'MCP endpoint',
+  aiCfgMcpEndpointUrl: 'MCP endpoint URL',
+  aiCfgMcpEndpointBanner: 'Use it as the MCP server URL; put the token in the Authorization: Bearer header. Provides read-only search / read-document / Wiki / photos tools.',
+  aiCfgConnectAnAgent: 'Connect an AI agent',
+  aiCfgGiveThisToAgent: 'Give this to another AI agent to add this NAS as an MCP server:',
+  aiCfgOrPasteIntoConfig: 'Or paste this into its MCP config file:',
+  // {url}/{token} are this component's own placeholder markers (see mcpConnect.ts
+  // buildMcpInstruction's split/join), not vue-i18n named interpolation — must be
+  // escaped as {'{'}url{'}'} / {'{'}token{'}'}, otherwise t() with no params
+  // resolves bare {url}/{token} as (missing) interpolation vars and blanks them
+  // (confirmed empirically via the component test; same escaping mechanism as the
+  // literal @ -> {'@'} rule in messageSyntax.test.ts).
+  aiCfgMcpInstructionTemplate: 'You are being given access to a NimoOS personal-cloud MCP server. Please add it as an MCP server using the Streamable HTTP transport.\n\nEndpoint URL: {\'{\'}url{\'}\'}\nAuth: send the HTTP header  Authorization: Bearer {\'{\'}token{\'}\'}\n\nIt exposes read-only tools: search files, read documents, view document pages, browse the Wiki, and search photos. After adding it, call tools/list to confirm the connection.',
+  aiCfgTokens: 'Tokens',
+  aiCfgCreateToken: 'Create token',
+  aiCfgLoadingDots: 'Loading...',
+  aiCfgLoadFailed: 'Failed to load.',
+  aiCfgNoTokensYet: 'No tokens yet. Create one to let external AI agents connect.',
+  aiCfgNoLabel: '(no label)',
+  aiCfgCreatedAt: 'Created',
+  aiCfgLastUsed: 'Last used',
+  aiCfgNeverUsed: 'Never used',
+  aiCfgTokenCreated: 'Token created',
+  aiCfgTokenShownOnce: 'This token is shown only once. Copy and save it now — you will not be able to see it again.',
+  aiCfgTokenLabelPrompt: 'Label (e.g. "Claude on laptop")',
+  aiCfgTokenLabel: 'Label',
+  aiCfgCreateFailed: 'Create failed',
+  aiCfgDeleteTokenConfirm: 'Are you sure you want to delete this token?',
+  // <<< SP8-P2b Task 10
 }
