@@ -240,6 +240,13 @@ function clampReviewIndex(): void {
 // 两层保护都已经在,独立 ref 只是"标准形状"的装饰,没有实际保护价值——同 T7 delete 路径
 // 的 `deletingSubmitting` 一样,删掉。还原 `if (false) return` 为空(即整段判断连同 ref
 // 一起去掉)后复跑,测试依然绿。
+//
+// ⚠依赖前提(协调者点名要单独写清楚,别只藏在上面那段里):以上"不需要独立守卫 ref"的
+// 结论**依赖 people.ts 里 acceptMergeSuggestion/rejectMergeSuggestion 的当前实现顺序 ——
+// 先同步 filter 掉这条建议、再 await 后端**(T2 的实现细节)。如果将来有人把这个顺序倒过来
+// (比如改成先 await 确认成功再移除,想做成"失败就不动本地状态"的语义),
+// `current.value` 就不会在第一次点击后立刻变 undefined,本节这套"天然防重入"论证会失效,
+// 需要重新评估是否要把独立守卫 ref 加回来。
 async function onReviewAccept(id: string | number): Promise<void> {
   const s = people.mergeSuggestions.find((m) => String(m.id) === String(id))
   const intoName = (s?.intoName as string | undefined) ?? ''
@@ -247,6 +254,13 @@ async function onReviewAccept(id: string | number): Promise<void> {
     await people.acceptMergeSuggestion(id)
     toast.show(t('photosPersonMergedToast', { name: intoName || t('photosPersonMergeAsSame') }))
   } catch {
+    // 失败:store 会 void fetchMergeSuggestions() 纠正性重拉(people.ts 头部注释"先乐观
+    // 移除建议,失败重拉建议列表纠正")。下面 finally 里的 clampReviewIndex() 与这条纠正
+    // 重拉谁先落地是一个天然的时序竞态——真实网络延迟下几乎总是 clamp 先跑(此刻建议仍是
+    // 空,只剩这一条就会关弹窗);单测用的全同步 mock 下顺序会反过来(重拉先落地、建议已
+    // 恢复,不关)。这是设计里固有的竞态,不是本次要修的 bug,task-8-report.md §8 有更完整
+    // 的说明;测试(PhotosPeople.test.ts "失败:...")刻意不断言弹窗开关状态,只断言调用
+    // 参数与失败 toast。
     toast.show(t('photosPersonMergeFailed'))
   } finally {
     clampReviewIndex()
@@ -254,7 +268,9 @@ async function onReviewAccept(id: string | number): Promise<void> {
 }
 
 // 照 Vue2 onRejectReview :605-614,改成 await。失败 toast 复用 photosPersonMergeFailed,
-// 不为"忽略失败"单开一个新键(已在报告登记)。同上一段的删码验证结论,不加独立守卫 ref。
+// 不为"忽略失败"单开一个新键(已在报告登记)。同上一段的删码验证结论,不加独立守卫 ref;
+// 同一份 current.value 依赖前提(见 onReviewAccept 头部的⚠依赖前提)与失败路径竞态说明
+// 同样适用于这里,不重复贴一遍。
 async function onReviewReject(id: string | number): Promise<void> {
   try {
     await people.rejectMergeSuggestion(id)

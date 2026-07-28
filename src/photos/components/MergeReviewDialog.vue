@@ -23,6 +23,11 @@ import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
 import { mergeConfidencePct, mergeReasonKey, type Person } from '../util/peopleView'
+// 协调者裁定(fix,收到 task-8 报告后追加):头部品牌圆头像不是"AI 装饰件可以自由替代"的
+// 那一类,计划里明确写了要照 Vue2 用真资产。Vue2 的 nimo-logo.png(PhotosPeopleView.vue:370,
+// 372)本仓原来确实没有,现从旧仓 src/views/Photos/nimo-logo.png 原样复制进
+// src/photos/assets/nimo-logo.png(44850 字节,md5 校验与源文件一致),不是重新画的图。
+import nimoLogoUrl from '../assets/nimo-logo.png'
 
 export interface MergeSuggestion {
   id: string | number
@@ -137,13 +142,10 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   <div v-if="open && current" class="mrd-overlay" data-test="mrd-overlay" @click.self="close">
     <div class="mrd-panel" data-test="mrd-panel">
       <div class="mrd-head">
-        <!-- Vue2 :372 用 nimoLogoUrl 图片渲染品牌圆头像;本仓没有对应素材文件也没有任何
-             既有引用(已 grep 确认全仓无 logo 资源),这里复用同页合并建议横幅的 Nimo
-             "sparkle" 图标语言(PhotosPeople.vue 的 .merge-banner .icon-wrap,同一枚 SVG),
-             而不是留空或发明新图形——若产品需要真 logo 图片素材,报给协调者补。 -->
-        <div class="mrd-logo" data-test="mrd-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
-        </div>
+        <!-- Vue2 :372 用 nimoLogoUrl 图片渲染品牌圆头像(background:url(...) center/cover)。
+             这里用等效的 <img> + object-fit:cover 还原同一几何,真资产见 import 处注释。 -->
+        <img :src="nimoLogoUrl" class="mrd-logo" data-test="mrd-logo" alt="" aria-hidden="true">
+
         <div class="mrd-head-text">
           <div class="mrd-title" data-test="mrd-title">{{ titleText }}</div>
           <div class="mrd-confidence" data-test="mrd-confidence">{{ confidenceText }}</div>
@@ -208,8 +210,11 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 .mrd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .mrd-logo {
   width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
-  background: var(--accent-soft); color: var(--accent-text);
-  display: flex; align-items: center; justify-content: center;
+  object-fit: cover;
+  /* 图片加载前(或加载失败,<img> 没有兜底)的占位底色,不是给内容用的排版容器——
+     不需要 display:flex/align-items/justify-content/color(那套是给内部子节点排版的,
+     <img> 没有子节点)。 */
+  background: var(--accent-soft);
 }
 .mrd-head-text { flex: 1 1 auto; min-width: 0; }
 .mrd-title { font-size: 15px; font-weight: 600; color: var(--fg); }
