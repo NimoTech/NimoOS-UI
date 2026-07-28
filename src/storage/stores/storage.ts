@@ -201,8 +201,12 @@ export const useStorageStore = defineStore('storage', () => {
     raidCreating.value = true
     const toast = useToast()
     try {
-      const res = (await service.raid.create(body)) as { data?: { task_id?: string } } | undefined
-      const taskId = res?.data?.task_id
+      // 后端(NimoOS-LocalStorage route/v2/raid.go:187-190)返回裸 {task_id,status},
+      // 无 .data 信封;共享包 NimoOS-Service src/raid.ts create() 已同步改成不 unwrap()、
+      // 直接透传该裸体(万一后端将来补上标准信封,也兼容读 res?.data?.task_id)。
+      // 此前多读一层 .data 拿到的是 undefined,taskId 落空串,进度弹窗/轮询盯着空 id 卡死。
+      const res = (await service.raid.create(body)) as { task_id?: string; data?: { task_id?: string } } | undefined
+      const taskId = res?.task_id ?? res?.data?.task_id
       // 用请求信息 + task_id 组装 creatingTask(step 未知先给初值,轮询会填)
       const task: RaidTask = {
         taskId: taskId ?? '', name: body.name, level: body.level,

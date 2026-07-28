@@ -422,6 +422,17 @@ describe('RAID 写 action', () => {
     expect(s.raidCreating).toBe(false) // finally 释放
   })
 
+  // 真机验收 07-28 抓到:POST /v2/raid 后端返回裸 {task_id,status}(无 .data 信封,
+  // 见 NimoOS-Service src/raid.ts create() 注释 + route/v2/raid.go:187-190),
+  // 之前 store 多读一层 res?.data?.task_id 拿到 undefined → taskId 落空串,
+  // 进度弹窗/轮询盯着空 task id 永远不动。这里证明裸体也能正确取到 taskId。
+  it('createRaid 对裸 {task_id,status}(无 .data)也能取到 taskId', async () => {
+    raidCreateMock.mockResolvedValue({ task_id: 'abc', status: 'creating' })
+    const s = useStorageStore()
+    const r = await s.createRaid({ name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: false })
+    expect(r?.taskId).toBe('abc')
+  })
+
   it('createRaid 失败 → 返回 null、warn 只记 message、busy 复位', async () => {
     raidCreateMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
