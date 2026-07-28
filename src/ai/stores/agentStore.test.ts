@@ -209,7 +209,14 @@ describe('agentStore (session slice)', () => {
 
   it('toggleTheme:翻转并写回 localStorage 同一 key', () => {
     const s = useAgentStore()
-    s.theme = 'light'
+    // SP8-P2a Task 4:`s.theme = 'light'` 这行删除。原断言的起点保障其实是
+    // 冗余的——每条用例前 `beforeEach` 都 `setActivePinia(createPinia())`
+    // 重建全新 store,而 aiTheme 的初值本就是 'light'(见 aiTheme.ts),所以
+    // 这行从未真正改变断言的前提。Task 4 把 `theme` 委托成
+    // `computed(() => aiTheme.theme)` 后,它从可写 ref 变成只读 computed,
+    // 直接赋值会同时触发 TS2540(编译期只读校验)和运行时 Vue 警告
+    // (`Set operation on key "theme" failed: target is readonly`)。
+    // 断言本体(两次 toggleTheme 翻转 light⇄dark 且落盘)一字不改。
     s.toggleTheme()
     expect(s.theme).toBe('dark')
     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('dark')
