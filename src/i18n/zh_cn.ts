@@ -608,6 +608,25 @@ export default {
   // failed')` 优先展示 e.message,硬编码英文会原样弹给中文用户,故必须走
   // i18n。中文值逐字取自 Vue2 生产 zh_CN.json['Name and Base URL are required']。
   aiCfgProviderNameUrlRequired: '名称和 Base URL 为必填项',
+  // SP8-P2a Task 8 —— SettingsPage 顶栏 / scroll-spy / 占位面板。
+  // 中文值逐字取自 Vue2 生产 zh_CN.json 对应英文 key 的既有译文(`aiCfgDetails`
+  // /`aiCfgRefresh`/`aiCfgToggleTheme` 三条直接沿用 Settings.vue:23/26/29 用的
+  // 既有 `$t('Details')`/`$t('Refresh')`/`$t('Toggle theme')` 键的译文)。
+  aiCfgDetails: '详情',
+  aiCfgRefresh: '刷新',
+  aiCfgToggleTheme: '切换主题',
+  aiCfgParserNotRunning: 'Parser 未运行',
+  // 【i18n 政策核查偏离,已申报】brief Step 6 给出的字面文案是「已暂停 ·
+  // 待处理:{pending} · 并发:{concurrency}」(待处理/并发后带冒号)。全局约束
+  // 「中文值优先逐字复用 Vue2 生产译文」要求以 zh_CN.json 权威查法为准 ——
+  // 实测查得的生产译文是「已暂停 · 待处理 {pending} · 并发 {concurrency}」
+  // (不带冒号,纯空格分隔)。两者冲突时以生产译文(1:1 口径的权威源)为准,
+  // 这里没有照抄 brief 给的字面文案,已在报告里申报。
+  aiCfgParserPaused: '已暂停 · 待处理 {pending} · 并发 {concurrency}',
+  aiCfgParserRunning: '运行中 · 待处理 {pending} · 并发 {concurrency}',
+  aiCfgSectionDeferred: '该分区将在后续阶段开启',
+  aiCfgKnowledgeSoon: '知识库详情页将在后续阶段开启',
+  aiCfgPlaceholderBody: '该分区尚未迁移到新界面,将在后续阶段开启。',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。

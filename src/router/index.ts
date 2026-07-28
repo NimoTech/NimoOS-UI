@@ -14,6 +14,7 @@ import AppConsolePage from '../apps/views/AppConsolePage.vue'
 import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
 import SourcesPage from '../apps/views/SourcesPage.vue'
 import AgentPage from '../ai/views/AgentPage.vue'
+import SettingsPage from '../ai/views/SettingsPage.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -31,6 +32,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/ai', redirect: '/ai/agent' },
   { path: '/ai/agent', name: 'ai-agent', component: AgentPage },
+  { path: '/ai/settings', name: 'ai-settings', component: SettingsPage },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
 ]

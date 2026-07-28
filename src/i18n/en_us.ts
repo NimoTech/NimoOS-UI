@@ -606,6 +606,17 @@ export default {
   // English into a Chinese UI — must go through i18n. Verbatim from Vue2
   // production en_US.json['Name and Base URL are required'].
   aiCfgProviderNameUrlRequired: 'Name and Base URL are required',
+  // SP8-P2a Task 8 — SettingsPage topbar / scroll-spy / placeholder panel.
+  // Verbatim from Vue2 production en_US.json's matching keys (Settings.vue:23/26/29).
+  aiCfgDetails: 'Details',
+  aiCfgRefresh: 'Refresh',
+  aiCfgToggleTheme: 'Toggle theme',
+  aiCfgParserNotRunning: 'Parser not running',
+  aiCfgParserPaused: 'Paused · pending: {pending} · concurrency: {concurrency}',
+  aiCfgParserRunning: 'Running · pending: {pending} · concurrency: {concurrency}',
+  aiCfgSectionDeferred: 'This section will be enabled in a later phase',
+  aiCfgKnowledgeSoon: 'The knowledge details page will be enabled in a later phase',
+  aiCfgPlaceholderBody: 'This section has not been migrated yet — coming in a later phase.',
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2
