@@ -21,6 +21,8 @@
 //     New-UI 设置页归 P8,渲染为强调文本(非链接),不留点不动的假链接。
 //  5) Vue2 :575-579 的索引日期写死 'en' locale;这里跟随 i18n locale(偏离登记 9)。
 //  6) 铁律:一切「当前项 === 循环项」「按 id 找对象」用 String 值比较,不用引用相等。
+//  7) Vue2 :97 在设置链接后硬编码了一个英文句点(中文界面下中西混排,且无法本地化)——
+//     不复制,详见该处行内注释。
 //
 // T3 漏掉的两条文案由协调者补给(zh_CN.json:2072 / :2079),已加进两个 locale 并照 Vue2 渲染:
 // photosPeopleMinScore(置信度下拉小标题,:24-26)、photosPeopleClusterHint(未命名卡片
@@ -142,7 +144,9 @@ function toggleSingletons(): void {
 }
 function openPerson(p: Person): void {
   // Vue2 是 $emit('open', p.id) 页内切换,New-UI 走真路由(T16 注册)。
-  router.push('/photos/people/' + p.id)
+  // encodeURIComponent:后端 id 目前是数字/短串,但它进的是 URL 路径段,含 `/` `#` `?`
+  // 的 id 会把路径截断成别的路由(评审顺手项)。数字 id 编码后不变,不影响既有行为。
+  router.push('/photos/people/' + encodeURIComponent(String(p.id)))
 }
 function openClusterMenu(p: Person, e: MouseEvent): void {
   e.stopPropagation()
@@ -301,7 +305,10 @@ onUnmounted(() => {
               <div class="title">{{ t('photosPeopleFacesOffTitle') }}</div>
               <div class="desc">
                 {{ t('photosPeopleFacesOffBody') }}
-                <!-- 偏离登记 4:设置页归 P8,这里是强调文本而非可点链接 -->
+                <!-- 偏离登记 4:设置页归 P8,这里是强调文本而非可点链接。
+                     偏离登记 7:Vue2 :97 在 </a> 后还硬编码了一个英文句点,中文 locale 下会
+                     得到「…重新开启 设置 · AI 行为.」这种中西混排的错误标点,且它不在任何
+                     可翻译串里(没有对应键)——这里不复制那个句点。 -->
                 <span class="em">{{ t('photosPeopleFacesOffLink') }}</span>
               </div>
             </div>
@@ -326,8 +333,11 @@ onUnmounted(() => {
               <div class="desc">{{ mergeReasonText }}</div>
             </div>
             <div class="stack">
-              <div class="stack-dot"><PersonAvatar :person-id="suggestionId('fromId')" :ver="verOf(suggestionId('fromId'))" :size="28" /></div>
-              <div class="stack-dot"><PersonAvatar :person-id="suggestionId('intoId')" :ver="verOf(suggestionId('intoId'))" :size="28" /></div>
+              <!-- Vue2 scss:266-268 的 .stack .dot 是 28px **含** 2px 描边(border-box),
+                   所以内圈头像是 24px、总外径 28px。评审 Minor 修正:原先传 28 再加 2px 描边
+                   会得到 32px 外径。 -->
+              <div class="stack-dot"><PersonAvatar :person-id="suggestionId('fromId')" :ver="verOf(suggestionId('fromId'))" :size="24" /></div>
+              <div class="stack-dot"><PersonAvatar :person-id="suggestionId('intoId')" :ver="verOf(suggestionId('intoId'))" :size="24" /></div>
             </div>
             <button type="button" class="bar-btn people-btn-primary" data-test="merge-review" @click="openReview">
               {{ t('photosPeopleMergeReview') }}

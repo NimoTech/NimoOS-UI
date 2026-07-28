@@ -383,16 +383,28 @@ describe('PhotosPeople.vue — 跳转与浮动菜单', () => {
     expect(w.find('[data-test="conf-menu"]').exists()).toBe(false)
   })
 
-  it('卸载后 document 监听摘干净(不再影响任何状态)', async () => {
+  // 评审 Minor 修正:原先这条是假绿 —— `expect(typeof addEventListener).toBe('function')` 是
+  // 死断言,而「派发不抛错」在把 onUnmounted 整块删掉时也照样绿(handler 在已卸载实例上写
+  // ref 不会报错)。改成对着 add/remove 的**函数引用**比对:摘的必须正好是挂的那两个。
+  it('卸载后 document 监听成对摘干净(比对函数引用,不只看不抛错)', async () => {
+    const addSpy = vi.spyOn(document, 'addEventListener')
     const { w } = await mountView()
-    const before = document.addEventListener
-    expect(typeof before).toBe('function')
+    const added = addSpy.mock.calls.filter(
+      (c) => c[0] === 'mousedown' || c[0] === 'keydown',
+    ) as Array<[string, EventListener]>
+    // 本视图自己挂的两个(PhotosSidebar 的抽屉 keydown 只在窄屏打开时才挂,这里不在场)
+    expect(added.map((c) => c[0])).toEqual(['mousedown', 'keydown'])
+
+    const removeSpy = vi.spyOn(document, 'removeEventListener')
     w.unmount()
-    // 卸载后派发不应抛错(监听已摘;若残留会在已销毁实例上写 ref)
-    expect(() => {
-      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    }).not.toThrow()
+    const removed = removeSpy.mock.calls as Array<[string, EventListener]>
+    // 只认「引用与挂载时相同」的那些摘除:摘错函数(比如重新包一个箭头函数)会留下野监听。
+    // 不断言 removed 总条数 —— PhotosSidebar 的抽屉 keydown 是无条件 removeEventListener
+    // (它自己挂的那次没发生,摘是空转),会多出一条与本视图无关的调用。
+    const matched = added.filter(([type, fn]) => removed.some((r) => r[0] === type && r[1] === fn))
+    expect(matched).toHaveLength(2)
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
   })
 })
 

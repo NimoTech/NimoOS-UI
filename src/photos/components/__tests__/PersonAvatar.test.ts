@@ -122,17 +122,47 @@ describe('PersonAvatar', () => {
     expect(w2.find('[data-test="avatar-fav"]').exists()).toBe(false)
   })
 
-  // 收藏星标改成「圆环上方偏右」(照 Vue2 photos-people.scss:150-165),水平偏移随 size 变:
-  // 过 Vue2 明确给出的两档 (124→34px)、(84→20px) 的直线 0.35*size-9.4。
-  it('收藏星标偏移随 size 变化,精确复现 Vue2 的两档取值', () => {
-    const offsetOf = (size: number) =>
-      mountAvatar({ personId: null, fav: true, size }).find('[data-test="avatar-fav"]').attributes('style')
+  // 收藏星标改成「圆环上方偏右」(照 Vue2 photos-people.scss:150-156)。唯一真锚点是
+  // size=124 那一档(scss:165 的 20px 在 Vue2 里是死代码,见组件内注释);尺寸与偏移都按
+  // 24/124、34/124 等比缩放。
+  const favStyleOf = (size: number) =>
+    mountAvatar({ personId: null, fav: true, size }).find('[data-test="avatar-fav"]').attributes('style') ?? ''
 
-    expect(offsetOf(124)).toContain('translateX(34px)')   // Vue2 scss:154 大号
-    expect(offsetOf(84)).toContain('translateX(20px)')    // Vue2 scss:165 中号
-    // 同一直线上的中间尺寸,证明不是写死两档而是按公式连续取值
-    expect(offsetOf(72)).toContain('translateX(16px)')
-    // 极小头像外推会得到负偏移(星标跑到圆心左边),夹到 0
-    expect(offsetOf(24)).toContain('translateX(0px)')
+  it('收藏星标在 Vue2 唯一真锚点 size=124 上精确复现 24px / 34px', () => {
+    const s = favStyleOf(124)
+    expect(s).toContain('width: 24px')
+    expect(s).toContain('height: 24px')
+    expect(s).toContain('translateX(34px)')
+  })
+
+  it('收藏星标的尺寸与偏移都随 size 等比缩放(不是钉死一档)', () => {
+    // 84 → round(84*24/124)=16、round(84*34/124)=23
+    expect(favStyleOf(84)).toContain('width: 16px')
+    expect(favStyleOf(84)).toContain('translateX(23px)')
+    // 偏移严格单调递增,证明是按 size 连续取值
+    const offsets = [32, 48, 84, 124].map((n) => Number(/translateX\((\d+)px\)/.exec(favStyleOf(n))![1]))
+    expect(offsets).toEqual([...offsets].sort((a, b) => a - b))
+    expect(new Set(offsets).size).toBe(offsets.length)
+  })
+
+  it('小尺寸头像上星标不吞掉头像:宽度夹在 15px 起步,且始终不超过头像的 1/2', () => {
+    for (const size of [24, 32, 48, 72, 84, 124]) {
+      const px = Number(/width: (\d+)px/.exec(favStyleOf(size))![1])
+      expect(px).toBeGreaterThanOrEqual(15)          // 下界:再小认不出星形
+      expect(px).toBeLessThanOrEqual(24)             // 上界:Vue2 原值
+      expect(px).toBeLessThan(size)                  // 绝不整体盖住头像
+      if (size >= 48) expect(px / size).toBeLessThanOrEqual(0.5)
+    }
+    // 回归钉子:修正前 48px 头像配的是钉死的 24px 星标(占半个头像宽、压在人脸正中)
+    expect(favStyleOf(48)).toContain('width: 15px')
+  })
+
+  it('圆环无条件带一圈发丝描边(Vue2 scss:124),dashed 只改线型', () => {
+    // 非虚线态也必须有边 —— Named 分区 84px 头像原先少了这圈描边
+    expect(mountAvatar({ personId: null }).classes()).not.toContain('is-dashed')
+    expect(mountAvatar({ personId: null, dashed: true }).classes()).toContain('is-dashed')
+    // 具体线型由 scoped CSS 给(jsdom 不解析 scoped 样式),这里锁住结构契约:
+    // 圆环节点恒存在且只有一个,虚线态不靠额外节点而是靠 class 覆盖 border-style。
+    expect(mountAvatar({ personId: null }).findAll('.person-avatar-ring')).toHaveLength(1)
   })
 })

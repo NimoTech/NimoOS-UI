@@ -54,14 +54,22 @@ const initial = computed(() => personInitial(props.name))
 // 首字母字号 = size * 0.32 向下取整(brief 明确公式)。
 const initialFontSize = computed(() => Math.floor(props.size * 0.32))
 
-// 收藏星标的水平偏移(相对头像水平中心)随头像尺寸变化,不写死一档。
-// 取值来源是 Vue2 photos-people.scss 明确给出的两档:
-//   :154  .face-card .fav-mark      { transform: translateX(34px) }  ← 大号 size=124
-//   :165  .face-grid-md … .fav-mark { transform: translateX(20px) }  ← 中号 size=84
-// 过这两点的直线是 0.35 * size - 9.4(斜率 14/40,代回 124→34.0、84→20.0 精确复现),
-// 效果是 24px 宽的星标始终擦着圆环的右上弧。更小的头像按同一直线外推会得到负偏移
-// (把星标推到圆心左侧),故夹到 0 起步。
-const favOffset = computed(() => Math.max(0, Math.round(props.size * 0.35 - 9.4)))
+// 收藏星标的尺寸与水平偏移都随 size **等比**缩放,唯一锚点是 Vue2 大号卡片那一档:
+//   photos-people.scss:150-156  .face-card .fav-mark { width/height: 24px; transform: translateX(34px) }
+// 对应 size=124(scss:118 的 .ring 是 124px)。故比例 = 24/124 与 34/124,代回 124 精确复现 24px / 34px。
+//
+// 为什么只认 124 这一个锚点(评审 Important 修正):scss:165 的
+// `.face-grid-md … .fav-mark { transform: translateX(20px) }` 在 Vue2 里是**死代码** ——
+// .face-grid-md 只出现在 Named 分区,而该分区的数据源是 `others = filteredNamed.filter(p => !p.favorite)`,
+// 星标本身又是 `v-if="p.favorite"`,那一档从未真正绘制过。上一轮我拿它当第二个锚点拟合直线,
+// 依据是假的,已废弃。
+//
+// 星标尺寸夹在 [15, 24]:上界是 Vue2 的原值,下界 15px 沿用本组件初版的 `min-width: 15px`
+// (星形图标再小就认不出)。**关键**:尺寸必须随 size 缩,不能像上一轮那样钉死 24px ——
+// 48px 头像配 24px 星标会占掉半个头像宽、压在人脸正中;等比缩放后 48px 头像的星标是 15px(31%),
+// 且「星标中心到圆心的距离 / 半径」在各尺寸下都稳定在 0.92-0.94,与 124px 那一档几何相似。
+const favSize = computed(() => Math.min(24, Math.max(15, Math.round(props.size * (24 / 124)))))
+const favOffset = computed(() => Math.round(props.size * (34 / 124)))
 
 function onImgError(): void {
   failed.value = true
@@ -107,10 +115,14 @@ function onImgError(): void {
       v-if="fav"
       data-test="avatar-fav"
       class="person-avatar-fav"
-      :style="{ transform: `translateX(${favOffset}px)` }"
+      :style="{
+        width: `${favSize}px`,
+        height: `${favSize}px`,
+        transform: `translateX(${favOffset}px)`,
+      }"
       aria-hidden="true"
     >
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
     </div>
   </div>
 </template>
@@ -125,12 +137,16 @@ function onImgError(): void {
   height: 100%;
   border-radius: 50%;
   overflow: hidden;
+  /* 评审 Minor 修正:Vue2 的 .face-card .ring(photos-people.scss:124)**无条件**带一圈
+     1px 实线发丝边,原先只在 is-dashed 时给边 —— Named 分区 84px 头像因此少了一圈描边
+     (Pinned 124px 被 accent 光环盖住才没露出来)。这里改成默认实线、虚线态覆盖。 */
+  border: 1px solid var(--card-border);
 }
-/* --line-stronger 在本仓 theme.css 不存在(已 grep 确认,两套主题块均无此 token)——
-   借用已在两套主题都有真实定义的 --card-border(卡片描边)做虚线环描边,登记为对
-   brief 字面 token 名的替代,而非新增或臆造。 */
+/* --line / --line-stronger 在本仓 theme.css 都不存在(已 grep 确认,两套主题块均无这两个
+   token)—— 一律借用在两套主题都有真实定义的 --card-border(卡片描边),登记为对 Vue2/brief
+   字面 token 名的替代,而非新增或臆造。 */
 .person-avatar.is-dashed .person-avatar-ring {
-  border: 1px dashed var(--card-border);
+  border-style: dashed;
 }
 .person-avatar-img {
   display: block;
@@ -164,14 +180,15 @@ function onImgError(): void {
 .person-avatar-icon {
   color: #fff;
 }
-/* 几何逐条照 Vue2 photos-people.scss:150-165 的 .fav-mark:圆环「上方偏右」而不是右下角。
-   水平偏移由 :style 的 translateX 注入(随 size 变,见 script 的 favOffset 注释)。 */
+/* 几何逐条照 Vue2 photos-people.scss:150-164 的 .fav-mark:圆环「上方偏右」而不是右下角。
+   尺寸与水平偏移由 :style 注入(都随 size 等比缩放,见 script 的 favSize/favOffset 注释)。
+   top 的参考系换算(评审 Minor 修正):Vue2 的 .fav-mark 挂在 .face-card 上,该卡片有
+   padding:6px(scss:112),故它的 top:4px 实际等于「圆环顶边**上方** 2px」;本组件的定位
+   父级就是圆环本体,要还原同一视觉位置得写 -2px,直接照抄 4px 会比 Vue2 低 6px。 */
 .person-avatar-fav {
   position: absolute;
-  top: 4px;
+  top: -2px;
   left: 50%;
-  width: 24px;
-  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,6 +203,9 @@ function onImgError(): void {
 /* theme-exception: 星标压在不可控的人脸照片上,暗底之上需要恒定的半透明浅色描边勾边 */
 .person-avatar-fav { border: 1px solid rgba(255, 255, 255, 0.12); }
 .person-avatar-fav svg {
+  /* 图标占星标底盘的一半(Vue2 是 24px 底盘配 12px 图标),跟着 favSize 一起缩 */
+  width: 50%;
+  height: 50%;
   /* --star-fg 未在 theme.css 定义具体值,是本仓已确立的先例(PhotosGrid.vue:389,395 /
      PhotoLightbox.vue:345 均为 var(--star-fg, #ffd60a)):固定金色星标跨皮肤不变,用
      var(fallback) 形式表达而非字面量,color-guard 按 token 用法放行,这里复用同一先例
