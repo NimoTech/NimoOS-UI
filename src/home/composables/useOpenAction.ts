@@ -3,7 +3,8 @@ import { useAppsStore } from '../stores/apps'
 import { useStartApp, appUrl } from './useStartApp'
 import { router } from '../../router'
 
-// P8 cutover 起文件区(/files)与应用区(/apps,SP5-P8)活在本应用;其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)与存储区(/storage,SP6-P1)已活在本应用;
+// 其余系统入口仍指 Vue2,各自 SP 迁移时再改。
 // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
 const SYS_ROUTE: Record<string, string> = {
   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
@@ -26,6 +27,9 @@ export function useOpenAction() {
     if (a.system) {
       if (key === 'files') { router.push('/files'); return }
       if (key === 'appstore' && !appsCutoverDisabled()) { router.push('/apps/store'); return }
+      // SP6-P1:存储区磁贴直接进应用内 /storage。注意此处尚无 strangler 回退 flag
+      // (应用区有 strangler:disabled:/apps),SP6-P6 cutover 时补齐。
+      if (key === 'storage') { router.push('/storage'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }

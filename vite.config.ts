@@ -30,6 +30,15 @@ export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
   server: { port: 5273 },
+  // SP6 并行验收(spec §5):5273 只伺服 /app/ 构建产物,其余(API /v1|/v2|/v3、
+  // MessageBus WS、Vue2 登录页)全部转发真机网关 80。正式部署仍走 scripts/deploy.sh。
+  preview: {
+    port: 5273,
+    host: true,
+    proxy: {
+      '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
