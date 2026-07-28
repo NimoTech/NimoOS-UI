@@ -32,6 +32,13 @@ export function toStoragePayload(disks: unknown): StoragePayload | null {
   let used = 0
   let total = 0
   for (const d of disks as DiskLike[]) {
+    // Disclosed deviation from Vue2 (code review F1): Vue2 `Agent.vue:227` is
+    // `if (d.size && d.used)` — no `d &&` guard. A `null`/`undefined` element
+    // in the disks array would throw there (`Cannot read properties of null
+    // (reading 'size')`) and take the whole page-level fetch down with it.
+    // The `d &&` guard here is an intentional, disclosed improvement (not a
+    // silent port bug): a malformed disk entry is skipped instead of crashing
+    // the fetch. See `toStoragePayload.test.ts`'s null/undefined-element case.
     if (d && d.size && d.used) {
       total += Number(d.size) || 0
       used += Number(d.used) || 0

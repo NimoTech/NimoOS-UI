@@ -244,11 +244,16 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 11:disks.list() 失败 → 吞错,不抛未处理异常(与 Vue2 Agent.vue try/catch 同)', async () => {
+  it('SP8-P1c2 Task 11:disks.list() 失败 → 吞错,不抛未处理异常,storage 落 null(与 Vue2 Agent.vue try/catch 同)', async () => {
+    // 代码评审 F2:原断言 `expect(() => mountPage()).not.toThrow()` 恒为真——
+    // onMounted 内的 rejection 是异步的,不会同步冒出来给这个同步包装捕获。
+    // 改成断言真实落地的结果:reject 落定后页面内部的 storage 状态应为 null
+    // (与 Files.upload.test.ts / PhotoTile.test.ts 同款,用 `w.vm as any` 读
+    // script setup 未 defineExpose 的内部 ref——此仓库既有先例)。
     disksList.mockRejectedValue(new Error('boom'))
-    expect(() => mountPage()).not.toThrow()
     const w = mountPage()
     await flushPromises()
+    expect((w.vm as any).storage).toBe(null)
     w.unmount()
   })
 

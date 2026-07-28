@@ -45,4 +45,24 @@ describe('toStoragePayload(Agent.vue:221-239)', () => {
     expect(toStoragePayload([{ size: 0, used: 0 }])).toBeNull()
     expect(toStoragePayload([{ foo: 'bar' }])).toBeNull()
   })
+
+  // Code review F1 — disclosed deviation from Vue2 Agent.vue:227 (`if (d.size
+  // && d.used)`, no `d &&` guard): Vue2 would throw reading `d.size` off a
+  // null/undefined array element. New-UI's `d &&` guard skips such elements
+  // instead of throwing — proving that here, not just claiming it in prose.
+  it('数组含 null/undefined 元素 → 跳过它们,不 throw,只汇总有效盘(有意加固 Vue2:227,见 toStoragePayload.ts 内联注释)', () => {
+    const disks = [
+      { size: 4e12, used: 2e12 },
+      null,
+      undefined,
+      { size: 8e12, used: 3e12 },
+    ]
+    expect(() => toStoragePayload(disks)).not.toThrow()
+    expect(toStoragePayload(disks)).toEqual({
+      used: 5, // (2e12+3e12)/1e12 — null/undefined entries contribute nothing
+      total: 12, // (4e12+8e12)/1e12
+      breakdown: [{ name: 'Used', value: 5, color: 'var(--accent)' }],
+      label: 'NimoOS Storage',
+    })
+  })
 })

@@ -50,7 +50,11 @@ describe('SystemTab', () => {
     expect(seg.exists()).toBe(true)
     // color 是字符串 token,不是被解析过的具体色值——原样出现在内联 style 里
     expect(seg.attributes('style')).toContain('var(--accent)')
-    expect(w.find('[data-testid], .empty-storage').exists()).toBe(false)
+    // 代码评审 F2:原断言 `w.find('[data-testid], .empty-storage').exists()`
+    // 两个选择器在 SystemTab.vue/StorageCard.vue 里都不存在,恒为 false、永远
+    // 通过。改成真正能分辨 v-if/v-else 两支的断言——有 storage 时"存储信息
+    // 不可用"空态文案(下面 null 用例断言的同一句)不应出现。
+    expect(w.text()).not.toContain('存储信息不可用')
   })
 
   it('无 storage(null)→ 不渲染 StorageCard,渲染"存储信息不可用"空态', async () => {
