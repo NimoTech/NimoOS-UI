@@ -35,6 +35,9 @@ beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
   getPolicy.mockResolvedValue({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
+  // vi.clearAllMocks() 只清调用记录、不还原 mockImplementation:"切换在途"那条用例把
+  // togglePolicy 换成永不 resolve 的 promise,不在这里复位就会泄漏到后面的用例。
+  togglePolicy.mockResolvedValue(undefined)
   patchPolicy.mockResolvedValue(null)
   createSnap.mockResolvedValue(undefined)
 })
@@ -116,6 +119,17 @@ describe('SnapshotPanel 保护开关', () => {
     expect((w.find('.sp-switch').element as HTMLButtonElement).disabled).toBe(true)
     release(); await flush(w)
     expect((w.find('.sp-switch').element as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('必修 4 接缝测试:disabled→enabled 后 watch(state) 触发一次 loadPolicy', async () => {
+    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
+    const w = mountPanel(); await flush(w)
+    expect(getPolicy).not.toHaveBeenCalled()
+    await w.find('.sp-switch').trigger('click')
+    await flush(w)
+    expect(togglePolicy).toHaveBeenCalledWith('u1', true)
+    expect(getPolicy).toHaveBeenCalledTimes(1)
+    expect(getPolicy).toHaveBeenCalledWith('u1')
   })
 })
 
@@ -218,6 +232,45 @@ describe('SnapshotPanel 手动创建快照', () => {
     expect((w.find('.sp-label-input').element as HTMLInputElement).disabled).toBe(true)
     release(); await flush(w)
     expect((w.find('.sp-create').element as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
+  // 复现路径:同一个 pinia 实例下先挂 A(有 count、enabled=true),再把 prop 切到 B
+  // (B 的卷数据不同:enabled=false/count=0)。没有 reset()+watch(volumeUuid) 的话,
+  // 单例 store 会让面板一直显示 A 的开关/数量,却对 B 发出保护开关与保留策略写入。
+  it('切到 B 后不再残留 A 的开关/数量,B 重新拉了卷', async () => {
+    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7, last_at: '2026-07-27T01:00:00Z' }])
+    const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
+    await flush(w)
+    expect(w.find('.sp-switch').attributes('aria-checked')).toBe('true')
+    expect(w.find('.sp-status').text()).toContain('7')
+    expect(getPolicy).toHaveBeenCalledWith('A')
+
+    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'B', supported: true, enabled: false, count: 0 }])
+    await w.setProps({ volumeUuid: 'B' })
+    await flush(w)
+
+    expect(listVolumes).toHaveBeenCalledTimes(2)
+    expect(w.find('.sp-switch').attributes('aria-checked')).toBe('false')
+    // disabled 态没有状态行 —— 如果还残留 A 的渲染,这里会仍然看到 "7"
+    expect(w.find('.sp-status').exists()).toBe(false)
+  })
+
+  it('切到 B 且 B 也是 enabled → getPolicy 以 B 被重新调用过(不是继续用 A 的策略)', async () => {
+    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7 }])
+    getPolicy.mockResolvedValueOnce({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
+    const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
+    await flush(w)
+    expect(getPolicy).toHaveBeenCalledWith('A')
+
+    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'B', supported: true, enabled: true, count: 2 }])
+    getPolicy.mockResolvedValueOnce({ hourly_keep: 1, daily_keep: 1, weekly_keep: 1, pause_threshold_pct: 50 })
+    await w.setProps({ volumeUuid: 'B' })
+    await flush(w)
+
+    expect(getPolicy).toHaveBeenCalledWith('B')
+    expect(w.find('.sp-policy-summary').text()).toContain('1')
   })
 })
 

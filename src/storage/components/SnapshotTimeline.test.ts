@@ -77,10 +77,12 @@ describe('SnapshotTimeline', () => {
     expect(item.find('.st-label').text()).toBe('升级前')
     expect(item.find('.st-dot').classes()).toContain('manual')
   })
-  it('不渲染[浏览]入口(文件区快照套件推迟)', async () => {
+  it('不渲染[浏览]入口(文件区快照套件推迟);动作区只有删除一个按钮', async () => {
     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
     const w = mountIt(); await flush(w)
-    expect(w.find('.st-browse').exists()).toBe(false)
+    // .st-browse 这个类从未出现在实现里,原断言是空断言(恒真);改成对动作区按钮数量
+    // 的实质约束 —— 只有删除一个按钮,才是"浏览入口未渲染"真正会失败的检验。
+    expect(w.findAll('.st-actions button')).toHaveLength(1)
     expect(w.text()).not.toContain(zh.filesTitle ?? '文件')
   })
   it('换卷 → 重置展开态并重拉(不沿用旧卷的展开集合)', async () => {

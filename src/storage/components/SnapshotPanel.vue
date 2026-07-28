@@ -38,7 +38,13 @@ watch(state, (val, oldVal) => {
   if (val === 'enabled' && oldVal !== 'enabled') store.loadPolicy(props.volumeUuid)
 })
 
-onMounted(() => { store.loadVolume(props.volumeUuid) })
+// 必修 1(Critical):单例 store 跨路由存活,换阵列(/storage/raid/7 → /storage/raid/8)
+// 时若 StorageRaidDetail 实例被 vue-router 复用,本组件首帧可能吃到旧 volumeUuid prop,
+// 随后 prop 才更新为新卷 —— 没有这个 watcher 就会一直显示旧卷的开关/数量/策略摘要,
+// 却对 props.volumeUuid(新卷)发出保护开关与保留策略写入。reset() 把 volumeLoading
+// 打回 true,面板收起、内嵌 SnapshotTimeline 随之卸载重挂,避免它拿着旧展开态残留。
+onMounted(() => { store.reset(); store.loadVolume(props.volumeUuid) })
+watch(() => props.volumeUuid, (uuid) => { store.reset(); store.loadVolume(uuid) })
 
 function onToggle() {
   store.toggle(props.volumeUuid, !(store.volume?.enabled ?? false))
@@ -52,6 +58,8 @@ const manualLabel = ref('')
 
 function openAdvanced() {
   const p = store.policy
+  // Number() 包裹:后端可能把这些字段序列化成数字字符串,不归一的话 validatePolicyForm
+  // 里的 Number.isInteger 会误判合法值为非法(字符串永远不是 integer),白白挡用户保存。
   policyForm.value = {
     hourly_keep: Number(p?.hourly_keep ?? 24),
     daily_keep: Number(p?.daily_keep ?? 7),

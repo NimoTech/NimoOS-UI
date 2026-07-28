@@ -31,7 +31,47 @@ const VOL = { volume_uuid: 'u1', mount: '/DATA', supported: true, enabled: true,
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
+describe('reset', () => {
+  it('清空卷/策略/快照,两个 loading 打回 true(必修 1)', async () => {
+    listVolumes.mockResolvedValue([VOL])
+    getPolicy.mockResolvedValue({ hourly_keep: 1, daily_keep: 1, weekly_keep: 1, pause_threshold_pct: 1 })
+    listMock.mockResolvedValue([{ name: 'a', created_at: '2026-07-27T00:00:00Z' }])
+    const s = useSnapshotStore()
+    await s.loadVolume('u1')
+    await s.loadPolicy('u1')
+    await s.loadSnapshots('u1')
+    s.reset()
+    expect(s.volume).toBeNull()
+    expect(s.policy).toBeNull()
+    expect(s.snapshots).toEqual([])
+    expect(s.volumeLoading).toBe(true)
+    expect(s.listLoading).toBe(true)
+  })
+})
+
 describe('loadVolume', () => {
+  it('空 uuid 早退:不发请求,volume=null,volumeLoading 释放(台账 7)', async () => {
+    const s = useSnapshotStore()
+    await s.loadVolume('')
+    expect(listVolumes).not.toHaveBeenCalled()
+    expect(s.volume).toBeNull()
+    expect(s.volumeLoading).toBe(false)
+  })
+  it('过期响应守卫:A 的慢响应不得覆盖 B 已经落地的数据(必修 2)', async () => {
+    let resolveA: (v: unknown) => void = () => {}
+    listVolumes.mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
+    const s = useSnapshotStore()
+    const pA = s.loadVolume('A') // 慢请求,先发,尚未 resolve
+    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'B', supported: true, enabled: true, count: 9 }])
+    await s.loadVolume('B') // 快请求,后发先至
+    expect(s.volume?.volume_uuid).toBe('B')
+    // A 的响应此时才姗姗来迟,且数据与 B 明显不同(用于证明没有被写进去)
+    resolveA([{ volume_uuid: 'A', supported: true, enabled: false, count: 1 }])
+    await pA
+    expect(s.volume?.volume_uuid).toBe('B')
+    expect(s.volume?.count).toBe(9)
+    expect(s.volumeLoading).toBe(false)
+  })
   it('按 volume_uuid 命中本卷,收窄成视图对象', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'other' }, VOL])
     const s = useSnapshotStore()
@@ -76,6 +116,19 @@ describe('loadSnapshots', () => {
     const s = useSnapshotStore()
     await s.loadSnapshots('u1')
     expect(s.snapshots).toEqual([])
+    expect(s.listLoading).toBe(false)
+  })
+  it('过期响应守卫:A 的慢响应不得覆盖 B 已经落地的列表(必修 2)', async () => {
+    let resolveA: (v: unknown) => void = () => {}
+    listMock.mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
+    const s = useSnapshotStore()
+    const pA = s.loadSnapshots('A')
+    listMock.mockResolvedValueOnce([{ name: 'b-snap', created_at: '2026-07-27T00:00:00Z' }])
+    await s.loadSnapshots('B')
+    expect(s.snapshots.map((x) => x.name)).toEqual(['b-snap'])
+    resolveA([{ name: 'a-snap', created_at: '2026-07-26T00:00:00Z' }])
+    await pA
+    expect(s.snapshots.map((x) => x.name)).toEqual(['b-snap'])
     expect(s.listLoading).toBe(false)
   })
 })

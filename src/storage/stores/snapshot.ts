@@ -20,20 +20,51 @@ export const useSnapshotStore = defineStore('snapshot', () => {
   const deletingName = ref<string | null>(null)
   const t = i18n.global.t
 
+  // 过期响应守卫(必修 2):loadVolume/loadSnapshots 换卷时,记录"当前认领这次调用"的
+  // uuid;响应回来时如果这个守卫已经指向别的 uuid(说明期间又发起了更新的一次调用),
+  // 整段丢弃 —— 不写 state、不落 loading,避免旧卷的慢响应盖掉新卷已经落地的快响应。
+  let volumeRequestUuid: string | null = null
+  let snapshotsRequestUuid: string | null = null
+
+  // 必修 1(Critical):单例 store 天然跨路由存活,Vue2 里 volume/policy/loading 是组件
+  // data(),每次挂载自动复位;这里需要显式复位配合 SnapshotPanel 的 onMounted/watch 调用,
+  // 否则换阵列时(同一路由组件实例被 vue-router 复用)首帧会用旧卷数据渲染。
+  // volumeLoading/listLoading 打回 true 让面板收起(1:1 复刻 Vue2 loading:true 初值),
+  // 直到新卷数据落地才重新展开,不会闪一帧旧卷的开关/摘要;两个 request 守卫一并清空,
+  // 让任何仍在途的旧请求肯定被判定为过期。
+  function reset() {
+    volume.value = null
+    policy.value = null
+    snapshots.value = []
+    volumeLoading.value = true
+    listLoading.value = true
+    volumeRequestUuid = null
+    snapshotsRequestUuid = null
+  }
+
   async function loadVolume(uuid: string) {
+    // 台账 7:空 uuid 不发请求 —— 列表里可能有另一个同样无 uuid 的卷,find() 会误命中。
+    if (!uuid) {
+      volume.value = null
+      volumeLoading.value = false
+      return
+    }
+    volumeRequestUuid = uuid
     try {
       const list = await service.snapshot.listVolumes()
+      if (volumeRequestUuid !== uuid) return // 过期响应:已有更新的一次调用在途/落地
       const hit = (Array.isArray(list) ? list : []).find(
         (v) => (v as { volume_uuid?: string })?.volume_uuid === uuid,
       )
       volume.value = hit ? asSnapshotVolume(hit) : null
     } catch (e) {
+      if (volumeRequestUuid !== uuid) return
       // 快照是可选功能(老后端 /v2/snapshot/* 全 404):吞错落 unsupported 态,
       // 绝不能把 RAID 详情页拖垮 —— Vue2 SnapshotPanel.fetchVolume 同款语义。
       console.warn('[snapshot] load volume failed', (e as Error)?.message)
       volume.value = null
     } finally {
-      volumeLoading.value = false
+      if (volumeRequestUuid === uuid) volumeLoading.value = false
     }
   }
 
@@ -47,15 +78,18 @@ export const useSnapshotStore = defineStore('snapshot', () => {
   }
 
   async function loadSnapshots(uuid: string) {
+    snapshotsRequestUuid = uuid
     listLoading.value = true
     try {
       const res = await service.snapshot.list(uuid)
+      if (snapshotsRequestUuid !== uuid) return // 过期响应,同 loadVolume 的守卫语义
       snapshots.value = Array.isArray(res) ? (res as SnapshotRaw[]) : []
     } catch (e) {
+      if (snapshotsRequestUuid !== uuid) return
       console.warn('[snapshot] load list failed', (e as Error)?.message)
       snapshots.value = []
     } finally {
-      listLoading.value = false
+      if (snapshotsRequestUuid === uuid) listLoading.value = false
     }
   }
 
@@ -146,6 +180,6 @@ export const useSnapshotStore = defineStore('snapshot', () => {
   return {
     volume, policy, snapshots,
     volumeLoading, listLoading, toggling, policySaving, creatingSnapshot, deletingName,
-    loadVolume, loadPolicy, loadSnapshots, toggle, savePolicy, createSnapshot, removeSnapshot,
+    reset, loadVolume, loadPolicy, loadSnapshots, toggle, savePolicy, createSnapshot, removeSnapshot,
   }
 })

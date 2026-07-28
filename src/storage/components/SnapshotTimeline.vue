@@ -26,6 +26,10 @@ function confirmDelete(item: SnapshotItemView) {
   deleteOpen.value = true
 }
 
+// 偏离披露(Important I1):Vue2 用的 buefy dialog.confirm 是点确认瞬间就关闭弹窗,
+// 删除请求转入后台跑,失败时只弹一个 toast、用户已经看不到弹窗了。这里**故意不照抄**:
+// 弹窗只在删除成功后才关闭,失败则留在原地(仍是 busy→非 busy,可直接重试),让用户
+// 不必重新找回该条目再点一次删除 —— 行为对用户更正确,但明确是对 Vue2 的一处偏离。
 async function onDeleteConfirmed() {
   const target = deleteTarget.value
   if (!target) return
