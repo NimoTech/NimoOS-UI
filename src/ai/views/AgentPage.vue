@@ -219,10 +219,13 @@ onMounted(async () => {
         :stored-title="currentSessionTitle"
         :theme="store.theme"
         :right-collapsed="store.rightCollapsed"
+        :thinking="store.thinking"
         @toggle-left="store.toggleLeft"
         @toggle-theme="store.toggleTheme"
         @toggle-right="store.toggleRight"
         @update-title="onUpdateTitle"
+        @thinking-enabled="(v) => store.setThinkingEnabled(v)"
+        @thinking-level="(v) => store.setThinkingLevel(v)"
       />
       <EmptyState v-if="store.messages.length === 0" />
       <MessageList v-else :messages="messagesForList" :busy="store.busy" />

@@ -92,15 +92,15 @@ describe('AgentTopbar', () => {
     historySpy.mockRestore()
   })
 
-  it('1a 裁剪:不渲染 ModelPicker/ThinkingBar/AI 改名按钮(右侧面板 toggle 已在 1c-2 回填)', () => {
+  it('1a 裁剪:不渲染 ModelPicker/AI 改名按钮(右侧面板 toggle 已在 1c-2 回填,ThinkingBar 已在 1c-2 Task 8 回填)', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
     })
     expect(w.html()).toContain('1c: ModelPicker')
-    expect(w.html()).toContain('1c: ThinkingBar')
     expect(w.html()).toContain('1c: AI-rename button')
     expect(w.html()).not.toContain('1c: right-panel toggle')
+    expect(w.html()).not.toContain('1c: ThinkingBar')
     // 4 icon buttons survive: goHome, toggle-left, theme toggle, right-panel toggle.
     expect(w.findAll('.icon-btn')).toHaveLength(4)
   })
@@ -118,5 +118,55 @@ describe('AgentTopbar', () => {
 
     await w.setProps({ rightCollapsed: true })
     expect(w.findAll('.icon-btn')[3].attributes('data-active')).toBe('false')
+  })
+
+  it('SP8-P1c2 Task 8:ThinkingBar 挂在第二行,props 从 thinking 拆开传入(Vue2 shell/AgentTopbar.vue:47-54)', () => {
+    const w = mount(AgentTopbar, {
+      props: {
+        sessionId: 's1',
+        thinking: { enabled: false, level: 'high', supportsThinking: true, providerType: 'deepseek' },
+      },
+      global: { plugins: [i18n] },
+    })
+    const bar = w.findComponent({ name: 'ThinkingBar' })
+    expect(bar.exists()).toBe(true)
+    expect(bar.props()).toMatchObject({
+      enabled: false,
+      level: 'high',
+      supportsThinking: true,
+      providerType: 'deepseek',
+    })
+  })
+
+  it('SP8-P1c2 Task 8:ThinkingBar 的 update:enabled/update:level 被重映射成 thinking-enabled/thinking-level 往上抛', async () => {
+    const w = mount(AgentTopbar, {
+      props: {
+        sessionId: 's1',
+        thinking: { enabled: true, level: 'medium', supportsThinking: true, providerType: '' },
+      },
+      global: { plugins: [i18n] },
+    })
+    const bar = w.findComponent({ name: 'ThinkingBar' })
+    bar.vm.$emit('update:enabled', false)
+    bar.vm.$emit('update:level', 'max')
+    expect(w.emitted('thinking-enabled')?.[0]).toEqual([false])
+    expect(w.emitted('thinking-level')?.[0]).toEqual(['max'])
+    // The bar itself must not re-expose Vue2's raw event names upward.
+    expect(w.emitted('update:enabled')).toBeUndefined()
+    expect(w.emitted('update:level')).toBeUndefined()
+  })
+
+  it('SP8-P1c2 Task 8:未传 thinking prop 时使用默认值(enabled=true, level=medium, supportsThinking=false)', () => {
+    const w = mount(AgentTopbar, {
+      props: { sessionId: 's1' },
+      global: { plugins: [i18n] },
+    })
+    const bar = w.findComponent({ name: 'ThinkingBar' })
+    expect(bar.props()).toMatchObject({
+      enabled: true,
+      level: 'medium',
+      supportsThinking: false,
+      providerType: '',
+    })
   })
 })

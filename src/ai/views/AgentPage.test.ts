@@ -263,6 +263,32 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
+  it('SP8-P1c2 Task 8:AgentTopbar 的 thinking-enabled/thinking-level 接到 store.setThinkingEnabled/setThinkingLevel', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const enabledSpy = vi.spyOn(store, 'setThinkingEnabled').mockResolvedValue(undefined)
+    const levelSpy = vi.spyOn(store, 'setThinkingLevel').mockResolvedValue(undefined)
+    const topbar = w.findComponent({ name: 'AgentTopbar' })
+    topbar.vm.$emit('thinking-enabled', false)
+    topbar.vm.$emit('thinking-level', 'high')
+    expect(enabledSpy).toHaveBeenCalledWith(false)
+    expect(levelSpy).toHaveBeenCalledWith('high')
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 8:AgentTopbar 的 thinking prop 绑定到 store.thinking', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.thinking.supportsThinking = true
+    store.thinking.providerType = 'deepseek'
+    await flushPromises()
+    const topbar = w.findComponent({ name: 'AgentTopbar' })
+    expect(topbar.props('thinking')).toMatchObject({ supportsThinking: true, providerType: 'deepseek' })
+    w.unmount()
+  })
+
   it('SP8-P1c2:根元素 data-rightcollapsed 默认为 false(展开,对齐 Vue2 agentStore.js:37)', async () => {
     const w = mountPage()
     await flushPromises()

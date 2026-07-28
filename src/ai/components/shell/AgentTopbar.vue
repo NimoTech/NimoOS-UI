@@ -7,12 +7,20 @@
   SP8-P1c2 Task 2 —— 右侧面板 toggle 按钮已回填(Vue2 shell/AgentTopbar.vue:
   43-45,1:1):新增 prop `rightCollapsed`(对齐 Vue2 :73,默认 false)+ emit
   `toggle-right`。ModelPicker、ThinkingBar、AI 改名按钮仍留给后续任务。
+
+  SP8-P1c2 Task 8 —— ThinkingBar 第二行已挂载(Vue2 shell/AgentTopbar.vue:47-54,
+  1:1):新增 prop `thinking`(形状对齐 store 的 ThinkingState 子集），拆开传给
+  ThinkingBar 四个 prop；ThinkingBar 的 `update:enabled`/`update:level` 在此处
+  重映射成 `thinking-enabled`/`thinking-level` 往上抛给 AgentPage（Vue2 同名两行
+  `@update:enabled="$emit('thinking-enabled', ...)"` / `@update:level="..."`）。
+  ModelPicker、AI 改名按钮仍留给后续任务。
 -->
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AgentIcon from '../icons/AgentIcon.vue'
+import ThinkingBar from './ThinkingBar.vue'
 
 const DEBOUNCE_MS = 500
 
@@ -23,12 +31,26 @@ const props = withDefaults(
     theme?: 'light' | 'dark'
     // Vue2 shell/AgentTopbar.vue:73 —— 默认展开(false),用于按钮 data-active。
     rightCollapsed?: boolean
+    // Vue2 shell/AgentTopbar.vue:76-84 —— 默认值逐字对齐(与 store 的
+    // ThinkingState 兜底一致：enabled=true, level='medium', supportsThinking=false)。
+    thinking?: {
+      enabled: boolean
+      level: string
+      supportsThinking: boolean
+      providerType: string
+    }
   }>(),
   {
     sessionId: '',
     storedTitle: '',
     theme: 'light',
     rightCollapsed: false,
+    thinking: () => ({
+      enabled: true,
+      level: 'medium',
+      supportsThinking: false,
+      providerType: '',
+    }),
   },
 )
 
@@ -37,6 +59,8 @@ const emit = defineEmits<{
   (e: 'toggle-theme'): void
   (e: 'toggle-right'): void
   (e: 'update-title', title: string): void
+  (e: 'thinking-enabled', value: boolean): void
+  (e: 'thinking-level', value: string): void
 }>()
 
 const { t } = useI18n()
@@ -151,7 +175,14 @@ function goHome() {
         <AgentIcon name="panel" :size="16" />
       </button>
     </div>
-    <!-- 1c: ThinkingBar -->
+    <ThinkingBar
+      :enabled="thinking.enabled"
+      :level="thinking.level"
+      :supports-thinking="thinking.supportsThinking"
+      :provider-type="thinking.providerType"
+      @update:enabled="emit('thinking-enabled', $event)"
+      @update:level="emit('thinking-level', $event)"
+    />
   </header>
 </template>
 
