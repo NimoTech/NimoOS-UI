@@ -556,7 +556,9 @@ export default {
   aiThinkingHigh: '高',
   aiThinkingMax: '极高',
   aiThinkingUnsupported: '该模型不支持思考',
-  aiThinkingDeepseekNote: '在 DeepSeek 上，「低/中」与「高/极高」分别表现相同',
+  // F5 修复(review):沿用 Vue2 zh_CN.json 里对同一句英文源串的现成译法逐字
+  // (原为新写的措辞,与 Vue2 用语不一致)。
+  aiThinkingDeepseekNote: 'DeepSeek 上「低/中」以及「高/极高」行为分别相同',
   aiEmptyTitle: '你好,我是 Nimo',
   aiEmptySubtitle: '你的 NAS AI 助手——找照片、清理重复文件、整理文件,或者随便聊聊。',
   aiEmptyFindPhotos: '按场景找照片',

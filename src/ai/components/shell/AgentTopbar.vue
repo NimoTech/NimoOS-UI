@@ -30,7 +30,7 @@ import { useRouter } from 'vue-router'
 import AgentIcon from '../icons/AgentIcon.vue'
 import ModelPicker from './ModelPicker.vue'
 import ThinkingBar from './ThinkingBar.vue'
-import type { AgentModel } from '../../stores/agentStore'
+import type { AgentModel, ThinkingLevel } from '../../stores/agentStore'
 
 const DEBOUNCE_MS = 500
 
@@ -45,7 +45,10 @@ const props = withDefaults(
     // ThinkingState 兜底一致：enabled=true, level='medium', supportsThinking=false)。
     thinking?: {
       enabled: boolean
-      level: string
+      // F2 修复(review)—— 与 ThinkingBar 的 level prop 同款收窄,复用
+      // agentStore.ts 导出的 ThinkingLevel(store 自身的 ThinkingState.level
+      // 维持 string 不收窄,见那里的注释——那层收窄会牵连共享服务包的返回类型)。
+      level: ThinkingLevel
       supportsThinking: boolean
       providerType: string
     }
@@ -98,13 +101,21 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 // `isAnyRegenerating` also covers the background auto-title-on-first-turn
 // case and only gates the sparkle button (still clickable-but-disabled while
 // either kind of regenerate is in flight for this session).
+// F1 fix (2026-07-28 review) —— `sessionId` reaches this component pre-coerced
+// to a string (AgentPage.vue: `String(store.activeSessionId ?? '')`), but
+// `regeneratingTitleFor.id` keeps its native `string | number` type straight
+// from the store (session ids are `string | number` throughout the store and
+// the shared service). Comparing `r.id === props.sessionId` silently breaks
+// for numeric session ids (`42 === '42'` is `false`), so the AI-rename disable
+// states never activate. Normalise both sides through `String()` at this
+// string/number boundary before comparing.
 const isExplicitRegenerating = computed(() => {
   const r = props.regeneratingTitleFor
-  return !!(r && r.id === props.sessionId && !r.background)
+  return !!(r && String(r.id) === props.sessionId && !r.background)
 })
 const isAnyRegenerating = computed(() => {
   const r = props.regeneratingTitleFor
-  return !!(r && r.id === props.sessionId)
+  return !!(r && String(r.id) === props.sessionId)
 })
 
 function clearTimer() {

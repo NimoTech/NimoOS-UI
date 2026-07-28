@@ -23,6 +23,20 @@ export interface AgentModel {
   providerId?: string | number
 }
 
+/**
+ * F2 修复(review)—— ThinkingBar/AgentTopbar 的强度档位闭合枚举,四档字面量。
+ * 自然归属于本文件(ThinkingState 就住在这里),供 ThinkingBar.vue/AgentTopbar.vue
+ * 的 props 类型复用,不必各自发明一份。
+ *
+ * `ThinkingState.level` 本身**不**收窄成这个联合类型:`loadSessionThinking` 把
+ * `service.ai.getSessionThinking()` 的返回值(共享包 NimoOS-Service/src/ai.ts
+ * 里类型是裸 `string`,外部契约——服务端可能返回任意历史/未来字符串)直接赋给
+ * `thinking.value.level`;把字段收窄成 `ThinkingLevel` 会让这行赋值类型报错,
+ * 牵连到共享包的返回类型或需要额外的运行时校验/兜底,超出这两个组件的范围。
+ * 因此这里只收窄组件层的 props 类型,store 侧维持 `string` 不变。
+ */
+export type ThinkingLevel = 'low' | 'medium' | 'high' | 'max'
+
 /** agentStore.js:34,46-52 —— thinking 强度状态(无 ThinkingBar UI,只留状态)。 */
 export interface ThinkingState {
   enabled: boolean

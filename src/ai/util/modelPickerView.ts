@@ -12,7 +12,14 @@ export function splitModels(list: AgentModel[]): { local: AgentModel[]; cloud: A
 }
 
 export interface CloudGroup {
-  providerId: string | number
+  // F6 修复(review)—— 原声明为非 optional `string | number`,但实际值来自
+  // `AgentModel.providerId?: string | number | undefined`,此前靠 `as string
+  // | number` 断言掩盖了这个事实。Vue2 ModelPicker.vue:92-97 对缺 providerId 的
+  // 模型**不跳过**——`pid = m.providerId`(undefined)当对象 key 用时被隐式转成
+  // 字符串 `"undefined"`,同 providerId 缺失的模型仍会被分进（同一个）组,只是
+  // 组名是 undefined。跳过这类模型会改变 Vue2 的分组行为,所以这里选择如实放宽
+  // 声明类型以匹配运行时,而不是在边界处过滤/替换。
+  providerId: string | number | undefined
   providerName?: string
   models: AgentModel[]
 }
@@ -32,7 +39,7 @@ export function cloudGroups(cloud: AgentModel[], query: string): CloudGroup[] {
     const pid = String(m.providerId)
     if (index[pid] === undefined) {
       index[pid] = byProvider.length
-      byProvider.push({ providerId: m.providerId as string | number, providerName: m.providerName, models: [] })
+      byProvider.push({ providerId: m.providerId, providerName: m.providerName, models: [] })
     }
     byProvider[index[pid]].models.push(m)
   }

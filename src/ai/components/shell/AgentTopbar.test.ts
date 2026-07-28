@@ -236,6 +236,22 @@ describe('AgentTopbar', () => {
     expect(w.find('.topbar-title-input').attributes('disabled')).toBeUndefined()
   })
 
+  it('F1 修复:sessionId 为数值型会话 id 时(经 String() 传入),isAnyRegenerating/isExplicitRegenerating 仍需按值归一后比较激活(不因 42 !== "42" 而失效)', async () => {
+    const w = mount(AgentTopbar, {
+      props: {
+        sessionId: String(42),
+        storedTitle: '旧标题',
+        // regeneratingTitleFor.id 保留原生类型(数值),与 store 一致——AgentPage
+        // 只对传给 AgentTopbar 的 sessionId 做了 String() 转换,regeneratingTitleFor
+        // 本身原样透传,两侧类型不对称正是 F1 要修的坑。
+        regeneratingTitleFor: { id: 42, background: false },
+      },
+      global: { plugins: [i18n] },
+    })
+    expect(w.find('.ai-rename-btn').attributes('disabled')).toBeDefined()
+    expect(w.find('.topbar-title-input').attributes('disabled')).toBeDefined()
+  })
+
   it('SP8-P1c2 Task 9:标题输入框获得焦点时 sparkle 亦禁用(Vue2 shell/AgentTopbar.vue:24 isFocused)', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },

@@ -54,6 +54,10 @@ describe('formatModelSize', () => {
     expect(formatModelSize(1.5 * 1024 * 1024 * 1024)).toBe('1.5 GB')
   })
 
+  it('F7 补测:恰好 1024**3 字节(1GB 边界)按 >=1GB 分支显示"1.0 GB"', () => {
+    expect(formatModelSize(1024 ** 3)).toBe('1.0 GB')
+  })
+
   it('<1GB 显示取整的 MB', () => {
     expect(formatModelSize(500 * 1024 * 1024)).toBe('500 MB')
   })

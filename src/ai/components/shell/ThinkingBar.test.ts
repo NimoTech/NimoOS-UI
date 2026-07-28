@@ -13,7 +13,7 @@ const messages = {
     aiThinkingHigh: '高',
     aiThinkingMax: '极高',
     aiThinkingUnsupported: '该模型不支持思考',
-    aiThinkingDeepseekNote: '在 DeepSeek 上，「低/中」与「高/极高」分别表现相同',
+    aiThinkingDeepseekNote: 'DeepSeek 上「低/中」以及「高/极高」行为分别相同',
   },
 }
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
@@ -64,12 +64,19 @@ describe('ThinkingBar', () => {
   it('providerType 为 deepseek 时显示 DeepSeek 说明；其它 providerType 不显示', () => {
     const withNote = mountBar({ supportsThinking: true, providerType: 'deepseek' })
     expect(withNote.find('.provider-note').text()).toBe(
-      '在 DeepSeek 上，「低/中」与「高/极高」分别表现相同',
+      'DeepSeek 上「低/中」以及「高/极高」行为分别相同',
     )
 
     const withoutNote = mountBar({ supportsThinking: true, providerType: 'openai' })
     expect(withoutNote.find('.provider-note').exists()).toBe(false)
     expect(withoutNote.find('.unsupported-note').exists()).toBe(false)
+  })
+
+  it('F4 补测:supportsThinking=false 且 providerType=deepseek 同时成立时,只显示不支持提示,DeepSeek 说明不显示(v-if/v-else-if 互斥)', () => {
+    const w = mountBar({ supportsThinking: false, providerType: 'deepseek' })
+    expect(w.find('.unsupported-note').exists()).toBe(true)
+    expect(w.find('.unsupported-note').text()).toBe('该模型不支持思考')
+    expect(w.find('.provider-note').exists()).toBe(false)
   })
 
   it('props 默认值:enabled=true, level=medium, supportsThinking=false, providerType=""', () => {

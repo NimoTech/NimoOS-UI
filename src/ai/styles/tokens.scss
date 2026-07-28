@@ -218,6 +218,11 @@
   --text-secondary: #A3A09A;
   --text-tertiary: #6E6C68;
   --text-quaternary: #4D4B48;
+  /* F3 修复(review)—— tokens.scss 约定每个颜色 token 两套主题块都要有值;
+     此前只在 .agent-app(light)声明过,虽然级联到 dark 也能正确取到同一份纯白值
+     (无视觉 bug),但违反约定本身。与 --paper-surface/--kind-* 同款,显式补一份
+     相同取值。 */
+  --text-on-accent: #ffffff;
 
   --accent: #5E97F2;
   --accent-hover: #7AABF5;

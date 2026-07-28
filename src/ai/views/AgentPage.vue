@@ -48,6 +48,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useAgentStore } from '../stores/agentStore'
+import type { ThinkingLevel } from '../stores/agentStore'
 import { provideAgentStore } from '../composables/useProvidedAgentStore'
 import { useToast } from '../../stores/toast'
 import AgentSidebar from '../components/shell/AgentSidebar.vue'
@@ -78,6 +79,16 @@ const currentSessionTitle = computed(() => {
   const s = store.sessions.find((x) => x.id === id)
   return s && s.title ? s.title : ''
 })
+
+// F2 修复(review)—— AgentTopbar 的 `thinking` prop 收窄了 `level: ThinkingLevel`
+// (agentStore.ts 里说明了为什么 store 自己的 ThinkingState.level 保持 string 不
+// 收窄:它要接住共享服务包 getSessionThinking() 的裸 string 返回值)。这里的 cast
+// 是安全的——运行时 `thinking.level` 只可能来自 ThinkingBar 的四个 <option> 值或
+// 服务端 `thinking_level || 'medium'` 兜底,从未出现过第五种取值。
+const thinkingForTopbar = computed(() => ({
+  ...store.thinking,
+  level: store.thinking.level as ThinkingLevel,
+}))
 
 function onOpenSettings() {
   // P2: router.push('/ai/settings') — 路由该期才存在,先占位(评审跟进:
@@ -261,7 +272,7 @@ onMounted(async () => {
         :right-collapsed="store.rightCollapsed"
         :available-models="store.availableModels"
         :selected-model="store.selectedModel"
-        :thinking="store.thinking"
+        :thinking="thinkingForTopbar"
         @toggle-left="store.toggleLeft"
         @toggle-theme="store.toggleTheme"
         @toggle-right="store.toggleRight"

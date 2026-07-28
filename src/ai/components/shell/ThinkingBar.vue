@@ -12,11 +12,14 @@
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import type { ThinkingLevel } from '../../stores/agentStore'
 
 withDefaults(
   defineProps<{
     enabled?: boolean
-    level?: string // low|medium|high|max
+    // F2 修复(review)—— 四档强度是闭合枚举,原先只靠注释列举合法值,改用
+    // ThinkingLevel 联合类型(复用 agentStore.ts 的定义,理由见那里的注释)。
+    level?: ThinkingLevel
     supportsThinking?: boolean
     providerType?: string // for tooltip text
   }>(),
