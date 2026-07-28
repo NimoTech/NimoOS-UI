@@ -163,9 +163,30 @@ describe('PersonHero.vue — 简单点击 emit', () => {
     expect(w.emitted('open-hero-picker')).toHaveLength(1)
   })
 
-  it('返回按钮 aria-label 是 photosPersonBack 译文', () => {
+  // 终审 Minor 7:hero 的返回钮文案是 t('photosPeople')(「人物」),照 Vue2 :6 的 $t('People');
+  // photosPersonBack(「返回人物」)是**人物不存在**空态那个返回按钮的文案,两处不是同一句。
+  it("返回按钮文案/aria 都是 t('photosPeople')(不是 photosPersonBack)", () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
-    expect(w.get('[data-test="hero-back"]').attributes('aria-label')).toBe('返回人物')
+    const back = w.get('[data-test="hero-back"]')
+    expect(back.attributes('aria-label')).toBe(zh.photosPeople)
+    expect(back.text()).toBe(zh.photosPeople)
+  })
+
+  // 终审 Minor 6 / 7:hero 上不得再出现"弹窗标题"那三条长文案。
+  it("Edit 菜单两项用短动词键,收藏 title 用 'Mark as favorite'", async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
+    expect(w.get('[data-test="hero-fav"]').attributes('title')).toBe(zh.photosPersonMarkFavorite)
+    await w.get('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.get('[data-test="hero-edit-rename"]').text()).toBe(zh.photosPersonMenuRename)
+    expect(w.get('[data-test="hero-edit-merge"]').text()).toBe(zh.photosPersonMenuMergeInto)
+    // 反向:弹窗标题那两句不该出现在菜单里
+    expect(w.get('[data-test="hero-edit-menu"]').text()).not.toContain(zh.photosPersonRename)
+    expect(w.get('[data-test="hero-edit-menu"]').text()).not.toContain(zh.photosPersonMergeInto)
+  })
+
+  it("已收藏态 title 切到 photosUnfavorite", () => {
+    const w = mountHero({ person: person({ favorite: true }), relationCount: 0, placesCount: 0 })
+    expect(w.get('[data-test="hero-fav"]').attributes('title')).toBe(zh.photosUnfavorite)
   })
 })
 

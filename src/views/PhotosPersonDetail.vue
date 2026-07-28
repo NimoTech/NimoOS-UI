@@ -1159,9 +1159,18 @@ watch(() => route.params.id, (raw) => {
   position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
   cursor: pointer; padding: 0; background: var(--chip-bg);
   border: 2px solid transparent;
+  /* 照 Vue2 :1474 —— 选中态切换有过渡,不是硬切(顺带覆盖下面新补的外发光) */
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .hero-picker-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.hero-picker-tile[data-selected="true"] { border-color: var(--accent); }
+/* 终审 Minor 4:补回 Vue2 :1482-1485 的外发光。本仓没有 --accent-glow 这个 token(已 grep
+   theme.css 两套主题块确认),Vue2 那边它的值是 accent 的 35% 透明版(photos.scss:18),
+   这里用 color-mix 由 --accent 现算,与 PhotosPeople.vue 处理同一 token 的既有做法一致。
+   少了这一圈,2px 描边在 100px 小瓦片密排里几乎看不出哪张被选中。 */
+.hero-picker-tile[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
 .hero-picker-vid {
   position: absolute; right: 4px; bottom: 4px; padding: 1px 5px; border-radius: 999px;
   font-size: 9px; background: var(--overlay-bg);

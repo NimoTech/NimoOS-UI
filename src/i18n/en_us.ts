@@ -837,7 +837,12 @@ export default {
   // (Vue2 has two literally-different but semantically-identical toasts here); flagged in the
   // task report as an intentional consolidation, not an oversight.
   photosPersonMergeDismissedToast: 'Suggestion dismissed',
-  photosPersonSubtitle: 'Person details · faces & relationships',
+  // Final-review Minor 8: photosPersonSubtitle ('Person details · faces & relationships') was
+  // removed — zero references repo-wide. It belongs to Vue2 PhotosPeopleTopbar.vue:36 (detail
+  // state), and that whole topbar is not ported here (AreaShell has only a title, hidden on
+  // desktop); the index-state subtitle of the same topbar has no key here either. Do not confuse
+  // it with photosPeopleNamed / photosPeopleUnnamedClusters — those come from Vue2's *banner*
+  // (PhotosPeopleView.vue:7-9) and are rendered in .people-sub.
   photosPersonTabTimeline: 'Timeline',
   photosPersonTabPlaces: 'Places',
   photosPersonTabRelations: 'Relationships',
@@ -880,9 +885,18 @@ export default {
   photosPersonSaveHero: 'Save',
   photosPersonHeroSavedToast: 'Background updated',
   photosPersonHeroFailed: 'Failed to update background',
-  photosPersonRenamedFailed: 'Rename failed', // ★
+  // Final-review Minor 10: the ★ was wrong here — `Rename failed` DOES exist in the old
+  // repo's locale table (zh_CN.json maps it to "重命名失败"), so the zh side was reverted
+  // to the source translation. The en value itself is unchanged (verbatim Vue2).
+  photosPersonRenamedFailed: 'Rename failed',
   photosPersonAlbumCreatedToast: 'Album created · {name}', // ★
-  photosPersonAlbumFailed: 'Could not create album', // ★
+  // Final-review Minor 10: same as above — `Could not create album` exists in the old
+  // locale table ("相册创建失败"); ★ removed, zh reverted to the source translation.
+  photosPersonAlbumFailed: 'Could not create album',
+  // ── Final-review Minor 9/10 re-check ────────────────────────────────────────
+  // ★ means "no such copy in Vue2, authored here" (convention at :788 / :815). Re-checked
+  // every ★ below against the old repo's zh_CN.json: none of these English sentences exist
+  // there, so ★ is accurate for them. Only the two above were mismarked and are now fixed.
   photosPersonRelationFailed: 'Could not update group', // ★
   photosPersonFavFailed: 'Could not update favorite', // ★
   photosPersonNoPhotos: 'No photos for this person yet', // ★
@@ -949,8 +963,8 @@ export default {
   photosPersonNoPhotosAlbumHint: 'This person has no photos to add to an album yet.', // Vue2 :848
   photosPersonHeroSub: 'Select a photo to use as the hero background', // Vue2 :339
   photosPersonMergeIntoSub: 'All photos will move to the target person', // Vue2 :388
-  photosPersonMergeConfirm: 'Merge into {name}', // Vue2 :428 (target picked)
-  photosPersonMergeSelectPrompt: 'Select a person', // Vue2 :428 (nothing picked)
+  photosPersonMergeConfirm: 'Merge into {name}', // Vue2 :428 (target picked); zh reverted to source translation (Minor 9)
+  photosPersonMergeSelectPrompt: 'Select a person', // Vue2 :428 (nothing picked); zh reverted to source translation (Minor 9)
   photosPersonUnnamedLabel: 'Unnamed person', // Vue2 :962
   // Deviation 1: Vue2 :943 only console.error's a failed detach; we surface a toast.
   photosPersonDetachFailed: 'Failed to remove photos',
@@ -989,4 +1003,15 @@ export default {
   photosFavStatInYear: 'in {year}',
   photosFavStatYearsTotal: '{n} years total',
   photosFavNoFaces: 'No faces yet',
+  // ── Final-review Minor 6 / 7: short copy on the hero ────────────────────────
+  // M6: Vue2 :38/:41 uses short verbs in the Edit dropdown (`Rename` / `Merge into…`).
+  // The original implementation reused photosPersonRename / photosPersonMergeInto, which
+  // are also the dialogs' <h*> titles ("Rename person" / "Merge into another person") —
+  // they read as full sentences and 24 chars at 12.5px overflow the 170px-min menu.
+  // Values verbatim from Vue2.
+  photosPersonMenuRename: 'Rename',
+  photosPersonMenuMergeInto: 'Merge into…',
+  // M7: Vue2 :26's un-favorited title is `Mark as favorite`, not the generic `Favorite`.
+  // The favorited branch keeps the existing photosUnfavorite key.
+  photosPersonMarkFavorite: 'Mark as favorite',
 }

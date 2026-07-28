@@ -11,7 +11,7 @@
 // 颜色改造(本任务最大的坑,登记原因):SVG presentation attribute(fill=""/
 // stroke="" 直接写在元素上)不认 CSS var() —— Vue2 因此把 6 处颜色硬编码成字面
 // 十六进制(:5,6,13,18,20,25,38)。这里把这 6 处全部改成 class,颜色规则写进
-// scoped <style> 的 CSS 属性(CSS 里的 fill/stroke 认 var(),presentation
+// scoped 样式块的 CSS 属性(CSS 里的 fill/stroke 认 var(),presentation
 // attribute 不认,是两条不同的解析路径)。Vue2 已经对文字用了这招
 // (class="rg-name",:33,48),这里是把同一招扩展到全部颜色。几何量
 // (stroke-width/stroke-opacity/r/坐标)不是颜色,继续留在 attribute 上。

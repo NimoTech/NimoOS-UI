@@ -24,7 +24,7 @@ const trash = usePhotosTrash()
 const toast = useToast()
 
 // 分桶常量,照 Vue2 PhotosTrashView.vue:126-131(4 桶,min/max/tone)。tone 只是语义标签,
-// 具体颜色在 <style> 里映射到既有 token(urgent→--remove-fg 危险红,warn→--dem-fg 警示琥珀,
+// 具体颜色在样式块里映射到既有 token(urgent→--remove-fg 危险红,warn→--dem-fg 警示琥珀,
 // normal→--accent 常规蓝),不新增 token。
 type BucketTone = 'urgent' | 'warn' | 'normal'
 interface BucketDef { id: string; titleKey: string; descKey: string; min: number; max: number; tone: BucketTone }

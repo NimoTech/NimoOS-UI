@@ -222,8 +222,10 @@ function parseCssRules(styleText: string): CssRule[] {
 
 function extractStyleBlock(src: string): string {
   const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
-  if (!m) throw new Error('未找到 <style> 块')
-  return m[1]
+  if (!m) throw new Error('未找到样式块')
+  // 先剥 CSS 注释:parseCssRules 把 `{` 之前的一切当选择器列表,规则上方的注释会被并进
+  // selectors,使 ownRuleBody 的"选择器列表恰好等于某一个"判定失效(终审 Minor 3 加注释时踩到)。
+  return m[1].replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
 // 找到"选择器列表恰好等于给定单个选择器"的那条规则的 body(用于找元素自身默认态样式,
@@ -277,5 +279,62 @@ describe('PersonAssetGrid.vue — 覆盖控件默认态透明,仅 hover/选择�
   it('.tile-detach 没有 selectionMode/selected 强制可见规则(照 Vue2 原文只给 tile-check 加了那两条,tile-detach 没有——照搬,不是遗漏)', () => {
     expect(findRuleBodyContainingAll(rules, ['.tile[data-selection-mode="true"] .tile-detach'])).toBeUndefined()
     expect(findRuleBodyContainingAll(rules, ['.tile[data-selected="true"] .tile-detach'])).toBeUndefined()
+  })
+})
+
+// ── 终审 Minor 3:两个覆盖控件的**自身** hover 反馈 + 选中压暗 + 几何回源对齐 ──────
+// 原实现只有"整格 hover → 按钮淡入",鼠标压在按钮本体上零反馈;叠上「移出」按钮又没有
+// Vue2 的危险色,终审原话:这几项叠加会让**破坏性**的移出「×」认不出是删除键。
+describe('PersonAssetGrid.vue — 控件自身 hover 与选中态(照 Vue2 :1148-1222)', () => {
+  const rules = parseCssRules(extractStyleBlock(personAssetGridRaw))
+
+  it('.tile-check:hover 自身变深(Vue2 :1209-1212 background + border-color)', () => {
+    const body = ownRuleBody(rules, '.tile-check:hover')
+    expect(body).toMatch(/background:/)
+    expect(body).toMatch(/border-color:/)
+  })
+
+  it('.tile-detach:hover 自身变危险色(Vue2 :1172-1177:实底危险红 + 白图标 + 描边透明)', () => {
+    const body = ownRuleBody(rules, '.tile-detach:hover')
+    expect(body).toMatch(/background:\s*var\(--remove-bg\)/)
+    expect(body).toMatch(/border-color:\s*transparent/)
+    expect(body).toMatch(/color:/)
+  })
+
+  it('两个控件的 transition 覆盖 background(否则 hover 变色是硬切,Vue2 :1163,1202)', () => {
+    expect(ownRuleBody(rules, '.tile-check')).toMatch(/transition:[^;]*background/)
+    expect(ownRuleBody(rules, '.tile-detach')).toMatch(/transition:[^;]*background/)
+  })
+
+  it('选中的瓦片把图压暗 opacity .85(Vue2 :1222)', () => {
+    expect(ownRuleBody(rules, '.tile[data-selected="true"] img')).toMatch(/opacity:\s*0?\.85\b/)
+  })
+
+  it('几何照 Vue2 生效值:check 20px/偏移 6px/2px 描边,detach 22px/偏移 6px + backdrop-filter', () => {
+    const check = ownRuleBody(rules, '.tile-check')
+    expect(check).toMatch(/width:\s*20px/)
+    expect(check).toMatch(/height:\s*20px/)
+    expect(check).toMatch(/top:\s*6px/)
+    expect(check).toMatch(/left:\s*6px/)
+    expect(check).toMatch(/border:\s*2px\s+solid/)
+
+    const detach = ownRuleBody(rules, '.tile-detach')
+    expect(detach).toMatch(/width:\s*22px/)
+    expect(detach).toMatch(/height:\s*22px/)
+    expect(detach).toMatch(/top:\s*6px/)
+    expect(detach).toMatch(/right:\s*6px/)
+    expect(detach).toMatch(/backdrop-filter:/)
+  })
+
+  it('图标标称尺寸照 Vue2 生效值:勾 12px,x 15px', () => {
+    const w = mountGrid({ months: [month('2026-05', '2026 年 5 月', [photo('a1')])], selected: ['a1'], selectionMode: true })
+    const check = w.get('.tile-check-icon')
+    expect(check.attributes('width')).toBe('12')
+    expect(check.attributes('height')).toBe('12')
+
+    const w2 = mountGrid({ months: [month('2026-05', '2026 年 5 月', [photo('a1')])], selected: [], selectionMode: false })
+    const x = w2.get('.tile-detach svg')
+    expect(x.attributes('width')).toBe('15')
+    expect(x.attributes('height')).toBe('15')
   })
 })

@@ -2,7 +2,10 @@
 // Task 7 (SP7-P5 人物): ClusterActionDialog.vue —— 未命名人物三态操作弹窗(命名 / 合并 /
 // 删除)。逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:237-361(模板)与
 // :624-643(openXxxDialog 的 nextTick focus)移植;photos-people.scss 本身不含弹窗样式
-// (Vue2 弹窗全靠内联 style),这里改成本仓惯例的 scoped <style> + theme token。
+// (Vue2 弹窗全靠内联 style),这里改成本仓惯例的 scoped 样式块 + theme token。
+// (注:注释里刻意不写字面的 style 开标签 —— color-guard.test.ts 的样式块提取正则是
+//  非贪婪匹配,注释里的假开标签会让它从这里一路吃到文件末尾的真闭标签,把整个 script +
+//  template 都当成样式块扫描。详见该测试文件的 no-fake-style-tag 用例。)
 //
 // 分工(照 brief 明确、同 P4 AlbumPickerDialog 的先例但反过来):本组件**只收集输入并
 // emit**,不调用任何 store 或 toast —— 三条提交路径(renamePerson / mergePersonInto /
@@ -182,7 +185,13 @@ function submitDelete(): void {
             data-test="cad-save-name"
             :disabled="!canSaveName"
             @click="submitName"
-          >{{ t('photosPersonSaveName') }}</button>
+          >
+            <!-- 终审 Minor 1:Vue2 PhotosPeopleView.vue:293 钮内有 check 图标(size 13),
+                 原实现漏了。同文件同一排的删除键(:235)与 MergeReviewDialog 的 accept 都有,
+                 三兄弟只有它是纯文字 —— 内部不自洽。 -->
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            {{ t('photosPersonSaveName') }}
+          </button>
         </div>
       </template>
 
@@ -210,6 +219,10 @@ function submitDelete(): void {
               <span class="cad-candidate-name">{{ p.name }}</span>
               <span class="cad-candidate-count">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
             </span>
+            <!-- 终审 Minor 2:Vue2 :322 行尾有 chevR(size 12,--text-3 → 本仓 --fg-muted),
+                 原实现漏了。点这一行**直接执行合并**且不可撤销,少了这个"还有下一步"的箭头之后
+                 整行只剩 hover 背景一个提示。 -->
+            <svg class="cad-candidate-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           </button>
           <div v-if="filteredCandidates.length === 0" class="cad-empty" data-test="cad-empty">
             {{ t('photosPersonNoMatch') }}
@@ -305,6 +318,9 @@ function submitDelete(): void {
 .cad-btn:hover { background: var(--chip-bg-hi); }
 .cad-btn-primary {
   flex: 1.4; background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
+  /* 终审 Minor 1:补 check 图标后需要 Vue2 :291-292 的 inline-flex 居中 + 6px gap
+     (与同文件 .cad-btn-danger 同款几何)。 */
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
 .cad-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .cad-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -336,6 +352,9 @@ function submitDelete(): void {
 .cad-candidate-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cad-candidate-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cad-candidate-count { font-size: 11px; color: var(--fg-muted); }
+/* 终审 Minor 2:行尾 chevR。Vue2 :322 给的是 --text-3,本仓该档对应 --fg-muted
+   (同上一行 .cad-candidate-count 的既有映射)。 */
+.cad-candidate-chev { flex: 0 0 auto; color: var(--fg-muted); }
 .cad-empty { padding: 24px; text-align: center; color: var(--fg-muted); font-size: 12px; }
 
 /* 危险色调(Vue2 的删除警示条是半透明红,不是 --warn-* 那套琥珀色 —— 那套是"人脸识别

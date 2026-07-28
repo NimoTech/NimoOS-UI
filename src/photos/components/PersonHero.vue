@@ -22,7 +22,7 @@
 // 菜单会被**直接切掉**:默认布局菜单底边 ≈279.5px 只差 0.5px 不裁;一旦长人名触发
 // `.hero-name-row { flex-wrap: wrap }` 换行,触发按钮下移约 46px、菜单底边到 ≈296px,
 // 最后一项「工作/Work」被切掉约一半(放大字号 / 窄视口同理)。
-// 修法(评审给了两个选项,这里选前者,理由见 <style> 里 .hero-clip 的注释):把
+// 修法(评审给了两个选项,这里选前者,理由见样式块里 .hero-clip 的注释):把
 // `overflow: hidden` 从 .person-hero 移到专门的 .hero-clip 裁剪层,菜单不再受祖先裁剪,
 // 保留 absolute 锚定这条已批准的偏离。
 //
@@ -177,9 +177,12 @@ onUnmounted(() => {
       <div v-if="!isFallback" class="hero-scrim" data-test="hero-scrim" />
     </div>
 
-    <button type="button" class="hero-back" data-test="hero-back" :aria-label="t('photosPersonBack')" @click="emit('back')">
+    <!-- 终审 Minor 7:文案是 t('photosPeople')(「人物」/ "People")—— 照 Vue2 :6 的 $t('People')。
+         不用 photosPersonBack(「返回人物」/ "Back to people"):那句是**人物不存在**空态里那个
+         返回按钮的文案(PhotosPersonDetail.vue 门控③),两处不是同一句。 -->
+    <button type="button" class="hero-back" data-test="hero-back" :aria-label="t('photosPeople')" @click="emit('back')">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
-      {{ t('photosPersonBack') }}
+      {{ t('photosPeople') }}
     </button>
 
     <div class="hero-inner">
@@ -191,13 +194,15 @@ onUnmounted(() => {
         <div class="hero-name-row">
           <span class="hero-name" data-test="hero-name">{{ person.name }}</span>
 
+          <!-- 终审 Minor 7:未收藏态的 title/aria 照 Vue2 :26 的 `Mark as favorite`(不是通用的
+               `Favorite`);已收藏态复用 photosUnfavorite,其中文与 Vue2 `Remove favorite` 的原译一致。 -->
           <button
             type="button"
             class="hero-fav"
             data-test="hero-fav"
             :class="{ 'is-fav': person.favorite }"
-            :aria-label="t(person.favorite ? 'photosUnfavorite' : 'photosFavorite')"
-            :title="t(person.favorite ? 'photosUnfavorite' : 'photosFavorite')"
+            :aria-label="t(person.favorite ? 'photosUnfavorite' : 'photosPersonMarkFavorite')"
+            :title="t(person.favorite ? 'photosUnfavorite' : 'photosPersonMarkFavorite')"
             @click="emit('toggle-fav')"
           >
             <svg v-if="person.favorite" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z" /></svg>
@@ -213,11 +218,15 @@ onUnmounted(() => {
             <div v-if="editOpen" class="hero-menu" data-test="hero-edit-menu">
               <button type="button" class="hero-menu-item" data-test="hero-edit-rename" @click="pickEdit('rename')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
-                {{ t('photosPersonRename') }}
+                <!-- 终审 Minor 6:短动词键(照 Vue2 :38 `$t('Rename')`);photosPersonRename
+                     是改名弹窗的标题「重命名人物」,不能顶替菜单项。 -->
+                {{ t('photosPersonMenuRename') }}
               </button>
               <button type="button" class="hero-menu-item" data-test="hero-edit-merge" @click="pickEdit('merge')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
-                {{ t('photosPersonMergeInto') }}
+                <!-- 终审 Minor 6:同上,照 Vue2 :41 `$t('Merge into…')`;photosPersonMergeInto
+                     是合并弹窗的标题「合并到另一个人物」。 -->
+                {{ t('photosPersonMenuMergeInto') }}
               </button>
               <button type="button" class="hero-menu-item hero-menu-danger" data-test="hero-edit-delete" @click="pickEdit('delete')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>

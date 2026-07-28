@@ -835,7 +835,11 @@ export default {
   // 两句在 Vue2 里字面不同,但语义都是"已合并到 X",同 mergeReason/PersonAvatar 的既有
   // 统一惯例(把 Vue2 里重复的同义文案收成一份),已在任务报告里登记这条不是疏漏。
   photosPersonMergeDismissedToast: '已忽略该合并建议',
-  photosPersonSubtitle: '人物详情 · 面孔与关系',
+  // 终审 Minor 8:此处原有 photosPersonSubtitle(「人物详情 · 面孔与关系」)已删 —— 全仓零引用。
+  // 它对应 Vue2 PhotosPeopleTopbar.vue:36 在 detail 态的顶栏副标题,而本仓**整条顶栏都没有移植**
+  // (AreaShell 只有 title,桌面态还整条隐藏);同一顶栏 index 态的副标题(`Face clusters · …`)
+  // 在本仓同样没有键。注意别把它和 photosPeopleNamed / photosPeopleUnnamedClusters 弄混 —— 那两条
+  // 来自 Vue2 的**横幅**(PhotosPeopleView.vue:7-9),已落地在 .people-sub。要恢复请先补顶栏。
   photosPersonTabTimeline: '时间线',
   photosPersonTabPlaces: '地点',
   photosPersonTabRelations: '关系',
@@ -878,9 +882,21 @@ export default {
   photosPersonSaveHero: '保存',
   photosPersonHeroSavedToast: '背景已更新',
   photosPersonHeroFailed: '更新背景失败',
-  photosPersonRenamedFailed: '改名失败', // ★
+  // 终审 Minor 10:这句英文原文 `Rename failed` 在旧仓 zh_CN.json 里**有**对应译文
+  // "重命名失败",★(= 本仓自拟)标错了;按分支纪律「译文一律从旧仓查同句英文原文」
+  // 改回原译,不再用自拟的"改名失败"。
+  photosPersonRenamedFailed: '重命名失败',
   photosPersonAlbumCreatedToast: '已创建相册 · {name}', // ★
-  photosPersonAlbumFailed: '无法创建相册', // ★
+  // 终审 Minor 10:同上 —— `Could not create album` 在 zh_CN.json 里有原译"相册创建失败",
+  // ★ 标错了,改回原译(原为自拟的"无法创建相册")。
+  photosPersonAlbumFailed: '相册创建失败',
+  // ── 终审 Minor 9/10 复核结论 ─────────────────────────────────────────────
+  // 以下这批带 ★ 的键:★ 的含义是「Vue2 没有这句文案,本仓自拟」(约定见 :788 / :813)。
+  // 终审要求逐条回旧仓 zh_CN.json 复核,已核完:这批的英文原句在 zh_CN.json 里**确实不存在**
+  // (`Could not update group` / `Could not update favorite` / `No photos for this person yet` /
+  //  `Person not found` / `Back to people` / `No people yet` / `Nimo groups faces…` /
+  //  `Show all {n}` / `Show less` 均查无此条),所以 ★ 对它们是准确的,译文按术语惯例自拟成立。
+  // 唯独上面 photosPersonRenamedFailed / photosPersonAlbumFailed 两条查得到原译,已改回(Minor 10)。
   photosPersonRelationFailed: '无法更新分组', // ★
   photosPersonFavFailed: '无法更新收藏', // ★
   photosPersonNoPhotos: '这个人还没有照片', // ★
@@ -941,8 +957,11 @@ export default {
   photosPersonNoPhotosAlbumHint: '这个人还没有可加入相册的照片。', // Vue2 :848
   photosPersonHeroSub: '选择一张照片作为背景大图', // Vue2 :339
   photosPersonMergeIntoSub: '所有照片都会转移到目标人物', // Vue2 :388
-  photosPersonMergeConfirm: '合并到「{name}」', // Vue2 :428(选中态)
-  photosPersonMergeSelectPrompt: '请选择一个人物', // Vue2 :428(未选中态)
+  // 终审 Minor 9:原译是 `Merge into {name}`→"合并到 {name}"(zh_CN.json),自拟时多加了
+  // 「」书名号 —— 按纪律改回原译。
+  photosPersonMergeConfirm: '合并到 {name}', // Vue2 :428(选中态)
+  // 终审 Minor 9:原译是 `Select a person`→"选择一个人物"(zh_CN.json),自拟时加了"请"。
+  photosPersonMergeSelectPrompt: '选择一个人物', // Vue2 :428(未选中态)
   // Vue2 :962 $t('Unnamed person') —— 删除 toast 里未命名人物的占位标签。术语与
   // photosPeopleUnnamedSection 同为"未命名人物",但那是分区标题、语义不同,不共用键。
   photosPersonUnnamedLabel: '未命名人物',
@@ -976,4 +995,15 @@ export default {
   photosFavStatInYear: '于 {year} 年',
   photosFavStatYearsTotal: '共 {n} 年',
   photosFavNoFaces: '暂无人脸',
+  // ── 终审 Minor 6 / 7:hero 上的短文案 ────────────────────────────────────────
+  // M6:Vue2 :38/:41 的 Edit 下拉两项是**短动词**(`Rename` / `Merge into…`),原实现塞的是
+  // photosPersonRename / photosPersonMergeInto —— 那两个键同时是弹窗 <h*> 标题(「重命名人物」/
+  // 「合并到另一个人物」),读起来像整句,英文 24 字符在 12.5px 下还会撑宽 min-width:170px 的菜单。
+  // 译文取自旧仓 zh_CN.json:`Rename`→"重命名"、`Merge into…`→"合并到…"。
+  photosPersonMenuRename: '重命名',
+  photosPersonMenuMergeInto: '合并到…',
+  // M7:Vue2 :26 未收藏态的 title 是 `Mark as favorite`(不是通用的 `Favorite`)。
+  // 译文取自旧仓 zh_CN.json:`Mark as favorite`→"标记为收藏"。取消收藏那支复用既有
+  // photosUnfavorite("取消收藏"),与 zh_CN.json 的 `Remove favorite`→"取消收藏" 一致。
+  photosPersonMarkFavorite: '标记为收藏',
 }

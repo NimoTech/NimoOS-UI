@@ -54,8 +54,8 @@ const emptyText = computed(() => t('photosPersonNoPlaces', { name: displayName.v
 // 图例 pin 的光晕环(照 Vue2 :171 `boxShadow: '0 0 0 2px white, 0 0 6px ${pl.color}aa'`)。
 // 固定白色环是数据可视化惯例的一部分:环要在任意主题底色上都能撑开任意
 // PLACE_PALETTE 填充色,与主题无关——同 PhotosMiniMap.vue 的 .dot-person 描边
-// 固定白色的先例(该文件 <style> 里有 theme-exception 注释)。这里写在 JS 里
-// (inline :style,由 pl.color 数据驱动),color-guard 只扫 <style> 块与 .css,
+// 固定白色的先例(该文件样式块里有 theme-exception 注释)。这里写在 JS 里
+// (inline :style,由 pl.color 数据驱动),color-guard 只扫样式块与 .css,
 // 不扫这里,但仍留此注释供人工评审对齐。
 function legendPinStyle(color: string): Record<string, string> {
   return { background: color, boxShadow: `0 0 0 2px #fff, 0 0 6px ${color}aa` }
@@ -192,8 +192,13 @@ function legendPinStyle(color: string): Record<string, string> {
      状态,不新增 emit(brief 明确本组件无 emits)。 */
   cursor: pointer;
 }
+/* 终审 Minor 5:Vue2 :637 的 hover 同时改 border-color(--line-strong)与底色,原实现只换了底色。
+   本仓无 --line-strong(已 grep theme.css 两套主题块确认),用同样"比常态描边更明确一档"的
+   --fg-faint —— 同 MediaViewer.vue:793 `.spk-chip:hover { border-color: var(--fg-faint) }`
+   的既有中性描边加深先例,两套主题都有定义。 */
 .place-chip:hover {
   background: var(--chip-bg-hi);
+  border-color: var(--fg-faint);
 }
 .place-chip .pin {
   width: 10px;
