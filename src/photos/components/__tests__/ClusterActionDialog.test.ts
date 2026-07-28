@@ -100,11 +100,17 @@ describe('ClusterActionDialog.vue — 三态渲染', () => {
     expect(w.findAll('[data-test="cad-cancel"]')).toHaveLength(1)
   })
 
-  it('mode=delete:渲染警示条 + danger 确认按钮,无输入框', async () => {
+  // 评审必修 1 回归:delete 模式是三句不同文案分属三个槶位(头部标题 / 警示条自己的标题行 /
+  // 警示条灰色小字正文),照 Vue2 :259-262 与 :337-343 逐一核对,不能互相顶替。
+  it('mode=delete:头部标题、警示条标题行+正文各归位,danger 确认按钮,无输入框', async () => {
     const w = mountDialog({ open: true, mode: 'delete', person: person(), candidates: [] })
     await w.vm.$nextTick()
-    expect(w.find('[data-test="cad-title"]').text()).toBe('删除这个人物分组？')
-    expect(w.find('[data-test="cad-delete-warning"]').text()).toBe(
+    // 头部标题(Vue2 :262 $t('Delete face cluster'))——不是警示条里的那句。
+    expect(w.find('[data-test="cad-title"]').text()).toBe('删除这组人脸')
+    // 警示条自己的标题行(Vue2 :341 $t('Delete this person group?'))。
+    expect(w.find('[data-test="cad-delete-warning-title"]').text()).toBe('删除这个人物分组？')
+    // 警示条的灰色小字正文(Vue2 :342-343)。
+    expect(w.find('[data-test="cad-delete-warning-body"]').text()).toBe(
       '照片会保留。人物分组与识别记录将被永久删除。你可以在 5 秒内撤销。',
     )
     expect(w.find('[data-test="cad-name-input"]').exists()).toBe(false)

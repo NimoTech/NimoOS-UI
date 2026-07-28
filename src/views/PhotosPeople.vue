@@ -76,13 +76,20 @@ const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
 const reviewOpen = ref(false)
 const reviewIdx = ref(0)
-// 三条提交路径各自独立的 in-flight 守卫(brief 硬约束:P4 期这类 bug 被抓了三次)。
-// 三个 ref 分开、不共用——理由同 AlbumPickerDialog.vue:35-42 的先例:任何两条路径都可能
-// 在真实使用中被连续触发(比如命名成功后立刻又点了删除),共用一个标志会让互不相干的操作
-// 彼此误伤。
+// 命名/合并各自独立的 in-flight 守卫(brief 硬约束:P4 期这类 bug 被抓了三次)。两个 ref
+// 分开、不共用——理由同 AlbumPickerDialog.vue:35-42 的先例:两条路径都可能在真实使用中被
+// 连续触发(比如命名成功后立刻又点了合并),共用一个标志会让互不相干的操作彼此误伤。
+//
+// 评审必修 2(第二轮,已删除 deletingSubmitting ref):删除路径原来也仿照这个形状加了
+// 一个独立的 `deletingSubmitting` ref,但评审做了删码验证——`onSubmitDelete` 全程没有
+// `await`(purgePersonWithUndo 同步返回 undo 闭包),函数体在一次 dispatchEvent 里跑完,
+// `dialog.value = null` 在函数体内**同步**发生,早于任何"守卫复位"的必要性。把这个 ref
+// 整段(声明/置位/finally 复位)删掉后,回归测试依然绿,因为挡住第二次调用的从来是
+// `onSubmitDelete` 开头的 `!dialog.value` 短路,不是这个 ref——ref 只是"标准形状"的
+// 装饰,没有实际保护价值。已在 fix 报告里记录这次删码验证的具体做法与结果,这里不再
+// 加回这个 ref。命名/合并两条路径的 async 守卫经评审确认确凿有效,不受影响。
 const namingSubmitting = ref(false)
 const mergingSubmitting = ref(false)
-const deletingSubmitting = ref(false)
 // aiFeatures.faces 的临时来源:本仓没有 settings store(归 P8),onMounted 直接读一次
 // /photos/config。失败或字段缺失一律按 true(不显示警告横幅,宁可不吓用户)。
 const facesEnabled = ref(true)
@@ -234,20 +241,19 @@ async function onSubmitMerge(targetId: string | number): Promise<void> {
 }
 
 // 照 Vue2 confirmDelete :661-674,purgePersonWithUndo 同步返回 undo 闭包(不是 Promise,
-// 不 await)。重入守卫仍然要:两次连点在 Vue 把弹窗从 DOM 摘掉之前的那个同步窗口里都能摸到
-// 同一个按钮(P4 回归同款场景,见 ClusterActionDialog.test.ts 的双击测试)。
+// 不 await)。评审必修 2:这条路径**不需要**独立的 in-flight 守卫 ref——函数体全程无
+// await,一次 dispatchEvent 内跑完;`dialog.value = null` 就是这条路径天然的防重入锁,
+// 两次连点在 Vue 把弹窗从 DOM 摘掉之前的那个同步窗口里都命中同一个按钮时,第二次调用会
+// 在函数体最开头被 `!dialog.value` 挡下(第一次调用已经把它置空)。删码验证见 fix 报告:
+// 曾经这里也仿照命名/合并加过一个 `deletingSubmitting` ref,删掉整段(声明/置位/finally
+// 复位)后回归测试依然绿——证明它没有实际保护价值,不再加回。
 function onSubmitDelete(): void {
-  if (!dialog.value || deletingSubmitting.value) return
-  deletingSubmitting.value = true
-  try {
-    const person = dialog.value.person
-    const undo = people.purgePersonWithUndo(person.id)
-    dialog.value = null
-    const label = person.name && person.name.trim() ? `"${person.name.trim()}"` : t('photosPersonThisPerson')
-    toast.show(t('photosPersonDeletedToast', { label }), 5000, { label: t('photosPersonUndo'), onClick: undo })
-  } finally {
-    deletingSubmitting.value = false
-  }
+  if (!dialog.value) return
+  const person = dialog.value.person
+  const undo = people.purgePersonWithUndo(person.id)
+  dialog.value = null
+  const label = person.name && person.name.trim() ? `"${person.name.trim()}"` : t('photosPersonThisPerson')
+  toast.show(t('photosPersonDeletedToast', { label }), 5000, { label: t('photosPersonUndo'), onClick: undo })
 }
 
 // ── document 级浮层监听(Vue2 mounted :525-540 的 _onDoc + 本仓补的 Esc)──

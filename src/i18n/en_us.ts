@@ -892,4 +892,9 @@ export default {
   // T7 coordinator addition: <label> for ClusterActionDialog's name mode, wording
   // "Name" per zh_CN.json:49. Appended at the end of the block, existing keys not reordered.
   photosPersonNameLabel: 'Name',
+  // T7 review fix 1: delete mode's header-title slot, matches Vue2
+  // PhotosPeopleView.vue:262 $t('Delete face cluster') verbatim (distinct from the
+  // warning box's own title line, photosPersonDeleteTitle — two different sentences,
+  // must not share one key).
+  photosPersonDeleteClusterTitle: 'Delete face cluster',
 }

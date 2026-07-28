@@ -19,6 +19,14 @@
 //     两个既有 token(同 PhotosTrash.vue:446 `.trash-btn-cta.danger` 的既定惯例,不是
 //     新发明),前景钉死白色 + theme-exception(理由见该处样式注释,不用 --on-accent——
 //     它只在背景确为 var(--accent) 饱和实底时才可读,这里背景是危险红渐变,不满足前提)。
+//
+// 评审必修 1(第二轮):delete 模式实际是**三句不同文案**分属三个槶位,逐字核对
+// Vue2 :259-262(头部标题)与 :337-343(警示条自己的标题行 + 灰色小字正文)才发现之前
+// 把警示条的标题行("删除这个人物分组？")错放进了头部标题槶位,导致头部真正该显示的
+// "Delete face cluster" 整句消失、警示条自己的标题行也丢了。新增头部专用键
+// photosPersonDeleteClusterTitle(en 逐字 'Delete face cluster';zh 不照抄 zh_CN.json
+// 的"删除面部集群"——"集群"触犯本期术语红线,改"删除这组人脸"),警示条恢复
+// "标题行 + <br/> + 灰色小字正文" 的两行结构,三句各自归位。
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
@@ -54,7 +62,9 @@ function sameId(a: string | number, b: string | number): boolean {
 const titleKey = computed(() => {
   if (props.mode === 'name') return 'photosPersonNameTitle'
   if (props.mode === 'merge') return 'photosPersonMergeTitle'
-  return 'photosPersonDeleteTitle'
+  // 评审必修 1:delete 模式的头部标题槶位对应 Vue2 :262 $t('Delete face cluster'),
+  // 与警示条内部自己的标题行(photosPersonDeleteTitle,:341)是两句不同文案,不能共用键。
+  return 'photosPersonDeleteClusterTitle'
 })
 
 const subtitleText = computed(() => {
@@ -211,7 +221,14 @@ function submitDelete(): void {
       </template>
 
       <template v-else>
-        <div class="cad-warning" data-test="cad-delete-warning">{{ t('photosPersonDeleteBody') }}</div>
+        <!-- 评审必修 1:警示条恢复 Vue2 :337-343 的两行结构 —— 第一行是警示条自己的标题
+             (photosPersonDeleteTitle,"删除这个人物分组？"),<br/> 换行后才是灰色小字正文
+             (photosPersonDeleteBody)。这两句和头部标题(titleKey)是三句不同文案,分属
+             三个不同的槶位,不能互相顶替。 -->
+        <div class="cad-warning" data-test="cad-delete-warning">
+          <span data-test="cad-delete-warning-title">{{ t('photosPersonDeleteTitle') }}</span><br>
+          <span class="cad-warning-body" data-test="cad-delete-warning-body">{{ t('photosPersonDeleteBody') }}</span>
+        </div>
         <div class="cad-actions">
           <button type="button" class="cad-btn" data-test="cad-cancel" @click="close">{{ t('photosCancel') }}</button>
           <button type="button" class="cad-btn cad-btn-danger" data-test="cad-confirm-delete" @click="submitDelete">
@@ -328,4 +345,6 @@ function submitDelete(): void {
   border: 1px solid color-mix(in srgb, var(--remove-fg) 25%, transparent); border-radius: 10px;
   font-size: 12.5px; color: var(--fg); line-height: 1.55; margin-bottom: 16px;
 }
+/* Vue2 :342 的内层灰色小字正文(照 var(--text-3)/11.5px)。 */
+.cad-warning-body { color: var(--fg-muted); font-size: 11.5px; }
 </style>

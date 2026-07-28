@@ -586,9 +586,16 @@ describe('PhotosPeople.vue — T7 三态弹窗接线:删除', () => {
     expect(ids(w, '[data-test="cluster-card"]')).toContain('u1')
   })
 
-  // 重入守卫回归:两次点击在 Vue 把面板从 DOM 摘掉之前的同一个同步窗口内都打在同一个按钮上
-  // (purgePersonWithUndo 本身是同步函数,不像命名/合并那样有天然的 await 间隙可以卡)。
-  it('重入守卫:连点两次确认删除(不等待中间重渲染)→ purgePersonWithUndo 只被调一次', async () => {
+  // 评审必修 2(第二轮):删除路径**没有**独立的 in-flight 守卫 ref——onSubmitDelete 全程
+  // 无 await,一次 dispatchEvent 内跑完,`dialog.value = null` 本身就是天然的防重入锁。
+  // 两次点击在 Vue 把面板从 DOM 摘掉之前的同一个同步窗口内都打在同一个按钮上,第二次调用
+  // 会在 `onSubmitDelete` 开头被 `!dialog.value` 挡下(第一次调用已把它置空)。已做删码
+  // 验证(见 task-7-report.md §11):临时把 `if (!dialog.value) return` 改成
+  // `if (false) return`(即彻底移除这条防线,保留其余逻辑不变),重跑本条测试——
+  // `purgePersonWithUndo` 被调 2 次,断言 `toHaveBeenCalledTimes(1)` 真的变红;还原后
+  // 复跑变绿。证明这条测试确实在验 `dialog.value` 置空这个真实机制,不是"删代码依然绿"
+  // 的假绿(评审点名的那种,之前挂一个 `deletingSubmitting` ref 时就是这种假绿)。
+  it('删除路径由 dialog.value 置空天然防重入(无独立守卫 ref):连点两次确认删除只调一次 purgePersonWithUndo', async () => {
     const { w } = await mountView()
     const people = usePhotosPeople()
     const spy = vi.spyOn(people, 'purgePersonWithUndo')

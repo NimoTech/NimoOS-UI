@@ -888,4 +888,9 @@ export default {
   // T7 协调者补:ClusterActionDialog 命名模式的 <label>,原文 zh_CN.json:49 "Name": "名称"。
   // 追加在段末,不重排既有键。
   photosPersonNameLabel: '名称',
+  // T7 评审必修 1 补:delete 模式头部标题槶位,对应 Vue2 PhotosPeopleView.vue:262
+  // $t('Delete face cluster')(区别于警示条内部自己的标题行 photosPersonDeleteTitle,
+  // 二者是两句不同文案,不能共用一个键)。zh_CN.json:2006 原译文是"删除面部集群",但
+  // "集群"触犯本期术语红线(T3 已清掉四处"集群"),这里改用"删除这组人脸"。
+  photosPersonDeleteClusterTitle: '删除这组人脸',
 }
