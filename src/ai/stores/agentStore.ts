@@ -200,6 +200,9 @@ export function useAgentStore(agentType?: string) {
       sessions.value.unshift(session)
       activeSessionId.value = session.id
       messages.value = []
+      // Vue2 缺陷修复(项目 2026-07-27 移植纪律「界面照 Vue2、逻辑照正确」)——见下方
+      // clearActivitySteps() 的注释。这里与 `messages.value = []` 同一处会话边界清理。
+      clearActivitySteps()
     }
 
     /** agentStore.js:185-192 —— 删除会话;只有删的是当前会话才清 activeSessionId + messages。 */
@@ -209,7 +212,26 @@ export function useAgentStore(agentType?: string) {
       if (activeSessionId.value === id) {
         activeSessionId.value = null
         messages.value = []
+        // Vue2 缺陷修复,同 createSession —— 见 clearActivitySteps() 注释。
+        clearActivitySteps()
       }
+    }
+
+    /**
+     * Vue2 缺陷修复(项目 2026-07-27 移植纪律:界面照 Vue2,逻辑照正确)。
+     *
+     * Vue2 `store/agentStore.js` 里 `activitySteps` 声明于 :39、push 于 :128、原地
+     * patch 于 :137-140,**全文件没有任何一处清空它**;切会话(:246-293)、新建会话
+     * (:166-183)、删除当前会话(:185-192)都不重置。后果是可复现的错误行为:上一个
+     * 会话跑过的运行步骤会残留在右栏 Activity tab —— 用户切到另一个会话后,Activity
+     * 里显示的还是上一段对话的步骤,看起来像"新会话正在跑/跑过这些东西"。
+     *
+     * 这里按「逻辑照正确」在三个**会话边界**上清空它,与 messages / visibleResources /
+     * attachments / stagedChanges 这些同类"每会话状态"走同一条路径、同一个时机,
+     * 不另起一套。
+     */
+    function clearActivitySteps() {
+      activitySteps.value = []
     }
 
     /** agentStore.js:194-208 —— 乐观更新标题,API 失败回滚到旧值。 */
@@ -248,6 +270,9 @@ export function useAgentStore(agentType?: string) {
         abortController.value = null
       }
       activeSessionId.value = id
+      // Vue2 缺陷修复 —— 见 clearActivitySteps() 注释。必须在 await 之前、紧挨着
+      // activeSessionId 切换:此后 attach 的 replay 事件才是新会话自己的步骤。
+      clearActivitySteps()
       const body = await service.ai.listAgentMessages(id)
       const raw = Array.isArray(body) ? (body as AgentMessage[]) : []
       messages.value = migrateLegacyMessages(raw as any) as unknown as AgentMessage[]

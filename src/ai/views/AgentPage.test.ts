@@ -15,10 +15,22 @@ const svc = vi.hoisted(() => ({
   getThinkingDefaults: vi.fn(),
   getSessionThinking: vi.fn(),
   patchSessionThinking: vi.fn(),
+  // SP8-P1c2 Task 13 —— 右栏挂载后 ResourcesTab 的附件下载链接会调它。
+  attachmentRawUrl: vi.fn(() => '/raw/1'),
 }))
 // SP8-P1c2 Task 11 —— disks.list() 一次性拉存储容量(Agent.vue:159-162)。
 const disksList = vi.hoisted(() => vi.fn())
-vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc, disks: { list: disksList } } }))
+// SP8-P1c2 Task 13 —— 右栏 SystemTab 走 useUtilization()(Pinia utilization store
+// → service.sys.getUtilization + MessageBus 订阅)。utilization store 还从共享包
+// 具名导入 parseUtil,所以这里必须 importActual 铺底,不能只给一个裸 service 对象。
+const getUtilization = vi.hoisted(() => vi.fn())
+vi.mock('@nimotech/nimoos-service', async () => {
+  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
+  return { ...actual, service: { ai: svc, disks: { list: disksList }, sys: { getUtilization } } }
+})
+vi.mock('../../composables/useMessageBus', () => ({
+  useMessageBus: () => ({ on: vi.fn(() => () => {}) }),
+}))
 
 const push = vi.fn()
 const replace = vi.fn().mockResolvedValue(undefined)
@@ -50,6 +62,8 @@ describe('AgentPage', () => {
     svc.getSessionThinking.mockResolvedValue(null)
     disksList.mockReset()
     disksList.mockResolvedValue([])
+    getUtilization.mockReset()
+    getUtilization.mockResolvedValue({ cpu: null, mem: null, disk: null, gpu: null, net: null, usb: null })
     localStorage.clear()
     for (const k of Object.keys(routeQuery)) delete routeQuery[k]
     push.mockClear()
@@ -425,6 +439,160 @@ describe('AgentPage', () => {
       4000,
       'warning',
     )
+    w.unmount()
+  })
+
+  // ── SP8-P1c2 Task 13:右栏接线(Vue2 Agent.vue:44-64)──
+  it('Task 13:AgentRightPanel 已挂载,11 个 prop 逐条来自 store / 页面 storage ref', async () => {
+    disksList.mockResolvedValue([{ size: 4e12, used: 2e12 }])
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.rightTab = 'resources'
+    store.activeSessionId = 'sess-1'
+    store.busy = true
+    store.committing = true
+    store.reverting = { run1: true }
+    store.visibleResources = [{ id: 'r1', path: '/DATA/a', kind: 'file' }]
+    store.attachments = [{ id: 'a1', filename: 'x.txt' }]
+    store.stagedChanges = [{ run_id: 'run1', created_at: 0, items: [{ seq: 1, op: 'write', path: '/DATA/a' }] }]
+    store.activitySteps = [{ id: 's1', name: 'read_file', state: 'success' }]
+    await flushPromises()
+
+    const panel = w.findComponent({ name: 'AgentRightPanel' })
+    expect(panel.exists()).toBe(true)
+    expect(panel.props('collapsed')).toBe(false)
+    expect(panel.props('tab')).toBe('resources')
+    expect(panel.props('activitySteps')).toEqual(store.activitySteps)
+    expect(panel.props('storage')).not.toBe(null) // 由 onMounted 的 disks.list() 装载
+    expect(panel.props('busy')).toBe(true)
+    // Vue2 Agent.vue:51 直传 activeSessionId(可能是 number/null);这里归一化成 string。
+    expect(panel.props('sessionId')).toBe('sess-1')
+    expect(panel.props('visibleResources')).toEqual(store.visibleResources)
+    expect(panel.props('attachments')).toEqual(store.attachments)
+    expect(panel.props('stagedChanges')).toEqual(store.stagedChanges)
+    expect(panel.props('committing')).toBe(true)
+    expect(panel.props('reverting')).toEqual({ run1: true })
+    // Vue2 Agent.vue:48 的 :system-metrics 有意不接(SystemTab 自取实时数据)。
+    expect(Object.keys(panel.props())).not.toContain('systemMetrics')
+    w.unmount()
+  })
+
+  it('Task 13:切 4 个 tab 各渲染对应内容(Activity/Context/System/Resources)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+
+    expect(w.findComponent({ name: 'ActivityTab' }).exists()).toBe(true)
+    expect(w.findComponent({ name: 'ContextTab' }).exists()).toBe(false)
+
+    store.setRightTab('context')
+    await flushPromises()
+    expect(w.findComponent({ name: 'ContextTab' }).exists()).toBe(true)
+    expect(w.findComponent({ name: 'ActivityTab' }).exists()).toBe(false)
+
+    store.setRightTab('system')
+    await flushPromises()
+    expect(w.findComponent({ name: 'SystemTab' }).exists()).toBe(true)
+    expect(w.findComponent({ name: 'ContextTab' }).exists()).toBe(false)
+
+    store.setRightTab('resources')
+    await flushPromises()
+    expect(w.findComponent({ name: 'ResourcesTab' }).exists()).toBe(true)
+    expect(w.findComponent({ name: 'SystemTab' }).exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('Task 13:右栏 tab 条点击 → set-tab 打到 store.setRightTab,渲染跟着换', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const setTabSpy = vi.spyOn(store, 'setRightTab')
+    const tabs = w.findAll('.rightpanel .right-tab')
+    expect(tabs.length).toBe(4)
+    await tabs[2].trigger('click')
+    expect(setTabSpy).toHaveBeenCalledWith('system')
+    expect(store.rightTab).toBe('system')
+    await flushPromises()
+    expect(w.findComponent({ name: 'SystemTab' }).exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('Task 13:右栏开关联动 —— data-rightcollapsed=true 时 <aside class="rightpanel"> 不渲染', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    expect(w.find('aside.rightpanel').exists()).toBe(true)
+
+    store.toggleRight()
+    await flushPromises()
+    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('true')
+    expect(w.find('aside.rightpanel').exists()).toBe(false)
+
+    store.toggleRight()
+    await flushPromises()
+    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
+    expect(w.find('aside.rightpanel').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('Task 13:Resources 三级回滚 + 提交的真实点击各自打到 store 对应动作(带参数)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.rightTab = 'resources'
+    store.activeSessionId = 'sess-1'
+    store.stagedChanges = [
+      {
+        run_id: 'run1',
+        created_at: Math.floor(Date.now() / 1000),
+        items: [
+          { seq: 1, staged_id: 'st1', batch_id: 'batch1', op: 'write', path: '/DATA/a.txt', size_bytes: 10 },
+        ],
+      },
+    ]
+    await flushPromises()
+
+    const runSpy = vi.spyOn(store, 'revertStagedRun').mockResolvedValue(undefined)
+    const batchSpy = vi.spyOn(store, 'revertStagedBatch').mockResolvedValue(undefined)
+    const itemSpy = vi.spyOn(store, 'revertStagedItem').mockResolvedValue(undefined)
+    const commitSpy = vi.spyOn(store, 'commitStagedAll').mockResolvedValue(undefined)
+
+    await w.find('.rt-turn-head .rt-revert').trigger('click')
+    expect(runSpy).toHaveBeenCalledWith('run1')
+
+    await w.find('.rt-batch-revert').trigger('click')
+    expect(batchSpy).toHaveBeenCalledWith('batch1')
+
+    // 单项按钮在 batch 折叠区里(v-show,DOM 常在),直接点即可。
+    await w.find('.rt-item-revert').trigger('click')
+    expect(itemSpy).toHaveBeenCalledWith('st1')
+
+    await w.find('.rt-commit').trigger('click')
+    expect(commitSpy).toHaveBeenCalledTimes(1)
+    w.unmount()
+  })
+
+  it('Task 13:授权资源 × / 附件 × 分别打到 store.removeVisibleResource / removeAttachment', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.rightTab = 'resources'
+    store.activeSessionId = 'sess-1'
+    store.visibleResources = [{ id: 'r1', path: '/DATA/a', kind: 'file' }]
+    store.attachments = [{ id: 'a1', filename: 'x.txt' }] // 无 message_id → 草稿,有 × 按钮
+    await flushPromises()
+
+    const resSpy = vi.spyOn(store, 'removeVisibleResource').mockResolvedValue(undefined)
+    const attSpy = vi.spyOn(store, 'removeAttachment').mockResolvedValue(undefined)
+
+    const sections = w.findAll('.rt-section')
+    await sections[0].find('.rt-x').trigger('click')
+    expect(resSpy).toHaveBeenCalledWith('r1')
+
+    // 附件段第一个 .rt-x 是下载 <a>(不 emit),× 按钮是 button。
+    await sections[1].find('button.rt-x').trigger('click')
+    expect(attSpy).toHaveBeenCalledWith('a1')
     w.unmount()
   })
 })

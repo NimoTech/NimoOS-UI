@@ -297,3 +297,79 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(s.busy).toBe(false)
   })
 })
+
+// SP8-P1c2 Task 13 —— Vue2 遗留缺陷修复:activitySteps 从不清空。
+// Vue2 store/agentStore.js 里 activitySteps 声明于 :39、push 于 :128、patch 于
+// :137-140,全文件无任何清空点;切会话(:246-293)/新建(:166-183)/删除当前会话
+// (:185-192)都不重置 —— 上一个会话的运行步骤会残留在右栏 Activity tab。
+describe('agentStore P1c2 Task13:activitySteps 在会话边界清空(Vue2 缺陷修复)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((fn) => fn.mockReset())
+    runSpy.mockReset()
+    attachSpy.mockReset()
+    localStorage.clear()
+    svc.listAgentMessages.mockResolvedValue([])
+    svc.listVisibleResources.mockResolvedValue([])
+    svc.listAttachments.mockResolvedValue([])
+    svc.listStagedChanges.mockResolvedValue([])
+    attachSpy.mockResolvedValue({ attached: false, error: null })
+  })
+
+  it('会话 A 跑出步骤 → 切到会话 B → activitySteps 为空', async () => {
+    const s = useAgentStore('p1c2-act-a')
+    s.activeSessionId = 'sess-A'
+    s.pushActivityStep({ name: 'nimoos_search' })
+    s.pushActivityStep({ name: 'read_file' })
+    expect(s.activitySteps.map((x) => x.name)).toEqual(['nimoos_search', 'read_file'])
+
+    // 禁忌:不得 `await store.selectSession(...)`(它 await attach 流,活跃 run 时
+    // 不 resolve)。清空点在 selectSession 的第一个 await 之前(紧挨 activeSessionId
+    // 切换),所以发起调用后同步断言即可。
+    void s.selectSession('sess-B')
+    expect(s.activitySteps).toEqual([])
+
+    // 让内部 await 链落定,确认没有任何后续步骤把旧数据再写回来
+    // (attach 未命中 → 无 replay 事件)。
+    await flushPromises()
+    expect(s.activeSessionId).toBe('sess-B')
+    expect(s.activitySteps).toEqual([])
+  })
+
+  it('新建会话 → activitySteps 为空(与 messages 同一处会话边界清理)', async () => {
+    svc.createAgentSession.mockResolvedValue({ session_id: 'sess-new' })
+    const s = useAgentStore('p1c2-act-b')
+    s.activeSessionId = 'sess-A'
+    s.pushActivityStep({ name: 'write_file' })
+    expect(s.activitySteps.length).toBe(1)
+
+    await s.createSession()
+    expect(s.activeSessionId).toBe('sess-new')
+    expect(s.messages).toEqual([])
+    expect(s.activitySteps).toEqual([])
+  })
+
+  it('删除当前会话 → activitySteps 为空', async () => {
+    svc.deleteAgentSession.mockResolvedValue({})
+    const s = useAgentStore('p1c2-act-c')
+    s.activeSessionId = 'sess-A'
+    s.sessions = [{ id: 'sess-A', title: 'A' }]
+    s.pushActivityStep({ name: 'write_file' })
+
+    await s.deleteSession('sess-A')
+    expect(s.activeSessionId).toBe(null)
+    expect(s.activitySteps).toEqual([])
+  })
+
+  it('删除的不是当前会话 → activitySteps 保留(与 messages 的条件分支一致,agentStore.js:185-192)', async () => {
+    svc.deleteAgentSession.mockResolvedValue({})
+    const s = useAgentStore('p1c2-act-d')
+    s.activeSessionId = 'sess-A'
+    s.sessions = [{ id: 'sess-A', title: 'A' }, { id: 'sess-B', title: 'B' }]
+    s.pushActivityStep({ name: 'write_file' })
+
+    await s.deleteSession('sess-B')
+    expect(s.activeSessionId).toBe('sess-A')
+    expect(s.activitySteps.map((x) => x.name)).toEqual(['write_file'])
+  })
+})

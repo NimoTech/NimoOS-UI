@@ -6,35 +6,44 @@
   双重折叠机制(两者都要,brief 明确指出):
   1) 本组件的 `v-if="!collapsed"` —— collapsed=true 时整个 <aside> 不渲染。
   2) 页面级 grid 列宽通过 AgentPage 根节点的 `data-rightcollapsed` 属性归零
-     (Task 2 已落地,Task 13 才会把本组件真正挂进 AgentPage)。
+     (Task 2 已落地;Task 13 已把本组件真正挂进 AgentPage)。
   两个机制分别处理"组件树里有没有这坨 DOM"和"布局网格给不给它留列宽",缺一都会
   出问题(例如只留 1 不留 2,列宽仍占 360px 但里面空了一块;只留 2 不留 1,DOM
   还在只是视觉上宽度归零,仍占用 tab 焦点顺序/无障碍树)。
 
-  System/Resources 两个 tab 是分开的任务(Task 11 SystemTab、Task 12
-  ResourcesTab),Resources 是 v-else 兜底分支(未知 tab 值也落这里,与 Vue2
-  AgentRightPanel.vue:15-16 逐字一致)。本任务只用占位 div 占住这两个分支的位置,
-  真实内容留给对应任务替换——不要在这里顺手实现它们。
+  SP8-P1c2 Task 13 —— 四个 tab 全部接真:SystemTab(Task 11)/ ResourcesTab
+  (Task 12)替换掉 Task 10 留的两个占位 div。Resources 仍是 v-else 兜底分支
+  (未知 tab 值也落这里,与 Vue2 AgentRightPanel.vue:15-16 逐字一致)。
+  ResourcesTab 的 6 个 emit 在这里原样上抛给父组件(AgentPage),本组件不碰 store。
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ActivityTab from '../tabs/ActivityTab.vue'
 import ContextTab from '../tabs/ContextTab.vue'
+import SystemTab from '../tabs/SystemTab.vue'
+import ResourcesTab from '../tabs/ResourcesTab.vue'
 import type { ActivityStep } from '../tabs/ActivityTab.vue'
-import type { StagedGroup } from '../../stores/agentStore'
+import type { ResourceAttachment } from '../tabs/ResourcesTab.vue'
+import type { StagedGroup, VisibleResource } from '../../stores/agentStore'
+import type { StoragePayload } from '../../util/toStoragePayload'
 
 const props = withDefaults(
   defineProps<{
     collapsed?: boolean
     tab?: 'activity' | 'context' | 'system' | 'resources'
     activitySteps?: ActivityStep[]
-    systemMetrics?: Record<string, unknown>
-    storage?: Record<string, unknown> | null
+    // 有意偏离(用户 2026-07-27 拍板,Task 13 落地):Vue2 AgentRightPanel.vue:48 有
+    // 一个 `systemMetrics` prop(Agent.vue:48 传 store.state.systemMetrics —— mounted
+    // 时一次性 HTTP 拉、之后从不刷新)。本仓 SystemTab 改吃 New-UI 现成的实时通道
+    // useUtilization()(首帧 HTTP + MessageBus nimoos:system:utilization 持续推送),
+    // 自己取数,不需要这个 prop —— 所以这里**不声明** systemMetrics,避免留一个
+    // 无人消费的死 prop。storage 仍走 prop(容量不需要实时,与 Vue2 同)。
+    storage?: StoragePayload | null
     busy?: boolean
     sessionId?: string
-    visibleResources?: Record<string, unknown>[]
-    attachments?: Record<string, unknown>[]
+    visibleResources?: VisibleResource[]
+    attachments?: ResourceAttachment[]
     stagedChanges?: StagedGroup[]
     committing?: boolean
     reverting?: Record<string, boolean>
@@ -43,7 +52,6 @@ const props = withDefaults(
     collapsed: false,
     tab: 'activity',
     activitySteps: () => [],
-    systemMetrics: () => ({}),
     storage: null,
     busy: false,
     sessionId: '',
@@ -56,7 +64,9 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  (e: 'set-tab', tab: string): void
+  // Task 13:`set-tab` 的载荷收窄成四个字面量(模板里就只有这四个按钮能发它),
+  // 这样父组件可以直接把它交给 store.setRightTab(同款联合类型)而不必 cast。
+  (e: 'set-tab', tab: 'activity' | 'context' | 'system' | 'resources'): void
   (e: 'remove-resource', id: string | number): void
   (e: 'remove-attachment', id: string | number): void
   (e: 'revert-run', runId: string | number): void
@@ -89,16 +99,27 @@ const { t } = useI18n()
     <div class="right-content scroll">
       <ActivityTab v-if="tab === 'activity'" :steps="activitySteps" :busy="busy" />
       <ContextTab v-else-if="tab === 'context'" />
-      <!-- SystemTab lands in SP8-P1c2 Task 11 (live utilization + storage card).
-           Replaces this div with <SystemTab :system-metrics="systemMetrics" :storage="storage" />. -->
-      <div v-else-if="tab === 'system'" data-testid="system-tab-placeholder" />
-      <!-- ResourcesTab lands in SP8-P1c2 Task 12 (authorized resources /
-           attachments / staged changes, three-tier revert). This is Vue2's
-           v-else fallback branch — an unrecognised tab value lands here too,
-           matching AgentRightPanel.vue:15-30 exactly. Task 12 replaces this
-           div with the real <ResourcesTab> wired to the props/emits already
-           declared above. -->
-      <div v-else data-testid="resources-tab-placeholder" />
+      <!-- Vue2 AgentRightPanel.vue:14 是 `<SystemTab :system-metrics="systemMetrics"
+           :storage="storage" />`;systemMetrics 见上方 props 处的有意偏离说明。 -->
+      <SystemTab v-else-if="tab === 'system'" :storage="storage" />
+      <!-- Vue2 AgentRightPanel.vue:15-30 —— v-else 兜底分支(未知 tab 值也落这里),
+           7 个 prop + 6 个 emit 逐条对齐。 -->
+      <ResourcesTab
+        v-else
+        :session-id="sessionId"
+        :visible-resources="visibleResources"
+        :attachments="attachments"
+        :staged-changes="stagedChanges"
+        :busy="busy"
+        :committing="committing"
+        :reverting="reverting"
+        @remove-resource="emit('remove-resource', $event)"
+        @remove-attachment="emit('remove-attachment', $event)"
+        @revert-run="emit('revert-run', $event)"
+        @revert-batch="emit('revert-batch', $event)"
+        @revert-item="emit('revert-item', $event)"
+        @commit-all="emit('commit-all')"
+      />
     </div>
   </aside>
 </template>

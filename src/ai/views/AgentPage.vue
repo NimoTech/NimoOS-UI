@@ -26,6 +26,11 @@
   watcher 仍不在本任务范围(ModelPicker 的事,留后续任务)。ThinkingBar/
   ModelPicker UI 本身仍未挂载——本任务只管 store 状态 + 页面接线。
 
+  SP8-P1c2 Task 13 —— `<AgentRightPanel>` 正式挂载(Vue2 Agent.vue:44-64 挂载契约),
+  11 个 prop + 7 个事件逐条对齐;唯一少的一个是 `systemMetrics`(用户 2026-07-27
+  拍板的有意偏离,详见模板处与 AgentRightPanel.vue props 处注释)。至此右栏 4 个
+  tab(Activity/Context/System/Resources)全部接真。
+
   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
 
@@ -55,6 +60,9 @@ import { toStoragePayload, type StoragePayload } from '../util/toStoragePayload'
 import AgentSidebar from '../components/shell/AgentSidebar.vue'
 import AgentTopbar from '../components/shell/AgentTopbar.vue'
 import AgentComposer from '../components/shell/AgentComposer.vue'
+import AgentRightPanel from '../components/shell/AgentRightPanel.vue'
+import type { ActivityStep } from '../components/tabs/ActivityTab.vue'
+import type { ResourceAttachment } from '../components/tabs/ResourcesTab.vue'
 import MessageList from '../components/stream/MessageList.vue'
 import EmptyState from '../components/stream/EmptyState.vue'
 import '../styles/tokens.scss'
@@ -72,6 +80,14 @@ const toast = useToast()
 // (backend contract), this is a type-level bridge only.
 interface AgentMsgLike { id?: string | number; role: string; [key: string]: unknown }
 const messagesForList = computed(() => store.messages as unknown as AgentMsgLike[])
+
+// SP8-P1c2 Task 13 —— 同上,纯类型桥接,零运行时语义:store 里这两个字段是宽松的
+// Record<string, unknown>[](activitySteps 由 pushActivityStep 就地构造、attachments
+// 由 /attachments 接口原样落库),右栏两个 tab 组件各自声明了更窄的形状
+// (ActivityStep / ResourceAttachment)。运行时形状始终满足(store 的构造点 +
+// 后端契约),这里只是把类型对上,不做任何转换/拷贝。
+const activityStepsForPanel = computed(() => store.activitySteps as unknown as ActivityStep[])
+const attachmentsForPanel = computed(() => store.attachments as unknown as ResourceAttachment[])
 
 // Agent.vue:104-108 semantics: fall back to '' when the active session has no
 // (or an empty) title — AgentTopbar shows its own placeholder in that case.
@@ -326,6 +342,37 @@ onMounted(async () => {
         @send-init="(target) => store.sendInit(target)"
       />
     </main>
-    <!-- 1c: right panel -->
+    <!--
+      SP8-P1c2 Task 13 —— Agent.vue:44-64 挂载契约,逐条对齐。两处与 Vue2 的写法差异,
+      都不改变行为:
+      1) `:session-id` 这里包了 `String(... ?? '')`。Vue2 Agent.vue:51 直传
+         `store.state.activeSessionId`(可能是 number 或 null,而 Vue2 那边 prop 声明
+         的是 `{ type: String, default: '' }` —— 真跑到 number/null 会有 prop 类型
+         告警)。与本页 AgentTopbar 的 :session-id 用同一种归一化写法。
+      2) emit 处理器一律写成内联箭头(理由同上方 AgentComposer 处的长注释:
+         Vue3 裸方法引用会把函数值固化进 vnode,spyOn 替换后不生效)。
+      systemMetrics(Vue2 Agent.vue:47)有意不传 —— SystemTab 自己走 useUtilization()
+      实时通道取数,AgentRightPanel 侧已把这个 prop 删掉(见该文件 props 处注释)。
+    -->
+    <AgentRightPanel
+      :collapsed="store.rightCollapsed"
+      :tab="store.rightTab"
+      :activity-steps="activityStepsForPanel"
+      :storage="storage"
+      :busy="store.busy"
+      :session-id="String(store.activeSessionId ?? '')"
+      :visible-resources="store.visibleResources"
+      :attachments="attachmentsForPanel"
+      :staged-changes="store.stagedChanges"
+      :committing="store.committing"
+      :reverting="store.reverting"
+      @set-tab="(tab) => store.setRightTab(tab)"
+      @remove-resource="(id) => store.removeVisibleResource(id)"
+      @remove-attachment="(id) => store.removeAttachment(id)"
+      @revert-run="(runId) => store.revertStagedRun(runId)"
+      @revert-batch="(batchId) => store.revertStagedBatch(batchId)"
+      @revert-item="(stagedId) => store.revertStagedItem(stagedId)"
+      @commit-all="() => store.commitStagedAll()"
+    />
   </div>
 </template>
