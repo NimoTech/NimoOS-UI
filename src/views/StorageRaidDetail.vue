@@ -9,6 +9,7 @@ import RaidReplaceDialog from '../storage/components/RaidReplaceDialog.vue'
 import SnapshotPanel from '../storage/components/SnapshotPanel.vue'
 import { useStorageStore } from '../storage/stores/storage'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
+import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { fmtSize } from '../home/util/format'
 import {
   resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo,
@@ -26,6 +27,16 @@ const idStr = computed(() => String(route.params.id))
 onMounted(() => {
   store.loadRaid().then(() => store.loadRaidDetail(idStr.value))
 })
+
+// 换盘弹窗的候选盘来自 store.availDisks,而它只由 loadDrives() 填充。
+// Vue2 的 RAID 区是一整个无路由面板,availableDisks 由父面板统一加载后当 prop
+// 传给 RaidReplaceDisk(RaidTab.vue:50),所以弹窗永远有数据。New-UI 把详情页拆成
+// 独立路由后漏了这次加载:直接打开/刷新 /storage/raid/:id 时 availDisks 为空,
+// 「更换硬盘」下拉框只剩占位项、无法选盘(2026-07-28 实盘验收发现)。
+// 先逛过存储卷/物理硬盘/创建页再进来反而有数据,所以这个缺口很容易漏检。
+// 用 useDiskHotplug 而非裸 loadDrives():它 mount 即加载,并在磁盘热插拔时刷新候选盘
+// —— 与 StorageRaidCreate.vue:33 同一模式。
+useDiskHotplug(() => store.loadDrives())
 
 const detail = computed(() => store.raidDetail)
 const fallbackArray: RaidArray = { id: '', name: '', level: 0, state: '' }

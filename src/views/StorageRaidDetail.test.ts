@@ -10,10 +10,26 @@ import zh from '../i18n/zh_cn'
 const raidList = vi.fn().mockResolvedValue([{ id: 7, name: 'md7', level: 5, state: 'active', mount_point: '/DATA', uuid: 'u-7' }])
 const raidGetStatus = vi.fn().mockResolvedValue({ live_state: 'active', state: 'active', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [{ path: '/dev/sda', state: 'active sync', number: 0 }] })
 const raidGetUsage = vi.fn().mockResolvedValue({ filesystem: 'btrfs', btrfs_usage: { free_estimated_bytes: 55, cached_at: 1700000000 } })
+// avail 里放一块空闲盘:换盘下拉框的候选来源就是它(GET /v1/disks 的 avail 字段)
+const getDiskList = vi.fn().mockResolvedValue({
+  disks: [],
+  avail: [{ path: '/dev/sdd', name: 'sdd', model: 'scsi_debug', size: 536870912 }],
+})
+// 降级 RAID5 的成员形状取自 2026-07-28 真机:空槽位 + 故障盘各一条
+const degradedStatus = {
+  live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1,
+  total_bytes: 100, used_bytes: 40, free_bytes: 60,
+  members: [
+    { path: '', state: 'removed', number: 0 },
+    { path: '/dev/sdb', state: 'active sync', number: 1 },
+    { path: '/dev/sdc', state: 'active sync', number: 3 },
+    { path: '/dev/sda', state: 'faulty', number: 0 },
+  ],
+}
 const snapListVolumes = vi.fn().mockResolvedValue([])
 const snapList = vi.fn().mockResolvedValue([])
 vi.mock('@nimotech/nimoos-service', () => ({ service: {
-  storage: { list: vi.fn().mockResolvedValue([]) }, disks: { getDiskList: vi.fn().mockResolvedValue({ disks: [] }) },
+  storage: { list: vi.fn().mockResolvedValue([]) }, disks: { getDiskList: (...a: unknown[]) => getDiskList(...a) },
   raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), getUsage: (...a: unknown[]) => raidGetUsage(...a) },
   snapshot: {
     listVolumes: (...a: unknown[]) => snapListVolumes(...a),
@@ -110,5 +126,48 @@ describe('StorageRaidDetail', () => {
     expect(w.text()).toContain('md7')          // 阵列名还在
     expect(w.text()).toContain('/dev/sda')     // 成员列表还在
     expect(w.find('.rd-delete').exists()).toBe(true)
+  })
+
+  // 冷深链换盘回归:直接打开 /storage/raid/:id(不经存储卷/物理硬盘/创建页)时,
+  // 候选盘必须由本页自己加载。此前详情页不调 loadDrives(),store.availDisks 为空,
+  // 「更换硬盘」下拉框只剩占位项 —— 而 RaidReplaceDialog.test.ts 是把
+  // availableDisks 当 prop 直接喂进去的,所以那层测试永远看不到这个缺口。
+  it('冷深链降级阵列:换盘下拉框有候选盘(详情页自行加载 avail)', async () => {
+    document.body.innerHTML = ''
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { attachTo: document.body, global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+
+    expect(getDiskList).toHaveBeenCalled()
+
+    const replaceBtns = w.findAll('.rml-replace')
+    expect(replaceBtns.length).toBe(1)
+    await replaceBtns[0].trigger('click')
+    await w.vm.$nextTick(); await w.vm.$nextTick()
+
+    // reka-ui DialogPortal 把内容 Teleport 到 body,不在 wrapper 里 —— 同
+    // RaidReplaceDialog.test.ts 的做法,从 document.body 查。
+    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')
+    expect(select, '换盘弹窗未渲染').not.toBeNull()
+    const values = [...select!.querySelectorAll('option')]
+      .map((o) => o.getAttribute('value')).filter((v) => v)
+    expect(values).toEqual(['/dev/sdd'])
+  })
+
+  it('冷深链:availDisks 为空时下拉框只有占位项(守住上面那条断言的对照)', async () => {
+    document.body.innerHTML = ''
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    getDiskList.mockResolvedValueOnce({ disks: [], avail: [] })
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { attachTo: document.body, global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    await w.findAll('.rml-replace')[0].trigger('click')
+    await w.vm.$nextTick(); await w.vm.$nextTick()
+    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')
+    expect(select, '换盘弹窗未渲染 —— 断言会空洞通过').not.toBeNull()
+    const values = [...select!.querySelectorAll('option')]
+      .map((o) => o.getAttribute('value')).filter((v) => v)
+    expect(values).toEqual([])
   })
 })
