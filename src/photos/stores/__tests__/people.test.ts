@@ -123,6 +123,34 @@ describe('photosPeople store', () => {
     })
   })
 
+  // 评审 Issue 6 顺带补的两条便宜覆盖之一:fetchMergeSuggestions 之前完全没有直接测试。
+  describe('fetchMergeSuggestions', () => {
+    it('成功 → mergeSuggestions 填充为返回的数组', async () => {
+      ;(service.photos.mergeSuggestions as any).mockResolvedValueOnce([{ id: 's1', fromId: 1, intoId: 2 }])
+      const s = usePhotosPeople()
+      await s.fetchMergeSuggestions()
+      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }])
+    })
+    it('返回非数组(如 null)→ 兜底为 []', async () => {
+      ;(service.photos.mergeSuggestions as any).mockResolvedValueOnce(null)
+      const s = usePhotosPeople()
+      await s.fetchMergeSuggestions()
+      expect(s.mergeSuggestions).toEqual([])
+    })
+    // 偏离登记回归(同 fetchPeople):Vue2 :1095-1098 失败会把 mergeSuggestions 清空成 []；
+    // 这里保留旧数据。种入旧值(不经网络请求)是为了让这条断言真正有区分力。
+    it('reject → 保留旧数据 + console.error 被调(偏离登记回归)', async () => {
+      const s = usePhotosPeople()
+      s.mergeSuggestions.push({ id: 's1', fromId: 1, intoId: 2 })
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(service.photos.mergeSuggestions as any).mockRejectedValueOnce(new Error('net'))
+      await s.fetchMergeSuggestions()
+      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }])
+      expect(errSpy).toHaveBeenCalled()
+      errSpy.mockRestore()
+    })
+  })
+
   describe('computed: named/unnamed/visibleUnnamed/unnamedCount 随 filter 变化', () => {
     it('随 filter 重算', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({
@@ -141,7 +169,8 @@ describe('photosPeople store', () => {
 
       s.setConfidence(50)
       s.setShowSingletons(true)
-      expect(s.visibleUnnamed.map((p) => p.id).sort()).toEqual([2, 3])
+      // 数字 id 用默认 .sort() 是字典序(风格清理:虽然 [2,3] 单位数巧合不出错,统一改数值比较避免误导)。
+      expect(s.visibleUnnamed.map((p) => p.id).sort((a, b) => Number(a) - Number(b))).toEqual([2, 3])
       expect(s.unnamedCount).toBe(2)
     })
   })
@@ -283,9 +312,9 @@ describe('photosPeople store', () => {
     it('reject → 抛出', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.setPersonCover as any).mockRejectedValueOnce(new Error('x'))
-      await expect(s2().setPersonCover(1, 'a9')).rejects.toThrow('x')
+      const s = usePhotosPeople()
+      await expect(s.setPersonCover(1, 'a9')).rejects.toThrow('x')
       errSpy.mockRestore()
-      function s2() { return usePhotosPeople() }
     })
     // Vue2 保真回归(逐行核对 :1123-1125 发现出入):Vue2 用 `!== undefined` 判定是否写入——
     // 哪怕后端显式返回 coverFaceId: null 也会 patch 成 null(清空本地封面)。若这里误用
@@ -390,6 +419,51 @@ describe('photosPeople store', () => {
       expect(s.people.map((p) => p.id)).toEqual([1, 3]) // 未被插回
     })
 
+    // 评审必修 1:上面④只验证了"finally 已经跑完之后"的 no-op,没有覆盖"committed 已置位、
+    // 但 purgePerson 请求还没 settle"这段窗口——之前 advanceTimersByTimeAsync(5000) 会连着
+    // 把微任务队列一起冲掉,mock 的 purgePerson 在同一个 await 里就 resolve 了,所以旧版的
+    // ④根本没踩到这段窗口,删掉"修正 1"(committed 标志 + .finally 延迟删除)也全绿。这里
+    // 用手动可控的 pending Promise 卡住 purgePerson,专门卡在"计时器已同步触发、committed
+    // 已置位、但请求尚未 settle"这一刻做断言,才是唯一能证明"修正 1"确实生效的测试。
+    it('committed 但 purgePerson 仍在途:窗口过滤在请求 settle 前不能失效(回归修正 1)', async () => {
+      const s = await seeded3()
+      let resolvePurge: (v: unknown) => void = () => {}
+      ;(service.photos.purgePerson as any).mockImplementationOnce(
+        () => new Promise((resolve) => { resolvePurge = resolve }),
+      )
+      s.purgePersonWithUndo(2)
+      // 同步推进(非 …Async):只让 setTimeout 回调本身跑完,不等待/冲掉它内部触发的
+      // purgePerson() 返回的 Promise——这样才能停在"committed=true 但请求未 settle"这一刻。
+      vi.advanceTimersByTime(5000)
+      expect(service.photos.purgePerson).toHaveBeenCalledTimes(1)
+
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({
+        persons: [rawPerson({ id: 1, name: 'A' }), rawPerson({ id: 2, name: 'B' }), rawPerson({ id: 3, name: 'C' })],
+      })
+      await s.fetchPeople()
+      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // 仍必须被过滤掉,不能诈尸
+
+      resolvePurge({}) // 收尾:让 .finally 跑完,避免把 pending entry 悬挂给下一个用例
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    it('committed 但 purgePerson 仍在途:undo() 是 no-op,不能把服务端正在删的人插回来(回归修正 1)', async () => {
+      const s = await seeded3()
+      let resolvePurge: (v: unknown) => void = () => {}
+      ;(service.photos.purgePerson as any).mockImplementationOnce(
+        () => new Promise((resolve) => { resolvePurge = resolve }),
+      )
+      const undo = s.purgePersonWithUndo(2)
+      vi.advanceTimersByTime(5000)
+      expect(service.photos.purgePerson).toHaveBeenCalledTimes(1)
+
+      undo()
+      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // 未被插回
+
+      resolvePurge({})
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
     it('窗口期过滤:挂起期间 fetchPeople 仍含该人物 → people 里不出现', async () => {
       const s = await seeded3()
       s.purgePersonWithUndo(2)
@@ -408,7 +482,7 @@ describe('photosPeople store', () => {
         persons: [rawPerson({ id: 1, name: 'A' }), rawPerson({ id: 2, name: 'B' }), rawPerson({ id: 3, name: 'C' })],
       })
       await s.fetchPeople()
-      expect(s.people.map((p) => p.id).sort()).toEqual([1, 2, 3])
+      expect(s.people.map((p) => p.id).sort((a, b) => Number(a) - Number(b))).toEqual([1, 2, 3])
     })
 
     it('重复触发复用首次 idx:删中间位置的人 → 未撤销再次触发 → undo() 后仍插回原始索引', async () => {
@@ -451,6 +525,11 @@ describe('photosPeople store', () => {
       s.patchPerson('42', { name: 'Renamed' })
       expect(s.personById(42)?.name).toBe('Renamed')
     })
+    // 评审 Issue 6 顺带补的两条便宜覆盖之二:personById 未命中的返回值之前没有断言过。
+    it('personById 未命中 → 返回 null', () => {
+      const s = usePhotosPeople()
+      expect(s.personById('does-not-exist')).toBeNull()
+    })
   })
 
   describe('合并建议', () => {
@@ -472,6 +551,17 @@ describe('photosPeople store', () => {
       expect(service.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
       errSpy.mockRestore()
     })
+    // 回归(评审必修 3):suggestionId 在本地找不到时,acceptMergeSuggestion 不应打任何后端
+    // 请求——brief 快照的 finally 在 if(s) 外面会在这里多打一次 listPersons;Vue2 :1227-1234
+    // 整段 try/finally 都在 if(s) 里,找不到就什么都不做。
+    it('acceptMergeSuggestion:suggestionId 本地找不到 → 不调 mergePersons、不调 listPersons', async () => {
+      const s = usePhotosPeople()
+      s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
+      await s.acceptMergeSuggestion('does-not-exist')
+      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }]) // filter 对没有的 id 是 no-op
+      expect(service.photos.mergePersons).not.toHaveBeenCalled()
+      expect(service.photos.listPersons).not.toHaveBeenCalled()
+    })
     it('rejectMergeSuggestion:不重拉人物列表', async () => {
       const s = usePhotosPeople()
       s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
@@ -490,8 +580,12 @@ describe('photosPeople store', () => {
   })
 
   describe('__resetForTest', () => {
+    // 风格清理:用 describe 级 beforeEach/afterEach 切换 fake timers,而不是在 it() 内联
+    // vi.useFakeTimers()/vi.useRealTimers()——跟文件里其余用到 fake timers 的 describe 一致。
+    beforeEach(() => { vi.useFakeTimers() })
+    afterEach(() => { vi.useRealTimers() })
+
     it('清空定时器与状态,不跨用例泄漏', async () => {
-      vi.useFakeTimers()
       const s = usePhotosPeople()
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1 })] })
       await s.fetchPeople()
@@ -503,7 +597,6 @@ describe('photosPeople store', () => {
       expect(s.mergeSuggestions).toEqual([])
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).not.toHaveBeenCalled() // 定时器已被清
-      vi.useRealTimers()
     })
   })
 })

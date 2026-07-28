@@ -81,6 +81,15 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       const mapped = list.map(toPerson)
       // 撤销窗口期内的人物要从重拉结果里滤掉,否则「删了又冒出来」(Vue2 mutation SET_PEOPLE :507)。
       people.value = _purgeTimers.size ? mapped.filter((p) => !_purgeTimers.has(key(p.id))) : mapped
+      // 未登记偏离(评审必修 3,补登记):这里的 `!== undefined` 照的是 Vue2 **mutation**
+      // 层(:509)的判定,但 Vue2 **action** 层(fetchPeople :1085)总是把
+      // `data.facesIndexedUpTo || null` 传给 mutation——成功路径永远是"有值或 null",
+      // 从不是 undefined,所以 Vue2 的真实行为其实是「响应缺这个字段就把本地值重置成
+      // null」,只有失败分支(commit 时压根不带这个键)才会落到"不覆盖"这条路径。
+      // 这里没有 action/mutation 两层包装,直接照 mutation 的语义实现:字段缺席就保留旧值,
+      // 不reset 成 null——判定这样更好(响应体正常但漏字段时不该丢用户已看到的旧值),
+      // 保留,不改回 Vue2。顺带 `||` → `??`:Vue2 会把空字符串 `''` 当 falsy 归一成 null,
+      // 这里 `?? null` 只处理 null/undefined,空字符串会原样保留。
       if (raw?.facesIndexedUpTo !== undefined) {
         facesIndexedUpTo.value = (raw.facesIndexedUpTo as string | null) ?? null
       }
@@ -175,6 +184,12 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   }
 
   // 非乐观(照 Vue2 :1133-1142)。assetId 传 null = 回退到人脸缩略图,后端字段传空串。
+  // 未登记偏离(评审必修 3,补登记):Vue2 :1136-1137 用的是 `assetId || ''`(发后端)和
+  // `assetId || null`(写本地)——falsy 判定,若 assetId 恰好是数字 `0` 或空串 `''` 这类
+  // "合法但 falsy" 的值,会被误判成"清空"。这里改用 `?? ''` 只处理 null/undefined,并把
+  // 本地 patch 直接写原始 assetId(不做 `|| null` 归一)——在 assetId 为 `0`/`''` 时与
+  // Vue2 行为分叉:Vue2 会清空,这里会保留原值。判定这里更好(id 语义上 falsy 值可能是
+  // 合法 id,不该被静默清空),保留,不改回 Vue2。
   async function setPersonHero(id: string | number, assetId: string | number | null): Promise<void> {
     try {
       await service.photos.updatePerson(id, { heroAssetId: assetId ?? '' })
@@ -210,36 +225,54 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
     removePerson(id)
 
-    let cancelled = false
-    const undo = (): void => {
-      const pending = _purgeTimers.get(k)
-      if (!pending || pending.committed) return   // 窗口已过(定时器已触发)→ no-op,照 Vue2
-      if (cancelled) return                        // 同一个 undo 被连点两次的防护,照 Vue2 :1186
-      cancelled = true
-      clearTimeout(pending.timer)
-      _purgeTimers.delete(k)
-      if (snapshot) insertPersonAt(snapshot, idx)
+    // 评审修正(必修 2):entry 是本次 purge 的身份令牌。同一 id 在 committed(已发出
+    // DELETE、请求仍在途)期间被再次触发是合法场景(上面 existing 分支处理),会换成一条
+    // 新 entry;此时旧 entry 对应的 timer 回调与 undo 闭包必须能分辨"我已经被换下了",
+    // 不能凭 key 还在 map 里就误删/误插新 entry 的状态——一律用 `_purgeTimers.get(k) === entry`
+    // 的引用相等判断"当前 map 里这一条还是不是我自己",而不是只判断 key 是否存在。
+    // 这也让原来单独维护的 `cancelled` 标志变得多余:第一次 undo() 会把 entry 从 map 里
+    // delete,同一个 undo 被连点第二次时 `_purgeTimers.get(k)` 已经不是它自己,天然 no-op。
+    const entry: PurgeEntry = {
+      timer: undefined as unknown as ReturnType<typeof setTimeout>,
+      snapshot,
+      idx,
+      committed: false,
     }
 
-    const timer = setTimeout(() => {
-      const entry = _purgeTimers.get(k)
-      if (!entry || cancelled) return
+    const undo = (): void => {
+      if (_purgeTimers.get(k) !== entry) return   // 不是当前这一条(已被连点吞掉,或被新一轮 purge 换下)
+      if (entry.committed) return                  // 窗口已过(定时器已触发)→ no-op,照 Vue2
+      _purgeTimers.delete(k)
+      clearTimeout(entry.timer)
+      if (entry.snapshot) insertPersonAt(entry.snapshot, entry.idx)
+    }
+
+    entry.timer = setTimeout(() => {
+      if (_purgeTimers.get(k) !== entry) return    // 已被连点撤销,或已被新一轮 purge 换下
       // 修正 1(Vue2 :1198 早于 :1201):Vue2 在发请求**之前**就把 entry 摘掉,网络在途这段窗口里
       // 若有一次 fetchPeople,被删的人物会「诈尸」重现。这里改成:先标记 committed(让 undo 失效,
       // 保住「过期不可撤销」语义),entry 留到请求 settle 后才在 finally 里摘除,过滤窗口因此不留缝。
+      // 回归测试见 people.test.ts「committed 但 purgePerson 仍在途」两条(评审必修 1)。
       entry.committed = true
       void service.photos
         .purgePerson(id)
         .catch((e: unknown) => {
           console.error('[photos-people] purgePersonWithUndo', e)
-          // 失败即把快照插回原位;不 fetchPeople —— 此刻服务端可能仍返回旧视图,会把刚插回的again冲掉
+          // 失败即把快照插回原位;不 fetchPeople —— 此刻服务端可能仍返回旧视图,会把刚插回的又冲掉
           // (照 Vue2 :1204-1205 的注释与做法)。
-          if (snapshot) insertPersonAt(snapshot, idx)
+          if (entry.snapshot) insertPersonAt(entry.snapshot, entry.idx)
         })
-        .finally(() => { _purgeTimers.delete(k) })
+        .finally(() => {
+          // 评审修正(必修 2):删之前先确认 map 里还是自己这条,不能无脑 delete(k)。
+          // 场景:committed 后(DELETE 请求在途)同一 id 被再次触发,旧 entry 已被换成新
+          // entry2;若这里无条件 delete(k),请求 1 settle 时会把 entry2 一起删掉——entry2
+          // 的 timer2 到点发现 `get(k) === undefined` 直接 return,第二轮清除永远发不出去,
+          // 它的 undo 也失效(死引用)。
+          if (_purgeTimers.get(k) === entry) _purgeTimers.delete(k)
+        })
     }, PURGE_DELAY_MS)
 
-    _purgeTimers.set(k, { timer, snapshot, idx, committed: false })
+    _purgeTimers.set(k, entry)
     return undo
   }
 
@@ -248,14 +281,20 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   async function acceptMergeSuggestion(suggestionId: string | number): Promise<void> {
     const s = mergeSuggestions.value.find((m) => key(m.id as string | number) === key(suggestionId))
     mergeSuggestions.value = mergeSuggestions.value.filter((m) => key(m.id as string | number) !== key(suggestionId))
-    try {
-      if (s) await service.photos.mergePersons(s.fromId as string | number, s.intoId as string | number)
-    } catch (e) {
-      console.error('[photos-people] acceptMergeSuggestion', e)
-      void fetchMergeSuggestions()
-      throw e
-    } finally {
-      void fetchPeople()
+    // 修正(评审必修 3):brief 快照把 `finally { fetchPeople() }` 放在 `if (s)` 外面,
+    // suggestionId 在本地找不到(已被别处消费/过期)时也会白打一次 listPersons——Vue2
+    // :1227-1234 的 try/catch/finally 整段都在 `if (s)` 里面,找不到就什么都不做。这里
+    // 收进 if(s) 对齐 Vue2:没有真正发生合并就没有理由重拉人物列表,减少一次无意义请求。
+    if (s) {
+      try {
+        await service.photos.mergePersons(s.fromId as string | number, s.intoId as string | number)
+      } catch (e) {
+        console.error('[photos-people] acceptMergeSuggestion', e)
+        void fetchMergeSuggestions()
+        throw e
+      } finally {
+        void fetchPeople()
+      }
     }
   }
 
