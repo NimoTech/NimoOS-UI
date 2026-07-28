@@ -818,4 +818,46 @@ export default {
   aiSysLan: 'LAN',
   aiSysOf: '共 {n} GB',
   aiStorageUnavailable: '存储信息不可用',
+  // SP8-P1c2 Task 12 —— ResourcesTab(授权资源 / 附件 / 暂存区三段 + 三级回滚)。
+  // 逐字港 Vue2 tabs/ResourcesTab.vue,裸英文字面量按本期拍板补中文键;
+  // aiResBatchSummary/aiResRevertBatch/aiResRevertItem 三个复用 Vue2 既有
+  // zh_CN.json 现成译文(970-972 行 agent_batch_summary/agent_batch_revert_all/
+  // agent_revert_item),逐字照抄,不重写措辞。
+  aiResAuthorized: '已授权',
+  aiResAttachments: '附件',
+  aiResPending: '待处理更改',
+  // aiResEmptyAuthorized 的 {at} 是 <i18n-t> 具名插槽占位符(同 aiMentionNoMatchTpl
+  // 先例),由 ResourcesTab.vue 用 <code>@</code> 填充 —— 消息本身不含裸 '@',
+  // 不需要 {'@'} 转义。
+  aiResEmptyAuthorized: '还没有授权任何文件夹 — 在消息框中输入 {at} 以授予访问权限。',
+  aiResEmptyAttachments: '暂无附件 — 点击输入框的回形针图标即可上传。',
+  aiResSent: '已发送',
+  aiResSentTitle: '已发送至模型，无法移除',
+  aiResDraft: '草稿',
+  aiResDownload: '下载',
+  aiResRemoveAuth: '移除授权',
+  aiResRemoveAttachment: '移除草稿附件',
+  aiResAgentRunning: 'Agent 运行中',
+  aiResRevert: '撤销',
+  aiResRevertTurnTitle: '撤销此轮',
+  aiResReverting: '撤销中…',
+  aiResSnapshotMissing: '快照缺失 — 无法撤销',
+  aiResOrphan: '孤立',
+  aiResOrphanTitle: '快照缺失 — 仅可提交',
+  // aiResTurn/aiResFilesInTurns 的 {s} 是纯英文单复数后缀参数(pluralWord()),
+  // 中文文案不使用它——数字后不加单复数标记,与 Vue2 中文习惯一致。
+  aiResTurn: '轮次 · {time} · {n} 个文件',
+  aiResFilesInTurns: '{files} 个文件，共 {turns} 轮',
+  aiResCollapse: '收起',
+  aiResExpand: '展开',
+  aiResBatchSummary: '批量：新建 {mkdir} · 移动 {rename} · 删除 {delete}',
+  aiResRevertBatch: '整批撤销',
+  aiResRevertItem: '撤销',
+  aiResCommitAll: '全部提交（{n} 个文件）',
+  aiResCommitTitle: '应用所有待处理的更改；无法撤销',
+  aiResCommitting: '提交中…',
+  aiResJustNow: '刚刚',
+  aiResMinutesAgo: '{n} 分钟前',
+  aiResHoursAgo: '{n} 小时前',
+  aiResDaysAgo: '{n} 天前',
 }

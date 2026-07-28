@@ -807,4 +807,48 @@ export default {
   aiSysLan: 'LAN',
   aiSysOf: 'of {n} GB',
   aiStorageUnavailable: 'Storage info unavailable',
+  // SP8-P1c2 Task 12 — ResourcesTab (authorized resources / attachments / staged
+  // changes, three revert granularities). Verbatim port of Vue2's
+  // tabs/ResourcesTab.vue; English values below are Vue2's exact source
+  // literals (ResourcesTab.vue:5/9/29/33/41/49/54/64/68/72/74/80/90/92/100/104/
+  // 127/129) except aiResBatchSummary/aiResRevertBatch/aiResRevertItem, which
+  // reuse Vue2's existing en_US.json entries verbatim (878-880: agent_batch_summary/
+  // agent_batch_revert_all/agent_revert_item).
+  aiResAuthorized: 'AUTHORIZED',
+  aiResAttachments: 'ATTACHMENTS',
+  aiResPending: 'PENDING CHANGES',
+  // {at} is an <i18n-t> named-slot placeholder (same precedent as
+  // aiMentionNoMatchTpl), filled by ResourcesTab.vue with <code>@</code> — the
+  // message itself has no bare '@', so it needs no {'@'} escape.
+  aiResEmptyAuthorized: 'No folders authorized yet — type {at} in the message box to grant access.',
+  aiResEmptyAttachments: 'No attachments — click the paperclip in the composer to upload.',
+  aiResSent: 'sent',
+  aiResSentTitle: 'Sent to model, cannot remove',
+  aiResDraft: 'draft',
+  aiResDownload: 'Download',
+  aiResRemoveAuth: 'Remove authorization',
+  aiResRemoveAttachment: 'Remove draft attachment',
+  aiResAgentRunning: 'Agent is running',
+  aiResRevert: 'Revert',
+  aiResRevertTurnTitle: 'Revert this turn',
+  aiResReverting: 'Reverting…',
+  aiResSnapshotMissing: 'snapshot missing — Revert unavailable',
+  aiResOrphan: 'orphan',
+  aiResOrphanTitle: 'snapshot missing — only Commit possible',
+  // {s} in aiResTurn/aiResFilesInTurns is the English plural suffix param
+  // (pluralWord()) — Vue2's inline ternary `file{{ n===1?'':'s' }}`.
+  aiResTurn: 'Turn · {time} · {n} file{s}',
+  aiResFilesInTurns: '{files} files in {turns} turn{s}',
+  aiResCollapse: 'Collapse',
+  aiResExpand: 'Expand',
+  aiResBatchSummary: 'Batch: {mkdir} new folder(s) · {rename} moved · {delete} deleted',
+  aiResRevertBatch: 'Revert whole batch',
+  aiResRevertItem: 'Revert',
+  aiResCommitAll: 'Commit All ({n} files)',
+  aiResCommitTitle: 'Apply all pending changes; cannot be undone',
+  aiResCommitting: 'Committing…',
+  aiResJustNow: 'just now',
+  aiResMinutesAgo: '{n}m ago',
+  aiResHoursAgo: '{n}h ago',
+  aiResDaysAgo: '{n}d ago',
 }
