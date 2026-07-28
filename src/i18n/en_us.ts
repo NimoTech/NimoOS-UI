@@ -795,4 +795,16 @@ export default {
   aiActivityDone: 'Done',
   aiContextNotYet: 'Not available yet',
   aiContextDesc: 'Future support for adding files to conversation context so Agent can reference them directly.',
+  // SP8-P1c2 Task 11 — SystemTab. English values are Vue2's exact source
+  // literals (SystemTab.vue:5/48-51) except aiSysHeader/aiSysOf which are new
+  // (no $t() call wrapped either in Vue2 — see zh_cn.ts comment for the
+  // zh_CN.json reuse citations on the other four).
+  aiSysHeader: 'NimoOS · Health',
+  aiSysCpu: 'CPU',
+  aiSysMemory: 'Memory',
+  aiSysNetwork: 'Network',
+  aiSysTemp: 'Temp',
+  aiSysLan: 'LAN',
+  aiSysOf: 'of {n} GB',
+  aiStorageUnavailable: 'Storage info unavailable',
 }

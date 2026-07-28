@@ -16,7 +16,9 @@ const svc = vi.hoisted(() => ({
   getSessionThinking: vi.fn(),
   patchSessionThinking: vi.fn(),
 }))
-vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
+// SP8-P1c2 Task 11 —— disks.list() 一次性拉存储容量(Agent.vue:159-162)。
+const disksList = vi.hoisted(() => vi.fn())
+vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc, disks: { list: disksList } } }))
 
 const push = vi.fn()
 const replace = vi.fn().mockResolvedValue(undefined)
@@ -46,6 +48,8 @@ describe('AgentPage', () => {
     svc.listAgentSessions.mockResolvedValue([])
     svc.getThinkingDefaults.mockResolvedValue({ enabled: true, level: 'medium' })
     svc.getSessionThinking.mockResolvedValue(null)
+    disksList.mockReset()
+    disksList.mockResolvedValue([])
     localStorage.clear()
     for (const k of Object.keys(routeQuery)) delete routeQuery[k]
     push.mockClear()
@@ -230,6 +234,22 @@ describe('AgentPage', () => {
     store.activeSessionId = 'sess-y'
     await flushPromises()
     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
+  })
+
+  it('SP8-P1c2 Task 11:挂载后一次性调用 service.disks.list()(Agent.vue:159-162,存储容量不需要实时)', async () => {
+    disksList.mockResolvedValue([{ size: 4e12, used: 2e12 }])
+    const w = mountPage()
+    await flushPromises()
+    expect(disksList).toHaveBeenCalledTimes(1)
+    w.unmount()
+  })
+
+  it('SP8-P1c2 Task 11:disks.list() 失败 → 吞错,不抛未处理异常(与 Vue2 Agent.vue try/catch 同)', async () => {
+    disksList.mockRejectedValue(new Error('boom'))
+    expect(() => mountPage()).not.toThrow()
+    const w = mountPage()
+    await flushPromises()
+    w.unmount()
   })
 
   it('SP8-P1c2:切会话 → loadSessionThinking(newId) + updateThinkingForModel + refreshContextUsage 三者并列触发(Vue2 Agent.vue:120-123)', async () => {

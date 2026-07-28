@@ -801,4 +801,21 @@ export default {
   aiActivityDone: '完成',
   aiContextNotYet: '暂不可用',
   aiContextDesc: '未来会支持把文件加入对话上下文，让 Agent 直接参考它们。',
+  // SP8-P1c2 Task 11 —— SystemTab(2x2 机器健康磁贴 + 存储条)。这几个字符串
+  // Vue2 SystemTab.vue 从未 i18n 过(裸英文字面量),按本期拍板补键。
+  // aiSysNetwork/aiSysTemp/aiSysLan 中文复用 Vue2 既有 zh_CN.json 对应译文
+  // (119 行 "Network":"网络"、193 行 "Temp":"温度"、1853 行 "LAN (Internal
+  // Network)":"LAN" —— LAN 保留英文缩写不译,与后者一致);aiSysMemory 中文复用
+  // 本文件已有的 memory 键('内存');aiSysCpu 比照 LAN 的先例保留 "CPU" 缩写不译
+  // (磁贴空间紧凑,且 CPU 是通用缩写);aiStorageUnavailable 逐字复用 zh_CN.json
+  // 982 行 "Storage info unavailable":"存储信息不可用"。aiSysHeader/aiSysOf 是
+  // 新写(Vue2 无对应现成译文)。
+  aiSysHeader: 'NimoOS · 健康',
+  aiSysCpu: 'CPU',
+  aiSysMemory: '内存',
+  aiSysNetwork: '网络',
+  aiSysTemp: '温度',
+  aiSysLan: 'LAN',
+  aiSysOf: '共 {n} GB',
+  aiStorageUnavailable: '存储信息不可用',
 }

@@ -51,6 +51,7 @@ import { useAgentStore } from '../stores/agentStore'
 import type { ThinkingLevel } from '../stores/agentStore'
 import { provideAgentStore } from '../composables/useProvidedAgentStore'
 import { useToast } from '../../stores/toast'
+import { toStoragePayload, type StoragePayload } from '../util/toStoragePayload'
 import AgentSidebar from '../components/shell/AgentSidebar.vue'
 import AgentTopbar from '../components/shell/AgentTopbar.vue'
 import AgentComposer from '../components/shell/AgentComposer.vue'
@@ -128,6 +129,18 @@ watch(
 
 // Agent.vue:99 ctxUsage state, populated by refreshContextUsage() below.
 const ctxUsage = ref<{ tokens: number; window: number; pct: number } | null>(null)
+
+// SP8-P1c2 Task 11 —— Agent.vue:159-162 storage state, populated once in
+// onMounted below via toStoragePayload(). Deliberately a plain page-level ref,
+// not agentStore.ts state: the brief is explicit that this task must not add
+// store state it didn't ask for, and nothing else in the app needs this value
+// — SystemTab (Task 11) takes it as a prop, AgentRightPanel wiring (Task 13)
+// will pass this ref straight down when it mounts <AgentRightPanel> here.
+// (systemMetrics — Agent.vue:155-158 — is intentionally NOT ported: SystemTab
+// reads live data itself via useUtilization()/useUtilizationStore() per this
+// phase's user-approved deviation, so there is no one-shot HTTP fetch or state
+// for it on this page.)
+const storage = ref<StoragePayload | null>(null)
 
 // Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1)—— Agent.vue
 // 198-207 的 refreshContextUsage 没有 in-flight/顺序守卫:一次快速切会话可能触发
@@ -214,6 +227,16 @@ onMounted(async () => {
   }
   // Agent.vue:154 —— models 加载完之后拉一次 ctxUsage(mounted 触发,三个触发点之一)。
   refreshContextUsage()
+
+  // SP8-P1c2 Task 11 —— Agent.vue:159-162 一次性拉存储容量(disks.list() 是
+  // Task 1 新增的方法)。try/catch 吞错置 null,与 Vue2 同(空态兜底交给
+  // SystemTab 渲染,不在这里报错)。存储容量不需要实时,只在挂载时拉一次。
+  try {
+    const disks = await service.disks.list()
+    storage.value = toStoragePayload(disks)
+  } catch {
+    storage.value = null
+  }
 
   // Vue2 Agent.vue:145-148 —— ?skill= 挂号:只暂存,消费点在 send()(agentStore.ts
   // send() 的 X-Skill-Id 组装段),这里不发送。
