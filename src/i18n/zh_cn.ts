@@ -911,4 +911,11 @@ export default {
   // 二者是两句不同文案,不能共用一个键)。zh_CN.json:2006 原译文是"删除面部集群",但
   // "集群"触犯本期术语红线(T3 已清掉四处"集群"),这里改用"删除这组人脸"。
   photosPersonDeleteClusterTitle: '删除这组人脸',
+  // 协调者裁定补(Task 12 fix):地点 tab 的段落标题归 tab 组件自己渲染
+  // (Vue2 PhotosPersonDetail.vue :156-162 在 v-if="tab==='map'" 块内,是该 tab
+  // 自己的一部分;T13 的关系 tab 同理各有自己的段落标题)。译文取自 zh_CN.json
+  // :2138(Places with {name})与 :2233(Where you've photographed them, all-time)。
+  // 追加在段末,不重排既有键。
+  photosPersonPlacesTitle: '{name} 去过的地方',
+  photosPersonPlacesSub: '你在此人所有照片中拍摄过的地点',
 }

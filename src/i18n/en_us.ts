@@ -914,4 +914,13 @@ export default {
   // warning box's own title line, photosPersonDeleteTitle — two different sentences,
   // must not share one key).
   photosPersonDeleteClusterTitle: 'Delete face cluster',
+  // Coordinator ruling addition (Task 12 fix): the places tab's section title
+  // belongs to the tab component itself (Vue2 PhotosPersonDetail.vue :156-162
+  // sits inside v-if="tab==='map'", it's part of that tab; T13's relationships
+  // tab is the same, each tab owns its own section title). Verbatim strings
+  // from Vue2 PhotosPersonDetail.vue :160-161. Apostrophe in "you've" — kept
+  // double-quoted so it doesn't break the TS string literal. Appended at the
+  // end of the photos block, existing keys not reordered.
+  photosPersonPlacesTitle: 'Places with {name}',
+  photosPersonPlacesSub: "Where you've photographed them, all-time",
 }

@@ -1,18 +1,18 @@
 <script setup lang="ts">
 // Task 12 (SP7-P5 人物): PersonPlacesTab.vue —— 人物详情页「地点」tab
-// (迷你世界地图 + Top5 图例 + 全部地点卡片条)。逐段照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPersonDetail.vue:163-183(map-card / legend / place-strip
-// 三块内容),:446(PLACE_PALETTE 七色)、:537-570(groupedPlaces / coloredPoints——
-// 已挪到 peopleView.ts 的 groupPlaces / colorPoints,逐行对应见该文件注释)移植;
-// 样式段照 photos-people.scss:570-645(.map-card / .legend / .place-strip / .place-chip)。
+// (段落标题 + 迷你世界地图 + Top5 图例 + 全部地点卡片条)。逐段照 Vue2 NimoOS-UI
+// src/views/Photos/PhotosPersonDetail.vue:157-183(整个 v-if="tab === 'map'" 块,
+// 含 :158-162 的 .detail-section / .detail-section-title 标题壳),:446
+// (PLACE_PALETTE 七色)、:537-570(groupedPlaces / coloredPoints——已挪到
+// peopleView.ts 的 groupPlaces / colorPoints,逐行对应见该文件注释)移植;
+// 样式段照 photos-people.scss:724-739(.detail-section / .detail-section-title /
+// .sub)与 :570-645(.map-card / .legend / .place-strip / .place-chip)。
 //
-// **不渲染** Vue2 :158-162 的 `.detail-section` + `.detail-section-title`
-// 外壳("Places with {name}" + "Where you've photographed them, all-time")——
-// 那段文案需要 person.name 拼句,对应 i18n 键(如 photosPersonPlacesTitle)尚未
-// 就位,brief 给的组件结构(§"结构"小节)也只列了 map-card/place-strip 两块,不含
-// 外壳。参照 T14 brief 明确接管同类的"共现头像横条"标题(照 Vue2 :108-130 整段,
-// 含标题行)的先例,判断这层 section 标题由 T14 容器统一拼装,本组件只出 tab 内容。
-// 已在任务报告里记为疑虑项,供协调者确认。
+// 段落标题(协调者裁定,Task 12 fix,原提交曾把这层壳留白):Vue2 的
+// .detail-section-title 就在 v-if="tab === 'map'" 块内,是这个 tab 自己的一部分
+// (T13 的关系 tab 同理,各有自己的段落标题),不是容器负责的东西——容器只切 tab。
+// 新增 i18n 键 photosPersonPlacesTitle("{name} 去过的地方")/ photosPersonPlacesSub
+// (副标题),译文取自旧 zh_CN.json,已补进 zh_cn.ts / en_us.ts 段末。
 //
 // 纯展示组件:不碰 store、不发请求、无 emits——两个纯函数(groupPlaces/colorPoints)
 // 在 computed 里跑,渲染即完成。
@@ -44,9 +44,12 @@ const groups = computed(() => groupPlaces(props.places, unknownLabel.value))
 const legendGroups = computed(() => groups.value.slice(0, 5))
 const points = computed(() => colorPoints(props.places, groups.value, unknownLabel.value))
 
-// 照 Vue2 :166:person.name || $t('this person')。
-const emptyText = computed(() =>
-  t('photosPersonNoPlaces', { name: props.personName || t('photosPersonThisPerson') }))
+// 照 Vue2 :165-166 共用的兜底:person.name || $t('this person')。段落标题
+// (:160)与地图空态文案(:166)都要这个兜底,统一算一次,避免两处各写一遍
+// 分叉。personName 为空串时用 photosPersonThisPerson,不会留下空名占位
+// (比如 "{name} 去过的地方" 变成一个前导空格的 " 去过的地方")。
+const displayName = computed(() => props.personName || t('photosPersonThisPerson'))
+const emptyText = computed(() => t('photosPersonNoPlaces', { name: displayName.value }))
 
 // 图例 pin 的光晕环(照 Vue2 :171 `boxShadow: '0 0 0 2px white, 0 0 6px ${pl.color}aa'`)。
 // 固定白色环是数据可视化惯例的一部分:环要在任意主题底色上都能撑开任意
@@ -60,7 +63,11 @@ function legendPinStyle(color: string): Record<string, string> {
 </script>
 
 <template>
-  <div class="person-places-tab">
+  <div class="detail-section">
+    <div class="detail-section-title">
+      {{ t('photosPersonPlacesTitle', { name: displayName }) }}
+      <span class="sub">{{ t('photosPersonPlacesSub') }}</span>
+    </div>
     <div class="map-card">
       <PhotosMiniMap :points="points" :empty-text="emptyText" />
       <div v-if="legendGroups.length" class="legend">
@@ -83,6 +90,33 @@ function legendPinStyle(color: string): Record<string, string> {
 </template>
 
 <style scoped>
+/* Section wrapper + title(照 photos-people.scss:724-739 .detail-section /
+   .detail-section-title / .sub)。Vue2 用 --font-display/--font-sans 两个字体
+   token 区分标题/副标题字重来源;New-UI 只有一个统一的 --font token(已在
+   theme.css 核实),两处都用它,同 PersonAssetGrid.vue 的 .person-month-head
+   .title/.sub 既有先例(同款 flex+baseline+gap 结构,同款 --fg/--fg-muted 配色)。 */
+.detail-section {
+  margin-top: 8px;
+}
+.detail-section-title {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--fg);
+}
+.detail-section-title .sub {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-muted);
+  letter-spacing: 0;
+}
+
 /* Map view (照 photos-people.scss:570-590 .map-card)。 */
 .map-card {
   background: var(--card);

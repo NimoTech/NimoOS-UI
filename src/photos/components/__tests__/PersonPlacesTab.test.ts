@@ -34,6 +34,25 @@ function sixPlaces(): PersonPlace[] {
 }
 
 describe('PersonPlacesTab.vue', () => {
+  it('渲染段落标题(照 Vue2 :160 插值 person.name)+ 副标题(:161)', () => {
+    const w = mountTab({ places: [], personName: 'Sara' })
+    const title = w.get('.detail-section-title')
+    expect(title.text()).toContain('Sara')
+    expect(title.text()).toContain('去过的地方')
+    expect(w.get('.detail-section-title .sub').text()).toBe('你在此人所有照片中拍摄过的地点')
+  })
+
+  it('personName 为空时标题回落到 photosPersonThisPerson,不出现空名占位', () => {
+    const w = mountTab({ places: [], personName: '' })
+    const title = w.get('.detail-section-title')
+    // 中文译文原样是 "{name} 去过的地方"(name 与后文之间本就有一个空格,
+    // 照旧 zh_CN.json 原译文,不是 bug)。空名兜底后应读作"这个人 去过的地方",
+    // 关键是不出现"双空格"或"开头就是空白"这类兜底没生效的痕迹。
+    expect(title.text()).toContain('这个人 去过的地方')
+    expect(title.text()).not.toMatch(/\s{2,}/)
+    expect(title.text()).not.toMatch(/^\s/)
+  })
+
   it('图例只渲染 Top5(第 6 个地点不出现在图例里)', () => {
     const w = mountTab({ places: sixPlaces(), personName: 'Sara' })
     const legendRows = w.get('.legend').findAll('.row')
