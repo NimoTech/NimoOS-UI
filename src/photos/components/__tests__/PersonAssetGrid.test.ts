@@ -17,6 +17,10 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PersonAssetGrid from '../PersonAssetGrid.vue'
+// 原始源码文本(Vite `?raw`),仅用于下方"覆盖控件默认透明"一组测试——jsdom 不做级联
+// 样式计算,mount 后读不出真实 hover 态的 opacity,只能对 <style> 文本做结构断言
+// (同 color-guard.test.ts 读 <style> 原文的既有先例)。
+import personAssetGridRaw from '../PersonAssetGrid.vue?raw'
 import { assetToPhoto, type Month, type Photo } from '../../util/assetToPhoto'
 
 function photo(
@@ -194,5 +198,84 @@ describe('PersonAssetGrid.vue — 空态', () => {
     const w = mountGrid({ months: [], selected: [], selectionMode: false })
     expect(w.text()).toContain('这个人还没有照片')
     expect(w.find('.tile').exists()).toBe(false)
+  })
+})
+
+// 覆盖控件(.tile-check/.tile-detach)默认态透明,只在 hover/选择态可见——照 Vue2
+// PhotosPersonDetail.vue:1148-1216 逐条对照,同本仓已确立先例 PhotosGrid.vue:374-376
+// (.tile-check-box)。jsdom 不做级联样式计算(mount 后读不出真实 hover 结果),所以这组
+// 测试直接解析 <style> 原文里的 CSS 规则结构断言,而不是断言 getComputedStyle。
+interface CssRule { selectors: string[]; body: string }
+
+function parseCssRules(styleText: string): CssRule[] {
+  const rules: CssRule[] = []
+  const re = /([^{}]+)\{([^}]*)\}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(styleText))) {
+    rules.push({
+      selectors: m[1].split(',').map((s) => s.trim()).filter(Boolean),
+      body: m[2],
+    })
+  }
+  return rules
+}
+
+function extractStyleBlock(src: string): string {
+  const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
+  if (!m) throw new Error('未找到 <style> 块')
+  return m[1]
+}
+
+// 找到"选择器列表恰好等于给定单个选择器"的那条规则的 body(用于找元素自身默认态样式,
+// 不是被其他组合选择器覆盖的可见态规则)。
+function ownRuleBody(rules: CssRule[], selector: string): string {
+  const hit = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === selector)
+  if (!hit) throw new Error(`未找到独立规则:${selector}`)
+  return hit.body
+}
+
+// 找到"选择器列表包含所有给定选择器"的那条组合规则的 body(用于找 hover/选择态强制
+// 可见的那条组合规则,不要求选择器列表完全相等,允许额外选择器一起分组)。
+function findRuleBodyContainingAll(rules: CssRule[], required: string[]): string | undefined {
+  const hit = rules.find((r) => required.every((sel) => r.selectors.includes(sel)))
+  return hit?.body
+}
+
+describe('PersonAssetGrid.vue — 覆盖控件默认态透明,仅 hover/选择态可见(照 Vue2 :1148-1216)', () => {
+  const rules = parseCssRules(extractStyleBlock(personAssetGridRaw))
+
+  it('.tile-check 默认 opacity:0(照 Vue2 :1199)', () => {
+    expect(ownRuleBody(rules, '.tile-check')).toMatch(/opacity:\s*0\b/)
+  })
+
+  it('.tile-detach 默认 opacity:0(照 Vue2 :1162)', () => {
+    expect(ownRuleBody(rules, '.tile-detach')).toMatch(/opacity:\s*0\b/)
+  })
+
+  it('.tile:hover 时 .tile-check 强制可见(照 Vue2 :1203-1208)', () => {
+    const body = findRuleBodyContainingAll(rules, ['.tile:hover .tile-check'])
+    expect(body).toBeDefined()
+    expect(body).toMatch(/opacity:\s*1\b/)
+  })
+
+  it('.tile:hover 时 .tile-detach 强制可见(照 Vue2 :1168-1171)', () => {
+    const body = findRuleBodyContainingAll(rules, ['.tile:hover .tile-detach'])
+    expect(body).toBeDefined()
+    expect(body).toMatch(/opacity:\s*1\b/)
+  })
+
+  it('selectionMode 或已选中时 .tile-check 也强制可见,不依赖 hover(照 Vue2 :1204-1205)', () => {
+    const body = findRuleBodyContainingAll(rules, [
+      '.tile:hover .tile-check',
+      '.tile[data-selection-mode="true"] .tile-check',
+      '.tile[data-selected="true"] .tile-check',
+    ])
+    expect(body).toBeDefined()
+    expect(body).toMatch(/opacity:\s*1\b/)
+  })
+
+  it('.tile-detach 没有 selectionMode/selected 强制可见规则(照 Vue2 原文只给 tile-check 加了那两条,tile-detach 没有——照搬,不是遗漏)', () => {
+    expect(findRuleBodyContainingAll(rules, ['.tile[data-selection-mode="true"] .tile-detach'])).toBeUndefined()
+    expect(findRuleBodyContainingAll(rules, ['.tile[data-selected="true"] .tile-detach'])).toBeUndefined()
   })
 })

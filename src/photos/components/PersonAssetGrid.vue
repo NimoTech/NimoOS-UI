@@ -233,6 +233,20 @@ function thumbnailSrc(id: string | number): string {
   border-radius: 50%;
   background: var(--overlay-bg);
   cursor: pointer;
+  /* 照 Vue2 PhotosPersonDetail.vue:1199-1208 —— 默认透明,只在 hover/选择态可见,不是
+     永久叠在每张缩略图上(同本仓已确立先例 PhotosGrid.vue:374-376 .tile-check-box)。
+     Vue2 原文只靠 opacity 隐藏、未加 :focus-visible 覆盖,键盘 tab 仍能聚焦到隐藏态的
+     按钮——这是 Vue2 自带的可访问性缺口,照搬登记,不在本任务范围内补(未申报的新增
+     范围)。 */
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.tile:hover .tile-check,
+.tile[data-selection-mode="true"] .tile-check,
+.tile[data-selected="true"] .tile-check {
+  opacity: 1;
+  transform: scale(1);
 }
 .tile[data-selected="true"] .tile-check {
   /* 选中态背景切到饱和 --accent 实底(不再叠在照片上,是组件自己控制的纯色)——这正是
@@ -251,7 +265,17 @@ function thumbnailSrc(id: string | number): string {
   border-radius: 50%;
   background: var(--overlay-bg);
   cursor: pointer;
+  /* 照 Vue2 PhotosPersonDetail.vue:1162-1171 —— 默认透明,只在 .tile:hover 时可见;
+     不像 .tile-check 那样受 selectionMode/selected 强制可见(Vue2 原文只给 tile-check
+     加了那两条强制可见规则,tile-detach 没有——照搬,不是遗漏)。 */
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.15s, transform 0.15s;
   /* theme-exception: 同 .tile-vid——叠在照片上的移出按钮,恒定浅色前景。 */
   color: #fff;
+}
+.tile:hover .tile-detach {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>
