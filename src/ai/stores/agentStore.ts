@@ -637,6 +637,58 @@ export function useAgentStore(agentType?: string) {
       updateThinkingForModel()
     }
 
+    /**
+     * agentStore.js:656-660 —— 拉用户级 thinking 默认值。**吞错保留硬编码兜底**(有意
+     * 保留,非疏漏):defaults 初始值已经是产品定的兜底(enabled:true, level:'medium'),
+     * 接口失败时没有必要打断——ThinkingBar 用兜底值渲染,用户仍能正常切强度。
+     */
+    async function loadThinkingDefaults() {
+      try {
+        const d = await service.ai.getThinkingDefaults()
+        thinking.value.defaults = d as { enabled: boolean; level: string }
+      } catch { /* 保留硬编码兜底 —— 与 Vue2 agentStore.js:656-660 逐字一致 */ }
+    }
+
+    /**
+     * agentStore.js:663-669 —— 无 sessionId 直接返回,不发请求。`service.ai.getSessionThinking`
+     * 已经把"本会话无覆盖"归一成 `null`(见 NimoOS-Service/src/ai.ts:183-198)并且自己吞掉了
+     * 请求异常,这里只需要处理 `null` 时回落到 `thinking.defaults` 的浅拷贝;只写
+     * enabled/level 两个字段,不碰 supportsThinking/providerType(那两个只由
+     * updateThinkingForModel 维护)。
+     */
+    async function loadSessionThinking(sessionId: string | number | null | undefined) {
+      if (!sessionId) return
+      let cfg = await service.ai.getSessionThinking(sessionId)
+      if (!cfg) cfg = { ...thinking.value.defaults }
+      thinking.value.enabled = cfg.enabled
+      thinking.value.level = cfg.level
+    }
+
+    /**
+     * agentStore.js:671-677 —— **先乐观改本地状态,再对有会话的情况发 patch**;patch
+     * 失败**不回滚**本地状态(有意保留 Vue2 语义,非疏漏——ThinkingBar 就是要立刻响应
+     * 用户点按,失败只会在下一次成功的 patch/loadSessionThinking 时被纠正,不做即时回滚
+     * UI 抖动)。无会话(尚未建会话)时只改本地,不发请求。
+     */
+    async function setThinkingEnabled(enabled: boolean) {
+      thinking.value.enabled = enabled
+      if (activeSessionId.value) {
+        await service.ai.patchSessionThinking(activeSessionId.value, {
+          enabled, level: thinking.value.level,
+        })
+      }
+    }
+
+    /** agentStore.js:680-686 —— 同 setThinkingEnabled,改的是 level。同样不回滚。 */
+    async function setThinkingLevel(level: string) {
+      thinking.value.level = level
+      if (activeSessionId.value) {
+        await service.ai.patchSessionThinking(activeSessionId.value, {
+          enabled: thinking.value.enabled, level,
+        })
+      }
+    }
+
     /** agentStore.js:689-698 —— 按选中模型刷新 thinking.supportsThinking/providerType。 */
     function updateThinkingForModel() {
       const sel = availableModels.value.find((m) => m.key === selectedModel.value)
@@ -1043,6 +1095,10 @@ export function useAgentStore(agentType?: string) {
       loadAvailableModels,
       selectModel,
       updateThinkingForModel,
+      loadThinkingDefaults,
+      loadSessionThinking,
+      setThinkingEnabled,
+      setThinkingLevel,
       send,
       sendInit,
       stop,

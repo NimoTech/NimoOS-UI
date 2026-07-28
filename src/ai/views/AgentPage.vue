@@ -8,15 +8,23 @@
   1:1):props busy/ctx-usage,emits send/stop/send-init 直连 store 同名 action。
   ctxUsage 状态 + refreshContextUsage() 移植自 Vue2 Agent.vue:99/198-207,
   三个刷新触发点(mounted 一次、activeSessionId 变化一次、busy true→false 下降
-  沿一次)移植自 Vue2 120-132(**不**移植同一会话 watcher 里的
+  沿一次)移植自 Vue2 120-132(当时**不**移植同一会话 watcher 里的
   loadSessionThinking/updateThinkingForModel,也**不**移植 lastFallbackNotice
   toast watcher——两者都属于 ThinkingBar/ModelPicker,留给 1c-2)。
-  ModelPicker、ThinkingBar 仍留 1c-2 后续任务。
+  ModelPicker、ThinkingBar UI 仍留后续任务。
 
   SP8-P1c2 Task 2 —— data-rightcollapsed 解开硬编码,改绑 store.rightCollapsed
   (Vue2 Agent.vue:4 逐字对齐);AgentTopbar 新增 right-collapsed prop +
   toggle-right emit → store.toggleRight(Vue2 Agent.vue:20/24)。右栏 shell 本身
   (AgentRightPanel)仍未挂载,留给后续任务——本任务只解开容器状态 + 顶栏开关。
+
+  SP8-P1c2 Task 3 —— 补齐上面 Task 12 留白的那两行:会话 watcher(Vue2
+  Agent.vue:120-123)现在与 refreshContextUsage() 并列触发
+  loadSessionThinking(newId)/updateThinkingForModel()(仅 newId 非空时,顺序照
+  Vue2,不 await);mounted 里在 loadSessions/loadAvailableModels 之前新增一次
+  store.loadThinkingDefaults()(Vue2 Agent.vue:151)。lastFallbackNotice toast
+  watcher 仍不在本任务范围(ModelPicker 的事,留后续任务)。ThinkingBar/
+  ModelPicker UI 本身仍未挂载——本任务只管 store 状态 + 页面接线。
 
   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
@@ -106,12 +114,21 @@ async function refreshContextUsage() {
   }
 }
 
-// Agent.vue:120-126 会话 watcher —— 本任务只接 ctxUsage。**不移植**同一个 watcher
-// 里的 loadSessionThinking/updateThinkingForModel(那两条属于 ThinkingBar,留给 1c-2,
-// 提前塞会是死代码)。
+// Agent.vue:120-126 会话 watcher —— SP8-P1c2 Task 3 补上 loadSessionThinking/
+// updateThinkingForModel(1c-1 阶段这两条留白,ThinkingBar 尚未接线,提前塞是死代码;
+// 本任务把 store 侧的四个 loader/setter 补齐,页面侧顺势接上这两行)。顺序照 Vue2
+// Agent.vue:120-123 逐字:先 loadSessionThinking(newId)+updateThinkingForModel()
+// (仅 newId 非空时,不 await——与 Vue2 一样是 fire-and-forget),再 refreshContextUsage()
+// (无论 newId 是否为空都要跑,与 Vue2 一致)。
 watch(
   () => store.activeSessionId,
-  () => refreshContextUsage(),
+  (newId) => {
+    if (newId) {
+      store.loadSessionThinking(newId)
+      store.updateThinkingForModel()
+    }
+    refreshContextUsage()
+  },
 )
 // Agent.vue:127-132 —— 只在 busy true→false 下降沿刷新(一轮结束之后);没有针对
 // selectedModel 的 watcher,与 Vue2 一致(切模型不会自动重拉用量)。
@@ -124,6 +141,15 @@ watch(
 
 onMounted(async () => {
   store.initTheme()
+  // Vue2 Agent.vue:151 —— loadThinkingDefaults 在 loadSessions/loadAvailableModels
+  // 之前调一次(ThinkingBar 需要一份兜底默认值,先于会话/模型装载就绪)。函数本身已经
+  // 吞掉了内部请求错误(agentStore.ts loadThinkingDefaults),这里的 try/catch 只是
+  // 照 Vue2 同款防御式写法保持风格一致,不是因为它真的会抛。
+  try {
+    await store.loadThinkingDefaults()
+  } catch {
+    /* ignore */
+  }
   try {
     await store.loadSessions()
   } catch {

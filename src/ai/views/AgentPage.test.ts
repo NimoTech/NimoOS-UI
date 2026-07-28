@@ -11,6 +11,10 @@ const svc = vi.hoisted(() => ({
   listAgentMessages: vi.fn(),
   updateAgentSessionTitle: vi.fn(),
   getContextUsage: vi.fn(),
+  // SP8-P1c2 Task 3 —— thinking 域(会话 watcher 触发 loadSessionThinking)。
+  getThinkingDefaults: vi.fn(),
+  getSessionThinking: vi.fn(),
+  patchSessionThinking: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
 
@@ -40,6 +44,8 @@ describe('AgentPage', () => {
     setActivePinia(pinia)
     Object.values(svc).forEach((fn) => fn.mockReset())
     svc.listAgentSessions.mockResolvedValue([])
+    svc.getThinkingDefaults.mockResolvedValue({ enabled: true, level: 'medium' })
+    svc.getSessionThinking.mockResolvedValue(null)
     localStorage.clear()
     for (const k of Object.keys(routeQuery)) delete routeQuery[k]
     push.mockClear()
@@ -51,6 +57,16 @@ describe('AgentPage', () => {
     await flushPromises()
     expect(svc.listAgentSessions).toHaveBeenCalledTimes(1)
     w.unmount()
+  })
+
+  it('SP8-P1c2:挂载时先调 loadThinkingDefaults,早于 loadSessions/loadAvailableModels(Vue2 Agent.vue:151)', async () => {
+    const store = useAgentStore()
+    const defaultsSpy = vi.spyOn(store, 'loadThinkingDefaults')
+    const sessionsSpy = vi.spyOn(store, 'loadSessions')
+    mountPage()
+    await flushPromises()
+    expect(defaultsSpy).toHaveBeenCalledTimes(1)
+    expect(defaultsSpy.mock.invocationCallOrder[0]).toBeLessThan(sessionsSpy.mock.invocationCallOrder[0])
   })
 
   it('无消息时渲染 EmptyState,不渲染消息流', async () => {
@@ -214,6 +230,37 @@ describe('AgentPage', () => {
     store.activeSessionId = 'sess-y'
     await flushPromises()
     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
+  })
+
+  it('SP8-P1c2:切会话 → loadSessionThinking(newId) + updateThinkingForModel + refreshContextUsage 三者并列触发(Vue2 Agent.vue:120-123)', async () => {
+    svc.getContextUsage.mockResolvedValue({ tokens: 1, window: 10, pct: 10 })
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    const thinkingSpy = vi.spyOn(store, 'loadSessionThinking').mockResolvedValue(undefined)
+    const modelSpy = vi.spyOn(store, 'updateThinkingForModel')
+    const baseCtx = svc.getContextUsage.mock.calls.length
+    store.activeSessionId = 'sess-thinking'
+    await flushPromises()
+    expect(thinkingSpy).toHaveBeenCalledWith('sess-thinking')
+    expect(modelSpy).toHaveBeenCalledTimes(1)
+    expect(svc.getContextUsage.mock.calls.length).toBe(baseCtx + 1)
+    w.unmount()
+  })
+
+  it('SP8-P1c2:切回无会话(newId 为空)时不调 loadSessionThinking/updateThinkingForModel', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-x'
+    await flushPromises()
+    const thinkingSpy = vi.spyOn(store, 'loadSessionThinking').mockResolvedValue(undefined)
+    const modelSpy = vi.spyOn(store, 'updateThinkingForModel')
+    store.activeSessionId = null
+    await flushPromises()
+    expect(thinkingSpy).not.toHaveBeenCalled()
+    expect(modelSpy).not.toHaveBeenCalled()
+    w.unmount()
   })
 
   it('SP8-P1c2:根元素 data-rightcollapsed 默认为 false(展开,对齐 Vue2 agentStore.js:37)', async () => {
