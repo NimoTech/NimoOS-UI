@@ -5,6 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
 import AgentSidebar from './AgentSidebar.vue'
+import { useUserProfile } from '../../../stores/userProfile'
 
 const push = vi.fn()
 const go = vi.fn()
@@ -121,6 +122,34 @@ describe('AgentSidebar', () => {
     })
     const img = w.find('.avatar img')
     expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1')
+  })
+
+  // SP8-P1c2 Task 7: avatarVersion 从组件局部 ref 上移到 useUserProfile store。
+  // 这两例证明:(1) 头像 URL 的 &v= 读的是 store 的值(初值 1),
+  // (2) store 版本变化能驱动已挂载组件的 URL 重算——这就是未来账户面板
+  // 上传头像成功后调 bumpAvatarVersion() 能让侧栏跟着刷新的证明,不需要
+  // 事件总线,不需要改 AI 区代码。
+  it('头像 URL 含 &v=<store 版本>(初值 1)', () => {
+    localStorage.setItem('access_token', 'tok-1')
+    const w = mount(AgentSidebar, {
+      props: { sessions, activeId: null },
+      global: { plugins: [i18n] },
+    })
+    const img = w.find('.avatar img')
+    expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1&v=1')
+  })
+
+  it('store.bumpAvatarVersion() 后头像 URL 的 v 参数变化(跨组件生效)', async () => {
+    localStorage.setItem('access_token', 'tok-1')
+    const w = mount(AgentSidebar, {
+      props: { sessions, activeId: null },
+      global: { plugins: [i18n] },
+    })
+    const profile = useUserProfile()
+    profile.bumpAvatarVersion()
+    await nextTick()
+    const img = w.find('.avatar img')
+    expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1&v=2')
   })
 
   it('用户名读 localStorage.user(nickname 优先),否则回落 User', () => {

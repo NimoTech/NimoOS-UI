@@ -21,6 +21,7 @@ import AgentIcon from '../icons/AgentIcon.vue'
 import AlertDialog from '../../../components/ui/AlertDialog.vue'
 import brandLogo from '../../assets/nimo-ai-logo.png'
 import defaultAvatar from '../../assets/default-avatar.svg'
+import { useUserProfile } from '../../../stores/userProfile'
 
 export interface AgentSidebarSession {
   id: string | number
@@ -53,7 +54,13 @@ const router = useRouter()
 
 const AVATAR_URL = '/v1/users/avatar?token='
 
-const avatarVersion = ref(1)
+// SP8-P1c2 Task 7: avatarVersion moved out of local state into useUserProfile
+// (see src/stores/userProfile.ts for the full rationale). This sidebar is now
+// just one consumer of the shared version — bumping it from anywhere (e.g. a
+// future account panel's upload-success handler) recomputes avatarUrl below.
+const userProfile = useUserProfile()
+// avatarFailed stays local: it is this one <img>'s load-failure state, not
+// shared profile data — every avatar instance tracks its own load outcome.
 const avatarFailed = ref(false)
 
 interface StoredUser { nickname?: string; username?: string; role?: string }
@@ -73,7 +80,7 @@ const userMeta = computed(() => user.value.role || 'NimoOS')
 const avatarUrl = computed(() => {
   const token = localStorage.getItem('access_token')
   if (!token) return ''
-  return `${AVATAR_URL}${token}&v=${avatarVersion.value}`
+  return `${AVATAR_URL}${token}&v=${userProfile.avatarVersion}`
 })
 
 // Fall back to the bundled default avatar when the endpoint is unavailable
@@ -85,7 +92,16 @@ function onAvatarError() {
   avatarFailed.value = true
 }
 
-// 1c: avatar-changed refresh (Vue2 $EventBus 'avatar-changed' 订阅在这里补回)
+// No 'avatar-changed' subscription here (unlike Vue2's $EventBus version):
+// New-UI has no event bus, and no account/avatar UI to change it from yet —
+// the only place to change an avatar today is the old Vue2 app, a separate
+// page load, so a live cross-app refresh isn't possible and isn't worth
+// inventing a channel for. Instead, avatarUrl above reads userProfile's
+// shared avatarVersion (src/stores/userProfile.ts); when New-UI gets its own
+// account panel, its upload-success handler calls bumpAvatarVersion() and
+// this (and every other) avatar refreshes automatically. Changing the
+// avatar in the *old* app only shows up here after a page reload — that's
+// expected, not a bug (see the store's comment for why).
 
 function goBack() {
   if (window.history.length > 1) router.go(-1)
