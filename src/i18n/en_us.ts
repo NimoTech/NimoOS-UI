@@ -847,6 +847,10 @@ export default {
   photosPersonStatFirstSeen: 'First seen',
   photosPersonMakeAlbum: 'Make album',
   photosPersonBackground: 'Background',
+  // ★ New-UI addition (Task 10): see zh_cn.ts for the reasoning — Vue2 :33 is the generic
+  // $t('Edit') label on the pill trigger button itself (not the three menu items below it);
+  // reusing photosAlbumEdit/topbarEdit would tie this to unrelated features.
+  photosPersonEdit: 'Edit',
   photosPersonRename: 'Rename person',
   photosPersonMergeInto: 'Merge into another person',
   photosPersonDelete: 'Delete person',

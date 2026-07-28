@@ -845,6 +845,11 @@ export default {
   photosPersonStatFirstSeen: '最早出现',
   photosPersonMakeAlbum: '制作相册',
   photosPersonBackground: '背景',
+  // ★ New-UI 补齐(Task 10):Vue2 :33 该按钮字面是通用的 $t('Edit')(胶囊触发按钮本身的
+  // 文案,不是下面三个菜单项),本仓 photosAlbumEdit/topbarEdit 等既有"编辑"键都各自绑定
+  // 别的具体场景(相册网格编辑态/桌面编辑态),语义不是"打开这个人物的重命名/合并/删除菜单"——
+  // 不复用会在那些键改动时被无关连累,故单独开一个人物专属键。
+  photosPersonEdit: '编辑',
   photosPersonRename: '重命名人物',
   photosPersonMergeInto: '合并到另一个人物',
   photosPersonDelete: '删除人物',
