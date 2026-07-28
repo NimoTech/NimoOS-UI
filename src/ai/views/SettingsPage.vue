@@ -41,6 +41,7 @@ import { useAiTheme } from '../stores/aiTheme'
 import { useToast } from '../../stores/toast'
 import SettingsRail from '../components/settings/SettingsRail.vue'
 import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
+import ModelsSection from '../components/settings/sections/ModelsSection.vue'
 import AgentIcon from '../components/icons/AgentIcon.vue'
 import {
   ALL_ITEMS,
@@ -64,7 +65,7 @@ import '../styles/settings-styles.scss'
 // 本任务先让四个模型组分区也指向 SectionPlaceholder(Task 9/10/11 各自替换
 // 对应一行 + 加一个 import),这样本任务可独立通过测试,不用等分区实现。
 const SECTION_COMPONENTS: Record<SectionId, Component> = {
-  models: SectionPlaceholder, // Task 9 替换
+  models: ModelsSection, // Task 9 —— 已替换
   providers: SectionPlaceholder, // Task 10 替换
   privacy: SectionPlaceholder, // Task 11 替换
   thinking: SectionPlaceholder, // Task 11 替换

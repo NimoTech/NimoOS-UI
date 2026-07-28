@@ -627,6 +627,53 @@ export default {
   aiCfgSectionDeferred: '该分区将在后续阶段开启',
   aiCfgKnowledgeSoon: '知识库详情页将在后续阶段开启',
   aiCfgPlaceholderBody: '该分区尚未迁移到新界面,将在后续阶段开启。',
+  // SP8-P2a Task 9 —— ModelsSection(本地模型)。中文值逐字取自 Vue2 生产
+  // zh_CN.json 对应英文 key 的既有译文(命令见 brief Global Constraints);
+  // 全部 39 处 $t() 调用逐条查证,一条自拟都没有(见任务报告的自拟文案清单)。
+  // aiCfgLocalModels / aiCfgRefresh 复用 Task 3/8 已建的既有键(Vue2 本身也是
+  // 同一个 $t('Local models') / $t('Refresh') 键在导航与本页面两处复用)。
+  aiCfgModelsDesc: '在 NAS 上离线运行的模型。可从 Ollama 拉取或从 HuggingFace 导入 GGUF —— 全程不出本机。',
+  aiCfgInstalledModels: '已安装模型',
+  aiCfgImportComplete: '导入完成',
+  aiCfgImportFailed: '导入失败',
+  aiCfgRegisteringModel: '正在注册模型…',
+  aiCfgImporting: '正在导入',
+  aiCfgClose: '关闭',
+  aiCfgCancel: '取消',
+  // Vue2 把 emoji 写进了 key 本身(`$t('⚠️ Do not shut down...')`);本仓键名
+  // 用 aiCfgDownloadWarning,但文案值保留开头的 ⚠️ emoji(视觉 1:1)。
+  aiCfgDownloadWarning: '⚠️ 下载期间请勿关闭 NimoOS 机器，否则需重新下载',
+  aiCfgEtaApprox: '约 {eta}',
+  aiCfgEtaSec: '{n} 秒',
+  aiCfgEtaMin: '{n} 分钟',
+  aiCfgEtaHr: '{n} 小时',
+  aiCfgLoadingEllipsis: '加载中…',
+  aiCfgNoModelsYet: '暂无已安装模型',
+  aiCfgColName: '名称',
+  aiCfgColSize: '大小',
+  aiCfgColActions: '操作',
+  aiCfgDelete: '删除',
+  aiCfgPullFromOllama: '从 Ollama 拉取',
+  aiCfgModelNamePlaceholder: '模型名，如 llama3:8b',
+  aiCfgPull: '拉取',
+  aiCfgPullingHint: '正在拉取：{names} （拉取在后台进行，请稍后手动刷新查看）',
+  aiCfgImportGgufTitle: '从 HuggingFace 导入 GGUF',
+  aiCfgSearchModelsPlaceholder: '搜索模型，如 Qwen GGUF',
+  // 与 aiCfgSearch(导航「搜索」分区标签,P2b 的 Agent 检索设置)是两个不同
+  // 语义的键,即便当前字面值恰好都是「搜索」——分开建键,避免把两处耦合在
+  // 同一条译文上(见任务报告「偏离」条目)。
+  aiCfgSearchBtn: '搜索',
+  aiCfgSearchingEllipsis: '搜索中…',
+  aiCfgSelectedRepo: '已选: {repo}',
+  aiCfgLoadFiles: '加载文件',
+  aiCfgImportBtn: '导入',
+  aiCfgConfirmDeleteModel: '确定删除模型 "{name}"？此操作不可恢复。',
+  aiCfgDeletedName: '已删除 {name}',
+  aiCfgDeleteFailed: '删除失败',
+  aiCfgPullStartedFor: '已发起拉取 {name}',
+  aiCfgPullRequestFailed: '拉取请求失败',
+  aiCfgSearchFailed: '搜索失败',
+  aiCfgImportStartedFor: '已发起导入 {file}',
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。

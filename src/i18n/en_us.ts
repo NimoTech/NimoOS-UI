@@ -617,6 +617,56 @@ export default {
   aiCfgSectionDeferred: 'This section will be enabled in a later phase',
   aiCfgKnowledgeSoon: 'The knowledge details page will be enabled in a later phase',
   aiCfgPlaceholderBody: 'This section has not been migrated yet — coming in a later phase.',
+  // SP8-P2a Task 9 — ModelsSection (local models). Verbatim from Vue2
+  // production en_US.json's matching keys (all 39 $t() call sites verified,
+  // see task report's "self-authored copy" list — it's empty).
+  // aiCfgLocalModels / aiCfgRefresh reuse the existing Task 3/8 keys (Vue2
+  // itself reuses the same $t('Local models') / $t('Refresh') key in both
+  // the nav and this page).
+  aiCfgModelsDesc: 'Models that run offline on the NAS. Pull from Ollama or import GGUF from HuggingFace — all without leaving this device.',
+  aiCfgInstalledModels: 'Installed models',
+  aiCfgImportComplete: 'Import complete',
+  aiCfgImportFailed: 'Import failed',
+  aiCfgRegisteringModel: 'Registering model…',
+  aiCfgImporting: 'Importing',
+  aiCfgClose: 'Close',
+  aiCfgCancel: 'Cancel',
+  // Vue2 baked the emoji into the key itself (`$t('⚠️ Do not shut down...')`);
+  // this repo's key is aiCfgDownloadWarning, but the value keeps the leading
+  // ⚠️ emoji (visual 1:1).
+  aiCfgDownloadWarning: '⚠️ Do not shut down the NimoOS machine during download, or the download will need to restart.',
+  aiCfgEtaApprox: '~{eta}',
+  aiCfgEtaSec: '{n} sec',
+  aiCfgEtaMin: '{n} min',
+  aiCfgEtaHr: '{n} hr',
+  aiCfgLoadingEllipsis: 'Loading…',
+  aiCfgNoModelsYet: 'No models installed yet.',
+  aiCfgColName: 'Name',
+  aiCfgColSize: 'Size',
+  aiCfgColActions: 'Actions',
+  aiCfgDelete: 'Delete',
+  aiCfgPullFromOllama: 'Pull from Ollama',
+  aiCfgModelNamePlaceholder: 'Model name, e.g. llama3:8b',
+  aiCfgPull: 'Pull',
+  aiCfgPullingHint: 'Pulling: {names} (running in background — refresh manually to check progress)',
+  aiCfgImportGgufTitle: 'Import GGUF from HuggingFace',
+  aiCfgSearchModelsPlaceholder: 'Search models, e.g. Qwen GGUF',
+  // Distinct from aiCfgSearch (the "Search" nav section label, P2b's agent
+  // search settings) — a separate key even though the current literal text
+  // happens to be identical, to avoid coupling two different concepts to one
+  // translation (see the task report's "deviations" entry).
+  aiCfgSearchBtn: 'Search',
+  aiCfgSearchingEllipsis: 'Searching…',
+  aiCfgSelectedRepo: 'Selected: {repo}',
+  aiCfgLoadFiles: 'Load files',
+  aiCfgImportBtn: 'Import',
+  aiCfgConfirmDeleteModel: 'Are you sure you want to delete model "{name}"? This cannot be undone.',
+  aiCfgDeletedName: 'Deleted {name}',
+  aiCfgDeleteFailed: 'Delete failed',
+  aiCfgPullStartedFor: 'Pull started for {name}',
+  aiCfgPullRequestFailed: 'Pull request failed',
+  aiCfgSearchFailed: 'Search failed',
+  aiCfgImportStartedFor: 'Import started for {file}',
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2
