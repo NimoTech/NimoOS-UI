@@ -377,6 +377,32 @@ describe('PhotoLightbox 持久挂载:onMounted 时灯箱未开', () => {
   })
 })
 
+describe('PhotoLightbox 加入相册(Task 9)', () => {
+  it('顶栏在收藏按钮与下载按钮之间渲染「加入相册」按钮', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    const btns = Array.from(w.find('.lb-top').element.querySelectorAll('button, a'))
+    const favIdx = btns.findIndex((b) => b.classList.contains('lb-fav'))
+    const addIdx = btns.findIndex((b) => b.classList.contains('lb-add-album'))
+    const dlIdx = btns.findIndex((b) => b.classList.contains('lb-download'))
+    expect(favIdx).toBeGreaterThanOrEqual(0)
+    expect(addIdx).toBeGreaterThan(favIdx)
+    expect(addIdx).toBeLessThan(dlIdx)
+  })
+
+  it('点「加入相册」emit add-to-album(current.id),灯箱保持打开', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    await w.find('.lb-add-album').trigger('click')
+    await nextTick()
+    expect(w.emitted('add-to-album')?.[0]).toEqual(['a'])
+    expect(lb.open.value).toBe(true)
+    expect(w.find('.lightbox').exists()).toBe(true)
+  })
+})
+
 describe('PhotoLightbox 实况照片', () => {
   it('实况项渲染实况徽标;按住播 <video src=liveUrl>,松开消失', async () => {
     const w = mountLb()

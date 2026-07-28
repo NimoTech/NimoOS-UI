@@ -28,6 +28,9 @@ const svc = vi.hoisted(() => ({
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     favorite: vi.fn().mockResolvedValue(undefined),
     unfavorite: vi.fn().mockResolvedValue(undefined),
+    // Task 9: 灯箱「加入相册」→ AlbumPickerDialog 真实挂载,走 usePhotosAlbums()。
+    listAlbums: vi.fn().mockResolvedValue([]),
+    batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -76,6 +79,8 @@ beforeEach(() => {
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.recordView.mockClear().mockResolvedValue(undefined)
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
+  svc.photos.listAlbums.mockClear().mockResolvedValue([])
+  svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   lb.__resetForTest()
 })
 
@@ -157,5 +162,34 @@ describe('Photos.vue 灯箱接线', () => {
     expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('1'), 4000)
     // PhotoLightbox 自己在 doDelete 里已经 close 了,Photos.vue 不重复关。
     expect(lb.open.value).toBe(false)
+  })
+
+  // Task 9: 灯箱 emit add-to-album(id) → Photos.vue 打开 AlbumPickerDialog,assetIds=[id]。
+  it('灯箱「加入相册」→ picker 打开且 assetIds=[当前项 id]', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Solo', assetCount: 0 }])
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-add-album').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
+    // 灯箱本身不因加入相册而关闭(照 Vue2:emit 后由宿主开面板,灯箱保持打开)。
+    expect(lb.open.value).toBe(true)
+
+    const item = w.find('[data-test="album-picker-item"]')
+    await item.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(9, ['a'])
   })
 })

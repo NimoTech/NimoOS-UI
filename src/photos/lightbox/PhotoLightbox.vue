@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // P2 灯箱壳 —— 结构照 Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue 移植,
 // 状态全读 useLightbox() 单例(T2/T3),静图舞台委托 PhotoImageViewer(T5,自带底部缩放条)。
-// delta(见 task-6-brief.md):1) 删「加入相册」「交给 Nimo」两钮;2) 详情栏改可 toggle(占位到 T7);
+// delta(见 task-6-brief.md):1) 加入相册已于 P4(Task 9)加回,Ask Nimo 仍归 SP8;2) 详情栏改可 toggle(占位到 T7);
 // 3) 顶栏不放缩放钮(PhotoImageViewer 自持底部缩放条,减少跨组件 ref);4) 当前项一律按 id 比较。
 // Task 9 收尾:挂载 T7 的 PhotoInfoPanel(读 lb.detail,水合后的明细,而非 list-item 占位的
 // current)与 T8 的 PhotoFilmstrip(绝对下标 select → lb.goTo)。PhotoInfoPanel 自身样式假设
@@ -19,6 +19,7 @@ import PhotoFilmstrip from './PhotoFilmstrip.vue'
 const emit = defineEmits<{
   (e: 'delete', id: string | number): void
   (e: 'toggle-fav', id: string | number, fav: boolean): void
+  (e: 'add-to-album', id: string | number): void
 }>()
 
 const { t } = useI18n()
@@ -45,6 +46,14 @@ function onToggleFav(): void {
   if (!cur) return
   void lb.toggleFav() // 同步乐观翻转 favIds → isFav 立即反映新态
   emit('toggle-fav', cur.id, lb.isFav.value)
+}
+
+// —— 加入相册 ——(照 Vue2 PhotosLightbox.vue:13-14:仅 emit,不含逻辑;宿主接 T5
+// AlbumPickerDialog 打开面板,灯箱本身不关闭)。
+function onAddToAlbum(): void {
+  const cur = lb.current.value
+  if (!cur) return
+  emit('add-to-album', cur.id)
 }
 
 // —— 删除确认 ——(照 Vue2 :151-165)
@@ -164,6 +173,15 @@ onBeforeUnmount(() => {
         @click="onToggleFav"
       >
         <svg viewBox="0 0 24 24" width="17" height="17" :fill="lb.isFav.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
+      </button>
+      <button
+        class="lb-icon-btn lb-add-album"
+        type="button"
+        :title="t('photosAddToAlbum')"
+        :aria-label="t('photosAddToAlbum')"
+        @click="onAddToAlbum"
+      >
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 9v6M9 12h6"/></svg>
       </button>
       <a
         class="lb-icon-btn lb-download"

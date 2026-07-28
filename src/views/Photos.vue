@@ -12,6 +12,9 @@
 // 翻页集(与用户网格所见一致,grid 自己 emit 的 list 恒为 undefined)交给
 // useLightbox().openAt;PhotoLightbox 挂在模板末尾,delete 事件落到 store.deleteAssets +
 // 4000ms toast(灯箱已在 confirm 时自行 close,这里不重复关)。
+// Task 9(SP7-P4 相册)追加:选择工具栏批量「加入相册」与灯箱单张「加入相册」统一接
+// AlbumPickerDialog(T5)—— pickerOpen/pickerIds + openAlbumPicker(ids),@added 清空
+// selection(照 Vue2 pickAlbum:587-595)。
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../components/shell/AreaShell.vue'
@@ -19,6 +22,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { useTimelineStore } from '../photos/stores/timeline'
@@ -56,6 +60,19 @@ function toggleSelect(id: string | number) {
   else selected.value = [...selected.value, id]
 }
 function cancelSelection() { selected.value = [] }
+
+// Task 9: 「加入相册」入口(选择工具栏批量 / 灯箱单张)—— 统一走 AlbumPickerDialog(T5)。
+const pickerOpen = ref(false)
+const pickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>) {
+  pickerIds.value = ids
+  pickerOpen.value = true
+}
+// 照 Vue2 pickAlbum:587-595 结尾 this.selected = [] —— 加完清空选择态(不管是从工具栏批量
+// 还是灯箱单张触发,批量场景才有 selected 非空,单张场景这里恒为空数组,赋值是安全的空操作)。
+function onAlbumAdded() {
+  selected.value = []
+}
 
 async function onBatchDelete(ids: Array<string | number>) {
   const count = await store.deleteAssets(ids.map(String))
@@ -158,6 +175,7 @@ onUnmounted(() => {
             :count="selected.length"
             @clear="cancelSelection"
             @delete="onBatchDelete([...selected])"
+            @add-to-album="openAlbumPicker([...selected])"
           />
           <PhotosToolbar
             :tab="tab" :density="density" :count="filteredCount"
@@ -176,7 +194,12 @@ onUnmounted(() => {
   </AreaShell>
   <!-- 收藏态由 photosFavorites store 同源(灯箱内部已直接调用 usePhotosFavorites().toggle),
        此处空接即可,无需再往上冒泡处理。 -->
-  <PhotoLightbox @delete="onLightboxDelete" @toggle-fav="() => {}" />
+  <PhotoLightbox
+    @delete="onLightboxDelete"
+    @toggle-fav="() => {}"
+    @add-to-album="(id) => openAlbumPicker([id])"
+  />
+  <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
 </template>
 
 <style scoped>

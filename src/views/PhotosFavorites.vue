@@ -3,6 +3,8 @@
 // 提供数据/操作),接线导出 zip + 空态 + tab 过滤 + 灯箱(P2 useLightbox 单例)。壳结构照
 // Photos.vue(时间线视图,src/views/Photos.vue)的 AreaShell/photos-layout/photos-main 复制
 // (见 task-8-brief.md)。路由注册留给 T10。
+// Task 9(SP7-P4 相册)追加:选择工具栏批量「加入相册」与灯箱单张「加入相册」,同 Photos.vue
+// 的 pickerOpen/pickerIds + openAlbumPicker(ids) 模式,接 AlbumPickerDialog(T5)。
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../components/shell/AreaShell.vue'
@@ -10,6 +12,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosFavorites } from '../photos/stores/favorites'
@@ -44,6 +47,18 @@ function toggleSelect(id: string | number) {
   else selected.value = [...selected.value, id]
 }
 function cancelSelection() { selected.value = [] }
+
+// Task 9(SP7-P4 相册):「加入相册」入口(选择工具栏批量 / 灯箱单张)—— 同 Photos.vue 的统一
+// 模式,接 AlbumPickerDialog(T5)。@added 清空选择态;收藏列表本身不受影响,不需要刷新。
+const pickerOpen = ref(false)
+const pickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>) {
+  pickerIds.value = ids
+  pickerOpen.value = true
+}
+function onAlbumAdded() {
+  selected.value = []
+}
 
 // PhotosGrid 一旦有非空 selected,onTileClick 内部就切进「继续勾选」分支而非「开图」——
 // 没有配套的选择工具栏会让用户勾一个框就把整个网格的单击行为锁死、且无处可退出选择态
@@ -105,6 +120,7 @@ onMounted(() => {
             :count="selected.length"
             @clear="cancelSelection"
             @delete="onBatchDelete([...selected])"
+            @add-to-album="openAlbumPicker([...selected])"
           />
           <PhotosToolbar
             :tab="tab" :density="density" :count="filteredCount"
@@ -121,7 +137,12 @@ onMounted(() => {
       </main>
     </div>
   </AreaShell>
-  <PhotoLightbox @delete="onLightboxDelete" @toggle-fav="() => {}" />
+  <PhotoLightbox
+    @delete="onLightboxDelete"
+    @toggle-fav="() => {}"
+    @add-to-album="(id) => openAlbumPicker([id])"
+  />
+  <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
 </template>
 
 <style scoped>

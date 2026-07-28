@@ -5,8 +5,11 @@
 // (src/files/components/SelectionToolbar.vue).
 import { useI18n } from 'vue-i18n'
 
+// Task 9 (SP7-P4 相册): 加回「加入相册」按钮(P1 按范围收口砍掉,见头部 PhotosGrid.vue
+// 的同款 delta 注释)——新 emit `add-to-album`,对宿主是可选监听,不接不报错。位置在
+// 「取消」与「删除」之间,非 danger 样式。
 const props = defineProps<{ count: number }>()
-const emit = defineEmits<{ (e: 'clear'): void; (e: 'delete'): void }>()
+const emit = defineEmits<{ (e: 'clear'): void; (e: 'delete'): void; (e: 'add-to-album'): void }>()
 const { t } = useI18n()
 </script>
 
@@ -14,6 +17,7 @@ const { t } = useI18n()
   <div class="selection-toolbar">
     <span class="sel-count">{{ t('photosSelectedCount', { count: props.count }) }}</span>
     <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('photosCancel') }}</button>
+    <button class="sel-btn sel-add-album" @click="emit('add-to-album')">{{ t('photosAddToAlbum') }}</button>
     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('photosDelete') }}</button>
   </div>
 </template>

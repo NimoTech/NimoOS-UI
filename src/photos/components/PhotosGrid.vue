@@ -12,9 +12,11 @@
 //     from `service.photos.spriteUrl(id)`. 300ms enter-debounce, rAF-throttled
 //     mousemove, 600ms-idle -> 400ms/frame auto-advance, leave/unmount bump the
 //     token — all copied verbatim.
-//  3. P1 scope cut: selectbar renders ONLY delete + cancel (favorite/add-to-album/
-//     ask-nimo return in P3/P4/SP8). No FilterBar, no upload empty-state button,
-//     no search-mode empty state (Vuex `isSearchMode` dependency dropped).
+//  3. P1 scope cut: selectbar rendered ONLY delete + cancel at the time (favorite/
+//     add-to-album/ask-nimo deferred to P3/P4/SP8). Update: add-to-album shipped in
+//     P4 (Task 9, PhotosSelectionToolbar.vue) — Ask Nimo still deferred to SP8.
+//     No FilterBar, no upload empty-state button, no search-mode empty state
+//     (Vuex `isSearchMode` dependency dropped).
 //  4. i18n: `$t('English source')` -> `t('photosXxx')` (Task 4 key table).
 //  5. Styling rebuilt on New-UI tokens; fixed video-chrome colors (badge bg/fg)
 //     carry `theme-exception` comments, same precedent as MediaViewer/ViewerShell.

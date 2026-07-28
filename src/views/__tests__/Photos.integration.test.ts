@@ -34,6 +34,10 @@ const svc = vi.hoisted(() => ({
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     favorite: vi.fn().mockResolvedValue(undefined),
     unfavorite: vi.fn().mockResolvedValue(undefined),
+    // Task 9: 选择工具栏/灯箱「加入相册」→ AlbumPickerDialog 真实挂载,内部走
+    // usePhotosAlbums()(listAlbums/batchAddToAlbum),不是 stub。
+    listAlbums: vi.fn().mockResolvedValue([]),
+    batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -86,6 +90,8 @@ beforeEach(() => {
   svc.photos.getStatus.mockClear().mockResolvedValue({})
   svc.photos.listTasks.mockClear().mockResolvedValue({ tasks: [] })
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
+  svc.photos.listAlbums.mockClear().mockResolvedValue([])
+  svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   lb.__resetForTest()
 })
 
@@ -204,6 +210,39 @@ describe('Photos.vue integration', () => {
     await w.get('.sel-clear').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.selection-toolbar').exists()).toBe(false)
+  })
+
+  // Task 9: 选择工具栏「加入相册」→ AlbumPickerDialog(open=true, assetIds=已选中)→
+  // 选相册项 → service.batchAddToAlbum(albumId, ids) 真被调 → selection 清空(照 Vue2
+  // pickAlbum:587-595 结尾 this.selected = [])。
+  it('选择工具栏「加入相册」→ picker 打开且 assetIds=已选中;选相册后清空 selection', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 1, name: 'Trip', assetCount: 0 }])
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a'), asset('b')] }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const checkboxes = w.findAll('.tile-check-box')
+    await checkboxes[0].trigger('change')
+    await checkboxes[1].trigger('change')
+    await w.vm.$nextTick()
+
+    const addBtn = w.find('.sel-add-album')
+    expect(addBtn.exists()).toBe(true)
+    await addBtn.trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
+    const item = w.find('[data-test="album-picker-item"]')
+    expect(item.exists()).toBe(true)
+    await item.trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(1, ['a', 'b'])
+    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
   })
 
   it('socket connect → 重同步 fetchTasks/fetchIndexStatus/fetchTimeline', async () => {

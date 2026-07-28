@@ -530,4 +530,37 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(showSpy).toHaveBeenCalled()
     expect(fetchSpy).toHaveBeenCalledWith('7')
   })
+
+  // Task 9: 灯箱「加入相册」→ 打开 AlbumPickerDialog(assetIds=[当前项 id])。只接灯箱这一处——
+  // edit 工具条的「添加照片」(AlbumLibraryPicker)已有自己的语义,不重复放「加入相册」;
+  // 加到的是别的相册,不需要刷新本相册的资产列表。
+  it('灯箱「加入相册」→ AlbumPickerDialog 打开(不刷新本相册资产)', async () => {
+    svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
+    svc.photos.batchAddToAlbum.mockClear()
+    const { w } = await mountView('7')
+    const albums = usePhotosAlbums()
+    const fetchAssetsSpy = vi.spyOn(albums, 'fetchAlbumAssets')
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    fetchAssetsSpy.mockClear() // 只关心「加入相册」之后是否多调了一次
+
+    await w.find('.lb-add-album').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
+    expect(lb.open.value).toBe(true) // 灯箱不因加入相册而关闭
+
+    const item = w.find('[data-test="album-picker-item"]')
+    expect(item.exists()).toBe(true)
+    await item.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(7, ['a'])
+    expect(fetchAssetsSpy).not.toHaveBeenCalled() // 加到的是别的相册,不刷新本相册
+  })
 })

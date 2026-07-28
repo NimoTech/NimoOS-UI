@@ -17,25 +17,43 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.get('.sel-count').text()).toBe('已选择 3 项')
   })
 
-  it('renders as the Files-style .selection-toolbar with exactly two .sel-btn buttons', () => {
+  // Task 9 起工具栏第三个按钮「加入相册」落地(取消/加入相册/删除),不再是两钮。
+  it('renders as the Files-style .selection-toolbar with exactly three .sel-btn buttons', () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     expect(w.find('.selection-toolbar').exists()).toBe(true)
-    expect(w.findAll('.sel-btn')).toHaveLength(2)
+    expect(w.findAll('.sel-btn')).toHaveLength(3)
   })
 
-  it('clicking the clear button emits clear (not delete)', async () => {
+  it('clicking the clear button emits clear (not delete/add-to-album)', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     await w.get('.sel-clear').trigger('click')
     expect(w.emitted('clear')).toBeTruthy()
     expect(w.emitted('delete')).toBeUndefined()
+    expect(w.emitted('add-to-album')).toBeUndefined()
   })
 
-  it('clicking the delete button (styled .danger) emits delete (not clear)', async () => {
+  it('clicking the delete button (styled .danger) emits delete (not clear/add-to-album)', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     const del = w.get('.sel-delete')
     expect(del.classes()).toContain('danger')
     await del.trigger('click')
     expect(w.emitted('delete')).toBeTruthy()
     expect(w.emitted('clear')).toBeUndefined()
+    expect(w.emitted('add-to-album')).toBeUndefined()
+  })
+
+  // Task 9: 「加入相册」按钮在「取消」与「删除」之间,非 danger 样式,emit add-to-album,
+  // 不影响既有 clear/delete 契约(回归)。
+  it('「加入相册」位于取消与删除之间、非 danger、click 只 emit add-to-album', async () => {
+    const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
+    const btns = w.findAll('.sel-btn')
+    expect(btns[0]!.classes()).toContain('sel-clear')
+    expect(btns[1]!.classes()).toContain('sel-add-album')
+    expect(btns[2]!.classes()).toContain('sel-delete')
+    expect(btns[1]!.classes()).not.toContain('danger')
+    await btns[1]!.trigger('click')
+    expect(w.emitted('add-to-album')).toBeTruthy()
+    expect(w.emitted('clear')).toBeUndefined()
+    expect(w.emitted('delete')).toBeUndefined()
   })
 })

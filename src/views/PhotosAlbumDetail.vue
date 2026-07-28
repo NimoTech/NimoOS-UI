@@ -20,6 +20,7 @@ import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -55,6 +56,17 @@ const menuOpen = ref(false)
 const sortMenuOpen = ref(false)
 const confirmDelete = ref(false)
 const pickerOpen = ref(false)
+// Task 9(SP7-P4 相册):灯箱「加入相册」→ 加到别的相册(不是本相册)—— 命名与上面
+// AlbumLibraryPicker 的 pickerOpen(本相册「添加照片」)区分,避免同名 ref 混淆两个不同面板。
+const albumPickerOpen = ref(false)
+const albumPickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>) {
+  albumPickerIds.value = ids
+  albumPickerOpen.value = true
+}
+// 加到的是别的相册,不是本相册——无需 fetchAlbumAssets 刷新(brief 明确)。空函数只为占位,
+// 与 Photos.vue/PhotosFavorites.vue 的同名接线保持一致的可读性。
+function onAlbumPickerAdded(): void {}
 
 const titleInputRef = ref<HTMLInputElement | null>(null)
 const morePopRef = ref<HTMLElement | null>(null)
@@ -247,7 +259,8 @@ function onPickerAdded(): void {
   void albums.fetchAlbumAssets(albumId.value)
 }
 
-// ── PhotoLightbox(P2)接线——只挂 @delete(brief 明确:@add-to-album 归 T9)──
+// ── PhotoLightbox(P2)接线——@delete + @add-to-album(T9:只接灯箱一处,edit 工具条
+// 「添加照片」已有自己的语义,不重复放「加入相册」)──
 // 照 P3 收藏视图 T8 的同款处理:灯箱已在真实资产层面删除,相册内的引用也要跟着消失,
 // 靠重新拉取该相册的资产列表实现(而不是本地过滤,store 才是真源)。
 async function onLightboxDelete(assetId: string | number): Promise<void> {
@@ -549,7 +562,12 @@ watch(gridRef, () => {
     @added="onPickerAdded"
   />
 
-  <PhotoLightbox @delete="onLightboxDelete" @toggle-fav="() => {}" />
+  <PhotoLightbox
+    @delete="onLightboxDelete"
+    @toggle-fav="() => {}"
+    @add-to-album="(id) => openAlbumPicker([id])"
+  />
+  <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
 </template>
 
 <style scoped>

@@ -27,6 +27,9 @@ const svc = vi.hoisted(() => ({
     spriteMeta: vi.fn(),
     getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
     getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
+    // Task 9: 选择工具栏/灯箱「加入相册」→ AlbumPickerDialog 真实挂载。
+    listAlbums: vi.fn().mockResolvedValue([]),
+    batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -78,6 +81,8 @@ beforeEach(() => {
   svc.photos.exportFavoritesUrl.mockClear().mockReturnValue('/v1/photos/favorites/export?token=T1')
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.recordView.mockClear().mockResolvedValue(undefined)
+  svc.photos.listAlbums.mockClear().mockResolvedValue([])
+  svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   lb.__resetForTest()
 })
 
@@ -196,6 +201,59 @@ describe('PhotosFavorites.vue', () => {
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
     expect(fetchFavSpy).toHaveBeenCalled()
     expect(w.find('.selection-toolbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+  })
+
+  // Task 9: 选择工具栏「加入相册」→ picker(assetIds=已选中)→ 选相册后清空 selection(收藏
+  // 列表本身不变)。
+  it('选择工具栏「加入相册」→ picker 打开且 assetIds=已选中;选相册后清空 selection', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+    svc.photos.listAlbums.mockResolvedValue([{ id: 5, name: 'Trip', assetCount: 0 }])
+    const w = await mountView()
+
+    const checkboxes = w.findAll('.tile-check-box')
+    await checkboxes[0].trigger('change')
+    await checkboxes[1].trigger('change')
+    await w.vm.$nextTick()
+
+    const addBtn = w.find('.sel-add-album')
+    expect(addBtn.exists()).toBe(true)
+    await addBtn.trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
+    const item = w.find('[data-test="album-picker-item"]')
+    await item.trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(5, ['a', 'b'])
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
+  })
+
+  // Task 9: 灯箱「加入相册」→ picker(assetIds=[当前项 id])。
+  it('灯箱「加入相册」→ picker 打开且 assetIds=[当前项 id]', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a')])
+    svc.photos.listAlbums.mockResolvedValue([{ id: 6, name: 'Solo', assetCount: 0 }])
+    const w = await mountView()
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-add-album').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
+    expect(lb.open.value).toBe(true) // 灯箱不因加入相册而关闭
+
+    const item = w.find('[data-test="album-picker-item"]')
+    await item.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(6, ['a'])
   })
 
   it('选择态下点 @clear(sel-clear)→ 清空选择,工具栏消失', async () => {
