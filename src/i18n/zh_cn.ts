@@ -781,10 +781,12 @@ export default {
   photosPeopleMlOfflineTitle: 'Photos AI 后端离线',
   photosPeopleMlOfflineBody: '人脸识别与智能搜索暂时暂停，直到 Photos AI 服务启动完成或恢复可用。现有人物仍会显示。',
   photosPeopleMergeFound: 'Nimo 发现了 {n} 个可能的合并',
-  photosPeopleMergeReasonNamed: '两个集群的人脸高度相似（{pct}%），可能都是 {name}。',
-  photosPeopleMergeReasonUnnamed: '两个集群的人脸高度相似（{pct}%），可能是同一个人。',
+  // 术语红线:"集群"同"簇/聚类"一类工程词,面向用户文案不用,改"两组人脸/已合并到"(fix-1)
+  photosPeopleMergeReasonNamed: '两组人脸高度相似（{pct}%），可能都是 {name}。',
+  photosPeopleMergeReasonUnnamed: '两组人脸高度相似（{pct}%），可能是同一个人。',
   photosPeopleMergeReview: '查看',
-  // photosPeopleMergeDismissAll 未加:Vue2 该关闭按钮无 title/aria(已核实全文件无 title=/aria-label=),brief 引用的 :126 行原文不存在,报告详见 task-3-report.md
+  // ★ New-UI 补齐:Vue2 该关闭按钮无 title/aria(a11y 缺口),New-UI 必须补 aria-label,协调者已给定文案(fix-1)
+  photosPeopleMergeDismissAll: '忽略全部合并建议',
   photosPeoplePinned: '置顶',
   photosPeoplePinnedHint: '你收藏的人物',
   photosPeopleNamedSection: '已命名',
@@ -798,7 +800,7 @@ export default {
   photosPeoplePhotosCount: '{n} 张照片',
   photosPersonNameThis: '为这个人命名…',
   photosPersonMergeExisting: '合并到已有人物…',
-  photosPersonDeleteCluster: '删除集群',
+  photosPersonDeleteCluster: '删除这个人物', // 术语红线:原查得"删除集群",改掉"集群"(fix-1)
   photosPersonNameTitle: '为这个人命名',
   photosPersonNamePlaceholder: '如 Sara / Lily / 老松',
   photosPersonNameHint: '命名后 Nimo 会把 {n} 张照片中包含这张脸的都归到这个人名下，以后新导入也会自动识别。',
@@ -807,7 +809,7 @@ export default {
   photosPersonMergeTitle: '合并到已有人物',
   photosPersonMergeSearch: '搜索现有人物…',
   photosPersonNoMatch: '没有匹配的人物',
-  photosPersonMergedToast: '集群已合并到「{name}」',
+  photosPersonMergedToast: '已合并到「{name}」', // 术语红线:原查得"集群已合并到…",去掉"集群"(fix-1)
   photosPersonMergeFailed: '合并失败', // ★ New-UI 补齐,brief 已直给中文
   photosPersonDeleteTitle: '删除这个人物分组？',
   photosPersonDeleteBody: '照片会保留。人物分组与识别记录将被永久删除。你可以在 5 秒内撤销。',
@@ -846,11 +848,13 @@ export default {
   photosPersonKeyPhotoToast: '关键照片已更新',
   photosPersonKeyPhotoNoFace: '那张照片中没有这个人的脸',
   photosPersonKeyPhotoFailed: '设置关键照片失败',
-  // Vue2 :884-897 单/复数各有一套文案,New-UI 只留 3 键装不下 2×2=4 条,
-  // 这里取复数/通用形式(含 {n},n=1 时读起来稍别扭但语义正确);单选专属文案未纳入,见报告疑虑项
-  photosPersonDetachTitle: '从 {name} 中移除这 {n} 张照片？',
-  photosPersonDetachBody: '这 {n} 张照片里的脸将从 {name} 中移除，不会再出现在这个人下。',
+  // Vue2 :884-897 单/复数各一套文案,fix-2 起改为 4 条全加(此前只留复数通用形式已删)
+  photosPersonDetachTitleOne: '不是 {name}？',
+  photosPersonDetachTitleMany: '从 {name} 中移除这 {n} 张照片？',
+  photosPersonDetachHintOne: '这张照片里的脸将从 {name} 中移除，不会再出现在这个人下。',
+  photosPersonDetachHintMany: '这 {n} 张照片里的脸将从 {name} 中移除，不会再出现在这个人下。',
   photosPersonDetachConfirm: '移除',
+  photosPersonThisPerson: '这个人',
   photosPersonHeroTitle: '选择背景',
   photosPersonUseKeyPhoto: '使用关键照片',
   photosPersonSaveHero: '保存',

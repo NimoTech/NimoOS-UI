@@ -785,9 +785,10 @@ export default {
   photosPeopleMergeReasonNamed: 'Two clusters look {pct}% alike — likely both {name}.',
   photosPeopleMergeReasonUnnamed: 'Two clusters look {pct}% alike — likely the same person.',
   photosPeopleMergeReview: 'Review',
-  // photosPeopleMergeDismissAll not added: the Vue2 dismiss-all icon button has no title/aria
-  // (verified no title=/aria-label= anywhere in PhotosPeopleView.vue); brief's :126 reference
-  // does not exist in source — see task-3-report.md
+  // ★ New-UI addition (fix-1): Vue2 dismiss-all icon button has no title/aria (a11y gap in
+  // Vue2 itself, verified no title=/aria-label= anywhere in PhotosPeopleView.vue); New-UI
+  // must have an aria-label regardless, wording given directly by coordinator
+  photosPeopleMergeDismissAll: 'Dismiss all merge suggestions',
   photosPeoplePinned: 'Pinned',
   photosPeoplePinnedHint: "People you've favorited",
   photosPeopleNamedSection: 'Named',
@@ -849,12 +850,14 @@ export default {
   photosPersonKeyPhotoToast: 'Key photo updated',
   photosPersonKeyPhotoNoFace: 'No face of this person in that photo',
   photosPersonKeyPhotoFailed: 'Failed to set key photo',
-  // Vue2 :884-897 has separate singular/plural copy; New-UI's 3-key table can't hold all
-  // 4 (2×2) strings, so the plural/generic form (with {n}) is used for both — the
-  // singular-only strings are not carried over, see report caveats
-  photosPersonDetachTitle: 'Remove {n} photos from {name}?',
-  photosPersonDetachBody: "These {n} photos' faces will be removed from {name} and won't reappear in this person.",
+  // Vue2 :884-897 has separate singular/plural copy; fix-2 adds all 4 strings (the earlier
+  // plural-only generic pair is removed)
+  photosPersonDetachTitleOne: 'Not {name}?',
+  photosPersonDetachTitleMany: 'Remove {n} photos from {name}?',
+  photosPersonDetachHintOne: "This photo's face will be removed from {name} and won't reappear in this person.",
+  photosPersonDetachHintMany: "These {n} photos' faces will be removed from {name} and won't reappear in this person.",
   photosPersonDetachConfirm: 'Remove',
+  photosPersonThisPerson: 'this person',
   photosPersonHeroTitle: 'Choose background',
   photosPersonUseKeyPhoto: 'Use key photo',
   photosPersonSaveHero: 'Save',
