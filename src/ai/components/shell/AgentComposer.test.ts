@@ -82,6 +82,35 @@ describe('AgentComposer 骨架', () => {
     expect(spy).toHaveBeenCalledWith(5)
   })
 
+  // P1c2 debt 1 —— agent 在 run 中自己授权访问、由 dispatchEvent.ts 的
+  // 'visible_resource_added' 分支塞进来的 chip 没有 id({path,kind} only,见
+  // dispatchEvent.ts:311 与 agentStore.ts removeVisibleResourceByPath 声明处
+  // 注释)。点 × 应该走 store.removeVisibleResourceByPath(path),不是静默 no-op。
+  it('无 id 的 chip 点 × 调 store.removeVisibleResourceByPath(而非静默无反应)', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-1'
+    store.visibleResources.push({ path: '/DATA/agent-added', kind: 'folder' })
+    const spy = vi.spyOn(store, 'removeVisibleResourceByPath').mockResolvedValue(undefined)
+    const w = mountComposer()
+    const chip = w.find('.ctx-chip')
+    expect(chip.text()).toContain('agent-added')
+    await chip.find('.ctx-chip-x').trigger('click')
+    expect(spy).toHaveBeenCalledWith('/DATA/agent-added')
+  })
+
+  it('无 id 的 chip 删除失败时走 toastError(与有 id 分支一致)', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-1'
+    store.visibleResources.push({ path: '/DATA/agent-added', kind: 'folder' })
+    const err = Object.assign(new Error('boom'), { response: { data: { detail: 'nope' } } })
+    vi.spyOn(store, 'removeVisibleResourceByPath').mockRejectedValue(err)
+    const w = mountComposer()
+    await w.find('.ctx-chip').find('.ctx-chip-x').trigger('click')
+    await flushPromises()
+    const { useToast } = await import('../../../stores/toast')
+    expect(useToast().toasts.length).toBe(1)
+  })
+
   it('ctxUsage 存在时渲染占用环', () => {
     const w = mountComposer({ ctxUsage: { tokens: 100, window: 1000, pct: 10 } })
     expect(w.find('.ctx-usage').exists()).toBe(true)
@@ -305,6 +334,53 @@ describe('AgentComposer @提及 / 斜杠', () => {
     await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pop-segment')
     await w.vm.$nextTick()
     expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
+  })
+
+  // P1c2 debt 3 —— popSegment() 逐字对齐 Vue2 shell/AgentComposer.vue:412-428:
+  // 它*不*重新聚焦 textarea,而 drillIn(355-371)/pickItem(374-410)都会。这个
+  // 不对称此前没有任何断言钉住,一次"顺手补上 focus 调用"的编辑不会被任何测试
+  // 拦下。三条一起写,互为对照组:pop-segment 之后 activeElement 保持不是
+  // textarea,drill-in/pick 之后 activeElement 变回 textarea。用真实的
+  // `element.focus()`/`.blur()`(而非 `.trigger('focus')`,后者只派发合成事件、
+  // 不改变 `document.activeElement`)才能观测到这一点,需要
+  // `attachTo: document.body`(已是本文件 `mountComposer` 的默认挂载方式)。
+  it('pop-segment 之后不重新聚焦 textarea(与 drill-in/pick 的不对称,Vue2 412-428 特意如此)', async () => {
+    const w = mountComposer()
+    const taEl = w.find('textarea').element as HTMLTextAreaElement
+    await w.find('textarea').setValue('@Drive1/docs/')
+    taEl.focus()
+    expect(document.activeElement).toBe(taEl)
+    taEl.blur()
+    expect(document.activeElement).not.toBe(taEl)
+    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pop-segment')
+    await w.vm.$nextTick()
+    expect(document.activeElement).not.toBe(taEl)
+  })
+
+  it('对照组:drill-in 之后重新聚焦 textarea', async () => {
+    const w = mountComposer()
+    const taEl = w.find('textarea').element as HTMLTextAreaElement
+    await w.find('textarea').setValue('@Dr')
+    taEl.blur()
+    expect(document.activeElement).not.toBe(taEl)
+    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
+    await w.vm.$nextTick()
+    expect(document.activeElement).toBe(taEl)
+  })
+
+  it('对照组:pick 之后重新聚焦 textarea', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-1'
+    vi.spyOn(store, 'addVisibleResource').mockResolvedValue(undefined)
+    const w = mountComposer()
+    const taEl = w.find('textarea').element as HTMLTextAreaElement
+    await w.find('textarea').setValue('@Drive1/a')
+    taEl.blur()
+    expect(document.activeElement).not.toBe(taEl)
+    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pick', { name: 'a.txt', kind: 'file', resolvedPath: '/DATA/a.txt' })
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(document.activeElement).toBe(taEl)
   })
 
   it('提及面板打开时 Enter 不发送(交给面板处理)', async () => {

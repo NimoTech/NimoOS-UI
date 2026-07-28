@@ -420,6 +420,25 @@ export function useAgentStore(agentType?: string) {
       if (!group) {
         group = { run_id: runId, created_at: Date.now() / 1000, items: [] }
         stagedChanges.value.push(group)
+        // P1c2 debt 2(1c-1 final review, 2026-07-27, verified with a real
+        // @vue/reactivity probe — see agentStore.p1c.test.ts "flush:sync 侦听器
+        // 需同步看到 length=1"): `stagedChanges.value.push(group)` above pushes
+        // the *raw* object built two lines up. The push itself does trigger
+        // Vue's reactivity (dependents tracking `stagedChanges`/its length get
+        // notified), but the pushed element only becomes a tracked reactive
+        // proxy lazily, the first time something reads it back out of the
+        // array. Continuing to mutate the local `group` reference below
+        // (`group.items.push(...)`) operates on the raw target directly,
+        // bypassing the proxy's set trap — no trigger() fires for that
+        // mutation. Today this happens to "work" because rendering/most
+        // consumers re-read the array on a later microtask anyway, but a
+        // `flush: 'sync'` watcher already tracking `items.length` (the kind
+        // the staged-changes UI landing later this phase will need, to react
+        // to streamed items immediately) would never observe the item being
+        // added. Fix: re-read the proxied element back out of the array and
+        // mutate *that* reference from here on, so every subsequent write
+        // goes through the reactive proxy and notifies its trackers.
+        group = stagedChanges.value[stagedChanges.value.length - 1]
       }
       const existingIdx = group.items.findIndex((x) => x.seq === item.seq && x.path === item.path)
       if (existingIdx >= 0) group.items.splice(existingIdx, 1, item as unknown as StagedItem)
@@ -462,6 +481,40 @@ export function useAgentStore(agentType?: string) {
       const target = visibleResources.value.find((r) => r.id === resId)
       await service.ai.removeVisibleResource(activeSessionId.value as string | number, resId)
       if (target) removeVisibleResourceFromList(target.path)
+    }
+
+    /**
+     * P1c2 debt 1 —— 无 id 的 chip 也能删。Vue2 里没有这个动作:chip 的 stream
+     * 注入形态 `{path, kind}`(dispatchEvent.ts:311 的 'visible_resource_added'
+     * 分支,与 Vue2 `agentStream.js:539-542` 逐字一致)从来不带 id,所以 Vue2
+     * 的 removeChip 点 × 直接 `removeVisibleResource(undefined)`,打到
+     * `/visible-resources/undefined`,失败后走既有的 `catch { toastError(e) }`
+     * ——即"注定失败但用户能看见错误提示"。这个仓库此前(1c-1)的移植版本更保守:
+     * `id === undefined` 时直接 no-op 返回,不发任何请求——结果是用户点 × 完全
+     * 没有反应,连报错都没有,比 Vue2 还差。
+     *
+     * 正确做法:服务端列表永远带 id,只是本地缓存的这一条(agent 中途自己走
+     * appendVisibleResource 加进来的)还没有。先 `loadVisibleResources()` 刷新
+     * 一次拿到服务端权威列表(带 id),按 path 找:
+     *   - 找到 → 说明这条资源确实还在,服务端也认这个 path,按 id 走正常的
+     *     `removeVisibleResource` 删除路径(同时保持了它"删除后本地按 path
+     *     移除"的既有行为)。
+     *   - 没找到 → 说明服务端已经没有这条了(可能是另一条路径先删过、或者
+     *     一次竞态),这时再对已经不存在的东西发删除请求没有意义,直接
+     *     `removeVisibleResourceFromList(path)` 把本地这条也清掉,保持前后端
+     *     一致——不算错误,不需要冒泡。
+     * 失败(仅可能来自 loadVisibleResources 或 removeVisibleResource 内部的
+     * removeVisibleResource 请求本身)原样冒泡给调用方——composer 侧仍然走
+     * 既有的 toastError,与"有 id"那条路径一致。
+     */
+    async function removeVisibleResourceByPath(path: string): Promise<void> {
+      await loadVisibleResources()
+      const found = visibleResources.value.find((r) => r.path === path)
+      if (found && found.id !== undefined) {
+        await removeVisibleResource(found.id)
+      } else {
+        removeVisibleResourceFromList(path)
+      }
     }
 
     // ── 1c:附件(agentStore.js:760-777)──
@@ -1120,6 +1173,7 @@ export function useAgentStore(agentType?: string) {
       loadVisibleResources,
       addVisibleResource,
       removeVisibleResource,
+      removeVisibleResourceByPath,
       loadAttachments,
       removeAttachment,
       loadStagedChanges,

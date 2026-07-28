@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { watch } from 'vue'
 
 const svc = vi.hoisted(() => ({
   listAgentSessions: vi.fn(), createAgentSession: vi.fn(), deleteAgentSession: vi.fn(),
@@ -41,6 +42,29 @@ describe('agentStore P1c Task1:stream-fed 三动作', () => {
     s.appendStagedChange({ run_id: 'r1', seq: 1, op: 'mkdir', path: '/a' })
     s.appendStagedChange({ run_id: 'r2', seq: 1, op: 'mkdir', path: '/c' })
     expect(s.stagedChanges.map((g) => g.run_id)).toEqual(['r1', 'r2'])
+  })
+
+  // P1c2 debt 2 —— 1c-1 final review 遗留:appendStagedChange 新建组后继续在
+  // *raw* 的 `group` 局部引用上 mutate(`group.items.push(...)`),而不是重新从
+  // `stagedChanges.value` 里取代理元素。这段探针复现终审时用真 @vue/reactivity
+  // (这里借 Vue 自身的 `watch(..., {flush:'sync'})`,效果等价且不需要额外声明
+  // 依赖)验证过的现象:一个已经在追踪 `items.length` 的同步侦听器,在 bug 存在时
+  // 只会看到组创建那一刻的 0(push(group) 本身走了代理、触发了一次通知),永远
+  // 观测不到紧接着的首个 item 入列——因为 `group.items.push(item)` 操作的是
+  // 未被代理拦截的裸引用,不会触发 trigger()。这不是"读出来的最终数据错了"
+  // (裸引用和代理共享同一个底层数组,事后随便读一下 `.items.length` 都是对的),
+  // 而是"这次 mutation 从未通知任何响应式订阅者"——只有像这样提前订阅、
+  // flush:'sync' 的侦听器才能揭穿。
+  it('appendStagedChange:新组首个 item 的入列必须经过响应式代理通知(flush:sync 侦听器需同步看到 length=1,而非卡在 0)', () => {
+    const s = useAgentStore('t1f')
+    const seen: number[] = []
+    watch(
+      () => (s.stagedChanges[0] ? s.stagedChanges[0].items.length : -1),
+      (len) => { seen.push(len) },
+      { flush: 'sync' },
+    )
+    s.appendStagedChange({ run_id: 'rX', seq: 1, op: 'mkdir', path: '/a' })
+    expect(seen).toContain(1)
   })
 
   it('appendVisibleResource:按 path 去重、浅拷贝入列', () => {
@@ -134,6 +158,33 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     await s.removeVisibleResource(3)
     expect(svc.removeVisibleResource).toHaveBeenCalledWith('sess-1', 3)
     expect(s.visibleResources).toEqual([])
+  })
+
+  // P1c2 debt 1 —— 无 id 的 chip(agent 在 run 中自己授权访问,dispatchEvent.ts:311
+  // 的 'visible_resource_added' 只带 {path,kind},没有 id,与 Vue2
+  // agentStream.js:539-542 逐字一致)也要能删掉。removeVisibleResourceByPath 先
+  // 刷新服务端列表(带 id)再按 path 找。
+  it('removeVisibleResourceByPath:先刷新拿到服务端 id,再按 id 删除', async () => {
+    const s = useAgentStore('t2k')
+    s.activeSessionId = 'sess-1'
+    svc.listVisibleResources.mockResolvedValue([{ id: 42, path: '/DATA/x', kind: 'folder' }])
+    svc.removeVisibleResource.mockResolvedValue({})
+    await s.removeVisibleResourceByPath('/DATA/x')
+    expect(svc.listVisibleResources).toHaveBeenCalledWith('sess-1')
+    expect(svc.removeVisibleResource).toHaveBeenCalledWith('sess-1', 42)
+    expect(s.visibleResources).toEqual([])
+  })
+
+  it('removeVisibleResourceByPath:刷新后服务端已无该项,只清本地(不调删除 API)', async () => {
+    const s = useAgentStore('t2l')
+    s.activeSessionId = 'sess-1'
+    // 服务端刷新后的列表里没有 /DATA/stale(可能已被别的路径/别的客户端删过),
+    // 但保留一个不相关的项,证明本地清理是"按 path 过滤",不是整表清空。
+    svc.listVisibleResources.mockResolvedValue([{ id: 9, path: '/DATA/other', kind: 'folder' }])
+    await s.removeVisibleResourceByPath('/DATA/stale')
+    expect(svc.listVisibleResources).toHaveBeenCalledWith('sess-1')
+    expect(svc.removeVisibleResource).not.toHaveBeenCalled()
+    expect(s.visibleResources).toEqual([{ id: 9, path: '/DATA/other', kind: 'folder' }])
   })
 
   it('loadAttachments:无会话清空;失败也清空并吞错', async () => {

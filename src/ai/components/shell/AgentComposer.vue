@@ -532,23 +532,32 @@ function toastError(e: unknown) {
 /**
  * Vue2 430-434 removeChip()。
  *
- * Known gap (final review, 2026-07-27, deferred to 1c-2): chips the agent
+ * P1c2 debt 1(1c-1 final review, 2026-07-27, paid off here): chips the agent
  * itself authorizes mid-run arrive with no `id` — Vue2 agentStream.js:539-542
  * and this repo's dispatchEvent.ts (`case 'visible_resource_added'`, ~line
- * 310-315) both forward the stream event to `appendVisibleResource`/
- * `addVisibleResource` with only `{path, kind}`, never an id (see the same
- * observation in agentStore.ts:35). Vue2 has no guard here at all — it calls
- * `removeVisibleResource(undefined)` unconditionally and lets the resulting
- * failure surface through its existing `catch { toastError(e) }`, i.e. the
- * user does see an error toast. This port's `id === undefined` guard instead
- * no-ops silently: clicking × on such a chip does nothing and gives no
- * feedback. A proper fix needs either the reducer to carry the id or a
- * remove-by-path path — both out of scope here; not attempted in this task.
+ * 310-315) both forward the stream event to `appendVisibleResource` with only
+ * `{path, kind}`, never an id (see the same observation in agentStore.ts:35).
+ * Vue2 has no guard here at all — it calls `removeVisibleResource(undefined)`
+ * unconditionally, which hits `/visible-resources/undefined` and fails, but
+ * the failure surfaces through Vue2's existing `catch { toastError(e) }` —
+ * broken, but at least visible to the user. 1c-1's port instead added an
+ * `id === undefined` guard that no-ops silently: clicking × on such a chip
+ * did nothing and gave no feedback at all, strictly worse than Vue2.
+ *
+ * Fix: route id-less chips through `store.removeVisibleResourceByPath(c.path)`
+ * (agentStore.ts), which refreshes the server-side list first (it always
+ * carries real ids) and either deletes by the now-known id, or — if the
+ * server has already forgotten the path — cleans up the local entry only.
+ * Both branches still funnel failures through the same `toastError` as the
+ * id path below, so behaviour stays consistent between the two.
  */
-async function removeChip(c: { id?: string | number }) {
-  if (c.id === undefined) return
+async function removeChip(c: { id?: string | number; path: string }) {
   try {
-    await store.removeVisibleResource(c.id)
+    if (c.id !== undefined) {
+      await store.removeVisibleResource(c.id)
+    } else {
+      await store.removeVisibleResourceByPath(c.path)
+    }
   } catch (e) {
     toastError(e)
   }
