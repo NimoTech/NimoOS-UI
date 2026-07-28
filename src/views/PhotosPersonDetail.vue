@@ -57,6 +57,22 @@
 //     这里 failed 单独一支:photosPersonLoadFailed + 重试钮(P4 遗留过一条同类账:详情页
 //     加载失败 → 永久骨架、无错误态无重试,本期不再留)。
 //
+// ── 身份守卫(终审 Important 3;与 in-flight 重入守卫是两件不同的事)────────────
+//  in-flight 守卫(favBusy/renaming/…)防的是「同一个人物上连点两次」;身份守卫防的是
+//  「请求在途期间用户换人了,晚到的响应把 A 的数据写到 B 上」。T9 的 seq 只保护 load()
+//  自己的回写(过期响应丢弃),容器方向此前完全没有对应机制。
+//
+//  确定复现路径:人物 A 页 → 改名「张三」→ PATCH 在途 → **按浏览器后退键**(hash 路由,
+//  不必点穿遮罩)→ route watch(见文件末尾)加载 B → B 就绪 → A 的 PATCH 才 resolve →
+//  无守卫时 patchPerson({name:'张三'}) 命中的是 **B**:B 的 hero 姓名/顶栏/建相册默认名
+//  全变成「张三」,刷新才恢复。收藏/关系分组的**失败回滚**同理会把 A 的旧值写到 B 上,
+//  并在 B 的页面上弹属于 A 的失败 toast。
+//
+//  机制:每条动作在发请求**之前**同步抓一份 `const myId = personId.value`,后续所有
+//  写回一律走 `detail.patchPerson(patch, myId)`(第二参必填,类型强制)/ `detail.isCurrent(myId)`。
+//  patchPerson 返回 false ⇒「已经切人了」⇒ 连 toast 一起放弃。id 比较在 composable 内部
+//  统一走 String() 归一(铁律 4)。
+//
 // ── Esc 分层(P4 终审同款,七个弹窗全覆盖)────────────────────────────────────
 //  本页挂着 PhotoLightbox,它在 **window** 上挂 keydown(PhotoLightbox.vue:144)。弹窗的
 //  Esc 一律 **document** 级 + watch(anyDialogOpen) 挂/摘,分支内**必须** e.stopPropagation()
@@ -274,11 +290,14 @@ async function onToggleFav(): Promise<void> {
   if (!p || favBusy.value) return
   favBusy.value = true
   const next = !p.favorite
-  detail.patchPerson({ favorite: next })
+  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  detail.patchPerson({ favorite: next }, myId)
   try {
-    await people.setPersonFavorite(personId.value, next)
+    await people.setPersonFavorite(myId, next)
   } catch {
-    detail.patchPerson({ favorite: !next })      // 精确回滚到原值
+    // patchPerson 返回 false = 请求在途期间已经切到别人页了:回滚与 toast 都属于上一位人物,
+    // 一起放弃(否则把 A 的旧值写进 B、还在 B 的页面上弹 A 的失败提示)。
+    if (!detail.patchPerson({ favorite: !next }, myId)) return
     toast.show(t('photosPersonFavFailed'))
   } finally {
     favBusy.value = false
@@ -292,11 +311,12 @@ async function onPickRelation(relation: string): Promise<void> {
   if (!p || relationBusy.value) return
   relationBusy.value = true
   const prev = p.relation
-  detail.patchPerson({ relation })
+  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  detail.patchPerson({ relation }, myId)
   try {
-    await people.setPersonRelation(personId.value, relation)
+    await people.setPersonRelation(myId, relation)
   } catch {
-    detail.patchPerson({ relation: prev })
+    if (!detail.patchPerson({ relation: prev }, myId)) return
     toast.show(t('photosPersonRelationFailed'))
   } finally {
     relationBusy.value = false
@@ -316,11 +336,14 @@ async function confirmRename(): Promise<void> {
     return
   }
   renaming.value = true
+  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
   try {
-    await people.renamePerson(personId.value, v)
-    detail.patchPerson({ name: v })
+    await people.renamePerson(myId, v)
+    // 已经切到别人页了:名字属于上一位人物,不写、也不动弹窗(弹窗早被 closeAllDialogs 关了)。
+    if (!detail.patchPerson({ name: v }, myId)) return
     closeRename()
   } catch {
+    if (!detail.isCurrent(myId)) return
     toast.show(t('photosPersonRenamedFailed'))    // 弹窗保持打开
   } finally {
     renaming.value = false
@@ -333,18 +356,23 @@ async function onSetKeyPhoto(): Promise<void> {
   if (selectedIds.value.length !== 1 || !detail.person.value || keyPhotoBusy.value) return
   const assetId = selectedIds.value[0]
   keyPhotoBusy.value = true
+  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
   try {
-    const coverFaceId = await people.setPersonCover(personId.value, assetId)
+    const coverFaceId = await people.setPersonCover(myId, assetId)
     // 头像/hero 背景的 URL 都把 coverFaceId 当 ?v= 用,patch 后自动 cache-bust(Vue2 :648-652)。
     // 评审必修 1:**必须**区分 undefined(后端响应里没带这个字段 → 保持本地原值)与
     // 显式 null(后端要求清空封面 → 写 null)。无条件 patch 的话,后端返回 `200 {}` 时
     // 本地 coverFaceId 会被抹成 null,PersonHero.vue:76 的 isFallback 立刻为真 ——
     // hero 大图退成渐变、200px 头像退成首字母,刷新才恢复。Vue2 :648-652 是从 store 列表
     // 读值,字段缺席时读到的就是原值,同样不会退化。
-    if (coverFaceId !== undefined) detail.patchPerson({ coverFaceId })
+    // 身份守卫:patch 本身是有条件的(见上),所以这里用 isCurrent 单独把 toast/清选择态
+    // 一起挡在门外 —— 属于上一位人物的成功提示不该弹在新页面上。
+    if (!detail.isCurrent(myId)) return
+    if (coverFaceId !== undefined) detail.patchPerson({ coverFaceId }, myId)
     toast.show(t('photosPersonKeyPhotoToast'))
     selectedIds.value = []
   } catch (e) {
+    if (!detail.isCurrent(myId)) return
     // 404 是后端专门表达"这张照片里没有这个人的脸",必须与其它失败分成两句(Vue2 :656-657)。
     toast.show(isNotFound(e) ? t('photosPersonKeyPhotoNoFace') : t('photosPersonKeyPhotoFailed'))
   } finally {
@@ -362,12 +390,14 @@ async function saveHero(assetId: string | number | null): Promise<void> {
   if (!detail.person.value || heroSaving.value) return
   heroSaving.value = true
   const isReset = assetId === null
+  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
   try {
-    await people.setPersonHero(personId.value, assetId)
-    detail.patchPerson({ heroAssetId: assetId })
+    await people.setPersonHero(myId, assetId)
+    if (!detail.patchPerson({ heroAssetId: assetId }, myId)) return
     toast.show(t(isReset ? 'photosPersonHeroResetToast' : 'photosPersonHeroSavedToast'))
     closeHeroPicker()
   } catch {
+    if (!detail.isCurrent(myId)) return
     toast.show(t(isReset ? 'photosPersonHeroResetFailed' : 'photosPersonHeroFailed'))
   } finally {
     heroSaving.value = false
@@ -404,7 +434,9 @@ async function confirmMerge(): Promise<void> {
 function confirmDeletePerson(): void {
   const p = detail.person.value
   if (!p) return
-  const label = p.name.trim() ? `「${p.name.trim()}」` : t('photosPersonUnnamedLabel')
+  // 终审 Important 4:引号风格与列表页统一为 ASCII 双引号 —— Vue2 两处
+  // (PhotosPersonDetail.vue:962 / PhotosPeopleView.vue:665)都是 `"${name}"`,已回源核对。
+  const label = p.name.trim() ? `"${p.name.trim()}"` : t('photosPersonUnnamedLabel')
   const undo = people.purgePersonWithUndo(personId.value)
   closeDelete()
   void router.push('/photos/people')
@@ -421,17 +453,19 @@ async function confirmDetach(): Promise<void> {
   const p = detail.person.value
   const ids = [...detachIds.value]
   if (!p || !ids.length) return
-  detail.removePhotosLocally(ids)                 // 先乐观
+  const myId = personId.value                     // 身份守卫,见"身份守卫"小节
+  detail.removePhotosLocally(ids)                 // 先乐观(同步,在 await 之前,不会串页)
   selectedIds.value = []
   closeDetach()
   try {
-    await service.photos.detachAssetsFromPerson(personId.value, ids)
+    await service.photos.detachAssetsFromPerson(myId, ids)
   } catch (e) {
     console.error('[person-detail] detach', e)
-    toast.show(t('photosPersonDetachFailed'))
+    if (detail.isCurrent(myId)) toast.show(t('photosPersonDetachFailed'))
   } finally {
-    // 无论成败都重新对账(照 Vue2 :941 与 :945 两个分支都 loadPerson)。
-    void detail.load(personId.value)
+    // 无论成败都重新对账(照 Vue2 :941 与 :945 两个分支都 loadPerson)。身份守卫:已经切到
+    // 别人页时不再对账 —— 那会把刚加载好的 B 清空重拉一次(可见闪烁 + 一次多余请求)。
+    if (detail.isCurrent(myId)) void detail.load(myId)
   }
 }
 

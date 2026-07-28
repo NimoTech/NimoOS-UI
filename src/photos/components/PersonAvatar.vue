@@ -60,6 +60,11 @@ const initial = computed(() => personInitial(props.name))
 // 首字母字号 = size * 0.32 向下取整(brief 明确公式)。
 const initialFontSize = computed(() => Math.floor(props.size * 0.32))
 
+// 根元素上的 data-fav(照 Vue2 photos-people.scss:132 的 `.ring[data-fav="true"]`):
+// 父层要给收藏头像画 accent 内环时需要一个选择器钩子。评审 Important 2:原先父层
+// (PhotosPeople.vue)是**无条件**给 .face-grid-lg 下所有头像画环 —— 当前语义等价(Pinned
+// 分区只渲染收藏项),但这个网格类一旦被复用就会把非收藏头像也画上环。把条件挪回数据本身。
+//
 // 收藏星标的尺寸与水平偏移都随 size **等比**缩放,唯一锚点是 Vue2 大号卡片那一档:
 //   photos-people.scss:150-156  .face-card .fav-mark { width/height: 24px; transform: translateX(34px) }
 // 对应 size=124(scss:118 的 .ring 是 124px)。故比例 = 24/124 与 34/124,代回 124 精确复现 24px / 34px。
@@ -86,6 +91,7 @@ function onImgError(): void {
   <div
     class="person-avatar"
     :class="{ 'is-dashed': dashed, 'is-square': shape === 'square' }"
+    :data-fav="fav ? 'true' : 'false'"
     :style="{ width: `${size}px`, height: `${size}px` }"
   >
     <div class="person-avatar-ring">

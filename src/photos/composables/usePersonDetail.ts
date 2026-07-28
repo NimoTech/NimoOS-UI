@@ -38,9 +38,20 @@ export function usePersonDetail() {
   const loading = ref(false)
   const failed = ref(false)
   let seq = 0
+  // 评审 Important 3:seq 只保护 load() **自己**的回写(过期响应丢弃);容器方向的九条动作
+  // 回写(patchPerson)此前完全没有对应机制。currentId 是"这个 composable 现在装着谁"的
+  // 唯一事实,load() 一进门就同步置位(不等响应),所以路由一变、watch 一调 load(),
+  // 上一位人物在途的 PATCH 就立刻被认成过期。
+  let currentId: string | null = null
+
+  // 铁律:id 比较一律 String() 归一。
+  function isCurrent(id: string | number): boolean {
+    return currentId !== null && String(id) === currentId
+  }
 
   async function load(id: string | number): Promise<void> {
     const mine = ++seq
+    currentId = String(id)
     loading.value = true
     failed.value = false
     // 照 Vue2 :731-734 —— 先清空再拉,避免旧人物的数据残留在新页面上。
@@ -75,8 +86,21 @@ export function usePersonDetail() {
   // 合一:Vue2 :510-512 与 :591-593 是逐字节重复的两个 computed(偏离登记 11)。
   function flatPhotos(): Photo[] { return months.value.flatMap((m) => m.photos) }
 
-  function patchPerson(patch: Partial<Person>): void {
+  // 评审 Important 3:**expectId 是必填的**,不是可选便利参数 —— 类型系统强制每个回写点
+  // 声明"我以为自己在写谁",不声明就编译不过,未来新增动作也不可能绕过这道校验。
+  //
+  // 确定复现路径(评审给出,已用回归测试钉住):人物 A 页 → 改名 → PATCH 在途 → 按浏览器
+  // 后退 → route watch 加载 B → B 就绪 → A 的 PATCH 才 resolve → 无校验时
+  // patchPerson({name}) 命中的是 **B**,B 的 hero 姓名/顶栏/建相册默认名全变成 A 输入的名字,
+  // 刷新才恢复。收藏/关系分组的**失败回滚**同理会把 A 的旧值写到 B 上。
+  //
+  // 返回值语义:true = "仍是同一个人物"(可能因 person.value 尚为 null 而实际没写,但调用方
+  // 该继续走它的 toast);false = "已经切到别人了",调用方应连 toast 一起放弃 —— 属于 A 的
+  // "重命名失败"弹在 B 的页面上同样是缺陷。
+  function patchPerson(patch: Partial<Person>, expectId: string | number): boolean {
+    if (!isCurrent(expectId)) return false
     if (person.value) person.value = { ...person.value, ...patch }
+    return true
   }
   function removePhotosLocally(ids: Array<string | number>): void {
     const kill = new Set(ids.map((x) => String(x)))
@@ -85,5 +109,5 @@ export function usePersonDetail() {
       .filter((m) => m.photos.length > 0)
   }
 
-  return { person, relations, places, months, loading, failed, load, flatPhotos, patchPerson, removePhotosLocally }
+  return { person, relations, places, months, loading, failed, load, flatPhotos, isCurrent, patchPerson, removePhotosLocally }
 }

@@ -15,6 +15,23 @@
 // document 级 mousedown + keydown(Esc),onMounted 挂 / onUnmounted 摘,成对。视觉位置
 // 保持一致(菜单出现在触发按钮正下方)。
 //
+// ★ 终审 Important 5 补登记 —— **Vue2 用 fixed 的理由**:它不是随手选的,而是为了绕开
+// `.detail-hero { overflow: hidden }`(photos-people.scss:277-281)。fixed 的包含块是视口,
+// 不受任何祖先 overflow 裁剪;absolute 的包含块是最近的定位祖先,祖先一裁就没了。
+// 改成 absolute 后 z-index 完全失效(裁剪发生在合成之前),而 hero 又没有滚动条可以救,
+// 菜单会被**直接切掉**:默认布局菜单底边 ≈279.5px 只差 0.5px 不裁;一旦长人名触发
+// `.hero-name-row { flex-wrap: wrap }` 换行,触发按钮下移约 46px、菜单底边到 ≈296px,
+// 最后一项「工作/Work」被切掉约一半(放大字号 / 窄视口同理)。
+// 修法(评审给了两个选项,这里选前者,理由见 <style> 里 .hero-clip 的注释):把
+// `overflow: hidden` 从 .person-hero 移到专门的 .hero-clip 裁剪层,菜单不再受祖先裁剪,
+// 保留 absolute 锚定这条已批准的偏离。
+//
+// 偏离登记 10(此前未申报,终审顺带补齐):`.hero-name-row` 的 `flex-wrap: wrap` 是本仓新增 ——
+// Vue2 `.detail-hero .name`(photos-people.scss:325-331)是 `display:flex; align-items:center;
+// gap:12px`,**没有** flex-wrap,长人名会把 Edit/关系分组两个胶囊挤扁并溢出。保留 wrap
+// (属于"Vue2 的 bug 不照抄"那一类),但它改变了 hero 的实际高度,因此必须与上面那条一起看:
+// 正是 wrap 让菜单越界成为常态路径,而不是边角情况。
+//
 // 偏离登记 9(brief 明确要求改对,不照抄 Vue2 的 bug):Vue2 :528 把月份短名写死
 // toLocaleDateString('en', {month:'short'}) —— 这里改用 useI18n().locale 派生的 BCP-47
 // tag(照 PhotosPeople.vue:157 formatIndexedDate 的既有先例:locale.value.replace('_','-')),
@@ -148,13 +165,17 @@ onUnmounted(() => {
 
 <template>
   <div class="person-hero" data-test="hero-root" :data-fallback="isFallback ? 'true' : 'false'">
-    <div
-      class="hero-bg"
-      data-test="hero-bg"
-      :class="{ 'is-fallback': isFallback }"
-      :style="isFallback ? {} : { backgroundImage: `url(${heroBg})` }"
-    />
-    <div v-if="!isFallback" class="hero-scrim" data-test="hero-scrim" />
+    <!-- 终审 Important 5:裁剪层。模糊背景与暗化遮罩关在这里,`overflow: hidden` 由它自己承担,
+         .person-hero 不再裁 —— 否则两个 hero 下拉菜单(absolute)会被祖先切掉。 -->
+    <div class="hero-clip" data-test="hero-clip">
+      <div
+        class="hero-bg"
+        data-test="hero-bg"
+        :class="{ 'is-fallback': isFallback }"
+        :style="isFallback ? {} : { backgroundImage: `url(${heroBg})` }"
+      />
+      <div v-if="!isFallback" class="hero-scrim" data-test="hero-scrim" />
+    </div>
 
     <button type="button" class="hero-back" data-test="hero-back" :aria-label="t('photosPersonBack')" @click="emit('back')">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
@@ -266,8 +287,25 @@ onUnmounted(() => {
 .person-hero {
   position: relative;
   min-height: 280px;
-  overflow: hidden;
+  /* 终审 Important 5:**这里刻意没有 overflow: hidden**(Vue2 .detail-hero 有,
+     photos-people.scss:277-281)。两个下拉菜单是 absolute 锚定的(见文件头的实现方式偏离
+     登记),祖先一裁就整块消失、z-index 无用、也没有滚动条可救 —— 长人名触发
+     .hero-name-row 换行后菜单最后一项会被切掉约一半。裁剪职责下移到 .hero-clip。
+     加新的绝对定位子元素时留意:它现在**不会**被 hero 边界裁住。 */
   flex: none;
+}
+/* 只裁"该裁的东西":模糊封面图 + 暗化遮罩。
+   为什么必须是**独立的祖先容器**,而不是让 .hero-bg 自己 overflow:hidden(评审建议的字面
+   写法):`filter: blur(40px)` 的输出按规范画在元素盒子**之外**(此处最多外溢约 120px),
+   `transform: scale(1.2)` 又把它整体放大 20% —— 元素自身的 overflow 管不了自己的滤镜输出,
+   只有**祖先**的 overflow 才能裁。若不裁,模糊边缘会溢到下方 tabs/网格与页面两侧。
+   另一个候选修法是把菜单改回 Vue2 的 position:fixed + getBoundingClientRect 手算坐标;
+   没选它,因为那要重新引入坐标计算,且 Vue2 那套在页面滚动/窗口缩放时菜单会脱锚(它没挂
+   scroll/resize 重算),等于用一个已知缺陷换另一个。 */
+.hero-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 .hero-bg {
   position: absolute;

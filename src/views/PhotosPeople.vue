@@ -342,7 +342,12 @@ function onSubmitDelete(): void {
   const person = dialog.value.person
   const undo = people.purgePersonWithUndo(person.id)
   dialog.value = null
-  const label = person.name && person.name.trim() ? `"${person.name.trim()}"` : t('photosPersonThisPerson')
+  // 终审 Important 4:名字为空时的占位标签必须是 photosPersonUnnamedLabel(「未命名人物」),
+  // 不是 photosPersonThisPerson(「这个人」)。Vue2 两处删除路径
+  // (PhotosPeopleView.vue:665 与 PhotosPersonDetail.vue:962)**都是** $t('Unnamed person'),
+  // 已回源逐字核对。而且本页的删除入口只挂在未命名人物的三态弹窗上 —— 「名字为空」是这一页的
+  // **常态路径**,给错的恰好是主路径。引号风格也照 Vue2 用 ASCII 双引号(与详情页统一)。
+  const label = person.name && person.name.trim() ? `"${person.name.trim()}"` : t('photosPersonUnnamedLabel')
   toast.show(t('photosPersonDeletedToast', { label }), 5000, { label: t('photosPersonUndo'), onClick: undo })
 }
 
@@ -763,10 +768,27 @@ onUnmounted(() => {
 /* 悬停时头像轻微推近(scss:129-131)。PersonAvatar 内部不带这个交互,父层 :deep 命中其 img。 */
 .face-card :deep(.person-avatar-img) { transition: transform 0.4s ease; }
 .face-card:hover :deep(.person-avatar-img) { transform: scale(1.05); }
-/* Vue2 scss:132-136 给收藏头像加一圈 accent 光环(data-fav)。PersonAvatar 不带这个变体,
-   这里在父层用 :deep 命中它的圆环,不改组件契约。 */
-.face-grid-lg .face-card :deep(.person-avatar-ring) {
-  box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+/* Vue2 scss:132-136 给收藏头像加一圈 accent 内环(data-fav)。
+   评审 Important 2(两处一起改):
+   ① **必须是 ::after 覆盖层,不能是 .person-avatar-ring 自己的 box-shadow**。
+      inset 阴影按 CSS 规范画在「内容与后代之前」,而圆环内部的 .person-avatar-img /
+      .person-avatar-fallback 铺满整个 padding box —— 那圈 2px accent 100% 被人脸照片盖死,
+      Pinned 分区因此完全看不出「置顶收藏」这个视觉记号。Vue2 用的正是 ::after
+      (scss:132-136),伪元素叠在 img 之上才可见。
+   ② 选择器补上 data-fav 条件(PersonAvatar 根元素新增该属性,同 Vue2 `.ring[data-fav]`)。
+      原来无条件命中 .face-grid-lg 下所有头像,当前语义等价(Pinned 只渲染收藏项)但复用即串。
+   挂在 .person-avatar(组件根,position:relative 且与圆环同一个盒)而不是 .person-avatar-ring
+   上:圆环自己 overflow:hidden,伪元素若以它为定位父级会被它裁掉。
+   **只画内环、不画外发光**:Vue2 那条规则里的第二段外发光(0 0 0 3px,accent 20% 透明度)同样被
+   `.ring { overflow: hidden }`(scss:120)裁掉,在 Vue2 里从未渲染过 —— 不照抄这段死代码
+   (照抄反而会渲染出 Vue2 没有的一圈光晕,是新增视觉而非 1:1)。 */
+.face-grid-lg .face-card :deep(.person-avatar[data-fav="true"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--accent);
+  pointer-events: none;
 }
 .face-card .name {
   font-size: 13px; font-weight: 500; color: var(--fg); text-align: center; max-width: 130px;

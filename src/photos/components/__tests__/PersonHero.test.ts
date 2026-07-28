@@ -16,6 +16,9 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PersonHero from '../PersonHero.vue'
+// 终审 Important 5 的样式断言用:jsdom 不做级联样式计算,读不出 overflow 的真实裁剪行为,
+// 只能对 <style> 原文做结构断言(同 color-guard.test.ts / PersonAssetGrid.test.ts 的先例)。
+import personHeroRaw from '../PersonHero.vue?raw'
 import type { Person } from '../../util/peopleView'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
@@ -286,5 +289,52 @@ describe('PersonHero.vue — 两个菜单的关闭交互', () => {
     expect(removeSpy).toHaveBeenCalledWith('keydown', addedKeydown![1])
     addSpy.mockRestore()
     removeSpy.mockRestore()
+  })
+})
+
+// ── 终审 Important 5:两个下拉菜单不得被祖先 overflow 裁掉 ──────────────────────
+describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
+  // 先剥掉 CSS 注释:这几条规则的注释里恰好写着 `overflow: hidden` 的来龙去脉,
+  // 不剥会把注释文本当成声明匹配上。
+  const style = (/<style[^>]*>([\s\S]*?)<\/style>/i.exec(personHeroRaw)?.[1] ?? '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+
+  function rule(selector: string): string {
+    const m = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(style)
+    expect(m, `找不到 ${selector} 规则块`).toBeTruthy()
+    return (m as RegExpExecArray)[1]
+  }
+
+  it('.person-hero **不得**有 overflow(否则 absolute 锚定的菜单会被整块切掉,z-index 无用)', () => {
+    expect(style).not.toBe('')
+    expect(rule('.person-hero')).not.toMatch(/overflow\s*:/)
+  })
+
+  it('裁剪职责在 .hero-clip 上:它 overflow:hidden 且铺满 hero', () => {
+    const clip = rule('.hero-clip')
+    expect(clip).toMatch(/overflow\s*:\s*hidden/)
+    expect(clip).toMatch(/position\s*:\s*absolute/)
+    expect(clip).toMatch(/inset\s*:\s*0/)
+  })
+
+  it('模糊背景与暗化遮罩都在 .hero-clip 内(不然 blur(40px)+scale(1.2) 会溢到下方网格)', () => {
+    const w = mountHero({
+      person: person({ coverFaceId: 'f1' }),
+      relationCount: 1,
+      placesCount: 1,
+    })
+    const clip = w.get('[data-test="hero-clip"]')
+    expect(clip.find('[data-test="hero-bg"]').exists()).toBe(true)
+    expect(clip.find('[data-test="hero-scrim"]').exists()).toBe(true)
+    // 菜单不在裁剪层里 —— 它是 .person-hero 的后代,但不是 .hero-clip 的后代。
+    expect(clip.find('[data-test="hero-edit-wrap"]').exists()).toBe(false)
+  })
+
+  it('菜单挂在裁剪层之外(hero 根下),打开后确实渲染出全部三项', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
+    await w.get('[data-test="hero-edit-trigger"]').trigger('click')
+    const menu = w.get('[data-test="hero-edit-menu"]')
+    expect(menu.element.closest('[data-test="hero-clip"]')).toBeNull()
+    expect(w.findAll('[data-test="hero-edit-menu"] button')).toHaveLength(3)
   })
 })

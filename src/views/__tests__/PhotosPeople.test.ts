@@ -31,6 +31,9 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosPeople from '../PhotosPeople.vue'
+// 评审 Important 2 的样式断言用:jsdom 不做级联/伪元素计算,只能对 <style> 原文做结构断言
+// (同 color-guard.test.ts / PersonAssetGrid.test.ts 的既有 `?raw` 先例)。
+import photosPeopleRaw from '../PhotosPeople.vue?raw'
 import { usePhotosPeople } from '../../photos/stores/people'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -102,6 +105,27 @@ describe('PhotosPeople.vue — 生命周期与分区', () => {
     expect(svc.photos.listPersons).toHaveBeenCalledTimes(1)
     expect(svc.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
     expect(svc.photos.getConfig).toHaveBeenCalledTimes(1)
+  })
+
+  // ── 评审 Important 2:收藏人物的 accent 内环 ────────────────────────────────
+  it('Pinned 头像带 data-fav="true",Named 头像是 "false"(选择器条件的数据来源)', async () => {
+    const { w } = await mountView()
+    const pinnedAvatar = w.get('[data-test="pinned-card"] .person-avatar')
+    expect(pinnedAvatar.attributes('data-fav')).toBe('true')
+    for (const card of w.findAll('[data-test="named-card"] .person-avatar')) {
+      expect(card.attributes('data-fav')).toBe('false')
+    }
+  })
+
+  it('accent 内环画在 ::after 覆盖层上(不是圆环自身的 inset box-shadow —— 会被 img 盖死)', () => {
+    const style = /<style[^>]*>([\s\S]*?)<\/style>/i.exec(photosPeopleRaw)?.[1] ?? ''
+    expect(style).not.toBe('')
+    // 必须是带 data-fav 条件的 ::after 规则。
+    expect(style).toMatch(/\.face-grid-lg\s+\.face-card\s+:deep\(\.person-avatar\[data-fav="true"\]\)::after\s*\{/)
+    // 且**不得**再把 box-shadow 打在 .person-avatar-ring 上(CSS 规范:inset 阴影画在内容与
+    // 后代之前,那圈 accent 会被铺满 padding box 的 .person-avatar-img 100% 遮住)。
+    const ringRules = style.match(/:deep\(\.person-avatar-ring\)[^{]*\{[^}]*\}/g) ?? []
+    for (const rule of ringRules) expect(rule).not.toMatch(/box-shadow/)
   })
 
   it('三个分区各渲染正确成员:收藏→Pinned,其余已命名→Named,过阈值未命名→Unnamed', async () => {
@@ -566,9 +590,11 @@ describe('PhotosPeople.vue — T7 三态弹窗接线:删除', () => {
 
     expect(purgeSpy).toHaveBeenCalledWith('u1')
     expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
-    // 未命名人物(name==='')落到 photosPersonThisPerson 兜底,不加引号(照 confirmDelete
-    // 的兜底逻辑,有名字才加双引号)。
-    expect(toastSpy).toHaveBeenCalledWith(`${zh.photosPersonThisPerson} 已删除`, 5000, {
+    // 终审 Important 4:未命名人物(name==='')落到 **photosPersonUnnamedLabel**(「未命名人物」)
+    // 兜底,不加引号(照 confirmDelete 的兜底逻辑,有名字才加 ASCII 双引号)。原先错用
+    // photosPersonThisPerson(「这个人」),而 Vue2 两处删除路径都是 $t('Unnamed person');
+    // 本页的删除入口只挂在未命名人物上,所以给错的恰好是主路径。
+    expect(toastSpy).toHaveBeenCalledWith(`${zh.photosPersonUnnamedLabel} 已删除`, 5000, {
       label: zh.photosPersonUndo,
       onClick: expect.any(Function),
     })

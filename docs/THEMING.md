@@ -330,5 +330,26 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 - `src/home/components/SearchDialog.vue` —— 白色纸感调色板来源（`#f7f5ef` / `#ffffff` /
   `#1c1b19` / `#e7e3d9` / `#3b5bdb` / `#6e5ae0`）。
 - `docs/superpowers/specs/2026-07-10-new-ui-theme-system-design.md` —— 设计与决策记录。
-</content>
-</invoke>
+
+---
+
+## 8. 浮层层级（z-index）阶梯 ★
+
+> **硬约束：toast 必须高于全仓所有模态遮罩。**
+
+遮罩几乎都带 `backdrop-filter: var(--overlay-blur)`，任何被压在遮罩下方的浮层不是"看起来
+偏灰"，而是**完全读不到**。因此层级不是随手取值，按下表落座：
+
+| 层 | z-index | 例子 |
+|---|---|---|
+| 页内浮层 / 角标 / 悬浮控件 | 1 – 50 | 瓦片角标、hero 下拉菜单（20）、区内下拉（20）、侧栏抽屉遮罩（150） |
+| 局部固定条 | 60 – 150 | 上传面板（70）、选择态浮动条（150） |
+| 区级弹窗遮罩 + 面板 | 200 – 230 | `.mrd-overlay`（200）、`.pd-scrim` / `.cad-overlay`（220） |
+| 通用弹窗遮罩 + 面板 | 1000 / 1001 | `ui-dialog-overlay`（1000）、`Dialog` / `AlertDialog` 面板（1001） |
+| **Toast** | **1100** | `AppToast.vue` `.toast-stack` |
+
+新增浮层时：**不要**在 1100 及以上落座，除非它确实比 toast 更该被看见（目前没有这种东西）。
+`src/components/AppToast.zIndex.test.ts` 会把这条约定钉死——它直接读各组件
+`<style>` 原文比较数值，新加的遮罩若高过 toast，测试即红。
+
+---

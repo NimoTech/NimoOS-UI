@@ -197,7 +197,7 @@ describe('usePersonDetail', () => {
       const { person, load, patchPerson } = usePersonDetail()
       await load('7')
 
-      patchPerson({ name: 'Alice2', favorite: true })
+      expect(patchPerson({ name: 'Alice2', favorite: true }, '7')).toBe(true)
       expect(person.value?.id).toBe('7') // 未被补丁字段覆盖的字段保持原值
       expect(person.value?.name).toBe('Alice2')
       expect(person.value?.favorite).toBe(true)
@@ -206,8 +206,40 @@ describe('usePersonDetail', () => {
     it('person 为 null 时(尚未 load 或加载失败)是空操作,不炸', () => {
       const { person, patchPerson } = usePersonDetail()
       expect(person.value).toBeNull()
-      patchPerson({ name: 'X' })
+      // 一次 load 都没跑过 ⇒ currentId 仍是 null ⇒ 任何 expectId 都算过期。
+      expect(patchPerson({ name: 'X' }, 'X')).toBe(false)
       expect(person.value).toBeNull()
+    })
+
+    // ── 评审 Important 3:身份守卫 ────────────────────────────────────────────
+    it('expectId 与当前装着的人物不符时整条回写作废(返回 false,数据不动)', async () => {
+      ;(service.photos.getPerson as any).mockResolvedValue({ person: { id: '7', name: 'Alice' }, relations: [] })
+      ;(service.photos.personPlaces as any).mockResolvedValue([])
+      ;(service.photos.getPersonAssets as any).mockResolvedValue([])
+
+      const { person, load, patchPerson, isCurrent } = usePersonDetail()
+      await load('7')
+
+      expect(isCurrent('7')).toBe(true)
+      expect(isCurrent(7)).toBe(true)          // 铁律:String() 归一,数字 id 也算同一人
+      expect(isCurrent('8')).toBe(false)
+      expect(patchPerson({ name: 'HIJACKED' }, '8')).toBe(false)
+      expect(person.value?.name).toBe('Alice')
+    })
+
+    it('load(新 id) 一进门就同步换身份 —— 不等响应回来,旧人物在途的回写立刻作废', () => {
+      let resolveGet: ((v: unknown) => void) | undefined
+      ;(service.photos.getPerson as any).mockImplementation(() => new Promise((r) => { resolveGet = r }))
+      ;(service.photos.personPlaces as any).mockResolvedValue([])
+      ;(service.photos.getPersonAssets as any).mockResolvedValue([])
+
+      const { load, isCurrent } = usePersonDetail()
+      void load('A')
+      expect(isCurrent('A')).toBe(true)
+      void load('B')                            // 路由一变、watch 一调 load
+      expect(isCurrent('A')).toBe(false)        // A 还没 resolve,身份已经不是它了
+      expect(isCurrent('B')).toBe(true)
+      resolveGet?.({ person: { id: 'B' }, relations: [] })
     })
   })
 

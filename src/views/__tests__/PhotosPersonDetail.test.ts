@@ -444,6 +444,68 @@ describe('PhotosPersonDetail.vue —— 改名弹窗', () => {
   })
 })
 
+// ── 终审 Important 3:身份守卫(在途请求 + 换人)────────────────────────────────
+// 这一组与"重入守卫"是两件不同的事:重入守卫防同一个人物上连点两次,身份守卫防
+// 「请求在途期间用户换人了,晚到的响应把 A 的数据写到 B 上」。用可手动 resolve/reject 的
+// deferred promise 精确制造这个时序;切页走 router.push(等价于浏览器后退键 —— hash 路由,
+// 不必点穿遮罩)。
+describe('PhotosPersonDetail.vue —— 身份守卫(在途请求跨人物)', () => {
+  // A = id 7「妈妈」,B = id 8「爸爸」。
+  function twoPeople(bOverrides: Record<string, unknown> = {}, aOverrides: Record<string, unknown> = {}) {
+    svc.photos.getPerson.mockImplementation((id: string | number) =>
+      Promise.resolve({
+        person: String(id) === '8'
+          ? rawPerson({ id: 8, name: '爸爸', ...bOverrides })
+          : rawPerson(aOverrides),
+        relations: [],
+      }))
+  }
+
+  it('A 页改名的 PATCH 在切到 B 之后才 resolve → 名字**不会**写到 B 上', async () => {
+    let release: (() => void) | null = null
+    svc.photos.updatePerson.mockImplementation(() => new Promise<void>((res) => { release = () => res() }))
+    twoPeople()
+    const { w, router } = await mountView('7')
+
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('张三')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: '张三' })
+
+    // 后退到 B(同组件复用 → route watch 重新 load)
+    await router.push('/photos/people/8')
+    await flushPromises()
+    expect(w.find('[data-test="hero-name"]').text()).toBe('爸爸')
+
+    release!()                                   // A 的 PATCH 现在才回来
+    await flushPromises()
+    expect(w.find('[data-test="hero-name"]').text()).toBe('爸爸')
+  })
+
+  it('A 页收藏失败的**回滚**在切到 B 之后才发生 → B 的收藏态不被改,也不弹属于 A 的 toast', async () => {
+    let fail: (() => void) | null = null
+    svc.photos.updatePerson.mockImplementation(() => new Promise<void>((_res, rej) => {
+      fail = () => rej(new Error('boom'))
+    }))
+    // A 已收藏(点一下 → 乐观取消),B 未收藏 —— 回滚值 true 与 B 的 false 不同才观察得到污染。
+    twoPeople({ favorite: false }, { favorite: true })
+    const { w, router } = await mountView('7')
+    const toast = useToast()
+
+    await w.find('[data-test="hero-fav"]').trigger('click')
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { favorite: false })
+
+    await router.push('/photos/people/8')
+    await flushPromises()
+    expect(w.findComponent(PersonHero).props('person')).toMatchObject({ id: 8, favorite: false })
+
+    fail!()                                      // A 的失败现在才回来 → 无守卫时回滚写 B
+    await flushPromises()
+    expect(w.findComponent(PersonHero).props('person')).toMatchObject({ id: 8, favorite: false })
+    expect(toast.toasts).toEqual([])
+  })
+})
+
 describe('PhotosPersonDetail.vue —— 选择态与关键照片', () => {
   it('单选出现「设为关键照片」,多选不出现', async () => {
     const { w } = await mountView('7')
