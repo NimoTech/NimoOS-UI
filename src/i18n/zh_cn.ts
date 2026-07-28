@@ -1149,4 +1149,46 @@ export default {
   aiCfgCreateFailed: '创建失败',
   aiCfgDeleteTokenConfirm: '确定要删除此令牌吗?',
   // <<< SP8-P2b Task 10
+  // >>> SP8-P2b Task 12 —— ChannelsSection(聊天渠道)。值逐字取自 brief 表(brief 已回查
+  // Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgChannels(导航 h1,P2a 已建,值
+  // 「聊天渠道」与本表一致)/aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCfgDelete/
+  // aiCfgLoadingDots/aiCfgLoadFailed/aiCfgNoLabel/aiCfgSaved/aiCfgSaveFailed/
+  // aiCfgDeleteFailed。
+  // aiCfgChannelsBotTokenTail 里的 {tail}、aiCfgChannelsPairInstructions 里的
+  // {bot}/{code} 转义成 {'{'}tail{'}'} 等(同 Task 9/10 教训,见 channelsFormat.ts 头
+  // 注释:vue-i18n v9 在 t(key) 不传 params 时会把裸 {xxx} 当命名插值解析成空串,而这里
+  // 组件要拿到字面 "{tail}"/"{bot}"/"{code}" 子串自己 split/join)。
+  // aiCfgChannelsBotTokenTelegramHint 与 aiCfgChannelsPairInstructions 里的字面 @ 转义成
+  // {'@'}(messageSyntax.test.ts 拦链接语法)。
+  aiCfgChannelsDesc: '通过 Telegram 与你的 NimoOS 智能体对话。先配对你的账号，然后直接给机器人发消息。',
+  aiCfgChannelsAdminTitle: '机器人配置',
+  aiCfgChannelsAdminHint: '仅管理员可见。机器人为所有 NimoOS 用户服务，每人各自配对自己的账号。',
+  aiCfgChannelsAddBot: '添加机器人',
+  aiCfgChannelsAddBotFailed: '添加失败，请检查 Token。',
+  aiCfgChannelsBotType: '平台',
+  aiCfgChannelsTypeTelegram: 'Telegram',
+  aiCfgChannelsTypeDiscord: 'Discord',
+  aiCfgChannelsBotName: '名称（如“家庭机器人”）',
+  aiCfgChannelsBotToken: '机器人 Token',
+  aiCfgChannelsBotTokenTelegramHint: 'Token 来自 Telegram 的 {\'@\'}BotFather。',
+  aiCfgChannelsBotTokenDiscordHint: 'Bot token 来自 Discord 开发者后台。还须在后台为该 bot 打开 Message Content Intent 开关。',
+  aiCfgChannelsDiscordPairNote: 'Discord 机器人只能私信与它同处一个服务器的用户。请先用邀请链接把机器人加入某个服务器、让用户加入该服务器，再从那里配对。',
+  aiCfgChannelsBotTokenTail: 'token ···{\'{\'}tail{\'}\'}',
+  aiCfgChannelsDiscordInvite: '邀请机器人进服务器',
+  aiCfgChannelsEnabled: '已启用',
+  aiCfgChannelsPairTitle: '配对聊天账号',
+  aiCfgChannelsNoBots: '尚未配置聊天机器人，请联系管理员添加。',
+  aiCfgChannelsGenerateCode: '生成配对码',
+  aiCfgChannelsBindingsTitle: '我已绑定的账号',
+  aiCfgChannelsNoBindings: '还没有绑定账号。在上方生成配对码并发送给机器人即可。',
+  aiCfgChannelsBindingDefaultModel: '默认模型',
+  aiCfgChannelsBindingDownloadDir: '下载目录',
+  aiCfgChannelsUnbind: '解绑',
+  aiCfgChannelsUnbindConfirm: '确定解绑该账号？解绑后它将无法再与智能体对话。',
+  aiCfgChannelsDeleteBotConfirm: '删除该机器人？其所有配对将失效。',
+  aiCfgChannelsCodeTitle: '配对码',
+  aiCfgChannelsCodeWarn: '此配对码 10 分钟内有效，且仅可使用一次。',
+  aiCfgChannelsCreateCodeFailed: '生成配对码失败。',
+  aiCfgChannelsPairInstructions: '打开 Telegram，给 {\'@\'}{\'{\'}bot{\'}\'} 发送：/pair {\'{\'}code{\'}\'}',
+  // <<< SP8-P2b Task 12
 }

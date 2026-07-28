@@ -1142,4 +1142,49 @@ export default {
   aiCfgCreateFailed: 'Create failed',
   aiCfgDeleteTokenConfirm: 'Are you sure you want to delete this token?',
   // <<< SP8-P2b Task 10
+  // >>> SP8-P2b Task 12 —— ChannelsSection (Channels). English values are the literal
+  // Vue2 source strings (brief already reconciled against the production zh_CN.json).
+  // Reused keys (not redefined here): aiCfgChannels (nav h1, built by P2a, value
+  // "Channels" matches this table) / aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/
+  // aiCfgDelete/aiCfgLoadingDots/aiCfgLoadFailed/aiCfgNoLabel/aiCfgSaved/
+  // aiCfgSaveFailed/aiCfgDeleteFailed.
+  // {tail} in aiCfgChannelsBotTokenTail and {bot}/{code} in
+  // aiCfgChannelsPairInstructions are escaped as {'{'}tail{'}'} etc (same Task 9/10
+  // lesson, see channelsFormat.ts header: vue-i18n v9 treats a bare {xxx} as named
+  // interpolation and blanks it when t(key) is called with no params, but the
+  // component needs the literal "{tail}"/"{bot}"/"{code}" substrings to split/join
+  // itself). The literal @ in aiCfgChannelsBotTokenTelegramHint and
+  // aiCfgChannelsPairInstructions is escaped as {'@'} (messageSyntax.test.ts blocks
+  // the link syntax otherwise).
+  aiCfgChannelsDesc: 'Chat with your NimoOS agent from Telegram. Pair your account, then message the bot directly.',
+  aiCfgChannelsAdminTitle: 'Bot configuration',
+  aiCfgChannelsAdminHint: 'Administrator only. The bot serves every NimoOS user; each pairs their own account.',
+  aiCfgChannelsAddBot: 'Add bot',
+  aiCfgChannelsAddBotFailed: 'Could not add bot — check the token.',
+  aiCfgChannelsBotType: 'Platform',
+  aiCfgChannelsTypeTelegram: 'Telegram',
+  aiCfgChannelsTypeDiscord: 'Discord',
+  aiCfgChannelsBotName: 'Name (e.g. "Family bot")',
+  aiCfgChannelsBotToken: 'Bot token',
+  aiCfgChannelsBotTokenTelegramHint: 'Token from {\'@\'}BotFather on Telegram.',
+  aiCfgChannelsBotTokenDiscordHint: 'Bot token from the Discord Developer Portal. You must also enable the Message Content Intent for the bot there.',
+  aiCfgChannelsDiscordPairNote: 'Discord bots can only DM users who share a server with them. Invite the bot to a server, have the user join it, then pair from there.',
+  aiCfgChannelsBotTokenTail: 'token ···{\'{\'}tail{\'}\'}',
+  aiCfgChannelsDiscordInvite: 'Invite the bot to a server',
+  aiCfgChannelsEnabled: 'Enabled',
+  aiCfgChannelsPairTitle: 'Pair a chat account',
+  aiCfgChannelsNoBots: 'No chat bot is configured yet. Ask an administrator to add one.',
+  aiCfgChannelsGenerateCode: 'Generate pairing code',
+  aiCfgChannelsBindingsTitle: 'My linked accounts',
+  aiCfgChannelsNoBindings: 'No linked accounts yet. Generate a pairing code above and send it to the bot.',
+  aiCfgChannelsBindingDefaultModel: 'Default model',
+  aiCfgChannelsBindingDownloadDir: 'Download folder',
+  aiCfgChannelsUnbind: 'Unlink',
+  aiCfgChannelsUnbindConfirm: 'Unlink this account? It will no longer be able to message the agent.',
+  aiCfgChannelsDeleteBotConfirm: 'Delete this bot? All pairings for it will stop working.',
+  aiCfgChannelsCodeTitle: 'Pairing code',
+  aiCfgChannelsCodeWarn: 'This code is valid for 10 minutes and can be used once.',
+  aiCfgChannelsCreateCodeFailed: 'Could not generate a pairing code.',
+  aiCfgChannelsPairInstructions: 'Open Telegram, message {\'@\'}{\'{\'}bot{\'}\'}, and send: /pair {\'{\'}code{\'}\'}',
+  // <<< SP8-P2b Task 12
 }

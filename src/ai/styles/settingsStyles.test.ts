@@ -82,6 +82,23 @@ describe('settings-styles.scss', () => {
     expect(css).toContain('.mcp-reveal-warn {')
     expect(css).toContain('color: var(--danger)')
   })
+
+  // SP8-P2b Task 12 —— ChannelsSection.vue 同样走「零 <style> 块」惯例(与 Task 10 的
+  // .mcp-label/.mcp-reveal-warn 同一分工),Vue2 sections/ChannelsSection.vue:387-410
+  // scoped 里的 .chan-* 规则(`.chan-x`/`.chan-x:hover` 已被 SkModal 的 `.sk-x` 收编,不搬)
+  // 迁到本档。同上一条的两道保险:选择器紧跟 `{`(不是裸子串、不会被注释里的反引号类名
+  // 撞对),并抓一条真实声明(`.chan-type-opt[data-active="true"]` 的
+  // `border-color: var(--accent)`)证明规则体还在,不是只剩选择器空壳。
+  it('保留 ChannelsSection 的 .chan-*(Vue2 :387-410 scoped 样式迁移)', () => {
+    for (const sel of [
+      '.chan-bot {', '.chan-model-lbl {', '.chan-switch {', '.chan-modal-warn {',
+      '.chan-modal-hint {', '.chan-type-row {', '.chan-type-opt {',
+      '.chan-type-opt[data-active="true"] {', '.chan-field-hint {', '.chan-invite {',
+    ]) {
+      expect(css).toContain(sel)
+    }
+    expect(css).toContain('border-color: var(--accent)')
+  })
 })
 
 describe('sk-shared.scss', () => {
