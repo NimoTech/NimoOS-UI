@@ -937,4 +937,21 @@ export default {
   photosPersonGraphLegendOccasional: 'Occasional',
   photosPersonCoappearTitle: 'Co-appearance',
   photosPersonPhotosTogether: '{n} photos together',
+  // Task 14 (container + six dialogs): copy that the brief's key list did not
+  // cover and that a line-by-line pass over Vue2 PhotosPersonDetail.vue showed
+  // was genuinely missing here. English strings are verbatim from the Vue2
+  // source (line numbers noted per key). Appended at the end, no reordering.
+  photosPersonSameFrameSub: 'People who appear in photos with {name}', // Vue2 :112
+  photosPersonRenameHint: 'This name will be used everywhere this face appears.', // Vue2 :776
+  photosPersonAlbumHint: '{n} photos will be added to this album.', // Vue2 :861
+  photosPersonAlbumNameFallback: 'Person {id}', // Vue2 :855
+  photosPersonNoPhotosTitle: 'No photos available', // Vue2 :847
+  photosPersonNoPhotosAlbumHint: 'This person has no photos to add to an album yet.', // Vue2 :848
+  photosPersonHeroSub: 'Select a photo to use as the hero background', // Vue2 :339
+  photosPersonMergeIntoSub: 'All photos will move to the target person', // Vue2 :388
+  photosPersonMergeConfirm: 'Merge into {name}', // Vue2 :428 (target picked)
+  photosPersonMergeSelectPrompt: 'Select a person', // Vue2 :428 (nothing picked)
+  photosPersonUnnamedLabel: 'Unnamed person', // Vue2 :962
+  // Deviation 1: Vue2 :943 only console.error's a failed detach; we surface a toast.
+  photosPersonDetachFailed: 'Failed to remove photos',
 }

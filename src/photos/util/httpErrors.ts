@@ -14,3 +14,17 @@ export function isConflict(e: unknown): boolean {
   const message = (e as { message?: unknown }).message
   return /409/.test(String(message ?? ''))
 }
+
+// Task 14(SP7-P5 人物):404 判定,与 isConflict 同一套形状容忍策略。
+// 唯一用途是「设为关键照片」——后端用 404 专门表达"这张照片里没有这个人的脸",
+// 需要与其它失败区分成两句不同文案(照 Vue2 PhotosPersonDetail.vue:656-660)。
+// message 兜底与 isConflict 保持同一风格:\b 边界防止把 4040/1404 之类误判成 404。
+export function isNotFound(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const response = (e as { response?: unknown }).response
+  if (response && typeof response === 'object' && (response as { status?: unknown }).status === 404) {
+    return true
+  }
+  const message = (e as { message?: unknown }).message
+  return /\b404\b/.test(String(message ?? ''))
+}

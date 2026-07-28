@@ -929,4 +929,23 @@ export default {
   photosPersonGraphLegendOccasional: '偶尔',
   photosPersonCoappearTitle: '共同出现',
   photosPersonPhotosTogether: '共同出现 {n} 张照片',
+  // Task 14 补(容器 + 六个弹窗;brief 的键清单里没有,逐段核对 Vue2
+  // PhotosPersonDetail.vue 后确认本仓确实缺失才补的,行号见各条注释)。
+  // 译文一律从旧仓 zh_CN.json 查同句英文原文;查不到的按已确立的术语惯例直给。
+  // 追加在段末,不重排既有键。
+  photosPersonSameFrameSub: '与 {name} 同框出现的人', // Vue2 :112
+  photosPersonRenameHint: '这个名字会在这张脸出现的所有地方生效。', // Vue2 :776
+  photosPersonAlbumHint: '{n} 张照片将被加入这个相册。', // Vue2 :861
+  photosPersonAlbumNameFallback: '人物 {id}', // Vue2 :855
+  photosPersonNoPhotosTitle: '暂无可用照片', // Vue2 :847
+  photosPersonNoPhotosAlbumHint: '这个人还没有可加入相册的照片。', // Vue2 :848
+  photosPersonHeroSub: '选择一张照片作为背景大图', // Vue2 :339
+  photosPersonMergeIntoSub: '所有照片都会转移到目标人物', // Vue2 :388
+  photosPersonMergeConfirm: '合并到「{name}」', // Vue2 :428(选中态)
+  photosPersonMergeSelectPrompt: '请选择一个人物', // Vue2 :428(未选中态)
+  // Vue2 :962 $t('Unnamed person') —— 删除 toast 里未命名人物的占位标签。术语与
+  // photosPeopleUnnamedSection 同为"未命名人物",但那是分区标题、语义不同,不共用键。
+  photosPersonUnnamedLabel: '未命名人物',
+  // 偏离登记 1:Vue2 :943 detach 失败只 console.error(用户看不到任何反馈),这里补 toast。
+  photosPersonDetachFailed: '移除失败',
 }
