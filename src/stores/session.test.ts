@@ -55,3 +55,42 @@ describe('useSessionStore', () => {
     expect(localStorage.getItem('access_token')).toBeNull()
   })
 })
+
+describe('SP8-P2b Task 2 —— user / isAdmin 读口', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('localStorage 里有 admin 用户时 user 能读回、isAdmin 为 true', () => {
+    localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
+    const s = useSessionStore()
+    expect(s.user?.username).toBe('nimo')
+    expect(s.isAdmin).toBe(true)
+  })
+
+  it('非 admin 角色 isAdmin 为 false', () => {
+    localStorage.setItem('user', JSON.stringify({ username: 'guest', role: 'user' }))
+    const s = useSessionStore()
+    expect(s.isAdmin).toBe(false)
+  })
+
+  it('localStorage 无 user 时 user 为 null、isAdmin 为 false(不抛)', () => {
+    const s = useSessionStore()
+    expect(s.user).toBeNull()
+    expect(s.isAdmin).toBe(false)
+  })
+
+  it('localStorage 里是坏 JSON 时也不抛,退化成 null', () => {
+    localStorage.setItem('user', '{不是 JSON')
+    const s = useSessionStore()
+    expect(s.user).toBeNull()
+    expect(s.isAdmin).toBe(false)
+  })
+
+  it('user 不是对象(比如存了字符串)时也退化成 null', () => {
+    localStorage.setItem('user', '"nimo"')
+    const s = useSessionStore()
+    expect(s.user).toBeNull()
+  })
+})
