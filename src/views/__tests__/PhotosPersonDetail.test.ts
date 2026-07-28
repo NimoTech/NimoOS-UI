@@ -177,6 +177,49 @@ describe('PhotosPersonDetail.vue —— 三态门控', () => {
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
+  // 协调者裁定 4:加载失败必须与「没有这个人」可区分(T9 的 failed 标志就是为此而加)。
+  it('加载失败 → 专用错误文案 + 重试钮(不复用"找不到这个人物")', async () => {
+    svc.photos.getPerson.mockRejectedValue(new Error('network down'))
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-load-failed"]').exists()).toBe(true)
+    expect(w.text()).toContain(zh.photosPersonLoadFailed)
+    // 不能落到「没有这个人」那一支
+    expect(w.find('[data-test="person-not-found"]').exists()).toBe(false)
+    expect(w.find('[data-test="person-skeleton"]').exists()).toBe(false)
+  })
+
+  it('失败态点「重试」→ load 被再调一次;成功后翻到正常内容', async () => {
+    svc.photos.getPerson.mockRejectedValueOnce(new Error('network down'))
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-load-failed"]').exists()).toBe(true)
+    const before = svc.photos.getPerson.mock.calls.length
+
+    await w.find('[data-test="person-retry"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.getPerson.mock.calls.length).toBe(before + 1)
+    expect(svc.photos.getPerson).toHaveBeenLastCalledWith('7')
+    expect(w.find('[data-test="person-load-failed"]').exists()).toBe(false)
+    expect(w.find('[data-test="hero-name"]').text()).toBe('妈妈')
+  })
+
+  it('重试在途期间不重复发请求(loading 短路 + 按钮 disabled)', async () => {
+    svc.photos.getPerson.mockRejectedValueOnce(new Error('network down'))
+    const { w } = await mountView('7')
+    let release: (() => void) | null = null
+    svc.photos.getPerson.mockImplementation(
+      () => new Promise((res) => { release = () => res({ person: rawPerson(), relations: [] }) }),
+    )
+    const before = svc.photos.getPerson.mock.calls.length
+    const btn = w.find('[data-test="person-retry"]')
+    await btn.trigger('click')
+    // load() 在 await 之前同步置 loading —— 门控立刻切回骨架,重试钮已不在 DOM 上
+    expect(w.find('[data-test="person-retry"]').exists()).toBe(false)
+    expect(w.find('[data-test="person-skeleton"]').exists()).toBe(true)
+    expect(svc.photos.getPerson.mock.calls.length).toBe(before + 1)
+    release!()
+    await flushPromises()
+  })
+
   it('正常态 → hero + tabs + 资产网格', async () => {
     const { w } = await mountView('7')
     expect(w.find('[data-test="person-skeleton"]').exists()).toBe(false)
@@ -677,7 +720,8 @@ describe('PhotosPersonDetail.vue —— 背景选择弹窗', () => {
     expect(w.find('[data-test="person-hero-dialog"]').exists()).toBe(false)
   })
 
-  it('「使用关键照片」= 清空 heroAssetId', async () => {
+  // 协调者裁定 3:两个入口的 toast 语义不同(「重置回关键照片」vs「改成选中的这张」),不合并。
+  it('「使用关键照片」= 清空 heroAssetId,且用**重置**专属 toast(不是"背景已更新")', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ heroAssetId: 'a2' }), relations: [] })
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('open-hero-picker')
@@ -686,6 +730,20 @@ describe('PhotosPersonDetail.vue —— 背景选择弹窗', () => {
     await flushPromises()
     expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { heroAssetId: '' })
     expect(w.findComponent(PersonHero).props('person').heroAssetId).toBe(null)
+    expect(useToast().msg).toBe(zh.photosPersonHeroResetToast)
+    expect(useToast().msg).not.toBe(zh.photosPersonHeroSavedToast)
+  })
+
+  it('「使用关键照片」失败 → **重置**专属失败文案', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ heroAssetId: 'a2' }), relations: [] })
+    svc.photos.updatePerson.mockRejectedValue(new Error('boom'))
+    const { w } = await mountView('7')
+    w.findComponent(PersonHero).vm.$emit('open-hero-picker')
+    await w.vm.$nextTick()
+    await w.find('[data-test="person-hero-use-key"]').trigger('click')
+    await flushPromises()
+    expect(useToast().msg).toBe(zh.photosPersonHeroResetFailed)
+    expect(w.find('[data-test="person-hero-dialog"]').exists()).toBe(true)
   })
 
   it('失败:toast 且弹窗仍开', async () => {

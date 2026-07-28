@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Task 14 (SP7-P5 人物): 人物详情视图容器 —— 本期最大的一件。逐段对照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPersonDetail.vue(1561 行)移植:三态门控 + PersonHero(T10)+
+// src/views/Photos/PhotosPersonDetail.vue(1561 行)移植:四态门控(骨架 / 加载失败+重试 /
+// 人物不存在 / 正常)+ PersonHero(T10)+
 // 三个 tab(时间线自绘共现横条 + PersonAssetGrid T11 / PersonPlacesTab T12 /
 // PersonRelationsTab T13)+ 选择态浮动条 + **六个自绘弹窗**(改名 / 建相册 / 移出确认 /
 // 删除确认 / 背景选择 / 合并到他人)+ PhotoLightbox(P2)接线。
@@ -35,10 +36,10 @@
 //  G) 建相册默认名:Vue2 :855 用 `this.person.id.slice(0, 8)` —— 后端 id 是数字时
 //     Number.prototype 没有 slice,直接抛 TypeError。这里 String(id).slice(0, 8)。
 //  H) 合并失败:照 Vue2 停在当前页 + finally 关弹窗(已知瑕疵,brief 明确不修)。
-//  I) 背景弹窗:Vue2 对「使用关键照片」和「保存选中」用了四条不同 toast 文案
-//     (:681,683,694,696)。brief 把两条成功路径统一到 photosPersonHeroSavedToast、
-//     两条失败路径统一到 photosPersonHeroFailed —— 照 brief(两句文案语义同为"背景已更新/
-//     更新背景失败",合并后不丢信息),不再新开两个键。
+//  I) 背景弹窗的四条 toast(:681,683,694,696):brief 说合成两条,回源核对后发现两个入口
+//     的文案语义确实不同(「重置回关键照片」vs「改成选中的这张」)—— 协调者裁定 3 拍板
+//     **不合并**,补 photosPersonHeroResetToast / photosPersonHeroResetFailed 两键,
+//     按 assetId === null 分流(见 saveHero)。
 //  J) 合并候选池:Vue2 用 allPeople(含未命名)(:517);brief 定为 people.named 排除自身。
 //     照 brief。连带结果:候选名字恒非空(namedOf 保证 name.trim() !== ''),Vue2 :406/410
 //     的 `p.name || $t('Unnamed')` 兜底在这里不可达,不渲染(不是漏渲染)。
@@ -49,6 +50,10 @@
 //  L) 共现横条头像尺寸 72px:brief 写的是 56,回 Vue2 源核对
 //     photos-people.scss:701-703 `.coappear-card .ring { width:72px; height:72px }`,
 //     以源为准(同 T13 的 36px 教训)。
+//  M) 门控从三态扩到四态(协调者裁定 4):Vue2 加载失败只 console.error(:746),视图无法
+//     区分「加载失败」与「没有这个人」,两者都是一片空白。T9 的 failed 标志正是为此而加 ——
+//     这里 failed 单独一支:photosPersonLoadFailed + 重试钮(P4 遗留过一条同类账:详情页
+//     加载失败 → 永久骨架、无错误态无重试,本期不再留)。
 //
 // ── Esc 分层(P4 终审同款,六+一个弹窗全覆盖)──────────────────────────────────
 //  本页挂着 PhotoLightbox,它在 **window** 上挂 keydown(PhotoLightbox.vue:144)。弹窗的
@@ -334,16 +339,20 @@ async function onSetKeyPhoto(): Promise<void> {
 // 5) 保存背景(Vue2 onUseKeyPhoto :675-685 / onSaveHero :688-698,偏离登记 I)。
 // 守卫判断:成功才关弹窗(await 之后),在途期间两个按钮都还可点 —— 守卫有防护价值。
 // 两个入口共用一个 heroSaving:它们互不调用(不会像 T5 submitCreate→pick 那样被自己的守卫误伤)。
+// 文案分流(协调者裁定 3):两个入口在 Vue2 里各有一对**语义不同**的文案 ——「重置回关键
+// 照片」与「改成选中的这张」,不合并。assetId === null 恰好就是「使用关键照片」这条入口
+// (onSaveHero 只在 heroSelectedId 非 null 时才调用),用它做分流不需要额外参数。
 async function saveHero(assetId: string | number | null): Promise<void> {
   if (!detail.person.value || heroSaving.value) return
   heroSaving.value = true
+  const isReset = assetId === null
   try {
     await people.setPersonHero(personId.value, assetId)
     detail.patchPerson({ heroAssetId: assetId })
-    toast.show(t('photosPersonHeroSavedToast'))
+    toast.show(t(isReset ? 'photosPersonHeroResetToast' : 'photosPersonHeroSavedToast'))
     closeHeroPicker()
   } catch {
-    toast.show(t('photosPersonHeroFailed'))
+    toast.show(t(isReset ? 'photosPersonHeroResetFailed' : 'photosPersonHeroFailed'))
   } finally {
     heroSaving.value = false
   }
@@ -457,6 +466,14 @@ function openAlbumPicker(ids: Array<string | number>): void {
 // 具名函数(照 PhotosAlbumDetail.vue:215-217):模板里内联 router.push 会把 promise 挂在事件
 // 处理器上不管,导航被取消/重复时 reject 没人接住。
 function goToPeopleList(): void { void router.push('/photos/people') }
+
+// 加载失败态的重试(协调者裁定 4)。in-flight 处理是双保险:①`loading` 期间短路;
+// ②按钮 :disabled。实际上门控条件里带了 !loading,重试一开始整个分支就切回骨架、按钮
+// 已经不在 DOM 上了 —— 但 load 是异步的,短路那一行才是唯一在同一 tick 内生效的保护。
+function retryLoad(): void {
+  if (detail.loading.value) return
+  void detail.load(personId.value)
+}
 function goToPerson(id: string | number): void {
   void router.push('/photos/people/' + encodeURIComponent(String(id)))
 }
@@ -508,7 +525,7 @@ watch(() => route.params.id, (raw) => {
     <div class="photos-layout">
       <PhotosSidebar />
       <main class="photos-main">
-        <!-- 三态门控 ①:还在加载且还没有数据 → 骨架 -->
+        <!-- 门控 ①:还在加载且还没有数据 → 骨架 -->
         <div v-if="detail.loading.value && !detail.person.value" class="person-skeleton" data-test="person-skeleton">
           <div class="person-skeleton-hero" />
           <div class="person-skeleton-tabs" />
@@ -517,7 +534,18 @@ watch(() => route.params.id, (raw) => {
           </div>
         </div>
 
-        <!-- 三态门控 ②:加载完了确实没有这个人 -->
+        <!-- 门控 ②:加载失败(≠「没有这个人」)→ 错误文案 + 重试。协调者裁定 4:T9 的
+             failed 标志就是为了让视图能区分这两种"person 为 null";Vue2 只 console.error,
+             两者在界面上完全一样。 -->
+        <div v-else-if="!detail.person.value && detail.failed.value" class="empty-state" data-test="person-load-failed">
+          <div class="empty-state-title">{{ t('photosPersonLoadFailed') }}</div>
+          <button
+            type="button" class="pd-btn" data-test="person-retry"
+            :disabled="detail.loading.value" @click="retryLoad"
+          >{{ t('photosPersonRetry') }}</button>
+        </div>
+
+        <!-- 门控 ③:加载完了确实没有这个人 -->
         <div v-else-if="!detail.person.value" class="empty-state" data-test="person-not-found">
           <div class="empty-state-title">{{ t('photosPersonNotFound') }}</div>
           <button type="button" class="pd-btn" data-test="person-not-found-back" @click="goToPeopleList">
@@ -525,7 +553,7 @@ watch(() => route.params.id, (raw) => {
           </button>
         </div>
 
-        <!-- 三态门控 ③:正常内容 -->
+        <!-- 门控 ④:正常内容 -->
         <template v-else>
           <PersonHero
             :person="detail.person.value"

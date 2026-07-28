@@ -954,4 +954,17 @@ export default {
   photosPersonUnnamedLabel: 'Unnamed person', // Vue2 :962
   // Deviation 1: Vue2 :943 only console.error's a failed detach; we surface a toast.
   photosPersonDetachFailed: 'Failed to remove photos',
+  // Task 14 fix (coordinator ruling 3): the brief claimed Vue2's four hero toasts
+  // collapse into two. Re-checking the source shows the two entry points each own a
+  // distinct pair — onUseKeyPhoto (:681,683) "reset back to the key photo" vs
+  // onSaveHero (:694,696) "switch to the picked photo". Kept as two separate pairs.
+  photosPersonHeroResetToast: 'Background reset to key photo', // Vue2 :681
+  photosPersonHeroResetFailed: 'Failed to reset background', // Vue2 :683
+  // Task 14 fix (coordinator ruling 4): a load failure must be distinguishable from
+  // "no such person" — that is exactly what T9's `failed` flag is for (Vue2 only
+  // console.error's, so its view cannot tell them apart). Retry affordance included;
+  // P4 left a same-shaped debt (detail page load failure → permanent skeleton, no
+  // error state, no retry) that we are not repeating here.
+  photosPersonLoadFailed: 'Could not load this person',
+  photosPersonRetry: 'Retry',
 }

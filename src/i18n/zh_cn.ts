@@ -948,4 +948,14 @@ export default {
   photosPersonUnnamedLabel: '未命名人物',
   // 偏离登记 1:Vue2 :943 detach 失败只 console.error(用户看不到任何反馈),这里补 toast。
   photosPersonDetachFailed: '移除失败',
+  // Task 14 fix(协调者裁定 3):brief 说「Vue2 有四条 toast,合成两条」,回源核对
+  // 发现两个入口各有自己的一对文案且语义确实不同 —— onUseKeyPhoto(:681,683)是"重置回
+  // 关键照片",onSaveHero(:694,696)是"改成选中的这张"。两对分别用键,不合并。
+  photosPersonHeroResetToast: '背景已重置为关键照片', // Vue2 :681
+  photosPersonHeroResetFailed: '重置背景失败', // Vue2 :683
+  // Task 14 fix(协调者裁定 4):加载失败与「没有这个人」必须可区分(T9 的 failed 标志
+  // 正是为此而加;Vue2 只 console.error,视图分不清)。同时补重试入口 —— P4 遗留过一条
+  // 同类账(详情页加载失败 → 永久骨架、无错误态无重试),本期不再留。
+  photosPersonLoadFailed: '无法加载这个人物',
+  photosPersonRetry: '重试',
 }
