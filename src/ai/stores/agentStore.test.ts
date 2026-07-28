@@ -218,13 +218,16 @@ describe('agentStore (session slice)', () => {
     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('light')
   })
 
-  it('初始态(新鲜 store):busy===false、rightCollapsed 恒 true', () => {
+  it('初始态(新鲜 store):busy===false、rightCollapsed 默认展开(false)', () => {
     // 注:busy 从本任务(P1b)起可被 setBusy/setStreamingDone 翻转,这里只断言
     // 一个全新 store 的初始值,不再假设 busy "永不写入"。
     // pendingPrompt 已在 Task 11 移除(1b 起 send() 直接发送,不再需要暂存座)。
+    // rightCollapsed 断言在 SP8-P1c2 从 true 改为 false —— 1a 阶段右侧面板尚未
+    // 实现故写死收起(true),本期 store 状态 + 顶栏开关落地,改回 Vue2
+    // agentStore.js:37 的默认值(展开)。详见 agentStore.p1c2.test.ts。
     const s = useAgentStore()
     expect(s.busy).toBe(false)
-    expect(s.rightCollapsed).toBe(true)
+    expect(s.rightCollapsed).toBe(false)
   })
 
   it('toggleLeft:翻转 leftCollapsed', () => {

@@ -3,6 +3,10 @@
   ModelPicker、ThinkingBar、右侧面板 toggle、AI 改名按钮全部整段省略,原位置
   留 `<!-- 1c: ... -->` 注释标记待 1c 回填。标题输入 500ms 防抖 + blur 立即
   flush 的语义逐字保留(DEBOUNCE_MS、onInput/onBlur/flushSave)。
+
+  SP8-P1c2 Task 2 —— 右侧面板 toggle 按钮已回填(Vue2 shell/AgentTopbar.vue:
+  43-45,1:1):新增 prop `rightCollapsed`(对齐 Vue2 :73,默认 false)+ emit
+  `toggle-right`。ModelPicker、ThinkingBar、AI 改名按钮仍留给后续任务。
 -->
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
@@ -17,17 +21,21 @@ const props = withDefaults(
     sessionId?: string
     storedTitle?: string
     theme?: 'light' | 'dark'
+    // Vue2 shell/AgentTopbar.vue:73 —— 默认展开(false),用于按钮 data-active。
+    rightCollapsed?: boolean
   }>(),
   {
     sessionId: '',
     storedTitle: '',
     theme: 'light',
+    rightCollapsed: false,
   },
 )
 
 const emit = defineEmits<{
   (e: 'toggle-left'): void
   (e: 'toggle-theme'): void
+  (e: 'toggle-right'): void
   (e: 'update-title', title: string): void
 }>()
 
@@ -138,7 +146,10 @@ function goHome() {
       <button class="icon-btn" @click="emit('toggle-theme')">
         <AgentIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="16" />
       </button>
-      <!-- 1c: right-panel toggle -->
+      <!-- Vue2 shell/AgentTopbar.vue:43-45 —— 1:1 端口(无 title,Vue2 亦无)。 -->
+      <button class="icon-btn" :data-active="!rightCollapsed" @click="emit('toggle-right')">
+        <AgentIcon name="panel" :size="16" />
+      </button>
     </div>
     <!-- 1c: ThinkingBar -->
   </header>

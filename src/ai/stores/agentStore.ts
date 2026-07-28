@@ -121,8 +121,11 @@ export function useAgentStore(agentType?: string) {
     const busy = ref(false)
     const theme = ref<AgentTheme>('light')
     const leftCollapsed = ref(false)
-    // 1a 阶段恒 true——右侧面板(活动日志/资源等)要到 streaming 落地才有内容可看。
-    const rightCollapsed = ref(true)
+    // agentStore.js:37 —— 默认展开(与 Vue2 对齐)。1a 阶段曾写死 true(右侧面板尚未
+    // 实现,收起更直白);本期(1c-2)右栏 shell 即将挂载,改回 Vue2 的默认值。
+    const rightCollapsed = ref(false)
+    // agentStore.js:38 —— 右栏当前激活的 tab,tab 选择不持久化(与 theme/selectedModel 不同)。
+    const rightTab = ref<'activity' | 'context' | 'system' | 'resources'>('activity')
     // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
     // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
@@ -280,6 +283,16 @@ export function useAgentStore(agentType?: string) {
     /** agentStore.js:156 —— 翻转左侧会话列表折叠态。 */
     function toggleLeft() {
       leftCollapsed.value = !leftCollapsed.value
+    }
+
+    /** agentStore.js:157 —— 翻转右侧面板折叠态。 */
+    function toggleRight() {
+      rightCollapsed.value = !rightCollapsed.value
+    }
+
+    /** agentStore.js:158 —— 切换右侧面板当前激活的 tab。 */
+    function setRightTab(tab: 'activity' | 'context' | 'system' | 'resources') {
+      rightTab.value = tab
     }
 
     // ---- Streaming primitives (SP8-P1b Task 4) ----
@@ -980,6 +993,7 @@ export function useAgentStore(agentType?: string) {
       theme,
       leftCollapsed,
       rightCollapsed,
+      rightTab,
       abortController,
       activitySteps,
       pendingCancel,
@@ -1001,6 +1015,8 @@ export function useAgentStore(agentType?: string) {
       initTheme,
       toggleTheme,
       toggleLeft,
+      toggleRight,
+      setRightTab,
       pushUserMessage,
       startAssistant,
       appendBlock,

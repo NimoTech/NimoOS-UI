@@ -215,4 +215,24 @@ describe('AgentPage', () => {
     await flushPromises()
     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
   })
+
+  it('SP8-P1c2:根元素 data-rightcollapsed 默认为 false(展开,对齐 Vue2 agentStore.js:37)', async () => {
+    const w = mountPage()
+    await flushPromises()
+    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
+    w.unmount()
+  })
+
+  it('SP8-P1c2:data-rightcollapsed 随 store.toggleRight 变化,顶栏按钮亦接线到同一 action', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.toggleRight()
+    await flushPromises()
+    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('true')
+    store.toggleRight()
+    await flushPromises()
+    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
+    w.unmount()
+  })
 })

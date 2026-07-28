@@ -92,16 +92,31 @@ describe('AgentTopbar', () => {
     historySpy.mockRestore()
   })
 
-  it('1a 裁剪:不渲染 ModelPicker/ThinkingBar/右侧面板 toggle/AI 改名按钮', () => {
+  it('1a 裁剪:不渲染 ModelPicker/ThinkingBar/AI 改名按钮(右侧面板 toggle 已在 1c-2 回填)', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
     })
     expect(w.html()).toContain('1c: ModelPicker')
     expect(w.html()).toContain('1c: ThinkingBar')
-    expect(w.html()).toContain('1c: right-panel toggle')
     expect(w.html()).toContain('1c: AI-rename button')
-    // Only 3 icon buttons survive the trim: goHome, toggle-left, theme toggle.
-    expect(w.findAll('.icon-btn')).toHaveLength(3)
+    expect(w.html()).not.toContain('1c: right-panel toggle')
+    // 4 icon buttons survive: goHome, toggle-left, theme toggle, right-panel toggle.
+    expect(w.findAll('.icon-btn')).toHaveLength(4)
+  })
+
+  it('SP8-P1c2:右侧面板开关按钮 emit toggle-right,data-active 反映 !rightCollapsed(Vue2 shell/AgentTopbar.vue:43-45)', async () => {
+    const w = mount(AgentTopbar, {
+      props: { sessionId: 's1', rightCollapsed: false },
+      global: { plugins: [i18n] },
+    })
+    const buttons = w.findAll('.icon-btn')
+    const rightToggle = buttons[3]
+    expect(rightToggle.attributes('data-active')).toBe('true')
+    await rightToggle.trigger('click')
+    expect(w.emitted('toggle-right')).toHaveLength(1)
+
+    await w.setProps({ rightCollapsed: true })
+    expect(w.findAll('.icon-btn')[3].attributes('data-active')).toBe('false')
   })
 })

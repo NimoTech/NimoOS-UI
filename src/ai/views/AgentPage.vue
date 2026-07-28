@@ -2,9 +2,7 @@
   1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
   去 AgentComposer(1b 无输入框 UI —— 本期唯一发送入口是 Task 11 的
   ?search=/?message= 自动发送 + EmptyState 建议卡)、
-  AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。右侧面板在
-  本期永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store
-  状态——store 里 rightCollapsed 恒 true,直接写死更直白)。
+  AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。
 
   SP8-P1c1 Task 12 —— AgentComposer 已挂载(Vue2 Agent.vue:38-42 挂载契约,
   1:1):props busy/ctx-usage,emits send/stop/send-init 直连 store 同名 action。
@@ -13,7 +11,12 @@
   沿一次)移植自 Vue2 120-132(**不**移植同一会话 watcher 里的
   loadSessionThinking/updateThinkingForModel,也**不**移植 lastFallbackNotice
   toast watcher——两者都属于 ThinkingBar/ModelPicker,留给 1c-2)。
-  右栏(AgentRightPanel)、ModelPicker、ThinkingBar 仍留 1c-2。
+  ModelPicker、ThinkingBar 仍留 1c-2 后续任务。
+
+  SP8-P1c2 Task 2 —— data-rightcollapsed 解开硬编码,改绑 store.rightCollapsed
+  (Vue2 Agent.vue:4 逐字对齐);AgentTopbar 新增 right-collapsed prop +
+  toggle-right emit → store.toggleRight(Vue2 Agent.vue:20/24)。右栏 shell 本身
+  (AgentRightPanel)仍未挂载,留给后续任务——本任务只解开容器状态 + 顶栏开关。
 
   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
@@ -173,7 +176,7 @@ onMounted(async () => {
     class="agent-app"
     :data-theme="store.theme"
     :data-leftcollapsed="store.leftCollapsed"
-    :data-rightcollapsed="true"
+    :data-rightcollapsed="store.rightCollapsed"
   >
     <AgentSidebar
       :sessions="store.sessions"
@@ -189,8 +192,10 @@ onMounted(async () => {
         :session-id="String(store.activeSessionId ?? '')"
         :stored-title="currentSessionTitle"
         :theme="store.theme"
+        :right-collapsed="store.rightCollapsed"
         @toggle-left="store.toggleLeft"
         @toggle-theme="store.toggleTheme"
+        @toggle-right="store.toggleRight"
         @update-title="onUpdateTitle"
       />
       <EmptyState v-if="store.messages.length === 0" />
