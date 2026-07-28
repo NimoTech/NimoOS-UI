@@ -3,12 +3,27 @@
 // 纯展示组件:props { photo, visible },emits 无。
 // delta(见 task-7-brief.md):
 //   1) 删「交给 Nimo」/「Hand off to Nimo」按钮(Vue2 :84-87)——本组件不渲染任何 ask-nimo 交互。
-//   2) 人物段 face chip 不引入 asset-scoped face-thumbnail(P2 尚无该接口),用文字首字母占位,同 Vue2 底子。
-//   3) tags/scene/faces 在 P2 时间线路径恒为空 → 对应段落整体隐藏(v-if 挡在外层 div 上),保留结构以便后续接入真实数据后无需改模板。
-import { ref, computed } from 'vue'
+//   2) tags/scene/faces 在 P2 时间线路径恒为空 → 对应段落整体隐藏(v-if 挡在外层 div 上),保留结构以便后续接入真实数据后无需改模板。
+//
+// Task 15B(SP7-P5 两笔记账收口)人脸 chip 真头像 —— 前置事实纠正(task-15-brief.md):
+//   ① 后端没有 asset-scoped face-thumbnail 端点,全仓只有 person-scoped 的
+//      /v1/photos/persons/:id/face-thumbnail;② Vue2 灯箱本身也是首字母占位
+//      (PhotosLightbox.vue:128-129 的 `{{ f[0] }}`)——New-UI 此前(delta ② 的原描述)其实已经
+//      与 Vue2 1:1;③ 根因是 Photo.faces 只是人名字符串数组(assetToPhoto.ts:311/398),不带
+//      personId,且后端只在收藏列表接口填充这个字段。
+//   本任务做的是在不改后端前提下能做到的最好版本:用人名反查人物列表(usePhotosPeople)拿
+//   personId,唯一命中(resolvePersonByName)才用 PersonAvatar 显示真头像,否则保持首字母
+//   占位——这是超出 Vue2 的增强,登记为偏离;真正的正解(后端让 faces 带 personId,或新增
+//   asset-scoped 端点)记后端票,不在本任务范围。不加点击跳转(保持 Vue2 的非交互 chip)。
+//   顺带修正:占位首字母原来是裸 `f[0]`(未大写),改用 personInitial(f) 统一大写,对齐
+//   Vue2 peopleUtils.js 的 personInitial 语义。
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { copyText } from '../../files/util/clipboard'
 import { osmEmbedSrc } from './util/osmMap'
+import { usePhotosPeople } from '../stores/people'
+import { resolvePersonByName, personInitial } from '../util/peopleView'
+import PersonAvatar from '../components/PersonAvatar.vue'
 import type { Photo } from '../util/assetToPhoto'
 
 const props = defineProps<{ photo: Photo | null; visible: boolean }>()
@@ -32,6 +47,21 @@ const mapSrc = computed(() => hasLocation.value ? osmEmbedSrc(props.photo!.latit
 
 const faces = computed(() => (props.photo?.faces as string[] | undefined) ?? [])
 const tags = computed(() => (props.photo?.tags as string[] | undefined) ?? [])
+
+// —— Task 15B:人脸 chip 真头像(见头部注释的前置事实纠正与登记的偏离) ——
+const people = usePhotosPeople()
+// 只拉一次(store 的 peopleLoaded 标志天然去重):faces 非空且尚未加载过才拉。失败时
+// peopleLoaded 留 false(people.ts 内部约定),下次开图 watch 会再触发一次重试。
+watch(
+  faces,
+  (list) => { if (list.length > 0 && !people.peopleLoaded) void people.fetchPeople() },
+  { immediate: true },
+)
+// 人名 → 唯一匹配的人物(重名/无匹配都是 null,退回首字母占位)。与 faces 一起渲染,
+// 随 people.people 到位后自动重新求值。
+const faceEntries = computed(() =>
+  faces.value.map((f) => ({ name: f, person: resolvePersonByName(people.people, f) })),
+)
 
 // —— 复制文件路径 ——(HTTP 非安全上下文兜底走 src/files/util/clipboard.ts 既有 copyText)
 const justCopied = ref(false)
@@ -92,8 +122,16 @@ async function onCopyPath(): Promise<void> {
     <div v-if="faces.length > 0" class="info-section" data-section="people">
       <div class="info-label">{{ t('photosInfoPeople') }} · {{ faces.length }}</div>
       <div class="face-row">
-        <div v-for="f in faces" :key="f" class="face-chip">
-          <span class="face-avatar">{{ f[0] }}</span>{{ f }}
+        <div v-for="entry in faceEntries" :key="entry.name" class="face-chip">
+          <PersonAvatar
+            v-if="entry.person"
+            :size="18"
+            :person-id="entry.person.id"
+            :ver="entry.person.coverFaceId"
+            :name="entry.name"
+          />
+          <span v-else class="face-avatar">{{ personInitial(entry.name) }}</span>
+          {{ entry.name }}
         </div>
       </div>
     </div>

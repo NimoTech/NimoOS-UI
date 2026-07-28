@@ -968,4 +968,12 @@ export default {
   // 的两档渲染另开两键;文字与既有那条逐字一致,只是拆开。
   photosPersonDeleteKeptBody: '照片会保留。人物分组与识别记录将被永久删除。',
   photosPersonDeleteUndoHint: '你可以在 5 秒内撤销。',
+  // ── Photos: Favorites hero-stats three cards (Task 15A, SP7-P5) —— 值取自
+  // 旧仓 zh_CN.json:1986/2045/2099/2119/2210/2211。
+  photosFavStatTopPerson: '出镜最多的人',
+  photosFavStatTopPlace: '去得最多的地方',
+  photosFavStatByYear: '按年份',
+  photosFavStatInYear: '于 {year} 年',
+  photosFavStatYearsTotal: '共 {n} 年',
+  photosFavNoFaces: '暂无人脸',
 }

@@ -16,7 +16,7 @@
 //     hiddenSingletonCountOf / unnamedCountAt, sharing the same comparison
 //     logic instead of being copy-pasted three times.
 
-import { countryFromCoords } from './assetToPhoto'
+import { countryFromCoords, type Photo } from './assetToPhoto'
 
 export interface Person {
   id: string | number
@@ -281,4 +281,81 @@ export function nimoReadParts(
 
   if (parts.length === 0) return [{ key: 'photosPersonInsightNone', params: { name: personName } }]
   return parts
+}
+
+// ---------------------------------------------------------------------------
+// Favorites hero-stats three cards (Task 15A, SP7-P5). Ported from Vue2
+// PhotosFavoritesView.vue:369-385 (byPersonAll/byPlaceAll/byYearAll computed).
+//
+// The three cards' sort/slice rules genuinely differ (count-desc / count-desc /
+// year-string-desc — NOT count), so they are kept as three separate exported
+// functions rather than one generic `countBy(items, pick)` — unifying them
+// behind a single guard-and-sort abstraction would either have to silently
+// homogenize Vue2's per-card falsy-guard differences (faces are pushed
+// unguarded per Vue2 :371; place/year skip falsy values per Vue2 :376/:383) or
+// carry that distinction as a parameter, which reads less clearly than three
+// short named functions. They do share one private counter increment helper
+// so the "count" half of the logic isn't triplicated.
+function bump(counts: Record<string, number>, key: string): void {
+  counts[key] = (counts[key] || 0) + 1
+}
+
+// PhotosFavoritesView.vue:369-372 (byPersonAll) — Photo.faces is typed
+// unknown[] (assetToPhoto.ts:311) but is always a string[] of person names on
+// the wire (only populated by the favorites-list endpoint); String(f) mirrors
+// Vue2 using the raw array element as an object key (JS coerces to string
+// implicitly there too). Sorted by count desc.
+export function topPersons(photos: Photo[]): Array<[string, number]> {
+  const counts: Record<string, number> = {}
+  for (const p of photos) {
+    const faces = Array.isArray(p.faces) ? p.faces : []
+    for (const f of faces) bump(counts, String(f))
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])
+}
+
+// PhotosFavoritesView.vue:373-377 (byPlaceAll) — falsy `place` skipped
+// (Vue2 `if (p.place)`). Sorted by count desc.
+export function topPlaces(photos: Photo[]): Array<[string, number]> {
+  const counts: Record<string, number> = {}
+  for (const p of photos) {
+    if (p.place) bump(counts, p.place)
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])
+}
+
+// PhotosFavoritesView.vue:378-385 (byYearAll) — empty year skipped (Vue2
+// `if (y)`). Sorted by year string **descending** (`b[0].localeCompare(a[0])`)
+// — deliberately NOT by count; brief flags this as the easy-to-get-wrong spot.
+// String(...) guards the (rare, per Photo['takenAt'] typing) numeric-epoch
+// case — Vue2's raw `.slice(0, 4)` would throw on a number, so this is a
+// strictly-safer superset of Vue2's behavior for string inputs, not a
+// behavior change for the string values the backend actually sends.
+export function byYear(photos: Photo[]): Array<[string, number]> {
+  const counts: Record<string, number> = {}
+  for (const p of photos) {
+    const y = String(p.takenAt || '').slice(0, 4)
+    if (y) bump(counts, y)
+  }
+  return Object.entries(counts).sort((a, b) => b[0].localeCompare(a[0]))
+}
+
+// ---------------------------------------------------------------------------
+// Lightbox face-chip real-avatar resolution (Task 15B, SP7-P5). See
+// task-15-brief.md's "前置事实纠正": Photo.faces is a bare person-name
+// string[] (no personId), populated only by the favorites-list endpoint, and
+// there is no asset-scoped face-thumbnail endpoint — only the person-scoped
+// one. This is the best achievable mapping without a backend change: resolve
+// a face name back to a Person by exact name match, but only when the match
+// is unambiguous.
+//
+// name.trim() on both sides, case-sensitive exact comparison (no fuzzy
+// matching — matches Vue2's naming semantics). A count of matches !== 1
+// (zero, i.e. no match, OR more than one, i.e. two people share a name)
+// returns null: better to fall back to the initial-letter placeholder than
+// to show a stranger's face.
+export function resolvePersonByName(people: Person[], name: string): Person | null {
+  const target = name.trim()
+  const matches = people.filter((p) => p.name.trim() === target)
+  return matches.length === 1 ? matches[0] : null
 }

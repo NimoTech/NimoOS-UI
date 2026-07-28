@@ -1,15 +1,33 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import PhotoInfoPanel from '../PhotoInfoPanel.vue'
 import { osmEmbedSrc } from '../util/osmMap'
+import { usePhotosPeople } from '../../stores/people'
 import type { Photo } from '../../util/assetToPhoto'
 
 // 复用既有剪贴板 util(src/files/util/clipboard.ts 的 HTTP 非安全上下文兜底写法)——打桩验证调用,
 // 不重复测 copyText 内部降级逻辑(那部分已有 src/files/util/clipboard.test.ts 覆盖)。
 const copyText = vi.fn((_text: string) => Promise.resolve())
 vi.mock('../../../files/util/clipboard', () => ({ copyText: (t: string) => copyText(t) }))
+
+// Task 15B(SP7-P5 两笔记账收口):灯箱人脸 chip 引入 usePhotosPeople() 后,本组件依赖
+// Pinia——三处宿主(时间线/收藏/相册详情)已各自 setActivePinia,这里补上组件自身单测的
+// 同款前置(P3 T4 的同类教训:忘挂 Pinia 会红,不是本组件逻辑错)。
+const svc = vi.hoisted(() => ({
+  photos: {
+    listPersons: vi.fn(
+      (): Promise<{ persons: Array<Record<string, unknown>>; facesIndexedUpTo: string | null }> =>
+        Promise.resolve({ persons: [], facesIndexedUpTo: null }),
+    ),
+    personFaceThumbnailUrl: vi.fn(
+      (id: string | number, ver?: string | number | null) => `mock://face/${id}?ver=${ver ?? ''}`,
+    ),
+  },
+}))
+vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -32,6 +50,12 @@ function mountPanel(photo: Photo | null, visible = true) {
     global: { plugins: [i18n] },
   })
 }
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  svc.photos.listPersons.mockClear().mockResolvedValue({ persons: [], facesIndexedUpTo: null })
+  svc.photos.personFaceThumbnailUrl.mockClear()
+})
 
 afterEach(() => {
   copyText.mockClear()
@@ -89,14 +113,77 @@ describe('PhotoInfoPanel', () => {
     expect(w.find('[data-section="nimo-sees"]').exists()).toBe(false)
   })
 
-  it('renders face and tag chips without an asset-scoped face-thumbnail when present', () => {
+  it('renders face and tag chips; no unique person match → text/placeholder only (no img)', async () => {
     const photo = makePhoto({ faces: ['Alice', 'Bob'], tags: ['beach', 'sunset'], scene: 'Outdoor' })
     const w = mountPanel(photo)
+    await w.vm.$nextTick()
     expect(w.find('[data-section="people"]').exists()).toBe(true)
     expect(w.findAll('.face-chip')).toHaveLength(2)
-    expect(w.find('.face-chip img').exists()).toBe(false) // no face-thumbnail asset, text/placeholder only
+    expect(w.find('.face-chip img').exists()).toBe(false) // people list empty → no unique match, placeholder only
     expect(w.find('[data-section="nimo-sees"]').exists()).toBe(true)
     expect(w.findAll('.tag-chip')).toHaveLength(2)
+  })
+
+  // Task 15B(SP7-P5 两笔记账收口):人脸 chip 真头像。前置事实纠正(见 task-15-brief.md):
+  // 后端没有 asset-scoped face-thumbnail 端点,Photo.faces 只是人名字符串数组——这里做的是
+  // 「用人名反查人物列表拿 personId,唯一命中才显示真头像」的增强,超出 Vue2 原有的首字母占位。
+  describe('人脸 chip 真头像(增强,超出 Vue2 1:1,登记为偏离)', () => {
+    it('faces 非空且人物列表里有唯一同名 → 渲染 <img>,src 走 personFaceThumbnailUrl 且带 ver', async () => {
+      svc.photos.listPersons.mockResolvedValue({
+        persons: [{ id: 'pid-1', name: 'Alice', coverFaceId: 'face-9' }],
+        facesIndexedUpTo: null,
+      })
+      const photo = makePhoto({ faces: ['Alice'] })
+      const w = mountPanel(photo)
+      await Promise.resolve() // fetchPeople 的 await
+      await Promise.resolve()
+      await w.vm.$nextTick()
+
+      const img = w.find('.face-chip img')
+      expect(img.exists()).toBe(true)
+      expect(img.attributes('src')).toBe('mock://face/pid-1?ver=face-9')
+      expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('pid-1', 'face-9')
+    })
+
+    it('重名(两个人同名)→ 仍是首字母占位,且首字母大写(personInitial,顺带修正 f[0] 未大写的坏点)', async () => {
+      svc.photos.listPersons.mockResolvedValue({
+        persons: [
+          { id: 'pid-1', name: 'alice', coverFaceId: 'face-1' },
+          { id: 'pid-2', name: 'alice', coverFaceId: 'face-2' },
+        ],
+        facesIndexedUpTo: null,
+      })
+      const photo = makePhoto({ faces: ['alice'] })
+      const w = mountPanel(photo)
+      await Promise.resolve()
+      await Promise.resolve()
+      await w.vm.$nextTick()
+
+      expect(w.find('.face-chip img').exists()).toBe(false)
+      expect(w.find('.face-avatar').text()).toBe('A') // personInitial('alice') = 'A',不是未大写的 'a'
+    })
+
+    it('faces 为空 → 不触发 fetchPeople(负向断言,避免每次开图白拉一次)', async () => {
+      const photo = makePhoto({ faces: [] })
+      mountPanel(photo)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(svc.photos.listPersons).not.toHaveBeenCalled()
+    })
+
+    it('faces 非空且 people.peopleLoaded 已是 true(上游已加载过)→ 不重复 fetchPeople', async () => {
+      const people = usePhotosPeople()
+      await people.fetchPeople() // 预置成已加载
+      svc.photos.listPersons.mockClear()
+
+      const photo = makePhoto({ faces: ['Alice'] })
+      mountPanel(photo)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(svc.photos.listPersons).not.toHaveBeenCalled()
+    })
   })
 
   it('does not render the ask-nimo hand-off button (removed delta)', () => {

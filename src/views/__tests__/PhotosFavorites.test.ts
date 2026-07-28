@@ -66,12 +66,14 @@ async function mountView() {
   return w
 }
 
-function photo(id: string, opts: Partial<{ takenAt: string; mimeType: string }> = {}) {
+function photo(id: string, opts: Partial<{ takenAt: string | null; mimeType: string; faces: string[]; placeName: string }> = {}) {
   return {
     id,
-    takenAt: opts.takenAt || '2026-07-01T00:00:00Z',
+    takenAt: opts.takenAt === null ? null : (opts.takenAt || '2026-07-01T00:00:00Z'),
     mimeType: opts.mimeType || 'image/jpeg',
     originalName: `${id}.jpg`,
+    faces: opts.faces,
+    placeName: opts.placeName,
   }
 }
 
@@ -437,6 +439,89 @@ describe('PhotosFavorites.vue', () => {
       await w.vm.$nextTick()
 
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    })
+  })
+
+  // Task 15A(SP7-P5 两笔记账收口):hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue
+  // :56-84(模板)+ :369-385(byPersonAll/byPlaceAll/byYearAll)。三卡各自的排序键/切片
+  // 数量不同,逐条核。
+  describe('hero 统计三卡', () => {
+    it('收藏为空 → 三卡不渲染(走空态,与 Vue2 :47-53/:54 的 v-if/v-else 分支一致)', async () => {
+      const w = await mountView()
+      expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
+      expect(w.find('.fav-stats').exists()).toBe(false)
+    })
+
+    it('有收藏 → 三卡渲染,Top person 值 = 出现最多的人名,Top place 只取逗号前一段', async () => {
+      svc.photos.listFavorites.mockResolvedValue([
+        photo('a', { faces: ['Alice', 'Bob'], placeName: 'Paris, France' }),
+        photo('b', { faces: ['Alice'], placeName: 'Paris, France' }),
+        photo('c', { faces: ['Bob'], placeName: 'Tokyo' }),
+      ])
+      const w = await mountView()
+      const cards = w.findAll('.fav-stat-card')
+      expect(cards).toHaveLength(3)
+
+      // Top person: Alice 出现 2 次 > Bob 1 次
+      expect(cards[0].find('.value').text()).toBe('Alice')
+      expect(cards[0].find('.meta').text()).toContain('2')
+
+      // Top place: "Paris, France" 出现 2 次,主值只取逗号前一段
+      expect(cards[1].find('.value').text()).toBe('Paris')
+      expect(cards[1].find('.meta').text()).toContain('2')
+
+      // By year: 全部 3 张同年(mock photo() 默认 takenAt 2026-07-01)
+      expect(cards[2].find('.value').text()).toContain('3')
+    })
+
+    it('无 faces → Top person 值 —,meta 走 photosFavNoFaces 文案', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+      const w = await mountView()
+      const cards = w.findAll('.fav-stat-card')
+      expect(cards[0].find('.value').text()).toBe('—')
+      expect(cards[0].find('.meta').text()).toBe(zh.photosFavNoFaces)
+    })
+
+    it('无地点 → Top place 值 —,meta 为空串', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+      const cards = w.findAll('.fav-stat-card')
+      expect(cards[1].find('.value').text()).toBe('—')
+      expect(cards[1].find('.meta').text()).toBe('')
+    })
+
+    it('无照片(By year)→ 主值 0,小字 in —', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a', { takenAt: null })])
+      const w = await mountView()
+      const cards = w.findAll('.fav-stat-card')
+      expect(cards[2].find('.value').text()).toContain('0')
+      expect(cards[2].find('.value').text()).toContain('—')
+    })
+
+    it('Top person 条形 = min(4, 人数),首段 data-hi=true;Top place 条形 = min(3, 地点数)', async () => {
+      svc.photos.listFavorites.mockResolvedValue([
+        photo('a', { faces: ['A', 'B', 'C', 'D', 'E'] }),
+        photo('b', { placeName: 'X' }), photo('c', { placeName: 'Y' }), photo('d', { placeName: 'Z' }), photo('e', { placeName: 'W' }),
+      ])
+      const w = await mountView()
+      const cards = w.findAll('.fav-stat-card')
+      const personBars = cards[0].findAll('.fav-stat-bar span')
+      const placeBars = cards[1].findAll('.fav-stat-bar span')
+      expect(personBars).toHaveLength(4) // byPersonAll.slice(0,4),5 个人名裁到 4
+      expect(personBars[0].attributes('data-hi')).toBe('true')
+      expect(personBars[1].attributes('data-hi')).toBeUndefined()
+      expect(placeBars).toHaveLength(3) // byPlaceAll.slice(0,3),4 个地点裁到 3
+    })
+
+    it('By year 条形 = 全部年份(不 slice)', async () => {
+      svc.photos.listFavorites.mockResolvedValue([
+        photo('a', { takenAt: '2020-01-01' }), photo('b', { takenAt: '2021-01-01' }),
+        photo('c', { takenAt: '2022-01-01' }), photo('d', { takenAt: '2023-01-01' }),
+        photo('e', { takenAt: '2024-01-01' }),
+      ])
+      const w = await mountView()
+      const cards = w.findAll('.fav-stat-card')
+      expect(cards[2].findAll('.fav-stat-bar span')).toHaveLength(5) // 5 个年份,不裁
     })
   })
 })

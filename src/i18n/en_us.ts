@@ -979,4 +979,14 @@ export default {
   // keys are the same text split in two for the detail page's two-tone rendering.
   photosPersonDeleteKeptBody: 'Photos are kept. Face group and recognition records will be permanently removed.',
   photosPersonDeleteUndoHint: 'You can undo within 5 seconds.',
+  // ── Photos: Favorites hero-stats three cards (Task 15A, SP7-P5) — Vue2
+  // PhotosFavoritesView.vue:57-84. en values verbatim from Vue2 source ($t()
+  // literal argument). The "{n} photos" meta text reuses the existing
+  // photosPeoplePhotosCount key rather than a new one (same literal in Vue2).
+  photosFavStatTopPerson: 'Top person',
+  photosFavStatTopPlace: 'Top place',
+  photosFavStatByYear: 'By year',
+  photosFavStatInYear: 'in {year}',
+  photosFavStatYearsTotal: '{n} years total',
+  photosFavNoFaces: 'No faces yet',
 }

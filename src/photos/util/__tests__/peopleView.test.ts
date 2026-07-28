@@ -4,8 +4,10 @@ import {
   hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
   mergeReasonKey, nimoReadParts,
   PLACE_PALETTE, groupPlaces, colorPoints,
+  topPersons, topPlaces, byYear, resolvePersonByName,
   type Person, type PersonPlace, type PlaceGroup,
 } from '../peopleView'
+import type { Photo } from '../assetToPhoto'
 
 const P = (over: Partial<Person>): Person => ({
   id: 'x', name: '', confidence: 1, count: 5, favorite: false, relation: '',
@@ -267,5 +269,86 @@ describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
       [],
     )
     expect(parts[0]).toEqual({ key: 'photosPersonInsightWith', params: { name: '小明', other: '小红' } })
+  })
+})
+
+// Task 15A (SP7-P5): topPersons/topPlaces/byYear —— 照 Vue2
+// PhotosFavoritesView.vue:369-385(byPersonAll/byPlaceAll/byYearAll)。
+function ph(over: Partial<Photo> = {}): Photo {
+  return {
+    id: 'x', title: 'x', file: '', date: '', time: '', takenAt: null, indexedAt: null,
+    mimeType: 'image/jpeg', fileSize: 0, isVideo: false, hasOcr: false, isNew: false,
+    isLivePhoto: false, livePhotoVideoId: null, duration: null, durationMs: 0, fav: false,
+    status: undefined, filePath: '', width: null, height: null, dim: null, size: '',
+    latitude: null, longitude: null, coords: null, place: null, camera: null, iso: null,
+    shutter: null, aperture: null, focal: null, orientation: null, videoCodec: null,
+    audioCodec: null, frameRate: null, bitRate: null, rotation: 0, matchScore: null,
+    matchedBy: null, belowCut: false, tags: [], scene: null, faces: [], ...over,
+  } as Photo
+}
+
+describe('topPersons (PhotosFavoritesView.vue:369-372)', () => {
+  it('按出现次数降序', () => {
+    const photos = [
+      ph({ faces: ['Alice', 'Bob'] }),
+      ph({ faces: ['Alice'] }),
+      ph({ faces: ['Bob', 'Alice'] }),
+    ]
+    expect(topPersons(photos)).toEqual([['Alice', 3], ['Bob', 2]])
+  })
+  it('faces 缺失/为空不炸,直接跳过', () => {
+    expect(topPersons([ph({ faces: undefined as unknown as string[] }), ph({ faces: [] })])).toEqual([])
+  })
+})
+
+describe('topPlaces (PhotosFavoritesView.vue:373-377)', () => {
+  it('falsy place 跳过,按出现次数降序', () => {
+    const photos = [
+      ph({ place: 'Paris, France' }), ph({ place: null }), ph({ place: 'Paris, France' }), ph({ place: 'Tokyo' }),
+    ]
+    expect(topPlaces(photos)).toEqual([['Paris, France', 2], ['Tokyo', 1]])
+  })
+})
+
+describe('byYear (PhotosFavoritesView.vue:378-385)', () => {
+  it('空 takenAt 跳过,按年份字符串降序 —— 不是按 count', () => {
+    // 2024 只出现 1 次、2025 出现 2 次:若误按 count 排序,2025 会排在最前;
+    // 正确实现按年份字符串降序,2025 仍然在前但原因不同——用第三个年份来把两条规则的
+    // 结果彻底分岔:2023 出现 3 次(count 最多)但年份最小,必须排在最后。
+    const photos = [
+      ph({ takenAt: '2023-01-01' }), ph({ takenAt: '2023-06-01' }), ph({ takenAt: '2023-12-01' }),
+      ph({ takenAt: '2024-01-01' }),
+      ph({ takenAt: '2025-01-01' }), ph({ takenAt: '2025-06-01' }),
+      ph({ takenAt: null }), ph({ takenAt: '' }),
+    ]
+    expect(byYear(photos)).toEqual([['2025', 2], ['2024', 1], ['2023', 3]])
+  })
+
+  // 删码验证①(见任务报告):把排序键临时改成按 count 降序(`b[1] - a[1]`)重跑此用例,
+  // 断言从绿变红(2023 count=3 会跑到最前而不是排在 2025/2024 之后)——证明上面的断言
+  // 真的在守着"按年份不是按 count"这条规则,不是摆设。已改回按年份字符串降序。
+})
+
+describe('resolvePersonByName (Task 15B, PhotosLightbox.vue:125-129 前置事实纠正)', () => {
+  const P = (over: Partial<Person>): Person => ({
+    id: 'x', name: '', confidence: 1, count: 5, favorite: false, relation: '',
+    coverFaceId: null, heroAssetId: null, firstSeen: null, lastSeen: null, placesCount: 0, ...over,
+  })
+  it('唯一命中返回该人', () => {
+    const people = [P({ id: 1, name: 'Alice' }), P({ id: 2, name: 'Bob' })]
+    expect(resolvePersonByName(people, 'Alice')).toEqual(people[0])
+  })
+  it('重名两个 → null(宁可退回首字母,也不显示错的人脸)', () => {
+    const people = [P({ id: 1, name: 'Alice' }), P({ id: 2, name: 'Alice' })]
+    expect(resolvePersonByName(people, 'Alice')).toBeNull()
+  })
+  it('无匹配 → null', () => {
+    expect(resolvePersonByName([P({ id: 1, name: 'Alice' })], 'Zoe')).toBeNull()
+  })
+  it('两侧 trim,大小写敏感精确比较', () => {
+    const people = [P({ id: 1, name: ' Alice ' })]
+    expect(resolvePersonByName(people, 'Alice')).toEqual(people[0])
+    expect(resolvePersonByName(people, '  Alice')).toEqual(people[0])
+    expect(resolvePersonByName(people, 'alice')).toBeNull() // 大小写敏感,不做模糊匹配
   })
 })

@@ -26,6 +26,7 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
 import { matchesTab } from '../photos/util/tabFilter'
 import { isConflict } from '../photos/util/httpErrors'
+import { topPersons, topPlaces, byYear as byYearOf } from '../photos/util/peopleView'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
@@ -48,6 +49,17 @@ const isEmpty = computed(() => fav.favoritesLoaded && (fav.favoritesList?.length
 const filteredCount = computed(() =>
   fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value)).length,
 )
+
+// Task 15A(SP7-P5 两笔记账收口):hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue
+// :369-385(byPersonAll/byPlaceAll/byYearAll)。三个纯函数(peopleView.ts)已各自按
+// Vue2 的排序键实现(count desc / count desc / 年份字符串 desc),这里只做
+// slice——Vue2 的模板对 byPerson/byPlace(已经是 computed 里 slice 过的结果)在
+// v-for 上又各自 slice 了一次(:62/:70),两次 slice 数量相同、是多余的双重裁剪,
+// 这里只做一次,渲染结果与 Vue2 一致。byYear 不 slice(Vue2 :378-385 的 byYear
+// computed 本身就是未裁剪的 byYearAll)。
+const byPerson = computed(() => topPersons(fav.favoritesList ?? []).slice(0, 4))
+const byPlace = computed(() => topPlaces(fav.favoritesList ?? []).slice(0, 3))
+const byYear = computed(() => byYearOf(fav.favoritesList ?? []))
 
 function toggleSelect(id: string | number) {
   const idx = selected.value.indexOf(id)
@@ -180,6 +192,38 @@ onMounted(() => {
           <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
         </div>
         <template v-else>
+          <!-- Task 15A: hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue:56-84,只在非空分支渲染
+               (Vue2 :47-53/:54 的 v-if/v-else,空态整页走别的分支,三卡不渲染)。 -->
+          <div class="fav-stats">
+            <div class="fav-stat-card">
+              <div class="label">{{ t('photosFavStatTopPerson') }}</div>
+              <div class="value">{{ byPerson[0] ? byPerson[0][0] : '—' }}</div>
+              <div class="meta">{{ byPerson[0] ? t('photosPeoplePhotosCount', { n: byPerson[0][1] }) : t('photosFavNoFaces') }}</div>
+              <div class="fav-stat-bar">
+                <span v-for="(p, i) in byPerson" :key="p[0]" :data-hi="i === 0 || undefined"></span>
+              </div>
+            </div>
+            <div class="fav-stat-card">
+              <div class="label">{{ t('photosFavStatTopPlace') }}</div>
+              <div class="value">{{ byPlace[0] ? byPlace[0][0].split(',')[0] : '—' }}</div>
+              <div class="meta">{{ byPlace[0] ? t('photosPeoplePhotosCount', { n: byPlace[0][1] }) : '' }}</div>
+              <div class="fav-stat-bar">
+                <span v-for="(p, i) in byPlace" :key="p[0]" :data-hi="i === 0 || undefined"></span>
+              </div>
+            </div>
+            <div class="fav-stat-card">
+              <div class="label">{{ t('photosFavStatByYear') }}</div>
+              <div class="value">
+                {{ byYear[0] ? byYear[0][1] : 0 }}
+                <span class="fav-stat-sub">{{ t('photosFavStatInYear', { year: byYear[0] ? byYear[0][0] : '—' }) }}</span>
+              </div>
+              <div class="meta">{{ t('photosFavStatYearsTotal', { n: byYear.length }) }}</div>
+              <div class="fav-stat-bar">
+                <span v-for="(y, i) in byYear" :key="y[0]" :data-hi="i === 0 || undefined"></span>
+              </div>
+            </div>
+          </div>
+
           <PhotosSelectionToolbar
             v-if="selected.length"
             :count="selected.length"
@@ -270,6 +314,22 @@ onMounted(() => {
 }
 .fav-save-album:hover:not(:disabled) { background: var(--chip-bg-hi); }
 .fav-save-album:disabled { color: var(--fg-muted); cursor: not-allowed; opacity: 0.6; }
+
+/* Task 15A: hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue:56-84 的 .fav-stats/
+   .fav-stat-card/.label/.value/.meta/.fav-stat-bar 结构,颜色一律走 theme token
+   (--card-bg/--card-border/--fg/--fg-muted/--accent/--divider,已确认两套主题都定义)。 */
+.fav-stats { display: flex; gap: 12px; margin-bottom: 14px; }
+.fav-stat-card {
+  flex: 1 1 0; min-width: 0; padding: 14px 16px; border-radius: 14px;
+  background: var(--card-bg); border: 1px solid var(--card-border);
+}
+.fav-stat-card .label { font-size: 12px; color: var(--fg-muted); margin-bottom: 4px; }
+.fav-stat-card .value { font-size: 20px; font-weight: 600; color: var(--fg); line-height: 1.2; }
+.fav-stat-sub { font-size: 11px; color: var(--fg-muted); font-weight: 400; margin-left: 4px; }
+.fav-stat-card .meta { font-size: 12px; color: var(--fg-muted); min-height: 15px; margin-top: 2px; }
+.fav-stat-bar { display: flex; gap: 3px; margin-top: 10px; }
+.fav-stat-bar span { flex: 1 1 0; height: 4px; border-radius: 2px; background: var(--divider); }
+.fav-stat-bar span[data-hi='true'] { background: var(--accent); }
 
 /* Save-as-album 命名模态 —— 结构照 PhotosAlbums.vue(T7)新建相册模态(P2/P3 血泪:底色须用
    --popup-bg,不用 --card-bg —— 深色主题下 --card-bg 近透明,叠在暗底上会看穿)。 */
