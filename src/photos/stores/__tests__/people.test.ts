@@ -43,6 +43,17 @@ describe('photosPeople store', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
+  // 关键隔离:_purgeTimers 是模块作用域单例,不随 setActivePinia(createPinia()) 重置。
+  // 撤销/清除测试里凡是没有把窗口跑完(既没 advanceTimers 到触发、也没调 undo())的用例,
+  // 会在 _purgeTimers 里留一条悬挂 entry,污染下一个用例的 fetchPeople 过滤逻辑与
+  // purgePersonWithUndo 的"复用首次 idx"分支——本文件的测试夹具(id/name)在各用例间
+  // 恰好取值相同,污染当前不会翻出错误断言,但极脆弱、一旦改夹具就会「莫名其妙地红」
+  // (task brief 明文警告的场景)。用 afterEach 兜底清空,而不是 beforeEach——
+  // 本 store 的 filter 在 setup() 里读一次 localStorage,若在 beforeEach 里提前
+  // 实例化 store 会锁死那几条"预置 localStorage 再首次取 store"的初始化测试。
+  afterEach(() => {
+    usePhotosPeople().__resetForTest()
+  })
 
   describe('fetchPeople', () => {
     it('解 {persons, facesIndexedUpTo} 包裹体;成功后 peopleLoaded===true', async () => {
