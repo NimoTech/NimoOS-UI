@@ -23,4 +23,13 @@ describe('router', () => {
     const m = router.resolve('/photos/trash')
     expect(m.name).toBe('photos-trash')
   })
+  it('/photos/albums 命中 photos-albums 路由', () => {
+    const m = router.resolve('/photos/albums')
+    expect(m.name).toBe('photos-albums')
+  })
+  it('/photos/albums/7 命中 photos-album-detail 路由,params.id 为字符串 "7"', () => {
+    const m = router.resolve('/photos/albums/7')
+    expect(m.name).toBe('photos-album-detail')
+    expect(m.params.id).toBe('7')
+  })
 })
