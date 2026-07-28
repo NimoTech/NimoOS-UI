@@ -113,6 +113,26 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
     expect(w.emitted('open')?.[0]).toEqual([p])
   })
 
+  // 协调者裁定(Vue2 :874-880 onTileClick 单一入口内分支,不下推给容器):组件已收
+  // selectionMode prop,判断权留在组件内部——理由见 fix 报告 §「整格点击分支收回组件内部」。
+  it('selectionMode=true 时点整格 → emit toggle-select 带该 id,且不 emit open(负向断言)', async () => {
+    const p = photo('a')
+    const months = [month('2026-07', 'July 2026', [p])]
+    const w = mountGrid({ months, selected: [], selectionMode: true })
+    await w.get('.tile').trigger('click')
+    expect(w.emitted('toggle-select')?.[0]).toEqual(['a'])
+    expect(w.emitted('open')).toBeUndefined()
+  })
+
+  it('selectionMode=false 时点整格 → emit open 带该 photo,且不 emit toggle-select(负向断言)', async () => {
+    const p = photo('a')
+    const months = [month('2026-07', 'July 2026', [p])]
+    const w = mountGrid({ months, selected: [], selectionMode: false })
+    await w.get('.tile').trigger('click')
+    expect(w.emitted('open')?.[0]).toEqual([p])
+    expect(w.emitted('toggle-select')).toBeUndefined()
+  })
+
   it('点勾选圈 → emit toggle-select 且不 emit open(.stop 回归)', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })

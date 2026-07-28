@@ -11,11 +11,13 @@
 // ③缩略图用 size=large 而非 small。代价:人物页无视频悬停预览(Vue2 详情页同样没有)。
 //
 // 本任务定位:纯展示 + emit——不碰 store、不发请求、不弹 toast(全部在 T14 容器里)。
-// 整格点击统一 emit('open', p)(不按 selectionMode 分支决定 open/toggle-select)——
-// 这与 Vue2 onTileClick(:874-880,selectionMode 时改为 toggleSelect)不同,是 brief
-// 明确给定的接口契约(brief「结构」小节原文即写"整格 @click=emit('open', p)"):把
-// "selectionMode 下点击瓦片该做什么"这个决策下放到 T14 容器(容器收到 open 事件后
-// 自行判断 selectionMode 并改发 toggle-select),本组件只负责转发原始点击意图。
+// 整格点击的分支收回组件内部(协调者裁定,原提交曾把这个决策下推给 T14 容器,已改正):
+// 逐字节对应 Vue2 onTileClick(:874-880)—— selectionMode 为真时 emit('toggle-select', p.id),
+// 否则 emit('open', p),单一入口内分支。理由:①组件已经收了 selectionMode prop,它本来就
+// 有决策所需的全部信息——若只用来控制移出按钮显隐,这个 prop 就名不副实;②行为与 Vue2
+// 1:1 的可验证性更强,"选择态点整格→只 toggle-select、不 open" 能在组件测试里直接钉住,
+// 不必等容器接线才发现漏了分支;③下推给容器意味着容器要「收到 open 但在选择态下忽略它」,
+// 多一层隐式约定,是这期一直在消除的那类隐患。
 //
 // 唯一的有意偏离(计划登记第 8 条,brief 明确要求):Vue2 :138 每月只渲 m.photos.slice(0,16),
 // 月份头却写真实总数,超出的照片在网格里永久不可见(只有灯箱翻页能翻到)。这里默认仍只渲
@@ -67,6 +69,12 @@ function isSelected(id: string | number): boolean {
   return props.selected.some((x) => String(x) === String(id))
 }
 
+// 整格点击(Vue2 :874-880 onTileClick 逐字节对应,理由见文件头注释)。
+function onTileClick(p: Photo): void {
+  if (props.selectionMode) emit('toggle-select', p.id)
+  else emit('open', p)
+}
+
 function thumbnailSrc(id: string | number): string {
   return service.photos.thumbnailUrl(id, 'large')
 }
@@ -102,7 +110,7 @@ function thumbnailSrc(id: string | number): string {
             class="tile"
             :data-selected="isSelected(p.id)"
             :data-selection-mode="selectionMode"
-            @click="emit('open', p)"
+            @click="onTileClick(p)"
           >
             <img :src="thumbnailSrc(p.id)" alt="" />
 
