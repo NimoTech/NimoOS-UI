@@ -35,7 +35,8 @@ const ai = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
-import SettingsPage from './SettingsPage.vue'
+import SettingsPage, { SECTION_COMPONENTS } from './SettingsPage.vue'
+import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { ImportJob } from '../stores/settingsStore'
 import { useAiTheme } from '../stores/aiTheme'
@@ -523,5 +524,18 @@ describe('SettingsPage — scroll-spy(非清单要求,自选补充覆盖)', () =
     expect(store.activeSection).toBe('providers')
     expect(router.currentRoute.value.query.section).toBeUndefined()
     w.unmount()
+  })
+
+  it('SP8-P2b 收口 —— 11 个已实现分区都不是占位，skills/mcp 仍是占位', () => {
+    const implemented: (keyof typeof SECTION_COMPONENTS)[] = [
+      'models', 'providers', 'privacy', 'thinking',
+      'blacklist', 'execution', 'search', 'memory', 'observability', 'mcptokens', 'channels',
+    ]
+    for (const id of implemented) {
+      expect(SECTION_COMPONENTS[id]).toBeDefined()
+      expect(SECTION_COMPONENTS[id]).not.toBe(SectionPlaceholder)
+    }
+    expect(SECTION_COMPONENTS.skills).toBe(SectionPlaceholder)
+    expect(SECTION_COMPONENTS.mcp).toBe(SectionPlaceholder)
   })
 })

@@ -31,21 +31,27 @@
     这个概念(它们本就是真组件),本仓这两个分区的真实现要等 SP8-P3/P4,
     这里只是本阶段的范围提示,不是对 Vue2 行为的偏离。
 -->
-<script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+<script lang="ts">
+// SP8-P2b Task 14 —— `SECTION_COMPONENTS` 需要以具名导出的形式给
+// `SettingsPage.test.ts` 的收口守卫测试直接 import(见下方守卫测试),而
+// `<script setup>` 不能包含 ES module 具名导出(Vue SFC 编译器硬限制)。
+// 拆成一个不带 setup 的普通 `<script>` 块承载它 + 它依赖的 import/类型/
+// `placeholderProps`,`<script setup>` 里其余代码通过模块作用域闭包直接读取
+// 这里的绑定(Vue 官方支持的双 script 合并写法,https://vuejs.org/api/sfc-script-setup.html#usage-alongside-normal-script)。
+// 纯结构性搬动,不改变任何绑定的值/逻辑。
 import type { Component } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { useSettingsStore } from '../stores/settingsStore'
-import { useAiTheme } from '../stores/aiTheme'
-import { useToast } from '../../stores/toast'
-import SettingsRail from '../components/settings/SettingsRail.vue'
 import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
 import ModelsSection from '../components/settings/sections/ModelsSection.vue'
 import ProvidersSection from '../components/settings/sections/ProvidersSection.vue'
 import PrivacySection from '../components/settings/sections/PrivacySection.vue'
 import ThinkingDefaultsSection from '../components/settings/sections/ThinkingDefaultsSection.vue'
-import AgentIcon from '../components/icons/AgentIcon.vue'
+import BlacklistSection from '../components/settings/sections/BlacklistSection.vue'
+import ExecutionSection from '../components/settings/sections/ExecutionSection.vue'
+import SearchSection from '../components/settings/sections/SearchSection.vue'
+import MemorySection from '../components/settings/sections/MemorySection.vue'
+import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
+import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
+import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
 import {
   ALL_ITEMS,
   DEFERRED_SECTIONS,
@@ -54,46 +60,56 @@ import {
   groupOf,
   type SectionId,
 } from '../components/settings/sections'
-import '../styles/tokens.scss'
-import '../styles/sk-shared.scss'
-import '../styles/settings-styles.scss'
 
 // SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
 // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
 //
-// 本期(P2a)只实现「模型」组的 4 个;其余 9 个渲染 SectionPlaceholder:
-//   blacklist / execution / search / memory / observability / mcptokens / channels → P2b
+// SP8-P2b 收官接线(本任务)后,只剩 skills / mcp 两个仍渲染 SectionPlaceholder:
 //   skills → P3 · mcp → P4
-//
-// 本任务先让四个模型组分区也指向 SectionPlaceholder(Task 9/10/11 各自替换
-// 对应一行 + 加一个 import),这样本任务可独立通过测试,不用等分区实现。
-const SECTION_COMPONENTS: Record<SectionId, Component> = {
+// 其余 11 个(models/providers/privacy/thinking 为 P2a 已接;
+// blacklist/execution/search/memory/observability/mcptokens/channels 为
+// P2b 本任务接)均已指向各自的真组件。
+export const SECTION_COMPONENTS: Record<SectionId, Component> = {
   models: ModelsSection, // Task 9 —— 已替换
   providers: ProvidersSection, // Task 10 —— 已替换
   privacy: PrivacySection, // Task 11 —— 已替换
   thinking: ThinkingDefaultsSection, // Task 11 —— 已替换
-  blacklist: SectionPlaceholder,
-  execution: SectionPlaceholder,
-  search: SectionPlaceholder,
-  memory: SectionPlaceholder,
-  observability: SectionPlaceholder,
-  skills: SectionPlaceholder,
-  mcp: SectionPlaceholder,
-  mcptokens: SectionPlaceholder,
-  channels: SectionPlaceholder,
+  blacklist: BlacklistSection, // SP8-P2b Task 4 —— 已实现,收官接线
+  execution: ExecutionSection, // SP8-P2b Task 5 —— 已实现,收官接线
+  search: SearchSection, // SP8-P2b Task 7 —— 已实现,收官接线
+  memory: MemorySection, // SP8-P2b Task 6 —— 已实现,收官接线
+  observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
+  skills: SectionPlaceholder, // SP8-P3 才实现,保持占位
+  mcp: SectionPlaceholder, // SP8-P4 才实现,保持占位
+  mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线
+  channels: ChannelsSection, // SP8-P2b Task 12 —— 已实现,收官接线
 }
 
 // 非 Vue2 蓝本 —— SectionPlaceholder 需要 { titleKey, bodyKey } 两个 prop,而
 // Vue2 的 SECTION_COMPONENTS 只是纯 id→组件映射、渲染处不传任何 prop
-// (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(将来 Task 9/10/11
-// 换上真组件后,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
-// 占位场景下用来源分区自己的导航文案(sections.ts 的 labelKey)作标题,统一的
-// `aiCfgPlaceholderBody` 作说明文字。
+// (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(已换上真组件的
+// 11 个分区里,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
+// 占位场景(现仅 skills/mcp)下用来源分区自己的导航文案(sections.ts 的
+// labelKey)作标题,统一的 `aiCfgPlaceholderBody` 作说明文字。
 function placeholderProps(id: SectionId): Record<string, string> {
   if (SECTION_COMPONENTS[id] !== SectionPlaceholder) return {}
   const item = ALL_ITEMS.find((i) => i.id === id)
   return { titleKey: item ? item.labelKey : '', bodyKey: 'aiCfgPlaceholderBody' }
 }
+</script>
+
+<script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { useSettingsStore } from '../stores/settingsStore'
+import { useAiTheme } from '../stores/aiTheme'
+import { useToast } from '../../stores/toast'
+import SettingsRail from '../components/settings/SettingsRail.vue'
+import AgentIcon from '../components/icons/AgentIcon.vue'
+import '../styles/tokens.scss'
+import '../styles/sk-shared.scss'
+import '../styles/settings-styles.scss'
 
 const store = useSettingsStore()
 const aiTheme = useAiTheme()
