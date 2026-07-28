@@ -591,6 +591,8 @@ export default {
   raidMemberActive: 'Active',
   raidMemberFaulty: 'Faulty',
   raidMemberRebuilding: 'Rebuilding',
+  raidMemberRemoved: 'Removed',
+  raidMemberSlot: 'Slot {n}',
   raidNoArrays: 'No RAID arrays',
   raidCreating: 'Creating',
   raidCreateFailed: 'Creation failed',

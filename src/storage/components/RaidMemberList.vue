@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RaidMemberDisk } from '@nimotech/nimoos-service'
-import { memberSquare, mirrorPairs } from '../util/raidView'
+import { memberRow, mirrorPairs } from '../util/raidView'
 
 // 后端在重建期间会给某些成员挂 rebuild_pct(RaidDetailPanel.vue L163),
 // 但共享包 RaidMemberDisk 尚未声明该可选字段(见 NimoOS-Service/src/raid.ts)——
@@ -20,17 +20,25 @@ const pairGroups = computed<RaidMember[][]>(() =>
   props.level === 10 ? (mirrorPairs(props.members) as RaidMember[][]) : [],
 )
 
+// 走 memberRow(详情行专用映射),不是 memberSquare(卡片方块专用):后者把
+// removed 与 faulty 同归红色 fail,详情行照抄会把空槽位标成「故障」。详见
+// raidView.ts memberSquare/memberRow 的注释。
 function dotStyle(state: string) {
-  return { background: `var(${memberSquare(state).token})` }
+  return { background: `var(${memberRow(state).token})` }
 }
-// unknown 类(labelKey 为空)回退原始 state 字符串
+// labelKey 为空(未知态)时回退原始 state 字符串,与 Vue2 memberStateLabel 兜底一致
 function labelFor(m: RaidMember): string {
-  const sq = memberSquare(m.state)
-  return sq.labelKey ? t(sq.labelKey) : m.state
+  const row = memberRow(m.state)
+  return row.labelKey ? t(row.labelKey) : m.state
 }
-// 严格对齐 Vue2 RaidTab.vue:238-251 openReplaceDisk 的判定(m.state === "faulty"),
-// 不复用 memberSquare().kind==='fail'(它还把 'removed' 归为同类)——'removed' 盘不提供替换入口,
-// 与 Vue2 行为一致。
+// path 为空只发生在 removed 空槽位(后端 pkg/mdadm ParseDetail 对 mdadm --detail
+// 的 "-  0  0  N  removed" 行产出 Path=""、Number=槽位号)。Vue2 此处渲染空白,
+// 读起来像一行残缺的幽灵盘 —— 不照抄,改显示槽位号,说明"这个位置的盘不在了"。
+function pathFor(m: RaidMember): string {
+  return m.path || t('raidMemberSlot', { n: m.number })
+}
+// 严格对齐 Vue2 RaidTab.vue:238-251 openReplaceDisk 的判定(m.state === "faulty"):
+// 'removed' 盘不提供替换入口(它没有设备路径可传给换盘接口),与 Vue2 行为一致。
 function showReplace(m: RaidMember): boolean {
   return !!props.isDegraded && m.state === 'faulty'
 }
@@ -42,7 +50,7 @@ function showReplace(m: RaidMember): boolean {
       <div v-for="(pair, pi) in pairGroups" :key="pi" class="rml-pair">
         <div v-for="(m, i) in pair" :key="i" class="rml-row">
           <span class="rml-dot" :style="dotStyle(m.state)"></span>
-          <span class="rml-path">{{ m.path }}</span>
+          <span class="rml-path">{{ pathFor(m) }}</span>
           <span class="rml-label">{{ labelFor(m) }}</span>
           <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
           <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">
@@ -54,7 +62,7 @@ function showReplace(m: RaidMember): boolean {
     <template v-else>
       <div v-for="(m, i) in members" :key="i" class="rml-row">
         <span class="rml-dot" :style="dotStyle(m.state)"></span>
-        <span class="rml-path">{{ m.path }}</span>
+        <span class="rml-path">{{ pathFor(m) }}</span>
         <span class="rml-label">{{ labelFor(m) }}</span>
         <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
         <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">

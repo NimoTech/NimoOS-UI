@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
-  countActiveDisks, memberSquare, raidUsagePercent, mirrorPairs, isRebuildingList,
+  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList,
   levelInfo, asRaidArray,
 } from './raidView'
 import type { RaidArray } from './raidView'
@@ -97,6 +97,30 @@ describe('memberSquare', () => {
   it('removed → fail', () => { expect(memberSquare('removed').kind).toBe('fail') })
   it('含 rebuilding → rebuild', () => { expect(memberSquare('spare rebuilding').kind).toBe('rebuild') })
   it('其它 → unknown', () => { expect(memberSquare('spare').kind).toBe('unknown') })
+})
+
+// memberRow 与 memberSquare 的映射**有意不同**:卡片方块把 removed 归红色 fail
+// (Vue2 RaidCard L130),详情行只把 faulty 判红、removed 走灰色(Vue2
+// RaidDetailPanel memberColor L343-350 / memberStateLabel L351-357)。
+describe('memberRow', () => {
+  it('active sync* → 绿 + 活动', () => {
+    expect(memberRow('active sync set-A')).toEqual({ token: '--sem-fg', labelKey: 'raidMemberActive' })
+  })
+  it('faulty → 红 + 故障', () => {
+    expect(memberRow('faulty')).toEqual({ token: '--remove-fg', labelKey: 'raidMemberFaulty' })
+  })
+  it('含 rebuilding → 蓝 + 重建中', () => {
+    expect(memberRow('spare rebuilding')).toEqual({ token: '--accent', labelKey: 'raidMemberRebuilding' })
+  })
+  it('removed 不复用 faulty 文案/颜色(空槽位不是故障盘)', () => {
+    expect(memberRow('removed')).toEqual({ token: '--fg-muted', labelKey: 'raidMemberRemoved' })
+    expect(memberRow('removed').labelKey).not.toBe(memberRow('faulty').labelKey)
+    expect(memberRow('removed').token).not.toBe(memberRow('faulty').token)
+  })
+  it('未知态 → 灰 + 空 labelKey(调用方回退原始串)', () => {
+    expect(memberRow('spare')).toEqual({ token: '--fg-muted', labelKey: '' })
+    expect(memberRow('')).toEqual({ token: '--fg-muted', labelKey: '' })
+  })
 })
 
 describe('raidUsagePercent', () => {

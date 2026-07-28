@@ -125,7 +125,17 @@ export interface MemberSquare {
   glyph: string
 }
 
-// RaidCard.vue memberSquares L125-136 + RaidDetailPanel memberColor/memberStateLabel L343-375。
+// memberSquare 只服务 RaidCard 的成员小方块(逐字对应 Vue2 RaidCard.vue
+// memberSquares L125-136)。**不要用它渲染详情页带文字标签的成员行** —— 详情行
+// 走下面的 memberRow。
+//
+// 起初这一个函数同时喂了两处(注释原文写着"RaidCard.vue memberSquares +
+// RaidDetailPanel memberColor/memberStateLabel"),但 Vue2 在这两个面上用的是两个
+// **映射不同**的函数:卡片方块把 removed 与 faulty 同归 fail(红),详情行只把
+// faulty 判红、removed 落到灰色兜底并原样显示状态串。合成一个函数就必然在其中
+// 一面失真 —— 实际失真在详情行:空槽位(removed,path 为空)被标成「故障」,
+// 3 盘阵列坏 1 块时读起来像坏了 2 块(2026-07-28 实盘验收发现)。
+//
 // 默认分支有意区别于 Vue2(未知态不伪装成 ok):Vue2 default 落到 "ok ✓",这里改为 'unknown' 中性态,更安全。
 export function memberSquare(state: string): MemberSquare {
   const s = state || ''
@@ -133,6 +143,28 @@ export function memberSquare(state: string): MemberSquare {
   if (s === 'faulty' || s === 'removed') return { kind: 'fail', token: '--remove-fg', labelKey: 'raidMemberFaulty', glyph: '✕' }
   if (s.includes('rebuilding')) return { kind: 'rebuild', token: '--accent', labelKey: 'raidMemberRebuilding', glyph: '↻' }
   return { kind: 'unknown', token: '--fg-muted', labelKey: '', glyph: '•' }
+}
+
+export interface MemberRow {
+  token: string // theme token(不含 var());模板里包 var()
+  labelKey: string // 空串 = 无对应文案,调用方回退原始 state 串
+}
+
+// 详情页成员行的颜色 + 文案,逐字对应 Vue2 RaidDetailPanel.vue
+// memberColor L343-350 / memberStateLabel L351-357:
+//   active sync* → 绿 / "活动"      faulty → 红 / "故障"
+//   *rebuilding* → 蓝 / "重建中"    其余   → 灰 / 原样 state 串
+//
+// 与 Vue2 的唯一有意偏离:removed(阵列槽位空置)在 Vue2 里显示未翻译的原始
+// 英文小写串 "removed"。那是 i18n 漏项,不照抄 —— 这里给它 raidMemberRemoved
+// 文案。颜色仍是灰色兜底,与 Vue2 一致。
+export function memberRow(state: string): MemberRow {
+  const s = state || ''
+  if (s.startsWith('active sync')) return { token: '--sem-fg', labelKey: 'raidMemberActive' }
+  if (s === 'faulty') return { token: '--remove-fg', labelKey: 'raidMemberFaulty' }
+  if (s.includes('rebuilding')) return { token: '--accent', labelKey: 'raidMemberRebuilding' }
+  if (s === 'removed') return { token: '--fg-muted', labelKey: 'raidMemberRemoved' }
+  return { token: '--fg-muted', labelKey: '' }
 }
 
 // RaidCard.vue usagePercent L139-144:非零 <1% 夹为 1,再 round。

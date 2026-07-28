@@ -590,6 +590,8 @@ export default {
   raidMemberActive: '活动',
   raidMemberFaulty: '故障',
   raidMemberRebuilding: '重建中',
+  raidMemberRemoved: '已移除',
+  raidMemberSlot: '槽位 {n}',
   raidNoArrays: '暂无 RAID 阵列',
   raidCreating: '创建中',
   raidCreateFailed: '创建失败',

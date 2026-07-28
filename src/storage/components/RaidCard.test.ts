@@ -23,6 +23,33 @@ describe('RaidCard', () => {
     const w = mountCard({ id: 1, name: 'a', level: 1, state: 'active' }, { live_state: 'active', state: 'active', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 })
     expect(w.find('.rc-badge.ok').exists()).toBe(true)
   })
+  // 分母回归:降级时活体成员条数(空槽位 + 故障盘各一条)比阵列实际盘位多 1,
+  // 分母必须取数据库登记的 member_disks 条数,否则 3 盘阵列坏 1 块会显示 "2/4"。
+  it('降级 RAID5:在线磁盘分母取 member_disks 条数,不取活体成员条数', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 5, state: 'degraded', member_disks: [{}, {}, {}] },
+      { live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 0, used_bytes: 0, free_bytes: 0,
+        members: [
+          { path: '', state: 'removed', number: 0 },
+          { path: '/dev/sdb', state: 'active sync', number: 1 },
+          { path: '/dev/sdc', state: 'active sync', number: 3 },
+          { path: '/dev/sda', state: 'faulty', number: 0 },
+        ] },
+    )
+    expect(w.find('.rc-online').text()).toContain('2/3')
+    expect(w.find('.rc-online').text()).not.toContain('2/4')
+  })
+  it('member_disks 缺失时回退活体成员条数(不显示 x/0)', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 1, state: 'active' },
+      { live_state: 'active', state: 'active', rebuild_pct: 0, total_bytes: 0, used_bytes: 0, free_bytes: 0,
+        members: [
+          { path: '/dev/sda', state: 'active sync', number: 0 },
+          { path: '/dev/sdb', state: 'active sync', number: 1 },
+        ] },
+    )
+    expect(w.find('.rc-online').text()).toContain('2/2')
+  })
   it('降级态:severity=danger', () => {
     const w = mountCard({ id: 1, name: 'a', level: 1, state: 'degraded' }, { live_state: 'degraded', state: 'degraded', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 })
     expect(w.find('.rc-badge.danger').exists()).toBe(true)

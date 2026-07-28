@@ -20,7 +20,16 @@ const members = computed<RaidMemberDisk[]>(() => props.status?.members || [])
 const total = computed(() => Number(props.status?.total_bytes) || 0)
 const used = computed(() => Number(props.status?.used_bytes) || 0)
 const pct = computed(() => raidUsagePercent(used.value, total.value))
-const totalDisks = computed(() => members.value.length || (props.array.member_disks?.length ?? 0))
+// 分母取「数据库登记的成员盘数」,不是活体成员条数 —— 逐字对齐 Vue2 RaidCard.vue
+// totalDisks L119(`this.raid.member_disks?.length || 0`)。
+//
+// 原先反过来优先用 members.length,平时两者相等所以看不出差别;阵列降级时
+// mdadm --detail 会同时列出"空出来的槽位"和"被踢掉的故障盘"两条,活体条数比
+// 阵列实际盘位多 1,3 盘阵列坏 1 块会显示成「在线磁盘 2/4」(2026-07-28 实盘验收发现)。
+//
+// 与 Vue2 的有意偏离:member_disks 缺失时 Vue2 得 0(显示 "2/0"),这里回退到
+// 活体条数,至少给出一个有意义的分母。
+const totalDisks = computed(() => props.array.member_disks?.length || members.value.length)
 const activeDisks = computed(() => countActiveDisks(members.value, totalDisks.value))
 const rebuildPct = computed(() => Math.round((Number(props.status?.rebuild_pct) || 0) * 10) / 10)
 const squares = computed(() => members.value.map((m) => ({ ...memberSquare(m.state), path: m.path })))
