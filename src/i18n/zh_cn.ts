@@ -744,6 +744,10 @@ export default {
   photosFavSaveAlbum: '存为相册',
   photosFavSaveAlbumTitle: '把收藏存为相册',
   photosFavSaveAlbumDefault: '收藏 · {year}',
+  // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
+  // 键清单漏列)。中文值取自 NimoOS-UI/src/assets/lang/zh_CN.json:2187/2231。
+  photosFavSaveAlbumSub: '将 {count} 张收藏的照片快照保存为新相册',
   photosFavSavedToast: '「{name}」已保存 · {count} 张照片',
   photosFavSaveFailed: '保存失败',
+  photosFavSaveAlbumNote: '相册会成为静态快照 —— 收藏新照片时不会自动更新。你可以随时再新建一个。',
 }

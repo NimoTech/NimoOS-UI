@@ -72,6 +72,11 @@ function onAlbumAdded() {
 const saveAlbumOpen = ref(false)
 const saveAlbumName = ref('')
 const saveAlbumInputRef = ref<HTMLInputElement | null>(null)
+// 评审 Important 1:补重入守卫(照同期 T7 PhotosAlbums.vue `creating` ref 的写法)——
+// 没有这道守卫,快速双击确认按钮会在第一次 await 未 resolve 前发出第二次 saveAsAlbum,
+// 第一次成功关模态+弹成功 toast 后,第二次(同名)紧接着 409 拒绝,又在已关闭的模态外
+// 弹一条「已存在同名相册」,没有任何路径能压住这条多余 toast。
+const saveAlbumSaving = ref(false)
 
 function openSaveAlbum(): void {
   // 照 Vue2 openSaveAlbum:455-459 —— 每次打开都重新预填(不是只在首次 data() 里固化一份)。
@@ -84,10 +89,11 @@ function closeSaveAlbum(): void {
 }
 async function confirmSaveAlbum(): Promise<void> {
   const name = saveAlbumName.value.trim()
-  if (!name) return
-  // 照 Vue2 :467:`this.favorites.map(p => p.id)` —— favorites === favoritesList。
-  const assetIds = fav.favoritesList?.map((p) => p.id) ?? []
+  if (!name || saveAlbumSaving.value) return
+  saveAlbumSaving.value = true
   try {
+    // 照 Vue2 :467:`this.favorites.map(p => p.id)` —— favorites === favoritesList。
+    const assetIds = fav.favoritesList?.map((p) => p.id) ?? []
     await albums.saveAsAlbum(name, assetIds)
     // 只有成功分支才关模态(照 Vue2 :461-478;失败两个分支都不关,见下方 catch)。
     saveAlbumOpen.value = false
@@ -95,6 +101,8 @@ async function confirmSaveAlbum(): Promise<void> {
   } catch (e) {
     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosFavSaveFailed'))
     // 模态保持打开、输入内容保留 —— 不清空 saveAlbumName、不 close。
+  } finally {
+    saveAlbumSaving.value = false
   }
 }
 
@@ -211,6 +219,11 @@ onMounted(() => {
       <div class="favsave-head">
         <div class="favsave-head-text">
           <div class="favsave-title">{{ t('photosFavSaveAlbumTitle') }}</div>
+          <!-- 评审 Important 2:补 Vue2 :267-268 的动态副标题(结构照同期 T7
+               PhotosAlbums.vue:269 .albums-modal-sub)。 -->
+          <div class="favsave-sub" data-test="fav-savealbum-sub">
+            {{ t('photosFavSaveAlbumSub', { count: fav.favoritesList?.length ?? 0 }) }}
+          </div>
         </div>
         <button type="button" class="favsave-close" :aria-label="t('photosCancel')" @click="closeSaveAlbum">&#215;</button>
       </div>
@@ -219,15 +232,17 @@ onMounted(() => {
         v-model="saveAlbumName"
         class="favsave-input"
         data-test="fav-savealbum-input"
-        @keydown.enter="confirmSaveAlbum"
+        @keydown.enter.prevent="confirmSaveAlbum"
       >
+      <!-- 评审 Important 2:补 Vue2 :279-281 的静态脚注(相册是快照,不随后续收藏变化同步)。 -->
+      <div class="favsave-note" data-test="fav-savealbum-note">{{ t('photosFavSaveAlbumNote') }}</div>
       <div class="favsave-foot">
         <button type="button" class="favsave-btn-ghost" @click="closeSaveAlbum">{{ t('photosCancel') }}</button>
         <button
           type="button"
           class="favsave-btn-cta"
           data-test="fav-savealbum-confirm"
-          :disabled="!saveAlbumName.trim()"
+          :disabled="!saveAlbumName.trim() || saveAlbumSaving"
           @click="confirmSaveAlbum"
         >{{ t('photosAlbumCreate') }}</button>
       </div>
@@ -269,6 +284,7 @@ onMounted(() => {
 .favsave-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
 .favsave-head-text { flex: 1 1 auto; min-width: 0; }
 .favsave-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+.favsave-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
 .favsave-close {
   flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
   color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
@@ -280,6 +296,7 @@ onMounted(() => {
   background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13.5px;
 }
 .favsave-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.favsave-note { font-size: 11.5px; color: var(--fg-muted); margin-top: 10px; line-height: 1.5; }
 .favsave-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 .favsave-btn-ghost { padding: 8px 16px; border-radius: 9px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
 .favsave-btn-ghost:hover { background: var(--chip-bg-hi); }

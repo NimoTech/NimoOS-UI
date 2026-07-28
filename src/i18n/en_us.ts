@@ -746,6 +746,10 @@ export default {
   photosFavSaveAlbum: 'Save as album',
   photosFavSaveAlbumTitle: 'Save favorites as album',
   photosFavSaveAlbumDefault: 'Favorites · {year}',
+  // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
+  // 键清单漏列)。英文值逐字取自 Vue2 源(插值变量对齐成 {count})。
+  photosFavSaveAlbumSub: 'Snapshot {count} favorited photos into a new album',
   photosFavSavedToast: '"{name}" saved · {count} photos',
   photosFavSaveFailed: 'Save failed',
+  photosFavSaveAlbumNote: "The album becomes a static snapshot — it won't update when you favorite new photos. You can always make a new one later.",
 }

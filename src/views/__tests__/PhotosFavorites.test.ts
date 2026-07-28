@@ -288,17 +288,20 @@ describe('PhotosFavorites.vue', () => {
   // Task 10 (SP7-P4 相册,P3 推迟项收口):收藏视图「存为相册」——照 Vue2
   // PhotosFavoritesView.vue :21-23(入口)/:455-478(openSaveAlbum/confirmSaveAlbum)。
   describe('存为相册', () => {
-    it('收藏为空 → 「存为相册」按钮 disabled;非空 → 可用', async () => {
+    it('收藏为空 → 「存为相册」按钮 disabled 且点击不触发 openSaveAlbum(模态不出现)', async () => {
       const wEmpty = await mountView()
       expect(wEmpty.find('.fav-save-album').attributes('disabled')).toBeDefined()
+      await wEmpty.find('.fav-save-album').trigger('click')
+      await wEmpty.vm.$nextTick()
+      expect(wEmpty.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
 
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const wFull = await mountView()
       expect(wFull.find('.fav-save-album').attributes('disabled')).toBeUndefined()
     })
 
-    it('点击「存为相册」→ 模态出现,input 预填含当前年份的默认名', async () => {
-      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+    it('点击「存为相册」→ 模态出现,input 预填含当前年份的默认名,副标题/脚注文案渲染', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
       const w = await mountView()
 
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
@@ -308,9 +311,13 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
       const input = w.find('[data-test="fav-savealbum-input"]')
       expect((input.element as HTMLInputElement).value).toContain(String(new Date().getFullYear()))
+      // 评审 Important 2:补 Vue2 :267-268 动态副标题(count 反映当前收藏数)与
+      // :279-281 静态脚注 —— T3 键清单当初漏列,本轮授权补齐。
+      expect(w.find('[data-test="fav-savealbum-sub"]').text()).toContain('2')
+      expect(w.find('[data-test="fav-savealbum-note"]').text().length).toBeGreaterThan(0)
     })
 
-    it('提交 → albums.saveAsAlbum(name, [收藏 ids]) 被调 + 成功 toast + 模态关闭', async () => {
+    it('提交 → albums.saveAsAlbum(name, [收藏 ids]) 被调 + 成功 toast(精确文案)+ 模态关闭', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
       const w = await mountView()
       const albums = usePhotosAlbums()
@@ -327,13 +334,15 @@ describe('PhotosFavorites.vue', () => {
       await w.vm.$nextTick()
 
       expect(saveSpy).toHaveBeenCalledWith('Trip', ['a', 'b'])
-      expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('Trip'))
+      expect(showSpy).toHaveBeenCalledWith('「Trip」已保存 · 2 张照片')
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
     })
 
-    it('名称 trim 为空时主按钮 disabled', async () => {
+    it('名称 trim 为空时主按钮 disabled 且点击不触发 saveAsAlbum', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
+      const albums = usePhotosAlbums()
+      const saveSpy = vi.spyOn(albums, 'saveAsAlbum')
 
       await w.find('.fav-save-album').trigger('click')
       await w.vm.$nextTick()
@@ -341,6 +350,39 @@ describe('PhotosFavorites.vue', () => {
       await input.setValue('   ')
 
       expect(w.find('[data-test="fav-savealbum-confirm"]').attributes('disabled')).toBeDefined()
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+      await flushPromises()
+      expect(saveSpy).not.toHaveBeenCalled()
+    })
+
+    // 评审 Important 1:补重入守卫回归测试 —— 快速双击确认按钮,第一次 saveAsAlbum 的
+    // await 尚未 resolve 时就发出第二次点击,必须只调用一次(照同期 T7 PhotosAlbums.vue
+    // 的 `creating` 守卫补的同款回归用例写法)。用可控 Promise 制造「未 resolve」窗口。
+    it('确认按钮连点两次(第一次 await 未完成时点第二次)→ saveAsAlbum 只被调用一次', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a')])
+      const w = await mountView()
+      const albums = usePhotosAlbums()
+      let resolveSave: ((v: { id: number; name: string }) => void) | undefined
+      const saveSpy = vi.spyOn(albums, 'saveAsAlbum').mockImplementation(
+        () => new Promise((resolve) => { resolveSave = resolve }),
+      )
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
+
+      const confirmBtn = w.find('[data-test="fav-savealbum-confirm"]')
+      await confirmBtn.trigger('click') // 第一次点击:进入 await,尚未 resolve
+      await w.vm.$nextTick()
+      // 守卫生效期间,确认按钮应被禁用(与「名称为空」共用 disabled 绑定的同一条件)。
+      expect(w.find('[data-test="fav-savealbum-confirm"]').attributes('disabled')).toBeDefined()
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click') // 第二次点击:应被短路
+      await w.vm.$nextTick()
+
+      expect(saveSpy).toHaveBeenCalledTimes(1)
+
+      resolveSave?.({ id: 1, name: 'Trip' })
+      await flushPromises()
     })
 
     it('saveAsAlbum 抛 409 → 重名 toast,模态仍在且输入内容保留', async () => {
