@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { flushPromises } from '@vue/test-utils'
 
 // SP8-P1c2 Task 2 —— 右栏折叠态 + 当前 tab 的最小状态/动作集。
 // vi.hoisted() 服务 mock + setActivePinia 模式抄自 agentStore.p1c.test.ts。
@@ -15,9 +16,16 @@ const svc = vi.hoisted(() => ({
   getThinkingDefaults: vi.fn(), getSessionThinking: vi.fn(), patchSessionThinking: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
+// SP8-P1c2 Task 4 —— autoTitleFirstTurn(送经 send())走同一条 regenerateTitle 路径
+// 的测试需要控制 runAgentRun,故此处改成命名 hoisted 引用(抄自 agentStore.test.ts
+// 的 runSpy/attachSpy 模式),Task2/Task3 既有用例不读取这两个引用,不受影响。
+const { runSpy, attachSpy } = vi.hoisted(() => ({
+  runSpy: vi.fn(),
+  attachSpy: vi.fn(),
+}))
 vi.mock('../services/agentTransport', () => ({
-  runAgentRun: vi.fn().mockResolvedValue(undefined),
-  attachAgentStream: vi.fn().mockResolvedValue({ attached: false }),
+  runAgentRun: runSpy,
+  attachAgentStream: attachSpy,
 }))
 
 import { useAgentStore } from './agentStore'
@@ -150,5 +158,142 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
     await s.setThinkingLevel('high')
     expect(s.thinking.level).toBe('high')
     expect(svc.patchSessionThinking).toHaveBeenCalledWith('sess-5', { enabled: true, level: 'high' })
+  })
+})
+
+// SP8-P1c2 Task 4 —— store regenerateTitle(逐字港 agentStore.js:210-244)+
+// regeneratingTitleFor,以及 autoTitleFirstTurn 改走同一条路径。
+describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((fn) => fn.mockReset())
+    runSpy.mockReset().mockResolvedValue(undefined)
+    attachSpy.mockReset().mockResolvedValue({ attached: false })
+    localStorage.clear()
+  })
+
+  it('无 selectedModel 时直接返回,不发请求(agentStore.js:212-213)', async () => {
+    const s = useAgentStore('p1c2-title-a')
+    s.selectedModel = null
+    await s.regenerateTitle('sess-1')
+    expect(svc.regenerateAgentSessionTitle).not.toHaveBeenCalled()
+    expect(s.regeneratingTitleFor).toBeNull()
+  })
+
+  it('selectedModel 完全无冒号(畸形 key)时直接返回——Vue2 独有 guard(agentStore.js:214-215),parseModelKey 本身对此不等价', async () => {
+    const s = useAgentStore('p1c2-title-b')
+    s.selectedModel = 'not-a-valid-key'
+    await s.regenerateTitle('sess-1')
+    expect(svc.regenerateAgentSessionTitle).not.toHaveBeenCalled()
+  })
+
+  it('local key:解析出裸模型名,provider_type 无命中时回落 ollama(agentStore.js:216-220,228)', async () => {
+    const s = useAgentStore('p1c2-title-c')
+    s.availableModels = []
+    s.selectedModel = 'local:llama'
+    svc.regenerateAgentSessionTitle.mockResolvedValue({})
+    await s.regenerateTitle('sess-1')
+    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'llama', 'ollama')
+  })
+
+  it('cloud key:解析出裸模型名,providerType 取命中 model 的 provider_type(agentStore.js:221-224,227-228)', async () => {
+    const s = useAgentStore('p1c2-title-d')
+    s.availableModels = [
+      { key: 'cloud:p1:chat', source: 'cloud', displayName: 'chat', provider_type: 'deepseek' },
+    ]
+    s.selectedModel = 'cloud:p1:chat'
+    svc.regenerateAgentSessionTitle.mockResolvedValue({})
+    await s.regenerateTitle('sess-1')
+    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'chat', 'deepseek')
+  })
+
+  it('cloud key 无命中 model 时 providerType 回落 other(agentStore.js:228)', async () => {
+    const s = useAgentStore('p1c2-title-e')
+    s.availableModels = []
+    s.selectedModel = 'cloud:p1:chat'
+    svc.regenerateAgentSessionTitle.mockResolvedValue({})
+    await s.regenerateTitle('sess-1')
+    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'chat', 'other')
+  })
+
+  it('成功且 title 非空时写回 sessions[idx].title(agentStore.js:232-237)', async () => {
+    const s = useAgentStore('p1c2-title-f')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
+    s.selectedModel = 'local:llama'
+    s.sessions = [{ id: 'sess-1', title: '' }]
+    svc.regenerateAgentSessionTitle.mockResolvedValue({ title: 'Generated Title' })
+    await s.regenerateTitle('sess-1')
+    expect(s.sessions[0].title).toBe('Generated Title')
+  })
+
+  it('title 为空(falsy)时不写回(agentStore.js:234)', async () => {
+    const s = useAgentStore('p1c2-title-g')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
+    s.selectedModel = 'local:llama'
+    s.sessions = [{ id: 'sess-1', title: 'keep-me' }]
+    svc.regenerateAgentSessionTitle.mockResolvedValue({})
+    await s.regenerateTitle('sess-1')
+    expect(s.sessions[0].title).toBe('keep-me')
+  })
+
+  it('失败被吞(只 console.warn),promise 仍 resolve,regeneratingTitleFor 复位(agentStore.js:238-243,故意保留)', async () => {
+    const s = useAgentStore('p1c2-title-h')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
+    s.selectedModel = 'local:llama'
+    svc.regenerateAgentSessionTitle.mockRejectedValue(new Error('network'))
+    await expect(s.regenerateTitle('sess-1')).resolves.toBeUndefined()
+    expect(s.regeneratingTitleFor).toBeNull()
+  })
+
+  it('background 标记透传 + regeneratingTitleFor 是对象({id,background})而非布尔(agentStore.js:230,顶栏要靠它区分自动/手动)', async () => {
+    const s = useAgentStore('p1c2-title-i')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
+    s.selectedModel = 'local:llama'
+    let resolveFn: (v: unknown) => void = () => {}
+    svc.regenerateAgentSessionTitle.mockReturnValue(new Promise((resolve) => { resolveFn = resolve }))
+    const p = s.regenerateTitle('sess-1', { background: true })
+    // 尚未 resolve 时,regeneratingTitleFor 已同步落上 { id, background: true }。
+    expect(s.regeneratingTitleFor).toEqual({ id: 'sess-1', background: true })
+    resolveFn({ title: 'X' })
+    await p
+    expect(s.regeneratingTitleFor).toBeNull()
+  })
+
+  it('background 默认 false(不传 opts 时,agentStore.js:210)', async () => {
+    const s = useAgentStore('p1c2-title-j')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
+    s.selectedModel = 'local:llama'
+    let resolveFn: (v: unknown) => void = () => {}
+    svc.regenerateAgentSessionTitle.mockReturnValue(new Promise((resolve) => { resolveFn = resolve }))
+    const p = s.regenerateTitle('sess-1')
+    expect(s.regeneratingTitleFor).toEqual({ id: 'sess-1', background: false })
+    resolveFn({})
+    await p
+  })
+
+  it('autoTitleFirstTurn(send() 首轮补标题)委托 regenerateTitle(id,{background:true})——两份实现不并存(agentStore.js:413-419)', async () => {
+    svc.regenerateAgentSessionTitle.mockResolvedValue({ title: 'Auto Generated' })
+    const s = useAgentStore('p1c2-title-k')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama', provider_type: 'ollama' }]
+    s.selectedModel = 'local:llama'
+    s.activeSessionId = 'sess-1'
+    s.sessions = [{ id: 'sess-1', title: '' }]
+    await s.send('hello')
+    // autoTitleFirstTurn 是 send() finally 里的 fire-and-forget 调用,让其内部
+    // 微任务(regenerateTitle 的 await + 写回 title)先跑完再断言。
+    await flushPromises()
+    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'llama', 'ollama')
+    expect(s.sessions[0].title).toBe('Auto Generated')
+  })
+
+  it('autoTitleFirstTurn 失败时不影响 send() 本轮结果(fire-and-forget + 吞错,agentStore.js:416-417)', async () => {
+    svc.regenerateAgentSessionTitle.mockRejectedValue(new Error('boom'))
+    const s = useAgentStore('p1c2-title-l')
+    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama', provider_type: 'ollama' }]
+    s.selectedModel = 'local:llama'
+    s.activeSessionId = 'sess-1'
+    s.sessions = [{ id: 'sess-1', title: '' }]
+    await expect(s.send('hello')).resolves.toBeUndefined()
+    expect(s.busy).toBe(false)
   })
 })

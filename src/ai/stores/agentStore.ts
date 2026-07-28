@@ -146,6 +146,9 @@ export function useAgentStore(agentType?: string) {
       providerType: '',
       defaults: { enabled: true, level: 'medium' },
     })
+    // agentStore.js:53 —— 正在重生成标题的会话(null|{id,background})。对象而非布尔:
+    // 顶栏要靠 background 区分"自动补标题"(不锁标题输入框)和"手动点 sparkle"(锁)。
+    const regeneratingTitleFor = ref<{ id: string | number; background: boolean } | null>(null)
     // agentStore.js:60 —— 待consume一次的技能挂号(X-Skill-Id),1c(?skill=)接入前先留位。
     const pendingSkillId = ref<string | null>(null)
 
@@ -702,18 +705,35 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:210-244(regenerateTitle)裁剪 —— send() 首轮成功后台自动补标题,
-     * 不在 1b 暴露的 action 面里(没有 regeneratingTitleFor 这类 UI 状态,那是 1c 的
-     * picker/spinner 的事),只留 send() finally 需要的最小行为:标题为空时尝试一次,
-     * 失败静默吞掉(background best-effort,不影响本轮发送结果)。
+     * agentStore.js:210-244 —— 逐字港 regenerateTitle:解析 selectedModel key 拿到
+     * model 名 + providerType,POST 重生成,成功且 title 非空才写回 sessions[idx],
+     * 失败**只 console.warn 吞掉,promise 仍 resolve**(agentStore.js:238-240,
+     * 有意如此 —— 顶栏 sparkle 按钮和 send() 首轮自动补标题都靠"这个 action 从不
+     * reject"这一点才能用 fire-and-forget 的方式调用,不必额外套 try/catch)。
+     *
+     * model key 解析复用模块顶部的 parseModelKey,但 Vue2 这里(agentStore.js:214-215)
+     * 独有一处防御:key 里完全没有冒号时直接返回,不尝试解析。已核对
+     * parseModelKey 对这个畸形输入**不等价**——它会把无冒号的 key 整段回退成
+     * modelName(而不是返回空串触发下面的 `!modelName` 兜底),所以这里补上 Vue2 的
+     * guard 再委托 parseModelKey 做实际拆分;cloud 分支缺第二个冒号时的容错
+     * (`secondColon < 0 ? rest : rest.slice(...)`)parseModelKey 本身就有,等价,
+     * 不需要另外补。
      */
-    async function autoTitleFirstTurn(id: string | number) {
+    async function regenerateTitle(
+      id: string | number,
+      opts: { background?: boolean } = {},
+    ): Promise<void> {
+      const background = opts.background ?? false
       const key = selectedModel.value
       if (!key) return
+      if (key.indexOf(':') < 0) return
       const { source, modelName } = parseModelKey(key)
       if (!modelName) return
+
       const sel = availableModels.value.find((m) => m.key === key)
       const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
+
+      regeneratingTitleFor.value = { id, background }
       try {
         const body = await service.ai.regenerateAgentSessionTitle(id, modelName, providerType)
         const data = (body || {}) as Record<string, unknown>
@@ -723,8 +743,22 @@ export function useAgentStore(agentType?: string) {
         }
       } catch (e) {
         // eslint-disable-next-line no-console
-        console.warn('[agentStore] autoTitleFirstTurn failed', e)
+        console.warn('[agentStore] regenerateTitle failed', e)
+      } finally {
+        regeneratingTitleFor.value = null
       }
+    }
+
+    /**
+     * agentStore.js:413-419 —— send() 首轮发送成功后台自动补标题。1b 阶段曾裁剪出
+     * 一份独立实现(没有 regeneratingTitleFor 这类 UI 状态);1c-2 补齐完整
+     * regenerateTitle 后,这里改为纯委托,不再重复解析 model key —— 两份实现不并存。
+     * Vue2 调用处是 `actions.regenerateTitle(id, {background:true}).catch(()=>{})`
+     * (fire-and-forget),对应本文件 send() finally 里的调用点同样不 await、外挂
+     * `.catch(() => {})`。
+     */
+    async function autoTitleFirstTurn(id: string | number): Promise<void> {
+      return regenerateTitle(id, { background: true })
     }
 
     /**
@@ -846,7 +880,8 @@ export function useAgentStore(agentType?: string) {
         if (wasFirstTurn && !aborted && !errorOccurred && activeSessionId.value) {
           const sess = sessions.value.find((s) => s.id === activeSessionId.value)
           if (sess && (!sess.title || String(sess.title).trim() === '')) {
-            autoTitleFirstTurn(activeSessionId.value)
+            // agentStore.js:416-417 —— fire-and-forget,吞掉任何 rejection。
+            autoTitleFirstTurn(activeSessionId.value).catch(() => {})
           }
         }
       }
@@ -1053,6 +1088,7 @@ export function useAgentStore(agentType?: string) {
       selectedModel,
       lastFallbackNotice,
       thinking,
+      regeneratingTitleFor,
       pendingSkillId,
       visibleResources,
       attachments,
@@ -1099,6 +1135,7 @@ export function useAgentStore(agentType?: string) {
       loadSessionThinking,
       setThinkingEnabled,
       setThinkingLevel,
+      regenerateTitle,
       send,
       sendInit,
       stop,
