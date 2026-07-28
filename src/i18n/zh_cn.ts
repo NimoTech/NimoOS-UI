@@ -786,4 +786,17 @@ export default {
   // 需要而 window.confirm 没有的标题,新写,词根与既有译文的"屏蔽"保持一致。
   aiGitignoreBlockedTitle: '路径被 .gitignore 屏蔽',
   aiGitignoreBlockedMsg: '{path} 被 .gitignore 屏蔽，确认仍要授权？',
+  // SP8-P1c2 Task 10 —— AgentRightPanel(4 个 tab 按钮)+ ActivityTab + ContextTab
+  // 逐字港。这几个字符串 Vue2 从未 i18n 过(裸英文字面量),按本期拍板补中文键。
+  aiTabActivity: '活动',
+  aiTabContext: '上下文',
+  aiTabSystem: '系统',
+  aiTabResources: '资源',
+  aiActivityHeader: 'Agent 运行',
+  aiActivityRunning: '运行中…',
+  aiActivityWaiting: '等待',
+  aiActivityEmpty: 'Agent 步骤将在运行时显示在这里',
+  aiActivityDone: '完成',
+  aiContextNotYet: '暂不可用',
+  aiContextDesc: '未来会支持把文件加入对话上下文，让 Agent 直接参考它们。',
 }

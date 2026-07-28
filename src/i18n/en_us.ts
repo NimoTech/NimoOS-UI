@@ -780,4 +780,19 @@ export default {
   // never had one.
   aiGitignoreBlockedTitle: 'Blocked by .gitignore',
   aiGitignoreBlockedMsg: '{path} is blocked by .gitignore. Authorize anyway?',
+  // SP8-P1c2 Task 10 — AgentRightPanel (4 tab buttons) + ActivityTab + ContextTab,
+  // verbatim port. These strings were never i18n'd in Vue2 (raw English literals
+  // passed straight to $t with no zh_CN.json entry, so vue-i18n fell back to the
+  // key itself) — English values here are those exact literals.
+  aiTabActivity: 'Activity',
+  aiTabContext: 'Context',
+  aiTabSystem: 'System',
+  aiTabResources: 'Resources',
+  aiActivityHeader: 'Agent Run',
+  aiActivityRunning: 'Running…',
+  aiActivityWaiting: 'Waiting',
+  aiActivityEmpty: 'Agent steps will appear here while working',
+  aiActivityDone: 'Done',
+  aiContextNotYet: 'Not available yet',
+  aiContextDesc: 'Future support for adding files to conversation context so Agent can reference them directly.',
 }
