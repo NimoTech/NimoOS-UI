@@ -222,6 +222,9 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--hit-fg` | 点击/高亮 文 | `#ffe08a` | `#5a4a12` |
 | `--success` | 成功指示色 | `#5fe3b0` | `#15754c` |
 | `--hl-star` | 高光星标（特殊标记） | `#e8c06a` | `#c9992f` |
+| `--warn-fg` | 警告/降级语义 文（人脸识别关闭、Photos AI 后端离线横幅，SP7-P5；对齐 Vue2 `#FF9F0A`，浅色主题按 `--dem-fg` 惯例压暗保对比度） | `#ff9f0a` | `#96610a` |
+| `--warn-bg` | 警告/降级语义 背 | `rgba(255,159,10,0.08)` | `#fdf3e2` |
+| `--warn-border` | 警告/降级语义 描边 | `rgba(255,159,10,0.32)` | `#f0d7a6` |
 | `--remove-fg` | 危险/删除态文字（区别于 `--remove-bg`） | `#ff8a8a` | `#c0392b` |
 | `--drop-bad` | 非法拖放落点提示底 | `rgba(255, 80, 100, 0.12)` | `rgba(224, 70, 106, 0.12)` |
 | `--skeleton-bg` | 骨架屏/加载占位底 | `rgba(255, 255, 255, 0.06)` | `rgba(28, 27, 25, 0.05)` |
