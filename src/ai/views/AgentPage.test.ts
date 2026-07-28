@@ -194,14 +194,14 @@ describe('AgentPage', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
-  it('侧栏 open-settings(设置齿轮)→ 弹 aiSettingsComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {
+  it('SP8-P2a Task 12:侧栏 open-settings(设置齿轮)→ router.push 到 /ai/settings,不再弹占位 toast(Vue2 Agent.vue:209,路由已存在)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
     await w.find('.sidebar-foot .icon-btn').trigger('click')
-    expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
-    expect(push).not.toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith('/ai/settings')
+    expect(showSpy).not.toHaveBeenCalled()
     w.unmount()
   })
 
@@ -364,15 +364,15 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9:AgentTopbar 的 open-settings 与侧栏共用同一占位 toast(不 router.push)', async () => {
+  it('SP8-P2a Task 12:AgentTopbar 的 open-settings 与侧栏共用同一真跳转(router.push 到 /ai/settings,不再弹占位 toast)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
     const topbar = w.findComponent({ name: 'AgentTopbar' })
     topbar.vm.$emit('open-settings')
-    expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
-    expect(push).not.toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith('/ai/settings')
+    expect(showSpy).not.toHaveBeenCalled()
     w.unmount()
   })
 

@@ -110,9 +110,10 @@ const thinkingForTopbar = computed(() => ({
 }))
 
 function onOpenSettings() {
-  // P2: router.push('/ai/settings') — 路由该期才存在,先占位(评审跟进:
-  // 路由不存在且无 catch-all,push 会落到空白死页)。
-  toast.show(t('aiSettingsComingSoon'))
+  // Vue2 `Agent.vue:209` —— 三个入口(侧栏两处 + ModelPicker 空态)共用同一个
+  // 无参跳转,落在设置页默认分区「本地模型」。SP8-P2a 起路由已存在(T8 注册),
+  // 占位 toast 退役。
+  router.push('/ai/settings')
 }
 
 function onUpdateTitle(title: string) {

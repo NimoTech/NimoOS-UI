@@ -574,7 +574,9 @@ export default {
   aiEmptyScriptExample: 'Build a small tool or automation',
   aiConfirm: 'Delete',
   aiCancel: 'Cancel',
-  aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+  // aiSettingsComingSoon retired in SP8-P2a Task 12 (all three "open settings"
+  // entry points now push /ai/settings for real; grep confirmed no other
+  // references before deletion).
   // SP8-P2a Task 3 — Settings section navigation config (sections.ts).
   // English values per Vue2 en_US.json or source code literals.
   aiCfgGroupModel: 'Models',
@@ -984,26 +986,6 @@ export default {
   aiResMinutesAgo: '{n}m ago',
   aiResHoursAgo: '{n}h ago',
   aiResDaysAgo: '{n}d ago',
-  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection. English
-  // values are the literal Vue2 source strings (the production zh_CN.json
-  // English keys, verbatim).
-  aiCfgPrivacyDesc: 'Control whether data leaves the device and which backend is used by default. Everything runs locally by default.',
-  aiCfgDataBackend: 'Data & backend',
-  aiCfgAllowCloudRequests: 'Allow cloud requests',
-  aiCfgAllowCloudRequestsSub: 'When enabled, conversations may be sent to configured cloud AI providers.',
-  aiCfgDefaultBackend: 'Default backend',
-  aiCfgDefaultBackendSub: 'Sets the default selection in the model picker.',
-  aiCfgBackendLocal: 'Local (prefer local models)',
-  aiCfgBackendCloud: 'Cloud (use cloud directly)',
-  aiCfgConfirmLocalFailure: 'Confirm on local failure',
-  aiCfgConfirmLocalFailureSub: 'When a local model fails, show a prompt asking whether to fall back to cloud.',
-  aiCfgUnableLoadPolicy: 'Unable to load policy',
-  aiCfgThinkingDesc: "Default thinking settings for new sessions. Models that don't support thinking ignore them.",
-  aiCfgThinkingDefaultsTitle: 'Thinking intensity defaults',
-  aiCfgThinkingBanner: 'These settings are used as the initial values for new sessions. Models that do not support thinking will ignore them.',
-  aiCfgEnableThinkingDefault: 'Enable thinking by default',
-  aiCfgDefaultIntensity: 'Default intensity:',
-  // <<< SP8-P2a Task 11
   // >>> SP8-P2b Task 4 —— BlacklistSection(文件系统)
   aiCfgBlacklistDesc: "No matter which folders you authorize, files matching these patterns are never readable or writable by the Agent. Built-in patterns can't be changed; below are the ones you added.",
   aiCfgBuiltinReadonly: 'Built-in (read-only)',
@@ -1048,6 +1030,26 @@ export default {
   aiCfgMemSourceTool: 'Saved',
   aiCfgMemSourceUser: 'Manual',
   // <<< SP8-P2b Task 6
+  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection. English
+  // values are the literal Vue2 source strings (the production zh_CN.json
+  // English keys, verbatim).
+  aiCfgPrivacyDesc: 'Control whether data leaves the device and which backend is used by default. Everything runs locally by default.',
+  aiCfgDataBackend: 'Data & backend',
+  aiCfgAllowCloudRequests: 'Allow cloud requests',
+  aiCfgAllowCloudRequestsSub: 'When enabled, conversations may be sent to configured cloud AI providers.',
+  aiCfgDefaultBackend: 'Default backend',
+  aiCfgDefaultBackendSub: 'Sets the default selection in the model picker.',
+  aiCfgBackendLocal: 'Local (prefer local models)',
+  aiCfgBackendCloud: 'Cloud (use cloud directly)',
+  aiCfgConfirmLocalFailure: 'Confirm on local failure',
+  aiCfgConfirmLocalFailureSub: 'When a local model fails, show a prompt asking whether to fall back to cloud.',
+  aiCfgUnableLoadPolicy: 'Unable to load policy',
+  aiCfgThinkingDesc: "Default thinking settings for new sessions. Models that don't support thinking ignore them.",
+  aiCfgThinkingDefaultsTitle: 'Thinking intensity defaults',
+  aiCfgThinkingBanner: 'These settings are used as the initial values for new sessions. Models that do not support thinking will ignore them.',
+  aiCfgEnableThinkingDefault: 'Enable thinking by default',
+  aiCfgDefaultIntensity: 'Default intensity:',
+  // <<< SP8-P2a Task 11
   // >>> SP8-P2b Task 7 —— SearchSection. English values are the literal Vue2 source
   // strings (brief already reconciled against the production zh_CN.json). Reused keys
   // (not redefined here): aiCfgSearch/aiCfgSave/aiCopy/aiCopied/aiCfgDelete/
