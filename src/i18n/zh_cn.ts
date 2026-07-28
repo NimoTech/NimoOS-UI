@@ -595,6 +595,14 @@ export default {
   aiCfgMcpConnections: 'MCP 连接',
   aiCfgMcpTokens: '对外 MCP 服务',
   aiCfgChannels: '聊天渠道',
+  // SP8-P2a Task 7 —— SettingsRail 头部/账号卡。前三条中文值逐字取自 Vue2
+  // 生产 zh_CN.json 对应英文 key 的既有译文;`aiCfgLocalAccount` 在
+  // zh_CN.json 里查不到对应 key(只有 'Local account · NAS' 这条完整串),
+  // 沿用该完整串。
+  aiCfgPersonalize: '个性化',
+  aiCfgBackToNimo: '返回 Nimo',
+  aiCfgYou: '你',
+  aiCfgLocalAccount: '本地账户 · NAS',
   // SP8-P2a Task 5 fix(评审 Important)—— settingsStore.js:211 saveProvider
   // 校验报错文案。ProvidersSection.vue:175-182 消费方 `e.message || t('Save
   // failed')` 优先展示 e.message,硬编码英文会原样弹给中文用户,故必须走

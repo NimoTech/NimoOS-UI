@@ -594,6 +594,12 @@ export default {
   aiCfgMcpConnections: 'MCP connections',
   aiCfgMcpTokens: 'Expose as MCP server',
   aiCfgChannels: 'Channels',
+  // SP8-P2a Task 7 — SettingsRail header / account card. Verbatim from Vue2
+  // production en_US.json's matching key.
+  aiCfgPersonalize: 'Personalize',
+  aiCfgBackToNimo: 'Back to Nimo',
+  aiCfgYou: 'You',
+  aiCfgLocalAccount: 'Local account · NAS',
   // SP8-P2a Task 5 fix (review Important) — settingsStore.js:211 saveProvider
   // validation error text. ProvidersSection.vue:175-182 shows e.message first
   // (`e.message || t('Save failed')`), so a hardcoded literal would leak
