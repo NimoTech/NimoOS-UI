@@ -918,4 +918,15 @@ export default {
   // 追加在段末,不重排既有键。
   photosPersonPlacesTitle: '{name} 去过的地方',
   photosPersonPlacesSub: '你在此人所有照片中拍摄过的地点',
+  // Task 13 补:关系 tab 的段落标题/图例/共现计数短语(译文取自 zh_CN.json
+  // :2148 Relationship graph / :2019 Edge thickness.../ :2039 Frequent (200+) /
+  // :2120 Occasional / :1996 Co-appearance / :2114 {n} photos together)。
+  // photosPersonInsightWith 等洞察拼句键已在段中(:895-900),这里只补图区自己的文案。
+  // 追加在段末,不重排既有键。
+  photosPersonGraphTitle: '关系图谱',
+  photosPersonGraphSub: '连线粗细 = 共同出现次数',
+  photosPersonGraphLegendFrequent: '频繁 (200+)',
+  photosPersonGraphLegendOccasional: '偶尔',
+  photosPersonCoappearTitle: '共同出现',
+  photosPersonPhotosTogether: '共同出现 {n} 张照片',
 }

@@ -238,3 +238,47 @@ export function colorPoints(
       }
     })
 }
+
+// ---------------------------------------------------------------------------
+// Person-detail "relationships" tab (Task 13). Ported from Vue2
+// PhotosPersonDetail.vue:571-585 (nimoRead computed). Pure functions can't
+// depend on i18n (same rule as mergeReasonKey above), so this returns a list
+// of {key, params} instead of a finished string; the view layer resolves
+// each with t(key, params) and joins with a space, matching Vue2's
+// `parts.join(' ')`.
+//
+// `relations` is typed with a minimal structural shape (only `.name` is
+// read) rather than importing usePersonDetail.ts's PersonRelation directly —
+// same rationale as the PersonPlace comment above: usePersonDetail.ts
+// already imports toPerson/monthKeyLabel from this file, so importing back
+// would be circular. PersonRelation's `name?: string` is structurally
+// compatible, so callers can pass it in unchanged.
+interface NimoReadRelation {
+  name?: string
+}
+
+// Vue2 :573 reads `this.relations[0]` — the first element in whatever order
+// the caller passed in, NOT `sortedRelations[0]` (the count-sorted list used
+// by the co-appearance list, :530-532). This is a deliberate one-line
+// deviation risk if ported carelessly (brief flags it explicitly), so it's
+// called out here at the read site too, not just in the caller.
+export function nimoReadParts(
+  personName: string,
+  relations: NimoReadRelation[],
+  places: PlaceGroup[],
+): Array<{ key: string; params: Record<string, unknown> }> {
+  const parts: Array<{ key: string; params: Record<string, unknown> }> = []
+
+  const top = relations[0]
+  if (top && top.name) parts.push({ key: 'photosPersonInsightWith', params: { name: personName, other: top.name } })
+  else if (top) parts.push({ key: 'photosPersonInsightWithUnnamed', params: { name: personName } })
+
+  if (places[0] && places[1]) {
+    parts.push({ key: 'photosPersonInsightPlaces2', params: { place1: places[0].name, place2: places[1].name } })
+  } else if (places[0]) {
+    parts.push({ key: 'photosPersonInsightPlace1', params: { place: places[0].name } })
+  }
+
+  if (parts.length === 0) return [{ key: 'photosPersonInsightNone', params: { name: personName } }]
+  return parts
+}

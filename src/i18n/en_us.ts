@@ -923,4 +923,18 @@ export default {
   // end of the photos block, existing keys not reordered.
   photosPersonPlacesTitle: 'Places with {name}',
   photosPersonPlacesSub: "Where you've photographed them, all-time",
+  // Task 13: relationships tab's own section title / legend / co-appearance
+  // count phrase. Verbatim from Vue2 zh_CN.json's English source keys
+  // ("Relationship graph" / "Edge thickness = co-appearance count" /
+  // "Frequent (200+)" / "Occasional" / "Co-appearance" / "{n} photos
+  // together"). The insight-sentence keys (photosPersonInsightWith etc.)
+  // already exist above (:898-902); these are just the graph area's own
+  // copy. Appended at the end of the photos block, existing keys not
+  // reordered.
+  photosPersonGraphTitle: 'Relationship graph',
+  photosPersonGraphSub: 'Edge thickness = co-appearance count',
+  photosPersonGraphLegendFrequent: 'Frequent (200+)',
+  photosPersonGraphLegendOccasional: 'Occasional',
+  photosPersonCoappearTitle: 'Co-appearance',
+  photosPersonPhotosTogether: '{n} photos together',
 }

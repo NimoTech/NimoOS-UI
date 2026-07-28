@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
   hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
-  mergeReasonKey,
+  mergeReasonKey, nimoReadParts,
   PLACE_PALETTE, groupPlaces, colorPoints,
-  type Person, type PersonPlace,
+  type Person, type PersonPlace, type PlaceGroup,
 } from '../peopleView'
 
 const P = (over: Partial<Person>): Person => ({
@@ -209,5 +209,63 @@ describe('mergeReasonKey', () => {
     expect(mergeReasonKey({ confidence: 0.5 })).toEqual({
       key: 'photosPeopleMergeReasonUnnamed', params: { pct: 50 },
     })
+  })
+})
+
+// Task 13 (SP7-P5 人物): nimoReadParts —— 照 Vue2 PhotosPersonDetail.vue:571-585
+// (nimoRead computed)的拼句规则,搬成不依赖 i18n 的纯函数,返回 {key, params}[]
+// 供视图层各自 t() 后拼接。
+describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
+  const PG = (name: string, count = 1): PlaceGroup => ({ name, count, color: PLACE_PALETTE[0] })
+
+  it('有具名关系 + 两个地点 → With + Places2 两段', () => {
+    const parts = nimoReadParts('小明', [{ name: '小红' }], [PG('北京'), PG('上海')])
+    expect(parts).toEqual([
+      { key: 'photosPersonInsightWith', params: { name: '小明', other: '小红' } },
+      { key: 'photosPersonInsightPlaces2', params: { place1: '北京', place2: '上海' } },
+    ])
+  })
+
+  it('有具名关系 + 一个地点 → With + Place1 两段', () => {
+    const parts = nimoReadParts('小明', [{ name: '小红' }], [PG('北京')])
+    expect(parts).toEqual([
+      { key: 'photosPersonInsightWith', params: { name: '小明', other: '小红' } },
+      { key: 'photosPersonInsightPlace1', params: { place: '北京' } },
+    ])
+  })
+
+  it('无关系、无地点 → 单条 InsightNone', () => {
+    expect(nimoReadParts('小明', [], [])).toEqual([
+      { key: 'photosPersonInsightNone', params: { name: '小明' } },
+    ])
+  })
+
+  it('关系存在但 name 为空/缺失 → WithUnnamed(不带 other)', () => {
+    const parts = nimoReadParts('小明', [{ name: '' }], [])
+    expect(parts).toEqual([
+      { key: 'photosPersonInsightWithUnnamed', params: { name: '小明' } },
+    ])
+    // name 字段整个缺失(undefined)同样落这一支。
+    const parts2 = nimoReadParts('小明', [{}], [])
+    expect(parts2).toEqual([
+      { key: 'photosPersonInsightWithUnnamed', params: { name: '小明' } },
+    ])
+  })
+
+  // 关键回归(brief 硬约束的易错点):Vue2 :573 用的是 `this.relations[0]`——
+  // 原始顺序的第一个,不是按 count 排序后的第一个。这里故意把「count 更大」的
+  // 关系放在数组第二位,断言取到的仍是数组第一位那个人。
+  //
+  // 证伪验证(已做,过程见任务报告):把实现临时改成
+  // `[...relations].sort((a, b) => (b.count ?? 0) - (a.count ?? 0))[0]` 后重跑,
+  // 本用例从绿变红(取到了 count 更大的"小刚"而不是数组第一位的"小红")——
+  // 说明这条断言真的在守着"原始顺序"这个行为,不是摆设。已改回 relations[0]。
+  it('取 relations[0] 而非按 count 排序后的第一个', () => {
+    const parts = nimoReadParts(
+      '小明',
+      [{ name: '小红', count: 1 } as { name: string; count: number }, { name: '小刚', count: 100 } as { name: string; count: number }],
+      [],
+    )
+    expect(parts[0]).toEqual({ key: 'photosPersonInsightWith', params: { name: '小明', other: '小红' } })
   })
 })
