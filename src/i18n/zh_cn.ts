@@ -750,4 +750,131 @@ export default {
   photosFavSavedToast: '「{name}」已保存 · {count} 张照片',
   photosFavSaveFailed: '保存失败',
   photosFavSaveAlbumNote: '相册会成为静态快照 —— 收藏新照片时不会自动更新。你可以随时再新建一个。',
+  // ── 相册:人物(SP7-P5,task-3)。中文值逐字取自 NimoOS-UI/src/assets/lang/zh_CN.json,
+  // 用同句英文原文当 key 查出。术语统一:Unnamed clusters→"未命名人物",不用"簇/聚类"
+  // (下方标注 [聚类→人物] 的几条为按此规则改写,原查得译文含"聚类" 二字)。
+  photosPeople: '人物',
+  photosPeopleNamed: '{n} 个已命名',
+  photosPeopleUnnamedClusters: '{n} 个未命名人物', // [聚类→人物],原文 "{n} 个未命名聚类"
+  photosPeopleIndexedUpTo: '人脸索引更新至 {date}',
+  photosPeopleConfidence: '置信度 ≥ {n}%',
+  photosPeopleConfidenceOption: '≥ {n}%',
+  photosPeopleClusters: '{n} 个人物', // [聚类→人物],原文 "{n} 个聚类"
+  photosPeopleFilterAll: '全部',
+  photosPeopleFilterFamily: '家人',
+  photosPeopleFilterFriends: '朋友',
+  photosPeopleFilterWork: '工作',
+  photosPeopleFilterRecent: '最近',
+  // Vue2 是两个分开的 $t('Sort:') + $t(label),New-UI 合成单键,zh 取 "排序：" 原译文拼接
+  photosPeopleSort: '排序： {label}',
+  photosPeopleSortFreq: '频率',
+  photosPeopleSortFreqHint: '按拍摄次数排序（最多在前）',
+  photosPeopleSortName: '名称（A–Z）',
+  photosPeopleSortNameHint: '按字母顺序',
+  photosPeopleSortRecent: '最近',
+  photosPeopleSortRecentHint: '最近出现在前',
+  photosPeopleSortOldest: '最早出现',
+  photosPeopleSortOldestHint: '最早出现在前',
+  photosPeopleFacesOffTitle: '人脸识别已关闭',
+  photosPeopleFacesOffBody: '已有人物仍会显示，但不再检测新的人脸。可在以下位置重新开启',
+  photosPeopleFacesOffLink: '设置 · AI 行为',
+  photosPeopleMlOfflineTitle: 'Photos AI 后端离线',
+  photosPeopleMlOfflineBody: '人脸识别与智能搜索暂时暂停，直到 Photos AI 服务启动完成或恢复可用。现有人物仍会显示。',
+  photosPeopleMergeFound: 'Nimo 发现了 {n} 个可能的合并',
+  photosPeopleMergeReasonNamed: '两个集群的人脸高度相似（{pct}%），可能都是 {name}。',
+  photosPeopleMergeReasonUnnamed: '两个集群的人脸高度相似（{pct}%），可能是同一个人。',
+  photosPeopleMergeReview: '查看',
+  // photosPeopleMergeDismissAll 未加:Vue2 该关闭按钮无 title/aria(已核实全文件无 title=/aria-label=),brief 引用的 :126 行原文不存在,报告详见 task-3-report.md
+  photosPeoplePinned: '置顶',
+  photosPeoplePinnedHint: '你收藏的人物',
+  photosPeopleNamedSection: '已命名',
+  photosPeopleNamedHint: '{n} 个，按频率排序',
+  photosPeopleUnnamedSection: '未命名人物', // 术语规则直给,不查表(表里是"未命名聚类")
+  photosPeopleUnnamedHint: '{n} 个人物 · 点击命名、合并或删除', // [聚类→人物]
+  photosPeopleHideSingle: '隐藏单张照片',
+  photosPeopleShowSingle: '显示 {n} 张单照片',
+  photosPeopleHide: '隐藏',
+  photosPeopleShow: '显示',
+  photosPeoplePhotosCount: '{n} 张照片',
+  photosPersonNameThis: '为这个人命名…',
+  photosPersonMergeExisting: '合并到已有人物…',
+  photosPersonDeleteCluster: '删除集群',
+  photosPersonNameTitle: '为这个人命名',
+  photosPersonNamePlaceholder: '如 Sara / Lily / 老松',
+  photosPersonNameHint: '命名后 Nimo 会把 {n} 张照片中包含这张脸的都归到这个人名下，以后新导入也会自动识别。',
+  photosPersonSaveName: '保存名字',
+  photosPersonNamedToast: '「{name}」已添加 · {count} 张照片',
+  photosPersonMergeTitle: '合并到已有人物',
+  photosPersonMergeSearch: '搜索现有人物…',
+  photosPersonNoMatch: '没有匹配的人物',
+  photosPersonMergedToast: '集群已合并到「{name}」',
+  photosPersonMergeFailed: '合并失败', // ★ New-UI 补齐,brief 已直给中文
+  photosPersonDeleteTitle: '删除这个人物分组？',
+  photosPersonDeleteBody: '照片会保留。人物分组与识别记录将被永久删除。你可以在 5 秒内撤销。',
+  photosPersonConfirmDelete: '确认删除',
+  photosPersonDeletedToast: '{label} 已删除',
+  photosPersonUndo: '撤销',
+  photosPersonMergeSuggestTitle: '可能的合并 {idx} / {total}',
+  photosPersonMergeSuggestConfidence: '置信度 {n}%',
+  photosPersonNotAMatch: '不是同一个人',
+  // Vue2 是 $t('Merge as') + 内嵌名字,New-UI 合成单键
+  photosPersonMergeAs: '合并为 {name}',
+  photosPersonMergeAsSame: '同一个人',
+  photosPersonSubtitle: '人物详情 · 面孔与关系',
+  photosPersonTabTimeline: '时间线',
+  photosPersonTabPlaces: '地点',
+  photosPersonTabRelations: '关系',
+  photosPersonStatPhotos: '照片',
+  photosPersonStatPlaces: '地点',
+  photosPersonStatAppearsWith: '共同出现',
+  photosPersonStatFirstSeen: '最早出现',
+  photosPersonMakeAlbum: '制作相册',
+  photosPersonBackground: '背景',
+  photosPersonRename: '重命名人物',
+  photosPersonMergeInto: '合并到另一个人物',
+  photosPersonDelete: '删除人物',
+  photosPersonRelationNone: '未分组',
+  photosPersonRelationFamily: '家人',
+  photosPersonRelationFriend: '朋友',
+  photosPersonRelationWork: '工作',
+  photosPersonSameFrame: '同框出现',
+  photosPersonSelect: '选择',
+  photosPersonDeselect: '取消选择',
+  photosPersonNotThePerson: '不是这个人',
+  photosPersonSetKeyPhoto: '设为关键照片',
+  photosPersonRemoveFrom: '从 {name} 中移除',
+  photosPersonKeyPhotoToast: '关键照片已更新',
+  photosPersonKeyPhotoNoFace: '那张照片中没有这个人的脸',
+  photosPersonKeyPhotoFailed: '设置关键照片失败',
+  // Vue2 :884-897 单/复数各有一套文案,New-UI 只留 3 键装不下 2×2=4 条,
+  // 这里取复数/通用形式(含 {n},n=1 时读起来稍别扭但语义正确);单选专属文案未纳入,见报告疑虑项
+  photosPersonDetachTitle: '从 {name} 中移除这 {n} 张照片？',
+  photosPersonDetachBody: '这 {n} 张照片里的脸将从 {name} 中移除，不会再出现在这个人下。',
+  photosPersonDetachConfirm: '移除',
+  photosPersonHeroTitle: '选择背景',
+  photosPersonUseKeyPhoto: '使用关键照片',
+  photosPersonSaveHero: '保存',
+  photosPersonHeroSavedToast: '背景已更新',
+  photosPersonHeroFailed: '更新背景失败',
+  photosPersonRenamedFailed: '改名失败', // ★
+  photosPersonAlbumCreatedToast: '已创建相册 · {name}', // ★
+  photosPersonAlbumFailed: '无法创建相册', // ★
+  photosPersonRelationFailed: '无法更新分组', // ★
+  photosPersonFavFailed: '无法更新收藏', // ★
+  photosPersonNoPhotos: '这个人还没有照片', // ★
+  photosPersonNotFound: '找不到这个人物', // ★
+  photosPersonBack: '返回人物', // ★
+  photosPeopleEmptyTitle: '还没有识别出人物', // ★
+  photosPeopleEmptyHint: 'Nimo 会在照片库建立索引时自动归类人脸。', // ★
+  photosPersonShowAll: '查看全部 {n} 张', // ★
+  photosPersonShowLess: '收起', // ★
+  photosPersonPlacesLegend: '常去地点',
+  photosPersonNoPlaces: '暂无 {name} 的位置数据',
+  photosPersonNimoRead: 'Nimo 的解读',
+  photosPersonInsightWith: '{name} 最常与 <b>{other}</b> 一起出现。',
+  photosPersonInsightWithUnnamed: '{name} 与一位未命名的人一起出现。',
+  photosPersonInsightPlaces2: '他们的照片集中在 <b>{place1}</b> 和 <b>{place2}</b>。',
+  photosPersonInsightPlace1: '他们的照片集中在 <b>{place}</b>。',
+  photosPersonInsightNone: '{name} 的照片还不够多，暂无法生成洞察。',
+  photosPersonUnknownPlace: '未知', // zh_CN.json 无裸 "Unknown" 条目,按同文件 "Unknown date"→"未知日期" 的既有惯例取"未知",见报告疑虑项
 }

@@ -752,4 +752,133 @@ export default {
   photosFavSavedToast: '"{name}" saved · {count} photos',
   photosFavSaveFailed: 'Save failed',
   photosFavSaveAlbumNote: "The album becomes a static snapshot — it won't update when you favorite new photos. You can always make a new one later.",
+  // ── Photos: People (SP7-P5, task-3). en values are verbatim Vue2 $t() literal
+  // arguments (Vue2 uses the English string itself as the i18n key).
+  photosPeople: 'People',
+  photosPeopleNamed: '{n} named',
+  photosPeopleUnnamedClusters: '{n} unnamed clusters',
+  photosPeopleIndexedUpTo: 'Faces indexed up to {date}',
+  photosPeopleConfidence: 'Confidence ≥ {n}%',
+  photosPeopleConfidenceOption: '≥ {n}%',
+  photosPeopleClusters: '{n} clusters',
+  photosPeopleFilterAll: 'All',
+  photosPeopleFilterFamily: 'Family',
+  photosPeopleFilterFriends: 'Friends',
+  photosPeopleFilterWork: 'Work',
+  photosPeopleFilterRecent: 'Recent',
+  // Vue2 splits into $t('Sort:') + $t(label); New-UI composes a single key
+  photosPeopleSort: 'Sort: {label}',
+  photosPeopleSortFreq: 'Frequency',
+  photosPeopleSortFreqHint: 'Most photographed first',
+  photosPeopleSortName: 'Name (A–Z)',
+  photosPeopleSortNameHint: 'Alphabetical',
+  photosPeopleSortRecent: 'Most recent',
+  photosPeopleSortRecentHint: 'Last seen first',
+  photosPeopleSortOldest: 'First seen',
+  photosPeopleSortOldestHint: 'Earliest first',
+  photosPeopleFacesOffTitle: 'Face recognition is off',
+  photosPeopleFacesOffBody: 'Existing people stay visible but no new faces are being detected. Re-enable in',
+  photosPeopleFacesOffLink: 'Settings · AI behavior',
+  photosPeopleMlOfflineTitle: 'Photos AI backend is offline',
+  photosPeopleMlOfflineBody: 'Face recognition and smart search are paused while the Photos AI service starts up or is unavailable. Existing people stay visible.',
+  photosPeopleMergeFound: 'Nimo found {n} possible merges',
+  photosPeopleMergeReasonNamed: 'Two clusters look {pct}% alike — likely both {name}.',
+  photosPeopleMergeReasonUnnamed: 'Two clusters look {pct}% alike — likely the same person.',
+  photosPeopleMergeReview: 'Review',
+  // photosPeopleMergeDismissAll not added: the Vue2 dismiss-all icon button has no title/aria
+  // (verified no title=/aria-label= anywhere in PhotosPeopleView.vue); brief's :126 reference
+  // does not exist in source — see task-3-report.md
+  photosPeoplePinned: 'Pinned',
+  photosPeoplePinnedHint: "People you've favorited",
+  photosPeopleNamedSection: 'Named',
+  photosPeopleNamedHint: '{n} more — sorted by frequency',
+  photosPeopleUnnamedSection: 'Unnamed clusters',
+  photosPeopleUnnamedHint: '{n} clusters · click to name, merge or delete',
+  photosPeopleHideSingle: 'Hide single-photo',
+  photosPeopleShowSingle: 'Show {n} single-photo',
+  photosPeopleHide: 'Hide',
+  photosPeopleShow: 'Show',
+  photosPeoplePhotosCount: '{n} photos',
+  photosPersonNameThis: 'Name this person…',
+  photosPersonMergeExisting: 'Merge into existing…',
+  photosPersonDeleteCluster: 'Delete cluster',
+  photosPersonNameTitle: 'Name this person',
+  photosPersonNamePlaceholder: 'e.g. Sara / Lily / Old Song',
+  photosPersonNameHint: 'After naming, Nimo groups all {n} photos containing this face under this person and auto-recognizes future imports.',
+  photosPersonSaveName: 'Save name',
+  photosPersonNamedToast: '"{name}" added · {count} photos',
+  photosPersonMergeTitle: 'Merge into existing person',
+  photosPersonMergeSearch: 'Search existing people…',
+  photosPersonNoMatch: 'No matching people',
+  photosPersonMergedToast: 'Cluster merged into "{name}"',
+  photosPersonMergeFailed: 'Merge failed', // ★ New-UI addition, value given directly in brief
+  photosPersonDeleteTitle: 'Delete this person group?',
+  photosPersonDeleteBody: 'Photos are kept. Face group and recognition records will be permanently removed. You can undo within 5 seconds.',
+  photosPersonConfirmDelete: 'Confirm delete',
+  photosPersonDeletedToast: '{label} deleted',
+  photosPersonUndo: 'Undo',
+  photosPersonMergeSuggestTitle: 'Possible merge {idx} / {total}',
+  photosPersonMergeSuggestConfidence: 'Confidence {n}%',
+  photosPersonNotAMatch: 'Not a match',
+  // Vue2 is $t('Merge as') + inline name; New-UI composes a single key
+  photosPersonMergeAs: 'Merge as {name}',
+  photosPersonMergeAsSame: 'same person',
+  photosPersonSubtitle: 'Person details · faces & relationships',
+  photosPersonTabTimeline: 'Timeline',
+  photosPersonTabPlaces: 'Places',
+  photosPersonTabRelations: 'Relationships',
+  photosPersonStatPhotos: 'Photos',
+  photosPersonStatPlaces: 'Places',
+  photosPersonStatAppearsWith: 'Appears with',
+  photosPersonStatFirstSeen: 'First seen',
+  photosPersonMakeAlbum: 'Make album',
+  photosPersonBackground: 'Background',
+  photosPersonRename: 'Rename person',
+  photosPersonMergeInto: 'Merge into another person',
+  photosPersonDelete: 'Delete person',
+  photosPersonRelationNone: 'No group',
+  photosPersonRelationFamily: 'Family',
+  photosPersonRelationFriend: 'Friend',
+  photosPersonRelationWork: 'Work',
+  photosPersonSameFrame: 'Same frame with',
+  photosPersonSelect: 'Select',
+  photosPersonDeselect: 'Deselect',
+  photosPersonNotThePerson: 'Not the person',
+  photosPersonSetKeyPhoto: 'Set as key photo',
+  photosPersonRemoveFrom: 'Remove from {name}',
+  photosPersonKeyPhotoToast: 'Key photo updated',
+  photosPersonKeyPhotoNoFace: 'No face of this person in that photo',
+  photosPersonKeyPhotoFailed: 'Failed to set key photo',
+  // Vue2 :884-897 has separate singular/plural copy; New-UI's 3-key table can't hold all
+  // 4 (2×2) strings, so the plural/generic form (with {n}) is used for both — the
+  // singular-only strings are not carried over, see report caveats
+  photosPersonDetachTitle: 'Remove {n} photos from {name}?',
+  photosPersonDetachBody: "These {n} photos' faces will be removed from {name} and won't reappear in this person.",
+  photosPersonDetachConfirm: 'Remove',
+  photosPersonHeroTitle: 'Choose background',
+  photosPersonUseKeyPhoto: 'Use key photo',
+  photosPersonSaveHero: 'Save',
+  photosPersonHeroSavedToast: 'Background updated',
+  photosPersonHeroFailed: 'Failed to update background',
+  photosPersonRenamedFailed: 'Rename failed', // ★
+  photosPersonAlbumCreatedToast: 'Album created · {name}', // ★
+  photosPersonAlbumFailed: 'Could not create album', // ★
+  photosPersonRelationFailed: 'Could not update group', // ★
+  photosPersonFavFailed: 'Could not update favorite', // ★
+  photosPersonNoPhotos: 'No photos for this person yet', // ★
+  photosPersonNotFound: 'Person not found', // ★
+  photosPersonBack: 'Back to people', // ★
+  photosPeopleEmptyTitle: 'No people yet', // ★
+  photosPeopleEmptyHint: 'Nimo groups faces as your library is indexed.', // ★
+  photosPersonShowAll: 'Show all {n}', // ★
+  photosPersonShowLess: 'Show less', // ★
+  photosPersonPlacesLegend: 'Top places',
+  photosPersonNoPlaces: 'No location data for {name} yet',
+  photosPersonNimoRead: "Nimo's read",
+  photosPersonInsightWith: '{name} appears most often with <b>{other}</b>.',
+  photosPersonInsightWithUnnamed: '{name} appears together with an unnamed person.',
+  photosPersonInsightPlaces2: 'Their photos cluster in <b>{place1}</b> and <b>{place2}</b>.',
+  photosPersonInsightPlace1: 'Their photos cluster in <b>{place}</b>.',
+  photosPersonInsightNone: 'Not enough photos of {name} yet for an insight.',
+  photosPersonUnknownPlace: 'Unknown', // no bare "Unknown" entry in zh_CN.json, see report caveats
 }
