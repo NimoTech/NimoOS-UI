@@ -175,6 +175,34 @@ describe('ResourcesTab — authorized resources section (new)', () => {
     const btn = w.find('.rt-x')
     expect(btn.attributes('disabled')).toBeDefined()
   })
+
+  // F1(终审 opus 复查)—— 流式注入的授权资源(agentStore.ts:488
+  // appendVisibleResource({path, kind}))没有 id。点 × 必须走
+  // remove-resource-by-path,而不是把 undefined 硬塞进 remove-resource。
+  it('id-less resource (streamed, no id) × emits remove-resource-by-path with the path, and does NOT emit remove-resource', async () => {
+    const w = track(mountTab({
+      visibleResources: [{ path: '/DATA/streamed-dir', kind: 'folder' }],
+    }))
+    const removeButtons = w.findAll('.rt-x')
+    await removeButtons[0].trigger('click')
+    expect(w.emitted('remove-resource-by-path')).toBeTruthy()
+    expect(w.emitted('remove-resource-by-path')![0]).toEqual(['/DATA/streamed-dir'])
+    expect(w.emitted('remove-resource')).toBeFalsy()
+  })
+
+  // 判别力自检专用例:id === 0 是合法 id(falsy 但非 undefined),必须走
+  // remove-resource,而不是被真值判断误判成"无 id"。分流条件必须是
+  // `r.id !== undefined`,不能是 `r.id ?`(见 onRemoveResource() 注释)。
+  it('resource with id: 0 (legitimate falsy id) × emits remove-resource with payload 0, not remove-resource-by-path', async () => {
+    const w = track(mountTab({
+      visibleResources: [{ id: 0, path: '/DATA/zero-id', kind: 'file' }],
+    }))
+    const removeButtons = w.findAll('.rt-x')
+    await removeButtons[0].trigger('click')
+    expect(w.emitted('remove-resource')).toBeTruthy()
+    expect(w.emitted('remove-resource')![0]).toEqual([0])
+    expect(w.emitted('remove-resource-by-path')).toBeFalsy()
+  })
 })
 
 describe('ResourcesTab — attachments section (new)', () => {

@@ -27,7 +27,9 @@
   ModelPicker UI 本身仍未挂载——本任务只管 store 状态 + 页面接线。
 
   SP8-P1c2 Task 13 —— `<AgentRightPanel>` 正式挂载(Vue2 Agent.vue:44-64 挂载契约),
-  11 个 prop + 7 个事件逐条对齐;唯一少的一个是 `systemMetrics`(用户 2026-07-27
+  11 个 prop + 7 个事件逐条对齐(F1 终审修复后新增第 8 个事件
+  `remove-resource-by-path` → `store.removeVisibleResourceByPath`,写法与相邻
+  处理器一致);唯一少的一个 prop 是 `systemMetrics`(用户 2026-07-27
   拍板的有意偏离,详见模板处与 AgentRightPanel.vue props 处注释)。至此右栏 4 个
   tab(Activity/Context/System/Resources)全部接真。
 
@@ -368,6 +370,7 @@ onMounted(async () => {
       :reverting="store.reverting"
       @set-tab="(tab) => store.setRightTab(tab)"
       @remove-resource="(id) => store.removeVisibleResource(id)"
+      @remove-resource-by-path="(path) => store.removeVisibleResourceByPath(path)"
       @remove-attachment="(id) => store.removeAttachment(id)"
       @revert-run="(runId) => store.revertStagedRun(runId)"
       @revert-batch="(batchId) => store.revertStagedBatch(batchId)"

@@ -145,6 +145,14 @@ describe('AgentRightPanel', () => {
     expect(w.emitted('commit-all')).toEqual([[]])
   })
 
+  // F1(终审 opus 复查)—— 第 7 个 emit,原样透传给父组件(AgentPage)。
+  it('F1:ResourcesTab 的 remove-resource-by-path 原样上抛', () => {
+    const w = mountPanel({ tab: 'resources' })
+    const rt = w.findComponent(ResourcesTab)
+    rt.vm.$emit('remove-resource-by-path', '/DATA/streamed-dir')
+    expect(w.emitted('remove-resource-by-path')).toEqual([['/DATA/streamed-dir']])
+  })
+
   it('pendingCount > 0 时 Resources 按钮显示 .badge-pending 且数值正确', () => {
     const w = mountPanel({
       stagedChanges: [
@@ -175,7 +183,9 @@ describe('AgentRightPanel', () => {
 
   // Task 13:systemMetrics 删除后 props 从 12 个降到 11 个。
   it('11 个 props 均有合理默认值,空 props 挂载不炸', () => {
-    expect(() => mountPanel()).not.toThrow()
+    // F4 修复(终审 opus 复查)—— 原有 `expect(() => mountPanel()).not.toThrow()`
+    // 是同义反复:同步挂载本来就不会抛,异步 rejection 也不经这条断言,删掉。
+    // 下面这条真断言(props 计数)保留。
     expect(Object.keys(mountPanel().props()).length).toBe(11)
   })
 })

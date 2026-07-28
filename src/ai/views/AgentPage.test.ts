@@ -595,4 +595,27 @@ describe('AgentPage', () => {
     expect(attSpy).toHaveBeenCalledWith('a1')
     w.unmount()
   })
+
+  // F1(终审 opus 复查)—— 流式注入的授权资源没有 id(agentStore.ts:488
+  // appendVisibleResource({path, kind})),右栏 × 必须打到
+  // store.removeVisibleResourceByPath,而不是拿 undefined 打
+  // store.removeVisibleResource。
+  it('Task 13/F1:无 id 授权资源的 × 打到 store.removeVisibleResourceByPath(path),不打 removeVisibleResource', async () => {
+    const w = mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.rightTab = 'resources'
+    store.activeSessionId = 'sess-1'
+    store.visibleResources = [{ path: '/DATA/streamed-dir', kind: 'folder' }]
+    await flushPromises()
+
+    const byPathSpy = vi.spyOn(store, 'removeVisibleResourceByPath').mockResolvedValue(undefined)
+    const byIdSpy = vi.spyOn(store, 'removeVisibleResource').mockResolvedValue(undefined)
+
+    const sections = w.findAll('.rt-section')
+    await sections[0].find('.rt-x').trigger('click')
+    expect(byPathSpy).toHaveBeenCalledWith('/DATA/streamed-dir')
+    expect(byIdSpy).not.toHaveBeenCalled()
+    w.unmount()
+  })
 })

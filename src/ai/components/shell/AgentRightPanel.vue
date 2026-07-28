@@ -15,6 +15,8 @@
   (Task 12)替换掉 Task 10 留的两个占位 div。Resources 仍是 v-else 兜底分支
   (未知 tab 值也落这里,与 Vue2 AgentRightPanel.vue:15-16 逐字一致)。
   ResourcesTab 的 6 个 emit 在这里原样上抛给父组件(AgentPage),本组件不碰 store。
+  (F1 终审修复后 ResourcesTab 新增第 7 个 emit `remove-resource-by-path`,同样原样
+  上抛,见下方模板处与 emits 声明处注释。)
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
@@ -68,6 +70,9 @@ const emit = defineEmits<{
   // 这样父组件可以直接把它交给 store.setRightTab(同款联合类型)而不必 cast。
   (e: 'set-tab', tab: 'activity' | 'context' | 'system' | 'resources'): void
   (e: 'remove-resource', id: string | number): void
+  // F1 修复(终审 opus 复查)—— ResourcesTab 新增的第 7 个 emit,原样透传给
+  // AgentPage(见 ResourcesTab.vue 的 `remove-resource-by-path` 声明处注释）。
+  (e: 'remove-resource-by-path', path: string): void
   (e: 'remove-attachment', id: string | number): void
   (e: 'revert-run', runId: string | number): void
   (e: 'revert-batch', batchId: string | number): void
@@ -103,7 +108,8 @@ const { t } = useI18n()
            :storage="storage" />`;systemMetrics 见上方 props 处的有意偏离说明。 -->
       <SystemTab v-else-if="tab === 'system'" :storage="storage" />
       <!-- Vue2 AgentRightPanel.vue:15-30 —— v-else 兜底分支(未知 tab 值也落这里),
-           7 个 prop + 6 个 emit 逐条对齐。 -->
+           7 个 prop + 6 个 emit 逐条对齐(F1 终审修复后本组件再原样上抛第 7 个
+           emit `remove-resource-by-path`,见上方文件头注释)。 -->
       <ResourcesTab
         v-else
         :session-id="sessionId"
@@ -114,6 +120,7 @@ const { t } = useI18n()
         :committing="committing"
         :reverting="reverting"
         @remove-resource="emit('remove-resource', $event)"
+        @remove-resource-by-path="emit('remove-resource-by-path', $event)"
         @remove-attachment="emit('remove-attachment', $event)"
         @revert-run="emit('revert-run', $event)"
         @revert-batch="emit('revert-batch', $event)"

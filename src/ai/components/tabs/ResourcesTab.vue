@@ -79,6 +79,14 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'remove-resource', id: string | number): void
+  // F1 修复(终审 opus 全支线复查)—— Vue2 tabs/ResourcesTab.vue:21 对授权段的 ×
+  // 无条件传 `r.id`,流式注入的资源(agentStore.ts:488 appendVisibleResource
+  // 只塞 {path, kind},见 dispatchEvent.ts:310-314 / Vue2 agentStream.js:539-542)
+  // 没有 id，会打 `/visible-resources/undefined` 坏请求。与
+  // AgentComposer.removeChip()(1c-1 挂账票 1 的还款,见该函数注释)同款处理：
+  // 按 `r.id !== undefined` 分流，无 id 的走这个新事件，由父组件接
+  // store.removeVisibleResourceByPath(path)。
+  (e: 'remove-resource-by-path', path: string): void
   (e: 'remove-attachment', id: string | number): void
   (e: 'revert-run', runId: string | number): void
   (e: 'revert-batch', batchId: string | number): void
@@ -119,11 +127,31 @@ function rawUrl(aid: string | number): string {
   return service.ai.attachmentRawUrl(props.sessionId, aid)
 }
 
-/** Vue2:230-232 —— 三种键命名空间,逐字照抄:裸 runId / 裸 batchId / 'item:'+stagedId。 */
+/** Vue2:230-232 —— 三种键命名空间,逐字照抄:裸 runId / 裸 batchId / 'item:'+stagedId。
+ *  F2 申报(终审 opus 复查)—— `isRevertingItem` 比 Vue2:232 多一个
+ *  `stagedId !== undefined &&` 守卫;Vue2 没有这层，`stagedId` 为 undefined 时
+ *  会去查 `reverting['item:undefined']`。运行时等价(那个键永不存在于
+ *  `reverting` 表里，两种写法结果都是 false)，这里只是防御性显式化，**不改变行为**。 */
 function isReverting(runId: string | number): boolean { return !!props.reverting[runId] }
 function isRevertingBatch(batchId: string | number): boolean { return !!props.reverting[batchId] }
 function isRevertingItem(stagedId: string | number | undefined): boolean {
   return stagedId !== undefined && !!props.reverting['item:' + stagedId]
+}
+
+/**
+ * F1 修复 —— Vue2:21 无条件 `emit('remove-resource', r.id)`，对流式注入的无 id
+ * 资源(见上方 `remove-resource-by-path` emit 声明处的注释)会打
+ * `/visible-resources/undefined`。这里按 **`r.id !== undefined`**（不能用真值
+ * 判断——`id === 0` 是合法 id）分流：有 id 走原事件；无 id 走
+ * `remove-resource-by-path`，由父组件接 `store.removeVisibleResourceByPath`。
+ * 分流之后各分支类型已经收窄，不再需要 `as string | number` 断言。
+ */
+function onRemoveResource(r: VisibleResource) {
+  if (r.id !== undefined) {
+    emit('remove-resource', r.id)
+  } else {
+    emit('remove-resource-by-path', r.path)
+  }
 }
 </script>
 
@@ -152,7 +180,7 @@ function isRevertingItem(stagedId: string | number | undefined): boolean {
             class="icon-btn rt-x"
             :disabled="busy"
             :title="busy ? t('aiResAgentRunning') : t('aiResRemoveAuth')"
-            @click="emit('remove-resource', r.id as string | number)"
+            @click="onRemoveResource(r)"
           >×</button>
         </li>
       </ul>

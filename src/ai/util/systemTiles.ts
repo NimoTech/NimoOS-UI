@@ -16,6 +16,14 @@
 // `GetCpuPercent() float64` 的产物 —— 从来都是纯数字,不是数组。
 // `(number).length` 恒为 `undefined`,falsy,于是 Vue2 的 CPU 磁贴无论真实占用率
 // 是多少,永远显示 "—"。这是一个真实缺陷,不是设计意图,这里直接读数字修复。
+//
+// F3 申报(终审 opus 复查,本文件头之前只申报了上面 cpu.percent 那一处缺陷
+// 修复)—— `mem.used`/`mem.total`/`cpu.temperature` 三处,Vue2 SystemTab.vue 用
+// `!= null` 判空(`sm.mem.used != null`),这里换成了 `typeof x === 'number'`。
+// 两者在当前后端契约下等价(三个字段声明类型就是 number,永远不会是字符串数字)；
+// 但若后端某天改发字符串数字,行为会分叉:Vue2 会把字符串当数字渲染出来,这里会
+// 落 `—`。类型收窄本身是对的(字段类型声明即 number),这里只是把这个偏离补进
+// 申报清单,不改代码行为。
 import type { Utilization } from '@nimotech/nimoos-service'
 
 export interface SystemTile {
