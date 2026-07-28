@@ -18,11 +18,13 @@
   `var(--accent)` 这类变量，其实际值由**当前主题**决定。组件不关心自己是蓝色还是白色。
 - 现有 token 表达不了某个**新语义**（例如某种警示色）时，**新增一个语义 token**
   （见 §5），并在**每一套主题块里都给它一个值**——绝不就地写死一个字面色。
-- **唯二例外**（有意为之，非历史残留，代码里须有注释标明）：
+- **三类例外**（有意为之，非历史残留，代码里须有注释标明）：
   1. `theme.css` 的 `.ic-*` app 图标渐变——**品牌识别色，皮肤无关**，两套主题都原样保留。
   2. 第三方组件内部无法 token 化的颜色（如 CodeMirror 编辑器主题）——走该库自身的主题机制。
+  3. **数据可视化分类色板**（如人物地点页 `PLACE_PALETTE`）——同一视图上要互相区分的
+     数据系列颜色，与主题皮肤无关，值放 `.ts` 而非 `theme.css`（不造一次性 token）。
 
-  这两类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6。
+  这三类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6。
 - 落地保障：`NimoOS-New-UI/CLAUDE.md` 写入同一强约束（自动注入后续会话）；本文件
   提供完整 token 目录，作为开发者与 AI 的查阅入口。
 
@@ -308,6 +310,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 |---|---|---|
 | `.ic-*` app 图标渐变（`.ic-files` / `.ic-photos` / `.ic-video` / `.ic-music` / `.ic-ai` / `.ic-backup` / `.ic-download` / `.ic-docker` / `.ic-vm` / `.ic-share` / `.ic-search` / `.ic-settings` / `.ic-users` / `.ic-storage` / `.ic-appstore` / `.ic-terminal` 等） | `theme.css` §「应用图标配色」 | **品牌识别色，皮肤无关**——文件蓝、照片虹彩、音乐粉紫等是产品视觉资产，两套主题都保持一致，不应随皮肤变。用户靠颜色识别应用。 |
 | 第三方库内部主题（如 CodeMirror 编辑器配色） | 引入该库的组件 | 库有自己的主题机制，颜色由库内部管理，无法用 CSS 变量穿透。应走该库自身的 theme 配置，而非硬塞 token。 |
+| `PLACE_PALETTE`（7 色循环：`#6E5BFF`/`#FF9AC2`/`#5AC8FA`/`#FFD60A`/`#34C759`/`#FF9F0A`/`#FF6B5C`） | `src/photos/util/peopleView.ts`（人物详情页地点 tab：迷你地图点 + 图例 + 地点卡片，消费于 `PersonPlacesTab.vue`） | **数据可视化分类色板**，不是主题皮肤色——同一张地图/图例上要把互不相同的地点互相区分开，颜色语义是"第几个数据系列"而不是"主题强调色"，两套主题下都必须保持同一组值不变。值放 `.ts`（不是 `theme.css`）刻意避免为 7 个数据系列各造一个一次性 token。 |
 
 注：`.ic-ai` 与 `.ic-all` / `.ic-app` 例外地**引用了** token（`--accent` / `--accent2` /
 `--orb-core` / `--all-bg` 等）——这部分仍随主题走，只有各图标的**固定品牌渐变**是例外。

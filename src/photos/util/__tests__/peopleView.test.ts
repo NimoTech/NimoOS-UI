@@ -3,7 +3,8 @@ import {
   toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
   hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
   mergeReasonKey,
-  type Person,
+  PLACE_PALETTE, groupPlaces, colorPoints,
+  type Person, type PersonPlace,
 } from '../peopleView'
 
 const P = (over: Partial<Person>): Person => ({
@@ -117,6 +118,80 @@ describe('monthKeyLabel', () => {
 describe('mergeConfidencePct', () => {
   it('0~1 → 整数百分比,缺失记 0', () => {
     expect(mergeConfidencePct(0.876)).toBe(88); expect(mergeConfidencePct(undefined)).toBe(0)
+  })
+})
+
+const UNKNOWN = '未知'
+const PL = (over: Partial<PersonPlace>): PersonPlace => ({ placeName: null, latitude: null, longitude: null, ...over })
+
+describe('groupPlaces (PhotosPersonDetail.vue:537-551)', () => {
+  it('placeName 优先,不查坐标', () => {
+    const g = groupPlaces([PL({ placeName: 'Paris', latitude: 999, longitude: 999 })], UNKNOWN)
+    expect(g).toEqual([{ name: 'Paris', count: 1, color: PLACE_PALETTE[0] }])
+  })
+
+  it('缺 placeName 但有坐标 → 走 countryFromCoords 反查', () => {
+    // 46.6N,2.4E 是法国本土中心,France 边界框在 assetToPhoto.ts 的 COUNTRIES 表里已验证命中。
+    const g = groupPlaces([PL({ latitude: 46.6, longitude: 2.4 })], UNKNOWN)
+    expect(g).toEqual([{ name: 'France', count: 1, color: PLACE_PALETTE[0] }])
+  })
+
+  it('既无 placeName 也无坐标命中 → unknownLabel(纯函数,标签由调用方传入,不依赖 i18n)', () => {
+    // -20,-140 落在南太平洋公海,assetToPhoto.ts 的国家边界框表里已验证不命中任何国家。
+    const g1 = groupPlaces([PL({})], UNKNOWN)
+    const g2 = groupPlaces([PL({ latitude: -20, longitude: -140 })], UNKNOWN)
+    expect(g1).toEqual([{ name: UNKNOWN, count: 1, color: PLACE_PALETTE[0] }])
+    expect(g2).toEqual([{ name: UNKNOWN, count: 1, color: PLACE_PALETTE[0] }])
+  })
+
+  it('按 count 降序', () => {
+    const places = [
+      PL({ placeName: 'A' }), PL({ placeName: 'B' }),
+      PL({ placeName: 'A' }), PL({ placeName: 'A' }),
+    ]
+    const g = groupPlaces(places, UNKNOWN)
+    expect(g.map((x) => [x.name, x.count])).toEqual([['A', 3], ['B', 1]])
+  })
+
+  it('7 色循环边界:第 8 个不同地点的颜色回到 PLACE_PALETTE[0]', () => {
+    const places = Array.from({ length: 8 }, (_, i) => PL({ placeName: `P${i}` }))
+    const g = groupPlaces(places, UNKNOWN)
+    expect(g).toHaveLength(8)
+    expect(g[0].color).toBe(PLACE_PALETTE[0])
+    expect(g[6].color).toBe(PLACE_PALETTE[6])
+    expect(g[7].color).toBe(PLACE_PALETTE[0]) // idx 7 % 7 === 0,与 idx 0 撞色
+  })
+})
+
+describe('colorPoints (PhotosPersonDetail.vue:552-570)', () => {
+  it('只保留 typeof lat/lon 均为 number 的点', () => {
+    const places: PersonPlace[] = [
+      PL({ placeName: 'A', latitude: 1, longitude: 2 }),
+      PL({ placeName: 'B', latitude: null, longitude: 2 }),
+      PL({ placeName: 'C', latitude: '3' as unknown as number, longitude: 4 }),
+    ]
+    const groups = groupPlaces(places, UNKNOWN)
+    const pts = colorPoints(places, groups, UNKNOWN)
+    expect(pts).toEqual([{ latitude: 1, longitude: 2, color: groups.find((g) => g.name === 'A')!.color }])
+  })
+
+  it('颜色与所属分组一致', () => {
+    const places = [
+      PL({ placeName: 'A', latitude: 1, longitude: 1 }),
+      PL({ placeName: 'A', latitude: 2, longitude: 2 }),
+      PL({ placeName: 'B', latitude: 3, longitude: 3 }),
+    ]
+    const groups = groupPlaces(places, UNKNOWN) // A count=2 → idx0,B count=1 → idx1
+    const pts = colorPoints(places, groups, UNKNOWN)
+    expect(pts[0].color).toBe(PLACE_PALETTE[0])
+    expect(pts[1].color).toBe(PLACE_PALETTE[0])
+    expect(pts[2].color).toBe(PLACE_PALETTE[1])
+  })
+
+  it('分组里查不到名字(如传入了不匹配的 groups)时回落 PALETTE[0]', () => {
+    const places = [PL({ placeName: 'Ghost', latitude: 5, longitude: 5 })]
+    const pts = colorPoints(places, [], UNKNOWN)
+    expect(pts).toEqual([{ latitude: 5, longitude: 5, color: PLACE_PALETTE[0] }])
   })
 })
 

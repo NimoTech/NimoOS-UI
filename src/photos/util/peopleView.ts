@@ -16,6 +16,8 @@
 //     hiddenSingletonCountOf / unnamedCountAt, sharing the same comparison
 //     logic instead of being copy-pasted three times.
 
+import { countryFromCoords } from './assetToPhoto'
+
 export interface Person {
   id: string | number
   name: string
@@ -33,6 +35,17 @@ export interface Person {
 export interface PeopleFilter {
   confidence: number
   showSingletons: boolean
+}
+
+// Structural mirror of usePersonDetail.ts's PersonPlace interface. Not
+// imported from there because usePersonDetail.ts already imports
+// toPerson/monthKeyLabel from this file — importing it back here would be
+// circular. TypeScript's structural typing means callers can pass
+// usePersonDetail's PersonPlace[] into groupPlaces/colorPoints unchanged.
+export interface PersonPlace {
+  placeName?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 const MONTH_NAMES = [
@@ -155,4 +168,73 @@ export function mergeReasonKey(
     return { key: 'photosPeopleMergeReasonNamed', params: { pct, name: s.intoName } }
   }
   return { key: 'photosPeopleMergeReasonUnnamed', params: { pct } }
+}
+
+// ---------------------------------------------------------------------------
+// Person-detail "places" tab (Task 12). Ported from Vue2
+// PhotosPersonDetail.vue:446 (PLACE_PALETTE), :537-551 (groupedPlaces),
+// :552-570 (coloredPoints).
+
+// Categorical data-visualization palette, NOT a theme skin color: it exists
+// so distinct places drawn together on the same mini map / legend / chip
+// strip stay visually distinguishable from each other, independent of the
+// current light/dark theme (same rationale as a chart's series-color scale).
+// 7 colors, cycled by index modulo length — see groupPlaces below. Kept in
+// this .ts file (not theme.css) deliberately: color-guard only scans .vue
+// <style> blocks and .css files, so per-datum colors that must stay constant
+// across themes belong here, not as 7 throwaway theme tokens. Documented as
+// an exception in docs/THEMING.md §6.
+export const PLACE_PALETTE: readonly string[] = [
+  '#6E5BFF', '#FF9AC2', '#5AC8FA', '#FFD60A', '#34C759', '#FF9F0A', '#FF6B5C',
+]
+
+export interface PlaceGroup {
+  name: string
+  count: number
+  color: string
+}
+
+// PhotosPersonDetail.vue:537-551 (groupedPlaces computed). `unknownLabel` is
+// injected by the caller (a resolved i18n string) — this function must stay
+// pure and cannot call useI18n() itself.
+export function groupPlaces(places: PersonPlace[], unknownLabel: string): PlaceGroup[] {
+  const counts: Record<string, number> = {}
+  for (const pl of places) {
+    // Prefer placeName field; fall back to reverse-geocode; final fallback unknownLabel.
+    const name = pl.placeName || countryFromCoords(pl.latitude, pl.longitude) || unknownLabel
+    counts[name] = (counts[name] || 0) + 1
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count], idx) => ({
+      name,
+      count,
+      color: PLACE_PALETTE[idx % PLACE_PALETTE.length],
+    }))
+}
+
+// PhotosPersonDetail.vue:552-570 (coloredPoints computed). `groups` is
+// normally the output of groupPlaces(places, unknownLabel) for the same
+// places/unknownLabel — passed in separately (not recomputed here) so the
+// two stay in lockstep with a single source of truth in the caller.
+export function colorPoints(
+  places: PersonPlace[],
+  groups: PlaceGroup[],
+  unknownLabel: string,
+): Array<{ latitude: number; longitude: number; color: string }> {
+  // Build a name -> color lookup from groups.
+  const colorMap: Record<string, string> = {}
+  for (const g of groups) colorMap[g.name] = g.color
+
+  return places
+    .filter((pl): pl is PersonPlace & { latitude: number; longitude: number } =>
+      typeof pl.latitude === 'number' && typeof pl.longitude === 'number')
+    .map((pl) => {
+      const name = pl.placeName || countryFromCoords(pl.latitude, pl.longitude) || unknownLabel
+      return {
+        latitude: pl.latitude,
+        longitude: pl.longitude,
+        color: colorMap[name] || PLACE_PALETTE[0],
+      }
+    })
 }

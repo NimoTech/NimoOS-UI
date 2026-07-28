@@ -243,7 +243,10 @@ const COUNTRIES: [string, [number, number, number, number]][] = [
 
 const AREAS = COUNTRIES.map(([, [w, s, e, n]]) => (e - w) * (n - s))
 
-function countryFromCoords(lat: number | null | undefined, lon: number | null | undefined): string | null {
+// Exported (Task 12) so peopleView.groupPlaces/colorPoints can reuse the same
+// reverse-geocode fallback for the person-detail places tab. Pure additive
+// change — function body and every call site below are untouched.
+export function countryFromCoords(lat: number | null | undefined, lon: number | null | undefined): string | null {
   if (lat == null || lon == null) return null
   if (typeof lat !== 'number' || typeof lon !== 'number') return null
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
