@@ -39,6 +39,10 @@ import {
 } from '../files/util/pathUtils'
 import { readDefault } from '../files/util/locationOrder'
 import { parseRecover } from '../files/util/recoverEvent'
+import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
+import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
+import { resolveExitTarget } from '../files/util/snapshotPath'
+import { service } from '@nimotech/nimoos-service'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,6 +55,7 @@ const clipboard = useClipboardStore()
 const uploads = useUploadsStore()
 const mounts = useMountsStore()
 const shares = useSharesStore()
+const browse = useSnapshotBrowseStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -226,6 +231,15 @@ const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.dis
 function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
 }
+// 退出快照:回到活卷上的同名目录;该目录在活卷上已经不存在(比如那之后被删了)则回卷根。
+// dirExists 用列目录成功与否判定 —— 文件区没有单独的"目录是否存在"接口,列目录失败
+// (404/权限)一律当作不存在,退回卷根总是安全的落点。
+async function exitSnapshot() {
+  const target = await resolveExitTarget(browse.browseInfo, async (p) => {
+    try { await service.folder.getList(p); return true } catch { return false }
+  })
+  if (target) goVirtual(toVirtualPath(target, files.displayNames))
+}
 async function sync() {
   // 旧格式深链:/files?path=X(X 真实或虚拟;来源:Vue2 AI「打开文件位置」、上传通知、
   // Home 文件夹瓦片)→ 归一化成规范 /files/<虚拟段>,highlight 透传。
@@ -393,6 +407,9 @@ onUnmounted(() => { offUnloadGuard?.() })
 // 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
 // 失败降级为内存模式,不阻断文件区渲染。
 onMounted(() => { uploads.initUploads() })
+
+// 每会话拉一次快照卷列表:入口按钮(canShowEntry)与只读锁(browseInfo)都依赖它就绪。
+onMounted(() => { browse.ensureVolumes() })
 </script>
 
 <template>
@@ -423,6 +440,13 @@ onMounted(() => { uploads.initUploads() })
             </div>
           </div>
         </div>
+        <SnapshotBanner
+          :info="browse.browseInfo"
+          :restoring="false"
+          :can-restore="false"
+          @exit="exitSnapshot"
+          @restore="() => {}"
+        />
         <SelectionToolbar
           v-if="files.selectedCount > 0"
           :count="files.selectedCount"

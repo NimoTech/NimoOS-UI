@@ -24,6 +24,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
     // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
     samba: { listConnections: vi.fn().mockResolvedValue([]) },
     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
+    snapshot: { listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]) },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
 }))
@@ -176,5 +177,37 @@ describe('Files.vue browse pipe', () => {
     // the container's blank-area handler must not clobber the row-set selection.
     await row.trigger('contextmenu')
     expect(files.selectedCount).toBe(1)
+  })
+})
+
+describe('快照只读横幅', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
+
+  it('普通目录不显示横幅', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(w.find('.snap-banner').exists()).toBe(false)
+  })
+
+  it('进入快照路径后显示横幅', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(w.find('.snap-banner').exists()).toBe(true)
   })
 })

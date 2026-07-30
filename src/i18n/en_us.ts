@@ -763,4 +763,8 @@ export default {
   snapDelete: 'Delete',
   snapDeleteTitle: 'Delete Snapshot',
   snapDeleteMsg: 'This deletes only the snapshot from {time}. Your current files are not affected.',
+  snapBrowseBanner: 'Viewing snapshot from {time} (read-only)',
+  snapBrowseHint: 'Select files, then click "Restore" to copy them back to their original location',
+  snapBrowseExit: 'Exit snapshot',
+  snapBrowseRestore: 'Restore',
 }
