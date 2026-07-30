@@ -34,10 +34,15 @@ const body = () => document.body.textContent ?? ''
 // attachTo: document.body 挂载的实例不会在测试间自动 unmount(Dialog 内容经 reka-ui Portal
 // Teleport 到 body,脱离 wrapper 根节点)——同目录 TimeMachineOverlay.test.ts /
 // RaidDeleteDialog.test.ts 均以 beforeEach 清空 body 处理,这里沿用同一模式。
+// 故意与组件 form 的默认值(hourly_keep:24/daily_keep:7/weekly_keep:4/pause_threshold_pct:90)
+// 全部不同——若把"策略落地后同步本地表单"的逻辑整段删掉,组件会停留在默认值上提交,
+// 与这组后端值一比对就会露馅。四个字段全部错开默认值,不留任何一个字段"蒙对"的空子。
+const BACKEND_POLICY = { enabled: true, hourly_keep: 12, daily_keep: 3, weekly_keep: 8, pause_threshold_pct: 75 }
+
 beforeEach(() => {
   setActivePinia(createPinia()); vi.clearAllMocks(); document.body.innerHTML = ''
   listVolumesMock.mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true, enabled: true, count: 3 }])
-  getPolicyMock.mockResolvedValue({ enabled: true, hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
+  getPolicyMock.mockResolvedValue({ ...BACKEND_POLICY })
 })
 
 describe('SnapshotSettingsDialog', () => {
@@ -60,11 +65,19 @@ describe('SnapshotSettingsDialog', () => {
     const w = mountIt(); await flush(w)
     expect(document.querySelectorAll('.snap-set-fields input').length).toBe(4)
   })
-  it('保存走 patchPolicy(读-改-写,不是从零构造 PUT)', async () => {
+  it('表单从后端策略初始化,而不是停在默认值', async () => {
+    const w = mountIt(); await flush(w)
+    const values = [...document.querySelectorAll('.snap-set-fields input')].map((el) => (el as HTMLInputElement).value)
+    expect(values).toEqual(['12', '3', '8', '75'])
+  })
+  it('保存走 patchPolicy(读-改-写,不是从零构造 PUT),且提交的是后端落地的当前值', async () => {
     const w = mountIt(); await flush(w)
     await (document.querySelector('.snap-set-save') as HTMLElement).click()
     await flush(w)
-    expect(patchPolicyMock).toHaveBeenCalledWith('u-data', expect.objectContaining({ hourly_keep: 24, daily_keep: 7 }))
+    expect(patchPolicyMock).toHaveBeenCalledWith('u-data', expect.objectContaining({
+      hourly_keep: BACKEND_POLICY.hourly_keep, daily_keep: BACKEND_POLICY.daily_keep,
+      weekly_keep: BACKEND_POLICY.weekly_keep, pause_threshold_pct: BACKEND_POLICY.pause_threshold_pct,
+    }))
   })
   it('字段非法时不提交,显示错误', async () => {
     const w = mountIt(); await flush(w)
