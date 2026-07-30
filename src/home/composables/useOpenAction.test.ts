@@ -16,6 +16,7 @@ beforeEach(() => {
   __resetStartAppForTest()
   hrefs = []; opens = []
   localStorage.removeItem('strangler:disabled:/apps')
+  localStorage.removeItem('strangler:disabled:/storage')
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
   vi.mocked(router.push).mockClear()
@@ -45,6 +46,28 @@ describe('useOpenAction.openApp', () => {
     openApp('appstore')
     expect(hrefs[0]).toBe('/#/legacy')
     expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/apps')
+  })
+  it('storage 磁贴应用内 router.push /storage(SP6-P6 cutover)', () => {
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(router.push).toHaveBeenCalledWith('/storage')
+    expect(hrefs.length).toBe(0)
+  })
+  it('回退 flag strangler:disabled:/storage==1 时 storage 退回 /#/legacy', () => {
+    localStorage.setItem('strangler:disabled:/storage', '1')
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/storage')
+  })
+  it('storage 与 apps 两把 flag 互不干扰', () => {
+    localStorage.setItem('strangler:disabled:/apps', '1')
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(router.push).toHaveBeenCalledWith('/storage')
+    expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/apps')
   })
   it('running container app opens scheme://host:port/index', () => {
