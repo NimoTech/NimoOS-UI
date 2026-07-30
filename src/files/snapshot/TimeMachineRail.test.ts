@@ -90,16 +90,15 @@ describe('TimeMachineRail', () => {
   // scaleX(1) 这种空壳实现也能骗过去(scaleX(1) 本身就"含 scaleX")。这里手动 mock 每条
   // 主刻度自己的 getBoundingClientRect,制造出真实的、不同的光标距离,断言离光标近的那条
   // 缩放确实比远的那条大 —— 真正走一遍 computeFisheyeScales 的数值路径。
+  // 注:曾经因为主刻度和它的子刻度共用 data-flat-index,这里必须连子刻度的 rect 一起
+  // mock 才能通过(否则 map 会被子刻度的默认 rect 覆盖)——那个共用 key 本身是评审揪出来
+  // 的真实 bug,已在组件里改成子刻度换用 data-anchor-index(不再撞 key),这里直接
+  // mock 主刻度自己就够了,不用再迁就那个 bug。
   it('（非空壳强化)不同刻度到光标的真实距离不同时,缩放值也应不同且近的更大', async () => {
     const w = mountIt()
-    // flatIndex 0 前后各插了 2 条装饰子刻度(与它共享 dataset-flat-index),必须一并
-    // mock,否则 map 里 flatIndex=0 这个 key 最终会被它自己的子刻度(默认 rect 全 0)
-    // 覆盖掉,和这条用例想验证的东西无关。flatIndex 2 是最后一条主刻度,后面没有子刻度,
-    // 天然只有它自己一个元素,不需要额外处理。
-    for (const el of w.findAll('[data-flat-index="0"]')) {
-      (el.element as HTMLElement).getBoundingClientRect = () => fakeRect(100)
-    }
-    ;(w.findAll('.tm-tick-main')[2].element as HTMLElement).getBoundingClientRect = () => fakeRect(400)
+    const mains = w.findAll('.tm-tick-main')
+    ;(mains[0].element as HTMLElement).getBoundingClientRect = () => fakeRect(100)
+    ;(mains[2].element as HTMLElement).getBoundingClientRect = () => fakeRect(400)
 
     await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
 
@@ -110,6 +109,27 @@ describe('TimeMachineRail', () => {
     const nearScale = scaleOf(w.findAll('.tm-tick-main')[0].attributes('style'))
     const farScale = scaleOf(w.findAll('.tm-tick-main')[2].attributes('style'))
     expect(nearScale).toBeGreaterThan(farScale)
+  })
+
+  // ↓ 评审(T10 复核)钉住的回归用例:主刻度的缩放必须由主刻度自己的中心算出,不能被
+  // 挂在它后面、共享同一个逻辑 flatIndex 的子刻度覆盖掉。做法:让主刻度自己的 rect 落在
+  // 光标附近(该拿到接近 maxScale=2.2 的峰值),同时把它所有子刻度的 rect 支得远远的
+  // (远超 radius=70,该拿到 minScale=1)。如果 updateScales() 又按 DOM 顺序"后写覆盖
+  // 先写"把子刻度的值写进了同一个 map key,这里就会读到接近 1 而不是接近 2.2,断言失败。
+  it('主刻度的缩放由主刻度自身中心算出,不会被同 anchor 的子刻度覆盖', async () => {
+    const w = mountIt()
+    const main0 = w.findAll('.tm-tick-main')[0].element as HTMLElement
+    main0.getBoundingClientRect = () => fakeRect(100) // 光标 105,距离 ~5px,该接近峰值
+    for (const sub of w.findAll('.tm-tick-sub')) {
+      (sub.element as HTMLElement).getBoundingClientRect = () => fakeRect(2000) // 远超 radius
+    }
+
+    await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
+
+    const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
+    const m = style.match(/scaleX\(([\d.]+)\)/)
+    const scale = m ? Number(m[1]) : 1
+    expect(scale).toBeGreaterThan(2) // 峰值 maxScale=2.2;若被子刻度覆盖会压到 minScale=1
   })
 
   // ↓ 补充:brief 完全没测约束 #4(rAF 节流 + 卸载取消挂起帧)。默认 beforeEach 里的 rAF

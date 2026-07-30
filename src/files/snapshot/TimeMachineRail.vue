@@ -40,6 +40,14 @@ function onMouseMove(e: MouseEvent) {
 function updateScales(cursorY: number) {
   const root = railEl.value
   if (!root) return
+  // 只选 [data-flat-index](主刻度自己的下标)—— 子刻度故意换用另一个属性名
+  // (data-anchor-index),不参与这次查询。评审发现的真实 bug:子刻度原先也标了
+  // data-flat-index="它锚定的主刻度下标",与主刻度的下标"撞了名字";DOM 顺序是
+  // main → sub → sub → nextMain…,下面这行按 DOM 顺序"后写覆盖先写",于是几乎每条
+  // 主刻度在 map 里存的其实是它自己最后一条子刻度算出来的缩放值(子刻度物理位置比主刻度
+  // 靠下几像素,导致主刻度的鱼眼峰值系统性偏小)。子刻度渲染时仍用 scaleStyle(anchorIndex)
+  // 读同一个 map——由于 key 相同、值现在只来自主刻度自己,子刻度会跟着它锚定的主刻度同步
+  // 缩放,视觉效果不变,但数值来源正确了。
   const els = Array.from(root.querySelectorAll<HTMLElement>('[data-flat-index]'))
   const indices = els.map((el) => Number(el.dataset.flatIndex))
   const centers = els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 })
@@ -90,12 +98,13 @@ const hoveredItem = computed(() => (hoveredIndex.value !== null ? itemByIndex.va
       ></button>
 
       <!-- 装饰性子刻度:不可独立选中(不是 button,键盘/屏幕阅读器跳过它),点它吸附到
-           它所属的主刻度(anchorIndex)。 -->
+           它所属的主刻度(anchorIndex)。注意:这里故意用 data-anchor-index,不能改回
+           data-flat-index —— 那会和主刻度的下标撞名,见 updateScales() 里的注释。 -->
       <div
         v-else
         class="tm-tick tm-tick-sub"
         aria-hidden="true"
-        :data-flat-index="node.anchorIndex"
+        :data-anchor-index="node.anchorIndex"
         :style="scaleStyle(node.anchorIndex!)"
         @mouseenter="onTickHover($event, node.anchorIndex!)"
         @click="emit('select', node.anchorIndex!)"
@@ -117,7 +126,12 @@ const hoveredItem = computed(() => (hoveredIndex.value !== null ? itemByIndex.va
   position: absolute; top: 0; right: 0; bottom: 76px; width: 96px;
   padding: 24px 20px 24px 0; z-index: 1;
   display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
-  overflow-y: auto; overflow-x: visible; scrollbar-width: thin;
+  /* CSS 规范:一轴非 visible 时另一轴的 visible 会被强制计算成 auto —— 之前分开写
+     overflow-y: auto; overflow-x: visible 是句假话,实际生效值两轴都是 auto。改成
+     显式 overflow: auto,如实反映浏览器真正的行为。鱼眼放大时刻度靠 transform-origin:
+     right center 往左长(最宽 26px*2.2≈57px),content-box 有 76px 宽(96 - 20 内边距),
+     富余够大,不会被这层裁到。 */
+  overflow: auto; scrollbar-width: thin;
 }
 .tm-rail-day {
   width: 100%; text-align: right; margin-top: 6px;
