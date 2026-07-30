@@ -291,11 +291,11 @@ describe('StorageRaidDetail', () => {
     await router.push('/storage/raid/7'); await router.isReady()
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
-    // 只写盘数会变成"表头 (3)、下面 4 行",看着像数错 —— 有空槽位时两个数都写出来
+    // 单块掉盘会被合并进坏盘那一行 → 3 行、表头 (3),不再出现"表头 3 却 4 行"
     const title = w.findAll('.rd-card-title').map((n) => n.text()).find((x) => x.includes('成员磁盘'))
-    expect(title).toBe('成员磁盘 (3 块 · 1 个空槽位)')
-    // 列表本身仍渲染 4 行:3 块盘 + 1 个空槽位占位行 —— 3 + 1 与表头对得上
-    expect(w.findAll('.rml-row').length).toBe(4)
+    expect(title).toBe('成员磁盘 (3)')
+    expect(w.findAll('.rml-row').length).toBe(3)
+    expect(w.findAll('.rml-path').map((n) => n.text())).toEqual(['槽位 0 · /dev/sda', '/dev/sdb', '/dev/sdc'])
   })
 
   it('健康阵列:表头不提空槽位,只写盘数', async () => {
@@ -331,6 +331,7 @@ describe('StorageRaidDetail', () => {
     await router.push('/storage/raid/7'); await router.isReady()
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    // 双故障无法唯一配对 → 不合并,此时才需要把空槽位数写进表头
     const title = w.findAll('.rd-card-title').map((n) => n.text()).find((x) => x.includes('成员磁盘'))
     expect(title).toBe('成员磁盘 (4 块 · 2 个空槽位)')
     expect(w.findAll('.rml-row').length).toBe(6)

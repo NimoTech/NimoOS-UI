@@ -276,3 +276,46 @@ export function slotMembers(members: RaidMemberDisk[]): RaidMemberDisk[] {
 export function memberDiskCount(members: RaidMemberDisk[]): number {
   return (members || []).filter((m) => !!m?.path).length
 }
+
+// ── 空槽位与被弹出坏盘的合并 ────────────────────────────────────────────
+// mdadm 把一次掉盘报成两条记录:--fail 会**立刻**把盘从槽位里踢出去,于是出现一条
+// removed 占位行(该槽位现在没盘);被踢出的盘本身还挂在阵列上,单独一行、RaidDevice
+// 列为 `-`。两行说的是同一件事的两面,分开显示会让 3 盘阵列看着像 4 块盘。
+//
+// 合并的前提是知道"这块坏盘原来在哪个槽位",而 mdadm **没有**给这个信息:坏盘那行的
+// Number 是设备编号,不是它腾出的槽位(实测:sdd 占 0 号槽位、Number 是 4)。因此只在
+// 配对唯一时合并 —— 恰好 1 个空槽位 + 1 块被弹出的坏盘。RAID 6 同时坏两块时无法判断
+// 谁腾了哪个槽位,保持分行:多几行胜过标错槽位号。
+export interface MemberRowView {
+  path: string
+  state: string
+  number: number
+  slot?: number
+  rebuild_pct?: number
+  // vacatedSlot:合并进本行的空槽位号 —— 即"这块坏盘腾出来的那个槽位"。
+  // 仅合并行有;未合并的行为 undefined。
+  vacatedSlot?: number
+}
+
+export function mergeVacatedSlot(members: RaidMemberDisk[]): MemberRowView[] {
+  const list = (members || []) as MemberRowView[]
+  const vacatedIdx = list.findIndex((m) => !m?.path && m?.state === 'removed')
+  const ejectedIdx = list.findIndex(
+    (m) => !!m?.path && m?.state === 'faulty' && typeof m?.slot === 'number' && (m.slot as number) < 0,
+  )
+  // 配对必须唯一:任一侧出现第二条就不合并
+  const vacatedCount = list.filter((m) => !m?.path && m?.state === 'removed').length
+  const ejectedCount = list.filter(
+    (m) => !!m?.path && m?.state === 'faulty' && typeof m?.slot === 'number' && (m.slot as number) < 0,
+  ).length
+  if (vacatedIdx < 0 || ejectedIdx < 0 || vacatedCount !== 1 || ejectedCount !== 1) return list.slice()
+
+  const vacated = list[vacatedIdx]
+  const ejected = list[ejectedIdx]
+  // 合并行放在**空槽位原来的位置**,让列表保持槽位顺序(坏盘行本来在表格末尾)
+  return list
+    .filter((_, i) => i !== ejectedIdx)
+    .map((m, i) => (i === (vacatedIdx > ejectedIdx ? vacatedIdx - 1 : vacatedIdx)
+      ? { ...ejected, vacatedSlot: vacated.slot }
+      : m))
+}

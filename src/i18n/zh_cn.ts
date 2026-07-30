@@ -591,6 +591,7 @@ export default {
   raidMemberFaulty: '故障',
   raidMemberRebuilding: '重建中',
   raidMemberRemoved: '已移除',
+  raidMemberFaultyEjected: '故障（已弹出）',
   raidReplacing: '替换中',
   raidReplacingDismiss: '关闭这张进度卡（不会中断重建）',
   raidReplaceDoneHealthy: '硬盘更换完成，阵列已恢复健康',

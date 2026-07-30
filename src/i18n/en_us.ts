@@ -592,6 +592,7 @@ export default {
   raidMemberFaulty: 'Faulty',
   raidMemberRebuilding: 'Rebuilding',
   raidMemberRemoved: 'Removed',
+  raidMemberFaultyEjected: 'Faulty (ejected)',
   raidReplacing: 'Replacing',
   raidReplacingDismiss: 'Dismiss this progress card (does not stop the rebuild)',
   raidReplaceDoneHealthy: 'Disk replaced. The array is healthy again.',

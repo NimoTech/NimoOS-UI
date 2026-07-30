@@ -12,7 +12,7 @@ import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { fmtSize } from '../home/util/format'
 import {
-  resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo, memberDiskCount,
+  resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo, memberDiskCount, mergeVacatedSlot,
   type RaidArray,
 } from '../storage/util/raidView'
 
@@ -120,7 +120,10 @@ const members = computed(() => status.value?.members || [])
 const diskCount = computed(() => memberDiskCount(members.value))
 // 但只写盘数又会出现"表头 (3)、下面 4 行"、看着像数错了。所以有空槽位时把两个数
 // 都写出来(3 块 + 1 个空槽位 = 4 行,对得上);没有空槽位时不提,保持简洁。
-const emptySlotCount = computed(() => members.value.filter((m) => !m.path).length)
+// 只数**合并之后**还剩下的空槽位行:单块掉盘会被合并进坏盘那一行,不再算作空槽位,
+// 表头因此回到简洁的「成员磁盘 (3)」并与 3 行对得上。RAID 6 双故障无法唯一配对、
+// 不合并,那时才需要把空槽位数写出来(见 raidView.ts mergeVacatedSlot)。
+const emptySlotCount = computed(() => mergeVacatedSlot(members.value).filter((m) => !m.path).length)
 const membersTitle = computed(() => {
   const n = diskCount.value
   const slots = emptySlotCount.value

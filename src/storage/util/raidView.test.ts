@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
   countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome,
-  slotMembers, memberDiskCount,
+  slotMembers, memberDiskCount, mergeVacatedSlot,
   levelInfo, asRaidArray,
 } from './raidView'
 import type { RaidArray } from './raidView'
@@ -300,5 +300,83 @@ describe('memberDiskCount', () => {
   it('空输入安全', () => {
     expect(memberDiskCount([])).toBe(0)
     expect(memberDiskCount(undefined as never)).toBe(0)
+  })
+})
+
+describe('mergeVacatedSlot', () => {
+  it('唯一配对:空槽位 + 被弹出坏盘 合并成一行,放在空槽位原位置', () => {
+    const r = mergeVacatedSlot(degradedRows)
+    expect(r.length).toBe(3)
+    expect(r.map((m) => m.path)).toEqual(['/dev/sdd', '/dev/sdb', '/dev/sdc'])
+    const merged = r[1]
+    expect(merged.state).toBe('faulty')
+    expect(merged.vacatedSlot).toBe(1)      // 坏盘腾出的槽位
+    expect(merged.slot).toBe(-1)            // 它自己已不占槽位
+  })
+
+  it('合并行带的是**空槽位**的槽位号,不是坏盘的设备编号', () => {
+    // 实测形状:sdd 占 0 号槽位但设备编号是 4 —— 拿编号当槽位就会标错
+    const rows = [
+      { path: '', state: 'removed', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+      { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+      { path: '/dev/sdd', state: 'faulty', number: 4, slot: -1 },
+    ]
+    const merged = mergeVacatedSlot(rows).find((m) => m.state === 'faulty')!
+    expect(merged.vacatedSlot).toBe(0)
+    expect(merged.number).toBe(4)
+  })
+
+  it('两个空槽位 + 两块坏盘(RAID6 双故障)→ 不合并,宁可多几行也不编造配对', () => {
+    const rows = [
+      { path: '', state: 'removed', number: 0, slot: 0 },
+      { path: '', state: 'removed', number: 1, slot: 1 },
+      { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+      { path: '/dev/sda', state: 'faulty', number: 0, slot: -1 },
+      { path: '/dev/sdb', state: 'faulty', number: 1, slot: -1 },
+    ]
+    const r = mergeVacatedSlot(rows)
+    expect(r.length).toBe(5)
+    expect(r.some((m) => m.vacatedSlot != null)).toBe(false)
+  })
+
+  it('只有空槽位、没有坏盘行(物理拔盘)→ 保持原样', () => {
+    const rows = [
+      { path: '', state: 'removed', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+    ]
+    const r = mergeVacatedSlot(rows)
+    expect(r.length).toBe(2)
+    expect(r[0].path).toBe('')
+    expect(r.some((m) => m.vacatedSlot != null)).toBe(false)
+  })
+
+  it('只有坏盘行、没有空槽位(重建已顶上)→ 保持原样', () => {
+    const rows = [
+      { path: '/dev/sdd', state: 'spare rebuilding', number: 4, slot: 0 },
+      { path: '/dev/sdb', state: 'faulty', number: 1, slot: -1 },
+    ]
+    expect(mergeVacatedSlot(rows).length).toBe(2)
+  })
+
+  it('健康阵列:原样返回', () => {
+    const rows = [
+      { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+    ]
+    expect(mergeVacatedSlot(rows)).toEqual(rows)
+  })
+
+  it('老后端不带 slot → 不合并(无法判定坏盘是否已离开槽位)', () => {
+    const rows = [
+      { path: '', state: 'removed', number: 1 },
+      { path: '/dev/sdb', state: 'faulty', number: 1 },
+    ]
+    expect(mergeVacatedSlot(rows).length).toBe(2)
+  })
+
+  it('空输入安全', () => {
+    expect(mergeVacatedSlot([])).toEqual([])
+    expect(mergeVacatedSlot(undefined as never)).toEqual([])
   })
 })
