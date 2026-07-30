@@ -60,6 +60,30 @@ describe('ensureVolumes', () => {
     expect(s.volumes).toEqual([])
     expect(s.status).toBe('ready')
   })
+  it('reset 顶掉在途请求,陈旧响应落地后不覆盖 reset 之后新请求的结果', async () => {
+    let releaseStale: (v: unknown) => void = () => {}
+    listVolumesMock.mockImplementationOnce(() => new Promise((r) => { releaseStale = r }))
+    const s = useSnapshotBrowseStore()
+
+    const stale = s.ensureVolumes() // P1 起飞,尚未落地
+    expect(s.status).toBe('loading')
+
+    s.reset() // 顶掉 P1 这一代
+    expect(s.status).toBe('idle')
+
+    const FRESH = [{ volume_uuid: 'u-fresh', mount: '/DATA2', supported: true }]
+    listVolumesMock.mockImplementationOnce(() => Promise.resolve(FRESH))
+    const fresh = s.ensureVolumes() // P2:reset 之后发起的新一代
+    await fresh
+    expect(s.status).toBe('ready')
+    expect(s.volumes).toEqual(FRESH)
+
+    // 这时才放行 P1 的 resolve —— 陈旧响应必须被整段丢弃,不能盖掉 P2 已经落地的结果
+    releaseStale(VOLS)
+    await stale
+    expect(s.status).toBe('ready')
+    expect(s.volumes).toEqual(FRESH)
+  })
 })
 
 describe('浏览态派生', () => {
