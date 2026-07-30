@@ -64,6 +64,7 @@ import {
 import '../styles/tokens.scss'
 import '../styles/sk-shared.scss'
 import '../styles/settings-styles.scss'
+import '../styles/skills-styles.scss'
 
 // SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
 // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。

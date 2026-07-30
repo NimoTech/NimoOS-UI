@@ -220,6 +220,19 @@
   --grad-photo: linear-gradient(135deg, var(--purple), var(--pink));
   --grad-file: linear-gradient(135deg, var(--accent), var(--teal));
 
+  /* SP8-P3a Task 1 — skill-tile identifier-color gradients (SkillTile.vue swatch
+     picker in Vue2 `SkillTile.vue:19-27`). Decorative, skin-agnostic identifier
+     colors (a skill just "is" blue/purple/pink/etc regardless of theme), same
+     convention as --grad-photo/--grad-file directly above — not redefined in the
+     dark block. */
+  --grad-sk-blue: linear-gradient(135deg, #5AC8FA, #007AFF);
+  --grad-sk-purple: linear-gradient(135deg, #C18CFF, #AF52DE);
+  --grad-sk-pink: linear-gradient(135deg, #FF6E8A, #FF2D55);
+  --grad-sk-orange: linear-gradient(135deg, #FFB75A, #FF7A00);
+  --grad-sk-green: linear-gradient(135deg, #5DD68A, #2EB05B);
+  --grad-sk-teal: linear-gradient(135deg, #5AD2CF, #008C8C);
+  --grad-sk-slate: linear-gradient(135deg, #98A2B3, #475467);
+
   /* Dim meta-row icon tint on TerminalCard's dark chrome (`.term-meta` in the
      already-exempted global agent-styles.scss) — same theme-invariant family. */
   --term-icon-dim: rgba(255, 255, 255, 0.5);
