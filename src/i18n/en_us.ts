@@ -1161,6 +1161,12 @@ export default {
   aiCfgChannelsAdminHint: 'Administrator only. The bot serves every NimoOS user; each pairs their own account.',
   aiCfgChannelsAddBot: 'Add bot',
   aiCfgChannelsAddBotFailed: 'Could not add bot — check the token.',
+  // SP8-P2b acceptance round 3 (user, 2026-07-30): backend `detail` strings are mapped to
+  // localized copy — see addBotErrorKey in channelsFormat.ts. These three mirror the
+  // three 422 details in agent/main.py:417-424.
+  aiCfgChannelsErrTokenRejected: "That token didn't pass validation. Make sure you pasted it in full with no extra spaces, and that the bot hasn't been deleted or reset.",
+  aiCfgChannelsErrTokenRequired: 'Enter the bot token first.',
+  aiCfgChannelsErrUnsupportedType: "That platform isn't supported yet.",
   aiCfgChannelsBotType: 'Platform',
   aiCfgChannelsTypeTelegram: 'Telegram',
   aiCfgChannelsTypeDiscord: 'Discord',

@@ -48,3 +48,29 @@ export function fillPairInstructions(template: string, bot: string, code: string
 export function fillTokenTail(template: string, tail: string): string {
   return template.split('{tail}').join(tail)
 }
+
+/**
+ * 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板】添加机器人失败 → 本地化文案的 i18n **键**。
+ *
+ * 起因:界面上直接出现了后端原文 `{"detail":"bot token rejected"}`。用户要求换成人看得懂的
+ * 话、不许回显 JSON、并且要多语言。
+ *
+ * 做法与本档其余函数同一分工:**纯函数不碰 vue-i18n**,只把后端错误归一成键,调用方 t() 出
+ * 当前语言的文案。后端 `NimoOS-AI/agent/main.py:417-424` 这个接口只有三种 422 detail,逐一
+ * 映射;**认不出的一律落通用兜底键,后端原文永不回显**(这正是缺陷成因,不能留后门)。
+ *
+ * 同时读 `detail`(FastAPI)与 `message`(Go 服务)两种形状 —— 该接口现在走 Python agent,
+ * 但同一入口未来可能改由 Go 侧代理,两种都认不增加成本。匹配前统一小写去空白。
+ */
+export function addBotErrorKey(e: unknown): string {
+  const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data
+  const raw = data && typeof data === 'object'
+    ? (data as { message?: unknown }).message ?? (data as { detail?: unknown }).detail
+    : data
+  const s = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+
+  if (s === 'bot token rejected') return 'aiCfgChannelsErrTokenRejected'
+  if (s === 'bot_token required') return 'aiCfgChannelsErrTokenRequired'
+  if (s === 'unsupported channel_type') return 'aiCfgChannelsErrUnsupportedType'
+  return 'aiCfgChannelsAddBotFailed'
+}

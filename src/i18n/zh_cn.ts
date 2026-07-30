@@ -1165,6 +1165,11 @@ export default {
   aiCfgChannelsAdminHint: '仅管理员可见。机器人为所有 NimoOS 用户服务，每人各自配对自己的账号。',
   aiCfgChannelsAddBot: '添加机器人',
   aiCfgChannelsAddBotFailed: '添加失败，请检查 Token。',
+  // SP8-P2b 验收第 3 轮(用户 2026-07-30):后端 detail 原文改为本地化文案,见
+  // channelsFormat.ts 的 addBotErrorKey。三条对应 agent/main.py:417-424 的三种 422。
+  aiCfgChannelsErrTokenRejected: 'Token 没有通过验证。请确认它复制完整、没有多余空格，并且这个机器人没有被删除或重置过。',
+  aiCfgChannelsErrTokenRequired: '请先填写机器人 Token。',
+  aiCfgChannelsErrUnsupportedType: '暂不支持这个平台。',
   aiCfgChannelsBotType: '平台',
   aiCfgChannelsTypeTelegram: 'Telegram',
   aiCfgChannelsTypeDiscord: 'Discord',
