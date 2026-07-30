@@ -57,18 +57,11 @@ import SkModal from '../SkModal.vue'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import { SKILL_COLOR_IDS } from './SkillTile.vue'
 import { validateSkillForm } from '../../../util/skillsErrorKey'
+// SP8-P3b Task 8 —— 协调者预先解歧义①:`SkillFormPayload`/`SkillScript` 挪到
+// `types/skill.ts` 并导出(纯搬移,字段未改),供 `SkillsSection.vue` 的 `onCreate`
+// 标注 `@save` payload 类型。见 skill.ts 头注释「Task 8」段。
+import type { SkillFormPayload } from '../../../types/skill'
 
-interface SkillScript { path: string; content: string }
-interface SkillFormPayload {
-  name: string
-  title: string
-  description: string
-  trigger: 'auto' | 'slash' | 'manual'
-  color: string
-  md: string
-  examples: string[]
-  scripts: SkillScript[]
-}
 interface PickedFile { name: string; content: string; size: number }
 
 const props = defineProps<{ open: boolean; saving: boolean; serverError: string }>()

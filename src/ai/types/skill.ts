@@ -34,3 +34,28 @@ export interface Skill {
   examples: string[]
   md: string
 }
+
+// SP8-P3b Task 8 —— 协调者预先解歧义①(p3b-task-8-brief.md「已授权的偏离」)。
+// 纯搬移自 `AddSkillModal.vue`(原为未导出的组件内部 interface),字段一个字未改。
+// 挪到这里导出的理由:`SkillsSection.vue` 的 `onCreate` 处理函数需要这个类型标注
+// `@save` 事件的 payload;interface 不会获得隐式索引签名,把参数类型写成
+// `Record<string, unknown>` 会被 `vue-tsc` 判为不兼容(TS2345)。
+
+/** 对齐 `POST /v2/ai/skills` 请求体里单个脚本文件的形状(bundle 内一个 `scripts/*` 条目)。 */
+export interface SkillScript {
+  path: string
+  content: string
+}
+
+/** 对齐 `AddSkillModal.vue` `submit()` emit 的 `save` payload 形状,也是
+ *  `service.ai.createSkill()` 请求体的形状(`POST /v2/ai/skills`)。 */
+export interface SkillFormPayload {
+  name: string
+  title: string
+  description: string
+  trigger: 'auto' | 'slash' | 'manual'
+  color: string
+  md: string
+  examples: string[]
+  scripts: SkillScript[]
+}
