@@ -767,4 +767,6 @@ export default {
   snapBrowseHint: '选中文件后点「恢复」,可把它们复制回原来的位置',
   snapBrowseExit: '退出快照',
   snapBrowseRestore: '恢复',
+  snapBrowseWriteBlocked: '这是只读快照,不能在这里修改',
+  snapBrowseRestoreToOriginal: '恢复到原位置',
 }

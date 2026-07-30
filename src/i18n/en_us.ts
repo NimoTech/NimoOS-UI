@@ -767,4 +767,6 @@ export default {
   snapBrowseHint: 'Select files, then click "Restore" to copy them back to their original location',
   snapBrowseExit: 'Exit snapshot',
   snapBrowseRestore: 'Restore',
+  snapBrowseWriteBlocked: 'This is a read-only snapshot — changes are disabled here',
+  snapBrowseRestoreToOriginal: 'Restore to original location',
 }

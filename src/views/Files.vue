@@ -40,6 +40,7 @@ import {
 import { readDefault } from '../files/util/locationOrder'
 import { parseRecover } from '../files/util/recoverEvent'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
+import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
 import { resolveExitTarget } from '../files/util/snapshotPath'
 import { service } from '@nimotech/nimoos-service'
@@ -137,6 +138,7 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry); break
+    case 'restore-original': /* T6 接线 */ break
   }
 }
 
@@ -156,6 +158,9 @@ function onInputChange(e: Event) {
 // leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
 // any files rejected for being in a protected dir.
 async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+  // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
+  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
+  if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
   const sel = toSelectedFiles(entries, targetPath)
   const { rejected } = await uploads.addFilesToQueue(sel)
@@ -427,7 +432,7 @@ onMounted(() => { browse.ensureVolumes() })
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
           <div class="files-topbar-right">
-            <div class="files-actions">
+            <div v-if="!browse.isSnapshotView" class="files-actions">
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
@@ -447,8 +452,16 @@ onMounted(() => { browse.ensureVolumes() })
           @exit="exitSnapshot"
           @restore="() => {}"
         />
+        <SnapshotSelectionToolbar
+          v-if="browse.isSnapshotView && files.selectedCount > 0"
+          :count="files.selectedCount"
+          :restoring="false"
+          @restore="() => {}"
+          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+          @clear="files.clearSelection"
+        />
         <SelectionToolbar
-          v-if="files.selectedCount > 0"
+          v-else-if="files.selectedCount > 0"
           :count="files.selectedCount"
           :all-selected="files.allSelected"
           :can-share="selectionHasFolder"

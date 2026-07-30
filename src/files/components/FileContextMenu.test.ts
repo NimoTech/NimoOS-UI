@@ -6,6 +6,8 @@ import zh from '../../i18n/zh_cn'
 import FileContextMenu from './FileContextMenu.vue'
 import type { FileEntry } from '../stores/files'
 import { useClipboardStore } from '../stores/clipboard'
+import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
+import { useFilesStore } from '../stores/files'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: { users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) } },
@@ -197,5 +199,59 @@ describe('FileContextMenu', () => {
     const w = mountMenu({ entry, selectedCount: 1 })
     await w.find('.ctx-share').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['share', entry])
+  })
+
+  describe('快照只读态菜单', () => {
+    // mountMenu 内部各造一份新 pinia,与这里手动 mutate 的 store 不是同一份实例
+    // (useStore() 在组件 setup 内会用 inject 到的 pinia 覆盖 activePinia)——须仿照上面
+    // "有剪贴板内容"那个用例的写法:自己建 pinia、setActive、写好 state,再把同一个
+    // pinia 实例传进 mount 的 global.plugins。
+    function mountSnapshotMenu(props: { entry: FileEntry | null; selectedCount: number }) {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      const browse = useSnapshotBrowseStore()
+      browse.status = 'ready'
+      browse.volumes = [{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]
+      useFilesStore().currentPath = '/DATA/.snapshots/snap1'
+      return mount(FileContextMenu, {
+        props,
+        global: {
+          plugins: [pinia, i18n],
+          stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub },
+        },
+      })
+    }
+
+    it('空白区菜单只剩刷新', () => {
+      const w = mountSnapshotMenu({ entry: null, selectedCount: 0 })
+      const txt = w.find('.menu').text()
+      expect(txt).toContain('刷新')
+      expect(txt).not.toContain('新建文件夹')
+      expect(txt).not.toContain('粘贴')
+    })
+
+    it('条目菜单只剩恢复到原位置 + 下载', () => {
+      const entry: FileEntry = { name: 'a.txt', path: '/DATA/.snapshots/snap1/a.txt', is_dir: false }
+      const w = mountSnapshotMenu({ entry, selectedCount: 1 })
+      const txt = w.find('.menu').text()
+      expect(txt).toContain('恢复到原位置')
+      expect(txt).toContain('下载')
+      expect(txt).not.toContain('删除')
+      expect(txt).not.toContain('重命名')
+      expect(txt).not.toContain('复制路径')
+    })
+
+    it('多选时不出现恢复到原位置(恢复文案是单条路径)', () => {
+      const entry: FileEntry = { name: 'a.txt', path: '/DATA/.snapshots/snap1/a.txt', is_dir: false }
+      const w = mountSnapshotMenu({ entry, selectedCount: 3 })
+      expect(w.find('.menu').text()).not.toContain('恢复到原位置')
+    })
+
+    it('点恢复到原位置 emit action=restore-original', async () => {
+      const entry: FileEntry = { name: 'a.txt', path: '/DATA/.snapshots/snap1/a.txt', is_dir: false }
+      const w = mountSnapshotMenu({ entry, selectedCount: 1 })
+      await w.find('.ctx-restore-original').trigger('click')
+      expect(w.emitted('action')?.[0]?.[0]).toBe('restore-original')
+    })
   })
 })
