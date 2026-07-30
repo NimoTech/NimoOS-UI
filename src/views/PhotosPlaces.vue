@@ -52,6 +52,12 @@ const hoverId = ref<string | null>(null)
 const hoverPos = ref({ x: 0, y: 0 })
 const filterOpen = ref(false)
 const themeOpen = ref(false)
+// 评审 M2:失败态判据必须区分"还没请求过"与"请求过且失败了"——onMounted 里
+// `await store.fetchPlaces()` 之前那个短暂窗口(甚至只是当前这次同步渲染,尚未跑到
+// onMounted)`placesLoaded`/`loading` 都是初始的 false,若失败态条件只看这两个字段会在
+// 首帧就命中"失败"(还没发出请求就报失败)。`attempted` 只在 onMounted 真正开始一次
+// fetchPlaces 调用时才置真,首帧渲染时它还是初始值 false。
+const attempted = ref(false)
 
 // Vue2 data() :76-81 的六个过滤字段,合成一个整体对象;T9 PlacesFilterMenu 按"整体替换"
 // 写回(不就地改字段)。
@@ -183,6 +189,7 @@ watch(activeId, (next) => {
 })
 
 onMounted(async () => {
+  attempted.value = true
   await store.fetchPlaces()
   // Vue2 :412-413,T3 store 刻意没做这一步(留给视图层,便于本容器的单测钉住"进页面
   // 选中哪个地点"这条交互)。
@@ -238,11 +245,14 @@ function retryLoad(): void {
               <div class="map-spacer"></div>
             </div>
 
-            <!-- 加载中骨架(偏离登记 9,Vue2 没有这层概念)。 -->
-            <div v-if="!store.placesLoaded && store.loading" class="map-skeleton" data-test="places-skeleton"></div>
+            <!-- 加载中骨架(偏离登记 9,Vue2 没有这层概念)。评审 M2:首帧(`attempted` 还没
+                 置真)也算进这一支——onMounted 的 fetchPlaces 是异步的,首次渲染发生在它
+                 真正跑起来之前,此时 loading 也还是初始 false,不能落到"失败"分支。 -->
+            <div v-if="!store.placesLoaded && (store.loading || !attempted)" class="map-skeleton" data-test="places-skeleton"></div>
 
-            <!-- 加载失败(偏离登记 9)。 -->
-            <div v-else-if="!store.placesLoaded && !store.loading" class="map-failed" data-test="places-failed">
+            <!-- 加载失败(偏离登记 9)。评审 M2:必须带 `attempted` 收紧,否则"还没请求过"
+                 会被误判成"请求过且失败了"。 -->
+            <div v-else-if="attempted && !store.placesLoaded && !store.loading" class="map-failed" data-test="places-failed">
               <div class="map-failed-title">{{ t('photosPlacesLoadFailed') }}</div>
               <button type="button" class="bar-btn" data-test="places-retry" @click="retryLoad">
                 {{ t('photosPlacesRetry') }}
@@ -326,6 +336,9 @@ function retryLoad(): void {
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
+/* 评审 M4:Vue2 scss:29-36 的 .map-shell 只有 flex/grid/background 三条,没有边框/圆角/
+   overflow——这三条(border/border-radius/overflow:hidden)是 New-UI 新增,给整块地图区
+   一个统一的卡片外框(同区其它整屏容器的既有惯例),不是保真移植的一部分,登记但不撤回。 */
 .map-shell {
   flex: 1 1 auto; min-height: 0;
   display: grid; grid-template-columns: 300px 1fr; gap: 0;
@@ -379,7 +392,9 @@ function retryLoad(): void {
 }
 .map-failed-title { font-size: 14px; font-weight: 600; color: var(--fg); }
 
-/* 悬停卡片(照 Vue2 photos-places.scss:437-473)。 */
+/* 悬停卡片(照 Vue2 photos-places.scss:437-473)。评审 M4:本仓没有等价 Vue2 --r-md/--r-sm
+   的圆角 token,下面几处圆角是就近取的字面 px 值,不是那两个 token 的精确复刻(数值有出入,
+   非负数字面量不受 color-guard 管,登记但不新增 token)。 */
 .map-tip {
   position: absolute;
   z-index: 5;
@@ -394,6 +409,8 @@ function retryLoad(): void {
   box-shadow: var(--card-shadow-hi);
   min-width: 180px;
 }
+/* 评审 M4:Vue2 scss:453 的缩略图占位底是写死的纯黑;这里改用 --chip-bg(随主题走),
+   不是精确复刻那个 theme-invariant 的黑底——同 D3 裁定,surface treatment 归 New-UI 重塑。 */
 .map-tip .thumb { width: 44px; height: 44px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--chip-bg); }
 .map-tip .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .map-tip .name { font-size: 12.5px; font-weight: 600; color: var(--fg); }
@@ -433,8 +450,14 @@ function retryLoad(): void {
 .map-legend b { color: var(--fg-muted); font-weight: 500; }
 .map-legend .legend-trip { margin-left: 6px; }
 /* 第四组绿色改用 T6 已建的 --place-current-trip token,不复刻 Vue2 :1041 的内联字面量
-   (brief §5 明确要求)。box-shadow 0.2 透明度同上,对 --place-current-trip 取同一技法。 */
-.map-legend .dot-trip {
+   (brief §5 明确要求)。box-shadow 0.2 透明度同上,对 --place-current-trip 取同一技法。
+   评审 M3(hover 级联铁律的姊妹坑,本仓"优先级相等靠源码顺序苟活"这一种形态,T5/T9/T10
+   已各遇一次):选择器必须写成 `.map-legend .dot.dot-trip`(两个 class,优先级 0,3,0),
+   不能只写 `.map-legend .dot-trip`(0,2,0)——那与上面 `.map-legend .dot`(0,2,0)同级,
+   只靠"恰好写在后面"赢,重排样式块就会静默变回 accent 色。cssCascade.ts 的
+   winningHoverBackground 系是给 :hover 态设计的,这里没有 hover 态,改用
+   parseCssRules 直接比选择器 specificity(见测试)。 */
+.map-legend .dot.dot-trip {
   background: var(--place-current-trip);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--place-current-trip) 20%, transparent);
 }

@@ -28,8 +28,9 @@ import PhotosPlaces from '../PhotosPlaces.vue'
 import photosPlacesRaw from '../PhotosPlaces.vue?raw'
 import PlacesRail from '../../photos/components/PlacesRail.vue'
 import PlacesMap from '../../photos/components/PlacesMap.vue'
+import PlacesThemeMenu from '../../photos/components/PlacesThemeMenu.vue'
 import { usePhotosPlaces } from '../../photos/stores/places'
-import { extractStyleBlock } from '../../photos/components/__tests__/cssCascade'
+import { extractStyleBlock, parseCssRules } from '../../photos/components/__tests__/cssCascade'
 import { MAP_H, MAP_W, project } from '../../photos/util/worldMap'
 import type { Pin } from '../../photos/util/placesMap'
 
@@ -267,6 +268,19 @@ describe('图例 + 统计', () => {
     const values = stats.findAll('.v').map((n) => n.text())
     expect(values).toEqual(['4', '3', '12,345'])
   })
+
+  // 评审 M3:第四组绿色不能靠"恰好写在样式块后面"赢过基类 `.map-legend .dot`——两条选择器
+  // 的优先级必须真的不相等(第四组选择器多带一个 class),不依赖源码书写顺序。
+  it('第四组的选择器优先级真的高于基类 .map-legend .dot(不靠源码顺序苟活)', () => {
+    const rules = parseCssRules(extractStyleBlock(photosPlacesRaw))
+    const classCount = (selector: string) => (selector.match(/\.[\w-]+/g) ?? []).length
+    const base = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.map-legend .dot')
+    const trip = rules.find((r) => r.selectors.some((s) => s.includes('dot-trip')))
+    expect(base, '基类 .map-legend .dot 规则未找到').toBeTruthy()
+    expect(trip, '第四组 dot-trip 规则未找到').toBeTruthy()
+    const tripSelector = trip!.selectors.find((s) => s.includes('dot-trip'))!
+    expect(classCount(tripSelector)).toBeGreaterThan(classCount(base!.selectors[0]))
+  })
 })
 
 describe('加载失败态', () => {
@@ -282,6 +296,74 @@ describe('加载失败态', () => {
     await flushPromises()
     expect(svc.photos.listPlaces).toHaveBeenCalledTimes(2)
     expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
+  })
+})
+
+// 评审 M2:失败态条件必须带 `attempted` 收紧,否则"还没请求过"(onMounted 的异步
+// fetchPlaces 尚未真正跑起来那一瞬)会被误判成"请求过且失败了"。
+//
+// 排雷记录(TDD 过程中的真实教训,留着防止以后有人"优化"成 helper 又踩回去):这个用例
+// 起初把 `mount()` 包进一个 `async function mountFresh() { ...; return { w } }` 再
+// `await mountFresh()`,结果无论有没有修 M2 都测不出区别——原因是 async 函数 return 出的
+// Promise,哪怕函数体里再没有别的 await,await 它本身也一定会让出一次微任务;而
+// `attempted.value = true` 这行在 onMounted 里是**同步**执行的(它前面没有任何 await),
+// Vue 的响应式调度器早在 mount() 内部就把这次变化排进了微任务队列——那次多余的 await
+// 恰好把断言推到了"Vue 已经重渲染过一轮"之后,永远看不到真正的第一帧。改成不包 helper、
+// mount() 之后不打任何 await 就立刻断言,才是真的卡在第一帧上(已用 w.html() 手工核对过
+// 两种写法在"删掉 attempted 收紧"这个变异下的真实差异,见任务报告 M2 节)。
+describe('首帧门控(评审 M2:区分"还没请求过"与"请求过且失败了")', () => {
+  it('首帧(onMounted 的异步 fetchPlaces 尚未落地)显示骨架,不是失败态', async () => {
+    const router = makeRouter()
+    router.push('/photos/places')
+    await router.isReady() // 这个 await 在 mount() 之前,不影响下面要卡住的那一帧
+    const w = mount(PhotosPlaces, { global: { plugins: [i18n, router] } })
+    // mount() 之后立刻断言,中间不能有任何 await——见上方注释。
+    expect(w.find('[data-test="places-skeleton"]').exists()).toBe(true)
+    expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
+  })
+})
+
+describe('pointer 手势透传(评审 I1:容器 ↔ composable 之间唯一没有断言保护的接线)', () => {
+  it('svg 上按下拖动 → PlacesMap 的 view.tx 跟着变(usePlacesView.ts:201-206 的位移换算)', async () => {
+    const { w } = await mountView()
+    flushAnim() // 先清空首屏自动选中触发的那次缓动,不让它混进 tx 的前后对比
+    await w.vm.$nextTick()
+    const before = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+
+    const svg = w.find('svg.map-canvas')
+    await svg.trigger('pointerdown', { clientX: 100, clientY: 100, pointerId: 1, bubbles: true })
+    await svg.trigger('pointermove', { clientX: 180, clientY: 100, pointerId: 1, bubbles: true })
+
+    const after = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+    expect(after).not.toBeCloseTo(before, 5)
+  })
+
+  it('pointerup 之后再 pointermove 不再平移(drag 状态已清)', async () => {
+    const { w } = await mountView()
+    flushAnim()
+    await w.vm.$nextTick()
+    const svg = w.find('svg.map-canvas')
+    await svg.trigger('pointerdown', { clientX: 100, clientY: 100, pointerId: 1, bubbles: true })
+    await svg.trigger('pointerup', { clientX: 100, clientY: 100, pointerId: 1, bubbles: true })
+    const afterUp = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+
+    await svg.trigger('pointermove', { clientX: 400, clientY: 400, pointerId: 1, bubbles: true })
+    const afterMove = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+    expect(afterMove).toBeCloseTo(afterUp, 5)
+  })
+
+  it('从图钉(.geo-pin)上按下不会平移地图(usePlacesView.ts:189-192 的 closest 守卫)', async () => {
+    const { w } = await mountView()
+    flushAnim()
+    await w.vm.$nextTick()
+    const before = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+
+    const pin = w.find('.geo-pin')
+    await pin.trigger('pointerdown', { clientX: 50, clientY: 50, pointerId: 1, bubbles: true })
+    await w.find('svg.map-canvas').trigger('pointermove', { clientX: 250, clientY: 50, pointerId: 1, bubbles: true })
+
+    const after = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+    expect(after).toBeCloseTo(before, 5)
   })
 })
 
@@ -314,6 +396,35 @@ describe('两个弹层的 Esc 互不干扰(P5-T10 的 bug 形态)', () => {
 
     expect(w.find('[data-test="pfm-pop"]').exists()).toBe(false)
     expect(w.find('[data-test="mtm-pop"]').exists()).toBe(false)
+  })
+})
+
+describe('地图主题弹层接线(评审 M1:分流逻辑是容器独有的决策,T1-T10 都没覆盖过)', () => {
+  it('点预设 → store.themePrefs.mapTheme 变,PlacesMap 的 themeVars.background 跟着变', async () => {
+    const { w } = await mountView()
+    const before = (w.findComponent(PlacesMap).props('themeVars') as { background: string }).background
+
+    await w.find('[data-test="mtm-chip"]').trigger('click')
+    await w.find('[data-theme-id="ocean"]').trigger('click')
+
+    const store = usePhotosPlaces()
+    expect(store.themePrefs.mapTheme).toBe('ocean')
+    const after = (w.findComponent(PlacesMap).props('themeVars') as { background: string }).background
+    expect(after).not.toBe(before)
+  })
+
+  it('改取色器 → mapTheme 落成 custom,customDotColor 落盘(不是无条件走 setMapTheme 把颜色丢了)', async () => {
+    const { w } = await mountView()
+    await w.find('[data-test="mtm-chip"]').trigger('click')
+    const dotInput = w.find('[data-test="mtm-dot-input"]')
+    await dotInput.setValue('#123456')
+
+    const store = usePhotosPlaces()
+    expect(store.themePrefs.mapTheme).toBe('custom')
+    expect(store.themePrefs.customDotColor).toBe('#123456')
+    // 主题弹层的 selection prop 直连 store.themePrefs(消歧义 3:读永远走 store),这里顺带
+    // 验证回填也生效,不是"写完 store、界面读的却是旧值"的单向断link。
+    expect(w.findComponent(PlacesThemeMenu).props('selection')).toMatchObject({ mapTheme: 'custom', customDotColor: '#123456' })
   })
 })
 
