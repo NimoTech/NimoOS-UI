@@ -28,7 +28,15 @@
 // =====================================================================
 
 /* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */
-.agent-app {
+.agent-app,
+.ai-toast-scope {
+  /* AI 区是嵌套主题作用域(data-theme 贴在本容器上,不动 <html>),所以必须自己声明
+     color-scheme —— 否则会继承 src/styles/theme.css 的 `:root { color-scheme: dark }`,
+     让浏览器用暗色 UA 调色板画原生控件内部(input[type=number] 的上下箭头底板、原生
+     checkbox 等),浅色 AI 页上就会出现黑色箭头底板。非颜色 token,故不进 THEMING 的
+     token 表,与 theme.css 在 :root 的同名声明同性质。 */
+  color-scheme: light;
+
   /* Surfaces */
   --bg-app: #FAF9F6;
   --bg-canvas: #FAF9F6;
@@ -217,7 +225,12 @@
   --term-icon-dim: rgba(255, 255, 255, 0.5);
 }
 
-.agent-app[data-theme="dark"] {
+.agent-app[data-theme="dark"],
+.ai-toast-scope[data-theme="dark"] {
+  /* 与浅色基座对称:暗色 AI 页要按暗色 UA 调色板画原生控件(见 .agent-app 处的注释)。
+     若全局是浅色主题而 AI 区切暗色,没有这行就会出现白色箭头底板压在深色输入框上。 */
+  color-scheme: dark;
+
   --bg-app: #1C1C1E;
   --bg-canvas: #1C1C1E;
   --bg-elevated: #242426;
@@ -325,4 +338,23 @@
   --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3);
   --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ===== SP8-P2b 验收第 3 轮(用户 2026-07-30 拍板「只改 AI 区、桌面零影响」)=====
+   `AppToast` 挂在 `App.vue` 最外层,不在 `.agent-app` 里面,所以它读的是 theme.css 在
+   `:root` 的 toast token:半透明白底(`rgba(255,255,255,.28→.12)`)+ `--toast-fg` 未定义
+   退回 `--fg` = `#ffffff`。画在 AI 区的浅色页面(`--bg-app: #FAF9F6`)上就是白底白字 =
+   全隐形,AI 区所有 toast 用户都看不见(验收时表现为「复制按钮点了一点反应没有」)。
+   上面两个主题块的选择器已带上 `.ai-toast-scope`,所以本类拿得到整套 AI token;这里只把
+   toast 那几个覆盖成 AI 语义色。**全部引用 AI token,不写颜色字面量。**
+   何时生效:AI 页面挂载期间由 `aiTheme` store 登记(见该文件 aiSurfaces 注释),
+   `AppToast` 据此贴上本类 + `data-theme`;离开 AI 路由两个绑定都不生效 → 桌面观感零变化。 */
+.ai-toast-scope {
+  --toast-bg: var(--bg-elevated);
+  --toast-fg: var(--text-primary);
+  --toast-warn-bg: var(--warning-soft);
+  --toast-warn-fg: var(--warning);
+  --toast-danger-bg: var(--danger-soft);
+  --toast-danger-fg: var(--danger);
+  --chip-border: var(--line);
 }
