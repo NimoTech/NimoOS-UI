@@ -56,8 +56,11 @@ describe('createSkillErrorKey', () => {
     expect(createSkillErrorKey(errWith('bundle exceeds size limits'))).toBe('aiSkErrBundleTooLarge')
   })
 
-  it('maps "SKILL.md exceeds 32768 bytes (got 40000)" (case-insensitive)', () => {
-    expect(createSkillErrorKey(errWith('SKILL.md exceeds 32768 bytes (got 40000)'))).toBe(
+  // MaxSkillMDBytes = 50 * 1024 = 51200 (NimoOS-AI/service/skills_store.go:121); the
+  // error is fmt.Errorf("SKILL.md exceeds %d bytes (got %d)", MaxSkillMDBytes, size)
+  // at skills_store.go:155/229. Real limit, not a made-up number.
+  it('maps "SKILL.md exceeds 51200 bytes (got 60000)" (case-insensitive)', () => {
+    expect(createSkillErrorKey(errWith('SKILL.md exceeds 51200 bytes (got 60000)'))).toBe(
       'aiSkErrMdTooLarge'
     )
   })

@@ -1246,8 +1246,8 @@ export default {
   aiSkUninstall: '卸载',
   aiSkDeleteSkill: '删除技能',
   aiSkDelete: '删除', // 拍板不复用 aiConfirm(P1a 弹窗标题误用按钮文案的历史遗留),按任务书新增
-  aiSkUninstallTitle: '卸载这个技能？',
-  aiSkDeleteTitle: '删除这个技能？',
+  aiSkUninstallTitle: '卸载这个技能?',
+  aiSkDeleteTitle: '删除这个技能?',
   // 新文案(D3 拍板):Vue2 SkillDetail.vue:161 承诺「以后可从内置目录重新安装」,
   // 但后端 service/skills.go:330-340 只写 uninstalled=1 标记、全仓无恢复接口 —— 说实话。
   aiSkUninstallBody:
