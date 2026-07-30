@@ -75,6 +75,25 @@
   --place-row-bg: rgba(138, 180, 255, 0.10);
   --place-row-border: rgba(138, 180, 255, 0.30);
   --place-thumb-active: rgba(138, 180, 255, 0.18);
+  /* PlacesMap.vue(P6a-T6)图钉——Vue2 photos-places.scss:366-411 的
+     rgba(var(--accent-rgb), α) 精确复刻。--accent-rgb 在 Vue2 明确标注
+     theme-invariant(恒为 110,91,255),即这些 alpha 层在深浅两套 app 主题下都不变——
+     图钉铺的是地图预设自己的画布(4 套预设 + 自定义色,深浅与 app 主题无关,custom 模式
+     恒为黑底),不能按 app 主题去降 alpha,否则「浅色 app 主题 + custom 黑底」会把图钉
+     洗没。故两套主题块 alpha 完全相同,只有 RGB 跟随本仓 --accent-rgb 深浅两档。 */
+  --pin-bg: rgba(138, 180, 255, 0.16);
+  --pin-stroke: rgba(138, 180, 255, 0.55);
+  --pin-active-bg: rgba(138, 180, 255, 0.30);
+  --pin-pulse: rgba(138, 180, 255, 0.25);
+  --pin-cluster-hover-bg: rgba(138, 180, 255, 0.42);
+  --pin-glow: rgba(138, 180, 255, 0.7);
+  /* Vue2 原值是比 accent 更浅的淡紫 rgba(196,184,255,0.85),让簇读作"一组"而非单点;
+     这里 RGB 改取本仓 --accent-text(169,198,255)——语义正是"比 accent 更浅/更可读的
+     accent 色",alpha 精确复刻原值 0.85。 */
+  --pin-cluster-stroke: rgba(169, 198, 255, 0.85);
+  /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
+     本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
+  --place-current-trip: #34c759;
   --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
   --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
   --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
@@ -289,6 +308,19 @@
   --place-row-bg: rgba(59, 91, 219, 0.08);
   --place-row-border: rgba(59, 91, 219, 0.25);
   --place-thumb-active: rgba(59, 91, 219, 0.15);
+  /* PlacesMap.vue(P6a-T6)图钉——见 :root 同名 token 注释:alpha 与 :root 完全相同
+     (theme-invariant,铺在地图预设自己的画布上,不随 app 主题降 alpha),RGB 换成本仓
+     浅色 --accent-rgb(59,91,219)。 */
+  --pin-bg: rgba(59, 91, 219, 0.16);
+  --pin-stroke: rgba(59, 91, 219, 0.55);
+  --pin-active-bg: rgba(59, 91, 219, 0.30);
+  --pin-pulse: rgba(59, 91, 219, 0.25);
+  --pin-cluster-hover-bg: rgba(59, 91, 219, 0.42);
+  --pin-glow: rgba(59, 91, 219, 0.7);
+  /* RGB 取本仓浅色 --accent-text(53,80,196),alpha 精确复刻 Vue2 原值 0.85(见 :root 同名注释)。 */
+  --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
+  /* 两套主题同值,见 :root 同名注释。 */
+  --place-current-trip: #34c759;
   --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
   --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
   --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
