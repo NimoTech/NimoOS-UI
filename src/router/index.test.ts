@@ -41,4 +41,10 @@ describe('router', () => {
     expect(m.name).toBe('photos-person-detail')
     expect(m.params.id).toBe('7')
   })
+  // P6a-T11:新路由追加在 /photos/people/:id 之后、/login 之前(只追加,不重排)——
+  // 完整的顺序/未重排断言见 PhotosPlaces.test.ts(读原始文本核对插入位置)。
+  it('/photos/places 命中 photos-places 路由', () => {
+    const m = router.resolve('/photos/places')
+    expect(m.name).toBe('photos-places')
+  })
 })

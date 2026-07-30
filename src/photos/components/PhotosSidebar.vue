@@ -31,6 +31,7 @@ const NAV = [
   { id: 'library', route: '/photos', labelKey: 'photosLibrary' },
   { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums' },
   { id: 'people', route: '/photos/people', labelKey: 'photosPeople' },
+  { id: 'places', route: '/photos/places', labelKey: 'photosPlaces' },
   { id: 'favorites', route: '/photos/favorites', labelKey: 'photosFavorites' },
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
 ]

@@ -20,6 +20,7 @@ import PhotosAlbums from '../views/PhotosAlbums.vue'
 import PhotosAlbumDetail from '../views/PhotosAlbumDetail.vue'
 import PhotosPeople from '../views/PhotosPeople.vue'
 import PhotosPersonDetail from '../views/PhotosPersonDetail.vue'
+import PhotosPlaces from '../views/PhotosPlaces.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -42,6 +43,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/photos/albums/:id', name: 'photos-album-detail', component: PhotosAlbumDetail },
   { path: '/photos/people', name: 'photos-people', component: PhotosPeople },
   { path: '/photos/people/:id', name: 'photos-person-detail', component: PhotosPersonDetail },
+  { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
 ]
