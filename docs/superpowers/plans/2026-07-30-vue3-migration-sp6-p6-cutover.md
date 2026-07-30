@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **两个仓库,分别提交**:`/home/nimo/NimoTech/NimoOS-UI`(Vue2)与 `/home/nimo/NimoTech/NimoOS-New-UI`(Vue3)。每个仓自己 `git add`/`git commit`,**不要跨仓一次提交**。直接在两仓 `master` 上做,不开 worktree。
+- **两个仓库,分别提交**:`/home/nimo/NimoTech/NimoOS-UI`(Vue2)与 `/home/nimo/NimoTech/NimoOS-New-UI`(Vue3)。每个仓自己 `git add`/`git commit`,**不要跨仓一次提交**。不开 worktree,各自在**当前检出的分支**上做 —— New-UI 是 `master`;**Vue2 仓没有 `master`,迁移期的工作分支是 `docs/vue3-migration-sp3`**(领先 `main` 163 个提交,`strangler.js` 的全部历史都在这条分支上,部署脚本构建的是工作树),照检出状态直接提交即可,不要切分支、不要合 `main`。
 - **回退 flag 唯一键名:`strangler:disabled:/storage`**(四处共用,逐字如此,不要写成 `storage-entry` 或 `/storage/`)。
 - **迁移目标 URL 逐字:`/app/#/storage`**。
 - **老弹窗代码是安全网,一行都不删**。`$buefy.modal.open({ ... StorageManagerPanel ... })` 整块保留,只在它前面加提前返回。
