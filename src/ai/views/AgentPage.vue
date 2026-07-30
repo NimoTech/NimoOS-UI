@@ -266,18 +266,40 @@ onMounted(async () => {
 
   // Vue2 Agent.vue:145-148 —— ?skill= 挂号:只暂存,消费点在 send()(agentStore.ts
   // send() 的 X-Skill-Id 组装段),这里不发送。
-  const skill = route.query.skill
-  if (skill) store.pendingSkillId = String(skill)
+  //
+  // SP8-P3a 验收后追加②:Vue2 同一处从不把 ?skill= 从 URL 上抹掉(与紧邻的
+  // ?search=/?message= 形成对比 —— 那两个本来就读完立刻 router.replace 抹掉,
+  // 见下方紧接的一段)。真实后果:用户点提示条的 × 取消挂载,或消息发出后
+  // pendingSkillId 已被 send() 消费一次,只要按 F5,URL 里的 skill 还在,
+  // 挂载又重新发生一遍——按钮/发送说话不算数。三个同类"一次性交接参数"里只
+  // 有 skill 漏了这一步,属于可复现的错误行为,按"逻辑照正确"纪律在此修正,
+  // 不照抄 Vue2。
+  //
+  // 下面 search/message 那段自己也会再做一次 router.replace,两次必须串起来
+  // 不能互相吃掉对方:这里只用一个本地 `query` 副本(而不是直接读/写
+  // route.query)来传递"已经抹过 skill"这个事实——mock 出的 router.replace
+  // 不会回写 route.query,真实 vue-router 里 route.query 的更新也是导航确认
+  // 后才异步发生的,两种情况都不能指望"上一次 replace 生效后 route.query
+  // 已经变了"。所以 seedSearch/seedMessage 的读取、以及下面 clean 的构造,
+  // 都基于这个本地副本 —— 抹 skill 时只删 skill,search/message 原样留给
+  // 下面读到;抹完之后最终态里三个参数都不在了。
+  const query = { ...route.query }
+  const skill = query.skill
+  if (skill) {
+    store.pendingSkillId = String(skill)
+    delete query.skill
+    await router.replace({ path: '/ai/agent', query: { ...query } })
+  }
 
   // Handoff from the global search page / homepage AI widget
   // (/ai/agent?search=<query> or ?message=<text>) — Vue2 Agent.vue:166-192.
   // search wins over message when both are present (message is skipped
   // entirely). One-shot: router.replace strips both query keys BEFORE
   // sending so a page refresh doesn't re-send the seed turn.
-  const seedSearch = (route.query.search ?? '').toString().trim()
-  const seedMessage = (route.query.message ?? '').toString().trim()
+  const seedSearch = (query.search ?? '').toString().trim()
+  const seedMessage = (query.message ?? '').toString().trim()
   if (seedSearch || seedMessage) {
-    const clean = { ...route.query }
+    const clean = { ...query }
     delete clean.search
     delete clean.message
     await router.replace({ path: '/ai/agent', query: clean })

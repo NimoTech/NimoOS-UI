@@ -183,7 +183,9 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { tab: 'x' } })
   })
 
-  it('?skill=abc → 暂存 store.pendingSkillId,不触发发送', async () => {
+  // SP8-P3a 验收后追加②:?skill= 读完必须立刻从 URL 抹掉(Vue2 Agent.vue:145-148
+  // 同缺陷未抹,此处按"逻辑照正确"对齐紧邻的 ?search=/?message= 成例修正)。
+  it('?skill=abc → 暂存 store.pendingSkillId,且立刻从 URL 抹掉 skill(取消挂载/发消息后 F5 不会复活)', async () => {
     routeQuery.skill = 'abc'
     const store = useAgentStore()
     const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
@@ -191,7 +193,34 @@ describe('AgentPage', () => {
     await flushPromises()
     expect(store.pendingSkillId).toBe('abc')
     expect(sendSpy).not.toHaveBeenCalled()
+    expect(replace).toHaveBeenCalledTimes(1)
+    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
+  })
+
+  it('?skill=abc&search=cats → skill 挂号且从 URL 抹掉,search 的 seed 行为照旧发生,两次 router.replace 串起来最终态里 skill 与 search 都没了', async () => {
+    routeQuery.skill = 'abc'
+    routeQuery.search = 'cats'
+    const store = useAgentStore()
+    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(store.pendingSkillId).toBe('abc')
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('cats'))
+    expect(replace).toHaveBeenCalledTimes(2)
+    // 第一次只抹 skill,把 search 留给下面 seed 逻辑读;第二次抹 search/message。
+    expect(replace).toHaveBeenNthCalledWith(1, { path: '/ai/agent', query: { search: 'cats' } })
+    expect(replace).toHaveBeenNthCalledWith(2, { path: '/ai/agent', query: {} })
+  })
+
+  it('无任何一次性 query 参数时,不调用 router.replace(不能无脑每次都 replace)', async () => {
+    mountPage()
+    await flushPromises()
+    const store = useAgentStore()
     expect(replace).not.toHaveBeenCalled()
+    expect(store.pendingSkillId).toBeNull()
   })
 
   it('SP8-P2a Task 12:侧栏 open-settings(设置齿轮)→ router.push 到 /ai/settings,不再弹占位 toast(Vue2 Agent.vue:209,路由已存在)', async () => {
