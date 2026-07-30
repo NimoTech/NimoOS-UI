@@ -64,9 +64,13 @@ async function onCreate() {
   <Dialog :open="props.open" :title="t('tmSettings')" @update:open="emit('update:open', $event)">
     <p class="ss-mount">{{ props.mountPoint }}</p>
 
-    <p v-if="state === 'unsupported'" class="ss-note">{{ t('snapUnsupported') }}</p>
+    <!-- 评审修复(Important):store.volume 换卷/首次打开时先是 null(或从存储区带过来的
+         别的卷的数据),resolveSnapshotState(null) === 'unsupported' —— 网络往返期间会先闪
+         一句"此卷不支持快照"再翻成表单。store.volumeLoading 初值即 true(照抄 SnapshotPanel.vue
+         的 v-if="!store.volumeLoading" 那道门),没落地前什么都不显示,不闪错误结论。 -->
+    <p v-if="!store.volumeLoading && state === 'unsupported'" class="ss-note">{{ t('snapUnsupported') }}</p>
 
-    <template v-else>
+    <template v-else-if="!store.volumeLoading">
       <div class="ss-row">
         <span class="ss-key">{{ t('snapTitle') }}</span>
         <!-- 开关按钮不放文字:snapToggleOn/Off 是过去式的 toast 文案("已开启/已关闭快照

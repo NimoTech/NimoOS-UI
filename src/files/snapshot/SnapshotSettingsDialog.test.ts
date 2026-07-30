@@ -55,6 +55,16 @@ describe('SnapshotSettingsDialog', () => {
     const w = mountIt(); await flush(w)
     expect(body()).toContain('/DATA')
   })
+  // 评审修复(Important):loadVolume 网络往返在途时(store.volumeLoading 初值即 true)不该
+  // 提前露出"不支持快照"这句结论性文案——store.volume 此时还是 null(或换卷前带来的旧值),
+  // resolveSnapshotState(null) === 'unsupported',若不拿 volumeLoading 挡住就会先闪一句错的。
+  it('loadVolume 未 resolve 时不出现 snapUnsupported 文案(避免网络往返期间闪错结论)', async () => {
+    listVolumesMock.mockImplementation(() => new Promise(() => {})) // 永不 resolve
+    const w = mountIt()
+    await w.vm.$nextTick()
+    expect(body()).not.toContain('不支持快照')
+    expect(document.querySelector('.snap-set-fields')).toBeNull()
+  })
   it('不支持快照的卷只显示一句说明,没有表单', async () => {
     listVolumesMock.mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: false }])
     const w = mountIt(); await flush(w)
