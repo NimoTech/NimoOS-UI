@@ -366,6 +366,18 @@ describe('cssCascade: 三处「基类 + 变体」hover 归属变体', () => {
     // --chip-bg-hi"——用 mfp-checkbox + is-on 两个类去命中 `.mfp-checkbox.is-on:hover
     // .mfp-tick` 这条规则本身(它是后置到 .mfp-tick 的独立规则,不落进 hoverBackgroundRules
     // 的"复合选择器"假设,这里改为直接断言样式原文同时具备两条规则且 is-on 版本在后)。
+    //
+    // 评审已复核并批准的偏离登记:brief 明写"用 cssCascade 按优先级断言",这条却是裸的
+    // 子串存在性检查,不走 winningHoverBackground 的优先级计算——原因是这一对根本没有
+    // 同优先级的竞争规则:.mfp-checkbox:hover 只改自身(.mfp-checkbox)的背景,从不触碰
+    // .mfp-tick 的 border/background(已用下面的 baseRuleSelectorLine 断言核实选择器不含
+    // mfp-tick),所以真实 CSS 里不存在"基类 hover 与变体同时命中 .mfp-tick、靠优先级或
+    // 源码顺序分胜负"这个场景,套用 winningHoverBackground 的"两条规则打分选赢家"模型
+    // 反而不适配。删掉 .is-on:hover 那条防御规则时这条测试确实会红(已在删码验证 ⑥ 里
+    // 跑过),等价保护到位。**若日后有人往 .mfp-checkbox:hover 加了一条会动 .mfp-tick
+    // 背景的规则(哪怕只是后代选择器 .mfp-checkbox:hover .mfp-tick),就出现了真实的
+    // 同优先级竞争,这条测试要升级成用 winningHoverBackground 按优先级断言,不能再靠
+    // 存在性检查。**
     const isOnHoverIdx = styleText.indexOf('.mfp-checkbox.is-on:hover .mfp-tick')
     const baseHoverIdx = styleText.indexOf('.mfp-checkbox:hover')
     expect(isOnHoverIdx).toBeGreaterThan(-1)

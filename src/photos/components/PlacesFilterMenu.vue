@@ -248,7 +248,10 @@ onUnmounted(() => {
 .map-chip.is-active {
   /* Vue2 用 rgba 函数包 accent 通道、0.18 透明度 —— 本仓 --accent 随主题变化、没有
      对应的 RGB 通道 token;改用 color-mix 直接对 var(--accent) 取同一个精确 alpha,
-     不近似、不新增 token(同 theme.css --album-cover-fallback 的既有 color-mix 用法)。 */
+     不近似、不新增 token。评审纠正:先例不是 --album-cover-fallback(那个是混两个
+     不透明色做渐变端点,技法不同);同技法(color-mix 对 transparent 取 alpha)的
+     既有先例见 PhotosSidebar.vue:99(.side-item.active)、theme.css 的
+     file-flash-kf 关键帧、PersonRelationsTab.vue:263-266、PhotoInfoPanel.vue:189/201。 */
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent-text);
 }
@@ -260,6 +263,24 @@ onUnmounted(() => {
   top: calc(100% + 6px);
   left: 0;
   min-width: 280px;
+  /* 评审 Important 复核结论(驳回改法,维持现状——原文摘录):
+     ①这里刻意用本仓既定的弹层 chrome 约定(--popup-bg / --card-shadow-hi),不复刻
+     Vue2 的纯灰实底(见 photos.scss --surface-2 定义)+ 单层 box-shadow。
+     ②依据是区级 spec D3 ——"照 New-UI 设计语言重塑(AreaShell/token/组件体系,同
+     SP4/SP5 前例);布局结构与信息层级照 Vue2,不搬 4498 行 photos.scss"。弹层的底色与
+     投影属于"组件体系 / surface treatment",归 New-UI 一侧;本组件已把布局结构与信息
+     层级(六段一个不漏)照 Vue2 做了,这里不再额外照抄 Vue2 的具体颜色实现。
+     ③与 T5/T6/T8 那几处新增精确 token 的区别:那些是**内容色**(图钉色/选中城市行/
+     滑杆轨道底),本仓对它们没有既定约定,所以要么精确复刻 Vue2 的 alpha、要么新增
+     token;而**弹层 chrome 在本仓已有既定约定**——ContextMenu.vue/Dialog.vue/
+     AlertDialog.vue/ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 的
+     两个下拉菜单全部用 --popup-bg + --card-shadow-hi 这一对,复用它正是 D3 要求的
+     一致性,不是"就近偷懒"。
+     ④真机验收看点:--card-shadow-hi 深色主题下含一层 inset 白色上缘高光(见
+     theme.css:175 起的定义),Vue2 那个纯扁平菜单没有这层高光。若用户验收不认可这个
+     视觉差异,改法是新增 --filter-pop-bg / --filter-pop-shadow 两个 token,精确复刻
+     Vue2 那个纯灰实底与单层黑色投影(0.6 透明度,见 photos-places.scss:864 定义,两套
+     主题各给值)。 */
   background: var(--popup-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
