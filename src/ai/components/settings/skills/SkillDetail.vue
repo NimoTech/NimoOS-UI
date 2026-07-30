@@ -95,6 +95,18 @@
      猜测谁先跑:`watch(enabled)` 回调里额外核对 `skill.id === pendingTryId`,两层防御
      叠加,不依赖 Vue 内部 watcher 调度顺序这个实现细节。
 
+  【评审后修订(Important 1,任务书 D4 的简化 vs 设计文档 §9.4 原话)】任务书把
+  §9.4「先 `toggle(id, true)`,**成功才跳转**;失败则**留在弹窗** + danger toast,不
+  跳转」简化成了「发 toggle 后关弹窗」,只保留了半句(失败不跳转),漏了「成功前弹窗
+  必须留在原地」——这是任务书对设计文档的简化遗漏,以设计文档为准:`confirmEnableAndTry`
+  不再在发 toggle 那一刻就关 `tryModalOpen`,而是保持打开;`watch(enabled)` 命中
+  `id 匹配 && enabled===true` 时**同一步**关弹窗 + 跳转。toggle 失败时 `enabled`
+  不变,弹窗因此保持打开,用户可以再点一次「启用并试用」或点「取消」。danger toast
+  由父组件(T8 `SkillsSection.onToggle`)负责,本组件不重复发。
+  顺带(自主判断范围,非设计文档强制):`busy[skill.id]` 为真(toggle 请求飞行中)时
+  「启用并试用」按钮 `disabled`,防止用户在请求还没返回时重复点击、叠加发出多次
+  `toggle` 请求。
+
   零 <style> 块:用到的每个 class(sk-detail*、sk-name、sk-pill-try、sk-meta-grid、
   sk-meta-cell、sk-section*、sk-description、sk-md、sk-file-row、sw、sk-pill-more、
   sk-menu、sk-modal-bg、sk-modal、sk-confirm*、sk-modal-foot、sk-btn)均已存在于
@@ -282,13 +294,14 @@ function tryInChat() {
   router.push({ path: '/ai/agent', query: { skill: s.id } })
 }
 
-// D4「启用并试用」:先关弹窗、记下当前技能 id 作为一次性挂号,再把意图往上冒泡。
-// 是否真的启用成功由父组件(SkillsSection)决定——本组件不直接改 `skill.enabled`,
-// 只观察 props 上的值(下面的 watch)。
+// D4「启用并试用」:记下当前技能 id 作为一次性挂号,把意图往上冒泡。**不在这里关
+// 弹窗**(评审后修订,见文件头注释「评审后修订」)——设计文档 §9.4 要求「成功才跳转」,
+// 弹窗必须保持打开直到父组件真的把 `enabled` 改成 true;失败时弹窗留在原地,用户能
+// 再点一次或点取消。是否真的启用成功由父组件(SkillsSection)决定——本组件不直接改
+// `skill.enabled`,只观察 props 上的值(下面的 watch)。
 function confirmEnableAndTry() {
   const s = props.skill
   if (!s) return
-  tryModalOpen.value = false
   pendingTryId.value = s.id
   emit('toggle', s.id, true)
 }
@@ -300,17 +313,19 @@ function cancelTryModal() {
 }
 
 // D4 一次性跳转:只在「当前 props.skill 就是发起挂号的那个技能」且它的 `enabled`
-// 变成 true 时才跳转,随即清空挂号(清除路径①)。toggle 失败时父组件不会把 `enabled`
-// 改成 true,这里就永远不会看到 true,从而永远不跳转——不需要额外的失败分支/定时器。
-// 显式核对 `s.id === pendingTryId.value` 而不是只信任「skill.id 变化时复位」那处 watch
-// 已经清空了它:两个 watch 都挂在同一个 `props.skill` 上,不依赖 Vue 内部对同一 tick
-// 里多个 watcher 的调度顺序这个实现细节。
+// 变成 true 时才**同一步**关弹窗 + 跳转,随即清空挂号(清除路径①)。toggle 失败时
+// 父组件不会把 `enabled` 改成 true,这里就永远不会看到 true,弹窗保持打开
+// (评审后修订,见文件头注释)——不需要额外的失败分支/定时器。显式核对
+// `s.id === pendingTryId.value` 而不是只信任「skill.id 变化时复位」那处 watch 已经
+// 清空了它:两个 watch 都挂在同一个 `props.skill` 上,不依赖 Vue 内部对同一 tick 里
+// 多个 watcher 的调度顺序这个实现细节。
 watch(() => props.skill?.enabled, (enabled) => {
   const s = props.skill
   if (!s || !pendingTryId.value) return
   if (s.id !== pendingTryId.value) { pendingTryId.value = null; return }
   if (enabled === true) {
     pendingTryId.value = null
+    tryModalOpen.value = false
     router.push({ path: '/ai/agent', query: { skill: s.id } })
   }
 })
@@ -498,7 +513,13 @@ watch(() => props.skill?.enabled, (enabled) => {
         <p>{{ t('aiSkTryDisabledBody') }}</p>
         <template #footer>
           <button class="sk-btn ghost" @click="cancelTryModal">{{ t('aiCancel') }}</button>
-          <button class="sk-btn primary" @click="confirmEnableAndTry">{{ t('aiSkTryEnableAndTry') }}</button>
+          <!-- busy[skill.id] 为真时禁用(toggle 请求飞行中),防止重复点击叠加发出多次
+               toggle 请求——自主判断范围,见文件头注释「评审后修订」末段。 -->
+          <button
+            class="sk-btn primary"
+            :disabled="!!busy[skill.id]"
+            @click="confirmEnableAndTry"
+          >{{ t('aiSkTryEnableAndTry') }}</button>
         </template>
       </SkModal>
     </template>

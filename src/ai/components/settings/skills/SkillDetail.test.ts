@@ -520,7 +520,12 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-modal')?.textContent).toContain('停用的技能不会被加载')
   })
 
-  it('D4「启用并试用」:emit toggle(id,true) 且此刻未 push;父组件把 enabled 改成 true 后才 push', async () => {
+  // 【评审 Important 1,任务书简化了设计文档 §9.4:「成功才跳转;失败则留在弹窗 +
+  // danger toast,不跳转」——弹窗必须保持打开直到父组件真的把 enabled 改成 true,不是
+  // 发 toggle 那一刻就关。下面三条覆盖 ①点了之后弹窗仍开且未 push ②enabled 变 true
+  // 后弹窗关闭+push ③失败(prop 不变)→ 弹窗仍开、永不 push。】
+
+  it('D4「启用并试用」:点击后弹窗仍开、未 push,只 emit toggle(id,true)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-5', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -529,18 +534,27 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     enableBtn.click()
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-5', true]])
-    // 发 toggle 那一刻还没跳转——父组件还没告知启用是否成功,弹窗已收起。
+    // 发 toggle 那一刻还没跳转——父组件还没告知启用是否成功,弹窗必须留在原地
+    // (设计文档 §9.4,不是「发了就关」)。
     expect(push).not.toHaveBeenCalled()
-    expect(host.querySelector('.sk-modal')).toBeNull()
+    expect(host.querySelector('.sk-modal-title')?.textContent).toBe('该技能已停用')
+  })
 
-    // 父组件把 enabled 真的改成 true(toggle 成功)之后,才补一次 push。
+  it('D4「启用并试用」:父组件把 enabled 真的改成 true(toggle 成功)后,弹窗关闭 + push 同一步发生', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-5', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
+    await flush()
+
     await w.setProps({ skill: makeSkill({ id: 'sk-5', enabled: true }) })
     await flush()
     expect(push).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith({ path: '/ai/agent', query: { skill: 'sk-5' } })
+    expect(host.querySelector('.sk-modal')).toBeNull()
   })
 
-  it('D4:toggle 失败(父组件不改 enabled)→ 永不 push', async () => {
+  it('D4:toggle 失败(父组件不改 enabled)→ 弹窗仍开、永不 push', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-6', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -549,9 +563,12 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.emitted('toggle')).toEqual([['sk-6', true]])
 
     // 父组件请求失败:enabled 原样不变(仍是 false)——不是"取消"，是失败态。
+    // 弹窗必须留在原地(设计文档 §9.4),用户能再点一次或点取消;danger toast 由
+    // 父组件(T8 SkillsSection.onToggle)负责,本组件不重复发。
     await w.setProps({ skill: makeSkill({ id: 'sk-6', enabled: false }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
+    expect(host.querySelector('.sk-modal-title')?.textContent).toBe('该技能已停用')
   })
 
   it('D4:点「取消」关闭弹窗,不 push、不 emit toggle', async () => {
@@ -580,6 +597,54 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     // 迟到的响应此刻才把 sk-10 的 enabled 改成 true(用户又切回了 sk-10)——因为
     // 挂号已经在切换那一刻被清空,不应该被误读成"待跳转"而 push。
     await w.setProps({ skill: makeSkill({ id: 'sk-10', enabled: true }) })
+    await flush()
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  // 【评审 Important 2 之①】钉住「跳转前清空 pendingTryId」这道防线本身(与上面「残留
+  // 清除」那条不同——那条钉的是 skill.id 变化时的复位 watch;这条钉的是成功分支自己
+  // 清空 pendingTryId,同一技能不换 id 也要成立)。RED 验证:把成功分支里的
+  // `pendingTryId.value = null` 删掉 → 这条用例精确报红(第二次 push 被多算一次)。
+  it('D4:成功跳转一次后,同一技能之后被手动开关多次,push 总次数仍是 1(挂号已被消费,不会残留重复触发)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-3', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
+    await flush()
+    await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: true }) })
+    await flush()
+    expect(push).toHaveBeenCalledTimes(1)
+
+    // 用户之后自己用开关把这个技能关闭再打开——不该被误读成"待跳转"而再跳一次。
+    await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: false }) })
+    await flush()
+    await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: true }) })
+    await flush()
+    expect(push).toHaveBeenCalledTimes(1)
+  })
+
+  // 【评审 Important 2 之②】钉住 `if (enabled === true)` 这个判断本身。构造合成竞态:
+  // D4 弹窗打开期间(点确认之前),技能被别处启用(enabled 变 true)——此时 pendingTryId
+  // 还是 null,watcher 空转;随后用户仍然点了确认(pendingTryId 挂号),因为 enabled
+  // 已经是 true、不会再触发"从非 true 到 true"的变化,pendingTryId 悬而不清;紧接着
+  // enabled 被别处改回 false,watcher 第一次真正触发,newVal=false——必须不 push。
+  // RED 验证:把 `if (enabled === true)` 判断删掉(变成一进 if 块就无条件清挂号+push)
+  // → 这条用例精确报红。
+  it('D4:挂号后 watcher 第一次真正触发时 enabled 是 false(不是 true)→ 不 push(钉住 `if (enabled === true)` 判断)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-9', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    // 合成竞态:弹窗打开期间技能被别处启用(此时还没点确认,pendingTryId 仍是 null)。
+    await w.setProps({ skill: makeSkill({ id: 'sk-9', enabled: true }) })
+    await flush()
+    expect(push).not.toHaveBeenCalled()
+    // 用户仍然点了确认——enabled 已经是 true,不构成"变化",watcher 不会再触发,
+    // pendingTryId 挂号后悬而不清。
+    ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
+    await flush()
+    expect(w.emitted('toggle')).toEqual([['sk-9', true]])
+    // enabled 被别处改回 false——watcher 第一次真正触发,newVal 是 false。
+    await w.setProps({ skill: makeSkill({ id: 'sk-9', enabled: false }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
   })
