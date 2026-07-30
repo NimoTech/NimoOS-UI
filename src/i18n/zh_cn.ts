@@ -765,6 +765,7 @@ export default {
   snapDeleteTitle: '删除快照',
   snapDeleteMsg: '仅删除 {time} 的这个快照,你当前的文件不受影响。',
   snapBrowseBanner: '正在查看 {time} 的快照(只读)',
+  snapBrowseContainerHint: '这里是快照目录,请选择一个快照进入',
   snapBrowseHint: '选中文件后点「恢复」,可把它们复制回原来的位置',
   snapBrowseExit: '退出快照',
   snapBrowseRestore: '恢复',

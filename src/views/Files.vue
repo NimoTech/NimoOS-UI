@@ -444,7 +444,9 @@ onMounted(() => { browse.ensureVolumes() })
         @dragleave="onDragLeave"
         @drop.prevent="onDrop"
       >
-        <div v-if="isDragIn" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
+        <!-- 评审修复(Important):快照态下投放本就被 commitSelectedFiles 的 guard 拦住并 toast,
+             但这块全屏遮罩先诱导用户"松手就能上传",松手才被告知这是只读快照——体验倒置。 -->
+        <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
           <div class="files-topbar-right">
@@ -468,6 +470,7 @@ onMounted(() => { browse.ensureVolumes() })
           :info="browse.browseInfo"
           :restoring="browse.restoring"
           :can-restore="snapshotSelection.length > 0"
+          :is-container="browse.isSnapshotView && !browse.browseInfo"
           @exit="exitSnapshot"
           @restore="browse.restore(snapshotSelection)"
         />

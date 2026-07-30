@@ -9,6 +9,12 @@ const props = defineProps<{
   restoring: boolean
   /** 当前有没有可恢复的选中项 */
   canRestore: boolean
+  /** 加分项(Critical 1 修复的一部分):`<挂载点>/.snapshots` 容器目录本身——没有具体
+   *  快照名,parseSnapshotBrowsePath 对它返回 null,所以 info 恒为 null,没有时间可显示。
+   *  但只读锁已经生效,不该让用户看见一个"什么提示都没有"的只读横幅缺失——给一句
+   *  无时间的引导文案,没有恢复/退出按钮(两者都没有明确目标:没有选中快照就没有
+   *  "恢复到哪个快照",也没有"退出"要回去的相对路径)。 */
+  isContainer?: boolean
 }>()
 const emit = defineEmits<{ (e: 'exit'): void; (e: 'restore'): void }>()
 const { t } = useI18n()
@@ -37,6 +43,13 @@ function onRestore() {
     <!-- 常驻提示,不是一次性 toast:Vue2 M2-F2 的教训是一闪而过的提示没人看见,
          而"选中之后还要点恢复"这一步不说清楚,用户会以为进来就能改。 -->
     <div class="snap-banner-hint">{{ t('snapBrowseHint') }}</div>
+  </div>
+  <!-- `.snapshots` 容器目录本身:没有具体快照名,没有时间可显示,也没有恢复/退出的
+       明确目标——只给一句无时间的引导文案,不摆按钮。 -->
+  <div v-else-if="props.isContainer" class="snap-banner">
+    <div class="snap-banner-row">
+      <span class="snap-banner-text">{{ t('snapBrowseContainerHint') }}</span>
+    </div>
   </div>
 </template>
 

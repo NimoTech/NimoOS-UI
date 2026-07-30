@@ -213,6 +213,46 @@ describe('快照只读横幅', () => {
     await flushPromises()
     expect(w.find('.snap-banner').exists()).toBe(true)
   })
+
+  // 评审修复(Important):拖拽遮罩先诱导"松手就能上传",而快照态下投放本就会被
+  // commitSelectedFiles 的 guard 拦住并 toast——遮罩不该在只读快照里出现。
+  it('快照态下拖拽进入不显示"上传到…"遮罩', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.files-main').trigger('dragover')
+    expect(w.find('.files-drop-mask').exists()).toBe(false)
+  })
+
+  it('普通目录下拖拽进入仍显示"上传到…"遮罩(对照组,防止遮罩被误删)', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.files-main').trigger('dragover')
+    expect(w.find('.files-drop-mask').exists()).toBe(true)
+  })
+
+  // 评审修复(Critical 1):`.snapshots` 容器目录本身(面包屑上点 ".snapshots" 那一段,
+  // 没有具体快照名)—— 之前 isSnapshotView 判不出锁,写入工具条 + 时间机器 chip 全部冒出来。
+  it('.snapshots 容器目录本身:写入工具条与时间机器入口都不出现', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(w.find('.files-actions').exists()).toBe(false)
+    expect(w.find('.tb-time-machine').exists()).toBe(false)
+    // 加分项:锁生效了也该有横幅告诉用户为什么,不是"锁了但没人告诉你"
+    expect(w.find('.snap-banner').exists()).toBe(true)
+    expect(w.find('.snap-banner').text()).toContain('请选择一个快照')
+  })
 })
 
 describe('时间机器入口', () => {

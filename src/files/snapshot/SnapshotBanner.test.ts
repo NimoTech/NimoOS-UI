@@ -49,4 +49,19 @@ describe('SnapshotBanner', () => {
     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeDefined()
     expect(w.find('.snap-banner-restore').classes()).toContain('is-busy')
   })
+
+  // 评审修复(Critical 1 加分项):`.snapshots` 容器目录本身没有具体快照名,info 恒为
+  // null,原实现下横幅整条不渲染——只读锁生效却没有任何提示,像是"锁了但没人告诉你"。
+  describe('.snapshots 容器目录(info 为 null,isContainer 为 true)', () => {
+    it('显示无时间的引导文案,没有恢复/退出按钮', () => {
+      const w = mountIt({ info: null, isContainer: true })
+      expect(w.find('.snap-banner').exists()).toBe(true)
+      expect(w.text()).toContain('请选择一个快照')
+      expect(w.find('.snap-banner-restore').exists()).toBe(false)
+      expect(w.find('.snap-banner-exit').exists()).toBe(false)
+    })
+    it('isContainer 为 false 且 info 为 null 时整条仍不渲染(不是每次 info 为 null 都露出容器提示)', () => {
+      expect(mountIt({ info: null, isContainer: false }).find('.snap-banner').exists()).toBe(false)
+    })
+  })
 })
