@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useSnapshotStore } from '../../storage/stores/snapshot'
 import { groupSnapshotsByDay } from '../../storage/util/snapshotView'
 import { snapshotBrowsePath } from '../util/snapshotPath'
-import { stepSelectedIndex } from '../util/timeMachineMath'
+import { buildVisibleStack, stepSelectedIndex } from '../util/timeMachineMath'
+import { useDeckPreview } from '../composables/useDeckPreview'
 import TimeMachineBar from './TimeMachineBar.vue'
 import TimeMachineDeck from './TimeMachineDeck.vue'
 
@@ -38,6 +39,16 @@ const groups = computed(() => {
 const flatItems = computed(() => groups.value.flatMap((g) => g.items.map((it) => ({ ...it, dayLabelText: g.labelText }))))
 const selectedItem = computed(() => flatItems.value[selectedIndex.value] ?? null)
 const momentText = computed(() => (selectedItem.value ? `${selectedItem.value.dayLabelText} ${selectedItem.value.time}` : ''))
+
+// 只给卡堆窗口里那几张拉预览(卡片显示"那一刻这个文件夹长什么样")—— 与 TimeMachineDeck
+// 内部渲染可见窗口用的是同一个 buildVisibleStack,窗口大小(5+2)必须一致。
+const visibleNames = computed(() =>
+  buildVisibleStack(flatItems.value, selectedIndex.value, 5, 2).map((e) => e.item.name))
+const { previews } = useDeckPreview({
+  mountPoint: () => props.mountPoint,
+  relPath: () => props.relPath,
+  visibleNames: () => visibleNames.value,
+})
 
 async function load() {
   if (!props.volumeUuid) return
@@ -102,6 +113,7 @@ watch(() => props.volumeUuid, () => { load() })
       <TimeMachineDeck
         :items="flatItems"
         :selected-index="selectedIndex"
+        :previews="previews"
         @select="(i: number) => (selectedIndex = i)"
         @enter="enterSnapshot"
       />

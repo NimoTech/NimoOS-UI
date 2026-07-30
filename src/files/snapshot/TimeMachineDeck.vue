@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import TimeMachineCard from './TimeMachineCard.vue'
 import { buildVisibleStack } from '../util/timeMachineMath'
+import type { DeckPreview } from '../composables/useDeckPreview'
 
 // 形状与 T7 覆盖层里的 FlatSnapshotItem 一致(TS 结构类型,不需要互相 import);
 // 这里独立声明是为了让卡堆不依赖覆盖层,单测可以直接造数据。
@@ -17,7 +18,7 @@ export interface DeckItem {
   dayLabelText: string
 }
 
-const props = defineProps<{ items: DeckItem[]; selectedIndex: number }>()
+const props = defineProps<{ items: DeckItem[]; selectedIndex: number; previews?: Record<string, DeckPreview> }>()
 const emit = defineEmits<{ (e: 'select', index: number): void; (e: 'enter'): void }>()
 
 // 只渲染可见窗口(选中 + 后 4 张 + 已翻过去的 2 张),而不是整个列表:一个卷可能保留
@@ -40,6 +41,7 @@ function onCardClick(entry: { index: number; state: string }) {
         :item="entry.item"
         :state="entry.state"
         :depth="entry.depth"
+        :preview="props.previews?.[entry.item.name] ?? null"
         @click="onCardClick(entry)"
       />
     </div>

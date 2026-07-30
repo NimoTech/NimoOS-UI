@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { service } from '@nimotech/nimoos-service'
+import { iconNameFor, iconUrl } from '../util/icons'
+import type { DeckPreview, DeckPreviewTile } from '../composables/useDeckPreview'
 
 export interface TimeMachineCardItem {
   time: string
@@ -13,8 +17,24 @@ const props = defineProps<{
   item: TimeMachineCardItem
   state: 'front' | 'behind' | 'past'
   depth: number
+  preview?: DeckPreview | null
 }>()
 const { t } = useI18n()
+
+const moreCount = computed(() => {
+  const p = props.preview
+  return p && p.status === 'ready' ? Math.max(0, p.total - p.tiles.length) : 0
+})
+function tileSrc(tile: DeckPreviewTile): string {
+  return tile.isImage
+    ? service.image.thumbUrl(tile.path)
+    : iconUrl(iconNameFor({ name: tile.name, is_dir: tile.isDir }))
+}
+// 缩略图 404 时静默换成类型图标,不让卡片上出现破图
+function onTileError(e: Event) {
+  const img = e.target as HTMLImageElement
+  img.src = iconUrl('unknown')
+}
 </script>
 
 <template>
@@ -28,9 +48,17 @@ const { t } = useI18n()
          "注释 + div" 的多根 fragment,组件 $el 解析成注释节点,VTU 的 wrapper.classes()
          就会读到空数组(实测踩坑,已在此改正)。 -->
     <span class="tm-card-badge">{{ t(props.item.typeLabelKey) }}</span>
+    <div v-if="props.preview?.status === 'ready' && props.preview.tiles.length" class="tm-tiles">
+      <span v-for="tile in props.preview.tiles" :key="tile.path" class="tm-tile">
+        <img :src="tileSrc(tile)" alt="" loading="lazy" @error="onTileError" />
+      </span>
+      <span v-if="moreCount > 0" class="tm-tile tm-tile-more">+{{ moreCount }}</span>
+    </div>
+    <span v-else-if="props.preview?.status === 'missing'" class="tm-card-missing">{{ t('tmNoFolderAtTime') }}</span>
     <span class="tm-card-day">{{ props.item.dayLabelText }}</span>
     <span class="tm-card-time">{{ props.item.time }}</span>
     <span v-if="props.item.label" class="tm-card-label">{{ props.item.label }}</span>
+    <span v-if="props.preview?.status === 'ready'" class="tm-card-count">{{ t('tmItemCount', { n: props.preview.total }) }}</span>
   </div>
 </template>
 
@@ -71,5 +99,14 @@ const { t } = useI18n()
   font-size: 12px; color: var(--tm-fg-muted); max-width: 90%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.tm-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 78%; margin-bottom: 4px; }
+.tm-tile {
+  aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; overflow: hidden; background: var(--nrm-bg);
+  font-size: 11px; color: var(--tm-fg-muted);
+}
+.tm-tile img { width: 100%; height: 100%; object-fit: cover; }
+.tm-card-count { font-size: 11px; color: var(--tm-fg-muted); }
+.tm-card-missing { font-size: 12px; color: var(--tm-fg-muted); }
 @media (prefers-reduced-motion: reduce) { .tm-card { transition: none; } }
 </style>
