@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createI18n } from 'vue-i18n'
@@ -50,6 +50,11 @@ const router = createRouter({ history: createMemoryHistory(), routes: [
   { path: '/storage/raid/:id', name: 'storage-raid-detail', component: StorageRaidDetail },
   { path: '/storage/raid', name: 'storage-raid', component: Stub }, { path: '/', component: Stub },
 ] })
+
+// 用例之间自动卸载 wrapper。本文件多处用 attachTo: document.body + 手动清 body,
+// 不卸载的话前一个用例遗留的活组件会在后续用例改 store 时被重渲染,patch 到已脱离
+// DOM 的节点上抛 "Cannot read properties of null (reading 'nextSibling')"。
+enableAutoUnmount(afterEach)
 
 describe('StorageRaidDetail', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
@@ -217,5 +222,66 @@ describe('StorageRaidDetail', () => {
     const store = (await import('../storage/stores/storage')).useStorageStore()
     expect(store.replaceTask).toBeNull()
     expect(router.currentRoute.value.path).toBe('/storage/raid/7')
+  })
+
+  // ── 陈旧快照回归(2026-07-28 实盘验收) ─────────────────────────────
+  // 换完盘再点进详情页,页面曾原样渲染 store 里**换盘前**那一帧(空槽位 + 故障盘,
+  // 4 行成员),看起来像替换没生效。进页面要跑两次串行请求才会更新那份 store 状态,
+  // 期间不清空就会渲染旧数据。
+  it('进页面先清空旧快照:加载期显示加载态,不渲染上一次的成员列表', async () => {
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    // 预置一份"换盘前"的陈旧快照(4 行成员,含故障盘)
+    store.raidDetail = {
+      array: { id: 7, name: 'md7', level: 5, state: 'degraded' },
+      status: degradedStatus,
+      usage: null,
+    } as never
+
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await w.vm.$nextTick()
+    // 请求尚未 resolve:必须是加载态,不能把陈旧的 /dev/sda(故障盘)摆出来
+    expect(w.find('.rd-loading').exists()).toBe(true)
+    expect(w.findAll('.rml-row').length).toBe(0)
+
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    expect(w.find('.rd-loading').exists()).toBe(false)
+    expect(w.findAll('.rml-row').length).toBeGreaterThan(0)
+  })
+
+  it('store 里存着别的阵列的详情 → 不渲染(只认当前 :id)', async () => {
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    // 冒充另一个阵列的数据塞进 store
+    store.raidDetail = {
+      array: { id: 99, name: 'other-array', level: 1, state: 'active' },
+      status: degradedStatus, usage: null,
+    } as never
+    await w.vm.$nextTick()
+    expect(w.find('.rd-loading').exists()).toBe(true)
+    expect(w.text()).not.toContain('other-array')
+  })
+
+  // :id 变化时组件实例被路由复用,onMounted 不会再跑 —— 没有 watcher 会一直显示前一个阵列
+  it(':id 变化 → 重新拉取该阵列详情', async () => {
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    raidList.mockResolvedValue([
+      { id: 7, name: 'md7', level: 5, state: 'degraded', mount_point: '/DATA', uuid: 'u-7' },
+      { id: 8, name: 'md8', level: 1, state: 'active', mount_point: '/DATA2', uuid: 'u-8' },
+    ])
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    expect(w.text()).toContain('md7')
+
+    await router.push('/storage/raid/8')
+    await w.vm.$nextTick()
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    expect(w.text()).toContain('md8')
+    expect(w.text()).not.toContain('md7')
   })
 })

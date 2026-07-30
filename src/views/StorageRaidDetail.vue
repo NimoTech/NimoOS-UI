@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StorageShell from '../storage/components/StorageShell.vue'
@@ -23,10 +23,19 @@ const { t } = useI18n()
 
 const idStr = computed(() => String(route.params.id))
 
-// 先 loadRaid() 拿阵列名/level(list 视图可能未跑过),再拉本阵列的 status/usage 详情
-onMounted(() => {
+// 先 loadRaid() 拿阵列名/level(list 视图可能未跑过),再拉本阵列的 status/usage 详情。
+//
+// 必须先 clearRaidDetail():这两次请求是串行的,期间页面渲染的还是 store 里**上一次**
+// 的快照。换完盘再点进详情页会看到换盘前那一帧(空槽位 + 故障盘,4 行成员),
+// 看起来像替换没生效(2026-07-28 实盘验收发现)。
+function reloadDetail() {
+  store.clearRaidDetail()
   store.loadRaid().then(() => store.loadRaidDetail(idStr.value))
-})
+}
+onMounted(reloadDetail)
+// :id 变化时组件实例被路由复用、onMounted 不会再跑 —— 没有这个 watcher,从一个阵列
+// 详情页跳到另一个阵列详情页会一直显示前一个阵列的数据(P3 遗留台账项)。
+watch(idStr, reloadDetail)
 
 // 换盘弹窗的候选盘来自 store.availDisks,而它只由 loadDrives() 填充。
 // Vue2 的 RAID 区是一整个无路由面板,availableDisks 由父面板统一加载后当 prop
@@ -38,7 +47,12 @@ onMounted(() => {
 // —— 与 StorageRaidCreate.vue:33 同一模式。
 useDiskHotplug(() => store.loadDrives())
 
-const detail = computed(() => store.raidDetail)
+// 只认属于当前路由 :id 的那份快照。清空 + watcher 已经覆盖了主要路径,这一道是
+// 兜底:任何"store 里存着别的阵列的数据"的时机都不会被渲染出来。
+const detail = computed(() => {
+  const d = store.raidDetail
+  return d && String(d.array.id) === idStr.value ? d : null
+})
 const fallbackArray: RaidArray = { id: '', name: '', level: 0, state: '' }
 const array = computed(() => detail.value?.array ?? fallbackArray)
 const status = computed(() => detail.value?.status ?? null)
@@ -171,7 +185,12 @@ async function onReplace(newDiskPath: string) {
         @confirm="onReplace"
       />
 
-      <div class="rd-cols">
+      <!-- 详情未就绪时显示加载态,而不是拿 fallbackArray 渲染一个"名称空、级别 0"的空壳。
+           detail 为空只发生在两处:进页面/换 :id 后清空等重拉,以及 store 里存的是别的
+           阵列的数据。两种情况都不该把不属于本页的内容摆出来。 -->
+      <div v-if="!detail" class="rd-loading">{{ t('storageLoading') }}</div>
+
+      <div v-else class="rd-cols">
         <div class="rd-col-left">
           <div class="rd-card rd-donut-card">
             <div class="rd-donut" :style="donutStyle">
@@ -265,6 +284,7 @@ async function onReplace(newDiskPath: string) {
 }
 .rd-delete:hover { background: var(--chip-bg-hi); }
 
+.rd-loading { padding: 24px 4px; color: var(--fg-muted); font-size: 14px; }
 .rd-cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: start; }
 @media (max-width: 768px) { .rd-cols { grid-template-columns: 1fr; } }
 

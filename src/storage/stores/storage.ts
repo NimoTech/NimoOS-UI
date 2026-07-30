@@ -181,6 +181,13 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  // clearRaidDetail —— 进详情页前先把上一次的快照清掉。
+  // 详情页渲染的是这份 store 状态,而进页面要跑两次串行请求(loadRaid → loadRaidDetail)
+  // 才会更新它;不清空的话这段窗口里页面会原样渲染**上一次**的数据 —— 换完盘再点进
+  // 详情页会看到换盘前那一帧(空槽位 + 故障盘,4 行成员),看起来像替换没生效
+  // (2026-07-28 实盘验收发现)。
+  function clearRaidDetail() { raidDetail.value = null }
+
   async function detectCreatingTask() {
     try {
       const res = await service.raid.listTasks()
@@ -383,6 +390,7 @@ export const useStorageStore = defineStore('storage', () => {
     formatVolume,
     loadRaid,
     loadRaidDetail,
+    clearRaidDetail,
     detectCreatingTask,
     pollCreateTaskOnce,
     startCreateTask,
