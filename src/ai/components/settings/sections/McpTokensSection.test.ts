@@ -30,6 +30,7 @@ vi.mock('../../../../files/util/clipboard', () => ({ copyText: h.copyText }))
 
 import McpTokensSection from './McpTokensSection.vue'
 import { useToast } from '../../../../stores/toast'
+import AgentIcon from '../../icons/AgentIcon.vue'
 import { mcpEndpointUrl } from '../../../util/mcpConnect'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -198,6 +199,53 @@ describe('McpTokensSection', () => {
     await flush()
     expect(h.copyText).toHaveBeenCalledWith(mcpEndpointUrl())
     expect(show).toHaveBeenCalledWith('已复制')
+  })
+
+  // 【SP8-P2b 验收第 5 轮,用户 2026-07-30 需求】「点击 copy 完之后把对应的 copy 打勾,
+  // 表示已经复制过了,在点击复制其他东西时重置」。同时只有一个按钮打勾。
+  // 打勾态复用 settings-styles.scss:115 的 `.set-copybtn.done`(两个仓库里原本都是死样式,
+  // 见 useCopyFeedback.ts 头注释),图标由 copy 换成 check。
+  it('8b. 复制成功后该按钮打勾(.done + check 图标);复制别的按钮时勾转移过去', async () => {
+    h.copyText.mockResolvedValue(undefined)
+    const w = mountSection()
+    await flush()
+    const btns = () => w.findAll('.set-copybtn')
+    const iconName = (i: number) =>
+      btns()[i].findComponent(AgentIcon).props('name')
+
+    // 初始:谁都不打勾,图标都是 copy
+    expect(btns()[0].classes()).not.toContain('done')
+    expect(iconName(0)).toBe('copy')
+
+    await btns()[0].trigger('click')
+    await flush()
+    expect(btns()[0].classes()).toContain('done')
+    expect(iconName(0)).toBe('check')
+    expect(btns()[1].classes()).not.toContain('done')
+
+    // 复制别的东西 → 勾转移,旧的撤销
+    await btns()[1].trigger('click')
+    await flush()
+    expect(btns()[1].classes()).toContain('done')
+    expect(iconName(1)).toBe('check')
+    expect(btns()[0].classes()).not.toContain('done')
+    expect(iconName(0)).toBe('copy')
+  })
+
+  it('8c. 复制失败不打勾,并把旧的勾撤掉', async () => {
+    h.copyText.mockResolvedValue(undefined)
+    const w = mountSection()
+    await flush()
+    await w.findAll('.set-copybtn')[0].trigger('click')
+    await flush()
+    expect(w.findAll('.set-copybtn')[0].classes()).toContain('done')
+
+    h.copyText.mockRejectedValueOnce(new Error('trap'))
+    await w.findAll('.set-copybtn')[1].trigger('click')
+    await flush()
+    const btns = w.findAll('.set-copybtn')
+    expect(btns[0].classes()).not.toContain('done')
+    expect(btns[1].classes()).not.toContain('done')
   })
 
   it('9. 常驻接入说明框用占位令牌 <YOUR_TOKEN>（不是真令牌）', async () => {

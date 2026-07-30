@@ -37,14 +37,16 @@
   改动,超出移植范围)。
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useSessionStore } from '../../../../stores/session'
 import { useToast } from '../../../../stores/toast'
 import { apiErrorMessage } from '../../../util/apiError'
-import { copyText } from '../../../../files/util/clipboard'
-import { bindingLabel, fillPairInstructions, fillTokenTail, type ChannelBinding } from '../../../util/channelsFormat'
+import { useCopyFeedback } from '../../../composables/useCopyFeedback'
+import {
+  bindingLabel, fillPairInstructions, fillTokenTail, addBotErrorKey, type ChannelBinding,
+} from '../../../util/channelsFormat'
 import { buildCloudModelList, type AgentModel } from '../../../stores/agentStore'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import ModelPicker from '../../shell/ModelPicker.vue'
@@ -63,6 +65,7 @@ interface ChannelInstance {
 
 const { t } = useI18n()
 const toast = useToast()
+const { copiedKey, copy, resetCopied } = useCopyFeedback()
 const session = useSessionStore()
 const isAdmin = computed(() => session.isAdmin)
 
@@ -82,6 +85,11 @@ const newName = ref('')
 const newToken = ref('')
 const newType = ref<'telegram' | 'discord'>('telegram')
 const adding = ref(false)
+// 【申报级偏离 Vue2 1:1,用户 2026-07-30 验收时拍板】Vue2 :270-272 添加机器人失败时弹
+// danger toast;用户要求改成「错误提示在 token 输入栏上面」的行内报错,并明确「不要用以前
+// vue2 的模式了」。故本 ref 承载该错误、模板渲染在 token 字段的 <input> 之前,addBot() 的
+// catch 不再调 toast.show。清除时机见下方三个 watch(改 token / 切平台 / 开关弹窗)。
+const addError = ref('')
 const confirmDeleteBotOpen = ref(false)
 const confirmUnbindOpen = ref(false)
 const pendingBotId = ref<string | number | null>(null)
@@ -163,9 +171,15 @@ async function loadInstances() {
   }
 }
 
+// 行内报错的清除时机:用户一动 token 或平台就撤掉旧错误(否则改完还挂着上一次的红字,
+// 看起来像新错误);弹窗开/关也清,避免重开时残留。三条都有用例 19b 钉住。
+watch([newToken, newType], () => { addError.value = '' })
+watch(showAdd, () => { addError.value = '' })
+
 async function addBot() {
   const token = newToken.value.trim()
   if (!token) return
+  addError.value = ''
   adding.value = true
   try {
     await service.ai.createChannelInstance({
@@ -180,8 +194,12 @@ async function addBot() {
     await loadInstances()
     await loadPairable()
   } catch (e) {
-    // Vue2 :270-272 失败时 showAdd 保持 true,不关弹窗
-    toast.show(apiErrorMessage(e, t('aiCfgChannelsAddBotFailed')), 3000, 'danger')
+    // Vue2 :270-272 失败时 showAdd 保持 true,不关弹窗 —— 这一点保留。
+    // 但错误不再走 toast(见 addError 声明处的偏离说明),改为 token 字段上方的行内提示。
+    // 不用 apiErrorMessage —— 它可能返回后端英文原文(FastAPI 的 detail)。这里走
+    // 「后端串 → i18n 键」映射,保证行内报错**永远是当前语言的人话、永不回显 JSON**
+    // (用户 2026-07-30 报的正是界面上出现 `{"detail":"bot token rejected"}`)。
+    addError.value = t(addBotErrorKey(e))
   } finally {
     adding.value = false
   }
@@ -289,17 +307,11 @@ async function onCodeClosed() {
 }
 
 function handleCodeOpenChange(open: boolean) {
-  if (!open) void onCodeClosed()
+  // 撤掉打勾态,免得下次打开配对码弹窗还挂着上一次的绿勾。
+  if (!open) { resetCopied(); void onCodeClosed() }
 }
 
-async function copy(text: string) {
-  try {
-    await copyText(text)
-    toast.show(t('aiCopied'))
-  } catch {
-    toast.show(t('aiCfgCopyFailed'), 3000, 'warning')
-  }
-}
+// SP8-P2b 验收第 5 轮:复制反馈(toast + 「已复制」打勾态)统一走 useCopyFeedback。
 </script>
 
 <template>
@@ -432,6 +444,9 @@ async function copy(text: string) {
       </div>
       <div class="sk-field">
         <label class="sk-field-label">{{ t('aiCfgChannelsBotToken') }}</label>
+        <!-- 添加失败的行内报错(用户拍板取代 Vue2 的 danger toast):必须渲染在 <input>
+             之前,视觉上落在输入框上方。role="alert" 让读屏软件即时播报。 -->
+        <p v-if="addError" class="chan-field-err" role="alert">{{ addError }}</p>
         <input type="text" v-model="newToken">
         <p class="chan-field-hint">
           {{ newType === 'discord' ? t('aiCfgChannelsBotTokenDiscordHint') : t('aiCfgChannelsBotTokenTelegramHint') }}
@@ -451,8 +466,9 @@ async function copy(text: string) {
       <p class="chan-modal-warn">{{ t('aiCfgChannelsCodeWarn') }}</p>
       <div class="set-copy">
         <input class="set-input full mono" :value="revealedCode" readonly>
-        <button class="set-copybtn" @click="copy(revealedCode)">
-          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+        <button class="set-copybtn" :class="{ done: copiedKey === 'pair-code' }"
+          @click="copy(revealedCode, 'pair-code')">
+          <AgentIcon :name="copiedKey === 'pair-code' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
         </button>
       </div>
       <p class="chan-modal-hint">{{ pairInstructions }}</p>

@@ -50,7 +50,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useToast } from '../../../../stores/toast'
 import { apiErrorMessage } from '../../../util/apiError'
-import { copyText } from '../../../../files/util/clipboard'
+import { useCopyFeedback } from '../../../composables/useCopyFeedback'
 import {
   mcpEndpointUrl, buildMcpInstruction, buildMcpJson, formatEpochMs, MCP_PLACEHOLDER_TOKEN,
 } from '../../../util/mcpConnect'
@@ -68,6 +68,7 @@ interface McpToken {
 
 const { t } = useI18n()
 const toast = useToast()
+const { copiedKey, copy, resetCopied } = useCopyFeedback()
 
 const tokens = ref<McpToken[]>([])
 const loading = ref(false)
@@ -150,6 +151,8 @@ async function doDelete(id: string | number) {
 // 明文弹窗关闭时:先清明文、再重新拉列表(Vue2 :207-211 同序)。清明文必须在 await 之前
 // —— 否则请求在途这段时间明文还留在内存/DOM 里。
 async function onRevealClose() {
+  // 撤掉打勾态:否则下次打开弹窗还挂着上一次的绿勾,像是"这次已经复制过了"
+  resetCopied()
   showReveal.value = false
   revealedToken.value = ''
   await load()
@@ -172,14 +175,8 @@ function fmtLastUsed(tk: McpToken): string {
   return `${t('aiCfgLastUsed')}: ${formatEpochMs(tk.last_used_at)}`
 }
 
-async function copy(text: string) {
-  try {
-    await copyText(text)
-    toast.show(t('aiCopied'))
-  } catch {
-    toast.show(t('aiCfgCopyFailed'), 3000, 'warning')
-  }
-}
+// SP8-P2b 验收第 5 轮:复制反馈(toast + 「已复制」打勾态)统一走 useCopyFeedback,
+// 同时只有一个按钮打勾、复制别的东西自动重置。需求与设计取舍见该文件头注释。
 </script>
 
 <template>
@@ -201,8 +198,9 @@ async function copy(text: string) {
             <div class="val">
               <div class="set-copy">
                 <input class="set-input full mono" :value="endpointUrl" readonly>
-                <button class="set-copybtn" @click="copy(endpointUrl)">
-                  <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+                <button class="set-copybtn" :class="{ done: copiedKey === 'endpoint' }"
+                  @click="copy(endpointUrl, 'endpoint')">
+                  <AgentIcon :name="copiedKey === 'endpoint' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
                 </button>
               </div>
             </div>
@@ -230,8 +228,9 @@ async function copy(text: string) {
                   class="set-input code" :value="buildInstruction(MCP_PLACEHOLDER_TOKEN)"
                   readonly rows="7"
                 />
-                <button class="set-copybtn" @click="copy(buildInstruction(MCP_PLACEHOLDER_TOKEN))">
-                  <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+                <button class="set-copybtn" :class="{ done: copiedKey === 'tmpl-instruction' }"
+                  @click="copy(buildInstruction(MCP_PLACEHOLDER_TOKEN), 'tmpl-instruction')">
+                  <AgentIcon :name="copiedKey === 'tmpl-instruction' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
                 </button>
               </div>
             </div>
@@ -241,8 +240,9 @@ async function copy(text: string) {
             <div class="val">
               <div class="set-copy">
                 <textarea class="set-input code" :value="buildJson(MCP_PLACEHOLDER_TOKEN)" readonly rows="7" />
-                <button class="set-copybtn" @click="copy(buildJson(MCP_PLACEHOLDER_TOKEN))">
-                  <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+                <button class="set-copybtn" :class="{ done: copiedKey === 'tmpl-json' }"
+                  @click="copy(buildJson(MCP_PLACEHOLDER_TOKEN), 'tmpl-json')">
+                  <AgentIcon :name="copiedKey === 'tmpl-json' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
                 </button>
               </div>
             </div>
@@ -286,22 +286,25 @@ async function copy(text: string) {
       <p class="mcp-reveal-warn">{{ t('aiCfgTokenShownOnce') }}</p>
       <div class="set-copy">
         <input class="set-input full mono" :value="revealedToken" readonly>
-        <button class="set-copybtn" @click="copy(revealedToken)">
-          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+        <button class="set-copybtn" :class="{ done: copiedKey === 'token' }"
+                  @click="copy(revealedToken, 'token')">
+          <AgentIcon :name="copiedKey === 'token' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
         </button>
       </div>
       <label class="mcp-label">{{ t('aiCfgGiveThisToAgent') }}</label>
       <div class="set-copy">
         <textarea class="set-input code" :value="buildInstruction(revealedToken)" readonly rows="6" />
-        <button class="set-copybtn" @click="copy(buildInstruction(revealedToken))">
-          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+        <button class="set-copybtn" :class="{ done: copiedKey === 'reveal-instruction' }"
+                  @click="copy(buildInstruction(revealedToken), 'reveal-instruction')">
+          <AgentIcon :name="copiedKey === 'reveal-instruction' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
         </button>
       </div>
       <label class="mcp-label">{{ t('aiCfgOrPasteIntoConfig') }}</label>
       <div class="set-copy">
         <textarea class="set-input code" :value="buildJson(revealedToken)" readonly rows="7" />
-        <button class="set-copybtn" @click="copy(buildJson(revealedToken))">
-          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
+        <button class="set-copybtn" :class="{ done: copiedKey === 'reveal-json' }"
+                  @click="copy(buildJson(revealedToken), 'reveal-json')">
+          <AgentIcon :name="copiedKey === 'reveal-json' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}
         </button>
       </div>
       <template #footer>

@@ -423,8 +423,13 @@ describe('ChannelsSection', () => {
     expect(telegramBtn.dataset.active).toBe('true')
   })
 
-  it('19. addBot 失败 → danger toast 用后端消息(兜底「添加失败，请检查 Token。」),弹窗不关', async () => {
-    h.createChannelInstance.mockRejectedValueOnce({ response: { data: { message: '机器人名额已满' } } })
+  // 【申报级偏离 Vue2 1:1,用户 2026-07-30 验收时拍板】原用例断言的是 Vue2 的 danger toast
+  // (`Vue2 ChannelsSection.vue:270-272`)。用户原话:「添加错误 token 的机器人我希望错误提示
+  // 在 token 输入栏上面而不是 toast 的形式,不要用以前 vue2 的模式了」。故本用例整体改写:
+  // 错误落在 token 字段上方的行内提示,**且不再弹 toast**。弹窗不关这一点不变。
+  it('19. addBot 失败 → token 输入框上方行内报错(本地化文案,认不出的后端原文一律不回显),不弹 toast、弹窗不关', async () => {
+    // 后端(agent/main.py:424)真实形状:FastAPI 的 {detail:"bot token rejected"}
+    h.createChannelInstance.mockRejectedValueOnce({ response: { data: { detail: 'bot token rejected' } } })
     asAdmin()
     const w = mountSection()
     await flush()
@@ -432,7 +437,8 @@ describe('ChannelsSection', () => {
     const show = vi.spyOn(toast, 'show')
     await w.find('.sk-btn.primary').trigger('click')
     await flush()
-    const tokenInput = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
+    const tokenField = document.querySelector('.sk-modal .sk-field:nth-of-type(3)') as HTMLElement
+    const tokenInput = tokenField.querySelector('input') as HTMLInputElement
     tokenInput.value = 'tg:token'
     tokenInput.dispatchEvent(new Event('input'))
     await flush()
@@ -441,14 +447,83 @@ describe('ChannelsSection', () => {
     ) as HTMLButtonElement
     submitBtn.click()
     await flush()
-    expect(show).toHaveBeenCalledWith('机器人名额已满', 3000, 'danger')
+
+    const err = tokenField.querySelector('.chan-field-err') as HTMLElement
+    expect(err).not.toBeNull()
+    // 显示的是本地化文案(zh_cn 的 aiCfgChannelsErrTokenRejected),不是后端英文原文
+    expect(err.textContent).toBe(zh.aiCfgChannelsErrTokenRejected)
+    expect(err.textContent).not.toContain('bot token rejected')
+    // 关键回归:界面上永不出现 JSON 片段(用户 2026-07-30 看到过 {"detail":"..."} )
+    expect(err.textContent).not.toContain('{')
+    expect(err.textContent).not.toContain('detail')
+    // 位置:必须在 token <input> **之前**(DOM 顺序 = 视觉上在输入框上方)
+    expect(err.compareDocumentPosition(tokenInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // 不再走 toast
+    expect(show).not.toHaveBeenCalled()
     expect(document.querySelector('.sk-modal')).not.toBeNull() // 弹窗仍开着
 
-    show.mockClear()
+    // 认不出的后端对象 → 通用本地化兜底,且原文不外泄
+    h.createChannelInstance.mockRejectedValueOnce({ response: { data: { detail: '机器人名额已满' } } })
+    submitBtn.click()
+    await flush()
+    expect((tokenField.querySelector('.chan-field-err') as HTMLElement).textContent)
+      .toBe(zh.aiCfgChannelsAddBotFailed)
+
+    // 完全空的错误 → 同一条兜底
     h.createChannelInstance.mockRejectedValueOnce({})
     submitBtn.click()
     await flush()
-    expect(show).toHaveBeenCalledWith('添加失败，请检查 Token。', 3000, 'danger')
+    expect((tokenField.querySelector('.chan-field-err') as HTMLElement).textContent)
+      .toBe(zh.aiCfgChannelsAddBotFailed)
+    expect(show).not.toHaveBeenCalled()
+  })
+
+  it('19b. 行内报错在改动 token / 切换平台 / 重开弹窗时都会清除', async () => {
+    h.createChannelInstance.mockRejectedValue({ response: { data: { message: '机器人名额已满' } } })
+    asAdmin()
+    const w = mountSection()
+    await flush()
+    const openAndFail = async () => {
+      await w.find('.sk-btn.primary').trigger('click')
+      await flush()
+      const field = document.querySelector('.sk-modal .sk-field:nth-of-type(3)') as HTMLElement
+      const input = field.querySelector('input') as HTMLInputElement
+      input.value = 'tg:token'
+      input.dispatchEvent(new Event('input'))
+      await flush()
+      ;(Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
+        (b) => b.textContent?.trim() === '添加机器人',
+      ) as HTMLButtonElement).click()
+      await flush()
+      expect(field.querySelector('.chan-field-err')).not.toBeNull()
+      return { field, input }
+    }
+
+    // ① 改动 token 后清除
+    const a = await openAndFail()
+    a.input.value = 'tg:token2'
+    a.input.dispatchEvent(new Event('input'))
+    await flush()
+    expect(a.field.querySelector('.chan-field-err')).toBeNull()
+
+    // ② 切换平台后清除
+    const b = await openAndFail()
+    ;(Array.from(document.querySelectorAll('.chan-type-opt')).find(
+      (x) => x.textContent?.trim() === 'Discord',
+    ) as HTMLButtonElement).click()
+    await flush()
+    expect(b.field.querySelector('.chan-field-err')).toBeNull()
+
+    // ③ 关掉再重开时不残留上一次的错误
+    const c = await openAndFail()
+    ;(Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
+      (x) => x.textContent?.trim() === '取消',
+    ) as HTMLButtonElement).click()
+    await flush()
+    expect(c.field.querySelector('.chan-field-err')).toBeNull()
+    await w.find('.sk-btn.primary').trigger('click')
+    await flush()
+    expect(document.querySelector('.sk-modal .chan-field-err')).toBeNull()
   })
 
   it('20. 配对码弹窗指引文案含 bot 用户名与 code;点复制 → copyText(code) + 「已复制」toast', async () => {

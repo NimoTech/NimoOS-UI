@@ -34,7 +34,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useToast } from '../../../../stores/toast'
 import { apiErrorMessage } from '../../../util/apiError'
-import { copyText } from '../../../../files/util/clipboard'
+import { useCopyFeedback } from '../../../composables/useCopyFeedback'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import SetSwitch from '../SetSwitch.vue'
 
@@ -49,6 +49,7 @@ interface FileindexStatus {
 
 const { t } = useI18n()
 const toast = useToast()
+const { copiedKey, copy } = useCopyFeedback()
 
 const sources = ref<SourceKey[]>(['semantic', 'filenames', 'images'])
 const semanticTopK = ref(5)
@@ -170,12 +171,8 @@ async function copyCmd() {
   const cmd = status.value.inotify?.raise_cmd
   if (!cmd) return
   // 逻辑修正 3:见文件头注释。
-  try {
-    await copyText(cmd)
-    toast.show(t('aiCopied'))
-  } catch {
-    toast.show(t('aiCfgCopyFailed'), 3000, 'warning')
-  }
+  // SP8-P2b 验收第 5 轮:复制反馈(toast + 打勾态)统一走 useCopyFeedback。
+  await copy(cmd, 'raise-cmd')
 }
 
 function toggleSource(k: SourceKey) {
@@ -326,7 +323,7 @@ function toggleSource(k: SourceKey) {
             </div>
             <div v-if="status.watch_degraded || status.inotify.max_user_watches < status.inotify.recommended" class="set-copy">
               <input class="set-input mono" readonly :value="status.inotify.raise_cmd">
-              <button class="set-copybtn" @click="copyCmd"><AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}</button>
+              <button class="set-copybtn" :class="{ done: copiedKey === 'raise-cmd' }" @click="copyCmd"><AgentIcon :name="copiedKey === 'raise-cmd' ? 'check' : 'copy'" :size="13" /> {{ t('aiCopy') }}</button>
             </div>
           </template>
           <p v-if="status.watch_degraded" class="warn">
