@@ -27,6 +27,11 @@ export interface RailNode {
 
 interface FisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
 
+// 卡堆可见窗口大小:TimeMachineOverlay(决定给哪些快照拉预览)与 TimeMachineDeck(决定渲染
+// 哪些卡)必须用同一个窗口,否则最前的卡拿不到缩略图——之前两处各写一份 (5, 2) 字面量,
+// 改窗口大小时改一处忘另一处不会有任何报错或红测试。提成这一个常量,两处都从这里引用。
+export const DECK_WINDOW = { depth: 5, past: 2 } as const
+
 // macOS Time Machine 的刻度带(以及它借鉴的 Dock)是随光标距离**连续**放大的,不是
 // hover/near/far 几档 —— 这只能靠读光标位置算一个真正的距离函数,任何纯 CSS :hover 规则
 // 都表达不了。这就是那个函数:距离 0 时 maxScale,到 radius 平滑降到 minScale,超出保持 minScale。
@@ -59,7 +64,9 @@ export function buildVisibleStack<T>(
   for (let depth = 0; depth < maxDepth && start + depth < list.length; depth++) {
     out.push({ item: list[start + depth], index: start + depth, depth, state: depth === 0 ? 'front' : 'behind' })
   }
-  // 再放 past(渲染顺序无关紧要,层级由 CSS 的 z-index 决定;这里保证 depth 从近到远)
+  // 再放 past。⚠️ front-first 不变量:调用方(T2 边界用例)依赖 arr[0] 恒为 front 那张——
+  // 这正是当初修掉的 bug(曾经 past 插在前面导致 arr[0] 不是 front),front 必须先 push。
+  // z-index 由 CSS 决定层级,但数组顺序不是"无关紧要",不要再挪到 front 前面。
   for (let depth = 1; depth <= pastDepth && start - depth >= 0; depth++) {
     out.push({ item: list[start - depth], index: start - depth, depth, state: 'past' })
   }

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useSnapshotStore } from '../../storage/stores/snapshot'
 import { groupSnapshotsByDay } from '../../storage/util/snapshotView'
 import { snapshotBrowsePath } from '../util/snapshotPath'
-import { buildVisibleStack, stepSelectedIndex } from '../util/timeMachineMath'
+import { buildVisibleStack, stepSelectedIndex, DECK_WINDOW } from '../util/timeMachineMath'
 import { useDeckPreview } from '../composables/useDeckPreview'
 import TimeMachineBar from './TimeMachineBar.vue'
 import TimeMachineDeck from './TimeMachineDeck.vue'
@@ -42,9 +42,10 @@ const selectedItem = computed(() => flatItems.value[selectedIndex.value] ?? null
 const momentText = computed(() => (selectedItem.value ? `${selectedItem.value.dayLabelText} ${selectedItem.value.time}` : ''))
 
 // 只给卡堆窗口里那几张拉预览(卡片显示"那一刻这个文件夹长什么样")—— 与 TimeMachineDeck
-// 内部渲染可见窗口用的是同一个 buildVisibleStack,窗口大小(5+2)必须一致。
+// 内部渲染可见窗口用的是同一个 buildVisibleStack,窗口大小必须一致 —— 两处都从
+// timeMachineMath.ts 的 DECK_WINDOW 取值,不再各写各的字面量(评审修复 Important)。
 const visibleNames = computed(() =>
-  buildVisibleStack(flatItems.value, selectedIndex.value, 5, 2).map((e) => e.item.name))
+  buildVisibleStack(flatItems.value, selectedIndex.value, DECK_WINDOW.depth, DECK_WINDOW.past).map((e) => e.item.name))
 const { previews } = useDeckPreview({
   mountPoint: () => props.mountPoint,
   relPath: () => props.relPath,
@@ -65,10 +66,33 @@ function enterSnapshot() {
   // ⚠️ 对 Vue2 的有意改正(spec §4 第 1 条):Vue2 的 enterSnapshot 只跳快照根,用户在
   // /Photos/2024 打开时间机器、进去后被扔回卷根还得一层层点回来。卡片展示的就是当前
   // 文件夹在那一刻的样子,进入自然应落在同一个相对路径。
-  emit('select', props.relPath ? `${root}/${props.relPath}` : root)
+  // 评审修复(Important,spec §2.3):那一刻这个快照里根本没有这个目录时(useDeckPreview
+  // 拉目录内容 404 → status:'missing',卡片已经在显示"此时还没有这个文件夹")仍然可以
+  // 进入,但落到快照根 —— 否则拼一个不存在的子路径,files.load 的 catch 把它悄悄降级成
+  // "空文件夹",用户会误以为这个快照什么都没备份。
+  const missing = previews.value[selectedItem.value.name]?.status === 'missing'
+  emit('select', !missing && props.relPath ? `${root}/${props.relPath}` : root)
 }
 
+// 评审修复(Critical):这个 handler 挂在 document 上(需要不管焦点具体落在覆盖层内哪个
+// 子元素都能收到方向键/Esc/Enter),但这意味着叠在它之上的任何弹窗——典型如齿轮设置弹窗
+// (reka-ui DialogContent,Teleport 到 document.body,不是 .tm-overlay 的 DOM 后代)——按键
+// 都会一并冒泡到这里:Esc 关设置弹窗的同时把时间机器也关了、备注框里按 Enter 变成"进入
+// 快照"、方向键输入框调数值的同时拨走了背后选中的快照。两道防线一起上(单独一道都不够):
+// 1) 事件源(e.target)不在覆盖层根元素内 —— 覆盖住"叠着别的弹窗"这整类场景,因为
+//    reka-ui 的弹层内容一律 Teleport 出去,天然不是 rootEl 的后代;
+// 2) 事件源是原生输入控件(INPUT/TEXTAREA)—— 防御性兜底,哪怕将来覆盖层自己内部长出
+//    输入框也不会被这里的方向键/回车吞掉。
+// 只在 e.target 是真实 Element 时才做这两道判定:同目录测试沿用的
+// `document.dispatchEvent(...)` 写法里 target 就是 document 本身(不是 Element),这类
+// 合成事件本就没有"落在哪个元素上"这个信息,直接放行按原逻辑处理,与真实浏览器里
+// keyup 事件的 target 恒为某个具体元素(而不是 document)不矛盾。
 function onKeyup(e: KeyboardEvent) {
+  const target = e.target
+  if (target instanceof Element) {
+    if (!rootEl.value || !rootEl.value.contains(target)) return
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+  }
   const code = e.code || e.key
   if (code === 'Escape') { emit('close'); return }
   // 与真 Time Machine 一致:↑ 往过去(下标更大,列表是 newest-first),↓ 回到现在

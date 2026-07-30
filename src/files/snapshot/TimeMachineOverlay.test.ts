@@ -3,9 +3,11 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import TimeMachineOverlay from './TimeMachineOverlay.vue'
+import { DECK_WINDOW } from '../util/timeMachineMath'
 import zh from '../../i18n/zh_cn'
 
 const listMock = vi.fn()
+const getListMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     snapshot: {
@@ -13,7 +15,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       listVolumes: vi.fn().mockResolvedValue([]), getPolicy: vi.fn(), patchPolicy: vi.fn(),
       togglePolicy: vi.fn(), create: vi.fn(), remove: vi.fn(),
     },
-    folder: { getList: vi.fn().mockResolvedValue({ content: [] }) },
+    folder: { getList: (p: string) => getListMock(p) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${p}` },
   },
 }))
@@ -42,7 +44,11 @@ const flush = async (w: ReturnType<typeof mountIt>) => {
   await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
 }
 
-beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); listMock.mockResolvedValue(SNAPS) })
+beforeEach(() => {
+  setActivePinia(createPinia()); vi.clearAllMocks()
+  listMock.mockResolvedValue(SNAPS)
+  getListMock.mockResolvedValue({ content: [] })
+})
 
 describe('TimeMachineOverlay 三态', () => {
   it('挂载即按卷拉快照列表', async () => {
@@ -120,6 +126,73 @@ describe('TimeMachineOverlay 选择与进入', () => {
     document.dispatchEvent(new KeyboardEvent('keyup', { code: 'Enter' }))
     expect(w.emitted('select')).toHaveLength(1)
   })
+  it('这一刻还没有这个文件夹(预览 404 → missing)时,进入落到快照根而不是拼一个不存在的子路径', async () => {
+    getListMock.mockRejectedValue(Object.assign(new Error('nope'), { code: 404 }))
+    const w = mountIt(); await flush(w)
+    await w.find('.tm-bar-enter').trigger('click')
+    expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x')
+  })
+
+  // 评审修复(Critical 2):onKeyup 挂在 document 上,不看事件源也不管上面是否叠着弹窗。
+  // 齿轮设置弹窗(reka-ui DialogContent)Teleport 到 body,不是 .tm-overlay 的 DOM 后代——
+  // 这三条用例分别钉住两道防线:第 1 条(事件源不在覆盖层外)钉防线①,第 2/3 条把输入框
+  // 直接挂在覆盖层根节点内部,专门验证防线②(标签名判定)独立生效——如果只留防线①,
+  // 这两条会因为"确实在 rootEl 内"而失败,能揪出"删掉防线②"这个变异。
+  it('弹窗打开时 Esc 不 emit close(事件源在覆盖层外,例如叠着的设置弹窗)', async () => {
+    const w = mount(TimeMachineOverlay, {
+      props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
+      global: { plugins: [i18n] }, attachTo: document.body,
+    })
+    await flush(w)
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    outside.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', bubbles: true }))
+    expect(w.emitted('close')).toBeUndefined()
+    w.unmount(); outside.remove()
+  })
+  it('覆盖层内部的输入框(防御性兜底)按 Enter 不 emit select', async () => {
+    const w = mount(TimeMachineOverlay, {
+      props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
+      global: { plugins: [i18n] }, attachTo: document.body,
+    })
+    await flush(w)
+    const input = document.createElement('input')
+    w.find('.tm-overlay').element.appendChild(input)
+    input.dispatchEvent(new KeyboardEvent('keyup', { code: 'Enter', bubbles: true }))
+    expect(w.emitted('select')).toBeUndefined()
+    w.unmount()
+  })
+  it('覆盖层内部的输入框(防御性兜底)方向键不改变 selectedIndex', async () => {
+    const w = mount(TimeMachineOverlay, {
+      props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
+      global: { plugins: [i18n] }, attachTo: document.body,
+    })
+    await flush(w)
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
+    const input = document.createElement('input')
+    w.find('.tm-overlay').element.appendChild(input)
+    input.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowUp', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
+    w.unmount()
+  })
+  // 评审修复(Important):拉预览的窗口(这里)与卡堆渲染的窗口(TimeMachineDeck.test.ts
+  // 的同名用例)必须是同一个数,两处都从 DECK_WINDOW 取值而不是各写各的字面量——否则改
+  // 窗口大小时改一处忘另一处,最前的卡会拿不到缩略图且没有任何报错/红测试。用 10 张快照
+  // (超过窗口大小)才能测出"只给窗口内的拉",凑够 SNAPS 的 3 张测不出边界。刚挂载时
+  // selectedIndex 恒为 0(最新一张),past 方向天然是空的(没有比"最新"更新的快照了),
+  // 所以这时可见窗口就精确等于 DECK_WINDOW.depth——直接验证 overlay 这一侧真的在用
+  // 这个常量,而不是自己另写一份字面量。
+  it('只给卡堆窗口内的快照拉预览(depth 张),不是全部快照', async () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({
+      id: i, name: `202607${String(30 - i).padStart(2, '0')}T090000Z_manual_${i}`, label: '', type: 'manual',
+      created_at: relDay(i, 9),
+    }))
+    listMock.mockResolvedValue(many)
+    const w = mountIt(); await flush(w)
+    expect(getListMock).toHaveBeenCalledTimes(DECK_WINDOW.depth)
+  })
+
   it('齿轮 emit open-settings', async () => {
     const w = mountIt(); await flush(w)
     await w.find('.tm-gear').trigger('click')

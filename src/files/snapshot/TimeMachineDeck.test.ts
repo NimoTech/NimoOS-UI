@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import TimeMachineDeck from './TimeMachineDeck.vue'
+import { DECK_WINDOW } from '../util/timeMachineMath'
 import zh from '../../i18n/zh_cn'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -14,8 +15,25 @@ const mountIt = (props = {}) =>
   mount(TimeMachineDeck, { props: { items: ITEMS, selectedIndex: 3, ...props }, global: { plugins: [i18n] } })
 
 describe('TimeMachineDeck', () => {
-  it('只渲染可见窗口的卡片(5 张后退 + 2 张飞走),不是全部 8 张', () => {
-    expect(mountIt().findAll('.tm-card')).toHaveLength(7)
+  // 评审修复(Important):窗口大小从 DECK_WINDOW 常量取值(不再各写各的 5/2 字面量)——
+  // 断言也从常量算,这样 TimeMachineOverlay 拉预览的窗口(见同名用例)与这里渲染的窗口
+  // 永远算的是同一个数,窗口大小改了两边会一起变,不会出现"最前的卡拿不到缩略图"。
+  it('只渲染可见窗口的卡片(depth 张后退 + past 张飞走),不是全部 8 张', () => {
+    expect(mountIt().findAll('.tm-card')).toHaveLength(DECK_WINDOW.depth + DECK_WINDOW.past)
+  })
+  it('飞走的卡数量精确等于 DECK_WINDOW.past(单独钉住 past 这一侧,防止 depth/past 被调换)', () => {
+    const past = mountIt().findAll('.tm-card').filter((c) => c.classes().includes('is-past'))
+    expect(past).toHaveLength(DECK_WINDOW.past)
+  })
+  // 上面两条用共享的 8 项 ITEMS + selectedIndex:3,depth 侧会被数组边界(长度 8)顶住而不是
+  // 被 DECK_WINDOW.depth 本身顶住——这条换一批够长(15 项)、选中项在中间(不贴任何一侧
+  // 边界)的数据,front+behind 的张数才精确等于 DECK_WINDOW.depth,不会跟 8-3=5 这种
+  // 边界巧合混在一起(单独钉住 depth 这一侧)。
+  it('front+behind 卡片数量精确等于 DECK_WINDOW.depth(数据足够长,不贴数组边界)', () => {
+    const longItems = Array.from({ length: 15 }, (_, i) => mkItem(i))
+    const w = mount(TimeMachineDeck, { props: { items: longItems, selectedIndex: 7 }, global: { plugins: [i18n] } })
+    const frontOrBehind = w.findAll('.tm-card').filter((c) => !c.classes().includes('is-past'))
+    expect(frontOrBehind).toHaveLength(DECK_WINDOW.depth)
   })
   it('选中那张是 is-front', () => {
     const front = mountIt().findAll('.tm-card').filter((c) => c.classes().includes('is-front'))

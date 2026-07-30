@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import TimeMachineCard from './TimeMachineCard.vue'
-import { buildVisibleStack } from '../util/timeMachineMath'
+import { buildVisibleStack, DECK_WINDOW } from '../util/timeMachineMath'
 import type { DeckPreview } from '../composables/useDeckPreview'
 
 // 形状与 T7 覆盖层里的 FlatSnapshotItem 一致(TS 结构类型,不需要互相 import);
@@ -22,8 +22,10 @@ const props = defineProps<{ items: DeckItem[]; selectedIndex: number; previews?:
 const emit = defineEmits<{ (e: 'select', index: number): void; (e: 'enter'): void }>()
 
 // 只渲染可见窗口(选中 + 后 4 张 + 已翻过去的 2 张),而不是整个列表:一个卷可能保留
-// 上百个快照,全渲染成绝对定位卡片纯属浪费。
-const visible = computed(() => buildVisibleStack(props.items, props.selectedIndex, 5, 2))
+// 上百个快照,全渲染成绝对定位卡片纯属浪费。窗口大小必须与 TimeMachineOverlay 拉预览用的
+// 窗口一致(否则最前的卡拿不到缩略图)—— 两处都从 DECK_WINDOW 取值,不再各写一份字面量
+// (评审修复 Important:改窗口大小时只改一处会无声地漏改另一处,没有任何报错或红测试)。
+const visible = computed(() => buildVisibleStack(props.items, props.selectedIndex, DECK_WINDOW.depth, DECK_WINDOW.past))
 
 function onCardClick(entry: { index: number; state: string }) {
   if (entry.state === 'past') return // 已经飞出屏幕的卡不接受点击(jsdom 不生效 pointer-events:none,靠这行早退拦住)
