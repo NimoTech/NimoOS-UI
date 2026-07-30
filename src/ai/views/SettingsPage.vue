@@ -279,6 +279,10 @@ watch(
 )
 
 onMounted(async () => {
+  // SP8-P2b 验收第 3 轮(2026-07-30):登记「AI 区在前台」。应用级 `AppToast` 据此改用
+  // AI 的 toast 配色 —— 否则它用全局蓝黑主题的半透明白底 + 白字,画在本页浅色背景上
+  // 完全看不见(本页所有 toast 反馈都收不到)。根因见 stores/aiTheme.ts 的 aiSurfaces 注释。
+  aiTheme.enterAiSurface()
   // 非 brief 逐条步骤,自行补充(1:1 保真需要)—— Vue2 `Settings.vue:102-107`
   // 在 data() 里每次都独立读一遍 localStorage/matchMedia 初始化主题,与
   // Agent.vue 是否挂载过无关。本仓把主题状态搬到应用级单例 `useAiTheme`
@@ -349,6 +353,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // SP8-P2b 验收第 3 轮:注销「AI 区在前台」,让应用级 toast 回到全局主题(桌面零影响)。
+  aiTheme.leaveAiSurface()
   if (statusPollTimer) clearInterval(statusPollTimer)
   if (io) {
     io.disconnect()

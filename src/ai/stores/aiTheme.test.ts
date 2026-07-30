@@ -91,3 +91,40 @@ describe('agentStore 主题委托给 aiTheme(D1:跨页共享)', () => {
     expect(useAiTheme().theme).toBe('dark')
   })
 })
+
+// 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板「只改 AI 区、桌面零影响」】
+// 缺陷:AI 区所有 toast 隐形。`AppToast` 挂在 `App.vue` 最外层,**不在 `.agent-app` 那层
+// 主题作用域里**,于是用全局蓝黑主题的 `--toast-bg`(半透明白)+ `--toast-fg`(未定义 →
+// 退回 `--fg` = #ffffff)画在 AI 的浅色页面上 = 白底白字,完全看不见。
+// 修法:AI 页面在挂载期间把「AI 区在前台」这个事实登记到本 store,`AppToast` 据此给自己
+// 贴上 AI 的 toast 作用域与明暗;离开 AI 路由则完全恢复原样(桌面零影响)。
+// **用引用计数而不是布尔**:路由切换时新页面的 onMounted 可能早于旧页面的 onBeforeUnmount,
+// 布尔会被离场页面的 false 覆盖成「不在 AI 区」——计数天然免疫这个顺序问题。
+describe('AI 区前台登记(toast 作用域用)', () => {
+  it('初始为 false;登记一次变 true,注销后回 false', () => {
+    const s = useAiTheme()
+    expect(s.aiSurfaceActive).toBe(false)
+    s.enterAiSurface()
+    expect(s.aiSurfaceActive).toBe(true)
+    s.leaveAiSurface()
+    expect(s.aiSurfaceActive).toBe(false)
+  })
+
+  it('引用计数:新页面先挂载、旧页面后卸载,仍然保持 true', () => {
+    const s = useAiTheme()
+    s.enterAiSurface() // 设置页挂载
+    s.enterAiSurface() // Agent 页挂载(路由切换,新页先来)
+    s.leaveAiSurface() // 设置页卸载(旧页后走)
+    expect(s.aiSurfaceActive).toBe(true) // 仍在 AI 区
+    s.leaveAiSurface() // Agent 页也走了
+    expect(s.aiSurfaceActive).toBe(false)
+  })
+
+  it('计数不会被多余的注销压到负数(压到负数会让下一次登记失效)', () => {
+    const s = useAiTheme()
+    s.leaveAiSurface()
+    s.leaveAiSurface()
+    s.enterAiSurface()
+    expect(s.aiSurfaceActive).toBe(true)
+  })
+})

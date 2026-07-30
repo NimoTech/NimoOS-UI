@@ -50,11 +50,12 @@
     null**——store 侧(agentStore.ts)特意不清空这个字段,清空职责在消费它的视图。
 -->
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useAgentStore } from '../stores/agentStore'
+import { useAiTheme } from '../stores/aiTheme'
 import type { ThinkingLevel } from '../stores/agentStore'
 import { provideAgentStore } from '../composables/useProvidedAgentStore'
 import { useToast } from '../../stores/toast'
@@ -71,6 +72,8 @@ import '../styles/tokens.scss'
 import '../styles/agent-styles.scss'
 
 const store = useAgentStore()
+// SP8-P2b 验收第 3 轮:仅用于登记/注销「AI 区在前台」(应用级 toast 的配色作用域)。
+const aiTheme = useAiTheme()
 provideAgentStore(store)
 const route = useRoute()
 const router = useRouter()
@@ -222,6 +225,10 @@ watch(
 )
 
 onMounted(async () => {
+  // SP8-P2b 验收第 3 轮(2026-07-30):登记「AI 区在前台」,让应用级 `AppToast` 改用 AI 的
+  // toast 配色。不登记的话它用全局蓝黑主题的半透明白底 + 白字,在 AI 浅色主题下完全看不见。
+  // 根因与引用计数的理由见 stores/aiTheme.ts 的 aiSurfaces 注释。
+  aiTheme.enterAiSurface()
   store.initTheme()
   // Vue2 Agent.vue:151 —— loadThinkingDefaults 在 loadSessions/loadAvailableModels
   // 之前调一次(ThinkingBar 需要一份兜底默认值,先于会话/模型装载就绪)。函数本身已经
@@ -286,6 +293,11 @@ onMounted(async () => {
       /* onError already surfaced a block */
     }
   }
+})
+
+// SP8-P2b 验收第 3 轮:离开 Agent 页时注销,让 toast 回到全局主题(桌面零影响)。
+onUnmounted(() => {
+  aiTheme.leaveAiSurface()
 })
 </script>
 

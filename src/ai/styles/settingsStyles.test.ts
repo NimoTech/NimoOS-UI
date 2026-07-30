@@ -89,15 +89,86 @@ describe('settings-styles.scss', () => {
   // 迁到本档。同上一条的两道保险:选择器紧跟 `{`(不是裸子串、不会被注释里的反引号类名
   // 撞对),并抓一条真实声明(`.chan-type-opt[data-active="true"]` 的
   // `border-color: var(--accent)`)证明规则体还在,不是只剩选择器空壳。
+  // SP8-P2b 验收反馈(2026-07-30 用户拍板)—— Vue2 的 .px-open 底色是 `--accent-softer`,
+  // 浅色主题下这层极浅的强调色几乎看不见,用户原话「看不出有按钮」。改成实底强调色 + 白字
+  // (`--text-on-accent` 只在 accent 实底上可用,这里正是实底,符合既有约定)。
+  // **有意偏离 Vue2 视觉 1:1,已在 ObservabilitySection.test.ts 用例 20 与台账登记。**
+  it('.px-open 是实底强调色按钮(用户拍板偏离 Vue2 的 accent-softer)', () => {
+    const at = css.indexOf('.px-open {')
+    expect(at, '找不到 .px-open 规则').toBeGreaterThanOrEqual(0)
+    const rule = css.slice(at, css.indexOf('}', at))
+    expect(rule).toContain('background: var(--accent)')
+    expect(rule).toContain('color: var(--text-on-accent)')
+    // 反向:不能再留着旧的极浅底色
+    expect(rule).not.toContain('--accent-softer')
+  })
+
   it('保留 ChannelsSection 的 .chan-*(Vue2 :387-410 scoped 样式迁移)', () => {
     for (const sel of [
       '.chan-bot {', '.chan-model-lbl {', '.chan-switch {', '.chan-modal-warn {',
       '.chan-modal-hint {', '.chan-type-row {', '.chan-type-opt {',
+      // 用户 2026-07-30 拍板新增:添加机器人失败的行内报错(取代 Vue2 的 danger toast)
+      '.chan-field-err {',
       '.chan-type-opt[data-active="true"] {', '.chan-field-hint {', '.chan-invite {',
     ]) {
       expect(css).toContain(sel)
     }
     expect(css).toContain('border-color: var(--accent)')
+  })
+})
+
+// SP8-P2b 验收缺陷(2026-07-30 用户报「浅色模式下执行步数的上下箭头底板是黑色」)——
+// 根因不是取值写错,而是**作用域漏了 `color-scheme`**:`src/styles/theme.css` 只在 `:root`
+// 声明 `color-scheme: dark`(New-UI 默认蓝/暗主题)与 `:root[data-theme="light"]` 的 light;
+// 而 AI 区自建了一层嵌套主题作用域(`SettingsPage.vue:362` / `AgentPage.vue:295` 把
+// `data-theme` 贴在 `.agent-app` 容器上,不动 `<html>`)。`color-scheme` 是可继承属性,
+// AI 区没有自己声明,于是浅色 AI 页在全局暗色主题下继承到 `dark` → 浏览器按暗色 UA 调色板
+// 画**原生控件内部**(`input[type=number]` 的上下箭头底板、原生 checkbox、插入符等),
+// 于是浅底输入框上挂一块黑箭头板。
+// Vue2 无此问题:老应用全局没有 `color-scheme: dark`(只有 Photos 一处 scoped),UA 默认按
+// 浅色画,所以这是 New-UI 独有回归(全局暗默认 + 嵌套主题作用域两件事叠出来的),不是移植走样。
+// 这条守卫钉住「AI 区两套主题块各自声明自己的 color-scheme」——只要谁把它删了就红。
+function blockOf(css: string, selector: string, fromEnd = false): string {
+  // fromEnd:`.ai-toast-scope {` 这个串也出现在两个主题块的**选择器列表**里
+  // (`.agent-app,\n.ai-toast-scope {`),从头找会命中那一整块 token 表。独立的
+  // `.ai-toast-scope` 覆盖块追加在文件末尾,故从后往前找才是它。
+  const at = fromEnd ? css.lastIndexOf(selector) : css.indexOf(selector)
+  expect(at, `tokens.scss 里找不到选择器 ${selector}`).toBeGreaterThanOrEqual(0)
+  const rest = css.slice(at + selector.length)
+  const end = rest.indexOf('\n}')
+  expect(end, `${selector} 的规则体没有闭合`).toBeGreaterThan(0)
+  return rest.slice(0, end)
+}
+
+describe('tokens.scss —— AI 区嵌套主题作用域必须自带 color-scheme', () => {
+  const css = stripComments(read('./tokens.scss'))
+
+  it('.agent-app(浅色基座)声明 color-scheme: light', () => {
+    expect(blockOf(css, '.agent-app,\n.ai-toast-scope {')).toContain('color-scheme: light')
+  })
+
+  it('.agent-app[data-theme="dark"] 声明 color-scheme: dark', () => {
+    expect(blockOf(css, '.agent-app[data-theme="dark"],\n.ai-toast-scope[data-theme="dark"] {'))
+      .toContain('color-scheme: dark')
+  })
+
+  // 【SP8-P2b 验收第 3 轮】AI 区 toast 作用域(`.ai-toast-scope`)必须①能拿到整套 AI token
+  // (靠挂在两个主题块的选择器上)②覆盖 toast 自己的那几个,否则 AppToast 会继续用全局蓝黑
+  // 主题的半透明白底 + 白字,在 AI 浅色页面上看不见。详见 aiTheme.test.ts 的根因说明。
+  it('.ai-toast-scope 挂在 AI 两套主题块的选择器上(才能拿到整套 AI token)', () => {
+    expect(css).toContain('.agent-app,\n.ai-toast-scope {')
+    expect(css).toContain('.agent-app[data-theme="dark"],\n.ai-toast-scope[data-theme="dark"] {')
+  })
+
+  it('.ai-toast-scope 覆盖 toast 的底色/前景色,且全部走 AI token(无裸色)', () => {
+    const rule = blockOf(css, '.ai-toast-scope {', true)
+    for (const decl of ['--toast-bg:', '--toast-fg:', '--toast-warn-bg:', '--toast-warn-fg:',
+      '--toast-danger-bg:', '--toast-danger-fg:', '--chip-border:']) {
+      expect(rule, `.ai-toast-scope 缺 ${decl}`).toContain(decl)
+    }
+    // 取值必须引用 AI token,不许写死颜色字面量
+    expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(rule).not.toMatch(/rgba?\(/)
   })
 })
 
