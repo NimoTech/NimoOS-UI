@@ -1,6 +1,7 @@
 // Task 1 (SP7-P6a 地点): 地点地图的重叠感知贪心聚类。
-// 逐行照搬 Vue2 NimoOS-UI src/utils/placesCluster.js(整文件 101 行),只加 TS 类型
+// 逐行照搬 Vue2 NimoOS-UI src/utils/placesCluster.js,只加 TS 类型
 // 与泛型 —— 算法一个字不改。Vue2 侧该模块零测试,本文件的 __tests__ 是全新建。
+// (不写具体行数:行数会随上游变动再次失准,文件路径不会。)
 //
 // 为什么「抬高 scale 就能求裂点」(T2 splitScaleFor 依赖这条不变量):
 // 气泡以恒定屏幕半径渲染(与缩放无关),两气泡在屏幕上重叠的条件是

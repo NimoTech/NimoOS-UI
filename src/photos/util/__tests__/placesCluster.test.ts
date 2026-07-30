@@ -70,6 +70,21 @@ describe('clusterByOverlap', () => {
     expect(clusterByOverlap([second, first], 1, r10)[0].lead).toBe(second)
   })
 
+  it('三项混合 count 时 tie-break 真正生效:等 count 的两项按下标升序,最大者播种', () => {
+    // a 在下标 0 但 count 最小;b、c 等 count 且都是最大。
+    // 三点两两在合并门槛内(r10 恒 10 → 门槛 20;间距 8),最终并成一簇。
+    //   正确实现(count 降序 + 同 count 下标升序)→ order = [1, 2, 0] → seed = b
+    //   sort 回调被改成 () => 0            → order = [0, 1, 2] → seed = a(红)
+    //   tie-break 写反成 b - a              → order = [2, 1, 0] → seed = c(红)
+    const a = p('a', 0, 0, 5)
+    const b = p('b', 8, 0, 10)
+    const c = p('c', 16, 0, 10)
+    const out = clusterByOverlap([a, b, c], 1, r10)
+    expect(out).toHaveLength(1)
+    expect(out[0].lead).toBe(b)
+    expect(out[0].members[0]).toBe(b)
+  })
+
   it('簇半径随吸收增长,能拉进第一轮门槛外的点(吸收后必须重算半径)', () => {
     // r3 三档:seed count=39 → 半径 7;吸收一个 count=1 的邻居后 total=40 → 半径 11。
     // c 距质心约 17.x:对半径 7 的簇够不着((7+7)=14),对半径 11 的簇够得着((11+7)=18)。
@@ -87,7 +102,7 @@ describe('clusterByOverlap', () => {
     expect(clusterByOverlap(pts, 1, r10, 2)).toHaveLength(1)
   })
 
-  it('count 缺失/为 0 时按权重 1 参与质心、按 0 参与总计', () => {
+  it('count 为 0 时按权重 1 参与质心、按 0 参与总计', () => {
     const out = clusterByOverlap([p('a', 0, 0, 0), p('b', 10, 0, 0)], 1, r10)
     expect(out).toHaveLength(1)
     expect(out[0].count).toBe(0)
