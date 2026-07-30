@@ -327,6 +327,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `.ic-*` app 图标渐变（`.ic-files` / `.ic-photos` / `.ic-video` / `.ic-music` / `.ic-ai` / `.ic-backup` / `.ic-download` / `.ic-docker` / `.ic-vm` / `.ic-share` / `.ic-search` / `.ic-settings` / `.ic-users` / `.ic-storage` / `.ic-appstore` / `.ic-terminal` 等） | `theme.css` §「应用图标配色」 | **品牌识别色，皮肤无关**——文件蓝、照片虹彩、音乐粉紫等是产品视觉资产，两套主题都保持一致，不应随皮肤变。用户靠颜色识别应用。 |
 | 第三方库内部主题（如 CodeMirror 编辑器配色） | 引入该库的组件 | 库有自己的主题机制，颜色由库内部管理，无法用 CSS 变量穿透。应走该库自身的 theme 配置，而非硬塞 token。 |
 | `PLACE_PALETTE`（7 色循环：`#6E5BFF`/`#FF9AC2`/`#5AC8FA`/`#FFD60A`/`#34C759`/`#FF9F0A`/`#FF6B5C`） | `src/photos/util/peopleView.ts`（人物详情页地点 tab：迷你地图点 + 图例 + 地点卡片，消费于 `PersonPlacesTab.vue`） | **数据可视化分类色板**，不是主题皮肤色——同一张地图/图例上要把互不相同的地点互相区分开，颜色语义是"第几个数据系列"而不是"主题强调色"，两套主题下都必须保持同一组值不变。值放 `.ts`（不是 `theme.css`）刻意避免为 7 个数据系列各造一个一次性 token。 |
+| 地图主题预设 4×7 色 | `src/photos/util/placesMapThemes.ts` | 用户可选的地图可视化调色板，与应用主题正交（spec SP7 D5）；浅色变体由全局 data-theme 触发。 |
 
 注：`.ic-ai` 与 `.ic-all` / `.ic-app` 例外地**引用了** token（`--accent` / `--accent2` /
 `--orb-core` / `--all-bg` 等）——这部分仍随主题走，只有各图标的**固定品牌渐变**是例外。
