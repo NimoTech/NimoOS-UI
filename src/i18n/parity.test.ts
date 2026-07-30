@@ -22,3 +22,22 @@ describe('i18n locale parity', () => {
     expect(en.filesTitle).toBe('Files')
   })
 })
+
+/* P6a-T4:地点域键的完整性与术语守卫。 */
+describe('photosPlaces 键(SP7-P6a)', () => {
+  it('六个大洲键齐备,且 regionLabelKey 的返回值全部有译文', async () => {
+    const { regionLabelKey } = await import('../photos/util/placesMap')
+    for (const id of ['asia', 'americas', 'europe', 'africa', 'oceania', 'antarctica']) {
+      const k = regionLabelKey(id)!
+      expect(zh).toHaveProperty(k)
+      expect(en).toHaveProperty(k)
+    }
+  })
+
+  it('中文文案不含工程词「簇」「聚类」「气泡」', () => {
+    const bad = Object.entries(zh)
+      .filter(([k]) => k.startsWith('photosPlaces'))
+      .filter(([, v]) => typeof v === 'string' && /簇|聚类|气泡/.test(v))
+    expect(bad).toEqual([])
+  })
+})

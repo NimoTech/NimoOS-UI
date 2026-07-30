@@ -1017,4 +1017,58 @@ export default {
   // M7: Vue2 :26's un-favorited title is `Mark as favorite`, not the generic `Favorite`.
   // The favorited branch keeps the existing photosUnfavorite key.
   photosPersonMarkFavorite: 'Mark as favorite',
+  // ── SP7-P6a T4: Places domain (map view) i18n keys ─────────────────────────
+  // Source: task-4-brief.md; values verified against NimoOS-UI/src/assets/lang/en_US.json.
+  // English literals matched the brief for every row — only the zh side needed
+  // corrections; see zh_cn.ts comments and the task report for the full list.
+  photosPlaces: 'Places',
+  photosPlacesCities: 'cities',
+  photosPlacesCountries: 'countries',
+  photosPlacesPhotos: 'photos',
+  photosPlacesSearchPlaceholder: 'Search cities or countries',
+  photosPlacesCityCount: '{n} cities',
+  photosPlacesPhotoCount: '{n} photos',
+  photosPlacesFilters: 'Filters',
+  photosPlacesTimeRange: 'Time range',
+  photosPlacesStartDate: 'Start date',
+  photosPlacesEndDate: 'End date',
+  photosPlacesMinPhotos: 'Min photos',
+  photosPlacesRegion: 'Region',
+  photosPlacesCurrentTripOnly: 'Current trip only',
+  photosPlacesFilterReset: 'Reset',
+  photosPlacesFilterDone: 'Done',
+  photosPlacesAny: 'Any',
+  photosPlacesAtLeast: '≥ {n}',
+  photosPlacesAll: 'All',
+  photosPlacesMapTheme: 'Map theme',
+  photosPlacesMapThemePresets: 'Presets',
+  photosPlacesMapThemeCustom: 'Custom',
+  photosPlacesLandDotColor: 'Land dot color',
+  photosPlacesCityLightColor: 'City light color',
+  photosPlacesThemeDefault: 'Default',
+  photosPlacesThemeOcean: 'Ocean',
+  photosPlacesThemeSand: 'Sand',
+  photosPlacesThemeMono: 'Mono',
+  photosPlacesThemeDescDefault: 'Purple dots on black',
+  photosPlacesThemeDescOcean: 'Teal on deep blue',
+  photosPlacesThemeDescSand: 'Warm amber on dark',
+  photosPlacesThemeDescMono: 'Black & white',
+  photosPlacesZoomIn: 'Zoom in',
+  photosPlacesZoomOut: 'Zoom out',
+  photosPlacesResetView: 'Reset view',
+  photosPlacesCurrentTrip: 'Current trip',
+  // Continent labels: en_US.json has no Asia/Americas/Europe/Africa/Oceania/Antarctica
+  // entry either — confirmed missing, values authored.
+  photosPlacesRegionAsia: 'Asia',
+  photosPlacesRegionAmericas: 'Americas',
+  photosPlacesRegionEurope: 'Europe',
+  photosPlacesRegionAfrica: 'Africa',
+  photosPlacesRegionOceania: 'Oceania',
+  photosPlacesRegionAntarctica: 'Antarctica',
+  // The following five have no Vue2 counterpart (New-UI addition), authored:
+  photosPlacesEmpty: 'No photos with location data yet',
+  photosPlacesEmptyHint: 'Nimo reads GPS data while indexing your photos',
+  photosPlacesSearchEmpty: 'No cities matching "{q}"',
+  photosPlacesLoadFailed: 'Could not load places',
+  photosPlacesRetry: 'Retry',
 }

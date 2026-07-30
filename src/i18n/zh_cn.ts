@@ -1010,4 +1010,59 @@ export default {
   // 译文取自旧仓 zh_CN.json:`Mark as favorite`→"标记为收藏"。取消收藏那支复用既有
   // photosUnfavorite("取消收藏"),与 zh_CN.json 的 `Remove favorite`→"取消收藏" 一致。
   photosPersonMarkFavorite: '标记为收藏',
+  // ── SP7-P6a T4:地点域(地图主视图)i18n 键 ──────────────────────────────────
+  // 键表来源:task-4-brief.md;译文一律回源核对 NimoOS-UI/src/assets/lang/zh_CN.json,
+  // 出入已在任务报告里列出(brief 快照与 json 实际值不一致的几处按 json 为准更正;
+  // "当前行程" 一项按 Global Constraints 术语条目保留统一措辞,不回退 json 的"本次旅行")。
+  photosPlaces: '地点',
+  photosPlacesCities: '城市', // json 实际值(zh_CN.json:1990),非 brief 快照的"座城市"
+  photosPlacesCountries: '国家', // json 实际值(:2002),非 brief 快照的"个国家"
+  photosPlacesPhotos: '张照片',
+  photosPlacesSearchPlaceholder: '搜索城市或国家',
+  photosPlacesCityCount: '{n} 个城市', // json 实际值(:2084),非 brief 快照的"{n} 座城市"
+  photosPlacesPhotoCount: '{n} 张照片', // 与既有 photosPeoplePhotosCount 文案相同但语义域不同,各自留键
+  photosPlacesFilters: '筛选',
+  photosPlacesTimeRange: '时间范围',
+  photosPlacesStartDate: '起始日期',
+  photosPlacesEndDate: '结束日期',
+  photosPlacesMinPhotos: '最少照片数',
+  photosPlacesRegion: '区域',
+  photosPlacesCurrentTripOnly: '只看当前行程',
+  photosPlacesFilterReset: '重置',
+  photosPlacesFilterDone: '完成',
+  photosPlacesAny: '不限',
+  photosPlacesAtLeast: '≥ {n}',
+  photosPlacesAll: '全部',
+  photosPlacesMapTheme: '地图主题',
+  photosPlacesMapThemePresets: '预设主题',
+  photosPlacesMapThemeCustom: '自定义',
+  photosPlacesLandDotColor: '地面点颜色',
+  photosPlacesCityLightColor: '城市灯颜色',
+  photosPlacesThemeDefault: '默认',
+  photosPlacesThemeOcean: '海洋', // json 确有此译文,brief 标"自拟"有误
+  photosPlacesThemeSand: '沙滩', // json 实际值,非 brief 快照自拟的"沙色"
+  photosPlacesThemeMono: '单色', // json 实际值,非 brief 快照自拟的"黑白"
+  photosPlacesThemeDescDefault: '紫色点 + 黑色背景',
+  photosPlacesThemeDescOcean: '青绿调 + 深色背景',
+  photosPlacesThemeDescSand: '暖黄 + 浅调背景',
+  photosPlacesThemeDescMono: '黑白灰',
+  photosPlacesZoomIn: '放大',
+  photosPlacesZoomOut: '缩小',
+  photosPlacesResetView: '重置视图', // json 实际值,非 brief 快照的"复位视图"
+  // json 里裸 "Current trip" 原译是"本次旅行",但与同页 mapFilter.currentTripOnly 的
+  // "只看当前行程" 用词不一致;按 Global Constraints 术语条目统一为"当前行程"(不回退 json)。
+  photosPlacesCurrentTrip: '当前行程',
+  // 大洲标签:zh_CN.json 无 Asia/Americas/Europe/Africa/Oceania/Antarctica 任何译文,确认缺失后自拟。
+  photosPlacesRegionAsia: '亚洲',
+  photosPlacesRegionAmericas: '美洲',
+  photosPlacesRegionEurope: '欧洲',
+  photosPlacesRegionAfrica: '非洲',
+  photosPlacesRegionOceania: '大洋洲',
+  photosPlacesRegionAntarctica: '南极洲',
+  // 以下五条 Vue2 无对应(New-UI 补齐),自拟:
+  photosPlacesEmpty: '还没有带位置信息的照片',
+  photosPlacesEmptyHint: '相册会在索引照片时读取 GPS 信息',
+  photosPlacesSearchEmpty: '没有匹配「{q}」的城市',
+  photosPlacesLoadFailed: '地点加载失败', // 照 P5-T14 的 photosPersonLoadFailed 先例
+  photosPlacesRetry: '重试', // 本仓惯例每域独立 Retry 键(见 photosPersonRetry/appWidgetRetry 等),不复用
 }
