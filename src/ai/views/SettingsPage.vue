@@ -27,9 +27,10 @@
     `/ai/knowledge` 要到 SP8-P5 才存在,`router.push` 到不存在的路由会落空白
     死页 —— 改成 `<button>` + info toast 占位,样式类名 `.set-detail-link`
     保持不变(视觉 1:1),仅交互目标变了。
-  - 选中 `skills`/`mcp`(`DEFERRED_SECTIONS`)时弹一条 info toast —— Vue2 没有
-    这个概念(它们本就是真组件),本仓这两个分区的真实现要等 SP8-P3/P4,
-    这里只是本阶段的范围提示,不是对 Vue2 行为的偏离。
+  - 选中 `mcp`(`DEFERRED_SECTIONS`)时弹一条 info toast —— Vue2 没有这个概念
+    (它本就是真组件),本仓这个分区的真实现要等 SP8-P4,这里只是本阶段的范围
+    提示,不是对 Vue2 行为的偏离。`skills` 已于 SP8-P3a 接入真组件
+    `SkillsSection`,不再弹这条 toast。
 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -50,6 +51,7 @@ import ExecutionSection from '../components/settings/sections/ExecutionSection.v
 import SearchSection from '../components/settings/sections/SearchSection.vue'
 import MemorySection from '../components/settings/sections/MemorySection.vue'
 import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
+import SkillsSection from '../components/settings/sections/SkillsSection.vue'
 import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
 import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
 import AgentIcon from '../components/icons/AgentIcon.vue'
@@ -69,11 +71,11 @@ import '../styles/skills-styles.scss'
 // SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
 // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
 //
-// SP8-P2b 收官接线(本任务)后,只剩 skills / mcp 两个仍渲染 SectionPlaceholder:
-//   skills → P3 · mcp → P4
-// 其余 11 个(models/providers/privacy/thinking 为 P2a 已接;
-// blacklist/execution/search/memory/observability/mcptokens/channels 为
-// P2b 本任务接)均已指向各自的真组件。
+// SP8-P2b 收官接线后曾只剩 skills / mcp 两个仍渲染 SectionPlaceholder;
+// SP8-P3a 把 skills 接上真组件 SkillsSection 后,现在只剩 mcp 一个仍渲染
+// SectionPlaceholder(留给 P4)。其余 12 个(models/providers/privacy/thinking
+// 为 P2a 已接;blacklist/execution/search/memory/observability/mcptokens/
+// channels 为 P2b 已接;skills 为本任务 P3a 已接)均已指向各自的真组件。
 //
 // SP8-P2b Task 14 修复轮 1 —— 不 export 这个常量:`<script setup>` 不允许 ES
 // module 具名导出(试过,编译直接报错),而协调者裁定"可测试性"不值得为此拆
@@ -89,7 +91,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   search: SearchSection, // SP8-P2b Task 7 —— 已实现,收官接线
   memory: MemorySection, // SP8-P2b Task 6 —— 已实现,收官接线
   observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
-  skills: SectionPlaceholder, // SP8-P3 才实现,保持占位
+  skills: SkillsSection, // SP8-P3a Task 7 —— 已实现,收官接线
   mcp: SectionPlaceholder, // SP8-P4 才实现,保持占位
   mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线
   channels: ChannelsSection, // SP8-P2b Task 12 —— 已实现,收官接线
@@ -98,8 +100,8 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
 // 非 Vue2 蓝本 —— SectionPlaceholder 需要 { titleKey, bodyKey } 两个 prop,而
 // Vue2 的 SECTION_COMPONENTS 只是纯 id→组件映射、渲染处不传任何 prop
 // (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(已换上真组件的
-// 11 个分区里,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
-// 占位场景(现仅 skills/mcp)下用来源分区自己的导航文案(sections.ts 的
+// 12 个分区里,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
+// 占位场景(现仅 mcp)下用来源分区自己的导航文案(sections.ts 的
 // labelKey)作标题,统一的 `aiCfgPlaceholderBody` 作说明文字。
 function placeholderProps(id: SectionId): Record<string, string> {
   if (SECTION_COMPONENTS[id] !== SectionPlaceholder) return {}

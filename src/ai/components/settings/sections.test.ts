@@ -54,8 +54,8 @@ describe('sections 导航配置', () => {
     expect([...SPLIT_SECTIONS].sort()).toEqual(['mcp', 'skills'])
   })
 
-  it('DEFERRED_SECTIONS(P3/P4 占位)恰为 skills / mcp', () => {
-    expect([...DEFERRED_SECTIONS].sort()).toEqual(['mcp', 'skills'])
+  it('DEFERRED_SECTIONS(P4 占位)恰为 mcp(skills 已于 P3a 接入真组件）', () => {
+    expect([...DEFERRED_SECTIONS].sort()).toEqual(['mcp'])
   })
 
   it('每个分区都有图标名与 i18n 键,且 labelKey 走 aiCfg 前缀', () => {

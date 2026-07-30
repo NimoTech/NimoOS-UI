@@ -87,11 +87,11 @@ export const VALID_SECTIONS: SectionId[] = ALL_ITEMS.map((i) => i.id)
 export const SPLIT_SECTIONS: SectionId[] = ['skills', 'mcp']
 
 /**
- * SP8-P2a 范围外、留给后续阶段的分区:`skills` → P3、`mcp` → P4。
- * 导航里照 Vue2 1:1 显示(用户 2026-07-28 决定),但内容区渲染
- * `SectionPlaceholder` 并弹一条 info toast,不实现真功能。
+ * 留给后续阶段、内容区仍渲染 `SectionPlaceholder` 并弹一条 info toast 的分区。
+ * `skills` 已于 SP8-P3a 接入真组件（`SkillsSection`），从本列表移出；
+ * `mcp` 仍待 P4。导航里照 Vue2 1:1 显示（用户 2026-07-28 决定）。
  */
-export const DEFERRED_SECTIONS: SectionId[] = ['skills', 'mcp']
+export const DEFERRED_SECTIONS: SectionId[] = ['mcp']
 
 /** 某个分区所属的组;未知 id 回落到第一个组(Vue2 `sections.js:62-64` 同款兜底)。 */
 export function groupOf(sectionId: string): SectionGroup {

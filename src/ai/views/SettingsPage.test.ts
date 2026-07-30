@@ -32,6 +32,13 @@ const ai = vi.hoisted(() => ({
   getPolicy: vi.fn(),
   getImportStatus: vi.fn(),
   cancelImport: vi.fn(),
+  // SP8-P3a Task 7 —— skills 分区不再是占位,挂载真组件 SkillsSection 会在
+  // onMounted 里调 service.ai.listSkills()。裸 vi.fn()(无 mockResolvedValue)
+  // 调用返回 undefined,`await undefined` 合法且 SkillsSection 的
+  // `Array.isArray(list)` 兜底把它当空列表处理,不抛错、不弹 toast —— 足够
+  // 让本文件里与 skills 无关的用例（换到该分区只是路过）保持沉默；需要断言
+  // 列表内容的用例会自己 `mockResolvedValue`。
+  listSkills: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
@@ -292,7 +299,7 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
   // 判别依据:`SectionPlaceholder.vue` 把 `bodyKey` prop 渲染成
   // `<p class="set-desc">{{ t(props.bodyKey) }}</p>`,而 `SettingsPage.vue`
   // 的 `placeholderProps()` 对占位分区永远传 `bodyKey: 'aiCfgPlaceholderBody'`
-  // ——这段文案(`zh.aiCfgPlaceholderBody`)是占位面板独有的,11 个真分区各自
+  // ——这段文案(`zh.aiCfgPlaceholderBody`)是占位面板独有的,真分区各自
   // 用的是自己的 `aiCfgXxxDesc` 文案键(逐一核对过 `sections/*.vue` 源码,没有
   // 一个真分区复用这个键),所以「页面渲染文本里是否出现这段占位文案」可以
   // 精确区分「真组件」与「SectionPlaceholder」,不需要拿到 `SECTION_COMPONENTS`
@@ -301,7 +308,11 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
   // agent 组(blacklist/execution/search/memory/observability)是 stack 组,
   // 一次 setActiveSection 会把组内 5 个分区一起渲染出来,断言力度比逐个切更强
   // (5 个分区的真实现只要有 1 个不小心留了占位就会被抓到)。
-  it('SP8-P2b 收口 —— 11 个已实现分区渲染后页面不含占位文案，skills/mcp 仍含占位文案', async () => {
+  //
+  // SP8-P3a Task 7 —— `skills` 已接入真组件 `SkillsSection`,从「仍含占位文案」
+  // 的 deferred 列表移到「已实现」列表;现在只剩 `mcp` 还在渲染
+  // `SectionPlaceholder`(留给 P4)。
+  it('SP8-P3a 收口 —— 12 个已实现分区渲染后页面不含占位文案，mcp 仍含占位文案', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -309,7 +320,7 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
 
     const implemented: SectionId[] = [
       'models', 'providers', 'privacy', 'thinking',
-      'blacklist', 'execution', 'search', 'memory', 'observability', 'mcptokens', 'channels',
+      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcptokens', 'channels',
     ]
     for (const id of implemented) {
       store.setActiveSection(id)
@@ -317,7 +328,7 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
       expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
     }
 
-    const deferred: SectionId[] = ['skills', 'mcp']
+    const deferred: SectionId[] = ['mcp']
     for (const id of deferred) {
       store.setActiveSection(id)
       await flushPromises()
@@ -401,7 +412,13 @@ describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
     w.unmount()
   })
 
-  it('19. 选中 skills → 弹一条 toast(DEFERRED_SECTIONS 契约)', async () => {
+  // SP8-P3a Task 7 —— skills 已接入真组件 SkillsSection,不再属于
+  // DEFERRED_SECTIONS,这条原本断言「弹一条占位 toast」的用例改为断言反面:
+  // 渲染出 SkillsSection 真实内容(`.sk-list`,来自 SkillsSection.vue:135,
+  // `SectionPlaceholder.vue` 没有这个 class)、页面不含占位文案、且不弹任何
+  // toast。下一条('19b')补上 mcp 仍走占位 toast 的对照,保证 DEFERRED_SECTIONS
+  // 的占位契约本身没有被整个删掉。
+  it('19. 选中 skills → 渲染 SkillsSection 真实内容,不弹 toast(不再是占位)', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -409,6 +426,22 @@ describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
     const item = w.findAll('.set-nav-item').find((n) => n.text().includes('技能'))!
+    await item.trigger('click')
+    await flushPromises()
+    expect(w.find('.sk-list').exists()).toBe(true)
+    expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
+    expect(showSpy).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  it('19b. 选中 mcp → 仍弹一条占位 toast(DEFERRED_SECTIONS 契约仍在,只是不再含 skills)', async () => {
+    const store = useSettingsStore()
+    stubNetworkActions(store)
+    const { w } = await mountPage()
+    await flushPromises()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const item = w.findAll('.set-nav-item').find((n) => n.text().includes('MCP 连接'))!
     await item.trigger('click')
     expect(showSpy).toHaveBeenCalledWith('该分区将在后续阶段开启', 3000)
     w.unmount()
