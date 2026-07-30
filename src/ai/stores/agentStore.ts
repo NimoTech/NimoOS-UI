@@ -686,8 +686,12 @@ export function useAgentStore(agentType?: string) {
       const list: AgentModel[] = []
 
       if (modelsResp.status === 'fulfilled') {
-        const body = (modelsResp.value || {}) as Record<string, unknown>
-        const arr = Array.isArray(body.data) ? (body.data as Record<string, unknown>[]) : []
+        // 单层取数:共享包已剥掉 axios 那层,`body` 即 HTTP body,而
+        // `GET /v1/ai/models`(route/v2/models.go:30)直出裸数组 —— 见本文件 :120-127
+        // 的口径。此处原先多写了一层 `.data`,是全文件唯一违反该口径的地方,
+        // 直接导致顶栏 ModelPicker 恒为空态。
+        const body = modelsResp.value
+        const arr = Array.isArray(body) ? (body as Record<string, unknown>[]) : []
         for (const m of arr) {
           list.push({
             key: 'local:' + String(m.name),
@@ -701,8 +705,10 @@ export function useAgentStore(agentType?: string) {
       }
 
       if (providersResp.status === 'fulfilled') {
-        const body = (providersResp.value || {}) as Record<string, unknown>
-        list.push(...buildCloudModelList(body.data))
+        // 同上:`GET /v1/ai/providers`(route/v2/providers.go:95)亦直出裸数组,
+        // 且后端只把 favorite 模型嵌进每个 provider 的 `models` 字段驱动 ModelPicker。
+        // buildCloudModelList 自带 Array.isArray 守卫,非数组入参安全退化为空列表。
+        list.push(...buildCloudModelList(providersResp.value))
       }
 
       availableModels.value = list

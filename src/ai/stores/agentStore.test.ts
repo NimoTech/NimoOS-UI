@@ -48,8 +48,9 @@ describe('agentStore (session slice)', () => {
     svc.cancelAgentRun.mockResolvedValue(undefined)
     svc.confirmAgentAction.mockResolvedValue(undefined)
     svc.regenerateAgentSessionTitle.mockResolvedValue({})
-    svc.listModels.mockResolvedValue({ data: [] })
-    svc.listProviders.mockResolvedValue({ data: [] })
+    // 真实信封是裸数组(见下方「缺陷回归」两条用例的注释),不是 { data: [...] }
+    svc.listModels.mockResolvedValue([])
+    svc.listProviders.mockResolvedValue([])
     localStorage.clear()
   })
 
@@ -316,8 +317,9 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     svc.cancelAgentRun.mockResolvedValue(undefined)
     svc.confirmAgentAction.mockResolvedValue(undefined)
     svc.regenerateAgentSessionTitle.mockResolvedValue({})
-    svc.listModels.mockResolvedValue({ data: [] })
-    svc.listProviders.mockResolvedValue({ data: [] })
+    // 真实信封是裸数组(见下方「缺陷回归」两条用例的注释),不是 { data: [...] }
+    svc.listModels.mockResolvedValue([])
+    svc.listProviders.mockResolvedValue([])
     localStorage.clear()
   })
 
@@ -346,8 +348,42 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     }])
   })
 
+  // ── 缺陷回归:loadAvailableModels 多剥一层 `.data`,致顶栏 ModelPicker 永远空态 ──
+  // 真实信封:`GET /v1/ai/models`(route/v2/models.go:30)与 `GET /v1/ai/providers`
+  // (route/v2/providers.go:95)后端都是 `c.JSON(200, <slice>)` 直出**裸数组**;
+  // 共享包 `service.ai.*` 内部已做 `return res.data` 剥掉 axios 那一层,吐给调用方的
+  // 就是 HTTP body 本身。故消费端只能做**单层**取数 —— 正是本文件头注释 :120-127
+  // 定死的口径「不再多一层 `.data`」,而 loadAvailableModels 曾是全文件唯一的违反处。
+  // 旧测试用 `{ data: [...] }` 这个不存在的形状 mock,把缺陷一起编码进了断言,
+  // 故 2296 例全绿也抓不到;同仓 settingsStore.test.ts:334 对同一个方法 mock 成裸数组
+  // (正确),两处自相矛盾即是线索。
+  it('loadAvailableModels:providers 为裸数组(真实信封)时云端模型必须进列表', async () => {
+    svc.listModels.mockResolvedValue([])
+    svc.listProviders.mockResolvedValue([
+      {
+        id: 1,
+        name: '火山',
+        enabled: true,
+        provider_type: 'other',
+        models: [{ name: 'doubao-seed-2-1-pro-260628', favorite: true, supports_thinking: false }],
+      },
+    ])
+    const s = useAgentStore('t-bare-providers')
+    await s.loadAvailableModels()
+    expect(s.availableModels.map((m) => m.key)).toEqual(['cloud:1:doubao-seed-2-1-pro-260628'])
+    expect(s.selectedModel).toBe('cloud:1:doubao-seed-2-1-pro-260628')
+  })
+
+  it('loadAvailableModels:models 为裸数组(真实信封)时本地模型必须进列表', async () => {
+    svc.listModels.mockResolvedValue([{ name: 'llama', size_bytes: 123, supports_thinking: false }])
+    svc.listProviders.mockResolvedValue([])
+    const s = useAgentStore('t-bare-models')
+    await s.loadAvailableModels()
+    expect(s.availableModels.map((m) => m.key)).toEqual(['local:llama'])
+  })
+
   it('loadAvailableModels:本地模型优先兜底默认选中', async () => {
-    svc.listModels.mockResolvedValue({ data: [{ name: 'llama', size_bytes: 123, supports_thinking: false }] })
+    svc.listModels.mockResolvedValue([{ name: 'llama', size_bytes: 123, supports_thinking: false }])
     const s = useAgentStore('t-models')
     await s.loadAvailableModels()
     expect(s.selectedModel).toMatch(/^local:/)
@@ -355,7 +391,7 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
 
   it('loadAvailableModels:localStorage 里存的 key 若仍在新列表中就沿用', async () => {
     localStorage.setItem('nimoos.ai.agent.selectedModel', 'local:mistral')
-    svc.listModels.mockResolvedValue({ data: [{ name: 'llama' }, { name: 'mistral' }] })
+    svc.listModels.mockResolvedValue([{ name: 'llama' }, { name: 'mistral' }])
     const s = useAgentStore('t-models-stored')
     await s.loadAvailableModels()
     expect(s.selectedModel).toBe('local:mistral')
