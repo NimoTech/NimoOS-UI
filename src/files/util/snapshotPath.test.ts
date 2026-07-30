@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   snapshotBrowsePath, parseSnapshotBrowsePath, liveVolumePath, parseSnapshotName,
   formatSnapshotBannerTime, findVolumeForPath, findVolumeUuidForMount,
-  shouldGuardSnapshotView, resolveExitTarget, relPathUnderMount,
+  shouldGuardSnapshotView, resolveExitTarget, relPathUnderMount, isSnapshotsContainerPath,
 } from './snapshotPath'
 
 describe('snapshotBrowsePath', () => {
@@ -143,6 +143,30 @@ describe('resolveExitTarget', () => {
   })
   it('info 为 null → null', async () => {
     await expect(resolveExitTarget(null, async () => true)).resolves.toBeNull()
+  })
+})
+
+describe('isSnapshotsContainerPath(Critical 1:.snapshots 容器目录本身)', () => {
+  const vols = [{ mount: '/DATA', volume_uuid: 'u-data' }, { mount: '/mnt/usb', volume_uuid: 'u-usb' }]
+  it('命中:路径恰好等于 <挂载点>/.snapshots', () => {
+    expect(isSnapshotsContainerPath('/DATA/.snapshots', vols)).toBe(true)
+  })
+  it('容忍末尾斜杠', () => {
+    expect(isSnapshotsContainerPath('/DATA/.snapshots/', vols)).toBe(true)
+  })
+  it('不命中:选中了具体快照(多一段)不算容器路径本身', () => {
+    expect(isSnapshotsContainerPath('/DATA/.snapshots/snap1', vols)).toBe(false)
+  })
+  it('不命中:普通目录', () => {
+    expect(isSnapshotsContainerPath('/DATA/Photos', vols)).toBe(false)
+  })
+  it('不在任何卷下:不命中', () => {
+    expect(isSnapshotsContainerPath('/OTHER/.snapshots', vols)).toBe(false)
+  })
+  it('非法输入返回 false', () => {
+    expect(isSnapshotsContainerPath('', vols)).toBe(false)
+    expect(isSnapshotsContainerPath(null, vols)).toBe(false)
+    expect(isSnapshotsContainerPath('/DATA/.snapshots', null as never)).toBe(false)
   })
 })
 

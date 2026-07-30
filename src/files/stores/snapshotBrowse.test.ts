@@ -115,6 +115,16 @@ describe('浏览态派生', () => {
     await s.ensureVolumes()
     expect(s.isSnapshotView).toBe(false)
   })
+  // 评审修复(Critical 1):`.snapshots` 容器目录本身(没有具体快照名这一段)——
+  // parseSnapshotBrowsePath 对它返回 null,shouldGuardSnapshotView 单独判不出锁,必须靠
+  // isSnapshotsContainerPath 兜底。面包屑最自然的"点上一级"手势就会落在这条路径上。
+  it('.snapshots 容器目录本身(未选中具体快照)也保持锁定', async () => {
+    const s = useSnapshotBrowseStore(); const files = useFilesStore()
+    files.currentPath = '/DATA/.snapshots'
+    await s.ensureVolumes()
+    expect(s.isSnapshotView).toBe(true)
+    expect(s.browseInfo).toBeNull() // 没有快照名就没有时间可显示,横幅现有形态依赖它
+  })
 })
 
 describe('canShowEntry 真值表', () => {
@@ -144,6 +154,12 @@ describe('canShowEntry 真值表', () => {
   it('已经在快照里 → 不显示', async () => {
     const s = useSnapshotBrowseStore(); const files = useFilesStore()
     files.currentPath = '/DATA/.snapshots/snap1'
+    await s.ensureVolumes()
+    expect(s.canShowEntry).toBe(false)
+  })
+  it('.snapshots 容器目录本身 → 不显示(Critical 1,否则时间机器 chip 和只读锁一起冒出来)', async () => {
+    const s = useSnapshotBrowseStore(); const files = useFilesStore()
+    files.currentPath = '/DATA/.snapshots'
     await s.ensureVolumes()
     expect(s.canShowEntry).toBe(false)
   })
@@ -247,5 +263,29 @@ describe('恢复', () => {
     const s = await inSnapshot()
     await s.restore([])
     expect(restoreMock).not.toHaveBeenCalled()
+  })
+  // 评审修复(Important):Vue2/T7 版每条选中项都单独打一次 GET /v2/snapshot/volumes——
+  // 30 项就是 31 次请求,且任意一次网络抖动都会把那一条误判成失败(其实根本没提交过)。
+  // volumes.value 就是同一份已 ready 的数据,批量恢复该直接复用它,不逐条重新拉。
+  it('批量恢复复用已缓存的 volumes,不为每一项重新请求', async () => {
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
+    const s = await inSnapshot()
+    listVolumesMock.mockClear() // inSnapshot() 里的 ensureVolumes() 已经拉过一次,只看 restore() 期间
+    await s.restore([
+      { path: '/DATA/.snapshots/snap1/a' },
+      { path: '/DATA/.snapshots/snap1/b' },
+      { path: '/DATA/.snapshots/snap1/c' },
+    ])
+    expect(restoreMock).toHaveBeenCalledTimes(3)
+    expect(listVolumesMock).not.toHaveBeenCalled()
+  })
+  it('volumes 尚未加载时兜底先拉一次,而不是把选中项都误判成失败(理论上不该发生的边界情况)', async () => {
+    const s = useSnapshotBrowseStore()
+    useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'
+    // 故意不调用 s.ensureVolumes():模拟 volumes 还没加载就调用 restore() 的边界情况
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.restored-1' })
+    await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])
+    expect(listVolumesMock).toHaveBeenCalledTimes(1)
+    expect(useToast().msg).toContain('/DATA/Photos/a.restored-1')
   })
 })

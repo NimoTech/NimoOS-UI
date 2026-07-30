@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFilesStore } from './files'
 import {
-  parseSnapshotBrowsePath, shouldGuardSnapshotView, findVolumeForPath,
+  parseSnapshotBrowsePath, shouldGuardSnapshotView, findVolumeForPath, isSnapshotsContainerPath,
   type SnapshotVolumeLike, type VolumesState,
 } from '../util/snapshotPath'
 import { performSnapshotRestore } from '../util/snapshotRestore'
@@ -62,8 +62,13 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const parsed = computed(() => parseSnapshotBrowsePath(files.currentPath))
   const volumesState = computed<VolumesState>(() => ({ status: status.value, volumes: volumes.value }))
 
+  // 评审修复(Critical):`<挂载点>/.snapshots` 容器目录本身——parseSnapshotBrowsePath 对它
+  // 返回 null(语义不变,恢复编排等处仍依赖这个 null),所以只靠 shouldGuardSnapshotView 判不出
+  // 这里也该锁。isSnapshotsContainerPath 单独兜底这一层,与 shouldGuardSnapshotView 的判定
+  // 互不影响、只做 OR:任一个说"锁"就锁。
+  const isSnapshotsContainer = computed(() => isSnapshotsContainerPath(files.currentPath, volumes.value))
   /** 只读锁是否生效 —— 路径形状 + 卷确证的双重判定,fail-safe 方向见 snapshotPath.ts 注释 */
-  const isSnapshotView = computed(() => shouldGuardSnapshotView(parsed.value, volumesState.value))
+  const isSnapshotView = computed(() => shouldGuardSnapshotView(parsed.value, volumesState.value) || isSnapshotsContainer.value)
   /** 锁确实生效时才把解析结果交给横幅/退出/恢复消费 */
   const browseInfo = computed(() => (isSnapshotView.value ? parsed.value : null))
   /** 当前路径落在哪个快照卷下(最长挂载前缀)—— 入口按钮与时间机器都要它的 uuid/mount */
@@ -89,12 +94,18 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     const t = i18n.global.t
     restoring.value = true
     try {
+      // 评审修复(Important):volumes.value 就是同一份 ready 数据(能走到这里必然已经在
+      // 快照视图里——shouldGuardSnapshotView 要求 status==='ready' 才会判定出真快照,
+      // 三个恢复入口都只在该状态下才渲染),没必要为选中的每一项都重新打一次
+      // GET /v2/snapshot/volumes。改成注入同步读 volumes.value 的函数;万一(理论上不该
+      // 发生,防御性兜底)真的还没加载,先拉一次,避免把"还没数据"误判成每一条都恢复失败。
+      if (!volumes.value.length) await ensureVolumes()
       const results = []
       for (const item of list) {
         results.push(await performSnapshotRestore({
           item,
           info: browseInfo.value,
-          listVolumes: () => service.snapshot.listVolumes(),
+          listVolumes: async () => volumes.value,
           restore: (body) => service.snapshot.restore(body),
         }))
       }

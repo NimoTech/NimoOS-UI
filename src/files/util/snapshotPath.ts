@@ -96,6 +96,23 @@ export function findVolumeUuidForMount(volumes: SnapshotVolumeLike[], mount: str
   return hit && hit.volume_uuid ? hit.volume_uuid : null
 }
 
+// 评审修复(Critical):`<挂载点>/.snapshots` 这个容器目录本身 —— parseSnapshotBrowsePath
+// 对它故意返回 null(".snapshots 自身:还没选中任何快照",语义不能改,恢复编排等处依赖它),
+// 但这意味着只靠 shouldGuardSnapshotView 时这一层完全不锁:没有 parsed 结果,直接判不是快照
+// 视图,写入工具条、右键菜单、时间机器入口 chip 全部一起冒出来。这个容器目录通常仍然可写,
+// 用户能在快照命名空间里建垃圾文件/对只读子卷操作拿到原始文件系统报错。
+// 这里只认已知卷的挂载点(mount 取自卷列表),不在任何卷下的路径即便最后一段恰好叫
+// ".snapshots" 也不命中 —— 这属于本函数职责之外,不在这里画蛇添足去锁任意目录。
+export function isSnapshotsContainerPath(absPath: string | null | undefined, volumes: SnapshotVolumeLike[]): boolean {
+  if (!absPath || typeof absPath !== 'string' || !Array.isArray(volumes)) return false
+  const clean = stripTrailingSlash(absPath)
+  if (!clean) return false
+  return volumes.some((v) => {
+    const mount = stripTrailingSlash(v.mount)
+    return !!mount && clean === `${mount}/${SNAPSHOTS_DIR_NAME}`
+  })
+}
+
 // 只读锁的最终闸门,坐在 parseSnapshotBrowsePath 前面。
 //
 // fail-safe 方向是**有意的产品决定,不是疏漏**:除非从一次已经 resolved 的卷列表里
