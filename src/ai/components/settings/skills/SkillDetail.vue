@@ -113,10 +113,17 @@ function tryInChat() {
           <span>{{ skill.title }}</span>
           <code>{{ skill.name }}</code>
         </div>
+        <!-- P3b: .sw 开关插在这里,.sk-name 与 .sk-pill-try 之间
+             (Vue2 SkillDetail.vue:21-28,`role="switch"` + `@click="$emit('toggle', …)"`)。
+             本期不渲染。 -->
         <button class="sk-pill-try" :title="t('aiSkTryInChat')" @click="tryInChat">
           <AgentIcon name="sparkle" :size="13" />
           {{ t('aiSkTryInChat') }}
         </button>
+        <!-- P3b: .sk-pill-more + .sk-menu 下拉插在这里,.sk-pill-try 之后
+             (Vue2 SkillDetail.vue:33-56,`menuWrap` 容器包 `.sk-pill-more` 按钮 +
+             `v-if="menuOpen"` 的 `.sk-menu`:禁用/复制 SKILL.md/导出/删除四项)。
+             本期不渲染。 -->
       </div>
 
       <div class="sk-detail-body">

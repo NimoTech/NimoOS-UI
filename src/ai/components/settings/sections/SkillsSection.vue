@@ -113,11 +113,12 @@ onMounted(() => reload())
     <div class="sk-col">
       <div class="sk-col-head">
         <div class="sk-col-actions">
-          <!-- P3b: 添加技能的 + 按钮插在这里(Vue2 SkillsSection.vue:9-11,
-               `adding = true` 打开 AddSkillModal)。本期不渲染。 -->
           <button class="icon-btn" :title="t('aiCfgRefresh')" @click="reload">
             <AgentIcon name="refresh" :size="15" />
           </button>
+          <!-- P3b: 添加技能的 + 按钮插在这里,刷新按钮之后(Vue2 SkillsSection.vue:6-11
+               顺序是 refresh → sk-add-btn,`adding = true` 打开 AddSkillModal)。
+               本期不渲染。 -->
         </div>
       </div>
       <div class="sk-col-search">

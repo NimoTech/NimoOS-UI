@@ -419,8 +419,36 @@
       background: var(--bg-canvas);
     }
   }
-  .empty-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
-  .empty-sub { font-size: 13px; max-width: 320px; }
+}
+
+// 【SP8-P3a 整期终审 I1 —— New-UI 独有回归,不是照抄 Vue2 走样,三件套如下】
+// ① Vue2 原文:`skills-styles.scss:570-571`(即上面 `.sk-detail-empty-inner` 块内的
+//    `.empty-title`/`.empty-sub`,本档原样搬了 Vue2 那两行,选择器
+//    `.sk-detail-empty-inner .empty-title` 优先级 (0,2,0))。Vue2 蓝本
+//    `Settings/Settings.vue:2` 根节点只有 `class="set-app"`,不含 `agent-app`,
+//    所以 Vue2 里这两条永远不会跟别的规则同优先级碰撞。
+// ② New-UI `SettingsPage.vue:371` 根节点是 `class="agent-app set-app"`(本仓 token
+//    定义在 `.agent-app` 作用域,见本档头注释),于是 `agent-styles.scss:496-497`
+//    (Agent 页空态自己的规则,P1 已验收、不许改)的 `.agent-app .empty-title` /
+//    `.agent-app .empty-sub` 同样是 (0,2,0),与上面那两条同时命中技能分区的空态元素。
+//    同优先级只能靠 `router/index.ts` 的 import 顺序侥幸决胜,且 agent-styles 没
+//    声明的属性(`letter-spacing`/`.empty-title` 的 `margin`/`.empty-sub` 的
+//    `color`/`margin`)会直接泄漏进来,与 Vue2 视觉不符。
+// ③ 此处怎么修:选择器多套一层 `.sk-detail` 前缀,优先级提到 (0,3,0),
+//    **确定性**压过 agent-styles 的 (0,2,0)(不再依赖 import 顺序);同时把会被
+//    泄漏的 4 个属性显式中和成 Vue2 权威值——`.empty-title` 没有 letter-spacing/
+//    margin,回默认 `normal`/`0`;`.empty-sub` 没有自己的 color(靠继承父级
+//    `.sk-detail-empty-inner` 的 `--text-tertiary`,这里用 `color: inherit` 显式
+//    保证不被 agent-styles 直接命中该元素的 `color` 声明抢走)、margin 回 `0`。
+.sk-detail .sk-detail-empty-inner {
+  .empty-title {
+    font-size: 15px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: normal; margin: 0;
+  }
+  .empty-sub {
+    font-size: 13px; max-width: 320px;
+    color: inherit; margin: 0;
+  }
 }
 
 // `.sk-modal*`(575-616)已存在于 sk-shared.scss:96-136,`.sk-field*`(617-647)已存在

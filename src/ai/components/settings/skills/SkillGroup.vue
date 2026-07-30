@@ -56,8 +56,10 @@ function triggerTagKey(trigger: string): string {
 }
 
 function displayAuthor(author: string): string {
-  const ref = authorLabel(author)
-  return ref ? t(ref.key) : author
+  // 终审 M4:局部变量原名 `ref` 遮蔽了本文件 :27 从 vue import 的 `ref`(当前无害,
+  // 该函数不用响应式,但纯改名去掉这个标准踩坑点,不改行为)。
+  const labelRef = authorLabel(author)
+  return labelRef ? t(labelRef.key) : author
 }
 
 function runsLabel(calls: number): string {

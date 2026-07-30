@@ -203,3 +203,100 @@ describe('sk-shared.scss', () => {
     expect(css).toContain('@keyframes sk-pop')
   })
 })
+
+// SP8-P3a 整期终审 I1 守卫 —— `.empty-title`/`.empty-sub` 与 `agent-styles.scss`
+// 的 `.agent-app .empty-title`/`.agent-app .empty-sub` 同优先级碰撞(详见
+// skills-styles.scss:424-450 的三件套注释)。New-UI 独有回归,不是 Vue2 走样:
+// Vue2 蓝本 `Settings/Settings.vue:2` 根节点只有 `class="set-app"`,不含
+// `agent-app`,这两条规则在 Vue2 里永不相遇;New-UI `SettingsPage.vue:371`
+// 根节点是 `agent-app set-app`,两条规则同时命中同一个空态元素,同优先级下
+// 全靠 `router/index.ts` 的 import 顺序侥幸决胜,且 agent-styles 没声明的属性
+// (letter-spacing/margin/color)会直接泄漏进来。
+//
+// 这里不写死「(0,2,0)/(0,3,0)」这两个魔法数字,而是写一个极简 SCSS 嵌套解析器,
+// 从**两个文件的真实源码**里各自数出选择器链上的 class 数,再比大小——
+// 万一将来谁改了 agent-styles.scss 的包裹层级、或谁把 skills-styles.scss 的
+// `.sk-detail` 前缀删掉退回原样,这条守卫都会自动跟着算出错的比较结果而报红,
+// 不依赖任何写死的先验数字。
+describe('skills-styles.scss —— .empty-title/.empty-sub 空态样式(整期终审 I1 守卫)', () => {
+  const css = stripComments(read('./skills-styles.scss'))
+  const agentCss = stripComments(read('./agent-styles.scss'))
+
+  function classCount(selector: string): number {
+    return (selector.match(/\.[a-zA-Z][\w-]*/g) || []).length
+  }
+
+  // 给定 CSS 全文与目标选择器(必须整段精确等于某条嵌套规则的选择器,如
+  // '.empty-title'),扫描 `{`/`}` 维护一个「当前嵌套选择器栈」，命中时返回
+  // 从最外层到它自己的整条选择器链。用于算「实际生效」的嵌套特异度，而不是
+  // 只看它自己那一行的选择器文本。
+  function ancestorChain(text: string, targetSelector: string): string[] {
+    const stack: string[] = []
+    let i = 0
+    while (i < text.length) {
+      const ch = text[i]
+      if (ch === '{') {
+        let j = i - 1
+        while (j >= 0 && /\s/.test(text[j])) j--
+        const end = j + 1
+        while (j >= 0 && text[j] !== '{' && text[j] !== '}') j--
+        const selector = text.slice(j + 1, end).trim()
+        stack.push(selector)
+        if (selector === targetSelector) return [...stack]
+        i++
+        continue
+      }
+      if (ch === '}') {
+        stack.pop()
+        i++
+        continue
+      }
+      i++
+    }
+    throw new Error(`在 CSS 里找不到嵌套规则 ${targetSelector}`)
+  }
+
+  function nestedSpecificity(text: string, targetSelector: string): number {
+    return ancestorChain(text, targetSelector).reduce((sum, sel) => sum + classCount(sel), 0)
+  }
+
+  it('.empty-title 在 skills-styles.scss 里的真实嵌套特异度高于 agent-styles.scss 的版本', () => {
+    const skillsSpec = nestedSpecificity(css, '.empty-title')
+    const agentSpec = nestedSpecificity(agentCss, '.empty-title')
+    expect(agentSpec, 'agent-styles.scss 的 .empty-title 嵌套特异度').toBe(2) // 已知基线 (0,2,0),验证解析器本身没读错
+    expect(skillsSpec, 'skills-styles.scss 的 .empty-title 嵌套特异度必须确定性压过 agent-styles').toBeGreaterThan(agentSpec)
+  })
+
+  it('.empty-sub 在 skills-styles.scss 里的真实嵌套特异度高于 agent-styles.scss 的版本', () => {
+    const skillsSpec = nestedSpecificity(css, '.empty-sub')
+    const agentSpec = nestedSpecificity(agentCss, '.empty-sub')
+    expect(agentSpec, 'agent-styles.scss 的 .empty-sub 嵌套特异度').toBe(2)
+    expect(skillsSpec, 'skills-styles.scss 的 .empty-sub 嵌套特异度必须确定性压过 agent-styles').toBeGreaterThan(agentSpec)
+  })
+
+  it('.empty-title 显式中和 agent-styles 会泄漏的 letter-spacing/margin(Vue2 两者皆无,回默认值)', () => {
+    const outerAt = css.indexOf('.sk-detail .sk-detail-empty-inner {')
+    expect(outerAt, '找不到确定性胜出的 .sk-detail .sk-detail-empty-inner 覆盖块').toBeGreaterThanOrEqual(0)
+    const rest = css.slice(outerAt)
+    const titleAt = rest.indexOf('.empty-title {')
+    expect(titleAt).toBeGreaterThanOrEqual(0)
+    const titleRule = rest.slice(titleAt, rest.indexOf('}', titleAt))
+    expect(titleRule).toContain('font-size: 15px')
+    expect(titleRule).toContain('color: var(--text-primary)')
+    expect(titleRule).toContain('letter-spacing: normal')
+    expect(titleRule).toContain('margin: 0')
+  })
+
+  it('.empty-sub 显式中和 agent-styles 会泄漏的 color/margin(Vue2 无自身 color——继承父级 --text-tertiary;无 margin)', () => {
+    const outerAt = css.indexOf('.sk-detail .sk-detail-empty-inner {')
+    expect(outerAt).toBeGreaterThanOrEqual(0)
+    const rest = css.slice(outerAt)
+    const subAt = rest.indexOf('.empty-sub {')
+    expect(subAt).toBeGreaterThanOrEqual(0)
+    const subRule = rest.slice(subAt, rest.indexOf('}', subAt))
+    expect(subRule).toContain('font-size: 13px')
+    expect(subRule).toContain('max-width: 320px')
+    expect(subRule).toContain('color: inherit')
+    expect(subRule).toContain('margin: 0')
+  })
+})

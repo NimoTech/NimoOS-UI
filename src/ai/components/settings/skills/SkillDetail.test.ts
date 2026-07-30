@@ -174,7 +174,14 @@ describe('SkillDetail(只读半)', () => {
     expect(rows[0].find('.size').text()).toBe('12 B')
     expect(rows[1].find('.name').text()).toBe('archive.zip')
     expect(rows[1].find('.size').text()).toBe('1.0 MB')
-    expect(w.find('.sk-section-hint').exists()).toBe(true)
+    // 终审 M2:详情页共有 3 个 `.sk-section-hint`(描述段 :152 / SKILL.md 段 :165 /
+    // 附带文件段 :175),`w.find()` 只返回第一个(描述段的 hint),原断言只查
+    // `.exists()` 命中的是描述段、对 `filesHint` 计算属性(SkillDetail.vue:78)
+    // 零覆盖(把 `n` 写死成任意常数仍然全绿)。改成精确定位第三个 hint 并断言
+    // 其文案(aiSkNFiles = '{n} 个文件',2 个文件 → '2 个文件')。
+    const hints = w.findAll('.sk-section-hint')
+    expect(hints).toHaveLength(3)
+    expect(hints[2].text()).toBe('2 个文件')
   })
 
   it('目录尺寸 "(3 files)" 被本地化成中文「3 个文件」,普通文件字节单位原样透传', () => {

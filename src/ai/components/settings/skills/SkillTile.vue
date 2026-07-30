@@ -1,7 +1,7 @@
 <!--
   SP8-P3a Task 3 —— 1:1 移植自 Vue2 src/views/AI/Skills/SkillTile.vue(43 行)。
 
-  【偏离 3(公共约束 §3.2)】SkillIcon.vue 不移植,统一用 AgentIcon
+  【偏离 2(公共约束 §3.2)】SkillIcon.vue 不移植,统一用 AgentIcon
   (../../icons/AgentIcon.vue)。
 
   【颜色查表改动】Vue2 :18-26 的 COLORS 是字面量渐变表(color-guard 禁字面量),
