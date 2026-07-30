@@ -8,6 +8,7 @@ import { buildVisibleStack, stepSelectedIndex } from '../util/timeMachineMath'
 import { useDeckPreview } from '../composables/useDeckPreview'
 import TimeMachineBar from './TimeMachineBar.vue'
 import TimeMachineDeck from './TimeMachineDeck.vue'
+import TimeMachineRail from './TimeMachineRail.vue'
 
 const props = defineProps<{
   volumeUuid: string
@@ -109,7 +110,6 @@ watch(() => props.volumeUuid, () => { load() })
     </div>
 
     <template v-else>
-      <!-- 刻度尺:T10 换成 TimeMachineRail -->
       <TimeMachineDeck
         :items="flatItems"
         :selected-index="selectedIndex"
@@ -117,6 +117,7 @@ watch(() => props.volumeUuid, () => { load() })
         @select="(i: number) => (selectedIndex = i)"
         @enter="enterSnapshot"
       />
+      <TimeMachineRail :groups="groups" :selected-index="selectedIndex" @select="(i: number) => (selectedIndex = i)" />
     </template>
 
     <TimeMachineBar :moment-text="momentText" :can-enter="!!selectedItem" @cancel="emit('close')" @enter="enterSnapshot" />

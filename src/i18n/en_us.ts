@@ -782,4 +782,5 @@ export default {
   tmSettings: 'Snapshot settings',
   tmNoFolderAtTime: 'This folder did not exist yet',
   tmItemCount: '{n} items',
+  tmRailJumpTo: 'Jump to the snapshot from {time}',
 }

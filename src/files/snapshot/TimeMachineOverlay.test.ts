@@ -78,6 +78,15 @@ describe('TimeMachineOverlay 三态', () => {
     const front = w.findAll('.tm-card').find((c) => c.classes().includes('is-front'))!
     expect(front.text()).toContain('14:30')
   })
+  it('就绪后同时渲染卡堆与刻度尺,刻度数 = 快照数', async () => {
+    const w = mountIt(); await flush(w)
+    expect(w.findAll('.tm-tick-main')).toHaveLength(3)
+  })
+  it('点刻度换选中,底栏时刻跟着变', async () => {
+    const w = mountIt(); await flush(w)
+    await w.findAll('.tm-tick-main')[2].trigger('click')
+    expect(w.find('.tm-bar-moment').text()).toContain('昨天')
+  })
 })
 
 describe('TimeMachineOverlay 选择与进入', () => {

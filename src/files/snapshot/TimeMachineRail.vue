@@ -1,0 +1,144 @@
+<script setup lang="ts">
+import { computed, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { buildRailNodes, computeFisheyeScales } from '../util/timeMachineMath'
+
+export interface RailItem { flatIndex: number; time: string; typeKind: 'auto' | 'manual' | 'preop' }
+export interface RailGroup { dayKey: string; labelText: string; items: RailItem[] }
+
+const props = defineProps<{ groups: RailGroup[]; selectedIndex: number }>()
+const emit = defineEmits<{ (e: 'select', index: number): void }>()
+const { t } = useI18n()
+
+const nodes = computed(() => buildRailNodes(props.groups))
+const itemByIndex = computed(() => {
+  const map: Record<number, RailItem> = {}
+  for (const g of props.groups) for (const it of g.items) map[it.flatIndex] = it
+  return map
+})
+
+const scales = ref<Record<number, number>>({})
+const hoveredIndex = ref<number | null>(null)
+// 当前浮出标签相对 .tm-rail 的竖直位置(px)——只在 mouseenter 那一刻算一次,不随
+// 鱼眼缩放的 rAF 循环重算,标签不需要跟手抖动。
+const hoverLabelTop = ref(0)
+const railEl = ref<HTMLElement | null>(null)
+let rafHandle: number | null = null
+let pendingY = 0
+
+// 光标距离驱动的连续放大。一帧内的一串 mousemove 只安排一次重算(rAF 合并),
+// 回调触发时用最新的光标 Y —— 纯 CSS 的 :hover 只能做离散档位,表达不了连续函数。
+function onMouseMove(e: MouseEvent) {
+  pendingY = e.clientY
+  if (rafHandle !== null) return
+  rafHandle = requestAnimationFrame(() => {
+    rafHandle = null
+    updateScales(pendingY)
+  })
+}
+
+function updateScales(cursorY: number) {
+  const root = railEl.value
+  if (!root) return
+  const els = Array.from(root.querySelectorAll<HTMLElement>('[data-flat-index]'))
+  const indices = els.map((el) => Number(el.dataset.flatIndex))
+  const centers = els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 })
+  const out = computeFisheyeScales(centers, cursorY)
+  const map: Record<number, number> = {}
+  indices.forEach((idx, i) => { map[idx] = out[i] })
+  scales.value = map
+}
+
+function onMouseLeave() {
+  hoveredIndex.value = null
+  scales.value = {}
+}
+
+// 主刻度与子刻度共用这一个 handler:子刻度传的是它吸附到的 anchorIndex,所以浮出的
+// 标签内容天然就是"这条子刻度所属主刻度"的时间,和点击吸附的目标保持一致。
+function onTickHover(e: MouseEvent, flatIndex: number) {
+  hoveredIndex.value = flatIndex
+  const el = e.currentTarget as HTMLElement
+  hoverLabelTop.value = el.offsetTop + el.offsetHeight / 2
+}
+
+onUnmounted(() => { if (rafHandle !== null) cancelAnimationFrame(rafHandle) })
+
+function scaleStyle(flatIndex: number) {
+  const s = scales.value[flatIndex]
+  return s ? { transform: `scaleX(${s})` } : undefined
+}
+
+const hoveredItem = computed(() => (hoveredIndex.value !== null ? itemByIndex.value[hoveredIndex.value] : null))
+</script>
+
+<template>
+  <div ref="railEl" class="tm-rail" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
+    <template v-for="node in nodes" :key="node.key">
+      <div v-if="node.type === 'day'" class="tm-rail-day">{{ node.label }}</div>
+
+      <button
+        v-else-if="node.type === 'main'"
+        type="button"
+        class="tm-tick tm-tick-main"
+        :class="[`type-${itemByIndex[node.flatIndex!]?.typeKind}`, { 'is-selected': node.flatIndex === props.selectedIndex }]"
+        :data-flat-index="node.flatIndex"
+        :style="scaleStyle(node.flatIndex!)"
+        :aria-label="t('tmRailJumpTo', { time: itemByIndex[node.flatIndex!]?.time })"
+        @mouseenter="onTickHover($event, node.flatIndex!)"
+        @click="emit('select', node.flatIndex!)"
+      ></button>
+
+      <!-- 装饰性子刻度:不可独立选中(不是 button,键盘/屏幕阅读器跳过它),点它吸附到
+           它所属的主刻度(anchorIndex)。 -->
+      <div
+        v-else
+        class="tm-tick tm-tick-sub"
+        aria-hidden="true"
+        :data-flat-index="node.anchorIndex"
+        :style="scaleStyle(node.anchorIndex!)"
+        @mouseenter="onTickHover($event, node.anchorIndex!)"
+        @click="emit('select', node.anchorIndex!)"
+      ></div>
+    </template>
+
+    <!-- 悬停标签特意放在 .tm-rail 这一层,而不是塞进刻度按钮里当子元素:刻度用 scaleX
+         做连续鱼眼放大,标签若是它的子元素会被父级 transform 一并横向拉扁,想抵消就得
+         套一层反向 scaleX(1/父级缩放) 并把缩放值层层传下去,徒增耦合还容易在缩放值变化的
+         中间帧算错。挪出来做绝对定位、跟随当前 hover 项的位置渲染,它就单纯是 .tm-rail
+         的一个兄弟节点,天然不在被缩放元素的子树里,不可能被那个 transform 影响到
+         ——不依赖任何数值抵消,structurally 就不会被拉伸。 -->
+    <span v-if="hoveredItem" class="tm-tick-label" :style="{ top: `${hoverLabelTop}px` }">{{ hoveredItem.time }}</span>
+  </div>
+</template>
+
+<style scoped>
+.tm-rail {
+  position: absolute; top: 0; right: 0; bottom: 76px; width: 96px;
+  padding: 24px 20px 24px 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+  overflow-y: auto; overflow-x: visible; scrollbar-width: thin;
+}
+.tm-rail-day {
+  width: 100%; text-align: right; margin-top: 6px;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+  color: var(--tm-fg-muted);
+}
+.tm-rail-day:first-child { margin-top: 0; }
+.tm-tick {
+  position: relative; height: 3px; border: none; padding: 0; border-radius: 2px;
+  transform-origin: right center; cursor: pointer;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s var(--ease);
+}
+.tm-tick-main { width: 26px; background: var(--tm-rail); }
+.tm-tick-sub { width: 18px; background: var(--tm-rail-sub); }
+.tm-tick-main.type-manual { background: var(--accent); }
+.tm-tick-main.type-preop { background: var(--dem-fg); }
+.tm-tick-main.is-selected { height: 4px; background: var(--accent); box-shadow: 0 0 8px var(--accent-soft-2); }
+.tm-tick-label {
+  position: absolute; right: 34px; white-space: nowrap;
+  font-size: 10px; font-weight: 600; color: var(--tm-fg);
+  transform: translateY(-50%); pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .tm-tick { transition: none; } }
+</style>

@@ -782,4 +782,5 @@ export default {
   tmSettings: '快照设置',
   tmNoFolderAtTime: '此时还没有这个文件夹',
   tmItemCount: '{n} 项',
+  tmRailJumpTo: '跳转到 {time} 的快照',
 }
