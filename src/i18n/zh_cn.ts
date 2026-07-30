@@ -1227,5 +1227,12 @@ export default {
   aiSkTriggerAutomatic: '自动触发',
   aiSkAuthorYou: '你',
   aiSkTriggerSlash: '/{name}',
+
+  // SP8-P3a 验收后追加 —— 输入框内「已挂载技能」提示条(用户 2026-07-30 当面要求
+  // 新增,Vue2 无对应 UI;见 AgentComposer.vue 顶部注释与
+  // .superpowers/sdd/p3a-post-skillbanner-brief.md)。{name} 由 <i18n-t> 具名插槽
+  // 用 <code> 填充,值本身不含 <code> 标签。
+  aiSkPendingBanner: '已挂载技能 {name},将应用于下一条消息',
+  aiSkPendingDetach: '取消挂载',
   // <<< SP8-P3a
 }

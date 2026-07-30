@@ -846,3 +846,58 @@ describe('AgentComposer drillIn 光标数学(P1c1 补丁验收第 2 轮 Item B)'
     expect(pop.props('query')).toBe('')
   })
 })
+
+// SP8-P3a 验收后追加 —— 「已挂载技能」提示条。逐字取自
+// .superpowers/sdd/p3a-post-skillbanner-brief.md §3。用真实 Pinia store(与本文件
+// 其余 describe 一致,未 mock agentStore),直接读写 store.pendingSkillId。
+describe('AgentComposer 已挂载技能提示条(SP8-P3a 验收后追加)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    Object.values(svc).forEach((f: any) => f.mockClear?.())
+  })
+
+  it('pendingSkillId 有值时渲染提示条,文案里含该 slug(在 <code> 里)', () => {
+    const store = useAgentStore()
+    store.pendingSkillId = 'duplicate-sweeper'
+    const w = mountComposer()
+    const banner = w.find('.pending-skill')
+    expect(banner.exists()).toBe(true)
+    expect(banner.find('code').text()).toBe('duplicate-sweeper')
+  })
+
+  it('pendingSkillId 为 null 时整条不渲染', () => {
+    const store = useAgentStore()
+    store.pendingSkillId = null
+    const w = mountComposer()
+    expect(w.find('.pending-skill').exists()).toBe(false)
+  })
+
+  it('点关闭按钮把 store.pendingSkillId 置 null,提示条消失', async () => {
+    const store = useAgentStore()
+    store.pendingSkillId = 'duplicate-sweeper'
+    const w = mountComposer()
+    expect(w.find('.pending-skill').exists()).toBe(true)
+    await w.find('.pending-skill-x').trigger('click')
+    expect(store.pendingSkillId).toBeNull()
+    expect(w.find('.pending-skill').exists()).toBe(false)
+  })
+
+  // 发送后自动消失:agentStore.ts:925-927 的 send() 才是真正消费/清空
+  // pendingSkillId 的地方(X-Skill-Id 头),而 AgentComposer 的 submit() 只
+  // emit('send') 交给父组件(AgentPage.vue)去调 store.send() —— 本文件按 brief
+  // 禁令不碰 AgentPage.vue/agentStore.ts 内部实现,也不适合在这里重新拼一套
+  // runAgentRun/SSE 的 mock 去驱动真实 send()。故只钉住 brief §3.4 允许的那一半:
+  // pendingSkillId 被清空后(不论谁清的),提示条靠 v-if 纯反应式消失,组件侧
+  // 不需要任何额外清理代码。
+  it('pendingSkillId 被清空后(模拟 send() 消费一次的效果),提示条自然消失', async () => {
+    const store = useAgentStore()
+    store.pendingSkillId = 'duplicate-sweeper'
+    const w = mountComposer()
+    expect(w.find('.pending-skill').exists()).toBe(true)
+
+    // 模拟 agentStore.ts:927 `pendingSkillId.value = null // 消费一次`。
+    store.pendingSkillId = null
+    await flushPromises()
+    expect(w.find('.pending-skill').exists()).toBe(false)
+  })
+})

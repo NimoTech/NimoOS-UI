@@ -113,6 +113,18 @@
   字符串末尾,于是把尾部文字当成了 mentionQuery。改法:调换成先
   `setSelectionRange` 再 `focus()`——前者不要求元素已经 focus,后者也不会重置
   已经存在的 selection,顺序调换即可修好,见 `drillIn` 声明处注释。
+
+  SP8-P3a 验收后追加(2026-07-30)—— 「已挂载技能」提示条,**用户当面指令新增的
+  UI,Vue2 同文件没有这个元素**。背景:「在对话中试用」把 skill id 存进
+  `agentStore.pendingSkillId`(挂号,仅暂存),真正生效要等**下一次** `send()`
+  才把它塞进 `X-Skill-Id` 请求头并消费清空(agentStore.ts:925-927,Vue2
+  agentStore.js:357-359 同款,P1 期就有,本组件的贡献只是显性化)——但界面全程
+  没有任何提示,用户验收时问「URL 变了但真的会用这个 skill 吗」,证明这是可复现
+  的体验缺口。本条不改 URL(方案②未选)、不加技能停用提示(方案③未选),纯只读
+  `store.pendingSkillId` 渲染一条可关闭提示,关闭只置 null,不做别的。放在
+  chips 行之前是因为语义一致:两者都是「会跟着下一条消息一起发出去的东西」,且
+  天然继承 `.composer` 的 `pointer-events: auto`。见
+  .superpowers/sdd/p3a-post-skillbanner-brief.md。
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
@@ -1066,6 +1078,23 @@ onBeforeUnmount(() => {
 <template>
   <div class="composer-wrap">
     <div class="composer" ref="composerEl">
+      <!-- SP8-P3a 验收后追加 —— 见文件头注释:store.pendingSkillId 挂号提示,
+           Vue2 无对应元素,用户 2026-07-30 当面要求。 -->
+      <div v-if="store.pendingSkillId" class="pending-skill">
+        <AgentIcon name="sparkle" :size="12" color="var(--accent)" />
+        <i18n-t keypath="aiSkPendingBanner" tag="span" class="pending-skill-text">
+          <template #name><code>{{ store.pendingSkillId }}</code></template>
+        </i18n-t>
+        <button
+          class="pending-skill-x"
+          :title="t('aiSkPendingDetach')"
+          :aria-label="t('aiSkPendingDetach')"
+          @click="store.pendingSkillId = null"
+        >
+          <AgentIcon name="x" :size="10" />
+        </button>
+      </div>
+
       <div v-if="chips.length > 0 || attachments.length > 0" class="composer-chips">
         <div v-for="c in chips" :key="c.id" class="ctx-chip" :title="c.path">
           <KindIcon :kind="c.kind === 'file' ? 'file' : 'folder'" :ext="c.ext" :size="12" />
@@ -1245,6 +1274,35 @@ onBeforeUnmount(() => {
   pointer-events: none;
   overflow: hidden;
 }
+
+/* SP8-P3a 验收后追加 —— 「已挂载技能」提示条(见文件头注释)。视觉语言参照
+   下方 .ctx-chip(圆角/字号/间距一致),底色用 --accent-softer 以示区别
+   (同 .composer:focus-within 用的那个 token,见 agent-styles.scss:369)。 */
+.pending-skill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  background: var(--accent-softer);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.pending-skill-text { flex: 1; }
+.pending-skill-text :deep(code) {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+.pending-skill-x {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-tertiary);
+  background: transparent; border: none; cursor: pointer;
+  transition: all 120ms ease;
+}
+.pending-skill-x:hover { background: var(--bg-elevated); color: var(--text-primary); }
 
 .composer-chips {
   display: flex; gap: 6px; flex-wrap: wrap;

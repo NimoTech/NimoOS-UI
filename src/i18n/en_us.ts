@@ -1224,5 +1224,13 @@ export default {
   aiSkTriggerAutomatic: 'Automatic',
   aiSkAuthorYou: 'You',
   aiSkTriggerSlash: '/{name}',
+
+  // SP8-P3a post-acceptance addendum — "skill attached" banner inside the
+  // composer (user-requested 2026-07-30, no Vue2 counterpart; see the header
+  // comment in AgentComposer.vue and
+  // .superpowers/sdd/p3a-post-skillbanner-brief.md). {name} is filled by an
+  // <i18n-t> named slot with <code>; the value itself carries no markup.
+  aiSkPendingBanner: 'Skill {name} is attached — it will apply to your next message',
+  aiSkPendingDetach: 'Detach skill',
   // <<< SP8-P3a
 }
