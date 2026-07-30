@@ -7,7 +7,8 @@
 // src/photos/components/PlacesMap.vue(T6,吃 mapThemeStyleVars() 的产物当 :style)。
 //
 // ── 这是 spec SP7 D5 批准的第三类例外(数据可视化调色板,不是应用皮肤)──────────────
-// 下面 26 个色值 + 两个自定义默认色是用户可在"地图主题"弹层里挑选的地图可视化配色,
+// 下面 28 个色值(4 预设 × 7 字段:bg/land/dot + light.{bg,grid,dotBg,dot})+ 两个自定义
+// 默认色是用户可在"地图主题"弹层里挑选的地图可视化配色,
 // 与 New-UI 的蓝/白两套应用主题(src/styles/theme.css)正交:同一个应用主题下,用户仍可
 // 在 4 个地图预设之间自由切换;这组色值必须原样保留(4 预设各自的深浅两态色调是产品
 // 设计决策,不是"忘了 token 化"的遗留硬编码)。先例见 src/photos/util/peopleView.ts 的
@@ -31,7 +32,8 @@ export interface MapThemePreset {
   light: { bg: string, grid: string, dotBg: string, dot: string }
 }
 
-// 26 个色值逐字抄 Vue2 :88-113,一个字符不许改(保真移植合同,见任务报告的逐字回源核对表)。
+// 28 个色值(4 预设 × 7 字段)逐字抄 Vue2 :88-113,一个字符不许改(保真移植合同,见任务
+// 报告的逐字回源核对表)。
 export const MAP_THEME_PRESETS: readonly MapThemePreset[] = [
   {
     id: 'default',
@@ -108,6 +110,10 @@ export function resolveMapTheme(
  * `var(--map-dot-bg, var(--map-dot-bg-fallback))` 吃这个条件展开的回落语义,若这里改成
  * 无条件注入,深色主题下地面点阵会失去它自己的回落色。
  */
+// 评审 M5:--map-grid 在 P6a 无消费方——它在 Vue2 的唯一消费者是 .world-graticule /
+// .world-equator(经纬线网格),而那组规则已被本期判定为死码、明确不迁(PlacesMap.vue 没有
+// 渲染任何经纬线元素)。这里仍照搬 Vue2 无条件注入 --map-grid,不是遗漏,只是登记
+// (体例照 PlacesMap.vue:122-124 已为 --map-dot 回落做过的登记)。
 export function mapThemeStyleVars(t: ResolvedMapTheme): Record<string, string> {
   const vars: Record<string, string> = {
     background: t.bg,

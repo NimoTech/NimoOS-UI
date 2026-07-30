@@ -123,6 +123,9 @@ function toCoverCandidates(raw: unknown): CoverCandidates {
 export const usePhotosPlaces = defineStore('photosPlaces', () => {
   const places = ref<Place[]>([])
   const regions = ref<RegionCount[]>([])
+  // 评审 M6:stats 在 P6a 无消费方——Vue2 的唯一用途是喂 topbar,而 topbar 按 spec §7c-6
+  // 明确不建;rail 头与 .map-stats 显示的是过滤后统计,来源是 filteredPlaces(容器自己算的
+  // countPhotos/countCountries),不是这里。保留后端全局统计供 P6b/后续消费,不是遗漏。
   const stats = ref<PlacesStats>({ ...EMPTY_STATS })
   // 空态门控,照 people.ts 的 peopleLoaded 手法:只在成功路径置 true,失败留 false 可重试。
   const placesLoaded = ref(false)

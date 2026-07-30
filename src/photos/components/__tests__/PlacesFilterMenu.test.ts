@@ -389,3 +389,14 @@ describe('cssCascade: 三处「基类 + 变体」hover 归属变体', () => {
     expect(baseRuleSelectorLine).not.toContain('mfp-tick')
   })
 })
+
+// 评审 I1:Vue2 photos-places.scss:882 的 color-scheme: dark 会让 <input type="date"> 的原生
+// 部件(日历图标、未填占位文字)在浅色主题的浅底(--chip-bg/--popup-bg)上洗白到不可读。
+// 修法是删掉这一行,让根节点(theme.css :root / :root[data-theme="light"])已经按主题分设的
+// color-scheme 级联下来——本条测试钉住"不回归",不是钉住"曾经存在过"。
+describe('日期 input 不写死 color-scheme(评审 I1,防浅色主题下原生部件洗白不可读)', () => {
+  it('样式块里不出现 color-scheme(根节点 theme.css 已按主题分设,这里级联即可)', () => {
+    const styleText = extractStyleBlock(placesFilterMenuRaw)
+    expect(styleText).not.toContain('color-scheme')
+  })
+})

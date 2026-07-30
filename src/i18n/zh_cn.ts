@@ -1012,8 +1012,7 @@ export default {
   photosPersonMarkFavorite: '标记为收藏',
   // ── SP7-P6a T4:地点域(地图主视图)i18n 键 ──────────────────────────────────
   // 键表来源:task-4-brief.md;译文一律回源核对 NimoOS-UI/src/assets/lang/zh_CN.json,
-  // 出入已在任务报告里列出(brief 快照与 json 实际值不一致的几处按 json 为准更正;
-  // "当前行程" 一项按 Global Constraints 术语条目保留统一措辞,不回退 json 的"本次旅行")。
+  // 出入已在任务报告里列出(brief 快照与 json 实际值不一致的几处按 json 为准更正)。
   photosPlaces: '地点',
   photosPlacesCities: '城市', // json 实际值(zh_CN.json:1990),非 brief 快照的"座城市"
   photosPlacesCountries: '国家', // json 实际值(:2002),非 brief 快照的"个国家"
@@ -1072,4 +1071,8 @@ export default {
   photosPlacesSearchEmpty: '没有匹配「{q}」的城市',
   photosPlacesLoadFailed: '地点加载失败', // 照 P5-T14 的 photosPersonLoadFailed 先例
   photosPlacesRetry: '重试', // 本仓惯例每域独立 Retry 键(见 photosPersonRetry/appWidgetRetry 等),不复用
+  // 评审 I3(New-UI 新增,无 Vue2 对应):rail 空态原来恒显 photosPlacesEmpty,即使全量
+  // 地点非空、只是当前筛选条件过滤成了零结果——用户会误以为索引坏了。这里补一个专门
+  // 区分"过滤后为空"与"本来就没有位置数据"的文案。
+  photosPlacesFilterEmpty: '没有符合当前筛选条件的城市',
 }

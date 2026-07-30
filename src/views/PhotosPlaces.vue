@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 11 (SP7-P6a 地点·地图主视图,本期收官): PhotosPlaces.vue —— 容器,把前 10 个任务的
-// 产物接成一个可用页面:壳 + 图例/统计/悬停卡片 + 五个子组件接线 + 路由与侧栏第 6 条目。
+// 产物接成一个可用页面:壳 + 图例/统计/悬停卡片 + 五个子组件接线 + 路由与侧栏第 4 条目。
 // 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue :760-761+:827-828+:949-950+
 // :1250-1251(容器骨架)、:1013-1028(悬停卡片)、:1030-1044(图例)、:1046-1056(统计)、
 // :70-132(state)、:290-322(watch)、:323-357(mounted,跳过封面弹层/文档 mousedown 部分——
@@ -188,22 +188,29 @@ watch(activeId, (next) => {
   void store.loadDetail(next)
 })
 
-onMounted(async () => {
-  attempted.value = true
-  await store.fetchPlaces()
-  // Vue2 :412-413,T3 store 刻意没做这一步(留给视图层,便于本容器的单测钉住"进页面
-  // 选中哪个地点"这条交互)。
+// Vue2 :412-413 把"没有选中项就选 places[0]"放在 loadPlaces() 内部,所以每一次成功加载
+// (首次进入页面、或失败后重试)都会重新选中并 autoPan。T3 store 刻意没做这一步(留给视图层),
+// 但这意味着调用方必须在**每一次**成功的 fetchPlaces 之后都补这一步——评审 I4:抽成一个
+// 函数,onMounted 与 retryLoad 都调,不能只在 onMounted 里做一次。
+function selectFirstIfNeeded(): void {
   if (!activeId.value && store.places.length > 0) {
     activeId.value = store.places[0].id
   }
+}
+
+onMounted(async () => {
+  attempted.value = true
+  await store.fetchPlaces()
+  selectFirstIfNeeded()
 })
 onUnmounted(() => {
   dispose()
   if (svgRef.value) svgRef.value.removeEventListener('wheel', handleWheel)
 })
 
-function retryLoad(): void {
-  void store.fetchPlaces()
+async function retryLoad(): Promise<void> {
+  await store.fetchPlaces()
+  selectFirstIfNeeded()
 }
 </script>
 
@@ -220,6 +227,7 @@ function retryLoad(): void {
             :total-photos="totalPhotos"
             :country-count="countryCount"
             :loaded="store.placesLoaded"
+            :total-places="store.places.length"
             @pick="activeId = $event"
             @toggle-fold="onToggleFold"
           />

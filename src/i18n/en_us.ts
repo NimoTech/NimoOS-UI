@@ -1074,4 +1074,9 @@ export default {
   photosPlacesSearchEmpty: 'No cities matching "{q}"',
   photosPlacesLoadFailed: 'Could not load places',
   photosPlacesRetry: 'Retry',
+  // Review I3 (New-UI addition, no Vue2 counterpart): the rail empty state used to
+  // always show photosPlacesEmpty even when the full place list is non-empty and
+  // only the active filters narrowed it to zero — misleading users into thinking
+  // the index is broken. Added a distinct copy for "empty after filtering".
+  photosPlacesFilterEmpty: 'No cities match the current filters',
 }

@@ -307,7 +307,11 @@ onUnmounted(() => {
   border-radius: 6px;
   color: var(--fg);
   font: inherit; font-size: 11.5px;
-  color-scheme: dark;
+  /* 评审 I1:Vue2 photos-places.scss:882 写死深色 color-scheme,逼原生日期控件(日历图标、
+     未填占位文字)按深色配色渲染。本仓根节点已按主题分设 color-scheme(theme.css 的
+     :root 与 light 覆盖块),刻意不照抄这一行——照抄会在浅色主题下让白色图标/占位文字
+     铺在这里的浅底(--chip-bg)上洗白到不可读,让根节点的值级联下来才是两套主题都可读的
+     正确行为。 */
   outline: none;
   cursor: pointer;
   font-variant-numeric: tabular-nums;

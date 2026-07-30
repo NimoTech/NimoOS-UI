@@ -42,6 +42,7 @@ function mountRail(props: Partial<InstanceType<typeof PlacesRail>['$props']> = {
       totalPhotos: 0,
       countryCount: 0,
       loaded: true,
+      totalPlaces: 0,
       ...props,
     },
   })
@@ -218,6 +219,26 @@ describe('空态三态(结构规格 4)', () => {
     const w = mountRail({ places: [place({ id: 'a', region: 'asia', city: 'Hangzhou' })] })
     await w.get('.map-search input').setValue('zzz')
     expect(w.text()).toContain('没有匹配「zzz」的城市')
+  })
+})
+
+// 评审 I3(New-UI 新增,无 Vue2 对应):places.length === 0 原来无条件显示"还没有带位置信息
+// 的照片",但传进来的 places 是已过滤后的列表——库里明明有地点、只是筛选条件把结果收窄
+// 成零,用户会误以为索引坏了。totalPlaces(全量未过滤长度)用来分流两种空态。
+describe('过滤后为空 vs 真的没有位置数据(评审 I3)', () => {
+  it('totalPlaces === 0 → 显示"还没有带位置信息的照片"(真没有数据)', () => {
+    const w = mountRail({ places: [], totalPlaces: 0 })
+    expect(w.find('[data-test="rail-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="rail-filter-empty"]').exists()).toBe(false)
+    expect(w.text()).toContain('还没有带位置信息的照片')
+  })
+
+  it('totalPlaces > 0 但过滤后为空 → 显示"没有符合当前筛选条件的城市",不出旧文案', () => {
+    const w = mountRail({ places: [], totalPlaces: 30 })
+    expect(w.find('[data-test="rail-filter-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="rail-empty"]').exists()).toBe(false)
+    expect(w.text()).toContain('没有符合当前筛选条件的城市')
+    expect(w.text()).not.toContain('还没有带位置信息的照片')
   })
 })
 

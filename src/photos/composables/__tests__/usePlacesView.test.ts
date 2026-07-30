@@ -395,13 +395,14 @@ describe('usePlacesView', () => {
       expect(pv.view.value.scale).toBeGreaterThan(1)
     })
 
-    it('已在 MAX_SCALE 时目标仍 > 当前(靠 +0.01)但被钳回 MAX_SCALE,且不抛', () => {
-      // 自然场景(共点簇 + currentScale=MAX_SCALE)在最终视图上和去掉 +0.01
-      // 无法区分——两者都会被 centerOn 自己的 clamp 钳到 MAX_SCALE。为了让
-      // 删码验证能真正抓住 +0.01 这一行,这里用 spyOn 把 splitScaleFor 钉死
-      // 在 currentScale 本身(模拟"恰好等于当前缩放"的裂解阈值),这样
-      // +0.01 存在与否在钳制前的差异(currentScale+0.01 vs currentScale)会
-      // 传导到最终 view.scale 上(因为 currentScale+0.01 < MAX_SCALE,不会被钳掉)。
+    it('mock 裂解阈值 = currentScale 时 +0.01 生效且未被钳制', () => {
+      // 评审 I2:已代数证明 +0.01 对任意合法 currentScale ∈ [1, MAX_SCALE] 恒不可观测
+      // ——splitScaleFor 的「可裂」分支恒返回 >= currentScale * 1.04(严格大于
+      // currentScale + 0.01),「裂不开」分支恒返回 MAX_SCALE 并被 centerOn 自己的
+      // clamp 夹回 MAX_SCALE。这条用例用 vi.spyOn 把 splitScaleFor 钉死在
+      // currentScale 本身——这是真实链路里 splitScaleFor 永远不会返回的值(最小也是
+      // currentScale + 0.04),只是为了给"删掉 +0.01"这个删码动作制造一个能观测到差异
+      // 的靶子,不代表任何用户可达到的真实场景/可观测行为。
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const splitSpy = vi.spyOn(placesMapModule, 'splitScaleFor').mockReturnValue(10)

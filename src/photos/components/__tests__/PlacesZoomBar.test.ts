@@ -186,6 +186,18 @@ describe('拖拽换算(照 Vue2 :666-673,顶=最大缩放、底=最小)', () => 
     expect(w.emitted('set-scale')).toHaveLength(1)
   })
 
+  // 评审 M4:rect.height === 0(轨道尚未布局/被隐藏)会让 t = (clientY-top)/height 算出
+  // NaN,一路传导到 usePlacesView 的 view.scale/tx/ty——且 applyZoom 里 `clamped === old`
+  // 因 NaN !== NaN 恒不短路,NaN 一旦写入就再也救不回来(reset() 的插值从 NaN 起点算,
+  // 每一步都还是 NaN)。这条钉住组件侧已经拦住了这个不可恢复态,不再往外 emit。
+  it('rect.height === 0 时不 emit set-scale(防 NaN 传导进 view.scale/tx/ty)', async () => {
+    const w = mountBar()
+    const track = w.find('.zb-track')
+    mockTrackRect(track.element as HTMLElement, 100, 0)
+    await track.trigger('pointerdown', { clientY: 100, pointerId: 1 })
+    expect(w.emitted('set-scale')).toBeUndefined()
+  })
+
   it('pointerdown:立即换算一次 + setPointerCapture 被调用(存在时)', async () => {
     const w = mountBar()
     const track = w.find('.zb-track').element as HTMLElement & { setPointerCapture?: (id: number) => void }

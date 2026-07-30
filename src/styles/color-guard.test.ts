@@ -104,3 +104,38 @@ describe('color-token guard (§0 约定: 颜色一律走 var(--token))', () => {
     })
   }
 })
+
+// 便宜守卫(评审 I1 的姊妹坑):color-scheme 不是颜色字面量,上面那条 color-token guard
+// 完全抓不到它——但它的效果等价于"钉死一套主题":`color-scheme: dark` 会让浏览器强制用
+// 深色配色渲染该元素内的原生控件(date/time/number/select/滚动条等),不随 New-UI 的
+// data-theme 走。I1 就是这么溜过去的(PlacesFilterMenu.vue 曾经写死 `color-scheme: dark`)。
+// `color-scheme: light dark`(双值,把选择权交还浏览器/系统)不在此列——放行。
+// theme.css 自己的 :root / :root[data-theme="light"] 两条是这套约定的正确用法(主题块本身
+// 就是"按主题分设颜色 token"的定义处),豁免整个文件,同上面 color-token guard 的既有豁免。
+describe('color-scheme 单值必须走 theme-exception 豁免(防 I1 同类复发)', () => {
+  const COLOR_SCHEME_RE = /color-scheme\s*:\s*([^;{}]+)/i
+  for (const [path, src] of Object.entries(files)) {
+    const rel = path.replace(/^\.\.\//, '').replace(/\\/g, '/')
+    if (rel === 'styles/theme.css') continue
+    it(`${rel} 的单值 color-scheme(dark 或 light,不含 light dark)都带 theme-exception 注释`, () => {
+      const lines = styleLines(rel, src)
+      const offenders: string[] = []
+      let exempt = false
+      lines.forEach(([n, line]) => {
+        if (line.includes('theme-exception')) exempt = true
+        const m = COLOR_SCHEME_RE.exec(line)
+        if (m) {
+          const tokens = m[1].trim().split(/\s+/)
+          const isSingleValue = tokens.length === 1 && (tokens[0] === 'dark' || tokens[0] === 'light')
+          if (isSingleValue && !exempt) offenders.push(`  L${n}: ${line.trim()}`)
+        }
+        if (line.includes(';') || line.includes('}')) exempt = false
+      })
+      expect(
+        offenders,
+        `\n${rel} 发现未豁免的单值 color-scheme(会钉死一套主题的原生控件配色,改为
+删掉这行让根节点级联下来,或加 /* theme-exception: 原因 */):\n${offenders.join('\n')}`,
+      ).toEqual([])
+    })
+  }
+})

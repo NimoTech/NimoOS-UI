@@ -171,7 +171,13 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     centerOn(x, y, Math.max(view.value.scale, 1.8))
   }
 
-  // Vue2 :661-664. +0.01 不能省——否则裂不开的簇点了完全没反应。
+  // Vue2 :661-664。照搬保留 +0.01,但评审 I2 已代数证明:对任意合法
+  // currentScale ∈ [1, MAX_SCALE],这一项恒不可观测,是 Vue2 的死代码——
+  // splitScaleFor 的「可裂」分支恒返回 >= currentScale * 1.04(因 currentScale >= 1,
+  // 即 >= currentScale + 0.04,严格大于 currentScale + 0.01,左支永不胜出);
+  // 「裂不开」分支恒返回 MAX_SCALE,而下面 centerOn 自己的
+  // Math.min(MAX_SCALE, …) 会把两种情形都夹回 MAX_SCALE。保留这一行仅为逐行
+  // 对齐 Vue2,不代表它有任何用户可观测作用。
   function zoomToCluster(pin: Pin, currentScale: number): void {
     const next = Math.max(currentScale + 0.01, splitScaleFor(pin.members ?? [], currentScale))
     centerOn(pin.x, pin.y, next)

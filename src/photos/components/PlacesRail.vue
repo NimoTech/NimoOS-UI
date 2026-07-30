@@ -33,6 +33,10 @@ const props = defineProps<{
   totalPhotos: number
   countryCount: number
   loaded: boolean // store.placesLoaded,用于空态门控
+  // 评审 I3(New-UI 新增,无 Vue2 对应):未过滤的全量地点数,只用来给 places.length === 0
+  // 分流两种空态——全量为 0 才是"真没有位置数据",全量非 0 说明是筛选条件把结果收窄成了
+  // 零,这两种情况不该显示同一句"还没有带位置信息的照片"(那会让用户以为索引坏了)。
+  totalPlaces: number
 }>()
 
 const emit = defineEmits<{
@@ -117,10 +121,16 @@ function onToggleFold(rId: string): void {
         <div v-for="i in 6" :key="i" class="rail-place-skeleton" data-test="rail-skeleton"></div>
       </template>
 
-      <!-- loaded 且零地点(偏离登记 9)。 -->
-      <div v-else-if="places.length === 0" class="rail-empty-state" data-test="rail-empty">
+      <!-- loaded 且零地点,全量本就是 0(偏离登记 9)。 -->
+      <div v-else-if="places.length === 0 && totalPlaces === 0" class="rail-empty-state" data-test="rail-empty">
         <div class="rail-empty-title">{{ t('photosPlacesEmpty') }}</div>
         <div class="rail-empty-hint">{{ t('photosPlacesEmptyHint') }}</div>
+      </div>
+
+      <!-- 评审 I3:loaded 且零地点,但全量非零——是筛选条件把结果收窄成了零,不是没有
+           位置数据,必须显示不同的文案(否则用户会误以为索引坏了)。 -->
+      <div v-else-if="places.length === 0" class="rail-empty-state" data-test="rail-filter-empty">
+        <div class="rail-empty-title">{{ t('photosPlacesFilterEmpty') }}</div>
       </div>
 
       <!-- 搜索无果(偏离登记 9)。 -->
@@ -297,6 +307,10 @@ function onToggleFold(rId: string): void {
    若只断言 winningHoverBackground() 在当前书写顺序下选中谁,会因为上面这个
    "恰好顺序正确"的假象而测不出删码(已用真实删码实验验证并记入报告)。 */
 .rail-place.is-active:hover { background: var(--place-row-bg); }
+/* 评审 M3:Vue2 photos-places.scss 这处缩略图占位底是写死的纯黑;这里改用 --chip-bg
+   (随主题走),不是精确复刻那个 theme-invariant 的黑底——同 PhotosPlaces.vue
+   `.map-tip .thumb` 已登记的 D3 裁定(surface treatment 归 New-UI 重塑),这里补齐同一条
+   登记。 */
 .rail-place .thumb {
   width: 40px; height: 40px; border-radius: 6px;
   overflow: hidden; background: var(--chip-bg);

@@ -170,6 +170,23 @@ describe('过滤联动:rail 与 map 收到同一份过滤后地点,rail 的搜�
     expect(w.findComponent(PlacesMap).props('places')).toBe(before)
     expect(w.findComponent(PlacesMap).props('places')).toHaveLength(4)
   })
+
+  // 评审 I3:rail 的空态分流靠容器传的 totalPlaces(未过滤全量)——筛选条件把
+  // filteredPlaces 收窄到零之后,totalPlaces 仍必须是全量长度,不能跟着筛选结果一起归零
+  // (否则 rail 会分流错分支,显示"还没有位置数据"而不是"没有符合当前筛选条件的城市")。
+  it('minCount + regionFilter 叠加收窄到零结果后,rail 收到的 totalPlaces 仍是全量长度(4)', async () => {
+    const { w } = await mountView()
+    await w.find('[data-test="pfm-chip"]').trigger('click')
+    const btns = w.findAll('[data-test="pfm-mincount-btn"]')
+    // MIN_COUNT_STEPS = [0,10,50,100,200],下标 4 = 200:先把 CLUSTER_A/B(count=5)收窄掉,
+    // 留下 TOKYO(9990)/PARIS(2345)。
+    await btns[4].trigger('click')
+    // 再叠加大洲筛选到 americas——TOKYO 是 asia、PARIS 是 europe,两者都不是 americas,
+    // 与上面的 minCount 条件取交集后四个 fixture 全部被过滤掉,filteredPlaces 归零。
+    await w.find('[data-test="pfm-region-btn"][data-region-id="americas"]').trigger('click')
+    expect(w.findComponent(PlacesRail).props('places')).toHaveLength(0)
+    expect(w.findComponent(PlacesRail).props('totalPlaces')).toBe(4)
+  })
 })
 
 describe('pick-pin 接线(Vue2 :736-743)', () => {
@@ -296,6 +313,25 @@ describe('加载失败态', () => {
     await flushPromises()
     expect(svc.photos.listPlaces).toHaveBeenCalledTimes(2)
     expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
+  })
+
+  // 评审 I4:Vue2 把"没有选中项就选 places[0]"放在 loadPlaces() 内部,所以每一次成功加载
+  // (不只是第一次)都会自动选中并 autoPan、触发 loadDetail。retryLoad 之前只调
+  // store.fetchPlaces(),漏了这一步——首屏失败、点重试后第二次成功,会出现"rail 列满
+  // 城市、地图画出图钉,但没有任何城市被选中"的落点不一致。
+  it('首次 fetchPlaces 失败 → 点重试 → 第二次成功后自动选中第一个地点并调用 loadDetail', async () => {
+    svc.photos.listPlaces.mockRejectedValueOnce(new Error('network down'))
+    const { w } = await mountView()
+    expect(w.find('[data-test="places-failed"]').exists()).toBe(true)
+    expect(svc.photos.getPlace).not.toHaveBeenCalled()
+
+    svc.photos.listPlaces.mockImplementationOnce(okListPlaces)
+    await w.find('[data-test="places-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
+    expect(w.findComponent(PlacesRail).props('activeId')).toBe('1') // TOKYO(key=1)是 fixture 里第一个
+    expect(svc.photos.getPlace).toHaveBeenCalledWith(1)
   })
 })
 

@@ -25,6 +25,13 @@
 //     `cluster:${lead.id}` id, and route params are all strings — every
 //     "is this the active one" / "find by id" comparison here normalizes both
 //     sides with String() before comparing.
+//  5. Evaluated M8 (missing from an earlier pass of this log): filterPlaces'
+//     `custom` range end is inclusive of the whole end day. Vue2 parses
+//     `customEnd` with `new Date('YYYY-MM-DD')`, which is UTC midnight, so any
+//     photo taken later that same calendar day (in a non-UTC timezone) gets
+//     excluded. Here the end bound is built as local midnight + 'T23:59:59.999',
+//     so the entire end day is included. Already covered by existing tests;
+//     this note just closes the log-vs-code gap the reviewer flagged.
 
 import { type Cluster, clusterByOverlap } from './placesCluster'
 import { project, WORLD_DOTS, type WorldDot } from './worldMap'
@@ -164,6 +171,10 @@ export function declutterPins(pins: Pin[], minSep: number): void {
 // function is pure. Binary search for the lowest scale (within 22 steps) at
 // which `members` first splits into >= 2 clusters, then nudges just past that
 // threshold so the split is visually obvious rather than borderline.
+// 评审 M7:placesMap.test.ts:176-191 逐字复制了下面这段 22 步二分,专门用来钉住
+// `hi * 1.04` 这个收敛系数(评审已接受为唯一可行的钉法)。改这里的步数(22)或换一种
+// 收敛策略时,务必同步改测试文件里的对应段——否则那条测试会静默失去意义(不再真的复算
+// 同一个算法),而不是变红提醒你。
 export function splitScaleFor(members: Place[], currentScale: number): number {
   if (!members || members.length < 2)
     return MAX_SCALE

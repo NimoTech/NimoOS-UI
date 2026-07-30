@@ -49,6 +49,12 @@ let dragging = false
 function setFromEvent(e: PointerEvent): void {
   const track = e.currentTarget as HTMLElement
   const rect = track.getBoundingClientRect()
+  // 评审 M4:Vue2 没有这条守卫,但 rect.height === 0(轨道尚未布局/被隐藏)会让下面的除法
+  // 产出 NaN,一路传导到 usePlacesView 的 view.scale/tx/ty 三个字段,而 applyZoom 里
+  // `clamped === old` 因 NaN !== NaN 恒不短路,写入即成事实;reset() 走 animateView 做插值,
+  // 从 NaN 起点算出的每一步都还是 NaN——连复位键也救不回来,只能重挂组件。这里提前 return
+  // 拦住这个不可恢复态,不让 NaN 有机会写进 view。
+  if (!rect.height) return
   const tFrac = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
   emit('set-scale', MAX_SCALE - tFrac * (MAX_SCALE - 1))
 }
