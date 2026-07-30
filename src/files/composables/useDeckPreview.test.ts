@@ -84,4 +84,30 @@ describe('useDeckPreview', () => {
     expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/snap1/Docs')
     expect(getListMock).toHaveBeenCalledTimes(2)
   })
+  it('换目录后,旧目录的慢响应姗姗来迟也不能盖掉新目录已经落地的内容(交错响应)', async () => {
+    let resolveA: (v: unknown) => void = () => {}
+    let resolveB: (v: unknown) => void = () => {}
+    getListMock.mockImplementation((p: string) => {
+      if (p.endsWith('/A')) return new Promise((res) => { resolveA = res })
+      if (p.endsWith('/B')) return new Promise((res) => { resolveB = res })
+      return Promise.resolve({ content: [] })
+    })
+    const relPath = ref('A')
+    const visible = ref(['snap1'])
+    const api = useDeckPreview({ mountPoint: () => '/DATA', relPath: () => relPath.value, visibleNames: () => visible.value })
+    await flush() // A 的请求已发出、仍在途
+
+    relPath.value = 'B'
+    await flush() // 换目录:previews 被清空,B 的请求也已发出、仍在途
+
+    // B(新目录)先落地
+    resolveB({ content: [{ name: 'b.jpg', path: '/y/b.jpg', is_dir: false }] })
+    await flush()
+    expect(api.previews.value.snap1.tiles.map((t) => t.name)).toEqual(['b.jpg'])
+
+    // A(旧目录)才姗姗来迟地落地 —— 不能覆盖 B 已经写好的内容
+    resolveA({ content: [{ name: 'a.jpg', path: '/x/a.jpg', is_dir: false }] })
+    await flush()
+    expect(api.previews.value.snap1.tiles.map((t) => t.name)).toEqual(['b.jpg'])
+  })
 })
