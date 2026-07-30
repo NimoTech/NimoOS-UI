@@ -291,9 +291,48 @@ describe('StorageRaidDetail', () => {
     await router.push('/storage/raid/7'); await router.isReady()
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    // 只写盘数会变成"表头 (3)、下面 4 行",看着像数错 —— 有空槽位时两个数都写出来
+    const title = w.findAll('.rd-card-title').map((n) => n.text()).find((x) => x.includes('成员磁盘'))
+    expect(title).toBe('成员磁盘 (3 块 · 1 个空槽位)')
+    // 列表本身仍渲染 4 行:3 块盘 + 1 个空槽位占位行 —— 3 + 1 与表头对得上
+    expect(w.findAll('.rml-row').length).toBe(4)
+  })
+
+  it('健康阵列:表头不提空槽位,只写盘数', async () => {
+    raidGetStatus.mockResolvedValue({
+      live_state: 'clean', state: 'active', rebuild_pct: -1, total_bytes: 100, used_bytes: 40, free_bytes: 60,
+      members: [
+        { path: '/dev/sdb', state: 'active sync', number: 1, slot: 0 },
+        { path: '/dev/sdc', state: 'active sync', number: 3, slot: 1 },
+        { path: '/dev/sdd', state: 'active sync', number: 4, slot: 2 },
+      ],
+    })
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
     const title = w.findAll('.rd-card-title').map((n) => n.text()).find((x) => x.includes('成员磁盘'))
     expect(title).toBe('成员磁盘 (3)')
-    // 列表本身仍渲染 4 行:3 块盘 + 1 个空槽位占位行
-    expect(w.findAll('.rml-row').length).toBe(4)
+    expect(w.findAll('.rml-row').length).toBe(3)
+  })
+
+  // RAID 6 可以同时坏两块 → 两个空槽位,走复数文案
+  it('两个空槽位:表头写出空槽位个数', async () => {
+    raidGetStatus.mockResolvedValue({
+      live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 100, used_bytes: 40, free_bytes: 60,
+      members: [
+        { path: '', state: 'removed', number: 0, slot: 0 },
+        { path: '', state: 'removed', number: 1, slot: 1 },
+        { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+        { path: '/dev/sdd', state: 'active sync', number: 4, slot: 3 },
+        { path: '/dev/sda', state: 'faulty', number: 0, slot: -1 },
+        { path: '/dev/sdb', state: 'faulty', number: 1, slot: -1 },
+      ],
+    })
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    const title = w.findAll('.rd-card-title').map((n) => n.text()).find((x) => x.includes('成员磁盘'))
+    expect(title).toBe('成员磁盘 (4 块 · 2 个空槽位)')
+    expect(w.findAll('.rml-row').length).toBe(6)
   })
 })

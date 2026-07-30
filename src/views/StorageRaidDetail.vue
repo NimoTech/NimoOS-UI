@@ -118,6 +118,16 @@ const members = computed(() => status.value?.members || [])
 // 表头计数用"有设备路径的行"而不是总行数:空槽位占位行不是一块盘,数进去会把
 // 3 盘阵列在降级时写成 MEMBER DISKS (4)(见 raidView.ts memberDiskCount)。
 const diskCount = computed(() => memberDiskCount(members.value))
+// 但只写盘数又会出现"表头 (3)、下面 4 行"、看着像数错了。所以有空槽位时把两个数
+// 都写出来(3 块 + 1 个空槽位 = 4 行,对得上);没有空槽位时不提,保持简洁。
+const emptySlotCount = computed(() => members.value.filter((m) => !m.path).length)
+const membersTitle = computed(() => {
+  const n = diskCount.value
+  const slots = emptySlotCount.value
+  if (slots === 0) return t('raidMembersTitle', { n })
+  if (slots === 1) return t('raidMembersTitleOneEmptySlot', { n })
+  return t('raidMembersTitleEmptySlots', { n, slots })
+})
 
 function backToList() {
   router.push('/storage/raid')
@@ -246,7 +256,7 @@ async function onReplace(newDiskPath: string) {
           </div>
 
           <div class="rd-card">
-            <div class="rd-card-title">{{ t('raidMembers') }} ({{ diskCount }})</div>
+            <div class="rd-card-title">{{ membersTitle }}</div>
             <RaidMemberList
               :level="array.level"
               :members="members"

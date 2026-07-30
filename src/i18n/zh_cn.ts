@@ -651,6 +651,9 @@ export default {
   raidLevelRead: '读速',
   raidLevelWrite: '写速',
   raidMembers: '成员磁盘',
+  raidMembersTitle: '成员磁盘 ({n})',
+  raidMembersTitleOneEmptySlot: '成员磁盘 ({n} 块 · 1 个空槽位)',
+  raidMembersTitleEmptySlots: '成员磁盘 ({n} 块 · {slots} 个空槽位)',
   raidBtrfsFreeEst: 'btrfs 估算可用',
   raidBtrfsCachedAt: '缓存于',
   // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)

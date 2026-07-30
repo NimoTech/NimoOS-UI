@@ -652,6 +652,9 @@ export default {
   raidLevelRead: 'Read Speed',
   raidLevelWrite: 'Write Speed',
   raidMembers: 'Member Disks',
+  raidMembersTitle: 'Member Disks ({n})',
+  raidMembersTitleOneEmptySlot: 'Member Disks ({n} · 1 empty slot)',
+  raidMembersTitleEmptySlots: 'Member Disks ({n} · {slots} empty slots)',
   raidBtrfsFreeEst: 'Estimated Free (Btrfs)',
   raidBtrfsCachedAt: 'Usage Cached At',
   // Transcribed verbatim from NimoOS-UI RaidDetailPanel.vue L267-290 (levelFaultTolerance/levelReadSpeed/levelWriteSpeed, levels 0/1/5/6)
