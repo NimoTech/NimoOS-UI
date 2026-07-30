@@ -761,6 +761,7 @@ export default {
   snapTypeManual: '手动',
   snapTypePreop: '操作前保护',
   snapDelete: '删除',
+  snapBrowse: '浏览',
   snapDeleteTitle: '删除快照',
   snapDeleteMsg: '仅删除 {time} 的这个快照,你当前的文件不受影响。',
   snapBrowseBanner: '正在查看 {time} 的快照(只读)',

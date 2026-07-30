@@ -761,6 +761,7 @@ export default {
   snapTypeManual: 'Manual',
   snapTypePreop: 'Pre-op protection',
   snapDelete: 'Delete',
+  snapBrowse: 'Browse',
   snapDeleteTitle: 'Delete Snapshot',
   snapDeleteMsg: 'This deletes only the snapshot from {time}. Your current files are not affected.',
   snapBrowseBanner: 'Viewing snapshot from {time} (read-only)',

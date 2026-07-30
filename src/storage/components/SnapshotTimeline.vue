@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useSnapshotStore } from '../stores/snapshot'
 import { groupSnapshotsByDay, defaultExpandedDayKeys } from '../util/snapshotView'
 import type { SnapshotItemView } from '../util/snapshotView'
+import { snapshotBrowsePath } from '../../files/util/snapshotPath'
 import SnapshotDeleteDialog from './SnapshotDeleteDialog.vue'
 
 defineOptions({ name: 'SnapshotTimeline' })
 const props = defineProps<{ volumeUuid: string }>()
 const store = useSnapshotStore()
 const { t } = useI18n()
+const router = useRouter()
+const mountPoint = computed(() => store.volume?.mount ?? '')
+
+// 跳文件区的快照只读浏览。走 /files?path=<真实路径> 这条既有深链格式:Files.vue 的 sync()
+// 会把它归一成规范的 /files/<虚拟段>(真实路径→虚拟路径的映射依赖 displayNames,那份数据
+// 在存储区这边并不齐全,交给文件区自己解更可靠)。
+function browse(name: string) {
+  if (!mountPoint.value) return
+  router.push({ path: '/files', query: { path: snapshotBrowsePath(mountPoint.value, name) } })
+}
 
 const expandedKeys = ref<string[]>([])
 let expandInitialized = false
@@ -93,10 +105,11 @@ function toggleGroup(dayKey: string) {
                 <span v-if="item.label" class="st-label">{{ item.label }}</span>
               </div>
               <div class="st-actions">
-                <!-- [浏览] 未迁:跳文件区快照只读浏览属文件区快照套件(只读横幅/禁写/退出),
-                     SP4 未迁、SP6-P5 决策推迟到独立一期(见 P5 计划台账)。删除按钮:P5 T6 -->
+                <button v-if="mountPoint" class="st-btn st-browse" type="button" @click="browse(item.name)">
+                  {{ t('snapBrowse') }}
+                </button>
                 <button
-                  class="st-delete"
+                  class="st-btn st-delete"
                   type="button"
                   :disabled="store.deletingName !== null"
                   @click="confirmDelete(item)"
@@ -158,8 +171,9 @@ function toggleGroup(dayKey: string) {
 .st-label { font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
 /* hover 才显形,但保留在 DOM 里可 tab(Vue2 注释同款理由) */
 .st-actions { display: flex; flex: none; gap: 6px; opacity: 0; pointer-events: none; transition: opacity 0.15s var(--ease); }
+.st-btn { padding: 3px 10px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.st-browse { border: 1px solid var(--accent); background: var(--chip-bg); color: var(--accent); }
 .st-delete {
-  padding: 3px 10px; border-radius: 999px; font-size: 11px; cursor: pointer;
   border: 1px solid var(--remove-fg); background: var(--chip-bg); color: var(--remove-fg);
 }
 .st-delete:disabled { opacity: 0.45; cursor: not-allowed; }

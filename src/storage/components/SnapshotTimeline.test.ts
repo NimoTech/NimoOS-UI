@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import SnapshotTimeline from './SnapshotTimeline.vue'
+import { useSnapshotStore } from '../stores/snapshot'
 import zh from '../../i18n/zh_cn'
 
 const listMock = vi.fn()
@@ -14,6 +15,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
     togglePolicy: vi.fn(), create: vi.fn(),
     remove: (...a: unknown[]) => removeMock(...a),
   } },
+}))
+
+const pushMock = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: pushMock }),
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -142,5 +148,32 @@ describe('SnapshotTimeline 删除', () => {
     await flush(w)
     expect(removeMock).not.toHaveBeenCalled()
     expect(w.findAll('.st-item')).toHaveLength(1)
+  })
+})
+
+describe('浏览按钮(SP6-P5 缺席项补回)', () => {
+  const SNAP = { id: 1, name: 'snap-a', label: '', type: 'manual', created_at: new Date().toISOString() }
+
+  it('每个快照条目有浏览按钮', async () => {
+    listMock.mockResolvedValue([SNAP])
+    const w = mountIt(); await flush(w)
+    useSnapshotStore().volume = { volume_uuid: 'u1', mount: '/DATA', supported: true, enabled: true } as never
+    await w.vm.$nextTick()
+    expect(w.findAll('.st-browse')).toHaveLength(1)
+  })
+  it('点浏览跳文件区深链,带上快照目录真实路径', async () => {
+    listMock.mockResolvedValue([SNAP])
+    const w = mountIt(); await flush(w)
+    useSnapshotStore().volume = { volume_uuid: 'u1', mount: '/DATA', supported: true, enabled: true } as never
+    await w.vm.$nextTick()
+    await w.find('.st-browse').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/.snapshots/snap-a' } })
+  })
+  it('卷挂载点未知时不显示浏览按钮(跳过去也没意义)', async () => {
+    listMock.mockResolvedValue([SNAP])
+    const w = mountIt(); await flush(w)
+    useSnapshotStore().volume = null
+    await w.vm.$nextTick()
+    expect(w.findAll('.st-browse')).toHaveLength(0)
   })
 })
