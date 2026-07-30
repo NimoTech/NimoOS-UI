@@ -181,10 +181,10 @@ function onToggleFold(rId: string): void {
    (theme.css:162-163 注释"侧栏大面板玻璃……文件区侧栏用",语义与此处一致);
    --accent-soft 同名已有;Vue2 的 accent-rgb 0.22 透明度 → --accent-soft-2(brief 指定)。
    .is-active 自身的 background/border-color(accent-rgb 0.10/0.30)与 .thumb::after 的
-   accent-rgb 0.18,brief 未逐一指定精确映射,就近取值:.10→--accent-soft(暗 0.14/亮 0.11,
-   同一量级),.30→--accent-soft-bd(暗 0.36/亮 0.30,亮色主题下完全等值),
-   .18 介于 --accent-soft(.14)与 --accent-soft-2(.24)之间,选后者(缩略图上叠一层
-   更醒目的强调色更合理,该值本就不是像素级契约)。 */
+   accent-rgb 0.18 —— 评审 I1 裁定:这三处要数值级精确复刻,不能从 --accent-soft 三档
+   就近凑(那是设计判断,不是移植判断),已在 theme.css 新增专用 token
+   --place-row-bg/--place-row-border/--place-thumb-active,取值与登记依据见该文件注释
+   与 docs/THEMING.md。 */
 .map-rail {
   border-right: 1px solid var(--card-border);
   background: var(--panel-bg);
@@ -283,8 +283,8 @@ function onToggleFold(rId: string): void {
 }
 .rail-place:hover { background: var(--chip-bg); }
 .rail-place.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
+  background: var(--place-row-bg);
+  border-color: var(--place-row-border);
 }
 /* 基类 hover 铁律:.rail-place:hover 与 .rail-place.is-active 都改 background,
    两者选择器优先级相同((0,2,0) vs (0,2,0))。本文件里 .is-active 恰好写在
@@ -296,7 +296,7 @@ function onToggleFold(rId: string): void {
    命中 is-active 且比基类 :hover 更高优先级的规则",删掉本行会让那条用例变红;
    若只断言 winningHoverBackground() 在当前书写顺序下选中谁,会因为上面这个
    "恰好顺序正确"的假象而测不出删码(已用真实删码实验验证并记入报告)。 */
-.rail-place.is-active:hover { background: var(--accent-soft); }
+.rail-place.is-active:hover { background: var(--place-row-bg); }
 .rail-place .thumb {
   width: 40px; height: 40px; border-radius: 6px;
   overflow: hidden; background: var(--chip-bg);
@@ -306,7 +306,7 @@ function onToggleFold(rId: string): void {
 .rail-place.is-active .thumb::after {
   content: "";
   position: absolute; inset: 0;
-  background: var(--accent-soft-2);
+  background: var(--place-thumb-active);
 }
 .rail-place .body { min-width: 0; }
 .rail-place .name {

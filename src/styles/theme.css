@@ -68,6 +68,13 @@
   --accent-soft: rgba(138, 180, 255, 0.14);
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
+  /* PlacesRail.vue(P6a-T5)选中城市行三处——Vue2 photos-places.scss:153-156/:163-167
+     的 rgba(var(--accent-rgb), 0.10/0.30/0.18) 精确复刻(该视图只有深色设计,数值级
+     精度要求专用 token,不从 --accent-soft 三档就近凑,同 --drop-bg/--spark-fill/
+     --orb-glow 的既有先例)。 */
+  --place-row-bg: rgba(138, 180, 255, 0.10);
+  --place-row-border: rgba(138, 180, 255, 0.30);
+  --place-thumb-active: rgba(138, 180, 255, 0.18);
   --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
   --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
   --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
@@ -277,6 +284,11 @@
   --accent-soft: rgba(59, 91, 219, 0.11);
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);
+  /* Vue2 该视图仅有深色设计,浅色值没有原件可照——按 accent 家族深→浅收敛惯例推导
+     (.14→.11、.24→.20、.36→.30,约 ×0.83):.10→.08、.30→.25、.18→.15。 */
+  --place-row-bg: rgba(59, 91, 219, 0.08);
+  --place-row-border: rgba(59, 91, 219, 0.25);
+  --place-thumb-active: rgba(59, 91, 219, 0.15);
   --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
   --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
   --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
