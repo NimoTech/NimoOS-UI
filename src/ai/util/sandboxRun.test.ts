@@ -3,7 +3,7 @@ import { initSandboxState, reduceSandboxEvent, type SandboxState } from './sandb
 
 describe('sandboxRun', () => {
   it('initSandboxState starts empty/idle', () => {
-    expect(initSandboxState()).toEqual({ steps: [], ms: null, error: '', done: false })
+    expect(initSandboxState()).toEqual({ steps: [], ms: null, error: '', failed: false, done: false })
   })
 
   it('two consecutive message_delta merge into one step, text appended in order', () => {
@@ -45,16 +45,20 @@ describe('sandboxRun', () => {
     expect(s.steps).toEqual([{ kind: 'tool', text: '→ tool' }])
   })
 
-  it('error event writes error', () => {
+  it('error event writes error and sets failed', () => {
     let s = initSandboxState()
     s = reduceSandboxEvent(s, { type: 'error', content: 'sandbox exploded' }, 0)
     expect(s.error).toBe('sandbox exploded')
+    expect(s.failed).toBe(true)
   })
 
-  it('error event with no content writes empty string, not "null"/"undefined"', () => {
+  it('error event with no content writes empty string, not "null"/"undefined" — but still sets failed (P3b 终审 I2)', () => {
     let s = initSandboxState()
     s = reduceSandboxEvent(s, { type: 'error' }, 0)
     expect(s.error).toBe('')
+    // 这条是 I2 的核心钉子:content 为空不等于"没失败"。后端 agent.py:999 的
+    // str(e) 对某些异常就是空串,消费端必须仍能区分"失败但没有文本"与"成功"。
+    expect(s.failed).toBe(true)
   })
 
   it('done event writes done and ms from the caller-supplied elapsedMs', () => {

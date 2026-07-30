@@ -18,15 +18,23 @@
 
 export type SandboxStep = { kind: 'text' | 'tool'; text: string }
 
+// 【P3b 终审 I2】`failed` 与 `error` 解耦。设计 §5 写的是「error = String(ev.content
+// ?? '')(空则留空，由 UI 填本地化兜底文案）」——本 reducer 一直照做，但在这个改动
+// 之前状态上没有独立的失败标志，TestPanel 只能拿 `sandbox.error` 非空来判定"失败"。
+// 后端 `NimoOS-AI/agent/agent.py:999` 发的是 `{"type":"error","content": str(e)}`，
+// `str(e)` 对某些异常（如不带消息构造的异常）是空串——此时 `error === ''`，消费端会
+// 把一次真实失败误判为成功。`failed` 只在收到 `error` 事件时置真，与 content 文本
+// 是否为空完全无关；`error` 继续只承载"要不要显示后端原文"这一件事。
 export type SandboxState = {
   steps: SandboxStep[]
   ms: number | null
   error: string
+  failed: boolean
   done: boolean
 }
 
 export function initSandboxState(): SandboxState {
-  return { steps: [], ms: null, error: '', done: false }
+  return { steps: [], ms: null, error: '', failed: false, done: false }
 }
 
 /**
@@ -62,7 +70,8 @@ export function reduceSandboxEvent(
   }
 
   if (type === 'error') {
-    return { ...s, error: String(ev.content ?? '') }
+    // failed=true 无条件置(与 content 是否为空无关，见上方类型注释——P3b 终审 I2）。
+    return { ...s, error: String(ev.content ?? ''), failed: true }
   }
 
   if (type === 'done') {

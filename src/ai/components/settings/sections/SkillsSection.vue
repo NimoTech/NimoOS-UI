@@ -168,13 +168,24 @@ async function reload() {
 onMounted(() => reload())
 
 // 对齐 Vue2 `onToggle`(:147-161)。单层取数(见文件头注释「单层取数」第一条)。
+//
+// 【P3b 终审 M5 修复】此前 `idx !== -1 && updated` 为假(后端返回意外形状,如空体)
+// 时列表不更新,却照样走 `try` 分支底部弹成功 toast——今天 PATCH 恒返 200 裸
+// skill 不会触发,但一旦触发,列表原地不动 + 一条"已启用/已暂停"的假成功提示,叠加
+// `SkillDetail.vue` D4 的 `watch(enabled)`(等的正是这个 `updated` 落到 props 上)会
+// 让 D4 弹窗永远等不到 `enabled` 真的变化、卡在打开状态,用户毫无线索。改成:只有
+// 真的替换了列表项才算成功;否则走失败分支(与请求异常同一条 danger toast)。
 async function onToggle(id: string, enabled: boolean) {
   busy.value = { ...busy.value, [id]: true }
   try {
     const updated = (await service.ai.updateSkill(id, { enabled })) as Skill | undefined
     const idx = skills.value.findIndex((s) => s.id === id)
-    if (idx !== -1 && updated) skills.value.splice(idx, 1, updated)
-    toast.show(enabled ? t('aiSkEnabledToast') : t('aiSkPausedToast'))
+    if (idx !== -1 && updated) {
+      skills.value.splice(idx, 1, updated)
+      toast.show(enabled ? t('aiSkEnabledToast') : t('aiSkPausedToast'))
+    } else {
+      toast.show(t('aiSkUpdateFailed'), 3000, 'danger')
+    }
   } catch {
     toast.show(t('aiSkUpdateFailed'), 3000, 'danger')
   } finally {

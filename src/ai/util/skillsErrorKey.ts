@@ -18,6 +18,16 @@
 // 英文顶回来。这里在前端做与后端同款的校验规则，规则逐条对
 // NimoOS-AI/service/skills_store.go:37-59 的 validateSkillDescription 与
 // skillIDRe（:86）——已回源核对，两处正则字面一致，见本任务报告。
+//
+// 【P3b 终审 C1 修复】"与后端同款"指的是校验对象要一致，不只是正则字面一致——后端
+// skills_store.go:221 是 `id := slugify(r.Name)` **先转换、再拿转换结果去过
+// skillIDRe**（skills_store.go:82-85 的注释明写这是故意的："allows digit-leading
+// IDs so slugify of names like '123 skill' don't get rejected"）。本文件此前直接拿
+// **原始 name** 去测 skillIDRe，比后端更严：像 "Invoice Tagger" / "invoice_tagger"
+// 这类后端 slugify 后能建成功（Vue2 也能建，Vue2 只查非空）的名字，会被这里直接堵死、
+// 请求都发不出去——这是可复现的功能回退，不是"同款校验"该有的行为。
+// 修法：移植一份 `slugify`（逐行对齐 Go 版 skills_store.go:17-35），validateSkillForm
+// 改成校验 `slugify(name)` 而非原始 name。
 
 /** 对齐 channelsFormat.ts:66-70 的取错误串形状：response.data.message ?? .detail ?? data。 */
 function extractErrorString(e: unknown): string {
@@ -55,12 +65,46 @@ export function createSkillErrorKey(e: unknown): string {
 const SKILL_ID_RE = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/
 
 /**
+ * 逐行移植自 NimoOS-AI/service/skills_store.go:17-35（`slugify`）。后端在校验前先跑
+ * 这一步（skills_store.go:221 `id := slugify(r.Name)`），再拿 slug 去过 skillIDRe——
+ * 本函数必须做完全一样的事，否则前端校验的对象就和后端实际校验的对象不是同一个值
+ * （P3b 终审 C1）。逐条对齐 Go 版逻辑：
+ *   1. 转小写 + 去首尾空白（Go: `strings.ToLower(strings.TrimSpace(s))`）。
+ *   2. 逐个 code point 扫描：`[a-z0-9]` 原样保留；其余字符折叠成**单个**'-'
+ *      （`dash` 标志防止连续分隔符产生多个 '-'；`out.length > 0` 这个条件让前导分隔符
+ *      不产生 '-' —— 对应 Go 版 `b.Len() > 0`）。
+ *   3. 最后去掉首尾的 '-'（Go: `strings.Trim(b.String(), "-")`）。
+ * `for...of` 按 Unicode code point 迭代，与 Go 的 `for _, r := range s`（按 rune 迭代）
+ * 语义一致，故对中日文等多字节字符的处理与后端等价（均判定为非 [a-z0-9]，折叠成 '-'）。
+ */
+export function slugify(s: string): string {
+  let out = ''
+  let dash = false
+  for (const ch of s.trim().toLowerCase()) {
+    if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+      out += ch
+      dash = false
+    } else if (!dash && out.length > 0) {
+      out += '-'
+      dash = true
+    }
+  }
+  return out.replace(/^-+/, '').replace(/-+$/, '')
+}
+
+/**
  * 前端预校验，规则逐条对齐 skills_store.go 的 ValidateSkillID + validateSkillDescription。
  * 全过返回 null；否则返回对应的 i18n 错误键。
+ *
+ * 【P3b 终审 C1】校验对象是 `slugify(name)`，不是原始 name——见上方 `slugify` 注释与
+ * NimoOS-AI/service/skills_store.go:221（`id := slugify(r.Name)`）+ :91-96
+ * （`ValidateSkillID` 拿 slug 后的 id 去过 `skillIDRe`）。名字全是非法字符时
+ * slug 为空串，空串不满足 `skillIDRe`（至少需要 1 个 `[a-z0-9]` 字符），
+ * 自然落回 'aiSkErrBadId'，与后端 `ValidateSkillID('')` 拒绝的结论一致。
  */
 export function validateSkillForm(name: string, description: string): string | null {
-  const trimmedName = name.trim()
-  if (trimmedName === '' || !SKILL_ID_RE.test(trimmedName)) return 'aiSkErrBadId'
+  const id = slugify(name)
+  if (!SKILL_ID_RE.test(id)) return 'aiSkErrBadId'
 
   const trimmedDescription = description.trim()
   if (trimmedDescription === '') return 'aiSkErrDescRequired'

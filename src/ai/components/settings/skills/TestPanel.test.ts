@@ -208,6 +208,30 @@ describe('TestPanel', () => {
     expect(w.emitted('test')).toBeUndefined()
   })
 
+  // 【P3b 终审 I2】后端 agent/agent.py:999 发 `{"type":"error","content": str(e)}`,
+  // 对某些异常 `str(e)` 是空串——此前 reducer/面板拿 `error !== ''` 判定失败,空串会
+  // 被误判成成功(渲染出「用时  毫秒」+「沙箱已关闭」的成功文案),还会多算一次
+  // emit('test'),同时踩穿 D5「只在成功完成时 +1」。RED 验证:把
+  // `sandboxRun.ts` 的 error 分支改回不写 `failed` / 把 TestPanel 的判断改回
+  // `!sandbox.error` → 这条精确报红(失败态 label 消失、emit 变成有值)。
+  it('error 事件 content 为空串时仍判定为失败(不是成功),且不 emit(test)(钉住 P3b 终审 I2)', async () => {
+    const w = mountPanel(makeSkill())
+    await w.find('.sk-test-input textarea').setValue('go')
+    const cap = captureNextRun()
+    await w.find('.sk-test-input button').trigger('click')
+
+    cap.onEvent({ type: 'error', content: '' })
+    cap.onEvent({ type: 'done' })
+    cap.resolve()
+    await flushPromises()
+
+    const failed = w.find('.sk-test-result .label[data-state="failed"]')
+    expect(failed.exists()).toBe(true)
+    // 成功态的「用时…毫秒」文案不应该出现。
+    expect(w.find('.sk-test-result').text()).not.toContain('沙箱已关闭')
+    expect(w.emitted('test')).toBeUndefined()
+  })
+
   it('HTTP 失败(而非 SSE error 事件)时也不 emit(test)', async () => {
     const w = mountPanel(makeSkill())
     await w.find('.sk-test-input textarea').setValue('go')

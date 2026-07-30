@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createSkillErrorKey, validateSkillForm } from './skillsErrorKey'
+import { createSkillErrorKey, validateSkillForm, slugify } from './skillsErrorKey'
 
 /** Wrap a raw backend string the way axios would, so createSkillErrorKey can read it. */
 function errWith(message: string) {
@@ -99,20 +99,43 @@ describe('validateSkillForm', () => {
     expect(validateSkillForm('a', 'a valid description')).toBe(null)
   })
 
-  it('rejects uppercase letters in the name', () => {
-    expect(validateSkillForm('Invoice-Tagger', 'a valid description')).toBe('aiSkErrBadId')
+  // P3b 终审 C1 —— 这四条此前把 'aiSkErrBadId' 钉成了断言，但后端先 slugify(name) 再
+  // 校验（skills_store.go:221），这四个原始名字全部会被 slugify 成合法 id
+  // （"Invoice-Tagger"/"invoice_tagger" -> "invoice-tagger"，前后导 '-' 被
+  // strings.Trim 去掉）——后端能建成功，Vue2（只查非空）也能建成功，本仓之前对着
+  // "同款校验"的名义把它们堵死了，是可复现的功能回退，不是合法的校验结果。
+  // 改前（错误，已删）：
+  //   expect(validateSkillForm('Invoice-Tagger', ...)).toBe('aiSkErrBadId')
+  //   expect(validateSkillForm('invoice_tagger', ...)).toBe('aiSkErrBadId')
+  //   expect(validateSkillForm('-invoice-tagger', ...)).toBe('aiSkErrBadId')
+  //   expect(validateSkillForm('invoice-tagger-', ...)).toBe('aiSkErrBadId')
+  it('accepts uppercase letters in the name (backend slugifies before validating)', () => {
+    expect(validateSkillForm('Invoice-Tagger', 'a valid description')).toBe(null)
   })
 
-  it('rejects underscores in the name', () => {
-    expect(validateSkillForm('invoice_tagger', 'a valid description')).toBe('aiSkErrBadId')
+  it('accepts underscores in the name (slugify folds them into a single dash)', () => {
+    expect(validateSkillForm('invoice_tagger', 'a valid description')).toBe(null)
   })
 
-  it('rejects a name starting with a dash', () => {
-    expect(validateSkillForm('-invoice-tagger', 'a valid description')).toBe('aiSkErrBadId')
+  it('accepts a name starting with a dash (leading separator is dropped, not written)', () => {
+    expect(validateSkillForm('-invoice-tagger', 'a valid description')).toBe(null)
   })
 
-  it('rejects a name ending with a dash', () => {
-    expect(validateSkillForm('invoice-tagger-', 'a valid description')).toBe('aiSkErrBadId')
+  it('accepts a name ending with a dash (trailing separator is trimmed by slugify)', () => {
+    expect(validateSkillForm('invoice-tagger-', 'a valid description')).toBe(null)
+  })
+
+  it('accepts a name with spaces and mixed case (realistic UI input, e.g. "Invoice Tagger")', () => {
+    expect(validateSkillForm('Invoice Tagger', 'a valid description')).toBe(null)
+  })
+
+  // 真·非法输入：slug 之后仍然/依然不满足 skillIDRe。
+  it('rejects a name made entirely of non-alphanumeric characters (slugifies to an empty string)', () => {
+    expect(validateSkillForm('!!!___---', 'a valid description')).toBe('aiSkErrBadId')
+  })
+
+  it('rejects a name that is pure Chinese characters (slugifies to an empty string, no [a-z0-9] survives)', () => {
+    expect(validateSkillForm('发票标签', 'a valid description')).toBe('aiSkErrBadId')
   })
 
   it('accepts a name exactly at the 64-char boundary', () => {
@@ -168,5 +191,53 @@ describe('validateSkillForm', () => {
 
   it('returns null when both name and description are valid', () => {
     expect(validateSkillForm('invoice-tagger', 'Tags invoices when they arrive.')).toBe(null)
+  })
+})
+
+// P3b 终审 C1 —— slugify 逐行移植自 NimoOS-AI/service/skills_store.go:17-35，
+// 这里直接钉住移植结果，不只是通过 validateSkillForm 间接测。
+describe('slugify', () => {
+  it('lowercases and leaves an already-valid slug unchanged', () => {
+    expect(slugify('invoice-tagger')).toBe('invoice-tagger')
+  })
+
+  it('folds internal spaces into a single dash', () => {
+    expect(slugify('Invoice Tagger')).toBe('invoice-tagger')
+  })
+
+  it('folds underscores into a single dash', () => {
+    expect(slugify('invoice_tagger')).toBe('invoice-tagger')
+  })
+
+  it('uppercases fold to lowercase', () => {
+    expect(slugify('INVOICE')).toBe('invoice')
+  })
+
+  it('collapses a run of consecutive separators into one dash, not one per separator', () => {
+    expect(slugify('invoice   ___---tagger')).toBe('invoice-tagger')
+  })
+
+  it('drops a leading separator entirely (no dash is written before the first alnum char)', () => {
+    expect(slugify('  -invoice-tagger')).toBe('invoice-tagger')
+  })
+
+  it('trims a trailing separator', () => {
+    expect(slugify('invoice-tagger--  ')).toBe('invoice-tagger')
+  })
+
+  it('returns an empty string when no [a-z0-9] character survives (pure symbols)', () => {
+    expect(slugify('!!!___---')).toBe('')
+  })
+
+  it('returns an empty string for pure Chinese input (no ASCII alnum to keep)', () => {
+    expect(slugify('发票标签')).toBe('')
+  })
+
+  it('returns an empty string for an all-whitespace input', () => {
+    expect(slugify('   ')).toBe('')
+  })
+
+  it('preserves digits and digit-leading input (backend comment: "123 skill" must not be rejected)', () => {
+    expect(slugify('123 skill')).toBe('123-skill')
   })
 })

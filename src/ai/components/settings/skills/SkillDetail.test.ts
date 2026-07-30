@@ -321,6 +321,16 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await flush()
     expect(w.find('.sk-menu').exists()).toBe(false)
+
+    // 【P3b 终审 M2】上面只测了"外部"，标题里承诺的"菜单内部点击不触发外部关闭逻辑"
+    // 之前零断言——`useClickOutside` 判定用 `el.contains(event.target)`（见该 composable
+    // 头注释），`.sk-menu` 是 `menuWrap` 的子元素，在它内部 mousedown 理应被判定为
+    // "在内部"、不关闭菜单。这里补回标题承诺的那一半。
+    await w.find('.sk-pill-more').trigger('click')
+    expect(w.find('.sk-menu').exists()).toBe(true)
+    w.find('.sk-menu button').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flush()
+    expect(w.find('.sk-menu').exists()).toBe(true)
   })
 
   it('菜单项顺序与文案:暂停/启用 → 复制 SKILL.md → 导出技能 → <hr> → 危险项', async () => {
@@ -580,6 +590,31 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-modal')).toBeNull()
     expect(push).not.toHaveBeenCalled()
     expect(w.emitted('toggle')).toBeUndefined()
+  })
+
+  // 【P3b 终审 I1】点「取消」/`skill.id` 变化之外,SkModal 自带的 X 关闭按钮
+  // (`.sk-x`)、reka 的 Esc、点遮罩都只走 `@update:open`——此前这条路径没清
+  // `pendingTryId`,挂号悬着后,用户之后随便用顶部条开关把这个技能启用一次(与
+  // 「启用并试用」毫无关系的操作)也会被误判成"待跳转"而 push。RED 验证:把
+  // `onTryModalOpenChange` 里的 `if (!v) pendingTryId.value = null` 删掉 → 这条精确
+  // 报红(push 被调用 1 次,断言期望 0 次)。
+  it('D4:用 .sk-x 关闭弹窗(不是取消按钮)后清挂号——之后手动开关启用该技能不应触发 push', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-8', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
+    await flush()
+    expect(w.emitted('toggle')).toEqual([['sk-8', true]])
+
+    // toggle 请求“失败”(父组件从不把 enabled 改成 true)——用 X 关掉弹窗,而不是点取消。
+    ;(host.querySelector('.sk-x') as HTMLButtonElement).click()
+    await flush()
+    expect(host.querySelector('.sk-modal')).toBeNull()
+
+    // 之后用户自己在顶部条把这个技能启用(与「启用并试用」无关的独立操作)。
+    await w.setProps({ skill: makeSkill({ id: 'sk-8', enabled: true }) })
+    await flush()
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('D4「启用并试用」挂号后切到别的技能,原技能迟到的 enabled=true 不再触发 push(残留清除,pendingTryId 一次性语义)', async () => {

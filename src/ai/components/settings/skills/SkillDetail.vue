@@ -306,10 +306,23 @@ function confirmEnableAndTry() {
   emit('toggle', s.id, true)
 }
 
-// D4「取消」:清除路径②(见文件头注释)。不 emit toggle,不跳转。
+// 【P3b 终审 I1 修复】D4 弹窗的关闭方式不止「取消」按钮:`SkModal` 自带 `.sk-x` 关闭
+// 按钮 + reka Dialog 的 Esc / 点遮罩关闭,这三种都只走 `@update:open`,此前只有「取消」
+// 与「skill.id 变化」两处清了 `pendingTryId`,漏了这条——挂号悬着后,用户若之后自己在
+// 顶部条把这个技能的开关打开(与「启用并试用」完全无关的操作),下面的
+// `watch(enabled)` 仍会命中 `s.id === pendingTryId.value && enabled === true`,把
+// 用户莫名跳转到 `/ai/agent`。这正是清除路径①头注释要防的场景,只是漏了「关闭这个
+// 弹窗」这一条入口。统一走这一个 handler:任何把弹窗关闭的方式(取消按钮 / X / Esc /
+// 点遮罩)都经它清挂号,不再各自维护一份。
+function onTryModalOpenChange(v: boolean) {
+  tryModalOpen.value = v
+  if (!v) pendingTryId.value = null
+}
+
+// D4「取消」:清除路径②(见文件头注释)。不 emit toggle,不跳转——复用上面的 handler,
+// 与 X/Esc/遮罩走同一条清理逻辑。
 function cancelTryModal() {
-  tryModalOpen.value = false
-  pendingTryId.value = null
+  onTryModalOpenChange(false)
 }
 
 // D4 一次性跳转:只在「当前 props.skill 就是发起挂号的那个技能」且它的 `enabled`
@@ -508,7 +521,7 @@ watch(() => props.skill?.enabled, (enabled) => {
       <SkModal
         :open="tryModalOpen"
         :title="t('aiSkTryDisabledTitle')"
-        @update:open="tryModalOpen = $event"
+        @update:open="onTryModalOpenChange"
       >
         <p>{{ t('aiSkTryDisabledBody') }}</p>
         <template #footer>

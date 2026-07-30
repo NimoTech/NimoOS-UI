@@ -512,10 +512,10 @@
       background: var(--accent);
       animation: skill-pulse 1.4s ease-in-out infinite;
     }
-    // SP8-P3b Task 4 —— 失败态。Vue2 TestPanel.vue:92-98 靠模板内联样式实现:
-    // `.label` 上 `style="color: var(--danger)"`,`.bullet` 上
-    // `style="background: var(--danger); box-shadow: 0 0 0 3px rgba(255,59,48,0.18)"`。
-    // 后者是字面量 rgba() 且内联颜色本身违反本仓配色硬约束(公共约束 §6),改成
+    // SP8-P3b Task 4 —— 失败态。Vue2 TestPanel.vue:92-98 靠模板内联样式实现:`.label`
+    // 上内联 `color: var(--danger)`,`.bullet` 上内联背景色 + 一圈约 18% 不透明度的
+    // iOS 红发光圈(字面量写死的 rgba,颜色即 --danger token 现在的色值)——后者是
+    // 字面量 rgba() 且内联颜色本身违反本仓配色硬约束(公共约束 §6),改成
     // 静态 CSS 分支:发光圈用 color-mix 从 --danger 派生,手法与上方 :506-509 的
     // success 态发光圈同族同比例(18% 不透明度)。
     &[data-state="failed"] {

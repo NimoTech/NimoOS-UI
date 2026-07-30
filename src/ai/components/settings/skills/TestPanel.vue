@@ -23,9 +23,10 @@
   "sandbox timed out"),原样显示,不算回显后端 JSON,不冲突。
 
   【失败态样式偏离(协调者预先解歧义,见 p3b-task-4-brief.md 正文)】Vue2 :92-98
-  的失败态靠模板内联样式:`.label` 上 `style="color: var(--danger)"`,`.bullet` 上
-  `style="background: var(--danger); box-shadow: 0 0 0 3px rgba(255,59,48,0.18)"`——
-  后者是字面量 rgba(),违反本仓配色硬约束,内联颜色本身也违规(公共约束 §6)。
+  的失败态靠模板内联样式:`.label` 上内联 `color: var(--danger)`,`.bullet` 上内联
+  背景色 + 一圈约 18% 不透明度的 iOS 红发光圈(字面量写死的 rgba,颜色即 --danger
+  token 现在的色值)——后者违反本仓配色硬约束(禁字面量 rgba),内联颜色本身也违规
+  (公共约束 §6)。
   改为:`.label` 加 `data-state="failed"`,颜色规则搬进
   skills-styles.scss `.sk-test-result .label` 的 `&[data-state="failed"]` 分支
   (与既有 running 分支同级,发光圈用 color-mix 派生,手法同该文件 :506-509 的
@@ -63,6 +64,17 @@ const props = defineProps<{ skill: Skill }>()
 
 // 对齐 Vue2 SkillsSection.vue:204-214 消费方的期望事件名,但触发条件按偏离 D5
 // 收紧为「只在成功完成时」,见文件头注释。
+//
+// 【P3b 终审 M3,显式申报】设计文档 §6 与 Vue2 `SkillsSection.vue:204`
+// (`onTest({id})`)的事件都带 `id` payload,本文件落成裸 `emit('test')`——这是一处
+// 未申报的偏离,终审已指出。补交申报而不是改回带 id:探针实测过当前无害——
+// `SkillDetail.vue` 用 `:key="skill.id"` 挂载本组件,永远只为 `activeSkill` 渲染
+// 一个实例,父组件 `SkillsSection.onTest()` 读的 `activeId` 因此恒等于本组件当前
+// `skill.id`;而且 Vue 3 的 `emit` 对已卸载实例是 no-op,切换技能时中断的沙箱不会
+// 把迟到的 `test` 记到新技能头上(`watch(skill.id)`/`onBeforeUnmount` 已经 abort 掉
+// 请求)。若未来 `SkillDetail`/`SkillsSection` 的挂载方式变化(不再靠 `:key` 强制
+// 单实例),这个假设会失效,应改回 `emit('test', { id: skill.id })` 并让父组件用
+// payload 定位,而不是继续依赖 `activeId` 隐式相等。
 const emit = defineEmits<{ test: [] }>()
 
 const { t } = useI18n()
@@ -106,14 +118,18 @@ function onError(e: unknown) {
   const msg = err && typeof err.status === 'number'
     ? t('aiSkTestHttpFailed', { status: err.status })
     : t('aiSkTestFailed')
-  sandbox.value = { ...sandbox.value, error: msg }
+  // failed 显式置真(P3b 终审 I2 同一处修复的对称写法——传输层失败本来就一定有一条
+  // 非空的本地化文案,这里不依赖 error 是否非空来判定失败态)。
+  sandbox.value = { ...sandbox.value, error: msg, failed: true }
 }
 
 // 对齐 Vue2 run()(:152-179),但改用 T3 的 Promise 形状而非 Vue2 的
 // `{ onEvent, onClose } => { close }` 回调协议。await 返回后若仍处于 running
 // （即从未收到 SSE 'done' 事件、连接就已关闭)→ 兜底置 done,对齐 Vue2 onClose
-// (:174-177) 的 fallback 语义。仅在成功完成(done 且无 error)时才 emit('test')
-// （偏离 D5,见文件头注释)。
+// (:174-177) 的 fallback 语义。仅在成功完成(done 且未 failed)时才 emit('test')
+// （偏离 D5,见文件头注释)。判 `sandbox.value.failed` 而不是 `!sandbox.value.error`
+// (P3b 终审 I2)——`error` 事件的 content 对某些后端异常是空串,`!error` 会把这种
+// 失败误判成成功,连带让 D5「只在成功完成时 +1」失守。
 async function run() {
   if (!canRun.value) return
   state.value = 'running'
@@ -122,7 +138,7 @@ async function run() {
   ctrl = new AbortController()
   await runSkillTest(props.skill.id, prompt.value.trim(), ctrl.signal, onEvent, onError)
   if (state.value === 'running') state.value = 'done'
-  if (state.value === 'done' && !sandbox.value.error) emit('test')
+  if (state.value === 'done' && !sandbox.value.failed) emit('test')
 }
 
 // 对齐 Vue2 watch: 'skill.id'(:133-141)——原样保留复位逻辑做 1:1 视觉/交互对照。
@@ -179,7 +195,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div
-          v-if="skill.examples && skill.examples.length && state === 'idle' && sandbox.steps.length === 0 && !sandbox.error"
+          v-if="skill.examples && skill.examples.length && state === 'idle' && sandbox.steps.length === 0 && !sandbox.failed"
           class="sk-test-result"
           style="background: transparent; border: 0; padding: 8px 2px 0"
         >
@@ -204,7 +220,7 @@ onBeforeUnmount(() => {
           <div>{{ t('aiSkTestBootstrapping', { name: skill.name }) }}</div>
         </div>
 
-        <div v-if="state === 'done' && !sandbox.error" class="sk-test-result">
+        <div v-if="state === 'done' && !sandbox.failed" class="sk-test-result">
           <div class="label">
             <span class="bullet" />
             {{ t('aiSkTestCompleted', { ms: sandbox.ms }) }}
@@ -223,12 +239,16 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div v-if="state === 'done' && sandbox.error" class="sk-test-result">
+        <div v-if="state === 'done' && sandbox.failed" class="sk-test-result">
           <div class="label" data-state="failed">
             <span class="bullet" />
             {{ t('aiSkTestFailed') }}
           </div>
-          <div>{{ sandbox.error }}</div>
+          <!-- P3b 终审 I2:error 事件的 content 可能是空串(后端某些异常 str(e) 为
+               空)——设计 §5「空则留空，由 UI 填本地化兜底文案」这半此前没做,空串
+               会原样渲染成一段空白正文。兜底复用既有键 aiSkTestFailed(上面 label
+               已经在用),不新增键。 -->
+          <div>{{ sandbox.error || t('aiSkTestFailed') }}</div>
         </div>
       </div>
     </div>

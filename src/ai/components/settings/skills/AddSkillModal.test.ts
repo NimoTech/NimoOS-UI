@@ -109,10 +109,15 @@ describe('AddSkillModal', () => {
     })
   })
 
-  it('名称非法(含大写/下划线)→ 行内错误(aiSkErrBadId)且不 emit save(钉住偏离 2)', async () => {
+  // 【P3b 终审 C1】此前用 'Invoice_Tagger' 当"非法名字"的例子——但后端先
+  // `slugify(name)` 再校验(skills_store.go:221),'Invoice_Tagger' 会被 slug 成合法
+  // 的 'invoice-tagger',后端/Vue2 都能建成功,不是一个真的非法例子(把这条钉成"非法"
+  // 就是把 C1 那个功能回退编码进了断言)。换成 slugify 之后仍然是空串的真非法输入
+  // (纯中文,没有任何 [a-z0-9] 字符能保留下来)。
+  it('名称非法(slugify 后仍无合法字符,如纯中文)→ 行内错误(aiSkErrBadId)且不 emit save(钉住偏离 2)', async () => {
     const w = mountModal()
     await macroFlush()
-    setValue(nameInput(), 'Invoice_Tagger')
+    setValue(nameInput(), '仅中文技能名')
     setValue(descInput(), '合法描述')
     await flush()
     // valid 只查两字段非空,不做格式校验 —— 按钮此时应可点
@@ -126,6 +131,24 @@ describe('AddSkillModal', () => {
     expect(err.getAttribute('role')).toBe('alert')
     expect(err.textContent).toBe(zh.aiSkErrBadId)
     expect(w.emitted('save')).toBeUndefined()
+  })
+
+  // 【P3b 终审 C1,补充用例】'Invoice_Tagger' 这类"看起来非法但 slugify 后合法"的
+  // 名字必须能建成功——payload 里的 name/title 仍是原始 trimmed 输入(后端自己再
+  // slugify 一次生成 id),前端不改写用户输入。
+  it('名称含大写/下划线但 slugify 后合法(如 "Invoice_Tagger")→ 校验通过、正常 emit save', async () => {
+    const w = mountModal()
+    await macroFlush()
+    setValue(nameInput(), 'Invoice_Tagger')
+    setValue(descInput(), '合法描述')
+    await flush()
+
+    submitBtn().click()
+    await flush()
+
+    expect(document.querySelector('.sk-modal .sk-field-err')).toBeNull()
+    expect(w.emitted('save')).toHaveLength(1)
+    expect(w.emitted('save')![0][0]).toMatchObject({ name: 'Invoice_Tagger', title: 'Invoice_Tagger' })
   })
 
   it('描述超过 256 个 Unicode 码点 → 行内错误(aiSkErrDescTooLong)且不 emit save', async () => {
