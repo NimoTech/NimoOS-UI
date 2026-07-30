@@ -5,6 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 import type { Skill } from '../../../types/skill'
+import SkillGroup from '../skills/SkillGroup.vue'
 
 // SP8-P3a Task 6 —— 承接 Vue2 src/views/AI/Skills/SkillsSection.vue(226 行)只读半。
 // 公共约束 §9:vi.mock 骨架用 vi.hoisted() 避免 ESM 提升的 TDZ ReferenceError。
@@ -57,7 +58,7 @@ describe('SkillsSection(只读半)', () => {
     push.mockClear()
   })
 
-  it('挂载即加载,渲染内置/我的两组', async () => {
+  it('挂载即加载,渲染内置/我的两组,且每组各自只含对应 system 归属的技能', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'built-a', title: 'Built A', system: true }),
       makeSkill({ id: 'b', name: 'mine-b', title: 'Mine B', system: false }),
@@ -69,6 +70,16 @@ describe('SkillsSection(只读半)', () => {
     expect(groupLabels[0]).toContain('内置技能')
     expect(groupLabels[1]).toContain('我的技能')
     expect(w.findAll('.sk-item')).toHaveLength(2)
+
+    // 评审自查(判据同上):只数总数/只看两条标签文案,不足以钉住「builtIn/personal
+    // 两个 computed 的 filter 条件被写反」这类回归(总数与标签都不变,只是内容
+    // 装错组)——直接查每个 SkillGroup 实例收到的 props,而不是依赖 DOM 顺序推断。
+    const groups = w.findAllComponents(SkillGroup)
+    expect(groups).toHaveLength(2)
+    expect(groups[0].props('label')).toBe('内置技能')
+    expect(groups[0].props('items').map((s: Skill) => s.name)).toEqual(['built-a'])
+    expect(groups[1].props('label')).toBe('我的技能')
+    expect(groups[1].props('items').map((s: Skill) => s.name)).toEqual(['mine-b'])
   })
 
   // 单层取数口径(正)——公共约束 §4 / brief §6.3:裸数组是真实契约形状,必须非空。
@@ -91,31 +102,69 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-col-empty').exists()).toBe(true)
   })
 
-  it('搜索按 name/title/description 三字段小写包含过滤(对齐 Vue2 :105-112)', async () => {
-    h.listSkills.mockResolvedValue([
+  // 评审 Important(独立回合):原先只用一条共享词 'FAMILY' 命中 description,对
+  // name/title 两个分支没有独立验证——评审探针删掉 `filtered` 里的 s.name 判断,
+  // 9 例仍全绿。改成三条独立用例,每条各配一个「唯一 token 只出现在该字段」的
+  // fixture(不与另外两个技能的任何字段重叠),分别断言只命中预期那条、不误伤
+  // 另外两条。三个 token 互不包含、互不是彼此子串。
+  function threeFieldFixture(): Skill[] {
+    return [
       makeSkill({
-        id: 'a',
-        name: 'weekly-report',
-        title: 'Weekly Report',
-        description: 'family channel',
+        id: 'by-name',
+        name: 'orion-alpha-token',
+        title: 'Skill Alpha',
+        description: 'plain description alpha',
+        system: true,
       }),
       makeSkill({
-        id: 'b',
-        name: 'other',
-        title: 'Other Thing',
-        description: 'nothing matches',
+        id: 'by-title',
+        name: 'plain-name-beta',
+        title: 'Zephyr-Beta-Token',
+        description: 'plain description beta',
         system: false,
       }),
-    ])
+      makeSkill({
+        id: 'by-desc',
+        name: 'plain-name-gamma',
+        title: 'Skill Gamma',
+        description: 'nebula-gamma-token appears here',
+        system: false,
+      }),
+    ]
+  }
+
+  it('搜索命中 name 字段(不误伤 title/description 都不含该词的另外两条)', async () => {
+    h.listSkills.mockResolvedValue(threeFieldFixture())
     const w = mountSection()
     await flush()
-    expect(w.findAll('.sk-item')).toHaveLength(2)
+    expect(w.findAll('.sk-item')).toHaveLength(3)
 
-    // 命中 description 字段,大小写不敏感。
-    await w.find('.sk-col-search input').setValue('FAMILY')
+    await w.find('.sk-col-search input').setValue('orion-alpha')
     await flush()
     expect(w.findAll('.sk-item')).toHaveLength(1)
-    expect(w.find('.sk-item-name').text()).toBe('weekly-report')
+    expect(w.find('.sk-item-name').text()).toBe('orion-alpha-token')
+  })
+
+  it('搜索命中 title 字段(大小写不敏感,不误伤 name/description 都不含该词的另外两条)', async () => {
+    h.listSkills.mockResolvedValue(threeFieldFixture())
+    const w = mountSection()
+    await flush()
+
+    await w.find('.sk-col-search input').setValue('ZEPHYR-BETA')
+    await flush()
+    expect(w.findAll('.sk-item')).toHaveLength(1)
+    expect(w.find('.sk-item-name').text()).toBe('plain-name-beta')
+  })
+
+  it('搜索命中 description 字段(不误伤 name/title 都不含该词的另外两条)', async () => {
+    h.listSkills.mockResolvedValue(threeFieldFixture())
+    const w = mountSection()
+    await flush()
+
+    await w.find('.sk-col-search input').setValue('nebula-gamma')
+    await flush()
+    expect(w.findAll('.sk-item')).toHaveLength(1)
+    expect(w.find('.sk-item-name').text()).toBe('plain-name-gamma')
   })
 
   it('两种空态文案:无 query 显示"还没有技能…",有 query 显示"没有匹配的技能"+回显 query', async () => {
