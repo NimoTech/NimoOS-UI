@@ -224,6 +224,11 @@ describe('时间机器入口', () => {
       observe() { this.cb([{ isIntersecting: true }]) }
       disconnect() {}
     }
+    // T11 起本描述块新增一条会经 reka-ui Portal 把 .ui-dialog-content Teleport 到真实
+    // document.body 的用例(齿轮弹窗)——attachTo: document.body 挂载的实例不会在测试间
+    // 自动 unmount,清空 body 防止上一条用例的残留节点污染下一条的 querySelector
+    // (同 SnapshotSettingsDialog.test.ts / RaidDeleteDialog.test.ts 的处理方式)。
+    document.body.innerHTML = ''
   })
 
   // 挂载在给定的真实路径上:disk 'NimoOS-HD' ↔ 挂载点 '/DATA'(与本文件其余用例同一约定),
@@ -235,7 +240,7 @@ describe('时间机器入口', () => {
     const router = makeRouter()
     const virtual = realPath.replace(/^\/DATA/, 'NimoOS-HD')
     router.push('/files/' + virtual); await router.isReady()
-    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
     await flushPromises()
     return w
   }
@@ -251,6 +256,14 @@ describe('时间机器入口', () => {
   it('点入口打开覆盖层', async () => {
     const w = await mountFiles('/DATA/Photos')
     await w.find('.tb-time-machine').trigger('click')
+    expect(w.find('.tm-overlay').exists()).toBe(true)
+  })
+  it('点齿轮打开设置弹窗,时间机器仍在', async () => {
+    const w = await mountFiles('/DATA/Photos')
+    await w.find('.tb-time-machine').trigger('click')
+    await w.find('.tm-gear').trigger('click')
+    await flushPromises()
+    expect(document.querySelector('.ui-dialog-content')).not.toBeNull()
     expect(w.find('.tm-overlay').exists()).toBe(true)
   })
 })

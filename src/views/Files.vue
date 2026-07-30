@@ -42,6 +42,7 @@ import { parseRecover } from '../files/util/recoverEvent'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
 import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
+import SnapshotSettingsDialog from '../files/snapshot/SnapshotSettingsDialog.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
 import { resolveExitTarget, relPathUnderMount } from '../files/util/snapshotPath'
 import { service } from '@nimotech/nimoos-service'
@@ -63,6 +64,8 @@ const bus = useMessageBus()
 const { t } = useI18n()
 
 // 对话框开关 + 上下文
+const settingsOpen = ref(false)
+const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
@@ -542,13 +545,22 @@ onMounted(() => { browse.ensureVolumes() })
     <ViewerHost />
     <TimeMachineOverlay
       v-if="browse.wheelOpen"
+      ref="overlayRef"
       :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
       :mount-point="browse.currentVolume?.mount ?? ''"
       :rel-path="snapshotRelPath"
       :folder-label="currentVirtual"
       @close="browse.closeWheel()"
       @select="onSnapshotSelect"
-      @open-settings="() => {}"
+      @open-settings="settingsOpen = true"
+    />
+    <!-- 设置弹窗打开时时间机器不关闭(有意):新建快照成功后能当场看见新刻度冒出来。
+         z-index 天然成立(覆盖层 900 < Dialog.vue 的 1000/1001),不加任何覆写。 -->
+    <SnapshotSettingsDialog
+      v-model:open="settingsOpen"
+      :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
+      :mount-point="browse.currentVolume?.mount ?? ''"
+      @snapshot-created="overlayRef?.reload()"
     />
   </AreaShell>
 </template>
