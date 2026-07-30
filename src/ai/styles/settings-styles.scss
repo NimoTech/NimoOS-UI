@@ -179,8 +179,13 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .px-status .k { color: var(--text-secondary); }
 .px-status .state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-primary); }
 .px-status .state .d { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(52,199,89,0.18); }
-.px-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--accent); padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent-softer); cursor: pointer; border: 0; }
-.px-open:hover { background: var(--accent-soft); }
+// 【申报级偏离 Vue2 视觉 1:1,用户 2026-07-30 拍板】Vue2 settings-styles.scss:168 是
+// `color: var(--accent)` + `background: var(--accent-softer)` 的极浅按钮,浅色主题下
+// 用户「看不出有按钮」。改为实底强调色 + 白字(--text-on-accent 只在 accent 实底上可用,
+// 这里正是实底)。hover 走既有的 --accent-hover,两套主题都有值。
+// 详见 ObservabilitySection.vue 该按钮处的注释与 settingsStyles.test.ts 的钉桩用例。
+.px-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--text-on-accent); padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); cursor: pointer; border: 0; }
+.px-open:hover { background: var(--accent-hover); }
 // SP8-P2b Task 8 —— Task 2 整档移植时把 Vue2 ObservabilitySection.vue:208-211 的
 // scoped `<style>`(`.status` / `.status.err`,installing/error 行内提示)漏收
 // 了(同 SetSwitch.vue 头注释记的 sk-shared.scss 漏收是同一类疏漏)。这里补上,
@@ -223,6 +228,10 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .chan-type-opt { padding: 7px 14px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-canvas); color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 120ms ease; }
 .chan-type-opt[data-active="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
 .chan-field-hint { margin: 6px 0 0; font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
+// 【申报级偏离 Vue2 1:1,用户 2026-07-30 拍板】添加机器人失败的行内报错,取代 Vue2 的
+// danger toast。渲染在 token <input> 之前,故 margin 收在下方。字号/行高对齐同字段的
+// .chan-field-hint,只把颜色换成 --danger(两套主题都有值)。
+.chan-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
 .chan-invite { margin-left: 10px; font-size: 12.5px; color: var(--accent); }
 
 /* ---------- Card with internal toolbar ---------- */

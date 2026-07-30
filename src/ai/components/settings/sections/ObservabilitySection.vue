@@ -301,8 +301,14 @@ function openPhoenix() {
         <div class="px-status">
           <span class="k">{{ t('aiCfgPhoenixStatus') }}</span>
           <span class="state"><span class="d" />{{ statusLabel }}</span>
+          <!-- 【申报级偏离 Vue2 视觉 1:1,用户 2026-07-30 验收时拍板】
+               Vue2 :29 这里是 `download` 图标 + `--accent-softer` 极浅底色。两处问题:
+               ①download(向下箭头+底线)语义是「下载」,而本按钮是在新标签页打开 Phoenix 界面;
+               ②浅色主题下 accent-softer 几乎看不见,用户原话「看不出有按钮」。
+               改为 external(外链)图标 + 实底强调色(样式在 settings-styles.scss 的 .px-open)。
+               钉桩:ObservabilitySection.test.ts 用例 20 与 settingsStyles.test.ts 的 .px-open 一条。 -->
           <button v-if="phoenixStatus === 'running'" class="px-open" @click="openPhoenix">
-            <AgentIcon name="download" :size="12" /> {{ t('aiCfgOpenPhoenix') }}
+            <AgentIcon name="external" :size="12" /> {{ t('aiCfgOpenPhoenix') }}
           </button>
         </div>
         <p v-if="installing" class="px-msg">{{ t('aiCfgInstallingPhoenix') }} {{ progress }}%</p>

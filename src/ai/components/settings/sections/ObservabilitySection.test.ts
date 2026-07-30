@@ -27,6 +27,7 @@ import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 import ObservabilitySection from './ObservabilitySection.vue'
+import AgentIcon from '../../icons/AgentIcon.vue'
 
 const h = vi.hoisted(() => ({
   getTracingSetting: vi.fn(),
@@ -392,6 +393,22 @@ describe('ObservabilitySection', () => {
     await flush()
     await w.find('.px-open').trigger('click')
     expect(spy).toHaveBeenCalledWith(`http://${window.location.hostname}:6006/`, '_blank')
+    w.unmount()
+  })
+
+  // SP8-P2b 验收反馈(2026-07-30,用户拍板的申报级偏离)—— Vue2 ObservabilitySection.vue:29
+  // 在这个按钮里用的是 `download` 图标(向下箭头 + 底线),语义是「下载」,而按钮的行为是
+  // 「在新标签页打开 Phoenix 界面」。用户验收时反馈①图标像「加载/下载」②按钮极浅的
+  // accent-softer 底色在浅色主题下「看不出有按钮」。拍板改为实底强调色 + 外链图标。
+  // 这是**有意偏离 Vue2 视觉 1:1**(移植纪律要求申报+登记),不是移植走样。
+  it('20. 「打开 Phoenix」按钮用外链图标(不是 download),Vue2 :29 的申报级偏离', async () => {
+    h.getTracingSetting.mockResolvedValue({ enabled: true })
+    h.composeList.mockResolvedValue(entry('running'))
+    const w = mountSection()
+    await flush()
+    const icons = w.find('.px-open').findAllComponents(AgentIcon)
+    expect(icons).toHaveLength(1)
+    expect(icons[0].props('name')).toBe('external')
     w.unmount()
   })
 

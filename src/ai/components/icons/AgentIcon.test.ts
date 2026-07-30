@@ -41,3 +41,17 @@ describe('SP8-P2b Task 1 —— user 图标', () => {
     expect(mount(AgentIcon, { props: { name: 'folder' } }).html()).not.toContain('scale(')
   })
 })
+
+// SP8-P2b 验收反馈(2026-07-30)—— 「Open Phoenix」原本用 download(向下箭头+底线)图标,
+// 语义是「下载」而不是「在新标签页打开」。用户拍板换成外链图标,故新增 external。
+// 20 单位坐标系手绘(与 folder/cpu 一族同制),不需要 scale 包裹。
+describe('SP8-P2b 验收补丁 —— external(外链)图标', () => {
+  it('external 渲染出非空 svg 内容', () => {
+    expect(mount(AgentIcon, { props: { name: 'external' } }).find('svg').html())
+      .toMatch(/<(path|rect|circle|g)\b/)
+  })
+
+  it('external 是 20 单位坐标系,不带 scale 包裹', () => {
+    expect(mount(AgentIcon, { props: { name: 'external' } }).html()).not.toContain('scale(')
+  })
+})
