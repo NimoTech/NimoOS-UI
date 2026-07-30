@@ -22,7 +22,14 @@ const props = withDefaults(
   { portalTo: '.set-app' },
 )
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
-const slots = defineSlots<{ default?: () => unknown; footer?: () => unknown }>()
+// SP8-P3b Task 5 —— 加一个可选的 footerLeft 插槽。Vue2 AddSkillModal.vue:96-108 的底栏是
+// 两栏:左边 `.save-note`(保存说明 + check 图标)、右边 `.right`(取消/创建两个按钮),
+// sk-shared.scss:139-150 的 `.sk-modal-foot` 本来就同时支持 `.save-note` 与 `.right`
+// (后者 `margin-left: auto`),但本组件原先把 `#footer` 插槽整个塞进 `.right` 里 ——
+// AddSkillModal 若只用现成插槽,「保存在本机」那行会被推到右边贴着按钮,与 Vue2 视觉不符。
+// 纯增量:footerLeft 缺省不传时 <slot name="footerLeft" /> 不渲染任何内容,现有三个消费方
+// (ChannelsSection 两处、McpTokensSection 一处)只传 #footer,行为不变。
+const slots = defineSlots<{ default?: () => unknown; footer?: () => unknown; footerLeft?: () => unknown }>()
 </script>
 
 <template>
@@ -37,7 +44,10 @@ const slots = defineSlots<{ default?: () => unknown; footer?: () => unknown }>()
             </button>
           </div>
           <div class="sk-modal-body"><slot /></div>
-          <div v-if="slots.footer" class="sk-modal-foot">
+          <!-- v-if 同时看两个插槽:只传 footerLeft 不传 footer 这条件在逻辑上也要立得住
+               (哪怕本期没有消费方这么用),不能写一个只覆盖 footer 单侧的条件。 -->
+          <div v-if="slots.footer || slots.footerLeft" class="sk-modal-foot">
+            <slot name="footerLeft" />
             <div class="right"><slot name="footer" /></div>
           </div>
         </DialogContent>

@@ -162,6 +162,11 @@
   }
 }
 .sk-field-hint { font-size: 11px; color: var(--text-tertiary); }
+// SP8-P3b Task 5 —— 行内校验错误条(AddSkillModal 提交前本地校验命中时用,落在
+// .sk-modal-body 顶部)。先例是 ChannelsSection 添加机器人失败的 .chan-field-err
+// (settings-styles.scss:234),值逐字同款;这里新建同名同款的 .sk-field-err,不借用
+// 带 chan 前缀的那份(那是聊天渠道分区自己的类,借用属于跨分区复用)。
+.sk-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
 .sk-field input[type="text"],
 .sk-field textarea {
   width: 100%;

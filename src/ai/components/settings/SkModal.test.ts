@@ -65,6 +65,41 @@ describe('SkModal', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
+  // SP8-P3b Task 5 —— footerLeft 插槽(AddSkillModal 消费:左边「保存在这台 NAS 本地」
+  // 说明,右边取消/创建按钮),纯增量,不改动上面任何既有断言。
+  it('footerLeft 插槽渲染成 .right 的前置兄弟节点(左右两栏并存)', async () => {
+    mount(SkModal, {
+      props: { open: true, title: 't' },
+      slots: {
+        footerLeft: '<span class="save-note-probe">保存说明</span>',
+        footer: '<button class="fbtn2">创建</button>',
+      },
+      attachTo: document.body,
+    })
+    await nextTick()
+    const foot = host.querySelector('.sk-modal-foot') as HTMLElement
+    expect(foot).not.toBeNull()
+    const left = foot.querySelector('.save-note-probe')
+    const right = foot.querySelector('.right .fbtn2')
+    expect(left).not.toBeNull()
+    expect(right).not.toBeNull()
+    // 左栏必须在 DOM 顺序上先于 .right(即视觉上落在它左边,而不是被塞进 .right 内部)
+    expect(left!.compareDocumentPosition(right!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(right!.closest('.right')).not.toBeNull()
+    expect(left!.closest('.right')).toBeNull()
+  })
+
+  it('只传 footerLeft、不传 footer 时仍渲染 .sk-modal-foot(条件逻辑要自洽,本期暂无消费方这么用)', async () => {
+    mount(SkModal, {
+      props: { open: true, title: 't' },
+      slots: { footerLeft: '<span class="only-left-probe">仅左栏</span>' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(host.querySelector('.sk-modal-foot')).not.toBeNull()
+    expect(host.querySelector('.only-left-probe')).not.toBeNull()
+  })
+
   it('portalTo 可覆盖(给非设置页复用留口)', async () => {
     const other = document.createElement('div')
     other.id = 'other-host'

@@ -202,6 +202,17 @@ describe('sk-shared.scss', () => {
     expect(css).toContain('@keyframes sk-fade-in')
     expect(css).toContain('@keyframes sk-pop')
   })
+
+  // SP8-P3b Task 5 —— AddSkillModal 提交前本地校验命中时用的行内错误条,先例
+  // .chan-field-err(settings-styles.scss:234)。
+  it('SP8-P3b Task 5 —— 导出行内错误类 .sk-field-err,走 --danger token 无裸色', () => {
+    const at = css.indexOf('.sk-field-err {')
+    expect(at, '找不到 .sk-field-err 规则').toBeGreaterThanOrEqual(0)
+    const rule = css.slice(at, css.indexOf('}', at))
+    expect(rule).toContain('color: var(--danger)')
+    expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(rule).not.toMatch(/rgba?\(/)
+  })
 })
 
 // SP8-P3a 整期终审 I1 守卫 —— `.empty-title`/`.empty-sub` 与 `agent-styles.scss`
