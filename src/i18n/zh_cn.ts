@@ -798,6 +798,10 @@ export default {
   photosPeopleHide: '隐藏',
   photosPeopleShow: '显示',
   photosPeoplePhotosCount: '{n} 张照片',
+  // 用户验收新增键(Vue2 无对应原文):未命名人物菜单的详情页入口 + 详情页 hero 在人物
+  // 无名字时的兜底标题。Vue2 里未命名人物根本进不去详情页,所以这两处它都不需要文案。
+  photosPersonViewPhotos: '查看这些照片',
+  photosPersonUnnamedTitle: '未命名人物',
   photosPersonNameThis: '为这个人命名…',
   photosPersonMergeExisting: '合并到已有人物…',
   photosPersonDeleteCluster: '删除这个人物', // 术语红线:原查得"删除集群",改掉"集群"(fix-1)

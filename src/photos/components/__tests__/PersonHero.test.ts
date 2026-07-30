@@ -359,3 +359,23 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
     expect(w.findAll('[data-test="hero-edit-menu"] button')).toHaveLength(3)
   })
 })
+
+// 用户验收新增:未命名人物现在能从列表页菜单「查看这些照片」进到详情页(Vue2 没有这条路,
+// 所以 Vue2 :22 直接渲染 person.name、空名就是一片空白,谁都没管过)。有了入口就必须有兜底
+// 标题,否则 hero 顶着一个空标题 + 一个改名按钮,看不出这是谁。
+describe('PersonHero.vue — 无名字人物的兜底标题', () => {
+  it('name 为空串 → hero 标题显示 photosPersonUnnamedTitle', () => {
+    const w = mountHero({ person: person({ name: '' }), relationCount: 0, placesCount: 0 })
+    expect(w.get('[data-test="hero-name"]').text()).toBe('未命名人物')
+  })
+
+  it('name 只有空白字符 → 同样走兜底(不是渲染出几个空格)', () => {
+    const w = mountHero({ person: person({ name: '   ' }), relationCount: 0, placesCount: 0 })
+    expect(w.get('[data-test="hero-name"]').text()).toBe('未命名人物')
+  })
+
+  it('有名字时原样显示,不受兜底影响', () => {
+    const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 })
+    expect(w.get('[data-test="hero-name"]').text()).toBe('Sara')
+  })
+})

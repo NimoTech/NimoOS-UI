@@ -322,6 +322,13 @@ function submitDelete(): void {
      (与同文件 .cad-btn-danger 同款几何)。 */
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
+/* 真机验收修复:`.cad-btn:hover`(上一行,优先级 (0,2,0))会压过只有一个类的
+   `.cad-btn-primary`(0,1,0),hover 时把 accent 实底换成近白的 --chip-bg-hi,而文字
+   仍是 --on-accent → 白底白字整颗看不见。变体必须自带 :hover 背景把自己盖回来
+   (同详情页 PhotosPersonDetail.vue:1142 的既有正确写法)。
+   背景声明放在不带 :not(:disabled) 的规则里:disabled 态同样会被基类 hover 夺走背景,
+   两处都得护住;brightness 提亮仍只在可点时给(下一行保持原样)。 */
+.cad-btn-primary:hover { background: var(--accent); }
 .cad-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .cad-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 /* 照 Vue2 :351-357 的实底红填充(不是描边)——渐变复用 PhotosTrash.vue:446
@@ -337,7 +344,13 @@ function submitDelete(): void {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--remove-bg) 35%, transparent);
 }
 .cad-btn-danger svg { color: #fff; /* theme-exception: 同上,图标随按钮文字钉死白色 */ }
-.cad-btn-danger:hover { filter: brightness(1.08); }
+/* 同上:hover 时必须把危险红渐变重新盖回来,否则被 `.cad-btn:hover` 的 --chip-bg-hi
+   顶掉、配上钉死的白字 → 按钮和文案一起消失(这就是真机验收报的那颗按钮)。
+   渐变与 .cad-btn-danger 的基础声明逐字相同,测试里有一条等值断言钉住两者不许漂移。 */
+.cad-btn-danger:hover {
+  background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg));
+  filter: brightness(1.08);
+}
 
 .cad-candidates {
   max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;

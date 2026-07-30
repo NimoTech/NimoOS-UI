@@ -21,6 +21,10 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import MergeReviewDialog, { type MergeSuggestion } from '../MergeReviewDialog.vue'
+// 原始源码文本(Vite `?raw`)+ 级联辅助:jsdom 既不做级联样式计算也进不了真实 hover 态,
+// 只能解析 <style> 原文自行按 CSS 优先级判胜负。机理与 ClusterActionDialog.test.ts 同源。
+import mergeReviewDialogRaw from '../MergeReviewDialog.vue?raw'
+import { extractStyleBlock, winningHoverBackground } from './cssCascade'
 
 const i18n = createI18n({
   legacy: false,
@@ -167,5 +171,24 @@ describe('MergeReviewDialog', () => {
     await w.setProps({ open: false })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     expect(w.emitted('update:open')).toBeUndefined()
+  })
+})
+
+// 与 ClusterActionDialog 同款的优先级坑(全仓扫描只余这一处):基类 `.mrd-btn:hover`
+// 带伪类 (0,2,0),压过只有一个类的 `.mrd-btn-primary` (0,1,0),hover 时把 accent 实底
+// 换成近白的 --chip-bg-hi,文字仍是 --on-accent → 「合并」键整颗看不见。原来的
+// `.mrd-btn-primary:hover` 里只有 filter、没有 background,所以拦不住。
+describe('MergeReviewDialog.vue — hover 态下主行动键的背景不被 .mrd-btn:hover 夺走', () => {
+  const styleText = extractStyleBlock(mergeReviewDialogRaw)
+
+  it('合并键 hover 时生效的 background 仍是 --accent,不是 --chip-bg-hi', () => {
+    const win = winningHoverBackground(styleText, ['mrd-btn', 'mrd-btn-primary'])
+    expect(win.value).toContain('--accent')
+    expect(win.value).not.toContain('--chip-bg-hi')
+  })
+
+  it('「不是同一个人」键(只有基类)hover 时才该拿到 --chip-bg-hi', () => {
+    const win = winningHoverBackground(styleText, ['mrd-btn'])
+    expect(win.value).toContain('--chip-bg-hi')
   })
 })

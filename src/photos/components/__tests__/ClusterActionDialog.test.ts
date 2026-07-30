@@ -15,6 +15,11 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import ClusterActionDialog from '../ClusterActionDialog.vue'
+// 原始源码文本(Vite `?raw`),仅用于文末「hover 态背景不被基类规则夺走」一组测试——
+// jsdom 既不做级联样式计算也无法进入真实 hover 态,只能解析 <style> 原文自行按
+// CSS 优先级判胜负(同 PersonAssetGrid.test.ts:210-243 的既有先例)。
+import clusterActionDialogRaw from '../ClusterActionDialog.vue?raw'
+import { extractStyleBlock, ownBackground, winningHoverBackground } from './cssCascade'
 import type { Person } from '../../util/peopleView'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -323,5 +328,48 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
     expect(removeSpy).toHaveBeenCalledWith('keydown', added![1])
     addSpy.mockRestore()
     removeSpy.mockRestore()
+  })
+})
+
+// ── hover 态背景不被基类规则夺走(真机验收发现:删除确认按钮 hover 后整颗变白)──
+//
+// 缺陷机理:两个变体键(`.cad-btn-danger` / `.cad-btn-primary`)与基类 `.cad-btn`
+// 同时挂在一个 <button> 上。基类的 `.cad-btn:hover` 带一个伪类,优先级 (0,2,0);
+// 变体规则只有一个类,优先级 (0,1,0)。CSS 优先级高者胜、与书写顺序无关,所以指针
+// 一进按钮,变体的实底/渐变背景就被基类的 `var(--chip-bg-hi)`(浅色主题 #f2efe7 米白、
+// 深色主题近白半透明渐变)整块替换,而文字色 `#fff` / `var(--on-accent)` 仍由变体规则
+// 提供 —— 白底白字,按钮和文案一起消失。
+//
+// 这组测试不断言"修复长什么样",而是按 CSS 优先级算出 hover 态下真正生效的那条
+// background 声明(辅助函数见 ./cssCascade.ts),再断言它属于变体规则 —— 任何把变体
+// 背景重新盖回去的写法都能通过,但把 hover 背景还给基类就会红。详情页
+// PhotosPersonDetail.vue:1142/1151 早已是正确写法(变体自带 :hover 背景)。
+
+describe('ClusterActionDialog.vue — hover 态下变体按钮的背景不被 .cad-btn:hover 夺走', () => {
+  const styleText = extractStyleBlock(clusterActionDialogRaw)
+
+  it('删除键 hover 时生效的 background 仍是危险红渐变,不是 --chip-bg-hi', () => {
+    const win = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-danger'])
+    expect(win.value).toContain('--remove-')
+    expect(win.value).not.toContain('--chip-bg-hi')
+  })
+
+  it('主行动键 hover 时生效的 background 仍是 --accent,不是 --chip-bg-hi', () => {
+    const win = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-primary'])
+    expect(win.value).toContain('--accent')
+    expect(win.value).not.toContain('--chip-bg-hi')
+  })
+
+  // 删除键的 hover 背景是把基础声明的渐变逐字重复了一遍(不引入本地别名变量,见组件里的
+  // 注释)。这条断言钉住两处不许漂移:改了基础渐变却忘了改 hover,会红。
+  it('删除键 hover 背景与其基础背景逐字相同(防两处漂移)', () => {
+    const base = ownBackground(styleText, '.cad-btn-danger')
+    const hover = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-danger']).value
+    expect(hover).toBe(base)
+  })
+
+  it('取消键(只有基类)hover 时才该拿到 --chip-bg-hi', () => {
+    const win = winningHoverBackground(styleText, ['cad-btn'])
+    expect(win.value).toContain('--chip-bg-hi')
   })
 })

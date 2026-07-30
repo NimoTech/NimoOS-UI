@@ -376,6 +376,29 @@ describe('PhotosPeople.vue — 跳转与浮动菜单', () => {
     expect(menu.attributes('style')).toContain('top: 208px')
   })
 
+  // 用户验收新增(Vue2 无此入口):未命名卡片整格点击只出菜单、没有任何通往详情页的路径
+  // (Vue2 PhotosPeopleView.vue:189 整格 @click 就是 openClusterMenu,菜单 :213-231 只有
+  // 命名/合并/删除三项)。菜单顶部补一条「查看这些照片」,走与已命名卡片同一个 openPerson,
+  // 因此 encodeURIComponent 守卫与路径拼接是共用的、不另起一套。
+  it('菜单「查看这些照片」→ router.push 到该人物详情页,菜单点完即关', async () => {
+    const { w, router } = await mountView()
+    const push = vi.spyOn(router, 'push')
+    const card = w.findAll('[data-test="cluster-card"]').find((c) => c.attributes('data-id') === 'u2')!
+    await card.trigger('click')
+    await w.find('[data-test="menu-view"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/photos/people/u2')
+    expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
+  })
+
+  it('「查看这些照片」是菜单里的第一项(命名/合并/删除依次在后)', async () => {
+    const { w } = await mountView()
+    await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
+    const items = w.find('[data-test="cluster-menu"]').findAll('button')
+    expect(items.map((b) => b.attributes('data-test'))).toEqual([
+      'menu-view', 'menu-name', 'menu-merge', 'menu-delete',
+    ])
+  })
+
   // T7:菜单三项打开对应 mode 的真实 ClusterActionDialog(此前 T6 只置一个隐藏占位状态,
   // T7 把它换成真弹窗——断言各 mode 特有的 DOM 而不是占位属性)。
   it('菜单三项分别打开对应 mode 的真实弹窗(name/merge/delete),菜单点完即关', async () => {

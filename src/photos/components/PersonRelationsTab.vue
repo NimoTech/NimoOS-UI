@@ -74,7 +74,11 @@ function escapeHtml(v: unknown): string {
 // (:572 `if (!this.person) return ''`)。
 const nimoReadHtml = computed(() => {
   if (!props.person) return ''
-  const parts = nimoReadParts(props.person.name, props.relations, props.places)
+  // 用户验收新增:未命名人物现在能进详情页,而洞察卡的句子模板全部带 {name} 槶位,裸
+  // person.name 会渲染成「 的照片还不够多…」这种前置空格残句(Vue2 同病,但它进不来所以
+  // 不可达)。兜底口径与同期的 PersonPlacesTab.vue:51 完全一致 —— 都用 photosPersonThisPerson。
+  const name = props.person.name.trim() || t('photosPersonThisPerson')
+  const parts = nimoReadParts(name, props.relations, props.places)
   return parts
     .map((part) => {
       const escaped: Record<string, unknown> = {}

@@ -185,6 +185,14 @@ function openClusterMenu(p: Person, e: MouseEvent): void {
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   clusterMenu.value = { person: p, x: rect.left + rect.width / 2, y: rect.bottom + 8 }
 }
+// 用户验收新增:菜单里的「查看这些照片」。与 openDialog 同款"先关菜单再动作"的顺序
+// (菜单里的 person 是唯一事实,关菜单会清掉它,所以必须先取出来)。
+function viewClusterPhotos(): void {
+  const p = clusterMenu.value?.person ?? null
+  clusterMenu.value = null
+  if (!p) return
+  openPerson(p)
+}
 // Vue2 :624-643 的三个 openXxxDialog 只有 mode 不同,这里收成一个。
 function openDialog(mode: DialogMode): void {
   const p = clusterMenu.value?.person ?? null
@@ -635,6 +643,13 @@ onUnmounted(() => {
     data-test="cluster-menu"
     :style="{ left: clusterMenu.x + 'px', top: clusterMenu.y + 'px' }"
   >
+    <!-- 用户验收新增(Vue2 菜单 :213-231 只有命名/合并/删除三项,整个 Vue2 列表页没有任何
+         通往未命名人物详情页的入口)。放在首位:它是"只看不改"的动作,三个会改数据的动作
+         排在后面。走与已命名卡片同一个 openPerson,共用 encodeURIComponent 守卫。 -->
+    <button type="button" class="cluster-menu-item" data-test="menu-view" @click="viewClusterPhotos">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+      <span>{{ t('photosPersonViewPhotos') }}</span>
+    </button>
     <button type="button" class="cluster-menu-item" data-test="menu-name" @click="openDialog('name')">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
       <span>{{ t('photosPersonNameThis') }}</span>

@@ -178,3 +178,30 @@ describe('PersonRelationsTab.vue', () => {
     expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\s*\(/)
   })
 })
+
+// 用户验收新增(与 PersonHero 的兜底标题同一批):未命名人物现在能进详情页,洞察卡的
+// 句子模板全部带 {name} 槶位,裸 person.name 会渲染成「 的照片还不够多…」这种前置空格的
+// 残句。地点 tab(PersonPlacesTab.vue:51)早就用 `personName || photosPersonThisPerson`
+// 兜底了,关系 tab 漏了同款处理 —— 这里补齐,两个 tab 的兜底口径统一。
+describe('PersonRelationsTab.vue — 无名字人物的洞察卡兜底', () => {
+  it('name 为空 + 无关系无地点 → 洞察句用「这个人」而不是留空槶位', () => {
+    const w = mountTab({
+      relations: [],
+      person: P({ name: '' }),
+      places: [],
+    })
+    const text = w.get('[data-test="insight-text"]').text()
+    expect(text).toContain('这个人 的照片还不够多')
+    expect(text).not.toMatch(/^\s/)
+  })
+
+  it('name 只有空白字符 → 同样走兜底', () => {
+    const w = mountTab({ relations: [], person: P({ name: '  ' }), places: [] })
+    expect(w.get('[data-test="insight-text"]').text()).toContain('这个人 的照片还不够多')
+  })
+
+  it('有名字时原样代入,不受兜底影响', () => {
+    const w = mountTab({ relations: [], person: P({ name: 'Sara' }), places: [] })
+    expect(w.get('[data-test="insight-text"]').text()).toContain('Sara 的照片还不够多')
+  })
+})

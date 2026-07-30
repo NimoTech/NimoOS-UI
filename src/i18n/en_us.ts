@@ -800,6 +800,9 @@ export default {
   photosPeopleHide: 'Hide',
   photosPeopleShow: 'Show',
   photosPeoplePhotosCount: '{n} photos',
+  // 用户验收新增键(Vue2 无对应原文),键序与 zh_cn.ts 严格一致(parity.test.ts 会断言)。
+  photosPersonViewPhotos: 'View these photos',
+  photosPersonUnnamedTitle: 'Unnamed person',
   photosPersonNameThis: 'Name this person…',
   photosPersonMergeExisting: 'Merge into existing…',
   photosPersonDeleteCluster: 'Delete cluster',

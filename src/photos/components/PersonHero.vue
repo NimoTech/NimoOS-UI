@@ -84,6 +84,11 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
+// 用户验收新增:未命名人物现在有了详情页入口(列表页菜单「查看这些照片」),Vue2 里这条路
+// 走不到,所以它 :22 直接渲染 person.name、空名就是空白标题。这里补兜底文案。
+// trim 判定:后端可能存下只有空白的名字,渲染成几个空格与空白无异,一并走兜底。
+const heroTitle = computed(() => props.person.name.trim() || t('photosPersonUnnamedTitle'))
+
 // ── 背景层(Vue2 :497-506)──────────────────────────────────────────────
 // heroAssetId 优先;否则用人脸缩略图当背景;两者都无 → 渐变兜底(isFallback)。
 const heroBg = computed(() => {
@@ -192,7 +197,7 @@ onUnmounted(() => {
 
       <div class="hero-info">
         <div class="hero-name-row">
-          <span class="hero-name" data-test="hero-name">{{ person.name }}</span>
+          <span class="hero-name" data-test="hero-name">{{ heroTitle }}</span>
 
           <!-- 终审 Minor 7:未收藏态的 title/aria 照 Vue2 :26 的 `Mark as favorite`(不是通用的
                `Favorite`);已收藏态复用 photosUnfavorite,其中文与 Vue2 `Remove favorite` 的原译一致。 -->

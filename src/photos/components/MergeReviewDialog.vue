@@ -262,5 +262,9 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
-.mrd-btn-primary:hover { filter: brightness(1.08); }
+/* 与 ClusterActionDialog 同款修复:`.mrd-btn:hover`(:260,优先级 (0,2,0))压过只有一个类的
+   `.mrd-btn-primary`(0,1,0),hover 时 accent 实底被换成近白的 --chip-bg-hi、文字仍是
+   --on-accent → 「合并」键整颗看不见。这条 :hover 里原本只有 filter,必须把背景也盖回来
+   (同详情页 PhotosPersonDetail.vue:1142 的既有正确写法)。 */
+.mrd-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
 </style>
