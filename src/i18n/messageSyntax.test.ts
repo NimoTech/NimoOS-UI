@@ -50,6 +50,39 @@ describe('i18n message syntax', () => {
     })
   })
 
+  // SP8-P3b Task 2: aiSkScriptsHint / aiSkErrDescAngle both contain literal angle
+  // brackets, written as {'<'}/{'>'} escapes (probe confirmed vue-i18n 9 renders bare
+  // <>  without erroring too, but logs an "[intlify] Detected HTML" console warning —
+  // the escaped form renders identically without that warning, so it's what's shipped).
+  // Same failure mode as the P1c1 bare-@ incident this file was created to guard
+  // against: pin the resolved rendering so a future edit that breaks the escape shows
+  // up here instead of silently mangling the UI.
+  describe('aiSkScriptsHint and aiSkErrDescAngle keys (angle-bracket escapes)', () => {
+    it('should resolve the literal angle brackets in zh_cn aiSkScriptsHint', () => {
+      const i18nZh = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+      const message = i18nZh.global.t('aiSkScriptsHint')
+      expect(message).toBe('文件会保存在 bundle 的 scripts/<name> 路径下。')
+    })
+
+    it('should resolve the literal angle brackets in en_us aiSkScriptsHint', () => {
+      const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
+      const message = i18nEn.global.t('aiSkScriptsHint')
+      expect(message).toBe('Files are stored inside scripts/<name> in the bundle.')
+    })
+
+    it('should resolve the literal angle brackets in zh_cn aiSkErrDescAngle', () => {
+      const i18nZh = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+      const message = i18nZh.global.t('aiSkErrDescAngle')
+      expect(message).toBe('描述里不能包含 < 和 >')
+    })
+
+    it('should resolve the literal angle brackets in en_us aiSkErrDescAngle', () => {
+      const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
+      const message = i18nEn.global.t('aiSkErrDescAngle')
+      expect(message).toBe('Description cannot contain < or >')
+    })
+  })
+
   describe('bare @ guard (unescaped @ detection)', () => {
     it('should not allow bare @ in any key (only {@} escapes or @:key references)', () => {
       const locales = [

@@ -1235,4 +1235,93 @@ export default {
   aiSkPendingBanner: '已挂载技能 {name},将应用于下一条消息',
   aiSkPendingDetach: '取消挂载',
   // <<< SP8-P3a
+  // >>> SP8-P3b Task 2 —— 技能分区「写操作」半:新建/启停/卸载/删除/沙箱测试。
+  // 加粗行(见任务书 §2.3)在下方逐条标注为「Vue2 没有的新文案」。
+  aiSkAddSkill: '添加技能',
+  aiSkDisable: '禁用',
+  aiSkEnable: '启用',
+  aiSkDisableTemporarily: '临时禁用',
+  aiSkCopyMd: '复制 SKILL.md',
+  aiSkExport: '导出技能',
+  aiSkUninstall: '卸载',
+  aiSkDeleteSkill: '删除技能',
+  aiSkDelete: '删除', // 拍板不复用 aiConfirm(P1a 弹窗标题误用按钮文案的历史遗留),按任务书新增
+  aiSkUninstallTitle: '卸载这个技能？',
+  aiSkDeleteTitle: '删除这个技能？',
+  // 新文案(D3 拍板):Vue2 SkillDetail.vue:161 承诺「以后可从内置目录重新安装」,
+  // 但后端 service/skills.go:330-340 只写 uninstalled=1 标记、全仓无恢复接口 —— 说实话。
+  aiSkUninstallBody:
+    '技能将从这台 NAS 移除。此界面无法恢复,需要重装系统或手工把技能目录放回。',
+  aiSkDeleteBody: '这会永久删除该技能及其 SKILL.md 文件,无法恢复。',
+  aiSkNPrevRuns: '历史运行 {count} 次',
+  aiSkEnabledToast: '技能已启用',
+  aiSkPausedToast: '技能已暂停',
+  aiSkUpdateFailed: '更新失败',
+  aiSkUninstalledName: '已卸载 {name}',
+  aiSkDeletedName: '已删除 {name}',
+  aiSkDeleteFailed: '删除失败',
+  aiSkAddedName: '已添加 {name}',
+  aiSkAddTitle: '添加新技能',
+  aiSkFieldName: '名称',
+  aiSkNamePlaceholder: '例如:invoice-tagger',
+  aiSkNameHint: '仅小写字母与短横线 —— 这个名字会作为斜杠命令使用。',
+  aiSkDescPlaceholder: 'Nimo 应该在什么时候用这个技能?它做什么?',
+  aiSkDescFormHint: '清晰的描述能帮助 Nimo 自动挑选合适的技能。',
+  aiSkFieldColor: '颜色',
+  aiSkOptional: '可选',
+  aiSkScriptFiles: '脚本文件',
+  // 尖括号实测:vue-i18n 9 对裸 `<`/`>` 渲染无异常,但会打印
+  // "[intlify] Detected HTML in ... message" 控制台警告；本仓沿用既有转义惯例
+  // ({'@'} 等),用 {'<'}/{'>'} 转义写法,渲染结果与裸字面完全一致但不触发该警告。
+  aiSkScriptsHint: '文件会保存在 bundle 的 scripts/{\'<\'}name{\'>\'} 路径下。',
+  aiSkSavedLocally: '保存在这台 NAS 本地',
+  aiSkCreating: '创建中…',
+  aiSkCreate: '创建技能',
+  aiSkTrigOptAuto: '自动触发',
+  aiSkTrigDescAuto: '由 Nimo 自行决定何时使用',
+  aiSkTrigOptSlash: '斜杠命令',
+  aiSkTrigDescSlash: '在对话中输入 /name 触发',
+  aiSkTrigDescManual: '仅在明确调用时',
+  aiSkMdPlaceholderHead: '你的技能',
+  aiSkMdPlaceholderBody: '描述这个技能的工作方式…',
+  // 新文案(拍板偏离⑦):Vue2 AddSkillModal.vue:164-167 对 >1 MiB 的脚本文件直接
+  // continue 静默丢弃,用户看不到文件消失 —— 改为提示。
+  aiSkFilesSkippedTooBig: '{n} 个文件超过 1 MiB,已跳过',
+  aiSkErrDuplicate: '已存在同名技能',
+  aiSkErrBadId: '名称只能用小写字母、数字和短横线,且不能以短横线开头或结尾',
+  aiSkErrDescRequired: '请填写描述',
+  aiSkErrDescTooLong: '描述不能超过 256 个字符',
+  aiSkErrDescSingleLine: '描述必须是单行',
+  aiSkErrDescAngle: '描述里不能包含 {\'<\'} 和 {\'>\'}',
+  aiSkErrDescControl: '描述里不能包含控制字符',
+  aiSkErrBadPath: '脚本文件路径不合法',
+  aiSkErrBundleTooLarge: '技能包体积超出限制',
+  aiSkErrMdTooLarge: 'SKILL.md 太大',
+  aiSkErrCreateFailed: '无法创建技能',
+  aiSkTestTitle: '沙箱测试',
+  aiSkTestHint: '在隔离环境中运行,不会影响真实文件。',
+  aiSkTestPill: '沙箱',
+  aiSkTestTryName: '试用 {name},不影响你的 NAS',
+  aiSkTestDiscard: '运行结束后输入和输出会被丢弃。',
+  aiSkTestOffTitle: '技能已禁用,但仍可在沙箱中测试',
+  aiSkTestOffBadge: '技能已关闭',
+  aiSkTestRun: '运行',
+  aiSkTestRunning: '运行中…',
+  aiSkTestExamples: '示例提示',
+  aiSkTestRunningLabel: '在沙箱中运行…',
+  aiSkTestBootstrapping: '正在准备 {name} 运行环境…',
+  aiSkTestCompleted: '用时 {ms} 毫秒',
+  aiSkTestClosed: '沙箱已关闭,没有文件被修改。',
+  aiSkTestFailed: '运行失败',
+  aiSkTestPlaceholderEx: '试试:"{ex}"',
+  aiSkTestPlaceholder: '在示例文件夹上运行该技能',
+  // 新文案:沙箱运行失败的 HTTP 状态码提示(设计要求本地化文案 + 状态码,不回显后端 body)。
+  aiSkTestHttpFailed: '沙箱运行失败(HTTP {status})',
+  // 新文案(D4 拍板,收 P3a 挂账③):停用技能点「在对话中试用」先提示,而不是
+  // X-Skill-Id 照发但 agent 找不到 SKILL.md 造成的零反馈(skills_runtime.go:57)。
+  aiSkTryDisabledTitle: '该技能已停用',
+  aiSkTryDisabledBody:
+    '停用的技能不会被加载,现在去对话里试用不会有任何效果。要先启用它吗?',
+  aiSkTryEnableAndTry: '启用并试用',
+  // <<< SP8-P3b Task 2
 }
