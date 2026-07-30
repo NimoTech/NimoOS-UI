@@ -213,6 +213,36 @@ describe('恢复', () => {
     await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
     expect(useToast().msg).toContain('找不到')
   })
+  // 评审发现:混合结果(部分成功部分失败)时,原实现的 `&& !failed` 判断让两条成功分支都
+  // 短路跳过,只剩失败文案——成功落盘的那几条被静默吞掉。人类拍板:合成一条新 toast
+  // (snapBrowseRestoredPartial)说清"成功几条、失败几条",不再叠加具体失败原因文案。
+  it('混合结果(部分成功部分失败):toast 同时报出成功与失败条数,不吞成功也不叠加失败原因', async () => {
+    restoreMock
+      .mockResolvedValueOnce({ restored_path: '/DATA/a.restored-1' })
+      .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
+      .mockResolvedValueOnce({ restored_path: '/DATA/c.restored-1' })
+    const s = await inSnapshot()
+    await s.restore([
+      { path: '/DATA/.snapshots/snap1/a' },
+      { path: '/DATA/.snapshots/snap1/b' },
+      { path: '/DATA/.snapshots/snap1/c' },
+    ])
+    expect(restoreMock).toHaveBeenCalledTimes(3)
+    expect(useToast().msg).toContain('2') // 成功 2 条(a、c)
+    expect(useToast().msg).toContain('1') // 失败 1 条(b)
+    expect(useToast().msg).not.toContain('找不到') // 不再叠加具体失败原因文案
+  })
+  // 防止为了接混合分支而把"全失败"路径改坏:多条且全部失败时,仍要落到具体原因文案,
+  // 不能误落进混合分支(混合分支的判定条件是 ok.length > 0)。
+  it('多条全部失败:仍走具体原因文案,不误判成混合结果', async () => {
+    restoreMock
+      .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
+      .mockRejectedValueOnce(Object.assign(new Error('bad'), { code: 400 }))
+    const s = await inSnapshot()
+    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }, { path: '/DATA/.snapshots/snap1/b' }])
+    expect(restoreMock).toHaveBeenCalledTimes(2)
+    expect(useToast().msg).toContain('找不到')
+  })
   it('空选区不发请求', async () => {
     const s = await inSnapshot()
     await s.restore([])

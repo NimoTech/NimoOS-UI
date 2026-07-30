@@ -99,13 +99,20 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
         }))
       }
       const ok = results.filter((r) => r.ok) as { ok: true; restoredPath: string }[]
-      const failed = results.find((r) => !r.ok) as { ok: false; reason: string } | undefined
-      if (ok.length === 1 && !failed) toast.show(t('snapBrowseRestored', { path: ok[0].restoredPath }))
-      else if (ok.length > 1 && !failed) toast.show(t('snapBrowseRestoredN', { n: ok.length }))
-      if (failed) {
+      const failed = results.filter((r) => !r.ok) as { ok: false; reason: string }[]
+      // 评审修复:混合结果(部分成功部分失败)不能只报失败——成功落盘的那几条会被静默吞掉。
+      // 三种结果分三条路径:全成功用原文案;全失败用具体原因文案;混合结果合成一条新文案,
+      // 人类拍板舍弃具体失败原因(不再叠加 404/400/其它文案),只报成功/失败各几条。
+      if (failed.length === 0) {
+        if (ok.length === 1) toast.show(t('snapBrowseRestored', { path: ok[0].restoredPath }))
+        else if (ok.length > 1) toast.show(t('snapBrowseRestoredN', { n: ok.length }))
+      } else if (ok.length > 0) {
+        toast.show(t('snapBrowseRestoredPartial', { ok: ok.length, fail: failed.length }))
+      } else {
+        const reason = failed[0].reason
         toast.show(
-          failed.reason === 'not-found' ? t('snapBrowseRestoreNotFound')
-            : failed.reason === 'invalid' ? t('snapBrowseRestoreInvalid')
+          reason === 'not-found' ? t('snapBrowseRestoreNotFound')
+            : reason === 'invalid' ? t('snapBrowseRestoreInvalid')
               : t('snapBrowseRestoreFailed'),
         )
       }

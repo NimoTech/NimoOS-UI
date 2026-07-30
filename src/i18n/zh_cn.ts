@@ -774,4 +774,5 @@ export default {
   snapBrowseRestoreNotFound: '快照里已经找不到这个文件',
   snapBrowseRestoreInvalid: '路径无效,无法恢复',
   snapBrowseRestoreFailed: '恢复失败,请稍后再试',
+  snapBrowseRestoredPartial: '已恢复 {ok} 项,{fail} 项失败',
 }

@@ -774,4 +774,5 @@ export default {
   snapBrowseRestoreNotFound: 'That file no longer exists in this snapshot',
   snapBrowseRestoreInvalid: 'Invalid path — cannot restore',
   snapBrowseRestoreFailed: 'Restore failed, please try again',
+  snapBrowseRestoredPartial: 'Restored {ok} items, {fail} failed',
 }
