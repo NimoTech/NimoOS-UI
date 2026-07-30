@@ -20,6 +20,9 @@ const PATHS: Record<string, string> = {
   check: '<path d="M4 10l4 4 8-8" />',
   x: '<path d="M5 5l10 10M15 5L5 15" />',
   play: '<path d="M6 4l10 6-10 6V4z" fill="currentColor" stroke="none" />',
+  // SP8-P3b Task 1 —— TestPanel(P3b)运行态用。20 单位坐标系,stroke 走 currentColor,
+  // 不传具名色。放在 play 相邻处(同属媒体控制类图标)。
+  pause: '<path d="M7 4v12M13 4v12"/>',
   code: '<path d="M7 6l-4 4 4 4M13 6l4 4-4 4M11 4l-2 12" />',
   star: '<path d="M10 2l2.5 5.5 5.5.6-4 4 1 5.5L10 15l-5 2.6 1-5.5-4-4 5.5-.6L10 2z" fill="currentColor" stroke="none" />',
   download: '<path d="M10 3v10M5 9l5 5 5-5"/><path d="M3 17h14"/>',

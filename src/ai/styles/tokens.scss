@@ -152,6 +152,14 @@
   --scrim-dark: rgba(0, 0, 0, 0.35);
   /* Tiny inset gloss highlight on colored tiles (McpCallCard) — same in both themes. */
   --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  /* SP8-P3b Task 1 — same "colored chip + white inset gloss" family as
+     --gloss-inset above, used by .sk-color-dot (skills-styles.scss) in the
+     AddSkillModal color picker. Vue2 source (skills-styles.scss:677) uses a
+     distinct opacity (0.2) from --gloss-inset's 0.18 — kept as its own token to
+     preserve Vue2's exact value rather than drift by reusing --gloss-inset
+     (same precedent as --modal-scrim-soft being separate from --modal-scrim
+     below). Theme-invariant chrome, same in both themes. */
+  --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
 
   /* SP8-P1b Task 9 — SearchImageLightbox is a fullscreen black "stage" (a photo
      viewer chrome, like Photos/Preview), intentionally theme-invariant — same
@@ -308,6 +316,9 @@
   --teal-soft: rgba(48, 176, 199, 0.2);
   --scrim-dark: rgba(0, 0, 0, 0.35);
   --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  /* SP8-P3b Task 1 — dark-theme value for --gloss-inset-dot above (same value as
+     light block — theme-invariant, see comment there). */
+  --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
 
   /* SP8-P1b Task 9 — same values as light block (all theme-invariant chrome, see
      comments there); dark-theme copies exist only to satisfy "every token has a
