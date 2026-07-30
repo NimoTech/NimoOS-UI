@@ -151,6 +151,13 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     const hit = places.value.find(p => String(p.id) === String(id))
     return hit ? hit.key : id
   }
+  // 评审必修(Minor):调用点的 `resolvePlaceKey(id) as string` 是**故意**的类型断言,
+  // 不要"清理"成 `String(resolvePlaceKey(id))`。共享包 `service.photos.getPlace` 等
+  // 方法的 TS 签名把 `key` 声明成纯 `string`(与同文件 `getPerson(id: string | number)`
+  // 不一致,但 Service 侧禁改),而后端 `Place.key` 实际是 int32、且测试要求原始数字
+  // 原样传给后端(`expect(getPlace).toHaveBeenCalledWith(7)`,不是 `'7'`)。`as string`
+  // 只影响编译期检查,运行时仍把 `resolvePlaceKey` 返回的原始 number 传下去;换成
+  // `String()` 会在运行时真的转成字符串,悄悄把上面那条断言改红。
 
   // 照 Vue2 loadPlaces :400-418。**不做** Vue2 :412-413 的"加载完自动选中 places[0]"——
   // 那是视图层职责(P6b/T11),便于用视图层单测钉住"进入页面选中哪个地点"这条交互逻辑,
@@ -182,6 +189,10 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     if (id == null) {
       seq++ // 让任何在途的旧请求作废,避免它稍后把 detail 又写回非 null
       detail.value = null
+      // 评审必修(I1):无条件复位,不能指望在途请求的 finally 来做这件事——seq 已经
+      // 推进,那个 finally 里的 `if (mine === seq)` 必然为 false 而被跳过,不复位这里
+      // 会让 detailLoading 永久卡 true(P6b 表现为清空详情后加载指示器永久转圈)。
+      detailLoading.value = false
       return
     }
     const mine = ++seq
@@ -203,6 +214,9 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
   function clearDetail(): void {
     seq++ // 作废任何在途的 loadDetail,防止它稍后把 detail 写回来
     detail.value = null
+    // 评审必修(I1):同 loadDetail(null)分支的理由——seq 已推进,在途请求的 finally
+    // 里 `mine === seq` 必然为 false,不会替我们把 detailLoading 复位,这里必须无条件写。
+    detailLoading.value = false
   }
 
   // 照 Vue2 setCover :537-548。成功后乐观回写两处:detail 与 places 里命中项的 coverAssetId,

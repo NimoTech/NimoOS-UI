@@ -208,6 +208,41 @@ describe('clearDetail', () => {
     await p
     expect(s.detail).toBeNull()
   })
+
+  // 评审 I1(真 bug 回归):loadDetail(null) 只 seq++ + 清 detail,若不无条件复位
+  // detailLoading,在途请求的 finally 里 `mine === seq` 会因 seq 已推进而恒假,永远
+  // 轮不到它来复位——detailLoading 从此卡死 true,P6b 表现为清空详情后指示器永久转圈。
+  it('I1:loadDetail 在途时调 loadDetail(null),detailLoading 必须立即复位,且不被过期响应带歪', async () => {
+    let resolveFn: (v: unknown) => void = () => {}
+    getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
+    const s = usePhotosPlaces()
+    const p = s.loadDetail('7')
+    expect(s.detailLoading).toBe(true)
+    await s.loadDetail(null)
+    expect(s.detailLoading).toBe(false)
+    // 过期响应回来:既不该复活 detail,也不该把已经复位的 detailLoading 又拨回去
+    // (它的 finally 走的是 `if (mine === seq)`,seq 已推进,不会命中,维持现状)。
+    resolveFn({ key: 7, city: 'X', country: 'Y', count: 1, trips: 1, spots: [], insights: [], visits: [], recent: [] })
+    await p
+    expect(s.detailLoading).toBe(false)
+    expect(s.detail).toBeNull()
+  })
+
+  // 同上,换成中断入口 clearDetail() —— 两个中断入口是两条独立的生产码路径,分别测,
+  // 不合成一条(避免重演"多处一起删遮蔽盲区"的老问题)。
+  it('I1:loadDetail 在途时调 clearDetail(),detailLoading 必须立即复位,且不被过期响应带歪', async () => {
+    let resolveFn: (v: unknown) => void = () => {}
+    getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
+    const s = usePhotosPlaces()
+    const p = s.loadDetail('7')
+    expect(s.detailLoading).toBe(true)
+    s.clearDetail()
+    expect(s.detailLoading).toBe(false)
+    resolveFn({ key: 7, city: 'X', country: 'Y', count: 1, trips: 1, spots: [], insights: [], visits: [], recent: [] })
+    await p
+    expect(s.detailLoading).toBe(false)
+    expect(s.detail).toBeNull()
+  })
 })
 
 describe('封面与 spot 改名', () => {
@@ -243,7 +278,9 @@ describe('封面与 spot 改名', () => {
     expect(setPlaceCoverApi).toHaveBeenCalledTimes(1)
   })
 
-  it('resetPlaceCover 重入短路(与 setPlaceCover 共享 coverBusy)', async () => {
+  // 评审指正:标题原写"与 setPlaceCover 共享 coverBusy",但断言内容只验了自重入,
+  // 没有测到"共享"本身——已改成准确的标题,"共享"的证据挪到下面两条 I2 用例。
+  it('resetPlaceCover 自重入短路', async () => {
     resetPlaceCoverApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosPlaces()
     void s.resetPlaceCover('7')
@@ -257,6 +294,25 @@ describe('封面与 spot 改名', () => {
     void s.setSpotName('7', 's1', 'a')
     void s.setSpotName('7', 's1', 'b')
     expect(setSpotNameApi).toHaveBeenCalledTimes(1)
+  })
+
+  // 评审 I2(覆盖缺口):coverBusy 在 setPlaceCover/resetPlaceCover 之间是**共享**的
+  // ——这是刻意设计(同一份"封面"资源上的互斥写),但此前完全没有测试证明"共享"本身,
+  // 只测了各自的自重入。若日后被拆成两把独立锁,以下两条必须变红。双向各一条。
+  it('I2:setPlaceCover 在途时 resetPlaceCover 被 coverBusy 挡下,不打后端', async () => {
+    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // 永不 settle,占住 coverBusy
+    const s = usePhotosPlaces()
+    void s.setPlaceCover('7', 'a')
+    void s.resetPlaceCover('7')
+    expect(resetPlaceCoverApi).not.toHaveBeenCalled()
+  })
+
+  it('I2:resetPlaceCover 在途时 setPlaceCover 被 coverBusy 挡下,不打后端(反向)', async () => {
+    resetPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // 永不 settle,占住 coverBusy
+    const s = usePhotosPlaces()
+    void s.resetPlaceCover('7')
+    void s.setPlaceCover('7', 'a')
+    expect(setPlaceCoverApi).not.toHaveBeenCalled()
   })
 
   it('coverBusy 与 spotBusy 互不阻塞:setPlaceCover 在途时 setSpotName 仍能发出请求', async () => {
