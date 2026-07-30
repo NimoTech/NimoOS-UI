@@ -1027,6 +1027,10 @@ export default {
   photosPlacesEndDate: '结束日期',
   photosPlacesMinPhotos: '最少照片数',
   photosPlacesRegion: '区域',
+  // 注:Vue2 对"当前行程"这个概念有两种不同中文说法(此处 mapFilter.currentTripOnly
+  // 的勾选项是"只看当前行程",下面 :photosPlacesCurrentTrip 的裸标签是"本次旅行")——
+  // 界面 1:1 铁律高于术语统一,两处照 Vue2 原样各自保留,不擅自统一。若产品决定统一
+  // 措辞,请两处一起改。
   photosPlacesCurrentTripOnly: '只看当前行程',
   photosPlacesFilterReset: '重置',
   photosPlacesFilterDone: '完成',
@@ -1049,9 +1053,12 @@ export default {
   photosPlacesZoomIn: '放大',
   photosPlacesZoomOut: '缩小',
   photosPlacesResetView: '重置视图', // json 实际值,非 brief 快照的"复位视图"
-  // json 里裸 "Current trip" 原译是"本次旅行",但与同页 mapFilter.currentTripOnly 的
-  // "只看当前行程" 用词不一致;按 Global Constraints 术语条目统一为"当前行程"(不回退 json)。
-  photosPlacesCurrentTrip: '当前行程',
+  // 协调者裁定(fix-1):json 原译是"本次旅行"(图例第四组/hero 当前行程标记/访问历史
+  // pill 都用它)。此前按 brief 的术语表误写成"当前行程"——那份术语表本身是协调者凭印象
+  // 写的,没回源核对,是同类第四处错误(T1/T2/T3 各纠正过一处)。界面 1:1 铁律高于术语表,
+  // 改回 json 原文。上面 currentTripOnly 的"只看当前行程"是 Vue2 自身对同一概念的另一种
+  // 说法,两处不统一是 Vue2 的现状,照原样保留,不要因为看着像漏改就"顺手"统一。
+  photosPlacesCurrentTrip: '本次旅行',
   // 大洲标签:zh_CN.json 无 Asia/Americas/Europe/Africa/Oceania/Antarctica 任何译文,确认缺失后自拟。
   photosPlacesRegionAsia: '亚洲',
   photosPlacesRegionAmericas: '美洲',

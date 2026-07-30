@@ -1034,6 +1034,9 @@ export default {
   photosPlacesEndDate: 'End date',
   photosPlacesMinPhotos: 'Min photos',
   photosPlacesRegion: 'Region',
+  // Note: Vue2's zh copy has two different phrasings for "current trip" (this
+  // checkbox vs. the bare label below) — kept as-is per the 1:1 rule, see zh_cn.ts.
+  // English is identical either way ("Current trip only" / "Current trip").
   photosPlacesCurrentTripOnly: 'Current trip only',
   photosPlacesFilterReset: 'Reset',
   photosPlacesFilterDone: 'Done',
