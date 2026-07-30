@@ -2,9 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CreateStorageDialog from './CreateStorageDialog.vue'
 
+// AvailDisk 的完整形状(mapAvailDisks 的输出)。disk_type/temperature/power_on_time 取自真机
+// `curl -s http://127.0.0.1/v1/disks` 的 avail 项;health 由 mapAvailDisks 从同响应的 disks 列表补齐
+// (avail 自身恒为空串,后端赋值顺序缺陷 —— 见 storageMap.ts 注释)。本弹窗不读这四个字段,
+// 但类型要求完整,fixture 也按真实形状给,免得日后"手编 fixture 让缺陷全绿"。
 const DISKS = [
-  { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1e12, needFormat: true, serial: 'S1' },
-  { path: '/dev/sdc', name: 'sdc', model: 'SG Iron', size: 2e12, needFormat: false, serial: 'S2' },
+  { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1e12, needFormat: true, serial: 'S1',
+    disk_type: 'HDD', health: 'true', temperature: 38, power_on_time: 1381 },
+  { path: '/dev/sdc', name: 'sdc', model: 'SG Iron', size: 2e12, needFormat: false, serial: 'S2',
+    disk_type: 'HDD', health: 'true', temperature: 38, power_on_time: 1381 },
 ]
 
 beforeEach(() => {

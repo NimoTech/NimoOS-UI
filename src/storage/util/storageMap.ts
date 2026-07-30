@@ -106,6 +106,9 @@ export function toFahrenheit(c: number): string {
   return (32 + c * 1.8).toFixed(1)
 }
 
+// disk_type/health/temperature/power_on_time 保留后端 /v1/disks 的原文命名(不改成 camelCase):
+// RAID 选盘卡片那条链路的 RaidDisk 是逐字对齐 Vue2 的读法(disk.disk_type / disk.health / …),
+// 保持同名才能让 AvailDisk 直接结构化赋值给 RaidDisk(StorageRaidCreate.vue 的 candidateDisks)。
 export interface AvailDisk {
   path: string
   name: string
@@ -113,6 +116,10 @@ export interface AvailDisk {
   size: number
   needFormat: boolean
   serial: string
+  disk_type: string
+  health: string
+  temperature: number
+  power_on_time: number
 }
 
 interface RawAvail {
@@ -122,18 +129,44 @@ interface RawAvail {
   size?: unknown
   need_format?: unknown
   serial?: string
+  disk_type?: string
+  health?: unknown
+  temperature?: unknown
+  power_on_time?: unknown
 }
 
-// GET /v1/disks 响应的 avail 字段 → 创建存储候选盘。
+// GET /v1/disks 响应的 avail 字段 → 创建存储候选盘 / RAID 选盘卡片。
 // need_format 同 health:后端可能给字符串 "true"/"false",严格判定。
-export function mapAvailDisks(avail: unknown): AvailDisk[] {
+//
+// ⚠️ 第二参数 disks = 同一响应里的 data.disks,用来按 path 补齐 health(以及 avail 万一缺的
+// temperature/power_on_time)。原因:后端 route/v1/disk.go:152-157 把 disk **值拷贝** append
+// 进 avail,而 disk.Health = strconv.FormatBool(...) 在那之后才执行 →
+// **avail 里每块盘的 health 恒为空串 ""**(2026-07-30 真机 curl 逐字核实:
+// avail[*].health="" 而 disks 里同一块 sda 是 "true")。同一块物理盘在两个列表里都在、path 相同,
+// 所以前端在同一份响应内就能把真实 SMART 结论接上,不必等后端修。后端票已登记在
+// vue3-migration-roadmap.md §4 SP6 台账 B-bis。补不上时保留 avail 原值(空串 = 结论未知,不伪造健康)。
+export function mapAvailDisks(avail: unknown, disks?: unknown): AvailDisk[] {
   const arr = Array.isArray(avail) ? (avail as RawAvail[]) : []
-  return arr.map((d) => ({
-    path: d.path || '',
-    name: d.name || '',
-    model: d.model || '',
-    size: Number(d.size) || 0,
-    needFormat: d.need_format === true || d.need_format === 'true',
-    serial: d.serial || '',
-  }))
+  const byPath = new Map<string, RawAvail>()
+  if (Array.isArray(disks)) {
+    for (const d of disks as RawAvail[]) {
+      if (d && d.path) byPath.set(d.path, d)
+    }
+  }
+  return arr.map((d) => {
+    const full = (d.path && byPath.get(d.path)) || undefined
+    const health = String(d.health ?? '') || String(full?.health ?? '')
+    return {
+      path: d.path || '',
+      name: d.name || '',
+      model: d.model || '',
+      size: Number(d.size) || 0,
+      needFormat: d.need_format === true || d.need_format === 'true',
+      serial: d.serial || '',
+      disk_type: d.disk_type || full?.disk_type || '',
+      health,
+      temperature: Number(d.temperature) || Number(full?.temperature) || 0,
+      power_on_time: Number(d.power_on_time) || Number(full?.power_on_time) || 0,
+    }
+  })
 }

@@ -29,7 +29,8 @@ const router = useRouter()
 const { t } = useI18n()
 
 // 候选盘复用创建单盘存储向导同一来源(GET /v1/disks 的 avail 字段);
-// AvailDisk(path/name/model/size/needFormat/serial)结构上满足 RaidDisk(disk_type/health 均为可选字段)。
+// AvailDisk 结构上满足 RaidDisk:除 path/name/model/size/needFormat/serial 外,还带
+// disk_type/health/temperature/power_on_time(健康信息展示要用;字段名与后端原文一致才好直接赋值)。
 useDiskHotplug(() => store.loadDrives())
 const candidateDisks = computed<RaidDisk[]>(() => store.availDisks)
 const hasNoDisk = computed(() => candidateDisks.value.length === 0)

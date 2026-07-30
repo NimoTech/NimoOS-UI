@@ -63,7 +63,9 @@ export const useStorageStore = defineStore('storage', () => {
     try {
       const res = (await service.disks.getDiskList()) as { disks?: unknown; avail?: unknown } | null
       drives.value = mapDrives(res?.disks)
-      availDisks.value = mapAvailDisks(res?.avail)
+      // 传 res.disks 进去补 health:avail 里的 health 恒为空串(后端赋值顺序缺陷),
+      // 同一块盘在 disks 列表里才有真实的 "true"/"false"。详见 mapAvailDisks 注释。
+      availDisks.value = mapAvailDisks(res?.avail, res?.disks)
     } catch (e) {
       console.warn('[storage] drives load failed', e)
       drives.value = []

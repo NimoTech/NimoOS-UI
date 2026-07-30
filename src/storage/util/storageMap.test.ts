@@ -99,14 +99,57 @@ describe('toFahrenheit', () => {
   })
 })
 
+// 真机逐字取值(2026-07-30,`curl -s http://127.0.0.1/v1/disks`,4 块 raidlab scsi_debug 假盘 + 系统 NVMe)。
+// avail[0] 原文:{"name":"sda","size":536870912,"model":"scsi_debug","health":"","temperature":38,
+//   "power_on_time":0,"disk_type":"SSD","need_format":true,"serial":"2000","path":"/dev/sda",
+//   "children_number":0,"children":[],"supported":false}
+// disks 里同一块 sda:health:"true"(其余字段同上)。⚠️ avail 的 health 恒为空串——后端
+// route/v1/disk.go:152-157 值拷贝 append 早于 disk.Health 赋值(已登记后端票)。
+const LIVE_AVAIL = [
+  { name: 'sda', size: 536870912, model: 'scsi_debug', health: '', temperature: 38, power_on_time: 0, disk_type: 'SSD', need_format: true, serial: '2000', path: '/dev/sda' },
+  { name: 'sdb', size: 536870912, model: 'scsi_debug', health: '', temperature: 38, power_on_time: 0, disk_type: 'SSD', need_format: true, serial: '4000', path: '/dev/sdb' },
+]
+const LIVE_DISKS = [
+  { name: 'sda', path: '/dev/sda', health: 'true', temperature: 38, power_on_time: 0, disk_type: 'SSD' },
+  { name: 'sdb', path: '/dev/sdb', health: 'true', temperature: 38, power_on_time: 0, disk_type: 'SSD' },
+  { name: 'nvme0n1', path: '/dev/nvme0n1', health: 'true', temperature: 35, power_on_time: 1381, disk_type: 'SSD' },
+]
+
 describe('mapAvailDisks', () => {
   it('映射候选盘字段,size 字符串转数值', () => {
     const out = mapAvailDisks([
       { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: '1000204886016', need_format: true, serial: 'S1' },
     ])
     expect(out).toEqual([
-      { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1000204886016, needFormat: true, serial: 'S1' },
+      { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1000204886016, needFormat: true, serial: 'S1',
+        disk_type: '', health: '', temperature: 0, power_on_time: 0 },
     ])
+  })
+  it('带上健康展示要用的四个字段(真机 avail 里都有值,除 health)', () => {
+    const out = mapAvailDisks(LIVE_AVAIL)
+    expect(out[0].disk_type).toBe('SSD')
+    expect(out[0].temperature).toBe(38)
+    expect(out[0].power_on_time).toBe(0)
+  })
+  it('health 按 path 从 disks 列表补齐——避开后端 avail 恒空串的赋值顺序缺陷', () => {
+    const out = mapAvailDisks(LIVE_AVAIL, LIVE_DISKS)
+    expect(out.map((d) => d.health)).toEqual(['true', 'true'])
+  })
+  it('disks 里同一块盘 SMART 未过 → 候选盘拿到 "false"', () => {
+    const out = mapAvailDisks(LIVE_AVAIL, [{ path: '/dev/sda', health: 'false' }, { path: '/dev/sdb', health: 'true' }])
+    expect(out.map((d) => d.health)).toEqual(['false', 'true'])
+  })
+  it('disks 缺该盘或未传 → 保留 avail 原值(空串 = 结论未知,不伪造健康)', () => {
+    expect(mapAvailDisks(LIVE_AVAIL)[0].health).toBe('')
+    expect(mapAvailDisks(LIVE_AVAIL, [{ path: '/dev/nvme0n1', health: 'true' }])[0].health).toBe('')
+  })
+  it('temperature/power_on_time 也按 path 从 disks 补齐(avail 缺值时)', () => {
+    const out = mapAvailDisks(
+      [{ path: '/dev/sda', name: 'sda', size: 1 }],
+      [{ path: '/dev/sda', health: 'true', temperature: 38, power_on_time: 1381 }],
+    )
+    expect(out[0].temperature).toBe(38)
+    expect(out[0].power_on_time).toBe(1381)
   })
   it('need_format 字符串 "true"/"false" 严格判定(后端布尔字符串化,P1 health 同款)', () => {
     const out = mapAvailDisks([

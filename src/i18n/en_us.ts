@@ -626,6 +626,8 @@ export default {
   raidBayClear: 'Clear',
   raidBayFilterAll: 'All',
   raidBaySelected: '{n} selected · {size}',
+  raidDriveTemp: 'Temperature',
+  raidDrivePowerOn: 'Power-on time',
   raidTaskMeta: 'RAID-{level} · {n} disks · {fs}',
   raidDetailsBtn: 'Details',
   raidDismiss: 'Dismiss',

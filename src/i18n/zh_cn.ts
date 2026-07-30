@@ -625,6 +625,9 @@ export default {
   raidBayClear: '清空',
   raidBayFilterAll: '全部',
   raidBaySelected: '已选 {n} 块 · {size}',
+  // 选盘卡片悬浮提示(文案 1:1 取 Vue2 assets/lang/zh_CN.json 的 "Temperature"/"Power-on time")
+  raidDriveTemp: '温度',
+  raidDrivePowerOn: '通电时间',
   raidTaskMeta: 'RAID-{level} · {n} 块盘 · {fs}',
   raidDetailsBtn: '详情',
   raidDismiss: '关闭',
