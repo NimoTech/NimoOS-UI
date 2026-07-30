@@ -73,6 +73,11 @@ describe('TimeMachineOverlay 三态', () => {
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-folder').text()).toContain('/磁盘/Photos')
   })
+  it('就绪后渲染卡堆,最前那张是最新快照', async () => {
+    const w = mountIt(); await flush(w)
+    const front = w.findAll('.tm-card').find((c) => c.classes().includes('is-front'))!
+    expect(front.text()).toContain('14:30')
+  })
 })
 
 describe('TimeMachineOverlay 选择与进入', () => {

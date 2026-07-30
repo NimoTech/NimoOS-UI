@@ -6,6 +6,7 @@ import { groupSnapshotsByDay } from '../../storage/util/snapshotView'
 import { snapshotBrowsePath } from '../util/snapshotPath'
 import { stepSelectedIndex } from '../util/timeMachineMath'
 import TimeMachineBar from './TimeMachineBar.vue'
+import TimeMachineDeck from './TimeMachineDeck.vue'
 
 const props = defineProps<{
   volumeUuid: string
@@ -97,8 +98,13 @@ watch(() => props.volumeUuid, () => { load() })
     </div>
 
     <template v-else>
-      <!-- 卡堆:T8 换成 TimeMachineDeck,刻度尺:T10 换成 TimeMachineRail -->
-      <div class="tm-stack-placeholder"></div>
+      <!-- 刻度尺:T10 换成 TimeMachineRail -->
+      <TimeMachineDeck
+        :items="flatItems"
+        :selected-index="selectedIndex"
+        @select="(i: number) => (selectedIndex = i)"
+        @enter="enterSnapshot"
+      />
     </template>
 
     <TimeMachineBar :moment-text="momentText" :can-enter="!!selectedItem" @cancel="emit('close')" @enter="enterSnapshot" />
@@ -134,5 +140,4 @@ watch(() => props.volumeUuid, () => { load() })
   background: var(--tm-card-bg); border: 1px solid var(--tm-card-bd); box-shadow: var(--tm-card-shadow);
   opacity: 0.6;
 }
-.tm-stack-placeholder { width: min(420px, 68vw); height: min(240px, 38vh); }
 </style>
