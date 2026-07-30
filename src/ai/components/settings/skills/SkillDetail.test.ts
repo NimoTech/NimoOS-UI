@@ -189,10 +189,18 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-description').text()).toBe('一段自由文本描述,含标点。')
   })
 
-  it('TestPanel 占位:描述段与 SKILL.md 段之间没有渲染任何写操作控件(P3b 范围)', () => {
+  // 【反转,SP8-P3b Task 7,公共约束 §9 明确要求「反转不是删除」】P3a 版本(改前原文见
+  // 上方本次 diff)断言 TestPanel「完全不渲染」;T7 把它挂回 Vue2 :108-112 对应的位置,
+  // 现在要断言的是**存在且顺序正确**——不只是"存在"就算数(存在但被塞到文件末尾也会
+  // 通过一个弱断言,钉不住"夹在描述段与 SKILL.md 段之间"这个位置要求),所以按 DOM
+  // 顺序遍历所有 `.sk-section-title`,断言 TestPanel 自己的段头标题恰好夹在
+  // "描述"与"SKILL.md"两个标题之间。
+  it('TestPanel 挂载在描述段与 SKILL.md 段之间(P3b 落地,按 DOM 顺序断言,不只是「存在」)', () => {
     const w = mountDetail(makeSkill())
-    expect(w.findComponent({ name: 'TestPanel' }).exists()).toBe(false)
-    expect(w.find('.sk-test').exists()).toBe(false)
+    const tp = w.findComponent({ name: 'TestPanel' })
+    expect(tp.exists()).toBe(true)
+    const titles = w.findAll('.sk-section-title').map((n) => n.text())
+    expect(titles).toEqual(['描述', '沙箱测试', 'SKILL.md', '附带文件'])
   })
 
   it('SKILL.md 段:markdown 渲染出真实 HTML(不是转义后的原文本)', () => {
@@ -225,9 +233,12 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     // `.exists()` 命中的是描述段、对 `filesHint` 计算属性(SkillDetail.vue:78)
     // 零覆盖(把 `n` 写死成任意常数仍然全绿)。改成精确定位第三个 hint 并断言
     // 其文案(aiSkNFiles = '{n} 个文件',2 个文件 → '2 个文件')。
+    // 【SP8-P3b Task 7 更新】TestPanel 挂回描述段与 SKILL.md 段之间后,它自己的段头
+    // 也带一个 `.sk-section-hint`(aiSkTestHint),序列从 3 个变成 4 个,「附带文件」
+    // 段的 hint 相应从下标 2 挪到下标 3——这是结构性位移,不是断言被削弱。
     const hints = w.findAll('.sk-section-hint')
-    expect(hints).toHaveLength(3)
-    expect(hints[2].text()).toBe('2 个文件')
+    expect(hints).toHaveLength(4)
+    expect(hints[3].text()).toBe('2 个文件')
   })
 
   it('目录尺寸 "(3 files)" 被本地化成中文「3 个文件」,普通文件字节单位原样透传', () => {
@@ -492,5 +503,102 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     await w.setProps({ skill: makeSkill({ id: 'sk-2' }) })
     await flush()
     expect(host.querySelector('.sk-confirm')).toBeNull()
+  })
+
+  // ===== SP8-P3b Task 7 —— D4 弹窗(停用技能「在对话中试用」先提示) + TestPanel test 转发 =====
+  // D4 弹窗走 SkModal(标准壳),不是上面删除确认弹窗那套裸 reka 原语,故断言走
+  // `.sk-modal-title`/`.sk-btn.primary`/`.sk-btn.ghost` 这套 SkModal 既有先例
+  // (同 ChannelsSection.test.ts「3. genCode…」用例查 `.sk-modal` 的手法),而不是
+  // `.sk-confirm*`(那是删除弹窗专属的类名)。
+
+  it('D4:停用技能点「在对话中试用」不跳转,弹出确认弹窗(标题/正文命中 i18n 文案)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-1', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    expect(push).not.toHaveBeenCalled()
+    expect(host.querySelector('.sk-modal-title')?.textContent).toBe('该技能已停用')
+    expect(host.querySelector('.sk-modal')?.textContent).toContain('停用的技能不会被加载')
+  })
+
+  it('D4「启用并试用」:emit toggle(id,true) 且此刻未 push;父组件把 enabled 改成 true 后才 push', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-5', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+
+    const enableBtn = host.querySelector('.sk-btn.primary') as HTMLButtonElement
+    enableBtn.click()
+    await flush()
+    expect(w.emitted('toggle')).toEqual([['sk-5', true]])
+    // 发 toggle 那一刻还没跳转——父组件还没告知启用是否成功,弹窗已收起。
+    expect(push).not.toHaveBeenCalled()
+    expect(host.querySelector('.sk-modal')).toBeNull()
+
+    // 父组件把 enabled 真的改成 true(toggle 成功)之后,才补一次 push。
+    await w.setProps({ skill: makeSkill({ id: 'sk-5', enabled: true }) })
+    await flush()
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(push).toHaveBeenCalledWith({ path: '/ai/agent', query: { skill: 'sk-5' } })
+  })
+
+  it('D4:toggle 失败(父组件不改 enabled)→ 永不 push', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-6', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
+    await flush()
+    expect(w.emitted('toggle')).toEqual([['sk-6', true]])
+
+    // 父组件请求失败:enabled 原样不变(仍是 false)——不是"取消"，是失败态。
+    await w.setProps({ skill: makeSkill({ id: 'sk-6', enabled: false }) })
+    await flush()
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('D4:点「取消」关闭弹窗,不 push、不 emit toggle', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-7', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    ;(host.querySelector('.sk-btn.ghost') as HTMLButtonElement).click()
+    await flush()
+    expect(host.querySelector('.sk-modal')).toBeNull()
+    expect(push).not.toHaveBeenCalled()
+    expect(w.emitted('toggle')).toBeUndefined()
+  })
+
+  it('D4「启用并试用」挂号后切到别的技能,原技能迟到的 enabled=true 不再触发 push(残留清除,pendingTryId 一次性语义)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-10', enabled: false }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
+    await flush()
+    expect(w.emitted('toggle')).toEqual([['sk-10', true]])
+
+    // 响应到达前,用户已经切到另一个技能——skill.id 变化的 watch 会清掉挂号。
+    await w.setProps({ skill: makeSkill({ id: 'sk-11', enabled: false }) })
+    await flush()
+
+    // 迟到的响应此刻才把 sk-10 的 enabled 改成 true(用户又切回了 sk-10)——因为
+    // 挂号已经在切换那一刻被清空,不应该被误读成"待跳转"而 push。
+    await w.setProps({ skill: makeSkill({ id: 'sk-10', enabled: true }) })
+    await flush()
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('enabled === true 时点「在对话中试用」直接跳转,不弹 D4 弹窗(P3a 既有行为未回归)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-42', enabled: true }))
+    await w.find('.sk-pill-try').trigger('click')
+    await flush()
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(push).toHaveBeenCalledWith({ path: '/ai/agent', query: { skill: 'sk-42' } })
+    expect(host.querySelector('.sk-modal')).toBeNull()
+  })
+
+  it('TestPanel 的 test 事件被向上转发成本组件的 test emit', async () => {
+    const w = mountDetail(makeSkill())
+    const tp = w.findComponent({ name: 'TestPanel' })
+    expect(tp.exists()).toBe(true)
+    tp.vm.$emit('test')
+    await flush()
+    expect(w.emitted('test')).toHaveLength(1)
   })
 })

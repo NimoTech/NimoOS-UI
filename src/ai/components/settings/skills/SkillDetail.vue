@@ -62,8 +62,38 @@
   `.sk-section` 之间。P3a 不渲染它，两段直接相邻；下方模板里留了一行注释标出
   P3b 要插回的确切位置，避免插错顺序。
 
-  【不取,留给 T7】`TestPanel`/`runTest` 占位(:166-167 那处注释)不是本任务范围,
-  按协调者要求原样不动。
+  SP8-P3b Task 7 —— D4 弹窗(停用技能「在对话中试用」先提示) + 挂 TestPanel。
+
+  【偏离申报 3,公共约束 §3 偏离 3 / 任务书 D4】收 P3a 挂账③:后端
+  `NimoOS-AI/service/skills_runtime.go:57` 把 `disabled` 的技能排除出运行时视图,停用
+  技能点「在对话中试用」时 `X-Skill-Id` 照发但 agent 找不到 `SKILL.md`,界面零反馈。
+  Vue2 `SkillDetail.vue:240-242 tryInChat()` 完全不看 `skill.enabled`,永远直接跳转 ——
+  这是要修的可复现错误行为,不是要照抄的“视觉/交互”。改成:`skill.enabled === false`
+  时不跳转,改弹一个 D4 确认弹窗(「启用并试用」/取消);`enabled === true` 时行为不变
+  (P3a 已实现,直接跳转)。**这个弹窗 Vue2 里完全不存在**(用户 2026-07-30 拍板新增),
+  不是复刻目标,所以走标准壳 `SkModal`(见下方「两种弹窗外壳并存」注释),不是本文件里
+  删除确认弹窗那套 reka 原语手拼。
+
+  【两种弹窗外壳并存,不是不一致】本文件同时有两套弹窗写法:删除/卸载确认弹窗用裸 reka
+  Dialog 原语手拼(见上方「偏离申报 2」),因为它要逐像素复刻 Vue2 一个**没有标题栏**的
+  弹窗,`SkModal` 强制渲染标题栏+关闭按钮的形状套不上去;D4 这个弹窗是本期新增、
+  Vue2 没有对应物,没有“复刻目标”,所以直接用现成的标准壳 `SkModal`
+  (`:open`+`@update:open`+默认插槽+`#footer`,先例 `sections/ChannelsSection.vue:427`),
+  拿它自带的 Esc/焦点陷阱/`.set-app` 作用域处理免费。两者选型依据同一条规则:「有逐像素
+  复刻目标 → 手拼贴近 Vue2;无复刻目标(本期新增 UI)→ 用标准壳」,不是风格漂移。
+
+  【`pendingTryId` 一次性语义】「启用并试用」发 `emit('toggle', id, true)` 后,必须等
+  **父组件真的把这个技能的 `enabled` 改成 true**(toggle 成功)才跳转;toggle 失败时父组件
+  不改 `enabled`,`watch` 不会看到值变化,自然不跳转,不需要额外的失败分支。用一个
+  `pendingTryId`(记录发起请求那一刻的技能 id,而不是布尔标志)而不是定时器/await emit
+  (emit 是同步的、没有返回值,等不到“父组件处理完”这个事实)。三条清除路径:
+  ① 跳转前(`watch` 命中 `enabled===true` 且 id 匹配时)立即置空,防止以后这个技能任何
+     一次“开关开→用户手动点开”都被误读成“待跳转”而把用户重新导航走;
+  ② 点「取消」立即置空;
+  ③ `skill.id` 变化时置空(与既有 `menuOpen`/`confirmOpen` 复位共用同一个 watch)—— 这样
+     切到另一个技能后,上一个技能的挂号不会残留、也不会在多个 watcher 之间靠触发顺序
+     猜测谁先跑:`watch(enabled)` 回调里额外核对 `skill.id === pendingTryId`,两层防御
+     叠加,不依赖 Vue 内部 watcher 调度顺序这个实现细节。
 
   零 <style> 块:用到的每个 class(sk-detail*、sk-name、sk-pill-try、sk-meta-grid、
   sk-meta-cell、sk-section*、sk-description、sk-md、sk-file-row、sw、sk-pill-more、
@@ -86,6 +116,8 @@ import { useCopyFeedback } from '../../../composables/useCopyFeedback'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import SkillTile from './SkillTile.vue'
 import SetSwitch from '../SetSwitch.vue'
+import SkModal from '../SkModal.vue'
+import TestPanel from './TestPanel.vue'
 
 // Vue2 SkillDetail.vue:200-201 `skill: { type: Object, default: null }` +
 // `busy: { type: Object, default: () => ({}) }`(飞行中禁用的技能 id 集合,由父组件
@@ -96,9 +128,12 @@ const props = withDefaults(
 )
 
 // 对齐 Vue2 :27(`$emit('toggle', …)`)与 :238(`$emit('delete', …)`)。
+// `test` 是 T7 新增:把 TestPanel 的 `test`(只在沙箱真正成功完成时才发,见
+// TestPanel.vue 头注释偏离 D5)原样往上转发,不在本文件里加任何额外触发条件。
 const emit = defineEmits<{
   (e: 'toggle', id: string, enabled: boolean): void
   (e: 'delete', id: string): void
+  (e: 'test'): void
 }>()
 
 const { t } = useI18n()
@@ -111,15 +146,25 @@ const menuOpen = ref(false)
 const confirmOpen = ref(false)
 // `.sk-pill-more` 按钮 + `.sk-menu` 下拉的包裹元素,对齐 Vue2 `ref="menuWrap"`(:33)。
 const menuWrap = ref<HTMLElement | null>(null)
+// D4:停用技能点「在对话中试用」的确认弹窗(Vue2 没有对应物,本期新增,见文件头注释
+// 「偏离申报 3」)。
+const tryModalOpen = ref(false)
+// D4「启用并试用」的一次性挂号:记录发起 toggle 那一刻的技能 id(不是布尔标志),
+// 见文件头注释「pendingTryId 一次性语义」。
+const pendingTryId = ref<string | null>(null)
 
 // 外部点击关闭菜单。复用既有 `useClickOutside` composable(见文件头注释「实现选择」)
 // 而不是手写 Vue2 :214-225 那份 `watch(menuOpen)` 里条件式 add/removeEventListener。
 useClickOutside(menuWrap, () => { menuOpen.value = false })
 
 // `skill.id` 变化时复位菜单与确认弹窗,对齐 Vue2 `watch: { 'skill.id'() { … } }`(:226-229)。
+// D4:同一处一并复位 tryModalOpen/pendingTryId(清除路径③,见文件头注释)——切到另一个
+// 技能后,上一个技能的「启用并试用」挂号不能残留。
 watch(() => props.skill?.id, () => {
   menuOpen.value = false
   confirmOpen.value = false
+  tryModalOpen.value = false
+  pendingTryId.value = null
 })
 
 // 复制 SKILL.md 到剪贴板 + 打勾态(偏离申报 1,见文件头注释)。
@@ -223,11 +268,52 @@ function fileSize(size: string): string {
   return ref ? t(ref.key, ref.params ?? {}) : size
 }
 
-// 对齐 Vue2 :240-242 `tryInChat`。
+// 对齐 Vue2 :240-242 `tryInChat`,但收 P3a 挂账③改成正确逻辑(D4,见文件头注释
+// 「偏离申报 3」):Vue2 完全不看 `skill.enabled`,永远直接跳转;停用的技能在 agent
+// 运行时视图里根本不存在(`skills_runtime.go:57`),跳过去試也没有任何反馈。
+// `enabled === true` 时行为不变,直接跳转(P3a 既有实现)。
 function tryInChat() {
-  if (!props.skill) return
-  router.push({ path: '/ai/agent', query: { skill: props.skill.id } })
+  const s = props.skill
+  if (!s) return
+  if (s.enabled === false) {
+    tryModalOpen.value = true
+    return
+  }
+  router.push({ path: '/ai/agent', query: { skill: s.id } })
 }
+
+// D4「启用并试用」:先关弹窗、记下当前技能 id 作为一次性挂号,再把意图往上冒泡。
+// 是否真的启用成功由父组件(SkillsSection)决定——本组件不直接改 `skill.enabled`,
+// 只观察 props 上的值(下面的 watch)。
+function confirmEnableAndTry() {
+  const s = props.skill
+  if (!s) return
+  tryModalOpen.value = false
+  pendingTryId.value = s.id
+  emit('toggle', s.id, true)
+}
+
+// D4「取消」:清除路径②(见文件头注释)。不 emit toggle,不跳转。
+function cancelTryModal() {
+  tryModalOpen.value = false
+  pendingTryId.value = null
+}
+
+// D4 一次性跳转:只在「当前 props.skill 就是发起挂号的那个技能」且它的 `enabled`
+// 变成 true 时才跳转,随即清空挂号(清除路径①)。toggle 失败时父组件不会把 `enabled`
+// 改成 true,这里就永远不会看到 true,从而永远不跳转——不需要额外的失败分支/定时器。
+// 显式核对 `s.id === pendingTryId.value` 而不是只信任「skill.id 变化时复位」那处 watch
+// 已经清空了它:两个 watch 都挂在同一个 `props.skill` 上,不依赖 Vue 内部对同一 tick
+// 里多个 watcher 的调度顺序这个实现细节。
+watch(() => props.skill?.enabled, (enabled) => {
+  const s = props.skill
+  if (!s || !pendingTryId.value) return
+  if (s.id !== pendingTryId.value) { pendingTryId.value = null; return }
+  if (enabled === true) {
+    pendingTryId.value = null
+    router.push({ path: '/ai/agent', query: { skill: s.id } })
+  }
+})
 </script>
 
 <template>
@@ -326,8 +412,11 @@ function tryInChat() {
             </div>
           </div>
 
-          <!-- P3b: TestPanel 插回这里（Vue2 SkillDetail.vue:108-112），夹在「描述」
-               与「SKILL.md」之间，见文件头注释。 -->
+          <!-- Vue2 SkillDetail.vue:108-112:TestPanel 夹在「描述」与「SKILL.md」之间。
+               :key="skill.id" 对齐 Vue2 :109——切换技能时整个组件销毁重建(TestPanel.vue
+               头注释已说明:key 变化不会触发它内部的 skill.id watcher,真正兜底的清理
+               落在它自己的 onBeforeUnmount)。test 事件原样转发,见 emits 定义处注释。 -->
+          <TestPanel :key="skill.id" :skill="skill" @test="emit('test')" />
 
           <div class="sk-section">
             <div class="sk-section-head">
@@ -397,6 +486,21 @@ function tryInChat() {
           </DialogOverlay>
         </DialogPortal>
       </DialogRoot>
+
+      <!-- D4:停用技能「在对话中试用」先提示(见文件头注释「偏离申报 3」)。这个弹窗
+           Vue2 里不存在,没有逐像素复刻目标,所以用标准壳 SkModal,不套上面那份 reka
+           原语手拼(两种外壳并存的理由见文件头注释「两种弹窗外壳并存,不是不一致」)。 -->
+      <SkModal
+        :open="tryModalOpen"
+        :title="t('aiSkTryDisabledTitle')"
+        @update:open="tryModalOpen = $event"
+      >
+        <p>{{ t('aiSkTryDisabledBody') }}</p>
+        <template #footer>
+          <button class="sk-btn ghost" @click="cancelTryModal">{{ t('aiCancel') }}</button>
+          <button class="sk-btn primary" @click="confirmEnableAndTry">{{ t('aiSkTryEnableAndTry') }}</button>
+        </template>
+      </SkModal>
     </template>
   </div>
 </template>
