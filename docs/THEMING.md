@@ -223,6 +223,10 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--pin-cluster-stroke` | 簇图钉描边（同上；Vue2 `:402` 原值是比 accent 更浅的淡紫 `rgba(196,184,255,0.85)`，这里 RGB 改取本仓 `--accent-text`——语义正是"比 accent 更浅/更可读的 accent 色"，alpha 精确复刻原值 0.85） | `rgba(169,198,255,0.85)` | `rgba(53,80,196,0.85)` |
 | `--place-current-trip` | 当前行程标记色（同上，复刻 `:375` 的 `#34c759`，两套主题同值——不用 `--good`，那是本仓的青绿 `#5fe3b0`/`#15754c`，与 iOS 绿是近似而非精确复刻，已因此返工过一次） | `#34c759` | `#34c759` |
 | `--map-dot-bg-fallback` | 地图陆地点阵底色的 CSS 回落值（`PlacesMap.vue`，P6a-T6 评审 I1；精确复刻 Vue2 `photos-places.scss:347` 的字面量 `rgba(255,255,255,0.10)`，theme-invariant——Vue2 最常见的两条路径`dotBg` 都是 `null`，即都吃这条 CSS 回落，不是罕见分支。不能用 `--fg-faint` 顶替：深色档是 `rgba(255,255,255,0.52)`，会亮到盖过已访问点；浅色档是不透明暖灰 `#9a958a`，铺在地图黑底画布上会变成一块不透明色块） | `rgba(255,255,255,0.10)` | `rgba(255,255,255,0.10)` |
+| `--float-bg` | 浮动药丸工具条底（`PlacesZoomBar.vue`，P6a-T8；精确复刻 Vue2 `photos.scss:49`/`:84` 的字面量——本仓之前无等价 token，`--panel-bg`(0.1)/`--popup-bg`(渐变)/`--tool-bg`(不透明)量级都对不上这个扁平 0.85） | `rgba(20,20,28,0.85)` | `rgba(255,255,255,0.85)` |
+| `--zb-hover-bg` | 缩放条按钮悬停底（同上；Vue2 用 `rgba(var(--ink),0.08)` 做"跟随文字色的透明度斜坡"，本仓无 `--ink` 三元组 token，alpha 精确复刻 0.08，RGB 改取本仓 `--fg` 的真实分解值，不照抄 Vue2 light `--ink` 的 `(35,37,43)` 近似值） | `rgba(255,255,255,0.08)` | `rgba(28,27,25,0.08)` |
+| `--zb-track-bg` | 缩放条轨道底（同上，alpha 精确复刻 `rgba(var(--ink),0.12)`） | `rgba(255,255,255,0.12)` | `rgba(28,27,25,0.12)` |
+| `--zb-thumb-shadow` | 缩放条滑块把手投影第二层（同上；Vue2 `photos-places.scss:281` 的 `rgba(0,0,0,0.4)` 从未随主题变化，theme-invariant，两套主题同值） | `rgba(0,0,0,0.4)` | `rgba(0,0,0,0.4)` |
 | `--sem-bg` | 语义色/成功 背 | `rgba(95,227,176,0.14)` | `#e7f5ee` |
 | `--sem-fg` | 语义色/成功 文 | `#5fe3b0` | `#15754c` |
 | `--sem-bd` | 语义色/成功 描边 | `rgba(95,227,176,0.35)` | `#b7e2cc` |

@@ -103,6 +103,22 @@
      失效路径确实可达(Vue2 :150/:137 两条最常见路径的 dotBg 都是 null,即都吃 CSS 回落,
      不是罕见分支)。 */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+  /* PlacesZoomBar.vue(P6a-T8)垂直缩放滑杆的浮动药丸底——新增 token,精确复刻 Vue2
+     photos.scss:49(NimoOS-UI 全局浮动条/FAB 共用底,不是 photos-places.scss 自己定义的)。
+     本仓之前没有等价的"半透明浮动工具条底"token,--panel-bg(0.1)/--popup-bg(渐变,
+     ~0.9-0.95)/--tool-bg(0.16,不透明纯色)都对不上这个扁平 0.85 的量级,故新增而非近似。 */
+  --float-bg: rgba(20, 20, 28, 0.85);
+  /* 同上组件——Vue2 用 rgba(var(--ink), 0.08/0.12) 给 .zb-btn:hover 背景与 .zb-track 底色
+     做"跟随文字色的透明度斜坡";本仓没有 --ink 这个 RGB 三元组 token。alpha 精确复刻
+     Vue2 的 0.08/0.12,RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)——不照抄
+     Vue2 light 主题里 --ink 的 (35,37,43)(该值本身只是 Vue2 注释自称的"AI --text-primary
+     近似",不是设计精确值),同 --pin-cluster-stroke 的换基色先例。 */
+  --zb-hover-bg: rgba(255, 255, 255, 0.08);
+  --zb-track-bg: rgba(255, 255, 255, 0.12);
+  /* .zb-thumb 把手投影第二层——Vue2 photos-places.scss:281 的 box-shadow 里
+     `0 1px 4px rgba(0,0,0,0.4)` 从未随 Vue2 自己的深浅主题变化,theme-invariant,
+     两套主题块同值(先例见 --place-current-trip)。 */
+  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
   --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
   --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
   --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
@@ -333,6 +349,15 @@
   /* theme-invariant,两套主题块同值——见 :root 同名 token 注释(不用 --fg-faint 的理由同上,
      浅色 --fg-faint 是不透明暖灰 #9a958a,同样会在地图画布上变成一块不透明色块)。 */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+  /* PlacesZoomBar.vue(P6a-T8)——见 :root 同名 token 注释。精确复刻 Vue2 photos.scss:84
+     的浅色浮动条底字面量。 */
+  --float-bg: rgba(255, 255, 255, 0.85);
+  /* 见 :root 同名 token 注释:alpha 与 :root 完全相同(0.08/0.12),RGB 换成本仓浅色
+     --fg 的真实分解值(#1c1b19→28,27,25)。 */
+  --zb-hover-bg: rgba(28, 27, 25, 0.08);
+  --zb-track-bg: rgba(28, 27, 25, 0.12);
+  /* 两套主题同值,见 :root 同名注释。 */
+  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
   --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
   --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
   --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
