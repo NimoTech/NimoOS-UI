@@ -94,6 +94,9 @@ function selectedOr(entry: FileEntry | null): FileEntry[] {
 // 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
 const selectionHasFolder = computed(() => files.entries.some((e) => files.isSelected(e.path) && e.is_dir))
 
+// 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
+const snapshotSelection = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
+
 // 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
 // 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
 async function onShare(entry: FileEntry | null) {
@@ -138,7 +141,7 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry); break
-    case 'restore-original': /* T6 接线 */ break
+    case 'restore-original': if (entry) browse.restore([entry]); break
   }
 }
 
@@ -447,16 +450,16 @@ onMounted(() => { browse.ensureVolumes() })
         </div>
         <SnapshotBanner
           :info="browse.browseInfo"
-          :restoring="false"
-          :can-restore="false"
+          :restoring="browse.restoring"
+          :can-restore="snapshotSelection.length > 0"
           @exit="exitSnapshot"
-          @restore="() => {}"
+          @restore="browse.restore(snapshotSelection)"
         />
         <SnapshotSelectionToolbar
           v-if="browse.isSnapshotView && files.selectedCount > 0"
           :count="files.selectedCount"
-          :restoring="false"
-          @restore="() => {}"
+          :restoring="browse.restoring"
+          @restore="browse.restore(snapshotSelection)"
           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
           @clear="files.clearSelection"
         />

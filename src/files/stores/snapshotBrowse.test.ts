@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSnapshotBrowseStore } from './snapshotBrowse'
 import { useFilesStore } from './files'
+import { useToast } from '../../stores/toast'
 
 const listVolumesMock = vi.fn()
+const restoreMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
-  service: { snapshot: { listVolumes: () => listVolumesMock() } },
+  service: { snapshot: { listVolumes: () => listVolumesMock(), restore: (b: unknown) => restoreMock(b) } },
 }))
 
 const VOLS = [
@@ -158,5 +160,62 @@ describe('时间机器开关', () => {
     expect(s.wheelOpen).toBe(false)
     expect(s.status).toBe('idle')
     expect(s.volumes).toEqual([])
+  })
+})
+
+describe('恢复', () => {
+  const inSnapshot = async () => {
+    const s = useSnapshotBrowseStore()
+    useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'
+    await s.ensureVolumes()
+    return s
+  }
+  it('单条成功:toast 报出恢复后的路径', async () => {
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })
+    const s = await inSnapshot()
+    await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])
+    expect(useToast().msg).toContain('/DATA/Photos/a.jpg.restored-1')
+  })
+  it('多条成功:toast 只报条数,不逐条刷屏', async () => {
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
+    const s = await inSnapshot()
+    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }, { path: '/DATA/.snapshots/snap1/b' }])
+    expect(restoreMock).toHaveBeenCalledTimes(2)
+    expect(useToast().msg).toContain('2')
+  })
+  it('恢复期间 restoring 为真,结束落回 false', async () => {
+    let release: (v: unknown) => void = () => {}
+    restoreMock.mockImplementation(() => new Promise((r) => { release = r }))
+    const s = await inSnapshot()
+    const p = s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    expect(s.restoring).toBe(true)
+    // restore() 先 await listVolumes() 才会真正调用 restoreMock 并捕获它的 resolver —
+    // 这一步跨了微任务边界,不能在调用 s.restore() 之后原地同步 release(),否则捕获到的
+    // 还是初始的空 no-op,p 永远不会 settle(之前踩过一次,跑出 5s 超时)。
+    await vi.waitFor(() => expect(restoreMock).toHaveBeenCalled())
+    release({ restored_path: '/DATA/a.restored-1' })
+    await p
+    expect(s.restoring).toBe(false)
+  })
+  it('在途时再次调用直接忽略(防重复提交)', async () => {
+    let release: (v: unknown) => void = () => {}
+    restoreMock.mockImplementation(() => new Promise((r) => { release = r }))
+    const s = await inSnapshot()
+    const p = s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    await s.restore([{ path: '/DATA/.snapshots/snap1/b' }])
+    release({ restored_path: '/x' })
+    await p
+    expect(restoreMock).toHaveBeenCalledTimes(1)
+  })
+  it('404 → 专用文案', async () => {
+    restoreMock.mockRejectedValue(Object.assign(new Error('gone'), { code: 404 }))
+    const s = await inSnapshot()
+    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    expect(useToast().msg).toContain('找不到')
+  })
+  it('空选区不发请求', async () => {
+    const s = await inSnapshot()
+    await s.restore([])
+    expect(restoreMock).not.toHaveBeenCalled()
   })
 })

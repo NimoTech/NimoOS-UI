@@ -6,6 +6,9 @@ import {
   parseSnapshotBrowsePath, shouldGuardSnapshotView, findVolumeForPath,
   type SnapshotVolumeLike, type VolumesState,
 } from '../util/snapshotPath'
+import { performSnapshotRestore } from '../util/snapshotRestore'
+import { useToast } from '../../stores/toast'
+import { i18n } from '../../i18n'
 
 // 文件区快照浏览的共享态:卷列表缓存 + 由 currentPath 派生的只读锁 + 时间机器开关。
 // 对应 Vue2 FilePanel.vue 的 snapshotVolumesState / isSnapshotView / currentSnapshotVolume /
@@ -16,6 +19,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const status = ref<VolumesState['status']>('idle')
   const volumes = ref<SnapshotVolumeLike[]>([])
   const wheelOpen = ref(false)
+  const restoring = ref(false)
   const files = useFilesStore()
 
   // 同一次会话里并发调用共用这一个在途 Promise,避免文件区挂载与深链解析各发一次请求
@@ -75,6 +79,41 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   function openWheel() { wheelOpen.value = true }
   function closeWheel() { wheelOpen.value = false }
 
+  // 恢复选中项。多条时逐条提交(后端一次只收一个 path),期间 restoring 为真,
+  // 三个入口(横幅 / 选中工具条 / 右键菜单)共用这一个开关,任何一处在途都禁用其余两处。
+  async function restore(entries: { path: string }[]): Promise<void> {
+    if (restoring.value) return
+    const list = entries || []
+    if (!list.length) return
+    const toast = useToast()
+    const t = i18n.global.t
+    restoring.value = true
+    try {
+      const results = []
+      for (const item of list) {
+        results.push(await performSnapshotRestore({
+          item,
+          info: browseInfo.value,
+          listVolumes: () => service.snapshot.listVolumes(),
+          restore: (body) => service.snapshot.restore(body),
+        }))
+      }
+      const ok = results.filter((r) => r.ok) as { ok: true; restoredPath: string }[]
+      const failed = results.find((r) => !r.ok) as { ok: false; reason: string } | undefined
+      if (ok.length === 1 && !failed) toast.show(t('snapBrowseRestored', { path: ok[0].restoredPath }))
+      else if (ok.length > 1 && !failed) toast.show(t('snapBrowseRestoredN', { n: ok.length }))
+      if (failed) {
+        toast.show(
+          failed.reason === 'not-found' ? t('snapBrowseRestoreNotFound')
+            : failed.reason === 'invalid' ? t('snapBrowseRestoreInvalid')
+              : t('snapBrowseRestoreFailed'),
+        )
+      }
+    } finally {
+      restoring.value = false
+    }
+  }
+
   function reset() {
     status.value = 'idle'
     volumes.value = []
@@ -84,8 +123,8 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   }
 
   return {
-    status, volumes, wheelOpen,
+    status, volumes, wheelOpen, restoring,
     parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry,
-    ensureVolumes, openWheel, closeWheel, reset,
+    ensureVolumes, openWheel, closeWheel, reset, restore,
   }
 })
