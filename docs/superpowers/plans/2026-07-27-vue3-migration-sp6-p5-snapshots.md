@@ -1912,12 +1912,21 @@ git commit -m "feat(storage): RAID 详情页挂载快照面板(P5 T7)"
 
 ## Ledger 挂账(收尾写进 `.superpowers/sdd/progress.md`)
 
-1. **文件区快照套件整体未迁(新登记,SP4 遗留缺口)**:`SnapshotBanner.vue` / `SnapshotTimeWheel.vue`(621 行)/ `SnapshotActionBar.vue` / `SnapshotSettingsModal.vue` / `snapshotBrowse.js` / `snapshotStackMath.js` + `FilePanel.vue`/`ContextMenu.vue` 里的只读浏览分支 + `service/snapshot.js` 六个路径纯函数 + 后端 `GET /v2/snapshot/file-versions` + `POST /v2/snapshot/restore`。**因此时间线的 [浏览] 按钮本期缺席**。建议作为独立一期(SP6-P5b 或并入文件区后续期)。
+1. **文件区快照套件整体未迁(新登记,SP4 遗留缺口)**:`SnapshotBanner.vue` / `SnapshotTimeWheel.vue`(621 行)/ `SnapshotActionBar.vue` / `SnapshotSettingsModal.vue` / `snapshotBrowse.js` / `snapshotStackMath.js` + `FilePanel.vue`/`ContextMenu.vue` 里的只读浏览分支 + `service/snapshot.js` 六个路径纯函数 + 后端 `GET /v2/snapshot/file-versions` + `POST /v2/snapshot/restore`。~~**因此时间线的 [浏览] 按钮本期缺席**。建议作为独立一期(SP6-P5b 或并入文件区后续期)。~~ **已消化**:独立一期「文件区时间机器」(`.superpowers/sdd/2026-07-30-files-time-machine/`)已把整套(路径纯函数、只读横幅/禁写两道防线、恢复三入口、时间机器全屏覆盖层、设置弹窗、时间线 `[浏览]` 按钮接回)全部补齐,T12(2026-07-30)收尾,详见该期 `task-12-report.md`。
 2. **后端未部署**:设备 `nimoos-local-storage` 仍是 2026-06-22 版,`/v2/snapshot/*` 全 404;P5 代码走优雅降级(面板显示"不支持")。部署时机由用户定。
 3. **快照卷 == RAID 阵列**(后端 `currentVolumes()` = `VolumesFromRAIDArrays`):单盘设备无阵列 → 无快照卷,面板无法实盘验收,随多盘设备与 P3/P4 一并补。
 4. **Vue2 bug 已修正不照抄**:`savePolicy` 后摘要显示 `undefined`(后端 PUT 返回 `data:null`,Vue2 把信封当策略对象)。New-UI 用刚保存的表单值合并本地 policy。
 5. **有意偏离**:slot+`refreshSignal`+`@deleted` 三段式 → store 直连;校验错误文案从"英文原文当键"→ 具名 i18n key;`b-switch`/`b-numberinput`/`$buefy.dialog.confirm` → 手写开关 / 原生 number input / 共享 `Dialog`;manual 类别色由紫改 `--accent`、preop 由琥珀改 `--dem-fg`(主题 token 化的必然结果)。
 6. **`service.snapshot.restore()` 与 `updatePolicy()` 本期无调用方**(restore 属文件区;updatePolicy 只经 `patchPolicy` 间接使用)——不是死代码,是下一期的接口面。
+
+**「文件区时间机器」期(T12,2026-07-30)新登记的挂账**(详见 `.superpowers/sdd/2026-07-30-files-time-machine/task-12-report.md`):
+
+7. **本机永远无法实盘验证**:`/DATA` 是 ext4 单盘,快照卷只从 RAID 阵列派生,`GET /v2/snapshot/volumes` 恒返回空数组。本期以单测 + 假后端测试台 + 双主题截图为准,随多盘设备补实盘验收。
+8. **`GET /v2/snapshot/file-versions` 仍未被任何前端消费**(Vue2 当年也没用)。若将来要做"单文件历史版本"入口,这是现成的后端能力。
+9. **恢复是逐条串行提交**(后端一次只收一个 path)。选中几十项时会串行等待,没有进度条——若实际使用中出现大批量恢复,需要后端批量接口或前端进度反馈。
+10. **卡片预览对每张可见卡各发一次列目录请求**(最多 5 次,按快照名缓存)。快照数很多且用户快速拨刻度时会有一串请求;当前没有取消在途请求的逻辑。
+11. **`.snapshots` 目录在文件区列表里不可见**(files store 过滤掉了 `.` 开头的条目),因此只能从时间机器或存储区 `[浏览]` 进入——这是有意的。
+12. **[新发现,暗色主题视觉]** `TimeMachineCard.vue` 前景卡片在暗色主题下用半透明玻璃背景(`--tm-card-bg` 含 alpha),导致卡堆里后面几张卡的文字透过最前面那张卡叠印上来,观感花;浅色主题因前卡背景不透明反而干净。真实浏览器行为(非无头渲染 artifact,已用软件渲染复测确认)。不在 T12 文件范围内,未处理,留待用户决定是否修 `theme.css` 里 `--tm-card-bg` 的暗色取值。
 
 ---
 
