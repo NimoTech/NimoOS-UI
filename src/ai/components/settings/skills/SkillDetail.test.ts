@@ -1,16 +1,31 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
+import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../../i18n/zh_cn'
 import SkillDetail from './SkillDetail.vue'
 import type { Skill } from '../../../types/skill'
 
 // SP8-P3a Task 5 —— 对齐 Vue2 src/views/AI/Skills/SkillDetail.vue(271 行)只读半。
+// SP8-P3b Task 6 —— 加写操作:开关 + 更多菜单(禁用/复制/导出/删除)+ 删除确认弹窗。
 // 公共约束 §9:vi.mock 骨架用 vi.hoisted() 避免 ESM 提升的 TDZ ReferenceError。
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
+
+// Task 6 —— 导出按钮走同步 URL builder(不是 axios 调用),复制按钮走
+// `useCopyFeedback` 内部的 `copyText`(非安全上下文 execCommand 兜底,见该模块头注释)。
+// mock 手法与 McpTokensSection.test.ts 完全一致(同一对函数的既有 mock 先例)。
+const h = vi.hoisted(() => ({
+  exportSkillURL: vi.fn((id: string) => `/v1/ai/skills/${id}/export?token=abc`),
+  copyText: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: { ai: { exportSkillURL: h.exportSkillURL } },
+}))
+vi.mock('../../../../files/util/clipboard', () => ({ copyText: h.copyText }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -38,12 +53,40 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
   }
 }
 
-const mountDetail = (skill: Skill | null) =>
-  mount(SkillDetail, { props: { skill }, global: { plugins: [i18n] } })
+// Task 6 —— 删除确认弹窗 portal 到 `.set-app`(见组件头注释「偏离申报 2」/
+// SkModal.vue D1),测试须先在 body 里放一个同名宿主,先例 SkModal.test.ts::withHost()。
+function withHost(): HTMLElement {
+  const host = document.createElement('div')
+  host.className = 'set-app'
+  document.body.appendChild(host)
+  return host
+}
 
-describe('SkillDetail(只读半)', () => {
+const mountDetail = (skill: Skill | null, props: { busy?: Record<string, boolean> } = {}) =>
+  mount(SkillDetail, {
+    props: { skill, ...props },
+    global: { plugins: [i18n] },
+    attachTo: document.body,
+  })
+
+// 公共约束 §9:异步断言用 flushPromises(),不用单个 await nextTick()。
+const flush = async () => { await flushPromises(); await nextTick() }
+
+describe('SkillDetail(只读半 + P3b 写操作半)', () => {
+  let host: HTMLElement
+
   beforeEach(() => {
     push.mockClear()
+    h.exportSkillURL.mockClear()
+    h.copyText.mockClear()
+    // useCopyFeedback() 内部调用 useToast()(Pinia store),组件 setup() 时无条件
+    // 调用一次,故每个测试都要有一个 active Pinia,不只是涉及复制的用例。
+    setActivePinia(createPinia())
+    host = withHost()
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('空态:skill=null 时展示两行文案,不渲染详情条', () => {
@@ -54,15 +97,18 @@ describe('SkillDetail(只读半)', () => {
     expect(w.find('.sk-detail-bar').exists()).toBe(false)
   })
 
-  it('顶部条:标题/name code/试用按钮,不渲染开关与更多菜单(P3b 范围)', () => {
+  // 【反转,SP8-P3b Task 6,公共约束 §9 明确要求「反转不是删除」】P3a 版本断言这
+  // 三个写操作控件「必须完全不出现」;P3b 落地后 `.sw`/`.sk-pill-more` 必须渲染,
+  // `.sk-menu` 仍是 false ——但语义已经从「永不渲染」变成「默认收起」(菜单展开的
+  // 交互由下方专项用例覆盖)。改前/改后原文已贴进任务报告。
+  it('顶部条:标题/name code/试用按钮/开关/更多菜单按钮全部渲染(P3b 写操作落地)', () => {
     const w = mountDetail(makeSkill({ title: 'Weekly Report', name: 'weekly-report' }))
     expect(w.find('.sk-name span').text()).toBe('Weekly Report')
     expect(w.find('.sk-name code').text()).toBe('weekly-report')
     expect(w.find('.sk-pill-try').exists()).toBe(true)
     expect(w.find('.sk-pill-try').text()).toContain('在对话中试用')
-    // §5.2 明确不取的写操作控件,必须完全不出现。
-    expect(w.find('.sw').exists()).toBe(false)
-    expect(w.find('.sk-pill-more').exists()).toBe(false)
+    expect(w.find('.sw').exists()).toBe(true)
+    expect(w.find('.sk-pill-more').exists()).toBe(true)
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
@@ -215,5 +261,236 @@ describe('SkillDetail(只读半)', () => {
     await w.find('.sk-pill-try').trigger('click')
     expect(push).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith({ path: '/ai/agent', query: { skill: 'sk-42' } })
+  })
+
+  // ===== SP8-P3b Task 6 —— 顶部条写操作 + 删除确认弹窗 =====
+
+  it('开关:data-on/aria-checked 反映 enabled,点击 emit toggle(id, !enabled)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-1', enabled: true }))
+    const sw = w.find('.sw')
+    expect(sw.attributes('data-on')).toBe('true')
+    expect(sw.attributes('aria-checked')).toBe('true')
+    await sw.trigger('click')
+    expect(w.emitted('toggle')).toEqual([['sk-1', false]])
+  })
+
+  it('停用态开关:data-on=false,点击 emit toggle(id, true)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-1', enabled: false }))
+    const sw = w.find('.sw')
+    expect(sw.attributes('data-on')).toBe('false')
+    await sw.trigger('click')
+    expect(w.emitted('toggle')).toEqual([['sk-1', true]])
+  })
+
+  it('busy[id] 为真时开关禁用(aria-disabled=true),为空对象/其它 id 时不禁用', () => {
+    const wBusy = mountDetail(makeSkill({ id: 'sk-9' }), { busy: { 'sk-9': true } })
+    expect(wBusy.find('.sw').attributes('aria-disabled')).toBe('true')
+
+    const wIdle = mountDetail(makeSkill({ id: 'sk-9' }), { busy: {} })
+    expect(wIdle.find('.sw').attributes('aria-disabled')).toBe('false')
+
+    const wOther = mountDetail(makeSkill({ id: 'sk-9' }), { busy: { 'sk-other': true } })
+    expect(wOther.find('.sw').attributes('aria-disabled')).toBe('false')
+  })
+
+  it('更多菜单:点击 .sk-pill-more 开合', async () => {
+    const w = mountDetail(makeSkill())
+    expect(w.find('.sk-menu').exists()).toBe(false)
+    await w.find('.sk-pill-more').trigger('click')
+    expect(w.find('.sk-menu').exists()).toBe(true)
+    await w.find('.sk-pill-more').trigger('click')
+    expect(w.find('.sk-menu').exists()).toBe(false)
+  })
+
+  it('更多菜单:外部 mousedown 关闭菜单,菜单内部点击不触发外部关闭逻辑', async () => {
+    const w = mountDetail(makeSkill())
+    await w.find('.sk-pill-more').trigger('click')
+    expect(w.find('.sk-menu').exists()).toBe(true)
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flush()
+    expect(w.find('.sk-menu').exists()).toBe(false)
+  })
+
+  it('菜单项顺序与文案:暂停/启用 → 复制 SKILL.md → 导出技能 → <hr> → 危险项', async () => {
+    const w = mountDetail(makeSkill({ enabled: true, system: false }))
+    await w.find('.sk-pill-more').trigger('click')
+    const menu = w.find('.sk-menu')
+    const buttons = menu.findAll('button')
+    expect(buttons).toHaveLength(4)
+    expect(buttons[0].text()).toContain('临时禁用')
+    expect(buttons[1].text()).toContain('复制 SKILL.md')
+    expect(buttons[2].text()).toContain('导出技能')
+    expect(buttons[3].attributes('data-danger')).toBe('true')
+    expect(buttons[3].text()).toContain('删除技能')
+    expect(menu.find('hr').exists()).toBe(true)
+  })
+
+  it('菜单第一项(暂停/启用):enabled 时文案「临时禁用」,disabled 时文案「启用」,点击都 emit toggle', async () => {
+    const wEnabled = mountDetail(makeSkill({ id: 'sk-1', enabled: true }))
+    await wEnabled.find('.sk-pill-more').trigger('click')
+    const btnsEnabled = wEnabled.findAll('.sk-menu button')
+    expect(btnsEnabled[0].text()).toContain('临时禁用')
+    await btnsEnabled[0].trigger('click')
+    expect(wEnabled.emitted('toggle')).toEqual([['sk-1', false]])
+    // closeAnd 先收起菜单再执行动作。
+    expect(wEnabled.find('.sk-menu').exists()).toBe(false)
+
+    const wDisabled = mountDetail(makeSkill({ id: 'sk-1', enabled: false }))
+    await wDisabled.find('.sk-pill-more').trigger('click')
+    const btnsDisabled = wDisabled.findAll('.sk-menu button')
+    expect(btnsDisabled[0].text()).toContain('启用')
+    await btnsDisabled[0].trigger('click')
+    expect(wDisabled.emitted('toggle')).toEqual([['sk-1', true]])
+  })
+
+  it('危险项文案:内置技能显示「卸载」,用户技能显示「删除技能」', async () => {
+    const wSystem = mountDetail(makeSkill({ system: true }))
+    await wSystem.find('.sk-pill-more').trigger('click')
+    const dangerSystem = wSystem.findAll('.sk-menu button')[3]
+    expect(dangerSystem.text()).toContain('卸载')
+    expect(dangerSystem.text()).not.toContain('删除')
+
+    const wUser = mountDetail(makeSkill({ system: false }))
+    await wUser.find('.sk-pill-more').trigger('click')
+    const dangerUser = wUser.findAll('.sk-menu button')[3]
+    expect(dangerUser.text()).toContain('删除技能')
+  })
+
+  it('点击「复制 SKILL.md」调用 copyText 传入 skill.md,点击后菜单立即收起', async () => {
+    const w = mountDetail(makeSkill({ md: '# Title\n\nBody.' }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[1].trigger('click')
+    expect(h.copyText).toHaveBeenCalledWith('# Title\n\nBody.')
+    expect(w.find('.sk-menu').exists()).toBe(false)
+  })
+
+  it('复制 SKILL.md 为空字符串时,copyText 收到空字符串(不是 undefined)', async () => {
+    const w = mountDetail(makeSkill({ md: '' }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[1].trigger('click')
+    expect(h.copyText).toHaveBeenCalledWith('')
+  })
+
+  it('点击「导出技能」:创建的 <a> 的 href/download 正确且被点击一次', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const appendSpy = vi.spyOn(document.body, 'appendChild')
+    const w = mountDetail(makeSkill({ id: 'sk-7', name: 'weekly-report' }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[2].trigger('click')
+
+    expect(h.exportSkillURL).toHaveBeenCalledWith('sk-7')
+    const anchor = appendSpy.mock.calls.find((c) => c[0] instanceof HTMLAnchorElement)?.[0] as HTMLAnchorElement
+    expect(anchor).toBeTruthy()
+    expect(anchor.getAttribute('href')).toBe('/v1/ai/skills/sk-7/export?token=abc')
+    expect(anchor.getAttribute('download')).toBe('weekly-report.tar.gz')
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    // 点击后菜单立即收起。
+    expect(w.find('.sk-menu').exists()).toBe(false)
+
+    clickSpy.mockRestore()
+    appendSpy.mockRestore()
+  })
+
+  it('导出:技能没有 name 时,download 回落成 "skill.tar.gz"', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const appendSpy = vi.spyOn(document.body, 'appendChild')
+    const w = mountDetail(makeSkill({ id: 'sk-8', name: '' }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[2].trigger('click')
+
+    const anchor = appendSpy.mock.calls.find((c) => c[0] instanceof HTMLAnchorElement)?.[0] as HTMLAnchorElement
+    expect(anchor.getAttribute('download')).toBe('skill.tar.gz')
+
+    clickSpy.mockRestore()
+    appendSpy.mockRestore()
+  })
+
+  it('点击危险项:打开确认弹窗(portal 进 .set-app),菜单同时收起', async () => {
+    const w = mountDetail(makeSkill({ system: false }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[3].trigger('click')
+    await flush()
+    expect(w.find('.sk-menu').exists()).toBe(false)
+    expect(host.querySelector('.sk-confirm')).not.toBeNull()
+    // 关键断言:弹窗节点落在 .set-app 容器内,不是直挂 body(D1,同 SkModal.test.ts)。
+    expect(host.querySelector('.sk-confirm')!.closest('.set-app')).toBe(host)
+  })
+
+  it('确认弹窗:内置技能标题/正文(D3 实话文案,不含"重新安装")/按钮/历史运行次数', async () => {
+    const w = mountDetail(makeSkill({ system: true, calls: 7, name: 'built-in-skill' }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[3].trigger('click')
+    await flush()
+
+    expect(host.querySelector('.sk-confirm-body h3')?.textContent).toBe('卸载这个技能?')
+    const body = host.querySelector('.sk-confirm-body p')?.textContent ?? ''
+    expect(body).not.toContain('重新安装')
+    expect(host.querySelector('.sk-confirm-skill .name')?.textContent).toBe('built-in-skill')
+    expect(host.querySelector('.sk-confirm-skill .runs')?.textContent).toBe('历史运行 7 次')
+    expect(host.querySelector('.sk-btn.danger')?.textContent).toContain('卸载')
+  })
+
+  it('确认弹窗:用户技能标题/正文/按钮文案(与内置技能不同措辞)', async () => {
+    const w = mountDetail(makeSkill({ system: false, calls: 7 }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[3].trigger('click')
+    await flush()
+
+    expect(host.querySelector('.sk-confirm-body h3')?.textContent).toBe('删除这个技能?')
+    expect(host.querySelector('.sk-confirm-body p')?.textContent)
+      .toBe('这会永久删除该技能及其 SKILL.md 文件,无法恢复。')
+    expect(host.querySelector('.sk-btn.danger')?.textContent).toContain('删除')
+    expect(host.querySelector('.sk-btn.danger')?.textContent).not.toContain('卸载')
+  })
+
+  it('确认弹窗:点确认按钮 emit delete(id) 且弹窗关闭', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-3', system: false }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[3].trigger('click')
+    await flush()
+
+    const confirmBtn = host.querySelector('.sk-btn.danger') as HTMLButtonElement
+    confirmBtn.click()
+    await flush()
+
+    expect(w.emitted('delete')).toEqual([['sk-3']])
+    expect(host.querySelector('.sk-confirm')).toBeNull()
+  })
+
+  it('确认弹窗:点取消按钮不 emit delete,弹窗关闭', async () => {
+    const w = mountDetail(makeSkill({ system: false }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[3].trigger('click')
+    await flush()
+
+    const cancelBtn = host.querySelector('.sk-btn.ghost') as HTMLButtonElement
+    cancelBtn.click()
+    await flush()
+
+    expect(w.emitted('delete')).toBeUndefined()
+    expect(host.querySelector('.sk-confirm')).toBeNull()
+  })
+
+  it('skill.id 变化时复位菜单(菜单打开中途切换技能,菜单自动收起)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-1' }))
+    await w.find('.sk-pill-more').trigger('click')
+    expect(w.find('.sk-menu').exists()).toBe(true)
+
+    await w.setProps({ skill: makeSkill({ id: 'sk-2' }) })
+    await flush()
+    expect(w.find('.sk-menu').exists()).toBe(false)
+  })
+
+  it('skill.id 变化时复位确认弹窗(弹窗打开中途切换技能,弹窗自动关闭)', async () => {
+    const w = mountDetail(makeSkill({ id: 'sk-1', system: false }))
+    await w.find('.sk-pill-more').trigger('click')
+    await w.findAll('.sk-menu button')[3].trigger('click')
+    await flush()
+    expect(host.querySelector('.sk-confirm')).not.toBeNull()
+
+    await w.setProps({ skill: makeSkill({ id: 'sk-2' }) })
+    await flush()
+    expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 })
