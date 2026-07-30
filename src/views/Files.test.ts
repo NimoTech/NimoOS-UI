@@ -24,7 +24,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
     // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
     samba: { listConnections: vi.fn().mockResolvedValue([]) },
     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
-    snapshot: { listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]) },
+    snapshot: {
+      listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]),
+      list: vi.fn().mockResolvedValue([]),
+    },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
 }))
@@ -209,5 +212,45 @@ describe('快照只读横幅', () => {
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
     expect(w.find('.snap-banner').exists()).toBe(true)
+  })
+})
+
+describe('时间机器入口', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
+
+  // 挂载在给定的真实路径上:disk 'NimoOS-HD' ↔ 挂载点 '/DATA'(与本文件其余用例同一约定),
+  // real path 的 '/DATA' 前缀换成虚拟段 'NimoOS-HD' 即是路由参数。listVolumes mock(见文件顶部)
+  // 返回 supported:true 的 /DATA,canShowEntry 因而在非快照路径上应为真。
+  async function mountFiles(realPath: string) {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    const virtual = realPath.replace(/^\/DATA/, 'NimoOS-HD')
+    router.push('/files/' + virtual); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    return w
+  }
+
+  it('supported 卷上出现入口 chip', async () => {
+    const w = await mountFiles('/DATA/Photos')
+    expect(w.find('.tb-time-machine').exists()).toBe(true)
+  })
+  it('已经在快照里时不出现入口 chip', async () => {
+    const w = await mountFiles('/DATA/.snapshots/snap1')
+    expect(w.find('.tb-time-machine').exists()).toBe(false)
+  })
+  it('点入口打开覆盖层', async () => {
+    const w = await mountFiles('/DATA/Photos')
+    await w.find('.tb-time-machine').trigger('click')
+    expect(w.find('.tm-overlay').exists()).toBe(true)
   })
 })

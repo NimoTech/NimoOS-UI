@@ -775,4 +775,11 @@ export default {
   snapBrowseRestoreInvalid: '路径无效,无法恢复',
   snapBrowseRestoreFailed: '恢复失败,请稍后再试',
   snapBrowseRestoredPartial: '已恢复 {ok} 项,{fail} 项失败',
+
+  tmEntry: '时间机器',
+  tmViewingFolder: '正在查看 {path} 的历史版本',
+  tmEnter: '进入此快照',
+  tmSettings: '快照设置',
+  tmNoFolderAtTime: '此时还没有这个文件夹',
+  tmItemCount: '{n} 项',
 }

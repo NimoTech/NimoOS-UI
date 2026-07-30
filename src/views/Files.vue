@@ -41,8 +41,9 @@ import { readDefault } from '../files/util/locationOrder'
 import { parseRecover } from '../files/util/recoverEvent'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
+import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
-import { resolveExitTarget } from '../files/util/snapshotPath'
+import { resolveExitTarget, relPathUnderMount } from '../files/util/snapshotPath'
 import { service } from '@nimotech/nimoos-service'
 
 const route = useRoute()
@@ -235,6 +236,15 @@ function onToolbarDelete() {
 }
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
+
+// 时间机器要知道当前目录相对卷根的位置:卡片按它展示"那一刻的这个文件夹",
+// 进入后也落在同一个相对路径上。
+const snapshotRelPath = computed(() => relPathUnderMount(browse.currentVolume?.mount ?? '', files.currentPath))
+
+function onSnapshotSelect(path: string) {
+  browse.closeWheel()
+  goVirtual(toVirtualPath(path, files.displayNames))
+}
 
 function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
@@ -435,6 +445,9 @@ onMounted(() => { browse.ensureVolumes() })
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
           <div class="files-topbar-right">
+            <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.openWheel()">
+              {{ t('tmEntry') }}
+            </button>
             <div v-if="!browse.isSnapshotView" class="files-actions">
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
@@ -527,6 +540,16 @@ onMounted(() => { browse.ensureVolumes() })
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
+    <TimeMachineOverlay
+      v-if="browse.wheelOpen"
+      :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
+      :mount-point="browse.currentVolume?.mount ?? ''"
+      :rel-path="snapshotRelPath"
+      :folder-label="currentVirtual"
+      @close="browse.closeWheel()"
+      @select="onSnapshotSelect"
+      @open-settings="() => {}"
+    />
   </AreaShell>
 </template>
 

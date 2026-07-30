@@ -114,6 +114,17 @@ export function shouldGuardSnapshotView(
   return true
 }
 
+/** 当前路径相对卷根的部分 —— 时间机器用它决定卡片展示哪个目录、以及进入快照后落在哪里。
+ *  路径不在该挂载点下时返回空串(退回卷根),不做任何猜测。 */
+export function relPathUnderMount(mount: string, absPath: string): string {
+  const m = stripTrailingSlash(mount)
+  const p = stripTrailingSlash(absPath)
+  if (!m || !p) return ''
+  if (p === m) return ''
+  if (!p.startsWith(`${m}/`)) return ''
+  return p.slice(m.length + 1)
+}
+
 /** 「退出快照」该落到哪:活卷上的同名目录;该目录在活卷上已不存在则回卷根。 */
 export async function resolveExitTarget(
   info: SnapshotBrowseInfo | null,

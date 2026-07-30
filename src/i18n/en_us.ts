@@ -775,4 +775,11 @@ export default {
   snapBrowseRestoreInvalid: 'Invalid path — cannot restore',
   snapBrowseRestoreFailed: 'Restore failed, please try again',
   snapBrowseRestoredPartial: 'Restored {ok} items, {fail} failed',
+
+  tmEntry: 'Time Machine',
+  tmViewingFolder: 'Browsing earlier versions of {path}',
+  tmEnter: 'Enter this snapshot',
+  tmSettings: 'Snapshot settings',
+  tmNoFolderAtTime: 'This folder did not exist yet',
+  tmItemCount: '{n} items',
 }

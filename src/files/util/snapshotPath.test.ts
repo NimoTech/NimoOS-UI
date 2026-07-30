@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   snapshotBrowsePath, parseSnapshotBrowsePath, liveVolumePath, parseSnapshotName,
   formatSnapshotBannerTime, findVolumeForPath, findVolumeUuidForMount,
-  shouldGuardSnapshotView, resolveExitTarget,
+  shouldGuardSnapshotView, resolveExitTarget, relPathUnderMount,
 } from './snapshotPath'
 
 describe('snapshotBrowsePath', () => {
@@ -144,4 +144,15 @@ describe('resolveExitTarget', () => {
   it('info 为 null → null', async () => {
     await expect(resolveExitTarget(null, async () => true)).resolves.toBeNull()
   })
+})
+
+describe('relPathUnderMount', () => {
+  it('挂载点自身 → 空串', () => { expect(relPathUnderMount('/DATA', '/DATA')).toBe('') })
+  it('取相对卷根的路径', () => { expect(relPathUnderMount('/DATA', '/DATA/Photos/2024')).toBe('Photos/2024') })
+  it('容忍两侧末尾斜杠', () => { expect(relPathUnderMount('/DATA/', '/DATA/Photos/')).toBe('Photos') })
+  it('路径不在该挂载点下 → 空串(退回卷根,不猜)', () => {
+    expect(relPathUnderMount('/DATA', '/OTHER/x')).toBe('')
+    expect(relPathUnderMount('/DATA', '/DATAX/x')).toBe('')
+  })
+  it('空输入 → 空串', () => { expect(relPathUnderMount('', '/DATA/x')).toBe('') })
 })
