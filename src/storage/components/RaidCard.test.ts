@@ -50,6 +50,38 @@ describe('RaidCard', () => {
     )
     expect(w.find('.rc-online').text()).toContain('2/2')
   })
+  // 一个方块 = 一个阵列盘位。降级时 mdadm 多报一条"被踢出槽位的故障盘",
+  // 不按槽位过滤就会出现 4 个方块却同时写「2/3」,同一张卡上分母自相矛盾。
+  it('降级 RAID5:方块数 = 阵列盘位数(3),不是成员行数(4)', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 5, state: 'degraded', member_disks: [{}, {}, {}] },
+      { live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 0, used_bytes: 0, free_bytes: 0,
+        members: [
+          { path: '/dev/sdd', state: 'active sync', number: 4, slot: 0 },
+          { path: '', state: 'removed', number: 1, slot: 1 },
+          { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+          { path: '/dev/sdb', state: 'faulty', number: 1, slot: -1 },
+        ] },
+    )
+    const sq = w.findAll('.rc-sq')
+    expect(sq.length).toBe(3)
+    // 只有 1 个红 ✕(空出来的槽位),不是 2 个 —— 2 个会读成"坏了两块盘"
+    expect(w.findAll('.rc-sq.fail').length).toBe(1)
+    expect(w.findAll('.rc-sq.ok').length).toBe(2)
+    // 方块数与文字分母一致
+    expect(w.find('.rc-online').text()).toContain('2/3')
+  })
+  it('老后端不带 slot → 方块退回按成员行渲染(不变成 0 个)', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 1, state: 'active', member_disks: [{}, {}] },
+      { live_state: 'active', state: 'active', rebuild_pct: 0, total_bytes: 0, used_bytes: 0, free_bytes: 0,
+        members: [
+          { path: '/dev/sda', state: 'active sync', number: 0 },
+          { path: '/dev/sdb', state: 'active sync', number: 1 },
+        ] },
+    )
+    expect(w.findAll('.rc-sq').length).toBe(2)
+  })
   it('降级态:severity=danger', () => {
     const w = mountCard({ id: 1, name: 'a', level: 1, state: 'degraded' }, { live_state: 'degraded', state: 'degraded', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 })
     expect(w.find('.rc-badge.danger').exists()).toBe(true)

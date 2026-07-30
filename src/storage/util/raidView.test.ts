@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
   countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome,
+  slotMembers, memberDiskCount,
   levelInfo, asRaidArray,
 } from './raidView'
 import type { RaidArray } from './raidView'
@@ -230,5 +231,74 @@ describe('replaceOutcome', () => {
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'faulty', number: 4 },
     ] }, true)).toBe('pending')
+  })
+})
+
+// 降级 RAID5 的真实成员形状(2026-07-30 真机):4 行 —— 腾空的槽位 + 2 好盘 +
+// 被踢出槽位的故障盘(slot: -1)。
+const degradedRows = [
+  { path: '/dev/sdd', state: 'active sync', number: 4, slot: 0 },
+  { path: '', state: 'removed', number: 1, slot: 1 },
+  { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+  { path: '/dev/sdb', state: 'faulty', number: 1, slot: -1 },
+]
+
+describe('slotMembers', () => {
+  it('滤掉不占槽位的行(faulty 被踢出槽位),并按槽位排序', () => {
+    const r = slotMembers(degradedRows)
+    expect(r.map((m) => m.slot)).toEqual([0, 1, 2])
+    expect(r.map((m) => m.path)).toEqual(['/dev/sdd', '', '/dev/sdc'])
+    // 3 盘阵列 → 3 个盘位,不是 4
+    expect(r.length).toBe(3)
+  })
+  it('闲置热备(slot -1)也不占盘位', () => {
+    const r = slotMembers([
+      { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
+      { path: '/dev/sdd', state: 'spare', number: 4, slot: -1 },
+    ])
+    expect(r.map((m) => m.path)).toEqual(['/dev/sda'])
+  })
+  it('槽位乱序输入也按槽位升序输出', () => {
+    const r = slotMembers([
+      { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+      { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+    ])
+    expect(r.map((m) => m.path)).toEqual(['/dev/sda', '/dev/sdb', '/dev/sdc'])
+  })
+  it('老后端不带 slot → 退回全体成员(而不是 0 个)', () => {
+    const noSlot = [
+      { path: '/dev/sda', state: 'active sync', number: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1 },
+    ]
+    expect(slotMembers(noSlot).length).toBe(2)
+  })
+  it('空输入安全', () => {
+    expect(slotMembers([])).toEqual([])
+    expect(slotMembers(undefined as never)).toEqual([])
+  })
+})
+
+describe('memberDiskCount', () => {
+  it('只数有设备路径的行:空槽位占位行不是一块盘', () => {
+    expect(memberDiskCount(degradedRows)).toBe(3)
+    expect(degradedRows.length).toBe(4) // 总行数确实是 4,所以不能用它当盘数
+  })
+  it('健康阵列 = 成员数', () => {
+    expect(memberDiskCount([
+      { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+    ])).toBe(2)
+  })
+  it('物理拔盘(只有空槽位、无 faulty 行)→ 盘数少一个,如实反映', () => {
+    expect(memberDiskCount([
+      { path: '', state: 'removed', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+      { path: '/dev/sdc', state: 'active sync', number: 2, slot: 2 },
+    ])).toBe(2)
+  })
+  it('空输入安全', () => {
+    expect(memberDiskCount([])).toBe(0)
+    expect(memberDiskCount(undefined as never)).toBe(0)
   })
 })

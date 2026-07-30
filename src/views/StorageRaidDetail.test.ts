@@ -20,10 +20,10 @@ const degradedStatus = {
   live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1,
   total_bytes: 100, used_bytes: 40, free_bytes: 60,
   members: [
-    { path: '', state: 'removed', number: 0 },
-    { path: '/dev/sdb', state: 'active sync', number: 1 },
-    { path: '/dev/sdc', state: 'active sync', number: 3 },
-    { path: '/dev/sda', state: 'faulty', number: 0 },
+    { path: '', state: 'removed', number: 0, slot: 0 },
+    { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+    { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
+    { path: '/dev/sda', state: 'faulty', number: 0, slot: -1 },
   ],
 }
 const raidReplaceDisk = vi.fn().mockResolvedValue(undefined)
@@ -283,5 +283,17 @@ describe('StorageRaidDetail', () => {
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
     expect(w.text()).toContain('md8')
     expect(w.text()).not.toContain('md7')
+  })
+
+  // 表头计数用"有设备路径的行"而不是总行数:空槽位占位行不是一块盘。
+  it('降级 RAID5:表头写成员磁盘 3 个(不是 4 行)', async () => {
+    raidGetStatus.mockResolvedValue(degradedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    const title = w.findAll('.rd-card-title').map((n) => n.text()).find((x) => x.includes('成员磁盘'))
+    expect(title).toBe('成员磁盘 (3)')
+    // 列表本身仍渲染 4 行:3 块盘 + 1 个空槽位占位行
+    expect(w.findAll('.rml-row').length).toBe(4)
   })
 })

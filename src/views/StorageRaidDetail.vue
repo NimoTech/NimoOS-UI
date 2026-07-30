@@ -12,7 +12,7 @@ import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { fmtSize } from '../home/util/format'
 import {
-  resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo,
+  resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo, memberDiskCount,
   type RaidArray,
 } from '../storage/util/raidView'
 
@@ -115,6 +115,9 @@ const btrfsCachedAtLabel = computed(() => {
 const showBtrfsRows = computed(() => filesystem.value === 'btrfs' && btrfsFreeBytes.value > 0)
 
 const members = computed(() => status.value?.members || [])
+// 表头计数用"有设备路径的行"而不是总行数:空槽位占位行不是一块盘,数进去会把
+// 3 盘阵列在降级时写成 MEMBER DISKS (4)(见 raidView.ts memberDiskCount)。
+const diskCount = computed(() => memberDiskCount(members.value))
 
 function backToList() {
   router.push('/storage/raid')
@@ -243,7 +246,7 @@ async function onReplace(newDiskPath: string) {
           </div>
 
           <div class="rd-card">
-            <div class="rd-card-title">{{ t('raidMembers') }} ({{ members.length }})</div>
+            <div class="rd-card-title">{{ t('raidMembers') }} ({{ diskCount }})</div>
             <RaidMemberList
               :level="array.level"
               :members="members"

@@ -6,7 +6,7 @@ import { fmtSize } from '../../home/util/format'
 import { usageLevel } from '../util/storageMap'
 import {
   resolveRaidState, raidSeverity, raidStateLabelKey, countActiveDisks,
-  memberSquare, raidUsagePercent, type RaidArray,
+  memberSquare, slotMembers, raidUsagePercent, type RaidArray,
 } from '../util/raidView'
 
 const props = defineProps<{ array: RaidArray; status?: RaidStatus }>()
@@ -32,7 +32,9 @@ const pct = computed(() => raidUsagePercent(used.value, total.value))
 const totalDisks = computed(() => props.array.member_disks?.length || members.value.length)
 const activeDisks = computed(() => countActiveDisks(members.value, totalDisks.value))
 const rebuildPct = computed(() => Math.round((Number(props.status?.rebuild_pct) || 0) * 10) / 10)
-const squares = computed(() => members.value.map((m) => ({ ...memberSquare(m.state), path: m.path })))
+// 一个方块 = 一个阵列盘位,所以按槽位过滤(见 raidView.ts slotMembers):降级时
+// mdadm 会多报一条"被踢出槽位的故障盘",不过滤就会出现 4 个方块却写 2/3。
+const squares = computed(() => slotMembers(members.value).map((m) => ({ ...memberSquare(m.state), path: m.path })))
 </script>
 
 <template>

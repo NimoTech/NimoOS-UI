@@ -253,3 +253,26 @@ export function replaceOutcome(
   if (s.includes('rebuilding')) return 'rebuilding'
   return 'pending'
 }
+
+// slotMembers —— 只保留占阵列槽位的成员,按槽位升序。
+//
+// 降级时 mdadm 对一个 3 盘 RAID 5 报 4 行:腾空的槽位(removed)与被踢出槽位的
+// 故障盘(faulty)各一条。任何"一个方块代表一个盘位"的展示都必须按槽位过滤,
+// 否则会渲染出比阵列实际盘位更多的方块 —— 卡片曾出现 4 个方块(其中两个红 ✕)
+// 却同时写着「在线磁盘 2/3」,同一张卡上分母自相矛盾(2026-07-30 实盘验收)。
+//
+// slot 字段 2026-07-30 才加入后端。老后端不带它 → 过滤结果为空 → 退回全体成员,
+// 保持加字段之前的行为,而不是渲染成 0 个方块。
+export function slotMembers(members: RaidMemberDisk[]): RaidMemberDisk[] {
+  const list = members || []
+  const withSlot = list.filter((m) => typeof m?.slot === 'number' && (m.slot as number) >= 0)
+  if (!withSlot.length) return list
+  return withSlot.slice().sort((a, b) => (a.slot as number) - (b.slot as number))
+}
+
+// memberDiskCount —— 真正的盘数(有设备路径的行)。
+// 空槽位占位行没有设备路径,它不是一块盘;拿总行数当"成员磁盘数"会把 3 盘阵列
+// 在降级时显示成 4 块(详情页表头曾写 MEMBER DISKS (4))。
+export function memberDiskCount(members: RaidMemberDisk[]): number {
+  return (members || []).filter((m) => !!m?.path).length
+}
