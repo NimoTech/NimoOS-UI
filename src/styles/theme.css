@@ -94,6 +94,15 @@
   /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
      本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
   --place-current-trip: #34c759;
+  /* PlacesMap.vue(P6a-T6)陆地点阵底色的 CSS 回落值——theme-invariant,两套主题块同值。
+     精确复刻 Vue2 photos-places.scss:347 的字面量 rgba(255,255,255,0.10)(该视图刻意不走
+     --ink/文字色系,因为这层压在地图预设自己的深色画布上,与 app 主题无关)。
+     不能用本仓 --fg-faint 顶替:深色 --fg-faint 是 rgba(255,255,255,0.52)(0.52 vs 0.10,
+     陆地点阵会亮到盖过 --map-dot 的已访问点),浅色 --fg-faint 更是不透明的暖灰 #9a958a
+     (铺在 custom 模式的纯黑地图画布上会变成一块不透明灰块)——评审 I1 实测复核过这条
+     失效路径确实可达(Vue2 :150/:137 两条最常见路径的 dotBg 都是 null,即都吃 CSS 回落,
+     不是罕见分支)。 */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
   --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
   --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
   --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
@@ -321,6 +330,9 @@
   --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
   /* 两套主题同值,见 :root 同名注释。 */
   --place-current-trip: #34c759;
+  /* theme-invariant,两套主题块同值——见 :root 同名 token 注释(不用 --fg-faint 的理由同上,
+     浅色 --fg-faint 是不透明暖灰 #9a958a,同样会在地图画布上变成一块不透明色块)。 */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
   --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
   --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
   --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;

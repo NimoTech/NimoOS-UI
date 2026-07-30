@@ -109,12 +109,19 @@ defineExpose({ svgEl })
 }
 .map-canvas:active { cursor: grabbing; }
 
-/* 陆地点阵:回落值走 token(这两个变量本身由 T10 注入到 <svg> 的 inline style 上,
-   不是本组件定义的 theme token——这里只给回落值,回落值也要 token 化)。 */
+/* 陆地点阵:--map-dot-bg / --map-dot 这两个变量本身由 T10 注入到 <svg> 的 inline style 上,
+   不是本组件定义的 theme token——这里只给回落值,回落值也要 token 化。
+   评审 I1:--map-dot-bg 的回落**不能**用 --fg-faint(深色 0.52 会亮到盖过 is-visited 点,
+   浅色是不透明暖灰,铺在地图黑底画布上会变成一块不透明色块)——改用专门的
+   --map-dot-bg-fallback(theme-invariant,精确复刻 Vue2 scss:347 的字面量,见 theme.css
+   同名 token 注释)。 */
 .world-dot {
-  fill: var(--map-dot-bg, var(--fg-faint));
+  fill: var(--map-dot-bg, var(--map-dot-bg-fallback));
   transition: fill 0.2s;
 }
+/* --map-dot 的回落 var(--accent) 实际不可达:Vue2 :974 无条件注入 --map-dot(不像
+   --map-dot-bg 那样看 dotBg 是否为真才注入),所以这条回落路径在 Vue2 里从未走过——
+   登记但不改值(评审判定低影响,只需登记)。 */
 .world-dot.is-visited {
   fill: var(--map-dot, var(--accent));
   transition: fill 0.2s;

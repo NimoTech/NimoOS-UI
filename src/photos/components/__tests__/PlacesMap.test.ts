@@ -91,6 +91,17 @@ describe('结构规格 3: 陆地点阵(删码⑤靶)', () => {
     expect(w.findAll('.world-dot.is-visited').length).toBe(expectedVisited)
     expect(w.findAll('.world-dot:not(.is-visited)').length).toBe(expectedNotVisited)
   })
+
+  // 评审 I1:.world-dot 的 fill 回落必须是专用 token --map-dot-bg-fallback,不能是 --fg-faint
+  // ——深色 --fg-faint(0.52)会亮到盖过 is-visited 点,浅色 --fg-faint 是不透明暖灰,铺在地图
+  // 黑底画布上会变成一块不透明色块(两条都是 Vue2 最常见路径,不是罕见分支)。
+  it('.world-dot 的 fill 回落引用 --map-dot-bg-fallback,不是 --fg-faint(删码:换回 --fg-faint 必红)', () => {
+    const rules = parseCssRules(extractStyleBlock(placesMapRaw))
+    const rule = rules.find(r => r.selectors.length === 1 && r.selectors[0] === '.world-dot')
+    expect(rule, '.world-dot 独立规则未找到').toBeTruthy()
+    expect(rule!.body).toMatch(/fill:\s*var\(--map-dot-bg,\s*var\(--map-dot-bg-fallback\)\)/)
+    expect(rule!.body).not.toContain('--fg-faint')
+  })
 })
 
 describe('结构规格 4: 图钉五层结构(漏渲染主守卫)', () => {
@@ -167,17 +178,18 @@ describe('结构规格 4: 条件类可叠加', () => {
 })
 
 describe('结构规格 4: 标签反缩放(删码③靶)', () => {
-  it('view.scale = 4 时,font-size=2.75px、stroke-width=0.85、y = p.r + 2.75', () => {
+  it('view.scale = 4 时,font-size=2.75px、stroke-width=0.85、y = 4.5(全部手算写死)', () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent', view: { tx: 0, ty: 0, scale: 4 } })
     const pin = w.find('.geo-pin')
-    const bgR = Number(pin.find('.pin-bg').attributes('r'))
     const label = pin.find('.geo-pin-label')
     expect(label.exists()).toBe(true)
     const style = (label.element as unknown as HTMLElement).style
-    // 11/4 = 2.75, 3.4/4 = 0.85 —— 先手算再写死(brief 明确要求)。
+    // 手算,不读 DOM 的 p.r 反推(评审 Minor 3:若 p.r 本身算错,读 DOM 反推的旧写法测不出来)。
+    // ACTIVE_RECENT.count = 10 → tierRadius(10) = 7(< 40 档)→ p.r = 7 / scale = 7 / 4 = 1.75。
+    // font-size = 11 / 4 = 2.75, stroke-width = 3.4 / 4 = 0.85, y = p.r + 11/4 = 1.75 + 2.75 = 4.5。
     expect(style.fontSize).toBe('2.75px')
     expect(style.strokeWidth).toBe('0.85')
-    expect(Number(label.attributes('y'))).toBeCloseTo(bgR + 2.75, 10)
+    expect(Number(label.attributes('y'))).toBeCloseTo(4.5, 10)
   })
 })
 
@@ -216,6 +228,27 @@ describe('结构规格 4: pin-merge 入场/离场动画(源码级断言,理由�
   })
 })
 
+// 评审 Minor 1:transform-box: fill-box / transform-origin: center 缺任一条,合并/裂变动画会
+// 绕 SVG 用户坐标原点缩放,图钉会飞出屏幕——但 jsdom 不做布局也不做变换计算,DOM 断言测不到
+// 视觉后果,只能在样式源码层面钉住这两条声明确实存在。同理 .geo-pin:hover 的 var(--pin-glow)
+// 引用此前也是零覆盖(删掉整条规则 19/19 仍然全绿),一并补上。
+describe('结构规格 4/8: .pin-scale 几何声明 + hover 发光引用(补测,原先零覆盖)', () => {
+  it('.pin-scale 规则同时含 transform-box: fill-box 与 transform-origin: center', () => {
+    const rules = parseCssRules(extractStyleBlock(placesMapRaw))
+    const rule = rules.find(r => r.selectors.length === 1 && r.selectors[0] === '.pin-scale')
+    expect(rule, '.pin-scale 独立规则未找到').toBeTruthy()
+    expect(rule!.body).toMatch(/transform-box:\s*fill-box/)
+    expect(rule!.body).toMatch(/transform-origin:\s*center/)
+  })
+
+  it('.geo-pin:hover 引用 var(--pin-glow) 做外发光', () => {
+    const rules = parseCssRules(extractStyleBlock(placesMapRaw))
+    const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
+    expect(rule, '.geo-pin:hover 规则未找到').toBeTruthy()
+    expect(rule!.body).toMatch(/filter:\s*drop-shadow\([^)]*var\(--pin-glow\)/)
+  })
+})
+
 describe('emit: 点击 / 悬停 / 离开', () => {
   it('点图钉 emit pick-pin 带 pin 与事件', async () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent' })
@@ -248,10 +281,18 @@ describe('expose: svgEl 交给 T7/T11 做坐标换算与 pointer capture', () =>
 })
 
 describe('样式块零颜色 attribute(防日后有人图省事写回 attribute)', () => {
-  it('组件源文本不出现 fill="#、fill="var(、stroke="var(', () => {
+  it('组件源文本不出现任何颜色 attribute 写法(评审 Minor 2:原列表偏窄,补齐 stroke="#/fill="rgb/绑定字符串 var(', () => {
     expect(placesMapRaw).not.toContain('fill="#')
     expect(placesMapRaw).not.toContain('fill="var(')
     expect(placesMapRaw).not.toContain('stroke="var(')
+    // 补的四种:原列表只挡了裸 attribute 的 hex/var 两种写法,漏了 stroke 的 hex、rgb() 函数、
+    // 以及 :fill="'var(--x)'" 这种把 var() 包成字符串再绑定的写法(同样绕开 CSS 规则,不受
+    // color-guard 的样式块扫描)。
+    expect(placesMapRaw).not.toContain('stroke="#')
+    expect(placesMapRaw).not.toContain('fill="rgb')
+    expect(placesMapRaw).not.toContain('stroke="rgb')
+    expect(placesMapRaw).not.toContain(':fill="\'var(')
+    expect(placesMapRaw).not.toContain(':stroke="\'var(')
   })
 })
 
