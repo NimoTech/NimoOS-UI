@@ -163,6 +163,28 @@ describe('不持副本(偏离登记 7)', () => {
   })
 })
 
+// ── 评审修复 I2(fix round 1):重命名/恢复默认名成功后必须退出编辑态,回源 Vue2
+// saveSpotName :495-516——成功立刻退出,失败(name 不变)保留编辑态。 ───────────
+describe('改名成功/失败后的编辑态(评审修复 I2)', () => {
+  it('改名成功(父级传下新 name)→ 退出编辑态', async () => {
+    const w = mountDialog({ spot: spot({ key: 's1', name: 'Old Name' }) })
+    await w.find('.spot-rename-btn').trigger('click')
+    expect(w.find('.spot-rename-input').exists()).toBe(true)
+    await w.setProps({ spot: spot({ key: 's1', name: 'New Name' }) })
+    expect(w.find('.spot-rename-input').exists()).toBe(false)
+    expect(w.find('.spot-dialog-name .one-line').text()).toBe('New Name')
+  })
+
+  it('改名失败(name 不变)→ 仍在编辑态', async () => {
+    const w = mountDialog({ spot: spot({ key: 's1', name: 'Old Name' }) })
+    await w.find('.spot-rename-btn').trigger('click')
+    expect(w.find('.spot-rename-input').exists()).toBe(true)
+    // 容器/store 请求失败:父级 prop 原样传回同一个 name(即便是新对象引用)。
+    await w.setProps({ spot: spot({ key: 's1', name: 'Old Name' }) })
+    expect(w.find('.spot-rename-input').exists()).toBe(true)
+  })
+})
+
 // ── D8:恢复默认名(net-new,Vue2 无对应)───────────────────────────────
 describe('D8 恢复默认名', () => {
   it('点「恢复默认名」→ emit reset-name,零参数', async () => {
@@ -219,5 +241,17 @@ describe('hover 态背景', () => {
     const style = extractStyleBlock(placeSpotDialogRaw)
     const win = winningHoverBackground(style, ['spot-dialog-btn'])
     expect(win.selector).toContain(':hover')
+  })
+})
+
+// ── 评审修复 I1(fix round 1):`.one-line` 在本仓不是全局工具类(每个 SFC 都是
+// scoped 孤岛),此前是不生效的空壳类——补齐单行省略三件套后需要程序化断言钉住,
+// 防止后人重塑样式时又静默丢掉(同 T3 漏 backdrop-filter 的根因)。──────────────
+describe('.one-line 单行省略(评审修复 I1)', () => {
+  it('.spot-dialog-name .one-line 规则含 text-overflow: ellipsis', () => {
+    const style = extractStyleBlock(placeSpotDialogRaw)
+    const m = /\.spot-dialog-name \.one-line\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .spot-dialog-name .one-line 规则').not.toBeNull()
+    expect(m![1]).toMatch(/text-overflow:\s*ellipsis/)
   })
 })

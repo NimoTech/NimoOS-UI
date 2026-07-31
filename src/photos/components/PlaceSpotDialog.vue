@@ -14,11 +14,11 @@
 // 包装对象,只有裸的 spot prop,所以：
 //  · 非编辑态的名字/坐标/统计一律直接读 props.spot.*——改名成功后父级把新
 //    detail.spots 传下来,这里立刻显示新值,不需要任何额外信号。
-//  · 编辑态的退出只由下面这条"props.spot.key 变化"的 watch 负责(钉 Vue2 watch :303
-//    的语义:换了一个不同的 spot 才退出编辑态),不在"提交 rename 成功"这件事上自动
-//    退出编辑态——本组件看不到那次网络请求是否成功(容器/store 才知道),乐观退出
-//    在请求失败时会撒谎(Vue2 catch 块空着、显式"keep editing open on failure"),
-//    所以宁可保守:退出编辑态只交给"spot.key 变了"这一个信号。
+//  · 编辑态的退出由两条 watch 负责,都不做乐观退出(不在"点了保存"这个动作本身上退出,
+//    只在"父级传下来的数据真的变了"这件事上退出):"props.spot.key 变化"(钉 Vue2 watch
+//    :303 的语义:换了一个不同的 spot)+ "props.spot.name 变化"(评审修复 I2:钉 Vue2
+//    saveSpotName :495-516 成功后立刻退出编辑态、失败保留编辑态的可见行为——name 真的
+//    被 store 回写了才退,失败时 name 不变、继续编辑,不会撒谎)。
 //
 // 偏离登记 16(用户 2026-07-31 pre-flight 裁定,brief 原文):坐标行不再照抄 Vue2 写死的
 // `° N`/`° E`(南/西半球会显示成错误方向),改用 T2 的 formatSpotCoords 按符号出 N/S/E/W。
@@ -56,6 +56,20 @@ const inputRef = ref<HTMLInputElement | null>(null)
 // 不同的 spot"这一种情形(见文件头偏离登记 7)。
 watch(
   () => props.spot.key,
+  () => { editing.value = false },
+)
+
+// 评审修复 I2(fix round 1):回源 Vue2 saveSpotName :495-516 —— `await` 成功后立刻
+// `spotEditing = false`,只有失败(catch 块空着,显式"keep editing open on failure")
+// 才保留编辑态。这里没有那次网络请求的可见性(容器/store 才知道成不成功),但不能因此
+// 完全没有成功退出路径——改接到真实数据上:setSpotName 成功后 store 会就地回写
+// detail.spots 命中项的 name、resetSpotName 成功后 store 会 await loadDetail 重拉,
+// 两条路径都会让父级传下来的 spot.name 变化;失败时 name 不变,继续保持编辑态。
+// 语义等价 Vue2 的可见行为,且不会在失败时撒谎。
+// 已知边角(评审已认可,不做处理):草稿改成与当前名完全相同再保存,name 不变,编辑态
+// 不退(Vue2 会退——它提交时无条件设 spotEditing=false,不区分是否真的变了)。
+watch(
+  () => props.spot.name,
   () => { editing.value = false },
 )
 
@@ -176,6 +190,18 @@ function onThumbClick(): void {
 }
 .spot-dialog-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .spot-dialog-name { font-size: 13.5px; font-weight: 600; color: var(--fg); display: flex; align-items: center; gap: 6px; }
+/* 评审修复 I1(fix round 1):Vue2 `.one-line` 是全局工具类(NimoOS-UI
+   src/assets/scss/common/_others.scss:55,-webkit-box + line-clamp:1 的单行省略写法),
+   但本仓每个 SFC 都是 scoped 孤岛、没有对应的全局样式表——`.one-line` 在这里此前是
+   一个不生效的空壳类,长地点名会换行/溢出、挤压右侧关闭钮。补一份等价的单行省略三件套,
+   同 files/viewers/ViewerShell.vue `.one-line`(:47)既有先例的写法(white-space:nowrap
+   版,视觉效果与 Vue2 的 -webkit-line-clamp:1 等价,写法更简单)。与 T3 漏
+   backdrop-filter 同一根因:改写 Vue2 内联/全局样式为本仓 scoped 写法时,逐条对照容易
+   漏,程序化断言见 PlaceSpotDialog.test.ts。min-width:0 是 flex 子项省略生效的前提
+   (否则 flex item 默认 min-width:auto,撑开而不裁切)。 */
+.spot-dialog-name .one-line {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .spot-dialog-coords {
   font-size: 11px; color: var(--fg-subtle);
   /* 本仓等宽字体用既有 --num-font,不照抄 Vue2 的 ui-monospace, SFMono-Regular, monospace 字体栈。 */
@@ -192,6 +218,9 @@ function onThumbClick(): void {
 .spot-rename { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .spot-rename-input {
   flex: 1; min-width: 0; height: 26px; padding: 0 8px;
+  /* M1(评审 fix round 1,顺手登记):Vue2 这条输入框边框写的是一个带兜底值的 accent
+     半透明 token(该 token 未定义时的字面量兜底,同语义"比 accent 更浅的软边框")——
+     本仓已有恰好对应语义的 --accent-soft-bd,直接换用,不是就近凑色。 */
   border: 1px solid var(--accent-soft-bd);
   border-radius: 6px; background: var(--chip-bg);
   color: var(--fg); font: inherit; font-size: 12.5px; outline: none;

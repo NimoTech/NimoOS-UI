@@ -464,6 +464,16 @@ describe('spots 列表段', () => {
   })
 })
 
+// ── 评审修复 I3(fix round 1):`.spot-row:hover` 也要有 cssCascade 安全网(硬约束
+// 点名两处都要,此前只补了 .spot-dialog-btn:hover 这一处)。 ─────────────────
+describe('hover 态背景(.spot-row,评审修复 I3)', () => {
+  it('.spot-row 的 hover 背景归属含 :hover 的规则', () => {
+    const style = extractStyleBlock(placeDetailPanelRaw)
+    const win = winningHoverBackground(style, ['spot-row'])
+    expect(win.selector).toContain(':hover')
+  })
+})
+
 // ── P6b-T4: activeSpotKey → spot 弹窗(String() 归一)─────────────────────
 describe('activeSpotKey 命中 spots → 渲染 PlaceSpotDialog', () => {
   it('命中时渲染弹窗', () => {
