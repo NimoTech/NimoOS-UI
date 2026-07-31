@@ -1,25 +1,24 @@
-# SP9 — 收尾视图（Search / 系统设置 / KVM）设计规格
+# SP9 — 收尾视图（系统设置 / KVM / Search）设计规格
 
-> 创建 2026-07-31 · 状态：**设计已定，未开工**
-> 上位文档：`NimoOS-UI/docs/vue3-migration-roadmap.md` §1 决策 · §3 区域迁移标准套路 · §3.3 域迁包追踪表 · §4 SP9（A/B/C 三节开工前依赖核查）
+> 创建 2026-07-31 · 修订 2026-07-31（用户新增「壳先行 + 做样子」交付政策，分期顺序重排）· 状态：**设计已定，未开工**
+> 上位文档：`NimoOS-UI/docs/vue3-migration-roadmap.md` §1 决策 · §3 区域迁移标准套路 · §3.3 域迁包追踪表 · §4 SP9
 > 本文只写 SP9 自己的事；跨服务背景见 `/home/nimo/NimoTech/CLAUDE.md`，New-UI 自身约定见 `NimoOS-New-UI/CLAUDE.md`。
 
 ---
 
-## 0. 一句话
+## 0. 一句话与范围
 
-把最后三块视图迁进 New-UI：**Search**（已有界面接真后端，不是从零迁）、**系统设置**（Vue2 3095 行模态面板 → New-UI 路由页）、**KVM**（Vue2 3854 行，New-UI 零实现）；顺带把 `network` / `kvm` / `search` 三个域搬进共享包。做完 SP9，Vue2 只剩 SP10 的退役动作。
+把最后三块视图迁进 New-UI：**系统设置**（Vue2 3095 行模态面板 → New-UI 路由页，**本期主线**）、**KVM**（Vue2 3854 行，New-UI 零实现）、**Search**（已有界面接真后端，不是从零迁）。做完 SP9，Vue2 只剩 SP10 的退役动作。
 
-**不在本期范围**（已拍板，别再讨论）：
+**不在本期范围**：
 
 | 项 | 结论 |
 |---|---|
-| Samba 视图 | SP4 已完成对位物，从 SP9 范围删除。只记两处差异（见 §9 债务 D1） |
-| 设置 App tab「清理本地待上传缓存」 | 依赖 SP7 相册上传队列，归 **SP7-P8**（用户 2026-07-30 拍板） |
-| 搜索 `notes`（Wiki 笔记）源 | 不请求，记债（见 §9 D2） |
+| Samba 视图 | SP4 已完成对位物，从 SP9 范围删除。只记两处差异（§11 债务 D1） |
+| 搜索 `notes`（Wiki 笔记）源 | 不请求，记债（D2） |
+| **`wiki` 域整体** | **用户 2026-07-31 拍板挂账,本期不管**（D12）。它是 folder-permissions 逻辑落地的前置 |
 | 任何后端改动 | SP9 是纯前端 + 对齐接口契约。搜索区尤其：**不靠"跑通了"兜底，字段形状一律照后端源码对死** |
-| 设置 folder-permissions tab 的功能本体 | 跨 SP7/SP8 + 依赖无归属的 `wiki` 域（§1.11 实测更正 roadmap）→ 移出，本期只放占位卡 |
-| 凡依赖 sp7-photos / sp8-ai 分支的项 | 一律不做，等合并后统一处理。**本期全程不碰那两个 worktree** |
+| 凡依赖 sp7-photos / sp8-ai 分支的**逻辑** | 不做逻辑，但**要做界面**（见 §3.1 政策三）。**本期全程不碰那两个 worktree** |
 
 ---
 
@@ -88,7 +87,7 @@ roadmap §4 SP9 C 节列的设置区端点清单里没有它，所以这条是�
 ### 1.8 `PortPanel.vue` 是死代码
 
 `SettingsPanel.vue:802` import、`:841` 注册进 `components`，但**模板里零处渲染**。
-→ §3.3 追踪表里「`port` 域 SP6 定案推迟 SP9 设置区」这一行，**结论：Vue2-only 死代码，不进包，随 SP10 删**。
+→ **roadmap** §3.3 追踪表里「`port` 域 SP6 定案推迟 SP9 设置区」这一行，**结论：Vue2-only 死代码，不进包，随 SP10 删**。
 
 ### 1.9 KVM 信封层数按端点不同
 
@@ -109,7 +108,7 @@ roadmap §4 SP9 C 节列的设置区端点清单里没有它，所以这条是�
 ### 1.10 KVM 创建校验的硬下限
 
 `NimoOS-KVM/service/vm_service.go:286-310`：`name` 非空 · `vcpu ∈ [1,32]` · `memory ≥ 256` · **`disk ≥ 8`** · `iso` 非空且**必须是宿主机上真实存在的绝对路径**（`os.Stat` 检查）· 域名不得重名。
-实测 `GET /v1/kvm/isos` 返回的 `alpine-319.minDisk = 2`，**与后端 8 GB 硬下限矛盾**（roadmap 已记，本次实测确认）。其余：`debian-13`=8、`ubuntu-2404`=10、`win10/win11`=60、`centos-stream-9`=10、`freebsd-14`=10、`arch`=10。
+实测 `GET /v1/kvm/isos` 返回的 `alpine-319.minDisk = 2`，**与后端 8 GB 硬下限矛盾**。其余：`debian-13`=8、`ubuntu-2404`=10、`win10/win11`=60、`centos-stream-9`=10、`freebsd-14`=10、`arch`=10。
 
 ### 1.11 `folder-permissions` tab 跨 SP7/SP8 依赖 —— roadmap B 节该条判断有误
 
@@ -119,22 +118,34 @@ roadmap §4 SP9 B 节末尾写「✅ 不挡的：… folder-permissions → user
 
 | 调用 | 域 | SP 归属 |
 |---|---|---|
-| `wiki.getCandidates()` / `getRoots()` / `createRoot()` / `patchRootEnabled()` | `wiki` | **无归属** —— roadmap §3.3 追踪表里根本没有 `wiki` 这一行 |
+| `wiki.getCandidates()` / `getRoots()` / `createRoot()` / `patchRootEnabled()` | `wiki` | **无归属**，且用户已拍板挂账（D12） |
 | `api.get/post/delete('/ai/parser/allowlist/folders')` | 经 AI 代理 | SP8 |
 | `ai.getSearchSettings()` / `putSearchSettings()` | `ai` | SP8 |
 | `ai.listBlacklist()` / `addBlacklistPattern()` / `removeBlacklistPattern()` | `ai` | SP8 |
 | `photos.getConfig()` / `updateConfig()` | `photos` | SP7 |
 
-按用户硬约束「凡依赖 SP7/SP8 的项一律不做」→ **该 tab 移出 SP9**（处置见 §6.2 与债务 D11）。
+处置：按 §3.1 政策三 —— **界面做完整，逻辑后补**（见 §5.7、债务 D11）。
 
 ### 1.12 共享包 `container` 域缺 `prune`，且系统里有两个同名 `prune`
 
 - 设置 apps tab 的「清理 Docker 缓存」用的是 `$api.container.prune()`（`SettingsPanel.vue:1983`）→ `POST /v1/container/prune`（`NimoOS-UI/src/service/container.js:152`）。
 - 共享包 `NimoOS-Service/src/container.ts` **只有 `getNetworks()`**，没有 `prune`。
-- roadmap §3.3 记的是「`container` 现用的 v1 部分 **SP5-P8 收口判定 = Vue2-only，不进包，随 SP10 删**」——**那次判定没有考虑设置区**。按 §3 第 3 条判断法（「Vue2 退役后 New-UI 还要用吗？要 → 进包」），`prune` **要进包**。本 spec 更正该条（见 D10）。
+- roadmap §3.3 记的是「`container` 现用的 v1 部分 **SP5-P8 收口判定 = Vue2-only，不进包，随 SP10 删**」——**那次判定没有考虑设置区**。按 **roadmap** §3 第 3 条判断法（「Vue2 退役后 New-UI 还要用吗？要 → 进包」），`prune` **要进包**。本 spec 更正该条（见 D10）。
 - ⚠️ **同名陷阱**：`NimoOS-UI/src/service/sys.js:154` 另有一个 `prune()`，打的是 `POST /v1/sys/prune`，**是不同端点**。设置区要的是 `container` 那个，别拿错。
 
-### 1.13 本机后端可用性（不变，转录备查）
+### 1.13 roadmap 的「⚠️ WS 刷新遗留」条目三个子项全部作废
+
+roadmap §4 SP9 第 3 条列了三处「token 焊在 WS 握手、不中途刷新」要在 SP9 顺修。逐个核过，**没有一处成立**：
+
+| 子项 | 实际 |
+|---|---|
+| 容器终端 `AppTerminalPanel.vue:38` | **SP5 已经做对了** —— New-UI `src/apps/console/terminalSocket.ts` 连接前 `shouldRefreshToken()` → `refresh()`，还带代际计数器防「卸载期间 refresh 落定后复活连接」的竞态。Vue2 那个文件是等 SP10 删的遗留 |
+| SSH 终端 `TerminalCard.vue:76`（roadmap 记的 `:123` 是旧行号） | 后端已注释、404（§1.6），**没有可迁的东西** |
+| MessageBus `CoreService.vue:134` / `main.js:35` | **前提就是错的** —— 两边都是 `io({ path: '/v2/message_bus/socket.io/' })`，**握手里根本没有 token**；New-UI `src/composables/useMessageBus.ts` 同样（grep `token` 零命中）。没有 token 就不存在"不中途刷新"。MessageBus 的 socket.io 本就不鉴权（顶层 CLAUDE.md 记了「Socket.IO CORS is wide-open」） |
+
+→ 该条目从 SP9 划掉，roadmap 标注为「已核查作废」（D9 销号）。
+
+### 1.14 本机后端可用性
 
 - ✅ KVM 全端点就绪，有一台 `sp9-alpine-test` 在跑（`vncPort:5900 / vncWebsocketPort:5700 / spicePort:5901`）→ **KVM 区可全程真机验收**。
 - ✅ 设置区端点除 `wsssh`（见 1.6）外全部就绪；wifi 扫描能返回真实 AP → **设置区基本可全程真机验收**。
@@ -142,11 +153,9 @@ roadmap §4 SP9 B 节末尾写「✅ 不挡的：… folder-permissions → user
 
 ---
 
-## 2. 本期唯一的重大范围决策：搜索四源聚合入口
+## 2. 搜索四源聚合入口（本期唯一的重大接口决策）
 
 **选定：(a) 的具体变体 —— 前端打 `POST /v1/ai/search/agent/tool`。**
-
-请求：
 
 ```
 POST /v1/ai/search/agent/tool          (Authorization: <access_token>，共享 axios 自动带)
@@ -155,115 +164,111 @@ POST /v1/ai/search/agent/tool          (Authorization: <access_token>，共享 a
 
 响应：**裸 JSON、零层信封**（AI 代理用 `c.Blob` 原样透传 Search 的 `AggregateResponse`）。
 
-### 理由
+**理由**：① 唯一能同时解决"聚合"和"user-id"两个问题的路径（直连必 400，§1.1；伪造头等于把授权边界交给客户端）；② Vue2 生产已验证的同一条路（§1.2），不引入新的后端契约风险；③ 零后端改动。
 
-1. **它是唯一能同时解决"聚合"和"user-id"两个问题的路径。** 直连 `/v1/search/agent/tool` 会 400（§1.1）；让前端自己伪造 `X-NimoOS-User-ID` 等于把授权边界交给客户端。
-2. **它是 Vue2 生产已验证的同一条路**（§1.2）。SP9 因此不引入任何新的后端契约风险，也符合「界面照 Vue2、逻辑照正确」的移植纪律——这里连逻辑都不用改。
-3. **零后端改动**，符合用户「搜索区只做前端」的约束。
+**被否**：
+- **(b) 后端补 UI 聚合端点** —— 违反「本期不动后端」。技术上是最干净的终局形态，登记为 **D3** 留给后端排期。
+- **(c) 前端并发打 `text` + `visual` 自己合** —— **技术上不成立**：`filenames` 没有单源端点（§1.4），而它恰是本机唯一可用、对"按文件名找东西"最重要的源；`/v1/search/text` 还是纯语义端点，Parser 不在就整个 503。
 
-### 被否方案
-
-- **(b) 后端补一个 UI 聚合端点**（实现 `/v1/search/hybrid` 或新开一个，并解决 user-id 来源）——直接违反「本期不动后端」。技术上是最干净的终局形态，登记为债务 **D3**，留给后端排期。
-- **(c) 前端并发打 `text` + `visual` 自己合** —— **技术上不成立**：`filenames` 没有单源端点（§1.4），而它恰恰是本机唯一可用、且对"按文件名找东西"这个最高频场景最重要的源。此外 `POST /v1/search/text` 是纯语义端点，Parser 不在就整个 503。
-
-### 代价（写清楚，不粉饰）
-
-搜索面板从此**依赖 `nimoos-ai` 服务在跑**。AI 挂了搜索就不可用——这是一条本不该存在的耦合（搜索不需要 LLM）。前端必须把这种失败**如实呈现为"搜索服务不可用"并给重试**，不得静默空结果。消除耦合的办法就是 D3。
+**代价（不粉饰）**：搜索面板从此**依赖 `nimoos-ai` 在跑**。AI 挂了搜索就不可用——这是一条本不该存在的耦合（搜索不需要 LLM）。前端必须把这种失败**如实呈现为"搜索服务不可用"并给重试**，不得静默空结果。消除耦合靠 D3。
 
 ---
 
-## 3. 分期总表
+## 3. 交付政策与分期
 
-| 期 | 内容 | 前置 | 真机可验 |
+### 3.1 本期交付政策（用户 2026-07-31 新增，优先于本 spec 其它安排）
+
+**政策一 —— 壳先行。** 系统设置的路由 / tab rail / 布局 / 样式 / 各 tab 空骨架排在**第一期**，零后端依赖，做完立刻能在真机上看到形状。内容逐 tab 往里填。
+
+**政策二 —— 后端打不通的，不做测试、不列验收项。** 接口已废弃 / 本机不可用 / 返回恒定错误的，只做界面 + **明确空态**（写清为什么不可用），**不写针对该接口的测试**，不列入该期验收清单。
+适用：terminal 终端位（`wsssh` 404）· 搜索的 `semantic` / `images` 源（本机不可用，正确性由用户在另一台机器验）。
+
+> **⚠️ 边界：免测只免"打不通的后端"那一段。** 纯前端逻辑照测不误 —— 搜索的排名分层与 reasons 派生、KVM 的信封层数解析、network 的 utilization+config 合并、路径映射、表单校验。这些不依赖后端活着，没有免测理由。
+
+**政策三 —— 依赖在建前端的，先做样子，逻辑后补。** 内容依赖 sp7-photos / sp8-ai 等尚未合并的前端工作时，**照 Vue2 把界面完整做出来**（结构、布局、样式、交互骨架都在），数据源与写操作留空并在界面上标注，等对应分支合并后接线即可，**不必重做界面**。
+适用：folder-permissions 权限矩阵（§5.7）· apps tab 的「清理本地待上传缓存」行（§5.6）。
+
+> 这条**修订了** 2026-07-30「SP9 先不做清理待上传缓存」的决定 —— 用户 2026-07-31 确认适用新政策。
+
+**政策四 —— `wiki` 域挂账。** 本期不管（D12）。它是 folder-permissions 逻辑落地的前置，所以那块只能停在"样子"。
+
+### 3.2 分期总表（顺序由用户 2026-07-31 指定：壳 → 设置全部 tab → KVM → Search → cutover）
+
+| 期 | 内容 | 随期进包的域 | 真机可验 |
 |---|---|---|---|
-| **P0** | 共享包：`network` / `kvm` / `search` 三域 + `sys` / `users` / `container` 补全；i18n & theme 分片接线；依赖安装；测试基线 | — | 单测 |
-| **P1** | Search：SearchDialog 接真后端 | P0 | 仅 filenames 源（其余用户另机验） |
-| **P2** | 设置壳（路由 + tab rail）+ general + developer | P0 | ✅ |
-| **P3** | 设置 network | P0 P2 | ✅ |
-| **P4** | 设置 apps + system-status + terminal(Logs/安全) + storage 入口卡 + folder-permissions 占位卡 | P2 | ✅ |
-| **P5** | 设置 account | P0 P2 | ✅ |
-| **P6** | KVM 列表 + 控制台(noVNC) + 电源 | P0 | ✅ |
-| **P7** | KVM 创建向导 + OSSelector + 快照 + KVM 设置 | P6 | ✅ |
-| **P8** | cutover：`/kvm` 路由 + `/settings` 模态入口 + 桌面磁贴翻路由 + 回退 flag + 回退可逆验证 | 全部 | ✅ |
+| **P0** | **设置壳** + 地基：`/settings/:tab` 路由、tab rail、布局、样式、9 个 tab 空骨架；i18n & theme 分片接线；`@novnc/novnc` 安装；测试基线 | — | ✅ 形状可见 |
+| **P1** | 设置 general + developer | `sys` 补全 | ✅ |
+| **P2** | 设置 network | `network`（新建） | ✅ |
+| **P3** | 设置 apps + system-status + terminal + storage | `container.prune` | ✅（终端位除外） |
+| **P4** | 设置 account + folder-permissions **界面骨架** | `users` 补全 | ✅（权限矩阵无数据） |
+| **P5** | KVM 列表 + 控制台(noVNC) + 电源 | `kvm`（新建） | ✅ |
+| **P6** | KVM 创建向导 + OSSelector + 快照 + KVM 设置 | — | ✅ |
+| **P7** | Search：SearchDialog 接真后端 | `search`（新建） | 仅 filenames 源 |
+| **P8** | cutover：`/settings` 模态入口 + `/kvm` 路由 + `/search` 深链 + 桌面磁贴翻路由 + 回退 flag + 回退可逆验证 | — | ✅ |
+
+**共享包各域按消费方就近入包**（不再集中在 P0）：域进包的当期就有真实消费方验证形状，避免"进包时凭源码猜、消费时才发现错"。代价是 `NimoOS-Service` 仓被碰 5 次而不是 1 次——可接受，因为并发风险主要在 New-UI 侧（§9）。
+
+**每期通用 DoD** = roadmap §3.1 那 10 条，外加**本 spec** §3.1 的三条政策与 §9.4 改写过的任务门判定（「相对基线不新增红」而非「全绿」）、§10 硬约束速查。各期专属 DoD 见各节末尾。
 
 每期开工前单独写 plan 到 `docs/superpowers/plans/`；每期自己起 dev server 轻验收；**整个 SP9 末尾由用户做一次正式真机验收**。
 
-**每期通用 DoD** = roadmap §3.1 那 10 条，外加本 spec §7.4 第 5 条改写过的任务门判定（「相对基线不新增红」而非「全绿」）与 §8 的硬约束速查。P0 / P1 另有专属 DoD，见各自小节末尾。
+---
+
+## 4. P0 — 设置壳 + 地基
+
+**本期零后端依赖，不调用任何服务。** 目标是把设置区的形状立起来，后续每期只往里填内容。
+
+### 4.1 壳本体
+
+代码落 **`src/settings/`**（master 已有 `apps/components/settings/`、sp8 有 `ai/components/settings/`，必须挑第三个名字）。
+样式落 **`src/settings/styles/settings.scss`** —— **不复用 sp8 的 `ai/styles/settings-styles.scss`**（那是 AI 设置页专用，还带着 P2a 记的 `v-show`→`v-if` 窄屏回归坑）。
+
+**形态：路由页 `/settings` + `/settings/:tab`**（左 tab rail + 右内容），不是 Vue2 的模态面板。
+
+> 理由：New-UI 是「主页即中枢」的 hub-and-spoke 模型，没有承载全屏模态的宿主；SP8 的 `/ai/settings` 已是同一形态（SettingsRail + section）。
+> **内容 1:1，容器形态改变 → 登记为授权偏离 #2（§12）。** 与 SP6 存储区把弹窗改成路由页同例。
+
+交付：
+
+- 路由两条：`/settings`（重定向到上次 tab）、`/settings/:tab`。tab 记忆沿用 Vue2 的 `localStorage['nimoos_settings_last_tab']` 键名，但由路由承载。
+- 未知 `:tab` → 重定向到 `general`（不是 404）。
+- tab rail：9 项 —— `general` · `storage` · `network` · `apps` · `terminal` · `system-status` · `folder-permissions` · `account` · `developer`（`developer` 沿用 Vue2 的隐藏语义，只在开发者模式开启后出现；P0 先按 Vue2 的显隐条件占位）。
+- 每个 tab 一个空骨架组件（标题 + 内容区容器 + 加载/空态位），**不接任何接口**。
+- 「回主页」按钮（hub-and-spoke 模型下每个区域的唯一导航，§1 决策）。
+- 窄屏行为对齐 Vue2 面板；**注意 sp8 P2a 记过的 `v-show`→`v-if` 窄屏回归坑**，tab 切换用 `v-if`。
+
+### 4.2 i18n 分片接线（并发对策，见 §9）
+
+- 新建 `src/i18n/zh_cn.sp9.ts` / `src/i18n/en_us.sp9.ts`，**扁平 key、值全为字符串**（`parity.test.ts` 断言 `typeof v === 'string'`，不能嵌套对象）。
+- `src/i18n/index.ts` 一次性改成 `messages = { zh_cn: {...zh, ...zhSp9}, en_us: {...en, ...enSp9} }`。
+- `src/i18n/parity.test.ts` 同步改成断言**合并后**的集合。
+- 此后 SP9 三区所有新 key 只落分片文件，**P0 之后再不碰 `zh_cn.ts` / `en_us.ts`**。
+
+### 4.3 theme token 分片接线
+
+- 新建 `src/styles/theme.sp9.css`，`:root{}` 与 `:root[data-theme="light"]{}` **两块都给值**（New-UI 硬约束）。
+- `src/main.ts` 在 `import './styles/theme.css'` 之后加一行 `import './styles/theme.sp9.css'`。
+  （不能在 `theme.css` 末尾 `@import` —— CSS 规定 `@import` 必须位于所有规则之前。）
+- 此后 SP9 **全程不碰 `theme.css`**。
+
+### 4.4 依赖与基线
+
+- 装 `@novnc/novnc`（P5 用）。**只在 P0 装这一次**，装前先 `git status`，装完立刻用显式 pathspec 提交 `package.json` + `pnpm-lock.yaml`，缩短共享 `node_modules` 被搅动的窗口。
+- 跑一次全量 `pnpm test` 与 `pnpm exec vue-tsc --noEmit`，把结果（尤其 `src/files/**` 的红）记进台账当**基线**（§9.4 第 5 条）。
+
+### P0 DoD
+
+`/settings` 与 `/settings/:tab` 可达、9 个 tab 能切、刷新保持、未知 tab 回落 `general`、窄屏不塌；tab 路由与记忆有单测；i18n / theme 分片接线后 parity 测试仍绿；基线已记台账；显式 pathspec 提交。
 
 ---
 
-## 4. P0 — 共享包与地基
+## 5. P1–P4 — 系统设置内容
 
-### 4.1 `network` 域（新建 `NimoOS-Service/src/network.ts`）
+### 5.1 P1 general（+ `sys` 域补全）
 
-```
-getInterfaces(): Promise<NetworkInterfaceConfig[]>   GET  /v2/nimoos/network/interfaces
-updateInterface(cfg: NetworkInterfaceConfig): Promise<void>
-                                                     PUT  /v2/nimoos/network/interfaces
-scanWifi(iface: string): Promise<WifiScanResult[]>   GET  /v2/nimoos/network/wifi/scan?iface=<urlencoded>
-```
+内容：设备信息卡（+ `DeviceInfoPanel` 191 行）· 壁纸行 · 语言行 · 时区行 · 磁盘待机 · WebUI 端口（改端口 + `checkUiPort` 探活）· USB 自动挂载 · 推荐应用 · RSS · Docker 应用开关 · 系统更新（`UpdateModal` 321 + `UpdateCompleteModal` 177）· App 更新 · 开发者模式开关 · 关机/重启确认与等待流（6 个状态浮层：shutting / offline / restarting / reconnecting / done / fallback）。
 
-**信封：裸 JSON，零层 unwrap。** `NimoOS/route/v2/network.go` 全部 `c.JSON(status, payload)`，成功体直接是数组/对象，错误体是 `{"error": "..."}`（**不是** `Result{Success,Message,Data}`）。→ 错误路径靠 axios 的 HTTP 状态码 reject，不要过 `unwrap()`。
-
-**类型逐字照 `NimoOS-Common/model/network.go`**，注意蛇形/驼峰混用，别"顺手统一"：
-
-```ts
-interface NetworkInterfaceConfig {
-  name: string
-  type: string            // "ethernet" | "bridge" | "wifi" | "thunderbolt"
-  is_virtual: boolean     // 蛇形
-  mac: string
-  speed?: string          // 字符串，如 "1000"
-  state: string           // "up" | "down"（实测可能是空串）
-  ipv4?: { method: string; address?: string; netmask?: string; gateway?: string; dns?: string[] }
-  wireless?: { mode: string; ssid?: string; apSsid?: string; password?: string
-               apPassword?: string; channel?: number; hybridMode?: boolean }
-  zone?: string           // "lan" | "wan" | ""
-  ports?: string[]
-  hybridCapable?: boolean // 驼峰
-}
-```
-
-`PUT` 成功返回 `{"message":"success"}`，无数据。
-
-### 4.2 `kvm` 域（新建 `NimoOS-Service/src/kvm.ts`）
-
-23 个方法，1:1 对 `NimoOS-UI/src/service/kvm.js`：
-`getVMList / getVM / createVM / updateVM / deleteVM / startVM / stopVM / restartVM / pauseVM / resumeVM / wakeupVM / getVNC / setBootFromDisk / setAutostart / getISOList / getISO / downloadISO / deleteISO / getISODownloadProgress / getSnapshots / createSnapshot / deleteSnapshot / restoreSnapshot / getSettings / updateSettings`
-
-**响应层单独处理**（同 Photos v1 裸 JSON 的先例）：写一个内部 `kvmUnwrap<T>(raw, nested: boolean)`，`success === false` 时抛 `Error(message)`；`nested` 由**每个方法显式传入**，取值依据 §1.9 的表。
-
-> **禁止**用"有 `data.data` 就多剥一层"这种自动探测。历史教训（记忆 `newui-fixture-from-imagination-trap`）：**核字段名 ≠ 核信封层数**，自动探测在 `data` 恰好是个含 `data` 键的对象时会静默剥错。层数是契约，写死。
-
-类型照 `NimoOS-KVM/model/{vm,iso,settings}.go`（`VM` / `CreateVMRequest` / `ISO` / `OSInfo` / `Settings`）。
-
-### 4.3 `search` 域（新建 `NimoOS-Service/src/search.ts`）—— **只做归一化**
-
-```ts
-agentSearch(query: string, opts?: { sources?: SearchSource[]; topK?: number })
-  : Promise<NormalizedAggregate>
-```
-
-- 打 `POST /v1/ai/search/agent/tool`（§2）。**裸 JSON 零层**。
-- 归一化层只做三件事：**`null → []`**（§1.5）、**蛇形 → 驼峰**、`stats` / `warnings` 归位。
-- **不做视图模型。** 视图模型留各区：SearchDialog 一套（P1），sp8 的 AI 卡片一套（已存在）。
-
-```ts
-interface NormalizedAggregate {
-  semantic: SemanticHit[]   // {score, fileId, paths:[{path,...}], mime, kind, cite, preview:{text}}
-  filenames: FileNameHit[]  // {path, name, ext, size, mtimeMs, isDir, match}
-  images: ImageHit[]        // {assetId, name, path, score, takenAt, thumbnailUrl, caption}
-  notes: NoteHit[]          // 类型留着，P1 不请求（D2）
-  stats: { fileindexStatus: string; totalCandidates: number }
-  warnings: string[]        // semantic_unavailable / images_unavailable / notes_unavailable / no_accessible_roots / filenames_unavailable
-}
-```
-
-**§3.3 追踪表 `searchMapper` 行的结论**：**只有归一化进包，视图映射不进。** sp8 已把 Vue2 的 `searchMapper.js` 1:1 移植成 `.sp8/…/src/ai/services/searchMapper.ts`（95 行，产出 AgentBlock 视图模型，与 SearchDialog 需要的视图模型不同）。sp8 合并 master 之后，把它重构成消费本包的 `NormalizedAggregate` → 债务 **D4**。**本期不碰 sp8 分支。**
-
-### 4.4 `sys` 域补全
-
-现有只有 `getUtilization` / `getVersion` / `hardwareInfo` 三个。补：
+**`sys` 域补全**（现有只有 `getUtilization` / `getVersion` / `hardwareInfo`）：
 
 | 包内方法 | 端点 |
 |---|---|
@@ -287,68 +292,171 @@ interface NormalizedAggregate {
 
 `checkUiPort(url)` 是打任意 URL 的探活（换端口后确认新端口活了），不是标准域方法 → 留在设置区自己实现，不进包。
 
-### 4.5 `users` 域补全（P5 用，P0 一并进包）
+**两处「做样子」（政策三 / roadmap §5 浮动待办）**：
 
-`getUserInfo / setUserInfo / changePassword / saveAvatar / getMembers / createMember / deleteUser / getMemberFolders / grantMemberFolder / revokeMemberFolder`
-—— 逐个照 `NimoOS-UI/src/service/users.js` 对端点与信封，进包前确认「Vue2 退役后 New-UI 还要用吗」（§3 第 3 条判断法）。
+- **壁纸行**保留，「Change」按钮禁用 + 说明。New-UI 无壁纸系统 → 债务 **D5**。
+- **语言行**只列 New-UI 已有的 `zh_cn` / `en_us`（Vue2 有 31 项）→ 归 roadmap §5 的 i18n 全量收口，债务 **D6**。
 
-### 4.6 `container` 域补 `prune`
+### 5.2 P1 developer（隐藏 tab）
 
-`prune(): POST /v1/container/prune`（设置 apps tab 的「清理 Docker 缓存」）。
-更正 roadmap §3.3 里「`container` v1 部分不进包」的 SP5-P8 判定 —— 那次没考虑设置区（§1.12）。
-⚠️ 不要错拿 `sys.js:154` 的同名 `prune()`（那是 `/v1/sys/prune`）。
+HTTPS 开关 + `WebUIHTTPSModal`（334 行）。用 P1 已进包的 `sys.getSSLConfig / setSSLConfig / uploadSSLCert`。
 
-### 4.7 i18n 分片接线（并发对策，见 §7）
+### 5.3 P2 network（+ `network` 域新建）
 
-- 新建 `src/i18n/zh_cn.sp9.ts` / `src/i18n/en_us.sp9.ts`，**扁平 key、值全为字符串**（`parity.test.ts` 断言 `typeof v === 'string'`，不能嵌套对象）。
-- `src/i18n/index.ts` 一次性改成 `messages = { zh_cn: {...zh, ...zhSp9}, en_us: {...en, ...enSp9} }`。
-- `src/i18n/parity.test.ts` 同步改成断言**合并后**的集合（它现在直接 import 两个 locale 的默认导出）。
-- 此后 SP9 三区所有新 key 只落分片文件，**P0 之后再不碰 `zh_cn.ts` / `en_us.ts`**。
+**数据装配照 §1.7 的真实做法**（utilization 为列表源、config 为补充源、跳过 `wlan_ap`、`isVirtual` 按名字前缀判定），不要按直觉改成"直接列 `/network/interfaces`"。
 
-### 4.8 theme token 分片接线
+组件：接口行（状态点 / 类型名派生 / 速率标签 / DHCP·Static + IP 标签）· 溢出菜单（Edit / 切 Client / 切 AP / 切 Hybrid，按 `wireless.mode` 与 `hybridCapable` 决定项）· `NetworkIfaceConfigModal`（431 行）· `WifiForm`（135 行）· `HotspotForm`（69 行）。
 
-- 新建 `src/styles/theme.sp9.css`，`:root{}` 与 `:root[data-theme="light"]{}` **两块都给值**（New-UI 硬约束）。
-- `src/main.ts` 在 `import './styles/theme.css'` 之后加一行 `import './styles/theme.sp9.css'`。
-  （不能在 `theme.css` 末尾 `@import` —— CSS 规定 `@import` 必须位于所有规则之前。）
-- 此后 SP9 **全程不碰 `theme.css`**。
+切模式的两步流程照抄 Vue2：先 `updateInterface({name, wireless:{mode}})` 裸切，再打开配置弹窗（这样弹窗里的 wifi 扫描才有结果）。
 
-### 4.9 依赖与基线
+**`network` 域**（新建 `NimoOS-Service/src/network.ts`）：
 
-- 装 `@novnc/novnc`（P6 用）。**只在 P0 装这一次**，装前先 `git status`，装完立刻用显式 pathspec 提交 `package.json` + `pnpm-lock.yaml`，缩短共享 `node_modules` 被搅动的窗口。
-- 跑一次全量 `pnpm test` 与 `pnpm exec vue-tsc --noEmit`，把结果（尤其 `src/files/**` 的红）记进台账当**基线**（§7 第 5 条）。
+```
+getInterfaces(): Promise<NetworkInterfaceConfig[]>   GET  /v2/nimoos/network/interfaces
+updateInterface(cfg): Promise<void>                  PUT  /v2/nimoos/network/interfaces
+scanWifi(iface: string): Promise<WifiScanResult[]>   GET  /v2/nimoos/network/wifi/scan?iface=<urlencoded>
+```
 
-### P0 DoD
+**信封：裸 JSON，零层 unwrap。** `NimoOS/route/v2/network.go` 全部 `c.JSON(status, payload)`，成功体直接是数组/对象，错误体是 `{"error": "..."}`（**不是** `Result{Success,Message,Data}`）→ 错误路径靠 axios 的 HTTP 状态码 reject，不要过 `unwrap()`。
 
-三域 + 两域补全有单测（fixture 逐字来自本文 §1 的实测响应，**不得手编**）；i18n / theme 分片接线后 parity 测试仍绿；基线已记台账；显式 pathspec 提交。
+**类型逐字照 `NimoOS-Common/model/network.go`**，注意蛇形/驼峰混用，别"顺手统一"：
+
+```ts
+interface NetworkInterfaceConfig {
+  name: string
+  type: string            // "ethernet" | "bridge" | "wifi" | "thunderbolt"
+  is_virtual: boolean     // 蛇形
+  mac: string
+  speed?: string          // 字符串，如 "1000"
+  state: string           // "up" | "down"（实测可能是空串）
+  ipv4?: { method: string; address?: string; netmask?: string; gateway?: string; dns?: string[] }
+  wireless?: { mode: string; ssid?: string; apSsid?: string; password?: string
+               apPassword?: string; channel?: number; hybridMode?: boolean }
+  zone?: string           // "lan" | "wan" | ""
+  ports?: string[]
+  hybridCapable?: boolean // 驼峰
+}
+```
+
+`PUT` 成功返回 `{"message":"success"}`，无数据。
+
+### 5.4 P3 apps（+ `container.prune` 进包）
+
+App data location 三行（AppData / Images / Database）+ `AppPathModal`（951 行）+ 迁移任务轮询（`migrateAppPath` → 轮 `getMigrateStatus`）+ Docker 缓存清理（`container.prune`）+ **「清理本地待上传缓存」行（做样子，见 5.6）**。
+
+**`container` 域补 `prune()`**：`POST /v1/container/prune`。更正 roadmap §3.3 里「`container` v1 部分不进包」的 SP5-P8 判定（§1.12）。⚠️ 不要错拿 `sys.js:154` 的同名 `prune()`（那是 `/v1/sys/prune`）。
+
+### 5.5 P3 system-status / terminal / storage
+
+- **system-status**：`SystemStatus.vue`（89 行）+ `GET /v1/gateway/components`（用 P1 已进包的 `sys.getGatewayComponents`）。
+- **terminal**：Logs 卡（`LogsCard` + `sys.getLogs()` + 下载）· `TerminalSecuritySection`（172 行，admin-only）· **终端位空态占位** —— 后端 `/v1/sys/wsssh` 已注释、实测 404（§1.6）。按政策二：**不放连不上的 xterm 假装能用**，显示「系统终端后端未启用」，**不写针对该接口的测试，不列验收项**。开后端票 **D7**。
+- **storage**：**入口卡** —— 一张「打开存储区」卡片 + 容量概览，点击 `router.push('/storage')`。SP6 已把概览 / 系统盘 / 存储列表 / 回收站整套迁到 `/storage`（**已完成**，不属于政策三的"在建前端"），在设置区再实现一遍等于同一功能两处维护 → 授权偏离 **#3**（§12）。
+
+### 5.6 P3 —「清理本地待上传缓存」行（做样子）
+
+Vue2 位置：`SettingsPanel.vue:649-664` UI + `:1999-2026` 逻辑，走 `@/views/Photos/upload/idb.js` 读**相册**的 IndexedDB 队列 + `dispatch('photos/clearAllUploads')`。
+
+按政策三：**保留这一行 UI**（图标 + 文案 + 按钮），按钮禁用 + 标注「待相册区迁移完成后启用」。逻辑留空。
+⚠️ **别拿 `src/files/upload/idb.ts` 顶** —— 那是 SP4 **文件区**的独立 TUS 队列，与相册两套。
+接线归 **SP7-P8**（reciprocal 记账已在 roadmap SP7 P8 条目下）。
+
+> 本条**修订了** 2026-07-30「SP9 先不做这一项」的决定，用户 2026-07-31 确认适用新政策。
+
+### 5.7 P4 account + folder-permissions（+ `users` 域补全）
+
+**account**：`AccountPanel.vue`（1276 行）—— 账号信息 · 头像上传 · 改密 · 成员管理（增删）· 成员文件夹授权（增删改）。
+**`users` 域补全**：`getUserInfo / setUserInfo / changePassword / saveAvatar / getMembers / createMember / deleteUser / getMemberFolders / grantMemberFolder / revokeMemberFolder` —— 逐个照 `NimoOS-UI/src/service/users.js` 对端点与信封。
+
+**folder-permissions —— 界面骨架（政策三）**：
+
+- 照 Vue2 `FolderPermissions.vue`（337 行）+ `folderPermissionsView.js` **把权限矩阵界面完整做出来**：表头、行、各子系统列的开关、文件夹选择器入口、离线徽标位、空态。
+- **数据源留空**：`snapshot` 由一个明确标注的空实现提供（不打任何接口）；界面顶部一条说明「数据源待相册区(SP7)与 AI 区(SP8)合并后接入」。
+- **写操作禁用**：开关只读，不触发 `execute()`。
+- **纯逻辑照测**：`folderPermissions.js` 的 `planToggle` / `aiPatternFor` / `denyGlobFor` / `pathFromAiPattern` 是纯函数，一并移植并**写单测**（政策二的边界：不依赖后端）。
+- 合并后接线只需替换 `fetchSnapshot` / `execute` 两个函数，**界面不用重做**。债务 **D11**。
+- 前置里的 `wiki` 域已由用户拍板挂账（D12），所以这块只能停在"样子"，不是本期能推进的。
+- admin-only 守卫照抄（Vue2 `SettingsPanel.vue:1240`：非 admin 进该 tab 直接踢走）。
+
+### P1–P4 DoD
+
+各 tab 界面与 Vue2 逐屏对照；接口调用的字段/信封照 §1 与源码对死；**做样子**的部分在界面上有明确标注、**打不通的后端**部分有明确空态且不列验收项；纯前端逻辑（网络合并、表单校验、planToggle 等）有单测；显式 pathspec 提交。
 
 ---
 
-## 5. P1 — Search 区
+## 6. P5–P6 — KVM 区
 
-### 5.1 范围
+代码落 `src/kvm/`，路由 `/kvm`，单页布局（左 VM 列表 + 右控制台），照 Vue2 `KVMFullPage.vue`（3153 行）视觉 1:1。
+
+### 6.1 P5 列表 + 控制台 + 电源（+ `kvm` 域新建）
+
+VM 列表（状态点 / 规格 / 运行计数 / 侧栏折叠）· 控制台头（名称 / 状态 / 动作区 / 溢出菜单）· 电源动作（start / stop / restart / pause / resume / wakeup，各带确认弹窗，可用性由 `state` 派生：`canPowerOn` / `canShutDown` / `canRestart` / `canPause` / `canResume` / `canWakeUp` / `canDelete`）· 全屏 · Send Key 悬浮工具条（修饰键 toggle + Ctrl+Alt+Del）· 安装横幅（`state==='running' && !bootFromDisk && iso` → 「弹出安装介质」→ `POST /vms/:id/boot {bootFromDisk:true}`）· SPICE 提示条（只提示，不内置客户端——Vue2 也没有）。
+
+**noVNC**：`new RFB(el, wsUrl, { scaleViewport: true, resizeSession: false })`，`wsUrl = ws://${location.hostname}:${vncWebsocketPort}`（回退 `vncPort`）。**浏览器直连宿主机端口，不走网关、无鉴权**；本机是 5700。dev server 验收时注意 `location.hostname` 与防火墙可达性。
+
+**`spicePort` 保活怪癖照抄**：Vue2 在 `fetchVMs` / `fetchVM` 里把旧对象的 `spicePort` / `spiceTlsPort` 在新数据缺失时保留（`vms` 列表接口不返回、只有 `/vnc` 接口返回）。这是**后端字段缺失的兜底**，不是 bug，照抄并注释说明原因。
+
+**状态刷新先照 Vue2 用轮询。** KVM 已有 MessageBus 事件（`kvm:vm_started` / `vm_stopped` / `iso_download_progress` 等，`NimoOS-KVM/common/constants.go`），改事件驱动是明确的改进方向，但**不在 P5 一起做**——避免一期同时引入"新区域"和"新数据通道"两个变量。→ 债务 **D8**。
+
+**`kvm` 域**（新建 `NimoOS-Service/src/kvm.ts`）：25 个方法，1:1 对 `NimoOS-UI/src/service/kvm.js`（`getVMList / getVM / createVM / updateVM / deleteVM / startVM / stopVM / restartVM / pauseVM / resumeVM / wakeupVM / getVNC / setBootFromDisk / setAutostart / getISOList / getISO / downloadISO / deleteISO / getISODownloadProgress / getSnapshots / createSnapshot / deleteSnapshot / restoreSnapshot / getSettings / updateSettings`）。
+
+**响应层单独处理**（同 Photos v1 裸 JSON 先例）：内部 `kvmUnwrap<T>(raw, nested: boolean)`，`success === false` 时抛 `Error(message)`；`nested` 由**每个方法显式传入**，取值依据 §1.9 的表。
+
+> **禁止**用"有 `data.data` 就多剥一层"这种自动探测。历史教训：**核字段名 ≠ 核信封层数**，自动探测在 `data` 恰好是个含 `data` 键的对象时会静默剥错。层数是契约，写死。
+
+类型照 `NimoOS-KVM/model/{vm,iso,settings}.go`。
+
+### 6.2 P6 创建 / ISO / 快照 / 设置
+
+- **创建向导** + `OSSelector.vue`（701 行）：`/isos` 列表 · 下载（`POST /isos/download` + 轮 `/isos/:id/progress`）· 本地 ISO 选择 · 删除 ISO。
+- **前端校验必须挡住的**（§1.10）：`vcpu ∈ [1,32]` · `memory ≥ 256` · **`disk ≥ max(8, os.minDisk)`**（后端硬下限 8 与 `alpine-319.minDisk=2` 矛盾，取大者）· `iso` 传**宿主机绝对路径**（如 `/DATA/KVM/isos/alpine-319.iso`）**而不是** `/isos` 列表里的 `id` · 名字非空且不与现有 VM 重名。
+- **快照**：list / create / delete / restore，删除与恢复带二次确认（恢复是破坏性操作）。
+- **KVM 设置**：可写 `storagePath` / `defaultVcpu` / `defaultMemory` / `autostart`；只读展示 `cpuCores` / `availableMemoryMB` / `availableDiskGB` / `networkInterfaces`（同一个 `GET /settings` 返回，**单层 `data`**）。
+
+### P5–P6 DoD
+
+真机建 VM、开控制台、跑通六个电源动作、建删快照；信封层数解析与表单校验有单测；显式 pathspec 提交。
+
+---
+
+## 7. P7 — Search 区（+ `search` 域新建）
+
+### 7.1 范围
 
 改 `src/home/components/SearchDialog.vue`（599 行）+ 新建 `src/home/search/`（`buildSearchView.ts` + `reasons.ts` + 测试）。
 
-**界面保持 New-UI 已重塑的现状，只换数据源。**
-→ 这与 §3 铁律「界面严格 1:1 照 Vue2」冲突，**登记为本期第一次授权偏离**（用户 2026-07-31 拍板；界面已既成事实并经用户验收，见 roadmap §4 SP9 A 节）。
+**界面保持 New-UI 已重塑的现状，只换数据源** → 授权偏离 **#1**（§12）。
 
-### 5.2 数据流
+### 7.2 `search` 域 —— 只做归一化
 
-```
-query → service.search.agentSearch(q, {sources:['semantic','filenames','images'], topK:20})
-      → buildSearchView(normalized, q)   // 合并 → 排名 → 派生 reasons → 分类
-      → 现有 displayList / tabs 渲染（模板结构不动）
+```ts
+agentSearch(query: string, opts?: { sources?: SearchSource[]; topK?: number })
+  : Promise<NormalizedAggregate>
 ```
 
-### 5.3 合并与去重
+打 §2 定的端点，**裸 JSON 零层**。归一化层只做三件事：**`null → []`**（§1.5）、**蛇形 → 驼峰**、`stats` / `warnings` 归位。**不做视图模型**——视图模型留各区。
+
+```ts
+interface NormalizedAggregate {
+  semantic: SemanticHit[]   // {score, fileId, paths:[{path,...}], mime, kind, cite, preview:{text}}
+  filenames: FileNameHit[]  // {path, name, ext, size, mtimeMs, isDir, match}
+  images: ImageHit[]        // {assetId, name, path, score, takenAt, thumbnailUrl, caption}
+  notes: NoteHit[]          // 类型留着，本期不请求（D2）
+  stats: { fileindexStatus: string; totalCandidates: number }
+  warnings: string[]
+}
+```
+
+**roadmap §3.3 追踪表 `searchMapper` 行的结论**：**只有归一化进包，视图映射不进。** sp8 已把 Vue2 的 `searchMapper.js` 1:1 移植成 `.sp8/…/src/ai/services/searchMapper.ts`（95 行，产出 AgentBlock 视图模型，与 SearchDialog 需要的不同）。sp8 合并 master 之后重构成消费本包的 `NormalizedAggregate` → 债务 **D4**。**本期不碰 sp8 分支。**
+
+### 7.3 合并与去重
 
 - 归并键 = **真实路径**：`semantic` 取 `paths[0].path`、`filenames` 取 `path`、`images` 取 `path`。
 - 同路径命中多源 → 合成一行，`reasons` 数组累加（去重）。
-- **`semantic` 里 `mime` 以 `image/` 开头且 `kind === 'ocr'` 的命中归到"媒体"**，带 OCR 徽标——这正是 demo 2 那类"小票照片靠 OCR 命中"结果的真实来源（demo 里是写死的，真实链路走这里）。
+- **`semantic` 里 `mime` 以 `image/` 开头且 `kind === 'ocr'` 的命中归到"媒体"**，带 OCR 徽标——这正是 demo 2 那类"小票照片靠 OCR 命中"结果的真实来源。
 
-### 5.4 排名规则（确定性，必须有测试）
+### 7.4 排名规则（确定性，必须有测试）
 
-四组分数**互不可比**（`filenames.match` 无上界，`semantic.score` 是向量相似度，`images.score` 是 CLIP 相似度），因此**不做跨源归一化**，改用分层：
+四组分数**互不可比**（`filenames.match` 无上界，`semantic.score` 是向量相似度，`images.score` 是 CLIP 相似度），**不做跨源归一化**，改用分层：
 
 1. 文件名**精确**命中（`name` 忽略大小写全等查询词）
 2. 文件名**子串**命中（`filenames` 组，组内按 `match` 降序）
@@ -358,7 +466,7 @@ query → service.search.agentSearch(q, {sources:['semantic','filenames','images
 
 层内稳定排序（相同分数保持后端返回顺序）。
 
-### 5.5 reasons 派生规则（替代写死标签）
+### 7.5 reasons 派生规则（替代写死标签）
 
 | 条件 | 标签（zh_cn） | kind（沿用现有语义色） |
 |---|---|---|
@@ -369,205 +477,118 @@ query → service.search.agentSearch(q, {sources:['semantic','filenames','images
 | `semantic.kind === 'caption'` | 图片内容命中 | `semantic` |
 | `semantic` 组但查询词不出现在 `preview.text` 里 | 语义相关 | `semantic` |
 
-**`demote` 档删除**：后端没有任何降权信号（demo 里的「Likely a person name · demoted」是编的）。`.rz-demote` 的 CSS 一并删，并在 `theme.sp9.css` 的注释里说明 `--dem-*` token 在搜索区不再使用。
+**`demote` 档删除**：后端没有任何降权信号（demo 里的「Likely a person name · demoted」是编的）。`.rz-demote` 的 CSS 一并删。
 
-### 5.6 准确率百分比 → 来源徽标
+### 7.6 准确率百分比 → 来源徽标
 
-`.album-acc` / `.media-acc-num` 位置不再显示 `98%`（那个数字无法从后端诚实得出），改显示来源徽标三选一：**语义 / 文件名 / OCR**。复用现有 `--sem-*` / `--accent-*` token，尺寸与现有徽标一致。
+`.album-acc` / `.media-acc-num` 位置不再显示 `98%`（那个数字无法从后端诚实得出），改显示来源徽标三选一：**语义 / 文件名 / OCR**。复用现有 token，尺寸与现有徽标一致。
 
-### 5.7 分类 tab
+### 7.7 分类 tab
 
 `Documents / Images / Audio / Videos` 由 `mime`（semantic 有）或 `ext`（filenames 有）派生，复用已有 `src/files/util/fileCategories.ts`。tab 计数与「全部结果」的组装逻辑（前 2 条文档 → 相册卡 → 其余）**不动**。
 
-### 5.8 降级与错误态（本区最重要的可见行为）
+### 7.8 降级与错误态（本区最重要的可见行为）
 
-本机四源里三源不可用，用户要在另一台机器验的主要就是这部分。
+本机四源里三源不可用，用户要在另一台机器验的主要就是这部分。**按政策二，`semantic` / `images` 源的正确性不写测试、不列本机验收项；但下面这些状态映射是纯前端逻辑，照测。**
 
 | 情形 | 行为 |
 |---|---|
 | `warnings` 含 `semantic_unavailable` / `images_unavailable` / `filenames_unavailable` | 结果区**顶部一条低调提示条**，列出未参与的源（例：「语义与图片搜索暂不可用，本次只搜了文件名」）。**不用 toast，不遮挡结果** |
 | `warnings` 含 `no_accessible_roots` | 提示「没有可搜索的目录」，与"没搜到"区分 |
-| 四源全空 **且** 有 warning | 空态文案 = 「搜索后端未就绪」+ 列出原因 |
-| 四源全空 **且** 无 warning | 空态文案 = 「没有找到匹配项」 |
-| HTTP 401 | 共享包单飞刷新自动处理（axios 实例已带），前端不特判 |
+| 四源全空 **且** 有 warning | 空态 = 「搜索后端未就绪」+ 列出原因 |
+| 四源全空 **且** 无 warning | 空态 = 「没有找到匹配项」 |
+| HTTP 401 | 共享包单飞刷新自动处理，前端不特判 |
 | HTTP 5xx / 超时 / AI 服务不可达 | 错误态 + **重试按钮**；文案说明是"搜索服务不可用"，不得静默显示空结果（§2 代价） |
 
-### 5.9 顺手修的真缺陷
+### 7.9 顺手修的真缺陷
 
-`SearchDialog.vue:262` `openPhotos()` 写死 `http://192.168.1.115/#/photos?q=…` —— **同事机器的 IP**，在真机上必然打不开。改为 `/#/photos?q=…`（同源相对跳转）。
+`SearchDialog.vue:262` `openPhotos()` 写死 `http://192.168.1.115/#/photos?q=…` —— **同事机器的 IP**，真机上必然打不开。改为 `/#/photos?q=…`（同源相对跳转）。
 按「界面照 Vue2、逻辑照正确」纪律：这是 bug 不是界面，**改正确并在代码里注释登记**。
 
-### 5.10 深链与绞杀
+### P7 DoD
 
-- New-UI 首页支持 `?q=<query>`：有该参数时自动打开搜索面板并执行搜索。
-- `NimoOS-UI/src/router/strangler.js` 的 `migratedRoutes` 加一行 `/search → /app/#/?q=`。
-  ⚠️ 现有实现里**精确条目（无 `prefix`）不透传查询串**（`resolveTarget` 只在 `entry.prefix` 分支拼 query）。需要给这条加透传能力（新增 `passQuery: true` 分支，或把该条做成 prefix 条目）——改 `strangler.js` 时**连它的 `__tests__/strangler.spec.js` 一起补测试**。
-
-### P1 DoD
-
-`buildSearchView` / reasons 派生 / 排名分层各有单测（fixture 逐字取自 §1.5 实测响应）；本机 dev server 验证 filenames 源真命中能渲染；三种降级文案能人工触发（mock warnings）；`/search` 绞杀 + 回退 flag 生效；显式 pathspec 提交。
+`buildSearchView` / reasons 派生 / 排名分层 / 降级态映射各有单测（fixture 逐字取自 §1.5 实测响应）；本机 dev server 验证 filenames 源真命中能渲染；显式 pathspec 提交。
 
 ---
 
-## 6. 系统设置区（P2–P5）与 KVM 区（P6–P7）
+## 8. P8 — cutover
 
-### 6.1 系统设置 — 结构
-
-代码落 **`src/settings/`**（master 已有 `apps/components/settings/`、sp8 有 `ai/components/settings/`，必须挑第三个名字）。
-样式落 **`src/settings/styles/settings.scss`** —— **不复用 sp8 的 `ai/styles/settings-styles.scss`**（那是 AI 设置页专用，还带着 P2a 记的 `v-show`→`v-if` 窄屏回归坑）。
-
-**形态：路由页 `/settings` + `/settings/:tab`**（左 tab rail + 右内容），不是 Vue2 的模态面板。
-
-> 理由：New-UI 是「主页即中枢」的 hub-and-spoke 模型，没有承载全屏模态的宿主；SP8 的 `/ai/settings` 已是同一形态（SettingsRail + section）。
-> **内容 1:1，容器形态改变 → 登记为本期第二次授权偏离。** 与 SP6 存储区把弹窗改成路由页是同一处理。
-
-tab 记忆沿用 Vue2 的 `localStorage['nimoos_settings_last_tab']`，但改由路由承载（进 `/settings` 重定向到上次的 tab）。
-
-### 6.2 系统设置 — tab 落点与分期
-
-| tab | 期 | 内容 |
-|---|---|---|
-| **general** | P2 | 设备信息卡（+ `DeviceInfoPanel` 191 行）· 壁纸行 · 语言行 · 时区行 · 磁盘待机 · WebUI 端口（改端口 + `checkUiPort` 探活）· USB 自动挂载 · 推荐应用 · RSS · Docker 应用开关 · 系统更新（`UpdateModal` 321 + `UpdateCompleteModal` 177）· App 更新 · 开发者模式开关 · 关机/重启确认与等待流（5 个状态浮层：shutting / offline / restarting / reconnecting / done / fallback） |
-| **developer** | P2 | 隐藏 tab：HTTPS 开关 + `WebUIHTTPSModal`（334 行） |
-| **network** | P3 | 见 6.3 |
-| **apps** | P4 | App data location 三行（AppData / Images / Database）+ `AppPathModal`（951 行）+ 迁移任务轮询（`migrateAppPath` → 轮 `getMigrateStatus`）+ Docker 缓存清理（`container.prune`，§4.6）。**不做**「清理本地待上传缓存」 |
-| **system-status** | P4 | `SystemStatus.vue`（89 行）+ `GET /v1/gateway/components` |
-| **terminal** | P4 | Logs 卡（`LogsCard` + `GET /v1/sys/logs` + 下载）· `TerminalSecuritySection`（172 行，admin-only）· **终端位空态占位**（见 6.4） |
-| **storage** | P4 | **入口卡**（见 6.5） |
-| **folder-permissions** | P4 | **占位卡**（见 6.6）——功能本体移出 SP9 |
-| **account** | P5 | `AccountPanel.vue`（1276 行）：账号信息 · 头像上传 · 改密 · 成员管理（增删）· 成员文件夹授权（增删改） |
-
-两处**记债不做**：
-
-- **壁纸行**保留，「Change」按钮禁用 + tooltip 说明。New-UI 无壁纸系统（roadmap §5 触发式浮动待办）→ 债务 **D5**。
-- **语言行**只列 New-UI 已有的 `zh_cn` / `en_us` 两项（Vue2 有 31 项）→ 归 roadmap §5 的 i18n 全量收口，债务 **D6**。
-
-### 6.3 系统设置 — network tab（P3）
-
-数据装配**照 §1.7 的真实做法**（utilization 为列表源、config 为补充源、跳过 `wlan_ap`、`isVirtual` 按名字前缀判定），不要按直觉改成"直接列 `/network/interfaces`"。
-
-组件：接口行（状态点 / 类型名派生 / 速率标签 / DHCP·Static + IP 标签）· 溢出菜单（Edit / 切 Client / 切 AP / 切 Hybrid，按 `wireless.mode` 与 `hybridCapable` 决定项）· `NetworkIfaceConfigModal`（431 行）· `WifiForm`（135 行）· `HotspotForm`（69 行）。
-
-切模式的两步流程照抄 Vue2：先 `updateInterface({name, wireless:{mode}})` 裸切，再打开配置弹窗（这样弹窗里的 wifi 扫描才有结果）。
-
-### 6.4 系统设置 — terminal tab 的终端位（P4）
-
-**后端 `/v1/sys/wsssh` 已被注释掉、实测 404（§1.6）。** 用户 2026-07-31 拍板：
-
-- 只迁 **Logs 卡**与 **TerminalSecuritySection**，这两块后端是好的。
-- 终端位显示明确空态：「系统终端后端未启用」，**不放一个连不上的 xterm 假装能用**。
-- 开一张后端票（债务 **D7**）：要么恢复 `NimoOS/route/v1.go:106` 的注册，要么补上注释里承诺的 NimoOS-Terminal。
-- 连带影响：roadmap §4 SP9 第 3 条「WS 刷新遗留」里的 `TerminalCard.vue:123`（SSH 终端 token 焊在 WS 握手）**本期不做**——后端都没了。`CoreService.vue:134` 的 MessageBus socket.io 那条见 6.7。
-
-### 6.5 系统设置 — storage tab（P4）
-
-用户 2026-07-31 拍板：**tab 保留在列表里，内容换成"打开存储区"入口卡 + 容量概览**，点击 `router.push('/storage')`。
-
-理由：SP6 已把概览 / 系统盘 / 存储列表 / 回收站整套迁到 `/storage`，在设置区再实现一遍等于同一功能两处维护。
-→ **登记为本期第三次授权偏离。**
-
-### 6.6 系统设置 — folder-permissions 占位卡（P4）
-
-功能本体跨 SP7/SP8 + 无归属的 `wiki` 域（§1.11）→ **移出 SP9**。用户 2026-07-31 拍板的处置：
-
-- **tab 保留在列表里**（位置不变，SP7/SP8 合并后把内容填进来即可）。
-- 内容 = 占位卡：一句「文件夹权限暂在旧版设置中使用」+ 一个跳 Vue2 设置面板的按钮，**给用户留可用路径**。
-- 与 6.4 终端位同一处理风格：**不假装能用，也不悄悄消失**。
-- 债务 **D11**。
-
-### 6.7 KVM — P6 列表 + 控制台
-
-代码落 `src/kvm/`，路由 `/kvm`，单页布局（左 VM 列表 + 右控制台），照 Vue2 `KVMFullPage.vue`（3153 行）的视觉 1:1。
-
-P6 含：VM 列表（状态点 / 规格 / 运行计数 / 侧栏折叠）· 控制台头（名称 / 状态 / 动作区 / 溢出菜单）· 电源动作（start / stop / restart / pause / resume / wakeup，各带确认弹窗，可用性由 `state` 派生：`canPowerOn` / `canShutDown` / `canRestart` / `canPause` / `canResume` / `canWakeUp` / `canDelete`）· 全屏 · Send Key 悬浮工具条（修饰键 toggle + Ctrl+Alt+Del）· 安装横幅（`state==='running' && !bootFromDisk && iso` → 「弹出安装介质」→ `POST /vms/:id/boot {bootFromDisk:true}`）· SPICE 提示条（只提示，不内置客户端——Vue2 也没有）。
-
-**noVNC**：`new RFB(el, wsUrl, {scaleViewport:true, resizeSession:false})`，`wsUrl = ws://${location.hostname}:${vncWebsocketPort}`（回退 `vncPort`）。**浏览器直连宿主机端口，不走网关、无鉴权**；本机是 5700。dev server 验收时注意 `location.hostname` 与防火墙可达性。
-
-**`spicePort` 保活怪癖照抄**：Vue2 在 `fetchVMs` / `fetchVM` 里把旧对象的 `spicePort` / `spiceTlsPort` 在新数据缺失时保留下来（`vms` 列表接口不返回、只有 `/vnc` 接口返回）。这是**后端字段缺失的兜底**，不是 bug，照抄并注释说明原因。
-
-**状态刷新先照 Vue2 用轮询。** KVM 已有 MessageBus 事件（`kvm:vm_started` / `vm_stopped` / `iso_download_progress` 等，`NimoOS-KVM/common/constants.go`），改事件驱动是明确的改进方向，但**不在 P6 一起做**——避免一期同时引入"新区域"和"新数据通道"两个变量。→ 债务 **D8**。
-
-### 6.8 KVM — P7 创建 / ISO / 快照 / 设置
-
-- **创建向导** + `OSSelector.vue`（701 行）：`/isos` 列表 · 下载（`POST /isos/download` + 轮 `/isos/:id/progress`）· 本地 ISO 选择 · 删除 ISO。
-- **前端校验必须挡住的**（§1.10）：`vcpu ∈ [1,32]` · `memory ≥ 256` · **`disk ≥ max(8, os.minDisk)`**（后端硬下限 8 与 `alpine-319.minDisk=2` 矛盾，取大者）· `iso` 传**宿主机绝对路径**（如 `/DATA/KVM/isos/alpine-319.iso`）**而不是** `/isos` 列表里的 `id` · 名字非空且不与现有 VM 重名。
-- **快照**：list / create / delete / restore，删除与恢复带二次确认（恢复是破坏性操作）。
-- **KVM 设置**：可写 `storagePath` / `defaultVcpu` / `defaultMemory` / `autostart`；只读展示 `cpuCores` / `availableMemoryMB` / `availableDiskGB` / `networkInterfaces`（同一个 `GET /settings` 一起返回，见 §1.9 —— 该端点是**单层** `data`）。
-
-### 6.9 P8 — cutover
-
-- `NimoOS-UI/src/router/strangler.js`：`migratedRoutes` 加 `{from:'/kvm', to:'/app/#/kvm', enabled:true}`；`migratedEntries` 加 `{from:'/settings', to:'/app/#/settings', enabled:true}`，Vue2 侧弹设置模态的调用处改成 `resolveEntryTarget('/settings')` → `window.location.href`（同 SP5-P8 / SP6-P6，**不能走路由表：设置在 Vue2 是无路由模态**）。
+- `NimoOS-UI/src/router/strangler.js`：
+  - `migratedRoutes` 加 `{from:'/kvm', to:'/app/#/kvm', enabled:true}`。
+  - `migratedRoutes` 加 `/search → /app/#/?q=`。⚠️ 现有实现里**精确条目（无 `prefix`）不透传查询串**（`resolveTarget` 只在 `entry.prefix` 分支拼 query），需要加透传能力（新增 `passQuery: true` 分支，或做成 prefix 条目），**连 `__tests__/strangler.spec.js` 一起补测试**。New-UI 首页相应支持 `?q=` 自动开面板搜索。
+  - `migratedEntries` 加 `{from:'/settings', to:'/app/#/settings', enabled:true}`，Vue2 侧弹设置模态的调用处改成 `resolveEntryTarget('/settings')` → `window.location.href`（同 SP5-P8 / SP6-P6，**不能走路由表：设置在 Vue2 是无路由模态**）。
 - New-UI `src/home/composables/useOpenAction.ts`：`SYS_ROUTE` 里 `vm` / `settings` 改成 `router.push('/kvm')` / `router.push('/settings')`，**各自带 `cutoverDisabled('/kvm')` / `cutoverDisabled('/settings')` 回退判定**。
-  ⚠️ **吸取 SP6-P1 教训**：桌面磁贴翻到新路由时**必须同时给回退 flag**，否则部署后浏览器侧无法回滚（SP6 的存储磁贴就漏了，P6 才补）。
+  ⚠️ **吸取 SP6-P1 教训**：桌面磁贴翻到新路由时**必须同时给回退 flag**，否则部署后浏览器侧无法回滚（SP6 存储磁贴就漏了，P6 才补）。
 - 逐条验证回退可逆：置 `strangler:disabled:/kvm` / `:/settings` / `:/search` = `'1'` → 确认 Vue2 原页仍能正常打开。
-- **不删任何 Vue2 代码**（§3.2 铁律，删除全部归 SP10）。
+- **不删任何 Vue2 代码**（roadmap §3.2 铁律，删除全部归 SP10）。
 
 ---
 
-## 7. 三线并发共处（本期一等约束）
+## 9. 三线并发共处（本期一等约束）
 
-### 7.1 现场
+### 9.1 现场
 
 | 线 | 位置 | 与 SP9 的关系 |
 |---|---|---|
-| sp7-photos | `.sp7/{NimoOS-New-UI, NimoOS-Service}` | **独立工作树独立分支**，不共享文件。只在将来合并时相撞 |
+| sp7-photos | `.sp7/{NimoOS-New-UI, NimoOS-Service}` | **独立工作树独立分支**，只在将来合并时相撞 |
 | sp8-ai | `.sp8/{NimoOS-New-UI, NimoOS-Service}` | 同上 |
 | **文件区时光机** | **`NimoOS-New-UI` 主工作树 @ master** | **与 SP9 共享同一工作树、同一 index、同一 HEAD** |
+| sp7 会话的文档写入 | **`NimoOS-UI` 主工作树 @ `docs/vue3-migration-sp3`** | 同样共享；roadmap 是四条线里最热的文件 |
 
-时光机会话**正在活跃提交**（本次设计期间 HEAD 从 `abe3ddf` → `8bb450b`），并且**会改 `src/styles/theme.css`**（`a18631e fix(theme): 深色时间机器卡堆玻璃底垫…`）。
+时光机会话**正在活跃提交**（本设计期间 HEAD 连续推进 `abe3ddf` → `8bb450b` → `17e601c`），并且**会改 `src/styles/theme.css`**（`a18631e`）。
 index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光机的也不是 SP9 的）。
+`NimoOS-Service` 的 master 工作树同样共享。
 
-`NimoOS-Service` 的 master 工作树同样共享（当前干净）。
-
-### 7.2 风险与覆盖情况
+### 9.2 风险与覆盖情况
 
 | 级别 | 事项 | 用户给的规则是否覆盖 |
 |---|---|---|
 | 🔴 | `src/i18n/{zh_cn,en_us}.ts`、`src/styles/theme.css` 双方同窗口编辑 → **后写的静默吞掉先写的**（同文件同工作树，git 全程看不见，连冲突都不报） | ❌ pathspec 只管提交范围 |
-| 🔴 | `git add -A` / `git stash -u` / `git checkout` / `git restore` / `deploy.sh` | ✅ 已覆盖 |
-| 🔴 | 无 pathspec 的 `git commit` 会顺走 index 里那 3 个 `design-export` 删除 | ✅ 已覆盖 |
+| 🔴 | `git add -A` / `git stash -u` / `git checkout` / `git restore` / `deploy.sh` | ✅ |
+| 🔴 | 无 pathspec 的 `git commit` 会顺走 index 里那 3 个 `design-export` 删除 | ✅ |
 | 🟠 | `pnpm install` 改写 `package.json` / `pnpm-lock.yaml`、搅动共享 `node_modules` | ❌ |
 | 🟠 | 任务门「全量测试全绿」被对方半成品卡死，或**把对方的红当成自己的去修** | ❌ |
 | 🟡 | SP9 每落一期 master，sp7/sp8 那 4 个冲突文件（i18n / router / theme / vite.config）就更难合 | ❌ |
 
-### 7.3 结构性对策
+### 9.3 结构性对策
 
-1. **i18n 分片**（§4.7）→ P0 之后 SP9 不再碰 `zh_cn.ts` / `en_us.ts`。
-2. **theme 分片**（§4.8）→ SP9 全程不碰 `theme.css`。
-3. **router 不分片**：`src/router/index.ts` 只在 P2（`/settings`）与 P6（`/kvm`）各碰一次，改动固定在文件尾部数组，窗口压到最小。路由表分片会牺牲可读性，收益不抵。
-4. **依赖只装一次**（§4.9）。
+1. **i18n 分片**（§4.2）→ P0 之后 SP9 不再碰 `zh_cn.ts` / `en_us.ts`。
+2. **theme 分片**（§4.3）→ SP9 全程不碰 `theme.css`。
+3. **router 不分片**：`src/router/index.ts` 只在 P0（`/settings`）与 P5（`/kvm`）各碰一次，改动固定在文件尾部数组。路由表分片会牺牲可读性，收益不抵。
+4. **依赖只装一次**（§4.4）。
 
 > 顺带收益：1–3 让 SP9 在 sp7/sp8 的 4 个冲突文件上的足迹几乎归零，**sp7/sp8 将来合 master 反而更好合**。
 
-### 7.4 流程对策
+### 9.4 流程对策
 
-5. **测试基线**：P0 第一件事跑全量 `pnpm test` + `pnpm exec vue-tsc --noEmit`，把结果记进台账。此后每期任务门的判定是「**相对基线不新增红**」，不是「全绿」。
-   → 这条既防被卡死，更防**把时光机的半成品红当成自己的去"修"**——那才是真会搞坏别人的活。
+5. **测试基线**：P0 第一件事跑全量 `pnpm test` + `pnpm exec vue-tsc --noEmit`，结果记进台账。此后每期任务门判定是「**相对基线不新增红**」，不是「全绿」。
+   → 既防被卡死，更防**把时光机的半成品红当成自己的去"修"**——那才是真会搞坏别人的活。
 6. **每期开工前与每次提交前**：`git log --oneline -1` + `git status --short`，确认对方 HEAD 与 index 状态。
-7. **提交一律显式 pathspec**：`git commit <path> [<path>…] -m "…"`。**永不** `-a`、**永不** `add -A`、**永不** `stash -u`。
+7. **提交一律显式 pathspec**：`git commit <path> [<path>…] -m "…"`。**永不** `-a`、**永不** `add -A`、**永不** `stash -u`。新建文件先 `git add <该文件路径>` 再 pathspec 提交。
 8. **不碰 `src/files/**`**，包括该目录下测试的 fixture / 快照。
 9. **不碰 `.sp7/` 与 `.sp8/`**。
+10. **改 `NimoOS-UI/docs/vue3-migration-roadmap.md` 前先 `git log -1`**，改动尽量小、改完立刻提交（sp7 会话也在写这个仓的文档）。
 
-### 7.5 残余风险（不假装消除）
+### 9.5 残余风险（不假装消除）
 
 分片之后，SP9 与时光机唯一还可能同文件相撞的是：`src/router/index.ts`（2 次）、`src/main.ts`（1 次）、`package.json` + `pnpm-lock.yaml`（1 次）。窗口很短，但**不是零**。
-彻底归零只有一条路：SP9 单开 `.sp9` worktree。用户已在开工指令里指定主工作区 master，本 spec 按此执行；**P0 开工前是唯一无成本的切换点**。
+彻底归零只有一条路：SP9 单开 `.sp9` worktree。用户已指定主工作区 master，本 spec 按此执行；**P0 开工前是唯一无成本的切换点**。
 
 ---
 
-## 8. 全程硬约束速查
+## 10. 全程硬约束速查
 
 - 验收起 **dev server `pnpm dev --port 5299`**（避开 sp7 的 5277、sp8 的 5288、默认 5273），**不是 `deploy.sh`**（它构建当前工作树，会把时光机的半成品打进去）。
 - i18n 新 key 必须**同时**加 zh_cn 与 en_us 分片，否则 `parity.test.ts` 立红。
 - 颜色**只能**用 theme token，新语义 token 加进 `theme.sp9.css` 且两套主题块都给值。
-- 每期任务门：全量 `pnpm test` + `pnpm exec vue-tsc --noEmit`，判定标准见 §7.4 第 5 条。
-- **移植纪律**（roadmap 2026-07-27 拍板）：界面严格 1:1；Vue2 的 bug / 竞态 / 吞错**不照抄**，改正确并在代码里注释登记；禁无关重构。本期已识别的「改正确」项：§5.9 硬编码 IP。已识别的「怪癖照抄」项：§6.7 `spicePort` 保活。
-- **fixture 纪律**（记忆 `newui-fixture-from-imagination-trap`）：外部命令输出 / HTTP 信封的 fixture **必须真机逐字抓取**，本 spec §1 已抓好可直接引用；新增的自己抓，**不得手编**。
+- 每期任务门：全量 `pnpm test` + `pnpm exec vue-tsc --noEmit`，判定标准见 §9.4 第 5 条。
+- **移植纪律**（roadmap 2026-07-27 拍板）：界面严格 1:1；Vue2 的 bug / 竞态 / 吞错**不照抄**，改正确并在代码里注释登记；禁无关重构。本期已识别的「改正确」项：§7.9 硬编码 IP。已识别的「怪癖照抄」项：§6.1 `spicePort` 保活。
+- **fixture 纪律**：外部命令输出 / HTTP 信封的 fixture **必须真机逐字抓取**，§1 已抓好可直接引用；新增的自己抓，**不得手编**。
 - 台账落 `NimoOS-New-UI/.superpowers/sdd/sp9/`（**gitignore，不进 git**）。SP7 的台账整目录丢失且 git 救不回 → **重要结论同步回 roadmap §4 SP9**，不要只写台账。
 
 ---
 
-## 9. 债务登记
+## 11. 债务登记
 
 | 编号 | 内容 | 归属 |
 |---|---|---|
@@ -579,21 +600,22 @@ index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光
 | **D6** | 设置 general 的语言行只有 2 项（Vue2 有 31 项） | roadmap §5 i18n 全量收口 |
 | **D7** | `/v1/sys/wsssh` 被注释掉，系统终端无后端 | 后端票 |
 | **D8** | KVM 状态刷新用轮询，未改 MessageBus 事件驱动 | 改进项 |
-| **D9** | `CoreService.vue:134` MessageBus socket.io token 焊在握手、不中途刷新（roadmap §4 SP9 第 3 条的剩余部分） | 未排期 |
-| **D10** | §3.3 追踪表待更新：`kvm` / `network` → 已进包；`searchMapper` → **只有归一化进包**；`container` → **`prune` 进包**（更正 SP5-P8 判定，§1.12）；`port` → **Vue2-only 死代码，不进包，随 SP10 删**（§1.8） | P0 后更新 roadmap |
-| **D11** | 设置 folder-permissions tab 功能本体移出 SP9（跨 SP7/SP8 + 无归属的 `wiki` 域，§1.11），本期只放占位卡 | sp7/sp8 合并后 |
-| **D12** | `wiki` 域在 roadmap §3.3 追踪表里**完全缺席**，无 SP 归属。它至少被 folder-permissions 用到（D11 的前置） | 需用户排期 |
+| **~~D9~~** | ~~WS 刷新遗留三处~~ —— **已核查作废**（§1.13：容器终端 SP5 已做对、SSH 后端已死、MessageBus 握手根本没 token） | **销号** |
+| **D10** | roadmap §3.3 追踪表待更新：`kvm` / `network` → 已进包；`searchMapper` → **只有归一化进包**；`container` → **`prune` 进包**（更正 SP5-P8 判定，§1.12）；`port` → **Vue2-only 死代码，不进包，随 SP10 删**（§1.8） | 各期后更新 roadmap |
+| **D11** | 设置 folder-permissions **界面已做、逻辑待接线**（六路聚合器跨 SP7/SP8，§1.11）。合并后只需替换 `fetchSnapshot` / `execute` 两个函数 | sp7/sp8 合并后 |
+| **D12** | **`wiki` 域用户拍板挂账** —— roadmap §3.3 追踪表里完全缺席、无 SP 归属；它是 D11 落地的前置 | 需用户排期 |
+| **D13** | 设置 apps tab「清理本地待上传缓存」**界面已做、逻辑待接线**（依赖相册上传 IndexedDB 队列） | SP7-P8 |
 
 ---
 
-## 10. 授权偏离登记（本期共 5 处）
+## 12. 授权偏离登记（本期共 5 处）
 
 「界面严格 1:1」是 roadmap 2026-07-27 拍板的铁律。以下 5 处**可见地不 1:1**，逐条登记依据。
 
 | # | 偏离 | 依据 |
 |---|---|---|
-| 1 | Search 区保留 New-UI 已重塑的界面，不照 Vue2 `views/Search.vue`（1021 行）1:1 重做；且删掉「排序理由 demote 档」与「准确率百分比」（后端无对应数据，见 §5.5 / §5.6） | 用户 2026-07-31 拍板；界面已既成事实并经用户验收 |
+| 1 | Search 区保留 New-UI 已重塑的界面，不照 Vue2 `views/Search.vue`（1021 行）1:1 重做；且删掉「排序理由 demote 档」与「准确率百分比」（后端无对应数据，§7.5 / §7.6） | 用户 2026-07-31 拍板；界面已既成事实并经用户验收 |
 | 2 | 系统设置从 Vue2 的**模态面板**改为 New-UI 的**路由页**（内容 1:1，容器形态变） | New-UI hub-and-spoke 无模态宿主；SP8 `/ai/settings`、SP6 存储区同例 |
-| 3 | 设置 storage tab 内容从 1:1 重做改为**跳转入口卡** | 用户 2026-07-31 拍板；避免与 SP6 的 `/storage` 双实现 |
-| 4 | 设置 terminal tab 的**终端位是空态占位**，不是 xterm 终端 | 后端 `/v1/sys/wsssh` 已注释、实测 404（§1.6）；用户 2026-07-31 拍板不放连不上的假终端 |
-| 5 | 设置 folder-permissions tab 是**占位卡 + 跳旧版按钮**，不是权限矩阵 | 跨 SP7/SP8 依赖（§1.11）；用户 2026-07-31 拍板 |
+| 3 | 设置 storage tab 内容从 1:1 重做改为**跳转入口卡** | 用户 2026-07-31 拍板；避免与 SP6 已完成的 `/storage` 双实现 |
+| 4 | 设置 terminal tab 的**终端位是空态占位**，不是 xterm 终端 | 后端 `/v1/sys/wsssh` 已注释、实测 404（§1.6）；政策二 |
+| 5 | 「做样子」项：folder-permissions 权限矩阵（§5.7）与 apps tab 的清理待上传缓存行（§5.6）—— **界面 1:1 但无数据、写操作禁用** | 政策三（用户 2026-07-31 新增）；合并后接线不重做界面 |
