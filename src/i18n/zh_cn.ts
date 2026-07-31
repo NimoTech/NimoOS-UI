@@ -1289,6 +1289,8 @@ export default {
   aiSkFilesSkippedTooBig: '{n} 个文件超过 1 MiB,已跳过',
   aiSkErrDuplicate: '已存在同名技能',
   aiSkErrBadId: '名称只能用小写字母、数字和短横线,且不能以短横线开头或结尾',
+  aiSkErrNameNoAlnum: '名称里至少要有一个英文字母或数字 —— 它会被转成斜杠命令',
+  aiSkErrNameTooLong: '名称太长了(转成斜杠命令后不能超过 64 个字符)',
   aiSkErrDescRequired: '请填写描述',
   aiSkErrDescTooLong: '描述不能超过 256 个字符',
   aiSkErrDescSingleLine: '描述必须是单行',

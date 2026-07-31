@@ -1281,6 +1281,8 @@ export default {
   aiSkErrDuplicate: 'A skill with this name already exists',
   aiSkErrBadId:
     'Name may only contain lowercase letters, digits and dashes, and cannot start or end with a dash',
+  aiSkErrNameNoAlnum: 'Name needs at least one letter or digit — it becomes the slash command',
+  aiSkErrNameTooLong: 'Name is too long (max 64 characters once turned into a slash command)',
   aiSkErrDescRequired: 'Description is required',
   aiSkErrDescTooLong: 'Description cannot exceed 256 characters',
   aiSkErrDescSingleLine: 'Description must be a single line',

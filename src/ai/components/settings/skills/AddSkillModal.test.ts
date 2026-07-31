@@ -114,7 +114,7 @@ describe('AddSkillModal', () => {
   // 的 'invoice-tagger',后端/Vue2 都能建成功,不是一个真的非法例子(把这条钉成"非法"
   // 就是把 C1 那个功能回退编码进了断言)。换成 slugify 之后仍然是空串的真非法输入
   // (纯中文,没有任何 [a-z0-9] 字符能保留下来)。
-  it('名称非法(slugify 后仍无合法字符,如纯中文)→ 行内错误(aiSkErrBadId)且不 emit save(钉住偏离 2)', async () => {
+  it('名称非法(slugify 后仍无合法字符,如纯中文)→ 行内错误(aiSkErrNameNoAlnum)且不 emit save(钉住偏离 2)', async () => {
     const w = mountModal()
     await macroFlush()
     setValue(nameInput(), '仅中文技能名')
@@ -129,7 +129,7 @@ describe('AddSkillModal', () => {
     const err = document.querySelector('.sk-modal .sk-field-err') as HTMLElement
     expect(err).not.toBeNull()
     expect(err.getAttribute('role')).toBe('alert')
-    expect(err.textContent).toBe(zh.aiSkErrBadId)
+    expect(err.textContent).toBe(zh.aiSkErrNameNoAlnum)
     expect(w.emitted('save')).toBeUndefined()
   })
 

@@ -87,12 +87,14 @@ describe('createSkillErrorKey', () => {
 })
 
 describe('validateSkillForm', () => {
-  it('rejects an empty name', () => {
-    expect(validateSkillForm('', 'a valid description')).toBe('aiSkErrBadId')
+  // 验收补丁 A1：名称的失败原因分开报。slugify 之后字符集问题在结构上已不可能存在，
+  // 所以「空 slug」与「过长」各有专用键，不再统一落回讲字符集的 aiSkErrBadId。
+  it('rejects an empty name (no alphanumeric survives slugify)', () => {
+    expect(validateSkillForm('', 'a valid description')).toBe('aiSkErrNameNoAlnum')
   })
 
-  it('rejects a whitespace-only name', () => {
-    expect(validateSkillForm('   ', 'a valid description')).toBe('aiSkErrBadId')
+  it('rejects a whitespace-only name (no alphanumeric survives slugify)', () => {
+    expect(validateSkillForm('   ', 'a valid description')).toBe('aiSkErrNameNoAlnum')
   })
 
   it('accepts a single-character name ("a")', () => {
@@ -131,11 +133,11 @@ describe('validateSkillForm', () => {
 
   // 真·非法输入：slug 之后仍然/依然不满足 skillIDRe。
   it('rejects a name made entirely of non-alphanumeric characters (slugifies to an empty string)', () => {
-    expect(validateSkillForm('!!!___---', 'a valid description')).toBe('aiSkErrBadId')
+    expect(validateSkillForm('!!!___---', 'a valid description')).toBe('aiSkErrNameNoAlnum')
   })
 
   it('rejects a name that is pure Chinese characters (slugifies to an empty string, no [a-z0-9] survives)', () => {
-    expect(validateSkillForm('发票标签', 'a valid description')).toBe('aiSkErrBadId')
+    expect(validateSkillForm('发票标签', 'a valid description')).toBe('aiSkErrNameNoAlnum')
   })
 
   it('accepts a name exactly at the 64-char boundary', () => {
@@ -148,7 +150,29 @@ describe('validateSkillForm', () => {
   it('rejects a name one char past the 64-char boundary', () => {
     const name = 'a' + 'b'.repeat(63) + 'c'
     expect(name.length).toBe(65)
-    expect(validateSkillForm(name, 'a valid description')).toBe('aiSkErrBadId')
+    expect(validateSkillForm(name, 'a valid description')).toBe('aiSkErrNameTooLong')
+  })
+
+  // 验收补丁 A1 的回归钉子：用户实测就是这个场景——名字过长时，提示必须讲长度，
+  // 绝不能是讲字符集的那条（两者都非 null，弱断言 not.toBeNull() 抓不出这个 bug）。
+  it('a too-long name reports length, never the character-set message', () => {
+    const key = validateSkillForm('a-very-long-invoice-tagger-name-'.repeat(5), 'a valid description')
+    expect(key).toBe('aiSkErrNameTooLong')
+    expect(key).not.toBe('aiSkErrBadId')
+  })
+
+  // 反过来钉一条：长到超标、但一个 [a-z0-9] 都没有的名字（纯中文长句），真实原因是
+  // 「slug 为空」而不是「太长」——两条专用键不能互相盖过。
+  it('a long name with no alphanumerics reports no-alnum, not too-long', () => {
+    expect(validateSkillForm('这是一个非常长的技能名字'.repeat(10), 'a valid description'))
+      .toBe('aiSkErrNameNoAlnum')
+  })
+
+  // 长度判定跑在 slug 上，不是原始输入上：原始 70 字符里含空格与大写，
+  // slug 之后仍 > 64，故仍应判过长（而不是因为空格/大写被判字符集非法）。
+  it('length is measured on the slug, not the raw input', () => {
+    const raw = 'Invoice Tagger ' + 'x'.repeat(60)
+    expect(validateSkillForm(raw, 'a valid description')).toBe('aiSkErrNameTooLong')
   })
 
   it('rejects an empty description', () => {

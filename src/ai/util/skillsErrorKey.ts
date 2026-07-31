@@ -98,12 +98,24 @@ export function slugify(s: string): string {
  *
  * 【P3b 终审 C1】校验对象是 `slugify(name)`，不是原始 name——见上方 `slugify` 注释与
  * NimoOS-AI/service/skills_store.go:221（`id := slugify(r.Name)`）+ :91-96
- * （`ValidateSkillID` 拿 slug 后的 id 去过 `skillIDRe`）。名字全是非法字符时
- * slug 为空串，空串不满足 `skillIDRe`（至少需要 1 个 `[a-z0-9]` 字符），
- * 自然落回 'aiSkErrBadId'，与后端 `ValidateSkillID('')` 拒绝的结论一致。
+ * （`ValidateSkillID` 拿 slug 后的 id 去过 `skillIDRe`）。
+ *
+ * 【P3b 验收补丁 A1（用户 2026-07-31 报：输入超长名字时提示的是"只能用小写字母、数字和
+ * 短横线"，答非所问）】名称的失败原因必须分开报。**过 slugify 之后，字符集问题在结构上
+ * 已经不可能存在**——slugify 保证输出只含 `[a-z0-9-]`、无连续短横线、首尾无短横线，所以
+ * 它的产物只可能因为两件事不满足 `SKILL_ID_RE`：
+ *   ① 空串（名字里一个 `[a-z0-9]` 都没有，例如纯中文/纯符号）
+ *   ② 长度 > 64
+ * 也就是说，原先那条统一落回的 'aiSkErrBadId'（讲字符集）**永远不是真实原因**。
+ * 这里按两种真实原因分派专用键；'aiSkErrBadId' 只保留给 `createSkillErrorKey` 映射
+ * 后端返回的 `invalid skill id` 串（后端自己不区分原因，那条串照原样映射）。
  */
 export function validateSkillForm(name: string, description: string): string | null {
   const id = slugify(name)
+  if (id === '') return 'aiSkErrNameNoAlnum'
+  if (id.length > 64) return 'aiSkErrNameTooLong'
+  // 兜底：slugify 的产物理论上不会走到这里（见上方注释），保留是为了万一将来 slugify
+  // 或后端正则改了、两者不再互相蕴含时不会静默放行。
   if (!SKILL_ID_RE.test(id)) return 'aiSkErrBadId'
 
   const trimmedDescription = description.trim()
