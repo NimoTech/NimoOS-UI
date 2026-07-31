@@ -130,4 +130,22 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     // 但壳段确实引用了它(k-banner[data-tone="info"] 与 k-btn.primary 的阴影)
     expect(css).toContain('var(--accent-soft-2)')
   })
+
+  // 评审 2026-07-31 Critical 订正 —— 初版曾在浅色声明块里"刻意不声明 --accent/
+  // --accent-soft/--success,靠 CSS 继承拿外层浅色值"。这个推理不成立:暗色块
+  // `.knowledge-app { … }` 的选择器无条件命中(没有 data-theme 限定),在浅色主题下
+  // 同样作用于这个元素本身;custom property 继承规则是"元素自身有声明时自身声明
+  // 胜出",所以浅色块留空并不会继承到浅色值,而是被暗色块的字面值(#5E97F2 等)
+  // 直接命中 —— 浅色主题下强调色/成功态会用错暗色调色板。这条钉住浅色块必须显式
+  // 声明这三项字面值,任何一项被"优化掉"都会精确报红。
+  it('浅色档必须显式声明 --accent/--accent-soft/--success(不能靠继承,见头注释订正说明)', () => {
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    expect(lightBody, '浅色档缺 --accent(会被暗色块的 #5E97F2 命中)').toContain('--accent: #3b5bdb')
+    expect(lightBody, '浅色档缺 --accent-soft(会被暗色块的值命中)').toContain('--accent-soft: rgba(59, 91, 219, 0.11)')
+    expect(lightBody, '浅色档缺 --success(会被暗色块的 #4FB870 命中)').toContain('--success: #15754c')
+    // 反向:确认没有退回自引用循环写法
+    expect(lightBody).not.toContain('--accent: var(--accent)')
+    expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
+    expect(lightBody).not.toContain('--success: var(--success)')
+  })
 })

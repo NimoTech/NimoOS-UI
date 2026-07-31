@@ -31,19 +31,30 @@
  * (input[type=number] 上下箭头底板、原生 checkbox 等)被浏览器按暗色 UA 调色板画,
  * 这正是 P2b 踩过的同一个坑(tokens.scss:33-38 的同类注释)。
  *
- * 【自查发现的隐藏坑 —— 3 个同名 var() 自引用】附录 B 浅色档表把 --accent /
- * --accent-soft / --success 的取值写成 "var(--全局同名 token)"。但全局 theme.css
- * 里那三个 token 的名字**恰好与本作用域要声明的 token 同名**
- * (--accent/--accent-soft/--success)。若照字面写
+ * 【自查发现的隐藏坑 —— 3 个同名 token,评审 2026-07-31 订正】附录 B 浅色档表把
+ * --accent / --accent-soft / --success 的取值写成 "var(--全局同名 token)"。但全局
+ * theme.css 里那三个 token 的名字**恰好与本作用域要声明的 token 同名**。若照字面写
  * `.knowledge-app { --accent: var(--accent); }`,CSS 自定义属性没有"引用外层同名
  * 值"的语义 —— 这是一次自引用循环,规范规定循环引用的自定义属性计算为
- * "guaranteed-invalid value"(不是退回继承值!),会让 .knowledge-app 内所有用到
- * var(--accent) 的元素在浅色主题下失效/透明,且 color-guard 与本档的自建单测都测不到
- * (它们只查"有没有裸色字面量/token 有没有声明",不查自引用循环)。正确写法是**干脆不在
- * 本作用域重新声明这三个 token**——custom property 默认可继承,.knowledge-app 是
- * `:root[data-theme="light"]` 的后代元素,不声明就会正确继承到外层的浅色值,效果与
- * "var(--全局同名 token)" 的字面意图完全一致,只是通过继承而非自引用实现。三处留空
- * 位置各补一行注释说明,防止日后有人"补全"成自引用写法。
+ * "guaranteed-invalid value",会让 .knowledge-app 内所有用到 var(--accent) 的元素
+ * 在浅色主题下失效/透明。
+ * 【初版的错误修法,已订正】本档第一版曾选择"干脆不在浅色块重新声明这三个 token,
+ * 靠 CSS 继承落到外层浅色值"——这个推理**不成立**:上面的暗色块 `.knowledge-app { … }`
+ * 选择器是无条件的(没有任何 data-theme 限定),在浅色主题下同样命中这个元素本身;
+ * custom property 的继承规则是"元素自身有声明时,自身声明胜出,根本走不到继承",
+ * 所以留空不会继承到浅色值,而是被暗色块的字面值直接命中 —— 浅色主题下知识库区
+ * 的强调色按钮/链接与成功态圆点反而会用暗色调色板,是一个真实回归(评审 RED 探针
+ * 已验证)。
+ * 【正确写法】在浅色声明块里**显式声明字面值**(不写 var()):
+ * `--accent: #3b5bdb`(theme.css:183)/ `--accent-soft: rgba(59,91,219,0.11)`
+ * (theme.css:274)/ `--success: #15754c`(theme.css:281)。这与附录 B 表里"全局无
+ * 同语义 token 时退字面值"是同一处理方式(--accent-softer / --text-quaternary /
+ * --line-strong / --line-faint / --purple/--pink/--teal 全是这个模式),不是新例外。
+ * 代价:这三项以后不会跟随全局主题自动改色;若未来要恢复自动跟随,需要给知识库档
+ * 的 token 改名(如 --k-accent)以消除同名冲突,属独立一期的事。
+ * color-guard 与本档的自建单测都测不到"值对不对"这层(它们只查"有没有裸色字面量/
+ * token 有没有声明"),knowledgeStyles.test.ts 已补一条用例钉住这三项必须在浅色块
+ * 声明(见文件底部对应 describe 块),并已用 RED 探针验证(删一个 → 精确报红)。
  */
 
 /* ===== Design tokens — dark(New-UI 默认 <html> 无 data-theme)=====
@@ -139,10 +150,25 @@
   --text-quaternary: #BCB8AD; /* 全局只有三档文字;取 AI tokens.scss 浅色第四档 :58(同族暖中性) */
   --text-on-accent: var(--on-accent);
 
-  /* --accent / --accent-soft / --success 三项刻意不在本块重新声明 —— 全局
-     theme.css 的同名 token(:root[data-theme="light"] 的 --accent:183/--accent-soft:274/
-     --success:281)会通过 CSS 继承自然落到这个后代元素上;若写成
-     `--accent: var(--accent)` 会是自引用循环(见头注释),不是"引用外层值"。 */
+  /* 【评审 2026-07-31 订正】--accent / --accent-soft / --success 必须在本块显式
+     声明字面值,不能"留空靠继承"—— 上面的暗色块 `.knowledge-app { … }` 选择器是
+     **无条件**的(没有任何 data-theme 限定),在浅色主题下同样命中这个元素本身;
+     CSS 自定义属性的继承规则是"元素自身有声明时,自身声明胜出,根本走不到继承",
+     所以留空并不会继承到 :root[data-theme="light"] 的浅色值,而是会被暗色块的
+     `--accent:#5E97F2`/`--accent-soft:rgba(94,151,242,.14)`/`--success:#4FB870`
+     直接命中,浅色主题下的知识库区强调色/成功态反而会用暗色调色板 —— 是本任务
+     实测发现的一个真实回归,已用 RED 探针验证(见 knowledgeStyles.test.ts)。
+     正确写法是**落字面值**,不写 var():因为这三个 token 与全局 theme.css 同名,
+     同名在同一元素上没有"引用外层值"的语义(`var(--accent)` 会是自引用循环,见
+     头注释),这与附录 B 表里"全局无同语义 token 时退字面值"是同一处理方式
+     (--accent-softer / --text-quaternary / --line-strong / --line-faint /
+     --purple/--pink/--teal 全是这个模式),不是新开的例外。
+     代价:这三项以后不会跟随全局主题自动改色(其余走 var() 的 token 会);若未来
+     要恢复自动跟随,需要给知识库档的 token 改名(如 --k-accent)以消除同名冲突,
+     那是独立一期的事,不在本任务范围内。 */
+  --accent: #3b5bdb; /* theme.css:183 */
+  --accent-soft: rgba(59, 91, 219, 0.11); /* theme.css:274 */
+  --success: #15754c; /* theme.css:281 */
 
   --accent-hover: var(--accent-text); /* #3550c4,全局"更深强调"档,theme.css:271 */
   --accent-softer: rgba(59, 91, 219, 0.06); /* 全局最淡档 --accent-soft 是 0.11,蓝本要 0.06,无对应 token */
