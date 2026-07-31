@@ -7,15 +7,22 @@
 // photos-smartview.scss:528-658(:543-563 的滑块本身已由 T5 抽到 PhotosThreshSlider.vue,
 // 这里不重复)。
 //
-// ── 与 Vue2 的架构性简化(brief 明确要求,登记)──────────────────────────────────
+// ── 与 Vue2 的架构性简化(brief 明确要求,登记;fix round 2 改正:此前这段与 40 行后
+//    新增的 `dragging` 门控自相矛盾,已按 fix-2-findings 的要求就地纠正,不是重写为
+//    另一套说法)──────────────────────────────────────────────────────────────────
 // Vue2 用「本地 thresh/paused/includeVideos + syncingSv 标志 + 三个 watcher」压制
 // "prop 变化 → 复制进本地 state → 本地 watcher 又发一次 PATCH" 的自反馈死循环
 // (:288-291、:345-371)。New-UI 只在用户交互(@input/@click)时才 emit('patch', …),
-// prop 回流(下面 `watch(() => props.sv.threshold, …)`)只更新本地 draft、绝不 emit——
-// 天然没有自反馈,不需要 syncingSv 这个标志,也不需要给这条 watch 加任何"是否正在拖动"
-// 的门控。两个开关比阈值更简单:纯派生(`computed(() => !sv.live)` / `sv.includeVideos`
-// 本身)+ 点击直接 emit,连本地 draft 都不需要——开关是离散值,不像阈值那样需要
-// 防抖节流。
+// prop 回流从不 emit,天然没有这条自反馈死循环 —— **不需要的是 Vue2 那个 `syncingSv`
+// 标志**,New-UI 没有对应物。
+// 但这不等于"prop 回流不需要任何门控":一次 PATCH 往返之间,只要用户还有尚未提交成功
+// 的本地编辑,prop 带回来的旧值就不能覆盖显示,否则会出现 fix round 1 · I1 实测复现的
+// 真 bug ——"拖到 92 → 响应落地把显示扳回 92 的路上,恰好把用户已经拖到的 60 冲掉"。
+// **需要的是下面的 `dragging` 门控**,解决的是另一件事:别在用户手指还按着(或还有一轮
+// 防抖/busy 重试没发出去)的时候,把显示抽回服务端旧值。两个开关比阈值更简单:纯派生
+// (`computed(() => !sv.live)` / `sv.includeVideos` 本身)+ 点击直接 emit,连本地 draft
+// 都不需要——开关是离散值,没有"用户手指还按着"这个中间态,不像阈值那样需要防抖节流
+// 也不需要 `dragging` 门控。
 //
 // ── busy 守卫(net-new,T7 SmartViewConditionEditor.vue 同一约束的延伸,登记)───────
 // Vue2 完全没有防止"PATCH 还没回来又点一次"的概念。宿主会传入 store.patchBusy,这里在
@@ -67,6 +74,9 @@ watch(() => props.sv.threshold, (v) => {
 // 失同步(与两个开关不同:开关纯派生,吞掉点击后 UI 仍与 store 一致,不需要重试)。
 function submitThreshold(v: number): void {
   if (props.busy) {
+    // 已知边界(fix round 2 登记,控制器裁定可接受、不需要限流):这个重试没有退避
+    // 也没有次数上限——如果 `patchBusy` 真的长期卡 true,会以固定 300ms 节奏永久重试
+    // 下去。不是紧循环、不会冻死浏览器(每次都要等一整个 setTimeout),但确实没有上限。
     if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => submitThreshold(v), 300)
     return

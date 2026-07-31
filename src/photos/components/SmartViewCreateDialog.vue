@@ -654,7 +654,7 @@ function thumbUrl(seed: string): string {
 .sv-toggle-row .label { flex: 1; color: var(--fg); }
 .sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
 .sv-toggle-clickable { cursor: pointer; user-select: none; }
-/* fix round 1 · I8-M1(SmartViewSidePanel.vue task-8 评审同批发现,控制器授权连本文件
+/* fix round 1 · M1(SmartViewSidePanel.vue task-8 评审同批发现,控制器授权连本文件
    一起补):Vue2 的 `.sv-switch` 有两份规则叠级联——本区 scss 读取区间没盖到
    `photos.scss:2819-2820` 的低优先级裸 `.sv-switch`,它声明了 `transition: background
    0.15s` 与 `::after` 的投影,未被高优先级的 `photos-smartview.scss:584-600` 覆盖,照样
