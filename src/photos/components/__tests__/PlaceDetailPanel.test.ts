@@ -8,7 +8,7 @@ import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
 import en from '../../../i18n/en_us'
 import { parsePlaceLast, type Place } from '../../util/placesMap'
-import type { PlaceDetail, PlaceSpot } from '../../stores/places'
+import type { PlaceDetail, PlaceSpot, PlaceVisit } from '../../stores/places'
 
 const thumbnailUrl = vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -47,6 +47,14 @@ function detail(overrides: Partial<PlaceDetail> = {}): PlaceDetail {
 function spot(overrides: Partial<PlaceSpot> = {}): PlaceSpot {
   return {
     key: 's1', name: 'West Lake', lon: 120.1551, lat: 30.2741, count: 12, thumb: 't-1',
+    ...overrides,
+  }
+}
+
+function visit(overrides: Partial<PlaceVisit> = {}): PlaceVisit {
+  return {
+    when: 'Mar 2026', from: '2026-03-01', to: '2026-03-07', current: false,
+    days: 7, photos: 42, faces: [], spots: 3, thumbs: ['t1', 't2'],
     ...overrides,
   }
 }
@@ -623,5 +631,43 @@ describe('hover 态背景(.detail-grid .ph.more)', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const win = winningHoverBackground(style, ['detail-grid', 'ph', 'more'])
     expect(win.selector).toContain(':hover')
+  })
+})
+
+// ── P6b-T6: 到访记录段挂载(渲染委托给 PlaceVisitHistory.vue,面板只负责传 prop + 透传 emit)──
+describe('到访记录段挂载', () => {
+  it('detail.visits 非空 → PlaceVisitHistory 渲染出 .visit-card', () => {
+    const w = mountPanel({ detail: detail({ visits: [visit()] }) })
+    expect(w.find('.visit-card').exists()).toBe(true)
+  })
+
+  it('detail 为 null → visits 兜底空数组,段落仍渲染(无 .visit-card)', () => {
+    const w = mountPanel({ detail: null })
+    expect(w.find('.visit-history').exists()).toBe(true)
+    expect(w.find('.visit-card').exists()).toBe(false)
+  })
+
+  it('trips 传给 PlaceVisitHistory 的是面板既有的 trips 派生量(detail.trips 优先于 place.trips)', () => {
+    const w = mountPanel({
+      place: place({ trips: 1 }),
+      detail: detail({ trips: 4, visits: [] }),
+    })
+    const section = w.findAll('.detail-section').find(s => s.find('.visit-history').exists())
+    expect(section, '未找到含 .visit-history 的 .detail-section').toBeTruthy()
+    expect(section!.find('h4 .more').text()).toContain('4')
+  })
+
+  it('save-trip 原样透传给容器,带 visit 对象', () => {
+    const v = visit({ when: 'Jul 2026' })
+    const w = mountPanel({ detail: detail({ visits: [v] }) })
+    w.find('.visit-save-btn').trigger('click')
+    expect(w.emitted('save-trip')).toEqual([[v]])
+  })
+
+  it('缩略图点击的 open-photo 原样透传给容器(D9:list 是该条 visit 自己的 thumbs)', async () => {
+    const v = visit({ thumbs: ['x1', 'x2'] })
+    const w = mountPanel({ detail: detail({ visits: [v] }) })
+    await w.find('.visit-thumbs img').trigger('click')
+    expect(w.emitted('open-photo')).toEqual([['x1', ['x1', 'x2']]])
   })
 })

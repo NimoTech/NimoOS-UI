@@ -48,9 +48,10 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { formatSpotCoords, type Place } from '../util/placesMap'
-import type { PlaceDetail, PlaceSpot, PlaceInsight } from '../stores/places'
+import type { PlaceDetail, PlaceSpot, PlaceInsight, PlaceVisit } from '../stores/places'
 import PlaceSpotDialog from './PlaceSpotDialog.vue'
 import PlaceInsights from './PlaceInsights.vue'
+import PlaceVisitHistory from './PlaceVisitHistory.vue'
 
 const props = defineProps<{
   place: Place | null
@@ -77,6 +78,9 @@ const emit = defineEmits<{
   (e: 'reset-name'): void
   (e: 'close-spot'): void
   (e: 'open-spot-library'): void
+  // P6b-T6:PlaceVisitHistory 的 save-trip 原样透传给容器(open-photo 复用面板既有的
+  // 同名 emit,不新增)。
+  (e: 'save-trip', visit: PlaceVisit): void
 }>()
 
 const { t, locale } = useI18n()
@@ -125,6 +129,9 @@ const spots = computed(() => props.detail?.spots ?? [])
 const insights = computed<PlaceInsight[]>(() => props.detail?.insights ?? [])
 // 照 Vue2 recentPhotos :283(`this.activeDetail ? (this.activeDetail.recent || []) : []`)。
 const recent = computed(() => props.detail?.recent ?? [])
+
+// ── P6b-T6: 到访记录段(照 Vue2 :1204-1245,渲染委托给 PlaceVisitHistory.vue)。────
+const visits = computed<PlaceVisit[]>(() => props.detail?.visits ?? [])
 
 // 铁律:id/key 比较一律 String() 归一——activeSpotKey 来自容器(可能来自路由/深链,
 // 类型未必与 PlaceSpot.key 的运行时值完全一致)。
@@ -277,6 +284,13 @@ function onSpotOpenPhoto(assetId: string): void {
           </div>
         </div>
       </div>
+
+      <!-- P6b-T6: 到访记录段(照 Vue2 :1204-1245,渲染委托给 PlaceVisitHistory.vue)。 -->
+      <PlaceVisitHistory
+        :visits="visits" :trips="trips"
+        @save-trip="(v) => emit('save-trip', v)"
+        @open-photo="(assetId, list) => emit('open-photo', assetId, list)"
+      />
     </div>
   </div>
 </template>
