@@ -22,7 +22,10 @@ describe('9 个 tab 骨架', () => {
 
   // P1 起 general 已填真实内容(见 GeneralPanel.integration.test.ts),不再有 .set-skeleton;
   // developer 从 Task 11 起也填了真实内容(见 DeveloperPanel.test.ts),同样不再是纯骨架。
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer'))('%s 骨架渲染标题与空态位', (tab) => {
+  // P2 起 network 也填了真实内容(见 network/NetworkPanel.integration.test.ts)——它会打
+  // service.network.getInterfaces() 与 useUtilization(MessageBus + /sys/utilization),
+  // 而本文件是**零 mock** 的纯骨架测试,挂载它会因 getHttp() 未初始化而抛。
+  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
@@ -42,9 +45,10 @@ describe('9 个 tab 骨架', () => {
   // GeneralPanel.integration.test.ts —— 该组件从 P1 起会打真实接口,
   // panels.test.ts 保持零 mock 的纯骨架测试(见任务简报 Step 4)。
 
+  // 原来用 network 做这条抽查,P2 起它不再是骨架 → 换成仍是骨架的 storage(理由同上)。
   it('骨架的文案 key 都有译文(没有渲染出裸 key)', () => {
-    const w = mount(PANEL_BY_TAB.network, { global: { plugins: [i18n] } })
-    expect(w.find('.set-section-title').text()).toBe('网络')
+    const w = mount(PANEL_BY_TAB.storage, { global: { plugins: [i18n] } })
+    expect(w.find('.set-section-title').text()).toBe('存储')
     expect(w.find('.set-skeleton').text()).not.toMatch(/^settings/)
   })
 })
