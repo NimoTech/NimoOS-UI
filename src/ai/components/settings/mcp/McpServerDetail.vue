@@ -1,11 +1,12 @@
 <!--
   SP8-P4 Task 6 —— 1:1 移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerDetail.vue`
-  (174 行)的 `:1-157`,但按任务书跳过留给 T7 的三段(本文件完全不出现相关 DOM/状态):
+  (174 行)的 `:1-157`。Task 7(测试连接)补全了 T6 留白的三段:
     - `:50-53` 「测试连接」按钮
     - `:87-100` 测试提示 `.mcp-test-hint` / 结果面板 `.mcp-test-result`
-    - `:158-171` `runTest()` 方法与 `testing`/`testResult` 状态
-  三处留给 T7 的落点标记为行内注释,写在 Vue2 原行号对应的确切位置(见下方模板里
-  「SP8-P4 T7 在此插入…」两处,以及 `watch` 回调里的第三处)。
+    - `:158-171` `runTest()` 方法与 `testing`/`testResult`(本仓 `testView`)状态,
+      外加 `watch(() => props.server?.id)` 里对应的重置
+  T7 的两条偏离(**D8** 错误呈现本地化 + 可折叠技术详情、**D11** 在途请求竞态守卫)
+  见 `<script>` 里 `runTest`/`reqSeq` 头注释与模板 `mcp-test-result` 分支内的注释。
 
   【偏离 D3,公共约束 §3 第 3 条】`SkillIcon.vue` 不移植,统一用
   `../../icons/AgentIcon.vue`(承 P3a/T5 先例)。
@@ -68,10 +69,12 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { service } from '@nimotech/nimoos-service'
 import {
   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, VisuallyHidden,
 } from 'reka-ui'
-import type { McpServer } from '../../../types/mcpServer'
+import type { McpServer, McpTestView } from '../../../types/mcpServer'
+import { toTestView, toTestViewFromError } from '../../../util/mcpErrorKey'
 import { serverColor, transportLabel, SERVER_GLYPH } from '../../../util/mcpServerVisual'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import SkillTile from '../skills/SkillTile.vue'
@@ -99,6 +102,46 @@ const confirmOpen = ref(false)
 // `.sk-pill-more` 按钮 + `.sk-menu` 下拉的包裹元素,对齐 Vue2 `ref="menuWrap"`(:19)。
 const menuWrap = ref<HTMLElement | null>(null)
 
+// 测试连接,对齐 Vue2 `data(){ testing: false, testResult: null }`(:140)——本仓
+// `testResult` 改名 `testView`,因为存的是 T3 `toTestView`/`toTestViewFromError`
+// 映射后的 `McpTestView`(i18n 键 + detail),不是后端裸响应,改名避免与
+// `McpTestResult`(后端原始形状,types/mcpServer.ts)混淆。
+const testing = ref(false)
+const testView = ref<McpTestView | null>(null)
+// 【偏离 D11,公共约束 §3 第 11 条】Vue2 `runTest`(`:158-171`)没有请求令牌:
+// stdio 探测最长 100 秒(`NimoOS-AI/route/v2/mcp.go:346`),这期间用户切到别的
+// 服务器时,上面的 `watch(() => props.server?.id)` 已经把 `testView` 清空,
+// 但在途 promise 落地后仍会执行 `testView.value = ...`,把**旧服务器的结果**
+// 写进**新服务器的面板**——可复现的错配,不是无害的时序巧合。这里用单调递增的
+// `reqSeq` 守卫:进入时取号,`watch` 里切换服务器会让号作废,成功/失败/finally
+// 三处落地前都比对号是否还是自己发出时的那个,不是就整体丢弃(包括不复位
+// `testing`,因为那已经是新一轮的状态,由新一轮自己的 finally 负责)。
+const reqSeq = ref(0)
+
+// 对齐 Vue2 `runTest()`(:158-171)。
+async function runTest() {
+  if (!props.server || testing.value) return // Vue2 :159 逐字对应
+  const seq = ++reqSeq.value
+  const id = props.server.id
+  testing.value = true
+  testView.value = null
+  try {
+    // 【偏离 D1,公共约束 §3 第 1 条】单层取数:共享包 `service.ai.testMCPServer`
+    // 已 `return res.data`(`NimoOS-Service/src/ai.ts:388-391`),后端
+    // `mcp.go:355` 是 `c.JSONBlob` 裸对象。Vue2 `:164` 的 `resp.data` 在本仓
+    // 恒为 `undefined`,会让「测试连接」**永远显示连接失败**,哪怕后端返回
+    // `ok:true`——照抄即缺陷,这里直接用 `body` 本身。
+    const body = await service.ai.testMCPServer(id)
+    if (seq !== reqSeq.value) return
+    testView.value = toTestView(body)
+  } catch (e) {
+    if (seq !== reqSeq.value) return
+    testView.value = toTestViewFromError(e)
+  } finally {
+    if (seq === reqSeq.value) testing.value = false
+  }
+}
+
 // 外部点击关闭菜单,逐字等价 Vue2 `watch: { menuOpen(v) {...} }`(:143-150)+
 // `beforeDestroy`(:153)。见文件头注释「外部点击关菜单」。
 let docListener: ((e: MouseEvent) => void) | null = null
@@ -118,12 +161,16 @@ onBeforeUnmount(() => {
   if (docListener) document.removeEventListener('mousedown', docListener)
 })
 
-// 对齐 Vue2 `watch: { 'server.id'() {...} }`(:151)。
+// 对齐 Vue2 `watch: { 'server.id'() {...} }`(:151),同一行还清了
+// `this.testing = false; this.testResult = null`。本仓额外 `reqSeq.value++`
+// ——【偏离 D11】见下方 `runTest` 头注释:让切走时仍在途的旧请求失效,落地时
+// 序号比对不通过就整体丢弃,不会把旧服务器的测试结果写进新服务器的面板。
 watch(() => props.server?.id, () => {
   menuOpen.value = false
   confirmOpen.value = false
-  // SP8-P4 T7 会在这里追加 testing / testView / reqSeq 的重置
-  // (Vue2 同一行 `:151` 还清了 `this.testing = false; this.testResult = null`)。
+  reqSeq.value += 1
+  testing.value = false
+  testView.value = null
 })
 
 // 对齐 Vue2 `closeAnd(fn)`(:155)。
@@ -223,7 +270,11 @@ function doDelete() {
             <div class="sk-section-head">
               <div class="sk-section-title">{{ t('aiMcpSrvConfiguration') }}</div>
               <div class="sk-section-hint">{{ t('aiMcpSrvConfigHint') }}</div>
-              <!-- SP8-P4 T7 在此插入「测试连接」按钮(Vue2 :50-53) -->
+              <!-- 对齐 Vue2 :50-53。 -->
+              <button class="sk-btn ghost mcp-test-btn" :disabled="testing" @click="runTest">
+                <span v-if="testing" class="sk-spinner" />
+                {{ testing ? t('aiMcpSrvTesting') : t('aiMcpSrvTest') }}
+              </button>
             </div>
             <div class="sk-section-body">
               <div class="mcp-config">
@@ -257,7 +308,32 @@ function doDelete() {
                 </template>
               </div>
 
-              <!-- SP8-P4 T7 在此插入测试提示与结果面板(Vue2 :87-100) -->
+              <!-- 对齐 Vue2 :87-100,stdio 90 秒提示照抄。 -->
+              <div v-if="testing && server.transport === 'stdio'" class="mcp-test-hint">
+                {{ t('aiMcpSrvTestStdioHint') }}
+              </div>
+              <div v-if="testView" class="mcp-test-result" :data-ok="testView.ok ? 'true' : 'false'">
+                <template v-if="testView.ok">
+                  <div class="mcp-test-line">✓ {{ t('aiMcpSrvTestOk', { n: testView.toolCount }) }}</div>
+                  <div class="mcp-test-tools">
+                    <span v-for="tool in testView.tools" :key="tool" class="mcp-tool-chip">{{ tool }}</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="mcp-test-line">✗ {{ t(testView.msgKey) }}</div>
+                  <!-- 【偏离 D8,公共约束 §3 第 8 条】Vue2 `:98` 直接显示后端拼好的
+                       英文 error 串(`testResult.error`)。这里改成 `error_key`
+                       映射出的本地化一句话(`testView.msgKey`)+ 默认折叠的技术
+                       详情(`testView.detail`,用户 2026-07-31 拍板);后端英文
+                       原文一律不上界面。`detail` 为空时整个折叠区不渲染
+                       (`v-if="testView.detail"`)——本控件 Vue2 没有,是本期新增
+                       的、已授权的界面偏离,不是"照抄之外顺手加的东西"。 -->
+                  <details v-if="testView.detail" class="mcp-test-detail">
+                    <summary>{{ t('aiMcpSrvTestDetail') }}</summary>
+                    <pre>{{ testView.detail }}</pre>
+                  </details>
+                </template>
+              </div>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
@@ -7,9 +7,17 @@ import McpServerDetail from './McpServerDetail.vue'
 import type { McpServer } from '../../../types/mcpServer'
 
 // SP8-P4 Task 6 —— 对齐 Vue2 src/views/AI/MCP/McpServerDetail.vue(174 行)的
-// :1-157(跳过 T7 范围:测试连接按钮 :50-53、结果面板 :87-100、runTest :158-171)。
+// :1-157。
+// SP8-P4 Task 7 —— 补上「测试连接」整段:按钮 :50-53、结果面板 :87-100、
+// runTest :158-171,含 D8(本地化错误 + 折叠技术详情)与 D11(在途请求竞态守卫)。
 // 公共约束 §9:reka Teleport 组件挂载后先 await nextTick() 再查 document;
 // 异步断言用 flushPromises() 不用单个 await nextTick()。
+
+// vi.hoisted 避免 ESM 提升的 TDZ(公共约束 §9 先例 agentStore.test.ts:4-19)。
+// 只 mock service.ai.testMCPServer 这一个方法——本文件其余用例不碰网络请求,
+// 不需要也不应该 mock 掉整个 service.ai 命名空间。
+const h = vi.hoisted(() => ({ testMCPServer: vi.fn() }))
+vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -27,6 +35,10 @@ function makeServer(overrides: Partial<McpServer> = {}): McpServer {
     ...overrides,
   }
 }
+
+// T7 用例沿用 brief 里的 `srv(...)` 命名,等价于既有的 `makeServer`——避免两份
+// 重复的 fixture 构造逻辑。
+const srv = makeServer
 
 // 删除确认弹窗 portal 到 `.set-app`(D6),测试须先在 body 里放同名宿主,
 // 先例 SkillDetail.test.ts::withHost()。
@@ -257,5 +269,145 @@ describe('McpServerDetail', () => {
     await w.setProps({ server: makeServer({ id: 2 }) })
     await flush()
     expect(host.querySelector('.sk-confirm')).toBeNull()
+  })
+})
+
+// SP8-P4 Task 7 —— 测试连接:三态(idle/testing/result)、D8(本地化错误 + 折叠
+// 技术详情)、D11(在途请求竞态守卫)。任务书 Step 1 给的完整用例,逐字照抄。
+describe('测试连接', () => {
+  beforeEach(() => { h.testMCPServer.mockReset() })
+
+  it('点按钮进入 testing 态:按钮禁用、文案变「测试中…」、出现 spinner', async () => {
+    let resolve!: (v: unknown) => void
+    h.testMCPServer.mockReturnValue(new Promise((r) => { resolve = r }))
+    const w = mountDetail(srv({ id: 5 }))
+    await w.find('.mcp-test-btn').trigger('click')
+    await nextTick()
+    expect(w.find('.mcp-test-btn').attributes('disabled')).toBeDefined()
+    expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTesting)
+    expect(w.find('.mcp-test-btn .sk-spinner').exists()).toBe(true)
+    resolve({ ok: true, tool_count: 0, tools: [] })
+    await flushPromises()
+  })
+
+  it('stdio 才显示 90 秒提示,http 不显示(两次挂载对照)', async () => {
+    h.testMCPServer.mockReturnValue(new Promise(() => {}))
+    const a = mountDetail(srv({ transport: 'stdio', command: 'npx' }))
+    await a.find('.mcp-test-btn').trigger('click'); await nextTick()
+    expect(a.find('.mcp-test-hint').exists()).toBe(true)
+    const b = mountDetail(srv({ transport: 'http' }))
+    await b.find('.mcp-test-btn').trigger('click'); await nextTick()
+    expect(b.find('.mcp-test-hint').exists()).toBe(false)
+  })
+
+  // 单层取数的钉子:mock 是**裸对象**。若实现多剥一层 .data,这条会红。
+  it('成功:单层取数,显示已连接 · N 个工具 + 工具 chip', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 2, tools: ['search', 'fetch'] })
+    const w = mountDetail(srv({ id: 5 }))
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(h.testMCPServer).toHaveBeenCalledWith(5)
+    expect(w.find('.mcp-test-result').attributes('data-ok')).toBe('true')
+    expect(w.find('.mcp-test-line').text()).toContain('已连接 · 2 个工具')
+    expect(w.findAll('.mcp-tool-chip').map((c) => c.text())).toEqual(['search', 'fetch'])
+    expect(w.find('.mcp-test-detail').exists()).toBe(false)
+  })
+
+  it('失败:显示本地化文案,后端 error 英文串不出现在界面上', async () => {
+    h.testMCPServer.mockResolvedValue({
+      ok: false, error_key: 'connect_failed',
+      error: 'Connection failed: All connection attempts failed',
+      detail: 'All connection attempts failed',
+    })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-result').attributes('data-ok')).toBe('false')
+    expect(w.find('.mcp-test-line').text()).toContain(zh.aiMcpSrvTestErrConnect)
+    expect(w.text()).not.toContain('Connection failed: All connection attempts failed')
+  })
+
+  it('detail 非空才渲染折叠区,且默认折叠(无 open 属性)', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: false, error_key: 'connect_failed', detail: 'ENOENT npx' })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    const d = w.find('.mcp-test-detail')
+    expect(d.exists()).toBe(true)
+    expect(d.attributes('open')).toBeUndefined()
+    expect(d.find('summary').text()).toBe(zh.aiMcpSrvTestDetail)
+    expect(d.find('pre').text()).toBe('ENOENT npx')
+  })
+
+  it('detail 为空时不渲染折叠区(对照)', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: false, error_key: 'probe_timeout' })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-line').text()).toContain(zh.aiMcpSrvTestErrTimeout)
+    expect(w.find('.mcp-test-detail').exists()).toBe(false)
+  })
+
+  it('502 agent unreachable(抛错路径)→ 专用文案,不显示后端 body', async () => {
+    h.testMCPServer.mockRejectedValue(
+      Object.assign(new Error('x'), { response: { status: 502, data: { ok: false, error: 'agent unreachable' } } }),
+    )
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-line').text()).toContain(zh.aiMcpSrvTestErrAgentDown)
+    expect(w.text()).not.toContain('agent unreachable')
+  })
+
+  it('testing 期间重复点击不重复发请求(Vue2 :159 的 if (!this.server || this.testing) return)', async () => {
+    h.testMCPServer.mockReturnValue(new Promise(() => {}))
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await w.find('.mcp-test-btn').trigger('click')
+    await w.find('.mcp-test-btn').trigger('click')
+    expect(h.testMCPServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('切换服务器时清空 testing 与结果', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: ['a'] })
+    const w = mountDetail(srv({ id: 1 }))
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-result').exists()).toBe(true)
+    await w.setProps({ server: srv({ id: 2, name: 'other' }) })
+    await nextTick()
+    expect(w.find('.mcp-test-result').exists()).toBe(false)
+  })
+
+  // ★ D11 竞态守卫 —— 本任务的核心钉子。
+  // 弱断言(只查「结果面板不存在」)在切换后本来就成立,抓不出竞态;必须让
+  // 旧请求在切换**之后**才落地,再断言面板仍为空。
+  it('D11:在途请求落地时若已切到别的服务器,结果被丢弃(不串台)', async () => {
+    let resolveOld!: (v: unknown) => void
+    h.testMCPServer.mockReturnValueOnce(new Promise((r) => { resolveOld = r }))
+    const w = mountDetail(srv({ id: 1, name: 'old' }))
+    await w.find('.mcp-test-btn').trigger('click')
+    await nextTick()
+    // 切到另一台服务器
+    await w.setProps({ server: srv({ id: 2, name: 'new' }) })
+    await nextTick()
+    // 旧请求现在才落地,且是「成功」——若无守卫,会在新服务器面板上显示成功
+    resolveOld({ ok: true, tool_count: 9, tools: ['leaked'] })
+    await flushPromises()
+    expect(w.find('.mcp-test-result').exists()).toBe(false)
+    expect(w.text()).not.toContain('leaked')
+    expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTest) // 不卡在「测试中…」
+  })
+
+  it('D11 对照:未切换时结果正常落地(守卫不能把正常路径也挡掉)', async () => {
+    let resolveIt!: (v: unknown) => void
+    h.testMCPServer.mockReturnValueOnce(new Promise((r) => { resolveIt = r }))
+    const w = mountDetail(srv({ id: 1 }))
+    await w.find('.mcp-test-btn').trigger('click')
+    await nextTick()
+    resolveIt({ ok: true, tool_count: 1, tools: ['kept'] })
+    await flushPromises()
+    expect(w.find('.mcp-test-result').attributes('data-ok')).toBe('true')
+    expect(w.text()).toContain('kept')
   })
 })
