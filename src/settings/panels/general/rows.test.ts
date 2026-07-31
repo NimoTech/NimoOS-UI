@@ -124,6 +124,17 @@ describe('TimezoneRow', () => {
     expect(blob.rss_switch).toBe(true)          // 别人的字段没被洗掉
   })
 
+  it('保存失败时提示用户(评审 fix round 2:此前只 console.warn)', async () => {
+    setCustomStorage.mockRejectedValueOnce(new Error('boom'))
+    const toast = useToast()
+    const w = mountRow(TimezoneRow)
+    await flushPromises()
+    await w.find('select').setValue('UTC')
+    await flushPromises()
+    expect(toast.toasts).toHaveLength(1)
+    expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
+  })
+
   it('时区表项数与 Vue2 一致(防抄漏)', () => {
     const w = mountRow(TimezoneRow)
     expect(w.findAll('option').length).toBeGreaterThanOrEqual(35)
@@ -178,6 +189,17 @@ describe('DiskStandbyRow', () => {
     expect(standbyCalls).toEqual([{ minutes: 0 }])
   })
 
+  it('配置写入本身失败时也提示用户(评审 fix round 2:此前只 console.warn,与下面「指令下发失败」是两条独立的失败路径)', async () => {
+    setCustomStorage.mockRejectedValueOnce(new Error('boom'))
+    const toast = useToast()
+    const w = mountRow(DiskStandbyRow)
+    await flushPromises()
+    await w.find('select').setValue('2h')
+    await flushPromises()
+    expect(toast.toasts).toHaveLength(1)
+    expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
+  })
+
   it('下发失败时提示,但不把 select 弹回去(配置已落库,指令下次开机生效)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'setDiskStandby').mockRejectedValueOnce(new Error('boom'))
@@ -200,7 +222,7 @@ describe('DiskStandbyRow', () => {
     await flushPromises()
     const opts = w.findAll('option')
     expect(opts).toHaveLength(9)
-    expect(opts[0].text()).toBe('从未')
+    expect(opts[0].text()).toBe('从不')
     for (const o of opts) expect(o.text()).not.toMatch(/^settings/)
   })
 

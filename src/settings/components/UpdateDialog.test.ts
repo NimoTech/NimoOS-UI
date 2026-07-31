@@ -140,6 +140,18 @@ describe('UpdateDialog 下载', () => {
     expect(busHandlers['nimoos:app:download:progress']).toBeUndefined()
   })
 
+  // 评审 fix round 2 · Important:此前失败只 toast.show(...),但 toast 容器
+  // z-index:60 被弹窗自己 z-index:1000 + backdrop blur 的遮罩糊住,用户什么都看不见。
+  // 现在改成跟 WebUiHttpsDialog.vue 一样内联展示,且优先展示后端信封的 message。
+  it('触发下载失败:内联显示后端的失败消息(不是不可见的 toast)', async () => {
+    const svc = await import('@nimotech/nimoos-service')
+    vi.spyOn(svc.service.sys, 'getOsVersion').mockRejectedValueOnce(new Error('upgrade already running'))
+    mountIt()
+    await nextTick()
+    await body().find('.upd-download').trigger('click'); await flushPromises()
+    expect(body().find('.set-danger').text()).toContain('upgrade already running')
+  })
+
   it('触发下载时若后端直接报已下载,收弹窗并 emit changed', async () => {
     state.os = { current_version: '1.0.0', need_update: true, is_downloaded: true }
     const w = mountIt()
@@ -211,6 +223,16 @@ describe('UpdateDialog 升级', () => {
     await body().find('.upd-upgrade').trigger('click'); await flushPromises()
     expect(body().find('.upd-logs').exists()).toBe(false)
     expect(body().find('.upd-upgrade').exists()).toBe(true)
+  })
+
+  // 评审 fix round 2 · Important:同上,升级失败这条路径也改成内联展示,
+  // 且后端信封的 message('boom',state.updateOsFail 那个 mock 抛的)要能看到。
+  it('升级失败:内联显示后端的失败消息(不是不可见的 toast)', async () => {
+    state.updateOsFail = true
+    mountIt({ info: { ...INFO, is_downloaded: true } })
+    await nextTick()
+    await body().find('.upd-upgrade').trigger('click'); await flushPromises()
+    expect(body().find('.set-danger').text()).toContain('boom')
   })
 
   it('弹窗关闭后停掉日志轮询(不留定时器)', async () => {

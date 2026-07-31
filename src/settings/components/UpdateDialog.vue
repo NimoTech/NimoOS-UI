@@ -41,6 +41,17 @@ type Phase = 'idle' | 'downloading' | 'upgrading'
 const phase = ref<Phase>('idle')
 const progress = ref(0)
 const logs = ref('')
+// 评审 fix round 2 · Important:两个失败路径此前都只 toast.show(...) ——
+// 但 toast 容器 z-index:60,弹窗自己的遮罩 z-index:1000 还带 backdrop blur,
+// 两者都在根 stacking context,toast 被糊住的遮罩挡在后面,用户什么都看不见。
+// 跟 WebUiHttpsDialog.vue 的既有先例一样,改成弹窗体内联展示。
+const error = ref('')
+
+/** 服务层抛出的 Error.message 就是后端信封的 message —— 优先展示它,为空才退回 i18n 文案。 */
+function errMsg(e: unknown, fallbackKey: string): string {
+  const backend = e instanceof Error ? e.message : ''
+  return backend || t(fallbackKey)
+}
 
 const changelogHtml = computed(() => renderMarkdown(props.info.version?.change_log ?? ''))
 const isDownloaded = computed(() => props.info.is_downloaded === true)
@@ -59,6 +70,7 @@ onBeforeUnmount(() => { stopLogs(); unbind() })
 
 watch(() => props.open, (o) => {
   if (!o) { stopLogs(); unbind(); phase.value = 'idle'; return }
+  error.value = ''   // 打开(或重开)时清掉上一轮可能残留的失败提示
   phase.value = props.currentlyDownloading ? 'downloading' : 'idle'
   progress.value = props.info.download_progress ?? 0
   bind()
@@ -85,6 +97,7 @@ function bind() {
 async function startDownload() {
   phase.value = 'downloading'
   progress.value = 0
+  error.value = ''
   try {
     // 下载不是独立端点:靠 version 检查带 trigger_download=1 触发
     const res = props.kind === 'app'
@@ -102,7 +115,9 @@ async function startDownload() {
   } catch (e) {
     phase.value = 'idle'
     console.warn('[settings] trigger download failed', e)
-    toast.show(t('settingsSaveFailed'))
+    // 评审 fix round 2:「保存配置失败」是错的句子(这不是保存配置,是触发下载)——
+    // 复用 settingsUpgradeFailed 而不是造一个新 key(brief 明确不允许新增 i18n key)。
+    error.value = errMsg(e, 'settingsUpgradeFailed')
   }
 }
 
@@ -123,13 +138,14 @@ async function cancel() {
 async function upgrade() {
   phase.value = 'upgrading'
   logs.value = ''
+  error.value = ''
   try {
     if (props.kind === 'app') await service.sys.updateApp()
     else await service.sys.updateOs()
   } catch (e) {
     phase.value = 'idle'      // 让用户能再试一次,而不是卡在日志空屏
     console.warn('[settings] upgrade failed', e)
-    toast.show(t('settingsUpgradeFailed'))
+    error.value = errMsg(e, 'settingsUpgradeFailed')
     return
   }
   pollLogs()
@@ -173,6 +189,8 @@ function pollLogs() {
 
       <!-- renderMarkdown 是 html:false 的 markdown-it —— 原始 HTML 被转义,v-html 其输出安全 -->
       <div v-else class="upd-log" v-html="changelogHtml"></div>
+
+      <p v-if="error" class="set-danger">{{ error }}</p>
     </div>
 
     <template #footer>

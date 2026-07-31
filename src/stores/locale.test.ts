@@ -16,6 +16,7 @@ vi.mock('@nimotech/nimoos-service', async () => {
 
 import { i18n } from '../i18n'
 import { useLocaleStore } from './locale'
+import { useToast } from './toast'
 
 describe('locale store', () => {
   beforeEach(() => {
@@ -57,6 +58,19 @@ describe('locale store', () => {
     expect(setCustomStorage.mock.calls[0]?.[0]).toBe('system')
     expect(setCustomStorage.mock.calls[0]?.[1]).toEqual({ timezone: 'UTC', search_switch: true, lang: 'en_us' })
     expect(i18n.global.locale.value).toBe('en_us')
+  })
+
+  // 评审 fix round 2 · Important:此前 persist() 的 catch 只 console.warn ——
+  // 界面已经切换了语言(setLocale 先执行),服务端却从没存过,用户毫无感知。
+  // LanguageRow.vue / Welcome.vue 首启语言选择器都靠 persist() 这一个入口,
+  // 提示放在 store 里能同时覆盖两处调用方。
+  it('server save 失败时提示用户(评审 fix round 2)', async () => {
+    setCustomStorage.mockRejectedValueOnce(new Error('boom'))
+    const toast = useToast()
+    await useLocaleStore().persist('en_us')
+    expect(i18n.global.locale.value).toBe('en_us')   // 界面仍然切换(setLocale 先跑)
+    expect(toast.toasts).toHaveLength(1)
+    expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
   it('切语言与设置页写时区并发,两者都不丢(纪律 #3)', async () => {

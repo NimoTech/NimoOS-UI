@@ -4,6 +4,7 @@ import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
+import { useToast } from '../../stores/toast'
 
 const state = { ssl: { enabled: false, port: '443', domain: 'nimoos.local', cert_type: 'auto', effective_time: '', expiration_time: '' }, setCalls: [] as unknown[], setFail: false }
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -80,9 +81,13 @@ describe('DeveloperPanel', () => {
 
   it('下发失败时开关弹回(对位 Vue2 sslEnabled = !val)', async () => {
     state.setFail = true
+    const toast = useToast()
     const w = mountIt(); await flushPromises()
     await w.find('[role="switch"]').trigger('click'); await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
+    // 评审 fix round 2 · Important:此前只验证了开关弹回,没验证真的提示了用户。
+    expect(toast.toasts).toHaveLength(1)
+    expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
   it('点配置入口打开弹窗', async () => {

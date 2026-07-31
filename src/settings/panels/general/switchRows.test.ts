@@ -4,6 +4,7 @@ import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import zhSp9 from '../../../i18n/zh_cn.sp9'
+import { useToast } from '../../../stores/toast'
 
 const blob: Record<string, unknown> = {}
 const state = { usb: false, usbCalls: [] as unknown[], usbFail: false, driveModel: '' }
@@ -79,11 +80,16 @@ describe('UsbAutoMountRow', () => {
 
   it('下发失败时开关弹回原状态(Vue2 是 fire-and-forget,失败后界面在骗人)', async () => {
     state.usbFail = true
+    const toast = useToast()
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
+    // 评审 fix round 2 · Important:此前只验证了开关弹回,没验证真的提示了用户 ——
+    // 漏写 toast.show(...) 或写错 i18n key 都不会让上面那句失败。
+    expect(toast.toasts).toHaveLength(1)
+    expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
   it('树莓派 + 开启时给出启动失败警告(对位 Vue2 L1791-1797)', async () => {
@@ -164,11 +170,15 @@ describe('SwitchRow —— 推荐应用(无确认)', () => {
   it('落库失败时弹回', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.users, 'setCustomStorage').mockRejectedValueOnce(new Error('boom'))
+    const toast = useToast()
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
+    // 评审 fix round 2 · Important:此前只验证了开关弹回,没验证真的提示了用户。
+    expect(toast.toasts).toHaveLength(1)
+    expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
   // 交错防护回归测试(同 UsbAutoMountRow 那条,不在 brief 里但外层任务描述明确要求)。
@@ -240,6 +250,35 @@ describe('SwitchRow —— 新闻流(开启需确认,对位 Vue2 rssConfirm L169
     await flushPromises()
     expect(blob.rss_switch).toBeUndefined()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
+  })
+
+  // 评审 fix round 2 · Minor:此前 onToggle 一打开确认弹窗就把 touched 置 true,
+  // 无论用户是否真的确认。场景:服务端 rss_switch=true,hydrate 还没返回(行先显示
+  // 默认关),用户拨开触发确认弹窗后又取消 —— 取消不应该让 touched 卡死;迟到的
+  // hydrate 必须仍能把行拉到服务端真实值(true),而不是永远停在用户从没确认过的关。
+  it('交错防护:确认弹窗被取消不应卡死 touched,迟到的 hydrate 仍生效', async () => {
+    const svc = await import('@nimotech/nimoos-service')
+    let resolveLoad: (v: Record<string, unknown>) => void = () => {}
+    const pending = new Promise<Record<string, unknown>>((res) => { resolveLoad = res })
+    // 服务端真实值:rss_switch = true。加载发起时刻捕获,hydrate 迟到时用这份。
+    const staleSnapshot = { rss_switch: true }
+    vi.spyOn(svc.service.users, 'getCustomStorage').mockReturnValueOnce(pending)
+
+    const w = mountIt()
+    // hydrate 还卡在 pending,用户先拨开(触发确认弹窗,不落库、不翻)
+    await w.find('[role="switch"]').trigger('click')
+    await flushPromises()
+    expect(w.findComponent(AlertDialog).props('open')).toBe(true)
+
+    // 用户取消确认
+    w.findComponent(AlertDialog).vm.$emit('update:open', false)
+    await flushPromises()
+    expect(blob.rss_switch).toBeUndefined()
+
+    // hydrate 才姗姗来迟地返回服务端真实值
+    resolveLoad(staleSnapshot)
+    await flushPromises()
+    expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
   it('关闭方向**不**弹确认,直接落库(对位 Vue2:!rss_switch 时直接 saveData)', async () => {

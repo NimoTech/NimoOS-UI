@@ -41,10 +41,22 @@ function close() { flow.reset() }
 
 <template>
   <div class="pf">
-    <button class="pf-btn pf-shutdown" type="button" :aria-label="t('settingsShutdown')" @click="askShutdown = true">
+    <button
+      class="pf-btn pf-shutdown"
+      type="button"
+      :aria-label="t('settingsShutdown')"
+      :disabled="phase !== 'idle'"
+      @click="askShutdown = true"
+    >
       ⏻
     </button>
-    <button class="pf-btn pf-restart" type="button" :aria-label="t('settingsRestart')" @click="askRestart = true">
+    <button
+      class="pf-btn pf-restart"
+      type="button"
+      :aria-label="t('settingsRestart')"
+      :disabled="phase !== 'idle'"
+      @click="askRestart = true"
+    >
       ⟳
     </button>
 

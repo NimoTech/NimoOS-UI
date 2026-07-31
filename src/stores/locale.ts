@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { i18n } from '../i18n'
 import { readSystemConfig, patchSystemConfig } from '../settings/util/systemConfig'
+import { useToast } from './toast'
 
 export const LOCALES = ['zh_cn', 'en_us'] as const
 export type Locale = (typeof LOCALES)[number]
@@ -28,7 +29,15 @@ export const useLocaleStore = defineStore('locale', () => {
     setLocale(lang)
     try {
       await patchSystemConfig({ lang })
-    } catch (e) { console.warn('[locale] server save failed', e) }
+    } catch (e) {
+      // 评审 fix round 2 · Important:此前只 console.warn —— 界面已经切换了语言,
+      // 服务端却从没存过,用户毫无感知。persist() 被 LanguageRow.vue 和首次开机
+      // Welcome.vue 的语言选择器两处调用,提示放在 store 里能同时覆盖两处调用方,
+      // 不必改 persist() 的返回契约(不抛出,调用方不用各自 try/catch)。
+      console.warn('[locale] server save failed', e)
+      const toast = useToast()
+      toast.show(i18n.global.t('settingsSaveFailed'))
+    }
   }
 
   return { setLocale, loadFromServer, persist }

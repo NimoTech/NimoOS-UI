@@ -60,7 +60,7 @@ describe('GeneralPanel 装配', () => {
     expect(html.indexOf('set-card')).toBeLessThan(html.indexOf('set-list'))
   })
 
-  it('11 行 + 开发者入口,顺序逐条对位 Vue2', async () => {
+  it('10 行 + 开发者入口,顺序逐条对位 Vue2', async () => {
     const w = mountIt(); await flushPromises()
     const labels = w.findAll('.set-list .set-row-label').map((e) => e.text())
     expect(labels).toEqual([

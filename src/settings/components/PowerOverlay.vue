@@ -42,7 +42,7 @@ function reloadPage() {
 </script>
 
 <template>
-  <div v-if="phase !== 'idle'" class="pf-overlay">
+  <div v-if="phase !== 'idle'" class="pf-overlay" role="dialog" aria-modal="true">
     <div class="pf-card">
       <header class="pf-card-head">
         <h2 class="pf-card-title" :class="{ 'set-warn': phase === 'fallback' }">

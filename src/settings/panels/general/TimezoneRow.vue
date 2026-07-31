@@ -9,9 +9,11 @@ import { useI18n } from 'vue-i18n'
 import SettingsRow from '../../components/SettingsRow.vue'
 import { TIMEZONES } from '../../util/timezones'
 import { readSystemConfig, patchSystemConfig, SYSTEM_DEFAULTS } from '../../util/systemConfig'
+import { useToast } from '../../../stores/toast'
 import '../../styles/settings.css'
 
 const { t } = useI18n()
+const toast = useToast()
 const value = ref<string>(SYSTEM_DEFAULTS.timezone as string)
 
 // 交错防护(评审 fix 3,非假设性——本仓库反复栽在"异步写共享 state 缺过期/
@@ -34,7 +36,9 @@ async function onChange(e: Event) {
   try {
     await patchSystemConfig({ timezone: next })
   } catch (err) {
+    // 评审 fix round 2 · Important:此前只 console.warn,用户毫无感知,以为改好了。
     console.warn('[settings] save timezone failed', err)
+    toast.show(t('settingsSaveFailed'))
   }
 }
 </script>

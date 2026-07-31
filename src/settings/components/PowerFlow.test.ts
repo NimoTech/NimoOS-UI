@@ -80,6 +80,19 @@ describe('PowerFlow 按钮与确认', () => {
     await flushPromises()
     expect(w.text()).toContain('正在关机')
   })
+
+  // 评审 fix round 2 · Minor:浮层挡着的等待态下,两个电源按钮键盘上仍可达
+  // ("重启超时"阶段 Tab 过去按 Enter 能真的把机器关了)。不做焦点陷阱(独立工作量),
+  // 只禁用按钮本身 —— phase !== 'idle' 时两个按钮都要 disabled。
+  it('非 idle 相位下电源按钮禁用,防止浮层下被键盘触发(评审 fix round 2)', async () => {
+    const w = mountIt()
+    await w.find('.pf-shutdown').trigger('click')
+    w.findAllComponents(AlertDialog)[0].vm.$emit('confirm')
+    await flushPromises()
+    expect(w.text()).toContain('正在关机')
+    expect(w.find('.pf-shutdown').attributes('disabled')).toBeDefined()
+    expect(w.find('.pf-restart').attributes('disabled')).toBeDefined()
+  })
 })
 
 // 六个浮层态的断言在 PowerOverlay.test.ts(纯展示组件,只吃一个 phase prop) ——

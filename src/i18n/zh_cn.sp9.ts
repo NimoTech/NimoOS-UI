@@ -25,7 +25,7 @@ export default {
   settingsLanguageNa: '新版界面目前只有简体中文与英文',
   settingsTimezone: '时区',
   settingsDiskStandby: '硬盘待机',
-  settingsStandbyNever: '从未',
+  settingsStandbyNever: '从不',
   settingsStandby10m: '10 分钟',
   settingsStandby20m: '20 分钟',
   settingsStandby30m: '30 分钟',

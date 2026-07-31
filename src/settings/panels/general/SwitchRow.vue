@@ -44,6 +44,11 @@ onMounted(async () => {
 })
 
 async function save(next: boolean) {
+  // 评审 fix round 2 · Minor:touched 必须在「真的要保存」这一刻才置位,不能在
+  // onToggle 打开确认弹窗那一刻就置(此前的坑:开了确认框但用户点了取消,
+  // touched 已经是 true,迟到的 hydrate 再也无法把行拉回服务端真实值,
+  // 行为永久卡在用户没有确认过的旧显示值上)。
+  touched = true
   const prev = on.value
   on.value = next
   busy.value = true
@@ -59,7 +64,6 @@ async function save(next: boolean) {
 }
 
 function onToggle(next: boolean) {
-  touched = true
   // 只有「开启」方向需要确认;关闭方向直接存(对位 Vue2 rssConfirm 的 !rss_switch 分支)
   if (next && props.confirmMsgKey) {
     confirmOpen.value = true

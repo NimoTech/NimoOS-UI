@@ -34,7 +34,11 @@ async function onChange(e: Event) {
   try {
     await patchSystemConfig({ disk_standby: next })
   } catch (err) {
+    // 评审 fix round 2 · Important:这是配置写入本身失败,不是"配置已经落库,只是
+    // 下发指令没成功"那句注释描述的情况(那句只适用于下面这条 setDiskStandby)——
+    // 这里落库真的没成功,用户必须被告知。
     console.warn('[settings] save disk_standby failed', err)
+    toast.show(t('settingsSaveFailed'))
   }
   try {
     await service.sys.setDiskStandby({ minutes: parseStandbyMinutes(next) })
