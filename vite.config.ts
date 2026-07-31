@@ -26,18 +26,23 @@ function copyPdfjsAssets(): Plugin {
   }
 }
 
+// `^/(?!app/)` = 除 /app/ 前端资源外的一切,原样转发给真机网关(含 WS 升级)。
+const DEV_PROXY = {
+  '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
+}
+
 export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
-  server: { port: 5273 },
-  // SP6 并行验收(spec §5):5273 只伺服 /app/ 构建产物,其余(API /v1|/v2|/v3、
-  // MessageBus WS、Vue2 登录页)全部转发真机网关 80。正式部署仍走 scripts/deploy.sh。
+  // dev 与 preview 用同一条转发规则:/app/ 之外(API /v1|/v2|/v3、MessageBus WS、
+  // Vue2 登录页)全部转发真机网关 80。
+  // SP9-P0 补 dev 这一份 —— 此前只有 preview 有,dev server 上登录必 404(踩过)。
+  server: { port: 5273, proxy: DEV_PROXY },
+  // SP6 并行验收(spec §5):5273 只伺服 /app/ 构建产物。正式部署仍走 scripts/deploy.sh。
   preview: {
     port: 5273,
     host: true,
-    proxy: {
-      '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
-    },
+    proxy: DEV_PROXY,
   },
   test: {
     environment: 'jsdom',
