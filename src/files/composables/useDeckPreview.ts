@@ -3,9 +3,13 @@ import { service } from '@nimotech/nimoos-service'
 import { snapshotBrowsePath } from '../util/snapshotPath'
 import type { FileEntry } from '../stores/files'
 
-// 卡片放大到 3/4 屏后,正面那张就是一整块文件区网格,6 个瓦片填不满;取到 36 条,
-// 再多的用卡片右下角的 "+N" 交代(总数 total 始终是真实条目数)。
-const MAX_TILES = 36
+// 卡片放大到 3/4 屏后,正面那张就是一整块可以滚轮上下翻的文件区网格 —— 能翻就得给够,
+// 只给一屏的量等于翻两下就到底。上限提到 200:再多的目录留给"进入此快照"去逐页看,
+// 卡片只是预览,不做无限列表(没有虚拟滚动,几千个 DOM 节点会拖垮翻卡动画)。
+// 超出的条数由卡片末尾的 "+N" 交代,total 始终是真实条目数。
+// 注:每格的缩略图走 FileThumb 的 IntersectionObserver 懒加载,而 IntersectionObserver
+// 会把"被带滚动条的祖先裁掉"算作不可见 —— 所以卡片里没滚到的那些格子不会发缩略图请求。
+const MAX_TILES = 200
 const HIDDEN = new Set(['lost+found'])
 
 export interface DeckPreview {

@@ -77,9 +77,11 @@ describe('TimeMachineOverlay 三态', () => {
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
   })
-  it('顶部显示当前文件夹', async () => {
+  // 原先在左上角,路径一长会横穿到齿轮那边并压住卡堆动画,已挪到底栏时间上方(用户反馈)
+  it('底栏时间上方显示当前文件夹', async () => {
     const w = mountIt(); await flush(w)
-    expect(w.find('.tm-folder').text()).toContain('/磁盘/Photos')
+    expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')
+    expect(w.find('.tm-folder').exists()).toBe(false) // 左上角那行不该再有
   })
   it('就绪后渲染卡堆,最前那张是最新快照', async () => {
     const w = mountIt(); await flush(w)

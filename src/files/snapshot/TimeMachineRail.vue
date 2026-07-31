@@ -123,9 +123,14 @@ const hoveredItem = computed(() => (hoveredIndex.value !== null ? itemByIndex.va
 
 <style scoped>
 .tm-rail {
-  position: absolute; top: 0; right: 0; bottom: 76px; width: 96px;
-  padding: 24px 20px 24px 0; z-index: 1;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+  /* 上边从齿轮下方开始(齿轮 top:16 + 约 24px 高),下边贴住底栏顶沿 —— 正好占满
+     "设置按钮"到"进入此快照"之间那一段(用户反馈:刻度原先全挤在最上面一小截)。 */
+  position: absolute; top: 48px; right: 0; bottom: 76px; width: 96px;
+  padding: 4px 20px 4px 0; z-index: 1;
+  /* space-between 把刻度均匀铺满整条高度,而不是按内容高度挤在顶上。快照多到装不下时
+     它自动失效(没有多余空间可分),退回正常的从上往下排 + 滚动,不会把首条顶出可视区
+     ——这是 space-between 相对 center/space-around 的关键区别,别改成那两个。 */
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 5px;
   /* CSS 规范:一轴非 visible 时另一轴的 visible 会被强制计算成 auto —— 之前分开写
      overflow-y: auto; overflow-x: visible 是句假话,实际生效值两轴都是 auto。改成
      显式 overflow: auto,如实反映浏览器真正的行为。鱼眼放大时刻度靠 transform-origin:

@@ -143,7 +143,6 @@ watch(() => props.volumeUuid, () => { load() })
 
 <template>
   <div ref="rootEl" class="tm-overlay" role="dialog" aria-modal="true" tabindex="-1" :aria-label="t('tmEntry')">
-    <div class="tm-folder">{{ t('tmViewingFolder', { path: props.folderLabel }) }}</div>
     <button class="tm-gear" :aria-label="t('tmSettings')" @click="emit('open-settings')">⚙</button>
 
     <div v-if="store.listLoading" class="tm-skeleton" aria-hidden="true">
@@ -166,7 +165,13 @@ watch(() => props.volumeUuid, () => { load() })
       <TimeMachineRail :groups="groups" :selected-index="selectedIndex" @select="(i: number) => (selectedIndex = i)" />
     </template>
 
-    <TimeMachineBar :moment-text="momentText" :can-enter="!!selectedItem" @cancel="emit('close')" @enter="enterSnapshot" />
+    <TimeMachineBar
+      :moment-text="momentText"
+      :folder-text="t('tmViewingFolder', { path: props.folderLabel })"
+      :can-enter="!!selectedItem"
+      @cancel="emit('close')"
+      @enter="enterSnapshot"
+    />
   </div>
 </template>
 
@@ -181,20 +186,19 @@ watch(() => props.volumeUuid, () => { load() })
   display: flex; align-items: center; justify-content: center;
   /* 卡堆放大到 3/4 屏后必须在"扣掉底栏和刻度尺之后"的那块地方居中,否则会被这两样
      压住。两者都是绝对定位、不参与 flex 布局,所以在这里用等宽/等高的 padding 替它们
-     占位。顶上那行路径(.tm-folder)也是绝对定位,给它留 8px 就够(它只有 13px 高,
-     卡片顶边落在它下面)。 */
+     占位(右 96 = 刻度尺宽,下 76 = 底栏高)。顶上留 8px 给后排卡片往上退的余量。 */
   padding: 8px 96px 76px 0;
   background: var(--tm-bg); color: var(--tm-fg);
   outline: none; /* 编程式聚焦(tabindex="-1"),不需要焦点环——覆盖层本身不是可点的控件 */
 }
-.tm-folder { position: absolute; top: 22px; left: 28px; font-size: 13px; color: var(--tm-fg-muted); }
 .tm-gear {
   position: absolute; top: 16px; right: 24px; z-index: 2;
   border: none; background: none; color: var(--tm-fg-muted);
   font-size: 20px; line-height: 1; cursor: pointer;
-  transition: transform 0.2s var(--ease), color 0.2s var(--ease);
+  transition: color 0.2s var(--ease);
 }
-.tm-gear:hover { color: var(--tm-fg); transform: rotate(45deg); }
+/* 悬停只提亮不旋转(用户反馈:齿轮转起来太跳)。 */
+.tm-gear:hover { color: var(--tm-fg); }
 .tm-empty { text-align: center; }
 .tm-empty-title { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
 .tm-empty-sub { font-size: 13px; color: var(--tm-fg-muted); margin: 0; }

@@ -137,7 +137,11 @@ function subLine(entry: { is_dir?: boolean; name: string; date?: string }): stri
    列宽/间距/图标尺寸/字号都照抄 files/components/FileGridView.vue + FileTile.vue,
    看起来就是"文件区被搬进卡片里"。差别只在颜色走 --tm-* 一族(卡片是深空里的一块面),
    以及这里没有选中框、收藏星、右键菜单 —— 卡片是预览,交互在进入快照之后才有。 */
+/* 文件多的时候要能用滚轮往下翻(用户反馈)。滚动条只给最前那张:后排卡不铺网格、
+   past 卡正在飞出去,都不该吃掉滚轮事件。min-height:0 是 flex 子项能出现滚动条的前提
+   (默认 min-height:auto 会被内容撑开,overflow 永远不触发)。 */
 .tm-card-body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.is-front .tm-card-body { overflow-y: auto; scrollbar-width: thin; }
 .tm-files {
   /* 列宽比文件区的 120px 宽一点:这里的副标题多了扩展名(“JPG · 7月20日 22:15”),
      120px 下会被截成“JPG · 7月20…”,反倒读不出是什么时候的 —— 实测截图确认过。 */

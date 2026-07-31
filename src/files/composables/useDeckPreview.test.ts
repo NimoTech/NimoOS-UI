@@ -17,9 +17,9 @@ const CONTENT = [
   { name: 'e.jpg', path: '/x/e.jpg', is_dir: false },
   { name: 'f.jpg', path: '/x/f.jpg', is_dir: false },
 ]
-/** 超过 MAX_TILES(36)的目录,用来验证截断与 total */
-const BIG = Array.from({ length: 40 }, (_, i) => ({
-  name: `f${String(i).padStart(2, '0')}.jpg`, path: `/x/f${i}.jpg`, is_dir: false,
+/** 超过 MAX_TILES(200)的目录,用来验证截断与 total */
+const BIG = Array.from({ length: 210 }, (_, i) => ({
+  name: `f${String(i).padStart(3, '0')}.jpg`, path: `/x/f${i}.jpg`, is_dir: false,
 }))
 
 const setup = (names: string[], relPath = 'Photos') => {
@@ -46,11 +46,11 @@ describe('useDeckPreview', () => {
     expect(api.previews.value.snap1.total).toBe(8)
     expect(api.previews.value.snap1.status).toBe('ready')
   })
-  it('超过 36 条只给 36 条,total 仍是真实条目数(卡片靠 total-entries 算 +N)', async () => {
+  it('超过 200 条只给 200 条,total 仍是真实条目数(卡片靠 total-entries 算 +N)', async () => {
     getListMock.mockResolvedValue({ content: BIG })
     const { api } = setup(['snap1']); await flush()
-    expect(api.previews.value.snap1.entries).toHaveLength(36)
-    expect(api.previews.value.snap1.total).toBe(40)
+    expect(api.previews.value.snap1.entries).toHaveLength(200)
+    expect(api.previews.value.snap1.total).toBe(210)
   })
   it('原样交出后端条目(卡片直接喂给文件区的 FileThumb,不再自己判图片)', async () => {
     const { api } = setup(['snap1']); await flush()
