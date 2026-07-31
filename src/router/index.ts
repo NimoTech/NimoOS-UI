@@ -18,6 +18,7 @@ import StorageDrives from '../views/StorageDrives.vue'
 import StorageRaid from '../views/StorageRaid.vue'
 import StorageRaidCreate from '../views/StorageRaidCreate.vue'
 import StorageRaidDetail from '../views/StorageRaidDetail.vue'
+import { settingsRoutes } from '../settings/settingsRoutes'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -37,6 +38,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/storage/raid', name: 'storage-raid', component: StorageRaid },
   { path: '/storage/raid/create', name: 'storage-raid-create', component: StorageRaidCreate },
   { path: '/storage/raid/:id', name: 'storage-raid-detail', component: StorageRaidDetail },
+  ...settingsRoutes,
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },

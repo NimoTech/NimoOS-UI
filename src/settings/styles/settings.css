@@ -1,0 +1,53 @@
+/*
+ * 设置区公共样式(非 scoped)。只放跨组件复用的骨架/列表样式;
+ * 组件自己的布局仍写在各自 scoped <style> 里。
+ * 颜色一律 var(--token)(CLAUDE.md 硬约束);新语义 token 落 src/styles/theme.sp9.css。
+ * 用 .css 而非 spec §4.1 写的 .scss —— 本仓库未装 sass、全仓零 .scss,
+ * 为一个文件新增构建依赖与「依赖只装一次」冲突。
+ */
+.set-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.set-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.set-section-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.set-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+  font-family: inherit;
+}
+.set-back:hover {
+  color: var(--accent);
+}
+.set-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.set-skeleton {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 13px;
+}
