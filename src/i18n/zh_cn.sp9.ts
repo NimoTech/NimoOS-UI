@@ -105,4 +105,63 @@ export default {
   settingsHttpsCertFiles: '证书文件',
   settingsHttpsBothFiles: '请同时上传 PEM 和 CRT 文件。',
   settingsHttpsUploadFailed: '上传证书失败',
+  // ── P2 network ──(中文取自 Vue2 zh_CN.json 原译;标 🆕补译 的 9 条是 Vue2 全部 31 个
+  // 语言文件都缺、中文界面下显示英文原文、用户 2026-07-31 拍板补译的 → 授权偏离 #8)
+  settingsNetConnection: '连接',                     // 🆕补译
+  settingsNetEmpty: '未找到网络接口',                 // 🆕补译
+  settingsNetLoading: '加载中...',                    // 🆕新增(Vue2 是 b-loading 转圈无文字)
+  settingsNetTypeEthernet: '以太网',                  // 🆕补译
+  settingsNetTypeWifi: 'Wi-Fi',                      // 🆕补译(保留原文,品牌词)
+  settingsNetTypeHotspot: '热点',                     // 🆕补译(旁证:zh_CN.json 里 AP→热点)
+  settingsNetTypeWifiHotspot: 'Wi-Fi + 热点',         // 🆕补译(Vue2 是两个 key 拼的)
+  settingsNetTypeThunderbolt: 'Thunderbolt',
+  settingsNetTypeVirtual: '虚拟网络',                 // 🆕补译
+  settingsNetMenu: '接口操作',                        // 🆕新增(菜单按钮 aria-label)
+  settingsNetEdit: '编辑',
+  settingsNetSwitchClient: '切换到 Wi-Fi',
+  settingsNetSwitchAp: '切换到热点',
+  settingsNetSwitchHybrid: '切换到混合模式',
+  settingsNetSwitchTitle: '切换模式',
+  settingsNetSwitchMsg: '切换到 {mode}？这将改变 {iface} 的工作模式。',
+  settingsNetSwitchFailed: '切换模式失败',             // 🆕新增(移植纪律 #3)
+  settingsNetTargetAp: '热点',
+  settingsNetTargetClient: '连接 WiFi',
+  settingsNetTargetHybrid: 'Wi-Fi + 热点',
+  settingsNetModeClient: 'Wi-Fi',
+  settingsNetModeAp: '热点',
+  settingsNetModeHybrid: 'Wi-Fi + 热点',
+  settingsNetZone: '网络区域',
+  settingsNetZoneNone: '无',
+  settingsNetZoneLan: 'LAN',
+  settingsNetZoneWan: 'WAN',
+  settingsNetTbStatic: 'Thunderbolt 静态 IP 配置',
+  settingsNetIpAddress: 'IP 地址',
+  settingsNetNetmask: '子网掩码',
+  settingsNetGateway: '网关',
+  settingsNetDns: 'DNS 服务器',
+  settingsNetIpv4Method: 'IPv4 分配',
+  settingsNetIpv4Dhcp: '自动 (DHCP)',
+  settingsNetIpv4Static: '手动 (静态 IP)',
+  settingsNetSaveApply: '保存并应用',
+  settingsNetUnconfigured: '此 Wi-Fi 接口尚未配置',
+  settingsNetConnectWifi: '连接 WiFi',
+  settingsNetCreateHotspot: '创建热点',
+  settingsNetAvailable: '可用网络',
+  settingsNetScan: '扫描',
+  settingsNetScanning: '扫描中...',
+  settingsNetScanHint: '点击扫描查看可用网络',
+  settingsNetScanFailed: '扫描 Wi-Fi 失败',
+  settingsNetConnected: '已连接',
+  settingsNetSecure: '加密',                          // 🆕新增(锁标记 aria-label)
+  settingsNetDisconnect: '断开连接',
+  settingsNetDisconnected: '已断开连接',               // 🆕补译
+  settingsNetDisconnectFailed: '断开连接失败',         // 🆕补译
+  settingsNetPassword: '密码',
+  settingsNetAdvanced: '高级设置',
+  settingsNetApSsid: '热点名称 (SSID)',
+  settingsNetBand: '频段',
+  settingsNetBandAuto: '自动',
+  settingsNetApplied: '设置已应用',
+  settingsNetApplyFailed: '应用设置失败',
+  settingsNetNothingToSave: '没有可保存的配置',        // 🆕补译
 }
