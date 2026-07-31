@@ -1,0 +1,139 @@
+// SP8-P4 Task 1 —— 逐行移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/mcp-styles.scss`
+// (91 行)。Vue2 原文件头就写着「layered on top of skills-styles.scss shell
+// classes」—— 本档同样只叠加 18 个 `.mcp-*` 类,分区容器/列表/详情的外壳类
+// (`.sk-col*` / `.sk-detail*` / `.sk-meta-*` / `.sk-section*` / `.sk-modal*` 等)
+// 由 `skills-styles.scss` / `sk-shared.scss` / `settings-styles.scss` 供给,
+// 本档不重复定义,详见设计文档 §4.2。
+//
+// 组织调整(非行为改变):Vue2 `.mcp-transport[data-t="stdio"]` 单独写在 `:43`
+// (原作者后补),本档把三个 transport 变体(http/sse/stdio)合并写进
+// `.mcp-transport` 的嵌套选择器里 —— 渲染结果与 Vue2 `:7-8` + `:43` 两处分开写
+// 完全等价,只是本档合并到一处以便阅读。
+//
+// 偏离 D10(6 处 rgba 字面量 → 已有 token,tokens.scss 浅/暗两档均已核实有值):
+//   - Vue2 `:7`  `.mcp-transport[data-t="http"]`       原为青色约 14% 透明度   → var(--teal-soft)
+//   - Vue2 `:8`  `.mcp-transport[data-t="sse"]`         原为紫色约 12% 透明度   → var(--purple-soft)
+//   - Vue2 `:43` `.mcp-transport[data-t="stdio"]`       原为绿色约 14% 透明度   → var(--success-soft)
+//   - Vue2 `:74` `.mcp-test-result[data-ok="true"]`  背景 原为绿色约 10% 透明度 → var(--success-soft)
+//                                                    边框 原为绿色约 30% 透明度 → var(--success-soft-border)
+//   - Vue2 `:75` `.mcp-test-result[data-ok="false"]` 背景 原为红色约 10% 透明度 → var(--danger-soft)
+//                                                    边框 原为红色约 30% 透明度 → var(--danger-soft-border)
+// 本任务预期新增 token 数 = 0(6 个 token 全部已存在于 tokens.scss)。
+
+.mcp-transport {
+  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+  background: var(--bg-chip); color: var(--text-tertiary);
+  letter-spacing: 0.02em; text-transform: uppercase; font-family: var(--font-mono);
+  &[data-t="http"]  { background: var(--teal-soft);    color: var(--teal); }
+  &[data-t="sse"]   { background: var(--purple-soft);  color: var(--purple); }
+  &[data-t="stdio"] { background: var(--success-soft); color: var(--success); }
+}
+
+.mcp-config { padding: 4px 0; }
+.mcp-config-row {
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+  border-top: 1px solid var(--line-faint);
+  &:first-child { border-top: 0; }
+  .lbl { width: 150px; flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .lbl .sub { display: block; font-size: 11px; font-weight: 400; color: var(--text-tertiary); margin-top: 1px; }
+  .val { flex: 1; min-width: 0; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+}
+.mcp-code {
+  font-family: var(--font-mono); font-size: 12.5px; background: var(--bg-sunken);
+  border: 1px solid var(--line-faint); border-radius: var(--r-sm); padding: 6px 10px;
+  color: var(--text-primary); white-space: nowrap; overflow-x: auto; flex: 1; min-width: 0;
+}
+
+// key/value editor rows in the add/edit modal
+.mcp-kv { display: flex; flex-direction: column; gap: 6px; }
+.mcp-kv-row { display: flex; gap: 6px; align-items: center; }
+.mcp-kv-row input { flex: 1; min-width: 0; }
+.mcp-kv-del {
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--r-sm);
+  display: grid; place-items: center; color: var(--text-tertiary);
+  background: var(--bg-chip); border: 0; cursor: pointer;
+  &:hover { color: var(--danger); }
+}
+.mcp-kv-add {
+  align-self: flex-start; font-size: 12px; font-weight: 500; color: var(--accent);
+  background: var(--accent-softer); border: 0; padding: 5px 10px; border-radius: var(--r-sm); cursor: pointer;
+}
+.mcp-kv-hint { font-size: 11px; color: var(--text-tertiary); }
+
+// Arguments textarea (stdio) — monospace, matches .sk-field inputs
+.mcp-args {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+.mcp-args:focus { outline: none; border-color: var(--accent); }
+
+// Test connection button sits at the right of the Configuration section head
+.sk-section-head .mcp-test-btn { margin-left: auto; flex: none; }
+
+// Test result panel
+.mcp-test-hint { margin-top: 10px; font-size: 12px; color: var(--text-tertiary); }
+.mcp-test-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid var(--line);
+}
+.mcp-test-result[data-ok="true"]  { background: var(--success-soft); color: var(--success); border-color: var(--success-soft-border); }
+.mcp-test-result[data-ok="false"] { background: var(--danger-soft);  color: var(--danger);  border-color: var(--danger-soft-border); }
+.mcp-test-line { font-weight: 600; }
+.mcp-test-tools { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.mcp-tool-chip {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--bg-chip);
+  color: var(--text-secondary);
+}
+
+// 【本期新增,Vue2 无对应物 —— 偏离 D8】测试失败时的「技术详情」折叠区。
+// 用原生 <details>/<summary>,无新依赖、天然可访问、无组件状态。
+.mcp-test-detail {
+  margin-top: 6px;
+  summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    list-style: none;
+    &::-webkit-details-marker { display: none; }
+    &::before { content: '▸ '; }
+  }
+  &[open] > summary::before { content: '▾ '; }
+  pre {
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    background: var(--bg-sunken);
+    border: 1px solid var(--line-faint);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+}
+
+// Quick-add paste row (Add form only)
+.mcp-quickadd-row { display: flex; gap: 8px; align-items: center; }
+.mcp-quickadd-row input { flex: 1; }
+.mcp-quickadd-row .sk-btn { flex: none; white-space: nowrap; }
+.mcp-quickadd-err { margin-top: 6px; font-size: 12px; color: var(--danger); }
