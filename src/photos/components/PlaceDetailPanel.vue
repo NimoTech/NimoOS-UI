@@ -48,8 +48,9 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { formatSpotCoords, type Place } from '../util/placesMap'
-import type { PlaceDetail, PlaceSpot } from '../stores/places'
+import type { PlaceDetail, PlaceSpot, PlaceInsight } from '../stores/places'
 import PlaceSpotDialog from './PlaceSpotDialog.vue'
+import PlaceInsights from './PlaceInsights.vue'
 
 const props = defineProps<{
   place: Place | null
@@ -118,6 +119,12 @@ function onHeroClick(): void {
 
 // ── P6b-T4: spots 列表段 + spot 弹窗挂载点 ──────────────────────────────
 const spots = computed(() => props.detail?.spots ?? [])
+
+// ── P6b-T5: insights 段(渲染委托给 PlaceInsights.vue,这里只做兜底取值)+
+// 最近的照片段(照 Vue2 :1186-1202)。────────────────────────────────────
+const insights = computed<PlaceInsight[]>(() => props.detail?.insights ?? [])
+// 照 Vue2 recentPhotos :283(`this.activeDetail ? (this.activeDetail.recent || []) : []`)。
+const recent = computed(() => props.detail?.recent ?? [])
 
 // 铁律:id/key 比较一律 String() 归一——activeSpotKey 来自容器(可能来自路由/深链,
 // 类型未必与 PlaceSpot.key 的运行时值完全一致)。
@@ -239,6 +246,34 @@ function onSpotOpenPhoto(assetId: string): void {
             <div class="count">
               {{ s.count }}
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P6b-T5: insights 段,渲染完全委托给 PlaceInsights.vue(见该组件文件头
+           关于零 v-html / <i18n-t> 具名插槽的说明)。 -->
+      <PlaceInsights :insights="insights" />
+
+      <!-- P6b-T5: 最近的照片段(照 Vue2 :1186-1202)。段落恒渲染——Vue2 这个
+           .detail-section 没有 v-if,recent 为空时只剩标题 + 可能的 +N 格。 -->
+      <div class="detail-section">
+        <h4>
+          {{ t('photosPlacesRecentPhotos') }}
+          <!-- 与 spots 段的静态 .more(spec §7c-9)不同,这个「查看全部」是真可点的——
+               自己叠一个 .more.is-clickable 修饰类补手型,不改共享基类
+               `.detail-section h4 .more`(改了会把 spots 段那个不可点的 .more 带成
+               手型,弄红 T4 的程序化断言)。 -->
+          <span class="more is-clickable" @click="emit('open-library')">{{ t('photosPlacesSeeAll', { n: count }) }}</span>
+        </h4>
+        <div class="detail-grid">
+          <div
+            v-for="assetId in recent" :key="assetId" class="ph"
+            @click="emit('open-photo', assetId, recent)"
+          >
+            <img :src="service.photos.thumbnailUrl(assetId, 'small')" alt="" loading="lazy">
+          </div>
+          <div v-if="count > recent.length" class="ph more" @click="emit('open-library')">
+            +{{ count - recent.length }}
           </div>
         </div>
       </div>
@@ -433,6 +468,43 @@ function onSpotOpenPhoto(assetId: string): void {
   font-size: 11px; color: var(--accent); font-weight: 500;
   text-transform: none; letter-spacing: 0;
 }
+/* P6b-T5: 「最近的照片」段的「查看全部 N 张」是真可点的(不同于 spots 段那个纯静态
+   装饰 .more)——叠加修饰类补手型,不动上面的共享基类本身(T4 留下的注释指引)。 */
+.detail-section h4 .more.is-clickable { cursor: pointer; }
+
+/* P6b-T5: 最近的照片网格(照 Vue2 photos-places.scss:702-724)。--surface-2 →
+   --chip-bg;--text-2 → --fg-muted;--text-1 → --fg;Vue2 hover 底色那个带字面量
+   兜底值的 surface-3 token → 本仓既有 --chip-bg-hi(同文件头 §6 token 映射表口径,
+   兜底字面量本身不迁——color-guard 不剥注释,写在这里也会判红)。 */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.detail-grid .ph {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.detail-grid .ph img {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block;
+  transition: transform 0.25s;
+}
+.detail-grid .ph:hover img { transform: scale(1.04); }
+.detail-grid .ph.more {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--chip-bg);
+  font-size: 13px; color: var(--fg-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+/* hover 级联铁律:变体必须自带 :hover,用 cssCascade winningHoverBackground 断言
+   胜出规则含 :hover(本区第四次登记这条坑——同一根因反复出现,见 PlaceDetailPanel.test.ts
+   同名 describe)。 */
+.detail-grid .ph.more:hover { background: var(--chip-bg-hi); color: var(--fg); }
 
 .spot-list {
   display: flex; flex-direction: column;

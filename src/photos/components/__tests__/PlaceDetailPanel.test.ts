@@ -427,7 +427,12 @@ describe('窄屏规则', () => {
 describe('spots 列表段', () => {
   it('spots 为空数组 → 整段不渲染', () => {
     const w = mountPanel({ detail: detail({ spots: [] }) })
-    expect(w.find('.detail-section').exists()).toBe(false)
+    // 评审必修(T5 引入的必要收紧):T4 写这条时 `.detail-section` 全仓唯一消费方
+    // 是 spots 段,断言"零个 `.detail-section`"等价于"spots 段不渲染"。T5 新增了
+    // 「最近的照片」段(spec §7c-B-4 明确要求段落恒渲染,即使 recent 为空也要显示
+    // 标题 + 可能的 +N 格)——它同样用 `.detail-section` 包壳,原断言的前提已被
+    // 这条新的、规范要求的行为推翻。收紧成 `.spot-list` 缺席(spots 段的唯一独有
+    // 标志),这才是这条用例真正要钉住的东西,行为未被削弱。
     expect(w.find('.spot-list').exists()).toBe(false)
   })
 
@@ -543,5 +548,80 @@ describe('spot 弹窗 emit 透传', () => {
     const w = mountWithActiveSpot()
     await w.find('.spot-dialog-thumbs img').trigger('click')
     expect(w.emitted('open-photo')).toEqual([['thumb-x', ['thumb-x']]])
+  })
+})
+
+// ── P6b-T5: insights 段挂载(渲染委托给 PlaceInsights.vue,面板本身只负责传 prop)──
+describe('insights 段挂载', () => {
+  it('detail.insights 非空 → PlaceInsights 渲染出 .insight-card', () => {
+    const w = mountPanel({
+      detail: detail({
+        insights: [{ ico: 'sparkles', key: 'photos.places.insight.mostPhotographed', params: { count: 9 } }],
+      }),
+    })
+    expect(w.find('.insight-card').exists()).toBe(true)
+  })
+
+  it('detail 为 null(insights 兜底为空数组)→ 不渲染 insights 段', () => {
+    const w = mountPanel({ detail: null })
+    expect(w.find('.insight-card').exists()).toBe(false)
+  })
+})
+
+// ── P6b-T5: 最近的照片段(照 Vue2 :1186-1202,段落恒渲染)─────────────────────
+describe('最近的照片段', () => {
+  it('recent 三张 → 3 个 .ph,点第二张 → open-photo 带 (recent[1], recent)(D9 主守卫)', async () => {
+    const recentList = ['a1', 'a2', 'a3']
+    const w = mountPanel({ detail: detail({ count: 3, recent: recentList }) })
+    const phs = w.findAll('.detail-grid .ph')
+    // 三张真实照片 + 无 +N 格(count === recent.length)。
+    expect(phs).toHaveLength(3)
+    await phs[1].trigger('click')
+    expect(w.emitted('open-photo')).toEqual([['a2', recentList]])
+  })
+
+  it('count=30、recent.length=6 → .ph.more 存在且文本为 +24', () => {
+    const recentList = ['a', 'b', 'c', 'd', 'e', 'f']
+    const w = mountPanel({ detail: detail({ count: 30, recent: recentList }) })
+    const more = w.find('.detail-grid .ph.more')
+    expect(more.exists()).toBe(true)
+    expect(more.text()).toContain('+24')
+  })
+
+  it('count=6、recent.length=6 → .ph.more 不存在', () => {
+    const recentList = ['a', 'b', 'c', 'd', 'e', 'f']
+    const w = mountPanel({ detail: detail({ count: 6, recent: recentList }) })
+    expect(w.find('.detail-grid .ph.more').exists()).toBe(false)
+  })
+
+  it('点 .ph.more 与点「查看全部」的 .more 都 emit open-library;「查看全部」文案含总数', async () => {
+    const recentList = ['a', 'b', 'c']
+    const w = mountPanel({ detail: detail({ count: 30, recent: recentList }) })
+    const seeAll = w.findAll('h4 .more.is-clickable')
+    expect(seeAll).toHaveLength(1)
+    expect(seeAll[0].text()).toContain('30')
+    await seeAll[0].trigger('click')
+    await w.find('.detail-grid .ph.more').trigger('click')
+    expect(w.emitted('open-library')).toHaveLength(2)
+  })
+
+  it('recent 为空时段落仍渲染(标题在,Vue2 该 .detail-section 无 v-if)', () => {
+    const w = mountPanel({ detail: detail({ count: 0, recent: [] }) })
+    expect(w.find('h4 .more.is-clickable').exists()).toBe(true)
+    expect(w.findAll('.detail-grid .ph').filter(n => !n.classes().includes('more'))).toHaveLength(0)
+  })
+
+  it('detail 为 null → recent 兜底空数组、count 兜底 place.count,段落仍渲染', () => {
+    const w = mountPanel({ place: place({ count: 0 }), detail: null })
+    expect(w.find('h4 .more.is-clickable').exists()).toBe(true)
+  })
+})
+
+// ── hover 级联(.detail-grid .ph.more,评审铁律——第四次踩坑同类断言)──────────
+describe('hover 态背景(.detail-grid .ph.more)', () => {
+  it('.detail-grid .ph.more 的 hover 背景归属含 :hover 的规则', () => {
+    const style = extractStyleBlock(placeDetailPanelRaw)
+    const win = winningHoverBackground(style, ['detail-grid', 'ph', 'more'])
+    expect(win.selector).toContain(':hover')
   })
 })
