@@ -39,6 +39,15 @@ const ai = vi.hoisted(() => ({
   // 让本文件里与 skills 无关的用例（换到该分区只是路过）保持沉默；需要断言
   // 列表内容的用例会自己 `mockResolvedValue`。
   listSkills: vi.fn(),
+  // SP8-P4 Task 9(收官)—— mcp 分区不再是占位,挂载真组件 McpSection 同样会在
+  // onMounted 里调 service.ai.listMCPServers()。同上,裸 vi.fn() 让
+  // `Array.isArray(list)` 兜底把它当空列表处理,本文件里与 mcp 无关的用例不受
+  // 影响(⚠️ brief 明确点名:`stubNetworkActions` 只 mock 了 `useSettingsStore`
+  // 的四个网络动作,不覆盖这里的 `service.ai.*`——必须单独在这个 hoisted 对象里
+  // 补上,否则挂载 mcp 分区时 `listMCPServers` 会是 `undefined`,虽然
+  // `Array.isArray` 兜底不会抛错,但补齐这个键是让「mock 齐全」这件事显式,
+  // 不依赖兜底的隐性容错)。
+  listMCPServers: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
@@ -310,9 +319,15 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
   // (5 个分区的真实现只要有 1 个不小心留了占位就会被抓到)。
   //
   // SP8-P3a Task 7 —— `skills` 已接入真组件 `SkillsSection`,从「仍含占位文案」
-  // 的 deferred 列表移到「已实现」列表;现在只剩 `mcp` 还在渲染
-  // `SectionPlaceholder`(留给 P4)。
-  it('SP8-P3a 收口 —— 12 个已实现分区渲染后页面不含占位文案，mcp 仍含占位文案', async () => {
+  // 的 deferred 列表移到「已实现」列表。
+  // SP8-P4 Task 9(收官)—— `mcp` 是最后一个占位分区,本任务把它也接入真组件
+  // `McpSection`,同样从 deferred 移到 implemented——**13 个分区全部实现**,
+  // `deferred` 列表就此清空(与 `sections.ts` 的 `DEFERRED_SECTIONS: SectionId[]
+  // = []` 同步)。原本的 deferred 循环(断言「仍含占位文案」)整段删掉:空数组的
+  // `for` 循环体永远不执行,留着就是空转断言,不如直接删除,机制层面的钉子已经
+  // 由 `sections.test.ts` 的两条新用例(`DEFERRED_SECTIONS` 为空 / 机制仍在)
+  // 覆盖,不需要在这里重复一份等价空转的写法。
+  it('SP8-P4 收口 —— 13 个已实现分区渲染后页面不含占位文案(无一分区仍是 SectionPlaceholder）', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -320,19 +335,12 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
 
     const implemented: SectionId[] = [
       'models', 'providers', 'privacy', 'thinking',
-      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcptokens', 'channels',
+      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcp', 'mcptokens', 'channels',
     ]
     for (const id of implemented) {
       store.setActiveSection(id)
       await flushPromises()
       expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
-    }
-
-    const deferred: SectionId[] = ['mcp']
-    for (const id of deferred) {
-      store.setActiveSection(id)
-      await flushPromises()
-      expect(w.text()).toContain(zh.aiCfgPlaceholderBody)
     }
 
     w.unmount()
@@ -416,8 +424,7 @@ describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
   // DEFERRED_SECTIONS,这条原本断言「弹一条占位 toast」的用例改为断言反面:
   // 渲染出 SkillsSection 真实内容(`.sk-list`,来自 SkillsSection.vue:135,
   // `SectionPlaceholder.vue` 没有这个 class)、页面不含占位文案、且不弹任何
-  // toast。下一条('19b')补上 mcp 仍走占位 toast 的对照,保证 DEFERRED_SECTIONS
-  // 的占位契约本身没有被整个删掉。
+  // toast。
   it('19. 选中 skills → 渲染 SkillsSection 真实内容,不弹 toast(不再是占位)', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
@@ -434,7 +441,13 @@ describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
     w.unmount()
   })
 
-  it('19b. 选中 mcp → 仍弹一条占位 toast(DEFERRED_SECTIONS 契约仍在,只是不再含 skills)', async () => {
+  // SP8-P4 Task 9(收官)—— mcp 是最后一个占位分区,本任务接入真组件 McpSection
+  // 后不再属于 DEFERRED_SECTIONS。这条原本('19b')断言「仍弹一条占位 toast,
+  // DEFERRED_SECTIONS 契约仍在」的用例反转成断言反面:渲染出 McpSection 真实内容
+  // (`.sk-col-search`,McpSection 左列的搜索框,来自 McpSection.vue,
+  // `SectionPlaceholder.vue` 没有这个 class)、页面不含占位文案、且不弹任何 toast
+  // ——与上面 19 条 skills 的写法完全同构。
+  it('19b. 选中 mcp → 渲染 McpSection 真实内容,不弹 toast(不再是占位)', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -443,7 +456,10 @@ describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
     const showSpy = vi.spyOn(toast, 'show')
     const item = w.findAll('.set-nav-item').find((n) => n.text().includes('MCP 连接'))!
     await item.trigger('click')
-    expect(showSpy).toHaveBeenCalledWith('该分区将在后续阶段开启', 3000)
+    await flushPromises()
+    expect(w.find('.sk-col-search').exists()).toBe(true) // McpSection 的左列搜索框
+    expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
+    expect(showSpy).not.toHaveBeenCalled()
     w.unmount()
   })
 

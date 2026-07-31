@@ -52,6 +52,7 @@ import SearchSection from '../components/settings/sections/SearchSection.vue'
 import MemorySection from '../components/settings/sections/MemorySection.vue'
 import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
 import SkillsSection from '../components/settings/sections/SkillsSection.vue'
+import McpSection from '../components/settings/sections/McpSection.vue'
 import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
 import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
 import AgentIcon from '../components/icons/AgentIcon.vue'
@@ -73,10 +74,15 @@ import '../styles/mcp-styles.scss'
 // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
 //
 // SP8-P2b 收官接线后曾只剩 skills / mcp 两个仍渲染 SectionPlaceholder;
-// SP8-P3a 把 skills 接上真组件 SkillsSection 后,现在只剩 mcp 一个仍渲染
-// SectionPlaceholder(留给 P4)。其余 12 个(models/providers/privacy/thinking
-// 为 P2a 已接;blacklist/execution/search/memory/observability/mcptokens/
-// channels 为 P2b 已接;skills 为本任务 P3a 已接)均已指向各自的真组件。
+// SP8-P3a 把 skills 接上真组件 SkillsSection 后只剩 mcp 一个;SP8-P4 Task 9
+// 把 mcp 也接上真组件 McpSection——13 个分区全部指向各自的真组件,
+// `SECTION_COMPONENTS` 里不再有任何一个映射到 `SectionPlaceholder`
+// (models/providers/privacy/thinking 为 P2a 已接;blacklist/execution/search/
+// memory/observability/mcptokens/channels 为 P2b 已接;skills 为 P3a 已接;
+// mcp 为本任务 P4 Task 9 已接)。`SectionPlaceholder` 组件本身与
+// `DEFERRED_SECTIONS` 机制原样保留(用户明示「反转不删」),将来新增未完成
+// 分区时把映射改回 `SectionPlaceholder`、把 id 加回 `DEFERRED_SECTIONS` 即可
+// 恢复占位行为。
 //
 // SP8-P2b Task 14 修复轮 1 —— 不 export 这个常量:`<script setup>` 不允许 ES
 // module 具名导出(试过,编译直接报错),而协调者裁定"可测试性"不值得为此拆
@@ -93,7 +99,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   memory: MemorySection, // SP8-P2b Task 6 —— 已实现,收官接线
   observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
   skills: SkillsSection, // SP8-P3a Task 7 —— 已实现,收官接线
-  mcp: SectionPlaceholder, // SP8-P4 才实现,保持占位
+  mcp: McpSection, // SP8-P4 Task 9 —— 已实现,收官接线(DEFERRED_SECTIONS 就此清空)
   mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线
   channels: ChannelsSection, // SP8-P2b Task 12 —— 已实现,收官接线
 }

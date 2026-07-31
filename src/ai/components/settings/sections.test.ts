@@ -54,8 +54,17 @@ describe('sections 导航配置', () => {
     expect([...SPLIT_SECTIONS].sort()).toEqual(['mcp', 'skills'])
   })
 
-  it('DEFERRED_SECTIONS(P4 占位)恰为 mcp(skills 已于 P3a 接入真组件）', () => {
-    expect([...DEFERRED_SECTIONS].sort()).toEqual(['mcp'])
+  // SP8-P4 —— mcp 已接入真组件 McpSection,DEFERRED_SECTIONS 就此清空。
+  // 契约机制本身保留(用户明示「反转不删」),这条钉住「没有任何分区还在占位」。
+  it('DEFERRED_SECTIONS 为空(SP8-P4 起 13 个分区全部接入真组件)', () => {
+    expect(DEFERRED_SECTIONS).toEqual([])
+  })
+
+  // 机制没被删掉的钉子:常量仍然导出、仍是数组、且每个元素(若将来有)都必须是
+  // 合法 section id。
+  it('DEFERRED_SECTIONS 机制仍在(导出为数组,元素必须是合法 section id)', () => {
+    expect(Array.isArray(DEFERRED_SECTIONS)).toBe(true)
+    for (const id of DEFERRED_SECTIONS) expect(VALID_SECTIONS).toContain(id)
   })
 
   it('每个分区都有图标名与 i18n 键,且 labelKey 走 aiCfg 前缀', () => {

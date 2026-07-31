@@ -88,10 +88,12 @@ export const SPLIT_SECTIONS: SectionId[] = ['skills', 'mcp']
 
 /**
  * 留给后续阶段、内容区仍渲染 `SectionPlaceholder` 并弹一条 info toast 的分区。
- * `skills` 已于 SP8-P3a 接入真组件（`SkillsSection`），从本列表移出；
- * `mcp` 仍待 P4。导航里照 Vue2 1:1 显示（用户 2026-07-28 决定）。
+ * SP8-P4 起**为空** —— 13 个分区全部接入真组件(`mcp` 是最后一个,P4 收口)。
+ * 机制本身保留(用户 2026-07-31 明示「反转不删」):将来新增未完成分区时,
+ * 把 id 加回本数组即可恢复占位行为,`SettingsPage.vue` 的分支与
+ * `SectionPlaceholder.vue` 都原样留着。
  */
-export const DEFERRED_SECTIONS: SectionId[] = ['mcp']
+export const DEFERRED_SECTIONS: SectionId[] = []
 
 /** 某个分区所属的组;未知 id 回落到第一个组(Vue2 `sections.js:62-64` 同款兜底)。 */
 export function groupOf(sectionId: string): SectionGroup {
