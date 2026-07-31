@@ -445,6 +445,31 @@ describe('颜色合规', () => {
   })
 })
 
+// ── 程序化样式断言(评审 I1 补充:高危非颜色视觉属性不能只靠人工核对)──────────
+// 三条锚定到具体选择器的规则体内(不是全文件关键字搜索,避免恒真)——照
+// PlaceVisitHistory.test.ts:188-217 / PlaceDetailPanel.test.ts:333-339 的既有体例。
+describe('高危非颜色视觉属性(评审 I1)', () => {
+  const style = extractStyleBlock(placeCoverPickerRaw)
+
+  it('.cp-scrim 规则含 backdrop-filter(重演 T3 事故的确切属性——曾在内联 style 改写成 class 时丢失)', () => {
+    const m = /\.cp-scrim\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .cp-scrim 规则').not.toBeNull()
+    expect(m![1]).toMatch(/backdrop-filter\s*:/)
+  })
+
+  it('.cp-cell 规则含 aspect-ratio: 1(8 列缩略图网格必须是正方形单元格)', () => {
+    const m = /\.cp-cell\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .cp-cell 规则').not.toBeNull()
+    expect(m![1]).toMatch(/aspect-ratio\s*:\s*1\b/)
+  })
+
+  it('.cp-grid 规则含 grid-template-columns: repeat(8, 1fr)(照搬 Vue2 :1129 的 8 列)', () => {
+    const m = /\.cp-grid\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .cp-grid 规则').not.toBeNull()
+    expect(m![1]).toMatch(/grid-template-columns\s*:\s*repeat\(\s*8\s*,\s*1fr\s*\)/)
+  })
+})
+
 // ── 英文 locale sanity ───────────────────────────────────────────────────
 describe('英文 locale sanity', () => {
   it('en_us 下标题/副标题/占位符切到英文', () => {
