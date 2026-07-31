@@ -27,10 +27,11 @@
     `/ai/knowledge` 要到 SP8-P5 才存在,`router.push` 到不存在的路由会落空白
     死页 —— 改成 `<button>` + info toast 占位,样式类名 `.set-detail-link`
     保持不变(视觉 1:1),仅交互目标变了。
-  - 选中 `mcp`(`DEFERRED_SECTIONS`)时弹一条 info toast —— Vue2 没有这个概念
-    (它本就是真组件),本仓这个分区的真实现要等 SP8-P4,这里只是本阶段的范围
-    提示,不是对 Vue2 行为的偏离。`skills` 已于 SP8-P3a 接入真组件
-    `SkillsSection`,不再弹这条 toast。
+  - `onSelect()` 里 `DEFERRED_SECTIONS.includes(id)` 时弹一条 info toast ——
+    Vue2 没有这个概念(它的 13 个分区本就全是真组件)。**修复轮 M2 更新**:
+    SP8-P4 起 `DEFERRED_SECTIONS` 已清空(13 个分区全部接入真组件),这条分支
+    现在**不会触发**,但机制本身保留(用户明示「反转不删」)供将来新增未完成
+    分区时复用——见下方 `SECTION_COMPONENTS` 注释与 `onSelect()` 处的说明。
 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -106,10 +107,14 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
 
 // 非 Vue2 蓝本 —— SectionPlaceholder 需要 { titleKey, bodyKey } 两个 prop,而
 // Vue2 的 SECTION_COMPONENTS 只是纯 id→组件映射、渲染处不传任何 prop
-// (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(已换上真组件的
-// 12 个分区里,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
-// 占位场景(现仅 mcp)下用来源分区自己的导航文案(sections.ts 的
-// labelKey)作标题,统一的 `aiCfgPlaceholderBody` 作说明文字。
+// (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(13 个分区目前
+// 全部是真组件,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能)。
+// 【修复轮 M2 更新】SP8-P4 起 `SECTION_COMPONENTS` 里不再有任何一个映射到
+// `SectionPlaceholder`,这条函数的有效返回分支(`titleKey`/`bodyKey` 非空)
+// 现在**不会触发**——机制原样保留(用户明示「反转不删」):将来某个 id 的
+// `SECTION_COMPONENTS` 映射改回 `SectionPlaceholder` 时,直接复用来源分区
+// 自己的导航文案(`sections.ts` 的 `labelKey`)作标题,统一的
+// `aiCfgPlaceholderBody` 作说明文字。
 function placeholderProps(id: SectionId): Record<string, string> {
   if (SECTION_COMPONENTS[id] !== SectionPlaceholder) return {}
   const item = ALL_ITEMS.find((i) => i.id === id)

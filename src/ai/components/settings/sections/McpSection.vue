@@ -90,9 +90,24 @@ const editing = ref<McpServer | null>(null)
 const saving = ref(false)
 const saveError = ref('')
 
-// 弹窗关闭时清掉行内错误(见文件头注释「偏离 D5」末段,照 SkillsSection.vue:126-128)。
+// 弹窗关闭时清掉行内错误(见文件头注释「偏离 D5」末段,照 SkillsSection.vue:126-128),
+// 并清掉 editing(修复轮 M5)。
+//
+// 【修复轮 M5,未申报偏离】Vue2 `closeModal()`(`:85`)是
+// `{ this.modalOpen = false; this.editing = null }`——**每一条关闭路径**都清
+// `editing`。本仓早前只在 `closeModal()`(见下方,onSave 成功后才调用)里清,
+// 取消 / 右上角 X / 遮罩三条关闭路径走的是 `v-model:open` 直接把 `modalOpen`
+// 置 false,不经过 `closeModal()`,`editing` 会残留旧值。虽然 `openCreate`/
+// `openEdit` 每次都会重新设置 `editing`,`McpServerModal` 的 `watch(open)`
+// true 分支也会用 `props.server` 回填,实测无可见后果——但这是一条未在任何
+// 报告里申报过的行为差异,按移植纪律「未申报的偏离本身就是缺陷」改正:把清
+// `editing` 挪到这个 watch 里,与清 `saveError` 同一处、覆盖全部关闭路径,
+// 和 Vue2 `closeModal()` 逐条路径都清的行为对齐。
 watch(modalOpen, (v) => {
-  if (!v) saveError.value = ''
+  if (!v) {
+    saveError.value = ''
+    editing.value = null
+  }
 })
 
 // 对齐 Vue2 `computed`(`:57-64`)。

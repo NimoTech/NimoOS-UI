@@ -7,6 +7,7 @@ import zh from '../../../../i18n/zh_cn'
 import type { McpServer } from '../../../types/mcpServer'
 import McpServerGroup from '../mcp/McpServerGroup.vue'
 import McpServerDetail from '../mcp/McpServerDetail.vue'
+import McpServerModal from '../mcp/McpServerModal.vue'
 
 // SP8-P4 Task 9(收官)—— 对齐 Vue2 src/views/AI/MCP/McpSection.vue(136 行)。
 // mock 骨架逐字照 brief §Step1「mock 骨架」段与公共约束 §9(vi.hoisted 避免 ESM
@@ -300,13 +301,30 @@ describe('McpSection', () => {
   })
 
   // ===== 覆盖点 9:onSave 新增单层取数 =====
-  it('9. createMCPServer 返回裸 {id:7} → activeId 变 7 + toast aiMcpSrvAddedName + 弹窗关闭 + 重新加载一次', async () => {
-    h.listMCPServers.mockResolvedValueOnce([]).mockResolvedValueOnce([srv(7, { name: 'new-one' })])
+  // 终审 Important I1(2026-07-31)—— 原 fixture 是「空列表 → 新建后单条」,即使
+  // 实现写成 Vue2 式的双剥壳(`(created as any).data?.id` 恒 undefined),
+  // `reload()` 里 `!activeId.value` 的兜底也会**恰好**选中那条唯一记录,53 条
+  // 全绿,用例分辨不出对错(见终审 §5 RED 探针 A)。改成「新建前已有 2 条且已
+  // 选中其中一条」——后端 `service/mcp.go:63` 是 `ORDER BY id` 升序,新建的
+  // 服务器 id 最大,第二次 list 返回时排在**末尾**,不是 servers[0]。这样双剥壳
+  // 缺陷下 `id` 恒 undefined、`activeId` 保持先前选中的 svc-b 不动(reload 的
+  // `!activeId.value || !found` 兜底也不会触发,因为 svc-b 仍在新列表里)——
+  // 断言精确报红;单层取数的正确实现下 `activeId` 在 onSave 里被直接设成 7,
+  // 断言精确报绿。
+  it('9. createMCPServer 返回裸 {id:7} → activeId 变 7(不是此前选中的项)+ toast aiMcpSrvAddedName + 弹窗关闭 + 重新加载一次', async () => {
+    h.listMCPServers
+      .mockResolvedValueOnce([srv(1, { name: 'svc-a' }), srv(2, { name: 'svc-b' })])
+      .mockResolvedValueOnce([srv(1, { name: 'svc-a' }), srv(2, { name: 'svc-b' }), srv(7, { name: 'new-one' })])
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
     const w = mountSection()
     await flush()
     expect(h.listMCPServers).toHaveBeenCalledTimes(1)
+
+    // 真实场景的常态:新建前用户已经选中了某台服务器(不是空态)。
+    await w.findAll('.sk-item')[1].trigger('click')
+    await flush()
+    expect(w.find('.sk-name span').text()).toBe('svc-b')
 
     await w.find('.sk-add-btn').trigger('click')
     await macroFlush()
@@ -323,7 +341,9 @@ describe('McpSection', () => {
     expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvAddedName.replace('{name}', 'new-one'))
     expect(h.listMCPServers).toHaveBeenCalledTimes(2) // 触发一次重新加载
-    expect(w.find('.sk-name span').text()).toBe('new-one') // activeId 落在 7
+    // activeId 落在新建的 7 上,不是此前选中的 svc-b,也不是列表第一项 svc-a——
+    // 双剥壳缺陷下这里会仍显示 svc-b(见上方用例头注释)。
+    expect(w.find('.sk-name span').text()).toBe('new-one')
   })
 
   // ===== 覆盖点 10:onSave 编辑 =====
@@ -388,6 +408,29 @@ describe('McpSection', () => {
     await macroFlush()
     expect(modalTitleEl().textContent).toBe(zh.aiMcpSrvEditTitle)
     expect(modalNameInput().value).toBe('existing-one')
+  })
+
+  // ===== 覆盖点 13(修复轮 M5,未申报偏离补正)=====
+  // Vue2 `closeModal()`(`:85`)是 `{ this.modalOpen = false; this.editing = null }`
+  // ——**任何**关闭路径都清 `editing`。本仓此前只在保存成功后调用的 `closeModal()`
+  // 里清,取消/X/遮罩三条关闭路径走 `v-model:open` 直接把 `modalOpen` 置 false,
+  // 不经过 `closeModal()`,`editing` 会残留旧值,传给 `McpServerModal` 的 `server`
+  // prop 也跟着残留——本次挪到 `watch(modalOpen)` 里统一清,钉住这条行为。
+  it('13. 编辑弹窗取消关闭(X 按钮,非保存路径)→ editing 清空,McpServerModal 的 server prop 变 null', async () => {
+    h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a' })])
+    const w = mountSection()
+    await flush()
+
+    const detail = w.findComponent(McpServerDetail)
+    detail.vm.$emit('edit', srv(1, { name: 'svc-a' }))
+    await macroFlush()
+    const modal = w.findComponent(McpServerModal)
+    expect(modal.props('server')?.id).toBe(1)
+
+    modalCloseBtn().click() // 取消路径(X 按钮),不是保存
+    await flush()
+
+    expect(modal.props('server')).toBeNull()
   })
 })
 

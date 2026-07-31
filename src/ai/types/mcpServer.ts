@@ -51,7 +51,8 @@ export interface McpParsed {
 }
 
 /** 对齐 Python agent `test_server` 返回(`agent/mcp_client/client.py:432-461`),
- *  Go 侧 `mc.go:355` 用 `c.JSONBlob` 原样透传,`POST .../:id/test` 200 裸对象。
+ *  Go 侧 `mcp.go:355`(修复轮 M3:此前误打成 `mc.go:355`,少打一个 `p`)用
+ *  `c.JSONBlob` 原样透传,`POST .../:id/test` 200 裸对象。
  *  成功态只用 `ok/tool_count/tools`;失败态字段视 `error_key` 而定。 */
 export interface McpTestResult {
   ok: boolean

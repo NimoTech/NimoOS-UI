@@ -10,11 +10,13 @@
 
   【偏离 D3,公共约束 §3 第 3 条】`SkillIcon.vue` 不移植,统一用
   `../../icons/AgentIcon.vue`(承 P3a/T5 先例)。
-  Vue2 `:121` 给删除按钮的 `SkillIcon` 传了具名色 `color="white"`——本仓不传。
-  已 grep 确认 `.sk-btn.danger`(sk-shared.scss:50-54)自带 `color: white` 声明:
-    &.danger { background: var(--danger); color: white; &:hover { ... } }
+  Vue2 `:121` 给删除按钮的 `SkillIcon` 传了一个具名色字面量——本仓不传。
+  已 grep 确认 `.sk-btn.danger`(sk-shared.scss:50-54)自带前景色声明:背景取
+  危险语义色 `--danger`、图标/文字继承该规则块里固定写死的前景色(修复轮 M7:
+  原文逐字引用了那行 CSS 源码里的颜色字面量,按公共约束 §6「注释里也不许出现
+  颜色字面量」的纪律改写成本段描述,不再照抄源码)。
   `AgentIcon` 的 `color` prop 默认值本就是 `currentColor`(AgentIcon.vue:79),
-  SVG `stroke` 走 `currentColor`(AgentIcon.vue:88)会继承按钮的 `color: white`,
+  SVG `stroke` 走 `currentColor`(AgentIcon.vue:88)会继承按钮的前景色声明,
   不需要在本组件重复书写颜色——与 `SkillDetail.vue:507-510` 删除按钮的既有写法
   (同样不传 color)完全一致,不是新模式。
 
@@ -359,8 +361,9 @@ function doDelete() {
               <div class="sk-modal-foot">
                 <div class="right">
                   <button class="sk-btn ghost" @click="confirmOpen = false">{{ t('aiCancel') }}</button>
-                  <!-- 偏离 D3(见文件头注释):不传 color="white",由 .sk-btn.danger
-                       自带的 color: white 供色,AgentIcon 默认 currentColor 继承。 -->
+                  <!-- 偏离 D3(见文件头注释):不传具名色,由 .sk-btn.danger 自带的
+                       前景色声明供色,AgentIcon 默认 currentColor 继承(修复轮 M7:
+                       注释不再逐字引用 CSS 源码里的颜色字面量)。 -->
                   <button class="sk-btn danger" @click="doDelete">
                     <AgentIcon name="trash" :size="13" /> {{ t('aiMcpSrvRemoveConfirm') }}
                   </button>

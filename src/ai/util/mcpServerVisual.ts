@@ -1,7 +1,9 @@
 // SP8-P4 Task 2 —— 1:1 移植自 Vue2 src/views/AI/MCP/mcpServerVisual.js(15 行)。
 // 哈希算法、色板顺序、取模逐字保留;色板与 SkillTile.vue 的 SKILL_COLOR_IDS
-// 完全相同(两边都映射到 tokens.scss:235-241 的 --grad-sk-* 七个渐变 token),
+// 完全相同(两边都映射到 tokens.scss:236-242 的 --grad-sk-* 七个渐变 token),
 // 故不新建色板、不新增 token。
+// 【修复轮 M3】此前误写成 `:235-241`(实测 `--grad-sk-blue` 在 :236、
+// `--grad-sk-slate` 在 :242,已 grep 复核修正)。
 //
 // 类型放宽到 unknown:Vue2 :7 是 `String(name || '')`,对 null/undefined/数字
 // 都做了兜底,这里保持同样的宽容度(列表数据来自后端,name 理论上必为 string,
