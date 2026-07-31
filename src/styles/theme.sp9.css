@@ -1,0 +1,16 @@
+/*
+ * SP9(收尾视图)专属 theme token 分片(spec §4.3)。
+ * 由 main.ts 在 theme.css 之后 import —— 不能写成 theme.css 末尾的 @import,
+ * CSS 规定 @import 必须位于所有规则之前。
+ * 硬约束:每个颜色 token 在 :root 与 :root[data-theme="light"] 两块里都要有值。
+ * 本文件是 token 定义处,允许裸颜色字面量(与 theme.css 同例,已在 color-guard 跳过名单里)。
+ */
+:root {
+  --set-rail-bg: rgba(255, 255, 255, 0.06);
+  --set-rail-border: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-theme='light'] {
+  --set-rail-bg: rgba(0, 0, 0, 0.03);
+  --set-rail-border: rgba(0, 0, 0, 0.08);
+}
