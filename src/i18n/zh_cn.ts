@@ -1136,15 +1136,20 @@ export default {
   // (表里原列 115 行,其中 8 行与既有键值重复,按 brief 第 7 条改为复用既有键,未新增,见任务报告)
   photosSvNameSnapshotSavedAlbum: '「{name}」的快照已保存为新相册',
   photosSvAddedThisWeek: '本周 +{n}',
-  photosSvActOneMatched: '<b>1 张新照片</b> 已自动添加',
-  photosSvActNMatched: '<b>{n} 张新照片</b> 已自动添加',
+  // P7a-T8:去掉字面 <b>,改 <i18n-t> 具名插槽(零 v-html)。"1" 是静态字面量 ⇒ 拆成
+  // 主句键 + 加粗词键(下方新增 photosSvActOneMatchedBold);{n} 是真插值 ⇒ 直接开槽,
+  // 不拆键(详见 SmartViewActivityFeed.vue 文件头注释与 task-8-report.md)。
+  photosSvActOneMatched: '{photo} 已自动添加',
+  photosSvActOneMatchedBold: '1 张新照片',
+  photosSvActNMatched: '{n} 张新照片 已自动添加',
   photosSvActivity: '活动',
   photosSvAdd: '添加',
   photosSvAddAnother: '添加另一个…',
   photosSvAddCondition: '添加条件',
   photosSvAllMatches: '全部匹配',
   photosSvAllSmartViews: '所有智能视图',
-  photosSvThreshHelp: '阈值 {pct}% 时，预计每周新增约 <b>{n}</b> 张照片。',
+  // P7a-T8:<b> 只包住插值 {n} ⇒ 直接开槽,去掉字面 <b></b>(零 v-html)。
+  photosSvThreshHelp: '阈值 {pct}% 时，预计每周新增约 {n} 张照片。',
   photosSvAutoAddMatches: '自动添加新匹配',
   photosSvAutoAddMatchesPhotos: '有新照片匹配时自动加入',
   photosSvAutoAddWhenScore: '匹配分 ≥ 时自动添加',

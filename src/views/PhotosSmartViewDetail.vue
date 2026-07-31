@@ -45,6 +45,8 @@ import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import SmartViewConditionEditor from '../photos/components/SmartViewConditionEditor.vue'
+import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
+import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
 import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
 import { useToast } from '../stores/toast'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -170,6 +172,22 @@ async function removeCond(cond: string): Promise<void> {
     await store.updateSmartView(s.id, { conds: s.conds.filter((c) => c !== cond) })
   } catch (e) {
     console.error('[photos-smartviews] removeCond', e)
+    toast.show(t('photosSvUpdateFailed'))
+  }
+}
+
+// ── T8 接线:右栏(阈值/设置开关)→ store.updateSmartView(结构规格 T8)─────────────
+// SmartViewSidePanel 自己不碰 store,只做本地 draft/debounce + 派生量,只发一个统一的
+// `patch` emit;这里负责把它翻译成 store.updateSmartView(id, patch)。不需要额外
+// .then(loadDetail):同 addCond/removeCond 的道理,§7e-2 的 byId(id) 让 sv 计算属性在
+// store 数组项更新后自动跟着变,SmartViewSidePanel 的 sv prop 立刻拿到新值。
+async function onSidePatch(patch: { threshold?: number; live?: boolean; includeVideos?: boolean }): Promise<void> {
+  const s = sv.value
+  if (!s) return
+  try {
+    await store.updateSmartView(s.id, patch)
+  } catch (e) {
+    console.error('[photos-smartviews] onSidePatch', e)
     toast.show(t('photosSvUpdateFailed'))
   }
 }
@@ -539,9 +557,11 @@ function onTileClick(p: Photo): void {
           </div>
           </div>
 
-          <!-- T8 挂载点:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。
-               本任务只留空壳,不渲染任何内容。 -->
-          <aside class="sv-detail-side" data-test="sv-side-mount" />
+          <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
+          <aside class="sv-detail-side" data-test="sv-side-mount">
+            <SmartViewSidePanel :sv="sv" :busy="store.patchBusy" @patch="onSidePatch" />
+            <SmartViewActivityFeed :activity="store.activity" />
+          </aside>
           </div>
         </template>
       </main>

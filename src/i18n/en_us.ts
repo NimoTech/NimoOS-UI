@@ -1143,15 +1143,21 @@ export default {
   // (table listed 115 rows; 8 duplicate pre-existing keys per brief item 7 and are reused, not re-added — see task report)
   photosSvNameSnapshotSavedAlbum: '"{name}" snapshot saved as a new album',
   photosSvAddedThisWeek: '+{n} this week',
-  photosSvActOneMatched: '<b>1 new photo</b> auto-added',
-  photosSvActNMatched: '<b>{n} new photos</b> auto-added',
+  // P7a-T8: strip literal <b>, switch to <i18n-t> named slots (zero v-html). "1" is a
+  // static literal ⇒ split into a base-sentence key + a bold-word key (new
+  // photosSvActOneMatchedBold below); {n} is a real interpolation ⇒ slot directly,
+  // no split (see SmartViewActivityFeed.vue header comment + task-8-report.md).
+  photosSvActOneMatched: '{photo} auto-added',
+  photosSvActOneMatchedBold: '1 new photo',
+  photosSvActNMatched: '{n} new photos auto-added',
   photosSvActivity: 'Activity',
   photosSvAdd: 'Add',
   photosSvAddAnother: 'Add another…',
   photosSvAddCondition: 'Add condition',
   photosSvAllMatches: 'All matches',
   photosSvAllSmartViews: 'All Smart Views',
-  photosSvThreshHelp: 'At {pct}%, expect ~<b>{n}</b> new photos per week.',
+  // P7a-T8: <b> only wraps the interpolation {n} ⇒ slot directly, strip literal <b></b>.
+  photosSvThreshHelp: 'At {pct}%, expect ~{n} new photos per week.',
   photosSvAutoAddMatches: 'Auto-add new matches',
   photosSvAutoAddMatchesPhotos: 'Auto-add new matches as photos arrive',
   photosSvAutoAddWhenScore: 'Auto-add when score ≥',

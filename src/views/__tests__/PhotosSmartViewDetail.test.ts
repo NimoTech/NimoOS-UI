@@ -238,12 +238,53 @@ describe('T7:加条件弹层 + 条件 chip(挂载点兑现为真组件)', () => 
   })
 })
 
-describe('T8 挂载点存在(本任务只留空壳,断言"占位存在"而非内容)', () => {
-  it('sv-side-mount(T8:右栏阈值/设置/统计/活动流)存在且为空壳', async () => {
+// P7a-T8:sv-side-mount 的 stub 断言("空壳,children.length===0")在这里升级成真组件
+// 断言——SmartViewSidePanel/SmartViewActivityFeed 自己的结构/交互/样式覆盖已在
+// 各自的 __tests__ 文件里,这里只钉住"宿主接线对不对":两个组件都真的挂进去了、
+// sv/busy/activity 三个 prop 来源对不对、patch emit 翻译成 store.updateSmartView(id, patch)
+// 的正确形状(不需要额外 .then(loadDetail),同 addCond/removeCond 的道理)。
+describe('T8:右栏(挂载点兑现为真组件)', () => {
+  it('sv-side-mount 下渲染 SmartViewSidePanel(3 段)+ SmartViewActivityFeed(1 段)', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
-    const mount = w.find('[data-test="sv-side-mount"]')
-    expect(mount.exists()).toBe(true)
-    expect(mount.element.children.length).toBe(0)
+    const mountEl = w.find('[data-test="sv-side-mount"]')
+    expect(mountEl.exists()).toBe(true)
+    const sections = mountEl.findAll('.sv-side-section')
+    expect(sections).toHaveLength(4)
+    expect(mountEl.text()).toContain(zh.photosSvQualityThreshold)
+    expect(mountEl.text()).toContain(zh.photosSvSettingsSection)
+    expect(mountEl.text()).toContain(zh.photosSvStats)
+    expect(mountEl.text()).toContain(zh.photosSvActivity)
+  })
+
+  it('活动流拿到 store.activity(getSmartViewActivity 的响应)', async () => {
+    svc.photos.getSmartViewActivity.mockResolvedValue([
+      { id: 'a1', eventType: 'created', detail: '', assetIds: [], occurredAt: '2026-07-31T00:00:00Z' },
+    ])
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    const mountEl = w.find('[data-test="sv-side-mount"]')
+    expect(mountEl.text()).toContain(zh.photosSvSmartViewCreated)
+  })
+
+  describe('阈值 patch → store.updateSmartView(300ms debounce)', () => {
+    beforeEach(() => { vi.useFakeTimers() })
+
+    it('拖动阈值滑块 → 300ms 后 store.updateSmartView 收到 { threshold }', async () => {
+      svc.photos.updateSmartView.mockResolvedValue(null)
+      const { w } = await mountView('7', [makeSv({ id: 7, threshold: 72 })])
+      const range = w.find('[data-test="pts-range"]')
+      await range.setValue('92')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { threshold: 92 })
+      vi.useRealTimers()
+    })
+  })
+
+  it('点「自动添加新匹配」开关 → store.updateSmartView 收到 { live: true }(sv.live=false)', async () => {
+    svc.photos.updateSmartView.mockResolvedValue(null)
+    const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
+    await w.find('[data-test="sv-switch-live"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { live: true })
   })
 })
 
