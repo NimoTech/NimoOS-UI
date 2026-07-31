@@ -543,3 +543,23 @@ describe('卸载(fix round 1 · M7)', () => {
     expect(spy).toHaveBeenCalled()
   })
 })
+
+// ══════════════════════════════ Fix round 2(task-8 评审同批发现,控制器授权连本文件
+// 一起补)══════════════════════════════
+
+// ── M1:.sv-switch 漏了 photos.scss:2819-2820 那份低优先级规则贡献的 transition/box-shadow ──
+describe('.sv-switch 轨道过渡 + 拇指投影(fix round 2 · M1)', () => {
+  it('.sv-switch 轨道背景色变化带 transition', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('transition: background 0.15s')
+  })
+
+  it('.sv-switch::after 拇指带投影(color-mix 复刻,不是字面 rgba)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toMatch(/box-shadow:\s*0 1px 3px color-mix\(/)
+  })
+})

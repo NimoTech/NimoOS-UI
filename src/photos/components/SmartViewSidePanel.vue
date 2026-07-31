@@ -43,20 +43,45 @@ const { t, locale } = useI18n()
 const thresh = ref(props.sv.threshold)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-// prop 回流:只更新本地 draft,绝不 emit——这是"不需要 syncingSv"这个简化成立的主守卫
-// (删码验证②的主体:去掉这条 watch,或者给它加一个会拦截自身的门控,"prop 回流不触发
-// 提交"这条用例就会红)。
-watch(() => props.sv.threshold, (v) => { thresh.value = v })
+// fix round 1 · I1(Important,评审实测复现):`dragging` 门控管的是「别把拇指从用户
+// 手指底下抽走」——与"不需要 syncingSv"是两件不同的事,不能混为一谈。syncingSv 防的是
+// New-UI 已经结构性不存在的自反馈死循环(New-UI 只在用户交互时才 emit,prop 回流从不
+// emit,天然没有自反馈);但 prop 回流本身还是会发生——一次 PATCH 往返之间,只要用户
+// 还有未提交的本地编辑(`dragging` 为真),prop 带回来的旧值就绝不能覆盖显示,否则就是
+// 评审复现的"拖到 92 → 响应落地把显示扳回 92 的路上,恰好把用户已经拖到的 60 冲掉"。
+// `dragging` 的语义是"是否存在尚未成功 emit 出去的本地编辑"——不是"手指是否按在滑块
+// 上":从 onThreshInput 到 submitThreshold 真正把 emit 发出去之前的整个窗口(含 busy
+// 重试期间)都算 dragging=true,这样即使响应先于本轮防抖到期落地,显示也不会被抢先冲掉。
+const dragging = ref(false)
+
+// prop 回流:dragging 时门控(删码验证②的主体:去掉这个门控或整条 watch,"prop 回流不
+// 触发提交"与"跨 PATCH 往返不冲掉本地编辑"这两条用例都会红)。
+watch(() => props.sv.threshold, (v) => {
+  if (!dragging.value) thresh.value = v
+})
+
+// fix round 1 · I2(Important,评审实测复现):`submitThreshold` 用**闭包捕获的 `v`**
+// 而不是读取当时的 `thresh.value` 活值——即使 `dragging` 门控本身有任何疏漏,真正发给
+// 后端的值也始终是用户那一次交互实际拖到的数字,双重保险。busy 时**重新 arm 定时器**
+// 而不是静默 return——阈值有本地 draft,吞掉一次 emit 就是"界面 92% / 后端 72%"永久
+// 失同步(与两个开关不同:开关纯派生,吞掉点击后 UI 仍与 store 一致,不需要重试)。
+function submitThreshold(v: number): void {
+  if (props.busy) {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => submitThreshold(v), 300)
+    return
+  }
+  dragging.value = false
+  emit('patch', { threshold: v })
+}
 
 function onThreshInput(v: number): void {
   thresh.value = v
+  dragging.value = true
   if (debounceTimer) clearTimeout(debounceTimer)
   // 照搬 Vue2 :359-366 的 300ms 节奏(删码验证①的主体:去掉这个 setTimeout 包装,
   // "连拖 5 次只 1 个 emit"这条用例就会红)。
-  debounceTimer = setTimeout(() => {
-    if (props.busy) return
-    emit('patch', { threshold: thresh.value })
-  }, 300)
+  debounceTimer = setTimeout(() => submitThreshold(v), 300)
 }
 onBeforeUnmount(() => { if (debounceTimer) clearTimeout(debounceTimer) })
 
@@ -204,8 +229,20 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
 .sv-toggle-row:last-child { border-bottom: 0; }
 .sv-toggle-row .label { flex: 1; color: var(--fg); }
 .sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
-.sv-switch { position: relative; width: 32px; height: 18px; background: var(--chip-bg-hi); border-radius: 99px; cursor: pointer; flex-shrink: 0; }
-.sv-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg); transition: all 0.2s; }
+/* fix round 1 · M1(brief 漏给 photos.scss 那半区间,与 T5 漏整套滑块样式同一失效模式):
+   Vue2 的 `.sv-switch` 其实有两份规则叠级联——`photos-smartview.scss:584-600`(高优先级,
+   赢了尺寸)之外还有 `photos.scss:2819-2820` 的低优先级裸 `.sv-switch`,声明了
+   `transition: background 0.15s` 与 `::after` 的投影,两者未被高优先级规则覆盖,照样
+   合并生效。补齐这两条,轨道变色才是渐变过渡、拇指才有投影(不是瞬变 + 平的)。 */
+.sv-switch { position: relative; width: 32px; height: 18px; background: var(--chip-bg-hi); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+.sv-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--fg); transition: all 0.2s;
+  /* 投影是纯粗黑阴影(不是语义色),用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的
+     投影),不写字面颜色函数,同 PhotosSmartViewDetail.vue 里 `.tile.recent::after`
+     已立的既有先例("black 关键字 + color-mix"表达半透明黑)。 */
+  box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
+}
 .sv-switch[data-on="true"] { background: var(--accent); }
 /* --on-accent 合法用法:滑块叠在紧邻这条 [data-on="true"] 实底(var(--accent),非渐变/
    半透明)之上,合法性由这条背景声明自证(同 SmartViewCreateDialog.vue 已立的先例)。 */

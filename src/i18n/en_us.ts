@@ -1143,13 +1143,15 @@ export default {
   // (table listed 115 rows; 8 duplicate pre-existing keys per brief item 7 and are reused, not re-added — see task report)
   photosSvNameSnapshotSavedAlbum: '"{name}" snapshot saved as a new album',
   photosSvAddedThisWeek: '+{n} this week',
-  // P7a-T8: strip literal <b>, switch to <i18n-t> named slots (zero v-html). "1" is a
-  // static literal ⇒ split into a base-sentence key + a bold-word key (new
-  // photosSvActOneMatchedBold below); {n} is a real interpolation ⇒ slot directly,
-  // no split (see SmartViewActivityFeed.vue header comment + task-8-report.md).
+  // P7a-T8 fix round 1 · I3: strip literal <b>, switch to <i18n-t> named slots (zero
+  // v-html). Re-checked zh_CN.json source: both rows bold the whole "interpolation +
+  // language-specific word" phrase (`<b>1 张新照片</b>` / `<b>{n} 张新照片</b>` are
+  // symmetric) ⇒ both split into a base-sentence key + a bold-phrase key, not treated
+  // differently (see SmartViewActivityFeed.vue header comment + task-8-report.md).
   photosSvActOneMatched: '{photo} auto-added',
   photosSvActOneMatchedBold: '1 new photo',
-  photosSvActNMatched: '{n} new photos auto-added',
+  photosSvActNMatched: '{photo} auto-added',
+  photosSvActNMatchedBold: '{n} new photos',
   photosSvActivity: 'Activity',
   photosSvAdd: 'Add',
   photosSvAddAnother: 'Add another…',

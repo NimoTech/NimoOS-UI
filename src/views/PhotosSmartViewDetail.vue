@@ -741,10 +741,18 @@ function onTileClick(p: Photo): void {
   color: var(--on-accent); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
 }
 
-/* fix round 1 · M2:Vue2 scss:161-166(sv-detail-layout)+ :167-172(sv-detail-main)+
-   :187-194(sv-detail-side 基础外观,不含滚动条美化——那部分留给 T8 真正引入可滚动内容
-   时再决定)。--line → --divider、--surface-1 → --panel-bg-solid(先例
-   PlaceDetailPanel.vue:38/312:同类"内容旁的常驻实底侧栏",不用 --popup-bg——那是浮层专用)。 */
+/* fix round 1 · M2(task-8 评审:T6 挂的账,本任务真正引入了 4 段可滚动内容,现在结账):
+   Vue2 scss:161-166(sv-detail-layout)+ :167-172(sv-detail-main)+ :187-194(sv-detail-side
+   基础外观)。--line → --divider、--surface-1 → --panel-bg-solid(先例
+   PlaceDetailPanel.vue:38/312:同类"内容旁的常驻实底侧栏",不用 --popup-bg——那是浮层专用)。
+   **决定:不移植 Vue2 scss:195-209 的 `::-webkit-scrollbar` 滚动条美化(accent 渐变
+   thumb / 10px 宽 / accent 6% 轨道),`.sv-detail-main`/`.sv-detail-side` 都只走
+   `overflow-y: auto` 交给浏览器默认滚动条。** 理由:本分支惯例是滚动条只隐藏
+   (`scrollbar-width: none` / `display: none`)不重画,已有先例
+   `PhotosGrid.vue:420`、`PhotoFilmstrip.vue`、`PhotosPersonDetail.vue:1041`;
+   `theme.css` 已有全局细滚动条兜底;且 SP5-P6 实证过 Chrome 121+ 一旦元素吃到标准
+   `scrollbar-width`/`scrollbar-color`,浏览器就会整体禁用该元素上的
+   `::-webkit-scrollbar` 定制族——照搬 Vue2 那套等于引入死代码。 */
 .sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
 .sv-detail-side {

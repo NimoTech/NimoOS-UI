@@ -56,6 +56,10 @@ function onInput(e: Event): void {
   background: linear-gradient(to right, var(--accent-soft-2), var(--accent));
   border-radius: 99px;
   outline: 0;
+  /* fix round 1 · M1(task-8 评审同批发现,控制器授权补):Vue2 `photos.scss:2817` 的
+     低优先级裸 `.sv-slider` 把 `cursor: pointer` 挂在轨道本身上,未被高优先级规则覆盖,
+     照样合并生效——之前只在 thumb 伪元素上给了指针光标,轨道本身漏了。 */
+  cursor: pointer;
 }
 .sv-slider::-webkit-slider-thumb {
   appearance: none;

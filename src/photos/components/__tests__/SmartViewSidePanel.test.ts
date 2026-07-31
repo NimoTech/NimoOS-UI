@@ -1,6 +1,7 @@
 // SP7-P7a-T8: SmartViewSidePanel.vue —— 智能视图详情页右栏三段(阈值 / 设置 / 统计)。
-// 覆盖 task-8-brief.md「Step 1: 写失败测试」里 SmartViewSidePanel 必含用例清单。
-import { describe, it, expect, vi } from 'vitest'
+// 覆盖 task-8-brief.md「Step 1: 写失败测试」里 SmartViewSidePanel 必含用例清单,
+// 以及 fix round 1(task-8-fix-1-findings.md)的 I1/I2/M1/M3/M4/M5。
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -9,6 +10,7 @@ import SmartViewSidePanel from '../SmartViewSidePanel.vue'
 // 原始源码文本(Vite `?raw`):零 v-html 断言只能读 <template> 原文判定,同
 // PlaceInsights.test.ts 的既有先例。
 import smartViewSidePanelRaw from '../SmartViewSidePanel.vue?raw'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 import type { SmartView } from '../../stores/smartViews'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
@@ -52,6 +54,9 @@ describe('三段各存在', () => {
 })
 
 describe('阈值:本地 draft + 300ms debounce', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() }) // fix round 1 · M5:统一挪到 afterEach
+
   it('拖 range 到 92 → .sv-thresh-row b 立即显示 92%', async () => {
     const w = mountPanel(makeSv({ threshold: 72 }))
     await w.find('[data-test="pts-range"]').setValue('92')
@@ -59,7 +64,6 @@ describe('阈值:本地 draft + 300ms debounce', () => {
   })
 
   it('连拖 5 次 → 300ms 后只 emit 一次 patch(用最后一次的值)', async () => {
-    vi.useFakeTimers()
     const w = mountPanel(makeSv({ threshold: 72 }))
     const range = w.find('[data-test="pts-range"]')
     for (const v of [75, 80, 85, 90, 92]) {
@@ -70,11 +74,9 @@ describe('阈值:本地 draft + 300ms debounce', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(w.emitted('patch')).toHaveLength(1)
     expect(w.emitted('patch')?.[0]).toEqual([{ threshold: 92 }])
-    vi.useRealTimers()
   })
 
   it('300ms 内把值改回原值 → 仍然 emit(照搬 Vue2 节奏,不做值比较)', async () => {
-    vi.useFakeTimers()
     const w = mountPanel(makeSv({ threshold: 72 }))
     const range = w.find('[data-test="pts-range"]')
     await range.setValue('90')
@@ -82,7 +84,54 @@ describe('阈值:本地 draft + 300ms debounce', () => {
     await range.setValue('72')
     await vi.advanceTimersByTimeAsync(300)
     expect(w.emitted('patch')).toHaveLength(1)
-    vi.useRealTimers()
+  })
+})
+
+// fix round 1 · I1(Important,评审实测复现):拖动跨越一次 PATCH 往返 ⇒ 拇指被抽回旧值 +
+// 用户最后拖到的值静默丢弃。这里走真实时序复现评审给出的时间线(t=0/300/350/400/650),
+// 不是只断言"函数被调"。
+describe('拖动跨越一次 PATCH 往返(fix round 1 · I1 回归)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('t=300 emit 后、t=350 继续拖到新值、t=400 上一发响应落地(prop 回流)⇒ 显示不被抽回,t=650 补发的是用户最后拖到的值', async () => {
+    const w = mountPanel(makeSv({ threshold: 72 }))
+    const range = w.find('[data-test="pts-range"]')
+    // t=0:拖到 92
+    await range.setValue('92')
+    // t=300:防抖到期,emit { threshold: 92 },PATCH 出门(host 侧异步调用,尚未回来)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(w.emitted('patch')?.[0]).toEqual([{ threshold: 92 }])
+    // t=350:用户没松手,继续拖到 60(新一轮防抖重新武装)
+    await range.setValue('60')
+    // t=400:上一发(threshold=92)的响应落地 ⇒ store 回写、prop 回流 sv.threshold=92。
+    // 这里没有真实 store,直接用 setProps 模拟 host 传入的新 sv 对象。
+    await w.setProps({ sv: makeSv({ threshold: 92 }) })
+    // 关键断言:显示没有被抽回 92%,仍停在用户手指所在的 60%(dragging 门控生效)。
+    expect(w.find('[data-test="sv-thresh-value"]').text()).toBe('60%')
+    // t=650:第二轮防抖到期,发出去的必须是用户最后拖到的 60,不是被抽回后的 92。
+    await vi.advanceTimersByTimeAsync(300)
+    expect(w.emitted('patch')?.[1]).toEqual([{ threshold: 60 }])
+  })
+})
+
+// fix round 1 · I2(Important,评审实测复现):busy 期间防抖到期的 emit 被静默吞掉且永不
+// 重试 ⇒「界面 92% / 后端 72%」永久失同步。这里走真实时序:busy 期间到期 → 不 emit →
+// busy 落下后自动补发,不是只断言"重新 arm 的函数被调"。
+describe('busy 期间防抖到期(fix round 1 · I2 回归)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('busy=true 时到期 ⇒ 不 emit,不吞;busy 落下后下一轮到期自动补发', async () => {
+    const w = mountPanel(makeSv({ threshold: 72 }), true)
+    await w.find('[data-test="pts-range"]').setValue('92')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(w.emitted('patch')).toBeUndefined() // busy 期间不吞、也不发,重新 arm
+    await vi.advanceTimersByTimeAsync(300)
+    expect(w.emitted('patch')).toBeUndefined() // 仍 busy ⇒ 继续重新 arm,不永久放弃
+    await w.setProps({ busy: false }) // busy 落下
+    await vi.advanceTimersByTimeAsync(300) // 下一轮重新 arm 的定时器到期,不 busy ⇒ 补发
+    expect(w.emitted('patch')).toEqual([[{ threshold: 92 }]])
   })
 })
 
@@ -97,7 +146,9 @@ describe('prop 回流 —— 「不需要 syncingSv」这个简化的主守卫',
 })
 
 describe('threshHelp —— 零 v-html,<i18n-t> 具名插槽', () => {
-  it('addedThisWeek=10、thresh=80 → n=Math.round(13.63) 手算=13,<b> 包着 13', () => {
+  // fix round 1 · M4:真值是 Math.round(10 * 20 / 22 * 1.4) = Math.round(12.727…) = 13,
+  // 标题此前误写"13.63"(结论 13 本身没错,只是标题里的中间值写错了)。
+  it('addedThisWeek=10、thresh=80 → n=Math.round(12.727)=13(手算),<b> 包着 13', () => {
     const w = mountPanel(makeSv({ threshold: 80, addedThisWeek: 10 }))
     const help = w.find('[data-test="sv-thresh-help"]')
     expect(help.find('b').text()).toBe('13')
@@ -159,6 +210,29 @@ describe('设置段:两个开关 —— 纯派生 + 直接 emit,无本地 state'
   })
 })
 
+// fix round 1 · I2 补充:busy 短路行为 + data-busy 属性此前零用例。
+describe('busy(fix round 1 · I2 补充覆盖)', () => {
+  it('busy=true → 两个开关都带 data-busy="true"', () => {
+    const w = mountPanel(makeSv(), true)
+    expect(w.find('[data-test="sv-switch-live"]').attributes('data-busy')).toBe('true')
+    expect(w.find('[data-test="sv-switch-videos"]').attributes('data-busy')).toBe('true')
+  })
+
+  it('busy=false → 两个开关都带 data-busy="false"', () => {
+    const w = mountPanel(makeSv(), false)
+    expect(w.find('[data-test="sv-switch-live"]').attributes('data-busy')).toBe('false')
+    expect(w.find('[data-test="sv-switch-videos"]').attributes('data-busy')).toBe('false')
+  })
+
+  it('busy=true → 点开关不 emit(纯派生早退;与阈值不同,这里不需要重试,UI 仍与 store 一致)', async () => {
+    const w = mountPanel(makeSv({ live: false }), true)
+    await w.find('[data-test="sv-switch-live"]').trigger('click')
+    expect(w.emitted('patch')).toBeUndefined()
+    await w.find('[data-test="sv-switch-videos"]').trigger('click')
+    expect(w.emitted('patch')).toBeUndefined()
+  })
+})
+
 describe('统计四格', () => {
   it('median 缺(0)→ "0%"', () => {
     const w = mountPanel(makeSv({ median: 0 }))
@@ -174,6 +248,17 @@ describe('统计四格', () => {
   it('evaluatedAt 为空 → lastUpdated 是 "—"', () => {
     const w = mountPanel(makeSv({ evaluatedAt: '' }))
     expect(w.find('[data-test="sv-stat-lastupdate"]').text()).toBe('—')
+  })
+
+  // fix round 1 · M3:非空分支此前零断言,只测了空态。这里钉住 relTime 真的被调用
+  // (30 分钟前 < 3600s 分支,渲染出 photosSvRelMinutes 的值,不是恒定的 "—")。
+  it('evaluatedAt 非空(30 分钟前)→ 文案含 photosSvRelMinutes 的值,不是 "—"', () => {
+    const now = Date.now()
+    const evaluatedAt = new Date(now - 30 * 60_000).toISOString()
+    const w = mountPanel(makeSv({ evaluatedAt }))
+    const text = w.find('[data-test="sv-stat-lastupdate"]').text()
+    expect(text).not.toBe('—')
+    expect(text).toBe(zh.photosSvRelMinutes.replace('{n}', '30'))
   })
 })
 
@@ -210,5 +295,23 @@ describe('英文 locale 下同样成立', () => {
   it('设置段英文文案', () => {
     const w = mountPanel(makeSv({ live: false }), false, makeI18n('en_us'))
     expect(w.text()).toContain(en.photosSvPausedUploadsNotAdded)
+  })
+})
+
+// fix round 1 · M1:.sv-switch 漏了 photos.scss:2819-2820 那份低优先级规则贡献的
+// transition/box-shadow(brief 给的 scss 区间没盖到这半份,回源核实后补)。
+describe('.sv-switch 轨道过渡 + 拇指投影(fix round 1 · M1)', () => {
+  it('.sv-switch 轨道背景色变化带 transition', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('transition: background 0.15s')
+  })
+
+  it('.sv-switch::after 拇指带投影(color-mix 复刻,不是字面 rgba)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toMatch(/box-shadow:\s*0 1px 3px color-mix\(/)
   })
 })

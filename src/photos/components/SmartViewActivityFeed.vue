@@ -10,10 +10,14 @@
 // 用户。New-UI 改成:该行整体跳过 + console.warn 一次,不让内部枚举值泄漏到界面上。
 //
 // ── 零 v-html(§7e-6)────────────────────────────────────────────────────────
-// matched(1 张)/matched(N 张)两种文案都要加粗一部分——Vue2 用 v-html 拼字符串,这里
-// 改用 <i18n-t> 具名插槽。photosSvActOneMatched 的"1"是静态字面量,拆成主句键
-// + 新增的 photosSvActOneMatchedBold 加粗词键;photosSvActNMatched 的 {n} 是真插值,
-// 直接开槽(i18n 编辑细节见 zh_cn.ts/en_us.ts 旁注,任务报告里也登记了两种处理的取舍)。
+// fix round 1 · I3(Important,控制器回源核实 zh_CN.json 后纠正):matched(1 张)/
+// matched(N 张)两条文案的 `<b>` 在 Vue2 里包的都是"插值 + 语言相关静态词"整个短语——
+// `<b>1 张新照片</b>` 与 `<b>{n} 张新照片</b>` 形态完全对称,不是"一条包整短语、一条只
+// 包数字"。第一轮把 N 张这条简化成只加粗 `{n}` 本身,导致活动流里相邻两行一行整短语粗、
+// 一行只有数字粗——不是"与 Vue2 略有差异",是自相矛盾。改法:两条都拆成"主句键 + 加粗
+// 短语键"对称处理——`photosSvActOneMatchedBold`(已有)与新增的
+// `photosSvActNMatchedBold`(值 `'{n} 张新照片'`/`'{n} new photos'`,自带插值,渲染时走
+// `t('photosSvActNMatchedBold', { n })` 再包 `<b>`),两条键形态完全一致,零 v-html。
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -87,7 +91,7 @@ function timeOf(a: SmartViewActivity): string {
               <template #photo><b>{{ t('photosSvActOneMatchedBold') }}</b></template>
             </i18n-t>
             <i18n-t v-else-if="row.kind === 'matchedN'" keypath="photosSvActNMatched" tag="span" scope="global">
-              <template #n><b>{{ row.n }}</b></template>
+              <template #photo><b>{{ t('photosSvActNMatchedBold', { n: row.n }) }}</b></template>
             </i18n-t>
             <template v-else-if="row.kind === 'exported'">{{ t('photosSvExportedDetail', { detail: row.a.detail || t('photosSvExportFile') }) }}</template>
             <template v-else-if="row.kind === 'renamed'">{{ t('photosSvSmartViewRenamed') }}</template>

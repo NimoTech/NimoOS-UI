@@ -54,9 +54,24 @@ describe('6 种 eventType 各一条', () => {
     expect(w.find('.sv-activity-text b').exists()).toBe(true)
   })
 
-  it('matched(3 张)→ <b> 里是数字 3', () => {
+  // fix round 1 · I3(Important,控制器回源核实 zh_CN.json 后纠正):<b> 包的是整个短语
+  // "3 张新照片",不是只有数字——与单张行(<b>1 张新照片</b>)形态对称,否则相邻两行一行
+  // 整短语粗一行只有数字粗,自相矛盾。
+  it('matched(3 张)→ <b> 里是整个短语「3 张新照片」(与单张形态对称,I3 回归)', () => {
     const w = mountFeed([act({ eventType: 'matched', assetIds: ['p1', 'p2', 'p3'] })])
-    expect(w.find('.sv-activity-text b').text()).toBe('3')
+    expect(w.find('.sv-activity-text b').text()).toBe(zh.photosSvActNMatchedBold.replace('{n}', '3'))
+    expect(w.find('.sv-activity-text b').text()).toBe('3 张新照片')
+  })
+
+  it('单张与多张两行相邻渲染 ⇒ 两个 <b> 都是整短语,形态一致(I3 主守卫)', () => {
+    const w = mountFeed([
+      act({ id: 'a1', eventType: 'matched', assetIds: ['p1'] }),
+      act({ id: 'a2', eventType: 'matched', assetIds: ['p1', 'p2', 'p3', 'p4', 'p5'] }),
+    ])
+    const bolds = w.findAll('.sv-activity-text b')
+    expect(bolds).toHaveLength(2)
+    expect(bolds[0]!.text()).toBe('1 张新照片')
+    expect(bolds[1]!.text()).toBe('5 张新照片')
   })
 
   it('exported 有 detail', () => {

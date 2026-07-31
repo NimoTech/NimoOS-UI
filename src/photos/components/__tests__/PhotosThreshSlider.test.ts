@@ -81,4 +81,13 @@ describe('样式:轨道 + thumb + marks 间距(此前全仓零 slider-thumb,真�
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('margin-top: 4px')
   })
+
+  // fix round 1(task-8 评审同批发现,控制器授权补):Vue2 photos.scss:2817 的低优先级
+  // 裸 .sv-slider 把 cursor:pointer 挂在轨道本身(不只是 thumb 伪元素上),之前漏了。
+  it('.sv-slider 轨道本身也有 cursor: pointer(不只是 thumb 伪元素)', () => {
+    const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-slider')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('cursor: pointer')
+  })
 })

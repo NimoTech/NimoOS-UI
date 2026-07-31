@@ -266,7 +266,10 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
   })
 
   describe('阈值 patch → store.updateSmartView(300ms debounce)', () => {
+    // fix round 1 · M5:useRealTimers 挪到 afterEach(此前写在 it 末尾,断言先失败时假
+    // 时钟会漏给同文件后续用例)。
     beforeEach(() => { vi.useFakeTimers() })
+    afterEach(() => { vi.useRealTimers() })
 
     it('拖动阈值滑块 → 300ms 后 store.updateSmartView 收到 { threshold }', async () => {
       svc.photos.updateSmartView.mockResolvedValue(null)
@@ -275,7 +278,24 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
       await range.setValue('92')
       await vi.advanceTimersByTimeAsync(300)
       expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { threshold: 92 })
-      vi.useRealTimers()
+    })
+
+    // fix round 1 · I2 补充:宿主 `:busy="store.patchBusy"` 这条 prop 来源此前零用例。
+    // updateSmartView 挂起期间 store.patchBusy=true,应该转发进 SmartViewSidePanel,
+    // 反映到两个开关的 data-busy 属性上。
+    it('store.patchBusy=true 期间 → SmartViewSidePanel 的两个开关都带 data-busy="true"', async () => {
+      let resolveFn: ((v: unknown) => void) | undefined
+      svc.photos.updateSmartView.mockImplementation(() => new Promise((res) => { resolveFn = res }))
+      const { w } = await mountView('7', [makeSv({ id: 7, threshold: 72 })])
+      const range = w.find('[data-test="pts-range"]')
+      await range.setValue('92')
+      await vi.advanceTimersByTimeAsync(300) // 触发 onSidePatch → store.updateSmartView(挂起)
+      await flushPromises()
+      expect(w.find('[data-test="sv-switch-live"]').attributes('data-busy')).toBe('true')
+      expect(w.find('[data-test="sv-switch-videos"]').attributes('data-busy')).toBe('true')
+      resolveFn?.(null)
+      await flushPromises()
+      expect(w.find('[data-test="sv-switch-live"]').attributes('data-busy')).toBe('false')
     })
   })
 

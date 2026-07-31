@@ -654,6 +654,11 @@ function thumbUrl(seed: string): string {
 .sv-toggle-row .label { flex: 1; color: var(--fg); }
 .sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
 .sv-toggle-clickable { cursor: pointer; user-select: none; }
+/* fix round 1 · I8-M1(SmartViewSidePanel.vue task-8 评审同批发现,控制器授权连本文件
+   一起补):Vue2 的 `.sv-switch` 有两份规则叠级联——本区 scss 读取区间没盖到
+   `photos.scss:2819-2820` 的低优先级裸 `.sv-switch`,它声明了 `transition: background
+   0.15s` 与 `::after` 的投影,未被高优先级的 `photos-smartview.scss:584-600` 覆盖,照样
+   合并生效。补齐这两条,与 SmartViewSidePanel.vue 保持一致。 */
 .sv-switch {
   position: relative;
   width: 32px;
@@ -662,6 +667,7 @@ function thumbUrl(seed: string): string {
   border-radius: 99px;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 0.15s;
 }
 .sv-switch::after {
   content: '';
@@ -673,6 +679,9 @@ function thumbUrl(seed: string): string {
   border-radius: 50%;
   background: var(--fg);
   transition: all 0.2s;
+  /* 投影是纯粗黑阴影,用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的投影),不写
+     字面颜色函数,同 SmartViewSidePanel.vue 已立的先例。 */
+  box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
 /* --on-accent 合法用法之二(文件头注释 3a,fix round 1 · I3 已去掉不存在的外部引用):
