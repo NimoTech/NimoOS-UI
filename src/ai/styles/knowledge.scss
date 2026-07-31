@@ -8,8 +8,8 @@
  * 共 38 个)。蓝本 `.knowledge-app { … }` 那一大段(:59-1509)里混着 P5b-P5f 才用到
  * 的类(表格/抽屉/笔记/Wiki/仪表盘…),白名单以外一律不搬。
  *
- * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent:
- * #007AFF 等),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
+ * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent
+ * 等原生冷蓝色值),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
  * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
  * 全局主页 theme.css 那套、暗色档取 AI 区 tokens.scss 暗色块那套,跟随 <html> 的
  * data-theme 切换。因此下面两个声明块的 token 取值全部重写,来源逐条见行尾注释。
@@ -30,6 +30,15 @@
  * src/styles/theme.css 在 :root 的 `color-scheme: dark`,导致浅色 AI 页里原生控件
  * (input[type=number] 上下箭头底板、原生 checkbox 等)被浏览器按暗色 UA 调色板画,
  * 这正是 P2b 踩过的同一个坑(tokens.scss:33-38 的同类注释)。
+ *
+ * 【R4(评审 2026-07-31 裁定,覆盖附录 B 原表)—— --shadow-* 不是无色结构量,两档
+ * 各给一份】附录 B 把 --shadow-xs/sm/md/lg 归进"结构量,两档共享,只写基础块"这一类,
+ * 取的是 AI tokens.scss:107-110 那套浅色暖投影(rgba(40,35,25,…))。但阴影的 rgba
+ * 本身带颜色,不是 --r-* 与 --font-* 那种真正无色度量的结构量 —— 默认暗色主题(New-UI
+ * 无 data-theme 时)沿用浅色暖投影会让 .k-rail-item[data-active] 与 .k-rail-svc 的
+ * 投影在暗色底上几乎看不见。裁定:按治理文件 §6"每个颜色 token 两档都要有值"处理,
+ * 基础块改取 AI tokens.scss:360-363(暗色投影 rgba(0,0,0,…)),浅色块另外声明一份
+ * 取 :107-110(与裁定前的旧值相同)。
  *
  * 【自查发现的隐藏坑 —— 3 个同名 token,评审 2026-07-31 订正】附录 B 浅色档表把
  * --accent / --accent-soft / --success 的取值写成 "var(--全局同名 token)"。但全局
@@ -101,7 +110,15 @@
   --ly-vec: oklch(0.76 0.10 210); --ly-vec-soft: oklch(0.76 0.10 210 / 0.15); --ly-vec-line: oklch(0.76 0.10 210 / 0.35);
   --ly-note: oklch(0.76 0.12 300); --ly-note-soft: oklch(0.76 0.12 300 / 0.15); --ly-note-line: oklch(0.76 0.12 300 / 0.35);
 
-  /* 结构量 —— 附录 B:两档共享,只在本(基础)块声明,浅色块不重复 */
+  /* 结构量(--r-系列与 --font-系列)—— 附录 B:两档共享,只在本(基础)块声明,浅色块
+     不重复。【评审 2026-07-31 Important 裁定 R4,覆盖附录 B 原表】附录 B 把 --shadow-*
+     也归进这一类"结构量",只写基础块、且取值抄的是 tokens.scss:107-110 那套浅色暖投影
+     (rgba(40,35,25,…))。但阴影的 rgba 本身带颜色,不是这里 r/font 那种无色度量的
+     结构量 —— 默认暗色主题下沿用这套浅色暖投影,会让 .k-rail-item[data-active] 与
+     .k-rail-svc 的投影在深色底上几乎看不见(暗底 + 暖灰阴影,对比度不足)。裁定:
+     阴影按治理文件 §6"每个颜色 token 两档都要有值"办,基础块改取 tokens.scss:360-363
+     的暗色投影(rgba(0,0,0,…)),浅色块另外声明一份取 tokens.scss:107-110(与本裁定
+     前的旧值相同,只是从"共享"改成"浅色块独立声明")。 */
   --r-xs: 6px;
   --r-sm: 10px;
   --r-md: 14px;
@@ -110,10 +127,10 @@
   --r-2xl: 32px;
   --r-pill: 999px;
 
-  --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:107 */
-  --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05); /* AI tokens.scss:108 */
-  --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:109 */
-  --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06); /* AI tokens.scss:110 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4); /* R4 裁定,AI tokens.scss:360 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4); /* AI tokens.scss:361 */
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3); /* AI tokens.scss:362 */
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3); /* AI tokens.scss:363 */
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
@@ -186,6 +203,14 @@
   --ly-wiki: oklch(0.60 0.12 75); --ly-wiki-soft: oklch(0.60 0.12 75 / 0.11); --ly-wiki-line: oklch(0.60 0.12 75 / 0.32); /* 蓝本 knowledge.scss:2287 */
   --ly-vec: oklch(0.56 0.11 210); --ly-vec-soft: oklch(0.56 0.11 210 / 0.11); --ly-vec-line: oklch(0.56 0.11 210 / 0.32); /* 蓝本 :2288 */
   --ly-note: oklch(0.55 0.13 300); --ly-note-soft: oklch(0.55 0.13 300 / 0.11); --ly-note-line: oklch(0.55 0.13 300 / 0.32); /* 蓝本 :2289 */
+
+  /* R4 裁定(评审 2026-07-31)—— --shadow-* 不是无色结构量,两档各给一份;这里是浅色档,
+     取值与本裁定之前的旧值相同(tokens.scss:107-110 那套暖投影),只是从"基础块共享"
+     改成"浅色块显式声明",详细理由见基础块同名注释。 */
+  --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:107 */
+  --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05); /* AI tokens.scss:108 */
+  --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:109 */
+  --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06); /* AI tokens.scss:110 */
 
   /* R2 —— 同上,取值抄自 AI tokens.scss 浅色块(:1-247) */
   --warning-soft: rgba(200, 134, 10, 0.12); /* AI tokens.scss:126 */
@@ -290,7 +315,7 @@
     padding: 1px 6px;
     border-radius: 999px;
     background: var(--danger);
-    color: var(--text-on-accent); /* 蓝本 knowledge.scss:145 裸 `white`(前景)→ token,见附录 B */
+    color: var(--text-on-accent); /* 蓝本 knowledge.scss:145 前景裸色 → token,见附录 B */
     min-width: 18px; height: 16px;
     display: inline-grid; place-items: center;
     line-height: 1;
@@ -316,17 +341,17 @@
   .k-rail-svc-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--success);
-    /* 蓝本 knowledge.scss:172 裸 rgba(52,199,89,0.18) → 附录 B「0.1x → success-soft」桶 */
+    /* 蓝本 knowledge.scss:172 绿色半透明光环裸值 → 附录 B「0.1x → success-soft」桶 */
     box-shadow: 0 0 0 3px var(--success-soft);
     flex-shrink: 0;
     &[data-state="paused"] {
       background: var(--warning);
-      /* 蓝本 :176 裸 rgba(255,149,0,0.18) → 「0.1x → warning-soft」桶 */
+      /* 蓝本 :176 橙色半透明光环裸值 → 「0.1x → warning-soft」桶 */
       box-shadow: 0 0 0 3px var(--warning-soft);
     }
     &[data-state="error"] {
       background: var(--danger);
-      /* 蓝本 :180 裸 rgba(255,59,48,0.18) → 「0.1x → danger-soft」桶 */
+      /* 蓝本 :180 红色半透明光环裸值 → 「0.1x → danger-soft」桶 */
       box-shadow: 0 0 0 3px var(--danger-soft);
     }
   }
@@ -367,23 +392,23 @@
     margin: 14px 22px 0;
     padding: 10px 14px;
     border-radius: var(--r-md);
-    /* 蓝本 :223 裸 rgba(255,149,0,0.1) → 「0.1x → warning-soft」桶 */
+    /* 蓝本 :223 橙色半透明底色裸值 → 「0.1x → warning-soft」桶 */
     background: var(--warning-soft);
-    /* 蓝本 :224 裸 rgba(255,149,0,0.3) → 「0.2x~0.3x → warning-soft-border」桶 */
+    /* 蓝本 :224 橙色半透明边框裸值 → 「0.2x~0.3x → warning-soft-border」桶 */
     border: 1px solid var(--warning-soft-border);
     color: var(--text-primary);
     font-size: 13px;
     display: flex; align-items: center; gap: 10px;
     &[data-tone="info"] {
       background: var(--accent-softer);
-      /* 蓝本 :230 裸 rgba(0,122,255,0.25) → 附录 B 「0.2x → --accent-soft-2(全局 theme.css token)」 */
+      /* 蓝本 :230 蓝色半透明边框裸值 → 附录 B「0.2x → --accent-soft-2(全局 theme.css token)」 */
       border-color: var(--accent-soft-2);
       .k-banner-icon { background: var(--accent-soft); color: var(--accent); }
     }
   }
   .k-banner-icon {
     width: 22px; height: 22px; border-radius: 7px;
-    /* 蓝本 :236 裸 rgba(255,149,0,0.22) → 「0.2x → warning-soft-border」桶 */
+    /* 蓝本 :236 橙色半透明底色裸值 → 「0.2x → warning-soft-border」桶 */
     background: var(--warning-soft-border);
     color: var(--warning);
     display: grid; place-items: center;
@@ -416,10 +441,10 @@
     width: 96px; height: 96px;
     border-radius: 50%;
     background:
-      /* 蓝本 :693 裸 rgba(255,255,255,0.6) 前景高光 —— 附录 B 的映射表没有覆盖"渐变
-         高光图层"这个用法(表里的 white 桶只讲"前景色→ --text-on-accent"),但
-         --text-on-accent 在两档都是不透明的纯白 #ffffff,与蓝本这处装饰性高光同源
-         (都是"纯白,半透明叠加"),用 color-mix 在既有 token 上派生出等价的 60% 透明度,
+      /* 蓝本 :693 是一处白色半透明高光裸值 —— 附录 B 的映射表没有覆盖"渐变
+         高光图层"这个用法(表里的前景裸色桶只讲"前景色→ --text-on-accent"),但
+         --text-on-accent 在两档都是不透明的纯白色,与蓝本这处装饰性高光同源
+         (都是"纯白,半透明叠加"),用 color-mix 在既有 token 上派生出等价的透明度,
          不新增自定义属性、不写死颜色字面量。 */
       radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--text-on-accent) 60%, transparent), transparent 60%),
       var(--grad-iri-soft);
@@ -477,8 +502,8 @@
     }
     &.primary {
       background: var(--accent);
-      color: var(--text-on-accent); /* 蓝本 :839 裸 `white`(前景)→ token */
-      /* 蓝本 :840 裸 rgba(0,122,255,0.22) → 「0.2x → --accent-soft-2」 */
+      color: var(--text-on-accent); /* 蓝本 :839 前景裸色 → token */
+      /* 蓝本 :840 蓝色半透明阴影裸值 → 「0.2x → --accent-soft-2」 */
       box-shadow: 0 2px 6px var(--accent-soft-2);
       &:hover:not(:disabled) { background: var(--accent-hover); }
     }

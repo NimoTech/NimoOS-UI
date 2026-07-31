@@ -26,7 +26,8 @@ function stripComments(css: string): string {
     .replace(/^[ \t]*\/\/.*$/gm, '')
 }
 
-const css = stripComments(read('./knowledge.scss'))
+const rawSource = read('./knowledge.scss')
+const css = stripComments(rawSource)
 
 // R1(协调者拍板)—— 附录 D.1 的 32 个 + 协调者追加的 6 个 k-empty* = 38 个,是本批
 // (T4:token 声明层 + 壳段 + keyframes)唯一该出现的类全集,一个不多一个不少。
@@ -47,8 +48,16 @@ const WHITELIST_38 = [
 ]
 
 describe('knowledge.scss —— 附录 D.4 白名单落地(38 个,R1 拍板)', () => {
+  // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
+  // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
+  // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
+  // RED 探针实证过(删 .k-topbar 规则,8/8 全绿)。受影响的是白名单里本身就是其它
+  // 类前缀的 9 个:k-rail/k-rail-item/k-rail-svc/k-topbar/k-banner/k-badge/k-scroll/
+  // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
+  // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
+  // (后面接空格/`{`/`,`/`[` 等)才算数。
   it('38 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_38.filter((c) => !new RegExp(`\\.${c}\\b`).test(css))
+    const missing = WHITELIST_38.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
   })
 
@@ -85,22 +94,56 @@ const DARK_TOKEN_SELECTOR = '.knowledge-app {'
 const LIGHT_TOKEN_SELECTOR = ':root[data-theme="light"] .knowledge-app {'
 
 describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动守卫,§6 豁免登记）', () => {
+  // 【协调者 2026-07-31 裁定口径,T11/T12 续写本档时同样适用】
+  //   - 规则段落(壳段、后续批次的表格/仪表盘等)里的**注释**:一律不许出现任何色
+  //     字面量 —— 不管是 Vue2 的原始裸色还是 New-UI 这边取的新值,都不行。要引用
+  //     蓝本原文时写「蓝本 knowledge.scss:行号 + 中文描述颜色语义」,例如
+  //     `/* 蓝本 :145 前景裸色 → --text-on-accent */`,不要把 `white`/`#fff`/
+  //     `rgba(...)` 这类字面量抄进注释(它们会原样进构建产物,也绕开了这条测试)。
+  //   - 两个 token 声明块(`.knowledge-app { … }` 基础块 / `:root[data-theme="light"]
+  //     .knowledge-app { … }` 浅色块)内部:允许 —— 那里的字面量就是被声明的值本身,
+  //     行尾注出处时带上具体取值也可以(如 `/* theme.css:183 */`)。
+  //
   // 【本条是本任务最有价值的守卫】color-guard.test.ts 不扫 .scss(P3a RED 探针实证)——
   // 这条测试是 knowledge.scss 唯一的裸色回归网。只豁免两个 token 声明块本身
-  // (那里就是 token 的定义处,见 §6),除此之外全文一处裸色字面量都不许有。
-  it('token 声明层之外,全文零色字面量(#hex / rgb() / rgba() / 具名色)', () => {
-    const [darkStart, darkEnd] = declBlockRange(css, DARK_TOKEN_SELECTOR)
-    const [lightStart, lightEnd] = declBlockRange(css, LIGHT_TOKEN_SELECTOR)
+  // (那里就是 token 的定义处,见 §6),除此之外全文一处裸色字面量都不许有 ——
+  // **包括注释里的**(治理文件 §6:注释里也不许出现 Vue2 的原始色字面量)。
+  //
+  // 评审 2026-07-31 Important 订正 —— 原版这条扫描跑在 `stripComments()` 之后的
+  // `css` 上,于是注释里的裸色**永远抓不到**(评审用 RED 探针实证:在注释里塞
+  // `/* 原 #ff0000 */` 之类,8/8 全绿;同处改成真代码 `color: #ff0000` 才报红)。
+  // 剥注释这件事本身没错(P2b 教训:`toContain` 会被注释里的类名撞对),但那是给
+  // "类名/token 是否存在"这类断言用的,不该用在色扫上。色扫改成基于**未剥注释的
+  // 原始文本** `rawSource`,只把两个 token 声明块的字符区间切掉(区间边界仍按
+  // rawSource 自己的位置算,不能借用剥过注释版本的偏移量,两份文本长度不同)。
+  it('token 声明层之外,全文(含注释)零色字面量(#hex / rgb() / hsl() / oklch() / 具名色…)', () => {
+    const [darkStart, darkEnd] = declBlockRange(rawSource, DARK_TOKEN_SELECTOR)
+    const [lightStart, lightEnd] = declBlockRange(rawSource, LIGHT_TOKEN_SELECTOR)
     // 两个声明块必须按文件顺序不重叠(dark 在前、light 紧随其后),否则下面的拼接会切错。
     expect(darkEnd, 'dark 声明块应先于 light 声明块结束').toBeLessThanOrEqual(lightStart)
 
-    const rest = css.slice(0, darkStart) + css.slice(darkEnd, lightStart) + css.slice(lightEnd)
+    const rest = rawSource.slice(0, darkStart) + rawSource.slice(darkEnd, lightStart) + rawSource.slice(lightEnd)
 
     expect(rest, '声明层之外出现 #hex').not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(rest, '声明层之外出现 rgb()/rgba()').not.toMatch(/rgba?\(/)
+    expect(rest, '声明层之外出现 hsl()/hsla()').not.toMatch(/hsla?\(/)
     expect(rest, '声明层之外出现 oklch()').not.toMatch(/oklch\(/)
+    // 评审 2026-07-31 Minor 追加 —— 原正则只覆盖 hex/rgb/rgba/oklch/white/black,
+    // 补齐现代 CSS 色函数(lab/lch/hwb/color())与几个常见具名色。`transparent`
+    // 不算色字面量(评审已核:.k-skel 与 .k-btn.ghost 那两处 `transparent` 是蓝本
+    // :694/:828 逐字照搬的透明边框/透明底,不是"某个颜色写死",保留)。
+    expect(rest, '声明层之外出现 lab()').not.toMatch(/\blab\(/)
+    expect(rest, '声明层之外出现 lch()').not.toMatch(/\blch\(/)
+    expect(rest, '声明层之外出现 hwb()').not.toMatch(/\bhwb\(/)
+    expect(rest, '声明层之外出现 color()').not.toMatch(/\bcolor\(/)
     expect(rest, '声明层之外出现具名色 white').not.toMatch(/\bwhite\b/)
     expect(rest, '声明层之外出现具名色 black').not.toMatch(/\bblack\b/)
+    expect(rest, '声明层之外出现具名色 red').not.toMatch(/\bred\b/)
+    expect(rest, '声明层之外出现具名色 green').not.toMatch(/\bgreen\b/)
+    expect(rest, '声明层之外出现具名色 blue').not.toMatch(/\bblue\b/)
+    expect(rest, '声明层之外出现具名色 orange').not.toMatch(/\borange\b/)
+    expect(rest, '声明层之外出现具名色 gray').not.toMatch(/\bgray\b/)
+    expect(rest, '声明层之外出现具名色 grey').not.toMatch(/\bgrey\b/)
   })
 
   it('.knowledge-app 两档都显式声明 color-scheme(P2b 教训:嵌套主题作用域不声明会继承 :root)', () => {
@@ -119,6 +162,46 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     for (const tok of ['--warning-soft:', '--warning-soft-border:', '--success-soft:', '--danger-soft:']) {
       expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
       expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
+    }
+  })
+
+  // R4(评审 2026-07-31 裁定,覆盖附录 B 原表)—— --shadow-* 带颜色,不是无色结构量,
+  // 两档必须各给一份不同的值(暗色档取 tokens.scss:360-363 的暗投影,浅色档取
+  // :107-110 的暖投影)。之前按"结构量,两档共享"处理,只在暗色档声明一份、浅色档
+  // 沿用同一份暖投影值——会让 .k-rail-item[data-active]/.k-rail-svc 的投影在暗色底上
+  // 几乎看不见。这条钉住两档必须分别声明、且取值不同(防止将来被"合并成一份"回归)。
+  // 评审技法自查(RED 探针 3 暴露的教训,详见报告)—— 最初这条守卫只用"lightBody 里
+  // 某处出现过 rgba(40,35,25,…)"这种整块子串检查,4 个 token 共享同一个断言,只要
+  // --shadow-sm/md/lg 三个还在暖投影,即使把 --shadow-xs 单独改回暗投影也测不出来
+  // (探针实测:改坏 --shadow-xs 一个,9/9 仍然全绿)。改成**逐个 token 精确匹配自己
+  // 那一行**,任何一个 token 的值被单独改错都能报红。
+  it('R4 —— --shadow-xs/sm/md/lg 每一个 token 在两档里分别精确取暗/浅两套不同的投影值', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    const expected: Record<string, { dark: string; light: string }> = {
+      '--shadow-xs': {
+        dark: '--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);',
+        light: '--shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04);',
+      },
+      '--shadow-sm': {
+        dark: '--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);',
+        light: '--shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05);',
+      },
+      '--shadow-md': {
+        dark: '--shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);',
+        light: '--shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04);',
+      },
+      '--shadow-lg': {
+        dark: '--shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3);',
+        light: '--shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06);',
+      },
+    }
+    for (const [tok, { dark, light }] of Object.entries(expected)) {
+      expect(darkBody, `暗色档 ${tok} 值不对`).toContain(dark)
+      expect(lightBody, `浅色档 ${tok} 值不对`).toContain(light)
+      // 反向:两档不能是同一份值(防止被"合并回结构量共享"的回归)
+      expect(darkBody, `暗色档 ${tok} 不该出现浅色档的暖投影值`).not.toContain(light)
+      expect(lightBody, `浅色档 ${tok} 不该出现暗色档的黑投影值`).not.toContain(dark)
     }
   })
 
