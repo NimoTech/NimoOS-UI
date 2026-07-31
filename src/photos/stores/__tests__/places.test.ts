@@ -7,7 +7,9 @@ const getPlace = vi.fn()
 const setPlaceCoverApi = vi.fn()
 const resetPlaceCoverApi = vi.fn()
 const setSpotNameApi = vi.fn()
+const resetSpotNameApi = vi.fn()
 const placeCoverCandidates = vi.fn()
+const createPlaceAlbumApi = vi.fn()
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -17,7 +19,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
       setPlaceCover: (...a: unknown[]) => setPlaceCoverApi(...a),
       resetPlaceCover: (...a: unknown[]) => resetPlaceCoverApi(...a),
       setSpotName: (...a: unknown[]) => setSpotNameApi(...a),
+      resetSpotName: (...a: unknown[]) => resetSpotNameApi(...a),
       placeCoverCandidates: (...a: unknown[]) => placeCoverCandidates(...a),
+      createPlaceAlbum: (...a: unknown[]) => createPlaceAlbumApi(...a),
     },
   },
 }))
@@ -393,6 +397,96 @@ describe('封面与 spot 改名', () => {
   })
 })
 
+describe('resetSpotName(D8)', () => {
+  it('用后端原始数字 key 调用 service.photos.resetSpotName', async () => {
+    listPlaces.mockResolvedValue(RESP)
+    getPlace.mockResolvedValue({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, spots: [], insights: [], visits: [], recent: [] })
+    resetSpotNameApi.mockResolvedValue(undefined)
+    const s = usePhotosPlaces()
+    await s.fetchPlaces()
+    await s.resetSpotName('7', 'spot-1')
+    expect(resetSpotNameApi).toHaveBeenCalledWith(7, 'spot-1')
+  })
+
+  it('成功后重拉详情(后端自动名前端算不出),detail.spots 命中项拿到新名字', async () => {
+    getPlace
+      .mockResolvedValueOnce({
+        key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 1,
+        spots: [{ key: 'spot-1', name: '旧名', lon: 1, lat: 2, count: 3, thumb: 't' }],
+        insights: [], visits: [], recent: [],
+      })
+      .mockResolvedValueOnce({
+        key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 1,
+        spots: [{ key: 'spot-1', name: '默认名', lon: 1, lat: 2, count: 3, thumb: 't' }],
+        insights: [], visits: [], recent: [],
+      })
+    resetSpotNameApi.mockResolvedValue(undefined)
+    const s = usePhotosPlaces()
+    await s.loadDetail('7')
+    expect(getPlace).toHaveBeenCalledTimes(1)
+    await s.resetSpotName('7', 'spot-1')
+    expect(getPlace).toHaveBeenCalledTimes(2)
+    expect(s.detail?.spots[0].name).toBe('默认名')
+  })
+
+  it('与 setSpotName 共用 spotBusy:setSpotName 在途时调 resetSpotName 直接返回,resetSpotName 接口零调用', async () => {
+    setSpotNameApi.mockReturnValue(new Promise(() => {})) // 永不 settle
+    const s = usePhotosPlaces()
+    void s.setSpotName('7', 'spot-1', 'x')
+    await s.resetSpotName('7', 'spot-1')
+    expect(resetSpotNameApi).not.toHaveBeenCalled()
+  })
+
+  it('失败:console.error 被调、异常向上抛、spotBusy 复位为 false', async () => {
+    resetSpotNameApi.mockRejectedValue(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const s = usePhotosPlaces()
+    await expect(s.resetSpotName('7', 'spot-1')).rejects.toThrow('boom')
+    expect(spy).toHaveBeenCalled()
+    // spotBusy 复位:紧接着的 setSpotName 应该能正常发起(不被卡死锁住)
+    setSpotNameApi.mockResolvedValue(undefined)
+    await s.setSpotName('7', 'spot-1', 'y')
+    expect(setSpotNameApi).toHaveBeenCalledTimes(1)
+    spy.mockRestore()
+  })
+})
+
+describe('createPlaceAlbum', () => {
+  it('不传 from/to 时补空串(照 Vue2 :738-740)', async () => {
+    createPlaceAlbumApi.mockResolvedValue({ albumId: 1, name: '杭州', count: 10 })
+    const s = usePhotosPlaces()
+    await s.createPlaceAlbum('7', { name: '杭州' })
+    expect(createPlaceAlbumApi).toHaveBeenCalledWith('7', { name: '杭州', from: '', to: '' })
+  })
+
+  it('返回归一:albumId/count 归一成 string/number', async () => {
+    createPlaceAlbumApi.mockResolvedValue({ albumId: 12, name: '杭州', count: '30' })
+    const s = usePhotosPlaces()
+    const r = await s.createPlaceAlbum('7', { name: '杭州', from: '', to: '' })
+    expect(r).toEqual({ albumId: '12', name: '杭州', count: 30 })
+  })
+
+  it('重入:第一次在途时第二次被 reject 且 message 为 albumBusy,接口只调一次', async () => {
+    createPlaceAlbumApi.mockReturnValue(new Promise(() => {})) // 永不 settle
+    const s = usePhotosPlaces()
+    void s.createPlaceAlbum('7', { name: 'a' })
+    await expect(s.createPlaceAlbum('7', { name: 'b' })).rejects.toThrow('albumBusy')
+    expect(createPlaceAlbumApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('失败 rethrow,albumBusy 复位', async () => {
+    createPlaceAlbumApi.mockRejectedValueOnce(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const s = usePhotosPlaces()
+    await expect(s.createPlaceAlbum('7', { name: 'a' })).rejects.toThrow('boom')
+    // albumBusy 复位:紧接着的调用应该能正常发起
+    createPlaceAlbumApi.mockResolvedValueOnce({ albumId: 1, name: 'a', count: 0 })
+    await s.createPlaceAlbum('7', { name: 'a' })
+    expect(createPlaceAlbumApi).toHaveBeenCalledTimes(2)
+    spy.mockRestore()
+  })
+})
+
 describe('fetchCoverCandidates', () => {
   it('成功时归一响应字段', async () => {
     placeCoverCandidates.mockResolvedValue({
@@ -419,6 +513,41 @@ describe('fetchCoverCandidates', () => {
     const s = usePhotosPlaces()
     await s.fetchCoverCandidates('7', { tab: 'recent', q: '', page: 0 })
     expect(s.coverCandidates).toEqual({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 })
+    spy.mockRestore()
+  })
+
+  it('seq 守卫:连发两次,后发先回时最终结果是后发的(第二次)', async () => {
+    let resolveA: (v: unknown) => void = () => {}
+    let resolveB: (v: unknown) => void = () => {}
+    placeCoverCandidates
+      .mockReturnValueOnce(new Promise((r) => { resolveA = r }))
+      .mockReturnValueOnce(new Promise((r) => { resolveB = r }))
+    const s = usePhotosPlaces()
+    const pA = s.fetchCoverCandidates('7', { tab: 'recent' })
+    const pB = s.fetchCoverCandidates('7', { tab: 'favorites' })
+    // B(后发)先回
+    resolveB({ tabs: [], items: ['b1'], page: 0, totalPages: 1, total: 1 })
+    await pB
+    expect(s.coverCandidates.items).toEqual(['b1'])
+    // A(先发)后回 —— 必须被丢弃,不得覆盖 B 的结果
+    resolveA({ tabs: [], items: ['a1'], page: 0, totalPages: 1, total: 1 })
+    await pA
+    expect(s.coverCandidates.items).toEqual(['b1'])
+  })
+
+  it('seq 守卫的失败路径:过期请求的 catch 不得清空新结果', async () => {
+    let rejectA: (e: unknown) => void = () => {}
+    placeCoverCandidates
+      .mockReturnValueOnce(new Promise((_, rj) => { rejectA = rj }))
+      .mockResolvedValueOnce({ tabs: [], items: ['b1'], page: 0, totalPages: 1, total: 1 })
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const s = usePhotosPlaces()
+    const pA = s.fetchCoverCandidates('7', { tab: 'recent' })
+    await s.fetchCoverCandidates('7', { tab: 'favorites' })
+    expect(s.coverCandidates.items).toEqual(['b1'])
+    rejectA(new Error('boom'))
+    await pA
+    expect(s.coverCandidates.items).toEqual(['b1']) // 没被过期 catch 清空
     spy.mockRestore()
   })
 })

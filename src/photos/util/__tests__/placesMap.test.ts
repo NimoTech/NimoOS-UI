@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { clusterByOverlap } from '../placesCluster'
 import {
-  MAX_SCALE, buildPins, declutterPins, extraFilterCount, filterPlaces,
+  MAX_SCALE, buildPins, declutterPins, extraFilterCount, filterPlaces, formatSpotCoords,
   groupByRegion, parsePlaceLast, regionLabelKey, searchPlaces, splitScaleFor,
   tierRadius, toPlace, visitedDots, type Place, type Pin,
 } from '../placesMap'
@@ -238,6 +238,28 @@ describe('toPlace', () => {
     expect(p1.thumbs).toEqual([])
     expect(p1.coverAssetId).toBe('')
     expect(p1.recent).toBe(false)
+  })
+})
+
+describe('formatSpotCoords(偏离登记 16:Vue2 :1129 写死 ° N/° E,南/西半球方向错)', () => {
+  it('东北半球', () => {
+    expect(formatSpotCoords(30.2741, 120.1551)).toBe('30.274° N · 120.155° E')
+  })
+  it('南/东(注意 .8688 四舍五入到 .869)', () => {
+    expect(formatSpotCoords(-33.8688, 151.2093)).toBe('33.869° S · 151.209° E')
+  })
+  it('北/西', () => {
+    expect(formatSpotCoords(40.7128, -74.006)).toBe('40.713° N · 74.006° W')
+  })
+  it('南/西', () => {
+    expect(formatSpotCoords(-22.9068, -43.1729)).toBe('22.907° S · 43.173° W')
+  })
+  it('零归 N/E(赤道/本初子午线)', () => {
+    expect(formatSpotCoords(0, 0)).toBe('0.000° N · 0.000° E')
+  })
+  it('非有限值(NaN/Infinity)返回空串', () => {
+    expect(formatSpotCoords(Number.NaN, 10)).toBe('')
+    expect(formatSpotCoords(10, Number.POSITIVE_INFINITY)).toBe('')
   })
 })
 

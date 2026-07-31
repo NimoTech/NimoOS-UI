@@ -336,6 +336,19 @@ export function extraFilterCount(f: PlacesFilter): number {
   return n
 }
 
+// PhotosPlacesView.vue:1129, 偏离登记 16(用户 2026-07-31 pre-flight 裁定)。
+// Vue2 写死 `° N`/`° E`:南半球/西半球的 spot 会显示成错误方向(纬度 -33.87 度渲染成
+// "33.869° N"而不是"S")。这里按符号选方向字母,格式(三位小数、`° `、` · ` 分隔)与
+// Vue2 逐字一致,只有方向字母是修正。方向字母(N/S/E/W)刻意不进 i18n —— 它们是地理学
+// 通用记号(制图学标准缩写),不是需要翻译的自然语言文案,所有语言的地图/GPS 场景都用
+// 这四个拉丁字母,进 i18n 反而要求翻译者对着"N"想一个"译名",没有意义。
+export function formatSpotCoords(lat: number, lon: number): string {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return ''
+  const ns = lat < 0 ? 'S' : 'N'
+  const ew = lon < 0 ? 'W' : 'E'
+  return `${Math.abs(lat).toFixed(3)}° ${ns} · ${Math.abs(lon).toFixed(3)}° ${ew}`
+}
+
 export function toPlace(raw: unknown): Place {
   const r = (raw ?? {}) as Record<string, unknown>
   return {

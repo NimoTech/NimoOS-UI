@@ -33,6 +33,16 @@ export interface MapThemePrefs {
   customGridColor: string
 }
 
+// 三个原先内联在 PlaceDetail 里的匿名对象类型提成具名导出(P6b-T2):T3-T6 四个组件的
+// props 都要用它们,单点定义避免像 P5-T12 的 PersonPlace 那样两处手写重复。
+export interface PlaceSpot { key: string, name: string, lon: number, lat: number, count: number, thumb: string }
+export interface PlaceInsight { ico: string, key: string, params: Record<string, unknown> }
+export interface PlaceVisit {
+  when: string, from: string, to: string, current: boolean
+  days: number, photos: number, faces: string[], spots: number, thumbs: string[]
+}
+export interface CreatedAlbum { albumId: string, name: string, count: number }
+
 export interface PlaceDetail {
   id: string
   city: string
@@ -42,9 +52,9 @@ export interface PlaceDetail {
   home: boolean
   coverAssetId: string
   thumbs: string[]
-  spots: Array<{ key: string, name: string, lon: number, lat: number, count: number, thumb: string }>
-  insights: Array<{ ico: string, key: string, params: Record<string, unknown> }>
-  visits: Array<{ when: string, from: string, to: string, current: boolean, days: number, photos: number, faces: string[], spots: number, thumbs: string[] }>
+  spots: PlaceSpot[]
+  insights: PlaceInsight[]
+  visits: PlaceVisit[]
   recent: string[]
 }
 
@@ -109,6 +119,16 @@ function toPlaceDetail(raw: unknown): PlaceDetail {
   }
 }
 
+function toCreatedAlbum(raw: unknown, fallbackName: string): CreatedAlbum {
+  const r = (raw ?? {}) as Record<string, unknown>
+  // resolvePlaceKey 同款坑:后端 albumId 是数字,测试要求归一成字符串给调用方(相册路由用字符串 id)。
+  return {
+    albumId: String(r.albumId ?? ''),
+    name: String(r.name ?? fallbackName),
+    count: Number(r.count ?? 0),
+  }
+}
+
 function toCoverCandidates(raw: unknown): CoverCandidates {
   const r = (raw ?? {}) as Partial<CoverCandidates>
   return {
@@ -136,6 +156,12 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
   // loadDetail 的 seq 竞态守卫(偏离登记 8),手法照 usePersonDetail.ts:40-82。
   // 不进 state:纯内部序号,视图不需要读它。
   let seq = 0
+  // fetchCoverCandidates 的独立 seq 守卫(偏离登记 5),同样手法、同样不进 state。
+  // 与上面的 seq 是两把互不相关的锁:loadDetail 与 fetchCoverCandidates 是两个完全
+  // 独立的请求流(前者是地点详情,后者是封面选择弹层的候选列表),共用一把计数器会让
+  // 一边的请求把另一边的"过期"判断带偏。Vue2 loadCoverCandidates :522-536 逐键请求
+  // 完全没有守卫,弹层里快速切 tab/翻页时,后发先回的旧响应会把新结果盖掉。
+  let coverSeq = 0
 
   const coverCandidates = ref<CoverCandidates>({ ...EMPTY_COVER_CANDIDATES })
   // 三个提交路径的 in-flight 短路。coverBusy 同时守 setPlaceCover/resetPlaceCover——
@@ -144,6 +170,8 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
   // (或反过来)不应互相卡住,两条互不相关的资源不该共享一把锁。
   const coverBusy = ref(false)
   const spotBusy = ref(false)
+  // createPlaceAlbum 的重入锁,独立于上面两把——建相册与封面/spot 改名是互不相关的资源。
+  const albumBusy = ref(false)
 
   const themePrefs = ref<MapThemePrefs>(readThemePrefs())
   const railCollapsed = ref<string[]>(readRailCollapsed())
@@ -283,6 +311,56 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
+  // D8:恢复默认 spot 名。与紧邻的 setSpotName 刻意走两条不同的成功后处理路径——不是
+  // 疏漏,是两种输入各自唯一正确的做法:
+  //   · setSpotName 改名时,新名字是**调用方传进来的**,前端已经知道,本地回写即可,
+  //     再重拉一次详情只是多打一次请求。
+  //   · resetSpotName 恢复默认时,新名字(后端算出来的默认展示名)前端**算不出来**——
+  //     没有任何本地数据能推导出它,唯一拿到新值的办法就是重新请求详情。
+  // 后人若把两者"统一"成同一种回写策略,要么 setSpotName 平白多一次网络请求,要么
+  // resetSpotName 展示的名字是错的(旧名或空)。
+  async function resetSpotName(id: string, spotKey: string): Promise<void> {
+    if (spotBusy.value) return
+    spotBusy.value = true
+    try {
+      const key = resolvePlaceKey(id) as string
+      await service.photos.resetSpotName(key, spotKey)
+      await loadDetail(id)
+    } catch (e) {
+      console.error('[photos-places] resetSpotName', e)
+      throw e
+    } finally {
+      spotBusy.value = false
+    }
+  }
+
+  // 建相册。与本仓「入口短路静默 return」的惯例刻意不同:本函数**有返回值**(新建的
+  // 相册对象,调用方要用它跳转/展示 toast),静默 return 会让重入的调用方拿到
+  // undefined,和"真的建成功但拿不到相册"混为一谈。改成忙时直接 reject 一个
+  // message 固定为 'albumBusy' 的 Error——调用方(T8)靠这条 message 区分「这是被
+  // 挡下的重入,别弹错误 toast」还是「这是真失败,该弹」,而不是吞掉/伪造一个结果。
+  async function createPlaceAlbum(
+    id: string,
+    opts: { name: string, from?: string, to?: string },
+  ): Promise<CreatedAlbum> {
+    if (albumBusy.value) return Promise.reject(new Error('albumBusy'))
+    albumBusy.value = true
+    try {
+      const key = resolvePlaceKey(id) as string
+      const raw = await service.photos.createPlaceAlbum(key, {
+        name: opts.name,
+        from: opts.from ?? '',
+        to: opts.to ?? '',
+      })
+      return toCreatedAlbum(raw, opts.name)
+    } catch (e) {
+      console.error('[photos-places] createPlaceAlbum', e)
+      throw e
+    } finally {
+      albumBusy.value = false
+    }
+  }
+
   // 照 Vue2 loadCoverCandidates :522-536。这条照搬 Vue2 的"失败清空",与 fetchPlaces 的
   // "失败保留旧数据"口径刻意不同:fetchPlaces 是主数据(地点列表),一次网络抖动不该抹掉
   // 用户已经在看的数据;这里是封面选择弹层内的一次性查询结果,弹层每次打开/翻页/搜索都会
@@ -292,11 +370,14 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     id: string,
     opts: { tab?: string, q?: string, page?: number } = {},
   ): Promise<void> {
+    const mine = ++coverSeq
     try {
       const key = resolvePlaceKey(id) as string
       const raw = await service.photos.placeCoverCandidates(key, opts)
+      if (mine !== coverSeq) return // 过期响应,丢弃(成功路径)
       coverCandidates.value = toCoverCandidates(raw)
     } catch (e) {
+      if (mine !== coverSeq) return // 过期响应,丢弃(catch 路径——Vue2 :522-536 没有这层判断)
       console.error('[photos-places] fetchCoverCandidates', e)
       coverCandidates.value = { ...EMPTY_COVER_CANDIDATES }
     }
@@ -349,6 +430,9 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     coverCandidates.value = { ...EMPTY_COVER_CANDIDATES }
     coverBusy.value = false
     spotBusy.value = false
+    albumBusy.value = false
+    // 有意不重置 coverSeq:理由同上面 seq 的注释——重置会让重置后的下一次
+    // fetchCoverCandidates 落在同一个 mine 值上,与重置前仍在途的旧请求产生别名冲突。
     themePrefs.value = readThemePrefs()
     railCollapsed.value = readRailCollapsed()
   }
@@ -356,8 +440,9 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
   return {
     places, regions, stats, placesLoaded, loading,
     detail, detailLoading, coverCandidates, themePrefs, railCollapsed,
+    albumBusy,
     fetchPlaces, loadDetail, clearDetail,
-    setPlaceCover, resetPlaceCover, setSpotName, fetchCoverCandidates,
+    setPlaceCover, resetPlaceCover, setSpotName, resetSpotName, createPlaceAlbum, fetchCoverCandidates,
     setMapTheme, setCustomColors, toggleRegionFold, isRegionCollapsed,
     __resetForTest,
   }
