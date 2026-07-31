@@ -59,6 +59,9 @@ importers:
       '@nimotech/nimoos-service':
         specifier: file:../NimoOS-Service
         version: file:../NimoOS-Service
+      '@novnc/novnc':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
@@ -577,6 +580,9 @@ packages:
 
   '@nimotech/nimoos-service@file:../NimoOS-Service':
     resolution: {directory: ../NimoOS-Service, type: directory}
+
+  '@novnc/novnc@1.7.0':
+    resolution: {integrity: sha512-ucEJOx4T2avIRCleodk7YobZj5O2Ga2AeLfQ69A/yjG9HHba2+PDgwSkN3FttrmG+70ZGx21sElNFouK13RzyA==}
 
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
@@ -2409,6 +2415,8 @@ snapshots:
     transitivePeerDependencies:
       - debug
       - supports-color
+
+  '@novnc/novnc@1.7.0': {}
 
   '@one-ini/wasm@0.1.1': {}
 
