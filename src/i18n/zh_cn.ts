@@ -1075,4 +1075,61 @@ export default {
   // 地点非空、只是当前筛选条件过滤成了零结果——用户会误以为索引坏了。这里补一个专门
   // 区分"过滤后为空"与"本来就没有位置数据"的文案。
   photosPlacesFilterEmpty: '没有符合当前筛选条件的城市',
+  // ── SP7-P6b T1: Places detail panel i18n keys ──────────────────────────────
+  // 42 条取自 NimoOS-UI/src/assets/lang/zh_CN.json 原文(逐条回源核对,零出入);
+  // 3 条自拟(D8 + 偏离登记 6,见下方各自的行内注释)。
+  photosPlacesHomeBase: '常驻地',
+  // 注:zh_CN.json 里 trip/trips 两个 key 的中文译文同为"次旅行"(单复数在中文不体现),
+  // 照 json 原样各自保留一键,不合并。
+  photosPlacesTrip: '次旅行',
+  photosPlacesTrips: '次旅行',
+  photosPlacesSpotsLabel: '地点',
+  photosPlacesPhotosShotHere: '张照片拍摄于此',
+  photosPlacesSpotsInCity: '{city} 的地点',
+  photosPlacesViewAll: '查看全部',
+  photosPlacesNimoNoticed: 'Nimo 发现',
+  photosPlacesRecentPhotos: '最近的照片',
+  photosPlacesSeeAll: '查看全部 {n} 张',
+  photosPlacesVisitHistory: '到访记录',
+  photosPlacesDays: '{n} 天',
+  photosPlacesWith: '与',
+  photosPlacesSpotsCount: '{n} 个地点',
+  photosPlacesSaveTrip: '保存旅行',
+  photosPlacesSaveTripTitle: '将这次旅行保存为相册',
+  photosPlacesOpenInLibrary: '在图库中打开',
+  photosPlacesSaveAsAlbum: '保存为相册',
+  photosPlacesAlbumCreated: '已创建相册「{name}」· {count} 张照片',
+  photosPlacesAlbumCreateFailed: '相册创建失败',
+  photosPlacesToastOpen: '打开',
+  photosPlacesShowWholeCity: '只看整个城市',
+  photosPlacesSpotRename: '重命名',
+  photosPlacesSpotNamePlaceholder: '地点名称',
+  photosPlacesSpotSave: '保存',
+  photosPlacesSpotViewInLibrary: '在 Library 中查看这个 spot 的全部照片',
+  photosPlacesSpotResetName: '恢复默认名', // 自拟(D8),Vue2 无对应键
+  photosPlacesSpotRenameFailed: '地点重命名失败', // 自拟(偏离登记 6),Vue2 无对应键
+  photosPlacesCoverFailed: '封面更新失败', // 自拟(偏离登记 6),Vue2 无对应键
+  photosPlacesCoverSet: '设置主图',
+  photosPlacesCoverTitle: '设置 {city} 主图',
+  photosPlacesCoverSubtitle: '从 {count} 张照片里选一张作为封面',
+  photosPlacesCoverSearchPlaceholder: '搜索场景 / 人 / 标签…',
+  photosPlacesCoverNoMatch: '没有匹配"{q}"的照片',
+  photosPlacesCoverResetDefault: '恢复默认',
+  photosPlacesCoverPageInfo: '{total} 张可选 · 第 {page} / {pages} 页',
+  photosPlacesCoverTabRecent: '近期',
+  photosPlacesCoverTabTop: '最高分',
+  photosPlacesCoverTabFav: '已收藏',
+  // 与既有 photosPlacesAll(筛选面板"全部")同值不同语义域(封面选择的分类 tab),各留一键。
+  photosPlacesCoverTabAll: '全部',
+  photosPlacesInsightMostPhotographed: '你拍得最多的地方——共 {count} 张。',
+  // 去掉原 json 的 <b> 标签,{spot} 改为插值槽(<i18n-t> 只能对插值位开槽)。
+  photosPlacesInsightTopSpot: '{spot} 是主要拍摄点——{count} 张。',
+  photosPlacesInsightCompanions: '在这里和 {names} 同框。',
+  // 偏离登记 10:原 json 是"你的<b>大本营</b>——…",加粗的静态词"大本营"拆成 {base} 插槽,
+  // 见下方 photosPlacesInsightHomeBase。
+  photosPlacesInsightHome: '你的{base}——{trips} 次行程共 {count} 张。',
+  // 注:与上方 photosPlacesHomeBase("常驻地")是 Vue2 对同一概念的两种不同说法——
+  // 前者是筛选/列表语境的用词,这里是 insight 文案里加粗词的原文("大本营")。
+  // 界面 1:1 铁律高于术语统一,两处照 Vue2 原样各自保留,不擅自合并。
+  photosPlacesInsightHomeBase: '大本营',
 }

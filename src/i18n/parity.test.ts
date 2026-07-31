@@ -40,4 +40,21 @@ describe('photosPlaces 键(SP7-P6a)', () => {
       .filter(([, v]) => typeof v === 'string' && /簇|聚类|气泡/.test(v))
     expect(bad).toEqual([])
   })
+
+  /* P6b-T1:地点详情面板键的完整性与插值槽守卫。 */
+  it('P6b 地点键在两个 locale 都存在且无空值', () => {
+    const keys = ['photosPlacesHomeBase', 'photosPlacesSpotResetName', 'photosPlacesCoverPageInfo',
+      'photosPlacesInsightHome', 'photosPlacesInsightHomeBase', 'photosPlacesVisitHistory']
+    for (const k of keys) {
+      expect(String((zh as Record<string, unknown>)[k] ?? '')).not.toBe('')
+      expect(String((en as Record<string, unknown>)[k] ?? '')).not.toBe('')
+    }
+  })
+  it('insight 键的插值占位符两个 locale 完全一致(漏一个槽 <i18n-t> 会静默丢内容)', () => {
+    const slots = (s: string) => (s.match(/\{[a-zA-Z]+\}/g) ?? []).sort()
+    for (const k of ['photosPlacesInsightMostPhotographed', 'photosPlacesInsightTopSpot',
+      'photosPlacesInsightCompanions', 'photosPlacesInsightHome']) {
+      expect(slots(String((zh as Record<string, string>)[k]))).toEqual(slots(String((en as Record<string, string>)[k])))
+    }
+  })
 })

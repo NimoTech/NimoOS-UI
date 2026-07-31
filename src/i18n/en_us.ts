@@ -1079,4 +1079,64 @@ export default {
   // only the active filters narrowed it to zero — misleading users into thinking
   // the index is broken. Added a distinct copy for "empty after filtering".
   photosPlacesFilterEmpty: 'No cities match the current filters',
+  // ── SP7-P6b T1: Places detail panel i18n keys ──────────────────────────────
+  // 42 sourced verbatim from NimoOS-UI/src/assets/lang/en_US.json (verified against
+  // source, zero discrepancies); 3 authored (D8 + deviation-log 6, see inline notes).
+  photosPlacesHomeBase: 'Home base',
+  // Note: en_US.json has distinct singular/plural copy for trip/trips (zh has one
+  // shared string) — kept as two keys per json, matching the source as-is.
+  photosPlacesTrip: 'trip',
+  photosPlacesTrips: 'trips',
+  photosPlacesSpotsLabel: 'spots',
+  photosPlacesPhotosShotHere: 'photos shot here',
+  photosPlacesSpotsInCity: 'Spots in {city}',
+  photosPlacesViewAll: 'View all',
+  photosPlacesNimoNoticed: 'Nimo noticed',
+  photosPlacesRecentPhotos: 'Recent photos',
+  photosPlacesSeeAll: 'See all {n}',
+  photosPlacesVisitHistory: 'Visit history',
+  photosPlacesDays: '{n} days',
+  photosPlacesWith: 'with',
+  photosPlacesSpotsCount: '{n} spots',
+  photosPlacesSaveTrip: 'Save trip',
+  photosPlacesSaveTripTitle: 'Save this trip as an album',
+  photosPlacesOpenInLibrary: 'Open in Library',
+  photosPlacesSaveAsAlbum: 'Save as Album',
+  photosPlacesAlbumCreated: 'Album "{name}" created · {count} photos',
+  photosPlacesAlbumCreateFailed: 'Could not create album',
+  photosPlacesToastOpen: 'Open',
+  photosPlacesShowWholeCity: 'Show whole city',
+  photosPlacesSpotRename: 'Rename',
+  photosPlacesSpotNamePlaceholder: 'Spot name',
+  photosPlacesSpotSave: 'Save',
+  photosPlacesSpotViewInLibrary: 'View all photos of this spot in Library',
+  photosPlacesSpotResetName: 'Reset to default name', // authored (D8), no Vue2 counterpart
+  photosPlacesSpotRenameFailed: 'Could not rename spot', // authored (deviation-log 6), no Vue2 counterpart
+  photosPlacesCoverFailed: 'Could not update cover', // authored (deviation-log 6), no Vue2 counterpart
+  photosPlacesCoverSet: 'Set cover',
+  photosPlacesCoverTitle: 'Set {city} cover',
+  photosPlacesCoverSubtitle: 'Pick one of {count} photos as the cover',
+  photosPlacesCoverSearchPlaceholder: 'Search scenes / people / tags…',
+  photosPlacesCoverNoMatch: 'No photos matching "{q}"',
+  photosPlacesCoverResetDefault: 'Reset to default',
+  photosPlacesCoverPageInfo: '{total} candidates · page {page} / {pages}',
+  photosPlacesCoverTabRecent: 'Recent',
+  photosPlacesCoverTabTop: 'Top rated',
+  photosPlacesCoverTabFav: 'Favorited',
+  // Same value as existing photosPlacesAll (filter panel "All") but a different semantic
+  // domain (cover-picker category tab) — kept as a separate key.
+  photosPlacesCoverTabAll: 'All',
+  photosPlacesInsightMostPhotographed: 'Your most photographed place — {count} photos.',
+  // Original json wraps {spot} in <b>; dropped the tag and made {spot} the interpolation
+  // slot instead (<i18n-t> can only open a slot at an interpolation position).
+  photosPlacesInsightTopSpot: '{spot} is the dominant spot — {count} photos.',
+  photosPlacesInsightCompanions: 'Spotted with {names} here.',
+  // Deviation-log 10: original json is "Your <b>home base</b> — …"; the bolded static
+  // word "home base" is split into a {base} slot, see photosPlacesInsightHomeBase below.
+  photosPlacesInsightHome: 'Your {base} — {count} photos across {trips} trips.',
+  // Note: this and photosPlacesHomeBase ("Home base") are Vue2's two different phrasings
+  // for the same concept — the former is filter/list-context copy, this is the bolded
+  // word inside the insight sentence ("home base", lowercase per json). Kept as-is per
+  // the 1:1 rule, not unified.
+  photosPlacesInsightHomeBase: 'home base',
 }
