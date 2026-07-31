@@ -22,16 +22,21 @@
 // KnowledgeDeferred——`''` 子路由留给 T12 换成真正的 DashboardView,其余 8
 // 个子路由与 2 条 parser 路由留给后续批次逐个替换(K7 机制不变,只是父路由
 // 这一层从「占位页替占位页」变成「真布局 + 占位页子页」)。
+// 【T12,2026-08-01】`''` 子路由(仪表盘位)从占位页 KnowledgeDeferred 反转成
+// 真正的 DashboardView(K7 机制不变,反转不是删除 —— 见
+// knowledgeRoutes.test.ts 的改前/改后原文对照)。其余 8 个子路由 + 2 条独立
+// parser 路由仍是占位页,留给后续批次逐个替换。
 import type { RouteRecordRaw } from 'vue-router'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
+import DashboardView from './views/DashboardView.vue'
 
 export const knowledgeRoutes: RouteRecordRaw[] = [
   {
     path: '/ai/knowledge',
     component: KnowledgeLayout,
     children: [
-      { path: '', name: 'KnowledgeDashboard', component: KnowledgeDeferred },
+      { path: '', name: 'KnowledgeDashboard', component: DashboardView },
       { path: 'search', name: 'KnowledgeSearch', component: KnowledgeDeferred },
       { path: 'wiki', name: 'KnowledgeWiki', component: KnowledgeDeferred },
       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: KnowledgeDeferred },

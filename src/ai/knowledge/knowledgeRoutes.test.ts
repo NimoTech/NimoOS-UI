@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { knowledgeRoutes } from './knowledgeRoutes'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
+import DashboardView from './views/DashboardView.vue'
 
 describe('knowledgeRoutes', () => {
   it('一条布局路由带 9 个子路由 + 两条 Parser 路由', () => {
@@ -41,14 +42,37 @@ describe('knowledgeRoutes', () => {
   //     expect(components).toHaveLength(11)
   //     for (const c of components) expect(c).toBe(KnowledgeDeferred)
   //   })
-  it('父路由(布局位)是 KnowledgeLayout,9 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+  // 【T12,2026-08-01,反转(不是删除)】上面 R8 那条断言(改前）把 `''` 子路由
+  // 也算进「仍是占位页」的 11 条里 —— 现在 `''` 换成真正的 DashboardView(本
+  // 任务的产出），这条断言必须跟着反转，否则会精确报红（R8 comment 里预告
+  // 的正是这一刻）。
+  //
+  // 改前（2026-08-01 R8 原文，反转前）：
+  //   it('父路由(布局位)是 KnowledgeLayout,9 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+  //     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+  //     const stillDeferred = [
+  //       ...knowledgeRoutes[0].children!.map((c) => c.component),
+  //       knowledgeRoutes[1].component,
+  //       knowledgeRoutes[2].component,
+  //     ]
+  //     expect(stillDeferred).toHaveLength(11)
+  //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+  //   })
+  //
+  // 改后（本次）：`''` 单独钉成 DashboardView；其余 8 个子路由 + 2 条 parser
+  // 路由仍钉成 KnowledgeDeferred（K7 占位机制本身不变）。
+  it('父路由(布局位)是 KnowledgeLayout,"" 子路由(仪表盘)是 DashboardView,其余 8 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+    const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
+    expect(dashboardChild?.component).toBe(DashboardView)
+    expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
+
     const stillDeferred = [
-      ...knowledgeRoutes[0].children!.map((c) => c.component),
+      ...knowledgeRoutes[0].children!.filter((c) => c.path !== '').map((c) => c.component),
       knowledgeRoutes[1].component,
       knowledgeRoutes[2].component,
     ]
-    expect(stillDeferred).toHaveLength(11)
+    expect(stillDeferred).toHaveLength(10)
     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
   })
 })
