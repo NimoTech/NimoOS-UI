@@ -3917,3 +3917,38 @@ git commit -m "feat(storage): 快照时间线[浏览]接回文件区 + 时间机
 2. **Inline Execution** —— 在当前会话里按 executing-plans 批量执行,设检查点
 
 选哪个?
+
+---
+
+## 本期评审遗留(deferred minors,2026-07-31 收尾登记)
+
+以下条目经每任务评审与全分支总评审(opus)分诊为「可留」,**不阻塞合并**,登记备查。工作台账原在 `.superpowers/sdd/`(gitignored),已随收尾清理,此处为唯一留存。
+
+**代码一致性**
+1. `statusOf` 在 `files/util/snapshotRestore.ts` 与 `files/composables/useDeckPreview.ts` 各有一份逐字副本;后端错误形状若变,大概率只改一份。
+2. 隐藏文件过滤谓词 + `HIDDEN` 常量在 `files/stores/files.ts` 与 `useDeckPreview.ts` 重复;卡片预览与真实列表看到的条目集必须一致,现靠人肉同步。
+3. `SnapshotTimeline.browse()` 用 `store.volume?.mount`,却按 `props.volumeUuid` 拉列表,两者无一致性校验(当前调用链只有一个卷)。
+4. `performSnapshotRestore` 不校验 `item.path` 解析出的 `snapshotName` 与 `info.snapshotName` 同源(当前调用链保证一致)。
+
+**行为/体验**
+5. `--tm-star` 是死 token:深浅两套主题都定义,全库零使用(星空未实现)。删 token 或补实现,并同步 spec §3.2。
+6. `type-auto` 主刻度不单独着色(spec §2.2 写的是 `--nrm-fg`);视觉上 `--tm-rail` 已是中性色。
+7. 刻度尺不会把选中刻度滚进视野:快照上百条时按 ↑ 拨到屏幕外,刻度尺看不出在动(卡堆与底栏仍正确)。
+8. `useDeckPreview` 也给 2 张 `past` 卡拉预览(spec §2.3 说只给可见的 5 张);算预取说得通,代价是每次拨刻度多 2 个列目录请求。
+9. 预览缓存对 `failed` 状态永不重试:同目录内网络恢复后卡片不会自愈(拨刻度/换目录可绕开)。
+10. `snapshotBrowse.reset()` 是生产死代码(只在测试里调用);要么在 `onUnmounted` 接上,要么删。
+11. 批量恢复改用缓存 `volumes` 后,`status==='error'` 时每条判成 `invalid` → 文案变「路径无效」(改前是「恢复失败,请稍后再试」,更准)。
+12. `manualLabel` 关窗/换卷不重置(与 `SnapshotPanel.vue` 同款既有行为)。
+13. `storage/stores/snapshot.ts` 的 `loadVolume` 从不把 `volumeLoading` 重置为 true,故设置弹窗的加载门只在本会话首次生效;先看存储区再来文件区换卷时,会先渲染上一个卷的状态一帧。
+14. 容器目录点「删除」仍先弹确认框,确认后才被 guard 拦成 toast(安全但 UX 绕)。
+15. 快照态下右键「复制」也被移除(照 spec/Vue2),这断了"把快照文件复制到任意目标目录"这条合法路径;属产品决定。
+
+**测试卫生**
+16. `TimeMachineOverlay.test.ts` 的焦点用例缺 `unmount()`,jsdom 跨用例累积 `.tm-overlay` 节点;后续在该文件用 `document.querySelector` 做全局断言会踩。
+17. 测试里直接调 `useDeckPreview` 会打印 `[Vue warn] onScopeDispose() is called when there is no active effect scope`(测试输出不再纯净;要收就包一层 `effectScope`)。
+18. `statusOf` 的 axios `response.status` 回落分支无测试;`Files.test.ts` 的 `attachTo` 挂载从不 `unmount`。
+
+**功能缺口**
+19. `GET /v2/snapshot/file-versions` 前端仍未消费(Vue2 当年也没用);将来做"单文件历史版本"入口时这是现成能力。
+20. 恢复是逐条串行提交(后端一次只收一个 path),选几十项时串行等待且无进度反馈。
+21. **本机永远无法实盘验证**:快照卷只从 RAID 阵列派生,`/DATA` 是 ext4 单盘无阵列,`GET /v2/snapshot/volumes` 恒返回空数组 → 入口 chip 在真机上不会出现。随多盘设备补实盘验收。
