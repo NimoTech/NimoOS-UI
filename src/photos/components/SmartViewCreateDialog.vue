@@ -17,13 +17,16 @@
 //    (linear-gradient(135deg, var(--accent), var(--accent-hi)))改成 var(--accent) 实底后,
 //    前景满足"背景确为 --accent 饱和实底"的条件,合法使用 --on-accent(brief 控制器补充
 //    2 点名的那处)。
-// 3) `--on-accent` 在本组件其实还合法用于两处,不止 brief 说的"唯一":
+// 3) `--on-accent` 在本组件其实还合法用于两处,不止 brief 说的"唯一"(fix round 1 · I3
+//    评审逐处核实,实现不用改,只改了论证依据——原注释误引了本分支不存在的文件):
 //    a) `.sv-switch[data-on="true"]::after`(开关滑块在 data-on=true 时同样叠在
-//       var(--accent) 实底上)—— 与 NimoOS-New-UI(master)`SettingsSwitch.vue` /
-//       `settings.css:154-157` 完全同构的先例(那份文件自己也有一行同款确认注释)。
+//       var(--accent) 实底上)——`role="switch"` 是本分支第一次使用(grep 全仓只命中
+//       这两行),没有分支内先例;这里 `--on-accent` 的合法性由紧邻的
+//       `.sv-switch[data-on="true"] { background: var(--accent) }` 自证(实底、不是
+//       渐变/半透明),不依赖任何外部先例。
 //    b) `.sv-btn-primary`(background: var(--accent); color: var(--on-accent))——
 //       与本仓既有 primary 按钮先例同构:`ClusterActionDialog.vue:320`、
-//       `MergeReviewDialog.vue:262`。
+//       `MergeReviewDialog.vue:262`(这两个文件在本分支真实存在,已核实)。
 //    brief Step1 那句"其余压照片的元素本组件没有"实际是在说"没有其余压在照片/渐变之上
 //    需要 theme-exception 钉死浅色的前景"——本组件确实没有任何元素叠在照片(仅
 //    `.sv-preview-grid img` 是纯图,无覆盖文字)或渐变之上,这条没问题;但把该句解读成
@@ -42,6 +45,11 @@
 //    text-1→fg,text-2→fg-muted,text-3→fg-faint,text-4→fg-subtle。
 // 6) `--font-display`(Vue2 用于预览计数大字号)本仓没有对应 token,纯排版选择、非颜色,
 //    直接省略、继承 --font,不新增 token。
+// 7) fix round 1 · M1(此前未申报的偏离,补登记):**Esc 关闭这个浮层是 net-new**——
+//    Vue2 这个弹窗完全没有 Esc 处理。document 级监听 + watch(open) 挂/摘的写法照
+//    `AlbumPickerDialog.vue`(该文件在本分支真实存在)的既有范式,但"给这个弹窗加 Esc"
+//    这件事本身在 Vue2 找不到对应,是本任务主动补的浮层可用性基线(同 Global Constraints
+//    §「浮层 Esc 一律 document 级监听」的通例要求),不是照搬,已补测试用例钉住。
 //
 // 详见 task-5-report.md 的完整节点清点表 + 删码验证 + i18n 回源结论。
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
@@ -50,6 +58,7 @@ import { service } from '@nimotech/nimoos-service'
 import { usePhotosSmartViews } from '../stores/smartViews'
 import { useToast } from '../../stores/toast'
 import { inferChips, SV_QUICK_TEMPLATES, type QuickTemplate } from '../util/smartViewSuggest'
+import PhotosThreshSlider from './PhotosThreshSlider.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{
@@ -141,7 +150,13 @@ watch(
   },
   { immediate: true },
 )
-onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
+// fix round 1 · M7:组件真的被卸载时(如离开路由,宿主 v-if 掉整个页面),弹窗若还开着
+// 且已排好的 300ms 防抖预览请求尚未触发/尚在途,不清的话会成为孤儿请求照常发出
+// (Vue2 靠整页 beforeDestroy 里的 clearTimeout 兜住,New-UI 这里补同等效果)。
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocumentKeydown)
+  store.cancelPreview()
+})
 
 // 照 Vue2 addChip :392-397。
 function addChip(c: string): void {
@@ -173,9 +188,10 @@ function onChipKey(e: KeyboardEvent): void {
   }
 }
 
-// 照 Vue2 :113-114:range 用 :value + @input，不是 v-model。
-function onThreshInput(e: Event): void {
-  draft.thresh = Number((e.target as HTMLInputElement).value)
+// fix round 1 · I1:阈值滑块抽成 PhotosThreshSlider.vue(T8/T14 复用),它 emit 的是
+// 已经转成 number 的值,这里不再自己从 Event 里取 target.value。
+function onThreshInput(v: number): void {
+  draft.thresh = v
   triggerPreview()
 }
 
@@ -328,13 +344,7 @@ function thumbUrl(seed: string): string {
                 {{ t('photosSvQualityThreshold') }}
                 <span class="sv-thresh-val">&ge; {{ draft.thresh }}%</span>
               </span>
-              <input
-                type="range" min="50" max="99" :value="draft.thresh" class="sv-slider"
-                data-test="sv-thresh-range" @input="onThreshInput"
-              >
-              <div class="sv-slider-marks">
-                <span>{{ t('photosSvLoose') }}</span><span>{{ t('photosSvBalanced') }}</span><span>{{ t('photosSvStrict') }}</span>
-              </div>
+              <PhotosThreshSlider :value="draft.thresh" @input="onThreshInput" />
               <div v-if="threshMuted" class="sv-field-hint sv-hint-spaced">
                 {{ t('photosSvCurrentConditionsMatchExactly') }}
               </div>
@@ -627,8 +637,8 @@ function thumbUrl(seed: string): string {
 }
 
 .sv-thresh-val { margin-left: auto; color: var(--accent-text); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
-.sv-slider { width: 100%; }
-.sv-slider-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); }
+/* fix round 1 · I1:.sv-slider/.sv-slider-marks 的真实样式已下沉到
+   PhotosThreshSlider.vue(scoped 但作用于该组件自己渲染的元素,不需要在这里重复)。 */
 
 .sv-toggles { background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 2px 12px; }
 .sv-toggle-row {
@@ -665,8 +675,9 @@ function thumbUrl(seed: string): string {
   transition: all 0.2s;
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* --on-accent 合法用法之二(文件头注释 3a):滑块叠在 data-on=true 的 var(--accent) 实底
-   之上,同 NimoOS-New-UI(master)SettingsSwitch.vue / settings.css:154-157 既有先例。 */
+/* --on-accent 合法用法之二(文件头注释 3a,fix round 1 · I3 已去掉不存在的外部引用):
+   滑块叠在紧邻这条 [data-on="true"] 实底(var(--accent),非渐变/半透明)之上,合法性
+   由这条背景声明自证——role="switch" 是本分支第一次使用,没有分支内先例可引。 */
 .sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
 
 .sv-preview-head {
@@ -728,7 +739,15 @@ function thumbUrl(seed: string): string {
   transition: all 0.12s;
 }
 .sv-template-row:hover { border-color: var(--accent); background: var(--accent-soft); }
-.sv-template-row svg { margin-top: 2px; flex-shrink: 0; }
+/* fix round 1 · I2:Vue2 :164 给这 5 个模板行的 sparkles 图标显式传了
+   color="var(--accent-hi)"(Vue2 PhotosIcon.vue 把 color prop 落到 :stroke)——是 accent
+   色,不是继承 .sv-template-row 自己的 color:var(--fg)(前景白/深)。之前误用
+   stroke="currentColor" 让图标继承了容器的前景色而不是 accent,同文件另两处 sparkles
+   (.sv-suggest-head/.sv-preview-head)之所以碰巧对,是因为那两条规则自己的 color 就是
+   --accent-text,唯独这里的容器 color 是 --fg,currentColor 刚好继承错。Vue2 hover 态
+   (scss:955-958)只改 border-color/background,不改图标色,故 hover 态也应保持 accent——
+   这里直接给 svg 定死 color,不随容器 hover 变化,天然覆盖两态。 */
+.sv-template-row svg { margin-top: 2px; flex-shrink: 0; color: var(--accent-text); }
 .sv-template-row .t-label { font-size: 12px; font-weight: 500; }
 .sv-template-row .t-desc { font-size: 10.5px; color: var(--fg-faint); margin-top: 1px; line-height: 1.35; }
 

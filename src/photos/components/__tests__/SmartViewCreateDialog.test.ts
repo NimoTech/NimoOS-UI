@@ -69,7 +69,7 @@ describe('结构清点', () => {
     await w.find('[data-test="sv-desc-textarea"]').setValue('sunset in tokyo')
     expect(w.find('.sv-suggest').exists()).toBe(true) // 建议区(desc 非空时出现)
     expect(w.find('.sv-chip-bin').exists()).toBe(true)
-    expect(w.find('[data-test="sv-thresh-range"]').exists()).toBe(true)
+    expect(w.find('[data-test="pts-range"]').exists()).toBe(true)
     expect(w.findAll('.sv-switch')).toHaveLength(2)
     // 右栏 4 段
     expect(w.find('.sv-preview-head').exists()).toBe(true)
@@ -194,7 +194,7 @@ describe('阈值滑块', () => {
     const spy = vi.spyOn(store, 'refreshPreview')
     const w = mountDialog({ open: true })
     spy.mockClear()
-    const range = w.find('[data-test="sv-thresh-range"]')
+    const range = w.find('[data-test="pts-range"]')
     await range.setValue('92')
     expect(w.find('.sv-thresh-val').text()).toContain('92%')
     expect(spy).toHaveBeenCalled()
@@ -202,7 +202,7 @@ describe('阈值滑块', () => {
 
   it('92 → strict 文案;60 → loose 文案;75(与边界 88/65)→ balanced 文案', async () => {
     const w = mountDialog({ open: true })
-    const range = w.find('[data-test="sv-thresh-range"]')
+    const range = w.find('[data-test="pts-range"]')
     await range.setValue('92')
     expect(w.find('.sv-preview-help').text()).toBe(zh.photosSvStrictOnlyHighestConfidence)
     await range.setValue('60')
@@ -440,5 +440,106 @@ describe('窄屏规则', () => {
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-modal-body')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('grid-template-columns: 1fr')
+  })
+})
+
+// ══════════════════════════════ Fix round 1 ══════════════════════════════
+
+// ── I2:模板行 sparkles 图标色 ────────────────────────────────────────────────
+describe('模板行图标色(fix round 1 · I2)', () => {
+  it('.sv-template-row svg 用 --accent-text,不是继承容器前景色(容器自己是 --fg)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-template-row svg')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('color: var(--accent-text)')
+  })
+})
+
+// ── I3:另两处 --on-accent 正向断言(.sv-modal-icon 那条已在「前景色合规」describe 里)──
+describe('前景色合规补充(fix round 1 · I3:另两处 --on-accent 正向断言)', () => {
+  it('.sv-switch[data-on="true"] 用 --accent 实底,::after 滑块用 --on-accent 前景', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const bgRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]')
+    expect(bgRule).toBeDefined()
+    expect(bgRule?.body).toContain('background: var(--accent)')
+    const knobRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(knobRule).toBeDefined()
+    expect(knobRule?.body).toContain('background: var(--on-accent)')
+  })
+
+  it('.sv-btn-primary 用 --accent 实底 + --on-accent 前景', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-btn-primary')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('background: var(--accent)')
+    expect(rule?.body).toContain('color: var(--on-accent)')
+  })
+})
+
+// ── M1:Esc 关闭(此前未申报的 net-new,已补登记 + 用例)───────────────────────
+describe('Esc 关闭(fix round 1 · M1)', () => {
+  it('open:true 时按 Esc → emit update:open(false)', async () => {
+    const w = mountDialog({ open: true })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('open:false 时按 Esc → 不 emit(document 监听器只在打开时挂载)', async () => {
+    const w = mountDialog({ open: false })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
+})
+
+// ── M5:.sv-preview-grid 的 img 渲染路径此前零覆盖(33 例里 seeds 恒为空)───────
+describe('preview-grid 渲染(fix round 1 · M5)', () => {
+  it('store.preview.seeds 非空 → 渲染对应数量 img,src 来自 thumbnailUrl(seed,"large"),带 loading=lazy', () => {
+    const store = usePhotosSmartViews()
+    store.preview = { count: 2, seeds: ['seed-a', 'seed-b'], thresholdActive: true }
+    const w = mountDialog({ open: true })
+    const imgs = w.findAll('.sv-preview-grid img')
+    expect(imgs).toHaveLength(2)
+    expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('seed-a', 'large')
+    expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('seed-b', 'large')
+    expect(imgs[0]!.attributes('loading')).toBe('lazy')
+  })
+})
+
+// ── M6:自动聚焦(brief 结构规格第 3 条明写)+ 键盘可操作性此前零断言 ───────────
+describe('自动聚焦(fix round 1 · M6)', () => {
+  it('open:true → 名称输入框自动获得焦点', async () => {
+    const w = mount(SmartViewCreateDialog, {
+      props: { open: true },
+      global: { plugins: [makeI18n()] },
+      attachTo: document.body,
+    })
+    await w.vm.$nextTick()
+    expect(document.activeElement).toBe(w.find('[data-test="sv-name-input"]').element)
+    w.unmount()
+  })
+})
+
+describe('开关键盘可操作性(fix round 1 · M6,自加的 tabindex + Enter/Space)', () => {
+  it('两个开关都有 tabindex=0,且 Enter/Space 都能切换', async () => {
+    const w = mountDialog({ open: true })
+    const live = w.find('[data-test="sv-switch-live"]')
+    expect(live.attributes('tabindex')).toBe('0')
+    await live.trigger('keydown.enter')
+    expect(live.attributes('aria-checked')).toBe('false')
+    await live.trigger('keydown.space')
+    expect(live.attributes('aria-checked')).toBe('true')
+  })
+})
+
+// ── M7:onUnmounted 此前没调 store.cancelPreview()(离开路由时孤儿预览请求)───
+describe('卸载(fix round 1 · M7)', () => {
+  it('组件卸载 → store.cancelPreview() 被调', () => {
+    const store = usePhotosSmartViews()
+    const spy = vi.spyOn(store, 'cancelPreview')
+    const w = mountDialog({ open: true })
+    w.unmount()
+    expect(spy).toHaveBeenCalled()
   })
 })
