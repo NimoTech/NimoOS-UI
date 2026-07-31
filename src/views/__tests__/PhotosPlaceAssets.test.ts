@@ -17,6 +17,8 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 // 源文件文本(Vite `?raw` 导入,见 node_modules/vite/client.d.ts:243——不需要 @types/node,
 // 本仓本就没有装它)。用途见下方"追加不重排"用例的注释。
 import routerSource from '../../router/index.ts?raw'
+// 评审 I1:面包屑图标 glyph 回源核对同样只能读源文件文本判定(同上一条 ?raw 手法)。
+import photosPlaceAssetsRaw from '../PhotosPlaceAssets.vue?raw'
 import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
@@ -258,6 +260,44 @@ describe('面包屑(照 Vue2 PhotosTimeline.vue:1073-1090 的信息层级)', () 
     svc.photos.listAssetsByPlace.mockResolvedValue({ assets: [asset('a1'), asset('a2')] })
     const { w } = await mountView('/photos/places/7')
     expect(w.find('[data-test="place-crumb-count"]').text()).toBe('2 张照片')
+  })
+})
+
+describe('第二次加载期间旧数据不残留(评审 I2)', () => {
+  it('key 从 7 改到 9,9 的响应还没到达前:页面走骨架分支,看不到 7 的旧照片网格', async () => {
+    svc.photos.getPlace.mockImplementation((key: string) =>
+      Promise.resolve(rawPlace(key, { city: key === '7' ? 'Tokyo' : 'Osaka' })))
+    let resolveNine: (v: unknown) => void = () => {}
+    svc.photos.listAssetsByPlace.mockImplementation((key: string) => {
+      if (key === '7') return Promise.resolve({ assets: [asset('a1'), asset('a2')] })
+      return new Promise((r) => { resolveNine = r })
+    })
+    const { w, router } = await mountView('/photos/places/7')
+    expect(w.findAll('.tile')).toHaveLength(2)
+
+    await router.push('/photos/places/9')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // 9 的响应还没到达——不该继续显示 7 的旧照片,应走骨架分支。
+    expect(w.find('[data-test="place-assets-skeleton"]').exists()).toBe(true)
+    expect(w.findAll('.tile')).toHaveLength(0)
+
+    resolveNine({ assets: [asset('b1'), asset('b2'), asset('b3')] })
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="place-assets-skeleton"]').exists()).toBe(false)
+    expect(w.findAll('.tile')).toHaveLength(3)
+  })
+})
+
+describe('面包屑图标 glyph 回源(评审 I1)', () => {
+  it('.crumb-icon 是折叠地图(Vue2 PhotosIcon.vue name="map"),不是地图别针', () => {
+    const m = /<svg class="crumb-icon"[^>]*>([\s\S]*?)<\/svg>/.exec(photosPlaceAssetsRaw)
+    expect(m, '未找到 .crumb-icon 的 svg').not.toBeNull()
+    expect(m![1]).toContain('M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z')
+    expect(m![1]).toContain('M9 4v14M15 6v14')
+    expect(m![1]).not.toContain('M12 21s-7-7.5-7-12')
   })
 })
 

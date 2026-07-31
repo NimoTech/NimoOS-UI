@@ -29,6 +29,15 @@ export function usePlaceAssets(): UsePlaceAssetsReturn {
   async function load(placeKey: string, spotKey: string, lat: number | null, lon: number | null): Promise<void> {
     const mine = ++seq
     loading.value = true
+    // 评审 I2:成功路径此前不清旧数据——第二次及以后 load() 时 loaded 已是 true,
+    // PhotosPlaceAssets.vue 的骨架门控(loading && !loaded)因此不再命中,v-else 分支
+    // 继续渲染上一次(上一个 spot/整城)的 photos,直到新响应落地。真实触发路径:面包屑
+    // 「只看整个城市」→ showWholeCity() → 路由 watcher → loadAll(),整城结果到达前页面
+    // 显示的是刚才那个 spot 的照片。这里在请求发出前就清空 photos/loaded(与下面 catch
+    // 分支的清空口径统一),配合已有的 seq 守卫——过期响应不会回填,不引入新的竞态。
+    photos.value = []
+    loaded.value = false
+    failed.value = false
     try {
       const raw = await service.photos.listAssetsByPlace(placeKey, spotKey, ASSET_LIMIT, lat, lon) as
         { assets?: unknown } | unknown[] | null | undefined

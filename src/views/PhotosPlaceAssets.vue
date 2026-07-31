@@ -134,7 +134,7 @@ function retry(): void {
       <main class="photos-main">
         <!-- 面包屑(结构规格 4)——独立于下面的三态门控,任何状态下都显示。 -->
         <div class="place-crumb" data-test="place-crumb">
-          <svg class="crumb-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-7.5-7-12a7 7 0 0114 0c0 4.5-7 12-7 12z" /><circle cx="12" cy="9" r="2.5" /></svg>
+          <svg class="crumb-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
           <button
             v-if="matchedSpot"
             type="button" class="crumb-city" data-test="place-crumb-city-btn"

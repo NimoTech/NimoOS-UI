@@ -634,6 +634,46 @@ describe('hover 态背景(.detail-grid .ph.more)', () => {
   })
 })
 
+// ── 终审 I1:四处图标 glyph 必须与 Vue2 PhotosIcon.vue 一致(此前本文件同分支内
+// 漏抄成了别的 glyph——地图别针冒充"折叠地图"、image 图标冒充"album"、grid 图标丢
+// rx="1"、clock 指针角度错)。锚定到具体渲染块内再断言,不用全文件关键字搜索
+// (避免宽松匹配放过"画对了但画在别处"这类假绿),同 PlaceCoverPicker.test.ts
+// 「高危非颜色视觉属性」一节的锚定手法。────────────────────────────────────────
+describe('图标 glyph 回源(评审 I1)', () => {
+  it('.ttl-region 的图标是折叠地图(Vue2 PhotosIcon.vue name="map"),不是地图别针', () => {
+    const m = /class="ttl-region">\s*<svg[^>]*>([\s\S]*?)<\/svg>/.exec(placeDetailPanelRaw)
+    expect(m, '未找到 .ttl-region 内的 svg').not.toBeNull()
+    expect(m![1]).toContain('M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z')
+    expect(m![1]).toContain('M9 4v14M15 6v14')
+    expect(m![1]).not.toContain('M12 21s-7-7.5-7-12')
+  })
+
+  it('.ttl-sub 的时钟指针是 M12 7v5l3 2(Vue2 PhotosIcon.vue name="clock"),不是 l3 3', () => {
+    const m = /class="ttl-sub">\s*<svg[^>]*>([\s\S]*?)<\/svg>/.exec(placeDetailPanelRaw)
+    expect(m, '未找到 .ttl-sub 内的 svg').not.toBeNull()
+    expect(m![1]).toContain('M12 7v5l3 2')
+    expect(m![1]).not.toContain('M12 7v5l3 3')
+  })
+
+  it('「在图库中打开」按钮的网格图标四个 rect 都带 rx="1"(Vue2 PhotosIcon.vue name="grid")', () => {
+    const m = /@click="emit\('open-library'\)">([\s\S]*?)<\/button>/.exec(placeDetailPanelRaw)
+    expect(m, '未找到 open-library 按钮').not.toBeNull()
+    const rectCount = (m![1].match(/<rect[^>]*>/g) ?? []).length
+    const rxCount = (m![1].match(/rx="1"/g) ?? []).length
+    expect(rectCount).toBe(4)
+    expect(rxCount).toBe(4)
+  })
+
+  it('「保存为相册」按钮是 album glyph(rect rx="3" + 折线),不是 image glyph', () => {
+    const m = /@click="emit\('save-album'\)">([\s\S]*?)<\/button>/.exec(placeDetailPanelRaw)
+    expect(m, '未找到 save-album 按钮').not.toBeNull()
+    expect(m![1]).toContain('rx="3"')
+    expect(m![1]).toContain('M3 14l5-4 4 3 3-2 6 5')
+    expect(m![1]).not.toContain('M21 15l-5-5L5 21')
+    expect(m![1]).not.toContain('cx="8.5"')
+  })
+})
+
 // ── P6b-T6: 到访记录段挂载(渲染委托给 PlaceVisitHistory.vue,面板只负责传 prop + 透传 emit)──
 describe('到访记录段挂载', () => {
   it('detail.visits 非空 → PlaceVisitHistory 渲染出 .visit-card', () => {

@@ -28,6 +28,10 @@
 //     :384)/.map-tip(z-index:5,:418)回源核对,与 brief 描述一致,未发现出入。
 //  5. 窄屏 `@media (max-width: 768px)` 规则是 New-UI 新增(偏离登记 13,brief 原文
 //     "本仓 New-UI 新增"),Vue2 该视图本身不做响应式布局。
+//  6. 评审 M1(补登):第三统计格(旅行数)的单复数——Vue2 PhotosPlacesView.vue:1097
+//     那一格写死复数 `$t('trips')`,只有 :1085 的 `ttl-sub` 才是条件化
+//     (`trips === 1 ? $t('trip') : $t('trips')`)。这里把第三统计格也改成用
+//     tripUnitKey 条件化(是相对 Vue2 的改进,不是照搬),此前漏登记这条偏离。
 //
 // token 映射(Vue2 → New-UI,brief §6):--text-1/2/3 → --fg/--fg-muted/--fg-subtle;
 // --surface-2 → --chip-bg;--line/--line-strong → --card-border;--r-sm → --radius-sm;
@@ -169,7 +173,7 @@ function onSpotOpenPhoto(assetId: string): void {
       </button>
       <div class="ttl">
         <div class="ttl-region">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-7.5-7-12a7 7 0 0114 0c0 4.5-7 12-7 12z" /><circle cx="12" cy="9" r="2.5" /></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
           {{ country }}
           <span v-if="isCurrentTrip" class="ttl-badge ttl-badge-trip" data-test="ttl-current-trip">• {{ t('photosPlacesCurrentTrip') }}</span>
           <span v-if="isHomeBase" class="ttl-badge ttl-badge-home" data-test="ttl-home-base">• {{ t('photosPlacesHomeBase') }}</span>
@@ -178,7 +182,7 @@ function onSpotOpenPhoto(assetId: string): void {
           {{ city }}
         </h2>
         <div class="ttl-sub">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
           {{ lastVisited }} · {{ trips }} {{ t(tripUnitKey) }}
         </div>
       </div>
@@ -198,11 +202,11 @@ function onSpotOpenPhoto(assetId: string): void {
 
     <div class="detail-actions">
       <button type="button" class="btn btn-primary" @click="emit('open-library')">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
         {{ t('photosPlacesOpenInLibrary') }}
       </button>
       <button type="button" class="btn" @click="emit('save-album')">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 14l5-4 4 3 3-2 6 5" /></svg>
         {{ t('photosPlacesSaveAsAlbum') }}
       </button>
     </div>

@@ -222,6 +222,12 @@ watch(activeId, (next) => {
 // ── P6b-T8: 封面候选的三个 watch(照 Vue2 :304-312)。拉取前置条件 activeId && coverOpen——
 // 弹层关闭时改 tab/搜索词/翻页都不发请求(删码清单⑧)。不加 debounce(偏离 15-①,用户
 // 2026-07-31 pre-flight 裁定:节奏照搬 Vue2 逐键请求,只保留 store 侧结果落盘的 seq 守卫)。
+// 评审 M3(补登):coverPage > 0 时改 tab/搜索词会双发一次参数完全相同的请求——本 watch
+// 自己调 fetchCandidatesIfOpen() 一次,赋值 `coverPage.value = 0` 又触发下面 coverPage
+// watcher 的 fetchCandidatesIfOpen() 一次。Vue2 :304-312 同形(coverTab/coverSearch 各自
+// 的 watcher 也是先置 coverPage=0 再调 loadCoverCandidates(),coverPage watcher 另起一次),
+// 属照搬,不是本仓引入的新问题——store 的 coverSeq 竞态守卫保证两次结果不别名,只是多打
+// 一次请求,不影响正确性。
 function fetchCandidatesIfOpen(): void {
   if (!activeId.value || !coverOpen.value) return
   void store.fetchCoverCandidates(activeId.value, { tab: coverTab.value, q: coverSearch.value, page: coverPage.value })

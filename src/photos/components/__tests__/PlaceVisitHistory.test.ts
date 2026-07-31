@@ -185,6 +185,19 @@ describe('段头 .more', () => {
   })
 })
 
+// ── 评审 I1:「保存旅行」按钮的图标必须是 album glyph(Vue2 PhotosIcon.vue
+// name="album"),此前误画成了 image glyph(rect rx=2 + circle + 斜线)。──────────
+describe('图标 glyph 回源(评审 I1)', () => {
+  it('.visit-save-btn 是 album glyph(rect rx="3" + 折线),不是 image glyph', () => {
+    const m = /class="visit-save-btn"[\s\S]*?>([\s\S]*?)<\/button>/.exec(placeVisitHistoryRaw)
+    expect(m, '未找到 .visit-save-btn').not.toBeNull()
+    expect(m![1]).toContain('rx="3"')
+    expect(m![1]).toContain('M3 14l5-4 4 3 3-2 6 5')
+    expect(m![1]).not.toContain('M21 15l-5-5L5 21')
+    expect(m![1]).not.toContain('cx="8.5"')
+  })
+})
+
 // ── 程序化样式断言(brief 必含用例)─────────────────────────────────────────
 describe('样式块 —— 最后一条竖线隐藏 / keyframes / 颜色合规', () => {
   const style = extractStyleBlock(placeVisitHistoryRaw)

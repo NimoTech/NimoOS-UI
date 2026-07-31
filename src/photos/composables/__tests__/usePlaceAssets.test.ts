@@ -144,4 +144,61 @@ describe('usePlaceAssets', () => {
     expect(s.loaded.value).toBe(true)
     expect(s.failed.value).toBe(false)
   })
+
+  // ── 评审 I2:成功路径此前不清旧数据,第二次 load() 期间旧 spot/城市的照片仍可见 ──
+  describe('第二次 load() 不残留旧数据(评审 I2)', () => {
+    it('第二次 load() 发出后、响应到达前:photos 立即清空、loaded 立即回到 false(骨架门控 loading&&!loaded 重新命中)', async () => {
+      listAssetsByPlace.mockResolvedValueOnce({ assets: [asset({ id: 'a1' }), asset({ id: 'a2' })] })
+      const s = usePlaceAssets()
+      await s.load('7', 'spot-a', null, null)
+      expect(s.photos.value.map(p => p.id)).toEqual(['a1', 'a2'])
+      expect(s.loaded.value).toBe(true)
+
+      let resolveSecond: (v: unknown) => void = () => {}
+      listAssetsByPlace.mockReturnValueOnce(new Promise((r) => { resolveSecond = r }))
+      const p2 = s.load('7', '', null, null) // showWholeCity:清 spot,回整城
+      // 响应还没到达——此刻不该再看到上一个 spot(a1/a2)的照片。
+      expect(s.photos.value).toEqual([])
+      expect(s.loaded.value).toBe(false)
+      expect(s.loading.value).toBe(true)
+
+      resolveSecond({ assets: [asset({ id: 'city-1' })] })
+      await p2
+      expect(s.photos.value.map(p => p.id)).toEqual(['city-1'])
+      expect(s.loaded.value).toBe(true)
+    })
+
+    it('第二次 load() 失败时同样不残留第一次的照片(failed 分支既有清空,行为一致)', async () => {
+      listAssetsByPlace.mockResolvedValueOnce({ assets: [asset({ id: 'a1' })] })
+      const s = usePlaceAssets()
+      await s.load('7', 'spot-a', null, null)
+      expect(s.photos.value).toHaveLength(1)
+
+      listAssetsByPlace.mockRejectedValueOnce(new Error('boom'))
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      await s.load('7', '', null, null)
+      expect(s.photos.value).toEqual([])
+      expect(s.failed.value).toBe(true)
+      spy.mockRestore()
+    })
+
+    it('过期响应仍不回填:seq 守卫在清空之上继续生效(A 慢/B 快,A 事后到达不覆盖 B 的结果)', async () => {
+      let resolveA: (v: unknown) => void = () => {}
+      let resolveB: (v: unknown) => void = () => {}
+      listAssetsByPlace
+        .mockReturnValueOnce(new Promise((r) => { resolveA = r }))
+        .mockReturnValueOnce(new Promise((r) => { resolveB = r }))
+      const s = usePlaceAssets()
+      const pA = s.load('7', 'a', null, null)
+      const pB = s.load('7', 'b', null, null)
+      resolveB({ assets: [asset({ id: 'b1' })] })
+      await pB
+      expect(s.photos.value.map(p => p.id)).toEqual(['b1'])
+      resolveA({ assets: [asset({ id: 'a1' })] })
+      await pA
+      // A 是过期响应,即使它在 B 之后才 resolve,也不能把 B 的结果覆盖/清空。
+      expect(s.photos.value.map(p => p.id)).toEqual(['b1'])
+      expect(s.loaded.value).toBe(true)
+    })
+  })
 })

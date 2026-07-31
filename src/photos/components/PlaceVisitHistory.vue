@@ -90,7 +90,7 @@ function thumbUrl(assetId: string): string {
               type="button" class="visit-save-btn" :title="t('photosPlacesSaveTripTitle')"
               @click.stop="emit('save-trip', v)"
             >
-              <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+              <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 14l5-4 4 3 3-2 6 5" /></svg>
               {{ t('photosPlacesSaveTrip') }}
             </button>
           </div>
