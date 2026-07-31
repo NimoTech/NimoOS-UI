@@ -115,6 +115,10 @@ async function onCopyPath(): Promise<void> {
       <div v-if="hasLocation" class="map-mini">
         <iframe :src="mapSrc" title="map" loading="lazy"></iframe>
         <div class="map-pin"></div>
+        <!-- 自绘归属声明:OSM 自己那条页脚(Report a problem / Make a Donation /
+             Website and API terms)已被上下对称裁切挡掉(见 .map-mini iframe 的注释),
+             但 ODbL 要求保留署名,故在盒内右下补一条最小可读的 credit。 -->
+        <div class="map-credit">© OpenStreetMap</div>
       </div>
     </div>
 
@@ -182,7 +186,26 @@ async function onCopyPath(): Promise<void> {
 .info-row .v { color: var(--fg); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .map-mini { position: relative; border-radius: 10px; overflow: hidden; height: 140px; border: 1px solid var(--card-border); }
-.map-mini iframe { width: 100%; height: 100%; border: none; }
+/* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
+   (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。
+   iframe 是跨域的,内部元素无法用 CSS 隐藏,只能靠外层裁切;实测在 328px 宽处那条页脚会
+   折成两行占约 40px,故裁 48px 留余量(更窄/更宽处行数只会更少)。
+   **上下对称裁切**:iframe 比盒子高 2×48px 并上移 48px,让地图中心仍落在盒子中心 ——
+   若只加高不上移,OSM 自己的标记会掉到 .map-pin 下方错位(已用无头浏览器截图自查过对位)。
+   代价:内嵌页右上角的 +/- 缩放钮也一并被裁掉,小地图不再可缩放(可接受,它是位置示意图)。 */
+.map-mini iframe {
+  position: absolute; left: 0; width: 100%; border: none; display: block;
+  top: -48px; height: calc(100% + 96px);
+}
+.map-credit {
+  position: absolute; right: 6px; bottom: 4px; z-index: 1;
+  font-size: 9px; line-height: 1.2; letter-spacing: .01em;
+  pointer-events: none;
+  /* theme-exception: 归属声明压在任意地图瓦片上(颜色不可预测),固定浅色 + 深色投影保可读,皮肤无关 */
+  color: rgba(255, 255, 255, 0.72);
+  /* theme-exception: 同上,投影为固定暗色描边 */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
 .map-pin {
   position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
   transform: translate(-50%, -50%); border-radius: 50%;

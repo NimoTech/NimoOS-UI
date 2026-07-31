@@ -3,6 +3,9 @@ import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import PhotoLightbox from '../PhotoLightbox.vue'
+// 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到,且 jsdom 不算级联)——
+// 同 P6b-T7 已落地的「先锚定规则体、再断言属性」体例。
+import LIGHTBOX_SRC from '../PhotoLightbox.vue?raw'
 import { useLightbox } from '../useLightbox'
 import { usePhotosFavorites } from '../../stores/favorites'
 import type { Photo } from '../../util/assetToPhoto'
@@ -284,20 +287,50 @@ describe('PhotoLightbox 删除确认', () => {
 })
 
 describe('PhotoLightbox chrome 自隐', () => {
-  it('鼠标不动 5s 后工具栏与箭头收起,mousemove 复现', async () => {
+  // 用户 2026-07-31 验收要求改了自隐的范围:顶栏是不透明流内 chrome、**恒显不自隐**
+  // (它一收起舞台就变高、图片会跳);只有叠在照片上的翻页箭头仍然 5s 自隐。
+  it('鼠标不动 5s 后只有箭头收起、顶栏留着,mousemove 复现箭头', async () => {
     vi.useFakeTimers()
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
-    // onMounted 触发一次 onMouseMove → 工具栏可见
     expect(w.find('.lb-top').exists()).toBe(true)
     expect(w.find('.lb-nav-next').exists()).toBe(true)
     vi.advanceTimersByTime(5000)
     await nextTick()
-    expect(w.find('.lb-top').exists()).toBe(false)
+    // 顶栏不再受 isMoving 管辖 —— 删掉模板里那个 v-if 的守卫就靠这一条
+    expect(w.find('.lb-top').exists()).toBe(true)
     expect(w.find('.lb-nav-next').exists()).toBe(false)
     await w.find('.lightbox').trigger('mousemove')
-    expect(w.find('.lb-top').exists()).toBe(true)
+    expect(w.find('.lb-nav-next').exists()).toBe(true)
+  })
+})
+
+describe('PhotoLightbox 顶栏是不透明流内 chrome(用户 2026-07-31 验收要求)', () => {
+  // 样式断言:先锚定 .lb-top 规则体再断言属性(全文件级 toContain 是恒真的)。
+  const topRule = (): string => {
+    const m = /\.lb-top\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    expect(m).not.toBeNull()
+    return m![1]
+  }
+
+  it('实底 --popup-bg,不是渐变、不是绝对定位', () => {
+    const body = topRule()
+    expect(body).toMatch(/background:\s*var\(--popup-bg\)/)
+    expect(body).not.toMatch(/position:\s*absolute/)
+    expect(body).not.toMatch(/linear-gradient/)
+  })
+
+  it('是 flex 流内项并与舞台之间有分隔线(图片因此夹在上下两栏之间)', () => {
+    const body = topRule()
+    expect(body).toMatch(/flex:\s*0\s+0\s+auto/)
+    expect(body).toMatch(/border-bottom:\s*1px solid var\(--card-border\)/)
+  })
+
+  it('详情栏上边距不再为顶栏让位(64px → 16px,否则比同排舞台下沉一截)', () => {
+    const m = /:deep\(\.info-panel\)\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    expect(m).not.toBeNull()
+    expect(m![1]).toMatch(/margin:\s*16px 16px 16px 0/)
   })
 })
 

@@ -4,6 +4,9 @@ import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import PhotoInfoPanel from '../PhotoInfoPanel.vue'
+// 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到)——同 P6b-T7 的
+// 「先锚定规则体、再断言属性」体例。
+import PANEL_SRC from '../PhotoInfoPanel.vue?raw'
 import { osmEmbedSrc } from '../util/osmMap'
 import { usePhotosPeople } from '../../stores/people'
 import type { Photo } from '../../util/assetToPhoto'
@@ -98,6 +101,39 @@ describe('PhotoInfoPanel', () => {
     expect(iframe.attributes('src')).toBe(osmEmbedSrc(31.23, 121.47))
     expect(iframe.attributes('loading')).toBe('lazy')
     expect(w.find('.map-pin').exists()).toBe(true)
+  })
+
+  // 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的页脚文字(Report a problem /
+  // Make a Donation / Website and API terms)。iframe 跨域、内部元素无法用 CSS 隐藏,
+  // 只能外层裁切;裁切必须上下对称,否则 OSM 自己的标记会掉到 .map-pin 下方错位。
+  describe('OSM 页脚裁切(用户 2026-07-31 验收要求)', () => {
+    const rule = (sel: string): string => {
+      const m = new RegExp(`${sel}\\s*\\{([^}]*)\\}`).exec(PANEL_SRC)
+      expect(m).not.toBeNull()
+      return m![1]
+    }
+
+    it('iframe 上下对称加高并上移(裁掉页脚 + 地图中心仍对齐盒子中心)', () => {
+      const body = rule('\\.map-mini iframe')
+      expect(body).toMatch(/top:\s*-48px/)
+      expect(body).toMatch(/height:\s*calc\(100% \+ 96px\)/) // 2 × 48,对称
+      expect(body).toMatch(/position:\s*absolute/)
+    })
+
+    it('补了自绘归属声明(ODbL 要求署名,不能连 credit 一起裁掉)', () => {
+      const photo = makePhoto({ latitude: 31.23, longitude: 121.47, place: 'Shanghai' })
+      const w = mountPanel(photo)
+      const credit = w.find('.map-credit')
+      expect(credit.exists()).toBe(true)
+      expect(credit.text()).toContain('OpenStreetMap')
+    })
+
+    it('归属声明的固定浅色带 theme-exception(压在任意瓦片上,颜色不可预测)', () => {
+      const body = rule('\\.map-credit')
+      // color-guard 的豁免窗口是逐行状态机 —— 注释必须紧贴被豁免的那一条声明
+      expect(PANEL_SRC).toMatch(/theme-exception[^\n]*\n\s*color:\s*rgba\(255, 255, 255, 0\.72\)/)
+      expect(body).toMatch(/pointer-events:\s*none/)
+    })
   })
 
   it('omits the location section entirely when lat/lon are absent', () => {

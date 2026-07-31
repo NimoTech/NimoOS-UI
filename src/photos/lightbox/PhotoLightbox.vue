@@ -81,7 +81,8 @@ function onMouseMove(): void {
 // applyStartTime 永远 early-return,悬停位续播失效。
 // 同一持久挂载坑还连累另外两处状态,故这个 open-watch 一并兜底:
 // 1) chrome 自隐(isMoving)只在 onMounted 里 arm 一次 5s 计时 —— 组件常年挂着、灯箱关着,
-//    计时早就过期,真正 openAt 打开时 isMoving 已是 false,顶栏+翻页箭头全隐,看着像没渲染。
+//    计时早就过期,真正 openAt 打开时 isMoving 已是 false,翻页箭头全隐,看着像没渲染。
+//    (2026-07-31 起顶栏不再受 isMoving 管辖 —— 它是不透明流内 chrome,恒显,见模板注释。)
 //    每次 open 都重新 onMouseMove() 一次,保证"刚打开"必是 chrome 可见 + 计时器重新起跑。
 // 2) showInfo 是组件级 ref,open→close→reopen 会带着上一次的开合状态过来,不符合"详情栏默认收起"
 //    的设计;每次 open 显式重置为 false。
@@ -151,8 +152,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="lb.open.value" class="lightbox" :data-info="showInfo" @mousemove="onMouseMove">
-    <!-- 顶部工具栏 -->
-    <div v-if="isMoving" class="lb-top">
+    <!-- 顶部工具栏。用户 2026-07-31 验收要求:顶栏不做透明、图片显示在上下两栏之间 ——
+         故它是 flex 流内项(不再 position:absolute 盖在舞台上)且**不参与 5s 自隐**
+         (不透明的 chrome 一旦收起,舞台会随之变高、图片跳一下;翻页箭头仍随 isMoving 自隐,
+         它们是叠在照片上的浮层)。 -->
+    <div class="lb-top">
       <button class="lb-icon-btn lb-close" type="button" :title="t('photosClose')" @click="lb.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
@@ -312,18 +316,19 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--app-bg);
 }
+/* 用户 2026-07-31 验收要求:顶栏改成不透明的流内 chrome(原先是 position:absolute + 从黑到
+   透明的渐变,盖在舞台上,图片会钻到它底下)。改成流内项后 .lb-body(flex:1)自然只占
+   顶栏与底部胶片条之间的那一段,图片就夹在两栏中间;底色用实底 --popup-bg 后,栏内文字/
+   图标压的是主题面而不是照片,原先那条「固定暗化保对比度」的 theme-exception 一并作废。 */
 .lb-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  flex: 0 0 auto;
   z-index: 3;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--media-chrome-bg, linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent));
-  /* theme-exception: 顶栏渐隐叠在任意照片上,需固定暗化保证图标对比度,皮肤无关 */
+  background: var(--popup-bg);
+  border-bottom: 1px solid var(--card-border);
 }
 .lb-titlebox { display: flex; flex-direction: column; min-width: 0; }
 .lb-title { font-size: 14px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -425,9 +430,10 @@ onBeforeUnmount(() => {
 .lb-nav-prev { left: 16px; }
 .lb-nav-next { right: 16px; }
 
-/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(.info-panel),这里只需在灯箱内让出
-   顶栏遮挡的空间,不重复定义外观。*/
-:deep(.info-panel) { margin: 64px 16px 16px 0; }
+/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(.info-panel),这里只管它在灯箱内的外边距,
+   不重复定义外观。上边距原为 64px —— 那是给绝对定位的顶栏让位;顶栏 2026-07-31 改成流内
+   chrome 后不再需要让位,四边统一 16px,否则详情栏会比同排的舞台整体下沉一截。*/
+:deep(.info-panel) { margin: 16px 16px 16px 0; }
 
 .lb-confirm-scrim {
   position: absolute;
