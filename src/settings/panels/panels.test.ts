@@ -21,8 +21,8 @@ describe('9 个 tab 骨架', () => {
   })
 
   // P1 起 general 已填真实内容(见 GeneralPanel.integration.test.ts),不再有 .set-skeleton;
-  // developer 见 Task 11,目前仍是纯骨架,留在这条通用断言里。
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general'))('%s 骨架渲染标题与空态位', (tab) => {
+  // developer 从 Task 11 起也填了真实内容(见 DeveloperPanel.test.ts),同样不再是纯骨架。
+  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
@@ -34,17 +34,9 @@ describe('9 个 tab 骨架', () => {
     expect(w.find('.set-skeleton').exists()).toBe(true)
   })
 
-  it('developer 骨架用返回按钮而不是标题(对位 Vue2 L52-56)', () => {
-    const w = mount(PANEL_BY_TAB.developer, { global: { plugins: [i18n] } })
-    expect(w.find('.set-back').exists()).toBe(true)
-    expect(w.find('.set-section-title').exists()).toBe(false)
-  })
-
-  it('developer 的返回按钮向上冒泡 open-tab general', async () => {
-    const w = mount(PANEL_BY_TAB.developer, { global: { plugins: [i18n] } })
-    await w.find('.set-back').trigger('click')
-    expect(w.emitted('open-tab')).toEqual([['general']])
-  })
+  // developer 的「返回按钮代替标题 / 点击冒泡 open-tab general」用例已迁到
+  // DeveloperPanel.test.ts —— 该组件从 Task 11 起会打真实接口(getSSLConfig 等),
+  // panels.test.ts 保持零 mock 的纯骨架测试(同 general 的既有先例,见上)。
 
   // general 的「developer 入口行仍在最后并能 emit open-tab」用例已迁到
   // GeneralPanel.integration.test.ts —— 该组件从 P1 起会打真实接口,
