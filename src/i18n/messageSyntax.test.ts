@@ -146,6 +146,128 @@ describe('i18n message syntax', () => {
     })
   })
 
+  // SP8-P5a Task 8 review finding (裁定 R7,Important):RED probe during review showed
+  // that flipping a half-width comma to full-width in aiKbDistillFromChats, and
+  // renaming {n} to {count} in only one locale for aiKbRunningIndexed, both left the
+  // full suite green (307/2742) — no existing guard covered this batch. Extending the
+  // P3b Task 2 pattern above (same shape: a fixed key list + a scoped punctuation
+  // scan) to this batch's 94 aiKb* keys (T8's main table; T5's aiKbDeferredTitle/
+  // aiKbDeferredHint are new copy with no Vue2 source and are intentionally excluded).
+  describe('P5a Task 8 aiKb* keys — no accidental full-width punctuation (except a registered Vue2-authentic one)', () => {
+    // Matches the >>> SP8-P5a Task 8 ... <<< SP8-P5a Task 8 marked block in zh_cn.ts /
+    // en_us.ts (see p5a-task-8-report.md "新增 94 条" list). Deliberately excludes the
+    // 2 keys T5 already landed (aiKbDeferredTitle/aiKbDeferredHint) — those are new
+    // copy with no Vue2 source, out of scope for a Vue2-punctuation guard.
+    const p5aTask8Keys = [
+      'aiKbKnowledgeBase', 'aiKbBrowse', 'aiKbStatus', 'aiKbIndexer', 'aiKbLastSynced',
+      'aiKbRefresh', 'aiKbRefreshed', 'aiKbOffline', 'aiKbPaused', 'aiKbRunningIndexed',
+      'aiKbMore', 'aiKbServiceOfflineBanner', 'aiKbNavDashboard', 'aiKbNavSearch',
+      'aiKbNavWiki', 'aiKbNavNotes', 'aiKbNavIndexedFiles', 'aiKbNavQueue', 'aiKbNavRoots',
+      'aiKbNavAllowlist', 'aiKbNavSettings', 'aiKbTitleWikiMap', 'aiKbTitleJobQueue',
+      'aiKbTitleAdvancedSettings', 'aiKbJustNow', 'aiKbMinAgo', 'aiKbHrAgo', 'aiKbDaysAgo',
+      'aiKbOpFailed', 'aiKbOnboardTitle', 'aiKbOnboardBody', 'aiKbAddRoot',
+      'aiKbCheckScopeFirst', 'aiKbGoDeeper', 'aiKbSearchPlaceholder', 'aiKbThreeLayersTip',
+      'aiKbSearch', 'aiKbTry', 'aiKbWhatsInside', 'aiKbWikiMap', 'aiKbKnowledgeRootsSuffix',
+      'aiKbWatchSplit', 'aiKbSemanticVectors', 'aiKbDocumentsSuffix', 'aiKbVectorChunks',
+      'aiKbVectorSplit', 'aiKbDistilledNotes', 'aiKbNotesSuffix', 'aiKbToConfirm',
+      'aiKbNotesSplit', 'aiKbGlueTitle', 'aiKbGlueFileId', 'aiKbGlueRootId',
+      'aiKbGlueSessionId', 'aiKbLayerWikiDesc', 'aiKbLayerVecDesc', 'aiKbLayerNoteDesc',
+      'aiKbHowOrganized', 'aiKbManageRoots', 'aiKbLevelSpace', 'aiKbLevelProject',
+      'aiKbRealtimeWatch', 'aiKbScheduledScanOnly', 'aiKbReconciling', 'aiKbLastScan',
+      'aiKbNever', 'aiKbDisabledRoots', 'aiKbRestoreInRootMgmt', 'aiKbWhatsHappening',
+      'aiKbIndexingNFiles', 'aiKbFilesPerMin', 'aiKbEta', 'aiKbWaitingForParser',
+      'aiKbAllSynced', 'aiKbDoneLast10m', 'aiKbThrottle', 'aiKbAutoIndexPaused',
+      'aiKbAdjustInAdvanced', 'aiKbCcPowerSaver', 'aiKbCcBalanced', 'aiKbCcFullSpeed',
+      'aiKbQueueHealth', 'aiKbPending', 'aiKbRunning', 'aiKbFailed', 'aiKbAutoDistill',
+      'aiKbDistilledRecently', 'aiKbDistillFromChats', 'aiKbNoNewInsights',
+      'aiKbSampleThyroid', 'aiKbSamplePythonAsync', 'aiKbSampleContract',
+      'aiKbSampleIphone', 'aiKbSampleSkating',
+    ] as const
+
+    it('covers exactly the 94 keys this task added (list itself does not drift)', () => {
+      expect(p5aTask8Keys.length).toBe(94)
+    })
+
+    // Only aiKbServiceOfflineBanner is exempted, and only because the Vue2 source
+    // itself uses a full-width comma there (confirmed via `git show
+    // main:src/assets/lang/zh_CN.json`, the "The index service is temporarily
+    // offline…" entry — codepoint U+FF0C). Do not add further exceptions here without
+    // stopping and reporting first: every addition narrows what this guard catches.
+    const fullWidthExceptions = new Set(['aiKbServiceOfflineBanner'])
+
+    it('should not contain full-width ，；：？！（） in any zh_cn value from this batch (except the registered Vue2-authentic exception)', () => {
+      const fullWidthPunctuation = /[，；：？！（）]/
+      const violations: Array<{ key: string; value: string }> = []
+      for (const key of p5aTask8Keys) {
+        if (fullWidthExceptions.has(key)) continue
+        const value = (zh as Record<string, unknown>)[key]
+        if (typeof value !== 'string') continue
+        if (fullWidthPunctuation.test(value)) violations.push({ key, value })
+      }
+      if (violations.length > 0) {
+        const details = violations.map((v) => `${v.key} = "${v.value}"`).join('\n')
+        expect.fail(
+          `Found full-width ，；：？！（） in P5a Task 8 zh_cn values (should be half-width per the authoritative Vue2 zh_CN.json; if this is a legitimate Vue2-authentic exception, stop and report before adding it here):\n${details}`
+        )
+      }
+    })
+
+    it('aiKbServiceOfflineBanner keeps its Vue2-authentic full-width comma (registered exception stays exercised, not just declared)', () => {
+      expect(zh.aiKbServiceOfflineBanner).toBe('索引服务暂时离线，部分功能可能不可用')
+      expect(zh.aiKbServiceOfflineBanner.includes('，')).toBe(true)
+    })
+  })
+
+  // SP8-P5a Task 8 review finding (裁定 R7,Important),second half: this batch's
+  // interpolation placeholders ({n}/{m}/{h}/{d}/{a}/{b}/{c}/{t}/{v}) must name the
+  // same set of tokens in zh_cn and en_us — a mismatch silently breaks vue-i18n
+  // interpolation in one locale only. Deliberately scoped to only this batch's 94
+  // keys: a full-file version would immediately fail on 2 pre-existing, intentional
+  // mismatches — aiResTurn (zh `{n,time}` vs en `{n,s,time}`) and aiResFilesInTurns
+  // (zh `{files,turns}` vs en `{files,s,turns}`) — where the extra `{s}` in English is
+  // a plural suffix (see src/ai/.../ResourcesTab.vue:223,228). Future batches (P5b–
+  // P5f etc.) that want this coverage should add their own key list here rather than
+  // widening this one to "all keys".
+  describe('P5a Task 8 aiKb* keys — interpolation placeholder parity between zh_cn and en_us', () => {
+    const placeholderKeysWithInterpolation = [
+      'aiKbRunningIndexed', 'aiKbMinAgo', 'aiKbHrAgo', 'aiKbDaysAgo', 'aiKbWatchSplit',
+      'aiKbVectorChunks', 'aiKbVectorSplit', 'aiKbToConfirm', 'aiKbNotesSplit',
+      'aiKbDisabledRoots', 'aiKbIndexingNFiles', 'aiKbDoneLast10m', 'aiKbDistilledRecently',
+    ] as const
+
+    it('covers exactly the 13 keys in this batch that carry interpolation placeholders', () => {
+      expect(placeholderKeysWithInterpolation.length).toBe(13)
+    })
+
+    it('zh_cn and en_us use the same set of {…} placeholder names for each of these keys', () => {
+      const placeholderPattern = /\{([a-zA-Z]+)\}/g
+      const namesOf = (value: string) => {
+        const names: string[] = []
+        let m: RegExpExecArray | null
+        while ((m = placeholderPattern.exec(value)) !== null) names.push(m[1])
+        return names.sort()
+      }
+
+      const violations: Array<{ key: string; zhNames: string[]; enNames: string[] }> = []
+      for (const key of placeholderKeysWithInterpolation) {
+        const zhValue = (zh as Record<string, unknown>)[key]
+        const enValue = (en as Record<string, unknown>)[key]
+        if (typeof zhValue !== 'string' || typeof enValue !== 'string') continue
+        const zhNames = namesOf(zhValue)
+        const enNames = namesOf(enValue)
+        if (JSON.stringify(zhNames) !== JSON.stringify(enNames)) {
+          violations.push({ key, zhNames, enNames })
+        }
+      }
+      if (violations.length > 0) {
+        const details = violations
+          .map((v) => `${v.key}: zh=[${v.zhNames.join(',')}] en=[${v.enNames.join(',')}]`)
+          .join('\n')
+        expect.fail(`Found mismatched {…} placeholder names between locales:\n${details}`)
+      }
+    })
+  })
+
   describe('bare @ guard (unescaped @ detection)', () => {
     it('should not allow bare @ in any key (only {@} escapes or @:key references)', () => {
       const locales = [
