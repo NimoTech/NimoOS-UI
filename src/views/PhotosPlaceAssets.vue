@@ -51,11 +51,19 @@ const lb = useLightbox()
 // ── 结构规格 2:参数归一 ──────────────────────────────────────────────────────
 const placeKey = computed(() => String(route.params.key))
 const spotKey = computed(() => String(route.query.spot ?? ''))
+// 评审 I1 修正:lat/lon 必须与 spotKey 挂钩,不能独立生效——回源 Vue2
+// `_applyPlaceFromQuery`(NimoOS-UI/src/views/Photos/PhotosTimeline.vue:538-545):只在 spot
+// 命中时才赋 spotLat/spotLon,否则强制 null。共享包 `listAssetsByPlace` 要求 lat/lon 与
+// spotKey 成对(见 `.sp7/NimoOS-Service/src/photos.ts` 该方法的注释)——没有 spotKey 时哪怕
+// URL 上手工带了 `?lat=1&lon=2`,也必须传 null,否则违反这个不变量。应用内导航碰不到这条
+// (showWholeCity/spot 卡片都是三键一起清、一起带),但手改地址栏或旧书签会触发。
 const lat = computed(() => {
+  if (!spotKey.value) return null
   const n = Number(route.query.lat)
   return Number.isFinite(n) ? n : null
 })
 const lon = computed(() => {
+  if (!spotKey.value) return null
   const n = Number(route.query.lon)
   return Number.isFinite(n) ? n : null
 })

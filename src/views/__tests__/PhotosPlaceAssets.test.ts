@@ -123,6 +123,12 @@ describe('路由注册与解析(T8 评审硬要求 1:必须真注册、测试要
   // 红灯,与"追加不重排"这条硬约束本身无关(那是源文件层面的要求,为了 rebase 冲突最小化,
   // 不是运行时匹配优先级)。改为在**源文件文本**里断言:`/photos/places/:key` 那一行确实
   // 在 `/photos/places` 那一行之后追加,且两条都还在(没有被移动到别处)。
+  //
+  // 评审 Minor(分工说明):`src/router/index.test.ts` 已有一条同款 `?raw` 源文本序断言,
+  // 但它核的是**另一对**边界(`/photos/people/:id` → `/photos/places` → `/login`,P6a-T11
+  // 那次追加时立的),从未覆盖本任务新增的 `/photos/places/:key` 落在哪——两条断言用的是
+  // 同一种检验*手法*(`?raw` 文本序),但检验的是两次不同任务各自新增的路由边界,不是重复
+  // 断言同一件事。刻意不去改 `router/index.test.ts`(不动既有断言),就近把这条放在本文件里。
   it('源文件里 /photos/places/:key 追加在 /photos/places 那一行之后(不重排既有路由)', () => {
     const placesLine = routerSource.indexOf("path: '/photos/places',")
     const assetsLine = routerSource.indexOf("path: '/photos/places/:key',")
@@ -160,6 +166,16 @@ describe('挂载即编排数据(参数归一 + T8 硬要求 2:面包屑从 key/s
     }))
     await mountView('/photos/places/7?spot=s1&lat=abc&lon=120.2')
     expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', 's1', 500, null, 120.2)
+  })
+
+  // 评审 I1:lat/lon 必须与 spotKey 成对,不能脱钩独立生效——照 Vue2
+  // `_applyPlaceFromQuery`(PhotosTimeline.vue:538-545)只在 spot 命中时才赋坐标的语义。
+  // 应用内导航碰不到这条(showWholeCity/spot 卡片都是三键一起清、一起带),但手改地址栏/
+  // 旧书签会:`?lat=1&lon=2` 且**没有** `spot=` → lat/lon 必须都被压成 null,不能带着孤立坐标
+  // 传给后端(违反共享包「lat/lon 与 spotKey 成对」的不变量)。
+  it('有 lat/lon 但无 spot query → lat/lon 都被压成 null,spotKey 传空串', async () => {
+    await mountView('/photos/places/7?lat=1&lon=2')
+    expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', '', 500, null, null)
   })
 
   it('标题:AreaShell 的 title 是 store.detail 回源的城市名(URL 上从不带 city 字符串)', async () => {
@@ -307,7 +323,10 @@ describe('网格 + 灯箱', () => {
     expect(months.flatMap((m) => m.photos).map((p) => p.id)).toEqual(['a1', 'a2'])
   })
 
-  it('不传 selectable 时本页也确实不渲染复选框(D10 落地断言)', async () => {
+  // 评审 Minor 修正:原标题「不传 selectable 时…」措辞不准——本页模板其实**显式**传了
+  // `:selectable="false"`(D10:不接多选),不是"没传"。这条断言真正验证的是 D10 语义本身
+  // (复选框确实没渲染出来),标题改成反映这一点。
+  it('D10 落地:本页显式传 selectable=false,复选框确实不渲染', async () => {
     const { w } = await mountView('/photos/places/7')
     expect(w.find('.tile-check').exists()).toBe(false)
   })
