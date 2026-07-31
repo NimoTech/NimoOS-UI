@@ -228,7 +228,12 @@ async function downloadZip(): Promise<void> {
     // `localStorage.getItem('access_token')`(main.ts:24 的 getToken 回调),全仓 grep 不到
     // 任何 'Bearer' 字面量。后端 `strings.TrimPrefix(auth, "Bearer ")` 对裸 token 是恒等的,
     // 两种都能过,但这里与共享包保持同一口径(删码验证⑤的主体)。
-    const res = await fetch(url, { headers: { Authorization: localStorage.getItem('access_token') ?? '' } })
+    // fix round 1 · C1(Critical,已回源实证):这个端点 `route/v1/smartviews.go:34` 只注册了
+    // `g.POST(...)`,全仓 grep `"/smart-views/:id/export"` 只有这一条、没有 GET 版本——
+    // `fetch` 默认 GET 会被 Echo 拒成 405(不是 401,但同样 100% 不通)。必须显式
+    // `method: 'POST'`。不需要 body——handler(`smartviews.go:208-215`)优先取 query 的
+    // `format`,`exportSmartViewUrl` 已经把 `?format=zip` 拼进 URL 里了。
+    const res = await fetch(url, { method: 'POST', headers: { Authorization: localStorage.getItem('access_token') ?? '' } })
     if (!res.ok) throw new Error(`export ${res.status}`)
     const blob = await res.blob()
     const href = URL.createObjectURL(blob)
@@ -349,6 +354,12 @@ function onTileClick(p: Photo): void {
             <span class="sv-last-updated">{{ t('photosSvLastUpdatedTime', { time: lastUpdated }) }}</span>
           </div>
 
+          <!-- fix round 1 · M2:Vue2 :10-11 两层容器(sv-detail-layout grid 1fr/320px +
+               sv-detail-main),第一版漏建,`.sv-detail-side` 自创了一个挂在网格下面的空壳
+               margin——T8 一填内容就会出现在网格下方而不是右栏,是一次可预见的结构返工。
+               本轮补建,aside 内部仍是 T8 的空挂载点,不提前实现内容。 -->
+          <div class="sv-detail-layout">
+          <div class="sv-detail-main">
           <div class="sv-header">
             <div style="flex:1;min-width:0">
               <h1>
@@ -409,6 +420,7 @@ function onTileClick(p: Photo): void {
                   {{ t('photosSvExport') }}
                   <svg width="9" height="9" viewBox="0 0 12 12" fill="none" style="margin-left:2px;opacity:0.85"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 </button>
+                <Transition name="sv-menu">
                 <div v-if="exportOpen" ref="exportMenuRef" class="sv-export-menu" data-test="sv-export-menu">
                   <button type="button" class="sv-export-item" data-test="sv-export-zip" @click="downloadZip">
                     <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
@@ -425,6 +437,7 @@ function onTileClick(p: Photo): void {
                     </div>
                   </button>
                 </div>
+                </Transition>
               </div>
 
               <div ref="moreWrapRef" style="position:relative">
@@ -434,6 +447,7 @@ function onTileClick(p: Photo): void {
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
                 </button>
+                <Transition name="sv-menu">
                 <div v-if="moreOpen" class="sv-export-menu sv-more-menu" data-test="sv-more-menu">
                   <button type="button" class="sv-export-item" data-test="sv-more-rename" @click="startTitleEdit">
                     <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
@@ -459,6 +473,7 @@ function onTileClick(p: Photo): void {
                     </div>
                   </button>
                 </div>
+                </Transition>
               </div>
             </div>
           </div>
@@ -491,10 +506,12 @@ function onTileClick(p: Photo): void {
               <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
             </div>
           </div>
+          </div>
 
           <!-- T8 挂载点:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。
                本任务只留空壳,不渲染任何内容。 -->
           <aside class="sv-detail-side" data-test="sv-side-mount" />
+          </div>
         </template>
       </main>
     </div>
@@ -512,6 +529,7 @@ function onTileClick(p: Photo): void {
     <!-- 删除确认弹窗(结构规格 9,照搬 Vue2 :239-253 的内容与文案;类名不沿用 Vue2 借用
          灯箱的 lb-confirm-* 命名——本仓 PhotoLightbox.vue 已有一份同名但作用域不同的样式,
          这里另起 sv-confirm-* 避免误导读者以为是同一处,视觉 1:1 移植)。 -->
+    <Transition name="sv-confirm">
     <div v-if="confirmDeleteOpen" class="sv-confirm-scrim" data-test="sv-confirm-scrim" @click.self="closeDeleteConfirm">
       <div class="sv-confirm-panel">
         <div class="sv-confirm-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
@@ -526,6 +544,7 @@ function onTileClick(p: Photo): void {
         </div>
       </div>
     </div>
+    </Transition>
   </AreaShell>
 </template>
 
@@ -598,9 +617,19 @@ function onTileClick(p: Photo): void {
 .sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
 .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
-/* 变体自带 :hover(cssCascade 断言胜出选择器归属这条,不是基类 .sv-action-btn:hover)。 */
+/* fix round 1(评审折中方案,控制器裁定):Vue2 `[data-primary="true"]` 是渐变
+   `linear-gradient(135deg, accent, accent-hi)`——本仓没有 `--accent-hi`(全局约定 §33),
+   改成 `var(--accent)` 实底 + hover `filter: brightness(1.08)`,先例见
+   `PhotosPersonDetail.vue:1142`/`ClusterActionDialog.vue:331-332` 等。DOM 上仍保留
+   `data-primary="true"` 属性(与 Vue2 一致),但样式选择器改用伴生类
+   `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。 */
 .sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
-.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
+/* fix round 1(第一版曾用单类 `.sv-action-btn-primary:hover`,被评审判定"更弱"——那与基类
+   `.sv-action-btn:hover` 同为 (0,2,0),平局时只靠书写顺序才不被基类的灰底盖成白底白字,
+   属于本期"hover 硬约束"明确要防的脆弱写法)。改成复合选择器
+   `.sv-action-btn.sv-action-btn-primary:hover`,真实优先级 (0,3,0),结构上稳赢基类的
+   (0,2,0),不依赖行序——`cssCascade.ts` 的 `classSpecificity` 按类/伪类计数,算出来正好是 3。 */
+.sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
 
 /* ── 导出 / more 菜单(scss:407-452)── */
 .sv-export-menu {
@@ -621,10 +650,19 @@ function onTileClick(p: Photo): void {
 .sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
 .sv-export-desc { font-size: 11px; color: var(--fg-muted); margin-top: 3px; line-height: 1.35; }
 .sv-export-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
-/* Vue2 :119-123 三处内联的那个珊瑚红字面量 → --remove-fg 家族。变体自带 :hover(cssCascade 断言)。 */
+/* Vue2 :119-123 三处内联的那个珊瑚红字面量 → --remove-fg 家族。 */
 .sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
 .sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
-.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
+/* fix round 1:同上 .sv-action-btn-primary 的道理——复合选择器 (0,3,0) 稳赢基类
+   `.sv-export-item:hover` 的 (0,2,0),不靠书写顺序。 */
+.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
+
+/* fix round 1 · I2:Vue2 :79/:102 各包一层 `<transition name="sv-menu">`,规则在
+   scss:454-455(opacity 0.14s + translateY(-4px) scale(0.97),140ms 缩放淡入)。
+   Vue3 用 `-enter-from`/`-leave-to`(不是 Vue2 的 `-enter`),照本文件已有的
+   `.sv-toast-fade-*` 既定写法。 */
+.sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
+.sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
 /* ── 两段网格(scss:480-525)── */
 .sv-section-head { padding: 18px 32px 8px; display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
@@ -636,14 +674,31 @@ function onTileClick(p: Photo): void {
 .sv-grid-photos-recent { padding-bottom: 18px; }
 .sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
 .sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.sv-grid-photos .tile.recent::after { content: ""; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: inherit; pointer-events: none; }
+/* fix round 1 · I3:Vue2 scss:506-513 在 accent 边框内侧还叠一圈半透明黑色内阴影,作用是
+   在浅色照片上把 accent 环压出对比(纯白照片上单靠 2px accent 边框太容易被背景冲淡)。
+   `color-mix(in srgb, black 40%, transparent)` 复刻同样的暗度,不写字面 hex/rgb 函数——
+   `black` 关键字加 color-mix 有本仓先例 `PhotosTrash.vue:405`。 */
+.sv-grid-photos .tile.recent::after {
+  content: ""; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, black 40%, transparent);
+}
 .sv-grid-photos .new-tag {
   position: absolute; top: 6px; left: 6px; padding: 2px 7px; border-radius: 99px; background: var(--accent);
   /* --on-accent 唯一合法场景:底色是 var(--accent) 饱和实底。 */
   color: var(--on-accent); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
 }
 
-.sv-detail-side { margin: 20px 32px 0; min-height: 4px; }
+/* fix round 1 · M2:Vue2 scss:161-166(sv-detail-layout)+ :167-172(sv-detail-main)+
+   :187-194(sv-detail-side 基础外观,不含滚动条美化——那部分留给 T8 真正引入可滚动内容
+   时再决定)。--line → --divider、--surface-1 → --panel-bg-solid(先例
+   PlaceDetailPanel.vue:38/312:同类"内容旁的常驻实底侧栏",不用 --popup-bg——那是浮层专用)。 */
+.sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
+.sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
+.sv-detail-side {
+  border-left: 1px solid var(--divider); background: var(--panel-bg-solid);
+  overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
+}
 
 /* ── 导出结果浮条(scss:458-476)── */
 .sv-toast {
@@ -685,9 +740,17 @@ function onTileClick(p: Photo): void {
   color: var(--remove-fg); background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
 }
 .sv-confirm-ok.danger:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
+/* fix round 1 · I2:Vue2 :239 包 `<transition name="lb-confirm">`,规则在
+   photos.scss:702-707(opacity + scale(0.95),200ms)。类名不沿用 `lb-confirm`(同上方
+   scrim/panel 命名理由,避免与 PhotoLightbox.vue 已有的同名 transition 混淆)。 */
+.sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
-/* ≤768px:侧栏已收抽屉,布局单列(本区既定形态)。 */
+/* ≤768px:侧栏已收抽屉,布局单列(本区既定形态);详情页自己的两列(内容/右栏)同样
+   塌成单列,右栏排到内容下方。 */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
+  .sv-detail-layout { grid-template-columns: 1fr; }
+  .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
 }
 </style>

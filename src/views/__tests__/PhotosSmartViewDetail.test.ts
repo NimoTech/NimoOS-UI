@@ -173,6 +173,40 @@ describe('数据源三态', () => {
   })
 })
 
+// fix round 1 · M5(结构规格 2:.sv-detail-bar 之前全无用例)────────────────────
+describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
+  it('evaluatedAt 非空 → photosSvLastUpdatedTime 渲染出 relTime 结果', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '2026-07-31T00:00:00Z' })])
+    const bar = w.find('.sv-detail-bar')
+    // 用中文文案的固定前缀断言(值本身由 relTime,一个已单测过的纯函数负责,这里只钉住
+    // "确实套用了 photosSvLastUpdatedTime 这个键、不是恒定的 '—'")。
+    expect(bar.text()).toContain(zh.photosSvLastUpdatedTime.split('{time}')[0].trim())
+    expect(bar.find('.sv-last-updated').text()).not.toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
+  })
+
+  it('evaluatedAt 为空 → 兜底显示 "—"(照搬 Vue2 :332 的兜底)', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '' })])
+    expect(w.find('.sv-last-updated').text()).toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
+  })
+})
+
+// fix round 1 · M5(brief §3 明文要求的挂载点断言,原版 grep 0 命中)──────────────
+describe('T7/T8 挂载点存在(本任务只留空壳,断言"占位存在"而非内容)', () => {
+  it('sv-cond-editor-mount(T7:加条件弹层 + 条件 chip)存在且为空壳', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    const mount = w.find('[data-test="sv-cond-editor-mount"]')
+    expect(mount.exists()).toBe(true)
+    expect(mount.element.children.length).toBe(0)
+  })
+
+  it('sv-side-mount(T8:右栏阈值/设置/统计/活动流)存在且为空壳', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    const mount = w.find('[data-test="sv-side-mount"]')
+    expect(mount.exists()).toBe(true)
+    expect(mount.element.children.length).toBe(0)
+  })
+})
+
 // ── onMounted 加载顺序 ───────────────────────────────────────────────────
 describe('onMounted 加载顺序', () => {
   it('listLoaded 为假时:先 fetchSmartViews(listSmartViews)再 loadDetail(getSmartViewAssets)', async () => {
@@ -417,6 +451,9 @@ describe('导出 ZIP', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const [url, opts] = fetchSpy.mock.calls[0]
     expect(String(url)).toContain('/export')
+    // fix round 1 · C1(Critical):这个端点只注册了 POST(route/v1/smartviews.go:34),
+    // 默认 GET 会被 Echo 拒成 405——不带这条断言,方法写错也测不出来(评审的反向变异实测过)。
+    expect((opts as { method?: string }).method).toBe('POST')
     expect((opts as { headers: Record<string, string> }).headers.Authorization).toBe('tok-123')
     expect(hrefSpy).not.toHaveBeenCalled()
     expect(createObjectURL).toHaveBeenCalledTimes(1)
@@ -629,6 +666,69 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('min-width: 32px')
     expect(rule?.body).toContain('justify-content: center')
   })
+
+  // fix round 1 · M2:两列布局容器(scss:161-166)。
+  it('.sv-detail-layout 是 grid-template-columns: 1fr 320px(Vue2 两列布局)', () => {
+    const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-detail-layout')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('grid-template-columns: 1fr 320px')
+  })
+
+  it('≤768px 媒体查询里 .sv-detail-layout 塌成单列(grid-template-columns: 1fr)', () => {
+    const style = extractStyleBlock(photosSmartViewDetailRaw)
+    const m = /@media \(max-width: 768px\)\s*\{([\s\S]*)\}\s*$/.exec(style)
+    expect(m).not.toBeNull()
+    const rules = parseCssRules(m![1])
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-detail-layout')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('grid-template-columns: 1fr')
+  })
+
+  // fix round 1 · I2:两个菜单 + 删除确认弹窗的 transition,Vue3 用 `-enter-from`(不是
+  // Vue2 的 `-enter`)。
+  it('.sv-menu-enter-from / .sv-menu-leave-to 保留 Vue2 scss:454-455 的 opacity+translateY+scale', () => {
+    const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
+    const rule = rules.find((r) => r.selectors.includes('.sv-menu-enter-from') && r.selectors.includes('.sv-menu-leave-to'))
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('opacity: 0')
+    expect(rule?.body).toContain('translateY(-4px) scale(0.97)')
+  })
+
+  it('.sv-confirm-enter-from / .sv-confirm-leave-to 保留 Vue2 photos.scss:705-707 的 opacity+scale', () => {
+    const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
+    const rule = rules.find((r) => r.selectors.includes('.sv-confirm-enter-from') && r.selectors.includes('.sv-confirm-leave-to'))
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('opacity: 0')
+    expect(rule?.body).toContain('scale(0.95)')
+  })
+
+  // fix round 1 · I3:浅色照片上的 accent 环内侧内阴影(scss:506-513)。
+  it('.sv-grid-photos .tile.recent::after 保留 Vue2 的 inset box-shadow', () => {
+    const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-grid-photos .tile.recent::after')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('box-shadow: inset 0 0 0 2px')
+  })
+})
+
+// fix round 1 · I2(菜单/弹窗真的套了 <Transition>,不是样式定义了但模板没用上)────
+describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是样式块躺尸)', () => {
+  it('导出菜单 / more 菜单 的 data-test 标记都出现在 <Transition name="sv-menu"> 与其配对的 </Transition> 之间', () => {
+    // 用配对计数而不是简单 indexOf 区间——模板里有两个 sv-menu Transition,分别包导出菜单与
+    // more 菜单,逐个核对各自的 data-test 落在“离它最近的那对 sv-menu 开闭标签”之间。
+    const menuBlocks = [...photosSmartViewDetailRaw.matchAll(/<Transition name="sv-menu">([\s\S]*?)<\/Transition>/g)]
+    expect(menuBlocks.length).toBe(2)
+    const combined = menuBlocks.map((m) => m[1]).join('\n')
+    expect(combined).toContain('data-test="sv-export-menu"')
+    expect(combined).toContain('data-test="sv-more-menu"')
+  })
+
+  it('删除确认弹窗的 sv-confirm-scrim 出现在 <Transition name="sv-confirm"> 内', () => {
+    const m = /<Transition name="sv-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
+    expect(m).not.toBeNull()
+    expect(m![1]).toContain('data-test="sv-confirm-scrim"')
+  })
 })
 
 // ── cssCascade:hover 归属变体 ─────────────────────────────────────────────
@@ -638,6 +738,10 @@ describe('样式:hover 级联归属变体', () => {
     const win = winningHoverBackground(style, ['sv-action-btn', 'sv-action-btn-primary'])
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('sv-action-btn-primary')
+    // fix round 1(评审折中方案):必须是真实优先级 3(复合选择器 `.a.b:hover`)取胜,不是
+    // 优先级打平后靠源码顺序苟活——specificity===3 才说明两个类都算进了同一条选择器里
+    // (单类 `.sv-action-btn-primary:hover` 只会算出 2,与基类同级)。
+    expect(win.specificity).toBe(3)
   })
 
   it('.sv-export-item / .sv-export-item-danger(删除项)hover 胜出规则含 :hover 且归属变体', () => {
@@ -645,6 +749,7 @@ describe('样式:hover 级联归属变体', () => {
     const win = winningHoverBackground(style, ['sv-export-item', 'sv-export-item-danger'])
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('sv-export-item-danger')
+    expect(win.specificity).toBe(3)
   })
 })
 
