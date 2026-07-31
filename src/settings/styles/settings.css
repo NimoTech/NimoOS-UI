@@ -237,3 +237,17 @@
   color: var(--remove-fg);
   font-size: 12px;
 }
+
+/* 品牌 logo 以 <img> 引入,资源内是近黑 + 白双色(CLAUDE.md 主题例外第 1 类:
+ * 品牌识别、皮肤无关,不许改美术资源)。默认暗色主题下近黑不可见,
+ * 所以在**样式侧**反相,不动 .svg 本身。
+ * theme-exception: 品牌美术资源的可见性补偿,非配色语义,无 token 可用。 */
+.set-logo {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 auto;
+  filter: invert(1);
+}
+:root[data-theme='light'] .set-logo {
+  filter: none;
+}
