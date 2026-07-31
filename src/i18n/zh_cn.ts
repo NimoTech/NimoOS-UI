@@ -1241,4 +1241,8 @@ export default {
   photosSvNPhotosMbMb: '{n} 张照片 · 约 {mb} MB',
   photosSvRelHours: '{n} 小时前',
   photosSvRelMinutes: '{n} 分钟前',
+  // P8 接线点:智能视图列表页 AI 横幅里「设置 · AI 行为」目前渲染成不可点的 <span
+  // aria-disabled="true">,这个 title 说明原因。P8 建好设置页后把该 span 换成真链接/
+  // 路由跳转,这个键可保留复用为 tooltip,或按 P8 实际交互删除。
+  photosSvSettingsPending: '设置页待迁移(P8)',
 }

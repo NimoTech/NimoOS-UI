@@ -32,6 +32,9 @@ const NAV = [
   { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums' },
   { id: 'people', route: '/photos/people', labelKey: 'photosPeople' },
   { id: 'places', route: '/photos/places', labelKey: 'photosPlaces' },
+  // SP7-P7a-T4:插在 places 之后、favorites 之前,照 Vue2 PhotosSidebar.vue:114-118 的顺序
+  // (library / albums / people / places / smart)。7 项(原 6 项),favorites/trash 下标各 +1。
+  { id: 'smart-views', route: '/photos/smart-views', labelKey: 'photosSvSmartViews' },
   { id: 'favorites', route: '/photos/favorites', labelKey: 'photosFavorites' },
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
 ]

@@ -1248,4 +1248,6 @@ export default {
   photosSvNPhotosMbMb: '{n} photos · ~{mb} MB',
   photosSvRelHours: '{n}h ago',
   photosSvRelMinutes: '{n}m ago',
+  // P8 wiring point: see the matching zh_cn.ts comment.
+  photosSvSettingsPending: 'Settings page coming in P8',
 }

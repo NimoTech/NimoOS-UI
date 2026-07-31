@@ -538,12 +538,14 @@ describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被�
 })
 
 describe('路由 + 侧栏(只追加,不重排)', () => {
-  it('侧栏 NAV 顺序为 library, albums, people, places, favorites, trash', async () => {
+  // SP7-P7a-T4:NAV 新增 smart-views,插在 places 之后、favorites 之前——回归更新
+  // (PhotosSidebar.vue 改动的必然连带,不在本文件所属任务范围内,顺手同步断言)。
+  it('侧栏 NAV 顺序为 library, albums, people, places, smart-views, favorites, trash', async () => {
     const { w } = await mountView()
     const ids = w.findAll('.side-item').map((n) => n.find('.side-name').text())
     // 侧栏渲染的是 i18n 标签文字,直接比对文案序列(与 photosLibrary/.../photosTrash 的
     // zh_CN 字典值一一对应),不需要额外解析源码——这就是"侧栏真的按此顺序渲染"的直接证据。
-    expect(ids).toEqual(['照片库', '相册', '人物', '地点', '收藏', '最近删除'])
+    expect(ids).toEqual(['照片库', '相册', '人物', '地点', '智能视图', '收藏', '最近删除'])
   })
 })
 

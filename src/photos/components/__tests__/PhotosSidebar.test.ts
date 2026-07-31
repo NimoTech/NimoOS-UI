@@ -23,6 +23,7 @@ const testRouter = createRouter({
     { path: '/photos/people', name: 'photos-people', component: { template: '<div/>' } },
     { path: '/photos/people/:id', name: 'photos-person-detail', component: { template: '<div/>' } },
     { path: '/photos/places', name: 'photos-places', component: { template: '<div/>' } },
+    { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
   ],
 })
 
@@ -38,18 +39,20 @@ describe('PhotosSidebar', () => {
     await testRouter.isReady()
   })
 
-  // P6a-T11:NAV 新增 places,插在 people 之后、favorites 之前——原本 5 项变 6 项,
-  // favorites/trash 的下标各 +1(原 3/4 → 现 4/5)。
-  it('渲染六条导航项(照片库/相册/人物/地点/收藏/最近删除),当前路由高亮', async () => {
+  // SP7-P7a-T4:NAV 新增 smart-views,插在 places 之后、favorites 之前——原本 6 项变 7 项,
+  // favorites/trash 的下标各 +1(原 4/5 → 现 5/6)。顺序照 Vue2 PhotosSidebar.vue:114-118
+  // (library / albums / people / places / smart)。
+  it('渲染七条导航项(照片库/相册/人物/地点/智能视图/收藏/最近删除),当前路由高亮', async () => {
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items).toHaveLength(6)
+    expect(items).toHaveLength(7)
     expect(items[0].text()).toContain('照片库')
     expect(items[1].text()).toContain('相册')
     expect(items[2].text()).toContain('人物')
     expect(items[3].text()).toContain('地点')
-    expect(items[4].text()).toContain('收藏')
-    expect(items[5].text()).toContain('最近删除')
+    expect(items[4].text()).toContain('智能视图')
+    expect(items[5].text()).toContain('收藏')
+    expect(items[6].text()).toContain('最近删除')
     // 当前在 /photos,仅照片库项 active
     expect(items[0].classes()).toContain('active')
     expect(items[1].classes()).not.toContain('active')
@@ -57,6 +60,7 @@ describe('PhotosSidebar', () => {
     expect(items[3].classes()).not.toContain('active')
     expect(items[4].classes()).not.toContain('active')
     expect(items[5].classes()).not.toContain('active')
+    expect(items[6].classes()).not.toContain('active')
   })
 
   it('/photos/favorites 时仅 favorites 项 active,library 不 active', async () => {
@@ -68,8 +72,9 @@ describe('PhotosSidebar', () => {
     expect(items[1].classes()).not.toContain('active') // albums 不 active
     expect(items[2].classes()).not.toContain('active') // people 不 active
     expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).toContain('active') // favorites active
-    expect(items[5].classes()).not.toContain('active') // trash 不 active
+    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
+    expect(items[5].classes()).toContain('active') // favorites active
+    expect(items[6].classes()).not.toContain('active') // trash 不 active
   })
 
   it('/photos/albums 时仅 albums 项 active', async () => {
@@ -81,8 +86,9 @@ describe('PhotosSidebar', () => {
     expect(items[1].classes()).toContain('active') // albums active
     expect(items[2].classes()).not.toContain('active') // people 不 active
     expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // favorites 不 active
-    expect(items[5].classes()).not.toContain('active') // trash 不 active
+    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
+    expect(items[5].classes()).not.toContain('active') // favorites 不 active
+    expect(items[6].classes()).not.toContain('active') // trash 不 active
   })
 
   it('/photos/albums/7(三级路径,相册详情)时仍只有 albums 项 active,library 不误伤', async () => {
@@ -96,6 +102,7 @@ describe('PhotosSidebar', () => {
     expect(items[3].classes()).not.toContain('active')
     expect(items[4].classes()).not.toContain('active')
     expect(items[5].classes()).not.toContain('active')
+    expect(items[6].classes()).not.toContain('active')
   })
 
   it('/photos/people 时仅 people 项 active', async () => {
@@ -107,8 +114,9 @@ describe('PhotosSidebar', () => {
     expect(items[1].classes()).not.toContain('active') // albums 不 active
     expect(items[2].classes()).toContain('active') // people active
     expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // favorites 不 active
-    expect(items[5].classes()).not.toContain('active') // trash 不 active
+    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
+    expect(items[5].classes()).not.toContain('active') // favorites 不 active
+    expect(items[6].classes()).not.toContain('active') // trash 不 active
   })
 
   it('/photos/people/7(三级路径,人物详情)时仍只有 people 项 active,library 不误伤——核心回归点', async () => {
@@ -122,6 +130,7 @@ describe('PhotosSidebar', () => {
     expect(items[3].classes()).not.toContain('active')
     expect(items[4].classes()).not.toContain('active')
     expect(items[5].classes()).not.toContain('active')
+    expect(items[6].classes()).not.toContain('active')
   })
 
   it('/photos/places 时仅 places 项 active', async () => {
@@ -133,8 +142,35 @@ describe('PhotosSidebar', () => {
     expect(items[1].classes()).not.toContain('active') // albums 不 active
     expect(items[2].classes()).not.toContain('active') // people 不 active
     expect(items[3].classes()).toContain('active') // places active
-    expect(items[4].classes()).not.toContain('active') // favorites 不 active
-    expect(items[5].classes()).not.toContain('active') // trash 不 active
+    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
+    expect(items[5].classes()).not.toContain('active') // favorites 不 active
+    expect(items[6].classes()).not.toContain('active') // trash 不 active
+  })
+
+  // SP7-P7a-T4:下标 4 是 smart-views(brief 硬要求同时断言"7 个条目"与"smart-views 在下标 4")。
+  it('smart-views 在下标 4,且 /photos/smart-views 时仅该项 active', async () => {
+    await testRouter.push('/photos/smart-views')
+    await testRouter.isReady()
+    const w = mountSidebar()
+    const items = w.findAll('.side-item')
+    expect(items).toHaveLength(7)
+    expect(items[4].text()).toContain('智能视图')
+    expect(items[0].classes()).not.toContain('active') // library 不 active
+    expect(items[1].classes()).not.toContain('active') // albums 不 active
+    expect(items[2].classes()).not.toContain('active') // people 不 active
+    expect(items[3].classes()).not.toContain('active') // places 不 active
+    expect(items[4].classes()).toContain('active') // smart-views active
+    expect(items[5].classes()).not.toContain('active') // favorites 不 active
+    expect(items[6].classes()).not.toContain('active') // trash 不 active
+  })
+
+  it('点击 smart-views 项(下标 4)push 到 /photos/smart-views', async () => {
+    // beforeEach 已把 testRouter 停在 /photos——从别的路由点进来才是有意义的导航断言。
+    const w = mountSidebar()
+    const items = w.findAll('.side-item')
+    await items[4].trigger('click')
+    await flushPromises()
+    expect(testRouter.currentRoute.value.path).toBe('/photos/smart-views')
   })
 
   it('存储条:按 indexStatus 渲染人类可读用量与百分比', () => {

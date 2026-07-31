@@ -60,4 +60,23 @@ describe('router', () => {
     expect(placesIdx).toBeGreaterThan(peopleDetailIdx)
     expect(loginIdx).toBeGreaterThan(placesIdx)
   })
+
+  // SP7-P7a-T4:/photos/smart-views 命中真实注册的路由(用产线单例 router.resolve 真解析,
+  // 不是 spy push——同上面每一条既有路由断言的既定写法)。
+  it('/photos/smart-views 命中 photos-smart-views 路由', () => {
+    const m = router.resolve('/photos/smart-views')
+    expect(m.name).toBe('photos-smart-views')
+  })
+
+  // 只追加,不重排——新路由必须夹在 /photos/places/:key 与 /login 之间,且两者本身的
+  // 相对顺序不能被打乱(同上 P6a-T11 的既有手法,行序比较而非 getRoutes() 下标——vue-router 4
+  // 会把动态段路由排到静态之前,P6b-T9 实测过,下标比较会得出错误结论)。
+  it('/photos/smart-views 追加在 /photos/places/:key 之后、/login 之前(只追加,不重排)', () => {
+    const placesKeyIdx = routerIndexRaw.indexOf(`{ path: '/photos/places/:key'`)
+    const smartViewsIdx = routerIndexRaw.indexOf(`{ path: '/photos/smart-views'`)
+    const loginIdx = routerIndexRaw.indexOf(`{ path: '/login'`)
+    expect(placesKeyIdx).toBeGreaterThan(-1)
+    expect(smartViewsIdx).toBeGreaterThan(placesKeyIdx)
+    expect(loginIdx).toBeGreaterThan(smartViewsIdx)
+  })
 })
