@@ -191,14 +191,54 @@ describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
 })
 
 // fix round 1 · M5(brief §3 明文要求的挂载点断言,原版 grep 0 命中)──────────────
-describe('T7/T8 挂载点存在(本任务只留空壳,断言"占位存在"而非内容)', () => {
-  it('sv-cond-editor-mount(T7:加条件弹层 + 条件 chip)存在且为空壳', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    const mount = w.find('[data-test="sv-cond-editor-mount"]')
-    expect(mount.exists()).toBe(true)
-    expect(mount.element.children.length).toBe(0)
+// P7a-T7:sv-cond-editor-mount 的 stub 断言("空壳,children.length===0")在这里升级成
+// 真组件断言——SmartViewConditionEditor 自己的结构/交互/cssCascade 覆盖已在
+// SmartViewConditionEditor.test.ts,这里只钉住"宿主接线对不对":conds 从 sv.conds 来、
+// add/remove 翻译成 store.updateSmartView(id, { conds: [...] }) 的正确形状、busy 转发
+// store.patchBusy。
+describe('T7:加条件弹层 + 条件 chip(挂载点兑现为真组件)', () => {
+  it('sv-cond-editor-mount 渲染 SmartViewConditionEditor,chip 数量与 sv.conds 一致', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+    const mountEl = w.find('[data-test="sv-cond-editor-mount"]')
+    expect(mountEl.exists()).toBe(true)
+    expect(mountEl.findAll('[data-test="sv-cond-chip"]').length).toBe(2)
   })
 
+  it('点 chip 删除 → store.updateSmartView 收到过滤后的 conds(condsRaw)', async () => {
+    svc.photos.updateSmartView.mockResolvedValue(null)
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+    await w.findAll('[data-test="sv-cond-chip"]')[0].trigger('click')
+    await flushPromises()
+    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['place: Japan'] })
+  })
+
+  it('弹层输入 + Enter → store.updateSmartView 收到追加后的 conds(condsRaw)', async () => {
+    svc.photos.updateSmartView.mockResolvedValue(null)
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
+    await w.find('[data-test="sv-cond-add-btn"]').trigger('click')
+    const input = w.find<HTMLInputElement>('[data-test="sv-cond-pop-input"]')
+    await input.setValue('object: dog')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['scene: sunset', 'object: dog'] })
+  })
+
+  it('store.patchBusy 期间转发为 SmartViewConditionEditor 的 busy=true(primary 按钮禁用)', async () => {
+    let resolveFn: ((v: unknown) => void) | undefined
+    svc.photos.updateSmartView.mockImplementation(() => new Promise((res) => { resolveFn = res }))
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
+    await w.find('[data-test="sv-cond-add-btn"]').trigger('click')
+    const input = w.find<HTMLInputElement>('[data-test="sv-cond-pop-input"]')
+    await input.setValue('object: dog')
+    await input.trigger('keydown.enter')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-cond-submit"]').attributes('disabled')).toBeDefined()
+    resolveFn?.(null)
+    await flushPromises()
+  })
+})
+
+describe('T8 挂载点存在(本任务只留空壳,断言"占位存在"而非内容)', () => {
   it('sv-side-mount(T8:右栏阈值/设置/统计/活动流)存在且为空壳', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     const mount = w.find('[data-test="sv-side-mount"]')

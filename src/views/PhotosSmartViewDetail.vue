@@ -44,6 +44,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import SmartViewConditionEditor from '../photos/components/SmartViewConditionEditor.vue'
 import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
 import { useToast } from '../stores/toast'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -144,6 +145,33 @@ async function togglePaused(): Promise<void> {
 }
 function onPillKeydown(e: KeyboardEvent): void {
   if (e.key === 'Enter') void togglePaused()
+}
+
+// ── T7 接线:条件编辑器 add/remove → store.updateSmartView(结构规格 T7)───────────
+// SmartViewConditionEditor 自己不碰 store,只发 add/remove;这里负责把它翻译成
+// store.updateSmartView(id, { conds: [...] })。照 Vue2 removeCond/submitCond/
+// addCondSuggestion(:445-477)的请求体形状——`conds` 整体替换,不是增量 patch。
+// 不需要额外 .then(loadDetail):§7e-2 的 byId(id) 让 sv 计算属性在 store 数组项更新后
+// 自动跟着变,SmartViewConditionEditor 的 conds prop 立刻拿到新值。
+async function addCond(cond: string): Promise<void> {
+  const s = sv.value
+  if (!s) return
+  try {
+    await store.updateSmartView(s.id, { conds: [...s.conds, cond] })
+  } catch (e) {
+    console.error('[photos-smartviews] addCond', e)
+    toast.show(t('photosSvUpdateFailed'))
+  }
+}
+async function removeCond(cond: string): Promise<void> {
+  const s = sv.value
+  if (!s) return
+  try {
+    await store.updateSmartView(s.id, { conds: s.conds.filter((c) => c !== cond) })
+  } catch (e) {
+    console.error('[photos-smartviews] removeCond', e)
+    toast.show(t('photosSvUpdateFailed'))
+  }
 }
 
 // ── header 统计四格(结构规格 3)──────────────────────────────────────────────
@@ -378,9 +406,12 @@ function onTileClick(p: Photo): void {
                 ><span class="live-dot" /> {{ t(paused ? 'photosSvPaused' : 'photosSvLive') }}</span>
               </h1>
 
-              <!-- T7 挂载点:加条件弹层 + 条件 chip 列表(SmartViewConditionEditor)。
-                   本任务只留空壳,不渲染 sv.conds。 -->
-              <div class="sv-header-conds" data-test="sv-cond-editor-mount" />
+              <div class="sv-header-conds" data-test="sv-cond-editor-mount">
+                <SmartViewConditionEditor
+                  :conds="sv.conds" :busy="store.patchBusy"
+                  @add="addCond" @remove="removeCond"
+                />
+              </div>
 
               <div class="sv-header-stats">
                 <span><b data-test="sv-stat-count">{{ fmtNum(sv.count) }}</b> {{ t('photosSvPhotosCount') }}</span>
@@ -601,7 +632,8 @@ function onTileClick(p: Photo): void {
 .live-pill.paused-pill .live-dot { background: var(--dem-fg); box-shadow: 0 0 6px var(--dem-fg); animation: none; }
 @keyframes sv-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-.sv-header-conds { min-height: 4px; }
+/* T7 兑现:Vue2 scss:252 的容器布局(T6 只留了 min-height 占位)。 */
+.sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; min-height: 4px; }
 
 .sv-header-stats { display: flex; gap: 20px; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .sv-header-stats b { color: var(--fg); font-weight: 600; }
