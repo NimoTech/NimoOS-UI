@@ -7,8 +7,13 @@
 // 见任务 brief:「本任务只做: state 里 Dashboard/topbar/Allowlist/Queue(parser
 // 半)/indexedFiles 五块 + toast + loadOverview + Jobs 五个 action + Allowlist
 // 四个 + setControl + IndexedFiles 五个。notes/wiki/distill 留给 T7」。
-// `export const DISTILL_JOBS_LIMIT = 500`(蓝本 :11)只被 T7 的 distill 组消费,
-// 本任务代码零处引用,故不在此提前声明 —— 由 T7 落地时加。
+// 【评审 R1 修正,2026-08-01】`export const DISTILL_JOBS_LIMIT = 500` 曾被误判为
+// 「本任务代码零处引用,归 T7」而漏掉。这个判断错了 —— 判据是任务 brief 的
+// **Interfaces 契约**(brief 第 11 行明文把它列进 T6 的 Produces)与**下游消费者**
+// (T7 brief `import { useKnowledgeStore, DISTILL_JOBS_LIMIT } from './knowledgeStore'`
+// 且断言里直接用到这个值),不是「这个任务自己的代码里有没有用到」。跨任务契约里
+// 点名要产出的东西缺了,下一个任务会直接编译不过。现补上,定义处见下方(紧邻
+// `fmtAgo` 之前,对应蓝本 :11 的位置)。
 //
 // 【取数口径】(K1,承 P2a/P3a/P3b/P4 第五次同一模具)—— Vue2 里 `api.xxx()` 返回
 // axios 原始响应,处处写 `resp.data`(如蓝本 :84 `stats.data`)。共享包
@@ -170,6 +175,14 @@ export interface IndexedFilesState {
   error: string | null
   filters: IndexedFileFilters
 }
+
+/**
+ * 蓝本 :9-11 —— 一次沉淀任务队列拉取的服务端上限,与视图共用同一个数字,让
+ * 「列表被截断」的判据(已加载行数 >= 这个上限)两边算的是同一件事。本批
+ * (T6)不消费它——沉淀队列(distillJobs)整组归 T7;T7 起 `import { ...,
+ * DISTILL_JOBS_LIMIT } from './knowledgeStore'` 使用。值与蓝本逐字一致(500)。
+ */
+export const DISTILL_JOBS_LIMIT = 500
 
 /** 蓝本 :60-69 —— 相对时间格式化,四档(0 值/分钟/小时/天)。 */
 export function fmtAgo(ms: number): string {

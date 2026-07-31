@@ -18,7 +18,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 const toastShow = vi.hoisted(() => vi.fn())
 vi.mock('../../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
 
-import { useKnowledgeStore, fmtAgo } from './knowledgeStore'
+import { useKnowledgeStore, fmtAgo, DISTILL_JOBS_LIMIT } from './knowledgeStore'
 
 // 后端实测形状(设计 §6.1)——**裸 body,不带 { data: … } 外壳**
 const STATS = { queue_depth: { pending: 338, running: 1, failed: 0, done: 9 },
@@ -218,5 +218,41 @@ describe('fmtAgo', () => {
     expect(fmtAgo(now - 3 * 3_600_000)).toBe('3 小时前')
     expect(fmtAgo(now - 50 * 3_600_000)).toBe('2 天前')
     vi.restoreAllMocks()
+  })
+})
+
+// 评审 R2(Important)—— 上面那条用例只在每档「中段」各取一个样本点,阈值本身
+// (`m<1`/`m<60`/`h<24`,knowledgeStore.ts:184-188)改错了也不会报红(探针实测:
+// 把 `h<24` 改成 `h<48` 后原用例 16/16 仍全绿)。治理文件 §9「A/B 二选一分支两侧
+// 都要有对照用例」——下面把「刚刚/分钟」「分钟/小时」「小时/天」三个切换点各自的
+// 两侧都钉住。
+describe('fmtAgo 边界(评审 R2 —— 每个切换点两侧各一条)', () => {
+  const now = 1_800_000_000_000
+
+  it('“刚刚”/分钟 边界:59_999ms(m=0)→ 刚刚;60_000ms(m=1)→ 1 分钟前', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    expect(fmtAgo(now - 59_999)).toBe('刚刚')
+    expect(fmtAgo(now - 60_000)).toBe('1 分钟前')
+    vi.restoreAllMocks()
+  })
+
+  it('分钟/小时 边界:59 分钟(m=59)→ 59 分钟前;60 分钟(m=60,=1 小时)→ 1 小时前', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    expect(fmtAgo(now - 59 * 60_000)).toBe('59 分钟前')
+    expect(fmtAgo(now - 60 * 60_000)).toBe('1 小时前')
+    vi.restoreAllMocks()
+  })
+
+  it('小时/天 边界:23 小时(h=23)→ 23 小时前;24 小时(h=24,=1 天)→ 1 天前', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    expect(fmtAgo(now - 23 * 3_600_000)).toBe('23 小时前')
+    expect(fmtAgo(now - 24 * 3_600_000)).toBe('1 天前')
+    vi.restoreAllMocks()
+  })
+})
+
+describe('DISTILL_JOBS_LIMIT(评审 R1)', () => {
+  it('与蓝本 knowledgeStore.js:11 同源,值为 500', () => {
+    expect(DISTILL_JOBS_LIMIT).toBe(500)
   })
 })
