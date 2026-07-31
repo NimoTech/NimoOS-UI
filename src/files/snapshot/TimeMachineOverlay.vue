@@ -74,8 +74,8 @@ function enterSnapshot() {
   emit('select', !missing && props.relPath ? `${root}/${props.relPath}` : root)
 }
 
-// 评审修复(Critical):这个 handler 挂在 document 上(需要不管焦点具体落在覆盖层内哪个
-// 子元素都能收到方向键/Esc/Enter),但这意味着叠在它之上的任何弹窗——典型如齿轮设置弹窗
+// 评审修复(Critical,第一轮):这个 handler 挂在 document 上(需要不管焦点具体落在覆盖层内
+// 哪个子元素都能收到方向键/Esc/Enter),但这意味着叠在它之上的任何弹窗——典型如齿轮设置弹窗
 // (reka-ui DialogContent,Teleport 到 document.body,不是 .tm-overlay 的 DOM 后代)——按键
 // 都会一并冒泡到这里:Esc 关设置弹窗的同时把时间机器也关了、备注框里按 Enter 变成"进入
 // 快照"、方向键输入框调数值的同时拨走了背后选中的快照。两道防线一起上(单独一道都不够):
@@ -86,8 +86,27 @@ function enterSnapshot() {
 // 只在 e.target 是真实 Element 时才做这两道判定:同目录测试沿用的
 // `document.dispatchEvent(...)` 写法里 target 就是 document 本身(不是 Element),这类
 // 合成事件本就没有"落在哪个元素上"这个信息,直接放行按原逻辑处理,与真实浏览器里
-// keyup 事件的 target 恒为某个具体元素(而不是 document)不矛盾。
-function onKeyup(e: KeyboardEvent) {
+// keydown 事件的 target 恒为某个具体元素(而不是 document)不矛盾。
+//
+// 评审复核(Critical,第二轮):上面两道防线挂在 **keyup** 上时仍然漏防。真实 reka 弹窗
+// 探针实测的时序——
+//   keydown: reka 的 DismissableLayer(vueuse onKeyStroke 默认监听 keydown)在这一刻就把
+//            设置弹窗关掉,并把焦点还回 .tm-overlay(FocusScope 卸载时 restoreFocus)。
+//   keyup:   同一次物理按键的 keyup 到达时,e.target 已经变成 rootEl 自己(因为焦点已经
+//            被上一步归还进来)——防线①(rootEl.contains(target))和防线②(不是 INPUT)
+//            对这个新 target 都会放行,于是这里又把时间机器自己也关掉了。
+// 根治办法:把监听整个从 keyup 换成 keydown。keydown 那一刻,事件源还是设置弹窗自己的
+// DialogContent(Teleport 到 body,不是 rootEl 的后代),防线①能正确拦下;reka 自己的
+// keydown 监听器晚于我们(document 早于 window 收到冒泡)处理 Escape,只关它自己的弹窗,
+// 不会再有第二次"迟到的" keyup 把我们也带着关掉。
+//
+// 顺带处理复核点名的既有隐患:焦点落在底栏按钮(取消/进入)上按 Enter 时,浏览器会把
+// Enter 键的默认动作(点击这个 button)当成 keydown 的一部分触发——如果这里的 Enter 分支
+// 还继续往下执行 enterSnapshot(),就会和按钮自己的 @click 处理器各发一次(例如聚焦在
+// "取消"按钮上按 Enter,会同时 emit close 又 emit select)。BUTTON 元素自己已经会响应
+// Enter,这里对 BUTTON 目标直接不处理 Enter,交给原生 click 做唯一那一件事;Escape/方向键
+// 不受影响(它们不会触发按钮的原生 click)。
+function onKeydown(e: KeyboardEvent) {
   const target = e.target
   if (target instanceof Element) {
     if (!rootEl.value || !rootEl.value.contains(target)) return
@@ -98,7 +117,10 @@ function onKeyup(e: KeyboardEvent) {
   // 与真 Time Machine 一致:↑ 往过去(下标更大,列表是 newest-first),↓ 回到现在
   if (code === 'ArrowUp') { selectedIndex.value = stepSelectedIndex(selectedIndex.value, 1, flatItems.value.length); return }
   if (code === 'ArrowDown') { selectedIndex.value = stepSelectedIndex(selectedIndex.value, -1, flatItems.value.length); return }
-  if (code === 'Enter') enterSnapshot()
+  if (code === 'Enter') {
+    if (target instanceof Element && target.tagName === 'BUTTON') return // 按钮聚焦:原生 click 已经会做该做的事,这里不重复触发
+    enterSnapshot()
+  }
 }
 
 const rootEl = ref<HTMLElement | null>(null)
@@ -106,14 +128,14 @@ let previouslyFocused: HTMLElement | null = null
 
 onMounted(() => {
   load()
-  document.addEventListener('keyup', onKeyup)
+  document.addEventListener('keydown', onKeydown)
   // 全屏覆盖层接管了整个视口,焦点必须跟着进来 —— 否则键盘用户按 Tab 会在下面那层
   // 看不见的文件区里游走。卸载时归还,回到打开它的那颗按钮上。
   previouslyFocused = document.activeElement as HTMLElement | null
   rootEl.value?.focus()
 })
 onUnmounted(() => {
-  document.removeEventListener('keyup', onKeyup)
+  document.removeEventListener('keydown', onKeydown)
   previouslyFocused?.focus?.()
 })
 watch(() => props.volumeUuid, () => { load() })

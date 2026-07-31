@@ -64,6 +64,12 @@ describe('SnapshotSettingsDialog', () => {
     await w.vm.$nextTick()
     expect(body()).not.toContain('不支持快照')
     expect(document.querySelector('.snap-set-fields')).toBeNull()
+    // 评审复核(Minor,第二轮):`v-else-if="!store.volumeLoading"` 这道门此前没有任何用例
+    // 覆盖——把它改回 `v-else` 后本文件 12 条测试仍然全绿,是上一轮唯一存活的变异。
+    // 开关按钮(.snap-set-toggle)在 v-else 分支里,和策略字段(.snap-set-fields)同级但
+    // 不属于同一个 v-if 块,单独补这一句断言:volumeLoading 落地前,开关也不该露出来
+    // (store.volume 还是 null/旧值,开关状态会先闪一下错的 enabled 值)。
+    expect(document.querySelector('.snap-set-toggle')).toBeNull()
   })
   it('不支持快照的卷只显示一句说明,没有表单', async () => {
     listVolumesMock.mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: false }])

@@ -125,6 +125,44 @@ describe('浏览态派生', () => {
     expect(s.isSnapshotView).toBe(true)
     expect(s.browseInfo).toBeNull() // 没有快照名就没有时间可显示,横幅现有形态依赖它
   })
+
+  // 评审复核(Critical 1,第二轮):上一轮的实现靠 volumes.some(...) 自己判定容器路径,
+  // volumes 为空(idle/loading/error)时恒为 false —— 真实探针实测三态全部漏锁,而 error
+  // 是 ensureVolumes() 的本会话终态(这台设备 /v2/snapshot/* 全 404),漏锁会持续整个会话。
+  // 这三条各自独立触发一次真实探针能捕获到的三态,不再靠推断。
+  describe('.snapshots 容器目录三态复核(Critical 1 第二轮:上一轮在此漏锁)', () => {
+    it('idle(volumes 还没拉)→ 保持锁定', () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots'
+      expect(s.status).toBe('idle')
+      expect(s.isSnapshotView).toBe(true)
+    })
+    it('loading(请求在途)→ 保持锁定', () => {
+      let release: (v: unknown) => void = () => {}
+      listVolumesMock.mockImplementation(() => new Promise((r) => { release = r }))
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots'
+      s.ensureVolumes()
+      expect(s.status).toBe('loading')
+      expect(s.isSnapshotView).toBe(true)
+      release(VOLS) // 收尾,避免悬挂的 in-flight promise 溢出到下一条用例
+    })
+    it('error(拉取失败,本会话终态)→ 保持锁定', async () => {
+      listVolumesMock.mockRejectedValue(new Error('404'))
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots'
+      await s.ensureVolumes()
+      expect(s.status).toBe('error')
+      expect(s.isSnapshotView).toBe(true)
+    })
+    it('已 ready 且确认 supported:false 的挂载点上,容器目录本身不误锁', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/mnt/usb/.snapshots'
+      await s.ensureVolumes()
+      expect(s.status).toBe('ready')
+      expect(s.isSnapshotView).toBe(false)
+    })
+  })
 })
 
 describe('canShowEntry 真值表', () => {

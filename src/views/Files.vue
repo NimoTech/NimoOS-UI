@@ -475,7 +475,7 @@ onMounted(() => { browse.ensureVolumes() })
           @restore="browse.restore(snapshotSelection)"
         />
         <SnapshotSelectionToolbar
-          v-if="browse.isSnapshotView && files.selectedCount > 0"
+          v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
           :count="files.selectedCount"
           :restoring="browse.restoring"
           @restore="browse.restore(snapshotSelection)"

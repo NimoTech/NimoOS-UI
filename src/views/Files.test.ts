@@ -253,6 +253,28 @@ describe('快照只读横幅', () => {
     expect(w.find('.snap-banner').exists()).toBe(true)
     expect(w.find('.snap-banner').text()).toContain('请选择一个快照')
   })
+
+  // 评审复核(Minor,第二轮):`.snapshots` 容器目录下(browseInfo 为 null,因为没有具体
+  // 快照名可解析)选中一个条目(恰好是某个具体快照目录),SnapshotSelectionToolbar 的
+  // "恢复" 按钮点了只会拿到 performSnapshotRestore 的"路径无效,无法恢复"——这个按钮在
+  // 这个场景下天生就是坏的,不该出现。加 `&& !!browse.browseInfo` 后这个专用工具条不再
+  // 冒出来;真正的写操作(如删除)仍然被 useFileOps 的 blockedInSnapshot() 第二道防线挡住
+  // (isSnapshotView 在容器路径下依然是 true),不属于本条修的范围。
+  it('.snapshots 容器目录下选中条目:SnapshotSelectionToolbar(带坏掉的"恢复"按钮)不出现', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    const row = w.findAll('.file-row')[0]
+    await row.trigger('click', { ctrlKey: true })
+    const files = useFilesStore()
+    expect(files.selectedCount).toBe(1)
+    expect(w.find('.snap-sel').exists()).toBe(false)
+    expect(w.find('.snap-sel-restore').exists()).toBe(false)
+  })
 })
 
 describe('时间机器入口', () => {

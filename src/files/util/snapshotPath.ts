@@ -96,21 +96,34 @@ export function findVolumeUuidForMount(volumes: SnapshotVolumeLike[], mount: str
   return hit && hit.volume_uuid ? hit.volume_uuid : null
 }
 
-// 评审修复(Critical):`<挂载点>/.snapshots` 这个容器目录本身 —— parseSnapshotBrowsePath
+// 评审修复(Critical 1,第二轮):`<挂载点>/.snapshots` 这个容器目录本身 —— parseSnapshotBrowsePath
 // 对它故意返回 null(".snapshots 自身:还没选中任何快照",语义不能改,恢复编排等处依赖它),
 // 但这意味着只靠 shouldGuardSnapshotView 时这一层完全不锁:没有 parsed 结果,直接判不是快照
 // 视图,写入工具条、右键菜单、时间机器入口 chip 全部一起冒出来。这个容器目录通常仍然可写,
 // 用户能在快照命名空间里建垃圾文件/对只读子卷操作拿到原始文件系统报错。
-// 这里只认已知卷的挂载点(mount 取自卷列表),不在任何卷下的路径即便最后一段恰好叫
-// ".snapshots" 也不命中 —— 这属于本函数职责之外,不在这里画蛇添足去锁任意目录。
-export function isSnapshotsContainerPath(absPath: string | null | undefined, volumes: SnapshotVolumeLike[]): boolean {
-  if (!absPath || typeof absPath !== 'string' || !Array.isArray(volumes)) return false
+//
+// 第一轮的 isSnapshotsContainerPath(absPath, volumes) 自己攒了一套 `volumes.some(...)` 判定,
+// volumes 为空(idle/loading/error 三态)时恒为 false —— 复核用真实探针实测:这三态下
+// `.snapshots` 容器目录全部漏锁,而 error 是 ensureVolumes() 的本会话终态(这台设备
+// /v2/snapshot/* 全 404),漏锁会持续整个会话。且原函数完全不看 supported,会反过来误锁
+// supported:false 卷上恰好叫 .snapshots 的普通目录。
+//
+// 这一轮不再写第二套三态判断:只做纯路径解析(不认识"卷"这个概念,与 parseSnapshotBrowsePath
+// 同一职责边界),合成一个 snapshotName:'' 的 SnapshotBrowseInfo,交给下面唯一的闸门函数
+// shouldGuardSnapshotView 复用同一套 idle/loading/error/ready+supported 判定 —— idle/loading/
+// error 自动保持锁定,supported:false 的确证豁免也自动继承,不会再出现两条路径(有快照名 vs
+// 容器本身)fail-safe 方向不一致的情况。
+export function parseSnapshotsContainerPath(absPath: string | null | undefined): SnapshotBrowseInfo | null {
+  if (!absPath || typeof absPath !== 'string') return null
   const clean = stripTrailingSlash(absPath)
-  if (!clean) return false
-  return volumes.some((v) => {
-    const mount = stripTrailingSlash(v.mount)
-    return !!mount && clean === `${mount}/${SNAPSHOTS_DIR_NAME}`
-  })
+  if (!clean) return null
+  const segments = clean.split('/')
+  if (segments.length < 2 || segments[segments.length - 1] !== SNAPSHOTS_DIR_NAME) return null
+  const mount = segments.slice(0, -1).join('/')
+  // mount 为空说明路径直接是 "/.snapshots"(没有前导真实挂载点)—— 与
+  // parseSnapshotBrowsePath 的同一条规则保持一致,不命中。
+  if (!mount) return null
+  return { mount, snapshotName: '', relPath: '' }
 }
 
 // 只读锁的最终闸门,坐在 parseSnapshotBrowsePath 前面。

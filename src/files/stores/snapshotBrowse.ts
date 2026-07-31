@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFilesStore } from './files'
 import {
-  parseSnapshotBrowsePath, shouldGuardSnapshotView, findVolumeForPath, isSnapshotsContainerPath,
+  parseSnapshotBrowsePath, shouldGuardSnapshotView, findVolumeForPath, parseSnapshotsContainerPath,
   type SnapshotVolumeLike, type VolumesState,
 } from '../util/snapshotPath'
 import { performSnapshotRestore } from '../util/snapshotRestore'
@@ -62,11 +62,16 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const parsed = computed(() => parseSnapshotBrowsePath(files.currentPath))
   const volumesState = computed<VolumesState>(() => ({ status: status.value, volumes: volumes.value }))
 
-  // 评审修复(Critical):`<挂载点>/.snapshots` 容器目录本身——parseSnapshotBrowsePath 对它
-  // 返回 null(语义不变,恢复编排等处仍依赖这个 null),所以只靠 shouldGuardSnapshotView 判不出
-  // 这里也该锁。isSnapshotsContainerPath 单独兜底这一层,与 shouldGuardSnapshotView 的判定
-  // 互不影响、只做 OR:任一个说"锁"就锁。
-  const isSnapshotsContainer = computed(() => isSnapshotsContainerPath(files.currentPath, volumes.value))
+  // 评审修复(Critical 1,第二轮):`<挂载点>/.snapshots` 容器目录本身——parseSnapshotBrowsePath
+  // 对它返回 null(语义不变,恢复编排等处仍依赖这个 null),所以光靠 shouldGuardSnapshotView(parsed)
+  // 判不出这里也该锁。第一轮的 isSnapshotsContainerPath 自己攒了一套 `volumes.some(...)` 判定,
+  // volumes 为空(idle/loading/error)时恒为 false——三态全部漏锁,而 error 是 ensureVolumes() 的
+  // 本会话终态,漏锁会持续整个会话(复核用真实探针实测坐实)。这里不再写第二套三态判断:把容器
+  // 路径合成一个 snapshotName:'' 的 parsed 对象,直接喂给同一个 shouldGuardSnapshotView——
+  // idle/loading/error 自动保持锁定,supported:false 的确证豁免也自动继承,与"选中了具体快照"
+  // 那条路径的 fail-safe 方向不会再出现不一致。
+  const containerParsed = computed(() => parseSnapshotsContainerPath(files.currentPath))
+  const isSnapshotsContainer = computed(() => shouldGuardSnapshotView(containerParsed.value, volumesState.value))
   /** 只读锁是否生效 —— 路径形状 + 卷确证的双重判定,fail-safe 方向见 snapshotPath.ts 注释 */
   const isSnapshotView = computed(() => shouldGuardSnapshotView(parsed.value, volumesState.value) || isSnapshotsContainer.value)
   /** 锁确实生效时才把解析结果交给横幅/退出/恢复消费 */

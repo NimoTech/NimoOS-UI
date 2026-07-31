@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   snapshotBrowsePath, parseSnapshotBrowsePath, liveVolumePath, parseSnapshotName,
   formatSnapshotBannerTime, findVolumeForPath, findVolumeUuidForMount,
-  shouldGuardSnapshotView, resolveExitTarget, relPathUnderMount, isSnapshotsContainerPath,
+  shouldGuardSnapshotView, resolveExitTarget, relPathUnderMount, parseSnapshotsContainerPath,
 } from './snapshotPath'
 
 describe('snapshotBrowsePath', () => {
@@ -146,27 +146,28 @@ describe('resolveExitTarget', () => {
   })
 })
 
-describe('isSnapshotsContainerPath(Critical 1:.snapshots 容器目录本身)', () => {
-  const vols = [{ mount: '/DATA', volume_uuid: 'u-data' }, { mount: '/mnt/usb', volume_uuid: 'u-usb' }]
-  it('命中:路径恰好等于 <挂载点>/.snapshots', () => {
-    expect(isSnapshotsContainerPath('/DATA/.snapshots', vols)).toBe(true)
+describe('parseSnapshotsContainerPath(Critical 1 第二轮:.snapshots 容器目录本身,纯路径解析不认卷)', () => {
+  it('命中:路径恰好等于 <挂载点>/.snapshots,合成 snapshotName/relPath 为空串', () => {
+    expect(parseSnapshotsContainerPath('/DATA/.snapshots')).toEqual({ mount: '/DATA', snapshotName: '', relPath: '' })
   })
   it('容忍末尾斜杠', () => {
-    expect(isSnapshotsContainerPath('/DATA/.snapshots/', vols)).toBe(true)
+    expect(parseSnapshotsContainerPath('/DATA/.snapshots/')).toEqual({ mount: '/DATA', snapshotName: '', relPath: '' })
   })
-  it('不命中:选中了具体快照(多一段)不算容器路径本身', () => {
-    expect(isSnapshotsContainerPath('/DATA/.snapshots/snap1', vols)).toBe(false)
+  it('不命中:选中了具体快照(多一段)不算容器路径本身 —— 这条路径交给 parseSnapshotBrowsePath 处理', () => {
+    expect(parseSnapshotsContainerPath('/DATA/.snapshots/snap1')).toBeNull()
   })
   it('不命中:普通目录', () => {
-    expect(isSnapshotsContainerPath('/DATA/Photos', vols)).toBe(false)
+    expect(parseSnapshotsContainerPath('/DATA/Photos')).toBeNull()
   })
-  it('不在任何卷下:不命中', () => {
-    expect(isSnapshotsContainerPath('/OTHER/.snapshots', vols)).toBe(false)
+  it('不认识"卷"这个概念:即便不在任何已知卷下,只要路径形状匹配就合成结果 —— 是否锁定交给 shouldGuardSnapshotView 按 fail-safe 方向裁决,不在这里画蛇添足', () => {
+    expect(parseSnapshotsContainerPath('/OTHER/.snapshots')).toEqual({ mount: '/OTHER', snapshotName: '', relPath: '' })
   })
-  it('非法输入返回 false', () => {
-    expect(isSnapshotsContainerPath('', vols)).toBe(false)
-    expect(isSnapshotsContainerPath(null, vols)).toBe(false)
-    expect(isSnapshotsContainerPath('/DATA/.snapshots', null as never)).toBe(false)
+  it('没有挂载点前缀(以 /.snapshots 开头)返回 null', () => {
+    expect(parseSnapshotsContainerPath('/.snapshots')).toBeNull()
+  })
+  it('非法输入返回 null', () => {
+    expect(parseSnapshotsContainerPath('')).toBeNull()
+    expect(parseSnapshotsContainerPath(null)).toBeNull()
   })
 })
 
