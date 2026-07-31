@@ -29,15 +29,21 @@ import { matchesTab } from '../util/tabFilter'
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
+// P6b-T9(偏离登记 14):地点照片页(D10 跳库最小面,只浏览不接多选/批操作)是第 3 个
+// 消费方,但它不需要复选框——之前两个消费方(Photos.vue/PhotosFavorites.vue)都要选择态,
+// 硬编码渲染 `.tile-check` 从未有过"不要它"的场景。加 `selectable`(默认 true)门控,
+// 默认值保证既有两个消费方零行为变化,不必逐一改它们的调用点。
 const props = withDefaults(defineProps<{
   months: Month[]
   tab?: string
   density?: string
   selected?: Array<string | number>
+  selectable?: boolean
 }>(), {
   tab: 'all',
   density: 'comfortable',
   selected: () => [],
+  selectable: true,
 })
 
 const emit = defineEmits<{
@@ -303,7 +309,7 @@ onBeforeUnmount(() => {
                   :video-src="hoverVideoSrc"
                   :scrub-ratio="scrubRatio"
                 />
-                <span class="tile-check">
+                <span v-if="selectable" class="tile-check">
                   <input
                     type="checkbox"
                     class="tile-check-box"

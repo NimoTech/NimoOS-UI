@@ -126,6 +126,27 @@ describe('PhotosGrid', () => {
     expect((boxes[1].element as HTMLInputElement).checked).toBe(true)
   })
 
+  // P6b-T9: `selectable` prop (偏离登记 14) —— 地点照片页(D10)不接多选,复用本组件时不该
+  // 有复选框。默认值必须保持 true,否则 Photos.vue/PhotosFavorites.vue 这两个既有消费方
+  // (都不传 selectable)会静默丢失复选框——这条是纯粹的默认值回归断言。
+  it('not passing `selectable` at all still renders .tile-check (default-value regression for existing consumers)', () => {
+    const months = [month('2026-07', 'July 2026', [photo('a')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+    expect(w.find('.tile-check').exists()).toBe(true)
+  })
+
+  it('selectable=false hides .tile-check and leaves no way to fire toggle-select via it', async () => {
+    const months = [month('2026-07', 'July 2026', [photo('a')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [], selectable: false } })
+    expect(w.find('.tile-check').exists()).toBe(false)
+    expect(w.find('.tile-check-box').exists()).toBe(false)
+    // Clicking the bare tile still opens (selected is empty), confirming the checkbox's
+    // absence doesn't leave the tile in some half-selecting state.
+    await w.get('.tile').trigger('click')
+    expect(w.emitted('open')).toBeTruthy()
+    expect(w.emitted('toggle-select')).toBeUndefined()
+  })
+
   it('changing the tile checkbox emits toggle-select with the photo id, not open, and does not bubble to the tile click handler', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })

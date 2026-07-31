@@ -21,6 +21,7 @@ import PhotosAlbumDetail from '../views/PhotosAlbumDetail.vue'
 import PhotosPeople from '../views/PhotosPeople.vue'
 import PhotosPersonDetail from '../views/PhotosPersonDetail.vue'
 import PhotosPlaces from '../views/PhotosPlaces.vue'
+import PhotosPlaceAssets from '../views/PhotosPlaceAssets.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -44,6 +45,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/photos/people', name: 'photos-people', component: PhotosPeople },
   { path: '/photos/people/:id', name: 'photos-person-detail', component: PhotosPersonDetail },
   { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },
+  { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
 ]
