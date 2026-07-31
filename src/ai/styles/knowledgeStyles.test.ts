@@ -29,9 +29,16 @@ function stripComments(css: string): string {
 const rawSource = read('./knowledge.scss')
 const css = stripComments(rawSource)
 
-// R1(协调者拍板)—— 附录 D.1 的 32 个 + 协调者追加的 6 个 k-empty* = 38 个,是本批
-// (T4:token 声明层 + 壳段 + keyframes)唯一该出现的类全集,一个不多一个不少。
-const WHITELIST_38 = [
+// R1(协调者拍板)—— 附录 D.1 的 32 个 + 协调者追加的 6 个 k-empty* = 38 个,是 T4
+// (token 声明层 + 壳段 + keyframes)唯一该出现的类全集,一个不多一个不少。
+//
+// 【T11 追加】附录 D.2 的仪表盘 k2-* 段,协调者 brief 原文写"64 个 k2-* + k-suggest-chip
+// = 65 个",实测是笔误:用 `sed -n '/### D.2/,/### D.3/p' brief.md | grep -oE
+// 'k2?-[a-z0-9-]+' | sort -u` 去重后是 64 个(63 个 k2-* + 1 个 k-suggest-chip),
+// 与蓝本 `git show main:…/knowledge.scss | sed -n '2282,2452p' | grep -oE
+// '\.k2?-[a-z0-9-]+' | sort -u` 独立核对也是精确 64 个、且两份集合逐一比对完全相同
+// (`diff` 零差异)。故白名单扩到 38 + 64 = **102** 个,不是 brief 里写的 103。
+const WHITELIST_102 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
@@ -45,9 +52,27 @@ const WHITELIST_38 = [
   'k-scroll', 'k-scroll-inner',
   'k-skel',
   'k-empty', 'k-empty-illust', 'k-empty-title', 'k-empty-sub', 'k-empty-tips', 'k-empty-tip',
+  // ---- T11:附录 D.2(64 个)----
+  'k-suggest-chip',
+  'k2-search', 'k2-search-dots', 'k2-suggest', 'k2-suggest-label',
+  'k2-sec-head', 'k2-sec-title', 'k2-sec-en', 'k2-sec-link',
+  'k2-onboard', 'k2-onboard-orb', 'k2-onboard-cta', 'k2-onboard-layers',
+  'k2-ob-layer', 'k2-ob-name', 'k2-ob-desc', 'k2-tag',
+  'k2-layers', 'k2-layer', 'k2-layer-top', 'k2-layer-name', 'k2-layer-name-en', 'k2-layer-chev',
+  'k2-layer-num', 'k2-layer-bar', 'k2-layer-sub', 'k2-layer-desc', 'k2-drafts',
+  'k2-glue', 'k2-glue-id',
+  'k2-roots', 'k2-root', 'k2-root-top', 'k2-root-ico', 'k2-root-path', 'k2-root-level',
+  'k2-root-badges', 'k2-root-meta', 'k2-root-add', 'k2-roots-off', 'k2-chip',
+  'k2-live', 'k2-live-top', 'k2-live-ico', 'k2-live-title', 'k2-live-sub',
+  'k2-live-grid', 'k2-live-cell', 'k2-cell-label',
+  'k2-prog', 'k2-prog-pct', 'k2-paused-note', 'k2-cc',
+  'k2-qrow', 'k2-qchip',
+  'k2-distill', 'k2-distill-sub',
+  'k2-entries', 'k2-entry', 'k2-entry-ico', 'k2-entry-cn', 'k2-entry-en', 'k2-entry-badge',
+  'k2-skel-card',
 ]
 
-describe('knowledge.scss —— 附录 D.4 白名单落地(38 个,R1 拍板)', () => {
+describe('knowledge.scss —— 附录 D.4 白名单落地(102 个,R1 + T11 拍板订正)', () => {
   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
@@ -56,8 +81,8 @@ describe('knowledge.scss —— 附录 D.4 白名单落地(38 个,R1 拍板)', (
   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
   // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('38 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_38.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+  it('102 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+    const missing = WHITELIST_102.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
   })
 
@@ -68,7 +93,7 @@ describe('knowledge.scss —— 附录 D.4 白名单落地(38 个,R1 拍板)', (
 
   it('没有搬多 —— 全部 k-/k2- 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
     const found = Array.from(new Set(css.match(/\.k2?-[a-z0-9-]+/g) || [])).map((s) => s.slice(1))
-    const extra = found.filter((c) => !WHITELIST_38.includes(c))
+    const extra = found.filter((c) => !WHITELIST_102.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
   })
 })
@@ -136,14 +161,25 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     expect(rest, '声明层之外出现 lch()').not.toMatch(/\blch\(/)
     expect(rest, '声明层之外出现 hwb()').not.toMatch(/\bhwb\(/)
     expect(rest, '声明层之外出现 color()').not.toMatch(/\bcolor\(/)
-    expect(rest, '声明层之外出现具名色 white').not.toMatch(/\bwhite\b/)
-    expect(rest, '声明层之外出现具名色 black').not.toMatch(/\bblack\b/)
-    expect(rest, '声明层之外出现具名色 red').not.toMatch(/\bred\b/)
-    expect(rest, '声明层之外出现具名色 green').not.toMatch(/\bgreen\b/)
-    expect(rest, '声明层之外出现具名色 blue').not.toMatch(/\bblue\b/)
-    expect(rest, '声明层之外出现具名色 orange').not.toMatch(/\borange\b/)
-    expect(rest, '声明层之外出现具名色 gray').not.toMatch(/\bgray\b/)
-    expect(rest, '声明层之外出现具名色 grey').not.toMatch(/\bgrey\b/)
+    // 【T11 自查发现的守卫窟窿,已订正】原来这 8 条具名色检查用 `\bWORD\b`。JS 正则的
+    // `\b` 在字母↔连字符的过渡处同样成立(`-` 是非单词字符),所以 `/\bwhite\b/` 会被
+    // 完全合法的 CSS 属性 `white-space` 撞对(`white` 右边紧跟 `-`,一样满足"单词边界"),
+    // `/\bblack\b/`/`/\bred\b/` 等对 `black-ish`/`foo-red` 这类连字符复合词同理会假阳性
+    // ——这是本档第五次同类"守卫自己有窟窿"事故(前四次见文件顶部注释)。T11 的仪表盘
+    // 段落大量使用 `white-space: nowrap`(蓝本原文如此,1:1 照抄),原版规则会把这些
+    // 完全合规的规则误判成"裸色字面量"。改用「左右都不能紧跟单词字符或连字符」的
+    // 双向负向断言(与文件顶部「没有搬多」测试已经用过的 `(?![\w-])` 同一手法,这里补上
+    // 左侧的 `(?<![\w-])`),`white-space` 左边是空格/分号等非单词字符、但右边紧跟 `-`
+    // 会被右侧的 `(?![\w-])` 挡住,不再误判;真正的字面量(如 `color: white;`,两侧都是
+    // 空格/分号)两侧仍都满足负向断言,继续能报红。
+    expect(rest, '声明层之外出现具名色 white').not.toMatch(/(?<![\w-])white(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 black').not.toMatch(/(?<![\w-])black(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 red').not.toMatch(/(?<![\w-])red(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 green').not.toMatch(/(?<![\w-])green(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 blue').not.toMatch(/(?<![\w-])blue(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 orange').not.toMatch(/(?<![\w-])orange(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 gray').not.toMatch(/(?<![\w-])gray(?![\w-])/)
+    expect(rest, '声明层之外出现具名色 grey').not.toMatch(/(?<![\w-])grey(?![\w-])/)
   })
 
   it('.knowledge-app 两档都显式声明 color-scheme(P2b 教训:嵌套主题作用域不声明会继承 :root)', () => {
@@ -156,10 +192,16 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
   // R2(协调者拍板)—— 附录 B「New-UI 已有的直接用」对 *-soft 家族是错的:那批 token
   // 只在 tokens.scss 的 .agent-app/.ai-toast-scope 作用域声明,.knowledge-app 解析不到,
   // 必须自己在两档声明层里各补一份。这条钉住:删掉任何一档的任何一个就报红。
-  it('R2 —— 4 个本批用到的 *-soft token 两档都有值(warning-soft/-border, success-soft, danger-soft)', () => {
+  // 【T11 追加】仪表盘 k2-* 段另用到 --danger-soft-border(k2-qchip[data-tone=danger]
+  // 的 hover 强化态)与 --modal-scrim(k2-ob-layer .k2-tag 暗色蒙版的 color-mix 派生源),
+  // 4→6 个,同一断言扩容,不新开 describe。
+  it('R2 —— 6 个本批用到的 *-soft/-scrim token 两档都有值(T4 的 4 个 + T11 追加的 2 个)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
-    for (const tok of ['--warning-soft:', '--warning-soft-border:', '--success-soft:', '--danger-soft:']) {
+    for (const tok of [
+      '--warning-soft:', '--warning-soft-border:', '--success-soft:', '--danger-soft:',
+      '--danger-soft-border:', '--modal-scrim:',
+    ]) {
       expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
       expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
     }

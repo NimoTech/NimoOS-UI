@@ -145,6 +145,13 @@
   --success-soft: rgba(79, 184, 112, 0.18); /* AI tokens.scss:306 */
   --danger-soft: rgba(240, 119, 107, 0.16); /* AI tokens.scss:308 */
 
+  /* R2(T11 追加)—— 仪表盘 k2-* 段另用到 2 个 *-soft 家族 token(k2-qchip[data-tone=danger]
+     的 hover 强化态、k2-ob-layer .k2-tag 的暗色蒙版派生源),取值抄自 AI tokens.scss
+     暗色块。--modal-scrim 两档同值(遮罩类 token 的既定惯例,见 tokens.scss:338 行尾同款
+     注释),不是"暗色专属"的语义。 */
+  --danger-soft-border: rgba(240, 119, 107, 0.24); /* AI tokens.scss:309 */
+  --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:338 */
+
   /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
   color-scheme: dark;
 }
@@ -217,6 +224,10 @@
   --warning-soft-border: rgba(200, 134, 10, 0.24); /* AI tokens.scss:127 */
   --success-soft: rgba(46, 158, 84, 0.12); /* AI tokens.scss:129 */
   --danger-soft: rgba(215, 73, 59, 0.1); /* AI tokens.scss:131 */
+
+  /* R2(T11 追加)—— 见暗色块同名注释,浅色档取值。 */
+  --danger-soft-border: rgba(215, 73, 59, 0.16); /* AI tokens.scss:132 */
+  --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:182 */
 
   /* R3 —— 见头注释 */
   color-scheme: light;
@@ -580,6 +591,234 @@
 @keyframes k-toast-rise {
   from { opacity: 0; transform: translate(-50%, 8px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ===== Dashboard v2 · 三层聚合仪表盘(T11)—— 1:1 移植自蓝本 knowledge.scss:2282-2452。
+ * 白名单判据见附录 D.2(64 个新类:63 个 k2-* + k-suggest-chip;协调者原文说
+ * "64 个 k2-* + k-suggest-chip=65"是笔误,已用 `sed -n 2282,2452p 蓝本 | grep -oE
+ * '\.k2?-[a-z0-9-]+' | sort -u` 与附录 D.2 文本各自去重核对,两者都精确是 64 个,详见报告)。
+ * --ly-wiki/-vec/-note 三组 token 已在 T4 的两个声明块里落好(两档皆有),本段只写规则,
+ * 不重复声明。
+ *
+ * 【偏离 K2 —— 折叠蓝本的 [data-theme="dark"] 覆写块】蓝本这段末尾(:2443-2452)有一个
+ * `[data-theme="dark"] .knowledge-app { ... }` 覆写块,内含:
+ *   ① --ly-* 三组 token 的暗色重复声明 —— T4 已经在本档暗色声明块里给过,不重复。
+ *   ② `.k2-chip[data-tone="live"/"warn"]` 的文字色覆写(蓝本 :2350/:2352 是浅色档的
+ *      成功态绿/警告态橙 oklch 字面值,:2449/:2450 是暗色档同色相但明度更亮的 oklch
+ *      字面值)—— 这两组数值本质就是"成功态绿"与"警告态橙"在浅/暗两档各自的明度调整,
+ *      与本档已声明的 --success/--warning 两档取值(浅档偏深、暗档偏亮)是同一个"两档
+ *      各给一份同色系不同明度"的语义,复用这两个既有 token(而非新增),下方对应规则
+ *      处有逐条行尾注释说明取舍。
+ *   ③ `.k2-ob-layer .k2-tag` 的背景覆写(蓝本 :2416 基础值是半透明白色蒙版,:2451
+ *      暗色覆写是半透明黑色蒙版)—— 按 K2 拆成本仓的暗/浅二档
+ *      写法(选择器改 `.knowledge-app` / `:root[data-theme="light"] .knowledge-app`,
+ *      不留 `[data-theme="dark"]` 祖先选择器),规则内联在下方 .k2-ob-layer 分组里、
+ *      浅色档那一半单独写在本文件末尾(因为浅色档没有另一个可续写的 `.knowledge-app`
+ *      规则块可插入,新起一个选择器块)。这两个值都不在附录 B 的裸色对照表里,也不是
+ *      "同色系不同明度"能直接复用既有色相 token 的情形(纯白/纯黑蒙版,和三层身份色/
+ *      success/warning 都不同源)——改用 `color-mix()` 从已声明的同色 token 派生对应
+ *      透明度,不新增自定义属性、不写死字面量,手法与 T4 的 .k-empty-illust 高光同款
+ *      (见文件上方 T4 shell 段落对应注释)。
+ *
+ * 【R2(T11 追加)】本段新用到 2 个不在 T4 4 个之列的 *-soft 家族 token:
+ *   --danger-soft-border(k2-qchip[data-tone=danger] 的 hover 强化态,蓝本 :2384 的
+ *   红色半透明背景裸值落在附录 B「0.2x~0.3x → danger-soft-border」桶)、
+ *   --modal-scrim(k2-ob-layer .k2-tag 暗色蒙版的 color-mix 派生源,见上条③)。
+ *   已在两个声明块里补齐(见文件上方),取值抄自 tokens.scss 对应主题块行号见那两处
+ *   行尾注释。已同步扩 knowledgeStyles.test.ts 的 R2 断言(4→6 个)。
+ *   附录 B 表里另外 4 个候选(--success-soft-border/--purple-soft/--danger-soft-faint/
+ *   --teal-soft)逐行核对蓝本 :2282-2452 后确认本段未使用,未声明(不声明用不到的
+ *   token,避免"发明"之外的另一种噪音)。
+ *
+ * 【附录 D.3 属性态核对,与协调者给的清单有一处出入,已按蓝本为准】蓝本 :2378
+ * `.k2-cc button` 的按下态实际选择器是 `[data-on="true"]`,不是协调者附录 D.3 里写的
+ * `[data-active]`(附录与蓝本冲突,按治理文件 §11/公共约束"以蓝本为准"处理,照
+ * `data-on` 搬,未新造 `data-active`)。其余四组属性态(`[data-tone]` on k2-chip/
+ * k2-entry-ico/k2-entry-badge/k2-qchip、`[data-layer]` wiki/vec/note 三色 on k2-layer/
+ * k2-ob-layer、`[data-disabled]` on k2-entry、`[data-ok]` on k2-live-ico)与蓝本逐字
+ * 一致,原样搬。
+ */
+.knowledge-app {
+  .k2-suggest .k-suggest-chip { white-space: nowrap; }
+
+  /* ---------- search (surface D, repositioned) ---------- */
+  .k2-search { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); transition: border-color 120ms ease, box-shadow 120ms ease; }
+  .k2-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-softer), var(--shadow-sm); }
+  .k2-search input { flex: 1; border: none; outline: none; background: transparent; font: 500 15px/1.4 var(--font-sans); color: var(--text-primary); min-width: 0; }
+  .k2-search input::placeholder { color: var(--text-tertiary); }
+  .k2-search-dots { display: flex; gap: 3px; flex-shrink: 0; }
+  .k2-search-dots i { width: 6px; height: 6px; border-radius: 50%; }
+  .k2-search-dots i:nth-child(1) { background: var(--ly-wiki); }
+  .k2-search-dots i:nth-child(2) { background: var(--ly-vec); }
+  .k2-search-dots i:nth-child(3) { background: var(--ly-note); }
+  .k2-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .k2-suggest-label { font-size: 11px; color: var(--text-quaternary); }
+
+  /* ---------- section heads ---------- */
+  .k2-sec-head { display: flex; align-items: baseline; gap: 10px; margin: 28px 2px 12px; }
+  .k2-sec-title { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .k2-sec-en { font-size: 11.5px; color: var(--text-quaternary); }
+  .k2-sec-link { margin-left: auto; background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 550; color: var(--accent); padding: 2px 4px; border-radius: 6px; }
+  .k2-sec-link:hover { background: var(--accent-softer); }
+
+  /* ---------- surface A: layer cards ---------- */
+  .k2-layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .k2-layer { --ly: var(--text-secondary); --ly-soft: var(--bg-chip); --ly-ln: var(--line); text-align: left; background: var(--bg-elevated); border: 1px solid var(--line-faint); border-top: 3px solid var(--ly); border-radius: var(--r-md); padding: 14px 16px 12px; cursor: pointer; font-family: inherit; color: inherit; transition: box-shadow 140ms ease, transform 140ms ease, border-color 140ms ease; display: flex; flex-direction: column; gap: 9px; }
+  .k2-layer:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); border-color: var(--ly-ln); border-top-color: var(--ly); }
+  .k2-layer[data-layer="wiki"] { --ly: var(--ly-wiki); --ly-soft: var(--ly-wiki-soft); --ly-ln: var(--ly-wiki-line); }
+  .k2-layer[data-layer="vec"] { --ly: var(--ly-vec); --ly-soft: var(--ly-vec-soft); --ly-ln: var(--ly-vec-line); }
+  .k2-layer[data-layer="note"] { --ly: var(--ly-note); --ly-soft: var(--ly-note-soft); --ly-ln: var(--ly-note-line); }
+  .k2-layer-top { display: flex; align-items: center; gap: 8px; }
+  .k2-tag { font: 700 9.5px/1 var(--font-mono); letter-spacing: 0.09em; color: var(--ly); background: var(--ly-soft); padding: 3px 7px; border-radius: 5px; flex-shrink: 0; }
+  .k2-layer-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .k2-layer-name-en { color: var(--text-quaternary); font-weight: 500; }
+  .k2-layer-chev { margin-left: auto; color: var(--text-quaternary); display: inline-flex; flex-shrink: 0; }
+  .k2-layer:hover .k2-layer-chev { color: var(--ly); }
+  .k2-layer-num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .k2-layer-num .suffix { font-size: 12px; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0; margin-left: 2px; }
+  .k2-layer-num .second { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-left: 8px; }
+  .k2-layer-num .k2-drafts { display: inline-block; vertical-align: 3px; margin-left: 8px; font-size: 10.5px; font-weight: 650; color: var(--ly); background: var(--ly-soft); border-radius: 999px; padding: 2px 8px; letter-spacing: 0; }
+  .k2-layer-bar { display: flex; gap: 2px; height: 5px; border-radius: 999px; overflow: hidden; }
+  .k2-layer-bar i { background: var(--ly); border-radius: 2px; min-width: 4px; }
+  .k2-layer-sub { font-size: 11.5px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+  .k2-layer-desc { font-size: 11.5px; line-height: 1.5; color: var(--text-tertiary); border-top: 1px solid var(--line-faint); padding-top: 9px; margin-top: auto; }
+  .k2-glue { margin-top: 10px; text-align: center; font-size: 11.5px; color: var(--text-quaternary); display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 14px; }
+  .k2-glue-id { display: inline-flex; align-items: center; gap: 5px; }
+  .k2-glue-id i { width: 5px; height: 5px; border-radius: 50%; background: var(--g, var(--text-quaternary)); }
+  .k2-glue-id code { font: 600 10.5px var(--font-mono); color: var(--text-tertiary); background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; }
+
+  /* ---------- surface B: root cards ---------- */
+  .k2-roots { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .k2-root { text-align: left; background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-md); padding: 13px 15px; cursor: pointer; font-family: inherit; color: inherit; transition: box-shadow 140ms ease, transform 140ms ease; display: flex; flex-direction: column; gap: 9px; }
+  .k2-root:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .k2-root-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .k2-root-ico { width: 28px; height: 28px; border-radius: 8px; background: var(--ly-wiki-soft); color: var(--ly-wiki); display: grid; place-items: center; flex-shrink: 0; }
+  .k2-root-path { font: 600 13px var(--font-mono); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+  .k2-root-level { margin-left: auto; flex-shrink: 0; font-size: 10px; font-weight: 650; color: var(--text-tertiary); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; letter-spacing: 0.03em; }
+  .k2-root-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .k2-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-chip); color: var(--text-secondary); }
+  .k2-chip i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-quaternary); flex-shrink: 0; }
+  /* 蓝本 :2350/:2449 —— live 色相文本复用既有 --success/--success-soft(见文件顶部
+     偏离说明②),背景是绿色半透明裸值,RGB 三元组就是 --success 自身的颜色,精确
+     落在附录 B 的 success-soft 映射桶。 */
+  .k2-chip[data-tone="live"] { background: var(--success-soft); color: var(--success); }
+  .k2-chip[data-tone="live"] i { background: var(--success); animation: k2pulse 2s ease infinite; }
+  /* 蓝本 :2352/:2450 —— warn 色相文本同理复用 --warning/--warning-soft,背景是橙色
+     半透明裸值,落在附录 B 的 warning-soft 映射桶。 */
+  .k2-chip[data-tone="warn"] { background: var(--warning-soft); color: var(--warning); }
+  .k2-chip[data-tone="warn"] i { background: var(--warning); animation: k2pulse 1.2s ease infinite; }
+  .k2-root-meta { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; margin-top: auto; }
+  .k2-root-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 104px; border: 1.5px dashed var(--line-strong); border-radius: var(--r-md); background: transparent; cursor: pointer; color: var(--text-tertiary); font-size: 12.5px; font-weight: 600; font-family: inherit; transition: all 120ms ease; }
+  .k2-root-add:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
+  .k2-roots-off { margin-top: 10px; font-size: 11.5px; color: var(--text-quaternary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .k2-roots-off code { font: 500 10.5px var(--font-mono); color: var(--text-tertiary); }
+  .k2-roots-off button { background: none; border: none; cursor: pointer; color: var(--accent); font-size: 11.5px; padding: 0; }
+
+  /* ---------- surface C: live card ---------- */
+  .k2-live { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-md); overflow: hidden; }
+  .k2-live-top { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+  .k2-live-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; background: var(--ly-vec-soft); color: var(--ly-vec); }
+  /* 蓝本 :2365 —— 绿色半透明背景裸值同上落在「success-soft」桶,color 蓝本原文已是
+     var(--success),照抄。 */
+  .k2-live-ico[data-ok="true"] { background: var(--success-soft); color: var(--success); }
+  .k2-live-ico .spin { display: inline-flex; animation: k2spin 1.1s linear infinite; }
+  .k2-live-title { font-size: 13.5px; font-weight: 600; }
+  .k2-live-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; font-variant-numeric: tabular-nums; }
+  .k2-prog { flex: 1; height: 6px; background: var(--bg-chip); border-radius: 999px; overflow: hidden; min-width: 120px; }
+  .k2-prog i { display: block; height: 100%; background: var(--ly-vec); border-radius: 999px; transition: width 400ms ease; }
+  .k2-prog-pct { font: 600 11.5px var(--font-mono); color: var(--ly-vec); }
+  .k2-live-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line-faint); }
+  .k2-live-cell { padding: 11px 16px; min-width: 0; }
+  .k2-live-cell + .k2-live-cell { border-left: 1px solid var(--line-faint); }
+  .k2-cell-label { font-size: 10px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-quaternary); margin-bottom: 7px; }
+  .k2-cc { display: inline-flex; gap: 2px; background: var(--bg-chip); border-radius: 999px; padding: 2px; }
+  .k2-cc button { border: none; background: transparent; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-tertiary); padding: 3px 10px; border-radius: 999px; font-family: inherit; }
+  /* 蓝本 :2378 用的是 [data-on="true"],不是协调者附录 D.3 写的 [data-active] —— 见
+     文件顶部「附录 D.3 属性态核对」说明,以蓝本为准。 */
+  .k2-cc button[data-on="true"] { background: var(--bg-elevated); color: var(--text-primary); box-shadow: var(--shadow-xs); }
+  .k2-cc button:hover { color: var(--text-primary); }
+  .k2-qrow { display: flex; flex-wrap: wrap; gap: 5px; }
+  .k2-qchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--bg-chip); border: none; border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; font-family: inherit; }
+  .k2-qchip b { font-weight: 700; }
+  /* 蓝本 :2383 红色半透明背景裸值 → 附录 B「danger-soft」桶,color 原文已是 var(--danger)。 */
+  .k2-qchip[data-tone="danger"] { background: var(--danger-soft); color: var(--danger); cursor: pointer; }
+  /* 蓝本 :2384 更浓一档的红色半透明背景裸值 → 附录 B「0.2x~0.3x → danger-soft-border」桶
+     (hover 是强化态,取更浓的那一档;R2 已补声明,见文件顶部)。 */
+  .k2-qchip[data-tone="danger"]:hover { background: var(--danger-soft-border); }
+  .k2-distill { display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ly-note); text-align: left; }
+  .k2-distill:hover { text-decoration: underline; }
+  .k2-distill-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+  .k2-paused-note { font-size: 11.5px; color: var(--warning); font-weight: 600; }
+
+  /* ---------- surface D: entries ---------- */
+  .k2-entries { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .k2-entry { display: flex; align-items: center; gap: 10px; background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-md); padding: 11px 13px; cursor: pointer; font-family: inherit; color: inherit; text-align: left; transition: box-shadow 140ms ease, transform 140ms ease; min-width: 0; }
+  .k2-entry:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  .k2-entry[data-disabled="true"] { opacity: 0.45; pointer-events: none; }
+  .k2-entry-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; background: var(--bg-chip); color: var(--text-secondary); }
+  .k2-entry-ico[data-tone="accent"] { background: var(--accent-soft); color: var(--accent); }
+  .k2-entry-ico[data-tone="wiki"] { background: var(--ly-wiki-soft); color: var(--ly-wiki); }
+  .k2-entry-ico[data-tone="vec"] { background: var(--ly-vec-soft); color: var(--ly-vec); }
+  .k2-entry-ico[data-tone="note"] { background: var(--ly-note-soft); color: var(--ly-note); }
+  .k2-entry-cn { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .k2-entry-en { font-size: 10.5px; color: var(--text-quaternary); white-space: nowrap; }
+  /* 蓝本 :2402 前景裸色(纯白)→ 附录 B「前景纯白 → --text-on-accent」桶(与 :839/:145
+     两处已落地的同款前景裸色是同一条映射规则,见文件上方对应注释)。 */
+  .k2-entry-badge { margin-left: auto; font-size: 10px; font-weight: 700; background: var(--danger); color: var(--text-on-accent); border-radius: 999px; padding: 1px 6px; min-width: 17px; text-align: center; }
+  .k2-entry-badge[data-tone="note"] { background: var(--ly-note); }
+
+  /* ---------- empty / onboarding ---------- */
+  .k2-onboard { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-lg); padding: 36px 28px 28px; text-align: center; box-shadow: var(--shadow-sm); }
+  .k2-onboard-orb { width: 52px; height: 52px; border-radius: 16px; margin: 0 auto 14px; display: grid; place-items: center; background: linear-gradient(135deg, var(--ly-wiki-soft), var(--ly-vec-soft) 50%, var(--ly-note-soft)); color: var(--text-secondary); }
+  .k2-onboard h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.015em; margin: 0 0 6px; }
+  .k2-onboard p { font-size: 13px; color: var(--text-secondary); margin: 0 auto; max-width: 460px; line-height: 1.55; }
+  .k2-onboard-cta { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
+  .k2-onboard-layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 24px; text-align: left; }
+  .k2-ob-layer { --ly: var(--text-secondary); --ly-soft: var(--bg-chip); border-left: 3px solid var(--ly); background: var(--ly-soft); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 11px 13px; }
+  .k2-ob-layer[data-layer="wiki"] { --ly: var(--ly-wiki); --ly-soft: var(--ly-wiki-soft); }
+  .k2-ob-layer[data-layer="vec"] { --ly: var(--ly-vec); --ly-soft: var(--ly-vec-soft); }
+  .k2-ob-layer[data-layer="note"] { --ly: var(--ly-note); --ly-soft: var(--ly-note-soft); }
+  /* 蓝本 :2451([data-theme="dark"] 覆写,半透明黑色蒙版)按 K2 映射到本仓
+     暗色档(本档默认无 data-theme 即暗色)。用 color-mix 从本档已声明的 --modal-scrim
+     (两档同值,50% 不透明黑)派生一半透明度,与蓝本这条裸值精确等值,不新增
+     自定义属性、不写死字面量。浅色档(蓝本 :2416 基础值,半透明白色蒙版)写在
+     本文件末尾的 :root[data-theme="light"] .knowledge-app 里(见该处注释)。 */
+  .k2-ob-layer .k2-tag { background: color-mix(in srgb, var(--modal-scrim) 50%, transparent); }
+  .k2-ob-name { font-size: 12px; font-weight: 650; margin: 8px 0 3px; }
+  .k2-ob-desc { font-size: 11px; line-height: 1.5; color: var(--text-tertiary); }
+
+  /* ---------- skeletons ---------- */
+  .k2-skel-card { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 980px) {
+    .k2-layers { grid-template-columns: 1fr 1fr; }
+    .k2-layer[data-layer="wiki"] { grid-column: span 2; }
+  }
+  @media (max-width: 860px) {
+    .k2-layers { grid-template-columns: 1fr; }
+    .k2-layer[data-layer="wiki"] { grid-column: auto; }
+    .k2-live-grid { grid-template-columns: 1fr; }
+    .k2-live-cell + .k2-live-cell { border-left: none; border-top: 1px solid var(--line-faint); }
+    .k2-onboard-layers { grid-template-columns: 1fr; }
+    .k2-entries { grid-template-columns: 1fr 1fr; }
+    .k2-live-top { flex-wrap: wrap; }
+    .k2-prog { order: 5; flex-basis: 100%; }
+  }
+}
+
+/* 蓝本 knowledge.scss:2440-2441 —— 只被本段 .k2-chip[data-tone]/.k2-live-ico .spin
+ * 引用,必须顶层全局(同上方 T4 keyframes 的理由,模板里的 animation 引用不带作用域
+ * 前缀)。 */
+@keyframes k2pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes k2spin { to { transform: rotate(360deg); } }
+
+/* ===== .k2-ob-layer .k2-tag —— 浅色档(蓝本 :2416 基础值,半透明白色
+ * 蒙版)。--text-on-accent 在两档都是不透明纯白(浅色档 var(--on-accent)),用
+ * color-mix 派生一半透明度,与蓝本这条裸值精确等值,手法与暗色档同款(见上方
+ * .k2-ob-layer 分组注释)、也与 T4 的 .k-empty-illust 高光同源。 */
+:root[data-theme="light"] .knowledge-app .k2-ob-layer .k2-tag {
+  background: color-mix(in srgb, var(--text-on-accent) 50%, transparent);
 }
 
 /* P5b–P5f 的段落按 Vue2 原序续写在此之后 */
