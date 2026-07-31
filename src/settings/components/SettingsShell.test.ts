@@ -1,12 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createI18n } from 'vue-i18n'
 import { defineComponent } from 'vue'
 import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
-import SettingsShell from './SettingsShell.vue'
 import type { SettingsTab } from '../util/tabs'
+
+// PowerFlow(填入 .set-rail-foot,task 9)引入了 service.sys.power —— 最小 mock,
+// 这个测试文件不关心电源流本身(有 PowerFlow.test.ts 专门测),只关心它渲染出来了。
+vi.mock('@nimotech/nimoos-service', () => ({ service: { sys: { power: async () => {} } } }))
+
+import SettingsShell from './SettingsShell.vue'
 
 const Stub = defineComponent({ template: '<div />' })
 const i18n = createI18n({
@@ -110,5 +115,11 @@ describe('SettingsShell', () => {
     await w.find('.set-home').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/')
+  })
+
+  it('侧栏底部有电源按钮(P0 的空容器已填)', async () => {
+    const { w } = await mountShell()
+    expect(w.find('.set-rail-foot .pf-shutdown').exists()).toBe(true)
+    expect(w.find('.set-rail-foot .pf-restart').exists()).toBe(true)
   })
 })

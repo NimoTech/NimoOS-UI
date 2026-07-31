@@ -7,6 +7,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { railTabsFor, TAB_LABEL_KEY, type SettingsTab } from '../util/tabs'
+import PowerFlow from './PowerFlow.vue'
 import '../styles/settings.css'
 
 defineProps<{ current: SettingsTab }>()
@@ -64,7 +65,7 @@ const railTabs = computed(() =>
       </nav>
 
       <!-- P1 填:关机 / 重启(spec §5.1) -->
-      <div class="set-rail-foot"></div>
+      <div class="set-rail-foot"><PowerFlow /></div>
     </aside>
 
     <div class="set-main">
