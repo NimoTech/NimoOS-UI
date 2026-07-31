@@ -11,15 +11,25 @@
 //    meta 语义不同(guard.ts 只认 meta.public 标公开路由),照本仓既有的
 //    ai-agent/ai-settings 路由(均不写 meta)处理,鉴权由全局 authGuard 兜底。
 //
-// 本批(K7)全部 9 个子路由 + 2 条 parser 路由的 component 都先指向占位页
-// KnowledgeDeferred,T12 会把 '' 子路由换成真正的 DashboardView。
+// 【评审 R8,Critical,2026-08-01 修正】父路由(布局位)原来也指向占位页
+// KnowledgeDeferred——KnowledgeDeferred 没有 `<router-view/>` 出口,于是
+// KnowledgeLayout(T10)全仓零 import、成了死代码,knowledge.scss 也因此从未
+// 真正进过构建产物(`dist/assets/*.css` 里搜不到 `knowledge-app`)。T5/T10/T12
+// 三份 brief 都没写「父路由该在哪个任务接上 KnowledgeLayout」这一步,协调者
+// 裁定这步归 T10(外壳任务的产出不该是死代码)。
+// 现在父路由 component 改成 KnowledgeLayout,它自己的 `<router-view/>`
+// 才有内容可渲染。9 个子路由 + 2 条独立 parser 路由**仍然**指向
+// KnowledgeDeferred——`''` 子路由留给 T12 换成真正的 DashboardView,其余 8
+// 个子路由与 2 条 parser 路由留给后续批次逐个替换(K7 机制不变,只是父路由
+// 这一层从「占位页替占位页」变成「真布局 + 占位页子页」)。
 import type { RouteRecordRaw } from 'vue-router'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
+import KnowledgeLayout from './views/KnowledgeLayout.vue'
 
 export const knowledgeRoutes: RouteRecordRaw[] = [
   {
     path: '/ai/knowledge',
-    component: KnowledgeDeferred,
+    component: KnowledgeLayout,
     children: [
       { path: '', name: 'KnowledgeDashboard', component: KnowledgeDeferred },
       { path: 'search', name: 'KnowledgeSearch', component: KnowledgeDeferred },

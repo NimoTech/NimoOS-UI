@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { knowledgeRoutes } from './knowledgeRoutes'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
+import KnowledgeLayout from './views/KnowledgeLayout.vue'
 
 describe('knowledgeRoutes', () => {
   it('一条布局路由带 9 个子路由 + 两条 Parser 路由', () => {
@@ -21,16 +22,33 @@ describe('knowledgeRoutes', () => {
       'KnowledgeNotes', 'KnowledgeSettings', 'AIParser', 'AIParserTest'])
   })
 
-  // 主动加(brief 未给):T12 会把 '' 子路由的 component 反转成 DashboardView——
-  // 现在钉住「本期 9 个子路由 + 2 条 parser 路由的 component 全部指向 KnowledgeDeferred」,
-  // 这样 T12 落地时这条断言会精确报红,提醒改的人同步更新它,而不是被无声继承。
-  it('本期(P5a)全部 11 条路由的 component 都还是占位页 KnowledgeDeferred', () => {
-    const components = [
+  // 【评审 R8,Critical,2026-08-01 反转(不是删除)】原断言钉住「本期 11 条路由的
+  // component 全部指向 KnowledgeDeferred」——这条断言本身就是这次 Critical 的
+  // 反面教材:父路由(布局位)一直是 KnowledgeDeferred,KnowledgeLayout(T10)
+  // 全仓零 import、knowledge.scss 从未真正进构建产物,而这条断言全程绿灯,因为
+  // 它把「父路由也是占位页」断言成了「应有行为」。协调者裁定父路由这步归 T10,
+  // 现反转成:父路由(布局位)=== KnowledgeLayout,9 个子路由 + 2 条独立 parser
+  // 路由仍 === KnowledgeDeferred(K7 占位机制本身不变,`''` 子路由留给 T12 换成
+  // 真正的 DashboardView,届时这条断言会精确报红,提醒同步更新)。
+  //
+  // 改前(2026-07-31,T5 原文):
+  //   it('本期(P5a)全部 11 条路由的 component 都还是占位页 KnowledgeDeferred', () => {
+  //     const components = [
+  //       ...knowledgeRoutes[0].children!.map((c) => c.component),
+  //       knowledgeRoutes[1].component,
+  //       knowledgeRoutes[2].component,
+  //     ]
+  //     expect(components).toHaveLength(11)
+  //     for (const c of components) expect(c).toBe(KnowledgeDeferred)
+  //   })
+  it('父路由(布局位)是 KnowledgeLayout,9 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+    expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+    const stillDeferred = [
       ...knowledgeRoutes[0].children!.map((c) => c.component),
       knowledgeRoutes[1].component,
       knowledgeRoutes[2].component,
     ]
-    expect(components).toHaveLength(11)
-    for (const c of components) expect(c).toBe(KnowledgeDeferred)
+    expect(stillDeferred).toHaveLength(11)
+    for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
   })
 })

@@ -3,16 +3,18 @@
   `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/KnowledgeLayout.vue`(210 行,
   `git show main:` 读取,治理文件 §1:工作树是旧分支不可信)。
 
-  结构对照(蓝本行号 → 本文件):
-    :2-45   .knowledge-app > aside.k-rail(head/section/nav 9 项/状态块/foot)
-    :47-71  .k-main(topbar/banner/router-view)
-    :73-85  .k-mobile-tabs(前 4 项 + More)
-    :87-91  .k-toast —— 不移植(K3),toast() 走全局 useToast().show()
-    :99-108 NAV / :110-120 TITLES —— 逐字照抄的两个常量
-    :141-146 currentTab 的 if/endsWith 不对称判据 —— 照抄(蓝本如此)
+  结构对照(蓝本行号 → 本文件;评审 2026-08-01 订正,原头注释行号系统性偏
+  5-6 行,以下已逐个回 `git show main:` 复核):
+    :2-47    .knowledge-app > aside.k-rail(head/section/nav 9 项/状态块/foot)
+    :50-72   .k-main(topbar/banner/router-view)
+    :74-90   .k-mobile-tabs(前 4 项 + More)
+    :92-96   .k-toast —— 不移植(K3),toast() 走全局 useToast().show()
+    :104-114 NAV / :116-126 TITLES —— 逐字照抄的两个常量
+    :140-151 currentTab 的 if/endsWith 不对称判据 —— 照抄(蓝本如此)
     :176-181 userName —— 蓝本读 Vuex,本仓无 Vuex,改走 K8 既定写法
              (照 src/ai/components/settings/SettingsRail.vue:75-86 逐字复用)
     :183-190 created()/beforeDestroy() 的 10s 轮询 —— 迁到 onMounted/onUnmounted
+    :196-199 navigate() / :200-203 onRefresh() —— 原样
 
   i18n 键名适配(纯机械,非行为变化):蓝本 `$t(n.en)`/`$t(titleKey)` 直接拿字面英文
   短语当 key(Vue2 语言包以短语为 key)。本仓新键一律 `aiKb*` 前缀(附录 A),
@@ -48,7 +50,7 @@ interface NavItem {
   labelKey: string
 }
 
-/** 蓝本 :99-108，逐字照抄（顺序即 rail 顺序，也是移动端 tabs `slice(0, 4)` 的依据）。 */
+/** 蓝本 :104-114，逐字照抄（顺序即 rail 顺序，也是移动端 tabs `slice(0, 4)` 的依据）。 */
 const NAV: NavItem[] = [
   { id: 'dashboard', en: 'Dashboard', icon: 'home', labelKey: 'aiKbNavDashboard' },
   { id: 'search', en: 'Search', icon: 'search', labelKey: 'aiKbNavSearch' },
@@ -72,7 +74,7 @@ interface TitleEntry {
   titleKey: string
 }
 
-/** 蓝本 :110-120,逐字照抄(en 字段照抄字面英文,titleKey 按上面注释换算成 aiKb 键)。 */
+/** 蓝本 :116-126,逐字照抄(en 字段照抄字面英文,titleKey 按上面注释换算成 aiKb 键)。 */
 const TITLES: Record<KnowledgeTabId, TitleEntry> = {
   dashboard: { en: 'Dashboard', titleKey: 'aiKbNavDashboard' },
   search: { en: 'Search', titleKey: 'aiKbNavSearch' },
@@ -90,7 +92,7 @@ const router = useRouter()
 const { t } = useI18n()
 const store = useKnowledgeStore()
 
-/** 蓝本 :141-153 —— if/endsWith 不对称判据，照抄这个不对称（notes 用
+/** 蓝本 :140-151 —— if/endsWith 不对称判据，照抄这个不对称（notes 用
  * `.includes`，其余用 `.endsWith`；蓝本如此，不做「统一成一种写法」的顺手重构）。 */
 const currentTab = computed<KnowledgeTabId>(() => {
   const p = route.path
@@ -105,17 +107,17 @@ const currentTab = computed<KnowledgeTabId>(() => {
   return 'dashboard'
 })
 
-/** 蓝本 :154-156。 */
+/** 蓝本 :152-154。 */
 const currentNav = computed<NavItem>(() => NAV.find((n) => n.id === currentTab.value) || NAV[0])
 
-/** 蓝本 :157-161。 */
+/** 蓝本 :155-159。 */
 const svcState = computed<'error' | 'paused' | 'running'>(() => {
   if (store.unreachable) return 'error'
   if (store.controlState.paused) return 'paused'
   return 'running'
 })
 
-/** 蓝本 :162-167。 */
+/** 蓝本 :160-165。 */
 const svcMeta = computed<string>(() => {
   if (store.unreachable) return t('aiKbOffline')
   if (store.controlState.paused) return t('aiKbPaused')
@@ -128,7 +130,7 @@ interface Badge {
   tone?: string
 }
 
-/** 蓝本 :168-175 —— `allowlist`/`settings` 恒为 null（蓝本 :173 那行
+/** 蓝本 :166-175 —— `allowlist`/`settings` 恒为 null（蓝本 :172 那行
  * `this.store.state.folderRules.length > 0 ? null : null` 两支结果相同，
  * 是蓝本的死代码而非可复现的错误行为，照抄不当「顺手清理」）。 */
 const badges = computed<Partial<Record<KnowledgeTabId, Badge | null>>>(() => {
@@ -164,13 +166,13 @@ const userLabel = computed<string>(
   () => storedUser.value.nickname || storedUser.value.username || t('aiCfgYou'),
 )
 
-/** 蓝本 :191-194。 */
+/** 蓝本 :196-199。 */
 function navigate(id: KnowledgeTabId): void {
   const path = id === 'dashboard' ? '/ai/knowledge' : `/ai/knowledge/${id}`
   if (route.path !== path) router.push(path)
 }
 
-/** 蓝本 :195-198。 */
+/** 蓝本 :200-203。 */
 async function onRefresh(): Promise<void> {
   await store.loadOverview()
   store.toast(t('aiKbRefreshed'))
@@ -189,7 +191,7 @@ onMounted(() => {
   }, 10000)
 })
 
-/** 蓝本 :189-190 beforeDestroy()。 */
+/** 蓝本 :192-194 beforeDestroy()。 */
 onUnmounted(() => {
   if (pollTimer) {
     clearInterval(pollTimer)

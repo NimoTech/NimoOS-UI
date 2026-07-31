@@ -66,6 +66,7 @@ function makeRouter(path = '/ai/knowledge') {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/ai/knowledge', name: 'KnowledgeDashboard', component: Stub },
+      { path: '/ai/knowledge/wiki', name: 'KnowledgeWiki', component: Stub },
       { path: '/ai/knowledge/queue', name: 'KnowledgeQueue', component: Stub },
       { path: '/ai/knowledge/notes', name: 'KnowledgeNotes', component: Stub },
       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: Stub },
@@ -130,6 +131,35 @@ describe('KnowledgeLayout — rail', () => {
     await w.findAll('.k-rail-item')[3].trigger('click')
     expect(push).toHaveBeenCalledWith('/ai/knowledge/notes')
   })
+
+  // 【评审 Important 开放发现 3,2026-08-01 补】rail 9 项与移动端 5 项的图标名
+  // (NAV[].icon)跟 KIcon.PATHS 之间没有任何断言绑定——KIcon.test.ts 那份 22 项
+  // 硬编码数组与 NAV 完全解耦,如果 NAV 里某个图标名手滑写错(比如 KIcon 内部改名
+  // 后 NAV 忘了同步),KIcon 会静默渲染一个空 `<svg></svg>`(可见的空白图标),但
+  // 现有用例(渲染 9 个导航项/href/data-active)全都不看 svg 内容,抓不到。
+  // RED 探针实测:把 `NAV[0].icon` 从 'home' 改成 'homez' → 全量全绿。
+  it('rail 9 项与移动端 5 项渲染出的 svg 图标内容非空(防 NAV 图标名手滑成不存在的 glyph)', async () => {
+    const { w } = await mountLayout()
+    const railSvgs = w.findAll('.k-rail-item svg')
+    expect(railSvgs).toHaveLength(9)
+    railSvgs.forEach((svg, idx) => {
+      expect(svg.element.innerHTML, `rail item #${idx} 的图标渲染为空`).not.toBe('')
+    })
+    const mobileSvgs = w.findAll('.k-mobile-tab svg')
+    expect(mobileSvgs).toHaveLength(5)
+    mobileSvgs.forEach((svg, idx) => {
+      expect(svg.element.innerHTML, `移动端 tab #${idx} 的图标渲染为空`).not.toBe('')
+    })
+  })
+})
+
+describe('KnowledgeLayout — router-view 出口', () => {
+  // 【评审 Minor,2026-08-01 补】`<router-view/>` 渲染出的子页面(测试里是 Stub)
+  // 之前没有任何用例查过,补一条最基础的存在性断言。
+  it('渲染当前路由匹配的子组件', async () => {
+    const { w } = await mountLayout()
+    expect(w.find('.stub-child').exists()).toBe(true)
+  })
 })
 
 describe('KnowledgeLayout — 徽标', () => {
@@ -193,6 +223,28 @@ describe('KnowledgeLayout — topbar / banner', () => {
     expect(w.findAll('.k-rail-item')[8].find('.k-rail-item-cn').text()).not.toBe(
       w.find('.k-topbar-title').text(),
     )
+  })
+
+  // 【评审 Important 开放发现 4,2026-08-01 补】TITLES 9 项原来只钉住 dashboard(默认档)
+  // 与 settings(N8)两项,wiki/queue 两项跟 N8 同性质的「titleKey 与 nav 短语不同」
+  // 刻意差异(Wiki vs Wiki map、Queue vs Job Queue)零覆盖;`.k-topbar-sub` 也只测过
+  // dashboard 那条「不带子路径」分支,`'/' + currentTab` 那条分支从没有对照用例
+  // (治理文件 §9:「A 与 B 二选一必须两边都有对照用例」)。
+  // RED 探针实测:把 `TITLES.queue.titleKey` 从 'aiKbTitleJobQueue' 改成
+  // 'aiKbNavQueue'(与 nav 键合并)→ queue 用例精确报红。
+  it('wiki:标题取 aiKbTitleWikiMap,副标题带 /wiki 子路径', async () => {
+    const { w } = await mountLayout('/ai/knowledge/wiki')
+    expect(w.find('.k-topbar-title').text()).toBe('Wiki 导航')
+    expect(w.find('.k-topbar-sub').text()).toBe('Wiki · /ai/knowledge/wiki')
+  })
+
+  it('queue:标题取 aiKbTitleJobQueue(≠ nav 的「任务」),副标题带 /queue 子路径(主钉子,判别力强于 wiki)', async () => {
+    const { w } = await mountLayout('/ai/knowledge/queue')
+    expect(w.find('.k-topbar-title').text()).toBe('任务队列')
+    expect(w.find('.k-topbar-sub').text()).toBe('Job Queue · /ai/knowledge/queue')
+    // wiki 与 nav 中文值恰好都是「Wiki 导航」(N8 说明栏已注),判别力天然弱;
+    // queue 的 nav 中文是「任务」、title 中文是「任务队列」,两者不同,才是真正的钉子。
+    expect(w.find('.k-topbar-title').text()).not.toBe('任务')
   })
 
   it('unreachable 时出警示条,否则不出', async () => {

@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest'
 // ③ 不用 Vite 的 `?raw` 导入替代 node:fs —— vitest 自带 CSSEnablerPlugin 对 css/scss
 //    一律整体替换成空串(不看查询串),?raw 导入会让断言对空字符串"假通过"。退回 node:fs。
 // @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明,见上方注释
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 // @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明,见上方注释
 import { resolve, dirname } from 'node:path'
 // @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明,见上方注释
@@ -230,5 +230,60 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     expect(lightBody).not.toContain('--accent: var(--accent)')
     expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
     expect(lightBody).not.toContain('--success: var(--success)')
+  })
+})
+
+// 【评审 Important 开放发现 2,2026-08-01 补】把 `KnowledgeLayout.vue:41` 的
+// `import '../../styles/knowledge.scss'` 注释掉 → 全量全绿,无人报红 —— 这是本批
+// 最严重的一类故障(整个知识库区裸奔,视觉上一无所有),之前没有任何自动化守卫。
+// 上面 38 个类的存在性/色字面量等断言全部只读 `knowledge.scss` 这份源文件本身,
+// 完全不关心它有没有被任何生产代码 import——文件内容再正确,没人 import 它就是
+// 死代码,产物里一行 CSS 都不会有(这正是 R8 那条 Critical 的直接后果:C1 之前
+// KnowledgeDeferred.vue 没 import 它、KnowledgeLayout.vue 写了但父路由没接上它、
+// dist 里搜不到 `knowledge-app`)。
+//
+// 复用本档已有的 node:fs 技法(不用 Vite `?raw` —— 同头注释③,CSSEnablerPlugin
+// 会把 .vue SFC 里 <style> 块之外的部分保留,但这里我们直接读 .vue 源文件的原始
+// 文本找 import 语句字面量,不经过任何编译管线,不受 CSSEnablerPlugin 影响,所以
+// 用 `?raw` 或 node:fs 读 .vue 都可以——为了手法统一,同样用 node:fs)。
+//
+// 【自己做 RED 探针时抓到的真实 bug,已修正】第一版用 `content.includes(needle)`
+// 裸子串匹配——把生产文件里的 `import '../../styles/knowledge.scss'` 注释掉
+// (`// import '../../styles/knowledge.scss'`)之后再跑,这条守卫**仍然通过**:
+// 注释掉的那一行文本里子串 `styles/knowledge.scss` 原封不动还在,子串匹配根本
+// 分不清「真的 import」与「写在注释里的同一段文字」。这正是 P3b 教训 4 那类
+// 「子串检查抓不住真实缺陷」的同款坑,只是这次是我自己的探针把自己的守卫抓出来
+// 的。改成逐行检查:只有「整行去空白后以 `import` 开头、且包含 needle」才算数,
+// 注释行(以 `//` 开头)自然不满足「以 import 开头」这个前提,不会被误判。
+function lineIsLiveImport(line: string, needle: string): boolean {
+  const trimmed = line.trim()
+  return trimmed.startsWith('import') && trimmed.includes(needle)
+}
+
+function findVueFilesImporting(dir: string, needle: string): string[] {
+  const hits: string[] = []
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry.startsWith('.')) continue
+    const full = resolve(dir, entry)
+    const stat = statSync(full)
+    if (stat.isDirectory()) {
+      hits.push(...findVueFilesImporting(full, needle))
+    } else if (entry.endsWith('.vue')) {
+      const content = readFileSync(full, 'utf8') as string
+      if (content.split('\n').some((line: string) => lineIsLiveImport(line, needle))) hits.push(full)
+    }
+  }
+  return hits
+}
+
+describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(评审 Important 开放发现 2)', () => {
+  it('src/ai 下有 .vue 文件 import 了 knowledge.scss,否则样式表编译不出任何 CSS、整个知识库区裸奔', () => {
+    const aiDir = resolve(__dirname, '..')
+    const importers = findVueFilesImporting(aiDir, 'styles/knowledge.scss')
+    expect(
+      importers.length,
+      '没有任何 .vue 文件 import knowledge.scss —— 见 R8:这曾经是真实发生过的情况' +
+        '(KnowledgeDeferred.vue 不 import、父路由不接 KnowledgeLayout.vue,dist 里搜不到 knowledge-app)',
+    ).toBeGreaterThan(0)
   })
 })
