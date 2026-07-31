@@ -51,3 +51,189 @@
   color: var(--fg-faint);
   font-size: 13px;
 }
+
+/* ── 设置列表(对位 Vue2 .settings-list / .group-list)────────────────── */
+.set-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 16px;
+}
+.set-row-wrap:not(:last-child) .set-list-item {
+  border-bottom: 1px solid var(--border);
+}
+.set-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+.set-list-item.clickable {
+  cursor: pointer;
+}
+.set-list-item.clickable:hover {
+  color: var(--accent-text);
+}
+.set-list-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.set-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.set-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-row-sub {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.set-row-ctl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.set-chevron {
+  color: var(--fg-faint);
+  flex: 0 0 auto;
+}
+.set-row-hint {
+  margin: -6px 0 10px;
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+
+/* ── 开关(照 SnapshotSettingsDialog.vue 的 .ss-switch)──────────────── */
+.set-switch {
+  position: relative;
+  width: 38px;
+  height: 21px;
+  flex: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--chip-bg);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.set-switch.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.set-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.set-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--fg);
+  transition: transform 0.15s var(--ease);
+}
+/* --on-accent 只有叠在 accent 实底上才可用 —— 这里正是那种情形 */
+.set-switch.on .set-switch-thumb {
+  transform: translateX(17px);
+  background: var(--on-accent);
+}
+
+/* ── 表单控件(原生 select/input,全仓既有惯例:appearance:auto)─────── */
+.set-select,
+.set-input {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  max-width: 240px;
+}
+.set-select {
+  appearance: auto;
+}
+.set-input {
+  width: 92px;
+}
+.set-select:disabled,
+.set-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── 按钮 ────────────────────────────────────────────────────────────── */
+.set-btn {
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg);
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.set-btn:hover:not(:disabled) {
+  background: var(--chip-bg-hi);
+}
+/* 变体必须自带 :hover 背景 —— 基类 .set-btn:hover 的优先级(0,2,0)会压过变体
+ * 的(0,1,0),否则 hover 时变体色被洗成默认底(newui-css-hover-specificity-trap)。 */
+.set-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.set-btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  filter: brightness(1.08);
+}
+.set-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 大卡(设备信息卡等)────────────────────────────────────────────── */
+.set-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+}
+
+/* ── 状态文字 ────────────────────────────────────────────────────────── */
+.set-ok {
+  color: var(--success);
+  font-size: 12px;
+}
+.set-info {
+  color: var(--accent-text);
+  font-size: 12px;
+}
+.set-warn {
+  color: var(--set-warn-fg);
+}
+.set-danger {
+  color: var(--remove-fg);
+  font-size: 12px;
+}
