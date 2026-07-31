@@ -180,6 +180,13 @@ function onHeroClick(): void {
   border-left: 1px solid var(--card-border);
   display: flex; flex-direction: column;
   box-shadow: var(--card-shadow-hi);
+  /* 评审 I2:`.map-detail.is-entering`(Vue2 photos-places.scss:491-494)是死 CSS,模板
+     从未切换这个 class,不迁——但这条 base 上的 opacity/transform 起始态 + transition
+     属于要迁的部分(plan 原文:"进场只由 .map-detail 自身的 transition 承担"),不是
+     is-entering 的连带死代码,后人重塑样式时不要一并清掉。精确复刻 Vue2 :487-489。 */
+  opacity: 1;
+  transform: translateX(0);
+  transition: transform 0.28s cubic-bezier(.16, .84, .44, 1), opacity 0.2s ease-out;
 }
 
 .detail-hero {
@@ -220,6 +227,9 @@ function onHeroClick(): void {
   display: inline-flex; align-items: center; justify-content: center;
   /* theme-exception: 同 .close——hero chrome 按钮固定深色底 */
   background: rgba(0, 0, 0, 0.6);
+  /* 评审 I1:精确复刻 Vue2 内联样式 backdropFilter:'blur(8px)'(PhotosPlacesView.vue:1068)——
+     此前漏迁,补回毛玻璃;非颜色属性,不涉及 color-guard。 */
+  backdrop-filter: blur(8px);
   border: 1px solid var(--card-border);
   border-radius: 50%;
   color: #fff; /* theme-exception: 同 .close——hero chrome 按钮,恒定浅色前景 */

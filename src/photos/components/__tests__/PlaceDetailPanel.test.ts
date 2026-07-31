@@ -292,6 +292,30 @@ describe('z-index 不变量', () => {
   })
 })
 
+// ── 评审 fix round 1 I1:设置封面按钮的毛玻璃(Vue2 内联 backdropFilter:'blur(8px)',
+// PhotosPlacesView.vue:1068)此前漏迁,补回后需要程序化断言钉住,防止后人重塑样式时
+// 静默丢掉(与本次丢失的原因一样)。──────────────────────────────────────────
+describe('设置封面按钮的毛玻璃(评审 I1)', () => {
+  it('.hero-cover-btn 规则含 backdrop-filter: blur(8px)', () => {
+    const style = extractStyleBlock(placeDetailPanelRaw)
+    const m = /\.hero-cover-btn\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .hero-cover-btn 规则').not.toBeNull()
+    expect(m![1]).toMatch(/backdrop-filter:\s*blur\(8px\)/)
+  })
+})
+
+// ── 评审 fix round 1 I2:.map-detail 进场只由自身 transition 承担(plan 原文),
+// `.map-detail.is-entering` 是死 CSS 不迁,但这条 base transition 属于要迁的部分,
+// 此前漏迁,补回后同样需要程序化断言钉住。────────────────────────────────────
+describe('.map-detail 进场 transition(评审 I2)', () => {
+  it('.map-detail 规则含 transition(transform + opacity 两段,精确复刻 Vue2 :487-489)', () => {
+    const style = extractStyleBlock(placeDetailPanelRaw)
+    const m = /\.map-detail\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .map-detail 规则').not.toBeNull()
+    expect(m![1]).toMatch(/transition:[^;]*transform[^;]*,[^;]*opacity/)
+  })
+})
+
 // ── hero 前景色合规(禁用 --on-accent + 必须 theme-exception)────────────
 describe('hero 前景色合规', () => {
   it('.close / .ttl-name / .ttl-region 所在规则不含 --on-accent', () => {
