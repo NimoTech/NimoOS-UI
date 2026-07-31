@@ -342,3 +342,12 @@
 .set-wifi-flag { font-size: 11px; color: var(--success); flex: 0 0 auto; }
 .set-wifi-lock { font-size: 11px; color: var(--fg-muted); flex: 0 0 auto; }
 .set-wifi-empty { padding: 20px 12px; text-align: center; color: var(--fg-muted); font-size: 12px; }
+
+/* P1 的 .set-input 是给设置**行**里的短框用的(width: 92px,如 WebUI 端口);
+ * 弹窗表单里的 IP / 掩码 / 网关 / DNS 要占满一行,否则值会被截断(自查截图逮到)。
+ * 用 .set-net-field 后代选择器(0,2,0)压过 .set-input(0,1,0)。 */
+.set-net-field .set-input,
+.set-net-field .set-select {
+  width: 100%;
+  max-width: none;
+}
