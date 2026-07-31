@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, vi, MockedFunction } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-const getCustomStorage: MockedFunction<(k: string) => Promise<unknown>> = vi.fn(async () => null)
-const setCustomStorage: MockedFunction<(k: string, d: unknown) => Promise<unknown>> = vi.fn(async () => ({}))
+// 有状态的假后端:setCustomStorage 写回的内容,下一次 getCustomStorage 能读到
+// (systemConfig 的串行队列内部会重新读一次,mock 必须像真后端一样"记得"上一次写入)。
+let blob: unknown = null
+const getCustomStorage: MockedFunction<(k: string) => Promise<unknown>> = vi.fn(async () => blob)
+const setCustomStorage: MockedFunction<(k: string, d: unknown) => Promise<unknown>> = vi.fn(async (_k: string, d: unknown) => { blob = d; return {} })
 vi.mock('@nimotech/nimoos-service', async () => {
   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
   return { ...actual, service: { users: {
@@ -19,6 +22,7 @@ describe('locale store', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     vi.clearAllMocks()
+    blob = null
     i18n.global.locale.value = 'zh_cn'
   })
 
@@ -53,5 +57,15 @@ describe('locale store', () => {
     expect(setCustomStorage.mock.calls[0]?.[0]).toBe('system')
     expect(setCustomStorage.mock.calls[0]?.[1]).toEqual({ timezone: 'UTC', search_switch: true, lang: 'en_us' })
     expect(i18n.global.locale.value).toBe('en_us')
+  })
+
+  it('切语言与设置页写时区并发,两者都不丢(纪律 #3)', async () => {
+    const { patchSystemConfig, __resetSystemConfigQueue } = await import('../settings/util/systemConfig')
+    __resetSystemConfigQueue()
+    const store = useLocaleStore()
+    await Promise.all([store.persist('en_us'), patchSystemConfig({ timezone: 'UTC' })])
+    const blob = await (await import('../settings/util/systemConfig')).readSystemConfig()
+    expect(blob.lang).toBe('en_us')
+    expect(blob.timezone).toBe('UTC')
   })
 })

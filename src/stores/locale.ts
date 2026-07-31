@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia'
-import { service } from '@nimotech/nimoos-service'
 import { i18n } from '../i18n'
+import { readSystemConfig, patchSystemConfig } from '../settings/util/systemConfig'
 
 export const LOCALES = ['zh_cn', 'en_us'] as const
 export type Locale = (typeof LOCALES)[number]
-const SYSTEM_KEY = 'system'
 
 function isLocale(v: unknown): v is Locale {
   return typeof v === 'string' && (LOCALES as readonly string[]).includes(v)
@@ -16,25 +15,19 @@ export const useLocaleStore = defineStore('locale', () => {
     localStorage.setItem('lang', lang)
   }
 
-  async function readSystemBlob(): Promise<Record<string, unknown>> {
-    let data: unknown = await service.users.getCustomStorage(SYSTEM_KEY)
-    if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
-    return data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
-  }
-
   async function loadFromServer(): Promise<void> {
     try {
-      const blob = await readSystemBlob()
+      const blob = await readSystemConfig()
       if (isLocale(blob.lang)) setLocale(blob.lang)
     } catch (e) { console.warn('[locale] server load failed', e) }
   }
 
+  // 改走 systemConfig 的串行队列:设置页的时区/开关也写这一个 key,
+  // 各自读改写会丢写(移植纪律 #3)。
   async function persist(lang: Locale): Promise<void> {
     setLocale(lang)
     try {
-      const blob = await readSystemBlob()
-      blob.lang = lang
-      await service.users.setCustomStorage(SYSTEM_KEY, blob)
+      await patchSystemConfig({ lang })
     } catch (e) { console.warn('[locale] server save failed', e) }
   }
 
