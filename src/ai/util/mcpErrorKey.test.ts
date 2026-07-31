@@ -43,6 +43,21 @@ describe('saveServerErrorKey —— 后端 validateAndClean 的三条 400', () =
     expect(saveServerErrorKey(httpErr(400, { detail: 'command required for stdio' })))
       .toBe('aiMcpSrvErrCommandRequired')
   })
+  // 评审 Important:body 裸字符串——rawMessage 只认 `{message}`/`{detail}` 对象形状,
+  // 裸字符串不满足 `typeof data === 'object'`,必须落通用兜底,且该字符串不能原样漏出。
+  it('body 是裸字符串 → 通用兜底,不回显该字符串', () => {
+    const k = saveServerErrorKey(httpErr(400, 'plain text error'))
+    expect(k).toBe('aiCfgSaveFailed')
+    expect(JSON.stringify(k)).not.toContain('plain text error')
+  })
+  // body 数组:`typeof [] === 'object'` 为真,但数组没有 `.message`/`.detail` 属性,
+  // 取值链必须安全地拿到 undefined 而不是抛异常或意外拼出数组内容。
+  it('body 是数组 → 通用兜底,不泄漏数组内容', () => {
+    const k = saveServerErrorKey(httpErr(400, ['a', 'b']))
+    expect(k).toBe('aiCfgSaveFailed')
+    expect(JSON.stringify(k)).not.toContain('"a"')
+    expect(JSON.stringify(k)).not.toContain('"b"')
+  })
 })
 
 describe('parseCommandErrorKey —— mcpparse 的五条 400', () => {
@@ -79,6 +94,19 @@ describe('parseCommandErrorKey —— mcpparse 的五条 400', () => {
     const k = parseCommandErrorKey(httpErr(400, { message: 'some brand new parser error' }))
     expect(k).toBe('aiMcpSrvParseFailed')
     expect(k).not.toContain('brand new')
+  })
+  // 评审 Important:同一份 rawMessage 取值链被 parseCommandErrorKey 复用,
+  // 裸字符串/数组两种边界形状也要在这个函数上钉一遍(不只钉 saveServerErrorKey)。
+  it('body 是裸字符串 → 通用兜底,不回显该字符串', () => {
+    const k = parseCommandErrorKey(httpErr(400, 'plain text error'))
+    expect(k).toBe('aiMcpSrvParseFailed')
+    expect(JSON.stringify(k)).not.toContain('plain text error')
+  })
+  it('body 是数组 → 通用兜底,不泄漏数组内容', () => {
+    const k = parseCommandErrorKey(httpErr(400, ['a', 'b']))
+    expect(k).toBe('aiMcpSrvParseFailed')
+    expect(JSON.stringify(k)).not.toContain('"a"')
+    expect(JSON.stringify(k)).not.toContain('"b"')
   })
 })
 
@@ -131,6 +159,13 @@ describe('toTestView —— 200 响应体 → 视图', () => {
     expect(toTestView({ ok: false, error_key: 'list_failed', detail: { a: 1 } }))
       .toEqual({ ok: false, msgKey: 'aiMcpSrvTestErrListFailed', detail: '' })
   })
+  // 评审 Important:`error_key: null` 不在四值查表里,switch 落 default 分支;
+  // 强断言整个视图形状,确保 null 本身与 detail 都没有被错误地拼进结果。
+  it('error_key 为 null → 落通用兜底,detail 仍原样保留、null 不泄漏进结果', () => {
+    const v = toTestView({ ok: false, error_key: null, detail: 'x' })
+    expect(v).toEqual({ ok: false, msgKey: 'aiMcpSrvTestFailed', detail: 'x' })
+    expect(JSON.stringify(v)).not.toContain('null')
+  })
 })
 
 describe('toTestViewFromError —— 抛出的错误 → 视图', () => {
@@ -149,5 +184,19 @@ describe('toTestViewFromError —— 抛出的错误 → 视图', () => {
   it('任意后端原文都不进入视图', () => {
     const v = toTestViewFromError(httpErr(500, { message: 'LEAKED-ENGLISH-STRING' }))
     expect(JSON.stringify(v)).not.toContain('LEAKED-ENGLISH-STRING')
+  })
+  // 评审 Important:502 判定只看 status===502(见 mcpErrorKey.ts 的
+  // `status === 502 || bodyError === 'agent unreachable'`),不依赖 body 形状——
+  // body 不是预期的 `{ok:false,error:'agent unreachable'}` 时也必须落 agentDown,
+  // 且 body 里塞的任何内容都不能泄漏进视图。
+  it('502 但 body 形状不是预期的那个(非常规对象)→ 仍判 agentDown,不泄漏 body 内容', () => {
+    const v = toTestViewFromError(httpErr(502, { unexpected: 'LEAKED-UNEXPECTED-SHAPE' }))
+    expect(v).toEqual({ ok: false, msgKey: 'aiMcpSrvTestErrAgentDown', detail: '' })
+    expect(JSON.stringify(v)).not.toContain('LEAKED-UNEXPECTED-SHAPE')
+  })
+  it('502 且 body 是裸字符串 → 仍判 agentDown,不泄漏该字符串', () => {
+    const v = toTestViewFromError(httpErr(502, 'LEAKED-STRING-BODY'))
+    expect(v).toEqual({ ok: false, msgKey: 'aiMcpSrvTestErrAgentDown', detail: '' })
+    expect(JSON.stringify(v)).not.toContain('LEAKED-STRING-BODY')
   })
 })

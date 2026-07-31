@@ -95,7 +95,7 @@ export function toTestView(body: unknown): McpTestView {
 }
 
 /** 抛出的错误(HTTP 层失败,不是 200 里的 `{ok:false,...}`)→ 视图。
- *  `mcp.go:349` 的 502 `{ok:false,error:"agent unreachable"}` 与 404
+ *  `mcp.go:351` 的 502 `{ok:false,error:"agent unreachable"}` 与 404
  *  `mcp server not found` 各给专用键,其余一律通用兜底,body 的字符串
  *  永不放进 `detail`(那是后端英文原文)。 */
 export function toTestViewFromError(e: unknown): McpTestView {
