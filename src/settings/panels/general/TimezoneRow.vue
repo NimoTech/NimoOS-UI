@@ -14,12 +14,21 @@ import '../../styles/settings.css'
 const { t } = useI18n()
 const value = ref<string>(SYSTEM_DEFAULTS.timezone as string)
 
+// 交错防护(评审 fix 3,非假设性——本仓库反复栽在"异步写共享 state 缺过期/
+// 已改动守卫"上):onMounted 的 readSystemConfig() 是真实网络请求,如果用户在
+// 它返回前就手动选了别的时区,读取结果不能把用户刚选的值覆盖回去。用户一旦
+// 改选就把 touched 置 true,读取回调里检查这个本地标志、不落地共享 store /
+// 不抽公共 composable(上一轮评审已定论:这个守卫就地写,不要抽象)。
+let touched = false
+
 onMounted(async () => {
   const cfg = await readSystemConfig()
+  if (touched) return
   if (typeof cfg.timezone === 'string' && cfg.timezone) value.value = cfg.timezone
 })
 
 async function onChange(e: Event) {
+  touched = true
   const next = (e.target as HTMLSelectElement).value
   value.value = next
   try {

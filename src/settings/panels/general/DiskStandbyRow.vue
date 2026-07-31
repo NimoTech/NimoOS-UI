@@ -16,12 +16,19 @@ const { t } = useI18n()
 const toast = useToast()
 const value = ref<string>(SYSTEM_DEFAULTS.disk_standby as string)
 
+// 交错防护(评审 fix 3,同 TimezoneRow.vue 的理由):真实网络延迟下,用户可能
+// 在 onMounted 的读取返回前就已经改选并下发了正确的指令 —— 读取回调不能把
+// 显示值再冲回服务端的旧快照。就地布尔标志,不抽公共 helper。
+let touched = false
+
 onMounted(async () => {
   const cfg = await readSystemConfig()
+  if (touched) return
   if (typeof cfg.disk_standby === 'string' && cfg.disk_standby) value.value = cfg.disk_standby
 })
 
 async function onChange(e: Event) {
+  touched = true
   const next = (e.target as HTMLSelectElement).value
   value.value = next
   try {
