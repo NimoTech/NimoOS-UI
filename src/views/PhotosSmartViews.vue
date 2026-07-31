@@ -27,6 +27,12 @@
 //  3) 横幅琥珀色:Vue2 是内联 rgba(255,159,10,…)/#FF9F0A 字面量,这里改用本仓既有的
 //     --dem-fg/--dem-bg/--dem-bd 家族(grep theme.css 已确认两套主题都有取值,PhotosTrash.vue
 //     的 warn 语义已是这套 token 的既定先例,不新增 token)。
+//  4) .sv-create-btn 背景:Vue2 是 linear-gradient(135deg, var(--accent), var(--accent-hi))
+//     渐变,本仓没有 --accent-hi(Global Constraints §33),改用 var(--accent) 实底 +
+//     hover 时 filter: brightness(1.08)(照 PhotosPersonDetail.vue:1142 等既有先例)。
+//     fix round 1 · I2:这条只解释了背景色的替换,**不覆盖** Vue2 hover 态的
+//     transform: translateY(-1px)(上浮)——那是与颜色 token 无关的独立视觉属性,
+//     之前被静默丢了,已在样式块补回(两者可共存)。
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -143,8 +149,17 @@ onMounted(() => {
 
 /* ── AI 横幅(Vue2 内联 :15-19 → --dem-fg 家族,先例:PhotosTrash.vue .trash-bucket-dot
      [data-tone="warn"])── */
+/* fix round 1 · I1:Vue2 是 `margin: 24px 32px 0`(横幅在 .sv-page 内部,.sv-page 本身已有
+   32px 横向 padding,横幅又加 32px margin ⇒ 距页面边缘 64px,比 .sv-hero/.sv-grid(两者都
+   无横向 margin,停在 32px)多缩进一层——刻意的视觉层级:"这是一条附加提示,层级低于页面
+   主体")。本仓容器是 .area-body(桌面态 padding:20px)而非 Vue2 的 32px,照抄字面 32px
+   不等于照抄视觉——这里保留 Vue2 的**额外缩进量** 32px 作为 margin-left/right,使横幅比
+   hero/网格多缩进 32px,维持与 Vue2 相同的相对关系。上边距照抄 Vue2 的 24px。下边距
+   Vue2 是 0(与 hero 顶边贴合,因为 .sv-hero 无 margin-top)——这里不照抄 0,保留 20px
+   间距(偏离登记:纯 0 会让横幅与 hero 标题在视觉上过于贴近,20px 是本页其余区块间距
+   的既定量级,判断为可安全登记的偏离,不是静默改掉)。 */
 .svs-banner {
-  margin: 0 0 20px; padding: 14px 16px;
+  margin: 24px 32px 20px; padding: 14px 16px;
   background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
   display: flex; gap: 10px; align-items: flex-start;
 }
@@ -168,7 +183,11 @@ onMounted(() => {
   background: var(--accent); color: var(--on-accent);
   font: inherit; font-weight: 500; font-size: 13px; cursor: pointer;
 }
-.sv-create-btn:hover { background: var(--accent); filter: brightness(1.08); }
+/* fix round 1 · I2:Vue2 scss:20 的 hover 效果是 `transform: translateY(-1px)`(按钮上浮)——
+   这是与颜色 token 无关的独立视觉属性,之前只补了本仓 primary 按钮 hover 的既定变亮写法
+   (`filter: brightness(1.08)`,理由见文件头部偏离登记 4:渐变改实色因本仓无 --accent-hi),
+   把 Vue2 的上浮效果静默丢了。两者不冲突,这里补回。 */
+.sv-create-btn:hover { background: var(--accent); filter: brightness(1.08); transform: translateY(-1px); }
 
 /* ── 网格(scss:21-25)── */
 .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; flex: 1 1 auto; }

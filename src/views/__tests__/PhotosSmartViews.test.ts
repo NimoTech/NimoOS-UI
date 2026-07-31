@@ -24,6 +24,10 @@ import PhotosSmartViews from '../PhotosSmartViews.vue'
 // 行为断言。
 import photosSmartViewsRaw from '../PhotosSmartViews.vue?raw'
 import { usePhotosSmartViews } from '../../photos/stores/smartViews'
+// fix round 1 · I1/I2:先锚定规则体、再断言属性(全文件级 toContain 不算断言)。
+// parseCssRules/extractStyleBlock 是本区既有的样式块结构断言工具(SmartViewCard.test.ts
+// 已用过),不重新发明。
+import { extractStyleBlock, parseCssRules } from '../../photos/components/__tests__/cssCascade'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -209,5 +213,26 @@ describe('PhotosSmartViews.vue — 样式块结构核对', () => {
 
   it('.sv-create-btn 与 .plus 圆块用 var(--accent) 实底 + var(--on-accent) 前景(不是裸色)', () => {
     expect(photosSmartViewsRaw).toContain('background: var(--accent); color: var(--on-accent);')
+  })
+
+  // fix round 1 · I1:AI 横幅的 margin 必须保留"比 hero/网格多缩进一层"的相对关系
+  // (Vue2 24px 上 / 32px 左右 / 0 下,本仓取额外缩进量 32px 而非字面照抄,详见样式块内
+  // 对应注释)。先锚定 .svs-banner 的规则体、再断言 margin 值——全文件级 toContain 恒真,
+  // 不算断言。
+  it('.svs-banner 的 margin 保留 Vue2 的横向额外缩进(32px)与上边距(24px)', () => {
+    const rules = parseCssRules(extractStyleBlock(photosSmartViewsRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.svs-banner')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('margin: 24px 32px 20px;')
+  })
+
+  // fix round 1 · I2:.sv-create-btn:hover 必须同时保留 Vue2 的上浮效果(translateY)与本仓
+  // primary 按钮 hover 的既定变亮写法(filter: brightness),两者可共存。先锚定
+  // .sv-create-btn:hover 的规则体、再断言含 translateY。
+  it('.sv-create-btn:hover 保留 Vue2 的上浮效果(translateY(-1px))', () => {
+    const rules = parseCssRules(extractStyleBlock(photosSmartViewsRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-create-btn:hover')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('translateY(-1px)')
   })
 })
