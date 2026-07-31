@@ -94,6 +94,18 @@
   /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
      本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
   --place-current-trip: #34c759;
+  /* PlaceDetailPanel.vue(P6b-T3)「常驻地」标记色——新增 token,精确复刻 Vue2
+     photos-places.scss 内联 `style="color:#c4b8ff"`(:1078)。偏离登记(brief 字面要求
+     两套主题给不同值,深色浅紫、浅色改深色向,同 --accent-text 的做法):这里改成
+     **两套主题同值**,不跟随 app 主题深浅——它与紧邻的 --place-current-trip 用在完全
+     相同的语境(.ttl-region 内,叠在 hero 暗化封面照片之上,该遮罩本身钉死恒为深色,
+     与 app 是深色皮肤还是纸感皮肤无关),若照字面给浅色主题一个深紫版本,会在浅色 app
+     主题下把深紫字压在恒暗的照片渐变上,直接违反本任务"hero 前景色红线"的对比度要求。
+     不用 --accent-text 就近凑:那是"比 accent 更浅更可读"的语义(蓝色调),这里要与
+     「本次旅行」并列的第二个状态色(紫色调),同 --pin-cluster-stroke 换基色不换语义的
+     既有先例,但这里连 alpha/精确色值都直接照抄 Vue2 字面量(theme-invariant,同
+     --place-current-trip 的既有先例)。 */
+  --place-home-base: #c4b8ff;
   /* PlacesMap.vue(P6a-T6)陆地点阵底色的 CSS 回落值——theme-invariant,两套主题块同值。
      精确复刻 Vue2 photos-places.scss:347 的字面量 rgba(255,255,255,0.10)(该视图刻意不走
      --ink/文字色系,因为这层压在地图预设自己的深色画布上,与 app 主题无关)。
@@ -346,6 +358,10 @@
   --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
   /* 两套主题同值,见 :root 同名注释。 */
   --place-current-trip: #34c759;
+  /* 两套主题同值,见 :root 同名注释(偏离登记:未按字面要求给浅色主题一个深紫版本,
+     理由同 :root 块的完整登记——它与 --place-current-trip 语境完全相同,恒叠在
+     hero 的固定暗化渐变之上,与 app 是深色还是纸感皮肤无关)。 */
+  --place-home-base: #c4b8ff;
   /* theme-invariant,两套主题块同值——见 :root 同名 token 注释(不用 --fg-faint 的理由同上,
      浅色 --fg-faint 是不透明暖灰 #9a958a,同样会在地图画布上变成一块不透明色块)。 */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
