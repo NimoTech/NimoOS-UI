@@ -43,4 +43,26 @@ describe('KIcon', () => {
     expect(d('user')).toContain('cy="7"')          // AgentIcon 是 cy="8" + scale
     expect(d('download')).toContain('M10 3v9')     // AgentIcon 是 M10 3v10
   })
+
+  // 评审 Important 开放发现 1:上面几条只覆盖 8 个 glyph(check/code 正向 + 六条异形),
+  // 「22 个 name 全部存在」那条只查非空 —— 其余约 35 个 glyph 互相串位/坐标写错都测不出。
+  // 这条快照【不是】用来验证「移植对不对」——那件事已经由实现者与评审各自独立对蓝本做过
+  // 逐字节 diff(见 p5a-task-3-report.md,两侧 md5sum 一致,0 差异),移植正确性已经证明过了。
+  // 这条快照锁的是【那个已验证状态】,防的是【将来】有人改动 KIcon.vue 时无意中改错坐标、
+  // 或把两个 glyph 的 path 串了位——42 个键名全列(不是 T10/T12 用到的 22 个子集,
+  // 那 22 个恰好是已有保护的,漏掉的 20 个才是这条快照真正要保护的对象)。
+  it('42 条 glyph 全量快照(防未来误改漂移)', () => {
+    const names = [
+      'plus', 'folder', 'search', 'chev', 'check', 'x', 'play', 'pause', 'trash', 'settings',
+      'edit', 'file', 'drive', 'history', 'refresh', 'home', 'grid', 'user', 'arrowRight', 'download',
+      'hourglass', 'spinner', 'danger', 'test', 'rocket', 'eye', 'info', 'target', 'clock', 'code',
+      'chevDown', 'chevLeft', 'arrowDown', 'sort', 'tomb', 'layers',
+      'sparkle', 'bot', 'copy', 'paperclip', 'upload', 'funnel',
+    ]
+    expect(names.length).toBe(42)
+    const dump = Object.fromEntries(names.map((n) => [
+      n, mount(KIcon, { props: { name: n } }).get('svg').element.innerHTML,
+    ]))
+    expect(dump).toMatchSnapshot()
+  })
 })
