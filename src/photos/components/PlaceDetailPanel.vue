@@ -35,7 +35,8 @@
 //
 // token 映射(Vue2 → New-UI,brief §6):--text-1/2/3 → --fg/--fg-muted/--fg-subtle;
 // --surface-2 → --chip-bg;--line/--line-strong → --card-border;--r-sm → --radius-sm;
-// --font-display → --font;.map-detail 的 --surface-1 → --panel-bg;
+// --font-display → --font;.map-detail 的 --surface-1 → --panel-bg-solid(真机验收后从
+// --panel-bg 改过来:半透底会把下面的地图网格点透上来,见该规则处注释);
 // box-shadow: -8px 0 40px … → var(--card-shadow-hi)(D3,同 P6a 弹层裁定)。
 //
 // hero 前景色红线(本任务最高危,brief 原文强调):hero 上叠在暗化封面照片之上的一切前景
@@ -305,7 +306,10 @@ function onSpotOpenPhoto(assetId: string): void {
   top: 0; right: 0; bottom: 0;
   width: 420px;
   z-index: 6;
-  background: var(--panel-bg);
+  /* 真机验收反馈:这块面板绝对定位压在地图画布上,--panel-bg(深色 10% 白 / 浅色 42% 白)
+     会把地图网格点透上来。改用完全不透明的 --panel-bg-solid;左侧 .map-rail 在 grid 流内、
+     底下只有 --app-bg,不受影响,仍用 --panel-bg。 */
+  background: var(--panel-bg-solid);
   border-left: 1px solid var(--card-border);
   display: flex; flex-direction: column;
   box-shadow: var(--card-shadow-hi);

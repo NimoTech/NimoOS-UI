@@ -224,6 +224,10 @@
   --overlay-blur: blur(50px) saturate(1.5) brightness(1.05);
   /* 侧栏大面板玻璃(比 --card-bg 更透、阴影更收敛;文件区侧栏用) */
   --panel-bg: rgba(255, 255, 255, 0.1);
+  /* 完全不透明的侧栏大面板底(真机验收反馈:地点详情面板压在地图上,--panel-bg 的
+     10% 白会把下面的地图网格点透上来、正文糊掉)。取值 = --popup-bg 去掉 alpha 的
+     同色实底(rgba(30,34,52)=#1e2234 / rgba(16,19,30)=#10131e),保持与弹层同一观感。 */
+  --panel-bg-solid: linear-gradient(157deg, #1e2234, #10131e 62%);
   --panel-shadow: 0 2px 6px rgba(8, 12, 28, 0.12), 0 10px 24px -12px rgba(8, 12, 28, 0.25);
   --remove-bg: #ff708a;
   --drop-bg: rgba(138, 180, 255, 0.22);
@@ -313,6 +317,8 @@
   --overlay-bg: rgba(40, 36, 28, 0.28);
   /* 侧栏大面板玻璃:纸感主题不用实心白(--card-bg=#fff),半透白 + 收敛阴影 */
   --panel-bg: rgba(255, 255, 255, 0.42);
+  /* 完全不透明版:纸感主题下与 --card-bg/--popup-bg 同为实心白(见深色块注释的理由)。 */
+  --panel-bg-solid: #ffffff;
   --panel-shadow: 0 2px 6px rgba(60, 50, 30, 0.05), 0 10px 24px -12px rgba(60, 50, 30, 0.18);
   --remove-bg: #e0466a;
   --drop-bg: rgba(59, 91, 219, 0.12);

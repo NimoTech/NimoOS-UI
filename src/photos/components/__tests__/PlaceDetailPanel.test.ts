@@ -339,6 +339,23 @@ describe('.map-detail 进场 transition(评审 I2)', () => {
   })
 })
 
+// ── 面板底完全不透明(真机验收反馈)────────────────────────────────
+// 这块面板绝对定位压在地图画布上,半透明底会把地图网格点透上来。只守组件这一头:
+// token 本身在两套主题块里是否真的不带 alpha,在 vitest 里验不了——theme.css 的文本
+// 取不到(`?raw` 与 `?inline` 两种 glob 实测都返回空串,Vite 的 CSS 管线吃掉了原文;
+// 本仓也没装 @types/node,node:fs 会让 vue-tsc 报 TS2307)。这正是 color-guard.test.ts
+// 把 styles/theme.css 整个跳过的原因。token 取值的记录归 docs/THEMING.md。
+describe('面板底完全不透明', () => {
+  it('.map-detail 的 background 用 --panel-bg-solid,不用半透的 --panel-bg', () => {
+    const style = extractStyleBlock(placeDetailPanelRaw)
+    const m = /\.map-detail\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .map-detail 规则').not.toBeNull()
+    const decls = m![1].replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(decls).toMatch(/background:\s*var\(--panel-bg-solid\)/)
+    expect(decls).not.toMatch(/background:\s*var\(--panel-bg\)/)
+  })
+})
+
 // ── hero 前景色合规(禁用 --on-accent + 必须 theme-exception)────────────
 describe('hero 前景色合规', () => {
   it('.close / .ttl-name / .ttl-region 所在规则不含 --on-accent', () => {
