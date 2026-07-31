@@ -56,20 +56,33 @@ function toggleOpen(): void {
 }
 
 // Vue2 :849/:854 —— 只填一头时整条时间过滤退回"全部时间",两头都填才是 'custom'。
+//
+// 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2 这两个
+// `<input type="date">` 互不约束,用户可以选出"结束早于起始"的倒置区间——filterPlaces
+// 对倒置区间会筛出零结果,用户看到空地图却不知道为什么(两个输入看起来都填好了)。本仓
+// 一是给模板里的两个 input 加原生 `:max`/`:min` 相互约束(原生日期选择器直接不让选到
+// 非法值,用户实际就是用选择器点的);二是这里把 `timeFilter` 的判据从"两头都填"收紧为
+// "两头都填且 customEnd >= customStart"(用户仍可能手打出非法值,原生约束防不住键盘
+// 输入)——非法区间按"区间还没填好"处理,归到既有的 `timeFilter = 'all'` 分支,不新增
+// 第三种语义。日期串是定长 'YYYY-MM-DD' 格式,字符串字典序比较即等价于日期先后比较,
+// 不需要 `new Date()` 解析。「>=」不是「>」——两端同一天是合法的单日区间。
 function setStart(e: Event): void {
   const value = (e.target as HTMLInputElement).value
+  const end = props.filter.customEnd
   emit('update:filter', {
     ...props.filter,
     customStart: value,
-    timeFilter: (value && props.filter.customEnd) ? 'custom' : 'all',
+    timeFilter: (value && end && end >= value) ? 'custom' : 'all',
   })
 }
+// 同上 setStart 的登记,逻辑对调 customStart/customEnd。
 function setEnd(e: Event): void {
   const value = (e.target as HTMLInputElement).value
+  const start = props.filter.customStart
   emit('update:filter', {
     ...props.filter,
     customEnd: value,
-    timeFilter: (props.filter.customStart && value) ? 'custom' : 'all',
+    timeFilter: (start && value && value >= start) ? 'custom' : 'all',
   })
 }
 function setMinCount(v: number): void {
@@ -149,9 +162,15 @@ onUnmounted(() => {
       <div class="mfp-section">
         <h6>{{ t('photosPlacesTimeRange') }}</h6>
         <div class="mfp-date-row">
-          <input type="date" :value="filter.customStart" data-test="pfm-date-start" @input="setStart">
+          <input
+            type="date" :value="filter.customStart" :max="filter.customEnd || undefined"
+            data-test="pfm-date-start" @input="setStart"
+          >
           <span class="mfp-date-sep">—</span>
-          <input type="date" :value="filter.customEnd" data-test="pfm-date-end" @input="setEnd">
+          <input
+            type="date" :value="filter.customEnd" :min="filter.customStart || undefined"
+            data-test="pfm-date-end" @input="setEnd"
+          >
         </div>
         <div class="mfp-date-sub">
           <span>{{ t('photosPlacesStartDate') }}</span><span>{{ t('photosPlacesEndDate') }}</span>

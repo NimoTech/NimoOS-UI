@@ -203,6 +203,67 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
   })
 })
 
+// 真机验收反馈 1:「time range 中右面时间应该大于左面时间」——Vue2 两个日期输入互不约束,
+// 可以选出"结束早于起始"的倒置区间(见 setStart/setEnd 上方登记)。本仓一是给原生 input
+// 加 max/min 相互约束,二是把 timeFilter 判据收紧为"两头都填且 customEnd >= customStart"。
+describe('日期原生 min/max 相互约束(真机验收反馈 1)', () => {
+  it('起始输入的 max 等于 filter.customEnd', () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customEnd: '2026-02-15' }) })
+    expect(w.get('[data-test="pfm-date-start"]').attributes('max')).toBe('2026-02-15')
+  })
+
+  it('结束输入的 min 等于 filter.customStart', () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-02-01' }) })
+    expect(w.get('[data-test="pfm-date-end"]').attributes('min')).toBe('2026-02-01')
+  })
+
+  it('两者为空串时,对应的 max/min 属性不出现(不是 min="" / max="")', () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '', customEnd: '' }) })
+    expect(w.get('[data-test="pfm-date-start"]').attributes('max')).toBeUndefined()
+    expect(w.get('[data-test="pfm-date-end"]').attributes('min')).toBeUndefined()
+  })
+})
+
+describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () => {
+  it('先填 end,再填一个更晚的 start(倒置)→ emit 的 timeFilter 为 "all"', async () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customEnd: '2026-01-10' }) })
+    const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
+    startInput.element.value = '2026-01-20'
+    await startInput.trigger('input')
+    const next = w.emitted('update:filter')![0][0] as PlacesFilter
+    expect(next.customStart).toBe('2026-01-20')
+    expect(next.timeFilter).toBe('all')
+  })
+
+  it('先填 start,再填一个更早的 end(倒置)→ emit 的 timeFilter 为 "all"', async () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-20' }) })
+    const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
+    endInput.element.value = '2026-01-10'
+    await endInput.trigger('input')
+    const next = w.emitted('update:filter')![0][0] as PlacesFilter
+    expect(next.customEnd).toBe('2026-01-10')
+    expect(next.timeFilter).toBe('all')
+  })
+
+  it('合法区间(end > start)→ timeFilter 为 "custom"', async () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01' }) })
+    const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
+    endInput.element.value = '2026-01-31'
+    await endInput.trigger('input')
+    const next = w.emitted('update:filter')![0][0] as PlacesFilter
+    expect(next.timeFilter).toBe('custom')
+  })
+
+  it('两端同一天(相等)→ 也应是 "custom"(「>=」不是「>」,单日区间合法)', async () => {
+    const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-15' }) })
+    const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
+    endInput.element.value = '2026-01-15'
+    await endInput.trigger('input')
+    const next = w.emitted('update:filter')![0][0] as PlacesFilter
+    expect(next.timeFilter).toBe('custom')
+  })
+})
+
 // ── 勾选框:只看当前行程 ────────────────────────────────────────────────────
 describe('只看当前行程勾选框', () => {
   it('点击 emit recentOnly 取反(false → true)', async () => {

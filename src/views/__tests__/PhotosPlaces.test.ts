@@ -29,6 +29,7 @@ import photosPlacesRaw from '../PhotosPlaces.vue?raw'
 import PlacesRail from '../../photos/components/PlacesRail.vue'
 import PlacesMap from '../../photos/components/PlacesMap.vue'
 import PlacesThemeMenu from '../../photos/components/PlacesThemeMenu.vue'
+import placesZoomBarRaw from '../../photos/components/PlacesZoomBar.vue?raw'
 import { usePhotosPlaces } from '../../photos/stores/places'
 import { extractStyleBlock, parseCssRules } from '../../photos/components/__tests__/cssCascade'
 import { MAP_H, MAP_W, project } from '../../photos/util/worldMap'
@@ -469,6 +470,33 @@ describe('.map-toolbar 的 pointer-events 守卫(程序化断言,防重塑时丢
     const style = extractStyleBlock(photosPlacesRaw)
     expect(/\.map-toolbar\s*\{[^}]*pointer-events:\s*none/.test(style)).toBe(true)
     expect(/\.map-toolbar\s*>\s*\*\s*\{[^}]*pointer-events:\s*auto/.test(style)).toBe(true)
+  })
+})
+
+// 真机验收反馈 2:「filter 弹窗会挡住地图缩放的那个 +- 条」——Vue2 把 .map-toolbar 与
+// .map-zoombar 都设成 z-index:4,toolbar 自成层叠上下文致内部弹层的 z-index:30 跨不过
+// 同级的 zoombar,DOM 顺序又让 zoombar 排在 toolbar 之后,于是缩放条画在 Filters/主题
+// 弹层上面(见 .map-toolbar 上方登记)。这里钉的是"工具栏在这些浮层之上"这条不变量本身
+// (toolbar z-index 严格大于 legend/stats/tip 与 zoombar 里的最大值),不是写死数值 7——
+// 任何等效的层级调整都放行,把 toolbar 降回 4 就会红。.map-zoombar 的样式在
+// PlacesZoomBar.vue 里,不在本容器的样式块里,所以两个源文件都要读。
+describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被缩放条穿透)', () => {
+  function zIndexOf(rules: ReturnType<typeof parseCssRules>, selector: string): number {
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === selector)
+    if (!rule) throw new Error(`未找到规则:${selector}`)
+    const m = /z-index:\s*(-?\d+)/.exec(rule.body)
+    if (!m) throw new Error(`规则 ${selector} 没有 z-index 声明`)
+    return Number(m[1])
+  }
+
+  it('.map-toolbar 的 z-index 严格大于容器内其它浮层(.map-legend/.map-stats/.map-tip)与另一文件的 .map-zoombar', () => {
+    const containerRules = parseCssRules(extractStyleBlock(photosPlacesRaw))
+    const toolbarZ = zIndexOf(containerRules, '.map-toolbar')
+    const othersInContainer = ['.map-legend', '.map-stats', '.map-tip'].map((s) => zIndexOf(containerRules, s))
+    const zoombarRules = parseCssRules(extractStyleBlock(placesZoomBarRaw))
+    const zoombarZ = zIndexOf(zoombarRules, '.map-zoombar')
+    const maxOther = Math.max(...othersInContainer, zoombarZ)
+    expect(toolbarZ).toBeGreaterThan(maxOther)
   })
 })
 

@@ -371,7 +371,17 @@ async function retryLoad(): Promise<void> {
 .map-toolbar {
   position: absolute;
   top: 12px; left: 12px; right: 12px;
-  z-index: 4;
+  /* 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2
+     photos-places.scss:199-207(.map-toolbar)与 :234-245(.map-zoombar)把两者都设成
+     z-index:4——.map-toolbar 因 position:absolute 且 z-index 非 auto 自成层叠上下文,
+     它内部弹层(PlacesFilterMenu.vue/PlacesThemeMenu.vue 的 z-index:30)只在 toolbar
+     内部竞争,跨不过同级的 .map-zoombar;同 z-index 时由 DOM 顺序决胜,模板里
+     .map-zoombar(PlacesZoomBar.vue)排在 .map-toolbar 之后,于是缩放条画在
+     Filters/主题弹层上面——Vue2 里点开任一弹层,缩放条会从中间穿透过来。本仓把
+     toolbar 从 4 提到 7:本区既有的层级梯度是 4(地图家具——zoombar/legend/stats)
+     < 5(.map-tip)< 6(留给 P6b 详情面板)< 7(此处),7 让工具栏及其内部弹层稳定
+     盖住地图区一切浮层,同时不占用给 P6b 预留的 6。 */
+  z-index: 7;
   display: flex; align-items: center; gap: 10px;
   /* 照搬 Vue2 scss:199-207 的透明带 + 子元素恢复可点——否则这条工具栏会吃掉地图拖拽
      (brief 硬约束,程序化断言见 PhotosPlaces.test.ts)。 */
