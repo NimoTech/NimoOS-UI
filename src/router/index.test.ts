@@ -15,4 +15,12 @@ describe('router', () => {
     const m = router.resolve('/files/NimoOS-HD/Documents')
     expect(m.name).toBe('files-path')
   })
+
+  it('主路由表已展开 knowledge 路由', async () => {
+    const { router } = await import('./index')
+    const paths = router.getRoutes().map((r) => r.path)
+    expect(paths).toContain('/ai/knowledge')
+    expect(paths).toContain('/ai/knowledge/notes')
+    expect(paths).toContain('/ai/parser/test')
+  })
 })

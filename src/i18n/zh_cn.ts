@@ -1408,4 +1408,8 @@ export default {
   aiMcpSrvParseErrOnlyEnv: '只有环境变量,后面缺一条命令',
   aiMcpSrvParseErrQuotes: '引号没有配对',
   // <<< SP8-P4 Task 4
+  // >>> SP8-P5a Task 5 —— 知识库占位页(K7),Vue2 没有对应文案,本期新造
+  aiKbDeferredTitle: '即将上线',
+  aiKbDeferredHint: '这个页面还在迁移到新界面。',
+  // <<< SP8-P5a Task 5
 }

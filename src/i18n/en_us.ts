@@ -1398,4 +1398,8 @@ export default {
   aiMcpSrvParseErrOnlyEnv: 'Only environment variables — a command is missing',
   aiMcpSrvParseErrQuotes: 'Unbalanced quotes',
   // <<< SP8-P4 Task 4
+  // >>> SP8-P5a Task 5 — knowledge base deferred placeholder page (K7), new copy, no Vue2 equivalent
+  aiKbDeferredTitle: 'Coming soon',
+  aiKbDeferredHint: 'This page is still being migrated to the new UI.',
+  // <<< SP8-P5a Task 5
 }
