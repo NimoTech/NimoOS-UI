@@ -15,6 +15,11 @@ const svc = vi.hoisted(() => ({
     listSmartViews: vi.fn().mockResolvedValue([]),
     getConfig: vi.fn().mockResolvedValue({}),
     thumbnailUrl: vi.fn((id: string, size: string) => `mock://thumb/${id}/${size}`),
+    // T5:创建弹窗接线后,打开弹窗会触发 store.refreshPreview() → service.photos.
+    // previewSmartView(300ms 防抖后才真的调用)。不 mock 会在某条测试之后的宏任务里
+    // 抛"not a function"、污染下一条测试——照 smartViews.test.ts 的既有 mock 补齐,
+    // 即便本文件的用例都不等那 300ms。
+    previewSmartView: vi.fn().mockResolvedValue({ count: 0, seeds: [], thresholdActive: true }),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -87,6 +92,7 @@ beforeEach(() => {
   svc.photos.listSmartViews.mockClear().mockResolvedValue([])
   svc.photos.getConfig.mockClear().mockResolvedValue({})
   svc.photos.thumbnailUrl.mockClear()
+  svc.photos.previewSmartView.mockClear().mockResolvedValue({ count: 0, seeds: [], thresholdActive: true })
 })
 afterEach(() => {
   usePhotosSmartViews().__resetForTest()
@@ -169,21 +175,31 @@ describe('PhotosSmartViews.vue — AI 横幅三态', () => {
   })
 })
 
-describe('PhotosSmartViews.vue — 创建入口(T5 挂真弹窗前的占位)', () => {
-  it('点 hero 创建按钮 → createOpen 变真', async () => {
+// T5 升级(brief 明确要求):T4 只能断言内部 createOpen state(弹窗组件当时还不存在);
+// SmartViewCreateDialog.vue 接线后,断言升级为「弹窗真渲染」——两个入口点击后
+// .sv-modal-scrim 真的出现在 DOM 里,而不只是读一个内部 ref。
+describe('PhotosSmartViews.vue — 创建入口(T5:弹窗真渲染)', () => {
+  it('点 hero 创建按钮 → SmartViewCreateDialog 的 scrim 真渲染', async () => {
     const { w } = await mountView()
-    const vm = w.vm as unknown as { createOpen: boolean }
-    expect(vm.createOpen).toBe(false)
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
     await w.find('[data-test="sv-hero-create"]').trigger('click')
-    expect(vm.createOpen).toBe(true)
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(true)
   })
 
-  it('点 .sv-create-card → createOpen 同样变真', async () => {
+  it('点 .sv-create-card → 弹窗同样真渲染', async () => {
     const { w } = await mountView()
-    const vm = w.vm as unknown as { createOpen: boolean }
-    expect(vm.createOpen).toBe(false)
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
     await w.find('[data-test="sv-create-card"]').trigger('click')
-    expect(vm.createOpen).toBe(true)
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(true)
+  })
+
+  it('弹窗内点关闭 → scrim 消失,回到列表(createOpen 回落为 false)', async () => {
+    const { w } = await mountView()
+    await w.find('[data-test="sv-hero-create"]').trigger('click')
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(true)
+    await w.find('[data-test="sv-close-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
   })
 })
 

@@ -52,7 +52,10 @@ export interface SmartViewPreview {
 
 export interface CreateSmartViewInput {
   name: string
-  description: string
+  // T5(创建弹窗)决定:可选,不是 string——照搬 Vue2 confirmCreate :431 的
+  // `description: this.draft.desc.trim() || undefined`(后端 omitempty 语义,空描述不
+  // 传字段而不是传空串)。调用方必须能传 undefined,故此处收紧为可选。
+  description?: string
   conds: string[]
   threshold: number
   live: boolean
@@ -382,6 +385,22 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }, PREVIEW_DEBOUNCE_MS)
   }
 
+  // T5(创建弹窗)新增,控制器授权(brief §「前序任务带下来的硬事实」2):Vue2 从无对应
+  // 方法(它靠整页 beforeDestroy 里的 clearTimeout,弹窗只是页面内一块 v-if,组件不会真的
+  // 卸载/重建)。New-UI 的创建弹窗是常驻挂载 + prop 控制显隐,关闭弹窗时若已排好的 300ms
+  // debounce 定时器还没触发、或请求已在途,不清掉的话:①还没触发的定时器会在弹窗关闭后
+  // 悄悄发出一个不再需要的请求;②已在途的请求回来后会用「已关闭的这次编辑」的结果覆盖
+  // preview,污染下一次打开(可能是另一个草稿)时的展示。做法照 places.ts clearDetail 的
+  // 思路:递增 previewSeq 使任何已在途的响应在回调时 `mine !== previewSeq` 而被丢弃
+  // (不需要单独维护"已取消"标志),同时清掉尚未触发的定时器。
+  function cancelPreview(): void {
+    if (previewTimer) {
+      clearTimeout(previewTimer)
+      previewTimer = null
+    }
+    previewSeq += 1
+  }
+
   // 导出 ZIP 不进 store(它是纯浏览器下载行为：带 Authorization 头 fetch + blob +
   // <a download>，由视图层 T8 实现，见 plan Global Constraints §7e-1)。这里只负责
   // 触发后端生成导出相册并 rethrow 失败，让视图层分流 toast 文案。
@@ -428,7 +447,7 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
     byId,
     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
-    duplicateSmartView, loadDetail, refreshPreview, exportAlbum,
+    duplicateSmartView, loadDetail, refreshPreview, cancelPreview, exportAlbum,
     __resetForTest,
   }
 })

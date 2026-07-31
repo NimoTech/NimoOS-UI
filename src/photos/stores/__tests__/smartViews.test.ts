@@ -641,6 +641,52 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
   })
 })
 
+// T5(创建弹窗)新增,控制器授权:关闭弹窗时清掉未触发的定时器 + 让已在途的响应作废,
+// 详见 smartViews.ts cancelPreview 上方的注释。
+describe('cancelPreview', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  it('定时器尚未触发时调用 → 定时器被清,底层请求根本不发', async () => {
+    const s = usePhotosSmartViews()
+    s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
+    s.cancelPreview()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(previewSmartViewApi).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('请求已在途时调用 → 响应回来后不回填 preview(关闭后在途响应不覆盖)', async () => {
+    let resolveFn: (v: unknown) => void = () => {}
+    previewSmartViewApi.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
+    const s = usePhotosSmartViews()
+    s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(previewSmartViewApi).toHaveBeenCalledTimes(1)
+    // 请求已发出、仍在途——此时关闭弹窗。
+    s.cancelPreview()
+    resolveFn({ count: 999, seeds: ['stale'], thresholdActive: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(s.preview).toEqual({ count: 0, seeds: [], thresholdActive: true })
+    vi.useRealTimers()
+  })
+
+  it('之后再调 refreshPreview 仍能正常工作(seq 计数器没被破坏)', async () => {
+    const s = usePhotosSmartViews()
+    s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
+    s.cancelPreview()
+    previewSmartViewApi.mockResolvedValueOnce({ count: 7, seeds: ['x'], thresholdActive: true })
+    s.refreshPreview({ description: '', conds: ['b'], threshold: 50, includeVideos: false })
+    await vi.advanceTimersByTimeAsync(300)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(s.preview.count).toBe(7)
+    vi.useRealTimers()
+  })
+})
+
 describe('exportAlbum', () => {
   it('exportBusy 期间二次调用短路,底层只被调一次', async () => {
     exportSmartViewAlbumApi.mockReturnValue(new Promise(() => {}))

@@ -14,8 +14,9 @@
 //  4) 网格(SmartViewCard v-for + 末尾新建卡)
 //  5) 加载态用骨架(New-UI 新增,Vue2 没有);listLoaded 且空列表时**不加空态**——那张
 //     新建卡本身就是这页的空态(照 Vue2 的信息层级,登记见 task-4-report.md)。
-//  6) 创建弹窗挂载点:T5 才建。本任务只留 `createOpen` state + 两个入口 @click 置真 +
-//     一条 TODO 注释指向 T5,模板里不挂弹窗组件。
+//  6) 创建弹窗挂载点:T4 只留 `createOpen` state + 两个入口 @click 置真;T5 已把
+//     <SmartViewCreateDialog v-model:open="createOpen" @created="onCreated"/> 接上
+//     (created 后跳详情页,同 onCardOpen 的目标路径)。
 //
 // 偏离登记:
 //  1) Vue2 :15 的横幅链接是 <a href="javascript:void(0)">,点击 $emit('open-settings',
@@ -40,6 +41,7 @@ import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import SmartViewCard from '../photos/components/SmartViewCard.vue'
+import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
 
 const { t } = useI18n()
@@ -51,14 +53,19 @@ const store = usePhotosSmartViews()
 // 的 loadFacesEnabled 先例。
 const aiSmartViewOff = ref(false)
 
-// T5 才建的创建弹窗。本任务只留 state + 两个入口置真,模板里不挂弹窗组件(brief 第 6 条,
-// 控制器补充 1)。TODO(T5): 挂 <SmartViewCreateDialog v-model:open="createOpen" @created="..." />。
+// T5:创建弹窗已接线(T4 的 TODO 兑现)。createOpen 通过 v-model:open 传给
+// SmartViewCreateDialog;创建成功后弹窗 emit('created', id),这里直接跳详情页
+// (同 onCardOpen 的目标路径)。
 const createOpen = ref(false)
 function openCreate(): void {
   createOpen.value = true
 }
 
 function onCardOpen(id: string): void {
+  router.push('/photos/smart-views/' + id)
+}
+
+function onCreated(id: string): void {
   router.push('/photos/smart-views/' + id)
 }
 
@@ -140,6 +147,7 @@ onMounted(() => {
         </div>
       </main>
     </div>
+    <SmartViewCreateDialog v-model:open="createOpen" @created="onCreated" />
   </AreaShell>
 </template>
 
