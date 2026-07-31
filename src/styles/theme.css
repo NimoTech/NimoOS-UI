@@ -99,6 +99,8 @@
      协调、比两者更深一点贴合 --tm-bg 的深空基调),玻璃观感保留,叠印消失。 */
   --tm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)), #161d3d;
   --tm-card-bd: rgba(255, 255, 255, 0.18);
+  /* 卡片抬头(日期时间 / 类型)与下方文件网格之间的分隔线,比卡片外边框更淡 */
+  --tm-card-divider: rgba(255, 255, 255, 0.1);
   --tm-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   --tm-rail: rgba(255, 255, 255, 0.5);
   --tm-rail-sub: rgba(255, 255, 255, 0.2);
@@ -311,6 +313,7 @@
   --tm-fg-muted: #6e6a61;
   --tm-card-bg: linear-gradient(155deg, #ffffff, #f6f4ee);
   --tm-card-bd: rgba(28, 27, 25, 0.12);
+  --tm-card-divider: rgba(28, 27, 25, 0.1);
   --tm-card-shadow: 0 18px 44px rgba(28, 27, 25, 0.18);
   --tm-rail: rgba(28, 27, 25, 0.45);
   --tm-rail-sub: rgba(28, 27, 25, 0.16);

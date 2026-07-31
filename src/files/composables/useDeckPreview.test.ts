@@ -17,6 +17,10 @@ const CONTENT = [
   { name: 'e.jpg', path: '/x/e.jpg', is_dir: false },
   { name: 'f.jpg', path: '/x/f.jpg', is_dir: false },
 ]
+/** 超过 MAX_TILES(36)的目录,用来验证截断与 total */
+const BIG = Array.from({ length: 40 }, (_, i) => ({
+  name: `f${String(i).padStart(2, '0')}.jpg`, path: `/x/f${i}.jpg`, is_dir: false,
+}))
 
 const setup = (names: string[], relPath = 'Photos') => {
   const visible = ref(names)
@@ -36,18 +40,35 @@ describe('useDeckPreview', () => {
     setup(['snap1'], ''); await flush()
     expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/snap1')
   })
-  it('最多取 6 个瓦片,total 是真实条目数', async () => {
+  it('条目数不到上限时全给,total 是真实条目数', async () => {
     const { api } = setup(['snap1']); await flush()
-    expect(api.previews.value.snap1.tiles).toHaveLength(6)
+    expect(api.previews.value.snap1.entries).toHaveLength(8)
     expect(api.previews.value.snap1.total).toBe(8)
     expect(api.previews.value.snap1.status).toBe('ready')
   })
-  it('标出图片瓦片(缩略图)与非图片瓦片(类型图标)', async () => {
+  it('超过 36 条只给 36 条,total 仍是真实条目数(卡片靠 total-entries 算 +N)', async () => {
+    getListMock.mockResolvedValue({ content: BIG })
     const { api } = setup(['snap1']); await flush()
-    const tiles = api.previews.value.snap1.tiles
-    expect(tiles[0]).toMatchObject({ name: 'a.jpg', isImage: true })
-    expect(tiles.find((t) => t.name === 'notes.txt')?.isImage).toBe(false)
-    expect(tiles.find((t) => t.name === 'sub')?.isDir).toBe(true)
+    expect(api.previews.value.snap1.entries).toHaveLength(36)
+    expect(api.previews.value.snap1.total).toBe(40)
+  })
+  it('原样交出后端条目(卡片直接喂给文件区的 FileThumb,不再自己判图片)', async () => {
+    const { api } = setup(['snap1']); await flush()
+    const entries = api.previews.value.snap1.entries
+    expect(entries.find((e) => e.name === 'notes.txt')).toMatchObject({ path: '/x/notes.txt', is_dir: false })
+    expect(entries.find((e) => e.name === 'sub')?.is_dir).toBe(true)
+  })
+  it('按文件区默认规则排序:文件夹在前,再按名字升序(与进入快照后看到的顺序一致)', async () => {
+    getListMock.mockResolvedValue({
+      content: [
+        { name: 'zeta.txt', path: '/x/zeta.txt', is_dir: false },
+        { name: 'Alpha.txt', path: '/x/Alpha.txt', is_dir: false },
+        { name: 'zdir', path: '/x/zdir', is_dir: true },
+        { name: 'adir', path: '/x/adir', is_dir: true },
+      ],
+    })
+    const { api } = setup(['snap1']); await flush()
+    expect(api.previews.value.snap1.entries.map((e) => e.name)).toEqual(['adir', 'zdir', 'Alpha.txt', 'zeta.txt'])
   })
   it('同一个快照名只拉一次(来回拨刻度不重复请求)', async () => {
     const { visible } = setup(['snap1']); await flush()
@@ -65,7 +86,7 @@ describe('useDeckPreview', () => {
     const { api } = setup(['snap1']); await flush()
     expect(api.previews.value.snap1.status).toBe('failed')
   })
-  it('空目录 → ready + 0 瓦片 + total 0', async () => {
+  it('空目录 → ready + 0 条目 + total 0', async () => {
     getListMock.mockResolvedValue({ content: [] })
     const { api } = setup(['snap1']); await flush()
     expect(api.previews.value.snap1).toMatchObject({ status: 'ready', total: 0 })
@@ -103,11 +124,11 @@ describe('useDeckPreview', () => {
     // B(新目录)先落地
     resolveB({ content: [{ name: 'b.jpg', path: '/y/b.jpg', is_dir: false }] })
     await flush()
-    expect(api.previews.value.snap1.tiles.map((t) => t.name)).toEqual(['b.jpg'])
+    expect(api.previews.value.snap1.entries.map((t) => t.name)).toEqual(['b.jpg'])
 
     // A(旧目录)才姗姗来迟地落地 —— 不能覆盖 B 已经写好的内容
     resolveA({ content: [{ name: 'a.jpg', path: '/x/a.jpg', is_dir: false }] })
     await flush()
-    expect(api.previews.value.snap1.tiles.map((t) => t.name)).toEqual(['b.jpg'])
+    expect(api.previews.value.snap1.entries.map((t) => t.name)).toEqual(['b.jpg'])
   })
 })

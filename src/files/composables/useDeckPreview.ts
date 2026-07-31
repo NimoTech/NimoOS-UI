@@ -1,17 +1,30 @@
 import { ref, watch, onScopeDispose, type Ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { snapshotBrowsePath } from '../util/snapshotPath'
-import { isImageEntry } from '../util/isImage'
 import type { FileEntry } from '../stores/files'
 
-const MAX_TILES = 6
+// 卡片放大到 3/4 屏后,正面那张就是一整块文件区网格,6 个瓦片填不满;取到 36 条,
+// 再多的用卡片右下角的 "+N" 交代(总数 total 始终是真实条目数)。
+const MAX_TILES = 36
 const HIDDEN = new Set(['lost+found'])
 
-export interface DeckPreviewTile { path: string; name: string; isImage: boolean; isDir: boolean }
 export interface DeckPreview {
   status: 'loading' | 'ready' | 'missing' | 'failed'
-  tiles: DeckPreviewTile[]
+  /** 已按文件区默认规则排好序、最多 MAX_TILES 条的真实条目(卡片直接喂给 FileThumb) */
+  entries: FileEntry[]
   total: number
+}
+
+// 与 stores/files.ts 的 sortedEntries 默认档一致:文件夹在前,再按名字不分大小写升序。
+// 卡片是"进去之后会看到什么"的预览,顺序两边对不上会让人以为进错了目录。
+// 这里刻意不读用户在文件区选的排序偏好:卡片不带排序控件,跟着一个看不见的开关变
+// 反而更难解释;固定成默认档,与首次打开文件区看到的顺序一致。
+function sortLikeFiles(entries: FileEntry[]): FileEntry[] {
+  return [...entries].sort((a, b) => {
+    if (!!a.is_dir !== !!b.is_dir) return a.is_dir ? -1 : 1
+    const ka = a.name.toLowerCase(), kb = b.name.toLowerCase()
+    return ka < kb ? -1 : ka > kb ? 1 : 0
+  })
 }
 
 // 从抛出来的错误里取 HTTP 状态,与 files/util/snapshotRestore.ts 的 statusOf 同一套判法:
@@ -48,23 +61,21 @@ export function useDeckPreview(opts: {
     const dir = opts.relPath()
       ? `${snapshotBrowsePath(opts.mountPoint(), name)}/${opts.relPath()}`
       : snapshotBrowsePath(opts.mountPoint(), name)
-    previews.value = { ...previews.value, [name]: { status: 'loading', tiles: [], total: 0 } }
+    previews.value = { ...previews.value, [name]: { status: 'loading', entries: [], total: 0 } }
     try {
       const data = await service.folder.getList(dir)
       if (disposed || myEpoch !== epoch) return // 过期响应/已卸载:整段丢弃,不写 state
       const content = ((data as { content?: FileEntry[] })?.content ?? [])
         .filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
-      const tiles = content.slice(0, MAX_TILES).map((e) => ({
-        path: e.path, name: e.name, isImage: isImageEntry(e), isDir: !!e.is_dir,
-      }))
-      previews.value = { ...previews.value, [name]: { status: 'ready', tiles, total: content.length } }
+      const entries = sortLikeFiles(content).slice(0, MAX_TILES)
+      previews.value = { ...previews.value, [name]: { status: 'ready', entries, total: content.length } }
     } catch (e) {
       if (disposed || myEpoch !== epoch) return
       // 404 = 那时候还没有这个文件夹(卡片要说人话);其它一律 failed,静默退回纯文字卡。
       const status = statusOf(e)
       previews.value = {
         ...previews.value,
-        [name]: { status: status === 404 ? 'missing' : 'failed', tiles: [], total: 0 },
+        [name]: { status: status === 404 ? 'missing' : 'failed', entries: [], total: 0 },
       }
     }
   }

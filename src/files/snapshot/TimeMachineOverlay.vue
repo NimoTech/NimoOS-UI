@@ -147,7 +147,7 @@ watch(() => props.volumeUuid, () => { load() })
     <button class="tm-gear" :aria-label="t('tmSettings')" @click="emit('open-settings')">⚙</button>
 
     <div v-if="store.listLoading" class="tm-skeleton" aria-hidden="true">
-      <div v-for="n in 3" :key="n" class="tm-skeleton-card" :style="{ transform: `translateY(${(n - 1) * -14}px) scale(${1 - (n - 1) * 0.06})` }"></div>
+      <div v-for="n in 3" :key="n" class="tm-skeleton-card" :style="{ transform: `translateY(${(n - 1) * -30}px) scale(${1 - (n - 1) * 0.06})` }"></div>
     </div>
 
     <div v-else-if="flatItems.length === 0" class="tm-empty">
@@ -179,6 +179,11 @@ watch(() => props.volumeUuid, () => { load() })
      的 Fix Round 1 注释)。这里从一开始就不制造那个问题。 */
   position: fixed; inset: 0; z-index: 900; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
+  /* 卡堆放大到 3/4 屏后必须在"扣掉底栏和刻度尺之后"的那块地方居中,否则会被这两样
+     压住。两者都是绝对定位、不参与 flex 布局,所以在这里用等宽/等高的 padding 替它们
+     占位。顶上那行路径(.tm-folder)也是绝对定位,给它留 8px 就够(它只有 13px 高,
+     卡片顶边落在它下面)。 */
+  padding: 8px 96px 76px 0;
   background: var(--tm-bg); color: var(--tm-fg);
   outline: none; /* 编程式聚焦(tabindex="-1"),不需要焦点环——覆盖层本身不是可点的控件 */
 }
@@ -193,9 +198,11 @@ watch(() => props.volumeUuid, () => { load() })
 .tm-empty { text-align: center; }
 .tm-empty-title { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
 .tm-empty-sub { font-size: 13px; color: var(--tm-fg-muted); margin: 0; }
-.tm-skeleton { position: relative; width: min(420px, 68vw); height: min(240px, 38vh); }
+/* 骨架屏尺寸必须跟着 TimeMachineDeck 的 .tm-deck 走(同一组 min()):对不上的话,
+   列表加载完那一瞬间卡堆会从小方块"炸"成 3/4 屏,像闪了一下。 */
+.tm-skeleton { position: relative; width: min(75vw, calc(100vw - 260px)); height: min(75vh, calc(100vh - 190px)); }
 .tm-skeleton-card {
-  position: absolute; inset: 0; border-radius: 18px;
+  position: absolute; inset: 0; border-radius: 20px;
   background: var(--tm-card-bg); border: 1px solid var(--tm-card-bd); box-shadow: var(--tm-card-shadow);
   opacity: 0.6;
 }
