@@ -20,7 +20,9 @@ describe('9 个 tab 骨架', () => {
     expect(Object.keys(PANEL_BY_TAB)).toHaveLength(9)
   })
 
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal'))('%s 骨架渲染标题与空态位', (tab) => {
+  // P1 起 general 已填真实内容(见 GeneralPanel.integration.test.ts),不再有 .set-skeleton;
+  // developer 见 Task 11,目前仍是纯骨架,留在这条通用断言里。
+  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
@@ -44,13 +46,9 @@ describe('9 个 tab 骨架', () => {
     expect(w.emitted('open-tab')).toEqual([['general']])
   })
 
-  it('general 骨架带 developer 入口行,点击 emit open-tab developer(对位 Vue2 L315)', async () => {
-    const w = mount(PANEL_BY_TAB.general, { global: { plugins: [i18n] } })
-    const row = w.find('.set-dev-entry')
-    expect(row.exists()).toBe(true)
-    await row.trigger('click')
-    expect(w.emitted('open-tab')).toEqual([['developer']])
-  })
+  // general 的「developer 入口行仍在最后并能 emit open-tab」用例已迁到
+  // GeneralPanel.integration.test.ts —— 该组件从 P1 起会打真实接口,
+  // panels.test.ts 保持零 mock 的纯骨架测试(见任务简报 Step 4)。
 
   it('骨架的文案 key 都有译文(没有渲染出裸 key)', () => {
     const w = mount(PANEL_BY_TAB.network, { global: { plugins: [i18n] } })

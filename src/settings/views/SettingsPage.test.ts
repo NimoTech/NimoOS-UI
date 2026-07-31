@@ -1,11 +1,44 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
 import SettingsPage from './SettingsPage.vue'
 import { LAST_TAB_KEY } from '../util/lastTab'
+
+// P1 起 general 骨架被真实内容替换(LanguageRow 等用 Pinia store,UpdateRow/SwitchRow
+// 用 toast store),挂载整页需要一个 active Pinia —— 之前 general 只是纯骨架不需要。
+// service 也必须 mock:未调用 initService() 时 `service.sys` 这个 getter 本身就同步抛错
+// (不是 promise reject),UsbAutoMountRow 的 Promise.allSettled 只包住了 .then() 链,
+// 包不住取属性阶段的同步抛出,会变成未处理异常炸穿整个测试文件。这里只关心路由/外壳层面
+// 的断言,与 GeneralPanel.integration.test.ts 的详细行为断言不重复。
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    users: {
+      getCustomStorage: async () => ({}),
+      setCustomStorage: async () => {},
+    },
+    sys: {
+      hardwareInfo: async () => ({ arch: 'amd64', drive_model: '', version: '1.0.0' }),
+      getBaseInfo: async () => ({ device_id: 'dc', model: '', version: '1.0.0' }),
+      getServerPort: async () => '80',
+      getUsbStatus: async () => false,
+      getOsVersion: async () => ({ current_version: '1.0.0', need_update: false }),
+      getAppVersion: async () => ({ current_version: '1.0.0', need_update: false }),
+      setDiskStandby: async () => {},
+      editServerPort: async () => {},
+      toggleUsbAutoMount: async () => {},
+      power: async () => {},
+      updateOs: async () => {}, updateApp: async () => {}, cancelDownload: async () => {},
+    },
+    file: { getContent: async () => ({ content: '' }) },
+  },
+}))
+vi.mock('../../composables/useMessageBus', () => ({
+  useMessageBus: () => ({ on: () => () => {} }),
+}))
 
 const i18n = createI18n({
   legacy: false,
@@ -29,7 +62,10 @@ async function mountPage(tab: string) {
 }
 
 describe('SettingsPage', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
 
   it('按 :tab 渲染对应骨架', async () => {
     const { w } = await mountPage('network')
