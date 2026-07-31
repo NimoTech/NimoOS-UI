@@ -14,11 +14,15 @@
 //
 // 回源核对结论(逐条见 task-7-report.md):Vue2 base `.sv-cond`(photos-smartview.scss:96-102）
 // 没有任何 `:hover` 规则——brief 结构规格 7 说"`.sv-cond` 基类有 hover"与源码不符,已登记为
-// brief 表述错误(本组件不生造一个 Vue2 没有的视觉状态)。真正需要 cssCascade 防护的是
-// `.sv-cond-add[data-open="true"]` 这个属性选择器变体:工具的 classSpecificity 不给属性
-// 选择器计分,但这里 Vue2 原值与 `:hover` 状态完全相同(都是 accent 描边/accent-soft 底/
-// accent-text 字),不存在真实的"白底白字"风险,测试仍按硬约束写(断言胜出规则含
-// `:hover` 且具体 specificity 数值),但不构成一次真实缺陷回归防护,已如实登记。
+// brief 表述错误(本组件不生造一个 Vue2 没有的视觉状态)。
+//
+// fix round 1 · I1:`.sv-cond-add[data-open="true"]` 与 `.sv-cond-add:hover`
+// (photos-smartview.scss:294-303)在 Vue2 里三条声明逐字相同——不存在"基类压变体"式的
+// 级联冲突可守,这里真正编码的不变量是"打开态与 hover 态视觉一致"。测试钉的就是这一条
+// (两条规则体的 background/border-color 相等,且 `[data-open="true"]` 规则本身存在),
+// 不是"胜出规则的 specificity"——早先那条 specificity 断言在旧版 `cssCascade.ts` 下是
+// 零价值恒真断言(工具的 vacuous-truth 漏洞+属性选择器不计分,两个问题叠加导致改错值/
+// 删规则都测不出来),已随 `cssCascade.ts` 一并修好,断言换成能真正证伪的形式。
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { condSuggestionsFor } from '../util/smartViewSuggest'
@@ -215,8 +219,9 @@ onBeforeUnmount(() => {
   transition: all 0.12s;
 }
 /* accent-hi(纯文字色语义,非按钮实底)→ --accent-text,同本文件 :647/:348 既有先例。
-   [data-open="true"] 与 :hover 在 Vue2 原值完全相同(都是同一组 accent 描边/底/字色),
-   不存在"基类压变体"式的白底白字风险——cssCascade 断言仍按硬约束写,见文件头注释。 */
+   [data-open="true"] 与 :hover 在 Vue2 原值完全相同(都是同一组 accent 描边/底/字色)——
+   这两条规则故意保持逐字一致,是"打开态视觉等同 hover 态"这个不变量本身,测试钉的就是
+   这一条(background/border-color 相等),见文件头 fix round 1 · I1 注释。 */
 .sv-cond-add:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
 .sv-cond-add[data-open="true"] { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
 

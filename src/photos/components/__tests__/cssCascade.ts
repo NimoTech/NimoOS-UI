@@ -43,10 +43,12 @@ export function ownBackground(styleText: string, selector: string): string {
 
 export interface HoverBgRule { selector: string; specificity: number; value: string; order: number }
 
-// 只数类与伪类:本区这几条规则里没有 id、也没有元素标签参与,足以在
+// 数类、伪类与属性选择器:本区这几条规则里没有 id、也没有元素标签参与,足以在
 // `.x:hover` (2) 与 `.x-danger` (1) / `.x-danger:hover` (2) 之间判胜负。
+// fix round 1 · I1:补上属性选择器计数(`[data-open="true"]` 之类)——真实 CSS
+// 优先级里属性选择器与类选择器同权重,此前漏计会让属性选择器变体系统性算低分。
 function classSpecificity(selector: string): number {
-  return (selector.match(/\.[\w-]+|:[\w-]+(?:\([^)]*\))?/g) ?? []).length
+  return (selector.match(/\.[\w-]+|:[\w-]+(?:\([^)]*\))?|\[[^\]]*\]/g) ?? []).length
 }
 
 /**
@@ -67,6 +69,11 @@ export function hoverBackgroundRules(styleText: string, classes: string[]): Hove
       const pseudoHits = bare.match(/:[\w-]+(?:\([^)]*\))?/g) ?? []
       if (classHits.length === 0) continue
       if (!classHits.every((c) => classes.includes(c.slice(1)))) continue
+      // fix round 1 · I1(vacuous-truth 漏洞):`pseudoHits.every(...)` 在 pseudoHits 为
+      // 空数组时恒真——纯属性/纯类选择器(没有任何 `:` 伪类)会被这条空数组恒真判定
+      // 误收进"hover 候选"里。这个 helper 名字叫 hoverBackgroundRules,必须先确认选择器
+      // 里确实出现了 `:hover` 才继续,不能靠"没有出现不允许的伪类"这种反向判定。
+      if (!bare.includes(':hover')) continue
       if (!pseudoHits.every((p) => p === ':hover')) continue
       // :not(.x) 里点到本元素带的类 → 这条规则被排除;:not(:disabled) 等状态伪类按
       // "非禁用"这一主路径当作命中。
