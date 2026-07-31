@@ -1245,4 +1245,20 @@ export default {
   // aria-disabled="true">,这个 title 说明原因。P8 建好设置页后把该 span 换成真链接/
   // 路由跳转,这个键可保留复用为 tooltip,或按 P8 实际交互删除。
   photosSvSettingsPending: '设置页待迁移(P8)',
+  // ---- P7a-T6: 详情页外壳新增键(T1 的 107 键之外,brief §结构规格 1/2/4/8) ----
+  // New-UI 新增路径:byId(id) 找不到这一项(手改地址栏 / 旧书签),Vue2 无此分支——见
+  // task-6-report.md 偏离登记。
+  photosSvNotFound: '找不到这个智能视图',
+  // T6 阶段搜索路由(T16 才建)不存在,「在搜索中细化」渲染成 disabled + 此 title；
+  // T16 接线时把这个键与本组件里对应的 disabled 一起删掉(注释已在组件里登记接线点)。
+  photosSvSearchPending: '搜索页待迁移(本期后半)',
+  // 改名失败的 toast(Vue2 :512-513 无 catch,New-UI 补上,偏离登记):照
+  // photosAlbumRenameFailed / photosPersonRenamedFailed 的既定命名与文案。
+  photosSvRenameFailed: '重命名失败',
+  // 暂停/恢复自动更新失败的 toast(Store 纪律:向上抛出的 action 必须在视图层 catch → toast,
+  // Vue2 本无对应路径——那套本地 paused 状态从不失败,因为它压根不等后端响应)。
+  photosSvUpdateFailed: '更新失败',
+  // 删除/复制失败的 toast(Vue2 均无 catch,New-UI 补上,照既定命名惯例)。
+  photosSvDeleteFailed: '删除失败',
+  photosSvDuplicateFailed: '复制失败',
 }

@@ -23,6 +23,7 @@ import PhotosPersonDetail from '../views/PhotosPersonDetail.vue'
 import PhotosPlaces from '../views/PhotosPlaces.vue'
 import PhotosPlaceAssets from '../views/PhotosPlaceAssets.vue'
 import PhotosSmartViews from '../views/PhotosSmartViews.vue'
+import PhotosSmartViewDetail from '../views/PhotosSmartViewDetail.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -48,6 +49,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },
   { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },
   { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
+  { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
 ]

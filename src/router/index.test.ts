@@ -79,4 +79,20 @@ describe('router', () => {
     expect(smartViewsIdx).toBeGreaterThan(placesKeyIdx)
     expect(loginIdx).toBeGreaterThan(smartViewsIdx)
   })
+
+  // SP7-P7a-T6:/photos/smart-views/:id 详情路由,同上既定手法(行序比较 + 真 resolve)。
+  it('/photos/smart-views/7 命中 photos-smart-view-detail 路由,params.id 为字符串 "7"', () => {
+    const m = router.resolve('/photos/smart-views/7')
+    expect(m.name).toBe('photos-smart-view-detail')
+    expect(m.params.id).toBe('7')
+  })
+
+  it('/photos/smart-views/:id 追加在 /photos/smart-views 之后、/login 之前(只追加,不重排)', () => {
+    const listIdx = routerIndexRaw.indexOf(`{ path: '/photos/smart-views'`)
+    const detailIdx = routerIndexRaw.indexOf(`{ path: '/photos/smart-views/:id'`)
+    const loginIdx = routerIndexRaw.indexOf(`{ path: '/login'`)
+    expect(listIdx).toBeGreaterThan(-1)
+    expect(detailIdx).toBeGreaterThan(listIdx)
+    expect(loginIdx).toBeGreaterThan(detailIdx)
+  })
 })
