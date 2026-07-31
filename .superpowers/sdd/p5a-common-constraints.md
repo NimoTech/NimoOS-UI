@@ -50,7 +50,7 @@ K1–K8 承前期先例与架构差,P1–P4 是本批 Vue2→Pinia 机械替换�
 |---|---|---|
 | **K1** | **单层取数**:共享包 `service.*` 已 `return res.data`,Vue2 的 `r.data.xxx` 在本仓要写成 `body.xxx`。命中点见 §4 数据契约。 | 同一模具第五次(P2a/P3a/P3b/P4) |
 | **K2** | **主题**:`.knowledge-app` 不照抄蓝本自带的冷蓝/oklch token 值,改 token 映射层(§附录 B);不照抄 `[data-theme="dark"] .knowledge-app` 选择器(在 Vue2 与 New-UI 都永不命中)。 | 用户 D5 |
-| **K3** | **`.k-toast` 不移植**,改全局 `useToast().show()`。蓝本 `KnowledgeLayout.vue:96-99` 的 toast **无条件**渲染绿勾(`<KIcon name="check" color="white">`),失败提示也顶个成功勾。 | 承 P4 D2 |
+| **K3** | **`.k-toast` 不移植**,改全局 `useToast().show()`。蓝本 `KnowledgeLayout.vue:93-96` 的 toast **无条件**渲染绿勾(`<KIcon name="check" color="white">`),失败提示也顶个成功勾。(计划原文写 96-99,协调者回蓝本复核后订正为 93-96) | 承 P4 D2 |
 | **K4** | **`KIcon` 移植成独立组件**,不复用 `AgentIcon`(实测 `code`/`download`/`grid`/`pause`/`settings`/`user` 六个同名图标异形,其中 `settings`/`user`/`grid` 被 rail 与移动端 tabs 用到)。 | 设计 §2.5 |
 | **K5** | **HTTP 失败不回显后端 body**,改 i18n 键;表单类错误走行内。 | 承 P2b/P3b/P4 D5 |
 | **K6** | **`console.error` 不照抄**。 | 承 P3a/P3b/P4 D4 |
@@ -139,7 +139,7 @@ distill 四条端点         → 设备实测 404 `{"detail":"Not Found"}`(设�
   从 `src/ai/knowledge/stores/` 出发:util `../util/…`、service 包同上。
   从 `src/ai/knowledge/components/` 出发:同级无其它组件依赖(`KIcon.vue` 是叶子组件)。
   从 `src/ai/knowledge/util/` 出发:通常零导入(纯函数),需要 store 类型时 `../stores/knowledgeStore.ts`。
-- **全局 toast 真实签名**(`src/stores/toast.ts:18`):`show(text: string, duration = 1500, tier: 'info'|'warning'|'danger' = 'info')`。K3/P4 要求的 2400ms 超时须显式传 `useToast().show(msg, 2400)`(不能依赖默认值)。
+- **全局 toast 真实签名**(`src/stores/toast.ts:21`):`show(text: string, duration = 1500, tier: 'info'|'warning'|'danger' = 'info')`。K3/P4 要求的 2400ms 超时须显式传 `useToast().show(msg, 2400)`(不能依赖默认值)。
 - **`KIcon` 是本批新组件**,不是 `src/ai/components/icons/AgentIcon.vue` 的变体(K4)。落地前**自己 grep 确认**:`AgentIcon.vue` 现有位置是 `src/ai/components/icons/AgentIcon.vue`,新 `KIcon.vue` 按设计 §5.1 落在 `src/ai/knowledge/components/KIcon.vue`,与 `AgentIcon` 并存、互不导入。
 - **K8 的既定写法**(rail 页脚用户名):**不是** `useUserProfile()`(`src/stores/userProfile.ts` 里只有 `avatarVersion`/`bumpAvatarVersion` 两个导出,已亲自打开核实,没有任何用户名字段)。照 `src/ai/components/settings/SettingsRail.vue:75-86` 的既有写法(已亲自打开核实):
   ```ts
