@@ -204,7 +204,9 @@ describe('KnowledgeLayout — 索引器状态块', () => {
     s.stats = { ...s.stats, indexed_files: 1234 }
     await flushPromises()
     expect(w.find('.k-rail-svc-dot').attributes('data-state')).toBe('running')
-    expect(w.find('.k-rail-svc-meta').text()).toContain('1,234') // toLocaleString
+    // 【终审 Minor,收紧】原 toContain('1,234') 是弱断言——'11,234'.includes('1,234')
+    // 为真,读错字段拿到 11234 这类错抓不到。改成整串精确匹配(toLocaleString 输出）。
+    expect(w.find('.k-rail-svc-meta').text()).toBe('运行中 · 1,234 已收录')
   })
 })
 

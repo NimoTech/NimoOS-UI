@@ -190,9 +190,16 @@ pnpm build                     > /tmp/p5a-tN-build.log 2>&1; echo "exit=$?"
 - **输出完整落盘,不许 `| tail`**(P2b 教训:一条红被 `tail -6` 截掉,失败用例名永久丢失)。
   报告里贴 `Test Files` / `Tests` 两行汇总 + 任何红项的**完整用例名**。
 - 基线:New-UI `sp8-ai`@`99ee99a` = **303 文件 / 2719 例绿 · tsc exit 0 · build 成功**。Service `sp8-ai`@`c8f1919`(T1 之前)= **194 例 / 24 文件绿**(实测,2026-07-31,原「190/190」是计划作者估的数字,已用 `git worktree` 独立复核订正)。T1(含评审 Important 补的 4 条判别断言)落地后为 **214 例 / 25 文件**(新增 `notes.test.ts` 一个文件、共 20 条用例:194+20=214)。
-- **算术**:`color-guard.test.ts` 按 `**/*.vue` 动态生成用例 → **每新增一个 `.vue` 全量 +1**。
+- **算术**:`color-guard.test.ts` 按 `**/*.vue` 动态生成用例 → **每新增一个 `.vue` 全量 +1 例**(不是 +1 文件)。
   本批新增 4 个 `.vue`:T3(`KIcon`)· T5(`KnowledgeDeferred`)· T10(`KnowledgeLayout`)· T12(`DashboardView`)。
-  收官应为 **307 文件**。**其余任务不新增 `.vue`。**
+  **【终审 Minor,2026-08-01 订正】本段原写「收官应为 307 文件」,漏算了本期新增的
+  10 个测试文件(各任务各自新增的 `*.test.ts`,不止 color-guard 那 4 例)——**实测
+  收官是 313 文件**。订正后的完整算术:起点 **303 文件 / 2719 例** → 收官
+  **313 文件 / 2866 例**。构成:**+10 个新 `*.test.ts` 文件**(`--diff-filter=A`
+  实测,删除 0,303+10=313)、**+147 例**(2719+147=2866),其中 **4 例**来自上面
+  这 4 个新增 `.vue` 带来的 color-guard 动态用例,其余 143 例分布在那 10 个新文件
+  + `messageSyntax.test.ts` 新增的 5 条 + `router/index.test.ts` 新增的 1 条。
+  P5b 的基线算术请以本段订正后的数字为准。
 - 🔴 **本期是 SP8 里第一次动 Service 仓**(P0 之后首次)→ 改完 Service 侧代码(T1/T2:`notes`/`wiki` 两域进包),必须:
   ```bash
   cd /home/nimo/NimoTech/.sp8/NimoOS-Service && pnpm build

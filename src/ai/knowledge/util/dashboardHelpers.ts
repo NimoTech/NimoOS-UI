@@ -3,7 +3,16 @@
 //
 // 蓝本该文件共 4 个纯函数(`updatePeak`/`progressPercent`/`summarizeNotes`/
 // `fmtEta`),本任务全部搬入,供 T7(`loadNotesSummary` 消费 `summarizeNotes`)
-// 与 T12(`DashboardView` 消费 `progressPercent`/`fmtEta`/`updatePeak`)使用。
+// 与 T12(`DashboardView` 消费 `progressPercent`/`fmtEta`)使用。
+//
+// 【终审 Minor,2026-08-01 订正】`updatePeak` 在蓝本里本身就是死代码——
+// `git grep updatePeak main -- src/views/AI/Knowledge` 显示蓝本全仓只有
+// 这个定义处 + 它自己的 spec 引用它,`knowledgeStore.js`(loadOverview)与
+// `DashboardView.vue` 都不调用它,`backlogPeak` 全靠内联 `Math.max(...)`
+// 维护。移植后同样没有生产消费方——T6(`knowledgeStore.ts:317`)与 T12
+// (`DashboardView.vue` 头注释「发现,非缺陷」段)都各自照抄了这处内联,
+// 不改调 `updatePeak`。本函数在此保留纯粹是为了与蓝本 1:1(蓝本导出它,
+// 本仓就搬它),不是遗留了待接的钩子。
 
 // dashboardHelpers.js:1-5 —— Progress math for the parsing backlog (spec §4.8).
 // The percent is an honest UI-local measure: peak is the rolling max backlog

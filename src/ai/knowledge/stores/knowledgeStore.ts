@@ -476,7 +476,9 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
 
   /** 蓝本 :102-107 —— agent 离线时静默保留旧值,不 toast(K6:不照抄
    * console.error,连日志都不打)。K1:`service.notes.list` 已归一化返回
-   * `Note[]`,不再剥 `r.data.notes`。 */
+   * `Note[]`,不再剥 `r.data.notes`。【偏离 P3】蓝本此处是 `api.get('/ai/agent/notes',
+   * {status:'draft',limit:200})` 直调 axios,本仓改走 `service.notes.list(...)`
+   * (P0 既定「REST 一律走包」)。 */
   async function refreshNotesDraftCount(): Promise<void> {
     try {
       const list = await service.notes.list({ status: 'draft', limit: 200 })

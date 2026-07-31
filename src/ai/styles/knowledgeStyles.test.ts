@@ -295,6 +295,64 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
   })
 })
 
+// 【终审 ⚠️-D1,2026-08-01 补,本轮修复最有价值的一条】上面几条(R2/R4/"3 个同名
+// token")各自只逐个点名钉住了 13 个具名 token(6 个 *-soft/scrim + 4 个 --shadow-*
+// + 3 个同名 --accent/--accent-soft/--success)。除这 13 个之外,任何一个颜色 token
+// 从浅色块消失都**没有任何守卫**——终审 RED 探针实证:删掉浅色块
+// `--line-strong: #D8D3C7;` 一整行,`knowledgeStyles` + `color-guard` 209/209
+// 全绿,无人报红。真机后果:浅色主题下 `.k2-root-add` 的虚线边框会取到暗色块的
+// `#3A3A3D`——本档已经因为同一款故障(浅色块漏声明)吃过一次 Critical
+// (T4:--accent/--accent-soft/--success 三个)。
+//
+// 判据(头注释「隐藏坑」段已经证明过的前提):暗色块 `.knowledge-app { … }` 选择器
+// 无条件命中,浅色主题下同样作用于这个元素本身,custom property 继承规则是
+// "元素自身有声明时自身声明胜出"——所以暗色块声明的每一个**颜色** token,浅色块
+// 都必须也显式声明(值可以不同,只要求"有声明",值是否正确由上面 R2/R4/3-同名
+// 那几条各自的精确值断言负责,两层不重复)。
+//
+// 例外(两档共享、只在暗色/基础块声明一次,不要求浅色块重复声明)登记如下,
+// 每条都写明理由——这份清单不许当垃圾桶塞,新增例外必须像下面这样逐条写理由:
+const SHARED_STRUCTURAL_EXCEPTIONS = [
+  // 9 个真结构量 —— 圆角半径与字体栈,不带任何色度/色相/明度信息,不是"颜色 token"。
+  // 附录 B 原文就把这 9 个归类为"结构量,两档共享,只写基础块"。
+  '--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-xl', '--r-2xl', '--r-pill',
+  '--font-sans', '--font-mono',
+  // 2 个品牌渐变色 —— --grad-iri/--grad-iri-soft 是彩虹品牌识别渐变,与皮肤无关。
+  // 回源核实:AI tokens.scss 自己也只在 :119-120 声明一次(暗色块 :250 起不重定义),
+  // `.agent-app` 两档共用同一份 —— 与本档做法一致,属 `theme.css` 例外清单第 1 类
+  // (品牌识别色、皮肤无关的例外),不是漏声明。
+  '--grad-iri', '--grad-iri-soft',
+]
+
+describe('knowledge.scss —— 浅色档颜色 token 覆盖完整性(终审 ⚠️-D1,集合断言)', () => {
+  function declaredTokenNames(body: string): Set<string> {
+    return new Set([...body.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
+  }
+
+  it('暗色块声明的每一个颜色 token,浅色块必须也声明(白名单外漏一个就精确指名)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    const darkTokens = declaredTokenNames(darkBody)
+    const lightTokens = declaredTokenNames(lightBody)
+    const missing = [...darkTokens].filter(
+      (t) => !SHARED_STRUCTURAL_EXCEPTIONS.includes(t) && !lightTokens.has(t),
+    )
+    expect(missing, `浅色档漏声明的颜色 token(白名单外):${missing.join(', ')}`).toEqual([])
+  })
+
+  it('例外清单当前恰好是这 11 个,不多不少(防止清单被悄悄扩大当垃圾桶)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    const darkTokens = declaredTokenNames(darkBody)
+    const lightTokens = declaredTokenNames(lightBody)
+    // 「暗有浅无」的真实差集必须恰好等于登记的例外清单——多出来的说明例外清单漏登记
+    // 了新的真实缺口(应该报红修 scss,不是往清单里加一条了事);少了/清单里有的其实
+    // 浅色档也声明了,说明清单该收紧。
+    const actualOnlyDark = [...darkTokens].filter((t) => !lightTokens.has(t)).sort()
+    expect(actualOnlyDark).toEqual([...SHARED_STRUCTURAL_EXCEPTIONS].sort())
+  })
+})
+
 // 【评审 2026-08-01 Important I-3】色扫/白名单/R2/R4 等断言都只检查"有没有裸色字面量"/
 // "类名是否存在",完全没检查过 var(--x) 引用的 --x 是否真的有地方声明 —— 评审 RED
 // 探针实证:把 .k2-prog-pct 的 var(--ly-vec) 换成 var(--k2-nonexistent),三门 + 本档

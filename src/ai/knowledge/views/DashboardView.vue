@@ -530,6 +530,12 @@ onMounted(() => {
                 ><br />
                 <span class="k2-entry-en">{{ e.en }}</span>
               </span>
+              <!-- 【终审 Minor-2,补申报】蓝本 :361 是 `v-if="e.badge > 0"`。
+                   本仓 `EntryItem.badge` 是 optional 字段,strict 模式下不能对
+                   `undefined` 直接 `> 0` 比较,故写成 `(e.badge || 0) > 0`——
+                   与 :128-134 已申报的 M-1(`queueDepth` 兜底)同一类:TS 类型
+                   约束逼出的机械改写,任何输入下行为等价(`undefined > 0` 与
+                   `(undefined || 0) > 0` 都是 false),不是未申报的行为改动。 -->
               <span v-if="(e.badge || 0) > 0" class="k2-entry-badge" :data-tone="e.badgeTone">{{
                 e.badge
               }}</span>
