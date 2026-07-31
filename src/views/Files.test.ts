@@ -258,9 +258,18 @@ describe('快照只读横幅', () => {
   // 快照名可解析)选中一个条目(恰好是某个具体快照目录),SnapshotSelectionToolbar 的
   // "恢复" 按钮点了只会拿到 performSnapshotRestore 的"路径无效,无法恢复"——这个按钮在
   // 这个场景下天生就是坏的,不该出现。加 `&& !!browse.browseInfo` 后这个专用工具条不再
-  // 冒出来;真正的写操作(如删除)仍然被 useFileOps 的 blockedInSnapshot() 第二道防线挡住
-  // (isSnapshotView 在容器路径下依然是 true),不属于本条修的范围。
-  it('.snapshots 容器目录下选中条目:SnapshotSelectionToolbar(带坏掉的"恢复"按钮)不出现', async () => {
+  // 冒出来。
+  //
+  // 复核追加(阻塞级回归):只挡掉 SnapshotSelectionToolbar 不够——它一挡,`v-else-if` 的
+  // 普通 SelectionToolbar(复制/剪切/下载/共享/删除)会顶上来。复核实测这条口子是真的能
+  // 写穿:剪切走的是 move(=删源,是写不是读),`useFileOps.paste()` 的 blockedInSnapshot()
+  // 查的是**粘贴目的地**的 isSnapshotView,粘贴到普通目录时该检查形同虚设;`sel-share`
+  // (共享到局域网)在 Files.vue 的 onShare 里完全没有 guard,能把快照目录直接开成局域网
+  // 共享。这与 SnapshotSelectionToolbar.vue:10-12 的注释("剪切/复制/删除/共享在只读快照
+  // 上要么无意义要么会失败,留着只会诱导用户点")、FileContextMenu.vue 的
+  // showCopy/showCut/showDelete/showShare 全部 `&& !inSnapshot` 正面冲突。修法:
+  // `v-else-if` 补上 `!browse.isSnapshotView`,容器目录下两个工具条都不出现。
+  it('.snapshots 容器目录下选中条目:两个工具条(专用恢复条 + 普通复制/剪切/共享/删除条)都不出现', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -274,6 +283,27 @@ describe('快照只读横幅', () => {
     expect(files.selectedCount).toBe(1)
     expect(w.find('.snap-sel').exists()).toBe(false)
     expect(w.find('.snap-sel-restore').exists()).toBe(false)
+    // 两个工具条共享 .selection-toolbar 这个基类名,不存在即两个都没渲染
+    // (普通 SelectionToolbar 没有 .snap-sel 修饰类,单独判它不够,这里判基类)。
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
+  })
+
+  // 对照组(防止把恢复功能的主入口之一一起挡掉):真正的快照路径(有具体快照名,
+  // browseInfo 非空)下选中条目,SnapshotSelectionToolbar 必须仍然正常出现。
+  it('普通快照路径(有具体快照名)下选中条目:SnapshotSelectionToolbar 仍正常出现', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    const row = w.findAll('.file-row')[0]
+    await row.trigger('click', { ctrlKey: true })
+    const files = useFilesStore()
+    expect(files.selectedCount).toBe(1)
+    expect(w.find('.snap-sel').exists()).toBe(true)
+    expect(w.find('.snap-sel-restore').exists()).toBe(true)
   })
 })
 

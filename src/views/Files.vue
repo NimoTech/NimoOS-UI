@@ -483,7 +483,7 @@ onMounted(() => { browse.ensureVolumes() })
           @clear="files.clearSelection"
         />
         <SelectionToolbar
-          v-else-if="files.selectedCount > 0"
+          v-else-if="!browse.isSnapshotView && files.selectedCount > 0"
           :count="files.selectedCount"
           :all-selected="files.allSelected"
           :can-share="selectionHasFolder"
