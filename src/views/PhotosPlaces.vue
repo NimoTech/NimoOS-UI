@@ -29,6 +29,7 @@
 //     @wheel——模板绑定不保证 passive:false,Chrome 会警告并忽略 preventDefault。
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
@@ -37,15 +38,24 @@ import PlacesMap from '../photos/components/PlacesMap.vue'
 import PlacesZoomBar from '../photos/components/PlacesZoomBar.vue'
 import PlacesFilterMenu from '../photos/components/PlacesFilterMenu.vue'
 import PlacesThemeMenu, { type MapThemeSelection } from '../photos/components/PlacesThemeMenu.vue'
-import { usePhotosPlaces } from '../photos/stores/places'
+import PlaceDetailPanel from '../photos/components/PlaceDetailPanel.vue'
+import PlaceCoverPicker from '../photos/components/PlaceCoverPicker.vue'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import { useLightbox } from '../photos/lightbox/useLightbox'
+import { usePhotosPlaces, type PlaceSpot, type PlaceVisit } from '../photos/stores/places'
 import { usePlacesView } from '../photos/composables/usePlacesView'
 import { useThemeStore } from '../stores/theme'
+import { useToast } from '../stores/toast'
 import { countCountries, countPhotos, filterPlaces, type Pin, type Place, type PlacesFilter } from '../photos/util/placesMap'
 import { mapThemeStyleVars, resolveMapTheme } from '../photos/util/placesMapThemes'
+import { assetToPhoto } from '../photos/util/assetToPhoto'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 const store = usePhotosPlaces()
 const themeStore = useThemeStore()
+const toast = useToast()
+const lb = useLightbox()
 
 const activeId = ref<string | null>(null)
 const hoverId = ref<string | null>(null)
@@ -58,6 +68,13 @@ const themeOpen = ref(false)
 // 首帧就命中"失败"(还没发出请求就报失败)。`attempted` 只在 onMounted 真正开始一次
 // fetchPlaces 调用时才置真,首帧渲染时它还是初始值 false。
 const attempted = ref(false)
+
+// ── P6b-T8: 详情面板容器状态(照 Vue2 :114-121)。 ──────────────────────────
+const activeSpotKey = ref<string | null>(null)
+const coverOpen = ref(false)
+const coverTab = ref('recent')
+const coverSearch = ref('')
+const coverPage = ref(0)
 
 // Vue2 data() :76-81 的六个过滤字段,合成一个整体对象;T9 PlacesFilterMenu 按"整体替换"
 // 写回(不就地改字段)。
@@ -74,10 +91,19 @@ const wrapEl = ref<HTMLElement | null>(null)
 const mapRef = ref<InstanceType<typeof PlacesMap> | null>(null)
 const svgRef = ref<SVGSVGElement | null>(null)
 
+// P6b-T8(偏离登记 4):activePlace 只按 activeId 在列表里找;activeDetail 只在
+// store.detail 的 id 与当前 activeId 一致时才认——切城市后新详情回来之前,store.detail
+// 还是上一个城市的(Vue2 :204 的 `activeDetail || find()` 会让 hero 短暂显示上一个城市)。
+const activePlace = computed<Place | null>(() =>
+  store.places.find((p) => String(p.id) === String(activeId.value)) ?? null)
+const activeDetail = computed(() =>
+  (store.detail && String(store.detail.id) === String(activeId.value)) ? store.detail : null)
+const hasPanel = computed(() => activePlace.value != null || activeDetail.value != null)
+
 const {
   view, zoomFrac, autoPanTo, zoomToCluster, zoomBy, setScale, reset,
   onWheel, onPointerDown, onPointerMove, onPointerUp, dispose,
-} = usePlacesView({ svgEl: svgRef, wrapEl, hasDetailPanel: () => false })
+} = usePlacesView({ svgEl: svgRef, wrapEl, hasDetailPanel: () => hasPanel.value })
 
 // ── 过滤后地点(照 Vue2 :152-175 / T2 filterPlaces):同时喂 rail 与 map。rail 的搜索是
 // 它自己的内部状态(T5 既定),不经过这里、也不影响地图(核 Vue2 :229/:237 已确认地图只吃
@@ -178,15 +204,138 @@ watch(mapRef, (inst) => {
 // ── activeId watch(Vue2 :291-294):变化且非空 → autoPanTo;总是 loadDetail(next)。
 // Vue3 的 watch() 本身只在值真的变化时触发(不同于 Vue2 watcher 理论上可能的空转),
 // 这里不再复刻 Vue2 `next !== prev` 的多余判断——`next` 非空这一条足以覆盖"变化且非空"。
+// P6b-T8 追加(照 Vue2 :295-301):切城市重置封面弹层/spot 状态——既有的 autoPanTo +
+// loadDetail 两行不动。
 watch(activeId, (next) => {
   if (next) {
     const place = store.places.find((p) => String(p.id) === String(next)) ?? null
     autoPanTo(place)
   }
-  // P6b 接缝:详情面板本期不渲染,但接口照调(brief §7 明确要求保留,真机验收从 Network
-  // 面板看通不通)。
   void store.loadDetail(next)
+  coverOpen.value = false
+  coverTab.value = 'recent'
+  coverSearch.value = ''
+  coverPage.value = 0
+  activeSpotKey.value = null
 })
+
+// ── P6b-T8: 封面候选的三个 watch(照 Vue2 :304-312)。拉取前置条件 activeId && coverOpen——
+// 弹层关闭时改 tab/搜索词/翻页都不发请求(删码清单⑧)。不加 debounce(偏离 15-①,用户
+// 2026-07-31 pre-flight 裁定:节奏照搬 Vue2 逐键请求,只保留 store 侧结果落盘的 seq 守卫)。
+function fetchCandidatesIfOpen(): void {
+  if (!activeId.value || !coverOpen.value) return
+  void store.fetchCoverCandidates(activeId.value, { tab: coverTab.value, q: coverSearch.value, page: coverPage.value })
+}
+watch(coverTab, () => {
+  coverPage.value = 0
+  fetchCandidatesIfOpen()
+})
+watch(coverSearch, () => {
+  coverPage.value = 0
+  fetchCandidatesIfOpen()
+})
+watch(coverPage, () => {
+  fetchCandidatesIfOpen()
+})
+
+// openCoverPicker() = 置 coverOpen = true 后拉一次(照 Vue2 :517-521 的 toggle 语义:
+// 打开时拉、关闭时不拉)。
+function openCoverPicker(): void {
+  coverOpen.value = true
+  fetchCandidatesIfOpen()
+}
+
+// ── P6b-T8: 封面提交 ────────────────────────────────────────────────────────
+async function onPickCover(assetId: string): Promise<void> {
+  coverOpen.value = false // 照 Vue2 :538:先关弹层再提交
+  if (!activeId.value) return
+  try {
+    await store.setPlaceCover(activeId.value, assetId)
+  } catch {
+    toast.show(t('photosPlacesCoverFailed')) // 偏离登记 6:Vue2 无 catch
+  }
+}
+async function onResetCover(): Promise<void> {
+  coverOpen.value = false
+  if (!activeId.value) return
+  try {
+    await store.resetPlaceCover(activeId.value)
+  } catch {
+    toast.show(t('photosPlacesCoverFailed'))
+  }
+}
+
+// ── P6b-T8: spot 三个动作 ───────────────────────────────────────────────────
+function onPickSpot(spot: PlaceSpot): void {
+  activeSpotKey.value = String(spot.key)
+}
+async function onRenameSpot(name: string): Promise<void> {
+  if (!activeId.value || !activeSpotKey.value) return
+  try {
+    await store.setSpotName(activeId.value, activeSpotKey.value, name)
+  } catch {
+    toast.show(t('photosPlacesSpotRenameFailed'))
+  }
+}
+// D8。失败文案与重命名共用一条(同一资源的同类操作)。成功后不关弹窗、不再补
+// loadDetail(偏离 7:setSpotName 已就地回写 detail.spots;resetSpotName 在 store 内部
+// 自己重拉)。弹窗的编辑态由组件自己在 props.spot.name 变化后退出(T4 已实现)。
+async function onResetSpotName(): Promise<void> {
+  if (!activeId.value || !activeSpotKey.value) return
+  try {
+    await store.resetSpotName(activeId.value, activeSpotKey.value)
+  } catch {
+    toast.show(t('photosPlacesSpotRenameFailed'))
+  }
+}
+
+// ── P6b-T8: 相册与 toast ────────────────────────────────────────────────────
+async function createAlbum(name: string, from?: string, to?: string): Promise<void> {
+  if (!activeId.value) return
+  try {
+    const album = await store.createPlaceAlbum(activeId.value, { name, from, to })
+    toast.show(
+      t('photosPlacesAlbumCreated', { name: album.name, count: album.count }),
+      5000,
+      { label: t('photosPlacesToastOpen'), onClick: () => { void router.push(`/photos/albums/${album.albumId}`) } },
+    )
+  } catch (e) {
+    // busy 重入不是错误,不弹 toast(见 T2 的 albumBusy 契约)
+    if ((e as Error)?.message !== 'albumBusy') toast.show(t('photosPlacesAlbumCreateFailed'))
+  }
+}
+function onSaveAlbum(): void { void createAlbum(activePlace.value?.city ?? '') } // Vue2 :458-462
+function onSaveTrip(v: PlaceVisit): void { // Vue2 :463-472
+  void createAlbum(`${activePlace.value?.city ?? ''} · ${v.when}`, v.from, v.to)
+}
+
+// ── P6b-T8: 灯箱(D9)。详情 payload 只给 assetId 字符串,没有资产对象;灯箱 openAt 需要
+// Photo。assetToPhoto({ id }) 产出带默认值的合法 Photo,useLightbox 打开后会用
+// getAsset(id) 水合真实明细(useLightbox.ts:95-124),所以占位对象足够。 ──────────────
+function onOpenPhoto(assetId: string, list: string[]): void {
+  const ids = list.length ? list : [assetId]
+  const photos = ids.map((id) => assetToPhoto({ id }))
+  const target = photos.find((p) => String(p.id) === String(assetId)) ?? photos[0]
+  lb.openAt(target, photos)
+}
+
+// ── P6b-T8: 跳库导航。key 用后端原始 key(int32),不是归一后的 activeId —— 跳库页要拿它
+// 直接打后端。 ──────────────────────────────────────────────────────────────
+function goLibrary(): void {
+  const key = activePlace.value?.key ?? activeId.value
+  if (key == null) return
+  void router.push(`/photos/places/${encodeURIComponent(String(key))}`)
+}
+function onOpenSpotLibrary(): void {
+  const spot = activeDetail.value?.spots.find((s) => String(s.key) === String(activeSpotKey.value))
+  const key = activePlace.value?.key ?? activeId.value
+  if (key == null || !spot) return
+  activeSpotKey.value = null // 照 Vue2 :484:跳走前关掉弹窗
+  void router.push({
+    path: `/photos/places/${encodeURIComponent(String(key))}`,
+    query: { spot: String(spot.key), lat: String(spot.lat), lon: String(spot.lon) },
+  })
+}
 
 // Vue2 :412-413 把"没有选中项就选 places[0]"放在 loadPlaces() 内部,所以每一次成功加载
 // (首次进入页面、或失败后重试)都会重新选中并 autoPan。T3 store 刻意没做这一步(留给视图层),
@@ -291,6 +440,26 @@ async function retryLoad(): Promise<void> {
                 @pointercancel="onPointerUp"
               />
 
+              <!-- P6b-T8: 详情面板(DOM 顺序不影响层级,z-index 已定 6,但保持
+                   "地图 → 面板 → tip/家具"的可读顺序)。 -->
+              <PlaceDetailPanel
+                v-if="hasPanel"
+                :place="activePlace" :detail="activeDetail"
+                :detail-loading="store.detailLoading"
+                :active-spot-key="activeSpotKey" :spot-busy="store.spotBusy"
+                @close="activeId = null"
+                @open-cover-picker="openCoverPicker"
+                @open-library="goLibrary()"
+                @save-album="onSaveAlbum"
+                @open-photo="onOpenPhoto"
+                @pick-spot="onPickSpot"
+                @close-spot="activeSpotKey = null"
+                @rename="onRenameSpot"
+                @reset-name="onResetSpotName"
+                @open-spot-library="onOpenSpotLibrary"
+                @save-trip="onSaveTrip"
+              />
+
               <!-- 悬停卡片(照 Vue2 :1013-1028)。 -->
               <div
                 v-if="showHoverTip"
@@ -338,6 +507,27 @@ async function retryLoad(): Promise<void> {
       </main>
     </div>
   </AreaShell>
+
+  <!-- P6b-T8: 封面弹层 + 灯箱,挂在 AreaShell 之外(position:fixed,避免被祖先
+       transform/overflow 裁剪,同 PhotosPersonDetail.vue:708-710 的既有先例)。 -->
+  <PlaceCoverPicker
+    :open="coverOpen"
+    :city="activePlace?.city ?? ''"
+    :total-count="activePlace?.count ?? 0"
+    :current-asset-id="activeDetail?.coverAssetId ?? ''"
+    :candidates="store.coverCandidates"
+    :tab="coverTab"
+    :search="coverSearch"
+    :page="coverPage"
+    :busy="store.coverBusy"
+    @close="coverOpen = false"
+    @update:tab="coverTab = $event"
+    @update:search="coverSearch = $event"
+    @update:page="coverPage = $event"
+    @pick="onPickCover"
+    @reset="onResetCover"
+  />
+  <PhotoLightbox />
 </template>
 
 <style scoped>

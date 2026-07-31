@@ -20,17 +20,39 @@ const svc = vi.hoisted(() => ({
     listPlaces: vi.fn(),
     getPlace: vi.fn().mockResolvedValue({}),
     thumbnailUrl: vi.fn((id: string | number, size?: string) => `mock://thumb/${id}/${size ?? ''}`),
+    setPlaceCover: vi.fn().mockResolvedValue(undefined),
+    resetPlaceCover: vi.fn().mockResolvedValue(undefined),
+    setSpotName: vi.fn().mockResolvedValue(undefined),
+    resetSpotName: vi.fn().mockResolvedValue(undefined),
+    createPlaceAlbum: vi.fn().mockResolvedValue({ albumId: 'al1', name: 'x', count: 1 }),
+    placeCoverCandidates: vi.fn().mockResolvedValue({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 }),
+    // ── P6b-T8: PhotoLightbox 挂载 + useLightbox.openAt() 链路需要(D9)。 ──
+    getAsset: vi.fn().mockResolvedValue({}),
+    getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
+    recordView: vi.fn().mockResolvedValue(undefined),
+    listFavoriteIds: vi.fn().mockResolvedValue([]),
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+
+// jsdom 无媒体栈(PhotoLightbox 挂载即引用,同 PhotosPersonDetail.test.ts 前置)。
+;(HTMLMediaElement.prototype as unknown as { play: () => Promise<void> }).play = vi.fn(() => Promise.resolve())
+;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
 import PhotosPlaces from '../PhotosPlaces.vue'
 import photosPlacesRaw from '../PhotosPlaces.vue?raw'
 import PlacesRail from '../../photos/components/PlacesRail.vue'
 import PlacesMap from '../../photos/components/PlacesMap.vue'
+import PlacesZoomBar from '../../photos/components/PlacesZoomBar.vue'
 import PlacesThemeMenu from '../../photos/components/PlacesThemeMenu.vue'
+import PlaceDetailPanel from '../../photos/components/PlaceDetailPanel.vue'
+import PlaceCoverPicker from '../../photos/components/PlaceCoverPicker.vue'
 import placesZoomBarRaw from '../../photos/components/PlacesZoomBar.vue?raw'
 import { usePhotosPlaces } from '../../photos/stores/places'
+import { useLightbox } from '../../photos/lightbox/useLightbox'
+import { useToast } from '../../stores/toast'
 import { extractStyleBlock, parseCssRules } from '../../photos/components/__tests__/cssCascade'
 import { MAP_H, MAP_W, project } from '../../photos/util/worldMap'
 import type { Pin } from '../../photos/util/placesMap'
@@ -91,6 +113,13 @@ beforeEach(() => {
   svc.photos.listPlaces.mockReset().mockImplementation(okListPlaces)
   svc.photos.getPlace.mockReset().mockResolvedValue({})
   svc.photos.thumbnailUrl.mockClear()
+  svc.photos.setPlaceCover.mockReset().mockResolvedValue(undefined)
+  svc.photos.resetPlaceCover.mockReset().mockResolvedValue(undefined)
+  svc.photos.setSpotName.mockReset().mockResolvedValue(undefined)
+  svc.photos.resetSpotName.mockReset().mockResolvedValue(undefined)
+  svc.photos.createPlaceAlbum.mockReset().mockResolvedValue({ albumId: 'al1', name: 'x', count: 1 })
+  svc.photos.placeCoverCandidates.mockReset().mockResolvedValue({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 })
+  useLightbox().__resetForTest()
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -118,6 +147,12 @@ describe('首屏加载 + 自动选中', () => {
     expect(w.findComponent(PlacesMap).props('activeId')).toBe('1')
   })
 
+  // P6b-T8 评审修复:hasDetailPanel 换真实状态后,首屏自动选中即让 activePlace 命中
+  // (place 存在即 hasPanel=true),原先假定"正中心"的数值不再成立——wrapEl 是真实 DOM
+  // 节点,jsdom 默认 getBoundingClientRect 恒返回全 0,`420/0=Infinity` 被
+  // `Math.min(0.55, …)` 钳到 0.55(不是 T8 新增的两条 usePlacesView 用例里手算的
+  // 0.42——那两条显式 mock 了 wrapEl 宽 1000)。tx 的换算随之改用 panelFrac=0.55 时的
+  // c.x=225;ty 公式不受影响(panelFrac 只改 x,见 usePlacesView.ts:98-99)。
   it('自动选中后 autoPanTo 被调用,入参是第一个地点(TOKYO)——按 view 的 tx/ty/scale 精确核验', async () => {
     const { w } = await mountView()
     // autoPanTo → centerOn → animateView 已经同步排了一个 raf 回调,flush 它让缓动直接到终点。
@@ -125,11 +160,13 @@ describe('首屏加载 + 自动选中', () => {
     flushAnim()
     await w.vm.$nextTick()
     const view = w.findComponent(PlacesMap).props('view') as { tx: number, ty: number, scale: number }
-    // centerOn(wx,wy,scale) 的换算:c = visibleCenterVb()(hasDetailPanel 恒 false → 正中心),
-    // scale = max(1, 1.8) = 1.8,tx = c.x - wx*scale,ty = c.y - wy*scale。
+    // centerOn(wx,wy,scale) 的换算:c = visibleCenterVb()(hasDetailPanel 此刻为真——首屏
+    // 自动选中的地点即是 activePlace;wrapEl 未 mock 宽度,panelFrac 钳到 0.55,
+    // c.x = 1000*(1-0.55)/2 = 225,c.y 仍是 MAP_H/2),scale = max(1, 1.8) = 1.8,
+    // tx = c.x - wx*scale,ty = c.y - wy*scale。
     const { x: wx, y: wy } = project(TOKYO.lon, TOKYO.lat)
     expect(view.scale).toBeCloseTo(1.8, 5)
-    expect(view.tx).toBeCloseTo(MAP_W / 2 - wx * 1.8, 3)
+    expect(view.tx).toBeCloseTo(225 - wx * 1.8, 3)
     expect(view.ty).toBeCloseTo(MAP_H / 2 - wy * 1.8, 3)
   })
 })
@@ -507,5 +544,378 @@ describe('路由 + 侧栏(只追加,不重排)', () => {
     // 侧栏渲染的是 i18n 标签文字,直接比对文案序列(与 photosLibrary/.../photosTrash 的
     // zh_CN 字典值一一对应),不需要额外解析源码——这就是"侧栏真的按此顺序渲染"的直接证据。
     expect(ids).toEqual(['照片库', '相册', '人物', '地点', '收藏', '最近删除'])
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// P6b-T8: 容器接线 —— 详情面板/封面弹层/spot/灯箱/相册 toast/跳库导航
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('P6b-T8: 面板显隐', () => {
+  it('activeId 命中列表项 → PlaceDetailPanel 挂载;activeId=null → 卸载', async () => {
+    const { w } = await mountView() // 首屏已自动选中 TOKYO
+    expect(w.findComponent(PlaceDetailPanel).exists()).toBe(true)
+    await w.findComponent(PlacesRail).vm.$emit('pick', null)
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceDetailPanel).exists()).toBe(false)
+  })
+
+  it('点面板的 close → activeId 变 null 且 loadDetail(null) 被调', async () => {
+    const { w } = await mountView()
+    const store = usePhotosPlaces()
+    const loadDetailSpy = vi.spyOn(store, 'loadDetail')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlacesRail).props('activeId')).toBe(null)
+    expect(loadDetailSpy).toHaveBeenCalledWith(null)
+    expect(w.findComponent(PlaceDetailPanel).exists()).toBe(false)
+  })
+})
+
+describe('P6b-T8: 偏离登记 4 守卫(切城市后详情不认上一城市)', () => {
+  it('store.detail 是 B 城的、activeId 是 A 城 → 面板的 detail prop 为 null、place prop 是 A 城', async () => {
+    const { w } = await mountView() // activeId = '1'(TOKYO)
+    const store = usePhotosPlaces()
+    // 模拟"上一个城市(PARIS,id=2)的详情响应还没被新请求覆盖"这个竞态窗口。
+    store.detail = {
+      id: '2', city: 'Paris', country: 'France', count: 1, trips: 1, home: false,
+      coverAssetId: '', thumbs: [], spots: [], insights: [], visits: [], recent: [],
+    }
+    await w.vm.$nextTick()
+    const panel = w.findComponent(PlaceDetailPanel)
+    expect(panel.props('detail')).toBe(null)
+    expect(panel.props('place')?.id).toBe('1')
+    expect(panel.props('place')?.city).toBe('Tokyo')
+  })
+})
+
+describe('P6b-T8: hasDetailPanel 真实化(P6a 接缝二 —— panelFrac 首次真正生效)', () => {
+  it('面板打开与关闭时,同一 setScale 调用的落点不同(wrapEl 宽 1000 → panelFrac=0.42 → 中心 x=290 而非 500)', async () => {
+    const { w } = await mountView() // 首屏已自动选中 TOKYO,hasPanel = true
+    flushAnim()
+    await w.vm.$nextTick()
+
+    // 钉住 wrapEl 宽度,让 panelFrac 落在未钳制区间(与 usePlacesView.test.ts 的既定 mock
+    // 值 1000 一致),而不是 jsdom 默认 0 宽度被钳到的 0.55。
+    const wrap = w.find('.map-canvas-wrap').element as HTMLElement
+    wrap.getBoundingClientRect = () => ({ width: 1000, height: 500, left: 0, top: 0, right: 1000, bottom: 500, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
+
+    // 面板打开态:先 reset 到已知基线(tx=0,ty=0,scale=1),再 setScale(4)。
+    await w.findComponent(PlacesZoomBar).vm.$emit('reset')
+    flushAnim()
+    await w.vm.$nextTick()
+    await w.findComponent(PlacesZoomBar).vm.$emit('set-scale', 4)
+    await w.vm.$nextTick()
+    const txOpen = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+    // 手算:panelFrac = min(0.55, 420/1000) = 0.42 → c.x = 1000*(1-0.42)/2 = 290。
+    // applyZoom(4, 290, 250) 从 {tx:0,ty:0,scale:1}:wx=(290-0)/1=290,
+    // tx_new = 290 - 290*4 = -870。
+    expect(txOpen).toBeCloseTo(290 - 290 * 4, 5)
+
+    // 面板关闭态:同一基线、同一 setScale(4),但 hasPanel = false → panelFrac = 0 → c.x=500。
+    await w.findComponent(PlaceDetailPanel).vm.$emit('close')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceDetailPanel).exists()).toBe(false)
+    await w.findComponent(PlacesZoomBar).vm.$emit('reset')
+    flushAnim()
+    await w.vm.$nextTick()
+    await w.findComponent(PlacesZoomBar).vm.$emit('set-scale', 4)
+    await w.vm.$nextTick()
+    const txClosed = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
+    expect(txClosed).toBeCloseTo(500 - 500 * 4, 5)
+
+    expect(txOpen).not.toBeCloseTo(txClosed, 5)
+  })
+})
+
+describe('P6b-T8: 切城市重置封面/spot 状态(照 Vue2 :295-301)', () => {
+  it('打开封面弹层 + 选中 spot + 翻到第 2 页,再改 activeId → 全部复位', async () => {
+    const { w } = await mountView() // TOKYO
+    const panel = w.findComponent(PlaceDetailPanel)
+    await panel.vm.$emit('open-cover-picker')
+    await panel.vm.$emit('pick-spot', { key: 's1', name: 'Spot', lon: 0, lat: 0, count: 1, thumb: '' })
+    await w.vm.$nextTick()
+    const picker = w.findComponent(PlaceCoverPicker)
+    await picker.vm.$emit('update:page', 2)
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(true)
+    expect(w.findComponent(PlaceCoverPicker).props('page')).toBe(2)
+    expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe('s1')
+
+    await w.findComponent(PlacesRail).vm.$emit('pick', '2') // 切到 PARIS
+    await w.vm.$nextTick()
+
+    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(false)
+    expect(w.findComponent(PlaceCoverPicker).props('tab')).toBe('recent')
+    expect(w.findComponent(PlaceCoverPicker).props('search')).toBe('')
+    expect(w.findComponent(PlaceCoverPicker).props('page')).toBe(0)
+    expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe(null)
+  })
+})
+
+describe('P6b-T8: 封面候选拉取(前置条件 activeId && coverOpen,删码清单⑧)', () => {
+  it('openCoverPicker 拉一次;改 tab/搜索词/翻页各拉一次;coverOpen=false 时改 tab 不拉', async () => {
+    const { w } = await mountView()
+    svc.photos.placeCoverCandidates.mockClear()
+    const panel = w.findComponent(PlaceDetailPanel)
+
+    await panel.vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+    expect(svc.photos.placeCoverCandidates).toHaveBeenCalledTimes(1)
+    expect(svc.photos.placeCoverCandidates).toHaveBeenLastCalledWith(1, { tab: 'recent', q: '', page: 0 })
+
+    const picker = w.findComponent(PlaceCoverPicker)
+    await picker.vm.$emit('update:tab', 'top')
+    await w.vm.$nextTick()
+    expect(svc.photos.placeCoverCandidates).toHaveBeenCalledTimes(2)
+    expect(w.findComponent(PlaceCoverPicker).props('page')).toBe(0) // 改 tab → page 归 0
+
+    await picker.vm.$emit('update:search', 'xyz')
+    await w.vm.$nextTick()
+    expect(svc.photos.placeCoverCandidates).toHaveBeenCalledTimes(3)
+
+    await picker.vm.$emit('update:page', 1)
+    await w.vm.$nextTick()
+    expect(svc.photos.placeCoverCandidates).toHaveBeenCalledTimes(4)
+
+    // 关闭弹层后改 tab 不应再拉——只通过弹层自己的 close 关闭 coverOpen(不碰 activeId,
+    // 否则 fetchCandidatesIfOpen 里的 `!activeId.value` 早退会掩盖 coverOpen 前置条件
+    // 本身有没有被真的删掉,删码验证会测不出差异)。
+    await w.findComponent(PlaceCoverPicker).vm.$emit('close')
+    await w.vm.$nextTick()
+    svc.photos.placeCoverCandidates.mockClear()
+    await w.findComponent(PlaceCoverPicker).vm.$emit('update:tab', 'fav')
+    await w.vm.$nextTick()
+    expect(svc.photos.placeCoverCandidates).not.toHaveBeenCalled()
+  })
+})
+
+describe('P6b-T8: 封面提交', () => {
+  it('点 cell(pick)→ 弹层先关、setPlaceCover 被调;失败 → toast「封面更新失败」', async () => {
+    const { w } = await mountView()
+    const toastStore = useToast()
+    const showSpy = vi.spyOn(toastStore, 'show')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(true)
+
+    await w.findComponent(PlaceCoverPicker).vm.$emit('pick', 'asset-9')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(false) // 先关弹层
+    expect(svc.photos.setPlaceCover).toHaveBeenCalledWith(1, 'asset-9')
+
+    svc.photos.setPlaceCover.mockRejectedValueOnce(new Error('boom'))
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+    await w.findComponent(PlaceCoverPicker).vm.$emit('pick', 'asset-10')
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledWith('封面更新失败')
+  })
+
+  it('reset 同形:弹层先关、resetPlaceCover 被调;失败 → toast「封面更新失败」', async () => {
+    const { w } = await mountView()
+    const toastStore = useToast()
+    const showSpy = vi.spyOn(toastStore, 'show')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+
+    await w.findComponent(PlaceCoverPicker).vm.$emit('reset')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(false)
+    expect(svc.photos.resetPlaceCover).toHaveBeenCalledWith(1)
+
+    svc.photos.resetPlaceCover.mockRejectedValueOnce(new Error('boom'))
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+    await w.findComponent(PlaceCoverPicker).vm.$emit('reset')
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledWith('封面更新失败')
+  })
+})
+
+describe('P6b-T8: spot 三个动作', () => {
+  it('emit pick-spot → 面板收到的 activeSpotKey 是 String(spot.key)', async () => {
+    const { w } = await mountView()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 42, name: 'S', lon: 0, lat: 0, count: 1, thumb: '' })
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe('42')
+  })
+
+  it('emit rename → setSpotName 被调且没有额外的 loadDetail(偏离 7 守卫)', async () => {
+    const { w } = await mountView()
+    const store = usePhotosPlaces()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 's1', name: 'Old', lon: 0, lat: 0, count: 1, thumb: '' })
+    await w.vm.$nextTick()
+    const loadDetailSpy = vi.spyOn(store, 'loadDetail')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('rename', 'New Name')
+    await flushPromises()
+    expect(svc.photos.setSpotName).toHaveBeenCalledWith(1, 's1', 'New Name')
+    expect(loadDetailSpy).not.toHaveBeenCalled()
+  })
+
+  it('emit reset-name → resetSpotName 被调', async () => {
+    const { w } = await mountView()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 's1', name: 'Old', lon: 0, lat: 0, count: 1, thumb: '' })
+    await w.vm.$nextTick()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('reset-name')
+    await flushPromises()
+    expect(svc.photos.resetSpotName).toHaveBeenCalledWith(1, 's1')
+  })
+
+  it('rename/reset-name 失败各弹一次 toast', async () => {
+    const { w } = await mountView()
+    const toastStore = useToast()
+    const showSpy = vi.spyOn(toastStore, 'show')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 's1', name: 'Old', lon: 0, lat: 0, count: 1, thumb: '' })
+    await w.vm.$nextTick()
+
+    svc.photos.setSpotName.mockRejectedValueOnce(new Error('boom'))
+    await w.findComponent(PlaceDetailPanel).vm.$emit('rename', 'X')
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledWith('地点重命名失败')
+
+    svc.photos.resetSpotName.mockRejectedValueOnce(new Error('boom'))
+    await w.findComponent(PlaceDetailPanel).vm.$emit('reset-name')
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledTimes(2)
+    expect(showSpy).toHaveBeenLastCalledWith('地点重命名失败')
+  })
+})
+
+describe('P6b-T8: 相册与 toast', () => {
+  it('emit save-album → createPlaceAlbum 收到 { name: 城市名 }', async () => {
+    const { w } = await mountView() // TOKYO
+    await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
+    await flushPromises()
+    expect(svc.photos.createPlaceAlbum).toHaveBeenCalledWith(1, { name: 'Tokyo', from: '', to: '' })
+  })
+
+  it('emit save-trip → createPlaceAlbum 收到 `城市 · when` + from/to', async () => {
+    const { w } = await mountView()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('save-trip', { when: '2026 春', from: '2026-01-01', to: '2026-01-10', current: false, days: 9, photos: 5, faces: [], spots: 2, thumbs: [] })
+    await flushPromises()
+    expect(svc.photos.createPlaceAlbum).toHaveBeenCalledWith(1, { name: 'Tokyo · 2026 春', from: '2026-01-01', to: '2026-01-10' })
+  })
+
+  it('成功 → toast 文案含相册名与张数、带 action;点 action → router.push 到相册详情', async () => {
+    svc.photos.createPlaceAlbum.mockResolvedValueOnce({ albumId: 'al-9', name: 'Tokyo', count: 3 })
+    const { w, router } = await mountView()
+    const toastStore = useToast()
+    const showSpy = vi.spyOn(toastStore, 'show')
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledTimes(1)
+    const [text, duration, action] = showSpy.mock.calls[0]
+    expect(text).toContain('Tokyo')
+    expect(text).toContain('3')
+    expect(duration).toBe(5000)
+    expect(action?.label).toBe('打开')
+    action?.onClick()
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums/al-9')
+  })
+
+  it('失败 → 失败 toast;albumBusy 错误不弹 toast', async () => {
+    const { w } = await mountView()
+    const toastStore = useToast()
+    const showSpy = vi.spyOn(toastStore, 'show')
+
+    svc.photos.createPlaceAlbum.mockRejectedValueOnce(new Error('network down'))
+    await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
+    await flushPromises()
+    expect(showSpy).toHaveBeenCalledWith('相册创建失败')
+
+    showSpy.mockClear()
+    svc.photos.createPlaceAlbum.mockRejectedValueOnce(new Error('albumBusy'))
+    await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
+    await flushPromises()
+    expect(showSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('P6b-T8: 灯箱(D9)', () => {
+  it("emit open-photo('b', ['a','b','c']) → lb.openAt 收到的 list 长度 3、当前项 id 是 'b'", async () => {
+    const { w } = await mountView()
+    const lb = useLightbox()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-photo', 'b', ['a', 'b', 'c'])
+    expect(lb.list.value).toHaveLength(3)
+    expect(String(lb.current.value?.id)).toBe('b')
+    expect(lb.open.value).toBe(true)
+  })
+
+  it("emit open-photo('x', []) → list 长度 1", async () => {
+    const { w } = await mountView()
+    const lb = useLightbox()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-photo', 'x', [])
+    expect(lb.list.value).toHaveLength(1)
+    expect(String(lb.current.value?.id)).toBe('x')
+  })
+})
+
+describe('P6b-T8: 跳库导航(key 用后端原始 key,不是归一后的 activeId)', () => {
+  it('emit open-library → router.push 到 /photos/places/7(fixture 的后端 key 是数字 7,证明用的是 key 不是归一 id)', async () => {
+    const { w, router } = await mountView()
+    const store = usePhotosPlaces()
+    // 刻意构造 id 与 key 不同的地点(真实 toPlace() 恒 id=String(key),这里为了让删码
+    // 验证有意义——直接注入一个 id≠key 的合成条目,证明 goLibrary 读的是
+    // activePlace.key 而不是 activeId)。
+    store.places.push({
+      id: 'weird-id', key: 7, region: 'asia', country: 'X', city: 'Weird',
+      lon: 0, lat: 0, count: 1, recent: false, last: '', lastDate: null,
+      trips: 0, home: false, thumbs: [], coverAssetId: '',
+    })
+    await w.findComponent(PlacesRail).vm.$emit('pick', 'weird-id')
+    await w.vm.$nextTick()
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-library')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/places/7')
+  })
+
+  it('emit open-spot-library → path 同上且 query 含 spot/lat/lon,且 activeSpotKey 被清空', async () => {
+    const { w, router } = await mountView()
+    const store = usePhotosPlaces()
+    store.places.push({
+      id: 'weird-id', key: 7, region: 'asia', country: 'X', city: 'Weird',
+      lon: 0, lat: 0, count: 1, recent: false, last: '', lastDate: null,
+      trips: 0, home: false, thumbs: [], coverAssetId: '',
+    })
+    await w.findComponent(PlacesRail).vm.$emit('pick', 'weird-id')
+    await w.vm.$nextTick()
+    store.detail = {
+      id: 'weird-id', city: 'Weird', country: 'X', count: 1, trips: 0, home: false,
+      coverAssetId: '', thumbs: [], insights: [], visits: [], recent: [],
+      spots: [{ key: '42', name: 'Spot', lon: 11, lat: 22, count: 1, thumb: '' }],
+    }
+    await w.vm.$nextTick()
+    await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: '42', name: 'Spot', lon: 11, lat: 22, count: 1, thumb: '' })
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe('42')
+
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-spot-library')
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/places/7', query: { spot: '42', lat: '22', lon: '11' } })
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe(null)
+  })
+})
+
+describe('P6b-T8: 三浮层同开时一次 Esc 三者都关(P5-T10 的 bug 形态)', () => {
+  it('Filters + 主题 + 封面弹层同时打开,按一次 Esc 三者都关', async () => {
+    const { w } = await mountView()
+    await w.find('[data-test="pfm-chip"]').trigger('click')
+    await w.find('[data-test="mtm-chip"]').trigger('click')
+    await w.findComponent(PlaceDetailPanel).vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="pfm-pop"]').exists()).toBe(true)
+    expect(w.find('[data-test="mtm-pop"]').exists()).toBe(true)
+    expect(w.find('[data-test="cp-scrim"]').exists()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="pfm-pop"]').exists()).toBe(false)
+    expect(w.find('[data-test="mtm-pop"]').exists()).toBe(false)
+    expect(w.find('[data-test="cp-scrim"]').exists()).toBe(false)
   })
 })

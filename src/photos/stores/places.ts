@@ -440,7 +440,7 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
   return {
     places, regions, stats, placesLoaded, loading,
     detail, detailLoading, coverCandidates, themePrefs, railCollapsed,
-    albumBusy,
+    coverBusy, spotBusy, albumBusy,
     fetchPlaces, loadDetail, clearDetail,
     setPlaceCover, resetPlaceCover, setSpotName, resetSpotName, createPlaceAlbum, fetchCoverCandidates,
     setMapTheme, setCustomColors, toggleRegionFold, isRegionCollapsed,

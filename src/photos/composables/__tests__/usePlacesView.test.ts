@@ -308,6 +308,62 @@ describe('usePlacesView', () => {
       flushRaf(420)
       expect(pv.view.value).toEqual({ tx: 0, ty: 0, scale: 1 })
     })
+
+    // ── P6b-T8(P6a 接缝二):hasDetailPanel 换真实状态后,panelFrac 首次真正生效——
+    // 这四条钉的是 centerOn/zoomBy/setScale/autoPanTo 四条消费通路真的走了它(既有的
+    // visibleCenterVb 算术用例本身已覆盖 panelFrac 的计算,这里只补"消费方确实用了新
+    // 结果"这一层)。wrapEl 宽 1000 → panelFrac = min(0.55, 420/1000) = 0.42 →
+    // c = { x: 1000*(1-0.42)/2 = 290, y: 250 }(与 visibleCenterVb 既有用例的手算值一致)。
+    it('centerOn(wx,wy,2) 在 hasDetailPanel()=true 下,推完动画帧后 tx === 290 - wx*2', () => {
+      const nowSpy = vi.spyOn(performance, 'now')
+      nowSpy.mockReturnValue(0)
+      const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
+      pv.view.value = { tx: 0, ty: 0, scale: 1 }
+      pv.centerOn(100, 50, 2)
+      nowSpy.mockReturnValue(420)
+      flushRaf(420)
+      // c = {x:290, y:250};tx = 290 - 100*2 = 90;ty = 250 - 50*2 = 150。
+      // toBeCloseTo(不是 toEqual/toBe):panelFrac = min(0.55, 420/1000) 的浮点除法
+      // 带来微小尾差,同 usePlacesView.test.ts 既有 visibleCenterVb 用例的精度口径。
+      expect(pv.view.value.tx).toBeCloseTo(90)
+      expect(pv.view.value.ty).toBeCloseTo(150)
+      expect(pv.view.value.scale).toBe(2)
+      expect(pv.view.value.tx).toBeCloseTo(290 - 100 * 2)
+    })
+
+    it('zoomBy(2) 从 scale 1 起:锚点是 (290,250),tx 与"面板关闭时锚点 500"的结果不同且等于手算值', () => {
+      const pvOpen = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
+      pvOpen.view.value = { tx: 0, ty: 0, scale: 1 }
+      pvOpen.zoomBy(2)
+      // applyZoom(2, 290, 250) from {tx:0,ty:0,scale:1}:wx=290,wy=250 → tx=290-290*2=-290。
+      expect(pvOpen.view.value.tx).toBeCloseTo(-290)
+      expect(pvOpen.view.value.ty).toBeCloseTo(-250)
+      expect(pvOpen.view.value.scale).toBe(2)
+
+      const pvClosed = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
+      pvClosed.view.value = { tx: 0, ty: 0, scale: 1 }
+      pvClosed.zoomBy(2)
+      // applyZoom(2, 500, 250):tx=500-500*2=-500。
+      expect(pvClosed.view.value).toEqual({ tx: -500, ty: -250, scale: 2 })
+      expect(pvOpen.view.value.tx).not.toBeCloseTo(pvClosed.view.value.tx, 5)
+    })
+
+    it('setScale(4):锚点是 (290,250),tx 与"面板关闭时锚点 500"的结果不同且等于手算值', () => {
+      const pvOpen = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
+      pvOpen.view.value = { tx: 0, ty: 0, scale: 1 }
+      pvOpen.setScale(4)
+      // applyZoom(4, 290, 250) from {tx:0,ty:0,scale:1}:wx=290,wy=250 → tx=290-290*4=-870。
+      expect(pvOpen.view.value.tx).toBeCloseTo(-870)
+      expect(pvOpen.view.value.ty).toBeCloseTo(-750)
+      expect(pvOpen.view.value.scale).toBe(4)
+
+      const pvClosed = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
+      pvClosed.view.value = { tx: 0, ty: 0, scale: 1 }
+      pvClosed.setScale(4)
+      // applyZoom(4, 500, 250):tx=500-500*4=-1500。
+      expect(pvClosed.view.value).toEqual({ tx: -1500, ty: -750, scale: 4 })
+      expect(pvOpen.view.value.tx).not.toBeCloseTo(pvClosed.view.value.tx, 5)
+    })
   })
 
   describe('autoPanTo', () => {
@@ -330,6 +386,31 @@ describe('usePlacesView', () => {
       expect(pv.view.value.scale).toBeCloseTo(1.8)
       expect(pv.view.value.tx).toBeCloseTo(50)
       expect(pv.view.value.ty).toBeCloseTo(25)
+    })
+
+    // P6b-T8:hasDetailPanel()=true 下,最终该点落在可见中心 x=290(不是 500)——用
+    // "该世界点映射回屏幕坐标恰好等于可见中心"这个不变量核验,而不是重复断言 tx 本身。
+    it('hasDetailPanel()=true 下,该点最终落在 x=290(不是 500)', () => {
+      const nowSpy = vi.spyOn(performance, 'now')
+      nowSpy.mockReturnValue(0)
+      const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
+      pv.view.value = { tx: 0, ty: 0, scale: 1 }
+      const place = makePlace({ lon: -90, lat: 45 })
+      const proj = project(-90, 45) // { x: 250, y: 125 }
+
+      pv.autoPanTo(place)
+      nowSpy.mockReturnValue(420)
+      flushRaf(420)
+      // c = {x:290, y:250};scale = max(1, 1.8) = 1.8;tx = 290 - 250*1.8 = -160;
+      // ty = 250 - 125*1.8 = 25(y 不受 panelFrac 影响,同 visibleCenterVb 既有用例)。
+      expect(pv.view.value.scale).toBeCloseTo(1.8)
+      expect(pv.view.value.tx).toBeCloseTo(-160)
+      expect(pv.view.value.ty).toBeCloseTo(25)
+      // 该世界点映射回屏幕坐标:tx + wx*scale,必须精确落在可见中心 x=290,而不是
+      // hasDetailPanel 恒假时的 500——这才是"该点最终落在可见中心"这句话的真实含义。
+      const screenX = pv.view.value.tx + proj.x * pv.view.value.scale
+      expect(screenX).toBeCloseTo(290)
+      expect(screenX).not.toBeCloseTo(500)
     })
 
     it('传 null/undefined → view 完全不变、不排 rAF', () => {
