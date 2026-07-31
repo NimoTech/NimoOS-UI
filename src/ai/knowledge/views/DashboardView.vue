@@ -35,10 +35,15 @@
   已提交）。`|| 0`/`fmtEta` 空判兜底后速率/ETA/10 分钟完成数恒为 0 与空串，
   这是后端现状，不是前端 bug，验收清单里另有一条。
   【N3，照抄不改，用户 2026-07-31 明示不修】`created()` 的
-  `Promise.all([...]).finally(ready=true)`：任一 loader reject 也照样把
-  `ready` 置起（不像 `Promise.allSettled` 要求逐个显式处理结果），代价是
-  Wiki 后端（38GB SQLite）挂死时 `loadRoots()` 卡 axios 60s 超时，整页骨架
-  跟着卡住。不改成 `allSettled`，不给 `loadRoots` 单独超时。
+  `Promise.all([...]).finally(ready=true)`：`Promise.all` 是 **fail-fast**——
+  任一输入 reject，组合 promise 立刻 reject（不等其余输入 settle），
+  `.finally` 因此立刻触发，`ready` 立刻置起；`Promise.allSettled` 则相反，
+  必须等全部输入 settle（无论成功失败）才会 resolve。代价是 Wiki 后端
+  （38GB SQLite）挂死时 `loadRoots()` 卡 axios 60s 超时——只要它最终 settle
+  （无论成功失败），`Promise.all` 就会跟着 settle，整页骨架卡到那一刻。
+  不改成 `allSettled`（那样某个 loader 一旦真悬挂，骨架反而永远出不来），
+  不给 `loadRoots` 单独超时。fail-fast 特性的可分辨钉子见
+  `DashboardView.test.ts`「N3 钉子」用例。
 
   【发现，非缺陷】`dashboardHelpers.ts` 导出的 `updatePeak` 在 Vue2 蓝本里就是
   死代码——`git grep updatePeak main -- src/views/AI/Knowledge` 显示它只被
@@ -120,6 +125,13 @@ const ready = ref(false)
 const hero = ref<HTMLInputElement | null>(null)
 
 const stats = computed<DashboardStats>(() => store.stats)
+/** 【评审 Minor M-1,补申报】蓝本 :308 是 `this.stats.queue_depth || {}`——
+ * 兜底成空对象,靠下游每个读取点自己 `.pending || 0` 防御。本仓 `QueueDepth`
+ * 的 `pending`/`running`/`failed`/`done` 四个字段在 `knowledgeStore.ts` 里
+ * 都是必填(非 optional),`|| {}` 在 strict 模式下类型不满足 `QueueDepth`,
+ * 故改成兜底一个全零形状的对象。下游每个读取点仍然各自套了 `|| 0`
+ * (与蓝本一致),两种写法在任何输入下行为等价,纯粹是 TS 类型约束下的机械
+ * 改写,不改变任何可观察行为。 */
 const queueDepth = computed(() => stats.value.queue_depth || { pending: 0, running: 0, failed: 0, done: 0 })
 const failed = computed(() => queueDepth.value.failed || 0)
 const backlog = computed(() => (queueDepth.value.pending || 0) + (queueDepth.value.running || 0))
@@ -168,7 +180,7 @@ const entries = computed<EntryItem[]>(() => [
 /** 蓝本 :339-346 emptyEntries()。 */
 const emptyEntries = computed<EntryItem[]>(() => [
   { id: 'search', en: 'Search', key: 'aiKbSearch', icon: 'search', tone: 'accent', disabled: true },
-  { id: 'roots', en: 'Roots', key: 'aiKbNavRoots', icon: 'drive' },
+  { id: 'roots', en: 'Roots', key: 'aiKbNavRoots', icon: 'drive', tone: 'wiki' },
   { id: 'allowlist', en: 'Allowlist', key: 'aiKbNavAllowlist', icon: 'folder' },
   { id: 'settings', en: 'Settings', key: 'aiKbTitleAdvancedSettings', icon: 'settings' },
 ])
