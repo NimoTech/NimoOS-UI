@@ -1,0 +1,534 @@
+/* 1:1 移植自 Vue2 src/views/AI/Knowledge/styles/knowledge.scss(蓝本共 2561 行）。
+ * 本档是 SP8-P5a 的**第一批**落地:token 声明层 + .knowledge-app 壳段(rail/main/
+ * topbar/banner/mobile-tabs/badge/btn/scroll/skel/empty)+ 全局 keyframes。
+ * T10(KnowledgeLayout.vue)· T11(仪表盘样式)· T12(DashboardView.vue)都建在本档之上,
+ * 会在文件末尾续写各自批次的段落 —— 见文件最后一行占位注释。
+ *
+ * 切档判据:only 附录 D 白名单(D.1 的 32 个 + 协调者 R1 追加的 6 个 k-empty*,
+ * 共 38 个)。蓝本 `.knowledge-app { … }` 那一大段(:59-1509)里混着 P5b-P5f 才用到
+ * 的类(表格/抽屉/笔记/Wiki/仪表盘…),白名单以外一律不搬。
+ *
+ * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent:
+ * #007AFF 等),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
+ * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
+ * 全局主页 theme.css 那套、暗色档取 AI 区 tokens.scss 暗色块那套,跟随 <html> 的
+ * data-theme 切换。因此下面两个声明块的 token 取值全部重写,来源逐条见行尾注释。
+ *
+ * 【R2(协调者拍板)—— *-soft 家族 token 必须在本作用域自行声明】附录 B 原文
+ * "New-UI 已有的直接用 var(--success-soft)" 对 .knowledge-app 是错的:那批 token
+ * 只在 tokens.scss 的 `.agent-app, .ai-toast-scope`(:32)与其暗色块(:250)两个
+ * 选择器上声明,.knowledge-app 两边都不是,解析不到会渲染成透明。本批壳段实际用到
+ * 的只有 4 个(--warning-soft/--warning-soft-border/--success-soft/--danger-soft,
+ * 见下方声明块),已在两档各自补齐,取值抄自 tokens.scss 对应主题块。
+ * 例外:--accent-soft-2 不在此列 —— 它在**全局** src/styles/theme.css 的 :root
+ * (:60)与 :root[data-theme="light"](:275)都有定义,.knowledge-app 跟随全局主题
+ * 天然能解析到,直接 var(--accent-soft-2) 即可,不重复声明(也不要退回
+ * --accent-soft,透明度差一倍)。
+ *
+ * 【R3(协调者拍板)—— color-scheme 必须两档都显式声明】.knowledge-app 是本仓第 4 个
+ * 嵌套主题作用域(data-theme 贴在容器上,不动 <html>)。若不声明,会继承
+ * src/styles/theme.css 在 :root 的 `color-scheme: dark`,导致浅色 AI 页里原生控件
+ * (input[type=number] 上下箭头底板、原生 checkbox 等)被浏览器按暗色 UA 调色板画,
+ * 这正是 P2b 踩过的同一个坑(tokens.scss:33-38 的同类注释)。
+ *
+ * 【自查发现的隐藏坑 —— 3 个同名 var() 自引用】附录 B 浅色档表把 --accent /
+ * --accent-soft / --success 的取值写成 "var(--全局同名 token)"。但全局 theme.css
+ * 里那三个 token 的名字**恰好与本作用域要声明的 token 同名**
+ * (--accent/--accent-soft/--success)。若照字面写
+ * `.knowledge-app { --accent: var(--accent); }`,CSS 自定义属性没有"引用外层同名
+ * 值"的语义 —— 这是一次自引用循环,规范规定循环引用的自定义属性计算为
+ * "guaranteed-invalid value"(不是退回继承值!),会让 .knowledge-app 内所有用到
+ * var(--accent) 的元素在浅色主题下失效/透明,且 color-guard 与本档的自建单测都测不到
+ * (它们只查"有没有裸色字面量/token 有没有声明",不查自引用循环)。正确写法是**干脆不在
+ * 本作用域重新声明这三个 token**——custom property 默认可继承,.knowledge-app 是
+ * `:root[data-theme="light"]` 的后代元素,不声明就会正确继承到外层的浅色值,效果与
+ * "var(--全局同名 token)" 的字面意图完全一致,只是通过继承而非自引用实现。三处留空
+ * 位置各补一行注释说明,防止日后有人"补全"成自引用写法。
+ */
+
+/* ===== Design tokens — dark(New-UI 默认 <html> 无 data-theme)=====
+ * 蓝本 knowledge.scss:6-58 的等价物,数值按【偏离 K2】改用 AI tokens.scss 暗色块
+ * (:249-365)与蓝本 :2444-2447 的 --ly-* 暗色微调。
+ */
+.knowledge-app {
+  --bg-app: #1C1C1E; /* AI tokens.scss:255 */
+  --bg-canvas: #1C1C1E; /* AI tokens.scss:256 */
+  --bg-elevated: #242426; /* AI tokens.scss:257 */
+  --bg-sunken: #161617; /* AI tokens.scss:258 */
+  --bg-chip: #2A2A2C; /* AI tokens.scss:259 */
+
+  --glass-strong: rgba(28, 28, 30, 0.82); /* AI tokens.scss:263 */
+  --glass-medium: rgba(28, 28, 30, 0.6); /* AI tokens.scss:264 */
+  --glass-weak: rgba(28, 28, 30, 0.45); /* AI tokens.scss:265 */
+
+  --text-primary: #E9E7E3; /* AI tokens.scss:267 */
+  --text-secondary: #A3A09A; /* AI tokens.scss:268 */
+  --text-tertiary: #6E6C68; /* AI tokens.scss:269 */
+  --text-quaternary: #4D4B48; /* AI tokens.scss:270 */
+  --text-on-accent: #ffffff; /* AI tokens.scss:275 */
+
+  --accent: #5E97F2; /* AI tokens.scss:277 */
+  --accent-hover: #7AABF5; /* AI tokens.scss:278 */
+  --accent-soft: rgba(94, 151, 242, 0.14); /* AI tokens.scss:279 */
+  --accent-softer: rgba(94, 151, 242, 0.10); /* AI tokens.scss:280 */
+
+  --success: #4FB870; /* AI tokens.scss:282 */
+  --warning: #E0A53B; /* AI tokens.scss:283 */
+  --danger: #F0776B; /* AI tokens.scss:284 */
+  --purple: #AF52DE; /* 两档同值,AI tokens.scss:71(暗色块未重定义,沿用浅色块的值) */
+  --pink: #FF2D55; /* 同上,AI tokens.scss:72 */
+  --teal: #30B0C7; /* 同上,AI tokens.scss:73 */
+
+  --line: #2E2E31; /* AI tokens.scss:293 */
+  --line-strong: #3A3A3D; /* AI tokens.scss:294 */
+  --line-faint: #262628; /* AI tokens.scss:295 */
+
+  /* 三层身份色(Wiki·向量·笔记)—— 蓝本 knowledge.scss:2444-2447 暗色档原值。
+     本批(T4 壳段)不直接使用,D.2 的 k2-layer/kw-node 系列(T11 及后续批次)才用,
+     按附录 B 要求在 token 层一次性声明齐,供后续批次直接消费。 */
+  --ly-wiki: oklch(0.78 0.11 80); --ly-wiki-soft: oklch(0.78 0.11 80 / 0.15); --ly-wiki-line: oklch(0.78 0.11 80 / 0.35);
+  --ly-vec: oklch(0.76 0.10 210); --ly-vec-soft: oklch(0.76 0.10 210 / 0.15); --ly-vec-line: oklch(0.76 0.10 210 / 0.35);
+  --ly-note: oklch(0.76 0.12 300); --ly-note-soft: oklch(0.76 0.12 300 / 0.15); --ly-note-line: oklch(0.76 0.12 300 / 0.35);
+
+  /* 结构量 —— 附录 B:两档共享,只在本(基础)块声明,浅色块不重复 */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:107 */
+  --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05); /* AI tokens.scss:108 */
+  --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:109 */
+  --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06); /* AI tokens.scss:110 */
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%); /* AI tokens.scss:119 */
+  --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%); /* AI tokens.scss:120 */
+
+  /* R2 —— 本批壳段实际用到的 *-soft 家族(见 .k-rail-svc-dot / .k-banner / .k-banner-icon),
+     取值抄自 AI tokens.scss 暗色块(:249-365)。 */
+  --warning-soft: rgba(224, 165, 59, 0.18); /* AI tokens.scss:303 */
+  --warning-soft-border: rgba(224, 165, 59, 0.3); /* AI tokens.scss:304 */
+  --success-soft: rgba(79, 184, 112, 0.18); /* AI tokens.scss:306 */
+  --danger-soft: rgba(240, 119, 107, 0.16); /* AI tokens.scss:308 */
+
+  /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
+  color-scheme: dark;
+}
+
+/* ===== Design tokens — light ===== */
+:root[data-theme="light"] .knowledge-app {
+  --bg-app: var(--bg); /* 全局 theme.css :root[data-theme="light"] 纸感底色 #f7f5ef */
+  --bg-canvas: var(--bg);
+  --bg-elevated: var(--card-bg); /* #ffffff */
+  --bg-sunken: var(--tool-bg); /* #f0eee8 */
+  --bg-chip: var(--tool-bg-hi); /* #e7e3d9 */
+
+  --glass-strong: rgba(247, 245, 239, 0.82); /* --bg 的 RGB 加透明,全局无 glass 语义 token */
+  --glass-medium: rgba(247, 245, 239, 0.6);
+  --glass-weak: rgba(247, 245, 239, 0.45);
+
+  --text-primary: var(--fg);
+  --text-secondary: var(--fg-muted);
+  --text-tertiary: var(--fg-faint);
+  --text-quaternary: #BCB8AD; /* 全局只有三档文字;取 AI tokens.scss 浅色第四档 :58(同族暖中性) */
+  --text-on-accent: var(--on-accent);
+
+  /* --accent / --accent-soft / --success 三项刻意不在本块重新声明 —— 全局
+     theme.css 的同名 token(:root[data-theme="light"] 的 --accent:183/--accent-soft:274/
+     --success:281)会通过 CSS 继承自然落到这个后代元素上;若写成
+     `--accent: var(--accent)` 会是自引用循环(见头注释),不是"引用外层值"。 */
+
+  --accent-hover: var(--accent-text); /* #3550c4,全局"更深强调"档,theme.css:271 */
+  --accent-softer: rgba(59, 91, 219, 0.06); /* 全局最淡档 --accent-soft 是 0.11,蓝本要 0.06,无对应 token */
+
+  --warning: var(--toast-warn-fg); /* #92600c,全局无 --warning,借它的警告前景色,theme.css:217 */
+  --danger: var(--toast-danger-fg); /* #c0392b,同上,theme.css:219 */
+  --purple: #AF52DE; /* 全局无;AI tokens.scss:71 浅色值 */
+  --pink: #FF2D55; /* AI tokens.scss:72 */
+  --teal: #30B0C7; /* AI tokens.scss:73 */
+
+  --line: var(--card-border); /* #e7e3d9,theme.css:204 */
+  --line-strong: #D8D3C7; /* 全局无 strong 档;AI tokens.scss:86 浅色值 */
+  --line-faint: #EEEBE3; /* AI tokens.scss:87 */
+
+  --ly-wiki: oklch(0.60 0.12 75); --ly-wiki-soft: oklch(0.60 0.12 75 / 0.11); --ly-wiki-line: oklch(0.60 0.12 75 / 0.32); /* 蓝本 knowledge.scss:2287 */
+  --ly-vec: oklch(0.56 0.11 210); --ly-vec-soft: oklch(0.56 0.11 210 / 0.11); --ly-vec-line: oklch(0.56 0.11 210 / 0.32); /* 蓝本 :2288 */
+  --ly-note: oklch(0.55 0.13 300); --ly-note-soft: oklch(0.55 0.13 300 / 0.11); --ly-note-line: oklch(0.55 0.13 300 / 0.32); /* 蓝本 :2289 */
+
+  /* R2 —— 同上,取值抄自 AI tokens.scss 浅色块(:1-247) */
+  --warning-soft: rgba(200, 134, 10, 0.12); /* AI tokens.scss:126 */
+  --warning-soft-border: rgba(200, 134, 10, 0.24); /* AI tokens.scss:127 */
+  --success-soft: rgba(46, 158, 84, 0.12); /* AI tokens.scss:129 */
+  --danger-soft: rgba(215, 73, 59, 0.1); /* AI tokens.scss:131 */
+
+  /* R3 —— 见头注释 */
+  color-scheme: light;
+}
+
+/* ===== Shell —— 1:1 移植自蓝本 knowledge.scss:59-217(rail/main/topbar 结构量逐字照抄,
+ * 颜色改走上面声明的 token)。白名单以外的类(k-hero 系列、k-quick-grid、k-status-strip、
+ * k-row、k-table 等 D.2/后续批次专用)不在此列,按切档判据不搬。 */
+.knowledge-app {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  /* minmax(0,1fr): a bare implicit/1fr row is floored at the content's
+   * min-height, so any page taller than the viewport blows past 100vh and
+   * gets clipped by overflow:hidden — .k-scroll then never scrolls. */
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-app);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  *, *::before, *::after { box-sizing: border-box; }
+  button { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+  input { font-family: inherit; }
+
+  /* ---------- Left rail ---------- */
+  .k-rail {
+    background: var(--bg-sunken);
+    border-right: 1px solid var(--line-faint);
+    display: flex; flex-direction: column;
+    min-height: 0;
+    overflow-y: auto; /* rail itself can exceed a short viewport (9 nav items + status card) */
+  }
+  .k-rail-head {
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--line-faint);
+    height: 56px;
+  }
+  .k-rail-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .k-rail-sub { font-size: 11px; color: var(--text-tertiary); margin-top: -1px; }
+
+  .k-rail-section {
+    padding: 14px 18px 4px;
+    font-size: 11px; font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+
+  .k-rail-nav {
+    padding: 4px 8px;
+    display: flex; flex-direction: column;
+    gap: 1px;
+  }
+  .k-rail-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 100ms ease;
+    text-decoration: none;
+    position: relative;
+    &:hover { background: var(--bg-chip); color: var(--text-primary); }
+    &[data-active="true"] {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-xs);
+    }
+  }
+  .k-rail-item-label {
+    flex: 1;
+    display: flex; flex-direction: column;
+    min-width: 0;
+  }
+  .k-rail-item-cn { font-size: 13px; font-weight: 500; }
+  .k-rail-item-en {
+    font-size: 10.5px;
+    color: var(--text-quaternary);
+    margin-top: -1px;
+    letter-spacing: 0.01em;
+  }
+  .k-rail-item[data-active="true"] .k-rail-item-en { color: var(--text-tertiary); }
+
+  .k-badge {
+    font-size: 10px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: var(--text-on-accent); /* 蓝本 knowledge.scss:145 裸 `white`(前景)→ token,见附录 B */
+    min-width: 18px; height: 16px;
+    display: inline-grid; place-items: center;
+    line-height: 1;
+  }
+  .k-badge-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--warning);
+    flex-shrink: 0;
+    &[data-tone="danger"] { background: var(--danger); }
+  }
+
+  .k-rail-svc {
+    margin: 10px 12px 0;
+    padding: 10px 12px;
+    border-radius: var(--r-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    box-shadow: var(--shadow-xs);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .k-rail-svc-row { display: flex; align-items: center; gap: 8px; }
+  .k-rail-svc-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success);
+    /* 蓝本 knowledge.scss:172 裸 rgba(52,199,89,0.18) → 附录 B「0.1x → success-soft」桶 */
+    box-shadow: 0 0 0 3px var(--success-soft);
+    flex-shrink: 0;
+    &[data-state="paused"] {
+      background: var(--warning);
+      /* 蓝本 :176 裸 rgba(255,149,0,0.18) → 「0.1x → warning-soft」桶 */
+      box-shadow: 0 0 0 3px var(--warning-soft);
+    }
+    &[data-state="error"] {
+      background: var(--danger);
+      /* 蓝本 :180 裸 rgba(255,59,48,0.18) → 「0.1x → danger-soft」桶 */
+      box-shadow: 0 0 0 3px var(--danger-soft);
+    }
+  }
+  .k-rail-svc-name { font-size: 12px; font-weight: 600; flex: 1; }
+  .k-rail-svc-meta { font-size: 11px; color: var(--text-tertiary); }
+
+  .k-rail-foot {
+    margin-top: auto;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line-faint);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  /* ---------- Main pane shell ---------- */
+  .k-main {
+    display: flex; flex-direction: column;
+    min-width: 0;
+    min-height: 0; /* allow the flex column to shrink to its grid row so .k-scroll can own the overflow */
+    background: var(--bg-canvas);
+  }
+  .k-topbar {
+    height: 56px;
+    padding: 0 22px;
+    display: flex; align-items: center; gap: 14px;
+    border-bottom: 1px solid var(--line-faint);
+    background: var(--bg-canvas);
+    flex-shrink: 0;
+    position: sticky; top: 0;
+    z-index: 5;
+  }
+  .k-topbar-title { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; }
+  .k-topbar-sub { font-size: 12px; color: var(--text-tertiary); margin-top: -1px; }
+  .k-topbar-spacer { flex: 1; }
+
+  .k-banner {
+    margin: 14px 22px 0;
+    padding: 10px 14px;
+    border-radius: var(--r-md);
+    /* 蓝本 :223 裸 rgba(255,149,0,0.1) → 「0.1x → warning-soft」桶 */
+    background: var(--warning-soft);
+    /* 蓝本 :224 裸 rgba(255,149,0,0.3) → 「0.2x~0.3x → warning-soft-border」桶 */
+    border: 1px solid var(--warning-soft-border);
+    color: var(--text-primary);
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+    &[data-tone="info"] {
+      background: var(--accent-softer);
+      /* 蓝本 :230 裸 rgba(0,122,255,0.25) → 附录 B 「0.2x → --accent-soft-2(全局 theme.css token)」 */
+      border-color: var(--accent-soft-2);
+      .k-banner-icon { background: var(--accent-soft); color: var(--accent); }
+    }
+  }
+  .k-banner-icon {
+    width: 22px; height: 22px; border-radius: 7px;
+    /* 蓝本 :236 裸 rgba(255,149,0,0.22) → 「0.2x → warning-soft-border」桶 */
+    background: var(--warning-soft-border);
+    color: var(--warning);
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  /* 蓝本 k-banner-close(:238-244)不在附录 D 白名单里(KnowledgeLayout.vue/
+     DashboardView.vue 模板都未使用这个类),不搬。 */
+
+  .k-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 22px;
+  }
+  .k-scroll-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex; flex-direction: column;
+    gap: 22px;
+  }
+
+  /* ---------- Empty / loading(蓝本 :683-715,R1 追加的 6 个类)---------- */
+  .k-empty {
+    padding: 60px 20px 40px;
+    display: flex; flex-direction: column;
+    align-items: center; text-align: center;
+    gap: 12px;
+  }
+  .k-empty-illust {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background:
+      /* 蓝本 :693 裸 rgba(255,255,255,0.6) 前景高光 —— 附录 B 的映射表没有覆盖"渐变
+         高光图层"这个用法(表里的 white 桶只讲"前景色→ --text-on-accent"),但
+         --text-on-accent 在两档都是不透明的纯白 #ffffff,与蓝本这处装饰性高光同源
+         (都是"纯白,半透明叠加"),用 color-mix 在既有 token 上派生出等价的 60% 透明度,
+         不新增自定义属性、不写死颜色字面量。 */
+      radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--text-on-accent) 60%, transparent), transparent 60%),
+      var(--grad-iri-soft);
+    position: relative;
+    margin-bottom: 6px;
+    display: grid; place-items: center;
+    color: var(--accent);
+  }
+  .k-empty-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .k-empty-sub {
+    font-size: 13px; color: var(--text-secondary);
+    max-width: 380px; line-height: 1.55;
+  }
+  .k-empty-tips {
+    margin-top: 4px;
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 12.5px; color: var(--text-tertiary);
+  }
+  .k-empty-tip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-pill);
+  }
+
+  /* ---------- Skeleton(只搬基类 .k-skel,k-skel-rcard 不在白名单)---------- */
+  .k-skel {
+    background: linear-gradient(90deg, var(--bg-chip) 25%, var(--bg-canvas) 50%, var(--bg-chip) 75%);
+    background-size: 200% 100%;
+    animation: k-shimmer 1.6s linear infinite;
+    border-radius: 6px;
+  }
+
+  /* ---------- Buttons(蓝本 :818-849;.danger 修饰不在白名单——KnowledgeLayout.vue/
+     DashboardView.vue 都未用到 k-btn.danger,不搬)---------- */
+  .k-btn {
+    padding: 7px 13px;
+    border-radius: var(--r-sm);
+    font-size: 12.5px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all 120ms ease;
+    cursor: pointer;
+    &.ghost {
+      background: var(--bg-chip);
+      color: var(--text-primary);
+      border: 1px solid transparent;
+      &:hover:not(:disabled) { background: var(--line); }
+    }
+    &.outline {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--line);
+      &:hover:not(:disabled) { background: var(--bg-chip); border-color: var(--line-strong); }
+    }
+    &.primary {
+      background: var(--accent);
+      color: var(--text-on-accent); /* 蓝本 :839 裸 `white`(前景)→ token */
+      /* 蓝本 :840 裸 rgba(0,122,255,0.22) → 「0.2x → --accent-soft-2」 */
+      box-shadow: 0 2px 6px var(--accent-soft-2);
+      &:hover:not(:disabled) { background: var(--accent-hover); }
+    }
+    &:disabled {
+      background: var(--bg-chip); color: var(--text-quaternary);
+      cursor: not-allowed; box-shadow: none;
+    }
+  }
+
+  /* ---------- Responsive(蓝本 :1453-1507;只搬 .k-rail/.k-mobile-tabs/.k-mobile-tab,
+     k-quick-grid、k-status-strip、k-row、k-frow 等不在白名单,留给对应批次) ---------- */
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 60px; /* same min-content floor issue as the desktop row */
+    .k-rail { display: none; }
+    .k-mobile-tabs {
+      display: flex;
+      height: 60px;
+      border-top: 1px solid var(--line);
+      background: var(--bg-canvas);
+      padding: 6px 4px;
+    }
+    .k-mobile-tab {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 2px;
+      border-radius: var(--r-md);
+      color: var(--text-tertiary);
+      font-size: 10px; font-weight: 500;
+      cursor: pointer;
+      transition: color 120ms ease;
+      position: relative;
+      &[data-active="true"] { color: var(--accent); }
+      .k-badge {
+        position: absolute;
+        top: 4px; right: calc(50% - 18px);
+      }
+    }
+  }
+  @media (min-width: 861px) {
+    .k-mobile-tabs { display: none; }
+  }
+}
+
+/* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进
+ * .knowledge-app —— 蓝本模板里 `animation: k-pulse …` 这类引用不会带作用域前缀）=====
+ * k2pulse/k2spin(蓝本 :2440-2441)只被 D.2 的 k2-chip/k2-live-ico(T11 仪表盘批次)
+ * 引用,本批不用,留给 T11 落地时一并补上。 */
+@keyframes k-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes k-pulse-orb {
+  0%, 100% { opacity: 0.5; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes k-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes k-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@keyframes k-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes k-modal-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes k-toast-rise {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* P5b–P5f 的段落按 Vue2 原序续写在此之后 */
