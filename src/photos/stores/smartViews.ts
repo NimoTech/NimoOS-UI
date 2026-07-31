@@ -12,6 +12,12 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
+// 跨区 import,刻意不搬文件/不抄这 6 行(控制器决策,fix round 1 · C1):它带一条实打实
+// 的守卫——本设备典型是 HTTP LAN 地址,非安全上下文下 `crypto.randomUUID` 是 undefined,
+// SP4-P3a 曾因丢这个守卫让上传整功能挂掉。搬文件会动 SP4 文件区的消费方,抄一份会让这条
+// 守卫存在两处副本。既有跨区引用先例:PhotosSidebar.vue 引 files/util/format、
+// PhotoInfoPanel.vue 引 files/util/clipboard。
+import { safeRandomUUID } from '../../files/upload/uuid'
 
 export interface SmartView {
   id: string
@@ -66,10 +72,13 @@ const ACTIVITY_LIMIT = 10
 // refreshPreview 的 debounce 节奏,照搬 Vue2 PhotosSmartViewsView.vue:368。
 const PREVIEW_DEBOUNCE_MS = 300
 
-// 照 places.ts 的 toPlaceDetail 体例:逐字段归一 + 兜底。distribution 的兜底口径照搬
-// Vue2 PhotosSmartViewsView.vue:316 —— 后端 fillStats 恒 `make([]int, 10)`
-// (smartview.go:213),但响应体带 `omitempty` 可能整体缺失或(理论上)长度不足,
-// 一律回落成长度 10 全 0 的数组,不信任后端长度。
+// 照 places.ts 的 toPlaceDetail 体例:逐字段归一 + 兜底。distribution 的判据是**刻意
+// 收紧**,不是照搬 Vue2:真源 PhotosSmartViewDetail.vue:316(不是 PhotosSmartViewsView.vue)
+// 是 `distribution && distribution.length ? … : new Array(10).fill(0)`——只要非空就原样
+// 保留,`[1,2]` 这种长度不足 10 的数组会被直接透传给图表。这里改成 `=== 10` 的严格校验:
+// 本仓的分布图是固定 10 根柱子的图表,长度不对的数组会让柱子与桶位错位(第 3 根柱子
+// 实际画的是"桶 1"的数据),刻意比 Vue2 更严格地整体回落成全 0,而不是继续照抄 Vue2
+// 那个会喂错位数据给图表的兜底口径。
 function toSmartView(raw: unknown): SmartView {
   const r = (raw ?? {}) as Record<string, unknown>
   const distribution = Array.isArray(r.distribution) ? (r.distribution as number[]) : []
@@ -162,18 +171,25 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 createSmartView :1013-1025,但**不**照抄两处偏离(登记 4):
-  //   1. id 由后端生成,不再像 Vue2 `sv.id`(前端用 'sv-' + Date.now().toString(36)
-  //      自造)那样自己造——Date.now() 精度是毫秒,两个客户端同毫秒建智能视图会撞 id;
-  //      后端 createSmartView 的响应本就带 id,没有理由不用它。
-  //   2. Vue2 :1018-1021 的 catch 里仍 commit('ADD_SMART_VIEW', sv)——把一个后端上
-  //      根本不存在的本地对象塞进列表("乐观撒谎"),刷新页面就会消失,用户会以为
-  //      自己丢了一个智能视图。这里改成 rethrow,交给视图层 catch → toast。
+  // 照 Vue2 createSmartView :1013-1025,但**不**照抄一处偏离(登记 4):Vue2 :1018-1021
+  // 的 catch 里仍 commit('ADD_SMART_VIEW', sv)——把一个后端上根本不存在的本地对象塞进
+  // 列表("乐观撒谎"),刷新页面就会消失,用户会以为自己丢了一个智能视图。这里改成
+  // rethrow,交给视图层 catch → toast。
+  //
+  // fix round 1 · C1(Critical,真 bug,已回源实证):id **必须由前端生成并传给后端**——
+  // 与本文件最初实现「id 由后端生成,不传」相反。后端 `Create`
+  // (NimoOS-Photos/service/smartview.go:65-68)对空 id 直接 `return nil, ErrInvalidInput`
+  // → route handler 转成 400;handler(route/v1/smartviews.go Create)只 bind + 校验
+  // Name,从不生成 id;全仓唯一生成 id 的 `newSVID` 只被 `Duplicate` 内部调用。不传 id
+  // 在真机上点"创建智能视图"会 100% 返 400。改用 `safeRandomUUID()` 生成
+  // `sv-<uuid>`(不用 `Date.now().toString(36)`——那是 Vue2 的写法,毫秒精度,两个
+  // 客户端同毫秒建视图会撞 id;uuid 实际上不会撞)。
   async function createSmartView(input: CreateSmartViewInput): Promise<SmartView | null> {
     if (createBusy.value) return null
     createBusy.value = true
     try {
       const raw = await service.photos.createSmartView({
+        id: `sv-${safeRandomUUID()}`,
         name: input.name,
         description: input.description,
         condsRaw: input.conds,
@@ -226,15 +242,28 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   // 照 Vue2 deleteSmartView :1036-1046,但**不**照抄 Vue2 :1042-1043 的 catch 后
   // `return null`——那会把失败(网络错误/后端拒绝)伪装成"本来就没找到这一项"，
   // 视图层无从分辨该不该弹 toast。这里 rethrow。
+  //
+  // fix round 1 · I1(Important,真 bug,评审用交错场景实测复现):下标**必须在
+  // await 之后重算**,不能用 await 之前算好的下标直接 splice——`deleteBusy` 只互斥
+  // 删除↔删除/撤销,不挡 `fetchSmartViews`;删除在途时若 fetchSmartViews 把列表整体
+  // 重排/插入(如另一个客户端建了新视图排到前面),await 之前的下标就指向了别的项,
+  // 会删错、返回的撤销 payload 也会指向错误的项。Vue2 `photos.js:493-495` 的
+  // DELETE_SMART_VIEW 是按 id filter,天然免疫这个坑——plan 原定的"await 前算好下标"
+  // 顺序把 id 语义降级成了下标语义,是 plan 的错,不是刻意实现。
   async function deleteSmartView(id: string): Promise<DeletedSmartView | null> {
     if (deleteBusy.value) return null
-    const index = smartViews.value.findIndex(s => String(s.id) === String(id))
-    if (index < 0) return null
+    // 早退检查:本地列表里根本没有这一项,不发请求(承担"避免打无意义的请求"这一半)。
+    // 注意这个下标只用于早退判断,**不能**带进下面的 splice——真正删除时必须重算。
+    if (smartViews.value.findIndex(s => String(s.id) === String(id)) < 0) return null
     deleteBusy.value = true
     try {
       await service.photos.deleteSmartView(id)
-      const [sv] = smartViews.value.splice(index, 1)
-      return { sv, index }
+      // 必须在 await 之后重算:in-flight 期间 fetchSmartViews 可能已重排/插入,用
+      // await 之前的下标 splice 会删掉别人(Vue2 :493 是按 id filter,不吃这个坑)。
+      const idx = smartViews.value.findIndex(s => String(s.id) === String(id))
+      if (idx < 0) return null
+      const [sv] = smartViews.value.splice(idx, 1)
+      return { sv, index: idx }
     } catch (e) {
       console.error('[photos-smartviews] deleteSmartView', e)
       throw e
@@ -244,11 +273,14 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   }
 
   // 照 Vue2 restoreSmartView :1047-1058 + RESTORE_SMART_VIEW mutation(:497-498)
-  // 的钳制写法。**这里要带原 id**——这是与 createSmartView 刻意不同的语义:
-  // createSmartView 是"新建"，id 该由后端分配；restoreSmartView 是"撤销刚才的删除"，
-  // 语义是恢复同一个智能视图，必须让后端沿用原 id，否则撤销出来的是一个新智能视图
-  // (旧的匹配统计/活动流历史全部对不上)。因此这里不走 createSmartView() 包装
-  // (它的请求体故意不带 id)，而是直接调用底层 service.photos.createSmartView。
+  // 的钳制写法。**这里要带原 id、且不能走 createSmartView() 包装**——这是与
+  // createSmartView 刻意不同的语义:两者现在都会给后端传非空 id(后端 Create 硬性要求,
+  // 见 createSmartView 上方注释的 C1 回源记录),但**id 的来源不同**——createSmartView
+  // 是"新建"，每次都要生成一个全新的随机 id；restoreSmartView 是"撤销刚才的删除"，
+  // 语义是恢复同一个智能视图，必须让后端沿用**原 id**，否则撤销出来的是一个 id 不同的
+  // 新智能视图(旧的匹配统计/活动流历史全部对不上,即便界面上名字/条件看着一样)。
+  // 因此这里不走 createSmartView() 包装(它每次都会生成新 id,拿不到"沿用原 id"的效果),
+  // 而是直接调用底层 service.photos.createSmartView,显式传 payload.sv.id。
   async function restoreSmartView(payload: DeletedSmartView): Promise<void> {
     if (deleteBusy.value) return
     deleteBusy.value = true

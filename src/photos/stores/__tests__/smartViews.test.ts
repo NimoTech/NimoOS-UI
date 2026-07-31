@@ -117,7 +117,7 @@ describe('toSmartView 兜底', () => {
     expect(s.smartViews[0].seeds).toEqual([])
   })
 
-  it('distribution 长度不足 10 时也整体回落成全 0(照搬 Vue2 :316 的兜底口径)', async () => {
+  it('distribution 长度不足 10 时也整体回落成全 0(刻意收紧,不是照搬 Vue2 PhotosSmartViewDetail.vue:316 —— 那里 [1,2] 会原样保留)', async () => {
     listSmartViews.mockResolvedValue([{ ...MINIMAL_SV, distribution: [1, 2] }])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -160,7 +160,10 @@ describe('createSmartView', () => {
     threshold: 70, live: true, includeVideos: false,
   }
 
-  it('请求体含 condsRaw 且不含 conds、不含 id', async () => {
+  // fix round 1 · C1(Critical,回源实证):后端 Create(smartview.go:65-68)对空 id
+  // 直接 400,route handler 从不生成 id——原先「不含 id」的断言把一个 100% 会在真机
+  // 上失败的错契约焊死了。改成断言请求体**必须**带一个 `sv-` 前缀的 id。
+  it('请求体含 condsRaw 且不含 conds、且带 sv- 前缀的 id(C1 回源修复)', async () => {
     createSmartViewApi.mockResolvedValue({ ...FULL_SV, id: 'sv-new' })
     const s = usePhotosSmartViews()
     await s.createSmartView(input)
@@ -168,7 +171,17 @@ describe('createSmartView', () => {
     const arg = createSmartViewApi.mock.calls[0][0] as Record<string, unknown>
     expect(arg).toEqual(expect.objectContaining({ condsRaw: ['a'] }))
     expect(arg).not.toHaveProperty('conds')
-    expect(arg).not.toHaveProperty('id')
+    expect(String(arg.id)).toMatch(/^sv-/)
+  })
+
+  it('连续两次 create 生成的 id 不相同(C1:不用 Date.now(),用 uuid,避免同毫秒撞 id)', async () => {
+    createSmartViewApi.mockResolvedValue({ ...FULL_SV, id: 'sv-new' })
+    const s = usePhotosSmartViews()
+    await s.createSmartView(input)
+    await s.createSmartView(input)
+    const id1 = (createSmartViewApi.mock.calls[0][0] as Record<string, unknown>).id
+    const id2 = (createSmartViewApi.mock.calls[1][0] as Record<string, unknown>).id
+    expect(id1).not.toBe(id2)
   })
 
   it('成功 → 新项在数组首位', async () => {
@@ -304,6 +317,42 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(s.smartViews[0].id).toBe('sv-2')
   })
 
+  // fix round 1 · I1(Important,评审用交错场景实测复现):deleteBusy 不挡
+  // fetchSmartViews,删除在途时列表若被整体重排/插入,await 之前算好的下标会指向
+  // 别的项。必须按 id 重算下标,交错路径:发 delete(sv-2)→ 在其 await 未 resolve
+  // 前先让 fetchSmartViews 把列表重排(别的客户端建了新视图插到最前)→ delete 的
+  // 网络调用才 resolve。断言消失的必须是 sv-2(用户点的那一项),不是重排后错位到
+  // 原下标 1 的 sv-1;返回的 { sv, index } 也必须对应 sv-2 在重排后列表里的真实位置。
+  it('并发交错:delete 在途时 fetchSmartViews 重排列表,删除的必须仍是按 id 命中的那一项', async () => {
+    listSmartViews.mockResolvedValueOnce([
+      { ...FULL_SV, id: 'sv-1' }, { ...FULL_SV, id: 'sv-2' }, { ...FULL_SV, id: 'sv-3' },
+    ])
+    let resolveDelete: () => void = () => {}
+    deleteSmartViewApi.mockReturnValueOnce(new Promise<void>((r) => { resolveDelete = r }))
+    const s = usePhotosSmartViews()
+    await s.fetchSmartViews()
+    expect(s.smartViews.map(v => v.id)).toEqual(['sv-1', 'sv-2', 'sv-3'])
+
+    const pDelete = s.deleteSmartView('sv-2') // 用户点的是 sv-2(当前下标 1)
+
+    // delete 的网络请求还没 resolve 时,另一个客户端建了新视图、fetchSmartViews 把
+    // sv-2 重排到下标 2(不再是下标 1)。
+    listSmartViews.mockResolvedValueOnce([
+      { ...FULL_SV, id: 'sv-0' }, { ...FULL_SV, id: 'sv-1' },
+      { ...FULL_SV, id: 'sv-2' }, { ...FULL_SV, id: 'sv-3' },
+    ])
+    await s.fetchSmartViews()
+    expect(s.smartViews.map(v => v.id)).toEqual(['sv-0', 'sv-1', 'sv-2', 'sv-3'])
+
+    resolveDelete()
+    const result = await pDelete
+
+    // 必须删掉 sv-2(用户点的那一项),不是重排后落在旧下标 1 上的 sv-1。
+    expect(s.smartViews.map(v => v.id)).toEqual(['sv-0', 'sv-1', 'sv-3'])
+    expect(result?.sv.id).toBe('sv-2')
+    expect(result?.index).toBe(2) // sv-2 在重排后列表里的真实下标,不是最初的 1
+  })
+
   it('restore 把它插回原 index,请求体带 id', async () => {
     listSmartViews.mockResolvedValue([FULL_SV, { ...MINIMAL_SV, id: 'sv-2' }])
     deleteSmartViewApi.mockResolvedValue(undefined)
@@ -421,6 +470,20 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
     expect(getSmartViewAssets).toHaveBeenNthCalledWith(1, 'sv-1', { limit: 60, offset: 0 })
     expect(getSmartViewAssets).toHaveBeenNthCalledWith(2, 'sv-1', { limit: 12, offset: 0, recent: true })
     expect(getSmartViewActivity).toHaveBeenCalledWith('sv-1', 10)
+  })
+
+  // fix round 1 · I2(Important,评审变异实验实测:把 assetIds 兜底删掉 +
+  // occurredAt 写死 'MUTATED' 后 46 例全绿,说明 toActivity 此前零区分力)。后端
+  // SmartViewActivity.AssetIDs(smartview.go:731)带 omitempty,Go nil slice ⇒ 整个
+  // 字段在响应体里缺失;T8 的活动流会 v-for 这个数组,undefined 直接崩组件。
+  it('toActivity 归一:字段全缺 + id 是数字 → 逐字段兜底(钉住 detail/assetIds/occurredAt 的兜底,防止被悄悄削弱)', async () => {
+    getSmartViewAssets.mockResolvedValue([])
+    getSmartViewActivity.mockResolvedValue([{ id: 9, eventType: 'matched' }])
+    const s = usePhotosSmartViews()
+    await s.loadDetail('sv-1')
+    expect(s.activity).toEqual([
+      { id: '9', eventType: 'matched', detail: '', assetIds: [], occurredAt: '' },
+    ])
   })
 
   it('后发先回:A(id=1)慢、B(id=2)快 → 最终是 B 的数据', async () => {
