@@ -8,7 +8,7 @@ import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
 import en from '../../../i18n/en_us'
 import { parsePlaceLast, type Place } from '../../util/placesMap'
-import type { PlaceDetail } from '../../stores/places'
+import type { PlaceDetail, PlaceSpot } from '../../stores/places'
 
 const thumbnailUrl = vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -44,8 +44,21 @@ function detail(overrides: Partial<PlaceDetail> = {}): PlaceDetail {
   }
 }
 
+function spot(overrides: Partial<PlaceSpot> = {}): PlaceSpot {
+  return {
+    key: 's1', name: 'West Lake', lon: 120.1551, lat: 30.2741, count: 12, thumb: 't-1',
+    ...overrides,
+  }
+}
+
 function mountPanel(
-  props: { place?: Place | null, detail?: PlaceDetail | null, detailLoading?: boolean } = {},
+  props: {
+    place?: Place | null
+    detail?: PlaceDetail | null
+    detailLoading?: boolean
+    activeSpotKey?: string | null
+    spotBusy?: boolean
+  } = {},
   i18n = makeI18n(),
 ) {
   return mount(PlaceDetailPanel, {
@@ -53,6 +66,8 @@ function mountPanel(
       place: place(),
       detail: null,
       detailLoading: false,
+      activeSpotKey: null,
+      spotBusy: false,
       ...props,
     },
     global: { plugins: [i18n] },
@@ -405,5 +420,118 @@ describe('窄屏规则', () => {
     const m = /@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*?)\n {2}\}/.exec(style) ?? /@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*)\}/.exec(style)
     expect(m, '未找到 @media (max-width: 768px) 规则块').not.toBeNull()
     expect(m![1]).toMatch(/\.map-detail\s*\{[^}]*width:\s*100%/)
+  })
+})
+
+// ── P6b-T4: spots 列表段 ─────────────────────────────────────────────────
+describe('spots 列表段', () => {
+  it('spots 为空数组 → 整段不渲染', () => {
+    const w = mountPanel({ detail: detail({ spots: [] }) })
+    expect(w.find('.detail-section').exists()).toBe(false)
+    expect(w.find('.spot-list').exists()).toBe(false)
+  })
+
+  it('spots 非空 → 段头文案含城市名、.spot-row 条数等于 spots 长度', () => {
+    const w = mountPanel({
+      place: place({ city: 'Hangzhou' }),
+      detail: detail({ city: 'Hangzhou', spots: [spot({ key: 's1' }), spot({ key: 's2' })] }),
+    })
+    expect(w.find('.detail-section h4').text()).toContain('Hangzhou')
+    expect(w.findAll('.spot-row')).toHaveLength(2)
+  })
+
+  it('「查看全部」渲染为静态文本:是 span 不是 button,样式块 .detail-section h4 .more 不含 cursor: pointer(spec §7c-9)', () => {
+    const w = mountPanel({ detail: detail({ spots: [spot()] }) })
+    const more = w.find('.detail-section h4 .more')
+    expect(more.exists()).toBe(true)
+    expect(more.element.tagName).toBe('SPAN')
+    const style = extractStyleBlock(placeDetailPanelRaw)
+    const m = /\.detail-section h4 \.more\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .detail-section h4 .more 规则').not.toBeNull()
+    expect(m![1]).not.toMatch(/cursor:\s*pointer/)
+  })
+
+  it('点 .spot-row → emit pick-spot 带该 spot 对象', async () => {
+    const s1 = spot({ key: 's1' })
+    const w = mountPanel({ detail: detail({ spots: [s1] }) })
+    await w.find('.spot-row').trigger('click')
+    expect(w.emitted('pick-spot')).toEqual([[s1]])
+  })
+
+  it('缩略图为空时 .thumb 里不渲染 img', () => {
+    const w = mountPanel({ detail: detail({ spots: [spot({ thumb: '' })] }) })
+    expect(w.find('.spot-row .thumb img').exists()).toBe(false)
+  })
+})
+
+// ── P6b-T4: activeSpotKey → spot 弹窗(String() 归一)─────────────────────
+describe('activeSpotKey 命中 spots → 渲染 PlaceSpotDialog', () => {
+  it('命中时渲染弹窗', () => {
+    const w = mountPanel({ detail: detail({ spots: [spot({ key: 's1' })] }), activeSpotKey: 's1' })
+    expect(w.find('.spot-dialog').exists()).toBe(true)
+  })
+
+  it('命中不到(深链/详情刷新后 spot 消失)时不渲染', () => {
+    const w = mountPanel({ detail: detail({ spots: [spot({ key: 's1' })] }), activeSpotKey: 'does-not-exist' })
+    expect(w.find('.spot-dialog').exists()).toBe(false)
+  })
+
+  // 铁律守卫:PlaceSpot.key 类型上是 string,但运行时来源(路由/深链)未必守规矩——
+  // 用一个运行时是 number 的 key(强制类型断言绕过 TS)钉住 String() 归一确实在做事,
+  // 不是摆设。
+  it('spot.key 运行时是 number、activeSpotKey 是 string 时仍按 String() 归一命中', () => {
+    const numericKeySpot = { ...spot(), key: 1 as unknown as string }
+    const w = mountPanel({ detail: detail({ spots: [numericKeySpot] }), activeSpotKey: '1' })
+    expect(w.find('.spot-dialog').exists()).toBe(true)
+  })
+
+  it('activeSpotKey 为 null 时不渲染', () => {
+    const w = mountPanel({ detail: detail({ spots: [spot({ key: 's1' })] }), activeSpotKey: null })
+    expect(w.find('.spot-dialog').exists()).toBe(false)
+  })
+})
+
+// ── P6b-T4: PlaceSpotDialog 的五个 emit 原样透传 ───────────────────────────
+describe('spot 弹窗 emit 透传', () => {
+  function mountWithActiveSpot() {
+    return mountPanel({
+      detail: detail({ spots: [spot({ key: 's1', thumb: 'thumb-x' })] }),
+      activeSpotKey: 's1',
+      spotBusy: false,
+    })
+  }
+
+  it('close → close-spot', async () => {
+    const w = mountWithActiveSpot()
+    await w.find('.spot-dialog .icon-btn').trigger('click')
+    expect(w.emitted('close-spot')).toHaveLength(1)
+  })
+
+  it('rename → rename(原样带名字)', async () => {
+    const w = mountWithActiveSpot()
+    await w.find('.spot-rename-btn').trigger('click')
+    await w.find('.spot-rename-input').setValue('New Name')
+    await w.find('.spot-rename-save').trigger('click')
+    expect(w.emitted('rename')).toEqual([['New Name']])
+  })
+
+  it('reset-name → reset-name', async () => {
+    const w = mountWithActiveSpot()
+    await w.find('.spot-rename-btn').trigger('click')
+    await w.find('.spot-dialog-reset').trigger('click')
+    expect(w.emitted('reset-name')).toEqual([[]])
+  })
+
+  it('open-library(弹窗内)→ 面板的 open-spot-library(与面板自己的 open-library 区分)', async () => {
+    const w = mountWithActiveSpot()
+    await w.find('.spot-dialog-btn').trigger('click')
+    expect(w.emitted('open-spot-library')).toHaveLength(1)
+    expect(w.emitted('open-library')).toBeUndefined()
+  })
+
+  it('open-photo(单参 assetId)→ 面板既有 open-photo(assetId, [assetId]) 签名(不改 T3 emit 形状)', async () => {
+    const w = mountWithActiveSpot()
+    await w.find('.spot-dialog-thumbs img').trigger('click')
+    expect(w.emitted('open-photo')).toEqual([['thumb-x', ['thumb-x']]])
   })
 })

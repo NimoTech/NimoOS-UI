@@ -47,13 +47,19 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
-import type { Place } from '../util/placesMap'
-import type { PlaceDetail } from '../stores/places'
+import { formatSpotCoords, type Place } from '../util/placesMap'
+import type { PlaceDetail, PlaceSpot } from '../stores/places'
+import PlaceSpotDialog from './PlaceSpotDialog.vue'
 
 const props = defineProps<{
   place: Place | null
   detail: PlaceDetail | null
   detailLoading: boolean
+  // P6b-T4:容器持有"当前打开的 spot key"(深链/未来路由可能只知道 key,不持整个
+  // PlaceSpot 对象),面板据此在 spots 里找命中项渲染弹窗——找不到(如详情刷新后这个
+  // spot 已不存在)就不渲染,不报错。
+  activeSpotKey: string | null
+  spotBusy: boolean
 }>()
 
 const emit = defineEmits<{
@@ -62,6 +68,14 @@ const emit = defineEmits<{
   (e: 'open-library'): void
   (e: 'save-album'): void
   (e: 'open-photo', assetId: string, list: string[]): void
+  // P6b-T4:spots 列表行点击。
+  (e: 'pick-spot', spot: PlaceSpot): void
+  // P6b-T4:PlaceSpotDialog 的其余四个 emit 原样透传——close/open-library 特意改名
+  // (close-spot/open-spot-library),避免与面板自己已有的同名 close/open-library 撞车。
+  (e: 'rename', name: string): void
+  (e: 'reset-name'): void
+  (e: 'close-spot'): void
+  (e: 'open-spot-library'): void
 }>()
 
 const { t, locale } = useI18n()
@@ -100,6 +114,23 @@ const lastVisited = computed(() => {
 function onHeroClick(): void {
   if (!currentHero.value) return
   emit('open-photo', currentHero.value, [currentHero.value])
+}
+
+// ── P6b-T4: spots 列表段 + spot 弹窗挂载点 ──────────────────────────────
+const spots = computed(() => props.detail?.spots ?? [])
+
+// 铁律:id/key 比较一律 String() 归一——activeSpotKey 来自容器(可能来自路由/深链,
+// 类型未必与 PlaceSpot.key 的运行时值完全一致)。
+const activeSpot = computed<PlaceSpot | null>(() => {
+  if (props.activeSpotKey === null) return null
+  return spots.value.find(s => String(s.key) === String(props.activeSpotKey)) ?? null
+})
+
+// PlaceSpotDialog 的 open-photo 只带 assetId(单张),这里透传到面板既有的
+// open-photo(assetId, list) 签名——不改 T3 已定的 emit 形状,list 落成单元素数组
+// (同 onHeroClick 的既定处置)。
+function onSpotOpenPhoto(assetId: string): void {
+  emit('open-photo', assetId, [assetId])
 }
 </script>
 
@@ -163,9 +194,54 @@ function onHeroClick(): void {
     </div>
 
     <div class="detail-body">
-      <!-- New-UI 新增(Vue2 无加载态):详情未到时给一个骨架块。spots/insights/最近照片/
-           到访记录四段由 T4/T5/T6 继续加在这个骨架块之后。 -->
+      <!-- New-UI 新增(Vue2 无加载态):详情未到时给一个骨架块。insights/最近照片/
+           到访记录三段由 T5/T6 继续加在这个骨架块之后。 -->
       <div v-if="detailLoading && !detail" class="detail-body-skeleton" data-test="detail-body-skeleton" />
+
+      <!-- P6b-T4: spot 弹窗(照 Vue2 :1109-1150,不是浮层,是本区顶部一张内嵌卡片)。 -->
+      <PlaceSpotDialog
+        v-if="activeSpot"
+        :spot="activeSpot"
+        :busy="spotBusy"
+        @close="emit('close-spot')"
+        @rename="(name) => emit('rename', name)"
+        @reset-name="emit('reset-name')"
+        @open-library="emit('open-spot-library')"
+        @open-photo="onSpotOpenPhoto"
+      />
+
+      <!-- P6b-T4: spots 列表段(照 Vue2 :1152-1172)。 -->
+      <div v-if="spots.length > 0" class="detail-section">
+        <h4>
+          {{ t('photosPlacesSpotsInCity', { city }) }}
+          <!-- spec §7c-9:Vue2 :1153 的 .more 没有任何 @click——静态文本装饰,不擅自接
+               功能、不加 cursor:pointer。T5「查看全部 N 张」若要做成真正可点,请给它
+               另加一个修饰类(如 .more.is-clickable)单独声明 cursor:pointer,不要往
+               这个共享基类 `.detail-section h4 .more` 里加(见下方样式块同名注释)。 -->
+          <span class="more">{{ t('photosPlacesViewAll') }}</span>
+        </h4>
+        <div class="spot-list">
+          <div
+            v-for="s in spots" :key="s.key" class="spot-row"
+            @click="emit('pick-spot', s)"
+          >
+            <div class="thumb">
+              <img v-if="s.thumb" :src="service.photos.thumbnailUrl(s.thumb, 'small')" alt="">
+            </div>
+            <div>
+              <div class="name">
+                {{ s.name }}
+              </div>
+              <div class="sub">
+                {{ formatSpotCoords(s.lat, s.lon) }}
+              </div>
+            </div>
+            <div class="count">
+              {{ s.count }}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -336,6 +412,60 @@ function onHeroClick(): void {
   height: 120px;
   border-radius: var(--radius-sm);
   background: var(--skeleton-bg);
+}
+
+/* P6b-T4: spots 列表段(照 Vue2 photos-places.scss:656-701)。--text-1/2/3 →
+   --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;--r-sm → --radius-sm(同文件头
+   token 映射表)。 */
+.detail-section h4 {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--fg-subtle);
+  margin: 0 0 10px;
+  line-height: 1.4;
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+/* spec §7c-9:这个 .more 是共享基类,本段(spots)用它当纯静态文本,故意不带
+   cursor:pointer。T5「查看全部 N 张」那处若要可点,请另加修饰类(如
+   .more.is-clickable { cursor: pointer })叠加在这条规则之上,不要改动这条基类
+   本身——否则会把 spots 段这个本该不可点的 .more 也带成手型。 */
+.detail-section h4 .more {
+  font-size: 11px; color: var(--accent); font-weight: 500;
+  text-transform: none; letter-spacing: 0;
+}
+
+.spot-list {
+  display: flex; flex-direction: column;
+  gap: 4px;
+}
+.spot-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.spot-row:hover { background: var(--chip-bg); }
+/* 评审既定处置(同 P6a PlacesRail.vue `.rail-place .thumb` 已登记的 D3 裁定):Vue2
+   这处缩略图占位底写死纯黑,这里改用随主题走的 --chip-bg,不精确复刻那个
+   theme-invariant 黑底。 */
+.spot-row .thumb {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--chip-bg);
+}
+.spot-row .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.spot-row .name {
+  font-size: 12.5px; font-weight: 500; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.spot-row .sub { font-size: 11px; color: var(--fg-subtle); margin-top: 1px; }
+.spot-row .count {
+  font-family: var(--num-font);
+  font-size: 11px; color: var(--fg-muted);
+  padding: 3px 7px; border-radius: 99px;
+  background: var(--chip-bg);
 }
 
 @media (max-width: 768px) {
