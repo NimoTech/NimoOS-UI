@@ -9,7 +9,7 @@
 //   storageDataUsed = 其余已用;storageAvail = total - used。这里不调用 raid.list() 做
 //   RAID 过滤——Vue2 这段计算直接吃 /v1/storage 原始列表,不排除 RAID 卷,与 SP6
 //   /storage 页(useStorageStore,会用 raid.list 排重)是两套不同的口径,本 tab 照 Vue2。
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
@@ -37,28 +37,22 @@ const avail = computed(() => total.value - osUsed.value - dataUsed.value)
 const osPct = computed(() => (total.value ? (osUsed.value / total.value) * 100 : 0))
 const dataPct = computed(() => (total.value ? (dataUsed.value / total.value) * 100 : 0))
 
-// 异步过期守卫(全局约束 #2,就地实现,不抽公共 helper):
-// 本组件默认只有 onMounted 一次取数,但加了一个手动刷新按钮(见下方模板 .set-store-refresh,
-// 理由见 StoragePanel.test.ts 顶部注释——不写测试后门,刷新按钮本身也是合理功能)。
-// 挂载取数与手动刷新可能并发:刷新点下去后,挂载那次更慢的旧请求仍可能后落定。
-// 用代际计数器标记"当前是第几次 load 发起的",落定时只有代数仍是最新的那一次才允许写
-// volumes——更旧的一次即使后落定也必须被丢弃。
-let loadSeq = 0
+// 就地守卫(不抽公共 helper):防止请求在途时组件被卸载、迟到的结果仍去回写已卸载组件的 ref。
+let alive = true
+onUnmounted(() => { alive = false })
 
-async function load() {
-  const seq = ++loadSeq
+onMounted(async () => {
   try {
-    const data = await service.storage.list({ system: 'show' })
-    if (seq !== loadSeq) return // 已被更新的一次 load 取代,丢弃这份旧结果
-    volumes.value = mapVolumes(data)
+    const vols = mapVolumes(await service.storage.list({ system: 'show' }))
+    if (!alive) return // 组件已卸载,不回写
+    volumes.value = vols
   } catch {
-    if (seq !== loadSeq) return
+    if (!alive) return
     volumes.value = []
   } finally {
-    if (seq === loadSeq) loaded.value = true
+    if (alive) loaded.value = true
   }
-}
-onMounted(load)
+})
 </script>
 
 <template>
@@ -67,14 +61,8 @@ onMounted(load)
     <div v-else class="set-card set-store-overview">
       <div class="set-store-head">
         <span class="set-row-label">{{ t('settingsStoreTotal') }}</span>
-        <button
-          class="set-btn set-store-refresh" type="button"
-          :title="t('settingsStatusRefresh')" @click="load"
-        >
-          {{ t('settingsStatusRefresh') }}
-        </button>
+        <span class="set-row-sub">{{ renderSize(avail) }} {{ t('settingsStoreAvailable') }}</span>
       </div>
-      <p class="set-row-sub">{{ renderSize(avail) }} {{ t('settingsStoreAvailable') }}</p>
       <div class="set-store-bar">
         <div class="set-store-seg-os" :style="{ width: osPct + '%' }" />
         <div class="set-store-seg-data" :style="{ width: dataPct + '%' }" />
