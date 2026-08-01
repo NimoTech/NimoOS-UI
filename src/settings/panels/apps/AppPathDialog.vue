@@ -20,7 +20,7 @@
 // 弹窗内报错一律内联 .set-danger,不用 toast(toast z-index 60 会被弹窗遮罩 1000 + 毛玻璃压住
 // 糊掉,同 NetworkIfaceConfigDialog 的移植纪律 #8)。删除成功后不再弹 toast(同一个坑,索性
 // 不装:静默刷新列表,视觉上已经能看到文件夹消失)。
-import { ref, computed, nextTick, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onUnmounted, watch, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type FolderEntry, type MigrateStatus } from '@nimotech/nimoos-service'
 import { ContextMenuItem, ContextMenuSeparator } from 'reka-ui'
@@ -29,7 +29,7 @@ import AlertDialog from '../../../components/ui/AlertDialog.vue'
 import ContextMenu from '../../../components/ui/ContextMenu.vue'
 import { renderSize } from '../../../files/util/format'
 import type { StorageVolume } from '../../../storage/util/storageMap'
-import type { AppPathKey } from '../../util/appPaths'
+import { volumeForPath, type AppPathKey } from '../../util/appPaths'
 import {
   browseRootPath, browseDestPaths, browseCrumbs, filterBrowseFolders, parentPath,
   isProtectedFolder,
@@ -65,17 +65,9 @@ function partitionName(v: StorageVolume): string {
   return props.displayNames[v.mountPoint] || v.name
 }
 
-const currentVolume = computed<StorageVolume | null>(() => {
-  const mp = [...props.volumes]
-    .filter((v) => v.mountPoint)
-    .sort((a, b) => b.mountPoint.length - a.mountPoint.length)
-    .find((v) => {
-      const m = v.mountPoint
-      if (m === '/') return props.currentPath.startsWith('/')
-      return props.currentPath === m || props.currentPath.startsWith(`${m}/`)
-    })
-  return mp ?? null
-})
+// 复用 Task2 appPaths.ts 的最长前缀匹配(评审 Important #1:别在这里重写一份 ——
+// 这段算法在 Task2 因边界缺陷返工过两轮,留两份拷贝下次只会改到一份)。
+const currentVolume = computed<StorageVolume | null>(() => volumeForPath(props.currentPath, props.volumes))
 const currentDiskName = computed(() => {
   if (currentVolume.value) return partitionName(currentVolume.value)
   return props.currentPath.split('/').slice(0, 3).join('/') || 'Current Disk'
@@ -200,6 +192,14 @@ const renameValue = ref('')
 const renameSubmitting = ref(false)
 const renameInputEl = ref<HTMLInputElement | null>(null)
 let renameEscCancelled = false
+
+// 用函数式 ref 而不是字符串 ref:字符串 ref 只要出现在 v-for 作用域里,Vue 就会把它收集成
+// 数组(即使 v-if 保证同一时刻只有一个真正渲染),.value 就变成 [inputEl] 而不是 inputEl 本身,
+// 后面的 .focus() 会报"不是函数"——这是评审 Important #2 逼出写路径测试后才现出来的真实缺陷,
+// 不是测试的问题,已按函数式 ref 改正(Vue 官方文档明确建议:v-for 里想要单个引用用函数 ref)。
+function setRenameInputEl(el: Element | ComponentPublicInstance | null) {
+  renameInputEl.value = (el as HTMLInputElement) ?? null
+}
 
 function startRename(folder: FolderEntry) {
   renamingPath.value = folder.path
@@ -425,7 +425,7 @@ function onDialogUpdateOpen(v: boolean) {
               >
                 <input
                   v-if="renamingPath === folder.path"
-                  ref="renameInputEl" v-model="renameValue" class="set-input set-mig-input" type="text"
+                  :ref="setRenameInputEl" v-model="renameValue" class="set-input set-mig-input" type="text"
                   @click.stop
                   @keydown.enter.stop="submitRename" @keydown.esc.stop="cancelRename" @blur="onRenameBlur"
                 />
