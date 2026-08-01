@@ -19,6 +19,7 @@ import { service, type UserInfo } from '@nimotech/nimoos-service'
 import SettingsSection from '../components/SettingsSection.vue'
 import OwnerCard from './account/OwnerCard.vue'
 import ChangePasswordForm from './account/ChangePasswordForm.vue'
+import AvatarCropper from './account/AvatarCropper.vue'
 import { readAccessToken } from '../util/avatar'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../stores/toast'
@@ -90,6 +91,7 @@ onMounted(async () => {
 
 // 页脚 Submit 的落点。Vue2 :911-912 只在 state 3 / 4 有 Submit(state 2 那个是死代码,C10)。
 const pwdForm = ref<{ submit(): Promise<boolean> } | null>(null)
+const cropper = ref<{ submit(): Promise<boolean> } | null>(null)
 const submitting = ref(false)
 
 async function onSubmit() {
@@ -103,6 +105,17 @@ async function onSubmit() {
       // 🔧 Vue2 改密成功后什么都不提示(:433 只 goto(1))→ 补一个面板级 toast,
       // 与「更改头像」成功的提示保持一致(plan C1 的「改正确」)。
       toast.show(t('settingsAccUpdateOk'))
+      goto(1)
+    } else if (state.value === 4) {
+      // ⛔ 会往磁盘写头像文件;后端对解不开的图片用 log.Fatal(见 AvatarCropper.vue 文件头)。
+      const ok = await cropper.value?.submit()
+      if (!ok) {
+        // 🔧 Vue2 失败时弹 toast「更新失败」(:456-459)。这里错误已由裁剪器内联显示
+        // (C6:比 toast 更可见),不再叠一个 toast;留在 state 4 让用户重试。
+        return
+      }
+      toast.show(t('settingsAccUpdateOk'))
+      avatarVersion.value++ // 击穿 <img> 缓存,新头像立刻可见
       goto(1)
     }
   } finally {
@@ -146,8 +159,10 @@ function logout() {
     </template>
 
     <ChangePasswordForm v-else-if="state === 3" ref="pwdForm" data-test="acc-pwd-form" />
-    <!-- Task 8 填:头像裁剪 -->
-    <div v-else-if="state === 4" data-test="acc-cropper" :data-src="pickedImageSrc" />
+    <AvatarCropper
+      v-else-if="state === 4" ref="cropper" :src="pickedImageSrc"
+      data-test="acc-cropper" :data-src="pickedImageSrc"
+    />
     <!-- Task 11 填:成员文件夹授权 -->
     <div v-else-if="state === 5" data-test="acc-member-folders" />
     <!-- Task 9 填:从 NAS 选图 -->

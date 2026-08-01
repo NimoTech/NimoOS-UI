@@ -7,17 +7,30 @@ import AccountPanel from './AccountPanel.vue'
 
 const getUserInfo = vi.fn()
 const changePassword = vi.fn()
+const saveAvatar = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     users: {
       getUserInfo: (...a: unknown[]) => getUserInfo(...a),
       changePassword: (...a: unknown[]) => changePassword(...a),
+      saveAvatar: (...a: unknown[]) => saveAvatar(...a),
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
   },
 }))
 
 const push = vi.fn()
+vi.mock('vue-advanced-cropper', () => ({
+  Cropper: {
+    name: 'Cropper',
+    props: ['src', 'stencilProps', 'canvas', 'defaultSize', 'minWidth', 'minHeight', 'debounce', 'checkOrientation'],
+    emits: ['change'],
+    template: '<div data-test="cropper-stub"></div>',
+  },
+  Preview: { name: 'Preview', props: ['width', 'height', 'image', 'coordinates'], template: '<div></div>' },
+}))
+vi.mock('vue-advanced-cropper/dist/style.css', () => ({}))
+
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
 const logout = vi.fn()
@@ -38,6 +51,8 @@ beforeEach(() => {
   getUserInfo.mockReset().mockResolvedValue({ id: 1, username: 'nimoos', role: 'admin' })
   changePassword.mockReset()
   changePassword.mockResolvedValue(undefined)
+  saveAvatar.mockReset()
+  saveAvatar.mockResolvedValue(undefined)
   push.mockReset()
   logout.mockReset()
   localStorage.clear()
@@ -243,6 +258,41 @@ describe('AccountPanel 宿主状态机', () => {
     await w.find('[data-test="acc-nas"]').trigger('click')
     expect(w.find('[data-test="acc-submit"]').exists()).toBe(false)
     expect(w.find('[data-test="acc-back"]').exists()).toBe(true)
+  })
+
+  it('头像上传成功 → 回 state 1、头像 URL 的 v 递增(击穿缓存)', async () => {
+    const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:av')
+    const w = mountPanel()
+    await flush()
+    expect(w.find('[data-test="acc-avatar-img"]').attributes('src')).toBe('/v1/users/avatar?v=1')
+    await pickImage(w)
+    // 触发裁剪器的 change,让它拿到 canvas
+    w.findComponent({ name: 'Cropper' }).vm.$emit('change', {
+      coordinates: {}, image: {}, canvas: { toDataURL: () => 'data:image/png;base64,A' },
+    })
+    await w.vm.$nextTick()
+    await w.find('[data-test="acc-submit"]').trigger('click')
+    await flush()
+    expect(saveAvatar).toHaveBeenCalledWith('data:image/png;base64,A')
+    expect(w.find('[data-test="acc-avatar-img"]').attributes('src')).toBe('/v1/users/avatar?v=2')
+    spy.mockRestore()
+  })
+
+  it('头像上传失败 → 留在 state 4,版本号不递增', async () => {
+    const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:av')
+    saveAvatar.mockImplementation(async () => { throw new Error('nope') })
+    const w = mountPanel()
+    await flush()
+    await pickImage(w)
+    w.findComponent({ name: 'Cropper' }).vm.$emit('change', {
+      coordinates: {}, image: {}, canvas: { toDataURL: () => 'data:image/png;base64,A' },
+    })
+    await w.vm.$nextTick()
+    await w.find('[data-test="acc-submit"]').trigger('click')
+    await flush()
+    expect(w.find('[data-test="acc-cropper"]').exists()).toBe(true)
+    expect(w.find('[data-test="acc-crop-error"]').text()).toBe('nope')
+    spy.mockRestore()
   })
 
   // ⚠️ 这里**故意没有**「取数在途时卸载不回写」的用例。本组件的 `alive` 守卫留着是对的
