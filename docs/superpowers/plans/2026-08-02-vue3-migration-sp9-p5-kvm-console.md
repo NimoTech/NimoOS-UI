@@ -972,9 +972,11 @@ type SpicePorts = Pick<KvmVM, 'spicePort' | 'spiceTlsPort'>
 /**
  * spicePort 保活合并。
  *
- * 为什么需要它:`GET /v1/kvm/vms`(列表)与 `GET /v1/kvm/vms/:id` 都**不返回**有效的
- * spicePort / spiceTlsPort,只有 `GET /v1/kvm/vms/:id/vnc` 才返回。于是每次刷新列表,
- * 之前从 /vnc 拿到的端口就会被 0 冲掉,SPICE 提示条闪一下就消失。
+ * 为什么需要它:后端 `ListVMs`(service/vm_service.go:245-262)吐的是内存快照,而
+ * spicePort / spiceTlsPort 只有在 `GetVMVNCInfo`(:700-703)被调用时才回写进那个快照。
+ * 所以列表里的 spicePort **可能陈旧、也可能是 0**(KVM 服务重启后、或从未开过控制台时),
+ * 并非稳定可信的数据源;唯一权威来源是 `GET /v1/kvm/vms/:id/vnc`。若不做兜底,刷新列表
+ * 时会把之前从 /vnc 拿到的真实端口冲成 0,SPICE 提示条闪一下就消失。
  *
  * Vue2 用「新值 <= 0 且旧值 > 0 就沿用旧值」兜底(KVMFullPage.vue:893-897 / :919-922 /
  * :930-936,同一段逻辑抄了三遍)。**这是后端字段缺失的兜底,不是 bug**,照抄;
