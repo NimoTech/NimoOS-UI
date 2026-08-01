@@ -43,7 +43,7 @@
 
   【K14】rebuild-all 400 分支(`errorBanner` truthy)不回显后端 `detail` ——
   警示条只留 `400 Bad Request` + 蓝本自带那行 i18n 解释(`aiKbRebuildCapHint`)。
-  🔴 设置 `errorBanner` 为非空值的 `doRebuildAll()`(蓝本 :700+,对应确认弹窗
+  🔴 设置 `errorBanner` 为非空值的 `doRebuildAll()`(蓝本 :791-808,对应确认弹窗
   `:356-381`)是 T9/T10 的范围,本刀不声明该函数 —— 但 `errorBanner` 这个
   local ref 本身、以及它的展示分支(:93-103)在本刀范围内,故本刀先把展示
   逻辑做对:即便将来 T9/T10 把后端 `detail` 塞进 `errorBanner.value`,这个分支
@@ -88,14 +88,14 @@ import { topSegment } from '../util/indexedFilesView'
 const { t } = useI18n()
 const store = useKnowledgeStore()
 
-/** 蓝本 :391 —— 本刀错误横幅用得到的那个上限。`EXPLICIT_REBUILD_CAP`(蓝本
- * :390,批量重建按钮专用)本刀不声明,T9/T10 的动作条才用到。 */
+/** 蓝本 :393 —— 本刀错误横幅用得到的那个上限。`EXPLICIT_REBUILD_CAP`(蓝本
+ * :392,批量重建按钮专用)本刀不声明,T9/T10 的动作条才用到。 */
 const FILTER_REBUILD_CAP = 10000
 
 /** K13 —— 本刀只用到 selSet(`_applyFilter` 清空)。 */
 const selSet = ref<Set<string>>(new Set())
 
-/** 蓝本 data() 的 `errorBanner`(:392)—— rebuild-all 400 分支的错误横幅,
+/** 蓝本 data() 的 `errorBanner`(:465)—— rebuild-all 400 分支的错误横幅,
  * 见文件头注释【K14】。 */
 const errorBanner = ref<string | null>(null)
 

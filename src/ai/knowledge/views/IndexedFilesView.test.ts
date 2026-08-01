@@ -64,9 +64,9 @@ const FILES_ALL_8 = [
   { file_id: '4018267c2ec373cddb244ac220a06cc2', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/log/nimoos/app-management.log', mtime_ms: 1784434525914 }], sha256_full: '4018267c2ec373cddb244ac220a06cc2fc78bca7da8e5e2c8bf27b9768d9c919', size: 1342451, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784434892746, tombstoned_at: null, vector_count: 696, last_error: null, status: 'ok' },
   { file_id: '6e1be7c24c4cdb09e1bf1a8318e8ca27', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/home/nimo/.vscode-server/cli/servers/lru.json', mtime_ms: 1784427082918 }], sha256_full: '6e1be7c24c4cdb09e1bf1a8318e8ca2788e5014a7e2dba8d6efb9d36d7d01028', size: 251, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784434891932, tombstoned_at: null, vector_count: 1, last_error: null, status: 'indexing' },
   { file_id: '721c340b1dc3b982cdb4ea6c9783103e', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/home/nimo/.vscode-server/cli/agent-host-stable.log', mtime_ms: 1784427082918 }], sha256_full: '721c340b1dc3b982cdb4ea6c9783103e33b10f2f18ac76d774797a28af2bc4e3', size: 61392, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784434817480, tombstoned_at: null, vector_count: 30, last_error: null, status: 'indexing' },
-  { file_id: 'dce79e8ea5d48719cd4ad16fe48da843', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/26be4bc60729.../26be4bc60729-json.log', mtime_ms: 1784424392240 }], sha256_full: 'dce79e8ea5d48719cd4ad16fe48da843c877e5ce861b6595cfa76598339c077d', size: 6961641, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784424393143, tombstoned_at: null, vector_count: 3448, last_error: null, status: 'indexing' },
-  { file_id: 'ae3894193e56d181e90b23712f1e3081', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/aade3000de28.../aade3000de28-json.log', mtime_ms: 1784357047056 }], sha256_full: 'ae3894193e56d181e90b23712f1e3081197dc3e3ddea1cc01b9aaa87c9fdea34', size: 13174, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784360624748, tombstoned_at: null, vector_count: 7, last_error: null, status: 'indexing' },
-  { file_id: 'e531767d0b917dfb86ea6c8451c4bf65', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/9f4d9086c550.../9f4d9086c550-json.log', mtime_ms: 1784359333549 }], sha256_full: 'e531767d0b917dfb86ea6c8451c4bf651895cae04cdb0528e56d9e1d13496c11', size: 1121945, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784359354310, tombstoned_at: null, vector_count: 554, last_error: null, status: 'ok' },
+  { file_id: 'dce79e8ea5d48719cd4ad16fe48da843', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log', mtime_ms: 1784424392240 }], sha256_full: 'dce79e8ea5d48719cd4ad16fe48da843c877e5ce861b6595cfa76598339c077d', size: 6961641, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784424393143, tombstoned_at: null, vector_count: 3448, last_error: null, status: 'indexing' },
+  { file_id: 'ae3894193e56d181e90b23712f1e3081', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/aade3000de2889facb1f7ba7789d6f2c2fe6acdaf1a9adc7433242648d5c47e7/aade3000de2889facb1f7ba7789d6f2c2fe6acdaf1a9adc7433242648d5c47e7-json.log', mtime_ms: 1784357047056 }], sha256_full: 'ae3894193e56d181e90b23712f1e3081197dc3e3ddea1cc01b9aaa87c9fdea34', size: 13174, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784360624748, tombstoned_at: null, vector_count: 7, last_error: null, status: 'indexing' },
+  { file_id: 'e531767d0b917dfb86ea6c8451c4bf65', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log', mtime_ms: 1784359333549 }], sha256_full: 'e531767d0b917dfb86ea6c8451c4bf651895cae04cdb0528e56d9e1d13496c11', size: 1121945, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784359354310, tombstoned_at: null, vector_count: 554, last_error: null, status: 'ok' },
 ]
 // 子集(非新造):FILES_ALL_8 里 status==='ok' 的 3 行,专门覆盖 isAnyIndexing=false。
 const ALL_OK_FILES = FILES_ALL_8.filter((f) => f.status === 'ok')
@@ -335,6 +335,49 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
 })
 
 // ──────────────────────────────────────────────────────────────────────
+// 过滤条文案(修复轮 1,M-3):集合式断言钉死四个 label + 状态下拉三个 option
+// 的确切文字(其中 aiKbStatusActive 是附录 A ⚠️N #85 的错译「已启用」,照抄不
+// 改)+ 「仅看失败」勾选文字 + 「清除」按钮文字 + 「旧 .doc」chip 文字/title +
+// 两个 placeholder。之前这些文案只在别的用例里顺带 toContain 过按钮整体文字,
+// 没有专门的定向断言 —— 将来有人把某个键的值"顺手改对"或把两个键的键名写串,
+// 三门不会报红。RED 探针:把 aiKbStatusActive 的值临时改成"有效"→ 这条用例
+// 精确报红(见任务报告)。
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 过滤条文案(集合式断言,防止顺手改对/键名写串)', () => {
+  it('四个 .k-filt-label 的确切文字', async () => {
+    const w = await mountFiles()
+    const labels = w.findAll('.k-filt-label').map((l) => l.text())
+    expect(labels).toEqual(['存储根', '路径前缀', '类型前缀', '状态'])
+  })
+
+  it('状态下拉三个 option 的确切文字(含 ⚠️N #85 错译「已启用」,照抄不改)', async () => {
+    const w = await mountFiles()
+    const opts = w.findAll('.k-filt select')[1].findAll('option').map((o) => o.text())
+    expect(opts).toEqual(['已启用', '已删除', '全部'])
+  })
+
+  it('「仅看失败」勾选文字 / 「清除」按钮文字', async () => {
+    const w = await mountFiles()
+    expect(w.find('.k-filt-check').text()).toBe('仅看失败')
+    expect(w.find('.k-filter-bar .k-btn.ghost').text()).toBe('清除')
+  })
+
+  it('「旧 .doc」快捷 chip 的文字与 title', async () => {
+    const w = await mountFiles()
+    const chip = w.find('.k-filt-chip')
+    expect(chip.text()).toBe('旧 .doc')
+    expect(chip.attributes('title')).toBe('一键圈出待修复的旧 .doc')
+  })
+
+  it('两个前缀输入框的 placeholder', async () => {
+    const w = await mountFiles()
+    const inputs = w.findAll('.k-filt-grow input')
+    expect(inputs[0].attributes('placeholder')).toBe('/DATA/Wiki/ …')
+    expect(inputs[1].attributes('placeholder')).toBe('application/legacy-office/ …')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
 // filtersDirty —— 六个条件各自独立 + 全默认 false
 // ──────────────────────────────────────────────────────────────────────
 describe('IndexedFilesView — filtersDirty(六条件独立覆盖 + 全默认 false)', () => {
@@ -412,7 +455,7 @@ describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLoca
     expect(w.find('.k-files-count').text()).toBe('共 8 个文件 (全部)')
   })
 
-  it("写方向 1/3:选 '有效'(active,option value)→ store 存的是 'alive',不是直传 'active'(RED 探针③的钉子)", async () => {
+  it("写方向 1/3:选「已启用」(option value='active')→ store 存的是 'alive',不是直传 'active'(RED 探针③的钉子)", async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     store.indexedFiles.filters.tombstoned = 'tombstoned' // 先偏离,确保下面真的是这次改动写回去的
@@ -550,7 +593,7 @@ describe('IndexedFilesView — 错误横幅(K14/K19,反向断言)', () => {
 
   it('K14: rebuild-all 400 分支不回显后端 detail,只留固定 "400 Bad Request" + aiKbRebuildCapHint(反向断言)', async () => {
     const w = await mountFiles()
-    // errorBanner 的赋值函数 doRebuildAll()(蓝本 :700+/确认弹窗 :356-381)是
+    // errorBanner 的赋值函数 doRebuildAll()(蓝本 :791-808/确认弹窗 :356-381)是
     // T9/T10 才落地的动作条功能,本刀先把「errorBanner 被填充后怎么渲染」这条
     // 展示链路做对。技术手法:<script setup> 顶层 ref 即便未 defineExpose,
     // @vue/test-utils 的 wrapper.vm 在测试环境下仍可读写(instance.proxy 走
@@ -666,8 +709,11 @@ describe('IndexedFilesView — 空态(蓝本 :135-142,N10)', () => {
     ai.parserFiles.mockResolvedValueOnce(EMPTY_RESULT)
     const w = await mountFiles()
     expect(w.find('.k-empty-btn').exists()).toBe(false)
+    // 直接改 store 的 filters 不会触发任何重载(重载只走 @change → _applyFilter),
+    // 这里只是要驱动 filtersDirty 这个 computed 重新求值,不需要也不应该再排一次
+    // mock response(修复轮 1,M-5:此前这里排了一个永远不会被消费的
+    // mockResolvedValueOnce,会让读者误以为改 filters 能自动重载)。
     useKnowledgeStore().indexedFiles.filters.has_error = true
-    ai.parserFiles.mockResolvedValueOnce(EMPTY_RESULT)
     await flush()
     expect(w.find('.k-empty-btn').exists()).toBe(true)
     expect(w.find('.k-empty-btn').text()).toContain('清空筛选')
@@ -713,36 +759,45 @@ describe('IndexedFilesView — 生命周期(created→refresh,beforeDestroy→�
   })
 
   it('卸载会停掉 store 模块级轮询定时器,不会残留触发下一个实例的守卫(与 T5 M-4 同一教训)', async () => {
+    // 修复轮 1,M-4(评审指出):w1/w2 与 vi.useFakeTimers() 此前没有
+    // try/finally 兜底 —— 中间任一断言抛错,`vi.useRealTimers()` 与
+    // `w2.unmount()` 都不会执行,真定时器状态 + 一个带 30s interval 的组件
+    // 实例会泄漏到后续用例(与 T5 M-4 完全同一教训)。现在两个 wrapper 都推进
+    // `mountedWrappers`(afterEach 兜底 unmount),`vi.useRealTimers()` 放进
+    // finally,任何一步失败都不会遗留假计时器。
     vi.useFakeTimers()
-    setActivePinia(createPinia())
-    vi.clearAllMocks()
-    ai.parserFiles.mockResolvedValue({ total: FILES_ALL_8.length, files: FILES_ALL_8 }) // 含 indexing 行,会真起轮询
-    const w1 = mount(IndexedFilesView, { global: { plugins: [i18n] } })
-    await flushPromises()
-    expect(ai.parserFiles).toHaveBeenCalledTimes(1)
+    try {
+      setActivePinia(createPinia())
+      vi.clearAllMocks()
+      ai.parserFiles.mockResolvedValue({ total: FILES_ALL_8.length, files: FILES_ALL_8 }) // 含 indexing 行,会真起轮询
+      const w1 = mount(IndexedFilesView, { global: { plugins: [i18n] } })
+      mountedWrappers.push(w1)
+      await flushPromises()
+      expect(ai.parserFiles).toHaveBeenCalledTimes(1)
 
-    w1.unmount() // onUnmounted → store.stopIndexedPolling()
+      w1.unmount() // onUnmounted → store.stopIndexedPolling()
 
-    ai.parserFiles.mockClear()
-    vi.advanceTimersByTime(30000)
-    await flushPromises()
-    expect(ai.parserFiles).not.toHaveBeenCalled() // 卸载后轮询确实停了
+      ai.parserFiles.mockClear()
+      vi.advanceTimersByTime(30000)
+      await flushPromises()
+      expect(ai.parserFiles).not.toHaveBeenCalled() // 卸载后轮询确实停了
 
-    // 关键回归钉子:换一个全新的 Pinia + 组件实例,它必须能起自己的轮询——
-    // 如果上面忘了停轮询,`indexedPollTimer` 这个 store 模块级变量会一直非
-    // null,下面这次 startIndexedPolling() 的 `if (indexedPollTimer) return`
-    // 守卫会让它直接短路,永远起不来。
-    setActivePinia(createPinia())
-    ai.parserFiles.mockResolvedValue({ total: FILES_ALL_8.length, files: FILES_ALL_8 })
-    const w2 = mount(IndexedFilesView, { global: { plugins: [i18n] } })
-    await flushPromises()
-    ai.parserFiles.mockClear()
-    vi.advanceTimersByTime(30000)
-    await flushPromises()
-    expect(ai.parserFiles).toHaveBeenCalledTimes(1) // 新实例的轮询真的起来了
-
-    w2.unmount()
-    vi.useRealTimers()
+      // 关键回归钉子:换一个全新的 Pinia + 组件实例,它必须能起自己的轮询——
+      // 如果上面忘了停轮询,`indexedPollTimer` 这个 store 模块级变量会一直非
+      // null,下面这次 startIndexedPolling() 的 `if (indexedPollTimer) return`
+      // 守卫会让它直接短路,永远起不来。
+      setActivePinia(createPinia())
+      ai.parserFiles.mockResolvedValue({ total: FILES_ALL_8.length, files: FILES_ALL_8 })
+      const w2 = mount(IndexedFilesView, { global: { plugins: [i18n] } })
+      mountedWrappers.push(w2)
+      await flushPromises()
+      ai.parserFiles.mockClear()
+      vi.advanceTimersByTime(30000)
+      await flushPromises()
+      expect(ai.parserFiles).toHaveBeenCalledTimes(1) // 新实例的轮询真的起来了
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
