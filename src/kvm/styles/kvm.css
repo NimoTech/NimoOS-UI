@@ -1070,6 +1070,7 @@
  * 新造 token,也不是照 Vue2 那样写死字面量。 */
 .installation-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   background-color: var(--kvm-banner-bg);
@@ -1083,6 +1084,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Task 8 评审修复补的新元素(Vue2 没有对应物,详见 InstallBanner 组件顶部注释):
+ * eject 失败时的内联错误文案。flex-basis:100% 借 flex-wrap:wrap 让它独占一行——
+ * 没有错误时这个元素根本不渲染(v-if),原本的单行布局不受影响。颜色用既有的
+ * --kvm-danger(与 console-hint.is-error 同一个语义:错误文字)。 */
+.banner-error {
+  flex-basis: 100%;
+  margin: 4px 0 0 0;
+  color: var(--kvm-danger);
+  font-size: 0.8rem;
 }
 
 .banner-btn {

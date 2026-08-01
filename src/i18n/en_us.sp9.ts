@@ -348,7 +348,8 @@ export default {
   kvmVncFetchFailed: 'Failed to get VNC info',
   kvmInstallingFromIso: 'Installing from ISO. Click when finished:',
   kvmFinishedInstalling: 'I Finished Installing',
-  kvmEjectSuccess: 'Installation media ejected. VM will boot from hard disk on next restart.',
+  // kvmEjectSuccess deleted (Task 8 review): dead key, banner disappearing is the success
+  // feedback — see zh_cn.sp9.ts comment at the same spot.
   kvmEjectFailed: 'Failed to eject installation media',
   kvmSpiceHint: 'For better experience, use virt-viewer client to connect:',
   kvmSpiceAgentWin: 'Install virtio-win drivers in VM for clipboard, audio & USB features',
@@ -378,7 +379,8 @@ export default {
   kvmFailedToResume: 'Failed to resume',
   kvmFailedToSaveSettings: 'Failed to save settings',
   kvmFailedToDelete: 'Failed to delete VM',
-  kvmFailedToEjectMedia: 'Failed to eject installation media',
+  // kvmFailedToEjectMedia deleted (Task 8 review): duplicate of kvmEjectFailed,
+  // useVmList.ejectInstallMedia now consumes kvmEjectFailed directly as its fallback.
   kvmStoppingShort: 'stopping',
   kvmRestartingShort: 'restarting',
   kvmDeletingShort: 'deleting',

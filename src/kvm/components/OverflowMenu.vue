@@ -118,7 +118,10 @@ defineExpose({ reset })
     <div v-if="showDeleteDivider(vm)" class="dropdown-divider"></div>
 
     <button v-if="canDelete(vm)" class="dropdown-item is-danger" type="button" @click="confirmThenEmit('delete')">
-      <span class="dropdown-icon" aria-hidden="true">×</span>
+      <!-- 评审 Minor 修复:原用 × 与 SpiceInfoBar 的关闭按钮同一个字符,同页面同符不同义。
+           改用 ⊟(方框减号,与 ⊘/⊞ 同一个 Mathematical Operators 区块,已用截图核对过
+           清晰单色渲染),语义上"移除/减去"比借用关闭按钮的 × 更贴切。 -->
+      <span class="dropdown-icon" aria-hidden="true">⊟</span>
       <span>{{ isPending('delete') ? t('kvmAreYouSure') : t('kvmDelete') }}</span>
     </button>
   </div>

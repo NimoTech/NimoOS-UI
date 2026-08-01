@@ -81,9 +81,15 @@ watch(() => s.selectedVM.value, (newVM, oldVM) => {
 // 注释的解释。
 const hostname = window.location.hostname // 照 Vue2 hostname computed(:707-709),运行期间不变,不需要 ref。
 const spiceDismissed = ref(false)
+// 评审 Important #2 修复(2026-08-02):切换 VM 时这条也要清掉——上一台 VM 的 eject
+// 失败提示不该跟着挪到新选中的 VM 头上("安装横幅内联报错"是本次评审新补的展示位,
+// 详见 InstallBanner 组件顶部注释;这里同一个 watch 里一并清,理由与 spiceDismissed
+// 复位相同,不单独开一个 watch)。
+const ejectError = ref('')
 let spiceTimer: ReturnType<typeof setTimeout> | undefined
 watch(() => s.selectedVM.value?.id, () => {
   spiceDismissed.value = false
+  ejectError.value = ''
   clearTimeout(spiceTimer)
   if (s.selectedVM.value) spiceTimer = setTimeout(() => { spiceDismissed.value = true }, 180_000)
 })
@@ -117,8 +123,18 @@ async function onEjectFinish(): Promise<void> {
   const vm = s.selectedVM.value
   if (!vm || ejectBusy.value) return
   ejectBusy.value = true
+  ejectError.value = '' // 新一轮点击先清掉上一次的报错,免得失败一次后永久卡在错误态
   try {
     await s.ejectInstallMedia(vm)
+    // 评审 Important #1 修复:useVmList.ejectInstallMedia 内部吞掉了异常(不 rethrow,
+    // 只把原因写进共享的 lastError),这里 await 完之后读一次 lastError——此时它要么是
+    // 空字符串(成功,见 useVmList.ts :321 `lastError.value = ''`),要么是这次失败的
+    // 原因(见 :325 `lastError.value = errText(e, 'kvmEjectFailed')`)。由于上面的
+    // ejectBusy 重入守卫 + useVmList 自己的 ejectingIds 守卫,同一时刻只可能有一次
+    // eject 在跑,await 结束的这一刻 lastError 一定反映的是"这次"调用的结果,不会被
+    // 别的并发 eject 覆盖(其它电源动作仍可能并发改 lastError,但那是本来就有的、
+    // 独立于本次修复的既有局限,不在这次评审范围内)。
+    ejectError.value = s.lastError.value
   } finally {
     ejectBusy.value = false
   }
@@ -324,6 +340,7 @@ async function onAction(name: string): Promise<void> {
           <InstallBanner
             v-if="showInstallBanner"
             :busy="ejectBusy"
+            :error-key="ejectError"
             @finish="onEjectFinish"
           />
 

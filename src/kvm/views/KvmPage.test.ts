@@ -486,6 +486,71 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.installation-banner').exists()).toBe(false)
   })
 
+  // 评审 Important #1:eject 失败之前完全静默——lastError 有写,但唯一的内联错误展示位
+  // (ConsoleStage 的 console-placeholder)只在 !connected 时渲染,而横幅的显示条件要求
+  // state==='running',此时 T6 已经自动连上 VNC,占位层压根不渲染,用户什么反馈都看
+  // 不到。补上安装横幅自己的内联错误展示后,这两条用例锁住"错误真的显示出来了"。
+  describe('评审 Important #1:eject 失败时横幅内联显示错误(此前完全静默)', () => {
+    it('后端返回 message → 原样显示在横幅上', async () => {
+      api.getVMList.mockResolvedValue({
+        data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+        total: 1,
+      })
+      api.setBootFromDisk.mockRejectedValue(new Error('disk is busy'))
+      const w = mountPage()
+      await flush()
+
+      await w.get('.banner-btn').trigger('click')
+      await flush()
+
+      // 横幅还在(setBootFromDisk 失败,bootFromDisk 没变,显示条件仍然成立)
+      expect(w.find('.installation-banner').exists()).toBe(true)
+      expect(w.get('.banner-error').text()).toBe('disk is busy')
+    })
+
+    it('后端 message 为空 → 显示翻译后的中文兜底(kvmEjectFailed),不是键名', async () => {
+      api.getVMList.mockResolvedValue({
+        data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+        total: 1,
+      })
+      api.setBootFromDisk.mockRejectedValue(new Error(''))
+      const w = mountPage()
+      await flush()
+
+      await w.get('.banner-btn').trigger('click')
+      await flush()
+
+      const err = w.get('.banner-error')
+      expect(err.text()).toBe('弹出安装介质失败')
+      expect(err.text()).not.toContain('kvmEjectFailed')
+    })
+
+    it('再点一次按钮会先清掉上一次的报错(不会永久卡在错误态)', async () => {
+      api.getVMList.mockResolvedValue({
+        data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+        total: 1,
+      })
+      api.setBootFromDisk.mockRejectedValueOnce(new Error('first failure'))
+      const w = mountPage()
+      await flush()
+
+      await w.get('.banner-btn').trigger('click')
+      await flush()
+      expect(w.get('.banner-error').text()).toBe('first failure')
+
+      // 第二次点击成功:bootFromDisk 变 true,横幅整个消失,错误自然也跟着消失
+      // (不是靠"清空 errorKey 但横幅还在"这种中间态,而是显示条件本身变假)。
+      api.setBootFromDisk.mockResolvedValueOnce(undefined)
+      api.getVMList.mockResolvedValue({
+        data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, iso: '/data/alpine.iso' })],
+        total: 1,
+      })
+      await w.get('.banner-btn').trigger('click')
+      await flush()
+      expect(w.find('.installation-banner').exists()).toBe(false)
+    })
+  })
+
   // ⚠️ 这几条 SPICE 用例都要把 getVNC 的 mock 一并改掉:running 态的 VM 会自动走 VNC
   // 连接(Task 6 接线),连接成功后 useVncConsole 的 onSpicePorts 回调会用 getVNC 返回的
   // spicePort 覆盖 vm.spicePort(照 Vue2 connectVNC 的保活合并写法,spicePreserve.ts)。
@@ -586,5 +651,35 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  // 评审 Important #2 补测:上面那条"重新计时"用例全程没有把 spiceDismissed 置成
+  // true 过(只验证了计时器清理),brief Step 3 明确要求"切换 VM 时 dismissed 复位"
+  // 这半句完全没被测到——评审独立变异删掉 KvmPage.vue 里 `spiceDismissed.value = false`
+  // 那一行,`pnpm vitest run src/kvm/` 依旧全绿,证实这是个空档。这里补上:先在 vm-1
+  // 上点关闭把条子关掉(dismissed=true),再切到 vm-2,断言条子重新出现——这条路径
+  // 必须靠"复位 dismissed"才能通过,单靠"计时器被清理"救不了它(dismissed 不复位的话
+  // 即使计时器重新调度了 180s 后的隐藏,条子在这 180s 窗口期内依然会因为 dismissed
+  // 还是 true 而不显示)。
+  it('vm-1 关闭 SPICE 条后切到 vm-2,条子应重新出现(dismissed 标记被复位)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [
+        VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 }),
+        VM({ id: 'vm-2', name: 'vm-two', state: 'running', bootFromDisk: true, spicePort: 5902 }),
+      ],
+      total: 2,
+    })
+    api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
+    const w = mountPage()
+    await flush()
+    expect(w.find('.spice-info-bar').exists()).toBe(true)
+
+    await w.get('.spice-info-close').trigger('click') // vm-1 上关掉
+    expect(w.find('.spice-info-bar').exists()).toBe(false)
+
+    const items = w.findAll('.vm-list-item')
+    await items[1].trigger('click') // 切到 vm-2
+    await flush()
+    expect(w.find('.spice-info-bar').exists()).toBe(true) // 应重新出现,不是继续沿用 vm-1 的关闭状态
   })
 })

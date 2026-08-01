@@ -377,9 +377,9 @@ export default {
   kvmInstallingFromIso: '正在从光盘安装。完成后请点击：',
   // zh_CN.json "I Finished Installing" = "我已完成安装"(非 brief 草稿的"我已安装完成")。
   kvmFinishedInstalling: '我已完成安装',
-  // zh_CN.json "Installation media ejected..." = "光盘已弹出，虚拟机将在下次重启时从硬盘引导。"
-  // (原文用"光盘"/"引导",非 brief 草稿的"安装介质"/"启动")。
-  kvmEjectSuccess: '光盘已弹出，虚拟机将在下次重启时从硬盘引导。',
+  // ⚠️ Task 8 评审删:kvmEjectSuccess(原值"光盘已弹出，虚拟机将在下次重启时从硬盘引导。")
+  // 是死键——Vue2 那边是成功后弹一条 toast,New-UI 按 KVM 区既有约定(内联显示、不用
+  // toast)让横幅消失本身就是成功反馈,不需要额外一条文案,评审确认可接受并要求删除。
   // 🆕补译:Vue2 里这条走 getErrMsg(err, 'Failed to eject installation media') 再过 $t()，
   // zh_CN.json 没有这个键 → Vue2 中文界面下实际显示英文原文(遗留缺译,同 P1/P2 见过的模式)。
   // New-UI 补上中文,不照抄这个缺译。
@@ -426,8 +426,9 @@ export default {
   kvmFailedToResume: '恢复失败',
   kvmFailedToSaveSettings: '保存设置失败',
   kvmFailedToDelete: '删除虚拟机失败',
-  // eject 用的 fallback 键与已有的 kvmEjectFailed 语义相同,值保持一致。
-  kvmFailedToEjectMedia: '弹出安装介质失败',
+  // ⚠️ Task 8 评审删:kvmFailedToEjectMedia(原值"弹出安装介质失败",与上面的
+  // kvmEjectFailed 译文完全相同)是重复键——useVmList.ejectInstallMedia 的 fallback
+  // 已经改成直接消费 kvmEjectFailed(见该文件 :325 附近注释),这个键因此变成死键,删除。
   // 🆕Task 5 评审补:进度遮罩正文缺的"动词进行时"短语(Vue2 zh_CN.json:874/867/863,
   // 分别对应 "stopping"/"restarting"/"deleting")。与上面 kvmStopping 等整句标题不是
   // 同一组键——那几个是 progressTitle(整句),这几个是 progressMessage 里拼接的动词

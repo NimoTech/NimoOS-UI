@@ -32,7 +32,7 @@ const ALLOWED = new Set([
   'spice-info-bar', 'spice-info-content', 'spice-agent-hint', 'spice-info-close',
   'spice-toast-enter-active', 'spice-toast-leave-active',
   'spice-toast-enter-from', 'spice-toast-leave-to',
-  'installation-banner', 'banner-content', 'banner-btn', 'is-loading',
+  'installation-banner', 'banner-content', 'banner-btn', 'is-loading', 'banner-error',
   'kvm-progress-overlay', 'kvm-progress-card', 'kvm-progress-title', 'kvm-progress-msg',
   'kvm-spinner',
 ])

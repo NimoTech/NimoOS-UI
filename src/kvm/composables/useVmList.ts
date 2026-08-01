@@ -322,7 +322,12 @@ export function useVmList() {
       await fetchVMs()
     } catch (e) {
       if (!alive) return
-      lastError.value = errText(e, 'kvmFailedToEjectMedia')
+      // 评审修复(2026-08-02):fallback 键从 'kvmFailedToEjectMedia' 改成 'kvmEjectFailed'——
+      // 两者译文本来就完全相同(见 i18n 分片里的注释),纯属 T3 当时为了跟其它电源动作
+      // 共用的 "kvmFailedToXxx" 命名家族对齐而起的重复键。评审要求 KvmPage 层内联展示
+      // 这条错误时消费 'kvmEjectFailed',顺手把 fallback 也切过去,'kvmFailedToEjectMedia'
+      // 因此变成真正的死键,已从两个 i18n 分片里删掉(不再有任何地方引用)。
+      lastError.value = errText(e, 'kvmEjectFailed')
     } finally {
       ejectingIds.delete(vm.id)
     }
