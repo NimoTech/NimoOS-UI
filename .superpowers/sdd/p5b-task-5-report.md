@@ -210,7 +210,7 @@ test files)/ +54 例**(不是 brief 预估的「+2 例(color-guard)+45 例左右
 「distillTruncated 边界」等要求逐条实作后自然超出预估;53(新文件)+1(color-guard 新增)=54,
 与实测总数增量精确吻合)。
 
-## 12. 遗留疑问
+## 12. 遗留疑问(首轮)
 
 无。K18 三处证据链、K5 系列 catch 分支、K7 弹窗结构、K11/K12 复用点、K16 i18n、路由反转全部
 按治理文件与附录逐条核实落地;`distillIconState`/`basename`/`dirname`/`fmtAgo` 均直接 import
@@ -218,3 +218,146 @@ test files)/ +54 例**(不是 brief 预估的「+2 例(color-guard)+45 例左右
 brief 附录 D §D.3 里"`.k-filter-pill` 的 `data-tone`"与"`.k-row-action` 的 `data-tone`"是纯静态
 字面量绑定,不存在真正意义上的"假侧"渲染(它就是「有/无这个属性」的结构性差异,不是同一元素
 在不同状态下切换出的两个字符串值)——已在 §5 表格脚注里显式说明处理口径,供评审核对时参考。
+
+---
+
+# 修复轮 1(2026-08-01)—— spec ✅ · 质量通过 · 零 Critical 零 Important,四条 Minor 已修
+
+评审结论:逐块回蓝本核了八个区块(零漏零多,`KIcon` 的 `name`+`size` 23 对逐对核对)、build 后
+grep 确认 37/37 类真进产物、属性态 8 组在每个宿主上都验了、评审自做 7 次 RED 探针(含往模板
+`style=` 塞 `#ff0000`,精确报红,同批 `color-guard.test.ts` 全绿,实证守卫缺口③确实被堵上)。
+两条原有 concern 均判「成立」:摘 `String()` 不报红是预期(评审用 `patchAttr` 源码 + 全部 7 处
+一次摘干净仍 53/53 全绿的更强实证复核),多改 `knowledgeRoutes.test.ts`/`deferred.test.ts` 必要
+不越界(治理 §5 要求反转的断言就住在那里,diff 逐行核过,零夹带,两处都是新增断言、无削弱)。
+
+## 四条 Minor 处置
+
+### M-1(协调者裁定:恢复前缀)—— 已修
+
+`cancelDistillRow` 的 409 分支之前误判「`aiKbCannotCancel` 是固定 i18n 串、不是后端 body,砍掉
+`'Cancel failed: '` 前缀不算回显」,协调者裁定这个判断错了:**K5 只授权「不回显后端 body /
+`e.message`」,前缀本身是蓝本 `:388-390` 固有的文案结构,砍掉是与需求无关的纯文案裁剪**,治理
+§2「本期唯一用户可见文案与 Vue2 不同的地方是 K18 的三处重试 toast」也不含这条。
+
+**改动**:`QueueView.vue:283-286` 的 toast 从 `t('aiKbCannotCancel')` 改回
+`` `${t('aiKbCancelFailed')}: ${t('aiKbCannotCancel')}` ``(非 409 分支仍是固定
+`t('aiKbCancelFailed')`,不拼接,因为没有第二句可拼,按 K5 保持现状)。文件头 `:39-45` 的三件套
+申报改成「本条已按协调者裁定回退,不再是偏离」。补两条用例:409 分支钉住完整拼接文案
+`'取消失败: 该任务已无法取消。'`;非 409 分支钉住只出 `'取消失败'`(两侧对照,防止将来又被
+"顺手简化")。
+
+### M-2(评审指出:恒真断言 + 空态侧零覆盖)—— 已修
+
+`QueueView.test.ts` 原「6 种组合」describe 里 `expect(hasTable !== hasEmpty).toBe(true)` 是恒真
+断言——模板 `v-if`/`v-else-if`/`v-else` 三选一互斥链,结构上永远恰好渲染其中一个,任何实现错误
+都不会让它报红(治理 §9「禁空转用例」)。且默认 mock 让六种组合全部有行,空态侧从未被走到。
+
+**改动**:六条组合用例各自换成判别性断言 ——
+index/pending 断言行数 3、index/running 断言行数 1、index/failed 断言行数 2 且首行含
+`3× 重试`、distill/pending 断言 1 行且徽标 `data-s="archived"`(origin=auto)、distill/running
+断言 1 行且徽标 `data-s="curated"`(origin=manual)、distill/failed 断言 2 行且两枚徽标依次
+`['failed','draft']`。另补一条独立的空态侧组合用例(`ai.parserJobs` 返回全空 jobs →
+`.k-empty` 出现、`.k-table` 不出现、标题文案精确等于「队列为空」)。
+
+### M-3(评审指出:弹窗遮罩点击行为零覆盖)—— 已修
+
+K7 那三条用例只覆盖了「打开 / 点取消 / 点确认」,蓝本 `:190-191` 靠 `.k-modal-bg`
+`@click="confirmClear=false"` + `.k-modal` `@click.stop` 实现的「点遮罩关闭、点弹窗内不关闭」
+换成 reka 后由 `DialogContent` 的 `pointerDownOutside` 提供等价机制,但没有任何用例真正验证
+这个机制本身生效。
+
+**改动**:补一条用例——打开弹窗后等一次真实 `setTimeout(0)` 宏任务 tick(reka 的
+`usePointerDownOutside` 用 `setTimeout(0)` 延后挂载 document 的 `pointerdown` 监听,避免打开
+弹窗那次 pointerdown 冒泡到 document 上把自己立刻关掉,见
+`node_modules/reka-ui/dist/DismissableLayer/utils.js` 头注释;`flushPromises()`/`nextTick()`
+只刷微任务,刷不到这个宏任务,必须显式 `await new Promise(r => setTimeout(r, 0))`),然后分别对
+`.k-confirm-title`(弹窗内部)与 `.k-modal-bg`(遮罩本身)派发 `pointerdown` 事件,断言前者不关闭、
+后者关闭。
+
+### M-4(评审指出:测试从不 unmount,定时器泄漏)—— 已修
+
+`mountQueue()` 挂载后 `afterEach` 只清空 `document.body.innerHTML`,没有 `unmount()`,每个用例
+留下一个真实 `setInterval(…, 10000)` 持有 store/router 引用。当前整文件 ~1 秒跑完摸不到 10 秒
+边界所以不 flaky,但 T8/T9/T10 会往这个方向加大量用例。
+
+**改动**:`mountQueue()` 把每次 `mount()` 返回的 wrapper 推进模块级 `mountedWrappers` 数组,
+`afterEach` 里 `while (mountedWrappers.length) mountedWrappers.pop()!.unmount()`,推广「生命周期」
+describe 里原本就有的 `w.unmount()` 手法到公共脚手架。（手动 `mount(QueueView, ...)` 的生命周期
+测试本身已在测试体内显式 `unmount()`,不受影响,也不会被这个数组重复 unmount,因为它没有经过
+`mountQueue()` 助手、未被推入数组。）
+
+## RED 探针(修复轮追加,均已还原,`git status --short` 干净)
+
+**M-1 新用例 —— 把前缀再砍掉一次**
+```diff
+- status === 409 ? `${t('aiKbCancelFailed')}: ${t('aiKbCannotCancel')}` : t('aiKbCancelFailed'),
++ status === 409 ? t('aiKbCannotCancel') : t('aiKbCancelFailed'),
+```
+报红文本:
+```
+FAIL  ... cancelDistillRow 409(已不可取消):toast 是完整拼接 "取消失败: 该任务已无法取消。"(M-1)
+AssertionError: expected "wrappedAction" to be called with arguments: [ '取消失败: 该任务已无法取消。' ]
+Received:
+  1st wrappedAction call:
+  [
+-   "取消失败: 该任务已无法取消。",
++   "该任务已无法取消。",
+  ]
+Number of calls: 1
+  at src/ai/knowledge/views/QueueView.test.ts:610
+```
+已还原,前缀拼接恢复,`pnpm test -- --run src/ai/knowledge/views/QueueView.test.ts` 回到 57/57。
+
+**M-3 新用例 —— 把 `DialogOverlay` 换成普通 `div`(协调者建议的手法)**
+```diff
+- <DialogOverlay class="k-modal-bg">
++ <div class="k-modal-bg">
+    <DialogContent ...>
+      ...
+    </DialogContent>
+- </DialogOverlay>
++ </div>
+```
+**实测:57/57 全绿,零报红。** 这不是探针失败,是一个诚实
+的发现:reka 的 `pointerDownOutside` 检测机制完全长在 `DialogContent` 的 `DismissableLayer`
+上(靠 `event.target.closest('[data-dismissable-layer]')` 判断"在哪个层内"),与 `DialogOverlay`
+是不是 reka 组件无关——`DialogOverlay` 只是视觉背景层,不参与判定逻辑。换成普通 `div` 后遮罩仍
+在 `document` 冒泡链之外,`pointerdown` 照样被判定为"outside"并正确触发 dismiss。
+
+**追加确认探针(证明测试对这块区域仍有判别力,且精确复现了协调者顾虑清单里的第二个例子)**:
+```diff
+- <DialogRoot :open="confirmClear" @update:open="confirmClear = $event">
++ <DialogRoot :open="confirmClear" :modal="false" @update:open="confirmClear = $event">
+```
+报红文本(4 条用例同时报红,包括 M-3 新用例本身):
+```
+FAIL  ... 点击「清空失败记录」打开弹窗… expect(modal).not.toBeNull() 失败
+FAIL  ... 点「取消」关闭弹窗… TypeError: Cannot read properties of undefined (reading 'click')
+FAIL  ... 点「确认清空」调用 store.clearFailed… TypeError: Cannot read properties of undefined (reading 'click')
+FAIL  ... 点遮罩(弹窗外部)关闭;点弹窗内部不关闭…
+  AssertionError: expected null not to be null
+  at src/ai/knowledge/views/QueueView.test.ts:826
+```
+`:modal="false"` 恰好就是协调者 M-3 原话举的第二个反面例子("误加 `:modal="false"`")——本仓
+reka-ui 版本下,非模态渲染直接让弹窗整体渲染异常(连打开都检测不到),说明当前 `DialogRoot`
+**必须**保持默认模态(不显式传 `modal`),测试组确实钉住了这条约束,只是钉子的判别点不是
+`DialogOverlay` 换没换,而是 `modal` 有没有被误改。已还原两处改动,`pnpm test -- --run
+src/ai/knowledge/views/QueueView.test.ts` 回到 57/57。
+
+## 修复轮三门实测
+
+```
+pnpm test                    → Test Files 316 passed (316) · Tests 2963 passed (2963) · exit 0
+pnpm exec vue-tsc --noEmit   → exit 0
+pnpm build                   → exit 0(仅既有第三方包警告 + >500KB chunk 警告)
+```
+
+基线 `9a98106` 315/2905 → 首轮提交 316/2959 → 本轮修复 316/2963(+4 例:M-1 加 2 条、M-2 净加
+1 条【6 条替换 + 1 条新增空态用例】、M-3 加 1 条)。`git status --short` 只剩本轮改的两个文件
+(`QueueView.vue`/`QueueView.test.ts`),无遗留探针代码。
+
+## 遗留疑问(修复轮)
+
+无新增。M-3 追加确认探针顺带发现"`:modal="false"` 会让本仓 reka-ui 版本下弹窗整体渲染异常"这
+一点值得记进台账供后续任务(T8/T9/T10 若也要做非模态弹窗时参考),但不影响本任务——本任务的
+弹窗本来就该是模态的,不涉及 `:modal="false"` 的合法使用场景。

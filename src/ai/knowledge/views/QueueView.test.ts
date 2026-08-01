@@ -159,10 +159,18 @@ const flush = async () => {
   await nextTick()
 }
 
+// 修复轮 1,M-4(评审指出):mountQueue() 挂载后此前从不 unmount ——每个用例都会
+// 留下一个真实 setInterval(…, 10000)(QueueView.vue 的 10 秒轮询),定时器持有
+// store/router 引用。当前整文件 ~1 秒跑完摸不到 10 秒边界,所以不 flaky;但后面
+// T8/T9/T10 会往这个方向加大量用例,推广「生命周期」describe 里 :766 已经在做的
+// unmount() 到公共脚手架,防止将来跑慢后漏出的 parserJobs 调用污染别的用例。
+const mountedWrappers: Array<ReturnType<typeof mount>> = []
+
 async function mountQueue(query: Record<string, string> = {}) {
   const router = makeRouter(query)
   await router.isReady()
   const w = mount(QueueView, { global: { plugins: [router, i18n] }, attachTo: document.body } as never)
+  mountedWrappers.push(w)
   await flush()
   return { w, router }
 }
@@ -174,6 +182,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
   document.body.innerHTML = ''
 })
 
@@ -589,6 +598,28 @@ describe('QueueView — distill 表格(蓝本 :145-185)', () => {
     expect(notes.distillFile).toHaveBeenCalledWith('/DATA/Notes/skipped.md')
   })
 
+  // 修复轮 1,M-1(协调者裁定):409 分支保留蓝本 `'Cancel failed: ' + msg` 前缀,
+  // 不是纯 aiKbCannotCancel 独立一句。钉住完整拼接文案,防止将来又被"顺手简化"。
+  it('cancelDistillRow 409(已不可取消):toast 是完整拼接 "取消失败: 该任务已无法取消。"(M-1)', async () => {
+    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
+    const s = useKnowledgeStore()
+    const toast = vi.spyOn(s, 'toast')
+    notes.cancelDistillJob.mockRejectedValueOnce({ response: { status: 409 } })
+    await w.find('.k-row-action').trigger('click')
+    await flush()
+    expect(toast).toHaveBeenCalledWith('取消失败: 该任务已无法取消。')
+  })
+
+  it('cancelDistillRow 其它错误(非 409):按 K5 只出固定 aiKbCancelFailed,不拼接前缀(两侧对照)', async () => {
+    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
+    const s = useKnowledgeStore()
+    const toast = vi.spyOn(s, 'toast')
+    notes.cancelDistillJob.mockRejectedValueOnce(new Error('network down'))
+    await w.find('.k-row-action').trigger('click')
+    await flush()
+    expect(toast).toHaveBeenCalledWith('取消失败')
+  })
+
   it('截断提示 distillTruncated 边界:total=499 不出,total=500(DISTILL_JOBS_LIMIT)才出 —— RED 探针②的钉子', async () => {
     const { w } = await mountQueue({ scope: 'distill' })
     const s = useKnowledgeStore()
@@ -603,16 +634,67 @@ describe('QueueView — distill 表格(蓝本 :145-185)', () => {
 })
 
 describe('QueueView — 6 种 scope × filter 组合(DoD 明确要求)', () => {
-  const combos: Array<{ scope?: string; filter: string }> = [
-    { filter: 'pending' },
-    { filter: 'running' },
-    { filter: 'failed' },
-    { scope: 'distill', filter: 'pending' },
-    { scope: 'distill', filter: 'running' },
-    { scope: 'distill', filter: 'failed' },
+  // 修复轮 1,M-2(评审指出):原来的 `hasTable !== hasEmpty` 是恒真断言 ——
+  // 模板 `:387`/`:423`/`:497` 是 v-if/v-else-if/v-else 的三选一互斥链,结构上
+  // 永远恰好渲染 .k-table 与 .k-empty 中的一个,无论实现怎么错都不会红(治理
+  // §9「禁空转用例」)。且默认 mock 让六种组合全部有行,空态侧从没被走到过。
+  // 改成每种组合各自的判别性断言(行数 / 首行内容 / 徽标值),外加一条独立的
+  // 空态侧组合用例。
+  type W = Awaited<ReturnType<typeof mountQueue>>['w']
+  const combos: Array<{ scope?: string; filter: string; assertRows: (w: W) => void }> = [
+    {
+      filter: 'pending',
+      assertRows: (w) => {
+        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+        expect(rows).toHaveLength(3) // PENDING_JOBS 长度
+      },
+    },
+    {
+      filter: 'running',
+      assertRows: (w) => {
+        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+        expect(rows).toHaveLength(1) // RUNNING_JOBS 长度
+      },
+    },
+    {
+      filter: 'failed',
+      assertRows: (w) => {
+        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+        expect(rows).toHaveLength(2) // FAILED_JOBS 长度
+        expect(rows[0].find('.k-row-retry').text()).toContain('3× 重试') // FAILED_JOBS[0].attempts=3
+      },
+    },
+    {
+      scope: 'distill',
+      filter: 'pending',
+      assertRows: (w) => {
+        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+        expect(rows).toHaveLength(1) // DISTILL_PENDING 长度
+        expect(rows[0].find('.kn-badge').attributes('data-s')).toBe('archived') // origin='auto'
+      },
+    },
+    {
+      scope: 'distill',
+      filter: 'running',
+      assertRows: (w) => {
+        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+        expect(rows).toHaveLength(1) // DISTILL_RUNNING 长度
+        expect(rows[0].find('.kn-badge').attributes('data-s')).toBe('curated') // origin='manual'
+      },
+    },
+    {
+      scope: 'distill',
+      filter: 'failed',
+      assertRows: (w) => {
+        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+        expect(rows).toHaveLength(2) // DISTILL_FAILED:一行 failed,一行 skipped
+        const tones = rows.map((r) => r.findAll('.kn-badge')[1].attributes('data-s'))
+        expect(tones).toEqual(['failed', 'draft'])
+      },
+    },
   ]
   for (const c of combos) {
-    it(`scope=${c.scope || 'index'} filter=${c.filter}:表格/空态渲染不抛错,scope 与 filter 状态一致`, async () => {
+    it(`scope=${c.scope || 'index'} filter=${c.filter}:pill 状态一致 + 行数/内容判别性断言(不是二选一恒真式)`, async () => {
       const query: Record<string, string> = { filter: c.filter }
       if (c.scope) query.scope = c.scope
       const { w } = await mountQueue(query)
@@ -621,12 +703,17 @@ describe('QueueView — 6 种 scope × filter 组合(DoD 明确要求)', () => {
       expect(pills[expectedScopeIdx].attributes('data-on')).toBe('true')
       const filterIdx = { pending: 2, running: 3, failed: 4 }[c.filter as 'pending' | 'running' | 'failed']
       expect(pills[filterIdx].attributes('data-on')).toBe('true')
-      // 表格或空态二选一必须渲染出恰好一种
-      const hasTable = w.find('.k-table').exists()
-      const hasEmpty = w.find('.k-empty').exists()
-      expect(hasTable !== hasEmpty).toBe(true)
+      c.assertRows(w)
     })
   }
+
+  it('空态侧组合(补 M-2):三桶全空时 .k-empty 出现、.k-table 不出现,文案正确', async () => {
+    ai.parserJobs.mockImplementation(() => Promise.resolve({ jobs: [] }))
+    const { w } = await mountQueue({ filter: 'pending' })
+    expect(w.find('.k-empty').exists()).toBe(true)
+    expect(w.find('.k-table').exists()).toBe(false)
+    expect(w.find('.k-empty-title').text()).toBe('队列为空')
+  })
 })
 
 describe('QueueView — K18:三个重试入口统一调用 store.retryFailed(null)', () => {
@@ -722,6 +809,39 @@ describe('QueueView — K7:清空失败确认弹窗(reka Dialog 原语)', () => 
     expect(ai.parserClearFailedJobs).toHaveBeenCalled()
     expect(host.querySelector('.k-modal')).toBeNull()
     expect(toast).toHaveBeenCalledWith('已清空 1 条失败记录')
+  })
+
+  // 修复轮 1,M-3(评审指出):蓝本 `:190-191` 靠 `.k-modal-bg` 的
+  // `@click="confirmClear=false"` + `.k-modal` 的 `@click.stop` 实现「点遮罩关闭、
+  // 点弹窗内不关闭」;换成 reka 后由 DialogContent 的 pointerDownOutside 提供等价
+  // 行为,但此前三条用例(打开/取消/确认)没有一条覆盖这个机制本身。补上。
+  it('点遮罩(弹窗外部)关闭;点弹窗内部不关闭(reka pointerDownOutside 等价蓝本 @click/@click.stop)', async () => {
+    const host = withHost()
+    const { w } = await mountQueue({ filter: 'failed' })
+    const s = useKnowledgeStore()
+    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 1, done: 0 } }
+    await flush()
+    await w.find('.k-btn.ghost').trigger('click')
+    await flush()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+
+    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 的 pointerdown
+    // 监听(避免打开弹窗那次 pointerdown 冒泡到 document 上把自己立刻关掉,见
+    // node_modules/reka-ui/dist/DismissableLayer/utils.js 头注释),这是真实宏任务,
+    // flushPromises()/nextTick() 只刷微任务刷不到,补一次真 setTimeout tick。
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // 点弹窗内部(.k-confirm-title,DialogContent 子树内)不应关闭。
+    const titleEl = host.querySelector('.k-confirm-title') as HTMLElement
+    titleEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flush()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+
+    // 点遮罩(.k-modal-bg 本身,DialogOverlay,弹窗外部)应关闭。
+    const overlayEl = host.querySelector('.k-modal-bg') as HTMLElement
+    overlayEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
   })
 })
 

@@ -39,9 +39,13 @@
   【K5,承 P5a】三处「操作失败」catch 分支不回显后端 body / e.message,改走
   固定 i18n 键(与 knowledgeStore.ts 的 loadRoots、DashboardView 等既有先例同一
   模具)。cancelDistillRow 的 409 分支保留蓝本的专属友好提示(aiKbCannotCancel),
-  但不再拼接 Vue2 的 `'Cancel failed: ' + msg` 前缀——蓝本那个前缀本来就是为了
-  拼 e.message 设计的,409 分支现在是一句独立的完整提示,重复加前缀反而是蛇足,
-  不属于「照抄不改」范畴内的可观察行为(纯文案裁剪,不影响任何判断分支/请求)。
+  **且保留蓝本 `'Cancel failed: ' + msg` 的前缀拼接**(`aiKbCancelFailed` + `: ` +
+  `aiKbCannotCancel`)——修复轮 1(协调者 M-1 裁定,2026-08-01):此前误判「409 是
+  固定 i18n 串、不是后端 body,砍前缀不算回显」,但 K5 只授权「不回显后端 body /
+  e.message」,前缀本身是蓝本固有的文案结构(`:388-390`),砍掉是与需求无关的纯
+  文案裁剪,不在 K5 授权范围内。治理 §2「本期唯一用户可见文案与 Vue2 不同的地方
+  是 K18 的三处重试 toast」——409 分支不在这个例外清单里,故文案 1:1 恢复。
+  **本条已按协调者裁定回退,不再是偏离。**
 
   【K12,承 T4】distillIconState / basename / dirname 从 util/queueView.ts 导入,
   不在本文件重复定义。三处蓝本自身的「怪行为」(failed/skipped 共用 danger 色、
@@ -266,8 +270,9 @@ async function retryDistillRow(row: DistillJob): Promise<void> {
 
 /**
  * 蓝本 cancelDistillRow(row)—— 409(已不可取消)保留蓝本的专属友好提示
- * aiKbCannotCancel;其余错误按 K5 改固定 aiKbCancelFailed,不再拼接
- * e.message(见文件头注释)。
+ * aiKbCannotCancel,**且保留 `'Cancel failed: ' + msg` 前缀**(协调者 M-1 裁定,
+ * 见文件头注释);其余错误按 K5 改固定 aiKbCancelFailed(不拼接前缀,因为没有
+ * 第二句可拼——与 bulkCancel/cancelOne 等其它 catch 分支同一模具)。
  */
 async function cancelDistillRow(row: DistillJob): Promise<void> {
   try {
@@ -275,7 +280,9 @@ async function cancelDistillRow(row: DistillJob): Promise<void> {
     store.toast(t('aiKbCancelled'))
   } catch (e) {
     const status = (e as { response?: { status?: number } } | undefined)?.response?.status
-    store.toast(status === 409 ? t('aiKbCannotCancel') : t('aiKbCancelFailed'))
+    store.toast(
+      status === 409 ? `${t('aiKbCancelFailed')}: ${t('aiKbCannotCancel')}` : t('aiKbCancelFailed'),
+    )
   }
 }
 
