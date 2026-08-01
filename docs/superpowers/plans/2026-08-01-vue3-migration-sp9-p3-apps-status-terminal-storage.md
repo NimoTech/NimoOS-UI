@@ -807,14 +807,14 @@ git commit src/settings/util/migrateBrowse.ts src/settings/util/migrateBrowse.te
   settingsMigCancel: '取消',
   settingsMigWillBeMoved: '将被移动',
   settingsMigNote: '提示',
-  settingsMigNoteBody: '这将把所有数据移动到新位置。操作可能需要几分钟,具体取决于数据大小。',
-  settingsMigNoteDocker: '在此过程中,Docker 将暂时停止。',
+  settingsMigNoteBody: '这将把所有数据移动到新位置。操作可能需要几分钟，具体取决于数据大小。',
+  settingsMigNoteDocker: '在此过程中，Docker 将暂时停止。',
   settingsMigStopping: '正在停止服务...',
   settingsMigStoppingApps: '正在等待 {n} 个应用保存数据并退出...',
   settingsMigCopying: '正在迁移数据...',
   settingsMigStarting: '正在启动服务...',
-  settingsMigKeepOpen: '在迁移完成前,请保持此窗口打开。',
-  settingsMigDone: '迁移完成!',
+  settingsMigKeepOpen: '在迁移完成前，请保持此窗口打开。',
+  settingsMigDone: '迁移完成！',
   settingsMigFailed: '迁移失败',
   settingsMigCleanupTitle: '已自动清理',                                            // 🆕补译
   settingsMigCleanupBody: '目标磁盘上已传输的部分数据已被移除,你的原始数据完好无损。',   // 🆕补译
