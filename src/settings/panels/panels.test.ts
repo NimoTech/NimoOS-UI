@@ -1,3 +1,8 @@
+/// <reference types="node" />
+// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"(同 color-guard.test.ts:8-10)。
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -35,14 +40,34 @@ describe('9 个 tab 骨架', () => {
   // Task 9 起 apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存做样子,见
   // AppsPanel.test.ts)——同理会打 service.sys.getSystemPaths()/service.storage.list() 且用到
   // useToast()(pinia),排除理由与上面一致。
-  // P4 起 folder-permissions 也填了真实内容(四分区界面骨架,见 FolderPermissionsPanel.test.ts)
-  // ——它 onMounted 会调 fetchSnapshot()(本期是空实现、不打接口,但会异步改 state),
-  // 且内含经 reka Portal teleport 的 FolderPickerDialog;本文件是零 mock 且不做 DOM 清理的
-  // 同步骨架测试,排除理由与上面一致。
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status' && t !== 'storage' && t !== 'apps' && t !== 'folder-permissions'))('%s 骨架渲染标题与空态位', (tab) => {
-    const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
-    expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
-    expect(w.find('.set-skeleton').exists()).toBe(true)
+  // P4 起 folder-permissions 与 account 也填了真实内容
+  // (见 FolderPermissionsPanel.test.ts / AccountPanel.test.ts)——**至此 9 个 tab 全部实现完毕,
+  // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。
+  // 换成下面这条收口断言:任何 tab 都不该再渲染 .set-skeleton。
+  //
+  // 为什么不逐个 mount 去证:9 个面板里有 7 个会打真实接口 / 用 useRouter / 用 pinia,
+  // 而本文件是**零 mock** 的同步测试(见上面各期的排除理由)。改成扫源码。
+  //
+  // ⚠️ 查的是 **`settingsSkeletonHint`** 这个文案键,**不是 `.set-skeleton` 类名** ——
+  // 后者被 AppsPanel / StoragePanel 复用成了「取数在途」的加载态占位(它们的测试正是
+  // 先断 `.set-skeleton` 存在、flush 后不存在),拿类名当判据会永远红。
+  // 那个文案键只由 P0 的空骨架模板使用,现在**零引用**就等于 9 个 tab 全填完了。
+  it('9 个 tab 全部实现完毕:没有任何面板还在渲染 P0 的骨架提示文案', () => {
+    // ⚠️ 目录要用 fileURLToPath(import.meta.url) 解,**不能用 `new URL('.', import.meta.url).pathname`**
+    // ——后者在 vitest 下给出的是相对 root 的路径,readdir 会 ENOENT(同 color-guard.test.ts 的口径)。
+    const dir = path.dirname(fileURLToPath(import.meta.url))
+    const leftovers: string[] = []
+    const walk = (d: string) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (e.name.endsWith('.vue') && fs.readFileSync(p, 'utf8').includes('settingsSkeletonHint')) {
+          leftovers.push(path.relative(dir, p))
+        }
+      }
+    }
+    walk(dir)
+    expect(leftovers).toEqual([])
   })
 
   it('terminal 无标题(对位 Vue2 L51),现为真实的日志卡 + 终端空态', () => {
@@ -94,14 +119,7 @@ describe('9 个 tab 骨架', () => {
 
   // 原来用 network 做这条抽查,P2 起它不再是骨架 → 换成仍是骨架的 storage;
   // Task 7 起 storage 也不再是骨架了 → 换成仍是骨架的 apps;
-  // Task 9 起 apps 也不再是骨架了 → 换成 folder-permissions;
-  // P4 起 folder-permissions 也不再是骨架了 → 换成本期最后一个骨架 account。
-  // ⚠️ account 在 P4 的 Task 6 里也会填真实内容 → **到时这条与上面那条 it.each 都会失去
-  // 抽查对象**(9 个 tab 全部实现完毕)。届时的处置见 Task 6:两条合并成一条
-  // 「PANEL_BY_TAB 覆盖全部 9 个 tab 且不再有任何 .set-skeleton」的收口断言。
-  it('骨架的文案 key 都有译文(没有渲染出裸 key)', () => {
-    const w = mount(PANEL_BY_TAB.account, { global: { plugins: [i18n] } })
-    expect(w.find('.set-section-title').text()).toBe('账户')
-    expect(w.find('.set-skeleton').text()).not.toMatch(/^settings/)
-  })
+  // 「骨架的文案 key 都有译文」那条(历次在 network → storage → apps → folder-permissions →
+  // account 之间挪窝)P4 起没有骨架可查了,已随上面那条一起收口。tab 标题的译文完整性
+  // 由 util/tabs.test.ts(TAB_LABEL_KEY 全表)+ i18n/parity.test.ts 一起守。
 })

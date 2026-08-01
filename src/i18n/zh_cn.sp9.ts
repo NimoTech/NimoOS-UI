@@ -268,4 +268,58 @@ export default {
   settingsFpCoveredBy: '已被 {p} 覆盖',
   settingsFpGlobRules: '另有 {n} 条模式规则(如 *.key)在 AI 设置中管理。',
   settingsFpAddFolder: '添加文件夹',
+
+  // ── SP9-P4 account ────────────────────────────────────────────────────
+  settingsAccOwnerLabel: '本机所有者账户',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccChangePassword: '更改密码',
+  settingsAccChangeAvatar: '更改头像',
+  settingsAccUploadFromDevice: '从本机上传',
+  settingsAccChooseFromNas: '从NAS选择',
+  settingsAccLogout: '退出账户',
+  settingsAccMembers: '成员',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccAdd: '添加',
+  settingsAccUsername: '用户名',
+  settingsAccPassword: '密码',
+  settingsAccConfirmPassword: '确认密码',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccFoldersUnit: '个文件夹',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccCreatedAt: '创建于',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccNoMembers: '暂无成员',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccMembersLoadFailed: '加载成员列表失败',  // 🆕本期新增
+  settingsAccPickImageOnly: '请选择图片文件（JPG、PNG、GIF、WEBP、BMP）',
+  settingsAccFillAllFields: '请填写所有字段',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccPwdMin6: '密码至少需要 6 个字符',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccPwdMismatch: '两次输入的密码不一致',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccMemberAdded: '成员添加成功',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccMemberAddFailed: '添加成员失败',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccDelete: '删除',
+  settingsAccDeleted: '已删除',
+  settingsAccDeleteFailed: '删除失败',
+  settingsAccLoadFolderFailed: '加载文件夹失败',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccLoadImageFailed: '加载图片失败',
+  settingsAccNoImagesHere: '此处没有图片文件',
+  settingsAccOriPassword: '原密码',
+  settingsAccNewPassword: '新密码',
+  settingsAccConfirmNewPassword: '确认新密码',
+  settingsAccBack: '返回',
+  settingsAccSubmit: '提交',
+  settingsAccUpdateOk: '更新成功',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccUpdateFailed: '更新失败',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccPreview: '预览',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccFoldersAccessiblePrefix: '以下文件夹可被 ',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccSystemDiskBlocked: ' 访问。系统盘默认不可访问。',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccFolderPath: '文件夹路径',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccPermission: '权限',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccReadOnly: '只读',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccReadWrite: '读写',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccGrant: '授权',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccAddFolder: '添加文件夹',
+  settingsAccEnterFolderPath: '请输入文件夹路径',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccFolderGranted: '已授权文件夹',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccGrantFailed: '授权文件夹失败',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccRevokePrefix: '撤销访问权限:',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccRevoke: '撤销',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccAccessRevoked: '已撤销访问权限',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccRevokeFailed: '撤销失败',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccNoFoldersGranted: '未授权任何文件夹——仅数据盘(/DATA、/mnt、/media)可访问。',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
+  settingsAccFoldersLoadFailed: '加载文件夹授权失败',  // 🆕本期新增
 }

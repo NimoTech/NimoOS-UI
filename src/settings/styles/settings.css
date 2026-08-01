@@ -482,3 +482,24 @@
 .set-fp-path { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg); }
 .set-fp-tag { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted); }
 .set-fp-empty { margin: 0; font-size: 13px; color: var(--fg-muted); }
+
+/* ── SP9-P4 account ───────────────────────────────────────────────────── */
+/* 视觉量对位 Vue2 AccountPanel:卡片圆角 1.25rem、用户名 2rem、头像 108px 圆形 4px 描边、
+   按钮高 36px / 0.875rem、菜单圆角 10px / 最小宽 176px。颜色全部走 token。 */
+.set-acc-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-radius: 1.25rem; background: var(--card-bg); border: 1px solid var(--card-border); }
+.set-acc-main { flex: 1; min-width: 0; }
+.set-acc-owner-label { margin: 0 0 4px; font-size: 12px; color: var(--fg-muted); }
+.set-acc-username { margin: 0 0 12px; font-size: 2rem; font-weight: 400; letter-spacing: -0.5px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-acc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.set-acc-actions .set-btn { height: 36px; font-size: 0.875rem; }
+.set-acc-logout { color: var(--remove-fg); }
+.set-acc-avatar-picker { position: relative; display: inline-block; }
+.set-acc-avatar-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 200; min-width: 176px; overflow: hidden; border-radius: 10px; background: var(--popup-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow-hi); }
+.set-acc-avatar-opt { position: relative; display: flex; width: 100%; align-items: center; padding: 10px 14px; font-size: 0.875rem; text-align: left; cursor: pointer; background: transparent; border: 0; color: var(--fg); }
+.set-acc-avatar-opt:hover { background: var(--chip-bg); }
+.set-acc-avatar-opt + .set-acc-avatar-opt { border-top: 1px solid var(--card-border); }
+.set-acc-file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.set-acc-avatar-wrap { flex-shrink: 0; }
+.set-acc-avatar { display: flex; align-items: center; justify-content: center; width: 108px; height: 108px; border-radius: 50%; object-fit: cover; border: 4px solid var(--card-border); background: var(--chip-bg); }
+.set-acc-avatar-initial { font-size: 40px; font-weight: 600; color: var(--fg-muted); }
+.set-acc-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
