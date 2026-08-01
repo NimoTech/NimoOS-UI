@@ -22,7 +22,7 @@ describe('TerminalPanel', () => {
     // '2026-04-13T15:38:19.417-0400 …'——那段仍然「包含」这个子串,断言恒绿、
     // 测不出前缀被裁掉这个行为。改 startsWith 使其真的具判别力(sysLog.test.ts
     // 已经对 formatSysLog 本身有具判别力的覆盖,这里只是让这条组件层断言名副其实)。
-    expect(w.find('.set-logs').text().startsWith('13T15:38:19.417-0400')).toBe(true)
+    expect(w.find('[data-test="logs-pre"]').text().startsWith('13T15:38:19.417-0400')).toBe(true)
   })
 
   it('每 5 秒自动刷新一次', async () => {
@@ -48,7 +48,7 @@ describe('TerminalPanel', () => {
     getLogs.mockRejectedValueOnce(new Error('boom'))
     vi.advanceTimersByTime(5000)
     await flushPromises()
-    expect(w.find('.set-logs').text()).toContain('hello')
+    expect(w.find('[data-test="logs-pre"]').text()).toContain('hello')
   })
 
   it('渲染终端服务不可用的空态(后端 /v1/sys/wsssh 与 /v1/terminal/settings 都是 404)', () => {
@@ -81,13 +81,13 @@ describe('TerminalPanel', () => {
     getLogs.mockResolvedValueOnce('2026-04-13T15:38:19.417-0400\tinfo\tNEWER\n')
     vi.advanceTimersByTime(5000)
     await flushPromises()
-    expect(w.find('.set-logs').text()).toContain('NEWER')
+    expect(w.find('[data-test="logs-pre"]').text()).toContain('NEWER')
 
     // 现在才放行第一次的旧结果
     resolveFirst('2026-04-13T15:38:19.417-0400\tinfo\tSTALE\n')
     await flushPromises()
 
-    expect(w.find('.set-logs').text()).toContain('NEWER') // 仍是新结果
-    expect(w.find('.set-logs').text()).not.toContain('STALE') // 旧结果没有覆盖它
+    expect(w.find('[data-test="logs-pre"]').text()).toContain('NEWER') // 仍是新结果
+    expect(w.find('[data-test="logs-pre"]').text()).not.toContain('STALE') // 旧结果没有覆盖它
   })
 })

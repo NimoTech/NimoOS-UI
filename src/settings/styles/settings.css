@@ -421,21 +421,27 @@
 .set-comp-empty { padding: 28px 16px; text-align: center; color: var(--fg-muted); font-size: 12px; }
 
 /* ── P3 terminal tab ───────────────────────────────────────────────────── */
+/* 2026-08 机主验收 SP9-P3:日志卡改用 components/ui/LogConsole.vue(与应用控制台
+ * apps/console/LogsPane.vue 共用同一套展示壳),不再自成一套 .set-logs 外观。
+ * 这里只做「设置区专属」的两件事,靠 LogConsole 自身暴露的 --log-console-* 自定义
+ * 属性覆盖(值只在 .set-logs-wrap 子树里生效,应用控制台不受影响):
+ *   1. 设置页不像 AppConsolePage 那样有定高 flex 布局兜底,日志卡需要自己的
+ *      min/max-height(沿用原 .set-logs 的 480px / 60vh),全屏时解除上限。
+ *   2. 工具条(下载日志 + 全屏)离卡片顶边与离日志正文首行都要留出可见净空——
+ *      机主验收反馈"还要再留多一些距离",实测 .set-btn 工具条高度后重新量出
+ *      pad-top 取值(见下方注释),取代原先自成一套的 padding-top: 52px 硬编码。 */
 .set-logs-wrap { position: relative; }
-.set-logs {
-  width: 100%; min-height: 480px; max-height: 60vh; overflow: auto;
-  background: var(--set-logs-bg); color: var(--set-logs-fg);
-  font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5;
-  /* padding-top 单独放大:.set-logs-tools 是浮在右上角的绝对定位工具条(对位 Vue2
-     LogsCard.vue 同款浮层布局),但 Vue2 那两个是半透明纯图标(opacity:.5),我们这两个
-     是带文字的实心 .set-btn——实测 getBoundingClientRect 量出工具条纵向区间与日志首行
-     文字区间完全重叠(真机首行日志很长,横向延伸到右上角就被按钮不透明底压住,窄屏更严重)。
-     这里给内容顶部让出净空(12px 起点 + 按钮实际高度 ~28px + 12px 缓冲 ≈ 52px),
-     不改动浮层定位本身,保持与 Vue2 一致的"工具条浮在卡片右上角"视觉形态。 */
-  padding: 52px 16px 16px; border-radius: 12px;
-  white-space: pre-wrap; word-break: break-all;
+.set-logs-wrap {
+  --log-console-min-height: 480px;
+  --log-console-max-height: 60vh;
+  --log-console-tools-top: 14px;
+  --log-console-tools-right: 16px;
+  /* headless chrome + getBoundingClientRect 实测(暗色/亮色/420px 窄屏三态一致):
+     工具条(top:14px)矩形 top=120 bottom=148(容器内偏移 14~42,高 28px);
+     pad-top 取 60px 时首行文字矩形 top=178(容器内偏移 72)—— 工具条底边到首行
+     文字顶边净空 = 72-42 = 30px,≥16px 要求且不过分空旷,三态截图均无重叠。 */
+  --log-console-pad-top: 60px;
 }
-.set-logs-tools { position: absolute; top: 12px; right: 16px; display: flex; gap: 8px; }
 .set-logs-fs { font-size: 12px; }
 .set-logs-download { font-size: 12px; text-decoration: none; }
 /* 全屏态对位 src/apps/console/TerminalPane.vue 的 .term-wrap.fullscreen(同一模式:
@@ -445,8 +451,8 @@
   display: flex; flex-direction: column;
   background: var(--card-bg); border-radius: var(--radius); padding: 16px;
   box-shadow: var(--card-shadow-hi);
+  --log-console-max-height: none;
 }
-.set-logs-wrap.is-fullscreen .set-logs { flex: 1 1 auto; max-height: none; }
 .set-term-empty { padding: 48px 16px; text-align: center; color: var(--fg-muted); }
 
 /* ── P3 storage tab 入口卡 ─────────────────────────────────────────────── */
