@@ -30,6 +30,9 @@ export function useVmList() {
   // 就地代际守卫:每次 fetchVMs 自增,回写前比对是否仍是最新一次调用。
   // 记忆记过「别抽公共 guard」的教训——就地写,别为了复用抽象出个 helper。
   let listEpoch = 0
+  // fetchVM 自己的代际守卫(评审 5.2 补):同一思路,防止连点多台 VM /连点同一台 VM 两次时,
+  // 先发但迟到的详情响应覆盖后发已经写入的数据。与 listEpoch 各管一段,不合并成一个公共 guard。
+  let vmFetchEpoch = 0
   let alive = true
 
   function findVm(id: string): KvmVM | undefined {
@@ -69,13 +72,11 @@ export function useVmList() {
           if (idx !== -1) vms.value[idx] = selectedVM.value
         }
       } else if (vms.value.length > 0) {
-        // ⚠️ 与 Vue2 的偏离(SP9-P5 登记):Vue2 fetchVMs(:898-899)这里调用
-        // this.selectVM(this.vms[0]),会再触发一次 fetchVM→getVM 详情请求。但
-        // GET /v1/kvm/vms 列表接口本身已经返回完整的 KvmVM 字段(与 GET /vms/:id 同构,
-        // 详见 spicePreserve.ts 注释),首次自动选中不需要再打一次详情请求去覆盖刚拿到
-        // 的新鲜数据——直接从这次列表结果里取。这也避免了自动选中和调用方 await 之间
-        // 出现一段不受调用方控制的额外异步窗口(被测试用交错路径逮到过)。用户显式点选
-        // 仍然照 Vue2 走 selectVM()→fetchVM() 的详情合并(见下方 selectVM)。
+        // ⚠️ 与 Vue2 的偏离(SP9-P5 登记,评审已核实通过):Vue2 fetchVMs(:898-899)这里
+        // 调用 this.selectVM(this.vms[0]),会再触发一次 fetchVM→getVM 详情请求。但后端
+        // ListVMs(NimoOS-KVM vm_service.go:245)与 GetVM(:270)返回的都是 model.VM 全量
+        // 副本、字段集完全同构——不合并不丢任何字段,再打一次详情请求纯属冗余的网络往返。
+        // 用户显式点选仍然照 Vue2 走 selectVM()→fetchVM() 的详情合并(见下方 selectVM)。
         // P5 无创建向导分支(:901 showCreateVM),空列表就走空态,创建弹窗留给 P6。
         selectedVM.value = vms.value[0]
       } else {
@@ -90,9 +91,10 @@ export function useVmList() {
   }
 
   async function fetchVM(id: string): Promise<void> {
+    const myVmEpoch = ++vmFetchEpoch
     try {
       const fresh = await service.kvm.getVM(id)
-      if (!alive) return
+      if (!alive || myVmEpoch !== vmFetchEpoch) return // 过期守卫:更晚一次 fetchVM 已经写过了,这份迟到结果丢弃
       const idx = vms.value.findIndex((v) => v.id === id)
       const target = idx !== -1 ? vms.value[idx] : (selectedVM.value?.id === id ? selectedVM.value : null)
       // 照 Vue2 fetchVM(:912-913 / :925-926):`Object.keys(fresh).forEach(key => { if
@@ -200,9 +202,11 @@ export function useVmList() {
     processing.value.add(vm.id)
     try {
       await action(vm.id)
+      if (!alive) return // dispose 之后到达的结果不再写 state、不触发 VNC 回调(评审 3)
       onSuccess(vm)
       lastError.value = ''
     } catch (e) {
+      if (!alive) return
       lastError.value = errText(e, failFallback)
     } finally {
       processing.value.delete(vm.id)
@@ -256,18 +260,23 @@ export function useVmList() {
   }
 
   async function toggleAutostart(vm: KvmVM): Promise<void> {
-    // 照 Vue2 toggleAutoStart(:1516-1528):先记原值,乐观翻转失败则回滚。
-    const original = vm.autostart
-    const next = !original
+    // ⚠️ 与 Vue2 的偏离(SP9-P5 登记,评审 2):Vue2 toggleAutoStart(:1516-1528)先记
+    // originalValue,await 成功后才写 vm.autostart = newValue(:1522),catch 里再把
+    // vm.autostart 改回 originalValue(:1525)。但这个写入顺序下,失败分支根本没写过新值——
+    // vm.autostart 本来就还是 originalValue,catch 里那句“回滚”是死代码(照抄这段逻辑没有
+    // 任何可观察效果,已用删测试验证过)。这里按“界面照 Vue2、逻辑照正确”只保留有意义的部分:
+    // 失败时不写 autostart(本就是原值),只置 lastError;不做“先乐观写、失败再改回”的真实回滚
+    // (那会让开关先跳一下再弹回,是另一种可见行为,违反界面 1:1)。
     processing.value.add(vm.id)
     try {
+      const next = !vm.autostart
       await service.kvm.setAutostart(vm.id, next)
+      if (!alive) return // dispose 之后到达的结果不再写 state(评审 3)
       vm.autostart = next
       if (selectedVM.value?.id === vm.id) selectedVM.value.autostart = next
       lastError.value = ''
     } catch (e) {
-      vm.autostart = original
-      if (selectedVM.value?.id === vm.id) selectedVM.value.autostart = original
+      if (!alive) return
       lastError.value = errText(e, 'kvmFailedToSaveSettings')
     } finally {
       processing.value.delete(vm.id)
@@ -278,22 +287,33 @@ export function useVmList() {
     // 照 Vue2 deleteVM(:1609-1620)。
     try {
       await service.kvm.deleteVM(vm.id)
+      if (!alive) return // dispose 之后到达的结果不再写 state(评审 3)
       vms.value = vms.value.filter((v) => v.id !== vm.id)
       if (selectedVM.value?.id === vm.id) selectedVM.value = null
       lastError.value = ''
     } catch (e) {
+      if (!alive) return
       lastError.value = errText(e, 'kvmFailedToDelete')
     }
   }
 
   async function ejectInstallMedia(vm: KvmVM): Promise<void> {
     // 照 Vue2 handleInstallationFinished(:862-877):setBootFromDisk(true) 后整表刷新。
+    // 补上 Vue2 (:862-864)`if (!vm || this.finishingInstall) return` 的重入守卫(评审 4:
+    // 初版漏了,连点两次会并发发两次 setBootFromDisk + 两次整表刷新)——借用现成的
+    // processing 集合当 finishingInstall 标记,不再新开一个状态。
+    if (processing.value.has(vm.id)) return
+    processing.value.add(vm.id)
     try {
       await service.kvm.setBootFromDisk(vm.id, true)
+      if (!alive) return // dispose 之后到达的结果不再写 state、不再补打整表刷新(评审 3)
       lastError.value = ''
       await fetchVMs()
     } catch (e) {
+      if (!alive) return
       lastError.value = errText(e, 'kvmFailedToEjectMedia')
+    } finally {
+      processing.value.delete(vm.id)
     }
   }
 

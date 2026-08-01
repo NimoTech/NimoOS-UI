@@ -78,6 +78,14 @@ describe('fetchVMs', () => {
     await s.fetchVMs()
     s.selectedVM.value!.spicePort = 5901
     s.selectedVM.value!.spiceTlsPort = 5902
+    // 评审修正(critical 1):原来这里复用了 beforeEach 的 mockResolvedValue,但
+    // vi.fn().mockResolvedValue(v) 只在调用时求值一次、之后每次调用都返回同一个对象
+    // 引用——上面对 selectedVM 的直接赋值改的就是这个被共享的对象,导致第二次
+    // fetchVMs() 拿到的“新数据”其实还是那个已经被改过的旧对象,preserveSpice 删不删都
+    // 测不出来。这里显式 mockImplementation 成每次都新构造对象、spicePort 显式为 0,
+    // 才是真的模拟“后端吐一份全新的、不含 spicePort 的响应”。
+    api.getVMList.mockImplementation(() =>
+      Promise.resolve({ data: [VM({ spicePort: 0, spiceTlsPort: 0 })], total: 1 }))
     await s.fetchVMs()  // 新数据 spicePort=0
     expect(s.selectedVM.value?.spicePort).toBe(5901)
     expect(s.selectedVM.value?.spiceTlsPort).toBe(5902)
@@ -122,6 +130,39 @@ describe('过期守卫', () => {
     resolveIt({ data: [VM({ name: 'late' })], total: 1 })
     await p
     expect(s.vms.value).toEqual([])
+  })
+
+  it('dispose 后,在途的电源动作迟到结果不再写 state、不触发 VNC 回调(评审 3)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ state: 'stopped' })], total: 1 })
+    let resolveStart: () => void = () => {}
+    api.startVM.mockImplementation(() => new Promise<void>((r) => { resolveStart = () => r(undefined) }))
+    const s = useVmList()
+    await s.fetchVMs()
+    const onC = vi.fn()
+    s.onVncShouldConnect(onC)
+    const p = s.start(s.selectedVM.value!)
+    s.dispose()
+    resolveStart()
+    await p
+    expect(s.selectedVM.value?.state).toBe('stopped')
+    expect(onC).not.toHaveBeenCalled()
+  })
+
+  it('fetchVM 过期守卫:连点两台 VM,先发但迟到的详情响应不覆盖后发已经写入的数据', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'b', state: 'stopped' })], total: 2 })
+    let resolveSlow: (v: unknown) => void = () => {}
+    api.getVM
+      .mockImplementationOnce(() => new Promise((r) => { resolveSlow = r })) // 选 vm-1,慢,先发
+      .mockResolvedValueOnce(VM({ id: 'b', state: 'stopped', name: 'b-detail' })) // 选 b,快,后发
+    const s = useVmList()
+    await s.fetchVMs()
+    const p1 = s.selectVM(s.vms.value[0]) // 触发 fetchVM('vm-1'),挂起
+    await s.selectVM(s.vms.value[1])      // 触发 fetchVM('b'),先完成
+    expect(s.vms.value[1].name).toBe('b-detail')
+    resolveSlow(VM({ id: 'vm-1', name: 'stale-a-detail' }))
+    await p1
+    // 迟到的 vm-1 详情被丢弃,列表项不应该被这份过期数据覆盖
+    expect(s.vms.value[0].name).not.toBe('stale-a-detail')
   })
 })
 
@@ -271,14 +312,16 @@ describe('电源动作', () => {
     expect(s.processing.value.has('vm-1')).toBe(false)
   })
 
-  it('toggleAutostart 成功后翻转,失败后回滚', async () => {
+  it('toggleAutostart 成功后翻转,失败时维持原值并写 lastError(Vue2 的“回滚”在这个写入顺序下不可达,已移除死代码)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     await s.toggleAutostart(s.selectedVM.value!)
     expect(s.selectedVM.value?.autostart).toBe(true)
     api.setAutostart.mockRejectedValue(new Error('nope'))
     await s.toggleAutostart(s.selectedVM.value!)
-    expect(s.selectedVM.value?.autostart).toBe(true)   // 回滚到 true
+    // 注意:这里为 true 不是因为“回滚”生效——失败时 autostart 压根没被写过新值,
+    // 本来就还是 true。真正需要判别力的断言是下面的 lastError。
+    expect(s.selectedVM.value?.autostart).toBe(true)
     expect(s.lastError.value).toBeTruthy()
   })
 
@@ -298,6 +341,19 @@ describe('电源动作', () => {
     await s.ejectInstallMedia(s.selectedVM.value!)
     expect(api.setBootFromDisk).toHaveBeenCalledWith('vm-1', true)
     expect(api.getVMList).toHaveBeenCalledOnce()
+  })
+
+  it('ejectInstallMedia 重入守卫:在途时再点一次不会发第二次请求(照 Vue2 :862-864 finishingInstall)', async () => {
+    let resolveIt: () => void = () => {}
+    api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveIt = () => r(undefined) }))
+    const s = useVmList()
+    await s.fetchVMs()
+    const p1 = s.ejectInstallMedia(s.selectedVM.value!)
+    const p2 = s.ejectInstallMedia(s.selectedVM.value!) // 在途时再点一次
+    expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
+    resolveIt()
+    await Promise.all([p1, p2])
+    expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
   })
 
   it('lastError 取后端 message 原文,而不是写死文案', async () => {
