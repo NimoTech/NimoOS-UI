@@ -73,7 +73,8 @@ const moreExpanded = ref(false)
 const saveOpen = ref(false)
 const saved = ref(false)
 // albumAssetIds 不再是一个由 watcher 写入的 ref——见下方 fix round 1 · I2 的重新设计,
-// 改成从 albums store 现读的 computed(定义在 realAlbumItems 附近)。
+// 改成从 albums store 现读的 computed(fix round 2 · Minor#3 校正:实际定义在
+// filters.album 相关的 watcher 那一段,不在 realAlbumItems 附近——两者相隔约 230 行)。
 
 const filterbarRef = ref<HTMLElement | null>(null)
 const saveBtnRef = ref<HTMLElement | null>(null)
@@ -351,12 +352,31 @@ function findAlbumIdByName(name: string): string | number | null {
   const found = albums.albums.find((a) => (typeof a.name === 'string' ? a.name : '') === name)
   return found ? (found.id as string | number) : null
 }
+// fix round 2 · Important#1(评审查实的新回归,真实功能缺陷):`albums.assetsOf(id)`
+// 在**缓存槽压根没建立**(请求在途 / 还没发起)时与"缓存槽已建立但确实是空数组"
+// (相册真的没有照片)返回的都是同一个 `[]`——不能只看 `assetsOf(id).length` 来判断
+// "该不该过滤"。选相册 Apply 的那一刻,请求通常还没落地,若直接把"暂时读不到数据"
+// 当成"这个相册没有照片"处理,`filteredResults` 会瞬间归零,`.empty-search`(80px
+// padding 的"无匹配"大块内容)会在请求飞行的这段窗口里整块闪现——这是"首次按相册过滤"
+// 的**常规路径**,不是极端时序,且没有测试覆盖到过(fix round 1 的删码/变异验证清单
+// 里没有一条会让它变红,因为所有相册测试要么 mock 成立即 resolve、要么显式等
+// `flushPromises()` 之后才断言,天然跳过了"还没 resolve 那一刻"这个窗口)。
+//
+// 修法:区分"缓存槽不存在"(`String(id) in albums.albumAssetsByID` 为假 ⇒ 在途/未拉,
+// 照 Vue2 `PhotosSearchView.vue:593-602` 的口径——**在途期间不过滤**,与"选中即
+// `albumAssetIds = null`"那一刻的初始状态一致)和"缓存槽已经落地,内容恰好是空数组"
+// (⇒ 真的没有照片,应该精确收窄成空集,不能因为"看起来和在途一样都是 []"就放行不过滤,
+// 那会让 I7 的"空相册"语义混同回"在途")。`in` 判据只看键是否存在(`fetchAlbumAssets`
+// 无论成功失败都会在 `finally` 里写入这个相册的槽,即便结果是空数组;只有从未发起过
+// 请求/请求还没完成时,槽才不存在)——不是"看长度是否为 0",这正是本条修复的关键区分,
+// 必须用 `in` 而不能用 `assetsOf(id).length === 0` 来判定"还没落地"。
 const albumAssetIds = computed<Set<string> | null>(() => {
   const name = filters.value.album
   if (!name) return null
   const id = findAlbumIdByName(name)
-  if (id === null) return new Set() // 相册名查不到 id ⇒ 结果为空集,不是不过滤。
-  return new Set(albums.assetsOf(id).map((a) => String(a.id)))
+  if (id === null) return new Set() // 相册名查不到 id ⇒ 结果为空集,不是不过滤(I7)。
+  if (!(String(id) in albums.albumAssetsByID)) return null // 缓存槽不存在 ⇒ 在途/未拉,不过滤。
+  return new Set(albums.assetsOf(id).map((a) => String(a.id))) // 缓存槽已落地 ⇒ 精确收窄。
 })
 watch(
   () => filters.value.album,
@@ -695,9 +715,10 @@ onMounted(() => {
   display: inline-block;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 32%, var(--accent-soft-2), var(--accent) 72%);
-  /* fix round 1 · M12(评审并入):Vue2 photos.scss:876 的 `.nimo-orb` 有
-     `flex-shrink: 0`,第一版漏了这条——`.understood` 是 `inline-flex` 容器,窄屏/长
-     文案挤压时那颗 18px 的 orb 会被压扁变形。补回。 */
+  /* fix round 1 · M12(评审并入,fix round 2 · Minor#3 校正行号):Vue2
+     photos.scss:875(不是第一版写的 876)的 `.nimo-orb` 有 `flex-shrink: 0`,第一版
+     漏了这条——`.understood` 是 `inline-flex` 容器,窄屏/长文案挤压时那颗 18px 的 orb
+     会被压扁变形。补回。 */
   flex-shrink: 0;
 }
 
@@ -798,8 +819,10 @@ onMounted(() => {
 /* E10(T12 交接):空态里 chip 的紧凑变体归本任务实现。这里没有共享的 .fchip 基类可继承
    (PhotosFilterChip 的 .fchip 是它自己 scoped 样式,跨组件不可见),直接以"已选中"的
    视觉(accent-soft 底 + accent-soft-bd 边)按 photos.scss:2776 的紧凑尺寸整条写出。
-   fix round 1 · M13(评审并入):`padding` 改回 Vue2 基类 `.fchip`(photos.scss:2617)
-   的 `0 12px`——第一版写成 `0 10px` 是抄错,不是刻意收紧,已按 Vue2 字面值改回。 */
+   fix round 1 · M13(评审并入,fix round 2 · Minor#3 校正行号):`padding` 改回 Vue2
+   基类 `.fchip`(photos.scss:2622-2623,不是第一版写的 2617——那一行其实是
+   `.filterbar` 的 `z-index: 6`)的 `0 12px`——第一版写成 `0 10px` 是抄错,不是刻意
+   收紧,已按 Vue2 字面值改回。 */
 .empty-search .conditions .fchip {
   display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 99px;
   background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--fg); font-size: 11.5px;

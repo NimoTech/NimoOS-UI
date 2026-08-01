@@ -71,13 +71,20 @@ function rawAsset(id: string, overrides: Record<string, unknown> = {}) {
 // true}))` 只在这棵游离树内部冒泡,永远到不了真实 `document` 上的监听器(不管子组件的
 // `document.addEventListener('mousedown', ...)` 逻辑对不对)。之前 M10 的 ignoreEl 用例
 // 就是因为这个原因"删了 ignoreEl 也不会红"——不是断言错了,是事件压根没送到监听器那里。
-// 这里默认挂进 `document.body`(和 Photos.lightbox.test.ts 等既有先例一致的手法),让
-// 所有走 `document` 冒泡的用例(点外部关闭、ignoreEl)都能被真实触达。
+// 这里默认挂进 `document.body`。
+// fix round 2 · Minor#3(评审并入,先例引用查实是错的,已改正):第一版这里写"先例见
+// `Photos.lightbox.test.ts` 一类"——回源 grep 该文件全文没有 `attachTo`/`document.body`
+// 字样,引用是错的。真实先例是 `ClusterActionDialog.test.ts:52` / `PersonHero.test.ts:50`
+// / `PlacesThemeMenu.test.ts:33`(三者都用 `attachTo: document.body` + 一个模块级数组
+// 记录挂载实例、`afterEach`/`beforeEach` 里统一清理的同款手法)。
 //
 // 挂进真实 `document.body` 后必须显式 `unmount()`(触发各子组件的 `onUnmounted`,摘掉它
 // 们各自注册的 `document` 级 keydown/mousedown 监听器),否则跨测试残留的监听器会在
 // 后续用例里对已经"作废"的组件实例重复触发、并让 DOM 节点在整个文件运行期间持续堆积。
-// 用一个模块级数组记录每次挂载的 wrapper + 容器元素,统一在 afterEach 里清理。
+// 用一个模块级数组记录**每次经由 `mountSearch()` 挂载**的 wrapper + 容器元素,统一在
+// `afterEach` 里清理——注意这个数组只覆盖走这个助手函数的挂载;本文件另有一处不经过
+// `mountSearch()` 的裸 `mount()`(浮层:Esc 统一治理 / 「隔离子组件兜底」用例),那一处
+// 在自己的用例末尾单独 `w.unmount()`,不进这个数组(fix round 2 · Minor#2 已就地登记)。
 const mountedInstances: Array<{ w: ReturnType<typeof mount>; el: HTMLElement }> = []
 async function mountSearch(path = '/photos/search') {
   const router = makeRouter(path)
@@ -156,6 +163,25 @@ describe('路由 query 驱动', () => {
     const spy = vi.spyOn(search, 'smartSearch')
     await mountSearch('/photos/search?q=abc')
     expect(spy.mock.calls[0].length).toBe(1)
+  })
+
+  // fix round 1 · M15(fix round 2 · Minor#4 补覆盖,评审并入):`router.replace` 到
+  // 同一个 route(path 与 query 都不变)时 vue-router 视为无导航,`query` 这个 computed
+  // 不会变化,主 watcher 也就不会重新调用 `smartSearch`——"同一个词再提交一次想强制
+  // 刷新结果"会静默失效。`submitQuery` 里补了一条捷径:目标词与当前路由 `q` 完全相同时
+  // 跳过路由、直接再调一次 `smartSearch`。这里断言:提交两次相同的词,`smartSearch`
+  // 被调用两次(不是只调一次,更不是被静默吞掉)。
+  it('同一个词再提交一次(M15)→ smartSearch 被再调一次,不会因路由不变而静默失效', async () => {
+    const search = usePhotosSearch()
+    const spy = vi.spyOn(search, 'smartSearch')
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    expect(spy).toHaveBeenCalledTimes(1)
+    await w.get('.photos-search-bar input').setValue('abc')
+    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await flushPromises()
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(spy).toHaveBeenNthCalledWith(2, 'abc')
   })
 })
 
@@ -475,6 +501,36 @@ describe('filters.album', () => {
     await flushPromises()
     await w.vm.$nextTick()
     expect(svc.photos.getAlbum).toHaveBeenCalledWith(9)
+    expect(w.findAll('.tile')).toHaveLength(1)
+  })
+
+  // fix round 2 · Important#1(评审查实的新回归,fix round 1 引入):选相册 Apply 的
+  // 那一瞬间,`getAlbum` 请求通常还没落地——这是"首次按相册过滤"的常规路径,不是极端
+  // 时序。此前的 computed 设计用 `assetsOf(id)` 的返回值判断"该不该过滤",但"缓存槽
+  // 还没建立"与"缓存槽已建立、内容恰好是空数组"在 `assetsOf` 的返回值上长得一模一样
+  // (都是 `[]`),导致在途窗口里 `albumAssetIds` 被误判成空 Set,`filteredResults`
+  // 瞬间归零,`.empty-search`(orb + "无匹配" + 条件 chips)整块闪现,直到请求真正落地
+  // 才恢复——这条用例断言"在途窗口不应该发生这件事"(照 Vue2 `:593-602` 的口径:在途
+  // 期间不过滤,而不是过滤成空集)。
+  it('相册过滤在途窗口(getAlbum 尚未 resolve)不应把结果打成空集 / 闪现空态', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Trip' }])
+    let resolveGet: ((v: unknown) => void) | undefined
+    svc.photos.getAlbum.mockImplementation(() => new Promise((res) => { resolveGet = res }))
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a'), rawAsset('b')])
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    await w.get('[data-test="chip-album"] .fchip').trigger('click')
+    await w.get('.nav-item').trigger('click')
+    await w.get('.btn.btn-primary').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    // 请求仍在途(resolveGet 还没被调用)——不应该归零、也不应该出现空态。
+    expect(w.find('[data-test="empty-search"]').exists()).toBe(false)
+    expect(w.findAll('.tile')).toHaveLength(2)
+    // 请求这时才真正落地,结果应该精确收窄。
+    resolveGet!({ assets: [{ id: 'a', originalName: 'a.jpg', mimeType: 'image/jpeg' }] })
+    await flushPromises()
+    await w.vm.$nextTick()
     expect(w.findAll('.tile')).toHaveLength(1)
   })
 
@@ -931,6 +987,13 @@ describe('浮层:Esc 统一治理', () => {
     await w.vm.$nextTick()
     expect(w.find('.cal').exists()).toBe(false)
     expect(w.find('[data-test="ssv-root-stub"]').exists()).toBe(false)
+    // fix round 2 · Minor#2(评审并入,清理契约漏洞):这条用例是直接 `mount()`,不经过
+    // `mountSearch()` 助手,不会被 `afterEach` 里那个遍历 `mountedInstances` 的清理逻辑
+    // 覆盖到——当前用例结尾两个浮层都已被上面的 Escape 关掉(`saveOpen`/`openPop` 都已
+    // 归假),`PhotosSearch.vue` 自身没有残留的 document 监听器需要摘;但若将来这条用例
+    // 改成"只关一个浮层就结束",组件仍处于挂载状态,`document` 级监听器与这棵组件树就会
+    // 跨测试残留。这里显式 `unmount()` 兜底,不依赖"测试恰好把状态清干净了"这个前提。
+    w.unmount()
   })
 
   it('Esc 不触发「退出搜索」(反向断言:router.push/replace 未被调)', async () => {
