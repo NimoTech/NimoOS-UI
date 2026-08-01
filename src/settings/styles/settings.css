@@ -446,3 +446,10 @@
 .set-store-seg-data { background: var(--accent); }
 .set-store-legend { display: flex; gap: 16px; font-size: 12px; color: var(--fg-muted); margin-top: 8px; }
 .set-store-legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+/* Task 7:概览卡(.set-card 之上叠加内部间距)+ 头部行(标题 + 刷新按钮同一行)。
+ * .set-store-entry / .set-store-refresh 是行为标记类,视觉全部借用既有 .set-list-item /
+ * .set-btn,这里不重复声明外观。 */
+.set-store-overview { display: flex; flex-direction: column; gap: 4px; }
+.set-store-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* 通用空态(对位既有 .set-net-empty / .set-comp-empty 的同一视觉规范)。 */
+.set-empty { padding: 28px 16px; text-align: center; color: var(--fg-muted); font-size: 12px; }
