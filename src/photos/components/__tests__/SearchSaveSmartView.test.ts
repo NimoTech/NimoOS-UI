@@ -164,7 +164,10 @@ describe('confirm 真调 store(D12)', () => {
     conditions.push('people: Sara')
     expect(arg.conds).toEqual(['scene: sunset', 'place: Japan']) // 未被之后的原地修改污染
 
-    expect(w.emitted('saved')).toEqual([['sv-abc']])
+    // fix 波 F1:emit 契约加了第二参 name(宿主要拼保存成功 toast 文案)——这里跟着契约走,
+    // 不是弱化断言:name.value 在 open 变真时被 watch 设成 props.defaultName('Sunset
+    // Trips'),本用例没有改过名称输入框,所以第二个参数就是这个默认名。
+    expect(w.emitted('saved')).toEqual([['sv-abc', 'Sunset Trips']])
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 

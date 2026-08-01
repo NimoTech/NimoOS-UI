@@ -35,6 +35,7 @@ import routerRaw from '../../router/index.ts?raw'
 import { usePhotosSearch } from '../../photos/stores/search'
 import { usePhotosPeople } from '../../photos/stores/people'
 import { usePhotosAlbums } from '../../photos/stores/albums'
+import { useToast } from '../../stores/toast'
 import { router as appRouter } from '../../router'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
 
@@ -45,6 +46,7 @@ function makeRouter(initial = '/photos/search') {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
+      { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: { template: '<div/>' } },
     ],
   })
@@ -757,6 +759,30 @@ describe('排序', () => {
   })
 })
 
+// ── 结果计数千分位跟 locale(fix 波 F2)────────────────────────────────────
+// 终审必修项:`filteredResults.length.toLocaleString()` 是全支唯一的裸调用(其余 5 处调用
+// 点全部传了 locale)。本仓 locale 标识是 `zh_cn`/`en_us`(下划线,非合法 BCP-47),裸传给
+// toLocaleString 不会报错(浏览器 Intl 引擎不认识下划线时会退回默认 locale,不是必然抛错),
+// 真正的问题是"跟随浏览器默认 locale 漂移、不跟随应用内切换的语言"——这里同时验证:①元素
+// 渲染不抛错(挂载用的 zh_cn i18n 实例)②源文本是带 localeTag 标识符的调用,不是裸调用。
+describe('结果计数千分位跟 locale(F2)', () => {
+  it('results-count 渲染千分位数字,不抛 RangeError(zh_cn locale)', async () => {
+    svc.photos.smartSearch.mockResolvedValue(
+      Array.from({ length: 1234 }, (_, i) => rawAsset(`p${i}`)),
+    )
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    expect(w.get('[data-test="results-count"]').text()).toContain((1234).toLocaleString('zh-cn'))
+  })
+
+  // 源文本守卫:照 SearchPeoplePopover.test.ts:135 收紧过的写法——旧正则
+  // `/toLocaleString\(\s*\S+/` 连裸调用 `toLocaleString()` 都能匹配(`)` 本身就是 `\S`),
+  // 没有区分力;这条要求捕获组必须真的是标识符 `localeTag`。
+  it('源文本里 toLocaleString(localeTag) 是带标识符实参的调用,不是裸调用', () => {
+    expect(photosSearchRaw).toMatch(/toLocaleString\(\s*localeTag\s*\)/)
+  })
+})
+
 // ── 空态 ─────────────────────────────────────────────────────────────────
 describe('空态', () => {
   it('filteredResults 为空 + searching 假 → .empty-search 在,列出 activeConditions', async () => {
@@ -960,6 +986,35 @@ describe('保存为智能视图', () => {
     await router.push('/photos/search?q=other')
     await flushPromises()
     expect(w.get('[data-test="save-smart"]').attributes('data-saved')).toBe('false')
+  })
+
+  // fix 波 F1(终审必修项):保存成功此前零用户可见反馈——补这条守卫钉住 toast 被调、
+  // 文案含插值后的 name、action label 是跳转键、点 action 触发 router.push 到智能视图
+  // 列表路由。真值见 Vue2 PhotosSearchView.vue:283-288 的 `.save-toast`(sparkles + 5 秒 +
+  // 跳转链接);New-UI 用通用 useToast 的第三参 { label, onClick } 映上,跳转目标是
+  // `/photos/smart-views`(相对 Vue2 `#/photos` 的必要偏离,见 onSaved 注释)。
+  it('保存成功 → toast 被调(5s、文案含 name、action label 是跳转键),点 action 跳 /photos/smart-views', async () => {
+    svc.photos.createSmartView.mockResolvedValue({
+      id: 'sv-1', name: 'my trip', description: '', conds: [], threshold: 75, live: true, includeVideos: false,
+      count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: [], evaluatedAt: '',
+    })
+    const toastSpy = vi.spyOn(useToast(), 'show')
+    const { w, router } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    await w.get('[data-test="save-smart"]').trigger('click')
+    await w.get('[data-test="ssv-name-input"]').setValue('my trip')
+    await w.get('[data-test="ssv-confirm-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(toastSpy).toHaveBeenCalledTimes(1)
+    const [text, duration, action] = toastSpy.mock.calls[0]!
+    expect(text).toBe(zh.photosSearchNameSavedSmartView.replace('{name}', 'my trip'))
+    expect(duration).toBe(5000)
+    expect(action?.label).toBe(zh.photosSearchOpenSmartViews)
+
+    const pushSpy = vi.spyOn(router, 'push')
+    action?.onClick()
+    expect(pushSpy).toHaveBeenCalledWith('/photos/smart-views')
   })
 })
 

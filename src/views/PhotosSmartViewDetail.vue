@@ -340,7 +340,23 @@ async function doDelete(): Promise<void> {
     // "撤销"文案,不新增)。duration 5000 照 P5「5 秒可撤销」的既有口径。
     toast.show(t('photosSvSmartViewNameDeleted', { name: s.name }), 5000, {
       label: t('photosTrashUndo'),
-      onClick: () => { void store.restoreSmartView(result as DeletedSmartView) },
+      // fix 波 F3(终审必修项):`void store.restoreSmartView(...)` 把失败 reject 直接吞成
+      // 未处理的 promise rejection——store 的 restoreSmartView 失败时是 throw(smartViews.ts
+      // :303-304 的 catch 只 console.error 再原样抛出),`void` 调用不接这个 throw,
+      // 界面上什么反馈都不会出现。真实时序:用户点删除 → 已被上面 `router.push` 送回
+      // 列表页(这条智能视图已从列表 splice 掉)→ 5 秒内点撤销 → 后端失败 → 原实现下
+      // 界面毫无反应,这条智能视图就永久从列表消失了(后端其实还在,刷新页面才会重新出现)。
+      // 违反 Global Constraints「向上抛出的 action 保持抛出(视图层 catch → toast)」——
+      // 同文件 doDelete 自己是 try/catch + 失败 toast,只有这个 undo 回调漏了这层。
+      // 文案复用:grep 全仓已确认没有专门的"撤销智能视图失败"键;`photosTrashRestoreFailed`
+      // (P3 回收站,PhotosTrash.vue:121/171 同款"撤销恢复失败"场景,duration 同为 4500)
+      // 语义完全对得上"恢复/撤销这个动作失败了",复用它,不新增键。
+      onClick: () => {
+        store.restoreSmartView(result as DeletedSmartView).catch((e: unknown) => {
+          console.error('[photos-smartviews] undo delete', e)
+          toast.show(t('photosTrashRestoreFailed'), 4500)
+        })
+      },
     })
   } catch (e) {
     console.error('[photos-smartviews] doDelete', e)
@@ -463,7 +479,12 @@ function onTileClick(p: Photo): void {
                 type="button" class="sv-action-btn" data-test="sv-action-refine"
                 @click="refineInSearch"
               >
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
+                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
+                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
+                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
+                     放大镜手柄长度此前会跳一下——改成统一值。 -->
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
                 {{ t('photosSvRefineSearch') }}
               </button>
 

@@ -29,6 +29,7 @@ import { usePhotosSearch } from '../photos/stores/search'
 import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useLightbox } from '../photos/lightbox/useLightbox'
+import { useToast } from '../stores/toast'
 import { understood, type PersonOption, type UnderstoodKind, type UnderstoodToken } from '../photos/util/searchUnderstood'
 import { queryParts } from '../photos/util/searchQueryParts'
 import { sortResults, splitTiers, matchPct, type ScoredPhoto, type SortKey } from '../photos/util/searchSort'
@@ -37,13 +38,19 @@ import type { Photo } from '../photos/util/assetToPhoto'
 
 const route = useRoute()
 const router = useRouter()
-// fix round 1 · M14(评审并入,顺手清理):`locale` 死变量——本文件不直接消费 useI18n()
-// 的 locale(日期/人物弹层各自内部处理自己的 locale 转换),第一版留了个没用到的解构。
-const { t } = useI18n()
+// fix 波 F2(终审必修项):`locale` 又用回来了——全支唯一的裸 `toLocaleString()`
+// (`filteredResults.length.toLocaleString()`)不跟 locale 走,中文界面下数字千分位格式
+// 会随浏览器自身 locale 漂移。fix round 1 · M14 那次删掉是因为当时确实没用到,不是"以后
+// 也不该用到";本仓 locale 标识是 `zh_cn`/`en_us`(下划线,不是合法 BCP-47),裸传给
+// toLocaleString 会抛 RangeError,一律要转破折号形式(既定写法,照 SearchPeoplePopover.vue
+// :59-63 / SmartViewCard.vue:38 等既有先例)。
+const { t, locale } = useI18n()
+const localeTag = computed(() => locale.value.replace('_', '-'))
 const search = usePhotosSearch()
 const people = usePhotosPeople()
 const albums = usePhotosAlbums()
 const lb = useLightbox()
+const toast = useToast()
 
 // ── query:从路由读,只读 computed,永远不直接赋值(§7e-3 的可证伪守卫)───────────
 const query = computed(() => String(route.query.q ?? ''))
@@ -477,8 +484,20 @@ function openSave(): void {
   if (saved.value) return
   saveOpen.value = true
 }
-function onSaved(_id: string): void {
+// fix 波 F1(终审必修项,真实功能缺口):保存成功此前只翻了 `saved` 这一个布尔,没有任何
+// 用户可见反馈——Vue2 confirmSave()(:806-812)成功后弹一条 5 秒的 `.save-toast`(sparkles
+// 图标 + 「"{name}" 已保存为智能视图」+「在智能视图中打开 →」跳转链接,:283-288)。这里用
+// 通用 `useToast` 的第三参(撤销 pill 同款签名,`{ label, onClick }`,T6 回收站撤销正在用,
+// src/stores/toast.ts:13-19)1:1 映上:label 是跳转文案,onClick 换成路由跳转。
+// 偏离登记:Vue2 的跳转目标是 `#/photos`(它的智能视图与相册主页同一屏);New-UI 的智能
+// 视图列表是独立路由 `/photos/smart-views`(T4 建、router/index.ts:52 的 `photos-smart-
+// views`),这里跳去这条路由——是相对 Vue2 的必要偏离,不是抄错。
+function onSaved(_id: string, name: string): void {
   saved.value = true
+  toast.show(t('photosSearchNameSavedSmartView', { name }), 5000, {
+    label: t('photosSearchOpenSmartViews'),
+    onClick: () => { void router.push('/photos/smart-views') },
+  })
 }
 
 // ── 浮层统一治理(结构规格 19,硬约束):一个 mousedown + 一个 keydown,禁止早退。
@@ -693,7 +712,7 @@ onMounted(() => {
             </div>
             <div style="flex: 1" />
             <span v-if="!searching" data-test="results-count">
-              {{ t('photosSearchCountMatches', { count: filteredResults.length.toLocaleString() }) }}
+              {{ t('photosSearchCountMatches', { count: filteredResults.length.toLocaleString(localeTag) }) }}
               <template v-if="topScore"> · {{ t('photosSearchTopScoreScore', { score: topScore }) }}</template>
             </span>
           </div>

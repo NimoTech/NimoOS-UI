@@ -48,12 +48,16 @@ describe('emit', () => {
 
 // ── 样式(fix round 1 · I1 的核心):先锚定规则体、再断言属性,全文件级 toContain 恒真不算 ──
 describe('样式:轨道 + thumb + marks 间距(此前全仓零 slider-thumb,真机会退化成默认灰控件)', () => {
-  it('.sv-slider 是 appearance:none 的 accent 渐变轨', () => {
+  it('.sv-slider 是 appearance:none 的 accent 渐变轨,轨道高度 6px', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-slider')
     expect(rule).toBeDefined()
     expect(rule?.body).toMatch(/appearance:\s*none/)
     expect(rule?.body).toContain('background: linear-gradient(to right, var(--accent-soft-2), var(--accent))')
+    // fix 波 F6(终审必修项,变异实证:6px→16px 改了,116 例全绿——之前这条轨道高度
+    // 零断言)。本组件被 SearchSaveSmartView / SmartViewCreateDialog / T6 三处复用,
+    // 轨道高被改坏没人接得住,补进这条既有已锚定的规则体断言里,不新开一条测试。
+    expect(rule?.body).toContain('height: 6px')
   })
 
   it('::-webkit-slider-thumb 是 18px 圆 + accent 描边 + accent 光晕', () => {

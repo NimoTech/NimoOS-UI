@@ -650,6 +650,32 @@ describe('删除智能视图', () => {
     expect(typeof last.action?.onClick).toBe('function')
   })
 
+  // fix 波 F3(终审必修项):撤销回调此前是 `void store.restoreSmartView(...)`——底层
+  // service.photos.createSmartView reject 时,store 的 restoreSmartView 会 throw
+  // (smartViews.ts:303-304),`void` 调用完全不接这个 throw,界面上什么反馈都没有,
+  // 变成未处理的 promise rejection。这里钉住:点撤销 → 底层调用失败 → console.error 记录
+  // + 弹出失败 toast(复用 P3 回收站的 photosTrashRestoreFailed),不抛出未处理 rejection。
+  it('撤销失败(restoreSmartView reject)→ console.error 记录 + 弹失败 toast,不抛未处理 rejection', async () => {
+    svc.photos.deleteSmartView.mockResolvedValue({})
+    svc.photos.createSmartView.mockRejectedValue(new Error('500'))
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-delete"]').trigger('click')
+    await w.find('[data-test="sv-confirm-ok"]').trigger('click')
+    await flushPromises()
+    const last = useToast().toasts[useToast().toasts.length - 1]
+    expect(last.action).toBeDefined()
+
+    await expect(
+      Promise.resolve().then(() => last.action?.onClick()),
+    ).resolves.not.toThrow()
+    await flushPromises()
+
+    expect(errSpy).toHaveBeenCalledWith('[photos-smartviews] undo delete', expect.any(Error))
+    expect(useToast().msg).toBe(zh.photosTrashRestoreFailed)
+  })
+
   it('deleteSmartView reject → 不跳转 + toast', async () => {
     svc.photos.deleteSmartView.mockRejectedValue(new Error('500'))
     const { w, router } = await mountView('7', [makeSv({ id: 7 })])

@@ -191,8 +191,10 @@ describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁
       expect(commentBody).not.toContain(';')
       // fix round 1 · M-2(评审并入):测试标题写"不含 ; / } / 字面 #"三禁,但此前只
       // 断言了 ; 与 #,漏了 }——注释里出现 } 同样会让 color-guard 的逐行状态机
-      // (color-guard.test.ts:96 `if (line.includes(';') || line.includes('}')) exempt
-      // = false`)提前收豁免窗口,后果与 ; 同类,必须一起断言。
+      // (fix 波 F4 引用清扫,回源核对真值:真实行号是 color-guard.test.ts:98
+      // `if (line.includes(';') || line.includes('}')) exempt = false`——:96 那行
+      // 实际是 `if (HEX.test(bare) || FUNC.test(bare)) offenders.push(...)`,是同一个
+      // forEach 里另一条判断,不是这条)提前收豁免窗口,后果与 ; 同类,必须一起断言。
       expect(commentBody).not.toContain('}')
       // 紧邻声明真实存在:同一行(注释与声明同行)或紧接的下一行。
       const closeLine = lines[closeIdx]
@@ -203,8 +205,9 @@ describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁
   })
 
   // fix round 1 · M-5(评审并入,控制器拍板):.tile 圆角改跟 PhotosGrid.vue 的 8px,
-  // 不是 Vue2 photos.scss:112 的 3px——理由与 D2(.grid 列宽)同源,防止同一台设备上
-  // 搜索结果瓦片比图库瓦片棱角更利。
+  // 不是 Vue2 photos.scss:323(`.photos-root .tile` 规则体里的 `border-radius: 3px`,
+  // fix 波 F4 回源核对更正,此前误写成 :112,那是 `.photos-root .app` 的字体设置)
+  // 的 3px——理由与 D2(.grid 列宽)同源,防止同一台设备上搜索结果瓦片比图库瓦片棱角更利。
   it('.tile 规则体的 border-radius 是 8px(跟 PhotosGrid.vue,不是 Vue2 的 3px)', () => {
     const m = /\.tile\s*\{([^}]*)\}/.exec(styleText)
     expect(m, '未找到 .tile 规则体').toBeTruthy()

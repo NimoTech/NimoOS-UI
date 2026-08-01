@@ -78,12 +78,16 @@ const pct = computed(() => matchPct(props.result.score))
 </template>
 
 <style scoped>
-/* Vue2 photos.scss:112-116(.tile 基本形态)+ :117-118(img 缩放悬停)。搜索结果只用
-   comfortable 密度,不接 loose 变体的 border-radius:6px 覆盖(Vue2 :113 那条只在
+/* fix 波 F4(终审引用清扫,回源核对真值):此前这段的行号引用指到了完全无关的 CSS——
+   photos.scss:112-116 实际是 `.photos-root .app` 的 font-family/font-size/line-height
+   (整个页面外壳的字体设置),不是 `.tile`。`.photos-root .tile` 基本形态的真实行号是
+   :321-325(position/aspect-ratio/overflow/border-radius/background/cursor/isolation),
+   img 缩放悬停(`.tile img` + `.tile:hover img`)真实行号是 :327-328。搜索结果只用
+   comfortable 密度,不接 loose 变体的 border-radius:6px 覆盖(真实行号 :326,那条只在
    loose 密度下生效,本组件没有 loose 概念)。background 按本区既定映射
    --surface-2 → --chip-bg(PlacesRail.vue 等既有先例)。
    fix round 1 · M-5(评审必修,控制器拍板):border-radius 改用 PhotosGrid.vue:376
-   的 8px,不是 Vue2 photos.scss:112 的 3px——理由与 D2(.grid 列宽)同源:Vue2 全局
+   的 8px,不是 Vue2 photos.scss:323 的 3px——理由与 D2(.grid 列宽)同源:Vue2 全局
    `.tile` 本来就是 3px,New-UI 已在 P3 把整个相册区改成 8px,搜索结果页照 Vue2 抄回
    3px 会让同一台设备上搜索瓦片比图库瓦片棱角明显更利,New-UI 内部自相矛盾。这是
    相对 Vue2 的刻意偏离,已双处登记(此处 + 报告)。 */

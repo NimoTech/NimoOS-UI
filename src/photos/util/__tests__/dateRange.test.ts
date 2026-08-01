@@ -183,6 +183,17 @@ describe('calDowLabels', () => {
   it('zh_cn 与 en_us 结果不同', () => {
     expect(calDowLabels('zh_cn')).not.toEqual(calDowLabels('en_us'))
   })
+
+  // fix 波 F5(终审必修项,变异实证):上面 en_us 的 `labels[0] === 'S'` 这条断言没有
+  // 区分力——英文窄标签周六(Saturday)的窄形式也是 'S',如果实现把锚点从
+  // `new Date(1970, 0, 4 + i)`(1970-01-04 是周日)悄悄改成 `3 + i`(整排右移一天,
+  // 变成周六起始),`labels[0]` 依然是 'S',这条断言照样绿——而 calCells() 用
+  // `getDay()` 算前导空格是按"周日起始"的既有约定,一旦两者不一致,日历里每个日期
+  // 都会排在错误的星期列下(真机会看见整个月的日期集体左移/右移一格)。中文窄标签
+  // 不歧义:周日是'日'、周六是'六',用它钉住"首项确实是周日,不是周六"这条不变量。
+  it('zh_cn 首项是"日"(周日),不是"六"(周六)——钉住周日起始不变量(fix 波 F5)', () => {
+    expect(calDowLabels('zh_cn')[0]).toBe('日')
+  })
 })
 
 describe('calMonthLabel', () => {

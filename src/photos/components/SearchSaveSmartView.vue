@@ -40,7 +40,10 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'update:open', v: boolean): void
-  (e: 'saved', id: string): void
+  // fix 波 F1:多带一个 name 参数——宿主(PhotosSearch.vue)要用它拼「"{name}" 已保存为
+  // 智能视图」的成功 toast 文案(照搬 Vue2 confirmSave() 的 saveToast = { name },
+  // :806-812),原先只带 id 时宿主拿不到这个名字。
+  (e: 'saved', id: string, name: string): void
 }>()
 
 const { t } = useI18n()
@@ -149,7 +152,7 @@ async function confirm(): Promise<void> {
       includeVideos: false,
     })
     if (created) {
-      emit('saved', created.id)
+      emit('saved', created.id, trimmed)
       emit('update:open', false)
     }
   } catch (e) {
