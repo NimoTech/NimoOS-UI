@@ -1,6 +1,8 @@
 // Ported from Vue2 NimoOS-UI src/store/modules/photos.js:
 //   :19-22   (SEARCH_PAGE_LIMIT)
-//   :29-31   (smartSearchSeq —— 任何一次 dispatch 含清空都使在途旧响应作废)
+//   :24-27   (smartSearchSeq 声明+文档注释;"任何一次 dispatch(含清空)都使在途
+//             旧响应作废——序号递增必须先于早退分支" 那句 verbatim 引自 :655,
+//             不在 :24-27 这段文档注释里——上一轮报告曾误引成 :29-31,已改正)
 //   :241-259 (state: searchResults/searchQuery/searchFilters/searchOffset/
 //             searchExhausted/searchLoadingMore/searchMs/isSearchMode)
 //   :365-401 (mutations: SET_SEARCH / SET_SEARCH_LOADING_MORE / APPEND_SEARCH_RESULTS / CLEAR_SEARCH)
@@ -20,7 +22,7 @@ export const SEARCH_PAGE_LIMIT = 50
 export const usePhotosSearch = defineStore('photosSearch', () => {
   const results = ref<Photo[]>([])
   const query = ref('')
-  // filtersPayload 管道照 1:1 搬(Vue2 :246 searchFilters,loadMore 复用同一份)。
+  // filtersPayload 管道照 1:1 搬(Vue2 :245 searchFilters,loadMore 复用同一份)。
   // 交接事实(报告里也登记):Vue2 全仓唯一 dispatch 点 PhotosTimeline.vue:652 从
   // 不传 filters(恒为 {}),6 个筛选 chip 是纯客户端 narrow(PhotosSearchView.vue:395
   // 注释写明),这条管道当前无人喂——T16 不要指望它承担 chip 筛选。
@@ -31,7 +33,8 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
   const ms = ref(0)
   const isSearchMode = ref(false)
 
-  // smartSearch/loadMore/clear 共用同一把序号锁,照 Vue2 :29-31 注释 verbatim:
+  // smartSearch/loadMore/clear 共用同一把序号锁。smartSearchSeq 声明+文档注释
+  // 在 Vue2 :24-27;下面这句是 verbatim 引自 smartSearch action 内部的注释(:655):
   // 任何一次 dispatch(含清空)都使在途旧响应作废——序号递增必须先于早退分支。
   let searchSeq = 0
 
@@ -52,7 +55,7 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
     searchSeq++
   }
 
-  // 照 Vue2 smartSearch action(:654-666)+ catch 分支改法(§7e-12,见下)。
+  // 照 Vue2 smartSearch action(:654-671,含 catch)+ catch 分支改法(§7e-12,见下)。
   async function smartSearch(q: string, filters: Record<string, unknown> = {}): Promise<void> {
     const trimmed = (q || '').trim()
     // 照搬 Vue2 :655-657 的空查询早退——但顺序上先落到 clear() 里去 bump seq。
@@ -76,13 +79,18 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
       loadingMore.value = false
       isSearchMode.value = true
     } catch (e) {
-      if (mine !== searchSeq) return // 同上:失败响应也可能已经过期,不要覆盖更新的状态
+      // 偏离登记(M5,评审必修):console.error 必须放在 seq 比对之前——即使这次
+      // 失败已经过期(被更新的搜索/clear() 超越),它仍是一次真实发生的后端错误,
+      // store 纪律要求"每个 catch 都 console.error",丢日志 = 丢诊断信号(偶发
+      // 后端问题排查最需要的正是这条痕迹)。"避免噪声"不足以抵消这个代价。
       console.error('[photos-search] smartSearch', e)
-      // 偏离登记(§7e-12,新增第 12 条 Vue2 缺陷):Vue2 :664-666 失败时只 log,
-      // query/isSearchMode/results 全部不更新——下一次 matchesQuery(新词) 恒假
-      // (searchQuery 还是上一次成功的旧词),视图会永久停在"搜索中"的在途态,
-      // 因为它无法区分"还没收到响应"和"收到了但失败了"。这里把状态推进到
-      // "这个词搜过了、零结果",让视图正确落到空态而不是永久 loading。
+      if (mine !== searchSeq) return // 过期:日志已打,但状态推进要挡住,不能覆盖更新的搜索结果
+      // 偏离登记(§7e-12,新增第 12 条 Vue2 缺陷):Vue2 catch 分支(:669-671,
+      // console.error 在 :670)失败时只 log,query/isSearchMode/results 全部不
+      // 更新——下一次 matchesQuery(新词) 恒假(searchQuery 还是上一次成功的旧词),
+      // 视图会永久停在"搜索中"的在途态,因为它无法区分"还没收到响应"和"收到了
+      // 但失败了"。这里把状态推进到"这个词搜过了、零结果",让视图正确落到空态
+      // 而不是永久 loading。
       results.value = []
       query.value = trimmed
       filtersPayload.value = filters
@@ -94,7 +102,7 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
     }
   }
 
-  // 照 Vue2 loadMoreSearchResults action(:677-692)+ APPEND_SEARCH_RESULTS mutation(:381-390)。
+  // 照 Vue2 loadMoreSearchResults action(:677-692)+ APPEND_SEARCH_RESULTS mutation(:384-391)。
   async function loadMore(): Promise<void> {
     if (loadingMore.value || exhausted.value || !query.value) return
     const capturedQuery = query.value
@@ -127,7 +135,20 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
     } catch (e) {
       console.error('[photos-search] loadMore', e)
     } finally {
-      loadingMore.value = false
+      // 偏离登记(M8,评审必修 —— 修 Vue2 :691 继承的时序缺陷):Vue2 finally 无
+      // 条件复位 searchLoadingMore。Vue2 靠按钮点击触发,窗口很窄;T15 要做的是
+      // 无限滚动 = 自动触发,同一时刻先后两次 loadMore 撞在一起的概率显著更高。
+      // 时序:loadMore#1 在途 → 用户重搜成功(把 offset/loadingMore 都复位)→
+      // loadMore#2 起飞(在途)→ loadMore#1 的过期响应才到达、被上面的 query/seq
+      // 守卫拦下——但如果这里无条件复位,会把"loadMore#2 仍在途"这个事实抹掉,
+      // 放行一次重入请求,而它算出的 nextOffset 与#2 完全相同(offset 还没被#2
+      // 更新)⇒ 撞出重复页 ⇒ 去重后 fresh.length===0 ⇒ exhausted 被提前置真,
+      // "还有更多"从界面消失。改成只在 `mine === searchSeq` 时才复位——手法照
+      // places.ts:241 / usePersonDetail.ts:82 的同款 seq 守卫 finally。
+      // 安全性:seq 只由 smartSearch 与 clear() 递增,而这两者的每条路径(成功
+      // /catch/clear)都会把 loadingMore 显式置假,所以加这个条件不会让
+      // loadingMore 永久卡在 true。
+      if (mine === searchSeq) loadingMore.value = false
     }
   }
 
