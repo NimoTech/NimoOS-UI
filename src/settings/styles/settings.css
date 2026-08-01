@@ -371,6 +371,9 @@
   color: var(--fg); cursor: pointer;
 }
 .set-app-act:hover { background: var(--set-rail-border); }
+/* Task 9:.set-app-prune(Docker 缓存清理行)/ .set-app-pending-btn(待上传缓存清除按钮)
+ * 是行为标记类(测试锚点),视觉全部借用既有 .set-list-item / .set-btn(含 :disabled 态),
+ * 同 .set-store-entry 的既有先例,这里不重复声明外观。 */
 
 /* ── P3 迁移弹窗 ───────────────────────────────────────────────────────── */
 .set-mig-status { display: flex; gap: 12px; margin-bottom: 20px; }

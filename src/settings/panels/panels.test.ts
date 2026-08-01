@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
 import { SETTINGS_TABS } from '../util/tabs'
@@ -31,7 +32,10 @@ describe('9 个 tab 骨架', () => {
   // service.sys.getLogs(),排除理由与 network/system-status 一致。
   // Task 7 起 storage 也填了真实内容(容量概览 + 跳转入口卡,见 StoragePanel.test.ts)——
   // 同理会打 service.storage.list() 且用到 useRouter(),排除理由与上面一致。
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status' && t !== 'storage'))('%s 骨架渲染标题与空态位', (tab) => {
+  // Task 9 起 apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存做样子,见
+  // AppsPanel.test.ts)——同理会打 service.sys.getSystemPaths()/service.storage.list() 且用到
+  // useToast()(pinia),排除理由与上面一致。
+  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status' && t !== 'storage' && t !== 'apps'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
@@ -52,6 +56,20 @@ describe('9 个 tab 骨架', () => {
     expect(w.find('.set-store-entry').exists()).toBe(true)
   })
 
+  // apps 的真实交互(displayNames 换算虚拟路径、迁移弹窗联动、Docker 清理二次确认、prune
+  // 成功/失败提示)已迁到 AppsPanel.test.ts(带 service mock)。这里只钉一个零 mock 也能验
+  // 的静态标记:三行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。
+  // AppsPanel 用了 useToast()(pinia store),零 mock 下也需要一个 active Pinia,否则
+  // setup() 阶段就会因 "no active Pinia" 抛出 —— 只在这一个 it() 里装,不影响其它用例。
+  it('apps 已填真实内容(数据位置三行 + Docker 清理 + 待上传缓存做样子),不再是纯骨架', () => {
+    setActivePinia(createPinia())
+    const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.findAll('.set-app-row')).toHaveLength(3)
+    expect(w.find('.set-app-prune').exists()).toBe(true)
+    expect(w.find('.set-app-pending-btn').attributes('disabled')).toBeDefined()
+  })
+
   // developer 的「返回按钮代替标题 / 点击冒泡 open-tab general」用例已迁到
   // DeveloperPanel.test.ts —— 该组件从 Task 11 起会打真实接口(getSSLConfig 等),
   // panels.test.ts 保持零 mock 的纯骨架测试(同 general 的既有先例,见上)。
@@ -61,10 +79,12 @@ describe('9 个 tab 骨架', () => {
   // panels.test.ts 保持零 mock 的纯骨架测试(见任务简报 Step 4)。
 
   // 原来用 network 做这条抽查,P2 起它不再是骨架 → 换成仍是骨架的 storage;
-  // Task 7 起 storage 也不再是骨架了(见上一条新用例)→ 再换成仍是骨架的 apps(理由同上)。
+  // Task 7 起 storage 也不再是骨架了 → 换成仍是骨架的 apps;
+  // Task 9 起 apps 也不再是骨架了(见上一条新用例)→ 再换成仍是骨架的 folder-permissions
+  // (理由同上;account 同样还是骨架,folder-permissions/account 任选其一即可)。
   it('骨架的文案 key 都有译文(没有渲染出裸 key)', () => {
-    const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
-    expect(w.find('.set-section-title').text()).toBe('应用')
+    const w = mount(PANEL_BY_TAB['folder-permissions'], { global: { plugins: [i18n] } })
+    expect(w.find('.set-section-title').text()).toBe('文件夹权限')
     expect(w.find('.set-skeleton').text()).not.toMatch(/^settings/)
   })
 })
