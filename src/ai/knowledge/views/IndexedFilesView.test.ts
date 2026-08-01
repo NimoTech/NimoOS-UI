@@ -38,6 +38,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { i18n } from '../../../i18n'
 import IndexedFilesView from './IndexedFilesView.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
+// T9:KIcon 用于断言状态徽标的图标 name prop(RED 探针①的钉子);fmtBytes/
+// fmtAbs 别名导入,只用于「组件是否把正确字段接线给这些函数」的对照断言
+// (这两个函数自身的边界值已在 util/indexedFilesView.test.ts(T7)覆盖,这里不
+// 重复)。
+import KIcon from '../components/KIcon.vue'
+import { fmtBytes as fmtBytesRef, fmtAbs as fmtAbsRef } from '../util/indexedFilesView'
 // 守卫缺口③(附录 B §B.0.4)的定向断言要读 .vue 源文件本身 —— 一律 node:fs,
 // 不用 Vite 的 ?raw(vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串,断言
 // 会对空字符串"假通过";先例见 knowledgeStyles.test.ts 头注释③,QueueView.test.ts
@@ -663,7 +669,13 @@ describe('IndexedFilesView — 骨架屏(蓝本 :106-132)', () => {
 
     resolveFiles!({ total: FILES_ALL_8.length, files: FILES_ALL_8 })
     await flush()
-    expect(w.find('.k-ftable').exists()).toBe(false)
+    // T9 订正:ready 态现在也渲染 `.k-ftable`(真实文件行),所以「加载完成后
+    // .k-ftable 消失」这条断言在 T8 落地时是对的(那时 ready 态还没有表格),
+    // 但 T9 补上 ready 态表格后就不成立了——改成断言骨架占位行(仅 loading
+    // 态独有)确实消失,这才是这条用例原本要守住的东西(骨架 → 真数据的切
+    // 换,而不是"表格容器整体消失")。
+    expect(w.findAll('.k-frow-skel')).toHaveLength(0)
+    expect(w.find('.k-ftable').exists()).toBe(true)
     expect(w.find('.k-files-count').text()).toBe('共 8 个文件')
   })
 
@@ -844,3 +856,605 @@ describe('IndexedFilesView — 守卫缺口③:<template> 块零裸色字面量'
     expect(scrubbed).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════
+// SP8-P5b Task 9 —— 第 2 刀:表头行 + 文件行 · 行内详情面板 · 分页
+// (蓝本 :146-317)。以下全部是本刀新增。
+//
+// 新增 mock 数据来源说明(治理 §4,禁手编,逐个说明):
+//   FILE_OK / FILE_INDEXING —— 直接复用上面 FILES_ALL_8[1] / FILES_ALL_8[0]
+//     (真实 fixture 行,不是新造)。
+//   FILE_ERROR / FILE_TOMBSTONED / FILE_ZEROHINT —— 人工构造。治理文件 §4.5
+//     已实测登记:真机 8 个文件只有 ok(3)/indexing(5) 两种 status,没有
+//     error/tombstoned 行;vector_count===0 的唯一一行 status 是 indexing
+//     不是 ok,所以 `status==='ok' && vector_count===0`(zerohint 的判据)
+//     真机造不出、必须构造。字段形状与 files-all-8.json 的 file 行 schema
+//     (file_id/paths/sha256_full/size/mime/modalities_done/parser_version/
+//     indexed_at/tombstoned_at/vector_count/last_error/status)完全一致,
+//     只是把值换成能触发 error/tombstoned/zerohint 分支的组合。
+//   FILE_UNKNOWN_STATUS —— 人工构造,status 故意给一个 statusBadgeMap 里没
+//     有的字符串,用于覆盖蓝本 :190/:194 的兜底分支(治理 §3.5 N14 明确要求)。
+// ──────────────────────────────────────────────────────────────────────
+const FILE_OK = FILES_ALL_8[1] // 真实 fixture 行,status='ok', vector_count=856
+const FILE_INDEXING = FILES_ALL_8[0] // 真实 fixture 行,status='indexing', vector_count=0(zerohint 反例的钉子)
+
+const FILE_ERROR = {
+  file_id: 'constructed-error-1',
+  paths: [{ root_id: 'r', path: '/DATA/broken/report.pdf', mtime_ms: 1 }],
+  sha256_full: 'e'.repeat(64),
+  size: 4096,
+  mime: 'application/pdf',
+  modalities_done: {},
+  parser_version: 'parser/0.2.0',
+  indexed_at: 1784434891932,
+  tombstoned_at: null,
+  vector_count: 0,
+  last_error: 'docling parse failed: corrupt xref table',
+  status: 'error',
+}
+
+const FILE_TOMBSTONED = {
+  file_id: 'constructed-tomb-1',
+  paths: [{ root_id: 'r', path: '/DATA/deleted/old-notes.txt', mtime_ms: 1 }],
+  sha256_full: 't'.repeat(64),
+  size: 2048,
+  mime: 'text/plain',
+  modalities_done: { text: 'bge-m3/v1' },
+  parser_version: 'parser/0.2.0',
+  indexed_at: 1784434891932,
+  tombstoned_at: 1784500000000,
+  vector_count: 12,
+  last_error: null,
+  status: 'tombstoned',
+}
+
+// 🔴 zerohint 需要 status==='ok' && vector_count===0 两个条件同时成立——治理
+// §4.5 实测:真机唯一一行 vector_count===0 的 status 是 indexing 不是 ok,
+// 本机造不出这种行,必须构造(与 FILE_INDEXING 对照,证明单靠 vector_count
+// ===0 不够)。
+const FILE_ZEROHINT = {
+  file_id: 'constructed-zerohint-1',
+  paths: [{ root_id: 'r', path: '/DATA/empty/blank.bin', mtime_ms: 1 }],
+  sha256_full: 'z'.repeat(64),
+  size: 0,
+  mime: 'application/octet-stream',
+  modalities_done: {},
+  parser_version: 'parser/0.2.0',
+  indexed_at: 1784434891932,
+  tombstoned_at: null,
+  vector_count: 0,
+  last_error: null,
+  status: 'ok',
+}
+
+// statusBadgeMap 查不到时的兜底分支(蓝本 :190/:194),人工构造。
+const FILE_UNKNOWN_STATUS = {
+  file_id: 'constructed-unknown-status-1',
+  paths: [{ root_id: 'r', path: '/DATA/weird/file.bin', mtime_ms: 1 }],
+  sha256_full: 'u'.repeat(64),
+  size: 100,
+  mime: 'application/octet-stream',
+  modalities_done: {},
+  parser_version: 'parser/0.2.0',
+  indexed_at: 1784434891932,
+  tombstoned_at: null,
+  vector_count: 5,
+  last_error: null,
+  status: 'quarantined', // 不在 statusBadgeMap 里
+}
+
+async function mountWithFiles(fileArr: unknown[], total = fileArr.length) {
+  ai.parserFiles.mockResolvedValueOnce({ total, limit: 100, offset: 0, files: fileArr })
+  return mountFiles()
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// 表头行(蓝本 :148-165)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 表头行(蓝本 :148-165)', () => {
+  it('7 个列标题文字(集合式断言,含 ⚠️N aiKbColAction「类型」撞车)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const spans = w.find('.k-frow-fhead').findAll('span')
+    expect(spans.map((s) => s.text())).toEqual([
+      '状态',
+      '路径',
+      '类型',
+      '大小',
+      '已收录',
+      '向量数',
+      '类型', // aiKbColAction 的 ⚠️N 错译,照抄
+      '',
+    ])
+  })
+
+  it('全选复选框 title = aiKbSelectAllTip', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-fhead .k-row-check').attributes('title')).toBe('全选当前页可选行')
+  })
+
+  it('可选行为 0(全部 tombstoned)时全选复选框禁用', async () => {
+    const w = await mountWithFiles([FILE_TOMBSTONED])
+    expect(w.find('.k-frow-fhead .k-row-check').attributes('disabled')).toBeDefined()
+  })
+
+  it('存在可选行时全选复选框不禁用', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-fhead .k-row-check').attributes('disabled')).toBeUndefined()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// N14 —— statusBadgeMap 四态 + 兜底分支,🔴 title 英文原串 + 反向断言
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — N14: statusBadgeMap 四态(data-s/icon/中文文案/title 英文原串)', () => {
+  it('ok:data-s="ok"、图标 check(RED 探针①的钉子)、文案「已收录」、title="Indexed"(英文原串,RED 探针④的钉子)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const badge = w.find('.k-status-badge')
+    expect(badge.attributes('data-s')).toBe('ok')
+    expect(badge.findComponent(KIcon).props('name')).toBe('check')
+    expect(badge.find('.k-status-badge-cn').text()).toBe('已收录')
+    expect(badge.attributes('title')).toBe('Indexed')
+    // 反向断言:title 不是中文,也不是键名
+    expect(badge.attributes('title')).not.toBe('已收录')
+    expect(badge.attributes('title')).not.toBe('aiKbStatusIndexed')
+  })
+
+  it('indexing:data-s="indexing"、图标 spinner、文案「Indexing」(K20 无译文回落英文)、title="Indexing"', async () => {
+    const w = await mountWithFiles([FILE_INDEXING])
+    const badge = w.find('.k-status-badge')
+    expect(badge.attributes('data-s')).toBe('indexing')
+    expect(badge.findComponent(KIcon).props('name')).toBe('spinner')
+    expect(badge.find('.k-status-badge-cn').text()).toBe('Indexing')
+    expect(badge.attributes('title')).toBe('Indexing')
+    // K20 特例:title 与徽标文字巧合都是英文 "Indexing"(Vue2 语言包本来就没
+    // 有这个键的译文)——这不是 bug,反向断言改成对键名的排除。
+    expect(badge.attributes('title')).not.toBe('aiKbStatusIndexing')
+  })
+
+  it('error:data-s="error"、图标 x、文案「错误」、title="Error"(英文原串)', async () => {
+    const w = await mountWithFiles([FILE_ERROR])
+    const badge = w.find('.k-status-badge')
+    expect(badge.attributes('data-s')).toBe('error')
+    expect(badge.findComponent(KIcon).props('name')).toBe('x')
+    expect(badge.find('.k-status-badge-cn').text()).toBe('错误')
+    expect(badge.attributes('title')).toBe('Error')
+    expect(badge.attributes('title')).not.toBe('错误')
+    expect(badge.attributes('title')).not.toBe('aiKbStatusError')
+  })
+
+  it('tombstoned:data-s="tombstoned"、图标 tomb(只经 map 动态取到,不是字面量)、文案「已删除」、title="Removed"(英文原串)', async () => {
+    const w = await mountWithFiles([FILE_TOMBSTONED])
+    const badge = w.find('.k-status-badge')
+    expect(badge.attributes('data-s')).toBe('tombstoned')
+    expect(badge.findComponent(KIcon).props('name')).toBe('tomb')
+    expect(badge.find('.k-status-badge-cn').text()).toBe('已删除')
+    expect(badge.attributes('title')).toBe('Removed')
+    expect(badge.attributes('title')).not.toBe('已删除')
+    expect(badge.attributes('title')).not.toBe('aiKbStatusRemoved')
+  })
+
+  it('N13:`.k-status-badge-cn` 类名照抄蓝本 :197(蓝本自身未定义类,不进白名单,渲染无样式 span)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-status-badge-cn').exists()).toBe(true)
+    expect(w.find('.k-status-badge-cn').text()).toBe('已收录')
+  })
+
+  it('兜底分支:statusBadgeMap 里查不到的 status → data-s 回落 "ok"、title/文字都回落 file.status 原串、图标回落 check', async () => {
+    const w = await mountWithFiles([FILE_UNKNOWN_STATUS])
+    const badge = w.find('.k-status-badge')
+    expect(badge.attributes('data-s')).toBe('ok')
+    expect(badge.attributes('title')).toBe('quarantined')
+    expect(badge.find('.k-status-badge-cn').text()).toBe('quarantined')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 路径单元格 —— errhint(error 行)/ zerohint(ok && vector_count===0)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 路径单元格:errhint / zerohint', () => {
+  it('路径文字 = filePath(file)(取 paths[0].path)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-pathtxt').text()).toBe(FILE_OK.paths[0].path)
+    expect(w.find('.k-frow-pathtxt').attributes('title')).toBe(FILE_OK.paths[0].path)
+  })
+
+  it('errhint:status===error 且有 last_error 时渲染,title/文字都是 last_error 原文', async () => {
+    const w = await mountWithFiles([FILE_ERROR])
+    const hint = w.find('.k-frow-errhint')
+    expect(hint.exists()).toBe(true)
+    expect(hint.attributes('title')).toBe(FILE_ERROR.last_error)
+    expect(hint.text()).toContain(FILE_ERROR.last_error)
+  })
+
+  it('errhint 反面:status=ok 时不渲染(两侧对照)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-errhint').exists()).toBe(false)
+  })
+
+  it('zerohint:status==="ok" && vector_count===0 时渲染,title=aiKbZeroVecTip、文字=aiKbZeroVec', async () => {
+    const w = await mountWithFiles([FILE_ZEROHINT])
+    const hint = w.find('.k-frow-zerohint')
+    expect(hint.exists()).toBe(true)
+    expect(hint.attributes('title')).toBe('已索引但没有可搜索内容（不是错误）')
+    expect(hint.text()).toBe('无可搜索内容')
+  })
+
+  it('zerohint 反面:vector_count===0 但 status=indexing(FILE_INDEXING 真实数据)→ 不渲染(证明两个条件都要成立,RED 探针⑤的钉子)', async () => {
+    const w = await mountWithFiles([FILE_INDEXING])
+    expect(FILE_INDEXING.vector_count).toBe(0) // 前提确认:这行 vector_count 确实是 0
+    expect(FILE_INDEXING.status).toBe('indexing') // 前提确认:但 status 不是 ok
+    expect(w.find('.k-frow-zerohint').exists()).toBe(false)
+  })
+
+  it('zerohint 反面:status=ok 但 vector_count 非零(FILE_OK)→ 不渲染', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-zerohint').exists()).toBe(false)
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 类型标签 —— simplifyMime 的 5 个 data-kind + Legacy 角标
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 类型标签(simplifyMime 5 个 data-kind + Legacy 角标)', () => {
+  const mk = (mime: string) => ({ ...FILE_OK, file_id: 'mk-' + mime, mime })
+
+  it('data-kind="doc"(docx,非 legacy):wordprocessing mime', async () => {
+    const w = await mountWithFiles([
+      mk('application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ])
+    const tag = w.find('.k-type-tag')
+    expect(tag.attributes('data-kind')).toBe('doc')
+    expect(tag.text()).toContain('DOCX')
+    expect(tag.find('.k-type-legacy').exists()).toBe(false)
+  })
+
+  it('data-kind="doc"(旧 .doc,legacy=true):application/legacy-office mime', async () => {
+    const w = await mountWithFiles([mk('application/legacy-office/msword')])
+    const tag = w.find('.k-type-tag')
+    expect(tag.attributes('data-kind')).toBe('doc')
+    expect(tag.text()).toContain('DOC')
+    expect(tag.find('.k-type-legacy').exists()).toBe(true)
+    expect(tag.find('.k-type-legacy').text()).toBe('旧版')
+  })
+
+  it('data-kind="pdf"', async () => {
+    const w = await mountWithFiles([mk('application/pdf')])
+    const tag = w.find('.k-type-tag')
+    expect(tag.attributes('data-kind')).toBe('pdf')
+    expect(tag.text()).toContain('PDF')
+  })
+
+  it('data-kind="txt"(text/plain)', async () => {
+    const w = await mountWithFiles([mk('text/plain')])
+    const tag = w.find('.k-type-tag')
+    expect(tag.attributes('data-kind')).toBe('txt')
+    expect(tag.text()).toContain('TXT')
+  })
+
+  it('data-kind="code"(旧 .ppt,legacy=true):ms-powerpoint mime', async () => {
+    const w = await mountWithFiles([mk('application/vnd.ms-powerpoint')])
+    const tag = w.find('.k-type-tag')
+    expect(tag.attributes('data-kind')).toBe('code')
+    expect(tag.text()).toContain('PPT')
+    expect(tag.find('.k-type-legacy').exists()).toBe(true)
+  })
+
+  it('data-kind="md"(text/markdown)', async () => {
+    const w = await mountWithFiles([mk('text/markdown')])
+    const tag = w.find('.k-type-tag')
+    expect(tag.attributes('data-kind')).toBe('md')
+    expect(tag.text()).toContain('MD')
+  })
+
+  it('type tag 的 title = file.mime 原文', async () => {
+    const w = await mountWithFiles([mk('text/markdown')])
+    expect(w.find('.k-type-tag').attributes('title')).toBe('text/markdown')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 大小 / 时间(fmtBytes/fmtRel/fmtAbs 的边界已在 util/indexedFilesView.test.ts
+// (T7)覆盖,这里只验证组件把正确的字段接线到这些函数)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 大小/时间单元格(接线验证,边界见 T7 util 测试)', () => {
+  it('大小单元格:文字=fmtBytes(size),title=千分位字节数+" bytes"', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    // 限定在文件行内查找(表头「向量数」列标题 span 也带 .k-frow-num,不能整
+    // 页 findAll,否则下标会被表头那个 span 顶掉)。
+    const row = w.find('.k-frow-f:not(.k-frow-fhead)')
+    const cell = row.findAll('.k-frow-num')[0] // 行内第一个 .k-frow-num 是大小列(向量数列另有 k-frow-vec 复合类)
+    expect(cell.text()).toBe(fmtBytesRef(FILE_OK.size))
+    expect(cell.attributes('title')).toBe(FILE_OK.size.toLocaleString() + ' bytes')
+  })
+
+  it('时间单元格:title=fmtAbs(indexed_at)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-time').attributes('title')).toBe(fmtAbsRef(FILE_OK.indexed_at))
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 向量数 —— data-zero
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 向量数(data-zero,RED 探针③的钉子)', () => {
+  it('vector_count=0 → data-zero="true"', async () => {
+    const w = await mountWithFiles([FILE_ZEROHINT])
+    expect(w.find('.k-frow-vec').attributes('data-zero')).toBe('true')
+    expect(w.find('.k-frow-vec').text().trim()).toBe('0')
+  })
+
+  it('vector_count!=0 → data-zero="false"(两侧对照)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-vec').attributes('data-zero')).toBe('false')
+    expect(w.find('.k-frow-vec').text().trim()).toBe(FILE_OK.vector_count.toLocaleString())
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 重建按钮 —— 禁用条件 + 三种 title(文档化占位,见文件头注释)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 重建按钮(禁用条件 + 三种 title)', () => {
+  it('status=ok → 不禁用,title/文字=「强制重建本行」/「恢复」,图标 refresh', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const btn = w.find('.k-rebuild-btn')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(btn.attributes('title')).toBe('强制重建本行')
+    expect(btn.text()).toContain('恢复')
+  })
+
+  it('status=error → 不禁用,title/文字与 ok 相同(默认分支,不是 indexing/tombstoned 两条特例)', async () => {
+    const w = await mountWithFiles([FILE_ERROR])
+    const btn = w.find('.k-rebuild-btn')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(btn.attributes('title')).toBe('强制重建本行')
+    expect(btn.text()).toContain('恢复')
+  })
+
+  it('status=indexing → 禁用,title/文字=「重建中…」,图标 spinner(特例 1/3)', async () => {
+    const w = await mountWithFiles([FILE_INDEXING])
+    const btn = w.find('.k-rebuild-btn')
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toBe('重建中…')
+    expect(btn.text()).toContain('重建中…')
+  })
+
+  it('status=tombstoned → 禁用,title=「已删除，需 rescan 复活」,文字仍是「恢复」(特例 2/3,只有 title 特殊,按钮文字走 else 分支)', async () => {
+    const w = await mountWithFiles([FILE_TOMBSTONED])
+    const btn = w.find('.k-rebuild-btn')
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toBe('已删除，需 rescan 复活')
+    expect(btn.text()).toContain('恢复')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 展开按钮 + 行内详情面板
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 展开按钮(data-open,K13 expSet)+ 行内详情面板', () => {
+  it('默认收起:data-open="false",详情面板不渲染', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-expand').attributes('data-open')).toBe('false')
+    expect(w.find('.k-file-detail').exists()).toBe(false)
+  })
+
+  it('点击展开:data-open="true",详情面板渲染;再点一次收起(两侧对照)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    await w.find('.k-frow-expand').trigger('click')
+    await flush()
+    expect(w.find('.k-frow-expand').attributes('data-open')).toBe('true')
+    expect(w.find('.k-file-detail').exists()).toBe(true)
+    await w.find('.k-frow-expand').trigger('click')
+    await flush()
+    expect(w.find('.k-frow-expand').attributes('data-open')).toBe('false')
+    expect(w.find('.k-file-detail').exists()).toBe(false)
+  })
+
+  it('展开按钮 title = aiKbMore(「浏览更多」)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    expect(w.find('.k-frow-expand').attributes('title')).toBe('浏览更多')
+  })
+
+  it('详情面板 5 个字段格:parser_version/modalities_done/sha256_full/mime,tombstoned_at 条件出现(此行非 tombstoned,不出现)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    await w.find('.k-frow-expand').trigger('click')
+    await flush()
+    const keys = w.findAll('.k-fd-k').map((k) => k.text())
+    expect(keys).toEqual(['parser_version', 'modalities_done', 'sha256_full', 'mime'])
+    expect(w.find('.k-fd-sha').text()).toBe(FILE_OK.sha256_full)
+    expect(w.find('.k-fd-sha').attributes('title')).toBe(FILE_OK.sha256_full)
+  })
+
+  it('tombstoned_at 条件出现:tombstoned 行多一个字段格,mono 文字 = fmtAbs(tombstoned_at)', async () => {
+    const w = await mountWithFiles([FILE_TOMBSTONED])
+    await w.find('.k-frow-expand').trigger('click')
+    await flush()
+    const keys = w.findAll('.k-fd-k').map((k) => k.text())
+    expect(keys).toEqual(['parser_version', 'modalities_done', 'sha256_full', 'tombstoned_at', 'mime'])
+    expect(w.find('.k-fd-v.mono[title]').exists()).toBe(true)
+  })
+
+  it('modalities_done 非空时渲染 chip 列表,空时渲染 "—"(两侧对照)', async () => {
+    const w1 = await mountWithFiles([FILE_OK]) // modalities_done: { text: 'bge-m3/v1' }
+    await w1.find('.k-frow-expand').trigger('click')
+    await flush()
+    expect(w1.findAll('.k-fd-mod').map((m) => m.text())).toEqual(['text'])
+
+    const w2 = await mountWithFiles([FILE_ERROR]) // modalities_done: {}
+    await w2.find('.k-frow-expand').trigger('click')
+    await flush()
+    expect(w2.find('.k-fd-mods').exists()).toBe(false)
+  })
+
+  it('last_error 条:有值时渲染 .k-fd-error,无值时不渲染(两侧对照)', async () => {
+    const w1 = await mountWithFiles([FILE_ERROR])
+    await w1.find('.k-frow-expand').trigger('click')
+    await flush()
+    expect(w1.find('.k-fd-error').exists()).toBe(true)
+    expect(w1.find('.k-fd-error').text()).toContain(FILE_ERROR.last_error)
+
+    const w2 = await mountWithFiles([FILE_OK])
+    await w2.find('.k-frow-expand').trigger('click')
+    await flush()
+    expect(w2.find('.k-fd-error').exists()).toBe(false)
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 分页 —— currentPage/pageCount/pageFrom/pageTo 四个计算的边界
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 分页边界(total=0 / 恰好整除 / 末页)', () => {
+  it('total=0:pageState=empty,pager 不渲染;直接读组件内部 computed 确认边界值(state 存在但入口未渲染,同 T8 established 技巧)', async () => {
+    const w = await mountWithFiles([], 0)
+    expect(w.find('.k-pager').exists()).toBe(false)
+    const vm = w.vm as unknown as { pageFrom: number; pageTo: number; pageCount: number }
+    expect(vm.pageFrom).toBe(0)
+    expect(vm.pageTo).toBe(0)
+    expect(vm.pageCount).toBe(1) // Math.max(1, …) 兜底
+  })
+
+  it('total 恰好整除 limit:第 2(末)页,pageFrom/pageTo 精确、下一页禁用、上一页启用(RED 探针②的钉子)', async () => {
+    const w = await mountWithFiles([FILE_OK], 16)
+    const store = useKnowledgeStore()
+    store.indexedFiles.filters.limit = 8
+    store.indexedFiles.filters.offset = 8 // 第 2 页,16/8 恰好整除,这是末页
+    await flush()
+    expect(w.find('.k-pager-page').text()).toBe('2 / 2')
+    expect(w.find('.k-pager-info').text()).toBe('显示 9–16 / 16')
+    expect(w.find('.k-pager button.k-btn').attributes('disabled')).toBeUndefined() // 上一页
+    const nextBtn = w.findAll('.k-pager button.k-btn')[1]
+    expect(nextBtn.attributes('disabled')).toBeDefined() // 下一页禁用(末页)
+  })
+
+  it('末页(不整除):total=17, limit=8, offset=16 → 第 3 页只有 1 条,pageTo 钳到 17 不越界', async () => {
+    const w = await mountWithFiles([FILE_OK], 17)
+    const store = useKnowledgeStore()
+    store.indexedFiles.filters.limit = 8
+    store.indexedFiles.filters.offset = 16
+    await flush()
+    expect(w.find('.k-pager-page').text()).toBe('3 / 3')
+    expect(w.find('.k-pager-info').text()).toBe('显示 17–17 / 17')
+    const nextBtn = w.findAll('.k-pager button.k-btn')[1]
+    expect(nextBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('首页:上一页禁用,下一页启用(两侧对照)', async () => {
+    const w = await mountWithFiles([FILE_OK], 16)
+    const store = useKnowledgeStore()
+    store.indexedFiles.filters.limit = 8
+    store.indexedFiles.filters.offset = 0
+    await flush()
+    const prevBtn = w.findAll('.k-pager button.k-btn')[0]
+    const nextBtn = w.findAll('.k-pager button.k-btn')[1]
+    expect(prevBtn.attributes('disabled')).toBeDefined()
+    expect(nextBtn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('点击「上一步」/「下一步」推进 offset 并重载', async () => {
+    const w = await mountWithFiles([FILE_OK], 24)
+    const store = useKnowledgeStore()
+    store.indexedFiles.filters.limit = 8
+    store.indexedFiles.filters.offset = 8
+    await flush()
+    ai.parserFiles.mockClear()
+    await w.findAll('.k-pager button.k-btn')[1].trigger('click') // 下一步
+    await flush()
+    expect(store.indexedFiles.filters.offset).toBe(16)
+    expect(ai.parserFiles).toHaveBeenCalledTimes(1)
+
+    ai.parserFiles.mockClear()
+    await w.findAll('.k-pager button.k-btn')[0].trigger('click') // 上一步
+    await flush()
+    expect(store.indexedFiles.filters.offset).toBe(8)
+    expect(ai.parserFiles).toHaveBeenCalledTimes(1)
+  })
+
+  it('每页条数下拉:4 档 [50,100,200,500],切换后清选择 + 归零 offset + 重载(不清 errorBanner,与 _applyFilter 不同)', async () => {
+    const w = await mountWithFiles([FILE_OK], 300)
+    const store = useKnowledgeStore()
+    const opts = w.find('.k-pager-size select').findAll('option')
+    expect(opts.map((o) => o.text())).toEqual(['50', '100', '200', '500'])
+    store.indexedFiles.filters.offset = 100
+    ;(w.vm as unknown as { errorBanner: string | null }).errorBanner = 'stale banner text'
+    await flush()
+    ai.parserFiles.mockClear()
+    await w.find('.k-pager-size select').setValue('200')
+    await flush()
+    expect(store.indexedFiles.filters.limit).toBe(200)
+    expect(store.indexedFiles.filters.offset).toBe(0)
+    expect(ai.parserFiles).toHaveBeenCalledTimes(1)
+    // 与 _applyFilter 不同:onPageSizeChange 不清 errorBanner(蓝本本来就没这行,照抄不补齐)
+    expect((w.vm as unknown as { errorBanner: string | null }).errorBanner).toBe('stale banner text')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 多选复选框(read+write,本刀范围;selectedCount/动作条/确认弹窗是 T10)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 多选复选框(toggleRow/toggleAll,attribute 两侧对照)', () => {
+  it('.k-frow-f data-selected 两侧都覆盖:勾选行 checkbox → true,再取消 → false', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const row = () => w.find('.k-frow-f:not(.k-frow-fhead)')
+    expect(row().attributes('data-selected')).toBe('false')
+    await row().find('.k-row-check').setValue(true)
+    await flush()
+    expect(row().attributes('data-selected')).toBe('true')
+    await row().find('.k-row-check').setValue(false)
+    await flush()
+    expect(row().attributes('data-selected')).toBe('false')
+  })
+
+  it('tombstoned 行的复选框禁用,title=aiKbTombstonedNoSelect', async () => {
+    const w = await mountWithFiles([FILE_TOMBSTONED])
+    const cb = w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check')
+    expect(cb.attributes('disabled')).toBeDefined()
+    expect(cb.attributes('title')).toBe('已删除文件不可选')
+  })
+
+  it('非 tombstoned 行复选框不禁用,title 为空字符串', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const cb = w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check')
+    expect(cb.attributes('disabled')).toBeUndefined()
+    expect(cb.attributes('title')).toBe('')
+  })
+
+  it('全选:点击表头复选框选中所有可选行(排除 tombstoned),再点一次取消全选', async () => {
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR, FILE_TOMBSTONED])
+    await w.find('.k-frow-fhead .k-row-check').setValue(true)
+    await flush()
+    const rows = w.findAll('.k-frow-f:not(.k-frow-fhead)')
+    expect(rows[0].attributes('data-selected')).toBe('true') // FILE_OK
+    expect(rows[1].attributes('data-selected')).toBe('true') // FILE_ERROR
+    expect(rows[2].attributes('data-selected')).toBe('false') // FILE_TOMBSTONED,不可选,全选不影响它
+    await w.find('.k-frow-fhead .k-row-check').setValue(false)
+    await flush()
+    expect(rows[0].attributes('data-selected')).toBe('false')
+    expect(rows[1].attributes('data-selected')).toBe('false')
+  })
+
+  it('.k-frow-f data-done:baseline 恒为 false(doneSet 本刀只读不写);直接改内部 ref 验证「true」侧渲染正确(状态存在但写入口留给 T10,同 T8 established 技巧)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const row = () => w.find('.k-frow-f:not(.k-frow-fhead)')
+    expect(row().attributes('data-done')).toBe('false')
+    ;(w.vm as unknown as { doneSet: Set<string> }).doneSet = new Set([FILE_OK.file_id])
+    await flush()
+    expect(row().attributes('data-done')).toBe('true')
+  })
+
+  it('.k-frow-f data-status 直接透传 file.status(ok/indexing/error/tombstoned 四值)', async () => {
+    for (const [file, status] of [
+      [FILE_OK, 'ok'],
+      [FILE_INDEXING, 'indexing'],
+      [FILE_ERROR, 'error'],
+      [FILE_TOMBSTONED, 'tombstoned'],
+    ] as const) {
+      const w = await mountWithFiles([file])
+      expect(w.find('.k-frow-f:not(.k-frow-fhead)').attributes('data-status')).toBe(status)
+      w.unmount()
+    }
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// RED 探针②的钉子(pageTo 的 Math.min)与探针③(data-zero)已挂在上面对应
+// describe 里(见注释标注),此处不重复。
+// ──────────────────────────────────────────────────────────────────────
