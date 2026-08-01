@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import { service, type UserInfo } from '@nimotech/nimoos-service'
 import SettingsSection from '../components/SettingsSection.vue'
 import OwnerCard from './account/OwnerCard.vue'
+import ChangePasswordForm from './account/ChangePasswordForm.vue'
 import { readAccessToken } from '../util/avatar'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../stores/toast'
@@ -87,6 +88,28 @@ onMounted(async () => {
   }
 })
 
+// 页脚 Submit 的落点。Vue2 :911-912 只在 state 3 / 4 有 Submit(state 2 那个是死代码,C10)。
+const pwdForm = ref<{ submit(): Promise<boolean> } | null>(null)
+const submitting = ref(false)
+
+async function onSubmit() {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    if (state.value === 3) {
+      // ⛔ 这一步会真改机主的登录凭据(见 ChangePasswordForm.vue 的文件头)。
+      const ok = await pwdForm.value?.submit()
+      if (!ok) return // 失败由表单内联显示(C6),留在 state 3
+      // 🔧 Vue2 改密成功后什么都不提示(:433 只 goto(1))→ 补一个面板级 toast,
+      // 与「更改头像」成功的提示保持一致(plan C1 的「改正确」)。
+      toast.show(t('settingsAccUpdateOk'))
+      goto(1)
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
 function onPickLocalFile(src: string) {
   setPickedImage(src, true)
   goto(4)
@@ -122,8 +145,7 @@ function logout() {
       <div v-if="isAdmin" data-test="acc-members" />
     </template>
 
-    <!-- Task 7 填:改密表单 -->
-    <div v-else-if="state === 3" data-test="acc-pwd-form" />
+    <ChangePasswordForm v-else-if="state === 3" ref="pwdForm" data-test="acc-pwd-form" />
     <!-- Task 8 填:头像裁剪 -->
     <div v-else-if="state === 4" data-test="acc-cropper" :data-src="pickedImageSrc" />
     <!-- Task 11 填:成员文件夹授权 -->
@@ -135,6 +157,12 @@ function logout() {
     <div v-if="state !== 1" class="set-acc-foot" data-test="acc-footer">
       <button class="set-btn" type="button" data-test="acc-back" @click="goto(1)">
         {{ t('settingsAccBack') }}
+      </button>
+      <button
+        v-if="state === 3 || state === 4" class="set-btn" type="button"
+        :disabled="submitting" data-test="acc-submit" @click="onSubmit"
+      >
+        {{ t('settingsAccSubmit') }}
       </button>
     </div>
   </SettingsSection>

@@ -6,10 +6,12 @@ import zh from '../../i18n/zh_cn.sp9'
 import AccountPanel from './AccountPanel.vue'
 
 const getUserInfo = vi.fn()
+const changePassword = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     users: {
       getUserInfo: (...a: unknown[]) => getUserInfo(...a),
+      changePassword: (...a: unknown[]) => changePassword(...a),
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
   },
@@ -34,6 +36,8 @@ afterEach(() => {
 beforeEach(() => {
   setActivePinia(createPinia())
   getUserInfo.mockReset().mockResolvedValue({ id: 1, username: 'nimoos', role: 'admin' })
+  changePassword.mockReset()
+  changePassword.mockResolvedValue(undefined)
   push.mockReset()
   logout.mockReset()
   localStorage.clear()
@@ -188,6 +192,57 @@ describe('AccountPanel 宿主状态机', () => {
     await w.find('[data-test="acc-logout"]').trigger('click')
     expect(logout).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith('/login')
+  })
+
+  it('state 3 提交成功 → 回 state 1 并弹面板级成功 toast', async () => {
+    const { useToast } = await import('../../stores/toast')
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="acc-change-password"]').trigger('click')
+    await w.find('[data-test="acc-pwd-ori"]').setValue('old')
+    await w.find('[data-test="acc-pwd-new"]').setValue('new-pw')
+    await w.find('[data-test="acc-pwd-cfm"]').setValue('new-pw')
+    await w.find('[data-test="acc-submit"]').trigger('click')
+    await flush()
+    expect(changePassword).toHaveBeenCalledWith('old', 'new-pw')
+    expect(w.find('[data-test="acc-footer"]').exists()).toBe(false)
+    expect(useToast().msg).toBe(zh.settingsAccUpdateOk)
+  })
+
+  it('state 3 提交失败 → 留在 state 3(错误由表单内联显示,不弹 toast)', async () => {
+    const { useToast } = await import('../../stores/toast')
+    changePassword.mockImplementation(async () => { throw new Error('boom') })
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="acc-change-password"]').trigger('click')
+    await w.find('[data-test="acc-pwd-ori"]').setValue('old')
+    await w.find('[data-test="acc-pwd-new"]').setValue('new-pw')
+    await w.find('[data-test="acc-pwd-cfm"]').setValue('new-pw')
+    await w.find('[data-test="acc-submit"]').trigger('click')
+    await flush()
+    expect(w.find('[data-test="acc-pwd-form"]').exists()).toBe(true)
+    expect(w.find('[data-test="acc-pwd-error"]').text()).toBe('boom')
+    expect(useToast().msg).toBe('')
+  })
+
+  it('state 3 校验不过时不发请求、不回 state 1', async () => {
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="acc-change-password"]').trigger('click')
+    await w.find('[data-test="acc-submit"]').trigger('click')
+    await flush()
+    expect(changePassword).not.toHaveBeenCalled()
+    expect(w.find('[data-test="acc-pwd-form"]').exists()).toBe(true)
+  })
+
+  it('state 1 与 state 6 没有 Submit 按钮(Vue2 :911-912 只 state 3/4 有)', async () => {
+    const w = mountPanel()
+    await flush()
+    expect(w.find('[data-test="acc-submit"]').exists()).toBe(false)
+    await w.find('[data-test="acc-change-avatar"]').trigger('click')
+    await w.find('[data-test="acc-nas"]').trigger('click')
+    expect(w.find('[data-test="acc-submit"]').exists()).toBe(false)
+    expect(w.find('[data-test="acc-back"]').exists()).toBe(true)
   })
 
   // ⚠️ 这里**故意没有**「取数在途时卸载不回写」的用例。本组件的 `alive` 守卫留着是对的
