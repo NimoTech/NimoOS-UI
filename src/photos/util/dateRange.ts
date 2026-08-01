@@ -11,6 +11,14 @@ export interface DateRange {
   label: string
   start: string // 'YYYY-MM-DD'
   end: string | null // 'YYYY-MM-DD'; null = single day (hi falls back to start, see dateInRange/calCells)
+  // 回改(SP7-P7a-T13 A3 裁定,任务 13 授权对本已关账文件做的最小回改):quickRange/
+  // yearRange 各自的判据键。T13 的 SearchDatePopover 需要判断"当前 draft 是否等于某个快捷
+  // 区间按钮",brief 原计划按 label 字符串比较(Vue2 `draft.date.label === q` 里 q 是英文原
+  // 文),但本仓 label 存的是 t() 之后的本地化文案 —— locale 一切换,同一个快捷区间在两种
+  // 语言下 label 不相等,判据就会失配。key 是 quickRange 的输入枚举 / yearRange 的年份数字,
+  // 不受 locale 影响,判据换成 key 比较即可稳定。pick() 里由日历格点出的自定义区间不带 key
+  // (不属于任何快捷键,这是 key 判据能成立的前提——见 SearchDatePopover.vue 的 pick())。
+  key?: QuickKey | number
 }
 
 // Local 'YYYY-MM-DD' string for a Date (calendar/range comparisons stay in the
@@ -62,7 +70,7 @@ export const QUICK_LABEL_KEYS: Record<QuickKey, string> = {
 // caller via QUICK_LABEL_KEYS + t(), so this function stays pure / i18n-free.
 export function quickRange(key: QuickKey, now: Date, label: string): DateRange {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const mk = (s: Date, e: Date): DateRange => ({ label, start: isoDate(s), end: isoDate(e) })
+  const mk = (s: Date, e: Date): DateRange => ({ label, start: isoDate(s), end: isoDate(e), key })
   switch (key) {
     case 'today':
       return mk(today, today)
@@ -91,7 +99,7 @@ export function quickRange(key: QuickKey, now: Date, label: string): DateRange {
 // pulled into its own function so `quickRange`'s `key` param can be a closed 5-value
 // enum instead of "any label string, some of which happen to be a year".
 export function yearRange(year: number, label: string): DateRange {
-  return { label, start: isoDate(new Date(year, 0, 1)), end: isoDate(new Date(year, 11, 31)) }
+  return { label, start: isoDate(new Date(year, 0, 1)), end: isoDate(new Date(year, 11, 31)), key: year }
 }
 
 // Human label for a custom calendar range, e.g. "Mar 14 – Mar 22, 2026". Reworked

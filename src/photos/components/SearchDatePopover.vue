@@ -1,0 +1,377 @@
+<script setup lang="ts">
+// SP7-P7a-T13: SearchDatePopover.vue —— 搜索日期弹层(5 个快捷区间按钮 + 真日历,D14 两个
+// 弹层基元之外的第 3 个"外壳"实现)。结构对应 Vue2 PhotosSearchView.vue:61-91(模板)、
+// :755-777(setDraftDateQuick/shiftCalMonth/pickCalDay)、:790-796(togglePop 的 date 分支)。
+// 样式对应 photos.scss:2658-2688(区间内每一条已逐条核对,详见任务报告「两条腿审计」)。
+//
+// 外壳重复登记(控制器裁定:本任务照写,不抽公共外壳组件):`.fpop` / `.fpop-title` /
+// `.fpop-quick`(+:hover)/ `.btn` / `.btn-primary` 这套外壳与 T12 的 PhotosFilterPopover.vue
+// 里已有一份重复,约 8 条声明(.fpop、.fpop-title、.fpop-quick、.fpop-quick:hover、.btn、
+// .btn:hover、.btn-primary、.btn.btn-primary:hover)。这是 scoped SFC 下两个独立弹层的必然
+// 代价——本弹层是"固定 320px + 日历",T12 是"width prop + 搜索框 + 列表",结构不同不适合
+// 抽共享组件(仓库"禁无关重构"约定 + D14 只冻结了两个基元)。是否抽公共外壳留给整支终审
+// triage(T14 之后会是第 4 份重复)。
+// 数值来源:本文件的 .fpop/.fpop-quick/.btn 系列数值一律照抄 Vue2 photos.scss,不从 T12
+// 文件抄(T12 那份为列表弹层做过 width prop 化等调整,照抄会串味——这正是 brief A1 那条
+// 跨任务坑的教训:T12 判定 width:320px"恒不可达"是针对列表弹层成立,对本弹层不成立)。
+//
+// token 映射(与 T12/PlaceDetailPanel 等既有先例一致的通用表,不重复展开每一条):
+// --text-1/2/3 → --fg/--fg-muted/--fg-faint;--surface-2/3 → --chip-bg/--chip-bg-hi;
+// --line → --chip-border;--menu-bg → --popup-bg;--accent-hi(本仓不存在)→ --accent-text;
+// rgba(110,91,255,0.30)(accent 30% 边框)→ --accent-soft-bd。
+//
+// locale 转 BCP-47(A2):T9 的 rangeLabel/calDowLabels/calMonthLabel 内部已做
+// `locale.replace('_','-')`,本组件直接把 useI18n().locale.value 原样传给它们,不重复转换。
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import {
+  QUICK_KEYS,
+  QUICK_LABEL_KEYS,
+  quickRange,
+  rangeLabel,
+  calCells,
+  calDowLabels,
+  calMonthLabel,
+  type DateRange,
+  type CalCell,
+  type QuickKey,
+} from '../util/dateRange'
+
+const props = defineProps<{
+  draft: DateRange | null
+  committed: DateRange | null
+}>()
+
+const emit = defineEmits<{
+  (e: 'update:draft', v: DateRange | null): void
+  (e: 'apply'): void
+  (e: 'cancel'): void
+}>()
+
+const { t, locale } = useI18n()
+
+// 日历显示的年月是组件内部 state,初值由 committed 决定——照搬 Vue2 togglePop() 的 date
+// 分支(:790-796):有 committed.end 则取它的年月,否则取今天。这只是挂载时的一次性初值,
+// 不是持续跟随 committed 的响应式绑定——宿主(T16)每次打开弹层都会用 v-if 重新挂载本组件
+// (同 T12 PhotosFilterPopover.vue 的既定手法),等价于 Vue2 每次 togglePop 时重算一次。
+function initCalYearMonth(): { y: number; m: number } {
+  if (props.committed && props.committed.end) {
+    const [y, m] = props.committed.end.split('-')
+    return { y: Number(y), m: Number(m) - 1 }
+  }
+  const now = new Date()
+  return { y: now.getFullYear(), m: now.getMonth() }
+}
+const init = initCalYearMonth()
+const calYear = ref(init.y)
+const calMonth = ref(init.m)
+
+const dows = computed(() => calDowLabels(locale.value))
+const cells = computed(() => calCells(calYear.value, calMonth.value, props.draft))
+const monthLabel = computed(() => calMonthLabel(calYear.value, calMonth.value, locale.value))
+
+// 照搬 Vue2 :81 的 class 拼接顺序(cal-cell → blank → in → start → end)。
+function cellClass(c: CalCell): string {
+  return ['cal-cell', c.blank ? 'blank' : '', c.in ? 'in' : '', c.start ? 'start' : '', c.end ? 'end' : '']
+    .filter(Boolean)
+    .join(' ')
+}
+
+// 照搬 Vue2 setDraftDateQuick(:755-759)。quickRange() 已经把入参 key 填进返回值的
+// DateRange.key(T9 回改,见 dateRange.ts),不需要在这里再拼一次。
+function setQuick(key: QuickKey): void {
+  const rng = quickRange(key, new Date(), t(QUICK_LABEL_KEYS[key]))
+  emit('update:draft', rng)
+  const [y, m] = rng.end!.split('-')
+  calYear.value = Number(y)
+  calMonth.value = Number(m) - 1
+}
+
+// 照搬 Vue2 shiftCalMonth(:761-764)——用 `new Date(year, month+delta, 1)` 取年月,
+// 天然处理跨年(12 月 +1 → 次年 1 月,1 月 -1 → 上一年 12 月),不要手动拆 if 分支重写。
+function shiftMonth(delta: number): void {
+  const d = new Date(calYear.value, calMonth.value + delta, 1)
+  calYear.value = d.getFullYear()
+  calMonth.value = d.getMonth()
+}
+
+// 照搬 Vue2 pickCalDay(:765-777)。
+// pick 之后新建的 DateRange 不带 key 字段——自定义区间不属于任何快捷键,这是「data-on
+// 用 key 比较」这条判据能成立的前提(见文件头 + 任务报告「A3」)。
+function pick(c: CalCell): void {
+  if (c.blank || !c.date) return
+  const r = props.draft
+  if (!r || !r.start || r.end) {
+    // 开一段新单日区间(r 不存在 / 无 start / 已是完整区间,三种情况都重开)。
+    emit('update:draft', { label: rangeLabel(c.date, c.date, locale.value), start: c.date, end: null })
+  } else {
+    // 补全区间;两端点排序,end < start 则交换。
+    let start = r.start
+    let end = c.date
+    if (end < start) {
+      const tmp = start
+      start = end
+      end = tmp
+    }
+    emit('update:draft', { label: rangeLabel(start, end, locale.value), start, end })
+  }
+}
+</script>
+
+<template>
+  <div @click.stop>
+    <div class="fpop">
+      <div class="fpop-title">{{ t('photosSearchQuickRange') }}</div>
+      <div class="fpop-row">
+        <button
+          v-for="k in QUICK_KEYS"
+          :key="k"
+          type="button"
+          class="fpop-quick"
+          :data-on="draft?.key === k ? 'true' : 'false'"
+          @click="setQuick(k)"
+        >{{ t(QUICK_LABEL_KEYS[k]) }}</button>
+      </div>
+      <div class="cal-head">
+        <button
+          type="button" class="cal-nav" :title="t('photosSearchPreviousMonth')"
+          @click="shiftMonth(-1)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+        </button>
+        <span class="fpop-title" style="margin: 0">{{ monthLabel }}</span>
+        <button
+          type="button" class="cal-nav" :title="t('photosSearchNextMonth')"
+          @click="shiftMonth(1)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+        </button>
+      </div>
+      <div class="cal">
+        <div v-for="(d, i) in dows" :key="'h' + i" class="cal-cell dow">{{ d }}</div>
+        <div
+          v-for="(c, i) in cells" :key="'c' + i"
+          :class="cellClass(c)"
+          :data-date="c.date"
+          @click="pick(c)"
+        >{{ c.blank ? '' : c.d }}</div>
+      </div>
+      <div class="fpop-foot">
+        <button type="button" class="fpop-quick" @click="emit('cancel')">{{ t('photosCancel') }}</button>
+        <button type="button" class="btn btn-primary" @click="emit('apply')">{{ t('photosSearchApply') }}</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* 与 T12 PhotosFilterPopover.vue 重复的外壳部分(见文件头登记):.fpop 系列 + .fpop-quick
+   + .btn 系列。数值一律照抄 photos.scss:2658-2674,不是从 T12 文件抄。 */
+.fpop {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  background: var(--popup-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow-hi);
+  padding: 14px;
+  width: 320px;
+  z-index: 10;
+  animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: default;
+  text-align: left;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+.fpop-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+.fpop-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.fpop-quick {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 99px;
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.fpop-quick:hover {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-soft-bd);
+}
+/* hover 硬约束(A7):Vue2 原文(photos.scss:2674)把 :hover 与 [data-on="true"] 写在同一条
+   规则、共享同一组值——本仓拆开写时两边数值必须一致(照抄上面 :hover 那条,不是另设一套)。
+   基类 :hover 与 [data-on="true"](未 hover)优先级相等(均为 0,2,0:一个类+一个伪类 /
+   一个类+一个属性选择器),变体必须自带 :hover 才能在"悬停一个已选中的快捷按钮"时保持选中
+   态,不被基类 hover 顶掉。 */
+.fpop-quick[data-on='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-soft-bd);
+}
+.fpop-quick[data-on='true']:hover {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-soft-bd);
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  margin-bottom: 2px;
+}
+
+.cal-nav {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  transition: all 0.2s;
+}
+.cal-nav:hover {
+  background: var(--chip-bg-hi);
+  color: var(--fg);
+}
+
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-top: 12px;
+}
+.cal-cell {
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.cal-cell.dow {
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: default;
+  height: 22px;
+}
+.cal-cell:hover {
+  background: var(--chip-bg-hi);
+}
+/* hover 硬约束(A7,本组件受此约束最集中的一处):.cal-cell:hover 与 .in/.start/.end 三个
+   变体优先级全部相等(均 0,2,0:一个类+一个伪类 / 两个类)。Vue2 靠源码顺序(变体写在
+   hover 之后)让选中态在 hover 时不被顶掉——scoped SFC 里不应该依赖这种"顺序苟活",三个
+   变体各自补 :hover,值等于未 hover 时的既有态(即选中态在 hover 下保持不变)。 */
+.cal-cell.in {
+  background: var(--accent-soft);
+  color: var(--fg);
+  border-radius: 0;
+}
+.cal-cell.in:hover {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+/* .start / .end 是 accent 实底 + 白字场景——这里 --on-accent 是合法用法(背景确为
+   var(--accent) 饱和实底)。 */
+.cal-cell.start {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 6px 0 0 6px;
+}
+.cal-cell.start:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.cal-cell.end {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 0 6px 6px 0;
+}
+.cal-cell.end:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.cal-cell.start.end {
+  border-radius: 6px;
+}
+.cal-cell.blank {
+  cursor: default;
+  pointer-events: none;
+}
+.cal-cell.blank:hover {
+  background: transparent;
+}
+/* .cal-cell.muted(Vue2 photos.scss:2685)在 PhotosSearchView.vue 模板里 grep 零命中,
+   没有消费方——死 CSS,不迁(A4,反向断言见测试)。 */
+
+.fpop-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.fpop-foot .fpop-quick,
+.fpop-foot .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.btn {
+  height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn:hover {
+  background: var(--chip-bg-hi);
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+/* 同 T12 的既定写法(ClusterActionDialog.vue/MergeReviewDialog.vue 同款):.btn:hover 是
+   (0,2,0),会压过单类 .btn-primary(0,1,0),hover 时把 accent 实底换成 --chip-bg-hi——
+   变体自带 :hover 把 accent 实底盖回来。 */
+.btn.btn-primary:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+</style>

@@ -8,6 +8,7 @@ import {
   calCells,
   calDowLabels,
   calMonthLabel,
+  QUICK_KEYS,
 } from '../dateRange'
 
 describe('isoDate', () => {
@@ -54,7 +55,7 @@ describe('dateInRange', () => {
 describe('quickRange', () => {
   it("today:时分秒被抹掉", () => {
     const r = quickRange('today', new Date(2026, 6, 31, 15, 30), 'X')
-    expect(r).toEqual({ label: 'X', start: '2026-07-31', end: '2026-07-31' })
+    expect(r).toEqual({ label: 'X', start: '2026-07-31', end: '2026-07-31', key: 'today' })
   })
 
   it('last7: start = today - 6 天(不是 7)', () => {
@@ -71,23 +72,34 @@ describe('quickRange', () => {
 
   it('thisYear: end 是今天,不是 12/31', () => {
     const r = quickRange('thisYear', new Date(2026, 6, 31), 'X')
-    expect(r).toEqual({ label: 'X', start: '2026-01-01', end: '2026-07-31' })
+    expect(r).toEqual({ label: 'X', start: '2026-01-01', end: '2026-07-31', key: 'thisYear' })
   })
 
   it('lastYear: 去年整年', () => {
     const r = quickRange('lastYear', new Date(2026, 6, 31), 'X')
-    expect(r).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31' })
+    expect(r).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31', key: 'lastYear' })
   })
 
   it('跨年边界: last7 在 1 月 3 日 → start 落到去年 12 月 28 日', () => {
     const r = quickRange('last7', new Date(2026, 0, 3), 'X')
     expect(r.start).toBe('2025-12-28')
   })
+
+  // 回改覆盖(SP7-P7a-T13 A3):5 个 key 分支各自把入参 key 原样填回 DateRange.key——
+  // 逐个枚举值跑一遍,而不是只跑已覆盖过的 today/thisYear/lastYear 三个,避免 last7/
+  // last30 两个分支的 key 透传是抄错的(比如手滑写成字面量 'today')却没有测试覆盖到。
+  it.each(QUICK_KEYS)('key 字段原样透传入参 key:%s', (k) => {
+    expect(quickRange(k, new Date(2026, 6, 31), 'X').key).toBe(k)
+  })
 })
 
 describe('yearRange', () => {
   it('整年区间', () => {
-    expect(yearRange(2025, 'X')).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31' })
+    expect(yearRange(2025, 'X')).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31', key: 2025 })
+  })
+
+  it('key 字段是年份数字本身(SP7-P7a-T13 A3 回改覆盖)', () => {
+    expect(yearRange(1999, 'X').key).toBe(1999)
   })
 })
 
