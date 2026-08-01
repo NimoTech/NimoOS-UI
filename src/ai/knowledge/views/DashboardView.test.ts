@@ -605,6 +605,9 @@ describe('DashboardView — 生命周期(N3)', () => {
     expect(loadOverview).toHaveBeenCalledTimes(1)
     expect(loadRoots).toHaveBeenCalledTimes(1)
     expect(loadNotesSummary).toHaveBeenCalledTimes(1)
+    // 验收反馈修正(2026-08-01):概览页的 loadRoots 是**后台**加载,必须静默失败,
+    // 否则 Wiki 挂死时会在 60 s 后于任意页面弹出「操作失败」。
+    expect(loadRoots).toHaveBeenCalledWith({ silent: true })
     proc.off('unhandledRejection', swallowExpectedRejection)
   })
 

@@ -199,6 +199,67 @@ describe('wiki 索引根(移植 Vue2 knowledgeStoreRoots.spec.js)', () => {
     expect(s.wikiRootsLoading).toBe(false)
   })
 
+  // 验收反馈修正(2026-08-01):后台加载失败不该弹 toast。
+  it('loadRoots({ silent: true }) 失败时不 toast，但 loading 照样归位', async () => {
+    wiki.getRoots.mockRejectedValue(new Error('timeout'))
+    const s = useKnowledgeStore()
+    await s.loadRoots({ silent: true })
+    expect(toastShow).not.toHaveBeenCalled()
+    expect(s.wikiRootsLoading).toBe(false)
+  })
+
+  it('silent 只静默失败，成功路径照常写入列表', async () => {
+    wiki.getRoots.mockResolvedValue([ROOT])
+    const s = useKnowledgeStore()
+    await s.loadRoots({ silent: true })
+    expect(s.wikiRoots).toEqual([ROOT])
+  })
+
+  // 过期守卫:来回切页会让多发 loadRoots 并存。先发的那一发落地更晚(设备上
+  // 就是 60 s 超时的那一发),不许覆盖后发的结果、不许提前把 loading 归位、
+  // 也不许替后发去弹 toast。
+  it('过期守卫:先发后至的失败既不 toast 也不动 loading', async () => {
+    let rejectFirst: (e: Error) => void = () => {}
+    wiki.getRoots.mockReturnValueOnce(
+      new Promise((_res, rej) => {
+        rejectFirst = rej
+      }),
+    )
+    const s = useKnowledgeStore()
+    const first = s.loadRoots() // 非 silent —— 若守卫失效,这一发会弹 toast
+    let resolveSecond: (v: unknown[]) => void = () => {}
+    wiki.getRoots.mockReturnValueOnce(
+      new Promise((res) => {
+        resolveSecond = res as (v: unknown[]) => void
+      }),
+    )
+    const second = s.loadRoots({ silent: true })
+    resolveSecond([ROOT])
+    await second
+    expect(s.wikiRoots).toEqual([ROOT])
+    expect(s.wikiRootsLoading).toBe(false)
+    rejectFirst(new Error('timeout'))
+    await first
+    expect(toastShow).not.toHaveBeenCalled()
+    expect(s.wikiRoots).toEqual([ROOT]) // 没被过期那一发清掉
+  })
+
+  it('过期守卫:先发后至的成功不覆盖后发的结果', async () => {
+    let resolveFirst: (v: unknown[]) => void = () => {}
+    wiki.getRoots.mockReturnValueOnce(
+      new Promise((res) => {
+        resolveFirst = res as (v: unknown[]) => void
+      }),
+    )
+    const s = useKnowledgeStore()
+    const first = s.loadRoots()
+    wiki.getRoots.mockResolvedValueOnce([ROOT])
+    await s.loadRoots()
+    resolveFirst([{ ...ROOT, id: 'stale' }])
+    await first
+    expect(s.wikiRoots).toEqual([ROOT])
+  })
+
   it('loadCandidates 失败时静默清空', async () => {
     wiki.getCandidates.mockRejectedValue(new Error('x'))
     const s = useKnowledgeStore()

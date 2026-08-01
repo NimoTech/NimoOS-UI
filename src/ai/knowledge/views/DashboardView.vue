@@ -206,9 +206,18 @@ function go(id: string): void {
   router.push(id === 'dashboard' ? '/ai/knowledge' : `/ai/knowledge/${id}`)
 }
 
-/** 蓝本 :348-352 created() —— N3，见文件头注释，照抄不改。 */
+/** 蓝本 :348-352 created() —— N3，见文件头注释，照抄不改。
+ *
+ * 【偏离,验收反馈修正，2026-08-01】唯一改动：`loadRoots` 传 `silent: true`。
+ * 这是后台加载而非用户主动操作，Wiki 接口挂死时不该在 60 s 后弹「操作失败」
+ * （多半已弹在别的页面上）——概览页用「0 个知识根」表达这个失败就够了。
+ * 理由全文见 `knowledgeStore.ts` 的 `loadRoots` 注释。 */
 onMounted(() => {
-  Promise.all([store.loadOverview(), store.loadRoots(), store.loadNotesSummary()]).finally(() => {
+  Promise.all([
+    store.loadOverview(),
+    store.loadRoots({ silent: true }),
+    store.loadNotesSummary(),
+  ]).finally(() => {
     ready.value = true
   })
 })

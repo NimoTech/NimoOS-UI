@@ -291,6 +291,10 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
   const wikiRoots = ref<WikiRoot[]>([])
   const wikiCandidates = ref<WikiCandidate[]>([])
   const wikiRootsLoading = ref(false)
+  /** `loadRoots` 的过期守卫计数器,见该函数注释。不是数据,故不进 state
+   * (与 `indexedPollTimer` 同款处理),但按 store 实例而非模块作用域,
+   * 这样每次 `createPinia()` 都从 0 起。 */
+  let rootsEpoch = 0
   const notesDraftCount = ref(0)
   const notesSummary = ref<NotesSummary>({ total: 0, draft: 0, curated: 0, archived: 0 })
 
@@ -588,15 +592,33 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
 
   /** 蓝本 :244-253 —— K5:失败不回显后端原文,改走 i18n 键
    * `aiKbOpFailed`(蓝本原文是 `i18n.t('Operation failed') + ': ' + e.message`,
-   * 会把后端错误串拼进 toast)。 */
-  async function loadRoots(): Promise<void> {
+   * 会把后端错误串拼进 toast)。
+   *
+   * 【偏离 P5,验收反馈修正,2026-08-01】新增 `silent` 与过期守卫。蓝本无条件
+   * 弹 toast,而 `loadRoots` 同时服务两类调用方:**用户主动操作**(RootsView 的
+   * 增/删/改后重载,失败必须告知)与**后台加载**(Dashboard 挂载时的三合一
+   * `Promise.all`,用户没点任何东西)。设备上 `/v1/wiki/roots` 永不回包
+   * (38 GB SQLite + `SetMaxOpenConns(1)`),后台那条要等满 60 s axios 超时才
+   * 落地 —— 此时用户多半已经离开概览页,toast 会在毫不相干的页面上冒出
+   * 「操作失败」,且每进一次概览就多排一发。这是蓝本的吞错/噪音缺陷,按
+   * 「界面 1:1、逻辑照正确」不照抄:后台调用方传 `silent: true` 静默失败
+   * (概览页本就用「0 个知识根」表达这个失败),用户主动路径不变。
+   *
+   * 过期守卫(承 New-UI 既定纪律):来回切页会让多发 `loadRoots` 并存,先发
+   * 后至的响应会覆盖后发先至的结果、并提前把 `wikiRootsLoading` 归位。用
+   * 局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃。 */
+  async function loadRoots(opts?: { silent?: boolean }): Promise<void> {
+    const epoch = ++rootsEpoch
     wikiRootsLoading.value = true
     try {
-      wikiRoots.value = await service.wiki.getRoots()
+      const rows = await service.wiki.getRoots()
+      if (epoch !== rootsEpoch) return
+      wikiRoots.value = rows
     } catch {
-      toast(i18n.global.t('aiKbOpFailed'))
+      if (epoch !== rootsEpoch) return
+      if (!opts?.silent) toast(i18n.global.t('aiKbOpFailed'))
     } finally {
-      wikiRootsLoading.value = false
+      if (epoch === rootsEpoch) wikiRootsLoading.value = false
     }
   }
 
