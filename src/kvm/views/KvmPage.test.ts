@@ -271,3 +271,83 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
     expect(w.get('.console-hint.is-error').text()).toBe('获取 VNC 信息失败')
   })
 })
+
+// Task 7:SendKey 悬浮工具条(照 Vue2 `.console-display` 上的 @mouseenter/@mouseleave/
+// @mousemove,:154、:1140-1153)+ 全屏(:1120-1133)。
+describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
+  // jsdom 的 getBoundingClientRect 恒为全零(left/width 都是 0),80px 边缘判定必须真实
+  // 桩出容器的宽度/左偏移才测得出来——只断言 onConsoleMove 被调用过是空测试(本期已栽过
+  // 好几次同类坑,见任务说明)。
+  const stubRect = (el: HTMLElement, width = 400) => {
+    el.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width, height: 300, right: width, bottom: 300, x: 0, y: 0, toJSON() {} }) as DOMRect
+  }
+
+  it('鼠标进入控制台区显示工具条,离开隐藏', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    const w = mountPage()
+    await flush()
+
+    expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+    await w.get('.console-display').trigger('mouseenter')
+    expect(w.find('.sendkey-toolbar').exists()).toBe(true)
+    await w.get('.console-display').trigger('mouseleave')
+    expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+  })
+
+  it('鼠标停在工具条上时,离开控制台区不隐藏', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    const w = mountPage()
+    await flush()
+
+    await w.get('.console-display').trigger('mouseenter')
+    await w.get('.sendkey-toolbar').trigger('mouseenter') // sendKeyToolbarHover = true
+    await w.get('.console-display').trigger('mouseleave')
+    expect(w.find('.sendkey-toolbar').exists()).toBe(true) // 没被隐藏
+  })
+
+  it('mousemove 到右侧 80px 内显示,移回左侧隐藏', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    const w = mountPage()
+    await flush()
+
+    const display = w.get('.console-display')
+    stubRect(display.element as HTMLElement) // width=400 → 右侧 80px 阈值是 x>=320
+
+    await display.trigger('mousemove', { clientX: 350 })
+    expect(w.find('.sendkey-toolbar').exists()).toBe(true)
+
+    await display.trigger('mousemove', { clientX: 100 })
+    expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+  })
+
+  it('VM 不是 running 时,鼠标怎么动都不显示工具条', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    const w = mountPage()
+    await flush()
+
+    const display = w.get('.console-display')
+    stubRect(display.element as HTMLElement)
+
+    await display.trigger('mouseenter')
+    expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+    await display.trigger('mousemove', { clientX: 350 }) // 右侧 80px 内,但非 running
+    expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+    await display.trigger('mouseleave')
+    expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+  })
+
+  // 硬约束(任务说明明确点名):onUnmounted 摘 fullscreenchange 监听必须用
+  // vi.spyOn(document, 'removeEventListener') 断言事件名,不能写成占位断言。
+  // 照抄 ConsoleHeader.test.ts「卸载时摘掉 document 监听」同款写法(:58-67)。
+  it('卸载时摘掉 document 的 fullscreenchange 监听(不泄漏)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    const spy = vi.spyOn(document, 'removeEventListener')
+    w.unmount()
+    expect(spy).toHaveBeenCalledWith('fullscreenchange', expect.any(Function))
+    spy.mockRestore()
+  })
+})

@@ -686,6 +686,107 @@
   cursor: not-allowed;
 }
 
+/* ── SendKey 悬浮工具条(Vue2 :2348-2438,2026-08-02 核对)──
+ * 本组件被 KvmPage(视图文件)Teleport 进 ConsoleStage 的 hostEl(即 `.console-display`
+ * 那个真实 DOM 节点)——这样 `.sendkey-toolbar` 的 `position:absolute` 才能相对
+ * `.console-display`(它自己 position:relative)定位,与 Vue2 的 DOM 层级(工具条是
+ * `.console-display` 的直接子节点)保持一致,不会因为套一层 New-UI 自己的包装 div
+ * 而导致垂直居中的基准区域多算进 console-header 的高度(视觉差异)。 */
+.sendkey-toolbar {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--kvm-overlay);
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.5rem 0 0 0.5rem;
+  backdrop-filter: blur(8px);
+  z-index: 40;
+}
+
+.sendkey-divider {
+  border: none;
+  border-top: 1px solid var(--kvm-border);
+  margin: 0.25rem 0;
+  width: 100%;
+}
+
+.sendkey-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: none;
+  background: var(--kvm-elev);
+  border-radius: 0.375rem;
+  color: var(--kvm-fg);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.sendkey-btn:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent);
+}
+
+.sendkey-btn.active {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+}
+
+.sendkey-btn .sendkey-hint {
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--kvm-elev);
+  color: var(--kvm-fg-dim);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.sendkey-btn:hover .sendkey-hint {
+  opacity: 1;
+}
+
+.sendkey-btn .fullscreen-svg,
+.sendkey-btn .sendkey-img {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sendkey-slide-enter-active {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+.sendkey-slide-leave-active {
+  transition: transform 0.15s ease-in, opacity 0.15s ease-in;
+}
+
+.sendkey-slide-enter-from {
+  transform: translateX(100%) translateY(-50%);
+  opacity: 0;
+}
+
+.sendkey-slide-leave-to {
+  transform: translateX(100%) translateY(-50%);
+  opacity: 0;
+}
+
 /* ── 溢出菜单(Vue2 :2137-2200) ── */
 .dropdown-wrapper {
   position: relative;

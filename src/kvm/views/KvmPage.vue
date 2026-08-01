@@ -10,6 +10,7 @@ import '../styles/kvm.css'
 import VmSidebar from '../components/VmSidebar.vue'
 import ConsoleHeader from '../components/ConsoleHeader.vue'
 import ConsoleStage from '../components/ConsoleStage.vue'
+import SendKeyToolbar from '../components/SendKeyToolbar.vue'
 import ProgressOverlay from '../components/ProgressOverlay.vue'
 import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
@@ -67,8 +68,105 @@ watch(() => s.selectedVM.value, (newVM, oldVM) => {
   }
 })
 
-onMounted(() => { void s.fetchVMs() })
-onUnmounted(() => { s.dispose(); vnc.dispose() })
+// ===================== SendKey 悬浮工具条 + 全屏(Task 7) =====================
+// 照 Vue2 `.console-display` 上的 @mouseenter/@mouseleave/@mousemove(:154,:1140-1153)
+// + toggleFullscreen/handleFullscreenChange(:1120-1133,2026-08-02 核对)。
+//
+// ⚠️ 与 Vue2 模板写法的偏离(架构层面,不是逻辑偏离,已申报):Vue2 把这三个事件直接
+// 写在 `.console-display` 的模板标签上,因为那个 div 和 toggleFullscreen/onConsoleMove
+// 这些方法同属一个组件。这里 `.console-display` 是 ConsoleStage 组件内部渲染的节点,
+// KvmPage 自己的模板里没有这个标签可以挂 @mouseenter——但 KvmPage 已经通过上面的
+// `hostEl`(watchEffect 镜像 ConsoleStage 暴露出来的同一个真实 DOM 节点)拿到了它,
+// 所以改用原生 addEventListener 挂在 hostEl 上,语义与 Vue2 逐条相同,只是绑定手法从
+// 模板属性变成了 JS 调用。选择让 KvmPage(而不是 ConsoleStage)持有这套状态机,是因为
+// sendKeyVisible/isFullscreen 同时还要驱动 SendKeyToolbar 的 v-if 和 Teleport 挂载,
+// 两者本就该在同一处维护,brief 也明确把这两个 ref 摆在 KvmPage。
+const sendKeyVisible = ref(false)
+const toolbarHover = ref(false)
+const isFullscreen = ref(false)
+
+// 只在选中的 VM 处于 running 时,工具条才可能出现——对应 Vue2 模板上的
+// `v-if="sendKeyVisible && selectedVM.state === 'running'"`(:195)。即便 sendKeyVisible
+// 因为 onConsoleEnter 被设成 true,非 running 状态下这里仍然是 false,工具条不会渲染
+// (下面 onConsoleEnter 与 Vue2 一样不做状态判断,靠这个 computed 兜底,细节见该函数注释)。
+const showSendKeyToolbar = computed(
+  () => sendKeyVisible.value && s.selectedVM.value?.state === 'running',
+)
+
+// 照 Vue2 :154 `@mouseenter="sendKeyVisible = true"`——注意这里刻意不判断 VM 状态,
+// Vue2 原文本身就没判断(只有 leave/move 两个方法内部才判断),1:1 照抄,交给上面的
+// showSendKeyToolbar 在渲染层兜底。
+function onConsoleEnter(): void {
+  sendKeyVisible.value = true
+}
+
+// 照 Vue2 onConsoleLeave(:1140-1142)。
+function onConsoleLeave(): void {
+  if (!toolbarHover.value && s.selectedVM.value?.state === 'running') sendKeyVisible.value = false
+}
+
+// 照 Vue2 onConsoleMove(:1144-1153):鼠标在容器内的横坐标进入右侧 80px 就显示,
+// 否则(且没有停在工具条上)就隐藏。
+function onConsoleMove(e: MouseEvent): void {
+  if (s.selectedVM.value?.state !== 'running') return
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const mouseX = e.clientX - rect.left
+  if (mouseX >= rect.width - 80) {
+    sendKeyVisible.value = true
+  } else if (!toolbarHover.value) {
+    sendKeyVisible.value = false
+  }
+}
+
+function attachConsoleListeners(el: HTMLElement): void {
+  el.addEventListener('mouseenter', onConsoleEnter)
+  el.addEventListener('mouseleave', onConsoleLeave)
+  el.addEventListener('mousemove', onConsoleMove)
+}
+function detachConsoleListeners(el: HTMLElement): void {
+  el.removeEventListener('mouseenter', onConsoleEnter)
+  el.removeEventListener('mouseleave', onConsoleLeave)
+  el.removeEventListener('mousemove', onConsoleMove)
+}
+// hostEl 在 ConsoleStage 挂载/卸载时变化(选中/取消选中 VM 都可能触发),每次换成新节点
+// 都要先摘旧的监听再挂新的,避免残留监听指向一个已经不在文档树里的旧节点。
+watch(hostEl, (newEl, oldEl) => {
+  if (oldEl) detachConsoleListeners(oldEl)
+  if (newEl) attachConsoleListeners(newEl)
+})
+
+// 照 Vue2 toggleFullscreen(:1120-1128):已在全屏就退出,否则对 hostEl 请求全屏,
+// 成功后强制显示一次工具条。两者都吞掉 rejection(用户拒绝全屏权限等场景不需要报错)。
+function toggleFullscreen(): void {
+  const el = hostEl.value
+  if (!el) return
+  if (!document.fullscreenElement) {
+    el.requestFullscreen()
+      .then(() => { isFullscreen.value = true; sendKeyVisible.value = true })
+      .catch(() => {})
+  } else {
+    document.exitFullscreen().catch(() => {})
+  }
+}
+
+// 照 Vue2 handleFullscreenChange(:1130-1133):同步 isFullscreen,进入全屏且 VM
+// running 时强制显示工具条(用户可能是按 F11/Esc 之外的系统级手势触发,不一定经过
+// 上面的 toggleFullscreen)。
+function handleFullscreenChange(): void {
+  isFullscreen.value = !!document.fullscreenElement
+  if (isFullscreen.value && s.selectedVM.value?.state === 'running') sendKeyVisible.value = true
+}
+
+onMounted(() => {
+  void s.fetchVMs()
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+})
+onUnmounted(() => {
+  s.dispose()
+  vnc.dispose()
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  if (hostEl.value) detachConsoleListeners(hostEl.value)
+})
 
 function isProcessing(vm: KvmVM | null): boolean {
   return !!vm && s.processing.value.has(vm.id)
@@ -189,6 +287,26 @@ async function onAction(name: string): Promise<void> {
             @start="onAction('start')"
             @resume="onAction('resume')"
           />
+
+          <!-- Teleport 到 hostEl(即 ConsoleStage 内部真正的 `.console-display` 节点)——
+               见上面脚本注释:只有这样 `.sendkey-toolbar` 的绝对定位才能相对
+               `.console-display` 计算,与 Vue2 的 DOM 层级(工具条是它的直接子节点)
+               保持一致。`v-if="hostEl"` 防止 ConsoleStage 还没挂载时 Teleport 目标为空。 -->
+          <Teleport v-if="hostEl" :to="hostEl">
+            <transition name="sendkey-slide">
+              <SendKeyToolbar
+                v-if="showSendKeyToolbar"
+                :modifiers="vnc.modifiers.value"
+                :is-fullscreen="isFullscreen"
+                @mouseenter="toolbarHover = true"
+                @mouseleave="toolbarHover = false"
+                @toggle="vnc.toggleModifier"
+                @key="vnc.sendKey"
+                @ctrl-alt-del="vnc.sendCtrlAltDel"
+                @fullscreen="toggleFullscreen"
+              />
+            </transition>
+          </Teleport>
         </div>
       </main>
     </div>
