@@ -592,6 +592,24 @@
   min-height: 300px;
 }
 
+/* T6 补的两段(Vue2 :2210-2212 / :2218-2226,评审在 T5 就登记过的欠账):
+ * 全屏态圆角归零;noVNC 挂进来的 canvas 绝对定位铺满,z-index 压在占位层之上——
+ * 一旦 useVncConsole 建好连接、canvas 出现在 .console-display 里,它要盖住下面的
+ * 占位层(而不是被占位层挡住),即便 v-if="!connected" 那一刻占位层还没来得及移除。 */
+.console-display:fullscreen {
+  border-radius: 0;
+}
+
+.console-display canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  z-index: 2;
+}
+
 .console-placeholder {
   display: flex;
   flex-direction: column;
@@ -600,6 +618,13 @@
   width: 100%;
   height: 100%;
   color: var(--kvm-fg-dim);
+  /* T6 补(Vue2 :2236-2239,T5 就登记过的欠账):占位层要绝对定位铺满,压在 canvas 之下
+   * (z-index:1 < 上面 canvas 的 z-index:2)——不然占位层会占着文档流把 .console-display
+   * 撑开,且 canvas 出现后占位层不会自动"垫底"。 */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
 }
 
 .console-placeholder p {
@@ -621,6 +646,44 @@
 
 .console-placeholder .console-hint.is-error {
   color: var(--kvm-danger);
+}
+
+/* ── 开机/恢复大按钮(Vue2 :2261-2294) ── */
+.start-vm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  width: 128px;
+  height: 128px;
+  border-radius: 1rem;
+}
+
+.start-vm-btn .power-icon {
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.start-vm-btn .power-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.start-vm-btn:hover:not(:disabled) {
+  background: transparent;
+}
+
+/* Vue2 disabled 态就是 opacity:.5(硬约束 6:按 1:1 取值,不是 New-UI 自造的 .5 惯例
+ * 撞巧一致——这里是真的照抄 Vue2 数值)。 */
+.start-vm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── 溢出菜单(Vue2 :2137-2200) ── */

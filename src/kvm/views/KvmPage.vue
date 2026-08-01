@@ -4,16 +4,18 @@
 //
 // ⚠️ 本区**固定深色,不跟随全局主题** —— Vue2 该页是写死的深色控制台配色,
 // --kvm-* token 在两个主题块里同值(见 styles/theme.sp9.css 注释)。
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import '../styles/kvm.css'
 import VmSidebar from '../components/VmSidebar.vue'
 import ConsoleHeader from '../components/ConsoleHeader.vue'
+import ConsoleStage from '../components/ConsoleStage.vue'
 import ProgressOverlay from '../components/ProgressOverlay.vue'
 import { useVmList } from '../composables/useVmList'
+import { useVncConsole } from '../composables/useVncConsole'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 
 // Vue2 isSidebarCollapsed = sidebarCollapsed && !sidebarHover ——
 // 折叠后鼠标移上去临时展开,移开又收回。照抄(KVMFullPage.vue:689-690)。
@@ -22,12 +24,61 @@ const sidebarHover = ref(false)
 const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
 
 const s = useVmList()
+
+// ===================== VNC 控制台接线(Task 6) =====================
+// ConsoleStage 是真正持有 canvas 挂载点(hostEl)的组件,但 useVncConsole 在 setup 阶段
+// 就要拿到一个 Ref——那时候 ConsoleStage 大概率还没挂载(选中 VM 之前右侧是空态)。
+// 用 watchEffect 把 ConsoleStage 暴露出来的 hostEl 镜像进这个 ref,始终指向"当前
+// ConsoleStage 实例的挂载点"(没有 ConsoleStage 时为 null)。
+const stageRef = ref<InstanceType<typeof ConsoleStage> | null>(null)
+const hostEl = ref<HTMLElement | null>(null)
+watchEffect(() => { hostEl.value = stageRef.value?.hostEl ?? null })
+const vnc = useVncConsole(hostEl)
+
+// spice 端口写回(照 Vue2 connectVNC :974-983):同时改列表项和 selectedVM。
+// useVncConsole 自己不碰 vms 列表(brief 约定),写回交给数据层的调用方——这里。
+vnc.onSpicePorts((vmId, ports) => {
+  const inList = s.vms.value.find((v) => v.id === vmId)
+  if (inList) {
+    inList.spicePort = ports.spicePort
+    inList.spiceTlsPort = ports.spiceTlsPort
+  }
+  if (s.selectedVM.value?.id === vmId) {
+    s.selectedVM.value.spicePort = ports.spicePort
+    s.selectedVM.value.spiceTlsPort = ports.spiceTlsPort
+  }
+})
+
+// 电源动作(start/stop/pause/resume/wakeup/restart)的 connect/disconnect 时机由
+// useVmList 内部决定(setVMState 之后调用这两个回调),这里只负责把回调接到 useVncConsole
+// 的 connect/disconnect 上。
+s.onVncShouldConnect((vm) => { void vnc.connect(vm) })
+s.onVncShouldDisconnect(() => { vnc.disconnect() })
+
+// 切换选中的 VM 时照 Vue2 watch selectedVM(:747-758)的后半段:只在"换成了不同一台
+// VM"时才 connect/disconnect,同一台 VM 原地改 state(电源动作/MessageBus 事件)不
+// 走这里,那是上面两个回调的事。前半段的 spice 提示气泡定时器(spiceInfoDismissed/
+// spiceTimer)属于 spice-info-bar,不在 Task 6 范围内,未实现。
+watch(() => s.selectedVM.value, (newVM, oldVM) => {
+  if (!newVM) { vnc.disconnect(); return }
+  if (oldVM?.id !== newVM.id) {
+    if (newVM.state === 'running') void vnc.connect(newVM)
+    else vnc.disconnect()
+  }
+})
+
 onMounted(() => { void s.fetchVMs() })
-onUnmounted(() => s.dispose())
+onUnmounted(() => { s.dispose(); vnc.dispose() })
 
 function isProcessing(vm: KvmVM | null): boolean {
   return !!vm && s.processing.value.has(vm.id)
 }
+
+// 控制台占位区要显示的错误:VNC 连接错误(useVncConsole)优先,没有的话落回电源动作的
+// lastError(Task 5 就定下的"控制台内联显示、不弹 toast"约定,见下面 ConsoleStage 的
+// error-key 消费处)。两种来源都可能是"i18n key"或"已解析好的原文",由 ConsoleStage
+// 内部统一用 te()/t() 判定,这里只管拼优先级。
+const consoleErrorKey = computed(() => vnc.errorKey.value || s.lastError.value)
 
 // ===================== 电源动作接线 =====================
 // 照 Vue2 confirmStopVM/confirmRestartVM/confirmDeleteVM(:1327-1359):stop/restart/delete
@@ -48,22 +99,19 @@ const CONFIRM_ACTIONS: Record<string, { run: (vm: KvmVM) => Promise<void>; title
 
 const progress = ref<{ title: string; message: string } | null>(null)
 
-// lastError 的渲染契约(评审 Important #1):useVmList 的 errText() 返回值有两种来源——
-// (a) 后端 Error.message 原文(有意义的排障信息),(b) 非 Error 值时的 8 个 i18n **键名**
-// fallback(如 'kvmFailedToStart')。裸渲染会把 (b) 的键名原样喷给用户。用 te() 判断:
-// 命中已注册的 i18n key 就 t() 一下,否则原样显示(同 VmListItem.vue 处理未注册
-// state key 的写法)。注意方向不能反——不能把后端返回的正常文本误当 key 去 t()
-// (te() 对任意非 key 字符串本来就返回 false,天然安全)。
+// lastError 的渲染契约(评审 Important #1,Task 6 起挪进了 ConsoleStage 内部统一处理):
+// useVmList 的 errText() 返回值有两种来源——(a) 后端 Error.message 原文(有意义的排障
+// 信息),(b) 非 Error 值时的 8 个 i18n **键名** fallback(如 'kvmFailedToStart')。
+// useVncConsole 的 errorKey 同样如此(要么是固定 i18n key,要么在 Vue2 里等价的原文)。
+// 裸渲染会把 (b) 的键名原样喷给用户,所以两种来源都统一交给 consoleErrorKey → ConsoleStage
+// 内部的 te()/t() 判定(同 VmListItem.vue 处理未注册 state key 的写法),这里不用再重复
+// 判断一遍。
 //
 // 与 Vue2 的偏离(已申报):Vue2 电源动作 catch 恒显示固定译文,从不显示后端原文
 // (KVMFullPage.vue :1537-1539 等,每个 catch 里只 $t 一句固定文案,e 本身被丢弃)。
 // 这里保留"后端 message 优先,缺失时才回退固定译文"的设定——依据本项目既有约定
 // (P1 期定:弹窗/内联报错优先显示后端 message,对排障有用;Vue2 一律显示"操作失败"
 // 属于信息损失,不值得照抄)。
-const lastErrorText = computed(() => {
-  const raw = s.lastError.value
-  return raw && te(raw) ? t(raw) : raw
-})
 
 async function onAction(name: string): Promise<void> {
   const vm = s.selectedVM.value
@@ -132,13 +180,15 @@ async function onAction(name: string): Promise<void> {
             @action="onAction"
           />
 
-          <!-- 控制台主体(VNC 画布/开机按钮)归后续任务;Task 5 只需要把动作失败的
-               lastError 内联显示出来(硬约束 9:不用 toast)。 -->
-          <div class="console-display">
-            <div class="console-placeholder">
-              <p v-if="s.lastError.value" class="console-hint is-error">{{ lastErrorText }}</p>
-            </div>
-          </div>
+          <ConsoleStage
+            ref="stageRef"
+            :vm="s.selectedVM.value"
+            :connected="vnc.connected.value"
+            :error-key="consoleErrorKey"
+            :processing="isProcessing(s.selectedVM.value)"
+            @start="onAction('start')"
+            @resume="onAction('resume')"
+          />
         </div>
       </main>
     </div>

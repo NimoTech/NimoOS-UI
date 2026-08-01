@@ -4,12 +4,34 @@ import KvmPage from './KvmPage.vue'
 import { i18n } from '../../i18n'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
+// Task 6 起需要真的走一遍 useVncConsole 的 connect/disconnect 接线(不再只是 stub),
+// 所以补一个假 RFB 类挡住 @novnc/novnc——原因同 useVncConsole.test.ts 顶部注释:
+// 不挡住的话 connect() 成功路径会用真实 novnc 包去 `new WebSocket(...)`,jsdom 环境
+// 没有 WebSocket 全局,而且本来也不该在单测里真建连接(硬约束:不要真的建立 WebSocket)。
+// 用 vi.hoisted 是必须的——vi.mock 工厂会被提升到文件最顶部,直接引用后面才声明的
+// class 会撞 TDZ(同 useVncConsole.test.ts 已经踩过并修过的坑)。
+const { instances: rfbInstances, FakeRFB } = vi.hoisted(() => {
+  class FakeRFB {
+    handlers: Record<string, (() => void)[]> = {}
+    disconnected = false
+    constructor(public el: unknown, public url: string, public opts: unknown) { instances.push(this) }
+    addEventListener(ev: string, cb: () => void) { (this.handlers[ev] ||= []).push(cb) }
+    fire(ev: string) { (this.handlers[ev] || []).forEach((h) => h()) }
+    disconnect() { this.disconnected = true }
+    sendKey() {}
+    sendCtrlAltDel() {}
+  }
+  const instances: InstanceType<typeof FakeRFB>[] = []
+  return { instances, FakeRFB }
+})
+vi.mock('@novnc/novnc', () => ({ default: FakeRFB }))
+
 // Task 5 起需要电源动作接线,mock 补全 service.kvm 的全部方法(仿 useVmList.test.ts
-// 的 getter 写法,好让 beforeEach 里 mockReset 生效)。
+// 的 getter 写法,好让 beforeEach 里 mockReset 生效)。Task 6 补 getVNC(控制台接线需要)。
 const api = {
   getVMList: vi.fn(), getVM: vi.fn(), startVM: vi.fn(), stopVM: vi.fn(),
   restartVM: vi.fn(), pauseVM: vi.fn(), resumeVM: vi.fn(), wakeupVM: vi.fn(),
-  deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(),
+  deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(), getVNC: vi.fn(),
 }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
 vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: () => () => {} }) }))
@@ -23,9 +45,11 @@ const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
 })
 
 beforeEach(() => {
+  rfbInstances.length = 0
   Object.values(api).forEach((f) => f.mockReset())
   api.getVMList.mockResolvedValue({ data: [], total: 0 })
   api.getVM.mockResolvedValue(VM())
+  api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 0, spiceTlsPort: 0 })
 })
 
 const mountPage = () => mount(KvmPage, { global: { plugins: [i18n] } })
@@ -156,5 +180,63 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
     const hint = w.get('.console-hint.is-error')
     expect(hint.text()).toBe('启动虚拟机失败')
     expect(hint.text()).not.toContain('kvmFailedToStart')
+  })
+})
+
+describe('KvmPage VNC 控制台接线(Task 6)', () => {
+  it('开机成功后真的建立 VNC 连接(getVNC 被调用、RFB 被构造)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.startVM.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('开机'))!.trigger('click')
+    await flush()
+
+    expect(api.getVNC).toHaveBeenCalledWith('vm-1')
+    expect(rfbInstances).toHaveLength(1)
+    expect(rfbInstances[0].url).toBe(`ws://${window.location.hostname}:5700`)
+  })
+
+  it('初始自动选中一台运行中的 VM 就直接建连(watch selectedVM 接线,不只是电源动作回调)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    mountPage()
+    await flush()
+
+    expect(api.getVNC).toHaveBeenCalledWith('vm-1')
+    expect(rfbInstances).toHaveLength(1)
+  })
+
+  it('强制关机确认通过后,已建立的 RFB 被断开', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    api.stopVM.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+    expect(rfbInstances).toHaveLength(1) // 初始 running 自动连接
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    const stopBtn = w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!
+    await stopBtn.trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
+    await flush()
+
+    expect(rfbInstances[0].disconnected).toBe(true)
+  })
+
+  it('切换到另一台运行中的 VM 时对新 VM 建立连接(照 Vue2 watch selectedVM :747-758)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running' }), VM({ id: 'vm-2', name: 'vm-two', state: 'running' })],
+      total: 2,
+    })
+    const w = mountPage()
+    await flush()
+    expect(api.getVNC).toHaveBeenCalledWith('vm-1')
+
+    const items = w.findAll('.vm-list-item')
+    await items[1].trigger('click')
+    await flush()
+
+    expect(api.getVNC).toHaveBeenCalledWith('vm-2')
   })
 })
