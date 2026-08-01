@@ -8,7 +8,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import '../styles/kvm.css'
 import VmSidebar from '../components/VmSidebar.vue'
+import ConsoleHeader from '../components/ConsoleHeader.vue'
+import ProgressOverlay from '../components/ProgressOverlay.vue'
 import { useVmList } from '../composables/useVmList'
+import type { KvmVM } from '@nimotech/nimoos-service'
 
 const { t } = useI18n()
 
@@ -21,6 +24,53 @@ const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
 const s = useVmList()
 onMounted(() => { void s.fetchVMs() })
 onUnmounted(() => s.dispose())
+
+function isProcessing(vm: KvmVM | null): boolean {
+  return !!vm && s.processing.value.has(vm.id)
+}
+
+// ===================== 电源动作接线 =====================
+// 照 Vue2 confirmStopVM/confirmRestartVM/confirmDeleteVM(:1327-1359):stop/restart/delete
+// 三项确认通过后先挂进度遮罩、await 动作、finally 摘遮罩;其余动作(start/pause/resume/
+// wakeup/autostart)不显示遮罩,直接 await。
+//
+// progress 的 title/message 拆法与 Vue2 不同(已申报偏离):Vue2 是"固定标题(Stopping VM)+
+// 拼字符串的动态 message(`${vm.name} stopping...`)"。这里 zh_cn.sp9.ts 的 kvmStopping/
+// kvmRestarting/kvmDeleting 已经是"正在停止/重启/删除虚拟机"这种完整句子(不是可拼接的
+// 动词片段,见 task-5-report.md 的 i18n 核对表),所以改成 title=完整句子、message=vm 名,
+// 卡片读起来是"正在停止虚拟机 / sp9-alpine-test",信息不丢,只是标题/正文的切法变了。
+const CONFIRM_ACTIONS: Record<string, { run: (vm: KvmVM) => Promise<void>; titleKey: string }> = {
+  stop: { run: (vm) => s.stop(vm), titleKey: 'kvmStopping' },
+  restart: { run: (vm) => s.restart(vm), titleKey: 'kvmRestarting' },
+  delete: { run: (vm) => s.remove(vm), titleKey: 'kvmDeleting' },
+}
+
+const progress = ref<{ title: string; message: string } | null>(null)
+
+async function onAction(name: string): Promise<void> {
+  const vm = s.selectedVM.value
+  if (!vm) return
+
+  const confirmed = CONFIRM_ACTIONS[name]
+  if (confirmed) {
+    progress.value = { title: t(confirmed.titleKey), message: vm.name }
+    try {
+      await confirmed.run(vm)
+    } finally {
+      progress.value = null
+    }
+    return
+  }
+
+  switch (name) {
+    case 'start': await s.start(vm); break
+    case 'pause': await s.pause(vm); break
+    case 'resume': await s.resume(vm); break
+    case 'wakeup': await s.wakeup(vm); break
+    case 'autostart': await s.toggleAutostart(vm); break
+    default: break
+  }
+}
 </script>
 
 <template>
@@ -48,7 +98,7 @@ onUnmounted(() => s.dispose())
       />
 
       <main class="kvm-main">
-        <div class="main-empty">
+        <div v-if="!s.selectedVM.value" class="main-empty">
           <div class="empty-icon-ring">
             <!-- ▭ 是临时占位单色符号(禁 emoji),后续任务换成 Vue2 同款空态图标。 -->
             <span class="main-empty-icon" aria-hidden="true">▭</span>
@@ -56,7 +106,25 @@ onUnmounted(() => s.dispose())
           <h3>{{ t('kvmSelectVmTitle') }}</h3>
           <p>{{ t('kvmSelectVmHint') }}</p>
         </div>
+
+        <div v-else class="vm-console-container">
+          <ConsoleHeader
+            :vm="s.selectedVM.value"
+            :processing="isProcessing(s.selectedVM.value)"
+            @action="onAction"
+          />
+
+          <!-- 控制台主体(VNC 画布/开机按钮)归后续任务;Task 5 只需要把动作失败的
+               lastError 内联显示出来(硬约束 9:不用 toast)。 -->
+          <div class="console-display">
+            <div class="console-placeholder">
+              <p v-if="s.lastError.value" class="console-hint is-error">{{ s.lastError.value }}</p>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
+
+    <ProgressOverlay v-if="progress" :title="progress.title" :message="progress.message" />
   </div>
 </template>

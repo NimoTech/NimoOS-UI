@@ -447,6 +447,302 @@
   font-size: 0.875rem;
 }
 
+/* ── 控制台头(Vue2 :2017-2135) ── */
+.vm-console-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.console-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: transparent;
+}
+
+.console-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.console-os-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.console-title h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--kvm-fg);
+  margin: 0 0 0.125rem 0;
+}
+
+.console-status {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.console-status .status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.console-status .status-dot.running {
+  background: var(--kvm-ok);
+  animation: breathe-green 2s ease-in-out infinite;
+}
+
+.console-status .status-dot.stopped {
+  background: var(--kvm-idle);
+}
+
+.console-status .status-dot.paused {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 2s ease-in-out infinite;
+}
+
+.console-status .status-dot.suspended {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 4s ease-in-out infinite;
+}
+
+.console-status .status-dot.error {
+  background: var(--kvm-danger);
+  animation: breathe-red 2s ease-in-out infinite;
+}
+
+.console-status .status-text {
+  font-size: 0.7rem;
+  color: var(--kvm-fg-dim);
+  white-space: nowrap;
+  margin-left: 0.375rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.console-status:hover .status-text {
+  opacity: 1;
+}
+
+.console-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.console-actions .action-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: none;
+  background: var(--kvm-elev);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kvm-fg-dim);
+  transition: background 0.2s, color 0.2s;
+}
+
+.console-actions .action-btn:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent);
+}
+
+/* Vue2 (:2124-2131) disabled 态本身就是 opacity:.35(与 New-UI 自造的 kvm-settings-btn/
+ * add-vm-btn 那套 .5 不是一回事——这里 action-btn 的 disabled 是 Vue2 真实存在的状态,
+ * 只是 P5 触发它的场景变了:Vue2 是 canEditSettings 为假时禁用,P5 是 Settings 按钮
+ * 恒禁用(P6 前占位),但视觉数值原样照抄)。Vue2 还嵌套了一层 disabled:hover 的显式
+ * 兜底(把 hover 态的颜色改回非 hover 默认值),这里同样保留,不用 T4 那套
+ * :hover:not(:disabled) 的写法——因为这是真实的 Vue2 视觉,要 1:1,不是 New-UI 新造状态。 */
+.console-actions .action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.console-actions .action-btn:disabled:hover {
+  background: var(--kvm-elev);
+  color: var(--kvm-fg-dim);
+}
+
+/* ── 控制台占位区(Vue2 :2202-2260 的子集)──
+ * Task 5 只需要"动作失败时在控制台区域内联显示错误"这一小块(硬约束 9:不用 toast)。
+ * VNC 画布 / 开机按钮(start-vm-btn/power-icon/power-svg)是控制台主体,归后续任务
+ * (需要 VNC 连接状态机),这里不实现、也不在模板里引用这几个 class —— 它们已经在
+ * T2 阶段预先登记进类名白名单,本任务不需要额外改动那份名单。 */
+.console-display {
+  flex: 1;
+  background: var(--kvm-bg);
+  border-radius: 0.75rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 0;
+  min-height: 300px;
+}
+
+.console-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--kvm-fg-dim);
+}
+
+.console-placeholder p {
+  font-size: 0.9rem;
+  margin: 0 0 0.25rem 0;
+  color: var(--kvm-fg);
+}
+
+.console-hint {
+  font-size: 0.75rem;
+  color: var(--kvm-fg-faint);
+}
+
+.console-hint.is-error {
+  color: var(--kvm-danger);
+}
+
+/* ── 溢出菜单(Vue2 :2137-2200) ── */
+.dropdown-wrapper {
+  position: relative;
+}
+
+.overflow-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--kvm-panel);
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px var(--kvm-shadow);
+  z-index: 50;
+  min-width: 10rem;
+  padding: 0.375rem;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--kvm-fg);
+  border-radius: 0.375rem;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.dropdown-item:hover {
+  background: var(--kvm-elev);
+}
+
+.dropdown-item.is-danger {
+  color: var(--kvm-danger);
+}
+
+.dropdown-item.is-danger:hover {
+  background: var(--kvm-danger-soft);
+}
+
+.toggle-indicator {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--kvm-toggle-off);
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-indicator.on {
+  background: var(--kvm-ok);
+}
+
+.confirm-text-danger {
+  color: var(--kvm-danger);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--kvm-border);
+  margin: 0.25rem 0;
+}
+
+/* ── 进度遮罩(New-UI 自绘,对位 Vue2 :495-514 的 b-modal + b-message)──
+ * 组件本身 Teleport 到 body,见 ProgressOverlay 组件里的判断注释。z-index 取 1000,
+ * 与 ui 组件库里 Dialog 一类弹窗同一量级(不需要盖过它们,但也不该被它们盖住——
+ * 停/重启/删除进行中不应该被别的弹窗挡住看不见)。 */
+.kvm-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--kvm-overlay);
+}
+
+.kvm-progress-card {
+  min-width: 16rem;
+  max-width: 20rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--kvm-panel);
+  border: 1px solid var(--kvm-border);
+  box-shadow: 0 8px 24px var(--kvm-shadow);
+  color: var(--kvm-fg);
+}
+
+.kvm-progress-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.kvm-progress-msg {
+  font-size: 0.85rem;
+  color: var(--kvm-fg-dim);
+}
+
+.kvm-spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid var(--kvm-border);
+  border-top-color: var(--kvm-accent);
+  flex-shrink: 0;
+  animation: kvm-progress-spin 0.8s linear infinite;
+}
+
+@keyframes kvm-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ── 窄屏(Vue2 :2740-2759) ──
  * Vue2 原文用 &open(与 open 组合的选择器)切控制侧栏抽屉展开态,但模板里从没出现过
  * open 这个类(toggleSidebar 只改 sidebarCollapsed,没有任何地方 add/remove open)—— 是死代码,
