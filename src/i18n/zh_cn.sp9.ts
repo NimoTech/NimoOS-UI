@@ -322,4 +322,100 @@ export default {
   settingsAccRevokeFailed: '撤销失败',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
   settingsAccNoFoldersGranted: '未授权任何文件夹——仅数据盘(/DATA、/mnt、/media)可访问。',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
   settingsAccFoldersLoadFailed: '加载文件夹授权失败',  // 🆕本期新增
+
+  // ── P5 KVM ── 中文以 Vue2 src/assets/lang/zh_CN.json 为准(逐条核对,与 task-2-brief 草稿
+  // 有出入处已按 zh_CN.json 改正,详见 task-2-report.md「i18n 核对」表)。
+  kvmTitle: 'NIMO 虚拟机',
+  kvmRunningSuffix: '运行中',
+  kvmNoVms: '暂无虚拟机',
+  kvmAddVm: '添加虚拟机',
+  // zh_CN.json "Select a Virtual Machine" = "选择虚拟机"(非 brief 草稿的"选择一台虚拟机")。
+  kvmSelectVmTitle: '选择虚拟机',
+  // zh_CN.json "Choose a VM from the list to view its console and manage it"
+  // = "从列表中选择虚拟机查看控制台并进行管理"(brief 草稿多了"一台"/"以")。
+  kvmSelectVmHint: '从列表中选择虚拟机查看控制台并进行管理',
+  kvmStateRunning: '运行中',
+  kvmStateStopped: '已停止',
+  kvmStatePaused: '已暂停',
+  kvmStateSuspended: '已挂起',
+  kvmStateError: '错误',
+  // zh_CN.json 第 90 行 $t(canEditSettings ? 'Settings' : ...) 用的就是全局 "Settings" 键
+  // = "系统设置"(与全局设置弹窗共用同一 i18n 键,Vue2 原文如此,照抄,不自行改得更贴切)。
+  kvmSettings: '系统设置',
+  // zh_CN.json "Stop VM to modify settings" = "停止虚拟机以修改设置"(非 brief 草稿的
+  // "停止虚拟机后才能修改设置")。
+  kvmSettingsDisabledHint: '停止虚拟机以修改设置',
+  // zh_CN.json "More" = "浏览更多"(此键在 Vue2 里被复用给"更多操作"三点菜单的 tooltip,
+  // 译文与场景不算贴切但是 Vue2 实际展示的文案,照抄)。
+  kvmMore: '浏览更多',
+  // zh_CN.json "Coming soon" = "即将上线"(非 brief 草稿的"即将支持")。
+  kvmComingSoon: '即将上线',
+  kvmPowerOn: '开机',
+  kvmForceShutDown: '强制关机',
+  kvmForceRestart: '强制重启',
+  kvmPause: '暂停',
+  // zh_CN.json "Resume" = "恢复"(非 brief 草稿的"继续")。
+  kvmResume: '恢复',
+  kvmWakeUp: '唤醒',
+  // zh_CN.json "Auto Start" = "自动启动"(非 brief 草稿的"开机自启")。
+  kvmAutoStart: '自动启动',
+  kvmDelete: '删除',
+  // zh_CN.json "Are you sure?" = "你确定吗？"(非 brief 草稿的"确定吗?";注意全角问号)。
+  kvmAreYouSure: '你确定吗？',
+  // zh_CN.json "Stopping VM" = "正在停止虚拟机"(非 brief 草稿的"正在停止")。
+  kvmStopping: '正在停止虚拟机',
+  // zh_CN.json "Restarting VM" = "正在重启虚拟机"(非 brief 草稿的"正在重启")。
+  kvmRestarting: '正在重启虚拟机',
+  // zh_CN.json "Deleting VM" = "正在删除虚拟机"(非 brief 草稿的"正在删除")。
+  kvmDeleting: '正在删除虚拟机',
+  // zh_CN.json "VNC port not available, try restarting" = "VNC 端口不可用，请尝试重启"
+  // (brief 草稿在末尾多加了"虚拟机" 三个字,原文没有)。
+  kvmVncPortUnavailable: 'VNC 端口不可用，请尝试重启',
+  kvmVncFetchFailed: '获取 VNC 信息失败',
+  // zh_CN.json "Installing from ISO. Click when finished:" = "正在从光盘安装。完成后请点击："
+  // (原文是"光盘"不是"ISO",且没有"安装"两个字重复)。
+  kvmInstallingFromIso: '正在从光盘安装。完成后请点击：',
+  // zh_CN.json "I Finished Installing" = "我已完成安装"(非 brief 草稿的"我已安装完成")。
+  kvmFinishedInstalling: '我已完成安装',
+  // zh_CN.json "Installation media ejected..." = "光盘已弹出，虚拟机将在下次重启时从硬盘引导。"
+  // (原文用"光盘"/"引导",非 brief 草稿的"安装介质"/"启动")。
+  kvmEjectSuccess: '光盘已弹出，虚拟机将在下次重启时从硬盘引导。',
+  // 🆕补译:Vue2 里这条走 getErrMsg(err, 'Failed to eject installation media') 再过 $t()，
+  // zh_CN.json 没有这个键 → Vue2 中文界面下实际显示英文原文(遗留缺译,同 P1/P2 见过的模式)。
+  // New-UI 补上中文,不照抄这个缺译。
+  kvmEjectFailed: '弹出安装介质失败',
+  kvmSpiceHint: '为获得更好体验，请使用 virt-viewer 客户端连接：',
+  // zh_CN.json "Install virtio-win drivers..." = "在虚拟机中安装 virtio-win 驱动以启用剪贴板、
+  // 音频和 USB 功能"(非 brief 草稿的"内"/"与")。
+  kvmSpiceAgentWin: '在虚拟机中安装 virtio-win 驱动以启用剪贴板、音频和 USB 功能',
+  // zh_CN.json "Install spice-vdagent..." = "在虚拟机中安装 spice-vdagent 以启用剪贴板、音频
+  // 和 USB 功能"(同上,"内"/"与"改"中"/"和")。
+  kvmSpiceAgentLinux: '在虚拟机中安装 spice-vdagent 以启用剪贴板、音频和 USB 功能',
+  // zh_CN.json "Toggle Ctrl/Alt/Shift" = "切换 Ctrl/Alt/Shift"(非 brief 草稿的"按住 …")。
+  kvmToggleCtrl: '切换 Ctrl',
+  kvmToggleAlt: '切换 Alt',
+  kvmToggleShift: '切换 Shift',
+  // zh_CN.json "Toggle Windows" = "切换 Windows"(非 brief 草稿的"按住 Windows 键")。
+  kvmToggleWin: '切换 Windows',
+  // zh_CN.json "Press Tab/Esc/Ctrl+Alt+Del" = "按下 …"(非 brief 草稿的"按 …",少了"下"字)。
+  kvmPressTab: '按下 Tab',
+  kvmPressEsc: '按下 Esc',
+  kvmPressCtrlAltDel: '按下 Ctrl+Alt+Del',
+  kvmFullscreen: '全屏',
+  // 🆕新增:Vue2 全屏按钮的 title 恒为 $t('Fullscreen')(即使已全屏也不切换文案,是遗留
+  // 的文案 bug),alt 属性硬编码英文 "Exit Fullscreen" 且从不走 i18n。按移植纪律(界面 1:1、
+  // 逻辑 bug 不照抄)New-UI 让 aria-label 正确随全屏状态切换,故补一个 zh_CN.json 没有的键。
+  kvmExitFullscreen: '退出全屏',
+  kvmClose: '关闭',
+  kvmFailedStart: '启动虚拟机失败',
+  kvmFailedStop: '停止虚拟机失败',
+  kvmFailedRestart: '重启失败',
+  kvmFailedPause: '暂停失败',
+  // zh_CN.json "Failed to resume" = "恢复失败"(非 brief 草稿的"继续失败")。
+  kvmFailedResume: '恢复失败',
+  kvmFailedDelete: '删除虚拟机失败',
+  kvmFailedAutostart: '保存设置失败',
+  // 🆕新增(a11y):Vue2 折叠按钮是纯图标按钮、连 title 都没有(无障碍缺口)。New-UI 硬约束
+  // 图标按钮必须有 aria-label,zh_CN.json 无对应键,新增。
+  kvmToggleSidebar: '折叠/展开侧边栏',
 }

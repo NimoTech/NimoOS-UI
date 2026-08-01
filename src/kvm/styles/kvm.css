@@ -1,0 +1,309 @@
+/*
+ * KVM 区(路由 /kvm)样式。视觉 1:1 照抄 Vue2 源(KVMFullPage 组件)
+ * 的 style(lang=scss scoped)段(布局:1658-1973 行;main-empty:1975-2015 行;
+ * 窄屏响应式:2740-2759 行,行号按 2026-08-02 核对)。
+ *
+ * 颜色一律 var(--kvm-*)(CLAUDE 硬约束 + 本期硬约束#1),token 定义在
+ * 主题 sp9 分片(theme 目录下)—— KVM 区固定深色,两套主题 token 同值(见该文件注释)。
+ *
+ * P5 本任务(Task 2)只搭地基,只写得到用的几段:
+ * kvm-page/kvm-content/kvm-sidebar(含折叠)/kvm-sidebar-toggle/kvm-header 系列/
+ * vm-list/empty-state/add-vm-btn/kvm-main/main-empty 系列(均不带前导点,纯类名)。
+ * 其余段(console- 系列、sendkey- 系列、spice- 系列、installation-banner、kvm-progress- 系列)留给后续任务,
+ * 白名单文件里先占位类名,实现体本任务不写。
+ *
+ * 类名对应关系:Vue2 根类名是 kvm-full-page,配 scoped 嵌套选择器;New-UI 没有 scoped,
+ * 改成全局唯一类名 kvm-page(根)+ 摊平的顶层选择器(嵌套 & 展开为普通后代选择器),
+ * 视觉数值逐字保留。
+ */
+
+.kvm-page {
+  display: flex;
+  height: 100vh;
+  background: var(--kvm-bg);
+  /* New-UI 专属:全局主题样式给页面装了 body::before/::after 的柔光玻璃背景层
+   * (position:fixed + z-index:0,"让通透面板浮起来"的整体氛围),这两层不是
+   * .kvm-page 的祖先/后代而是 body 的另外两个已定位子节点 —— 按 CSS 层叠规则,
+   * 静态定位的 .kvm-page 天然排在它们下面,不管 DOM 顺序,不建立层叠上下文就会被
+   * 那层柔光/暗角盖住(实测:不加下面两行,右侧空态区能看见彩色光斑透过来)。
+   * KVM 是 Vue2 就写死的**纯实心**深色控制台,不是玻璃面板,必须完全不透那层氛围光,
+   * 所以显式建一个层叠上下文压过去。Vue2 没有这层背景,这是 New-UI 特有的必要修复,
+   * 不是照抄 Vue2 也不是照抄不到的逻辑 bug。 */
+  position: relative;
+  z-index: 1;
+}
+
+.kvm-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── 折叠切换按钮(Vue2 :1671-1709) ── */
+.kvm-sidebar-toggle {
+  position: absolute;
+  left: 22rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--kvm-elev);
+  border: 1px solid var(--kvm-border);
+  border-left: none;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  width: 1.5rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.kvm-sidebar-toggle .toggle-icon {
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.kvm-sidebar-toggle:hover {
+  color: var(--kvm-accent);
+  background: var(--kvm-border);
+}
+
+.kvm-sidebar-toggle.collapsed {
+  left: 0;
+  border-left: 1px solid var(--kvm-border);
+  border-right: none;
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.kvm-sidebar-toggle.collapsed .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* ── 侧栏(Vue2 :1711-1973) ── */
+.kvm-sidebar {
+  width: 22rem;
+  background: var(--kvm-panel);
+  border-right: 1px solid var(--kvm-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+
+/* 折叠仅在桌宽生效(Vue2 同款媒体查询)—— 窄屏走下面独立的抽屉式响应块。 */
+@media screen and (min-width: 769px) {
+  .kvm-sidebar.collapsed {
+    width: 0;
+    border-right: none;
+  }
+
+  .kvm-sidebar.collapsed .kvm-logo,
+  .kvm-sidebar.collapsed .kvm-title,
+  .kvm-sidebar.collapsed .kvm-status,
+  .kvm-sidebar.collapsed .vm-list,
+  .kvm-sidebar.collapsed .add-vm-btn,
+  .kvm-sidebar.collapsed .kvm-header {
+    display: none;
+  }
+}
+
+.kvm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: var(--kvm-panel);
+  border-bottom: 1px solid var(--kvm-border);
+  box-shadow: 0 2px 4px var(--kvm-shadow-soft);
+}
+
+.kvm-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.kvm-header-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.kvm-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kvm-logo {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+}
+
+.kvm-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--kvm-fg);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.kvm-settings-btn {
+  background: none;
+  border: none;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.kvm-settings-btn:hover {
+  color: var(--kvm-accent);
+}
+
+.kvm-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--kvm-fg-dim);
+}
+
+.kvm-status .status-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--kvm-idle);
+}
+
+.kvm-status .status-dot.running {
+  background: var(--kvm-ok);
+  box-shadow: 0 0 8px var(--kvm-ok-glow);
+}
+
+.vm-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--kvm-fg-dim);
+}
+
+.empty-state .empty-icon {
+  opacity: 0.4;
+  margin-bottom: 1rem;
+}
+
+.empty-state .empty-text {
+  font-size: 0.875rem;
+}
+
+.add-vm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: calc(100% - 1rem);
+  margin: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: var(--kvm-elev);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--kvm-fg);
+  transition: all 0.2s;
+}
+
+.add-vm-btn:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent);
+}
+
+/* ── 右侧主区(Vue2 :1975-2015) ── */
+.kvm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--kvm-fg-dim);
+}
+
+.main-empty .empty-icon-ring {
+  width: 120px;
+  height: 120px;
+  border: 2px dashed var(--kvm-border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.main-empty .main-empty-icon {
+  opacity: 0.5;
+}
+
+.main-empty h3 {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--kvm-fg);
+  margin-bottom: 0.5rem;
+}
+
+.main-empty p {
+  font-size: 0.875rem;
+}
+
+/* ── 窄屏(Vue2 :2740-2759) ──
+ * Vue2 原文用 &open(与 open 组合的选择器)切控制侧栏抽屉展开态,但模板里从没出现过
+ * open 这个类(toggleSidebar 只改 sidebarCollapsed,没有任何地方 add/remove open)—— 是死代码,
+ * 窄屏抽屉展开在 Vue2 里实际永远不会触发。这里改用已在白名单里的 `active`
+ * 类名占位数值(数值本身逐字照抄),抽屉触发逻辑留给实现该交互的后续任务接线。 */
+@media screen and (max-width: 768px) {
+  .kvm-sidebar {
+    width: 100%;
+    position: absolute;
+    left: 0;
+    top: 4rem;
+    bottom: 0;
+    z-index: 10;
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+  }
+
+  .kvm-sidebar.active {
+    transform: translateX(0);
+  }
+
+  .kvm-main {
+    width: 100%;
+  }
+}

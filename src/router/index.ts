@@ -19,6 +19,7 @@ import StorageRaid from '../views/StorageRaid.vue'
 import StorageRaidCreate from '../views/StorageRaidCreate.vue'
 import StorageRaidDetail from '../views/StorageRaidDetail.vue'
 import { settingsRoutes } from '../settings/settingsRoutes'
+import KvmPage from '../kvm/views/KvmPage.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -39,6 +40,9 @@ const routes: RouteRecordRaw[] = [
   { path: '/storage/raid/create', name: 'storage-raid-create', component: StorageRaidCreate },
   { path: '/storage/raid/:id', name: 'storage-raid-detail', component: StorageRaidDetail },
   ...settingsRoutes,
+  // P5 KVM 地基(桌面磁贴翻路由归 P8,现在只能手输 #/kvm)。必须放在下面的通配兜底
+  // /files/:path(.*)* 之前,否则会被那条吃掉。
+  { path: '/kvm', name: 'kvm', component: KvmPage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },

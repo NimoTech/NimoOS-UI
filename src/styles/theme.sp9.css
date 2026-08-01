@@ -16,6 +16,45 @@
   --set-ok-fg: var(--success);
   --set-logs-bg: var(--console-bg);
   --set-logs-fg: var(--console-fg);
+
+  /* ── P5 KVM ──
+   * ⚠️ KVM 区**固定深色,不跟随全局主题** —— Vue2 KVMFullPage.vue 是写死的深色控制台配色
+   * (#0d1117 / #161b22 / #21262d / #30363d),浅色主题下也保持深色。所以下面每个 token
+   * 在 :root 与 :root[data-theme='light'] 两块里是**相同的值**。
+   * 先例:--console-bg / --console-fg(终端与日志面板)同样两套主题同值。
+   * 唯一例外是安装横幅(--kvm-banner-*),Vue2 那块本来就是浅蓝底,照抄。 */
+  --kvm-bg: #0d1117;
+  --kvm-panel: #161b22;
+  --kvm-elev: #21262d;
+  --kvm-border: #30363d;
+  --kvm-fg: #c9d1d9;
+  --kvm-fg-dim: #8b949e;
+  --kvm-fg-faint: #6e7681;
+  --kvm-accent: #8950f2;
+  --kvm-accent-soft: rgba(137, 80, 242, 0.15);
+  --kvm-on-accent: #ffffff;
+  --kvm-ok: #76b32d;
+  --kvm-ok-glow: rgba(118, 179, 45, 0.5);
+  --kvm-ok-glow-weak: rgba(118, 179, 45, 0.3);
+  --kvm-ok-glow-strong: rgba(118, 179, 45, 0.8);
+  --kvm-warn: #e0a800;
+  --kvm-warn-glow-weak: rgba(224, 168, 0, 0.3);
+  --kvm-warn-glow-strong: rgba(224, 168, 0, 0.8);
+  --kvm-warn-border: rgba(224, 168, 0, 0.3);
+  --kvm-danger: #f85149;
+  --kvm-danger-soft: rgba(248, 81, 73, 0.15);
+  --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
+  --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
+  --kvm-idle: #6e7681;
+  --kvm-toggle-off: #484f58;
+  --kvm-overlay: rgba(22, 27, 34, 0.92);
+  --kvm-shadow: rgba(0, 0, 0, 0.4);
+  --kvm-shadow-soft: rgba(0, 0, 0, 0.2);
+  --kvm-banner-bg: #e3f2fd;
+  --kvm-banner-border: #bbdefb;
+  --kvm-banner-fg: #0d47a1;
+  --kvm-banner-btn: #1976d2;
+  --kvm-banner-btn-hover: #1565c0;
 }
 
 :root[data-theme='light'] {
@@ -25,4 +64,38 @@
   --set-ok-fg: var(--success);
   --set-logs-bg: var(--console-bg);
   --set-logs-fg: var(--console-fg);
+
+  /* P5 KVM:与 :root 块相同的值,见上方注释(固定深色,不跟随主题)。 */
+  --kvm-bg: #0d1117;
+  --kvm-panel: #161b22;
+  --kvm-elev: #21262d;
+  --kvm-border: #30363d;
+  --kvm-fg: #c9d1d9;
+  --kvm-fg-dim: #8b949e;
+  --kvm-fg-faint: #6e7681;
+  --kvm-accent: #8950f2;
+  --kvm-accent-soft: rgba(137, 80, 242, 0.15);
+  --kvm-on-accent: #ffffff;
+  --kvm-ok: #76b32d;
+  --kvm-ok-glow: rgba(118, 179, 45, 0.5);
+  --kvm-ok-glow-weak: rgba(118, 179, 45, 0.3);
+  --kvm-ok-glow-strong: rgba(118, 179, 45, 0.8);
+  --kvm-warn: #e0a800;
+  --kvm-warn-glow-weak: rgba(224, 168, 0, 0.3);
+  --kvm-warn-glow-strong: rgba(224, 168, 0, 0.8);
+  --kvm-warn-border: rgba(224, 168, 0, 0.3);
+  --kvm-danger: #f85149;
+  --kvm-danger-soft: rgba(248, 81, 73, 0.15);
+  --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
+  --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
+  --kvm-idle: #6e7681;
+  --kvm-toggle-off: #484f58;
+  --kvm-overlay: rgba(22, 27, 34, 0.92);
+  --kvm-shadow: rgba(0, 0, 0, 0.4);
+  --kvm-shadow-soft: rgba(0, 0, 0, 0.2);
+  --kvm-banner-bg: #e3f2fd;
+  --kvm-banner-border: #bbdefb;
+  --kvm-banner-fg: #0d47a1;
+  --kvm-banner-btn: #1976d2;
+  --kvm-banner-btn-hover: #1565c0;
 }
