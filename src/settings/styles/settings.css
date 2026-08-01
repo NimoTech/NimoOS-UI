@@ -400,8 +400,11 @@
 .set-mig-progress-fill { height: 100%; background: var(--accent); transition: width 0.2s linear; }
 
 /* ── P3 system-status tab ──────────────────────────────────────────────── */
+.set-comp-head { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.set-comp-group:not(:last-child) { margin-bottom: 20px; }
 .set-comp-group-title { font-size: 12px; color: var(--fg-muted); margin: 0 0 8px; }
 .set-comp-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.set-comp-row:not(:last-child) { border-bottom: 1px solid var(--border); }
 .set-comp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 /* --set-ok-fg 别名到既有 --success(见 theme.sp9.css);--danger 计划里是猜测名,
  * 本仓库并无该 token,实际语义等价物是既有 .set-danger 用的 --remove-fg。 */
@@ -412,6 +415,7 @@
 .set-comp-state { font-size: 12px; }
 .set-comp-state.is-online { color: var(--set-ok-fg); }
 .set-comp-state.is-offline { color: var(--remove-fg); }
+.set-comp-empty { padding: 28px 16px; text-align: center; color: var(--fg-muted); font-size: 12px; }
 
 /* ── P3 terminal tab ───────────────────────────────────────────────────── */
 .set-logs-wrap { position: relative; }

@@ -25,7 +25,9 @@ describe('9 个 tab 骨架', () => {
   // P2 起 network 也填了真实内容(见 network/NetworkPanel.integration.test.ts)——它会打
   // service.network.getInterfaces() 与 useUtilization(MessageBus + /sys/utilization),
   // 而本文件是**零 mock** 的纯骨架测试,挂载它会因 getHttp() 未初始化而抛。
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network'))('%s 骨架渲染标题与空态位', (tab) => {
+  // P3 起 system-status 也填了真实内容(见 SystemStatusPanel.test.ts)——同理会打
+  // service.sys.getGatewayComponents(),排除理由与 network 一致。
+  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
