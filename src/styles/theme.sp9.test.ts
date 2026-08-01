@@ -15,13 +15,27 @@ const src = fs.readFileSync(
   'utf8',
 )
 
-function tokensOf(selector: string): string[] {
+function bodyOf(selector: string): string {
   const i = src.indexOf(selector)
   expect(i, `找不到选择器 ${selector}`).toBeGreaterThanOrEqual(0)
   const open = src.indexOf('{', i)
   const close = src.indexOf('}', open)
-  const body = src.slice(open + 1, close)
-  return [...body.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((m) => m[1]).sort()
+  return src.slice(open + 1, close)
+}
+
+function tokensOf(selector: string): string[] {
+  return [...bodyOf(selector).matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((m) => m[1]).sort()
+}
+
+// name -> 声明值(去掉首尾空白,不含结尾分号)。用于比较同一个 token 在两套主题块里
+// 是否取了相同的字面量。
+function tokenMapOf(selector: string): Record<string, string> {
+  const body = bodyOf(selector)
+  const map: Record<string, string> = {}
+  for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) {
+    map[m[1]] = m[2].trim()
+  }
+  return map
 }
 
 describe('theme.sp9.css token 两套主题齐备', () => {
@@ -31,5 +45,23 @@ describe('theme.sp9.css token 两套主题齐备', () => {
 
   it('至少定义了一个 token(接线已生效,不是空文件)', () => {
     expect(tokensOf(':root {').length).toBeGreaterThan(0)
+  })
+})
+
+describe('--kvm-* token 两套主题取值必须相同(P5 硬约束:KVM 区固定深色,不跟随全局主题)', () => {
+  it('每个 --kvm- 前缀 token,:root 与 :root[data-theme="light"] 的字面量逐个相同', () => {
+    const root = tokenMapOf(':root {')
+    const light = tokenMapOf(":root[data-theme='light']")
+    // 只挑 --kvm- 前缀比较;非 --kvm- 前缀(如 --set-*)是设置区的语义 token,
+    // 两套主题本来就该取不同值,不归这条断言管。
+    const kvmKeys = Object.keys(root).filter((k) => k.startsWith('--kvm-'))
+    expect(kvmKeys.length, '没找到任何 --kvm- token,守卫本身可能失效了').toBeGreaterThan(0)
+    const mismatched = kvmKeys.filter((k) => root[k] !== light[k])
+    expect(
+      mismatched,
+      `以下 --kvm-* token 在两套主题块里取值不同(违反固定深色约束):\n${mismatched
+        .map((k) => `  ${k}: root=${root[k]} light=${light[k]}`)
+        .join('\n')}`,
+    ).toEqual([])
   })
 })

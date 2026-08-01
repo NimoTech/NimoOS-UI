@@ -415,7 +415,8 @@ export default {
   kvmFailedResume: '恢复失败',
   kvmFailedDelete: '删除虚拟机失败',
   kvmFailedAutostart: '保存设置失败',
-  // 🆕新增(a11y):Vue2 折叠按钮是纯图标按钮、连 title 都没有(无障碍缺口)。New-UI 硬约束
-  // 图标按钮必须有 aria-label,zh_CN.json 无对应键,新增。
-  kvmToggleSidebar: '折叠/展开侧边栏',
+  // Vue2 该按钮没有 title,这里为 a11y 补 aria-label。
+  // zh_CN.json "Toggle sidebar" = "切换侧边栏"(评审指出:上一版此处误判"无对应键"
+  // 并自拟了"折叠/展开侧边栏",违反"中文以 zh_CN.json 为准、不许自译"的硬约束,已订正)。
+  kvmToggleSidebar: '切换侧边栏',
 }

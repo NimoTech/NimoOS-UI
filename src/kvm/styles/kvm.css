@@ -62,6 +62,9 @@
 }
 
 .kvm-sidebar-toggle .toggle-icon {
+  /* 未申报偏离登记:Vue2 这里是 b-icon(bulma 组件,自带 inline-block 一类的 display),
+     这里换成裸 <span> 占位符,inline 元素默认不吃 transform,必须显式 inline-block
+     才能让下面 .collapsed 状态的 rotate(180deg) 生效。 */
   display: inline-block;
   transition: transform 0.2s;
 }
