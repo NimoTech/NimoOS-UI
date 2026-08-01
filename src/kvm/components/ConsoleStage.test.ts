@@ -56,4 +56,30 @@ describe('ConsoleStage 占位层', () => {
     expect(playSrc).toMatch(/^data:image\/svg\+xml/)
     expect(powerSrc).not.toBe(playSrc) // 开机图标与恢复图标不是同一张
   })
+
+  // Task 7 评审订正:SendKeyToolbar 不再靠 Teleport + 父组件手写 addEventListener 挂进
+  // `.console-display`,改成本组件转发 console-enter/console-leave/console-move 三个
+  // 鼠标事件 + 一个 <slot />,由父组件(KvmPage)把工具条作为 slot 内容传入。这里补两条
+  // 用例验证转发本身没接错——KvmPage.test.ts 的全量挂载测试只能间接证明"整体接线通了",
+  // 不足以定位"是 ConsoleStage 转发错了还是 KvmPage 接错了"。
+  it('转发 console-enter/console-leave/console-move 三个鼠标事件(Task 7)', async () => {
+    const w = mk()
+    const display = w.get('.console-display')
+    await display.trigger('mouseenter')
+    expect(w.emitted('console-enter')).toHaveLength(1)
+    await display.trigger('mouseleave')
+    expect(w.emitted('console-leave')).toHaveLength(1)
+    await display.trigger('mousemove', { clientX: 42 })
+    expect(w.emitted('console-move')).toHaveLength(1)
+    expect((w.emitted('console-move')![0][0] as MouseEvent).clientX).toBe(42) // 原生事件对象透传,不是空壳
+  })
+
+  it('slot 内容渲染进 .console-display 内部(供 SendKeyToolbar 挂载,Task 7)', () => {
+    const w = mount(ConsoleStage, {
+      props: { vm: VM('running'), connected: false, errorKey: '', processing: false },
+      slots: { default: '<div class="probe-slot-content">x</div>' },
+      global: { plugins: [i18n] },
+    })
+    expect(w.find('.console-display .probe-slot-content').exists()).toBe(true)
+  })
 })

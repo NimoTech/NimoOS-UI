@@ -19,7 +19,21 @@ const props = defineProps<{
   processing: boolean
 }>()
 
-const emit = defineEmits<{ start: []; resume: [] }>()
+// consoleEnter/consoleLeave/consoleMove(Task 7,评审修复):把 `.console-display` 上的
+// 鼠标事件转发给父组件(KvmPage),父组件驱动 SendKey 悬浮工具条的显隐状态机。
+// ⚠️ 架构订正(评审 Important #1):Task 7 最初版本用 `<Teleport :to="hostEl">` +
+// 父组件里手写 `addEventListener` 把工具条"塞"进这个节点,理由是 brief 的 Files 清单
+// 没列 ConsoleStage.vue。评审指出这是过度谨慎——brief 清单是"预计会改哪些"而不是禁止
+// 改动的边界,而"加一个 slot + 转发三个鼠标事件"比 Teleport + 手写生命周期管理更简单、
+// 风险面更小(不需要再自己维护"节点变化时摘/挂监听"这一整套,框架的插槽/事件系统本身
+// 就保证了这一点)。改这里而不是父组件手写监听,是回到了最直接的方案。
+const emit = defineEmits<{
+  start: []
+  resume: []
+  'console-enter': []
+  'console-leave': []
+  'console-move': [e: MouseEvent]
+}>()
 
 const { t, te } = useI18n()
 
@@ -39,7 +53,13 @@ defineExpose({ hostEl })
 </script>
 
 <template>
-  <div class="console-display" ref="hostEl">
+  <div
+    class="console-display"
+    ref="hostEl"
+    @mouseenter="emit('console-enter')"
+    @mouseleave="emit('console-leave')"
+    @mousemove="emit('console-move', $event)"
+  >
     <div v-if="!connected" class="console-placeholder">
       <p v-if="errorText" class="console-hint is-error">{{ errorText }}</p>
       <template v-else>
@@ -69,5 +89,8 @@ defineExpose({ hostEl })
         </button>
       </template>
     </div>
+    <!-- SendKey 悬浮工具条(Task 7)从这里作为 slot 内容传入,DOM 层级与 Vue2 完全一致
+         (工具条是 `.console-display` 的直接子节点),定位基准仍是本组件的 hostEl。 -->
+    <slot />
   </div>
 </template>

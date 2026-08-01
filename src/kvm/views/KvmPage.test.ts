@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import KvmPage from './KvmPage.vue'
 import { i18n } from '../../i18n'
@@ -349,5 +349,83 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
     w.unmount()
     expect(spy).toHaveBeenCalledWith('fullscreenchange', expect.any(Function))
     spy.mockRestore()
+  })
+
+  // 评审 Important #2:jsdom 完全没有 Fullscreen API(已用探针脚本核实:
+  // `'requestFullscreen' in Element.prototype` 是 false,`document.exitFullscreen`
+  // 是 undefined,`'fullscreenElement' in document` 是 false)——不能用 vi.spyOn
+  // (它要求被替身的方法本来就存在),必须直接赋值/defineProperty 桩出整套 API。
+  describe('全屏(评审补测——此前 5 条用例没有一条碰过全屏按钮)', () => {
+    const stubFullscreenAPI = () => {
+      const requestFullscreen = vi.fn().mockResolvedValue(undefined)
+      Element.prototype.requestFullscreen = requestFullscreen as unknown as () => Promise<void>
+      const exitFullscreen = vi.fn().mockResolvedValue(undefined)
+      ;(document as unknown as { exitFullscreen: () => Promise<void> }).exitFullscreen = exitFullscreen
+      return { requestFullscreen, exitFullscreen }
+    }
+    const setFullscreenElement = (el: Element | null) => {
+      Object.defineProperty(document, 'fullscreenElement', { value: el, configurable: true })
+    }
+    afterEach(() => {
+      delete (Element.prototype as { requestFullscreen?: unknown }).requestFullscreen
+      delete (document as { exitFullscreen?: unknown }).exitFullscreen
+      delete (document as { fullscreenElement?: unknown }).fullscreenElement
+    })
+
+    it('(a) 未全屏时点击全屏按钮:调用 requestFullscreen;成功后 isFullscreen 为真且强制显示工具条', async () => {
+      const { requestFullscreen } = stubFullscreenAPI()
+      setFullscreenElement(null)
+      // 用受控 Promise:验证"中途鼠标离开把工具条藏起来了,成功回调仍能把它强制翻回来"
+      // ——这正是 toggleFullscreen 成功回调里 `sendKeyVisible.value = true` 那一行存在
+      // 的理由,如果只在"点击后立刻检查"会测不出删掉这一行的区别(因为点击前工具条本来
+      // 就得是显示状态才点得到按钮)。
+      let resolveRequest: () => void = () => {}
+      requestFullscreen.mockImplementation(() => new Promise<void>((r) => { resolveRequest = () => r(undefined) }))
+
+      api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+      const w = mountPage()
+      await flush()
+
+      await w.get('.console-display').trigger('mouseenter')
+      await w.get('.sendkey-btn--fullscreen').trigger('click')
+      expect(requestFullscreen).toHaveBeenCalledTimes(1)
+
+      await w.get('.console-display').trigger('mouseleave') // 请求还没 resolve,鼠标先离开
+      expect(w.find('.sendkey-toolbar').exists()).toBe(false)
+
+      resolveRequest()
+      await flush()
+      expect(w.find('.sendkey-toolbar').exists()).toBe(true) // 成功回调强制显示,重新出现
+      expect(w.get('.sendkey-btn--fullscreen').attributes('aria-label')).toBe('退出全屏')
+    })
+
+    it('(b) 已全屏时点击全屏按钮:调用 exitFullscreen', async () => {
+      const { exitFullscreen } = stubFullscreenAPI()
+      setFullscreenElement(document.createElement('div'))
+
+      api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+      const w = mountPage()
+      await flush()
+
+      await w.get('.console-display').trigger('mouseenter')
+      await w.get('.sendkey-btn--fullscreen').trigger('click')
+      expect(exitFullscreen).toHaveBeenCalledTimes(1)
+    })
+
+    it('fullscreenchange 事件(非按钮触发,如系统级 Esc/F11)驱动 isFullscreen 同步,VM running 时强制显示工具条', async () => {
+      stubFullscreenAPI()
+      setFullscreenElement(null)
+
+      api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+      const w = mountPage()
+      await flush()
+      expect(w.find('.sendkey-toolbar').exists()).toBe(false) // 还没碰过鼠标,初始隐藏
+
+      setFullscreenElement(document.createElement('div'))
+      document.dispatchEvent(new Event('fullscreenchange'))
+      await flush()
+
+      expect(w.find('.sendkey-toolbar').exists()).toBe(true)
+    })
   })
 })

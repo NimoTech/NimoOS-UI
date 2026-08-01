@@ -72,15 +72,15 @@ watch(() => s.selectedVM.value, (newVM, oldVM) => {
 // 照 Vue2 `.console-display` 上的 @mouseenter/@mouseleave/@mousemove(:154,:1140-1153)
 // + toggleFullscreen/handleFullscreenChange(:1120-1133,2026-08-02 核对)。
 //
-// ⚠️ 与 Vue2 模板写法的偏离(架构层面,不是逻辑偏离,已申报):Vue2 把这三个事件直接
-// 写在 `.console-display` 的模板标签上,因为那个 div 和 toggleFullscreen/onConsoleMove
-// 这些方法同属一个组件。这里 `.console-display` 是 ConsoleStage 组件内部渲染的节点,
-// KvmPage 自己的模板里没有这个标签可以挂 @mouseenter——但 KvmPage 已经通过上面的
-// `hostEl`(watchEffect 镜像 ConsoleStage 暴露出来的同一个真实 DOM 节点)拿到了它,
-// 所以改用原生 addEventListener 挂在 hostEl 上,语义与 Vue2 逐条相同,只是绑定手法从
-// 模板属性变成了 JS 调用。选择让 KvmPage(而不是 ConsoleStage)持有这套状态机,是因为
-// sendKeyVisible/isFullscreen 同时还要驱动 SendKeyToolbar 的 v-if 和 Teleport 挂载,
-// 两者本就该在同一处维护,brief 也明确把这两个 ref 摆在 KvmPage。
+// 评审订正(Important #1,记录一下弯路):最初版本用 `<Teleport :to="hostEl">` 把工具条
+// 塞进 ConsoleStage 内部的 `.console-display` 节点,鼠标事件也用父组件手写
+// `addEventListener` 挂在 hostEl 上——理由是 brief 的 Files 清单没列 ConsoleStage.vue。
+// 评审指出这是过度谨慎:brief 清单是"预计会改哪些"不是禁止改动的边界,而 ConsoleStage
+// 加一个 `<slot />` + 转发三个鼠标事件(见该文件)比 Teleport + 手写生命周期管理更简单、
+// 风险面更小——不需要再自己维护"hostEl 节点变化时摘/挂监听"这一整套(`watch(hostEl,...)`
+// + `attachConsoleListeners`/`detachConsoleListeners`,已删除),框架的插槽/事件系统
+// 本身就保证了这一点。现在 SendKeyToolbar 作为 `<ConsoleStage>` 的 slot 内容传入,鼠标
+// 事件通过 ConsoleStage 转发的 `@console-enter`/`@console-leave`/`@console-move` 接收。
 const sendKeyVisible = ref(false)
 const toolbarHover = ref(false)
 const isFullscreen = ref(false)
@@ -106,7 +106,9 @@ function onConsoleLeave(): void {
 }
 
 // 照 Vue2 onConsoleMove(:1144-1153):鼠标在容器内的横坐标进入右侧 80px 就显示,
-// 否则(且没有停在工具条上)就隐藏。
+// 否则(且没有停在工具条上)就隐藏。e.currentTarget 是 ConsoleStage 内部绑定
+// @mousemove 的那个 `.console-display` 节点本身(原生事件转发不改变 currentTarget),
+// 与 Vue2 逐条等价。
 function onConsoleMove(e: MouseEvent): void {
   if (s.selectedVM.value?.state !== 'running') return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -117,23 +119,6 @@ function onConsoleMove(e: MouseEvent): void {
     sendKeyVisible.value = false
   }
 }
-
-function attachConsoleListeners(el: HTMLElement): void {
-  el.addEventListener('mouseenter', onConsoleEnter)
-  el.addEventListener('mouseleave', onConsoleLeave)
-  el.addEventListener('mousemove', onConsoleMove)
-}
-function detachConsoleListeners(el: HTMLElement): void {
-  el.removeEventListener('mouseenter', onConsoleEnter)
-  el.removeEventListener('mouseleave', onConsoleLeave)
-  el.removeEventListener('mousemove', onConsoleMove)
-}
-// hostEl 在 ConsoleStage 挂载/卸载时变化(选中/取消选中 VM 都可能触发),每次换成新节点
-// 都要先摘旧的监听再挂新的,避免残留监听指向一个已经不在文档树里的旧节点。
-watch(hostEl, (newEl, oldEl) => {
-  if (oldEl) detachConsoleListeners(oldEl)
-  if (newEl) attachConsoleListeners(newEl)
-})
 
 // 照 Vue2 toggleFullscreen(:1120-1128):已在全屏就退出,否则对 hostEl 请求全屏,
 // 成功后强制显示一次工具条。两者都吞掉 rejection(用户拒绝全屏权限等场景不需要报错)。
@@ -165,7 +150,6 @@ onUnmounted(() => {
   s.dispose()
   vnc.dispose()
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  if (hostEl.value) detachConsoleListeners(hostEl.value)
 })
 
 function isProcessing(vm: KvmVM | null): boolean {
@@ -286,13 +270,12 @@ async function onAction(name: string): Promise<void> {
             :processing="isProcessing(s.selectedVM.value)"
             @start="onAction('start')"
             @resume="onAction('resume')"
-          />
-
-          <!-- Teleport 到 hostEl(即 ConsoleStage 内部真正的 `.console-display` 节点)——
-               见上面脚本注释:只有这样 `.sendkey-toolbar` 的绝对定位才能相对
-               `.console-display` 计算,与 Vue2 的 DOM 层级(工具条是它的直接子节点)
-               保持一致。`v-if="hostEl"` 防止 ConsoleStage 还没挂载时 Teleport 目标为空。 -->
-          <Teleport v-if="hostEl" :to="hostEl">
+            @console-enter="onConsoleEnter"
+            @console-leave="onConsoleLeave"
+            @console-move="onConsoleMove"
+          >
+            <!-- 作为 ConsoleStage 的 slot 内容传入,DOM 层级与 Vue2 完全一致
+                 (工具条是 `.console-display` 的直接子节点,定位基准也是它)。 -->
             <transition name="sendkey-slide">
               <SendKeyToolbar
                 v-if="showSendKeyToolbar"
@@ -306,7 +289,7 @@ async function onAction(name: string): Promise<void> {
                 @fullscreen="toggleFullscreen"
               />
             </transition>
-          </Teleport>
+          </ConsoleStage>
         </div>
       </main>
     </div>
