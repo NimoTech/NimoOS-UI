@@ -14,6 +14,11 @@ const EXT_VOL: StorageVolume = {
   size: 2000000000000, availSize: 1000000000000, usedSize: 1000000000000, usePercent: 50,
   driveName: 'sda1', path: '/dev/sda1', mountPoint: '/media/Backup', disk: '/dev/sda',
 }
+const OLD_VOL: StorageVolume = {
+  ...SYS_VOL, uuid: 'old-vol', name: 'BackupOld', isSystem: false,
+  size: 1500000000000, availSize: 700000000000, usedSize: 800000000000, usePercent: 53,
+  driveName: 'sdb1', path: '/dev/sdb1', mountPoint: '/media/BackupOld', disk: '/dev/sdb',
+}
 
 // 真机 fixture(2026-08-01 curl GET /v1/sys/paths 的 data,逐字)
 const PATHS = {
@@ -27,6 +32,14 @@ describe('volumeForPath', () => {
   it('取最长前缀匹配的分区,不是第一个命中的', () => {
     expect(volumeForPath('/media/Backup/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe('ext-1')
     expect(volumeForPath('/DATA/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe(SYS_VOL.uuid)
+  })
+  it('边界:/media/Backup/file 匹配 /media/Backup 而非 /media/BackupOld(需要 / 分段,不是纯字符串前缀)', () => {
+    // 关键:有 /media/BackupOld 时,查 /media/Backup/file 仍要返回 /media/Backup(较短的正确前缀)
+    // 不能因为 /media/BackupOld 更长就返回它 —— 它根本不是这个路径的祖先
+    expect(volumeForPath('/media/Backup/file', [EXT_VOL, OLD_VOL])?.uuid).toBe('ext-1')
+  })
+  it('边界:/media/BackupOld/x 应匹配 /media/BackupOld 而非 /media/Backup', () => {
+    expect(volumeForPath('/media/BackupOld/x', [EXT_VOL, OLD_VOL])?.uuid).toBe('old-vol')
   })
   it('无分区可匹配时返回 null', () => {
     expect(volumeForPath('/DATA/AppData', [])).toBeNull()
@@ -48,8 +61,12 @@ describe('buildAppPathRows', () => {
     expect(buildAppPathRows(PATHS, [SYS_VOL])[0].total).toBe(512110190592)
   })
   it('匹配不到分区时回退系统卷容量(不照抄 Vue2 写死的 970GB)', () => {
-    const rows = buildAppPathRows({ app_data: { path: '/nowhere/x', size: 1 } }, [SYS_VOL])
-    expect(rows[0].total).toBe(512110190592)
+    // 系统卷只有 /media/System,查询 /nowhere/x 无法匹配任何分区 → 使用 fallbackTotal
+    const sysVolWithoutRoot: StorageVolume = {
+      ...SYS_VOL, mountPoint: '/media/System', isSystem: true, size: 555555555555,
+    }
+    const rows = buildAppPathRows({ app_data: { path: '/nowhere/x', size: 1 } }, [sysVolWithoutRoot, EXT_VOL])
+    expect(rows[0].total).toBe(555555555555) // fallbackTotal = 系统卷容量
   })
   it('连系统卷都没有时 total 为 0', () => {
     expect(buildAppPathRows(PATHS, [])[0].total).toBe(0)

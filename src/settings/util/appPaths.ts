@@ -26,13 +26,26 @@ export interface AppPathRow {
 
 const ORDER: AppPathKey[] = ['app_data', 'images', 'database']
 
-/** 最长前缀匹配:/media/Backup/AppData 要命中 /media/Backup 而不是 /。 */
+/** 最长前缀匹配:/media/Backup/AppData 要命中 /media/Backup 而不是 /。
+ *
+ * ⚠️ 不照抄 Vue2 的裸 `startsWith`:那样把 /media/BackupOld 判成属于 /media/Backup(纯字符串
+ * 前缀,不是真祖先目录)。改用正确判据(同 snapshotPath.ts:87):
+ *  - 路径与挂载点完全相等(`clean === mount`),或
+ *  - 路径以 `${挂载点}/` 开头(`clean.startsWith(\`${mount}/\`)`)
+ *
+ * 根挂载点 `/` 特例:不能加 `/` 成 `//`,而应当匹配所有绝对路径(本机单分区就这样)。
+ */
 export function volumeForPath(path: string, volumes: StorageVolume[]): StorageVolume | null {
-  return (
-    volumes
-      .filter((v) => v.mountPoint && path.startsWith(v.mountPoint))
-      .sort((a, b) => b.mountPoint.length - a.mountPoint.length)[0] ?? null
-  )
+  const best = volumes
+    .filter((v) => {
+      const mount = v.mountPoint
+      if (!mount) return false
+      // 完全相等,或以 `${mount}/` 开头;根挂载点 `/` 特例:匹配所有绝对路径
+      if (mount === '/') return path.startsWith('/')
+      return path === mount || path.startsWith(`${mount}/`)
+    })
+    .sort((a, b) => b.mountPoint.length - a.mountPoint.length)[0]
+  return best ?? null
 }
 
 export function buildAppPathRows(paths: SystemPaths | null, volumes: StorageVolume[]): AppPathRow[] {
