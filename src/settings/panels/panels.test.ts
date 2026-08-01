@@ -35,7 +35,11 @@ describe('9 个 tab 骨架', () => {
   // Task 9 起 apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存做样子,见
   // AppsPanel.test.ts)——同理会打 service.sys.getSystemPaths()/service.storage.list() 且用到
   // useToast()(pinia),排除理由与上面一致。
-  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status' && t !== 'storage' && t !== 'apps'))('%s 骨架渲染标题与空态位', (tab) => {
+  // P4 起 folder-permissions 也填了真实内容(四分区界面骨架,见 FolderPermissionsPanel.test.ts)
+  // ——它 onMounted 会调 fetchSnapshot()(本期是空实现、不打接口,但会异步改 state),
+  // 且内含经 reka Portal teleport 的 FolderPickerDialog;本文件是零 mock 且不做 DOM 清理的
+  // 同步骨架测试,排除理由与上面一致。
+  it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status' && t !== 'storage' && t !== 'apps' && t !== 'folder-permissions'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
@@ -90,11 +94,14 @@ describe('9 个 tab 骨架', () => {
 
   // 原来用 network 做这条抽查,P2 起它不再是骨架 → 换成仍是骨架的 storage;
   // Task 7 起 storage 也不再是骨架了 → 换成仍是骨架的 apps;
-  // Task 9 起 apps 也不再是骨架了(见上一条新用例)→ 再换成仍是骨架的 folder-permissions
-  // (理由同上;account 同样还是骨架,folder-permissions/account 任选其一即可)。
+  // Task 9 起 apps 也不再是骨架了 → 换成 folder-permissions;
+  // P4 起 folder-permissions 也不再是骨架了 → 换成本期最后一个骨架 account。
+  // ⚠️ account 在 P4 的 Task 6 里也会填真实内容 → **到时这条与上面那条 it.each 都会失去
+  // 抽查对象**(9 个 tab 全部实现完毕)。届时的处置见 Task 6:两条合并成一条
+  // 「PANEL_BY_TAB 覆盖全部 9 个 tab 且不再有任何 .set-skeleton」的收口断言。
   it('骨架的文案 key 都有译文(没有渲染出裸 key)', () => {
-    const w = mount(PANEL_BY_TAB['folder-permissions'], { global: { plugins: [i18n] } })
-    expect(w.find('.set-section-title').text()).toBe('文件夹权限')
+    const w = mount(PANEL_BY_TAB.account, { global: { plugins: [i18n] } })
+    expect(w.find('.set-section-title').text()).toBe('账户')
     expect(w.find('.set-skeleton').text()).not.toMatch(/^settings/)
   })
 })

@@ -467,3 +467,18 @@
 .set-store-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* 通用空态(对位既有 .set-net-empty / .set-comp-empty 的同一视觉规范)。 */
 .set-empty { padding: 28px 16px; text-align: center; color: var(--fg-muted); font-size: 12px; }
+
+/* ── SP9-P4 folder-permissions(四分区) ───────────────────────────────── */
+.set-fp-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.set-fp-intro { flex: 1; margin: 0; font-size: 13px; color: var(--fg-muted); }
+.set-fp-box { padding: 16px; margin-bottom: 12px; border-radius: 12px; background: var(--card-bg); border: 1px solid var(--card-border); }
+.set-fp-box-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.set-fp-title { flex: 1; font-weight: 600; font-size: 14px; color: var(--fg); }
+.set-fp-desc { margin: 0 0 8px; font-size: 13px; color: var(--fg-muted); }
+.set-fp-sub-head { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; }
+.set-fp-sub-title { flex: 1; font-size: 13px; font-weight: 600; color: var(--fg); }
+.set-fp-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.set-fp-item + .set-fp-item { border-top: 1px dashed var(--card-border); }
+.set-fp-path { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg); }
+.set-fp-tag { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted); }
+.set-fp-empty { margin: 0; font-size: 13px; color: var(--fg-muted); }

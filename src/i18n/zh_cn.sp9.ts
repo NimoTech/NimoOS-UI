@@ -241,4 +241,31 @@ export default {
   settingsStoreSystem: '系统',
   settingsStoreFiles: '文件',
   settingsStoreNoStorage: '未找到存储',                                             // 🆕补译
+
+  // ── SP9-P4 folder-permissions(四分区) ─────────────────────────────────
+  settingsFpIntro: '在下方各分区分别管理每个智能功能的文件夹。',
+  settingsFpDataPending: '数据源待相册区(SP7)与 AI 区(SP8)合并后接入。',  // 🆕本期新增
+  settingsFpFilenameIndex: '文件名索引',
+  settingsFpServiceOffline: '服务离线',
+  settingsFpFilenameDesc: '纳入文件名搜索索引的文件夹。',
+  settingsFpNoFolders: '暂无文件夹。',
+  settingsFpKnowledge: '知识库',
+  settingsFpKnowledgeDesc: '纳入知识库(RAG)索引的文件夹。',
+  settingsFpIndexedFolders: '索引目录',
+  settingsFpExcludedSubfolders: '排除的子目录',
+  settingsFpAddExclusion: '添加排除',
+  settingsFpNoExclusions: '暂无排除。',
+  settingsFpAiHidden: '禁止 AI 访问的文件夹',
+  settingsFpCurrentUserOnly: '仅当前用户',
+  settingsFpAiDesc: 'AI agent 永远无法看到这些文件夹。',
+  settingsFpNoAiBlocked: '未禁止任何文件夹——除内置系统黑名单外,AI 可访问全部。',
+  settingsFpPhotos: '照片',
+  settingsFpUpdateRequired: '需要更新',
+  settingsFpPhotosDesc: '照片库监视的文件夹。',
+  settingsFpPhotosAuto: '自动模式:Photos 当前监视以下文件夹(动态跟随挂载卷)。',
+  settingsFpSwitchManual: '转为手动管理',
+  settingsFpPhotosStale: 'Photos 服务需要更新后才能在此管理其目录。',
+  settingsFpCoveredBy: '已被 {p} 覆盖',
+  settingsFpGlobRules: '另有 {n} 条模式规则(如 *.key)在 AI 设置中管理。',
+  settingsFpAddFolder: '添加文件夹',
 }
