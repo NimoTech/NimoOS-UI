@@ -96,12 +96,19 @@ DialogRoot :open=showRebuildAllConfirm @update:open
   含 reka `setTimeout(0)` 延后挂监听那一次真宏任务 tick)。
 - 弹窗内的错误提示**不用 toast**:超限横幅是**内嵌** `.k-banner`(蓝本 `:365-370`),
   400 的警示条也在页面主体的 `.k-banner` 里,不是 toast(遵 brief 硬约束)。
-- 用到的 13 个类全部已存在:`k-modal-bg` / `k-modal` / `k-confirm-body` / `k-confirm-icon` /
-  `k-confirm-title` / `k-confirm-summary` / `k-modal-foot` / `k-banner` / `k-banner-icon` /
-  `k-files-actionbar` / `k-ab-inner` / `k-ab-info` / `k-ab-warn` / `k-ab-actions`
-  (逐个 `grep "'<类>'" knowledgeStyles.test.ts` + `grep ".<类>" knowledge.scss` 命中);
-  `.right` 在 `knowledge.scss:841` 的 `.k-modal-foot` 块内(T5 已搬)。
-  **`knowledgeStyles.test.ts` 白名单一行都没动。**
+- **本刀往模板新增的类名共 15 个,全部已存在,零新增**(修复轮 1,M-2:初稿散文写「13 个」
+  却列了 14 个、另把 `.right` 单列,数字与列表不符 —— 现按评审实测口径重列):
+
+  | 组 | 类名 | 数量 | 出处 |
+  |---|---|---|---|
+  | 动作条 | `k-files-actionbar` / `k-ab-inner` / `k-ab-info` / `k-ab-warn` / `k-ab-actions` | **5** | 附录 D §D.2(T6 搬入) |
+  | 弹窗 | `k-modal-bg` / `k-modal` / `k-confirm-body` / `k-confirm-icon` / `k-confirm-title` / `k-confirm-summary` / `k-modal-foot` | **7** | 附录 D §D.1(T2 搬入) |
+  | 弹窗内嵌横幅(**复用**,T8 已在用) | `k-banner` / `k-banner-icon` | **2** | `WHITELIST_102`(P5a) |
+  | 非 `k-*` | `right`(`.k-modal-foot` 内部选择器,`knowledge.scss:841`)· 按钮变体 `danger` / `primary`(`.k-btn` 块内的 `&.danger` / `&.primary`) | **3** | T2 / P5a 搬入 |
+
+  → 12 个 `k-*`(其中 2 个是复用)+ 3 个非 `k-*` = **15**。
+  逐个用 `grep "'<类>'" knowledgeStyles.test.ts` + `grep "\.<类>" knowledge.scss` 核过,全部命中。
+  **`knowledgeStyles.test.ts` 白名单一行都没动、`knowledge.scss` 零改动。**
 
 ## 6. 底部动作条
 
@@ -281,16 +288,22 @@ jsdom 下 `indeterminate` 可读写但无视觉表现 → 断言直接读 DOM �
 | # | 位置 | 改前 | 改后 | 理由 |
 |---|---|---|---|---|
 | ① | `IndexedFilesView.vue` 头注释【K14】段 | 蓝本 `:791-808` | 蓝本 `:791-809` | brief §1 指出:`:808` 只是内层 `catch` 的闭合,函数自身的 `},` 在 `:809`。T0/T8 的行号偏 1 行 |
+| ② | `IndexedFilesView.test.ts:616`(T8 那条 K14 用例的注释) | 蓝本 `:791-808` | 蓝本 `:791-809` | **修复轮 1,M-2** —— 初稿把它当「T8 当时的理解」保留不动,评审判定不成立:同一 commit 内两种行号并存本身就是缺陷,且任务书说的「顺手订正」不限于 `.vue`。已改 |
 
-`IndexedFilesView.test.ts:602` 那条注释里同样写了 `:791-808`——**保留不动**:
-它指的是「T8 当时理解的范围」,而 T8 报告 §271 已把它作为修复轮记录;本刀在新增的
-K14 真实入口 describe 里用的是正确的 `:791-809`(与 §3 的引用一致),两处不矛盾。
-—— 若评审认为该处也应订正,可一并改,行为无关。
+→ 现在 `src/` 里的**行号引用**全部是 `:791-809`(共 4 处:`.vue` 的 `:46` / `:156` / `:625`
++ `.test.ts` 的 `:616`),口径统一。
+`grep -rn "791-808" src/` 还剩**唯一 1 处**:`IndexedFilesView.vue:157`,那是 T10 头注释里
+**记录这次订正本身**的解释句(「T8 报告写的 `:791-808` 差 1 行,已一并订正」)—— 它不是陈旧引用,
+是订正留痕,故保留。
 
 **没有削弱任何 T8 / T9 既有断言**:`filtersDirty` 七条 / N12 六条 / K14+K19 反向 /
 模板零裸色定向断言 / 过滤条文案集合式断言 / 四态徽标三项 + N14 的 `title` 四条 /
-属性态 7 宿主 / 分页边界 —— `git diff` 里这些 describe **零改动**(diff 只在文件头部
-mock 骨架 3 行、`setupServiceMocks` 2 行、`afterEach` 1 行,以及文件尾部纯新增)。
+属性态 7 宿主 / 分页边界 —— 硬证据:`git show --format= HEAD -- src/ai/knowledge/views/IndexedFilesView.test.ts | grep '^-'`
+**只有 1 行删除**(那行是被扩写的 `vi.hoisted` mock 对象,`parserFiles` 一个键 → 两个键),
+其余全是纯新增。
+
+具体到 diff:改动只落在文件头部的 mock 骨架、`setupServiceMocks`、`afterEach` 与
+`:616` 那行注释,以及文件尾部的纯新增段;既有 describe 的断言体**零改动**。
 
 ## 12. §3 的 K1–K20 本任务命中的条目(显式申报)
 
@@ -494,16 +507,26 @@ JS 行/块注释**(治理 §9:「在文件里找文本」必须先排除注释),
 **结论:蓝本 826 行三刀累计全部落地,本文件再无占位、无空函数体、无 TODO。**
 本文件现 **1187 行**(含 T8/T9/T10 三段共约 300 行申报注释)。
 
-## 18. 遗留疑问
+## 18. 🔴 任务书勘误(T10 回权威源核出,**格式照治理文件 §12**,下游一律以本节为准)
 
-1. 🔴 **`data-active` 套不套 `String()`**:brief §4 与附录 D §D.3 / 治理 §12 E-9 / 蓝本原文冲突。
-   本刀按权威源**不套**(§6 已给完整论证,渲染零差异)。请协调者确认。
-2. 🔴 **`CAP_400_FILTER` 的 400 响应体形状是「源码推定、未实测」**(fixture README 登记)。
+`p5b-task-10-brief.md` 的两条错。**独立 opus 评审(修复轮 1,2026-08-02)已四处独立核实、
+判两条全部成立 —— 错在任务书,不在实现。** 🔴 **P5c 若复用同一套 brief 模板会再撞上,故留痕。**
+
+| # | 任务书原文 | 权威源实际 | 处置 |
+|---|---|---|---|
+| **B-1** | §4「底部粘性动作条」:「`data-active="selectedCount > 0"`(🔴 **套 `String()`**,照抄蓝本)」 | 🔴 **这句自相矛盾** —— 蓝本 `IndexedFilesView.vue:323` 原文是 `:data-active="selectedCount > 0"`,**没套**。四处独立核实一致:① 蓝本原文;② **附录 D §D.3 那一行明确标 ❌ 不套**;③ **治理 §12 E-9 的裁定是「逐处照抄蓝本」**,并指出 P5a `.k2-cc` 事故的真实教训是**属性名错**(附录写 `[data-active]`,蓝本实际 `[data-on]`)而**不是** `String()`;④ 评审自读 `@vue/runtime-dom@3.5.39` 的 `patchAttr`(`:560`)确认 `data-active` **不在** `isSpecialBooleanAttr` 里 → `false` 走 `setAttribute` 渲染成 `"false"`,**套与不套渲染完全一致** | **照抄蓝本,不套 `String()`**。优先级:设计文档 > 治理文件 + 附录 > **任务 brief**。断言口径不变(`toBe('true')` / `toBe('false')`,禁 `toBeUndefined()`)。**行为零差异**,不是偏离 |
+| **B-2** | §2「双上限」:「两个常量 T8 已声明(`:91` / `:92`),核实值与治理 §4 一致」 | 🔴 **T8 只声明了 `FILTER_REBUILD_CAP` 一个。** T8 的头注释与 script 注释都明确写了「`EXPLICIT_REBUILD_CAP`(蓝本 :392,批量重建按钮专用)**本刀不声明**,T9/T10 的动作条才用到」 | `EXPLICIT_REBUILD_CAP = 500` 是 **T10 新增**(不是核实)。值与治理 §4.4 一致(后端 `MAX_REINDEX_FILE_IDS`,`service_reindex.py:26`) |
+
+> 教训(同治理 §2 那条「brief / 计划书里标了『已核』的数据,评审仍须回权威源复核」):
+> **B-1 是「brief 自己写了两个互相矛盾的要求」——「套 String()」与「照抄蓝本」不可能同时满足。
+> 遇到这种情况按优先级取权威源,并显式申报,不要自己挑一个执行。**
+
+## 18.1 遗留疑问
+
+1. 🔴 **`CAP_400_FILTER` 的 400 响应体形状是「源码推定、未实测」**(fixture README 登记)。
    若将来在多文件机器上实测出不同形状,K14 的反向断言里那三个 `not.toContain` 字符串要跟着更新
    ——但 K14 的**保证**(不回显任何后端 detail)与形状无关,不会因此失效。
-3. `EXPLICIT_REBUILD_CAP` 是本刀新增而非「T8 已声明」(brief §2 与实际不符,§4 已注明)。
-4. `IndexedFilesView.test.ts:602` 那条 T8 注释里的 `:791-808` 未订正(§11 已说明理由,
-   若评审认为该一并改,行为无关)。
+2. B-1 / B-2 两条已由评审判定成立(见 §18),**不再是待确认项**。
 
 ## 19. 给验收 / P5c 的交接项
 

@@ -613,7 +613,7 @@ describe('IndexedFilesView — 错误横幅(K14/K19,反向断言)', () => {
 
   it('K14: rebuild-all 400 分支不回显后端 detail,只留固定 "400 Bad Request" + aiKbRebuildCapHint(反向断言)', async () => {
     const w = await mountFiles()
-    // errorBanner 的赋值函数 doRebuildAll()(蓝本 :791-808/确认弹窗 :356-381)是
+    // errorBanner 的赋值函数 doRebuildAll()(蓝本 :791-809/确认弹窗 :356-381)是
     // T9/T10 才落地的动作条功能,本刀先把「errorBanner 被填充后怎么渲染」这条
     // 展示链路做对。技术手法:<script setup> 顶层 ref 即便未 defineExpose,
     // @vue/test-utils 的 wrapper.vm 在测试环境下仍可读写(instance.proxy 走
