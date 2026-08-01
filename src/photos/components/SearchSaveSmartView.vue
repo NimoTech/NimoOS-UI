@@ -13,7 +13,7 @@
 // 不是 onMounted(持久挂载坑,同 T5 文件头注释)。
 //
 // fix round 1 · I1(评审查实的漏渲染):Vue2 `mounted()` 里的 `_onDoc`(整体 :819-832,
-// 本弹层对应的判据在 :819-823)是 `mousedown` 判据 ——
+// 本弹层对应的判据在 :820-822)是 `mousedown` 判据 ——
 // `pop && !pop.contains(target) && btn && !btn.contains(target)` 才关,
 // `pop` 是 `savePop`(本组件的根节点)、`btn` 是 `saveBtn`(触发按钮,归 T16/C6)。之前只
 // 实现了 document 级 Esc,漏了这一半。这里补上:根节点绑 `rootRef`,新增可选 prop
@@ -68,7 +68,9 @@ function onDocKeydown(e: KeyboardEvent): void {
   close()
 }
 
-// fix round 1 · I1:点外部 mousedown 关闭(照搬 Vue2 `_onDoc` 的 people 判据,:820-822)。
+// fix round 1 · I1(fix round 2 · N1 修正标签):点外部 mousedown 关闭(照搬 Vue2 `_onDoc`
+// 里保存弹层那半判据——savePop/saveBtn 的 contains 检查,:820-822;people/filterbar 那半
+// 判据在 :824-830,不归本组件管)。
 // 判据是"根容器与 ignoreEl 都不包含 target"——两次 `contains` 调用都要跑完再做判断,
 // 不写成"先查一个、命中就早退"的形态(Global Constraints「onDocMousedown 里禁止早退」,
 // P5-T10 真 bug 就是这种早退在多层共享判定函数时漏检第二个分支;本函数虽然只服务

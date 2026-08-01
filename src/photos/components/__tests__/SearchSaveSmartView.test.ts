@@ -248,7 +248,8 @@ describe('Esc 关闭(不提交)', () => {
   })
 })
 
-// fix round 1 · I1(评审查实的漏渲染):Vue2 `_onDoc`(:818-825)的 mousedown 判据——
+// fix round 1 · I1(评审查实的漏渲染,fix round 2 · N2 修正行号):Vue2 `_onDoc`(整体
+// :819-832,保存弹层那半判据在 :820-822)的 mousedown 判据——
 // "pop 与 btn 都不 contains(target) 才关"。之前只做了 Esc,这里补齐点外部关闭 + 新增
 // `ignoreEl` prop 覆盖触发按钮那一半判据。
 describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {

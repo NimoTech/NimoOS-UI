@@ -24,9 +24,10 @@
 // 不发任何图片请求，与 Vue2 的 `v-if="p.coverFaceId"` 语义等价，且不需要改动
 // PersonAvatar.vue 一行代码。
 //
-// 偏离登记(fix round 1 · M2,此前漏登记的一处):PersonAvatar 首字母兜底态的底色走的是
-// `--avatar-fallback` token,而 Vue2 `PhotosSearchView.vue:101-102` 这里的兜底底色是一个
-// 写死的双色渐变(暖粉到浅粉紫,不属于本仓 accent 家族的任何一档)——两者色值不同,是本
+// 偏离登记(fix round 1 · M2,此前漏登记的一处;fix round 2 · N4 修正渐变方向):
+// PersonAvatar 首字母兜底态的底色走的是 `--avatar-fallback` token,而 Vue2
+// `PhotosSearchView.vue:101-102` 这里的兜底底色是一个写死的双色渐变(135 度角,起点是
+// 浅紫色调、终点是粉色调,不属于本仓 accent 家族的任何一档)——两者色值不同,是本
 // 组件复用 PersonAvatar 时继承的既有偏离(P5 时期定的公共兜底色,不在本任务范围内改)。
 //
 // 偏离登记(fix round 1 · M8,加性改动):PersonAvatar 把 `alt` 设成 `name || ''`(见该
@@ -219,8 +220,10 @@ const applyLabel = computed(() => {
   font-size: 12px;
 }
 
-/* Vue2 :113 这里的脚部margin-top 是 14px,与 T12/T13(:84/:142)的 12px 不同(逐条声明级
-   两条腿审计查实的真实差异,不是抄错)——两条脚部规则各自独立声明,不合并复用。 */
+/* Vue2 :113 这里的脚部margin-top 是 14px,与 T13 `SearchDatePopover.vue`(Vue2 日期弹层
+   :84)/T12 `PhotosFilterPopover.vue`(Vue2 列表弹层 :142)的 12px 不同(fix round 2 · N3
+   修正配对:此前把 T12/T13 与 :84/:142 的对应关系写反了。逐条声明级两条腿审计查实的
+   真实差异,不是抄错)——两条脚部规则各自独立声明,不合并复用。 */
 .fpop-foot {
   display: flex;
   gap: 8px;
