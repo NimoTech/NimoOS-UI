@@ -33,13 +33,14 @@ describe('volumeForPath', () => {
     expect(volumeForPath('/media/Backup/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe('ext-1')
     expect(volumeForPath('/DATA/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe(SYS_VOL.uuid)
   })
-  it('边界:/media/Backup/file 匹配 /media/Backup 而非 /media/BackupOld(需要 / 分段,不是纯字符串前缀)', () => {
-    // 关键:有 /media/BackupOld 时,查 /media/Backup/file 仍要返回 /media/Backup(较短的正确前缀)
-    // 不能因为 /media/BackupOld 更长就返回它 —— 它根本不是这个路径的祖先
-    expect(volumeForPath('/media/Backup/file', [EXT_VOL, OLD_VOL])?.uuid).toBe('ext-1')
+  it('挂载点是字符串前缀但不是祖先目录时不许命中(/media/BackupOld/x 不属于 /media/Backup)', () => {
+    // 关键:卷列表里只有根 / 和 /media/Backup(无 /media/BackupOld)。裸 startsWith 会让
+    // /media/BackupOld/x 命中 /media/Backup(13 字符,比 / 长),排序也救不回来 ——
+    // 边界判断(path === mount 或 path.startsWith('${mount}/'))才能让它落回根卷。
+    expect(volumeForPath('/media/BackupOld/x', [SYS_VOL, EXT_VOL])?.uuid).toBe(SYS_VOL.uuid)
   })
-  it('边界:/media/BackupOld/x 应匹配 /media/BackupOld 而非 /media/Backup', () => {
-    expect(volumeForPath('/media/BackupOld/x', [EXT_VOL, OLD_VOL])?.uuid).toBe('old-vol')
+  it('真正的子路径仍然命中最长的挂载点(/media/Backup/AppData → /media/Backup)', () => {
+    expect(volumeForPath('/media/Backup/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe('ext-1')
   })
   it('无分区可匹配时返回 null', () => {
     expect(volumeForPath('/DATA/AppData', [])).toBeNull()
