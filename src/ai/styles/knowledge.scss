@@ -8,6 +8,16 @@
  * 共 38 个)。蓝本 `.knowledge-app { … }` 那一大段(:59-1509)里混着 P5b-P5f 才用到
  * 的类(表格/抽屉/笔记/Wiki/仪表盘…),白名单以外一律不搬。
  *
+ * 【SP8-P5b Task 2 续写】本档第二次扩容:搬入"索引运维"两页(已收录文件 / 任务队列)
+ * 共用的底座段共 7 小段 —— 蓝本 :241-252(S1)· :253-257(S2)· :735-968(S3)·
+ * :1296-1316 + :1335-1341(S4)· :1398-1428(S5)· :1484-1499(S6)· :2031-2039(S7)。
+ * 全部按 K9 嵌进下方那个既有的 `.knowledge-app { … }` 基础块,段序照蓝本原序;S6 按
+ * 附录 D.6 并入既有的 `@media (max-width: 860px)`,S7 按 K9 从顶层裸选择器重新嵌套。
+ * 白名单 102 → 134(附录 D.1 的 32 个)。新声明 3 个 token(见下方两个声明块的
+ * "R2(P5b-T2 追加)"分组),归属依治理文件 §6.2 的 token 归属表。
+ * 显式不搬:K17 的 .k-modal-head/-title/-x/-body(留 P5c)· K10 的顶层重复 confirm 段
+ * (蓝本 :1676-1702,级联上永不生效)· 附录 D.5 的 .k-frow 死规则。
+ *
  * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent
  * 等原生冷蓝色值),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
  * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
@@ -153,6 +163,18 @@
   --danger-soft-border: rgba(240, 119, 107, 0.24); /* AI tokens.scss:309 */
   --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:338 */
 
+  /* R2(P5b-T2 追加)—— 共享底座段(队列/表格/弹窗/确认框/kn-badge)另用到 3 个 token,
+     归属见 P5b 治理文件 §6.2 的 token 归属表(附录 B §B.1 同表,权威):
+       --success-soft-border(蓝本 :2038 的 .kn-badge[data-s="curated"] 边框)
+       --danger-soft-faint  (蓝本 :1417 的 .k-confirm-summary 底色;T6 段 :1972 会再用一次)
+       --danger-hover       (蓝本 :846 的 .k-btn.danger hover 底色)
+     前两个取值抄自 AI tokens.scss 对应主题块;--danger-hover 全仓无同语义 token,
+     两档取值由设计 §6.2 直接给定(该节的"亮度 −9%"只是说明性文字,复算不出这两个值,
+     以给定值为准,禁止下游重算)。 */
+  --success-soft-border: rgba(79, 184, 112, 0.28); /* AI tokens.scss:307 */
+  --danger-soft-faint: rgba(240, 119, 107, 0.1); /* AI tokens.scss:314 */
+  --danger-hover: #E35F52; /* 全仓无源,设计 §6.2 给定的暗档值 */
+
   /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
   color-scheme: dark;
 }
@@ -229,6 +251,11 @@
   /* R2(T11 追加)—— 见暗色块同名注释,浅色档取值。 */
   --danger-soft-border: rgba(215, 73, 59, 0.16); /* AI tokens.scss:132 */
   --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:182 */
+
+  /* R2(P5b-T2 追加)—— 见暗色块同名注释,浅色档取值。 */
+  --success-soft-border: rgba(46, 158, 84, 0.2); /* AI tokens.scss:130 */
+  --danger-soft-faint: rgba(215, 73, 59, 0.06); /* AI tokens.scss:145 */
+  --danger-hover: #A83226; /* 全仓无源,设计 §6.2 给定的浅档值 */
 
   /* R3 —— 见头注释 */
   color-scheme: light;
@@ -426,9 +453,27 @@
     display: grid; place-items: center;
     flex-shrink: 0;
   }
-  /* 蓝本 k-banner-close(:238-244)不在附录 D 白名单里(KnowledgeLayout.vue/
-     DashboardView.vue 模板都未使用这个类),不搬。 */
+  /* ---------- P5b-T2 · S1(蓝本 :241-252)---------- */
+  .k-banner-close {
+    margin-left: auto;
+    padding: 2px 6px;
+    border-radius: var(--r-sm);
+    color: var(--text-tertiary);
+    font-size: 12px;
+    /* 蓝本 :247 中性加深的半透明黑裸值 → --line(与蓝本 .k-filt-clear:hover(:1759)
+       同款中性加深,两档都已有这个 token) */
+    &:hover { background: var(--line); color: var(--text-primary); }
+  }
 
+  /* Views whose root wraps .k-scroll plus siblings (modals, action bars) —
+   * without this the anonymous wrapper is floored at content height and the
+   * inner .k-scroll never gets a constrained height to overflow. */
+  /* ---------- P5b-T2 · S2(蓝本 :253-257)---------- */
+  .k-view {
+    display: flex; flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
   .k-scroll {
     flex: 1;
     overflow-y: auto;
@@ -491,8 +536,98 @@
     border-radius: 6px;
   }
 
-  /* ---------- Buttons(蓝本 :818-849;.danger 修饰不在白名单——KnowledgeLayout.vue/
-     DashboardView.vue 都未用到 k-btn.danger,不搬)---------- */
+  /* ---------- P5b-T2 · S3 前半(蓝本 :735-817,Queue page)----------
+     蓝本 :818-852 的 .k-btn 夹在本段中间,P5a 已经搬过(见下方既有块),这里不重复;
+     .k-btn 之后的 :854-967 接在那个块的后面,以保持蓝本原序。 */
+  .k-queue-head {
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .k-filter-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 120ms ease;
+    &:hover { border-color: var(--line-strong); }
+    &[data-on="true"] {
+      background: var(--text-primary);
+      color: var(--bg-elevated);
+      border-color: var(--text-primary);
+    }
+    &[data-tone="danger"][data-on="true"] {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+  }
+  .k-filter-pill-count {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--bg-chip);
+    color: var(--text-secondary);
+  }
+  .k-filter-pill[data-on="true"] .k-filter-pill-count {
+    /* 蓝本 :770 是实底强调色胶囊上的白色半透明蒙版裸值 —— --text-on-accent 两档都是
+       不透明纯白,用 color-mix 在既有 token 上派生出等价透明度(手法与本档
+       .k-empty-illust 高光、.k2-ob-layer .k2-tag 蒙版同款,承 P5a T11 先例)。 */
+    background: color-mix(in srgb, var(--text-on-accent) 18%, transparent);
+    color: var(--text-on-accent); /* 蓝本 :771 前景裸色 → token */
+  }
+  .k-filter-pill[data-tone="danger"] .k-filter-pill-count {
+    background: var(--danger-soft); /* 蓝本 :774 红色半透明底色裸值 → token */
+    color: var(--danger);
+  }
+  .k-filter-pill[data-tone="danger"][data-on="true"] .k-filter-pill-count {
+    /* 蓝本 :778 同上,只是蒙版浓一档 */
+    background: color-mix(in srgb, var(--text-on-accent) 22%, transparent);
+    color: var(--text-on-accent); /* 蓝本 :779 前景裸色 → token */
+  }
+
+  .k-done-stat {
+    margin-left: auto;
+    display: flex; flex-direction: column; align-items: flex-end;
+    font-variant-numeric: tabular-nums;
+  }
+  .k-done-stat-num {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    font-weight: 500;
+    b { color: var(--text-secondary); font-weight: 600; }
+  }
+  .k-done-stat-label {
+    font-size: 10.5px;
+    color: var(--text-quaternary);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .k-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-xs);
+    &[data-selecting="true"] {
+      background: var(--accent-softer);
+      border-color: var(--accent);
+    }
+  }
+  .k-toolbar-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    b { color: var(--text-primary); font-weight: 600; }
+  }
+
+  /* ---------- Buttons(蓝本 :818-852)——基类与 .ghost/.outline/.primary/:disabled
+     由 P5a 搬入;P5b-T2 只在块内补一个 &.danger(蓝本 :843-847),不重写整块。---------- */
   .k-btn {
     padding: 7px 13px;
     border-radius: var(--r-sm);
@@ -519,14 +654,215 @@
       box-shadow: 0 2px 6px var(--accent-soft-2);
       &:hover:not(:disabled) { background: var(--accent-hover); }
     }
+    &.danger {
+      /* P5b-T2 新增(蓝本 :843-847)—— P5a 当时判定本类不在白名单故未搬。 */
+      background: var(--danger);
+      color: var(--text-on-accent); /* 蓝本 :845 前景裸色 → token */
+      /* 蓝本 :846 是一个加深一档的危险色 hover 底色裸值,全仓无同语义 token →
+         按治理文件 §6.2 归属表新造 --danger-hover,两档取值见上方两个声明块。 */
+      &:hover:not(:disabled) { background: var(--danger-hover); }
+    }
     &:disabled {
       background: var(--bg-chip); color: var(--text-quaternary);
       cursor: not-allowed; box-shadow: none;
     }
   }
 
-  /* ---------- Responsive(蓝本 :1453-1507;只搬 .k-rail/.k-mobile-tabs/.k-mobile-tab,
-     k-quick-grid、k-status-strip、k-row、k-frow 等不在白名单,留给对应批次) ---------- */
+  /* ---------- P5b-T2 · S3 后半(蓝本 :854-967,Queue page 表格)---------- */
+  .k-table {
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-xs);
+  }
+  .k-row {
+    display: grid;
+    grid-template-columns: 30px 30px 1fr 1.4fr 110px 90px 36px;
+    align-items: center;
+    padding: 9px 14px;
+    gap: 10px;
+    border-top: 1px solid var(--line-faint);
+    font-size: 13px;
+    transition: background 100ms ease;
+    height: 44px;
+    &:first-child { border-top: 0; }
+    &[data-selected="true"] { background: var(--accent-softer); }
+    &:hover:not(.k-row-head) { background: var(--bg-canvas); }
+  }
+  .k-row-head {
+    background: var(--bg-sunken);
+    font-size: 10.5px; font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    height: 36px;
+  }
+  .k-row-check {
+    width: 16px; height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .k-row-status {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    font-size: 13px;
+    &[data-state="pending"] { background: var(--bg-chip); color: var(--text-secondary); }
+    &[data-state="running"] {
+      background: var(--accent-soft); color: var(--accent);
+      animation: k-pulse 1.4s ease-in-out infinite;
+    }
+    &[data-state="failed"]  { /* 蓝本 :899 红色半透明底色裸值 → token */ background: var(--danger-soft); color: var(--danger); }
+  }
+  .k-row-name {
+    font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .k-row-path {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    direction: rtl; text-align: left;
+  }
+  .k-row-time {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  .k-row-retry {
+    font-size: 11px;
+    color: var(--warning);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  /* Distill scope: its own column sizing (no checkbox column; badges +
+   * error text need dedicated flexible cells) — the index scope's grid
+   * above stays untouched. */
+  .k-row[data-scope="distill"] {
+    grid-template-columns: 28px 1fr 1fr 150px 1fr 90px 36px;
+  }
+  .k-row-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .k-row-error {
+    font-size: 11px;
+    color: var(--text-quaternary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .k-row-actions {
+    display: flex; justify-content: flex-end;
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+  .k-row:hover .k-row-actions { opacity: 1; }
+  .k-row-action {
+    width: 28px; height: 28px;
+    border-radius: var(--r-sm);
+    display: grid; place-items: center;
+    color: var(--text-tertiary);
+    transition: all 100ms ease;
+    &:hover { background: var(--bg-chip); color: var(--text-primary); }
+    &[data-tone="danger"]:hover { /* 蓝本 :958 红色半透明底色裸值 → token */ background: var(--danger-soft); color: var(--danger); }
+  }
+  .k-table-foot {
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    background: var(--bg-sunken);
+    border-top: 1px solid var(--line-faint);
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ---------- P5b-T2 · S4(蓝本 :1296-1316 + :1335-1341,Modals)----------
+     K17:蓝本 :1317-1334 的 .k-modal-head / .k-modal-title / .k-modal-x /
+     .k-modal-body 本期两个视图都不用,留 P5c,故跳过那一段;只搬 :1296-1316
+     与 :1335-1341(.k-modal-foot 及其内部的 .right)。 */
+  .k-modal-bg {
+    position: fixed; inset: 0;
+    /* 蓝本 :1298 冷调半透明遮罩裸值 → --modal-scrim(P5a 已在两档声明) */
+    background: var(--modal-scrim);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: grid; place-items: center;
+    z-index: 1100;
+    padding: 40px;
+    animation: k-fade-in 180ms ease;
+  }
+  .k-modal {
+    width: min(480px, 100%);
+    max-height: min(90vh, 720px);
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: k-modal-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .k-modal-foot {
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 8px;
+    border-top: 1px solid var(--line-faint);
+    background: var(--bg-canvas);
+    .right { margin-left: auto; display: flex; gap: 8px; }
+  }
+
+  /* ---------- P5b-T2 · S5(蓝本 :1398-1428,确认弹窗)----------
+     K10:蓝本 :1676-1702 还有一份**顶层**的 .k-confirm-icon/.k-confirm-title/
+     .k-confirm-summary,声明与这里的嵌套版逐字等价。级联上嵌套版是
+     `.knowledge-app .k-confirm-*`(0,2,0)、顶层版是 `.k-confirm-*`(0,1,0),
+     嵌套版完胜 → 那一份在 Vue2 里就从未生效过,整段丢弃,不搬。
+     (段范围 :1398-1430 的末两行是一个空行 + 下一节 Toast 的节标题注释;.k-toast
+     按 K3 不搬,那条节标题跟着它走,故实际搬到 :1428 为止。) */
+  .k-confirm-body {
+    padding: 20px 22px 12px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .k-confirm-icon {
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    background: var(--danger-soft); /* 蓝本 :1405 红色半透明底色裸值 → token */
+    color: var(--danger);
+    display: grid; place-items: center;
+    margin: 0 auto;
+  }
+  .k-confirm-title {
+    text-align: center;
+    font-size: 18px; font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .k-confirm-summary {
+    padding: 12px;
+    /* 蓝本 :1417 比 danger-soft 更淡一档的红色半透明底色裸值 → 新 token
+       --danger-soft-faint(治理文件 §6.2 归属表判给 T2 声明,T6 段 :1972 复用) */
+    background: var(--danger-soft-faint);
+    /* 蓝本 :1418 红色半透明边框裸值 → --danger-soft-border(两档已有) */
+    border: 1px solid var(--danger-soft-border);
+    border-radius: var(--r-md);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    b {
+      color: var(--danger);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+  }
+
+  /* ---------- Responsive(蓝本 :1453-1507)—— P5a 搬了 .k-rail/.k-mobile-tabs/
+     .k-mobile-tab;P5b-T2 按附录 D.6 往同一个 @media 里补 S6 的两条 .k-row 规则(见块内)。
+     k-quick-grid、k-status-strip 仍不在白名单,.k-frow 是死规则(附录 D.5),都不搬。 ---------- */
   @media (max-width: 860px) {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) 60px; /* same min-content floor issue as the desktop row */
@@ -555,10 +891,50 @@
         top: 4px; right: calc(50% - 18px);
       }
     }
+    /* ---------- P5b-T2 · S6(蓝本 :1484-1499)----------
+       附录 D.6:这两条在蓝本里就写在这个 `@media (max-width: 860px)` 内部,
+       加进本仓这个既有 @media 块,不另起一个。蓝本 :1482-1483 的 .k-quick-grid /
+       .k-status-strip 与 :1500-1503 的 .k-frow 仍不搬(后者见附录 D.5:两个模板
+       里没有任何元素用 class="k-frow",文件表格行用的是 .k-frow-f,是死规则)。 */
+    .k-row {
+      grid-template-columns: 24px 24px 1fr 70px 32px;
+      > *:nth-child(4), > *:nth-child(6) { display: none; }
+    }
+    // Distill scope has a different column order (no checkbox, badges +
+    // error cells instead of a single retry-text cell) — collapse to
+    // status/name/time/actions and hide path/badges/error instead. Child 6
+    // (time) must be explicitly un-hidden: the base `.k-row` rule above
+    // also matches this element (it's still `.k-row`, just with an extra
+    // attribute selector) and would otherwise hide it too, leaving only 3
+    // visible children for this rule's 4-column template.
+    .k-row[data-scope="distill"] {
+      grid-template-columns: 24px 1fr 70px 32px;
+      > *:nth-child(3), > *:nth-child(4), > *:nth-child(5) { display: none; }
+      > *:nth-child(6) { display: revert; }
+    }
   }
   @media (min-width: 861px) {
     .k-mobile-tabs { display: none; }
   }
+
+  /* ---------- P5b-T2 · S7(蓝本 :2031-2039,Knowledge Notes 的状态徽标)----------
+     K9:蓝本这一段是**顶层裸选择器**(不在 .knowledge-app 里),整段重新嵌套进
+     .knowledge-app —— 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token(蓝本那段
+     的头注释自己也写着 "uses the same CSS variables defined on .knowledge-app")。
+     嵌套后四条属性态与基类的相对优先级不变(各自 +1 个类选择器)。
+     蓝本 :2040 起的 .kn-type-ic / .kn-src / .kn-tag / .kn-pathstrip … 是 P5d 的,不搬。 */
+  .kn-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 2px 7px; border-radius: 999px; flex-shrink: 0; line-height: 1.3;
+  }
+  /* 蓝本 :2036 橙色半透明底色 + 边框两处裸值 → warning-soft / warning-soft-border(两档已有) */
+  .kn-badge[data-s="draft"] { background: var(--warning-soft); color: var(--warning); border: 1px solid var(--warning-soft-border); }
+  .kn-badge[data-s="archived"] { background: var(--bg-chip); color: var(--text-tertiary); border: 1px solid var(--line-faint); }
+  /* 蓝本 :2038 绿色半透明底色 + 边框两处裸值 → success-soft(已有)/ success-soft-border(本任务新声明) */
+  .kn-badge[data-s="curated"] { background: var(--success-soft); color: var(--success); border: 1px solid var(--success-soft-border); }
+  /* 蓝本 :2039 红色半透明底色 + 边框两处裸值 → danger-soft / danger-soft-border(两档已有) */
+  .kn-badge[data-s="failed"] { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-soft-border); }
 }
 
 /* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进
@@ -630,6 +1006,10 @@
  *   附录 B 表里另外 4 个候选(--success-soft-border/--purple-soft/--danger-soft-faint/
  *   --teal-soft)逐行核对蓝本 :2282-2452 后确认本段未使用,未声明(不声明用不到的
  *   token,避免"发明"之外的另一种噪音)。
+ *   【P5b-T2 补注】"本段未使用"这句仍然成立;但其中 --success-soft-border 与
+ *   --danger-soft-faint 已被 P5b-T2 的共享底座段用到,故现在两档都有声明了(见文件
+ *   上方"R2(P5b-T2 追加)"分组),R2 断言随之 6→9 个。--purple-soft 归 T6、
+ *   --teal-soft 至今无人使用,仍未声明。
  *
  * 【附录 D.3 属性态核对,与协调者给的清单有一处出入,已按蓝本为准】蓝本 :2378
  * `.k2-cc button` 的按下态实际选择器是 `[data-on="true"]`,不是协调者附录 D.3 里写的

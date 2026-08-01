@@ -38,7 +38,15 @@ const css = stripComments(rawSource)
 // 与蓝本 `git show main:…/knowledge.scss | sed -n '2282,2452p' | grep -oE
 // '\.k2?-[a-z0-9-]+' | sort -u` 独立核对也是精确 64 个、且两份集合逐一比对完全相同
 // (`diff` 零差异)。故白名单扩到 38 + 64 = **102** 个,不是 brief 里写的 103。
-const WHITELIST_102 = [
+//
+// 【P5b-T2 追加】共享底座段(蓝本 :241-252 / :253-257 / :735-968 / :1296-1316 +
+// :1335-1341 / :1398-1428 / :1484-1499 / :2031-2039)新增附录 D.1 的 32 个类,
+// 102 → **134**(计划书写的 101 → 133 是错的,见附录 D §D.0:本常量名就叫
+// WHITELIST_102、数组实测 102 项)。独立复核:把上面七段用 sed 抽出来后
+// `grep -oE '\.k[a-z0-9-]*-[a-z0-9-]+|\.k-btn|\.k-row|\.k-view|…' | sort -u` 得 34 个,
+// 减去已在白名单里的 k-btn(P5a 搬的基类)与 k-scroll(只在蓝本 :250-252 注释里出现),
+// 恰好 32 个,与附录 D.1 逐一相同。
+const WHITELIST_134 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
@@ -70,9 +78,18 @@ const WHITELIST_102 = [
   'k2-distill', 'k2-distill-sub',
   'k2-entries', 'k2-entry', 'k2-entry-ico', 'k2-entry-cn', 'k2-entry-en', 'k2-entry-badge',
   'k2-skel-card',
+  // ---- P5b T2:附录 D.1(32 个)----
+  'k-banner-close', 'k-confirm-body', 'k-confirm-icon', 'k-confirm-summary',
+  'k-confirm-title', 'k-done-stat', 'k-done-stat-label', 'k-done-stat-num',
+  'k-filter-pill', 'k-filter-pill-count', 'k-modal', 'k-modal-bg',
+  'k-modal-foot', 'k-queue-head', 'k-row', 'k-row-action',
+  'k-row-actions', 'k-row-badges', 'k-row-check', 'k-row-error',
+  'k-row-head', 'k-row-name', 'k-row-path', 'k-row-retry',
+  'k-row-status', 'k-row-time', 'k-table', 'k-table-foot',
+  'k-toolbar', 'k-toolbar-label', 'k-view', 'kn-badge',
 ]
 
-describe('knowledge.scss —— 附录 D.4 白名单落地(102 个,R1 + T11 拍板订正)', () => {
+describe('knowledge.scss —— 附录 D 白名单落地(134 个,R1 + T11 + P5b-T2)', () => {
   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
@@ -81,9 +98,15 @@ describe('knowledge.scss —— 附录 D.4 白名单落地(102 个,R1 + T11 拍�
   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
   // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('102 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_102.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+  it('134 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+    const missing = WHITELIST_134.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
+  })
+
+  // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
+  it('白名单恰好 134 项(附录 D §D.0:102 + T2 的 32)', () => {
+    expect(WHITELIST_134).toHaveLength(134)
+    expect(new Set(WHITELIST_134).size, '白名单里有重复项').toBe(134)
   })
 
   it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
@@ -91,9 +114,29 @@ describe('knowledge.scss —— 附录 D.4 白名单落地(102 个,R1 + T11 拍�
     expect(css).not.toMatch(/\.k-toast-ico\b/)
   })
 
-  it('没有搬多 —— 全部 k-/k2- 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
-    const found = Array.from(new Set(css.match(/\.k2?-[a-z0-9-]+/g) || [])).map((s) => s.slice(1))
-    const extra = found.filter((c) => !WHITELIST_102.includes(c))
+  // 【P5b-T2 · K10】蓝本有**两份** .k-confirm-icon/-title/-summary:嵌套版
+  // (:1398-1428,在 .knowledge-app 内)与顶层重复版(:1676-1702)。两份声明逐字等价,
+  // 级联上嵌套版 (0,2,0) 完胜顶层版 (0,1,0) → 顶层那份在 Vue2 里从未生效过,K10 判定
+  // 整段丢弃。这条钉住"只搬了一份":任何一个 confirm 类出现两次(= 有人把顶层那份也
+  // 搬了进来)就报红。上面「没有搬多」那条只查类名在不在白名单,查不出**重复定义**。
+  it('K10 —— .k-confirm-* 每个类只有一份规则(蓝本 :1676-1702 的顶层重复段已丢弃)', () => {
+    for (const c of ['k-confirm-body', 'k-confirm-icon', 'k-confirm-title', 'k-confirm-summary']) {
+      const hits = css.match(new RegExp(`\\.${c}(?![\\w-])`, 'g')) || []
+      expect(hits.length, `${c} 出现 ${hits.length} 次(应为 1;>1 说明 K10 丢弃的顶层重复段被搬了进来)`).toBe(1)
+    }
+  })
+
+  // 【P5b-T2 修:守卫缺口①(附录 B §B.5 / 治理文件 §9 登记在案)】原正则是
+  // `/\.k2?-[a-z0-9-]+/g` —— `k2?` 吃掉 `k` 之后**要求下一个字符是 `-`**,所以
+  // `.kn-badge` / `.kn-foo` 这类 `kn-` 前缀的类**一个都扫不到**。本任务 S7 段
+  // (蓝本 :2031-2039)搬的正是 `.kn-*`,而蓝本 :2040-2281 还有几十个 `.kn-*` 是
+  // P5d 的 —— 手滑多搬一条,旧正则一句话都不会说。RED 探针实证:往规则段落里塞
+  // 一条白名单外的 `.kn-foo { … }`,旧正则下 17/17 全绿放行;改成下面这个正则后
+  // 精确报「白名单外的类:kn-foo」。
+  // 🔴 这是**扩大扫描范围**,不是放宽断言:被扫到的类仍然必须全部落在白名单里。
+  it('没有搬多 —— 全部 k-/k2-/kn- 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
+    const found = Array.from(new Set(css.match(/\.k(?:2|n)?-[a-z0-9-]+/g) || [])).map((s) => s.slice(1))
+    const extra = found.filter((c) => !WHITELIST_134.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
   })
 })
@@ -215,12 +258,17 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
   // 【T11 追加】仪表盘 k2-* 段另用到 --danger-soft-border(k2-qchip[data-tone=danger]
   // 的 hover 强化态)与 --modal-scrim(k2-ob-layer .k2-tag 暗色蒙版的 color-mix 派生源),
   // 4→6 个,同一断言扩容,不新开 describe。
-  it('R2 —— 6 个本批用到的 *-soft/-scrim token 两档都有值(T4 的 4 个 + T11 追加的 2 个)', () => {
+  // 【P5b-T2 追加】共享底座段另用到 3 个:--success-soft-border(.kn-badge[data-s="curated"]
+  // 的边框,蓝本 :2038)、--danger-soft-faint(.k-confirm-summary 的底色,蓝本 :1417;
+  // T6 段 :1972 会复用)、--danger-hover(.k-btn.danger 的 hover 底色,蓝本 :846)。
+  // 归属依治理文件 §6.2 的 token 归属表(--purple-soft 归 T6,本任务不声明)。6→9 个。
+  it('R2 —— 9 个本档用到的 *-soft/-scrim/-hover token 两档都有值(T4 的 4 + T11 的 2 + P5b-T2 的 3)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     for (const tok of [
       '--warning-soft:', '--warning-soft-border:', '--success-soft:', '--danger-soft:',
       '--danger-soft-border:', '--modal-scrim:',
+      '--success-soft-border:', '--danger-soft-faint:', '--danger-hover:',
     ]) {
       expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
       expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
@@ -265,6 +313,22 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
       expect(darkBody, `暗色档 ${tok} 不该出现浅色档的暖投影值`).not.toContain(light)
       expect(lightBody, `浅色档 ${tok} 不该出现暗色档的黑投影值`).not.toContain(dark)
     }
+  })
+
+  // 【P5b-T2】--danger-hover 是本期**全仓无源、新造**的唯一一个 token(另两个
+  // --success-soft-border / --danger-soft-faint 都能在 AI tokens.scss 里回源核对)。
+  // 设计 §6.2 附了一句派生描述("对本档 --danger 做与蓝本同比例的加深,亮度 −9%"),
+  // 但 T0 实测**这条规则复算不出给定的两个十六进制**,治理文件 §6.2 因此明文裁定
+  // "以设计给出的十六进制为准,禁止下游按规则重算出别的值"。上面 R2 那条只查
+  // "有没有声明",查不到"值被谁按那条描述重算过" —— 这条把两档取值逐字钉死。
+  it('--danger-hover 两档取值逐字等于设计 §6.2 给定值(治理 §6.2:禁止按"亮度 −9%"重算)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    expect(darkBody, '暗档 --danger-hover 取值被改动').toContain('--danger-hover: #E35F52;')
+    expect(lightBody, '浅档 --danger-hover 取值被改动').toContain('--danger-hover: #A83226;')
+    // 反向:两档不能同值(同值 = 有人把它当成了"结构量/两档共享")
+    expect(darkBody).not.toContain('--danger-hover: #A83226;')
+    expect(lightBody).not.toContain('--danger-hover: #E35F52;')
   })
 
   it('--accent-soft-2 不在本档重复声明(R2 例外:全局 theme.css 的 :root 与浅色块已有,跟随全局解析)', () => {
