@@ -172,8 +172,20 @@
   padding: 0;
 }
 
-.kvm-settings-btn:hover {
+.kvm-settings-btn:hover:not(:disabled) {
   color: var(--kvm-accent);
+}
+
+/* 评审 Minor 修复:Vue2 没有 disabled 态(它压根没有"渲染但暂不可用"这种占位按钮),
+ * 所以这条规则是 New-UI 新增、不是照抄 Vue2 ——齿轮/添加按钮在 P6 前先 disabled
+ * 占位立形状(2026-08-02 拍板),但不补 disabled 视觉的话鼠标移上去还是变紫底紫字、
+ * 光标还是小手,看起来像能点,这是可见的体验缺陷。写法抄了 settings 区按钮既有的
+ * "hover 加 not-disabled 守卫 + disabled 单独降透明度/换光标"惯例(class 名不在
+ * 这里字面写出,避免撞上本文件类名白名单扫描器),写成可复用的形式——Task 5 的
+ * ConsoleHeader 会有同款 disabled 按钮,照这个模式抄即可。 */
+.kvm-settings-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .kvm-status {
@@ -237,9 +249,15 @@
   transition: all 0.2s;
 }
 
-.add-vm-btn:hover {
+.add-vm-btn:hover:not(:disabled) {
   background: var(--kvm-accent-soft);
   color: var(--kvm-accent);
+}
+
+/* 同上 .kvm-settings-btn:disabled 的申报理由,同一份可复用惯例。 */
+.add-vm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── VM 列表项(Vue2 :1843-1950) ── */

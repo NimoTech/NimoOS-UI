@@ -53,3 +53,27 @@ describe('kvm.css 不含裸颜色字面量(与全局 color-guard 双保险)', ()
     expect(noComment.replace(/var\([^)]*\)/g, '')).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 })
+
+// 评审 Minor 修复(task-4 追加):add-vm-btn / kvm-settings-btn 是 P6 前的 disabled
+// 占位按钮(Vue2 没有这个态,New-UI 新增),之前 hover 规则对 disabled 态照样生效——
+// 鼠标移上去变紫底紫字、光标还是小手,看起来像能点。jsdom 测计算样式对"谁压过谁"
+// 不可靠(本项目没有现成的 CSS 优先级自算工具,已 grep 确认),这里改成对源码文本的
+// 静态断言:直接读 CSS 规则文本,比拿 jsdom 猜级联更准。写法抄了 settings 区那个
+// hover-guard 加 disabled-cursor 的既有惯例(class 名不在本文件里字面写出,
+// 避免撞上面的类名白名单扫描器)。
+describe('禁用按钮 hover/cursor 不误导用户(add-vm-btn / kvm-settings-btn)', () => {
+  it('hover 规则必须带 :not(:disabled),不能对 disabled 态生效', () => {
+    // 反例:裸 `.add-vm-btn:hover {` / `.kvm-settings-btn:hover {`(没有 :not(:disabled))不允许出现。
+    expect(src).not.toMatch(/\.add-vm-btn:hover\s*\{/)
+    expect(src).not.toMatch(/\.kvm-settings-btn:hover\s*\{/)
+    expect(src).toMatch(/\.add-vm-btn:hover:not\(:disabled\)/)
+    expect(src).toMatch(/\.kvm-settings-btn:hover:not\(:disabled\)/)
+  })
+
+  it('disabled 态必须显式 cursor: not-allowed(禁用按钮不能看起来像能点)', () => {
+    const addDisabledBlock = src.match(/\.add-vm-btn:disabled\s*\{([^}]*)\}/)
+    const settingsDisabledBlock = src.match(/\.kvm-settings-btn:disabled\s*\{([^}]*)\}/)
+    expect(addDisabledBlock?.[1]).toMatch(/cursor:\s*not-allowed/)
+    expect(settingsDisabledBlock?.[1]).toMatch(/cursor:\s*not-allowed/)
+  })
+})

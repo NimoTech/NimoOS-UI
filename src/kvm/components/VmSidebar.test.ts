@@ -54,4 +54,20 @@ describe('VmSidebar', () => {
   it('collapsed 透传到根元素', () => {
     expect(mk({ collapsed: true }).classes()).toContain('collapsed')
   })
+
+  // 评审 Important 补测:selectedId 是「谁高亮」的唯一依据,此前没有用例断言过
+  // 这一跳(VmListItem.test.ts 只测了 prop→class,这里只数过行数/emit),
+  // 评审变异 `:active="false"` 能全绿放行。这里锁住 selectedId 指向谁、谁才带
+  // active 类,并且换一个 id 后高亮跟着移动。
+  it('selectedId 指向谁,谁就带 active 类(且只有它)', () => {
+    const items = mk({ selectedId: 'a' }).findAll('.vm-list-item')
+    expect(items[0].classes()).toContain('active')
+    expect(items[1].classes()).not.toContain('active')
+  })
+
+  it('selectedId 换一台,高亮跟着移动', () => {
+    const items = mk({ selectedId: 'b' }).findAll('.vm-list-item')
+    expect(items[0].classes()).not.toContain('active')
+    expect(items[1].classes()).toContain('active')
+  })
 })
