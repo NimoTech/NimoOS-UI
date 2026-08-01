@@ -60,6 +60,7 @@ describe('filterBrowseFolders', () => {
     ({ name, path, is_dir: true, is_symlink: false, ...extra })
   const items: FolderEntry[] = [
     mk('AppData', '/DATA/AppData'),
+    mk('AppDataOld', '/DATA/AppDataOld'),
     mk('Documents', '/DATA/Documents'),
     mk('.docker', '/DATA/.docker'),
     mk('.hidden', '/DATA/.hidden'),
@@ -87,6 +88,11 @@ describe('filterBrowseFolders', () => {
   it('把源路径自身及其子树排除掉(不能迁到自己里面)', () => {
     const names = filterBrowseFolders(items, 'app_data', '/DATA/AppData').map((f) => f.name)
     expect(names).not.toContain('AppData')
+  })
+  it('只排除源路径自身及其子树,不误伤名字相近的兄弟目录(/DATA/AppDataOld 不属于 /DATA/AppData)', () => {
+    const names = filterBrowseFolders(items, 'app_data', '/DATA/AppData').map((f) => f.name)
+    expect(names).not.toContain('AppData')      // 源目录自身仍被排除
+    expect(names).toContain('AppDataOld')       // 兄弟目录不该被牵连
   })
 })
 
