@@ -6,7 +6,7 @@
 //
 // 死代码不迁(控制器裁定,C4/A-2):Vue2 人物弹层每格头像有两个三元表达式——无封面时
 // 显示首字母、否则显示一个占位问号字符;姓名区同理,已命名显示姓名、否则显示一个
-// "未命名"文案键。Vue2 的 realPeopleList(:437)已 `.filter(p => p.name && p.name.trim())`
+// "未命名"文案键。Vue2 的 realPeopleList(:438)已 `.filter(p => p.name && p.name.trim())`
 // 过滤掉未命名的人,「已命名」这个条件对搜索弹层的候选集恒真——这两个占位分支是死代码。
 // New-UI 的 PersonOption(searchUnderstood.ts:11-16)只含"已命名"的人,连 named 字段都不
 // 存在——没有对应状态可迁,本文件因此不出现那个问号字符字面量,也不引用那个"未命名"
@@ -23,6 +23,22 @@
 // "要不要尝试加载真图"的开关——personId 为 null 时 PersonAvatar 直接走首字母分支，
 // 不发任何图片请求，与 Vue2 的 `v-if="p.coverFaceId"` 语义等价，且不需要改动
 // PersonAvatar.vue 一行代码。
+//
+// 偏离登记(fix round 1 · M2,此前漏登记的一处):PersonAvatar 首字母兜底态的底色走的是
+// `--avatar-fallback` token,而 Vue2 `PhotosSearchView.vue:101-102` 这里的兜底底色是一个
+// 写死的双色渐变(暖粉到浅粉紫,不属于本仓 accent 家族的任何一档)——两者色值不同,是本
+// 组件复用 PersonAvatar 时继承的既有偏离(P5 时期定的公共兜底色,不在本任务范围内改)。
+//
+// 偏离登记(fix round 1 · M8,加性改动):PersonAvatar 把 `alt` 设成 `name || ''`(见该
+// 组件 :103),而 Vue2 这里的 `<img>` 是字面 `alt=""`(:103 同段)。由于 New-UI 的
+// PersonOption 恒有非空姓名,复用 PersonAvatar 会让每张头像图片带上人名作为 alt 文本,
+// 比 Vue2 的空 alt 更利于屏幕阅读器,是复用公共组件带来的加性可用性改进,不是本任务
+// 刻意新写的行为——按纪律仍在此登记。
+//
+// PersonOption 的顺序契约(fix round 1 · M9,交接下游):Vue2 realPeopleList(:435-447)
+// 以 `.sort((a,b) => b.c - a.c)` 按人脸计数降序结尾,弹层网格渲染顺序依赖这个排序。本组件
+// 只透传 `people` prop、不自己排序——T16 组装 `people` 数组时必须保持这个降序,否则弹层
+// 顺序会与 Vue2 不一致(详见 task-14-report.md 交接段)。
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PersonOption } from '../util/searchUnderstood'
@@ -194,7 +210,7 @@ const applyLabel = computed(() => {
   box-shadow: 0 0 0 2px var(--accent-soft-2);
 }
 
-/* Vue2 :107-109 的空态内联 style(padding:24px 8px,与 T12 的 .fpop-empty 18px 8px 不是
+/* Vue2 :110-112 的空态内联 style(padding:24px 8px,与 T12 的 .fpop-empty 18px 8px 不是
    同一个类、数值也不同——不能复用那个类,这里另立一个)。 */
 .face-pop-empty {
   padding: 24px 8px;
@@ -203,8 +219,8 @@ const applyLabel = computed(() => {
   font-size: 12px;
 }
 
-/* Vue2 :115 这里的脚部margin-top 是 14px,与 T12/T13 的 12px 不同(逐条声明级两条腿审计
-   查实的真实差异,不是抄错)——两条脚部规则各自独立声明,不合并复用。 */
+/* Vue2 :113 这里的脚部margin-top 是 14px,与 T12/T13(:84/:142)的 12px 不同(逐条声明级
+   两条腿审计查实的真实差异,不是抄错)——两条脚部规则各自独立声明,不合并复用。 */
 .fpop-foot {
   display: flex;
   gap: 8px;

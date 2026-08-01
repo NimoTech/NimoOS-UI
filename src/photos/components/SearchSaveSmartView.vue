@@ -11,18 +11,32 @@
 // 持久挂载 + prop 显隐(不像 T13 靠宿主 v-if 重新挂载复位内部 state)——C13 裁定的刻意
 // 差异:本组件与 T5 的 SmartViewCreateDialog 同款,靠 watch(() => props.open) 复位,
 // 不是 onMounted(持久挂载坑,同 T5 文件头注释)。
+//
+// fix round 1 · I1(评审查实的漏渲染):Vue2 `mounted()` 里的 `_onDoc`(整体 :819-832,
+// 本弹层对应的判据在 :819-823)是 `mousedown` 判据 ——
+// `pop && !pop.contains(target) && btn && !btn.contains(target)` 才关,
+// `pop` 是 `savePop`(本组件的根节点)、`btn` 是 `saveBtn`(触发按钮,归 T16/C6)。之前只
+// 实现了 document 级 Esc,漏了这一半。这里补上:根节点绑 `rootRef`,新增可选 prop
+// `ignoreEl`(宿主把 `.save-smart` 触发按钮的 element 传进来,默认 `null`)—— 判据换成
+// "自身根容器与 ignoreEl 都不包含 target 才关",与 Vue2 逐字对应;不传 `ignoreEl` 时退化成
+// "只判自身容器"(仍然可用,只是点触发按钮那一下也会被判定为"外部"从而误关——这个副作用
+// 只在宿主没接 `ignoreEl` 时才会出现,已在报告交接段写明 T16 必须传入)。
 import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePhotosSmartViews } from '../stores/smartViews'
 import { useToast } from '../../stores/toast'
 import PhotosThreshSlider from './PhotosThreshSlider.vue'
 
-const props = defineProps<{
-  open: boolean
-  query: string
-  conditions: string[]
-  defaultName: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    query: string
+    conditions: string[]
+    defaultName: string
+    ignoreEl?: HTMLElement | null
+  }>(),
+  { ignoreEl: null },
+)
 
 const emit = defineEmits<{
   (e: 'update:open', v: boolean): void
@@ -39,6 +53,7 @@ const name = ref('')
 const thresh = ref(75)
 const live = ref(true)
 const nameInputRef = ref<HTMLInputElement | null>(null)
+const rootRef = ref<HTMLElement | null>(null)
 
 function close(): void {
   emit('update:open', false)
@@ -53,6 +68,18 @@ function onDocKeydown(e: KeyboardEvent): void {
   close()
 }
 
+// fix round 1 · I1:点外部 mousedown 关闭(照搬 Vue2 `_onDoc` 的 people 判据,:820-822)。
+// 判据是"根容器与 ignoreEl 都不包含 target"——两次 `contains` 调用都要跑完再做判断,
+// 不写成"先查一个、命中就早退"的形态(Global Constraints「onDocMousedown 里禁止早退」,
+// P5-T10 真 bug 就是这种早退在多层共享判定函数时漏检第二个分支;本函数虽然只服务
+// 一层浮层,仍然按同一纪律写成"两个条件算完再决定",不留下未来被复制到多层场景时的隐患)。
+function onDocMousedown(e: MouseEvent): void {
+  const target = e.target as Node
+  const insideRoot = rootRef.value !== null && rootRef.value.contains(target)
+  const insideIgnore = props.ignoreEl !== null && props.ignoreEl.contains(target)
+  if (!insideRoot && !insideIgnore) close()
+}
+
 // 控制器补充(C13):open 变真时重置 name/thresh/live + 聚焦,必须挂在
 // watch(() => props.open),不能用 onMounted——本组件常驻挂载、靠 prop 显隐,onMounted
 // 只在组件创建时跑一次。
@@ -64,18 +91,21 @@ watch(
       thresh.value = 75
       live.value = true
       document.addEventListener('keydown', onDocKeydown)
+      document.addEventListener('mousedown', onDocMousedown)
       void nextTick(() => {
         nameInputRef.value?.focus()
         nameInputRef.value?.select()
       })
     } else {
       document.removeEventListener('keydown', onDocKeydown)
+      document.removeEventListener('mousedown', onDocMousedown)
     }
   },
   { immediate: true },
 )
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKeydown)
+  document.removeEventListener('mousedown', onDocMousedown)
 })
 
 function onThreshInput(v: number): void {
@@ -91,10 +121,15 @@ function toggleLive(): void {
 // createSmartView,并且必须自己包 try/catch(store.createSmartView 失败时是 throw,brief
 // 结构规格 7 给的代码片段漏了这一层)。
 //
-// description: props.query 的映射依据(brief 结构规格 7 已给出推断,这里复述):Vue2 的
-// savedSv 里存的是 { query, filters },而后端 createSmartView 的语义是"conds 为空时用
-// description 作语义兜底"(Vue2 PhotosSmartViewsView.vue:426 注释)。把原始查询词放进
-// description 是这两套契约之间唯一站得住的映射。
+// description: props.query.trim() || undefined 的映射依据(brief 结构规格 7 已给出推断,
+// 这里复述):Vue2 的 savedSv 里存的是 { query, filters },而后端 createSmartView 的语义是
+// "conds 为空时用 description 作语义兜底"(Vue2 PhotosSmartViewsView.vue:426 注释)。把
+// 原始查询词放进 description 是这两套契约之间唯一站得住的映射。
+//
+// fix round 1 · M5:trim + `|| undefined` 不能省——`CreateSmartViewInput.description?`
+// 的既定语义是"空描述不传字段"(T5 SmartViewCreateDialog.vue 的 confirm() 同一口径,
+// `draft.desc.trim() || undefined`),空查询串下若直传 `props.query` 会变成传一个空字符串
+// 字段而不是"不传",与同一个 store 的另一个调用方口径不一致。
 //
 // createBusy 命中返回 null 的边界(C8 登记):primary 按钮已经
 // `:disabled="!name.trim() || store.createBusy"`,这条路径基本不可达,不加额外 UI,仅在
@@ -105,7 +140,7 @@ async function confirm(): Promise<void> {
   try {
     const created = await store.createSmartView({
       name: trimmed,
-      description: props.query,
+      description: props.query.trim() || undefined,
       conds: [...props.conditions],
       threshold: thresh.value,
       live: live.value,
@@ -125,7 +160,12 @@ async function confirm(): Promise<void> {
 
 <template>
   <Transition name="save-pop">
-    <div v-if="open" class="save-pop" data-test="ssv-root">
+    <div v-if="open" ref="rootRef" class="save-pop" data-test="ssv-root">
+      <!-- 偏离登记(fix round 1 · M8):这三处 svg 的 `stroke-width="2"` 相对 Vue2
+           `PhotosIcon.vue` 的默认值 1.6(`:185`)是加性改动——Vue2 模板里这三处
+           `<photos-icon>` 调用都没传 `stroke-width`,走的是默认 1.6。这里沿用 T5
+           SmartViewCreateDialog.vue 已确立的同款选择(该文件里同类内联 svg 全部是
+           stroke-width="2",不是本任务重新挑的值),按纪律在此登记。 -->
       <div class="save-pop-head">
         <div class="save-pop-icon">
           <svg
@@ -151,12 +191,17 @@ async function confirm(): Promise<void> {
       <div class="save-pop-body">
         <label class="save-pop-field">
           <span class="save-pop-label">{{ t('photosSvName') }}</span>
-          <!-- 偏离登记:brief 结构规格第 40 条字面要求名称输入框再绑一个
-               @keydown.esc.prevent="close"(照搬 Vue2 :793)。这里不重复绑——本组件已有
-               document 级 Esc 监听器(Global Constraints 的硬约束,Vue2 本身没有这层),
-               keydown 默认从 input 冒泡到 document,再绑一份内联的会让同一次按键触发两次
-               close()/两次 emit('update:open', false)。同 T5 SmartViewCreateDialog.vue 的
-               既定做法(它的名称输入框也只绑 keydown.enter,不重复绑 esc)。 -->
+          <!-- 偏离登记(fix round 1 · M4 已修正依据 + 自查修正行号):brief 结构规格第 40
+               条字面要求名称输入框再绑一个 @keydown.esc.prevent="close"(照搬 Vue2
+               :175)。这里不重复绑——但理由不是"Vue2 没有更高层的 Esc 处理"(那个说法
+               错了:Vue2 mounted() 里确实挂了 document 级 `_onKey`,赋值+挂载在
+               :834-835,只是它的效果是 Esc 关灯箱未开时"退出整个搜索页"`exitSearch()`,
+               不是关这个保存弹层)。真正的理由是:本组件
+               按 Global Constraints 的硬约束新增了一个专门服务本弹层的 document 级 Esc
+               监听器(onDocKeydown),keydown 默认从 input 冒泡到 document,再绑一份内联的
+               会让同一次按键触发两次 close()/两次 emit('update:open', false)。同 T5
+               SmartViewCreateDialog.vue 的既定做法(它的名称输入框也只绑 keydown.enter,
+               不重复绑 esc)。 -->
           <input
             ref="nameInputRef" v-model="name" class="save-pop-input" data-test="ssv-name-input"
             :placeholder="t('photosSvEGSaraTokyo')" @keydown.enter.prevent="confirm"
@@ -186,6 +231,11 @@ async function confirm(): Promise<void> {
             <div class="save-pop-toggle-label">{{ t('photosSvKeepLive') }}</div>
             <div class="save-pop-toggle-desc">{{ t('photosSvAutoAddMatchesPhotos') }}</div>
           </div>
+          <!-- 偏离登记(fix round 1 · M8):`tabindex="0"` + `@keydown.enter`/`@keydown.space`
+               是加性改动,Vue2 `:198-199` 的 `.sv-switch` 只有 `@click.prevent`,没有键盘
+               可达性。沿用 T5 SmartViewCreateDialog.vue 已定的同型加项(该文件同一 fix
+               round 里已作为「补 Vue2 的缺」登记过),这里延续同一套 a11y 基线,不是本任务
+               新起的决定——但仍按「界面严格 1:1 下加项要登记」的纪律在此写明。 -->
           <div
             class="sv-switch" role="switch" tabindex="0" data-test="ssv-switch-live"
             :aria-checked="live" :aria-label="t('photosSvKeepLive')" :data-on="live"
@@ -269,8 +319,14 @@ async function confirm(): Promise<void> {
   color: var(--fg-faint);
   margin-top: 1px;
 }
-/* Vue2 全局 .icon-btn 在本仓不存在(scoped 孤岛),照本弹层自己的 28px 尺度定一份等价
-   scoped 版本(同 T5 SmartViewCreateDialog.vue 的既有先例,连同其解释一起沿用)。 */
+/* 偏离登记(fix round 1 · M1 已修正措辞,此前误写成"等价"):Vue2 全局 `.icon-btn`
+   (`photos.scss:216-223`)真值是 32×32、`color: var(--text-2)`、hover 态
+   `background: var(--surface-3); color: var(--text-1)`——不是这里落地的 28×28 /
+   `--fg-subtle` / hover `--chip-bg`/`--fg`。本仓没有那个全局类(scoped 孤岛,each 组件
+   各自定义一份),这里沿用 T5 SmartViewCreateDialog.vue 已立的先例——按本弹层自己
+   28px 的尺度定一份缩小版,不是照抄 Vue2 的 32×32 原值,是一次刻意的尺寸偏离(与本组件
+   .save-pop-icon 28×28 的整体尺度保持视觉一致),色值映射（--fg-subtle 常态 /
+   --chip-bg+--fg hover）与 T5 逐字一致,不是本任务新定的一套。 */
 .icon-btn {
   flex: none;
   width: 28px;

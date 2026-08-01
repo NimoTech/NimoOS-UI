@@ -23,7 +23,7 @@ function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
 }
 
-type Props = { open: boolean; query: string; conditions: string[]; defaultName: string }
+type Props = { open: boolean; query: string; conditions: string[]; defaultName: string; ignoreEl?: HTMLElement | null }
 
 function baseProps(overrides: Partial<Props> = {}): Props {
   return { open: false, query: 'sunset in tokyo', conditions: ['scene: sunset', 'place: Japan'], defaultName: 'Sunset Trips', ...overrides }
@@ -31,6 +31,12 @@ function baseProps(overrides: Partial<Props> = {}): Props {
 
 function mountDialog(props: Partial<Props> = {}, i18n = makeI18n()) {
   return mount(SearchSaveSmartView, { props: baseProps(props), global: { plugins: [i18n] } })
+}
+
+// fix round 1 · I1:点外部 mousedown 关闭的用例需要真实挂到 document 上,事件才能从
+// 目标节点冒泡到 document 级监听器(同 PlacesThemeMenu.test.ts 的既定手法)。
+function mountDialogAttached(props: Partial<Props> = {}, i18n = makeI18n()) {
+  return mount(SearchSaveSmartView, { props: baseProps(props), global: { plugins: [i18n] }, attachTo: document.body })
 }
 
 function fullSv(overrides: Partial<SmartView> = {}): SmartView {
@@ -47,6 +53,7 @@ beforeEach(() => {
 afterEach(() => {
   usePhotosSmartViews().__resetForTest()
   vi.restoreAllMocks()
+  document.body.innerHTML = ''
 })
 
 describe('结构清点', () => {
@@ -161,6 +168,17 @@ describe('confirm 真调 store(D12)', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
+  // fix round 1 · M5:query 为空(或全空白)时 description 必须是 undefined,不是空字符串
+  // ——`CreateSmartViewInput.description?` 的既定语义是"空描述不传字段"(T5 同一口径)。
+  it('query 为空白字符串时 → description 是 undefined,不是空字符串(fix round 1 · M5)', async () => {
+    const store = usePhotosSmartViews()
+    const spy = vi.spyOn(store, 'createSmartView').mockResolvedValue(fullSv())
+    const w = mountDialog({ open: true, query: '   ' })
+    await w.find('[data-test="ssv-confirm-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ description: undefined }))
+  })
+
   it('失败:reject → toast 被调、update:open 未发出、saved 未发出、弹层不关', async () => {
     const store = usePhotosSmartViews()
     vi.spyOn(store, 'createSmartView').mockRejectedValue(new Error('boom'))
@@ -174,6 +192,12 @@ describe('confirm 真调 store(D12)', () => {
     expect(toastSpy).toHaveBeenCalledWith(zh.photosAlbumCreateFailed)
     expect(w.emitted('update:open')).toBeUndefined()
     expect(w.emitted('saved')).toBeUndefined()
+    // fix round 1 · M7(评审查实):这条本身是恒真断言——`open` 是父控 prop,本组件在任何
+    // 实现下都不可能自己把 v-if 的条件改掉,测试也从未 setProps({ open: false }),所以
+    // "弹层还在"这件事跟 confirm() 有没有正确处理失败完全无关。真正钉住"失败时弹层不关"
+    // 这条行为的是上面 `emitted('update:open')).toBeUndefined()`——如果实现在失败路径也
+    // emit 了 update:open(false),那条才会变红。这行只保留作可读性锚点(明确写出"我们
+    // 期望的是弹层还渲染着"这句人话),不再当作有效的行为守卫。
     expect(w.find('[data-test="ssv-root"]').exists()).toBe(true)
     errSpy.mockRestore()
   })
@@ -224,6 +248,87 @@ describe('Esc 关闭(不提交)', () => {
   })
 })
 
+// fix round 1 · I1(评审查实的漏渲染):Vue2 `_onDoc`(:818-825)的 mousedown 判据——
+// "pop 与 btn 都不 contains(target) 才关"。之前只做了 Esc,这里补齐点外部关闭 + 新增
+// `ignoreEl` prop 覆盖触发按钮那一半判据。
+describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
+  it('点弹层内部 → 不关', async () => {
+    const w = mountDialogAttached({ open: true })
+    w.get('[data-test="ssv-root"]').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('点弹层外 → emit update:open(false)', async () => {
+    const w = mountDialogAttached({ open: true })
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toEqual([[false]])
+    outside.remove()
+    w.unmount()
+  })
+
+  it('传了 ignoreEl 时点 ignoreEl 内部 → 不关(新 prop 的主守卫)', async () => {
+    const triggerBtn = document.createElement('button')
+    document.body.appendChild(triggerBtn)
+    const w = mountDialogAttached({ open: true, ignoreEl: triggerBtn })
+    triggerBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+    triggerBtn.remove()
+    w.unmount()
+  })
+
+  it('不传 ignoreEl 时点"本该是触发按钮"的外部节点 → 仍然会关(退化行为,交接段已注明宿主必须传 ignoreEl)', async () => {
+    const triggerBtn = document.createElement('button')
+    document.body.appendChild(triggerBtn)
+    const w = mountDialogAttached({ open: true }) // 不传 ignoreEl
+    triggerBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toEqual([[false]])
+    triggerBtn.remove()
+    w.unmount()
+  })
+
+  it('open:false 时点外部 → 不 emit(监听器只在打开时挂载)', async () => {
+    const w = mountDialogAttached({ open: false })
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+    outside.remove()
+    w.unmount()
+  })
+
+  it('宿主把 open 收回 false 后再点外部 → 不再触发(监听器随 watch(open) 摘除)', async () => {
+    const w = mountDialogAttached({ open: true })
+    // 独立 mount 不会像真实父子组件那样自动把 emit 的 update:open 接回 props——这里
+    // 显式 setProps 模拟宿主收到 emit 后真的把 open 收回 false,监听器应随之摘除。
+    await w.setProps({ open: false })
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined() // 监听器已摘,不会再发
+    outside.remove()
+    w.unmount()
+  })
+
+  it('卸载时清掉 document 监听(mousedown 与 keydown 都摘除)', () => {
+    const addSpy = vi.spyOn(document, 'addEventListener')
+    const removeSpy = vi.spyOn(document, 'removeEventListener')
+    const w = mountDialogAttached({ open: true })
+    const addedMousedown = addSpy.mock.calls.find((c) => c[0] === 'mousedown') as [string, EventListener] | undefined
+    expect(addedMousedown).toBeDefined()
+    w.unmount()
+    expect(removeSpy).toHaveBeenCalledWith('mousedown', addedMousedown![1])
+  })
+})
+
 describe('前景色合规:.save-pop-icon 是 accent 实底 + --on-accent', () => {
   it('正向断言', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
@@ -231,6 +336,49 @@ describe('前景色合规:.save-pop-icon 是 accent 实底 + --on-accent', () =>
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('background: var(--accent)')
     expect(rule?.body).toContain('color: var(--on-accent)')
+  })
+
+  // fix round 1 · I2(评审变异实证):此前 28×28/9px 零断言——把它改成 T5 .sv-modal-icon
+  // 的 32×32/10px 之前 23 例仍然全绿。C11 专门点名"这两处尺寸独立核实,不能互相套用",
+  // 补一条反向锚定断言钉住,防止下一次复制粘贴把两者焊到一起。
+  it('.save-pop-icon 尺寸是 28×28、border-radius:9px(不是 T5 .sv-modal-icon 的 32×32/10px)', () => {
+    const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop-icon')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('width: 28px')
+    expect(rule?.body).toContain('height: 28px')
+    expect(rule?.body).toContain('border-radius: 9px')
+  })
+})
+
+// fix round 1 · I2(评审查实的第二处零断言):.save-pop 的定位/层级/尺寸契约此前没有任何
+// 程序化断言(plan 明文要求非颜色视觉属性要补断言)。
+describe('.save-pop 定位契约', () => {
+  it('width: 360px / z-index: 50 / top: calc(100% + 8px) / right: 0', () => {
+    const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
+    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('width: 360px')
+    expect(rule?.body).toContain('z-index: 50')
+    expect(rule?.body).toContain('top: calc(100% + 8px)')
+    expect(rule?.body).toContain('right: 0')
+  })
+})
+
+// fix round 1 · I2(评审查实的第三处零断言,与 T12-I1 同型):三处 sparkles/x 的 glyph `d`
+// 字符串此前没有任何断言钉住——"svg 存在"不足以抓住"复制粘贴时 path 抄错一个字符"这类
+// 缺陷(T12-I1 的教训:改一个字符、15 例照样全绿)。逐字符核对 PhotosIcon.vue:21-22(
+// sparkles)/:52(x)后钉住。
+describe('glyph d 字符串(fix round 1 · I2,同 T12-I1 教训)', () => {
+  it('两处 sparkles(head 28×28 图标块 + primary 按钮)与一处 x(关闭按钮)的 path d 逐字符正确', () => {
+    const sparklesD = 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1'
+    const xD = 'm6 6 12 12M18 6 6 18'
+    const sparklesCount = searchSaveSmartViewRaw.split(sparklesD).length - 1
+    expect(sparklesCount).toBe(2) // head 图标块 + primary 按钮各一处
+    expect(searchSaveSmartViewRaw).toContain(xD)
+    // sparkles 的 <circle> 中心圆同样逐字核对(PhotosIcon.vue:22 的第二个几何元素)。
+    const circleCount = searchSaveSmartViewRaw.split('<circle cx="12" cy="12" r="3" />').length - 1
+    expect(circleCount).toBe(2)
   })
 })
 

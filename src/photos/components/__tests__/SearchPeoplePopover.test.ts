@@ -127,11 +127,21 @@ describe('Apply 按钮计数文案', () => {
 })
 
 describe('计数千分位跟 locale', () => {
-  it('源文本里 toLocaleString( 带参数(不是裸调用)', () => {
-    expect(searchPeoplePopoverRaw).toMatch(/toLocaleString\(\s*\S+/)
+  // fix round 1 · M3(评审变异实证):旧写法 `/toLocaleString\(\s*\S+/` 没有区分力——
+  // `)` 本身就是 `\S`,这条正则连裸调用 `toLocaleString()` 都能匹配上(把展开量词换回
+  // 裸调用后 19 例仍然全绿,评审已用变异证实)。改成直接钉住实际传的标识符
+  // `toLocaleString(localeTag)`,删掉参数或换成裸调用都会让这条断言变红。
+  it('源文本里 toLocaleString(localeTag) 是带标识符实参的调用,不是裸调用', () => {
+    expect(searchPeoplePopoverRaw).toMatch(/toLocaleString\(\s*localeTag\s*\)/)
   })
 
-  it('Alice 的 count=1200 在 zh_cn 下渲染为带千分位分隔符的字符串', () => {
+  // fix round 1 · M3(评审变异实证):这条渲染断言本身对"是否真的传了 localeTag"没有
+  // 区分力——'zh-cn'/'en-us'/裸调用(取运行环境默认 locale)三者对 1200 这个数字的千分位
+  // 分组符输出恰好相同(都是逗号),换 locale 或去掉参数都不会让这个具体数字的渲染结果
+  // 变化。它仍然值得留着做"渲染确实带千分位分隔符"的基本回归锚点(不是恒真断言——如果
+  // 漏加分隔符或改成裸拼数字会红),但**真正钉住"用的是 localeTag 变量"这件事的是上面
+  // 那条源文本正则**,不是这条渲染断言;二者职责不同,不要指望这条替上面那条兜底。
+  it('Alice 的 count=1200 渲染为带千分位分隔符的字符串(基本回归锚点,非 locale 区分力来源)', () => {
     const w = mountPop({ people: people(), selected: [] })
     const cells = w.findAll('.face-cell')
     expect(cells[2]!.get('.face-cell-count').text()).toBe((1200).toLocaleString('zh-cn'))
