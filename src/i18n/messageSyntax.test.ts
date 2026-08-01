@@ -268,6 +268,149 @@ describe('i18n message syntax', () => {
     })
   })
 
+  // SP8-P5b Task 1: 100 new aiKb* keys for the queue page (QueueView.vue) and
+  // indexed-files page (IndexedFilesView.vue). Same shape as the P5a Task 8 guards
+  // above (a fixed key list scoped to this batch + a punctuation scan + a
+  // placeholder-parity check), extended per p5b-common-constraints.md §7 / the T1
+  // task brief: this batch's full-width-punctuation exceptions are pinned with
+  // `toBe` (not just excluded from the scan) because the brief explicitly calls for
+  // "钉死确切值的强断言,不是「跳过扫描」的松形式" — i.e. each of the 15 Vue2-authentic
+  // full-width-punctuation values must be asserted verbatim, not merely skipped.
+  describe('P5b Task 1 aiKb* keys — punctuation and placeholder guards', () => {
+    // Matches the >>> SP8-P5b Task 1 ... <<< SP8-P5b Task 1 marked block in
+    // zh_cn.ts / en_us.ts (see p5b-task-1-report.md "新增键清单"). 95 rows from
+    // Appendix A §A.1 (all have a Vue2-authentic zh value) + 4 from §A.2 (new copy,
+    // K16/K18/K19) + 1 from §A.4 (aiKbStatusIndexing, K20) = 100.
+    const p5bTask1Keys = [
+      'aiKbAll', 'aiKbAllCaughtUp', 'aiKbCancel', 'aiKbCancelFailed', 'aiKbCancelSelected',
+      'aiKbCancelled', 'aiKbCancelledNSelected', 'aiKbCannotCancel', 'aiKbClear',
+      'aiKbClearFailedConfirmBody', 'aiKbClearFailedConfirmTitle', 'aiKbClearFailedErr',
+      'aiKbClearFailedRecords', 'aiKbClearFilters', 'aiKbClearSelected', 'aiKbClearedNFailed',
+      'aiKbClose', 'aiKbColAction', 'aiKbColFile', 'aiKbColPath', 'aiKbColSize', 'aiKbColTime',
+      'aiKbColType', 'aiKbColVectors', 'aiKbConfirmClear', 'aiKbConfirmRebuildN',
+      'aiKbFailedOnly', 'aiKbLegacy', 'aiKbLegacyDoc', 'aiKbLegacyDocTip', 'aiKbLoadErrorLabel',
+      'aiKbMonthsAgo', 'aiKbNFailedRecords', 'aiKbNIndexedFiles', 'aiKbNPendingJobs',
+      'aiKbNRetried', 'aiKbNRunningJobs', 'aiKbNSelected', 'aiKbNoFailedDistill',
+      'aiKbNoFailedJobs', 'aiKbNoMatchSub', 'aiKbNoMatchTitle', 'aiKbNoRunningJobs',
+      'aiKbOriginAuto', 'aiKbOriginManual', 'aiKbOverExplicitCap', 'aiKbPagerNext',
+      'aiKbPagerPrev', 'aiKbPathPrefix', 'aiKbPerPage', 'aiKbPollTip', 'aiKbPolling',
+      'aiKbQueueEmpty', 'aiKbQueuedNJobs', 'aiKbRebuild', 'aiKbRebuildAllBody1',
+      'aiKbRebuildAllBody2', 'aiKbRebuildAllInRoot', 'aiKbRebuildAllOverCap',
+      'aiKbRebuildAllTip', 'aiKbRebuildAllTitle', 'aiKbRebuildCapHint', 'aiKbRebuildFailed',
+      'aiKbRebuildRowTip', 'aiKbRebuildSelectedN', 'aiKbRebuilding', 'aiKbRequeued',
+      'aiKbRetry', 'aiKbRetryAllFailed', 'aiKbRetryFailedErr', 'aiKbRetrySelected', 'aiKbRoot',
+      'aiKbScopeDistill', 'aiKbScopeIndex', 'aiKbSelectAllTip', 'aiKbSelectFilesHint',
+      'aiKbShowingFirst200', 'aiKbShowingFirstN', 'aiKbShowingRange', 'aiKbSkipped',
+      'aiKbSortAsc', 'aiKbSortDesc', 'aiKbSortIndexTime', 'aiKbSortVectorCount',
+      'aiKbStatusActive', 'aiKbStatusError', 'aiKbStatusIndexed', 'aiKbStatusRemoved',
+      'aiKbTombstonedNoSelect', 'aiKbTombstonedTip', 'aiKbTotalDone', 'aiKbTotalDoneLabel',
+      'aiKbTypePrefix', 'aiKbZeroVec', 'aiKbZeroVecTip', 'aiKbQueueAllPendingDone',
+      'aiKbQueueNoRunningNow', 'aiKbRetriedAllFailed', 'aiKbLoadErrorBody', 'aiKbStatusIndexing',
+    ] as const
+
+    it('covers exactly the 100 keys this task added (list itself does not drift)', () => {
+      expect(p5bTask1Keys.length).toBe(100)
+    })
+
+    // (a) Full-width punctuation scan. Exceptions = Appendix A §A.5 (15 rows — NOT the
+    // 11 the plan doc originally claimed; governance §12 E-3 found 1 false positive
+    // and 5 misses in that draft). Per the task brief, every exception here is pinned
+    // with an exact `toBe` assertion (not silently excluded from the scan), so a
+    // future edit that drifts one of these 15 values away from its Vue2-authentic
+    // full-width punctuation shows up here instead of just vanishing from the scan.
+    const fullWidthExceptions: Record<string, string> = {
+      aiKbClearFailedConfirmTitle: '清空失败记录？',
+      aiKbLoadErrorBody: '无法读取已收录文件列表，请稍后重试。',
+      aiKbLoadErrorLabel: '加载失败：',
+      aiKbNoFailedJobs: '全部正常，索引服务运行中。',
+      aiKbNoMatchSub: '没有匹配的文件。试着放宽路径 / 类型前缀，或把状态切到「全部」。',
+      aiKbOverExplicitCap: '超过 {cap} 上限，请改用整库重建',
+      aiKbPollTip: '只要还有索引中的行，每 30 秒自动刷新',
+      aiKbRebuildAllBody1: '将强制全部重新索引当前筛选匹配的 {n} 个文件，可能耗时数分钟。',
+      aiKbRebuildAllBody2: '后端会先墓碑再重新入队，旧的搜索内容会被新内容覆盖。',
+      aiKbRebuildAllOverCap:
+        '共 {n} 个文件，超过单次 {cap} 上限，服务器可能会拒绝（400）。请缩小路径前缀后分批重建。',
+      aiKbRebuildAllTitle: '重建整个匹配集合？',
+      aiKbRebuildCapHint: '重建匹配文件超过 {cap} 上限，请用更精确的路径前缀缩小范围后分批重建',
+      aiKbShowingFirst200: '仅展示前 200 条；批量操作仍会处理全部。',
+      aiKbTombstonedTip: '已删除，需 rescan 复活',
+      aiKbZeroVecTip: '已索引但没有可搜索内容（不是错误）',
+    }
+
+    it('registers exactly the 15 full-width-punctuation exceptions from Appendix A §A.5', () => {
+      expect(Object.keys(fullWidthExceptions).length).toBe(15)
+    })
+
+    it('pins the exact zh_cn value (with its Vue2-authentic full-width punctuation) for each of the 15 registered exceptions', () => {
+      for (const [key, value] of Object.entries(fullWidthExceptions)) {
+        expect((zh as Record<string, unknown>)[key]).toBe(value)
+      }
+    })
+
+    it('should not contain full-width ，；：？！（） in any zh_cn value from this batch (except the 15 registered exceptions)', () => {
+      const fullWidthPunctuation = /[，；：？！（）]/
+      const violations: Array<{ key: string; value: string }> = []
+      for (const key of p5bTask1Keys) {
+        if (key in fullWidthExceptions) continue
+        const value = (zh as Record<string, unknown>)[key]
+        if (typeof value !== 'string') continue
+        if (fullWidthPunctuation.test(value)) violations.push({ key, value })
+      }
+      if (violations.length > 0) {
+        const details = violations.map((v) => `${v.key} = "${v.value}"`).join('\n')
+        expect.fail(
+          `Found full-width ，；：？！（） in P5b Task 1 zh_cn values (should be half-width per the authoritative Vue2 zh_CN.json; if this is a legitimate Vue2-authentic exception, stop and report before adding it here):\n${details}`
+        )
+      }
+    })
+
+    // (b) Placeholder-name parity between zh_cn and en_us, scoped to this batch's 20
+    // keys that carry {…} interpolation (Appendix A §A.6). Deliberately NOT widened
+    // to the whole file: aiResTurn / aiResFilesInTurns intentionally differ ({s} is
+    // an English plural suffix) — see the P5a Task 8 block above for the full
+    // rationale. Each future batch adds its own scoped list here.
+    const placeholderKeysWithInterpolation = [
+      'aiKbCancelledNSelected', 'aiKbClearFailedConfirmBody', 'aiKbClearedNFailed',
+      'aiKbConfirmRebuildN', 'aiKbMonthsAgo', 'aiKbNFailedRecords', 'aiKbNIndexedFiles',
+      'aiKbNPendingJobs', 'aiKbNRetried', 'aiKbNRunningJobs', 'aiKbNSelected',
+      'aiKbOverExplicitCap', 'aiKbQueuedNJobs', 'aiKbRebuildAllBody1', 'aiKbRebuildAllOverCap',
+      'aiKbRebuildAllTip', 'aiKbRebuildCapHint', 'aiKbRebuildSelectedN', 'aiKbShowingFirstN',
+      'aiKbShowingRange',
+    ] as const
+
+    it('covers exactly the 20 keys in this batch that carry interpolation placeholders', () => {
+      expect(placeholderKeysWithInterpolation.length).toBe(20)
+    })
+
+    it('zh_cn and en_us use the same set of {…} placeholder names for each of these keys', () => {
+      const placeholderPattern = /\{([a-zA-Z]+)\}/g
+      const namesOf = (value: string) => {
+        const names: string[] = []
+        let m: RegExpExecArray | null
+        while ((m = placeholderPattern.exec(value)) !== null) names.push(m[1])
+        return names.sort()
+      }
+
+      const violations: Array<{ key: string; zhNames: string[]; enNames: string[] }> = []
+      for (const key of placeholderKeysWithInterpolation) {
+        const zhValue = (zh as Record<string, unknown>)[key]
+        const enValue = (en as Record<string, unknown>)[key]
+        if (typeof zhValue !== 'string' || typeof enValue !== 'string') continue
+        const zhNames = namesOf(zhValue)
+        const enNames = namesOf(enValue)
+        if (JSON.stringify(zhNames) !== JSON.stringify(enNames)) {
+          violations.push({ key, zhNames, enNames })
+        }
+      }
+      if (violations.length > 0) {
+        const details = violations
+          .map((v) => `${v.key}: zh=[${v.zhNames.join(',')}] en=[${v.enNames.join(',')}]`)
+          .join('\n')
+        expect.fail(`Found mismatched {…} placeholder names between locales:\n${details}`)
+      }
+    })
+  })
+
   describe('bare @ guard (unescaped @ detection)', () => {
     it('should not allow bare @ in any key (only {@} escapes or @:key references)', () => {
       const locales = [
