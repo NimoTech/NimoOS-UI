@@ -1,6 +1,8 @@
 // 把搜索查询词按 understood() 抽出的关键词切段、标注需要高亮的部分,供搜索栏
-// 输入回显时给命中片段加高亮样式。Ported verbatim from Vue2 NimoOS-UI
-// src/views/Photos/PhotosSearchView.vue:416-433(`queryParts` computed)。
+// 输入回显时给命中片段加高亮样式。Ported from Vue2 NimoOS-UI
+// src/views/Photos/PhotosSearchView.vue:416-433(`queryParts` computed)——
+// 主体切段逻辑逐字照搬,但另有两处 Vue2 没有的防御性偏离(见下方就近登记):
+// keywords.filter(Boolean) 空串守卫、exec 循环内零宽匹配的第二道防线(fix round 1 · M3)。
 // keywords 由调用方给出(= understood(...).map(t => t.v.toLowerCase()))。
 
 export interface QueryPart {
