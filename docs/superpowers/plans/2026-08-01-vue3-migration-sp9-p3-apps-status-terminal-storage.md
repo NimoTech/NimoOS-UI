@@ -408,8 +408,18 @@ describe('buildAppPathRows', () => {
   it('total 取所在分区容量', () => {
     expect(buildAppPathRows(PATHS, [SYS_VOL])[0].total).toBe(512110190592)
   })
+  it('挂载点是字符串前缀但不是祖先目录时不许命中(/media/BackupOld/x 不属于 /media/Backup)', () => {
+    // ⚠️ 这条必须**不放** /media/BackupOld 这个卷,否则排序按挂载点长度取最长会把缺陷掩盖
+    //   (裸 startsWith 下两个卷都命中,15 > 13 仍然返回对的那个 → 用例恒绿、变异不翻红)。
+    //   只放 / 和 /media/Backup:裸 startsWith 会错命中 /media/Backup(13 > 1),
+    //   只有边界判断能让它落回根卷。
+    expect(volumeForPath('/media/BackupOld/x', [SYS_VOL, EXT_VOL])?.uuid).toBe(SYS_VOL.uuid)
+  })
   it('匹配不到分区时回退系统卷容量(不照抄 Vue2 写死的 970GB)', () => {
-    const rows = buildAppPathRows({ app_data: { path: '/nowhere/x', size: 1 } }, [SYS_VOL])
+    // 卷列表里没有根挂载点,查一个不在它下面的路径 → volumeForPath 返回 null,
+    // fallbackTotal 才是唯一来源(否则 '/' 会把任何绝对路径都吃掉,这条用例就是空转的)
+    const onlyExt: StorageVolume = { ...SYS_VOL, mountPoint: '/media/Backup' }
+    const rows = buildAppPathRows({ app_data: { path: '/nowhere/x', size: 1 } }, [onlyExt])
     expect(rows[0].total).toBe(512110190592)
   })
   it('连系统卷都没有时 total 为 0', () => {
@@ -463,11 +473,17 @@ export interface AppPathRow {
 
 const ORDER: AppPathKey[] = ['app_data', 'images', 'database']
 
-/** 最长前缀匹配:/media/Backup/AppData 要命中 /media/Backup 而不是 /。 */
+/** 最长前缀匹配:/media/Backup/AppData 要命中 /media/Backup 而不是 /。
+ *  ⚠️ 必须按**路径分段**判定(相等 或 以 `${挂载点}/` 开头),不能用裸 startsWith ——
+ *  否则 /media/BackupOld/x 会被判成属于 /media/Backup。Vue2 的 enrichPathData 就是裸的,
+ *  属于「Vue2 的 bug 不照抄」;本仓 src/files/util/snapshotPath.ts 的 findVolumeForPath
+ *  已有同源的正确写法(注释:'/DATAX' 不该被判成属于 '/DATA')。
+ *  根挂载点 '/' 是特例:`//` 前缀永不命中,必须让它匹配所有绝对路径。 */
 export function volumeForPath(path: string, volumes: StorageVolume[]): StorageVolume | null {
   return (
     volumes
-      .filter((v) => v.mountPoint && path.startsWith(v.mountPoint))
+      .filter((v) => v.mountPoint && (v.mountPoint === '/' ? path.startsWith('/')
+        : path === v.mountPoint || path.startsWith(`${v.mountPoint}/`)))
       .sort((a, b) => b.mountPoint.length - a.mountPoint.length)[0] ?? null
   )
 }
