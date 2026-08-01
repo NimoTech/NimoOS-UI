@@ -10,13 +10,25 @@ import type { KvmVM } from '@nimotech/nimoos-service'
 // (已用原始写法验证过这个报错)。修法:把类和用来收集实例的数组一起放进 `vi.hoisted()`
 // ——它的回调体本身也会被提升,但是作为一个整体同步执行,不存在跨语句的时序问题。
 // 断言、行为、测试用例本身一个字都没改。
-const { instances, FakeRFB } = vi.hoisted(() => {
+// 评审 Important #1 追加:需要能让"构造 RFB"本身抛错(模拟 HTTPS 页面下
+// `new WebSocket('ws://…')` 同步抛 SecurityError 那类真实场景),所以给 FakeRFB 加了
+// 一个"消费一次就自动清空"的可控异常开关,同样放进 vi.hoisted 里(闭包变量,构造函数
+// 引用它没有 TDZ 问题——因为真正的读取发生在测试运行时,那时模块早已求值完毕)。
+const { instances, FakeRFB, setRfbConstructError } = vi.hoisted(() => {
+  let constructError: Error | null = null
   class FakeRFB {
     handlers: Record<string, (() => void)[]> = {}
     disconnected = false
     sent: [number, boolean | null][] = []
     cad = 0
-    constructor(public el: unknown, public url: string, public opts: unknown) { instances.push(this) }
+    constructor(public el: unknown, public url: string, public opts: unknown) {
+      if (constructError) {
+        const e = constructError
+        constructError = null // 消费一次即清空,不污染后续测试
+        throw e
+      }
+      instances.push(this)
+    }
     addEventListener(ev: string, cb: () => void) { (this.handlers[ev] ||= []).push(cb) }
     fire(ev: string) { (this.handlers[ev] || []).forEach((h) => h()) }
     disconnect() { this.disconnected = true }
@@ -24,7 +36,7 @@ const { instances, FakeRFB } = vi.hoisted(() => {
     sendCtrlAltDel() { this.cad++ }
   }
   const instances: InstanceType<typeof FakeRFB>[] = []
-  return { instances, FakeRFB }
+  return { instances, FakeRFB, setRfbConstructError: (e: Error | null) => { constructError = e } }
 })
 vi.mock('@novnc/novnc', () => ({ default: FakeRFB }))
 
@@ -41,6 +53,7 @@ const last = <T,>(arr: T[]): T => arr[arr.length - 1]
 
 beforeEach(() => {
   instances.length = 0
+  setRfbConstructError(null)
   getVNC.mockReset()
   getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
 })
@@ -113,6 +126,19 @@ describe('connect', () => {
     await c.connect(VM())
     expect(onSpice).toHaveBeenCalledWith('vm-1', { spicePort: 5901, spiceTlsPort: 0 })
   })
+
+  // 评审 Important #1:Vue2 connectVNC(:999-1013)把 `new RFB(...)` 包在 try/catch
+  // 里,失败时把 e.message 写进错误态显示。HTTPS 页面下 `new WebSocket('ws://…')`
+  // 会同步抛 SecurityError(混合内容),之前这版没有这层 try/catch,会变成一个没人接的
+  // rejection,用户只看到空白占位层。
+  it('RFB 构造抛错时(如混合内容 SecurityError)照 Vue2 把原因写进错误态,不留空白', async () => {
+    setRfbConstructError(new Error('Mixed Content: The page was loaded over HTTPS...'))
+    const c = useVncConsole(host())
+    await c.connect(VM())
+    expect(c.errorKey.value).toBe('Mixed Content: The page was loaded over HTTPS...')
+    expect(c.connected.value).toBe(false)
+    expect(instances).toHaveLength(0) // 构造抛出,没有留下一个"半成品"实例
+  })
 })
 
 describe('代际守卫(修 Vue2 缺失:快速切换 VM 会把旧机器的画面接到新容器上)', () => {
@@ -139,6 +165,30 @@ describe('代际守卫(修 Vue2 缺失:快速切换 VM 会把旧机器的画面�
     r({ vncPort: 0, vncWebsocketPort: 5700, spicePort: 0, spiceTlsPort: 0 })
     await p
     expect(instances).toHaveLength(0)
+  })
+
+  // 评审 Important #2:代际守卫在 catch(getVNC 失败)分支里也有一行(useVncConsole.ts
+  // 里 `catch { if (myGen !== gen) return; ... }`),但之前完全没有测试覆盖它——评审
+  // 删掉这一行后,本文件 + KvmPage.test.ts 共 31 例照样全绿。这行不是防御性冗余:少了它,
+  // VM A 迟到的 getVNC **失败**会调 disconnect(),把 VM B 刚建好的 RFB 销毁、还弹出
+  // "获取 VNC 信息失败",这正是本任务要修的那类竞态,只是走的是失败路径而不是成功路径。
+  it('前一次 getVNC 的失败迟到返回时,不得断开已经建立的新连接、不得写错误态', async () => {
+    let slowReject: (e: unknown) => void = () => {}
+    getVNC
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { slowReject = reject }))
+      .mockResolvedValueOnce({ vncPort: 0, vncWebsocketPort: 5701, spicePort: 0, spiceTlsPort: 0 })
+    const c = useVncConsole(host())
+    const slow = c.connect(VM({ id: 'a' })) // 先发,后面会失败
+    await c.connect(VM({ id: 'b' })) // 后发,立刻成功建连
+    expect(instances).toHaveLength(1)
+
+    slowReject(new Error('404')) // a 的迟到失败结果这时才到达
+    await slow // connect() 内部自己 catch,不会向外抛,这里只是等它把这一轮跑完
+
+    // b 已经建好的连接必须原封不动地留着,错误态也不该被 a 的迟到失败污染。
+    expect(instances).toHaveLength(1)
+    expect(instances[0].disconnected).toBe(false)
+    expect(c.errorKey.value).toBe('')
   })
 })
 
@@ -189,6 +239,11 @@ describe('修饰键与按键', () => {
     expect(c.modifiers.value.ctrl).toBe(false)
   })
 
+  // 评审 Minor:这条判别力确实接近零(`if (!rfb) return` 删掉后大概率也不会抛,只是
+  // 静默地空跑或者报别的错)。留着的理由:它把"connect() 之前调用这几个方法必须是安全的
+  // no-op"这条 API 契约写成了一条可执行的用例——ConsoleHeader/快捷键将来接进来时,如果
+  // 谁在 VNC 未连接的窗口期误触发了发送按键,这里先立此存照。判别力低不等于没价值,
+  // 保留,不删。
   it('没有连接时按键调用是空操作,不抛', () => {
     const c = useVncConsole(host())
     expect(() => { c.sendKey(0xff09); c.sendCtrlAltDel(); c.toggleModifier('ctrl') }).not.toThrow()

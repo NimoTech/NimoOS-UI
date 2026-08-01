@@ -130,12 +130,34 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     // 8: 销毁旧 RFB + 清残留 canvas,再建新连接(Vue2 :995-1004)。
     destroyRfb()
     const host = hostEl.value
-    if (!host) return // 容器还没挂载,防御性写法(正常流程下 ConsoleStage 已经挂载好了)
-    rfb = new RFB(host, wsUrl, { scaleViewport: true, resizeSession: false })
+    if (!host) {
+      // 评审 Minor:正常流程下 ConsoleStage 已经挂载好了,这条分支理论上不该触发——
+      // 但万一触发,旧连接已经被上面 destroyRfb() 销毁,不出声的话就是"悄悄断线、
+      // 什么都不说"。加一句 warn,至少排障时能看出原因(不写进 errorKey,因为这不是
+      // 用户能通过界面文案理解/处理的错误,是前端自身的挂载时序问题)。
+      console.warn('[KVM] connect(): host element missing, skip RFB construction')
+      return
+    }
 
-    // 9
-    rfb.addEventListener('connect', () => { connected.value = true })
-    rfb.addEventListener('disconnect', () => { connected.value = false })
+    // 评审 Important #1:Vue2 connectVNC(:999-1013)把 `new RFB(...)` + 两个
+    // addEventListener 整个包在 try/catch 里,失败时 `this.vncError = e.message`。
+    // 这里漏了这层是未申报的偏离——HTTPS 页面下 `new WebSocket('ws://…')` 会**同步抛
+    // SecurityError**(混合内容策略),URL 非法同理。没有 try/catch 的话,这次 connect()
+    // 调用方(KvmPage 里两处都是 `void vnc.connect(...)`,没人接 rejection)会导致一个
+    // 未处理的 promise rejection,用户只看到空白占位层,什么线索都没有。照 Vue2 补上。
+    //
+    // errorKey 这里装的是**原始异常信息**(e.message),不是 i18n key——ConsoleStage
+    // 渲染处本来就是 `te(errorKey) ? t(errorKey) : errorKey` 的写法,te() 对任意非法
+    // key 的字符串天然返回 false,原始异常信息会直接原样显示,不会被误当成键名喷出来。
+    try {
+      rfb = new RFB(host, wsUrl, { scaleViewport: true, resizeSession: false })
+      // 9
+      rfb.addEventListener('connect', () => { connected.value = true })
+      rfb.addEventListener('disconnect', () => { connected.value = false })
+    } catch (e) {
+      rfb = null
+      errorKey.value = e instanceof Error ? e.message : String(e)
+    }
   }
 
   /** 照 Vue2 toggleModifier(:1020-1029)。 */

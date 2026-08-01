@@ -239,4 +239,35 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
 
     expect(api.getVNC).toHaveBeenCalledWith('vm-2')
   })
+
+  // 评审 Minor:consoleErrorKey 的优先级(`vnc.errorKey.value || s.lastError.value`,
+  // KvmPage.vue :81 附近)之前没有一条测试真的让两个来源**同时为真**再断言谁赢——
+  // 单是"lastError 非空时显示 lastError"这种用例即便把优先级颠倒过来也照样能过。
+  // 这里先制造一个残留的 lastError(开机失败),再切到另一台 VM 触发 connect() 失败
+  // 产生 vnc.errorKey,此时两者同时为真,断言显示的是 vnc 那一个。
+  it('VNC 连接错误优先于电源动作遗留的 lastError(consoleErrorKey 优先级)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'stopped' }), VM({ id: 'vm-2', name: 'vm-two', state: 'running' })],
+      total: 2,
+    })
+    api.startVM.mockRejectedValue(new Error('domain busy')) // 制造一个残留的 lastError
+    api.getVNC.mockRejectedValue(new Error('irrelevant')) // 任何 connect() 都会失败
+    const w = mountPage()
+    await flush()
+
+    // 初始自动选中 vm-1(stopped),开机失败 → lastError = 'domain busy'
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('开机'))!.trigger('click')
+    await flush()
+    expect(w.get('.console-hint.is-error').text()).toBe('domain busy')
+
+    // 切到 vm-2(running)→ watch selectedVM 触发 connect(),getVNC 失败 →
+    // vnc.errorKey = 'kvmVncFetchFailed'。lastError 此时仍是 'domain busy'(没人清过),
+    // 两者同时为真,应该显示 vnc 那一个。
+    const items = w.findAll('.vm-list-item')
+    await items[1].trigger('click')
+    await flush()
+
+    expect(w.get('.console-hint.is-error').text()).toBe('获取 VNC 信息失败')
+  })
 })

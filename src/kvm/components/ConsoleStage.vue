@@ -25,6 +25,13 @@ const { t, te } = useI18n()
 
 const errorText = computed(() => (props.errorKey && te(props.errorKey)) ? t(props.errorKey) : props.errorKey)
 
+// 评审 Minor 登记(未申报偏离,补注册):Vue2 这两个 <img alt> 是字面英文
+// "Power"/"Play"(KVMFullPage.vue:178/188),这里换成了 t('kvmPowerOn')/t('kvmResume')
+// (随语言切换、且与按钮自己的 aria-label 保持一致,不会出现"屏幕阅读器读中文、alt 读
+// 英文"的割裂)。两个按钮的 `type="button"` 也是新增——Vue2 那两个 <button> 没有显式
+// type,本仓库其它按钮(ConsoleHeader/OverflowMenu)都写了 type="button" 防止意外提交
+// 表单,这里补齐同款惯例。均为无害改进,不回退。
+
 // 这个 div 就是 Vue2 `ref="consoleDisplay"` 那个节点——noVNC 把 canvas 挂进这里,
 // useVncConsole 也从这里清残留 canvas。expose 给父组件(KvmPage)转交给 useVncConsole。
 const hostEl = ref<HTMLElement | null>(null)
