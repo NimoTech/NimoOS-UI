@@ -183,11 +183,22 @@ async function confirmDelete() {
             {{ t('settingsAccCreatedAt') }}: {{ formatMemberDate(m.created_at) }}
           </p>
         </div>
-        <button class="set-btn" type="button" data-test="acc-member-settings" @click="emit('open-member', m)">
-          ⚙
+        <!-- 图标按钮用**单色符号 + aria-label**,与仓内既有约定一致
+             (SettingsRow.vue:28 的 `›`、PowerFlow.vue:60 的 `⟳`、AppActionsMenu.vue:10 的 `⋮`)。
+             不用 ⚙/🗑 这类会被平台渲染成**彩色 emoji** 的码点 —— 与本 UI 的单色语言不搭,
+             且不同平台字形差异大(headless 下直接是空方框)。
+             Vue2 那里是 mdi 图标(cog-outline / delete-outline),New-UI 无图标字体。 -->
+        <button
+          class="set-btn" type="button" :aria-label="t('settingsAccMembers')"
+          data-test="acc-member-settings" @click="emit('open-member', m)"
+        >
+          ›
         </button>
-        <button class="set-btn" type="button" data-test="acc-member-delete" @click="askDelete(m)">
-          🗑
+        <button
+          class="set-btn" type="button" :aria-label="t('settingsAccDelete')"
+          data-test="acc-member-delete" @click="askDelete(m)"
+        >
+          ✕
         </button>
       </div>
       <!-- 🔧 plan C14:失败不再伪装成空态 -->

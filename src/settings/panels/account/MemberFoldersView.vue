@@ -166,8 +166,12 @@ async function confirmRevoke() {
             &nbsp;{{ formatMemberDate(perm.created_at) }}
           </p>
         </div>
-        <button class="set-btn" type="button" data-test="acc-perm-revoke" @click="askRevoke(perm)">
-          🗑
+        <!-- 单色符号 + aria-label,理由同 MembersSection.vue -->
+        <button
+          class="set-btn" type="button" :aria-label="t('settingsAccRevoke')"
+          data-test="acc-perm-revoke" @click="askRevoke(perm)"
+        >
+          ✕
         </button>
       </div>
       <!-- 🔧 plan C14:失败不再伪装成「未授权任何文件夹」 -->

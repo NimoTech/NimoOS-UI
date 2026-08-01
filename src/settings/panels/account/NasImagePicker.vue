@@ -156,7 +156,10 @@ defineExpose({ backToStorages, openFolder, view })
     <!-- ── 目录浏览 (Vue2 L792-844) ── -->
     <template v-else>
       <div class="set-nas-toolbar">
-        <button class="set-btn" type="button" data-test="nas-back" @click="backToStorages">‹</button>
+        <button
+          class="set-btn" type="button" :aria-label="t('settingsAccBack')"
+          data-test="nas-back" @click="backToStorages"
+        >‹</button>
         <div class="set-nas-crumbs" data-test="nas-crumbs">
           <!-- Vue2 :803 的 `i < len-1 &&` 守卫照抄:最后一段不可点 -->
           <span
@@ -165,7 +168,10 @@ defineExpose({ backToStorages, openFolder, view })
             @click="i < crumbs.length - 1 && openFolder(c.path)"
           >{{ c.name }}<span v-if="i < crumbs.length - 1" class="set-nas-crumb-sep">/</span></span>
         </div>
-        <button class="set-btn" type="button" :disabled="atRoot" data-test="nas-up" @click="up">↑</button>
+        <button
+          class="set-btn" type="button" :disabled="atRoot" aria-label="↑"
+          data-test="nas-up" @click="up"
+        >↑</button>
       </div>
 
       <p v-if="itemsLoading" class="set-fp-empty">…</p>
@@ -176,7 +182,10 @@ defineExpose({ backToStorages, openFolder, view })
           v-for="it in items" :key="it.path" class="set-nas-item" type="button"
           data-test="nas-item" @click="onItemClick(it)"
         >
-          <span class="set-nas-item-icon">{{ it.is_dir ? '📁' : '🖼' }}</span>
+          <!-- 这里是**类型标记**(不是操作按钮),保留彩色 emoji:Vue2 用的也是彩色 mdi 图标
+               (folder 橙、image 紫)。⚠️ headless 截图里会显示成空方框(缺 emoji 字形),
+               真实浏览器正常 —— 已列进验收清单。 -->
+          <span class="set-nas-item-icon" aria-hidden="true">{{ it.is_dir ? '📁' : '🖼' }}</span>
           <span class="set-nas-item-name">{{ it.name }}</span>
         </button>
       </div>
