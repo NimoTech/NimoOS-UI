@@ -164,4 +164,81 @@ export default {
   settingsNetApplied: '设置已应用',
   settingsNetApplyFailed: '应用设置失败',
   settingsNetNothingToSave: '没有可保存的配置',        // 🆕补译
+  // ── P3 apps tab ────────────────────────────────────────────────────────
+  settingsAppsPathTitle: 'App 数据存储位置',
+  settingsAppsAppData: 'App 数据',
+  settingsAppsImages: 'App 镜像集',
+  settingsAppsDatabase: '用户数据库',
+  settingsAppsChangeLocation: '更改存储位置',
+  settingsAppsDockerCleanTitle: 'Docker 缓存清理',
+  settingsAppsDockerCleanSub: '您的 Docker 环境已优化。',
+  settingsAppsDockerCleaning: '正在优化...',
+  settingsAppsDockerCleanConfirmTitle: '清理 Docker 缓存',                          // 🆕补译
+  settingsAppsDockerCleanConfirmMsg: '这将删除所有未使用的容器、网络和镜像。确定要继续吗?', // 🆕补译
+  settingsAppsDockerCleanConfirmOk: '清理',                                        // 🆕补译
+  settingsAppsDockerCleanDone: 'Docker 环境已优化。',                               // 🆕补译
+  settingsAppsDockerCleanFailed: '清理 Docker 缓存失败。',                          // 🆕补译
+  settingsAppsPendingTitle: '清除本地未完成的上传',
+  settingsAppsPendingNone: '本地无未完成任务',
+  settingsAppsPendingClear: '清除',
+  settingsAppsPendingDisabledHint: '待相册区迁移完成后启用',                          // 🆕(本期新增标注,做样子)
+  // ── P3 迁移弹窗 ────────────────────────────────────────────────────────
+  settingsMigTitle: '存储位置',
+  settingsMigCurrentLocation: '当前位置',
+  settingsMigRequiredSpace: '所需空间',
+  settingsMigSelectNew: '选择新位置',
+  settingsMigNoOther: '没有其他可用的存储',
+  settingsMigNext: '下一步',
+  settingsMigBack: '返回',
+  settingsMigStart: '开始迁移',
+  settingsMigClose: '关闭',
+  settingsMigNewFolder: '新建文件夹',
+  settingsMigNoSubfolders: '没有子文件夹',                                          // 🆕补译
+  settingsMigLoadFolderFailed: '加载文件夹失败',                                     // 🆕补译
+  settingsMigCreateFolderFailed: '新建文件夹失败',                                   // 🆕补译
+  settingsMigRename: '重命名',
+  settingsMigRenameFailed: '重命名失败',
+  settingsMigDelete: '删除',
+  settingsMigDeleted: '已删除',
+  settingsMigDeleteFailed: '删除失败',
+  settingsMigCancel: '取消',
+  settingsMigWillBeMoved: '将被移动',
+  settingsMigNote: '提示',
+  settingsMigNoteBody: '这将把所有数据移动到新位置。操作可能需要几分钟,具体取决于数据大小。',
+  settingsMigNoteDocker: '在此过程中,Docker 将暂时停止。',
+  settingsMigStopping: '正在停止服务...',
+  settingsMigStoppingApps: '正在等待 {n} 个应用保存数据并退出...',
+  settingsMigCopying: '正在迁移数据...',
+  settingsMigStarting: '正在启动服务...',
+  settingsMigKeepOpen: '在迁移完成前,请保持此窗口打开。',
+  settingsMigDone: '迁移完成!',
+  settingsMigFailed: '迁移失败',
+  settingsMigCleanupTitle: '已自动清理',                                            // 🆕补译
+  settingsMigCleanupBody: '目标磁盘上已传输的部分数据已被移除,你的原始数据完好无损。',   // 🆕补译
+  // ── P3 system-status tab ───────────────────────────────────────────────
+  settingsStatusTitle: '系统状态',
+  settingsStatusRefresh: '刷新',
+  settingsStatusGroupService: '核心服务',
+  settingsStatusGroupUi: '前端界面',
+  settingsStatusGroupExternal: '外部依赖',
+  settingsStatusOnline: '在线',
+  settingsStatusOffline: '离线',
+  settingsStatusNoData: '暂无数据',
+  // ── P3 terminal tab ────────────────────────────────────────────────────
+  settingsTermTerminal: '终端',
+  settingsTermLogs: '日志',
+  settingsTermDownloadLogs: '下载日志',
+  settingsTermLoadingLogs: '正在拉取系统日志...',
+  settingsTermUnavailable: '终端服务暂不可用',
+  settingsTermUnavailableHint: '系统终端的后端接口(/v1/sys/wsssh)已被停用,终端与终端安全策略暂不可用。', // 🆕(本期空态说明)
+  settingsTermFullscreen: '全屏',
+  settingsTermExitFullscreen: '退出全屏',
+  // ── P3 storage tab(入口卡,授权偏离 #3)────────────────────────────────
+  settingsStoreEntryTitle: '打开存储区',
+  settingsStoreEntrySub: '磁盘、存储空间、RAID 与快照都在存储区管理。',                 // 🆕(本期新增)
+  settingsStoreTotal: '总存储',
+  settingsStoreAvailable: '可用',
+  settingsStoreSystem: '系统',
+  settingsStoreFiles: '文件',
+  settingsStoreNoStorage: '未找到存储',                                             // 🆕补译
 }

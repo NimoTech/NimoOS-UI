@@ -9,10 +9,20 @@
   --set-rail-bg: rgba(255, 255, 255, 0.06);
   --set-rail-border: rgba(255, 255, 255, 0.12);
   --set-warn-fg: #f0b429;
+  /* P3: 别名到既有语义 token,不新造字面量(避免与 --success/--console-* 值漂移)。
+   * --set-ok-fg 对位 Vue2 SystemStatus.vue 的在线状态绿 —— 语义与既有 --success 完全重合。
+   * --set-logs-bg/--set-logs-fg 对位 Vue2 LogsCard.vue 的固定深色日志底 —— 与既有
+   * --console-bg/--console-fg(Terminal 组件同款深色控制台配色)值相同,直接复用。 */
+  --set-ok-fg: var(--success);
+  --set-logs-bg: var(--console-bg);
+  --set-logs-fg: var(--console-fg);
 }
 
 :root[data-theme='light'] {
   --set-rail-bg: rgba(0, 0, 0, 0.03);
   --set-rail-border: rgba(0, 0, 0, 0.08);
   --set-warn-fg: #b7791f;
+  --set-ok-fg: var(--success);
+  --set-logs-bg: var(--console-bg);
+  --set-logs-fg: var(--console-fg);
 }

@@ -351,3 +351,83 @@
   width: 100%;
   max-width: none;
 }
+
+/* ── P3 apps tab ───────────────────────────────────────────────────────── */
+.set-app-row { display: flex; align-items: center; gap: 12px; padding: 16px; }
+.set-app-row + .set-app-row { border-top: 1px solid var(--set-rail-border); }
+.set-app-row-main { flex: 1; min-width: 0; }
+.set-app-row-label { font-weight: 600; margin-bottom: 8px; }
+.set-app-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.set-app-chip {
+  font-size: 12px; padding: 2px 10px; border-radius: 999px;
+  background: var(--set-rail-bg); border: 1px solid var(--set-rail-border);
+  color: var(--fg); white-space: nowrap;
+}
+.set-app-chip-path { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.set-app-act {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--set-rail-bg); border: 1px solid var(--set-rail-border);
+  color: var(--fg); cursor: pointer;
+}
+.set-app-act:hover { background: var(--set-rail-border); }
+
+/* ── P3 迁移弹窗 ───────────────────────────────────────────────────────── */
+.set-mig-status { display: flex; gap: 12px; margin-bottom: 20px; }
+.set-mig-status-card {
+  flex: 1; padding: 12px; border-radius: 12px;
+  background: var(--set-rail-bg); border: 1px solid var(--set-rail-border);
+}
+.set-mig-item {
+  padding: 16px; margin-bottom: 12px; border-radius: 12px; cursor: pointer;
+  background: var(--set-rail-bg); border: 1px solid var(--set-rail-border);
+}
+.set-mig-item.is-selected { border-color: var(--accent); }
+.set-mig-crumbs { display: flex; align-items: center; gap: 4px; overflow: hidden; }
+/* --fg-dim 在计划里是猜测名,本仓库实际语义 token 是 --fg-muted(对位既有
+ * .set-net-tab 未激活态的同款用法)。 */
+.set-mig-crumb { font-size: 12px; cursor: pointer; color: var(--fg-muted); }
+.set-mig-crumb.is-active { color: var(--fg); cursor: default; }
+.set-mig-list { max-height: 280px; overflow-y: auto; }
+.set-mig-folder {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-radius: 8px; cursor: pointer;
+}
+.set-mig-folder:hover { background: var(--set-rail-bg); }
+/* 弹窗表单里的输入框必须占满,否则吃到 .set-input 的 92px(P2 自查逮到过) */
+.set-mig-input { width: 100%; max-width: none; }
+.set-mig-progress { height: 8px; border-radius: 999px; background: var(--set-rail-bg); overflow: hidden; }
+.set-mig-progress-fill { height: 100%; background: var(--accent); transition: width 0.2s linear; }
+
+/* ── P3 system-status tab ──────────────────────────────────────────────── */
+.set-comp-group-title { font-size: 12px; color: var(--fg-muted); margin: 0 0 8px; }
+.set-comp-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.set-comp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+/* --set-ok-fg 别名到既有 --success(见 theme.sp9.css);--danger 计划里是猜测名,
+ * 本仓库并无该 token,实际语义等价物是既有 .set-danger 用的 --remove-fg。 */
+.set-comp-dot.is-online { background: var(--set-ok-fg); }
+.set-comp-dot.is-offline { background: var(--remove-fg); }
+.set-comp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.set-comp-ver { font-size: 12px; color: var(--fg-muted); }
+.set-comp-state { font-size: 12px; }
+.set-comp-state.is-online { color: var(--set-ok-fg); }
+.set-comp-state.is-offline { color: var(--remove-fg); }
+
+/* ── P3 terminal tab ───────────────────────────────────────────────────── */
+.set-logs-wrap { position: relative; }
+.set-logs {
+  width: 100%; min-height: 480px; max-height: 60vh; overflow: auto;
+  background: var(--set-logs-bg); color: var(--set-logs-fg);
+  font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5;
+  padding: 16px; border-radius: 12px;
+  white-space: pre-wrap; word-break: break-all;
+}
+.set-logs-tools { position: absolute; top: 12px; right: 16px; display: flex; gap: 8px; }
+.set-term-empty { padding: 48px 16px; text-align: center; color: var(--fg-muted); }
+
+/* ── P3 storage tab 入口卡 ─────────────────────────────────────────────── */
+.set-store-bar { height: 8px; border-radius: 999px; display: flex; overflow: hidden; background: var(--set-rail-bg); }
+.set-store-seg-os { background: var(--fg-muted); }
+.set-store-seg-data { background: var(--accent); }
+.set-store-legend { display: flex; gap: 16px; font-size: 12px; color: var(--fg-muted); margin-top: 8px; }
+.set-store-legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
