@@ -330,8 +330,9 @@ watch(
 // fix round 1 · I2(评审查实的真缺陷,Important,已重新设计,不是打补丁):第一版把
 // `albumAssetIds` 做成一个由 `fetchAlbumAssets(id).then(...)` 写入的 ref,靠一个自建
 // 的 `albumSeq` 计数器挡"旧响应覆盖新响应"——但这只挡得住**跨 id**的竞态(选 A 又快速
-// 切到 B),挡不住评审实测出的**同 id 重入**竞态:`albums.ts:81` 的
-// `fetchAlbumAssets` 第一行是 `if (isLoadingAssets(id)) return`——同一个 id 的请求还
+// 切到 B),挡不住评审实测出的**同 id 重入**竞态:`albums.ts:82`(fix round 3 · #3
+// 自查校正:此前误写成 `:81`,那一行其实是函数签名 `async function fetchAlbumAssets`)
+// 的 `if (isLoadingAssets(id)) return`——同一个 id 的请求还
 // 在飞行中时再次调用会**立即 resolve、不带任何数据**。完整复现路径:选相册 A → Apply
 // (请求 A 在途)→ 重开弹层取消 A → Apply(`filters.album=null`)→ 再选 A → Apply ⇒
 // 第二次对 A 的 `fetchAlbumAssets` 命中 `isLoadingAssets(A)===true` 短路立即 resolve,
@@ -366,10 +367,25 @@ function findAlbumIdByName(name: string): string | number | null {
 // 照 Vue2 `PhotosSearchView.vue:593-602` 的口径——**在途期间不过滤**,与"选中即
 // `albumAssetIds = null`"那一刻的初始状态一致)和"缓存槽已经落地,内容恰好是空数组"
 // (⇒ 真的没有照片,应该精确收窄成空集,不能因为"看起来和在途一样都是 []"就放行不过滤,
-// 那会让 I7 的"空相册"语义混同回"在途")。`in` 判据只看键是否存在(`fetchAlbumAssets`
-// 无论成功失败都会在 `finally` 里写入这个相册的槽,即便结果是空数组;只有从未发起过
-// 请求/请求还没完成时,槽才不存在)——不是"看长度是否为 0",这正是本条修复的关键区分,
-// 必须用 `in` 而不能用 `assetsOf(id).length === 0` 来判定"还没落地"。
+// 那会让 I7 的"空相册"语义混同回"在途")。`in` 判据只看键是否存在(`albums.ts` 的
+// `fetchAlbumAssets` 无论成功失败都会写入这个相册的槽——成功路径在 `try` 体里
+// `setAlbumAssets(id, ...)`(`albums.ts:87`),失败路径在 `catch` 体里
+// `setAlbumAssets(id, [])`(`albums.ts:90`);`finally`(`:91-93`)只负责把
+// `isLoadingAssets` 复位,不碰这个槽——即便结果是空数组,只有从未发起过请求/请求还没
+// 完成时,槽才不存在)——不是"看长度是否为 0",这正是本条修复的关键区分,必须用 `in`
+// 而不能用 `assetsOf(id).length === 0` 来判定"还没落地"(fix round 3 · #2 校正:
+// 上一轮这里误写成"在 finally 里写入",槽写入的位置说错了,结论——成功/失败都会落
+// 槽——本身是对的,已按 albums.ts 的真实代码位置改正)。
+//
+// fix round 3 · #4(评审并入,补登记一处相对 Vue2 的可观察差异——此前只提了"首次选中"
+// 那一半,漏了"切换"这一半):Vue2 `PhotosSearchView.vue:593-602` 的 `albumAssetIds`
+// 在途期间**保留上一次的值**——所以"相册 A 已落地(过滤生效)→ 用户切到相册 B、B 的
+// 请求还在飞行"这段窗口里,Vue2 仍然**按 A 过滤**(旧值没被清掉)。New-UI 这里统一
+// "缓存槽不存在就不过滤",同一窗口会**显示未过滤的全集**,不是"继续按 A 过滤"。
+// **首次选中相册时两者行为一致**(都不过滤,因为都还没有任何缓存值可用);**只有"切换
+// 相册"这个子场景不同**。判断:从"不该用一个已经不再选中的相册去误导性地过滤结果"这个
+// 角度看,New-UI 的新行为更合理(总比"静默地用上一个相册的旧过滤结果"更不容易让用户
+// 困惑),但这确实是相对 Vue2 的一处可观察行为差异,在此登记(报告里也有一份)。
 const albumAssetIds = computed<Set<string> | null>(() => {
   const name = filters.value.album
   if (!name) return null
@@ -411,8 +427,9 @@ function clearFilter(key: keyof SearchFilters): void {
 function clearAll(): void {
   filters.value = emptyFilters()
 }
-// fix round 1 · I8(评审并入,补登记——之前顺手修对了但没写清楚):Vue2 `:561` 的
-// `anyFilter` **不含 album**(`f.date || f.people.length || f.place.length ||
+// fix round 1 · I8(评审并入,补登记——之前顺手修对了但没写清楚;fix round 3 · #3
+// 校正:枚举那行实际是 Vue2 `:562`,`:561` 是 `const f = this.filters`):Vue2 `:562`
+// 的 `anyFilter` **不含 album**(`f.date || f.people.length || f.place.length ||
 // f.cameras.length || f.type.length || f.src.length || f.scene.length`,枚举里没有
 // `f.album`)——这意味着 Vue2 里只选中一个相册过滤时,「清除全部」按钮根本不会出现,
 // 用户没法一键清掉已选的相册。这里补上 `f.album`,是修正 Vue2 的这处遗漏(相册和

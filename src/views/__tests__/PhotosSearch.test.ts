@@ -84,7 +84,8 @@ function rawAsset(id: string, overrides: Record<string, unknown> = {}) {
 // 用一个模块级数组记录**每次经由 `mountSearch()` 挂载**的 wrapper + 容器元素,统一在
 // `afterEach` 里清理——注意这个数组只覆盖走这个助手函数的挂载;本文件另有一处不经过
 // `mountSearch()` 的裸 `mount()`(浮层:Esc 统一治理 / 「隔离子组件兜底」用例),那一处
-// 在自己的用例末尾单独 `w.unmount()`,不进这个数组(fix round 2 · Minor#2 已就地登记)。
+// 用 `try/finally` 自己保证 `unmount()`(fix round 2 · Minor#2 引入,fix round 3 · #3
+// 改成 try/finally 以免断言先失败时漏清理),不进这个数组。
 const mountedInstances: Array<{ w: ReturnType<typeof mount>; el: HTMLElement }> = []
 async function mountSearch(path = '/photos/search') {
   const router = makeRouter(path)
@@ -534,6 +535,29 @@ describe('filters.album', () => {
     expect(w.findAll('.tile')).toHaveLength(1)
   })
 
+  // fix round 3 · #1(评审查实的零覆盖缺口,真实功能缺陷级别的护栏缺失):
+  // "缓存槽不存在(in)" vs "缓存槽已落地但内容是空数组(.length===0)"这条判据此前只有
+  // 上面那条在途用例(断言"还没落地"这一半),**没有任何用例断言"已经落地、且这个相册
+  // 真的没有照片"这一半**——把 computed 里的 `in` 判据换成 `assetsOf(id).length===0`
+  // 之后仍返回同一批 72 个用例全绿,因为没有一条用例走到"相册真实存在、请求已经真正
+  // 落地、返回的资产列表恰好是空数组"这个具体状态。这里把它补上、并顺带断言 `getAlbum`
+  // 确实被调用过(排除"请求压根没发起,凑巧也是空数组"这种假阳性)。
+  it('相册确实存在但资产为空(请求已落地)→ 结果为空集 + 空态出现(不是在途误判)', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Trip' }])
+    svc.photos.getAlbum.mockResolvedValue({ assets: [] })
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a'), rawAsset('b')])
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    await w.get('[data-test="chip-album"] .fchip').trigger('click')
+    await w.get('.nav-item').trigger('click')
+    await w.get('.btn.btn-primary').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(svc.photos.getAlbum).toHaveBeenCalledWith(9) // 确实发起过请求,不是压根没调
+    expect(w.findAll('.tile')).toHaveLength(0)
+    expect(w.find('[data-test="empty-search"]').exists()).toBe(true)
+  })
+
   // fix round 1 · I7(评审查实的真缺陷,Important):上一版这条用例名声称覆盖"查不到
   // id"分支,但注释里自陈"改为直接断言未选相册时 albumAssetIds 恒为 null",最终断的是
   // "不过滤"(2 条全在),与 brief 要求的"结果为空集"正好相反。
@@ -977,23 +1001,27 @@ describe('浮层:Esc 统一治理', () => {
         },
       },
     })
-    await flushPromises()
-    await w.vm.$nextTick()
-    await w.get('[data-test="chip-date"] .fchip').trigger('click')
-    await w.get('[data-test="save-smart"]').trigger('click')
-    expect(w.find('.cal').exists()).toBe(true)
-    expect(w.find('[data-test="ssv-root-stub"]').exists()).toBe(true)
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    await w.vm.$nextTick()
-    expect(w.find('.cal').exists()).toBe(false)
-    expect(w.find('[data-test="ssv-root-stub"]').exists()).toBe(false)
-    // fix round 2 · Minor#2(评审并入,清理契约漏洞):这条用例是直接 `mount()`,不经过
-    // `mountSearch()` 助手,不会被 `afterEach` 里那个遍历 `mountedInstances` 的清理逻辑
-    // 覆盖到——当前用例结尾两个浮层都已被上面的 Escape 关掉(`saveOpen`/`openPop` 都已
-    // 归假),`PhotosSearch.vue` 自身没有残留的 document 监听器需要摘;但若将来这条用例
-    // 改成"只关一个浮层就结束",组件仍处于挂载状态,`document` 级监听器与这棵组件树就会
-    // 跨测试残留。这里显式 `unmount()` 兜底,不依赖"测试恰好把状态清干净了"这个前提。
-    w.unmount()
+    // fix round 2 · Minor#2(评审并入,清理契约漏洞) + fix round 3 · #3(评审并入,
+    // 健壮性收尾):这条用例是直接 `mount()`,不经过 `mountSearch()` 助手,不会被
+    // `afterEach` 里那个遍历 `mountedInstances` 的清理逻辑覆盖到。fix round 2 曾在用例
+    // 末尾补了一行裸 `w.unmount()`,但那行排在断言之后——**如果前面任何一条断言先失败
+    // 抛错,`unmount()` 根本不会执行**,组件仍会残留(`ClusterActionDialog.test.ts` 等
+    // 先例靠 `mounted[]` + `afterEach` 天然免疫这个问题,这里没有对应的数组)。改成
+    // `try/finally`:不管断言是否失败,`finally` 里的 `unmount()` 都会执行。
+    try {
+      await flushPromises()
+      await w.vm.$nextTick()
+      await w.get('[data-test="chip-date"] .fchip').trigger('click')
+      await w.get('[data-test="save-smart"]').trigger('click')
+      expect(w.find('.cal').exists()).toBe(true)
+      expect(w.find('[data-test="ssv-root-stub"]').exists()).toBe(true)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await w.vm.$nextTick()
+      expect(w.find('.cal').exists()).toBe(false)
+      expect(w.find('[data-test="ssv-root-stub"]').exists()).toBe(false)
+    } finally {
+      w.unmount()
+    }
   })
 
   it('Esc 不触发「退出搜索」(反向断言:router.push/replace 未被调)', async () => {
