@@ -4,13 +4,13 @@
 读法:先读 `p5a-common-constraints.md` 全文,再读本文件;**同一节里本文件说了什么,就以本文件为准。**
 
 - **优先级**:设计文档 > 本文件 > 任务 brief > 计划书。
-  🔴 **本期特例:计划书 `2026-08-01-…-sp8-p5b-indexops.md` 已被 T0 回源核出 10 处错(见 §12),
+  🔴 **本期特例:计划书 `2026-08-01-…-sp8-p5b-indexops.md` 已被回源核出 12 处错(见 §12),
   下游任务一律不读计划书原文,只读本文件与三份附录。** 附录里的数字与计划书冲突时,以附录为准。
 - 设计:`NimoOS-UI/docs/superpowers/specs/2026-08-01-vue3-migration-sp8-p5b-indexops-design.md`
   (上级设计 `2026-07-31-…-sp8-p5-knowledge-design.md` 的 §5/§7/§8 继续生效)
 - 附录(只用路径引用,不要把内容复制进任务 brief):
   - i18n 键表 → `.superpowers/sdd/p5b-appendix-A-i18n.md`(**100** 条新增 + 9 条复用)
-  - 色值映射表 → `.superpowers/sdd/p5b-appendix-B-tokens.md`(32 行 / 39 处)
+  - 色值映射表 → `.superpowers/sdd/p5b-appendix-B-tokens.md`(**42 处** = scss 39 + 模板内联 3,后者见 §B.0)
   - CSS 类白名单 → `.superpowers/sdd/p5b-appendix-D-classes.md`(85 类,102 → 187)
   - 后端实测 fixture → `.superpowers/sdd/p5b-fixtures/`(先读那里的 `README.md`)
 
@@ -40,6 +40,38 @@ P5a §1 全部继续生效,**外加/订正这 5 条**:
 
 **验收 dev server 已在 `:5288`,不另起端口**;每次提交后由协调者 kill 重起(承 P3a「用户验到陈旧代码」教训)。
 
+### 1.1 🔴 全期零改动文件清单(计划书 §4,任何任务都不许碰)
+
+| 文件 | 口径 |
+|---|---|
+| `src/ai/knowledge/views/KnowledgeLayout.vue` | **全期零改动** |
+| `src/ai/knowledge/views/DashboardView.vue` | **全期零改动**(60 秒骨架照旧不修 = N3) |
+| `src/ai/knowledge/components/KIcon.vue` | **全期零改动** —— 见 §1.2,本期用到的 glyph 已逐个核实都在,**不许往里加** |
+| `src/ai/knowledge/util/indexedFiles.ts` | **全期零改动**(`anyIndexing` / `buildListParams`,P5a 已迁完,直接 import) |
+| `src/ai/knowledge/util/dashboardHelpers.ts` | **全期零改动** |
+| `src/ai/knowledge/stores/knowledgeStore.ts` | **只有 T3 能改,且只加 K15 的 epoch 守卫** —— 其它任务一行都不许动 |
+| `.sp8/NimoOS-Service/**` | **全期零改动**(§1.1 第 1 条) |
+
+需要改上面任何一个 → **停下写 `NEEDS_CONTEXT`**,不要自己动。
+
+### 1.2 🔴 `KIcon` 的 19 个 glyph 已核实全在(不许往 `KIcon.vue` 里加)
+
+设计 §2.1 声明「本期用到的 19 个 glyph 逐个 grep 确认在 `KIcon.vue` 的 `PATHS` 里」。
+**T0 与独立评审各核一遍,19/19 全在**(`src/ai/knowledge/components/KIcon.vue`,`PATHS` 共 42 个键):
+
+```
+folder  x  file  spinner  sort  arrowDown  danger  layers  check  tomb
+refresh  chevDown  chevLeft  chev  drive  hourglass  rocket  info  trash
+```
+
+⚠️ **其中 `tomb` 在模板里没有字面量 `name="tomb"`** —— 它只通过
+`:name="statusBadgeMap[file.status].icon"`(蓝本 `IndexedFilesView.vue:193-195`)动态取到,
+`statusBadgeMap.tombstoned.icon === 'tomb'`。**这和 `Indexing`(K20)是同一个动态取值坑**,
+grep 字面量的脚本都扫不到它。另 18 个都是字面量。
+
+→ **若某个任务一时找不到某个 glyph:先回头 grep 一次 `KIcon.vue`(它一定在),
+不要往 `KIcon.vue` 里加新 glyph,也不要退回 `AgentIcon`(K4:六个同名图标异形)。**
+
 ## 2. 移植纪律(沿用 P5a §2,本期额外强调 3 条)
 
 P5a §2 原文全部生效(界面/视觉/交互严格 1:1;逻辑/bug 不照抄但必须**三件套**:代码注释 + 报告申报 + 台账登记;
@@ -51,7 +83,7 @@ P5a §2 原文全部生效(界面/视觉/交互严格 1:1;逻辑/bug 不照抄�
   不是 → 照 Vue2。** 统一 = 界面不 1:1 = 回归。
 - 🔴 **本期唯一「用户可见文案与 Vue2 不同」的地方是 K18 的三处重试 toast**(设计 §5.3 给了完整证据链)。
   除此之外任何文案差异都是缺陷。评审别把 K18 误报成回归,也别放过 K18 之外的文案漂移。
-- **brief / 计划书里标了「已核」的数据,评审仍须回权威源复核** —— 本期 T0 就核出了计划书 10 处错。
+- **brief / 计划书里标了「已核」的数据,评审仍须回权威源复核** —— 本期已核出计划书 **12 处**错(§12)。
 
 ## 3. 本期已授权的偏离(K1–K8 沿用 + **K9–K20**)
 
@@ -70,7 +102,7 @@ P5a §3 的 **K1–K8 与 P1–P4 全部继续生效**,不再重复。本批新�
 | **K17** | `.k-modal-head` / `.k-modal-title` / `.k-modal-x` / `.k-modal-body`(蓝本 `:1318-1334`)**本期不搬** | 本期两个视图都不用;留 P5c。守「没有搬多」那条断言 |
 | **K18** | **failed 桶三个重试入口(`retryOne`/`bulkRetry`/`retryAllFailed`)都真发 `store.retryFailed(null)`,toast 统一 `aiKbRetriedAllFailed`(不报数)** | 用户 E6;后端证据链见 §4.3。**DOM / 按钮 / 禁用条件 / 图标 / 排版零变动** |
 | **K19** | **加载错误横幅不回显 `e.message`**,改固定 i18n 串 `aiKbLoadErrorBody` | K5 一致性:同一个 `.k-banner` 里 400 分支已按 E5 不回显,load-error 分支再回显自相矛盾。P5a T7 已把 `Operation failed + e.message` 换成 `aiKbOpFailed`,同一模具 |
-| **K20** | 🔴 **T0 新增**:`statusBadgeMap.indexing.en = 'Indexing'` 在 Vue2 语言包里**没有对应条目**(vue-i18n 回落显示英文原串)。本期新建 `aiKbStatusIndexing`,**两档同填 `Indexing`**,渲染与 Vue2 逐字相同 | K16 的同一个模具。蓝本 `IndexedFilesView.vue:197` 是全批唯一一处 `$t()` 传非字面量,计划书的抽取脚本扫不到 → 附录 A 整条漏掉。**本机 8 个文件里 5 个是 `indexing`,漏了页面上五行全坏**。详见附录 A §A.4 |
+| **K20** | 🔴 **T0 新增**:`statusBadgeMap.indexing.en = 'Indexing'` 在 Vue2 语言包里**没有对应条目**(vue-i18n 回落显示英文原串)。本期新建 `aiKbStatusIndexing`,**两档同填 `Indexing`**,渲染与 Vue2 逐字相同 | K16 的同一个模具。蓝本 `IndexedFilesView.vue:197` 是全批唯一一处 `$t()` 传非字面量,计划书的抽取脚本扫不到 → 附录 A 整条漏掉。**本机 8 个文件里 5 个是 `indexing`,漏了页面上五行全坏**。详见附录 A §A.4。**连带看 §3.5 N14**:`statusBadgeMap.en` 一物两用,`en` 与 `key` 必须两个字段并存 |
 
 **除 K1–K20 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
 
@@ -79,7 +111,7 @@ P5a §3 的 **K1–K8 与 P1–P4 全部继续生效**,不再重复。本批新�
 > 本期两处弹窗:`QueueView.vue:190-208`(清空失败确认)与 `IndexedFilesView.vue:356-381`(整库重建确认)。
 > 测 reka Teleport 组件:挂载后先 `await nextTick()` 再查 `document`,且 portal 目标要在测试里备好。
 
-## 3.5 明确「照抄、不改」的条目(N1–N8 沿用 + **N9–N13**)
+## 3.5 明确「照抄、不改」的条目(N1–N8 沿用 + **N9–N14**)
 
 P5a §3.5 的 **N1–N8 全部继续生效**(尤其 **N4** 无过滤刷三桶 / 有过滤只刷该桶、**N5** `d.total = rows.length`
 当截断判据、**N7** `(x || [])` 兜底不许删)。本批新增:
@@ -100,8 +132,40 @@ P5a §3.5 的 **N1–N8 全部继续生效**(尤其 **N4** 无过滤刷三桶 / 
 - **N13** 🔴 **T0 新登记**:`.k-status-badge-cn`(蓝本 `IndexedFilesView.vue:197`)—— 与 N10 完全同族,
   蓝本 scss 里**没有定义**(`git grep k-status-badge-cn main` 只命中这一行模板)。
   **类名照抄、不进白名单、不许为它凭空写规则**,T9 报告显式说明。
-- 另有 **8 处 Vue2 语言包自身的错译 / 同值撞车**(附录 A 主表里带 `⚠️N` 标记的 9 行),
-  **照抄、不许统一、不许「顺手改对」**(同 P5a N8 的模具)。评审要专查这一条。
+- **N14** 🔴 **T0 新登记**:`statusBadgeMap` 的 `en` 字段是**一物两用**,拆开搬时不许合并。
+  蓝本 `IndexedFilesView.vue`:
+  - **`:191`** `:title="statusBadgeMap[file.status] ? statusBadgeMap[file.status].en : file.status"`
+    ← **未翻译的原始英文**(tooltip 显示 `Indexed` / `Indexing` / `Error` / `Removed`)
+  - **`:197`** `{{ statusBadgeMap[file.status] ? $t(statusBadgeMap[file.status].en) : file.status }}`
+    ← **翻译后的中文**(徽标文字显示「已收录」/`Indexing`/「错误」/「已删除」)
+
+  即 **tooltip 是英文、徽标文字是中文,同一个字段两种用法**(Vue2 靠「英文原串即 i18n key」这个巧合做到)。
+  New-UI 的键是 `aiKb*`,这个巧合不成立 → **`statusBadgeMap` 每个状态必须同时留两个字段**:
+
+  ```ts
+  // 蓝本 :573-580;`en` 只给 :191 的 title(原始英文,不翻译),`key` 只给 :197 的徽标文字
+  const statusBadgeMap = {
+    ok:         { en: 'Indexed',  key: 'aiKbStatusIndexed',  icon: 'check',   cls: 'ok' },
+    indexing:   { en: 'Indexing', key: 'aiKbStatusIndexing', icon: 'spinner', cls: 'indexing' },
+    error:      { en: 'Error',    key: 'aiKbStatusError',    icon: 'x',       cls: 'error' },
+    tombstoned: { en: 'Removed',  key: 'aiKbStatusRemoved',  icon: 'tomb',    cls: 'tombstoned' },
+  }
+  ```
+
+  🔴 **把 `en` 直接换成键名两处共用 = tooltip 变成中文或键名本身 = 界面不 1:1。**
+  🔴 **计划书 T9 的 DoD 只要求断言 `data-s` + 图标名 + 中文文案三项,没有 `title`,测试抓不到。**
+  → **本治理文件硬加一条:T9 必须对四个状态的 `title` 各下一条断言**,
+  断言值是**英文原串**(`toBe('Indexed')` / `toBe('Indexing')` / `toBe('Error')` / `toBe('Removed')`),
+  并且**至少一条反向断言**「`title` 不等于对应的中文、也不等于 `aiKb*` 键名」。
+  连带:`icon` 与 `cls` 四个状态也各要断言(`cls` → `data-s`,`icon` → KIcon 的 `name`)。
+  另注意 `statusBadgeMap[file.status]` 取不到时的兜底:`title` 与文字都回落成 `file.status` 原串、
+  `data-s` 回落 `'ok'`、`icon` 回落 `'check'`(蓝本 `:190`/`:194`),**这个兜底分支也要有用例**。
+
+- 另有 **Vue2 语言包自身的错译 / 同值撞车:9 行 / 7 组**(附录 A 主表里带 `⚠️N` 标记的
+  #18 #24 #47 #48 #55 #84 #85 #91 #92 —— 其中 (#24, #84) 同为「向量数」、(#91, #92) 同为「累计完成」
+  各算一组撞车,故 **5 个单独错译 + 2 组撞车 = 7 个独立问题**)。
+  **照抄、不许统一、不许「顺手改对」**(同 P5a N8 的模具)。**每一行附录 A 里都写了理由**,评审按理由逐条判。
+  (计划书 §6 A.1 脚注写「共 8 处」却列了 9 个编号,两种口径下都对不上,已订正。)
 
 ## 4. 数据契约(**2026-08-01 实测**,取代 P5a §4 里的估算)
 
@@ -144,8 +208,11 @@ parserDeleteJob(id)     → **HTTP 204,响应体为空**;404 {"detail":"job {id}
                           409 {"detail":"cannot cancel a running job"}   ← 源码推定,未实测
 ```
 
-🔴 `parserDeleteJob` 是 **204 空体**(`routes/jobs.py:42-50` 的 `status_code=204` + `return None`)——
-mock 成 `{}` 或 `{ok:true}` 都是把幻觉编码进断言。
+🔴 `parserDeleteJob` 是 **204 空体**(`routes/jobs.py:42-50` 的 `status_code=204` + `return None`)。
+包里是 `return res.data`(`ai.ts:637-640`),而 **axios 1.18.1 对空体的 `res.data` 给的是 `''`(空字符串)**
+—— `axios.cjs:2118` 的守卫是 `if (data && utils.isString(data) && …)`,空串是 falsy → 直接跳过 JSON 解析原样返回。
+→ **正确 mock:`vi.fn().mockResolvedValue('')`。** mock 成 `{}` / `{ok:true}` / `undefined` / `null`
+都是把幻觉编码进断言。(蓝本 `cancelOne` / `bulkCancel` 也确实不读返回值,只 catch 异常。)
 
 ### 4.2 Distill —— `service.notes.*` **已在包里 camelCase 归一化**,与 fixture 的 snake_case **不同**
 
@@ -302,12 +369,16 @@ T0 已代跑一次:`.k-btn` 基类连 `&.ghost` / `&.outline` / `&.primary` / `&
 
 上面 6 个 `tokens.scss` 行号 T0 已逐行打开核过,值逐字相同。
 注意 **`tokens.scss` 的正确路径是 `src/ai/styles/tokens.scss`**(不是 `src/styles/tokens.scss`),
-且该文件 **`:60-150` 是浅色块、`:280-320` 是暗色块**(与 `.knowledge-app` 的档次相反,别搞混)。
+且**该文件的两个块与 `.knowledge-app` 的档次相反**(T0 已核选择器与闭合大括号):
+**浅色块 = `.agent-app, .ai-toast-scope { … }` = `:31-247`**;
+**暗色块 = `.agent-app[data-theme="dark"], .ai-toast-scope[data-theme="dark"] { … }` = `:249-365`**。
+→ `:130`/`:133`/`:145` 在浅色块、`:307`/`:310`/`:314`(与 `:282`)在暗色块,与上表方向一致。
 
 **`--danger-hover` 的两个值不许重算。** 设计 §6.2 的派生描述(「亮度 −9%」)T0 实测**复算不出**给定的十六进制;
 **以设计给出的十六进制为准**,规则描述只是说明性文字。
 
-**除这 4 个之外不许新造 token。** 附录 B 的映射表覆盖了全部 39 处色字面量,**表里没有的一律 `NEEDS_CONTEXT`**
+**除这 4 个之外不许新造 token。** 附录 B(§B.0 + §B.2 + §B.3)覆盖了**全部 42 处**色字面量
+(scss 39 + 模板内联 3),**表里没有的一律 `NEEDS_CONTEXT`**
 (承 P5a T11 R9 教训:自行发明 `color-mix` 蒙版比例本该先问)。
 
 ### 6.3 两处 `[data-theme="dark"]` 并档(K2)
@@ -397,6 +468,17 @@ P5a §9 每一条继续生效(禁空转用例;无判别力的断言要做 RED �
 - **测试脚手架**:需要真 router 的用例(`$route.query` + `$router.replace`)**照 `KnowledgeLayout.test.ts`
   的既有写法**,别自己造 —— P5a T10 的 `makeRouter` 曾自递归致 DOM/生命周期翻倍,
   且缺 `@nimotech/nimoos-service` mock 会让 `onMounted` 真发请求。
+- 🔴 **T5 必须补一条「模板 `<template>` 块零裸色」的定向断言**(堵守卫缺口③,写法与 RED 探针要求见
+  附录 B §B.0.4)。T8 建议照抄同一条。**读源文件一律 `node:fs`,不许用 Vite 的 `?raw`**
+  (vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串 → 断言对空字符串「假通过」;
+  先例见 `knowledgeStyles.test.ts` 头注释 ③)。
+- 🔴 **本期三个已登记的守卫缺口,各有指定的堵法,不许当「不可测」放过**:
+
+  | # | 缺口 | 谁堵 | 怎么堵 |
+  |---|---|---|---|
+  | ① | `knowledgeStyles.test.ts:95` 的 `/\.k2?-[a-z0-9-]+/g` **扫不到 `.kn-` 前缀** | **T2** | 扩成 `/\.k(?:2\|n)?-[a-z0-9-]+/g` + RED 探针(附录 B §B.5) |
+  | ② | `color-guard.test.ts` **不扫 `.scss`**(P3a RED 探针实证) | 无法修 | 靠 `knowledgeStyles.test.ts` + **T2/T6 评审逐行人肉色扫**两道防线 |
+  | ③ | `color-guard.test.ts:44-56` 的 `styleLines()` 对 `.vue` **只取 `<style>` 块 → 模板 `style="…"` 属性零扫描** | **T5** | 新增 `<template>` 块零裸色断言 + RED 探针(附录 B §B.0.4) |
 
 ## 10. 报告契约(实现者)
 
@@ -406,7 +488,7 @@ P5a §9 每一条继续生效(禁空转用例;无判别力的断言要做 RED �
 RED→GREEN 证据(含 RED 探针的两段输出与还原确认,`git status` 必须干净)·
 三门完整终值(含红项完整用例名与归属)· i18n 复用/新增键清单 ·
 **§3 的 K1–K20 里本任务命中的每一条显式申报** ·
-**§3.5 的 N1–N13 里本任务命中的,要说明确实照抄了** ·
+**§3.5 的 N1–N14 里本任务命中的,要说明确实照抄了** ·
 **用了哪几个 fixture 文件、mock 形状取自哪一份**(snake_case 还是 camelCase,见 §4.2)。
 
 返回给协调者的只有 **≤15 行**:状态(`DONE` / `DONE_WITH_CONCERNS` / `NEEDS_CONTEXT` / `BLOCKED`)·
@@ -422,16 +504,18 @@ P5a §11 每一条继续生效(**最低 sonnet、禁 haiku**;不许采信实现�
 1. 🔴 **两个 scss 任务(T2 / T6)的评审必须逐行色扫**(`color-guard` 不扫 `.scss`),
    并**自做 RED 探针**(至少:规则段落塞字面量 → 报红;删一个新类的规则 → 报红;
    删浅色档一个新 token → 集合式断言指名报红)。
-2. 🔴 **专查 §3.5 的 N1–N13 有没有被「顺手修正」** —— 改了就是回归,按 Critical 报。
+2. 🔴 **专查 §3.5 的 N1–N14 有没有被「顺手修正」** —— 改了就是回归,按 Critical 报。
    本期最容易被误修的:N9(加 debounce)、N10/N13(给未定义类补样式)、N11(把 `fade-in` 改成 `k-fade-in`)、
-   `⚠️N` 的 8 处错译(「类型/下一步/上一张/恢复」)、两条 `Showing first …` 的标点差异。
+   **N14(把 `statusBadgeMap.en` 换成键名两处共用 → tooltip 变中文)**、
+   `⚠️N` 的**错译 9 行 / 7 组**(「类型 / 下一步 / 上一张 / 恢复 / 已启用」+ 两组同值撞车,
+   逐行理由见附录 A 主表)、两条 `Showing first …` 的**半角/全角分号**差异。
 3. 🔴 **K18 的三处 toast 与 Vue2 不同是有意的**(§4.3 有完整证据链),别误报成回归;
    但要核「按钮 / 禁用条件 / 图标 / 排版**零变动**」这半句是否真做到。
 4. 🔴 **核 mock 形状的层次**:`service.ai.parser*` 用 snake_case(= fixture 原文),
    `service.notes.*` 用 camelCase(包内已归一化)。搞反了按 Critical 报。
    **「同一方法在两个测试文件里被 mock 成不同形状」= red flag**。
-5. **计划书已被证明有 10 处错(§12)** —— 评审看到任何与本文件/附录不符的数字,
-   先信本文件与附录,再自己回权威源核一次;核出第 11 处就登记进 §12。
+5. **计划书已被证明有 12 处错(§12,E-1 ~ E-12)** —— 评审看到任何与本文件/附录不符的数字,
+   先信本文件与附录,再自己回权威源核一次;核出第 13 处就登记进 §12。
 
 ---
 
@@ -439,7 +523,8 @@ P5a §11 每一条继续生效(**最低 sonnet、禁 haiku**;不许采信实现�
 
 计划书 = `NimoOS-UI/docs/superpowers/plans/2026-08-01-vue3-migration-sp8-p5b-indexops.md`。
 下面每一条都给了「计划书原文 / 权威源实际 / 处置」。**结构性结论:行号引用几乎全对(T0 逐个打开核过,
-只有 1 处偏 1 行),错的集中在「数量统计」与「分类判断」上。**
+只有 1 处偏 1 行),错的集中在「数量统计」「分类判断」与「漏项」上。**
+**共 12 条:E-1 ~ E-10(T0 首轮)+ E-11 / E-12(修复轮 1,独立 opus 评审指出,见 §12.2)。**
 
 | # | 计划书原文 | 权威源实际(T0 实测) | 处置 |
 |---|---|---|---|
@@ -454,13 +539,28 @@ P5a §11 每一条继续生效(**最低 sonnet、禁 haiku**;不许采信实现�
 | **E-9** | §8 D.3 脚注「🔴 所有布尔属性在模板里**必须套 `String()`**…P5a T12 在 `.k2-cc` 上栽过」 | 蓝本 `QueueView.vue` 7 处套了 `String()`、`IndexedFilesView.vue` **5 处没套**(`:174` `:176` `:231` `:253` `:323`)。且读 Vue 3 源码(`@vue/runtime-dom@3.5.39` `patchAttr`)确认:`data-*` 非特殊布尔属性 → `false` **照样渲染成 `"false"`**,套不套**渲染完全一致**。P5a `.k2-cc` 那次的真实教训是**属性名错**(附录写 `[data-active]`,蓝本是 `[data-on]`),不是 `String()` | **裁定:逐处照抄蓝本**(改写 = 与需求无关的顺手改动,禁)。断言口径统一 `toBe('true')` / `toBe('false')`,禁 `toBeUndefined()`。逐处表 + 源码依据见附录 D §D.3 / §D.3.1 |
 | **E-10** | §2 T2 第 1 条「只在它内部补 `&.danger`(蓝本 `:844-848`)」 | `&.danger {` 在 **`:843`**,闭合 `}` 在 **`:847`**;`:848` 已经是 `&:disabled {` | 正确范围是 **`:843-847`**。偏 1 行,不影响搬运内容(内部三行 `:844`/`:845`/`:846` 引用无误),但按 pathspec 复制会多带一行 |
 
+### 12.2 修复轮 1 追加的两条(独立 opus 评审 2026-08-01 指出,T0 已回源核实)
+
+| # | 计划书原文 | 权威源实际(T0 复核) | 处置 |
+|---|---|---|---|
+| **E-11** | §7 附录 B 只统计 `.scss` 里的色字面量,自称「覆盖了全部 40 处,表里没有的一律 `NEEDS_CONTEXT`」 | 🔴 蓝本模板 `style="…"` 属性里还有 **3 处**(`QueueView.vue:87` failed 桶空态的专属渐变:`rgba(255,255,255,0.5)` / `rgba(52,199,89,0.2)` / `rgba(0,122,255,0.2)`),附录 B 一条都没收 → T5 只有「停下来问」或「就地硬编码」两条路,而且**现有守卫一条都抓不到**(`color-guard` 的 `styleLines()` 对 `.vue` 只取 `<style>` 块)。T0 已把两个模板的全部 `style=` / `:style=` / `color=` 逐行复扫:**只有这一处**,`IndexedFilesView.vue` 零处 | 新开 **附录 B §B.0**:三处映射(照 P5a 同一个类 `.k-empty-illust` 的既有 `color-mix` 先例派生)· **落地位置裁定 = 留在模板 `style=` 里照抄蓝本结构**(挪进 scss 必然要造蓝本没有的类)· 暗档色相偏移的取舍显式登记 · **守卫缺口③** + T5 的定向断言与 RED 探针。总数 **39 → 42 处** |
+| **E-12** | §2 T9 的 DoD 只要求「四个状态徽标各一条用例,断言 `data-s` + 图标名 + 中文文案三项」 | 🔴 漏了 `title`。蓝本 `IndexedFilesView.vue:191` 的 `:title` 用的是 `statusBadgeMap[…].en` 的**原始英文**、`:197` 的徽标文字用的是 `$t(同一个 en)` 的**中文** —— 同一字段两种用法(Vue2 靠「英文原串即 i18n key」的巧合)。New-UI 键名是 `aiKb*`,巧合不成立;若把 `en` 换成键名两处共用 → **tooltip 变中文或键名本身 = 界面不 1:1,而 DoD 里没有 `title` 断言、测试抓不到** | 新开 **N14**(§3.5):`statusBadgeMap` 每状态同时留 `en`(只给 `title`)与 `key`(只给徽标文字),给出完整代码骨架;并**硬加要求**:T9 对四个状态的 `title` 各一条断言(值是英文原串)+ 至少一条反向断言(≠中文、≠键名)+ 取不到时的兜底分支用例 |
+
+> 另外修复轮修掉的 5 条 Minor(不单独编号):`⚠️N` 口径统一成「**9 行 / 7 组**」并给 3 行补全理由 ·
+> 附录 D §D.6 的行号改精确(`> *:nth-child(6) { display: revert; }` 在 **`:1498` 单行**,
+> 注释是 **`:1488-1494` 共 7 行**)· 报告 §2.5 的基线证据改引协调者实测 ·
+> §4.1 补上 `parserDeleteJob` 该 mock 成什么(**`''`**)· `tokens.scss` 两个块的范围改对
+> (浅 **`:31-247`** / 暗 **`:249-365`**)。
+
 ### 12.1 附带订正(不是计划书的错,是 brief / 环境的坑,一并登记)
 
 - **蓝本路径**:任务 brief 写 `src/pages/AI/knowledge/…` 与 `src/pages/AI/styles/knowledge.scss`,
   **实际是 `src/views/AI/Knowledge/…` 与 `src/views/AI/Knowledge/styles/knowledge.scss`**(见 §1.2)。
 - **两档色板路径**:brief 写「暗档 `src/styles/tokens.scss`」,**实际是 `src/ai/styles/tokens.scss`**;
   `src/styles/` 下只有 `theme.css` 与 `color-guard.test.ts`。
-- **`tokens.scss` 的档次是反的**:`:60-150` 浅色 / `:280-320` 暗色(与 `.knowledge-app` 相反)。
+- **`tokens.scss` 的档次是反的**,且块范围比 T0 初稿写的更宽:**浅色块 `:31-247`
+  (`.agent-app, .ai-toast-scope`)/ 暗色块 `:249-365`(`…[data-theme="dark"]`)**。
+  所引 7 个行号都落在正确档内,结论不受影响。
 - **设计 §6.3 的「去重 `$t()` 字符串 106」** 少算 1:T0 实测两个蓝本里 `$t('字面量')` distinct = **105**,
   加上只在 script 里的 `i18n.t('{n} months ago')` 与动态展开的 `Indexing`,**distinct 合计 107**
   (= 9 复用 + 95 主表 + 2 死键 + 1 `Indexing`)。

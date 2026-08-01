@@ -31,7 +31,13 @@
 
 ## A.1 新增主表(95 条,zh 值全部有 Vue2 权威源)
 
-`⚠️N` = **Vue2 语言包自身的错译或同值撞车,照抄不改,改了就是回归**(共 9 行)。
+`⚠️N` = **Vue2 语言包自身的错译或同值撞车,照抄不改,改了就是回归**。
+
+🔴 **口径:9 行 / 7 组。** 9 行带 `⚠️N` 标记(#18 #24 #47 #48 #55 #84 #85 #91 #92),
+其中 **(#24, #84) 同为「向量数」**、**(#91, #92) 同为「累计完成」** 各算一组撞车,
+所以是 **5 个单独的错译 + 2 组同值撞车 = 7 个独立问题**。
+(计划书 §6 A.1 脚注写「共 8 处」,并列了 9 个编号 —— 8 这个数字两种口径下都对不上,已订正。)
+**每一行都写了理由**,§11.2 要求评审「专查这一条」时按理由逐条判。
 `全角 X` = 该 zh 值含 `[，；：？！（）]` 里的字符,是 A.5 全角守卫的登记例外。
 
 | # | 键名 | Vue2 英文原串(= en 值) | zh 值(逐字) | 标记 |
@@ -59,7 +65,7 @@
 | 21 | `aiKbColSize` | `Size` | 大小 |  |
 | 22 | `aiKbColTime` | `Time` | 时间 |  |
 | 23 | `aiKbColType` | `Type` | 类型 |  |
-| 24 | `aiKbColVectors` | `Vectors` | 向量数 | ⚠️N  |
+| 24 | `aiKbColVectors` | `Vectors` | 向量数 | ⚠️N 表头「向量数」列;与 #84(`aiKbSortVectorCount`,排序下拉的 `Vector count`)**zh 值撞车**,英文却是两个不同串 |
 | 25 | `aiKbConfirmClear` | `Confirm clear` | 确认清空 |  |
 | 26 | `aiKbConfirmRebuildN` | `Confirm rebuild ({n})` | 确认重建 {n} 个 |  |
 | 27 | `aiKbFailedOnly` | `Failed only` | 仅看失败 |  |
@@ -119,15 +125,15 @@
 | 81 | `aiKbSortAsc` | `Ascending` | 升序 |  |
 | 82 | `aiKbSortDesc` | `Descending` | 降序 |  |
 | 83 | `aiKbSortIndexTime` | `Index time` | 索引时间 |  |
-| 84 | `aiKbSortVectorCount` | `Vector count` | 向量数 | ⚠️N 与 #95 同值 |
-| 85 | `aiKbStatusActive` | `Active` | 已启用 | ⚠️N  |
+| 84 | `aiKbSortVectorCount` | `Vector count` | 向量数 | ⚠️N **与 #24(`aiKbColVectors`)zh 值同**(排序下拉项 vs 表头列名) |
+| 85 | `aiKbStatusActive` | `Active` | 已启用 | ⚠️N 这里的 `Active` 是**状态筛选值「未删除/存活」**(N12:UI `active` ↔ API `alive`),与「启用/停用」毫无关系,译成「已启用」是语义错 |
 | 86 | `aiKbStatusError` | `Error` | 错误 |  |
 | 87 | `aiKbStatusIndexed` | `Indexed` | 已收录 |  |
 | 88 | `aiKbStatusRemoved` | `Removed` | 已删除 |  |
 | 89 | `aiKbTombstonedNoSelect` | `Tombstoned files cannot be selected` | 已删除文件不可选 |  |
 | 90 | `aiKbTombstonedTip` | `Deleted — rescan to restore` | 已删除，需 rescan 复活 | 全角 `，` |
-| 91 | `aiKbTotalDone` | `Total done:` | 累计完成 | ⚠️N  |
-| 92 | `aiKbTotalDoneLabel` | `Total done` | 累计完成 | ⚠️N 与 #91 同值,一个带冒号一个不带 |
+| 91 | `aiKbTotalDone` | `Total done:` | 累计完成 | ⚠️N 英文**带冒号**,中文却不带;且与 #92 zh 值同 |
+| 92 | `aiKbTotalDoneLabel` | `Total done` | 累计完成 | ⚠️N **与 #91(`aiKbTotalDone`)zh 值同**,英文一个带冒号一个不带 |
 | 93 | `aiKbTypePrefix` | `Type prefix` | 类型前缀 |  |
 | 94 | `aiKbZeroVec` | `No searchable content` | 无可搜索内容 |  |
 | 95 | `aiKbZeroVecTip` | `Indexed but has no searchable content (not an error)` | 已索引但没有可搜索内容（不是错误） | 全角 `（）` |
@@ -175,6 +181,14 @@
 
 🔴 **这个状态在本机是最常见的一个**:8 个已收录文件里 **5 个是 `indexing`**(T0 实测,
 见 `p5b-fixtures/files-all-8.json`)。漏了它页面上五行全是坏的。
+
+🔴 **T9 落地时同时看治理文件 §3.5 的 N14** —— `statusBadgeMap` 的 `en` 是**一物两用**:
+蓝本 `:191` 的 `:title` 用**未翻译的原始英文**、`:197` 的徽标文字用 `$t(同一个 en)` 的**中文**。
+New-UI 键名是 `aiKb*`,Vue2 那个「英文原串即 i18n key」的巧合不成立 →
+**map 每个状态必须同时留 `en`(只给 `title`)与 `key`(只给徽标文字)两个字段,不许合并**。
+所以本键的落地形态是 `indexing: { en: 'Indexing', key: 'aiKbStatusIndexing', … }`:
+`title` 渲染 `Indexing`(原始英文)、徽标文字渲染 `$t('aiKbStatusIndexing')` = 也是 `Indexing`(两档同填英文)
+→ 与 Vue2 逐字相同。
 
 ## A.5 全角标点守卫的例外清单(T1 用,**15 条**)
 
