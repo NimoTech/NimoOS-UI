@@ -312,6 +312,27 @@ describe('i18n message syntax', () => {
       expect(p5bTask1Keys.length).toBe(100)
     })
 
+    // Review finding (Important I-1, fix round 1): the length-only check above only
+    // pins the literal array in this test file — it says nothing about whether these
+    // 100 keys actually exist in zh_cn.ts / en_us.ts. Reviewer's RED probe deleted
+    // aiKbColFile from BOTH locales and the full suite stayed green (313/2878, zero
+    // red): parity.test.ts only compares that the two locales' key sets match each
+    // other (deleting from both keeps them equal), the length check above doesn't
+    // look at the locales at all, and the punctuation-scan loop below silently
+    // `continue`s past any key whose value isn't a string. This is the same
+    // length-only shape as the P3b/P5a precedents this task was told to copy — the
+    // brief's "P3b/P5a 同款写法" carried the blind spot forward, not a slip in this
+    // task. Closing it here so a future accidental delete/rename/locale-merge on any
+    // of these 100 keys fails loudly instead of silently.
+    it('every key in this batch is present as a string in both locales', () => {
+      const missing = p5bTask1Keys.filter(
+        (k) =>
+          typeof (zh as Record<string, unknown>)[k] !== 'string' ||
+          typeof (en as Record<string, unknown>)[k] !== 'string'
+      )
+      expect(missing).toEqual([])
+    })
+
     // (a) Full-width punctuation scan. Exceptions = Appendix A §A.5 (15 rows — NOT the
     // 11 the plan doc originally claimed; governance §12 E-3 found 1 false positive
     // and 5 misses in that draft). Per the task brief, every exception here is pinned

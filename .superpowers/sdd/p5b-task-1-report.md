@@ -339,3 +339,104 @@ git commit -m "..."
 
 无。100 键落地、2 死键判定、15 例外、20 占位符、95 逐码点比对全部按附录 A 权威值完成,
 三门全绿,三次 RED 探针均精确报红并已改回。
+
+---
+
+## 14. 修复轮 1(评审 Important I-1)
+
+### 14.1 问题
+
+评审独立复核 95/95 · 100/100 · 100/100 全部零差异,规格通过;但做了一次变异实测,把 `aiKbColFile`
+**从 `zh_cn.ts` 与 `en_us.ts` 两档同时删掉**,发现三门全绿(313/2878,零报红)。链条上每一环都漏:
+
+- `parity.test.ts` 只比两档**键集相等**——两档同时删,仍然相等
+- `messageSyntax.test.ts:311-313` 那条 `expect(p5bTask1Keys.length).toBe(100)` 只钉数组字面量本身的长度,
+  不看 locale 里有没有这些键
+- 全角标点主扫描循环里 `if (typeof value !== 'string') continue` 把缺失的键**静默跳过**
+- `toBe` 钉死值只覆盖 15 条全角例外,另外 85 条非例外值完全没有内容断言
+
+评审判定这不是本任务的偏离(brief 明写「照 P3b/P5a 同款写法」,P3b/P5a 两处先例是同一个长度-only
+形状),是把先例形状里的既有盲区打出来,判值得顺手堵上。
+
+### 14.2 修复
+
+`src/i18n/messageSyntax.test.ts` 在 `covers exactly the 100 keys …`(原 311-313 行)之后插入一条新
+`it`:
+
+```ts
+it('every key in this batch is present as a string in both locales', () => {
+  const missing = p5bTask1Keys.filter(
+    (k) =>
+      typeof (zh as Record<string, unknown>)[k] !== 'string' ||
+      typeof (en as Record<string, unknown>)[k] !== 'string'
+  )
+  expect(missing).toEqual([])
+})
+```
+
+变量名对齐本文件既有的 `zh`/`en` import(见文件头 `import zh from './zh_cn'` / `import en from './en_us'`),
+未新引入变量名。断言双档独立检查(`||`),任一档缺失该键即失败,且 `missing` 数组会把缺失的键名原样报出。
+
+### 14.3 RED 探针(评审要求的原始变异,做了并已还原)
+
+**改动**:从 `src/i18n/zh_cn.ts` 与 `src/i18n/en_us.ts` **两档同时**删掉 `aiKbColFile: '文件',` /
+`aiKbColFile: 'File',` 整行。
+
+**报红**:
+```
+ ❯ src/i18n/messageSyntax.test.ts (24 tests | 1 failed) 17ms
+       × every key in this batch is present as a string in both locales 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/i18n/messageSyntax.test.ts > i18n message syntax > P5b Task 1 aiKb* keys — punctuation and placeholder guards > every key in this batch is present as a string in both locales
+AssertionError: expected [ 'aiKbColFile' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "aiKbColFile",
++ ]
+
+ ❯ src/i18n/messageSyntax.test.ts:333:23
+    331|           typeof (en as Record<string, unknown>)[k] !== 'string'
+    332|       )
+    333|       expect(missing).toEqual([])
+       |                       ^
+    334|     })
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 23 passed (24)
+```
+
+**判定**:精确报红 1 条,报出的缺失键名 `aiKbColFile` 与实际删除的键完全对应。
+
+**独立复核 `parity.test.ts` 在同一变异下确实仍是绿的**(与评审的发现一致,证明新守卫补的正是
+`parity.test.ts` 覆盖不到的那个缺口,不是重复断言):
+```
+ RUN  v4.1.9 /home/nimo/NimoTech/.sp8/NimoOS-New-UI
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+**已改回**:`zh_cn.ts` / `en_us.ts` 用 diff 前备份逐字节还原,`git diff --stat -- src/i18n/zh_cn.ts
+src/i18n/en_us.ts` 输出为空(两个文件与还原前逐字节一致);`pnpm exec vitest run
+src/i18n/messageSyntax.test.ts` 恢复 24/24 全绿。
+
+### 14.4 三门实测(修复轮 1)
+
+```
+pnpm test                   → Test Files 313 passed (313) / Tests 2879 passed (2879), exit=0
+pnpm exec vue-tsc --noEmit  → exit=0(无输出)
+pnpm build                  → exit=0(仅既有第三方包警告 + >500KB chunk 警告,无错误)
+```
+
+313 文件(+0)/ 2879 例(+1,与协调者预期的 2879 完全一致——本轮新增的这 1 条 `it` 就是全部增量)。
+
+### 14.5 提交范围
+
+只改 `src/i18n/messageSyntax.test.ts` 一个文件(`git status --short` 修复前后核对过,RED 探针改动的
+`zh_cn.ts`/`en_us.ts` 已在探针环节内还原,未进入本次提交范围)。
