@@ -356,6 +356,32 @@ describe('电源动作', () => {
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
   })
 
+  it('ejectInstallMedia 不复用 processing:电源动作在途时调用,setBootFromDisk 照常被调用(不跨动作误拦)', async () => {
+    let resolveStop: () => void = () => {}
+    api.stopVM.mockImplementation(() => new Promise<void>((r) => { resolveStop = () => r(undefined) }))
+    const s = useVmList()
+    await s.fetchVMs()
+    const pStop = s.stop(s.selectedVM.value!) // processing 里已经有这台 VM 的 id 了
+    await s.ejectInstallMedia(s.selectedVM.value!)
+    expect(api.setBootFromDisk).toHaveBeenCalledWith('vm-1', true)
+    resolveStop()
+    await pStop
+  })
+
+  it('ejectInstallMedia 不复用 processing:eject 在途时电源动作走完清了 processing,eject 的重入守卫依旧生效', async () => {
+    let resolveEject: () => void = () => {}
+    api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveEject = () => r(undefined) }))
+    const s = useVmList()
+    await s.fetchVMs()
+    const pEject = s.ejectInstallMedia(s.selectedVM.value!) // 在途
+    await s.stop(s.selectedVM.value!) // 电源动作走完,finally 会清 processing.delete('vm-1')
+    await s.ejectInstallMedia(s.selectedVM.value!) // 再点一次:若守卫仍然独立生效,应被拦下
+    expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
+    resolveEject()
+    await pEject
+    expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
+  })
+
   it('lastError 取后端 message 原文,而不是写死文案', async () => {
     api.stopVM.mockRejectedValue(new Error('[KVM] domain is not running'))
     const s = useVmList()

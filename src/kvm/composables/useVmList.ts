@@ -22,6 +22,9 @@ export function useVmList() {
   const isLoading = ref(false)
   const processing: Ref<Set<string>> = ref(new Set())
   const lastError = ref('')
+  // ejectInstallMedia 自己的重入标记(评审复审修复,见下方 ejectInstallMedia 内注释)——
+  // 不与 processing 共用,不需要响应式(没有 UI 消费它),纯内部去重用途。
+  const ejectingIds = new Set<string>()
 
   const runningCount: ComputedRef<number> = computed(
     () => vms.value.filter((v) => v.state === 'running').length,
@@ -300,10 +303,18 @@ export function useVmList() {
   async function ejectInstallMedia(vm: KvmVM): Promise<void> {
     // 照 Vue2 handleInstallationFinished(:862-877):setBootFromDisk(true) 后整表刷新。
     // 补上 Vue2 (:862-864)`if (!vm || this.finishingInstall) return` 的重入守卫(评审 4:
-    // 初版漏了,连点两次会并发发两次 setBootFromDisk + 两次整表刷新)——借用现成的
-    // processing 集合当 finishingInstall 标记,不再新开一个状态。
-    if (processing.value.has(vm.id)) return
-    processing.value.add(vm.id)
+    // 初版漏了,连点两次会并发发两次 setBootFromDisk + 两次整表刷新)。
+    //
+    // ⚠️ 复审修复:重入标记**必须独立**于 processing,不能复用。processing 是
+    // runAction/toggleAutostart/remove 共用的、只按 vm.id 去重的状态。如果 eject 复用它
+    // 会有两个方向的问题:(1) 某个电源动作在途时(processing 里已有这个 id)点 eject,
+    // 会被误判成"已在进行"直接 return——setBootFromDisk 根本不发,还不写 lastError,
+    // 用户看到的是点了没反应,而且是跨动作误拦、完全静默;(2) 反过来,电源动作的
+    // finally { processing.value.delete(vm.id) } 会在 eject 仍在途时提前把 id 移除,
+    // eject 自己的"进行中"状态被过早清掉,重入守卫失效。Vue2 的 finishingInstall
+    // 本来就是一个独立标志、不与电源动作共享状态,这里同样给 eject 一个独立的 Set。
+    if (ejectingIds.has(vm.id)) return
+    ejectingIds.add(vm.id)
     try {
       await service.kvm.setBootFromDisk(vm.id, true)
       if (!alive) return // dispose 之后到达的结果不再写 state、不再补打整表刷新(评审 3)
@@ -313,7 +324,7 @@ export function useVmList() {
       if (!alive) return
       lastError.value = errText(e, 'kvmFailedToEjectMedia')
     } finally {
-      processing.value.delete(vm.id)
+      ejectingIds.delete(vm.id)
     }
   }
 
