@@ -11,8 +11,10 @@
 只改了两个文件,别的一个字节都没碰:
 
 - `src/ai/knowledge/views/IndexedFilesView.vue`(146 → 891 行,+441/-4 行 diff)
-- `src/ai/knowledge/views/IndexedFilesView.test.ts`(847 → 1460 行,新增约 61 条本刀用例;
-  另订正了 T8 既有的 1 条断言,见 §2)
+- `src/ai/knowledge/views/IndexedFilesView.test.ts`(847 → 1460 行。修复轮 1,M-1 订正:
+  实测 `it(` 计数基线(`855cc39`)**57 条** → 本刀后 **107 条**,精确 **+50 条**本刀新增用例
+  (与 §12 的 +50 例一致;此前 §1 写的「约 61 条」不成立,已订正);另订正了 T8 既有的
+  1 条断言,见 §2)
 
 ## 2. 本刀落地 vs T8 遗留的一处必要订正
 
@@ -27,10 +29,10 @@ T8 的骨架屏用例(`IndexedFilesView.test.ts:650-678` 附近)断言「loading
 
 | 蓝本行区间 | 内容 | 本刀是否落地 |
 |---|---|---|
-| `:148-165` | 表头行(全选复选框 + 7 列标题) | ✅ `IndexedFilesView.vue:684-702` |
+| `:148-165` | 表头行(全选复选框 + 7 列标题) | ✅ `IndexedFilesView.vue:685-703`(修复轮 1,M-1 订正:此前写 `:684-702`,684 是注释行,`div` 实际从 685 起,偏 1 行) |
 | `:168-259` | 文件行(属性态/徽标/路径/类型/大小/时间/向量数/重建按钮/展开按钮) | ✅ `:705-814` |
 | `:261-293` | 行内详情面板 | ✅ `:815-854` |
-| `:298-317` | 分页 | ✅ `:858-882` |
+| `:298-317` | 分页 | ✅ `:859-886`(修复轮 1,M-1 订正:此前写 `:858-882`,858 是注释行且 882 是内层 `}}` 不是外层 `div` 闭合,`.k-pager` 整个 div 实际是 859-886) |
 | `:320-355`(动作条)、`:356-381`(确认弹窗)、`:391-393`(EXPLICIT_REBUILD_CAP)、`:483-486`/`:544-547`(selectedCount/overExplicitCap)、`:760-770`(rebuildRow **完整业务逻辑**)、`:772-784`(rebuildSelected)、`:786-809`(openRebuildAllConfirm/doRebuildAll)、`:811-823`(`_flashDone`) | 全是 T10 的范围 | ❌ 一个字都没搬——`git grep` 这些标识符(`rebuildSelected`/`overExplicitCap`/`selectedCount`/`showRebuildAllConfirm`/`openRebuildAllConfirm`/`doRebuildAll`/`_flashDone`/`EXPLICIT_REBUILD_CAP`/`k-files-actionbar`)在本文件里只命中文件头注释的"依然不做"清单,零行代码引用 |
 
 **关于 rebuildRow 的一处需要重点说明的边界裁决**(详见下方 §4):按钮 DOM(禁用条件/三种
@@ -156,9 +158,13 @@ presentation 三条分支带 `legacy: true`,其余分支返回值本来就没有
 另有「点击上一步/下一步推进 offset 并重载」(`:1352-1369`)与「每页条数下拉 4 档 + 切换语义」
 (`:1371-1387`,含 onPageSizeChange **不清 errorBanner** 这条与 `_applyFilter` 的差异对照)。
 
-**RED 探针②**(`pageTo` 的 `Math.min` 去掉):恰好整除用例的 `pageTo` 断言(通过
-`.k-pager-info` 文案)与末页用例的文案断言精确报红(`显示 17–24 / 17` vs 期望
-`显示 17–17 / 17`),`total=0` 用例的 `vm.pageTo` 直接断言也精确报红(原始报红文本见 §11)。
+**RED 探针②**(`pageTo` 的 `Math.min` 去掉),修复轮 1 M-1 订正后的准确结论:实测只有
+**`total=0`** 与**末页(不整除)**两条用例报红,**`total 恰好整除` 那条不报红**——该用例是
+`offset=8, limit=8, total=16`,`offset+limit=16` 恰好等于 `total`,`Math.min(16,16)` 本来就
+是 no-op,去掉它值不变,断言仍绿(此前 §7/§11 称三条都报红,**不成立**,已订正)。真正被
+钉住的是 `total=0`(`vm.pageTo` 直接断言,`Math.min(0+100,0)` 被去掉后变成 `100`)与末页
+(`显示 17–24 / 17` vs 期望 `显示 17–17 / 17`,`Math.min(16+8,17)` 被去掉后变成 `24`)两条
+——原始报红文本见 §11。
 
 ## 8. `errhint`/`zerohint` 覆盖(含 zerohint 为何必须构造数据)
 
@@ -292,3 +298,137 @@ toggleAll 落地为完整实现,rebuildRow 的函数体留空占位",请协调�
 
 **已知噪声**:本次全量测试没有遇到治理文件登记的两处已知噪声(`persist.test.ts` IndexedDB
 flaky / `AgentComposer.test.ts` teardown 竞态),三门全绿,无需复跑。
+
+## 14. 修复轮 1(独立 opus 评审 + 协调者拍板)
+
+### 14.0 协调者拍板结论(不是本轮要修的,记录存档)
+
+- **§4 的边界裁决(concern)拍板保留,不回退**:独立评审查实,我点名的四项多选逻辑
+  全部存在,但 `selectablePageIds`(蓝本 `:154` 直接引用)/`allSelected`(蓝本 `:153`
+  直接引用)/ tombstoned checkbox 的禁用条件+title(蓝本 `:182-184` 直接引用)三处物理上
+  就在 `:146-259` 区间内,任务书要求区间内 DOM 完整 → 物理上不可拆出去。真正超出
+  `:146-259` 字面区间的只有 `someSelected` + 两个 `watch` 共约 10 行(已在代码注释
+  `:129-135` 与本报告 §3/§4 里申报过,不是隐藏越界)。回退收益低于风险,评审判断与协调者
+  一致,`rebuildRow` 留空占位同样判定合理。**结论:代码不用动,§4 的说明保留在报告里作为
+  存档,不是本轮修复项。**
+- 代码本体(蓝本对照、属性清单、⚠️N 错译 5 行照抄、属性态 7 宿主覆盖、fixture 逐字核对、
+  T8 既有 describe 零削弱)评审评价很高,以下 §14.1-§14.3 是评审做的 10 次变异里揪出的
+  3 处假覆盖 + 3 处报告不准 + 2 处漏申报,逐条修。
+
+### 14.1 Important I-1 —— N14 兜底分支的 icon 回落此前零覆盖(已修)
+
+`IndexedFilesView.test.ts` 兜底分支用例(现 `:1042-1052`)的用例名一直写着「图标回落
+check」,但用例体此前只断言了 `data-s`/`title`/文案三项,没有 `KIcon` 的 `props('name')`
+——评审探针⑩把 `IndexedFilesView.vue:733`(模板里 `:name="badgeFor(...) ? ... : 'check'"`
+的兜底字面量)从 `'check'` 换成 `'danger'`,107 例全绿,证明这条是假覆盖。
+
+**已修**:补一行 `expect(badge.findComponent(KIcon).props('name')).toBe('check')`。
+
+**RED 探针(check→danger)**:
+```
+AssertionError: expected 'danger' to be 'check'
+❯ IndexedFilesView.test.ts:1051:54
+  expect(badge.findComponent(KIcon).props('name')).toBe('check')
+```
+只有这一条用例报红(N14 兜底分支),其余 106 例不受影响。已改回 `'check'`,
+`git status --short` 确认 `IndexedFilesView.vue` 无残留改动。
+
+### 14.2 Important I-2 —— `tombstoned_at` 的值断言此前是恒真断言(已修)
+
+`IndexedFilesView.test.ts` 里「tombstoned_at 条件出现」用例此前写
+`expect(w.find('.k-fd-v.mono[title]').exists()).toBe(true)`——但 `.k-fd-sha`
+(`class="k-fd-v mono k-fd-sha" :title="file.sha256_full"`)同样命中 `.k-fd-v.mono[title]`
+这个选择器,只要详情面板渲染出来这条就恒真,与 `tombstoned_at` 格本身的值毫无关系。评审
+探针⑧把 `IndexedFilesView.vue:839-843` 的 `tombstoned_at` 值格整体换成
+`<div class="k-fd-v mono">WRONG</div>`(text 与 title 一起废掉)后,107 例全绿。
+
+**已修**:改成先用 `.k-fd-k` 文字定位到 `tombstoned_at` 自己的字段格(新增
+`fdValueFor(w, key)` 小助手,按 `.k-fd-k` 文本找到对应的 `.k-fd-v` 兄弟节点),再比
+`text()` 与 `attributes('title')` 两侧都等于 `fmtAbs(FILE_TOMBSTONED.tombstoned_at)`。
+
+**RED 探针**(把该格整体换成 `<div class="k-fd-v mono">WRONG</div>`):
+```
+AssertionError: expected 'WRONG' to be '2026-07-20 06:26'
+❯ IndexedFilesView.test.ts:1296:25
+  expect(cell.text()).toBe(expected)
+```
+只有这一条用例报红。已改回原模板,`git status --short` 确认 `IndexedFilesView.vue` 无
+残留改动。
+
+### 14.3 M-3 —— 详情面板另三处值绑定此前零覆盖(已修)
+
+评审探针⑨同时把 `parser_version`(`:820`)、`mime`(`:847`)两处值绑定,以及
+`modalities_done` 空时的 `—` 回落(`:830`)三处**同时**换成常量,107 例全绿,证明这三处
+之前都没有值级别的断言(只在「5 个字段格」用例里断言了 `.k-fd-k` 的 key 集合,以及
+`sha256_full` 一处的值)。
+
+**已修**(用同一个 `fdValueFor` 助手):
+- 「详情面板 5 个字段格」用例补 `expect(fdValueFor(w, 'parser_version').text()).toBe(FILE_OK.parser_version)`
+  与 `expect(fdValueFor(w, 'mime').text()).toBe(FILE_OK.mime)`。
+- 「modalities_done 非空/空」用例补 `expect(fdValueFor(w2, 'modalities_done').text()).toBe('—')`
+  (此前用例名写「空时渲染 "—"」但只断言了 `.k-fd-mods` 不存在,没断言 `—` 这个回落值本身)。
+
+**RED 探针**(`parser_version`/`mime`/`modalities_done`空回落 三处同时换成 `WRONG`):
+```
+AssertionError: expected 'WRONG' to be 'parser/0.2.0'
+❯ IndexedFilesView.test.ts:1279:52   (详情面板 5 个字段格 用例;parser_version 断言先失败,
+                                       同一 it 内 mime 的断言未及执行,但该值同样被换成
+                                       WRONG,mutation 确实覆盖到了)
+AssertionError: expected 'WRONG' to be '—'
+❯ IndexedFilesView.test.ts:1312:54   (modalities_done 非空/空 用例)
+```
+两条用例报红,覆盖到三处 mutation 里能独立报告的两条(第三处 `mime` 与 `parser_version`
+在同一个 `it` 内,`expect` 抛出后测试体提前中止,`mime` 断言没机会单独跑到,但它确实也被
+换成了 `WRONG`,mutation 生效范围没有遗漏)。已改回原模板,`git status --short` 确认
+`IndexedFilesView.vue` 无残留改动。
+
+**未在本轮处理的相关观察(评审提及,非本轮"补 3 条"范围)**:`filePath` 的 `'—'` 回落
+(蓝本 `:611`)与 `(file.size || 0)` 的 `|| 0` 回落两处目前仍没有专门用例覆盖它们的回落
+分支(现有 fixture 都是"有路径/有 size"的正常行,没有构造"无路径"/"size 缺失"的行)。
+协调者原话是「补 3 条」,已按 3 条处理;这两处留作已知缺口,不在本轮报告的"已修"清单里,
+如需要请协调者另行确认是否要补。
+
+### 14.4 M-1 —— 报告三处订正(已修,见 §1/§3/§7 内联订正)
+
+① §7 RED 探针②描述订正:此前称「恰好整除用例的 `pageTo` 断言精确报红」不成立——
+`total=16/limit=8/offset=8` 那条 `offset+limit` 恰好等于 `total`,`Math.min` 本来就是
+no-op,去掉它该用例仍绿。真正报红的只有 `total=0` 与「末页(不整除)」两条,已订正描述
+(见 §7)。
+② §1 「新增约 61 条」订正为实测 `it(` 计数 `855cc39` 基线 57 → 本刀后 107,精确 **+50**
+条,与 §12 的 +50 例一致(见 §1)。
+③ §3 两处行号订正:表头行 `:684-702` → `:685-703`(684 是注释行);分页 `:858-882` →
+`:859-886`(858 是注释行,882 是内层闭合不是 `.k-pager` 整个 div 的闭合)(见 §3)。
+
+### 14.5 M-2 —— 两处已注释但报告未申报,补申报
+
+① `IndexedFilesView.vue:706-710` 附近:`<template v-for>` 的 `:key` 从蓝本两个子节点
+(`row`/`detail`)各自一个 `:key`,改成写在 `<template v-for>` 标签本身上、单个 key 覆盖
+这一组的两个兄弟节点——**这是 Vue3 编译器的强制要求**(实测过:照蓝本原样把 `:key` 分别
+写在两个子节点上,`vitest` 直接报 `SyntaxError: <template v-for> key should be placed on
+the <template> tag`,编译期报错,不是运行期行为差异)。代码里 `:707-710` 已有注释说明,
+本条补进报告存档。
+② `IndexedFilesView.vue:273-280` 的 `ms()` 类型转换 helper:`knowledgeStore.ts`(零改动
+文件)里 `IndexedFile.indexed_at`/`tombstoned_at` 的类型标注是 `string`,但 fixture 与
+真机实际给的是毫秒时间戳 `number`(与 `fmtRel`/`fmtAbs` 的形参类型一致)——这是既有类型
+标注的疏漏,不在本刀改动范围内,用这个转换点吸收类型差,避免在模板里到处写 `as` 断言。
+代码里 `:273-277` 已有注释说明,本条补进报告存档。
+
+### 14.6 修复轮 1 三门实测数字
+
+```
+pnpm test                    Test Files  318 passed (318) / Tests  3113 passed (3113)   exit=0
+pnpm exec vue-tsc --noEmit   exit=0
+pnpm build                   exit=0(仅既有第三方包 + >500KB chunk 警告,无新增警告)
+```
+
+测试数不变(3113,本轮只加断言,没加新 `it(`),`git status --short` 只显示
+`IndexedFilesView.test.ts` 一个文件被改动(`IndexedFilesView.vue` 本轮不用动,3 次探针
+均已还原确认干净)。
+
+### 14.7 给 T10 的交接项(追加一条)
+
+`someSelected` + 两个 indeterminate `watch`(`IndexedFilesView.vue` 约 10 行)是**已落地
+但本刀零测试覆盖**的活代码——`jsdom` 下 `indeterminate` 这个 DOM 属性可读写但没有视觉
+表现,本刀没有为它写用例。**T10 的 DoD 如果有「`indeterminate` 四种组合(全选/全不选/部分
+选中两个方向)各一条用例」的要求,请直接在那上面补,不需要重新声明 `someSelected`/`watch`
+——它们已经是完整实现。**

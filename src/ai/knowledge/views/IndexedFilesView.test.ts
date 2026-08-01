@@ -1045,6 +1045,10 @@ describe('IndexedFilesView — N14: statusBadgeMap 四态(data-s/icon/中文文�
     expect(badge.attributes('data-s')).toBe('ok')
     expect(badge.attributes('title')).toBe('quarantined')
     expect(badge.find('.k-status-badge-cn').text()).toBe('quarantined')
+    // 修复轮 1,I-1:用例名声称覆盖了「图标回落 check」,但此前用例体只断言了
+    // data-s/title/文案三项,没有 props('name') ——评审探针⑩把 badgeFor() 兜底
+    // 分支的 icon 从 'check' 换成 'danger' 后 107 例全绿,证明这条是假覆盖。
+    expect(badge.findComponent(KIcon).props('name')).toBe('check')
   })
 })
 
@@ -1254,6 +1258,14 @@ describe('IndexedFilesView — 展开按钮(data-open,K13 expSet)+ 行内详情�
     expect(w.find('.k-frow-expand').attributes('title')).toBe('浏览更多')
   })
 
+  // 修复轮 1,I-2/M-3:定位到具体字段格再比值,不靠"存在即真"的选择器
+  // (`.k-fd-v.mono[title]` 会连 `.k-fd-sha` 一起命中,详见 I-2 说明)。
+  function fdValueFor(w: Awaited<ReturnType<typeof mountFiles>>, key: string) {
+    const item = w.findAll('.k-fd-item').find((it) => it.find('.k-fd-k').text() === key)
+    expect(item, `找不到字段格 "${key}"`).toBeTruthy()
+    return item!.find('.k-fd-v')
+  }
+
   it('详情面板 5 个字段格:parser_version/modalities_done/sha256_full/mime,tombstoned_at 条件出现(此行非 tombstoned,不出现)', async () => {
     const w = await mountWithFiles([FILE_OK])
     await w.find('.k-frow-expand').trigger('click')
@@ -1262,18 +1274,30 @@ describe('IndexedFilesView — 展开按钮(data-open,K13 expSet)+ 行内详情�
     expect(keys).toEqual(['parser_version', 'modalities_done', 'sha256_full', 'mime'])
     expect(w.find('.k-fd-sha').text()).toBe(FILE_OK.sha256_full)
     expect(w.find('.k-fd-sha').attributes('title')).toBe(FILE_OK.sha256_full)
+    // M-3:parser_version / mime 两处值绑定此前零覆盖(评审探针⑨:三处同时换成
+    // 常量后 107 例全绿),补上。
+    expect(fdValueFor(w, 'parser_version').text()).toBe(FILE_OK.parser_version)
+    expect(fdValueFor(w, 'mime').text()).toBe(FILE_OK.mime)
   })
 
-  it('tombstoned_at 条件出现:tombstoned 行多一个字段格,mono 文字 = fmtAbs(tombstoned_at)', async () => {
+  it('tombstoned_at 条件出现:tombstoned 行多一个字段格,mono 文字/title = fmtAbs(tombstoned_at)', async () => {
     const w = await mountWithFiles([FILE_TOMBSTONED])
     await w.find('.k-frow-expand').trigger('click')
     await flush()
     const keys = w.findAll('.k-fd-k').map((k) => k.text())
     expect(keys).toEqual(['parser_version', 'modalities_done', 'sha256_full', 'tombstoned_at', 'mime'])
-    expect(w.find('.k-fd-v.mono[title]').exists()).toBe(true)
+    // 修复轮 1,I-2:`.k-fd-v.mono[title]` 是恒真断言 —— `.k-fd-sha`
+    // (class="k-fd-v mono k-fd-sha" :title="...")同样命中这个选择器,只要详情
+    // 面板渲染出来这条就永真,与 tombstoned_at 格本身的值毫无关系(评审探针⑧:
+    // 把这一格整体换成 `WRONG` 常量后 107 例全绿)。改成先定位到 tombstoned_at
+    // 自己的格,再比文字与 title 两侧都等于 fmtAbs(tombstoned_at)。
+    const cell = fdValueFor(w, 'tombstoned_at')
+    const expected = fmtAbsRef(FILE_TOMBSTONED.tombstoned_at)
+    expect(cell.text()).toBe(expected)
+    expect(cell.attributes('title')).toBe(expected)
   })
 
-  it('modalities_done 非空时渲染 chip 列表,空时渲染 "—"(两侧对照)', async () => {
+  it('modalities_done 非空时渲染 chip 列表,空时渲染 "—"(两侧对照,含回落值断言)', async () => {
     const w1 = await mountWithFiles([FILE_OK]) // modalities_done: { text: 'bge-m3/v1' }
     await w1.find('.k-frow-expand').trigger('click')
     await flush()
@@ -1283,6 +1307,9 @@ describe('IndexedFilesView — 展开按钮(data-open,K13 expSet)+ 行内详情�
     await w2.find('.k-frow-expand').trigger('click')
     await flush()
     expect(w2.find('.k-fd-mods').exists()).toBe(false)
+    // M-3:用例名声称"空时渲染 —"但此前只断言了 .k-fd-mods 不存在,没断言 —
+    // 这个回落值本身(评审探针⑨点名的第三处零覆盖)。
+    expect(fdValueFor(w2, 'modalities_done').text()).toBe('—')
   })
 
   it('last_error 条:有值时渲染 .k-fd-error,无值时不渲染(两侧对照)', async () => {
