@@ -427,6 +427,17 @@
   white-space: pre-wrap; word-break: break-all;
 }
 .set-logs-tools { position: absolute; top: 12px; right: 16px; display: flex; gap: 8px; }
+.set-logs-fs { font-size: 12px; }
+.set-logs-download { font-size: 12px; text-decoration: none; }
+/* 全屏态对位 src/apps/console/TerminalPane.vue 的 .term-wrap.fullscreen(同一模式:
+ * position: fixed + inset: 0,z-index 200,盖过桌面/侧栏但不与 dialog 遮罩(1000)抢层)。 */
+.set-logs-wrap.is-fullscreen {
+  position: fixed; inset: 16px; z-index: 200;
+  display: flex; flex-direction: column;
+  background: var(--card-bg); border-radius: var(--radius); padding: 16px;
+  box-shadow: var(--card-shadow-hi);
+}
+.set-logs-wrap.is-fullscreen .set-logs { flex: 1 1 auto; max-height: none; }
 .set-term-empty { padding: 48px 16px; text-align: center; color: var(--fg-muted); }
 
 /* ── P3 storage tab 入口卡 ─────────────────────────────────────────────── */

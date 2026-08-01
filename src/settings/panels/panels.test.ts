@@ -27,16 +27,18 @@ describe('9 个 tab 骨架', () => {
   // 而本文件是**零 mock** 的纯骨架测试,挂载它会因 getHttp() 未初始化而抛。
   // P3 起 system-status 也填了真实内容(见 SystemStatusPanel.test.ts)——同理会打
   // service.sys.getGatewayComponents(),排除理由与 network 一致。
+  // P3 起 terminal 也填了真实内容(见 TerminalPanel.test.ts)——同理会打
+  // service.sys.getLogs(),排除理由与 network/system-status 一致。
   it.each(SETTINGS_TABS.filter((t) => t !== 'terminal' && t !== 'general' && t !== 'developer' && t !== 'network' && t !== 'system-status'))('%s 骨架渲染标题与空态位', (tab) => {
     const w = mount(PANEL_BY_TAB[tab], { global: { plugins: [i18n] } })
     expect(w.find('.set-section-title,.set-back').exists()).toBe(true)
     expect(w.find('.set-skeleton').exists()).toBe(true)
   })
 
-  it('terminal 骨架无标题(对位 Vue2 L51)', () => {
+  it('terminal 无标题(对位 Vue2 L51),现为真实的日志卡 + 终端空态', () => {
     const w = mount(PANEL_BY_TAB.terminal, { global: { plugins: [i18n] } })
     expect(w.find('.set-section-head').exists()).toBe(false)
-    expect(w.find('.set-skeleton').exists()).toBe(true)
+    expect(w.find('.set-term-empty').exists()).toBe(true)
   })
 
   // developer 的「返回按钮代替标题 / 点击冒泡 open-tab general」用例已迁到
