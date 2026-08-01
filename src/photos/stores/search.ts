@@ -2,7 +2,7 @@
 //   :19-22   (SEARCH_PAGE_LIMIT)
 //   :24-27   (smartSearchSeq 声明+文档注释;"任何一次 dispatch(含清空)都使在途
 //             旧响应作废——序号递增必须先于早退分支" 那句 verbatim 引自 :655,
-//             不在 :24-27 这段文档注释里——上一轮报告曾误引成 :29-31,已改正)
+//             不在 :24-27 这段文档注释里)
 //   :241-259 (state: searchResults/searchQuery/searchFilters/searchOffset/
 //             searchExhausted/searchLoadingMore/searchMs/isSearchMode)
 //   :365-401 (mutations: SET_SEARCH / SET_SEARCH_LOADING_MORE / APPEND_SEARCH_RESULTS / CLEAR_SEARCH)
@@ -79,10 +79,13 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
       loadingMore.value = false
       isSearchMode.value = true
     } catch (e) {
-      // 偏离登记(M5,评审必修):console.error 必须放在 seq 比对之前——即使这次
-      // 失败已经过期(被更新的搜索/clear() 超越),它仍是一次真实发生的后端错误,
-      // store 纪律要求"每个 catch 都 console.error",丢日志 = 丢诊断信号(偶发
-      // 后端问题排查最需要的正是这条痕迹)。"避免噪声"不足以抵消这个代价。
+      // M5(评审必修):console.error 必须放在 seq 比对之前。注意这一步相对 Vue2
+      // 其实是回归对齐,不是偏离——Vue2 :670 本来就是无条件打日志,catch 里根本
+      // 没有 seq 比对这道守卫;真正相对 Vue2 的偏离是下面那道 seq 守卫本身(见
+      // §7e-12)。把日志放在守卫之前:即使这次失败已经过期(被更新的搜索/clear()
+      // 超越),它仍是一次真实发生的后端错误,store 纪律要求"每个 catch 都
+      // console.error",丢日志 = 丢诊断信号(偶发后端问题排查最需要的正是这条
+      // 痕迹)。"避免噪声"不足以抵消这个代价。
       console.error('[photos-search] smartSearch', e)
       if (mine !== searchSeq) return // 过期:日志已打,但状态推进要挡住,不能覆盖更新的搜索结果
       // 偏离登记(§7e-12,新增第 12 条 Vue2 缺陷):Vue2 catch 分支(:669-671,
@@ -145,9 +148,12 @@ export const usePhotosSearch = defineStore('photosSearch', () => {
       // 更新)⇒ 撞出重复页 ⇒ 去重后 fresh.length===0 ⇒ exhausted 被提前置真,
       // "还有更多"从界面消失。改成只在 `mine === searchSeq` 时才复位——手法照
       // places.ts:241 / usePersonDetail.ts:82 的同款 seq 守卫 finally。
-      // 安全性:seq 只由 smartSearch 与 clear() 递增,而这两者的每条路径(成功
-      // /catch/clear)都会把 loadingMore 显式置假,所以加这个条件不会让
-      // loadingMore 永久卡在 true。
+      // 安全性:不是"smartSearch/clear 的每条路径都会置假"——过期的 smartSearch
+      // 在 :71/:90 会提前 return,并不置假。真正成立的是:seq 只由 smartSearch 与
+      // clear() 递增,而"最新一次" smartSearch 或 clear 按定义不可能是过期的
+      // ——它落地时必然走成功路径(:79)或非过期的 catch 分支(:103),要么是
+      // clear() 的同步立即置假,三者都会显式把 loadingMore 置假。所以加这个条件
+      // 不会让 loadingMore 永久卡在 true。
       if (mine === searchSeq) loadingMore.value = false
     }
   }
