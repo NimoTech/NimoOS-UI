@@ -1324,4 +1324,8 @@ export default {
   photosSearchCountMatches: '{count} 条匹配',
   photosSearchCountResultsSecondsS: '{count} 条结果 · {seconds}秒',
   photosSearchNameSavedSmartView: '“{name}”已保存为智能视图',
+  // fix round 1 · I3:PhotosSearchBar 的 placeholder 新键(追加,不重排)。回源
+  // NimoOS-UI/src/assets/lang/zh_CN.json:2405 的英文原文 "Search photos, people,
+  // places, or describe in a sentence…" 对应译文(文案回源铁律,不自己译)。
+  photosSearchSearchBarPlaceholder: '搜索照片、人物、地点，或用一句话描述…',
 }

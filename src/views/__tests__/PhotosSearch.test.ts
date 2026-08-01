@@ -36,6 +36,7 @@ import { usePhotosSearch } from '../../photos/stores/search'
 import { usePhotosPeople } from '../../photos/stores/people'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { router as appRouter } from '../../router'
+import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh, en_us: en } })
 
@@ -65,10 +66,26 @@ function rawAsset(id: string, overrides: Record<string, unknown> = {}) {
   }
 }
 
+// fix round 1 · M10 连带修正:`attachTo` 缺省是"不挂进真实 document"——vue-test-utils
+// 默认把组件挂进一棵游离的 DOM 树,`element.dispatchEvent(new MouseEvent(..., {bubbles:
+// true}))` 只在这棵游离树内部冒泡,永远到不了真实 `document` 上的监听器(不管子组件的
+// `document.addEventListener('mousedown', ...)` 逻辑对不对)。之前 M10 的 ignoreEl 用例
+// 就是因为这个原因"删了 ignoreEl 也不会红"——不是断言错了,是事件压根没送到监听器那里。
+// 这里默认挂进 `document.body`(和 Photos.lightbox.test.ts 等既有先例一致的手法),让
+// 所有走 `document` 冒泡的用例(点外部关闭、ignoreEl)都能被真实触达。
+//
+// 挂进真实 `document.body` 后必须显式 `unmount()`(触发各子组件的 `onUnmounted`,摘掉它
+// 们各自注册的 `document` 级 keydown/mousedown 监听器),否则跨测试残留的监听器会在
+// 后续用例里对已经"作废"的组件实例重复触发、并让 DOM 节点在整个文件运行期间持续堆积。
+// 用一个模块级数组记录每次挂载的 wrapper + 容器元素,统一在 afterEach 里清理。
+const mountedInstances: Array<{ w: ReturnType<typeof mount>; el: HTMLElement }> = []
 async function mountSearch(path = '/photos/search') {
   const router = makeRouter(path)
   await router.isReady()
-  const w = mount(PhotosSearch, { global: { plugins: [i18n, router] } })
+  const el = document.createElement('div')
+  document.body.appendChild(el)
+  const w = mount(PhotosSearch, { global: { plugins: [i18n, router] }, attachTo: el })
+  mountedInstances.push({ w, el })
   await flushPromises()
   await w.vm.$nextTick()
   return { w, router }
@@ -89,6 +106,13 @@ afterEach(() => {
   usePhotosPeople().__resetForTest()
   usePhotosAlbums().__resetForTest()
   vi.restoreAllMocks()
+  // 见 mountSearch 头部注释:挂进真实 document.body 的实例必须显式 unmount + 移除容器,
+  // 否则 document 级监听器与 DOM 节点会跨测试残留、累积到整个文件运行期间。
+  for (const { w, el } of mountedInstances) {
+    w.unmount()
+    el.remove()
+  }
+  mountedInstances.length = 0
 })
 
 // ── 路由 query 驱动(结构规格 7)────────────────────────────────────────────
@@ -309,7 +333,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
 
 // ── filteredResults 五种过滤 + 组合 ────────────────────────────────────────
 describe('filteredResults', () => {
-  it('type=Photos/OCR/Videos 三分支 各筛出预期条数', async () => {
+  it('未设置 type 过滤时三种资产都在(基线,先确认 fixture 本身没问题)', async () => {
     svc.photos.smartSearch.mockResolvedValue([
       rawAsset('photo1', { mimeType: 'image/jpeg', hasOcr: false }),
       rawAsset('ocr1', { mimeType: 'image/jpeg', hasOcr: true }),
@@ -318,6 +342,77 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     expect(w.findAll('.tile')).toHaveLength(3)
+  })
+
+  // fix round 1 · I6(评审查实的真缺陷,Important):上面这条改名前叫「三分支各筛出预期
+  // 条数」,但从未真的设置过 `filters.type`——只断言了"不过滤时 3 张都在"。评审把三个
+  // type 分支的谓词全部取反,49/49 仍全绿。这里补三条真正设置 `filters.type` 的用例
+  // (通过 type chip 的 PhotosFilterPopover 选中对应项 → Apply),brief Step 1 明确要求
+  // "五种过滤各一条"。type chip 的 items 固定顺序是 `['Photos','OCR','Videos']`
+  // (`TYPE_ITEMS`),`.nav-item` 按同一顺序渲染,按下标选择对应项。
+  it('type=Photos(下标 0)→ 只剩非视频、非 OCR 的照片', async () => {
+    svc.photos.smartSearch.mockResolvedValue([
+      rawAsset('photo1', { mimeType: 'image/jpeg', hasOcr: false }),
+      rawAsset('ocr1', { mimeType: 'image/jpeg', hasOcr: true }),
+      rawAsset('vid1', { mimeType: 'video/mp4' }),
+    ])
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    await w.get('[data-test="chip-type"] .fchip').trigger('click')
+    await w.findAll('.nav-item')[0].trigger('click') // Photos
+    await w.get('.btn.btn-primary').trigger('click')
+    const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
+    expect(ids).toHaveLength(1)
+    expect(ids[0]).toContain('/photo1/')
+  })
+
+  it('type=OCR(下标 1)→ 只剩 hasOcr 的资产', async () => {
+    svc.photos.smartSearch.mockResolvedValue([
+      rawAsset('photo1', { mimeType: 'image/jpeg', hasOcr: false }),
+      rawAsset('ocr1', { mimeType: 'image/jpeg', hasOcr: true }),
+      rawAsset('vid1', { mimeType: 'video/mp4' }),
+    ])
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    await w.get('[data-test="chip-type"] .fchip').trigger('click')
+    await w.findAll('.nav-item')[1].trigger('click') // OCR
+    await w.get('.btn.btn-primary').trigger('click')
+    const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
+    expect(ids).toHaveLength(1)
+    expect(ids[0]).toContain('/ocr1/')
+  })
+
+  it('type=Videos(下标 2)→ 只剩 isVideo 的资产', async () => {
+    svc.photos.smartSearch.mockResolvedValue([
+      rawAsset('photo1', { mimeType: 'image/jpeg', hasOcr: false }),
+      rawAsset('ocr1', { mimeType: 'image/jpeg', hasOcr: true }),
+      rawAsset('vid1', { mimeType: 'video/mp4' }),
+    ])
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    await w.get('[data-test="chip-type"] .fchip').trigger('click')
+    await w.findAll('.nav-item')[2].trigger('click') // Videos
+    await w.get('.btn.btn-primary').trigger('click')
+    const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
+    expect(ids).toHaveLength(1)
+    expect(ids[0]).toContain('/vid1/')
+  })
+
+  // fix round 1 · M9(评审并入,E7 排序契约需要断言):之前三处 fixture 都只放 1 个人,
+  // 排序反过来也测不出。这里放 2 个不同计数的人,断言 face-cell 的渲染顺序按计数降序。
+  it('People 弹层渲染顺序按人脸计数降序(M9)', async () => {
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [
+        { id: 1, name: 'Low', count: 2 },
+        { id: 2, name: 'High', count: 9 },
+      ],
+      facesIndexedUpTo: null,
+    })
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    await w.get('[data-test="chip-people"] .fchip').trigger('click')
+    const names = w.findAll('.face-cell-name').map((n) => n.text())
+    expect(names).toEqual(['High', 'Low'])
   })
 
   it('people 过滤:faces 数组含选中人名才保留', async () => {
@@ -383,15 +478,82 @@ describe('filters.album', () => {
     expect(w.findAll('.tile')).toHaveLength(1)
   })
 
+  // fix round 1 · I7(评审查实的真缺陷,Important):上一版这条用例名声称覆盖"查不到
+  // id"分支,但注释里自陈"改为直接断言未选相册时 albumAssetIds 恒为 null",最终断的是
+  // "不过滤"(2 条全在),与 brief 要求的"结果为空集"正好相反。
+  //
+  // 这里真正触达该分支:先正常选中一个相册、Apply、确认按相册资产收窄生效(1 条);
+  // 再模拟"相册在别处被删除"(store 的 `albums.albums` 列表被清空,`filters.album` 这个
+  // 名字本身没变)——I2 的重新设计让 `albumAssetIds` 是一个直接读 `albums.albums` 的
+  // computed,`albums.albums` 一变,不需要任何额外触发,computed 自动重新求值:这个名字
+  // 现在在 `albums.albums` 里查不到 id 了,应该退化成空集,而不是"查不到就不过滤"。
   it('相册名查不到 id → 结果为空集(不是不过滤)', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Trip' }])
+    svc.photos.getAlbum.mockResolvedValue({ assets: [{ id: 'a', originalName: 'a.jpg', mimeType: 'image/jpeg' }] })
     svc.photos.smartSearch.mockResolvedValue([rawAsset('a'), rawAsset('b')])
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
-    // 直接驱动 filters.album 走到"查不到"分支:albums 列表为空,任意勾选都不会出现在
-    // 列表里,所以改用组件内部状态:开弹层但没有可选项时 apply 不会产生非空 album——
-    // 为了触达该分支,先塞一个相册再从列表里"消失"(模拟并发下相册被删的极端情况)不现实;
-    // 改为直接断言:未选相册时 albumAssetIds 恒为 null,不影响结果(基线覆盖已在别处)。
-    expect(w.findAll('.tile')).toHaveLength(2)
+    await w.get('[data-test="chip-album"] .fchip').trigger('click')
+    await w.get('.nav-item').trigger('click')
+    await w.get('.btn.btn-primary').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1) // 正常收窄先验证一次,确认不是恒真
+    const albums = usePhotosAlbums()
+    albums.albums = [] // 模拟相册在别处被删除:filters.album 这个名字现在查不到 id 了
+    await w.vm.$nextTick()
+    expect(w.findAll('.tile')).toHaveLength(0) // 查不到 id ⇒ 空集,不是退化成"不过滤"
+  })
+
+  // fix round 1 · I2(评审查实的真缺陷,Important):完整复现评审给出的失败时序——
+  // 选相册 A → Apply(请求 A 在途,不 resolve)→ 重开弹层取消 A → Apply(albumAssetIds
+  // 应变 null)→ 再选 A → Apply。旧实现(`fetchAlbumAssets(id).then(...)` 写快照 +
+  // `albumSeq` 计数器)在这里会炸:`albums.ts:81` 的 `isLoadingAssets(id)` 短路让第二次
+  // 对 A 的调用立即 resolve、不带数据,`.then()` 里 `mine===albumSeq` 成立(它是最新一次
+  // 合法调用)但 `assetsOf(A)` 此刻仍是空 ⇒ `albumAssetIds` 被写成空 Set,永久归零,直到
+  // 第一次真正的请求最终落地也没人再读它。
+  // 重新设计后(`albumAssetIds` 是直接读 `albums.assetsOf(当前选中相册 id)` 的
+  // computed):不管中途发生多少次被短路、不带数据的 `fetchAlbumAssets` 调用,只要
+  // "第一次真正在途的那个请求"最终把数据写进 `albums.albumAssetsByID`,本 computed 下次
+  // 求值就会自动读到——这里让 A 的第一次请求最后才 resolve,断言结果最终正确,不是
+  // 永久空集。
+  it('同一相册重入竞态(选 A 在途 → 取消 → 再选 A)不会把结果打成永久空集', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 1, name: 'A' }])
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a'), rawAsset('b')])
+    let resolveFirst: ((v: unknown) => void) | undefined
+    const firstCall = new Promise((res) => { resolveFirst = res })
+    let callCount = 0
+    svc.photos.getAlbum.mockImplementation(() => {
+      callCount += 1
+      if (callCount === 1) return firstCall // 第一次调用:挂起,模拟"请求在途"
+      // 之后任何一次调用(包括被 albums.ts 的 isLoadingAssets 短路的那些)都不应该被
+      // 依赖——真实实现里第二次显式调用会被 store 自己短路掉,这里给一个"错误答案"
+      // (空数组)以确保:如果实现退化回旧的"靠 promise 写快照"手法,测试会读到这个错误
+      // 答案而不是最终 resolveFirst 给出的真实数据。
+      return Promise.resolve({ assets: [] })
+    })
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    // 选 A → Apply(请求在途)。
+    await w.get('[data-test="chip-album"] .fchip').trigger('click')
+    await w.get('.nav-item').trigger('click')
+    await w.get('.btn.btn-primary').trigger('click')
+    await flushPromises()
+    // 重开弹层,取消 A → Apply(filters.album = null)。
+    await w.get('[data-test="chip-album"] .fchip').trigger('click')
+    await w.get('.nav-item').trigger('click') // 再点一次 = 取消勾选
+    await w.get('.btn.btn-primary').trigger('click')
+    await flushPromises()
+    // 再选 A → Apply(第一次请求仍未 resolve,这次调用会被 store 自己短路掉)。
+    await w.get('[data-test="chip-album"] .fchip').trigger('click')
+    await w.get('.nav-item').trigger('click')
+    await w.get('.btn.btn-primary').trigger('click')
+    await flushPromises()
+    // 第一次真正的请求这时才姗姗来迟,带着真实数据。
+    resolveFirst!({ assets: [{ id: 'a', originalName: 'a.jpg', mimeType: 'image/jpeg' }] })
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1) // 不是永久空集
   })
 
   it('快速切两个相册的 seq 守卫:旧响应(慢)不覆盖新响应(快)', async () => {
@@ -575,17 +737,52 @@ describe('@open → 灯箱 OCR 激活', () => {
     expect(Array.isArray(args[1])).toBe(true)
     expect((args[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(expect.arrayContaining(['a', 'b']))
   })
+
+  // fix round 1 · M11(评审并入):上面那条只用 arrayContaining 断成员,不断顺序——
+  // 把 openAt 第二参从 sortedResults 悄悄换成 filteredResults(未排序)不会被抓出来,
+  // 而 brief 结构规格 15 专门点名"翻页集是 sortedResults 而非 filteredResults"这个区别。
+  // 这里用两条分数不同的结果(relevance 排序下顺序应该是 high 在前),精确断言 id 顺序。
+  it('第二参严格按 sortedResults 的顺序(relevance 分数降序),不是 filteredResults 的原始顺序', async () => {
+    svc.photos.smartSearch.mockResolvedValue([
+      rawAsset('low', { matchScore: 0.2 }), // 原始顺序里排第一,但分数低
+      rawAsset('high', { matchScore: 0.9 }), // 原始顺序里排第二,但分数高
+    ])
+    const { w } = await mountSearch('/photos/search?q=receipt')
+    await flushPromises()
+    // 点第二张 tile(渲染顺序已按分数排过,tiles[0] 是 high)。
+    await w.findAll('.tile')[0].trigger('click')
+    const args = lbMock.openAt.mock.calls[0]
+    expect((args[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['high', 'low'])
+  })
 })
 
 // ── 搜索历史 ───────────────────────────────────────────────────────────────
 describe('搜索历史', () => {
+  // fix round 1 · I1(评审查实的真缺陷,Important):`Photos.vue` 顶部搜索框与
+  // `PhotosSmartViewDetail.vue`「在搜索中细化」都只 `router.push`,不写历史——之前只有
+  // `PhotosSearch.vue` 自己的 `PhotosSearchBar` 提交路径会写。改法:历史写入挪到主 query
+  // watcher(到达时记录),天然覆盖任何让路由带着非空 `q` 到达这里的入口,不只是"这个
+  // 页面自己的搜索框提交"。这条用例直接挂载到一个已经带 `q` 的地址(模拟从 Photos.vue
+  // 或 PhotosSmartViewDetail.vue push 过来、甚至深链/浏览器前进后退到达),断言历史里
+  // 确实写入了这个词——这正是评审之前发现的坏掉的路径。
+  it('挂载时地址栏已带 q(模拟从 Photos.vue/细化入口 push 过来,或深链到达)→ 历史里有这个词', async () => {
+    await mountSearch('/photos/search?q=sunset')
+    expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['sunset'])
+  })
+
+  // fix round 1 · I1 连带影响:历史写入挪进 query watcher 后,写入时机跟着
+  // `router.replace()` 的（异步）导航完成,不再和 `submitQuery()` 同一个同步调用栈——
+  // 触发 Enter 后要多等一次 `flushPromises()` 才能看到写入结果(生产行为不变,只是这里
+  // 测试要补上等待)。
   it('onSubmit("abc") → localStorage 里是 ["abc"];再 "def" → ["def","abc"]', async () => {
     const { w } = await mountSearch('/photos/search')
     await w.get('.photos-search-bar input').setValue('abc')
     await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['abc'])
     await w.get('.photos-search-bar input').setValue('def')
     await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['def', 'abc'])
   })
 
@@ -594,6 +791,7 @@ describe('搜索历史', () => {
     const { w } = await mountSearch('/photos/search')
     await w.get('.photos-search-bar input').setValue('abc')
     await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['abc', 'def'])
   })
 
@@ -602,6 +800,7 @@ describe('搜索历史', () => {
     const { w } = await mountSearch('/photos/search')
     await w.get('.photos-search-bar input').setValue('7')
     await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await flushPromises()
     const stored = JSON.parse(localStorage.getItem('nimo_search_history')!)
     expect(stored).toHaveLength(6)
     expect(stored[0]).toBe('7')
@@ -626,6 +825,20 @@ describe('保存为智能视图', () => {
     await w.get('[data-test="save-smart"]').trigger('click')
     expect(w.find('[data-test="ssv-root"]').exists()).toBe(true)
     expect((w.get('[data-test="ssv-name-input"]').element as HTMLInputElement).value).toBe('sunset')
+  })
+
+  // fix round 1 · M10(评审并入):`:ignore-el="saveBtnRef"` 之前无任何断言——删掉它
+  // 49/49 仍全绿。这里直接在触发按钮上派发一次裸 mousedown(不经过 @click 的 openSave
+  // 逻辑),验证 SearchSaveSmartView 自己的 onDocMousedown 判定"点在 ignoreEl 上"从而
+  // 不关闭——如果 ignoreEl 没接对,这次 mousedown 会被判成"外部点击"而误关弹层。
+  it('save-smart 触发按钮已作为 ignoreEl 传入:在按钮上 mousedown 不会误关弹层', async () => {
+    const { w } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    await w.get('[data-test="save-smart"]').trigger('click')
+    expect(w.find('[data-test="ssv-root"]').exists()).toBe(true)
+    w.get('[data-test="save-smart"]').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="ssv-root"]').exists()).toBe(true)
   })
 
   it('defaultName 长于 40 时按拼接规则(含 sunset 关键词命中)', async () => {
@@ -745,5 +958,132 @@ describe('路由', () => {
   it('resolve("/photos/search") 的 name 是 photos-search', () => {
     const resolved = appRouter.resolve('/photos/search')
     expect(resolved.name).toBe('photos-search')
+  })
+})
+
+// ── fix round 1 · I4:8 枚本文件新增内联 svg 的 glyph 精确复刻 ──────────────────
+// 本文件另有一枚(search 图标,用在预搜索态 chip)+ PhotosSearchBar.vue 的 search 图标
+// 已在各自组件的测试文件里断言。评审同时改坏 clock 与 map 两枚的 d 值 → 上一轮 49/49
+// 全绿,本轮给 9 枚(8 枚本文件 + 已在 PhotosSearchBar.test.ts 断言的 1 枚)逐一补断言。
+describe('glyph 精确复刻(逐字符抄自 Vue2 PhotosIcon.vue)', () => {
+  it('预搜索态 search chip 图标的 path d', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['a']))
+    const { w } = await mountSearch('/photos/search')
+    const path = w.get('[data-test="prestate-chip"] svg path')
+    expect(path.attributes('d')).toBe('m20 20-3.5-3.5')
+  })
+
+  it('date chip(clock)图标:circle + path d="M12 7v5l3 2"', async () => {
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const icon = w.get('[data-test="chip-date"] .fchip-icon')
+    expect(icon.get('circle').attributes('r')).toBe('9')
+    expect(icon.get('path').attributes('d')).toBe('M12 7v5l3 2')
+  })
+
+  it('people chip(person)图标:circle + path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"', async () => {
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const icon = w.get('[data-test="chip-people"] .fchip-icon')
+    expect(icon.get('circle').attributes('r')).toBe('4')
+    expect(icon.get('path').attributes('d')).toBe('M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6')
+  })
+
+  it('place chip(map)图标:两条 path d 逐字符一致', async () => {
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const icon = w.get('[data-test="chip-place"] .fchip-icon')
+    const ds = icon.findAll('path').map((p) => p.attributes('d'))
+    expect(ds).toEqual(['M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z', 'M9 4v14M15 6v14'])
+  })
+
+  it('album chip(album)图标:rect + path d="M3 14l5-4 4 3 3-2 6 5"', async () => {
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const icon = w.get('[data-test="chip-album"] .fchip-icon')
+    expect(icon.get('rect').attributes('rx')).toBe('3')
+    expect(icon.get('path').attributes('d')).toBe('M3 14l5-4 4 3 3-2 6 5')
+  })
+
+  it('type chip(video)图标:rect + path d="m16 10 5-3v10l-5-3z"', async () => {
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const icon = w.get('[data-test="chip-type"] .fchip-icon')
+    expect(icon.get('rect').attributes('rx')).toBe('2')
+    expect(icon.get('path').attributes('d')).toBe('m16 10 5-3v10l-5-3z')
+  })
+
+  it('save-smart 未保存态(sparkles)图标:path d 与 circle 都在', async () => {
+    const { w } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const icon = w.get('[data-test="save-smart"]')
+    expect(icon.get('circle').attributes('r')).toBe('3')
+    expect(icon.get('path').attributes('d')).toBe(
+      'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1',
+    )
+  })
+
+  it('save-smart 已保存态(check)图标:path d="m5 12 5 5L20 7"', async () => {
+    svc.photos.createSmartView.mockResolvedValue({
+      id: 'sv-1', name: 'x', description: '', conds: [], threshold: 75, live: true, includeVideos: false,
+      count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: [], evaluatedAt: '',
+    })
+    const { w } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    await w.get('[data-test="save-smart"]').trigger('click')
+    await w.get('[data-test="ssv-confirm-btn"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.get('[data-test="save-smart"] path').attributes('d')).toBe('m5 12 5 5L20 7')
+  })
+})
+
+// ── fix round 1 · I5(plan 硬约束,评审并入):cssCascade hover 断言 + 非颜色属性锚定 ──
+describe('样式:hover 硬约束(cssCascade)', () => {
+  it('.sort button[data-active="true"] 的 hover 胜出规则含 :hover 且含 data-active', () => {
+    const style = extractStyleBlock(photosSearchRaw)
+    expect(style.length).toBeGreaterThan(0)
+    const winner = winningHoverBackground(style, ['sort'])
+    expect(winner.selector).toContain(':hover')
+    expect(winner.selector).toContain('data-active')
+  })
+
+  it('.save-smart[data-saved="true"] 的 hover 胜出规则含 :hover 且含 data-saved', () => {
+    const style = extractStyleBlock(photosSearchRaw)
+    const winner = winningHoverBackground(style, ['save-smart'])
+    expect(winner.selector).toContain(':hover')
+    expect(winner.selector).toContain('data-saved')
+  })
+
+  it('.prestate-chip 存在 :hover 规则(cssCascade 视角的最小合规性检查)', () => {
+    const style = extractStyleBlock(photosSearchRaw)
+    // .prestate-chip 是 `.search-prestate .prestate-chip` 后代选择器,两个类都要喂给
+    // 匹配器(cssCascade.ts 的匹配是"选择器里出现的每个 class 都必须在允许集合内",不是
+    // 结构化的后代关系判定)。
+    const winner = winningHoverBackground(style, ['prestate-chip', 'search-prestate'])
+    expect(winner.selector).toContain(':hover')
+    expect(winner.selector).toContain('prestate-chip')
+  })
+})
+
+describe('样式:非颜色视觉属性锚定(先锚定规则体再断言属性)', () => {
+  it('.search-prestate .nimo-orb / .empty-search .nimo-orb 都是 68×68', () => {
+    const style = extractStyleBlock(photosSearchRaw)
+    const rules = parseCssRules(style)
+    for (const sel of ['.search-prestate .nimo-orb', '.empty-search .nimo-orb']) {
+      const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === sel)
+      expect(rule, `未找到规则:${sel}`).toBeDefined()
+      expect(rule?.body).toContain('width: 68px')
+      expect(rule?.body).toContain('height: 68px')
+    }
+  })
+
+  it('.empty-search .conditions .fchip 紧凑高度是 26px', () => {
+    const style = extractStyleBlock(photosSearchRaw)
+    const rule = parseCssRules(style).find(
+      (r) => r.selectors.length === 1 && r.selectors[0] === '.empty-search .conditions .fchip',
+    )
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('height: 26px')
   })
 })

@@ -21,6 +21,14 @@
 //
 // value prop 回流(结构规格 2,照搬 PhotosTopbar.vue:57 的 `!==` 守卫):不在用户正在
 // 输入时用外部 value 打断——只有当 value 真的变化时才覆盖本地 text。
+//
+// fix round 1 · I3(评审查实的真缺陷):placeholder 第一版误用了
+// `photosSearchSearchLibrary`(="搜索你的资料库")——那句在 Vue2 里其实是**预搜索态的
+// `<h2>`**(`PhotosSearchView.vue:6`),不是输入框占位符。Vue2 `PhotosTopbar.vue:19` 的
+// 真实 placeholder 是另一句长文案("Search photos, people, places, or describe in a
+// sentence…"),i18n 表里原来没有对应键——已按文案回源铁律,从
+// `NimoOS-UI/src/assets/lang/zh_CN.json:2405` / `en_US.json:2324` 查出原文对应译文,
+// 新增 `photosSearchSearchBarPlaceholder` 键(追加在两个 locale 文件末尾,未重排)。
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -67,7 +75,7 @@ onMounted(() => {
       ><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
       <input
         ref="inputRef" v-model="text" data-test="search-bar-input"
-        :placeholder="t('photosSearchSearchLibrary')" @keydown.enter="submit"
+        :placeholder="t('photosSearchSearchBarPlaceholder')" @keydown.enter="submit"
       >
     </div>
   </div>
@@ -80,7 +88,12 @@ onMounted(() => {
    高度与 Vue2 两个变体(topbar 里 32px / 搜索页 `.search-active` 40px)都不同——本组件
    在两处(Photos.vue 时间线顶部 / PhotosSearch.vue 搜索页顶部)复用同一份外观,不做
    "普通/放大"两态,取两者之间的 34px 作为统一值(登记:结构规格没有给"变体" prop,
-   这是本任务自己的简化决定)。 */
+   这是本任务自己的简化决定)。
+   fix round 1 · M13(评审并入):`.photos-search-bar` 外层容器本身**无 Vue2 对应**——
+   Vue2 的搜索框是 `PhotosTopbar.vue` 内联在一个共享顶栏里的一个 flex 子项,没有独立
+   组件、也没有专属的外层 padding;New-UI 把它拆成独立组件复用在两个页面顶部,需要一层
+   自己的外壳容器来控制页面内的留白——`4px 4px 14px` 是本任务自定的量(不是照抄 Vue2,
+   因为 Vue2 根本没有这个容器),已在此登记而非静默新增。 */
 .photos-search-bar { display: flex; justify-content: center; padding: 4px 4px 14px; }
 .search {
   flex: 1;
@@ -89,7 +102,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
+  /* fix round 1 · M13:改回 Vue2 字面值(photos.scss:229 是 `padding: 0 12px`,第一版
+     写成 14px 是抄错,不是刻意偏离——照 Vue2 值改回。 */
+  padding: 0 12px;
   border-radius: 999px;
   background: var(--chip-bg);
   border: 1px solid var(--chip-border);

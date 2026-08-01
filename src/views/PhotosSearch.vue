@@ -37,7 +37,9 @@ import type { Photo } from '../photos/util/assetToPhoto'
 
 const route = useRoute()
 const router = useRouter()
-const { t, locale } = useI18n()
+// fix round 1 · M14(评审并入,顺手清理):`locale` 死变量——本文件不直接消费 useI18n()
+// 的 locale(日期/人物弹层各自内部处理自己的 locale 转换),第一版留了个没用到的解构。
+const { t } = useI18n()
 const search = usePhotosSearch()
 const people = usePhotosPeople()
 const albums = usePhotosAlbums()
@@ -70,7 +72,8 @@ const openPop = ref<string | null>(null)
 const moreExpanded = ref(false)
 const saveOpen = ref(false)
 const saved = ref(false)
-const albumAssetIds = ref<Set<string> | null>(null)
+// albumAssetIds 不再是一个由 watcher 写入的 ref——见下方 fix round 1 · I2 的重新设计,
+// 改成从 albums store 现读的 computed(定义在 realAlbumItems 附近)。
 
 const filterbarRef = ref<HTMLElement | null>(null)
 const saveBtnRef = ref<HTMLElement | null>(null)
@@ -98,11 +101,23 @@ function writeHistory(q: string): void {
   }
 }
 
-// 提交一个词:写历史(非空时)→ 用路由 replace 同步地址栏。onSubmit(PhotosSearchBar)、
-// 预搜索态的最近搜索 chip、hero 里的历史词,三处入口共用同一份逻辑(照 Vue2 三处都走
-// 同一个 onSearch() 的先例)。
+// 提交一个词:用路由 replace 同步地址栏。onSubmit(PhotosSearchBar)、预搜索态的最近搜索
+// chip、hero 里的历史词,三处入口共用同一份逻辑。
+//
+// fix round 1 · I1(评审查实的真缺陷,Important):历史写入**不在这里做**,而是挪到下面
+// 的主 query watcher 里(非空分支)——见该 watcher 上方的详细登记。这里只剩路由跳转。
+//
+// fix round 1 · M15(评审并入,已修):Vue2 `onSearch()` 每次提交都无条件 dispatch
+// smartSearch,New-UI 用路由驱动——同一个词再提交一次时 `router.replace` 到**同一个
+// route**(path 与 query 都不变),vue-router 视为无导航,`query` 这个 computed 不会
+// 触发变化,主 watcher 也就不会重新调用 smartSearch,"重复提交想强制刷新一次结果"这个
+// 操作会静默失效。这里补一条捷径:目标词与当前 route 的 q 完全相同时,不走路由,直接
+// 再调一次 smartSearch(不需要写历史——它已经是历史队列最前面那个词,顺序不变)。
 function submitQuery(q: string): void {
-  if (q) writeHistory(q)
+  if (q && q === query.value) {
+    void search.smartSearch(q)
+    return
+  }
   void router.replace({ path: '/photos/search', query: q ? { q } : {} })
 }
 
@@ -267,7 +282,21 @@ function applyUnderstood(): void {
 }
 
 // ── 主 watcher(结构规格 7+8+21,§7e-3/§7e-14):合并路由驱动的搜索 dispatch、
-//    chip 重置、understood 预填、saved 复位 ──────────────────────────────────
+//    历史写入、chip 重置、understood 预填、saved 复位 ────────────────────────
+//
+// fix round 1 · I1(评审查实的真缺陷,Important):历史写入挪到这里(非空分支),不是
+// 三个入口(Photos.vue 顶部搜索框 / PhotosSearch.vue 自己的 PhotosSearchBar / T6 的
+// 「在搜索中细化」)各自调用一次。Vue2 之所以只有一处写历史(`PhotosTimeline.vue`
+// `onSearch()`),是因为 Vue2 只有一个 view、三种触发方式最终都调同一个方法;New-UI
+// 是真路由,这三处分散在三个文件里各自 `router.push`,若要求"提交时写"就必须让三处
+// 永远保持同步——**在到达路由后统一写(watcher)天然覆盖全部入口**,包括深链与刷新,
+// 比三处调用点手动保持同步更稳。
+//
+// **偏离登记(相对 Vue2 的可观察差异,必须写清楚)**:Vue2 是「提交时记录」——只有真的
+// 调用 `onSearch(query)` 才写历史。New-UI 这里是「到达时记录」——任何让 `query` 变成
+// 非空新值的方式都会写历史,包括:分享来的深链、浏览器前进/后退键、直接手改地址栏。
+// 也就是说这些操作现在也会把词记进「最近搜索」并把它排到最前面,这是本任务刻意接受的
+// 行为差异(对深链场景反而更合理:说明用户确实看到了这次搜索的结果),不是疏漏。
 watch(
   query,
   (q, old) => {
@@ -277,8 +306,12 @@ watch(
       saved.value = false // 第 14 条 Vue2 缺陷修复(§7e-14):换查询词后「已保存」复位。
     }
     applyUnderstood()
-    if (q) void search.smartSearch(q)
-    else search.clear()
+    if (q) {
+      writeHistory(q)
+      void search.smartSearch(q)
+    } else {
+      search.clear()
+    }
   },
   { immediate: true },
 )
@@ -291,29 +324,47 @@ watch(
   },
 )
 
-// filters.album 的相册资产拉取(结构规格 13,E4):按 name 反查 id(albumIdByName 不
-// 存在,自己从 albums.albums 里查),再走 fetchAlbumAssets + assetsOf(String() 归一)。
-// seq 守卫挡"快速切两个不同相册时旧响应后到"——store 自身的 isLoadingAssets 只挡同一个
-// id 的重复请求,挡不住这种跨相册竞态。
-let albumSeq = 0
+// ── filters.album 的相册资产解析(结构规格 13,E4)───────────────────────────
+//
+// fix round 1 · I2(评审查实的真缺陷,Important,已重新设计,不是打补丁):第一版把
+// `albumAssetIds` 做成一个由 `fetchAlbumAssets(id).then(...)` 写入的 ref,靠一个自建
+// 的 `albumSeq` 计数器挡"旧响应覆盖新响应"——但这只挡得住**跨 id**的竞态(选 A 又快速
+// 切到 B),挡不住评审实测出的**同 id 重入**竞态:`albums.ts:81` 的
+// `fetchAlbumAssets` 第一行是 `if (isLoadingAssets(id)) return`——同一个 id 的请求还
+// 在飞行中时再次调用会**立即 resolve、不带任何数据**。完整复现路径:选相册 A → Apply
+// (请求 A 在途)→ 重开弹层取消 A → Apply(`filters.album=null`)→ 再选 A → Apply ⇒
+// 第二次对 A 的 `fetchAlbumAssets` 命中 `isLoadingAssets(A)===true` 短路立即 resolve,
+// `.then()` 里 `mine===albumSeq` 成立(它是最新一次合法调用),但 `assetsOf(A)` 此刻
+// 仍是空——`albumAssetIds` 被写成空 Set,**结果永久归零**;等第一次真正的请求落地,
+// 没有任何代码路径会再去读它。
+//
+// 修法(结构性消除,不是加更多计数器):把 `albumAssetIds` 从"由某一次 promise resolve
+// 写入的快照"改成"从 `albums` store 现读的 computed"——每次访问都直接读
+// `albums.assetsOf(当前选中相册的 id)`,这是一个响应式引用,`albumAssetsByID` 无论被
+// 哪一次(甚至是哪一个被短路吞掉数据的)`fetchAlbumAssets` 调用写入,只要写的是"当前
+// 选中相册"这个 id,本 computed 就会自动重新求值拿到最新数据——不需要判断"是不是我这次
+// 请求的响应",因为压根不依赖某一次 promise 的返回值。跨 id 竞态(选 A 慢响应还没回来
+// 就切到 B)也因此结构性免疫:切到 B 后本 computed 读的是 `assetsOf(B)`,A 的迟到响应
+// 只会写 `albumAssetsByID['A']`,不影响正在读取的 `assetsOf(B)`。`fetchAlbumAssets`
+// 的调用因此降级为一个**纯触发副作用**的独立 watcher,不再负责写任何本地状态。
+function findAlbumIdByName(name: string): string | number | null {
+  const found = albums.albums.find((a) => (typeof a.name === 'string' ? a.name : '') === name)
+  return found ? (found.id as string | number) : null
+}
+const albumAssetIds = computed<Set<string> | null>(() => {
+  const name = filters.value.album
+  if (!name) return null
+  const id = findAlbumIdByName(name)
+  if (id === null) return new Set() // 相册名查不到 id ⇒ 结果为空集,不是不过滤。
+  return new Set(albums.assetsOf(id).map((a) => String(a.id)))
+})
 watch(
   () => filters.value.album,
   (name) => {
-    const mine = ++albumSeq
-    if (!name) {
-      albumAssetIds.value = null
-      return
-    }
-    const found = albums.albums.find((a) => (typeof a.name === 'string' ? a.name : '') === name)
-    if (!found) {
-      albumAssetIds.value = new Set()
-      return
-    }
-    const id = found.id as string | number
-    void albums.fetchAlbumAssets(id).then(() => {
-      if (mine !== albumSeq) return // 旧响应作废
-      albumAssetIds.value = new Set(albums.assetsOf(id).map((a) => String(a.id)))
-    })
+    if (!name) return
+    const id = findAlbumIdByName(name)
+    if (id === null) return
+    void albums.fetchAlbumAssets(id) // 纯触发;结果由上面的 computed 响应式读取,不在这里处理。
   },
 )
 
@@ -340,6 +391,12 @@ function clearFilter(key: keyof SearchFilters): void {
 function clearAll(): void {
   filters.value = emptyFilters()
 }
+// fix round 1 · I8(评审并入,补登记——之前顺手修对了但没写清楚):Vue2 `:561` 的
+// `anyFilter` **不含 album**(`f.date || f.people.length || f.place.length ||
+// f.cameras.length || f.type.length || f.src.length || f.scene.length`,枚举里没有
+// `f.album`)——这意味着 Vue2 里只选中一个相册过滤时,「清除全部」按钮根本不会出现,
+// 用户没法一键清掉已选的相册。这里补上 `f.album`,是修正 Vue2 的这处遗漏(相册和
+// 其余四个筛选维度理应同等对待),不是照抄,已在此登记。
 const anyFilter = computed(() => {
   const f = filters.value
   return !!(f.date || f.people.length || f.place.length || f.type || f.album)
@@ -356,6 +413,9 @@ function singleSelected(v: string | null): string[] {
 const activeConditions = computed<string[]>(() => {
   const out: string[] = []
   const f = filters.value
+  // fix round 1 · I8(评审并入,补登记):Vue2 `:501` 的兜底是硬编码英文字面量
+  // `f.date.label || 'Date'`——中文界面下若 `label` 恰好缺失会漏出一个英文单词。这里
+  // 改用 `t('photosSearchDate')` 走本地化,已在此登记(相对 Vue2 的刻意偏离,不是抄错)。
   if (f.date) out.push(f.date.label || t('photosSearchDate'))
   f.people.forEach((p) => out.push(p))
   f.place.forEach((p) => out.push(p))
@@ -635,6 +695,10 @@ onMounted(() => {
   display: inline-block;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 32%, var(--accent-soft-2), var(--accent) 72%);
+  /* fix round 1 · M12(评审并入):Vue2 photos.scss:876 的 `.nimo-orb` 有
+     `flex-shrink: 0`,第一版漏了这条——`.understood` 是 `inline-flex` 容器,窄屏/长
+     文案挤压时那颗 18px 的 orb 会被压扁变形。补回。 */
+  flex-shrink: 0;
 }
 
 /* ── 预搜索态(photos.scss:2779-2793)── */
@@ -733,9 +797,11 @@ onMounted(() => {
 .empty-search .conditions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 24px; }
 /* E10(T12 交接):空态里 chip 的紧凑变体归本任务实现。这里没有共享的 .fchip 基类可继承
    (PhotosFilterChip 的 .fchip 是它自己 scoped 样式,跨组件不可见),直接以"已选中"的
-   视觉(accent-soft 底 + accent-soft-bd 边)按 photos.scss:2776 的紧凑尺寸整条写出。 */
+   视觉(accent-soft 底 + accent-soft-bd 边)按 photos.scss:2776 的紧凑尺寸整条写出。
+   fix round 1 · M13(评审并入):`padding` 改回 Vue2 基类 `.fchip`(photos.scss:2617)
+   的 `0 12px`——第一版写成 `0 10px` 是抄错,不是刻意收紧,已按 Vue2 字面值改回。 */
 .empty-search .conditions .fchip {
-  display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 99px;
+  display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 99px;
   background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--fg); font-size: 11.5px;
 }
 

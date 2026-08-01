@@ -4,6 +4,8 @@ import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
 import PhotosSearchBar from '../PhotosSearchBar.vue'
+import photosSearchBarRaw from '../PhotosSearchBar.vue?raw'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -22,14 +24,36 @@ describe('结构', () => {
     expect(w.find('.search input').exists()).toBe(true)
   })
 
+  // fix round 1 · I4(评审并入):内联 svg 的 glyph path 必须逐字符对 Vue2
+  // PhotosIcon.vue 断言,防止漏抄/错抄(本期已因此返工 6 次)。
+  it('search 图标的 path d 与 Vue2 PhotosIcon.vue search 分支逐字符一致', () => {
+    const w = mountBar()
+    expect(w.get('.search svg path').attributes('d')).toBe('m20 20-3.5-3.5')
+  })
+
   it('value 渲染进 input', () => {
     const w = mountBar({ value: 'sunset' })
     expect((w.get('input').element as HTMLInputElement).value).toBe('sunset')
   })
 
-  it('placeholder 是 photosSearchSearchLibrary 的本地化值', () => {
+  // fix round 1 · I3(评审查实的真缺陷):第一版误用了 `photosSearchSearchLibrary`
+  // (="搜索你的资料库"——那句其实是 Vue2 预搜索态的 <h2>,不是输入框占位符),导致搜索页
+  // 上占位符与它正下方的 h2 撞词。改用新增键 `photosSearchSearchBarPlaceholder`(回源
+  // Vue2 `PhotosTopbar.vue:19` 真实占位符文案)。
+  it('placeholder 是 photosSearchSearchBarPlaceholder 的本地化值(不是预搜索态 h2 那句)', () => {
     const w = mountBar()
-    expect(w.get('input').attributes('placeholder')).toBe(zh.photosSearchSearchLibrary)
+    expect(w.get('input').attributes('placeholder')).toBe(zh.photosSearchSearchBarPlaceholder)
+    expect(w.get('input').attributes('placeholder')).not.toBe(zh.photosSearchSearchLibrary)
+  })
+})
+
+// fix round 1 · I5(plan 硬约束,评审并入):非颜色视觉属性(搜索框高度)锚定断言。
+describe('样式:非颜色视觉属性锚定', () => {
+  it('.search 高度是 34px(先锚定规则体再断言属性)', () => {
+    const style = extractStyleBlock(photosSearchBarRaw)
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.search')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('height: 34px')
   })
 })
 
