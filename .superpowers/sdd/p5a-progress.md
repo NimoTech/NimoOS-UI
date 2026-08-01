@@ -262,3 +262,21 @@ build 0。dev server 走 HMR,无需重起。
 
 **验收清单勘误**:原第 1 条写「右下角无 toast 残留」,漏说了这个 60 s 后才落地的 toast。
 本次修正后该条恢复成立。
+
+---
+
+## ✅ P5a 正式收官(2026-08-01)
+
+**用户 `:5288` 眼验 19 条全部通过**,含验收反馈修正 #1 的复验(C 组:左栏来回切后不再出现「操作失败」)。
+零遗留缺陷。**未部署、未合 master。**
+
+最终坐标:New-UI `sp8-ai`@`710e79a` · Service `sp8-ai`@`15c2eba` · roadmap `NimoOS-UI@b60e585a`(分支 `docs/vue3-migration-sp3`)。
+三门:313 文件 / 2872 例 · vue-tsc 0 · vite build 0。
+
+**同日一并完成的后端动作(用户拍板)**:`nimo_os_docs/scripts/deploy-agent.sh` 热更设备上的
+Python agent(NimoOS-AI@`46850f7`,只灌 `agent/` 代码,不重建镜像)。`notes/distill` 四条路由
+与 `notes/settings` 的三个字段现在真机可用 → **P5b 沉淀 scope / P5c 沉淀设置 / P5e distill
+按钮不再恒 404**。
+
+**P5b 交接**:见 `p5a-common-constraints.md`(直接沿用,新期出 `p5b-` 版差异)+ 本文件
+「P5b–P5f 交接」节 + roadmap §SP8 P5 条目。
