@@ -1,11 +1,14 @@
 <script setup lang="ts">
 // SP7-P7a-T12: PhotosFilterPopover.vue —— 列表型筛选弹层基元(D14 两个基元之一)。
 // 结构对应 Vue2 PhotosSearchView.vue:124-147 的 list popover。与 PhotosFilterBar.vue:25-63
-// 逐字比对(结论详见 task-12-report.md):唯一实质差异是滚动容器 max-height——搜索侧
-// 280px、FilterBar 侧 260px;以搜索侧为准,本组件写死 280(FilterBar 的 260 差异登记交给
-// P7b/T16 决定要不要开 prop)。其余差异(空态文案来源两条硬编码 vs 单一来源、type 专属的
-// $t(it) 转换 vs 直传、cancelPop 参数)在 New-UI 接口层已经用 emptyHint / labelFor 两个
-// prop 统一抹平,不属于结构差异。
+// 逐字比对(完整结论详见 task-12-report.md,fix round 1 · M9 已改正措辞——此前写"唯一
+// 实质差异",不准确):真实数值差异有两处——① 滚动容器 max-height:搜索侧 280px、
+// FilterBar 侧 260px,以搜索侧为准,本组件写死 280(260 的差异登记交给 P7b/T16 决定要不
+// 要开 prop);② `.fpop` 内联宽度:搜索侧 260、FilterBar 侧 240——这一处已经由本组件的
+// `width` prop 吸收(brief 接口段本就给了这两个数),不构成功能差异,只是不该被"唯一"
+// 这个词盖过去。其余表面不同(空态文案来源两条硬编码 vs 单一来源、type 专属的 $t(it)
+// 转换 vs 直传、cancelPop 参数)在 New-UI 接口层已经用 emptyHint / labelFor 两个 prop
+// 统一抹平,不属于结构差异。
 //
 // props.selected 不许就地改——toggle() 一律 emit 新数组(照搬 Vue2 toggleDraftItem
 // :741-747 的不可变写法,immer 式 `{ ...draft, [key]: ... }`,这里数组版是
@@ -235,14 +238,18 @@ function toggle(it: string): void {
 .fpop-quick {
   font-size: 12px;
   padding: 5px 10px;
-  border-radius: 999px;
+  border-radius: 99px;
   background: var(--chip-bg);
   border: 1px solid var(--chip-border);
   color: var(--fg-muted);
   cursor: pointer;
 }
 /* 本组件的 Cancel 按钮不带 data-on(那是 T13 日期弹层的快捷区间按钮用的)——brief Step 3
-   明确划界:本任务只保证基类 hover 存在,[data-on] 变体的 hover 处理留给 T13。 */
+   明确划界:本任务只保证基类 hover 存在,[data-on] 变体的 hover 处理留给 T13。
+   交接(评审查实的 brief 错误 2,T13 要用):brief 把这里描述成"基类压变体"的危险形态,
+   回源 photos.scss:2674 不成立——Vue2 原文是 `.fpop-quick:hover, .fpop-quick[data-on="true"]
+   { … }` 单条规则、两个选择器共享完全相同的一组值,根本不存在两套值、也不存在谁压过谁。
+   T13 加 [data-on="true"] 变体时,数值应该照抄本条 :hover 的值,不是另设一套。 */
 .fpop-quick:hover {
   background: var(--accent-soft);
   color: var(--accent-text);
@@ -264,9 +271,14 @@ function toggle(it: string): void {
   cursor: pointer;
 }
 /* Vue2 .btn:hover 还带 border-color: var(--line-strong)——本仓没有这个更强调的线条
-   token(已 grep 确认 theme.css 无 --line-strong),且现有 --chip-border 与之数值级已经
-   很接近,直接省略这一属性、只变背景,视觉差异可忽略不计(登记为已知的小幅简化,不是
-   漏移植)。 */
+   token(已 grep 确认 theme.css 无 --line-strong),现有 --chip-border 数值级也已很接近,
+   这两点是省略的次要理由。
+   更硬的理由(评审查实的 brief 错误 4,移植纪律"Vue2 的 bug 不照抄"适用的真实案例):
+   `.photos-root .btn:hover { border-color: var(--line-strong) }` 是 (0,3,0)(.photos-root
+   祖先类 + .btn + :hover),会压过 `.photos-root .btn-primary { border-color: var(--accent) }`
+   的 (0,2,0)——也就是说 Vue2 原版里,主按钮(.btn.btn-primary)一 hover,边框就从 accent
+   紫掉回中性线,这是 Vue2 自己的级联联动缺陷,不是设计意图。本组件不复刻这条边框声明,
+   不是"省略了本该照抄的东西",而是主动不照抄这个 bug。 */
 .btn:hover {
   background: var(--chip-bg-hi);
 }

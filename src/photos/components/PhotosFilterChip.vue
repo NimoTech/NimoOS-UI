@@ -28,9 +28,12 @@
 // 一致,但那是既有代码不许动,也不作为本任务依据——本任务以 T5 的表为准。)
 //
 // open prop:Vue2 没有对应概念(chip 的视觉态只有 data-on,没有"弹层是否展开"这个独立
-// 维度)。brief 冻结的接口里带了这个可选 prop,这里原样接住并转发成 .fchip 的 data-open
-// 属性,不附加任何默认样式——具体消费(要不要挂 CSS 钩子)留给 T13/T14/T16,避免臆造
-// Vue2 不存在的视觉效果。
+// 维度)。brief 冻结的接口里带了这个可选 prop,这里原样接住;具体消费(要不要挂 CSS 钩子)
+// 留给 T13/T14/T16,避免臆造 Vue2 不存在的视觉效果。
+// fix round 1 · M4(评审 Important 同批发现):data-open 只在 open === true 时渲染到
+// DOM(:data-open="open ? 'true' : undefined"),不恒渲染——Vue2 的 .fchip 上根本没有
+// 这个属性,默认态(open 未传或为 false)时 DOM 应与 Vue2 逐字一致,不能凭空多一个
+// data-open="false"。语义(要不要在其上挂样式)由 T13 定,当前无 CSS 消费。
 defineProps<{
   label: string
   active: boolean
@@ -45,7 +48,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="fchip-wrap">
-    <div class="fchip" :data-on="active" :data-open="open ?? false" @click="emit('toggle')">
+    <div class="fchip" :data-on="active" :data-open="open ? 'true' : undefined" @click="emit('toggle')">
       <span class="fchip-icon"><slot name="icon" /></span>
       <span>{{ label }}</span>
       <svg
@@ -85,7 +88,7 @@ const emit = defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 999px;
+  border-radius: 99px;
   background: var(--chip-bg);
   border: 1px solid var(--chip-border);
   color: var(--fg-muted);
@@ -118,6 +121,16 @@ const emit = defineEmits<{
 .fchip-icon {
   color: var(--fg-faint);
   display: flex;
+}
+/* fix round 1 · M3(评审并入,牵动 T13/T14/T16/P7b 四个下游):Vue2
+   PhotosSearchView.vue:53 用 <photos-icon :name="chip.icon" :size="13"/>,即 svg
+   width/height 各 13px。本组件把 icon 从字符串 prop 换成 #icon 具名插槽后,这条尺寸
+   契约不能只靠报告里一句话交代——用 :deep(svg) 把宿主传入的 svg 焊死在 13×13,不管
+   宿主内联的 svg 自己写了多大尺寸,渲染出来都会被这条规则收敛,不依赖下游任务自觉记住
+   13 这个数字。 */
+.fchip-icon :deep(svg) {
+  width: 13px;
+  height: 13px;
 }
 .fchip-x {
   display: inline-flex;
