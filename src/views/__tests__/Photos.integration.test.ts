@@ -347,3 +347,28 @@ describe('Photos.vue integration', () => {
     expect(lb.open.value).toBe(true)
   })
 })
+
+// SP7-P7a-T16: 顶部搜索框恒显示,提交 → 跳转 /photos/search(结构规格 22)。
+describe('Photos.vue 搜索框接线(T16)', () => {
+  it('顶部渲染 PhotosSearchBar(搜索输入框)', async () => {
+    const w = await mountPhotos()
+    expect(w.find('.photos-search-bar input').exists()).toBe(true)
+  })
+
+  it('提交非空词 → router.push 到 /photos/search 带 q', async () => {
+    const w = await mountPhotos()
+    const router = w.vm.$router
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.get('.photos-search-bar input').setValue('sunset')
+    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'sunset' } })
+  })
+
+  it('提交空串 → router.push 时 query 为空对象', async () => {
+    const w = await mountPhotos()
+    const router = w.vm.$router
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: {} })
+  })
+})

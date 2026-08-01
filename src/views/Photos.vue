@@ -17,8 +17,10 @@
 // selection(照 Vue2 pickAlbum:587-595)。
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
@@ -35,6 +37,7 @@ import { matchesTab } from '../photos/util/tabFilter'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useTimelineStore()
 const toast = useToast()
 const bus = useMessageBus()
@@ -53,6 +56,13 @@ const selected = ref<Array<string | number>>([])
 const filteredCount = computed(() =>
   store.months.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
 )
+
+// T16 接线(结构规格 22):搜索框恒显示(对应 Vue2 `show-search = isLibraryView`,
+// New-UI 没有"库视图/其余视图"这个多态壳,时间线页本身就只有这一种形态,故无 v-if
+// 条件)。提交→跳转 /photos/search,空串→仍然跳转但不带 q(落到搜索页的预搜索态)。
+function onSearchSubmit(q: string) {
+  router.push({ path: '/photos/search', query: q ? { q } : {} })
+}
 
 function toggleSelect(id: string | number) {
   const idx = selected.value.indexOf(id)
@@ -165,6 +175,7 @@ onUnmounted(() => {
     <div class="photos-layout">
       <PhotosSidebar />
       <main class="photos-main">
+        <PhotosSearchBar @submit="onSearchSubmit" />
         <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
         <template v-else>
           <div class="photos-summary">

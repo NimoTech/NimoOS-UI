@@ -21,8 +21,9 @@
 // 自动跟着变;删码验证①把 byId 换成本地 ref 缓存一份 sv 对象,这条用例就会变红)。
 //
 // 本文件范围(task-6-brief.md 结构规格 1-9):壳 + header(标题编辑 / live-paused pill /
-// 统计四格)+ 操作栏三菜单(暂停恢复 / 在搜索中细化[T16 前禁用] / 导出[ZIP 修 401 + 静态
-// 相册] / more[重命名/复制/删除])+ 删除确认弹窗 + 两段照片网格(最近添加 / 全部匹配)。
+// 统计四格)+ 操作栏三菜单(暂停恢复 / 在搜索中细化[T16 已接线,见 refineInSearch] /
+// 导出[ZIP 修 401 + 静态相册] / more[重命名/复制/删除])+ 删除确认弹窗 +
+// 两段照片网格(最近添加 / 全部匹配)。
 // T7(加条件弹层)与 T8(右栏阈值/设置/统计/活动流)只留挂载点,见下方 TODO 注释。
 //
 // ── 偏离登记(brief 已预先要求登记的几处)──────────────────────────────────────
@@ -33,11 +34,12 @@
 //     `@keydown.enter`。
 //  3) commitTitle 失败:Vue2 `:512-513` 无 catch(乐观地假设 PATCH 总成功)。这里 catch →
 //     toast + 保持编辑态(不擅自退出,以免用户以为改名生效了)。
-//  4) 「在搜索中细化」T6 阶段禁用:搜索路由要 T16 才建,见按钮上的 TODO 注释。
+//  4) 「在搜索中细化」T6 阶段曾临时 disabled(搜索路由 /photos/search 那时还没建)。
+//     T16 已把搜索路由建好并接线(见下方 refineInSearch),按钮不再 disabled。
 //  5) `smartViewId` 死参数不迁:Vue2 `:520` 的 refineInSearch payload 是
 //     `{ q: sv.name, smartViewId: sv.id }`,但全 Vue2 仓库 grep `smartViewId` 只有这一处
-//     写入、零消费方(`grep -rn smartViewId NimoOS-UI/src/` 只命中这一行)。T16 接线时只需
-//     要 `q`。
+//     写入、零消费方(`grep -rn smartViewId NimoOS-UI/src/` 只命中这一行)。T16 接线只传
+//     `q`,不带这个死参数。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -147,6 +149,14 @@ async function togglePaused(): Promise<void> {
 }
 function onPillKeydown(e: KeyboardEvent): void {
   if (e.key === 'Enter') void togglePaused()
+}
+
+// T16 兑现(结构规格 23):「在搜索中细化」→ 跳到搜索页,用该智能视图的名字作查询词。
+// 只传 q——Vue2 :520 的 smartViewId 是全仓零消费方的死参数(见文件头偏离登记 5)。
+function refineInSearch(): void {
+  const s = sv.value
+  if (!s) return
+  void router.push({ path: '/photos/search', query: { q: s.name } })
 }
 
 // ── T7 接线:条件编辑器 add/remove → store.updateSmartView(结构规格 T7)───────────
@@ -446,14 +456,12 @@ function onTileClick(p: Photo): void {
                 {{ t(paused ? 'photosSvResume' : 'photosSvPause') }}
               </button>
 
-              <!-- T16 接线点:搜索路由(/photos/search)本期后半才建。届时删掉 disabled +
-                   title,接 router.push('/photos/search?q=' + encodeURIComponent(sv.name))。
-                   Vue2 :520 的 payload 另带 smartViewId,全仓 grep 零消费方,死参数不迁
-                   (见文件头偏离登记 5)。删这个注释时把上面文件头的 photosSvSearchPending
-                   键一并从 i18n 里删掉。 -->
+              <!-- T16 兑现:搜索路由(/photos/search)已建,细化跳到搜索页并用该智能视图的
+                   名字作查询词。Vue2 :520 的 payload 另带 smartViewId,全仓 grep 零消费方,
+                   死参数不迁(见文件头偏离登记 5),这里只传 q。 -->
               <button
-                type="button" class="sv-action-btn" data-test="sv-action-refine" disabled
-                :title="t('photosSvSearchPending')"
+                type="button" class="sv-action-btn" data-test="sv-action-refine"
+                @click="refineInSearch"
               >
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
                 {{ t('photosSvRefineSearch') }}

@@ -1258,7 +1258,6 @@ export default {
   photosSvNotFound: '找不到这个智能视图',
   // T6 阶段搜索路由(T16 才建)不存在,「在搜索中细化」渲染成 disabled + 此 title；
   // T16 接线时把这个键与本组件里对应的 disabled 一起删掉(注释已在组件里登记接线点)。
-  photosSvSearchPending: '搜索页待迁移(本期后半)',
   // 改名失败的 toast(Vue2 :512-513 无 catch,New-UI 补上,偏离登记):照
   // photosAlbumRenameFailed / photosPersonRenamedFailed 的既定命名与文案。
   photosSvRenameFailed: '重命名失败',

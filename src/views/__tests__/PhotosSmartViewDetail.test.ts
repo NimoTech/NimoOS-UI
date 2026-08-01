@@ -491,13 +491,25 @@ describe('header 统计四格', () => {
   })
 })
 
-// ── 「在搜索中细化」——T6 阶段临时禁用态 ────────────────────────────────────
-describe('「在搜索中细化」按钮(T16 前临时禁用)', () => {
-  it('disabled 且 title 是 photosSvSearchPending', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
+// ── 「在搜索中细化」——T16 兑现:去 disabled,接 router.push ─────────────────
+describe('「在搜索中细化」按钮(T16 已接线)', () => {
+  it('不再 disabled,也没有 photosSvSearchPending 的 title', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     const btn = w.find('[data-test="sv-action-refine"]')
-    expect(btn.attributes('disabled')).toBeDefined()
-    expect(btn.attributes('title')).toBe(zh.photosSvSearchPending)
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(btn.attributes('title')).toBeUndefined()
+  })
+
+  it('点击 → router.push({ path: "/photos/search", query: { q: sv.name } })', async () => {
+    const { w, router } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.find('[data-test="sv-action-refine"]').trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'Sunsets' } })
+  })
+
+  it('photosSvSearchPending 键已从两个 locale 删除(死键随 T16 一并清理)', () => {
+    expect('photosSvSearchPending' in zh).toBe(false)
+    expect('photosSvSearchPending' in en).toBe(false)
   })
 })
 

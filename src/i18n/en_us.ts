@@ -1260,7 +1260,6 @@ export default {
   photosSvSettingsPending: 'Settings page coming in P8',
   // ---- P7a-T6: detail-page shell additions (beyond T1's 107 keys) ----
   photosSvNotFound: 'Smart View not found',
-  photosSvSearchPending: 'Search page coming later this phase',
   photosSvRenameFailed: 'Rename failed',
   photosSvUpdateFailed: 'Update failed',
   photosSvDeleteFailed: 'Delete failed',
