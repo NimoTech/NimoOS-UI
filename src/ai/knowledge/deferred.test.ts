@@ -2,10 +2,21 @@ import { describe, it, expect } from 'vitest'
 import { DEFERRED_TABS, isDeferred } from './deferred'
 
 describe('占位机制(K7)', () => {
-  it('P5a 只实现 dashboard,其余 8 个 tab 挂占位', () => {
+  // 【SP8-P5b Task 5,2026-08-01,反转(不是删除)】'queue' 已迁到真正的
+  // QueueView.vue(knowledgeRoutes.ts 同步反转),从占位列表摘掉;机制本身
+  // (isDeferred 的判定来源仍是 DEFERRED_TABS)不变。
+  //
+  // 改前(P5a T3 原文):
+  //   it('P5a 只实现 dashboard,其余 8 个 tab 挂占位', () => {
+  //     expect([...DEFERRED_TABS].sort()).toEqual(
+  //       ['allowlist', 'indexed-files', 'notes', 'queue', 'roots', 'search', 'settings', 'wiki'])
+  //     expect(isDeferred('dashboard')).toBe(false)
+  //   })
+  it('P5a 实现 dashboard,P5b-T5 实现 queue,其余 7 个 tab 挂占位', () => {
     expect([...DEFERRED_TABS].sort()).toEqual(
-      ['allowlist', 'indexed-files', 'notes', 'queue', 'roots', 'search', 'settings', 'wiki'])
+      ['allowlist', 'indexed-files', 'notes', 'roots', 'search', 'settings', 'wiki'])
     expect(isDeferred('dashboard')).toBe(false)
+    expect(isDeferred('queue')).toBe(false)
   })
 
   it('isDeferred 对每个已列 tab 返回 true', () => {

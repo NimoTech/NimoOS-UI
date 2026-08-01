@@ -26,10 +26,16 @@
 // 真正的 DashboardView(K7 机制不变,反转不是删除 —— 见
 // knowledgeRoutes.test.ts 的改前/改后原文对照)。其余 8 个子路由 + 2 条独立
 // parser 路由仍是占位页,留给后续批次逐个替换。
+//
+// 【SP8-P5b Task 5,2026-08-01】`queue` 子路由(任务队列位)同样从占位页
+// KnowledgeDeferred 反转成真正的 QueueView(K7 机制不变,反转不是删除 —— 见
+// knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 对 `''` 子路由的先例)。
+// 其余 7 个子路由 + 2 条独立 parser 路由仍是占位页,留给后续批次逐个替换。
 import type { RouteRecordRaw } from 'vue-router'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
 import DashboardView from './views/DashboardView.vue'
+import QueueView from './views/QueueView.vue'
 
 export const knowledgeRoutes: RouteRecordRaw[] = [
   {
@@ -40,7 +46,7 @@ export const knowledgeRoutes: RouteRecordRaw[] = [
       { path: 'search', name: 'KnowledgeSearch', component: KnowledgeDeferred },
       { path: 'wiki', name: 'KnowledgeWiki', component: KnowledgeDeferred },
       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: KnowledgeDeferred },
-      { path: 'queue', name: 'KnowledgeQueue', component: KnowledgeDeferred },
+      { path: 'queue', name: 'KnowledgeQueue', component: QueueView },
       { path: 'roots', name: 'KnowledgeRoots', component: KnowledgeDeferred },
       { path: 'allowlist', name: 'KnowledgeAllowlist', component: KnowledgeDeferred },
       { path: 'notes', name: 'KnowledgeNotes', component: KnowledgeDeferred },

@@ -3,6 +3,7 @@ import { knowledgeRoutes } from './knowledgeRoutes'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
 import DashboardView from './views/DashboardView.vue'
+import QueueView from './views/QueueView.vue'
 
 describe('knowledgeRoutes', () => {
   it('一条布局路由带 9 个子路由 + 两条 Parser 路由', () => {
@@ -59,20 +60,49 @@ describe('knowledgeRoutes', () => {
   //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
   //   })
   //
-  // 改后（本次）：`''` 单独钉成 DashboardView；其余 8 个子路由 + 2 条 parser
+  // 改后（P5a T12）：`''` 单独钉成 DashboardView；其余 8 个子路由 + 2 条 parser
   // 路由仍钉成 KnowledgeDeferred（K7 占位机制本身不变）。
-  it('父路由(布局位)是 KnowledgeLayout,"" 子路由(仪表盘)是 DashboardView,其余 8 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+  //
+  // 【SP8-P5b Task 5,2026-08-01,再次反转（不是删除）】上面这条断言把 `queue`
+  // 子路由也算进「仍是占位页」的 10 条里 —— 现在 `queue` 换成真正的 QueueView
+  // （本任务的产出），这条断言必须跟着反转，否则会精确报红（承 T12 R8 comment
+  // 里预告的同一模式）。
+  //
+  // 改前（P5a T12 原文，反转前）：
+  //   it('父路由(布局位)是 KnowledgeLayout,"" 子路由(仪表盘)是 DashboardView,其余 8 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+  //     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+  //     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
+  //     expect(dashboardChild?.component).toBe(DashboardView)
+  //     expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const stillDeferred = [
+  //       ...knowledgeRoutes[0].children!.filter((c) => c.path !== '').map((c) => c.component),
+  //       knowledgeRoutes[1].component,
+  //       knowledgeRoutes[2].component,
+  //     ]
+  //     expect(stillDeferred).toHaveLength(10)
+  //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+  //   })
+  //
+  // 改后（本次）：`''` 与 `queue` 两个子路由分别单独钉成 DashboardView /
+  // QueueView；其余 7 个子路由 + 2 条 parser 路由仍钉成 KnowledgeDeferred。
+  it('父路由(布局位)是 KnowledgeLayout,"" 是 DashboardView,"queue" 是 QueueView,其余 7 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+
     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
     expect(dashboardChild?.component).toBe(DashboardView)
     expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
 
+    const queueChild = knowledgeRoutes[0].children!.find((c) => c.path === 'queue')
+    expect(queueChild?.component).toBe(QueueView)
+    expect(queueChild?.component).not.toBe(KnowledgeDeferred)
+
     const stillDeferred = [
-      ...knowledgeRoutes[0].children!.filter((c) => c.path !== '').map((c) => c.component),
+      ...knowledgeRoutes[0].children!.filter((c) => c.path !== '' && c.path !== 'queue').map((c) => c.component),
       knowledgeRoutes[1].component,
       knowledgeRoutes[2].component,
     ]
-    expect(stillDeferred).toHaveLength(10)
+    expect(stillDeferred).toHaveLength(9)
     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
   })
 })
