@@ -54,7 +54,9 @@ beforeEach(() => {
 // 触发,两路并存。行内容取自 `jobs-pending.json`（同一份真实响应体里的
 // 第 0/1 行,分别当"新鲜"/"过期"两次调用的 pending 桶用,字段逐字未改）与
 // `jobs-running.json`（唯一一行,两次调用共用不影响判别力,判别力全部落在
-// pending 桶）。
+// pending 桶）。failed 桶本机实测为空（`jobs-failed.json`），POISON_FAILED_ROW
+// 借用 `jobs-pending.json` 的 `jobs[2]`（id 346）整行照抄当判别用假行（见下方
+// 常量注释，修复轮 1 M-2）。
 // ══════════════════════════════════════════════════════════════════════
 describe('loadAllJobs 过期守卫(K15)', () => {
   // jobs-pending.json 的 jobs[0]（id 348）与 jobs[1]（id 347），逐字段照抄。
@@ -102,6 +104,24 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     done_at: null,
   }
   const EMPTY = { jobs: [] } // jobs-failed.json 原样
+  // 【修复轮 1,M-2】本机 failed 桶实测为空(`jobs-failed.json` = `{"jobs":[]}`），
+  // 取不到真实的 failed 行；用同一份 `jobs-pending.json` 的 `jobs[2]`（id 346，
+  // `op:"delete"`）整行照抄当 failed 桶的判别用假行 —— 字段形状仍是实测过的，
+  // 不是手编残缺对象（原来的 `{ id: 999 }` 已删）。
+  const POISON_FAILED_ROW = {
+    id: 346,
+    root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
+    path: '/DATA/.system_data/opt/qdrant/storage/collections/agent_memory/0/wal/.atomicwritewmbpAO',
+    op: 'delete',
+    sub_modality: null,
+    priority: 100,
+    attempts: 0,
+    last_error: null,
+    locked_until: null,
+    created_at: 1784776420537,
+    picked_at: null,
+    done_at: null,
+  }
 
   it('交错:先发(轮询)后至,不覆盖后发(手动 setScope)已写入的三桶', async () => {
     const d1p = deferred<{ jobs: unknown[] }>()
@@ -137,11 +157,11 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     // 先发后至:轮询那一路才落地，必须被整发丢弃，不许覆盖上面已经生效的结果。
     d1p.resolve({ jobs: [STALE_PENDING_ROW] })
     d1r.resolve({ jobs: [] })
-    d1f.resolve({ jobs: [{ id: 999 }] })
+    d1f.resolve({ jobs: [POISON_FAILED_ROW] })
     await first
     expect(s.jobs.pending.map((j) => j.id)).toEqual([348]) // 没被 347 覆盖
     expect(s.jobs.running.map((j) => j.id)).toEqual([10]) // 没被清空
-    expect(s.jobs.failed).toEqual([]) // 没被 stale 的 999 污染
+    expect(s.jobs.failed).toEqual([]) // 没被 stale 的 346 号行污染
     expect(toastShow).not.toHaveBeenCalled()
   })
 
@@ -158,12 +178,12 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     ai.parserJobs.mockImplementation(async (p: { status: string }) => {
       if (p.status === 'pending') return { jobs: [STALE_PENDING_ROW] }
       if (p.status === 'running') return EMPTY
-      return { jobs: [{ id: 999 }] }
+      return { jobs: [POISON_FAILED_ROW] }
     })
     await s.loadAllJobs() // 第二次调用，不与第一次重叠，理应正常生效
     expect(s.jobs.pending.map((j) => j.id)).toEqual([347])
     expect(s.jobs.running).toEqual([])
-    expect(s.jobs.failed.map((j) => j.id)).toEqual([999])
+    expect(s.jobs.failed.map((j) => j.id)).toEqual([346])
   })
 })
 
@@ -212,6 +232,36 @@ describe('loadIndexedFiles 过期守卫(K15)', () => {
     expect(s.indexedFiles.loading).toBe(false)
     expect(s.indexedFiles.files).toEqual(FRESH_FILES)
     expect(s.indexedFiles.total).toBe(FRESH_TOTAL)
+  })
+
+  // 【修复轮 1,I-1 补】评审变异 M8:只删 catch 分支里的
+  // `if (epoch !== indexedFilesEpoch) return`，`src/ai/knowledge/stores/` 52 例
+  // 全绿——因为原三组交错用例全走成功路径，catch 分支的守卫没有任何用例证明。
+  // 真实后果：过期的一发失败（请求被中止/后端瞬时 500），而最新一发已经成功
+  // 写入数据时，没有这条守卫会把 `s.error` 补写上去——正确数据之上又叠一条
+  // 错误横幅。本例专测这条路径。
+  it('交错:过期的一发失败,最新一发成功 → error 不被污染,loading 归位到成功值', async () => {
+    const d1 = deferred<{ files: unknown[]; total: number }>()
+    const d2 = deferred<{ files: unknown[]; total: number }>()
+    ai.parserFiles.mockImplementationOnce(() => d1.promise).mockImplementationOnce(() => d2.promise)
+
+    const s = useKnowledgeStore()
+    const first = s.loadIndexedFiles() // 过期的一发，最终会失败
+    const second = s.loadIndexedFiles() // 最新的一发，会成功
+
+    // 最新一发先成功落地。
+    d2.resolve({ files: FRESH_FILES, total: FRESH_TOTAL })
+    await second
+    expect(s.indexedFiles.error).toBe(null)
+    expect(s.indexedFiles.files).toEqual(FRESH_FILES)
+    expect(s.indexedFiles.loading).toBe(false)
+
+    // 过期的一发才失败落地：不许把 error 写上去，也不许再动 loading。
+    d1.reject(new Error('boom'))
+    await first
+    expect(s.indexedFiles.error).toBe(null) // 没被 stale 的失败污染
+    expect(s.indexedFiles.files).toEqual(FRESH_FILES) // 仍是最新一发的数据
+    expect(s.indexedFiles.loading).toBe(false) // 没被 stale 分支再动一次
   })
 
   it('反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效且各自归位 loading', async () => {

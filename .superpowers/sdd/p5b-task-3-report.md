@@ -219,3 +219,109 @@ pnpm build                  exit=0   (仅既有第三方包警告 + >500KB chunk
 无。三门全绿、RED 探针三次全部精确命中且互不误伤、`git status` 干净、mock 全部回 fixture 或
 既有已获批的「源码推定」形状。测试例数比 brief 预测的区间少 2~4 例,已在第 7 节说明原因,认为
 不构成缺陷(判别力已由 RED 探针实证)。
+
+---
+
+## 修复轮 1(2026-08-01)
+
+评审:规格 ✅、质量通过,独立 opus 做了 8 次变异,6 次被现有用例精确咬住(3 次删守卫 + 「判了但
+不 return」+「`++epoch` 挪到 `await` 之后」+「`finally` 改回无条件归位」);交错实现确认是真
+交错(两发同步发起、都不 await,后发先 resolve、先发后 resolve);mock↔fixture 9 组逐字段比对
+全部命中。要修 1 条 Important + 1 条 Minor。**只改了** `knowledgeStore.staleGuard.test.ts`,
+`knowledgeStore.ts` 未动(评审已确认实现本身是对的)。
+
+### I-1 —— catch 分支守卫补交错用例(唯一「删掉全绿」的守卫点)
+
+**问题**:评审变异 M8 只删 `knowledgeStore.ts:458` 的 `if (epoch !== indexedFilesEpoch) return`
+(catch 分支里的守卫),`src/ai/knowledge/stores/` 52 例全绿 —— 因为原三组交错用例全走成功路径,
+没有任何用例走 `reject`,catch 分支的守卫因此没有测试证明它存在的必要性。
+
+**修复**:在 `loadIndexedFiles 过期守卫(K15)` 组新增 1 例
+`交错:过期的一发失败,最新一发成功 → error 不被污染,loading 归位到成功值`(测试文件
+`:216-241`)—— 两个可控 deferred(`d1`/`d2`),`first`(过期)与 `second`(最新)同步发起、都不
+`await`;先 `d2.resolve(...)` 并 `await second`,断言 `error === null` / `files` 是 fresh 结果 /
+`loading === false`;再 `d1.reject(new Error('boom'))` 并 `await first`,断言 `error` **仍然**
+是 `null`(没被 stale 的失败污染)、`files` 仍是 fresh 结果、`loading` 仍是 `false`(没被 stale
+分支再动一次)。
+
+**M8 变异三段输出(改之前绿 → 改之后红 → 还原后绿)**:
+
+改之前(补完新用例、`knowledgeStore.ts` 未动)—— 全绿:
+
+```
+Test Files  1 passed (1)
+     Tests  7 passed (7)
+```
+
+只删 `:458` 那一行守卫(M8 变异)—— 精确报红新增的那一例,其余全部仍绿:
+
+```
+❯ src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts (7 tests | 1 failed) 21ms
+     × 交错:过期的一发失败,最新一发成功 → error 不被污染,loading 归位到成功值 6ms
+
+ FAIL  … loadIndexedFiles 过期守卫(K15) > 交错:过期的一发失败,最新一发成功 → error 不被污染,loading 归位到成功值
+AssertionError: expected 'boom' to be null // Object.is equality
+- Expected:
+null
++ Received:
+"boom"
+ ❯ knowledgeStore.staleGuard.test.ts:262:34
+    262|     expect(s.indexedFiles.error).toBe(null) // 没被 stale 的失败污染
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 52 passed (53)
+```
+
+（`src/ai/knowledge/stores/` 目录共 53 例:本文件 7 例 + `knowledgeStore.parser.test.ts` /
+`knowledgeStore.notesWiki.test.ts` 共 46 例,52 仍绿只有新增那 1 例精确报红,与评审报告的
+「52 passed,一例都不红」对应上 —— 补完用例后同一变异变成「52 仍绿、1 例精确报红」。）
+
+还原(把 `:458` 那行守卫加回)后 —— 目录内三个文件共 53 例全绿:
+
+```
+Test Files  3 passed (3)
+     Tests  53 passed (53)
+```
+
+`git status --short` 确认还原后 `knowledgeStore.ts` **无 diff**(只有测试文件保留新增用例)。
+
+### M-2 —— `{ id: 999 }` 改为整行照抄 `jobs-pending.json` 的真实行
+
+**问题**:`loadAllJobs` 组用来污染 failed 桶的 `{ id: 999 }`(原 `:140`/`:161`/`:166`)是手编
+残缺对象,不来自任何 fixture,且报告 §5 的溯源表没登记。
+
+**修复**:本机 `jobs-failed.json` 实测为空(`{"jobs":[]}`),取不到真实 failed 行,按协调者
+建议采用第一种方案 —— 新增常量 `POISON_FAILED_ROW`,**整行照抄** `jobs-pending.json` 的
+`jobs[2]`(`id:346, op:"delete"`,除 `id`/`op`/`path` 外其余字段与 `jobs[0]`/`jobs[1]` 同构,
+逐字段未改一处),替换掉交错测试(`:140`)与反向对照测试(`:161`/`:166`)里原来的
+`{ id: 999 }`,断言里的 `999` 同步改成 `346`。常量定义处(`:104-119` 附近)写明来源与理由。
+
+**更新后的 mock 溯源表(补 `POISON_FAILED_ROW` 一行)**:
+
+| mock 目标 | 取自 | 层次 |
+|---|---|---|
+| `ai.parserJobs`(pending/running 行) | `jobs-pending.json`(`jobs[0]` id=348 新鲜、`jobs[1]` id=347 过期)、`jobs-running.json`(唯一一行 id=10) | 原样 snake_case |
+| `ai.parserJobs`(failed 桶空) | `jobs-failed.json`(`{"jobs":[]}`) | 原样 snake_case |
+| **`ai.parserJobs`(failed 桶判别用假行,`POISON_FAILED_ROW`)** | **`jobs-pending.json` 的 `jobs[2]`(id 346,`op:"delete"`)整行照抄** —— 本机 failed 桶实测为空,取不到真实 failed 行,借用同一张响应体里另一行的实测形状,不是手编 | 原样 snake_case |
+| `ai.parserFiles`(stale) | `files-default.json`(`total:8`,截取 3 行) | 原样 snake_case |
+| `ai.parserFiles`(fresh,交错组) | `files-mime-prefix-legacy.json`(`{"total":0,...,"files":[]}`) | 原样 snake_case |
+| `ai.parserFiles`(第二发,反向对照组) | `files-sort-size-asc.json`(另一个 3 行切片) | 原样 snake_case |
+| `notes.listDistillJobs` / `notes.getDistillStatus` | 队列本机为空,行内容按治理 §4.2 包归一化 camelCase,同 `knowledgeStore.notesWiki.test.ts` 的 `JOBS()` 模具 | camelCase |
+
+### 不用改的两条(记录在案)
+
+- **M-1**(计数器实例局部性没有回归保护):挂账不修,`loadRoots`(`3d8c9bc`)先例同样没有此类测试。
+- **M-3**(三处 `toastShow` 恒真断言):保留(任务书「toast 没多弹」字面要求,防未来重构塞
+  toast),本报告已不再把它列为「守卫生效」的证据(第 7 节及以上各节的证据均以 state/loading/
+  error 字段断言为准,toast 断言只在竞态叙事段落里附带提及)。
+
+### 修复轮三门终值
+
+```
+pnpm test                   exit=0   Test Files  314 passed (314) · Tests  2889 passed (2889)
+pnpm exec vue-tsc --noEmit  exit=0   (无输出)
+pnpm build                  exit=0   (仅既有第三方包警告 + >500KB chunk 警告,无错误)
+```
+
+新增 1 例(补 I-1),314 文件 / 2888 → 2889。无红项,`git status --short` 干净后只保留
+`knowledgeStore.staleGuard.test.ts` 的改动(`knowledgeStore.ts` 无 diff)。
