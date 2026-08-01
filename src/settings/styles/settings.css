@@ -426,7 +426,13 @@
   width: 100%; min-height: 480px; max-height: 60vh; overflow: auto;
   background: var(--set-logs-bg); color: var(--set-logs-fg);
   font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5;
-  padding: 16px; border-radius: 12px;
+  /* padding-top 单独放大:.set-logs-tools 是浮在右上角的绝对定位工具条(对位 Vue2
+     LogsCard.vue 同款浮层布局),但 Vue2 那两个是半透明纯图标(opacity:.5),我们这两个
+     是带文字的实心 .set-btn——实测 getBoundingClientRect 量出工具条纵向区间与日志首行
+     文字区间完全重叠(真机首行日志很长,横向延伸到右上角就被按钮不透明底压住,窄屏更严重)。
+     这里给内容顶部让出净空(12px 起点 + 按钮实际高度 ~28px + 12px 缓冲 ≈ 52px),
+     不改动浮层定位本身,保持与 Vue2 一致的"工具条浮在卡片右上角"视觉形态。 */
+  padding: 52px 16px 16px; border-radius: 12px;
   white-space: pre-wrap; word-break: break-all;
 }
 .set-logs-tools { position: absolute; top: 12px; right: 16px; display: flex; gap: 8px; }
