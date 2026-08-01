@@ -60,7 +60,11 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
-const ai = vi.hoisted(() => ({ parserFiles: vi.fn() }))
+// T10 追加 `parserReindexFiles` —— 重建三入口(rebuildRow / rebuildSelected /
+// doRebuildAll)在 store 里都落到这一个包方法上(`knowledgeStore.ts:467` 与
+// `:477`,只是 body 一个传 `file_ids` 一个传 `filter`)。形状取自
+// `p5b-fixtures/reindex-one.http` 实测原文(snake_case,§4.1 零转换)。
+const ai = vi.hoisted(() => ({ parserFiles: vi.fn(), parserReindexFiles: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
 // ── fixture 数据(逐字取自 p5b-fixtures/files-all-8.json)──
@@ -90,8 +94,13 @@ const MULTI_ROOT_FILES = [
   { file_id: 'm4', paths: [{ root_id: 'r', path: '/lonely', mtime_ms: 4 }], status: 'ok' },
 ]
 
+// T10:`reindex-one.http` 实测响应体逐字(200 分支)——
+// `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`。蓝本三处只读 `queued`。
+const REINDEX_OK = { queued: 1, tombstoned: 1, job_ids: [349], skipped: [] }
+
 function setupServiceMocks(): void {
   ai.parserFiles.mockResolvedValue({ total: FILES_ALL_8.length, limit: 100, offset: 0, files: FILES_ALL_8 })
+  ai.parserReindexFiles.mockResolvedValue(REINDEX_OK)
 }
 
 const mountedWrappers: Array<ReturnType<typeof mount>> = []
@@ -119,6 +128,11 @@ beforeEach(() => {
 // 存活,压住下一次挂载自己的 `if (indexedPollTimer) return` 守卫。
 afterEach(() => {
   while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
+  // T10:K7 弹窗 portal 宿主(withHost() 往 document.body 塞的 .knowledge-app)
+  // 必须清掉,否则下一个用例的 `host.querySelector('.k-modal')` 会命中上一个
+  // 用例遗留的宿主(先例 QueueView.test.ts 的 `document.body.innerHTML = ''`,
+  // 这里只精确移除自己造的宿主,不清整个 body)。
+  document.querySelectorAll('.knowledge-app').forEach((el) => el.remove())
 })
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1485,3 +1499,705 @@ describe('IndexedFilesView — 多选复选框(toggleRow/toggleAll,attribute 两
 // RED 探针②的钉子(pageTo 的 Math.min)与探针③(data-zero)已挂在上面对应
 // describe 里(见注释标注),此处不重复。
 // ──────────────────────────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════════════
+// SP8-P5b Task 10 —— 第 3 刀(收官):重建三入口 + 双上限 + K7 确认弹窗 +
+// 底部动作条 + 轮询收口。以下全部是本刀新增。
+//
+// mock 形状来源(治理 §4,禁手编,逐个说明):
+//   ai.parserReindexFiles 成功 → `REINDEX_OK`,逐字取自
+//     `p5b-fixtures/reindex-one.http` 的 200 响应体
+//     (`{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`,snake_case,
+//      §4.1 该端点包内零转换)。
+//   ai.parserReindexFiles 400(file_ids 超限)→ `CAP_400_FILE_IDS`,逐字取自
+//     `p5b-fixtures/reindex-cap-400.http`(`{"detail":"too many file_ids (max 500)"}`,
+//      **已实测**)。⚠️ 后端把「空数组」与「>500」用了同一条消息(§4.4)。
+//   ai.parserReindexFiles 400(filter 超限)→ `CAP_400_FILTER`,形状取自
+//     fixture README「未实测 · 源码推定的形状」那一节
+//     (`{"detail":"filter matches {n} files (> 10000); narrow it or raise
+//      max_reindex_by_filter"}`,`service_reindex.py:53-58`)。
+//     🔴 本机只有 8 个文件,10000 上限触发不了,这一条**是源码推定、未实测**,
+//     按 README 记的形状用(报告里已注明)。
+//   CAP_ROW_TEMPLATE / capIds() —— 500/501 条选中的边界要 501 个不同的
+//     file_id。行形状仍是 `files-all-8.json` 的 ok 行(直接 spread FILE_OK
+//     只换 file_id),不是新编的 schema。
+//
+// 501 行边界的驱动方式:`overExplicitCap` 只读 `selSet.size`(蓝本 :484-485),
+// 与「这些 id 是否在当前页」无关,所以边界用例直接写内部 `selSet`(T8/T9 已确立
+// 的 `w.vm` 读写 `<script setup>` 顶层 ref 技巧),不去挂载 501 个真实行 ——
+// 断言仍然落在真实 DOM(动作条的 `data-active` / `.k-ab-warn` / 按钮 `disabled`)
+// 上,不是读组件内部状态自证。
+// ══════════════════════════════════════════════════════════════════════
+
+// 逐字取自 p5b-fixtures/reindex-cap-400.http(已实测)。
+const CAP_400_FILE_IDS = { response: { data: { detail: 'too many file_ids (max 500)' } } }
+// 取自 fixture README「未实测 · 源码推定」表(filter 模式超限)。
+const CAP_400_FILTER = {
+  response: {
+    data: {
+      detail:
+        'filter matches 12345 files (> 10000); narrow it or raise max_reindex_by_filter',
+    },
+  },
+}
+
+// FILE_OK(= FILES_ALL_8[1],真实 fixture 行)换 file_id,造够 501 个不同 id。
+function capIds(n: number): Set<string> {
+  return new Set(Array.from({ length: n }, (_, i) => `cap-probe-${i}`))
+}
+
+// K7:弹窗 portal 目标 —— 本视图独立挂载时不在 .knowledge-app 子树里(生产环境
+// 由 KnowledgeLayout.vue 提供),测试须先在 body 里放一个同名宿主
+// (先例 QueueView.test.ts::withHost() / SkillDetail.test.ts::withHost())。
+function withHost(): HTMLElement {
+  const host = document.createElement('div')
+  host.className = 'knowledge-app'
+  document.body.appendChild(host)
+  return host
+}
+
+/** 与 mountWithFiles 相同,只是 attachTo document.body —— 照 T5 挂 reka 弹窗用例
+ * 的既有写法(reka 的 DismissableLayer 往 document 上挂 pointerdown 监听)。 */
+async function mountAttachedWithFiles(fileArr: unknown[], total = fileArr.length) {
+  ai.parserFiles.mockResolvedValueOnce({ total, limit: 100, offset: 0, files: fileArr })
+  const w = mount(IndexedFilesView, {
+    global: { plugins: [i18n] },
+    attachTo: document.body,
+  } as never)
+  mountedWrappers.push(w)
+  await flush()
+  return w
+}
+
+const setSel = (w: ReturnType<typeof mount>, s: Set<string>) => {
+  ;(w.vm as unknown as { selSet: Set<string> }).selSet = s
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// 底部粘性动作条(蓝本 :322-353)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
+  it('data-active 两侧都断言:未选中 "false",勾选一行后 "true",再取消回 "false"(直接比字符串值)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const bar = () => w.find('.k-files-actionbar')
+    expect(bar().exists()).toBe(true)
+    expect(bar().attributes('data-active')).toBe('false')
+    await w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check').setValue(true)
+    await flush()
+    expect(bar().attributes('data-active')).toBe('true')
+    await w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check').setValue(false)
+    await flush()
+    expect(bar().attributes('data-active')).toBe('false')
+  })
+
+  it('.k-ab-info 未选中时是提示文案、选中后换成「已选 {n} 项」(两侧对照,提示文案此时消失)', async () => {
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR])
+    expect(w.find('.k-ab-info').text()).toBe('勾选文件后可批量强制重建')
+    await w.find('.k-frow-fhead .k-row-check').setValue(true)
+    await flush()
+    expect(w.find('.k-ab-info').text()).toBe('已选 2 项')
+    expect(w.find('.k-ab-info').text()).not.toContain('勾选文件后可批量强制重建')
+  })
+
+  it('「重建该 Root 全部」按钮:文案 + total>0 时不禁用、title 是匹配数提示', async () => {
+    const w = await mountWithFiles([FILE_OK], 8)
+    const btn = w.find('.k-files-actionbar .k-btn.outline')
+    expect(btn.text()).toContain('重建该 Root 全部')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(btn.attributes('title')).toBe('重建当前筛选匹配的 8 个文件')
+  })
+
+  it('「重建该 Root 全部」按钮:total===0 时禁用、title 换成「没有匹配的文件」(两侧对照)', async () => {
+    ai.parserFiles.mockReset()
+    ai.parserFiles.mockResolvedValue(EMPTY_RESULT)
+    const w = await mountFiles()
+    const btn = w.find('.k-files-actionbar .k-btn.outline')
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toBe('没有匹配的文件')
+  })
+
+  it('「重建选中 ({n})」按钮:未选中时文案带 0 且禁用;选中 1 行后文案变 1 且启用(两侧对照)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const btn = () => w.find('.k-files-actionbar .k-btn.primary')
+    expect(btn().text()).toContain('重建选中 (0)')
+    expect(btn().attributes('disabled')).toBeDefined()
+    await w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check').setValue(true)
+    await flush()
+    expect(btn().text()).toContain('重建选中 (1)')
+    expect(btn().attributes('disabled')).toBeUndefined()
+  })
+
+  it('title 的千分位:total=12345 → 「重建当前筛选匹配的 12,345 个文件」', async () => {
+    const w = await mountWithFiles([FILE_OK], 12345)
+    expect(w.find('.k-files-actionbar .k-btn.outline').attributes('title')).toBe(
+      '重建当前筛选匹配的 12,345 个文件',
+    )
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 🔴 双上限的阈值两侧 —— EXPLICIT_REBUILD_CAP = 500(前端硬拦)
+// 承 P5a T6 教训:不钉两侧等于没测(`fmtAgo` 的 h<24 改成 h<48 曾 16/16 全绿)。
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — EXPLICIT_REBUILD_CAP 阈值两侧(500 / 501)', () => {
+  it('选中 500 个(= 上限,后端判据是 len > 500)→ 不超限:无警告、「重建选中」可点', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    setSel(w, capIds(500))
+    await flush()
+    expect(w.find('.k-files-actionbar').attributes('data-active')).toBe('true')
+    expect(w.find('.k-ab-info').text()).toContain('已选 500 项')
+    expect(w.find('.k-ab-warn').exists()).toBe(false)
+    expect(w.find('.k-files-actionbar .k-btn.primary').attributes('disabled')).toBeUndefined()
+  })
+
+  it('选中 501 个(> 上限)→ 超限:出 .k-ab-warn 警告、「重建选中」禁用(RED 探针①的钉子:> 改 >= 会让 500 那条报红)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    setSel(w, capIds(501))
+    await flush()
+    expect(w.find('.k-ab-info').text()).toContain('已选 501 项')
+    const warn = w.find('.k-ab-warn')
+    expect(warn.exists()).toBe(true)
+    expect(warn.text()).toBe('超过 500 上限，请改用整库重建')
+    expect(w.find('.k-files-actionbar .k-btn.primary').attributes('disabled')).toBeDefined()
+  })
+
+  it('超限时 rebuildSelected 直接 return(蓝本 :773 的双保险):即便绕过 disabled 也一个请求都不发', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    setSel(w, capIds(501))
+    await flush()
+    ai.parserReindexFiles.mockClear()
+    // 绕过 disabled 直接调内部函数 —— 正是这条守卫存在的意义(键盘/程序化调用)。
+    await (w.vm as unknown as { rebuildSelected: () => Promise<void> }).rebuildSelected()
+    await flush()
+    expect(ai.parserReindexFiles).not.toHaveBeenCalled()
+  })
+
+  it('选中 0 个时 rebuildSelected 同样直接 return(蓝本 :773 前半个条件)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    ai.parserReindexFiles.mockClear()
+    await (w.vm as unknown as { rebuildSelected: () => Promise<void> }).rebuildSelected()
+    await flush()
+    expect(ai.parserReindexFiles).not.toHaveBeenCalled()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 🔴 双上限的阈值两侧 —— FILTER_REBUILD_CAP = 10000(前端只警告,真拦在后端)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — FILTER_REBUILD_CAP 阈值两侧(10000 / 10001)', () => {
+  it('total=10000(= 上限,后端判据是 n > 10000)→ 弹窗里**不出**超限横幅', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 10000)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+    expect(host.querySelector('.k-modal .k-banner')).toBeNull()
+  })
+
+  it('total=10001(> 上限)→ 弹窗里出超限横幅,文案带两个千分位数字(两侧对照)', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 10001)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const banner = host.querySelector('.k-modal .k-banner')
+    expect(banner).not.toBeNull()
+    expect(banner!.getAttribute('data-tone')).toBe('warn')
+    expect(banner!.textContent!.replace(/\s+/g, ' ').trim()).toBe(
+      '共 10,001 个文件，超过单次 10,000 上限，服务器可能会拒绝（400）。请缩小路径前缀后分批重建。',
+    )
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 🔴 indeterminate 四种组合(T9 已落地那两个 watch,本刀补测试覆盖)
+// jsdom 下 `indeterminate` 可读写但无视觉表现 → 断言读 DOM 属性本身。
+// 每条都设计成「先经历相反状态、再回落」,不靠挂载后的 DOM 默认值蒙对
+// (RED 探针⑤:把两个 watch 里的赋值删掉,下面 2/4 与 4/4 会报红)。
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 全选复选框的 indeterminate(四种组合)', () => {
+  const indet = (w: ReturnType<typeof mount>) =>
+    (w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).indeterminate
+
+  it('1/4 全不选:先勾一行让它变 true,再取消 → 回 false(不是靠挂载默认值蒙对)', async () => {
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR])
+    const rowCheck = () => w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')[0]
+    await rowCheck().setValue(true)
+    await flush()
+    expect(indet(w)).toBe(true) // 中间态,证明下一步的 false 不是恒 false
+    await rowCheck().setValue(false)
+    await flush()
+    expect(indet(w)).toBe(false)
+    expect((w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('2/4 部分选(2 行里选 1 行)→ indeterminate=true,且全选框自身 checked=false', async () => {
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR])
+    await w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')[0].setValue(true)
+    await flush()
+    expect(indet(w)).toBe(true)
+    expect((w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('3/4 全选(2 行全选中)→ indeterminate=false(先经过部分选的 true 再补齐第二行)', async () => {
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR])
+    const rows = () => w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')
+    await rows()[0].setValue(true)
+    await flush()
+    expect(indet(w)).toBe(true) // 中间态
+    await rows()[1].setValue(true)
+    await flush()
+    expect(indet(w)).toBe(false)
+    expect((w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('4/4 可选行为 0:先在有可选行时变 true,再让当前页只剩 tombstoned 行 → indeterminate 回 false 且全选框禁用', async () => {
+    // 需要**两个**可选行才能造出「部分选」中间态(只有一个可选行时,选它就等于
+    // 全选,allSelected 立刻为真、indeterminate 恒 false)。
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR, FILE_TOMBSTONED])
+    await w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')[0].setValue(true)
+    await flush()
+    expect(indet(w)).toBe(true) // 中间态(2 个可选行里选中 1 个)
+    // 模拟切到「只看已删除」后重载:当前页零可选行,但 selSet 里还留着上一页的 id。
+    useKnowledgeStore().indexedFiles.files = [FILE_TOMBSTONED] as never
+    await flush()
+    expect(w.find('.k-frow-fhead .k-row-check').attributes('disabled')).toBeDefined()
+    expect(indet(w)).toBe(false)
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// rebuildRow(T9 留的空占位,本刀补全)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — rebuildRow(蓝本 :760-770)', () => {
+  it('点行内「恢复」按钮:派 file_ids + reason、toast「已入队 1 个任务」、起轮询', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const store = useKnowledgeStore()
+    const toast = vi.spyOn(store, 'toast')
+    const poll = vi.spyOn(store, 'startIndexedPolling')
+    await w.find('.k-rebuild-btn').trigger('click')
+    await flush()
+    expect(ai.parserReindexFiles).toHaveBeenCalledWith({
+      file_ids: [FILE_OK.file_id],
+      reason: 'rebuild row',
+    })
+    expect(toast).toHaveBeenCalledWith('已入队 1 个任务')
+    expect(poll).toHaveBeenCalled()
+  })
+
+  it('toast 的 {n} 取响应体的 queued(不是写死 1):queued=7 → 「已入队 7 个任务」', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const store = useKnowledgeStore()
+    const toast = vi.spyOn(store, 'toast')
+    ai.parserReindexFiles.mockResolvedValueOnce({ ...REINDEX_OK, queued: 7 })
+    await w.find('.k-rebuild-btn').trigger('click')
+    await flush()
+    expect(toast).toHaveBeenCalledWith('已入队 7 个任务')
+  })
+
+  it('K5:失败只弹固定「重建失败」,不回显 e.message / 后端 detail(反向断言)', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const store = useKnowledgeStore()
+    const toast = vi.spyOn(store, 'toast')
+    ai.parserReindexFiles.mockRejectedValueOnce(
+      Object.assign(new Error('ECONNREFUSED secret-stack-trace'), CAP_400_FILE_IDS),
+    )
+    await w.find('.k-rebuild-btn').trigger('click')
+    await flush()
+    expect(toast).toHaveBeenCalledWith('重建失败')
+    const said = toast.mock.calls.map((c) => String(c[0])).join(' | ')
+    expect(said).not.toContain('ECONNREFUSED')
+    expect(said).not.toContain('too many file_ids')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 🔴 _flashDone 的 2200 ms —— fake timers 断言「加」与「撤」两侧
+// (RED 探针②:删掉 setTimeout → 「撤」那侧报红)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — _flashDone 2200 ms 绿闪(蓝本 :811-823)', () => {
+  it('重建成功后该行 data-done 立刻 true;2199 ms 仍 true;满 2200 ms 后撤成 false', async () => {
+    vi.useFakeTimers()
+    try {
+      setActivePinia(createPinia())
+      vi.clearAllMocks()
+      // 用非 Once 的 mock:store 的 reindexIndexedByIds 内部会再 loadIndexedFiles
+      // 一次,列表必须稳定返回同一行,否则 data-done 的宿主行会被换掉。
+      ai.parserFiles.mockResolvedValue({ total: 1, limit: 100, offset: 0, files: [FILE_OK] })
+      ai.parserReindexFiles.mockResolvedValue(REINDEX_OK)
+      const w = mount(IndexedFilesView, { global: { plugins: [i18n] } })
+      mountedWrappers.push(w)
+      await flushPromises()
+      await nextTick()
+
+      const row = () => w.find('.k-frow-f:not(.k-frow-fhead)')
+      expect(row().attributes('data-done')).toBe('false')
+
+      await w.find('.k-rebuild-btn').trigger('click')
+      await flushPromises()
+      await nextTick()
+      expect(row().attributes('data-done')).toBe('true') // 「加」侧
+
+      vi.advanceTimersByTime(2199)
+      await flushPromises()
+      await nextTick()
+      expect(row().attributes('data-done')).toBe('true') // 还没到点,精确钉住 2200
+
+      vi.advanceTimersByTime(1)
+      await flushPromises()
+      await nextTick()
+      expect(row().attributes('data-done')).toBe('false') // 「撤」侧
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rebuildSelected 不绿闪(蓝本 :772-784 没有调 _flashDone,只有 rebuildRow 有)', async () => {
+    vi.useFakeTimers()
+    try {
+      setActivePinia(createPinia())
+      vi.clearAllMocks()
+      ai.parserFiles.mockResolvedValue({ total: 1, limit: 100, offset: 0, files: [FILE_OK] })
+      ai.parserReindexFiles.mockResolvedValue(REINDEX_OK)
+      const w = mount(IndexedFilesView, { global: { plugins: [i18n] } })
+      mountedWrappers.push(w)
+      await flushPromises()
+      await nextTick()
+      await w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check').setValue(true)
+      await nextTick()
+      await w.find('.k-files-actionbar .k-btn.primary').trigger('click')
+      await flushPromises()
+      await nextTick()
+      expect(w.find('.k-frow-f:not(.k-frow-fhead)').attributes('data-done')).toBe('false')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// rebuildSelected(蓝本 :772-784)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — rebuildSelected(蓝本 :772-784)', () => {
+  it('选中两行后点「重建选中」:派全部选中 id + reason、toast、起轮询、清空选择', async () => {
+    const w = await mountWithFiles([FILE_OK, FILE_ERROR])
+    const store = useKnowledgeStore()
+    const toast = vi.spyOn(store, 'toast')
+    const poll = vi.spyOn(store, 'startIndexedPolling')
+    await w.find('.k-frow-fhead .k-row-check').setValue(true)
+    await flush()
+    expect(w.find('.k-ab-info').text()).toBe('已选 2 项')
+    await w.find('.k-files-actionbar .k-btn.primary').trigger('click')
+    await flush()
+    expect(ai.parserReindexFiles).toHaveBeenCalledWith({
+      file_ids: [FILE_OK.file_id, FILE_ERROR.file_id],
+      reason: 'rebuild selected',
+    })
+    expect(toast).toHaveBeenCalledWith('已入队 1 个任务')
+    expect(poll).toHaveBeenCalled()
+    // 蓝本 :778 —— 成功后清空选择,动作条回到未选中态(两侧对照)
+    expect(w.find('.k-ab-info').text()).toBe('勾选文件后可批量强制重建')
+    expect(w.find('.k-files-actionbar').attributes('data-active')).toBe('false')
+  })
+
+  it('失败时**不清空**选择(蓝本 :778 在 try 里、catch 里没有),并走 K5 固定文案', async () => {
+    const w = await mountWithFiles([FILE_OK])
+    const store = useKnowledgeStore()
+    const toast = vi.spyOn(store, 'toast')
+    await w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check').setValue(true)
+    await flush()
+    ai.parserReindexFiles.mockRejectedValueOnce(
+      Object.assign(new Error('boom-secret'), CAP_400_FILE_IDS),
+    )
+    await w.find('.k-files-actionbar .k-btn.primary').trigger('click')
+    await flush()
+    expect(toast).toHaveBeenCalledWith('重建失败')
+    expect(w.find('.k-ab-info').text()).toBe('已选 1 项')
+    const said = toast.mock.calls.map((c) => String(c[0])).join(' | ')
+    expect(said).not.toContain('boom-secret')
+    expect(said).not.toContain('too many file_ids')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// K7:整库重建确认弹窗(reka Dialog 原语,portal 到 .knowledge-app)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', () => {
+  it('点「重建该 Root 全部」打开弹窗(portal 到 .knowledge-app,不在组件子树里),标题/两段正文/两个按钮文案正确', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    expect(host.querySelector('.k-modal')).toBeNull()
+    // 反向确认:弹窗不是渲染在组件自身子树里(K7 要求 portal 到知识库容器)
+    expect(w.find('.k-modal').exists()).toBe(false)
+
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const modal = host.querySelector('.k-modal')
+    expect(modal).not.toBeNull()
+    expect(host.querySelector('.k-modal-bg')).not.toBeNull()
+    expect(modal!.querySelector('.k-confirm-title')!.textContent).toBe('重建整个匹配集合？')
+    const summary = modal!.querySelector('.k-confirm-summary')!.textContent!.replace(/\s+/g, ' ').trim()
+    expect(summary).toBe(
+      '将强制全部重新索引当前筛选匹配的 8 个文件，可能耗时数分钟。 后端会先墓碑再重新入队，旧的搜索内容会被新内容覆盖。',
+    )
+    const btns = Array.from(modal!.querySelectorAll('.k-modal-foot button')).map((b) =>
+      b.textContent!.trim(),
+    )
+    expect(btns).toEqual(['取消', '确认重建 8 个'])
+    // reka a11y:DialogContent 就是 role=dialog,且 VisuallyHidden 包的 DialogTitle
+    // 通过 aria-labelledby 挂上去(缺了它 reka 会在控制台告警)。
+    expect(modal!.getAttribute('role')).toBe('dialog')
+    const labelId = modal!.getAttribute('aria-labelledby')
+    expect(labelId).toBeTruthy()
+    expect(host.querySelector(`#${labelId}`)!.textContent).toBe('重建整个匹配集合？')
+  })
+
+  it('total===0 时按钮禁用,openRebuildAllConfirm 即便被直接调用也不开弹窗(蓝本 :787 的守卫)', async () => {
+    const host = withHost()
+    ai.parserFiles.mockReset()
+    ai.parserFiles.mockResolvedValue(EMPTY_RESULT)
+    const w = await mountAttachedWithFiles([], 0)
+    expect(w.find('.k-files-actionbar .k-btn.outline').attributes('disabled')).toBeDefined()
+    ;(w.vm as unknown as { openRebuildAllConfirm: () => void }).openRebuildAllConfirm()
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
+  })
+
+  it('点「取消」关闭弹窗且不发请求', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    ai.parserReindexFiles.mockClear()
+    const cancel = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
+      (b) => b.textContent!.trim() === '取消',
+    ) as HTMLElement
+    cancel.click()
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
+    expect(ai.parserReindexFiles).not.toHaveBeenCalled()
+  })
+
+  it('点「确认重建」发 filter 请求、toast、起轮询,并关闭弹窗', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    const store = useKnowledgeStore()
+    const toast = vi.spyOn(store, 'toast')
+    const poll = vi.spyOn(store, 'startIndexedPolling')
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const confirm = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('确认重建'),
+    ) as HTMLElement
+    confirm.click()
+    await flush()
+    expect(ai.parserReindexFiles).toHaveBeenCalledWith({
+      filter: { tombstoned: 'alive' },
+      reason: 'rebuild all matching',
+    })
+    expect(toast).toHaveBeenCalledWith('已入队 1 个任务')
+    expect(poll).toHaveBeenCalled()
+    expect(host.querySelector('.k-modal')).toBeNull()
+  })
+
+  it('点遮罩(弹窗外部)关闭;点弹窗内部不关闭(reka pointerDownOutside 等价蓝本 :356 @click / :357 @click.stop)', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+
+    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 的 pointerdown
+    // 监听(见 T5 QueueView.test.ts 同款注释),补一次真宏任务 tick。
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const titleEl = host.querySelector('.k-confirm-title') as HTMLElement
+    titleEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flush()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+
+    const overlayEl = host.querySelector('.k-modal-bg') as HTMLElement
+    overlayEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 🔴 doRebuildAll 的 filterObj 组装:四个条件各一条 + 全空一条
+// (RED 探针③:删掉 `tombstoned !== 'all'` 判据 → 「全空」那条报红)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — doRebuildAll 的 filterObj 组装(蓝本 :793-799)', () => {
+  /**
+   * 打开弹窗 → 点确认 → 返回实际发出去的 filter 对象。
+   * 🔴 一个用例里可能连调两次(两侧对照),所以进来先把上一轮的 wrapper 与 portal
+   * 宿主清干净 —— `DialogPortal to=".knowledge-app"` 用的是 `document.querySelector`,
+   * 只认**第一个**同名宿主;不清理的话第二轮的弹窗会落进第一轮遗留的宿主里,
+   * 本轮 `host.querySelectorAll` 一个按钮都找不到(实测踩过)。
+   */
+  async function rebuildAllWith(
+    patch: Partial<Record<'path_prefix' | 'mime_prefix' | 'has_error' | 'tombstoned', unknown>>,
+  ): Promise<Record<string, unknown>> {
+    while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
+    document.querySelectorAll('.knowledge-app').forEach((el) => el.remove())
+    setActivePinia(createPinia())
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    Object.assign(useKnowledgeStore().indexedFiles.filters, patch)
+    await flush()
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const confirm = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('确认重建'),
+    ) as HTMLElement
+    confirm.click()
+    await flush()
+    // 本仓 tsconfig 的 lib 低于 es2022,`Array.prototype.at` 无类型声明(TS2550),
+    // 改用等价的下标写法。
+    const calls = ai.parserReindexFiles.mock.calls
+    const call = calls[calls.length - 1][0] as { filter: Record<string, unknown> }
+    return call.filter
+  }
+
+  it('1/5 全空:tombstoned="all" 且其余三项默认 → filter 是 {}(证明 `tombstoned !== "all"` 判据真的在起作用)', async () => {
+    expect(await rebuildAllWith({ tombstoned: 'all' })).toEqual({})
+  })
+
+  it('2/5 path_prefix 非空 → 带 path_prefix', async () => {
+    expect(await rebuildAllWith({ tombstoned: 'all', path_prefix: '/DATA/Wiki/' })).toEqual({
+      path_prefix: '/DATA/Wiki/',
+    })
+  })
+
+  it('3/5 mime_prefix 非空 → 带 mime_prefix', async () => {
+    expect(
+      await rebuildAllWith({ tombstoned: 'all', mime_prefix: 'application/legacy-office/' }),
+    ).toEqual({ mime_prefix: 'application/legacy-office/' })
+  })
+
+  it('4/5 has_error=true → 带 has_error;false 时不带(两侧对照)', async () => {
+    expect(await rebuildAllWith({ tombstoned: 'all', has_error: true })).toEqual({
+      has_error: true,
+    })
+    expect(await rebuildAllWith({ tombstoned: 'all', has_error: false })).toEqual({})
+  })
+
+  it('5/5 tombstoned 非 "all" → 带 tombstoned(默认 "alive" 与显式 "tombstoned" 各一次)', async () => {
+    expect(await rebuildAllWith({})).toEqual({ tombstoned: 'alive' })
+    expect(await rebuildAllWith({ tombstoned: 'tombstoned' })).toEqual({
+      tombstoned: 'tombstoned',
+    })
+  })
+
+  it('四项同时非默认 → 四个字段一起带上', async () => {
+    expect(
+      await rebuildAllWith({
+        path_prefix: '/DATA/',
+        mime_prefix: 'text/',
+        has_error: true,
+        tombstoned: 'tombstoned',
+      }),
+    ).toEqual({
+      path_prefix: '/DATA/',
+      mime_prefix: 'text/',
+      has_error: true,
+      tombstoned: 'tombstoned',
+    })
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 🔴 K14 —— 走真实入口(doRebuildAll)的 400 分支反向断言
+// T8 那条是用 wrapper.vm 直接塞 errorBanner 驱动的(当时没有真实入口),
+// **本刀不削弱它**,而是补上真实入口这一半:后端 400 带 detail → DOM 不含 detail。
+// (RED 探针④:把渲染改回回显 detail → 下面两条一起报红)
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — K14 真实入口:doRebuildAll 400 不回显后端 detail', () => {
+  it('filter 超限 400 → 警示条只有「400 Bad Request」+ aiKbRebuildCapHint,后端 detail 一个字都没有', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    ai.parserReindexFiles.mockRejectedValueOnce(CAP_400_FILTER)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const confirm = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('确认重建'),
+    ) as HTMLElement
+    confirm.click()
+    await flush()
+
+    const banner = w.find('.k-banner')
+    expect(banner.exists()).toBe(true)
+    expect(banner.attributes('data-tone')).toBe('warn')
+    expect(banner.text()).toContain('400 Bad Request')
+    expect(banner.text()).toContain('重建匹配文件超过 10,000 上限')
+    // 反向断言:后端 detail 原文一个字都不能出现
+    expect(banner.text()).not.toContain('filter matches')
+    expect(banner.text()).not.toContain('12345')
+    expect(banner.text()).not.toContain('max_reindex_by_filter')
+    // 弹窗必须已关(蓝本 :792 第一行就关,失败也不重开)
+    expect(host.querySelector('.k-modal')).toBeNull()
+  })
+
+  it('普通网络错误(无 response.data.detail)同样只渲染固定文案,不回显 e.message', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    ai.parserReindexFiles.mockRejectedValueOnce(new Error('ECONNREFUSED leak-me-please'))
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const confirm = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('确认重建'),
+    ) as HTMLElement
+    confirm.click()
+    await flush()
+    const banner = w.find('.k-banner')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('400 Bad Request')
+    expect(banner.text()).not.toContain('ECONNREFUSED')
+    expect(banner.text()).not.toContain('leak-me-please')
+  })
+
+  it('成功路径不留警示条(两侧对照:证明上面那条不是「横幅恒显示」)', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    const confirm = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('确认重建'),
+    ) as HTMLElement
+    confirm.click()
+    await flush()
+    expect(w.find('.k-banner').exists()).toBe(false)
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────
+// 整页 DOM 完整性 —— 收官刀的自证:蓝本 826 行的三个 T10 区块都在,
+// 且文件里没有留下任何占位/空函数体/TODO。
+// ──────────────────────────────────────────────────────────────────────
+describe('IndexedFilesView — 收官刀:整页落地完整性', () => {
+  it('三个 T10 区块的宿主元素同时存在(动作条 + 弹窗 + 行内重建按钮)', async () => {
+    const host = withHost()
+    const w = await mountAttachedWithFiles([FILE_OK], 8)
+    expect(w.find('.k-files-actionbar .k-ab-inner').exists()).toBe(true)
+    expect(w.find('.k-files-actionbar .k-ab-info').exists()).toBe(true)
+    expect(w.find('.k-files-actionbar .k-ab-actions').exists()).toBe(true)
+    expect(w.find('.k-rebuild-btn').exists()).toBe(true)
+    await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
+    await flush()
+    expect(host.querySelector('.k-modal .k-confirm-body .k-confirm-icon')).not.toBeNull()
+    expect(host.querySelector('.k-modal .k-modal-foot .right')).not.toBeNull()
+  })
+
+  it('源文件里没有 TODO / 待补 / 空函数体占位(剥掉注释后扫描)', () => {
+    const src: string = readFileSync(resolve(__dirname, './IndexedFilesView.vue'), 'utf8')
+    // 先剥 HTML 注释与 JS 行/块注释(治理 §9:「在文件里找文本」必须先排除注释,
+    // 否则头注释里那些解释性的「T10 补全 / 占位」字样会把断言撞对/撞错)。
+    const noComments = src
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
+    expect(noComments).not.toMatch(/\bTODO\b/i)
+    expect(noComments).not.toMatch(/\bFIXME\b/i)
+    // 空函数体(`{ }` 或 `{\n}`)—— T9 留的 rebuildRow 占位就是这个形状。
+    expect(noComments).not.toMatch(/function\s+\w+\s*\([^)]*\)\s*(:\s*[\w<>|\s]+)?\s*\{\s*\}/)
+  })
+})

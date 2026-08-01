@@ -43,7 +43,7 @@
 
   【K14】rebuild-all 400 分支(`errorBanner` truthy)不回显后端 `detail` ——
   警示条只留 `400 Bad Request` + 蓝本自带那行 i18n 解释(`aiKbRebuildCapHint`)。
-  🔴 设置 `errorBanner` 为非空值的 `doRebuildAll()`(蓝本 :791-808,对应确认弹窗
+  🔴 设置 `errorBanner` 为非空值的 `doRebuildAll()`(蓝本 :791-809,对应确认弹窗
   `:356-381`)是 T9/T10 的范围,本刀不声明该函数 —— 但 `errorBanner` 这个
   local ref 本身、以及它的展示分支(:93-103)在本刀范围内,故本刀先把展示
   逻辑做对:即便将来 T9/T10 把后端 `detail` 塞进 `errorBanner.value`,这个分支
@@ -140,10 +140,92 @@
   整库重建确认弹窗、`_flashDone`(见上)、30 秒轮询在重建动作里的
   `startIndexedPolling()` 调用、路由反转。
   ══════════════════════════════════════════════════════════════════════
+  SP8-P5b Task 10 —— 第 3 刀(收官):重建三入口 + 双上限 + K7 确认弹窗 +
+  底部粘性动作条 + 轮询收口 + 路由反转。**至此蓝本 826 行全部落地,本文件
+  再无占位、无空函数体、无 TODO。**
+
+  结构对照(蓝本行区间 → 本文件):
+    :322-353 底部粘性动作条(`.k-files-actionbar` + `data-active`)
+    :355-381 整库重建确认弹窗(K7 改 reka 原语,见下)
+    :392     `EXPLICIT_REBUILD_CAP = 500`(前端硬拦)
+    :464     `showRebuildAllConfirm` 本地开关
+    :484-485 `selectedCount` / `overExplicitCap`
+    :760-770 `rebuildRow`(T9 留的空占位,本刀补全)
+    :772-784 `rebuildSelected`
+    :786-789 `openRebuildAllConfirm`
+    :791-809 `doRebuildAll`(注意:函数自身的 `},` 在 :809,:808 只是内层
+             catch 的闭合 —— T8 报告写的 :791-808 差 1 行,已一并订正上面
+             【K14】那段的行号引用)
+    :811-823 `_flashDone`(2200 ms 绿闪)
+
+  【双上限,蓝本 :392-393 / 治理 §4.4】两个常量语义不同,不许混用:
+    - `EXPLICIT_REBUILD_CAP = 500` —— 后端 `MAX_REINDEX_FILE_IDS`
+      (`service_reindex.py:26`,判据 `len < 1 || len > 500`)。
+      **前端硬拦**:`overExplicitCap` = `selectedCount > 500` →「重建选中」
+      按钮禁用 + 动作条出警告;`rebuildSelected` 里再判一次直接 return
+      (双保险,蓝本 :773 就有这一行,不是多余)。
+      🔴 判据是严格大于:500 个可以发,501 个才拦。
+    - `FILTER_REBUILD_CAP = 10000` —— 后端 `MAX_REINDEX_BY_FILTER`
+      (`service_files.py:205`,判据 `n > 10000`)。
+      **前端只警告不拦**:弹窗里内嵌超限横幅(`total > 10000` 时),
+      按钮照样能点,真拦在后端 → 400 走 K14 的警示条。
+      🔴 同样是严格大于:10000 不出横幅,10001 才出。
+
+  【K7,🔴 SP8 已在这上面爆过三次】整库重建确认弹窗改用 reka 原语
+  `DialogRoot > DialogPortal to=".knowledge-app" defer > DialogOverlay
+  .k-modal-bg > DialogContent .k-modal`,不许裸 `<div class="k-modal-bg">`
+  手搓、不许 `Teleport to="body"`。结构逐字照 T5 在 `QueueView.vue:559-583`
+  落的样板(含 reka a11y 必需的 `VisuallyHidden > DialogTitle` 与
+  `:aria-describedby="undefined"`)。蓝本 :356 的「点遮罩关闭」/ :357 的
+  `@click.stop`「点弹窗内不关闭」由 DialogContent 的 pointerDownOutside 提供
+  等价行为(T5 已为这条机制单独写过用例,本刀同款覆盖)。
+  视觉 DOM 仍是蓝本的 `.k-confirm-body` / `.k-confirm-summary` /
+  `.k-modal-foot > .right` 结构;K17 的 `.k-modal-head` 等 4 类本期不搬,
+  蓝本这个弹窗本来也没用到它们。
+
+  【K14,真实入口到齐】本刀补上 `doRebuildAll`,`errorBanner` 第一次有了真实
+  写入口。**按 T8 的既定设计,catch 里照蓝本 :805-807 把后端 detail 取出来存
+  进 `errorBanner`(值不变),K14 的保证点在渲染层**——:625-640 那个分支只渲染
+  固定的 `400 Bad Request` + `aiKbRebuildCapHint`,后端 detail 一个字都不出现。
+  这样那条反向断言才是真的端到端(400 带 detail → DOM 不含 detail),而不是
+  只测一个手工塞进 ref 的字符串。
+
+  【K5】`rebuildRow` / `rebuildSelected` 的 catch 不回显 `e.message`
+  (蓝本 :768 / :782 是 `$t('Rebuild failed') + ': ' + e.message`),改固定
+  `aiKbRebuildFailed`,无第二句可拼故不留 `': '` 前缀 —— 与 T5 在
+  `QueueView.vue` 里 bulkCancel/cancelOne 等 catch 分支同一模具。
+
+  【属性态,附录 D §D.3 + 治理 §12 E-9】`.k-files-actionbar` 的
+  `:data-active="selectedCount > 0"` **不套 `String()`**——蓝本 :323 原文就
+  没套(附录 D §D.3 那一行明确标 ❌ 不套;E-9 已读 Vue 3 `patchAttr` 源码实证
+  `data-*` 非特殊布尔属性、`false` 照样渲染成 `"false"`,套不套渲染完全一致,
+  故按 E-9 的裁定「逐处照抄蓝本」)。
+  🔴 本刀 brief §4 那句「套 String(),照抄蓝本」自相矛盾(蓝本没套),已按
+  权威源(附录 D + 治理 §12 E-9 + 蓝本原文)照抄不套,报告里已申报。
+
+  【_flashDone 的 setTimeout 不做卸载清理】蓝本 :817-822 没有清理,照抄。
+  2200 ms 后回调只是把一个 `ref` 换成新的 `Set`,组件已卸载时这个写入不触发
+  任何渲染、不持有 DOM 引用,不是「可复现的错误行为」,故不属于该修的逻辑
+  (治理 §2 判据)。测试里用 fake timers 在受控范围内推进。
+
+  【轮询收口】三个重建入口成功后各调一次 `store.startIndexedPolling()`
+  (蓝本 :764 / :780 / :803)。`onMounted → refresh()`(内含
+  `startIndexedPolling`)与 `onUnmounted → stopIndexedPolling()` **T8 已经
+  落地且完整**(见上方【生命周期】段),本刀零改动。
+  ══════════════════════════════════════════════════════════════════════
 -->
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+// T10:K7 —— 确认弹窗用 reka 原语,结构照 T5 的 QueueView.vue 样板。
+import {
+  DialogRoot,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent,
+  DialogTitle,
+  VisuallyHidden,
+} from 'reka-ui'
 import KIcon from '../components/KIcon.vue'
 import { useKnowledgeStore, type IndexedFile } from '../stores/knowledgeStore'
 import { anyIndexing } from '../util/indexedFiles'
@@ -152,9 +234,17 @@ import { fmtBytes, fmtRel, fmtAbs, simplifyMime, topSegment } from '../util/inde
 const { t } = useI18n()
 const store = useKnowledgeStore()
 
-/** 蓝本 :393 —— 本刀错误横幅用得到的那个上限。`EXPLICIT_REBUILD_CAP`(蓝本
- * :392,批量重建按钮专用)本刀不声明,T9/T10 的动作条才用到。 */
+/** 蓝本 :393 —— filter 模式的上限,**前端只警告不拦**(真拦在后端,超限返 400
+ * 走 K14 的警示条)。两处用到:弹窗内嵌超限横幅的判据、K14 警示条的文案参数。
+ * 后端常量 `MAX_REINDEX_BY_FILTER = 10000`(`service_files.py:205`,判据
+ * `n > 10000` —— 严格大于,10000 不触发)。 */
 const FILTER_REBUILD_CAP = 10000
+
+/** T10:蓝本 :392 —— 显式 file_ids 模式的上限,**前端硬拦**(按钮禁用 + 动作条
+ * 警告 + `rebuildSelected` 里再 return 一次)。后端常量
+ * `MAX_REINDEX_FILE_IDS = 500`(`service_reindex.py:26`,判据
+ * `len(file_ids) < 1 || len(file_ids) > 500` —— 严格大于,500 个可以发)。 */
+const EXPLICIT_REBUILD_CAP = 500
 
 /** K13 —— 本刀只用到 selSet(`_applyFilter` 清空)。 */
 const selSet = ref<Set<string>>(new Set())
@@ -166,9 +256,13 @@ const errorBanner = ref<string | null>(null)
 /** T9:K13,展开行——见文件头注释【K13,expSet】。 */
 const expSet = ref<Set<string>>(new Set())
 
-/** T9:蓝本 doneSet(:457)—— 本刀只读不写,见文件头注释【doneSet 本刀只读
- * 不写】。 */
+/** T9 声明、T10 写入:蓝本 doneSet(:457)—— 重建成功后的 2200 ms 绿闪集合,
+ * 写入口是本刀补上的 `_flashDone`(蓝本 :811-823)。 */
 const doneSet = ref<Set<string>>(new Set())
+
+/** T10:蓝本 data() 的 `showRebuildAllConfirm`(:464)—— 整库重建确认弹窗开关,
+ * 页面级瞬态,组件本地 ref(治理 §5)。 */
+const showRebuildAllConfirm = ref(false)
 
 /** T9:蓝本 `ref="selectAllRef"`(:155)—— 命令式设置 checkbox 的
  * indeterminate(HTML 没有声明式 indeterminate attribute)。 */
@@ -302,6 +396,12 @@ const allSelected = computed<boolean>(() => {
 const someSelected = computed<boolean>(() =>
   selectablePageIds.value.some((id) => selSet.value.has(id)),
 )
+
+/** T10:蓝本 selectedCount(:484)/ overExplicitCap(:485)—— 判据是**严格大于**
+ * `EXPLICIT_REBUILD_CAP`:选 500 个不算超限(后端 `len > 500` 才 400),
+ * 501 个才超。 */
+const selectedCount = computed<number>(() => selSet.value.size)
+const overExplicitCap = computed<boolean>(() => selectedCount.value > EXPLICIT_REBUILD_CAP)
 
 // ── T9:分页(蓝本 :519-530)—— 四个计算,边界写法逐字照抄:pageCount 用
 // Math.max(1, …) 兜底至少 1 页;pageTo 用 Math.min 钳到 total,不会超出。 ──
@@ -463,13 +563,112 @@ function toggleExpand(fileId: string): void {
   expSet.value = s
 }
 
-// ── T9:单行重建按钮——文档化占位,见文件头注释【rebuildRow 本刀是文档化
-// 占位】。按钮 DOM(禁用条件/三种 title/图标切换)本刀完整落地,@click 的
-// 函数体留给 T10(需要 store 派发 + toast + `_flashDone` 写 doneSet)。 ──
+// ── T10:重建三入口(蓝本 :760-809)+ 绿闪(:811-823)。T9 留的 `rebuildRow`
+// 空占位在此补全,按钮 DOM 与调用点一个字都没动。 ──
 
-function rebuildRow(_fileId: string): void {
-  // T10 补全:store.reindexIndexedByIds([_fileId], 'rebuild row') + toast +
-  // startIndexedPolling + _flashDone([_fileId])(蓝本 :760-770)。
+/** 后端 `POST /v1/parser/files/reindex` 的成功响应体形状(fixture
+ * `p5b-fixtures/reindex-one.http` 实测:
+ * `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`)。
+ * store 的 `reindexIndexedByIds`/`reindexIndexedByFilter` 返回 `unknown`
+ * (零改动文件),这里做一次收窄:蓝本三处只读 `res.queued`。 */
+type ReindexResult = { queued?: number }
+
+/**
+ * 蓝本 rebuildRow(:760-770)—— 单行强制重建:
+ *   ① `reindexIndexedByIds([fileId], 'rebuild row')`(store 内部会跟着重载列表)
+ *   ② toast「已入队 {n} 个任务」,n 取响应体的 `queued`
+ *   ③ `startIndexedPolling()` —— 刚入队的行会变 indexing,起 30 秒轮询盯着
+ *   ④ `_flashDone([fileId])` —— 2200 ms 绿闪
+ * catch 走 K5:固定 `aiKbRebuildFailed`,不回显 `e.message`(蓝本 :768 拼了
+ * `': ' + e.message`,见文件头注释【K5】)。
+ */
+async function rebuildRow(fileId: string): Promise<void> {
+  try {
+    const res = (await store.reindexIndexedByIds([fileId], 'rebuild row')) as ReindexResult
+    store.toast(t('aiKbQueuedNJobs', { n: res.queued }))
+    store.startIndexedPolling()
+    // brief green-flash
+    _flashDone([fileId])
+  } catch {
+    store.toast(t('aiKbRebuildFailed'))
+  }
+}
+
+/**
+ * 蓝本 rebuildSelected(:772-784)—— 批量重建当前选中行。
+ * 🔴 首行的 `if (selectedCount === 0 || overExplicitCap) return` 是蓝本 :773
+ * 原文,与按钮的 `:disabled` 条件重复但**不是冗余**:键盘/程序化调用绕过
+ * disabled 时它是唯一的拦。照抄。
+ * 成功后清空选择(蓝本 :778,不清会让动作条一直显示旧计数)。
+ */
+async function rebuildSelected(): Promise<void> {
+  if (selectedCount.value === 0 || overExplicitCap.value) return
+  const ids = Array.from(selSet.value)
+  try {
+    const res = (await store.reindexIndexedByIds(ids, 'rebuild selected')) as ReindexResult
+    store.toast(t('aiKbQueuedNJobs', { n: res.queued }))
+    selSet.value = new Set()
+    store.startIndexedPolling()
+  } catch {
+    store.toast(t('aiKbRebuildFailed'))
+  }
+}
+
+/** 蓝本 openRebuildAllConfirm(:786-789)—— `total === 0` 直接 return(按钮此时
+ * 也是 disabled,同 rebuildSelected 那条双保险)。 */
+function openRebuildAllConfirm(): void {
+  if (total.value === 0) return
+  showRebuildAllConfirm.value = true
+}
+
+/**
+ * 蓝本 doRebuildAll(:791-809)—— 按当前筛选整批重建。
+ * 🔴 `filterObj` 只带**真值/非默认**的字段,四条判据逐字照抄蓝本 :796-799:
+ *   `path_prefix` / `mime_prefix` / `has_error` 各自 truthy 才带;
+ *   `tombstoned` 要 **truthy 且 `!== 'all'`** 才带 —— `'all'` 意为「不限」,
+ *   带上去反而会把「不限」编码成一个具体的筛选值。
+ * catch:照蓝本 :805-807 取后端 detail 存进 `errorBanner`,渲染层按 K14 不回显
+ * (见文件头注释【K14,真实入口到齐】)。
+ */
+async function doRebuildAll(): Promise<void> {
+  showRebuildAllConfirm.value = false
+  // Build filter object from active, non-paging filters
+  const f = store.indexedFiles.filters
+  const filterObj: Record<string, unknown> = {}
+  if (f.path_prefix) filterObj.path_prefix = f.path_prefix
+  if (f.mime_prefix) filterObj.mime_prefix = f.mime_prefix
+  if (f.has_error) filterObj.has_error = f.has_error
+  if (f.tombstoned && f.tombstoned !== 'all') filterObj.tombstoned = f.tombstoned
+  try {
+    const res = (await store.reindexIndexedByFilter(
+      filterObj,
+      'rebuild all matching',
+    )) as ReindexResult
+    store.toast(t('aiKbQueuedNJobs', { n: res.queued }))
+    store.startIndexedPolling()
+  } catch (e) {
+    const detail =
+      (e as { response?: { data?: { detail?: string } } } | undefined)?.response?.data?.detail ||
+      (e as Error | undefined)?.message ||
+      String(e)
+    errorBanner.value = detail
+  }
+}
+
+/**
+ * 蓝本 _flashDone(:811-823)—— 重建入队后给该行 2200 ms 的绿闪(`data-done`
+ * 驱动 scss 的 `@keyframes row-done`)。K13:`doneSet` 整体替换,不用 doneTick。
+ * 蓝本没有卸载清理,照抄(见文件头注释【_flashDone 的 setTimeout 不做卸载清理】)。
+ */
+function _flashDone(ids: string[]): void {
+  const d = new Set(doneSet.value)
+  ids.forEach((id) => d.add(id))
+  doneSet.value = d
+  setTimeout(() => {
+    const d2 = new Set(doneSet.value)
+    ids.forEach((id) => d2.delete(id))
+    doneSet.value = d2
+  }, 2200)
 }
 
 // ── T9:分页(蓝本 :718-727,onPageSizeChange 见 :691-697)──
@@ -887,5 +1086,102 @@ function onPageSizeChange(e: Event): void {
         </template>
       </div>
     </div>
+
+    <!-- ---- sticky bottom action bar(蓝本 :322-353)---- -->
+    <!-- data-active 不套 String():蓝本 :323 原文没套,附录 D §D.3 标 ❌ 不套,
+    治理 §12 E-9 裁定「逐处照抄蓝本」(Vue 3 下 data-* 的 false 照样渲染成
+    "false",套不套渲染一致)。见文件头注释【属性态】。 -->
+    <div class="k-files-actionbar" :data-active="selectedCount > 0">
+      <div class="k-ab-inner">
+        <div class="k-ab-info">
+          <template v-if="selectedCount > 0">
+            {{ t('aiKbNSelected', { n: selectedCount }) }}
+            <span v-if="overExplicitCap" class="k-ab-warn">
+              <KIcon name="danger" :size="11" />
+              {{ t('aiKbOverExplicitCap', { cap: EXPLICIT_REBUILD_CAP }) }}
+            </span>
+          </template>
+          <span v-else style="color: var(--text-tertiary)">{{ t('aiKbSelectFilesHint') }}</span>
+        </div>
+        <div class="k-ab-actions">
+          <!-- Rebuild matching: replaces prototype's "rebuild entire root", uses current filters -->
+          <button
+            class="k-btn outline"
+            :disabled="total === 0"
+            :title="
+              total === 0
+                ? t('aiKbNoMatchTitle')
+                : t('aiKbRebuildAllTip', { n: total.toLocaleString() })
+            "
+            @click="openRebuildAllConfirm"
+          >
+            <KIcon name="drive" :size="13" /> {{ t('aiKbRebuildAllInRoot') }}
+          </button>
+          <button
+            class="k-btn primary"
+            :disabled="selectedCount === 0 || overExplicitCap"
+            @click="rebuildSelected"
+          >
+            <KIcon name="refresh" :size="13" /> {{ t('aiKbRebuildSelectedN', { n: selectedCount }) }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- rebuild-all-matching confirm modal(蓝本 :355-381)---- -->
+    <!-- K7:reka Dialog 原语,portal 到知识库容器;蓝本的「点遮罩关闭 /
+    点弹窗内不关闭」由 DialogContent 的 pointerDownOutside 等价提供。
+    结构逐字照 T5 的 QueueView.vue:559-583 样板。 -->
+    <DialogRoot :open="showRebuildAllConfirm" @update:open="showRebuildAllConfirm = $event">
+      <DialogPortal to=".knowledge-app" defer>
+        <DialogOverlay class="k-modal-bg">
+          <DialogContent
+            class="k-modal"
+            style="width: min(460px, 100%)"
+            :aria-describedby="undefined"
+          >
+            <VisuallyHidden as-child
+              ><DialogTitle>{{ t('aiKbRebuildAllTitle') }}</DialogTitle></VisuallyHidden
+            >
+            <div class="k-confirm-body">
+              <div class="k-confirm-icon"><KIcon name="refresh" :size="26" /></div>
+              <div class="k-confirm-title">{{ t('aiKbRebuildAllTitle') }}</div>
+              <div class="k-confirm-summary">
+                {{ t('aiKbRebuildAllBody1', { n: total.toLocaleString() }) }}<br />
+                {{ t('aiKbRebuildAllBody2') }}
+              </div>
+              <!-- 内嵌超限横幅:FILTER_REBUILD_CAP 前端只警告不拦,判据严格大于 -->
+              <div
+                v-if="total > FILTER_REBUILD_CAP"
+                class="k-banner"
+                data-tone="warn"
+                style="margin: 0"
+              >
+                <span class="k-banner-icon"><KIcon name="danger" :size="13" /></span>
+                <span>
+                  {{
+                    t('aiKbRebuildAllOverCap', {
+                      n: total.toLocaleString(),
+                      cap: FILTER_REBUILD_CAP.toLocaleString(),
+                    })
+                  }}
+                </span>
+              </div>
+            </div>
+            <div class="k-modal-foot">
+              <div class="right" style="margin-left: auto">
+                <button class="k-btn ghost" @click="showRebuildAllConfirm = false">
+                  {{ t('aiKbCancel') }}
+                </button>
+                <button class="k-btn danger" @click="doRebuildAll">
+                  <KIcon name="refresh" :size="12" />
+                  {{ t('aiKbConfirmRebuildN', { n: total.toLocaleString() }) }}
+                </button>
+              </div>
+            </div>
+          </DialogContent>
+        </DialogOverlay>
+      </DialogPortal>
+    </DialogRoot>
   </div>
 </template>

@@ -5,6 +5,8 @@
 //
 // 【SP8-P5b Task 5,2026-08-01】'queue' 已迁(QueueView.vue + knowledgeRoutes.ts
 // 反转),从这里摘掉,机制本身不变。
+// 【SP8-P5b Task 10,2026-08-02】'indexed-files' 已迁(IndexedFilesView.vue 三刀
+// 收官 + knowledgeRoutes.ts 反转),从这里摘掉,机制本身不变。
 export type KnowledgeTabId =
   | 'dashboard'
   | 'search'
@@ -20,7 +22,6 @@ export const DEFERRED_TABS = [
   'search',
   'wiki',
   'notes',
-  'indexed-files',
   'roots',
   'allowlist',
   'settings',
