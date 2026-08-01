@@ -65,6 +65,10 @@ function toggleMore(): void {
 </script>
 
 <template>
+  <!-- fix round 1 · M-4(评审并入):两处 data-density="comfortable" 是 1:1 照搬 Vue2
+       DOM(Vue2 :242/:260 的 .grid[data-density]),但本组件不接 density prop、样式块
+       里也没有任何 [data-density] 选择器消费它——属性本身是死属性,保留只为 DOM 结构
+       与 Vue2 一致,不是遗漏。 -->
   <div class="photos-wrap" ref="rootRef">
     <div class="grid" data-density="comfortable">
       <SearchResultTile v-for="r in best" :key="r.p.id" :result="r" @open="emit('open', $event)" />
@@ -94,9 +98,22 @@ function toggleMore(): void {
 </template>
 
 <style scoped>
-/* D7(控制器裁定):Vue2 靠全局 .scroll 类(photos.scss:98,只有一条 overflow-y:auto)
-   + 内联 style="flex:1;padding-top:0"。本仓 scoped SFC 没有全局 .scroll 类,自己写。 */
-.photos-wrap { flex: 1; overflow-y: auto; }
+/* D7(控制器裁定,fix round 1 · M-1 补全):Vue2 靠全局 .scroll 类(photos.scss:98,
+   overflow-y:auto)+ 内联 style="flex:1;padding-top:0"。**但 D7 原文不完整**——
+   `.photos-wrap` 自己还有一条规则(photos.scss:300)`.photos-root .photos-wrap {
+   overflow-y: auto; position: relative; }` + `:301` 的
+   `.photos-root .photos-wrap::-webkit-scrollbar { width: 0; }`,即该容器 Vue2 契约
+   实际是两条规则 4 个声明 + 内联 flex/padding-top,不是只有 overflow-y:auto 一条。
+   本仓 scoped SFC 没有全局 .scroll/.photos-root 类,这里补全自己写:
+   ① position:relative(当前无视觉差异——本组件的绝对定位元素都在各自 .tile 的
+   定位上下文里——但这是被静默丢弃的声明,补上而不是省略)。
+   ② 滚动条隐藏:改用本仓既定惯例 `display: none`(+ `scrollbar-width: none`),不是
+   Vue2 字面的 `width: 0`——先例 PhotosGrid.vue:420(.scrubber)、
+   PhotoFilmstrip.vue:148(.lb-strip),T8-M2 已确立"滚动条只隐藏不重画"的统一手法,
+   效果与 Vue2 的 width:0 同为隐藏,只是写法对齐本仓其他组件。相对 Vue2 的偏离,
+   已双处登记(此处 + 报告)。 */
+.photos-wrap { flex: 1; overflow-y: auto; position: relative; scrollbar-width: none; }
+.photos-wrap::-webkit-scrollbar { display: none; }
 
 /* D2(见上方 script 注释):照 PhotosGrid.vue 的默认(comfortable)自适应列宽,不是
    Vue2 photos.scss:318 的固定 7 列——这是相对 Vue2 的刻意偏离,已登记。 */

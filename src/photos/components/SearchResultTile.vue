@@ -81,12 +81,17 @@ const pct = computed(() => matchPct(props.result.score))
 /* Vue2 photos.scss:112-116(.tile 基本形态)+ :117-118(img 缩放悬停)。搜索结果只用
    comfortable 密度,不接 loose 变体的 border-radius:6px 覆盖(Vue2 :113 那条只在
    loose 密度下生效,本组件没有 loose 概念)。background 按本区既定映射
-   --surface-2 → --chip-bg(PlacesRail.vue 等既有先例)。 */
+   --surface-2 → --chip-bg(PlacesRail.vue 等既有先例)。
+   fix round 1 · M-5(评审必修,控制器拍板):border-radius 改用 PhotosGrid.vue:376
+   的 8px,不是 Vue2 photos.scss:112 的 3px——理由与 D2(.grid 列宽)同源:Vue2 全局
+   `.tile` 本来就是 3px,New-UI 已在 P3 把整个相册区改成 8px,搜索结果页照 Vue2 抄回
+   3px 会让同一台设备上搜索瓦片比图库瓦片棱角明显更利,New-UI 内部自相矛盾。这是
+   相对 Vue2 的刻意偏离,已双处登记(此处 + 报告)。 */
 .tile {
   position: relative;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: 8px;
   background: var(--chip-bg);
   cursor: pointer;
   isolation: isolate;
@@ -177,8 +182,12 @@ const pct = computed(() => matchPct(props.result.score))
 
 /* Vue2 photos.scss:357-360(.tile-fav)。D5 裁定:颜色改用 PhotosGrid.vue:395 已建立
    的 --star-fg token 回落写法,不照抄 Vue2 内联字面金色 + CSS 固定浅色文字两层叠加
-   (那是给菜单/工具栏图标组件专用的写法,本仓没有该图标组件;字面色值见本文件顶部
-   script 注释里的文字描述,这里不重复写十六进制,避免 color-guard 误判)。 */
+   (那是给菜单/工具栏图标组件专用的写法,本仓没有该图标组件;Vue2 原字面色值见文件头部
+   脚本区顶部注释——那段注释在脚本标签块内,不受 color-guard 扫描,这里不在样式块内
+   重复写十六进制,避免被误判成裸颜色字面量)。
+   fix round 1 · M-3(评审必修):上一版这里说脚本区注释里写的是"文字描述",与事实
+   不符——那两处其实就是字面十六进制本身,不是对颜色的文字转述,已改成准确表述(且
+   本次改法不在这条样式注释里复述那两个十六进制,避免重蹈同一个坑)。 */
 .tile-fav {
   position: absolute;
   bottom: 6px;

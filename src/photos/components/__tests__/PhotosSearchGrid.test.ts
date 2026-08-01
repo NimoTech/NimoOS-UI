@@ -123,6 +123,19 @@ describe('折叠长尾(more-results-bar)', () => {
     expect(grids).toHaveLength(2)
     expect(grids[1].findAll('.tile')).toHaveLength(2)
   })
+
+  // fix round 1 · I1(评审 Important 必修):折叠条的 chevD/chevR 只测过存在与否,
+  // 从未断言过 `d` 属性字符串本身——评审变异把 chevD 的 `d` 末位 `6-6`→`6-5` 后 50 例
+  // 全绿,证明这条护栏此前不存在。glyph `d` 逐字符抄自 Vue2 PhotosIcon.vue 对应分支
+  // (chevD: `m6 9 6 6 6-6`;chevR: `m9 6 6 6-6 6`),两态各断一次。
+  it('moreExpanded:false → chevR 的 path d 与 PhotosIcon.vue 逐字符一致', () => {
+    const w = mountGrid({ more: [scored('a')], moreExpanded: false })
+    expect(w.get('.more-results-bar svg path').attributes('d')).toBe('m9 6 6 6-6 6')
+  })
+  it('moreExpanded:true → chevD 的 path d 与 PhotosIcon.vue 逐字符一致', () => {
+    const w = mountGrid({ more: [scored('a')], moreExpanded: true })
+    expect(w.get('.more-results-bar svg path').attributes('d')).toBe('m6 9 6 6 6-6')
+  })
 })
 
 describe('sentinel(v-if 门控,拆卸即断开观察器的手段)', () => {
@@ -187,10 +200,19 @@ describe('样式', () => {
     expect(styleText.trim().length).toBeGreaterThan(0)
   })
 
-  it('.photos-wrap 规则体含 overflow-y: auto(先锚定规则体再断言属性)', () => {
+  it('.photos-wrap 规则体含 overflow-y: auto / position: relative(先锚定规则体再断言属性)', () => {
     const m = /\.photos-wrap\s*\{([^}]*)\}/.exec(styleText)
     expect(m, '未找到 .photos-wrap 规则体').toBeTruthy()
     expect(m![1]).toMatch(/overflow-y:\s*auto/)
+    // fix round 1 · M-1(评审并入):D7 原文漏了 photos.scss:300 的 position:relative,
+    // 补齐后钉住,防再次静默丢弃。
+    expect(m![1]).toMatch(/position:\s*relative/)
+  })
+
+  it('.photos-wrap::-webkit-scrollbar 规则体含 display: none(M-1,滚动条隐藏,手法对齐本仓既有惯例而非 Vue2 字面 width:0)', () => {
+    const m = /\.photos-wrap::-webkit-scrollbar\s*\{([^}]*)\}/.exec(styleText)
+    expect(m, '未找到 .photos-wrap::-webkit-scrollbar 规则体').toBeTruthy()
+    expect(m![1]).toMatch(/display:\s*none/)
   })
 
   it('.grid 规则体照 PhotosGrid.vue 的默认(comfortable)列宽策略——D2 偏离登记:不是 Vue2 固定 7 列', () => {

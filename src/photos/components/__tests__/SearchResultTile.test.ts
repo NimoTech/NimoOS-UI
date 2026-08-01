@@ -18,6 +18,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 import SearchResultTile from '../SearchResultTile.vue'
 import searchResultTileRaw from '../SearchResultTile.vue?raw'
+import themingDocRaw from '../../../../docs/THEMING.md?raw'
 import { extractStyleBlock } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
@@ -88,6 +89,13 @@ describe('收藏星', () => {
     const w = mountTile(scored('1', 0.9, { fav: false }))
     expect(w.find('.tile-fav').exists()).toBe(false)
   })
+  // fix round 1 · I1(评审 Important 必修):此前只断言 .tile-fav 是否存在,从未断言过
+  // 星形 <path d> 本身——评审变异把末位 `6-.9z`→`6-.8z` 后 50 例全绿,证明这条护栏
+  // 此前不存在。d 逐字符抄自 Vue2 PhotosIcon.vue 的 star 分支。
+  it('fav: true → star 的 path d 与 PhotosIcon.vue 逐字符一致', () => {
+    const w = mountTile(scored('1', 0.9, { fav: true }))
+    expect(w.get('.tile-fav svg path').attributes('d')).toBe('M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 19.6l1-6L3.3 9.4l6-.9z')
+  })
 })
 
 describe('交互', () => {
@@ -152,6 +160,18 @@ describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁
     expect(styleText).toMatch(/--badge-ocr/)
   })
 
+  // fix round 1 · I2(评审 Important 必修,brief:81 明文要求但此前缺席):三个 token
+  // 的登记只落在 docs/THEMING.md 的文本里,此前没有任何守卫——删掉那一行,token 就
+  // 退化成"theme.css 里凭空出现的魔术色",而全量仍全绿。§6 例外清单是唯一的可查索引,
+  // 必须钉住。读文件的守卫先断言非空(否则空转,color-guard 历史上就空转过一次),
+  // 再对三个 token 名各断一次(三条独立断言,删任一个都红)。
+  it('docs/THEMING.md 能查到三个 badge token(唯一可查索引,防止 token 与文档失联)', () => {
+    expect(themingDocRaw.trim().length).toBeGreaterThan(0)
+    expect(themingDocRaw).toContain('--badge-photo')
+    expect(themingDocRaw).toContain('--badge-video')
+    expect(themingDocRaw).toContain('--badge-ocr')
+  })
+
   it('每个 theme-exception 注释紧贴的下一条声明是被豁免的字面量声明,注释文本不含 ; / } / 字面 #', () => {
     const lines = rawStyleText.split('\n')
     const exceptionLines: number[] = []
@@ -169,12 +189,26 @@ describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁
       const commentBody = lines.slice(i, closeIdx + 1).join('\n').replace(/\/\*|\*\//g, '')
       expect(commentBody).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
       expect(commentBody).not.toContain(';')
+      // fix round 1 · M-2(评审并入):测试标题写"不含 ; / } / 字面 #"三禁,但此前只
+      // 断言了 ; 与 #,漏了 }——注释里出现 } 同样会让 color-guard 的逐行状态机
+      // (color-guard.test.ts:96 `if (line.includes(';') || line.includes('}')) exempt
+      // = false`)提前收豁免窗口,后果与 ; 同类,必须一起断言。
+      expect(commentBody).not.toContain('}')
       // 紧邻声明真实存在:同一行(注释与声明同行)或紧接的下一行。
       const closeLine = lines[closeIdx]
       const sameLineHasDecl = /:\s*[^;]+;/.test(closeLine.replace(/\/\*[\s\S]*?\*\//, ''))
       const nextLineHasDecl = closeIdx + 1 < lines.length && /:\s*[^;]+;/.test(lines[closeIdx + 1])
       expect(sameLineHasDecl || nextLineHasDecl).toBe(true)
     }
+  })
+
+  // fix round 1 · M-5(评审并入,控制器拍板):.tile 圆角改跟 PhotosGrid.vue 的 8px,
+  // 不是 Vue2 photos.scss:112 的 3px——理由与 D2(.grid 列宽)同源,防止同一台设备上
+  // 搜索结果瓦片比图库瓦片棱角更利。
+  it('.tile 规则体的 border-radius 是 8px(跟 PhotosGrid.vue,不是 Vue2 的 3px)', () => {
+    const m = /\.tile\s*\{([^}]*)\}/.exec(styleText)
+    expect(m, '未找到 .tile 规则体').toBeTruthy()
+    expect(m![1]).toMatch(/border-radius:\s*8px/)
   })
 
   it('.tile-overlay 规则体含渐变背景与 transition(两条腿:内联/scss 非颜色属性)', () => {
