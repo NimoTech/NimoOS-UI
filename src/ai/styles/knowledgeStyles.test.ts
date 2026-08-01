@@ -46,7 +46,14 @@ const css = stripComments(rawSource)
 // `grep -oE '\.k[a-z0-9-]*-[a-z0-9-]+|\.k-btn|\.k-row|\.k-view|…' | sort -u` 得 34 个,
 // 减去已在白名单里的 k-btn(P5a 搬的基类)与 k-scroll(只在蓝本 :250-252 注释里出现),
 // 恰好 32 个,与附录 D.1 逐一相同。
-const WHITELIST_134 = [
+//
+// 【P5b-T6 追加】"已收录文件"页专属段(蓝本 :1705-2022,S8)新增附录 D.2 的 53 个类,
+// 134 → **187**(计划书写的 186 是错的,同上,见附录 D §D.0)。独立复核:
+// `git show main:…/knowledge.scss | sed -n '1705,2022p' | grep -oE '^\.k[a-z0-9-]+|
+// ^\.k[a-z0-9-]+(?=[[:.,{ ])' | sort -u` 得 54 个,减去已在白名单里的 k-btn
+// (`.k-filter-bar .k-btn` / `.k-pager .k-btn` 两处只是给既有基类调高度),恰好 53 个,
+// 与附录 D.2 逐一相同。
+const WHITELIST_187 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
@@ -87,9 +94,24 @@ const WHITELIST_134 = [
   'k-row-head', 'k-row-name', 'k-row-path', 'k-row-retry',
   'k-row-status', 'k-row-time', 'k-table', 'k-table-foot',
   'k-toolbar', 'k-toolbar-label', 'k-view', 'kn-badge',
+  // ---- P5b T6:附录 D.2(53 个)----
+  'k-ab-actions', 'k-ab-info', 'k-ab-inner', 'k-ab-warn',
+  'k-fd-error', 'k-fd-grid', 'k-fd-item', 'k-fd-k',
+  'k-fd-mod', 'k-fd-mods', 'k-fd-sha', 'k-fd-v',
+  'k-fd-wide', 'k-file-detail', 'k-files-actionbar', 'k-files-count',
+  'k-files-meta', 'k-files-tools', 'k-filt', 'k-filt-check',
+  'k-filt-chip', 'k-filt-clear', 'k-filt-grow', 'k-filt-input',
+  'k-filt-label', 'k-filt-select', 'k-filter-bar', 'k-frow-errhint',
+  'k-frow-expand', 'k-frow-f', 'k-frow-fhead', 'k-frow-num',
+  'k-frow-pathcell', 'k-frow-pathtxt', 'k-frow-rebuild', 'k-frow-skel',
+  'k-frow-status', 'k-frow-time', 'k-frow-vec', 'k-frow-zerohint',
+  'k-ftable', 'k-pager', 'k-pager-ctrls', 'k-pager-info',
+  'k-pager-page', 'k-pager-size', 'k-poll', 'k-rebuild-btn',
+  'k-sort', 'k-sort-dir', 'k-status-badge', 'k-type-legacy',
+  'k-type-tag',
 ]
 
-describe('knowledge.scss —— 附录 D 白名单落地(134 个,R1 + T11 + P5b-T2)', () => {
+describe('knowledge.scss —— 附录 D 白名单落地(187 个,R1 + T11 + P5b-T2 + P5b-T6)', () => {
   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
@@ -98,15 +120,15 @@ describe('knowledge.scss —— 附录 D 白名单落地(134 个,R1 + T11 + P5b-
   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
   // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('134 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_134.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+  it('187 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+    const missing = WHITELIST_187.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
   })
 
   // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
-  it('白名单恰好 134 项(附录 D §D.0:102 + T2 的 32)', () => {
-    expect(WHITELIST_134).toHaveLength(134)
-    expect(new Set(WHITELIST_134).size, '白名单里有重复项').toBe(134)
+  it('白名单恰好 187 项(附录 D §D.0:102 + T2 的 32 + T6 的 53)', () => {
+    expect(WHITELIST_187).toHaveLength(187)
+    expect(new Set(WHITELIST_187).size, '白名单里有重复项').toBe(187)
   })
 
   it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
@@ -136,8 +158,50 @@ describe('knowledge.scss —— 附录 D 白名单落地(134 个,R1 + T11 + P5b-
   // 🔴 这是**扩大扫描范围**,不是放宽断言:被扫到的类仍然必须全部落在白名单里。
   it('没有搬多 —— 全部 k-/k2-/kn- 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
     const found = Array.from(new Set(css.match(/\.k(?:2|n)?-[a-z0-9-]+/g) || [])).map((s) => s.slice(1))
-    const extra = found.filter((c) => !WHITELIST_134.includes(c))
+    const extra = found.filter((c) => !WHITELIST_187.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
+  })
+
+  // 【P5b-T6 修:守卫缺口④(T2 评审挂账,协调者交给 T6 处置)】上面「没有搬多」那条
+  // 与白名单本身都只收 `k*` 前缀 —— 蓝本在几个类里嵌了**非 k 前缀的辅助类**
+  // (`.k-modal-foot .right`、`.k-fd-v.mono`、`.k-btn.ghost/.outline/.primary/.danger`…),
+  // 它们既不在白名单、也不进扫描正则:将来本文件里冒出任意一条 `.right { … }` /
+  // `.mono { … }`,或者有人手滑把别处的辅助类搬了进来,**不会有任何断言说话**。
+  //
+  // 处置:选"补一条覆盖非 k* 类的登记表",而不是"写条注释登记缺口了事"。理由是
+  // 实测下来**零假阳性** —— 本档全文(剥注释后)用 `/\.([a-zA-Z][a-zA-Z0-9_-]*)/`
+  // 扫出来的非 `k*` 标识符恰好只有下面这 9 个,全都是真类名:CSS 里的小数(`0.5`)
+  // 与时长(`1.4s`)点号后面跟的是数字,被 `[a-zA-Z]` 挡掉;`min()`/`repeat()`/
+  // `cubic-bezier()` 这类函数参数里也没有"点+字母"的形式。既然噪音为 0,就没有
+  // "会引入更多假阳性"这个不做的理由。
+  //
+  // 🔴 这同样是**扩大扫描范围**,不是放宽断言:新扫到的类必须逐个在下面登记并写理由。
+  // 这份清单不许当垃圾桶塞 —— 下面第二条用集合相等把它钉死(多一个少一个都报红)。
+  const NON_K_HELPER_CLASSES = [
+    // .k-btn 的四个变体(蓝本 :822/:826/:836/:843),写作 `&.ghost` 等,与 .k-btn 连写
+    'ghost', 'outline', 'primary', 'danger',
+    // .k-modal-foot 内的右对齐动作组(蓝本 :1340),P5b-T2 搬入
+    'right',
+    // .k2-layer-num 内的单位后缀与第二数字(蓝本 :2320/:2321),P5a T11 搬入
+    'suffix', 'second',
+    // .k2-live-ico 内的旋转态(蓝本 :2364),P5a T11 搬入
+    'spin',
+    // .k-fd-v 的等宽变体(蓝本 :1957),写作 `&.mono`,P5b-T6 搬入
+    'mono',
+  ]
+
+  function nonKClassNames(text: string): string[] {
+    const found = new Set([...text.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]))
+    return [...found].filter((c) => !/^k(?:2|n)?-/.test(c) && c !== 'knowledge-app').sort()
+  }
+
+  it('守卫缺口④ —— 非 k* 前缀的嵌套辅助类全部在登记表内(.right/.mono 这类)', () => {
+    const extra = nonKClassNames(css).filter((c) => !NON_K_HELPER_CLASSES.includes(c))
+    expect(extra, `未登记的非 k* 类(每个都要在 NON_K_HELPER_CLASSES 里写明出处):${extra.join(', ')}`).toEqual([])
+  })
+
+  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶)', () => {
+    expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
   })
 })
 
@@ -262,13 +326,17 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
   // 的边框,蓝本 :2038)、--danger-soft-faint(.k-confirm-summary 的底色,蓝本 :1417;
   // T6 段 :1972 会复用)、--danger-hover(.k-btn.danger 的 hover 底色,蓝本 :846)。
   // 归属依治理文件 §6.2 的 token 归属表(--purple-soft 归 T6,本任务不声明)。6→9 个。
-  it('R2 —— 9 个本档用到的 *-soft/-scrim/-hover token 两档都有值(T4 的 4 + T11 的 2 + P5b-T2 的 3)', () => {
+  // 【P5b-T6 追加】"已收录文件"段(S8)只新用到 1 个:--purple-soft(蓝本 :1894 的
+  // .k-type-tag[data-kind="code"] 底色),归属表判给 T6 声明。本段用到的
+  // --danger-soft-faint 已由 T2 声明(蓝本 :1972 是它的第二个使用点),不重复。9→10 个。
+  it('R2 —— 10 个本档用到的 *-soft/-scrim/-hover token 两档都有值(T4 的 4 + T11 的 2 + P5b-T2 的 3 + P5b-T6 的 1)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     for (const tok of [
       '--warning-soft:', '--warning-soft-border:', '--success-soft:', '--danger-soft:',
       '--danger-soft-border:', '--modal-scrim:',
       '--success-soft-border:', '--danger-soft-faint:', '--danger-hover:',
+      '--purple-soft:',
     ]) {
       expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
       expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
@@ -482,15 +550,50 @@ describe('knowledge.scss —— [data-layer] 三色完整性(评审 Minor M-2)',
 // "冗余",不是缺陷 —— 本档 T4 的 7 个 keyframes 里只有 k-shimmer/k-pulse 被用到,
 // 其余是给后续批次预留的,同样不该报红)。
 describe('knowledge.scss —— animation 引用与 @keyframes 声明一一对应(评审 Minor M-3)', () => {
-  it('每一个 animation: X 引用都有对应的 @keyframes X', () => {
+  // 【P5b-T6 · N11】唯一登记的例外:`fade-in`。
+  // 蓝本 knowledge.scss:1941 的 `.k-file-detail { animation: fade-in 160ms ease }` 引用了
+  // 一个**蓝本自己都没有定义**的 keyframes —— 蓝本全档的 @keyframes 只有 `k-fade-in`
+  // (T0 已核蓝本 @keyframes 全表:
+  //  :1511/1515/1519/1523/1527/1531/1535/1541/1542/1844/2440/2441,没有裸 `fade-in`)。
+  // animation-name 悬空 ⇒ 这条淡入在 Vue2 里**从来没播过**。
+  // 治理文件 §3.5 N11 明文判为"照抄条":改成 `k-fade-in` 会凭空多出一个 Vue2 没有的
+  // 淡入动画 = 界面不 1:1(本期纪律:Vue2 的 bug 不照抄,但"悬空 animation-name /
+  // 未定义类 / 永不命中的选择器"这类**不影响正确性、只影响像素**的东西必须照抄)。
+  //
+  // 🔴 登记方式刻意做成"点名豁免一个名字",不是把整条守卫关掉:
+  //   ① 下面的过滤器只跳过 `fade-in` 这一个字符串,任何**别的**悬空引用照样报红;
+  //   ② 第二条用例反过来钉住"这个例外必须真的存在"——`.k-file-detail` 里必须**确实**
+  //      写着 `animation: fade-in`,而且不能是 `k-fade-in`。要是哪天有人"顺手改对"了,
+  //      这条会报红提醒他这是 N11 的照抄条;要是有人把 `fade-in` 从清单里删了却没改
+  //      scss,第一条会报红。两条互为对角,谁也绕不过去。
+  //   ③ 反向确认(T6 RED 探针 4 已实证):`k-fade-in` 是真实存在且被 `.k-modal-bg`
+  //      引用的 keyframes,它**不在**豁免清单里 —— 删掉 `@keyframes k-fade-in` 定义,
+  //      第一条用例仍然精确报红。证明豁免的是"fade-in 这一个名字",不是整条守卫。
+  const DANGLING_ANIMATION_EXCEPTIONS = ['fade-in']
+
+  it('每一个 animation: X 引用都有对应的 @keyframes X(N11 的 fade-in 是唯一登记例外)', () => {
     const used = new Set(
       [...css.matchAll(/animation(?:-name)?:\s*([a-zA-Z0-9_-]+)/g)].map((m) => m[1]),
     )
     const declared = new Set(
       [...css.matchAll(/@keyframes\s+([a-zA-Z0-9_-]+)/g)].map((m) => m[1]),
     )
-    const missing = [...used].filter((name) => !declared.has(name))
+    const missing = [...used].filter(
+      (name) => !declared.has(name) && !DANGLING_ANIMATION_EXCEPTIONS.includes(name),
+    )
     expect(missing, `引用了但未声明的 @keyframes:${missing.join(', ')}`).toEqual([])
+  })
+
+  it('N11 —— .k-file-detail 的悬空 animation 照抄蓝本 :1941 的 fade-in,没有被"顺手改成" k-fade-in', () => {
+    // 取 .k-file-detail 规则块的块体(从选择器到第一个 `}`),只在块内断言,
+    // 避免被文件别处的 `animation: k-fade-in`(.k-modal-bg)撞对。
+    const at = css.search(/\.k-file-detail\s*\{/)
+    expect(at, '找不到 .k-file-detail 规则块').toBeGreaterThan(-1)
+    const body = css.slice(at, css.indexOf('}', at))
+    expect(body, 'N11 被违反:.k-file-detail 的 animation-name 被改动了').toContain('animation: fade-in 160ms ease')
+    expect(body, 'N11 被违反:.k-file-detail 被"顺手改对"成 k-fade-in,会凭空多出 Vue2 没有的淡入').not.toContain('k-fade-in')
+    // 例外清单恰好只有这一条(同上面几处"清单不许当垃圾桶"的口径)
+    expect(DANGLING_ANIMATION_EXCEPTIONS).toEqual(['fade-in'])
   })
 })
 
