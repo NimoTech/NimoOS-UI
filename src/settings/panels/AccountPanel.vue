@@ -22,6 +22,7 @@ import ChangePasswordForm from './account/ChangePasswordForm.vue'
 import AvatarCropper from './account/AvatarCropper.vue'
 import NasImagePicker from './account/NasImagePicker.vue'
 import MembersSection from './account/MembersSection.vue'
+import MemberFoldersView from './account/MemberFoldersView.vue'
 import { readAccessToken } from '../util/avatar'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../stores/toast'
@@ -192,8 +193,10 @@ function logout() {
       v-else-if="state === 4" ref="cropper" :src="pickedImageSrc"
       data-test="acc-cropper" :data-src="pickedImageSrc"
     />
-    <!-- Task 11 填:成员文件夹授权 -->
-    <div v-else-if="state === 5" data-test="acc-member-folders" />
+    <MemberFoldersView
+      v-else-if="state === 5 && activeMember" :member="activeMember"
+      data-test="acc-member-folders"
+    />
     <NasImagePicker
       v-else-if="state === 6" ref="nasPicker"
       data-test="acc-nas-picker" @pick="onNasPick"

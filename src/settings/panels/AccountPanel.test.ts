@@ -18,6 +18,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
       getMembers: async () => [],
       createMember: async () => ({}),
       deleteUser: async () => undefined,
+      // state 5 会挂载真实 MemberFoldersView,它一挂载就取授权列表
+      getMemberFolders: async () => [],
+      grantMemberFolder: async () => ({}),
+      revokeMemberFolder: async () => undefined,
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
     // state 6 会挂载真实的 NasImagePicker,它一挂载就取存储列表
