@@ -110,17 +110,19 @@ function toggleMore(): void {
    本仓 scoped SFC 没有全局 .scroll/.photos-root 类,这里补全自己写:
    ① position:relative(当前无视觉差异——本组件的绝对定位元素都在各自 .tile 的
    定位上下文里——但这是被静默丢弃的声明,补上而不是省略)。
-   ② 滚动条隐藏:改用本仓既定惯例 `display: none`(+ `scrollbar-width: none`),不是
-   Vue2 字面的 `width: 0`——先例 PhotosGrid.vue:420(.scrubber)、
+   ② 滚动条隐藏:改用本仓既定惯例 `display: none` + `scrollbar-width: none` 这一对
+   声明,不是 Vue2 字面的 `width: 0`——先例 PhotosGrid.vue:420(.scrubber)、
    PhotoFilmstrip.vue:148(.lb-strip),T8-M2 已确立"滚动条只隐藏不重画"的统一手法,
    效果与 Vue2 的 width:0 同为隐藏,只是写法对齐本仓其他组件。相对 Vue2 的偏离,
    已双处登记(此处 + 报告)。
-   fix 波 F4 回源核对更正(隐藏效果的主因):真正让这条 `display: none` 生效的不是它
-   自己,而是 `scrollbar-width: none` ——`theme.css`(:3-6)对 `*` 设了标准
-   `scrollbar-width: thin`,Chrome 121+ 起只要元素命中过标准 `scrollbar-width` 属性,
-   就整体禁用该元素上 `::-webkit-scrollbar` 系列的定制(2026-07-22 真机踩坑结论,
-   `LogsPane.vue:36-38` 已登记同一件事)——`::-webkit-scrollbar { display: none }`
-   这条在这些浏览器上是死规则,不是"辅助"或"兜底",此前的登记把主次写反了。 */
+   fix 波 F4 回源核对更正、fix wave follow-up · N2 措辞再订正(隐藏效果的主因):
+   真正让"滚动条隐藏"这个效果生效的主因不是 `::-webkit-scrollbar { display: none }`
+   这条规则本身,而是 `.photos-wrap` 上的 `scrollbar-width: none`——`theme.css`
+   (:3-6)对 `*` 设了标准 `scrollbar-width: thin`,Chrome 121+ 起只要元素命中过标准
+   `scrollbar-width` 属性,就整体禁用该元素上 `::-webkit-scrollbar` 系列的定制
+   (2026-07-22 真机踩坑结论,`LogsPane.vue:36-38` 已登记同一件事)——也就是说
+   `::-webkit-scrollbar { display: none }` 这条规则本身在这些浏览器上是死规则,
+   真正起作用的是 `scrollbar-width: none`,此前的登记把这两者的主次关系写反了。 */
 .photos-wrap { flex: 1; overflow-y: auto; position: relative; scrollbar-width: none; }
 .photos-wrap::-webkit-scrollbar { display: none; }
 

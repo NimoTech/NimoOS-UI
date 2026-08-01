@@ -762,9 +762,13 @@ describe('排序', () => {
 // ── 结果计数千分位跟 locale(fix 波 F2)────────────────────────────────────
 // 终审必修项:`filteredResults.length.toLocaleString()` 是全支唯一的裸调用(其余 5 处调用
 // 点全部传了 locale)。本仓 locale 标识是 `zh_cn`/`en_us`(下划线,非合法 BCP-47),裸传给
-// toLocaleString 不会报错(浏览器 Intl 引擎不认识下划线时会退回默认 locale,不是必然抛错),
-// 真正的问题是"跟随浏览器默认 locale 漂移、不跟随应用内切换的语言"——这里同时验证:①元素
-// 渲染不抛错(挂载用的 zh_cn i18n 实例)②源文本是带 localeTag 标识符的调用,不是裸调用。
+// toLocaleString 会抛 RangeError(与 `PhotosSearch.vue` localeTag 注释、
+// `SmartViewCard.vue:37`/`SearchPeoplePopover.vue:62` 既有先例表述一致——fix wave
+// follow-up · N1 订正:此前这里误写成"不会报错",与同一次提交里生产代码的注释自相矛盾,
+// 已用 node 实测 `(1234).toLocaleString('zh_cn')` 确认真的抛 `RangeError: Incorrect
+// locale information provided`,统一改成一致表述)。这里同时验证:①元素渲染不抛错
+// (挂载用的 zh_cn i18n 实例,调用点已改成 `toLocaleString(localeTag)`,`localeTag` 是
+// 转成 `zh-cn` 之后的合法值)②源文本是带 localeTag 标识符的调用,不是裸调用。
 describe('结果计数千分位跟 locale(F2)', () => {
   it('results-count 渲染千分位数字,不抛 RangeError(zh_cn locale)', async () => {
     svc.photos.smartSearch.mockResolvedValue(
