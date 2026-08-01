@@ -15,12 +15,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { service, type UserInfo } from '@nimotech/nimoos-service'
+import { service, type MemberInfo, type UserInfo } from '@nimotech/nimoos-service'
 import SettingsSection from '../components/SettingsSection.vue'
 import OwnerCard from './account/OwnerCard.vue'
 import ChangePasswordForm from './account/ChangePasswordForm.vue'
 import AvatarCropper from './account/AvatarCropper.vue'
 import NasImagePicker from './account/NasImagePicker.vue'
+import MembersSection from './account/MembersSection.vue'
 import { readAccessToken } from '../util/avatar'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../stores/toast'
@@ -78,11 +79,21 @@ function goto(next: AccountState) {
 /** 页脚「返回」。分支逐字对位 Vue2 :909:
  *  state 5 → 回 1 且清 activeMember;state 6 且在浏览视图 → 只回存储卡网格;否则 goto(1)。 */
 function onBack() {
+  if (state.value === 5) {
+    activeMember.value = null
+    goto(1)
+    return
+  }
   if (state.value === 6 && nasPicker.value?.view === 'browse') {
     nasPicker.value.backToStorages()
     return
   }
   goto(1)
+}
+
+function onOpenMember(m: MemberInfo) {
+  activeMember.value = m
+  goto(5)
 }
 
 function onNasPick(src: string) {
@@ -110,6 +121,7 @@ onMounted(async () => {
 const pwdForm = ref<{ submit(): Promise<boolean> } | null>(null)
 const cropper = ref<{ submit(): Promise<boolean> } | null>(null)
 const nasPicker = ref<{ backToStorages(): void; view: 'storages' | 'browse' } | null>(null)
+const activeMember = ref<MemberInfo | null>(null)
 const submitting = ref(false)
 
 async function onSubmit() {
@@ -172,8 +184,7 @@ function logout() {
         @logout="logout"
         @invalid-file="onInvalidFile"
       />
-      <!-- Task 10 填:成员区 -->
-      <div v-if="isAdmin" data-test="acc-members" />
+      <MembersSection v-if="isAdmin" data-test="acc-members" @open-member="onOpenMember" />
     </template>
 
     <ChangePasswordForm v-else-if="state === 3" ref="pwdForm" data-test="acc-pwd-form" />

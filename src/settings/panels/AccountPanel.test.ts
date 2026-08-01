@@ -14,6 +14,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
       getUserInfo: (...a: unknown[]) => getUserInfo(...a),
       changePassword: (...a: unknown[]) => changePassword(...a),
       saveAvatar: (...a: unknown[]) => saveAvatar(...a),
+      // admin 时会挂载真实 MembersSection,它一挂载就取成员列表
+      getMembers: async () => [],
+      createMember: async () => ({}),
+      deleteUser: async () => undefined,
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
     // state 6 会挂载真实的 NasImagePicker,它一挂载就取存储列表
@@ -204,6 +208,21 @@ describe('AccountPanel 宿主状态机', () => {
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     await w.find('[data-test="acc-nas"]').trigger('click')
     expect(w.find('[data-test="acc-nas-picker"]').exists()).toBe(true)
+  })
+
+  it('点成员行的「设置」→ 进 state 5;返回时清掉 activeMember(Vue2 :909)', async () => {
+    // 成员区自己取数,这里让它返回一行以便点「设置」
+    const w = mountPanel()
+    await flush()
+    w.findComponent({ name: 'MembersSection' }).vm.$emit('open-member', {
+      id: 3, username: 'alice', role: 'user', folder_count: 0, created_at: 'x',
+    })
+    await flush()
+    expect(w.find('[data-test="acc-member-folders"]').exists()).toBe(true)
+    await w.find('[data-test="acc-back"]').trigger('click')
+    await flush()
+    expect(w.find('[data-test="acc-member-folders"]').exists()).toBe(false)
+    expect(w.find('[data-test="acc-username"]').exists()).toBe(true)
   })
 
   it('state 6 浏览视图下点「返回」只回存储卡网格,不回 state 1(Vue2 :909)', async () => {
