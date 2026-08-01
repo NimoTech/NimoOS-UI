@@ -242,6 +242,150 @@
   color: var(--kvm-accent);
 }
 
+/* ── VM 列表项(Vue2 :1843-1950) ── */
+.vm-list-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  border: 1px solid transparent;
+}
+
+.vm-list-item:hover {
+  background: var(--kvm-elev);
+}
+
+.vm-list-item.active {
+  background: var(--kvm-accent-soft);
+  border-color: var(--kvm-accent);
+}
+
+.vm-item-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  background: var(--kvm-elev);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.vm-item-icon .os-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+}
+
+.vm-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vm-item-name {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--kvm-fg);
+  margin-bottom: 0.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vm-item-specs {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--kvm-fg-dim);
+}
+
+.vm-item-status {
+  margin-left: 0.5rem;
+}
+
+.vm-item-status .status-indicator {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.vm-item-status .status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vm-item-status .status-dot.running {
+  background: var(--kvm-ok);
+  animation: breathe-green 2s ease-in-out infinite;
+}
+
+.vm-item-status .status-dot.stopped {
+  background: var(--kvm-idle);
+}
+
+.vm-item-status .status-dot.paused {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 2s ease-in-out infinite;
+}
+
+.vm-item-status .status-dot.suspended {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 4s ease-in-out infinite;
+}
+
+.vm-item-status .status-dot.error {
+  background: var(--kvm-danger);
+  animation: breathe-red 2s ease-in-out infinite;
+}
+
+.vm-item-status .status-text {
+  font-size: 0.65rem;
+  color: var(--kvm-fg-dim);
+  white-space: nowrap;
+  margin-left: 0.375rem;
+}
+
+/* 三个呼吸关键帧(Vue2 :2762-2793)——running/paused/suspended/error 状态点用。 */
+@keyframes breathe-green {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--kvm-ok-glow-weak);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--kvm-ok-glow-strong);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes breathe-yellow {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--kvm-warn-glow-weak);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--kvm-warn-glow-strong);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes breathe-red {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--kvm-danger-glow-weak);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--kvm-danger-glow-strong);
+    transform: scale(1.1);
+  }
+}
+
 /* ── 右侧主区(Vue2 :1975-2015) ── */
 .kvm-main {
   flex: 1;

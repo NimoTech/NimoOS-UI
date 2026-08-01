@@ -4,9 +4,11 @@
 //
 // ⚠️ 本区**固定深色,不跟随全局主题** —— Vue2 该页是写死的深色控制台配色,
 // --kvm-* token 在两个主题块里同值(见 styles/theme.sp9.css 注释)。
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import '../styles/kvm.css'
+import VmSidebar from '../components/VmSidebar.vue'
+import { useVmList } from '../composables/useVmList'
 
 const { t } = useI18n()
 
@@ -15,6 +17,10 @@ const { t } = useI18n()
 const sidebarCollapsed = ref(false)
 const sidebarHover = ref(false)
 const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
+
+const s = useVmList()
+onMounted(() => { void s.fetchVMs() })
+onUnmounted(() => s.dispose())
 </script>
 
 <template>
@@ -30,21 +36,16 @@ const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
         <span class="toggle-icon" aria-hidden="true">‹</span>
       </button>
 
-      <aside
-        class="kvm-sidebar"
-        :class="{ collapsed }"
+      <VmSidebar
+        :vms="s.vms.value"
+        :selected-id="s.selectedVM.value?.id ?? null"
+        :running-count="s.runningCount.value"
+        :is-loading="s.isLoading.value"
+        :collapsed="collapsed"
         @mouseenter="sidebarHover = true"
         @mouseleave="sidebarHover = false"
-      >
-        <header class="kvm-header">
-          <div class="kvm-header-left">
-            <div class="kvm-header-text">
-              <h2 class="kvm-title">{{ t('kvmTitle') }}</h2>
-            </div>
-          </div>
-        </header>
-        <div class="vm-list" />
-      </aside>
+        @select="s.selectVM"
+      />
 
       <main class="kvm-main">
         <div class="main-empty">
