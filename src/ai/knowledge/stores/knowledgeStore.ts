@@ -256,6 +256,9 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
 
   // ── Queue(蓝本 :27-28,parser 半)──
   const jobs = ref<JobsBuckets>({ pending: [], running: [], failed: [] })
+  /** `loadAllJobs` 的过期守卫计数器(K15),写法承 `rootsEpoch`(`3d8c9bc`)。
+   * store 实例局部,不是模块级单例。 */
+  let allJobsEpoch = 0
 
   // ── Parsing progress(蓝本 :41-42)──
   const backlogPeak = ref(0)
@@ -278,6 +281,9 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
       offset: 0,
     },
   })
+  /** `loadIndexedFiles` 的过期守卫计数器(K15)。见该函数注释:`finally` 里的
+   * `loading` 归位也受它约束,否则先发后至的一发会在骨架消失后又把它撤掉。 */
+  let indexedFilesEpoch = 0
 
   // ── T7:notes / distill / wiki(蓝本 :29-43)──
   const distillJobs = ref<DistillJobsState>({
@@ -288,6 +294,10 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     done: 0,
     total: 0,
   })
+  /** `loadDistillJobs` 的过期守卫计数器(K15)。四路并存(10s 轮询 +
+   * `setFilter` + `setScope('distill')` + `retryDistill`/`cancelDistill` 内部
+   * 重载),按 filter 只刷对应桶,串号会让 pending 的结果落进 failed 桶。 */
+  let distillJobsEpoch = 0
   const wikiRoots = ref<WikiRoot[]>([])
   const wikiCandidates = ref<WikiCandidate[]>([])
   const wikiRootsLoading = ref(false)
@@ -332,13 +342,21 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     return body.jobs || []
   }
 
-  /** 蓝本 :146-153 —— 三桶并行拉取并归位。 */
+  /** 蓝本 :146-153 —— 三桶并行拉取并归位。
+   *
+   * 【偏离,K15,过期守卫】QueueView 10 秒轮询与 `setScope('index')` 手动触发
+   * 两路并存 —— 手动切换 scope 立刻再发一次时,若轮询那一发更晚落地(网络抖动/
+   * 后端瞬时变慢都会发生),先发后至会用旧数据覆盖新数据,页面短暂"往回跳"。
+   * 用局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃,不写
+   * `jobs.value`。写法承 `loadRoots`(`3d8c9bc`)。 */
   async function loadAllJobs(): Promise<void> {
+    const epoch = ++allJobsEpoch
     const [p, r, f] = await Promise.all([
       loadJobs('pending'),
       loadJobs('running'),
       loadJobs('failed'),
     ])
+    if (epoch !== allJobsEpoch) return
     jobs.value = { pending: p, running: r, failed: f }
   }
 
@@ -411,8 +429,20 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
 
   // ── Indexed Files tab(蓝本 :316-362)──
 
-  /** 蓝本 :317-330。 */
+  /** 蓝本 :317-330。
+   *
+   * 【偏离,K15,过期守卫】`onPathPrefixInput`(蓝本 `IndexedFilesView.vue:633-636`)/
+   * `onMimePrefixInput`(`:643-646`)每敲一键就整发重载,蓝本无 debounce(N9,
+   * 触发频率照抄不改)。打 `abc` 三发并存时,若 `a`→`ab`→`abc` 不按输入顺序落地
+   * (先发后至),`ab` 那一发会把 `abc` 的结果盖上去,而过滤条上显示的分明是
+   * `abc`。用局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃 ——
+   * **`finally` 里的 `s.loading = false` 也受它约束**,否则过期的一发会在最新
+   * 一发已经把骨架撤掉之后又把它撤一遍(此时新数据已经渲染,不该再显示骨架/
+   * 再次归位是良性 no-op 也就罢了,但反过来:若最新一发还没落地、过期一发先
+   * 落地,不受守卫的 `finally` 会把 loading 提前撤掉,新数据到来前出现一帧
+   * "假完成"的空表格)。写法承 `loadRoots`(`3d8c9bc`)。 */
   async function loadIndexedFiles(): Promise<void> {
+    const epoch = ++indexedFilesEpoch
     const s = indexedFiles.value
     s.loading = true
     s.error = null
@@ -421,12 +451,14 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
         files?: IndexedFile[]
         total?: number
       }
+      if (epoch !== indexedFilesEpoch) return
       s.files = body.files || []
       s.total = body.total || 0
     } catch (e) {
+      if (epoch !== indexedFilesEpoch) return
       s.error = (e as Error | undefined)?.message || String(e)
     } finally {
-      s.loading = false
+      if (epoch === indexedFilesEpoch) s.loading = false
     }
   }
 
@@ -554,12 +586,24 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
    * parser 的 `queue_depth` 派生;`total = 本次实际拉取行数`(封顶
    * `DISTILL_JOBS_LIMIT`)作为「列表被截断」的判据,比对着同一张持续变动表的
    * 另一次独立 SELECT(`counts`)更简单、更免竞态。
+   *
+   * 【偏离,K15,过期守卫】本 action 有**四路**并存触发源:10 秒轮询 +
+   * `setFilter(f)` + `setScope('distill')` + `retryDistill`/`cancelDistill`
+   * 内部的重载。且它按 `filter` 只刷对应桶(N4)—— 串号不只是「盖成旧数据」这
+   * 么简单:若用户手切 pill 到 `pending` 又立刻切回 `failed`,而前一发
+   * `filter==='pending'` 的响应晚于后一发 `filter==='failed'` 落地,前一发会
+   * 把 `d.pending` 覆盖成陈旧数据,且它的 `d.counts`/`d.done`/`d.total` 同样
+   * 是陈旧的全量快照,会把 `failed` 桶当前显示的计数一并冲掉。用局部 epoch
+   * 判断「我还是最新那一发吗」,不是最新就整发丢弃(四个字段一个都不写)。
+   * 写法承 `loadRoots`(`3d8c9bc`)。
    */
   async function loadDistillJobs(filter = ''): Promise<void> {
+    const epoch = ++distillJobsEpoch
     const [jobsResult, status] = await Promise.all([
       service.notes.listDistillJobs(filter, DISTILL_JOBS_LIMIT),
       service.notes.getDistillStatus(),
     ])
+    if (epoch !== distillJobsEpoch) return
     const rows = jobsResult.jobs || []
     const d = distillJobs.value
     if (!filter || filter === 'pending') d.pending = rows.filter((j) => j.status === 'pending')
