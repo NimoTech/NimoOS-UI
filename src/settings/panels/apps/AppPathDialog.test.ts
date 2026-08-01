@@ -165,6 +165,10 @@ describe('AppPathDialog', () => {
     await (document.querySelector('.set-mig-next') as HTMLElement).click(); await flushPromises()
     await (document.querySelector('.set-mig-start') as HTMLElement).click(); await flushPromises()
     vi.advanceTimersByTime(200); await flushPromises()
+    // 评审 Important #1:头部 × 按钮与页脚"关闭"主按钮曾共用 .set-mig-close,拆开后
+    // 分别用 .set-mig-x(头部)与 .set-mig-close(页脚)两个类名,这里显式查两处,
+    // 不再靠共用类名"顺便"覆盖两个位置。
+    expect(document.querySelector('.set-mig-x')).toBeNull()
     expect(document.querySelector('.set-mig-close')).toBeNull()
     vi.useRealTimers()
   })
@@ -182,6 +186,24 @@ describe('AppPathDialog', () => {
     vi.advanceTimersByTime(200); await flushPromises()
     expect(document.body.textContent).toContain('insufficient space on target /media/Backup')
     expect(document.body.textContent).toContain('已自动清理')
+    vi.useRealTimers()
+  })
+
+  // 评审 Important #2:Vue2 pollStatus 的 done 和 error 两支都会 $emit('finish', job),
+  // 这里之前只有 done 支 emit——补一条测试钉住 error 支也要发,父组件靠它重取一次路径。
+  it('status=error 时也发 finish 事件(1:1 Vue2,失败后锚点可能已经换了一半)', async () => {
+    vi.useFakeTimers()
+    migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
+    getMigrateStatus.mockResolvedValue({ id: 'job-1', type: 'app_data', status: 'error', phase: 'copying', stopping_apps: 0, progress: 0, processed_size: 0, total_size: 0, error: 'rollback rename failed' })
+    const w = mountDlg()
+    await flushPromises()
+    await (document.querySelector('.set-mig-item') as HTMLElement).click()
+    await (document.querySelector('.set-mig-next') as HTMLElement).click(); await flushPromises()
+    await (document.querySelector('.set-mig-next') as HTMLElement).click(); await flushPromises()
+    await (document.querySelector('.set-mig-start') as HTMLElement).click(); await flushPromises()
+    vi.advanceTimersByTime(200); await flushPromises()
+    expect(w.emitted('finish')).toBeTruthy()
+    expect(w.emitted('finish')?.length).toBe(1)
     vi.useRealTimers()
   })
 
@@ -344,6 +366,11 @@ describe('AppPathDialog', () => {
 
       const input = document.querySelector('.set-mig-folder .set-mig-input') as HTMLInputElement
       expect(input).not.toBeNull()
+      // #7:startRename 的 nextTick(() => renameInputEl.value?.focus()) 必须真的聚焦到这个
+      // input——本期实测过 v-for 里的字符串 ref 会被 Vue 收集成数组,.value 变成 [el] 而不是
+      // el 本身,导致 .focus() 在数组上找不到方法直接被吞掉(unhandled rejection,不是断言,
+      // 只看 "N passed" 会漏)。已改函数式 ref(setRenameInputEl)修正,这里补断言钉住它。
+      expect(document.activeElement).toBe(input)
       input.value = 'Renamed'
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))

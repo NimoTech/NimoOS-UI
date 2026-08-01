@@ -174,7 +174,7 @@ export default {
   settingsAppsDockerCleanSub: '您的 Docker 环境已优化。',
   settingsAppsDockerCleaning: '正在优化...',
   settingsAppsDockerCleanConfirmTitle: '清理 Docker 缓存',                          // 🆕补译
-  settingsAppsDockerCleanConfirmMsg: '这将删除所有未使用的容器、网络和镜像。确定要继续吗?', // 🆕补译
+  settingsAppsDockerCleanConfirmMsg: '这将删除所有未使用的容器、网络和镜像。确定要继续吗？', // 🆕补译
   settingsAppsDockerCleanConfirmOk: '清理',                                        // 🆕补译
   settingsAppsDockerCleanDone: 'Docker 环境已优化。',                               // 🆕补译
   settingsAppsDockerCleanFailed: '清理 Docker 缓存失败。',                          // 🆕补译
@@ -214,7 +214,7 @@ export default {
   settingsMigDone: '迁移完成！',
   settingsMigFailed: '迁移失败',
   settingsMigCleanupTitle: '已自动清理',                                            // 🆕补译
-  settingsMigCleanupBody: '目标磁盘上已传输的部分数据已被移除,你的原始数据完好无损。',   // 🆕补译
+  settingsMigCleanupBody: '目标磁盘上已传输的部分数据已被移除，你的原始数据完好无损。',   // 🆕补译
   // ── P3 system-status tab ───────────────────────────────────────────────
   settingsStatusTitle: '系统状态',
   settingsStatusRefresh: '刷新',
@@ -230,7 +230,7 @@ export default {
   settingsTermDownloadLogs: '下载日志',
   settingsTermLoadingLogs: '正在拉取系统日志...', // Vue2 LogsCard.vue:11 内联文案
   settingsTermUnavailable: '终端服务暂不可用',
-  settingsTermUnavailableHint: '系统终端的后端接口(/v1/sys/wsssh)已被停用,终端与终端安全策略暂不可用。', // 🆕(本期空态说明)
+  settingsTermUnavailableHint: '系统终端的后端接口（/v1/sys/wsssh）已被停用，终端与终端安全策略暂不可用。', // 🆕(本期空态说明)
   settingsTermFullscreen: '全屏',
   settingsTermExitFullscreen: '退出全屏',        // 🆕(Vue2 全屏按钮只有图标,无文字)
   // ── P3 storage tab(入口卡,授权偏离 #3)────────────────────────────────

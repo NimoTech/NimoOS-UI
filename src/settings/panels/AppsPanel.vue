@@ -33,6 +33,14 @@ const paths = ref<SystemPaths | null>(null)
 const volumes = ref<StorageVolume[]>([])
 const rows = computed(() => buildAppPathRows(paths.value, volumes.value))
 
+// 评审 Important #3:取数在途时不能渲染三行 0 值——尤其是「用户数据库」那行,pathText()
+// 无条件拼四目录后缀,取数未落定时会显示成缺前缀的假路径(如
+// "/Documents & Downloads & Gallery & Media")。加载态收敛条件选「两个接口都落定」,
+// 不是「路径那条落定即可」:因为 pathText() 依赖 displayNames(由 volumes 算出),
+// paths 先落定而 volumes 还没落定时,虚拟路径转换会失败、同样会短暂显示一段不对的裸路径——
+// 那和 brief 描述的"假路径"是同一类错误读数,只等 paths 不够。
+const loading = ref(true)
+
 // 就地守卫(不抽公共 helper,同 StoragePanel.vue/SystemStatusPanel.vue 先例):防止两个
 // 并发请求中任意一个落定时组件已卸载、仍去回写已卸载组件的 ref。本面板没有用户可编辑的
 // 控件,守卫纯粹是防御性的(取数在途时用户切走这个 tab)。
@@ -62,9 +70,12 @@ async function loadVolumes() {
 }
 
 onMounted(() => {
-  // 并发发起,互不等待——两个接口独立取数、独立回退,任一失败不影响另一个。
-  void loadPaths()
-  void loadVolumes()
+  // 并发发起,互不等待——两个接口独立取数、独立回退,任一失败不影响另一个;
+  // 加载态在两个都落定(不论成功失败)后才收敛。
+  void Promise.allSettled([loadPaths(), loadVolumes()]).then(() => {
+    if (!alive) return
+    loading.value = false
+  })
 })
 
 // displayNames:根挂载点 "/" 显示为 /DATA(与 home/stores/folders.ts:loadDisks 同一口径 ——
@@ -146,7 +157,8 @@ async function confirmPrune() {
 <template>
   <SettingsSection :title="t('settingsTabApps')">
     <p class="set-comp-group-title">{{ t('settingsAppsPathTitle') }}</p>
-    <div class="set-card">
+    <div v-if="loading" class="set-skeleton">{{ t('settingsNetLoading') }}</div>
+    <div v-else class="set-card">
       <AppPathRow
         v-for="row in rows" :key="row.key"
         :label="t(ROW_LABEL_KEY[row.key])"

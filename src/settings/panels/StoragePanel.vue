@@ -57,7 +57,12 @@ onMounted(async () => {
 
 <template>
   <SettingsSection :title="t('settingsTabStorage')">
-    <div v-if="loaded && !volumes.length" class="set-empty">{{ t('settingsStoreNoStorage') }}</div>
+    <!-- 评审 Important #3:取数在途时(!loaded)不能落到下面的 v-else 分支去渲染概览卡——
+         那样会显示一段错误读数(0 Bytes 可用 + 空进度条),不是中性空态。加一个显式的
+         加载态分支,收敛条件是 onMounted 里那个 try/catch/finally 的 finally(不论
+         成功失败都会落 loaded=true),与 AppsPanel 的"两个接口都落定"同一收敛口径。 -->
+    <div v-if="!loaded" class="set-skeleton">{{ t('settingsNetLoading') }}</div>
+    <div v-else-if="!volumes.length" class="set-empty">{{ t('settingsStoreNoStorage') }}</div>
     <div v-else class="set-card set-store-overview">
       <div class="set-store-head">
         <span class="set-row-label">{{ t('settingsStoreTotal') }}</span>

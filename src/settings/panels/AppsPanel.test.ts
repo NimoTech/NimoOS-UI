@@ -78,7 +78,7 @@ describe('AppsPanel', () => {
     await w.find('.set-app-prune').trigger('click')
     await flushPromises()
     expect(prune).not.toHaveBeenCalled()
-    expect(document.body.textContent).toContain('这将删除所有未使用的容器、网络和镜像。确定要继续吗?')
+    expect(document.body.textContent).toContain('这将删除所有未使用的容器、网络和镜像。确定要继续吗？')
   })
 
   it('确认后调 prune 并显示成功提示', async () => {
@@ -89,6 +89,11 @@ describe('AppsPanel', () => {
     await (document.querySelector('.ui-btn.danger') as HTMLElement).click()
     await flushPromises()
     expect(prune).toHaveBeenCalledTimes(1)
+    // #8:toast 是 App 级组件,不在 AppsPanel 子树里——断言必须走 pinia store 本身
+    // (同下面 prune 失败那条先例),不能只断言 prune 被调用了事;否则 confirmPrune 里
+    // 那行 toast.show(...) 被删掉,这条用例名不副实地仍然全绿。
+    const toast = useToast()
+    expect(toast.msg).toBe(i18n.global.t('settingsAppsDockerCleanDone'))
   })
 
   it('prune 失败时提示失败文案,不静默', async () => {
@@ -112,6 +117,25 @@ describe('AppsPanel', () => {
     expect(w.text()).toContain('清除本地未完成的上传')
     expect(w.find('.set-app-pending-btn').attributes('disabled')).toBeDefined()
     expect(w.text()).toContain('待相册区迁移完成后启用')
+  })
+
+  // 评审 Important #3:取数在途时不能渲染三行 0 值假读数(尤其是「用户数据库」那行,
+  // pathText() 无条件拼四目录后缀,取数没落定时会显示成缺前缀的假路径)。收敛条件选
+  // 「两个接口都落定」——这里让 getSystemPaths 立即落定、storage.list 挂住,验证加载态
+  // 仍然渲染骨架而不是假数据,直到 storage.list 也落定才切换。
+  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实三行', async () => {
+    let resolveStorage!: (v: typeof RAW_STORAGE) => void
+    const pendingStorage = new Promise<typeof RAW_STORAGE>((res) => { resolveStorage = res })
+    storageList.mockReturnValueOnce(pendingStorage)
+    const w = mountPanel()
+    await flushPromises() // getSystemPaths 已落定,storage.list 还挂着
+    expect(w.find('.set-skeleton').exists()).toBe(true)
+    expect(w.findAll('.set-app-row')).toHaveLength(0)
+
+    resolveStorage(RAW_STORAGE)
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.findAll('.set-app-row')).toHaveLength(3)
   })
 
   it('取数失败时三行仍在(空路径),不白屏', async () => {

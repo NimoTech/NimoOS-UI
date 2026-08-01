@@ -18,7 +18,11 @@ describe('TerminalPanel', () => {
     const w = mountPanel()
     await flushPromises()
     expect(getLogs).toHaveBeenCalledTimes(1)
-    expect(w.find('.set-logs').text()).toContain('13T15:38:19.417-0400')
+    // M7:原断言用 toContain,若 formatSysLog 的 .substring(8) 被删掉,输出会变成
+    // '2026-04-13T15:38:19.417-0400 …'——那段仍然「包含」这个子串,断言恒绿、
+    // 测不出前缀被裁掉这个行为。改 startsWith 使其真的具判别力(sysLog.test.ts
+    // 已经对 formatSysLog 本身有具判别力的覆盖,这里只是让这条组件层断言名副其实)。
+    expect(w.find('.set-logs').text().startsWith('13T15:38:19.417-0400')).toBe(true)
   })
 
   it('每 5 秒自动刷新一次', async () => {

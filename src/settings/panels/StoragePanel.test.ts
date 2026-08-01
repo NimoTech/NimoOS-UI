@@ -54,6 +54,25 @@ describe('StoragePanel(入口卡)', () => {
     expect(push).toHaveBeenCalledWith('/storage')
   })
 
+  // 评审 Important #3:取数在途时不能落到 v-else 分支渲染概览卡——那样会显示一段
+  // 错误读数(0 Bytes 可用 + 空进度条),不是中性空态。这里用手动 resolve 的挂起
+  // promise 钉住:落定前渲染骨架,落定后才渲染真实概览。
+  it('取数在途渲染加载骨架,不渲染 0 值假读数;落定后才渲染真实概览', async () => {
+    let resolve!: (v: typeof RAW) => void
+    const pending = new Promise<typeof RAW>((res) => { resolve = res })
+    list.mockReturnValueOnce(pending)
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(true)
+    expect(w.find('.set-store-overview').exists()).toBe(false)
+
+    resolve(RAW)
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.find('.set-store-overview').exists()).toBe(true)
+    expect(w.text()).toContain('476.94 GB')
+  })
+
   it('接口失败时仍渲染入口卡(概览显示空态)', async () => {
     list.mockRejectedValue(new Error('boom'))
     const w = mountPanel()

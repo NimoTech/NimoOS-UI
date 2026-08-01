@@ -283,6 +283,12 @@ async function poll() {
       stopPolling()
       jobError.value = job.error || t('settingsMigFailed')
       step.value = 'error'
+      // 评审 Important #2:Vue2 pollStatus 的 done/error 两支都会 $emit('finish', job) ——
+      // 失败时后端可能已经把锚点换了一半(NimoOS/service/migrate.go:777-820 的 rollback
+      // rename failed 分支明确写着"CRITICAL: manual intervention required"),界面若不
+      // 重新拉一次路径,会继续显示迁移前的旧路径直到用户手动刷新。父组件 onDialogFinish
+      // 只是重取 getSystemPaths,幂等,重复调用无害。
+      emit('finish')
     }
   } catch (e) {
     // 移植纪律 ②:Vue2 这里只 console.error,job 丢失时会无限轮询下去 —— 连续失败
@@ -347,7 +353,7 @@ function onDialogUpdateOpen(v: boolean) {
         <h3 class="set-mig-title">{{ t('settingsMigTitle') }}</h3>
         <button
           v-if="step !== 'migrating'"
-          class="set-mig-close" type="button" :aria-label="t('settingsMigClose')"
+          class="set-mig-x" type="button" :aria-label="t('settingsMigClose')"
           @click="onDialogUpdateOpen(false)"
         >×</button>
       </div>
@@ -557,11 +563,14 @@ function onDialogUpdateOpen(v: boolean) {
 .set-mig { display: flex; flex-direction: column; gap: 14px; min-width: min(480px, 88vw); }
 .set-mig-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .set-mig-title { margin: 0; font-size: 15px; font-weight: 600; }
-.set-mig-close {
+/* 头部 × 按钮:曾与页脚"关闭"主按钮共用 .set-mig-close 类名,scoped 选择器优先级
+   与 .set-btn.primary 同为 (0,2,0)、按源序在构建产物里胜出,导致页脚主按钮被这条
+   透明背景/细字号样式吃掉、渲染成一段裸文字(评审 Important #1)。改用独立类名拆开。 */
+.set-mig-x {
   border: none; background: transparent; color: var(--fg-muted); font-size: 20px; line-height: 1;
   cursor: pointer; padding: 2px 8px; border-radius: 8px;
 }
-.set-mig-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.set-mig-x:hover { background: var(--chip-bg-hi); color: var(--fg); }
 
 .set-mig-select-label { margin: 0; font-weight: 600; font-size: 13px; }
 .set-mig-empty { padding: 24px 0; text-align: center; color: var(--fg-muted); font-size: 12px; }

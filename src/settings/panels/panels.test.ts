@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../i18n/zh_cn'
@@ -50,8 +50,14 @@ describe('9 个 tab 骨架', () => {
   // storage 的真实交互(容量口径、8% 启发式、跳转 /storage、失败空态、过期守卫)已迁到
   // StoragePanel.test.ts(带 service/router mock)。这里只钉一个零 mock 也能验的静态标记:
   // 入口卡按钮不受异步取数是否落定影响,挂载后立刻就在(不在 v-if 门槛后面)。
-  it('storage 已填真实内容(概览 + 入口卡),不再是纯骨架', () => {
+  it('storage 已填真实内容(概览 + 入口卡),不再是纯骨架', async () => {
     const w = mount(PANEL_BY_TAB.storage, { global: { plugins: [i18n] } })
+    // 评审 Important #3 新增了真实加载态:取数落定前先渲染 .set-skeleton(不是遗漏,
+    // 是避免落定前露一段 0 值假读数),这里先钉住"确实经过了加载态",再 flush 到落定后
+    // 断言不再是骨架。
+    expect(w.find('.set-skeleton').exists()).toBe(true)
+    expect(w.find('.set-store-entry').exists()).toBe(true) // 入口卡不受加载态门控
+    await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
     expect(w.find('.set-store-entry').exists()).toBe(true)
   })
@@ -61,9 +67,13 @@ describe('9 个 tab 骨架', () => {
   // 的静态标记:三行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。
   // AppsPanel 用了 useToast()(pinia store),零 mock 下也需要一个 active Pinia,否则
   // setup() 阶段就会因 "no active Pinia" 抛出 —— 只在这一个 it() 里装,不影响其它用例。
-  it('apps 已填真实内容(数据位置三行 + Docker 清理 + 待上传缓存做样子),不再是纯骨架', () => {
+  it('apps 已填真实内容(数据位置三行 + Docker 清理 + 待上传缓存做样子),不再是纯骨架', async () => {
     setActivePinia(createPinia())
     const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
+    // 评审 Important #3 新增了真实加载态:两个接口都落定前先渲染 .set-skeleton(不是
+    // 遗漏,是避免落定前露三行 0 值假读数),这里先钉住"确实经过了加载态"。
+    expect(w.find('.set-skeleton').exists()).toBe(true)
+    await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
     expect(w.findAll('.set-app-row')).toHaveLength(3)
     expect(w.find('.set-app-prune').exists()).toBe(true)
