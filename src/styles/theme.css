@@ -152,6 +152,16 @@
   --warn-bg: rgba(255, 159, 10, 0.08);
   --warn-border: rgba(255, 159, 10, 0.32);
 
+  /* SP7-P7a-T15:搜索结果卡片左上角媒体类别徽标(.type-badge[data-type])三色——
+     数据可视化类别色（THEMING.md §0 第三类例外的变体：同一批结果里要把"照片/视频/
+     OCR 命中"这三种互不相同的类别互相区分开，颜色语义是"第几类"而非"主题强调色"）。
+     精确复刻 Vue2 photos.scss:2768-2770 的字面量,两套主题块同值——不随皮肤深浅走,
+     同 --place-current-trip/--console-bg 的既有先例(同类先例见 THEMING.md §6)。
+     不用 --accent/--danger 就近凑:它们是三个并列的类别标识,不是"强调"或"危险"语义。 */
+  --badge-photo: rgba(50, 190, 230, 0.9);   /* 青 cyan */
+  --badge-video: rgba(255, 149, 10, 0.92);  /* 橙 orange */
+  --badge-ocr: rgba(16, 185, 129, 0.92);    /* 翠绿 emerald */
+
   /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
   --console-bg: #1e1e1e;
   --console-fg: #d4d4d4;
@@ -400,6 +410,11 @@
   --warn-fg: #96610a;
   --warn-bg: #fdf3e2;
   --warn-border: #f0d7a6;
+
+  /* SP7-P7a-T15:同 :root 同名注释——三个媒体类别徽标色,两套主题块同值,不随皮肤翻转。 */
+  --badge-photo: rgba(50, 190, 230, 0.9);
+  --badge-video: rgba(255, 149, 10, 0.92);
+  --badge-ocr: rgba(16, 185, 129, 0.92);
 
   /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
   --console-bg: #1e1e1e;
