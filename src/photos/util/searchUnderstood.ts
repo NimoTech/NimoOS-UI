@@ -27,6 +27,17 @@ export interface UnderstoodToken {
   // 自 dateRange.ts(五个快捷键字面量),年份用 number。调用方按 quick 分支:
   // 是 QuickKey 就走 quickRange(quick, now, t(v)),是 number 就走
   // yearRange(quick, v)。
+  //
+  // fix round 1 · M5(交接给 T16 的连带影响,只登记不改代码):queryParts 的
+  // keywords 来自 understood(...).map(t => t.v.toLowerCase())(brief 结构规格
+  // 第 2 条)。Vue2 里 time token 的 v 是英文标签,其中 'Last year'/'This
+  // year'/'Today' 三个恰好能在查询原文里逐字命中,所以 Vue2 会把查询框里这几个
+  // 词高亮出来。这里 v 改成了 i18n 键名(如 photosSearchLastYear),toLowerCase()
+  // 后是 'photossearchlastyear',永远匹配不上查询原文里的 'last year';即便下游
+  // 改传 t(v),中文 locale 下的"去年"也匹配不上英文查询词 'last year'。person/
+  // type/年份三类 token 的高亮不受影响(它们的 v 就是原文词或年份串本身)——仅
+  // 这三个快捷 time token 在 New-UI 里必然失去高亮,这是偏离 2(v 改 i18n 键)
+  // 的必然连带后果,不是本任务要修的 bug(修它要引入中英双词表,超范围)。
   quick?: QuickKey | number
 }
 
@@ -55,7 +66,10 @@ function hasWordBoundedMatch(haystack: string, needle: string): boolean {
 }
 
 export function understood(query: string, people: PersonOption[]): UnderstoodToken[] {
-  const q = query.toLowerCase()
+  // fix round 1 · M4:Vue2 :475 是 `(this.query || '').toLowerCase()`——同一批的
+  // queryParts/searchStateMatchesQuery 都照搬了这道守卫,这里之前漏了,补上
+  // (下游真实调用点很可能是 route.query.q,类型上就含 undefined)。
+  const q = (query || '').toLowerCase()
   if (!q.trim()) return []
   const tokens: UnderstoodToken[] = []
 

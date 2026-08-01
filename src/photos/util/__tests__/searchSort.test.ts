@@ -4,11 +4,13 @@ import type { Photo } from '../assetToPhoto'
 
 // 最小 Photo 桩:只填 sortResults/splitTiers 实际读取的字段(id/takenAt/belowCut),
 // 其余字段用 as 断言跳过(测试只关心排序/分流行为,不关心 Photo 的完整形状)。
-function stubPhoto(id: string, takenAt: string | null, belowCut = false): Photo {
+// id 类型放宽到 string | number(与 Photo.id 一致)—— 收窄成 string 会让
+// String() 归一化那条铁律的混合类型场景一次都执行不到(fix round 1 · I1)。
+function stubPhoto(id: string | number, takenAt: string | null, belowCut = false): Photo {
   return { id, takenAt, belowCut } as Photo
 }
 
-function row(id: string, score: number | null, takenAt: string | null, belowCut = false): ScoredPhoto {
+function row(id: string | number, score: number | null, takenAt: string | null, belowCut = false): ScoredPhoto {
   return { p: stubPhoto(id, takenAt, belowCut), score }
 }
 
@@ -35,6 +37,18 @@ describe('sortResults', () => {
     const rows = [row('b', null, '2026-01-01'), row('a', null, '2026-01-01')]
     const sorted = sortResults(rows, 'newest')
     expect(sorted.map(r => r.p.id)).toEqual(['a', 'b'])
+  })
+
+  // fix round 1 · I1(评审变异实证):id 混合 string/number 类型时,原始比较
+  // `a.p.id > b.p.id` 与 `String(a.p.id) > String(b.p.id)` 结果相反,能干净区分
+  // 是否真的做了 String() 归一。id=10(number)与 id='9'(string)、takenAt 相同:
+  // 原始比较 10 > '9' 走数值强制转换('9' 转成数字 9)得 true;
+  // String() 后 '10' > '9' 走字典序比较(首字符 '1' < '9')得 false —— 结果相反。
+  it('id 混合 string/number 类型 → 按 String() 归一后比较(与直接比较结果相反,能区分是否漏做 String())', () => {
+    const rows = [row(10, null, '2026-01-01'), row('9', null, '2026-01-01')]
+    const sorted = sortResults(rows, 'newest')
+    // String(10)='10' < String('9')='9'(字典序),故 10 排在 '9' 前面。
+    expect(sorted.map(r => r.p.id)).toEqual([10, '9'])
   })
 
   it('newest 与 oldest 互为逆序(排除 null 项)', () => {

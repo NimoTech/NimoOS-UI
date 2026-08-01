@@ -10,6 +10,15 @@ describe('understood', () => {
     expect(understood('   ', [])).toEqual([])
   })
 
+  // fix round 1 · M4:Vue2 :475 是 `(this.query || '').toLowerCase()`,同期两个
+  // 兄弟函数(queryParts/searchStateMatchesQuery)都补了 `query || ''` 守卫,唯独
+  // understood 之前是裸的 `query.toLowerCase()`——下游 T16 真实来源很可能是
+  // vue-router 的 route.query.q(类型含 undefined),传 undefined 进来会直接抛
+  // TypeError。签名仍保持 query: string(不放宽 TS 侧),但运行时要能扛住。
+  it('query 为 undefined(如路由 query 缺省)→ 不抛错,返回 []', () => {
+    expect(understood(undefined as unknown as string, [])).toEqual([])
+  })
+
   it('中文人名命中(§7e-5 主守卫,Vue2 用 \\b 时这条不命中)', () => {
     const tokens = understood('小明的照片', [person('p1', '小明')])
     expect(tokens).toEqual([{ k: 'person', v: '小明', id: 'p1' }])
@@ -46,12 +55,12 @@ describe('understood', () => {
     expect(understood('视频', []).find(t => t.k === 'type')).toBeUndefined()
   })
 
-  it('time 六条快捷/年份判据', () => {
-    expect(understood('last week', []).find(t => t.k === 'time')?.quick).toBe('last7')
-    expect(understood('last month', []).find(t => t.k === 'time')?.quick).toBe('last30')
-    expect(understood('last year', []).find(t => t.k === 'time')?.quick).toBe('lastYear')
-    expect(understood('this year', []).find(t => t.k === 'time')?.quick).toBe('thisYear')
-    expect(understood('today', []).find(t => t.k === 'time')?.quick).toBe('today')
+  it('time 六条快捷/年份判据(fix round 1 · I2:五个快捷分支的完整 token —— 含 v —— 都要断言,不能只验 quick;否则 v 键错也测不出来)', () => {
+    expect(understood('last week', []).find(t => t.k === 'time')).toEqual({ k: 'time', v: QUICK_LABEL_KEYS.last7, quick: 'last7' })
+    expect(understood('last month', []).find(t => t.k === 'time')).toEqual({ k: 'time', v: QUICK_LABEL_KEYS.last30, quick: 'last30' })
+    expect(understood('last year', []).find(t => t.k === 'time')).toEqual({ k: 'time', v: QUICK_LABEL_KEYS.lastYear, quick: 'lastYear' })
+    expect(understood('this year', []).find(t => t.k === 'time')).toEqual({ k: 'time', v: QUICK_LABEL_KEYS.thisYear, quick: 'thisYear' })
+    expect(understood('today', []).find(t => t.k === 'time')).toEqual({ k: 'time', v: QUICK_LABEL_KEYS.today, quick: 'today' })
     const yr = understood('2025 trip', []).find(t => t.k === 'time')
     expect(yr?.v).toBe('2025')
     expect(yr?.quick).toBe(2025)
