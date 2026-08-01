@@ -503,3 +503,21 @@
 .set-acc-avatar { display: flex; align-items: center; justify-content: center; width: 108px; height: 108px; border-radius: 50%; object-fit: cover; border: 4px solid var(--card-border); background: var(--chip-bg); }
 .set-acc-avatar-initial { font-size: 40px; font-weight: 600; color: var(--fg-muted); }
 .set-acc-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+/* ── SP9-P4 account · 从 NAS 选头像 ──────────────────────────────────── */
+.set-nas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; }
+.set-nas-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 10px 12px; border-radius: 12px; text-align: center; cursor: pointer; background: var(--card-bg); border: 1px solid var(--card-border); }
+.set-nas-card:hover { background: var(--chip-bg); }
+.set-nas-name { font-size: 0.85rem; font-weight: 500; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.set-nas-sub { font-size: 0.7rem; color: var(--fg-muted); }
+.set-nas-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; overflow: hidden; }
+.set-nas-crumbs { display: flex; flex: 1; min-width: 0; flex-wrap: nowrap; overflow: hidden; align-items: center; }
+.set-nas-crumb { flex-shrink: 0; font-size: 0.8rem; white-space: nowrap; cursor: pointer; color: var(--fg-muted); }
+.set-nas-crumb:hover:not(.active) { color: var(--fg); }
+.set-nas-crumb.active { color: var(--fg); font-weight: 500; cursor: default; }
+.set-nas-crumb-sep { margin: 0 3px; color: var(--fg-muted); }
+.set-nas-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; max-height: 280px; overflow-y: auto; }
+.set-nas-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px 8px; border-radius: 8px; cursor: pointer; background: transparent; border: 0; color: var(--fg); }
+.set-nas-item:hover { background: var(--chip-bg); }
+.set-nas-item-icon { font-size: 20px; line-height: 1; }
+.set-nas-item-name { font-size: 0.7rem; line-height: 1.3; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }

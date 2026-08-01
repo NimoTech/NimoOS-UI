@@ -20,6 +20,7 @@ import SettingsSection from '../components/SettingsSection.vue'
 import OwnerCard from './account/OwnerCard.vue'
 import ChangePasswordForm from './account/ChangePasswordForm.vue'
 import AvatarCropper from './account/AvatarCropper.vue'
+import NasImagePicker from './account/NasImagePicker.vue'
 import { readAccessToken } from '../util/avatar'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../stores/toast'
@@ -74,6 +75,22 @@ function goto(next: AccountState) {
   state.value = next
 }
 
+/** 页脚「返回」。分支逐字对位 Vue2 :909:
+ *  state 5 → 回 1 且清 activeMember;state 6 且在浏览视图 → 只回存储卡网格;否则 goto(1)。 */
+function onBack() {
+  if (state.value === 6 && nasPicker.value?.view === 'browse') {
+    nasPicker.value.backToStorages()
+    return
+  }
+  goto(1)
+}
+
+function onNasPick(src: string) {
+  // NAS 选图给的是 /v1/image URL,不是 objectURL → 不需要 revoke(第二个参数 false)。
+  setPickedImage(src, false)
+  goto(4)
+}
+
 onMounted(async () => {
   // Vue2 mounted 是 `if (this.$store.state.user.id === 0) updateUserInfo()` —— 依赖 Vuex 里
   // 已有的用户对象。New-UI 没有全局 user store(session.setUser 只写 localStorage 字符串),
@@ -92,6 +109,7 @@ onMounted(async () => {
 // 页脚 Submit 的落点。Vue2 :911-912 只在 state 3 / 4 有 Submit(state 2 那个是死代码,C10)。
 const pwdForm = ref<{ submit(): Promise<boolean> } | null>(null)
 const cropper = ref<{ submit(): Promise<boolean> } | null>(null)
+const nasPicker = ref<{ backToStorages(): void; view: 'storages' | 'browse' } | null>(null)
 const submitting = ref(false)
 
 async function onSubmit() {
@@ -165,12 +183,14 @@ function logout() {
     />
     <!-- Task 11 填:成员文件夹授权 -->
     <div v-else-if="state === 5" data-test="acc-member-folders" />
-    <!-- Task 9 填:从 NAS 选图 -->
-    <div v-else-if="state === 6" data-test="acc-nas-picker" />
+    <NasImagePicker
+      v-else-if="state === 6" ref="nasPicker"
+      data-test="acc-nas-picker" @pick="onNasPick"
+    />
 
     <!-- 页脚:对位 Vue2 :908-913(isInline 下也保留,只在 state 1 隐藏) -->
     <div v-if="state !== 1" class="set-acc-foot" data-test="acc-footer">
-      <button class="set-btn" type="button" data-test="acc-back" @click="goto(1)">
+      <button class="set-btn" type="button" data-test="acc-back" @click="onBack">
         {{ t('settingsAccBack') }}
       </button>
       <button

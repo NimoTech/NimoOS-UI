@@ -16,6 +16,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
       saveAvatar: (...a: unknown[]) => saveAvatar(...a),
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
+    // state 6 会挂载真实的 NasImagePicker,它一挂载就取存储列表
+    storage: { list: async () => [] },
+    raid: { list: async () => [] },
+    folder: { getList: async () => ({ content: [] }) },
+    image: { imageUrl: (p: string, t?: string) => `/v1/image?path=${encodeURIComponent(p)}&type=${t}` },
   },
 }))
 
@@ -199,6 +204,50 @@ describe('AccountPanel 宿主状态机', () => {
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     await w.find('[data-test="acc-nas"]').trigger('click')
     expect(w.find('[data-test="acc-nas-picker"]').exists()).toBe(true)
+  })
+
+  it('state 6 浏览视图下点「返回」只回存储卡网格,不回 state 1(Vue2 :909)', async () => {
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="acc-change-avatar"]').trigger('click')
+    await w.find('[data-test="acc-nas"]').trigger('click')
+    await flush()
+    // 本机零额外分区时至少有 /DATA 一张卡 → 点进去进浏览视图
+    await w.findAll('[data-test="nas-storage"]')[0].trigger('click')
+    await flush()
+    expect(w.find('[data-test="nas-crumbs"]').exists()).toBe(true)
+    await w.find('[data-test="acc-back"]').trigger('click')
+    await flush()
+    // 仍在 state 6,只是回到了卡片网格
+    expect(w.find('[data-test="acc-nas-picker"]').exists()).toBe(true)
+    expect(w.find('[data-test="nas-crumbs"]').exists()).toBe(false)
+  })
+
+  it('state 6 存储卡网格下点「返回」回 state 1', async () => {
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="acc-change-avatar"]').trigger('click')
+    await w.find('[data-test="acc-nas"]').trigger('click')
+    await flush()
+    await w.find('[data-test="acc-back"]').trigger('click')
+    await flush()
+    expect(w.find('[data-test="acc-nas-picker"]').exists()).toBe(false)
+    expect(w.find('[data-test="acc-username"]').exists()).toBe(true)
+  })
+
+  it('从 NAS 选中图片 → 进 state 4,src 是 /v1/image URL 且不产生 objectURL', async () => {
+    const create = vi.spyOn(URL, 'createObjectURL')
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="acc-change-avatar"]').trigger('click')
+    await w.find('[data-test="acc-nas"]').trigger('click')
+    await flush()
+    // 直接用子组件的 pick 事件(真实点击路径已在 NasImagePicker.test.ts 覆盖)
+    w.findComponent({ name: 'NasImagePicker' }).vm.$emit('pick', '/v1/image?path=%2FDATA%2Fa.png&type=original')
+    await flush()
+    expect(w.find('[data-test="acc-cropper"]').attributes('data-src')).toBe('/v1/image?path=%2FDATA%2Fa.png&type=original')
+    expect(create).not.toHaveBeenCalled()
+    create.mockRestore()
   })
 
   it('退出账户:清会话 + 跳登录页', async () => {
