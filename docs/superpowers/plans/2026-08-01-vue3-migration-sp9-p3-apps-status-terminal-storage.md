@@ -1896,7 +1896,7 @@ describe('AppPathDialog', () => {
     await flushPromises()
     await (document.querySelector('.set-mig-next') as HTMLElement).click()
     await flushPromises()
-    expect(document.body.textContent).toContain('在此过程中,Docker 将暂时停止。')
+    expect(document.body.textContent).toContain('在此过程中，Docker 将暂时停止。')
   })
 
   it('开始迁移后按 200ms 轮询,done 时进完成步骤', async () => {
@@ -1917,7 +1917,7 @@ describe('AppPathDialog', () => {
     vi.advanceTimersByTime(200); await flushPromises()
     expect(document.body.textContent).toContain('42')
     vi.advanceTimersByTime(200); await flushPromises()
-    expect(document.body.textContent).toContain('迁移完成!')
+    expect(document.body.textContent).toContain('迁移完成！')
     vi.useRealTimers()
   })
 
