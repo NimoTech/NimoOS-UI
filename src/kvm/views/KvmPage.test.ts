@@ -429,3 +429,162 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
     })
   })
 })
+
+// Task 8:安装横幅(照 Vue2 :142)+ SPICE 提示条(照 Vue2 :157,180 秒自动收起 :748-752)。
+describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
+  it('running + 未从硬盘启动 + 有 iso → 显示安装横幅', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    const w = mountPage()
+    await flush()
+    expect(w.find('.installation-banner').exists()).toBe(true)
+  })
+
+  it('已从硬盘启动 → 不显示安装横幅', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    const w = mountPage()
+    await flush()
+    expect(w.find('.installation-banner').exists()).toBe(false)
+  })
+
+  it('没有 iso → 不显示安装横幅(即便未从硬盘启动)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '' })],
+      total: 1,
+    })
+    const w = mountPage()
+    await flush()
+    expect(w.find('.installation-banner').exists()).toBe(false)
+  })
+
+  it('点安装横幅按钮调 setBootFromDisk(id, true),成功后横幅消失(bootFromDisk 变 true)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    api.setBootFromDisk.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+    expect(w.find('.installation-banner').exists()).toBe(true)
+
+    // ejectInstallMedia 成功后会调 fetchVMs() 整表刷新——第二次 getVMList 返回
+    // bootFromDisk:true,横幅的显示条件因此变假,这是"横幅消失即成功反馈"的机制
+    // (KvmPage.vue 里说明过:没有另外接 toast,横幅消失本身就是状态驱动的确认)。
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    await w.get('.banner-btn').trigger('click')
+    await flush()
+
+    expect(api.setBootFromDisk).toHaveBeenCalledWith('vm-1', true)
+    expect(w.find('.installation-banner').exists()).toBe(false)
+  })
+
+  // ⚠️ 这几条 SPICE 用例都要把 getVNC 的 mock 一并改掉:running 态的 VM 会自动走 VNC
+  // 连接(Task 6 接线),连接成功后 useVncConsole 的 onSpicePorts 回调会用 getVNC 返回的
+  // spicePort 覆盖 vm.spicePort(照 Vue2 connectVNC 的保活合并写法,spicePreserve.ts)。
+  // beforeEach 里 getVNC 默认 mock 返回 spicePort:0,不改的话这里传的 spicePort:5901
+  // 会被这次"保活合并"覆盖回 0,条件变假、条不出现——排查过程见 task-8-report.md。
+  it('spicePort>0 且 bootFromDisk → 显示 SPICE 条,拼出正确的连接串', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 })],
+      total: 1,
+    })
+    api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
+    const w = mountPage()
+    await flush()
+    const bar = w.find('.spice-info-bar')
+    expect(bar.exists()).toBe(true)
+    expect(bar.get('code').text()).toBe(`spice://${window.location.hostname}:5901`)
+  })
+
+  it('spicePort<=0 → 不显示 SPICE 条(即便已从硬盘启动)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 0 })],
+      total: 1,
+    })
+    const w = mountPage()
+    await flush()
+    expect(w.find('.spice-info-bar').exists()).toBe(false)
+  })
+
+  it('点 SPICE 条的关闭按钮后隐藏', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 })],
+      total: 1,
+    })
+    api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
+    const w = mountPage()
+    await flush()
+    expect(w.find('.spice-info-bar').exists()).toBe(true)
+    await w.get('.spice-info-close').trigger('click')
+    expect(w.find('.spice-info-bar').exists()).toBe(false)
+  })
+
+  // vi.useFakeTimers() 必须在 mountPage() **之前**打开——组件 watch selectedVM.id 里
+  // setTimeout(...,180000) 是在 onMounted 触发的首次 fetchVMs 解析后才调用的,如果先用
+  // 真实时钟挂载再切假时钟,那个 setTimeout 已经用真实实现调度出去了,vi.advanceTimersByTime
+  // 动不了它(硬约束:不能真的等 180 秒,必须假时钟接管从一开始)。
+  it('180 秒后 SPICE 条自动消失(vi.useFakeTimers,不真的等待)', async () => {
+    vi.useFakeTimers()
+    try {
+      api.getVMList.mockResolvedValue({
+        data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 })],
+        total: 1,
+      })
+      api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
+      const w = mountPage()
+      await vi.advanceTimersByTimeAsync(0) // 让 fetchVMs 的 promise 链 + watch 首次触发跑完
+      expect(w.find('.spice-info-bar').exists()).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(180_000)
+      expect(w.find('.spice-info-bar').exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('切换 VM 时 SPICE 条重新出现并重新计时(旧计时器被清掉,不会提前隐藏新 VM 的条)', async () => {
+    vi.useFakeTimers()
+    try {
+      api.getVMList.mockResolvedValue({
+        data: [
+          VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 }),
+          VM({ id: 'vm-2', name: 'vm-two', state: 'running', bootFromDisk: true, spicePort: 5902 }),
+        ],
+        total: 2,
+      })
+      // 两台 VM connect() 时都会走同一个 getVNC mock,覆盖回来的 spicePort 是不是 5901
+      // 还是 5902 不重要——这条用例只断言"条子在不在",不断言连接串数值。
+      api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
+      const w = mountPage()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(w.find('.spice-info-bar').exists()).toBe(true) // vm-1 的条,180s 后(t=180)会隐藏
+
+      await vi.advanceTimersByTimeAsync(100_000) // t=100s,vm-1 的条还在(还没到 180s)
+      expect(w.find('.spice-info-bar').exists()).toBe(true)
+
+      const items = w.findAll('.vm-list-item')
+      await items[1].trigger('click') // 切到 vm-2(t=100s),重置计时器 → 新的 180s 从此刻算
+      await vi.advanceTimersByTimeAsync(0)
+      expect(w.find('.spice-info-bar').exists()).toBe(true) // 切换后条子跟着重新出现(vm-2 的)
+
+      // 再等 90s(总计 t=190s)。如果 vm-1 那个旧计时器没被清掉,它会在 t=180s 触发,
+      // 190s 这个时间点条应该已经被(错误地)隐藏——断言它还在,证明旧计时器确实被清掉了。
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(w.find('.spice-info-bar').exists()).toBe(true)
+
+      // 再等 90s(总计 t=280s = 切换后 180s),这才是 vm-2 那个新计时器该触发的时间点。
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(w.find('.spice-info-bar').exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

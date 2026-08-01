@@ -55,6 +55,14 @@ describe('VmSidebar', () => {
     expect(mk({ collapsed: true }).classes()).toContain('collapsed')
   })
 
+  // Task 8 收尾修复:Vue2 窄屏抽屉的 active/open 类从没被真正切换过(死代码,详见
+  // kvm.css 里 `.kvm-sidebar.active` 规则上方注释),这里复用 collapsed 状态在窄屏下
+  // 驱动同一块抽屉可见性——not-collapsed(默认)时 active,collapsed 时不 active。
+  it('根元素 active 类与 collapsed 相反(驱动窄屏抽屉可见性)', () => {
+    expect(mk({ collapsed: false }).classes()).toContain('active')
+    expect(mk({ collapsed: true }).classes()).not.toContain('active')
+  })
+
   // 评审 Important 补测:selectedId 是「谁高亮」的唯一依据,此前没有用例断言过
   // 这一跳(VmListItem.test.ts 只测了 prop→class,这里只数过行数/emit),
   // 评审变异 `:active="false"` 能全绿放行。这里锁住 selectedId 指向谁、谁才带

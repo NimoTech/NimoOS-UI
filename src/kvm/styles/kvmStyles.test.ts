@@ -22,7 +22,7 @@ const ALLOWED = new Set([
   'add-vm-btn', 'kvm-main', 'main-empty', 'empty-icon-ring', 'main-empty-icon',
   'vm-console-container', 'console-header', 'console-title', 'console-os-icon', 'console-status',
   'console-actions', 'action-btn', 'dropdown-wrapper', 'overflow-dropdown', 'dropdown-item',
-  'is-danger', 'confirm-text-danger', 'toggle-indicator', 'on', 'dropdown-divider',
+  'dropdown-icon', 'is-danger', 'confirm-text-danger', 'toggle-indicator', 'on', 'dropdown-divider',
   'console-display', 'console-placeholder', 'console-hint', 'is-error', 'start-vm-btn',
   'power-icon', 'power-svg',
   'sendkey-toolbar', 'sendkey-divider', 'sendkey-btn', 'sendkey-hint', 'sendkey-img',

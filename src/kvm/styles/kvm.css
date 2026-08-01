@@ -196,11 +196,17 @@
   color: var(--kvm-fg-dim);
 }
 
+/* Task 8 token 清点:这三处 status-dot 的默认("idle"/停机)底色本来引用 --kvm-idle,
+ * 与 --kvm-fg-faint 取的是同一个字面量——不是巧合,Vue2 源文件本来就在两种场景复用
+ * 同一个颜色值(既当"停机点"的底色,也当 console-hint 一类弱化文字的颜色,KVM 主组件
+ * 源文件里 :1809/:1924/:2066 与 :2254/:2456/:2487 等处逐一核对过,两处色值字面量相同)。
+ * 两个 token 名字不同但语义就是同一种"最弱化的灰",清点时合并成一个,--kvm-idle 已从
+ * theme sp9 分片两个主题块里删掉,这三处及下面 .console-hint 统一改用 --kvm-fg-faint。 */
 .kvm-status .status-dot {
   width: 0.4rem;
   height: 0.4rem;
   border-radius: 50%;
-  background: var(--kvm-idle);
+  background: var(--kvm-fg-faint);
 }
 
 .kvm-status .status-dot.running {
@@ -345,7 +351,7 @@
 }
 
 .vm-item-status .status-dot.stopped {
-  background: var(--kvm-idle);
+  background: var(--kvm-fg-faint);
 }
 
 .vm-item-status .status-dot.paused {
@@ -501,7 +507,7 @@
 }
 
 .console-status .status-dot.stopped {
-  background: var(--kvm-idle);
+  background: var(--kvm-fg-faint);
 }
 
 .console-status .status-dot.paused {
@@ -687,11 +693,15 @@
 }
 
 /* ── SendKey 悬浮工具条(Vue2 :2348-2438,2026-08-02 核对)──
- * 本组件被 KvmPage(视图文件)Teleport 进 ConsoleStage 的 hostEl(即 `.console-display`
- * 那个真实 DOM 节点)——这样 `.sendkey-toolbar` 的 `position:absolute` 才能相对
- * `.console-display`(它自己 position:relative)定位,与 Vue2 的 DOM 层级(工具条是
- * `.console-display` 的直接子节点)保持一致,不会因为套一层 New-UI 自己的包装 div
- * 而导致垂直居中的基准区域多算进 console-header 的高度(视觉差异)。 */
+ * 本组件作为 slot 内容渲染进 ConsoleStage 组件的 `.console-display`(T7 评审订正的
+ * 措辞:最初版本想用 `<Teleport :to="hostEl">`,评审指出 ConsoleStage 直接加一个
+ * `<slot />` 更简单、风险面更小,已改掉——见 ConsoleStage 组件顶部注释与 KvmPage 视图
+ * 文件里 `<ConsoleStage>` 用法处的说明)——这样 `.sendkey-toolbar` 的 `position:absolute`
+ * 才能相对 `.console-display`(它自己 position:relative)定位,与 Vue2 的 DOM 层级
+ * (工具条是 `.console-display` 的直接子节点)保持一致,不会因为套一层 New-UI 自己的
+ * 包装 div 而导致垂直居中的基准区域多算进 console-header 的高度(视觉差异)。
+ * SpiceInfoBar(Task 8)同理也是作为这个 slot 的内容渲染进来,原因见该组件与本文件里
+ * `.spice-info-bar` 段的注释。 */
 .sendkey-toolbar {
   position: absolute;
   right: 0;
@@ -826,6 +836,20 @@
   background: var(--kvm-elev);
 }
 
+/* Task 8 补:Vue2 每个 dropdown-item 前面都有一个 b-icon(:103-133),之前(T5)只搬了
+ * 文字,漏了图标一半的"图标+文字"版式(评审已指出,登记在 task-8 的顺带清理清单)。
+ * New-UI 没有 casa 图标字体,按本区既有惯例(⚙/⋮/‹ 等)换成单色文字符号占位——不是新
+ * 视觉语言,是同一套占位手法用到菜单项上。固定宽度让不同宽窄的符号(▶/⊘/↻/‖/×)左对齐,
+ * Vue2 的 b-icon size="is-small" 同样是固定框大小,这里数值不必逐字(占位符号本身就不是
+ * 1:1 图形),但"预留固定宽度对齐"这个版式意图是 1:1 的。 */
+.dropdown-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  flex-shrink: 0;
+}
+
 .dropdown-item.is-danger {
   color: var(--kvm-danger);
 }
@@ -915,9 +939,15 @@
 
 /* ── 窄屏(Vue2 :2740-2759) ──
  * Vue2 原文用 &open(与 open 组合的选择器)切控制侧栏抽屉展开态,但模板里从没出现过
- * open 这个类(toggleSidebar 只改 sidebarCollapsed,没有任何地方 add/remove open)—— 是死代码,
- * 窄屏抽屉展开在 Vue2 里实际永远不会触发。这里改用已在白名单里的 `active`
- * 类名占位数值(数值本身逐字照抄),抽屉触发逻辑留给实现该交互的后续任务接线。 */
+ * open 这个类(toggleSidebar 只改 sidebarCollapsed,没有任何地方 add/remove open)——是
+ * 死代码,窄屏抽屉在 Vue2 的**实际**行为是永久隐藏、没有任何办法能再打开(这是 Vue2
+ * 移动端的真实 bug,不是"故意不做的功能")。
+ *
+ * ⚠️ 与 Vue2 的偏离(Task 8 收尾,改正确逻辑不照抄 bug,已申报):数值(位置/宽度/
+ * transform/transition 曲线)逐字照抄,但 `.active` 触发条件在这里补上——复用桌宽已有
+ * 的折叠状态(`collapsed`),窄屏下 `active = !collapsed`。默认 `collapsed` 是 false,
+ * 所以窄屏首次进入就能看到侧栏(抽屉默认展开),点同一个折叠按钮收起/展开,不需要
+ * 额外引入第二套状态。见 VmSidebar 组件里 `:class="{ collapsed, active: !collapsed }"`。 */
 @media screen and (max-width: 768px) {
   .kvm-sidebar {
     width: 100%;
@@ -936,5 +966,170 @@
 
   .kvm-main {
     width: 100%;
+  }
+}
+
+/* ── SPICE 连接提示条(Vue2 :156-165 模板 + :2795-2865 样式,后者在**第一个、scoped**
+ * 的 style 块里)──
+ * 渲染进 ConsoleStage 组件的 slot(与上面 sendkey-toolbar 同一个 slot,原因见那段注释)。
+ * 每个色值都能在既有 --kvm-* token 里找到:底色是 --kvm-overlay(与 SendKey 工具条/
+ * 进度遮罩同一个半透明深色),边框色 --kvm-warn-border、字色 --kvm-warn(黄色系,呼应
+ * "还没切到硬盘引导"这个提醒性质的信息),关闭按钮沿用 --kvm-fg-dim/--kvm-fg 这对
+ * 既有的"次要图标按钮"配色——T2 定义这批 token 时就是照 Vue2 这里的字面量选的值,
+ * 逐一核对过完全对得上,不需要新增 token。 */
+.spice-info-bar {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  background: var(--kvm-overlay);
+  border: 1px solid var(--kvm-warn-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px var(--kvm-shadow);
+  backdrop-filter: blur(8px);
+  max-width: 36rem;
+}
+
+.spice-info-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.125rem;
+  font-size: 0.8rem;
+  color: var(--kvm-warn);
+  min-width: 0;
+}
+
+.spice-info-content code {
+  font-family: monospace;
+  color: var(--kvm-warn);
+  white-space: nowrap;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.spice-info-content .spice-agent-hint {
+  font-size: 0.75rem;
+  color: var(--kvm-warn);
+}
+
+.spice-info-close {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  transition: color 0.2s;
+}
+
+.spice-info-close:hover {
+  color: var(--kvm-fg);
+}
+
+/* 硬约束 5:Vue3 过渡类名是 `-enter-from`/`-leave-to`,Vue2 那边写的是 `-enter`——
+ * 白名单登记的已经是 Vue3 命名,这里同样只用 Vue3 命名,不留 Vue2 那个在 Vue3 里
+ * 根本不生效的类。 */
+.spice-toast-enter-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.spice-toast-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.spice-toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-0.5rem);
+}
+
+.spice-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-0.5rem);
+}
+
+/* ── 安装横幅(Vue2 模板 :142-149 + 样式 :3096-3147)──
+ * ⚠️ 这段样式在 Vue2 源文件**第二个、非 scoped** 的 style 块里(文件末尾,:2875 起),
+ * 不在上面 SPICE 提示条所在的第一个 scoped 块——这是全页唯一的浅色块,--kvm-banner-*
+ * 系列 token 是浅蓝底(T2 阶段就定义好,本任务第一次消费)。按钮文字色与 loading 转圈的
+ * 边框色 Vue2 写的都是字面量 white,这里复用既有的 --kvm-on-accent(值同样是纯白、
+ * 语义是"强调色底上的文字",SendKey 工具条的 active 态已经在用同一个 token)——不是
+ * 新造 token,也不是照 Vue2 那样写死字面量。 */
+.installation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--kvm-banner-bg);
+  border-bottom: 1px solid var(--kvm-banner-border);
+  padding: 8px 16px;
+  color: var(--kvm-banner-fg);
+  font-size: 0.9rem;
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.banner-btn {
+  background-color: var(--kvm-banner-btn);
+  color: var(--kvm-on-accent);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.banner-btn:hover {
+  background-color: var(--kvm-banner-btn-hover);
+}
+
+.banner-btn.is-loading {
+  color: transparent;
+  pointer-events: none;
+  position: relative;
+}
+
+.banner-btn.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  top: calc(50% - 0.5em);
+  left: calc(50% - 0.5em);
+  border: 2px solid var(--kvm-on-accent);
+  border-radius: 290486px;
+  border-right-color: transparent;
+  border-top-color: transparent;
+  animation: kvm-banner-spin 0.5s infinite linear;
+}
+
+/* Vue2 这里就叫裸名字 `spin`(在它自己的 style 块里,天然不会跟别处撞名)。本文件是
+ * 平铺引入的全局样式表,不享受单文件组件 scoped 块的关键帧自动改名,裸名字 `spin` 有
+ * 撞上应用别处同名全局关键帧的风险,所以加前缀——数值(时长/速率/角度)逐字照抄,
+ * 只有名字加了前缀,不算视觉偏离。 */
+@keyframes kvm-banner-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(359deg);
   }
 }

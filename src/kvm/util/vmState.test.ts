@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { KvmVM } from '@nimotech/nimoos-service'
 import {
   canPowerOn, canShutDown, canRestart, canPause, canResume, canWakeUp,
-  canDelete, canEditSettings, showDeleteDivider, stateLabelKey,
+  canDelete, canEditSettings, showDeleteDivider, stateLabelKey, isWindowsGuest,
 } from './vmState'
 
 const vm = (state: string) => ({ id: 'x', state } as KvmVM)
@@ -85,5 +85,21 @@ describe('stateLabelKey', () => {
     expect(stateLabelKey('crashed')).toBe('crashed')
     expect(stateLabelKey('missing')).toBe('missing')
     expect(stateLabelKey('')).toBe('')
+  })
+})
+
+describe('isWindowsGuest(对 Vue2 KVMFullPage.vue:711-714 的 computed)', () => {
+  it('os 含 win(大小写不敏感)→ true', () => {
+    expect(isWindowsGuest({ os: 'Windows 10' } as KvmVM)).toBe(true)
+    expect(isWindowsGuest({ os: 'WIN11' } as KvmVM)).toBe(true)
+    expect(isWindowsGuest({ os: 'windows-server' } as KvmVM)).toBe(true)
+  })
+  it('os 不含 win → false', () => {
+    expect(isWindowsGuest({ os: 'linux' } as KvmVM)).toBe(false)
+    expect(isWindowsGuest({ os: 'Ubuntu' } as KvmVM)).toBe(false)
+  })
+  it('null/undefined → false,不抛', () => {
+    expect(isWindowsGuest(null)).toBe(false)
+    expect(isWindowsGuest(undefined)).toBe(false)
   })
 })

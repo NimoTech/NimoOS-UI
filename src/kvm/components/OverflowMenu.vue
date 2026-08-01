@@ -63,35 +63,50 @@ function direct(action: string) {
 }
 
 defineExpose({ reset })
+
+// Task 8 补:Vue2 每一项前面都有一个 b-icon(图标+文字版式,:103-133),T5 当时只搬了
+// 文字。New-UI 没有 casa 图标字体,按本区既有惯例(⚙/⋮/‹ 等单色文字符号占位,禁 emoji)
+// 补上——符号本身不是对应图标的精确复刻,是占位手法的延续,"每项都有图标"这个版式
+// 意图才是 1:1 的部分。自动启动一项 Vue2 本来就没有 b-icon(那颗 toggle-indicator 圆点
+// 本身就是它的"图标"),故不额外加符号,原样保留。
+// ⚠️ 这条注释特意放在 script 块而不是 <template> 里根 div 的正上方——Vue 3 编译器会把
+// "模板级注释 + 根元素"识别成两个根节点的 Fragment(见 VmSidebar 组件同一处踩坑的详细
+// 记录),放在 script 里就不会污染模板的单根结构。
 </script>
 
 <template>
   <div class="overflow-dropdown">
     <button v-if="canPowerOn(vm)" class="dropdown-item" type="button" @click="direct('start')">
+      <span class="dropdown-icon" aria-hidden="true">▶</span>
       <span>{{ t('kvmPowerOn') }}</span>
     </button>
 
     <button v-if="canShutDown(vm)" class="dropdown-item" type="button" @click="confirmThenEmit('stop')">
+      <span class="dropdown-icon" aria-hidden="true">⊘</span>
       <span :class="{ 'confirm-text-danger': isPending('stop') }">
         {{ isPending('stop') ? t('kvmAreYouSure') : t('kvmForceShutDown') }}
       </span>
     </button>
 
     <button v-if="canRestart(vm)" class="dropdown-item" type="button" @click="confirmThenEmit('restart')">
+      <span class="dropdown-icon" aria-hidden="true">↻</span>
       <span :class="{ 'confirm-text-danger': isPending('restart') }">
         {{ isPending('restart') ? t('kvmAreYouSure') : t('kvmForceRestart') }}
       </span>
     </button>
 
     <button v-if="canPause(vm)" class="dropdown-item" type="button" @click="direct('pause')">
+      <span class="dropdown-icon" aria-hidden="true">‖</span>
       <span>{{ t('kvmPause') }}</span>
     </button>
 
     <button v-if="canResume(vm)" class="dropdown-item" type="button" @click="direct('resume')">
+      <span class="dropdown-icon" aria-hidden="true">▶</span>
       <span>{{ t('kvmResume') }}</span>
     </button>
 
     <button v-if="canWakeUp(vm)" class="dropdown-item" type="button" @click="direct('wakeup')">
+      <span class="dropdown-icon" aria-hidden="true">▶</span>
       <span>{{ t('kvmWakeUp') }}</span>
     </button>
 
@@ -103,6 +118,7 @@ defineExpose({ reset })
     <div v-if="showDeleteDivider(vm)" class="dropdown-divider"></div>
 
     <button v-if="canDelete(vm)" class="dropdown-item is-danger" type="button" @click="confirmThenEmit('delete')">
+      <span class="dropdown-icon" aria-hidden="true">×</span>
       <span>{{ isPending('delete') ? t('kvmAreYouSure') : t('kvmDelete') }}</span>
     </button>
   </div>

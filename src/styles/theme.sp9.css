@@ -45,7 +45,6 @@
   --kvm-danger-soft: rgba(248, 81, 73, 0.15);
   --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
   --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
-  --kvm-idle: #6e7681;
   --kvm-toggle-off: #484f58;
   --kvm-overlay: rgba(22, 27, 34, 0.92);
   --kvm-shadow: rgba(0, 0, 0, 0.4);
@@ -88,7 +87,6 @@
   --kvm-danger-soft: rgba(248, 81, 73, 0.15);
   --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
   --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
-  --kvm-idle: #6e7681;
   --kvm-toggle-off: #484f58;
   --kvm-overlay: rgba(22, 27, 34, 0.92);
   --kvm-shadow: rgba(0, 0, 0, 0.4);

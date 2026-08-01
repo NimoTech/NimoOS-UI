@@ -11,9 +11,12 @@ import VmSidebar from '../components/VmSidebar.vue'
 import ConsoleHeader from '../components/ConsoleHeader.vue'
 import ConsoleStage from '../components/ConsoleStage.vue'
 import SendKeyToolbar from '../components/SendKeyToolbar.vue'
+import InstallBanner from '../components/InstallBanner.vue'
+import SpiceInfoBar from '../components/SpiceInfoBar.vue'
 import ProgressOverlay from '../components/ProgressOverlay.vue'
 import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
+import { isWindowsGuest } from '../util/vmState'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
 const { t } = useI18n()
@@ -59,7 +62,11 @@ s.onVncShouldDisconnect(() => { vnc.disconnect() })
 // 切换选中的 VM 时照 Vue2 watch selectedVM(:747-758)的后半段:只在"换成了不同一台
 // VM"时才 connect/disconnect,同一台 VM 原地改 state(电源动作/MessageBus 事件)不
 // 走这里,那是上面两个回调的事。前半段的 spice 提示气泡定时器(spiceInfoDismissed/
-// spiceTimer)属于 spice-info-bar,不在 Task 6 范围内,未实现。
+// spiceTimer)属于 spice-info-bar,Task 6 当时未实现,Task 8 在下面单独一段补上
+// (没有合并进这个 watch,是因为下面那段还要在"没有切换 VM、id 没变"的情况下也不
+// 触发——同一个 watch 回调很难同时表达"只在 id 变化时 connect/disconnect"和"id 变化
+// 就重置计时器"这两条不完全相同的判据,拆开写更清楚,brief Step 3 的示例代码也是
+// 拆成独立 watch)。
 watch(() => s.selectedVM.value, (newVM, oldVM) => {
   if (!newVM) { vnc.disconnect(); return }
   if (oldVM?.id !== newVM.id) {
@@ -67,6 +74,55 @@ watch(() => s.selectedVM.value, (newVM, oldVM) => {
     else vnc.disconnect()
   }
 })
+
+// ===================== 安装横幅 + SPICE 提示条(Task 8) =====================
+// 照 Vue2 watch selectedVM 的前半段(:748-752):切换 VM 时复位"已关闭"标记并重置
+// 180 秒自动收起的计时器。之所以拆成独立的 watch(而不是塞进上面那个),见上面那段
+// 注释的解释。
+const hostname = window.location.hostname // 照 Vue2 hostname computed(:707-709),运行期间不变,不需要 ref。
+const spiceDismissed = ref(false)
+let spiceTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => s.selectedVM.value?.id, () => {
+  spiceDismissed.value = false
+  clearTimeout(spiceTimer)
+  if (s.selectedVM.value) spiceTimer = setTimeout(() => { spiceDismissed.value = true }, 180_000)
+})
+
+// 安装横幅:照 Vue2 :142(v-if="selectedVM && selectedVM.state === 'running' &&
+// !selectedVM.bootFromDisk && selectedVM.iso")。
+const showInstallBanner = computed(() => {
+  const vm = s.selectedVM.value
+  return !!vm && vm.state === 'running' && !vm.bootFromDisk && !!vm.iso
+})
+
+// SPICE 提示条:照 Vue2 :157(v-if="selectedVM?.spicePort > 0 && selectedVM?.bootFromDisk
+// && !spiceInfoDismissed")。
+const showSpiceBar = computed(() => {
+  const vm = s.selectedVM.value
+  return !!vm && vm.spicePort > 0 && vm.bootFromDisk && !spiceDismissed.value
+})
+
+const isWindowsGuestSelected = computed(() => isWindowsGuest(s.selectedVM.value))
+
+// 照 Vue2 handleInstallationFinished(:862-877):setBootFromDisk(true) 后整表刷新,
+// 这部分逻辑已经在 useVmList.ejectInstallMedia 里实现好了(含它自己独立的重入守卫
+// ejectingIds)。这里的 ejectBusy 是**视图层自己的**按钮忙碌态 ref——brief 明确要求
+// 不要嫁接 useVmList 内部那个非响应式的 ejectingIds(它只是纯内部去重用的普通 Set,
+// 不是 ref,模板读它不会触发重渲染,`InstallBanner` 的 `is-loading` 类会因此永远
+// 显示不出来)。两层守卫各司其职:ejectingIds 挡"同一台 VM 并发发两次请求",
+// ejectBusy 挡"这个按钮的 loading 视觉要不要显示、按钮点击时要不要被 InstallBanner
+// 自己的 onClick 拦下"——功能上有重叠但不是同一份状态,不能互相替代。
+const ejectBusy = ref(false)
+async function onEjectFinish(): Promise<void> {
+  const vm = s.selectedVM.value
+  if (!vm || ejectBusy.value) return
+  ejectBusy.value = true
+  try {
+    await s.ejectInstallMedia(vm)
+  } finally {
+    ejectBusy.value = false
+  }
+}
 
 // ===================== SendKey 悬浮工具条 + 全屏(Task 7) =====================
 // 照 Vue2 `.console-display` 上的 @mouseenter/@mouseleave/@mousemove(:154,:1140-1153)
@@ -150,6 +206,7 @@ onUnmounted(() => {
   s.dispose()
   vnc.dispose()
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  clearTimeout(spiceTimer) // Task 8:brief snippet 里独立的 onUnmounted,合并进这里,免得挂两个。
 })
 
 function isProcessing(vm: KvmVM | null): boolean {
@@ -262,6 +319,14 @@ async function onAction(name: string): Promise<void> {
             @action="onAction"
           />
 
+          <!-- 安装横幅是 `.vm-console-container` 的直接子节点,console-header 和
+               ConsoleStage(console-display)之间——照 Vue2 模板 :142 的 DOM 位置。 -->
+          <InstallBanner
+            v-if="showInstallBanner"
+            :busy="ejectBusy"
+            @finish="onEjectFinish"
+          />
+
           <ConsoleStage
             ref="stageRef"
             :vm="s.selectedVM.value"
@@ -274,8 +339,24 @@ async function onAction(name: string): Promise<void> {
             @console-leave="onConsoleLeave"
             @console-move="onConsoleMove"
           >
-            <!-- 作为 ConsoleStage 的 slot 内容传入,DOM 层级与 Vue2 完全一致
-                 (工具条是 `.console-display` 的直接子节点,定位基准也是它)。 -->
+            <!-- SPICE 提示条与 SendKey 工具条一样作为 ConsoleStage 的 slot 内容传入
+                 (DOM 层级与 Vue2 完全一致——两者都是 `.console-display` 的直接子节点,
+                 `position:absolute` 的定位基准也是它)。⚠️ 与 Vue2 的偏离(DOM 顺序,
+                 已申报):Vue2 里 spice-info-bar 排在 console-placeholder **前面**,这里
+                 因为 ConsoleStage 内部先渲染 console-placeholder 再渲染 `<slot />`,顺序
+                 反过来了。视觉上没有影响——两者都是显式 z-index 的 position:absolute
+                 元素(spice-info-bar: 30,console-placeholder: 1),层叠顺序由 z-index
+                 决定,不看 DOM 顺序,详见 SpiceInfoBar 组件与 kvm.css 里
+                 `.spice-info-bar` 段的注释。 -->
+            <transition name="spice-toast">
+              <SpiceInfoBar
+                v-if="showSpiceBar"
+                :hostname="hostname"
+                :spice-port="s.selectedVM.value?.spicePort ?? 0"
+                :is-windows-guest="isWindowsGuestSelected"
+                @close="spiceDismissed = true"
+              />
+            </transition>
             <transition name="sendkey-slide">
               <SendKeyToolbar
                 v-if="showSendKeyToolbar"
