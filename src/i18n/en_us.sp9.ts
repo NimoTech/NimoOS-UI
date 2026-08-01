@@ -370,5 +370,17 @@ export default {
   kvmFailedResume: 'Failed to resume',
   kvmFailedDelete: 'Failed to delete VM',
   kvmFailedAutostart: 'Failed to save settings',
+  // 🆕Task 5 评审补:与 zh_cn.sp9.ts 同批,详见那边的注释。
+  kvmFailedToStart: 'Failed to start VM',
+  kvmFailedToStop: 'Failed to stop VM',
+  kvmFailedToRestart: 'Failed to restart',
+  kvmFailedToPause: 'Failed to pause',
+  kvmFailedToResume: 'Failed to resume',
+  kvmFailedToSaveSettings: 'Failed to save settings',
+  kvmFailedToDelete: 'Failed to delete VM',
+  kvmFailedToEjectMedia: 'Failed to eject installation media',
+  kvmStoppingShort: 'stopping',
+  kvmRestartingShort: 'restarting',
+  kvmDeletingShort: 'deleting',
   kvmToggleSidebar: 'Toggle sidebar',
 }

@@ -97,10 +97,13 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
 
     // 此刻 stopVM 的 promise 还没 resolve,遮罩应该已经挂上了(Teleport 到 body,
     // 只能从 document 查,wrapper.find 找不到 teleport 出去的内容——已用探针脚本验证过)。
+    // 评审 Important #2:正文不能只有 vm 名,必须是 Vue2 `${vm.name} ${$t('stopping')}...`
+    // 逐字对应的 "sp9-alpine-test 停止中...";用精确匹配而不是 toContain('sp9-alpine-test'),
+    // 否则漏掉 "停止中..." 这半截也测不出来(上一轮就是这么漏测的)。
     const overlay = document.body.querySelector('.kvm-progress-overlay')
     expect(overlay).not.toBeNull()
-    expect(overlay!.textContent).toContain('正在停止虚拟机')
-    expect(overlay!.textContent).toContain('sp9-alpine-test')
+    expect(overlay!.querySelector('.kvm-progress-title')?.textContent).toContain('正在停止虚拟机')
+    expect(overlay!.querySelector('.kvm-progress-msg')?.textContent).toBe('sp9-alpine-test 停止中...')
 
     resolveStop()
     await flush()
@@ -124,7 +127,7 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
   })
 
-  it('动作失败时 lastError 内联显示在控制台占位区(不弹 toast)', async () => {
+  it('动作失败时 lastError 内联显示在控制台占位区(不弹 toast),有后端 message 就原样显示', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.startVM.mockRejectedValue(new Error('domain is not running'))
     const w = mountPage()
@@ -136,5 +139,22 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
 
     const hint = w.get('.console-hint.is-error')
     expect(hint.text()).toBe('domain is not running')
+  })
+
+  it('评审 Important #1:rejection 没有 message 时,界面显示翻译后的中文,不是 kvmFailedToStart 这种键名', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    // 非 Error 值(或空 message 的 Error)会让 useVmList 的 errText() 落到 fallback 键
+    // 字符串本身('kvmFailedToStart'),渲染层必须把它当 i18n key 过一遍 t()。
+    api.startVM.mockRejectedValue(new Error(''))
+    const w = mountPage()
+    await flush()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('开机'))!.trigger('click')
+    await flush()
+
+    const hint = w.get('.console-hint.is-error')
+    expect(hint.text()).toBe('启动虚拟机失败')
+    expect(hint.text()).not.toContain('kvmFailedToStart')
   })
 })

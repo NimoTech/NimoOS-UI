@@ -18,24 +18,29 @@ const stateKey = computed(() => stateLabelKey(props.vm.state))
 const stateText = computed(() => (te(stateKey.value) ? t(stateKey.value) : stateKey.value))
 
 // 溢出菜单开关。用 v-if(不是 v-show)挂载/卸载 OverflowMenu —— 每次重新打开都是全新实例,
-// 内部的 pendingAction/pendingId 自然是空的,不需要额外操心"上次留下的确认态"。
+// 内部的 pendingAction/pendingId 自然是空的。
+//
+// 评审 Minor 修复(选 (b)):之前 toggleMenu/handleOutsideClick/watch 三处都额外调用了
+// `overflowRef.value?.reset()`,变异验证证明这是死代码——菜单关闭统一走 `menuOpen.value
+// = false`,而 OverflowMenu 挂在 `v-if="menuOpen"` 下,一旦 menuOpen 变 false 整个组件
+// 实例连同它内部的 pendingAction/pendingId 一起被销毁,根本不存在"关闭动画期间用户还能
+// 瞥见一帧确认文字"这种窗口(v-if 不是 v-show,没有过渡动画,销毁是同步的下一次 patch)。
+// 上一版注释里"照 Vue2 toggleOverflowMenu 需要显式 resetPendingConfirm"这句站不住:
+// Vue2 的菜单是**常驻 DOM**、用 `v-if="showOverflowMenu"` 控制显隐但 pendingConfirmAction
+// 是父组件(KVMFullPage)自己的 data,不随子节点销毁而清空,所以 Vue2 必须显式清;这里
+// 确认态是 OverflowMenu 自己的内部状态,天然随组件销毁而清空,不需要再叫一次。已删掉
+// 三处死调用,`overflowRef`/`defineExpose({ reset })` 的调用方也一并去掉(OverflowMenu
+// 自己仍导出 reset() 并有独立测试覆盖,只是 ConsoleHeader 不再需要调用它)。
 const menuOpen = ref(false)
 const wrapperEl = ref<HTMLElement | null>(null)
-const overflowRef = ref<InstanceType<typeof OverflowMenu> | null>(null)
 
-// 照 Vue2 toggleOverflowMenu(:1115-1117):即将关闭时先清一次确认态(v-if 卸载本身也会
-// 清,这里额外调用是为了在"卸载真正发生前"就把待确认文字换回去,避免收起动画期间
-// 用户还能瞥见一帧"你确定吗？"——本组件没有收起过渡动画,这里保留只是照抄语义,不是
-// 观测到了这个问题才加的防御。
 function toggleMenu() {
-  if (menuOpen.value) overflowRef.value?.reset()
   menuOpen.value = !menuOpen.value
 }
 
-// 照 Vue2 handleOutsideClick(:1108-1111):点 dropdown-wrapper 外部时关闭菜单 + 清确认态。
+// 照 Vue2 handleOutsideClick(:1108-1111):点 dropdown-wrapper 外部时关闭菜单。
 function handleOutsideClick(e: MouseEvent) {
   if (menuOpen.value && wrapperEl.value && !wrapperEl.value.contains(e.target as Node)) {
-    overflowRef.value?.reset()
     menuOpen.value = false
   }
 }
@@ -43,9 +48,9 @@ function handleOutsideClick(e: MouseEvent) {
 onMounted(() => document.addEventListener('click', handleOutsideClick))
 onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
-// 切换 VM 时菜单与确认态一起清空(Task 5 brief 就地二次确认契约的第 4 条)。
+// 切换 VM 时菜单一起清空(Task 5 brief 就地二次确认契约的第 4 条:"确认态"本身随
+// OverflowMenu 卸载自动清空,这里只需要把菜单关掉)。
 watch(() => props.vm.id, () => {
-  overflowRef.value?.reset()
   menuOpen.value = false
 })
 
@@ -94,7 +99,6 @@ function onMenuAction(name: string) {
         </button>
         <OverflowMenu
           v-if="menuOpen"
-          ref="overflowRef"
           :vm="vm"
           :processing="processing"
           @action="onMenuAction"

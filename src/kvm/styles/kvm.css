@@ -608,12 +608,18 @@
   color: var(--kvm-fg);
 }
 
-.console-hint {
+/* 评审 Minor 修复:必须带 .console-placeholder 父选择器(对位 Vue2 :2252 的
+ * `.console-placeholder .console-hint`,特异性 (0,2,0))。之前扁平成顶层 `.console-hint`
+ * (0,1,0)压不过上面的 `.console-placeholder p`(0,1,1)——只是现在唯一在用的
+ * `.console-hint.is-error`(0,2,0)同样赢得过 `.console-placeholder p`,所以侥幸没
+ * 出错;下一个任务(T6 noVNC)一旦加不带 .is-error 的普通 .console-hint,颜色就会
+ * 被 p 的 var(--kvm-fg) 压过去,取色取错。补父选择器,彻底对齐 Vue2 的级联关系。 */
+.console-placeholder .console-hint {
   font-size: 0.75rem;
   color: var(--kvm-fg-faint);
 }
 
-.console-hint.is-error {
+.console-placeholder .console-hint.is-error {
   color: var(--kvm-danger);
 }
 

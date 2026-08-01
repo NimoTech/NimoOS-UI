@@ -415,6 +415,26 @@ export default {
   kvmFailedResume: '恢复失败',
   kvmFailedDelete: '删除虚拟机失败',
   kvmFailedAutostart: '保存设置失败',
+  // 🆕Task 5 评审补:useVmList.ts 里 errText() 的 8 个 fallback 字符串实际用的是
+  // "kvmFailedToXxx" 这套键名(与上面 kvmFailedXxx 那套并存、命名不一致,是 T3 遗留,
+  // 本任务不改 useVmList.ts,只补齐它引用但缺失的键)。值取 Vue2 zh_CN.json 对应的
+  // "Failed to xxx" 系列译文,与上面 kvmFailedXxx 那几个语义重复的键值完全相同。
+  kvmFailedToStart: '启动虚拟机失败',
+  kvmFailedToStop: '停止虚拟机失败',
+  kvmFailedToRestart: '重启失败',
+  kvmFailedToPause: '暂停失败',
+  kvmFailedToResume: '恢复失败',
+  kvmFailedToSaveSettings: '保存设置失败',
+  kvmFailedToDelete: '删除虚拟机失败',
+  // eject 用的 fallback 键与已有的 kvmEjectFailed 语义相同,值保持一致。
+  kvmFailedToEjectMedia: '弹出安装介质失败',
+  // 🆕Task 5 评审补:进度遮罩正文缺的"动词进行时"短语(Vue2 zh_CN.json:874/867/863,
+  // 分别对应 "stopping"/"restarting"/"deleting")。与上面 kvmStopping 等整句标题不是
+  // 同一组键——那几个是 progressTitle(整句),这几个是 progressMessage 里拼接的动词
+  // 片段(`${vm.name} ${$t('stopping')}...`)。
+  kvmStoppingShort: '停止中',
+  kvmRestartingShort: '重启中',
+  kvmDeletingShort: '删除中',
   // Vue2 该按钮没有 title,这里为 a11y 补 aria-label。
   // zh_CN.json "Toggle sidebar" = "切换侧边栏"(评审指出:上一版此处误判"无对应键"
   // 并自拟了"折叠/展开侧边栏",违反"中文以 zh_CN.json 为准、不许自译"的硬约束,已订正)。
