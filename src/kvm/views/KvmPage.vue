@@ -17,9 +17,16 @@ import ProgressOverlay from '../components/ProgressOverlay.vue'
 import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
 import { isWindowsGuest } from '../util/vmState'
+import { useToast } from '../../stores/toast'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
 const { t } = useI18n()
+// 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
+// handleInstallationFinished 成功时都会弹一条 buefy toast——这里是唯一的消费点
+// (useVmList.ts 的注释一直说"toast 是视图层的事",但视图层此前根本没接,是未申报的
+// 偏离,现在补上)。New-UI 的全局 toast 是 useToast()(src/stores/toast.ts),各处
+// 弹窗/内联报错都走它,这里同样复用,不新造机制。
+const toast = useToast()
 
 // Vue2 isSidebarCollapsed = sidebarCollapsed && !sidebarHover ——
 // 折叠后鼠标移上去临时展开,移开又收回。照抄(KVMFullPage.vue:689-690)。
@@ -133,6 +140,13 @@ async function onEjectFinish(): Promise<void> {
     // 交出来(''=成功,非空=这次调用失败的文案),错误天然只属于"这次调用",不会被
     // 任何并发操作污染。
     ejectError.value = await s.ejectInstallMedia(vm)
+    // 必修①:成功也要弹 toast(Vue2 handleInstallationFinished :867-870,固定整句文案,
+    // 不像电源动作那样拼 vm.name)。ejectInstallMedia 的返回值契约是 ''=成功/被重入守卫
+    // 挡下/dispose 后短路,非空=失败文案(见该函数顶部注释)。这里能安全地把 '' 当成功
+    // 处理——本函数入口的 `ejectBusy` 已经保证同一时刻只有一次调用在途,不会撞上"被
+    // 重入守卫挡下"的分支;唯一的另一种可能是组件已经卸载(dispose),此时弹不弹 toast
+    // 都没有观众,不影响正确性。
+    if (ejectError.value === '') toast.show(t('kvmEjectSuccess'))
   } finally {
     ejectBusy.value = false
   }
@@ -244,10 +258,15 @@ const consoleErrorKey = computed(() => vnc.errorKey.value || s.lastError.value)
 // "stopping"="停止中"),这里补上 kvmStoppingShort/kvmRestartingShort/kvmDeletingShort
 // 三个"动词进行时"短语键,拼回 `${vm.name} ${t(shortKey)}...`,与 Vue2 逐字对齐,不再是
 // 有意的切法偏离(上一轮报告里那条"切法改了"的申报是错的,已订正)。
-const CONFIRM_ACTIONS: Record<string, { run: (vm: KvmVM) => Promise<void>; titleKey: string; shortKey: string }> = {
-  stop: { run: (vm) => s.stop(vm), titleKey: 'kvmStopping', shortKey: 'kvmStoppingShort' },
-  restart: { run: (vm) => s.restart(vm), titleKey: 'kvmRestarting', shortKey: 'kvmRestartingShort' },
-  delete: { run: (vm) => s.remove(vm), titleKey: 'kvmDeleting', shortKey: 'kvmDeletingShort' },
+// toastKey(必修①新增):成功后弹 toast 用的"动词过去时"后缀,拼法逐字对 Vue2
+// `${vm.name} ${$t('stopped'/'restarted'/'deleted')}`(KVMFullPage.vue:1548/1564/1614)。
+const CONFIRM_ACTIONS: Record<
+  string,
+  { run: (vm: KvmVM) => Promise<boolean>; titleKey: string; shortKey: string; toastKey: string }
+> = {
+  stop: { run: (vm) => s.stop(vm), titleKey: 'kvmStopping', shortKey: 'kvmStoppingShort', toastKey: 'kvmToastStopped' },
+  restart: { run: (vm) => s.restart(vm), titleKey: 'kvmRestarting', shortKey: 'kvmRestartingShort', toastKey: 'kvmToastRestarted' },
+  delete: { run: (vm) => s.remove(vm), titleKey: 'kvmDeleting', shortKey: 'kvmDeletingShort', toastKey: 'kvmToastDeleted' },
 }
 
 const progress = ref<{ title: string; message: string } | null>(null)
@@ -269,24 +288,47 @@ const progress = ref<{ title: string; message: string } | null>(null)
 async function onAction(name: string): Promise<void> {
   const vm = s.selectedVM.value
   if (!vm) return
+  // 必修①:提前存一份名字给 toast 用——delete 成功后 vm 会从列表里移除、selectedVM
+  // 也会被清空,但 `vm`/`vmName` 是这次调用自己捕获的局部变量,不受那些状态变化影响。
+  const vmName = vm.name
 
   const confirmed = CONFIRM_ACTIONS[name]
   if (confirmed) {
     progress.value = { title: t(confirmed.titleKey), message: `${vm.name} ${t(confirmed.shortKey)}...` }
+    let ok = false
     try {
-      await confirmed.run(vm)
+      ok = await confirmed.run(vm)
     } finally {
       progress.value = null
     }
+    // 必修①:只有成功才弹 toast——失败分支已经有 lastError 走内联展示(见上面大段
+    // 注释的"渲染契约"),Vue2 失败也是走自己的错误 toast,不需要在这里重复处理。
+    if (ok) toast.show(`${vmName} ${t(confirmed.toastKey)}`)
     return
   }
 
   switch (name) {
-    case 'start': await s.start(vm); break
-    case 'pause': await s.pause(vm); break
-    case 'resume': await s.resume(vm); break
-    case 'wakeup': await s.wakeup(vm); break
-    case 'autostart': await s.toggleAutostart(vm); break
+    case 'start':
+      if (await s.start(vm)) toast.show(`${vmName} ${t('kvmToastStarted')}`)
+      break
+    case 'pause':
+      if (await s.pause(vm)) toast.show(`${vmName} ${t('kvmToastPaused')}`)
+      break
+    case 'resume':
+      if (await s.resume(vm)) toast.show(`${vmName} ${t('kvmToastResumed')}`)
+      break
+    case 'wakeup':
+      // Vue2 wakeupVM 成功同样弹 'resumed'(KVMFullPage.vue:1603),不是单独的"已唤醒"
+      // 文案——已核对源码确认,不是笔误照抄(见 i18n 分片里 kvmToastResumed 的注释)。
+      if (await s.wakeup(vm)) toast.show(`${vmName} ${t('kvmToastResumed')}`)
+      break
+    case 'autostart': {
+      const ok = await s.toggleAutostart(vm)
+      // 成功后 vm.autostart 已经是翻转后的新值(useVmList.toggleAutostart 的返回值
+      // 契约见该函数顶部注释),直接读它决定 On/Off 文案,不需要另外记一份"取反前的值"。
+      if (ok) toast.show(`${vmName} ${t('kvmAutoStart')} ${t(vm.autostart ? 'kvmAutoStartOn' : 'kvmAutoStartOff')}`)
+      break
+    }
     default: break
   }
 }
@@ -301,7 +343,10 @@ async function onAction(name: string): Promise<void> {
         :aria-label="t('kvmToggleSidebar')"
         @click="sidebarCollapsed = !sidebarCollapsed"
       >
-        <!-- ‹ 是临时占位单色符号(禁 emoji),后续任务(T4/T8)换成 Vue2 同款 collapse svg 图标。 -->
+        <!-- ‹ 是单色文字符号占位(禁 emoji)——Vue2 用的是 casa 图标字体的 collapse svg
+             图标,New-UI 没有那套字体。与 ConsoleHeader.vue 的 ⚙/⋮、SendKeyToolbar.vue
+             的 ⊞ 等同一批占位债务,等统一换真图标那批一起收(清理项5,全分支终审订正:
+             此前写的"后续任务 T4/T8 换图标"已过时——T4/T8 早做完了,没有换)。 -->
         <span class="toggle-icon" aria-hidden="true">‹</span>
       </button>
 
@@ -319,7 +364,8 @@ async function onAction(name: string): Promise<void> {
       <main class="kvm-main">
         <div v-if="!s.selectedVM.value" class="main-empty">
           <div class="empty-icon-ring">
-            <!-- ▭ 是临时占位单色符号(禁 emoji),后续任务换成 Vue2 同款空态图标。 -->
+            <!-- ▭ 是单色文字符号占位(禁 emoji)——同上面 ‹ 一批占位债务,等统一换真
+                 图标那批一起收,不是本任务遗漏。 -->
             <span class="main-empty-icon" aria-hidden="true">▭</span>
           </div>
           <h3>{{ t('kvmSelectVmTitle') }}</h3>

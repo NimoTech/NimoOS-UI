@@ -29,8 +29,9 @@ const stateText = computed(() => (te(stateKey.value) ? t(stateKey.value) : state
 // Vue2 的菜单是**常驻 DOM**、用 `v-if="showOverflowMenu"` 控制显隐但 pendingConfirmAction
 // 是父组件(KVMFullPage)自己的 data,不随子节点销毁而清空,所以 Vue2 必须显式清;这里
 // 确认态是 OverflowMenu 自己的内部状态,天然随组件销毁而清空,不需要再叫一次。已删掉
-// 三处死调用,`overflowRef`/`defineExpose({ reset })` 的调用方也一并去掉(OverflowMenu
-// 自己仍导出 reset() 并有独立测试覆盖,只是 ConsoleHeader 不再需要调用它)。
+// 三处死调用,`overflowRef` 的调用方也一并去掉。清理项8(全分支终审)后续追加:
+// OverflowMenu 自己的 `defineExpose({ reset })` 因此彻底没了外部消费方,已从那个组件
+// 里删掉(reset() 本身仍是它的内部函数,只是不再对外暴露)。
 const menuOpen = ref(false)
 const wrapperEl = ref<HTMLElement | null>(null)
 

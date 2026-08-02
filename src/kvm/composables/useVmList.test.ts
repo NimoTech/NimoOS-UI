@@ -288,6 +288,33 @@ describe('电源动作', () => {
     expect(onC).toHaveBeenCalledOnce()
   })
 
+  // 必修②(全分支终审):终审核了后端 NimoOS-KVM/service/vm_service.go:575-583,
+  // RestartVMWithForce = StopVM + StartVM,两者各自异步发布事件,kvm:vm_started 与
+  // restart 的 HTTP 响应几乎同时发出、顺序未定。上面那条用例只覆盖了"HTTP 响应先到"
+  // 这一种顺序;这里补交错路径的另一种顺序——事件先到,HTTP 响应后到达。旧实现下,
+  // 事件先建好连接(connectCb),随后 restart 的 onSuccess 还会无条件 disconnectCb()
+  // 把刚建好的连接拆掉,而 vm_started 只发一次,此后不会再有事件触发重连,永久黑屏。
+  it('必修②回归:kvm:vm_started 抢在 restart 的 HTTP 响应之前到达时,不能被 onSuccess 顺手拆掉(真实交错路径)', async () => {
+    const s = useVmList()
+    await s.fetchVMs()
+    const onC = vi.fn(); const onD = vi.fn()
+    s.onVncShouldConnect(onC); s.onVncShouldDisconnect(onD)
+    let resolveRestart: () => void = () => {}
+    api.restartVM.mockImplementation(() => new Promise<void>((r) => { resolveRestart = () => r(undefined) }))
+
+    const p = s.restart(s.selectedVM.value!) // HTTP 挂起,restart 还没完成
+
+    // 事件先到达(后端 StopVM/StartVM 各自异步发布,顺序未定,这里模拟"先到"这一种)。
+    emit('kvm:vm_started', { vm_id: 'vm-1' })
+    await nextTick()
+    expect(onC).toHaveBeenCalledOnce() // 事件已经建好连接
+
+    // HTTP 响应随后才到:onSuccess 不该再把上面刚建好的连接拆掉。
+    resolveRestart()
+    await p
+    expect(onD).not.toHaveBeenCalled() // 修复前:这里会被断言翻红(onSuccess 无条件 disconnect)
+  })
+
   it('pause 改 paused 并断开;resume/wakeup 改 running 并连接', async () => {
     const s = useVmList()
     await s.fetchVMs()

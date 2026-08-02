@@ -26,7 +26,14 @@ const ALLOWED = new Set([
   'console-display', 'console-placeholder', 'console-hint', 'is-error', 'start-vm-btn',
   'power-icon', 'power-svg',
   'sendkey-toolbar', 'sendkey-divider', 'sendkey-btn', 'sendkey-hint', 'sendkey-img',
-  'fullscreen-svg', 'sendkey-btn--fullscreen',
+  'fullscreen-svg',
+  // 清理项7(全分支终审核实):sendkey-btn--fullscreen 不在 kvm.css 里出现过——它是
+  // SendKeyToolbar.vue 上真实存在的一个 class(用来把全屏按钮和其它 .sendkey-btn 区分
+  // 开,供 KvmPage.test.ts 的 `w.get('.sendkey-btn--fullscreen')` 精确选中),样式完全
+  // 复用基类 .sendkey-btn,本身没有专属 CSS 规则,纯粹是测试/选择器钩子。留在这份白名单
+  // 里不会让上面"没有不在册的类名"那条用例翻红(那条只检查 kvm.css 里出现的类名是不是
+  // 都在这个 Set 里,不检查反过来),放着不删也不影响判别力,加注释免得再被当成死条目。
+  'sendkey-btn--fullscreen',
   'sendkey-slide-enter-active', 'sendkey-slide-leave-active',
   'sendkey-slide-enter-from', 'sendkey-slide-leave-to',
   'spice-info-bar', 'spice-info-content', 'spice-agent-hint', 'spice-info-close',

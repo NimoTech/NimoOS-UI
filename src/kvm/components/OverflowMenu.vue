@@ -62,7 +62,11 @@ function direct(action: string) {
   emit('action', action)
 }
 
-defineExpose({ reset })
+// 清理项8(全分支终审):这里曾经 `defineExpose({ reset })`,给 ConsoleHeader 在关菜单
+// 时显式调用。T5 评审已经证实那几处调用是死代码并删掉了(v-if 卸载天然带走
+// pendingAction/pendingId,见 ConsoleHeader.vue 顶部注释),`reset` 从那以后就没有任何
+// 外部消费方——只剩自己文件里的单测在调用它,是纯粹为了测试暴露内部实现的 YAGNI 残留。
+// 已去掉 defineExpose,`reset` 保留为内部函数(confirmThenEmit/direct 仍然要用)。
 
 // Task 8 补:Vue2 每一项前面都有一个 b-icon(图标+文字版式,:103-133),T5 当时只搬了
 // 文字。New-UI 没有 casa 图标字体,按本区既有惯例(⚙/⋮/‹ 等单色文字符号占位,禁 emoji)

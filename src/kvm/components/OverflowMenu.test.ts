@@ -112,12 +112,4 @@ describe('就地二次确认', () => {
     expect(w.emitted('action')).toBeUndefined()
     expect(restart.text()).toContain('你确定吗？')
   })
-
-  it('父组件调 reset 后确认态清空', async () => {
-    const w = mk(VM('running'))
-    await clickByText(w, '强制关机')
-    ;(w.vm as unknown as { reset: () => void }).reset()
-    await w.vm.$nextTick()
-    expect(w.text()).not.toContain('你确定吗？')
-  })
 })

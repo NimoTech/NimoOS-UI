@@ -329,6 +329,9 @@ export default {
   kvmStateSuspended: 'Suspended',
   kvmStateError: 'Error',
   kvmSettings: 'Settings',
+  // P6-reserved key — the VM settings dialog doesn't exist yet in P5 (Settings button is
+  // always disabled), so this hint has no consumer yet. Intentional, not dead code/an
+  // oversight — noted so future audits don't have to re-verify this each pass.
   kvmSettingsDisabledHint: 'Stop VM to modify settings',
   kvmMore: 'More',
   kvmComingSoon: 'Coming soon',
@@ -348,8 +351,9 @@ export default {
   kvmVncFetchFailed: 'Failed to get VNC info',
   kvmInstallingFromIso: 'Installing from ISO. Click when finished:',
   kvmFinishedInstalling: 'I Finished Installing',
-  // kvmEjectSuccess deleted (Task 8 review): dead key, banner disappearing is the success
-  // feedback — see zh_cn.sp9.ts comment at the same spot.
+  // kvmEjectSuccess (eject success toast copy) is defined below near the other
+  // kvmToastXxx keys — it was deleted as a dead key during Task 8 review, then
+  // restored by the final cross-branch review which requires a success toast here too.
   kvmEjectFailed: 'Failed to eject installation media',
   kvmSpiceHint: 'For better experience, use virt-viewer client to connect:',
   kvmSpiceAgentWin: 'Install virtio-win drivers in VM for clipboard, audio & USB features',
@@ -364,14 +368,13 @@ export default {
   kvmFullscreen: 'Fullscreen',
   kvmExitFullscreen: 'Exit Fullscreen',
   kvmClose: 'Close',
-  kvmFailedStart: 'Failed to start VM',
-  kvmFailedStop: 'Failed to stop VM',
-  kvmFailedRestart: 'Failed to restart',
-  kvmFailedPause: 'Failed to pause',
-  kvmFailedResume: 'Failed to resume',
-  kvmFailedDelete: 'Failed to delete VM',
-  kvmFailedAutostart: 'Failed to save settings',
-  // 🆕Task 5 评审补:与 zh_cn.sp9.ts 同批,详见那边的注释。
+  // ⚠️ Deleted by the final cross-branch review (cleanup item 3): kvmFailedStart/Stop/
+  // Restart/Pause/Resume/Delete/Autostart duplicated the kvmFailedToXxx family below
+  // value-for-value (and kvmFailedAutostart didn't even share a name with its
+  // kvmFailedToSaveSettings counterpart), while useVmList.ts's errText() fallback only
+  // ever referenced kvmFailedToXxx — the other family was dead on arrival and neither
+  // the compiler nor the tests caught it. Kept the one actually consumed, removed the rest.
+  // 🆕Task 5 review addition: same batch as zh_cn.sp9.ts, see that file's comment.
   kvmFailedToStart: 'Failed to start VM',
   kvmFailedToStop: 'Failed to stop VM',
   kvmFailedToRestart: 'Failed to restart',
@@ -381,6 +384,29 @@ export default {
   kvmFailedToDelete: 'Failed to delete VM',
   // kvmFailedToEjectMedia deleted (Task 8 review): duplicate of kvmEjectFailed,
   // useVmList.ejectInstallMedia now consumes kvmEjectFailed directly as its fallback.
+  // Necessary fix ① (final cross-branch review): Vue2's six power actions +
+  // toggleAutoStart + deleteVM + handleInstallationFinished all pop a success toast
+  // (this.$buefy.toast.open({type:'is-success'})) — New-UI had none, an undeclared
+  // deviation now fixed in KvmPage.vue's onAction/onEjectFinish. These are the
+  // "past-tense verb" suffixes used in that toast text, matching Vue2's
+  // `${vm.name} ${$t('started')}` pattern; values are the literal $t() key text
+  // (Vue2 has no en_US.json, see file header note).
+  kvmToastStarted: 'started',
+  kvmToastStopped: 'stopped',
+  kvmToastRestarted: 'restarted',
+  kvmToastPaused: 'paused',
+  // resume and wakeup share the same Vue2 word ("resumed") on success — wakeupVM
+  // (KVMFullPage.vue:1603) is also `${vm.name} ${$t('resumed')}`, not a separate
+  // "woken up" string. Verified against Vue2 source, not a copy-paste mistake.
+  kvmToastResumed: 'resumed',
+  kvmToastDeleted: 'deleted',
+  // Vue2 toggleAutoStart (:1523) composes `${vm.name} ${$t('Auto Start')} ${$t('On'|'Off')}`,
+  // reusing the existing kvmAutoStart ("Auto Start") key — no separate combined phrase needed.
+  kvmAutoStartOn: 'On',
+  kvmAutoStartOff: 'Off',
+  // Necessary fix ①: eject success also needs a toast (Vue2 handleInstallationFinished
+  // :867-870). Restored after being deleted as a dead key in Task 8 review.
+  kvmEjectSuccess: 'Installation media ejected. VM will boot from hard disk on next restart.',
   kvmStoppingShort: 'stopping',
   kvmRestartingShort: 'restarting',
   kvmDeletingShort: 'deleting',

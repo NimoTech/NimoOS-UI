@@ -65,7 +65,9 @@ const { t } = useI18n()
 
     <div class="vm-list">
       <div v-if="vms.length === 0 && !isLoading" class="empty-state">
-        <!-- ⬚ 占位符(禁 emoji),后续任务换成 Vue2 同款 remote-desktop-outline 图标。 -->
+        <!-- ⬚ 是单色文字符号占位(禁 emoji)——Vue2 用的是 remote-desktop-outline 图标
+             字体,New-UI 没有那套字体。与 KvmPage.vue 的 ‹/▭、ConsoleHeader.vue 的 ⚙/⋮
+             同一批占位债务,等统一换真图标那批一起收(清理项5,不是本任务遗漏)。 -->
         <span class="empty-icon" aria-hidden="true">⬚</span>
         <p class="empty-text">{{ t('kvmNoVms') }}</p>
       </div>

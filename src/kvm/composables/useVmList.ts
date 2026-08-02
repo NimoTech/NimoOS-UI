@@ -30,6 +30,11 @@ export function useVmList() {
     () => vms.value.filter((v) => v.state === 'running').length,
   )
 
+  // 必修②(全分支终审):restart 期间用来协调"HTTP 响应 vs kvm:vm_started 事件"谁先到——
+  // 见下方 restart() 与 kvm:vm_started 处理器内的详细注释。非响应式,纯内部协调用途,
+  // 不需要 UI 消费,同 ejectingIds 的写法(就地一个 Set,不抽公共 guard)。
+  const restartPending = new Set<string>()
+
   // 就地代际守卫:每次 fetchVMs 自增,回写前比对是否仍是最新一次调用。
   // 记忆记过「别抽公共 guard」的教训——就地写,别为了复用抽象出个 helper。
   let listEpoch = 0
@@ -148,6 +153,12 @@ export function useVmList() {
     if (id) {
       setVMState(id, 'running')
       if (selectedVM.value?.id === id) connectCb?.(selectedVM.value)
+      // 必修②:这个事件可能是"restart 已经完成"的信号,也可能比 restart 自己的 HTTP
+      // 响应更早到达(后端 RestartVMWithForce = StopVM+StartVM,两者各自异步发布事件,
+      // 与 HTTP 响应几乎同时,顺序未定——见 restart() 里的完整解释)。不管是哪种情况,
+      // 只要这里已经重新建过连接,就清掉 restartPending 标记:告诉 restart() 的
+      // onSuccess"不用你再断开一次了,画面已经是新的了"。
+      restartPending.delete(id)
     } else {
       void fetchVMs()
     }
@@ -196,73 +207,102 @@ export function useVmList() {
   // finally processing.delete(id)。照 Vue2 startVM/stopVM/pauseVM/resumeVM/wakeupVM
   // (KVMFullPage.vue:1530-1607)——toast 文案是视图层的事,这里只留 lastError 给上层展示。
 
+  // 返回值(必修①,全分支终审新增):true=这次调用成功,false=失败或 dispose 后短路。
+  // 与 ejectInstallMedia 同样的理由——调用方(KvmPage.vue)要知道"这次调用到底成不成功"
+  // 才能决定要不要弹成功 toast,而 lastError 是多个动作共用的单一 ref,await 结束后再去
+  // 读它会有"串味"风险(见 ejectInstallMedia 顶部注释、评审二轮修复)。返回值天然只属于
+  // "这次调用",不会被任何并发操作污染。
   async function runAction(
     vm: KvmVM,
     action: (id: string) => Promise<unknown>,
     onSuccess: (vm: KvmVM) => void,
     failFallback: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     processing.value.add(vm.id)
     try {
       await action(vm.id)
-      if (!alive) return // dispose 之后到达的结果不再写 state、不触发 VNC 回调(评审 3)
+      if (!alive) return false // dispose 之后到达的结果不再写 state、不触发 VNC 回调(评审 3);对已卸载的调用方也谈不上"成功"
       onSuccess(vm)
       lastError.value = ''
+      return true
     } catch (e) {
-      if (!alive) return
+      if (!alive) return false
       lastError.value = errText(e, failFallback)
+      return false
     } finally {
       processing.value.delete(vm.id)
     }
   }
 
-  async function start(vm: KvmVM): Promise<void> {
-    await runAction(vm, (id) => service.kvm.startVM(id), (v) => {
+  async function start(vm: KvmVM): Promise<boolean> {
+    return runAction(vm, (id) => service.kvm.startVM(id), (v) => {
       setVMState(v.id, 'running')
       if (selectedVM.value?.id === v.id) connectCb?.(selectedVM.value)
     }, 'kvmFailedToStart')
   }
 
-  async function stop(vm: KvmVM): Promise<void> {
-    await runAction(vm, (id) => service.kvm.stopVM(id), (v) => {
+  async function stop(vm: KvmVM): Promise<boolean> {
+    return runAction(vm, (id) => service.kvm.stopVM(id), (v) => {
       setVMState(v.id, 'stopped')
       if (selectedVM.value?.id === v.id) disconnectCb?.()
     }, 'kvmFailedToStop')
   }
 
-  async function restart(vm: KvmVM): Promise<void> {
+  async function restart(vm: KvmVM): Promise<boolean> {
     // ⚠️ 与 Vue2 的偏离(SP9-P5 登记):Vue2 restartVM(:1557-1571)在请求返回后立刻
     // disconnectVNC() + connectVNC()。VM 刚重启,VNC 端口大概率还没监听,connect 必失败,
     // 于是 vncError 被永久写死在屏上、且不会自愈。这里只断开,重连交给 kvm:vm_started
     // 事件兜底(后端确实会发,NimoOS-KVM/common/constants.go:17)。界面表现不变,只是不再卡在错误态。
-    await runAction(vm, (id) => service.kvm.restartVM(id), (v) => {
-      setVMState(v.id, 'running')
-      if (selectedVM.value?.id === v.id) disconnectCb?.()
-    }, 'kvmFailedToRestart')
+    //
+    // ⚠️ 必修②(全分支终审,2026-08-02):上面那条偏离本身没错,但原实现假设"HTTP 响应
+    // 必然先于 kvm:vm_started 事件到达"——这个假设不成立。终审核了后端:
+    // NimoOS-KVM/service/vm_service.go:575-583 的 RestartVMWithForce = StopVM + StartVM,
+    // 两者各自 `go PublishVMEvent`(:566/:535),事件与 HTTP 响应几乎同时发出,顺序未定。
+    // 如果事件先到:kvm:vm_started 处理器已经用 connectCb 建好了新连接;这里的 onSuccess
+    // 如果还无条件 disconnectCb(),会把刚建好的连接又拆掉——而 vm_started 只发一次,
+    // 此后不会再有事件触发重连,用户看到的是永久黑屏,只能重选 VM 自救。
+    //
+    // 修法:用 restartPending 这个 Set 协调"这次断开还要不要做"。进 restart() 时把
+    // vm.id 记进去;kvm:vm_started 处理器一旦真的重连了,会把 id 从这个 Set 删掉(见该
+    // 处理器注释)。onSuccess 只在 vm.id **仍然**留在 restartPending 里(说明事件还没到、
+    // 没人抢先重连过)时才断开——事件已抢先重连的情况下这里什么都不做,保留事件建立的
+    // 连接。两种到达顺序都收敛到"最终连着"这个正确状态,不再有能把新连接拆掉的路径。
+    restartPending.add(vm.id)
+    try {
+      return await runAction(vm, (id) => service.kvm.restartVM(id), (v) => {
+        setVMState(v.id, 'running')
+        if (restartPending.has(v.id) && selectedVM.value?.id === v.id) disconnectCb?.()
+      }, 'kvmFailedToRestart')
+    } finally {
+      restartPending.delete(vm.id)
+    }
   }
 
-  async function pause(vm: KvmVM): Promise<void> {
-    await runAction(vm, (id) => service.kvm.pauseVM(id), (v) => {
+  async function pause(vm: KvmVM): Promise<boolean> {
+    return runAction(vm, (id) => service.kvm.pauseVM(id), (v) => {
       setVMState(v.id, 'paused')
       if (selectedVM.value?.id === v.id) disconnectCb?.()
     }, 'kvmFailedToPause')
   }
 
-  async function resume(vm: KvmVM): Promise<void> {
-    await runAction(vm, (id) => service.kvm.resumeVM(id), (v) => {
+  async function resume(vm: KvmVM): Promise<boolean> {
+    return runAction(vm, (id) => service.kvm.resumeVM(id), (v) => {
       setVMState(v.id, 'running')
       if (selectedVM.value?.id === v.id) connectCb?.(selectedVM.value)
     }, 'kvmFailedToResume')
   }
 
-  async function wakeup(vm: KvmVM): Promise<void> {
-    await runAction(vm, (id) => service.kvm.wakeupVM(id), (v) => {
+  async function wakeup(vm: KvmVM): Promise<boolean> {
+    return runAction(vm, (id) => service.kvm.wakeupVM(id), (v) => {
       setVMState(v.id, 'running')
       if (selectedVM.value?.id === v.id) connectCb?.(selectedVM.value)
     }, 'kvmFailedToResume')
   }
 
-  async function toggleAutostart(vm: KvmVM): Promise<void> {
+  // 返回值(必修①,同 runAction):true=成功(此时 vm.autostart 已经是翻转后的新值,
+  // 调用方可以直接读 vm.autostart 来决定 toast 文案是"开"还是"已关闭"),false=失败/
+  // dispose 后短路。
+  async function toggleAutostart(vm: KvmVM): Promise<boolean> {
     // ⚠️ 与 Vue2 的偏离(SP9-P5 登记,评审 2):Vue2 toggleAutoStart(:1516-1528)先记
     // originalValue,await 成功后才写 vm.autostart = newValue(:1522),catch 里再把
     // vm.autostart 改回 originalValue(:1525)。但这个写入顺序下,失败分支根本没写过新值——
@@ -274,29 +314,34 @@ export function useVmList() {
     try {
       const next = !vm.autostart
       await service.kvm.setAutostart(vm.id, next)
-      if (!alive) return // dispose 之后到达的结果不再写 state(评审 3)
+      if (!alive) return false // dispose 之后到达的结果不再写 state(评审 3)
       vm.autostart = next
       if (selectedVM.value?.id === vm.id) selectedVM.value.autostart = next
       lastError.value = ''
+      return true
     } catch (e) {
-      if (!alive) return
+      if (!alive) return false
       lastError.value = errText(e, 'kvmFailedToSaveSettings')
+      return false
     } finally {
       processing.value.delete(vm.id)
     }
   }
 
-  async function remove(vm: KvmVM): Promise<void> {
+  // 返回值(必修①,同 runAction):true=成功,false=失败/dispose 后短路。
+  async function remove(vm: KvmVM): Promise<boolean> {
     // 照 Vue2 deleteVM(:1609-1620)。
     try {
       await service.kvm.deleteVM(vm.id)
-      if (!alive) return // dispose 之后到达的结果不再写 state(评审 3)
+      if (!alive) return false // dispose 之后到达的结果不再写 state(评审 3)
       vms.value = vms.value.filter((v) => v.id !== vm.id)
       if (selectedVM.value?.id === vm.id) selectedVM.value = null
       lastError.value = ''
+      return true
     } catch (e) {
-      if (!alive) return
+      if (!alive) return false
       lastError.value = errText(e, 'kvmFailedToDelete')
+      return false
     }
   }
 

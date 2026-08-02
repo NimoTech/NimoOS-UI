@@ -344,6 +344,9 @@ export default {
   kvmSettings: '系统设置',
   // zh_CN.json "Stop VM to modify settings" = "停止虚拟机以修改设置"(非 brief 草稿的
   // "停止虚拟机后才能修改设置")。
+  // P6 预埋键——本期(P5)VM 设置弹窗还没做,Settings 按钮恒 disabled,这个提示文案
+  // 目前没有消费方,是特意为 P6 提前占好位的,不是遗漏/死代码(评审扫描已确认无引用,
+  // 加这行注释免得每轮复审都要再核实一遍)。
   kvmSettingsDisabledHint: '停止虚拟机以修改设置',
   // zh_CN.json "More" = "浏览更多"(此键在 Vue2 里被复用给"更多操作"三点菜单的 tooltip,
   // 译文与场景不算贴切但是 Vue2 实际展示的文案,照抄)。
@@ -377,9 +380,8 @@ export default {
   kvmInstallingFromIso: '正在从光盘安装。完成后请点击：',
   // zh_CN.json "I Finished Installing" = "我已完成安装"(非 brief 草稿的"我已安装完成")。
   kvmFinishedInstalling: '我已完成安装',
-  // ⚠️ Task 8 评审删:kvmEjectSuccess(原值"光盘已弹出，虚拟机将在下次重启时从硬盘引导。")
-  // 是死键——Vue2 那边是成功后弹一条 toast,New-UI 按 KVM 区既有约定(内联显示、不用
-  // toast)让横幅消失本身就是成功反馈,不需要额外一条文案,评审确认可接受并要求删除。
+  // kvmEjectSuccess(eject 成功 toast 文案)定义在下面 kvmToastXxx 那一批附近——之前
+  // Task 8 评审判定这是死键删掉过,全分支终审要求补 toast 后又加回来了,详见那里的注释。
   // 🆕补译:Vue2 里这条走 getErrMsg(err, 'Failed to eject installation media') 再过 $t()，
   // zh_CN.json 没有这个键 → Vue2 中文界面下实际显示英文原文(遗留缺译,同 P1/P2 见过的模式)。
   // New-UI 补上中文,不照抄这个缺译。
@@ -407,18 +409,14 @@ export default {
   // 逻辑 bug 不照抄)New-UI 让 aria-label 正确随全屏状态切换,故补一个 zh_CN.json 没有的键。
   kvmExitFullscreen: '退出全屏',
   kvmClose: '关闭',
-  kvmFailedStart: '启动虚拟机失败',
-  kvmFailedStop: '停止虚拟机失败',
-  kvmFailedRestart: '重启失败',
-  kvmFailedPause: '暂停失败',
-  // zh_CN.json "Failed to resume" = "恢复失败"(非 brief 草稿的"继续失败")。
-  kvmFailedResume: '恢复失败',
-  kvmFailedDelete: '删除虚拟机失败',
-  kvmFailedAutostart: '保存设置失败',
-  // 🆕Task 5 评审补:useVmList.ts 里 errText() 的 8 个 fallback 字符串实际用的是
-  // "kvmFailedToXxx" 这套键名(与上面 kvmFailedXxx 那套并存、命名不一致,是 T3 遗留,
-  // 本任务不改 useVmList.ts,只补齐它引用但缺失的键)。值取 Vue2 zh_CN.json 对应的
-  // "Failed to xxx" 系列译文,与上面 kvmFailedXxx 那几个语义重复的键值完全相同。
+  // ⚠️ 全分支终审删(清理项3):原有 kvmFailedStart/Stop/Restart/Pause/Resume/Delete/
+  // Autostart 这 7 个键与下面 kvmFailedToXxx 家族逐字同值(kvmFailedAutostart 甚至连
+  // 名字都和它对应的 kvmFailedToSaveSettings 不一样,是当场就该发现的错配),而
+  // useVmList.ts 的 errText() fallback 实际只引用 kvmFailedToXxx 这一套——kvmFailedXxx
+  // 一直是死键,编译和测试都不会报,只能靠人工比对发现。二选一,留使用中的那套,删掉
+  // 这 7 个从未被消费过的键。
+  // 🆕Task 5 评审补:useVmList.ts 里 errText() 的 8 个 fallback 字符串用的是
+  // "kvmFailedToXxx" 这套键名。值取 Vue2 zh_CN.json 对应的 "Failed to xxx" 系列译文。
   kvmFailedToStart: '启动虚拟机失败',
   kvmFailedToStop: '停止虚拟机失败',
   kvmFailedToRestart: '重启失败',
@@ -429,6 +427,36 @@ export default {
   // ⚠️ Task 8 评审删:kvmFailedToEjectMedia(原值"弹出安装介质失败",与上面的
   // kvmEjectFailed 译文完全相同)是重复键——useVmList.ejectInstallMedia 的 fallback
   // 已经改成直接消费 kvmEjectFailed(见该文件 :325 附近注释),这个键因此变成死键,删除。
+  // 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
+  // handleInstallationFinished 成功时都会弹一条 toast(this.$buefy.toast.open({type:
+  // 'is-success'})),New-UI 之前一条都没有——未申报的偏离,已在 KvmPage.vue 的 onAction/
+  // onEjectFinish 里补上。下面这批键是 toast 文案用的"动词过去时"后缀,拼法逐字对 Vue2
+  // `${vm.name} ${$t('started')}` 这种模式,值取自 zh_CN.json 对应的通用键(见各行注释)。
+  // zh_CN.json "started" = "已启动"(:872)。
+  kvmToastStarted: '已启动',
+  // zh_CN.json "stopped" = "已停止"(:873)。
+  kvmToastStopped: '已停止',
+  // zh_CN.json "restarted" = "已重启"(:866)。
+  kvmToastRestarted: '已重启',
+  // zh_CN.json "paused" = "已暂停"(:228)。
+  kvmToastPaused: '已暂停',
+  // zh_CN.json "resumed" = "已恢复"(:870)。resume 和 wakeup 两个动作在 Vue2 里
+  // 成功时用的是**同一个**词("resumed"),wakeupVM(:1603)也是 `${vm.name} ${$t('resumed')}`,
+  // 不是单独的"已唤醒"之类的文案——已核对 Vue2 源码确认,不是笔误照抄。
+  kvmToastResumed: '已恢复',
+  // zh_CN.json "deleted" = "已删除"(:862)。
+  kvmToastDeleted: '已删除',
+  // zh_CN.json "On" = "开"(:818)、"Off" = "已关闭"(:817)。Vue2 toggleAutoStart(:1523)
+  // 拼法是 `${vm.name} ${$t('Auto Start')} ${$t('On'|'Off')}`,与上面已有的 kvmAutoStart
+  // ("自动启动")拼在一起用,不需要再拼一个"自动启动开/关"的整句键。
+  kvmAutoStartOn: '开',
+  kvmAutoStartOff: '已关闭',
+  // 必修①:eject 成功也要弹 toast(Vue2 handleInstallationFinished :867-870)。
+  // 这个键此前在 Task 8 评审时被判定为死键删掉过(New-UI 当时只用"横幅消失"当成功反馈,
+  // 不弹 toast)——现在全分支终审要求补上 toast,键需要加回来。值取 Vue2 zh_CN.json
+  // "Installation media ejected. VM will boot from hard disk on next restart." = "光盘
+  // 已弹出，虚拟机将在下次重启时从硬盘引导。"(:1815),与当年被删的值逐字相同。
+  kvmEjectSuccess: '光盘已弹出，虚拟机将在下次重启时从硬盘引导。',
   // 🆕Task 5 评审补:进度遮罩正文缺的"动词进行时"短语(Vue2 zh_CN.json:874/867/863,
   // 分别对应 "stopping"/"restarting"/"deleting")。与上面 kvmStopping 等整句标题不是
   // 同一组键——那几个是 progressTitle(整句),这几个是 progressMessage 里拼接的动词

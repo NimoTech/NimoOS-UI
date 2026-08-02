@@ -6,11 +6,12 @@
  * 颜色一律 var(--kvm-*)(CLAUDE 硬约束 + 本期硬约束#1),token 定义在
  * 主题 sp9 分片(theme 目录下)—— KVM 区固定深色,两套主题 token 同值(见该文件注释)。
  *
- * P5 本任务(Task 2)只搭地基,只写得到用的几段:
+ * P5 全期(Task 2 起搭地基,Task 5-8 陆续补齐)覆盖的段落:
  * kvm-page/kvm-content/kvm-sidebar(含折叠)/kvm-sidebar-toggle/kvm-header 系列/
- * vm-list/empty-state/add-vm-btn/kvm-main/main-empty 系列(均不带前导点,纯类名)。
- * 其余段(console- 系列、sendkey- 系列、spice- 系列、installation-banner、kvm-progress- 系列)留给后续任务,
- * 白名单文件里先占位类名,实现体本任务不写。
+ * vm-list/empty-state/add-vm-btn/kvm-main/main-empty 系列 + console- 系列/
+ * sendkey- 系列/spice- 系列/installation-banner/kvm-progress- 系列(465-1153 行)。
+ * 全部段落到 Task 8 收尾时均已实现,不再有"留给后续任务、只占位类名"的部分
+ * (清理项6,全分支终审订正:此前这里的注释是 Task 2 刚搭地基时写的旧状态,过期未更新)。
  *
  * 类名对应关系:Vue2 根类名是 kvm-full-page,配 scoped 嵌套选择器;New-UI 没有 scoped,
  * 改成全局唯一类名 kvm-page(根)+ 摊平的顶层选择器(嵌套 & 展开为普通后代选择器),

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 import KvmPage from './KvmPage.vue'
 import { i18n } from '../../i18n'
+import { useToast } from '../../stores/toast'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
 // Task 6 起需要真的走一遍 useVncConsole 的 connect/disconnect 接线(不再只是 stub),
@@ -45,6 +47,12 @@ const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
 })
 
 beforeEach(() => {
+  // 必修①的 toast 走 useToast()(Pinia store)。这个文件此前一直没装 Pinia 插件——
+  // 之前也没有任何组件在这条路径上用到过 store,新增 toast 消费后必须先有一个激活的
+  // Pinia 实例,否则 useToast() 会抛 "getActivePinia() was called but there was no
+  // active Pinia"。照仓库既有先例(GoogleDriveAuthDialog.test.ts 等)在 beforeEach 里
+  // setActivePinia,不需要额外往 mount() 的 global.plugins 里塞 createPinia() 实例。
+  setActivePinia(createPinia())
   rfbInstances.length = 0
   Object.values(api).forEach((f) => f.mockReset())
   api.getVMList.mockResolvedValue({ data: [], total: 0 })
@@ -750,5 +758,116 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     await items[1].trigger('click') // 切到 vm-2
     await flush()
     expect(w.find('.spice-info-bar').exists()).toBe(true) // 应重新出现,不是继续沿用 vm-1 的关闭状态
+  })
+})
+
+// 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
+// handleInstallationFinished 成功时都会弹一条 buefy toast,New-UI 一条都没有——未申报
+// 的偏离。这里锁住"成功真的弹了 toast,文案逐字对 Vue2"。至少覆盖 start / autostart
+// 开关两态 / delete / eject 四类(任务派单点名的最小集合),失败路径不测(那是 lastError
+// 内联展示的既有约定,任务明确写了"别改成 toast")。
+describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
+  it('开机成功后弹 toast "sp9-alpine-test 已启动"', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.startVM.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('开机'))!.trigger('click')
+    await flush()
+
+    expect(useToast().toasts.map((x) => x.text)).toContain('sp9-alpine-test 已启动')
+  })
+
+  it('暂停/恢复/强制重启/强制关机成功后也各自弹对应文案的 toast', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    api.pauseVM.mockResolvedValue(undefined)
+    api.resumeVM.mockResolvedValue(undefined)
+    api.restartVM.mockResolvedValue(undefined)
+    api.stopVM.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+    const toast = useToast()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('暂停'))!.trigger('click')
+    await flush()
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已暂停')
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('恢复'))!.trigger('click')
+    await flush()
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已恢复')
+
+    // 重启需要两次点(就地二次确认)
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('强制重启'))!.trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
+    await flush()
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已重启')
+  })
+
+  it('自动启动开关两态:开→toast 含"开",再点关→toast 含"已关闭"', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running', autostart: false })], total: 1 })
+    api.setAutostart.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+    const toast = useToast()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('自动启动'))!.trigger('click')
+    await flush()
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 自动启动 开')
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('自动启动'))!.trigger('click')
+    await flush()
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 自动启动 已关闭')
+  })
+
+  it('删除(二次确认通过)成功后弹 toast "sp9-alpine-test 已删除"', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.deleteVM.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('删除'))!.trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
+    await flush()
+
+    expect(useToast().toasts.map((x) => x.text)).toContain('sp9-alpine-test 已删除')
+  })
+
+  it('弹出安装介质成功后弹 toast(Vue2 固定整句文案,不拼 vm 名)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    api.setBootFromDisk.mockResolvedValue(undefined)
+    const w = mountPage()
+    await flush()
+
+    await w.get('.banner-btn').trigger('click')
+    await flush()
+
+    expect(useToast().toasts.map((x) => x.text)).toContain(
+      '光盘已弹出，虚拟机将在下次重启时从硬盘引导。',
+    )
+  })
+
+  it('失败时不弹 toast(继续走 lastError 内联展示的既有约定)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.startVM.mockRejectedValue(new Error('domain busy'))
+    const w = mountPage()
+    await flush()
+
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('开机'))!.trigger('click')
+    await flush()
+
+    expect(useToast().toasts).toEqual([])
+    expect(w.get('.console-hint.is-error').text()).toBe('domain busy')
   })
 })
