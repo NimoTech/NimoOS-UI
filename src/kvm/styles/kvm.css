@@ -1088,12 +1088,18 @@
 
 /* Task 8 评审修复补的新元素(Vue2 没有对应物,详见 InstallBanner 组件顶部注释):
  * eject 失败时的内联错误文案。flex-basis:100% 借 flex-wrap:wrap 让它独占一行——
- * 没有错误时这个元素根本不渲染(v-if),原本的单行布局不受影响。颜色用既有的
- * --kvm-danger(与 console-hint.is-error 同一个语义:错误文字)。 */
+ * 没有错误时这个元素根本不渲染(v-if),原本的单行布局不受影响。
+ *
+ * ⚠️ 复审二轮修复:颜色**不用** --kvm-danger——那个红是为深底控制台设计的
+ * (dropdown-item.is-danger / confirm-text-danger 等消费处都在深色下拉菜单背景上),
+ * 直接套到这个安装横幅的浅蓝底(--kvm-banner-bg,全页唯一浅色块)对比度只有约
+ * 2.94:1,远低于 WCAG AA 正文 4.5:1 的门槛(复审实测 + 脚本复核:2.935:1)。改用
+ * 专为浅底设计的 --kvm-banner-error-fg,对浅蓝底的对比度 = 5.723:1,取值与算法的
+ * 完整注释在 theme sp9 分片(定义 --kvm-banner-* 那批 token 的文件)里。 */
 .banner-error {
   flex-basis: 100%;
   margin: 4px 0 0 0;
-  color: var(--kvm-danger);
+  color: var(--kvm-banner-error-fg);
   font-size: 0.8rem;
 }
 

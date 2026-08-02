@@ -54,6 +54,13 @@
   --kvm-banner-fg: #0d47a1;
   --kvm-banner-btn: #1976d2;
   --kvm-banner-btn-hover: #1565c0;
+  /* Task 8 复审修复(2026-08-02):--kvm-danger(#f85149)是给深底控制台设计的红——
+   * 其余消费处(dropdown-item.is-danger / confirm-text-danger)都在深色下拉菜单背景上,
+   * 直接套到浅蓝横幅底(--kvm-banner-bg #e3f2fd)对比度只有约 2.94:1,远低于 WCAG AA
+   * 正文 4.5:1(复审实测数值,已用脚本复核:2.935)。这里给浅底横幅单独定义一个深红,
+   * #b3261e 对 #e3f2fd 的对比度 = 5.723:1(脚本算出,超过 4.5:1 有余量),取值参考
+   * Material Design 3 的 error 色板(浅色主题 on-error-container 附近的深红调)。 */
+  --kvm-banner-error-fg: #b3261e;
 }
 
 :root[data-theme='light'] {
@@ -96,4 +103,6 @@
   --kvm-banner-fg: #0d47a1;
   --kvm-banner-btn: #1976d2;
   --kvm-banner-btn-hover: #1565c0;
+  /* 与 :root 块相同的值,见上方注释(算出的对比度数值同样适用,底色/字色都没变)。 */
+  --kvm-banner-error-fg: #b3261e;
 }

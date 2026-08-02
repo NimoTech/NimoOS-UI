@@ -551,6 +551,75 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     })
   })
 
+  // 评审 Important #2(第二轮复审):lastError 是 runAction/toggleAutostart/remove/
+  // ejectInstallMedia 共用的单一 ref。旧写法(await eject 完之后再读 s.lastError.value)
+  // 有"串味"风险——eject 在途时,如果**同一台 VM**上的另一个电源动作(本例用暂停)
+  // 恰好在这段等待期间失败并写了 lastError,eject 明明自己成功了,却可能读到那条不
+  // 相干的错误。这里刻意**不切换 VM**(避免触发 ejectError 的"切换 VM 时复位"逻辑,
+  // 那样会掩盖掉真正要验证的东西——即使不复位,返回值本身也不该被污染),走真实的
+  // 交错路径:eject 发出请求但还没 resolve → 暂停在同一时刻失败 → eject 才 resolve。
+  describe('评审 Important #2:eject 与其它动作交错时不串味(真实交错路径,非顺序调用)', () => {
+    // ⚠️ 排查记录(第一版这条用例的教训):最初只把 setBootFromDisk 挂起、暂停失败发生在
+    // "eject 在途"期间就去 resolveEject,结果发现即使把 KvmPage.vue 改回读共享 lastError
+    // 的旧写法,这条用例依旧全绿——不是真的堵住了 bug。原因:`ejectInstallMedia` 自己在
+    // setBootFromDisk 成功后会立刻 `lastError.value = ''` 清一次,这一步发生在它调用
+    // `fetchVMs()` 整表刷新**之前**;如果交错的暂停失败发生在 eject 自己清空 lastError
+    // **之前**,那么 eject 后续的清空动作会把 lastError 盖回 ''，KvmPage 无论读共享 ref
+    // 还是读返回值,结果都一样是 ''——两种写法测不出区别。真正会读到"串味"的窗口,是
+    // **eject 自己清空 lastError 之后、eject 的 promise 真正 resolve 之前**这一段(也就是
+    // 它自己 `await fetchVMs()` 那段时间)——只有交错发生在这个窗口里,旧写法(eject 完
+    // 之后再读共享 ref)才会读到别的动作重新写脏的值。这里把第二次 getVMList(eject 成功
+    // 后触发的整表刷新)也挂起,精确把交错点卡在这个窗口里。
+    it('eject 内部清空 lastError 之后、自己整表刷新完成之前,另一个动作把 lastError 写脏 → eject 成功后横幅不应显示那条不相干的错误', async () => {
+      // bootFromDisk 全程保持 false——这样 eject "成功"之后横幅依旧满足显示条件,
+      // 才能在事后检查它有没有显示错误行(如果 bootFromDisk 变 true,横幅直接消失,
+      // 就无法断言"横幅没显示错误"这件事,详见上面"再点一次"用例的同款注释)。
+      const fixture = {
+        data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+        total: 1,
+      }
+      api.getVMList.mockResolvedValueOnce(fixture) // 初始挂载那次 fetchVMs,正常返回
+      let resolveRefetch: () => void = () => {}
+      // 之后每一次 getVMList(即 eject 成功后自己触发的整表刷新)都挂起,交由本用例手动放行——
+      // 这就是"eject 自己清空 lastError 之后、真正 resolve 之前"那个窗口的具体实现。
+      api.getVMList.mockImplementation(() => new Promise((r) => { resolveRefetch = () => r(fixture) }))
+      let resolveEject: () => void = () => {}
+      api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveEject = () => r(undefined) }))
+      api.pauseVM.mockRejectedValue(new Error('unrelated pause failure'))
+      const w = mountPage()
+      await flush()
+      expect(w.find('.installation-banner').exists()).toBe(true)
+
+      // 1) eject 发出请求(setBootFromDisk 挂起)。
+      await w.get('.banner-btn').trigger('click')
+
+      // 2) 放行 setBootFromDisk——eject 内部往下走:先把 lastError 清成 ''，然后调用
+      //    fetchVMs() 发起第二次 getVMList,但那次调用也被挂起了,eject 因此卡在自己的
+      //    fetchVMs() 里,还没有真正 resolve。
+      resolveEject()
+      await flush()
+
+      // 3) 正是这个窗口期——交错触发一个完全不相干的动作(暂停),让它失败并重新写脏
+      //    共享的 lastError。这一步完整跑完,发生在 eject 自己已清空但尚未 resolve
+      //    之间,是真正会暴露"串味"的交错点(不是顺序调用)。
+      await w.findAll('.action-btn')[1].trigger('click') // 打开溢出菜单
+      await w.findAll('.dropdown-item').find((b) => b.text().includes('暂停'))!.trigger('click')
+      await flush()
+      expect(api.pauseVM).toHaveBeenCalledTimes(1) // 确认暂停确实跑完了(失败,写脏了 lastError)
+
+      // 4) 现在才放行 eject 自己的整表刷新请求,让它真正 resolve——eject 本身自始至终
+      //    都是成功的,不应该被步骤 3 的暂停失败影响。
+      resolveRefetch()
+      await flush()
+
+      // 横幅还在(bootFromDisk 全程没变),但不应该显示"unrelated pause failure"这条
+      // 不相干的错误——旧写法(eject 完之后再读共享 lastError)会在这里翻红,因为此刻
+      // 共享 ref 里存的是步骤 3 写脏的值,而不是 eject 自己的结果。
+      expect(w.find('.installation-banner').exists()).toBe(true)
+      expect(w.find('.banner-error').exists()).toBe(false)
+    })
+  })
+
   // ⚠️ 这几条 SPICE 用例都要把 getVNC 的 mock 一并改掉:running 态的 VM 会自动走 VNC
   // 连接(Task 6 接线),连接成功后 useVncConsole 的 onSpicePorts 回调会用 getVNC 返回的
   // spicePort 覆盖 vm.spicePort(照 Vue2 connectVNC 的保活合并写法,spicePreserve.ts)。

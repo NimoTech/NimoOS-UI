@@ -334,26 +334,51 @@ describe('电源动作', () => {
     expect(s.selectedVM.value).toBeNull()
   })
 
-  it('ejectInstallMedia 调 setBootFromDisk(true) 并整表刷新', async () => {
+  it('ejectInstallMedia 调 setBootFromDisk(true) 并整表刷新,成功返回空字符串', async () => {
     const s = useVmList()
     await s.fetchVMs()
     api.getVMList.mockClear()
-    await s.ejectInstallMedia(s.selectedVM.value!)
+    const result = await s.ejectInstallMedia(s.selectedVM.value!)
     expect(api.setBootFromDisk).toHaveBeenCalledWith('vm-1', true)
     expect(api.getVMList).toHaveBeenCalledOnce()
+    expect(result).toBe('') // 评审二轮:返回值契约——成功是空字符串
   })
 
-  it('ejectInstallMedia 重入守卫:在途时再点一次不会发第二次请求(照 Vue2 :862-864 finishingInstall)', async () => {
+  it('ejectInstallMedia 失败时返回错误文案(不再只写共享的 lastError)', async () => {
+    api.setBootFromDisk.mockRejectedValue(new Error('disk busy'))
+    const s = useVmList()
+    await s.fetchVMs()
+    const result = await s.ejectInstallMedia(s.selectedVM.value!)
+    expect(result).toBe('disk busy')
+    expect(s.lastError.value).toBe('disk busy') // 仍然保留写共享 ref,供其它兜底路径消费
+  })
+
+  it('ejectInstallMedia 重入守卫:在途时再点一次不会发第二次请求(照 Vue2 :862-864 finishingInstall),被挡的那次返回空字符串', async () => {
     let resolveIt: () => void = () => {}
     api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveIt = () => r(undefined) }))
     const s = useVmList()
     await s.fetchVMs()
     const p1 = s.ejectInstallMedia(s.selectedVM.value!)
-    const p2 = s.ejectInstallMedia(s.selectedVM.value!) // 在途时再点一次
+    const p2 = s.ejectInstallMedia(s.selectedVM.value!) // 在途时再点一次,应被挡下
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
     resolveIt()
-    await Promise.all([p1, p2])
+    const [r1, r2] = await Promise.all([p1, p2])
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
+    expect(r1).toBe('') // 真正跑的那次:成功
+    expect(r2).toBe('') // 被重入守卫挡下的那次:返回值契约——''=没有做任何事,不是错误
+  })
+
+  it('ejectInstallMedia dispose 之后到达的结果不再写 state,返回空字符串(评审二轮补测:返回值契约的 dispose 分支)', async () => {
+    let resolveIt: () => void = () => {}
+    api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveIt = () => r(undefined) }))
+    const s = useVmList()
+    await s.fetchVMs()
+    const p = s.ejectInstallMedia(s.selectedVM.value!)
+    s.dispose()
+    resolveIt()
+    const result = await p
+    expect(result).toBe('') // dispose 后不再纠结"算不算错误",直接短路返回空
+    expect(api.getVMList).toHaveBeenCalledTimes(1) // 只有初始 fetchVMs 那一次,dispose 后不再补打整表刷新(评审 3,行为不变)
   })
 
   it('ejectInstallMedia 不复用 processing:电源动作在途时调用,setBootFromDisk 照常被调用(不跨动作误拦)', async () => {

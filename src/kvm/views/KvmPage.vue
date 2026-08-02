@@ -125,16 +125,14 @@ async function onEjectFinish(): Promise<void> {
   ejectBusy.value = true
   ejectError.value = '' // 新一轮点击先清掉上一次的报错,免得失败一次后永久卡在错误态
   try {
-    await s.ejectInstallMedia(vm)
-    // 评审 Important #1 修复:useVmList.ejectInstallMedia 内部吞掉了异常(不 rethrow,
-    // 只把原因写进共享的 lastError),这里 await 完之后读一次 lastError——此时它要么是
-    // 空字符串(成功,见 useVmList.ts :321 `lastError.value = ''`),要么是这次失败的
-    // 原因(见 :325 `lastError.value = errText(e, 'kvmEjectFailed')`)。由于上面的
-    // ejectBusy 重入守卫 + useVmList 自己的 ejectingIds 守卫,同一时刻只可能有一次
-    // eject 在跑,await 结束的这一刻 lastError 一定反映的是"这次"调用的结果,不会被
-    // 别的并发 eject 覆盖(其它电源动作仍可能并发改 lastError,但那是本来就有的、
-    // 独立于本次修复的既有局限,不在这次评审范围内)。
-    ejectError.value = s.lastError.value
+    // 评审二轮修复(Important #2):不再读共享的 s.lastError——那是 runAction/
+    // toggleAutostart/remove/ejectInstallMedia 共用的单一 ref,若 eject 在途期间用户对
+    // **另一台 VM** 触发了电源动作、恰好在这段 await 的微任务缝隙里 resolve 并写了
+    // lastError,原来的写法会把那条不相干的错误显示到这台 VM 的安装横幅上("串味",
+    // 见 useVmList.test.ts 里的回归测试)。ejectInstallMedia 现在把结果直接作为返回值
+    // 交出来(''=成功,非空=这次调用失败的文案),错误天然只属于"这次调用",不会被
+    // 任何并发操作污染。
+    ejectError.value = await s.ejectInstallMedia(vm)
   } finally {
     ejectBusy.value = false
   }

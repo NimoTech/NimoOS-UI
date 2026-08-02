@@ -300,7 +300,17 @@ export function useVmList() {
     }
   }
 
-  async function ejectInstallMedia(vm: KvmVM): Promise<void> {
+  // 返回值:''=没有错误(成功 / 重入被挡 / dispose 后短路),非空=这次调用失败的文案。
+  // ⚠️ 复审二轮修复(Important #2,2026-08-02):原先只把结果写进共享的 `lastError`,
+  // 调用方(KvmPage.vue)在 await 结束后再去读 `lastError.value`——但 `lastError` 是
+  // `runAction`/`toggleAutostart`/`remove`/`ejectInstallMedia` **共用的单一 ref**。若
+  // eject 在途期间,用户对**另一台 VM**触发了电源动作,而那个动作恰好在这段 await 的
+  // 微任务缝隙里 resolve 并写了 `lastError`,eject 自己明明成功了,却会读到那条不相干
+  // 的错误——"串味"。改成把这次调用的结果**作为返回值直接交出去**,调用方用返回值,
+  // 不再读共享 ref,错误天然只属于"这次调用",不可能被任何并发操作污染。
+  // 仍然保留写 `lastError`(与其它电源动作一致,供 `consoleErrorKey` 的兜底展示路径
+  // 消费——那条路径的语义没变,只是不再是安装横幅错误展示的唯一来源)。
+  async function ejectInstallMedia(vm: KvmVM): Promise<string> {
     // 照 Vue2 handleInstallationFinished(:862-877):setBootFromDisk(true) 后整表刷新。
     // 补上 Vue2 (:862-864)`if (!vm || this.finishingInstall) return` 的重入守卫(评审 4:
     // 初版漏了,连点两次会并发发两次 setBootFromDisk + 两次整表刷新)。
@@ -313,21 +323,30 @@ export function useVmList() {
     // finally { processing.value.delete(vm.id) } 会在 eject 仍在途时提前把 id 移除,
     // eject 自己的"进行中"状态被过早清掉,重入守卫失效。Vue2 的 finishingInstall
     // 本来就是一个独立标志、不与电源动作共享状态,这里同样给 eject 一个独立的 Set。
-    if (ejectingIds.has(vm.id)) return
+    //
+    // 重入被挡时返回 ''(不是错误——这次调用根本没做任何事,没有"这次调用的错误"可言,
+    // 真正在跑的那次调用会在它自己 resolve 时给出准确结果;调用方也有自己的 ejectBusy
+    // 守卫防止真的并发调用到这里,这层是双保险)。
+    if (ejectingIds.has(vm.id)) return ''
     ejectingIds.add(vm.id)
     try {
       await service.kvm.setBootFromDisk(vm.id, true)
-      if (!alive) return // dispose 之后到达的结果不再写 state、不再补打整表刷新(评审 3)
+      // dispose 之后到达的结果不再写 state、不再补打整表刷新(评审 3)。返回 ''——
+      // 组件多半已经卸载,没有地方显示这个结果,也没必要假装"有错误"或"无错误"。
+      if (!alive) return ''
       lastError.value = ''
       await fetchVMs()
+      return ''
     } catch (e) {
-      if (!alive) return
+      if (!alive) return '' // 同上,dispose 后不再纠结"到底算不算错误",直接短路
       // 评审修复(2026-08-02):fallback 键从 'kvmFailedToEjectMedia' 改成 'kvmEjectFailed'——
       // 两者译文本来就完全相同(见 i18n 分片里的注释),纯属 T3 当时为了跟其它电源动作
       // 共用的 "kvmFailedToXxx" 命名家族对齐而起的重复键。评审要求 KvmPage 层内联展示
       // 这条错误时消费 'kvmEjectFailed',顺手把 fallback 也切过去,'kvmFailedToEjectMedia'
       // 因此变成真正的死键,已从两个 i18n 分片里删掉(不再有任何地方引用)。
-      lastError.value = errText(e, 'kvmEjectFailed')
+      const msg = errText(e, 'kvmEjectFailed')
+      lastError.value = msg
+      return msg
     } finally {
       ejectingIds.delete(vm.id)
     }
