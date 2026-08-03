@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import KvmPage from './KvmPage.vue'
 import { i18n } from '../../i18n'
@@ -989,6 +989,26 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     el.dispatchEvent(new Event('input'))
   }
 
+  // 评审 Important #2:点「添加虚拟机」→ 弹窗落地(reka-ui teleport 要等一个 nextTick,
+  // 硬约束 8)这段序列被逐字复制了六次。拆成两个 helper 而不是一个——「只开创建弹窗」
+  // 和「开创建弹窗再点 ISO 行打开 OsSelector」是两种不同的用例前提,不是所有用例都需要
+  // 点 ISO 行(比如「点「添加虚拟机」弹创建弹窗」这条),硬凑成一个只会让不需要的用例
+  // 也跑一遍不相关的步骤。
+  const openCreateDialog = async (w: VueWrapper): Promise<void> => {
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+  }
+  const openCreateAndPickIso = async (w: VueWrapper): Promise<void> => {
+    await openCreateDialog(w)
+    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
+    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
+    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+  }
+
   it('VM 列表为空时自动弹创建弹窗(照 Vue2 :901,P5 走的是空态占位)', async () => {
     api.getVMList.mockResolvedValue({ data: [], total: 0 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1037,9 +1057,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     await flush()
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateDialog(w)
 
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机')
     w.unmount()
@@ -1050,15 +1068,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
-    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
-    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
-    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
-    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateAndPickIso(w)
 
     // KvmDialog 的外壳 class(.create-vm-modal/.create-vm-title)是所有弹窗共用的同一套
     // (创建弹窗 + OsSelector 此刻同时挂着),不能只查第一个——按 z-index 精确定位
@@ -1077,15 +1087,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
-    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
-    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
-    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
-    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateAndPickIso(w)
 
     clickSelectAlpine()
     await flush()
@@ -1105,15 +1107,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
-    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
-    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
-    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
-    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateAndPickIso(w)
     clickSelectAlpine()
     await flush()
     await w.vm.$nextTick()
@@ -1146,15 +1140,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
-    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
-    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
-    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
-    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateAndPickIso(w)
     clickSelectAlpine()
     await flush()
     await w.vm.$nextTick()
@@ -1184,12 +1170,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
-    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateAndPickIso(w)
     clickSelectAlpine()
     await flush()
     await w.vm.$nextTick()
@@ -1205,6 +1186,63 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const err = document.body.querySelector('.cv-error')?.textContent
     expect(err).toBe('创建虚拟机失败') // kvmFailedToCreate 翻译后的中文,不是键名本身
     expect(err).not.toContain('kvmFailedToCreate')
+    w.unmount()
+  })
+
+  // 评审 Important #1:`onCreateSubmit` 里 `creating.value = true/false` 此前零判别力覆盖——
+  // 整行删掉现有测试套件一条不会翻红。这里补上:让 `api.createVM` 返回一个手动控制的
+  // pending Promise,验证提交进行中按钮 disabled/is-loading、二次点击不会让 `createVM`
+  // 被调第二次、落定后按钮恢复可用。用**拒绝**而不是成功来落定——成功会让
+  // `onCreateSubmit` 顺带把 `createOpen` 也置为 false、弹窗关闭卸载,DOM 节点被摘掉后
+  // "按钮恢复可用"这条断言就没有意义了;失败分支弹窗留着,能在弹窗仍存在时验证按钮
+  // 状态真的复位。
+  //
+  // ⚠️ Global Constraint #15「被混淆的断言」自查(评审点名的坑,Task 7 已经栽过一次):
+  // 表单必须是**合法的**(已 `openCreateAndPickIso` + `clickSelectAlpine` + `fillName` 填好
+  // name/iso/os),否则 `validateCreateVm` 会独立挡住第二次点击、emit 不出 submit,分不清
+  // 挡住第二次调用的到底是 `creating` 守卫还是校验——用合法表单排除这个混淆因素,第二次
+  // 点击如果真的没有让 `api.createVM` 被调用,只能归因于 `creating` 守卫。
+  it('提交进行中按钮 disabled/is-loading,二次点击不会重复调用 createVM,落定后恢复可用', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_ALPINE])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await openCreateAndPickIso(w)
+    clickSelectAlpine()
+    await flush()
+    await w.vm.$nextTick()
+    fillName('p6-throwaway') // 合法表单——上面注释解释了为什么这一步不能省
+    await w.vm.$nextTick()
+
+    let rejectCreate: (e: unknown) => void = () => {}
+    api.createVM.mockReturnValue(new Promise((_resolve, reject) => { rejectCreate = reject }))
+
+    const btn = document.body.querySelector('.cv-primary-btn') as HTMLButtonElement
+    btn.click() // 第一次点击,createVM 挂起未落定
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(api.createVM).toHaveBeenCalledTimes(1)
+    expect(btn.disabled).toBe(true)
+    expect(btn.classList.contains('is-loading')).toBe(true)
+
+    // 第二次点击:原生 `disabled` 属性本身会挡掉 `.click()`(jsdom 与真实浏览器一致,
+    // CreateVmDialog.test.ts 已用最小复现脚本验证过),必须用 `dispatchEvent` 绕开平台级
+    // 拦截,才能真的测到 `onSubmit()` 内部 `if (props.creating) return` 这道 JS 守卫,
+    // 而不是被浏览器的 disabled 语义顺手挡住(那样测的就不是这道守卫了)。
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flush()
+    await w.vm.$nextTick()
+    expect(api.createVM).toHaveBeenCalledTimes(1) // 仍然只有第一次那一次
+
+    rejectCreate(new Error('boom')) // 用失败落定,弹窗留着,才能在按钮还存在时断言它复位
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗还开着
+    expect(btn.disabled).toBe(false)
+    expect(btn.classList.contains('is-loading')).toBe(false)
     w.unmount()
   })
 
@@ -1253,9 +1291,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     expect(document.body.querySelector('.create-vm-title')).toBeNull() // 保存成功自动关闭全局设置弹窗
 
     // 更强的断言:打开创建弹窗,CPU 预填反映的是刚保存的新值 4,不是保存前的旧值 2。
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateDialog(w)
 
     const activeCpuBtns = [...document.body.querySelectorAll('.cv-cpu-btn')]
       .filter((b) => b.classList.contains('active'))
@@ -1295,15 +1331,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
-    await w.get('.add-vm-btn').trigger('click')
-    await flush()
-    await w.vm.$nextTick()
-    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
-    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
-    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
-    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
-    await flush()
-    await w.vm.$nextTick()
+    await openCreateAndPickIso(w)
 
     const btn = document.body.querySelector('.os-action-btn') as HTMLElement
     btn.click()
