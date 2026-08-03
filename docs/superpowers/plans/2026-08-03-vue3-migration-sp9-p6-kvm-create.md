@@ -22,7 +22,17 @@
 2. **中文文案以 Vue2 `NimoOS-UI/src/assets/lang/zh_CN.json` 为准,不许自己译。** JSON 里查不到的看 Vue2 组件内联 `zh:` 字段。文案只落分片 `src/i18n/{zh_cn,en_us}.sp9.ts`,**不改主 locale 文件**(`parity.test.ts` 断言两个分片键完全一致)。英文值 = Vue2 那个 key 本身的字面量(本仓既有惯例,见 `en_us.sp9.ts` 的 `kvmTitle: 'NIMO Virtual Machines'`)。
 3. **颜色全走 token。** `kvm.css` 里不许出现裸 `#hex` / `rgb()` / `rgba()` / `hsl()`。新 token 加在 `src/styles/theme.sp9.css`,且 `:root` 与 `:root[data-theme='light']` **两块都要有值**;**KVM 区固定深色 → 两块同值**。⚠️ `color-guard` 不剥注释,**注释里写 `rgba(...)` 也翻红**(`kvmStyles.test.ts` 自己那条会剥注释,全局 `color-guard.test.ts` 不剥,以严的为准:注释里一律不写色值字面量)。
 4. **测试里读 `.css` 一律用 `node:fs`。** `?raw` 对 `.css` 在 vitest 下恒为空串(`color-guard.test.ts` 顶部有记录)。
-5. **异步写共享 state 必带过期守卫**(就地 `let alive` / 代际计数,**别抽公共 guard**),回归测试必须**走交错路径**(不是只测顺序路径)。
+5. **异步写共享 state 必带过期守卫**(就地 `let alive` / 代际计数,**别抽公共 guard**),回归测试必须**走交错路径**(不是只测顺序路径)。**过期守卫只保护「写共享 ref」这件事** —— 一个不写任何共享 ref 的函数(比如只发请求 + 返回字符串的 `save()`)不需要守卫,给它加守卫反而会把真实失败谎报成成功(Task 2 评审实逮到过一次)。
+
+15. **断言必须有判别力,别写永真断言。**(Task 2 评审实逮到一次:用 `autostart: false` 的 fixture 去断言开关 `checked === false` —— checkbox 在**完全没接 v-model** 时默认就是 `false`,这条断言区分不出「接对了」和「没接」。)规则:**断言布尔/开关/选中态时,fixture 必须取「未接线时的默认值 ≠ 期望值」的那一侧**(测 `true` 而不是测 `false`)。拿不准就做**变异验证** —— 临时拆掉被测的那根接线,确认用例精确翻红;把变异验证的实际输出写进报告。
+
+  **变种:「被混淆的断言」(Task 7 实逮到一次)。** 断言本身不空,但被**另一个无关的拦截**抢先兜住,于是删掉被测的守卫它照样通过。实例:测「`creating=true` 时点不动」,却没填表单名字 —— 就算把 `if (props.creating) return` 整行删掉,校验也会因名字为空独立挡住 `emit('submit')`,断言照样绿。**规则:测某个守卫时,必须让「除该守卫之外的所有拦截都放行」** —— 即把表单/状态填成合法的,使得关掉该守卫时行为**确实会变**。写法上最好在同一条用例里同时断出「守卫关时能通过」与「守卫开时被挡」,否则读者无法确认「被挡」不是别的东西挡的。
+  适用于本期所有「忙碌态挡重复提交」的测试:`CreateVmDialog` 的 `creating`(Task 7)· `VmSettingsDialog` 的 `saving`(Task 9)· `SnapshotsTab` 的 `busy`(Task 10)· `InstallBanner` 的 `busy`(P5 已有,不追改)。
+
+17. **要留防御性代码,就把主机制关掉来测它。**(Task 4 实逮到:三个 MessageBus 事件回调里的 `alive` 守卫**永远走不到** —— `dispose()` 先置 `alive=false` 再**同步**退订,回调此后根本不会被调用;那条自以为在验守卫的用例,实际验的是退订生效。)规则:一处守卫若被更靠前的机制抢先兜住,(a) 注释必须说清**哪层是承重的、哪层是纵深防御、以及什么情况下防御层会变成必需**(本例:某个回调将来改成 async,或 dispose 忘了退订);(b) 若决定保留防御层,就加一条**手动禁用主机制**的用例(把 mock 的退订函数改成空操作)来给它真实覆盖,并对它做变异验证。**别用一条被主机制保护着的用例去冒充守卫的覆盖。** 适用于本期所有带 `dispose()` 的 composable:`useIsoList`(Task 4)· `useIsoBrowser`(Task 6)· `useSnapshots`(Task 10)。
+    ⚠️ 与第 5 条的分界:守卫**空转**(如本例)→ 保留 + 诚实注释 + 真实覆盖;守卫**主动损坏语义**(如 Task 2 的 `save()` 把真实失败谎报成成功)→ 删掉。
+
+16. **持有「本地编辑副本」的弹窗,必须有一条测试证明「改了值 → 取消 → 共享 state 未被污染」。**(Task 2 评审实逮到一次:隔离实现对了但零测试覆盖 —— 哪天有人把本地副本换成直接双向绑共享 ref,全部既有测试仍然全绿,污染却已发生。)适用于本期的 `KvmGlobalSettingsDialog`(Task 2)· `CreateVmDialog`(Task 7)· `VmSettingsDialog`(Task 9)。同样要做变异验证。
 6. **图标按钮一律单色文字符号 + `aria-label`,禁 emoji。** 沿用 P5 的占位手法(`⚙` / `⋮` / `‹` / `⬚`)。
 7. **弹窗内报错不用 toast** —— toast 的 z-index 是 60,弹窗遮罩 900/1000 还带 blur,会把提示压住 + 糊掉。用弹窗内联 `.cv-error`(见 Task 1),**优先显示后端 `message`**。属于「操作结果」的(创建成功 / 快照已删除 / 设置已保存)仍走全局 `useToast()`。
 8. **弹窗测试必须 `attachTo: document.body`**(reka-ui 走 teleport),且 `afterEach` 里显式 `wrapper.unmount()` 清理,否则 teleport 残留会污染后续用例。
@@ -1651,7 +1661,9 @@ describe('CreateVmDialog', () => {
 - 提交:先 `validateCreateVm`,有错写 `localError.value = t(key) + (arg ? ' ' + arg : '')` 并 return;通过则 `emit('submit', payload)`,payload 只含后端 11 个字段中的这 10 个(`bootFromDisk` 不传,后端默认 false)。
 - `.cv-error` 显示 `localError || props.submitError`。
 
-CSS 照 Vue2 `.cv-iso-btn` `:2544-2567` · `.cv-iso-eject` `:2573-2592` · `.cv-cpu-group`/`.cv-cpu-btn` `:2609-2637` · `.cv-select`/`.cv-select-native`/`.cv-select-arrow` `:2638-2669` · `.cv-firmware-group`/`.cv-firmware-btn` `:2670-2701`。
+CSS 照 Vue2 `.cv-iso-btn` `:2544-2567` · `.cv-cpu-group`/`.cv-cpu-btn` `:2609-2637` · `.cv-select`/`.cv-select-native`/`.cv-select-arrow` `:2638-2669` · `.cv-firmware-group`/`.cv-firmware-btn` `:2670-2701`。
+
+> **`.cv-iso-eject` 不在本任务**(2026-08-03 Task 7 实现者指出、控制器确认):Vue2 的创建弹窗模板(`:409-418`)只有一个 ISO 路径按钮,**没有弹出/挂载按钮** —— 那对按钮只存在于 VM 设置弹窗(`:276-281`)。所以 `.cv-iso-eject` `:2573-2592` 的样式**归 Task 9 搬**。
 
 - [ ] **Step 4: 任务门 + 提交**
 
