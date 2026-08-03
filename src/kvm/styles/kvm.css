@@ -1172,3 +1172,233 @@
     transform: rotate(359deg);
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 1:KvmDialog 弹窗外壳。视觉 1:1 对 Vue2 KVMFullPage 组件的
+ * .create-vm-modal 一族:头部 :2311-2343、主体 :2344-2346、脚部 :2702-2722。
+ * 色值逐个换成 --kvm-* token,容器从 buefy b-modal 换成 reka-ui
+ * DialogRoot/DialogContent(已申报的结构偏离,见 KvmDialog 组件头部注释)。
+ * ════════════════════════════════════════════════════════════════════ */
+
+.kvm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--kvm-overlay-strong);
+}
+
+.kvm-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.create-vm-modal {
+  background: var(--kvm-modal-bg);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.create-vm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem 0.75rem;
+  /* New-UI 专属:KvmDialog 的 head/body/foot 现在是同一个 flex 列容器(class
+   * kvm-dialog-content + create-vm-modal 合在同一元素上)的直接子节点,不设
+   * flex-shrink:0 的话内容超高时头/脚会被一起压缩,Vue2 没有这问题(buefy
+   * modal-card 头/脚天生不参与内部滚动计算)。 */
+  flex-shrink: 0;
+}
+
+.create-vm-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--kvm-modal-fg);
+  margin: 0;
+}
+
+.create-vm-close {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.create-vm-close:hover:not(:disabled) {
+  background: var(--kvm-field-elev);
+  color: var(--kvm-modal-fg);
+}
+
+.create-vm-close:disabled {
+  cursor: not-allowed;
+}
+
+.create-vm-body {
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  /* 有意偏离(已申报,brief Step 4):Vue2 靠 buefy 的 modal-card-body 提供滚动,
+   * New-UI 的外壳得自己给。光加 overflow-y:auto 不够——.create-vm-body 是
+   * flex 列容器(.kvm-dialog-content)里的一个子项,不设 flex:1 + min-height:0
+   * 的话它会按内容自然高度撑开,永远不会真正触发滚动条,是让"外壳自己给滚动"这个
+   * 决策实际生效的必要配套,不是新增语义。 */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.create-vm-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem 1.25rem;
+  flex-shrink: 0;
+}
+
+/* ── 表单字段(cv-* 系列,创建/设置弹窗共用)。照 Vue2 :2440-2524,
+ * 原文件靠 buefy 的 ::v-deep 穿透组件内部 <input>,New-UI 没有 buefy,
+ * cv-input 直接是 <input> 本身的类名,选择器摊平。 */
+
+.cv-field {
+  position: relative;
+  margin-bottom: 1.25rem;
+}
+
+.cv-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--kvm-fg-dim);
+  margin-bottom: 0.375rem;
+}
+
+.cv-hint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0.7rem;
+  color: var(--kvm-fg-faint);
+}
+
+.cv-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cv-input-row .cv-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.cv-input {
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  color: var(--kvm-modal-fg);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  width: 100%;
+}
+
+.cv-input::placeholder {
+  color: var(--kvm-fg-faint);
+}
+
+.cv-input:focus {
+  border-color: var(--kvm-accent);
+  box-shadow: 0 0 0 1px var(--kvm-accent-ring);
+}
+
+.cv-input-unit {
+  position: relative;
+}
+
+.cv-unit {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: var(--kvm-fg-faint);
+  pointer-events: none;
+}
+
+.cv-input-unit .cv-input {
+  padding-right: 4rem;
+}
+
+.cv-input-unit .cv-input[type="number"]::-webkit-inner-spin-button,
+.cv-input-unit .cv-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cv-input-unit .cv-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* 新类(有意偏离,已申报):Vue2 用 buefy `b-button type="is-primary" rounded`
+ * (创建/快照/VM 设置/全局设置四处脚部按钮共用同一形态,行 342/388/489/551),
+ * New-UI 没有 buefy,自己写一个等价的胶囊主按钮类。 */
+.cv-primary-btn {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+  border: none;
+  padding: 0 2rem;
+  height: 2.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cv-primary-btn:hover:not(:disabled) {
+  background: var(--kvm-accent-hover);
+}
+
+.cv-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* is-loading 转圈手法复用 P5 .banner-btn.is-loading 的既有写法(同一个
+ * @keyframes kvm-banner-spin,不重复定义)。 */
+.cv-primary-btn.is-loading {
+  color: transparent;
+  pointer-events: none;
+  position: relative;
+}
+
+.cv-primary-btn.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  top: calc(50% - 0.5em);
+  left: calc(50% - 0.5em);
+  border: 2px solid var(--kvm-on-accent);
+  border-radius: 290486px;
+  border-right-color: transparent;
+  border-top-color: transparent;
+  animation: kvm-banner-spin 0.5s infinite linear;
+}
+
+/* 新类(有意偏离,已申报):Vue2 用 toast 报告表单校验/提交错误,本项目 KVM 区
+ * 约定不用 toast(硬约束7),弹窗内联报错位是新增展示元素。 */
+.cv-error {
+  color: var(--kvm-danger);
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+}
