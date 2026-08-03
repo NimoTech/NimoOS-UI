@@ -22,9 +22,10 @@ import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
 import { useIsoList } from '../composables/useIsoList'
 import { useKvmHostInfo } from '../composables/useKvmHostInfo'
+import { useSnapshots } from '../composables/useSnapshots'
 import { isWindowsGuest } from '../util/vmState'
 import { useToast } from '../../stores/toast'
-import type { KvmVM, KvmCreateVMRequest, KvmUpdateVMRequest } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest, KvmUpdateVMRequest, KvmSnapshot } from '@nimotech/nimoos-service'
 import type { SelectedOs } from '../components/OsSelector.vue'
 
 const { t, te } = useI18n()
@@ -158,6 +159,88 @@ async function onSettingsSubmit(patch: KvmUpdateVMRequest): Promise<void> {
     }
   } finally {
     settingsSaving.value = false
+  }
+}
+
+// ===================== 快照 tab 接线(P6 Task 10) =====================
+// snaps 由 KvmPage 创建、随页面生命周期存活(同 isoList/hostInfo 的既有惯例)——
+// VmSettingsDialog/SnapshotsTab 都是纯展示层,自己不持有数据。
+const snaps = useSnapshots()
+const snapCreating = ref(false)
+const snapCreateError = ref('')
+
+// 照 Vue2 :250 点 tab 才拉(`@click="settingsActiveTab = 'snapshots'; fetchSnapshots()"`,
+// 每次点击都无条件重新拉一遍,即便已经在快照 tab 上)——VmSettingsDialog 的
+// selectTab() 同样不做"是否已是当前 tab"的判断,每次点击都会 emit tab-change,这里
+// 原样对应不加额外判断。
+function onSettingsTabChange(tab: 'general' | 'snapshots'): void {
+  if (tab !== 'snapshots') return
+  const vm = s.selectedVM.value
+  if (vm) void snaps.fetch(vm.id)
+}
+
+// 照 Vue2 createSnapshot(:1237-1258)的成功/失败两支——名称校验已经下沉到 SnapshotsTab
+// 内部(硬约束 7:弹窗内联,不到这层),这里只管"发请求 → 成功弹 toast → 失败内联展示"。
+// `err && te(err) ? t(err) : err` 判定同 onCreateSubmit/onSettingsSubmit 的既有理由:
+// useSnapshots.create() 的 fallback 是 i18n 键名。
+async function onSnapshotCreate(payload: { name: string; description: string }): Promise<void> {
+  const vm = s.selectedVM.value
+  if (!vm) return
+  snapCreating.value = true
+  snapCreateError.value = ''
+  try {
+    const err = await snaps.create(vm.id, payload.name, payload.description)
+    snapCreateError.value = err && te(err) ? t(err) : err
+    if (snapCreateError.value === '') {
+      toast.show(t('kvmToastSnapshotCreated')) // 整句(照 Vue2 :1249),不拼快照名。
+    }
+  } finally {
+    snapCreating.value = false
+  }
+}
+
+// 照 Vue2 confirmDeleteSnapshot/deleteSnapshot(:1290-1314):二次确认通过后(SnapshotsTab
+// 已经做完就地确认,这里收到的就是"确认执行")挂进度遮罩、await、finally 摘遮罩。
+// **与 Vue2 不同的是失败分支也弹 toast**(不是弹窗内联)——delete/restore 是"每行一个
+// 独立确认按钮"的操作,不像 create 那样挂在一个表单上、天然有 SnapshotsTab 自己的
+// `.cv-error` 位可以内联;这里没有对应的内联展示位,直接照 Vue2 原样用 toast 呈现失败
+// 原因(:1310/:1284),不是照抄 bug,是这条操作确实没有更合适的内联展示位置。
+async function onSnapshotConfirmDelete(snap: KvmSnapshot): Promise<void> {
+  const vm = s.selectedVM.value
+  if (!vm) return
+  progress.value = { title: t('kvmDeletingSnapshot'), message: `${snap.name} ${t('kvmDeletingShort')}...` }
+  let err = ''
+  try {
+    err = await snaps.remove(vm.id, snap.id)
+  } finally {
+    progress.value = null
+  }
+  if (err === '') {
+    toast.show(`${snap.name} ${t('kvmToastDeleted')}`)
+  } else {
+    toast.show(te(err) ? t(err) : err)
+  }
+}
+
+// 照 Vue2 confirmRestoreSnapshot/restoreSnapshot(:1260-1288)。**不照抄**
+// confirmRestoreSnapshot(:1262)里"恢复快照前必须停止虚拟机"那句死代码 toast——
+// 恢复按钮本身已经 `:disabled="vmState !== 'stopped'"`(SnapshotsTab 内,照 Vue2 :368),
+// 点不到这个分支(spec §1.15 已核实)。恢复成功后关掉整个设置弹窗(照 Vue2 :1282)。
+async function onSnapshotConfirmRestore(snap: KvmSnapshot): Promise<void> {
+  const vm = s.selectedVM.value
+  if (!vm) return
+  progress.value = { title: t('kvmRestoringSnapshot'), message: `${snap.name} ${t('kvmRestoringShort')}...` }
+  let err = ''
+  try {
+    err = await snaps.restore(vm.id, snap.id)
+  } finally {
+    progress.value = null
+  }
+  if (err === '') {
+    toast.show(`${snap.name} ${t('kvmRestoredShort')}`)
+    vmSettingsOpen.value = false
+  } else {
+    toast.show(te(err) ? t(err) : err)
   }
 }
 
@@ -362,6 +445,7 @@ onUnmounted(() => {
   vnc.dispose()
   isoList.dispose()
   hostInfo.dispose()
+  snaps.dispose()
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   clearTimeout(spiceTimer) // Task 8:brief snippet 里独立的 onUnmounted,合并进这里,免得挂两个。
 })
@@ -467,6 +551,13 @@ async function onAction(name: string): Promise<void> {
       // 齿轮按钮本身已经 `:disabled="!canEditSettings"`,点不到这个分支(spec §1.15)。
       settingsSelectedOs.value = null
       settingsError.value = ''
+      // P6 Task 10:同样清掉上一次可能残留的快照创建报错——SnapshotsTab 实例每次
+      // 弹窗开合都会被 reka DialogContent 整体卸载重建(见该组件顶部注释),但
+      // `snapCreateError` 本身活在 KvmPage 这一层、跨开合持续存在,不清会在下一次
+      // 打开设置弹窗、切到快照 tab 时露出上一轮的旧报错。快照列表本身(snaps.snapshots)
+      // 不需要在这里清——点快照 tab 时 onSettingsTabChange 会重新 fetch 一遍覆盖掉,
+      // 且复位前它本来就是 v-show 隐藏的,不会露出陈旧内容(与 Vue2 同一处行为一致)。
+      snapCreateError.value = ''
       vmSettingsOpen.value = true
       break
     default: break
@@ -619,8 +710,15 @@ async function onAction(name: string): Promise<void> {
       :selected-os="settingsSelectedOs"
       :saving="settingsSaving"
       :submit-error="settingsError"
+      :snapshots="snaps.snapshots.value"
+      :snapshots-busy="snapCreating"
+      :snapshot-submit-error="snapCreateError"
       @open-os-selector="openOsSelectorFor('settings')"
       @submit="onSettingsSubmit"
+      @tab-change="onSettingsTabChange"
+      @create-snapshot="onSnapshotCreate"
+      @confirm-delete-snapshot="onSnapshotConfirmDelete"
+      @confirm-restore-snapshot="onSnapshotConfirmRestore"
     />
 
     <OsSelector

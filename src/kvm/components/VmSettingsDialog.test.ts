@@ -26,7 +26,12 @@ let w: VueWrapper | null = null
 // 落地到 document.body。
 const mk = async (props: Record<string, unknown> = {}) => {
   w = mount(VmSettingsDialog, {
-    props: { open: true, vm: VM(), host: HOST, selectedOs: null, saving: false, submitError: '', ...props },
+    props: {
+      open: true, vm: VM(), host: HOST, selectedOs: null, saving: false, submitError: '',
+      // P6 Task 10:快照 tab 的默认插槽内容(真实 SnapshotsTab)需要的三样。
+      snapshots: [], snapshotsBusy: false, snapshotSubmitError: '',
+      ...props,
+    },
     global: { plugins: [i18n] }, attachTo: document.body,
   })
   await nextTick()
@@ -50,7 +55,10 @@ describe('VmSettingsDialog', () => {
   // 覆盖点 2:两个 tab,默认 general 高亮;点快照 emit tab-change 并渲染 snapshots 插槽
   it('两个 tab 按钮,默认 general 高亮;点快照 emit tab-change 并渲染 snapshots 插槽内容', async () => {
     const wr = mount(VmSettingsDialog, {
-      props: { open: true, vm: VM(), host: HOST, selectedOs: null, saving: false, submitError: '' },
+      props: {
+        open: true, vm: VM(), host: HOST, selectedOs: null, saving: false, submitError: '',
+        snapshots: [], snapshotsBusy: false, snapshotSubmitError: '',
+      },
       slots: { snapshots: '<div class="probe-snapshots">快照占位内容</div>' },
       global: { plugins: [i18n] }, attachTo: document.body,
     })
@@ -181,7 +189,11 @@ describe('VmSettingsDialog', () => {
     await setVal(wr, 'input[name="name"]', 'renamed-vm')
     const sel = q('.cv-select-native') as HTMLSelectElement
     sel.value = 'enp4s0'; sel.dispatchEvent(new Event('change')); await wr.vm.$nextTick()
-    q('.cv-primary-btn').click()
+    // P6 Task 10 起:`.cv-primary-btn` 不再唯一——snapshots-body 默认插槽内容(真实
+    // SnapshotsTab)里"创建"按钮也是这个类,且 v-show 不移出 DOM,裸 `.cv-primary-btn`
+    // 会先命中它(DOM 顺序在 footer 之前)。必须限定在 `.create-vm-foot` 容器内才是
+    // General tab 的"保存"按钮。
+    q('.create-vm-foot .cv-primary-btn').click()
     await wr.vm.$nextTick()
     const payload = wr.emitted('submit')![0][0] as Record<string, unknown>
     expect(payload).toEqual({
@@ -199,13 +211,15 @@ describe('VmSettingsDialog', () => {
   // 这个混淆因素,再证明 saving=true 时同一份表单不提交,唯一归因于这个守卫本身)。
   it('saving=true 时主按钮 is-loading 且点不动(防重复提交)', async () => {
     const ok = await mk({ saving: false })
-    q('.cv-primary-btn').click()
+    // 同覆盖点 9 的注释:限定在 footer 容器内,避免误点 snapshots-body 默认插槽里
+    // SnapshotsTab 的"创建"按钮(同样是 .cv-primary-btn)。
+    q('.create-vm-foot .cv-primary-btn').click()
     await ok.vm.$nextTick()
     expect(ok.emitted('submit')).toHaveLength(1)
     ok.unmount()
 
     const busy = await mk({ saving: true })
-    const btn = q('.cv-primary-btn') as HTMLButtonElement
+    const btn = q('.create-vm-foot .cv-primary-btn') as HTMLButtonElement
     expect(btn.classList.contains('is-loading')).toBe(true)
     // 原生 disabled 本身就会挡掉 `.click()`——用 dispatchEvent 绕开原生拦截,
     // 才能测到 onSubmit() 内部 `if (props.saving) return` 这道 JS 层守卫本身。
@@ -250,11 +264,64 @@ describe('VmSettingsDialog', () => {
   })
 
   // 评审 Important 惯例(本仓库既有约定):foot 只在 general tab 显示(照 Vue2 :387)。
+  // P6 Task 10 起:限定在 `.create-vm-foot` 容器内断言——裸 `.cv-primary-btn` 现在还会
+  // 命中 snapshots-body 里 SnapshotsTab 的"创建"按钮(v-show 不移出 DOM,切到快照 tab
+  // 后那个按钮仍然存在),只有 footer 容器本身才会因为 `v-if="activeTab==='general'"`
+  // 整体消失。
   it('切到快照 tab 时脚部按钮消失', async () => {
     const wr = await mk()
-    expect(q('.cv-primary-btn')).not.toBeNull()
+    expect(q('.create-vm-foot .cv-primary-btn')).not.toBeNull()
     qa('.settings-tab')[1].click()
     await wr.vm.$nextTick()
-    expect(q('.cv-primary-btn')).toBeNull()
+    expect(q('.create-vm-foot .cv-primary-btn')).toBeNull()
+  })
+
+  // P6 Task 10:snapshots-body 的默认插槽内容是真正的 SnapshotsTab,五个 props/emit
+  // 原样转发穿透。这里只验证"穿透接线对不对"(props 落到位、emit 转发对),SnapshotsTab
+  // 自己的行为覆盖在 SnapshotsTab.test.ts,不重复。
+  describe('P6 Task 10:snapshots 插槽默认内容 = 真实 SnapshotsTab,props/emit 原样转发', () => {
+    it('snapshots/snapshotsBusy/snapshotSubmitError 落到 SnapshotsTab 对应 props', async () => {
+      const wr = await mk({
+        vm: VM({ state: 'stopped' }),
+        snapshots: [{ id: 's1', vmId: 'e939191c-2bd2-4f14-88c9-0bf05d3b4d40', name: 'snap-a', description: '', state: 'complete', createdAt: '2026-08-03T10:00:00Z' }],
+        snapshotsBusy: true,
+        snapshotSubmitError: 'boom',
+      })
+      qa('.settings-tab')[1].click()
+      await wr.vm.$nextTick()
+      // vmState='stopped' 落到 SnapshotsTab → 恢复按钮可点(未 disabled)。
+      expect((q('.cv-btn-restore') as HTMLButtonElement).disabled).toBe(false)
+      // snapshots 落到位 → 渲染出一条,而不是空态。
+      expect(q('.cv-empty-state')).toBeNull()
+      expect(q('.cv-snapshot-name')!.textContent).toContain('snap-a')
+      // snapshotsBusy 落到 SnapshotsTab 的 busy prop → 创建按钮 is-loading。
+      expect(q('.snapshots-body .cv-primary-btn')!.classList.contains('is-loading')).toBe(true)
+      // snapshotSubmitError 落到 submitError prop → 内联显示。
+      expect(q('.snapshots-body .cv-error')!.textContent).toBe('boom')
+    })
+
+    it('SnapshotsTab 的 create/confirm-delete/confirm-restore 原样转发成 create-snapshot/confirm-delete-snapshot/confirm-restore-snapshot', async () => {
+      const snap = { id: 's1', vmId: 'e939191c-2bd2-4f14-88c9-0bf05d3b4d40', name: 'snap-a', description: '', state: 'complete', createdAt: '' }
+      const wr = await mk({ vm: VM({ state: 'stopped' }), snapshots: [snap] })
+      qa('.settings-tab')[1].click()
+      await wr.vm.$nextTick()
+
+      await setVal(wr, 'input[name="snapshotName"]', 'new-snap')
+      q('.snapshots-body .cv-primary-btn').click()
+      await wr.vm.$nextTick()
+      expect(wr.emitted('create-snapshot')![0]).toEqual([{ name: 'new-snap', description: '' }])
+
+      q('.cv-btn-delete').click() // 第一次:进入待确认
+      await wr.vm.$nextTick()
+      q('.cv-btn-delete').click() // 第二次:真正触发
+      await wr.vm.$nextTick()
+      expect(wr.emitted('confirm-delete-snapshot')![0]).toEqual([snap])
+
+      q('.cv-btn-restore').click()
+      await wr.vm.$nextTick()
+      q('.cv-btn-restore').click()
+      await wr.vm.$nextTick()
+      expect(wr.emitted('confirm-restore-snapshot')![0]).toEqual([snap])
+    })
   })
 })

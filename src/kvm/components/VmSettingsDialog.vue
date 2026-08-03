@@ -2,8 +2,14 @@
 // VM 设置弹窗:两个 tab(通用/快照),本组件实现「通用」半 + 两个 tab 的壳。视觉 1:1 对
 // Vue2 KVMFullPage.vue 模板 :230-393(head+tabs :231-252 / General section :255-325 /
 // foot :387-391),逻辑对 showSettings(:1202-1221)/saveSettings(:1494-1514)/
-// onOSSelect 的 settings 分支(:1378-1381)。快照 tab 内容留给 Task 10(SnapshotsTab
-// 组件挂进 `snapshots` 插槽),这里只留占位。
+// onOSSelect 的 settings 分支(:1378-1381)。
+//
+// Task 10:快照 tab 的真身是 `snapshots` 具名插槽的**默认内容**(SnapshotsTab 组件),
+// 不是父组件从外面塞进来的——本组件本来就不持有 useSnapshots 实例(那份数据层同
+// isoList/hostInfo 一样由 KvmPage 创建、随页面生命周期存活),所以直接把 SnapshotsTab
+// 的五个 props/三个 emit 原样转发穿透(snapshots/snapshotsBusy/snapshotSubmitError 三个
+// 新 prop + vmId/vmState 直接读 props.vm 派生,不需要单独再传)。留一个具名插槽而不是
+// 焊死,是为了不破坏 Task 9 已经定型的"插槽机制本身"这条测试覆盖(见下方模板注释)。
 //
 // 表单编辑用一份本地副本(form,reactive),不直接绑定 props.vm 的字段——理由同
 // CreateVmDialog / KvmGlobalSettingsDialog:Global Constraint #16 在本组件**确实适用**
@@ -16,9 +22,11 @@ import { reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { KvmVM, KvmUpdateVMRequest } from '@nimotech/nimoos-service'
 import KvmDialog from './KvmDialog.vue'
+import SnapshotsTab from './SnapshotsTab.vue'
 import type { SelectedOs } from './OsSelector.vue'
 import type { KvmHostReadonly } from '../composables/useKvmHostInfo'
 import { formatHostMem } from '../util/format'
+import type { KvmSnapshot } from '@nimotech/nimoos-service'
 
 const props = defineProps<{
   open: boolean
@@ -27,6 +35,11 @@ const props = defineProps<{
   selectedOs: SelectedOs | null
   saving: boolean
   submitError: string
+  // P6 Task 10:快照 tab 需要的四样,原样转发给 SnapshotsTab——本组件不持有快照数据层
+  // (useSnapshots 由 KvmPage 创建、随页面生命周期存活,同 isoList/hostInfo 的既有惯例)。
+  snapshots: KvmSnapshot[]
+  snapshotsBusy: boolean
+  snapshotSubmitError: string
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +47,9 @@ const emit = defineEmits<{
   'open-os-selector': []
   submit: [patch: KvmUpdateVMRequest]
   'tab-change': [tab: 'general' | 'snapshots']
+  'create-snapshot': [payload: { name: string; description: string }]
+  'confirm-delete-snapshot': [s: KvmSnapshot]
+  'confirm-restore-snapshot': [s: KvmSnapshot]
 }>()
 
 const { t } = useI18n()
@@ -242,8 +258,22 @@ function onSubmit(): void {
     </div>
 
     <div v-show="activeTab === 'snapshots'" class="snapshots-body">
+      <!-- Task 10:具名插槽的默认内容就是真正的 SnapshotsTab——生产环境(KvmPage.vue)
+           不覆盖这个插槽,走的正是这份默认内容;VmSettingsDialog.test.ts 覆盖点 2(2026-08-02
+           已有,Task 9 遗留)显式传了 `slots: { snapshots: '<div class="probe-snapshots">…' }`
+           覆盖掉默认内容,验证"插槽机制本身接得上",不依赖真实 SnapshotsTab——两条测试
+           互不冲突,分别验证"插槽管道通"与"默认内容对不对"。 -->
       <slot name="snapshots">
-        <!-- Task 10: 快照 tab -->
+        <SnapshotsTab
+          :vm-id="props.vm.id"
+          :vm-state="props.vm.state"
+          :snapshots="props.snapshots"
+          :busy="props.snapshotsBusy"
+          :submit-error="props.snapshotSubmitError"
+          @create="emit('create-snapshot', $event)"
+          @confirm-delete="emit('confirm-delete-snapshot', $event)"
+          @confirm-restore="emit('confirm-restore-snapshot', $event)"
+        />
       </slot>
     </div>
 

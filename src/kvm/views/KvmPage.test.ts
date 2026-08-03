@@ -42,6 +42,8 @@ const api = {
   createVM: vi.fn(), getISOList: vi.fn(), downloadISO: vi.fn(),
   // P6 Task 9:VM 设置弹窗接线需要的 updateVM。
   updateVM: vi.fn(),
+  // P6 Task 10:快照 tab 接线需要的四个。
+  getSnapshots: vi.fn(), createSnapshot: vi.fn(), deleteSnapshot: vi.fn(), restoreSnapshot: vi.fn(),
 }
 // IsoBrowser(OsSelector 的自定义区子组件,真实渲染,未被 mock 掉)展开时会调
 // service.folder.getList——即便本文件大多数用例不点开它,补全这个 getter 避免访问
@@ -114,6 +116,10 @@ beforeEach(() => {
   api.getISOList.mockResolvedValue([])
   api.downloadISO.mockResolvedValue(undefined)
   api.updateVM.mockResolvedValue(VM())
+  api.getSnapshots.mockResolvedValue([])
+  api.createSnapshot.mockResolvedValue({ id: 'snap-x', vmId: 'vm-1', name: '', description: '', state: 'complete', createdAt: '' })
+  api.deleteSnapshot.mockResolvedValue(undefined)
+  api.restoreSnapshot.mockResolvedValue(undefined)
 })
 
 const mountPage = () => mount(KvmPage, { global: { plugins: [i18n] } })
@@ -1388,7 +1394,10 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     nameInput.dispatchEvent(new Event('input'))
     await w.vm.$nextTick()
 
-    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    // P6 Task 10 起:`.cv-primary-btn` 不再唯一——快照 tab 默认内容(真实 SnapshotsTab)
+    // 里"创建"按钮也是这个类且 v-show 不移出 DOM,裸选择器会先命中它。限定在
+    // `.create-vm-foot` 容器内才是 General tab 的"保存"按钮。
+    ;(document.body.querySelector('.create-vm-foot .cv-primary-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
 
@@ -1408,7 +1417,9 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     await flush()
     await openSettings(w)
 
-    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    // 同上一条注释:限定在 `.create-vm-foot` 容器内,避免误点快照 tab 默认内容里的
+    // "创建"按钮。
+    ;(document.body.querySelector('.create-vm-foot .cv-primary-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
 
@@ -1447,6 +1458,174 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置')
     expect(document.body.querySelector('.cv-iso-btn')?.textContent)
       .toContain('/DATA/KVM/isos/alpine-319.iso')
+    w.unmount()
+  })
+})
+
+describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
+  const openSettings = async (w: VueWrapper): Promise<void> => {
+    await w.get('.action-btn').trigger('click') // 齿轮是 console-actions 里第一个 action-btn
+    await flush()
+    await w.vm.$nextTick()
+  }
+  const openSnapshotsTab = async (w: VueWrapper): Promise<void> => {
+    await openSettings(w)
+    ;([...document.body.querySelectorAll('.settings-tab')][1] as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+  }
+
+  // 照 Vue2 :250 点 tab 才拉:齿轮打开后(General tab)不应该已经调用 getSnapshots,
+  // 点了快照 tab 之后才调用,且列表渲染出来。
+  it('点快照 tab → 调用 getSnapshots(vmId),渲染出列表', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots.mockResolvedValue([
+      { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '升级前备份', state: 'complete', createdAt: '2026-08-03T10:00:00Z' },
+    ])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSettings(w)
+    expect(api.getSnapshots).not.toHaveBeenCalled() // General tab 不应该已经拉取
+
+    await openSnapshotsTab(w)
+    expect(api.getSnapshots).toHaveBeenCalledWith('vm-1')
+    expect(document.body.querySelector('.cv-snapshot-name')?.textContent).toContain('before-upgrade')
+    w.unmount()
+  })
+
+  it('创建快照成功 → 调用 createSnapshot、弹 toast「快照创建成功」、列表刷新一遍', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots
+      .mockResolvedValueOnce([]) // 点 tab 时第一次拉:空
+      .mockResolvedValueOnce([ // create 成功后再拉一遍:非空
+        { id: 'snap-new', vmId: 'vm-1', name: 'after-create', description: '', state: 'complete', createdAt: '' },
+      ])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+    expect(document.body.querySelector('.cv-empty-state')?.textContent).toContain('暂无快照')
+
+    const nameInput = document.body.querySelector('input[name="snapshotName"]') as HTMLInputElement
+    nameInput.value = 'before-upgrade'
+    nameInput.dispatchEvent(new Event('input'))
+    await w.vm.$nextTick()
+    ;(document.body.querySelector('.snapshots-body .cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(api.createSnapshot).toHaveBeenCalledWith('vm-1', { name: 'before-upgrade', description: '' })
+    expect(api.getSnapshots).toHaveBeenCalledTimes(2) // 点 tab 一次 + create 成功后再一次
+    expect(useToast().toasts.map((x) => x.text)).toContain('快照创建成功')
+    expect(document.body.querySelector('.cv-snapshot-name')?.textContent).toContain('after-create')
+    w.unmount()
+  })
+
+  it('创建快照失败 → 内联显示后端 message,不弹 toast', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.createSnapshot.mockRejectedValue(new Error('disk quota exceeded'))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+
+    const nameInput = document.body.querySelector('input[name="snapshotName"]') as HTMLInputElement
+    nameInput.value = 'x'
+    nameInput.dispatchEvent(new Event('input'))
+    await w.vm.$nextTick()
+    ;(document.body.querySelector('.snapshots-body .cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.snapshots-body .cv-error')?.textContent).toBe('disk quota exceeded')
+    expect(useToast().toasts).toEqual([])
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗没关
+    w.unmount()
+  })
+
+  it('删除二次确认通过 → 挂进度遮罩(标题/正文照 Vue2 拼法),完成后摘遮罩、成功弹 toast「name 已删除」,列表本地过滤', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots.mockResolvedValue([
+      { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
+    ])
+    let resolveDelete: () => void = () => {}
+    api.deleteSnapshot.mockImplementation(() => new Promise<void>((r) => { resolveDelete = () => r(undefined) }))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+
+    const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
+    delBtn().click() // 第一次:只变确认文字
+    await w.vm.$nextTick()
+    delBtn().click() // 第二次:真正触发
+    await w.vm.$nextTick()
+
+    // 此刻 deleteSnapshot 的 promise 还没 resolve,遮罩应该已经挂上了。
+    const overlay = document.body.querySelector('.kvm-progress-overlay')
+    expect(overlay).not.toBeNull()
+    expect(overlay!.querySelector('.kvm-progress-title')?.textContent).toContain('正在删除快照')
+    expect(overlay!.querySelector('.kvm-progress-msg')?.textContent).toBe('before-upgrade 删除中...')
+
+    resolveDelete()
+    await flush()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
+    expect(api.deleteSnapshot).toHaveBeenCalledWith('vm-1', 'snap-1')
+    expect(useToast().toasts.map((x) => x.text)).toContain('before-upgrade 已删除')
+    expect(document.body.querySelector('.cv-empty-state')?.textContent).toContain('暂无快照') // 本地过滤后为空
+    w.unmount()
+  })
+
+  it('删除失败 → 摘遮罩后弹 toast 显示后端 message(没有对应的弹窗内联展示位)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots.mockResolvedValue([
+      { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
+    ])
+    api.deleteSnapshot.mockRejectedValue(new Error('snapshot is in use'))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+
+    const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
+    delBtn().click()
+    await w.vm.$nextTick()
+    delBtn().click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
+    expect(useToast().toasts.map((x) => x.text)).toContain('snapshot is in use')
+    w.unmount()
+  })
+
+  it('恢复二次确认通过(VM 已停止)→ 挂进度遮罩(标题/正文照 Vue2 拼法),成功弹 toast「name 已恢复」且关闭整个设置弹窗', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots.mockResolvedValue([
+      { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
+    ])
+    let resolveRestore: () => void = () => {}
+    api.restoreSnapshot.mockImplementation(() => new Promise<void>((r) => { resolveRestore = () => r(undefined) }))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+
+    const restoreBtn = () => document.body.querySelector('.cv-btn-restore') as HTMLElement
+    restoreBtn().click() // 第一次:只变确认文字(恢复按钮此刻 vmState==='stopped',可点)
+    await w.vm.$nextTick()
+    restoreBtn().click() // 第二次:真正触发
+    await w.vm.$nextTick()
+
+    const overlay = document.body.querySelector('.kvm-progress-overlay')
+    expect(overlay).not.toBeNull()
+    expect(overlay!.querySelector('.kvm-progress-title')?.textContent).toContain('正在恢复快照')
+    expect(overlay!.querySelector('.kvm-progress-msg')?.textContent).toBe('before-upgrade 恢复中...')
+
+    resolveRestore()
+    await flush()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
+    expect(api.restoreSnapshot).toHaveBeenCalledWith('vm-1', 'snap-1')
+    expect(useToast().toasts.map((x) => x.text)).toContain('before-upgrade 已恢复')
+    // 恢复成功后关掉整个设置弹窗(照 Vue2 :1282)。
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
     w.unmount()
   })
 })

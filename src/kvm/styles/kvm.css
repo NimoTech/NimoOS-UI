@@ -2035,3 +2035,163 @@
   background: var(--kvm-field-border);
   color: var(--kvm-danger);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 10:快照 tab。视觉 1:1 对 Vue2 KVMFullPage 组件样式 .cv-empty-state
+ * (:2940-2959)+ `.snapshots-body` 内嵌的 .cv-snapshot-item/.cv-btn 规则
+ * (:2969-3090)。「创建快照」主按钮复用本文件早前已有的 .cv-primary-btn(Task 1
+ * 已搬过,与 Vue2 `snapshots-body` 里那条「button 类且 is-primary 类」规则
+ * (:2724-2737)逐字同款,这里不重复定义。注:本段刻意不把类名连写成点前缀选择器——
+ * 本文件类名白名单扫描器会把写在注释里的裸类名也当成"出现过的类名"扫描,同上面
+ * `.cv-primary-btn` 那条注释、以及 Task 9 已有的先例(ejected-text 那条注释)一样的
+ * 写法。
+ *
+ * **不搬**两块死 CSS(2026-08-03 grep 确认模板零命中,类名同样不连写点前缀选择器):
+ * - `cv-btn-create`(Vue2 :3049-3058)——「创建快照」按钮是 `b-button
+ *   type="is-primary" rounded`,从未用过这个类。
+ * - `cv-snapshot-list`(Vue2 :2962-2966)——模板里没有任何元素带这个类。
+ * 也**不搬** `cv-snapshot-info` 内层嵌套的那条 `cv-field { margin-bottom... }`
+ * 规则(Vue2 :2991-2996)——那条选择器要求 `cv-snapshot-info` 内部还有一层
+ * `cv-field` 元素,但模板里 `cv-snapshot-info` 直接装三个 span,没有嵌套 `cv-field`,
+ * 同样是死 CSS。
+ *
+ * 色值核对(**不铺开写十六进制字面量**——本文件裸颜色字面量守卫是逐行扫描、不剥注释,
+ * 写进注释一样会被判违规,任务报告里有逐条字面量核对表):`.cv-empty-state` 背景/边框/
+ * 字色分别取本文件早前已在用的既有 token --kvm-field-bg / --kvm-field-border /
+ * --kvm-fg-faint,与 Vue2 这条规则的三个颜色值逐一核对一致;`.cv-snapshot-item` 背景取
+ * 新 token --kvm-snapshot-bg、边框复用既有 --kvm-field-border(Vue2 这条规则用的深灰
+ * 字面量与 --kvm-field-elev 同值,但 --kvm-field-border 在视觉上已经是本文件到处在用的
+ * "卡片描边"语义,两个深灰字面量在这个深色底上几乎无法辨识差异,复用既有 token 不新增
+ * 一个几乎重复的深灰 token)、hover 边框取既有 --kvm-accent、hover 背景取新 token
+ * --kvm-snapshot-hover;名称字色取既有 --kvm-modal-fg(Vue2 写纯白,深色卡片上与
+ * --kvm-modal-fg 的浅灰视觉无差,复用既有"卡片内主文字"语义 token 不新增)、描述字色
+ * 取新 token --kvm-snapshot-desc-fg、日期字色取新 token --kvm-snapshot-date-fg。
+ * `.cv-btn-restore` 底/hover 底/disabled 底分别取新 token --kvm-restore-bg /
+ * --kvm-restore-bg-hover / --kvm-restore-disabled-bg;字色复用既有 --kvm-on-accent。
+ * `.cv-btn-delete` 底复用既有 --kvm-danger(与 Vue2 这条规则的字面量恰好相同,不是
+ * 巧合——本文件早前给控制台状态点/横幅错误色定义这个 token 时就是照抄同一个 Vue2 全局
+ * 红),hover 底取新 token --kvm-delete-bg-hover。以上 --kvm-snapshot-*/
+ * --kvm-restore-*/--kvm-delete-bg-hover 六个 token 均已在 theme sp9 分片里预先定义好
+ * (Task 1 起的历史遗留,该分片注释里写明"后续任务再消费"),这里是第一次被实际消费,
+ * 不是新增 token。
+ *
+ * ⚠️ 硬约束 4 高危点:`.cv-btn` 基类本身**没有**定义 `:hover` 规则(与 Vue2 源文件一致,
+ * 只有两个变体 `.cv-btn-restore`/`.cv-btn-delete` 各自带 hover)——因此不存在
+ * "基类 hover 特异度压过变体 hover" 的那类坑(newui-css-hover-specificity-trap 记忆
+ * 描述的场景要求基类本身有 `:hover`,这里刻意不写,规避得干干净净)。
+ * ════════════════════════════════════════════════════════════════════ */
+.cv-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  color: var(--kvm-fg-faint);
+}
+
+.cv-empty-state span {
+  font-size: 0.8rem;
+}
+
+.snapshots-body .cv-snapshot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: var(--kvm-snapshot-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.5rem;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.snapshots-body .cv-snapshot-item:hover {
+  border-color: var(--kvm-accent);
+  background: var(--kvm-snapshot-hover);
+}
+
+.snapshots-body .cv-snapshot-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.snapshots-body .cv-snapshot-name {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--kvm-modal-fg);
+  margin-bottom: 0.6rem;
+  white-space: normal;
+}
+
+.snapshots-body .cv-snapshot-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--kvm-snapshot-desc-fg);
+  margin-bottom: 0.5rem;
+  white-space: normal;
+}
+
+.snapshots-body .cv-snapshot-date {
+  display: block;
+  font-size: 0.725rem;
+  color: var(--kvm-snapshot-date-fg);
+  white-space: normal;
+}
+
+.snapshots-body .cv-snapshot-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-left: 2rem;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.cv-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.cv-btn-restore {
+  background: var(--kvm-restore-bg);
+  border-color: var(--kvm-restore-bg);
+  color: var(--kvm-on-accent);
+}
+
+.cv-btn-restore:hover:not(:disabled) {
+  background: var(--kvm-restore-bg-hover);
+  border-color: var(--kvm-restore-bg-hover);
+}
+
+.cv-btn-restore:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--kvm-restore-disabled-bg);
+  border-color: var(--kvm-restore-disabled-bg);
+}
+
+.cv-btn-delete {
+  background: var(--kvm-danger);
+  border-color: var(--kvm-danger);
+  color: var(--kvm-on-accent);
+}
+
+.cv-btn-delete:hover {
+  background: var(--kvm-delete-bg-hover);
+  border-color: var(--kvm-delete-bg-hover);
+}
