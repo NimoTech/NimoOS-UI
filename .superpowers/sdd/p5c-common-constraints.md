@@ -582,6 +582,13 @@ pnpm build                     > /tmp/p5c-tN-build.log 2>&1; echo "exit=$?"
   (`blankComments()`:把注释内容换成等量空格、**保留所有换行**),
   并**用 `grep -n` 的行号做一次交叉验证**(T2b 的探针 G 实测 `L76` 与 `grep -n` 逐字一致)。
   ⚠️ 现有 `knowledgeStyles.test.ts` 的断言都不报行号,**暂无影响**;但新写守卫一律照本条。
+- 🔴 **新增(T6 实证,同族第九次):否定式断言(`not.toContain` / `not.toMatch`)撞注释会造成「假报红」。**
+  T6 补 A-1 守卫时写 `expect(src).not.toContain('aiKbOriginAuto')`,**撞上头注释里「不复用 `aiKbOriginAuto`」那句**
+  → 断言报红,而产品代码其实是对的。
+  🔴 **这是「撞注释」的镜像变种**:肯定式撞注释 = **假 GREEN**(漏问题);否定式撞注释 = **假 RED**(冤枉正确代码,
+  会诱使实现者去「修」一个没坏的东西)。
+  → **纪律:否定式断言必须先剥注释、且钉「调用形状」而不是钉裸标识符**
+  (T6 的解法:钉 `t('aiKbDeviceAuto')` 这样的调用形状,而不是钉字符串 `aiKbOriginAuto`)。
 - 🔴 **守卫缺口清单(本期从 4 条变 6 条,各有指定堵法)**:
 
   | # | 缺口 | 谁堵 | 怎么堵 |
