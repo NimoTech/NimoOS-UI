@@ -430,6 +430,45 @@ describe('P7b-T5: EXIF 筛选接线(D19)', () => {
     expect(w.find('.exif-filter + .crumb-count').exists()).toBe(true)
   })
 
+  // fix round(整期终审必修 I2):跳库页的 facet 源不变量此前一条断言都没有——时间线页
+  // 那边(Photos.integration.test.ts「FilterBar 的 facet 源是全库 allPhotos,不随已生效的
+  // 筛选收窄」)有专用回归锁,跳库页是裸的。`:photos="assets.photos.value"` 必须恒是未筛选
+  // 集合,否则会出现计划书点名的那个 bug:筛掉一个年份后,该年份从下拉里消失、再也选不回来。
+  // 与时间线页那条锁同型:先记下提交前的 facet 源长度,提交一次筛选,再确认 facet 源长度
+  // 不变(FilterBar 收到的 photos prop 不随 gridMonths 收窄)。
+  //
+  // 变异验证(已人工执行并复原,证据见 task-5-report.md「整期终审修复波」一节):把模板里
+  // PhotosFilterBar 的 `:photos="assets.photos.value"` 临时改成
+  // `:photos="gridMonths.flatMap(m => m.photos)"` → 下面这条断言从 2 转红为 1(facet 源
+  // 跟着筛选收窄了)→ 已复原。
+  it('FilterBar 的 facet 源恒是未筛选的 assets.photos,不随已生效的筛选收窄', async () => {
+    const { w } = await mountPlaceAssets()
+    const bar = w.findComponent(PhotosFilterBar)
+    const before = (bar.props('photos') as unknown[]).length
+    expect(before).toBe(2) // 夹具算准:placeFixtureAssets() 两张。
+
+    await bar.vm.$emit('update:filter', { years: ['2023'], places: [], cameras: [] })
+    await w.vm.$nextTick()
+
+    expect((w.findComponent(PhotosFilterBar).props('photos') as unknown[]).length).toBe(before)
+  })
+
+  // fix round(整期终审建议带上 M1):即便未来有代码(深链/store)往 exifFilter.places
+  // 塞值,D19(跳库页只按年份/相机筛选)也必须在数据层自证——网格结果不能因为 places
+  // 有值而收窄。回源 `PhotosPlaceAssets.vue` 的 gridMonths:改成显式投影
+  // `{ years: exifFilter.value.years, cameras: exifFilter.value.cameras }` 之后,
+  // `applyExifFilters` 根本读不到 places 键,即便它被塞值也不可能生效。
+  it('M1:exifFilter.places 即便被塞值也不生效(D19 数据层自证,不只靠 UI 不渲染位置胶囊)', async () => {
+    const { w } = await mountPlaceAssets()
+    // 塞一个两张夹具资产的 place('Tokyo')都不匹配的值——若 places 被读取生效,结果会被
+    // 筛成 0 张;若 places 被正确忽略(数据层自证),结果不受影响,仍是未筛选前的 2 张。
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: [], places: ['某个不存在的地名'], cameras: [] })
+    await w.vm.$nextTick()
+    const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
+    expect(months.flatMap((m) => m.photos)).toHaveLength(2) // 若 places 生效,这里会是 0。
+  })
+
   it('筛选生效后网格只拿到命中的照片(空月份门控本身在这里是恒真——理由见下),灯箱翻页集也跟着收窄', async () => {
     // fix round 1 Minor 1(评审):原用例名承诺了"空月份被丢掉",但这是恒真断言——
     // groupPhotosByMonth(util/groupPhotosByMonth.ts:15-23)的桶遇到照片才创建,永不产出
@@ -459,7 +498,14 @@ describe('P7b-T5: EXIF 筛选接线(D19)', () => {
     expect(lb.list.value.map((p) => p.id)).toEqual(['p1'])
   })
 
-  it('筛到零时仍渲染网格(空),不落到「这个地点没有照片」的空态;面包屑计数仍是地点总数', async () => {
+  // fix round(整期终审必修 I1,用例名改口):这条锁的是**门控走向**——筛到零时代码走的是
+  // 下面的 v-else(PhotosGrid 自己渲染空网格),不经过 `place-assets-empty` 那个分支。但
+  // 两条路径渲染出的空态文案逐字相同(都是 photosNoPhotos / photosNoPhotosHint,PhotosGrid
+  // 自己的空态用的正是这两个键),用户看到的东西不会因为走哪条分支而不同——原用例名「不落到
+  // 那个空态」暗示了"用户看到的不一样",这不成立,已改口。这条断言仍值得保留:它钉住的是
+  // 「三态门控的空态判定必须读未筛选数据、不能因为筛选结果为空就误判整个地点没有资产」这个
+  // 逻辑不变量,即便对用户不可见。
+  it('筛到零时三态门控走 v-else(不经过 place-assets-empty 分支);面包屑计数仍是地点总数', async () => {
     const { w } = await mountPlaceAssets()
     await w.findComponent(PhotosFilterBar).vm.$emit(
       'update:filter', { years: ['1999'], places: [], cameras: [] })

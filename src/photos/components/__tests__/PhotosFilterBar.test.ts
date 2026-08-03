@@ -20,15 +20,34 @@ const empty = () => ({ years: [] as string[], places: [] as string[], cameras: [
 // config.global.plugins 对每次 mount 生效,再显式传另一个实例会被拼接进同一个 app,
 // 触发 vue-i18n install() 的重复组件/指令注册告警(默认 reporter 隐藏了通过用例的
 // stderr,--reporter=verbose 才可见)。直接吃全局装好的那份,locale 默认就是 zh_cn。
+// fix round(整期终审建议带上 M4):`attachTo: document.body` 之前只靠 afterEach 里的
+// `document.body.innerHTML = ''` 清场——但组件的点外部关弹层监听是挂在 `document` 上
+// (PhotosFilterBar.vue watch(openPop) 里的 addEventListener('mousedown', ...)),清空
+// body 摘不掉挂在 document 上的监听器。于是前一条用例遗留的 mousedown 监听在同文件后续
+// 用例里仍然存活——今天无害(遗留实例的 rootRef 已被清空的 body 移除,el.contains() 恒
+// false),但"点组件外部关弹层"这条用例的 document.dispatchEvent 实际上是同时打在了一串
+// 僵尸监听上。这里收集每次 mountBar() 产出的 wrapper,afterEach 统一 unmount——真正调用
+// 组件的 onBeforeUnmount 把 document 监听摘掉,而不是只清 DOM。
+const wrappers: ReturnType<typeof mount>[] = []
 function mountBar(props: Record<string, unknown> = {}) {
-  return mount(PhotosFilterBar, {
+  const w = mount(PhotosFilterBar, {
     props: { filter: empty(), photos: PHOTOS, ...props },
     attachTo: document.body,
   })
+  wrappers.push(w)
+  return w
 }
 
 beforeEach(() => vi.useFakeTimers())
-afterEach(() => { vi.useRealTimers(); document.body.innerHTML = '' })
+afterEach(() => {
+  vi.useRealTimers()
+  // 有条用例(见「点组件外部 mousedown 关弹层」describe 里的「卸载后不再残留 document
+  // 监听」)会自己提前 unmount 来断言 removeEventListener 被调用——这里再 unmount 一次是
+  // 安全的空操作(Vue 3 的 app.unmount() 对已卸载实例直接早退,不抛错、不重复触发副作用)。
+  for (const w of wrappers) w.unmount()
+  wrappers.length = 0
+  document.body.innerHTML = ''
+})
 
 describe('结构与展开', () => {
   it('默认收起:.exif-filter 无 expanded 类,漏斗无 .on,无角标', () => {
@@ -62,6 +81,14 @@ describe('结构与展开', () => {
   })
 
   it('挂载时已有筛选值 → 自动展开,漏斗带 .on,角标显示总数', async () => {
+    // 整期终审 M6(仅注释,不改逻辑):这条用例名里的"自动展开"实际是两条路径叠加——
+    // `expanded` 的初始值本身就同步取自 `anyActive.value`(挂载那一刻 props 已就位,
+    // 组件顶部注释「偏离登记 5」已记录这个设计),所以 mount 完成时 `.expanded` 类早已
+    // 存在,不是 onMounted 里 `if (anyActive.value) expand()` 这条分支触发的——props
+    // 在 ref 初始化和 onMounted 之间不可能改变 anyActive 的值,那条分支在"挂载时已带
+    // 筛选值"这个场景下永远走的是"再赋一次已经是 true 的值",不可达出新状态。onMounted
+    // 那次调用真正有意义的是它的副作用(重排 450ms 溢出定时器),下面的
+    // `vi.advanceTimersByTime(450)` 断言验的正是这个副作用,不是"展开"这个状态本身。
     const w = mountBar({ filter: { years: ['2023'], places: ['Tokyo'], cameras: [] } })
     expect(w.get('.exif-filter').classes()).toContain('expanded')
     expect(w.get('.exif-funnel').classes()).toContain('on')
@@ -214,6 +241,12 @@ describe('hover 特异性硬约束', () => {
   // 会把这条变体规则judge为"命中了白名单之外的类"而排除掉,只剩基类 :hover 规则可见,
   // 测试就测不出"基类是否顶掉变体"这件事。
   it('.exif-funnel.on 的 hover 背景不被基类 .exif-funnel:hover 顶掉', () => {
+    // 整期终审 M3(仅注释,不改逻辑):这条断言比标题读起来弱——它只验证"赢家规则的
+    // selector 里带 :hover 和 on、value 是期望的 token",没有直接对照基类
+    // `.exif-funnel:hover` 规则算一遍 specificity 再断言"变体赢在书写顺序"这个更精确
+    // 的因果链(组件 CSS 注释里"平手,靠书写顺序苟活"那段话)。当前这条断言足以在基类
+    // 顶掉变体时转红(那样 winner 就会变成基类规则,value 不再是 --accent-soft),
+    // 只是没有把"为什么赢"这个机制显式钉出来。
     const style = extractStyleBlock(barRaw)
     const winner = winningHoverBackground(style, ['exif-funnel', 'on'])
     expect(winner.selector).toContain(':hover')

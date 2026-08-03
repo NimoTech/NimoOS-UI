@@ -137,9 +137,17 @@ const PLACE_CHIP_KEYS = ['years', 'cameras'] as const
 // 保留它(brief 明文要求),是为了与 T4(views/Photos.vue,那边 months 来自后端预分桶、
 // 筛选发生在桶内、空月份是真实可能出现的)保持同一套调用惯例口径,不是本页此刻需要的
 // 逻辑保护。
+// fix round(终审 M1):显式投影只喂 years/cameras 两个维度,对齐 Vue2
+// `PhotosTimeline.vue:167`(spot 分支同样显式传 `{ years, cameras }`,不整个 filter 对象
+// 转发)。今天 exifFilter.places 恒空,喂整个对象与只喂两个键结果等价——但一旦将来有代码
+// (深链/store)往 exifFilter.places 塞值,喂整个对象会静默按位置筛出结果,而 UI 上既看不到
+// 这个胶囊也清不掉它(T2 挂账的「幽灵筛选」)。显式投影让 D19 在数据层自证,不只靠 UI 侧
+// 不渲染位置胶囊这一层防线。
 const gridMonths = computed(() =>
-  groupPhotosByMonth(applyExifFilters(assets.photos.value, exifFilter.value))
-    .filter((m) => m.photos.length > 0))
+  groupPhotosByMonth(applyExifFilters(assets.photos.value, {
+    years: exifFilter.value.years,
+    cameras: exifFilter.value.cameras,
+  })).filter((m) => m.photos.length > 0))
 
 // PhotosGrid 自己 emit 的 list 恒为 undefined(它不知道"整页"的边界在哪)。翻页集跟着
 // 筛选走(D9 同型要求:灯箱能翻到的必须是这一屏看得见的),所以重建翻页集时用 gridMonths
@@ -177,9 +185,13 @@ function retry(): void {
             v-model:filter="exifFilter" :photos="assets.photos.value"
             :chip-keys="[...PLACE_CHIP_KEYS]"
           />
-          <!-- P7b-T5:计数与下方空态判定都读**未筛选**的 assets.photos:这是「这个地点一共
-               多少张」,不是「筛完剩多少张」。筛到零时应该显示筛选后的空网格,而不是跳到
-               「这个地点没有照片」——那句文案在有照片、只是被筛掉的情况下是误导。 -->
+          <!-- P7b-T5(终审 I1 订正措辞):读**未筛选**的 assets.photos,是为了让这个计数
+               表达「这个地点一共多少张」,不是「筛完剩多少张」。筛到零时,门控走向下面的
+               v-else(PhotosGrid 自己渲染空网格),不会命中下方 place-assets-empty 那个
+               分支——但 PhotosGrid 自己的空态用的正是同两个键(photosNoPhotos /
+               photosNoPhotosHint),所以用户最终看到的文案与那个分支逐字相同,只是换了个
+               DOM 路径,不是「避免了误导文案」。若要一个真正的「没有匹配的筛选结果」文案,
+               是 Vue2 也没有的新功能,应挂债务,本期不做。 -->
           <span class="crumb-count" data-test="place-crumb-count">{{ t('photosPlacesPhotoCount', { n: assets.photos.value.length }) }}</span>
         </div>
 
@@ -197,8 +209,11 @@ function retry(): void {
           </button>
         </div>
 
-        <!-- P7b-T5:空态判定同样读**未筛选**的 assets.photos(见上方面包屑计数处的同款注释)
-             ——筛到零张时应落到下面的 v-else 分支渲染筛选后的空网格,不是这里。 -->
+        <!-- P7b-T5(终审 I1 订正措辞):这个门控同样读**未筛选**的 assets.photos,只判定
+             「这个地点本身有没有资产」(与筛选无关)——筛到零张时走的是下面的 v-else 分支
+             (PhotosGrid 渲染空网格),不落在这里。但那个分支渲染出的空态文案与这里逐字
+             相同(见下方面包屑计数处的同款注释),两条门控路径的区分只对代码/测试有意义,
+             用户看到的东西不会因为走哪条分支而不同。 -->
         <div v-else-if="assets.loaded.value && assets.photos.value.length === 0" class="empty-state" data-test="place-assets-empty">
           <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
           <div class="empty-state-desc">{{ t('photosNoPhotosHint') }}</div>
