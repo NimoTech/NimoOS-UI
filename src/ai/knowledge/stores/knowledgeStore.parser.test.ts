@@ -82,7 +82,15 @@ describe('Jobs 组', () => {
 
   it('retryFailed / cancelJob / clearFailed 都在动作后重载三桶', async () => {
     ai.parserJobs.mockResolvedValue({ jobs: [] })
-    ai.parserRetryJobs.mockResolvedValue({}); ai.parserDeleteJob.mockResolvedValue({})
+    // 🔴 P5c 交接项 #2(P5b 授权外,由 P5c 治理 §8.2 第 2 条派活):`parserDeleteJob`
+    // 的 mock 由 `{}` 改成 `''` —— `DELETE /v1/parser/jobs/{id}` 是 **HTTP 204 空体**
+    // (`NimoOS-Parser/parser/routes/jobs.py:42-50` 的 `status_code=204` + `return None`),
+    // 包里是 `return res.data`(`ai.ts:637-640`),而 **axios 1.18.1 对空体给的 `res.data`
+    // 是 `''`(空字符串)**(`axios.cjs:2118` 的守卫 `if (data && utils.isString(data) && …)`,
+    // 空串 falsy → 跳过 JSON 解析原样返回)。`{}`/`{ok:true}`/`undefined` 都是把幻觉编码
+    // 进断言。`cancelJob` 不消费返回值(`knowledgeStore.ts:370-373`)→ **零行为差异**。
+    // ⚠️ `parserRetryJobs` 的 `{}` 不动:它是 `{"retried":0}` 那类真 JSON,不在本次授权内。
+    ai.parserRetryJobs.mockResolvedValue({}); ai.parserDeleteJob.mockResolvedValue('')
     ai.parserClearFailedJobs.mockResolvedValue({ cleared: 3 })
     const s = useKnowledgeStore()
     await s.retryFailed(['f1'])
