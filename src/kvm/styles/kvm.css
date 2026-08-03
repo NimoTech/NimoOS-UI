@@ -16,6 +16,15 @@
  * 类名对应关系:Vue2 根类名是 kvm-full-page,配 scoped 嵌套选择器;New-UI 没有 scoped,
  * 改成全局唯一类名 kvm-page(根)+ 摊平的顶层选择器(嵌套 & 展开为普通后代选择器),
  * 视觉数值逐字保留。
+ *
+ * ── P6(创建弹窗 / ISO 选择器 / 快照 / VM 设置 / 全局设置)──
+ * Task 0 只搭地基,不写本段任何样式规则 —— 下面这些类名先在同目录的 kvmStyles 测试文件
+ * 的 ALLOWED 白名单里登记好,后续任务(Task 1 起)再逐个把规则填进本文件:
+ * kvm-dialog-overlay/kvm-dialog-content(弹窗共用壳)、create-vm-* 与 cv-*(创建弹窗)、
+ * settings-tabs/settings-tab(VM 设置分页)、snapshots-body 与 cv-snapshot-*(快照面板)、
+ * os-selector-body 与 os-*/category-*/custom-*(OSSelector)。颜色同样一律 var(--kvm-*),
+ * 用到的 23 个 token 已在 theme sp9 分片里定义(--kvm-modal-*/--kvm-field-*/
+ * --kvm-accent-hover-alt/--kvm-snapshot-*/--kvm-restore-*/--kvm-delete-bg-hover 等)。
  */
 
 .kvm-page {

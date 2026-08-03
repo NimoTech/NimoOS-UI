@@ -42,6 +42,26 @@ const ALLOWED = new Set([
   'installation-banner', 'banner-content', 'banner-btn', 'is-loading', 'banner-error',
   'kvm-progress-overlay', 'kvm-progress-card', 'kvm-progress-title', 'kvm-progress-msg',
   'kvm-spinner',
+
+  // P6(创建弹窗 / ISO 选择器 / 快照 / VM 设置 / 全局设置)地基期(Task 0)先登记类名,
+  // 样式规则由后续任务(Task 1 起)陆续填进 kvm.css。名字定死,后续任务只许用这些。
+  'kvm-dialog-overlay', 'kvm-dialog-content', 'create-vm-modal', 'create-vm-head',
+  'create-vm-title', 'create-vm-close', 'create-vm-body', 'create-vm-foot',
+  'cv-field', 'cv-label', 'cv-hint', 'cv-input-row', 'cv-input', 'cv-input-unit', 'cv-unit',
+  'cv-iso-btn', 'cv-placeholder', 'cv-iso-eject', 'cv-cpu-group', 'cv-cpu-btn',
+  'cv-select', 'cv-select-native', 'cv-select-arrow', 'cv-firmware-group', 'cv-firmware-btn',
+  'cv-primary-btn', 'cv-error', 'cv-switch', 'cv-switch-track', 'cv-switch-knob',
+  'settings-tabs', 'settings-tab',
+  'snapshots-body', 'cv-empty-state', 'cv-snapshot-item', 'cv-snapshot-info',
+  'cv-snapshot-name', 'cv-snapshot-desc', 'cv-snapshot-date', 'cv-snapshot-actions',
+  'cv-btn', 'cv-btn-restore', 'cv-btn-delete',
+  'os-selector-body', 'category-filter', 'category-btn', 'os-section', 'os-grid', 'os-card',
+  'is-downloaded', 'is-downloading', 'os-icon-wrapper', 'os-info', 'os-name', 'os-version',
+  'os-size', 'os-action-btn', 'is-download', 'is-selected', 'is-downloading-btn',
+  'custom-section', 'custom-divider', 'custom-browse', 'custom-breadcrumb', 'custom-back-btn',
+  'custom-path', 'custom-file-list', 'custom-loading', 'custom-empty', 'custom-file-item',
+  'custom-file-icon', 'custom-file-info', 'custom-file-name', 'custom-file-size',
+  'custom-file-arrow',
 ])
 
 describe('kvm.css 类名白名单', () => {

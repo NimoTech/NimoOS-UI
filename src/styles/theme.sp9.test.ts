@@ -48,6 +48,31 @@ describe('theme.sp9.css token 两套主题齐备', () => {
   })
 })
 
+describe('P6 KVM 弹窗/快照 token 齐备(Task 0 地基:后续任务只许用这 23 个名字)', () => {
+  const P6_TOKENS = [
+    '--kvm-modal-bg', '--kvm-modal-fg', '--kvm-field-bg', '--kvm-field-border',
+    '--kvm-field-elev', '--kvm-accent-light', '--kvm-accent-hover', '--kvm-accent-hover-alt',
+    '--kvm-accent-ring', '--kvm-accent-faint', '--kvm-accent-muted', '--kvm-ok-hover',
+    '--kvm-ok-faint', '--kvm-overlay-strong', '--kvm-shadow-mid', '--kvm-snapshot-bg',
+    '--kvm-snapshot-hover', '--kvm-snapshot-desc-fg', '--kvm-snapshot-date-fg',
+    '--kvm-restore-bg', '--kvm-restore-bg-hover', '--kvm-restore-disabled-bg',
+    '--kvm-delete-bg-hover',
+  ]
+
+  it(`本期 23 个 token 都已在 :root 声明(实际 ${P6_TOKENS.length} 个)`, () => {
+    expect(P6_TOKENS.length).toBe(23)
+    const root = tokensOf(':root {')
+    const missing = P6_TOKENS.filter((t) => !root.includes(t))
+    expect(missing, `:root 缺少 token: ${missing.join(', ')}`).toEqual([])
+  })
+
+  it('本期 23 个 token 都已在 :root[data-theme="light"] 声明', () => {
+    const light = tokensOf(":root[data-theme='light']")
+    const missing = P6_TOKENS.filter((t) => !light.includes(t))
+    expect(missing, `light 块缺少 token: ${missing.join(', ')}`).toEqual([])
+  })
+})
+
 describe('--kvm-* token 两套主题取值必须相同(P5 硬约束:KVM 区固定深色,不跟随全局主题)', () => {
   it('每个 --kvm- 前缀 token,:root 与 :root[data-theme="light"] 的字面量逐个相同', () => {
     const root = tokenMapOf(':root {')

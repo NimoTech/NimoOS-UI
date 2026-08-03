@@ -411,4 +411,92 @@ export default {
   kvmRestartingShort: 'restarting',
   kvmDeletingShort: 'deleting',
   kvmToggleSidebar: 'Toggle sidebar',
+
+  // ── P6 KVM create dialog / snapshots / global settings / OSSelector ──(SP9-P6 Task 0)
+  // en values = the literal Vue2 $t() key text (Vue2 has no en_US.json, same convention as P5).
+  // Reused P5 keys (not re-declared here): kvmSettings / kvmAutoStart / kvmDeletingShort /
+  // kvmFailedToSaveSettings / kvmClose / kvmAreYouSure / kvmDelete.
+  // Create dialog
+  kvmCreateTitle: 'Create New VM',
+  kvmVmName: 'VM Name',
+  kvmVmNamePlaceholder: 'e.g. debian-13',
+  kvmIsoImage: 'ISO Image',
+  kvmSelectIsoPlaceholder: 'Select an ISO image',
+  kvmDiskSize: 'Disk Size',
+  kvmMax: 'Max',
+  kvmCpuCores: 'CPU Cores',
+  kvmMemory: 'Memory',
+  kvmNetwork: 'Network',
+  kvmBridgeTo: 'Bridge to',
+  kvmFirmware: 'Firmware',
+  kvmOsVersion: 'OS Version',
+  kvmGenericLinux: 'Generic Linux',
+  kvmGenericWindows: 'Generic Windows',
+  kvmCreate: 'Create',
+  // Create validation & result
+  kvmErrNoName: 'Please enter a VM name',
+  kvmErrNoOs: 'Please select an operating system',
+  kvmErrDiskMin: 'Disk size must be at least',
+  kvmErrMemoryMin: 'Memory must be at least',
+  kvmErrDiskMax: 'Disk size exceeds available',
+  kvmErrMemoryMax: 'Memory exceeds available',
+  kvmErrVcpuMax: 'vCPU exceeds available',
+  kvmToastVmCreated: 'VM created successfully',
+  kvmFailedToCreate: 'Failed to create VM',
+  // VM settings
+  kvmVmSettingsTitle: 'VM Settings',
+  kvmTabGeneral: 'General',
+  kvmTabSnapshots: 'Snapshots',
+  kvmUsed: 'used',
+  kvmNoIsoMounted: 'No ISO mounted',
+  kvmSave: 'Save',
+  kvmToastSettingsSaved: 'Settings saved',
+  kvmStopToModifySettings: 'Stop VM to modify settings',
+  // Snapshots
+  kvmCreateSnapshot: 'Create Snapshot',
+  kvmName: 'Name',
+  kvmSnapshotNamePlaceholder: 'Enter snapshot name',
+  kvmDescription: 'Description',
+  kvmSnapshotDescPlaceholder: 'Enter description (optional)',
+  kvmNoSnapshots: 'No snapshots yet',
+  kvmCreatedAt: 'Created',
+  kvmRestore: 'Restore',
+  kvmErrNoSnapshotName: 'Please enter snapshot name',
+  kvmToastSnapshotCreated: 'Snapshot created successfully',
+  kvmFailedToCreateSnapshot: 'Failed to create snapshot',
+  kvmRestoringSnapshot: 'Restoring Snapshot',
+  kvmRestoringShort: 'restoring',
+  // ⚠️ Same Chinese value as P5's kvmToastResumed ("已恢复") but different meaning
+  // (restoring a snapshot vs. resuming a running VM). Vue2 has two separate keys too —
+  // kept separate here, not reused.
+  kvmRestoredShort: 'restored',
+  kvmFailedToRestoreSnapshot: 'Failed to restore snapshot',
+  kvmDeletingSnapshot: 'Deleting Snapshot',
+  kvmFailedToDeleteSnapshot: 'Failed to delete snapshot',
+  // Global settings
+  kvmStoragePath: 'Storage Path',
+  kvmDefaultVcpu: 'Default vCPU',
+  kvmCoresUnit: 'Cores',
+  kvmDefaultMemory: 'Default Memory',
+  // OSSelector
+  kvmSelectOsTitle: 'Select Operating System',
+  kvmCatAll: 'All',
+  kvmCatWindows: 'Windows',
+  kvmCatLinux: 'Linux',
+  // kvmCatBsd is the one key in this batch with no zh_CN.json entry (proper noun) —
+  // both locales are 'BSD'.
+  kvmCatBsd: 'BSD',
+  kvmCustom: 'Custom',
+  kvmFolderEmpty: 'This folder is empty',
+  kvmSelect: 'Select',
+  kvmDownload: 'Download',
+  kvmToastDownloaded: 'downloaded',
+  kvmDownloadFailed: 'Download failed',
+  kvmWaitForDownload: 'Please wait for download to complete',
+  // New-UI's own aria-label additions (the one place this batch invents copy): these
+  // Vue2 buttons only have icons, no text, so New-UI adds an aria-label for a11y.
+  kvmEjectIso: 'Eject ISO',
+  kvmMountIso: 'Mount ISO',
+  kvmParentDir: 'Parent directory',
+  kvmToggleCustom: 'Toggle custom section',
 }

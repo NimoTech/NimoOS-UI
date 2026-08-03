@@ -61,6 +61,35 @@
    * #b3261e 对 #e3f2fd 的对比度 = 5.723:1(脚本算出,超过 4.5:1 有余量),取值参考
    * Material Design 3 的 error 色板(浅色主题 on-error-container 附近的深红调)。 */
   --kvm-banner-error-fg: #b3261e;
+
+  /* ── P6 弹窗/快照(创建弹窗、VM 设置、快照面板、全局设置、OSSelector)──
+   * 同上,KVM 区固定深色,浅色主题下取值不变。
+   * ⚠️ --kvm-accent-hover(紫)与 --kvm-accent-hover-alt(另一种紫)是**两个不同的紫**——
+   * Vue2 主按钮 hover 用前者、OSSelector 下载按钮 hover 用后者,是 Vue2 自身的配色不一致,
+   * 按 1:1 各留一个 token,不擅自统一成同一个值。 */
+  --kvm-modal-bg: #1e1e1e;
+  --kvm-modal-fg: #e1e1e1;
+  --kvm-field-bg: #2a2a2a;
+  --kvm-field-border: #3a3a3a;
+  --kvm-field-elev: #333;
+  --kvm-accent-light: #a78bfa;
+  --kvm-accent-hover: #6d41d9;
+  --kvm-accent-hover-alt: #7c3aed;
+  --kvm-accent-ring: rgba(137, 80, 242, 0.25);
+  --kvm-accent-faint: rgba(137, 80, 242, 0.1);
+  --kvm-accent-muted: rgba(137, 80, 242, 0.3);
+  --kvm-ok-hover: #69a129;
+  --kvm-ok-faint: rgba(118, 179, 45, 0.1);
+  --kvm-overlay-strong: rgba(0, 0, 0, 0.6);
+  --kvm-shadow-mid: rgba(0, 0, 0, 0.3);
+  --kvm-snapshot-bg: #1c1c1c;
+  --kvm-snapshot-hover: #222;
+  --kvm-snapshot-desc-fg: #999;
+  --kvm-snapshot-date-fg: #666;
+  --kvm-restore-bg: #dc3545;
+  --kvm-restore-bg-hover: #c82333;
+  --kvm-restore-disabled-bg: #6c757d;
+  --kvm-delete-bg-hover: #da3633;
 }
 
 :root[data-theme='light'] {
@@ -105,4 +134,29 @@
   --kvm-banner-btn-hover: #1565c0;
   /* 与 :root 块相同的值,见上方注释(算出的对比度数值同样适用,底色/字色都没变)。 */
   --kvm-banner-error-fg: #b3261e;
+
+  /* P6 弹窗/快照:与 :root 块相同的值,见上方注释(固定深色,不跟随主题)。 */
+  --kvm-modal-bg: #1e1e1e;
+  --kvm-modal-fg: #e1e1e1;
+  --kvm-field-bg: #2a2a2a;
+  --kvm-field-border: #3a3a3a;
+  --kvm-field-elev: #333;
+  --kvm-accent-light: #a78bfa;
+  --kvm-accent-hover: #6d41d9;
+  --kvm-accent-hover-alt: #7c3aed;
+  --kvm-accent-ring: rgba(137, 80, 242, 0.25);
+  --kvm-accent-faint: rgba(137, 80, 242, 0.1);
+  --kvm-accent-muted: rgba(137, 80, 242, 0.3);
+  --kvm-ok-hover: #69a129;
+  --kvm-ok-faint: rgba(118, 179, 45, 0.1);
+  --kvm-overlay-strong: rgba(0, 0, 0, 0.6);
+  --kvm-shadow-mid: rgba(0, 0, 0, 0.3);
+  --kvm-snapshot-bg: #1c1c1c;
+  --kvm-snapshot-hover: #222;
+  --kvm-snapshot-desc-fg: #999;
+  --kvm-snapshot-date-fg: #666;
+  --kvm-restore-bg: #dc3545;
+  --kvm-restore-bg-hover: #c82333;
+  --kvm-restore-disabled-bg: #6c757d;
+  --kvm-delete-bg-hover: #da3633;
 }

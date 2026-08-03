@@ -468,4 +468,90 @@ export default {
   // zh_CN.json "Toggle sidebar" = "切换侧边栏"(评审指出:上一版此处误判"无对应键"
   // 并自拟了"折叠/展开侧边栏",违反"中文以 zh_CN.json 为准、不许自译"的硬约束,已订正)。
   kvmToggleSidebar: '切换侧边栏',
+
+  // ── P6 KVM 创建弹窗 / 快照 / 全局设置 / OSSelector ──(SP9-P6 地基 Task 0)
+  // 中文全部逐字取自 Vue2 src/assets/lang/zh_CN.json(与 P5 同惯例),不自行翻译。
+  // 复用 P5 已有键(不在此重复声明):kvmSettings / kvmAutoStart / kvmDeletingShort /
+  // kvmFailedToSaveSettings / kvmClose / kvmAreYouSure / kvmDelete。
+  // 创建弹窗
+  kvmCreateTitle: '创建新虚拟机',
+  kvmVmName: '虚拟机名称',
+  kvmVmNamePlaceholder: '例如 debian-13',
+  kvmIsoImage: 'ISO 镜像',
+  kvmSelectIsoPlaceholder: '选择 ISO 镜像',
+  kvmDiskSize: '磁盘大小',
+  kvmMax: '最大',
+  kvmCpuCores: 'CPU 核心',
+  kvmMemory: '内存',
+  kvmNetwork: '网络',
+  kvmBridgeTo: '桥接到',
+  kvmFirmware: '固件',
+  kvmOsVersion: '系统版本',
+  kvmGenericLinux: '通用 Linux',
+  kvmGenericWindows: '通用 Windows',
+  kvmCreate: '创建',
+  // 创建校验与结果
+  kvmErrNoName: '请输入虚拟机名称',
+  kvmErrNoOs: '请选择一个操作系统',
+  kvmErrDiskMin: '磁盘大小必须至少为',
+  kvmErrMemoryMin: '内存必须至少为',
+  kvmErrDiskMax: '磁盘大小超出可用空间',
+  kvmErrMemoryMax: '内存超出可用空间',
+  kvmErrVcpuMax: 'vCPU 超出可用核心',
+  kvmToastVmCreated: '虚拟机创建成功',
+  kvmFailedToCreate: '创建虚拟机失败',
+  // VM 设置
+  kvmVmSettingsTitle: '虚拟机设置',
+  kvmTabGeneral: '通用',
+  kvmTabSnapshots: '快照',
+  kvmUsed: '已使用',
+  kvmNoIsoMounted: '未挂载 ISO',
+  kvmSave: '保存',
+  kvmToastSettingsSaved: '设置已保存',
+  kvmStopToModifySettings: '停止虚拟机以修改设置',
+  // 快照
+  kvmCreateSnapshot: '创建快照',
+  kvmName: '名称',
+  kvmSnapshotNamePlaceholder: '输入快照名称',
+  kvmDescription: '描述',
+  kvmSnapshotDescPlaceholder: '输入描述（可选）',
+  kvmNoSnapshots: '暂无快照',
+  kvmCreatedAt: '创建于',
+  kvmRestore: '恢复',
+  kvmErrNoSnapshotName: '请输入快照名称',
+  kvmToastSnapshotCreated: '快照创建成功',
+  kvmFailedToCreateSnapshot: '创建快照失败',
+  kvmRestoringSnapshot: '正在恢复快照',
+  kvmRestoringShort: '恢复中',
+  // ⚠️ 与 P5 已有的 kvmToastResumed(「已恢复」)中文同值但语义不同(恢复快照 vs 恢复
+  // 运行中的虚拟机)。Vue2 也是两个独立的 key,分开建,不图省事复用。
+  kvmRestoredShort: '已恢复',
+  kvmFailedToRestoreSnapshot: '恢复快照失败',
+  kvmDeletingSnapshot: '正在删除快照',
+  kvmFailedToDeleteSnapshot: '删除快照失败',
+  // 全局设置
+  kvmStoragePath: '存储路径',
+  kvmDefaultVcpu: '默认 vCPU',
+  kvmCoresUnit: '核心',
+  kvmDefaultMemory: '默认内存',
+  // OSSelector
+  kvmSelectOsTitle: '选择操作系统',
+  kvmCatAll: '全部',
+  kvmCatWindows: 'Windows',
+  kvmCatLinux: 'Linux',
+  // kvmCatBsd 是这批键里唯一在 zh_CN.json 查不到的(专有名词),两个 locale 都是 'BSD'。
+  kvmCatBsd: 'BSD',
+  kvmCustom: '自定义',
+  kvmFolderEmpty: '此目录为空',
+  kvmSelect: '选择',
+  kvmDownload: '下载',
+  kvmToastDownloaded: '已下载',
+  kvmDownloadFailed: '下载失败',
+  kvmWaitForDownload: '请等待下载完成',
+  // New-UI 新增的 aria-label 键(唯一自拟中文的地方):Vue2 这几个按钮只有图标、没有任何
+  // 文案,本期为 a11y 补 aria-label,不是从 zh_CN.json 抄来的。
+  kvmEjectIso: '弹出 ISO',
+  kvmMountIso: '挂载 ISO',
+  kvmParentDir: '上一级',
+  kvmToggleCustom: '展开/收起自定义',
 }
