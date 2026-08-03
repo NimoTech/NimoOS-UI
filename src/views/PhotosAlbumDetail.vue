@@ -219,8 +219,18 @@ function goToAlbumsList(): void {
 // Task 9(P8a,P4 遗留收口):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
 // 刻意不变),旧实现下 `!album && !albums.albumsLoaded` 因此恒真 → 永久停在骨架屏。新增
 // loadError 分支(见模板,优先级在骨架分支之前)+ 这个重试入口,直接重新调用同一个 fetch。
-function retryAlbums(): void {
-  void albums.fetchAlbums()
+// 评审 Important 1 修正:本地 retrying 守卫——fetchAlbums 只在成功时才清 loadError
+// (见 albums.ts 同批修正注释),所以按钮本身不再需要靠"清空态"给用户即时反馈;这个 ref
+// 补上这份反馈(disabled),同时顺带堵住连点两次重试派发两个并发 fetch 的口子。
+const retryingAlbums = ref(false)
+async function retryAlbums(): Promise<void> {
+  if (retryingAlbums.value) return
+  retryingAlbums.value = true
+  try {
+    await albums.fetchAlbums()
+  } finally {
+    retryingAlbums.value = false
+  }
 }
 
 // ── Hero:编辑态/⋯菜单 ──
@@ -365,9 +375,13 @@ watch(gridRef, () => {
              "正在加载"。 -->
         <div v-if="albums.loadError" class="empty-state" data-test="album-load-error">
           <div class="empty-state-title">{{ t('photosAlbumLoadFailed') }}</div>
-          <button type="button" class="bar-btn" data-test="album-retry" @click="retryAlbums">
-            {{ t('photosRetry') }}
-          </button>
+          <button
+            type="button"
+            class="bar-btn"
+            data-test="album-retry"
+            :disabled="retryingAlbums"
+            @click="retryAlbums"
+          >{{ t('photosRetry') }}</button>
         </div>
 
         <!-- 还没加载完:骨架 -->

@@ -151,8 +151,18 @@ function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
 // favorites.ts 注释,刻意不变),旧实现下 isEmpty 因此恒假 → 落进下面的 v-else 渲染一个
 // 空网格,没有任何失败提示。新增 loadError 分支(见模板,优先级在 isEmpty 之前)+ 这个重试
 // 入口,直接重新调用同一个 fetch。
-function retryFavorites(): void {
-  void fav.fetchFavorites()
+// 评审 Important 1 修正:本地 retrying 守卫——fetchFavorites 只在成功时才清 loadError
+// (见 favorites.ts 同批修正注释),所以按钮本身不再需要靠"清空态"给用户即时反馈;这个
+// ref 补上这份反馈(disabled),同时顺带堵住连点两次重试派发两个并发 fetch 的口子。
+const retryingFavorites = ref(false)
+async function retryFavorites(): Promise<void> {
+  if (retryingFavorites.value) return
+  retryingFavorites.value = true
+  try {
+    await fav.fetchFavorites()
+  } finally {
+    retryingFavorites.value = false
+  }
 }
 
 function onExport() {
@@ -199,9 +209,13 @@ onMounted(() => {
              再落进(旧代码里恒假的)isEmpty 分支渲染一个没有任何提示的空网格。 -->
         <div v-if="fav.loadError" class="empty-state" data-test="fav-load-error">
           <div class="empty-state-title">{{ t('photosFavoritesLoadFailed') }}</div>
-          <button type="button" class="bar-btn" data-test="fav-retry" @click="retryFavorites">
-            {{ t('photosRetry') }}
-          </button>
+          <button
+            type="button"
+            class="bar-btn"
+            data-test="fav-retry"
+            :disabled="retryingFavorites"
+            @click="retryFavorites"
+          >{{ t('photosRetry') }}</button>
         </div>
         <div v-else-if="isEmpty" class="empty-state" data-test="fav-empty">
           <div class="empty-state-title">{{ t('photosFavEmptyTitle') }}</div>
@@ -382,6 +396,9 @@ onMounted(() => {
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
 .empty-state-desc { font-size: 13px; }
+/* 评审 Take-along:与 PhotosAlbumDetail.vue 的同款失败态间距对齐(该文件 .empty-state
+   .bar-btn 已有此规则),否则两个失败屏视觉不一致。 */
+.empty-state .bar-btn { margin-top: 10px; }
 
 /* ≤768px:侧栏已收抽屉(PhotosSidebar.is-drawer 脱离文档流),布局单列 */
 @media (max-width: 768px) {

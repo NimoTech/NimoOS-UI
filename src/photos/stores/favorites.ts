@@ -43,7 +43,18 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   }
 
   async function fetchFavorites(): Promise<void> {
-    loadError.value = false
+    // Task 9 correction: `loadError` used to be reset to false at the top of
+    // this function (before the await), mirroring the "reset before attempt"
+    // instruction this task started with. That was wrong: it created a
+    // window, on every retry (success *or* failure), where loadError was
+    // false but favoritesLoaded was still false too — and the Favorites view
+    // has no dedicated "loading" branch, so during that window it fell
+    // through to the v-else branch and rendered an empty grid, transiently
+    // reproducing the exact P3 defect this task exists to fix. Clearing
+    // loadError only on confirmed success means the failure UI stays
+    // continuously visible from the first failure until a retry actually
+    // succeeds — no window where the view can fall through to the wrong
+    // branch.
     try {
       const list = (await service.photos.listFavorites()) as unknown[]
       favoritesList.value = (list ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
@@ -52,6 +63,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       // gating a refetch on `!favoritesLoaded` (e.g. the Favorites view) would
       // permanently mask real favorites behind an empty state.
       favoritesLoaded.value = true
+      loadError.value = false
     } catch (e) {
       favoritesList.value = []
       loadError.value = true

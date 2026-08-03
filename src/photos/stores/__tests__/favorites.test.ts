@@ -107,6 +107,20 @@ describe('photosFavorites store', () => {
     await s.fetchFavorites()
     expect(s.loadError).toBe(false)
   })
+  // 评审 Important 1 补的挡门用例:重试本身也失败——loadError 必须仍然是真(不能被"进入
+  // 重试"这件事本身清空),favoritesList/favoritesLoaded 的状态也要与"一次都没成功过"一致。
+  it('reject → retry → reject:结束后 loadError 仍为真,favoritesList/favoritesLoaded 与未成功过一致', async () => {
+    ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('e1'))
+    const s = usePhotosFavorites()
+    await s.fetchFavorites()
+    expect(s.loadError).toBe(true)
+
+    ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('e2'))
+    await s.fetchFavorites() // 重试,仍失败
+    expect(s.loadError).toBe(true)
+    expect(s.favoritesList).toEqual([])
+    expect(s.favoritesLoaded).toBe(false)
+  })
   it('exportZip 走 exportFavoritesUrl', () => {
     const s = usePhotosFavorites()
     s.exportZip()

@@ -135,6 +135,42 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.photos-grid-root').exists()).toBe(true)
   })
 
+  // 评审 Important 1 补的挡门用例(这一条才是真正钉住不变量的那条,不是 store 那条):
+  // 重试本身也失败——失败态必须持续可见,不能出现"清空态再重新失败"的闪烁,更不能在
+  // in-flight 期间落到网格分支(旧实现的 loadError 上来即清 false 会让这里在重试飞行期
+  // 短暂重演 P3 的裸网格症状,见 favorites.ts 同批修正注释)。
+  // 用受控 promise 卡住重试的 in-flight 窗口——如果 loadError 在进入重试时就被提前清空
+  // (评审纠正前的错误设计),这个窗口里 favoritesLoaded 也还是假,isEmpty 因此为假,会
+  // 落进 v-else 渲染裸网格,原样重演 P3 症状。断言必须卡在 flushPromises 之前才能看见
+  // 这个窗口;等 promise resolve/reject 之后再断言只能看到"最终态",看不见过程,抓不住
+  // 这个缺陷(已在变异验证里踩过一次这个坑,记录见 task-9-report.md 附加修复报告)。
+  it('失败态重试仍失败(reject→retry→reject)→ in-flight 期间与结束后失败态都持续可见,不出现网格', async () => {
+    svc.photos.listFavorites.mockRejectedValueOnce(new Error('e1'))
+    const w = await mountView()
+    expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
+
+    let rejectRetry: (e: Error) => void = () => {}
+    svc.photos.listFavorites.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectRetry = reject }),
+    )
+    await w.find('[data-test="fav-retry"]').trigger('click')
+    await w.vm.$nextTick()
+
+    // in-flight:重试还没落定,失败态必须继续可见,不能落到网格分支。
+    expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
+    expect(w.find('.photos-grid-root').exists()).toBe(false)
+    expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
+
+    rejectRetry(new Error('e2'))
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // 落定后(仍失败):失败态持续可见。
+    expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
+    expect(w.find('.photos-grid-root').exists()).toBe(false)
+    expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
+  })
+
   // 关键区分(brief 明确要求的挡门用例):成功但列表为空 —— 必须仍走空态,不能被
   // loadError 分支误吞。
   it('确认为零收藏(成功但列表空)仍走空态,不走失败态', async () => {

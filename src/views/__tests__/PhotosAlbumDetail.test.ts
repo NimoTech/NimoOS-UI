@@ -191,6 +191,24 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-load-error"]').exists()).toBe(false)
   })
 
+  // 评审 Important 1 补的挡门用例(这一条才是真正钉住不变量的那条,不是 store 那条):
+  // 重试本身也失败——失败态必须持续可见,不能落回骨架分支(旧实现的 loadError 上来即清
+  // false 会让骨架分支在 albumsLoaded 仍为假时于重试飞行期短暂命中,见 albums.ts 同批
+  // 修正注释)。
+  it('相册失败态重试仍失败(reject→retry→reject)→ 失败态持续可见,不出现骨架', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('e1'))
+    const { w } = await mountView('999')
+    expect(w.find('[data-test="album-load-error"]').exists()).toBe(true)
+
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('e2'))
+    await w.find('[data-test="album-retry"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-load-error"]').exists()).toBe(true)
+    expect(w.find('[data-test="album-loading"]').exists()).toBe(false)
+  })
+
   it('相册失败态的重试按钮重新调 fetchAlbums,成功后失败态消失', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
     const { w } = await mountView('7')

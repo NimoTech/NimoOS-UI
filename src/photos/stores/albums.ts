@@ -57,12 +57,21 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   // ── actions ──
 
   // Vue2 :910-917 —— 全量覆盖,catch 只打日志不抛(唯一「吞错」的 album action)。
+  // Task 9 correction: `loadError` used to be reset to false at the top of
+  // this function (before the await). That created a window, on every retry
+  // (success *or* failure), where loadError was already false but
+  // albumsLoaded was still false too — i.e. a transient "nothing failed"
+  // reading during a fetch that hasn't settled yet. Clearing loadError only
+  // on confirmed success means the failure UI stays continuously visible
+  // from the first failure until a retry actually succeeds — no window
+  // where a consumer can observe "not failed, not loaded" and draw the
+  // wrong conclusion.
   async function fetchAlbums(): Promise<void> {
-    loadError.value = false
     try {
       const res = (await service.photos.listAlbums()) as unknown[]
       albums.value = ((res ?? []) as RawAlbum[])
       albumsLoaded.value = true // 仅成功路径
+      loadError.value = false
     } catch (e) {
       loadError.value = true
       console.error('[photos-albums] fetchAlbums', e)
