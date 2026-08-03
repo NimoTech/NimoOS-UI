@@ -1574,7 +1574,13 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     w.unmount()
   })
 
-  it('删除失败 → 摘遮罩后弹 toast 显示后端 message(没有对应的弹窗内联展示位)', async () => {
+  // 评审修复:delete/restore 失败原先走 toast,但全局 toast 是 z-index:60
+  // (src/components/AppToast.vue:12 `.toast-stack`),KVM 弹窗遮罩是 z-index:900、
+  // 内容 901(KvmDialog.vue:23 默认 zBase:900 + :33/:36),60 < 900——删除/恢复只可能在
+  // 设置弹窗打开时发生,toast 会被弹窗遮罩完全盖住,用户看不见。改成内联显示在
+  // SnapshotsTab 自己的 `.cv-error`(经 KvmPage 的 snapCreateError → VmSettingsDialog 的
+  // snapshotSubmitError prop → SnapshotsTab 的 submitError prop 透传)。
+  it('删除失败 → .cv-error 内联显示后端 message,设置弹窗不关,不弹 toast', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
@@ -1583,6 +1589,9 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     await openSnapshotsTab(w)
+    // 先确认无错误时 .cv-error 不存在——这样下面出现的那条红字只能由这次删除失败解释,
+    // 不会跟"页面本来就带着一条不相关的 .cv-error"这种混淆因素搞混。
+    expect(document.body.querySelector('.cv-error')).toBeNull()
 
     const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
     delBtn().click()
@@ -1592,7 +1601,34 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await w.vm.$nextTick()
 
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
-    expect(useToast().toasts.map((x) => x.text)).toContain('snapshot is in use')
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('snapshot is in use')
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗没关
+    expect(useToast().toasts).toEqual([]) // 失败不弹 toast
+    w.unmount()
+  })
+
+  it('恢复失败 → .cv-error 内联显示后端 message,设置弹窗不关,不弹 toast', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots.mockResolvedValue([
+      { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
+    ])
+    api.restoreSnapshot.mockRejectedValue(new Error('domain snapshot not found'))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+    expect(document.body.querySelector('.cv-error')).toBeNull() // 同上,排除混淆
+
+    const restoreBtn = () => document.body.querySelector('.cv-btn-restore') as HTMLElement
+    restoreBtn().click()
+    await w.vm.$nextTick()
+    restoreBtn().click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('domain snapshot not found')
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗没关(与成功分支的"关弹窗"相对)
+    expect(useToast().toasts).toEqual([])
     w.unmount()
   })
 

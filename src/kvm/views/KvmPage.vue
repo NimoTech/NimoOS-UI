@@ -167,6 +167,11 @@ async function onSettingsSubmit(patch: KvmUpdateVMRequest): Promise<void> {
 // VmSettingsDialog/SnapshotsTab 都是纯展示层,自己不持有数据。
 const snaps = useSnapshots()
 const snapCreating = ref(false)
+// snapCreateError 绑到 SnapshotsTab 的 submitError prop——不只是 create 自己的报错位,
+// delete/restore 失败也写进这里(见下面 onSnapshotConfirmDelete/onSnapshotConfirmRestore
+// 顶部注释:toast 在这个弹窗打开时不可见,必须走同一个内联报错位)。变量名保留
+// "snapCreateError" 没有跟着改(避免无关重构扩大 diff),但语义已经是"快照 tab 当前的
+// 内联报错文案",不是"仅创建报错"。
 const snapCreateError = ref('')
 
 // 照 Vue2 :250 点 tab 才拉(`@click="settingsActiveTab = 'snapshots'; fetchSnapshots()"`,
@@ -201,13 +206,18 @@ async function onSnapshotCreate(payload: { name: string; description: string }):
 
 // 照 Vue2 confirmDeleteSnapshot/deleteSnapshot(:1290-1314):二次确认通过后(SnapshotsTab
 // 已经做完就地确认,这里收到的就是"确认执行")挂进度遮罩、await、finally 摘遮罩。
-// **与 Vue2 不同的是失败分支也弹 toast**(不是弹窗内联)——delete/restore 是"每行一个
-// 独立确认按钮"的操作,不像 create 那样挂在一个表单上、天然有 SnapshotsTab 自己的
-// `.cv-error` 位可以内联;这里没有对应的内联展示位,直接照 Vue2 原样用 toast 呈现失败
-// 原因(:1310/:1284),不是照抄 bug,是这条操作确实没有更合适的内联展示位置。
+// **改正确(评审修复,已订正此前"失败也弹 toast"的偏离登记)**:Vue2 失败走 toast 是因为
+// buefy 的 toast z-index 高于它自己的 modal,遮罩挡不住 toast。New-UI 的 z 轴关系是反的——
+// 全局 toast 是 z-index:60(src/components/AppToast.vue:12 `.toast-stack`),KVM 弹窗遮罩
+// 是 z-index:900、内容 901(KvmDialog.vue:23 默认 `zBase:900` + :33/:36 内联 style)。
+// 60 < 900,设置弹窗开着时(删除/恢复只可能在弹窗开着时发生)toast 会被遮罩完全盖住,
+// 用户看不见——这正是硬约束 10「弹窗内报错走内联」存在的原因,不是风格偏好。改成写进
+// `snapCreateError`(经 submitError prop 透传给 SnapshotsTab 自己的 `.cv-error`,管子
+// Task 10 首版就已经通)。
 async function onSnapshotConfirmDelete(snap: KvmSnapshot): Promise<void> {
   const vm = s.selectedVM.value
   if (!vm) return
+  snapCreateError.value = '' // 新一轮操作开始前清掉上一次的残留错误,免得失败一次后永久卡红字
   progress.value = { title: t('kvmDeletingSnapshot'), message: `${snap.name} ${t('kvmDeletingShort')}...` }
   let err = ''
   try {
@@ -216,9 +226,9 @@ async function onSnapshotConfirmDelete(snap: KvmSnapshot): Promise<void> {
     progress.value = null
   }
   if (err === '') {
-    toast.show(`${snap.name} ${t('kvmToastDeleted')}`)
+    toast.show(`${snap.name} ${t('kvmToastDeleted')}`) // 成功仍走全局 toast——那一行会消失,此时 toast 可见
   } else {
-    toast.show(te(err) ? t(err) : err)
+    snapCreateError.value = err && te(err) ? t(err) : err
   }
 }
 
@@ -226,9 +236,11 @@ async function onSnapshotConfirmDelete(snap: KvmSnapshot): Promise<void> {
 // confirmRestoreSnapshot(:1262)里"恢复快照前必须停止虚拟机"那句死代码 toast——
 // 恢复按钮本身已经 `:disabled="vmState !== 'stopped'"`(SnapshotsTab 内,照 Vue2 :368),
 // 点不到这个分支(spec §1.15 已核实)。恢复成功后关掉整个设置弹窗(照 Vue2 :1282)。
+// 失败分支的内联展示理由同 onSnapshotConfirmDelete 顶部注释(toast 会被弹窗遮罩挡住)。
 async function onSnapshotConfirmRestore(snap: KvmSnapshot): Promise<void> {
   const vm = s.selectedVM.value
   if (!vm) return
+  snapCreateError.value = '' // 新一轮操作开始前清掉上一次的残留错误
   progress.value = { title: t('kvmRestoringSnapshot'), message: `${snap.name} ${t('kvmRestoringShort')}...` }
   let err = ''
   try {
@@ -237,10 +249,10 @@ async function onSnapshotConfirmRestore(snap: KvmSnapshot): Promise<void> {
     progress.value = null
   }
   if (err === '') {
-    toast.show(`${snap.name} ${t('kvmRestoredShort')}`)
+    toast.show(`${snap.name} ${t('kvmRestoredShort')}`) // 成功仍走全局 toast——弹窗此时会关掉,toast 可见
     vmSettingsOpen.value = false
   } else {
-    toast.show(te(err) ? t(err) : err)
+    snapCreateError.value = err && te(err) ? t(err) : err
   }
 }
 
