@@ -15,6 +15,10 @@
 // Task 9(SP7-P4 相册)追加:选择工具栏批量「加入相册」与灯箱单张「加入相册」统一接
 // AlbumPickerDialog(T5)—— pickerOpen/pickerIds + openAlbumPicker(ids),@added 清空
 // selection(照 Vue2 pickAlbum:587-595)。
+// SP7-P7b-T4:EXIF 筛选条接线——照 Vue2 PhotosTimeline.vue:142-175 的 gridMonths。
+// FilterBar 挂进 PhotosToolbar 的 after-tabs 槽位(T3);exifFilter 态 + gridMonths
+// 派生 + filteredCount/onOpenTile 改用 gridMonths,三处同源(网格数据源、顶栏计数、
+// 灯箱翻页集)。
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -25,6 +29,7 @@ import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/PhotosFilterBar.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { useTimelineStore } from '../photos/stores/timeline'
@@ -34,6 +39,7 @@ import { useMessageBus } from '../composables/useMessageBus'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../photos/util/taskBus'
 import { createTaskDoneCoalescer } from '../photos/util/taskDoneCoalescer'
 import { matchesTab } from '../photos/util/tabFilter'
+import { applyExifFilters } from '../photos/util/photosFilterUtils'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
@@ -50,11 +56,28 @@ const tab = ref('photo')
 const density = ref('comfortable')
 const selected = ref<Array<string | number>>([])
 
+// P7b-T4:EXIF 筛选态。照 Vue2 PhotosTimeline.vue:116 的 activeFilters,但只保留三个
+// facet 键——Vue2 那个对象上还挂着 placeKey/spotKey 两个 spot 跳转用的键,New-UI 的
+// 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
+const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
+
+// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份。
+// 空月份必须在这里丢——PhotosGrid 的月份刻度尺读的是未按标签页过滤的 props.months
+// (PhotosGrid.vue:88),留着空月份会在刻度尺上留下点不到的死刻度。
+const gridMonths = computed(() =>
+  store.months
+    .map((m) => ({ ...m, photos: applyExifFilters(m.photos, exifFilter.value) }))
+    .filter((m) => m.photos.length > 0),
+)
+
 // Grid does tab-filtering internally; mirror the same predicate here (hoisted
 // to photos/util/tabFilter.ts, Fix 3) to feed the toolbar's item count (Vue2
 // passed the filtered count, PhotosGrid.vue filteredMonths logic ported at task-7).
+// D20(用户 2026-08-03 拍板):计数跟着 EXIF 筛选一起减,与用户所见一致。
+// (Vue2 传的是 allPhotos.length,既不跟标签页也不跟筛选;New-UI 在 P1 已把它改成跟标签页
+// 走的 sanctioned 偏离,这里把 EXIF 叠进同一个 computed,方向一致。)
 const filteredCount = computed(() =>
-  store.months.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
+  gridMonths.value.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
 )
 
 // T16 接线(结构规格 22):搜索框恒显示(对应 Vue2 `show-search = isLibraryView`,
@@ -96,7 +119,9 @@ async function onBatchDelete(ids: Array<string | number>) {
 function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
   // grid 自己不知道当前 tab(它内部过滤是为展示,不为翻页集),此处用同一个 matchesTab
   // 谓词重建"用户所见"的翻页集 —— 与 PhotosToolbar 的 filteredCount 用同一份数据源同一谓词。
-  const filtered = store.months.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  // P7b-T4:翻页集必须与用户在网格里看到的范围一致:先 EXIF 筛(gridMonths)再按标签页筛,
+  // 用与 filteredCount 完全相同的两道谓词——否则灯箱能翻到被筛掉的照片。
+  const filtered = gridMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
   lb.openAt(photo, filtered, startMs)
 }
 
@@ -191,10 +216,17 @@ onUnmounted(() => {
           <PhotosToolbar
             :tab="tab" :density="density" :count="filteredCount"
             @update:tab="tab = $event" @update:density="density = $event"
-          />
+          >
+            <template #after-tabs>
+              <!-- facet 源恒取全库 allPhotos,不用 gridMonths —— 否则筛掉某个年份后,
+                   该年份就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths
+                   而非 gridMonths)。 -->
+              <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
+            </template>
+          </PhotosToolbar>
           <div class="photos-grid-slot">
             <PhotosGrid
-              :months="store.months" :tab="tab" :density="density" :selected="selected"
+              :months="gridMonths" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
               @toggle-select="toggleSelect"
             />
