@@ -37,6 +37,16 @@ function stripComments(scss: string): string {
 }
 const css = stripComments(rawSource)
 
+// 同上,但把注释内容换成**等量空格**、保留换行 → 行号与源文件逐行对齐。
+// 给「需要在失败信息里报出真实行号」的断言用(`stripComments` 会吃掉多行注释里的换行,
+// 用它算出来的行号会比源文件小一截,报出去会把评审引到错误的行 —— 这本身就是一种失真)。
+function blankComments(scss: string): string {
+  return scss
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/^([ \t]*)\/\/.*$/gm, (_m: string, indent: string) => indent)
+}
+const cssKeepLines = blankComments(rawSource)
+
 // 本文件允许出现在第 0 列的三个选择器(治理 §6.1 落地约束 2 + §6.4-5 的判据 b,**K31 订正后**)。
 // `.parser-app` 只带 K22 那三行结构属性;两个页面段按 K23 各自一个作用域,同名类不合并。
 //
@@ -213,12 +223,21 @@ describe('parser-styles.scss —— (b) 零顶层裸选择器(K9;第 0 列只许
 })
 
 // ---------------------------------------------------------------------------
-// (c) `.parser-app` 块里零颜色属性、零 `--x:` 声明
+// (c) `.parser-app` 块零颜色属性 + **全文**零 `--x:` 声明
 // ---------------------------------------------------------------------------
 // 堵治理 §6.1 落地约束 1:token 声明层全在 `knowledge.scss`(K21 已把那两个块的选择器各扩了
 // 一个 `.parser-app` 逗号项),`.parser-app` 这个作用域根**只**负责 K22 那三行结构属性。
 // 一旦有人往这里补一份 token 声明,就会出现「同一 token 两处声明」的漂移源;
 // 一旦有人往这里写颜色属性,就会越过两页各自的作用域、同时影响两页。
+//
+// 🔴 【治理 §6.4.3,T2b 评审「缺口猎」实测出的残留缺口,2026-08-03 裁定本期收掉】
+// 原版这一组**全部**只扫 `.parser-app` 块内(治理 §6.4-5(c) 原文如此)。评审的探针 G 把
+// `--sneaky-token: …` 写进**页面作用域**(`.parser-app .parser-status-page`)→ **18/18 全绿,
+// 逃过所有守卫**:(a) 只扫颜色字面量、(b) 只看第 0 列、(d) 只数 `.card`/`.page-header`、
+// (e) 只看类名与元素名,没有一条看得见「新增了一条 token 声明」。
+// 而 **K21 的语义是「`parser-styles.scss` 零 token 声明」,不是「只有 `.parser-app` 块零 token 声明」**
+// → 裁定:**`--x:` 那半扫描范围扩到全文**(扩范围 = 扫描变大,不是放宽断言)。
+// 🔴 **颜色属性那半仍然只针对 `.parser-app` 块** —— 两个页面作用域当然要写颜色属性,不能一起扩。
 const COLOR_PROPERTIES = [
   'color',
   'background',
@@ -243,7 +262,7 @@ const COLOR_PROPERTIES = [
   'color-scheme',
 ]
 
-describe('parser-styles.scss —— (c) .parser-app 块只带 K22 三行结构属性', () => {
+describe('parser-styles.scss —— (c) .parser-app 块只带 K22 三行 + 全文零 token 声明', () => {
   // 🔴 `blockOf` 里带 `expect`,必须在 `it` 内部调用 —— 放在 describe 体里会在**收集阶段**抛,
   // 报错落在文件级而不是某条用例上,失败信息会失真(P5a 同族教训:守卫要指名道姓)。
   const rootBody = () => blockOf(css, ROOT_SELECTOR)
@@ -254,7 +273,23 @@ describe('parser-styles.scss —— (c) .parser-app 块只带 K22 三行结构�
     expect(props, `.parser-app 块的声明清单变了:\n${body}`).toEqual(['height', 'height', 'overflow-y'])
   })
 
-  it('零 `--x:` 自定义属性声明(token 声明层只许在 knowledge.scss)', () => {
+  // 🔴 治理 §6.4.3:范围 = **全文**(剥注释后),不只是 `.parser-app` 块 —— 见本组头注释。
+  // 判据按行给出,失败信息要指名道姓到行号(承 §9「守卫要能指名」)。
+  // 注意 `var(--accent)` / `var(--accent-soft)` 这类**引用**不会被误判:`--x` 后面紧跟的是 `)` 或 `,`,
+  // 不是 `:`;只有真正的**声明**(`--x: 值`)才命中。
+  it('🔴 全文零 `--x:` token 声明(K21:token 声明层只许在 knowledge.scss)', () => {
+    const offenders: string[] = []
+    cssKeepLines.split('\n').forEach((line, i) => {
+      const m = line.match(/--[\w-]+\s*:/)
+      if (m) offenders.push(`  L${i + 1} [${m[0]}]: ${line.trim()}`)
+    })
+    expect(
+      offenders,
+      `parser-styles.scss 里出现了 token 声明(token 声明层只许在 knowledge.scss 的两个块里):\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('`.parser-app` 块里零 `--x:`(全文那条的子集,单独留一条便于定位)', () => {
     const body = rootBody()
     expect(body, `.parser-app 块里出现了 token 声明:\n${body}`).not.toMatch(/--[\w-]+\s*:/)
   })

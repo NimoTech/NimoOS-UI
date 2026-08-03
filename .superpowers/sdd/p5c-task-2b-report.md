@@ -6,8 +6,8 @@
 - **提交**:① `d70986f`(首个提交,建两个文件)· ② **K31 落地**(本次,见 §12)
 - **产出**:2 个**新建**文件,零既有文件改动
   - `src/ai/styles/parser-styles.scss`(**295 行**:文件头注释 49 行 + K22/K31 注释 17 行 + `.parser-app` 块 5 行 + 两个页面段)
-  - `src/ai/styles/parserStyles.test.ts`(18 条用例)
-- **三门**:`Test Files 320 passed (320)` / `Tests 3179 passed (3179)`(319→**320** 文件、3161→**3179**,+18 例,零红、零复跑)· `vue-tsc` exit 0 · `vite build` exit 0 · `sass parser-styles.scss` exit 0 · `sass knowledge.scss` exit 0
+  - `src/ai/styles/parserStyles.test.ts`(**19 条用例**;首个提交 18 条,§6.4.3 收缺口后 +1)
+- **三门(最终值,§6.4.3 收缺口之后)**:`Test Files 320 passed (320)` / `Tests 3180 passed (3180)`(319→**320** 文件、3161→**3180**,**+19 例**,零红、零复跑)· `vue-tsc` exit 0 · `vite build` exit 0 · `sass parser-styles.scss` exit 0 · `sass knowledge.scss` exit 0
 - **本刀零改动确认**:`git diff --stat 05bff49 -- src/ai/styles/knowledge.scss src/ai/styles/knowledgeStyles.test.ts` **输出为空**(T2a 产物一个字节都没动);`.vue` 零新增(color-guard 用例数不变)
 
 ---
@@ -241,7 +241,7 @@ toggle unreachable upload-card warn
 ```
 (同一条 grep 还会命中 1 处 `var(--font-mono)` —— 那在**头注释**里,是「为什么**不**用它」的说明,不是真引用。)
 
-逐个在 `knowledge.scss` 的两个 token 块里核过(暗档 `:130-246` / 浅档 `:249-345`,K21 已扩选择器)
+逐个在 `knowledge.scss` 的两个 token 块里核过(暗档 `:130-246` / 浅档 **`:249-340`**,K21 已扩选择器;评审 Minor ② 订正:原写 `:249-345` 有误,结论 15/15 不变)
 → **15/15 两档都有声明** ✅。**本刀未声明任何 token、未改 `knowledge.scss` 一个字节。**
 
 ### 5.4 表里没有的 = **0 处** → 零 `NEEDS_CONTEXT`
@@ -259,7 +259,7 @@ toggle unreachable upload-card warn
 
 ---
 
-## 6. `parserStyles.test.ts` —— 18 条用例 / 5 组断言
+## 6. `parserStyles.test.ts` —— **19 条用例** / 5 组断言(**(c) 的范围见 §13**)
 
 **为什么必须新建**:`parser-styles.scss` 既不受 `color-guard.test.ts` 约束(它 `import.meta.glob` 只取
 `../**/*.vue` 与 `../**/*.css`,**不扫 `.scss`** = 缺口②),也不受 `knowledgeStyles.test.ts` 约束
@@ -269,7 +269,7 @@ toggle unreachable upload-card warn
 |---|---|---|
 | **(a)** 全文(**含注释**)零色字面量 | 零 `#hex` · 零函数式色值(`rgb/rgba/hsl/hsla/lab/lch/oklab/oklch/hwb/color()/color-mix()/device-cmyk()`)· 零 **CSS 具名色 148 个全清单**(含 `white`/`black`;`transparent` 不算)· 零 `theme-exception` · 零假 token 残留(`ns-color`) | 5 |
 | **(b)** 零顶层裸选择器 | 第 0 列的规则头**集合+顺序**恰好 `['.parser-app', '.parser-app .parser-status-page', '.parser-app .parser-test-page']` · 每行都是单行 `选择器 {` 写法 | 2 |
-| **(c)** `.parser-app` 只带 K22 三行 | 声明清单 `toEqual(['height','height','overflow-y'])` · 零 `--x:` · 零颜色属性(21 个属性名清单)· 零嵌套规则 | 4 |
+| **(c)** `.parser-app` 只带 K22 三行 **+ 全文零 token 声明** | 声明清单 `toEqual(['height','height','overflow-y'])` · 🔴 **全文零 `--x:`(§13,治理 §6.4.3 扩的范围)** · `.parser-app` 块零 `--x:`(子集,单独留一条便于定位)· 零颜色属性(21 个属性名清单,**仍只针对 `.parser-app` 块**)· 零嵌套规则 | **5** |
 | **(d)** K23 两页各自作用域 | 两页都有页面壳三条声明 · `.card` 各 1 份 · `.page-header`(含 `h2`)各 1 份 · 各自持有本页专属类且不含对方的 | 4 |
 | **(e)** 白名单(附录 D §D.2) | 类名集合 === `PARSER_WHITELIST_70`(**集合相等**,排除作用域根 `parser-app`)· 元素选择器集合 === 登记的 9 个 · 不许混进 `k-*`/`k2-*`/`kn-*`/`fb-*` | 3 |
 
@@ -297,6 +297,8 @@ toggle unreachable upload-card warn
 ## 7. RED 探针 —— **8 条,全部精确报红并还原**
 
 每条都贴「报红」+「还原后转绿」两段,末尾 `git status` 干净。
+⚠️ **本节 8 条探针的输出是首个提交(`d70986f`,18 条用例)时跑的**,所以分母是 18;
+K31 之后的 3 条见 §12.3(分母仍 18),§6.4.3 收缺口之后的探针 G 见 §13(分母 19)。
 
 ### 探针 1 —— (a) 塞一个 `#hex`(`.refresh-btn` 加 `color: #abcdef`)
 ```
@@ -423,7 +425,7 @@ $ git status --short
 $ pnpm test                  > /tmp/p5c-t2b-test.log  2>&1;  exit=0
  Test Files  320 passed (320)
       Tests  3179 passed (3179)
-   Duration  68.15s
+   Duration  68.15s      ← 首个提交(18 条用例)的值;最终值见 §13.4 的 3180
 
 $ pnpm exec vue-tsc --noEmit  > /tmp/p5c-t2b-tsc.log   2>&1;  exit=0   (零输出)
 $ pnpm build                  > /tmp/p5c-t2b-build.log 2>&1;  exit=0   (✓ built in 12.74s)
@@ -433,7 +435,8 @@ $ pnpm exec sass --no-source-map src/ai/styles/knowledge.scss     /dev/null;  ex
 
 - **红项 0 条**,**零复跑**(已知噪声 `persist.test.ts` 的 IndexedDB flaky 与 `AgentComposer.test.ts`
   的 vue-i18n teardown 竞态这一轮都没出现)。
-- **算术核对**:文件 319 → **320**(+1 = `parserStyles.test.ts`);用例 3161 → **3179**(+18 = 本刀新写的 18 条);
+- **算术核对**:文件 319 → **320**(+1 = `parserStyles.test.ts`);用例 3161 → **3179**(+18 = 首个提交写的 18 条;
+  §6.4.3 收缺口后 +1 → **最终 3180 / 19 条**,见 §13.4);
   **零 `.vue` 新增** → `color-guard.test.ts` 的动态用例数不变 ✅。
 - `pnpm build` 的 `chunks larger than 500 kB` 是既有告警(与本刀无关)。
 - **Service 仓零改动** → 未跑跨仓 `pnpm build`、未跑 `pnpm install`(治理 §1 第 2 条)。
@@ -442,8 +445,9 @@ $ pnpm exec sass --no-source-map src/ai/styles/knowledge.scss     /dev/null;  ex
 
 ```
 ① parser-styles.scss 全文零色字面量           → grep exit=1(0 命中)✅
-② parser-styles.scss 零顶层裸选择器            → 只有 :60 .parser-app / :67 .parser-app .parser-status-page
-                                                 / :154 .parser-app .parser-test-page ✅
+② parser-styles.scss 零顶层裸选择器            → 只有 :68 .parser-app / :75 .parser-app .parser-status-page
+                                                 / :162 .parser-app .parser-test-page ✅
+   (评审 Minor ① 订正:原写 60/67/154 是 K31 之前的行号,K31 注释使其整体 +8)
 ④ theme-exception                              → parser-styles.scss:0  knowledge.scss:0 ✅
 ⑤ 单独编译两个 scss                            → 两个 exit=0 ✅
 ⑦ 死引用自查 grep -c 'ns-color'                → 0 ✅
@@ -652,6 +656,7 @@ $ grep -c "parser-status-page" dist/assets/*.css   → 全 0(预期,归 T6);对�
 ```
 
 **文件数 / 用例数与首个提交相同(320 / 3179)** —— K31 只改选择器与注释,零新增/删除用例、零 `.vue`。
+(⚠️ 这是 **K31 提交时**的终值;§6.4.3 收缺口后 +1 条用例 → 最终 **320 / 3180**,见 §13.4。)
 **红项 0 条、零复跑。**
 
 ### 12.5 行号漂移提示(给评审)
@@ -661,3 +666,118 @@ K31 的注释新增使 `parser-styles.scss` 由 **287 → 295 行**,`.parser-app
 逐条核对「报告里写的新行号那一行,是否真含对应的 `/* 蓝本 :X … */` 注释」→ **43/43 匹配、0 不匹配**;
 §1 的区间引用 **19/20 命中**(唯一未命中的是 `.header-actions`,它与 `.refresh-btn` 共用
 `/* 蓝本 :10-11 */` 一条注释,本行没有独立注释,属预期)。
+
+---
+
+## 13. 【最后一个提交】治理 §6.4.3 —— 断言 (c) 的 `--x:` 扫描范围扩到全文
+
+**触发**:T2b 评审(`Ready to merge`,0 Critical / 0 Important / 4 Minor)主动做了**缺口猎**,
+猎出一条真缺口;协调者 2026-08-03 裁定**本期收掉,不转下期**(治理 §6.4.3,提交 `a0b3ee7`)。
+
+### 13.1 缺口是什么(评审探针 G)
+
+把一条 `--sneaky-token: …` 写进**页面作用域**(`.parser-app .parser-status-page`),而不是 `.parser-app` 块:
+→ **18/18 全绿,逃过全部守卫。** 逐条看为什么:
+
+| 断言 | 为什么看不见它 |
+|---|---|
+| (a) 色扫 | 只找**色字面量**;`--sneaky-token: 12px` 里没有颜色 |
+| (b) 顶层裸选择器 | 只看**第 0 列**;它在嵌套层 |
+| (c) 旧版 | 🔴 **只扫 `.parser-app` 块内** —— 治理 §6.4-5(c) 原文就是这么写的 |
+| (d) K23 | 只数 `.card` / `.page-header` 的份数与两页专属类 |
+| (e) 白名单 | 只抽**类名与元素名**,token 名不是选择器 |
+
+- **实现者无过错**(治理 §6.4.3 原文已认定):§6.4-5(c) 写的就是「`.parser-app` 块里」,首个提交达标了。
+- **但 K21 的语义没闭合**:K21 是「token 声明层只在 `knowledge.scss`,`parser-styles.scss` **零** token 声明」,
+  不是「只有 `.parser-app` 块零 token 声明」。若真被写进页面作用域,就出现「同一 token 两处声明」的漂移源,
+  且暗/浅两档只有一档被覆写(页面作用域没有 `data-theme` 分档)→ 是真会咬人的缺陷,不是理论缺口。
+
+### 13.2 怎么改的(**扩范围 = 扫描变大,不是放宽断言**)
+
+| | 改前 | 改后 |
+|---|---|---|
+| `--x:` 声明扫描 | `.parser-app` 块内 | 🔴 **全文**(剥注释后逐行扫,失败信息报**真实行号**) |
+| 颜色属性扫描 | `.parser-app` 块内 | **不动,仍只针对 `.parser-app` 块** —— 两个页面作用域当然要写颜色属性(全文实测 45 处),一起扩会当场炸 |
+| 用例数 | (c) 4 条 | (c) **5 条**(新增「全文零 `--x:`」;原「`.parser-app` 块零 `--x:`」保留成子集,便于定位) |
+
+**顺带一处工程细节**:全文那条要在失败信息里报**真实行号**,而既有的 `stripComments()` 会把多行注释里的
+换行一并吃掉、行号会比源文件小一大截(本文件头注释有 49 行,偏差就是几十行,报出去会把评审引到错误的行)。
+→ 新增 `blankComments()`:把注释内容换成**等量空格、保留换行**,行号与源文件逐行对齐。
+**探针 G 实测报的是 `L76`,与 `grep -n` 实测的 `76:  --sneaky-token: 12px;` 逐字一致** ✅。
+`stripComments()` 保持原样给其余断言用(它们不报行号)。
+
+### 13.3 🔴 RED 探针 G(**判别力证据只有一个:从「18/18 全绿」翻成报红**)
+
+按治理 §9(**我自己上一轮实证出来的那条纪律**)**先证明注入真的落盘,再看结果**;
+注入脚本也用**行首锚定**(`re.sub(r'(?m)^(\.parser-app \.parser-status-page \{\n)', …)`),不用会撞注释的 `str.replace`。
+
+**① 注入落盘证据**
+```
+$ grep -n "sneaky" src/ai/styles/parser-styles.scss
+76:  --sneaky-token: 12px;
+$ sed -n '74,79p' src/ai/styles/parser-styles.scss
+/* ===== ParserStatus(解析器状态页)—— 蓝本 src/views/AI/Parser/parser-styles.scss:1-74 全段 ===== */
+.parser-app .parser-status-page {
+  --sneaky-token: 12px;          ← 落在**页面作用域**里,不是 .parser-app 块
+  /* 蓝本 :1-5 */
+  padding: 16px;
+  max-width: 900px;
+```
+
+**② 用【修前】的守卫跑这份被注入的 scss —— 复现评审的缺口**
+(`git show HEAD:src/ai/styles/parserStyles.test.ts` 临时覆盖回去跑)
+```
+=== ② 用【修前】的守卫跑同一份被注入的 scss(复现评审探针 G 的缺口)===
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+```
+🔴 **18/18 全绿 —— 与评审报告逐字吻合,缺口确实存在。**
+
+**③ 换回【修后】的守卫,同一份被注入的 scss → 报红**
+```
+     × 🔴 全文零 `--x:` token 声明(K21:token 声明层只许在 knowledge.scss) 7ms
+AssertionError: parser-styles.scss 里出现了 token 声明(token 声明层只许在 knowledge.scss 的两个块里):
+  L76 [--sneaky-token:]: --sneaky-token: 12px;: expected [ Array(1) ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed (19)
+```
+🔴 **从 18/18 全绿翻成「1 failed | 18 passed (19)」,且精确指名 `L76` 与 token 名。**
+
+**④ 撤掉注入 → 19/19 全绿 + 还原自查**
+```
+$ grep -c sneaky src/ai/styles/parser-styles.scss        → 0
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+$ diff /tmp/pss-g.bak src/ai/styles/parser-styles.scss   → scss identical to backup
+$ diff /tmp/pst-g.new src/ai/styles/parserStyles.test.ts → test identical to new version
+$ git status --short                                     → 只有 parserStyles.test.ts 一处 M(scss 未被本刀改动)
+```
+
+**「颜色属性那半没被一起扩」的反向证据**:本文件两个页面作用域里,落在 (c) 那份 21 个属性名清单口径上的
+声明共 **54 处**(实测:`color:` 23 · `background:` 13 · `border:` 9 · `border-top:` 5 · `border-color:` 2 ·
+`border-left:` 2;其中 45 处带 `var(--…)` 颜色值,其余是 `background: none` / `border: none` /
+`border-top: none` 这类关键字),而 19/19 全绿 —— **若颜色属性那半也跟着扩到全文,这条断言会当场报 54 处。
+范围没扩错。**
+
+### 13.4 三门重跑最终值
+
+```
+$ pnpm test                  > /tmp/p5c-t2b-g-test.log  2>&1;  exit=0
+ Test Files  320 passed (320)
+      Tests  3180 passed (3180)        ← 3179 + 1(新增「全文零 --x:」那条)
+   Duration  82.82s
+
+$ pnpm exec vue-tsc --noEmit  > /tmp/p5c-t2b-g-tsc.log   2>&1;  exit=0   (输出 0 字节)
+$ pnpm build                  > /tmp/p5c-t2b-g-build.log 2>&1;  exit=0   (✓ built in 20.96s)
+$ pnpm exec sass --no-source-map src/ai/styles/parser-styles.scss /dev/null;  exit=0
+$ pnpm exec sass --no-source-map src/ai/styles/knowledge.scss     /dev/null;  exit=0
+$ git diff --stat 05bff49 -- src/ai/styles/knowledge.scss src/ai/styles/knowledgeStyles.test.ts   → 空(零改动)
+```
+**红项 0 条、零复跑;零 `.vue` 新增;`parser-styles.scss` 本轮零改动**(只动了测试文件)。
+
+### 13.5 评审另两条 Minor —— 登记不改(协调者已裁定)
+
+1. **具名色扫描大小写敏感** —— 与 `knowledgeStyles.test.ts:370-377` 同款口径;评审另跑一遍大小写不敏感
+   全扫 **0 命中**;且本仓 scss 全小写惯例(与治理 §6.4.2 对 `.fb-Foo` 的取舍同族)。**不改。**
+2. **报告 §8.1 / §5.3 的陈旧行号** —— 本轮已就地订正:§8.1 的 `60/67/154` → **`68/75/162`**(K31 使其整体 +8);
+   §5.3 的浅档 token 块 `:249-345` → **`:249-340`**(15/15 两档都有声明的结论不变)。
