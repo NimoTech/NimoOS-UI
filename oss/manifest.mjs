@@ -65,6 +65,11 @@ export const REPLACE = [
   // T9:桌面默认布局重排(开源版无照片磁贴/AI 组件,坐标整体重排,PATCH 无可继承内容)
   { path: 'src/home/grid/defaultLayout.ts', from: 'defaultLayout.ts',
     privateSha256: '15da0c4b305f9cdf5cee5ce6a8126cc441d18a889eadc28681ee1b14785e87ed' },
+
+  // T10:MediaViewer 拆转录面板(摘要/转录/Ask 三 tab、说话人分色、章节过滤全删;
+  // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
+  { path: 'src/files/viewers/MediaViewer.vue', from: 'MediaViewer.vue',
+    privateSha256: 'a82ed56d908a27a0a00f4fa325c3d2d300fb551c453202af18732a8e88944031' },
 ]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */

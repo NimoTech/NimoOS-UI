@@ -342,3 +342,31 @@ describe('类 2 · 桌面默认布局', () => {
     }
   })
 })
+
+describe('类 2 · MediaViewer 拆转录', () => {
+  it('转录/说话人/Ask 的符号全无(speaker 是哨兵词)', () => {
+    const s = read('src/files/viewers/MediaViewer.vue')
+    for (const bad of ['audioTranscripts', 'speakerWave', 'lookupTranscript', 'TranscriptSegment',
+                       'speakerToken', 'segMatches', 'barSpeakers', 'segChapterIndex', 'barChapterIndex',
+                       'transcriptRows', 'highlightsOnly', 'pickedSpeakers', 'pickedChapters',
+                       'askMsgs', 'sendAsk', 'PRESETS', 'answerFor', 'stopStream',
+                       'ap-tabs', 'ap-transcript', 'spk-chip', 'audio-panel', 'has-panel',
+                       '--spk-', '--wave-dim', 'DropdownMenu']) {
+      expect(s, bad).not.toContain(bad)
+    }
+  })
+
+  it('播放器与真实波形完整保留,静场 token 还在(E11)', () => {
+    const s = read('src/files/viewers/MediaViewer.vue')
+    for (const k of ['waveform', 'decodeWaveform', 'synthWaveform', 'waveCacheKey',
+                     'np-wave-bar', 'playedBars', 'togglePlay', 'cycleRate',
+                     'audioSkipBack', 'audioSkipForward', 'audioSpeed',
+                     'var(--wave-none)', 'music-metadata-browser', 'artplayer']) {
+      expect(s, k).toContain(k)
+    }
+  })
+
+  it('文件明显变短(852 行 → 600 行以内)', () => {
+    expect(read('src/files/viewers/MediaViewer.vue').split('\n').length).toBeLessThan(600)
+  })
+})
