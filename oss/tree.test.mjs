@@ -293,3 +293,52 @@ describe('类 3 · i18n 与主题 token', () => {
     expect(zhHeader).toContain('parity.test.ts')
   })
 })
+
+describe('类 2 · 桌面默认布局', () => {
+  it('不再导出 PHOTO_PLACEHOLDERS,没有 photo 磁贴与 ai 组件', () => {
+    const s = read('src/home/grid/defaultLayout.ts')
+    expect(s).not.toMatch(/PHOTO_PLACEHOLDERS|kind: 'photo'|key: 'ai'/)
+  })
+
+  it('占 69 格,全部落在 12×8 内且不重叠', () => {
+    const s = read('src/home/grid/defaultLayout.ts')
+    const items = [...s.matchAll(/c:\s*(\d+),\s*r:\s*(\d+),\s*w:\s*(\d+),\s*h:\s*(\d+)/g)]
+      .map(([, c, r, w, h]) => ({ c: +c, r: +r, w: +w, h: +h }))
+    expect(items.length).toBe(15)
+    const seen = new Set()
+    let cells = 0
+    for (const it of items) {
+      expect(it.c + it.w - 1, JSON.stringify(it)).toBeLessThanOrEqual(12)
+      expect(it.r + it.h - 1, JSON.stringify(it)).toBeLessThanOrEqual(8)
+      for (let x = it.c; x < it.c + it.w; x++) for (let y = it.r; y < it.r + it.h; y++) {
+        const k = `${x},${y}`
+        expect(seen.has(k), `重叠于 ${k}`).toBe(false)
+        seen.add(k); cells++
+      }
+    }
+    expect(cells).toBe(69)
+  })
+
+  it('最后两行(r7/r8)完全留空', () => {
+    const s = read('src/home/grid/defaultLayout.ts')
+    const items = [...s.matchAll(/r:\s*(\d+),\s*w:\s*\d+,\s*h:\s*(\d+)/g)].map(([, r, h]) => +r + +h - 1)
+    expect(Math.max(...items)).toBe(6)
+  })
+
+  it('每个小组件的落位尺寸都在 registry 的 min/max 内', () => {
+    const layout = read('src/home/grid/defaultLayout.ts')
+    const reg = read('src/home/widgets/registry.ts')
+    const ranges = {}
+    for (const [, k, mw, mh, xw, xh] of reg.matchAll(
+      /(\w+):\s*\{[^}]*min:\s*\[(\d+),\s*(\d+)\][^}]*max:\s*\[(\d+),\s*(\d+)\]/g)) {
+      ranges[k] = { min: [+mw, +mh], max: [+xw, +xh] }
+    }
+    for (const [, key, w, h] of layout.matchAll(
+      /kind:\s*'widget',\s*key:\s*'(\w+)',\s*c:\s*\d+,\s*r:\s*\d+,\s*w:\s*(\d+),\s*h:\s*(\d+)/g)) {
+      const r = ranges[key]
+      expect(r, `registry 里没有 ${key}`).toBeTruthy()
+      expect(+w, `${key}.w`).toBeGreaterThanOrEqual(r.min[0]); expect(+w, `${key}.w`).toBeLessThanOrEqual(r.max[0])
+      expect(+h, `${key}.h`).toBeGreaterThanOrEqual(r.min[1]); expect(+h, `${key}.h`).toBeLessThanOrEqual(r.max[1])
+    }
+  })
+})

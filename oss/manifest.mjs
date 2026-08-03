@@ -61,7 +61,11 @@ export const SERVICE_DELETE = [
 ]
 
 /** 类 2 · 整文件替换,各带私有侧哈希钉。T10-T13 填。 */
-export const REPLACE = []
+export const REPLACE = [
+  // T9:桌面默认布局重排(开源版无照片磁贴/AI 组件,坐标整体重排,PATCH 无可继承内容)
+  { path: 'src/home/grid/defaultLayout.ts', from: 'defaultLayout.ts',
+    privateSha256: '15da0c4b305f9cdf5cee5ce6a8126cc441d18a889eadc28681ee1b14785e87ed' },
+]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */
 export const PATCH = [
