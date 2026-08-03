@@ -1574,4 +1574,109 @@ export default {
   tmNoFolderAtTime: 'This folder did not exist yet',
   tmItemCount: '{n} items',
   tmRailJumpTo: 'Jump to the snapshot from {time}',
+
+  // ── SP7-P8a 相册设置页 + 深链 + 错误态 ──
+  // zh 文案权威 = Vue2 src/assets/lang/zh_CN.json;json 里没有对应键的(Vue2
+  // PhotosSettings.vue 内联硬编码英文)在该键上方单独注明「自拟」与 Vue2 行号。
+  // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
+  // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
+  photosSettingsTitle: 'Settings',
+  // 自拟(Vue2 PhotosSettings.vue:19 内联 "Storage · AI behavior")
+  photosSettingsSubtitle: 'Storage · AI behavior',
+  // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
+  photosSettingsHeroDesc: 'Everything Nimo does on your NAS — what runs, where it runs, and how much space it takes.',
+  // 自拟(Vue2 PhotosSettings.vue:33 内联 "Storage")
+  photosSettingsNavStorage: 'Storage',
+  // 自拟(Vue2 PhotosSettings.vue:34 内联 "AI behavior")
+  photosSettingsNavAi: 'AI behavior',
+  // 自拟(Vue2 PhotosSettings.vue:46 内联 "Storage")
+  photosSettingsStorage: 'Storage',
+  photosSettingsVolume: 'volume',
+  photosSettingsFree: 'free',
+  photosSettingsUsedOf: 'used of',
+  photosSettingsStorageUnavailable: 'Storage info unavailable',
+  photosSettingsSegPhotos: 'Photos',
+  photosSettingsSegVideos: 'Videos',
+  photosSettingsSegRaw: 'RAW originals',
+  photosSettingsSegThumbs: 'Thumbnail cache',
+  photosSettingsSegAi: 'AI index',
+  photosSettingsSegOther: 'Other data',
+  // 自拟(Vue2 PhotosSettings.vue:72 内联 "Free"；图例里的"可用"行，与 photosSettingsFree 同义分用两处)
+  photosSettingsSegFree: 'Free',
+  // 自拟(Vue2 PhotosSettings.vue:81 内联 "Recently Deleted retention")
+  photosSettingsRetentionLabel: 'Recently Deleted retention',
+  // 自拟(Vue2 PhotosSettings.vue:82 内联长句)
+  photosSettingsRetentionDesc: "How long to keep deleted photos before they're permanently removed from the NAS.",
+  // 自拟(Vue2 PhotosSettings.vue:87 内联 "{{d}}d"，未走 $t)
+  photosSettingsRetentionDay: '{n}d',
+  photosSettingsRetentionFailed: 'Failed to save retention',
+  photosSettingsRescanLabel: 'Rescan library',
+  photosSettingsRescanDesc: 'Scan all drives now and add new photos and videos to the library.',
+  photosSettingsRescanNow: 'Rescan now',
+  photosSettingsRescanning: 'Rescanning…',
+  photosSettingsRescanStarted: 'Library rescan started',
+  photosSettingsScanIntervalLabel: 'Auto rescan interval',
+  photosSettingsScanIntervalDesc: 'How often to automatically scan all drives for new media.',
+  photosSettingsScanIntervalOff: 'Off',
+  // 自拟(Vue2 PhotosSettings.vue:116 内联 "Thumbnail cache"；同名 json 键"Thumbnail cache"
+  // 被 photosSettingsCacheLabel 复用，此处是同一段文案的两个引用点，取值一致)
+  photosSettingsCacheLabel: 'Thumbnail cache',
+  photosSettingsCacheDesc: 'Stale previews left behind by deleted photos. Active thumbnails are kept.',
+  photosSettingsClearCache: 'Clear cache',
+  photosSettingsClearing: 'Clearing…',
+  photosSettingsCleared: 'Cleared',
+  // json "Cache cleared" + "freed" 拼接键（Vue2 :422 运行时用 `·` 连接两个 $t 片段 +
+  // 原始字节数），此处收成一个带 {size} 占位符的完整句子。
+  photosSettingsCacheClearedToast: 'Cache cleared · {size} freed',
+  photosSettingsCacheClearFailed: 'Failed to clear cache',
+  // 自拟(Vue2 PhotosSettings.vue:135 内联 "AI behavior")
+  photosSettingsAiTitle: 'AI behavior',
+  // 自拟(Vue2 PhotosSettings.vue:136 内联 "What Nimo does, and where it runs.")
+  photosSettingsAiSubtitle: 'What Nimo does, and where it runs.',
+  // 自拟(Vue2 PhotosSettings.vue:145 内联 "Nothing leaves your NAS")
+  photosSettingsPrivacyTitle: 'Nothing leaves your NAS',
+  // 自拟(Vue2 PhotosSettings.vue:147-149 内联长句)
+  photosSettingsPrivacyBody: 'All inference — faces, scenes, OCR, scoring — runs on this NAS. No image, embedding, or metadata is sent to any external service.',
+  // 自拟(Vue2 PhotosSettings.vue:155 内联 "Features")
+  photosSettingsFeaturesTitle: 'Features',
+  // 自拟(Vue2 PhotosSettings.vue:156 内联长句)
+  photosSettingsFeaturesDesc: "Turn off anything you don't want Nimo to compute. Off features stop running and free up cycles.",
+  photosSettingsFeatFaces: 'Face recognition',
+  photosSettingsFeatFacesDesc: 'Group photos by person, find faces in new uploads.',
+  photosSettingsFeatScenes: 'Scene & object detection',
+  photosSettingsFeatScenesDesc: 'Powers semantic search — photos turned off here stop being searchable by content.',
+  photosSettingsFeatOcr: 'Text in photos (OCR)',
+  photosSettingsFeatOcrDesc: 'Search receipts, signs, slides, screenshots.',
+  photosSettingsFeatSmartview: 'Smart Views',
+  photosSettingsFeatSmartviewDesc: 'Show Smart Views in the sidebar and keep them evaluating new photos.',
+  photosSettingsFeatSaveFailed: 'Failed to save AI settings',
+  photosSettingsIndexTitle: 'AI index',
+  photosSettingsIndexRebuilding: 'Rebuilding…',
+  photosSettingsIndexLastBuilt: 'Last built',
+  photosSettingsIndexNever: 'never',
+  // 自拟——但并非纯自拟:Vue2 PhotosSettings.vue:176 渲染 `{{indexedPct}}% {{ $t('complete.') }}`,
+  // 数字未译、"complete." 是 json 键(译"已完成。")。英文语序恰好与 json 片段拼接一致。
+  photosSettingsIndexPct: '{pct}% complete.',
+  // json "Covers" + "items. Rebuild after restoring from backup or changing the model." 拼接键
+  // （Vue2 :177 运行时用 `$t('Covers') + coverageCount + $t('items. Rebuild after…')` 拼接）。
+  photosSettingsIndexCoverage: 'Covers {count} items. Rebuild after restoring from backup or changing the model.',
+  photosSettingsRebuildIndex: 'Rebuild index',
+  photosSettingsRebuiltToast: 'AI index rebuilt',
+  photosSettingsRebuildFailed: 'Rebuild failed',
+  photosSettingsRebuildStartFailed: 'Failed to start rebuild',
+  // 自拟(Vue2 PhotosSettings.vue:189 内联 "Re-cluster faces"，未走 $t)
+  photosSettingsRecluster: 'Re-cluster faces',
+  photosSettingsReclusterStarted: 'Face re-clustering started in background',
+  photosSettingsReclusterFailed: 'Failed to start re-clustering',
+  // 自拟(Vue2 PhotosSettings.vue:196 内联 "Nimo Photos")
+  photosSettingsFooterApp: 'Nimo Photos',
+  photosSettingsRunningOn: 'Running on',
+  photosSettingsLibrarySince: 'Library since',
+  photosDeepLinkPhotoNotFound: 'Photo not found',
+  // 自拟(New-UI 新增失败态，Vue2 无对应)
+  photosFavoritesLoadFailed: "Couldn't load favorites",
+  // 自拟(New-UI 新增失败态，Vue2 无对应)
+  photosAlbumLoadFailed: "Couldn't load this album",
+  // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+  photosRetry: 'Retry',
 }
