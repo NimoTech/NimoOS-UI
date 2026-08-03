@@ -121,7 +121,9 @@ P5a §3 的 **K1–K8 / P1–P4** 与 P5b §3 的 **K9–K20** 全部继续生�
 
 | **K31** | 🔴 **协调者裁定(2026-08-03,T2b 顾虑① 触发)**:`.parser-app` 改成**外层包裹元素**,页面根类留在**内层元素**上 → 选择器由复合 `.parser-app.parser-status-page` 改成后代 `.parser-app .parser-status-page`(测试页同)。两页模板变成 `<div class="parser-app"><div class="parser-status-page">…</div></div>`,**比蓝本多一层 DOM** | **K22 的二阶后果修正。** T2b 把作用域根与页面根做成同一元素,而该元素同时是 `max-width:900px; margin:0 auto` → `overflow-y:auto` 让**滚动条落在 900px 居中列的右缘(宽屏上约在屏幕中间)**,而 Vue2 是整页滚动、滚动条在视口最右缘 → **这一条本身就是「界面不 1:1」**,必须修。🔴 **K22 引的两个先例本来就是两元素**:`AreaShell.vue` 的 `.area-shell`(100vh)+ `.area-body`(overflow:auto)· `knowledge.scss` 的 `.knowledge-app` 外壳 + `.k-scroll` 内滚动器。**多这一层 DOM 用户不可见,滚动条位置用户可见** —— 取后者。连带:`parserStyles.test.ts` 的断言 (b) 允许的第 0 列选择器改成 `.parser-app` / `.parser-app .parser-status-page` / `.parser-app .parser-test-page`,断言 (d) 的两作用域判据同步改;`.parser-app` 仍**只带 K22 那三行结构属性 + 零颜色 + 零 `--x:`** |
 
-**除 K1–K31 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
+| **K32** | **模板里写 `props.roots` 而非裸 `roots`**(`FolderBrowser.vue`) | T3 报告 §8.5 已申报,渲染等价(Vue 3 `<script setup>` 两种写法都合法);T3 评审 M-2 判「留着」。**协调者追认编号,不要求改回** |
+
+**除 K1–K32 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
 
 ## 3.5 明确「照抄、不改」的条目(N1–N14 沿用 + **N15–N22**)
 
@@ -713,6 +715,21 @@ C-7 的 34 个 `knowledge.scss` 行号 34/34 全对;C-9 的 3 个路由行号 3/
   而 `knowledge.scss` 由 `KnowledgeLayout.vue` import,早就进构建管线);
   **被 tree-shake 掉的只有组件 JS**(`FolderBrowser` 此刻全仓零 import)。
   → **正确口径:`dist` 的 CSS 里应能搜到 `.fb-`,JS 里搜不到 `fb-crumbs` 才是预期。** 评审按本条核。
+
+### 9.1 🔴 「过期守卫」必须同时守两件事(T3 评审 M-1 猎出,2026-08-03)
+
+记忆 `newui-async-stale-guard` 那条纪律(异步写共享 state 必带过期守卫)在本仓**已被评审逮到四次**。
+T3 评审猎出它的**第二半从来没人守**:
+
+| 要守的 | 现状 |
+|---|---|
+| ① 守卫**逻辑**对不对(先发后至不覆盖) | T3 有三条交错用例,拿掉任一处守卫都报红 ✅ |
+| ② 守卫**变量的作用域**对不对(必须组件本地,不能模块级) | 🔴 **零用例**。评审探针实测:`seq` 挪到真模块级 → **19 passed,零报红** |
+
+→ **纪律:凡带 epoch/seq/uuid 过期守卫的组件,除交错用例外,必须另有一条「两实例交错」用例**
+——挂载两个实例、让各自的异步请求交错在飞,断言**两个实例各自拿到自己的结果、互不覆盖**。
+**验收判据:把守卫变量挪到模块级,这条用例必须报红。**
+(T3 已按本条补齐;下游任何新写的过期守卫照本条办。)
 
 ## 13. 验收清单纪律(**下游与协调者都受约束**)
 
