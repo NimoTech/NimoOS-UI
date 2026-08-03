@@ -603,6 +603,10 @@ export default {
   photosFieldPlace: 'Place',
   photosCopyPath: 'Copy path',
   photosCopied: 'Copied',
+  photosFilterByExif: 'Filter by EXIF',
+  photosFilterCamera: 'Camera',
+  photosFilterLocation: 'Location',
+  photosFilterYear: 'Year',
   // ── Photos: Favorites view ──
   photosFavTitle: 'Favorites',
   photosFavEmptyTitle: 'No favorites yet',

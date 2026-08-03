@@ -602,6 +602,10 @@ export default {
   photosFieldPlace: '地点',
   photosCopyPath: '复制路径',
   photosCopied: '已复制',
+  photosFilterByExif: '按 EXIF 过滤',
+  photosFilterCamera: '相机',
+  photosFilterLocation: '位置',
+  photosFilterYear: '年份',
   // ── 相册:收藏视图 ──
   photosFavTitle: '收藏',
   photosFavEmptyTitle: '暂无收藏',
