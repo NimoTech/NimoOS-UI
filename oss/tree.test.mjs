@@ -127,4 +127,15 @@ describe('类 3 · 桌面侧补丁', () => {
     expect(a).toContain("const curTab = ref<'widget' | 'app' | 'folder'>('widget')")
     expect(a).not.toMatch(/'photo'/)
   })
+
+  it('复审修复:顶栏 ≤720px 注释不再提"搜索",且没有死 import', () => {
+    const t = read('src/home/components/HomeTopbar.vue')
+    expect(t).not.toMatch(/搜索/)
+    expect(t).toContain('保留主题切换')
+    expect(t).not.toMatch(/onMounted|onUnmounted/)
+  })
+
+  it('复审修复:layout.ts 不再 import isAssetId', () => {
+    expect(read('src/home/stores/layout.ts')).not.toMatch(/isAssetId/)
+  })
 })

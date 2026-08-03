@@ -193,6 +193,10 @@ function cutoverDisabled(): boolean { return false }` },
     replace: '' },
   { path: 'src/home/stores/layout.ts',
     find: ', bindPhotos,', replace: ',' },
+  // 复审 Important③:bindPhotos 函数体没了之后,isAssetId 变成死 import(该文件
+  // 只有 bindPhotos 用它)。isAssetId.ts 这个文件本身归 DELETE 表处理,不在此改。
+  { path: 'src/home/stores/layout.ts',
+    find: "import { isAssetId } from '../util/isAssetId'\n", replace: '' },
 
   // ── homeUi.ts:search 四项 ───────────────────────────────────────────────
   { path: 'src/home/stores/homeUi.ts',
@@ -231,6 +235,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 `,
     replace: '' },
+  // 复审 Important①:上面 3 条删掉了搜索胶囊与 ⌘K 监听,但这条中文注释原文
+  // "...保留搜索与主题切换" 完全没被摘到 —— 会作为静默泄漏(oss/forbidden.mjs
+  // 的中文词表目前没有"搜索")随包发布。词表本身的修补是另一个任务的活,这里
+  // 只改措辞,不提搜索。
+  { path: 'src/home/components/HomeTopbar.vue',
+    find: '保留搜索与主题切换', replace: '保留主题切换' },
+  // 复审 Important②:上面删掉 onKey/onMounted/onUnmounted 三行后,这个 import
+  // 变成死代码(全文件再无第二处使用 onMounted/onUnmounted,已用 grep 核实)。
+  { path: 'src/home/components/HomeTopbar.vue',
+    find: "import { onMounted, onUnmounted } from 'vue'\n", replace: '' },
 
   // ── views/Home.vue:SearchDialog 挂载 + 两个 import + photos store 用量
   //    (brief 未给逐字文本,现场 sed 取出四处) ─────────────────────────────
