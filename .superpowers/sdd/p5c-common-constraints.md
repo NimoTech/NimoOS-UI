@@ -125,7 +125,9 @@ P5a §3 的 **K1–K8 / P1–P4** 与 P5b §3 的 **K9–K20** 全部继续生�
 
 | **K33** | 🔴 **协调者预先授权(2026-08-03)**:`parserStore.loadAll()` **加 store 实例局部 epoch 过期守卫**(inline,**不抽公共 guard**) | **K15 同族第 2 次**(P5b 那次是用户 E3 授权给 `knowledgeStore` 三个 loader)。蓝本 `loadAll` 有 **8 个并发入口**:`mounted()` · 5 秒轮询(`ParserStatus.vue:129-131`)· 刷新按钮 `reload()`(`:137`)· 5 个控制动作各自 `await this.loadAll()`(`parserStore.js:48-64`)。两个并发在飞时:① 先发后至会用**更旧的**数据覆盖新数据;② 更要紧的是 **`finally` 里 `loading = false` 会被先完成的那个提前清掉**,而 `loading` 直接驱动刷新按钮的 `:disabled`(`ParserStatus.vue:7`)→ **按钮提前解禁,用户可见**。按 §2 判据这是「修一个可复现的错误行为」。🔴 **范围严格限定**:只加守卫,`Promise.all` 四发 / catch 置 `unreachable` / `|| []` 兜底(N7)/ 五个动作「先 control 再 loadAll」全部照抄不动 |
 
-**除 K1–K33 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
+| **K34** | **Vue 3 + TS 的机械改写伞编号**(逐处在文件头登记,零行为变化):`this.$refs.x` → 模板 `ref` · `files[0]` → `files?.[0]` · `e.dataTransfer.files` → `e.dataTransfer &&` 守卫 · `result.xxx` → `result.value!`(TS 收窄) | Vue 2 → Vue 3 / TS `strict` 的必需改写,**不是需求相关的改动**。先例:P1–P5b 每期都有同族(如 T3 的 K32、T5 的 `(e as Error\|undefined)?.message`)。🔴 **落地要求**:① 每处在**文件头注释**里逐条登记「蓝本写法 → 本仓写法 + 为什么必需」;② **零行为变化**(有行为变化的不许挂本编号,要单独申报);③ 报告里列全清单。**评审按「是否真的机械必需 + 是否真的零行为变化」判,不按未申报偏离报** |
+
+**除 K1–K34 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
 
 ## 3.5 明确「照抄、不改」的条目(N1–N14 沿用 + **N15–N22**)
 

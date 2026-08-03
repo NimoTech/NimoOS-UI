@@ -224,7 +224,9 @@ T1 i18n(99 键)
 - **N22**:`rerank top-20` / `⚠ Reranker error:` / `dense [0:8]:` / `sparse top:` / `chunk #` / `cos` / `rr` / 三个参数 `<label>` / `chunker=…, target=…` / `{{ c.token_count }} tokens · offset …` —— **全部不进 i18n**。
 - **fixture 用 §4.2 的六份**:`parser-test-analyze-md-ok.json`(无 `docling_markdown`、`scored` 无 `rerank_score`、`.md` 的 `overlap_tokens` 被后端改写成 0)· `-txt-rerank.json` · 四份 `.http`(400 越界 / 400 坏扩展名 / **422 `detail` 是数组** / 200 空文件)。
 - 🔴 **422 那条分支 UI 到不了**(`:76` 的 `:disabled="!file || loading"` 挡住)→ **照抄 `detail || e.message || String(e)` 取值链,不许加数组分支处理,也不许为它写单测**(测 UI 到不了的路径 = 空转)。
-- 根元素 `class="parser-app parser-test-page"`,`import '../../styles/parser-styles.scss'`,零 `<style>` 块。
+- `import '../../styles/parser-styles.scss'`,零 `<style>` 块。
+  🔴 **K31 订正(2026-08-03,T7 顾虑① )**:根元素是**两层** —— `<div class="parser-app"><div class="parser-test-page">…`,
+  **不是**单元素 `class="parser-app parser-test-page"`(本行初稿是 K31 之前的写法,已作废;与 T6 节 `:206` 同款订正)。
 - **缺口③**:补「`<template>` 块零裸色」定向断言。
 
 ---
