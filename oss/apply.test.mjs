@@ -32,6 +32,26 @@ describe('applyDelete', () => {
   it('路径不存在即抛 —— 清单过期了必须知道', () => {
     expect(() => applyDelete(root, ['gone.ts'])).toThrow(/DELETE 清单过期.*gone\.ts/)
   })
+
+  it('路径穿越(../)即抛,不会删到 root 之外', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-outside-'))
+    write(outside, 'victim.txt', 'precious')
+    const rel = path.relative(root, path.join(outside, 'victim.txt'))
+    expect(() => applyDelete(root, [rel])).toThrow(/越界/)
+    expect(fs.existsSync(path.join(outside, 'victim.txt'))).toBe(true)
+    fs.rmSync(outside, { recursive: true, force: true })
+  })
+
+  it('绝对路径即抛', () => {
+    write(root, 'a.ts', 'x')
+    expect(() => applyDelete(root, ['/etc/passwd'])).toThrow(/绝对路径/)
+  })
+
+  it('合法的深层相对路径仍放行(不要把正常路径也拦了)', () => {
+    write(root, 'src/home/components/GridItem.vue', 'x')
+    applyDelete(root, ['src/home/components/GridItem.vue'])
+    expect(fs.existsSync(path.join(root, 'src/home/components/GridItem.vue'))).toBe(false)
+  })
 })
 
 describe('applyReplace 的哈希钉', () => {
@@ -48,6 +68,38 @@ describe('applyReplace 的哈希钉', () => {
     expect(() =>
       applyReplace(root, [{ path: 'src/x.ts', from: 'x.ts', privateSha256: sha256('PRIVATE') }], ossDir),
     ).toThrow(/私有仓的 src\/x\.ts 变了.*复核 oss\/files\/x\.ts/s)
+  })
+
+  it('oss/files/ 里源文件缺失即抛,消息带 path 与 from 两个 manifest 坐标', () => {
+    write(root, 'src/x.ts', 'PRIVATE')
+    // 故意不在 ossDir 里创建 x.ts
+    expect(() =>
+      applyReplace(root, [{ path: 'src/x.ts', from: 'x.ts', privateSha256: sha256('PRIVATE') }], ossDir),
+    ).toThrow(/oss\/files\/x\.ts.*path=src\/x\.ts.*from=x\.ts/s)
+  })
+
+  it('path 越界(../)即抛,不会写到 root 之外', () => {
+    write(ossDir, 'x.ts', 'PUBLIC')
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-outside-'))
+    write(outside, 'victim.ts', 'PRIVATE')
+    const relTarget = path.relative(root, path.join(outside, 'victim.ts'))
+    expect(() =>
+      applyReplace(root, [{ path: relTarget, from: 'x.ts', privateSha256: sha256('PRIVATE') }], ossDir),
+    ).toThrow(/越界/)
+    expect(fs.readFileSync(path.join(outside, 'victim.ts'), 'utf8')).toBe('PRIVATE')
+    fs.rmSync(outside, { recursive: true, force: true })
+  })
+
+  it('from 越界(../)即抛,不会从 ossDir 之外读取任意文件', () => {
+    write(root, 'src/x.ts', 'PRIVATE')
+    const outsideOss = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-outside-files-'))
+    write(outsideOss, 'evil.ts', 'EVIL')
+    const relFrom = path.relative(ossDir, path.join(outsideOss, 'evil.ts'))
+    expect(() =>
+      applyReplace(root, [{ path: 'src/x.ts', from: relFrom, privateSha256: sha256('PRIVATE') }], ossDir),
+    ).toThrow(/越界/)
+    expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('PRIVATE')
+    fs.rmSync(outsideOss, { recursive: true, force: true })
   })
 })
 
@@ -85,6 +137,27 @@ describe('applyPatch 的锚点唯一性', () => {
     // $& 会被解释成"匹配到的整段文本"(即 ANCHOR),而不是字面量 $&。
     applyPatch(root, [{ path: 'src/x.ts', find: 'ANCHOR', replace: 'price: $&, tag: $1' }])
     expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('keep\nprice: $&, tag: $1\nkeep2\n')
+  })
+
+  it('空锚点(find: "")即抛,不依赖 split 计数的巧合 —— 覆盖 2 字符漏网案例', () => {
+    // text.split('').length - 1 对 2 字符文件恰好算出 1(巧合合法值),
+    // 曾导致空锚点在这一个长度上静默通过并把 replace 插到开头。
+    // 显式拒绝空串必须堵住所有长度,这里逐一验证 0/1/2/3/4 字符。
+    for (const content of ['', 'a', 'ab', 'abc', 'abcd']) {
+      write(root, 'src/x.ts', content)
+      expect(() => applyPatch(root, [{ path: 'src/x.ts', find: '', replace: 'Z' }])).toThrow(/锚点为空串/)
+      // 且文件内容必须原封不动 —— 拒绝必须发生在写入之前
+      expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe(content)
+    }
+  })
+
+  it('路径穿越(../)即抛,不会写到 root 之外', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-outside-'))
+    write(outside, 'victim.ts', 'keep\nDROP_ME\nkeep2\n')
+    const rel = path.relative(root, path.join(outside, 'victim.ts'))
+    expect(() => applyPatch(root, [{ path: rel, find: 'DROP_ME\n', replace: '' }])).toThrow(/越界/)
+    expect(fs.readFileSync(path.join(outside, 'victim.ts'), 'utf8')).toBe('keep\nDROP_ME\nkeep2\n')
+    fs.rmSync(outside, { recursive: true, force: true })
   })
 })
 

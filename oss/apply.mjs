@@ -16,9 +16,30 @@ export function checkClean(repoDir, allowlist = []) {
   }
 }
 
+/**
+ * manifest 里的路径数据是人写的,信不过它天然安全:解析后必须落在 baseDir 之内,
+ * 否则「相对层数多打一个 `../`」这种笔误会让 applyDelete/applyReplace 真的删/读到
+ * 目标树之外的文件。绝对路径一律拒绝(不允许 manifest 绕过 baseDir 直接点系统路径)。
+ * 返回解析后的绝对路径,调用方直接用它做后续 I/O。
+ */
+function assertSafeRelPath(baseDir, rel, context) {
+  if (path.isAbsolute(rel)) {
+    throw new Error(`${context}:是绝对路径 ${JSON.stringify(rel)} —— manifest 里的路径必须是相对路径,不能直接引用文件系统绝对路径`)
+  }
+  const base = path.resolve(baseDir)
+  const abs = path.resolve(base, rel)
+  if (abs !== base && !abs.startsWith(base + path.sep)) {
+    throw new Error(
+      `${context}:路径越界,${JSON.stringify(rel)} 解析后落在 ${abs}\n` +
+      `不在 ${base} 之内 —— manifest 里这条路径数据有问题(相对层数写错?),导出脚本拒绝写到目标树之外。`,
+    )
+  }
+  return abs
+}
+
 export function applyDelete(root, paths) {
   for (const rel of paths) {
-    const abs = path.join(root, rel)
+    const abs = assertSafeRelPath(root, rel, `DELETE ${rel}`)
     if (!fs.existsSync(abs)) {
       throw new Error(`DELETE 清单过期:${rel} 不存在(私有主干已删或改名,请更新 manifest.mjs)`)
     }
@@ -28,7 +49,8 @@ export function applyDelete(root, paths) {
 
 export function applyReplace(root, entries, ossDir) {
   for (const { path: rel, from, privateSha256 } of entries) {
-    const abs = path.join(root, rel)
+    const abs = assertSafeRelPath(root, rel, `REPLACE 目标 ${rel}`)
+    const srcAbs = assertSafeRelPath(ossDir, from, `REPLACE 源 ${from}`)
     if (!fs.existsSync(abs)) throw new Error(`REPLACE 目标不存在:${rel}`)
     const actual = sha256(fs.readFileSync(abs, 'utf8'))
     if (actual !== privateSha256) {
@@ -38,13 +60,22 @@ export function applyReplace(root, entries, ossDir) {
         `⚠️ 禁止为了让脚本跑过而删掉哈希钉 —— 那会让这条路重新变成哑火。`,
       )
     }
-    fs.copyFileSync(path.join(ossDir, from), abs)
+    if (!fs.existsSync(srcAbs)) {
+      throw new Error(
+        `REPLACE 源文件缺失:oss/files/${from}(manifest 条目 path=${rel}, from=${from})\n` +
+        `请在 oss/files/ 补上这个文件,或检查 manifest.mjs 里这条条目的 from 是否写错。`,
+      )
+    }
+    fs.copyFileSync(srcAbs, abs)
   }
 }
 
 export function applyPatch(root, entries) {
   for (const { path: rel, find, replace } of entries) {
-    const abs = path.join(root, rel)
+    if (find === '') {
+      throw new Error(`锚点为空串:${rel} —— 空串无法唯一定位任何位置,manifest 里这条数据有问题`)
+    }
+    const abs = assertSafeRelPath(root, rel, `PATCH ${rel}`)
     if (!fs.existsSync(abs)) throw new Error(`PATCH 目标不存在:${rel}`)
     const text = fs.readFileSync(abs, 'utf8')
     const hits = text.split(find).length - 1
