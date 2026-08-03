@@ -10,6 +10,11 @@
 // purpose against trash.ts's own fetchRetention/setRetention (that copy
 // stays; the trash view is out of scope here, see task report "concerns").
 //
+// rebuildIndex()'s 409 branch reads timeline.ts's existing `tasks` list (via
+// its fetchTasks() action) rather than taking a caller-supplied lookup
+// callback — see the comment at rebuildIndex() below and the task report's
+// fix-up log for why an earlier revision used a callback instead.
+//
 // IMPORTANT (brief-vs-shared-package discrepancy, resolved in favor of the
 // shared package's actual signature — see task report): the shared package's
 // `updateConfig` is NOT `updateConfig(patch: object)`. Its real signature
@@ -24,6 +29,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
+import { useTimelineStore } from './timeline'
 
 export interface PhotosAiFeatures {
   faces: boolean
@@ -208,16 +214,24 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
     return res?.freedBytes ?? 0
   }
 
-  // 409 = 后端已有一个重建在跑。Vue2 :464-468 此时拉一次任务列表、绑定到运行中那条
-  // type==='rebuild' 的任务上继续显示进度,**不报错**。这里用回调注入查找逻辑,避免
-  // settings store 硬依赖 timeline store(任务列表的所有权在 timeline,不复制第二份轮询)。
-  async function rebuildIndex(findRunningId?: () => string | undefined): Promise<string> {
+  // 409 = 后端已有一个重建在跑。Vue2 PhotosSettings.vue:458-473 此时 dispatch 一次
+  // 'photos/fetchTasks'(一次性刷新,不是新轮询)、再在本地任务列表里找
+  // type==='rebuild' 的那条绑定显示进度,**不报错**。这里同样调用 timeline store 现成的
+  // fetchTasks() 一次并读它的 tasks —— "不要另建一份任务轮询" 指的是不要在本 store 里再起
+  // 一个 setInterval/poller,消费 timeline 已有的刷新动作和状态不算违反。useTimelineStore()
+  // 必须在 action 内部调用(而非模块顶层),否则在 Pinia 激活前调用会报错。
+  async function rebuildIndex(): Promise<string> {
     try {
       const res = (await service.photos.rebuildIndex()) as { taskId?: string } | null
       return res?.taskId ?? ''
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status
-      if (status === 409) return findRunningId?.() ?? ''
+      if (status === 409) {
+        const timeline = useTimelineStore()
+        await timeline.fetchTasks()
+        const running = timeline.tasks.find(t => t.type === 'rebuild')
+        return running?.id != null ? String(running.id) : ''
+      }
       throw e
     }
   }
