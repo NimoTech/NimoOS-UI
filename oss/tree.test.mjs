@@ -9,7 +9,7 @@ let tree
 
 beforeAll(() => {
   tree = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-out-'))
-  execFileSync('node', [path.join(OSS, 'export.mjs'), '--out', tree, '--skip-guard', '--no-commit'], {
+  execFileSync('node', [path.join(OSS, 'export.mjs'), '--out', tree, '--skip-guard', '--no-commit', '--allow-dirty-oss'], {
     stdio: 'pipe', encoding: 'utf8',
   })
 }, 180_000)
