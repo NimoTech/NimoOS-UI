@@ -384,7 +384,9 @@ describe('五个控制动作(蓝本 :45-64)—— 先 parserControl,再 await lo
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
   })
 
-  it('🔴 setConcurrency 传的键是 `n`(不是 `concurrency`),并重载', async () => {
+  // 键名 `n` 与设置页那条路径**一致**(蓝本 `SettingsView.vue:292` 同样传 `{ n }`),
+  // 后端 `controlReq` 也是 `N *int json:"n"` —— 这里钉死它,不是登记「两处不一致」。
+  it('🔴 setConcurrency 的键是 `n`(与设置页调用点、后端 controlReq 一致),并重载', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.setConcurrency(4)

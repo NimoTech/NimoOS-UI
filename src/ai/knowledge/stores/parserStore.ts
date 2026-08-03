@@ -110,7 +110,10 @@ export interface ParserFailedJob {
   [k: string]: unknown
 }
 
-export const useParserStore = defineStore('parser', () => {
+// store id 用 `'ai-parser'`(协调者 2026-08-03 采纳 T5 顾虑 ②):AI 区既有三个 store 是
+// `'ai-knowledge'` / `'ai-settings'` / `'ai-theme'`,本区不留没带 `ai-` 前缀的孤例。
+// 导出名 `useParserStore` 不变。
+export const useParserStore = defineStore('ai-parser', () => {
   // ── state(蓝本 :5-18,初值逐字照抄)──
 
   /** 蓝本 :6-11。 */
@@ -185,9 +188,11 @@ export const useParserStore = defineStore('parser', () => {
   }
 
   // ── 五个控制动作(蓝本 :45-64)——「先 `parserControl` 再 `await loadAll()`」,
-  //    body 的字段名逐字照抄(注意 `set_concurrency` 传的键是 **`n`**,不是
-  //    `concurrency` —— 那是 `knowledgeStore.setControl` 调用点的写法,两处不同是
-  //    Vue2 现状,照抄)。
+  //    body 的字段名逐字照抄。`set_concurrency` 的键是 **`n`**,与设置页那条路径
+  //    **一致**(蓝本 `SettingsView.vue:292` 也是 `setControl('set_concurrency', { n })`,
+  //    而 `knowledgeStore.setControl` 只是 `{ action, ...extra }` 展开转发、键名由调用点
+  //    决定);后端契约同样是 `n`(NimoOS-AI `route/v2/parser_proxy.go:80-85` 的
+  //    `controlReq{ N *int  json:"n,omitempty" }`)。**没有历史包袱,不需要「统一」。**
 
   /** 蓝本 :45-48。 */
   async function pause(): Promise<void> {
