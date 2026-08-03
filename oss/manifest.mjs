@@ -51,7 +51,18 @@ export const DELETE = [
   // 搜索 demo 的鱼(SearchDialog 写死的 demo 素材)
   'public/demo/fish_video_poster.jpg',
 
-  // 测试同步:整体删除的 9 个(T13 填齐;Service 侧的 photos.test.ts 在 SERVICE_DELETE)
+  // 测试同步:整体删除的 9 个孤儿测试(T13;每个都已核实其唯一/主要消费的模块已在
+  // 上面 DELETE 掉,不是"混合型",不能靠 PATCH 抠用例保留部分覆盖率——见 task-13-report.md)
+  'src/home/stores/photos.test.ts',                       // import photos.ts(已删)+ isAssetId.ts(已删)
+  'src/home/components/PhotoTile.test.ts',                // import PhotoTile.vue(已删)
+  'src/home/components/SearchDialog.test.ts',             // import SearchDialog.vue(已删)
+  'src/home/components/widgets/AiWidget.test.ts',         // import AiWidget.vue(已删)
+  'src/files/viewers/speakerWave.test.ts',                // import speakerWave.ts(已删)
+  'src/settings/panels/FolderPermissionsPanel.test.ts',   // import FolderPermissionsPanel.vue(已删)
+  'src/settings/util/folderPermissions.test.ts',          // import folderPermissions.ts(已删)
+  'src/settings/util/folderPermissionsSnapshot.test.ts',  // import folderPermissionsSnapshot.ts(已删)
+  'src/settings/util/folderPermissionsView.test.ts',      // import folderPermissionsView.ts(已删)
+  // FolderPickerDialog.test.ts 不用单列:它在 'src/settings/panels/folderPerm'(上面已整目录删除)里面。
 ]
 
 /** Service 侧的整体删除(相对 packages/service/)。 */
@@ -525,10 +536,467 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/styles/theme.css',
     find: ".grid-item:not(.editing).kind-folder:active .folder-tile,\n.grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }",
     replace: ".grid-item:not(.editing).kind-folder:active .folder-tile { transform: scale(.95); transition: transform .1s var(--ease, ease); }" },
+
+  // ═══════════════════ T13:测试同步(混合型文件抠用例/改内容) ══════════════
+
+  // ── useOpenAction.test.ts:4 处断言 window.location.href 的用例,在开源版
+  //    SYS_ROUTE/cutoverDisabled 改法下行为已变(§8.2 有意偏离),整块删除 ──────
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('settings 维持 /#/legacy(P8 cutover 不动它)', () => {
+    const { openApp } = useOpenAction()
+    openApp('settings'); expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
+  })
+`,
+    replace: '' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('回退 flag strangler:disabled:/apps==1 时 appstore 退回 /#/legacy', () => {
+    localStorage.setItem('strangler:disabled:/apps', '1')
+    const { openApp } = useOpenAction()
+    openApp('appstore')
+    expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/apps')
+  })
+`,
+    replace: '' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('回退 flag strangler:disabled:/storage==1 时 storage 退回 /#/legacy', () => {
+    localStorage.setItem('strangler:disabled:/storage', '1')
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/storage')
+  })
+`,
+    replace: '' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('photo navigates to /#/photos', () => {
+    const { openItem } = useOpenAction()
+    openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
+    expect(hrefs[0]).toBe('/#/photos')
+  })
+`,
+    replace: '' },
+
+  // ── HomeTopbar.test.ts:唯一的搜索胶囊用例,组件本身已在 T6 删掉 .search-btn ───
+  { path: 'src/home/components/HomeTopbar.test.ts',
+    find: `  it('search button opens the search palette', async () => {
+    const ui = useHomeUiStore()
+    const w = mount(HomeTopbar)
+    expect(ui.searchOpen).toBe(false)
+    await w.get('.search-btn').trigger('click')
+    expect(ui.searchOpen).toBe(true)
+  })
+`,
+    replace: '' },
+
+  // ── GridItem.click.test.ts:唯一的照片瓦片点击用例,'photo' 已不是合法 Kind ──
+  { path: 'src/home/components/GridItem.click.test.ts',
+    find: `  it('clicking a photo navigates to /#/photos', async () => {
+    const item: LayoutItem = { id: 'p', kind: 'photo', key: 'linear-gradient(0,#000)', c: 1, r: 1, w: 2, h: 2 }
+    const w = mount(GridItem, { props: { item } })
+    await w.get('[data-id="p"]').trigger('click')
+    expect(hrefs[0]).toBe('/#/photos')
+  })
+`,
+    replace: '' },
+
+  // ── MobileHome.test.ts:mock 里的 sendToAI(T6 已删该函数)+ seed() 的照片项 +
+  //    随之改变的瓦片计数/顺序断言 + 唯一的照片瓦片专项用例(整块删除)────────
+  { path: 'src/home/components/MobileHome.test.ts',
+    find: `vi.mock('../composables/useOpenAction', () => ({
+  useOpenAction: () => ({ openItem, openApp: vi.fn(), sendToAI: vi.fn() }),
+}))
+`,
+    replace: `vi.mock('../composables/useOpenAction', () => ({
+  useOpenAction: () => ({ openItem, openApp: vi.fn() }),
+}))
+` },
+  { path: 'src/home/components/MobileHome.test.ts',
+    find: `  layout.items = [
+    item({ id: 'w1', kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 }),
+    item({ key: 'files', c: 3, r: 1 }),
+    item({ id: 'ph', kind: 'photo', key: 'linear-gradient(#fff,#000)', c: 4, r: 2, w: 2, h: 2 }),
+    item({ id: 'fd', kind: 'folder', key: 'Documents', c: 1, r: 3, path: '/DATA/Documents' }),
+  ]
+`,
+    replace: `  layout.items = [
+    item({ id: 'w1', kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 }),
+    item({ key: 'files', c: 3, r: 1 }),
+    item({ id: 'fd', kind: 'folder', key: 'Documents', c: 1, r: 3, path: '/DATA/Documents' }),
+  ]
+` },
+  { path: 'src/home/components/MobileHome.test.ts',
+    find: `  it('splits widgets (full-width) from tiles (icon grid) in desktop visual order', () => {
+    seed()
+    const w = mount(MobileHome, { global: { plugins: [i18n] } })
+    expect(w.findAll('.m-widget')).toHaveLength(1)
+    const tiles = w.findAll('.m-tile')
+    expect(tiles).toHaveLength(3)
+    expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-photo' || c === 'kind-folder')))
+      .toEqual([true, true, true])
+    // 顺序:files(r1) → photo(r2) → folder(r3)
+    expect(tiles[0].classes()).toContain('kind-app')
+    expect(tiles[1].classes()).toContain('kind-photo')
+    expect(tiles[2].classes()).toContain('kind-folder')
+  })
+`,
+    replace: `  it('splits widgets (full-width) from tiles (icon grid) in desktop visual order', () => {
+    seed()
+    const w = mount(MobileHome, { global: { plugins: [i18n] } })
+    expect(w.findAll('.m-widget')).toHaveLength(1)
+    const tiles = w.findAll('.m-tile')
+    expect(tiles).toHaveLength(2)
+    expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-folder')))
+      .toEqual([true, true])
+    // 顺序:files(r1) → folder(r3)
+    expect(tiles[0].classes()).toContain('kind-app')
+    expect(tiles[1].classes()).toContain('kind-folder')
+  })
+` },
+  { path: 'src/home/components/MobileHome.test.ts',
+    find: `  it('marks photo tiles as 2x2 spans', () => {
+    seed()
+    const w = mount(MobileHome, { global: { plugins: [i18n] } })
+    expect(w.find('.m-photo').exists()).toBe(true)
+    expect(w.find('.m-photo').classes()).toContain('kind-photo')
+  })
+
+`,
+    replace: '' },
+
+  // ── defaultLayout.test.ts:两条坐标无关的通用断言全部保留(覆盖新 15 项布局),
+  //    只有 WIDGETS registry 计数从 7→6(ai 小组件已删)需要改 ──────────────────
+  { path: 'src/home/grid/defaultLayout.test.ts',
+    find: `  it('carries min/max/default for the 7 widgets', () => {
+    expect(Object.keys(WIDGETS).sort()).toEqual(['ai', 'clock', 'cpu', 'events', 'gpu', 'network', 'storage'])
+`,
+    replace: `  it('carries min/max/default for the 6 widgets', () => {
+    expect(Object.keys(WIDGETS).sort()).toEqual(['clock', 'cpu', 'events', 'gpu', 'network', 'storage'])
+` },
+
+  // ── tabs.test.ts:folder-permissions 已删(9→8 tab,7→6 rail),railTabsFor 退化
+  //    为无参恒等 —— 4 处旧签名调用 railTabsFor(role) 会编译报错,连同它测的
+  //    「按角色隐藏 folder-permissions」这整块行为(已不存在)一起删除 ──────────
+  { path: 'src/settings/util/tabs.test.ts',
+    find: `  isSettingsTab,
+  railTabsFor,
+} from './tabs'`,
+    replace: `  isSettingsTab,
+} from './tabs'` },
+  { path: 'src/settings/util/tabs.test.ts',
+    find: `  it('9 个 tab,顺序与 Vue2 一致(rail 7 项 + account + developer)', () => {
+    expect(SETTINGS_TABS).toEqual([
+      'general',
+      'storage',
+      'network',
+      'apps',
+      'terminal',
+      'system-status',
+      'folder-permissions',
+      'account',
+      'developer',
+    ])
+  })`,
+    replace: `  it('8 个 tab,顺序与 Vue2 一致(rail 6 项 + account + developer)', () => {
+    expect(SETTINGS_TABS).toEqual([
+      'general',
+      'storage',
+      'network',
+      'apps',
+      'terminal',
+      'system-status',
+      'account',
+      'developer',
+    ])
+  })` },
+  { path: 'src/settings/util/tabs.test.ts',
+    find: `  it('rail 只有 7 项 —— account 走用户块、developer 走 general 页内入口(Vue2 L855-863/L13/L315)', () => {
+    expect(RAIL_TABS).toEqual([
+      'general',
+      'storage',
+      'network',
+      'apps',
+      'terminal',
+      'system-status',
+      'folder-permissions',
+    ])
+  })`,
+    replace: `  it('rail 只有 6 项 —— account 走用户块、developer 走 general 页内入口(Vue2 L855-863/L13/L315)', () => {
+    expect(RAIL_TABS).toEqual([
+      'general',
+      'storage',
+      'network',
+      'apps',
+      'terminal',
+      'system-status',
+    ])
+  })` },
+  { path: 'src/settings/util/tabs.test.ts',
+    find: `
+  it('admin 看到全部 7 项', () => {
+    expect(railTabsFor('admin')).toEqual(RAIL_TABS)
+  })
+
+  it('非 admin 看不到 folder-permissions(Vue2 visibleTabs L1034)', () => {
+    expect(railTabsFor('user')).not.toContain('folder-permissions')
+    expect(railTabsFor('user')).toHaveLength(6)
+  })
+
+  it('role 缺失按非 admin 处理(保守:不泄漏管理项)', () => {
+    expect(railTabsFor(undefined)).not.toContain('folder-permissions')
+  })
+})
+`,
+    replace: `
+})
+` },
+
+  // ── panels.test.ts:folder-permissions 那个 tab 没了,PANEL_BY_TAB 键数 9→8,
+  //    历史注释里有一处点名了已删的 FolderPermissionsPanel.test.ts(悬空引用)───
+  { path: 'src/settings/panels/panels.test.ts',
+    find: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(9)\n',
+    replace: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(8)\n' },
+  { path: 'src/settings/panels/panels.test.ts',
+    find: `  // P4 起 folder-permissions 与 account 也填了真实内容
+  // (见 FolderPermissionsPanel.test.ts / AccountPanel.test.ts)——**至此 9 个 tab 全部实现完毕,
+  // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。`,
+    replace: `  // account 也填了真实内容(见 AccountPanel.test.ts)——**至此所有 tab 全部实现完毕,
+  // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。` },
+
+  // ── AppsPanel.test.ts:fixture 第 4 个 key 改名(photos_data 是 HARD 禁词,
+  //    且组件本身只认 app_data/images/database,第 4 个 key 叫什么都无所谓)+
+  //    待上传缓存禁用态标注的断言跟着 T7 洗白后的新文案走(HARD 禁词「相册」)──
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
+    replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含 photos_data),界面 1:1 只显示 3 行', async () => {",
+    replace: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {" },
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带待相册区迁移的标注(政策三"做样子")\', async () => {',
+    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注(政策三"做样子")\', async () => {' },
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
+    replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
+
+  // ── appPaths.test.ts:同一份 fixture 的 photos_data 键改名(HARD 禁词)────────
+  { path: 'src/settings/util/appPaths.test.ts',
+    find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
+    replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
+  { path: 'src/settings/util/appPaths.test.ts',
+    find: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),Vue2 只渲染 3 行', () => {",
+    replace: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),Vue2 只渲染 3 行', () => {" },
+
+  // ── installedApps.test.ts:注释点名 AI agent / Photos ML,措辞对齐 T7 洗白后
+  //    的孪生产品代码注释(installedApps.ts 同一行,已在上面改过) ─────────────
+  { path: 'src/apps/stores/installedApps.test.ts',
+    find: "  it('refresh 过滤系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)', async () => {",
+    replace: "  it('refresh 过滤系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)', async () => {" },
+
+  // ── systemApp.test.ts:文件头注释独立复述了同一段解释,同样点名 Photos ML,
+  //    与 systemApp.ts 源文件那处 T7 洗白对齐(该文件本身不在 REPLACE/PATCH 表里
+  //    改过,是测试文件自己写的第二份类似文案)─────────────────────────────────
+  { path: 'src/apps/util/systemApp.test.ts',
+    find: `// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
+// compose 任一 service 的 label \`nimoos.system == "true"\` 即系统幕后组件,
+// 应从面向用户的应用管理页隐藏(agent 运行时 / Photos ML 后端等)。
+`,
+    replace: `// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
+// compose 任一 service 的 label \`nimoos.system == "true"\` 即系统幕后组件,
+// 应从面向用户的应用管理页隐藏(供其他应用使用的内部服务容器等)。
+` },
+
+  // ── locale.test.ts:mock blob 里的 search_switch(E2 已从 systemConfig 类型删除
+  //    该字段;这条用例本意是测"读-改-写保留未知字段",字段叫什么不影响语义,
+  //    换个不涉及被删功能的占位字段名即可)────────────────────────────────────
+  { path: 'src/stores/locale.test.ts',
+    find: `    getCustomStorage.mockResolvedValueOnce({ timezone: 'UTC', search_switch: true })
+    await useLocaleStore().persist('en_us')
+    expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    expect(setCustomStorage.mock.calls[0]?.[0]).toBe('system')
+    expect(setCustomStorage.mock.calls[0]?.[1]).toEqual({ timezone: 'UTC', search_switch: true, lang: 'en_us' })
+`,
+    replace: `    getCustomStorage.mockResolvedValueOnce({ timezone: 'UTC', other_flag: true })
+    await useLocaleStore().persist('en_us')
+    expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    expect(setCustomStorage.mock.calls[0]?.[0]).toBe('system')
+    expect(setCustomStorage.mock.calls[0]?.[1]).toEqual({ timezone: 'UTC', other_flag: true, lang: 'en_us' })
+` },
+
+  // ── eventMap.test.ts:i18nName() 只是拿 JSON 取字段做单测,样本值恰好写成
+  //    HARD 禁词「相册」,换成任意非候选词的中文即可(eventMap.ts 本身与 AI/相册
+  //    无关,零消费方核实见 task-13-report.md/chinese-leaks.md T13 节)────────
+  { path: 'src/home/util/eventMap.test.ts',
+    find: `    expect(i18nName('{"zh_cn":"相册"}')).toBe('相册')
+`,
+    replace: `    expect(i18nName('{"zh_cn":"文档"}')).toBe('文档')
+` },
+
+  // ── useDock.test.ts / useDock.reorder.test.ts:DEFAULT_FAV 已从 5 项(含
+  //    photos/ai)改成 4 项(files/storage/vm/appstore,T6),且 systemApps 里
+  //    已经没有 photos/ai 这两个 key 了 —— apps.app('photos'/'ai') 恒 undefined,
+  //    setFav 会把它们过滤掉,断言必须换成 oss 版仍然存在的 key ──────────────
+  { path: 'src/home/composables/useDock.test.ts',
+    find: `  it('defaults favKeys to the 5 dock keys and computes moreKeys as the rest', () => {
+    useAppsStore() // 系统 6 应用就位
+    const d = useDock()
+    expect(d.favKeys.value).toEqual(['files', 'photos', 'ai', 'vm', 'appstore'])
+    expect(d.moreKeys.value).toContain('settings') // 第 6 个系统应用进 more
+    expect(d.moreKeys.value).not.toContain('files')
+  })
+  it('setFav persists to localStorage', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'photos'])
+    expect(JSON.parse(localStorage.getItem('nimoos.home.dockfav')!)).toEqual(['files', 'photos'])
+    expect(d.moreKeys.value).toContain('ai')
+  })`,
+    replace: `  it('defaults favKeys to the 4 dock keys and computes moreKeys as the rest', () => {
+    useAppsStore() // 系统 5 应用就位
+    const d = useDock()
+    expect(d.favKeys.value).toEqual(['files', 'storage', 'vm', 'appstore'])
+    expect(d.moreKeys.value).toContain('settings') // 第 5 个系统应用进 more
+    expect(d.moreKeys.value).not.toContain('files')
+  })
+  it('setFav persists to localStorage', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'storage'])
+    expect(JSON.parse(localStorage.getItem('nimoos.home.dockfav')!)).toEqual(['files', 'storage'])
+    expect(d.moreKeys.value).toContain('vm')
+  })` },
+  { path: 'src/home/composables/useDock.reorder.test.ts',
+    find: `  it('moves a more-key into favorites before a given key', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'photos'])
+    d.reorder('settings', 'fav', 'photos') // settings(more) 插到 photos 前
+    expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
+  })`,
+    replace: `  it('moves a more-key into favorites before a given key', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'vm'])
+    d.reorder('settings', 'fav', 'vm') // settings(more) 插到 vm 前
+    expect(d.favKeys.value).toEqual(['files', 'settings', 'vm'])
+  })` },
+  { path: 'src/home/composables/useDock.reorder.test.ts',
+    find: `  it('moves a fav-key out to more (drop at end of more)', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'photos', 'ai'])
+    d.reorder('ai', 'more', null)
+    expect(d.favKeys.value).not.toContain('ai')
+  })`,
+    replace: `  it('moves a fav-key out to more (drop at end of more)', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'storage', 'vm'])
+    d.reorder('vm', 'more', null)
+    expect(d.favKeys.value).not.toContain('vm')
+  })` },
+  // 复审:注释里点名的示例 key 'photos'/'ai' 也已经不存在了(纯注释,不影响断言,
+  // 但会让人以为这两个 key 还在 —— 顺手换成仍然存在的示例)
+  { path: 'src/home/composables/useDock.reorder.test.ts',
+    find: "    // moreKeys should now contain all other apps including 'photos', 'ai', etc.\n",
+    replace: "    // moreKeys should now contain all other apps besides 'files', etc.\n" },
+  { path: 'src/home/composables/useDock.reorder.test.ts',
+    find: `  it('reorder more→fav: inserts before a given fav key', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'photos'])
+    // settings is in more; reorder into fav before 'photos'
+    d.reorder('settings', 'fav', 'photos')
+    expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
+    expect(d.moreKeys.value).not.toContain('settings')
+  })`,
+    replace: `  it('reorder more→fav: inserts before a given fav key', () => {
+    useAppsStore()
+    const d = useDock()
+    d.setFav(['files', 'vm'])
+    // settings is in more; reorder into fav before 'vm'
+    d.reorder('settings', 'fav', 'vm')
+    expect(d.favKeys.value).toEqual(['files', 'settings', 'vm'])
+    expect(d.moreKeys.value).not.toContain('settings')
+  })` },
+
+  // ── 复审(实测 pnpm test 才发现,brief 原始清单没覆盖到)────────────────────
+  // HomeDock.test.ts:点击 dock 上的 settings 图标,断言方式与 useOpenAction.test.ts
+  // 里删掉的那条同源 —— SYS_ROUTE 改内部路由后不再走 window.location.href,
+  // 改成断言 mock 的 router.push(同文件顶部已有 router mock,和 files 那条用例同款)。
+  { path: 'src/home/components/HomeDock.test.ts',
+    find: `  it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
+    useAppsStore()
+    const hrefs: string[] = []
+    Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('true')
+    await w.get('.dock-app[data-app="settings"]').trigger('click')
+    expect(hrefs[0]).toBe('/#/legacy')
+    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
+  })`,
+    replace: `  it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('true')
+    await w.get('.dock-app[data-app="settings"]').trigger('click')
+    expect(router.push).toHaveBeenCalledWith('/settings')
+    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
+  })` },
+  // 全部应用抽屉的应用总数:oss 只有 5 个系统应用(files/storage/vm/appstore/settings,
+  // T6 删了 photos/ai),抽屉里 .dock-app 数量恒等于 apps.order.length = 5,不是私有版的 6
+  { path: 'src/home/components/HomeDock.test.ts',
+    find: `    // 全量 = fav(5) + more(≥1,含设置),多于 dock 条上的 4+1
+    expect(sheet!.querySelectorAll('.dock-app').length).toBeGreaterThanOrEqual(6)`,
+    replace: `    // 全量 = oss 全部 5 个系统应用(fav 4 + more 里的 settings),多于 dock 条上的 4+1
+    expect(sheet!.querySelectorAll('.dock-app').length).toBeGreaterThanOrEqual(5)` },
+
+  // ── SettingsShell.test.ts:railTabsFor 不再按角色过滤,"admin 看到 folder-
+  //    permissions" 这整条用例测的行为已经不存在,整块删除(同 tabs.test.ts 那 3 条)──
+  { path: 'src/settings/components/SettingsShell.test.ts',
+    find: `  it('admin rail 有 7 项且含 folder-permissions', async () => {
+    localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
+    const { w } = await mountShell()
+    const items = w.findAll('.set-rail-item')
+    expect(items).toHaveLength(7)
+    expect(items.map((i) => i.attributes('data-tab'))).toContain('folder-permissions')
+  })
+
+`,
+    replace: '' },
 ]
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
 export const SERVICE_PATCH = [
+  // ── T13 复审 Critical:内嵌包不带构建产物,`pnpm test` 编译不过 ─────────────
+  // export.mjs 用 `git archive HEAD` 取源(见该文件"取源"注释),NimoOS-Service
+  // 的 dist/ 是构建产物、.gitignore 里就没进 git,git archive 天然拿不到它 ——
+  // package.json 却指向 ./dist/index.js,导致 pnpm install 按 "files": ["dist"]
+  // 打包出的 @nimotech/nimoos-service 里只剩一个 package.json,任何消费它的测试
+  // 文件全部 "Failed to resolve entry for package"(T13 是第一个真的在产出树里跑
+  // `pnpm install && pnpm test` 的任务,此前 T5-T12 都没有实测暴露过这个洞)。
+  // 修法:改 main/module/types/exports 直接指向 TS 源码入口,不依赖预构建产物 ——
+  // 源文件内部互相 import 都写成 NodeNext 风格的 `./xxx.js`(为了配合 tsc 构建后
+  // 的真实产物路径),Vite/esbuild 的 bundler 模式解析能把 `.js` 说明符按 TS 源码
+  // 惯例映射回同名 `.ts` 文件(已实测 vitest 与 vue-tsc 都能正确解析,见
+  // task-13-report.md)。这样出包既不需要在 export 流程里新增构建步骤,也不需要
+  // 把构建产物提交进 git——两者都会违反"只改 manifest.mjs"的任务边界。
+  { path: 'package.json',
+    find: `  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],`,
+    replace: `  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": { "types": "./src/index.ts", "import": "./src/index.ts" } },
+  "files": ["src"],` },
   { path: 'src/index.ts', find: "import { createPhotos } from './photos.js'\n", replace: '' },
   { path: 'src/index.ts', find: 'PhotoAsset, ', replace: '' },
   { path: 'src/index.ts',

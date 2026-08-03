@@ -426,3 +426,92 @@ describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
     }
   })
 })
+
+describe('类 4 · 测试同步', () => {
+  it('被删功能的测试文件整体不在', () => {
+    for (const rel of [
+      'src/home/components/PhotoTile.test.ts',
+      'src/home/components/SearchDialog.test.ts',
+      'src/home/components/widgets/AiWidget.test.ts',
+      'src/home/stores/photos.test.ts',
+      'src/files/viewers/speakerWave.test.ts',
+      'src/settings/panels/FolderPermissionsPanel.test.ts',
+      'src/settings/util/folderPermissions.test.ts',
+      'src/settings/util/folderPermissionsSnapshot.test.ts',
+      'src/settings/util/folderPermissionsView.test.ts',
+      // 不是 DELETE 表单独一条 —— 整个 'src/settings/panels/folderPerm' 目录已删
+      'src/settings/panels/folderPerm/FolderPickerDialog.test.ts',
+      'packages/service/src/photos.test.ts',
+    ]) expect(exists(rel), rel).toBe(false)
+  })
+
+  it('混合型测试文件保留,但里面不再提被删的东西', () => {
+    for (const rel of [
+      'src/home/components/HomeTopbar.test.ts',
+      'src/home/components/MobileHome.test.ts',
+      'src/home/components/GridItem.click.test.ts',
+      'src/home/composables/useDock.test.ts',
+      'src/home/composables/useDock.reorder.test.ts',
+      'src/home/composables/useOpenAction.test.ts',
+      'src/home/grid/defaultLayout.test.ts',
+      'src/home/stores/homeUi.test.ts',
+      'src/home/components/HomeDock.test.ts',
+      'src/settings/components/SettingsShell.test.ts',
+      'src/settings/panels/panels.test.ts',
+      'src/settings/panels/AppsPanel.test.ts',
+      'src/settings/util/appPaths.test.ts',
+      'src/settings/util/tabs.test.ts',
+      'src/apps/stores/installedApps.test.ts',
+      'src/apps/util/systemApp.test.ts',
+      'src/home/util/eventMap.test.ts',
+      'src/views/Home.integration.test.ts',
+      'src/stores/locale.test.ts',
+    ]) {
+      expect(exists(rel), rel).toBe(true)
+      const s = read(rel)
+      for (const bad of ['PhotoTile', 'SearchDialog', 'AiWidget', 'usePhotosStore',
+                         'search_switch', 'FolderPermissionsPanel', 'folderPermissions',
+                         'sendToAI', "kind: 'photo'", 'photos_data', '相册']) {
+        expect(s, `${rel} :: ${bad}`).not.toContain(bad)
+      }
+      // UserFolderPermission(成员文件夹授权)是保留面,不在上面的禁列里 —— 见 E4
+    }
+  })
+
+  it('tabs.test.ts 不再以旧签名调用 railTabsFor(role),tab 计数跟着降', () => {
+    const s = read('src/settings/util/tabs.test.ts')
+    expect(s).not.toMatch(/railTabsFor\(/) // 按角色过滤的三条用例已随功能一起删除
+    expect(s).not.toContain('folder-permissions')
+    expect(read('src/settings/panels/panels.test.ts')).toContain('toHaveLength(8)')
+  })
+
+  it('复审:HomeDock/SettingsShell 两个实测才暴露的漏网之鱼(brief 原始清单未覆盖)', () => {
+    const dock = read('src/home/components/HomeDock.test.ts')
+    expect(dock).not.toMatch(/hrefs\[0\]\)\.toBe\('\/#\/legacy'\)/) // settings 已改 router.push
+    expect(dock).toContain("expect(router.push).toHaveBeenCalledWith('/settings')")
+    expect(dock).not.toContain('toBeGreaterThanOrEqual(6)') // oss 只有 5 个系统应用
+    const shell = read('src/settings/components/SettingsShell.test.ts')
+    expect(shell).not.toContain('folder-permissions')
+    expect(shell).not.toMatch(/toHaveLength\(7\)/)
+  })
+
+  it('内嵌 Service 不依赖预构建 dist/:package.json 指向 TS 源码入口', () => {
+    const pkg = JSON.parse(read('packages/service/package.json'))
+    expect(pkg.main).toBe('./src/index.ts')
+    expect(pkg.exports['.'].import).toBe('./src/index.ts')
+    expect(pkg.files).toEqual(['src'])
+    expect(exists('packages/service/dist')).toBe(false) // 从不依赖它存在
+  })
+
+  it('useDock 相关测试不再引用 photos/ai 这两个已删的系统应用 key', () => {
+    for (const rel of ['src/home/composables/useDock.test.ts', 'src/home/composables/useDock.reorder.test.ts']) {
+      const s = read(rel)
+      expect(s, rel).not.toContain("'photos'")
+      expect(s, rel).not.toContain("'ai'")
+    }
+  })
+
+  it('defaultLayout.test.ts 的 widget 计数降到 6(ai 小组件已删)', () => {
+    expect(read('src/home/grid/defaultLayout.test.ts')).toContain('for the 6 widgets')
+  })
+})
