@@ -411,3 +411,72 @@ Vite 当普通依赖**预打包**;缓存失效判据是 lockfile / vite config /
 - **越界与卫生**:`git show --name-only 820d426 | grep -i "src/ai"` → **空**;主工作树只有那 3 个既有 design-export staged 删除**零新增改动**(T11 确实只读没写);`.sp7` 工作树 `git status --short` **空**;`git branch --contains` 只有 `sp8-ai`
 - 副作用核查:探针期间 dev server 因配置变更自动重启 4 次,每次 `server restarted.` 无报错、`curl -sI` 均 200 → **这条 `exclude` 规则本身表现正常**;生产构建不受影响(`optimizeDeps` 只影响 dev)
 - **Task 11: complete (commit `820d426`, review clean 零 Critical 零 Important, 1 trivial minor)**
+
+---
+
+## 🔎 验收第 1 轮(2026-08-03)—— 未关账
+
+**坐标**:New-UI `sp8-ai`@`e4a4220`(工作树干净)· Service `sp8-ai`@`15c2eba` · dev server PID 85265 / `:5288`(已跑 1d7h,`curl -sI /app/` 200)
+**开工前复验**:`node_modules/.vite/deps/` 无 `nimoos-service` 残留 → T11 那个「dev 喂旧代码」的坑仍然堵着,用户看到的是真代码
+
+### 走到哪儿
+
+用户从 **A1 一路走到 B18**,**期间未报任何缺陷**;在 B18 卡住(找不到「失败」磁贴),随后转去追概览页 60 秒骨架的根因。
+**B19–B21(沉淀 scope / 刷新保持 / 暗色第二轮)未走,验收未正式关账。**
+
+### 发现 1 —— 🔴 清单漏项(不是代码缺陷)
+
+**B18「从概览页点『失败』磁贴」在本机根本没有可点的东西。**
+`DashboardView.vue:508-511`:`failed > 0` 才渲染 `<button class="k2-qchip" data-tone="danger">`(带 `→`);
+`failed === 0` 渲染不可点的 `<span>`。本机 `failed: 0`,**照抄 Vue2,渲染成纯文字是正确行为**。
+连带 `entries` 的 `badge: failed` + `:548` `v-if="(e.badge || 0) > 0"` → 「任务」项红色角标也不出现。
+
+**根因是清单本身**:`p5b-acceptance.md` §二「本机数据不够真机看不到」列了 6 条,**漏了这一条**,
+把一个数据依赖项当成了可验项。已修:§二 补第 7 条(含代码坐标 + 磁贴位置 + 替代验法)、B18 行改删除线。
+**替代验法**(已验证机制存在,`QueueView.vue:131-135` `watch route.query.filter` + `immediate`):
+直接敲 `…/app/#/ai/knowledge/queue?filter=failed`(及 `?filter=running`)—— 不用造数据就能验深链。
+
+🔴 **给 P5c 的教训**:清单里凡是「点某个东西」的项,必须先确认**该元素在本机数据下真的渲染成可点元素**。
+`v-if="x > 0"` 这类数据依赖的可点性,是「看起来能验其实验不了」的高发区。SP9-P4 已有同类教训
+(「面板内状态机/弹窗才能到达的屏必须写点击路径」),这次是它的变种:**不只要写路径,还要确认路径上的元素存在**。
+
+### 发现 2 —— 本机数据漂移,清单数字已过期
+
+清单写于 08-02,后台索引一直在跑。08-03 实测(`/v1/parser/stats` + `/v1/parser/files?limit=20`):
+`indexed_files: 7`(**4** indexing + **3** ok)· `pending: 339` · `running: 1` · `failed: 0` · `done: 9`。
+原清单 A1 写「8 个 / 5 行索引中」、B14 写「338」→ 已在清单里就地校正并标注「数字对不上不是缺陷」。
+另:**最小向量数现在是 1**(原先那行 `vector_count: 0` 的已索引完)→ 「无可搜索内容」提示比 08-02 时更验不到。
+
+**给 P5c 的教训**:验收清单里的**具体计数**有保质期(本机后台索引持续在跑)。
+交付清单时应写「实测于 YYYY-MM-DD,数字会漂,以下列命令现测为准」并附取数命令,而不是钉死数字。
+
+### 发现 3 —— 概览页 60 秒骨架:根因下钻(用户要求查,查完仍**不修**)
+
+**先声明**:60 秒这件事**不是本次新发现**。roadmap §566(2026-07-31 P5 规划会话)已完整记录
+「`loadRoots()` 打死掉的 `/v1/wiki/roots`、共享包 axios `timeout: 60000`(`src/http.ts:50`)→ 整页骨架卡 60 秒」,
+且 **D1 用户拍板不修**、已写进 P5a 验收清单当预期行为。本次是用户在验收间隙要求「往下查为什么」。
+
+**本次新增的证据(roadmap 未记的部分)**:
+
+1. **实测确认接口不是慢而是完全不回包**:`curl --max-time 70 http://127.0.0.1/v1/wiki/roots` → `http=000 time=70.002s`,零字节。
+2. **Wiki 服务本身是活的**:同进程别的路径 `http=404 time=0.0039s` → 不是服务死了,是**这一个 handler 排不上队**。
+3. **后端机制**:`NimoOS-Wiki/pkg/db/db.go:29` `SetMaxOpenConns(1)` —— 全服务同时只允许 1 个 DB 操作;
+   `wiki.db` **36 GB**(`-shm`/`-wal` 尚在);进程 `nimoos-wiki` 已连续运行 **2d18h、CPU 稳定 20.3%**。
+   → 某个长活儿霸占唯一那条连接不放,`/roots` 无限排队。**(具体是什么活儿未钉死 —— 日志需 root,且
+   `/var/log/nimoos/nimoos-wiki.log` 最后写入停在 07-31 16:05。要挖到底须 `sudo journalctl -u nimoos-wiki`。)**
+4. 🔴 **文件头【N3】注释里那条 fail-fast 论证在当前代码下不成立**:注释说 `Promise.all` 的 fail-fast
+   能让「任一 reject → 立刻 settle」,并以此论证不该换 `allSettled`。但**三个 loader 各自内部都 try/catch 吞错**
+   (`loadOverview` :332 · `loadRoots` :661 · `loadNotesSummary` :534)→ **没有一个会 reject** →
+   `Promise.all` 在此处与 `allSettled` **行为完全等价**,fail-fast 永不触发;真悬挂时两者都出不来骨架。
+   **这是注释的论证瑕疵,不是行为缺陷**(实际行为 = 等最慢的那个 = 60s,与注释描述的结果一致),
+   故本期不动代码、不动注释。**P5c/P5d 若要碰 `DashboardView` 的 `onMounted` 或 `loadRoots`,先读这一条。**
+5. **Vue2 蓝本行为完全相同**,已逐处比对:`DashboardView.vue:348-352` 同款 `Promise.all(...).finally(ready=true)`;
+   `src/service/service.js:12` 同款 `timeout: 60000`;`src/service/wiki.js:72` 打同一个 `${PREFIX}/roots`。
+   → **不是迁移引入的退化**,是继承的。
+
+**给用户列过的四条路(A 不动 / B 给 `loadRoots` 单独短超时 / C 分区域渐进渲染 / D 修 Wiki 后端),
+用户 2026-08-03 明示「先不修,先继续验收」→ 维持 D1 原判,B 方案记账不做。**
+
+### 状态
+
+**P5b 验收未关账**:剩 B19–B21 + 用户尚未给出通过结论。代码零改动(本轮只改两份台账/清单 markdown)。
