@@ -72,3 +72,59 @@ describe('内嵌共享包', () => {
     expect(read('pnpm-lock.yaml')).not.toContain('NimoOS-Service')
   })
 })
+
+describe('类 3 · 桌面侧补丁', () => {
+  it('系统应用清单只剩 5 个,photos/ai 的 import 与 glyph 都没了', () => {
+    const s = read('src/home/apps/systemApps.ts')
+    expect(s).not.toMatch(/photos|iconAi|G\.ai/)
+    expect(s.match(/\{ key: '/g)).toHaveLength(5)
+    for (const k of ['files', 'storage', 'vm', 'settings', 'appstore']) expect(s).toContain(`key: '${k}'`)
+  })
+
+  it('Dock 默认收藏 = files/storage/vm/appstore', () => {
+    expect(read('src/home/composables/useDock.ts'))
+      .toContain("const DEFAULT_FAV = ['files', 'storage', 'vm', 'appstore']")
+  })
+
+  it('SYS_ROUTE 指内部路由,cutoverDisabled 恒 false,sendToAI 整个没了', () => {
+    const s = read('src/home/composables/useOpenAction.ts')
+    expect(s).toContain("vm: '/kvm', settings: '/settings'")
+    expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled/)
+    expect(s).toContain('function cutoverDisabled(): boolean { return false }')
+  })
+
+  it("Kind 联合类型去掉 'photo'", () => {
+    expect(read('src/home/grid/types.ts'))
+      .toContain("export type Kind = 'widget' | 'app' | 'folder' | 'appwidget'")
+  })
+
+  it('小组件注册表与 WidgetCard 不再有 ai', () => {
+    expect(read('src/home/widgets/registry.ts')).not.toMatch(/\bai:/)
+    expect(read('src/home/components/widgets/WidgetCard.vue')).not.toMatch(/AiWidget/)
+  })
+
+  it('GridItem / MobileHome 不再引用 PhotoTile', () => {
+    for (const rel of ['src/home/components/GridItem.vue', 'src/home/components/MobileHome.vue']) {
+      expect(read(rel), rel).not.toMatch(/PhotoTile|'photo'|m-photo/)
+    }
+  })
+
+  it('layout store 去掉 bindPhotos,homeUi 去掉 search 四项', () => {
+    expect(read('src/home/stores/layout.ts')).not.toMatch(/bindPhotos/)
+    const h = read('src/home/stores/homeUi.ts')
+    expect(h).not.toMatch(/searchOpen|setSearch|openSearch|closeSearch/)
+  })
+
+  it('顶栏没有搜索胶囊与 ⌘K 监听,Home.vue 不挂 SearchDialog', () => {
+    const t = read('src/home/components/HomeTopbar.vue')
+    expect(t).not.toMatch(/search-btn|topbarSearch|metaKey/)
+    const h = read('src/views/Home.vue')
+    expect(h).not.toMatch(/SearchDialog|usePhotosStore|loadAssets|bindPhotos/)
+  })
+
+  it('AddPanel 的 tab 联合类型与尺寸表去掉 photo', () => {
+    const a = read('src/home/composables/useAddPanel.ts')
+    expect(a).toContain("const curTab = ref<'widget' | 'app' | 'folder'>('widget')")
+    expect(a).not.toMatch(/'photo'/)
+  })
+})
