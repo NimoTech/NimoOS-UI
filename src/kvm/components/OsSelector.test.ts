@@ -40,8 +40,12 @@ let w: VueWrapper | null = null
 // DialogPortal/DialogContent 首次挂载要等下一个 microtask(nextTick)才把内容真正落地到
 // document.body——与 KvmDialog.test.ts / KvmGlobalSettingsDialog.test.ts 已确立的写法
 // 一致。这里把 `mk` 改成 async 并在 mount 之后 `await nextTick()`,断言内容一个不减。
-const mk = async (isos: IsoRow[] = [ROW(), ALPINE, WIN]) => {
-  w = mount(OsSelector, { props: { open: true, isos }, global: { plugins: [i18n] }, attachTo: document.body })
+const mk = async (isos: IsoRow[] = [ROW(), ALPINE, WIN], downloadError = '') => {
+  w = mount(OsSelector, {
+    props: { open: true, isos, downloadError },
+    global: { plugins: [i18n] },
+    attachTo: document.body,
+  })
   await nextTick()
   return w
 }
@@ -128,5 +132,20 @@ describe('OsSelector 官方模板半', () => {
     await wr.vm.$nextTick()
     expect(wr.emitted('select')![0][0]).toEqual(localOs)
     expect(wr.emitted('update:open')).toEqual([[false]])
+  })
+
+  // 全分支评审修复 A3:下载失败没有可见反馈——本组件负责把 KvmPage 写进来的
+  // downloadError 显示在遮罩之上(自己就是那个遮罩的内容,天然在上面,不需要额外
+  // z-index 处理)。先断言无错误时不存在(排除"元素本来就在"的混淆),再断言传入
+  // 非空值后出现,复用既有的 .cv-error 类(不新增 CSS)。
+  it('downloadError 为空不显示 .cv-error,非空时显示在遮罩内容里(A3)', async () => {
+    const empty = await mk()
+    expect(qa('.cv-error')).toHaveLength(0)
+    empty.unmount()
+    document.body.innerHTML = ''
+
+    await mk([ROW(), ALPINE, WIN], '下载失败')
+    expect(qa('.cv-error')).toHaveLength(1)
+    expect(qa('.cv-error')[0].textContent).toBe('下载失败')
   })
 })

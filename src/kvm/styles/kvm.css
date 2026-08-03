@@ -2107,6 +2107,11 @@
  * 这个字面量(theme sp9 分片,本文件早前 .cv-cpu-btn 等处已经在用同一个 token),之前
  * 误用了 --kvm-field-border(另一个视觉上几乎无法区分但字面量不是 1:1 的深灰),换成
  * 精确对应的既有 token,零新增成本。 */
+/* 全分支评审补申报(C1):Vue2 这条规则(:2977)的 transition 是 `all 0.2s`,这里窄化成
+ * 只列 border-color/background-color 两条——本次评审核实过这条选择器 hover 只改这两个
+ * 属性(见 :2121 的 hover 规则),不像 `.cv-btn` 那条(Minor c,已在上面 :2175-2181 的
+ * 注释里修过)会漏掉 opacity 之类的其它过渡属性,所以**行为保持不动**,这里只是把
+ * "窄化"这件事本身补一句申报,免得下次复核时误判成又一处未申报的偏离。 */
 .snapshots-body .cv-snapshot-item {
   display: flex;
   justify-content: space-between;
@@ -2156,11 +2161,17 @@
   white-space: normal;
 }
 
+/* 全分支评审修复(C2):Vue2 这条规则(:3021-3022)还有 `text-decoration: none` 与
+ * `cursor: default` 两条声明,之前漏搬——`cursor` 是可观察的差异,鼠标移到「创建于: …」
+ * 这行文字上,漏了这条规则会显示浏览器默认的 I 形文本光标(看起来像可选中/可编辑的
+ * 文本框),Vue2 显示的是普通箭头指针。补上,不是新增视觉,是补齐原本就该有的两条。 */
 .snapshots-body .cv-snapshot-date {
   display: block;
   font-size: 0.725rem;
   color: var(--kvm-snapshot-date-fg);
   white-space: normal;
+  text-decoration: none;
+  cursor: default;
 }
 
 .snapshots-body .cv-snapshot-actions {

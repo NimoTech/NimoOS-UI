@@ -187,6 +187,28 @@ describe('CreateVmDialog', () => {
     expect(q('.cv-error').textContent).toContain('domain name already exists')
   })
 
+  // 全分支评审修复 B1:本地文件浏览选中的 ISO(isLocal:true,id 落 'local',因为
+  // IsoBrowser 那道 strict 匹配器认不出 'alpine-standard-3.19.1-x86_64.iso' 这个文件名
+  // 不含完整模板 id 'alpine-319')。CreateVmDialog 收到后应该用较宽松的家族前缀匹配器
+  // 再兜底一次,认出家族前缀 'alpine' → 命中 alpine-319 模板,推荐规格生效(vcpu/memory
+  // 被模板覆盖,不是维持 defaults 的 2/2048),osTemplate 是真实模板 id(不是
+  // generic-linux)。
+  it('本地文件浏览选中带家族前缀的 ISO → 家族匹配器命中真实模板,推荐规格生效(B1)', async () => {
+    const wr = await mk({ isos: [ISO_ALPINE] })
+    await wr.setProps({
+      selectedOs: {
+        isLocal: true, id: 'local', name: 'alpine-standard-3.19.1-x86_64.iso',
+        path: '/DATA/alpine-standard-3.19.1-x86_64.iso',
+      },
+    })
+    // 推荐规格来自 ISO_ALPINE(vcpu:1, memory:512),不是 defaults 的 2/2048。
+    expect((q('input[name="memory"]') as HTMLInputElement).value).toBe('512')
+    expect(qa('.cv-cpu-btn').filter((c) => c.classList.contains('active')).length).toBe(1)
+    // osTemplate 联动生效的间接证据:「系统版本」下拉选中的是真实模板 id,不是 generic-linux。
+    const osTemplateSelect = q('select[name="osTemplate"]') as HTMLSelectElement
+    expect(osTemplateSelect.value).toBe('alpine-319')
+  })
+
   it('重新打开时表单复位(照 Vue2 showCreateVM 每次重建 newVM)', async () => {
     const wr = await mk()
     await setVal(wr, 'input[name="name"]', 'dirty')

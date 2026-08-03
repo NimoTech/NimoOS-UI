@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { isIsoFile, formatFileSize, filterByCategory, matchTemplateByFilename, osTemplateDefaults } from './isoMatch'
+import {
+  isIsoFile, formatFileSize, filterByCategory, matchTemplateByFilename, matchTemplateByFamily,
+  osTemplateDefaults,
+} from './isoMatch'
 import type { KvmISO } from '@nimotech/nimoos-service'
 
 // 真机 2026-08-03 `curl /v1/kvm/isos` 的 8 条里取 5 条(逐字,未手编)。
@@ -54,6 +57,29 @@ describe('matchTemplateByFilename', () => {
   })
   it('认不出来返回 null', () => {
     expect(matchTemplateByFilename('haiku-r1.iso', TEMPLATES)).toBeNull()
+  })
+})
+
+// 全分支评审修复 B1:家族前缀("较宽松")匹配器,照 Vue2 KVMFullPage.vue:1392-1403。
+// 与上面 matchTemplateByFilename 的关键区别——这里用的是"真机命名不含完整模板 id,
+// 但含家族前缀"这类用例,strict 版会 miss、family 版能命中。
+describe('matchTemplateByFamily', () => {
+  it('文件名不含完整模板 id,但含家族前缀 alpine → 命中 alpine-319', () => {
+    // 'alpine-standard-3.19.1-x86_64.iso' 不含子串 'alpine-319'(strict 版会 miss),
+    // 但含家族前缀 'alpine'。
+    expect(matchTemplateByFamily('alpine-standard-3.19.1-x86_64.iso', TEMPLATES)?.id).toBe('alpine-319')
+  })
+  it('文件名不含完整模板 id,但含家族前缀 ubuntu → 命中 ubuntu-2404', () => {
+    expect(matchTemplateByFamily('ubuntu-server-24.04.iso', TEMPLATES)?.id).toBe('ubuntu-2404')
+  })
+  it('家族前缀 debian → 命中 debian-13', () => {
+    expect(matchTemplateByFamily('debian-13-netinst.iso', TEMPLATES)?.id).toBe('debian-13')
+  })
+  it('win* 系列要求文件名同时含 "win" 与版本号数字 → Win11_24H2.iso 命中 win11,不误配 win10', () => {
+    expect(matchTemplateByFamily('Win11_24H2.iso', TEMPLATES)?.id).toBe('win11')
+  })
+  it('认不出来返回 null', () => {
+    expect(matchTemplateByFamily('haiku-r1.iso', TEMPLATES)).toBeNull()
   })
 })
 

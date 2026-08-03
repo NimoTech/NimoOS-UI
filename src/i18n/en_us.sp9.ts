@@ -335,7 +335,10 @@ export default {
   // `kvmStopToModifySettings` key instead — the reserved key was never consumed, so it's
   // a genuine dead key (not an intentional keep) and has been removed.
   kvmMore: 'More',
-  kvmComingSoon: 'Coming soon',
+  // Whole-branch review dead-key cleanup (C4, zero consumers verified by grep):
+  // `kvmComingSoon` was P5's "gear permanently disabled + coming soon" placeholder copy.
+  // Its last consumer (ConsoleHeader.vue) was removed when P6 Task 9 unlocked the gear
+  // button; the key itself was left behind.
   kvmPowerOn: 'Power On',
   kvmForceShutDown: 'Force Shut Down',
   kvmForceRestart: 'Force Restart',

@@ -209,6 +209,28 @@ describe('SnapshotsTab', () => {
     expect(wr.find('.cv-error').text()).toBe('domain is not stopped')
   })
 
+  // 全分支评审修复 A1:localError(创建校验失败)不该遮住后面一轮删除/恢复失败时
+  // 父组件写进来的 submitError——`localError || props.submitError` 的优先级会让
+  // 陈旧的本地校验文案永久挡住后端的真实失败原因。判别力设计:先制造 localError 并
+  // 断言它确实显示着(排除"反正 confirmThenEmit 从来没读过 localError"这类混淆),
+  // 再触发一次确认派发(模拟父组件随后把后端失败 message 写进 submitError),断言
+  // 显示的是后端 message 而不是那句校验文案。
+  it('confirmThenEmit 派发时清掉 localError,不再遮住后续的 submitError(A1)', async () => {
+    const wr = mk({ snapshots: [SNAP()] })
+    // 先制造 localError:名称留空点创建。
+    await wr.find('.cv-primary-btn').trigger('click')
+    expect(wr.find('.cv-error').text()).toBe('请输入快照名称')
+
+    // 改去点删除(两次确认),触发派发——此时组件内部应清掉 localError。
+    await wr.find('.cv-btn-delete').trigger('click')
+    await wr.find('.cv-btn-delete').trigger('click')
+    expect(wr.emitted('confirm-delete')).toHaveLength(1)
+
+    // 父组件(KvmPage)收到后端失败后会把 message 写进 submitError——模拟这一步。
+    await wr.setProps({ submitError: 'snapshot is in use' })
+    expect(wr.find('.cv-error').text()).toBe('snapshot is in use')
+  })
+
   // 补充覆盖(照 Vue2 createSnapshot :1250,成功后清空表单):busy 从 true 变回 false
   // 且 submitError 仍为空 → 表单清空,方便连续创建时不会带着上一次的名称/描述。
   it('busy 从 true 变回 false 且无 submitError → 表单清空(照 Vue2 成功后清空)', async () => {

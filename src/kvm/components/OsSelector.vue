@@ -35,7 +35,20 @@ export interface SelectedOs {
   minDisk?: number
 }
 
-const props = defineProps<{ open: boolean; isos: IsoRow[] }>()
+const props = defineProps<{
+  open: boolean
+  isos: IsoRow[]
+  /** 全分支评审修复(A3,已申报):ISO 下载失败的内联报错文案。''=无错误。父组件
+   * (KvmPage)负责在新一轮下载开始前 / 关闭本弹窗时清空——本组件自己不管什么时候清,
+   * 只管显示,与 CreateVmDialog/VmSettingsDialog 的 submitError 是同一套契约。
+   * 为什么不走全局 toast:本组件的遮罩是 z-index 920(见下面 `<KvmDialog :z-base="920">`),
+   * 全局 toast 是 z-index 60(src/components/AppToast.vue:12)——下载失败通常发生在
+   * 用户正盯着这个弹窗里的百分比时,toast 会被这层遮罩完全盖住,卡片本身又只是从
+   * "12.34%" 悄悄退回"下载"(不像下载成功那样卡片会翻绿,还有个兜底视觉),净效果是
+   * 用户没有任何可见的失败解释。Vue2 能用 buefy toast 是因为它的 toast z-index 高于
+   * 它自己的 modal,这里 z 轴关系相反,不能照抄。 */
+  downloadError: string
+}>()
 const emit = defineEmits<{
   'update:open': [v: boolean]
   select: [os: SelectedOs]
@@ -99,6 +112,17 @@ function handleAction(os: IsoRow): void {
     })
     emit('update:open', false)
   } else if (os._downloading) {
+    // 全分支评审记录的债务(A3 顺带项,不是本轮要修的缺陷,保持现状不改行为):Vue2
+    // 点正在下载的卡片其实什么都不做(OSSelector.vue:268-274 `else if (os._downloading)
+    // { return }`)——「请等待下载完成」那句 toast 挂在 selectOS 上,而 selectOS 只对
+    // `_downloaded` 的行触发,下载中的行永远走不到那句 toast,是 Vue2 里的死代码。
+    // 这里的 `need-wait` emit 把它复活成了"活着但看不见"——KvmPage.vue 确实会弹一条
+    // toast(`@need-wait="toast.show(...)"`),但这个弹窗自己的遮罩是 z 920、toast 是
+    // z 60,同 A3 的下载失败一样会被完全挡住。净效果与 Vue2 相同(点了没有可见反馈),
+    // 所以不改行为——但 `need-wait` 这个 emit + i18n 键 `kvmWaitForDownload` + KvmPage
+    // 那句 toast 接线,三者加在一起是纯粹的死重量(看着像有意设计,实际从未真正生效
+    // 过),记为债务,不在本轮清理(不属于 A3 的既定范围,清理它需要决定"要不要索性
+    // 删掉这条 emit"这类改动行为的问题,交给控制器/下一期裁定)。
     emit('need-wait')
   } else {
     emit('download', os.id)
@@ -136,6 +160,11 @@ function onLocalSelect(os: SelectedOs): void {
           {{ t(cat.label) }}
         </button>
       </div>
+
+      <!-- 全分支评审修复(A3):必须在遮罩(z 920)之上、用户看得见——复用既有 .cv-error
+           类(kvm.css 已有样式,不新增 CSS),放在分类 tab 与卡片网格之间,与「下载失败」
+           这个动作最相关的区域挨在一起。 -->
+      <p v-if="props.downloadError" class="cv-error">{{ props.downloadError }}</p>
 
       <section class="os-section">
         <div class="os-grid">

@@ -105,6 +105,18 @@ describe('禁用按钮 hover/cursor 不误导用户(add-vm-btn / kvm-settings-bt
   })
 })
 
+// 全分支评审修复(C2):`.cv-snapshot-date` 漏了 Vue2 :3021-3022 的两条声明,鼠标移到
+// 「创建于: …」上会显示浏览器默认的 I 形文本光标(Vue2 是普通箭头)。jsdom 计算样式
+// 不可靠(kvmStyles.test.ts 顶部注释已经点过这一点),所以像上面 disabled cursor 那条
+// 一样,直接对 kvm.css 源文件文本做正则断言,不依赖 jsdom 渲染出来的 computed style。
+describe('kvm.css .cv-snapshot-date 补齐 cursor/text-decoration(C2)', () => {
+  it('cursor: default 且 text-decoration: none(照 Vue2 :3021-3022)', () => {
+    const block = src.match(/\.snapshots-body \.cv-snapshot-date\s*\{([^}]*)\}/)
+    expect(block?.[1]).toMatch(/cursor:\s*default/)
+    expect(block?.[1]).toMatch(/text-decoration:\s*none/)
+  })
+})
+
 // ════════════════════════════════════════════════════════════════════
 // Task 11 收尾固化:白名单的反向检查。
 //

@@ -1321,16 +1321,76 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('ISO 下载失败 → toast「下载失败」', async () => {
+  // 全分支评审修复 A3(此前 toast「下载失败」被 OS 选择器自己的遮罩挡住,用户看不见——
+  // 已改成 OsSelector 内联展示,不再走 toast):打开创建弹窗 → 打开 OsSelector(此时它
+  // 的遮罩正盖在屏幕上,与真实用户盯着下载百分比的场景一致)→ 收到下载失败事件 →
+  // 内联 `.cv-error` 显示,不弹 toast。
+  it('ISO 下载失败 → OsSelector 内联 .cv-error 显示「下载失败」,不弹 toast(A3)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
+    await openCreateAndPickIso(w)
+    expect(document.body.querySelector('.cv-error')).toBeNull() // 排除混淆:此刻确实还没有报错
 
     emitBus('kvm:iso_download_failed', { iso_id: 'debian-13' })
     await flush()
+    await w.vm.$nextTick()
 
-    expect(useToast().toasts.map((x) => x.text)).toContain('下载失败')
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('下载失败')
+    expect(useToast().toasts).toEqual([])
+    w.unmount()
+  })
+
+  // 全分支评审修复 A3:新一轮下载开始前清掉上一次的失败报错——不清的话,下载同一个/
+  // 另一个 ISO 重试时,旧的红字会一直挂在那里,即便这次下载本身还没有结果。
+  it('新一轮下载开始前清掉上一次的失败报错残留(A3)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_DEBIAN()])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openCreateAndPickIso(w)
+
+    emitBus('kvm:iso_download_failed', { iso_id: 'debian-13' })
+    await flush()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('下载失败') // 先确认报错确实还在
+
+    const dlBtn = document.body.querySelector('.os-action-btn') as HTMLElement
+    dlBtn.click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(api.downloadISO).toHaveBeenCalled() // 下载调用本身没有被这层包装吞掉
+    expect(document.body.querySelector('.cv-error')).toBeNull() // 旧报错已清空
+    w.unmount()
+  })
+
+  // 全分支评审修复 A3:关闭选择器时清掉报错残留——不清的话,下次(哪怕是给设置弹窗)
+  // 重新打开会带出上一次已经不相关的旧报错。
+  it('关闭 OsSelector 后重新打开不会带出上一次的下载失败报错(A3)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_DEBIAN()])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openCreateAndPickIso(w)
+
+    emitBus('kvm:iso_download_failed', { iso_id: 'debian-13' })
+    await flush()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('下载失败')
+
+    // 关闭 OsSelector(点它的 ✕),再从创建弹窗重新打开一次。
+    const closeBtns = [...document.body.querySelectorAll('.create-vm-close')]
+    ;(closeBtns[closeBtns.length - 1] as HTMLElement).click() // 最上层(z 920)的那个是 OsSelector
+    await flush()
+    await w.vm.$nextTick()
+
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.cv-error')).toBeNull()
     w.unmount()
   })
 
@@ -1458,6 +1518,46 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置')
     expect(document.body.querySelector('.cv-iso-btn')?.textContent)
       .toContain('/DATA/KVM/isos/alpine-319.iso')
+    w.unmount()
+  })
+
+  // 全分支评审修复 A2:vmSettingsOpen 是独立于 `v-if="s.selectedVM.value"` 的一个 ref。
+  // 选中的 VM 在别处被删除时(另一浏览器标签页/CLI/另一用户),v-if 会卸载弹窗,但
+  // vmSettingsOpen 本身留在 true——下次选中任意一台别的 VM,v-if 转真,弹窗会带着这个
+  // 陈旧的 true 自己弹出来。判别力设计:先证明"不选中新 VM 之前,弹窗确实已经因为
+  // v-if 卸载消失了"(排除"弹窗从来没关过"这个混淆因素),再选中新 VM 断言它没有
+  // 自己重新出现。
+  it('评审修复 A2:VM 在别处被删除后,选中另一台 VM 时设置弹窗不会带着陈旧状态自己弹出来', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [
+        VM({ id: 'vm-1', name: 'vm-x', state: 'stopped' }),
+        VM({ id: 'vm-2', name: 'vm-y', state: 'stopped' }),
+      ],
+      total: 2,
+    })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    // 自动选中列表第一台(vm-1),打开它的设置弹窗。
+    await openSettings(w)
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置')
+
+    // vm-1 在别处被删除——带 vm_id,useVmList 直接把 selectedVM 置 null,不会自动重选
+    // 别的 VM(useVmList.ts:141-149)。
+    emitBus('kvm:vm_deleted', { vm_id: 'vm-1' })
+    await flush()
+    await w.vm.$nextTick()
+    // 先确认:此刻弹窗确实已经消失(v-if 卸载),不是"从来没关过"。
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
+
+    // 选中另一台 VM(此刻列表只剩 vm-2 一条)。
+    const items = w.findAll('.vm-list-item')
+    expect(items).toHaveLength(1)
+    await items[0].trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+
+    // 断言:设置弹窗没有带着陈旧的 vmSettingsOpen=true 自己弹出来。
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
     w.unmount()
   })
 })

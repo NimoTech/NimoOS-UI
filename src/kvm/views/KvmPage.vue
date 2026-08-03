@@ -65,6 +65,9 @@ const osSelectorOpen = ref(false)
 const selectedOs = ref<SelectedOs | null>(null)
 const creating = ref(false)
 const createError = ref('')
+// 全分支评审修复(A3,已申报):ISO 下载失败的内联报错——见下面 isoList.onDownloadFailed
+// 与 OsSelector 组件顶部注释里"为什么不走 toast"的完整推导。
+const isoDownloadError = ref('')
 
 // ===================== VM 设置弹窗接线(P6 Task 9) =====================
 const vmSettingsOpen = ref(false)
@@ -73,9 +76,35 @@ const settingsSaving = ref(false)
 const settingsError = ref('')
 
 // 照 Vue2 handleOSSelect/onOSSelect 的下载三态提示(OSSelector.vue:165/:173/:1421)——
-// 下载进度订阅在 isoList 里(常驻,不随弹窗开合断续),这里只管弹 toast。
+// 下载进度订阅在 isoList 里(常驻,不随弹窗开合断续)。
+//
+// onDownloadDone:成功仍走全局 toast,**不改**——即便 OS 选择器还开着时这条 toast
+// 会被它的遮罩(z 920 > toast 的 z 60)挡住看不见,卡片本身也会同时翻成绿色
+// is-selected/「选择」态,信息没有真的丢失。评审订正(此前这里的注释暗示"toast 在
+// 这里可见"是不准确的——真实可见的是卡片状态变化,toast 本身在弹窗开着时同样会被
+// 挡住,只是不影响正确性,不需要跟着改成内联)。
 isoList.onDownloadDone((row) => toast.show(`${row.name} ${t('kvmToastDownloaded')}`))
-isoList.onDownloadFailed(() => toast.show(t('kvmDownloadFailed')))
+// onDownloadFailed(全分支评审修复 A3,已申报):**不再**走 toast。与上面 onDownloadDone
+// 的关键差异——下载失败没有"卡片翻绿"那张兜底视觉,卡片只是从百分比悄悄退回"下载",
+// toast 又被遮罩完全挡住,净效果是用户没有任何可见的失败解释。改成写进
+// `isoDownloadError`,经 OsSelector 自己的 `download-error` prop 显示在遮罩之上(见
+// 该组件顶部注释的完整推导)。清空时机(照 CreateVmDialog/VmSettingsDialog 既有的
+// "新一轮开始前先清上一次"惯例):见下面 onOsDownload(新一轮下载开始前)与
+// watch(osSelectorOpen)(关闭选择器时)。
+isoList.onDownloadFailed(() => { isoDownloadError.value = t('kvmDownloadFailed') })
+
+// 全分支评审修复 A3:OsSelector 的 `download` emit 原来直接绑 `isoList.download`——
+// 现在多插一步清空上一次的报错,再转发真正的下载调用。
+function onOsDownload(id: string): void {
+  isoDownloadError.value = ''
+  void isoList.download(id)
+}
+
+// 关闭选择器时清掉可能残留的下载失败报错——不清的话,下次打开(不管是创建弹窗还是
+// 设置弹窗那次)会带出上一次已经不相关的旧报错。
+watch(osSelectorOpen, (open) => {
+  if (!open) isoDownloadError.value = ''
+})
 
 // P6 Task 9:OsSelector 是页面级共用的**同一个**弹窗(z-index 920 叠在上层弹窗之上),
 // 创建弹窗与 VM 设置弹窗都会打开它——照 Vue2 用一个布尔标记(settingsOSSelector)区分
@@ -197,7 +226,12 @@ async function onSnapshotCreate(payload: { name: string; description: string }):
     const err = await snaps.create(vm.id, payload.name, payload.description)
     snapCreateError.value = err && te(err) ? t(err) : err
     if (snapCreateError.value === '') {
-      toast.show(t('kvmToastSnapshotCreated')) // 整句(照 Vue2 :1249),不拼快照名。
+      // 整句(照 Vue2 :1249),不拼快照名。全分支评审订正:创建成功不关设置弹窗,这条
+      // toast 同样会被弹窗遮罩(z 900+)挡住——但快照列表本身会多出一行,信息没有真的
+      // 丢失,不像下面 onSnapshotConfirmDelete/onSnapshotConfirmRestore 的失败分支那样
+      // "什么可见变化都没有",不需要改走内联(与那两处的 z-index 因果链是同一件事,
+      // 只是这里成功路径有列表变化兜底,不用额外处理)。
+      toast.show(t('kvmToastSnapshotCreated'))
     }
   } finally {
     snapCreating.value = false
@@ -226,7 +260,12 @@ async function onSnapshotConfirmDelete(snap: KvmSnapshot): Promise<void> {
     progress.value = null
   }
   if (err === '') {
-    toast.show(`${snap.name} ${t('kvmToastDeleted')}`) // 成功仍走全局 toast——那一行会消失,此时 toast 可见
+    // 全分支评审订正(C3,已申报,原注释「此时 toast 可见」不准确):删除成功后设置弹窗
+    // **不会**关闭(只有恢复成功才关,见下面 :283),这条 toast 在弹窗仍开着时触发,
+    // 同样会被 z-index 900+ 的弹窗遮罩挡住看不见——只是删除这个动作本身有别的可见变化
+    // 兜底(那一行从快照列表里消失),信息没有真的丢失,所以不需要像失败分支那样改走
+    // 内联。行为不改,只是把这句"toast 此时可见"的错误断言改成准确的因果解释。
+    toast.show(`${snap.name} ${t('kvmToastDeleted')}`)
   } else {
     snapCreateError.value = err && te(err) ? t(err) : err
   }
@@ -314,9 +353,20 @@ const spiceDismissed = ref(false)
 // 复位相同,不单独开一个 watch)。
 const ejectError = ref('')
 let spiceTimer: ReturnType<typeof setTimeout> | undefined
+// 全分支评审修复(A2,已申报):这个 watch 本来只管 spice 提示条 + eject 报错的复位,
+// 现在多担一件事——VM 设置弹窗的 v-if 绑的是 `s.selectedVM.value`(见模板 :718),
+// 而弹窗自己的开关 `vmSettingsOpen` 是一个独立的 ref。当选中的 VM 在别处被删除(另一个
+// 浏览器标签页 / CLI / 另一个用户)、`kvm:vm_deleted` 把 selectedVM 置 null 时,v-if
+// 会把弹窗**卸载**掉,但 `vmSettingsOpen` 本身仍然是 true——下次用户选中任意一台别的
+// VM,v-if 转真,弹窗会带着这个陈旧的 true 自己弹出来,而用户只是想看一眼那台新 VM。
+// 顺手把 settingsError/snapCreateError 也清掉,理由同 ejectError——它们都是"上一台 VM
+// 遗留的报错文案",不该带进下一次可能重新打开的设置弹窗。
 watch(() => s.selectedVM.value?.id, () => {
   spiceDismissed.value = false
   ejectError.value = ''
+  vmSettingsOpen.value = false
+  settingsError.value = ''
+  snapCreateError.value = ''
   clearTimeout(spiceTimer)
   if (s.selectedVM.value) spiceTimer = setTimeout(() => { spiceDismissed.value = true }, 180_000)
 })
@@ -736,8 +786,9 @@ async function onAction(name: string): Promise<void> {
     <OsSelector
       v-model:open="osSelectorOpen"
       :isos="isoList.isos.value"
+      :download-error="isoDownloadError"
       @select="onOsSelect"
-      @download="isoList.download"
+      @download="onOsDownload"
       @need-wait="toast.show(t('kvmWaitForDownload'))"
     />
   </div>

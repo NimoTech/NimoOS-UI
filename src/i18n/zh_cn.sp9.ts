@@ -350,8 +350,9 @@ export default {
   // zh_CN.json "More" = "浏览更多"(此键在 Vue2 里被复用给"更多操作"三点菜单的 tooltip,
   // 译文与场景不算贴切但是 Vue2 实际展示的文案,照抄)。
   kvmMore: '浏览更多',
-  // zh_CN.json "Coming soon" = "即将上线"(非 brief 草稿的"即将支持")。
-  kvmComingSoon: '即将上线',
+  // 全分支评审删死键(C4,已核实 grep 零消费方):`kvmComingSoon` 原是 P5 期"齿轮恒
+  // disabled + 即将上线"占位状态的文案,P6 Task 9 解禁齿轮时最后一个消费方
+  // (ConsoleHeader.vue)被移除,键本身漏删。
   kvmPowerOn: '开机',
   kvmForceShutDown: '强制关机',
   kvmForceRestart: '强制重启',

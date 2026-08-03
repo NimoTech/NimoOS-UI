@@ -82,6 +82,13 @@ function confirmThenEmit(action: 'delete' | 'restore', snap: KvmSnapshot): void 
   if (isPending(action, snap.id)) {
     pendingAction.value = ''
     pendingId.value = ''
+    // 全分支评审修复(A1,已申报):这里曾经不清 localError,导致「创建校验失败留下的
+    // 陈旧文案」在改去点删除/恢复时继续挡在 `.cv-error` 位上——`localError || props.submitError`
+    // 的优先级会让后端这次真实失败的 message 永远露不出来(见 :143 模板)。这一支是
+    // "确认后真正派发"的唯一出口,清空放这里与 CreateVmDialog.onSubmit(:172,每次有效
+    // 提交清 localError)同一个思路:新一轮结果(不管是成功还是父组件即将写入的失败
+    // message)开始前,先清掉上一轮遗留的本地校验错误。
+    localError.value = ''
     // 分支写死事件名(而不是三元表达式算出字符串再传给 emit)——defineEmits 的重载签名
     // 认不出三元算出的联合类型字符串,vue-tsc 会报"参数类型不匹配"(已实测)。
     if (action === 'delete') emit('confirm-delete', snap)

@@ -51,6 +51,40 @@ export function matchTemplateByFilename(fileName: string, templates: KvmISO[]): 
   return null
 }
 
+/** 本地 ISO 文件名反查所属模板 —— 家族前缀("较宽松")版。照 Vue2
+ * KVMFullPage.vue:1392-1403 `onOSSelect` 里 `os.id && os.id !== 'local'` 为假时走的
+ * 那段兜底逻辑(直到本次全分支评审前,New-UI 一直没搬这一层,只搬了同文件
+ * OSSelector.vue:328-346 那个"严格"版,即上面的 `matchTemplateByFilename`)。
+ *
+ * 与 `matchTemplateByFilename` 的关系(为什么要两个函数,不是重复):Vue2 对同一份
+ * `getISOList()` 数据用了两个不同松紧度的匹配器,分别喂给两条不同的调用路径——
+ * `matchTemplateByFilename` 是**第一遍**(IsoBrowser 浏览本地文件、点击 .iso 那一刻,
+ * 对应 handleCustomItemClick):先按 id 整个子串命中,再 win11/win10/泛 win 三级兜底,
+ * 命中不了就把 id 落成 'local'。`matchTemplateByFamily` 是**第二遍**兜底(创建弹窗收到
+ * `os.id==='local'` 时,对应 onOSSelect 那段 else 分支):按模板 id 的第一段(`split('-')[0]`,
+ * 如 'ubuntu'/'debian'/'alpine')反查文件名是否包含这个家族前缀,`win*` 系列额外要求
+ * 文件名同时包含版本号数字。两遍加起来才是 Vue2 真实的匹配能力——只搬第一遍会让
+ * `alpine-standard-3.19.1-x86_64.iso` 这类"文件名不含完整模板 id,但含家族前缀"的
+ * 真实命名落不到任何模板,推荐规格(vcpu/memory/disk)与准确的 osType/firmware 全部
+ * 丢失,退化成"通用 Linux"。 */
+export function matchTemplateByFamily(fileName: string, templates: KvmISO[]): KvmISO | null {
+  const lowerName = fileName.toLowerCase()
+
+  const match = templates.find((tmpl) => {
+    const key = tmpl.id.toLowerCase().split('-')[0] // 'ubuntu' / 'debian' / 'win10' / 'win11'
+
+    if (key.startsWith('win')) {
+      const version = key.replace('win', '') // '10' / '11'
+      if (version) return lowerName.includes('win') && lowerName.includes(version)
+      return lowerName.includes('win')
+    }
+
+    return lowerName.includes(key)
+  })
+
+  return match ?? null
+}
+
 export interface OsTemplateDefaults {
   osType: 'linux' | 'windows'
   firmware: 'bios' | 'uefi'

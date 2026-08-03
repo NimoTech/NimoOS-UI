@@ -25,7 +25,7 @@ import type { SelectedOs } from './OsSelector.vue'
 import type { KvmHostReadonly, KvmWritableSettings } from '../composables/useKvmHostInfo'
 import type { IsoRow } from '../composables/useIsoList'
 import { validateCreateVm, type CreateVmForm } from '../util/createVmValidate'
-import { osTemplateDefaults, matchTemplateByFilename } from '../util/isoMatch'
+import { osTemplateDefaults, matchTemplateByFamily } from '../util/isoMatch'
 import { formatHostMem } from '../util/format'
 
 const props = defineProps<{
@@ -91,10 +91,21 @@ watch(() => props.selectedOs, (os) => {
   // 决定 osTemplate:id 直接命中(非 'local')就用它;否则按文件名反查模板;再不行按
   // 文件名含 'win' 兜底成两个固定占位模板之一。osType/firmware/os 的最终值交给下面
   // watch(osTemplate) 用 Task 3 的 osTemplateDefaults 统一推导,这里只负责定 osTemplate。
+  //
+  // 全分支评审修复(B1,已申报):这里原来调的是 `matchTemplateByFilename`(严格版,
+  // IsoBrowser 第一遍已经用过的同一个纯函数)——但走到这个 else 分支时 `os.id` 必然是
+  // `'local'`(IsoBrowser.vue onItemClick 的契约:命中就给真实模板 id,不命中才落
+  // 'local'),对同一个文件名再跑同一个确定性函数必然还是返回 null,是可证明的死代码。
+  // Vue2 KVMFullPage.vue:1392-1403 在这个位置跑的其实是另一个更宽松的"家族前缀"匹配器
+  // (`t.id.split('-')[0]`,如 'ubuntu'/'debian'/'alpine',对 win* 额外核对版本号)——
+  // 之前只搬了严格版,这个宽松兜底整层丢了,是未申报的能力丢失(详见 isoMatch.ts 里
+  // matchTemplateByFamily 的完整对照注释)。现在换成它,恢复 Vue2 对
+  // "文件名含家族前缀但不含完整 id" 这类真实命名(如 alpine-standard-3.19.1-x86_64.iso)
+  // 的识别能力。
   if (os.id && os.id !== 'local') {
     form.osTemplate = os.id
   } else {
-    const match = matchTemplateByFilename(os.name, props.isos)
+    const match = matchTemplateByFamily(os.name, props.isos)
     form.osTemplate = match ? match.id : (os.name.toLowerCase().includes('win') ? 'generic-windows' : 'generic-linux')
   }
 
@@ -102,7 +113,18 @@ watch(() => props.selectedOs, (os) => {
   // osTemplate 联动去查——万一 os.id 在当前 isos 列表里查不到模板,这里仍是安全网)。
   if (os.recommendedVcpu) form.vcpu = os.recommendedVcpu
   if (os.recommendedMemory) form.memory = os.recommendedMemory
-  // 照 Vue2 :1442,`os.minDisk` 存在时(非 truthy 判断——0 也算「存在」)按公式定磁盘。
+  // 全分支评审订正(B2,已申报,原注释「照 Vue2 :1442」不准确):Vue2 :1436-1443 是
+  // `if (os.id) { this.newVM.osTemplate = os.id } else { ...这条磁盘公式... }`——磁盘公式
+  // 那句话在 Vue2 里挂在 `else`(即 `!os.id`)分支下。真机 `GET /v1/kvm/isos` 返回的每一
+  // 行都带 `id`(已用 2026-08-03 curl 核实),所以这个 else 分支在可达路径上**从未执行
+  // 过**,Vue2 选中任何 OS 后都不会改 `disk`,磁盘输入框停在打开弹窗时的默认值
+  // (`host.defaultDiskSize`,20 或 32)。New-UI 这里没有复刻 `if (os.id) {...} else {...}`
+  // 这层分支——上面已经用 osTemplate 分支处理了 osTemplate 本身,这条磁盘公式对**每一次**
+  // 选中都会跑(官方模板 `os.minDisk` 恒有定义,这个条件恒真)。**这不是照抄失败,是有意
+  // 保留新行为,不是缺陷**:新行为更准确——例如选中 `alpine-319`(minDisk=2)时预填
+  // 20GB(`Math.max(2*3,20)`),而 Vue2 对 minDisk=40 的 Windows 模板会预填出 32GB
+  // (defaultDiskSize),随即违反表单自己的 `:min="minDisk"` 校验(32 < 40)。保留现状,
+  // 只把这条注释从"误标为照抄"改成正式的偏离申报。
   if (os.minDisk !== undefined) form.disk = Math.max((os.minDisk || 8) * 3, 20)
 }, { immediate: true })
 
