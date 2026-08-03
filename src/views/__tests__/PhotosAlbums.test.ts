@@ -323,6 +323,92 @@ describe('PhotosAlbums.vue', () => {
     expect(w.text()).toContain(zh.photosAlbumsMineHint)
   })
 
+  // 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts
+  // 注释),旧实现下 isEmpty 因此恒假 → 落进网格分支渲染"我的相册"分区头 + 光秃秃的新建卡片,
+  // 没有任何失败提示。新增 loadError 分支必须拦在最前面——同 PhotosFavorites.test.ts 的三条
+  // 挡门用例(失败态渲染 / 重试成功 / 重试仍失败的 in-flight 与结束后都持续可见)+ 两条
+  // "仍能区分"的挡门用例(确认空 vs 还在加载中)。
+  it('加载失败时渲染失败态而非空网格(P4 遗留同款缺陷)', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('network'))
+    const { w } = await mountView()
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
+    expect(w.text()).toContain('相册加载失败')
+    expect(w.find('[data-test="albums-empty"]').exists()).toBe(false)
+    expect(w.find('[data-test="album-card"]').exists()).toBe(false)
+  })
+
+  it('失败态的重试按钮重新调 fetchAlbums,成功后失败态消失', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('network'))
+    const { w } = await mountView()
+    const albums = usePhotosAlbums()
+    expect(albums.loadError).toBe(true)
+    const fetchSpy = vi.spyOn(albums, 'fetchAlbums')
+
+    svc.photos.listAlbums.mockResolvedValueOnce([rawAlbum(1, { name: 'Tokyo' })])
+    await w.find('[data-test="albums-retry"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(fetchSpy).toHaveBeenCalled()
+    expect(albums.loadError).toBe(false)
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="album-card"]').exists()).toBe(true)
+  })
+
+  it('失败态重试仍失败(reject→retry→reject)→ in-flight 期间与结束后失败态都持续可见,不出现网格分区头', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('e1'))
+    const { w } = await mountView()
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
+
+    let rejectRetry: (e: Error) => void = () => {}
+    svc.photos.listAlbums.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectRetry = reject }),
+    )
+    await w.find('[data-test="albums-retry"]').trigger('click')
+    await w.vm.$nextTick()
+
+    // in-flight:重试还没落定,失败态必须继续可见,不能落到空态分支。
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
+    expect(w.find('[data-test="albums-empty"]').exists()).toBe(false)
+
+    rejectRetry(new Error('e2'))
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // 落定后(仍失败):失败态持续可见。
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
+    expect(w.find('[data-test="albums-empty"]').exists()).toBe(false)
+  })
+
+  // 关键区分(挡门用例 1):成功但列表为空 —— 必须仍走空态,不能被 loadError 分支误吞。
+  it('确认为零相册(成功但列表空)仍走空态,不走失败态', async () => {
+    const { w } = await mountView()
+    const albums = usePhotosAlbums()
+    expect(albums.loadError).toBe(false)
+    expect(albums.albumsLoaded).toBe(true)
+    expect(w.find('[data-test="albums-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(false)
+  })
+
+  // 关键区分(挡门用例 2):首次加载飞行中(既未失败也未加载完成)—— 不该出现失败态。
+  it('首次加载飞行中(未落定)→ 不出现失败态', async () => {
+    let resolveList: ((v: unknown[]) => void) | undefined
+    svc.photos.listAlbums.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveList = resolve }),
+    )
+    const router = makeRouter()
+    router.push('/photos/albums')
+    await router.isReady()
+    const w = mount(PhotosAlbums, { global: { plugins: [i18n, router] } })
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="albums-load-error"]').exists()).toBe(false)
+
+    resolveList?.([])
+    await flushPromises()
+    await w.vm.$nextTick()
+  })
+
   it('Esc(document 级)关闭新建模态', async () => {
     const { w } = await mountView()
 

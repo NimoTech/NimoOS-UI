@@ -257,6 +257,19 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toHaveLength(0)
   })
 
+  // 终审 Minor 5:Vue2 :1403-1406 对 error 任务同样 scheduleTaskRemove,只是延迟 10s
+  // (不是 done 的 5s)。此前只搬了 running/done,error 任务永久留在列表——补上同款
+  // 边界用例(9999ms 仍在 / +2ms 已移除),复用同一张 _doneRemovalTimers 表。
+  it('ingestTaskBus: error 任务 10s 后从列表移除(边界:9999ms 仍在,+2ms 已移除)', () => {
+    const s = useTimelineStore()
+    s.ingestTaskBus({ id: 'ocr-err-1', type: 'ocr', status: 'error' })
+    expect(s.tasks).toHaveLength(1)
+    vi.advanceTimersByTime(9999)
+    expect(s.tasks).toHaveLength(1)
+    vi.advanceTimersByTime(2)
+    expect(s.tasks).toHaveLength(0)
+  })
+
   it('ingestTaskBus: index 类型的 done 任务不走 5s 过期(留给 fetchIndexStatus 的 idle 对账)', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'idx-1', type: 'index', status: 'done' })

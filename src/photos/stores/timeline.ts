@@ -171,13 +171,18 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       tasks.value.push(task)
     }
 
-    // P8a-T10(P1 挂账,照 Vue2 _onTaskBus store/modules/photos.js:1382-1402):非 index 类型
+    // P8a-T10(P1 挂账,照 Vue2 _onTaskBus store/modules/photos.js:1382-1406):非 index 类型
     // 的 done 任务 5s 后自动从列表移除;running 事件说明任务复活,取消挂起的移除计时器。
     // index 类型故意不接这套计时器——它由 fetchIndexStatus 的 idle 对账(:118-120,按后端
     // pending/queueLen 真实进度收尾)负责摘除,两套机制同时管一种任务类型会变成任务列表的
     // 第二个真相源(违反"不建第二个任务列表源"的约束)。Vue2 源里 index 其实也会走这个计时器
     // (只在 face 任务已存在时才改成立即摘除),但 New-UI 早在 timeline.ts 落地 fetchIndexStatus
     // 时就已经用 idle 对账取代了 index 的收尾路径,这里维持既有分工,不重新引入计时器竞争。
+    //
+    // 终审 Minor 5:Vue2 :1403-1406 对 status==='error' 的任务同样 scheduleTaskRemove,
+    // 只是延迟 10s(不是 done 的 5s)。此前这段只搬了 running/done 两支,error 任务因此永久
+    // 留在任务列表里——不是"考虑过 error 之后决定不做"的偏离,是遗漏,现补上,复用同一张
+    // _doneRemovalTimers 表(不新开第二张计时器 map)。
     if (task.status === 'running') {
       _cancelDoneRemoval(task.id)
     } else if (task.status === 'done' && task.type !== 'index') {
@@ -187,6 +192,14 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         _doneRemovalTimers.delete(id)
         tasks.value = tasks.value.filter(t => t.id !== id)
       }, 5000)
+      _doneRemovalTimers.set(id, timer)
+    } else if (task.status === 'error') {
+      _cancelDoneRemoval(task.id)
+      const id = task.id
+      const timer = setTimeout(() => {
+        _doneRemovalTimers.delete(id)
+        tasks.value = tasks.value.filter(t => t.id !== id)
+      }, 10000)
       _doneRemovalTimers.set(id, timer)
     }
   }

@@ -6,15 +6,45 @@
 // (同页面切面板架构下,只有相册列表视图关心这个键)。New-UI 统一收进本组合式:三个键
 // 都是"/photos?xxx= 兼容入口 → 归一到真实路由"的入口归一,而不是"同页面内切换本地状态"。
 //
+// 范围清单(终审 Important 2,回源核实 Vue2 :364-374 的 mounted 分发 + :475-507 的
+// _applyUrlDeepLinks 完整键集 + 两个子视图各自的 mounted()):
+//   Vue2 `/photos` 全部支持的 query 键 = photoset, asset, active(:368-374,mounted 里
+//   分发)+ view, tab, settings, q, place, spot, person, photo(:475-507,
+//   _applyUrlDeepLinks 内)+ album(PhotosAlbumsView.vue:264,相册列表页自己 mounted() 读)
+//   + smartview(PhotosSmartViewsView.vue:340,智能视图页自己 mounted() 读)。
+//   本文件实现:asset / photoset / active / q / album / person —— 6 个。
+//   刻意不实现(留给下一期,由控制器决策,不是遗漏):
+//     - view、tab —— New-UI 用真实路由 path 区分导航目的地/子标签,不需要一个
+//       query 键来在同一页面内切面板;`/photos?view=albums` 这类旧书签本期静默无效。
+//     - settings —— New-UI 已有独立设置路由(`/photos/settings?section=ai`),是
+//       `?settings=1|ai` 的直接对应物,但接线是下一期的入口归一工作,本期未做——
+//       旧书签 `/photos?settings=ai` 本期静默无效,与 view 同一类。
+//     - place、spot —— 依赖后端 place 详情(城市名/spot 坐标)才能落地,New-UI 侧
+//       对应的地点详情路由本期未建。
+//     - photo —— Vue2 的灯箱回填键之一(与 photoset/asset 同类但走 _applyUrlDeepLinks
+//       而非 mounted 里的分发),本期没有实现对应入口。
+//     - smartview —— 智能视图页的深链键,本文件只统一了相册(album)那一个子视图键,
+//       智能视图这一个未纳入。
+//
 // 挂载约定:usePhotosDeepLinks() 在 /photos 的 setup 里调一次,内部自行 onMounted——
 // 不装路由 watcher。这是一次性交接(?photoset 的 handoff 读完即 removeItem),不是
 // "同路由改查询参数"的场景;装 watcher 会让已被消费掉的 handoff 在后续 query 变化时
 // 被误判成"缺失"而重复触发降级路径。保持"一个键一个小函数"的结构。
 //
-// 执行顺序(Vue2 :371-377 的先后手):photoset/asset(开灯箱,不改路由)必须先跑完,
-// q/album/person(改路由)才跑。灯箱那段是异步的(要等 fetchAssetDetail),路由改写
-// 本身是同步的——如果不显式 await 灯箱那段结束,同步的 router.replace 反而会抢在异步
-// 取图完成之前执行,顺序就会在真实时序上颠倒。onMounted 因此包一层 IIFE 顺序 await。
+// 执行顺序(偏离登记,按铁律修正,不照抄——回源核实见 :364-377):Vue2 mounted() 里
+// _openPhotoSetFromQuery(...)/_openAssetFromQuery(...) 是**不 await 的**调用(fire-and-
+// forget 的异步函数),紧接着同步调用 _applyUrlDeepLinks()。也就是说 Vue2 的真实时序是
+// q/place/person(路由改写那一路)先跑完,灯箱那段的 fetchAssetDetail 仍在飞行中、稍后
+// 才落定——这是 Vue2 从未刻意保证过顺序的竞态,不是"先灯箱后路由"的设计。
+// New-UI 这里改成显式 await 灯箱那段、再跑 q/album/person,是刻意串行化,不是"照抄
+// Vue2 时序"——两条腿都会改路由/开灯箱这类可观察副作用,串行让结果可预测(谁先完成
+// 不取决于网络时序),优于复刻一个从未被保证过、纯属实现细节的竞态。
+//
+// 范围声明:混合"灯箱开图 + 导航型 query"的组合输入不是本文件的支持形状——`?q` +
+// `?album` + `?person` 若同时到达,会在同一个 IIFE 里连续触发三次 router.replace(q 的
+// 结果先被 album 的 replace 覆盖导航,person 那条异步落地后又覆盖一次),没有互斥或
+// 排队。这是已知限制,不在本期修复范围(deep-link 组合从来不是产品设计要处理的入口
+// 形状,Vue2 也没有为这种组合定义过明确行为)。
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'

@@ -55,6 +55,14 @@ const RETENTION_OPTIONS = [7, 15, 30, 60, 90] as const
 // 是裸字面量、从不过 $t(只有 off 那一档过 $t('scan_interval_off'))——它们是时长单位缩写
 // (小时/天),不是需要按语言翻译的自然语言句子,故照搬为字面量,不新增/复用 i18n key
 // (task-3-brief.md 的 ruling #1)。
+//
+// 终审 Minor 7(不改行为,仅登记):retention(:186,photosSettingsRetentionDay)译成了
+// 「{n} 天」,这里的扫描间隔挡位却保留 6h/12h/24h/7d 字面量——zh 下两组相邻分段控件因此
+// 一个读「7 天 | 15 天 | 30 天 …」、一个读「关闭 | 6h | 12h | 24h | 7d」,Vue2 原本两组
+// 内部风格一致(都是 7d…/Off 6h…字面量)。两种做法各自都说得通(retention 走 $t 是本期
+// 刻意登记的选择,见上一段注释链;scan 保留单位缩写也有它的理由),但相邻不一致本身没被
+// 登记过——写在这里存证,是决策而非疏漏。是否统一,留给机主上机验收时拍板(不在本波修复
+// 范围)。
 const scanIntervalOptions = computed(() => [
   { min: 0, label: t('photosSettingsScanIntervalOff') },
   { min: 360, label: '6h' },

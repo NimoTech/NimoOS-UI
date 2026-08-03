@@ -155,6 +155,23 @@ function onPickerAdded(): void {
   void albums.fetchAlbums()
 }
 
+// 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
+// 刻意不变),旧实现下 `isEmpty = albums.albumsLoaded && albums.albums.length === 0` 因此恒假
+// → 落进网格分支,渲染"我的相册"分区头 + 光秃秃的新建卡片,没有任何失败提示/重试入口——与
+// PhotosFavorites.vue/PhotosAlbumDetail.vue 已经收口过的同一缺陷(P8a Task 9)是同一个 store、
+// 同一种符号(loadError),这里补第三处。写法照搬这两个姐妹页的既定形状:本地 retrying 守卫
+// (不进 store)+ disabled 反馈 + 复用同一个 fetchAlbums。
+const retryingAlbums = ref(false)
+async function retryAlbums(): Promise<void> {
+  if (retryingAlbums.value) return
+  retryingAlbums.value = true
+  try {
+    await albums.fetchAlbums()
+  } finally {
+    retryingAlbums.value = false
+  }
+}
+
 // 照 Vue2 :240-259 的两个全局监听,onUnmounted 摘干净。
 function onDocMousedown(e: MouseEvent): void {
   if (sortOpen.value && sortMenuRef.value && !sortMenuRef.value.contains(e.target as Node)) {
@@ -221,7 +238,20 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="isEmpty" class="empty-state" data-test="albums-empty">
+        <!-- 终审 Important 1:失败态优先级在空态之前——loadError 一旦为真,albumsLoaded 仍是
+             假(刻意,见 albums.ts 注释),不该再落进 isEmpty 分支渲染一个没有任何提示的空网格。
+             同 PhotosFavorites.vue/PhotosAlbumDetail.vue 已收口的两处一致形状。 -->
+        <div v-if="albums.loadError" class="empty-state" data-test="albums-load-error">
+          <div class="empty-state-title">{{ t('photosAlbumLoadFailed') }}</div>
+          <button
+            type="button"
+            class="bar-btn"
+            data-test="albums-retry"
+            :disabled="retryingAlbums"
+            @click="retryAlbums"
+          >{{ t('photosRetry') }}</button>
+        </div>
+        <div v-else-if="isEmpty" class="empty-state" data-test="albums-empty">
           <div class="empty-state-title">{{ t('photosAlbumsEmptyTitle') }}</div>
           <div class="empty-state-desc">{{ t('photosAlbumsEmptyHint') }}</div>
         </div>
@@ -349,6 +379,9 @@ onUnmounted(() => {
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
 .empty-state-desc { font-size: 13px; }
+/* 终审 Important 1:与 PhotosFavorites.vue/PhotosAlbumDetail.vue 的同款失败态间距对齐
+   (两处已有此规则),否则三个失败屏视觉不一致。 */
+.empty-state .bar-btn { margin-top: 10px; }
 
 /* ── Banner ── */
 .albums-banner { display: flex; align-items: flex-end; gap: 18px; padding: 4px 4px 16px; flex-wrap: wrap; }

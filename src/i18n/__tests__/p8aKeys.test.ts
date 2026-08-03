@@ -3,7 +3,9 @@ import zh from '../zh_cn'
 import en from '../en_us'
 
 const KEYS = [
-  'photosSettingsTitle', 'photosSettingsSubtitle', 'photosSettingsHeroDesc',
+  // 终审 Minor 4:photosSettingsSubtitle 已删(zh_cn.ts/en_us.ts 对应处有删除登记注释)——
+  // 全仓零引用死键,AreaShell.vue 只吃 title,没有承载副标题的位置。
+  'photosSettingsTitle', 'photosSettingsHeroDesc',
   'photosSettingsNavStorage', 'photosSettingsNavAi',
   'photosSettingsStorage', 'photosSettingsVolume', 'photosSettingsFree',
   'photosSettingsUsedOf', 'photosSettingsStorageUnavailable',

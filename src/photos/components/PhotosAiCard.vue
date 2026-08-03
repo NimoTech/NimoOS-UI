@@ -169,9 +169,14 @@ async function doRecluster(): Promise<void> {
           <div class="lbl">{{ f.label }}</div>
           <div class="desc">{{ f.desc }}</div>
         </div>
+        <!-- 终审 Minor 6:a11y 债务登记——这颗开关只吃鼠标 click,没有 tabindex/keydown,
+             键盘/AT 用户够不到。Vue2 PhotosSettings.vue:163 是裸 div,没有 role;之前这里加了
+             role="switch" 却没配套键盘可达性,等于向 AT 宣称"这是可操作控件"但操作不了,比
+             什么都不说更糟。按裁决去掉 role、不补键盘处理,先照 Vue2 1:1 恢复裸 div——把整个
+             设置页做成可键盘导航是本期范围之外的独立工作。 -->
         <div
           class="st-switch" :data-on="store.aiFeatures[f.id]" :data-test="`ai-switch-${f.id}`"
-          role="switch" :aria-checked="store.aiFeatures[f.id]" :aria-label="f.label"
+          :aria-checked="store.aiFeatures[f.id]" :aria-label="f.label"
           @click="toggleFeature(f.id)"
         ></div>
       </label>
