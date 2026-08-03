@@ -23,10 +23,16 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
-vi.mock('@nimotech/nimoos-service', () => ({ service: { photos: {} } }))
+// P8a-T6 review fix (Important 1): getConfig 加进 mock——之前是空对象 `photos: {}`,
+// 意味着任何真实(未 spy)的 fetchAiFeatures 调用都会在调用 `service.photos.getConfig()`
+// 时同步抛 TypeError(不是函数),被 fetchAiFeatures 自己的 try/catch 吞掉,行为上凑巧
+// "看起来"正确但完全没有验证到"只发一次真实网络请求"这条不变量——新增的网络级去重用例
+// (见下方 describe)需要一个真的 vi.fn() 才能数调用次数。
+vi.mock('@nimotech/nimoos-service', () => ({ service: { photos: { getConfig: vi.fn() } } }))
 
 import PhotosSettings from '../PhotosSettings.vue'
 import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
+import { service } from '@nimotech/nimoos-service'
 import { usePhotosSettingsStore } from '../../photos/stores/settings'
 
 const StorageStub = {
@@ -95,6 +101,7 @@ let queryCalls: string[]
 beforeEach(() => {
   localStorage.clear()
   setActivePinia(createPinia())
+  vi.mocked(service.photos.getConfig).mockReset().mockResolvedValue({})
   scrollCalls = []
   queryCalls = []
   const realQuerySelector = Element.prototype.querySelector
@@ -136,6 +143,27 @@ describe('PhotosSettings 容器', () => {
     // 不是放宽断言掩盖回归。
     expect(fetchAiFeatures).toHaveBeenCalledTimes(2)
     expect(fetchStorage).not.toHaveBeenCalled()
+  })
+
+  // P8a-T6 review fix (Important 1):上一条用例把 fetchAiFeatures spy 成
+  // `.mockResolvedValue(...)`,店里真正的去重代码(settings.ts 里 `aiFeaturesInFlight` 那段)
+  // 根本没有跑到——那条断言只证明了"本页 + 它挂的侧栏各调了一次 action",证明不了"两次 action
+  // 调用最终只打了一次真实网络请求"。这里不 spy `fetchAiFeatures`,让真实实现跑起来,直接在
+  // HTTP 层(`service.photos.getConfig`,mock 但未替换实现的 vi.fn())数调用次数——这才是
+  // §7e-15 需要的那条不变量:侧栏与页面自身同帧各触发一次 action,必须只落地一次请求。
+  //
+  // fetchRetention/fetchScanInterval 必须单独 spy 掉(mockResolvedValue,不让真实实现跑):
+  // 这两个 action 各自也会调 service.photos.getConfig()(为了拿当前 watchDirs/retentionDays
+  // 随写回一起回传,settings.ts 头部注释里的"读了再写"模式),与 aiFeatures 的去重是两件不
+  // 相关的事——第一次没 spy 它们时手动跑过,得到 3 次调用(去重后的 1 次 aiFeatures + 1 次
+  // fetchRetention + 1 次 fetchScanInterval),不是去重失效,是测试没有把无关的 getConfig
+  // 来源隔离干净。fetchAbout 不碰 getConfig,不需要 spy。
+  it('§7e-15 网络级去重证明:PhotosSettings 自身 + 它挂的 PhotosSidebar 同帧各调一次 fetchAiFeatures,真实 getConfig 只发一次', async () => {
+    const store = usePhotosSettingsStore()
+    vi.spyOn(store, 'fetchRetention').mockResolvedValue(undefined)
+    vi.spyOn(store, 'fetchScanInterval').mockResolvedValue(undefined)
+    await mountView()
+    expect(service.photos.getConfig).toHaveBeenCalledTimes(1)
   })
 
   it('承接卡片的 toast 事件并在 2800ms 后消失', async () => {

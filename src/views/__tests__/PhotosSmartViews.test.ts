@@ -110,11 +110,28 @@ describe('PhotosSmartViews.vue — 拉取', () => {
 
   // P8a-T6(§7e-10):aiSmartViewOff 折进 photosSettings store,本页不再自己直读 getConfig
   // —— onMounted 走 settings.fetchAiFeatures(),同 PhotosPeople.vue 的收编先例。
-  it('aiSmartViewOff 读 store 而非自己调 getConfig(onMounted 走 settings.fetchAiFeatures)', async () => {
+  //
+  // review fix(take-along,收紧断言):原来是 `toHaveBeenCalled()`,改紧到
+  // `toHaveBeenCalledTimes(...)` 之前先手动验证了真实次数——`mountView()` 挂的是完整
+  // `PhotosSmartViews`(模板里含 `<PhotosSidebar />`,T6 也给侧栏接了 fetchAiFeatures),
+  // 挂载后 spy 记录的是**两次** action 调用(本页自身 + 它挂的那份侧栏各一次),不是 1 次
+  // ——同 PhotosPeople.test.ts:104-112、PhotosSettings.test.ts 的既有先例(那两处也是 2,
+  // 理由相同)。曾经临时改成 `toHaveBeenCalledTimes(1)` 手动跑过,确认会失败(got 2 times)
+  // 才定的这个数字,不是照抄评审建议的字面值。
+  it('aiSmartViewOff 读 store 而非自己调 getConfig(onMounted 走 settings.fetchAiFeatures,含它挂的侧栏共 2 次 action 调用)', async () => {
     const settings = usePhotosSettingsStore()
     const spy = vi.spyOn(settings, 'fetchAiFeatures')
     await mountView()
-    expect(spy).toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  // review fix(Important 1):上一条 spy 的是 store 的 action,不是网络层——这里不 spy
+  // fetchAiFeatures,让真实实现跑起来,直接在 HTTP 层(`svc.photos.getConfig`)数调用次数,
+  // 证明"页面自身 + 它挂的侧栏同帧各调一次 action"最终只落地一次真实请求(§7e-15 需要的
+  // 那条不变量,settings.ts 的 aiFeaturesInFlight 去重)。
+  it('§7e-15 网络级去重证明:PhotosSmartViews 自身 + 它挂的 PhotosSidebar 同帧各调一次 fetchAiFeatures,真实 getConfig 只发一次', async () => {
+    await mountView()
+    expect(svc.photos.getConfig).toHaveBeenCalledTimes(1)
   })
 })
 

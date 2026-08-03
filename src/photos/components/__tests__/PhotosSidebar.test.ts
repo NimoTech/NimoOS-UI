@@ -286,7 +286,12 @@ describe('PhotosSidebar', () => {
       expect(items[5].text()).toContain('最近删除')
     })
 
-    it('smartview 未确定(取数失败)时按开启显示,不吓用户', async () => {
+    // review fix(take-along):原标题「未确定(取数失败)」的外层「未确定」措辞会让人以为
+    // 这条测的是"尚未取到数"(fetch 还在途、还没 resolve)的那个分支——但下面 await
+    // flushPromises() 会先把 reject 结算掉,这里实际只走到了"取数失败"这个 catch 分支
+    // (恰好与初始值同为全 true,视觉上分不出来,但走的是不同代码路径)。标题去掉「未确定」,
+    // 明确写成"失败"。真正的"尚未取到数"分支由下面新增的同步用例补上。
+    it('smartview 请求失败(store 落入 catch 分支)时按开启显示,不吓用户', async () => {
       vi.mocked(service.photos.getConfig).mockRejectedValue(new Error('boom'))
       const w = mountSidebar()
       await flushPromises()
@@ -294,6 +299,23 @@ describe('PhotosSidebar', () => {
       const items = w.findAll('.side-item')
       expect(items).toHaveLength(7)
       expect(items.some((i) => i.text().includes('智能视图'))).toBe(true)
+    })
+
+    // review fix(take-along):补上真正的"尚未取到数"分支——mount 之后不 flushPromises,
+    // fetchAiFeatures() 的 promise 还在途,store 的 aiFeatures 停在初始值(全 true)。
+    // 与上一条(失败分支落回全 true)在数值上恰好相同,但走的是不同代码路径(这里从没进过
+    // catch,是初始 ref 值),补这条才是名副其实的"加载中按开启显示"证明。
+    it('smartview 请求仍在途(尚未 resolve)时按开启显示,同步渲染 7 项', () => {
+      let resolveFn: ((v: Record<string, unknown>) => void) | undefined
+      vi.mocked(service.photos.getConfig).mockImplementation(
+        () => new Promise<Record<string, unknown>>((res) => { resolveFn = res }),
+      )
+      const w = mountSidebar()
+      const items = w.findAll('.side-item')
+      expect(items).toHaveLength(7)
+      expect(items.some((i) => i.text().includes('智能视图'))).toBe(true)
+      // 收尾:把挂起的 promise 结算掉,不让它泄漏到下一条用例。
+      resolveFn?.({})
     })
 
     it('挂载即调用一次 fetchAiFeatures(经 store 读配置,不直读 getConfig)', async () => {

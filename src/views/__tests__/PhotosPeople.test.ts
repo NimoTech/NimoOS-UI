@@ -118,11 +118,17 @@ describe('PhotosPeople.vue — 生命周期与分区', () => {
   // 分不清"视图直读"与"经 store 间接读"——两条断言不可能同时成立)。已在任务报告里登记这处
   // brief-vs-既有测试冲突,改用能真正区分"视图直读 vs 经 store 读"的断言:spy 住 store 的
   // fetchAiFeatures action,证明 onMounted 调的是这个 action 而不是自己再包一层 getConfig。
-  it('facesEnabled 读 store 而非自己调 getConfig(onMounted 走 settings.fetchAiFeatures)', async () => {
+  // review fix(take-along,收紧断言):原来是 `toHaveBeenCalled()`。收紧前手动验证了真实
+  // 次数——`mountView()` 挂的是完整 `PhotosPeople`(模板里含 `<PhotosSidebar />`,T6 也给
+  // 侧栏接了 fetchAiFeatures),挂载后 spy 记录的是**两次** action 调用(本页自身 + 它挂的
+  // 那份侧栏各一次),不是 1 次——临时改成 `toHaveBeenCalledTimes(1)` 手动跑过,确认会失败
+  // (got 2 times)才定的这个数字。真正的网络级去重证明是上一条既有测试(:104-113,断言
+  // `getConfig` 恰好 1 次、且不 spy action),这条只锁"调的是 store 而不是自己包一层"。
+  it('facesEnabled 读 store 而非自己调 getConfig(onMounted 走 settings.fetchAiFeatures,含它挂的侧栏共 2 次 action 调用)', async () => {
     const settings = usePhotosSettingsStore()
     const spy = vi.spyOn(settings, 'fetchAiFeatures')
     await mountView()
-    expect(spy).toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledTimes(2)
   })
 
   // ── 评审 Important 2:收藏人物的 accent 内环 ────────────────────────────────
