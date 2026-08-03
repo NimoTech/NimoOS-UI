@@ -1641,3 +1641,151 @@
     grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 6:IsoBrowser 自定义区(本地 ISO 文件浏览)。视觉 1:1 对 Vue2
+ * components/KVM/OSSelector 组件样式 :564-695。全部复用 P5/T2 既有 token,
+ * 没有新增(色值→token 对照表见本任务报告文件)。
+ * ════════════════════════════════════════════════════════════════════ */
+
+.custom-section {
+  margin-top: 0.5rem;
+}
+
+.custom-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.5rem 0;
+  color: var(--kvm-fg-dim);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.custom-divider:hover {
+  color: var(--kvm-fg);
+}
+
+.custom-browse {
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--kvm-elev);
+}
+
+.custom-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--kvm-border);
+  background: var(--kvm-panel);
+}
+
+.custom-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* 硬约束7:hover 必须带 :not(:disabled),disabled 显式 cursor:not-allowed
+ * (根目录时上一级按钮 disabled,不能看起来还能点)。 */
+.custom-back-btn:hover:not(:disabled) {
+  color: var(--kvm-fg);
+  border-color: var(--kvm-fg);
+}
+
+.custom-back-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.custom-path {
+  font-size: 0.8rem;
+  color: var(--kvm-fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-file-list {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+/* 有意偏离(容器,已申报):Vue2 用 buefy `b-loading`(自带绝对定位铺满 + 内部动画),
+ * New-UI 没有 buefy → 复用既有的 `.kvm-spinner`(P6 进度遮罩已在用同一个转圈动画),
+ * 这里补 flex 居中让它在这块留白区域内居中显示——Vue2 的 b-loading 天生铺满容器
+ * 自带居中,这里换了实现手法后需要显式补上,不是新增视觉语义。 */
+.custom-loading {
+  padding: 2rem;
+  position: relative;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--kvm-fg-dim);
+  font-size: 0.8rem;
+}
+
+.custom-file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.custom-file-item:hover {
+  background: var(--kvm-accent-faint);
+}
+
+.custom-file-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--kvm-fg-dim);
+}
+
+.custom-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-file-name {
+  font-size: 0.8rem;
+  color: var(--kvm-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-file-size {
+  font-size: 0.7rem;
+  color: var(--kvm-fg-dim);
+}
+
+.custom-file-arrow {
+  flex-shrink: 0;
+  color: var(--kvm-fg-dim);
+}

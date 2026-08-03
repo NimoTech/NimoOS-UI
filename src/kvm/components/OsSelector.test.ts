@@ -2,11 +2,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import OsSelector from './OsSelector.vue'
+import IsoBrowser from './IsoBrowser.vue'
 import { i18n } from '../../i18n'
 import type { IsoRow } from '../composables/useIsoList'
 
-// Task 6 的自定义(本地文件浏览)区还没接进来(本任务只留模板占位),这个 mock 是
-// 前瞻性占位——本文件的用例都不触发它,留着不影响任何断言。
+// IsoBrowser(Task 6)是 OsSelector 的子组件,真实渲染时会自己调 useIsoBrowser() 拉目录——
+// 本文件只测官方模板半 + 自定义区选中后的转发/关弹窗,不测 IsoBrowser 内部浏览逻辑
+// (那部分已在 IsoBrowser.test.ts 单独覆盖),所以这里把它的数据层钉死成空目录/不加载,
+// 避免真实 service.folder.getList 调用泄进这个文件的测试。
 vi.mock('../composables/useIsoBrowser', () => ({
   useIsoBrowser: () => ({
     path: { value: '/' }, items: { value: [] }, isLoading: { value: false },
@@ -110,5 +113,20 @@ describe('OsSelector 官方模板半', () => {
     const wr = await mk([ROW({ _downloaded: true, path: undefined })])
     qa('.os-action-btn')[0].click(); await wr.vm.$nextTick()
     expect(wr.emitted('select')).toBeUndefined()
+  })
+
+  it('自定义区选中本地 ISO 也会关弹窗并透传 select(Task 6 接线:onLocalSelect)', async () => {
+    const wr = await mk()
+    const localOs = {
+      isLocal: true, id: 'local', name: 'haiku-r1.iso', path: '/DATA/haiku-r1.iso',
+    }
+    // IsoBrowser 自己的浏览/反查逻辑已在 IsoBrowser.test.ts 单独覆盖;这里只验证
+    // OsSelector 把它的 select 事件原样转发 + 关弹窗这条接线,不重新走一遍文件点击流程。
+    const isoBrowser = wr.findComponent(IsoBrowser)
+    expect(isoBrowser.exists()).toBe(true)
+    isoBrowser.vm.$emit('select', localOs)
+    await wr.vm.$nextTick()
+    expect(wr.emitted('select')![0][0]).toEqual(localOs)
+    expect(wr.emitted('update:open')).toEqual([[false]])
   })
 })

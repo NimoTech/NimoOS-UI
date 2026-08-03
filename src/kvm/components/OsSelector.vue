@@ -10,10 +10,12 @@
 // 活着,关闭弹窗不影响进度推进;New-UI 把这层状态提到页面级后,本组件降级成纯展示,
 // 通过 props 拿 isos、通过 emit 上报动作(brief「为什么 isos 是 props」一节)。
 //
-// 自定义(本地文件浏览)区是 Task 6 的活,本任务只留模板占位。
+// 自定义(本地文件浏览)区是 IsoBrowser 组件(Task 6),本组件只负责接线:透传
+// isos props、把它的 select 事件转发 + 关弹窗(见下面 onLocalSelect)。
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import KvmDialog from './KvmDialog.vue'
+import IsoBrowser from './IsoBrowser.vue'
 import { filterByCategory } from '../util/isoMatch'
 import { osIconFor } from '../util/format'
 import type { IsoRow } from '../composables/useIsoList'
@@ -85,6 +87,11 @@ function handleAction(os: IsoRow): void {
       id: os.id,
       name: os.name,
       path: os.path,
+      // ⚠️ 有意不带 size(非疏漏,Task 5 遗留 Minor,补注于此免得 Task 7/9 翻错):
+      // `KvmISO.size` 是展示串(例如 "676 MB"),而 `SelectedOs.size?: number` 是
+      // 字节数——两者不同源、无法从前者推出合法的后者数值,硬填会把一个字符串或
+      // NaN 塞进本该是字节数的字段。本地文件路径(见 IsoBrowser.vue onItemClick)
+      // 才有真实的字节数(FolderEntry.size),那条分支正常带 size。
       recommendedVcpu: os.recommendedVcpu,
       recommendedMemory: os.recommendedMemory,
       minMemory: os.minMemory,
@@ -96,6 +103,14 @@ function handleAction(os: IsoRow): void {
   } else {
     emit('download', os.id)
   }
+}
+
+// Task 6:自定义区(本地文件浏览)选中的本地 ISO 走同一条 select 通道,同样关弹窗——
+// 与上面 handleAction 的已下载分支是同一个决定(选中即关闭),只是来源不同(官方模板
+// vs 本地文件),没有理由分叉成两套不同的关闭时机。
+function onLocalSelect(os: SelectedOs): void {
+  emit('select', os)
+  emit('update:open', false)
 }
 </script>
 
@@ -150,7 +165,7 @@ function handleAction(os: IsoRow): void {
         </div>
       </section>
 
-      <!-- Task 6: 自定义区 -->
+      <IsoBrowser :isos="props.isos" @select="onLocalSelect" />
     </div>
   </KvmDialog>
 </template>
