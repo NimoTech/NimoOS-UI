@@ -425,7 +425,15 @@ const slots = useSlots()
 在 `src/kvm/styles/kvm.css` 末尾追加两段。**逐条照 Vue2 搬,只把色值换成 token**:
 
 - 弹窗外壳:`.kvm-dialog-overlay`(`position:fixed; inset:0; background:var(--kvm-overlay-strong)`)· `.kvm-dialog-content`(`position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); max-width:92vw; max-height:85vh; overflow:hidden; display:flex; flex-direction:column`)· `.create-vm-modal` 照 Vue2 `:2305-2310`(底 `--kvm-modal-bg`、`border-radius`)· `.create-vm-head` / `.create-vm-title` / `.create-vm-close` 照 `:2311-2343`(close 的 hover 底是 `--kvm-field-elev`)· `.create-vm-body` 照 `:2344-2439`(**加 `overflow-y:auto`**,Vue2 靠 b-modal 的 `modal-card-body` 提供滚动,这里外壳自己给)· `.create-vm-foot` 照 `:2702-2722`。
-- 表单字段:`.cv-field` `:2440-2450` · `.cv-label` `:2444` · `.cv-hint` `:2451-2459` · `.cv-input-row` `:2460-2470` · `.cv-input` `:2471-2496`(focus ring 用 `--kvm-accent-ring`)· `.cv-input-unit` / `.cv-unit` `:2497-2524` · `.cv-primary-btn`(**新类**,替代 Vue2 的 `b-button type="is-primary" rounded`:底 `--kvm-accent`、字 `--kvm-on-accent`、`border-radius:999px`、hover `--kvm-accent-hover`、`:disabled{opacity:.5;cursor:not-allowed}`;`is-loading` 态复用 P5 `.banner-btn.is-loading` 的转圈手法)· `.cv-error`(**新类**,弹窗内联报错:字 `--kvm-danger`、`font-size:.8rem`、`margin-top:.35rem`——硬约束 7,不用 toast)。
+- 表单字段:`.cv-field` `:2440-2450` · `.cv-label` `:2444` · `.cv-hint` `:2451-2459` · `.cv-input-row` `:2460-2470` · `.cv-input` `:2471-2496`(focus ring 用 `--kvm-accent-ring`)· `.cv-input-unit` / `.cv-unit` `:2497-2524` · `.cv-primary-btn`(**新类**,替代 Vue2 的 `b-button type="is-primary" rounded`)
+
+> ⚠️ **`.cv-primary-btn` 的几何值订正(2026-08-03,Task 1 期间实测算优先级后修正本计划)**:照 Vue2 `.create-vm-foot .button.is-primary`(`:2707-2720`)—— 底 `--kvm-accent`、字 `--kvm-on-accent`、`border: none`、`padding: 0 2rem`、`height: 2.5rem`、`font-size: 0.875rem`、`font-weight: 600`、**`border-radius: 0.5rem`**、hover 底 `--kvm-accent-hover`。
+>
+> **不是胶囊(`999px`)。** 本计划初稿凭模板上的 `rounded` prop 写了 `999px`,是错的:那条 Vue2 规则在 **scoped** 样式块里(`:1657-2874`),编译后选择器是 `.create-vm-foot .button.is-primary[data-v-x]` = 优先级 **(0,4,0)**,而 buefy 的 `.button.is-rounded { border-radius: 9999px; padding-left/right: calc(1em + .25em) }` 只有 **(0,2,0)** —— 页面自己的规则把 `rounded` 的圆角**和**左右内边距一起压掉了。所以 Vue2 真机渲染的是 0.5rem 圆角 + 2rem 左右内边距。
+>
+> 另加 `:disabled { opacity: .5; cursor: not-allowed }`(Vue2 靠 buefy 的 disabled 态,New-UI 自绘按钮要自己给)。`is-loading` 态复用 P5 `.banner-btn.is-loading` 的转圈手法。
+>
+> **同一份几何值也适用于 Task 10 的「创建快照」按钮** —— Vue2 `.snapshots-body .button.is-primary`(`:2724-2738`)与 `.create-vm-foot` 那条**逐字相同**。· `.cv-error`(**新类**,弹窗内联报错:字 `--kvm-danger`、`font-size:.8rem`、`margin-top:.35rem`——硬约束 7,不用 toast)。
 
 ⚠️ **`.create-vm-modal` 的 hover 规则若有,必须带 `:not(:disabled)`**(P5 已有这条守卫的先例,见 `kvmStyles.test.ts` 里 `add-vm-btn` 那两条)。`.cv-primary-btn` 与 `.cv-btn` 家族都要遵守。
 
