@@ -397,6 +397,23 @@ describe('类 2 · MediaViewer 拆转录', () => {
   })
 })
 
+describe('类 2 · README', () => {
+  it('不提 Vue2 / strangler / 同级克隆 Service', () => {
+    const s = read('README.md')
+    for (const bad of ['Vue 2', 'Vue2', 'strangler', 'Strangler', 'NimoOS-New-UI',
+                       'file:../NimoOS-Service', '同级目录']) {
+      expect(s, bad).not.toContain(bad)
+    }
+  })
+
+  it('讲清安装、内嵌共享包与四条已知缺口', () => {
+    const s = read('README.md')
+    for (const k of ['pnpm', 'packages/service', '快照', '语言', '终端', '存储']) {
+      expect(s, k).toContain(k)
+    }
+  })
+})
+
 describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
   // 固定清单(每次新增 REPLACE 条目都要过一遍,别为单个文件重开断言):
   // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。

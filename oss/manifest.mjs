@@ -75,6 +75,11 @@ export const REPLACE = [
   // .lib-photo-* 样式四处一并删除;409 行附近 ic-photos 注释改泛化措辞)
   { path: 'src/home/components/AddPanel.vue', from: 'AddPanel.vue',
     privateSha256: '948b9dcae47cef319b93342e551a4f1dd65e358c63174df525dd457f44d656fe' },
+
+  // T12:README 重写(面向外部开发者,私有版讲的是与 Vue 2 并存/绞杀迁移/同级克隆
+  // Service —— 受众不同且后两条在开源包里都是假的,没有可继承内容,整文件替换)
+  { path: 'README.md', from: 'README.md',
+    privateSha256: 'ae7e30a5e63f2c66af4e0ecbf7a08cd5500aec89e9d2de86d6db05b2b79027aa' },
 ]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */
