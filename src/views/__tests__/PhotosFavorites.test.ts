@@ -105,6 +105,47 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.fav-export').attributes('disabled')).toBeDefined()
   })
 
+  // Task 9(P3 遗留收口):fetchFavorites 失败时 favoritesLoaded 保持假(见 favorites.ts
+  // 注释),旧实现下 isEmpty 因此恒假 → 落进 v-else 渲染一个空网格,没有任何失败提示。
+  // 新增 loadError 分支必须拦在最前面。
+  it('加载失败时渲染失败态而非空网格(P3 遗留)', async () => {
+    svc.photos.listFavorites.mockRejectedValueOnce(new Error('network'))
+    const w = await mountView()
+    expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
+    expect(w.text()).toContain('收藏加载失败')
+    expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
+    expect(w.find('.photos-grid-root').exists()).toBe(false)
+  })
+
+  it('失败态的重试按钮重新调 fetchFavorites,成功后失败态消失', async () => {
+    svc.photos.listFavorites.mockRejectedValueOnce(new Error('network'))
+    const w = await mountView()
+    const fav = usePhotosFavorites()
+    expect(fav.loadError).toBe(true)
+    const fetchSpy = vi.spyOn(fav, 'fetchFavorites')
+
+    svc.photos.listFavorites.mockResolvedValueOnce([photo('a')])
+    await w.find('[data-test="fav-retry"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(fetchSpy).toHaveBeenCalled()
+    expect(fav.loadError).toBe(false)
+    expect(w.find('[data-test="fav-load-error"]').exists()).toBe(false)
+    expect(w.find('.photos-grid-root').exists()).toBe(true)
+  })
+
+  // 关键区分(brief 明确要求的挡门用例):成功但列表为空 —— 必须仍走空态,不能被
+  // loadError 分支误吞。
+  it('确认为零收藏(成功但列表空)仍走空态,不走失败态', async () => {
+    const w = await mountView()
+    const fav = usePhotosFavorites()
+    expect(fav.loadError).toBe(false)
+    expect(fav.favoritesLoaded).toBe(true)
+    expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="fav-load-error"]').exists()).toBe(false)
+  })
+
   it('列表非空 → 渲染 PhotosGrid(:months = favoritesMonths),导出按钮启用', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
     const w = await mountView()

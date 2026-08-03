@@ -17,6 +17,11 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   const favIdsLoaded = ref(false)
   const favoritesList = ref<Photo[] | null>(null)
   const favoritesLoaded = ref(false)
+  // Task 9 (P8a, P3 遗留收口): 独立失败标志——绝不与 favoritesLoaded 合并/复用。
+  // favoritesLoaded 仅成功路径置真是刻意的(见下方 fetchFavorites 注释);一次瞬时失败
+  // 必须能被视图区分出「加载失败」而不是「正在加载」或「确认为空」,这就是 loadError 存在
+  // 的唯一理由。
+  const loadError = ref(false)
   // Non-reactive view-report throttle ledger — mirrors Vue2's non-reactive
   // `state._viewReportTs`, avoiding a render trigger on every photo view.
   const _viewTs = new Map<string, number>()
@@ -38,6 +43,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   }
 
   async function fetchFavorites(): Promise<void> {
+    loadError.value = false
     try {
       const list = (await service.photos.listFavorites()) as unknown[]
       favoritesList.value = (list ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
@@ -48,6 +54,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       favoritesLoaded.value = true
     } catch (e) {
       favoritesList.value = []
+      loadError.value = true
       console.error('[photos-favorites] fetchFavorites', e)
     }
   }
@@ -102,11 +109,12 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     favIdsLoaded.value = false
     favoritesList.value = null
     favoritesLoaded.value = false
+    loadError.value = false
     _viewTs.clear()
   }
 
   return {
-    favIds, favIdsLoaded, favoritesList, favoritesLoaded,
+    favIds, favIdsLoaded, favoritesList, favoritesLoaded, loadError,
     isFav, favoritesMonths,
     reconcileFavIds, fetchFavorites, toggle, recordView, exportZip, __resetForTest,
   }

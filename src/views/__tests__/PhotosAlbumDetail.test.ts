@@ -156,6 +156,58 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-not-found"]').exists()).toBe(false)
   })
 
+  // Task 9(P4 遗留收口):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释),
+  // 旧实现下 `!album && !albums.albumsLoaded` 恒真 → 永久停在骨架屏。新增 loadError 分支
+  // 必须拦在骨架分支之前。
+  it('相册列表加载失败时渲染失败态而非永久骨架(P4 遗留)', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="album-load-error"]').exists()).toBe(true)
+    expect(w.text()).toContain('相册加载失败')
+    expect(w.find('[data-test="album-loading"]').exists()).toBe(false)
+  })
+
+  // 变异验证挡门用例①:失败态分支若被挪到骨架分支之后,本用例应变红
+  // (loadError=true 时骨架仍会先命中 v-if,失败态永远出不来)。
+  it('失败态优先于骨架态(loadError 真 + albumsLoaded 假 ⇒ 出失败态,不出骨架)', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
+    const { w } = await mountView('999')
+    const albums = usePhotosAlbums()
+    expect(albums.loadError).toBe(true)
+    expect(albums.albumsLoaded).toBe(false)
+    expect(w.find('[data-test="album-load-error"]').exists()).toBe(true)
+    expect(w.find('[data-test="album-loading"]').exists()).toBe(false)
+  })
+
+  // 变异验证挡门用例②的姊妹用例:仍在飞行中(未失败)必须继续走骨架态,不能被
+  // loadError 分支误吞——若 loadError 在成功路径也被误置真,这条与上面那条会一起说明
+  // 分支被合并/语义被破坏。
+  it('正在加载(未失败)仍走骨架态,不出失败态', async () => {
+    svc.photos.listAlbums.mockImplementation(() => new Promise(() => {}))
+    const { w } = await mountView('999')
+    const albums = usePhotosAlbums()
+    expect(albums.loadError).toBe(false)
+    expect(w.find('[data-test="album-loading"]').exists()).toBe(true)
+    expect(w.find('[data-test="album-load-error"]').exists()).toBe(false)
+  })
+
+  it('相册失败态的重试按钮重新调 fetchAlbums,成功后失败态消失', async () => {
+    svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
+    const { w } = await mountView('7')
+    const albums = usePhotosAlbums()
+    expect(albums.loadError).toBe(true)
+    const fetchSpy = vi.spyOn(albums, 'fetchAlbums')
+
+    await w.find('[data-test="album-retry"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(fetchSpy).toHaveBeenCalled()
+    expect(albums.loadError).toBe(false)
+    expect(w.find('[data-test="album-load-error"]').exists()).toBe(false)
+    expect(w.text()).toContain('Trip')
+  })
+
   it('fetchAlbums 完成后仍找不到该 id → 渲染"相册不存在"+返回按钮,点击返回 /photos/albums', async () => {
     svc.photos.listAlbums.mockResolvedValue([rawAlbum(1, { name: 'Other' })])
     const { w, router } = await mountView('999')

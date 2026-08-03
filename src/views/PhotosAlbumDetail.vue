@@ -216,6 +216,13 @@ function goToAlbumsList(): void {
   void router.push('/photos/albums')
 }
 
+// Task 9(P8a,P4 遗留收口):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
+// 刻意不变),旧实现下 `!album && !albums.albumsLoaded` 因此恒真 → 永久停在骨架屏。新增
+// loadError 分支(见模板,优先级在骨架分支之前)+ 这个重试入口,直接重新调用同一个 fetch。
+function retryAlbums(): void {
+  void albums.fetchAlbums()
+}
+
 // ── Hero:编辑态/⋯菜单 ──
 function toggleEditMode(): void {
   edit.value = !edit.value
@@ -353,8 +360,18 @@ watch(gridRef, () => {
     <div class="photos-layout">
       <PhotosSidebar />
       <main class="photos-main">
+        <!-- Task 9(P4 遗留收口):失败态优先级在骨架分支之前——loadError 一旦为真,
+             albumsLoaded 仍是假(刻意,见 albums.ts 注释),不该再落进骨架分支永久显示
+             "正在加载"。 -->
+        <div v-if="albums.loadError" class="empty-state" data-test="album-load-error">
+          <div class="empty-state-title">{{ t('photosAlbumLoadFailed') }}</div>
+          <button type="button" class="bar-btn" data-test="album-retry" @click="retryAlbums">
+            {{ t('photosRetry') }}
+          </button>
+        </div>
+
         <!-- 还没加载完:骨架 -->
-        <div v-if="!album && !albums.albumsLoaded" class="album-loading" data-test="album-loading">
+        <div v-else-if="!album && !albums.albumsLoaded" class="album-loading" data-test="album-loading">
           <div class="album-hero album-hero-skeleton"></div>
         </div>
 

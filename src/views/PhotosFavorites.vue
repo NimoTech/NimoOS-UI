@@ -147,6 +147,14 @@ function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
   lb.openAt(photo, filtered, startMs)
 }
 
+// Task 9(P8a,P3 遗留收口):fetchFavorites 失败时 favoritesLoaded 保持假(见
+// favorites.ts 注释,刻意不变),旧实现下 isEmpty 因此恒假 → 落进下面的 v-else 渲染一个
+// 空网格,没有任何失败提示。新增 loadError 分支(见模板,优先级在 isEmpty 之前)+ 这个重试
+// 入口,直接重新调用同一个 fetch。
+function retryFavorites(): void {
+  void fav.fetchFavorites()
+}
+
 function onExport() {
   fav.exportZip()
   toast.show(t('photosFavExporting'), 4000)
@@ -187,7 +195,15 @@ onMounted(() => {
           <span class="fav-count">{{ t('photosFavCount', { count: fav.favoritesList?.length ?? 0 }) }}</span>
         </div>
 
-        <div v-if="isEmpty" class="empty-state" data-test="fav-empty">
+        <!-- Task 9(P3 遗留收口):失败态优先级在空态之前——loadError 一旦为真,就不该
+             再落进(旧代码里恒假的)isEmpty 分支渲染一个没有任何提示的空网格。 -->
+        <div v-if="fav.loadError" class="empty-state" data-test="fav-load-error">
+          <div class="empty-state-title">{{ t('photosFavoritesLoadFailed') }}</div>
+          <button type="button" class="bar-btn" data-test="fav-retry" @click="retryFavorites">
+            {{ t('photosRetry') }}
+          </button>
+        </div>
+        <div v-else-if="isEmpty" class="empty-state" data-test="fav-empty">
           <div class="empty-state-title">{{ t('photosFavEmptyTitle') }}</div>
           <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
         </div>

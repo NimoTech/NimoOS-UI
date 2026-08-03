@@ -84,6 +84,29 @@ describe('photosFavorites store', () => {
     expect(s.favoritesList).toEqual([])
     expect(s.favoritesLoaded).toBe(false)
   })
+  // Task 9(P3 遗留收口):新增 loadError 标志,语义与 favoritesLoaded 完全独立——
+  // 失败时 loadError=true 但 favoritesLoaded 仍保持 false(两者不可合并/不可互相替代)。
+  it('fetchFavorites 失败:loadError 置真,favoritesLoaded 保持假(两者语义不同)', async () => {
+    ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('network'))
+    const s = usePhotosFavorites()
+    await s.fetchFavorites()
+    expect(s.loadError).toBe(true)
+    expect(s.favoritesLoaded).toBe(false)
+  })
+  it('重试成功后 loadError 归假', async () => {
+    ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('network'))
+    const s = usePhotosFavorites()
+    await s.fetchFavorites()
+    expect(s.loadError).toBe(true)
+    await s.fetchFavorites() // 重试:这次成功(mockRejectedValueOnce 只吃一次)
+    expect(s.loadError).toBe(false)
+    expect(s.favoritesLoaded).toBe(true)
+  })
+  it('成功路径 loadError 保持/归假(不会被残留的上次失败污染)', async () => {
+    const s = usePhotosFavorites()
+    await s.fetchFavorites()
+    expect(s.loadError).toBe(false)
+  })
   it('exportZip 走 exportFavoritesUrl', () => {
     const s = usePhotosFavorites()
     s.exportZip()

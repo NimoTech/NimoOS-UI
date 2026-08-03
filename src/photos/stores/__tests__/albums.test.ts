@@ -47,6 +47,34 @@ describe('photosAlbums store', () => {
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
     })
+    // Task 9(P4 遗留收口):新增 loadError,语义与 albumsLoaded 完全独立——失败时
+    // loadError=true 但 albumsLoaded 仍保持 false(不可合并/不可互相替代)。
+    it('fetchAlbums 失败:loadError 置真,albumsLoaded 保持假', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('net'))
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      expect(s.loadError).toBe(true)
+      expect(s.albumsLoaded).toBe(false)
+      errSpy.mockRestore()
+    })
+    it('重试成功后 loadError 归假', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('net'))
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      expect(s.loadError).toBe(true)
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 1, name: 'A' }])
+      await s.fetchAlbums()
+      expect(s.loadError).toBe(false)
+      expect(s.albumsLoaded).toBe(true)
+      errSpy.mockRestore()
+    })
+    it('成功路径 loadError 保持假', async () => {
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      expect(s.loadError).toBe(false)
+    })
   })
 
   describe('跨类型 String 归一(铁律)', () => {

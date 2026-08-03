@@ -15,6 +15,10 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   // New-UI 增:空态门控。只在 fetchAlbums 成功路径置 true,失败留 false 可重试
   // (P3 血泪:无条件置位会让瞬时失败与「确认零相册」不可区分)。
   const albumsLoaded = ref(false)
+  // Task 9 (P8a, P4 遗留收口): 独立失败标志——绝不与 albumsLoaded 合并/复用。
+  // albumsLoaded 仅成功路径置真是刻意的(见上方注释);一次瞬时失败必须能被视图区分出
+  // 「加载失败」而不是「还在骨架屏」,这就是 loadError 存在的唯一理由。
+  const loadError = ref(false)
   const albumAssetsByID = ref<Record<string, Photo[]>>({})
   const albumAssetsLoading = ref<Record<string, boolean>>({})
 
@@ -54,11 +58,13 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
 
   // Vue2 :910-917 —— 全量覆盖,catch 只打日志不抛(唯一「吞错」的 album action)。
   async function fetchAlbums(): Promise<void> {
+    loadError.value = false
     try {
       const res = (await service.photos.listAlbums()) as unknown[]
       albums.value = ((res ?? []) as RawAlbum[])
       albumsLoaded.value = true // 仅成功路径
     } catch (e) {
+      loadError.value = true
       console.error('[photos-albums] fetchAlbums', e)
     }
   }
@@ -182,12 +188,13 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   function __resetForTest(): void {
     albums.value = []
     albumsLoaded.value = false
+    loadError.value = false
     albumAssetsByID.value = {}
     albumAssetsLoading.value = {}
   }
 
   return {
-    albums, albumsLoaded, albumAssetsByID, albumAssetsLoading,
+    albums, albumsLoaded, loadError, albumAssetsByID, albumAssetsLoading,
     albumById, assetsOf, isLoadingAssets,
     fetchAlbums, createAlbum, deleteAlbum, fetchAlbumAssets,
     renameAlbum, setAlbumCover, reorderAlbumAssets,
