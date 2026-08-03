@@ -480,3 +480,26 @@ Vite 当普通依赖**预打包**;缓存失效判据是 lockfile / vite config /
 ### 状态
 
 **P5b 验收未关账**:剩 B19–B21 + 用户尚未给出通过结论。代码零改动(本轮只改两份台账/清单 markdown)。
+
+---
+
+## 🏁 P5b 收尾关账(2026-08-03,用户主动)
+
+**用户指示**:「先不修(概览 60s)」→「全部完整这部分全部收尾」。**B19/B20/B21 未走即关账。**
+
+**最终坐标**:New-UI `sp8-ai`@`cc6df78` · Service `sp8-ai`@`15c2eba`(整期零改动)· roadmap `NimoOS-UI@aff124e3`(分支 `docs/vue3-migration-sp3`,只提 `docs/vue3-migration-roadmap.md` 一个文件,带 pathspec;该分支被 SP7 并发会话共用,本次提交前 tip 是 SP7 的 `b1b58938`)
+
+**三门口径**:沿用 **08-02 的 319 文件 / 3153 例全绿 · tsc 0 · build 0**。
+本次未重跑 —— 依据是 `git diff --name-only 820d426..HEAD -- src/` **为空**,即最后一次产品代码提交(`820d426`)之后
+只有两份 markdown 改动(`p5b-acceptance.md` / `p5b-progress.md`),`src/` 零改动。**不是「跑过了」,是「没有需要重跑的理由」。**
+
+**验收实际覆盖**:A1–A13 + B14–B18 = **18 项**,用户未报任何缺陷。
+**未覆盖**:B19(沉淀 scope 的 4 条可观察差异)· B20(沉淀 scope 刷新保持)· B21(暗色轮 2)· C 组全部(需造数据)。
+放行依据:照 SP6-P3/P4/P5 先例(设备条件不足时以单测 + 每期终审为准)。
+**这三项 + C 组的验收缺口,连同「7 列沉淀表格布局从未被人眼看过」这一条,一并交 P5c/P5d 若造了沉淀数据时顺带补验。**
+
+**状态**:**未部署、未合 master**。`sp8-ai` 与 `sp7-photos` 压同一 base、非快进、4 个冲突文件,**合并顺序仍待用户拍板**。
+
+**下一期**:**P5c 配置 + Parser 两页**(蓝本 `SettingsView.vue` 322 行 + `ParserStatus.vue` 164 行 +
+`ParserTest.vue` 369 行 + `parser-styles.scss` 74 行 + `store/parserStore.js` 65 行;要反转 `DEFERRED_TABS`
+摘 `'settings'` 6→5 + `knowledgeRoutes.ts:59` + `:62-63` 两条 parser 路由)。开工提示词已交付用户。
