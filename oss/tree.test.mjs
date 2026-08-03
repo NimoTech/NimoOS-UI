@@ -199,3 +199,70 @@ describe('类 3 · 设置与 Service 侧补丁', () => {
     expect(g.split('\n')).toContain('.export-report.txt')
   })
 })
+
+describe('类 3 · i18n 与主题 token', () => {
+  const LOCALES = ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts', 'src/i18n/zh_cn.sp9.ts', 'src/i18n/en_us.sp9.ts']
+
+  it('四个 locale 里 AI/相册/搜索/转录/文件夹权限的键全没了', () => {
+    const DEAD = [
+      // 桌面:系统应用名 / 组件(AiWidget.vue 已整体删除,widgetAi* 全部是孤儿,不止 brief 点名的 2 个)
+      'appPhotos', 'appAi',
+      'widgetAiTitle', 'widgetAiDesc', 'widgetAiGreetShort', 'widgetAiGreet',
+      'widgetAiPlaceholder', 'widgetAiSend', 'widgetAiPrompt1', 'widgetAiPrompt2', 'widgetAiPrompt3',
+      // AddPanel 照片 tab(T11 的活,这里先清 i18n 侧)
+      'addPanelTabPhoto', 'addPanelNoPhotos',
+      // 顶栏搜索胶囊 + 搜索面板整节(SearchDialog.vue 已整体删除,18 键全部是孤儿)
+      'topbarSearch', 'topbarSearchKbd',
+      'searchPlaceholder', 'searchClose', 'searchSearching', 'searchResultsCount',
+      'searchOpenAlbum', 'searchAlbumMatches', 'searchOpenFolder', 'searchOpenFolderTitle',
+      'searchAskTitle', 'searchAskSub', 'searchAskGo', 'searchAskButton', 'searchHint',
+      'searchTabAll', 'searchTabDocuments', 'searchTabImages', 'searchTabAudio', 'searchTabVideos',
+      // E1:spec 漏登记的 11 个 audio 转录键(audioSkipBack/Forward/Speed 播放器控件保留,见下一个 it)
+      'audioSummary', 'audioTranscript', 'audioAsk', 'audioAskPlaceholder', 'audioAskEmpty', 'audioAskDemo',
+      'audioHighlightsOnly', 'audioShowAll', 'audioSpeakerAll', 'audioChapters', 'audioAllChapters',
+      // 文件夹权限四分区(FolderPermissionsPanel.vue + folderPerm/ 已整体删除):26 个键全是孤儿,
+      // 不止 chinese-leaks.md 列出的 8-10 个中文候选词样本 —— 已逐一核实零消费方(见 task-8-report.md)
+      'settingsTabFolderPermissions', 'settingsFpIntro', 'settingsFpDataPending', 'settingsFpFilenameIndex',
+      'settingsFpServiceOffline', 'settingsFpFilenameDesc', 'settingsFpNoFolders', 'settingsFpKnowledge',
+      'settingsFpKnowledgeDesc', 'settingsFpIndexedFolders', 'settingsFpExcludedSubfolders',
+      'settingsFpAddExclusion', 'settingsFpNoExclusions', 'settingsFpAiHidden', 'settingsFpCurrentUserOnly',
+      'settingsFpAiDesc', 'settingsFpNoAiBlocked', 'settingsFpPhotos', 'settingsFpUpdateRequired',
+      'settingsFpPhotosDesc', 'settingsFpPhotosAuto', 'settingsFpSwitchManual', 'settingsFpPhotosStale',
+      'settingsFpCoveredBy', 'settingsFpGlobRules', 'settingsFpAddFolder',
+    ]
+    for (const f of LOCALES) for (const k of DEAD) expect(read(f), `${f} :: ${k}`).not.toContain(`${k}:`)
+  })
+
+  it('播放器控件键与商店筛选键保留', () => {
+    for (const f of ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts']) {
+      for (const k of ['audioSkipBack', 'audioSkipForward', 'audioSpeed', 'appsStoreSearch']) {
+        expect(read(f), `${f} :: ${k}`).toContain(`${k}:`)
+      }
+    }
+  })
+
+  it('zh_cn 与 en_us 键数仍然相等(parity 的前置)', () => {
+    const keys = (f) => (read(f).match(/^\s{2}[a-zA-Z][a-zA-Z0-9]*:/gm) || []).length
+    expect(keys('src/i18n/zh_cn.ts')).toBe(keys('src/i18n/en_us.ts'))
+    expect(keys('src/i18n/zh_cn.sp9.ts')).toBe(keys('src/i18n/en_us.sp9.ts'))
+  })
+
+  it('theme.css:说话人/AI token 与照片磁贴样式删净,--wave-none 保留(E11)', () => {
+    const c = read('src/styles/theme.css')
+    for (const bad of ['--spk-', '--wave-dim', '--orb-core', '--orb-glow',
+                       '@keyframes pulse', '.ic-photos', '.ic-ai', '.ic-search',
+                       '.photo-thumb', '.kind-photo']) {
+      expect(c, bad).not.toContain(bad)
+    }
+    // 两套主题块里都要还有 --wave-none
+    expect(c.match(/--wave-none/g)?.length).toBe(2)
+  })
+
+  it('theme.sp9.css 不含任何 AI/相册/搜索/说话人相关 token(核查结论:干净,未改动)', () => {
+    const c = read('src/styles/theme.sp9.css')
+    for (const bad of ['spk', 'wave-', 'orb-', 'photo', 'knowledge', 'transcript', 'speaker',
+                       '说话人', '转录', '相册', '智能', '照片', '搜索', '知识库']) {
+      expect(c.toLowerCase(), bad).not.toContain(bad.toLowerCase())
+    }
+  })
+})
