@@ -521,8 +521,20 @@ pnpm build                     > /tmp/p5c-tN-build.log 2>&1; echo "exit=$?"
 ### 8.1 🔴 下游算术(收官应是几文件几例)
 
 - `color-guard.test.ts` 按 `**/*.vue` 动态生成用例 → **每新增一个 `.vue` 全量 +1 例**。
-  当前 `.vue` 总数实测 **175**。本批新增 **4 个 `.vue`**:`SettingsView.vue` · `FolderBrowser.vue` ·
-  `ParserStatus.vue` · `ParserTest.vue` → color-guard **+4 例**,`.vue` 总数 → 179。
+  **起点 `.vue` 总数 175**(T0 实测,T3 之前)。本批新增 **4 个 `.vue`** → color-guard **+4 例**,**收官 179**。
+
+  🔴 **进度台账(每刀落地后就地更新,别再引「当前 175」那个陈旧数)**:
+
+  | 刀 | 新增 `.vue` | 落地后 `.vue` 总数 |
+  |---|---|---|
+  | 起点 | — | **175** |
+  | T3 | `FolderBrowser.vue` | **176** ✅(实测) |
+  | T6 | `ParserStatus.vue` | 177 |
+  | T7 | `ParserTest.vue` | 178 |
+  | T8 | `SettingsView.vue` | **179**(收官) |
+
+  ⚠️ **T5 评审 M-4 提出「重起底为 180」是算错了**:175 + 4 = **179**;T5 当时实测 176 已含 T3 那一个,
+  剩 T6/T7/T8 三个 → 179。**以本表为准。**
 - 新增测试文件(每个 +1 文件):`SettingsView.test.ts` · `FolderBrowser.test.ts` · `folderBrowser.test.ts`(util)·
   `parserStore.test.ts` · `ParserStatus.test.ts` · `ParserTest.test.ts` · `parserStyles.test.ts`
   → **+7 文件**(具体切刀由计划书定,总数以此为准)。
