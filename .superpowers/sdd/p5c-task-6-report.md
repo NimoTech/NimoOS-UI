@@ -1,7 +1,8 @@
 # SP8-P5c Task 6 报告 —— `ParserStatus.vue`(路由 `/ai/parser`)
 
-**状态**:`DONE_WITH_CONCERNS`(唯一顾虑 = brief §5 那条 `dist` 额外门在本刀**不可能**命中,
-原因是**任务书前提有误**而非产品有缺陷;已用探针给出决定性证据,详见 §7)。
+**状态**:`DONE`(第二轮已收评审 I-1 + M-1 + M-3,见 **§20**)。
+第一轮唯一顾虑 = brief §5 那条 `dist` 额外门在本刀**不可能**命中 —— 原因是**任务书前提有误**
+而非产品有缺陷,已用探针给出决定性证据(§7),协调者已认可归 T10。
 
 - 起点:`sp8-ai`@**`091ce5e`**(⚠️ brief §0 写的 `e0c2d54` 已过期一个提交 —— `091ce5e` 就是
   「T6 任务书」那个纯 markdown 提交本身。产品代码坐标不变,三门基线不受影响。登记为 **E-9**)
@@ -13,8 +14,8 @@
 
 | 文件 | 行数 | 说明 |
 |---|---|---|
-| `src/ai/knowledge/parser/ParserStatus.vue` | 305 | 新建。100 行文件头注释 + `<script setup>` + `<template>`,**零 `<style>` 块** |
-| `src/ai/knowledge/parser/ParserStatus.test.ts` | 849 | 新建。**47 个用例** |
+| `src/ai/knowledge/parser/ParserStatus.vue` | **308** | 新建。103 行文件头注释 + `<script setup>`(`:104`)+ `<template>`(`:192`),**零 `<style>` 块**。⚠️ 第二轮 M-1 改了头注释 → 比第一轮多 3 行,**下文 §2/§3/§10 的本仓行号均为第一轮(305 行版)的值,第二轮起一律 +3**(结构未动,只在头注释里加了 3 行) |
+| `src/ai/knowledge/parser/ParserStatus.test.ts` | **942** | 新建。**52 个用例**(第一轮 47 + 第二轮 5) |
 | `.superpowers/sdd/p5c-task-6-fixture-verify.mjs` | 60 | 新建(台账,`git add -f`)。fixture 抄本的程序化等价校验器 |
 | `.superpowers/sdd/p5c-task-6-report.md` | — | 本文件(`git add -f`) |
 
@@ -512,7 +513,7 @@ BMP 那三个会多切一个字符导致假报红,已改成带 `u` 标志的 `st
 
 | # | 命中? | 本刀怎么落地 |
 |---|---|---|
-| **K1** | ✅ | **31 处** state + **8 处** action 逐处降层,零 `store.state.` 残留(§4 有逐字段计数) |
+| **K1** | ✅ | **31 处** state + **8 处** action 逐处降层,零 `store.state.` 残留(§4 有逐字段计数)。⚠️ 第二轮 M-1:源码头注释原写「共 20 处」与实测矛盾,已改成实测数 |
 | **K5 / K30** | ⚠️ **明确不适用** | `:13` 的 `<small>{{ store.error }}</small>` 回显的是 `e.message \|\| String(e)`(网络层,`parserStore.ts:184`),**蓝本行为,照抄**。K5/K30 管的是「不把后端响应 body 的 `detail` 拼进 toast」,不是同一件事(brief §3.6 已就此显式裁定)。用例正向断言 `<small>` 文本 == `'parser down'` |
 | **K9** | ✅(继承) | 所有 60+ 裸类名的 CSS 都收在 `parser-styles.scss` 的页面作用域下(T2b 已做);本刀模板只是使用者,零 `<style>` 块 |
 | **K21** | ✅(消费方) | 本文件**零 token 声明**;`.parser-app` 的 token 来自 `knowledge.scss` 那两个被 T2a 扩了逗号项的声明块。`dist` 探针实测两档 token 块都命中 `.parser-app` |
@@ -546,7 +547,7 @@ BMP 那三个会多切一个字符导致假报红,已改成带 `u` 标志的 `st
 
 ---
 
-## 14. 用例清单(47 条)与本机数据当预期
+## 14. 用例清单(第一轮 47 条;第二轮补到 **52 条**,新增见 §20)与本机数据当预期
 
 | describe | 条数 | 覆盖 |
 |---|---|---|
@@ -555,8 +556,9 @@ BMP 那三个会多切一个字符导致假报红,已改成带 `u` 标志的 `st
 | unreachable 两态 | 2 | 不出现(四张卡都在)/ 出现(`store.error` 回显 + 四张卡整块不渲染 + 页头仍在) |
 | 控制卡 状态灯+按钮 | 4 | `paused:true` 本机档(`.paused` 类 + 「已暂停」+「▶ 恢复」)/ `paused:false` 变体(「运行中」+「⏸ 暂停」)/ 点击分派 resume / 点击分派 pause |
 | 控制卡 并发档(N17) | 4 | 三档文案顺序 · `:checked` 两侧(concurrency 2)· `:checked` 两侧(变体 4)· `@change` 载荷键 `n` |
+| 🔴 **I-1 键选纪律(en 档)**(第二轮新增) | **4** | en 三档逐字 · 反向不含 `Power saver`/`Full speed` · 切回 zh 无污染 · A-1 源码断言 |
 | 控制卡 推理设备 | 7 | 三档文案(含硬编码源码断言)· `:checked` 两侧 ×2 · `.resolved-hint` 渲染 `→ 实际 CPU` · `v-if` 前半不渲染 · `v-if` 后半不渲染 · `@change` 载荷 |
-| 控制卡 OCR | 3 | 文案 + N21 错译提示逐字 · `:checked` 两侧 · `@change` 从 `$event.target.checked` 取 true/false |
+| 控制卡 OCR | 3 → **4** | 文案 + N21 错译提示逐字 · `:checked` **false 态**(第二轮拆出)· `:checked` **true 态**(第二轮拆出)· `@change` 从 `$event.target.checked` 取 true/false |
 | 队列卡 6 格 | 3 | 六格文本逐字(emoji 位置)· 六个 `<b>` 数字 · `formatCursor(0)` → `—` |
 | 文件夹卡 | 5 | 标题双占位符(20 / 119)· 20 行内容 · barWidth 100% / 22% · 🔴 max=0 兜底 0% · `v-if` 空态 |
 | 失败卡 + N19 三态 | 5 | 态①空桶(按钮能点、点开仍不渲染)· 态②非空未展开(`display:none`)· 态③非空展开 · truncateErr 120/121 · `last_error: null` |
@@ -581,14 +583,14 @@ BMP 那三个会多切一个字符导致假报红,已改成带 `u` 标志的 `st
 $ pnpm test                    > /tmp/p5c-t6-test.log
 exit=0
  Test Files  324 passed (324)
-      Tests  3294 passed (3294)
-   Duration  68.39s
+      Tests  3299 passed (3299)
+   Duration  68.01s
 
 $ pnpm exec vue-tsc --noEmit   > /tmp/p5c-t6-tsc.log
 exit=0        (输出为空)
 
 $ pnpm build                   > /tmp/p5c-t6-build.log
-exit=0        ✓ built in 12.41s
+exit=0        ✓ built in 12.64s
               (只有既有的 "Some chunks are larger than 500 kB" 提示,非本刀引入)
 ```
 
@@ -597,7 +599,8 @@ exit=0        ✓ built in 12.41s
 - **算术核对(全对)**:
   - 文件数 **323 → 324**(+1 = `ParserStatus.test.ts`)✅ 实测 324
   - `.vue` **176 → 177**(+1 = `ParserStatus.vue`)→ `color-guard` **+1 例**
-  - 用例数 **3246 + 47(本刀新用例)+ 1(color-guard)= 3294** ✅ 实测 3294,**零误差**
+  - 用例数 **3246 + 52(本刀新用例)+ 1(color-guard)= 3299** ✅ 实测 3299,**零误差**
+    (第一轮是 47 例 → 3294;第二轮 I-1/M-3 加了 5 例 → **3299**)
 - `.vue` 台账(治理 §8.1)更新:T6 落地后 `.vue` 总数 = **177**(下一刀 T7 → 178)。
 - Service 仓零改动 → 未跑跨仓 `pnpm build` / `pnpm install`(治理 §8)。
 - **额外门:不命中**(交付态 `grep -c` = 0)。**原因是 brief 前提有误、归 T10**,
@@ -651,3 +654,171 @@ git add -f .superpowers/sdd/p5c-task-6-report.md \
 **禁用项自查**:未用 `git add -A` / `git add .`;未 rebase / reset / stash / merge / push;
 未跑 `./scripts/deploy.sh`;未写 `/var/lib`;未改任何后端仓;未动 `:5288` 的 dev server;
 未碰 `/home/nimo/NimoTech/NimoOS-New-UI` 与 `/home/nimo/NimoTech/.sp7/NimoOS-New-UI`。
+
+---
+
+## 20. 第二轮 —— 收评审 I-1 + M-1 + M-3(2026-08-04)
+
+评审结论 `Ready to merge` / 零 Critical / 1 Important + 3 Minor。本轮收 **I-1 + M-1 + M-3**;
+**M-2 按协调者裁定不动**(N17「不许改成 computed 映射表」是形状纪律,行为等价、无法用断言守,
+评审已人肉核准照抄)。
+
+### 20.1 🔴 I-1 —— N21 #3 的键选纪律补 en 档强断言
+
+**评审猎出的缺口**:把三档并发的键换成治理明令禁止复用的 `aiKbCcPowerSaver` /
+`aiKbCcFullSpeed` → 第一轮那 47 条 **47/47 全绿**。根因:第一轮断言只比 **zh** 文本,
+而这两组键 **zh 逐字撞车、只有 en 不同**(实测值):
+
+| 键 | en | zh | 本页 |
+|---|---|---|---|
+| `aiKbPrCcPowerSaving`(`en_us.ts:1634`) | `Power-saving` | 省电(`zh_cn.ts:1661`) | ✅ 必须用 |
+| `aiKbCcPowerSaver`(`en_us.ts:1485`) | `Power saver` | 省电(`zh_cn.ts:1495`) | 🔴 禁复用 |
+| `aiKbPrCcFullPower`(`en_us.ts:1633`) | `Full power` | 全力(`zh_cn.ts:1660`) | ✅ 必须用 |
+| `aiKbCcFullSpeed`(`en_us.ts:1487`) | `Full speed` | 全力(`zh_cn.ts:1497`) | 🔴 禁复用 |
+| `aiKbCcBalanced` | `Balanced` | 平衡 | ✅ **复用**(en+zh 双双一致,三档里唯一可复用的) |
+
+→ 复用只在**英文界面**看得出(`Power saver`/`Full speed` ≠ Vue2 的 `Power-saving`/`Full power`
+= 界面不 1:1),中文界面零差别、三门全绿放行。**产品代码第一轮就是对的(用的是 T1 新建的正确键),
+缺的是守卫。**
+
+**新增 4 条用例**(`describe('🔴 I-1:N21 #3 键选纪律的 en 档强断言…')`):
+
+1. **正向**:切 locale 到 `en_us` 真挂一次组件 → 三档 `.radio` 文本逐字
+   `['Power-saving (1)', 'Balanced (2)', 'Full power (4)']`,行 label `'Concurrency level:'`。
+2. 🔴 **反向**:en 档渲染结果**不含** `'Power saver'`、**不含** `'Full speed'`(`.concurrency-row`
+   与整页 `w.text()` 两个范围各扫一遍)。
+3. **无污染**:切回 zh 后三档仍是 `['省电 (1)','平衡 (2)','全力 (4)']`(证明 `try/finally` 真还原了
+   全局 locale 单例)。
+4. **裁定 A-1**:见 §20.2。
+
+**做法选型的理由**(协调者要求说明):选「切 locale 真挂组件、断言渲染文本」,
+**不选**「直接读语言包比键值」——
+- 要守的不变量是「**这一页渲染出来的英文**是 Vue2 那三串」;读键值只能证明「某个键的值是什么」,
+  证不到「模板用的是哪个键」。走渲染路径把「键选对了」与「值对了」一次钉死。
+- **反向断言不可省**:即使将来有人把 `aiKbCcPowerSaver` 的 en 值也改成 `Power-saving`
+  (正向断言会绿),反向断言仍守着「渲染结果里不许出现 `Power saver`/`Full speed`」这个
+  用户可见事实。
+- locale 是**全局单例** → 用 `try/finally` 还原,并另加第 3 条正面验证无污染。
+
+### 20.2 裁定 A-1(`aiKbDeviceAuto`)—— 只能靠源码断言,已一并补上
+
+自核结论:**A-1 用任何渲染断言都没有判别力** —— `aiKbDeviceAuto` 与 `aiKbOriginAuto`
+**en 与 zh 双双逐字相同**(实测 `en_us.ts:1625` vs `:1548` 都是 `Auto`;
+`zh_cn.ts:1652` vs `:1562` 都是 `自动`)。这恰好就是裁定 A-1 自己的理由原文:
+「复用**渲染完全一致**,但键名语义是『沉淀任务来源』,将来改沉淀文案会静默改掉设备下拉」。
+
+→ 故这条纪律**只能落在「模板用的是哪个键」的源码断言**上(第 4 条用例):
+```ts
+expect(src).toContain("{ value: 'auto', label: t('aiKbDeviceAuto') }")
+expect(src).not.toMatch(/\bt\(\s*['"]aiKbOriginAuto['"]/)
+expect(zh.aiKbDeviceAuto).toBe(zh.aiKbOriginAuto)   // 反过来实证「为什么必须走源码」
+```
+
+🔴 **本轮第二次踩「撞注释」**(治理 §9 第七/第八条同族,这次在**读**侧):
+第一版写的是 `expect(src).not.toContain('aiKbOriginAuto')` → **假报红**,因为本文件头注释里
+就有一句「**不复用** `aiKbOriginAuto`」的说明文字。改成钉 **`t()` 调用形状**
+(`/\bt\(\s*['"]aiKbOriginAuto['"]/`)后正常。已在用例上方注释里就地登记这个坑,防下游复制。
+
+### 20.3 M-1 —— 源码头注释的降层处数改成实测数
+
+`ParserStatus.vue` 头注释【K26 + K1】那段原写「🔴 逐处降层,共 **20 处**」,
+与本报告 §4 及评审实测的 **31 处 state + 8 处 action** 矛盾。**注释里的数字错了比没有更糟**
+(下一个人会拿它当依据)。已改成:
+
+> 🔴 逐处降层,实测共 **31 处 state**(`controlState` 10 · `stats` 6 · `loading` 5 ·
+> `folders` 5 · `failedJobs` 3 · `unreachable` 1 · `error` 1)**+ 8 处 action**
+> (`loadAll` 3 · `pause`/`resume`/`setConcurrency`/`setDevice`/`setOcr` 各 1),
+> 与蓝本逐字段等数(逐处清单见 T6 报告 §4)
+
+(头注释因此 +3 行 → 文件 305 → **308** 行;`<script setup>` 由 `:101` 移到 `:104`。
+**结构与代码零改动**,§2/§3/§10 里引的本仓行号是第一轮 305 行版的值,**第二轮起一律 +3**。)
+
+### 20.4 M-3 —— OCR `:checked` 拆成两条用例
+
+原本两态挤在同一个 `it()` 里、中间 `setActivePinia(createPinia())` 挂第二个实例,与本文件
+其余「一态一用例」的写法不一致(并发档、设备档都是拆开的)。已拆成:
+`🔴 :checked 两侧(其一)—— 本机 ocr_enabled:false → checked 为 false` 与
+`(其二)—— fixture 变体 ocr_enabled:true → checked 为 true`,
+第二条靠 `beforeEach` 的 `setActivePinia(createPinia())` 拿干净实例,不再手动换 pinia。
+
+### 20.5 🔴 验收判据:复现评审探针 → 报红 → 还原 → 转绿
+
+注入器同第一轮(`red-probe.mjs`,**整行精确锚定** + `hits !== 1` 直接 abort +
+md5 前后对比 + `grep -n` 交叉验证落盘),新增探针 **F**(复现评审那次)与 **G**(A-1)。
+
+**探针 F —— 三档键换成被禁复用的既有键(= 评审原探针)**
+```
+probe=F anchor exact-line hits = 1
+probe=F anchor at line 239
+md5 before = 3b745501b4d293f3f0f0a95e8f20036a
+md5 after  = 11633f01fbecab4647a4a9e7bef63284
+landed? contains replacement = true      landed? anchor gone = true
+--- grep -n 交叉验证注入落盘 ---
+239:              {{ [t('aiKbCcPowerSaver'), t('aiKbCcBalanced'), t('aiKbCcFullSpeed')][[1,2,4].indexOf(n)] }} ({{ n }})
+vitest exit=1
+      Tests  2 failed | 50 passed (52)
+--- 报红用例名 ---
+     × en 档三档并发标签逐字 = `Power-saving (1)` / `Balanced (2)` / `Full power (4)`
+     × 🔴 反向:en 档渲染结果里不许出现被禁复用键的 en 值(`Power saver` / `Full speed`)
+--- 失败断言 ---
+AssertionError: expected [ 'Power saver (1)', …(2) ] to deeply equal [ 'Power-saving (1)', …(2) ]
+AssertionError: expected 'Concurrency level: Power saver (1)  B…' not to contain 'Power saver'
+```
+🔴 **同一个探针在第一轮是 47/47 全绿,现在 2 failed —— 这就是从「零守卫」翻成「有判别力」的证据。**
+
+**探针 G —— 设备「自动」档换成 `aiKbOriginAuto`(A-1)**
+```
+probe=G anchor exact-line hits = 1
+probe=G anchor at line 123
+md5 before = 3b745501b4d293f3f0f0a95e8f20036a
+md5 after  = d7b216fabd131b6788d56399742f00a9
+landed? contains replacement = true      landed? anchor gone = true
+--- grep -n 交叉验证注入落盘 ---
+123:  { value: 'auto', label: t('aiKbOriginAuto') },
+vitest exit=1
+      Tests  1 failed | 51 passed (52)
+--- 报红用例名 ---
+     × 🔴 A-1:设备档用 aiKbDeviceAuto,零 `t('aiKbOriginAuto')` 调用(en/zh 双双同值 → 渲染断言无判别力)
+```
+
+**还原确认(两条探针后)**
+```
+$ md5sum src/ai/knowledge/parser/ParserStatus.vue
+3b745501b4d293f3f0f0a95e8f20036a      ← 与探针前快照逐字节相同
+```
+
+### 20.6 第二轮三门(完整终值)
+
+```
+$ pnpm test                    > /tmp/p5c-t6-r2-test.log
+exit=0
+ Test Files  324 passed (324)
+      Tests  3299 passed (3299)
+   Duration  68.01s
+
+$ pnpm exec vue-tsc --noEmit   > /tmp/p5c-t6-r2-tsc.log
+exit=0        (输出为空)
+
+$ pnpm build                   > /tmp/p5c-t6-r2-build.log
+exit=0        ✓ built in 12.64s
+```
+
+- **红项 0 条,零复跑**(两条已知噪声本轮同样没红)。
+- **算术**:文件数 **324**(不变,未新增文件)· `.vue` **177**(不变,实测
+  `find src -name "*.vue" | wc -l` = 177)· 用例数 **3294 → 3299**(+5 = I-1 的 4 条 +
+  M-3 拆出的 1 条),**零误差**。
+- **零改动清单复核**:`parser-styles.scss` / `parserStyles.test.ts` / `knowledge.scss` /
+  `knowledgeStyles.test.ts` / `src/i18n/*` / `parserStore.ts` / `FolderBrowser*` /
+  `knowledgeRoutes.ts` / `deferred.ts` / §1.1 清单**全部零 diff**;
+  **本轮零新增 i18n 键**(补 en 断言是**读**语言包 + 切 locale,不是加键)。
+- `dist` 额外门仍不命中(原因与 §7 相同,已归 T10)。
+
+### 20.7 本轮新顾虑
+
+**无。** I-1 的守卫已落地并用评审原探针验证;A-1 的「只能靠源码断言」已在报告与用例注释里
+说清理由(en/zh 双双同值 → 渲染无判别力),不是偷懒。
+
+⚠️ 一条**给下游的提示**(不是本刀顾虑):**T7 `ParserTest.vue` 与 T8/T9 `SettingsView.vue`
+会遇到同一类「zh 撞车、只有 en 能判别」的键**(附录 A §A.3 的 N21 四组里,
+#2 `Test Sandbox`/`Test sandbox` 落在 SettingsView `:162` 与 ParserStatus `:6` 两页上)——
+建议协调者把「凡 N21 撞车键必须有 en 档强断言」写进 T7/T8/T9 的 DoD,别再靠评审逐刀猎。

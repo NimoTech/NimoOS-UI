@@ -415,6 +415,96 @@ describe('ParserStatus —— 控制卡:并发档(N17,蓝本 :30-40)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 🔴 I-1(评审 2026-08-04 猎出的守卫缺口)—— **N21 #3 的键选纪律必须有 en 档守卫**。
+//
+// 评审探针:把三档并发的键换成治理**明令禁止复用**的 `aiKbCcPowerSaver` /
+// `aiKbCcFullSpeed` → 上面那批用例 **47/47 全绿**。原因:那些断言只比 **zh** 文本,
+// 而这两组键的 **zh 逐字撞车、只有 en 不同**:
+//     aiKbPrCcPowerSaving  en `Power-saving`  zh 省电   ← 本页必须用的(T1 新建)
+//     aiKbCcPowerSaver     en `Power saver`   zh 省电   ← 被禁复用的(既有)
+//     aiKbPrCcFullPower    en `Full power`    zh 全力   ← 本页必须用的(T1 新建)
+//     aiKbCcFullSpeed      en `Full speed`    zh 全力   ← 被禁复用的(既有)
+// → 复用会让**英文界面**渲染成 `Power saver` / `Full speed`,与 Vue2 不同 = 界面不 1:1,
+//   而中文界面**看不出任何差别**、三门全绿放行。这条纪律此前零守卫。
+//
+// **做法选型**:切 locale 到 `en_us` 真挂一次组件、断言渲染文本 —— 而不是直接读语言包
+// 比键值。理由:要守的不变量是「**这一页渲染出来的英文**是 Vue2 那三串」,读键值只能证明
+// 「某个键的值是什么」,证不到「模板用的是哪个键」;走渲染路径把「键选对了」与「值对了」
+// 一次钉死。**并加反向断言**(不等于被禁那两个键的 en 值),这样即使将来某人把
+// `aiKbCcPowerSaver` 的 en 值也改成 `Power-saving`,正向断言会绿但反向断言仍在守着
+// 「渲染结果里不许出现 `Power saver`/`Full speed`」这个用户可见事实。
+//
+// 🔴 locale 是全局单例 → 必须 `try/finally` 还原,否则污染同文件后续用例。
+describe('ParserStatus —— 🔴 I-1:N21 #3 键选纪律的 en 档强断言(zh 撞车、只有 en 能判别)', () => {
+  /** `i18n.global.locale` 在 composition 模式下是 WritableComputedRef。 */
+  const localeRef = i18n.global.locale as unknown as { value: string }
+
+  async function mountInEn() {
+    const prev = localeRef.value
+    localeRef.value = 'en_us'
+    try {
+      return { w: await mountPage(), restore: () => { localeRef.value = prev } }
+    } catch (e) {
+      localeRef.value = prev
+      throw e
+    }
+  }
+
+  it('en 档三档并发标签逐字 = `Power-saving (1)` / `Balanced (2)` / `Full power (4)`', async () => {
+    const { w, restore } = await mountInEn()
+    try {
+      expect(w.findAll('.concurrency-row .radio').map((r) => r.text())).toEqual([
+        'Power-saving (1)',
+        'Balanced (2)',
+        'Full power (4)',
+      ])
+      expect(w.find('.concurrency-row > label').text()).toBe('Concurrency level:')
+    } finally {
+      restore()
+    }
+  })
+
+  it('🔴 反向:en 档渲染结果里不许出现被禁复用键的 en 值(`Power saver` / `Full speed`)', async () => {
+    const { w, restore } = await mountInEn()
+    try {
+      const row = w.find('.concurrency-row').text()
+      expect(row).not.toContain('Power saver') // = aiKbCcPowerSaver 的 en 值
+      expect(row).not.toContain('Full speed') // = aiKbCcFullSpeed 的 en 值
+      // 整页范围也扫一遍(防将来别处误用)
+      expect(w.text()).not.toContain('Power saver')
+      expect(w.text()).not.toContain('Full speed')
+    } finally {
+      restore()
+    }
+  })
+
+  it('切回 zh 后三档仍是「省电 (1)」/「平衡 (2)」/「全力 (4)」(证明 locale 已还原、无污染)', async () => {
+    const w = await mountPage()
+    expect(w.findAll('.concurrency-row .radio').map((r) => r.text())).toEqual([
+      '省电 (1)', '平衡 (2)', '全力 (4)',
+    ])
+  })
+
+  // 🔴 裁定 A-1(`aiKbDeviceAuto` 不许复用 `aiKbOriginAuto`)的守卫**只能落在源码上**:
+  // 两个键 **en 与 zh 双双逐字相同**(`Auto` / `自动`,实测 `en_us.ts:1548` vs `:1625`、
+  // `zh_cn.ts:1562` vs `:1652`)→ **任何渲染断言都没有判别力**(这也正是裁定 A-1 的理由
+  // 原文:「复用渲染完全一致,但键名语义是『沉淀任务来源』,将来改沉淀文案会静默改掉
+  // 设备下拉」)。故这条纪律只能靠「模板用的是哪个键」的源码断言守。
+  // ⚠️ 断言必须钉「**`t()` 调用**」而不是裸子串:本文件头注释里就有一句「**不复用**
+  // `aiKbOriginAuto`」的说明文字,`not.toContain('aiKbOriginAuto')` 会撞上那句注释而假报红
+  // (第一版就栽了一次)—— 与治理 §9 第七/第八条那族「在文件里找某段文本撞注释」同源,
+  // 这次发生在**读**侧。判据落在 `t('aiKbOriginAuto')` 这个调用形状上。
+  it('🔴 A-1:设备档用 aiKbDeviceAuto,零 `t(\'aiKbOriginAuto\')` 调用(en/zh 双双同值 → 渲染断言无判别力)', () => {
+    const src: string = readFileSync(resolve(__dirname, './ParserStatus.vue'), 'utf8')
+    expect(src).toContain("{ value: 'auto', label: t('aiKbDeviceAuto') }")
+    expect(src).not.toMatch(/\bt\(\s*['"]aiKbOriginAuto['"]/)
+    // 反过来实证「为什么必须走源码」:两个键两档都同值,渲染永远分不出来
+    const zh = zhCn as Record<string, string>
+    expect(zh.aiKbDeviceAuto).toBe(zh.aiKbOriginAuto)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('ParserStatus —— 控制卡:推理设备(蓝本 :41-55)', () => {
   it('三档文案:「自动」走 i18n,「GPU (CUDA)」/「CPU」是硬编码技术标识符(不进 i18n)', async () => {
     const w = await mountPage()
@@ -480,14 +570,17 @@ describe('ParserStatus —— 控制卡:OCR 开关(蓝本 :56-65)', () => {
     expect(hints[hints.length - 1]!.text()).toBe('慢 5-10x，只对真实索引的扫描件有用')
   })
 
-  it('🔴 :checked 两侧 —— 本机 ocr_enabled:false 为 false,fixture 变体 true 为 true', async () => {
-    const w1 = await mountPage()
-    expect((w1.find('.checkbox input').element as HTMLInputElement).checked).toBe(false)
+  // 🔴 M-3(评审,2026-08-04):原本这两态挤在同一个 `it()` 里、中间换 pinia 挂第二个实例
+  // —— 与本文件其余「一态一用例」的写法不一致(并发档 / 设备档都是拆开的)。已拆成两条。
+  it('🔴 :checked 两侧(其一)—— 本机 ocr_enabled:false → checked 为 false', async () => {
+    const w = await mountPage()
+    expect((w.find('.checkbox input').element as HTMLInputElement).checked).toBe(false)
+  })
 
+  it('🔴 :checked 两侧(其二)—— fixture 变体 ocr_enabled:true → checked 为 true', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, ocr_enabled: true })
-    setActivePinia(createPinia())
-    const w2 = await mountPage()
-    expect((w2.find('.checkbox input').element as HTMLInputElement).checked).toBe(true)
+    const w = await mountPage()
+    expect((w.find('.checkbox input').element as HTMLInputElement).checked).toBe(true)
   })
 
   it('@change 从 $event.target.checked 取值 → setOcr(true) / setOcr(false)', async () => {

@@ -39,8 +39,11 @@
 
   【K26 + K1 —— store 降层】蓝本是 `Vue.observable({state:{…}})`,`ParserStatus.vue` 里
     处处写 `store.state.xxx`;T5 落地的 `parserStore.ts` 是 Pinia setup store,
-    **`state` 那一层整个消失** → 本文件一律 `store.xxx`。🔴 逐处降层,共 **20 处**
-    (清单见 T6 报告 §K1);漏一处那一格就是 `undefined`。
+    **`state` 那一层整个消失** → 本文件一律 `store.xxx`。🔴 逐处降层,实测共
+    **31 处 state**(`controlState` 10 · `stats` 6 · `loading` 5 · `folders` 5 ·
+    `failedJobs` 3 · `unreachable` 1 · `error` 1)**+ 8 处 action**
+    (`loadAll` 3 · `pause`/`resume`/`setConcurrency`/`setDevice`/`setOcr` 各 1),
+    与蓝本逐字段等数(逐处清单见 T6 报告 §4);漏一处那一格就是 `undefined`。
     同理 `store.actions.loadAll()` → `store.loadAll()`(五个动作同)。
 
   【K27】REST 全部在 store 里走共享包,本文件零直调。
