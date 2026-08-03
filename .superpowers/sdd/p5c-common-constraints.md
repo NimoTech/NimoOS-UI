@@ -119,7 +119,9 @@ P5a §3 的 **K1–K8 / P1–P4** 与 P5b §3 的 **K9–K20** 全部继续生�
 | **K29** | **迁移确认弹窗转 reka 原语 + `DialogPortal` `to` 指向 `.knowledge-app`** | K7 同族。蓝本 `SettingsView.vue:121-156` 是裸 `.k-modal-bg` + `@click="closeMigrate"` + `@click.stop`。SettingsView 在 `.knowledge-app` 下,宿主天然存在;**写测试要自己在 body 备宿主**(先例 `QueueView.test.ts:127-130` 的 `withHost()`) |
 | **K30** | **HTTP 失败不回显后端 body**:`applyRoot` 的 catch 里蓝本读 `e.response.data.detail` 拼进 toast(`SettingsView.vue:278-279`),本仓只弹 `aiKbOpFailed` | **K5 命中点。** 承 P5a T7 / P5b K19 同一模具。🔴 **落地判据**:400 分支的 DOM/toast **必须不包含**后端 detail 文本,要写**排除式**断言 |
 
-**除 K1–K30 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
+| **K31** | 🔴 **协调者裁定(2026-08-03,T2b 顾虑① 触发)**:`.parser-app` 改成**外层包裹元素**,页面根类留在**内层元素**上 → 选择器由复合 `.parser-app.parser-status-page` 改成后代 `.parser-app .parser-status-page`(测试页同)。两页模板变成 `<div class="parser-app"><div class="parser-status-page">…</div></div>`,**比蓝本多一层 DOM** | **K22 的二阶后果修正。** T2b 把作用域根与页面根做成同一元素,而该元素同时是 `max-width:900px; margin:0 auto` → `overflow-y:auto` 让**滚动条落在 900px 居中列的右缘(宽屏上约在屏幕中间)**,而 Vue2 是整页滚动、滚动条在视口最右缘 → **这一条本身就是「界面不 1:1」**,必须修。🔴 **K22 引的两个先例本来就是两元素**:`AreaShell.vue` 的 `.area-shell`(100vh)+ `.area-body`(overflow:auto)· `knowledge.scss` 的 `.knowledge-app` 外壳 + `.k-scroll` 内滚动器。**多这一层 DOM 用户不可见,滚动条位置用户可见** —— 取后者。连带:`parserStyles.test.ts` 的断言 (b) 允许的第 0 列选择器改成 `.parser-app` / `.parser-app .parser-status-page` / `.parser-app .parser-test-page`,断言 (d) 的两作用域判据同步改;`.parser-app` 仍**只带 K22 那三行结构属性 + 零颜色 + 零 `--x:`** |
+
+**除 K1–K31 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
 
 ## 3.5 明确「照抄、不改」的条目(N1–N14 沿用 + **N15–N22**)
 
@@ -447,8 +449,9 @@ Parser 两页需要的正是 danger / warning / 三级灰 / 平面白卡 —— 
    `color-guard.test.ts`(不扫 `.scss`)也不受 `knowledgeStyles.test.ts`(只读 `knowledge.scss`)约束,
    **裸奔**。最低要有 4 条:
    (a) 全文零色字面量(正则同 `color-guard` 的口径 + `white`/`black` 具名色);
-   (b) 零顶层裸选择器 —— 文件里每一条规则都嵌在 `.parser-app` / `.parser-app.parser-status-page` /
-       `.parser-app.parser-test-page` 之下(判据:第 0 列开头的选择器只许是这三个);
+   (b) 零顶层裸选择器 —— 文件里每一条规则都嵌在 `.parser-app` / **`.parser-app .parser-status-page`** /
+       **`.parser-app .parser-test-page`** 之下(判据:第 0 列开头的选择器只许是这三个)。
+       🔴 **K31 已把复合选择器改成后代选择器**(`.parser-app.parser-x` → `.parser-app .parser-x`),以本条为准;
    (c) `.parser-app` 块里零颜色属性、零 `--x:` 声明(堵 §6.1 落地约束 1);
    (d) 两个页面作用域各自存在、且 `.card` / `.page-header` 在**两个**作用域下各有一份(堵 K23)。
    🔴 **读源文件一律 `node:fs`,不许用 Vite 的 `?raw`**(vitest 的 CSSEnablerPlugin 会把样式源换成空串
