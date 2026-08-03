@@ -201,9 +201,13 @@ T1 i18n(99 键)
 - **N19**:`<ul v-show="failedOpen" v-if="failedJobs.length">` **两个指令都照抄**(`v-if` 优先级高,空数组时整个 `<ul>` 不渲染,`v-show` 是死的)。
 - **N20**:5 秒轮询 + `document.hidden` 守卫 + `onBeforeUnmount` 清定时器,频率/守卫/时机照抄。
 - `formatCursor` 用 `new Date(ms).toLocaleString()`、`barWidth` 用 `reduce` 求 max、`truncateErr` 120 字符 —— 照抄。**测 `barWidth` 要覆盖 max=0 时的 `|| 1` 兜底**。
-- 样式:`import '../../styles/parser-styles.scss'`(JS 侧 import,**零 `<style>` 块**),根元素 `class="parser-app parser-status-page"`。
+- 样式:`import '../../styles/parser-styles.scss'`(JS 侧 import,**零 `<style>` 块**)。
+  🔴 **K31 订正(2026-08-03)**:根元素是**两层** —— `<div class="parser-app"><div class="parser-status-page">…`,
+  **不是**单元素 `class="parser-app parser-status-page"`(本行初稿是 K31 之前的写法,已作废)。
 - **缺口③**:补「`<template>` 块零裸色」定向断言。
-- **额外门**:`pnpm build` 后 `grep -o "parser-status-page" dist/assets/*.css` **命中**(证明 T2b 的新文件真进了构建管线)。
+- ⚠️ **原挂在本刀的「`dist` 里 grep 到 `parser-status-page`」那条额外门已挪到 T10**(2026-08-03,T6 实证 E-13):
+  `.vue` 光「存在且写了 side-effect import」**进不了产物**,还得**被入口可达地 import** —— 而路由反转在 T10。
+  → **本刀与 T7 都达不到这条门,不是缺陷。** 本刀已用「临时路由探针 + 完整还原」给出等效证据。
 
 ---
 
@@ -274,7 +278,12 @@ T1 i18n(99 键)
 3. `knowledgeRoutes.ts:62` `/ai/parser` → 真 `ParserStatus`;`:63` `/ai/parser/test` → 真 `ParserTest`。
    🔴 **这两条是顶层路由、不在 `DEFERRED_TABS` 里,不用摘。**
 4. 🔴 `knowledgeRoutes.test.ts` 里「其余子路由仍是 `KnowledgeDeferred`」的断言 **反转,不删**;改前原文留成注释 + 写清为什么(先例:该文件 `:26-63`、P5b T5/T10 两次同款)。**K7 占位机制本身保留**(承 P4 I2 教训:清空后要仍有用例证明它有能力)。
-5. **收官三门**:应是 **326 文件 / (3153 + 4 + 各刀新增) 例全绿** · tsc 0 · build 0。
+5. 🔴 **本刀承接 T2b/T6 的「构建管线」额外门**(2026-08-03 从 T6 挪来,依据 E-13):
+   路由反转后 `pnpm build`,`grep -o "parser-status-page\|parser-test-page" dist/assets/*.css` **必须命中**,
+   并顺带核 `.parser-app{height:100vh;height:100dvh;overflow-y:auto}`(K22 三行)与
+   **后代**选择器 `.parser-app .parser-status-page`(K31;**复合形式应 0 处**)都在产物里。
+   **这是 `parser-styles.scss` 真进构建管线的唯一证据** —— T2b/T6/T7 三刀都达不到(模块未被入口可达 import)。
+6. **收官三门**:应是 **326 文件 / (3153 + 4 + 各刀新增) 例全绿** · tsc 0 · build 0。
 6. 报告里给**收官口径**:文件数 / 用例数 / 4 个新 `.vue` 的 color-guard +4 已体现。
 
 ---
