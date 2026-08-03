@@ -151,7 +151,11 @@ function toValidateOs(os: SelectedOs | null): KvmISO | null {
 }
 
 function onSubmit(): void {
-  // 防重复提交:创建请求在途时点了也不生效(硬约束,测试用例 12)。
+  // 防重复提交:创建请求在途时点了也不生效(硬约束,测试用例 12)。原生 `disabled`
+  // 属性(见 template)已经挡掉了浏览器里的真实鼠标点击,这里再补一道 JS 层的防线——
+  // 万一将来某次改动漏挂 `:disabled` 或从别的路径调用 onSubmit,这里仍能兜底。
+  // 评审做过变异验证:删掉这一行,用例(用 dispatchEvent 绕开原生 disabled 拦截)
+  // 精确翻红,证明这行不是死代码,详见任务报告。
   if (props.creating) return
 
   const formForValidate: CreateVmForm = {

@@ -152,11 +152,34 @@ describe('CreateVmDialog', () => {
     expect(wr.emitted('submit')![0][0]).toMatchObject({ networkMode: 'bridge', networkInterface: 'enp2s0' })
   })
 
-  it('creating=true 时主按钮 is-loading 且点不动(防重复提交)', async () => {
-    const wr = await mk({ selectedOs: OS(), creating: true })
-    expect(q('.cv-primary-btn').classList.contains('is-loading')).toBe(true)
-    q('.cv-primary-btn').click(); await wr.vm.$nextTick()
-    expect(wr.emitted('submit')).toBeUndefined()
+  // 修复(评审 Important,brief 带来的第 4 处缺陷,已申报):原稿挂载时表单是空的
+  // (从没填过 name),`creating` 守卫整行删掉后 validateCreateVm 也会因为「名字为空」
+  // 独立拒绝、同样不 emit submit——`expect(...).toBeUndefined()` 在「守卫存在」和
+  // 「守卫被删」两种情况下都通过,没有判别力,只有 is-loading 那句断言是真有效的。
+  // 改法:先证明同一份合法表单在 creating=false 下确实能提交(排除「表单本身不合法」
+  // 这个混淆因素),再证明 creating=true 时同一份合法表单不提交——此时不提交才能唯一
+  // 归因于这个防重复提交守卫本身。
+  it('creating=true 时主按钮 is-loading 且点不动(防重复提交,用合法表单排除校验失败的混淆)', async () => {
+    const ok = await mk({ selectedOs: OS(), isos: [ISO_ALPINE], creating: false })
+    await setVal(ok, 'input[name="name"]', 'x')
+    await setVal(ok, 'input[name="disk"]', '8')
+    q('.cv-primary-btn').click(); await ok.vm.$nextTick()
+    expect(ok.emitted('submit')).toHaveLength(1)
+    ok.unmount()
+
+    const busy = await mk({ selectedOs: OS(), isos: [ISO_ALPINE], creating: true })
+    await setVal(busy, 'input[name="name"]', 'x')
+    await setVal(busy, 'input[name="disk"]', '8')
+    const btn = q('.cv-primary-btn') as HTMLButtonElement
+    expect(btn.classList.contains('is-loading')).toBe(true)
+    // 用 dispatchEvent 而不是 `.click()`——原生 `disabled` 属性本身就会挡掉
+    // `.click()`(jsdom 与真实浏览器一致的行为,已用最小复现脚本验证),这条守卫
+    // 测的是 `onSubmit()` 内部 `if (props.creating) return` 这道防线,不是
+    // `disabled` 属性本身;必须用能绕开原生拦截的方式触发,才能让这道内部守卫
+    // 真正被测到(评审要求的变异验证见任务报告)。
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await busy.vm.$nextTick()
+    expect(busy.emitted('submit')).toBeUndefined()
   })
 
   it('submitError 由父组件传下来,显示在同一个 .cv-error 位', async () => {
