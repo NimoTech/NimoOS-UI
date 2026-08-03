@@ -31,9 +31,11 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 vi.mock('@nimotech/nimoos-service', () => ({ service: { photos: { getConfig: vi.fn() } } }))
 
 import PhotosSettings from '../PhotosSettings.vue'
+import photosSettingsRaw from '../PhotosSettings.vue?raw'
 import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosSettingsStore } from '../../photos/stores/settings'
+import { extractStyleBlock } from '../../photos/components/__tests__/cssCascade'
 
 const StorageStub = {
   template:
@@ -324,6 +326,25 @@ describe('PhotosSettings 容器', () => {
     await w.get('.ps-quicknav a[href="#storage"]').trigger('click')
     expect(scrollCalls).toHaveLength(2)
     expect(scrollCalls[1]).toBe(w.get('#storage').element)
+  })
+})
+
+// 全量收尾门(459 文件/5893 例)捕获的真实回归:.ps-toast 曾抄错成 1100,与全局 toast
+// (AppToast.vue,同为 1100)同层——AppToast.zIndex.test.ts 是仓库级守卫,但那条测试要扫
+// 全仓 459 个文件才跑,单任务范围内看不到。这里补一条局部守卫,失败更快、且不依赖全仓
+// glob,只钉本文件自己的产物。只锁"严格低于 1100"这一条硬线(docs/THEMING.md §8 唯一
+// 钉死的不变量);不额外锁 <1000/<200——那些是本处依据同页实测浮层(PhotosSidebar 的
+// 窄屏抽屉 151/遮罩 150)做出的选择,不是仓库级约定,锁死具体数值只会让下次合理调整变红。
+describe('z-index 层级(docs/THEMING.md §8)', () => {
+  it('.ps-toast 的 z-index 严格低于全局 toast(1100)——本页局部浮层不得借用全局 toast 的层级', () => {
+    const style = extractStyleBlock(photosSettingsRaw)
+    expect(style.length).toBeGreaterThan(0)
+    const block = /\.ps-toast\s*\{([^}]*)\}/.exec(style)
+    expect(block, '.ps-toast 规则块未找到').toBeTruthy()
+    const zMatch = /z-index\s*:\s*(\d+)/.exec((block as RegExpExecArray)[1])
+    expect(zMatch, '.ps-toast 规则块里没有 z-index 声明').toBeTruthy()
+    const z = Number((zMatch as RegExpExecArray)[1])
+    expect(z).toBeLessThan(1100)
   })
 })
 

@@ -183,10 +183,21 @@ onUnmounted(() => {
 .ps-footer-app { font-size: 12.5px; font-weight: 600; color: var(--fg); }
 .ps-footer-host { font-size: 12px; color: var(--fg-muted); }
 
-/* 与本仓全局 toast(AppToast.vue)同一视觉语言(见头注释「实现记录」);z-index 同用
-   1100(AppToast.vue 已注释过理由:必须高于全仓所有模态遮罩,1001 是当前已知最高值)。 */
+/* 评审 Important(2026-08-04,全量收尾门捕获):视觉上借用本仓全局 toast(AppToast.vue)
+   的样式语言(见头注释「实现记录」),但这颗是**页面局部**的浮层,不是全局 toast 本尊——
+   千万别照抄 AppToast.vue 那条"必须高于全仓所有模态遮罩"的 1100,那条硬约束只对*那一个*
+   全局单例成立(docs/THEMING.md §8:"toast 必须高于全仓所有模态遮罩"里的"toast"专指
+   AppToast.vue)。这里原先抄错成 1100,与全局 toast 撞层,`AppToast.zIndex.test.ts` 直接判红
+   ——那条守卫是仓库级的,任何浮层只要 z-index ≥ 1100 就会被判定为"会压住全局 toast"。
+   本设置页局部 toast 只需要盖住**这一页自己会渲染的东西**,按 §8 的阶梯落在"局部固定条
+   60–150"这一档;但本页会挂一份 PhotosSidebar(架构偏离登记 1),它的窄屏抽屉
+   `.photos-sidebar.is-drawer` 是 151(`side-scrim` 遮罩 150)——已经超出该档标称上限,是仓库
+   既有事实,不是本处引入的。160 贴着清过这两个真实存在的同页浮层(151/150),同时远低于
+   200 起的"区级/通用弹窗遮罩"整条band,更远低于 1100 的全局 toast,不会跟任何东西同层。
+   见下方本文件内的守卫用例(锁 <1100;不锁 <1000/<200,因为约定本身只钉 toast 这一条硬线,
+   其余数值是本处依据实测同页浮层做出的选择,不是仓库级不变量)。 */
 .ps-toast {
-  position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 1100;
+  position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 160;
   padding: 10px 18px; border-radius: 999px; border: 1px solid var(--chip-border);
   background: var(--toast-bg); color: var(--toast-fg, var(--fg)); font-size: 13px;
   box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur); white-space: nowrap;
