@@ -1,0 +1,124 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { applyDelete, applyReplace, applyPatch, sha256, checkClean } from './apply.mjs'
+
+let root, ossDir
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-tree-'))
+  ossDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-files-'))
+})
+afterEach(() => {
+  fs.rmSync(root, { recursive: true, force: true })
+  fs.rmSync(ossDir, { recursive: true, force: true })
+})
+
+const write = (dir, rel, text) => {
+  fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true })
+  fs.writeFileSync(path.join(dir, rel), text)
+}
+
+describe('applyDelete', () => {
+  it('删文件与整目录', () => {
+    write(root, 'a.ts', 'x')
+    write(root, 'd/b.ts', 'y')
+    applyDelete(root, ['a.ts', 'd'])
+    expect(fs.existsSync(path.join(root, 'a.ts'))).toBe(false)
+    expect(fs.existsSync(path.join(root, 'd'))).toBe(false)
+  })
+
+  it('路径不存在即抛 —— 清单过期了必须知道', () => {
+    expect(() => applyDelete(root, ['gone.ts'])).toThrow(/DELETE 清单过期.*gone\.ts/)
+  })
+})
+
+describe('applyReplace 的哈希钉', () => {
+  it('哈希对得上就替换', () => {
+    write(root, 'src/x.ts', 'PRIVATE')
+    write(ossDir, 'x.ts', 'PUBLIC')
+    applyReplace(root, [{ path: 'src/x.ts', from: 'x.ts', privateSha256: sha256('PRIVATE') }], ossDir)
+    expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('PUBLIC')
+  })
+
+  it('私有侧变了就抛,且提示要复核哪个分身', () => {
+    write(root, 'src/x.ts', 'PRIVATE-CHANGED')
+    write(ossDir, 'x.ts', 'PUBLIC')
+    expect(() =>
+      applyReplace(root, [{ path: 'src/x.ts', from: 'x.ts', privateSha256: sha256('PRIVATE') }], ossDir),
+    ).toThrow(/私有仓的 src\/x\.ts 变了.*复核 oss\/files\/x\.ts/s)
+  })
+})
+
+describe('applyPatch 的锚点唯一性', () => {
+  it('恰好命中 1 次才替换', () => {
+    write(root, 'src/x.ts', 'keep\nDROP_ME\nkeep2\n')
+    applyPatch(root, [{ path: 'src/x.ts', find: 'DROP_ME\n', replace: '' }])
+    expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('keep\nkeep2\n')
+  })
+
+  it('0 次命中即抛(锚点随私有主干漂了)', () => {
+    write(root, 'src/x.ts', 'keep\n')
+    expect(() => applyPatch(root, [{ path: 'src/x.ts', find: 'GONE', replace: '' }]))
+      .toThrow(/锚点未命中.*src\/x\.ts/s)
+  })
+
+  it('2 次命中即抛(锚点不唯一,替换会误伤)', () => {
+    write(root, 'src/x.ts', 'DUP\nDUP\n')
+    expect(() => applyPatch(root, [{ path: 'src/x.ts', find: 'DUP', replace: '' }]))
+      .toThrow(/命中 2 次.*必须恰好 1 次/s)
+  })
+
+  it('同一文件的多条补丁按顺序独立生效', () => {
+    write(root, 'src/x.ts', 'A\nB\nC\n')
+    applyPatch(root, [
+      { path: 'src/x.ts', find: 'A\n', replace: '' },
+      { path: 'src/x.ts', find: 'C\n', replace: 'Z\n' },
+    ])
+    expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('B\nZ\n')
+  })
+
+  it('替换串里的 $& 等特殊模式必须按字面量处理,不能被解释', () => {
+    write(root, 'src/x.ts', 'keep\nANCHOR\nkeep2\n')
+    // replace 里含 $& —— 若用 text.replace(find, replace) 的字符串重载,
+    // $& 会被解释成"匹配到的整段文本"(即 ANCHOR),而不是字面量 $&。
+    applyPatch(root, [{ path: 'src/x.ts', find: 'ANCHOR', replace: 'price: $&, tag: $1' }])
+    expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('keep\nprice: $&, tag: $1\nkeep2\n')
+  })
+})
+
+describe('checkClean', () => {
+  let repoDir
+
+  const git = (...args) => execFileSync('git', ['-C', repoDir, ...args], { encoding: 'utf8' })
+
+  beforeEach(() => {
+    repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-repo-'))
+    execFileSync('git', ['init', '-b', 'main', repoDir], { encoding: 'utf8' })
+    write(repoDir, 'design-export/a.html', 'x')
+    write(repoDir, 'design-export/b.html', 'y')
+    write(repoDir, 'kept.txt', 'z')
+    git('add', '-A')
+    git('-c', 'user.email=test@test.local', '-c', 'user.name=test', 'commit', '-m', 'init')
+  })
+
+  afterEach(() => {
+    fs.rmSync(repoDir, { recursive: true, force: true })
+  })
+
+  it('干净工作树 —— 不抛', () => {
+    expect(() => checkClean(repoDir, [/^ D design-export\//])).not.toThrow()
+  })
+
+  it('有脏改动且不在白名单里 —— 抛,且消息里带上脏行', () => {
+    write(repoDir, 'kept.txt', 'CHANGED')
+    expect(() => checkClean(repoDir, [/^ D design-export\//])).toThrow(/kept\.txt/)
+  })
+
+  it('脏改动全部命中白名单正则 —— 不抛', () => {
+    fs.rmSync(path.join(repoDir, 'design-export/a.html'))
+    fs.rmSync(path.join(repoDir, 'design-export/b.html'))
+    expect(() => checkClean(repoDir, [/^ D design-export\//])).not.toThrow()
+  })
+})
