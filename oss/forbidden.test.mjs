@@ -78,6 +78,29 @@ describe('软禁词的精确白名单', () => {
       expect(scanText('src/x.ts', text), text).toEqual([])
     }
   })
+
+  // 第二轮复审 Important:第一轮的 ai 正则只认"AI 打头"的驼峰(AIService),漏掉
+  // "AI 结尾"的驼峰。sendToAI 是本仓真实存在的函数名(useOpenAction.ts:54 等 8 处),
+  // 正是这次要清除的 AI 链路核心入口,必须命中。同时 Asia/Shanghai、Asia/Dubai(本仓
+  // timezones.ts 里真实存在的时区字符串)、Thai、bonsai 这类合法词必须继续不命中。
+  it('驼峰词尾的 AI(sendToAI/chatAI)必须命中,真实时区/地名字符串不能被误伤', () => {
+    for (const text of [
+      'function sendToAI(text?: string) {',
+      'const { sendToAI } = useOpenAction()',
+      'const chatAI = 1',
+      'const openAIRequest = 1',
+    ]) {
+      expect(scanText('src/x.ts', text).length, text).toBeGreaterThan(0)
+    }
+    for (const text of [
+      "{ label: '(GMT+08:00) Beijing, Chongqing, Hong Kong, Urumqi', value: 'Asia/Shanghai' },",
+      "{ label: '(GMT+04:00) Abu Dhabi, Muscat', value: 'Asia/Dubai' },",
+      'const country = "Thai"',
+      'const plant = "bonsai"',
+    ]) {
+      expect(scanText('src/settings/util/timezones.ts', text), text).toEqual([])
+    }
+  })
 })
 
 describe('scanTree:排除法,不是扩展名白名单', () => {
@@ -121,6 +144,33 @@ describe('scanTree:排除法,不是扩展名白名单', () => {
       fs.writeFileSync(path.join(dir, 'clean.ts'), 'export const x = 1\n')
       const findings = scanTree(dir)
       expect(findings).toEqual([])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // 第二轮复审 Important:指向目录的符号链接原本会让 scanTree 整体抛 EISDIR 崩掉
+  // (本仓 .claude/worktrees/NimoOS-Service 就是这么个链接,复审拿真实仓库复现的)。
+  // 修复后必须优雅跳过并留痕,而不是抛异常。
+  it('指向目录的符号链接不应让 scanTree 抛异常,而是留下 __skipped__ 痕迹;真实目录仍被正常扫描', () => {
+    const dir = mktmp()
+    try {
+      const realDir = path.join(dir, 'real-target')
+      fs.mkdirSync(realDir)
+      fs.writeFileSync(path.join(realDir, 'inner.ts'), 'const q = "qdrant"\n')
+      const linkPath = path.join(dir, 'link-to-dir')
+      fs.symlinkSync(realDir, linkPath, 'dir')
+
+      let findings
+      expect(() => {
+        findings = scanTree(dir)
+      }).not.toThrow()
+
+      expect(findings.some((f) => f.file === 'link-to-dir' && f.word === '__skipped__')).toBe(true)
+      // 真实目录是通过它自己的真实路径被正常遍历到的(不是通过链接),
+      // 证明"跳过链接本身"没有连带漏扫链接指向的真实内容。
+      const innerFile = path.join('real-target', 'inner.ts')
+      expect(findings.some((f) => f.file === innerFile && f.word === 'qdrant')).toBe(true)
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }

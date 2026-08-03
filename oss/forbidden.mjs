@@ -60,15 +60,29 @@ export const SOFT = [
   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
   {
     word: 'ai',
-    // 词边界:不碰中文、chain、main、Chairman。评审 Important #1:原正则没有大小写标志,
-    // 独立大写 AI(类名、注释、i18n 文案里最常见的书写形态)完全漏检。
-    // 不能简单套用整条 /i 标志了事 —— 那样 [A-Za-z] 类里的大小写区分也会被吃掉,
-    // 导致 "AIService" 这种「大写缩写 + 新 PascalCase 单词」永远匹配不到(见 alt2)。
-    // 两条子规则用显式大小写字符类拼接,只在需要的地方做大小写不敏感:
-    //   alt1:独立词 ai/AI/Ai/aI(前后都不挨字母)—— 覆盖 "AI 总结"、"AI-powered"、"const ai ="
-    //   alt2:精确 "AI"(全大写)后面紧跟一个大写字母 —— 覆盖 "AIService" 这种缩写紧贴新词、
-    //        中间没有分隔符的写法(camelCase/PascalCase 惯例里这就是词边界)
-    re: /(?<![A-Za-z])[Aa][Ii](?![A-Za-z])|(?<![a-zA-Z])AI(?=[A-Z])/,
+    // 词边界:不碰中文、chain、main、Chairman。
+    //
+    // 第二轮复审 Important:第一轮的 alt2(要求 "AI" 前面不挨字母,即只认 "AI" 打头的
+    // camelCase/PascalCase,如 AIService)漏掉了 "AI" 结尾的驼峰,比如 sendToAI/chatAI/
+    // openAIRequest —— sendToAI 恰恰是本仓真实存在、且正是这次要清除的 AI 链路的核心
+    // 函数名(src/home/composables/useOpenAction.ts:54 等 8 处),守卫必须抓到它。
+    //
+    // 改成两条子规则:
+    //   alt1(大小写不敏感):独立词 ai/AI/Ai/aI,前面不挨字母、后面不挨"小写"字母 ——
+    //        覆盖裸词 "ai"/"AI"、"AI 总结"、"AI-powered"、"AIService"(后面跟大写 S 不算挨着)。
+    //   alt2(精确大小写,只认 "AI" 两个大写字母):前面挨一个小写字母、后面不挨小写字母 ——
+    //        覆盖 "驼峰词尾的 AI" 这种写法,如 sendToAI、chatAI、openAIRequest。
+    //
+    // alt2 **必须区分大小写、不能套 /i**:src/settings/util/timezones.ts 里有真实存在的
+    // Asia/Shanghai、Asia/Dubai —— 若 alt2 大小写不敏感,"ai" 前面挨小写字母、后面到词尾
+    // 的模式会把 Shanghai/Dubai 也当成命中,那是本仓合法的时区字符串,不能误报。
+    // 同理 Mumbai/Thai/bonsai/Aircraft/Cairo 等词也依赖这条"大小写敏感"的边界才不会被误伤。
+    // 后人若想"顺手统一大小写标志",请先看这条注释。
+    //
+    // 代价:const AIRPORT=1 这类"AI"后面直接接大写字母的全大写标识符仍会被 alt1 命中
+    // (机场号码/常量名一类罕见样式)。按纪律「词表宁可宽」接受这个已知的假阳性,不为它
+    // 收窄规则去冒漏掉真实 AI 代码的风险。
+    re: /(?<![A-Za-z])[Aa][Ii](?![a-z])|(?<=[a-z])AI(?![a-z])/,
     allow: [
       // E5:局部变量 ai = anchorIndex(files.ts 的 shift 选区)
       { file: /src\/files\/stores\/files\.ts$/, re: /\bai\b\s*[=<,)\]]|\[lo,\s*hi\]/ },
@@ -126,33 +140,64 @@ export function scanText(relPath, text) {
 
 /**
  * 递归扫整棵树。排除法,不是白名单法:除 `.git`/`node_modules`/`dist` 目录外,
- * **每个文件都读**。只跳过两类,且跳过绝不静默 —— 每次跳过都在返回数组里追加
- * 一条 `word: '__skipped__'` 的记录,消费方(Task 14 的导出流程)一旦看到这个
+ * **每个文件都读**。跳过绝不静默 —— 每次跳过都在返回数组里追加一条
+ * `word: '__skipped__'` 的记录,消费方(Task 14 的导出流程)一旦看到这个
  * 哨兵词就知道该文件没有被内容扫描过,得自己决定要不要额外处理。
  * 纪律 #3 的精神是「守卫烂掉的标准路径是静默豁免」——不留痕的跳过等于悄悄开了个口子。
  *
- *   ① 体积超过 MAX_BYTES 的
- *   ② 开头 8KB 判定为二进制的(looksBinary)
+ * 跳过的情形:
+ *   ① 符号链接(不跟随,不管指向文件还是目录) —— 第二轮复审 Important:本仓
+ *      `.claude/worktrees/NimoOS-Service` 是一个指向目录的符号链接。
+ *      `readdirSync(..., {withFileTypes:true})` 内部用 lstat,`Dirent.isDirectory()`
+ *      对符号链接返回 false(不跟随),会落进"文件"分支;而 `fs.statSync`/
+ *      `fs.readFileSync` 默认跟随符号链接,对指向目录的链接跟读会直接抛
+ *      `EISDIR` 崩掉整个扫描。改成先用 `Dirent.isSymbolicLink()` 识别并跳过 ——
+ *      符号链接指向的真实内容如果本就在树内,会通过它的真实路径被正常扫到,
+ *      不会因为跳过链接本身而漏扫。
+ *   ② 体积超过 MAX_BYTES 的
+ *   ③ 开头 8KB 判定为二进制的(looksBinary)
+ *   ④ 任何 stat/read 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧
  */
 export function scanTree(rootDir) {
   const findings = []
+  const skip = (rel, excerpt) => findings.push({ file: rel, word: '__skipped__', line: 0, excerpt })
+
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const abs = path.join(dir, e.name)
       const rel = path.relative(rootDir, abs)
+
+      if (e.isSymbolicLink()) {
+        skip(rel, '符号链接,未跟随、未扫描')
+        continue
+      }
       if (e.isDirectory()) {
         if (e.name === '.git' || e.name === 'node_modules' || e.name === 'dist') continue
         walk(abs)
         continue
       }
-      const stat = fs.statSync(abs)
-      if (stat.size > MAX_BYTES) {
-        findings.push({ file: rel, word: '__skipped__', line: 0, excerpt: `超过 ${MAX_BYTES} 字节上限,未扫描` })
+
+      let stat
+      try {
+        stat = fs.statSync(abs)
+      } catch (err) {
+        skip(rel, `stat 失败,未扫描:${err.message}`)
         continue
       }
-      const buf = fs.readFileSync(abs)
+      if (stat.size > MAX_BYTES) {
+        skip(rel, `超过 ${MAX_BYTES} 字节上限,未扫描`)
+        continue
+      }
+
+      let buf
+      try {
+        buf = fs.readFileSync(abs)
+      } catch (err) {
+        skip(rel, `读取失败,未扫描:${err.message}`)
+        continue
+      }
       if (looksBinary(buf)) {
-        findings.push({ file: rel, word: '__skipped__', line: 0, excerpt: '判定为二进制,未扫描' })
+        skip(rel, '判定为二进制,未扫描')
         continue
       }
       for (const f of scanText(rel, buf.toString('utf8'))) findings.push({ file: rel, ...f })
