@@ -19,6 +19,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
     users: {
       getCustomStorage: async () => ({}),
       setCustomStorage: async () => {},
+      // AccountPanel 的 avatarSrc computed 在挂载时求值;缺这行会在用例结束后
+      // 抛 unhandled TypeError,表现为「3078 例全绿但进程退出码 1」。
+      avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
     sys: {
       hardwareInfo: async () => ({ arch: 'amd64', drive_model: '', version: '1.0.0' }),
