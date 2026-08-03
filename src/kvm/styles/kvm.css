@@ -1789,3 +1789,159 @@
   flex-shrink: 0;
   color: var(--kvm-fg-dim);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 7:CreateVmDialog 创建表单(8 字段 + 七条校验 + osTemplate 联动)。
+ * 视觉 1:1 对 Vue2 KVMFullPage 组件样式 .cv-iso-btn(:2544-2567)/
+ * .cv-cpu-group·.cv-cpu-btn(:2609-2637)/.cv-select 系(:2638-2669)/
+ * .cv-firmware-group·.cv-firmware-btn(:2670-2701)。
+ *
+ * ⚠️ 范围说明(与 brief 详细步骤的字面清单有一处不一致,已核实并按此收窄):brief 顶部
+ * 「Files」一节只列四段(cv-iso-btn/cv-cpu-group/cv-select/cv-firmware-group),Step 3
+ * 里的详细指令又多列了一段 cv-iso-eject(:2573-2592)。核对 Vue2 create-vm-modal 模板
+ * (:396-494)后确认:创建弹窗从来没有「弹出/更换 ISO」按钮,cv-iso-eject 连同配套的
+ * cv-ejected-text 文字色是 VM 已经建好之后、VM 设置弹窗里换盘/弹出用的——本组件不渲染
+ * 这两个 class,现在把样式规则搬进来会是没有消费者的死规则。cv-iso-eject 已经在白名单里
+ * 登记好(Task 0 预留位),留给真正渲染它的任务(VM 设置弹窗)去补样式,不在本任务提前占坑。
+ *
+ * 色值逐个核对过 Vue2 字面量再换成对应 token(--kvm-field-bg/--kvm-field-border/
+ * --kvm-field-elev/--kvm-modal-fg/--kvm-fg-faint/--kvm-fg-dim/--kvm-accent/
+ * --kvm-accent-light/--kvm-accent-ring/--kvm-accent-soft),逐条映射表见本任务报告
+ * 文件——**这里不铺开写十六进制/rgba 字面量**:本文件的裸颜色字面量守卫不剥注释,
+ * 写在这里会被判成裸颜色字面量误伤(实测踩过)。--kvm-accent-soft 是本文件早前
+ * .vm-list-item.active 等处已经在用的既有 token,两个 active 态复用它不是新增,
+ * 也不是巧合撞值。
+ * ════════════════════════════════════════════════════════════════════ */
+
+.cv-iso-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0.75rem;
+  height: 2.5rem;
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  color: var(--kvm-modal-fg);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.cv-iso-btn .cv-placeholder {
+  color: var(--kvm-fg-faint);
+}
+
+.cv-iso-btn:hover {
+  border-color: var(--kvm-accent);
+}
+
+.cv-cpu-group {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.cv-cpu-btn {
+  width: 2.5rem;
+  height: 2.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: var(--kvm-field-elev);
+  color: var(--kvm-fg-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cv-cpu-btn:hover {
+  background: var(--kvm-field-border);
+  color: var(--kvm-modal-fg);
+}
+
+.cv-cpu-btn.active {
+  background: var(--kvm-accent-soft);
+  border-color: var(--kvm-accent);
+  color: var(--kvm-accent-light);
+}
+
+/* 硬约束 7 高危点:基类 `.cv-cpu-btn:hover`(0,2,0)与 `.cv-cpu-btn.active`(0,2,0)
+ * 特异度相同,按源码顺序判——不显式给 active 态补一条 :hover,鼠标移到已选中的格子上
+ * 会被上面那条基类 hover 规则压成「未选中」的灰底,看着像选中态丢失了。 */
+.cv-cpu-btn.active:hover {
+  background: var(--kvm-accent-soft);
+  border-color: var(--kvm-accent);
+  color: var(--kvm-accent-light);
+}
+
+.cv-select {
+  position: relative;
+}
+
+.cv-select-native {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 2rem 0 0.75rem;
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  color: var(--kvm-modal-fg);
+  font-size: 0.875rem;
+  appearance: none;
+  cursor: pointer;
+}
+
+.cv-select-native:focus {
+  border-color: var(--kvm-accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--kvm-accent-ring);
+}
+
+.cv-select-arrow {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--kvm-fg-dim);
+  pointer-events: none;
+}
+
+.cv-firmware-group {
+  display: flex;
+  background: var(--kvm-field-bg);
+  border-radius: 0.375rem;
+  overflow: hidden;
+  border: 1px solid var(--kvm-field-border);
+}
+
+.cv-firmware-btn {
+  flex: 1;
+  height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cv-firmware-btn:hover {
+  background: var(--kvm-field-border);
+}
+
+.cv-firmware-btn.active {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent-light);
+}
+
+/* 同上 .cv-cpu-btn.active:hover 的理由(硬约束 7 高危点),这里是第二处基类 hover
+ * 会压过 .active 的地方——同样补一条 .active:hover 自带背景。 */
+.cv-firmware-btn.active:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent-light);
+}
+
+.cv-firmware-btn:first-child {
+  border-right: 1px solid var(--kvm-field-border);
+}
