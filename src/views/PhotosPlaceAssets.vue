@@ -29,7 +29,7 @@
 // 城市的名字。姐妹页 PhotosPlaces.vue:99-100 的 `activeDetail` 对同一个 store 已有这个先例
 // (`store.detail && String(store.detail.id) === String(activeId.value)`),这里照抄同一手法,
 // 不是新发明的复杂度。
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
@@ -40,6 +40,14 @@ import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePlaceAssets } from '../photos/composables/usePlaceAssets'
 import { usePhotosPlaces } from '../photos/stores/places'
 import type { Photo } from '../photos/util/assetToPhoto'
+// P7b-T5:跳库页叠加 EXIF 筛选(D19)——对应 Vue2 PhotosTimeline.vue:167,spot 分支把
+// placeAssets 作为基础集,在其上叠加 FilterBar 的 years/cameras 两个维度。位置维度按 D19
+// 不出现:Vue2 那条筛选栏是时间线与 spot 跳转共用的同一条,但 spot 分支明确只传
+// years/cameras、把 places 丢掉(注释自陈「城市已框定,再套位置文本会误杀」)——在 New-UI
+// 这个独立页面上照搬,就是摆一个点了没反应的死胶囊。
+import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/PhotosFilterBar.vue'
+import { applyExifFilters } from '../photos/util/photosFilterUtils'
+import { groupPhotosByMonth } from '../photos/util/groupPhotosByMonth'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -115,11 +123,22 @@ watch(currentDetail, (d) => {
 })
 
 // ── 结构规格 6:网格 + 灯箱 ────────────────────────────────────────────────────
-// PhotosGrid 自己 emit 的 list 恒为 undefined(它不知道"整页"的边界在哪),这里用
-// usePlaceAssets 已经加载好的整页照片重建翻页集(D9:灯箱翻页集必须与用户在这个页面看到的
-// 范围一致)。
+// P7b-T5:EXIF 筛选态(同 T4 形状)。D19:只留年份/相机两个胶囊——见上方 import 处注释。
+const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
+const PLACE_CHIP_KEYS = ['years', 'cameras'] as const
+
+// 不改 usePlaceAssets 的 months(那是 P6b 的组件,禁无关重构)——本页自己再算一份筛选后
+// 的月份分组,并丢掉空月份(同 T4 的理由:月份刻度尺读的是未按标签页过滤的 months,这里
+// 同理不读 assets.months.value,自己对 assets.photos.value 先筛再分组)。
+const gridMonths = computed(() =>
+  groupPhotosByMonth(applyExifFilters(assets.photos.value, exifFilter.value))
+    .filter((m) => m.photos.length > 0))
+
+// PhotosGrid 自己 emit 的 list 恒为 undefined(它不知道"整页"的边界在哪)。翻页集跟着
+// 筛选走(D9 同型要求:灯箱能翻到的必须是这一屏看得见的),所以重建翻页集时用 gridMonths
+// 而不是 assets.photos.value——与 T4(views/Photos.vue)的 onOpenTile 同一理由。
 function onOpen(photo: Photo, _list: undefined, startMs: number): void {
-  lb.openAt(photo, assets.photos.value, startMs)
+  lb.openAt(photo, gridMonths.value.flatMap((m) => m.photos), startMs)
 }
 
 function retry(): void {
@@ -147,6 +166,13 @@ function retry(): void {
             <span class="crumb-spot" data-test="place-crumb-spot">{{ matchedSpot.name }}</span>
           </template>
           <div class="crumb-spacer"></div>
+          <PhotosFilterBar
+            v-model:filter="exifFilter" :photos="assets.photos.value"
+            :chip-keys="[...PLACE_CHIP_KEYS]"
+          />
+          <!-- P7b-T5:计数与下方空态判定都读**未筛选**的 assets.photos:这是「这个地点一共
+               多少张」,不是「筛完剩多少张」。筛到零时应该显示筛选后的空网格,而不是跳到
+               「这个地点没有照片」——那句文案在有照片、只是被筛掉的情况下是误导。 -->
           <span class="crumb-count" data-test="place-crumb-count">{{ t('photosPlacesPhotoCount', { n: assets.photos.value.length }) }}</span>
         </div>
 
@@ -164,6 +190,8 @@ function retry(): void {
           </button>
         </div>
 
+        <!-- P7b-T5:空态判定同样读**未筛选**的 assets.photos(见上方面包屑计数处的同款注释)
+             ——筛到零张时应落到下面的 v-else 分支渲染筛选后的空网格,不是这里。 -->
         <div v-else-if="assets.loaded.value && assets.photos.value.length === 0" class="empty-state" data-test="place-assets-empty">
           <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
           <div class="empty-state-desc">{{ t('photosNoPhotosHint') }}</div>
@@ -172,7 +200,7 @@ function retry(): void {
         <!-- 结构规格 6:D10 只浏览,不接多选/批操作——selectable=false。 -->
         <div v-else class="place-grid-slot">
           <PhotosGrid
-            :months="assets.months.value"
+            :months="gridMonths"
             :selectable="false"
             @open="onOpen"
           />

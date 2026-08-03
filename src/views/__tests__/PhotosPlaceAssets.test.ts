@@ -12,7 +12,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
-import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 // 源文件文本(Vite `?raw` 导入,见 node_modules/vite/client.d.ts:243——不需要 @types/node,
 // 本仓本就没有装它)。用途见下方"追加不重排"用例的注释。
@@ -46,12 +45,18 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosPlaceAssets from '../PhotosPlaceAssets.vue'
 import PhotosGrid from '../../photos/components/PhotosGrid.vue'
+// P7b-T5:FilterBar 消费(D19)。
+import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
 import { usePhotosPlaces } from '../../photos/stores/places'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import { router as appRouter } from '../../router'
 
 const lb = useLightbox()
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+// P7b-T5(全局约束 4):不再自建 createI18n 实例——vitest.setup.ts 已把 src/i18n 单例装进
+// config.global.plugins,对每次 mount 生效;这里此前另建的第二份实例会与它重复安装,
+// 每条用例刷 7 条 [Vue warn](本期 T3/T4 已踩过、已修同款问题)。删掉后下面三处 mount 调用的
+// `global.plugins` 也一并去掉这个局部 i18n,只留 router——locale 仍回落 zh_cn(jsdom 下
+// localStorage 为空),既有中文文案断言不受影响。
 
 function rawPlace(key: string | number, overrides: Record<string, unknown> = {}) {
   return {
@@ -89,7 +94,7 @@ async function mountView(path: string) {
   const router = makeRouter()
   await router.push(path)
   await router.isReady()
-  const w = mount(PhotosPlaceAssets, { global: { plugins: [i18n, router] } })
+  const w = mount(PhotosPlaceAssets, { global: { plugins: [router] } })
   await flushPromises()
   await w.vm.$nextTick()
   return { w, router }
@@ -191,7 +196,7 @@ describe('挂载即编排数据(参数归一 + T8 硬要求 2:面包屑从 key/s
     const router = makeRouter()
     await router.push('/photos/places/7')
     await router.isReady()
-    const w = mount(PhotosPlaceAssets, { global: { plugins: [i18n, router] } })
+    const w = mount(PhotosPlaceAssets, { global: { plugins: [router] } })
     await w.vm.$nextTick()
     expect(w.find('.area-title').text()).toBe(zh.photosPlaces)
   })
@@ -322,7 +327,7 @@ describe('三态门控', () => {
     const router = makeRouter()
     await router.push('/photos/places/7')
     await router.isReady()
-    const w = mount(PhotosPlaceAssets, { global: { plugins: [i18n, router] } })
+    const w = mount(PhotosPlaceAssets, { global: { plugins: [router] } })
     await w.vm.$nextTick()
     expect(w.find('[data-test="place-assets-skeleton"]').exists()).toBe(true)
     expect(w.find('[data-test="place-assets-failed"]').exists()).toBe(false)
@@ -377,5 +382,60 @@ describe('网格 + 灯箱', () => {
     await flushPromises()
     expect(lb.open.value).toBe(true)
     expect(lb.list.value.map((p) => p.id)).toEqual(['a1', 'a2'])
+  })
+})
+
+// P7b-T5:跳库页接线 EXIF 筛选(D19:只留年份 + 相机两个胶囊,位置维度不出现——城市已经
+// 被路由框定,再套一层位置文本筛选是误杀,回源 Vue2 PhotosTimeline.vue:167 spot 分支)。
+describe('P7b-T5: EXIF 筛选接线(D19)', () => {
+  // 夹具:两张照片跨两个年份(2023 / 2020),不落在任一测试断言用到的 1999 上——
+  // 筛 years:['2023'] 命中 1 张(p1),筛 years:['1999'] 命中 0 张,地点总数恒为 2。
+  // 复用既有 `asset()` 助手(id, takenAt)生产基础形状,再叠 placeName/make/model
+  // (assetToPhoto.ts:319-321、367 分别读出 camera/place)。
+  function placeFixtureAssets() {
+    return [
+      { ...asset('p1', '2023-06-15T10:00:00Z'), placeName: 'Tokyo', make: 'Canon', model: 'EOS R5' },
+      { ...asset('p2', '2020-01-01T10:00:00Z'), placeName: 'Tokyo', make: 'Sony', model: 'A7' },
+    ]
+  }
+
+  beforeEach(() => {
+    svc.photos.listAssetsByPlace.mockReset().mockResolvedValue({ assets: placeFixtureAssets() })
+  })
+
+  // “已有助手”:brief 里的 `mountPlaceAssets()` 就是本文件既有的 `mountView(path)`——
+  // 本文件历来没有一个叫 mountPlaceAssets 的助手,brief 用的是示意名,这里复用现成的那个,
+  // 不新增并行的挂载脚手架。
+  async function mountPlaceAssets() {
+    return mountView('/photos/places/7')
+  }
+
+  it('D19:只渲染年份与相机两个胶囊,没有位置胶囊', async () => {
+    const { w } = await mountPlaceAssets()
+    const bar = w.findComponent(PhotosFilterBar)
+    expect(bar.exists()).toBe(true)
+    expect(bar.props('chipKeys')).toEqual(['years', 'cameras'])
+    expect(w.find('[data-test="exif-chip-places"]').exists()).toBe(false)
+  })
+
+  it('筛选生效后网格只拿到命中的照片,空月份被丢掉', async () => {
+    const { w } = await mountPlaceAssets()
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: ['2023'], places: [], cameras: [] })
+    await w.vm.$nextTick()
+    const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
+    expect(months.every((m) => m.photos.length > 0)).toBe(true)
+    // 夹具算准:2023 只命中 p1 一张(p2 是 2020)。
+    expect(months.flatMap((m) => m.photos)).toHaveLength(1)
+  })
+
+  it('筛到零时仍渲染网格(空),不落到「这个地点没有照片」的空态;面包屑计数仍是地点总数', async () => {
+    const { w } = await mountPlaceAssets()
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: ['1999'], places: [], cameras: [] })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="place-assets-empty"]').exists()).toBe(false)
+    // 夹具算准:地点总张数恒为 2(未筛选的 assets.photos.value.length),不随筛选变化。
+    expect(w.get('[data-test="place-crumb-count"]').text()).toContain('2')
   })
 })
