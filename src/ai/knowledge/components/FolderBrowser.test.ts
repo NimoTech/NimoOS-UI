@@ -340,6 +340,44 @@ describe('FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径)', () => {
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['BBB'])
   })
 
+  // 🔴 M-1(评审探针 7 猎出的守卫缺口,2026-08-03):`seq` 必须是**组件本地**的
+  // (`<script setup>` 体内的 `let`),不许挪到模块级。评审实测:把它挪成真模块级
+  // (跨实例共享)后,上面那三条**单实例**交错用例照样 19 passed 零报红 —— 也就是
+  // 「组件本地」这件事当时没有任何用例守着。而模块级 `seq` 的真实后果是:两个同时
+  // 在用的选择器会互相把对方的请求判成过期(entries 永远空、loading 永远转)。
+  // 本用例专守这一条,判据只有一个:把 `seq` 挪到模块级 → 本用例必须报红。
+  // ⚠️ 仍**不抽公共 guard**(过早抽象),也**不改产品代码** —— 它已经是对的。
+  // 这是本仓「异步写共享 state 必带过期守卫」纪律(记忆 `newui-async-stale-guard`,
+  // 已被评审逮到四次)的守卫侧补课。
+  it('两个实例各自在飞时互不干扰 —— seq 是组件本地,不是模块级(跨实例共享)', async () => {
+    const A_CHILD: Listing = { content: [{ name: 'A-CHILD', path: '/A/A-CHILD', is_dir: true }] }
+    const B_CHILD: Listing = { content: [{ name: 'B-CHILD', path: '/B/B-CHILD', is_dir: true }] }
+    const dA = makeDeferred<Listing>()
+    const dB = makeDeferred<Listing>()
+    folder.getList.mockImplementation((p: string) => (p === '/A' ? dA.promise : dB.promise))
+
+    const wA = mountFb([{ path: '/A', label: 'A' }])
+    const wB = mountFb([{ path: '/B', label: 'B' }])
+    await wA.find('.fb-row').trigger('click') // 实例 A:go('/A') 在飞
+    await wB.find('.fb-row').trigger('click') // 实例 B:go('/B') 在飞
+    expect(folder.getList.mock.calls.map((c: unknown[]) => c[0])).toEqual(['/A', '/B'])
+
+    // 交错:后发的 B 先回,再轮到 A —— 两个实例都不该被对方影响
+    dB.resolve(B_CHILD)
+    await flushPromises()
+    dA.resolve(A_CHILD)
+    await flushPromises()
+
+    expect(wB.findAll('.fb-name').map((n) => n.text())).toEqual(['B-CHILD'])
+    // ↓ 模块级 seq 时 A 的 mySeq(1) !== seq(2) → 被判过期,这里会是 []
+    expect(wA.findAll('.fb-name').map((n) => n.text())).toEqual(['A-CHILD'])
+    expect(wA.text()).not.toContain('B-CHILD')
+    expect(wB.text()).not.toContain('A-CHILD')
+    // ↓ 模块级 seq 时 A 的 finally 正向判断不成立 → loading 永远转
+    expect(wA.text()).not.toContain('加载中…')
+    expect(wB.text()).not.toContain('加载中…')
+  })
+
   it('reset() 先递增 seq 再清状态 → 在飞的请求落地后不写任何状态', async () => {
     const dA = makeDeferred<typeof A_LISTING>()
     folder.getList.mockReturnValue(dA.promise)

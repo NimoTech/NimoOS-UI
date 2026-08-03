@@ -9,7 +9,7 @@
 
 ## 1. 逐文件
 
-### `src/ai/knowledge/util/folderBrowser.ts`(新建,91 行)
+### `src/ai/knowledge/util/folderBrowser.ts`(新建,**92** 行)
 
 蓝本 `git show main:src/components/common/folderBrowser.js`(34 行,`main`@`7a6ee6b7`)。
 
@@ -58,7 +58,8 @@
 
 ### `src/ai/knowledge/components/FolderBrowser.test.ts`(新建,**19 例**)
 
-根层 4 例 · 进子目录 7 例 · `_seq` 竞态守卫 5 例 · 守卫缺口③ 2 例。
+根层 **4** 例 · 进子目录 **8** 例 · `_seq` 竞态守卫 **6** 例(含 §10 新增的两实例那条)· 守卫缺口③ **2** 例 = **20**。
+(初版把「进子目录」写成 7、合计 18,与实测 19 差 1 —— 评审 M-4,已订正;`awk` 逐 describe 实测:4 / 8 / 6 / 2。)
 
 ---
 
@@ -108,10 +109,11 @@ fixture 实测:18 项 → `is_dir` 14 项(含 3 个隐藏)→ 过滤后 **12 个
 
 ## 3. 🔴 `_seq` 交错路径回归测试
 
-`_seq` 是**组件本地** `let seq = 0`(`:60`);四处守卫与蓝本一一对应:
+`_seq` 是**组件本地** `let seq = 0`(`:60`);**三处**守卫(外加 `reset()` 的一次递增)与蓝本一一对应:
 `reset()` 的 `seq++`(`:67`)· 成功分支 `if (mySeq !== seq) return`(`:85`,蓝本 `:65`)·
 catch `if (mySeq !== seq) return`(`:88`,蓝本 `:68`)· finally **正向** `if (mySeq === seq) loading.value = false`
-(`:92`,蓝本 `:72`)。**没有抽公共 guard**(过早抽象),**没有换成 K15 的 epoch 写法**(§5.2 明令)。
+(`:92`,蓝本 `:72`)。
+(初版此处措辞写成「四处守卫」—— 把 `reset()` 的 `seq++` 也数成守卫了,**守卫是三处**;评审 M-3 同族笔误,已订正。)**没有抽公共 guard**(过早抽象),**没有换成 K15 的 epoch 写法**(§5.2 明令)。
 
 交错场景用共享的 `raceSetup()` 造(用户「等不及」的真实路径,**两次请求 path 与返回值都不同**):
 
@@ -276,11 +278,11 @@ pnpm build                  exit=0    ✓ built in 12.79s
 fixture .superpowers/sdd/p5c-fixtures/folder-list-DATA.json
   三层信封顶层键: ["success","message","data"]
   data 层键:      ["content","total","index","size"]
-  data.content:   18 项 · canon 4189 字节 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
+  data.content:   18 项 · canon 4189 字符 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
   ✅ src/ai/knowledge/util/folderBrowser.test.ts
-      抄本: 18 项 · canon 4189 字节 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
+      抄本: 18 项 · canon 4189 字符 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
   ✅ src/ai/knowledge/components/FolderBrowser.test.ts
-      抄本: 18 项 · canon 4189 字节 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
+      抄本: 18 项 · canon 4189 字符 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
 
 RESULT: 2/2 MATCH(逐字节等价)
 exit=0
@@ -317,3 +319,100 @@ pnpm build                  exit=0    ✓ built in 12.79s
 brief §6 那句「`dist` 里搜不到 `.fb-` 也正常(被 tree-shake)」把 CSS 与 JS 混为一谈:
 `.fb-crumb` 等 **CSS 确实在 `dist/assets/index-*.css` 里**(T2a 的 `knowledge.scss` 由
 `KnowledgeLayout.vue` import);被 tree-shake 掉的只有组件 JS。协调者已确认并会在治理里就地订正。
+
+---
+
+## 10. 🔴 第三轮 —— 补「两实例交错」守卫用例(评审 M-1)+ 三处计数订正
+
+**评审结论**:`Ready to merge`,零 Critical 零 Important,6 条 Minor。它独立复现了 fixture sha256
+(`6aa80ebf…d210f0` 逐字一致)、判定 `_seq` 交错用例「是真交错」、模板对蓝本 diff 仅 4 行,
+并自加两条探针 —— 其中**探针 7 猎出一个真守卫缺口**,本轮收掉。
+
+### 10.1 M-1:守卫缺口 —— 「`seq` 必须是组件本地」当时没有任何用例守着
+
+**评审探针 7**:把 `seq` 从 `<script setup>` 体内挪到**真模块级**(跨实例共享)→ **19 passed,零报红**。
+产品代码是对的,但那条不变量裸奔:将来有人图省事挪出去,三门全绿放行。
+这正是本仓「异步写共享 state 必带过期守卫」纪律(记忆 `newui-async-stale-guard`,**已被评审逮到四次**)
+的守卫侧复发点 —— 前四次都是**产品代码**漏守卫,这次是**守卫本身**漏了一维。
+
+**新增一条用例**(`components/FolderBrowser.test.ts`,`_seq` 那个 describe 内):
+
+> `两个实例各自在飞时互不干扰 —— seq 是组件本地,不是模块级(跨实例共享)`
+
+做法:`folder.getList.mockImplementation(p => p === '/A' ? dA.promise : dB.promise)` →
+**挂载两个 `FolderBrowser`**(实例 A roots `[{path:'/A'}]`、实例 B roots `[{path:'/B'}]`)→
+各点一次进入子目录,两次请求同时在飞(断言实参序列 `['/A','/B']`)→ **交错:后发的 B 先回、A 后回** →
+断言 **两个实例各自拿到自己的结果**:
+
+```
+wB 的 .fb-name === ['B-CHILD']      wA 的 .fb-name === ['A-CHILD']
+wA 不含 'B-CHILD'                   wB 不含 'A-CHILD'
+wA / wB 都不含 '加载中…'(两边 loading 都收敛)
+```
+
+- **零产品代码改动**(`FolderBrowser.vue` / `folderBrowser.ts` 本体一个字节未动,md5 前后一致)。
+- **仍未抽公共 guard**(过早抽象)。
+
+### 10.2 探针 7 自做复现(两段输出 + 落盘证明)
+
+注入手法:从 `<script setup>` 体内删掉 `let seq = 0`(整段锚定 + `assert count == 1`),
+另加一个普通 `<script lang="ts">` 块把 `let seq = 0` 放进去 —— SFC 的普通 `<script>` 体**就是模块级**,
+跨实例共享。落盘证明:
+
+```
+（注入前）md5 2fd53dfbe5e2f9a268e5525b4b9ab1f6
+grep -n:  39:<script lang="ts">
+          40:// PROBE-7:真模块级(跨实例共享)
+          41:let seq = 0
+          44:<script setup lang="ts">
+（注入后）md5 817861bee9bcaef3a2c708ca12606cd5
+```
+
+**RED**(只有新用例红,其余 19 条照样绿 —— 与评审探针 7 的观察逐字吻合):
+
+```
+⎯⎯⎯ Failed Tests 1 ⎯⎯⎯
+ FAIL  src/ai/knowledge/components/FolderBrowser.test.ts >
+       FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径) >
+       两个实例各自在飞时互不干扰 —— seq 是组件本地,不是模块级(跨实例共享)
+AssertionError: expected [] to deeply equal [ 'A-CHILD' ]
+    372|     // ↓ 模块级 seq 时 A 的 mySeq(1) !== seq(2) → 被判过期,这里会是 []
+ Tests  1 failed | 19 passed (20)
+```
+
+**还原 → GREEN**:
+
+```
+md5 回到 2fd53dfbe5e2f9a268e5525b4b9ab1f6 · grep -c PROBE-7 = 0
+Test Files  1 passed (1)      Tests  20 passed (20)
+git status --short → 只有 M src/ai/knowledge/components/FolderBrowser.test.ts
+```
+
+报红消息 `expected [] to deeply equal [ 'A-CHILD' ]` 正是预测的失效形态(实例 A 的结果被实例 B
+的 `seq` 判成过期而丢弃)—— 断言落在「生效载体」上,不是绕着测。
+
+### 10.3 计数订正(M-3 / M-4 / M-5,均为报告笔误,产品与测试无关)
+
+| # | 原文 | 实测 | 处置 |
+|---|---|---|---|
+| **M-3** | 等价校验输出把 `JSON.stringify().length` 标成「**字节**」 | `4189` 是**字符数**;UTF-8**字节数是 4221**(`Buffer.byteLength`)。sha256 一致,结论不变 | §9.2 的三行输出措辞已改成「canon 4189 **字符**」。**校验逻辑本身没问题**(比的是同一函数产出的同类量) |
+| **M-4** | 组件用例分档 4+7+5+2 = 18,与实测 19 差 1 | `awk` 逐 `describe` 实测:根层 **4** · 进子目录 **8** · `_seq` **5**(本轮 +1 → **6**)· 缺口③ **2** | §1 已改成 4 / 8 / 6 / 2 = **20** |
+| **M-5** | `folderBrowser.ts` **91** 行 | `wc -l` = **92** | 已改 |
+| 顺带 | §3 写「**四处**守卫」 | 守卫是**三处**(成功分支 / catch / finally);`reset()` 的 `seq++` 是递增不是守卫 | 已改成「**三处**守卫(外加 `reset()` 的一次递增)」 |
+
+**M-2**(模板写 `props.roots` 而非 `roots`)与 **M-6**(抄本无常驻漂移守卫)按协调者裁定**不动** ——
+前者渲染等价、已在 §8.5 申报,协调者以 **K32** 追认;后者是治理 §4.4 指定做法的固有代价,本期不要求。
+
+### 10.4 三门(第三轮全量,落盘 `/tmp/p5c-t3c-*.log`)
+
+```
+pnpm test                   exit=0    Test Files  322 passed (322)
+                                            Tests  3226 passed (3226)     ← 3225 +1(新用例)
+pnpm exec vue-tsc --noEmit  exit=0    (零输出)
+pnpm build                  exit=0    ✓ built in 12.46s
+```
+
+**文件数仍 322、例数 3225 → 3226(恰好 +1)**,与协调者给的预期逐字一致。
+抄本等价校验复跑仍 `RESULT: 2/2 MATCH`。
+仍未碰 scss / 两个 `*Styles.test.ts` / `src/i18n/*` / `KIcon.vue` / 路由 / Service 仓,
+**也没有改 `FolderBrowser.vue` 与 `folderBrowser.ts` 本体**。
