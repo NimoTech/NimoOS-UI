@@ -37,11 +37,20 @@ function stripComments(scss: string): string {
 }
 const css = stripComments(rawSource)
 
-// 本文件允许出现在第 0 列的三个选择器(治理 §6.1 落地约束 2 + §6.4-5 的判据 b)。
+// 本文件允许出现在第 0 列的三个选择器(治理 §6.1 落地约束 2 + §6.4-5 的判据 b,**K31 订正后**)。
 // `.parser-app` 只带 K22 那三行结构属性;两个页面段按 K23 各自一个作用域,同名类不合并。
+//
+// 🔴 【K31,协调者 2026-08-03 裁定 —— 这三个常量本身就是一条防漂移断言】两个页面段是
+// **后代**选择器 `.parser-app .parser-status-page`,**不是**复合选择器 `.parser-app.parser-status-page`:
+// `.parser-app` 是**外层包裹元素**(K22 的滚动容器),页面根类在**内层元素**上,模板写成
+// `<div class="parser-app"><div class="parser-status-page">…</div></div>`。
+// 若压成同一个元素,该元素同时是蓝本的 `max-width: 900px; margin: 0 auto` 与 K22 的 `overflow-y: auto`
+// → 滚动条落在 900px 居中列的右缘(宽屏上约在屏幕中间),而 Vue2 是整页滚动、滚动条在视口最右缘,
+// **是用户可见的界面不 1:1**。K22 引的两个先例(`.area-shell`+`.area-body`、`.knowledge-app`+`.k-scroll`)
+// 本来就是两元素。→ 谁把 scss 改回复合形式,下面断言 (b) 与 (d) 会同时精确报红(已做 RED 探针)。
 const ROOT_SELECTOR = '.parser-app'
-const SCOPE_STATUS = '.parser-app.parser-status-page'
-const SCOPE_TEST = '.parser-app.parser-test-page'
+const SCOPE_STATUS = '.parser-app .parser-status-page'
+const SCOPE_TEST = '.parser-app .parser-test-page'
 const TOP_LEVEL_SELECTORS = [ROOT_SELECTOR, SCOPE_STATUS, SCOPE_TEST]
 
 function escapeForRegExp(s: string): string {
@@ -51,7 +60,7 @@ function escapeForRegExp(s: string): string {
 // 取「以 `selector {` 独占一行(零缩进)开头、到与之配对的 `}` 为止」的整块文本。
 // 🔴 起点判据用 `^…$`(多行模式)**行首行尾锚定**,不是子串搜索 —— knowledgeStyles.test.ts 的
 // I-2 事故教训:`indexOf` 会被注释里逐字引用的同一个选择器串撞对(本文件头注释里就逐字写着
-// `.parser-app.parser-status-page`)。这里先剥注释、再行首锚定,双保险。
+// `.parser-app .parser-status-page`)。这里先剥注释、再行首锚定,双保险。
 // 结束位置用**花括号配平**(本文件的两个页面段内部有多层嵌套规则,knowledgeStyles 那份
 // 「下一个 `\n}`」的简化手法在这里会切错)。
 function blockOf(text: string, selector: string): string {

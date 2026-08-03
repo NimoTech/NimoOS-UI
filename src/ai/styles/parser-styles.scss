@@ -2,9 +2,9 @@
  *
  * 1:1 移植自 Vue2 蓝本的两处 scoped 样式(共 199 行,`git show main:` @ 7a6ee6b7):
  *   ① `src/views/AI/Parser/parser-styles.scss`(74 行)
- *        → 本文件的 `.parser-app.parser-status-page { … }` 段
+ *        → 本文件的 `.parser-app .parser-status-page { … }` 段
  *   ② `src/views/AI/Parser/ParserTest.vue:245-369` 的内联 `<style lang="scss" scoped>`(125 行)
- *        → 本文件的 `.parser-app.parser-test-page { … }` 段
+ *        → 本文件的 `.parser-app .parser-test-page { … }` 段
  *   ⚠️ 蓝本的 `ParserTest.vue` **不** `@import './parser-styles.scss'`(只有 `ParserStatus.vue:162-164`
  *   那个 `<style>` 块 import 了),所以两份是**各自独立**的 scoped 样式,不是一份加一份补丁。
  *
@@ -17,8 +17,8 @@
  * 【K9 —— 零顶层裸选择器】蓝本那 60+ 个裸类名(`.card` `.row` `.hint` `.error` `.empty` …)与 9 个
  * 元素选择器(`h2` `h3` `b` `li` `p` `em` `strong` `input` `code`)在 Vue2 靠 `scoped` 隔离;搬进
  * New-UI 的全局 scss 必须自己收口 —— 本文件里**每一条规则都嵌在那两个页面作用域之下**,
- * 第 0 列只允许出现 `.parser-app` / `.parser-app.parser-status-page` / `.parser-app.parser-test-page`
- * 三个选择器。`parserStyles.test.ts` 的断言 (b) 钉这一条。
+ * 第 0 列只允许出现 `.parser-app` / `.parser-app .parser-status-page` / `.parser-app .parser-test-page`
+ * 三个选择器(**后代**选择器,见下面的 K31)。`parserStyles.test.ts` 的断言 (b) 钉这一条。
  *
  * 【K21 —— token 从哪来】本文件**不声明任何 token**:`knowledge.scss` 的两个 token 声明块选择器
  * 已由 Task 2a 各扩了一个逗号项(`.knowledge-app, .parser-app { … }` 与
@@ -52,8 +52,16 @@
  * `body { overflow: hidden }`;`/ai/parser` 与 `/ai/parser/test` 在 `knowledgeRoutes.ts:62-63` 是
  * **顶层路由**(不在 KnowledgeLayout 之下),不自建滚动容器的话超出视口的内容**永远看不到**。
  * 先例:`AreaShell.vue` 的 `.area-shell{height:100vh;height:100dvh}` + `.area-body{overflow:auto}`、
- * `knowledge.scss` 的 `.k-scroll{overflow-y:auto}`。
- * 可见后果(已申报):滚动条位置从文档级挪到 `.parser-app` 这个容器上。
+ * `knowledge.scss` 的 `.knowledge-app` 外壳 + `.k-scroll{overflow-y:auto}` 内滚动器。
+ *
+ * 【K31 —— `.parser-app` 是**外层包裹元素**,页面根类在**内层元素**上(协调者 2026-08-03 裁定)】
+ * 选择器因此是**后代**形式 `.parser-app .parser-status-page`,不是复合形式 `.parser-app.parser-status-page`;
+ * 两页模板写成 `<div class="parser-app"><div class="parser-status-page">…</div></div>`,**比蓝本多一层 DOM**。
+ * 🔴 为什么必须分两层:蓝本页面根自带 `max-width: 900px; margin: 0 auto`。若把滚动容器与页面根做成
+ * **同一个元素**,`overflow-y: auto` 的滚动条就落在那条 900px 居中列的右缘(宽屏上约在屏幕中间),
+ * 而 Vue2 是整页滚动、滚动条在**视口最右缘** —— 那是**用户可见的界面不 1:1**;多这一层 DOM 用户不可见。
+ * 上面 K22 引的两个先例本来就是两元素(`.area-shell` + `.area-body`、`.knowledge-app` + `.k-scroll`),
+ * 压成一个元素才是偏离。
  * 🔴 本块**只许**有这三行结构属性:零颜色属性、零 `--x:` 声明(§6.1 落地约束 1,
  * `parserStyles.test.ts` 的断言 (c) 钉这一条)。
  */
@@ -64,7 +72,7 @@
 }
 
 /* ===== ParserStatus(解析器状态页)—— 蓝本 src/views/AI/Parser/parser-styles.scss:1-74 全段 ===== */
-.parser-app.parser-status-page {
+.parser-app .parser-status-page {
   /* 蓝本 :1-5 */
   padding: 16px;
   max-width: 900px;
@@ -151,7 +159,7 @@
 }
 
 /* ===== ParserTest(测试沙盒页)—— 蓝本 src/views/AI/Parser/ParserTest.vue:245-369 的内联 <style> ===== */
-.parser-app.parser-test-page {
+.parser-app .parser-test-page {
   /* 蓝本 :246-250 */
   padding: 16px;
   max-width: 900px;

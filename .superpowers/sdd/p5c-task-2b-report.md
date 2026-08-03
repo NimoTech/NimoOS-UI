@@ -1,9 +1,11 @@
 # SP8-P5c · Task 2b 报告 —— `parser-styles.scss` 新建 + `parserStyles.test.ts` 新建(守卫 ②⑤)
 
-- **状态**:`DONE_WITH_CONCERNS`(顾虑见 §11,均为「留给 T6/T7 与验收清单」的提示,不是本刀缺陷)
+- **状态**:`DONE_WITH_CONCERNS`(顾虑见 §11;**顾虑 ① 已由协调者裁定为 K31 并在后续提交里修掉,见 §12**;
+  其余 5 条是登记/提示,不是本刀缺陷)
 - **起点**:`sp8-ai` @ `05bff49`(工作树干净)
+- **提交**:① `d70986f`(首个提交,建两个文件)· ② **K31 落地**(本次,见 §12)
 - **产出**:2 个**新建**文件,零既有文件改动
-  - `src/ai/styles/parser-styles.scss`(287 行:头注释 58 行 + K22 块 5 行 + 两个页面段)
+  - `src/ai/styles/parser-styles.scss`(**295 行**:文件头注释 49 行 + K22/K31 注释 17 行 + `.parser-app` 块 5 行 + 两个页面段)
   - `src/ai/styles/parserStyles.test.ts`(18 条用例)
 - **三门**:`Test Files 320 passed (320)` / `Tests 3179 passed (3179)`(319→**320** 文件、3161→**3179**,+18 例,零红、零复跑)· `vue-tsc` exit 0 · `vite build` exit 0 · `sass parser-styles.scss` exit 0 · `sass knowledge.scss` exit 0
 - **本刀零改动确认**:`git diff --stat 05bff49 -- src/ai/styles/knowledge.scss src/ai/styles/knowledgeStyles.test.ts` **输出为空**(T2a 产物一个字节都没动);`.vue` 零新增(color-guard 用例数不变)
@@ -14,35 +16,35 @@
 
 蓝本一律 `git -C /home/nimo/NimoTech/NimoOS-UI show main:<path>`(`main`@`7a6ee6b7`),**该仓零 checkout / 零 stash / 零提交**。
 
-### ① `src/views/AI/Parser/parser-styles.scss`(74 行)→ `.parser-app.parser-status-page`(新 `:67-151`)
+### ① `src/views/AI/Parser/parser-styles.scss`(74 行)→ `.parser-app .parser-status-page`(新 `:75-159`)
 
 | 蓝本行 | 内容 | 新行号 |
 |---|---|---|
-| `:1-5` | `.parser-status-page` 页面壳(padding / max-width / margin) | `:68-71` |
-| `:6-9` | `.page-header` + 嵌套 `h2` | `:73-77` |
-| `:10` | `.refresh-btn` | `:79` |
-| `:11` | `.header-actions` | `:80` |
-| `:12-17` | `.test-link`(含 `&:hover`) | `:81-87` |
-| `:19-25` | `.card` | `:89-96` |
-| `:26-29` | `.card.unreachable` | `:97-101` |
-| `:30-45` | `.control-card`(`.row` / `.status-text .dot`(含 `&.paused`)/ `.pause-btn` / `.concurrency-row` / `.device-row` / `.resolved-hint` / `.radio`) | `:102-118` |
-| `:46-49` | `.queue-card`(含 `.kv b`) | `:119-123` |
-| `:50-65` | `.folders-card`(`h3` / `.empty` / `.folder-list` / `.folder-row` → `.folder-path` / `.folder-count` / `.folder-bar`) | `:124-140` |
-| `:66-74` | `.failures-card`(`.toggle` / `.failure-list` → `li` → `.path` / `.error`) | `:141-150` |
+| `:1-5` | `.parser-status-page` 页面壳(padding / max-width / margin) | `:76-79` |
+| `:6-9` | `.page-header` + 嵌套 `h2` | `:81-85` |
+| `:10` | `.refresh-btn` | `:87` |
+| `:11` | `.header-actions` | `:88` |
+| `:12-17` | `.test-link`(含 `&:hover`) | `:89-95` |
+| `:19-25` | `.card` | `:97-104` |
+| `:26-29` | `.card.unreachable` | `:105-109` |
+| `:30-45` | `.control-card`(`.row` / `.status-text .dot`(含 `&.paused`)/ `.pause-btn` / `.concurrency-row` / `.device-row` / `.resolved-hint` / `.radio`) | `:110-126` |
+| `:46-49` | `.queue-card`(含 `.kv b`) | `:127-131` |
+| `:50-65` | `.folders-card`(`h3` / `.empty` / `.folder-list` / `.folder-row` → `.folder-path` / `.folder-count` / `.folder-bar`) | `:132-148` |
+| `:66-74` | `.failures-card`(`.toggle` / `.failure-list` → `li` → `.path` / `.error`) | `:149-158` |
 
-### ② `src/views/AI/Parser/ParserTest.vue:245-369` 的内联 `<style lang="scss" scoped>`(125 行)→ `.parser-app.parser-test-page`(新 `:154-286`)
+### ② `src/views/AI/Parser/ParserTest.vue:245-369` 的内联 `<style lang="scss" scoped>`(125 行)→ `.parser-app .parser-test-page`(新 `:162-294`)
 
 | 蓝本行 | 内容 | 新行号 |
 |---|---|---|
-| `:246-250` | `.parser-test-page` 页面壳 | `:155-158` |
-| `:251-255` | `.page-header` + `h2` + `.back-link` | `:160-165` |
-| `:256-262` | `.card` | `:166-173` |
-| `:263` | `.help-card p` | `:175` |
-| `:264` | `.help-card .small` | `:176` |
-| `:265-318` | `.upload-card` 整段(`.dropzone`(含 `&.active` / `&.has` / `.pick-btn` / `.hint` / `.file-meta` → `strong` / `.clear-btn`)/ `.row` / `.params-row` / `.param`(含 `input`)/ `.reset-btn` / `.hint-line`(含 `em`)/ `.ok-hint em` / `.query-input` / `.checkbox` / `.submit-btn`(含 `&:disabled`)/ `.ok-hint` / `.error-box`) | `:177-233` |
-| `:319-329` | `.docling-card`(`.toggle` / `.docling-md`) | `:234-245` |
-| `:330-344` | `.scored-card`(`h3` / `.warn` / `.scored-list` / `li` / `li:first-child` / `.rank-line` → `.rank-no` / `.score` / `.rerank-score` / `.chunk-ref` / `.rank-text`) | `:246-261` |
-| `:345-368` | `.chunks-card`(`h3` / `.empty` / `.chunk-list` / `.chunk-item`(含 `&:first-child`)/ `.chunk-head`(含 `.hint`)/ `.chunk-text` / `.emb-preview`(含 `.emb-label` / `code`)) | `:262-285` |
+| `:246-250` | `.parser-test-page` 页面壳 | `:163-166` |
+| `:251-255` | `.page-header` + `h2` + `.back-link` | `:168-173` |
+| `:256-262` | `.card` | `:174-181` |
+| `:263` | `.help-card p` | `:183` |
+| `:264` | `.help-card .small` | `:184` |
+| `:265-318` | `.upload-card` 整段(`.dropzone`(含 `&.active` / `&.has` / `.pick-btn` / `.hint` / `.file-meta` → `strong` / `.clear-btn`)/ `.row` / `.params-row` / `.param`(含 `input`)/ `.reset-btn` / `.hint-line`(含 `em`)/ `.ok-hint em` / `.query-input` / `.checkbox` / `.submit-btn`(含 `&:disabled`)/ `.ok-hint` / `.error-box`) | `:185-241` |
+| `:319-329` | `.docling-card`(`.toggle` / `.docling-md`) | `:242-253` |
+| `:330-344` | `.scored-card`(`h3` / `.warn` / `.scored-list` / `li` / `li:first-child` / `.rank-line` → `.rank-no` / `.score` / `.rerank-score` / `.chunk-ref` / `.rank-text`) | `:254-269` |
+| `:345-368` | `.chunks-card`(`h3` / `.empty` / `.chunk-list` / `.chunk-item`(含 `&:first-child`)/ `.chunk-head`(含 `.hint`)/ `.chunk-text` / `.emb-preview`(含 `.emb-label` / `code`)) | `:270-293` |
 
 🔴 **`ParserTest.vue` 的 `<style>` 块本身不搬**(New-UI 组件零 `<style>` 块);组件侧 T7 会写
 `import '../../styles/parser-styles.scss'`。蓝本 `ParserTest.vue` **不** `@import './parser-styles.scss'`
@@ -89,15 +91,15 @@
 
 **→ 完整选择器路径两边都有的只有 3 条**(`.card` / `.page-header` / `.page-header h2`),**且声明逐字相同**
 —— 与附录 B §B.1 ① 的结论**完全一致(独立复核 ✅)**。这 3 条**照 K23 在两个作用域下各写了一份**
-(状态页 `:90` / `:74` / `:76`;测试页 `:167` / `:161` / `:163`),**没有抽共享段**。
+(状态页 `:98` / `:82` / `:84`;测试页 `:175` / `:169` / `:171`),**没有抽共享段**。
 
 **两条附录之外的补充发现(不是勘误,是附录没提)**:
 1. 🔴 **两个页面根本身的声明也逐字相同**(`padding: 16px; max-width: 900px; margin: 0 auto`)——
    附录 B §B.1 只数了 3 条,因为两个根的**选择器名不同**(`.parser-status-page` vs `.parser-test-page`),
-   按「完整路径」口径不算重名。本刀同样按 K23 各写一份(`:68-71` / `:155-158`),**不合并**。
+   按「完整路径」口径不算重名。本刀同样按 K23 各写一份(`:76-79` / `:163-166`),**不合并**。
 2. `.hint` **不是两份之间的重名**,而是 **`ParserTest.vue` 文件内部**的两份不同规则
    (`.upload-card .dropzone .hint` 12px + `margin-left: 8px` vs `.chunks-card .chunk-head .hint` 11px)——
-   与附录 B §B.1 ② 那一行的备注「同一个文件里就有两份不同的」一致,两份都照搬(`:190` / `:273`)。
+   与附录 B §B.1 ② 那一行的备注「同一个文件里就有两份不同的」一致,两份都照搬(`:198` / `:281`)。
 
 ---
 
@@ -145,7 +147,7 @@ toggle unreachable upload-card warn
 
 → **隔离真的生效**:5 处命中全部需要 Parser 两页不存在的祖先类。
 🔴 **`warn` 同时出现在两份白名单里是预期**(附录 D §D.2 末尾 ⚠️ 已登记):`knowledge.scss:923` 的
-`.k-set-row-desc .warn`(inline-flex + gap + 字重)与本文件 `:249` 的 `.scored-card .warn`(font-size + margin)
+`.k-set-row-desc .warn`(inline-flex + gap + 字重)与本文件 `:257` 的 `.scored-card .warn`(font-size + margin)
 **声明不同、各自嵌在自己作用域里,不串号**。两边都留,没有删任何一个。
 另核 `theme.css` 两条 `:root` 级全局规则:`:311` `* { box-sizing: border-box }` 与 Vue2 一致、无差异;
 `:325-327` `.bar-btn` Parser 两页不用 → 无冲突。
@@ -155,7 +157,7 @@ toggle unreachable upload-card warn
 ## 4. K22 三行的申报(**Vue2 没有这三行**)
 
 ```scss
-.parser-app { height: 100vh; height: 100dvh; overflow-y: auto; }   /* 新 :60-64 */
+.parser-app { height: 100vh; height: 100dvh; overflow-y: auto; }   /* 新 :68-72 */
 ```
 
 - **依据**:`src/styles/theme.css:318` 是 `body { overflow: hidden }`;`/ai/parser` 与 `/ai/parser/test` 在
@@ -165,7 +167,7 @@ toggle unreachable upload-card warn
   `knowledge.scss` 的 `.k-scroll{overflow-y:auto}`。
 - 🔴 **可见后果(评审不按 1:1 报)**:**滚动条位置从文档级挪到 `.parser-app` 这个容器上**。
   ⚠️ **再具体一层**(§11 顾虑 1):因为治理 §6.1 落地约束 2 要求两页作用域根与 `.parser-app` 是**同一个元素**
-  (`.parser-app.parser-status-page`),而蓝本页面根自带 `max-width: 900px; margin: 0 auto`,
+  (`.parser-app .parser-status-page`),而蓝本页面根自带 `max-width: 900px; margin: 0 auto`,
   所以**滚动条会出现在这条 900px 居中列的右缘,而不是视口右缘**。要把滚动条移回视口边缘只能加一层
   DOM 包裹 = 改结构 = 违反 1:1,故按治理裁定保持现状,**留给验收清单让用户拍板**。
 - 🔴 **本块零颜色属性、零 `--x:` 声明、也不声明 `color-scheme`**(K21 的两个 token 块已各自带了
@@ -179,51 +181,51 @@ toggle unreachable upload-card warn
 **全部照附录 B 落,未自行判断语义、未发明任何 `color-mix` 比例、未新造 token。**
 19 处 `var(假 token, 回退值)` 一律**不保留那层壳**(附录 B §B.2 落地写法),直接写 New-UI token。
 
-### 5.1 ① `parser-styles.scss` → `.parser-app.parser-status-page`(附录 B §B.3,**12 行 / 12 处**)
+### 5.1 ① `parser-styles.scss` → `.parser-app .parser-status-page`(附录 B §B.3,**12 行 / 12 处**)
 
 | 蓝本行 | 语义 | → | 新行号 |
 |---|---|---|---|
-| `:14` | 链接色 | `var(--accent)` | `:84` |
-| `:20` | 卡片实底 | `var(--bg-elevated)` | `:91` |
-| `:21` | 卡片描边 | `var(--line-faint)` | `:92` |
-| `:27` | 错误态描边 | `var(--danger)` | `:99` |
-| `:28` | 错误态前景 | `var(--danger)` | `:100` |
-| `:36` | 运行中指示灯 | `var(--success)` | `:109` |
-| `:37` | 暂停指示灯 | `var(--warning)` | `:110` |
-| `:43` | 三级灰辅助文字 | `var(--text-tertiary)` | `:116` |
-| `:52` | 三级灰空态文字 | `var(--text-tertiary)` | `:127` |
-| `:62` | 进度条底(`opacity: 0.5` 照抄) | `var(--accent)` | `:137` |
-| `:69` | 虚线分隔 | `var(--line-faint)` | `:145` |
-| `:71` | 错误前景 | `var(--danger)` | `:147` |
+| `:14` | 链接色 | `var(--accent)` | `:92` |
+| `:20` | 卡片实底 | `var(--bg-elevated)` | `:99` |
+| `:21` | 卡片描边 | `var(--line-faint)` | `:100` |
+| `:27` | 错误态描边 | `var(--danger)` | `:107` |
+| `:28` | 错误态前景 | `var(--danger)` | `:108` |
+| `:36` | 运行中指示灯 | `var(--success)` | `:117` |
+| `:37` | 暂停指示灯 | `var(--warning)` | `:118` |
+| `:43` | 三级灰辅助文字 | `var(--text-tertiary)` | `:124` |
+| `:52` | 三级灰空态文字 | `var(--text-tertiary)` | `:135` |
+| `:62` | 进度条底(`opacity: 0.5` 照抄) | `var(--accent)` | `:145` |
+| `:69` | 虚线分隔 | `var(--line-faint)` | `:153` |
+| `:71` | 错误前景 | `var(--danger)` | `:155` |
 
-### 5.2 ② `ParserTest.vue:245-369` → `.parser-app.parser-test-page`(附录 B §B.4,**31 行 / 33 处**)
+### 5.2 ② `ParserTest.vue:245-369` → `.parser-app .parser-test-page`(附录 B §B.4,**31 行 / 33 处**)
 
 | 蓝本行 | 语义 | → | 新行号 |
 |---|---|---|---|
-| `:254` | 链接色 | `var(--accent)` | `:164` |
-| `:257` / `:258` | 卡片实底 / 卡片描边 | `var(--bg-elevated)` / `var(--line-faint)` | `:168` / `:169` |
-| `:264` | 三级灰 | `var(--text-tertiary)` | `:176` |
-| `:267` | 拖放区**更重**的虚线 | `var(--line-strong)` | `:180` |
-| `:273`(**2 处**) | 拖入高亮淡底 / 高亮描边 | `var(--accent-soft)` / `var(--accent)` | `:187` |
-| `:276` | 三级灰 | `var(--text-tertiary)` | `:190` |
-| `:287` | 二级灰(参数标签) | `var(--text-secondary)` | `:201` |
-| `:290` | 输入框描边 | `var(--line-faint)` | `:204` |
-| `:295` | 三级灰 | `var(--text-tertiary)` | `:209` |
-| `:296` | 第四档(比三级灰更淡) | `var(--text-quaternary)` | `:210` |
-| `:298` | 三级灰 | `var(--text-tertiary)` | `:212` |
-| `:301` | 输入框描边 | `var(--line-faint)` | `:215` |
-| `:307`(**2 处**) | 强调色实底 / **实底之上的前景** | `var(--accent)` / `var(--text-on-accent)` | `:222` |
-| `:310` | 成功态前景 | `var(--success)` | `:225` |
-| `:313` / `:314` / `:315` | 错误淡底 / 左边条 / 前景 | `var(--danger-soft)` / `var(--danger)` / `var(--danger)` | `:228` / `:229` / `:230` |
-| `:323` / `:324` | 强调色**最淡档**底 / 左边条 | `var(--accent-softer)` / `var(--accent)` | `:239` / `:240` |
-| `:332` | 警告前景 | `var(--warning)` | `:249` |
-| `:334` | 最淡分隔线 | `var(--line-faint)` | `:251` |
-| `:339` / `:340` / `:341` | 成功态 / 强调色 / 三级灰 | `var(--success)` / `var(--accent)` / `var(--text-tertiary)` | `:256` / `:257` / `:258` |
-| `:347` | 三级灰空态 | `var(--text-tertiary)` | `:265` |
-| `:350` | 最淡分隔线 | `var(--line-faint)` | `:268` |
-| `:355` | 三级灰 | `var(--text-tertiary)` | `:273` |
-| `:359` | 中性 chip 底(等宽代码块) | `var(--bg-chip)` | `:277` |
-| `:365` / `:366` | 三级灰 / 二级灰 | `var(--text-tertiary)` / `var(--text-secondary)` | `:283` / `:284` |
+| `:254` | 链接色 | `var(--accent)` | `:172` |
+| `:257` / `:258` | 卡片实底 / 卡片描边 | `var(--bg-elevated)` / `var(--line-faint)` | `:176` / `:177` |
+| `:264` | 三级灰 | `var(--text-tertiary)` | `:184` |
+| `:267` | 拖放区**更重**的虚线 | `var(--line-strong)` | `:188` |
+| `:273`(**2 处**) | 拖入高亮淡底 / 高亮描边 | `var(--accent-soft)` / `var(--accent)` | `:195` |
+| `:276` | 三级灰 | `var(--text-tertiary)` | `:198` |
+| `:287` | 二级灰(参数标签) | `var(--text-secondary)` | `:209` |
+| `:290` | 输入框描边 | `var(--line-faint)` | `:212` |
+| `:295` | 三级灰 | `var(--text-tertiary)` | `:217` |
+| `:296` | 第四档(比三级灰更淡) | `var(--text-quaternary)` | `:218` |
+| `:298` | 三级灰 | `var(--text-tertiary)` | `:220` |
+| `:301` | 输入框描边 | `var(--line-faint)` | `:223` |
+| `:307`(**2 处**) | 强调色实底 / **实底之上的前景** | `var(--accent)` / `var(--text-on-accent)` | `:230` |
+| `:310` | 成功态前景 | `var(--success)` | `:233` |
+| `:313` / `:314` / `:315` | 错误淡底 / 左边条 / 前景 | `var(--danger-soft)` / `var(--danger)` / `var(--danger)` | `:236` / `:237` / `:238` |
+| `:323` / `:324` | 强调色**最淡档**底 / 左边条 | `var(--accent-softer)` / `var(--accent)` | `:247` / `:248` |
+| `:332` | 警告前景 | `var(--warning)` | `:257` |
+| `:334` | 最淡分隔线 | `var(--line-faint)` | `:259` |
+| `:339` / `:340` / `:341` | 成功态 / 强调色 / 三级灰 | `var(--success)` / `var(--accent)` / `var(--text-tertiary)` | `:264` / `:265` / `:266` |
+| `:347` | 三级灰空态 | `var(--text-tertiary)` | `:273` |
+| `:350` | 最淡分隔线 | `var(--line-faint)` | `:276` |
+| `:355` | 三级灰 | `var(--text-tertiary)` | `:281` |
+| `:359` | 中性 chip 底(等宽代码块) | `var(--bg-chip)` | `:285` |
+| `:365` / `:366` | 三级灰 / 二级灰 | `var(--text-tertiary)` / `var(--text-secondary)` | `:291` / `:292` |
 
 **行数核对**:`:273` 与 `:307` 各 2 处 → 31 行 / 33 处 ✅。
 
@@ -266,7 +268,7 @@ toggle unreachable upload-card warn
 | 组 | 断言 | 用例数 |
 |---|---|---|
 | **(a)** 全文(**含注释**)零色字面量 | 零 `#hex` · 零函数式色值(`rgb/rgba/hsl/hsla/lab/lch/oklab/oklch/hwb/color()/color-mix()/device-cmyk()`)· 零 **CSS 具名色 148 个全清单**(含 `white`/`black`;`transparent` 不算)· 零 `theme-exception` · 零假 token 残留(`ns-color`) | 5 |
-| **(b)** 零顶层裸选择器 | 第 0 列的规则头**集合+顺序**恰好 `['.parser-app', '.parser-app.parser-status-page', '.parser-app.parser-test-page']` · 每行都是单行 `选择器 {` 写法 | 2 |
+| **(b)** 零顶层裸选择器 | 第 0 列的规则头**集合+顺序**恰好 `['.parser-app', '.parser-app .parser-status-page', '.parser-app .parser-test-page']` · 每行都是单行 `选择器 {` 写法 | 2 |
 | **(c)** `.parser-app` 只带 K22 三行 | 声明清单 `toEqual(['height','height','overflow-y'])` · 零 `--x:` · 零颜色属性(21 个属性名清单)· 零嵌套规则 | 4 |
 | **(d)** K23 两页各自作用域 | 两页都有页面壳三条声明 · `.card` 各 1 份 · `.page-header`(含 `h2`)各 1 份 · 各自持有本页专属类且不含对方的 | 4 |
 | **(e)** 白名单(附录 D §D.2) | 类名集合 === `PARSER_WHITELIST_70`(**集合相等**,排除作用域根 `parser-app`)· 元素选择器集合 === 登记的 9 个 · 不许混进 `k-*`/`k2-*`/`kn-*`/`fb-*` | 3 |
@@ -278,7 +280,7 @@ toggle unreachable upload-card warn
   三行 import 各加 `@ts-expect-error` + 注释(本仓未装 `@types/node`,既定手法,`vue-tsc` 已 exit 0 验证)。
 - 🔴 **(a) 跑在未剥注释的 `rawSource` 上**(R5:注释里也不许有色字面量);(b)(c)(d)(e) 跑在
   `stripComments()` 之后的 `css` 上(防注释里逐字引用的选择器名撞对 —— 本文件头注释里就逐字写着
-  `.parser-app.parser-status-page`)。
+  `.parser-app .parser-status-page`)。
 - 🔴 **定位块用 `^选择器 \{$` 行首行尾锚定**(承 `knowledgeStyles.test.ts` I-2 事故的教训:`indexOf`
   子串搜索会被注释撞对),块结束用**花括号配平**(两个页面段内部多层嵌套,「下一个 `\n}`」会切错)。
 - 🔴 **具名色用大小写敏感**匹配 + 两侧 `(?<![\w-])` / `(?![\w-])` 负向断言:`\b` 在字母↔连字符处也成立,
@@ -367,7 +369,7 @@ AssertionError: .parser-app 块里出现了 token 声明:
 ### 探针 6 —— (d) 把 `.card` 从**状态页作用域**里整块删掉(测试页那份仍在)
 ```
      × `.card` 在两个作用域下各有且只有一份 6ms
-AssertionError: .parser-app.parser-status-page 下的 `.card {` 规则应恰好 1 条,实测 0 条: expected +0 to be 1
+AssertionError: .parser-app .parser-status-page 下的 `.card {` 规则应恰好 1 条,实测 0 条: expected +0 to be 1
  Test Files  1 failed (1)
       Tests  1 failed | 17 passed (18)
 ```
@@ -440,8 +442,8 @@ $ pnpm exec sass --no-source-map src/ai/styles/knowledge.scss     /dev/null;  ex
 
 ```
 ① parser-styles.scss 全文零色字面量           → grep exit=1(0 命中)✅
-② parser-styles.scss 零顶层裸选择器            → 只有 :60 .parser-app / :67 .parser-app.parser-status-page
-                                                 / :154 .parser-app.parser-test-page ✅
+② parser-styles.scss 零顶层裸选择器            → 只有 :60 .parser-app / :67 .parser-app .parser-status-page
+                                                 / :154 .parser-app .parser-test-page ✅
 ④ theme-exception                              → parser-styles.scss:0  knowledge.scss:0 ✅
 ⑤ 单独编译两个 scss                            → 两个 exit=0 ✅
 ⑦ 死引用自查 grep -c 'ns-color'                → 0 ✅
@@ -468,11 +470,12 @@ $ grep -c "k-sandbox-icon"     dist/assets/*.css   → index-X0hjF9vH.css:1
 | **K9** | 蓝本 60+ 裸类名 + 9 个元素选择器靠 Vue2 `scoped` 隔离,搬进全局 scss 后**全部嵌进两个页面作用域**,零顶层裸选择器(断言 (b) 常驻守卫) |
 | **K21** | **本刀不声明任何 token**,消费 T2a 已扩选择器的那两个 token 块(`.knowledge-app, .parser-app` / 浅档同款);连 `color-scheme` 都不重复声明 |
 | **K22** | `.parser-app { height: 100vh; height: 100dvh; overflow-y: auto }` —— Vue2 没有这三行,见 §4(含「滚动条位置」可见后果的申报) |
-| **K23** | 两页各自作用域 `.parser-app.parser-status-page` / `.parser-app.parser-test-page`;逐字相同的 `.card` / `.page-header` / `.page-header h2`(**+ 两个页面根**)各写一份,零共享段;断言 (d) 常驻守卫 |
+| **K23** | 两页各自作用域 `.parser-app .parser-status-page` / `.parser-app .parser-test-page`;逐字相同的 `.card` / `.page-header` / `.page-header h2`(**+ 两个页面根**)各写一份,零共享段;断言 (d) 常驻守卫 |
 | **K24** | 落成独立文件 `src/ai/styles/parser-styles.scss`,**不并进 `knowledge.scss`**(并进去会当场炸掉 `knowledgeStyles.test.ts` 的非 `k*` 类集合相等断言);同时新建 `parserStyles.test.ts` |
 | **K25** | 两页暗色档与 Vue2 不同(Vue2 只有一套浅色),头注释已就地登记;浅色档按附录 B 保持与 Vue2 一致的语义 |
+| **K31** | 🔴 **后续提交新命中**:`.parser-app` 改成外层包裹元素、页面根类留内层 → 选择器改后代形式;修掉「滚动条落在 900px 列右缘」这个界面不 1:1。**详见 §12** |
 
-**除 K1–K30 之外的偏离:0 条。** 拿不准的 0 处(附录 B 覆盖全部 45 处),故**零 `NEEDS_CONTEXT`**。
+**除 K1–K31 之外的偏离:0 条。** 拿不准的 0 处(附录 B 覆盖全部 45 处),故**零 `NEEDS_CONTEXT`**。
 
 ### 9.1 §3.5 的 N1–N22 里本刀命中的
 
@@ -498,10 +501,9 @@ $ grep -c "k-sandbox-icon"     dist/assets/*.css   → index-X0hjF9vH.css:1
 
 ## 11. 顾虑 / 留给下游的提示(**不是本刀缺陷,但请协调者与评审知悉**)
 
-1. ⚠️ **滚动条落在 900px 居中列的右缘,不在视口右缘**(K22 的二阶后果,已在 §4 与 scss 头注释登记)。
-   成因是治理 §6.1 落地约束 2 要求作用域根与 `.parser-app` 是同一个元素,而蓝本页面根自带
-   `max-width: 900px; margin: 0 auto`。要挪回视口边缘必须加一层 DOM 包裹(= 改结构,违反 1:1)。
-   **建议写进验收清单让用户拍板**(接受 / 或另开一票允许加包裹层)。
+1. ✅ **【已修,见 §12】滚动条落在 900px 居中列右缘** —— 协调者 2026-08-03 复核后**采纳并裁定为 K31**:
+   这本身就是界面不 1:1,必须修,不是「留给验收清单拍板」的事。
+   已在后续提交里把 `.parser-app` 改成**外层包裹元素**(后代选择器 + 多一层 DOM)。**本条已关闭。**
 2. ⚠️ **附录 B §B.2 与 §B.9 ⑦ 有一处口径冲突**:§B.2 说注释里可以写「原是一个无声明的 `--ns-color-*`」,
    而 §B.9 ⑦ 的自查命令要求 `grep -c 'ns-color' parser-styles.scss` **等于 0**。
    **处置**:注释改写成「`var(假 token, 回退值)` 写法,那 6 个假 token 名(前缀 `ns-` 那一族)」,
@@ -511,9 +513,151 @@ $ grep -c "k-sandbox-icon"     dist/assets/*.css   → index-X0hjF9vH.css:1
 4. ⚠️ **附录 B §B.1 只登记了 3 条「完整路径逐字相同」,实际还有第 4 条**:两个页面根的声明
    (`padding: 16px; max-width: 900px; margin: 0 auto`)也逐字相同,只因选择器名不同没被计入。
    **不影响任何裁定**(照 K23 各写一份),仅补登记。
-5. ⚠️ **T6/T7 提醒**:`.vue` 侧根元素必须写成 `class="parser-app parser-status-page"` /
-   `class="parser-app parser-test-page"`(两个类挂同一个元素),否则 `.parser-app.parser-status-page`
-   连写选择器不命中、且 token 全部解析不到。`dist` 里 grep `parser-status-page` 那条 DoD 也在 T6。
+5. ⚠️ **T6/T7 提醒(K31 订正后的正确写法)**:`.vue` 侧根元素是**两层**——
+   `<div class="parser-app"><div class="parser-status-page">…</div></div>`
+   (测试页同理 `parser-test-page`),**不是**「两个类挂同一个元素」。
+   外层 `.parser-app` 是 K22 的滚动容器 + K21 的 token 作用域;内层才是蓝本那个页面根。
+   写成同一个元素会让 `.parser-app .parser-status-page` 这条**后代**选择器**完全不命中**(页内所有样式全丢),
+   而 `.parser-app` 自己仍命中 → 表现是「只有滚动容器、内容全裸」。
+   `dist` 里 grep `parser-status-page` 那条 DoD 也在 T6。
 6. ⚠️ **`.parser-app` 与 `.knowledge-app` 都在 K21 那两个 token 块的选择器里**,所以万一 T6/T7 把
    Parser 页嵌进 `KnowledgeLayout`(不该,路由是顶层),`.parser-app` 的 `height: 100dvh` 会与外壳的
    `overflow: hidden` 打架。**按 `knowledgeRoutes.ts:62-63` 的现状(顶层路由)不会发生**,仅提示。
+
+---
+
+## 12. 【后续提交】K31 落地 —— `.parser-app` 改外层包裹元素
+
+**触发**:本报告 §11 顾虑 ① 被协调者复核后**采纳**,2026-08-03 裁定为 **K31**(治理 §3 已记,提交 `3d75690`;
+治理 §6.4-5(b) 的判据同步就地订正)。**口径:那不是「进验收清单让用户拍板」的事,它本身就是界面不 1:1,必须修。**
+
+### 12.1 申报
+
+| | 内容 |
+|---|---|
+| **偏离编号** | **K31**(治理 §3 已授权;本刀在 K9/K21/K22/K23/K24/K25 之外**新命中这一条**) |
+| **改了什么** | `.parser-app` 从「与页面根同一个元素」改成「**外层包裹元素**」;页面根类留在**内层元素**上 |
+| **DOM 后果** | 两页模板变成 `<div class="parser-app"><div class="parser-status-page">…</div></div>`,**比蓝本多一层 DOM**(用户不可见) |
+| **为什么必须改** | 同一元素上蓝本的 `max-width: 900px; margin: 0 auto` 与 K22 的 `overflow-y: auto` 相撞 → 滚动条落在 900px 居中列右缘(宽屏上约在屏幕中间);Vue2 是整页滚动、滚动条在**视口最右缘**。**滚动条位置用户可见,多一层 DOM 用户不可见 —— 取后者** |
+| **先例(治理 K31 原文)** | 🔴 **K22 引的两个先例本来就是两元素**:`AreaShell.vue` 的 `.area-shell`(100vh)+ `.area-body`(`overflow:auto`)· `knowledge.scss` 的 `.knowledge-app` 外壳 + `.k-scroll` 内滚动器。**把两元素先例压成一个元素才是偏离** |
+| **`.parser-app` 约束不变** | 仍**只带** K22 那三行结构属性(`height: 100vh` / `height: 100dvh` / `overflow-y: auto`),零颜色属性、零 `--x:` 声明、零 `color-scheme` —— 断言 (c) 未改、仍全绿 |
+
+### 12.2 改前 / 改后选择器对照
+
+| | 改前(首个提交 `d70986f`) | 改后(本次) |
+|---|---|---|
+| 状态页作用域 | `.parser-app.parser-status-page {`(**复合**) | `.parser-app .parser-status-page {`(**后代**) |
+| 测试页作用域 | `.parser-app.parser-test-page {`(**复合**) | `.parser-app .parser-test-page {`(**后代**) |
+| `.parser-app` 块 | 不变 | 不变 |
+| 模板(归 T6/T7) | `<div class="parser-app parser-status-page">` | `<div class="parser-app"><div class="parser-status-page">…</div></div>` |
+
+**实际改动面**:`parser-styles.scss` 两行选择器 + 头注释(新增 K31 一段、K22 段的「可见后果」改成 K31 的成因说明、
+K9 段与文件头的两处选择器写法)· `parserStyles.test.ts` 的 `SCOPE_STATUS` / `SCOPE_TEST` 两个常量 + 一段 K31 头注释
+(断言 (b) 的允许清单与断言 (d) 的作用域判据都是**从这两个常量派生**的,所以改常量即两条判据同步生效)。
+**`blockOf` 的 `^选择器 \{$` 行首行尾锚定与 `escapeForRegExp` 不用改**(空格与点号都被正确转义/匹配)。
+
+编译产物复核(`pnpm exec sass … | grep '^\S.*{'`):
+```
+.parser-app {
+.parser-app .parser-status-page {
+.parser-app .parser-status-page .page-header {
+.parser-app .parser-status-page .page-header h2 {
+…
+```
+**1:1 复核脚本按新前缀重跑**(`/tmp/p5c-t2b-1to1-k31.txt`):两份蓝本各 **结构问题 0**、
+值差异仍恰好 **12 + 33 = 45 处颜色** —— **K31 只改了作用域根的组合方式,页内 85 条规则一条都没动** ✅。
+
+### 12.3 新 RED 探针(3 条,**改了判据的断言重新证明判别力,不沿用上一轮输出**)
+
+#### 探针 9 —— (b) 在 K31 新判据下,第 0 列多一条 `.foo { color: var(--accent); }`
+```
+     × 第 0 列的规则头恰好是那三个选择器(顺序与个数都钉死) 7ms
+     × 文件里出现的类名集合 === PARSER_WHITELIST_70(排除作用域根 .parser-app) 2ms
+AssertionError: 第 0 列出现了预期外的选择器:
+  L297: .foo {: expected [ '.parser-app', …(3) ] to deeply equal [ '.parser-app', …(2) ]
++   ".foo",
+ Test Files  1 failed (1)
+      Tests  2 failed | 16 passed (18)
+```
+```
+--- 探针 9 还原 GREEN ---
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+```
+
+#### 探针 10 —— (d) 在 K31 新判据下,把 `.card` 从**状态页作用域**里整块删掉
+```
+     × `.card` 在两个作用域下各有且只有一份 5ms
+AssertionError: .parser-app .parser-status-page 下的 `.card {` 规则应恰好 1 条,实测 0 条: expected +0 to be 1
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+```
+```
+--- 探针 10 还原 GREEN ---
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+```
+(失败信息里的作用域名已经是**后代**形式 → 证明判据真的换成了新常量,不是旧的复合形式还在跑。)
+
+#### 探针 11 —— 🔴 **K31 本体**:把两处后代选择器写回复合形式 → **(b) + (d) 全线报红**
+```
+$ grep -nE '^[^[:space:]/}]' src/ai/styles/parser-styles.scss
+68:.parser-app {
+75:.parser-app.parser-status-page {          ← 探针改成了复合形式
+162:.parser-app.parser-test-page {
+
+     × 第 0 列的规则头恰好是那三个选择器(顺序与个数都钉死) 7ms
+     × 两个作用域都存在,且各自带蓝本的页面壳声明(padding / max-width / margin) 2ms
+     × `.card` 在两个作用域下各有且只有一份 1ms
+     × `.page-header`(含嵌套 `h2`)在两个作用域下各有且只有一份 1ms
+     × 两个作用域各自持有本页专属的类,没有被并到一起 1ms
+AssertionError: 第 0 列出现了预期外的选择器:
+  L162: .parser-app.parser-test-page {: expected [ '.parser-app', …(2) ] to deeply equal [ '.parser-app', …(2) ]
+AssertionError: 找不到顶层规则 `.parser-app .parser-status-page {`(行首行尾锚定,已排除注释里的同名引用): expected null not to be null
+ Test Files  1 failed (1)
+      Tests  5 failed | 13 passed (18)
+```
+```
+--- 探针 11 还原 GREEN ---
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+$ diff /tmp/pss-k31.bak src/ai/styles/parser-styles.scss && echo "file identical to backup"
+file identical to backup
+```
+→ 🔴 **K31 被钉住了:谁把选择器改回复合形式,(b) 1 条 + (d) 4 条共 5 条断言同时精确报红。**
+
+**探针 11 顺带实证了一件事**:探针期间 scss 头注释里**仍逐字写着** `` `.parser-app .parser-status-page { … }` ``
+(文件头 `:5` 与 K31 段 `:58`),而 `blockOf` 报的是「**找不到**顶层规则」——
+证明「先 `stripComments()` 再 `^选择器 \{$` 行首行尾锚定」这套判据**不会被注释里的同名引用撞对**
+(承 `knowledgeStyles.test.ts` I-2 事故的教训,这里第一次拿到本文件自己的实证)。
+⚠️ **同时记一条给下游的坑**:我做探针时第一版用 `s.replace('.parser-app .parser-status-page {', …, 1)` 去改 scss,
+**命中的是头注释里那一处**、真选择器没被改 → 测试全绿、探针假失效。改用行首锚定的
+`re.sub(r'(?m)^\.parser-app \.parser-(status|test)-page \{$', …)` 才真正改到。
+**「改文件的脚本」和「测文件的断言」都必须行首锚定 —— 前者出错会伪造出一次「探针没抓到」的假结论。**
+
+### 12.4 三门重跑终值(K31 之后)
+
+```
+$ pnpm test                  > /tmp/p5c-t2b-k31-test.log  2>&1;  exit=0
+ Test Files  320 passed (320)
+      Tests  3179 passed (3179)
+   Duration  67.77s
+
+$ pnpm exec vue-tsc --noEmit  > /tmp/p5c-t2b-k31-tsc.log   2>&1;  exit=0   (输出 0 字节)
+$ pnpm build                  > /tmp/p5c-t2b-k31-build.log 2>&1;  exit=0   (✓ built in 12.65s)
+$ pnpm exec sass --no-source-map src/ai/styles/parser-styles.scss /dev/null;  exit=0
+$ pnpm exec sass --no-source-map src/ai/styles/knowledge.scss     /dev/null;  exit=0
+$ git diff --stat 05bff49 -- src/ai/styles/knowledge.scss src/ai/styles/knowledgeStyles.test.ts   → 空(零改动)
+$ grep -c "parser-status-page" dist/assets/*.css   → 全 0(预期,归 T6);对照 k-sandbox-icon → 1
+```
+
+**文件数 / 用例数与首个提交相同(320 / 3179)** —— K31 只改选择器与注释,零新增/删除用例、零 `.vue`。
+**红项 0 条、零复跑。**
+
+### 12.5 行号漂移提示(给评审)
+
+K31 的注释新增使 `parser-styles.scss` 由 **287 → 295 行**,`.parser-app` 之后的所有行**整体 +8**。
+本报告 §1 / §4 / §5 里的「新行号」列**已全部按新文件重算并程序化校验**:
+逐条核对「报告里写的新行号那一行,是否真含对应的 `/* 蓝本 :X … */` 注释」→ **43/43 匹配、0 不匹配**;
+§1 的区间引用 **19/20 命中**(唯一未命中的是 `.header-actions`,它与 `.refresh-btn` 共用
+`/* 蓝本 :10-11 */` 一条注释,本行没有独立注释,属预期)。
