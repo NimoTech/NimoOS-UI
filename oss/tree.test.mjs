@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { REPLACE } from './manifest.mjs'
 
 const OSS = path.dirname(new URL(import.meta.url).pathname)
 let tree
@@ -393,5 +394,18 @@ describe('类 2 · MediaViewer 拆转录', () => {
 
   it('文件明显变短(852 行 → 600 行以内)', () => {
     expect(read('src/files/viewers/MediaViewer.vue').split('\n').length).toBeLessThan(600)
+  })
+})
+
+describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
+  // 固定清单(每次新增 REPLACE 条目都要过一遍,别为单个文件重开断言):
+  // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。
+  const FORBIDDEN = [/Task \d/, /SP\d/i, /\bsp[789]\b/i, /spec §/, /本期/, /做样子/, /Vue2/, /NimoOS-UI/]
+
+  it('REPLACE 表里每一个冻结分身都不含固定清单里的词', () => {
+    for (const { path: rel } of REPLACE) {
+      const s = read(rel)
+      for (const bad of FORBIDDEN) expect(s, `${rel} :: ${bad}`).not.toMatch(bad)
+    }
   })
 })

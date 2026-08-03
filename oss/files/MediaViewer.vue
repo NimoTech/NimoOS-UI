@@ -162,7 +162,7 @@ onMounted(async () => {
     startWaveDecode()
     // 尝试自动播放（被浏览器策略拦截则等用户点播放按钮）。
     void audioMedia.value?.play?.().catch(() => {})
-    // 封面 + 标题/艺术家(Vue2 mm.fetchFromUrl)——元数据失败不阻断播放。
+    // 封面 + 标题/艺术家(mm.fetchFromUrl)——元数据失败不阻断播放。
     try {
       const mm = await import('music-metadata-browser')
       if (disposed) return

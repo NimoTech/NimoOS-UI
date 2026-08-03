@@ -216,7 +216,7 @@ const visibleWidgets = computed(() => {
   )
 })
 
-// App-declared widgets (Task 5/9: desktop apps with a `widget` decl) — listed
+// App-declared widgets: desktop apps with a `widget` decl — listed
 // alongside the built-in widget cards so a manually-removed app widget can be
 // re-added from here.
 const appWidgetCards = computed(() =>
