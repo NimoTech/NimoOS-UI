@@ -433,10 +433,15 @@ Parser 两页需要的正是 danger / warning / 三级灰 / 平面白卡 —— 
    **并在 `:203` 那条「登记表恰好等于文件里真实存在的非 k* 类」的集合相等断言上做 RED 探针**
    (`NON_K_HELPER_CLASSES` 保持 9 项不变;若改成往登记表里塞 `'parser-app'` 也可以,
    但那会让 9 → 10、语义变味 —— **裁定:走排除条件,与 `knowledge-app` 同款处理**)。
-3. **白名单 `WHITELIST_187` → `WHITELIST_191`**(+4:`k-modal-head` / `k-modal-title` / `k-modal-x` / `k-modal-body`
-   …等,准确增量与常量改名见附录 D §D.0)。常量名跟着数字改是本档既定习惯。
+3. **白名单 `WHITELIST_187` → `WHITELIST_226`**(**+39**,准确增量与常量改名见附录 D §D.0)。常量名跟着数字改是本档既定习惯。
+   🔴 **T2a 订正(2026-08-03,已落地 `4212163`)**:本条初稿写的 `WHITELIST_191`(+4)**是错的** ——
+   那只数了 K17 四个 `.k-modal-*`,漏了设置页整段 / `.k-section` 四类 / `kn-*` 段 / `.fb-*` 段。
+   **附录 D §D.0 的 226 才是权威。** 连带 `NON_K_HELPER_CLASSES` **9 → 10**(只加 `warn`,
+   `.k-set-row-desc .warn` 是本期真新增的非 `k*` 类);**`parser-app` 仍走排除条件不进登记表** ——
+   §6.4-2 的「保持 9 项」指的是「不许塞 `parser-app`」,**不是「禁止任何新增」**。
 4. 🔴 **「没有搬多」的扫描正则(`:160`)本期要扩**:现在是 `/\.k(?:2|n)?-[a-z0-9-]+/g`,
-   扫不到本期要搬进 `knowledge.scss` 的 **`.fb-*`** 段 → 扩成 `/\.(?:k(?:2|n)?|fb)-[a-z0-9-]+/g`。
+   扫不到本期要搬进 `knowledge.scss` 的 **`.fb-*`** 段 → 要扩。
+   🔴 **实际落地版见 §6.4.1 第 1 条** —— 这里给的字面版 `/\.(?:k(?:2|n)?|fb)-[a-z0-9-]+/g` **漏了裸 `.fb`**,不要照抄。
    **扩正则 = 扫描范围变大,不是放宽断言**;必配 RED 探针(临时塞一条 `.fb-foo { }` → 报红 → 还原)。
 5. 🔴 **新建 `src/ai/styles/parserStyles.test.ts`**(K24)—— `parser-styles.scss` 不受
    `color-guard.test.ts`(不扫 `.scss`)也不受 `knowledgeStyles.test.ts`(只读 `knowledge.scss`)约束,
