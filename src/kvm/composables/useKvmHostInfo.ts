@@ -48,8 +48,9 @@ export function useKvmHostInfo() {
 
   const loaded = ref(false)
 
-  // 就地过期守卫(硬约束 5:别抽公共 guard 工具)。dispose() 置 false,fetch/save 的
+  // 就地过期守卫(硬约束 5:别抽公共 guard 工具)。dispose() 置 false,fetch 的
   // await 之后先判 alive 再写 ref——组件卸载后到达的响应不再污染已经不存在的视图状态。
+  // save() 不写任何共享 ref,不需要这层守卫,见该函数顶部注释(评审 Important #3)。
   let alive = true
 
   async function fetch(): Promise<void> {
@@ -81,6 +82,13 @@ export function useKvmHostInfo() {
   // 避免调用方读共享 lastError 造成串味(本 composable 目前只有一个消费点,但契约统一
   // 更利于 Task 7/9 复用同一个模式)。失败文案优先取后端 Error.message 原文(硬约束 7),
   // 空则回退 i18n 键名,由消费方 te()/t() 判定。
+  //
+  // 评审修复(Important #3):save() 自己不写任何共享 ref(不碰 host/settings/loaded,
+  // 只发请求、只把结果转成字符串返回),所以它不需要过期守卫——之前两个分支各有一句
+  // `if (!alive) return ''`,把"组件已卸载"和"这次调用真的失败了"混成同一个 '',
+  // 等于把失败分支的真实错误谎报成成功。守卫属于**调用方**要不要采纳这个返回值的问题
+  // (见 KvmGlobalSettingsDialog.onSave 里 `if (!alive) return` 那层判断),不是 save()
+  // 自己的职责——它老老实实返回真实结果就够了。
   async function save(next: KvmWritableSettings): Promise<string> {
     try {
       await service.kvm.updateSettings({
@@ -89,10 +97,8 @@ export function useKvmHostInfo() {
         defaultMemory: next.defaultMemory,
         autostart: next.autostart,
       })
-      if (!alive) return '' // dispose 之后到达的结果不再写 state,没有观众也谈不上"成功"
       return ''
     } catch (e) {
-      if (!alive) return ''
       return (e instanceof Error && e.message) || 'kvmFailedToSaveSettings'
     }
   }

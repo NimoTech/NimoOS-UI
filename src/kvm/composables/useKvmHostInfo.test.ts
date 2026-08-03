@@ -71,4 +71,17 @@ describe('useKvmHostInfo', () => {
     expect(s.loaded.value).toBe(false)
     expect(s.host.value.cpuCores).toBe(0)
   })
+
+  // 评审修复(Important #3):save() 不写任何共享 ref,所以不该有过期守卫把"组件已卸载"
+  // 和"这次调用真的失败了"混成同一个 ''——那样会把失败谎报成成功。交错路径:save 在途时
+  // dispose(),随后让请求以**失败**落定,断言返回的是真实错误文案,不是 ''。
+  it('dispose 后 save 落定且失败 → 返回真实错误文案,不是空字符串(过期守卫不该谎报成功)', async () => {
+    let reject: (e: unknown) => void = () => {}
+    api.updateSettings.mockReturnValue(new Promise((_r, j) => { reject = j }))
+    const s = useKvmHostInfo()
+    const p = s.save({ storagePath: '/x', defaultVcpu: 1, defaultMemory: 256, autostart: false })
+    s.dispose()             // 请求在途时组件卸载
+    reject(new Error('storage path not writable'))
+    expect(await p).toBe('storage path not writable')
+  })
 })
