@@ -13,6 +13,13 @@ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
 import AppConsolePage from '../apps/views/AppConsolePage.vue'
 import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
 import SourcesPage from '../apps/views/SourcesPage.vue'
+import StorageVolumes from '../views/StorageVolumes.vue'
+import StorageDrives from '../views/StorageDrives.vue'
+import StorageRaid from '../views/StorageRaid.vue'
+import StorageRaidCreate from '../views/StorageRaidCreate.vue'
+import StorageRaidDetail from '../views/StorageRaidDetail.vue'
+import { settingsRoutes } from '../settings/settingsRoutes'
+import KvmPage from '../kvm/views/KvmPage.vue'
 import Photos from '../views/Photos.vue'
 import PhotosFavorites from '../views/PhotosFavorites.vue'
 import PhotosTrash from '../views/PhotosTrash.vue'
@@ -39,6 +46,15 @@ const routes: RouteRecordRaw[] = [
   { path: '/apps/sources', name: 'apps-sources', component: SourcesPage },
   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
   { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
+  { path: '/storage', name: 'storage', component: StorageVolumes },
+  { path: '/storage/drives', name: 'storage-drives', component: StorageDrives },
+  { path: '/storage/raid', name: 'storage-raid', component: StorageRaid },
+  { path: '/storage/raid/create', name: 'storage-raid-create', component: StorageRaidCreate },
+  { path: '/storage/raid/:id', name: 'storage-raid-detail', component: StorageRaidDetail },
+  ...settingsRoutes,
+  // P5 KVM 地基(桌面磁贴翻路由归 P8,现在只能手输 #/kvm)。必须放在下面的通配兜底
+  // /files/:path(.*)* 之前,否则会被那条吃掉。
+  { path: '/kvm', name: 'kvm', component: KvmPage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/photos', name: 'photos', component: Photos },
   { path: '/photos/favorites', name: 'photos-favorites', component: PhotosFavorites },

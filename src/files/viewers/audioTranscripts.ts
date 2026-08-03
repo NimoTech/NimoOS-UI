@@ -6,7 +6,7 @@
 // 标注稿中归属存疑（(?)/存疑）的台词同样不标 speaker。
 // 设备上没有实时语音转写服务（无 whisper），所以这里是「预生成」的固定数据；
 // 接入真实后端（NimoOS-AI + STT/分段/向量化）后，把 lookupTranscript 换成异步请求即可，UI 不用改。
-// key = 文件名小写。
+// key = 文件名小写（当前绑定 /DATA/Media/audio/S01E04.mp3；文件改名后这里也要跟着改）。
 
 export interface TranscriptSegment {
   /** 起始时间，格式 m:ss，用于展示与点击跳转 */
@@ -43,7 +43,7 @@ export interface AudioTranscript {
 }
 
 const TRANSCRIPTS: Record<string, AudioTranscript> = {
-  's01e04_2026714215220.mp3': {
+  's01e04.mp3': {
     summary:
       'The full audio track of a sitcom episode — an ensemble comedy among six friends (diarized anonymously as Speaker 1–6 by order of first appearance; walk-ons — an old friend, a nurse, a pizza guy, a kid, the rink PA — are left unlabeled). Speaker 4 and Speaker 5 bring hockey tickets to celebrate Speaker 2\'s birthday, only to collide with the anniversary of his "first time" with his ex-wife. Speaker 6 gets her first-ever paycheck, then a visit from old friends leaves her doubting her decision to start over on her own. At girls\' night, Speaker 3 consoles everyone with the story of Jack and the magic beans; meanwhile Speaker 2 takes a hockey puck to the face and ends up in the ER. A pizza delivered to the wrong door reveals that George Stephanopoulos lives across the street. In the ER, Speaker 2 confesses that Carol was his first, while back at the apartment the girls trade embarrassing secrets. Everyone winds up playing Twister, and Speaker 6 fields the credit-card courtesy call herself to deliver the closing line: "I\'m fine."',
     keywords: ['sitcom', 'birthday & anniversary', 'first paycheck', 'FICA', 'magic beans', 'floopy', 'hockey', 'emergency room', 'George Stephanopoulos', 'Twister'],

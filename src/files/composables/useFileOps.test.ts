@@ -6,6 +6,8 @@ import { createI18n } from 'vue-i18n'
 import zh from '../../i18n/zh_cn'
 import { useFileOps } from './useFileOps'
 import { useFilesStore } from '../stores/files'
+import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
+import { useToast } from '../../stores/toast'
 
 const folderCreate = vi.fn().mockResolvedValue(undefined)
 const fileCreate = vi.fn().mockResolvedValue(undefined)
@@ -193,5 +195,55 @@ describe('useFileOps', () => {
     expect(fileUrl).not.toHaveBeenCalled()
     expect(batchUrl).not.toHaveBeenCalled()
     expect(triggerMock).not.toHaveBeenCalled()
+  })
+
+  describe('快照只读态拦截写操作', () => {
+    const enterSnapshot = () => {
+      const browse = useSnapshotBrowseStore()
+      browse.status = 'ready'
+      browse.volumes = [{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]
+      useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'
+      return browse
+    }
+
+    it('新建文件夹被拦,不发请求', async () => {
+      enterSnapshot()
+      const ops = makeOps()
+      await ops.createFolder('新建文件夹')
+      expect(folderCreate).not.toHaveBeenCalled()
+      expect(useToast().msg).toContain('只读')
+    })
+    it('新建文件被拦', async () => {
+      enterSnapshot()
+      const ops = makeOps()
+      await ops.createFile('a.txt')
+      expect(fileCreate).not.toHaveBeenCalled()
+    })
+    it('重命名被拦', async () => {
+      enterSnapshot()
+      const ops = makeOps()
+      await ops.rename({ name: 'a', path: '/DATA/.snapshots/snap1/a', is_dir: false }, 'b')
+      expect(fileRename).not.toHaveBeenCalled()
+    })
+    it('删除被拦', async () => {
+      enterSnapshot()
+      const ops = makeOps()
+      await ops.remove([{ name: 'a', path: '/DATA/.snapshots/snap1/a', is_dir: false }])
+      expect(batchDelete).not.toHaveBeenCalled()
+    })
+    it('粘贴被拦', async () => {
+      enterSnapshot()
+      const { useClipboardStore } = await import('../stores/clipboard')
+      useClipboardStore().operate('copy', ['/DATA/a'])
+      const ops = makeOps()
+      await ops.paste('overwrite')
+      expect(batchTask).not.toHaveBeenCalled()
+    })
+    it('不在快照里时这些操作照常放行', async () => {
+      useFilesStore().currentPath = '/DATA/Photos'
+      const ops = makeOps()
+      await ops.createFolder('新建文件夹')
+      expect(folderCreate).toHaveBeenCalled()
+    })
   })
 })

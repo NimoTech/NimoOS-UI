@@ -38,7 +38,7 @@ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.va
 </script>
 <style scoped>
 /* kind-app flex column layout lives in global theme.css (.kind-app rule) */
-/* gap/字号随 --cell 等比(锚定 108px 舒适格),格子任意缩放形状不变 — 与 theme.css .kind-app/.app-label 同比例 */
+/* gap/字号随 --cell 等比(锚定 108px 舒适格:字号 16.7/108≈0.155),格子任意缩放形状不变 — 与 theme.css .kind-app/.app-label 同比例 */
 .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); height: 100%; }
 .app-tile.stopped { opacity: 0.45; filter: grayscale(0.6); }
 /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
@@ -46,5 +46,5 @@ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.va
 .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
 .app-ic :deep(svg) { width: 44%; height: 44%; fill: none; stroke: currentColor; stroke-width: 1.6; }
 /* has-img: overflow+background handled globally; local transition kept for smooth load */
-.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(9px, calc(var(--cell, 92px) * 0.13)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(11px, calc(var(--cell, 92px) * 0.155)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
 </style>

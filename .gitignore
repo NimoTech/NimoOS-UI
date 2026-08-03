@@ -19,3 +19,7 @@ npm-debug.log*
 # 系统/编辑器杂物
 .DS_Store
 .idea/
+
+# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库
+scripts/tmlab/
+vite.config.tmlab.ts

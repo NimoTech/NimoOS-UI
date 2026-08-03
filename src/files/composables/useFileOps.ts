@@ -11,6 +11,8 @@ import { buildPastePayload } from '../util/fileOps'
 import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
 import { triggerIframeDownload } from '../util/iframeDownload'
 import { copyText } from '../util/clipboard'
+import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
+import { blockedBySnapshotView } from '../util/snapshotRestore'
 
 function errMsg(e: unknown, fallback: string): string {
   const m = (e as { message?: string } | undefined)?.message
@@ -23,29 +25,41 @@ export function useFileOps() {
   const toast = useToast()
   const { t } = useI18n()
   const clipboard = useClipboardStore()
+  const browse = useSnapshotBrowseStore()
+
+  // 只读快照兜底拦截(第二道防线)。第一道是 Files.vue / FileContextMenu.vue 里把写入
+  // 入口整个移除;这里挡的是拖拽投放、快捷键等绕过 UI 的路径 —— 让请求打到只读 btrfs 上
+  // 只会换回一句原始文件系统报错,对用户毫无意义。
+  function blockedInSnapshot(): boolean {
+    return blockedBySnapshotView(browse.isSnapshotView, (m) => toast.show(m), t('snapBrowseWriteBlocked'))
+  }
 
   function refresh() {
     return files.load(files.currentPath)
   }
 
   async function createFolder(name: string) {
+    if (blockedInSnapshot()) return
     try { await service.folder.create(joinPath(files.currentPath, name)); await refresh() }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
 
   async function createFile(name: string) {
+    if (blockedInSnapshot()) return
     try { await service.file.create(joinPath(files.currentPath, name)); await refresh() }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
 
   async function rename(entry: FileEntry, newName: string) {
     if (!newName || newName === entry.name) return
+    if (blockedInSnapshot()) return
     if (!canOperate(entry)) { toast.show(t('filesProtectedRename')); return }
     try { await service.file.rename(entry.path, renameTo(entry.path, newName)); await refresh() }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
 
   async function remove(entries: FileEntry[]) {
+    if (blockedInSnapshot()) return
     if (entries.some((e) => !canOperate(e))) { toast.show(t('filesProtectedDelete')); return }
     const paths = entries.map((e) => e.path)
     try {
@@ -71,6 +85,7 @@ export function useFileOps() {
   }
 
   async function paste(style: 'overwrite' | 'skip') {
+    if (blockedInSnapshot()) return
     const o = clipboard.operateObject
     if (!o) return
     try {

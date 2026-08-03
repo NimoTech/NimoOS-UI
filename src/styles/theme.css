@@ -26,6 +26,7 @@
 
   --radius: 28px;
   --radius-sm: 18px;
+  --radius-xs: 6px;
   /* 百分比圆角：按元素自身尺寸等比缩放（≈22px/70px 默认观感），图标各处必须保持正方形 */
   --icon-radius: 31%;
 
@@ -169,6 +170,27 @@
      浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
+
+  /* 时间机器覆盖层。跟随主题(用户拍板):深色是深空,浅色是纸感 —— 两套各自成立,
+     不是一套深色硬塞进浅色主题里。 */
+  --tm-bg:
+    radial-gradient(ellipse at 28% 22%, rgba(76, 61, 158, 0.35) 0%, rgba(10, 13, 33, 0) 55%),
+    radial-gradient(ellipse at 78% 78%, rgba(30, 64, 140, 0.28) 0%, rgba(10, 13, 33, 0) 55%),
+    linear-gradient(160deg, #131a3a 0%, #0a0e21 45%, #05060f 100%);
+  --tm-star: rgba(255, 255, 255, 0.85);
+  --tm-fg: #f1f5f9;
+  --tm-fg-muted: rgba(241, 245, 249, 0.62);
+  /* 评审修复(Important):卡堆绝对定位相互重叠,后排卡还带 opacity 0.86/0.7/… 的大字——
+     纯玻璃渐变最大 alpha 只有 0.16,深色主题下(默认主题,本期门面)后面卡片的文字透过
+     前面那张卡直接看得见,互相叠印。垫一层不透明底色(与 --bg:#1a2138 / --card:#232a45
+     协调、比两者更深一点贴合 --tm-bg 的深空基调),玻璃观感保留,叠印消失。 */
+  --tm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)), #161d3d;
+  --tm-card-bd: rgba(255, 255, 255, 0.18);
+  /* 卡片抬头(日期时间 / 类型)与下方文件网格之间的分隔线,比卡片外边框更淡 */
+  --tm-card-divider: rgba(255, 255, 255, 0.1);
+  --tm-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --tm-rail: rgba(255, 255, 255, 0.5);
+  --tm-rail-sub: rgba(255, 255, 255, 0.2);
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -423,6 +445,21 @@
      浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
+
+  /* 时间机器 —— 浅色纸感:没有星空(--tm-star 透明),背景是米白 + 极淡光晕 */
+  --tm-bg:
+    radial-gradient(ellipse at 26% 20%, rgba(59, 91, 219, 0.10) 0%, rgba(247, 245, 239, 0) 58%),
+    radial-gradient(ellipse at 80% 80%, rgba(110, 90, 224, 0.08) 0%, rgba(247, 245, 239, 0) 58%),
+    linear-gradient(160deg, #fbfaf6 0%, #f3f0e8 55%, #ebe7dd 100%);
+  --tm-star: transparent;
+  --tm-fg: #1c1b19;
+  --tm-fg-muted: #6e6a61;
+  --tm-card-bg: linear-gradient(155deg, #ffffff, #f6f4ee);
+  --tm-card-bd: rgba(28, 27, 25, 0.12);
+  --tm-card-divider: rgba(28, 27, 25, 0.1);
+  --tm-card-shadow: 0 18px 44px rgba(28, 27, 25, 0.18);
+  --tm-rail: rgba(28, 27, 25, 0.45);
+  --tm-rail-sub: rgba(28, 27, 25, 0.16);
 }
 
 /* 白色主题:滚动条滑块贴浅底改深色;关闭散景光斑与暗角(纸感不要 bokeh)。见 THEMING.md §2.11 */
@@ -561,7 +598,7 @@ body::after {
 /* ---- P4c: 应用 / 文件夹 / 照片 磁贴结构 ---- */
 /* 画布上的 app/folder：纵向排布 → 图标在上、标签在下 */
 /* 磁贴内部尺寸(间距/字号/占位圆角)一律按 --cell 等比,保证格子在任意缩放下形状不变;
-   比例锚定 108px 舒适格:gap 5/108≈0.046,字号 14/108≈0.13,圆角 18/108≈0.167 */
+   比例锚定 108px 舒适格:gap 5/108≈0.046,字号 16.7/108≈0.155,圆角 18/108≈0.167 */
 .kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); }
 /* 图标方格：圆角玻璃 + 白色前景 + icon-shadow */
 .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; box-shadow: var(--icon-shadow); }
@@ -571,7 +608,7 @@ body::after {
 /* 画布图标填充"方格高度 − 标签行"的正方形 */
 .kind-app .app-ic, .kind-folder .folder-ic, .kind-folder .folder-tile { flex: 1 1 auto; min-height: 0; width: auto; height: auto; aspect-ratio: 1; }
 /* 标签 */
-.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(11px, calc(var(--cell, 92px) * 0.15)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(11px, calc(var(--cell, 92px) * 0.155)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
 /* 文件夹：磨砂圆角容器 + 2×2 内容缩略（iPad 风） */
 .folder-tile { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12%; width: 100%; height: 100%; padding: 17%; border-radius: var(--icon-radius, 31%); background: var(--folder-glass, rgba(255,255,255,.16)); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); backdrop-filter: var(--blur); }
 .folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }

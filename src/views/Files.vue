@@ -39,6 +39,13 @@ import {
 } from '../files/util/pathUtils'
 import { readDefault } from '../files/util/locationOrder'
 import { parseRecover } from '../files/util/recoverEvent'
+import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
+import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
+import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
+import SnapshotSettingsDialog from '../files/snapshot/SnapshotSettingsDialog.vue'
+import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
+import { resolveExitTarget, relPathUnderMount } from '../files/util/snapshotPath'
+import { service } from '@nimotech/nimoos-service'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,11 +58,14 @@ const clipboard = useClipboardStore()
 const uploads = useUploadsStore()
 const mounts = useMountsStore()
 const shares = useSharesStore()
+const browse = useSnapshotBrowseStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
 
 // 对话框开关 + 上下文
+const settingsOpen = ref(false)
+const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
@@ -87,6 +97,9 @@ function selectedOr(entry: FileEntry | null): FileEntry[] {
 
 // 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
 const selectionHasFolder = computed(() => files.entries.some((e) => files.isSelected(e.path) && e.is_dir))
+
+// 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
+const snapshotSelection = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
 
 // 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
 // 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
@@ -132,6 +145,7 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry); break
+    case 'restore-original': if (entry) browse.restore([entry]); break
   }
 }
 
@@ -151,6 +165,9 @@ function onInputChange(e: Event) {
 // leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
 // any files rejected for being in a protected dir.
 async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+  // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
+  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
+  if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
   const sel = toSelectedFiles(entries, targetPath)
   const { rejected } = await uploads.addFilesToQueue(sel)
@@ -223,8 +240,26 @@ function onToolbarDelete() {
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
 
+// 时间机器要知道当前目录相对卷根的位置:卡片按它展示"那一刻的这个文件夹",
+// 进入后也落在同一个相对路径上。
+const snapshotRelPath = computed(() => relPathUnderMount(browse.currentVolume?.mount ?? '', files.currentPath))
+
+function onSnapshotSelect(path: string) {
+  browse.closeWheel()
+  goVirtual(toVirtualPath(path, files.displayNames))
+}
+
 function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
+}
+// 退出快照:回到活卷上的同名目录;该目录在活卷上已经不存在(比如那之后被删了)则回卷根。
+// dirExists 用列目录成功与否判定 —— 文件区没有单独的"目录是否存在"接口,列目录失败
+// (404/权限)一律当作不存在,退回卷根总是安全的落点。
+async function exitSnapshot() {
+  const target = await resolveExitTarget(browse.browseInfo, async (p) => {
+    try { await service.folder.getList(p); return true } catch { return false }
+  })
+  if (target) goVirtual(toVirtualPath(target, files.displayNames))
 }
 async function sync() {
   // 旧格式深链:/files?path=X(X 真实或虚拟;来源:Vue2 AI「打开文件位置」、上传通知、
@@ -393,6 +428,9 @@ onUnmounted(() => { offUnloadGuard?.() })
 // 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
 // 失败降级为内存模式,不阻断文件区渲染。
 onMounted(() => { uploads.initUploads() })
+
+// 每会话拉一次快照卷列表:入口按钮(canShowEntry)与只读锁(browseInfo)都依赖它就绪。
+onMounted(() => { browse.ensureVolumes() })
 </script>
 
 <template>
@@ -406,11 +444,16 @@ onMounted(() => { uploads.initUploads() })
         @dragleave="onDragLeave"
         @drop.prevent="onDrop"
       >
-        <div v-if="isDragIn" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
+        <!-- 评审修复(Important):快照态下投放本就被 commitSelectedFiles 的 guard 拦住并 toast,
+             但这块全屏遮罩先诱导用户"松手就能上传",松手才被告知这是只读快照——体验倒置。 -->
+        <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
           <div class="files-topbar-right">
-            <div class="files-actions">
+            <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.openWheel()">
+              {{ t('tmEntry') }}
+            </button>
+            <div v-if="!browse.isSnapshotView" class="files-actions">
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
@@ -423,8 +466,24 @@ onMounted(() => { uploads.initUploads() })
             </div>
           </div>
         </div>
+        <SnapshotBanner
+          :info="browse.browseInfo"
+          :restoring="browse.restoring"
+          :can-restore="snapshotSelection.length > 0"
+          :is-container="browse.isSnapshotView && !browse.browseInfo"
+          @exit="exitSnapshot"
+          @restore="browse.restore(snapshotSelection)"
+        />
+        <SnapshotSelectionToolbar
+          v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
+          :count="files.selectedCount"
+          :restoring="browse.restoring"
+          @restore="browse.restore(snapshotSelection)"
+          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+          @clear="files.clearSelection"
+        />
         <SelectionToolbar
-          v-if="files.selectedCount > 0"
+          v-else-if="!browse.isSnapshotView && files.selectedCount > 0"
           :count="files.selectedCount"
           :all-selected="files.allSelected"
           :can-share="selectionHasFolder"
@@ -487,6 +546,25 @@ onMounted(() => { uploads.initUploads() })
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
+    <TimeMachineOverlay
+      v-if="browse.wheelOpen"
+      ref="overlayRef"
+      :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
+      :mount-point="browse.currentVolume?.mount ?? ''"
+      :rel-path="snapshotRelPath"
+      :folder-label="currentVirtual"
+      @close="browse.closeWheel()"
+      @select="onSnapshotSelect"
+      @open-settings="settingsOpen = true"
+    />
+    <!-- 设置弹窗打开时时间机器不关闭(有意):新建快照成功后能当场看见新刻度冒出来。
+         z-index 天然成立(覆盖层 900 < Dialog.vue 的 1000/1001),不加任何覆写。 -->
+    <SnapshotSettingsDialog
+      v-model:open="settingsOpen"
+      :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
+      :mount-point="browse.currentVolume?.mount ?? ''"
+      @snapshot-created="overlayRef?.reload()"
+    />
   </AreaShell>
 </template>
 

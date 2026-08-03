@@ -1,0 +1,162 @@
+/*
+ * SP9(收尾视图)专属 theme token 分片(spec §4.3)。
+ * 由 main.ts 在 theme.css 之后 import —— 不能写成 theme.css 末尾的 @import,
+ * CSS 规定 @import 必须位于所有规则之前。
+ * 硬约束:每个颜色 token 在 :root 与 :root[data-theme="light"] 两块里都要有值。
+ * 本文件是 token 定义处,允许裸颜色字面量(与 theme.css 同例,已在 color-guard 跳过名单里)。
+ */
+:root {
+  --set-rail-bg: rgba(255, 255, 255, 0.06);
+  --set-rail-border: rgba(255, 255, 255, 0.12);
+  --set-warn-fg: #f0b429;
+  /* P3: 别名到既有语义 token,不新造字面量(避免与 --success/--console-* 值漂移)。
+   * --set-ok-fg 对位 Vue2 SystemStatus.vue 的在线状态绿 —— 语义与既有 --success 完全重合。
+   * --set-logs-bg/--set-logs-fg 对位 Vue2 LogsCard.vue 的固定深色日志底 —— 与既有
+   * --console-bg/--console-fg(Terminal 组件同款深色控制台配色)值相同,直接复用。 */
+  --set-ok-fg: var(--success);
+  --set-logs-bg: var(--console-bg);
+  --set-logs-fg: var(--console-fg);
+
+  /* ── P5 KVM ──
+   * ⚠️ KVM 区**固定深色,不跟随全局主题** —— Vue2 KVMFullPage.vue 是写死的深色控制台配色
+   * (#0d1117 / #161b22 / #21262d / #30363d),浅色主题下也保持深色。所以下面每个 token
+   * 在 :root 与 :root[data-theme='light'] 两块里是**相同的值**。
+   * 先例:--console-bg / --console-fg(终端与日志面板)同样两套主题同值。
+   * 唯一例外是安装横幅(--kvm-banner-*),Vue2 那块本来就是浅蓝底,照抄。 */
+  --kvm-bg: #0d1117;
+  --kvm-panel: #161b22;
+  --kvm-elev: #21262d;
+  --kvm-border: #30363d;
+  --kvm-fg: #c9d1d9;
+  --kvm-fg-dim: #8b949e;
+  --kvm-fg-faint: #6e7681;
+  --kvm-accent: #8950f2;
+  --kvm-accent-soft: rgba(137, 80, 242, 0.15);
+  --kvm-on-accent: #ffffff;
+  --kvm-ok: #76b32d;
+  --kvm-ok-glow: rgba(118, 179, 45, 0.5);
+  --kvm-ok-glow-weak: rgba(118, 179, 45, 0.3);
+  --kvm-ok-glow-strong: rgba(118, 179, 45, 0.8);
+  --kvm-warn: #e0a800;
+  --kvm-warn-glow-weak: rgba(224, 168, 0, 0.3);
+  --kvm-warn-glow-strong: rgba(224, 168, 0, 0.8);
+  --kvm-warn-border: rgba(224, 168, 0, 0.3);
+  --kvm-danger: #f85149;
+  --kvm-danger-soft: rgba(248, 81, 73, 0.15);
+  --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
+  --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
+  --kvm-toggle-off: #484f58;
+  --kvm-overlay: rgba(22, 27, 34, 0.92);
+  --kvm-shadow: rgba(0, 0, 0, 0.4);
+  --kvm-shadow-soft: rgba(0, 0, 0, 0.2);
+  --kvm-banner-bg: #e3f2fd;
+  --kvm-banner-border: #bbdefb;
+  --kvm-banner-fg: #0d47a1;
+  --kvm-banner-btn: #1976d2;
+  --kvm-banner-btn-hover: #1565c0;
+  /* Task 8 复审修复(2026-08-02):--kvm-danger(#f85149)是给深底控制台设计的红——
+   * 其余消费处(dropdown-item.is-danger / confirm-text-danger)都在深色下拉菜单背景上,
+   * 直接套到浅蓝横幅底(--kvm-banner-bg #e3f2fd)对比度只有约 2.94:1,远低于 WCAG AA
+   * 正文 4.5:1(复审实测数值,已用脚本复核:2.935)。这里给浅底横幅单独定义一个深红,
+   * #b3261e 对 #e3f2fd 的对比度 = 5.723:1(脚本算出,超过 4.5:1 有余量),取值参考
+   * Material Design 3 的 error 色板(浅色主题 on-error-container 附近的深红调)。 */
+  --kvm-banner-error-fg: #b3261e;
+
+  /* ── P6 弹窗/快照(创建弹窗、VM 设置、快照面板、全局设置、OSSelector)──
+   * 同上,KVM 区固定深色,浅色主题下取值不变。
+   * ⚠️ --kvm-accent-hover(紫)与 --kvm-accent-hover-alt(另一种紫)是**两个不同的紫**——
+   * Vue2 主按钮 hover 用前者、OSSelector 下载按钮 hover 用后者,是 Vue2 自身的配色不一致,
+   * 按 1:1 各留一个 token,不擅自统一成同一个值。 */
+  --kvm-modal-bg: #1e1e1e;
+  --kvm-modal-fg: #e1e1e1;
+  --kvm-field-bg: #2a2a2a;
+  --kvm-field-border: #3a3a3a;
+  --kvm-field-elev: #333;
+  --kvm-accent-light: #a78bfa;
+  --kvm-accent-hover: #6d41d9;
+  --kvm-accent-hover-alt: #7c3aed;
+  --kvm-accent-ring: rgba(137, 80, 242, 0.25);
+  --kvm-accent-faint: rgba(137, 80, 242, 0.1);
+  --kvm-accent-muted: rgba(137, 80, 242, 0.3);
+  --kvm-ok-hover: #69a129;
+  --kvm-ok-faint: rgba(118, 179, 45, 0.1);
+  --kvm-overlay-strong: rgba(0, 0, 0, 0.6);
+  --kvm-shadow-mid: rgba(0, 0, 0, 0.3);
+  --kvm-snapshot-bg: #1c1c1c;
+  --kvm-snapshot-hover: #222;
+  --kvm-snapshot-desc-fg: #999;
+  --kvm-snapshot-date-fg: #666;
+  --kvm-restore-bg: #dc3545;
+  --kvm-restore-bg-hover: #c82333;
+  --kvm-restore-disabled-bg: #6c757d;
+  --kvm-delete-bg-hover: #da3633;
+}
+
+:root[data-theme='light'] {
+  --set-rail-bg: rgba(0, 0, 0, 0.03);
+  --set-rail-border: rgba(0, 0, 0, 0.08);
+  --set-warn-fg: #b7791f;
+  --set-ok-fg: var(--success);
+  --set-logs-bg: var(--console-bg);
+  --set-logs-fg: var(--console-fg);
+
+  /* P5 KVM:与 :root 块相同的值,见上方注释(固定深色,不跟随主题)。 */
+  --kvm-bg: #0d1117;
+  --kvm-panel: #161b22;
+  --kvm-elev: #21262d;
+  --kvm-border: #30363d;
+  --kvm-fg: #c9d1d9;
+  --kvm-fg-dim: #8b949e;
+  --kvm-fg-faint: #6e7681;
+  --kvm-accent: #8950f2;
+  --kvm-accent-soft: rgba(137, 80, 242, 0.15);
+  --kvm-on-accent: #ffffff;
+  --kvm-ok: #76b32d;
+  --kvm-ok-glow: rgba(118, 179, 45, 0.5);
+  --kvm-ok-glow-weak: rgba(118, 179, 45, 0.3);
+  --kvm-ok-glow-strong: rgba(118, 179, 45, 0.8);
+  --kvm-warn: #e0a800;
+  --kvm-warn-glow-weak: rgba(224, 168, 0, 0.3);
+  --kvm-warn-glow-strong: rgba(224, 168, 0, 0.8);
+  --kvm-warn-border: rgba(224, 168, 0, 0.3);
+  --kvm-danger: #f85149;
+  --kvm-danger-soft: rgba(248, 81, 73, 0.15);
+  --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
+  --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
+  --kvm-toggle-off: #484f58;
+  --kvm-overlay: rgba(22, 27, 34, 0.92);
+  --kvm-shadow: rgba(0, 0, 0, 0.4);
+  --kvm-shadow-soft: rgba(0, 0, 0, 0.2);
+  --kvm-banner-bg: #e3f2fd;
+  --kvm-banner-border: #bbdefb;
+  --kvm-banner-fg: #0d47a1;
+  --kvm-banner-btn: #1976d2;
+  --kvm-banner-btn-hover: #1565c0;
+  /* 与 :root 块相同的值,见上方注释(算出的对比度数值同样适用,底色/字色都没变)。 */
+  --kvm-banner-error-fg: #b3261e;
+
+  /* P6 弹窗/快照:与 :root 块相同的值,见上方注释(固定深色,不跟随主题)。 */
+  --kvm-modal-bg: #1e1e1e;
+  --kvm-modal-fg: #e1e1e1;
+  --kvm-field-bg: #2a2a2a;
+  --kvm-field-border: #3a3a3a;
+  --kvm-field-elev: #333;
+  --kvm-accent-light: #a78bfa;
+  --kvm-accent-hover: #6d41d9;
+  --kvm-accent-hover-alt: #7c3aed;
+  --kvm-accent-ring: rgba(137, 80, 242, 0.25);
+  --kvm-accent-faint: rgba(137, 80, 242, 0.1);
+  --kvm-accent-muted: rgba(137, 80, 242, 0.3);
+  --kvm-ok-hover: #69a129;
+  --kvm-ok-faint: rgba(118, 179, 45, 0.1);
+  --kvm-overlay-strong: rgba(0, 0, 0, 0.6);
+  --kvm-shadow-mid: rgba(0, 0, 0, 0.3);
+  --kvm-snapshot-bg: #1c1c1c;
+  --kvm-snapshot-hover: #222;
+  --kvm-snapshot-desc-fg: #999;
+  --kvm-snapshot-date-fg: #666;
+  --kvm-restore-bg: #dc3545;
+  --kvm-restore-bg-hover: #c82333;
+  --kvm-restore-disabled-bg: #6c757d;
+  --kvm-delete-bg-hover: #da3633;
+}
