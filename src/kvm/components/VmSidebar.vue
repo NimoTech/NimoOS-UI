@@ -30,7 +30,7 @@ defineProps<{
   isLoading: boolean
   collapsed: boolean
 }>()
-defineEmits<{ select: [vm: KvmVM] }>()
+defineEmits<{ select: [vm: KvmVM]; 'open-global-settings': [] }>()
 
 const { t } = useI18n()
 </script>
@@ -49,14 +49,14 @@ const { t } = useI18n()
         </div>
       </div>
       <div class="kvm-header-right">
-        <!-- 齿轮=全局设置入口,P6 才实现;拍板要求形状先立起来但 disabled + title 说明。
-             ⚙ 是单色文字符号(非 emoji),色值走 .kvm-settings-btn 的 color token。 -->
+        <!-- 齿轮=全局设置入口(Task 2 解禁)。⚙ 是单色文字符号(非 emoji),
+             色值走 .kvm-settings-btn 的 color token。 -->
         <button
           class="kvm-settings-btn"
           type="button"
-          disabled
-          :title="t('kvmComingSoon')"
+          :title="t('kvmSettings')"
           :aria-label="t('kvmSettings')"
+          @click="$emit('open-global-settings')"
         >
           <span aria-hidden="true">⚙</span>
         </button>

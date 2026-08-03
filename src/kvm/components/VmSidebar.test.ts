@@ -45,10 +45,13 @@ describe('VmSidebar', () => {
     expect(btn.attributes('title')).toContain('即将上线')
   })
 
-  it('头部齿轮(全局设置)同样渲染但禁用', () => {
-    const btn = mk().get('.kvm-settings-btn')
-    expect(btn.attributes('disabled')).toBeDefined()
-    expect(btn.attributes('aria-label')).toBeTruthy()
+  // Task 2 解禁:齿轮不再是"形状先立起来"的占位按钮,点击真的 emit 出去打开全局设置弹窗。
+  it('齿轮不再 disabled,点击 emit open-global-settings', async () => {
+    const w = mount(VmSidebar, { props: { vms: [], selectedId: null, runningCount: 0, isLoading: false, collapsed: false }, global: { plugins: [i18n] } })
+    const btn = w.get('.kvm-settings-btn')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    await btn.trigger('click')
+    expect(w.emitted('open-global-settings')).toHaveLength(1)
   })
 
   it('collapsed 透传到根元素', () => {

@@ -14,6 +14,7 @@ import SendKeyToolbar from '../components/SendKeyToolbar.vue'
 import InstallBanner from '../components/InstallBanner.vue'
 import SpiceInfoBar from '../components/SpiceInfoBar.vue'
 import ProgressOverlay from '../components/ProgressOverlay.vue'
+import KvmGlobalSettingsDialog from '../components/KvmGlobalSettingsDialog.vue'
 import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
 import { isWindowsGuest } from '../util/vmState'
@@ -33,6 +34,11 @@ const toast = useToast()
 const sidebarCollapsed = ref(false)
 const sidebarHover = ref(false)
 const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
+
+// Task 2:左栏齿轮 → 全局设置弹窗。KvmGlobalSettingsDialog 挂载在模板底部,
+// 常驻(不是 v-if),用 v-model:open 控制显隐——组件内部的 watch(props.open) 靠这个
+// 开关驱动每次打开都重新 fetch(见该组件顶部注释)。
+const globalSettingsOpen = ref(false)
 
 const s = useVmList()
 
@@ -359,6 +365,7 @@ async function onAction(name: string): Promise<void> {
         @mouseenter="sidebarHover = true"
         @mouseleave="sidebarHover = false"
         @select="s.selectVM"
+        @open-global-settings="globalSettingsOpen = true"
       />
 
       <main class="kvm-main">
@@ -437,5 +444,7 @@ async function onAction(name: string): Promise<void> {
     </div>
 
     <ProgressOverlay v-if="progress" :title="progress.title" :message="progress.message" />
+
+    <KvmGlobalSettingsDialog v-model:open="globalSettingsOpen" />
   </div>
 </template>

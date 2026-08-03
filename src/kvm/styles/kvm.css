@@ -1412,3 +1412,61 @@
   font-size: 0.8rem;
   margin-top: 0.35rem;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 2:全局设置弹窗的开关(cv-switch)。容器偏离(已申报,KvmGlobalSettingsDialog 组件
+ * 顶部注释):Vue2 用 buefy `b-switch`,New-UI 没有 buefy → 自绘一个视觉照抄 buefy
+ * 胶囊形开关的原生 checkbox。原生 <input type="checkbox"> 视觉隐藏(标准的
+ * clip-rect 隐藏手法,不用 display:none——那样会丢掉 Tab 键盘可达性与原生 checked
+ * 语义),真正可见的形状是 .cv-switch-track/.cv-switch-knob,用 :checked 相邻兄弟
+ * 选择器驱动开/关两态样式切换,不需要任何 JS 计算 class。
+ * ════════════════════════════════════════════════════════════════════ */
+.cv-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+  color: var(--kvm-modal-fg);
+  font-size: 0.875rem;
+}
+
+.cv-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
+
+.cv-switch-track {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--kvm-toggle-off);
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.cv-switch input:checked + .cv-switch-track {
+  background: var(--kvm-accent);
+}
+
+.cv-switch-knob {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--kvm-on-accent);
+  transition: transform 0.2s;
+}
+
+.cv-switch input:checked + .cv-switch-track .cv-switch-knob {
+  transform: translateX(1rem);
+}

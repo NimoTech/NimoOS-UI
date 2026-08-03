@@ -34,6 +34,10 @@ const api = {
   getVMList: vi.fn(), getVM: vi.fn(), startVM: vi.fn(), stopVM: vi.fn(),
   restartVM: vi.fn(), pauseVM: vi.fn(), resumeVM: vi.fn(), wakeupVM: vi.fn(),
   deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(), getVNC: vi.fn(),
+  // Task 2:KvmGlobalSettingsDialog 常驻挂载在 KvmPage 模板底部,即便不打开也会在
+  // beforeEach 之外没有实际调用——只在齿轮点开后才会走 getSettings。仍需补全 mock,
+  // 否则 vi.mock 工厂里访问不存在的方法会是 undefined,点开弹窗时报错。
+  getSettings: vi.fn(), updateSettings: vi.fn(),
 }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
 vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: () => () => {} }) }))
@@ -58,6 +62,12 @@ beforeEach(() => {
   api.getVMList.mockResolvedValue({ data: [], total: 0 })
   api.getVM.mockResolvedValue(VM())
   api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 0, spiceTlsPort: 0 })
+  api.getSettings.mockResolvedValue({
+    autostart: false, availableDiskGB: 263, availableMemoryMB: 9234, cpuCores: 6,
+    defaultDiskSize: 20, defaultMemory: 2048, defaultVcpu: 2,
+    networkInterfaces: ['enp2s0', 'enp4s0', 'wlp1s0'], storagePath: '/DATA/KVM',
+  })
+  api.updateSettings.mockResolvedValue({})
 })
 
 const mountPage = () => mount(KvmPage, { global: { plugins: [i18n] } })
@@ -94,6 +104,27 @@ describe('KvmPage 壳', () => {
 
   it('折叠按钮有 aria-label(图标按钮硬约束)', () => {
     expect(mountPage().get('.kvm-sidebar-toggle').attributes('aria-label')).toBeTruthy()
+  })
+})
+
+// Task 2:第一个能在真机点的闭环——左栏齿轮 → 全局设置弹窗 → 改值 → 保存。
+describe('KvmPage 全局设置弹窗(Task 2)', () => {
+  it('点齿轮弹出全局设置弹窗,拉取到的设置回填进表单', async () => {
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(document.body.querySelector('.create-vm-modal')).toBeNull()
+
+    await w.get('.kvm-settings-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(api.getSettings).toHaveBeenCalledTimes(1)
+    const modal = document.body.querySelector('.create-vm-modal')
+    expect(modal).not.toBeNull()
+    expect(modal!.querySelector('.create-vm-title')?.textContent).toContain('系统设置')
+    expect((modal!.querySelector('input[name="storagePath"]') as HTMLInputElement).value).toBe('/DATA/KVM')
+
+    w.unmount()
   })
 })
 
