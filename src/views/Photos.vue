@@ -32,6 +32,7 @@ import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/PhotosFilterBar.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
+import { usePhotosDeepLinks } from '../photos/composables/usePhotosDeepLinks'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { useToast } from '../stores/toast'
@@ -48,6 +49,8 @@ const store = useTimelineStore()
 const toast = useToast()
 const bus = useMessageBus()
 const lb = useLightbox()
+// Task 7(P8a):深链 ?asset / ?photoset——composable 内部自行 onMounted,这里只挂一次。
+usePhotosDeepLinks()
 
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
