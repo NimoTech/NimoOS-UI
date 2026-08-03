@@ -192,7 +192,7 @@ onMounted(() => {
         <div class="psc-row-label">{{ t('photosSettingsRescanLabel') }}</div>
         <div class="psc-row-desc">{{ t('photosSettingsRescanDesc') }}</div>
       </div>
-      <button type="button" class="psc-btn" :disabled="scanBusy" @click="rescanNow">
+      <button type="button" class="psc-btn" data-test="rescan-now" :disabled="scanBusy" @click="rescanNow">
         <span v-if="scanBusy" class="psc-spinner"></span>
         {{ scanBusy ? t('photosSettingsRescanning') : t('photosSettingsRescanNow') }}
       </button>
