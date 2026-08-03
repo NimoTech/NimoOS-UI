@@ -265,4 +265,16 @@ describe('类 3 · i18n 与主题 token', () => {
       expect(c.toLowerCase(), bad).not.toContain(bad.toLowerCase())
     }
   })
+
+  it('复审 Important:settingsAppsPendingDisabledHint 是活键(AppsPanel.vue 消费),必须保留键但值不能提相册/Photos', () => {
+    const zh = read('src/i18n/zh_cn.sp9.ts')
+    const en = read('src/i18n/en_us.sp9.ts')
+    // 键仍在 —— 删了 AppsPanel.vue 这一行会拿到 undefined,是 Critical
+    expect(zh).toContain('settingsAppsPendingDisabledHint:')
+    expect(en).toContain('settingsAppsPendingDisabledHint:')
+    // 值不再点名相册区 / Photos section,也不再暴露"本期新增/做样子"这类分期开发状态注释
+    expect(zh).not.toMatch(/settingsAppsPendingDisabledHint:[^\n]*相册/)
+    expect(en).not.toMatch(/settingsAppsPendingDisabledHint:[^\n]*Photos/)
+    expect(zh).not.toMatch(/settingsAppsPendingDisabledHint:[^\n]*(本期|做样子)/)
+  })
 })
