@@ -280,8 +280,12 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all 0.25s;
 }
+/* fix round 1(评审必修 1,人已裁定):Vue2 原文
+   NimoOS-UI/src/views/Photos/PhotosFilterBar.vue:251 只改 color/border-color,
+   背景保持 --surface-2(→ --chip-bg)不动;此前这里多写了一行
+   `background: var(--chip-bg-hi)`,是简报文本本身的漂移,不是抄错——已按「界面严格 1:1」
+   铁律删掉,不补偏离登记(这不是有意偏离,是订正)。 */
 .exif-funnel:hover {
-  background: var(--chip-bg-hi);
   color: var(--fg);
   border-color: var(--accent-soft-bd);
 }

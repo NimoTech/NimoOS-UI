@@ -61,11 +61,18 @@ describe('结构与展开', () => {
     expect(w.find('.fpop').exists()).toBe(false)
   })
 
-  it('挂载时已有筛选值 → 自动展开,漏斗带 .on,角标显示总数', () => {
+  it('挂载时已有筛选值 → 自动展开,漏斗带 .on,角标显示总数', async () => {
     const w = mountBar({ filter: { years: ['2023'], places: ['Tokyo'], cameras: [] } })
     expect(w.get('.exif-filter').classes()).toContain('expanded')
     expect(w.get('.exif-funnel').classes()).toContain('on')
     expect(w.get('[data-test="exif-badge"]').text()).toBe('2')
+    // fix round 1(评审必修 2):挂载即展开这条路径最容易漏掉的回归是——「同步初始化
+    // expanded 却忘了在 onMounted 里补排 450ms 溢出定时器」,那样弹层会被
+    // .exif-chiprow 的 overflow:hidden 永久裁掉一角(.ov 类永远不出现)。这里补断言
+    // 450ms 后 .ov 类确实出现,钉住这条定时器副作用。
+    vi.advanceTimersByTime(450)
+    await w.vm.$nextTick()
+    expect(w.get('.exif-filter').classes()).toContain('ov')
   })
 
   it('筛选值从无到有(外部写入)→ 自动展开', async () => {
