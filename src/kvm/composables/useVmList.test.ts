@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
-import type { KvmVM } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest } from '@nimotech/nimoos-service'
 
 const api = {
   getVMList: vi.fn(), getVM: vi.fn(), startVM: vi.fn(), stopVM: vi.fn(),
   restartVM: vi.fn(), pauseVM: vi.fn(), resumeVM: vi.fn(), wakeupVM: vi.fn(),
-  deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(),
+  deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(), createVM: vi.fn(),
 }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
 
@@ -30,6 +30,14 @@ const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
   vncPort: 5900, vncWebsocketPort: 5700, spicePort: 0, spiceTlsPort: 0, autostart: false,
   createdAt: '', updatedAt: '', ...over,
 })
+
+// P6 Task 8:同 CreateVmDialog.test.ts「校验通过 emit submit」那条用例产出的 payload
+// 逐字一致(alpine-319 官方模板 + 推荐规格),不是随手编的字面量。
+const PAYLOAD: KvmCreateVMRequest = {
+  name: 'p6-throwaway', vcpu: 1, memory: 512, disk: 8,
+  iso: '/DATA/KVM/isos/alpine-319.iso', os: 'Alpine', osType: 'linux',
+  networkMode: 'nat', networkInterface: '', firmware: 'bios',
+}
 
 beforeEach(() => {
   Object.values(api).forEach((f) => f.mockReset())
@@ -462,5 +470,36 @@ describe('selectVM', () => {
     await s.fetchVMs()
     await s.selectVM(s.vms.value[0])
     expect(s.selectedVM.value?.id).toBe('vm-1')
+  })
+})
+
+// P6 Task 8:create() 返回值契约同 remove/toggleAutostart(''=成功,非空=文案),但
+// ⚠️ 与它们不同的一点(已在 create() 顶部注释登记)——create() 故意不写共享的
+// `lastError`,所以这里不像 `it('lastError 取后端 message 原文…')`那条一样断言
+// `s.lastError`,只断言返回值本身。
+describe('create', () => {
+  it('成功后刷新列表并返回空串', async () => {
+    api.createVM.mockResolvedValue({ id: 'new-1' })
+    api.getVMList.mockResolvedValue({ data: [], total: 0 })
+    const s = useVmList()
+    expect(await s.create(PAYLOAD)).toBe('')
+    expect(api.createVM).toHaveBeenCalledWith(PAYLOAD)
+    expect(api.getVMList).toHaveBeenCalled()
+  })
+
+  it('失败返回后端 message,不刷新列表', async () => {
+    api.createVM.mockRejectedValue(new Error('domain name already exists'))
+    const s = useVmList()
+    expect(await s.create(PAYLOAD)).toBe('domain name already exists')
+    expect(api.getVMList).not.toHaveBeenCalled()
+  })
+
+  it('dispose 后落定不刷新列表(过期守卫)', async () => {
+    let release: (v: unknown) => void = () => {}
+    api.createVM.mockReturnValue(new Promise((r) => { release = r }))
+    const s = useVmList()
+    const p = s.create(PAYLOAD)
+    s.dispose(); release({ id: 'x' }); await p
+    expect(api.getVMList).not.toHaveBeenCalled()
   })
 })

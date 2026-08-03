@@ -15,13 +15,18 @@ import InstallBanner from '../components/InstallBanner.vue'
 import SpiceInfoBar from '../components/SpiceInfoBar.vue'
 import ProgressOverlay from '../components/ProgressOverlay.vue'
 import KvmGlobalSettingsDialog from '../components/KvmGlobalSettingsDialog.vue'
+import OsSelector from '../components/OsSelector.vue'
+import CreateVmDialog from '../components/CreateVmDialog.vue'
 import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
+import { useIsoList } from '../composables/useIsoList'
+import { useKvmHostInfo } from '../composables/useKvmHostInfo'
 import { isWindowsGuest } from '../util/vmState'
 import { useToast } from '../../stores/toast'
-import type { KvmVM } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest } from '@nimotech/nimoos-service'
+import type { SelectedOs } from '../components/OsSelector.vue'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 // 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
 // handleInstallationFinished 成功时都会弹一条 buefy toast——这里是唯一的消费点
 // (useVmList.ts 的注释一直说"toast 是视图层的事",但视图层此前根本没接,是未申报的
@@ -41,6 +46,77 @@ const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
 const globalSettingsOpen = ref(false)
 
 const s = useVmList()
+
+// ===================== 创建流程接线(P6 Task 8) =====================
+// isoList/hostInfo 必须由 KvmPage 创建、随页面生命周期存活(见 useIsoList.ts 顶部
+// 注释)——OsSelector/CreateVmDialog 都是纯展示层,自己不创建这两个 composable。
+// ⚠️ 跨任务依赖(Task 7 评审专门点出来要保证的一条):下面模板里 `<OsSelector>` 与
+// `<CreateVmDialog>` 的 `:isos` 必须传同一份 `isoList.isos.value`——CreateVmDialog
+// 内部 watch(form.osTemplate) 用 osTemplateDefaults(id, props.isos) 查模板,如果两边
+// 拿到的 isos 不是同一份,用户在 OsSelector 里选中的模板 id 在创建弹窗里查不到,参数
+// 联动(推荐 vcpu/memory/disk)会静默失效。
+const isoList = useIsoList()
+const hostInfo = useKvmHostInfo()
+
+const createOpen = ref(false)
+const osSelectorOpen = ref(false)
+const selectedOs = ref<SelectedOs | null>(null)
+const creating = ref(false)
+const createError = ref('')
+
+// 照 Vue2 handleOSSelect/onOSSelect 的下载三态提示(OSSelector.vue:165/:173/:1421)——
+// 下载进度订阅在 isoList 里(常驻,不随弹窗开合断续),这里只管弹 toast。
+isoList.onDownloadDone((row) => toast.show(`${row.name} ${t('kvmToastDownloaded')}`))
+isoList.onDownloadFailed(() => toast.show(t('kvmDownloadFailed')))
+
+function onOsSelect(os: SelectedOs): void {
+  selectedOs.value = os
+}
+
+// 打开创建弹窗(点「添加虚拟机」/ 空列表自动弹 都走这里)。照 Vue2 showCreateVM
+// (:1155-1157)`this.selectedOS = null` 这一步——避免上一次开了弹窗但没提交就关掉时
+// 残留的选择,串到这一次新弹窗里(默认值/宿主机规格改读 useKvmHostInfo 已有的一份,
+// 不在这里再拉一次 getSettings,见 CreateVmDialog.vue 顶部「改正确偏离 #2」)。
+function openCreateDialog(): void {
+  selectedOs.value = null
+  createOpen.value = true
+}
+
+// 空列表自动弹创建弹窗(照 Vue2 fetchVMs :898-902)。⚠️ 只在"首次拉到空"时弹一次,
+// 不在每次刷新后重弹——Vue2 是在 fetchVMs 内部直接判的,而 fetchVMs 只在 mounted 与
+// MessageBus 事件里调用,所以 Vue2 天然只有"首次拉到空"这一个入口会触发。New-UI 把
+// 这个决定挪到一个独立的 watch(s.isLoading)上,如果照直觉不加任何限制,后续任何一次
+// 由 MessageBus 事件触发的 fetchVMs()(比如另一个客户端删光了所有 VM)都会把这个弹窗
+// 重新弹出来——即便用户刚刚手动关掉过它。用一次性标志 autoOpenedCreate 显式表达"只弹
+// 一次"这条约束,避免将来加新的刷新触发点时不知不觉复发。
+let autoOpenedCreate = false
+watch(() => s.isLoading.value, (loading) => {
+  if (!loading && !autoOpenedCreate && s.vms.value.length === 0) {
+    autoOpenedCreate = true
+    openCreateDialog()
+  }
+})
+
+async function onCreateSubmit(payload: KvmCreateVMRequest): Promise<void> {
+  creating.value = true
+  createError.value = ''
+  try {
+    const err = await s.create(payload)
+    // CreateVmDialog 的 `submitError` 契约(Task 7 已定,与 InstallBanner/ConsoleStage
+    // 的 `error-key` 不同):组件内部直接原样渲染,不自己做 te()/t() 判定——它旁边的
+    // `localError` 本来就已经是 `t(err.key)` 过的文本,两者要保持"同一个位置显示的都是
+    // 已解析好的文本"这个一致性。这里补上判定,避免把 create() 的 i18n 键名 fallback
+    // (如 'kvmFailedToCreate')裸传进去,在弹窗里显示成键名而不是中文。
+    createError.value = err && te(err) ? t(err) : err
+    if (createError.value === '') {
+      toast.show(t('kvmToastVmCreated'))
+      createOpen.value = false
+      selectedOs.value = null
+    }
+  } finally {
+    creating.value = false
+  }
+}
 
 // ===================== VNC 控制台接线(Task 6) =====================
 // ConsoleStage 是真正持有 canvas 挂载点(hostEl)的组件,但 useVncConsole 在 setup 阶段
@@ -234,11 +310,15 @@ function handleFullscreenChange(): void {
 
 onMounted(() => {
   void s.fetchVMs()
+  void isoList.fetch()
+  void hostInfo.fetch()
   document.addEventListener('fullscreenchange', handleFullscreenChange)
 })
 onUnmounted(() => {
   s.dispose()
   vnc.dispose()
+  isoList.dispose()
+  hostInfo.dispose()
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   clearTimeout(spiceTimer) // Task 8:brief snippet 里独立的 onUnmounted,合并进这里,免得挂两个。
 })
@@ -366,6 +446,7 @@ async function onAction(name: string): Promise<void> {
         @mouseleave="sidebarHover = false"
         @select="s.selectVM"
         @open-global-settings="globalSettingsOpen = true"
+        @add-vm="openCreateDialog"
       />
 
       <main class="kvm-main">
@@ -446,5 +527,28 @@ async function onAction(name: string): Promise<void> {
     <ProgressOverlay v-if="progress" :title="progress.title" :message="progress.message" />
 
     <KvmGlobalSettingsDialog v-model:open="globalSettingsOpen" />
+
+    <!-- P6 Task 8:创建弹窗 + ISO 选择器。⚠️ 两处 `:isos` 必须传同一份
+         `isoList.isos.value`(见上面脚本段的跨任务依赖注释),不能各自另开一份。
+         OsSelector 的 z-base=920 叠在 CreateVmDialog(默认 900)之上,与 Vue2
+         b-modal 的层级顺序一致。 -->
+    <CreateVmDialog
+      v-model:open="createOpen"
+      :host="hostInfo.host.value"
+      :defaults="hostInfo.settings.value"
+      :isos="isoList.isos.value"
+      :selected-os="selectedOs"
+      :creating="creating"
+      :submit-error="createError"
+      @open-os-selector="osSelectorOpen = true"
+      @submit="onCreateSubmit"
+    />
+    <OsSelector
+      v-model:open="osSelectorOpen"
+      :isos="isoList.isos.value"
+      @select="onOsSelect"
+      @download="isoList.download"
+      @need-wait="toast.show(t('kvmWaitForDownload'))"
+    />
   </div>
 </template>

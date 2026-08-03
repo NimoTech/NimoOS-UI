@@ -39,10 +39,14 @@ describe('VmSidebar', () => {
     expect(mk({ vms: [], runningCount: 0, isLoading: true }).text()).not.toContain('暂无虚拟机')
   })
 
-  it('Add VM 按钮渲染但禁用,带 title 说明(P6 才实现)', () => {
-    const btn = mk().get('.add-vm-btn')
-    expect(btn.attributes('disabled')).toBeDefined()
-    expect(btn.attributes('title')).toContain('即将上线')
+  // P6 Task 8 解禁:Add VM 按钮不再是"形状先立起来"的占位按钮,点击真的 emit 出去
+  // 打开创建弹窗(照 Vue2 `@click="showCreateVM"` :61-64)。
+  it('Add VM 按钮不再 disabled,点击 emit add-vm', async () => {
+    const w = mk()
+    const btn = w.get('.add-vm-btn')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    await btn.trigger('click')
+    expect(w.emitted('add-vm')).toHaveLength(1)
   })
 
   // Task 2 解禁:齿轮不再是"形状先立起来"的占位按钮,点击真的 emit 出去打开全局设置弹窗。

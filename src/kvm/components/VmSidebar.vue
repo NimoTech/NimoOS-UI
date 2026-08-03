@@ -30,7 +30,9 @@ defineProps<{
   isLoading: boolean
   collapsed: boolean
 }>()
-defineEmits<{ select: [vm: KvmVM]; 'open-global-settings': [] }>()
+// P6 Task 8:'add-vm' 解禁——照 Vue2 `@click="showCreateVM"`(:61-64)。本组件只负责
+// 转发点击,重置 selectedOS / 打开弹窗的决定权在父组件(KvmPage.openCreateDialog)。
+defineEmits<{ select: [vm: KvmVM]; 'open-global-settings': []; 'add-vm': [] }>()
 
 const { t } = useI18n()
 </script>
@@ -81,8 +83,10 @@ const { t } = useI18n()
       />
     </div>
 
-    <!-- 添加虚拟机=P6 才实现;同样先立形状,disabled + title 说明(拍板 2026-08-02)。 -->
-    <button class="add-vm-btn" type="button" disabled :title="t('kvmComingSoon')">
+    <!-- 添加虚拟机(P6 Task 8 解禁,照 Vue2 :61-64)。kvm.css 里 .add-vm-btn:disabled /
+         :hover:not(:disabled) 两条规则原样保留——按钮已经不会再进入 disabled 态,但规则
+         本身仍然正确(硬约束,任务说明明确要求不要删)。 -->
+    <button class="add-vm-btn" type="button" @click="$emit('add-vm')">
       <span aria-hidden="true">+</span>
       <span>{{ t('kvmAddVm') }}</span>
     </button>

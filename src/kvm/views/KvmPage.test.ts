@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import KvmPage from './KvmPage.vue'
 import { i18n } from '../../i18n'
 import { useToast } from '../../stores/toast'
-import type { KvmVM } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmISO } from '@nimotech/nimoos-service'
 
 // Task 6 起需要真的走一遍 useVncConsole 的 connect/disconnect 接线(不再只是 stub),
 // 所以补一个假 RFB 类挡住 @novnc/novnc——原因同 useVncConsole.test.ts 顶部注释:
@@ -30,6 +30,7 @@ vi.mock('@novnc/novnc', () => ({ default: FakeRFB }))
 
 // Task 5 起需要电源动作接线,mock 补全 service.kvm 的全部方法(仿 useVmList.test.ts
 // 的 getter 写法,好让 beforeEach 里 mockReset 生效)。Task 6 补 getVNC(控制台接线需要)。
+// P6 Task 8 补 createVM/getISOList/downloadISO(创建流程接线需要)。
 const api = {
   getVMList: vi.fn(), getVM: vi.fn(), startVM: vi.fn(), stopVM: vi.fn(),
   restartVM: vi.fn(), pauseVM: vi.fn(), resumeVM: vi.fn(), wakeupVM: vi.fn(),
@@ -38,9 +39,30 @@ const api = {
   // beforeEach 之外没有实际调用——只在齿轮点开后才会走 getSettings。仍需补全 mock,
   // 否则 vi.mock 工厂里访问不存在的方法会是 undefined,点开弹窗时报错。
   getSettings: vi.fn(), updateSettings: vi.fn(),
+  createVM: vi.fn(), getISOList: vi.fn(), downloadISO: vi.fn(),
 }
-vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
-vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: () => () => {} }) }))
+// IsoBrowser(OsSelector 的自定义区子组件,真实渲染,未被 mock 掉)展开时会调
+// service.folder.getList——即便本文件大多数用例不点开它,补全这个 getter 避免访问
+// 未定义属性报错(仿同一份 getter 写法)。
+const folderApi = { getList: vi.fn() }
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: { get kvm() { return api }, get folder() { return folderApi } },
+}))
+// P6 Task 8 起需要真的能触发 ISO 下载三事件(kvm:iso_download_complete/_failed),
+// 之前的 `on: () => () => {}` 是纯占位、测试里无法手动 emit。改成同 useVmList.test.ts
+// 一样的可控桩:按事件名登记回调,提供 emitBus() 手动触发——事件名不冲突(useVmList
+// 订阅 kvm:vm_* 家族,useIsoList 订阅 kvm:iso_download_* 家族),共用同一份 handlers
+// 字典不会互相干扰。
+const busHandlers: Record<string, ((p: unknown) => void)[]> = {}
+vi.mock('../../composables/useMessageBus', () => ({
+  useMessageBus: () => ({
+    on(ev: string, cb: (p: unknown) => void) {
+      ;(busHandlers[ev] ||= []).push(cb)
+      return () => { busHandlers[ev] = (busHandlers[ev] || []).filter((h) => h !== cb) }
+    },
+  }),
+}))
+const emitBus = (ev: string, props: unknown) => (busHandlers[ev] || []).forEach((h) => h(props))
 
 const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
   id: 'vm-1', name: 'sp9-alpine-test', uuid: 'u', state: 'running', vcpu: 2, memory: 1024,
@@ -48,6 +70,21 @@ const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
   networkMode: 'nat', networkInterface: 'virbr0', firmware: 'bios', bootFromDisk: true,
   vncPort: 5900, vncWebsocketPort: 5700, spicePort: 0, spiceTlsPort: 0, autostart: false,
   createdAt: '', updatedAt: '', ...over,
+})
+
+// P6 Task 8:官方模板 ISO 两条——alpine-319 是真机(2026-08-03 curl)唯一
+// `status:"downloaded"` 的那条,字段逐字对齐 CreateVmDialog.test.ts 的 ISO_ALPINE;
+// Debian 用于"下载中/下载完成/下载失败"三条 toast 用例,不要求逐字对齐真机数据
+// (真机数据只给了 alpine-319 的完整字段,其余 7 条只知道"未下载"这一件事)。
+const ISO_ALPINE: KvmISO = {
+  id: 'alpine-319', name: 'Alpine', version: '3.19', category: 'linux', size: '60 MB',
+  status: 'downloaded', progress: 0, path: '/DATA/KVM/isos/alpine-319.iso',
+  recommendedVcpu: 1, recommendedMemory: 512, minMemory: 256, minDisk: 2,
+}
+const ISO_DEBIAN = (over: Partial<KvmISO> = {}): KvmISO => ({
+  id: 'debian-13', name: 'Debian', version: '13 (Trixie)', category: 'linux', size: '676 MB',
+  status: 'available', progress: 0,
+  recommendedVcpu: 2, recommendedMemory: 2048, minMemory: 512, minDisk: 8, ...over,
 })
 
 beforeEach(() => {
@@ -59,6 +96,9 @@ beforeEach(() => {
   setActivePinia(createPinia())
   rfbInstances.length = 0
   Object.values(api).forEach((f) => f.mockReset())
+  folderApi.getList.mockReset()
+  folderApi.getList.mockResolvedValue({ content: [] })
+  Object.keys(busHandlers).forEach((k) => delete busHandlers[k])
   api.getVMList.mockResolvedValue({ data: [], total: 0 })
   api.getVM.mockResolvedValue(VM())
   api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 0, spiceTlsPort: 0 })
@@ -68,10 +108,26 @@ beforeEach(() => {
     networkInterfaces: ['enp2s0', 'enp4s0', 'wlp1s0'], storagePath: '/DATA/KVM',
   })
   api.updateSettings.mockResolvedValue({})
+  api.createVM.mockResolvedValue(VM())
+  api.getISOList.mockResolvedValue([])
+  api.downloadISO.mockResolvedValue(undefined)
 })
 
 const mountPage = () => mount(KvmPage, { global: { plugins: [i18n] } })
 const flush = () => new Promise((r) => setTimeout(r, 0))
+
+// P6 Task 8:创建流程涉及三层 Teleport 弹窗(创建弹窗/OsSelector/全局设置弹窗全部
+// 是 reka-ui DialogPortal,一律挂到真实 document.body,不受 `attachTo` 影响——见本
+// 文件其它描述块的既有注释)。本任务新增的"空列表自动弹创建弹窗"意味着**任何**用默认
+// getVMList(空列表)挂载且没有手动关闭/unmount 的 KvmPage 实例,都会异步地把一个
+// `.create-vm-modal` 插进真实 document.body,并且不会自己清理——如果不在每个用例后
+// 清空 body,这份残留会污染后续用例里"document.body.querySelector('.create-vm-modal')
+// 应该是 null"这类断言(实测验证过:没有这条 afterEach 时,Task 2 的"点齿轮弹出全局
+// 设置弹窗"用例会因为读到本描述块前面用例遗留的创建弹窗而翻红)。清空 document.body
+// 不影响任何测试的断言本身——它们要检查的内容都在自己触发的动作之后、清空之前完成。
+afterEach(() => {
+  document.body.innerHTML = ''
+})
 
 describe('KvmPage 壳', () => {
   it('渲染左栏标题与右侧空态', () => {
@@ -110,6 +166,11 @@ describe('KvmPage 壳', () => {
 // Task 2:第一个能在真机点的闭环——左栏齿轮 → 全局设置弹窗 → 改值 → 保存。
 describe('KvmPage 全局设置弹窗(Task 2)', () => {
   it('点齿轮弹出全局设置弹窗,拉取到的设置回填进表单', async () => {
+    // P6 Task 8:空列表会自动弹创建弹窗(见下面新增描述块),与本用例要测的"点齿轮"
+    // 无关——喂一台 VM 避免触发那条无关的自动弹窗,不然下面"点齿轮前 create-vm-modal
+    // 应为 null"这条断言会被自动弹出的创建弹窗误伤(两者共用同一个 .create-vm-modal
+    // 类名,来自同一个 KvmDialog 外壳)。
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     expect(document.body.querySelector('.create-vm-modal')).toBeNull()
@@ -118,7 +179,14 @@ describe('KvmPage 全局设置弹窗(Task 2)', () => {
     await flush()
     await w.vm.$nextTick()
 
-    expect(api.getSettings).toHaveBeenCalledTimes(1)
+    // P6 Task 8 引入的已知重复请求(已申报,非本用例的缺陷):KvmPage 自己为创建
+    // 弹窗持有一份页面级 `useKvmHostInfo()`(mounted 时 fetch 一次),而
+    // KvmGlobalSettingsDialog 内部还有它自己独立的 `useKvmHostInfo()` 实例(Task 2
+    // 就这么写的,弹窗打开时再 fetch 一次)——两个实例互不知道对方存在,GET
+    // /kvm/settings 因此被打两次。重构 KvmGlobalSettingsDialog 改成接收页面级注入
+    // 超出本任务文件清单(只列了 KvmPage.vue/VmSidebar.vue/useVmList.ts 三个源文件),
+    // 留作后续清理债务,这里只把断言改成如实反映"两次"这一事实。
+    expect(api.getSettings).toHaveBeenCalledTimes(2)
     const modal = document.body.querySelector('.create-vm-modal')
     expect(modal).not.toBeNull()
     expect(modal!.querySelector('.create-vm-title')?.textContent).toContain('系统设置')
@@ -900,5 +968,262 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
 
     expect(useToast().toasts).toEqual([])
     expect(w.get('.console-hint.is-error').text()).toBe('domain busy')
+  })
+})
+
+// P6 Task 8:创建流程接线——Add VM 解禁 / 空列表自弹 / OsSelector 联动 / createVM 提交 /
+// ISO 下载三事件的 toast。弹窗全部走 KvmDialog(reka-ui DialogPortal),一律 Teleport 到
+// 真实 document.body,只能用 document.body.querySelector 断言,且必须 attachTo:
+// document.body + await nextTick()(硬约束 8,前四个任务都踩过并修过的坑)。
+describe('KvmPage 创建流程接线(P6 Task 8)', () => {
+  // 点已下载的官方模板卡片(按钮文案="选择")。多个用例复用,写成小工具而不是每条
+  // 用例里重复同一段 querySelector 逻辑。
+  const clickSelectAlpine = () => {
+    const btn = [...document.body.querySelectorAll('.os-action-btn')]
+      .find((b) => b.textContent?.trim() === '选择') as HTMLElement
+    btn.click()
+  }
+  const fillName = (value: string) => {
+    const el = document.body.querySelector('input[name="name"]') as HTMLInputElement
+    el.value = value
+    el.dispatchEvent(new Event('input'))
+  }
+
+  it('VM 列表为空时自动弹创建弹窗(照 Vue2 :901,P5 走的是空态占位)', async () => {
+    api.getVMList.mockResolvedValue({ data: [], total: 0 })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机')
+    w.unmount()
+  })
+
+  it('列表非空时不自动弹', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
+    w.unmount()
+  })
+
+  // autoOpenedCreate 一次性标志的真实覆盖(硬约束 4/5):只测"首次拉到空会弹"/"首次
+  // 拉到非空不弹"这两条,删掉这个标志(变成每次 `!loading && vms.length===0` 都弹)
+  // 照样全绿——那两条用例都只挂载一次、只经历一次 fetchVMs()。这里补一条会让"删掉
+  // 一次性标志"这个变异真正翻红的用例:手动关掉弹窗后,再触发一次由 MessageBus 事件
+  // 引发的整表刷新(`kvm:vm_deleted` 不带 vm_id 时 useVmList 会走 `fetchVMs()` 全量
+  // 刷新分支),依旧拉到空列表——如果没有一次性标志,这次刷新会把弹窗重新弹出来,
+  // 用户刚关掉的弹窗"死灰复燃"。变异验证见任务报告。
+  it('手动关闭后,后续刷新即便再次拉到空列表也不会重新弹出(autoOpenedCreate 一次性标志)', async () => {
+    api.getVMList.mockResolvedValue({ data: [], total: 0 })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull()
+
+    ;(document.body.querySelector('.create-vm-close') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
+
+    emitBus('kvm:vm_deleted', {}) // 无 vm_id → useVmList 走 fetchVMs() 全量刷新分支
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
+    w.unmount()
+  })
+
+  it('点「添加虚拟机」弹创建弹窗', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 }) // 非空列表,排除自动弹这条无关分支
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机')
+    w.unmount()
+  })
+
+  it('创建弹窗里点 ISO 行 → OsSelector 打开(z-index 920 叠在上面)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
+    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
+    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    // KvmDialog 的外壳 class(.create-vm-modal/.create-vm-title)是所有弹窗共用的同一套
+    // (创建弹窗 + OsSelector 此刻同时挂着),不能只查第一个——按 z-index 精确定位
+    // OsSelector 那一个(920 叠在创建弹窗的 900 之上,照 Vue2 b-modal 的层级顺序)。
+    const modals = [...document.body.querySelectorAll('.create-vm-modal')] as HTMLElement[]
+    expect(modals).toHaveLength(2)
+    const osModal = modals.find((m) => m.style.zIndex === '921') // DialogContent = zBase+1
+    expect(osModal).toBeTruthy()
+    expect(osModal!.querySelector('.create-vm-title')?.textContent).toContain('选择操作系统')
+    w.unmount()
+  })
+
+  it('OsSelector 选中 → 创建弹窗 ISO 行显示 path', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_ALPINE])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
+    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
+    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    clickSelectAlpine()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.cv-iso-btn')?.textContent)
+      .toContain('/DATA/KVM/isos/alpine-319.iso')
+    // 选中即关(照 Vue2 selectOS → close):OsSelector 自己的标题不该还挂着。
+    const titles = [...document.body.querySelectorAll('.create-vm-title')].map((el) => el.textContent)
+    expect(titles.some((t) => t?.includes('选择操作系统'))).toBe(false)
+    w.unmount()
+  })
+
+  it('提交成功 → 关弹窗 + toast「虚拟机创建成功」+ 列表刷新', async () => {
+    api.getVMList.mockResolvedValueOnce({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_ALPINE])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
+    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
+    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+    clickSelectAlpine()
+    await flush()
+    await w.vm.$nextTick()
+
+    fillName('p6-throwaway')
+    await w.vm.$nextTick()
+
+    api.createVM.mockResolvedValue({ id: 'new-1' })
+    api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'vm-2', name: 'vm-two' })], total: 2 })
+
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(api.createVM).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'p6-throwaway',
+      iso: '/DATA/KVM/isos/alpine-319.iso',
+      os: 'Alpine',
+      osType: 'linux',
+    }))
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 关弹窗
+    expect(useToast().toasts.map((x) => x.text)).toContain('虚拟机创建成功')
+    expect(api.getVMList).toHaveBeenCalledTimes(2) // mounted 一次 + create 成功后刷新一次
+    w.unmount()
+  })
+
+  it('提交失败 → 弹窗不关,内联显示后端 message', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_ALPINE])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
+    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
+    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+    clickSelectAlpine()
+    await flush()
+    await w.vm.$nextTick()
+
+    fillName('p6-throwaway')
+    await w.vm.$nextTick()
+
+    api.createVM.mockRejectedValue(new Error('domain name already exists'))
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机') // 没关
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('domain name already exists')
+    expect(useToast().toasts).toEqual([]) // 硬约束 3:弹窗内报错不许 toast
+    w.unmount()
+  })
+
+  it('ISO 下载完成 → toast「Debian 已下载」(拼法照 Vue2 :165 `${os.name} ${$t("downloaded")}`)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_DEBIAN()])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    emitBus('kvm:iso_download_complete', { iso_id: 'debian-13' })
+    await flush()
+
+    expect(useToast().toasts.map((x) => x.text)).toContain('Debian 已下载')
+    w.unmount()
+  })
+
+  it('ISO 下载失败 → toast「下载失败」', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_DEBIAN()])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    emitBus('kvm:iso_download_failed', { iso_id: 'debian-13' })
+    await flush()
+
+    expect(useToast().toasts.map((x) => x.text)).toContain('下载失败')
+    w.unmount()
+  })
+
+  it('点正在下载的卡片 → toast「请等待下载完成」', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_DEBIAN({ status: 'downloading', progress: 42 })])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
+    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
+    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    const btn = document.body.querySelector('.os-action-btn') as HTMLElement
+    btn.click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(useToast().toasts.map((x) => x.text)).toContain('请等待下载完成')
+    // 硬约束(OsSelector.vue handleAction):点正在下载的卡片只 emit need-wait,不该
+    // 顺带把弹窗关了或触发别的动作——间接验证:创建弹窗还在。
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机')
+    w.unmount()
   })
 })

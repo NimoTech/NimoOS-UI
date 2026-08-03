@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import type { Ref, ComputedRef } from 'vue'
 import { service } from '@nimotech/nimoos-service'
-import type { KvmVM } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest } from '@nimotech/nimoos-service'
 import { useMessageBus } from '../../composables/useMessageBus'
 import { preserveSpice } from '../util/spicePreserve'
 
@@ -397,6 +397,31 @@ export function useVmList() {
     }
   }
 
+  // P6 Task 8(创建流程接线):照 Vue2 createVM(:1475-1492)的成功/失败两支——校验本身
+  // 已经下沉到 CreateVmDialog 内部的 validateCreateVm(硬约束 7:弹窗内联,不到这层),
+  // 这里只管"发请求 → 成功刷新列表 → 返回结果"。
+  //
+  // 返回值契约(''=成功,非空=这次调用失败的文案)与 remove/toggleAutostart/
+  // ejectInstallMedia 表面一致,但**故意不写共享的 `lastError`**——理由同
+  // useKvmHostInfo.save()(评审 Important #3 那条注释):create 失败只该显示在创建
+  // 弹窗自己的内联 `.cv-error`(CreateVmDialog 的 submitError prop)里。如果这里也写
+  // `lastError`,用户在"已选中某台 VM、控制台正常显示"的状态下打开创建弹窗、新建失败,
+  // 这条与当前控制台毫无关系的报错会顺着 `consoleErrorKey` 的兜底路径(KvmPage.vue)
+  // 串到选中 VM 的控制台占位区上——一次纯粹的视觉污染,不是"串味"防不住,是压根不该
+  // 往共享状态里写。`alive` 守卫仍然要:请求发出后组件可能已经 dispose(比如提交在途
+  // 时整页跳走),那时不该再触发一次 `fetchVMs()`。
+  async function create(payload: KvmCreateVMRequest): Promise<string> {
+    try {
+      await service.kvm.createVM(payload)
+      if (!alive) return ''
+      await fetchVMs()
+      return ''
+    } catch (e) {
+      if (!alive) return ''
+      return errText(e, 'kvmFailedToCreate')
+    }
+  }
+
   return {
     vms,
     selectedVM,
@@ -416,6 +441,7 @@ export function useVmList() {
     toggleAutostart,
     remove,
     ejectInstallMedia,
+    create,
     onVncShouldConnect,
     onVncShouldDisconnect,
     dispose,
