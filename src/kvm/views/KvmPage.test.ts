@@ -1173,6 +1173,96 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
+  // 评审补测(报告里主动申报的缺口):create() 的 errText fallback 分支(rejection 不是
+  // Error 实例、拿不到 message 时落回 i18n 键名 'kvmFailedToCreate')此前只在
+  // useVmList.test.ts 里验证过"返回的字符串是键名",没有一条用例走到 KvmPage 这一层——
+  // onCreateSubmit 里 `err && te(err) ? t(err) : err` 那道判定专门是为了不把键名裸传进
+  // .cv-error,这里补上覆盖,避免这道判定成为"写了但没人验证过"的代码。
+  it('提交失败且后端 rejection 非 Error 值(拿不到 message)→ 内联显示翻译后的中文,不是键名', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    api.getISOList.mockResolvedValue([ISO_ALPINE])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+    clickSelectAlpine()
+    await flush()
+    await w.vm.$nextTick()
+
+    fillName('p6-throwaway')
+    await w.vm.$nextTick()
+
+    api.createVM.mockRejectedValue('boom') // 非 Error 值 reject → useVmList.errText() 走 fallback 键名
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    const err = document.body.querySelector('.cv-error')?.textContent
+    expect(err).toBe('创建虚拟机失败') // kvmFailedToCreate 翻译后的中文,不是键名本身
+    expect(err).not.toContain('kvmFailedToCreate')
+    w.unmount()
+  })
+
+  // 评审修复的真缺陷回归测试:KvmGlobalSettingsDialog 与 KvmPage 各自持有一份独立的
+  // useKvmHostInfo() 实例(Task 2 的隔离设计,见 KvmGlobalSettingsDialog.vue 顶部与
+  // KvmPage.vue `@saved` 处的注释)。保存全局设置成功后,如果 KvmPage 那份 hostInfo
+  // 不重新 fetch,创建弹窗的默认值会停在保存前的旧值——这里走完整的真实路径验证修复。
+  //
+  // ⚠️ Global Constraint #15「被混淆的断言」自查:断言的是"点保存前 vs 点保存后"
+  // `api.getSettings` 调用次数的变化(2 → 3),而不是笼统地"调用过 getSettings"——
+  // 调用 #1 来自 mounted 时 KvmPage 自己那份 hostInfo.fetch(),调用 #2 来自打开全局设置
+  // 弹窗时它自己那份 host.fetch()(这两次都发生在"点保存"**之前**,先用中间断言把它们
+  // 显式记下来、排除掉,不让它们混进"点保存导致的那一次"里)。这条测试期间没有触发任何
+  // MessageBus 事件、没有切换选中 VM——没有别的已知机制会在这个窗口里调用 getSettings,
+  // 唯一能让计数从 2 变成 3 的就是 `@saved` 触发的那次 fetch。
+  it('评审修复:保存全局设置后,创建弹窗的默认值跟着刷新(不再停在旧值)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(api.getSettings).toHaveBeenCalledTimes(1) // mounted:KvmPage 自己那份 hostInfo
+
+    await w.get('.kvm-settings-btn').trigger('click') // 打开全局设置弹窗
+    await flush()
+    await w.vm.$nextTick()
+    expect(api.getSettings).toHaveBeenCalledTimes(2) // 弹窗自己那份 useKvmHostInfo() 又 fetch 一次
+
+    const vcpuInput = document.body.querySelector('input[name="defaultVcpu"]') as HTMLInputElement
+    vcpuInput.value = '4'
+    vcpuInput.dispatchEvent(new Event('input'))
+    await w.vm.$nextTick()
+
+    // 模拟后端保存后已经落盘:此后的 getSettings 调用返回新值。
+    api.getSettings.mockResolvedValue({
+      autostart: false, availableDiskGB: 263, availableMemoryMB: 9234, cpuCores: 6,
+      defaultDiskSize: 20, defaultMemory: 2048, defaultVcpu: 4,
+      networkInterfaces: ['enp2s0', 'enp4s0', 'wlp1s0'], storagePath: '/DATA/KVM',
+    })
+    api.updateSettings.mockResolvedValue({})
+
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click() // 全局设置弹窗自己的保存按钮
+    await flush()
+    await w.vm.$nextTick()
+
+    // 基础断言:又被调了一次,且只能由 @saved 触发的 hostInfo.fetch() 解释(见上面注释)。
+    expect(api.getSettings).toHaveBeenCalledTimes(3)
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 保存成功自动关闭全局设置弹窗
+
+    // 更强的断言:打开创建弹窗,CPU 预填反映的是刚保存的新值 4,不是保存前的旧值 2。
+    await w.get('.add-vm-btn').trigger('click')
+    await flush()
+    await w.vm.$nextTick()
+
+    const activeCpuBtns = [...document.body.querySelectorAll('.cv-cpu-btn')]
+      .filter((b) => b.classList.contains('active'))
+    expect(activeCpuBtns).toHaveLength(4)
+    w.unmount()
+  })
+
   it('ISO 下载完成 → toast「Debian 已下载」(拼法照 Vue2 :165 `${os.name} ${$t("downloaded")}`)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])

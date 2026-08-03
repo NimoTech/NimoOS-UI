@@ -526,7 +526,14 @@ async function onAction(name: string): Promise<void> {
 
     <ProgressOverlay v-if="progress" :title="progress.title" :message="progress.message" />
 
-    <KvmGlobalSettingsDialog v-model:open="globalSettingsOpen" />
+    <!-- @saved(评审指出的真缺陷修复,P6 Task 8):KvmGlobalSettingsDialog 自己持有独立
+         一份 useKvmHostInfo() 实例(Task 2 的隔离设计,保存前用本地副本编辑,取消不
+         污染共享 state)。这份 `hostInfo` 是另一份独立实例,喂给下面 CreateVmDialog 的
+         `:defaults`——两者互不知道对方的存在,保存成功只更新了弹窗自己那份,这份如果
+         不重新 fetch,创建弹窗预填的默认 vCPU/内存会停在保存前的旧值上。不把 hostInfo
+         当 props 传进弹窗(会破坏 Task 2 已评审通过的本地副本隔离边界),而是让弹窗
+         保存成功后 emit 一次,这里收到后重新拉一次自己那份。 -->
+    <KvmGlobalSettingsDialog v-model:open="globalSettingsOpen" @saved="void hostInfo.fetch()" />
 
     <!-- P6 Task 8:创建弹窗 + ISO 选择器。⚠️ 两处 `:isos` 必须传同一份
          `isoList.isos.value`(见上面脚本段的跨任务依赖注释),不能各自另开一份。

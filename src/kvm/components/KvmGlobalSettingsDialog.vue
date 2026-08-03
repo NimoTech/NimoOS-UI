@@ -16,7 +16,18 @@ import type { KvmWritableSettings } from '../composables/useKvmHostInfo'
 import { useToast } from '../../stores/toast'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ 'update:open': [v: boolean] }>()
+// `saved`(P6 Task 8 补,评审指出的真缺陷修复):本组件持有自己独立的一份
+// `useKvmHostInfo()` 实例(见上面「表单编辑用一份本地副本」那段注释),与 `KvmPage.vue`
+// 为创建弹窗持有的另一份 `hostInfo` 互不相干——这是 Task 2 的有意设计(隔离本地编辑
+// 副本,取消不污染共享 state),但代价是:这里保存成功只会更新**自己这一份**
+// `host.settings`,`KvmPage` 那份 `hostInfo.settings`(创建弹窗的 `:defaults` 来源)
+// 完全不知道值已经变了。不补这个通知,用户改完全局默认值、打开创建弹窗看到的还是
+// 旧值,要刷新整页才对——这是评审实测到的真缺陷,不是"下一个任务再说"的债务。
+// 保存成功时额外 emit 这个事件,父组件(KvmPage)收到后重新 fetch 自己那份即可,
+// 不需要打破「本地副本隔离」这条边界(把 hostInfo 当 props 传进来 / 把
+// useKvmHostInfo 改成模块级单例都会破坏 Task 2 已评审通过的隔离设计,评审已明确
+// 排除这两种改法)。
+const emit = defineEmits<{ 'update:open': [v: boolean]; saved: [] }>()
 
 const { t, te } = useI18n()
 const toast = useToast()
@@ -63,6 +74,9 @@ async function onSave(): Promise<void> {
       // 硬约束 2:「操作结果」性质的成功提示走全局 toast,不是弹窗内联。
       toast.show(t('kvmToastSettingsSaved'))
       emit('update:open', false)
+      // 见上面 `saved` emit 定义处的注释:通知父组件把它自己那份 useKvmHostInfo()
+      // 重新 fetch 一次,否则创建弹窗的默认值会停在保存前的旧值上。
+      emit('saved')
     } else {
       // 硬约束 2:弹窗内报错走内联 .cv-error,不用 toast(toast z-index 60 会被
       // 弹窗遮罩 900 压住 + blur 糊掉,优先显示后端 message 原文对排障有用)。

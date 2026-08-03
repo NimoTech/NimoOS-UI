@@ -71,7 +71,7 @@ describe('KvmGlobalSettingsDialog', () => {
     expect(q('.create-vm-title').textContent).toContain('系统设置')
   })
 
-  it('点保存 → 只发 4 个可写字段 → emit update:open=false', async () => {
+  it('点保存 → 只发 4 个可写字段 → emit update:open=false + saved(评审修复:通知父组件回灌它自己那份 useKvmHostInfo)', async () => {
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     ;(q('.cv-primary-btn') as HTMLButtonElement).click()
     await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
@@ -79,6 +79,18 @@ describe('KvmGlobalSettingsDialog', () => {
       storagePath: '/DATA/KVM', defaultVcpu: 2, defaultMemory: 2048, autostart: false,
     })
     expect(wr.emitted('update:open')).toEqual([[false]])
+    expect(wr.emitted('saved')).toHaveLength(1)
+  })
+
+  // 评审修复配套:失败分支不该 emit saved(没有新值可回灌,父组件也不该白跑一次
+  // getSettings)——同一份判别力问题(硬约束 Global Constraint #15):如果不单独断言
+  // 失败分支,光看上面那条"成功→emit saved"不能证明这个 emit 是"只在成功时"发出的。
+  it('保存失败不 emit saved', async () => {
+    api.updateSettings.mockRejectedValue(new Error('storage path not writable'))
+    const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
+    ;(q('.cv-primary-btn') as HTMLButtonElement).click()
+    await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
+    expect(wr.emitted('saved')).toBeUndefined()
   })
 
   it('保存失败 → 弹窗内联 .cv-error 显示后端 message,弹窗不关(硬约束 7)', async () => {
