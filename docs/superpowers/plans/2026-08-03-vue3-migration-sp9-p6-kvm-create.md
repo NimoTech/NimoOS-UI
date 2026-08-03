@@ -2009,6 +2009,25 @@ pnpm vitest run src/styles/color-guard.test.ts src/kvm/styles/kvmStyles.test.ts
 
 逐个核对 Task 0 定的 23 个 token 是否都真的被用上;有没用上的**要么删掉、要么在注释里说明为什么留**。核对 74 个 i18n 键有无死键(`grep -c` 每个键在 `src/` 里的消费次数)。
 
+> ### ⚠️ 必做:白名单的**反向**检查(Task 9 实逮到一次静默漏样式)
+>
+> `kvmStyles.test.ts` 的白名单检查是**单向的** —— 只查「`kvm.css` 里出现的类名是否都在册」,**不查反向**。Task 9 因此把 `.settings-tabs` / `.settings-tab` 的样式整块漏了:两个 tab 渲染成浏览器默认按钮(无 flex 布局、无下边框、无 active 强调色),而**所有门都是绿的** —— 白名单不查反向,17 条单测断言的是 `classList.contains('active')` 而不是计算样式(jsdom 下计算样式本来也不可靠)。
+>
+> 所以本任务必须手动跑一遍反向核对:
+>
+> ```bash
+> # 1) 列出 src/kvm/ 下所有 .vue 模板里用到的 class
+> grep -rhoE 'class="[^"]*"' src/kvm/**/*.vue | tr ' "' '\n\n' | sed 's/^class=//' | sort -u > /tmp/used.txt
+> # 2) 列出 kvm.css 里真正有规则的 class
+> grep -oE '^\s*\.[a-zA-Z][\w-]*' src/kvm/styles/kvm.css | tr -d ' .' | sort -u > /tmp/styled.txt
+> # 3) 差集 = 模板用了但没有样式的类
+> comm -23 /tmp/used.txt /tmp/styled.txt
+> ```
+>
+> 差集里的每一项都要有交代:**要么补样式,要么确认它是纯测试钩子 / 动态绑定的状态类**(如 P5 的 `sendkey-btn--fullscreen`、以及 `active`/`is-loading`/`collapsed` 这类只在组合选择器里出现的修饰类 —— 这些在第 2 步的行首锚定 grep 里不会单独出现,属正常)。**把差集与逐项交代写进报告。**
+>
+> 考虑顺手把这条反向检查**固化成 `kvmStyles.test.ts` 的一条新用例**(带一份明确的例外名单),这样 Task 10 及以后不再依赖人工记得跑。若决定固化,例外名单里每一项都要注释说明为什么例外。
+
 - [ ] **Step 4: 全量三门**
 
 ```bash
