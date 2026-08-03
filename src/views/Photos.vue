@@ -157,14 +157,23 @@ const doneCoalescer = createTaskDoneCoalescer<TaskBusPayload>({
 // Ingest-time done-transition detection: capture whether this task was
 // already 'done' before the store merges the new event in, so a task that
 // stays 'done' across repeated events (or re-ingests) is only announced once.
-// 已知边界——fetchIndexStatus 的 idle 对账会移除 index 任务,若其后迟到重复
-// done 事件会二次 toast;P8 任务条落地时与 scheduleTaskRemove 一并收口。
+// P8a-T10 修:原先用 `store.tasks.find(...).status === 'done'` 判断"是否已经宣布过"——
+// fetchIndexStatus 的 idle 对账(timeline.ts:118-120)会把 done 的 index 任务从
+// store.tasks 里摘掉,若之后又收到一条迟到的重复 done 事件,find 返回 undefined,
+// 旧判断误判成"没宣布过"从而二次 toast。改用一个不依赖任务是否还在列表里的 id 集合:
+// 一旦某个 id 被宣布过就记住,直到它以 running 状态"复活"(同 id 复用于新一轮任务)才
+// 允许再宣布一次——与 store 侧 5s 过期计时器的"running 取消计时器"同一条重置信号。
+const announcedTaskIds = new Set<string | number>()
+
 function onTaskProgress(_props: unknown, raw: unknown) {
   const payload = unwrapTaskBusPayload(raw)
   if (!payload || payload.id == null) return
-  const wasDone = store.tasks.find((task) => task.id === payload.id)?.status === 'done'
+  if (payload.status === 'running') {
+    announcedTaskIds.delete(payload.id)
+  }
   store.ingestTaskBus(raw)
-  if (payload.status === 'done' && !wasDone) {
+  if (payload.status === 'done' && !announcedTaskIds.has(payload.id)) {
+    announcedTaskIds.add(payload.id)
     const merged = store.tasks.find((task) => task.id === payload.id) || payload
     doneCoalescer.push(merged)
   }

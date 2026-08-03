@@ -417,7 +417,12 @@ async function confirmMerge(): Promise<void> {
   merging.value = true
   try {
     await people.mergePersonInto(personId.value, target.id)
-    toast.show(t('photosPersonMergedToast', { name: target.name }))
+    // P8a-T10:与 PhotosPeople.vue 的合并 toast 同一兜底,目标未命名时不渲染成「已合并到「」」。
+    // 注:mergeCandidates(:184-188)只取 people.named,name.trim() 恒非空(偏离登记 J);
+    // target 又是候选点击时捕获的对象引用,confirm 前的任何 store 写(patchPerson/fetchPeople)
+    // 都是整体替换而非原地改,不会回写到这个引用上——按当前接线这条兜底分支不可达,纯防御性
+    // 补齐(与另外两处保持一致,防未来候选池放开到含未命名时悄悄回归空书名号)。
+    toast.show(t('photosPersonMergedToast', { name: target.name || t('photosPersonMergeAsSame') }))
     void router.push('/photos/people')            // Vue2 是 $emit('back')
   } catch {
     toast.show(t('photosPersonMergeFailed'))      // 偏离登记 H:停在当前页(照 Vue2)

@@ -12,18 +12,18 @@ export function isConflict(e: unknown): boolean {
     return true
   }
   const message = (e as { message?: unknown }).message
-  return /409/.test(String(message ?? ''))
+  return /\b409\b/.test(String(message ?? ''))
 }
 
 // Task 14(SP7-P5 人物):404 判定,与 isConflict 同一套形状容忍策略。
 // 唯一用途是「设为关键照片」——后端用 404 专门表达"这张照片里没有这个人的脸",
 // 需要与其它失败区分成两句不同文案(照 Vue2 PhotosPersonDetail.vue:656-660)。
-// 终审 Minor 14:原注释说"与 isConflict 保持同一风格"是**不实的** —— 两者刻意不同:
-//   isConflict 用裸 /409/(无词边界),isNotFound 用 /\b404\b/(有词边界)。
-// 有边界的这条更严:它不会把 4040 / 1404 / "x-404y" 这类含 404 的字串误判成 404。
-// 方向对的是 isNotFound;isConflict 的宽松是既有行为,收紧它会改变 T5/T7/T8 三处已上线的
-// 「相册重名」判定,超出本期范围 —— 记账留后续,这里只把注释改成如实描述,不动 isConflict。
-// 形状容忍策略(不假设 e 一定带 response/message)两者一致,那部分确实同款。
+// P8a-T10:isConflict 已加词边界(`/\b409\b/`),与本函数的 `/\b404\b/` 对齐——两者都不会把
+// 4090/1409/4040/1404 这类含 409/404 的字串误判成冲突/未找到。回源实测 isConflict 的 live
+// 调用点有 5 处(AlbumPickerDialog.vue:143、PhotosFavorites.vue:114、PhotosAlbumDetail.vue:204、
+// PhotosPersonDetail.vue:484、PhotosAlbums.vue:145),均为「message 兜底」分支的收紧,不影响
+// `response.status === 409` 主判定路径。形状容忍策略(不假设 e 一定带 response/message)两者
+// 一致,那部分确实同款。
 export function isNotFound(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
   const response = (e as { response?: unknown }).response

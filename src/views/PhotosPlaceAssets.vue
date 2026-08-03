@@ -124,6 +124,10 @@ watch(currentDetail, (d) => {
 
 // ── 结构规格 6:网格 + 灯箱 ────────────────────────────────────────────────────
 // P7b-T5:EXIF 筛选态(同 T4 形状)。D19:只留年份/相机两个胶囊——见上方 import 处注释。
+// P8a-T10 挂账登记(只登记不改):`places` 这个 EXIF 维度在本页从未端到端贯通过——
+// PLACE_CHIP_KEYS 不含 'places' 故 UI 从不渲染/不产出这个胶囊,下面 gridMonths 也只投影
+// years/cameras 两个键给 applyExifFilters(:146-150)。exifFilter.places 恒为 []。P7b 只把
+// cameras 维度接通,places 维度的"未贯通"是本页刻意设计(见下方注释),不是遗漏。
 const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
 const PLACE_CHIP_KEYS = ['years', 'cameras'] as const
 

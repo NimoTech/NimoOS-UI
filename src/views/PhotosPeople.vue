@@ -332,7 +332,9 @@ async function onSubmitMerge(targetId: string | number): Promise<void> {
   mergingSubmitting.value = true
   try {
     await people.mergePersonInto(fromId, targetId)
-    toast.show(t('photosPersonMergedToast', { name: targetName }))
+    // P8a-T10:与上方 confirmMergeTo(:266)同一兜底,目标未命名(或 personById 找不到)时不
+    // 渲染成「已合并到「」」。
+    toast.show(t('photosPersonMergedToast', { name: targetName || t('photosPersonMergeAsSame') }))
   } catch {
     toast.show(t('photosPersonMergeFailed'))
   } finally {

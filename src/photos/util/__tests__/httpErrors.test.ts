@@ -28,4 +28,11 @@ describe('isConflict', () => {
     expect(isConflict(undefined)).toBe(false)
     expect(isConflict('plain string error')).toBe(false)
   })
+
+  it('P8a-T10:词边界对齐 isNotFound —— 不把 4090 / 1409 误判成 409', () => {
+    expect(isConflict(new Error('code 4090'))).toBe(false)
+    expect(isConflict(new Error('req 1409 failed'))).toBe(false)
+    expect(isConflict(new Error('HTTP 409'))).toBe(true)
+    expect(isConflict(Object.assign(new Error('x'), { response: { status: 409 } }))).toBe(true)
+  })
 })

@@ -623,6 +623,25 @@ describe('PhotosPeople.vue — T7 三态弹窗接线:合并', () => {
     resolveMerge?.()
     await flushPromises()
   })
+
+  // P8a-T10:targetName 之前没有兜底,目标未命名(或 personById 在提交那一刻找不到)时会渲染成
+  // 「已合并到「」」。personById 是即时重查(不是候选点击时捕获的对象),所以可以在点击候选前
+  // 用 patchPerson 把目标改名为空,模拟"确认前名字变空"的防御性场景(不是伪造——真实并发改名/
+  // 数据刷新都会走同一条 personById 重查路径)。
+  it('P8a-T10:目标名字为空 → toast 兜底为"同一个人",不渲染成「已合并到「」」', async () => {
+    const { w } = await mountView()
+    const toast = useToast()
+    const people = usePhotosPeople()
+    await openMenuDialog(w, 'menu-merge')
+    const first = w.get('[data-test="cad-candidate"]')
+    expect(first.attributes('data-id')).toBe('42') // Alice,count 最高排第一
+    people.patchPerson(42, { name: '' })
+    await first.trigger('click')
+    await flushPromises()
+
+    expect(toast.toasts[0]!.text).toBe(`已合并到「${zh.photosPersonMergeAsSame}」`)
+    expect(toast.toasts[0]!.text).not.toMatch(/「」/)
+  })
 })
 
 describe('PhotosPeople.vue — T7 三态弹窗接线:删除', () => {

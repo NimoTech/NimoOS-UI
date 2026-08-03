@@ -7,6 +7,8 @@ import { assetToPhoto, type Photo, type Month } from '../util/assetToPhoto'
 import { toPerson, monthKeyLabel, type Person } from '../util/peopleView'
 
 // Vue2 :741 硬编码 limit:300 / offset:0,无分页。照搬(改分页是新功能,记账留后续)。
+// P8a-T10 挂账登记(只登记不改):这个 300 上限目前仍是唯一实现,没有"加载更多"/滚动分页——
+// 人物资产超过 300 张时,详情页只会显示前 300 张(与 Vue2 行为一致,不是本次回归)。
 const ASSET_LIMIT = 300
 
 export interface PersonRelation { personId: string | number; name?: string; coverFaceId?: string | number | null; count: number }

@@ -64,6 +64,11 @@ export function usePlaceAssets(): UsePlaceAssetsReturn {
     }
   }
 
+  // P8a-T10 挂账登记(只登记不改):这个 `months` 已经是死导出——唯一消费方
+  // views/PhotosPlaceAssets.vue 在 P7b 加 EXIF 筛选时改成自己对 assets.photos.value 现算
+  // 一份筛选后的 gridMonths(该文件 :130-139 有完整理由),不再读这里的 months。按"禁止无关
+  // 重构"保留这个字段(改接口/删字段不是本次任务范围),但下次改这个组合式函数时不要假设
+  // 它还有消费方——先 grep 一遍确认。
   const months = computed(() => groupPhotosByMonth(photos.value))
 
   return { photos, months, loading, loaded, failed, load }

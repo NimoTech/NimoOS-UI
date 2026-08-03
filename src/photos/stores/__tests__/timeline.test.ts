@@ -244,4 +244,42 @@ describe('photos-timeline store', () => {
     await vi.advanceTimersByTimeAsync(20000)
     expect(svc.photos.getStatus.mock.calls.length).toBe(callsAfterReset)
   })
+
+  // P8a-T10(P1 挂账):照 Vue2 scheduleTaskRemove(store/modules/photos.js:50-58,
+  // _onTaskBus :1388-1402)——非 index 类型的 done 任务 5s 后自动从列表移除。
+  it('ingestTaskBus: 非 index 类型 done 任务 5s 后从列表移除(边界:4999ms 仍在,+2ms 已移除)', () => {
+    const s = useTimelineStore()
+    s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
+    expect(s.tasks).toHaveLength(1)
+    vi.advanceTimersByTime(4999)
+    expect(s.tasks).toHaveLength(1)
+    vi.advanceTimersByTime(2)
+    expect(s.tasks).toHaveLength(0)
+  })
+
+  it('ingestTaskBus: index 类型的 done 任务不走 5s 过期(留给 fetchIndexStatus 的 idle 对账)', () => {
+    const s = useTimelineStore()
+    s.ingestTaskBus({ id: 'idx-1', type: 'index', status: 'done' })
+    vi.advanceTimersByTime(5001)
+    expect(s.tasks).toHaveLength(1) // 计时器不管 index,只有 idle 对账才会摘掉它
+  })
+
+  it('ingestTaskBus: done 任务的移除计时器在同 id 再次 running 时取消', () => {
+    const s = useTimelineStore()
+    s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
+    vi.advanceTimersByTime(3000)
+    s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'running', current: 1, total: 10 })
+    vi.advanceTimersByTime(5000) // 若旧计时器没被取消,这里会把复活的任务错误摘掉
+    expect(s.tasks).toHaveLength(1)
+    expect(s.tasks[0]).toMatchObject({ status: 'running' })
+  })
+
+  it('__resetForTest 清掉挂起的 done 移除计时器(不留潜在的跨测试污染)', () => {
+    const s = useTimelineStore()
+    s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
+    s.__resetForTest()
+    expect(s.tasks).toEqual([])
+    // 计时器已随 reset 清掉;之后即使继续推进时间也不该抛错或访问已重置的 state。
+    expect(() => vi.advanceTimersByTime(10000)).not.toThrow()
+  })
 })

@@ -51,6 +51,19 @@ function emptyIndexStatus(): IndexStatus {
 // lifecycle, so __resetForTest() must clear it explicitly between tests.
 let _pollTimer: ReturnType<typeof setInterval> | null = null
 
+// P8a-T10(P1 挂账):照 Vue2 module-scope taskTimers + scheduleTaskRemove
+// (store/modules/photos.js:8,50-58)——done 任务的延迟移除计时器,按 id 去重(同 id 再次
+// 调度会先清掉旧的)。同样是模块级单例,__resetForTest() 必须显式清掉。
+const _doneRemovalTimers = new Map<string | number, ReturnType<typeof setTimeout>>()
+
+function _cancelDoneRemoval(id: string | number): void {
+  const t = _doneRemovalTimers.get(id)
+  if (t !== undefined) {
+    clearTimeout(t)
+    _doneRemovalTimers.delete(id)
+  }
+}
+
 export const useTimelineStore = defineStore('photos-timeline', () => {
   const timelineGroups = ref<TimelineGroup[]>([])
   const loading = ref(false)
@@ -157,6 +170,25 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     } else {
       tasks.value.push(task)
     }
+
+    // P8a-T10(P1 挂账,照 Vue2 _onTaskBus store/modules/photos.js:1382-1402):非 index 类型
+    // 的 done 任务 5s 后自动从列表移除;running 事件说明任务复活,取消挂起的移除计时器。
+    // index 类型故意不接这套计时器——它由 fetchIndexStatus 的 idle 对账(:118-120,按后端
+    // pending/queueLen 真实进度收尾)负责摘除,两套机制同时管一种任务类型会变成任务列表的
+    // 第二个真相源(违反"不建第二个任务列表源"的约束)。Vue2 源里 index 其实也会走这个计时器
+    // (只在 face 任务已存在时才改成立即摘除),但 New-UI 早在 timeline.ts 落地 fetchIndexStatus
+    // 时就已经用 idle 对账取代了 index 的收尾路径,这里维持既有分工,不重新引入计时器竞争。
+    if (task.status === 'running') {
+      _cancelDoneRemoval(task.id)
+    } else if (task.status === 'done' && task.type !== 'index') {
+      _cancelDoneRemoval(task.id)
+      const id = task.id
+      const timer = setTimeout(() => {
+        _doneRemovalTimers.delete(id)
+        tasks.value = tasks.value.filter(t => t.id !== id)
+      }, 5000)
+      _doneRemovalTimers.set(id, timer)
+    }
   }
 
   async function deleteAssets(ids: string[]): Promise<number> {
@@ -187,6 +219,8 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
 
   function __resetForTest() {
     stopIndexPoll()
+    for (const t of _doneRemovalTimers.values()) clearTimeout(t)
+    _doneRemovalTimers.clear()
     resetState()
   }
 

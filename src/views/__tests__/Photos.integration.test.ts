@@ -363,6 +363,30 @@ describe('Photos.vue integration', () => {
     expect(showSpy).toHaveBeenCalledTimes(1) // 仍是 1 次,未再入队
   })
 
+  // P8a-T10(P1 挂账,onTaskProgress 头部注释记的已知边界):fetchIndexStatus 的 idle 对账会把
+  // done 的 index 任务从 store.tasks 里摘掉;若之后又收到一条迟到的重复 done 事件,旧的
+  // `wasDone = store.tasks.find(...).status === 'done'` 判断因为任务已经不在列表里而失效
+  // (find 返回 undefined),会把这条迟到事件误判成"第一次看到",再次 toast。
+  it('P8a-T10:index 任务被 idle 对账摘除后,迟到的重复 done 事件不二次 toast', async () => {
+    vi.useFakeTimers()
+    await mountPhotos()
+    const store = useTimelineStore()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const progress = handlerFor('nimoos.photos.task.progress')
+    progress(undefined, { id: 't1', type: 'index', status: 'done', current: 5, total: 5 })
+    await vi.advanceTimersByTimeAsync(2600)
+    expect(showSpy).toHaveBeenCalledTimes(1)
+
+    // 复现 timeline.ts fetchIndexStatus 的 idle 对账效果(:118-120):直接把这条任务从列表摘掉。
+    store.tasks = store.tasks.filter((t) => t.id !== 't1')
+
+    progress(undefined, { id: 't1', type: 'index', status: 'done', current: 5, total: 5 })
+    await vi.advanceTimersByTimeAsync(2600)
+    expect(showSpy).toHaveBeenCalledTimes(1) // 仍是 1 次——不能因为任务已被摘除就二次宣布
+  })
+
   it('unmount 时取消 coalescer 的挂起计时器与 socket 订阅', async () => {
     vi.useFakeTimers()
     const w = await mountPhotos()
