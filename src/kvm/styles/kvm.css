@@ -1470,3 +1470,174 @@
 .cv-switch input:checked + .cv-switch-track .cv-switch-knob {
   transform: translateX(1rem);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 5:OsSelector 官方模板半(分类过滤 + 卡片网格 + 下载三态)。
+ * 视觉 1:1 对 Vue2 components/KVM/OSSelector 组件样式 :426-562 + 768px 媒体查询
+ * :697-701。**不搬** os-progress-wrap 那段(:513-527,模板里零命中,死 CSS)。
+ * 容器偏离(已申报):Vue2 分类用 buefy b-button(type is-primary/is-light),
+ * New-UI 没有 buefy → .category-btn 是自绘按钮,配色照 buefy is-primary/is-light
+ * 在深色面板上的视觉效果反推(实底强调色 vs 面板灰底),不是照抄某段具体 Vue2 规则。
+ * ════════════════════════════════════════════════════════════════════ */
+
+.os-selector-body {
+  /* 有意偏离(结构,非视觉):KvmDialog 的 .create-vm-body 已经提供 flex:1 +
+   * overflow-y:auto + 左右/顶部 1.5rem 内边距(本任务不重复那三条,重复了会在
+   * .create-vm-body 内部再叠一层滚动容器)。Vue2 的 .os-selector-body 是它自己
+   * 独立弹窗壳的滚动体,四边都是 1.5rem;New-UI 复用同一个弹窗壳后,只缺 create-vm-body
+   * 特意留空的底部内边距(它把 bottom 设成 0 是为了给脚部按钮让位——本弹窗没有脚部,
+   * 补回来维持 Vue2 视觉上"四边留白对称"的效果。 */
+  padding-bottom: 1.5rem;
+}
+
+.category-filter {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.category-btn {
+  padding: 0.375rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--kvm-border);
+  background: var(--kvm-elev);
+  color: var(--kvm-fg-dim);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* :not(.active) 而非硬约束7的 :not(:disabled)——这个按钮没有 disabled 态,
+ * 是"当前选中/未选中"两态,理由相同:避免已经是强调色实底的激活态又被 hover
+ * 规则改色,造成"选中了却看着像还能再点一次变别的颜色"的误导。 */
+.category-btn:hover:not(.active) {
+  color: var(--kvm-fg);
+  border-color: var(--kvm-fg-dim);
+}
+
+.category-btn.active {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+  border-color: var(--kvm-accent);
+}
+
+.os-section {
+  margin-bottom: 1.5rem;
+}
+
+.os-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.os-card {
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.75rem;
+  padding: 1rem 0.75rem 0.75rem;
+  text-align: center;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--kvm-elev);
+}
+
+.os-card:hover {
+  box-shadow: 0 2px 10px var(--kvm-shadow-mid);
+  border-color: var(--kvm-accent);
+}
+
+.os-card.is-downloaded {
+  border-color: var(--kvm-ok);
+  background: var(--kvm-ok-faint);
+}
+
+.os-card.is-downloading {
+  border-color: var(--kvm-accent);
+  background: var(--kvm-accent-faint);
+}
+
+.os-icon-wrapper {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.os-icon-wrapper .os-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+}
+
+.os-info {
+  margin-bottom: 0.5rem;
+}
+
+.os-info .os-name {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--kvm-fg);
+  margin-bottom: 0.125rem;
+}
+
+.os-info .os-version,
+.os-info .os-size {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--kvm-fg-dim);
+}
+
+.os-action-btn {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* 硬约束7 高危点:基类不设 :hover(压过变体的坑,见文件头注释),每个变体自带
+ * &:hover 背景,照 Vue2 SCSS 嵌套编译结果(.os-action-btn.is-download:hover 等,
+ * 特异度 (0,3,0)),三个变体互不干扰。 */
+.os-action-btn.is-download {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+}
+
+.os-action-btn.is-download:hover {
+  /* 注意:这是 --kvm-accent-hover-alt,不是主按钮 hover 用的 --kvm-accent-hover——
+   * 两个 token 值不同,Vue2 自身这两处颜色本来就不一致,1:1 各留一个,不擅自统一
+   * (取值对照见 P6 token 分片里这两个 token 定义处的注释)。 */
+  background: var(--kvm-accent-hover-alt);
+}
+
+.os-action-btn.is-selected {
+  background: var(--kvm-ok);
+  color: var(--kvm-on-accent);
+}
+
+.os-action-btn.is-selected:hover {
+  background: var(--kvm-ok-hover);
+}
+
+.os-action-btn.is-downloading-btn {
+  background: var(--kvm-accent-muted);
+  color: var(--kvm-accent);
+  cursor: not-allowed;
+}
+
+@media screen and (max-width: 768px) {
+  /* 独立媒体查询块,不并进上面窄屏侧栏那一块:Vue2 里这条规则来自 OSSelector 组件
+   * 自己的 <style scoped> 块(:697-701),与 KVMFullPage 组件的窄屏侧栏规则
+   * (:2740-2759)是两个不同组件、两段不相关的样式,只是断点数值凑巧都是 768px。 */
+  .os-grid {
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  }
+}
