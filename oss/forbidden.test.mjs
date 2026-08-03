@@ -101,6 +101,37 @@ describe('软禁词的精确白名单', () => {
       expect(scanText('src/settings/util/timezones.ts', text), text).toEqual([])
     }
   })
+
+  // 第三轮复审 Important:brief §6.3 纪律 3 明文要求"孤儿 i18n 键不需要另写检查——
+  // 键名本身就是禁词",这套设计显式依赖守卫能按键名抓到 Ai 这种首字母大写、第二个字母
+  // 小写的驼峰(不是全大写 AI)。原规则的 alt2 只认全大写 AI,漏掉了本仓真实存在的
+  // widgetAiSend / pathFromAiPattern / askNimoAi 等 i18n 键与函数名。以下全部用真实文件
+  // 里的原样文本(逐字摘自 src/i18n/zh_cn.ts:258-259、en_us.ts:259-260、
+  // FolderPermissionsPanel.vue:146、folderPermissions.test.ts:29-30、SearchDialog.vue:265),
+  // 不是自己编的简化版。
+  it('驼峰词尾的 Ai(首字母大写、第二字母小写)必须命中,真实机场/航空类词不能被误伤', () => {
+    for (const text of [
+      "  widgetAiSend: '发送',",
+      "  widgetAiPrompt1: '整理最近的照片',",
+      "  widgetAiSend: 'Send',",
+      "        <span class=\"set-fp-title\">{{ t('settingsFpAiHidden') }}</span>",
+      "  it('pathFromAiPattern 反解出目录', () => {",
+      "    expect(pathFromAiPattern('/DATA/Docs/**')).toBe('/DATA/Docs')",
+      'function askNimoAi(): void {',
+    ]) {
+      expect(scanText('src/x.ts', text).length, text).toBeGreaterThan(0)
+    }
+    for (const text of [
+      "{ label: '(GMT+08:00) Beijing, Chongqing, Hong Kong, Urumqi', value: 'Asia/Shanghai' },",
+      "{ label: '(GMT+04:00) Abu Dhabi, Muscat', value: 'Asia/Dubai' },",
+      'const country = "Thai"',
+      'const plant = "bonsai"',
+      'useAirport()',
+      'const x: Aircraft = load()',
+    ]) {
+      expect(scanText('src/x.ts', text), text).toEqual([])
+    }
+  })
 })
 
 describe('scanTree:排除法,不是扩展名白名单', () => {
@@ -172,6 +203,33 @@ describe('scanTree:排除法,不是扩展名白名单', () => {
       const innerFile = path.join('real-target', 'inner.ts')
       expect(findings.some((f) => f.file === innerFile && f.word === 'qdrant')).toBe(true)
     } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // 第三轮复审顺带加固:子目录的 readdirSync 之前没包 try/catch,遇到无读权限的目录
+  // (权限问题、竞态删除等)会像符号链接那次一样让整个 scanTree 崩掉。
+  // 用真实的 chmod 000 目录复现——不是 mock,是真的把权限位清零。
+  // root 用户不受 chmod 限制(DAC 对 root 不生效),这条测试在以 root 跑测试的环境下
+  // 没有意义,跳过。
+  const isRoot = typeof process.getuid === 'function' && process.getuid() === 0
+  it.skipIf(isRoot)('无读权限的子目录不应让 scanTree 抛异常,而是留下 __skipped__ 痕迹', () => {
+    const dir = mktmp()
+    const lockedDir = path.join(dir, 'locked')
+    try {
+      fs.mkdirSync(lockedDir)
+      fs.writeFileSync(path.join(lockedDir, 'x.ts'), 'const q = "qdrant"\n')
+      fs.writeFileSync(path.join(dir, 'clean.ts'), 'export const x = 1\n')
+      fs.chmodSync(lockedDir, 0o000)
+
+      let findings
+      expect(() => {
+        findings = scanTree(dir)
+      }).not.toThrow()
+
+      expect(findings.some((f) => f.file === 'locked' && f.word === '__skipped__')).toBe(true)
+    } finally {
+      fs.chmodSync(lockedDir, 0o755) // 恢复权限,否则 rmSync 递归删除会失败
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })

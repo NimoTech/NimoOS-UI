@@ -70,19 +70,23 @@ export const SOFT = [
     // 改成两条子规则:
     //   alt1(大小写不敏感):独立词 ai/AI/Ai/aI,前面不挨字母、后面不挨"小写"字母 ——
     //        覆盖裸词 "ai"/"AI"、"AI 总结"、"AI-powered"、"AIService"(后面跟大写 S 不算挨着)。
-    //   alt2(精确大小写,只认 "AI" 两个大写字母):前面挨一个小写字母、后面不挨小写字母 ——
-    //        覆盖 "驼峰词尾的 AI" 这种写法,如 sendToAI、chatAI、openAIRequest。
+    //   alt2(首字母 A 强制大写,第二个字母不区分大小写):前面挨一个小写字母、后面不挨
+    //        小写字母 —— 覆盖"驼峰词尾的 Ai/AI",如 sendToAI、chatAI、openAIRequest,
+    //        以及第三轮复审补的 widgetAiSend、pathFromAiPattern、askNimoAi(本仓 i18n 键/
+    //        函数名的真实书写形态是首字母大写、第二个字母小写的 "Ai",不是全大写 "AI")。
     //
-    // alt2 **必须区分大小写、不能套 /i**:src/settings/util/timezones.ts 里有真实存在的
-    // Asia/Shanghai、Asia/Dubai —— 若 alt2 大小写不敏感,"ai" 前面挨小写字母、后面到词尾
-    // 的模式会把 Shanghai/Dubai 也当成命中,那是本仓合法的时区字符串,不能误报。
-    // 同理 Mumbai/Thai/bonsai/Aircraft/Cairo 等词也依赖这条"大小写敏感"的边界才不会被误伤。
-    // 后人若想"顺手统一大小写标志",请先看这条注释。
+    // ★★★ 警告(两轮复审都在这条上栽过,后人别再栽):alt2 的第一个字母 A 必须
+    // 强制大写(写成 `A[Ii]`),绝不能写成 `[Aa][Ii]`、也不能对这个 alt 整体套 /i。
+    // src/settings/util/timezones.ts 里有真实存在的 Asia/Shanghai、Asia/Dubai —— 那里的
+    // "ai" 是全小写,前面接小写字母、后面到词尾。一旦 alt2 允许首字母小写 a,
+    // Shanghai/Dubai/Thai/bonsai 会立刻全部变成误报,而它们是本仓合法字符串。
+    // 首字母强制大写这条边界,就是把"合法英文单词里的 ai"和"人为造的 Ai/AI 缩写"分开的
+    // 唯一依据 —— 后人若想"顺手统一大小写",请先重新读这段注释再动手。
     //
     // 代价:const AIRPORT=1 这类"AI"后面直接接大写字母的全大写标识符仍会被 alt1 命中
     // (机场号码/常量名一类罕见样式)。按纪律「词表宁可宽」接受这个已知的假阳性,不为它
     // 收窄规则去冒漏掉真实 AI 代码的风险。
-    re: /(?<![A-Za-z])[Aa][Ii](?![a-z])|(?<=[a-z])AI(?![a-z])/,
+    re: /(?<![A-Za-z])[Aa][Ii](?![a-z])|(?<=[a-z])A[Ii](?![a-z])/,
     allow: [
       // E5:局部变量 ai = anchorIndex(files.ts 的 shift 选区)
       { file: /src\/files\/stores\/files\.ts$/, re: /\bai\b\s*[=<,)\]]|\[lo,\s*hi\]/ },
@@ -156,14 +160,24 @@ export function scanText(relPath, text) {
  *      不会因为跳过链接本身而漏扫。
  *   ② 体积超过 MAX_BYTES 的
  *   ③ 开头 8KB 判定为二进制的(looksBinary)
- *   ④ 任何 stat/read 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧
+ *   ④ 任何 stat/read/readdir 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧。
+ *      第三轮复审顺带加固:目录本身的 `readdirSync` 之前没包 try/catch,子目录若在遍历
+ *      途中被并发删除、或没有读权限,会像符号链接那次一样让整个 scanTree 崩掉;现在也
+ *      计入 __skipped__。
  */
 export function scanTree(rootDir) {
   const findings = []
   const skip = (rel, excerpt) => findings.push({ file: rel, word: '__skipped__', line: 0, excerpt })
 
   const walk = (dir) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    let entries
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch (err) {
+      skip(path.relative(rootDir, dir) || '.', `目录读取失败,未扫描:${err.message}`)
+      return
+    }
+    for (const e of entries) {
       const abs = path.join(dir, e.name)
       const rel = path.relative(rootDir, abs)
 
