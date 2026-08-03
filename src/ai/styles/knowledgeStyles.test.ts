@@ -745,3 +745,163 @@ describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(�
     ).toBeGreaterThan(0)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SP8-P5c Task 8 —— 🔴 **守卫缺口③′(P5b 交接项 #4)的统一堵法**(治理 §9 缺口表)。
+//
+// 【缺口③ 是什么】`color-guard.test.ts:44-56` 的 `styleLines()` 对 `.vue` 只取 `<style>`
+//   块 → **模板里的 `style=` / `:style=` / `color=` 属性零扫描**。P5a/P5b 的补法是「每个新
+//   `.vue` 在自己的 `*.test.ts` 里补一条定向断言」。
+//
+// 【缺口③′ 是什么】那条定向断言的现有写法是
+//       /<template>([\s\S]*?)\n<\/template>/
+//   —— **非贪婪** + 靠「`</template>` 恰好在第 0 列」这个**隐式锚定**。今天五个文件
+//   (`QueueView` / `IndexedFilesView` / `FolderBrowser` / `ParserStatus` / `ParserTest`)
+//   碰巧都成立(嵌套的闭合标签都是缩进的),所以**现在是对的**;但换个 formatter、
+//   或者有人手改缩进把某个嵌套 `</template>` 顶到第 0 列,正则就会**提前截断** →
+//   静默少扫一大段模板,而三门全绿。实测嵌套 `</template>` 数量:`QueueView` **12** 个、
+//   `IndexedFilesView` **7** 个(治理 §9 缺口表写的「7/12」把两个文件对调了,数字本身对)。
+//
+// 【本刀的堵法(协调者指定:统一改掉,别再复制)】
+//   ① 抽取改成**贪婪** —— 取**最后一个**第 0 列 `</template>`(`lastIndexOf('\n</template>')`),
+//      而不是第一个;
+//   ② 加**覆盖度自检** —— 断言抽出的片段包含「模板最后一行」的特征串。特征串由**从文件
+//      末尾往前扫行**得出(与抽取用的 `lastIndexOf` 是两条独立代码路径),所以一旦有人把
+//      抽取换回非贪婪写法、被第一个嵌套 `</template>` 截断,这条自检立刻报红;
+//   ③ **集中在本文件**扫 `src/ai/knowledge/**/*.vue` 全部文件,不再每个视图复制一份。
+//      五个既有文件里那份脆弱写法仍在(它们与它们的测试都在治理 §1.1 的全期零改动清单里,
+//      为一条守卫去碰 P5b/T6/T7 的收官产物不值)——**本文件这条是它们的上位守卫**:
+//      即使那五条被截断得一点判别力都不剩,本条仍然扫全模板。
+//      🔴 **本刀之后新加的视图一律靠本条**(`SettingsView.test.ts` 就没有复制那个正则,
+//      它改用「零 `<style>` 块 → 全文件扫描」这个更严的等价写法)。
+//   ④ 文件清单做**集合相等**防漂移:新增视图必须显式进清单(与本档「白名单/例外清单
+//      不许当垃圾桶」的既定口径一致)。
+//
+// RED 探针(T8 报告 §7 贴完整输出):对**每一个**被扫文件,在其模板**最后一行**塞一个裸色
+//   → 本条必须精确指名那个文件报红;另有一条「把某个嵌套 `</template>` 顶到第 0 列 + 在它
+//   之后塞裸色」的探针,专门证明「贪婪 vs 非贪婪」这次改动本身有判别力(非贪婪写法在那种
+//   输入下全绿放行)。探针后 md5 逐字节还原、`git status` 干净(治理 §1.3)。
+const KNOWLEDGE_VUE_FILES = [
+  'components/FolderBrowser.vue',
+  'components/KIcon.vue',
+  'parser/ParserStatus.vue',
+  'parser/ParserTest.vue',
+  'views/DashboardView.vue',
+  'views/IndexedFilesView.vue',
+  'views/KnowledgeDeferred.vue',
+  'views/KnowledgeLayout.vue',
+  'views/QueueView.vue',
+  'views/SettingsView.vue',
+]
+
+/** 递归列出目录下所有 `.vue`,返回相对 `src/ai/knowledge/` 的 POSIX 风格路径。 */
+function listVueFiles(dir: string, prefix = ''): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry.startsWith('.')) continue
+    const full = resolve(dir, entry)
+    if (statSync(full).isDirectory()) out.push(...listVueFiles(full, prefix + entry + '/'))
+    else if (entry.endsWith('.vue')) out.push(prefix + entry)
+  }
+  return out.sort()
+}
+
+/**
+ * 🔴 **贪婪**抽取根 `<template>` 块:取最后一个第 0 列 `</template>`。
+ * 返回三样东西,后两样专供覆盖度自检,且**都由「从文件末尾往前扫行」得出**,
+ * 与抽取用的 `lastIndexOf` 是两条独立代码路径:
+ *   - `tmpl`     抽出的模板正文
+ *   - `byLine`   同一段正文的**逐行独立推导**(开/闭标签行都靠行内容判定)
+ *   - `tail`     模板**最后 3 个非空行**的原文(含缩进),当特征串
+ *
+ * ⚠️ **为什么特征串不能只取「最后一行 trim 后的文本」**(第一版就是这么写的,探针 B 当场
+ * 抓出它没判别力):模板最后一行几乎总是 `</div>` 这种通用闭合标签,truncate 之后的片段
+ * 里到处都是它 → `toContain` 恒真。改成「最后 3 行含缩进的原文 + `endsWith` 定位」,
+ * 再加一条「两条推导逐字相等」,才真的堵住「被第一个嵌套 `</template>` 提前截断」。
+ */
+function extractTemplate(src: string): { tmpl: string; byLine: string; tail: string } {
+  const OPEN = '<template>\n'
+  const CLOSE = '\n</template>'
+  const EMPTY = { tmpl: '', byLine: '', tail: '' }
+  const openAt = src.indexOf(OPEN)
+  const closeAt = src.lastIndexOf(CLOSE)
+  if (openAt < 0 || closeAt <= openAt) return EMPTY
+  const tmpl = src.slice(openAt + OPEN.length, closeAt)
+
+  // ── 独立推导:逐行扫 ──
+  const lines: string[] = src.split('\n')
+  const openLine = lines.findIndex((l: string) => l === '<template>')
+  let closeLine = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i] === '</template>') {
+      closeLine = i
+      break
+    }
+  }
+  if (openLine < 0 || closeLine <= openLine) return EMPTY
+  const body = lines.slice(openLine + 1, closeLine)
+  // `tail` 取**原始最后 3 行**(含缩进、含可能的空行)→ 天然是连续片段,
+  // 抽取正确时 `tmpl.endsWith(tail)` 必真;被提前截断时必假。
+  return { tmpl, byLine: body.join('\n'), tail: body.slice(-3).join('\n') }
+}
+
+/** 逐字符扫描配对括号,整段剥掉 `var(...)` / `color-mix(...)`(同 color-guard 的 stripVar 手法)。 */
+function stripColorCalls(s: string): string {
+  const prefixes = ['var(', 'color-mix(']
+  let out = ''
+  let i = 0
+  while (i < s.length) {
+    const hit = prefixes.find((p) => s.startsWith(p, i))
+    if (hit) {
+      let depth = 0
+      let j = i + hit.length - 1
+      for (; j < s.length; j++) {
+        if (s[j] === '(') depth++
+        else if (s[j] === ')') {
+          depth--
+          if (depth === 0) {
+            j++
+            break
+          }
+        }
+      }
+      i = j
+    } else {
+      out += s[i]
+      i++
+    }
+  }
+  return out
+}
+
+describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块零裸色(贪婪抽取 + 覆盖度自检)', () => {
+  const kbDir = resolve(__dirname, '../knowledge')
+
+  it('文件清单集合相等(防漂移:新增视图必须显式进清单,否则本条报红)', () => {
+    expect(listVueFiles(kbDir)).toEqual([...KNOWLEDGE_VUE_FILES].sort())
+  })
+
+  it.each(KNOWLEDGE_VUE_FILES)('%s —— 贪婪抽取成功 + 覆盖度自检(片段一直延伸到模板最后一行)', (rel) => {
+    const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
+    const { tmpl, byLine, tail } = extractTemplate(src)
+    expect(tmpl, `${rel}:根 <template> 块没抽出来(第 0 列的 <template>/</template> 缺一个?)`).not.toBe('')
+    expect(tail, `${rel}:找不到模板尾部特征串`).not.toBe('')
+    // 🔴 覆盖度自检 ①:片段必须**以模板最后 3 行原文收尾**。非贪婪写法会在第一个嵌套
+    //    `</template>` 处截断 → 尾部特征串不在片段末尾 → 报红。
+    expect(
+      tmpl.endsWith(tail),
+      `${rel}:抽出的模板片段没延伸到最后一行(尾部特征串:\n${tail}\n)—— 被提前截断了`,
+    ).toBe(true)
+    // 🔴 覆盖度自检 ②:两条**独立推导**(字符串 lastIndexOf vs 逐行从末尾扫)必须逐字相等。
+    //    这条与文本内容无关,是最硬的一层:只要抽取边界错一行就报红。
+    expect(tmpl, `${rel}:字符串抽取与逐行推导不一致 —— 抽取边界错了`).toBe(byLine)
+  })
+
+  it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量', (rel) => {
+    const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
+    const { tmpl } = extractTemplate(src)
+    const scrubbed = stripColorCalls(tmpl)
+    expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+  })
+})
