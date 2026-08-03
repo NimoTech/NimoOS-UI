@@ -277,4 +277,19 @@ describe('类 3 · i18n 与主题 token', () => {
     expect(en).not.toMatch(/settingsAppsPendingDisabledHint:[^\n]*Photos/)
     expect(zh).not.toMatch(/settingsAppsPendingDisabledHint:[^\n]*(本期|做样子)/)
   })
+
+  it('复审第二轮:sp9 两个 locale 文件的头注释(仅前几行)不再泄露内部期号/被剔除功能名/分支代号,第 3 行保留', () => {
+    // 只看文件头注释块(export default { 之前),不是整份文件 —— 文件里其余"SP9-P4 account"/
+    // "SP9-P6 …"这类章节标题注释不在本轮范围内(coordinator 明确排除,属于全仓 30 文件那一大类)。
+    const zhHeader = read('src/i18n/zh_cn.sp9.ts').split('export default {')[0]
+    const enHeader = read('src/i18n/en_us.sp9.ts').split('export default {')[0]
+    // SP9(?!\.ts):排除"zh_cn.sp9.ts / en_us.sp9.ts"这种指代文件名本身的合法引用
+    // (第 1 行改写后仍会说"See zh_cn.sp9.ts."),不是内部期号泄漏。
+    for (const bad of [/SP9(?!\.ts)/i, /Search/, /\bsp7\b/i, /\bsp8\b/i, /并行开发/, /spec §/]) {
+      expect(zhHeader, bad).not.toMatch(bad)
+      expect(enHeader, bad).not.toMatch(bad)
+    }
+    // 第 3 行(提 parity.test.ts,仓内正常引用)不构成泄漏,原样保留
+    expect(zhHeader).toContain('parity.test.ts')
+  })
 })

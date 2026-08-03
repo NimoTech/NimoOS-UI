@@ -428,6 +428,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "  settingsAppsPendingDisabledHint: 'Available after the Photos section is migrated',\n",
     replace: "  settingsAppsPendingDisabledHint: 'Requires backend support that is not available yet',\n" },
 
+  // ── 复审第二轮:两个 sp9 locale 文件的头注释——本项目发布的是源码本身(export.mjs
+  //    产出源码树,不经 vite 压缩),注释会逐字进公开仓库,不是"构建产物剥注释"就能豁免的。
+  //    第 1 行直接点名被剔除的 Search 功能区(真实 scanner 命中),第 2 行提 sp7/sp8(相册/AI
+  //    分支代号)+"并行开发"+ 内部 spec 章节号,守卫抓不到但同样是私有开发状态泄漏。
+  //    第 3 行(提 parity.test.ts,仓内正常引用)不构成泄漏,保留不动。
+  { path: 'src/i18n/zh_cn.sp9.ts',
+    find: "// SP9(收尾视图:系统设置 / KVM / Search)文案分片。\n// 与 sp7/sp8 并行开发,分片可让三线几乎不在 i18n 上相撞(spec §4.2 / §9.3)。\n",
+    replace: "// 设置 / KVM 等页面的文案分片。\n// 拆成独立文件是为了减少多人协作时的 i18n 合并冲突。\n" },
+  { path: 'src/i18n/en_us.sp9.ts',
+    find: "// SP9 (final views: Settings / KVM / Search) locale shard. See zh_cn.sp9.ts.\n",
+    replace: "// Settings / KVM locale shard. See zh_cn.sp9.ts.\n" },
+
   // ── src/styles/theme.css(E11:说话人/orb/照片磁贴 token 与类,--wave-none 保留)──
   // 分节标题去掉"照片"(应用/文件夹磁贴结构本身保留)
   { path: 'src/styles/theme.css',
