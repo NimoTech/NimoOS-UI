@@ -2,13 +2,9 @@
 // 对照源:Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue(312 行)。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createI18n } from 'vue-i18n'
-import zh from '../../../i18n/zh_cn'
 import PhotosFilterBar from '../PhotosFilterBar.vue'
 import barRaw from '../PhotosFilterBar.vue?raw'
 import { extractStyleBlock, winningHoverBackground } from './cssCascade'
-
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 const PHOTOS = [
   { date: 'May 1, 2023', place: 'Tokyo, Japan', camera: 'Sony A7 · 35mm' },
@@ -19,10 +15,14 @@ const PHOTOS = [
 
 const empty = () => ({ years: [] as string[], places: [] as string[], cameras: [] as string[] })
 
+// fix round 1(评审必修 1):不在这里另建 createI18n(...) 实例——理由与
+// PhotosToolbar.test.ts 顶部同款注释一致:vitest.setup.ts 已把 src/i18n 单例装进
+// config.global.plugins 对每次 mount 生效,再显式传另一个实例会被拼接进同一个 app,
+// 触发 vue-i18n install() 的重复组件/指令注册告警(默认 reporter 隐藏了通过用例的
+// stderr,--reporter=verbose 才可见)。直接吃全局装好的那份,locale 默认就是 zh_cn。
 function mountBar(props: Record<string, unknown> = {}) {
   return mount(PhotosFilterBar, {
     props: { filter: empty(), photos: PHOTOS, ...props },
-    global: { plugins: [i18n] },
     attachTo: document.body,
   })
 }

@@ -2,14 +2,16 @@
 // P1 scope: no EXIF filter slot, no icon library (plain text tabs) — see task-7-brief.md.
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createI18n } from 'vue-i18n'
-import zh from '../../../i18n/zh_cn'
 import PhotosToolbar from '../PhotosToolbar.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
-
+// fix round 1(评审必修 1):不在这里另建 createI18n(...) 实例。vitest.setup.ts 已经把
+// src/i18n 的单例装进 config.global.plugins,对全套测试的每次 mount 生效——再显式传入
+// 一个不同的 i18n 实例会被 @vue/test-utils 拼接(而非替换)进同一个 app,vue-i18n 的
+// install() 对两个实例都无条件调 app.component/app.directive,导致重复注册告警(默认
+// reporter 不显示通过用例的 stderr,--reporter=verbose 才能看到,曾误判为"消失"。
+// 直接吃全局装好的那份即可,该单例默认 locale 就是 zh_cn。
 function mountToolbar(props: Record<string, unknown> = {}) {
-  return mount(PhotosToolbar, { props, global: { plugins: [i18n] } })
+  return mount(PhotosToolbar, { props })
 }
 
 describe('PhotosToolbar', () => {
@@ -58,7 +60,6 @@ describe('P7b-T3: after-tabs 槽位', () => {
     const w = mount(PhotosToolbar, {
       props: { tab: 'photo', density: 'comfortable', count: 3 },
       slots: { 'after-tabs': '<i data-test="after-tabs-probe">x</i>' },
-      global: { plugins: [i18n] },
     })
     const probe = w.get('[data-test="after-tabs-probe"]')
     const children = Array.from(w.get('.photos-toolbar').element.children)
