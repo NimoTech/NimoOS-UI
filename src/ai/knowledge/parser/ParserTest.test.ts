@@ -1247,10 +1247,19 @@ describe('ParserTest —— N16 emoji / 符号位置核对(一个都不许挪进
 
 // ═══════════════════════════════════════════════════════════════════════════
 describe('ParserTest —— 🔴 N22:硬编码技术标识符「判定不入语言包」', () => {
-  it('15 串技术标识符在两档语言包里都**零命中**(既非某键的完整值、也不是任何键值的子串)', () => {
+  // 🔴 **M-2(评审 2026-08-04)—— 这两条守卫已从「宽子串扫描」收紧成「精确值 + 键集闭合」。**
+  // 第一版对 `'cos '` / `'rr '` / `'chunk #'` 这类**通用子串**做 `v.includes(s)` 全包扫描:
+  // 当前 0 命中,但将来任何**无关**新键的值里含这些子串(比如某处文案写了「rr 」)就会
+  // **假报红** —— 与治理 §9 第九条(否定式断言撞上无关内容 → 冤枉正确代码 → 诱使去"修"
+  // 一个没坏的东西)同族。收紧后判别力**没降**:真正要守的事实是
+  //   ① 没有任何键的**整值**就是这些技术串(= 没人给它们建键);
+  //   ② 本页模板里 `t()` 的键集**恰好**是那 23 个 `aiKbPt*`(= 没人偷偷多接一个键)。
+  // ② 才是「有人把技术串补成 i18n 键」这件事的真正判据 —— 补键必然要在模板里多一次
+  // `t()` 调用,键集闭合当场炸。RED 探针 H(往 zh_cn.ts 塞 `aiKbPtRerankTop20`)与
+  // 探针 I(把模板里的裸 `rerank top-20` 换成 `{{ t('aiKbPtRerankTop20') }}`)分别验这两条。
+  it('①15 串技术标识符不是两档语言包里任何键的**整值**(精确相等,不用宽子串)', () => {
     // 🔴 治理 §3.5 N22:这些是技术标识符/参数名,Vue2 刻意没进 i18n。
     // 补键 = 凭空多出 Vue2 没有的键,且 en/zh 两档一填英文 = 纯噪音。
-    // 判据(有真判别力):若有人加了 `aiKbPtRerankTop20: 'rerank top-20'`,本条立刻报红。
     const TECH = [
       'rerank top-20',
       'dense [0:8]:',
@@ -1269,11 +1278,41 @@ describe('ParserTest —— 🔴 N22:硬编码技术标识符「判定不入语�
       '.pdf .docx .pptx .xlsx',
     ]
     expect(TECH).toHaveLength(15)
-    for (const pack of [zhCn, enUs] as Array<Record<string, unknown>>) {
-      const values = Object.values(pack).filter((v): v is string => typeof v === 'string')
+    for (const [name, pack] of [['zh_cn', zhCn], ['en_us', enUs]] as Array<[string, Record<string, unknown>]>) {
+      const entries = Object.entries(pack).filter((e): e is [string, string] => typeof e[1] === 'string')
+      expect(entries.length).toBeGreaterThan(1400) // 扫的是全表,不是空集合
       for (const s of TECH) {
-        expect(values.filter((v) => v.includes(s))).toEqual([])
+        // 🔴 **精确整值相等**(不是 `includes`):判据是「有没有人给这个技术串建了键」。
+        // 报错消息带上 pack 名与命中的键名,便于定位。
+        expect(entries.filter(([, v]) => v === s).map(([k]) => `${name}.${k}`)).toEqual([])
       }
+    }
+  })
+
+  it('②本页模板里 `t()` 的键集**恰好**是那 23 个 `aiKbPt*`(键集闭合 —— 补一个键就炸)', () => {
+    // 🔴 这一条才是「有人把技术串补成 i18n 键」的真正判据:补键必然在模板里多一次
+    // `t()` 调用 → 键集不再等于这 23 个 → 报红。比宽子串扫描更准、且零假报红面。
+    // 剥注释(保行版)后再扫,否则会撞上本文件/组件头注释里提到的键名(治理 §9 第九条)。
+    const src = blankComments(readSrc())
+    const keys = [...src.matchAll(/(?<![\w$])t\(\s*'([^']+)'/g)].map((m) => m[1]!)
+    const EXPECTED_23 = [
+      'aiKbPtAsWellAs', 'aiKbPtBackLink', 'aiKbPtChooseFile', 'aiKbPtChunksTitle',
+      'aiKbPtDefaults', 'aiKbPtDoclingToggle', 'aiKbPtDragDrop', 'aiKbPtHelp1',
+      'aiKbPtHelpNoWrite', 'aiKbPtHelpPreviewOnly', 'aiKbPtMaxSize', 'aiKbPtOcr',
+      'aiKbPtOverlapNote', 'aiKbPtProcessing', 'aiKbPtQueryPlaceholder', 'aiKbPtReset',
+      'aiKbPtRun', 'aiKbPtScoredTitle', 'aiKbPtSupports', 'aiKbPtTitle',
+      'aiKbPtTooBig', 'aiKbPtViaDocling', 'aiKbPtZeroChunks',
+    ]
+    expect(EXPECTED_23).toHaveLength(23)
+    // 调用次数 = 23(每个键恰好用一次,与蓝本 23 个 `$t()` 一一对应)
+    expect(keys).toHaveLength(23)
+    expect([...keys].sort()).toEqual([...EXPECTED_23].sort())
+    // 键集闭合:一个都不多、一个都不少
+    expect(new Set(keys).size).toBe(23)
+    // 且这 23 个键在两档语言包里都存在(否则渲染出键名本身)
+    for (const k of EXPECTED_23) {
+      expect(typeof (zhCn as Record<string, unknown>)[k]).toBe('string')
+      expect(typeof (enUs as Record<string, unknown>)[k]).toBe('string')
     }
   })
 

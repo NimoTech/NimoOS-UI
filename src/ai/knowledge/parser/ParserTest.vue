@@ -97,20 +97,28 @@
     → 照抄 :222-223 的 `detail || e.message || String(e)` 取值链,**不许为数组加分支处理**
       (那会是凭空多出的逻辑);**也不许为它写单测**(测一条 UI 到不了的路径 = 空转)。
 
-  【偏离,类型安全机械改写(4 处,渲染与行为零变化,只是类型标注)】
+  【K34 —— 类型安全机械改写(4 处,**全部保抛,零行为变化**)】
+    🔴 **统一口径(评审 M-1,2026-08-04):一律用「保抛」写法(`as` / `!`),不用 `?.` / `&&` 兜底。**
+    理由:`?.` 与新加的 `&&` 会把蓝本会抛的 `TypeError` **静默变成 no-op** —— 那是行为改动,
+    与 K34 落地要求②「真的零行为变化」冲突,也与本条第 4 点自己的论证自相矛盾
+    (第一版 1/2/3 用了 `?.`/`&&`、4 用了 `!`,同一份文件里两套相反判断)。
+    **判据是忠于蓝本,不是「不抛更安全」。** 四处改完 `vue-tsc` 仍 exit 0 → 证明 `!`/`as`
+    足够满足 strict,那三处 `?.`/`&&` 从一开始就是多余的。
+
     1. `$refs.fileInput.click()`(蓝本 :29)→ `<script setup>` 的模板 ref:
-       `const fileInput = ref<HTMLInputElement | null>(null)` + 模板 `fileInput?.click()`。
+       `const fileInput = ref<HTMLInputElement | null>(null)` + 模板 **`fileInput!.click()`**。
        Vue 3 没有 `$refs` 选项式那套(`<script setup>` 里 ref 变量即元素)。
-    2. `onFile($event.target.files[0])`(蓝本 :27)→ `($event.target as HTMLInputElement).files?.[0]`
-       —— `EventTarget` 上没有 `files`,`FileList | null` 上不能直接下标。
-       先例 `ParserStatus.vue:262` 的 `($event.target as HTMLInputElement).checked` 同款。
-    3. `e.dataTransfer.files && e.dataTransfer.files[0]`(蓝本 :180)→ 前面多一个
-       `e.dataTransfer &&`:`DragEvent.dataTransfer` 的类型是 `DataTransfer | null`。
-       蓝本在 `dataTransfer` 为 null 时会抛 TypeError —— 那是浏览器里到不了的情况
-       (`drop` 事件必带 `dataTransfer`),加这一道只是让 strict 模式过。
-    4. `chunkText()` 里 `result.value!.chunks`(蓝本 :229 是裸 `this.result.chunks`)——
-       用**非空断言**而不是 `?.`:非空断言只是类型层面的说法,`result` 为 null 时仍然抛
-       同一个 TypeError,与蓝本语义逐字一致;`?.` 会把它悄悄变成「回空串」,那是行为改动。
+       `!` 只是类型层面的说法 → ref 为 null 时仍抛同一个 TypeError,与蓝本逐字一致。
+    2. `onFile($event.target.files[0])`(蓝本 :27)→ **`($event.target as HTMLInputElement).files![0]`**
+       —— `EventTarget` 上没有 `files`(需要 `as`),`FileList | null` 不能直接下标(需要 `!`)。
+       `files` 为 null 时两边都抛。先例 `ParserStatus.vue:262` 的
+       `($event.target as HTMLInputElement).checked` 是同款 `as`。
+    3. `e.dataTransfer.files && e.dataTransfer.files[0]`(蓝本 :180)→
+       **`e.dataTransfer!.files && e.dataTransfer!.files[0]`** —— `DragEvent.dataTransfer`
+       的类型是 `DataTransfer | null`,只加 `!`。🔴 中间那个 `&&` 是**蓝本自己的短路**,照抄;
+       第一版另加的 `e.dataTransfer &&` 已删除(那一个才是改行为的)。
+    4. `chunkText()` 里 **`result.value!.chunks`**(蓝本 :229 是裸 `this.result.chunks`)——
+       `result` 为 null 时仍抛同一个 TypeError;`?.` 会把它悄悄变成「回空串」= 行为改动。
        (`chunkText` 只在 `<template v-if="result">` 之内被调用 → 实际不可达。)
 -->
 <script setup lang="ts">
@@ -190,10 +198,14 @@ const params = ref<{ target_tokens: number; overlap_tokens: number; min_tokens: 
 /** 蓝本 :27 的 `ref="fileInput"` + :29 的 `$refs.fileInput.click()`(机械改写 1)。 */
 const fileInput = ref<HTMLInputElement | null>(null)
 
-/** 蓝本 onDrop(e)(:178-182)—— 先关高亮,再取第一个文件,取到才交给 onFile。 */
+/**
+ * 蓝本 onDrop(e)(:178-182)—— 先关高亮,再取第一个文件,取到才交给 onFile。
+ * K34-3:只给 `e.dataTransfer` 加 `!`(它的类型是 `DataTransfer | null`);
+ * 中间那个 `&&` 是**蓝本自己的短路**,照抄。为 null 时与蓝本同样抛 TypeError。
+ */
 function onDrop(e: DragEvent): void {
   dragActive.value = false
-  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]
+  const f = e.dataTransfer!.files && e.dataTransfer!.files[0]
   if (f) onFile(f)
 }
 
@@ -323,10 +335,12 @@ function fmtBytes(n: number): string {
              @dragover.prevent="dragActive = true"
              @dragleave.prevent="dragActive = false"
              @drop.prevent="onDrop">
+          <!-- K34-1/2:`files![0]` 与 `fileInput!.click()` 都是**保抛**写法 —— 只加类型层面的
+               `as` / `!`,`files` 或 ref 为 null 时与蓝本抛同一个 TypeError(不用 `?.` 兜底) -->
           <input ref="fileInput" type="file" hidden
-                 @change="onFile(($event.target as HTMLInputElement).files?.[0])" />
+                 @change="onFile(($event.target as HTMLInputElement).files![0])" />
           <div v-if="!file">
-            <button class="pick-btn" @click="fileInput?.click()">{{ t('aiKbPtChooseFile') }}</button>
+            <button class="pick-btn" @click="fileInput!.click()">{{ t('aiKbPtChooseFile') }}</button>
             <span class="hint">{{ t('aiKbPtDragDrop') }}</span>
           </div>
           <div v-else class="file-meta">

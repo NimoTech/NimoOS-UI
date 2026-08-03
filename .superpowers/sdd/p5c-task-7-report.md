@@ -1,11 +1,12 @@
 # SP8-P5c · Task 7 报告 —— `ParserTest.vue`(Parser 测试沙盒,`/ai/parser/test`)
 
-**状态:`DONE`** · 起点 `5ccb287`(工作树干净)· 交付 2 个新文件、**零既有文件改动**。
+**状态:`DONE`** · 第一轮 `1d589e0`(评审 **Ready to merge**,0 Critical / 1 Info / 2 Minor)
+· **本轮收 M-1 / I-1 / M-2**(见 §17)。起点 `5ccb287`,交付 2 个新产品文件、**零既有文件改动**。
 
-| 交付 | 行数 |
+| 交付 | 行数(**脚本实测**,I-1 修正) |
 |---|---|
-| `src/ai/knowledge/parser/ParserTest.vue`(新建) | 415(其中 131 行是头注释 + 模板内注释) |
-| `src/ai/knowledge/parser/ParserTest.test.ts`(新建) | 1046,**79 例** |
+| `src/ai/knowledge/parser/ParserTest.vue`(新建) | **485**(其中头注释 `:1-123`) |
+| `src/ai/knowledge/parser/ParserTest.test.ts`(新建) | **1412**,**80 例** |
 | `.superpowers/sdd/p5c-task-7-fixture-verify.mjs`(新建,台账) | fixture 等价校验脚本 |
 
 **范围**:蓝本 369 行中的 `<template>` `:1-152` + `<script>` `:154-243` = **242 行**。
@@ -16,12 +17,15 @@
 
 ## 1. 三门终值(全量,输出完整落盘)
 
+**第二轮(收 M-1 / M-2 之后,2026-08-04)**:
 ```
 pnpm test                  exit=0    Test Files  325 passed (325)
-                                          Tests  3379 passed (3379)
+                                          Tests  3380 passed (3380)
 pnpm exec vue-tsc --noEmit exit=0    (输出 0 行)
-pnpm build                 exit=0    ✓ built in 12.52s
+pnpm build                 exit=0    ✓ built in 12.71s
 ```
+第一轮(`1d589e0`)是 `325 / 3379`。**用例数 3379 → 3380(+1)**:M-2 把那条 N22 守卫
+从「一条宽子串扫描」拆成**两条**(① 精确整值扫描 + ② 键集闭合),**文件数 325 与 `.vue` 178 均不变**。
 
 **零红项、零复跑**(两条已知噪声 `persist.test.ts` / `AgentComposer.test.ts` 本轮均未触发)。
 
@@ -30,7 +34,7 @@ pnpm build                 exit=0    ✓ built in 12.52s
 | 量 | 起点(T6 收官实测) | 预测 | 实测终值 |
 |---|---|---|---|
 | Test Files | 324 | 325 | **325** ✅ |
-| Tests | 3299 | 3299 + 1(color-guard)+ 新用例 | **3379** = 3299 + 1 + **79** ✅ |
+| Tests | 3299 | 3299 + 1(color-guard)+ 新用例 | **3380** = 3299 + 1 + **80** ✅(M-2 拆条后 80) |
 | `.vue` 总数 | 177 | 178 | **178**(`find src -name "*.vue" \| wc -l`)✅ |
 
 台账(治理 §8.1)推进:T3 176 → T6 177 → **T7 178** → T8 179(收官)。
@@ -53,42 +57,54 @@ $ grep -o "parser-status-page" dist/assets/*.css   →  0 命中(T6 那页同样
 
 ### 2.1 `<template>`(蓝本 `:1-152` 全覆盖)
 
+🔴 **New-UI 侧行号由脚本重算于 `0cb1bd5` + 本轮 M-1/M-2 改动的工作树**(I-1;首版行号全面陈旧,
+`.vue` 称 415 实为 471 → 本轮再改后为 **485**;`.test.ts` 称 1046 实为 1373 → 本轮为 **1412**)。
+重算脚本在**剥注释后的源**上定位(保行版,行号与原文逐行对齐),避免撞头注释里同名的写法。
+
 | 蓝本 | 内容 | New-UI |
 |---|---|---|
-| `:1` | `<template>` | `:283`(SFC 块顺序改成 script-first,本仓惯例) |
-| — | **K31 外层 `.parser-app`**(蓝本没有) | `:284` |
-| `:2` | `<div class="parser-test-page">` | `:289`(内层) |
-| `:3-6` | 页头:`<h2>` + `← 返回详情` router-link | `:291-294` |
-| `:8-18` | help 卡两段(第二段两个 `<code>`) | `:298-309` |
-| `:21-37` | dropzone:三个拖拽事件 + hidden file input + 未选/已选两分支 | `:312-331` |
-| `:39-53` | 三个参数 `<label class="param">` + 重置按钮 | `:335-349` |
-| `:54-57` | `.hint-line` + `<em>` | `:350-353` |
-| `:59-71` | query 输入 + rerank 勾选 + OCR 勾选 | `:355-368` |
-| `:73-90` | 提交按钮(`:disabled` / loading 文案)+ ok-hint(含 `<em v-if="params_used">`) | `:370-393` |
-| `:92` | `<div v-if="error" class="error-box">` | `:395` |
-| `:96` | `<template v-if="result">` | `:399` |
-| `:97-104` | docling 卡(折叠箭头 + `v-show` 的 `<pre>`) | `:400-409` |
-| `:106-124` | scored 卡(标题 / `⚠` 警告条 / `<ul>` + rank-line 四格 + rank-text) | `:411-432` |
-| `:126-149` | chunks 卡(标题 / `.empty` 空态 / `<ul>` + chunk-head + `<pre>` + 两条 emb-preview) | `:434-462` |
-| `:150-152` | 三个闭合 | `:463-467`(多一个 K31 外层闭合) |
+| `:1` | `<template>` | **`:304`** |
+| — | **K31 外层 `.parser-app`**(蓝本没有) | **`:305`** |
+| `:2` | 内层 `<div class="parser-test-page">` | **`:310`** |
+| `:3-6` | 页头:`<h2>` + `← 返回详情` router-link | **`:312-315`** |
+| `:8-18` | help 卡两段(第二段两个 `<code>`) | **`:319-327`** |
+| `:21-37` | dropzone:三个拖拽事件 + hidden file input + 未选/已选两分支 | **`:332-352`** |
+| `:39-53` | 三个参数 `<label class="param">` + 重置按钮 | **`:356-369`** |
+| `:54-57` | `.hint-line` + `<em>` | **`:371-373`** |
+| `:59-71` | query 输入 + rerank 勾选 + OCR 勾选 | **`:377-387`** |
+| `:74-78` | 提交按钮(`:disabled` / loading 文案) | **`:392-395`** |
+| `:79-89` | ok-hint(含 `<em v-if="params_used">`) | **`:401-411`** |
+| `:92` | `<div v-if="error" class="error-box">` | **`:414`** |
+| `:96` | `<template v-if="result">` | **`:418`** |
+| `:97-104` | docling 卡(折叠箭头 + `v-show` 的 `<pre>`) | **`:422-427`** |
+| `:106-124` | scored 卡(标题 / `⚠` 警告条 / `<ul>` + rank-line 四格 + rank-text) | **`:431-452`** |
+| `:126-149` | chunks 卡(标题 / `.empty` 空态 / `<ul>` + chunk-head + `<pre>` + 两条 emb-preview) | **`:455-481`** |
+| `:150-152` | 闭合(多一个 K31 外层闭合) | **`:482-485`** |
+
+SFC 块边界:头注释 `:1-123` · `<script setup lang="ts">` `:124` · `</script>` `:302` ·
+`<template>` `:304` · `</template>` `:485`(文件共 **485** 行)。
 
 ### 2.2 `<script>`(蓝本 `:154-243` 全覆盖)
 
 | 蓝本 | 内容 | New-UI |
 |---|---|---|
-| `:155` | `import { api } from '@/service/service.js'` | `:134` `import { service } from '@nimotech/nimoos-service'`(K27) |
-| — | K24 样式 import(蓝本在 `<style>` 里) | `:135` |
-| `:159-176` | `data()` 的 10 项 | `:194-211`(全部组件本地 `ref`,治理 §5.1:不塞 store) |
-| `:170-174` | `params: {600, 80, 2}` | `:204-208`(用 `ref` 而非 `reactive` —— 蓝本 `resetParams` 是**整体重新赋值**) |
-| `:27` `ref="fileInput"` | 模板 ref | `:214`(机械改写 1) |
-| `:178-182` | `onDrop(e)` | `:217-221` |
-| `:183-192` | `onFile(f)` —— 30 MB 拦 | `:231-239` |
-| `:193-197` | `clearFile()` 三清 | `:242-246` |
-| `:198-200` | `resetParams()` | `:249-251` |
-| `:201-227` | `submit()` —— FormData 九字段 + K27 + K1 + catch 取值链 | `:263-289` |
-| `:228-231` | `chunkText(chunkNo)` | `:292-295` |
-| `:232-235` | `truncate(s, n)` | `:298-301` |
-| `:236-240` | `fmtBytes(n)` | `:309-313` |
+| `:155` | `import { api } from '@/service/service.js'` → K27 共享包 | **`:127`** |
+| — | K24 样式 import(蓝本在 `<style>` 里 `@import`) | **`:128`** |
+| — | 响应形状 5 个 `interface`(本仓新增,HTTP 原样 snake_case) | **`:138-178`** |
+| `:159-176` | `data()` 的 10 项 → 组件本地 `ref`(治理 §5.1:不塞 store) | **`:181-196`** |
+| `:170-174` | `params: {600, 80, 2}`(用 `ref` 而非 `reactive` —— `resetParams` 是整体重新赋值) | **`:192-196`** |
+| `:27` | `ref="fileInput"` 的模板 ref 声明(K34-1) | **`:199`** |
+| `:178-182` | `onDrop(e)` | **`:206-210`** |
+| `:183-192` | `onFile(f)` —— 30 MB 拦(只设 error、不清 file、不发请求) | **`:219-228`** |
+| `:193-197` | `clearFile()` 三清 | **`:231-235`** |
+| `:198-200` | `resetParams()` | **`:238-240`** |
+| `:201-227` | `submit()` | **`:251-278`** |
+| `:208-215` | └ FormData 九字段 | **`:257-265`** |
+| `:216-220` | └ K27 单参 + K1 无 `.data` | **`:266`** |
+| `:221-224` | └ catch 取值链 | **`:272-274`** |
+| `:228-231` | `chunkText(chunkNo)` | **`:281-284`** |
+| `:232-235` | `truncate(s, n)` | **`:287-290`** |
+| `:236-240` | `fmtBytes(n)` | **`:297-301`** |
 
 ### 2.3 程序化等价核对(不是肉眼比)
 
@@ -115,7 +131,7 @@ $t 调用数:蓝本 23 → 新 23(`aiKbPt*` 去重 23 个,一一对应)
 
 ## 3. K / N 逐条显式申报
 
-### 3.1 命中的 K(治理 §3 的 K1–K33)
+### 3.1 命中的 K(治理 §3 的 K1–K34)
 
 | # | 落地 |
 |---|---|
@@ -123,6 +139,7 @@ $t 调用数:蓝本 23 → 新 23(`aiKbPt*` 去重 23 个,一一对应)
 | **K24** | `parser-styles.scss` 走 **JS 侧 side-effect import**,本文件**零 `<style>` 块**。用例:「本文件零 `<style>` 块」(`not.toMatch(/^<style/m)` + `toContain` import 语句) |
 | **K27** | `api.post('/ai/parser/test/analyze', fd, {headers, timeout})` → `service.ai.parserTestAnalyze(fd)` |
 | **K31** | 根元素**两层**:`<div class="parser-app"><div class="parser-test-page">` |
+| **K34** | Vue 3 + TS 机械改写 4 处,**全部保抛写法、零行为变化** —— 三列表见 §15 |
 
 🔴 **K27 落地的证明(brief §9 点名要求)**:
 
@@ -219,10 +236,23 @@ RED 探针 B(压回单元素)两条全红 ✅。
 | 14 | `<code>.md .txt .html .json .csv .py .go .ts .java</code>` | `:14` | 扩展名清单 |
 | 15 | `<code>.pdf .docx .pptx .xlsx</code>` | `:15` | 同上 |
 
-**一个都没补键。** 守卫两条(都有真判别力):
-1. 15 串在 **zh + en 两档共 3006 个值**里**零命中**(既非某键的完整值、也不是任何键值的子串)
-   —— 若有人加 `aiKbPtRerankTop20: 'rerank top-20'`,本条立刻报红。已程序化实测两档各 1503 键。
-2. 15 串在**剥注释后的模板**里逐串命中(证明它们是裸文本,不经 `t()`)。
+**一个都没补键。** 守卫三条(🔴 **本轮 M-2 已把第 1 条从宽子串收紧成精确整值,并新增第 2 条**):
+
+1. **① 精确整值扫描**:15 串**都不是** zh/en 两档(各 1503 键)里任何键的**整值**。
+   报错消息带 `pack.key`,便于定位;并断言「扫的是全表不是空集合」(`length > 1400`)。
+   🔴 **为什么收紧**:首版用 `v-includes(s)` 宽子串扫全包 —— 当前 0 命中,但 `'cos '` / `'rr '` /
+   `'chunk #'` 这类**通用子串**将来撞上任何**无关**新键就会**假报红**,正是治理 §9 第九条
+   (否定式断言撞无关内容 → 冤枉正确代码 → 诱使去"修"一个没坏的东西)的同族。
+2. **② 键集闭合(新增)**:本页模板里 `t()` 的键集**恰好**是那 23 个 `aiKbPt*`
+   —— 调用次数 = 23、去重 = 23、排序后集合逐字相等,且 23 个键在两档语言包里都存在。
+   🔴 **这才是「有人把技术串补成 i18n 键」的真正判据**:补键必然在模板里多一次 `t()` 调用
+   → 键集当场不等。判别力**比宽子串更强**且**零假报红面**。
+3. **③ 正向裸文本**:15 串在**剥注释后的模板**里逐串命中(证明它们是裸文本、不经 `t()`)。
+
+**收紧后仍抓得住 —— 两条 RED 探针(§12 的 H / I)**:
+- 探针 H:往 `zh_cn.ts` 塞 `aiKbPtRerankTop20: 'rerank top-20'` → **①报红**(1 failed / 80)。
+- 探针 I:把模板里的裸 `rerank top-20` 换成 `{{ t('aiKbPtRerankTop20') }}` → **②报红**
+  (连带 ③ 与那条 rerank 标签用例也红,共 3 failed / 80 —— 说明这条改动被三层守卫同时逮到)。
 
 ---
 
@@ -401,7 +431,7 @@ RED 探针 A(**在模板最后一个内容行**塞 `#abcdef`)精确报红 ✅。
 
 ---
 
-## 12. RED 探针(7 条,全部报红 + 还原确认)
+## 12. RED 探针(**14 条**,全部报红 + 还原确认)
 
 每条探针都**先断言注入真的落盘**(md5 变化 + 行首行尾锚定的 `grep -c` 命中数),
 再看测试结果,最后还原并**核 md5 与原文逐字节一致**(治理 §9 第七条:探针假失效比断言假通过更危险)。
@@ -448,6 +478,65 @@ RED 探针 A(**在模板最后一个内容行**塞 `#abcdef`)精确报红 ✅。
 ==== 全部探针通过:True (7/7)
 ```
 
+### 12.1 第二轮新增 7 条(收 M-1 / M-2,2026-08-04)
+
+**A–G 七条在改动后已全部复跑,结论不变**(B 的注入落盘 grep 仍 1 命中 / 残留 0,
+两条 K31 用例照旧报红;其余六条各 1 红)。以下是本轮新增的 7 条:
+
+```
+--- PROBE H zh_cn.ts 塞 aiKbPtRerankTop20:'rerank top-20'(验 M-2 的①精确整值扫描)
+    注入落盘 grep -c "^  aiKbPtRerankTop20: 'rerank top-20',$" = 1
+    exit=1  Tests 1 failed | 79 passed (80)
+    RED: 🔴 N22 … > ①15 串技术标识符不是两档语言包里任何键的**整值**(精确相等,不用宽子串)
+    期望报红命中 1/1  OK      还原后 md5 一致: True
+
+--- PROBE I 把裸 `rerank top-20` 换成 `{{ t('aiKbPtRerankTop20') }}`(验 M-2 的②键集闭合)
+    注入落盘 grep -c "t('aiKbPtRerankTop20')" = 1
+    exit=1  Tests 3 failed | 77 passed (80)
+    RED: query / rerank / OCR 三个输入 > …rerank 标签是硬编码 `rerank top-20`(N22)
+    RED: 🔴 N22 … > ②本页模板里 `t()` 的键集**恰好**是那 23 个 `aiKbPt*`(键集闭合 —— 补一个键就炸)
+    RED: 🔴 N22 … > 这 15 串在模板里是**裸文本**(不经 t()),逐串在剥注释后的模板里命中
+    期望报红命中 1/1  OK      还原后 md5 一致: True
+    (三层守卫同时逮到同一处改动 —— ② 是新增那条,判别力已实证)
+
+--- PROBE J 去掉 `files![0]` 的 `!`(回退成蓝本原样)
+    vue-tsc exit=2  error TS 行数=1
+    ERR: ParserTest.vue(341,34): error TS2531: Object is possibly 'null'.
+    期望 tsc 硬报错  OK      还原后 md5 一致: True
+
+--- PROBE K 去掉 `fileInput!.click()` 的 `!`
+    vue-tsc exit=2  error TS 行数=1
+    ERR: ParserTest.vue(343,46): error TS18047: '__VLS_ctx.fileInput' is possibly 'null'.
+    期望 tsc 硬报错  OK      还原后 md5 一致: True
+
+--- PROBE L 去掉 onDrop 两处 `e.dataTransfer!` 的 `!`(回退成蓝本原样)
+    vue-tsc exit=2  error TS 行数=2
+    ERR: ParserTest.vue(208,13): error TS18047: 'e.dataTransfer' is possibly 'null'.
+    ERR: ParserTest.vue(208,37): error TS18047: 'e.dataTransfer' is possibly 'null'.
+    期望 tsc 硬报错  OK      还原后 md5 一致: True
+
+--- PROBE N 去掉 `result.value!.chunks` 的 `!`(回退成蓝本原样)
+    vue-tsc exit=2  error TS 行数=1
+    ERR: ParserTest.vue(282,13): error TS18047: 'result.value' is possibly 'null'.
+    期望 tsc 硬报错  OK      还原后 md5 一致: True
+
+--- PROBE O 去掉 `$event.target as HTMLInputElement` 的 `as`(回退成蓝本原样)
+    vue-tsc exit=2  error TS 行数=2
+    ERR: ParserTest.vue(341,34): error TS18047: '$event.target' is possibly 'null'.
+    ERR: ParserTest.vue(341,48): error TS2339: Property 'files' does not exist on type 'EventTarget'.
+    期望 tsc 硬报错  OK      还原后 md5 一致: True
+
+==== 本轮探针: 7 / 7  全过: True
+```
+
+🔴 **J/K/L/N/O 五条是 K34「真机械必需」的判据**:回退成蓝本原样时 `vue-tsc` 共报
+**7 处**错(TS2339 / TS2531 / TS18047 三类)→ 那四处 `as`/`!` 不是「为了好看」而加的。
+⚠️ **探针 H 临时写了 `src/i18n/zh_cn.ts`**(全期零改动清单内的文件)—— 这是治理 §6.4-1
+同款做法(那里也要求对一个零改动文件做 RED 探针);**已 md5 逐字节还原、`git status` 干净、
+不在提交里**。若协调者认为该文件连探针都不许写,请指示,我改成把语言包注入依赖倒置后再验。
+
+### 12.2 探针纪律自检
+
 **探针脚本自身的自检**:每条 `mutate()` 前先 `assert` 目标字符串出现次数恰为 1
 (A 用「行内唯一命中行」定位、B 用**整行行首行尾**相等、C/D/E/F/G 用 `count(...)==1`)——
 避免撞注释造成「注入假落盘 → 伪造出守卫无效的假结论」(治理 §9 第七条,T2b 栽过)。
@@ -477,10 +566,13 @@ RED 探针 A(**在模板最后一个内容行**塞 `#abcdef`)精确报红 ✅。
 
 ## 14. 硬约束自查
 
-- **零既有文件改动**:`git status --short` 全程只有两个 `??`(新文件)+ 台账两个 `git add -f`。
+- **零既有文件改动**:第一轮 `git status --short` 只有两个 `??`(新文件)+ 台账两个 `git add -f`;
+  第二轮只有那两个新文件的 `M` + 台账。
   §1.1 全期零改动清单一行未动;`parser-styles.scss` / `parserStyles.test.ts` / `ParserStatus.vue` /
   `ParserStatus.test.ts` / `parserStore.ts` / `knowledge.scss` / `knowledgeStyles.test.ts` /
-  `src/i18n/*` / `FolderBrowser*` / `knowledgeRoutes.ts` / `deferred.ts` **全部未碰**。
+  `FolderBrowser*` / `knowledgeRoutes.ts` / `deferred.ts` **全部未碰**。
+  ⚠️ **`src/i18n/zh_cn.ts` 唯一的例外是 RED 探针 H 的临时写入**(治理 §6.4-1 同款做法):
+  **已 md5 逐字节还原、`git status` 干净、不在提交里**,见 §12.1 末尾的说明与请示。
 - **未新增 i18n 键**:本页 23 个 `aiKbPt*` 键 T1 已全部落地(逐个核过 `zh_cn.ts:1674-1696` /
   `en_us.ts:1647-1669` 存在且值与附录 A 逐字一致),**零缺键、零新增**。
 - 未 `git add -A` / `git add .`;未 rebase / reset / stash / merge / push;未跑 `deploy.sh`;
@@ -493,29 +585,31 @@ RED 探针 A(**在模板最后一个内容行**塞 `#abcdef`)精确报红 ✅。
 
 ---
 
-## 15. 已授权之外的自主决定(4 处机械改写,均为类型安全,渲染与行为零变化)
+## 15. K34 —— 四处机械改写(**全部保抛,零行为变化**)
 
-在文件头注释里已逐条登记,**不另开 K 编号**(与 T6 对 `($event.target as HTMLInputElement).checked`
-的同款处置,先例 `ChannelsSection.vue:354`):
+🔴 **本轮 M-1 已把 K34-1/2/3 从 `?.` / `&&` 改成保抛写法**,使 K34 落地要求②「零行为变化」
+**按字面成立**,并与 K34-4 自己的论证内部一致(首版那两套相反判断是评审逮到的反面教材,
+已写进治理 K34 的 ⚠️ 一栏)。**判据是忠于蓝本,不是「不抛更安全」。**
 
-1. `$refs.fileInput.click()`(蓝本 `:29`)→ `<script setup>` 的模板 ref `fileInput?.click()`。
-   Vue 3 `<script setup>` 里没有选项式 `$refs`。
-2. `onFile($event.target.files[0])`(`:27`)→ `($event.target as HTMLInputElement).files?.[0]`
-   —— `EventTarget` 上没有 `files`,`FileList | null` 不能直接下标。
-3. `e.dataTransfer.files && …`(`:180`)→ 前面多一个 `e.dataTransfer &&`
-   —— `DragEvent.dataTransfer` 的类型是 `DataTransfer | null`。蓝本在它为 null 时抛 TypeError,
-   那是浏览器里到不了的情况(`drop` 事件必带 `dataTransfer`)。
-4. `chunkText()` 里 `result.value!.chunks`(蓝本 `:229` 是裸 `this.result.chunks`)——
-   用**非空断言**而不是 `?.`:非空断言只是类型层面的说法,`result` 为 null 时**仍抛同一个
-   TypeError**,与蓝本语义逐字一致;`?.` 会把它悄悄变成「回空串」= 行为改动。
+| # | 蓝本原写法 | 本仓写法(New-UI 行) | 差异只出现在哪条不可达路径 | 为什么不能回退成蓝本原样 |
+|---|---|---|---|---|
+| **K34-1** | `$refs.fileInput.click()`(`:29`) | `fileInput!.click()`(**`:343`**)+ `const fileInput = ref<HTMLInputElement \| null>(null)`(**`:199`**) | 🔴 **零差异**:ref 为 null 时两边抛同一个 TypeError | Vue 3 `<script setup>` 没有选项式 `$refs`;`!` 去掉后 tsc 报 **TS18047 `'__VLS_ctx.fileInput' is possibly 'null'`**(探针 K) |
+| **K34-2** | `onFile($event.target.files[0])`(`:27`) | `onFile(($event.target as HTMLInputElement).files![0])`(**`:341`**) | 🔴 **零差异**:`files` 为 null 时两边抛同一个 TypeError | `as` 去掉报 **TS2339 `Property 'files' does not exist on type 'EventTarget'`** + TS18047(探针 O);`!` 去掉报 **TS2531 `Object is possibly 'null'`**(探针 J) |
+| **K34-3** | `e.dataTransfer.files && e.dataTransfer.files[0]`(`:180`) | `e.dataTransfer!.files && e.dataTransfer!.files[0]`(**`:208`**) | 🔴 **零差异**:`dataTransfer` 为 null 时两边抛同一个 TypeError。中间那个 `&&` 是**蓝本自己的短路**,照抄;首版另加的 `e.dataTransfer &&` 已删除(那一个才改行为) | `!` 去掉报 **TS18047 `'e.dataTransfer' is possibly 'null'`(两处各一条)**(探针 L) |
+| **K34-4** | `this.result.chunks.find(...)`(`:229`) | `result.value!.chunks.find(...)`(**`:282`**) | 🔴 **零差异**:`result` 为 null 时两边抛同一个 TypeError | `!` 去掉报 **TS18047 `'result.value' is possibly 'null'`**(探针 N) |
 
-另申报一处**照抄带来的语言现象**(不是改动):蓝本 `:145` 的箭头函数参数就叫 `t`,
+**「不能保抛」的条目数:0** —— 四处全部改成保抛后 `vue-tsc` 仍 **exit 0**(0 行输出),
+证明 `as` / `!` 已足够满足 `strict`,首版那三处 `?.` / `&&` 从一开始就是多余的、且各自
+把一条蓝本会抛的路径变成了静默 no-op。
+
+**「机械必需」的判据**(探针 J/K/L/N/O,五条全部 tsc 硬报错 → 不是「为了好看」而加):
+回退成蓝本原样时 tsc 共报 **TS2339 / TS2531 / TS18047 三类、7 处**错误,逐条列在上表最后一列。
+
+另申报一处**照抄带来的语言现象**(不是改动,不挂 K34):蓝本 `:145` 的箭头函数参数就叫 `t`,
 在 `<script setup>` 里会**遮蔽** i18n 的 `t`。**逐字照抄了这个参数名**(改名 = 无关重构);
 Vue 编译器的作用域跟踪(`walkIdentifiers`)会把它解析成参数而不是 `$setup.t`,
 已有专门用例断言 sparse 那一行渲染成 `151268:0.2153 · 11728:0.2056 · …`(若解析错会变
 `undefined:undefined` 或抛错)。
-
----
 
 ## 16. 顾虑 / 交接
 
@@ -526,4 +620,26 @@ Vue 编译器的作用域跟踪(`walkIdentifiers`)会把它解析成参数而不
    🔴 **别传 `.pdf`**(触发 ~200 MB 模型下载)。已写进用例注释,协调者写验收清单时请照抄这条。
 3. **计划书 T7 节那行单元素根写法未订正**(§13 末尾)—— 交协调者就地改,避免下游再照旧写法。
 4. **E-16 是治理文件 §3.5 N22 里的行号偏差**(`:66` → `:65`),内容无误,交协调者就地订正。
-5. 无 `NEEDS_CONTEXT`。
+5. **探针 H 写过 `src/i18n/zh_cn.ts`**(已 md5 还原、不在提交里)—— 见 §12.1 末尾的说明与请示。
+6. 无 `NEEDS_CONTEXT`。
+
+---
+
+## 17. 本轮(第二轮)收了什么 —— 评审 M-1 / I-1 / M-2
+
+评审结论:**`Ready to merge`**,产品代码与测试**零缺陷**(0 Critical / 1 Info / 2 Minor)。
+本轮只收那 3 条,**未动任何评审判为「无需补」的项**(它猎的 7 处里 2 处判「无物可守」——
+路径不可达 + tsc 兜住 —— 未补;它自己那条 `--reporter=basic` harness 教训与本刀无关)。
+
+| 条 | 评审指出 | 本轮怎么收 |
+|---|---|---|
+| 🔴 **M-1** | **K34 内部矛盾**:K34-4 论证「`?.` 会改行为所以用 `!`」,而 K34-1/2/3 恰好用了 `?.` / `&&`,把蓝本的 `TypeError` 变成**静默 no-op** → 同一文件两套相反判断,「零行为变化」按字面不成立 | **三处全部改成保抛写法**(`files![0]` / `fileInput!.click()` / `e.dataTransfer!.files`),`vue-tsc` 仍 **exit 0**;文件头 K34 注释整段重写为统一口径;**「不能保抛」条目数 = 0**。三列表 + 五条 tsc 探针见 §15 / §12.1 |
+| 🔴 **I-1** | 报告 New-UI 侧行号**全面陈旧**(`.vue` 称 415 实为 471;`.test.ts` 称 1046 实为 1373;template 偏 −9、script 偏 +15~+24) | **用脚本重算全表**(不手改),§2.1 / §2.2 两张表全部替换;脚本在**剥注释后的源**上定位(保行版,行号与原文逐行对齐),避免撞头注释里的同名写法。行数经本轮改动后为 **`.vue` 485 / `.test.ts` 1412**。**蓝本侧行号评审抽查全对,未动** |
+| **M-2** | N22 扫描用 `'cos '` / `'rr '` 这类**通用子串**扫全语言包 —— 当前 0 命中,但将来无关新键含这些子串会**假报红**(治理 §9 第九条同族) | 收紧成 **① 精确整值相等** + 新增 **② 键集闭合**(模板里 `t()` 的键集恰好是那 23 个 `aiKbPt*`)。② 才是「有人补成 i18n 键」的真正判据,判别力更强且**零假报红面**;正向裸文本那条保留。**配两条 RED 探针(H / I)证明收紧后仍抓得住**。用例数因拆条 79 → 80 |
+
+**保持不动的**:E-15(本页无 `🧪`)与 E-16(N22 行号偏 1)评审已独立复核成立,原样保留。
+
+**本轮改动的文件**:`ParserTest.vue`(K34 注释 + 三处保抛)· `ParserTest.test.ts`(M-2 两条守卫)·
+本报告。**仍未碰**:`parser-styles.scss` / `parserStyles.test.ts` / `ParserStatus*` / `parserStore.ts` /
+`knowledge.scss` / `knowledgeStyles.test.ts` / `src/i18n/*`(探针除外,已还原)/ `FolderBrowser*` /
+路由 / §1.1 清单。
