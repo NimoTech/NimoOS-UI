@@ -39,6 +39,7 @@ describe('类 1 · 整体删除', () => {
       'src/settings/util/folderBrowser.ts',        // E3:零消费方,改为整体删除
       'src/settings/util/folderBrowser.test.ts',
       'public/demo/fish_video_poster.jpg',
+      'src/home/util/isAssetId.ts',                // T7 尾巴4:bindPhotos/PhotoTile 都没了之后的孤儿
     ]) expect(exists(rel), rel).toBe(false)
   })
 
@@ -137,5 +138,64 @@ describe('类 3 · 桌面侧补丁', () => {
 
   it('复审修复:layout.ts 不再 import isAssetId', () => {
     expect(read('src/home/stores/layout.ts')).not.toMatch(/isAssetId/)
+  })
+
+  it('T7 尾巴1:HomeTopbar 不再引用 homeUi(搜索按钮与 ⌘K 监听已被上面的补丁删完)', () => {
+    expect(read('src/home/components/HomeTopbar.vue')).not.toMatch(/homeUi/)
+  })
+})
+
+describe('类 3 · 设置与 Service 侧补丁', () => {
+  it('设置 tab 从 9 降到 8,rail 从 7 降到 6,folder-permissions 全无', () => {
+    const s = read('src/settings/util/tabs.ts')
+    expect(s).not.toMatch(/folder-permissions|FolderPermissions/)
+    expect(s).toContain('SETTINGS_TABS.slice(0, 6)')
+    expect(read('src/settings/panels/index.ts')).not.toMatch(/FolderPermissions/)
+  })
+
+  it('railTabsFor 退化为恒等(不再按 admin 过滤)', () => {
+    const s = read('src/settings/util/tabs.ts')
+    expect(s).toContain('export function railTabsFor(): readonly SettingsTab[] {')
+    expect(s).not.toMatch(/role === 'admin'/)
+  })
+
+  it('SettingsShell.vue 的唯一调用处跟着改签名,不再传 role 实参', () => {
+    expect(read('src/settings/components/SettingsShell.vue'))
+      .toContain('const railTabs = computed(() => railTabsFor())')
+  })
+
+  it('E2:systemConfig 不再有 search_switch', () => {
+    expect(read('src/settings/util/systemConfig.ts')).not.toMatch(/search_switch/)
+  })
+
+  it('E13:Service 不再导出 photos / PhotoAsset', () => {
+    const i = read('packages/service/src/index.ts')
+    expect(i).not.toMatch(/createPhotos|PhotoAsset|get photos/)
+    expect(read('packages/service/src/types.ts')).not.toMatch(/PhotoAsset/)
+    // 保留面
+    expect(read('packages/service/src/types.ts')).toContain('UserFolderPermission')
+  })
+
+  it('注释洗白:两处不再点名 AI agent / Photos ML / photos_data', () => {
+    expect(read('src/apps/util/systemApp.ts')).not.toMatch(/AI agent|Photos ML/)
+    expect(read('src/settings/util/appPaths.ts')).not.toMatch(/photos_data/)
+  })
+
+  it('T7 尾巴2:installedApps.ts 的注释不再点名 AI agent / Photos ML', () => {
+    expect(read('src/apps/stores/installedApps.ts')).not.toMatch(/AI agent|Photos ML/)
+  })
+
+  it('T7 尾巴3:AppsPanel.vue 的注释不再提相册区迁移计划', () => {
+    expect(read('src/settings/panels/AppsPanel.vue')).not.toMatch(/相册|SP7/)
+  })
+
+  it('E9:.gitignore 洗掉 4 行,加 .export-report.txt', () => {
+    const g = read('.gitignore')
+    for (const bad of ['.claude/', '.superpowers/', 'scripts/tmlab/', 'vite.config.tmlab.ts']) {
+      expect(g, bad).not.toContain(bad)
+    }
+    expect(g).toContain('.export-report.txt')
+    // E9:断言必须落在"独立一行",不能被写成 *.txt 之类的通配、也不能和别的内容挤在同一行
+    expect(g.split('\n')).toContain('.export-report.txt')
   })
 })

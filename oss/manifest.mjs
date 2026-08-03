@@ -25,6 +25,10 @@ export const DELETE = [
   'src/home/stores/photos.ts',
   'src/home/apps/icons/photos.svg',
   'src/home/apps/icons/ai.svg',
+  // 零消费方孤儿工具(T6 删完 bindPhotos、PhotoTile.vue 已在本表):
+  // src/home/stores/photos.test.ts 仍直接 import 它,但那份测试本身是
+  // "测试同步:整体删除的 9 个"之一(T13 填齐),不在本任务改动范围。
+  'src/home/util/isAssetId.ts',
 
   // 音频转录(waveform.ts 保留 —— 它解码 PCM 画真实波形,不涉 AI)
   'src/files/viewers/audioTranscripts.ts',
@@ -268,7 +272,80 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: "const curTab = ref<'widget' | 'app' | 'folder'>('widget')" },
   { path: 'src/home/composables/useAddPanel.ts',
     find: "    if (kind === 'photo') return [2, 2]\n", replace: '' },
+
+  // ═══════════════════ T7:设置侧 + Service 侧 + 注释洗白 + .gitignore ══════
+
+  // ── HomeTopbar.vue:T6 删完搜索按钮与 ⌘K 监听后剩下的 2 行死代码 ─────────
+  { path: 'src/home/components/HomeTopbar.vue',
+    find: "import { useHomeUiStore } from '../stores/homeUi'\n", replace: '' },
+  { path: 'src/home/components/HomeTopbar.vue',
+    find: 'const homeUi = useHomeUiStore()\n', replace: '' },
+
+  // ── tabs.ts:去 folder-permissions,rail 7→6,railTabsFor 退化为恒等 ──────
+  // 头部映射注释也点了名(现场 sed 取出,brief 未给):按角色裁剪的那一整项功能
+  // 已经不存在,继续保留具体名字和旧计数只是死文档,一并改写。
+  { path: 'src/settings/util/tabs.ts',
+    find: '//   - data().tabs (L855-863) —— 侧栏 rail 的 7 项\n//   - visibleTabs (L1034)    —— 非 admin 过滤掉 folder-permissions\n',
+    replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) —— 侧栏 rail 项与按角色的可见性裁剪\n' },
+  { path: 'src/settings/util/tabs.ts',
+    find: "  'system-status',\n  'folder-permissions',\n  'account',",
+    replace: "  'system-status',\n  'account'," },
+  { path: 'src/settings/util/tabs.ts',
+    find: "/** 侧栏 rail 上可见的 7 项(account / developer 有各自入口,不在 rail 上)。 */\nexport const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 7)",
+    replace: "/** 侧栏 rail 上可见的 6 项(account / developer 有各自入口,不在 rail 上)。 */\nexport const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 6)" },
+  { path: 'src/settings/util/tabs.ts',
+    find: "  'folder-permissions': 'settingsTabFolderPermissions',\n", replace: '' },
+  { path: 'src/settings/util/tabs.ts',
+    find: "/** Vue2 visibleTabs:只有 admin 能看到 folder-permissions。role 缺失按非 admin 处理。 */\nexport function railTabsFor(role: string | undefined): readonly SettingsTab[] {\n  if (role === 'admin') return RAIL_TABS\n  return RAIL_TABS.filter((t) => t !== 'folder-permissions')\n}",
+    replace: "/** rail 上没有按角色隐藏的项,直接返回全集(保留函数形状以免调用处发散)。 */\nexport function railTabsFor(): readonly SettingsTab[] {\n  return RAIL_TABS\n}" },
+
+  // ── panels/index.ts ─────────────────────────────────────────────────────
+  { path: 'src/settings/panels/index.ts',
+    find: "import FolderPermissionsPanel from './FolderPermissionsPanel.vue'\n", replace: '' },
+  { path: 'src/settings/panels/index.ts',
+    find: "  'folder-permissions': FolderPermissionsPanel,\n", replace: '' },
+
+  // ── SettingsShell.vue:railTabsFor 的唯一非测试调用处,少一个实参 ─────────
+  { path: 'src/settings/components/SettingsShell.vue',
+    find: "const railTabs = computed(() =>\n  railTabsFor(typeof user.value.role === 'string' ? user.value.role : undefined),\n)",
+    replace: 'const railTabs = computed(() => railTabsFor())' },
+
+  // ── E2:systemConfig 的 search_switch(索引签名已保证读改写不丢未知字段)──
+  { path: 'src/settings/util/systemConfig.ts',
+    find: '  search_switch?: boolean\n', replace: '' },
+  { path: 'src/settings/util/systemConfig.ts',
+    find: '  search_switch: true,\n', replace: '' },
+
+  // ── 注释洗白(代码一个字节不动)────────────────────────────────────────
+  { path: 'src/apps/util/systemApp.ts',
+    find: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(AI agent 运行时 /\n *  Photos ML 后端等),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。",
+    replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
+  { path: 'src/settings/util/appPaths.ts',
+    find: '// 后端(2026-08-01 实测 GET /v1/sys/paths)返回 4 个 key —— app_data / images / database /\n// photos_data,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。',
+    replace: '// 后端(2026-08-01 实测 GET /v1/sys/paths)可能返回更多 key,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。' },
+  { path: 'src/apps/stores/installedApps.ts',
+    find: '        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。',
+    replace: '        // 系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。' },
+  { path: 'src/settings/panels/AppsPanel.vue',
+    find: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。\n//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。',
+    replace: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
+
+  // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
+  { path: '.gitignore',
+    find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n.superpowers/\n',
+    replace: '' },
+  { path: '.gitignore',
+    find: '\n# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库\nscripts/tmlab/\nvite.config.tmlab.ts',
+    replace: '\n# 导出报告(含上游 commit hash),仅供本地追溯\n.export-report.txt' },
 ]
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
-export const SERVICE_PATCH = []
+export const SERVICE_PATCH = [
+  { path: 'src/index.ts', find: "import { createPhotos } from './photos.js'\n", replace: '' },
+  { path: 'src/index.ts', find: 'PhotoAsset, ', replace: '' },
+  { path: 'src/index.ts',
+    find: '  get photos(): ReturnType<typeof createPhotos> {\n    return createPhotos(getHttp() as AxiosInstance, () => getConfig().getToken())\n  },\n',
+    replace: '' },
+  { path: 'src/types.ts',
+    find: 'export interface PhotoAsset { id: string | number; [k: string]: unknown }\n', replace: '' },
+]
