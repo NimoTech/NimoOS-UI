@@ -1,30 +1,68 @@
 // SP8-P5c Task 3(半一)—— `util/folderBrowser.ts` 三个纯函数的单测。
 // 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/components/common/folderBrowser.js:3-34`。
 //
-// 【端到端那条用例的数据来源】直接在运行时读
-// `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(治理 §4:所有 mock 一律取
-// 真响应体,禁手编 —— 记忆 `newui-fixture-from-imagination-trap`)。该 fixture 是
-// **HTTP 原文的三层信封** `{success,message,data:{content:[…18 项…],total,index,size}}`,
-// 本文件测的是纯函数 `dirEntries(content)`,所以取的是 **`data.content` 那一层**
-// (18 项的数组本身)。K28 的换层只影响组件那半(`FolderBrowser.vue`),纯函数这半
-// 只吃 `content` 数组。
-// ⚠️ 该 fixture 已被 `git add -f` 纳入版本库(`.gitignore` 有 `.superpowers/`,但
-// 已跟踪文件不受 ignore 影响,`git ls-files` 可见)→ 运行时读取是可复现的。
-// 🔴 读文件一律 `node:fs`,不用 Vite 的 `?raw`(vitest 的 CSSEnablerPlugin 会把
-// 某些资源换成空串 → 断言对空内容「假通过」;先例 `knowledgeStyles.test.ts` 头注释③)。
+// 【端到端那条用例的数据来源】`folder-list-DATA.json` 的 `data.content` 那一层
+// (18 项)**逐字抄进本文件**(见下方 FIXTURE-COPY 块),不在运行时读那个目录 ——
+// 协调者裁定(见 T3 报告 §8):`.superpowers/` 被 gitignore 盖着、靠 `git add -f`
+// 才进版本库,SP7 曾整目录丢过一次;`src/` 下的测试跨界依赖它,一旦合并没带上或有人
+// 跑 `git clean -X`,就会以「找不到文件」的形式神秘挂掉。治理 §4「禁手编」的本意是
+// 「别凭想象编数据」(记忆 `newui-fixture-from-imagination-trap`),抄本 + 注明出处
+// 同样满足,且测试自包含。抄本与 fixture 原文的等价性由一次性脚本程序化校验(报告 §9)。
 // 期望值(12 个目录名与它们的 `localeCompare` 顺序)是**写死的字面量**,不是从
-// fixture 现算出来的 —— 否则断言会自我实现、失去判别力。
+// 抄本现算出来的 —— 否则断言会自我实现、失去判别力。
 import { describe, it, expect } from 'vitest'
-// @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明
-import { readFileSync } from 'node:fs'
-// @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明
-import { resolve, dirname } from 'node:path'
-// @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明
-import { fileURLToPath } from 'node:url'
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import { crumbsFor, dirEntries, pickerRoots } from './folderBrowser'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+/**
+ * `GET /v1/folder?path=/DATA` 每一项的原文形状(11 个字段,顺序与后端一致)。
+ * 逐字取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取)。
+ */
+interface RawFolderItem {
+  name: string
+  size: number
+  is_dir: boolean
+  is_symlink: boolean
+  modified: string
+  sign: string
+  thumb: string
+  type: number
+  path: string
+  date: string
+  extensions: null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FIXTURE-COPY-BEGIN  ——  folder-list-DATA.json 的 data.content(18 项)
+// 取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取),
+// 逐字抄入以免测试跨界依赖 gitignore 目录 —— 协调者裁定,见 T3 报告 §8。
+// 🔴 那份 fixture 是 **HTTP 原文的三层信封**
+//   `{success,message,data:{content:[…18 项…],total,index,size}}`;
+//   这里抄的是 **`data.content` 那一层**(= `unwrap()` 之后 `service.folder.getList()`
+//   给出的 `{ content }` 里的数组本身)。这个降层动作就是 K28 的落地证据。
+// 🔴 字段一个没精简、顺序一个没改;等价性由一次性脚本程序化校验(报告 §9)。
+// ─────────────────────────────────────────────────────────────────────────────
+const DATA_CONTENT: RawFolderItem[] = [
+  {"name": ".snapshots", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T22:08:06.07507098+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.snapshots", "date": "2026-07-30T22:08:06.07507098+08:00", "extensions": null},
+  {"name": ".system_data", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T22:16:28.530622772+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.system_data", "date": "2026-07-30T22:16:28.530622772+08:00", "extensions": null},
+  {"name": ".wiki.md", "size": 2558, "is_dir": false, "is_symlink": false, "modified": "2026-07-31T17:06:29.558792532+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.wiki.md", "date": "2026-07-31T17:06:29.558792532+08:00", "extensions": null},
+  {"name": "Amalfi Coast", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-07T12:19:56.792668321+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Amalfi Coast", "date": "2026-07-07T12:19:56.792668321+08:00", "extensions": null},
+  {"name": "AppData", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-23T11:23:08.733979447+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/AppData", "date": "2026-07-23T11:23:08.733979447+08:00", "extensions": null},
+  {"name": "Documents", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-22T17:03:25.553912817+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Documents", "date": "2026-07-22T17:03:25.553912817+08:00", "extensions": null},
+  {"name": "Downloads", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2022-07-06T09:00:46.243995396+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Downloads", "date": "2022-07-06T09:00:46.243995396+08:00", "extensions": null},
+  {"name": "Gallery", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-23T14:37:56.926239751+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Gallery", "date": "2026-07-23T14:37:56.926239751+08:00", "extensions": null},
+  {"name": "Image", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T18:18:59.58279995+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Image", "date": "2026-07-30T18:18:59.58279995+08:00", "extensions": null},
+  {"name": "KVM", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T20:33:51.818325425+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/KVM", "date": "2026-07-30T20:33:51.818325425+08:00", "extensions": null},
+  {"name": "Media", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-21T14:29:41.551348808+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Media", "date": "2026-07-21T14:29:41.551348808+08:00", "extensions": null},
+  {"name": "NIMO", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-04T10:56:17.701403032+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/NIMO", "date": "2026-07-04T10:56:17.701403032+08:00", "extensions": null},
+  {"name": "Notes", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-18T16:05:53.980766082+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Notes", "date": "2026-07-18T16:05:53.980766082+08:00", "extensions": null},
+  {"name": "lost+found", "size": 16384, "is_dir": true, "is_symlink": false, "modified": "2022-07-06T08:56:00+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/lost+found", "date": "2022-07-06T08:56:00+08:00", "extensions": null},
+  {"name": "nimo.tar.gz", "size": 12886696675, "is_dir": false, "is_symlink": false, "modified": "2026-06-12T11:49:39.693706674+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/nimo.tar.gz", "date": "2026-06-12T11:49:39.693706674+08:00", "extensions": null},
+  {"name": "todo-widget", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-18T15:29:16.289637517+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/todo-widget", "date": "2026-07-18T15:29:16.289637517+08:00", "extensions": null},
+  {"name": "todo-widget.html", "size": 4251, "is_dir": false, "is_symlink": false, "modified": "2026-07-18T15:21:03.066935239+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/todo-widget.html", "date": "2026-07-18T15:21:03.066935239+08:00", "extensions": null},
+  {"name": "我如何高效的使用claudecode.md", "size": 6808, "is_dir": false, "is_symlink": false, "modified": "2026-07-04T14:22:27.546329309+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/我如何高效的使用claudecode.md", "date": "2026-07-04T14:22:27.546329309+08:00", "extensions": null},
+]
+// FIXTURE-COPY-END
 
 /** 造一项 `GET /v1/folder` 的条目(字段名与真 fixture 逐字一致:`is_dir` 而非 `isDir`)。 */
 function entry(name: string, isDir: boolean, path?: string): FolderEntry {
@@ -86,14 +124,9 @@ describe('dirEntries(content) —— 蓝本 folderBrowser.js:3-8', () => {
     expect(out.map((e) => e.name)).toEqual(['KVM', 'lost+found', 'Media'])
   })
 
-  it('端到端:真 fixture folder-list-DATA.json 的 18 项 → 12 个可见目录(取 data.content 那一层)', () => {
-    const raw: string = readFileSync(
-      resolve(__dirname, '../../../../.superpowers/sdd/p5c-fixtures/folder-list-DATA.json'),
-      'utf8',
-    )
-    const envelope = JSON.parse(raw) as { data: { content: FolderEntry[] } }
-    const content = envelope.data.content // ← 三层信封里的 content 那一层
-    // fixture 没漂:18 项、其中 14 项 is_dir(含 3 个隐藏)
+  it('端到端:folder-list-DATA.json 抄本的真实 18 项 → 12 个可见目录(取 data.content 那一层)', () => {
+    const content = DATA_CONTENT // ← 三层信封里的 content 那一层(抄本)
+    // 抄本没漂:18 项、其中 14 项 is_dir(含 3 个隐藏)
     expect(content).toHaveLength(18)
     expect(content.filter((e) => e.is_dir)).toHaveLength(14)
 

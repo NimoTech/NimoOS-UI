@@ -82,9 +82,9 @@ axios res.data           : { success: 200, message: 'ok', data: { content: [...1
 unwrap(res.data)         : { content: [...18], total, index, size }   ← service.folder.getList 返回这一层
 ```
 
-→ 测试里 `fixtureContent()` 用 `node:fs` 读那份 fixture 后 **只取 `data.content` 那一层**(18 项原文,
-一字不改),再包成 `const DATA_LISTING = { content: DATA_CONTENT }` 当 mock 的 resolve 值。
-**绝不把三层信封整个塞进 mock。**
+→ 测试里 **只取 `data.content` 那一层**(18 项原文,一字不改),再包成
+`const DATA_LISTING = { content: DATA_CONTENT }` 当 mock 的 resolve 值。**绝不把三层信封整个塞进 mock。**
+(⚠️ 这一层的取法在后续提交里由「运行时 `node:fs` 读 fixture」改成「抄本」,降层动作与注释不变 —— 见 §9。)
 
 并且专门写了一条**反向判别力用例**钉死这一点:
 
@@ -100,9 +100,9 @@ fixture 实测:18 项 → `is_dir` 14 项(含 3 个隐藏)→ 过滤后 **12 个
 顺带钉住了排序的判别力:fixture 原序里 `lost+found` 在 `Notes` 之后(后端按码点排),
 `localeCompare` 之后它落在 `KVM` 与 `Media` 之间。
 
-⚠️ fixture 是运行时读的(不是抄进测试文件)。可复现性已核:`.gitignore` 有 `.superpowers/`,
-但 `p5c-fixtures/*` **已被 `git add -f` 纳入版本库**(`git ls-files` 可见)→ 任何检出都拿得到。
-读文件一律 `node:fs`(不用 Vite 的 `?raw`)。
+⚠️ **fixture 数据已按协调者裁定改成「抄进测试文件 + 注明出处」并做了程序化等价校验 —— 见 §9。**
+(本节初版写的是「运行时 `node:fs` 读 fixture」,已作废;读 `.vue` **源文件**的两条守卫断言
+仍用 `node:fs`,那读的是 `src/` 内的产品源码,不是台账目录。)
 
 ---
 
@@ -229,10 +229,91 @@ pnpm build                  exit=0    ✓ built in 12.79s
    提交,`git diff --name-only b174711..a2fd53f -- src/` 为空 → 基线不受影响。本刀取 `a2fd53f`。
 2. **brief §6 的「`dist` 里搜不到 `.fb-` 是正常的」按字面读是错的** —— CSS 确实在 dist(T2a 的
    `knowledge.scss` 已进管线),缺的只是组件 JS。已在 §5 订正,评审别按 brief 那句去核。
-3. **fixture 是运行时读的**(不是抄进测试)。理由与可复现性依据见 §2 末段。若协调者更偏好 P5b
-   `QueueView.test.ts` 那种「抄进测试文件 + 注释标出处」的写法,可以换,但那会引入抄写误差风险,
-   而 brief §2 的原话是「**这条不许手编数据,直接读 fixture**」→ 取了字面解释。
+3. ~~**fixture 是运行时读的**(不是抄进测试)。~~ 🔴 **已按协调者裁定改成抄本,见 §9(本报告所在的后续提交)。**
 4. `PickerCandidate` / `PickerRoot` / `DirEntry` / `Crumb` 四个导出类型是 TS 化的必要产物;
    T9 写 `SettingsView` 时直接 `import type` 复用即可,不要另造一套。
 5. 组件的 `props.roots` 在模板里写成 `props.roots`(而不是裸 `roots`)—— `withDefaults` 下两者等价,
    写成 `props.` 是为了让 `!props.roots.length` 的非空性对 TS 显式成立。渲染结果与蓝本一致。
+
+---
+
+## 9. 🔴 后续提交 —— fixture 口径变更(运行时读 → 抄本)+ 等价校验
+
+**协调者裁定(2026-08-03,针对 §8 顾虑 3)**:不许在 `src/` 下的测试里运行时读
+`.superpowers/sdd/p5c-fixtures/`,换成 P5b 的写法「**把数据抄进测试文件 + 注释标明出处**」。
+理由(记账,下游同类情形一律照此):
+
+1. `.superpowers/` 被 `.gitignore` 盖着、靠 `git add -f` 才进版本库 —— 🔴 **这个目录在 SP7
+   整个丢过一次**(记忆 `sp7-photos-migration-progress`:`NimoOS-UI/.superpowers` 整目录消失,
+   gitignore 导致 git 救不回)。
+2. 本分支将来要合 master。`src/` 下的测试**跨界依赖一个 gitignore 目录**,一旦合并没带上、
+   或有人跑 `git clean -X`,测试会以「找不到文件」的形式神秘挂掉,而排查的人根本想不到去看台账目录。
+3. 治理 §4 / brief §2 那句「不许手编数据,直接读 fixture」的**本意是「别凭想象编数据」**
+   (记忆 `newui-fixture-from-imagination-trap`),不是「必须运行时读」。抄本 + 注明出处同样满足,
+   且测试自包含。
+
+### 9.1 改了什么
+
+| 文件 | 改动 |
+|---|---|
+| `util/folderBrowser.test.ts` | 删掉 `node:fs`/`node:path`/`node:url` 三个 import 与 `__dirname`;新增 `RawFolderItem` 接口(11 个字段)+ `FIXTURE-COPY-BEGIN/END` 块里的 `DATA_CONTENT`(18 项);端到端那条用例改吃 `DATA_CONTENT`,用例名由「真 fixture …」改成「folder-list-DATA.json 抄本的真实 18 项」 |
+| `components/FolderBrowser.test.ts` | 删掉 `fixtureContent()` 函数(那个运行时读);同样新增 `RawFolderItem` + `FIXTURE-COPY` 块;`DATA_LISTING = { content: DATA_CONTENT }` 保留,**降层动作的注释原样保留**(K28 的落地证据)。`node:fs` 三个 import **保留** —— 守卫缺口③ 那两条要读 `FolderBrowser.vue` 源文件,那是读**产品源码**(在 `src/` 内、`git` 里),不是读台账目录 |
+
+- **抄的是三层信封里的 `data.content` 那一层**(18 项),字段一个没精简(11 个全在)、顺序一个没改。
+- 抄本**不是手打的**:用脚本从 fixture 生成 TS 字面量文本、再用脚本插进两个测试文件,
+  全程零人工转写(消除协调者担心的「抄写误差」)。
+- 「把三层信封整个塞进 mock → 列表必须为空」的反向用例**保留**。
+- util 那半的期望值(12 个目录名 + `localeCompare` 顺序)仍是写死字面量,**未动**。
+- **用例数不变**:util 25 + 组件 19 = 44(与前一提交逐字相同),只是数据来源换了。
+
+### 9.2 程序化等价校验(**不是肉眼**)
+
+一次性脚本 `/tmp/p5c-t3-fixture-equiv.mjs`(不进版本库):按 `FIXTURE-COPY-BEGIN/END` 标记从
+两个测试文件里取出数组字面量 → `JSON.parse` → 与 fixture 的 `data.content` 比「规范化 JSON 串」
+(`JSON.stringify` 保留键序 ⇒ 串相同即键名/键序/值/项序全同)+ sha256 双保险:
+
+```
+fixture .superpowers/sdd/p5c-fixtures/folder-list-DATA.json
+  三层信封顶层键: ["success","message","data"]
+  data 层键:      ["content","total","index","size"]
+  data.content:   18 项 · canon 4189 字节 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
+  ✅ src/ai/knowledge/util/folderBrowser.test.ts
+      抄本: 18 项 · canon 4189 字节 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
+  ✅ src/ai/knowledge/components/FolderBrowser.test.ts
+      抄本: 18 项 · canon 4189 字节 · sha256 6aa80ebf67b4ac30adbda12e9508741e264a27f3f99b14f64290331006d210f0
+
+RESULT: 2/2 MATCH(逐字节等价)
+exit=0
+```
+
+**变异验证(证明这个脚本有判别力,不是空转)**:把 util 抄本里 `lost+found` 的
+`"size": 16384` 改成 `16385`(整串锚定 + `grep -c` 证明注入落盘 = 1)→
+
+```
+        抄本 {"name":"lost+found","size":16385,…}
+        原文 {"name":"lost+found","size":16384,…}
+RESULT: 1 处不等价      exit=1
+```
+
+还原后复跑 `RESULT: 2/2 MATCH`,`grep -c '"size": 16385'` = 0。
+⚠️ 顺带一条 §9 纪律的实证:**第一次注入用的锚串是我凭记忆写的 `"size": 4096`(以为所有目录都是
+4096),`assert count == 1` 当场炸了 —— 若没有那句 assert,脚本会照报 `2/2 MATCH`,我就会把
+「注入没落盘」误读成「校验脚本抓不到」。** 治理 §9 第七条(探针注入必须先证落盘)第 N 次救场。
+
+### 9.3 三门(改口径后复跑全量,输出落盘 `/tmp/p5c-t3b-*.log`)
+
+```
+pnpm test                   exit=0    Test Files  322 passed (322)
+                                            Tests  3225 passed (3225)
+pnpm exec vue-tsc --noEmit  exit=0    (零输出)
+pnpm build                  exit=0    ✓ built in 12.79s
+```
+
+**与前一提交逐字相同**(322 / 3225)—— 用例数没变,符合协调者「用例数不该变」的要求。
+仍未碰 scss / 两个 `*Styles.test.ts` / `src/i18n/*` / `KIcon.vue` / 路由 / Service 仓。
+
+### 9.4 顾虑 2 的记账(协调者已认)
+
+brief §6 那句「`dist` 里搜不到 `.fb-` 也正常(被 tree-shake)」把 CSS 与 JS 混为一谈:
+`.fb-crumb` 等 **CSS 确实在 `dist/assets/index-*.css` 里**(T2a 的 `knowledge.scss` 由
+`KnowledgeLayout.vue` import);被 tree-shake 掉的只有组件 JS。协调者已确认并会在治理里就地订正。

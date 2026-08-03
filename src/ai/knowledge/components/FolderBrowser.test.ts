@@ -5,15 +5,17 @@
 //   `service.folder.getList` 在共享包里是 `unwrap<FolderListing>(res.data)`
 //   (`NimoOS-Service/src/folder.ts:7-10`)→ 它 resolve 出来的是 **单层**
 //   `{ content: FolderEntry[] }`。
-//   fixture `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` 是 **HTTP 原文的
-//   三层信封** `{success,message,data:{content:[…18 项…],total,index,size}}`。
-//   → 本文件在运行时读那份 fixture,**只取 `data.content` 那一层**再包成
-//   `{ content: <那 18 项> }` 当 mock 的返回值。**绝不把三层信封整个塞进 mock**
-//   (那样 `listing.content` 会是 undefined,K28 就白做了)。
-//   ⚠️ fixture 已 `git add -f` 纳入版本库(`.gitignore` 有 `.superpowers/`,但已跟踪
-//   文件不受 ignore 影响)→ 运行时读取可复现。
-// 🔴 读文件一律 `node:fs`,不用 Vite 的 `?raw`(vitest 的 CSSEnablerPlugin 会把
-//   样式源换成空串 → 断言对空字符串「假通过」;先例 `knowledgeStyles.test.ts` 头注释③)。
+//   fixture `folder-list-DATA.json` 是 **HTTP 原文的三层信封**
+//   `{success,message,data:{content:[…18 项…],total,index,size}}`。
+//   → 本文件抄的是它 **`data.content` 那一层**,再包成 `{ content: <那 18 项> }`
+//   当 mock 的返回值。**绝不把三层信封整个塞进 mock**(那样 `listing.content` 会是
+//   undefined,K28 就白做了)。这个降层动作就是 K28 的落地证据,下方那条
+//   「把三层信封整个塞进 mock → 列表必须为空」的反向用例把它钉死。
+// 🔴 抄本(不是运行时读 `.superpowers/`)—— 协调者裁定,理由见本文件 FIXTURE-COPY
+//   块的注释与 T3 报告 §8;等价性由一次性脚本程序化校验(报告 §9)。
+// 读 `.vue` 源文件(守卫缺口③ 那两条)仍一律 `node:fs`,不用 Vite 的 `?raw`
+//   (vitest 的 CSSEnablerPlugin 会把样式源换成空串 → 断言对空字符串「假通过」;
+//   先例 `knowledgeStyles.test.ts` 头注释③)。
 // 测试脚手架照 `QueueView.test.ts` / `IndexedFilesView.test.ts`(P5b 收官产物):
 //   真 i18n(不手写子集)+ `vi.hoisted()` 的 service mock + `flushPromises()`。
 //   本组件不用 router / 不用 store,故不装那两个插件。
@@ -37,17 +39,54 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { folder } }))
 
 interface RawEntry { name: string; path: string; is_dir: boolean }
 
-/** 从 fixture 的三层信封里取出 `data.content` 那一层(18 项原文,一字不改)。 */
-function fixtureContent(): RawEntry[] {
-  const raw: string = readFileSync(
-    resolve(__dirname, '../../../../.superpowers/sdd/p5c-fixtures/folder-list-DATA.json'),
-    'utf8',
-  )
-  return (JSON.parse(raw) as { data: { content: RawEntry[] } }).data.content
+/**
+ * `GET /v1/folder?path=/DATA` 每一项的原文形状(11 个字段,顺序与后端一致)。
+ * 逐字取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取)。
+ */
+interface RawFolderItem {
+  name: string
+  size: number
+  is_dir: boolean
+  is_symlink: boolean
+  modified: string
+  sign: string
+  thumb: string
+  type: number
+  path: string
+  date: string
+  extensions: null
 }
 
-const DATA_CONTENT = fixtureContent()
-/** 🔴 单层形状(= 包方法的返回值),不是那个三层信封。 */
+// ─────────────────────────────────────────────────────────────────────────────
+// FIXTURE-COPY-BEGIN  ——  folder-list-DATA.json 的 data.content(18 项)
+// 取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取),
+// 逐字抄入以免测试跨界依赖 gitignore 目录 —— 协调者裁定,见 T3 报告 §8。
+// 🔴 抄的是三层信封里的 **`data.content` 那一层**(= K28 的降层动作)。
+// 🔴 字段一个没精简、顺序一个没改;等价性由一次性脚本程序化校验(报告 §9)。
+// ─────────────────────────────────────────────────────────────────────────────
+const DATA_CONTENT: RawFolderItem[] = [
+  {"name": ".snapshots", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T22:08:06.07507098+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.snapshots", "date": "2026-07-30T22:08:06.07507098+08:00", "extensions": null},
+  {"name": ".system_data", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T22:16:28.530622772+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.system_data", "date": "2026-07-30T22:16:28.530622772+08:00", "extensions": null},
+  {"name": ".wiki.md", "size": 2558, "is_dir": false, "is_symlink": false, "modified": "2026-07-31T17:06:29.558792532+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.wiki.md", "date": "2026-07-31T17:06:29.558792532+08:00", "extensions": null},
+  {"name": "Amalfi Coast", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-07T12:19:56.792668321+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Amalfi Coast", "date": "2026-07-07T12:19:56.792668321+08:00", "extensions": null},
+  {"name": "AppData", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-23T11:23:08.733979447+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/AppData", "date": "2026-07-23T11:23:08.733979447+08:00", "extensions": null},
+  {"name": "Documents", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-22T17:03:25.553912817+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Documents", "date": "2026-07-22T17:03:25.553912817+08:00", "extensions": null},
+  {"name": "Downloads", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2022-07-06T09:00:46.243995396+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Downloads", "date": "2022-07-06T09:00:46.243995396+08:00", "extensions": null},
+  {"name": "Gallery", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-23T14:37:56.926239751+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Gallery", "date": "2026-07-23T14:37:56.926239751+08:00", "extensions": null},
+  {"name": "Image", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T18:18:59.58279995+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Image", "date": "2026-07-30T18:18:59.58279995+08:00", "extensions": null},
+  {"name": "KVM", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T20:33:51.818325425+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/KVM", "date": "2026-07-30T20:33:51.818325425+08:00", "extensions": null},
+  {"name": "Media", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-21T14:29:41.551348808+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Media", "date": "2026-07-21T14:29:41.551348808+08:00", "extensions": null},
+  {"name": "NIMO", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-04T10:56:17.701403032+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/NIMO", "date": "2026-07-04T10:56:17.701403032+08:00", "extensions": null},
+  {"name": "Notes", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-18T16:05:53.980766082+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/Notes", "date": "2026-07-18T16:05:53.980766082+08:00", "extensions": null},
+  {"name": "lost+found", "size": 16384, "is_dir": true, "is_symlink": false, "modified": "2022-07-06T08:56:00+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/lost+found", "date": "2022-07-06T08:56:00+08:00", "extensions": null},
+  {"name": "nimo.tar.gz", "size": 12886696675, "is_dir": false, "is_symlink": false, "modified": "2026-06-12T11:49:39.693706674+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/nimo.tar.gz", "date": "2026-06-12T11:49:39.693706674+08:00", "extensions": null},
+  {"name": "todo-widget", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-18T15:29:16.289637517+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/todo-widget", "date": "2026-07-18T15:29:16.289637517+08:00", "extensions": null},
+  {"name": "todo-widget.html", "size": 4251, "is_dir": false, "is_symlink": false, "modified": "2026-07-18T15:21:03.066935239+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/todo-widget.html", "date": "2026-07-18T15:21:03.066935239+08:00", "extensions": null},
+  {"name": "我如何高效的使用claudecode.md", "size": 6808, "is_dir": false, "is_symlink": false, "modified": "2026-07-04T14:22:27.546329309+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/我如何高效的使用claudecode.md", "date": "2026-07-04T14:22:27.546329309+08:00", "extensions": null},
+]
+// FIXTURE-COPY-END
+
+/** 🔴 单层形状(= 包方法 `service.folder.getList()` 的返回值),不是那个三层信封。 */
 const DATA_LISTING = { content: DATA_CONTENT }
 
 /** 蓝本父组件传的是 `pickerRoots()` 的输出;本机 wiki/candidates 实测 `[]` →
