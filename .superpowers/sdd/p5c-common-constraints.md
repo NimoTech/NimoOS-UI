@@ -123,7 +123,9 @@ P5a §3 的 **K1–K8 / P1–P4** 与 P5b §3 的 **K9–K20** 全部继续生�
 
 | **K32** | **模板里写 `props.roots` 而非裸 `roots`**(`FolderBrowser.vue`) | T3 报告 §8.5 已申报,渲染等价(Vue 3 `<script setup>` 两种写法都合法);T3 评审 M-2 判「留着」。**协调者追认编号,不要求改回** |
 
-**除 K1–K32 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
+| **K33** | 🔴 **协调者预先授权(2026-08-03)**:`parserStore.loadAll()` **加 store 实例局部 epoch 过期守卫**(inline,**不抽公共 guard**) | **K15 同族第 2 次**(P5b 那次是用户 E3 授权给 `knowledgeStore` 三个 loader)。蓝本 `loadAll` 有 **8 个并发入口**:`mounted()` · 5 秒轮询(`ParserStatus.vue:129-131`)· 刷新按钮 `reload()`(`:137`)· 5 个控制动作各自 `await this.loadAll()`(`parserStore.js:48-64`)。两个并发在飞时:① 先发后至会用**更旧的**数据覆盖新数据;② 更要紧的是 **`finally` 里 `loading = false` 会被先完成的那个提前清掉**,而 `loading` 直接驱动刷新按钮的 `:disabled`(`ParserStatus.vue:7`)→ **按钮提前解禁,用户可见**。按 §2 判据这是「修一个可复现的错误行为」。🔴 **范围严格限定**:只加守卫,`Promise.all` 四发 / catch 置 `unreachable` / `|| []` 兜底(N7)/ 五个动作「先 control 再 loadAll」全部照抄不动 |
+
+**除 K1–K33 之外的任何偏离都要先申报再做**;拿不准写 `NEEDS_CONTEXT` 并停下。
 
 ## 3.5 明确「照抄、不改」的条目(N1–N14 沿用 + **N15–N22**)
 
