@@ -44,7 +44,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
@@ -52,6 +51,7 @@ import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import {
   mergeConfidencePct, mergeReasonKey, sortNamed, unnamedCountAt, type Person,
@@ -65,6 +65,7 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const people = usePhotosPeople()
 const timeline = useTimelineStore()
+const settings = usePhotosSettingsStore()
 const toast = useToast()
 
 // Vue2 :448
@@ -95,9 +96,11 @@ const reviewIdx = ref(0)
 // 加回这个 ref。命名/合并两条路径的 async 守卫经评审确认确凿有效,不受影响。
 const namingSubmitting = ref(false)
 const mergingSubmitting = ref(false)
-// aiFeatures.faces 的临时来源:本仓没有 settings store(归 P8),onMounted 直接读一次
-// /photos/config。失败或字段缺失一律按 true(不显示警告横幅,宁可不吓用户)。
-const facesEnabled = ref(true)
+// P8a-T6(§7e-10):facesEnabled 曾经是本页自己 onMounted 直读一次 /photos/config 的临时
+// 实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:缺
+// 字段/请求失败一律按开启处理(不显示警告横幅,宁可不吓用户),这条防御性语义已经在
+// store.fetchAiFeatures() 里落实(readAiFeatures 的 `on()` 判据),这里只是消费,不重复实现。
+const facesEnabled = computed(() => settings.aiFeatures.faces)
 
 const confMenuRef = ref<HTMLElement | null>(null)
 const sortMenuRef = ref<HTMLElement | null>(null)
@@ -373,23 +376,13 @@ function onDocKeydown(e: KeyboardEvent): void {
   if (sortOpen.value) sortOpen.value = false
 }
 
-async function loadFacesEnabled(): Promise<void> {
-  try {
-    const cfg = await service.photos.getConfig()
-    const ai = cfg?.aiFeatures as { faces?: unknown } | undefined
-    facesEnabled.value = ai?.faces !== false
-  } catch (e) {
-    // 失败按开启处理:宁可不显示警告,也不要因为一次配置读取抖动就吓用户。
-    console.error('[photos-people] getConfig', e)
-    facesEnabled.value = true
-  }
-}
-
 onMounted(() => {
   // Vue2 :526-527 每次进页面都重拉,不做 loaded 去重,照搬。
   void people.fetchPeople()
   void people.fetchMergeSuggestions()
-  void loadFacesEnabled()
+  // P8a-T6:改读共享 photosSettings store(§7e-10)。侧栏(PhotosSidebar,本页也挂载它)
+  // 同帧也会调用 fetchAiFeatures() —— 并发去重收在 settings.ts 里,这里不需要关心。
+  void settings.fetchAiFeatures()
   document.addEventListener('mousedown', onDocMousedown)
   document.addEventListener('keydown', onDocKeydown)
 })

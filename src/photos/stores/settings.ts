@@ -26,6 +26,12 @@
 // and re-sending the current watchDirs (setAiFaces :1249-1256, setAiFeatures
 // :1281-1291, setTrashRetention :1419-1425, setScanInterval :1432-1438) —
 // every write in this store follows that same read-then-write shape.
+//
+// P8a-T6 (2026-08-04): folded PhotosPeople.vue's and PhotosSmartViews.vue's own
+// onMounted-direct getConfig reads into this store's fetchAiFeatures (§7e-10
+// debt), added an in-flight dedup to fetchAiFeatures (see the comment at its
+// definition — the sidebar is a config consumer too now, §7e-15), and wired
+// PhotosSmartViews.vue's dead-link settings banner to a real route (§7e-9).
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
@@ -86,16 +92,35 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
   const retentionDays = ref(30)
   const scanIntervalMinutes = ref(1440)
 
+  // P8a-T6:多个消费方(侧栏 + 各视图各自的 onMounted)现在都会挂载并各调一次
+  // fetchAiFeatures() —— 侧栏是相册区全局共用组件,与任意一个视图同帧挂载,朴素实现会在
+  // 一次页面加载里对 getConfig 发出两次并发请求。这里加一个「在途去重」:多个并发调用共享
+  // 同一个 in-flight promise。**刻意不做成永久缓存** —— promise 在 finally 里落回 null,
+  // 下一次(不在途时)调用会重新发请求,保持"设置页保存后再进列表页能看到最新值"这条既有
+  // 语义(没有人会指望这个 store 只在应用生命周期内取一次)。形状照 Vue2
+  // store/modules/photos.js:1307-1315 的 `_restoreUploadsPromise`(模块级变量持有的
+  // in-flight promise 让并发调用者复用同一次请求),但语义不同:那处是"全局只运行一次,永久
+  // 不重置"的迁移幂等;这里在 finally 清空,只做"同一帧内的并发去重",不是永久缓存。
+  let aiFeaturesInFlight: Promise<PhotosAiFeatures> | null = null
+
   async function fetchAiFeatures(): Promise<PhotosAiFeatures> {
+    if (aiFeaturesInFlight) return aiFeaturesInFlight
+    aiFeaturesInFlight = (async () => {
+      try {
+        const cfg = (await service.photos.getConfig()) as Record<string, unknown>
+        aiFeatures.value = readAiFeatures(cfg)
+        aiFeaturesLoaded.value = true
+      } catch (e) {
+        aiFeatures.value = { ...ALL_ON }
+        console.error('[photos-settings] fetchAiFeatures', e)
+      }
+      return aiFeatures.value
+    })()
     try {
-      const cfg = (await service.photos.getConfig()) as Record<string, unknown>
-      aiFeatures.value = readAiFeatures(cfg)
-      aiFeaturesLoaded.value = true
-    } catch (e) {
-      aiFeatures.value = { ...ALL_ON }
-      console.error('[photos-settings] fetchAiFeatures', e)
+      return await aiFeaturesInFlight
+    } finally {
+      aiFeaturesInFlight = null
     }
-    return aiFeatures.value
   }
 
   // Vue2 :263-281 是一个 features 的 deep watcher,靠 _suppressFeaturesWatch + $nextTick

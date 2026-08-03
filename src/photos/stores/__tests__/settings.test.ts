@@ -78,6 +78,37 @@ describe('photosSettings store · aiFeatures', () => {
   })
 })
 
+// P8a-T6:侧栏(全相册区共用组件)与各视图现在都会在各自 onMounted 里调
+// fetchAiFeatures() —— store 是单例,同一帧内多个消费方挂载会并发调用。这两条锁住
+// 「在途去重」的两个必要行为:去重生效 + 不是永久缓存。
+describe('photosSettings store · fetchAiFeatures 在途去重(P8a-T6)', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('fetchAiFeatures 并发去重:两个消费方同时挂载只发一次 getConfig', async () => {
+    vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
+    const s = usePhotosSettingsStore()
+    const [a, b] = await Promise.all([s.fetchAiFeatures(), s.fetchAiFeatures()])
+    expect(service.photos.getConfig).toHaveBeenCalledTimes(1)
+    // 两个并发调用者拿到的是同一次取数的结果,不是各自独立的返回值对象身份要求,但值必须一致。
+    expect(a).toEqual(b)
+  })
+
+  it('去重不是永久缓存:上一次结算后再调会重新发请求', async () => {
+    vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
+    const s = usePhotosSettingsStore()
+    await s.fetchAiFeatures()
+    await s.fetchAiFeatures()
+    expect(service.photos.getConfig).toHaveBeenCalledTimes(2)
+  })
+
+  it('三个并发调用者同样只发一次(不是"恰好 2 个"才生效的偶然实现)', async () => {
+    vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
+    const s = usePhotosSettingsStore()
+    await Promise.all([s.fetchAiFeatures(), s.fetchAiFeatures(), s.fetchAiFeatures()])
+    expect(service.photos.getConfig).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('photosSettings store · setAiFeature', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 

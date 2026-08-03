@@ -36,6 +36,7 @@ import PhotosPeople from '../PhotosPeople.vue'
 import photosPeopleRaw from '../PhotosPeople.vue?raw'
 import { usePhotosPeople } from '../../photos/stores/people'
 import { useTimelineStore } from '../../photos/stores/timeline'
+import { usePhotosSettingsStore } from '../../photos/stores/settings'
 import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -104,7 +105,24 @@ describe('PhotosPeople.vue — 生命周期与分区', () => {
     await mountView()
     expect(svc.photos.listPersons).toHaveBeenCalledTimes(1)
     expect(svc.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
+    // getConfig 现在经由 photosSettings store 的 fetchAiFeatures() 间接调用(§7e-10 收编
+    // 见下一条用例),仍是「一次页面加载只读一次」—— 本页与它挂载的 PhotosSidebar 同帧各调
+    // 一次 fetchAiFeatures(),store 内部的在途去重(settings.ts)把两次并发调用合并成
+    // 一次真实请求,这条断言同时也是对去重生效的端到端印证。
     expect(svc.photos.getConfig).toHaveBeenCalledTimes(1)
+  })
+
+  // P8a-T6(§7e-10):facesEnabled 折进 photosSettings store,视图不再自己直读 getConfig。
+  // брief 给的字面断言 `expect(service.photos.getConfig).not.toHaveBeenCalled()` 与上一条
+  // 既有测试互相矛盾(store 的 fetchAiFeatures 内部仍会调 getConfig,mock 是在 service 层,
+  // 分不清"视图直读"与"经 store 间接读"——两条断言不可能同时成立)。已在任务报告里登记这处
+  // brief-vs-既有测试冲突,改用能真正区分"视图直读 vs 经 store 读"的断言:spy 住 store 的
+  // fetchAiFeatures action,证明 onMounted 调的是这个 action 而不是自己再包一层 getConfig。
+  it('facesEnabled 读 store 而非自己调 getConfig(onMounted 走 settings.fetchAiFeatures)', async () => {
+    const settings = usePhotosSettingsStore()
+    const spy = vi.spyOn(settings, 'fetchAiFeatures')
+    await mountView()
+    expect(spy).toHaveBeenCalled()
   })
 
   // ── 评审 Important 2:收藏人物的 accent 内环 ────────────────────────────────

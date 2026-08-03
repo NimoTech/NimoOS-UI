@@ -1261,8 +1261,9 @@ export default {
   photosSvNPhotosMbMb: '{n} photos · ~{mb} MB',
   photosSvRelHours: '{n}h ago',
   photosSvRelMinutes: '{n}m ago',
-  // P8 wiring point: see the matching zh_cn.ts comment.
-  photosSvSettingsPending: 'Settings page coming in P8',
+  // P8a-T6: photosSvSettingsPending ('Settings page coming in P8') removed here — zero
+  // references repo-wide. See the matching zh_cn.ts comment for why (the placeholder title
+  // for the AI-banner's non-clickable settings span, now a real RouterLink, §7e-9).
   // ---- P7a-T6: detail-page shell additions (beyond T1's 107 keys) ----
   photosSvNotFound: 'Smart View not found',
   photosSvRenameFailed: 'Rename failed',

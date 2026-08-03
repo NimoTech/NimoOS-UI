@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
 import { useTimelineStore } from '../stores/timeline'
+import { usePhotosSettingsStore } from '../stores/settings'
 import { renderSize } from '../../files/util/format'
 import { activeNavId } from '../util/activeNavId'
 
@@ -11,6 +12,12 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const timeline = useTimelineStore()
+// P8a-T6 (§7e-15):侧栏是相册区全部页面共用组件,自己拉一次 aiFeatures 配置来决定是否
+// 隐藏 smart-views 条目。store 是单例,与任意视图各自的 onMounted 同帧挂载会并发调用
+// fetchAiFeatures() —— 并发去重收在 settings.ts 里(见该文件 fetchAiFeatures 头部注释),
+// 这里只管调用,不用关心去重细节。
+const settings = usePhotosSettingsStore()
+onMounted(() => { void settings.fetchAiFeatures() })
 
 // 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)——照 FilesSidebar。
 const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
@@ -27,7 +34,7 @@ watch(drawerOpen, (o) => {
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
 // 导航条目注册表。
-const NAV = [
+const NAV_ALL = [
   { id: 'library', route: '/photos', labelKey: 'photosLibrary' },
   { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums' },
   { id: 'people', route: '/photos/people', labelKey: 'photosPeople' },
@@ -39,8 +46,18 @@ const NAV = [
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
 ]
 
+// P8a-T6(§7e-15):Vue2 PhotosSidebar.vue:120-122 —— `ai.smartview === false` 时
+// `items.filter(i => i.id !== 'smart')`。判据必须是 `=== false`,不是 `!x`:aiFeatures.
+// smartview 的默认值与"取数失败/字段缺失"的兜底值都是 `true`,只有后端明确说关了才隐藏这一
+// 条——配置读取抖动/请求失败不该让导航条目消失,吓用户以为功能不见了。
+const NAV = computed(() =>
+  settings.aiFeatures.smartview === false
+    ? NAV_ALL.filter((n) => n.id !== 'smart-views')
+    : NAV_ALL,
+)
+
 function isActive(n: { id: string }): boolean {
-  return activeNavId(route.path, NAV) === n.id
+  return activeNavId(route.path, NAV.value) === n.id
 }
 
 // 存储条:usedText = totalBytes 人类可读;percent = (diskTotal-diskAvail)/diskTotal,除零守卫。

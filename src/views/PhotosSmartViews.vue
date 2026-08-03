@@ -8,8 +8,8 @@
 //
 // 本任务范围(brief 结构规格 1-9):
 //  1) 外壳
-//  2) AI 横幅——`aiSmartViewOff` 的读法照 PhotosPeople.vue:379 的 P5 先例(onMounted 直读
-//     一次 getConfig,缺字段/失败一律按开启处理,不吓用户)。
+//  2) AI 横幅——`aiSmartViewOff` 读 T1 的 photosSettings store(P8a-T6 折进去的,见下方
+//     script 头部注释;缺字段/失败一律按开启处理,不吓用户,语义与折之前一致)。
 //  3) hero(标题 + 副标题 + 创建按钮)
 //  4) 网格(SmartViewCard v-for + 末尾新建卡)
 //  5) 加载态用骨架(New-UI 新增,Vue2 没有);listLoaded 且空列表时**不加空态**——那张
@@ -19,10 +19,10 @@
 //     (created 后跳详情页,同 onCardOpen 的目标路径)。
 //
 // 偏离登记:
-//  1) Vue2 :15 的横幅链接是 <a href="javascript:void(0)">,点击 $emit('open-settings',
-//     'ai')。New-UI 设置页归 P8(尚不存在),渲染成不可点的 <span aria-disabled="true">,
-//     title 走新增键 photosSvSettingsPending(「设置页待迁移(P8)」)—— P8 接线点在此,
-//     届时把这个 span 换成真链接/路由跳转。
+//  1) [P8a-T6 已接线,不再是偏离] Vue2 :15 的横幅链接是 <a href="javascript:void(0)">,
+//     点击 $emit('open-settings', 'ai')。设置页在 P8a-T5 落地后(/photos/settings?section=
+//     ai),这里换成真实的 <RouterLink>(§7e-9)—— 原先占位用的 photosSvSettingsPending
+//     键随之成为死键,已从两个 locale 文件删除(见提交信息)。
 //  2) Vue2 :19 在链接文字后还有一个裸英文句点(`</a>.`),中文界面下会中西混排且不在
 //     任何可翻译串里——不复制(同 PhotosPeople.vue 偏离登记 7 的先例)。
 //  3) 横幅琥珀色:Vue2 是内联 rgba(255,159,10,…)/#FF9F0A 字面量,这里改用本仓既有的
@@ -34,24 +34,26 @@
 //     fix round 1 · I2:这条只解释了背景色的替换,**不覆盖** Vue2 hover 态的
 //     transform: translateY(-1px)(上浮)——那是与颜色 token 无关的独立视觉属性,
 //     之前被静默丢了,已在样式块补回(两者可共存)。
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import SmartViewCard from '../photos/components/SmartViewCard.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
+import { usePhotosSettingsStore } from '../photos/stores/settings'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = usePhotosSmartViews()
+const settings = usePhotosSettingsStore()
 
-// aiFeatures.smartview 的临时来源:本仓没有 settings store(归 P8),onMounted 直接读一次
-// /photos/config。失败或字段缺失一律按开启处理(宁可不吓用户),照 PhotosPeople.vue:376-386
-// 的 loadFacesEnabled 先例。
-const aiSmartViewOff = ref(false)
+// P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
+// 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
+// 缺字段/请求失败一律按开启处理(不显示横幅,不吓用户),这条防御性语义已经在
+// store.fetchAiFeatures() 里落实,这里只是消费。
+const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
 // T5:创建弹窗已接线(T4 的 TODO 兑现)。createOpen 通过 v-model:open 传给
 // SmartViewCreateDialog;创建成功后弹窗 emit('created', id),这里直接跳详情页
@@ -75,20 +77,11 @@ function onCreated(id: string): void {
 // 绑定目标,defineExpose 可以留着或按 T5 实际需要收窄。
 defineExpose({ createOpen })
 
-async function loadAiSmartViewOff(): Promise<void> {
-  try {
-    const cfg = await service.photos.getConfig()
-    const ai = cfg?.aiFeatures as { smartview?: unknown } | undefined
-    aiSmartViewOff.value = ai?.smartview === false
-  } catch (e) {
-    console.error('[photos-smartviews] getConfig', e)
-    aiSmartViewOff.value = false
-  }
-}
-
 onMounted(() => {
   void store.fetchSmartViews()
-  void loadAiSmartViewOff()
+  // 侧栏(PhotosSidebar,本页也挂载它)同帧也会调用 fetchAiFeatures() —— 并发去重收在
+  // settings.ts 里,这里不需要关心。
+  void settings.fetchAiFeatures()
 })
 </script>
 
@@ -106,13 +99,13 @@ onMounted(() => {
             <div class="svs-banner-title">{{ t('photosSvSmartViewsAutoUpdate') }}</div>
             <div class="svs-banner-desc">
               {{ t('photosSvTheseSavedSearchesStay') }}
-              <!-- 偏离登记 1:设置页归 P8,不可点;偏离登记 2:不复制 Vue2 链接后的裸英文句点。 -->
-              <span
+              <!-- §7e-9:真实路由链接,替换掉原来的不可点占位 span(偏离登记 1 已解除,
+                   见文件头注释)。偏离登记 2:不复制 Vue2 链接后的裸英文句点。 -->
+              <RouterLink
                 class="svs-banner-link"
-                aria-disabled="true"
                 data-test="svs-settings-link"
-                :title="t('photosSvSettingsPending')"
-              >{{ t('photosPeopleFacesOffLink') }}</span>
+                to="/photos/settings?section=ai"
+              >{{ t('photosPeopleFacesOffLink') }}</RouterLink>
             </div>
           </div>
         </div>
@@ -178,8 +171,9 @@ onMounted(() => {
 }
 .svs-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
 .svs-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
-/* 不可点的设置链接标注(偏离登记 1):保留 Vue2 视觉上的强调下划线,但不是 <a>。 */
-.svs-banner-link { color: var(--accent-text); text-decoration: underline; cursor: default; }
+/* §7e-9:真实路由链接,保留 Vue2 视觉上的强调下划线(Vue2 :19 的 `<a>` 本身也没有独立
+   hover 规则,这里 1:1 不额外加)。 */
+.svs-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
 
 /* ── hero(scss:5-19)── */
 .sv-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }

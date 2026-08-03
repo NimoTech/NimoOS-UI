@@ -1253,10 +1253,11 @@ export default {
   photosSvNPhotosMbMb: '{n} 张照片 · 约 {mb} MB',
   photosSvRelHours: '{n} 小时前',
   photosSvRelMinutes: '{n} 分钟前',
-  // P8 接线点:智能视图列表页 AI 横幅里「设置 · AI 行为」目前渲染成不可点的 <span
-  // aria-disabled="true">,这个 title 说明原因。P8 建好设置页后把该 span 换成真链接/
-  // 路由跳转,这个键可保留复用为 tooltip,或按 P8 实际交互删除。
-  photosSvSettingsPending: '设置页待迁移(P8)',
+  // P8a-T6:此处原有 photosSvSettingsPending(「设置页待迁移(P8)」)已删 —— 全仓零引用。
+  // 它是智能视图列表页 AI 横幅里「设置 · AI 行为」不可点 <span aria-disabled="true"> 的
+  // title,P8a-T5 建好设置页后,T6 把该 span 换成真实 <RouterLink to="/photos/settings
+  // ?section=ai">(§7e-9),这个占位 title 键随之失去用途。同 :847 处 photosPersonSubtitle
+  // 的删除先例。
   // ---- P7a-T6: 详情页外壳新增键(T1 的 107 键之外,brief §结构规格 1/2/4/8) ----
   // New-UI 新增路径:byId(id) 找不到这一项(手改地址栏 / 旧书签),Vue2 无此分支——见
   // task-6-report.md 偏离登记。

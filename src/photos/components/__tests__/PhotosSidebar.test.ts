@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -7,7 +7,17 @@ import { nextTick } from 'vue'
 import zh from '../../../i18n/zh_cn'
 import PhotosSidebar from '../PhotosSidebar.vue'
 import { useTimelineStore } from '../../stores/timeline'
+import { usePhotosSettingsStore } from '../../stores/settings'
 import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../../composables/useSidebarDrawer'
+
+// P8a-T6(§7e-15):侧栏现在自己也读一次 aiFeatures 配置(见 PhotosSidebar.vue 头部注释)。
+// 默认解析成 `{}`(readAiFeatures 对缺字段一律按开启处理,smartview 仍是 true)——这个默认值
+// 让本文件其余既有测试(挂载后同步断言 7 项)保持不变:那些断言都发生在 fetchAiFeatures()
+// 的 promise resolve 之前,读到的是 store 的初始值(全 true),不受这个 mock 影响。
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: { photos: { getConfig: vi.fn() } },
+}))
+import { service } from '@nimotech/nimoos-service'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -37,6 +47,7 @@ describe('PhotosSidebar', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     __resetSidebarDrawerForTest()
+    vi.mocked(service.photos.getConfig).mockReset().mockResolvedValue({})
     testRouter.push('/photos')
     await testRouter.isReady()
   })
@@ -255,6 +266,42 @@ describe('PhotosSidebar', () => {
       await w.get('[data-test="sidebar-settings-link"]').trigger('click')
       await flushPromises()
       expect(testRouter.currentRoute.value.path).toBe('/photos/settings')
+    })
+  })
+
+  // P8a-T6(§7e-15):smartview 配置感知——Vue2 PhotosSidebar.vue:120-122 的
+  // `ai.smartview === false` 时 `items.filter(i => i.id !== 'smart')`。
+  describe('smartview 配置感知(§7e-15)', () => {
+    it('aiFeatures.smartview 为 false 时整条隐藏智能视图入口', async () => {
+      vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: { smartview: false } })
+      const w = mountSidebar()
+      await flushPromises()
+      await nextTick()
+      const items = w.findAll('.side-item')
+      expect(items).toHaveLength(6)
+      expect(items.some((i) => i.text().includes('智能视图'))).toBe(false)
+      // 剩下 6 项仍是原顺序去掉 smart-views 这一条(favorites/trash 紧跟 places)。
+      expect(items[3].text()).toContain('地点')
+      expect(items[4].text()).toContain('收藏')
+      expect(items[5].text()).toContain('最近删除')
+    })
+
+    it('smartview 未确定(取数失败)时按开启显示,不吓用户', async () => {
+      vi.mocked(service.photos.getConfig).mockRejectedValue(new Error('boom'))
+      const w = mountSidebar()
+      await flushPromises()
+      await nextTick()
+      const items = w.findAll('.side-item')
+      expect(items).toHaveLength(7)
+      expect(items.some((i) => i.text().includes('智能视图'))).toBe(true)
+    })
+
+    it('挂载即调用一次 fetchAiFeatures(经 store 读配置,不直读 getConfig)', async () => {
+      const settings = usePhotosSettingsStore()
+      const spy = vi.spyOn(settings, 'fetchAiFeatures')
+      mountSidebar()
+      await flushPromises()
+      expect(spy).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -29,6 +29,7 @@ import PhotosSmartViews from '../PhotosSmartViews.vue'
 // 行为断言。
 import photosSmartViewsRaw from '../PhotosSmartViews.vue?raw'
 import { usePhotosSmartViews } from '../../photos/stores/smartViews'
+import { usePhotosSettingsStore } from '../../photos/stores/settings'
 // fix round 1 · I1/I2:先锚定规则体、再断言属性(全文件级 toContain 不算断言)。
 // parseCssRules/extractStyleBlock 是本区既有的样式块结构断言工具(SmartViewCard.test.ts
 // 已用过),不重新发明。
@@ -43,6 +44,9 @@ function makeRouter() {
       { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
       // T4 尚不建详情路由(归后续任务),这里放一个桩路由让 router.push 的目标路径真实可解析。
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail-stub', component: { template: '<div/>' } },
+      // P8a-T6(§7e-9):AI 横幅里的设置链接指向 /photos/settings?section=ai——桩路由让
+      // RouterLink 真的能解析出 href,不然 vue-router 会警告"no match"。
+      { path: '/photos/settings', name: 'photos-settings-stub', component: { template: '<div/>' } },
     ],
   })
 }
@@ -103,6 +107,15 @@ describe('PhotosSmartViews.vue — 拉取', () => {
     await mountView()
     expect(svc.photos.listSmartViews).toHaveBeenCalledTimes(1)
   })
+
+  // P8a-T6(§7e-10):aiSmartViewOff 折进 photosSettings store,本页不再自己直读 getConfig
+  // —— onMounted 走 settings.fetchAiFeatures(),同 PhotosPeople.vue 的收编先例。
+  it('aiSmartViewOff 读 store 而非自己调 getConfig(onMounted 走 settings.fetchAiFeatures)', async () => {
+    const settings = usePhotosSettingsStore()
+    const spy = vi.spyOn(settings, 'fetchAiFeatures')
+    await mountView()
+    expect(spy).toHaveBeenCalled()
+  })
 })
 
 describe('PhotosSmartViews.vue — 三态渲染', () => {
@@ -161,17 +174,21 @@ describe('PhotosSmartViews.vue — AI 横幅三态', () => {
     expect(w.find('[data-test="svs-ai-banner"]').exists()).toBe(false)
   })
 
-  it('横幅里的设置链接是 <span> 且带 aria-disabled="true",不是 <a href>;点它不触发导航', async () => {
+  // P8a-T6(§7e-9):原来的不可点 <span aria-disabled="true"> 换成真实的 <RouterLink>,指向
+  // /photos/settings?section=ai(T5 建的设置页深链入口)。brief 给的断言用的 data-test id
+  // 是 `sv-ai-settings-link`,与本文件/组件既有的 `svs-settings-link` 命名不一致——沿用本文件
+  // 已建立的既有命名,不为了字面对齐 brief 而改 data-test id(已在任务报告里登记这处
+  // brief-vs-既有约定冲突)。
+  it('AI behavior 链接是真路由链接,指向 /photos/settings?section=ai(§7e-9)', async () => {
     svc.photos.getConfig.mockResolvedValue({ aiFeatures: { smartview: false } })
     const { w, router } = await mountView()
-    const link = w.find('[data-test="svs-settings-link"]')
-    expect(link.exists()).toBe(true)
-    expect(link.element.tagName).toBe('SPAN')
-    expect(link.attributes('aria-disabled')).toBe('true')
-    expect(link.attributes('href')).toBeUndefined()
-    const pushSpy = vi.spyOn(router, 'push')
+    const link = w.get('[data-test="svs-settings-link"]')
+    expect(link.attributes('aria-disabled')).toBeUndefined()
+    expect(link.attributes('href')).toContain('/photos/settings')
     await link.trigger('click')
-    expect(pushSpy).not.toHaveBeenCalled()
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos/settings')
+    expect(router.currentRoute.value.query.section).toBe('ai')
   })
 })
 

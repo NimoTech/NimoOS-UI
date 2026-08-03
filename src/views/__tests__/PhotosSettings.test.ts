@@ -128,7 +128,13 @@ describe('PhotosSettings 容器', () => {
     expect(fetchAbout).toHaveBeenCalledTimes(1)
     expect(fetchRetention).toHaveBeenCalledTimes(1)
     expect(fetchScanInterval).toHaveBeenCalledTimes(1)
-    expect(fetchAiFeatures).toHaveBeenCalledTimes(1)
+    // P8a-T6:本页头部注释(:14-17)自己说了"整页只有一份 PhotosSidebar 副本",而 T6 给
+    // PhotosSidebar 也接了 fetchAiFeatures()(§7e-15,侧栏要用 aiFeatures.smartview 决定
+    // 是否隐藏智能视图入口)——本页自身 + 它挂载的这一份侧栏,同帧各调一次,是 2 次
+    // *action 调用*,不是 2 次网络请求(settings.ts 的在途去重把并发调用合并成 1 次
+    // getConfig,见 settings.test.ts 的去重用例)。这条断言从 1 改成 2 是行为的真实变化,
+    // 不是放宽断言掩盖回归。
+    expect(fetchAiFeatures).toHaveBeenCalledTimes(2)
     expect(fetchStorage).not.toHaveBeenCalled()
   })
 
