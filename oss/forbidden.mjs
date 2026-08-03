@@ -17,6 +17,16 @@ export const HARD = [
   ['photos_data', /photos_data/i],
   ['wikiRoot', /wikiRoot/i],
   ['192.168.1.115', /192\.168\.1\.115/],
+
+  // ── T6.5:中文硬禁词 ──────────────────────────────────────────────────
+  // 本库注释与界面文案全中文,原词表只有「相册」一个中文词,是个大盲区(见
+  // T6.5 brief 的实测表:搜索/照片/转录/说话人/知识库/向量化/智能 命中数原本全是 0)。
+  // 以下四条已在全仓 grep 核实:所有出现都属于「该剥离的 AI/音频转录功能」,
+  // 没有发现任何合法用法,故直接 HARD(不给白名单)。
+  ['说话人', /说话人/],       // 音频转录的说话人分离/diarization,仅见于 MediaViewer/theme.css/speakerWave 一族
+  ['知识库', /知识库/],       // RAG 知识库,仅见于 settingsFp(folder-permissions,AI 消费方)i18n 键
+  ['向量化', /向量化/],       // 向量化/embedding 的中文说法,仅见于 Ask Nimo 音频问答文案
+  ['问 Nimo', /问\s*Nimo/i], // "Ask Nimo" 的中文说法(audioAsk/audioAskEmpty),与「Nimo AI」分开收
 ].map(([word, re]) => ({ word, re }))
 
 // ─── 软禁词 + 精确白名单 ────────────────────────────────────────────────────
@@ -58,6 +68,57 @@ export const SOFT = [
     ],
   },
   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
+
+  // ── T6.5:中文软禁词 ──────────────────────────────────────────────────
+  // 搜索/照片/转录 三个字面上比硬禁词常见,已实测在本仓存在合法用法(见各自
+  // allow 注释的 grep 证据),按纪律「禁止放宽词表消除误报」只能精确白名单。
+  {
+    word: '转录',
+    re: /转录/,
+    allow: [
+      // zh_cn.ts:663/678/682 —— RAID 级别文案的来源说明("逐字转录自
+      // RaidDetailPanel.vue/raidUtils.js"),是文档意义上的"抄录/转写",
+      // 与音频转录(AI)功能无关。已用 grep 核实:这三行是本仓 转录 出现
+      // 在 zh_cn.ts 里唯二不属于 audio* 转录键的地方。
+      { file: /src\/i18n\/zh_cn\.ts$/, re: /逐字转录自 NimoOS-UI RaidDetailPanel|转录为评分文本|逐字转录\(非我方发明\)/ },
+    ],
+  },
+  {
+    word: '照片',
+    re: /照片/,
+    allow: [
+      // raidLevel1Usecase:RAID 用途说明("照片库、个人 NAS、启动卷"),与相册 app 无关(brief 指定保留面)。
+      { file: /src\/i18n\/zh_cn\.ts$/, re: /raidLevel1Usecase/ },
+      // ImageViewer 是通用图片文件查看器(Files 区),"照片"在这里是"图片内容"的泛称,
+      // 不是被剥离的 Photos 相册 app。--media-overlay-shadow 同一 token 只被这里消费(已 grep 核实)。
+      { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: /瓦片接缝会在照片上显出白色网格细线/ },
+      { file: /src\/styles\/theme\.css$/, re: /媒体\(照片\/视频\)上方浮层的投影/ },
+    ],
+  },
+  {
+    word: '搜索',
+    re: /搜索/,
+    allow: [
+      // appsStoreSearch:应用商店筛选框(brief 指定保留面),与 NimoOS-Search 服务无关。
+      { file: /src\/i18n\/zh_cn\.ts$/, re: /appsStoreSearch/ },
+      // StorePage 整个文件只有"应用商店按关键字过滤"这一个"搜索"语义,与 AI 语义搜索无关。
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: /搜索/ },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: /搜索/ },
+      // Files.vue:粘贴上传的"焦点在输入框(重命名/搜索等)"是 Files 区自己的文件名过滤输入框,
+      // 不是被删除的 SearchDialog/NimoOS-Search。
+      { file: /src\/views\/Files\.vue$/, re: /重命名\/搜索等/ },
+    ],
+  },
+  // 智能:brief 点名的候选软禁词,但全仓 grep 核实后目前没有找到非 AI 的合法用法
+  // (2026-08-04:src/home/components/SearchDialog.vue、MediaViewer.vue、audioTranscripts.ts、
+  // zh_cn.ts/zh_cn.sp9.ts 里全部出现都属于要剥离的 AI 功能)。仍然放 SOFT 而不是 HARD——
+  // 「智能」是通用词,未来任何非 AI 功能(如磁盘/网络的"智能识别")都可能合法用到它,
+  // 一旦出现应加白名单而不是被迫放宽词表。当前 allow 为空,等同哨兵:任何命中都是待办。
+  { word: '智能', re: /智能/, allow: [] },
+  // 语义搜索:brief 特别警告"语义"单字词命中 51 个 CSS token 注释文件,禁止收单字。
+  // 这里只收词组"语义搜索"。当前全仓 0 命中(sp7-photos/sp8-ai 合并前语义搜索功能还
+  // 没有落地到 New-UI),先占位当哨兵,防止未来该功能被引入后悄悄漏进开源包。
+  { word: '语义搜索', re: /语义搜索/, allow: [] },
   {
     word: 'ai',
     // 词边界:不碰中文、chain、main、Chairman。
