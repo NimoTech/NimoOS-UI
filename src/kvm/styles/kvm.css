@@ -1957,6 +1957,52 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
+ * Task 9 补(评审 Important:brief Step 2 点名要搬的这段之前漏了,详见任务报告
+ * 「偏离登记」追加条目):VM 设置弹窗顶部的 tab 导航。视觉 1:1 对 Vue2
+ * KVMFullPage 组件样式 .settings-tabs/.settings-tab(:2877-2900)。
+ *
+ * 色值核对(不铺开写十六进制字面量——本文件裸颜色字面量守卫不剥注释):下边框与
+ * .cv-iso-btn/.cv-firmware-group 等处已经在用的 --kvm-field-border 同一个 token;
+ * 默认字色取 --kvm-fg-dim;hover 字色取 --kvm-fg(本文件早前 .sendkey-btn 等处
+ * 已经在用的既有 token);active 态的字色与下边框色都取 --kvm-accent——四个 token
+ * 的字面量逐一核对过与 Vue2 源文件这段规则的四个颜色值完全一致,不是新增 token。
+ * ════════════════════════════════════════════════════════════════════ */
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--kvm-field-border);
+  margin: 0 1.5rem;
+}
+
+.settings-tab {
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: none;
+  color: var(--kvm-fg-dim);
+  font-size: 0.875rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.settings-tab:hover {
+  color: var(--kvm-fg);
+}
+
+.settings-tab.active {
+  color: var(--kvm-accent);
+  border-color: var(--kvm-accent);
+}
+
+/* 硬约束 11/#14 高危点(同 .cv-cpu-btn.active:hover / .cv-firmware-btn.active:hover
+ * 那两处已经在这个文件里用过的模式):基类 `.settings-tab:hover`(0,2,0)与
+ * `.settings-tab.active`(0,1,0)特异度不同,基类会压过 active 态——不补这一条,
+ * 鼠标移到当前选中的 tab 上会被 hover 规则的字色压成"未选中"的灰,看着像选中态
+ * 丢了。这里显式给 active 态补一条自带的 :hover,颜色与非 hover 时的 active 态相同。 */
+.settings-tab.active:hover {
+  color: var(--kvm-accent);
+}
+
+/* ════════════════════════════════════════════════════════════════════
  * Task 9:VM 设置弹窗的 ISO 弹出/挂载双态按钮。视觉 1:1 对 Vue2 KVMFullPage 组件
  * 样式里的弹出按钮那段规则(:2573-2592)。**不搬**紧挨着它上面那条纯文字色规则
  * (:2568-2571,类名字面为 cv- 前缀 + ejected-text 后缀,本文件类名白名单扫描器
