@@ -10,9 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
-import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import zh from '../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -49,13 +47,14 @@ const busOn = vi.hoisted(() => vi.fn((_event: string, _cb: (...a: unknown[]) => 
 vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
 
 import Photos from '../Photos.vue'
+import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
+import PhotosGrid from '../../photos/components/PhotosGrid.vue'
+import PhotosToolbar from '../../photos/components/PhotosToolbar.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 
 const lb = useLightbox()
-
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 function makeRouter() {
   return createRouter({
@@ -64,11 +63,16 @@ function makeRouter() {
   })
 }
 
+// fix round 1(P7b-T4 评审必修 1):不另建 createI18n(...) 实例——vitest.setup.ts 已把
+// src/i18n 的单例装进 config.global.plugins,对每次 mount 生效;这里之前另建的
+// createI18n 与它重复安装,刷出一批 `[Vue warn]` component/directive already
+// registered。拆掉后 locale 依赖全局单例的 initialLocale() 回落 zh_cn(jsdom 下
+// localStorage 无 'lang' 键),下面断言中文文案的用例不受影响。
 async function mountPhotos() {
   const router = makeRouter()
   router.push('/photos')
   await router.isReady()
-  const w = mount(Photos, { global: { plugins: [i18n, router] } })
+  const w = mount(Photos, { global: { plugins: [router] } })
   await flushPromises()
   return w
 }
@@ -79,8 +83,46 @@ function handlerFor(event: string): (props: unknown, raw: unknown) => void {
   return call[1] as (props: unknown, raw: unknown) => void
 }
 
-function asset(id: string, opts: Partial<{ mimeType: string }> = {}) {
-  return { id, mimeType: opts.mimeType || 'image/jpeg', originalName: `${id}.jpg` }
+// fix round 1(P7b-T4 必修 2/3):asset() 补上 EXIF 字段(仍然全部可选,原有零参调用
+// 如 asset('a') / asset('b', { mimeType: 'video/mp4' }) 不受影响)——供下方
+// P7b-T4 EXIF 筛选描述块的夹具使用。
+function asset(
+  id: string,
+  opts: Partial<{ mimeType: string; takenAt: string; placeName: string; make: string; model: string }> = {},
+) {
+  return {
+    id,
+    mimeType: opts.mimeType || 'image/jpeg',
+    originalName: `${id}.jpg`,
+    takenAt: opts.takenAt,
+    placeName: opts.placeName,
+    make: opts.make,
+    model: opts.model,
+  }
+}
+
+// P7b-T4 夹具:两个月份跨两个年份。2023-06 三张(全都命中 years:['2023']),
+// 2024-01 两张(全都不命中 —— 筛完整月清空,验证「空月份被丢掉」)。
+function seedTimeline(store: ReturnType<typeof useTimelineStore>) {
+  store.timelineGroups = [
+    {
+      year: 2023,
+      month: 6,
+      assets: [
+        asset('a1', { takenAt: '2023-06-01T10:00:00Z', placeName: 'Paris, France', make: 'Canon', model: 'EOS R5' }),
+        asset('a2', { takenAt: '2023-06-15T10:00:00Z', placeName: 'Paris, France', make: 'Canon', model: 'EOS R5' }),
+        asset('a3', { takenAt: '2023-06-20T10:00:00Z', placeName: 'Paris, France', make: 'Canon', model: 'EOS R5' }),
+      ],
+    },
+    {
+      year: 2024,
+      month: 1,
+      assets: [
+        asset('b1', { takenAt: '2024-01-05T10:00:00Z', placeName: 'Tokyo, Japan', make: 'Sony', model: 'A7' }),
+        asset('b2', { takenAt: '2024-01-20T10:00:00Z', placeName: 'Tokyo, Japan', make: 'Sony', model: 'A7' }),
+      ],
+    },
+  ]
 }
 
 beforeEach(() => {
@@ -90,6 +132,8 @@ beforeEach(() => {
   svc.photos.getStatus.mockClear().mockResolvedValue({})
   svc.photos.listTasks.mockClear().mockResolvedValue({ tasks: [] })
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
+  svc.photos.recordView.mockClear().mockResolvedValue(undefined)
+  svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   lb.__resetForTest()
@@ -370,5 +414,124 @@ describe('Photos.vue 搜索框接线(T16)', () => {
     const pushSpy = vi.spyOn(router, 'push')
     await w.get('.photos-search-bar input').trigger('keydown.enter')
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: {} })
+  })
+})
+
+// SP7-P7b-T4: 时间线页 EXIF 筛选接线——FilterBar 挂进 PhotosToolbar#after-tabs,
+// 三处同源逻辑(gridMonths 网格数据源 / filteredCount 顶栏计数 / onOpenTile 灯箱翻页集)
+// 全部改用 EXIF 筛后的月份集合;FilterBar 自身的 facet 源 (:photos) 恒取全库
+// store.allPhotos,不随 gridMonths 收窄——照 Vue2 PhotosTimeline.vue facet 源是
+// displayMonths 而非过滤后的 gridMonths 同一约束。
+// fix round 1(评审必修 1):原先并行新建的 Photos.test.ts 已并入本文件,复用本文件
+// 现成的 mountPhotos()/svc mock 脚手架,不再另起一套。
+describe('P7b-T4: EXIF 筛选接线', () => {
+  it('工具栏 after-tabs 槽位里挂着 PhotosFilterBar', async () => {
+    const w = await mountPhotos()
+    expect(w.findComponent(PhotosFilterBar).exists()).toBe(true)
+  })
+
+  it('FilterBar 的 facet 源是全库 allPhotos,不随已生效的筛选收窄', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    seedTimeline(store)
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const bar = w.findComponent(PhotosFilterBar)
+    const before = (bar.props('photos') as unknown[]).length
+    expect(before).toBe(5) // 全库:2023-06 三张 + 2024-01 两张
+
+    await bar.vm.$emit('update:filter', { years: ['2023'], places: [], cameras: [] })
+    await w.vm.$nextTick()
+
+    expect((w.findComponent(PhotosFilterBar).props('photos') as unknown[]).length).toBe(before)
+  })
+
+  it('筛选生效后网格只拿到命中的照片,且空月份被丢掉', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    seedTimeline(store)
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: ['2023'], places: [], cameras: [] },
+    )
+    await w.vm.$nextTick()
+
+    const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
+    // 2024-01 整月不命中 years:['2023'],月份本身应被丢掉——只剩 2023-06 一个月。
+    expect(months).toHaveLength(1)
+    expect(months.every((m) => m.photos.length > 0)).toBe(true)
+    // 2023-06 三张全命中(它们的 takenAt 都在 2023 年),2024-01 的两张全部消失。
+    expect(months.flatMap((m) => m.photos)).toHaveLength(3)
+  })
+
+  it('D20:顶栏计数跟着 EXIF 筛选减', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    seedTimeline(store)
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const countBefore = w.findComponent(PhotosToolbar).props('count') as number
+    expect(countBefore).toBe(5)
+
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: ['2023'], places: [], cameras: [] },
+    )
+    await w.vm.$nextTick()
+
+    const countAfter = w.findComponent(PhotosToolbar).props('count') as number
+    expect(countAfter).toBeLessThan(countBefore)
+    expect(countAfter).toBe(3)
+  })
+
+  // fix round 1(评审必修 2):锁住 onOpenTile 翻页集必须用 gridMonths(EXIF 筛后)而
+  // 不是 store.months——否则灯箱能翻到被筛掉的照片。变异验证见 task-4-report.md。
+  it('筛选生效后点开一张图 → 灯箱翻页集同样只含命中的照片(与网格同源)', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    seedTimeline(store)
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: ['2023'], places: [], cameras: [] },
+    )
+    await w.vm.$nextTick()
+
+    const tile = w.find('.tile')
+    expect(tile.exists()).toBe(true)
+    await tile.trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(lb.open.value).toBe(true)
+    expect(lb.list.value).toHaveLength(3)
+    const ids = lb.list.value.map((p) => p.id)
+    expect(ids).not.toContain('b1')
+    expect(ids).not.toContain('b2')
+  })
+
+  // fix round 1(评审必修 3):补 cameras 维度的贯通(此前四条都只筛 years)——
+  // camera 值形如 "Sony · A7",过滤谓词按 split('·')[0].trim() 匹配。
+  it('cameras 维度贯通:按 make·model 拆分匹配,命中月份保留、不命中月份被丢掉', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    seedTimeline(store)
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.findComponent(PhotosFilterBar).vm.$emit(
+      'update:filter', { years: [], places: [], cameras: ['Sony'] },
+    )
+    await w.vm.$nextTick()
+
+    const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: Array<{ id: string }> }>
+    // 只有 2024-01(Sony · A7)命中,2023-06(Canon · EOS R5)被丢掉。
+    expect(months).toHaveLength(1)
+    const ids = months.flatMap((m) => m.photos).map((p) => p.id)
+    expect(ids.sort()).toEqual(['b1', 'b2'])
   })
 })
