@@ -24,6 +24,8 @@ const testRouter = createRouter({
     { path: '/photos/people/:id', name: 'photos-person-detail', component: { template: '<div/>' } },
     { path: '/photos/places', name: 'photos-places', component: { template: '<div/>' } },
     { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
+    // SP7-P8a-T5:设置入口的落点(见下方"设置入口"describe)。
+    { path: '/photos/settings', name: 'photos-settings', component: { template: '<div/>' } },
   ],
 })
 
@@ -235,5 +237,24 @@ describe('PhotosSidebar', () => {
     await flushPromises()
     await nextTick()
     expect(d.open.value).toBe(false)
+  })
+
+  // SP7-P8a-T5:侧栏底部设置入口,指向 /photos/settings。不用 .side-item 选择器
+  // (那是 NAV 数组渲染出的既有 7 项,本条目是独立的新元素,故意用不同 class,不与
+  // 上面"7 条导航项"的既有断言互相干扰)。
+  describe('设置入口', () => {
+    it('侧栏底部存在设置入口', () => {
+      const w = mountSidebar()
+      expect(w.find('[data-test="sidebar-settings-link"]').exists()).toBe(true)
+      // 既有 7 项导航不受影响(不是新插进 NAV 数组的第 8 项)。
+      expect(w.findAll('.side-item')).toHaveLength(7)
+    })
+
+    it('点击设置入口 push 到 /photos/settings', async () => {
+      const w = mountSidebar()
+      await w.get('[data-test="sidebar-settings-link"]').trigger('click')
+      await flushPromises()
+      expect(testRouter.currentRoute.value.path).toBe('/photos/settings')
+    })
   })
 })

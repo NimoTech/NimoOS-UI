@@ -79,6 +79,17 @@ const usedPercent = computed(() => {
       </div>
       <p class="storage-bar-text">{{ usedText }}</p>
     </section>
+
+    <!-- SP7-P8a-T5:侧栏底部设置入口,照 Vue2 PhotosSidebar.vue:34-35 的齿轮按钮(那边
+         @open-settings 是 emit 给挂着 open prop 的全屏 overlay;本仓是真路由,直接
+         router.push)。不改 NAV 数组/既有导航项顺序——T6 要接的"smart-views 条件隐藏"
+         同样改 NAV,两者互不打扰。 -->
+    <section class="side-section side-settings">
+      <button type="button" class="side-settings-btn" data-test="sidebar-settings-link" @click="router.push('/photos/settings')">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        <span class="side-name">{{ t('photosSettingsTitle') }}</span>
+      </button>
+    </section>
   </aside>
 </template>
 
@@ -107,6 +118,14 @@ const usedPercent = computed(() => {
 .storage-bar-track { height: 6px; border-radius: 999px; background: var(--chip-bg-hi); overflow: hidden; }
 .storage-bar-fill { height: 100%; border-radius: 999px; background: var(--accent); }
 .storage-bar-text { margin: 6px 0 0; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
+
+/* 设置入口:紧跟存储条之后,视觉上处于侧栏最底部。 */
+.side-settings-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px;
+  padding: 6px 8px; border: none; border-radius: 10px; background: transparent;
+  color: var(--fg); font: inherit; cursor: pointer;
+}
+.side-settings-btn:hover { background: var(--chip-bg-hi); }
 
 .side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
 .photos-sidebar.is-drawer {
