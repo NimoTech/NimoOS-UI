@@ -9,7 +9,9 @@
   用户 2026-08-03 已明示移出本期**(见 §2.2)。设计文档在这一点上过期,以本文件为准。
   🔴 **本期没有计划书。** T0 的对手是协调者的 `p5c-task-0-brief.md`,已回权威源核出 **7 处错**(见 §12)。
 - 附录(只用路径引用,不要把内容复制进任务 brief):
-  - i18n 键表 → `.superpowers/sdd/p5c-appendix-A-i18n.md`(**98** 条新增 + **11** 条复用)
+  - i18n 键表 → `.superpowers/sdd/p5c-appendix-A-i18n.md`(**99** 条新增 + **10** 条复用)
+    🔴 **协调者裁定 A-1(2026-08-03,见 `p5c-plan.md`)**:新建 `aiKbDeviceAuto`,不复用 `aiKbOriginAuto`
+    → 计数由 98/11 改为 **99/10**(distinct 109 不变)。**附录 A 已就地订正 14 处;本节以下的 99 / 10 / 81 / `exactly 99 keys` 均已同步。**
   - 色值映射表 → `.superpowers/sdd/p5c-appendix-B-tokens.md`(**57 行 / 60 处**)
   - CSS 类白名单 → `.superpowers/sdd/p5c-appendix-D-classes.md`(`WHITELIST_187` → **191**,另建 `parserStyles.test.ts`)
   - 后端实测 fixture → `.superpowers/sdd/p5c-fixtures/`(**14 份**,先读那里的 `README.md`)
@@ -455,28 +457,30 @@ Parser 两页需要的正是 danger / warning / 三级灰 / 平面白卡 —— 
   两页共用的通用词走无词干的 `aiKb*`(如 `aiKbPause` / `aiKbResume` / `aiKbConcurrencyLevel` / `aiKbInferenceDevice`)。
   理由:`/ai/parser` 两条路由在 `knowledgeRoutes.ts` 里、由知识库设置页唯一入口进入,是知识库区的一部分;
   再开 `aiPs*`/`aiPt*` 前缀会让同一区出现三套家族。
-- 🔴 **T0 已核:98 个新键与现有 196 个 `aiKb*` 键零重名**(重复属性 = TS 错误)。
+- 🔴 **零重名**(重复属性 = TS 错误):T0 已核 98 个新键与现有 196 个 `aiKb*` 键零重名;
+  **A-1 追加 `aiKbDeviceAuto` 后共 99 个,T1 与其评审各复核一次,仍零重名**(评审实测 `aiKb*` 295 个 / 全表 1502 键零重复)。
   现有 `aiKb*` 实测 **196** 个(`en_us.ts` / `zh_cn.ts` 各 196)= P5a 96 + P5b 100 ✅,brief 的「96+100」对。
 - **zh 值一律以 `git show main:src/assets/lang/zh_CN.json` 为权威,逐字照抄,不许自己翻译、不许改标点。**
   🔴 **T0 实测:109 个串在语言包里 100% 命中,本期零「Vue2 无源、需要自造」的键。**
   (这一点与 P5b 的 E-1 教训方向一致:凭英文原串猜中文必错。)
-- 值表见 `.superpowers/sdd/p5c-appendix-A-i18n.md`(**98 条新增 + 11 条复用**)。
-  11 条复用**已逐条核过 New-UI 现值 == Vue2 语言包值(zh 与 en 都相同)** → 复用安全,**不要重写**。
+- 值表见 `.superpowers/sdd/p5c-appendix-A-i18n.md`(**99 条新增 + 10 条复用**,含 A-1 的 `aiKbDeviceAuto`)。
+  10 条复用**已逐条核过 New-UI 现值 == Vue2 语言包值(zh 与 en 都相同)** → 复用安全,**不要重写**。
 - 🔴 **必须跑程序化逐码点比对脚本**(P5a T8 教训:附录零差异,手抄进 TS 时引入 5 处全角标点错)。
   照 `.superpowers/sdd/p5b-task-1-i18n-verify.mjs` 写 `p5c-task-1-i18n-verify.mjs`:
-  读 `git show main:src/assets/lang/zh_CN.json` 与新写的 `zh_cn.ts`,对 **98 条**逐 `codePointAt` 比对,
-  DoD 是 **98/98 MATCH**;另对 11 条复用键做「现值未被改动」的比对(**11/11 MATCH**)。
+  读 `git show main:src/assets/lang/zh_CN.json` 与新写的 `zh_cn.ts`,对 **99 条**逐 `codePointAt` 比对,
+  DoD 是 **99/99 MATCH**;另对 10 条复用键做「现值未被改动」的比对(**10/10 MATCH**)。
+  ✅ **T1 已交付 `p5c-task-1-i18n-verify.mjs` 并达标(99/99 + 10/10),评审独立复跑确认。**
 - 新键**同时**加进 `src/i18n/zh_cn.ts` 与 `src/i18n/en_us.ts`(`parity.test.ts` 自动断言键集一致)。
-- `messageSyntax.test.ts` 的守卫**只圈本批 98 键**,🔴 **不许全量生效**:
+- `messageSyntax.test.ts` 的守卫**只圈本批 99 键**,🔴 **不许全量生效**:
   - (a) 全角标点扫描 `/[，；：？！（）]/`,**例外清单 = 附录 A §A.5 实扫出的 18 条**,
-    一律写成 `toBe` 钉死确切值的**强断言**,不是「跳过扫描」的松形式。其余 80 条必须扫不出全角标点。
+    一律写成 `toBe` 钉死确切值的**强断言**,不是「跳过扫描」的松形式。其余 81 条必须扫不出全角标点。
     ⚠️ `。`(U+3002)、`「」`、`·`(U+00B7)、`—`(U+2014)、`–`(U+2013)、`…`(U+2026)、`×`(U+00D7)
     **都不在**那个正则里,不要按「看着像全角」判。
   - (b) 带占位符的键 = 附录 A §A.6 的 **9 条**,两档占位符名称集合一致(T0 已核**零差异**)。
-  - (c) 补一条「exactly **98** keys」防漂移(照 P3b/P5a/P5b 同款)。
+  - (c) 补一条「exactly **99** keys」防漂移(照 P3b/P5a/P5b 同款)。**T1 已落地为 99,不许改回 98。**
 - **本期零死键**(P5b 那两条死键的成因是 K18 砍掉了调用点;本期 K30 只是不拼接后端 detail,
   `aiKbOpFailed` 与 `aiKbSwitchFailed` 两个键都仍有调用点)。报告里要显式写「死键 0 条」。
-- 报告里列清「复用 11 / 新增 98 / 其中 Vue2 有权威 zh 值 98 / 本期新造 0 / 死键 0」。
+- 报告里列清「复用 10 / 新增 99 / 其中 Vue2 有权威 zh 值 99 / 本期新造 0 / 死键 0」。
 
 ## 8. 测试门(每个任务提交前必须全过)
 
