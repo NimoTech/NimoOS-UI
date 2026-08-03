@@ -151,6 +151,36 @@ roadmap §4 SP9 第 3 条列了三处「token 焊在 WS 握手、不中途刷新
 - ✅ 设置区端点除 `wsssh`（见 1.6）外全部就绪；wifi 扫描能返回真实 AP → **设置区基本可全程真机验收**。
 - ❌ 搜索区：`semantic`（Parser 已停 + wiki 是 06-22 旧二进制）、`images`（CLIP 文本编码器权重缺文件）本机不可用；`filenames` 好的（17.2 万条，实测有真命中）。**按用户拍板，搜索区正确性不在本机验，用户自己去另一台机器验。**
 
+### 1.15 KVM P6 实测校正（2026-08-03，接手 P6 时逐行核源码 + curl 只读端点）
+
+本节优先于下方 §6.2 的**原始**描述 —— §6.2 已按本节重写，这里保留"错在哪"的记录，避免以后又照着旧判断返工。
+
+| # | §6.2 原先怎么写 | 源码 / 真机实际 |
+|---|---|---|
+| 1 | 「创建**向导**」 | 单页表单弹窗（`KVMFullPage.vue:396-494`，一屏 8 个字段），**没有分步** |
+| 2 | 只写了「快照」+「KVM 全局设置」 | **漏了一整块**：控制台头齿轮弹的是**两 tab 弹窗**（General + Snapshots，`:230-393`）。General 是 per-VM `PUT /vms/:id`（名称 / 磁盘只读带使用率 / ISO 挂载与弹出 / CPU 核心格子 / 内存 / 网络 / 固件），是 P6 最大的单块工作量 |
+| 3 | 「快照 **tab**」 | 是 tab，但在那个 VM 设置弹窗**里面**，不是页面级 tab |
+| 4 | 下载「`POST /isos/download` + 轮 `/isos/:id/progress`」 | **Vue2 不轮询**，走 MessageBus 三事件 `kvm:iso_download_progress` / `_complete` / `_failed`（`NimoOS-KVM/common/constants.go:24-26` 确认已注册）。`getISODownloadProgress` 在 Vue2 **零调用方** |
+| 5 | 「删除 ISO」 | **OSSelector 里没有任何删除 ISO 的 UI**，`deleteISO` 零调用方 → 用户 2026-08-03 拍板**不做**，见 D14 |
+| 6 | 没提 | OSSelector 有个可折叠的**自定义区 = 文件浏览器**（`GET /v1/folder?path=`，起始 `/`，面包屑 + 上一级，只列目录和 `.iso`），占该组件近一半代码 |
+
+**后端契约补充（都已 curl 或读 Go 源码核实，直接用，别重探）**：
+
+- **`model.CreateVMRequest` 只有 11 个字段**（`NimoOS-KVM/model/vm.go:39-51`）：`name/vcpu/memory/disk/iso/os/osType/networkMode/networkInterface/firmware/bootFromDisk`。**没有 `osTemplate`，没有 `autostart`。** Vue2 `createVM` 用 `{...vm}` 把这两个一起发出去、被后端静默丢弃 → **Vue2 的「新建 VM 继承全局设置的自动启动」（`:1386` `newVM.autostart = globalSettings.autostart`）从来没生效过**。`osTemplate` 纯前端概念（驱动"系统版本"下拉的参数联动）。→ D15。
+- **`UpdateVM` 复用同一个 `CreateVMRequest`**（`route/v2/vms.go:78-101`），且**不回填 `OSType`** —— 保存 VM 设置不会改操作系统类型。
+- **`GET /v1/folder` 的每个条目有 `size`**（真机实测；`NimoOS/model/zima.go:15-26` 的 `Path.Size int64`），但共享包 `NimoOS-Service/src/types.ts` 的 `FolderEntry` **没声明这个字段** → P6 要补 `size?: number`。
+- **`GET /v1/kvm/settings` 真机值**（2026-08-03）：`cpuCores:6` · `availableMemoryMB:9234` · `availableDiskGB:263` · `networkInterfaces:["enp2s0","enp4s0","wlp1s0"]` · `defaultDiskSize:20` · `defaultVcpu:2` · `defaultMemory:2048` · `autostart:false` · `storagePath:"/DATA/KVM"`。
+- **`GET /v1/kvm/isos` 真机值**：8 条模板，`alpine-319` 是唯一 `status:"downloaded"`（因此唯一带 `path`）。
+- **唯一那台 VM 的快照列表为空**（`{"success":true,"data":{"data":[]}}`）。
+
+**Vue2 死代码，不照抄**：
+
+- `OSSelector.getButtonText` 的 MB 分支 —— 条件是 `os._progress >= 0`，进度非负恒真，那行 `${mb}MB` 永远到不了。
+- `showSettings()` 里「设置只能在虚拟机停止时修改」的 toast —— 按钮本身 `:disabled="!canEditSettings"`，点不到。
+- `confirmRestoreSnapshot()` 里「恢复快照前必须停止虚拟机」的 toast —— 同理，Restore 按钮已 `:disabled="selectedVM?.state !== 'stopped'"`。
+
+**文案坑（照 1:1，不许自己译）**：全局设置弹窗标题 Vue2 用的 key 是 `'Settings'` → `zh_CN.json` = **「系统设置」**（不是「设置」）。P6 要用的 74 个键里，只有 `BSD` 在 `zh_CN.json` 查不到（专有名词，两个 locale 都保持 `BSD`）。
+
 ---
 
 ## 2. 搜索四源聚合入口（本期唯一的重大接口决策）
@@ -405,16 +435,65 @@ VM 列表（状态点 / 规格 / 运行计数 / 侧栏折叠）· 控制台头�
 
 类型照 `NimoOS-KVM/model/{vm,iso,settings}.go`。
 
-### 6.2 P6 创建 / ISO / 快照 / 设置
+### 6.2 P6 创建 / ISO / 快照 / VM 设置 / 全局设置
 
-- **创建向导** + `OSSelector.vue`（701 行）：`/isos` 列表 · 下载（`POST /isos/download` + 轮 `/isos/:id/progress`）· 本地 ISO 选择 · 删除 ISO。
-- **前端校验必须挡住的**（§1.10）：`vcpu ∈ [1,32]` · `memory ≥ 256` · **`disk ≥ max(8, os.minDisk)`**（后端硬下限 8 与 `alpine-319.minDisk=2` 矛盾，取大者）· `iso` 传**宿主机绝对路径**（如 `/DATA/KVM/isos/alpine-319.iso`）**而不是** `/isos` 列表里的 `id` · 名字非空且不与现有 VM 重名。
-- **快照**：list / create / delete / restore，删除与恢复带二次确认（恢复是破坏性操作）。
-- **KVM 设置**：可写 `storagePath` / `defaultVcpu` / `defaultMemory` / `autostart`；只读展示 `cpuCores` / `availableMemoryMB` / `availableDiskGB` / `networkInterfaces`（同一个 `GET /settings` 返回，**单层 `data`**）。
+**本节 2026-08-03 按 §1.15 的实测重写**（原版有 6 处与源码不符，最要紧的是漏了整个「VM 设置 General tab」）。范围：P5 留下的三个 disabled 入口全部解禁 + 四个弹窗 + OSSelector。用户 2026-08-03 拍板**一期做完，不拆子期**。
+
+#### 6.2.1 承载：KVM 自己的弹窗外壳
+
+新建 `src/kvm/components/KvmDialog.vue`，内部用 **reka-ui 的 `DialogRoot` / `DialogPortal` / `DialogOverlay` / `DialogContent`**（与全局 `components/ui/Dialog.vue` 同一套原语，白拿焦点陷阱 / Esc / 遮罩点击），但 class 全走 `--kvm-*`，结构照 Vue2 的 `create-vm-modal` 三段（`create-vm-head` / `create-vm-body` / `create-vm-foot`）。
+
+**不复用全局 `ui/Dialog.vue`**：它的背景是 `var(--popup-bg)` 玻璃 + `--card-border`，浅色主题下变白底，与「KVM 区固定深色」（§6.1）直接冲突，而它的 `<style scoped>` 从外面覆盖不了。四个弹窗与 OSSelector 全部套 `KvmDialog`（Vue2 的 OSSelector 是手写 overlay，统一到 reka 是**结构偏离、行为更好**，见 6.2.5）。
+
+**z 轴**：KVM 弹窗遮罩 900 / 内容 901；OSSelector 叠在创建弹窗之上 920 / 921；**P5 的 `ProgressOverlay` 保持 1000 不动** —— 快照恢复 / 删除的进度遮罩因此天然盖在设置弹窗上面，与 Vue2 的 `b-modal` 层叠次序一致。
+
+#### 6.2.2 数据层：ISO 状态必须提到页面级
+
+Vue2 的 `OSSelector` 是**常驻挂载**的（`v-if="visible"` 写在它自己的根节点上，组件实例一直活着），所以它的 `sockets` 一直在收下载进度 —— 关掉弹窗、下载照样推进。**New-UI 若照直觉写 `v-if="showOSSelector"` 卸载组件，进度就断了**，这是本期最容易踩的一脚。
+
+→ 新建 `useIsoList()`，**在 `KvmPage` 里创建一次**：持有 `isos`（含 `_downloading` / `_downloaded` / `_progress` / `_downloadedBytes` 派生态）、订阅三个 `kvm:iso_download_*` 事件（`useMessageBus().on` 返回的退订函数在 `KvmPage` 的 `onUnmounted` 里调）、暴露 `download(id)`。`OsSelector.vue` 降级成纯展示层。顺带合掉 Vue2「`GET /isos` 拉两遍」的浪费（`mounted` 拉一次喂 `osTemplates`、开弹窗再拉一次喂 `osList`）。
+
+其余三个 composable：
+
+- `useKvmHostInfo()` —— `GET /settings` 的**只读半**（`cpuCores` / `availableMemoryMB` / `availableDiskGB` / `networkInterfaces` / `defaultDiskSize`）**与可写半**（`storagePath` / `defaultVcpu` / `defaultMemory` / `autostart`）。创建弹窗、VM 设置弹窗、全局设置弹窗三方共用，只拉一处。
+- `useSnapshots(vmId)` —— list / create / delete / restore。
+- `useIsoBrowser()` —— 自定义区的目录浏览（`service.folder.getList`）。
+
+创建表单自身的状态留在 `CreateVmDialog.vue` 组件内部（`osTemplate` 联动 watch 天然属于它）。**`useVmList.ts` 已 423 行，本期不再往里加东西。**
+
+#### 6.2.3 组件与入口
+
+| 组件 | 对位 Vue2 | 要点 |
+|---|---|---|
+| `CreateVmDialog.vue` | `:396-494` | 8 个字段；CPU 核心是 `cpuCores` 个方格按钮（真机 6 个，`n <= vcpu` 即高亮）；「系统版本」下拉**只在 `selectedOS.isLocal` 时出现**；`osTemplate` 变化驱动 `osType` / `firmware` / `os` / 推荐规格联动（照 `:720-746`） |
+| `VmSettingsDialog.vue` | `:230-393` | 两 tab 壳（General / Snapshots）+ General 内容 + `saveSettings`（`PUT /vms/:id`）。磁盘输入框 `disabled` 并在 label 旁显示 `diskUsedPercent`；ISO 行是「路径按钮 + 弹出/挂载切换按钮」双态；固件两按钮 Vue2 本来就 `disabled`，照抄 |
+| `SnapshotsTab.vue` | `:327-385` | 创建表单（名称 + 描述）+ 列表；**删除与恢复都是就地二次确认**（复用 P5 `OverflowMenu` 的 `pendingAction`/`pendingId` 手法），确认后挂 `ProgressOverlay`；Restore 按钮 `:disabled="vm.state !== 'stopped'"` |
+| `KvmGlobalSettingsDialog.vue` | `:516-556` | 4 个可写字段 + 一个开关；标题按 `zh_CN.json` 是「**系统设置**」 |
+| `OsSelector.vue` | `OSSelector.vue:1-52` | 分类 4 tab（all / windows / linux / bsd）+ OS 卡片网格 + 下载按钮三态（`Download` / `xx.xx%` / `Select`） |
+| `IsoBrowser.vue` | `OSSelector.vue:54-93` | 可折叠自定义区：面包屑 + 上一级按钮（`customPath === '/'` 时 disabled）+ 文件列表（只列目录与 `.iso`）+ 空态；选中本地 ISO 走 `isLocal` 分支，按文件名反查官方模板拿推荐规格（照 `:328-361`） |
+
+**三个入口解禁**：左栏齿轮 → 全局设置弹窗；控制台头齿轮 → VM 设置弹窗（`:disabled="!canEditSettings"`，即 `state ∈ {stopped, crashed}`；tooltip 在「系统设置」/「停止虚拟机以修改设置」之间切，照 `:91`）；左栏底部「添加虚拟机」→ 创建弹窗。**另加**：`fetchVMs` 拿到空列表时自动弹创建弹窗（照 `:901`，P5 走的是空态占位）。
+
+#### 6.2.4 前端校验（必须挡住的）
+
+照 Vue2 `createVM`（`:1450-1472`）五条 + §1.10 的后端硬下限：名称非空 → 必须已选 OS → **`disk ≥ max(8, os.minDisk)`**（Vue2 只判了 `os.minDisk`，遇上 `alpine-319.minDisk=2` 会放行一个后端必拒的值，**这条是改正确**）→ `memory ≥ os.minMemory` → `disk ≤ availableDiskGB` → `memory ≤ availableMemoryMB` → `vcpu ≤ cpuCores`。`iso` 字段发 `os.path`（**宿主机绝对路径**），不是列表里的 `id`。
+
+校验失败**走弹窗内联 `.set-danger` 同款展示，不弹 toast**（硬约束：toast 的 z-index 60 会被弹窗遮罩压住 + 糊掉）。属于「操作结果」的（`虚拟机创建成功` / `快照已删除` / `设置已保存`）仍走全局 `useToast()`。
+
+#### 6.2.5 本期已确认的偏离（全部登记）
+
+1. 弹窗外壳改 reka-ui 原语（6.2.1），Vue2 手写的 OSSelector overlay 一并归并进来。**视觉 1:1，容器实现变。**
+2. ISO 下载状态提到页面级 composable（6.2.2）—— **行为修正**：Vue2 关弹窗仍收进度，New-UI 若卸载组件会断。
+3. **不发 `osTemplate` / `autostart`** 给 `POST /vms`：后端 `CreateVMRequest` 没这两个字段、静默丢弃（§1.15）。→ 后端票 D15。
+4. `hostInfo` 初值改 0 / 空数组，**不照抄** Vue2 硬编码的 `cpuCores:16 / availableMemoryMB:11673 / availableDiskGB:959`（`:619-627`）—— 那会让 CPU 核心格子首帧闪出 16 个再变成真值 6 个。格子数为 0 时不渲染格子。**这是可见偏离**，见 §12 #6。
+5. 三处 Vue2 死代码不照抄（§1.15 末尾清单）。
+6. 弹窗内校验失败改内联报错，不用 toast（6.2.4）。
 
 ### P5–P6 DoD
 
-真机建 VM、开控制台、跑通六个电源动作、建删快照；信封层数解析与表单校验有单测；显式 pathspec 提交。
+真机建一台一次性 VM（用户 2026-08-03 授权建 + 验完删）、开控制台、跑通六个电源动作、建 / 删 / 恢复快照、改 VM 设置与全局设置，验完删掉该 VM；信封层数解析与表单校验有单测；显式 pathspec 提交。
+
+**P6 顺带补验 P5 的挂账**：D33 真删除 VM 的第二次点击 · D36 安装横幅「我已完成安装」 · D42 光标小圆点 + 画面缩放 · P5 验收清单第 4-22 条（机主只跑到第 3 条）。D34（`wakeup` 需 `suspended` 态）与 D35（SPICE 条需 `bootFromDisk=true` 且 `spicePort>0`）造不出条件就继续挂账。
 
 ---
 
@@ -578,7 +657,8 @@ index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光
 
 ## 10. 全程硬约束速查
 
-- 验收起 **dev server `pnpm dev --port 5299`**（避开 sp7 的 5277、sp8 的 5288、默认 5273），**不是 `deploy.sh`**（它构建当前工作树，会把时光机的半成品打进去）。
+- 验收起 **dev server**，**不是 `deploy.sh`**（设备上只有一个 `/var/lib/nimoos/www/app/`，而 `deploy.sh` 是 `rsync --delete` —— 三条并行线共用它，谁部署谁把另外两条的产物删掉）。
+  **端口 2026-08-03 订正为 5273**：本条原写 `--port 5299`「避开默认 5273」，前提是当时还有 `.sp9` worktree；时间机器完工后 worktree 已撤、SP9 直接在主工作树 master 上做，5273 就是它自己的端口。现役三线：**master(SP9) 5273 · `.sp7`(相册) 5277 · `.sp8`(AI) 5288**。
 - i18n 新 key 必须**同时**加 zh_cn 与 en_us 分片，否则 `parity.test.ts` 立红。
 - 颜色**只能**用 theme token，新语义 token 加进 `theme.sp9.css` 且两套主题块都给值。
 - 每期任务门：全量 `pnpm test` + `pnpm exec vue-tsc --noEmit`，判定标准见 §9.4 第 5 条。
@@ -605,12 +685,14 @@ index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光
 | **D11** | 设置 folder-permissions **界面已做、逻辑待接线**（六路聚合器跨 SP7/SP8，§1.11）。合并后只需替换 `fetchSnapshot` / `execute` 两个函数 | sp7/sp8 合并后 |
 | **D12** | **`wiki` 域用户拍板挂账** —— roadmap §3.3 追踪表里完全缺席、无 SP 归属；它是 D11 落地的前置 | 需用户排期 |
 | **D13** | 设置 apps tab「清理本地待上传缓存」**界面已做、逻辑待接线**（依赖相册上传 IndexedDB 队列） | SP7-P8 |
+| **D14** | **删除 ISO 无 UI** —— spec 原 §6.2 列了这一项，但 Vue2 `OSSelector` 里根本没有删除入口、`deleteISO` 零调用方（§1.15 #5）。用户 2026-08-03 拍板不做。真要做还得设计「正在被 VM 挂载的 ISO 不能删」的守卫与删后 `vm.iso` 失效的提示 | 需用户排期 |
+| **D15** | **后端 `POST /v1/kvm/vms` 不接受 `autostart`** —— `model.CreateVMRequest` 无此字段，导致「新建 VM 继承全局设置的自动启动」在 Vue2 里从来没生效过（§1.15）。要么后端加字段，要么前端建完再补一次 `PUT /vms/:id/autostart`（后者多一次请求、且失败态难表达，未采用） | 后端票 |
 
 ---
 
-## 12. 授权偏离登记（本期共 5 处）
+## 12. 授权偏离登记（本期共 6 处）
 
-「界面严格 1:1」是 roadmap 2026-07-27 拍板的铁律。以下 5 处**可见地不 1:1**，逐条登记依据。
+「界面严格 1:1」是 roadmap 2026-07-27 拍板的铁律。以下 6 处**可见地不 1:1**，逐条登记依据。
 
 | # | 偏离 | 依据 |
 |---|---|---|
@@ -619,3 +701,4 @@ index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光
 | 3 | 设置 storage tab 内容从 1:1 重做改为**跳转入口卡** | 用户 2026-07-31 拍板；避免与 SP6 已完成的 `/storage` 双实现 |
 | 4 | 设置 terminal tab 的**终端位是空态占位**，不是 xterm 终端 | 后端 `/v1/sys/wsssh` 已注释、实测 404（§1.6）；政策二 |
 | 5 | 「做样子」项：folder-permissions 权限矩阵（§5.7）与 apps tab 的清理待上传缓存行（§5.6）—— **界面 1:1 但无数据、写操作禁用** | 政策三（用户 2026-07-31 新增）；合并后接线不重做界面 |
+| 6 | KVM 创建 / VM 设置弹窗的 CPU 核心格子**首帧不渲染**（等 `GET /settings` 回来才按真值渲染），Vue2 会先按硬编码初值闪出 16 个格子再变成真值 6 个 | Vue2 那组初值（`:619-627`）是占位残留不是设计意图；「Vue2 的 bug 不照抄」（§10 移植纪律）。见 §6.2.5 第 4 条 |
