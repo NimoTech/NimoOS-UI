@@ -343,6 +343,31 @@ describe('类 2 · 桌面默认布局', () => {
   })
 })
 
+describe('类 2 · AddPanel 去照片 tab', () => {
+  it('照片 tab 与 photos store 全无', () => {
+    const s = read('src/home/components/AddPanel.vue')
+    for (const bad of ['usePhotosStore', 'photosStore', "curTab.value === 'photo'",
+                       'addPanelNoPhotos', 'addPanelTabPhoto', 'lib-photo']) {
+      expect(s, bad).not.toContain(bad)
+    }
+  })
+
+  it('三个 tab 都还在', () => {
+    const s = read('src/home/components/AddPanel.vue')
+    for (const k of ["key: 'widget'", "key: 'app'", "key: 'folder'"]) expect(s).toContain(k)
+  })
+
+  it('注释洗白:ic-photos 不再出现,ic-files 仍在原位', () => {
+    const s = read('src/home/components/AddPanel.vue')
+    expect(s).not.toMatch(/ic-photos/)
+    expect(s).toContain('ic-files')
+  })
+
+  it('文件明显变短(519 行 → 490 行以内)', () => {
+    expect(read('src/home/components/AddPanel.vue').split('\n').length).toBeLessThanOrEqual(490)
+  })
+})
+
 describe('类 2 · MediaViewer 拆转录', () => {
   it('转录/说话人/Ask 的符号全无(speaker 是哨兵词)', () => {
     const s = read('src/files/viewers/MediaViewer.vue')

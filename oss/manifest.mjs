@@ -70,6 +70,11 @@ export const REPLACE = [
   // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
   { path: 'src/files/viewers/MediaViewer.vue', from: 'MediaViewer.vue',
     privateSha256: 'a82ed56d908a27a0a00f4fa325c3d2d300fb551c453202af18732a8e88944031' },
+
+  // T11:AddPanel 去照片 tab(模板块 + tab 定义 + usePhotosStore 声明/import +
+  // .lib-photo-* 样式四处一并删除;409 行附近 ic-photos 注释改泛化措辞)
+  { path: 'src/home/components/AddPanel.vue', from: 'AddPanel.vue',
+    privateSha256: '948b9dcae47cef319b93342e551a4f1dd65e358c63174df525dd457f44d656fe' },
 ]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */
