@@ -17,13 +17,14 @@ import ProgressOverlay from '../components/ProgressOverlay.vue'
 import KvmGlobalSettingsDialog from '../components/KvmGlobalSettingsDialog.vue'
 import OsSelector from '../components/OsSelector.vue'
 import CreateVmDialog from '../components/CreateVmDialog.vue'
+import VmSettingsDialog from '../components/VmSettingsDialog.vue'
 import { useVmList } from '../composables/useVmList'
 import { useVncConsole } from '../composables/useVncConsole'
 import { useIsoList } from '../composables/useIsoList'
 import { useKvmHostInfo } from '../composables/useKvmHostInfo'
 import { isWindowsGuest } from '../util/vmState'
 import { useToast } from '../../stores/toast'
-import type { KvmVM, KvmCreateVMRequest } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest, KvmUpdateVMRequest } from '@nimotech/nimoos-service'
 import type { SelectedOs } from '../components/OsSelector.vue'
 
 const { t, te } = useI18n()
@@ -64,13 +65,33 @@ const selectedOs = ref<SelectedOs | null>(null)
 const creating = ref(false)
 const createError = ref('')
 
+// ===================== VM 设置弹窗接线(P6 Task 9) =====================
+const vmSettingsOpen = ref(false)
+const settingsSelectedOs = ref<SelectedOs | null>(null)
+const settingsSaving = ref(false)
+const settingsError = ref('')
+
 // 照 Vue2 handleOSSelect/onOSSelect 的下载三态提示(OSSelector.vue:165/:173/:1421)——
 // 下载进度订阅在 isoList 里(常驻,不随弹窗开合断续),这里只管弹 toast。
 isoList.onDownloadDone((row) => toast.show(`${row.name} ${t('kvmToastDownloaded')}`))
 isoList.onDownloadFailed(() => toast.show(t('kvmDownloadFailed')))
 
+// P6 Task 9:OsSelector 是页面级共用的**同一个**弹窗(z-index 920 叠在上层弹窗之上),
+// 创建弹窗与 VM 设置弹窗都会打开它——照 Vue2 用一个布尔标记(settingsOSSelector)区分
+// "这次打开是给谁选的",onOSSelect 按这个标记路由选中结果(:1376-1428)。这里同样用
+// 一个标记(osSelectorTarget),但用字符串字面量类型而不是布尔值,更能自解释。
+const osSelectorTarget = ref<'create' | 'settings'>('create')
+function openOsSelectorFor(target: 'create' | 'settings'): void {
+  osSelectorTarget.value = target
+  osSelectorOpen.value = true
+}
+
 function onOsSelect(os: SelectedOs): void {
-  selectedOs.value = os
+  if (osSelectorTarget.value === 'settings') {
+    settingsSelectedOs.value = os
+  } else {
+    selectedOs.value = os
+  }
 }
 
 // 打开创建弹窗(点「添加虚拟机」/ 空列表自动弹 都走这里)。照 Vue2 showCreateVM
@@ -115,6 +136,28 @@ async function onCreateSubmit(payload: KvmCreateVMRequest): Promise<void> {
     }
   } finally {
     creating.value = false
+  }
+}
+
+// 照 Vue2 saveSettings(:1494-1514)的成功/失败两支——networkMode 折算/表单校验已经
+// 下沉到 VmSettingsDialog 内部(硬约束 7:弹窗内联,不到这层),这里只管"发请求 →
+// 成功关弹窗弹 toast → 失败内联展示"。`err && te(err) ? t(err) : err` 那道判定与
+// onCreateSubmit 同一个理由(见上面注释):useVmList.update() 的 fallback 是 i18n
+// 键名(如 'kvmFailedToSaveSettings'),不判定直接渲染会把键名裸显示给用户。
+async function onSettingsSubmit(patch: KvmUpdateVMRequest): Promise<void> {
+  const vm = s.selectedVM.value
+  if (!vm) return
+  settingsSaving.value = true
+  settingsError.value = ''
+  try {
+    const err = await s.update(vm, patch)
+    settingsError.value = err && te(err) ? t(err) : err
+    if (settingsError.value === '') {
+      toast.show(t('kvmToastSettingsSaved'))
+      vmSettingsOpen.value = false
+    }
+  } finally {
+    settingsSaving.value = false
   }
 }
 
@@ -415,6 +458,17 @@ async function onAction(name: string): Promise<void> {
       if (ok) toast.show(`${vmName} ${t('kvmAutoStart')} ${t(vm.autostart ? 'kvmAutoStartOn' : 'kvmAutoStartOff')}`)
       break
     }
+    case 'settings':
+      // P6 Task 9:齿轮解禁——不是电源动作(不进 CONFIRM_ACTIONS,不要进度遮罩、不要
+      // "成功"toast,弹窗本身的保存成功才弹 toast,见 onSettingsSubmit)。照 Vue2
+      // showSettings(:1208-1209):tab 复位到 general(VmSettingsDialog 内部自己在
+      // watch(open)里做了)、清掉上一次可能残留的 OS 选择与报错。**不照抄**
+      // showSettings(:1204-1206)里那句"设置只能在虚拟机停止时修改"的死代码 toast——
+      // 齿轮按钮本身已经 `:disabled="!canEditSettings"`,点不到这个分支(spec §1.15)。
+      settingsSelectedOs.value = null
+      settingsError.value = ''
+      vmSettingsOpen.value = true
+      break
     default: break
   }
 }
@@ -547,9 +601,28 @@ async function onAction(name: string): Promise<void> {
       :selected-os="selectedOs"
       :creating="creating"
       :submit-error="createError"
-      @open-os-selector="osSelectorOpen = true"
+      @open-os-selector="openOsSelectorFor('create')"
       @submit="onCreateSubmit"
     />
+
+    <!-- P6 Task 9:VM 设置弹窗。`v-if="s.selectedVM.value"` 而不是常驻挂载——`vm` prop
+         是必填的 KvmVM(不接受 null),而齿轮本身只在选中了某台 VM 时才可能被点到
+         (ConsoleHeader 的整个父级 `.vm-console-container` 都在 `v-else` 分支下,见上面
+         `<div v-else class="vm-console-container">`),两者判据一致,不会出现"selectedVM
+         为空但 vmSettingsOpen 却是 true"的场景。`:host` 复用页面级 `hostInfo`(与创建
+         弹窗同一份,不重复拉取)。 -->
+    <VmSettingsDialog
+      v-if="s.selectedVM.value"
+      v-model:open="vmSettingsOpen"
+      :vm="s.selectedVM.value"
+      :host="hostInfo.host.value"
+      :selected-os="settingsSelectedOs"
+      :saving="settingsSaving"
+      :submit-error="settingsError"
+      @open-os-selector="openOsSelectorFor('settings')"
+      @submit="onSettingsSubmit"
+    />
+
     <OsSelector
       v-model:open="osSelectorOpen"
       :isos="isoList.isos.value"

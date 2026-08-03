@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
-import type { KvmVM, KvmCreateVMRequest } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest, KvmUpdateVMRequest } from '@nimotech/nimoos-service'
 
 const api = {
   getVMList: vi.fn(), getVM: vi.fn(), startVM: vi.fn(), stopVM: vi.fn(),
   restartVM: vi.fn(), pauseVM: vi.fn(), resumeVM: vi.fn(), wakeupVM: vi.fn(),
   deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(), createVM: vi.fn(),
+  updateVM: vi.fn(),
 }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
 
@@ -501,5 +502,70 @@ describe('create', () => {
     const p = s.create(PAYLOAD)
     s.dispose(); release({ id: 'x' }); await p
     expect(api.getVMList).not.toHaveBeenCalled()
+  })
+})
+
+// P6 Task 9(VM 设置弹窗接线):update() 返回值契约同 create(''=成功,非空=文案),
+// 同样不写共享 lastError(理由见 update() 顶部注释)。
+const UPDATE_PATCH: KvmUpdateVMRequest = {
+  name: 'renamed', vcpu: 4, memory: 2048, disk: 8, iso: '/DATA/KVM/isos/debian-13.iso',
+  bootFromDisk: false, firmware: 'uefi', networkMode: 'bridge', networkInterface: 'enp2s0',
+}
+
+describe('update', () => {
+  it('成功后调用 updateVM(id, patch)并回写可见字段(照 Vue2 saveSettings :1503-1508,不含 disk)', async () => {
+    api.updateVM.mockResolvedValue({})
+    const s = useVmList()
+    await s.fetchVMs()
+    const vm = s.selectedVM.value!
+    const originalDisk = vm.disk
+    expect(await s.update(vm, UPDATE_PATCH)).toBe('')
+    expect(api.updateVM).toHaveBeenCalledWith('vm-1', UPDATE_PATCH)
+    expect(vm.name).toBe('renamed')
+    expect(vm.vcpu).toBe(4)
+    expect(vm.memory).toBe(2048)
+    expect(vm.iso).toBe('/DATA/KVM/isos/debian-13.iso')
+    expect(vm.bootFromDisk).toBe(false)
+    expect(vm.firmware).toBe('uefi')
+    expect(vm.networkMode).toBe('bridge')
+    expect(vm.networkInterface).toBe('enp2s0')
+    // disk 字段不在回写集合里——disk 输入框在弹窗里是 disabled,值本来就没变,
+    // Vue2 saveSettings 的 Object.assign 语句本身也没有这个字段(:1503-1508)。
+    expect(vm.disk).toBe(originalDisk)
+    expect(s.lastError.value).toBe('') // 不写共享 lastError(理由同 create())
+  })
+
+  it('传入对象与列表项不是同一引用时,vms 列表与 selectedVM 仍同步回写', async () => {
+    api.updateVM.mockResolvedValue({})
+    const s = useVmList()
+    await s.fetchVMs()
+    const listItem = s.vms.value[0]
+    const detached = { ...listItem } // 模拟"调用方传入的 vm 参数不是列表里那个对象引用"
+    await s.update(detached, UPDATE_PATCH)
+    expect(listItem.name).toBe('renamed')
+    expect(s.selectedVM.value?.name).toBe('renamed')
+  })
+
+  it('失败返回后端 message,不写任何 vm 字段', async () => {
+    api.updateVM.mockRejectedValue(new Error('name already exists'))
+    const s = useVmList()
+    await s.fetchVMs()
+    const vm = s.selectedVM.value!
+    const before = { ...vm }
+    expect(await s.update(vm, UPDATE_PATCH)).toBe('name already exists')
+    expect(vm).toEqual(before)
+  })
+
+  it('dispose 后落定不再写 state(过期守卫)', async () => {
+    let release: (v: unknown) => void = () => {}
+    api.updateVM.mockReturnValue(new Promise((r) => { release = r }))
+    const s = useVmList()
+    await s.fetchVMs()
+    const vm = s.selectedVM.value!
+    const before = { ...vm }
+    const p = s.update(vm, UPDATE_PATCH)
+    s.dispose(); release({})
+    expect(await p).toBe('')
+    expect(vm).toEqual(before)
   })
 })

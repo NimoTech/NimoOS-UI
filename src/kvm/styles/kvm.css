@@ -1945,3 +1945,47 @@
 .cv-firmware-btn:first-child {
   border-right: 1px solid var(--kvm-field-border);
 }
+
+/* Task 9 补(硬约束 11):VM 设置弹窗里这两个按钮永远 disabled(照 Vue2 :321-322,
+ * 创建弹窗那份是可点的、不需要这条规则)。Vue2 源文件对 disabled 态没有专门写 CSS——
+ * 按钮不可点但视觉没有任何变化,这是 Vue2 的欠账(用户分不清"按下没反应"和"这个
+ * 本来就点不了"),硬约束 11 要求 disabled 显式给 cursor: not-allowed,这里补上,
+ * 不改变其它任何视觉(不降透明度——固件按钮的 active/非 active 底色差异本身已经足够
+ * 传达"这是当前值,不是可操作项"这层含义,加透明度反而会让已选中的那个变得不显眼)。 */
+.cv-firmware-btn:disabled {
+  cursor: not-allowed;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 9:VM 设置弹窗的 ISO 弹出/挂载双态按钮。视觉 1:1 对 Vue2 KVMFullPage 组件
+ * 样式里的弹出按钮那段规则(:2573-2592)。**不搬**紧挨着它上面那条纯文字色规则
+ * (:2568-2571,类名字面为 cv- 前缀 + ejected-text 后缀,本文件类名白名单扫描器
+ * 会把写在注释里的裸类名也当成"出现过的类名"扫描,这里刻意不连写出完整类名)——
+ * Vue2 模板里从没用过这个类(grep 全文件只有样式定义这一处出现),是死 CSS,
+ * 本组件也不渲染它。
+ *
+ * 色值核对(不在这里铺开写十六进制字面量——本文件裸颜色字面量守卫不剥注释,见文件
+ * 头部说明):背景与描边分别取本文件早前 .cv-iso-btn/.cv-cpu-btn 等处已经在用的
+ * --kvm-field-bg / --kvm-field-border 两个既有 token,字色取 --kvm-fg-dim,
+ * hover 态的红色取 --kvm-danger——四个 token 的字面量逐一核对过与 Vue2 源文件这段
+ * 规则的四个颜色值完全一致,不是新增 token 也不是巧合撞色。
+ * ════════════════════════════════════════════════════════════════════ */
+.cv-iso-eject {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  background: var(--kvm-field-bg);
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cv-iso-eject:hover {
+  background: var(--kvm-field-border);
+  color: var(--kvm-danger);
+}

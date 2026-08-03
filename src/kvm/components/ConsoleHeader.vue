@@ -17,6 +17,11 @@ const { t, te } = useI18n()
 const stateKey = computed(() => stateLabelKey(props.vm.state))
 const stateText = computed(() => (te(stateKey.value) ? t(stateKey.value) : stateKey.value))
 
+// P6 Task 9:齿轮解禁——照 Vue2 canEditSettings(:674-676)。Vue2 那份是 `this.selectedVM &&
+// (...)`,这里不需要那层判空:ConsoleHeader 只在 `s.selectedVM.value` truthy 时才被
+// KvmPage 挂载渲染(v-else 分支),`vm` prop 本身永远是一个真实的 VM 对象。
+const canEditSettings = computed(() => props.vm.state === 'stopped' || props.vm.state === 'crashed')
+
 // 溢出菜单开关。用 v-if(不是 v-show)挂载/卸载 OverflowMenu —— 每次重新打开都是全新实例,
 // 内部的 pendingAction/pendingId 自然是空的。
 //
@@ -76,15 +81,16 @@ function onMenuAction(name: string) {
       </div>
     </div>
     <div class="console-actions">
-      <!-- 硬约束 5:系统设置入口 P6 才实现,P5 恒 disabled + title 说明("即将上线"),
-           不照 Vue2 的 canEditSettings 切换 tooltip 文案(那套逻辑连同"设置弹窗"本身都是
-           P6 的活)。⚙ 是单色文字符号(禁 emoji),与 VmSidebar 的齿轮同款占位手法。 -->
+      <!-- P6 Task 9 解禁:照 Vue2 :91-95(b-tooltip + canEditSettings 切 tooltip 文案)。
+           ⚙ 仍是单色文字符号(禁 emoji),与 VmSidebar 的齿轮同款占位手法,P5 遗留的
+           "恒 disabled + kvmComingSoon"占位状态到此结束。 -->
       <button
         class="action-btn"
         type="button"
-        disabled
-        :title="t('kvmComingSoon')"
+        :disabled="!canEditSettings"
+        :title="canEditSettings ? t('kvmSettings') : t('kvmStopToModifySettings')"
         :aria-label="t('kvmSettings')"
+        @click="emit('action', 'settings')"
       >
         <span aria-hidden="true">⚙</span>
       </button>

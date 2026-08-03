@@ -40,6 +40,8 @@ const api = {
   // 否则 vi.mock 工厂里访问不存在的方法会是 undefined,点开弹窗时报错。
   getSettings: vi.fn(), updateSettings: vi.fn(),
   createVM: vi.fn(), getISOList: vi.fn(), downloadISO: vi.fn(),
+  // P6 Task 9:VM 设置弹窗接线需要的 updateVM。
+  updateVM: vi.fn(),
 }
 // IsoBrowser(OsSelector 的自定义区子组件,真实渲染,未被 mock 掉)展开时会调
 // service.folder.getList——即便本文件大多数用例不点开它,补全这个 getter 避免访问
@@ -111,6 +113,7 @@ beforeEach(() => {
   api.createVM.mockResolvedValue(VM())
   api.getISOList.mockResolvedValue([])
   api.downloadISO.mockResolvedValue(undefined)
+  api.updateVM.mockResolvedValue(VM())
 })
 
 const mountPage = () => mount(KvmPage, { global: { plugins: [i18n] } })
@@ -1342,6 +1345,108 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     // 硬约束(OsSelector.vue handleAction):点正在下载的卡片只 emit need-wait,不该
     // 顺带把弹窗关了或触发别的动作——间接验证:创建弹窗还在。
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机')
+    w.unmount()
+  })
+})
+
+// P6 Task 9:VM 设置弹窗接线——齿轮解禁 → 弹窗回填 → 保存成功/失败 → OsSelector 路由到
+// 设置弹窗而不是创建弹窗(osSelectorTarget,与创建流程共用同一个 OsSelector 实例)。
+describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
+  const openSettings = async (w: VueWrapper): Promise<void> => {
+    await w.get('.action-btn').trigger('click') // 齿轮是 console-actions 里第一个 action-btn
+    await flush()
+    await w.vm.$nextTick()
+  }
+
+  it('齿轮点击后弹出 VM 设置弹窗,标题与 General 表单回填选中 VM 的当前值', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', name: 'sp9-alpine-test', state: 'stopped', vcpu: 2, memory: 1024 })],
+      total: 1,
+    })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    expect(document.body.querySelector('.create-vm-title')).toBeNull()
+
+    await openSettings(w)
+
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置 - sp9-alpine-test')
+    expect((document.body.querySelector('input[name="name"]') as HTMLInputElement).value).toBe('sp9-alpine-test')
+    w.unmount()
+  })
+
+  it('保存成功 → 调用 updateVM(id, patch)、关弹窗、弹 toast「设置已保存」,选中 VM 的可见字段被回写', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', name: 'sp9-alpine-test', state: 'stopped' })],
+      total: 1,
+    })
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSettings(w)
+
+    const nameInput = document.body.querySelector('input[name="name"]') as HTMLInputElement
+    nameInput.value = 'renamed-vm'
+    nameInput.dispatchEvent(new Event('input'))
+    await w.vm.$nextTick()
+
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(api.updateVM).toHaveBeenCalledWith('vm-1', expect.objectContaining({ name: 'renamed-vm' }))
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 关弹窗
+    expect(useToast().toasts.map((x) => x.text)).toContain('设置已保存')
+    // 回写生效的直接证据:控制台头的标题(读 s.selectedVM.value.name)跟着变了,
+    // 不需要手动刷新页面——这是 useVmList.update() 成功后 Object.assign 回写的效果。
+    expect(w.get('.console-title h3').text()).toBe('renamed-vm')
+    w.unmount()
+  })
+
+  it('保存失败 → 弹窗不关,内联显示后端 message(不弹 toast)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.updateVM.mockRejectedValue(new Error('domain name already exists'))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSettings(w)
+
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置') // 没关
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('domain name already exists')
+    expect(useToast().toasts).toEqual([])
+    w.unmount()
+  })
+
+  // osSelectorTarget 路由的真实覆盖:设置弹窗与创建弹窗共用同一个页面级 OsSelector 实例,
+  // 从设置弹窗打开 OsSelector 选中的结果必须落进设置弹窗自己的 iso 行,不能串到创建
+  // 弹窗那边(创建弹窗此刻甚至从未打开过)。
+  it('设置弹窗里点 ISO 行打开 OsSelector,选中结果落进设置弹窗(不是创建弹窗)', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'stopped', iso: '', bootFromDisk: true })],
+      total: 1,
+    })
+    api.getISOList.mockResolvedValue([ISO_ALPINE])
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSettings(w)
+    expect(document.body.querySelector('.cv-iso-btn')?.textContent).toContain('未挂载 ISO')
+
+    ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+
+    const pickBtn = [...document.body.querySelectorAll('.os-action-btn')]
+      .find((b) => b.textContent?.trim() === '选择') as HTMLElement
+    pickBtn.click()
+    await flush()
+    await w.vm.$nextTick()
+
+    // OsSelector 选中即关,此刻只应剩设置弹窗一个 .create-vm-modal(创建弹窗从未打开过)。
+    expect([...document.body.querySelectorAll('.create-vm-modal')]).toHaveLength(1)
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置')
+    expect(document.body.querySelector('.cv-iso-btn')?.textContent)
+      .toContain('/DATA/KVM/isos/alpine-319.iso')
     w.unmount()
   })
 })

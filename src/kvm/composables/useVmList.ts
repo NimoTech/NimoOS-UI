@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import type { Ref, ComputedRef } from 'vue'
 import { service } from '@nimotech/nimoos-service'
-import type { KvmVM, KvmCreateVMRequest } from '@nimotech/nimoos-service'
+import type { KvmVM, KvmCreateVMRequest, KvmUpdateVMRequest } from '@nimotech/nimoos-service'
 import { useMessageBus } from '../../composables/useMessageBus'
 import { preserveSpice } from '../util/spicePreserve'
 
@@ -422,6 +422,50 @@ export function useVmList() {
     }
   }
 
+  // P6 Task 9(VM 设置弹窗接线):照 Vue2 saveSettings(:1494-1514)的成功/失败两支——
+  // 表单校验/networkMode 折算已经下沉到 VmSettingsDialog 内部(硬约束 7:弹窗内联,
+  // 不到这层),这里只管"发请求 → 成功回写可见字段 → 返回结果"。
+  //
+  // 返回值契约(''=成功,非空=这次调用失败的文案)与 create 表面一致,但**同样故意
+  // 不写共享的 `lastError`**——理由同 create() 顶部注释(评审 Important #3 那条的同一个
+  // 道理):保存失败只该显示在 VM 设置弹窗自己的内联 `.cv-error`(submitError prop)里。
+  // 如果这里也写 `lastError`,会顺着 consoleErrorKey 的兜底路径(KvmPage.vue)串到
+  // 当前选中 VM 的控制台占位区上——纯粹的视觉污染,不是"串味"防不住,是压根不该往
+  // 共享状态里写。
+  //
+  // 成功后 Object.assign 回写"可见字段"(照 Vue2 saveSettings :1503-1508 的字段集合,
+  // **不含 disk**——disk 输入框在弹窗里本来就是 disabled,值不会变,Vue2 那条回写语句
+  // 本身也没有这个字段)。写法照 setVMState/toggleAutostart 的既有惯例:`vm` 参数、
+  // `vms` 列表里同 id 的那一项、`selectedVM` 三者理论上多数时候是同一个对象引用,但不
+  // 保证一定同引用(见 setVMState 顶部注释),三处都写更稳妥——哪怕其中两处恰好是
+  // 同一个引用,重复 Object.assign 也是幂等的,不会有副作用。
+  async function update(vm: KvmVM, patch: KvmUpdateVMRequest): Promise<string> {
+    try {
+      await service.kvm.updateVM(vm.id, patch)
+      if (!alive) return '' // dispose 之后到达的结果不再写 state(评审 3 的既有惯例)
+      const visible: Partial<KvmVM> = {
+        name: patch.name,
+        vcpu: patch.vcpu,
+        memory: patch.memory,
+        iso: patch.iso,
+        bootFromDisk: patch.bootFromDisk,
+        firmware: patch.firmware,
+        networkMode: patch.networkMode,
+        networkInterface: patch.networkInterface,
+      }
+      Object.assign(vm, visible)
+      const inList = findVm(vm.id)
+      if (inList && inList !== vm) Object.assign(inList, visible)
+      if (selectedVM.value && selectedVM.value.id === vm.id && selectedVM.value !== vm) {
+        Object.assign(selectedVM.value, visible)
+      }
+      return ''
+    } catch (e) {
+      if (!alive) return ''
+      return errText(e, 'kvmFailedToSaveSettings')
+    }
+  }
+
   return {
     vms,
     selectedVM,
@@ -442,6 +486,7 @@ export function useVmList() {
     remove,
     ejectInstallMedia,
     create,
+    update,
     onVncShouldConnect,
     onVncShouldDisconnect,
     dispose,

@@ -17,11 +17,22 @@ describe('ConsoleHeader', () => {
   it('状态点带 state 类', () => {
     expect(mk().get('.console-status .status-dot').classes()).toContain('running')
   })
-  it('Settings 按钮渲染但禁用(P6),带 title', () => {
-    const b = mk().findAll('.action-btn')[0]
+  // P6 Task 9:齿轮解禁,照 Vue2 canEditSettings(:674-676)/tooltip(:91)。
+  it('running 时齿轮禁用,tooltip 是「停止虚拟机以修改设置」', () => {
+    const b = mk(VM('running')).findAll('.action-btn')[0]
     expect(b.attributes('disabled')).toBeDefined()
-    expect(b.attributes('title')).toContain('即将上线')
+    expect(b.attributes('title')).toContain('停止虚拟机以修改设置')
     expect(b.attributes('aria-label')).toBeTruthy()
+  })
+  it('stopped 时齿轮可点,tooltip 是「系统设置」', () => {
+    const b = mk(VM('stopped')).findAll('.action-btn')[0]
+    expect(b.attributes('disabled')).toBeUndefined()
+    expect(b.attributes('title')).toContain('系统设置')
+  })
+  it('点击齿轮 emit action: settings', async () => {
+    const w = mk(VM('stopped'))
+    await w.findAll('.action-btn')[0].trigger('click')
+    expect(w.emitted('action')![0]).toEqual(['settings'])
   })
   it('⋮ 按钮点击展开菜单,再点收起', async () => {
     const w = mk()
