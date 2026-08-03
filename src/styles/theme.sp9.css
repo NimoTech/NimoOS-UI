@@ -86,6 +86,11 @@
   --kvm-snapshot-hover: #222;
   --kvm-snapshot-desc-fg: #999;
   --kvm-snapshot-date-fg: #666;
+  /* Task 11 收尾新增(评审 Minor b):Vue2 `.cv-snapshot-name` 的字色是字面量 `#fff`——
+   * 不借用 --kvm-on-accent(语义是"强调色实底上的前景色",这里是深灰卡片底上的普通文字,
+   * 语义不贴合),单独给一个跟随 --kvm-snapshot-desc-fg/--kvm-snapshot-date-fg 同一族
+   * 命名的语义 token。 */
+  --kvm-snapshot-name-fg: #fff;
   --kvm-restore-bg: #dc3545;
   --kvm-restore-bg-hover: #c82333;
   --kvm-restore-disabled-bg: #6c757d;
@@ -155,6 +160,8 @@
   --kvm-snapshot-hover: #222;
   --kvm-snapshot-desc-fg: #999;
   --kvm-snapshot-date-fg: #666;
+  /* 与 :root 块相同的值,见上方注释(固定深色,不跟随主题)。 */
+  --kvm-snapshot-name-fg: #fff;
   --kvm-restore-bg: #dc3545;
   --kvm-restore-bg-hover: #c82333;
   --kvm-restore-disabled-bg: #6c757d;

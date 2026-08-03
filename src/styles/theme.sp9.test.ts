@@ -48,7 +48,7 @@ describe('theme.sp9.css token 两套主题齐备', () => {
   })
 })
 
-describe('P6 KVM 弹窗/快照 token 齐备(Task 0 地基:后续任务只许用这 23 个名字)', () => {
+describe('P6 KVM 弹窗/快照 token 齐备(Task 0 地基 23 个 + Task 11 收尾新增 1 个 = 24 个)', () => {
   const P6_TOKENS = [
     '--kvm-modal-bg', '--kvm-modal-fg', '--kvm-field-bg', '--kvm-field-border',
     '--kvm-field-elev', '--kvm-accent-light', '--kvm-accent-hover', '--kvm-accent-hover-alt',
@@ -57,10 +57,13 @@ describe('P6 KVM 弹窗/快照 token 齐备(Task 0 地基:后续任务只许用�
     '--kvm-snapshot-hover', '--kvm-snapshot-desc-fg', '--kvm-snapshot-date-fg',
     '--kvm-restore-bg', '--kvm-restore-bg-hover', '--kvm-restore-disabled-bg',
     '--kvm-delete-bg-hover',
+    // Task 11 收尾新增(评审 Minor b 的处置):.cv-snapshot-name 字色语义 token,
+    // 详见 theme.sp9.css 定义处与 kvm.css .cv-snapshot-name 规则的注释。
+    '--kvm-snapshot-name-fg',
   ]
 
-  it(`本期 23 个 token 都已在 :root 声明(实际 ${P6_TOKENS.length} 个)`, () => {
-    expect(P6_TOKENS.length).toBe(23)
+  it(`本期 24 个 token 都已在 :root 声明(实际 ${P6_TOKENS.length} 个)`, () => {
+    expect(P6_TOKENS.length).toBe(24)
     const root = tokensOf(':root {')
     const missing = P6_TOKENS.filter((t) => !root.includes(t))
     expect(missing, `:root 缺少 token: ${missing.join(', ')}`).toEqual([])

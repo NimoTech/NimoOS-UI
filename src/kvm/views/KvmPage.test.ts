@@ -1664,4 +1664,41 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
     w.unmount()
   })
+
+  // P6 Task 11 收尾补的回归测试(评审 Minor d):KvmPage.vue 的 case 'settings' 分支里有
+  // 一句 `snapCreateError.value = ''`,清掉上一轮快照操作留下的报错残留——这句本身没有
+  // 单测覆盖过。判别力设计:先在**不关闭**设置弹窗的情况下确认那条 `.cv-error` 确实还在
+  // (与上面「删除失败」那条用例是同一断言,不是新写法),这样才能排除"错误本来就会自己
+  // 消失"这个混淆因素;再关闭弹窗、重新打开并切到快照 tab,断言旧的 `.cv-error` 不再
+  // 出现——如果把 `snapCreateError.value = ''` 那一行删掉,这条用例会失败(旧错误残留)。
+  it('设置弹窗重新打开会清掉上一轮快照操作的报错残留(评审 Minor d)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
+    api.getSnapshots.mockResolvedValue([
+      { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
+    ])
+    api.deleteSnapshot.mockRejectedValue(new Error('snapshot is in use'))
+    const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flush()
+    await openSnapshotsTab(w)
+
+    const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
+    delBtn().click() // 第一次:只变确认文字
+    await w.vm.$nextTick()
+    delBtn().click() // 第二次:真正触发删除,后端拒绝
+    await flush()
+    await w.vm.$nextTick()
+
+    // 先确认:不关弹窗的话,这条错误确实还留在页面上——排除"错误本来就会自己消失"
+    // 这个混淆因素,下面重新打开后的"消失了"才能归因于 case 'settings' 那句清空。
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('snapshot is in use')
+
+    ;(document.body.querySelector('.create-vm-close') as HTMLElement).click()
+    await flush()
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 弹窗确实关了
+
+    await openSnapshotsTab(w)
+    expect(document.body.querySelector('.cv-error')).toBeNull() // 旧报错没有跟着重新打开露出来
+    w.unmount()
+  })
 })

@@ -25,6 +25,8 @@
  * os-selector-body 与 os-*/category-*/custom-*(OSSelector)。颜色同样一律 var(--kvm-*),
  * 用到的 23 个 token 已在 theme sp9 分片里定义(--kvm-modal-*/--kvm-field-*/
  * --kvm-accent-hover-alt/--kvm-snapshot-*/--kvm-restore-*/--kvm-delete-bg-hover 等)。
+ * (Task 11 收尾又新增第 24 个 --kvm-snapshot-name-fg,历史计数不改,见该 token 定义处
+ * 与消费处注释。)
  */
 
 .kvm-page {
@@ -2066,6 +2068,10 @@
  * --kvm-snapshot-hover;名称字色取既有 --kvm-modal-fg(Vue2 写纯白,深色卡片上与
  * --kvm-modal-fg 的浅灰视觉无差,复用既有"卡片内主文字"语义 token 不新增)、描述字色
  * 取新 token --kvm-snapshot-desc-fg、日期字色取新 token --kvm-snapshot-date-fg。
+ * ⚠️ Task 11 收尾订正:上一句"边框复用既有 --kvm-field-border"/"名称字色取既有
+ * --kvm-modal-fg" 两处评审判为 Minor 偏离(字面量不是 1:1),已改成 --kvm-field-elev /
+ * 新 token --kvm-snapshot-name-fg,理由见 .cv-snapshot-item / .cv-snapshot-name 规则
+ * 自身紧邻的注释,这里的历史记录保留不删,免得抹掉评审轨迹。
  * `.cv-btn-restore` 底/hover 底/disabled 底分别取新 token --kvm-restore-bg /
  * --kvm-restore-bg-hover / --kvm-restore-disabled-bg;字色复用既有 --kvm-on-accent。
  * `.cv-btn-delete` 底复用既有 --kvm-danger(与 Vue2 这条规则的字面量恰好相同,不是
@@ -2096,13 +2102,18 @@
   font-size: 0.8rem;
 }
 
+/* Task 11 收尾修复(评审 Minor a,不铺开写十六进制字面量——本文件裸颜色字面量守卫逐行
+ * 扫描、不剥注释):Vue2 这条规则(:2976)的边框深灰字面量,`--kvm-field-elev` 恰好就是
+ * 这个字面量(theme sp9 分片,本文件早前 .cv-cpu-btn 等处已经在用同一个 token),之前
+ * 误用了 --kvm-field-border(另一个视觉上几乎无法区分但字面量不是 1:1 的深灰),换成
+ * 精确对应的既有 token,零新增成本。 */
 .snapshots-body .cv-snapshot-item {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   padding: 1.5rem;
   background: var(--kvm-snapshot-bg);
-  border: 1px solid var(--kvm-field-border);
+  border: 1px solid var(--kvm-field-elev);
   border-radius: 0.5rem;
   transition: border-color 0.2s, background-color 0.2s;
 }
@@ -2119,11 +2130,20 @@
   flex-direction: column;
 }
 
+/* Task 11 收尾修复(评审 Minor b,不铺开写十六进制字面量——同上一条理由):Vue2 这条
+ * 规则(:3003)的字色是纯白字面量——之前误用了 --kvm-modal-fg(浅灰,不是纯白)。
+ * --kvm-on-accent 的值恰好也是纯白,但它的语义是「强调色实底上的前景色」(消费处如
+ * .cv-btn-restore/.cv-btn-delete 都是纯色按钮上的文字),拿来给 --kvm-snapshot-bg
+ * (深灰卡片底,不是强调色)上的普通文字复用,语义不贴合——判断:新增一个语义正确的
+ * token,而不是借用 on-accent。命名跟随本文件已有的 --kvm-snapshot-desc-fg/
+ * --kvm-snapshot-date-fg 同一族(均是"快照卡片内某行文字的颜色"),两个主题块同值
+ * (KVM 区固定深色,见文件头与 theme sp9 分片注释),已同步进 theme sp9 分片测试文件的
+ * 24 个 token 清单。 */
 .snapshots-body .cv-snapshot-name {
   display: block;
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--kvm-modal-fg);
+  color: var(--kvm-snapshot-name-fg);
   margin-bottom: 0.6rem;
   white-space: normal;
 }
@@ -2152,6 +2172,13 @@
   justify-content: center;
 }
 
+/* Task 11 收尾修复(评审 Minor c):Vue2 这条规则(:3046)是 `transition: all 0.2s`,
+ * 之前窄化成 `background-color 0.2s, border-color 0.2s` 且首轮未申报——实际影响:
+ * `.cv-btn-restore:disabled` 的 `opacity: 0.4` 在 Vue2 下随 all 一起渐变,窄化后会瞬间
+ * 跳变(VM 状态切换导致按钮启用/禁用时肉眼可见)。按硬约束"未申报的偏离即缺陷"收掉,
+ * 选择改回 `all 0.2s` 与 Vue2 完全一致——没有已知理由需要窄化 transition 范围(不像
+ * 其它 all→拆分的地方那样是为了避开某个不该过渡的属性),照抄最简单也最不会有下一次
+ * 遗漏。 */
 .cv-btn {
   display: flex;
   align-items: center;
@@ -2163,7 +2190,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition: all 0.2s;
   white-space: nowrap;
 }
 

@@ -329,10 +329,11 @@ export default {
   kvmStateSuspended: 'Suspended',
   kvmStateError: 'Error',
   kvmSettings: 'Settings',
-  // P6-reserved key — the VM settings dialog doesn't exist yet in P5 (Settings button is
-  // always disabled), so this hint has no consumer yet. Intentional, not dead code/an
-  // oversight — noted so future audits don't have to re-verify this each pass.
-  kvmSettingsDisabledHint: 'Stop VM to modify settings',
+  // Task 11 cleanup (dead-key audit): this used to reserve `kvmSettingsDisabledHint`
+  // (P5 placeholder, same copy as `kvmStopToModifySettings` below), but P6 Task 9's
+  // ConsoleHeader gear tooltip (:91) ended up using the differently-named
+  // `kvmStopToModifySettings` key instead — the reserved key was never consumed, so it's
+  // a genuine dead key (not an intentional keep) and has been removed.
   kvmMore: 'More',
   kvmComingSoon: 'Coming soon',
   kvmPowerOn: 'Power On',

@@ -342,12 +342,11 @@ export default {
   // zh_CN.json 第 90 行 $t(canEditSettings ? 'Settings' : ...) 用的就是全局 "Settings" 键
   // = "系统设置"(与全局设置弹窗共用同一 i18n 键,Vue2 原文如此,照抄,不自行改得更贴切)。
   kvmSettings: '系统设置',
-  // zh_CN.json "Stop VM to modify settings" = "停止虚拟机以修改设置"(非 brief 草稿的
-  // "停止虚拟机后才能修改设置")。
-  // P6 预埋键——本期(P5)VM 设置弹窗还没做,Settings 按钮恒 disabled,这个提示文案
-  // 目前没有消费方,是特意为 P6 提前占好位的,不是遗漏/死代码(评审扫描已确认无引用,
-  // 加这行注释免得每轮复审都要再核实一遍)。
-  kvmSettingsDisabledHint: '停止虚拟机以修改设置',
+  // Task 11 收尾清点(死键清理):这里原来预埋了一个 `kvmSettingsDisabledHint` 键
+  // (P5 阶段占位,文案与下面 `kvmStopToModifySettings` 完全相同),真正到 P6 Task 9
+  // 实现 ConsoleHeader 齿轮 tooltip 时(:91)另起了 `kvmStopToModifySettings` 这个名字,
+  // 预埋键从未被消费过——两个键文案重复但只有一个在用,是纯粹的死键,已删除
+  // (不是"留着说明原因"的例外,是真的没有任何消费方,brief Step 3 死键清点判定应删)。
   // zh_CN.json "More" = "浏览更多"(此键在 Vue2 里被复用给"更多操作"三点菜单的 tooltip,
   // 译文与场景不算贴切但是 Vue2 实际展示的文案,照抄)。
   kvmMore: '浏览更多',

@@ -105,6 +105,89 @@ describe('禁用按钮 hover/cursor 不误导用户(add-vm-btn / kvm-settings-bt
   })
 })
 
+// ════════════════════════════════════════════════════════════════════
+// Task 11 收尾固化:白名单的反向检查。
+//
+// 上面「没有不在册的类名」那条用例是单向的——只查 kvm.css 里出现的类名是否都在 ALLOWED
+// 里登记过,不查反向(模板用了某个类,但 kvm.css 里压根没有任何规则给它)。Task 9 就因此
+// 把 `.settings-tabs`/`.settings-tab` 整块样式漏掉过:两个 tab 渲染成浏览器默认按钮,而
+// 三道门全绿——17 条单测断言的是 classList.contains('active') 而不是计算样式(jsdom 下
+// 计算样式本来就不可靠),白名单又不查反向,谁都没能拦住。
+//
+// 这里补一条自动化的反向核对,不再依赖人工记得跑 brief 里那条 comm 命令:
+// 1) 只取 .vue 模板里**静态** `class="..."` 属性(排除 `:class="..."`)——动态 `:class`
+//    绑定的对象/数组语法（如 `{ active: x, 'is-loading': busy }`）会把 JS 变量名/字符串
+//    字面量也匹配进去（`busy`/`form.firmware`/`'uefi'` 之类),不是类名，没法用简单正则
+//    可靠地把它们和真类名分开；而 Task 9 那次真实漏样式的两个类（settings-tabs/
+//    settings-tab）恰好都是静态 class 属性，只查静态就足够逮住这一类回归。先剥掉
+//    `<!-- -->` HTML 注释再扫，避免注释里示例代码（如 VmSettingsDialog.vue 里演示测试
+//    写法的注释文本）被误当成真实模板用法。
+// 2) 从 kvm.css 里剥注释后按“选择器 { ”切块，取每个非 @ 开头选择器里出现的所有
+//    `.class` token（不只是行首第一个——复合/后代选择器如
+//    `.snapshots-body .cv-snapshot-item:hover` 里，`cv-snapshot-item` 不是行首第一个
+//    token，但确实有规则在管它),这样才不会把“确实有样式、只是不在选择器最前面”的类
+//    误判成漏样式。
+// 3) 差集 = 静态用了但 kvm.css 任何选择器里都没出现过的类。当前唯一一项是
+//    `sendkey-btn--fullscreen`——纯测试/选择器钩子（SendKeyToolbar.vue 上追加的第二个
+//    class，只为让 KvmPage.test.ts 精确选中全屏按钮而非其它 .sendkey-btn，视觉完全复用
+//    基类 .sendkey-btn，从未有专属规则,详情见上面 ALLOWED 里紧邻它的注释)，登记为
+//    唯一例外。若以后差集里出现新名字，说明真的漏了样式,不能直接加进例外名单了事。
+describe('kvm.css 反向检查:模板静态 class 用了但 kvm.css 没有任何样式规则', () => {
+  // 纯测试/选择器钩子,理由见上方大注释。以后每新增一项例外都必须在这里写清原因。
+  const NO_STYLE_EXPECTED = new Set([
+    'sendkey-btn--fullscreen',
+  ])
+
+  function collectStaticUsedClasses(): Set<string> {
+    const kvmDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+    const vueFiles: string[] = []
+    const walk = (dir: string): void => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, e.name)
+        if (e.isDirectory()) walk(full)
+        else if (e.name.endsWith('.vue')) vueFiles.push(full)
+      }
+    }
+    walk(kvmDir)
+
+    const used = new Set<string>()
+    for (const f of vueFiles) {
+      const raw = fs.readFileSync(f, 'utf8').replace(/<!--[\s\S]*?-->/g, '')
+      // `(^|[^:])` 排除 `:class="..."`(动态绑定),只要静态 `class="..."`。
+      for (const m of raw.matchAll(/(^|[^:])\bclass="([^"]*)"/g)) {
+        for (const cls of m[2].split(/\s+/).filter(Boolean)) used.add(cls)
+      }
+    }
+    return used
+  }
+
+  function collectStyledClasses(): Set<string> {
+    const noComment = src.replace(/\/\*[\s\S]*?\*\//g, '')
+    const styled = new Set<string>()
+    for (const m of noComment.matchAll(/([^{}]+)\{/g)) {
+      const selector = m[1].trim()
+      if (selector.startsWith('@')) continue // @media/@keyframes 的头部,不是选择器
+      for (const c of selector.match(/\.[a-zA-Z][\w-]*/g) ?? []) styled.add(c.slice(1))
+    }
+    return styled
+  }
+
+  it('静态 class 属性里出现的类,kvm.css 里都至少有一条规则管(例外名单之外)', () => {
+    const used = collectStaticUsedClasses()
+    const styled = collectStyledClasses()
+    const missing = [...used]
+      .filter((c) => !styled.has(c) && !NO_STYLE_EXPECTED.has(c))
+      .sort()
+    expect(missing, `以下静态 class 在 kvm.css 里没有任何规则(真漏样式,不在例外名单里):\n${missing.join(', ')}`).toEqual([])
+  })
+
+  it('例外名单本身不该有多余项(如果某天补齐了样式,要把它从例外名单里摘掉)', () => {
+    const styled = collectStyledClasses()
+    const staleExceptions = [...NO_STYLE_EXPECTED].filter((c) => styled.has(c))
+    expect(staleExceptions, `以下例外项其实已经有样式了,应从 NO_STYLE_EXPECTED 里删除:\n${staleExceptions.join(', ')}`).toEqual([])
+  })
+})
+
 // 2026-08-03 真机验收修复的守卫:画布几何必须由 noVNC 自己定,CSS 不许抢。
 // 抢了(Vue2 原样的 width/height:100% !important)会让 noVNC 的鼠标坐标换算失准——
 // 详细因果链与探针实测数据写在 kvm.css 对应规则的注释里。这条断言只盯"有没有把尺寸
