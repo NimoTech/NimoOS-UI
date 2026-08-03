@@ -130,6 +130,13 @@ const PLACE_CHIP_KEYS = ['years', 'cameras'] as const
 // 不改 usePlaceAssets 的 months(那是 P6b 的组件,禁无关重构)——本页自己再算一份筛选后
 // 的月份分组,并丢掉空月份(同 T4 的理由:月份刻度尺读的是未按标签页过滤的 months,这里
 // 同理不读 assets.months.value,自己对 assets.photos.value 先筛再分组)。
+//
+// fix round 1 Minor 1(评审):这里的调用顺序是「先筛后分组」——groupPhotosByMonth
+// (util/groupPhotosByMonth.ts:15-23)的桶是遇到照片才创建,永不产出空桶,所以本页这个
+// `.filter(m => m.photos.length > 0)` 在结构上不可能剔掉任何东西,是防御性死代码。仍然
+// 保留它(brief 明文要求),是为了与 T4(views/Photos.vue,那边 months 来自后端预分桶、
+// 筛选发生在桶内、空月份是真实可能出现的)保持同一套调用惯例口径,不是本页此刻需要的
+// 逻辑保护。
 const gridMonths = computed(() =>
   groupPhotosByMonth(applyExifFilters(assets.photos.value, exifFilter.value))
     .filter((m) => m.photos.length > 0))

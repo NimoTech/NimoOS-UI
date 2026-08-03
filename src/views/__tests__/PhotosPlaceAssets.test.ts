@@ -416,9 +416,27 @@ describe('P7b-T5: EXIF 筛选接线(D19)', () => {
     expect(bar.exists()).toBe(true)
     expect(bar.props('chipKeys')).toEqual(['years', 'cameras'])
     expect(w.find('[data-test="exif-chip-places"]').exists()).toBe(false)
+    // fix round 1 必修 1(评审):props 断言逮不住"挂对了组件、挂错了位置"这类错误——
+    // 把 <PhotosFilterBar> 挪到 .crumb-spacer 之前(实现者自己第一遍写错、靠肉眼对照 brief
+    // 才发现的那个形态)上面三条断言依旧全绿,但界面上筛选条会从右侧跳到面包屑文字旁边:
+    // .crumb-spacer{flex:1} 顶开的是"它之后"的内容,插在它之前 FilterBar 就贴着面包屑文字,
+    // 不再贴着计数出现在右侧。用相邻兄弟选择器钉死 DOM 序:
+    // .crumb-spacer 之后紧跟 .exif-filter(FilterBar 根节点),.exif-filter 之后紧跟
+    // .crumb-count——中间的注释节点不影响 CSS 相邻兄弟选择器的判定。
+    // 变异验证(已人工执行并复原,证据见 task-5-report.md「fix round 1」一节):把模板里
+    // <PhotosFilterBar> 移到 <div class="crumb-spacer"> 之前 → 这两条断言双双转红
+    // (crumb-spacer + exif-filter 与 exif-filter + crumb-count 均找不到匹配节点)→ 已复原。
+    expect(w.find('.crumb-spacer + .exif-filter').exists()).toBe(true)
+    expect(w.find('.exif-filter + .crumb-count').exists()).toBe(true)
   })
 
-  it('筛选生效后网格只拿到命中的照片,空月份被丢掉', async () => {
+  it('筛选生效后网格只拿到命中的照片(空月份门控本身在这里是恒真——理由见下),灯箱翻页集也跟着收窄', async () => {
+    // fix round 1 Minor 1(评审):原用例名承诺了"空月份被丢掉",但这是恒真断言——
+    // groupPhotosByMonth(util/groupPhotosByMonth.ts:15-23)的桶遇到照片才创建,永不产出
+    // 空桶,本页又是先筛后分组,PhotosPlaceAssets.vue 里那个 `.filter(m => m.photos.length
+    // > 0)` 在这条调用链上结构性地不可能剔掉任何东西——删掉那个 .filter 这条用例也不会红。
+    // 用例名已改口,不再承诺自己没验的事;下面 `months.every(...)` 这行仍然保留(它验证的
+    // 是"命中的月份里确实有照片",不是"空月份被丢掉"这个不成立的命题)。
     const { w } = await mountPlaceAssets()
     await w.findComponent(PhotosFilterBar).vm.$emit(
       'update:filter', { years: ['2023'], places: [], cameras: [] })
@@ -427,6 +445,18 @@ describe('P7b-T5: EXIF 筛选接线(D19)', () => {
     expect(months.every((m) => m.photos.length > 0)).toBe(true)
     // 夹具算准:2023 只命中 p1 一张(p2 是 2020)。
     expect(months.flatMap((m) => m.photos)).toHaveLength(1)
+
+    // fix round 1 必修 2(评审,约束 5 / D9 同型的回归锁):灯箱翻页集必须跟着筛选收窄,
+    // 不能是"筛选前"的整页 photos——p2(2020)被筛掉后,翻页集里不该还能翻到它。
+    // 既有那条"emit open → list 是整页 photos"用例是零筛选场景,两张 asset 同月同桶,
+    // assets.photos.value 与 gridMonths.flatMap 在该场景下同值同序,对这处改动不敏感,
+    // 不能当作已有保护——这里补一条筛选生效后的直接断言。
+    // 变异验证(已人工执行并复原,证据见 task-5-report.md):把 PhotosPlaceAssets.vue 里
+    // onOpen 的 `gridMonths.value.flatMap(...)` 临时改回 `assets.photos.value` →
+    // 下面这条断言从 `['p1']` 转红为 `['p1', 'p2']`(翻页集混入了被筛掉的 p2)→ 已复原。
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    expect(lb.list.value.map((p) => p.id)).toEqual(['p1'])
   })
 
   it('筛到零时仍渲染网格(空),不落到「这个地点没有照片」的空态;面包屑计数仍是地点总数', async () => {
@@ -435,7 +465,10 @@ describe('P7b-T5: EXIF 筛选接线(D19)', () => {
       'update:filter', { years: ['1999'], places: [], cameras: [] })
     await w.vm.$nextTick()
     expect(w.find('[data-test="place-assets-empty"]').exists()).toBe(false)
-    // 夹具算准:地点总张数恒为 2(未筛选的 assets.photos.value.length),不随筛选变化。
-    expect(w.get('[data-test="place-crumb-count"]').text()).toContain('2')
+    // fix round 1 Minor 2(评审):原来的 `.toContain('2')` 过松——夹具里 rawPlace() 默认
+    // count:42(本文件 :66),如果计数被误改成读 store.detail.count 会渲染"42 张照片",
+    // toContain('2') 仍然通过(因为 "42" 里含 "2")。改成精确匹配整串,钉死口径:计数读的
+    // 必须是地点资产数组长度(2),不是详情里那个 count 字段。
+    expect(w.get('[data-test="place-crumb-count"]').text()).toBe('2 张照片')
   })
 })
