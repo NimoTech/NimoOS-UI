@@ -15,7 +15,8 @@
  * 附录 D.6 并入既有的 `@media (max-width: 860px)`,S7 按 K9 从顶层裸选择器重新嵌套。
  * 白名单 102 → 134(附录 D.1 的 32 个)。新声明 3 个 token(见下方两个声明块的
  * "R2(P5b-T2 追加)"分组),归属依治理文件 §6.2 的 token 归属表。
- * 显式不搬:K17 的 .k-modal-head/-title/-x/-body(留 P5c)· K10 的顶层重复 confirm 段
+ * 显式不搬:K17 的 .k-modal-head/-title/-x/-body(留 P5c —— 已由下面的 P5c-T2a 段兑现)·
+ * K10 的顶层重复 confirm 段
  * (蓝本 :1676-1702,级联上永不生效)· 附录 D.5 的 .k-frow 死规则。
  *
  * 【SP8-P5b Task 6 续写】本档第三次扩容:搬入"已收录文件"页专属段(S8)——
@@ -30,6 +31,38 @@
  * 显式照抄不改:N11 —— .k-file-detail 的 `animation: fade-in`(蓝本 :1941)是悬空
  * 引用(蓝本只有 k-fade-in),Vue2 里这条淡入从未播过,照抄;keyframes 存在性守卫
  * 为这一个名字登记显式例外。
+ *
+ * 【SP8-P5c Task 2a 续写】本档第四次扩容:搬入"知识库配置页(SettingsView)+ 目录
+ * 选择器(FolderBrowser)"用到的段 —— 蓝本 :969-984(A,.k-section 四类)·
+ * :1141-1149(B)· :1159-1179(C)· :1181-1201(D)· :1203-1225(E)· :1227-1247(F)·
+ * :1249-1265(G)· :1267-1293(H)· :1317-1334(I,K17 兑现)· :2250-2263(J),
+ * 加上蓝本 src/components/common/FolderBrowser.vue:82-143 的 <style scoped> 全段
+ * (.fb 系列 8 个类)。段序照蓝本原序;J 段与 .fb-* 段是顶层裸选择器(后者靠 Vue2 的
+ * scoped 隔离),按 K9 重新嵌进下方那个既有的 `.knowledge-app { … }` 基础块 ——
+ * 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token。
+ * 白名单 187 → 226(附录 D.1 的 39 个);非 k* 辅助类登记表 9 → 10(新增 warn,
+ * 蓝本 :1174 是 .k-set-row-desc 内的嵌套警示行)。
+ * 新声明 4 个 token(见下方两个声明块的"R2(P5c-T2a 追加)"分组):--switch-thumb /
+ * --switch-thumb-shadow / --gloss-inset-dot / --grad-sandbox。四个都是两档同值
+ * (theme-invariant,与既有 --purple/--pink/--teal/--modal-scrim 同族),取值逐字抄自
+ * AI tokens.scss(出处见声明行尾注释),浅色块仍按头注释的论证显式各写一份。
+ * --grad-sandbox 是 tokens.scss:236 的 --grad-sk-blue **改名不改值**:-sk- 是技能区
+ * 专用命名,知识库区借它的名字会误导。
+ * 【偏离 K21】本档两个 token 声明块的选择器各扩一项 `.parser-app` —— P5c 的 Parser
+ * 两页(ParserStatus / ParserTest)要消费本档这套 token,但下方 :290 那个
+ * `.knowledge-app { … }` 块正是满屏两列外壳(grid / 100vh / 100vw / overflow:hidden),
+ * 与 token 声明块**共用同一个选择器**,页面根挂 .knowledge-app 会连外壳一起拿到。
+ * 先例:AI tokens.scss:31-32 的 `.agent-app, .ai-toast-scope { … }` —— 一份 token
+ * 声明供两个作用域,后者同样是不带外壳的纯 token 消费方。零复制 = 零漂移,
+ * 两档 color-scheme 也一并免费到手(.parser-app 不许再自己声明一次)。
+ * 🔴 只改这两行选择器,两个块的内容一个字节都不动;且选择器**必须写在一行** ——
+ * knowledgeStyles.test.ts 的 declBlockRange 用 `^选择器$` 行首行尾锚定定位声明块,
+ * 换行会让整条断言直接失效。
+ * 【N15 显式不搬】蓝本 :1151-1157 的 .k-progress-card / -row / -label / -nums / -bar /
+ * -fill 六个类夹在 B 段与 C 段正中间,本期两页都不用、本仓也没有 → 不搬;
+ * "没有搬多"那条断言(正则本期已扩到覆盖 fb 前缀)负责守住它们不出现。
+ * 【显式不搬】蓝本 :985-991 的 .k-section-body 是 Allowlist 页专用(A 段的边界因此是
+ * :969-984,不是 :969-988 —— 按 :988 切会把它截成半条规则,sass 直接编译报错)。
  *
  * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent
  * 等原生冷蓝色值),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
@@ -94,7 +127,7 @@
  * 蓝本 knowledge.scss:6-58 的等价物,数值按【偏离 K2】改用 AI tokens.scss 暗色块
  * (:249-365)与蓝本 :2444-2447 的 --ly-* 暗色微调。
  */
-.knowledge-app {
+.knowledge-app, .parser-app {
   --bg-app: #1C1C1E; /* AI tokens.scss:255 */
   --bg-canvas: #1C1C1E; /* AI tokens.scss:256 */
   --bg-elevated: #242426; /* AI tokens.scss:257 */
@@ -195,12 +228,25 @@
      对应主题块。本段用到的 --danger-soft-faint 由 T2 声明,此处不重复。 */
   --purple-soft: rgba(175, 82, 222, 0.18); /* AI tokens.scss:310 */
 
+  /* R2(P5c-T2a 追加)—— 配置页段新用到 4 个 token,四个都是 theme-invariant(两档同值,
+     与上面的 --purple/--pink/--teal 及 --modal-scrim 同族),取值逐字抄自 AI tokens.scss:
+       --switch-thumb / --switch-thumb-shadow(蓝本 :1217/:1218 的 .k-sw::after 拨钮前景与
+         投影裸值;tokens.scss:201-202 / :345-346 的注释原文说的就是同一个 iOS 开关拨钮)
+       --gloss-inset-dot   (蓝本 :1292 的 .k-sandbox-icon inset 高光裸值)
+       --grad-sandbox      (蓝本 :1287 的 .k-sandbox-icon 底色渐变裸值)
+     🔴 --grad-sandbox 是 tokens.scss:236 的 --grad-sk-blue **改名不改值** —— -sk- 是技能区
+     专用命名,知识库区借名会误导;值有仓内逐字同值出处,不是新造,禁下游重算。 */
+  --switch-thumb: #ffffff; /* AI tokens.scss:345 */
+  --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:346 */
+  --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:321 */
+  --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
+
   /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
   color-scheme: dark;
 }
 
 /* ===== Design tokens — light ===== */
-:root[data-theme="light"] .knowledge-app {
+:root[data-theme="light"] .knowledge-app, :root[data-theme="light"] .parser-app {
   --bg-app: var(--bg); /* 全局 theme.css :root[data-theme="light"] 纸感底色 #f7f5ef */
   --bg-canvas: var(--bg);
   --bg-elevated: var(--card-bg); /* #ffffff */
@@ -279,6 +325,15 @@
 
   /* R2(P5b-T6 追加)—— 见暗色块同名注释,浅色档取值。 */
   --purple-soft: rgba(175, 82, 222, 0.1); /* AI tokens.scss:133 */
+
+  /* R2(P5c-T2a 追加)—— 见暗色块同名注释。这 4 个是 theme-invariant(两档同值),但按
+     头注释「隐藏坑」段的论证**浅色块必须显式各写一份**:上面那个基础块的选择器无条件
+     命中,留空不会继承、只会被基础块的值直接命中(所以"两档同值"要写两遍,不是可以省)。
+     取值同暗色块,出处取 AI tokens.scss 浅色块的对应行。 */
+  --switch-thumb: #ffffff; /* AI tokens.scss:201 */
+  --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:202 */
+  --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:162 */
+  --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
 
   /* R3 —— 见头注释 */
   color-scheme: light;
@@ -807,10 +862,200 @@
     display: flex; align-items: center; gap: 6px;
   }
 
+  /* ---------- P5c-T2a · A(蓝本 :969-984)----------
+     蓝本这一节的头注释写的是 "Allowlist page",但节标题四件套
+     (.k-section / -head / -title / -hint)被 SettingsView 复用,故本期搬入。
+     🔴 蓝本 :985-991 的 .k-section-body 是 Allowlist 页专用,本期不搬 —— A 段的边界
+     因此是 :984 而不是 :988(按 :988 切会把 .k-section-body 截成半条规则,sass 报错)。
+     本段零色字面量,颜色全部已经是本档 token。 */
+  .k-section { display: flex; flex-direction: column; gap: 10px; }
+  .k-section-head {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 0 2px;
+  }
+  .k-section-title {
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+  }
+  .k-section-hint {
+    font-size: 11px;
+    color: var(--text-quaternary);
+  }
+
+  /* ---------- P5c-T2a · B-H(蓝本 :1141-1293,"Settings page" 一整节)----------
+     蓝本这一节本来就在 .knowledge-app 内部,原样落位、段序照蓝本原序。七小段:
+       B :1141-1149  .k-set-card
+       C :1159-1179  .k-set-row / -info / -title / -cn / -desc(内含嵌套的 .warn)
+       D :1181-1201  .k-radio-group(内含 button 与 &[data-on="true"])
+       E :1203-1225  .k-sw(内含 &::after 与 &[data-on="true"])
+       F :1227-1247  .k-set-svc / .k-svc-state / .k-svc-light / .k-svc-name / .k-svc-cn
+       G :1249-1265  .k-set-danger(内含让危险区标题变红的 .k-set-row-title)/ .k-set-soon
+       H :1267-1293  .k-sandbox-link(含 &:hover)/ .k-sandbox-icon
+     🔴 N15:蓝本 :1151-1157 的 .k-progress-card / -row / -label / -nums / -bar / -fill
+     六个类夹在 B 段与 C 段正中间,本期两页都不用、本仓也没有 → **不搬**(见头注释)。
+     .k-set-row-title 在蓝本 :1167 与 :1252 有两处规则,两处都搬(后者在 G 段内)。 */
+  .k-set-card {
+    padding: 16px 18px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-lg);
+    display: flex; flex-direction: column; gap: 12px;
+    box-shadow: var(--shadow-xs);
+  }
+
+  .k-set-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0;
+    border-top: 1px solid var(--line-faint);
+    &:first-child { border-top: 0; padding-top: 4px; }
+    &:last-child { padding-bottom: 4px; }
+  }
+  .k-set-row-info { flex: 1; min-width: 0; }
+  .k-set-row-title { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
+  .k-set-row-cn { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+  .k-set-row-desc {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.55;
+    .warn {
+      display: inline-flex; align-items: center; gap: 4px;
+      color: var(--warning);
+      font-weight: 500;
+    }
+  }
+
+  .k-radio-group {
+    display: inline-flex;
+    background: var(--bg-chip);
+    border-radius: 8px;
+    padding: 2px;
+    flex-shrink: 0;
+    button {
+      padding: 6px 14px;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-radius: 6px;
+      transition: all 120ms ease;
+      font-variant-numeric: tabular-nums;
+      &[data-on="true"] {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        box-shadow: var(--shadow-xs);
+      }
+    }
+  }
+
+  .k-sw {
+    position: relative;
+    width: 42px; height: 25px;
+    border-radius: 999px;
+    background: var(--line-strong);
+    cursor: pointer;
+    transition: background 200ms ease;
+    flex-shrink: 0;
+    &::after {
+      content: "";
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 21px; height: 21px;
+      border-radius: 50%;
+      /* 蓝本 :1217 拨钮的具名前景色 + :1218 拨钮投影裸值 → 本任务新声明的两个 token
+         (两档同值;tokens.scss:201-202 / :345-346 的注释原文说的就是同一个 iOS 拨钮) */
+      background: var(--switch-thumb);
+      box-shadow: var(--switch-thumb-shadow);
+      transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    &[data-on="true"] {
+      background: var(--success);
+      &::after { transform: translateX(17px); }
+    }
+  }
+
+  .k-set-svc {
+    background: linear-gradient(135deg, var(--accent-softer), transparent);
+    border: 1px solid var(--accent-soft);
+  }
+  .k-svc-state {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 4px;
+  }
+  .k-svc-light {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    /* 蓝本 :1239 绿色半透明光晕裸值 → --success-soft(两档已有) */
+    box-shadow: 0 0 0 4px var(--success-soft);
+    flex-shrink: 0;
+    &[data-state="paused"] {
+      background: var(--warning);
+      /* 蓝本 :1243 橙色半透明光晕裸值 → --warning-soft(两档已有) */
+      box-shadow: 0 0 0 4px var(--warning-soft);
+    }
+  }
+  .k-svc-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .k-svc-cn { font-size: 11px; color: var(--text-tertiary); }
+
+  .k-set-danger {
+    /* 蓝本 :1250 红色半透明边框裸值 → --danger-soft-border(两档已有) */
+    border-color: var(--danger-soft-border);
+    /* 蓝本 :1251 比 danger-soft 更淡一档的红色半透明底色裸值 → --danger-soft-faint
+       (两档已有,P5b-T2 声明);渐变角度与第二色标的 transparent 逐字照抄 */
+    background: linear-gradient(135deg, var(--danger-soft-faint), transparent);
+    .k-set-row-title { color: var(--danger); }
+  }
+  .k-set-soon {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    font-size: 10.5px;
+    font-weight: 600;
+    background: var(--bg-chip);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: 8px;
+  }
+
+  .k-sandbox-link {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-lg);
+    text-decoration: none;
+    color: inherit;
+    transition: all 150ms ease;
+    box-shadow: var(--shadow-xs);
+    cursor: pointer;
+    &:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+  }
+  .k-sandbox-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--r-md);
+    /* 蓝本 :1287 蓝调渐变底(两处裸色标)→ --grad-sandbox(本任务新声明,是
+       tokens.scss:236 的 --grad-sk-blue 改名不改值);:1288 实底彩色瓷砖上的具名前景色
+       → --text-on-accent(两档已有);:1292 半透明 inset 高光裸值 → --gloss-inset-dot
+       (本任务新声明,整条 box-shadow 都在 token 里) */
+    background: var(--grad-sandbox);
+    color: var(--text-on-accent);
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    font-size: 18px;
+    box-shadow: var(--gloss-inset-dot);
+  }
+
   /* ---------- P5b-T2 · S4(蓝本 :1296-1316 + :1335-1341,Modals)----------
-     K17:蓝本 :1317-1334 的 .k-modal-head / .k-modal-title / .k-modal-x /
-     .k-modal-body 本期两个视图都不用,留 P5c,故跳过那一段;只搬 :1296-1316
-     与 :1335-1341(.k-modal-foot 及其内部的 .right)。 */
+     【P5c-T2a 订正】K17 的 .k-modal-head / .k-modal-title / .k-modal-x / .k-modal-body
+     (蓝本 :1317-1334)P5b 当时两个视图都不用,留给了 P5c;**本期已搬**,就落在下面
+     .k-modal 与 .k-modal-foot 之间(蓝本原位),故本节现在是蓝本 :1296-1341 连续一整段。 */
   .k-modal-bg {
     position: fixed; inset: 0;
     /* 蓝本 :1298 冷调半透明遮罩裸值 → --modal-scrim(P5a 已在两档声明) */
@@ -832,6 +1077,25 @@
     display: flex; flex-direction: column;
     overflow: hidden;
     animation: k-modal-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  /* ---- P5c-T2a · I(蓝本 :1317-1334)—— K17 兑现,P5b 交接项 #1。本段零色字面量。 ---- */
+  .k-modal-head {
+    padding: 16px 20px 8px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .k-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; flex: 1; }
+  .k-modal-x {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--bg-chip);
+    color: var(--text-secondary);
+    display: grid; place-items: center;
+    &:hover { background: var(--line); color: var(--text-primary); }
+  }
+  .k-modal-body {
+    padding: 8px 20px 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow-y: auto;
   }
   .k-modal-foot {
     padding: 12px 20px;
@@ -1341,6 +1605,110 @@
   .kn-badge[data-s="curated"] { background: var(--success-soft); color: var(--success); border: 1px solid var(--success-soft-border); }
   /* 蓝本 :2039 红色半透明底色 + 边框两处裸值 → danger-soft / danger-soft-border(两档已有) */
   .kn-badge[data-s="failed"] { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-soft-border); }
+
+  /* ---------- P5c-T2a · J(蓝本 :2250-2263,头注释原文 "settings: picker actions +
+     migrate modal")----------
+     K9:蓝本这一段是**顶层裸选择器**(不在 .knowledge-app 里),整段重新嵌套进
+     .knowledge-app —— 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token。嵌套后段内
+     各条的相对优先级不变(每条各 +1 个类选择器)。
+     .kn-picked 在蓝本 :2251 与 :2252 两处规则(后者是 .kn-picked code),两处都搬。
+     ⚠️ .kn-badge(蓝本 :2031-2039)P5b-T2 已搬,就在上面,不重复定义。
+     蓝本 :2040-2249 与 :2264 起的其余 .kn-* 是 P5d 的,不搬。本段零色字面量。 */
+  .kn-picked { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+  .kn-picked code { font-family: var(--font-mono); font-size: 11.5px; background: var(--bg-chip); padding: 2px 8px; border-radius: 6px; color: var(--text-primary); }
+  .kn-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .kn-pick-note { font-size: 11px; color: var(--text-tertiary); flex-basis: 100%; }
+  .kn-mig-path {
+    display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px;
+    background: var(--bg-sunken); border: 1px solid var(--line-faint); border-radius: 8px;
+    padding: 8px 11px; flex-wrap: wrap; word-break: break-all;
+  }
+  .kn-mig-req { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-secondary); margin: 0; padding: 0; }
+  .kn-mig-req li { display: flex; gap: 7px; align-items: flex-start; list-style: none; }
+  .kn-checkline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-primary); cursor: pointer; user-select: none; }
+  .kn-checkline input { width: 15px; height: 15px; accent-color: var(--danger); cursor: pointer; }
+
+  /* ---------- P5c-T2a · FolderBrowser(蓝本 src/components/common/FolderBrowser.vue:82-143
+     的 <style lang="scss" scoped> 全段)----------
+     🔴 这一段在蓝本里**不在 knowledge.scss 里**,而是组件自己的 scoped 样式块。本仓组件
+     零 <style> 块(承 P5a §5 / P5b §5),整段落进本档;蓝本靠 Vue2 scoped 隔离,搬进
+     全局 scss 后必须按 K9 自己收口 → 嵌进 .knowledge-app。依据:FolderBrowser 只在
+     .knowledge-app 下被用到(SettingsView.vue:80,以及 P5d 的 RootsView)。
+     🔴 蓝本这段的 var() 分两类,处置不同(治理 §12.1 已实测):
+       ① `var(--border, 回退值)` / `var(--bg-tertiary, 回退值)`(蓝本 :85 / :95 / :96)——
+          这两个 token 在 Vue2 的 src/ 下**零声明**,真实渲染的就是回退值 → 不保留这层壳,
+          按回退值的语义直接映射到本档 token(附录 B §B.5)。
+       ② 不带回退的 var(--text-primary) / -secondary / -tertiary / var(--danger)
+          (蓝本 :104 / :107 / :108 / :126 / :139 / :142)—— 在 Vue2 的 .knowledge-app 块里
+          有声明,真的解析成 knowledge 的值 → **同名 token 直接沿用,一个字都不改**。
+     另:蓝本 :100 / :121 两处 `background: transparent` 是 CSS 关键字不是配色,照抄。
+     取舍③(附录 B §B.7):蓝本 :106 与 :128 两处中性 hover 的 alpha 差 0.02,全仓没有
+     "两级中性 hover" token,同映 --line 是有意的。 */
+  .fb {
+    margin-top: 8px;
+    /* 蓝本 :85 是个无声明的 --border + 中性半透明回退值 → 盒子外描边,标准描边档 */
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .fb-crumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 6px 8px;
+    /* 蓝本 :95 同上,回退值比 :85 的外描边更淡(0.18 < 0.25)→ 淡描边档,保持大小关系 */
+    border-bottom: 1px solid var(--line-faint);
+    /* 蓝本 :96 是个无声明的 --bg-tertiary + 中性半透明回退值 → 下沉的工具条底 */
+    background: var(--bg-sunken);
+  }
+  .fb-crumb {
+    border: none;
+    background: transparent;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    /* 蓝本 :106 中性加深 hover 裸值 → --line(取舍③) */
+    &:hover { background: var(--line); }
+    &[data-last="true"] { color: var(--text-primary); font-weight: 600; }
+    & + &::before { content: '›'; margin-right: 6px; color: var(--text-tertiary); }
+  }
+  .fb-list {
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .fb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    /* 蓝本 :128 中性加深 hover 裸值 → --line(取舍③,与 :106 同映一个 token) */
+    &:hover { background: var(--line); }
+  }
+  .fb-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fb-stub {
+    padding: 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-style: italic;
+  }
+  .fb-err { color: var(--danger); font-style: normal; }
 }
 
 /* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进
