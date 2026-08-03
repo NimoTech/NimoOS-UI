@@ -487,7 +487,7 @@ Vite 当普通依赖**预打包**;缓存失效判据是 lockfile / vite config /
 
 **用户指示**:「先不修(概览 60s)」→「全部完整这部分全部收尾」。**B19/B20/B21 未走即关账。**
 
-**最终坐标**:New-UI `sp8-ai`@`cc6df78` · Service `sp8-ai`@`15c2eba`(整期零改动)· roadmap `NimoOS-UI@aff124e3`(分支 `docs/vue3-migration-sp3`,只提 `docs/vue3-migration-roadmap.md` 一个文件,带 pathspec;该分支被 SP7 并发会话共用,本次提交前 tip 是 SP7 的 `b1b58938`)
+**最终坐标**:🔴 **产品代码坐标 = New-UI `sp8-ai`@`820d426`**(这个不漂 —— 之后所有提交都只是 `.superpowers/` 下的 markdown:`e4a4220` / `cc6df78` / `b6d1db2` / `e4fa834`,`git diff --name-only 820d426..HEAD -- src/` 为空)· Service `sp8-ai`@`15c2eba`(整期零改动)· roadmap `NimoOS-UI@aff124e3`(分支 `docs/vue3-migration-sp3`,只提 `docs/vue3-migration-roadmap.md` 一个文件,带 pathspec;该分支被 SP7 并发会话共用,本次提交前 tip 是 SP7 的 `b1b58938`)
 
 **三门口径**:沿用 **08-02 的 319 文件 / 3153 例全绿 · tsc 0 · build 0**。
 本次未重跑 —— 依据是 `git diff --name-only 820d426..HEAD -- src/` **为空**,即最后一次产品代码提交(`820d426`)之后
