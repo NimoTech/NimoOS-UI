@@ -7,11 +7,19 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api }
 // MessageBus 假实现:能手动派发事件、能断言退订。
 const handlers: Record<string, ((props: unknown) => void)[]> = {}
 const offCalls: string[] = []
+// 局部开关(评审补,复审要求):默认 true = 退订真的从 handlers 里摘除回调,是主机制的
+// 正常行为。只在"退订未生效"那一条用例里临时置 false,模拟"off() 被调用了、但回调仍
+// 留在册"——用来单独考验事件回调里的 alive 守卫这层纵深防御,而不削弱其它用例对
+// "退订确实生效"这个主机制的覆盖。每条用例结束都会在 beforeEach 里复位回 true。
+let unsubEnabled = true
 vi.mock('../../composables/useMessageBus', () => ({
   useMessageBus: () => ({
     on(ev: string, cb: (p: unknown) => void) {
       ;(handlers[ev] ||= []).push(cb)
-      return () => { offCalls.push(ev); handlers[ev] = handlers[ev].filter((h) => h !== cb) }
+      return () => {
+        offCalls.push(ev)
+        if (unsubEnabled) handlers[ev] = handlers[ev].filter((h) => h !== cb)
+      }
     },
   }),
 }))
@@ -27,6 +35,7 @@ beforeEach(() => {
   Object.values(api).forEach((f) => f.mockReset())
   Object.keys(handlers).forEach((k) => delete handlers[k])
   offCalls.length = 0
+  unsubEnabled = true
   api.getISOList.mockResolvedValue(LIST)
   api.downloadISO.mockResolvedValue(undefined)
 })
@@ -120,9 +129,21 @@ describe('useIsoList', () => {
     expect(s.isos.value).toEqual([])
   })
 
-  it('dispose 后事件到达不再写 state', async () => {
+  it('dispose 后事件到达不再写 state(靠 dispose() 同步退订——本用例不触及事件回调里的 alive 守卫,因为退订先生效;守卫本身由下面"退订未生效"那条用例覆盖)', async () => {
     const s = useIsoList(); await s.fetch()
     await s.download('debian-13')
+    s.dispose()
+    fire('kvm:iso_download_complete', { iso_id: 'debian-13' })
+    expect(s.isos.value[1]._downloaded).toBe(false)
+  })
+
+  it('退订未生效时,事件回调里的 alive 守卫单独挡住写入(纵深防御的真实测试)', async () => {
+    const s = useIsoList(); await s.fetch()
+    await s.download('debian-13')
+    // 手动关掉主机制:off() 仍会被调用(offCalls 照记),但不真的从 handlers 里摘除
+    // 回调——模拟"退订没生效 / 回调仍留在册"这种反常情况。此时能挡住写入的只剩
+    // 事件回调内部的 `alive` 判断。
+    unsubEnabled = false
     s.dispose()
     fire('kvm:iso_download_complete', { iso_id: 'debian-13' })
     expect(s.isos.value[1]._downloaded).toBe(false)

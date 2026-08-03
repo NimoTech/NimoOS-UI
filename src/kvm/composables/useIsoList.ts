@@ -34,10 +34,21 @@ export function useIsoList() {
   const isos: Ref<IsoRow[]> = ref([])
   const isLoading = ref(false)
 
-  // 就地过期守卫(硬约束 2:别抽公共 guard 工具)。dispose() 置 false,fetch 的
-  // await 之后与每个事件回调里先判 alive 再写 ref——本 composable 的 fetch/download
-  // 都写共享的 isos ref,所以都需要这层守卫(与 useKvmHostInfo.save() 不写共享 ref
-  // 因而不需要守卫的情况不同)。
+  // 就地过期守卫(硬约束 2:别抽公共 guard 工具)。两层不同性质的机制,别混为一谈:
+  //
+  // 1) `fetch()` 里的 `alive` 判断是**承重的**——那里有真实的 `await` 让出点,dispose()
+  //    可能在请求在途时发生,响应落定时必须补判一次 `alive` 才能不写已经作废的 state。
+  //
+  // 2) 三个事件回调(`bus.on(...)` 里)的 `alive` 判断是**纵深防御,当前不可达**——
+  //    真正挡住"dispose 之后事件不再写 state"的机制是 `dispose()` 里**同步**的
+  //    `unsubs.forEach(off)`:退订之后,MessageBus 根本不会再调用这个回调,回调内部
+  //    判不判 `alive` 都一样(已用删测试验证:删掉这三处判断,现有的"dispose 后事件
+  //    到达"用例仍然全绿,因为它测的是退订生效,不是这个判断生效)。留着不删,是因为
+  //    一旦退订失效(比如将来某个回调改成 async、内部顺手 await 一次 refetch 再写 ref,
+  //    或者 dispose() 漏调了某个 off()),这层判断立刻从"摆设"变成"救命"的最后一道
+  //    防线——本仓历史上"异步写共享 state 没带过期守卫"这类坑已经被评审逮到过四次。
+  //    专门有一条用例把退订这层主机制手动关掉,来验证这层防御真的能独立挡住写入
+  //    (见 .test.ts 里"退订未生效"那条 + 对应的变异验证)。
   let alive = true
 
   function findIso(id: string): IsoRow | undefined {
