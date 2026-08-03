@@ -176,7 +176,10 @@ T1 i18n(99 键)
 **改**:`src/ai/knowledge/stores/knowledgeStore.parser.test.ts`(**只改那一行 mock**)
 → 文件数 **322 → 323**
 
-- **K26**:`Vue.observable` → Pinia setup store;`_timer` 句柄**移出 state** 成模块级 `let`。
+- **K26**:`Vue.observable` → Pinia setup store。
+  🔴 **协调者订正(2026-08-03,T5 顾虑① )**:本条初稿写「`_timer` 句柄移出 state 成模块级 `let`」**是错的** ——
+  回源核实:蓝本 `parserStore.js` **根本没有定时器**(5 秒轮询在 `ParserStatus.vue:129-131` 的组件里,归 T6)。
+  → **`parserStore` 里零定时器**,T5 按「治理/brief > 计划书」落对了。K26 措辞已同步收窄。
 - **K27**:5 处 `api.*('/ai/parser/…')` → `service.ai.parserStats/parserState/parserFolders/parserJobs/parserControl`。
 - `loadAll()` 的 `Promise.all` 四发 + catch 置 `unreachable=true` + `error=e.message` + finally 清 `loading` —— **照抄**(蓝本 `:24-45`)。
   ⚠️ 蓝本 `failedJobs = (failed.data && failed.data.jobs) || []` 的 `|| []` 兜底**不许删**(N7)。
