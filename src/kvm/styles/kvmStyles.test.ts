@@ -84,3 +84,22 @@ describe('禁用按钮 hover/cursor 不误导用户(add-vm-btn / kvm-settings-bt
     expect(settingsDisabledBlock?.[1]).toMatch(/cursor:\s*not-allowed/)
   })
 })
+
+// 2026-08-03 真机验收修复的守卫:画布几何必须由 noVNC 自己定,CSS 不许抢。
+// 抢了(Vue2 原样的 width/height:100% !important)会让 noVNC 的鼠标坐标换算失准——
+// 详细因果链与探针实测数据写在 kvm.css 对应规则的注释里。这条断言只盯"有没有把尺寸
+// 抢回来",不关心居中用的是 margin:auto 还是别的写法。
+describe('noVNC 画布几何归 noVNC 管(scaleViewport 生效的前提)', () => {
+  it('canvas 规则里不许出现 !important 的宽高', () => {
+    const canvasBlock = src.match(/\.console-display canvas\s*\{([^}]*)\}/)
+    expect(canvasBlock).not.toBeNull()
+    expect(canvasBlock![1]).not.toMatch(/width:[^;]*!important/)
+    expect(canvasBlock![1]).not.toMatch(/height:[^;]*!important/)
+  })
+
+  it('canvas 仍然绝对定位、压在占位层之上(T6 的既有诉求不能被这次修复弄丢)', () => {
+    const canvasBlock = src.match(/\.console-display canvas\s*\{([^}]*)\}/)![1]
+    expect(canvasBlock).toMatch(/position:\s*absolute/)
+    expect(canvasBlock).toMatch(/z-index:\s*2/)
+  })
+})

@@ -607,13 +607,24 @@
   border-radius: 0;
 }
 
+/* 申报偏离(用户 2026-08-03 真机验收后拍板,与 useVncConsole 里开 scaleViewport 是同一处
+ * 修复的两半):Vue2 这条规则(:2218-2226)用 `width/height: 100% !important` +
+ * object-fit: contain 把画布尺寸从 noVNC 手里抢过来。在 Vue2 那边这么写是"没办法"——它传给
+ * 构造函数的 scaleViewport 被静默忽略、noVNC 根本不缩放,只能靠 CSS 硬拉。
+ * 现在 scaleViewport 真的生效了,再抢尺寸就会让 noVNC 的鼠标坐标换算失准:它按自己算出的
+ * 缩放比(display 的 absX/absY = 坐标 ÷ scale)把点击位置折算回客户机,而 !important 让
+ * 画布元素占满整个容器、真实画面被 object-fit 居中留黑边,两者不重合。
+ * 探针实测(容器 900×600、客户机 1280×800):
+ *   抢尺寸  → 元素框 900×600,点右下角折算成客户机 (1280, 853) —— 纵向超出 800,画面上
+ *             每一点的纵坐标都偏约 26 像素;
+ *   交还    → 元素框 900×563(正是画面本身),点右下角折算成 (1280, 800) —— 精确。
+ * 两种写法下**画面矩形完全相同**(都是 900×563 垂直居中),所以这是零视觉变化的逻辑修正。
+ * 容器尺寸变化(收侧栏/改窗口/进全屏)由 noVNC 自己的 ResizeObserver 重算(core/rfb 的
+ * :284 与 :581,observe 的就是我们传进去的宿主元素),不需要 CSS 兜底。 */
 .console-display canvas {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain;
+  inset: 0;
+  margin: auto;
   z-index: 2;
 }
 

@@ -150,7 +150,32 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     // 渲染处本来就是 `te(errorKey) ? t(errorKey) : errorKey` 的写法,te() 对任意非法
     // key 的字符串天然返回 false,原始异常信息会直接原样显示,不会被误当成键名喷出来。
     try {
-      rfb = new RFB(host, wsUrl, { scaleViewport: true, resizeSession: false })
+      rfb = new RFB(host, wsUrl)
+
+      // 申报偏离(用户 2026-08-03 真机验收后拍板,两条一起)——
+      //
+      // ⚠️ 大前提:RFB 构造函数**只读** credentials / shared / repeaterID / wsProtocols
+      // 四项(core/rfb.js:28-32),其余选项一律静默忽略;scaleViewport / resizeSession /
+      // showDotCursor 全是构造后才生效的存取器属性(:345-371),默认全 false(:299-302)。
+      // Vue2(:1001-1004)把 scaleViewport:true / resizeSession:false 写在构造参数里,
+      // 因此**这两项在旧 UI 里从来没生效过**。探针(真 noVNC 连真机 5700 口)实测:照
+      // Vue2 写法连上后 scaleViewport 恒为 false、画布 style.cursor 恒为 "none"。
+      // 所以这里不再传那个恒被忽略的选项对象,改为构造后逐项赋值。
+      //
+      // ① 光标:客户机不下发光标图案时(QEMU + Alpine 文本控制台正是如此),noVNC 在连上
+      //    那一刻(:577-578,attach 完立即 _refreshCursor)拿空图案去更新,走
+      //    core/util/cursor.js:80 的 w/h===0 分支 → clear() → 给画布写内联 `cursor: none`,
+      //    鼠标一进黑框就隐形,连右缘 80px 唤出工具条都不好瞄。赋 true 后 noVNC 补画一个
+      //    小圆点;客户机自绘光标时 _shouldShowDotCursor()(:3033)返回 false,仍用客户机
+      //    的光标,不会双光标。
+      // ② 缩放:Vue2 传 true 的本意就是要缩放适配窗口(只是没生效),这里让它真的生效,
+      //    高分辨率客户机的画面才不会超出框只看得到左上角。
+      // ③ resizeSession 显式赋 false:与 Vue2 的意图一致(不要求客户机改分辨率),值本身
+      //    就是 noVNC 默认值,写出来是为了让三项开关在同一处一目了然。
+      rfb.showDotCursor = true
+      rfb.scaleViewport = true
+      rfb.resizeSession = false
+
       // 9
       rfb.addEventListener('connect', () => { connected.value = true })
       rfb.addEventListener('disconnect', () => { connected.value = false })

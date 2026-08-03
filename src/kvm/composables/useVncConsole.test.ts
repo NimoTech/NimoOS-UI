@@ -19,6 +19,13 @@ const { instances, FakeRFB, setRfbConstructError } = vi.hoisted(() => {
   class FakeRFB {
     handlers: Record<string, (() => void)[]> = {}
     disconnected = false
+    // 真 RFB 上这三项都是**构造后才能赋的存取器属性**(core/rfb.js:345-371),构造函数
+    // 只认 credentials/shared/repeaterID/wsProtocols 四项、其余一律忽略(:28-32)。
+    // 所以桩这里也做成实例字段,默认值与真库一致(:299-302 全是 false),这样"写进构造
+    // 参数里"这种无效写法会被测试逮住——2026-08-03 真机验收就栽在这上面。
+    showDotCursor = false
+    scaleViewport = false
+    resizeSession = false
     sent: [number, boolean | null][] = []
     cad = 0
     constructor(public el: unknown, public url: string, public opts: unknown) {
@@ -63,7 +70,32 @@ describe('connect', () => {
     const c = useVncConsole(host())
     await c.connect(VM())
     expect(instances[0].url).toBe(`ws://${window.location.hostname}:5700`)
-    expect(instances[0].opts).toEqual({ scaleViewport: true, resizeSession: false })
+  })
+
+  // 申报偏离(用户 2026-08-03 真机验收后拍板,两条一起)——
+  //
+  // ⚠️ 大前提:RFB 构造函数只读 credentials / shared / repeaterID / wsProtocols 四项
+  // (core/rfb.js:28-32),**其余选项一律静默忽略**。scaleViewport / resizeSession /
+  // showDotCursor 全是构造后才生效的存取器属性(:345-371)。Vue2(:1001-1004)把
+  // scaleViewport / resizeSession 写在构造参数里,所以**这两项在旧 UI 里从来没生效过**;
+  // 我的第一版修复也犯了同样的错(把 showDotCursor 写进构造参数),真机复验依旧隐形。
+  // 探针(真 noVNC 连真机 5700)实测:照 Vue2 写法连上后 scaleViewport 恒为 false。
+  //
+  // ① showDotCursor:客户机不下发光标图案时(QEMU + Alpine 文本控制台就是),noVNC 在
+  //    连上那一刻(:577-578 attach 后立即 _refreshCursor)拿空图案去更新,走
+  //    core/util/cursor.js:80 的 w/h===0 分支 → clear() → 给画布写死内联 `cursor: none`,
+  //    鼠标一进黑框就隐形。赋 true 后改画小圆点;客户机自绘光标时 _shouldShowDotCursor()
+  //    (:3033)返回 false,仍用客户机的,不会双光标。
+  // ② scaleViewport:Vue2 的本意就是要缩放适配窗口(它传了 true,只是没生效),现在
+  //    改成属性赋值让它真的生效。高分辨率客户机的画面会缩放到框内完整显示。
+  //
+  // 这三条断言守的就是"赋在实例上而不是写进构造参数",别顺手改回去。
+  it('三个 RFB 开关都在构造后赋到实例上(写进构造参数会被 noVNC 静默忽略)', async () => {
+    const c = useVncConsole(host())
+    await c.connect(VM())
+    expect(instances[0].showDotCursor).toBe(true)
+    expect(instances[0].scaleViewport).toBe(true)
+    expect(instances[0].resizeSession).toBe(false)
   })
 
   it('没有 websocket 口时回退 vncPort', async () => {
