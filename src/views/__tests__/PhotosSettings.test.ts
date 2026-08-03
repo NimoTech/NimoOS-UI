@@ -64,6 +64,23 @@ async function mountView(path = '/photos/settings') {
   return w
 }
 
+// 同 mountView,但把 router 一并交回去——评审 Important 1 的两条用例需要在挂载*之后*
+// 再 router.push 同一路由只改 query,验证"用户已经停留在本页"这条路径(watch,不是
+// mounted 那次)。不改 mountView 本身的返回形状,避免动到上面所有既有用例的解构写法。
+async function mountViewWithRouter(path = '/photos/settings') {
+  const router = makeRouter(path)
+  await router.isReady()
+  const w = mount(PhotosSettings, {
+    global: {
+      plugins: [router],
+      stubs: { PhotosStorageCard: StorageStub, PhotosAiCard: AiStub },
+    },
+  })
+  await flushPromises()
+  await w.vm.$nextTick()
+  return { w, router }
+}
+
 // jsdom 不实现 scrollIntoView(brief ruling #2)——手动记录调用在哪个元素上,不依赖
 // vitest mock 的 this-context API 版本差异。
 let scrollCalls: Element[]
@@ -180,6 +197,34 @@ describe('PhotosSettings 容器', () => {
   // 一次 `querySelector('#1')`,即便查不到元素依然会留下这条调用记录。
   it('?section= 非法值(如 "1",Vue2 里 settings=1 只表示"打开"而非目标 id)时不滚动', async () => {
     await mountView('/photos/settings?section=1')
+    expect(scrollCalls).toHaveLength(0)
+    expect(queryCalls).not.toContain('#1')
+  })
+
+  // 评审 Important 1(2026-08-04):vue-router 4 对同一路由组件只 query 变化不重新
+  // mount——用户已经停留在 /photos/settings(无 section)时,若 query 变成
+  // ?section=ai(手改地址栏,或未来页面内某个指向本页的链接),onMounted 不会重触发,
+  // 必须靠 watch 补上这条路径。
+  it('已停留在本页时 query 才变为 ?section=ai——watch 路径补上滚动(不靠重新 mount)', async () => {
+    const { w, router } = await mountViewWithRouter('/photos/settings')
+    expect(scrollCalls).toHaveLength(0) // mounted 时没有 section,先确认起点确实没滚
+
+    await router.push('/photos/settings?section=ai') // 只改 query,同一路由组件不重新 mount
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(scrollCalls).toHaveLength(1)
+    expect(scrollCalls[0]).toBe(w.get('#ai').element)
+  })
+
+  // 同一条路径上白名单依旧生效——不能因为补了 watch 就把非法值放过去。
+  it('已停留在本页时 query 才变为 ?section=1(非法值)——watch 路径同样不滚动', async () => {
+    const { w, router } = await mountViewWithRouter('/photos/settings')
+
+    await router.push('/photos/settings?section=1')
+    await flushPromises()
+    await w.vm.$nextTick()
+
     expect(scrollCalls).toHaveLength(0)
     expect(queryCalls).not.toContain('#1')
   })

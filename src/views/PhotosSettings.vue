@@ -35,14 +35,17 @@
   这四个(Vue2 :497-526 的五个取数里去掉 loadStorage,即由子组件承接的那个)。
 
   `?section=` 深链:接的是 route.query.section,值只认 'storage'/'ai'(包含 Vue2
-  `settings=1`"只是打开、不滚动"语义在内的其它任何值,一律忽略、不滚动)。挂载后滚,
-  T6 的「Settings · AI behavior」链接会指向 `/photos/settings?section=ai`。
-  已知限制(不在本任务范围内修,留给 T6 知悉):由于 vue-router 4 对同一路由组件仅
-  query 变化默认不重新 mount,若用户已停留在本页再点一次指向本页、只是 section 不同
-  的链接,onMounted 不会重触发、不会二次滚动——T6 接线该链接时需注意这点。
+  `settings=1`"只是打开、不滚动"语义在内的其它任何值,一律忽略、不滚动)。T6 的
+  「Settings · AI behavior」链接会指向 `/photos/settings?section=ai`。
+  两条路径都处理(评审 Important 1,2026-08-04 补齐):①挂载时(`onMounted` +
+  `nextTick`)②挂载之后 query 才变化时(不带 `immediate` 的 `watch(() =>
+  route.query.section, ...)`)——后者补的是"用户已经停留在本页,手改地址栏 query 或
+  未来某个页面内链接指向本页只是 section 不同"这种 vue-router 4 不会重新 mount 组件
+  的场景。两条路径共用同一个 `scrollToSection`/`isSectionId` 判据,不允许各自维护
+  一份白名单然后漂开。
 -->
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
@@ -84,6 +87,16 @@ function scrollTo(id: string): void {
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+// 白名单只在这一处判定,mounted 路径与"页面已停留、query 变化"路径共用同一个函数,
+// 不允许各自维护一份判据然后慢慢漂开(评审 Important 1 的裁定原话)。
+type SectionId = 'storage' | 'ai'
+function isSectionId(v: unknown): v is SectionId {
+  return v === 'storage' || v === 'ai'
+}
+function scrollToSection(section: unknown): void {
+  if (isSectionId(section)) scrollTo(section)
+}
+
 const toast = ref<ToastPayload | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -101,11 +114,17 @@ onMounted(() => {
   void settings.fetchScanInterval()
   void settings.fetchAiFeatures()
 
-  void nextTick(() => {
-    const section = route.query.section
-    if (section === 'storage' || section === 'ai') scrollTo(section)
-  })
+  void nextTick(() => scrollToSection(route.query.section))
 })
+
+// 评审 Important 1(2026-08-04):vue-router 4 对同一路由组件只 query 变化不重新
+// mount——若用户已经停留在本页(比如手改地址栏 query,或未来某个页面内链接指向本页
+// 只是 section 不同),仅靠 onMounted 那一次滚动够不到这种情形。这里补一个不带
+// immediate 的 watch:mounted 时不重复触发(watch 默认不在装配时跑一次),只在挂载
+// *之后* query 真的变化时才滚——与 mounted 路径共用同一个 scrollToSection/isSectionId
+// 判据,不会各自维护一份白名单然后漂开。目标元素(#storage/#ai)是无条件渲染的静态内容,
+// 不随 section 变化增删,故这里不需要像 mounted 路径那样等 nextTick。
+watch(() => route.query.section, (section) => scrollToSection(section))
 
 onUnmounted(() => {
   clearTimeout(toastTimer)
