@@ -138,7 +138,14 @@ T1 i18n(99 键)
 
 ---
 
-### T3 · `util/folderBrowser.ts`(纯函数 34 行)
+### 🔴 协调者变更(2026-08-03):**原 T3 与 T4 合并成一刀 T3「目录选择器整块」**
+
+理由:原 T3 只有 3 个纯函数(蓝本 34 行),单独一刀的评审开销大于收益;且 T3/T4 本就是
+「目录选择器」同一件事,合并后 **177 蓝本行**仍显著小于 T7(369 行)。
+→ **本期由 10 刀变 9 刀**:T1 · T2a · T2b · **T3(合并)** · T5 · T6 · T7 · T8 · T9 · T10 → 去掉原 T4 编号。
+**文件数算术不变**(仍 +2 测试文件 + 1 `.vue`);后续各刀的起始文件数按此顺延。
+
+### T3 · 目录选择器整块(`util/folderBrowser.ts` + `FolderBrowser.vue`,原 T3+T4)
 
 **新建**:`src/ai/knowledge/util/folderBrowser.ts` · `src/ai/knowledge/util/folderBrowser.test.ts`
 → 文件数 **320 → 321**
