@@ -146,8 +146,14 @@ describe('setControl', () => {
     const s = useKnowledgeStore()
     await s.setControl('pause')
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'pause' })
-    await s.setControl('set_concurrency', { concurrency: 4 })
-    expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_concurrency', concurrency: 4 })
+    // 🔴 P5c 第三轮(P5b 授权外,协调者本轮扩权这两行;与交接项 #2 同族 =「把后端不认的
+    // 形状编码进断言」)。原文载荷是 `{ concurrency: 4 }` —— 那个键**后端根本不读**:
+    // `NimoOS-AI route/v2/parser_proxy.go:80-85` 的 `controlReq` 只有 `N *int json:"n,omitempty"`,
+    // `:103-105` 的 `set_concurrency` 分支在 `req.N == nil` 时直接 400 `"n required"`。
+    // 真实调用点传的也是 `n`(蓝本 `SettingsView.vue:292` = `setControl('set_concurrency', { n })`)。
+    // 断言语义不变(仍是「`extra` 被原样展开进 body」),只是载荷换成真实契约键。
+    await s.setControl('set_concurrency', { n: 4 })
+    expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_concurrency', n: 4 })
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
   })
 })

@@ -299,9 +299,8 @@ pnpm build                  exit=0   /tmp/p5c-t5-build.log  ✓ built in 12.53s
    🔴 **连带修正**:`parserStore.ts` 那段代码注释与 `parserStore.test.ts` 的用例名里「不是 `concurrency` ——
    两处不同是 Vue2 现状」的措辞**已删掉**,换成「与设置页调用点、后端 `controlReq` 一致」(见 §11),
    免得 T8(要写 `SettingsView` 上半、会调 `setControl('set_concurrency', …)`)以为有历史包袱去「统一」。
-   ⚠️ **顺带登记(本刀不改)**:`knowledgeStore.parser.test.ts:149-150` 用的 `{ concurrency: 4 }` 是后端**不认**的键。
-   它测的语义(extra 展开)成立、不算错,但换成 `{ n: 4 }` 会更贴真实契约 —— **不在本刀授权内**(§1.1:
-   本刀只许改那个文件的交接项 #2 那一行),留给协调者派活。
+   ⚠️ ~~**顺带登记(本刀不改)**:`knowledgeStore.parser.test.ts:149-150` 用的 `{ concurrency: 4 }` 是后端**不认**的键~~
+   → 🔴 **协调者第三轮采纳并扩权,已改成 `{ n: 4 }`(见 §12)。**
 5. 20 例里没有 `document.hidden` / 轮询频率相关用例 —— **那是 T6 的**(N20)。
 
 **`NEEDS_CONTEXT`:0 条。**
@@ -346,5 +345,75 @@ pnpm build                  exit=0    ✓ built in 12.68s
 
 **与第一轮逐字相同(323 / 3246)**—— 本轮只改了 1 个 id 字符串 + 两处注释/用例名,文件数与用例数都不该变,实测没变 ✅
 零红项、单轮干净。抄本等价校验**复跑 6/6 MATCH**(第二轮没碰 FIXTURE-COPY 块,复跑只为确认没被连带改动)。
+
+**新顾虑:0 条。`NEEDS_CONTEXT`:0 条。**
+
+---
+
+## 12. 🔴 第三轮 —— 协调者扩权一行:`knowledgeStore.parser.test.ts:149-150` 的 `concurrency` → `n`
+
+**申报:这两行在 P5b 授权之外,由协调者 2026-08-03 本轮扩权。**
+依据(协调者原文 + 本刀独立复核):
+1. 与**交接项 #2 同族** —— 都是「把后端不认的形状编码进断言」。§8.2 第 2 条授权协调者派 #2,这条是它的孪生。
+2. 🔴 **它已在本期造成实际代价**:正是这两行把我误导成「两处传参不一致」(§10 顾虑 ④),让协调者花一轮回源纠正。
+   **T8 马上要写 `setControl('set_concurrency', …)` 的调用点** —— 留着会再误导下一个人。
+3. 后端契约是 `n`,`concurrency` **根本不读**:`NimoOS-AI route/v2/parser_proxy.go:80-85` 的
+   `controlReq{ Action string; N *int json:"n,omitempty"; Device string; Enabled *bool }`,
+   `:103-105` 的 `set_concurrency` 分支 `if req.N == nil { return c.JSON(400, echo.Map{"error": "n required"}) }`
+   —— 🔴 **本刀第三轮独立复核了这一段源码**(不是转述):传 `{concurrency:4}` 会 400。
+
+### 12.1 改动(该文件累计只动三行:交接项 #2 的 1 行 + 本轮 2 行)
+
+```diff
+-    await s.setControl('set_concurrency', { concurrency: 4 })
+-    expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_concurrency', concurrency: 4 })
++    await s.setControl('set_concurrency', { n: 4 })
++    expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_concurrency', n: 4 })
+```
+(另加 6 行依据注释。)
+
+- 🔴 **断言语义一字未动**:测的仍是「`extra` 被原样展开进 body」这件事(`setControl` 是转发型 action),
+  只是载荷换成真实契约键。`toHaveBeenLastCalledWith` 的形式、`expect(ai.parserStats).toHaveBeenCalledTimes(2)`
+  那条重载断言、以及前半段 `setControl('pause')` 全部未动。
+- **用例名 `把 action 与附加字段合并进 body,并重载 overview` 未改** —— 它没提 `concurrency`,措辞本来就准确。
+- `knowledgeStore.ts` **本体一字未动**(`git diff --stat` 为空,md5 `1d09f5a1c7d01983ee7f370363002088` 未变)。
+
+### 12.2 RED 探针 G(证明改后的断言**仍有判别力**,不是改成了一句空转)
+
+破坏:把 `knowledgeStore.ts:426` 的 `parserControl({ action, ...extra })` 改成 `parserControl({ action })`
+(即**丢弃 `extra`**,正是这条用例要守的行为)。整行锚定 + `assert count == 1` + md5 断言真的变了。
+
+```
+INJECTED  md5 1d09f5a1c7d01983ee7f370363002088 -> cff1794b385a8648e81a3073cbb8c792
+--- grep 证明落盘 ---
+426:    await service.ai.parserControl({ action })
+```
+```
+     × 把 action 与附加字段合并进 body,并重载 overview 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected last "vi.fn()" call to have been called with [ { action: 'set_concurrency', n: 4 } ]
+- Expected  /  + Received
+      "action": "set_concurrency",
+-     "n": 4,
+    155|     await s.setControl('set_concurrency', { n: 4 })
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+```
+
+**还原确认**:`md5(knowledgeStore.ts)` 回到 `1d09f5a1c7d01983ee7f370363002088`;
+`grep -n` 证明 `:426` 恢复成 `{ action, ...extra }`;该文件复跑 **20 passed**;
+`git diff --stat src/ai/knowledge/stores/knowledgeStore.ts` **为空**。
+
+### 12.3 第三轮三门(全量,输出落盘 `/tmp/p5c-t5c-*.log`)
+
+```
+pnpm test                   exit=0    Test Files  323 passed (323)
+                                            Tests  3246 passed (3246)
+pnpm exec vue-tsc --noEmit  exit=0    (0 字节,零输出)
+pnpm build                  exit=0    ✓ built in 12.48s
+```
+
+**与前两轮逐字相同(323 / 3246)** —— 本轮只改了一条用例里的载荷键名 + 注释,文件数与用例数都不该变,实测没变 ✅
+零红项、单轮干净。
 
 **新顾虑:0 条。`NEEDS_CONTEXT`:0 条。**
