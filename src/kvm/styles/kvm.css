@@ -1350,7 +1350,17 @@
 
 /* 新类(有意偏离,已申报):Vue2 用 buefy `b-button type="is-primary" rounded`
  * (创建/快照/VM 设置/全局设置四处脚部按钮共用同一形态,行 342/388/489/551),
- * New-UI 没有 buefy,自己写一个等价的胶囊主按钮类。 */
+ * New-UI 没有 buefy,自己写一个等价类。
+ *
+ * ⚠️ 圆角是 0.5rem,不是胶囊(评审订正,记账在此免得 Task 10 抄错):`rounded`
+ * prop 加的是 buefy 内置的、只挂两个类选择器的规则(button 类 + is-rounded 类);
+ * 而页面自己在 scoped 样式块(:1657-2874 范围内)又写了一条更具体的规则
+ * `create-vm-foot 类 → button 类且 is-primary 类 { border-radius: 0.5rem; … }`
+ * (:2707-2720)。Vue2 scoped 编译后这条页面规则的最后一个复合选择器上还会带一个
+ * data-v 属性选择器,等效再加一级选择器权重,总共比 buefy 那条多一级,页面自己
+ * 这条赢,把 `rounded` 加的圆角(以及它带的左右内边距)整个压掉了 —— `rounded`
+ * prop 在这个页面上是哑设置,真机渲染出来的是 0.5rem 圆角,不是胶囊。这里照渲染
+ * 结果搬,不照 prop 名字猜。 */
 .cv-primary-btn {
   background: var(--kvm-accent);
   color: var(--kvm-on-accent);
@@ -1359,7 +1369,7 @@
   height: 2.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  border-radius: 999px;
+  border-radius: 0.5rem;
   cursor: pointer;
   transition: background-color 0.2s;
 }
