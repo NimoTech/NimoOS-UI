@@ -432,6 +432,192 @@ describe('i18n message syntax', () => {
     })
   })
 
+
+  // SP8-P5c Task 1: 99 new aiKb* keys for the knowledge settings page (SettingsView.vue),
+  // the Parser details page (ParserStatus.vue), the Parser test sandbox (ParserTest.vue)
+  // and the folder picker (FolderBrowser.vue). Same shape as the P5a Task 8 / P5b Task 1
+  // guards above (a fixed key list scoped to this batch + presence check + punctuation
+  // scan + placeholder-parity check), per p5c-common-constraints.md §7 and T1 brief §3.3.
+  //
+  // Scope is deliberately this batch's 99 keys, never the whole file: aiResTurn /
+  // aiResFilesInTurns intentionally differ between locales ({s} is an English plural
+  // suffix) and would fail a file-wide placeholder-parity assertion — see the P5a Task 8
+  // block above for the full rationale.
+  //
+  // Why the batch is 99 and not Appendix A's 98: coordinator ruling A-1 (2026-08-03) added
+  // aiKbDeviceAuto rather than reusing the existing aiKbOriginAuto — same rendering today
+  // (自动 / Auto), but that key means "distill job origin (manual|auto)" and a future edit
+  // to distillation copy would silently change the inference-device selector. The appendix
+  // was corrected in place (98 -> 99 new, 11 -> 10 reused).
+  //
+  // Four Vue2-authentic collisions / mistranslations in this batch are copied verbatim
+  // (governance N21) and this guard must NOT be used to "tidy" them:
+  //   1. aiKbResume ('Resume' -> 恢复) collides on the zh value with the existing
+  //      aiKbRebuild ('Rebuild' -> 恢复). Vue2 mistranslating Rebuild is the wrong one;
+  //      Resume -> 恢复 is correct. Both keys exist, both zh values stay 恢复.
+  //   2. aiKbSetSandboxTitle ('Test Sandbox', SettingsView.vue:162) vs aiKbPrTestLink
+  //      ('Test sandbox', ParserStatus.vue:6) — en differs only in letter case, zh is
+  //      identical. Two independent keys so the English UI keeps the case difference.
+  //   3. aiKbPrCcPowerSaving ('Power-saving') / aiKbPrCcFullPower ('Full power') collide on
+  //      zh with aiKbCcPowerSaver ('Power saver') / aiKbCcFullSpeed ('Full speed') but the
+  //      en strings differ — reusing those would render 'Power saver'/'Full speed' in the
+  //      English UI, which is not 1:1 with Vue2. New keys are mandatory here.
+  //   4. aiKbPrOcrHint's zh renders "真实索引的扫描件" for "truly scanned documents" (Vue2's
+  //      own mistranslation) and uses ASCII -/x where en uses – (U+2013) / × (U+00D7).
+  describe('P5c Task 1 aiKb* keys — punctuation and placeholder guards', () => {
+    // Matches the >>> SP8-P5c Task 1 ... <<< SP8-P5c Task 1 marked block in zh_cn.ts /
+    // en_us.ts (see p5c-task-1-report.md "新增键清单"): Appendix A §A.2's 98 rows plus
+    // aiKbDeviceAuto (ruling A-1). All 99 have a Vue2-authoritative zh value — this batch
+    // created zero new copy and left zero dead keys.
+    const p5cTask1Keys = [
+      'aiKbConcurrencyLevel', 'aiKbDeviceAuto', 'aiKbFbEmpty', 'aiKbFbLoadFailed',
+      'aiKbFbLoading', 'aiKbFbNoVolumes', 'aiKbFbVolumes', 'aiKbInferenceDevice', 'aiKbPause',
+      'aiKbPrCcFullPower', 'aiKbPrCcPowerSaving', 'aiKbPrDetailsTitle', 'aiKbPrFoldersTitle',
+      'aiKbPrIndexedVectors', 'aiKbPrNoPending', 'aiKbPrOcrHint', 'aiKbPrOcrLabel',
+      'aiKbPrQueueDone', 'aiKbPrQueueRunning', 'aiKbPrRecentFailures', 'aiKbPrResolvedHint',
+      'aiKbPrTestLink', 'aiKbPrUnreachable', 'aiKbPtAsWellAs', 'aiKbPtBackLink',
+      'aiKbPtChooseFile', 'aiKbPtChunksTitle', 'aiKbPtDefaults', 'aiKbPtDoclingToggle',
+      'aiKbPtDragDrop', 'aiKbPtHelp1', 'aiKbPtHelpNoWrite', 'aiKbPtHelpPreviewOnly',
+      'aiKbPtMaxSize', 'aiKbPtOcr', 'aiKbPtOverlapNote', 'aiKbPtProcessing',
+      'aiKbPtQueryPlaceholder', 'aiKbPtReset', 'aiKbPtRun', 'aiKbPtScoredTitle',
+      'aiKbPtSupports', 'aiKbPtTitle', 'aiKbPtTooBig', 'aiKbPtViaDocling', 'aiKbPtZeroChunks',
+      'aiKbResume', 'aiKbResumed', 'aiKbSetAutoCapture', 'aiKbSetAutoCaptureCn',
+      'aiKbSetAutoCaptureDesc', 'aiKbSetAutoCaptureOff', 'aiKbSetAutoCaptureOffWarn',
+      'aiKbSetAutoCaptureOn', 'aiKbSetChange', 'aiKbSetChecking', 'aiKbSetConcurrencyDesc',
+      'aiKbSetConcurrencySet', 'aiKbSetConcurrentFiles', 'aiKbSetCurrentlyUsing',
+      'aiKbSetDangerZone', 'aiKbSetDeviceAutoCurrent', 'aiKbSetDeviceCn', 'aiKbSetDeviceSet',
+      'aiKbSetDirEmptyMigratable', 'aiKbSetDirNotEmpty', 'aiKbSetMigrateAck',
+      'aiKbSetMigrateNotEmpty', 'aiKbSetMigrateReq1', 'aiKbSetMigrateReq2',
+      'aiKbSetMigrateReq3', 'aiKbSetMigrateStart', 'aiKbSetMigrateTitle', 'aiKbSetMoveFiles',
+      'aiKbSetNotesFolder', 'aiKbSetNotesFolderCn', 'aiKbSetNotesFolderDesc',
+      'aiKbSetNotesFolderUpdated', 'aiKbSetNotesSection', 'aiKbSetNotesSectionHint',
+      'aiKbSetOcrCn', 'aiKbSetOcrOff', 'aiKbSetOcrOn', 'aiKbSetOcrOnlyScanned',
+      'aiKbSetOcrTitle', 'aiKbSetOcrWarn', 'aiKbSetPickNote', 'aiKbSetPointToExisting',
+      'aiKbSetRebuildAll', 'aiKbSetRebuildAllDesc', 'aiKbSetRebuildEllipsis',
+      'aiKbSetSandboxHint', 'aiKbSetSandboxTitle', 'aiKbSetSelected', 'aiKbSetSvcPausedDesc',
+      'aiKbSetSvcPausedLine', 'aiKbSetSvcRunningDesc', 'aiKbSetSvcRunningLine',
+      'aiKbSwitchFailed',
+    ] as const
+
+    it('covers exactly the 99 keys this task added (list itself does not drift)', () => {
+      expect(p5cTask1Keys.length).toBe(99)
+    })
+
+    // Carried forward from the P5b Task 1 review finding (Important I-1): the length check
+    // above only pins the literal array in this file, it says nothing about whether the
+    // keys exist in the locales. parity.test.ts only compares the two locales against each
+    // other (deleting from both keeps them equal), and the punctuation loop below silently
+    // `continue`s past a non-string value — so without this, an accidental delete/rename
+    // would stay green.
+    it('every key in this batch is present as a string in both locales', () => {
+      const missing = p5cTask1Keys.filter(
+        (k) =>
+          typeof (zh as Record<string, unknown>)[k] !== 'string' ||
+          typeof (en as Record<string, unknown>)[k] !== 'string'
+      )
+      expect(missing).toEqual([])
+    })
+
+    // (a) Full-width punctuation scan. Exceptions = Appendix A §A.5's 18 rows, re-scanned
+    // independently by this task against `git show main:src/assets/lang/zh_CN.json` (the
+    // added aiKbDeviceAuto value 自动 carries no full-width punctuation, so the count stays
+    // 18 — measured, not assumed). Each exception is pinned with an exact `toBe` below
+    // rather than merely skipped, per the brief: 「一律写成 toBe 钉死确切值的强断言,不是
+    // 「跳过扫描」的松形式」. The remaining 81 keys must scan clean.
+    //
+    // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) —(U+2014) –(U+2013) …(U+2026) ×(U+00D7)
+    // →(U+2192) are NOT in /[，；：？！（）]/ — do not add keys here because a value "looks
+    // full-width"; only the regex's actual hits belong in this list.
+    const fullWidthExceptions: Record<string, string> = {
+      aiKbPrFoldersTitle: '待处理文件夹（top {top} / 共 {total} 组）',
+      aiKbPrOcrHint: '慢 5-10x，只对真实索引的扫描件有用',
+      aiKbPrRecentFailures: '最近失败（{n}）',
+      aiKbPtChunksTitle: '切块结果（{n} 块）',
+      aiKbPtDefaults: '默认 target=600, overlap=80, min=2（沙盒宽松值；生产用 600/80/5–20）。',
+      aiKbPtDoclingToggle: 'docling 转出的 markdown（{n} 字符）',
+      aiKbPtHelp1: '上传一个文件，看 Parser 怎么处理它（切块 + 嵌入 + 评分）。',
+      aiKbPtMaxSize: '最大 30 MB。PDF 首次会触发模型权重下载（~200 MB，一次性）。',
+      aiKbPtOcr: 'OCR（扫描 PDF）',
+      aiKbPtOverlapNote: 'overlap 只对 plain 文本生效；markdown/source 按段落或函数边界切。',
+      aiKbPtQueryPlaceholder: '（可选）输入 query，会计算每个 chunk 的余弦相似度',
+      aiKbPtScoredTitle: 'Query 相似度排名（top {n}）',
+      aiKbPtTooBig: '文件超过 30 MB，沙盒不支持',
+      aiKbPtViaDocling: '（经 docling 转 markdown）',
+      aiKbSetCurrentlyUsing: '当前用：',
+      aiKbSetDeviceAutoCurrent: '自动（当前 {r}）',
+      aiKbSetDeviceSet: '推理设备：{label}',
+      aiKbSetSandboxHint: '单文件试解析，不写入索引',
+    }
+
+    it('registers exactly the 18 full-width-punctuation exceptions from Appendix A §A.5', () => {
+      expect(Object.keys(fullWidthExceptions).length).toBe(18)
+    })
+
+    it('pins the exact zh_cn value (with its Vue2-authentic full-width punctuation) for each of the 18 registered exceptions', () => {
+      for (const [key, value] of Object.entries(fullWidthExceptions)) {
+        expect((zh as Record<string, unknown>)[key]).toBe(value)
+      }
+    })
+
+    it('should not contain full-width ，；：？！（） in any zh_cn value from this batch (except the 18 registered exceptions)', () => {
+      const fullWidthPunctuation = /[，；：？！（）]/
+      const violations: Array<{ key: string; value: string }> = []
+      for (const key of p5cTask1Keys) {
+        if (key in fullWidthExceptions) continue
+        const value = (zh as Record<string, unknown>)[key]
+        if (typeof value !== 'string') continue
+        if (fullWidthPunctuation.test(value)) violations.push({ key, value })
+      }
+      if (violations.length > 0) {
+        const details = violations.map((v) => `${v.key} = "${v.value}"`).join('\n')
+        expect.fail(
+          `Found full-width ，；：？！（） in P5c Task 1 zh_cn values (should be half-width per the authoritative Vue2 zh_CN.json; if this is a legitimate Vue2-authentic exception, stop and report before adding it here):\n${details}`
+        )
+      }
+    })
+
+    // (b) Placeholder-name parity between zh_cn and en_us, scoped to this batch's 9 keys
+    // that carry {…} interpolation (Appendix A §A.6, re-derived here by scanning the
+    // shipped values rather than trusting the appendix table).
+    const placeholderKeysWithInterpolation = [
+      'aiKbPrFoldersTitle', 'aiKbPrRecentFailures', 'aiKbPrResolvedHint', 'aiKbPtChunksTitle',
+      'aiKbPtDoclingToggle', 'aiKbPtScoredTitle', 'aiKbSetConcurrencySet',
+      'aiKbSetDeviceAutoCurrent', 'aiKbSetDeviceSet',
+    ] as const
+
+    it('covers exactly the 9 keys in this batch that carry interpolation placeholders', () => {
+      expect(placeholderKeysWithInterpolation.length).toBe(9)
+    })
+
+    it('zh_cn and en_us use the same set of {…} placeholder names for each of these keys', () => {
+      const placeholderPattern = /\{([a-zA-Z]+)\}/g
+      const namesOf = (value: string) => {
+        const names: string[] = []
+        let m: RegExpExecArray | null
+        while ((m = placeholderPattern.exec(value)) !== null) names.push(m[1])
+        return names.sort()
+      }
+
+      const violations: Array<{ key: string; zhNames: string[]; enNames: string[] }> = []
+      for (const key of placeholderKeysWithInterpolation) {
+        const zhValue = (zh as Record<string, unknown>)[key]
+        const enValue = (en as Record<string, unknown>)[key]
+        if (typeof zhValue !== 'string' || typeof enValue !== 'string') continue
+        const zhNames = namesOf(zhValue)
+        const enNames = namesOf(enValue)
+        if (JSON.stringify(zhNames) !== JSON.stringify(enNames)) {
+          violations.push({ key, zhNames, enNames })
+        }
+      }
+      if (violations.length > 0) {
+        const details = violations
+          .map((v) => `${v.key}: zh=[${v.zhNames.join(',')}] en=[${v.enNames.join(',')}]`)
+          .join('\n')
+        expect.fail(`Found mismatched {…} placeholder names between locales:\n${details}`)
+      }
+    })
+  })
+
   describe('bare @ guard (unescaped @ detection)', () => {
     it('should not allow bare @ in any key (only {@} escapes or @:key references)', () => {
       const locales = [

@@ -1622,4 +1622,130 @@ export default {
   // vue-i18n 回落显示英文原串;两档同填英文,渲染与 Vue2 逐字相同):
   aiKbStatusIndexing: 'Indexing',
   // <<< SP8-P5b Task 1
+  // >>> SP8-P5c Task 1 —— 知识库配置页 / Parser 详情页 / Parser 测试沙盒 / 目录选择器文案
+  // (Vue2 SettingsView.vue · ParserStatus.vue · ParserTest.vue · FolderBrowser.vue),共 99 条。
+  // 99 条中文值全部有 Vue2 权威源(本期新造 0 条、死键 0 条),已按
+  // `git show main:src/assets/lang/zh_CN.json` 逐码点比对(见
+  // .superpowers/sdd/p5c-task-1-i18n-verify.mjs,99/99 MATCH)。
+  // 协调者裁定 A-1(2026-08-03):aiKbDeviceAuto 不复用既有 aiKbOriginAuto —— 两者现值渲染
+  // 完全一致(自动 / Auto),但 aiKbOriginAuto 的语义是「沉淀任务来源 manual|auto」,与「推理
+  // 设备自动档」无关,将来改沉淀文案会静默改掉设备下拉。aiKbDeviceAuto 一个键服务三处调用点
+  // (SettingsView.vue:45 设备单选 · SettingsView.vue:301 setDevice toast · ParserStatus.vue:121
+  // deviceOptions)。
+  // 4 组 Vue2 语言包自身的错译 / 同值撞车,一律照抄不改(N21,详见 p5c-appendix-A-i18n.md §A.3):
+  // ① aiKbResume(`Resume` → 恢复)与既有 aiKbRebuild(`Rebuild` → 恢复)zh 值撞车 ——
+  //    Vue2 把 Rebuild 译成「恢复」才是错的,Resume → 恢复是对的,两个键都要存在;
+  // ② aiKbSetSandboxTitle(`Test Sandbox`)与 aiKbPrTestLink(`Test sandbox`)只差首字母
+  //    大小写,zh 都是「测试沙盒」→ 两个独立键,英文档必须保留大小写差异;
+  // ③ aiKbPrCcPowerSaving(`Power-saving` → 省电)/ aiKbPrCcFullPower(`Full power` → 全力)
+  //    与既有 aiKbCcPowerSaver(`Power saver`)/ aiKbCcFullSpeed(`Full speed`)zh 撞车但
+  //    en 不同 → 绝对不能复用,复用会让英文档渲染成 Power saver / Full speed,界面不 1:1;
+  // ④ aiKbPrOcrHint 的「真实索引的扫描件」是 Vue2 对 truly scanned 的错译,且 en 用
+  //    – (U+2013) / × (U+00D7) 而 zh 用 ASCII - / x —— 逐码点照抄,不许规范化。
+  // emoji 位置照抄(N16):只有 aiKbSetSvcPausedLine / aiKbSetSvcRunningLine 的 ⏸ / ✅ 在
+  // `$t()` 里面(蓝本 SettingsView.vue:11),其余 🧪 ⏳ 🔄 ✅ ❌ 📦 📍 ▼ ▶ 📝 ⚠️ ← 全在
+  // `$t()` 外面(含 ParserStatus.vue:27 script 里拼的 '▶ ' + $t('Resume')),键值里不含它们。
+  // N22:rerank top-20 / dense [0:8]: / sparse top: / chunk # / cos / rr / target_tokens /
+  // overlap_tokens / min_tokens / chunker=…,target=… / {{ c.token_count }} tokens · offset …
+  // 是技术标识符,Vue2 刻意没进 i18n → 本期不为它们补键。
+  aiKbConcurrencyLevel: '并发档位',
+  aiKbDeviceAuto: '自动',
+  aiKbFbEmpty: '(空)',
+  aiKbFbLoadFailed: '目录列表加载失败',
+  aiKbFbLoading: '加载中…',
+  aiKbFbNoVolumes: '未检测到磁盘卷——请在上方手输路径',
+  aiKbFbVolumes: '卷',
+  aiKbInferenceDevice: '推理设备',
+  aiKbPause: '暂停',
+  aiKbPrCcFullPower: '全力',
+  aiKbPrCcPowerSaving: '省电',
+  aiKbPrDetailsTitle: 'Parser 详情',
+  aiKbPrFoldersTitle: '待处理文件夹（top {top} / 共 {total} 组）',
+  aiKbPrIndexedVectors: '已入向量',
+  aiKbPrNoPending: '无待处理',
+  aiKbPrOcrHint: '慢 5-10x，只对真实索引的扫描件有用',
+  aiKbPrOcrLabel: '扫描 PDF 启用 OCR (RapidOCR)',
+  aiKbPrQueueDone: '完成',
+  aiKbPrQueueRunning: '处理中',
+  aiKbPrRecentFailures: '最近失败（{n}）',
+  aiKbPrResolvedHint: '→ 实际 {device}',
+  aiKbPrTestLink: '测试沙盒',
+  aiKbPrUnreachable: 'Parser 服务未运行或不可达。',
+  aiKbPtAsWellAs: '以及',
+  aiKbPtBackLink: '返回详情',
+  aiKbPtChooseFile: '选择文件',
+  aiKbPtChunksTitle: '切块结果（{n} 块）',
+  aiKbPtDefaults: '默认 target=600, overlap=80, min=2（沙盒宽松值；生产用 600/80/5–20）。',
+  aiKbPtDoclingToggle: 'docling 转出的 markdown（{n} 字符）',
+  aiKbPtDragDrop: '或拖拽到此处',
+  aiKbPtHelp1: '上传一个文件，看 Parser 怎么处理它（切块 + 嵌入 + 评分）。',
+  aiKbPtHelpNoWrite: '不会写入索引',
+  aiKbPtHelpPreviewOnly: '纯预览',
+  aiKbPtMaxSize: '最大 30 MB。PDF 首次会触发模型权重下载（~200 MB，一次性）。',
+  aiKbPtOcr: 'OCR（扫描 PDF）',
+  aiKbPtOverlapNote: 'overlap 只对 plain 文本生效；markdown/source 按段落或函数边界切。',
+  aiKbPtProcessing: '处理中…',
+  aiKbPtQueryPlaceholder: '（可选）输入 query，会计算每个 chunk 的余弦相似度',
+  aiKbPtReset: '重置',
+  aiKbPtRun: '运行',
+  aiKbPtScoredTitle: 'Query 相似度排名（top {n}）',
+  aiKbPtSupports: '支持',
+  aiKbPtTitle: 'Parser 测试沙盒',
+  aiKbPtTooBig: '文件超过 30 MB，沙盒不支持',
+  aiKbPtViaDocling: '（经 docling 转 markdown）',
+  aiKbPtZeroChunks: '解析得到 0 个 chunk。可能是文件太短或全是过滤掉的小段。',
+  aiKbResume: '恢复',
+  aiKbResumed: '已继续',
+  aiKbSetAutoCapture: '自动沉淀对话洞见',
+  aiKbSetAutoCaptureCn: '对话洞见自动沉淀',
+  aiKbSetAutoCaptureDesc: '会话空闲后,值得保留的结论会自动存为「AI 草稿」笔记,等你确认。',
+  aiKbSetAutoCaptureOff: '自动沉淀已关闭',
+  aiKbSetAutoCaptureOffWarn: '已关闭 — 排队中的草稿也会被丢弃',
+  aiKbSetAutoCaptureOn: '自动沉淀已开启',
+  aiKbSetChange: '更改',
+  aiKbSetChecking: '检查中…',
+  aiKbSetConcurrencyDesc: '数值越大越快、越占资源。NAS 空闲时建议 4。',
+  aiKbSetConcurrencySet: '并发改为 {n}',
+  aiKbSetConcurrentFiles: '同时处理几个文件',
+  aiKbSetCurrentlyUsing: '当前用：',
+  aiKbSetDangerZone: '危险区',
+  aiKbSetDeviceAutoCurrent: '自动（当前 {r}）',
+  aiKbSetDeviceCn: '推理设备 · 仅维护者关心',
+  aiKbSetDeviceSet: '推理设备：{label}',
+  aiKbSetDirEmptyMigratable: '空目录 · 可迁移',
+  aiKbSetDirNotEmpty: '非空目录 — 只能指向',
+  aiKbSetMigrateAck: '我已了解这是移动磁盘文件的操作',
+  aiKbSetMigrateNotEmpty: '当前所选目录非空。',
+  aiKbSetMigrateReq1: '目标目录必须为空 — 非空目录后端会拒绝迁移。',
+  aiKbSetMigrateReq2: '文件会被移动(不是复制),原目录随后为空。',
+  aiKbSetMigrateReq3: '迁移期间笔记短暂只读,通常几秒内完成。',
+  aiKbSetMigrateStart: '开始迁移',
+  aiKbSetMigrateTitle: '迁移笔记文件?',
+  aiKbSetMoveFiles: '迁移文件到新目录…',
+  aiKbSetNotesFolder: '笔记目录',
+  aiKbSetNotesFolderCn: '笔记 Markdown 文件的存放位置',
+  aiKbSetNotesFolderDesc: '每个用户一个子目录;文件是纯 Markdown。',
+  aiKbSetNotesFolderUpdated: '笔记目录已更新',
+  aiKbSetNotesSection: '知识笔记',
+  aiKbSetNotesSectionHint: '笔记 = 磁盘上的 Markdown 文件',
+  aiKbSetOcrCn: '扫描 PDF 文字识别 (OCR)',
+  aiKbSetOcrOff: 'OCR 已关闭',
+  aiKbSetOcrOn: 'OCR 已开启',
+  aiKbSetOcrOnlyScanned: '只对扫描 PDF 有用。',
+  aiKbSetOcrTitle: '扫描件文字识别 (OCR)',
+  aiKbSetOcrWarn: '开启后速度慢 5-10×',
+  aiKbSetPickNote: '「指向」不动文件,直接收编目录里已有的 .md;「迁移」把现有笔记文件移动过去(目标目录必须为空)。',
+  aiKbSetPointToExisting: '指向已有目录',
+  aiKbSetRebuildAll: '重建全部索引',
+  aiKbSetRebuildAllDesc: '会丢弃现有索引重新扫描所有文件',
+  aiKbSetRebuildEllipsis: '重建…',
+  aiKbSetSandboxHint: '单文件试解析，不写入索引',
+  aiKbSetSandboxTitle: '测试沙盒',
+  aiKbSetSelected: '已选择',
+  aiKbSetSvcPausedDesc: '新文件不会被自动收录',
+  aiKbSetSvcPausedLine: '⏸ 已暂停',
+  aiKbSetSvcRunningDesc: '正在持续监控并索引新文件',
+  aiKbSetSvcRunningLine: '✅ 运行中',
+  aiKbSwitchFailed: '切换失败',
+  // <<< SP8-P5c Task 1
 }
