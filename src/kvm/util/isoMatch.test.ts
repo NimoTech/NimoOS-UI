@@ -75,6 +75,6 @@ describe('osTemplateDefaults', () => {
     })
   })
   it('未知 id 回落 generic-linux', () => {
-    expect(osTemplateDefaults('nope', TEMPLATES)).toMatchObject({ osType: 'linux', firmware: 'bios' })
+    expect(osTemplateDefaults('nope', TEMPLATES)).toMatchObject({ osType: 'linux', firmware: 'bios', os: 'Linux' })
   })
 })

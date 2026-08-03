@@ -28,7 +28,12 @@ export function filterByCategory(list: KvmISO[], cat: string): KvmISO[] {
 
 /** 本地 ISO 文件名反查所属模板。照 Vue2 OSSelector.vue:328-346
  * handleCustomItemClick:先按文件名是否包含某模板 id 直接命中(:335-340),
- * 未命中再走 win11/win10/泛 win 三级兜底(:343-345)。 */
+ * 未命中再走 win11/win10/泛 win 三级兜底(:343-345)。
+ *
+ * 偏离登记(改正确,非照抄):Vue2 那三行兜底找的是 `o.id === 'windows11'` /
+ * `'windows10'`。真机 `GET /v1/kvm/isos` 返回的模板 id 是 `win10`/`win11`,
+ * `windows11`/`windows10` 这两个字面量在真实响应里从未出现过——Vue2 那三行是死代码,
+ * 兜底永远匹配不到任何模板。这里把字面量改成真机的 `win11`/`win10`。 */
 export function matchTemplateByFilename(fileName: string, templates: KvmISO[]): KvmISO | null {
   const lowerName = fileName.toLowerCase()
 
@@ -36,6 +41,7 @@ export function matchTemplateByFilename(fileName: string, templates: KvmISO[]): 
     if (lowerName.includes(tmpl.id.toLowerCase())) return tmpl
   }
 
+  // 三级兜底,id 字面量见函数头偏离登记(win11/win10,非 Vue2 原文的 windows11/windows10)。
   if (lowerName.includes('win11')) return templates.find((t) => t.id === 'win11') ?? null
   if (lowerName.includes('win10')) return templates.find((t) => t.id === 'win10') ?? null
   if (lowerName.includes('win')) {
