@@ -147,8 +147,11 @@ T1 i18n(99 键)
 
 ### T3 · 目录选择器整块(`util/folderBrowser.ts` + `FolderBrowser.vue`,原 T3+T4)
 
-**新建**:`src/ai/knowledge/util/folderBrowser.ts` · `src/ai/knowledge/util/folderBrowser.test.ts`
-→ 文件数 **320 → 321**
+**新建**:`src/ai/knowledge/util/folderBrowser.ts` · `folderBrowser.test.ts` ·
+`src/ai/knowledge/components/FolderBrowser.vue` · `FolderBrowser.test.ts`
+→ 文件数 **320 → 322**;`.vue` **175 → 176**,color-guard **+1**
+
+#### 半一:三个纯函数
 
 三个纯函数 `dirEntries` / `pickerRoots` / `crumbsFor`(蓝本 `folderBrowser.js:3-34`)。
 - `dirEntries`:过滤 `e.is_dir && !e.name.startsWith('.')` → map `{name, path}` → `localeCompare` 排序。**`FolderEntry = { name, path, is_dir }`(`Service/src/types.ts:26-30`)与蓝本字段逐字对上,零改动移植。**
@@ -157,12 +160,7 @@ T1 i18n(99 键)
 
 **DoD**:每个函数的**每个分支**都有用例;边界两侧都要断言(空数组 / 无 `is_dir` 项 / 全是隐藏项 / `path=''` / 单段 / 多段 / 前后多余 `/`)。用 fixture `folder-list-DATA.json` 的**真实 18 项**做一条端到端用例(`is_dir` 过滤后 12 个目录,`.snapshots`/`.system_data`/`.wiki.md` 被滤掉)。
 
----
-
-### T4 · `FolderBrowser.vue`
-
-**新建**:`src/ai/knowledge/components/FolderBrowser.vue` · `FolderBrowser.test.ts`
-→ 文件数 **321 → 322**;`.vue` **175 → 176**,color-guard **+1**
+#### 半二:`FolderBrowser.vue`
 
 - **K27/K28**:`folder.getList` → `service.folder.getList`,🔴 **单层取数** `(await service.folder.getList(path)).content || []`(蓝本 `:66` 是 `r.data.data.content` 三层)。mock 用**单层** `{ content: FolderEntry[] }`,**不是** fixture 里那个三层信封(§4.1)。
 - **§5.2 `_seq` 竞态守卫**照抄(蓝本 `:57-72`:`reset()` 递增 `_seq`、`go()` 里 `const seq = ++this._seq`、三处 `if (seq !== this._seq) return`)。Vue3 里 `_seq` 是组件本地 `let`/`ref`。**回归测试必须走交错路径**(记忆 `newuiasync-stale-guard`:别抽公共 guard,过早抽象)。
