@@ -1,9 +1,21 @@
-// SP8-P5c Task 8 —— `SettingsView.vue`(上半)的组件测试。
+// SP8-P5c Task 8 + Task 9 —— `SettingsView.vue` 的组件测试。
 // 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue`(322 行)。
-// 🔴 本文件只覆盖 T8 范围:服务卡 · 运行档三行(并发/设备/OCR)· 沙盒入口 · 危险区 +
-//    对应 script(`controlState` / `deviceLabel` / `togglePause` / `setConcurrency` /
-//    `setDevice` / `toggleOcr` / `goSandbox`)。**下半(笔记根目录 + 迁移弹窗)归 T9**,
-//    本文件不为它写任何用例、也不写「将来会有」的占位断言。
+// **T8** 覆盖上半:服务卡 · 运行档三行(并发/设备/OCR)· 沙盒入口 · 危险区 + 对应 script
+//   (`controlState` / `deviceLabel` / `togglePause` / `setConcurrency` / `setDevice` /
+//   `toggleOcr` / `goSandbox`)。
+// **T9** 覆盖下半:笔记区(目录行 + `openRootPicker` 折叠区 + `FolderBrowser` 接入 +
+//   `onPick`/`dirProbe` 四态 + 两个按钮的 disabled + 自动捕获开关)· K29 的 reka 迁移弹窗 ·
+//   `browserRoots` / `created` / `applyRoot` / `doMigrate` / `closeMigrate` /
+//   `toggleAutoExtract`。T9 的用例全部在文件末尾的 `═══ T9 ═══` 分隔线之后。
+//
+// 🔴 **T9 对 T8 既有代码的改动仅 4 处,全部是「插入下半」被迫的机械后果**(逐处见 T9 报告 §3):
+//   ① `vi.hoisted` mock 骨架 +3 个域(`notes` / `wiki` / `folder`)—— 组件现在真的调它们;
+//   ② `mockAllOk()` +3 行默认值 —— 否则 T8 既有用例挂载时 `getSettings()` 返回 undefined,
+//      模板读 `notesSettings.notesRoot` 当场 TypeError;
+//   ③ 危险区那条断言的**定位器**(不是断言值):插入笔记区后 `.k-section` 有两个、
+//      `w.find('.k-section .k-section-head')` 会先命中笔记区(登记为 E-22);
+//   ④ 「四个 catch 都是无参 catch」那条的**计数** 4 → 8(下半新增 4 个 catch,登记为 E-23)。
+//   除此之外 T8 的每一条 `expect` 与每一个 DOM 断言**一字未动**。
 //
 // ═══ mock 策略(治理 §4.1 要求显式说明) ═══
 // 🔴 **mock 共享包 `service.ai.parserStats/parserState/parserControl`,走真 `knowledgeStore`**,
@@ -11,13 +23,24 @@
 //   (蓝本 `store.state.controlState` → 本仓 `store.controlState`),mock store 会把
 //   「降层与字段名到底对不对得上」这件最容易翻车的事整个绕开;走真 store 则每条渲染
 //   断言天然是集成断言 —— 少降一层或字段名错一个字母,对应那格立刻空/undefined。
+//   T9 的 `browserRoots`(K1 第二处降层,读 `store.wikiCandidates`)与 `store.loadCandidates()`
+//   同样走真 store + 真 `service.wiki.getCandidates` mock。
 // 🔴 形状:`service.ai.parserStats` / `parserState` 在包里都只 `return res.data`
 //   (`NimoOS-Service/src/ai.ts:591-596`,零转换)→ 一律 mock 成 **HTTP 原样 snake_case**,
 //   就是 fixture 原文。`parserControl` 的响应体本页不消费,mock 成 `{}`,与
 //   `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` / `ParserStatus.test.ts:182`
 //   逐字一致(治理 §4.1 的 red flag 自查:同一方法在两个测试文件里形状不同 = 定时炸弹)。
-// 🔴 `service.notes.*` 本文件**一个都不 mock,也不抄 `notes-settings.json` fixture** ——
-//   笔记那半整个归 T9,本刀的组件根本不调它(治理 §4.4:用不到就不抄,别为凑数抄)。
+// 🔴 **T9 的四个新 mock 层次,逐个与 §4.1 那张表对齐**:
+//   · `service.notes.getSettings` / `putSettings` → **camelCase 且只有
+//     `{ notesRoot, autoExtract }` 两个字段**(包内 `normalizeSettings`,
+//     `NimoOS-Service/src/notes.ts:131-137`)。**HTTP 层是 `notes_root` / `auto_extract`,
+//     而且还多带 `distill_roots` / `distill_daily_cap` / `background_model` 三个字段 ——
+//     那个归一函数把它们全丢掉了**。写 snake_case 或多带字段都是错的。
+//   · `service.notes.dirInfo` → `{ exists: boolean, empty: boolean }`(包内 `!!` 归一,`:264-267`)。
+//   · `service.wiki.getCandidates` → 已归一化数组(空时 `[]`,`wiki.ts:154-156`)。
+//   · `service.folder.getList`(经 `FolderBrowser`)→ 🔴 **`unwrap()` 后的单层
+//     `{ content: FolderEntry[] }`**(`folder.ts:7-10`),**不是** fixture 里那个三层信封。
+//     与 `FolderBrowser.test.ts:185` 的 `{ content: [] }` 逐字同形状(red flag 自查通过)。
 //
 // ═══ fixture 是抄本,不是运行时读(治理 §4.4) ═══
 // 数据逐字抄进下面 `FIXTURE-COPY-BEGIN/END` 块并注明出处,**不用 `node:fs` 读
@@ -43,6 +66,7 @@ import enUs from '../../../i18n/en_us'
 import { useToast } from '../../../stores/toast'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import type { ParserControlState, ParserStats } from '../stores/knowledgeStore'
+import type { NotesSettings } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
 import SettingsView from './SettingsView.vue'
 // @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明
@@ -61,7 +85,16 @@ const ai = vi.hoisted(() => ({
   parserState: vi.fn(),
   parserControl: vi.fn(),
 }))
-vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
+// T9 新增三域:组件下半真的调 `service.notes.*`,`store.loadCandidates()` 真的调
+// `service.wiki.getCandidates`,`FolderBrowser` 真的调 `service.folder.getList`。
+const notes = vi.hoisted(() => ({
+  getSettings: vi.fn(),
+  putSettings: vi.fn(),
+  dirInfo: vi.fn(),
+}))
+const wiki = vi.hoisted(() => ({ getCandidates: vi.fn() }))
+const folder = vi.hoisted(() => ({ getList: vi.fn() }))
+vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes, wiki, folder } }))
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (整份,GET /v1/parser/state)
@@ -116,13 +149,56 @@ const STATS = {
   ]
 } as unknown as ParserStats
 // FIXTURE-COPY-END
+
+// FIXTURE-COPY-BEGIN  p5c-fixtures/notes-settings.json  (GET /v1/notes/settings)
+// HTTP 原文(逐字节):{"notes_root":"/DATA/Notes","auto_extract":true,"distill_roots":[],"distill_daily_cap":50,"background_model":""}
+// 取自 `.superpowers/sdd/p5c-fixtures/notes-settings.json`(2026-08-03 13:22 真机抓取)。
+// 🔴 **降层动作(治理 §4.1 / §4.4:降层要在注释里留证)**:`service.notes.getSettings` 包内走
+//   `normalizeSettings`(`NimoOS-Service/src/notes.ts:131-137`):
+//       notesRoot   = (r.notes_root as string) || ''
+//       autoExtract = r.auto_extract !== false        ← undefined 也归一成 true
+//   → 组件拿到的是 **camelCase 且只有下面这两个字段**;上面那三个 `distill_*` /
+//   `background_model` 被归一函数**整个丢掉**,mock 里多带一个都是错的。
+const NOTES_SETTINGS: NotesSettings = { notesRoot: '/DATA/Notes', autoExtract: true }
+// FIXTURE-COPY-END
+
+// FIXTURE-COPY-BEGIN  p5c-fixtures/notes-dir-info-notes.json  (GET /v1/notes/dir-info?path=/DATA/Notes)
+// HTTP 原文(逐字节):{"exists":true,"empty":false}
+// 🔴 本机 `/DATA/Notes` 实测**存在且非空** → `migratable = !exists || empty` = false
+//   → 选它时「搬文件到新目录…」按钮**是灰的**(治理 §4.3 / §13,是正确行为)。
+//   包内 `dirInfo`(`notes.ts:264-267`)只做 `!!` 归一,字段名与层次都不变。
+const DIR_INFO_NOTES = { exists: true, empty: false }
+// FIXTURE-COPY-END
+
+// FIXTURE-COPY-BEGIN  p5c-fixtures/wiki-candidates.json  (GET /v1/wiki/candidates)
+// HTTP 原文(逐字节):[]
+// 🔴 本机实测空数组(HTTP 200,秒回)→ `pickerRoots([])` 走**兜底三根**
+//   (`System (/DATA)` / `/media` / `/mnt`),这是真机走到的路径,不是死代码。
+//   包内 `getCandidates`(`wiki.ts:154-156`)已 `|| []` 归一,层次不变。
+const WIKI_CANDIDATES: never[] = []
+// FIXTURE-COPY-END
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * `service.folder.getList` 的返回形状 —— 🔴 **单层** `{ content: FolderEntry[] }`
+ * (`folder.ts:7-10` 已 `unwrap()`),与 `FolderBrowser.test.ts:185` 逐字同形状。
+ * 🔴 **不抄 `folder-list-DATA.json` 那 18 项**:本文件没有一条断言依赖目录列表的内容
+ * (列表渲染、排序、隐藏项过滤全部由 `FolderBrowser.test.ts` 用真 18 项 fixture 覆盖);
+ * 这里只需要「点根目录那一行能走通」,喂空目录即可(治理 §4.4:用不到就不抄)。
+ */
+const EMPTY_LISTING = { content: [] }
 
 /** 两发全成功,喂 fixture 原文;控制动作返回 `{}`。 */
 function mockAllOk(): void {
   ai.parserStats.mockResolvedValue(STATS)
   ai.parserState.mockResolvedValue(STATE)
   ai.parserControl.mockResolvedValue({})
+  // T9:下半的四个只读/写入口默认全成功,喂 fixture 抄本(层次见文件头 mock 策略)。
+  notes.getSettings.mockResolvedValue(NOTES_SETTINGS)
+  notes.putSettings.mockResolvedValue(NOTES_SETTINGS)
+  notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+  wiki.getCandidates.mockResolvedValue(WIKI_CANDIDATES)
+  folder.getList.mockResolvedValue(EMPTY_LISTING)
 }
 
 const mountedWrappers: Array<ReturnType<typeof mount>> = []
@@ -171,6 +247,10 @@ const knobRows = (w: ReturnType<typeof mount>) => knobCard(w).findAll('.k-set-ro
 const concBtns = (w: ReturnType<typeof mount>) => knobRows(w)[0]!.findAll('.k-radio-group button')
 const devBtns = (w: ReturnType<typeof mount>) => knobRows(w)[1]!.findAll('.k-radio-group button')
 const devLabelB = (w: ReturnType<typeof mount>) => knobRows(w)[1]!.find('.k-set-row-desc b')
+/** 危险区那个 `.k-section` —— 按语义(卡上有 `.k-set-danger`)定位,不用下标。
+ *  T9 插入笔记区后 `.k-section` 有两个,`find('.k-section …')` 会先命中笔记区(E-22)。 */
+const dangerSection = (w: ReturnType<typeof mount>) =>
+  w.findAll('.k-section').find((s) => s.find('.k-set-card.k-set-danger').exists())!
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -600,14 +680,17 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     assertNoLeak(w, toast)
   })
 
-  it('源码侧:四个 catch 一个都不读 `e`(零 `e.message` / 零 `e.response`)', () => {
+  it('源码侧:每个 catch 都不读 `e`(零 `e.message` / 零 `e.response` / 零 `e.detail`)', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const code = blankComments(src)
     expect(code).not.toMatch(/\.message\b/)
     expect(code).not.toMatch(/\.response\b/)
     expect(code).not.toMatch(/\.detail\b/)
-    // 四个 catch 都是无参 `catch {`(连错误对象都不接)
-    expect((code.match(/\}\s*catch\s*\{/g) || []).length).toBe(4)
+    // 全部 catch 都是无参 `catch {`(连错误对象都不接)。
+    // 🔴 E-23(T9 被迫改的**计数**,断言语义未变):T8 时 4 个(togglePause /
+    // setConcurrency / setDevice / toggleOcr),T9 下半再加 4 个(created 的 getSettings
+    // 吞错保默认 / onPick / toggleAutoExtract / applyRoot)→ 共 8 个。
+    expect((code.match(/\}\s*catch\s*\{/g) || []).length).toBe(8)
   })
 })
 
@@ -652,7 +735,10 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
 describe('SettingsView —— 危险区(蓝本 :168-186)', () => {
   it('区头:⚠️ 标题(内联 var(--danger))+ 「即将上线」提示', async () => {
     const { w } = await mountPage()
-    const head = w.find('.k-section .k-section-head')
+    // 🔴 E-22(T9 插入笔记区后被迫改的**定位器**,断言值一字未动):`.k-section` 现在有
+    // **两个**(笔记区在前、危险区在后),原来的 `w.find('.k-section .k-section-head')`
+    // 会先命中笔记区。改成按语义定位(带 `.k-set-danger` 卡的那个 section),不用下标。
+    const head = dangerSection(w).find('.k-section-head')
     const title = head.find('.k-section-title')
     expect(title.text()).toBe('⚠️ 危险区')
     // Vue 会把静态 style 属性重新序列化,故用 toContain 钉 token(内联值本来就已是 var(),零字面量)
@@ -871,3 +957,963 @@ function stripCalls(s: string, prefixes: string[]): string {
   }
   return out
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ═════════════════ 以下为 T9(蓝本下半:笔记区 + 迁移弹窗)═════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * K29 / P5b 交接项 #3 —— `DialogPortal to=".knowledge-app"` 的宿主。
+ * `SettingsView` 单独挂载时不在 `.knowledge-app` 子树里(生产环境宿主由
+ * `KnowledgeLayout.vue` 提供),测试必须自己在 body 里放一个同名宿主。
+ * 🔴 **`to` 只认第一个同名宿主** → 每个用例只放一个;`afterEach` 里的
+ * `document.body.innerHTML = ''` 负责清掉,不会串到下一条。
+ * 先例:`QueueView.test.ts` 的 `withHost()`。
+ */
+function withHost(): HTMLElement {
+  const host = document.createElement('div')
+  host.className = 'knowledge-app'
+  document.body.appendChild(host)
+  return host
+}
+
+/** 可控 promise —— 交错路径用(同 `FolderBrowser.test.ts` 的手法)。 */
+function makeDeferred<T>() {
+  let resolve!: (v: T) => void
+  let reject!: (e: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+type DirInfo = { exists: boolean; empty: boolean }
+
+// ── 下半的定位小工具 ──
+// `.k-set-card` 的下标:0 服务卡 / 1 运行档卡 / **2 笔记卡** / 3 危险区卡。
+const notesCard = (w: ReturnType<typeof mount>) => w.findAll('.k-set-card')[2]!
+const notesRows = (w: ReturnType<typeof mount>) => notesCard(w).findAll('.k-set-row')
+const folderRow = (w: ReturnType<typeof mount>) => notesRows(w)[0]!
+const captureRow = (w: ReturnType<typeof mount>) => notesRows(w)[1]!
+/** 「更改 / 取消」按钮 —— 折叠区展开时行内还有两个动作按钮,它恒是**最后**一个。 */
+const changeBtn = (w: ReturnType<typeof mount>) => {
+  const bs = folderRow(w).findAll('button')
+  return bs[bs.length - 1]!
+}
+const adoptBtn = (w: ReturnType<typeof mount>) =>
+  folderRow(w).find('.kn-pick-actions button.k-btn.primary')
+const moveBtn = (w: ReturnType<typeof mount>) =>
+  folderRow(w).find('.kn-pick-actions button.k-btn.outline')
+const badge = (w: ReturnType<typeof mount>) => folderRow(w).find('.kn-badge')
+const fbRows = (w: ReturnType<typeof mount>) => folderRow(w).findAll('.fb-row')
+const captureSw = (w: ReturnType<typeof mount>) => captureRow(w).find('.k-sw')
+const isDisabled = (x: { element: Element }) => (x.element as HTMLButtonElement).disabled
+
+/** 点「更改」展开折叠区(等 `loadCandidates` 与 `nextTick` 里的 `fb.reset()` 都落地)。 */
+async function openPicker(w: ReturnType<typeof mount>): Promise<void> {
+  await changeBtn(w).trigger('click')
+  await flushPromises()
+  await nextTick()
+}
+
+/** 在 `FolderBrowser` 根层点第 `idx` 个卷 → 触发 `@pick`(真 DOM 路径,不是手 emit)。 */
+async function pickRoot(w: ReturnType<typeof mount>, idx = 0): Promise<void> {
+  await fbRows(w)[idx]!.trigger('click')
+  await flushPromises()
+}
+
+/** 回到 `FolderBrowser` 根层(点第一个面包屑,`go('')` 不 emit pick、不发请求)。 */
+async function backToRoot(w: ReturnType<typeof mount>): Promise<void> {
+  await folderRow(w).findAll('.fb-crumb')[0]!.trigger('click')
+  await flushPromises()
+}
+
+/** 勾上迁移确认框(`v-model` 监听 change)。 */
+async function tickAck(host: HTMLElement): Promise<void> {
+  const check = host.querySelector('.kn-checkline input') as HTMLInputElement
+  check.checked = true
+  check.dispatchEvent(new Event('change'))
+  await nextTick()
+}
+
+const dangerFootBtn = (host: HTMLElement) =>
+  host.querySelector('.k-modal-foot button.k-btn.danger') as HTMLButtonElement
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— 笔记区静态渲染(蓝本 :63-102)', () => {
+  it('区头:📝 标题 + 提示(N16:emoji 在 t() 外面)', async () => {
+    const { w } = await mountPage()
+    // 笔记区是第一个 .k-section(危险区在沙盒入口之后)
+    const sec = w.findAll('.k-section')[0]!
+    expect(sec.find('.k-section-title').text()).toBe('📝 知识笔记')
+    expect(sec.find('.k-section-hint').text()).toBe('笔记 = 磁盘上的 Markdown 文件')
+    // 反向:那个键本身**不含** emoji(一个符号都没往 t() 里挪)
+    const zh = zhCn as Record<string, string>
+    expect(zh.aiKbSetNotesSection).toBe('知识笔记')
+    expect(zh.aiKbSetNotesSection).not.toMatch(/[📝⏸✅🧪⚠]/u)
+  })
+
+  it('笔记目录行:标题 / 中文行 / 描述 + <code> 显示 fixture 的 notesRoot', async () => {
+    const { w } = await mountPage()
+    const row = folderRow(w)
+    expect(row.find('.k-set-row-title').text()).toBe('笔记目录')
+    expect(row.find('.k-set-row-cn').text()).toBe('笔记 Markdown 文件的存放位置')
+    expect(row.find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
+    // 破折号与后半句的位置逐字照抄蓝本 :77
+    expect(norm(row.find('.k-set-row-desc').text())).toBe(
+      '/DATA/Notes — 每个用户一个子目录;文件是纯 Markdown。',
+    )
+    // 折叠区默认收起 → 没有 FolderBrowser、没有两个动作按钮
+    expect(row.find('.fb').exists()).toBe(false)
+    expect(row.find('.kn-pick-actions').exists()).toBe(false)
+    expect(changeBtn(w).classes()).toEqual(['k-btn', 'outline'])
+    expect(changeBtn(w).text()).toBe('更改')
+  })
+
+  it('🔴 N7 同族:notesRoot 为空串时走 `|| "/DATA/Notes"` 兜底(不是渲染成空)', async () => {
+    // 判据:删掉 `|| '/DATA/Notes'` → <code> 变空 → 本条报红
+    notes.getSettings.mockResolvedValue({ notesRoot: '', autoExtract: true })
+    const { w } = await mountPage()
+    await flushPromises()
+    expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
+  })
+
+  it('🔴 created 的 catch 吞错保默认:getSettings reject 时页面照样渲染 + 走兜底', async () => {
+    // 蓝本 `:229` 的 `catch (e) { /* keep defaults */ }`。判据:改成弹 toast / 抛出去 → 报红。
+    notes.getSettings.mockRejectedValue(new Error('boom'))
+    const { w, store } = await mountPage()
+    const toast = vi.spyOn(store, 'toast')
+    await flushPromises()
+    expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
+    expect(captureSw(w).attributes('data-on')).toBe('true') // 默认 autoExtract: true
+    expect(toast).not.toHaveBeenCalled()
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => {
+  it('标题 / 中文行 / 描述逐字;本机 auto_extract:true → 开关绿档、`.warn` 行**不渲染**', async () => {
+    const { w } = await mountPage()
+    const row = captureRow(w)
+    expect(row.find('.k-set-row-title').text()).toBe('自动沉淀对话洞见')
+    expect(row.find('.k-set-row-cn').text()).toBe('对话洞见自动沉淀')
+    expect(norm(row.find('.k-set-row-desc').text())).toBe(
+      '会话空闲后,值得保留的结论会自动存为「AI 草稿」笔记,等你确认。',
+    )
+    expect(captureSw(w).attributes('data-on')).toBe('true')
+    // 治理 §13:本机数据下这一行不渲染,是**正确行为**
+    expect(row.find('.k-set-row-desc .warn').exists()).toBe(false)
+  })
+
+  it('autoExtract:false → 开关灰档 + `.warn` 提示行渲染(含 danger 图标与文案)', async () => {
+    notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: false })
+    const { w } = await mountPage()
+    await flushPromises()
+    expect(captureSw(w).attributes('data-on')).toBe('false')
+    const warn = captureRow(w).find('.k-set-row-desc .warn')
+    expect(warn.exists()).toBe(true)
+    expect(warn.findComponent(KIcon).props('name')).toBe('danger')
+    expect(warn.findComponent(KIcon).props('size')).toBe(11)
+    expect(norm(warn.text())).toBe('已关闭 — 排队中的草稿也会被丢弃')
+  })
+
+  it('🔴 `!!` 双取反照抄(蓝本 :115)—— autoExtract 缺席时是 "false",不是 "undefined"', async () => {
+    // 判据:去掉 `!!` → `String(undefined)` === "undefined" → 本条报红。
+    notes.getSettings.mockResolvedValue({
+      notesRoot: '/DATA/Notes',
+      autoExtract: undefined,
+    } as unknown as NotesSettings)
+    const { w } = await mountPage()
+    await flushPromises()
+    expect(captureSw(w).attributes('data-on')).toBe('false')
+  })
+
+  it('🔴 后端漏 `auto_extract` 字段 → 包内 `r.auto_extract !== false` 归一成 true → 绿档', async () => {
+    // §4.1 的那条 ⚠️:HTTP body 少了 `auto_extract` 时,`normalizeSettings`
+    // (`notes.ts:131-137`)给出的是 `autoExtract: true`(不是 false、不是 undefined)——
+    // 这里喂的就是那个归一结果,断言组件把它当「开」渲染,与蓝本 data() 默认值一致。
+    notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: true })
+    const { w } = await mountPage()
+    await flushPromises()
+    expect(captureSw(w).attributes('data-on')).toBe('true')
+    expect(captureRow(w).find('.warn').exists()).toBe(false)
+  })
+
+  it('点开关 → putSettings({ autoExtract: false })(载荷只带这一个字段)+ toast「已关闭」+ 开关翻档', async () => {
+    notes.putSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: false })
+    const { w, store } = await mountPage()
+    await flushPromises()
+    const toast = vi.spyOn(store, 'toast')
+    await captureSw(w).trigger('click')
+    await flushPromises()
+    expect(notes.putSettings).toHaveBeenCalledTimes(1)
+    expect(notes.putSettings).toHaveBeenCalledWith({ autoExtract: false })
+    expect(toast).toHaveBeenCalledWith('自动沉淀已关闭')
+    expect(captureSw(w).attributes('data-on')).toBe('false')
+    expect(captureRow(w).find('.warn').exists()).toBe(true)
+  })
+
+  it('反向:autoExtract:false 时点开关 → putSettings({ autoExtract: true }) + toast「已开启」', async () => {
+    notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: false })
+    notes.putSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: true })
+    const { w, store } = await mountPage()
+    await flushPromises()
+    const toast = vi.spyOn(store, 'toast')
+    await captureSw(w).trigger('click')
+    await flushPromises()
+    expect(notes.putSettings).toHaveBeenCalledWith({ autoExtract: true })
+    expect(toast).toHaveBeenCalledWith('自动沉淀已开启')
+    expect(captureSw(w).attributes('data-on')).toBe('true')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— openRootPicker(蓝本 :232-240,承接 Vue2 既有单测两条行为)', () => {
+  it('点「更改」展开:按钮变 ghost + 文案变「取消」、FolderBrowser 出现、loadCandidates 被调', async () => {
+    const { w } = await mountPage()
+    expect(wiki.getCandidates).not.toHaveBeenCalled()
+    await openPicker(w)
+    expect(changeBtn(w).classes()).toEqual(['k-btn', 'ghost'])
+    expect(changeBtn(w).text()).toBe('取消')
+    expect(folderRow(w).find('.fb').exists()).toBe(true)
+    // ⚠️ 交接项 #7:`loadCandidates()` **不传 silent**(蓝本也不传参)
+    expect(wiki.getCandidates).toHaveBeenCalledTimes(1)
+    expect(wiki.getCandidates).toHaveBeenCalledWith()
+  })
+
+  it('本机 wiki/candidates = [] → 根层走 pickerRoots 的兜底三根(K1:store.wikiCandidates)', async () => {
+    const { w } = await mountPage()
+    await openPicker(w)
+    expect(fbRows(w).map((r) => r.find('.fb-name').text())).toEqual([
+      'System (/DATA)',
+      '/media',
+      '/mnt',
+    ])
+  })
+
+  it('候选非空时根层用候选(证明 browserRoots 真读的是 store.wikiCandidates)', async () => {
+    wiki.getCandidates.mockResolvedValue([
+      { path: '/mnt/pool', type: 'volume', label: 'Pool' },
+      { path: '/mnt/bare', type: 'volume' },
+    ])
+    const { w } = await mountPage()
+    await openPicker(w)
+    // 第二项没有 label → FolderBrowser 模板的 `r.label || r.path` 兜底
+    expect(fbRows(w).map((r) => r.find('.fb-name').text())).toEqual(['Pool', '/mnt/bare'])
+  })
+
+  it('再点一次收起(承接 Vue2 spec「再点一次关闭不抛错」)', async () => {
+    const { w } = await mountPage()
+    await openPicker(w)
+    await changeBtn(w).trigger('click')
+    await flushPromises()
+    expect(folderRow(w).find('.fb').exists()).toBe(false)
+    expect(changeBtn(w).text()).toBe('更改')
+    // 关闭那次**不**再拉候选(蓝本的 if 只在打开分支里)
+    expect(wiki.getCandidates).toHaveBeenCalledTimes(1)
+  })
+
+  it('🔴 承接 Vue2 spec「重开时清掉上次的 path」—— 连带清掉上次的 dirProbe 徽标', async () => {
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(folderRow(w).find('.kn-picked code').text()).toBe('/DATA')
+    expect(badge(w).exists()).toBe(true)
+    // 收起 → 重开
+    await changeBtn(w).trigger('click')
+    await flushPromises()
+    await openPicker(w)
+    // 判据:删掉 `rootPicker.path = ''` → .kn-picked 还在 → 报红;
+    //       删掉 `dirProbe = { state: '', … }` → 徽标还在 → 也报红
+    expect(folderRow(w).find('.kn-picked').exists()).toBe(false)
+    expect(badge(w).exists()).toBe(false)
+    expect(wiki.getCandidates).toHaveBeenCalledTimes(2)
+  })
+
+  it('🔴 展开时下一帧调 FolderBrowser 的 reset()(蓝本 :238 的 $nextTick + $refs.fb 守卫)', async () => {
+    // 只有这一条把 FolderBrowser 换成 stub —— 它是唯一需要观测 `fb.value.reset()` 被调用的
+    // 用例;其余用例一律用**真** FolderBrowser(pick 路径要走真组件)。
+    const resetSpy = vi.fn()
+    const router = makeRouter()
+    await router.isReady()
+    const store = useKnowledgeStore()
+    await store.loadOverview()
+    const w = mount(SettingsView, {
+      global: {
+        plugins: [router, i18n],
+        stubs: {
+          FolderBrowser: {
+            name: 'FolderBrowser',
+            template: '<div class="fb fb-stubbed" />',
+            methods: { reset: resetSpy },
+          },
+        },
+      },
+    } as never)
+    mountedWrappers.push(w)
+    await nextTick()
+    await flushPromises()
+    expect(resetSpy).not.toHaveBeenCalled()
+    await changeBtn(w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    expect(w.find('.fb-stubbed').exists()).toBe(true)
+    expect(resetSpy).toHaveBeenCalledTimes(1)
+    // 收起那一次**不**调 reset(蓝本的 if 只在打开分支里)
+    await changeBtn(w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    expect(resetSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组合(蓝本 :83-85 / :248)', () => {
+  it('①loading —— [data-s="archived"]「检查中…」(探针在飞时)', async () => {
+    const d = makeDeferred<DirInfo>()
+    notes.dirInfo.mockReturnValue(d.promise)
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).attributes('data-s')).toBe('archived')
+    expect(badge(w).text()).toBe('检查中…')
+    d.resolve({ exists: false, empty: false })
+    await flushPromises()
+  })
+
+  it('②done + migratable(目录**不存在**)—— [data-s="curated"]「空目录 · 可迁移」', async () => {
+    notes.dirInfo.mockResolvedValue({ exists: false, empty: false })
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).attributes('data-s')).toBe('curated')
+    expect(badge(w).text()).toBe('空目录 · 可迁移')
+  })
+
+  it('②done + migratable(目录**存在且空**)—— 同一档', async () => {
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).attributes('data-s')).toBe('curated')
+  })
+
+  it('③done + !migratable(本机 /DATA/Notes fixture:存在且非空)—— [data-s="draft"]「非空目录 — 只能指向」', async () => {
+    notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).attributes('data-s')).toBe('draft')
+    expect(badge(w).text()).toBe('非空目录 — 只能指向')
+  })
+
+  it('🔴 migratable 判据是 `!exists || empty`(**或**,不是且)—— 改成 && 时两侧会塌成 draft', async () => {
+    // 判别力说明:`!exists && empty` 下 {exists:false,empty:false} → false → draft;
+    // {exists:true,empty:true} 也 → false → draft。本条把两侧摆在一起当回归锚点。
+    notes.dirInfo.mockResolvedValueOnce({ exists: false, empty: false })
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).attributes('data-s')).toBe('curated')
+
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    await backToRoot(w)
+    await pickRoot(w, 1)
+    expect(badge(w).attributes('data-s')).toBe('curated')
+  })
+
+  it('🔴 ④error —— **三档徽标一个都不出**(蓝本没有第四个分支),但 .kn-picked 仍在', async () => {
+    notes.dirInfo.mockRejectedValue(new Error('boom'))
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(folderRow(w).find('.kn-picked').exists()).toBe(true)
+    expect(folderRow(w).find('.kn-picked code').text()).toBe('/DATA')
+    expect(badge(w).exists()).toBe(false)
+  })
+
+  it('「已选择:」前缀与 <code> 的位置逐字(蓝本 :82,冒号是模板里的裸 ASCII)', async () => {
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    // ⚠️ `</code>` 与徽标 `<span>` 之间**没有空格**:两者在模板里跨行相邻,Vue 的
+    //   `whitespace: 'condense'`(默认)把「只含换行的空白节点」整个删掉。蓝本 `:82-83`
+    //   是同样的跨行相邻写法、同样的编译口径 → 渲染逐字一致,别自己补空格。
+    expect(norm(folderRow(w).find('.kn-picked').text())).toBe('已选择: /DATA空目录 · 可迁移')
+    // 冒号后面**有**一个空格(那是模板里 `}}: <code>` 的裸 ASCII 空格,不是换行)
+    expect(folderRow(w).find('.kn-picked').text()).toContain('已选择: ')
+  })
+
+  it('.kn-pick-note 长说明逐字(带中文引号)', async () => {
+    const { w } = await mountPage()
+    await openPicker(w)
+    expect(folderRow(w).find('.kn-pick-note').text()).toBe(
+      '「指向」不动文件,直接收编目录里已有的 .md;「迁移」把现有笔记文件移动过去(目标目录必须为空)。',
+    )
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 治理 §5.2 + §9.1 —— `onPick` 的两处过期守卫。
+describe('SettingsView/T9 —— onPick 过期守卫(蓝本 :241-253,两处守卫)', () => {
+  it('🔴 交错路径:先点 A 再点 B、**A 的响应后到** → dirProbe 是 B 的结果(成功分支那处守卫)', async () => {
+    const dA = makeDeferred<DirInfo>()
+    const dB = makeDeferred<DirInfo>()
+    notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0) // A = /DATA(探针在飞)
+    await backToRoot(w)
+    await pickRoot(w, 1) // B = /media(探针在飞)
+    expect(notes.dirInfo.mock.calls.map((c: unknown[]) => c[0])).toEqual(['/DATA', '/media'])
+    expect(folderRow(w).find('.kn-picked code').text()).toBe('/media')
+
+    // 后发(B)先回 → 落地
+    dB.resolve({ exists: true, empty: true })
+    await flushPromises()
+    expect(badge(w).attributes('data-s')).toBe('curated')
+
+    // 先发(A)后回 → 🔴 必须被守卫挡住,不许把 B 的 curated 覆盖成 draft
+    // 判据:拿掉成功分支那处 `if (rootPicker.path !== path) return` → 变 draft → 报红
+    dA.resolve({ exists: true, empty: false })
+    await flushPromises()
+    expect(badge(w).attributes('data-s')).toBe('curated')
+    expect(folderRow(w).find('.kn-picked code').text()).toBe('/media')
+  })
+
+  it('🔴 交错路径 · catch 侧:A 后到且是**失败** → 不许把 B 的成功徽标擦成 error(catch 那处守卫)', async () => {
+    const dA = makeDeferred<DirInfo>()
+    const dB = makeDeferred<DirInfo>()
+    notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    await backToRoot(w)
+    await pickRoot(w, 1)
+    dB.resolve({ exists: false, empty: false })
+    await flushPromises()
+    expect(badge(w).attributes('data-s')).toBe('curated')
+    // 判据:拿掉 catch 里的 `if (rootPicker.path === path)` → 徽标整个消失 → 报红
+    dA.reject(new Error('late failure'))
+    await flushPromises()
+    expect(badge(w).exists()).toBe(true)
+    expect(badge(w).attributes('data-s')).toBe('curated')
+  })
+
+  it('同一路径的失败**要**落地成 error 档(守卫是「只挡过期的」,不是「全挡」)', async () => {
+    notes.dirInfo.mockRejectedValue(new Error('boom'))
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).exists()).toBe(false) // error 档三徽标都不出
+    // 且「搬文件」在 error 档下**仍可点**(disabled 的第二个条件要求 state === 'done')
+    expect(isDisabled(moveBtn(w))).toBe(false)
+  })
+
+  it('🔴 §9.1 —— **两实例交错**:各自拿到自己的结果,互不覆盖(守卫变量必须是组件本地)', async () => {
+    // 判据:把 `rootPicker` 挪到模块级(另开一个 `<script>` 块)→ 两个实例串号 →
+    // 两边渲染成同一个路径 → 本条报红。
+    const dA = makeDeferred<DirInfo>()
+    const dB = makeDeferred<DirInfo>()
+    notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
+    const { w: w1 } = await mountPage()
+    const { w: w2 } = await mountPage()
+    await openPicker(w1)
+    await openPicker(w2)
+    await pickRoot(w1, 0) // 实例 1 选 /DATA
+    await pickRoot(w2, 1) // 实例 2 选 /media
+
+    // 交错回:实例 2 先回、实例 1 后回
+    dB.resolve({ exists: true, empty: true })
+    await flushPromises()
+    dA.resolve({ exists: true, empty: false })
+    await flushPromises()
+
+    expect(folderRow(w1).find('.kn-picked code').text()).toBe('/DATA')
+    expect(folderRow(w2).find('.kn-picked code').text()).toBe('/media')
+    expect(badge(w1).attributes('data-s')).toBe('draft') // /DATA 非空
+    expect(badge(w2).attributes('data-s')).toBe('curated') // /media 空
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91)', () => {
+  it('没选路径 → **两个都灰**(「仅指向」的唯一条件 / 「搬文件」的第一个条件)', async () => {
+    const { w } = await mountPage()
+    await openPicker(w)
+    expect(adoptBtn(w).exists()).toBe(true)
+    expect(isDisabled(adoptBtn(w))).toBe(true)
+    expect(isDisabled(moveBtn(w))).toBe(true)
+  })
+
+  it('选了路径 + 探针 done + **可迁移** → 两个都可点', async () => {
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(isDisabled(adoptBtn(w))).toBe(false)
+    expect(isDisabled(moveBtn(w))).toBe(false)
+  })
+
+  it('🔴 选了路径 + 探针 done + **不可迁移**(本机 /DATA/Notes 那档)→ 「仅指向」可点、「搬文件」灰', async () => {
+    // 判据:删掉 disabled 的第二个条件 → 「搬文件」变可点 → 本条报红
+    notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(isDisabled(adoptBtn(w))).toBe(false)
+    expect(isDisabled(moveBtn(w))).toBe(true)
+  })
+
+  it('选了路径 + 探针仍 loading → 「搬文件」**可点**(第二个条件要求 state === "done")', async () => {
+    const d = makeDeferred<DirInfo>()
+    notes.dirInfo.mockReturnValue(d.promise)
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(badge(w).attributes('data-s')).toBe('archived')
+    expect(isDisabled(moveBtn(w))).toBe(false)
+    d.resolve({ exists: true, empty: true })
+    await flushPromises()
+  })
+
+  it('两个按钮的图标 / 文案逐字(蓝本 :89 / :93)', async () => {
+    const { w } = await mountPage()
+    await openPicker(w)
+    expect(adoptBtn(w).findComponent(KIcon).props('name')).toBe('folder')
+    expect(adoptBtn(w).findComponent(KIcon).props('size')).toBe(12)
+    expect(adoptBtn(w).text()).toBe('指向已有目录')
+    expect(moveBtn(w).findComponent(KIcon).props('name')).toBe('upload')
+    expect(moveBtn(w).findComponent(KIcon).props('size')).toBe(12)
+    expect(moveBtn(w).text()).toBe('迁移文件到新目录…')
+  })
+
+  it('🔴 点「搬文件」只开弹窗,**一个请求都不发**(蓝本 :92 就是 `migrating = true`)', async () => {
+    withHost()
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const { w } = await mountPage()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    await moveBtn(w).trigger('click')
+    await flushPromises()
+    expect(notes.putSettings).not.toHaveBeenCalled()
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 K29 —— 迁移确认弹窗转 reka 原语(蓝本 :120-156 是裸 .k-modal-bg + @click)。
+// portal 目标 `.knowledge-app` 只认第一个同名宿主 → 每条用例先 `withHost()`。
+describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
+  /** 打开折叠区、选一个目录、点「搬文件」→ 弹窗开。 */
+  async function openModal(dirInfo: DirInfo = { exists: true, empty: true }) {
+    const host = withHost()
+    notes.dirInfo.mockResolvedValue(dirInfo)
+    const m = await mountPage()
+    await flushPromises()
+    await openPicker(m.w)
+    await pickRoot(m.w, 0)
+    await moveBtn(m.w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    return { ...m, host }
+  }
+
+  it('默认不渲染;点「搬文件」后 portal 到 .knowledge-app,head/body/foot 内容逐字', async () => {
+    const host = withHost()
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const { w } = await mountPage()
+    await flushPromises()
+    await openPicker(w)
+    await pickRoot(w, 0)
+    expect(host.querySelector('.k-modal')).toBeNull()
+
+    await moveBtn(w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    const modal = host.querySelector('.k-modal')
+    expect(modal).not.toBeNull()
+    // 遮罩类名照抄蓝本 :121
+    expect(host.querySelector('.k-modal-bg')).not.toBeNull()
+    // head:标题 + × 按钮
+    expect(modal!.querySelector('.k-modal-head .k-modal-title')!.textContent).toBe('迁移笔记文件?')
+    expect(modal!.querySelector('.k-modal-head button.k-modal-x')).not.toBeNull()
+    // body:旧路径 → 新路径
+    const path = modal!.querySelector('.kn-mig-path')!
+    expect(path.querySelector('span')!.textContent).toBe('/DATA/Notes')
+    expect(path.querySelector('b')!.textContent).toBe('/DATA')
+    // body:三条要求
+    const lis = Array.from(modal!.querySelectorAll('.kn-mig-req li'))
+    expect(lis).toHaveLength(3)
+    expect(norm(lis[0]!.textContent!)).toBe('目标目录必须为空 — 非空目录后端会拒绝迁移。')
+    expect(norm(lis[1]!.textContent!)).toBe('文件会被移动(不是复制),原目录随后为空。')
+    expect(norm(lis[2]!.textContent!)).toBe('迁移期间笔记短暂只读,通常几秒内完成。')
+    // body:勾选行
+    const check = modal!.querySelector('.kn-checkline input') as HTMLInputElement
+    expect(check.type).toBe('checkbox')
+    expect(norm(modal!.querySelector('.kn-checkline')!.textContent!)).toBe(
+      '我已了解这是移动磁盘文件的操作',
+    )
+    // foot:取消 + danger 开始迁移
+    const footBtns = Array.from(modal!.querySelectorAll('.k-modal-foot button'))
+    expect(footBtns.map((b) => norm(b.textContent!))).toEqual(['取消', '开始迁移'])
+    expect(footBtns[0]!.className).toBe('k-btn ghost')
+    expect(footBtns[1]!.className).toBe('k-btn danger')
+  })
+
+  it('🔴 N7 同族第二处:notesRoot 为空串时弹窗旧路径也走 `|| "/DATA/Notes"` 兜底(蓝本 :129)', async () => {
+    // 第一版漏了这条 —— 探针 P10b(只删弹窗那处兜底)当时 111/111 全绿,**零判别力**。
+    // 蓝本把同一个兜底写了**两处**(:77 目录行 + :129 弹窗旧路径),两处都要有用例。
+    notes.getSettings.mockResolvedValue({ notesRoot: '', autoExtract: true })
+    const { host } = await openModal()
+    expect(host.querySelector('.kn-mig-path span')!.textContent).toBe('/DATA/Notes')
+  })
+
+  it('弹窗内的 KIcon 逐个:× 的 x/13 · 箭头 arrowRight/13/var(--warning) · 底部 upload/12', async () => {
+    const { w } = await openModal()
+    const icons = w.findAllComponents(KIcon)
+    const head = icons.find((i) => i.props('name') === 'x')!
+    expect(head.props('size')).toBe(13)
+    const arrow = icons.find((i) => i.props('name') === 'arrowRight')!
+    expect(arrow.props('size')).toBe(13)
+    expect(arrow.props('color')).toBe('var(--warning)')
+    // upload 有两个(折叠区那个按钮 + 弹窗底部),两个 size 都是 12
+    const uploads = icons.filter((i) => i.props('name') === 'upload')
+    expect(uploads).toHaveLength(2)
+    expect(uploads.map((i) => i.props('size'))).toEqual([12, 12])
+  })
+
+  it('🔴 第一条 <li> 的 :color 三元 —— 可迁移侧三个 check 全 var(--success),且无红色 <b>', async () => {
+    const { w, host } = await openModal({ exists: true, empty: true })
+    const checks = w.findAllComponents(KIcon).filter((i) => i.props('name') === 'check')
+    expect(checks).toHaveLength(3)
+    expect(checks.map((i) => i.props('size'))).toEqual([13, 13, 13])
+    expect(checks.map((i) => i.props('color'))).toEqual([
+      'var(--success)',
+      'var(--success)',
+      'var(--success)',
+    ])
+    expect(host.querySelector('.kn-mig-req li b')).toBeNull()
+  })
+
+  it('🔴 三元另一侧 —— 目标非空时第一个 check 变 var(--danger) + 渲染红色 <b> 补充句', async () => {
+    // 🔴 这一档要绕过「搬文件」按钮(非空时它是灰的)—— 先在**可迁移**目录上打开弹窗,
+    // 再把探针换成非空重新 pick(弹窗已开,`migrating` 不受 pick 影响)。
+    const { w, host } = await openModal({ exists: true, empty: true })
+    expect(host.querySelector('.kn-mig-req li b')).toBeNull()
+    notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+    await backToRoot(w)
+    await pickRoot(w, 1)
+    await nextTick()
+    const checks = w.findAllComponents(KIcon).filter((i) => i.props('name') === 'check')
+    expect(checks.map((i) => i.props('color'))).toEqual([
+      'var(--danger)',
+      'var(--success)',
+      'var(--success)',
+    ])
+    const b = host.querySelector('.kn-mig-req li b')
+    expect(b).not.toBeNull()
+    expect(b!.textContent).toBe('当前所选目录非空。')
+    expect(b!.getAttribute('style')).toContain('var(--danger)')
+  })
+
+  it('🔴 migrateAck 门控 danger 按钮两侧:未勾选 → 灰;勾选后 → 可点', async () => {
+    const { host } = await openModal()
+    expect(dangerFootBtn(host).disabled).toBe(true)
+    await tickAck(host)
+    expect(dangerFootBtn(host).disabled).toBe(false)
+  })
+
+  it('点 × 关闭弹窗且不发请求', async () => {
+    const { host } = await openModal()
+    await tickAck(host)
+    ;(host.querySelector('.k-modal-x') as HTMLElement).click()
+    await nextTick()
+    await flushPromises()
+    expect(host.querySelector('.k-modal')).toBeNull()
+    expect(notes.putSettings).not.toHaveBeenCalled()
+  })
+
+  it('🔴 closeMigrate 清 migrateAck:关掉再打开,勾选框是**未勾**、danger 按钮回到灰', async () => {
+    // 判据:`closeMigrate` 只清 `migrating` 不清 `migrateAck` → 重开后 danger 直接可点 → 报红
+    const { w, host } = await openModal()
+    await tickAck(host)
+    expect(dangerFootBtn(host).disabled).toBe(false)
+    ;(host.querySelector('.k-modal-x') as HTMLElement).click()
+    await nextTick()
+    await flushPromises()
+    // 重开
+    await moveBtn(w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    expect((host.querySelector('.kn-checkline input') as HTMLInputElement).checked).toBe(false)
+    expect(dangerFootBtn(host).disabled).toBe(true)
+  })
+
+  it('点「取消」关闭且不发请求', async () => {
+    const { host } = await openModal()
+    const cancel = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
+      (b) => norm(b.textContent!) === '取消',
+    ) as HTMLElement
+    cancel.click()
+    await nextTick()
+    await flushPromises()
+    expect(host.querySelector('.k-modal')).toBeNull()
+    expect(notes.putSettings).not.toHaveBeenCalled()
+  })
+
+  it('点遮罩(弹窗外)关闭;点弹窗内不关闭(reka pointerDownOutside 等价蓝本 @click/@click.stop)', async () => {
+    const { host } = await openModal()
+    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 监听(见
+    // node_modules/reka-ui/dist/DismissableLayer/utils.js 头注释)—— 补一次真宏任务 tick。
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    ;(host.querySelector('.k-modal-title') as HTMLElement).dispatchEvent(
+      new Event('pointerdown', { bubbles: true }),
+    )
+    await nextTick()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+    ;(host.querySelector('.k-modal-bg') as HTMLElement).dispatchEvent(
+      new Event('pointerdown', { bubbles: true }),
+    )
+    await nextTick()
+    await flushPromises()
+    expect(host.querySelector('.k-modal')).toBeNull()
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— applyRoot 两个 mode + doMigrate 的先关后发(蓝本 :267-281)', () => {
+  it('「仅指向」→ putSettings({ notesRoot, mode: "adopt" })、关折叠区、toast「笔记目录已更新」', async () => {
+    notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+    notes.putSettings.mockResolvedValue({ notesRoot: '/DATA', autoExtract: true })
+    const { w, store } = await mountPage()
+    await flushPromises()
+    const toast = vi.spyOn(store, 'toast')
+    await openPicker(w)
+    await pickRoot(w, 0)
+    await adoptBtn(w).trigger('click')
+    await flushPromises()
+    expect(notes.putSettings).toHaveBeenCalledTimes(1)
+    expect(notes.putSettings).toHaveBeenCalledWith({ notesRoot: '/DATA', mode: 'adopt' })
+    expect(toast).toHaveBeenCalledWith('笔记目录已更新')
+    // 折叠区收起 + <code> 换成后端返回的新值
+    expect(folderRow(w).find('.fb').exists()).toBe(false)
+    expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA')
+  })
+
+  it('🔴 「开始迁移」→ mode: "migrate"(第二个取值),且**先关弹窗再发请求**(蓝本 :268-269 的顺序)', async () => {
+    // 🔴 判别「先关后发」的**唯一可观测差别**是「请求在飞的那段时间弹窗在不在」——
+    //   所以 `putSettings` 必须挂在一个可控 promise 上。
+    //   (第一版在 mockImplementation 里查 DOM,查到的是**尚未 flush** 的 DOM:
+    //    `closeMigrate()` 与 `putSettings()` 之间没有 await,Vue 还没重渲染 → 恒 false。
+    //    那不是「顺序错」,是「探针问对象错了」。)
+    const host = withHost()
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const d = makeDeferred<NotesSettings>()
+    notes.putSettings.mockReturnValue(d.promise)
+    const { w, store } = await mountPage()
+    await flushPromises()
+    const toast = vi.spyOn(store, 'toast')
+    await openPicker(w)
+    await pickRoot(w, 0)
+    await moveBtn(w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    await tickAck(host)
+    dangerFootBtn(host).click()
+    // reka 的 FocusScope 卸载要多走一轮微任务(`data-focus-scope-unmounting`),
+    // 只 `nextTick()` 的话节点还挂着(`data-state="closed"`)。`flushPromises()`
+    // 只排微任务,**不会**让 `d.promise` 兑现 —— 请求仍在飞。
+    await nextTick()
+    await flushPromises()
+    await nextTick()
+    // 请求还在飞 —— 弹窗**已经关了**。
+    // 判据:把 doMigrate 里的 closeMigrate() 挪到 await 之后 → 弹窗此刻仍在 → 报红。
+    expect(notes.putSettings).toHaveBeenCalledWith({ notesRoot: '/DATA', mode: 'migrate' })
+    expect(host.querySelector('.k-modal')).toBeNull()
+
+    d.resolve({ notesRoot: '/DATA', autoExtract: true })
+    await flushPromises()
+    expect(toast).toHaveBeenCalledWith('笔记目录已更新')
+    expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 K30 —— 下半的两处 catch **不回显后端文本**(蓝本 `applyRoot` 读
+// `e.response.data.detail`、`toggleAutoExtract` 读 `e.message`)。
+// 判据是**排除式断言**:让 `putSettings` reject 一个**既带 response.data.detail 又带
+// message** 的错误,断言 toast / 全局 toast 栈 / 整页 DOM 三处都不含那两段文本。
+// ⚠️ 探针文本只出现在本文件里,**故意不出现在 `SettingsView.vue` 的注释里**
+// (治理 §9 第九条:否定式断言撞注释 = 假报红,T6 栽过一次)。
+describe('SettingsView/T9 —— K30:下半两处 catch 的排除式断言', () => {
+  const PROBE_DETAIL = 'PROBE-NOTES-DETAIL-3b9d20'
+  const PROBE_MSG = 'PROBE-NOTES-MESSAGE-8e15af'
+
+  function rejectingPut(): void {
+    const err = new Error(PROBE_MSG) as Error & { response: { data: { detail: string } } }
+    err.response = { data: { detail: PROBE_DETAIL } }
+    notes.putSettings.mockRejectedValue(err)
+  }
+
+  function assertNoLeak(
+    w: ReturnType<typeof mount>,
+    toast: { mock: { calls: unknown[][] } },
+  ): void {
+    const calls = toast.mock.calls.map((c: unknown[]) => String(c[0])).join(' | ')
+    for (const probe of [PROBE_DETAIL, PROBE_MSG]) {
+      expect(calls).not.toContain(probe)
+      expect(useToast().toasts.map((x) => x.text).join(' | ')).not.toContain(probe)
+      expect(w.text()).not.toContain(probe)
+      expect(w.html()).not.toContain(probe)
+      expect(document.body.innerHTML).not.toContain(probe)
+    }
+  }
+
+  it('catch⑤ applyRoot("adopt")→ 只弹「操作失败」,零后端 detail / 零 e.message', async () => {
+    notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+    const { w, store } = await mountPage()
+    await flushPromises()
+    rejectingPut()
+    const toast = vi.spyOn(store, 'toast')
+    await openPicker(w)
+    await pickRoot(w, 0)
+    await adoptBtn(w).trigger('click')
+    await flushPromises()
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith('操作失败')
+    // 失败时折叠区**不关**(蓝本的 `rootPicker.open = false` 在 await 之后、catch 之外)
+    expect(folderRow(w).find('.fb').exists()).toBe(true)
+    assertNoLeak(w, toast)
+  })
+
+  it('catch⑥ toggleAutoExtract → 只弹「操作失败」,零后端文本,且开关不翻档', async () => {
+    const { w, store } = await mountPage()
+    await flushPromises()
+    rejectingPut()
+    const toast = vi.spyOn(store, 'toast')
+    await captureSw(w).trigger('click')
+    await flushPromises()
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith('操作失败')
+    expect(captureSw(w).attributes('data-on')).toBe('true') // 失败 → 值不动
+    assertNoLeak(w, toast)
+  })
+
+  it('catch⑤ 的 migrate 分支同样只弹固定键(400 非空目标那条真实路径)', async () => {
+    const host = withHost()
+    notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
+    const { w, store } = await mountPage()
+    await flushPromises()
+    rejectingPut()
+    const toast = vi.spyOn(store, 'toast')
+    await openPicker(w)
+    await pickRoot(w, 0)
+    await moveBtn(w).trigger('click')
+    await nextTick()
+    await flushPromises()
+    await tickAck(host)
+    dangerFootBtn(host).click()
+    await flushPromises()
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith('操作失败')
+    assertNoLeak(w, toast)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 治理 §9.2 + §9.3 —— **双向**同族扫描的常驻守卫。
+// T9 用到的 29 个键 × 全表(真实模块导入,1503 键)双向比对:
+//   方向 1(§9.2):zh 撞车 → en 是否不同   → 实测 9 对撞车,en **全部相同**
+//   方向 2(§9.3):en 撞车 → zh 是否不同   → 实测 9 对撞车,zh **全部相同**
+// → **本刀余零同族对**(不需要新的 en 档正/反向断言;T8 那四对的断言原样保留、一字未动)。
+// 下面两条把「零」钉成常驻断言:将来谁加一个「zh 同 / en 不同」的键,必须按 N21 登记。
+describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对', () => {
+  const T9_KEYS = [
+    'aiKbSetNotesSection', 'aiKbSetNotesSectionHint', 'aiKbSetNotesFolder',
+    'aiKbSetNotesFolderCn', 'aiKbSetNotesFolderDesc', 'aiKbSetSelected',
+    'aiKbSetChecking', 'aiKbSetDirEmptyMigratable', 'aiKbSetDirNotEmpty',
+    'aiKbSetPointToExisting', 'aiKbSetMoveFiles', 'aiKbSetPickNote',
+    'aiKbCancel', 'aiKbSetChange', 'aiKbSetAutoCapture', 'aiKbSetAutoCaptureCn',
+    'aiKbSetAutoCaptureDesc', 'aiKbSetAutoCaptureOffWarn', 'aiKbSetAutoCaptureOn',
+    'aiKbSetAutoCaptureOff', 'aiKbSetMigrateTitle', 'aiKbSetMigrateReq1',
+    'aiKbSetMigrateReq2', 'aiKbSetMigrateReq3', 'aiKbSetMigrateNotEmpty',
+    'aiKbSetMigrateAck', 'aiKbSetMigrateStart', 'aiKbSetNotesFolderUpdated',
+    'aiKbOpFailed',
+  ]
+  const zh = zhCn as Record<string, string>
+  const en = enUs as Record<string, string>
+
+  it('本刀 29 个键在两档都存在(键名回附录 A + 语言包双向核准过 —— E-18 的教训)', () => {
+    expect(T9_KEYS).toHaveLength(29)
+    for (const k of T9_KEYS) {
+      expect(typeof zh[k], `zh_cn.ts 缺 ${k}`).toBe('string')
+      expect(typeof en[k], `en_us.ts 缺 ${k}`).toBe('string')
+    }
+    // 全表键数用**真实模块导入**计(治理 §9.3 第 2 条:文本解析会少算)
+    expect(Object.keys(zh)).toHaveLength(1503)
+    expect(Object.keys(en)).toHaveLength(1503)
+  })
+
+  it('🔴 方向 1(§9.2):zh 撞车的对里,en **没有**一对不同(有就必须按 N21 登记)', () => {
+    const bad: string[] = []
+    for (const k of T9_KEYS) {
+      for (const o of Object.keys(zh)) {
+        if (o === k) continue
+        if (zh[o] === zh[k] && en[o] !== en[k]) bad.push(`${k}(${en[k]}) vs ${o}(${en[o]})`)
+      }
+    }
+    expect(bad).toEqual([])
+  })
+
+  it('🔴 方向 2(§9.3):en 撞车的对里,zh **没有**一对不同(镜像方向,T8 评审加的)', () => {
+    const bad: string[] = []
+    for (const k of T9_KEYS) {
+      for (const o of Object.keys(en)) {
+        if (o === k) continue
+        if (en[o] === en[k] && zh[o] !== zh[k]) bad.push(`${k}(${zh[k]}) vs ${o}(${zh[o]})`)
+      }
+    }
+    expect(bad).toEqual([])
+  })
+
+  it('实测的 9 对撞车确实存在且两档同值(证明上面两条不是「扫不到东西」的空转)', () => {
+    const pairs: Array<[string, string]> = [
+      ['aiKbCancel', 'filesCancel'],
+      ['aiKbCancel', 'startAppCancel'],
+      ['aiKbCancel', 'appsCancel'],
+      ['aiKbCancel', 'appsSettingsCancel'],
+      ['aiKbCancel', 'aiCancel'],
+      ['aiKbCancel', 'aiCfgCancel'],
+      ['aiKbSetChange', 'aiChange'],
+      ['aiKbOpFailed', 'filesOpFailed'],
+      ['aiKbOpFailed', 'filesShareFailed'],
+    ]
+    for (const [a, b] of pairs) {
+      expect(zh[a], `${a} vs ${b}`).toBe(zh[b])
+      expect(en[a], `${a} vs ${b}`).toBe(en[b])
+    }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SettingsView/T9 —— 源码侧:K29 的 reka 原语与 portal 目标真的用上了', () => {
+  it('DialogPortal 的 to 指向 .knowledge-app + 遮罩/内容用 reka 原语(K7 同族,SP8 已爆三次)', () => {
+    const src: string = readFileSync(SRC_PATH, 'utf8')
+    const code = blankComments(src)
+    expect(code).toContain('<DialogPortal to=".knowledge-app" defer>')
+    expect(code).toContain('<DialogOverlay class="k-modal-bg">')
+    expect(code).toContain('style="width: min(460px, 100%)"')
+    // 反面:蓝本那套裸 div 写法不许残留(先剥注释,否则会撞上文件头的引述而假报红)
+    expect(code).not.toMatch(/v-if="migrating"/)
+    expect(code).not.toMatch(/@click\.stop/)
+  })
+
+  it('弹窗任何关闭路径都走 closeMigrate(不是直接写 migrating = $event)', () => {
+    const src: string = readFileSync(SRC_PATH, 'utf8')
+    const code = blankComments(src)
+    expect(code).toContain('@update:open="onMigrateOpenChange"')
+    expect(code).not.toMatch(/@update:open="migrating\s*=/)
+  })
+})

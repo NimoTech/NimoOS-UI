@@ -4,19 +4,31 @@
   `src/views/AI/Knowledge/SettingsView.vue`(322 行,`git show main:` 读取 ——
   治理 §1:那个仓的工作树是旧分支,不可信)。
 
-  🔴 **本刀只做蓝本的上半**;下半(笔记根目录折叠区 + 迁移确认弹窗 + 自动捕获开关 +
-  `notesSettings` / `rootPicker` / `dirProbe` / `browserRoots` 那一整套 script)归 **T9**,
-  按计划书要求**不留占位符、不留注释桩**,T9 直接把 DOM 插在「运行档卡」与「沙盒入口」之间。
+  上半(服务卡 / 运行档卡 / 沙盒入口 / 危险区)由 **T8** 落地并过评审;下半(笔记根目录
+  折叠区 + 迁移确认弹窗 + 自动捕获开关 + `notesSettings` / `rootPicker` / `dirProbe` /
+  `browserRoots` 那一整套 script)由 **T9** 插在「运行档卡」与「沙盒入口」之间 ——
+  两刀合起来即蓝本 322 行的全量,**零占位符、零注释桩**。
 
-  结构对照(蓝本行区间 → 本文件,New-UI 行号由脚本重算,见 T8 报告 §2):
+  结构对照(蓝本行区间 → 本文件,New-UI 行号由脚本重算,见 T8 / T9 报告 §2):
     :2-4     `.k-view` → `.k-scroll` → `.k-scroll-inner` 三层壳(逐层照抄)
     :7-19    服务卡:状态灯 `[data-state]` + 两行文案 + 恢复/暂停按钮
     :22-34   运行档卡 · 并发行:三个按钮,文字**就是数字**(无档位名)
     :36-49   运行档卡 · 设备行:auto / cuda|gpu / cpu 三档 + `deviceLabel`
     :51-60   运行档卡 · OCR 行:`.k-sw` 开关 + `.warn` 警示句
+    ── 以下为 T9 ────────────────────────────────────────────────────────────
+    :63-70   笔记区 `.k-section` 区头(N16:`📝` 在 `t()` 外面)
+    :71-102  笔记目录行:`<code>` 展示 + `openRootPicker` 折叠区 + `FolderBrowser`
+             + 三档徽标 + 「仅指向」/「搬文件」两按钮 + `.kn-pick-note` 说明
+    :104-116 自动捕获行:`.k-sw` 开关 + `v-if="!autoExtract"` 的 `.warn` 提示
+    :120-156 迁移确认弹窗(**K29:转 reka 原语 + portal 到 `.knowledge-app`**)
+    ── 以上为 T9 ────────────────────────────────────────────────────────────
     :159-166 沙盒入口 `.k-sandbox-link`
     :169-186 危险区 `.k-section` + 硬编码 `disabled` 的重建按钮
-    :215-223 computed `controlState` / `deviceLabel`
+    :206-212 data():`notesSettings` / `rootPicker` / `dirProbe` / `migrating` / `migrateAck`(T9)
+    :215-226 computed `controlState` / `deviceLabel` / `browserRoots`(第三个归 T9)
+    :228-230 `created()` 拉 `notesApi.getSettings()`,catch 吞错保默认(T9)
+    :232-281 `openRootPicker` / `onPick` / `toggleAutoExtract` / `closeMigrate` /
+             `doMigrate` / `applyRoot`(T9)
     :282-319 `togglePause` / `setConcurrency` / `setDevice` / `toggleOcr` / `goSandbox`
 
   ─────────────────────────────────────────────────────────────────────────────
@@ -113,19 +125,122 @@
     同样仍是占位页。浏览器里看不到本页,不是缺陷,不许改路由。
 
   【数据来源】`controlState` 由 `KnowledgeLayout.vue:186` 的 `store.loadOverview()`
-    (挂载即拉 + 10 秒轮询)填充,本页**自己不发只读请求**(蓝本 `created()` 里那一发
-    是 `notesApi.getSettings()`,归 T9)。
+    (挂载即拉 + 10 秒轮询)填充,上半**自己不发只读请求**;唯一的只读请求是蓝本
+    `created()`(`:228-230`)那一发 `notesApi.getSettings()`,属下半(T9)。
+
+  ═══════════════════ 以下为 T9(下半)的偏离/照抄申报 ═══════════════════
+
+  【K29 —— 迁移确认弹窗转 reka 原语】蓝本 `:121-156` 是裸 `.k-modal-bg` + 遮罩
+    `@click="closeMigrate"` + 内层 `@click.stop`。本仓改 `DialogRoot` / `DialogPortal` /
+    `DialogOverlay` / `DialogContent`,`DialogPortal` 的 `to` 指向 `.knowledge-app`
+    (K7 同族,SP8 已爆三次),结构照既有两个先例 `QueueView.vue:559-583` 与
+    `IndexedFilesView.vue:1135-1180` 抄,不自己发明。三处映射:
+      · 遮罩点击关闭 / 内层不关闭 → `DialogContent` 的 `pointerDownOutside`(等价)
+      · 蓝本 `closeMigrate()` 清 **两个** state → 任何关闭路径都必须走它,故
+        `@update:open` 接 `onMigrateOpenChange(v)`,`v === false` 时调 `closeMigrate()`
+        (**不能**照 `QueueView` 那样直接写 `migrating = $event` —— 那会漏清 `migrateAck`)
+      · reka 的 a11y 要求一个 `DialogTitle`。两个先例的蓝本里**没有**可见标题元素,
+        所以它们用 `VisuallyHidden > DialogTitle` 另加一个隐藏节点;**本页蓝本 `:124`
+        本来就有 `.k-modal-title`** → 用 `<DialogTitle as-child>` 直接套在那个 div 上,
+        DOM 结构与蓝本逐字一致(不多一个隐藏节点),a11y 也满足。**这是比照抄先例更贴近
+        1:1 的选择,已在 T9 报告显式申报。**
+    ⚠️ `DialogPortal to=".knowledge-app"` **只认第一个同名宿主**(P5b 交接项 #3)——
+      生产环境宿主由 `KnowledgeLayout.vue` 提供;测试里要自己在 body 备宿主
+      (`SettingsView.test.ts` 的 `withHost()`,先例 `QueueView.test.ts:141-146`)。
+
+  【K30(K5 同族)—— 下半再多两处 catch 不回显后端文本】
+    · 蓝本 `applyRoot`(`:276-280`)catch 里读
+      `(e.response && e.response.data && e.response.data.detail) || e.message || e`
+      拼进 toast(蓝本自带注释说这是「400 = 非空目标目录的后端守卫,原样透出」)——
+      本仓**只弹固定 `aiKbOpFailed`**。
+    · 蓝本 `toggleAutoExtract`(`:259-261`)拼 `e.message || e` —— 同样只弹 `aiKbOpFailed`。
+    落地判据是**排除式断言**(见测试文件 K30 那两组:让 `putSettings` reject 一个既带
+    `response.data.detail` 又带 `message` 的错误,断言 toast / 全局 toast 栈 / 整页 DOM
+    三处都不含那段文本)。⚠️ 探针文本**故意不出现在本文件里**(治理 §9 第九条)。
+
+  【K1 —— 下半的第二处 store 降层】蓝本 `browserRoots`(`:225`)读
+    `this.store.state.wikiCandidates` → 本仓 `store.wikiCandidates`;
+    `this.store.actions.loadCandidates()` → `store.loadCandidates()`。
+
+  【K27 —— `notesApi.*` 全部走共享包】蓝本 `notesApi.getSettings()` / `putSettings()` /
+    `dirInfo()`(`@/service/notes.js`)→ `service.notes.*`。
+    🔴 **层次**:`service.notes.getSettings/putSettings` 包内走 `normalizeSettings`
+    (`NimoOS-Service/src/notes.ts:131-137`)→ 拿到的是 **camelCase 且只有
+    `{ notesRoot, autoExtract }` 两个字段**;HTTP 层的 `distill_roots` /
+    `distill_daily_cap` / `background_model` 被那个归一函数**丢掉了**。
+    `dirInfo` 包内 `!!` 归一成 `{ exists: boolean, empty: boolean }`。
+    ⚠️ `normalizeSettings` 的 `autoExtract: r.auto_extract !== false` —— 后端漏字段时
+    归一成 `true`,与蓝本 `data()` 的默认值(`:206`)一致,照抄。
+
+  【§5.2 / §9.1 —— `onPick` 的两处过期守卫照抄】蓝本 `:241-253`:成功分支
+    `if (this.rootPicker.path !== path) return`(自带注释「A later pick may have
+    superseded this probe」)+ catch 里 `if (this.rootPicker.path === path)` 才置
+    `error`。**两处都照抄,一处都不许省。** 守卫变量是 `rootPicker.path` 这个**组件本地
+    响应式 state**(不是模块级、也不是专用 epoch 计数器)—— 它同时被渲染
+    (`v-if="rootPicker.path"` / `<code>` / 两个按钮的 `:disabled`),所以「两实例串号」
+    在 DOM 上直接可见;测试仍按 §9.1 补了一条两实例交错用例。
+
+  【N16 —— 下半的 emoji】`📝`(蓝本 `:67`)在 `t()` **外面**。
+    下半没有任何 emoji 在 `t()` 里面。
+
+  【N7 同族 —— `|| '/DATA/Notes'` 兜底照抄】蓝本 `:77` 与 `:129` 两处都写
+    `notesSettings.notesRoot || '/DATA/Notes'`(后端返回空串时的展示兜底),两处都照抄。
+
+  【K34 —— 下半的 Vue 3 机械改写(零行为变化)】
+    | 蓝本 | 本仓 | 为什么必需 |
+    |---|---|---|
+    | `this.$refs.fb` + `this.$nextTick` | 模板 `ref="fb"` + `nextTick()` | `<script setup>` 无 `this` |
+    | `async created()` | `onMounted(async () => …)` | Options API → Composition API;蓝本的 `created` 里那个 `await` 同样**不阻塞首屏**,故首帧都是走默认值渲染,行为一致 |
+    | `data()` 对象 | `ref()` | 同上 |
+    保抛口径(T7 评审 M-1):下半**零 `?.`、零 `!` 非空断言**。
+    `if (fb.value) fb.value.reset()` 里那个 `if` **是蓝本自己写的守卫**
+    (`:238` `if (this.$refs.fb)`),不是 TS 逼出来的 —— 逐字照抄。
 -->
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import {
+  DialogRoot,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent,
+  DialogTitle,
+} from 'reka-ui'
+import { service } from '@nimotech/nimoos-service'
+import type { NotesSettings } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
+import FolderBrowser from '../components/FolderBrowser.vue'
+import { pickerRoots } from '../util/folderBrowser'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useKnowledgeStore()
+
+/* ── T9:蓝本 data()(`:206-211`)的五项页面级瞬态,一律组件本地 ref,不塞 store ── */
+
+/** 蓝本 `:206` —— 默认 `autoExtract: true`,与包内 `normalizeSettings` 的
+ *  `r.auto_extract !== false`(后端漏字段 → true)一致。 */
+const notesSettings = ref<NotesSettings>({ notesRoot: '', autoExtract: true })
+
+/** 蓝本 `:207`。 */
+const rootPicker = ref<{ open: boolean; path: string }>({ open: false, path: '' })
+
+/** 蓝本 `:208-209` 的注释原文:`state: '' | 'loading' | 'done' | 'error'`;
+ *  `migratable` = 目标目录**不存在或为空**。 */
+const dirProbe = ref<{ state: '' | 'loading' | 'done' | 'error'; migratable: boolean }>({
+  state: '',
+  migratable: false,
+})
+
+/** 蓝本 `:210-211`。 */
+const migrating = ref(false)
+const migrateAck = ref(false)
+
+/** 蓝本靠 `this.$refs.fb`(`:80` 的 `ref="fb"` + `:238` 的调用)—— Vue3 用模板 ref;
+ *  `FolderBrowser` 侧 `defineExpose({ reset })` 已就位(T3)。 */
+const fb = ref<InstanceType<typeof FolderBrowser> | null>(null)
 
 /** 蓝本 computed `controlState`(`:215`)—— K1:`store.state.controlState` → `store.controlState`。 */
 const controlState = computed(() => store.controlState)
@@ -145,6 +260,122 @@ const deviceLabel = computed<string>(() => {
   if (d === 'cpu') return 'CPU'
   return d
 })
+
+/**
+ * 蓝本 computed `browserRoots`(`:224-226`)—— K1 的第二处降层:
+ * `this.store.state.wikiCandidates` → `store.wikiCandidates`。
+ * `pickerRoots([])` 走兜底三根(`System (/DATA)` / `/media` / `/mnt`),治理 §4.3
+ * 实测本机 `GET /v1/wiki/candidates` 就是 `[]` → 兜底那条是**真机走到的路径**。
+ */
+const browserRoots = computed(() => pickerRoots(store.wikiCandidates))
+
+/**
+ * 蓝本 `async created()`(`:228-230`)—— 唯一的只读请求。
+ * 🔴 catch **吞错保默认值**(蓝本注释原文 `/* keep defaults *\/`):拉不到设置时
+ * `notesSettings` 停在 `{ notesRoot: '', autoExtract: true }`,页面照旧渲染,
+ * `notesRoot` 走模板里的 `|| '/DATA/Notes'` 兜底。照抄,不许改成弹 toast。
+ */
+onMounted(async () => {
+  try {
+    notesSettings.value = await service.notes.getSettings()
+  } catch {
+    /* keep defaults */
+  }
+})
+
+/**
+ * 蓝本 `openRootPicker()`(`:232-240`)—— 逐行照抄:先取反,**仅在打开时**清 path、
+ * 重置探针、拉候选、下一帧重置 FolderBrowser。
+ * ⚠️ `loadCandidates()` **不传 `silent`**(治理交接项 #7:只有后台预取传 `silent`,
+ * 用户主动路径不传);蓝本同样不传参、也不 await(失败时 store 内部静默清空)。
+ */
+function openRootPicker(): void {
+  rootPicker.value.open = !rootPicker.value.open
+  if (rootPicker.value.open) {
+    rootPicker.value.path = ''
+    dirProbe.value = { state: '', migratable: false }
+    store.loadCandidates()
+    nextTick(() => {
+      if (fb.value) fb.value.reset()
+    })
+  }
+}
+
+/**
+ * 蓝本 `onPick(path)`(`:241-253`)—— **两处过期守卫逐字照抄**。
+ * 成功分支那处蓝本自带注释:「A later pick may have superseded this probe — only
+ * apply if current.」;catch 那处蓝本自带注释:「Probe is best-effort UX; the backend
+ * migrate guard remains the gate.」
+ * 🔴 少任一处守卫,「先点 A 再点 B、A 的响应后到」就会把 A 的探针结果盖到 B 的选择上
+ * (徽标与「搬文件」按钮的可点性都会错)。
+ */
+async function onPick(path: string): Promise<void> {
+  rootPicker.value.path = path
+  dirProbe.value = { state: 'loading', migratable: false }
+  try {
+    const info = await service.notes.dirInfo(path)
+    if (rootPicker.value.path !== path) return
+    dirProbe.value = { state: 'done', migratable: !info.exists || info.empty }
+  } catch {
+    if (rootPicker.value.path === path) dirProbe.value = { state: 'error', migratable: false }
+  }
+}
+
+/**
+ * 蓝本 `toggleAutoExtract()`(`:254-262`)—— `next` 在发请求之前算(同 `toggleOcr`)。
+ * 🔴 载荷**只带 `autoExtract`**,不带 `notesRoot`(包内 `buildSettingsBody` 只在
+ * `notesRoot` 有值时才写 `notes_root` + `mode`)。catch 走 K30 固定键。
+ */
+async function toggleAutoExtract(): Promise<void> {
+  const next = !notesSettings.value.autoExtract
+  try {
+    notesSettings.value = await service.notes.putSettings({ autoExtract: next })
+    store.toast(next ? t('aiKbSetAutoCaptureOn') : t('aiKbSetAutoCaptureOff'))
+  } catch {
+    store.toast(t('aiKbOpFailed'))
+  }
+}
+
+/** 蓝本 `closeMigrate()`(`:263-266`)—— **两个 state 都清**,照抄。 */
+function closeMigrate(): void {
+  migrating.value = false
+  migrateAck.value = false
+}
+
+/**
+ * K29 落地件:reka 的 `DialogRoot` 用 `@update:open` 表达「弹窗被关掉了」。
+ * 蓝本的三条关闭路径(× 按钮 / 取消按钮 / 点遮罩)全都调 `closeMigrate()`,
+ * 所以这里把 `v === false` 统一接到它 —— **不能**写成 `migrating = $event`
+ * (那会漏清 `migrateAck`,下次打开时勾选框还是勾着的、danger 按钮直接可点)。
+ */
+function onMigrateOpenChange(v: boolean): void {
+  if (!v) closeMigrate()
+}
+
+/** 蓝本 `doMigrate()`(`:267-270`)—— 🔴 **先关弹窗再发请求**,顺序照抄。 */
+async function doMigrate(): Promise<void> {
+  closeMigrate()
+  await applyRoot('migrate')
+}
+
+/**
+ * 蓝本 `applyRoot(mode)`(`:271-281`)—— `mode` 两个取值:`'adopt'`(仅指向)/
+ * `'migrate'`(搬文件)。成功后关折叠区 + 弹「笔记目录已更新」。
+ * catch 走 K30:蓝本在这里读 `e.response.data.detail` 原样透出后端 400 文案,
+ * 本仓只弹固定键。
+ */
+async function applyRoot(mode: string): Promise<void> {
+  try {
+    notesSettings.value = await service.notes.putSettings({
+      notesRoot: rootPicker.value.path,
+      mode,
+    })
+    rootPicker.value.open = false
+    store.toast(t('aiKbSetNotesFolderUpdated'))
+  } catch {
+    store.toast(t('aiKbOpFailed'))
+  }
+}
 
 /**
  * 蓝本 `togglePause()`(`:282-289`)。
@@ -270,6 +501,123 @@ function goSandbox(): void {
             <button class="k-sw" :data-on="String(!!controlState.ocr_enabled)" @click="toggleOcr" />
           </div>
         </div>
+
+        <!-- 笔记区(蓝本 :63-118)—— N16:📝 在 t() 外面 -->
+        <div class="k-section">
+          <div class="k-section-head">
+            <div>
+              <div class="k-section-title">📝 {{ t('aiKbSetNotesSection') }}</div>
+              <div class="k-section-hint">{{ t('aiKbSetNotesSectionHint') }}</div>
+            </div>
+          </div>
+          <div class="k-set-card">
+            <!-- 笔记目录行(蓝本 :72-102)—— 这一行的 align-items 是 flex-start(内容会长高) -->
+            <div class="k-set-row" style="align-items: flex-start">
+              <div class="k-set-row-info">
+                <div class="k-set-row-title">{{ t('aiKbSetNotesFolder') }}</div>
+                <div class="k-set-row-cn">{{ t('aiKbSetNotesFolderCn') }}</div>
+                <div class="k-set-row-desc">
+                  <!-- 🔴 N7 同族:`|| '/DATA/Notes'` 兜底照抄(后端返回空串时的展示兜底) -->
+                  <code>{{ notesSettings.notesRoot || '/DATA/Notes' }}</code> — {{ t('aiKbSetNotesFolderDesc') }}
+                </div>
+                <div v-if="rootPicker.open" style="border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 12px">
+                  <FolderBrowser ref="fb" :roots="browserRoots" @pick="onPick" />
+                  <div v-if="rootPicker.path" class="kn-picked" style="margin-top: 10px">
+                    <!-- 冒号是模板里的裸 ASCII `:`(不在 t() 里),照抄蓝本 :82 -->
+                    {{ t('aiKbSetSelected') }}: <code>{{ rootPicker.path }}</code>
+                    <!-- 🔴 三档徽标:loading / done+可迁移 / done+不可迁移。
+                         `state === 'error'` 时**三档都不出**(蓝本没有第四个分支)。 -->
+                    <span v-if="dirProbe.state === 'loading'" class="kn-badge" data-s="archived">{{ t('aiKbSetChecking') }}</span>
+                    <span v-else-if="dirProbe.state === 'done' && dirProbe.migratable" class="kn-badge" data-s="curated">{{ t('aiKbSetDirEmptyMigratable') }}</span>
+                    <span v-else-if="dirProbe.state === 'done'" class="kn-badge" data-s="draft">{{ t('aiKbSetDirNotEmpty') }}</span>
+                  </div>
+                  <div class="kn-pick-actions" style="margin-top: 10px">
+                    <button class="k-btn primary" :disabled="!rootPicker.path" @click="applyRoot('adopt')">
+                      <KIcon name="folder" :size="12" /> {{ t('aiKbSetPointToExisting') }}
+                    </button>
+                    <!-- 🔴 这个按钮的 disabled 是**两个**条件:没选路径,或者探针明确说了目标非空。
+                         探针还在 loading / 出错时它是**可点**的(后端 migrate 守卫才是最终关卡)。
+                         点它只把 migrating 置 true,**不发任何请求**。 -->
+                    <button class="k-btn outline" :disabled="!rootPicker.path || (dirProbe.state === 'done' && !dirProbe.migratable)"
+                            @click="migrating = true">
+                      <KIcon name="upload" :size="12" /> {{ t('aiKbSetMoveFiles') }}
+                    </button>
+                    <span class="kn-pick-note">{{ t('aiKbSetPickNote') }}</span>
+                  </div>
+                </div>
+              </div>
+              <button :class="['k-btn', rootPicker.open ? 'ghost' : 'outline']" @click="openRootPicker">
+                {{ rootPicker.open ? t('aiKbCancel') : t('aiKbSetChange') }}
+              </button>
+            </div>
+
+            <!-- 自动捕获行(蓝本 :104-116) -->
+            <div class="k-set-row">
+              <div class="k-set-row-info">
+                <div class="k-set-row-title">{{ t('aiKbSetAutoCapture') }}</div>
+                <div class="k-set-row-cn">{{ t('aiKbSetAutoCaptureCn') }}</div>
+                <div class="k-set-row-desc">
+                  {{ t('aiKbSetAutoCaptureDesc') }}
+                  <!-- 🔴 本机实测 auto_extract:true → 这一行**不渲染**(治理 §13,是正确行为) -->
+                  <span v-if="!notesSettings.autoExtract" class="warn" style="display: block; margin-top: 2px">
+                    <KIcon name="danger" :size="11" /> {{ t('aiKbSetAutoCaptureOffWarn') }}
+                  </span>
+                </div>
+              </div>
+              <!-- 🔴 `!!` 双取反照抄(蓝本 :115) -->
+              <button class="k-sw" :data-on="String(!!notesSettings.autoExtract)" @click="toggleAutoExtract" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 迁移确认弹窗(蓝本 :120-156)—— K29:reka Dialog 原语,portal 到知识库容器。
+             蓝本的「点遮罩关闭 / 点弹窗内不关闭」由 DialogContent 的 pointerDownOutside
+             等价提供;所有关闭路径统一走 closeMigrate()(见 onMigrateOpenChange 注释)。 -->
+        <DialogRoot :open="migrating" @update:open="onMigrateOpenChange">
+          <DialogPortal to=".knowledge-app" defer>
+            <DialogOverlay class="k-modal-bg">
+              <DialogContent class="k-modal" style="width: min(460px, 100%)" :aria-describedby="undefined">
+                <div class="k-modal-head">
+                  <!-- DialogTitle 套在蓝本自己的 .k-modal-title 上(as-child)—— 满足 reka
+                       的 a11y 要求且**不多一个隐藏节点**,DOM 与蓝本 :124 逐字一致。 -->
+                  <DialogTitle as-child>
+                    <div class="k-modal-title">{{ t('aiKbSetMigrateTitle') }}</div>
+                  </DialogTitle>
+                  <button class="k-modal-x" @click="closeMigrate"><KIcon name="x" :size="13" /></button>
+                </div>
+                <div class="k-modal-body">
+                  <div class="kn-mig-path">
+                    <span style="color: var(--text-tertiary)">{{ notesSettings.notesRoot || '/DATA/Notes' }}</span>
+                    <KIcon name="arrowRight" :size="13" color="var(--warning)" />
+                    <b>{{ rootPicker.path }}</b>
+                  </div>
+                  <ul class="kn-mig-req" style="margin-top: 10px">
+                    <li>
+                      <!-- 🔴 只有第一条的 :color 是三元(目标非空时变危险色),另两条恒 success -->
+                      <KIcon name="check" :size="13" :color="dirProbe.state === 'done' && !dirProbe.migratable ? 'var(--danger)' : 'var(--success)'" />
+                      <span>
+                        {{ t('aiKbSetMigrateReq1') }}
+                        <b v-if="dirProbe.state === 'done' && !dirProbe.migratable" style="color: var(--danger)">{{ t('aiKbSetMigrateNotEmpty') }}</b>
+                      </span>
+                    </li>
+                    <li><KIcon name="check" :size="13" color="var(--success)" /><span>{{ t('aiKbSetMigrateReq2') }}</span></li>
+                    <li><KIcon name="check" :size="13" color="var(--success)" /><span>{{ t('aiKbSetMigrateReq3') }}</span></li>
+                  </ul>
+                  <label class="kn-checkline" style="margin-top: 10px">
+                    <input v-model="migrateAck" type="checkbox" />
+                    {{ t('aiKbSetMigrateAck') }}
+                  </label>
+                </div>
+                <div class="k-modal-foot">
+                  <button class="k-btn ghost" @click="closeMigrate">{{ t('aiKbCancel') }}</button>
+                  <button class="k-btn danger" :disabled="!migrateAck" @click="doMigrate">
+                    <KIcon name="upload" :size="12" /> {{ t('aiKbSetMigrateStart') }}
+                  </button>
+                </div>
+              </DialogContent>
+            </DialogOverlay>
+          </DialogPortal>
+        </DialogRoot>
 
         <!-- 沙盒入口(蓝本 :158-166)—— N16:🧪 在 t() 外面 -->
         <a class="k-sandbox-link" @click.prevent="goSandbox">
