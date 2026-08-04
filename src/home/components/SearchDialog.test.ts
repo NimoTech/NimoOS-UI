@@ -19,6 +19,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 import { useHomeUiStore } from '../stores/homeUi'
 import { useFoldersStore } from '../stores/folders'
+import { useViewer } from '../../files/viewers/useViewer'
 import SearchDialog from './SearchDialog.vue'
 
 // i18n 已由 vitest.setup.ts 全局装好(默认 zh_cn),**不要在测试里另建 createI18n**。
@@ -39,6 +40,16 @@ const REAL = agg({
   ],
   stats: { fileindexStatus: 'ready', totalCandidates: 2 },
   warnings: ['images_unavailable'],
+})
+
+// F1 的对照组:images 源(Photos CLIP)命中 —— 这一档才是相册真认得的行,相册卡照常出现。
+// badge 由 buildSearchView 的 badgeOf 派生:images 源 fromFilename=false / fromOcr=false → 'semantic'。
+const FROM_IMAGES = agg({
+  images: [
+    { assetId: 'a1', name: 'beach.jpg', path: '/DATA/Gallery/beach.jpg', score: 0.42,
+      takenAt: '2026-01-01T00:00:00Z', thumbnailUrl: '/v1/photos/a1/thumbnail', caption: 'a beach at sunset' },
+  ],
+  stats: { fileindexStatus: 'ready', totalCandidates: 1 },
 })
 
 // 种一块真磁盘,让 displayNames = { '/DATA': 'NimoOS-HD' } —— 否则 displayNames 恒为 {},
@@ -96,13 +107,87 @@ describe('SearchDialog', () => {
     expect(agentTool).toHaveBeenCalledWith('receipt')
   })
 
-  it('真机响应渲染成两行:一个文档行 + 一张相册卡(图片进相册卡)', async () => {
+  // ── F1(申报偏离 6):相册卡只收 images / OCR 源的行 ─────────────────────────
+  // 真机 fixture 两条命中全来自 filenames 源,其中 Nick's receipt.jpg 在 /DATA/Documents/life/,
+  // 相册库里根本没有 —— 旧行为把它渲染成相册卡(CTA「打开相册」→ 跳空页)。
+  it('真机响应(两条全是文件名命中)→ 一个文档行 + 一个媒体单行,不出相册卡', async () => {
     agentTool.mockResolvedValue(REAL)
     await open()
     await search('receipt')
     expect(document.body.querySelectorAll('.result').length).toBe(1)
     expect(document.body.textContent).toContain('Receipt.pdf')
+    // 相册卡整块不许出现(卡本身 + 卡里的缩略图格子)
+    expect(document.body.querySelector('.album')).toBeNull()
+    expect(document.body.querySelectorAll('.album-thumb').length).toBe(0)
+    // 改成媒体单行,且确实是那张 jpg(缩略图 URL 指向它的真实路径,不是"随便一行")
+    const media = document.body.querySelectorAll('.media-row')
+    expect(media.length).toBe(1)
+    expect(media[0]?.querySelector('img')?.getAttribute('src'))
+      .toBe('/thumb?path=' + encodeURIComponent("/DATA/Documents/life/Nick's receipt.jpg"))
+  })
+
+  it('文件名命中的图片:左键就地预览,右上 CTA 是「打开文件夹」而不是「打开相册」', async () => {
+    agentTool.mockResolvedValue(REAL)
+    const viewer = useViewer()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      await open()
+      await search('receipt')
+      const row = document.body.querySelector('.media-row') as HTMLElement
+      // CTA 文案:「打开文件夹 ›」而不是「打开相册 ›」
+      const cta = row.querySelector('.row-open') as HTMLElement
+      expect(cta.textContent).toContain('打开文件夹')
+      expect(cta.textContent).not.toContain('打开相册')
+      // 左键 → ViewerHost 就地预览这张 jpg;openPhotos 会先 closeSearch(),面板必须还开着
+      row.click()
+      await nextTick()
+      expect(viewer.open.value).toBe(true)
+      expect(viewer.currentItem.value?.path).toBe("/DATA/Documents/life/Nick's receipt.jpg")
+      expect(useHomeUiStore().searchOpen).toBe(true)
+      // CTA 走 openFolder(新窗口到所在目录的虚拟路径),不是 openPhotos 的同页跳转
+      cta.click()
+      await nextTick()
+      expect(String(openSpy.mock.calls[0]?.[0])).toMatch(/#\/files\/NimoOS-HD\/Documents\/life$/)
+    } finally {
+      viewer.close()
+      openSpy.mockRestore()
+    }
+  })
+
+  // openMediaRow 的 badge 分支只在「预览器打不开这个媒体」时才可见 —— 而这条路很好走:
+  // VIDEO_X_GENERIC 有 19 个扩展名,panelMap 的 video-player 只收 BROWSER_PLAYABLE_VIDEO 5 个,
+  // .mkv/.avi/.wmv 在 NAS 上遍地都是。旧行为在这里回退进 /#/photos(空页),新行为回退进所在目录。
+  it('文件名命中的不可预览媒体(.mkv):左键回退到所在文件夹,不回退进空相册', async () => {
+    agentTool.mockResolvedValue(agg({
+      filenames: [{ path: '/DATA/Media/holiday.mkv', name: 'holiday.mkv', ext: 'mkv', size: 900, mtimeMs: 1, isDir: false, match: 2 }],
+    }))
+    const viewer = useViewer()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      await open()
+      await search('holiday')
+      const row = document.body.querySelector('.media-row') as HTMLElement
+      expect(row).not.toBeNull()
+      row.click()
+      await nextTick()
+      expect(viewer.open.value).toBe(false)                       // mkv 没有预览面板,确实走了回退
+      expect(String(openSpy.mock.calls[0]?.[0])).toMatch(/#\/files\/NimoOS-HD\/Media$/)
+      expect(useHomeUiStore().searchOpen).toBe(true)              // openPhotos 会 closeSearch(),没走
+    } finally {
+      viewer.close()
+      openSpy.mockRestore()
+    }
+  })
+
+  it('对照组:images 源命中时相册卡照常出现(相册真认得的行没被误伤)', async () => {
+    agentTool.mockResolvedValue(FROM_IMAGES)
+    await open()
+    await search('beach')
+    expect(document.body.querySelector('.album')).not.toBeNull()
     expect(document.body.querySelectorAll('.album-thumb').length).toBe(1)
+    expect(document.body.textContent).toContain('打开相册')
+    // 没有被分流成媒体单行
+    expect(document.body.querySelector('.media-row')).toBeNull()
   })
 
   it('reasons 渲染成中文标签,不是写死的英文 demo 标签', async () => {
@@ -113,12 +198,22 @@ describe('SearchDialog', () => {
     expect(document.body.textContent).not.toContain('Exact filename match')
   })
 
-  it('来源徽标取代准确率百分比:相册卡缩略图上不再出现 % 数字', async () => {
+  // F1 后真机 fixture 不再有相册卡,这条改看媒体单行上的徽标(同一件事:徽标取代百分比)。
+  it('来源徽标取代准确率百分比:媒体单行上不再出现 % 数字', async () => {
     agentTool.mockResolvedValue(REAL)
     await open()
     await search('receipt')
-    const acc = document.body.querySelector('.album-acc') as HTMLElement
+    const acc = document.body.querySelector('.media-acc-num') as HTMLElement
     expect(acc.textContent).toBe('文件名')
+    expect(document.body.textContent).not.toMatch(/\d+%/)
+  })
+
+  it('来源徽标取代准确率百分比:相册卡缩略图上不再出现 % 数字', async () => {
+    agentTool.mockResolvedValue(FROM_IMAGES)
+    await open()
+    await search('beach')
+    const acc = document.body.querySelector('.album-acc') as HTMLElement
+    expect(acc.textContent).toBe('语义')
     expect(document.body.textContent).not.toMatch(/\d+%/)
   })
 

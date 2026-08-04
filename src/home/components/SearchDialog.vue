@@ -26,7 +26,7 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //    带上 `state === 'done'`，绝不能写成 `v-if="view"`：否则请求失败时会把上一轮结果和
 //    错误态一起显示，或者搜索中还挂着旧结果。
 //
-// ── 五处「界面照 Vue2 / 逻辑照正确」的申报偏离 ─────────────────────────────
+// ── 六处「界面照 Vue2 / 逻辑照正确」的申报偏离 ─────────────────────────────
 //   1. openPhotos() 原来写死了同事那台机器的局域网 IP 作为跳转 origin（demo 残留，在任何
 //      别的机器上都跳错地方）→ 改同源相对跳转。这是**修真缺陷**，不是改界面（spec §7.9）。
 //   2. 媒体行的副标题 `.media-acc-label`（"match accuracy" / "text recognized"）删除：
@@ -41,6 +41,16 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //   5. `.result-path` 现在显示 `folderOf()` 的结果，**带前导斜杠**（`/NimoOS-HD/Documents/…`）；
 //      旧的 `it.row.folder.replace('/files/', '')` 出来的是无前导斜杠的
 //      `NimoOS-HD/Documents/…`。这是肉眼可见的一处字符差异，登记在案（真机自查时不是新缺陷）。
+//   6. **相册卡只收 images / OCR 源的行；文件名命中的图片改走媒体单行**（机主 2026-08-04
+//      拍板，方案 a）。**为什么这不是改界面而是行为修正**：spec §7.10g 写着「相册卡本机
+//      跑不到」，据此把所有 isMedia 行一股脑塞进相册卡是安全的 —— 这个前提是**错的**。
+//      本机 images 源恒不可用，于是唯一能产出媒体行的就是 filenames 源，相册卡不但跑得到，
+//      还是默认体验；而 filenames 命中的图片（实测 /DATA/Documents/life/Nick's receipt.jpg）
+//      不在相册库里，「打开相册」点过去必然是空页。也就是说旧渲染给出的是一个**恒定失效的
+//      入口**，属于「Vue2 的 bug 不照抄」那一类，不是把界面改成另一个样子。
+//      两处落点：displayList 的 'all' 分支（分流）、`.media-row` 的左键与右上 CTA（openMediaRow /
+//      按 badge 二选一的按钮）。后者顺带影响 Images / Videos 两个 tab 下**文件名命中**的媒体行
+//      （CTA 由「打开相册 ›」变成「打开文件夹 ›」）—— 同一条理由，一并登记。
 //
 // Ask Nimo AI 入口在搜索输入框右侧：渐变胶囊按钮(星标图标 + “Ask Nimo”文字，仿 Gemini)，高度与关闭(✕)按钮一致(36px)。
 // 交互：左键点击结果 = 直接复用文件页的 ViewerHost 就地预览（docx/pdf/xlsx/图片/视频/音频/文本全支持）；
@@ -97,8 +107,20 @@ const displayList = computed<(ListItem & { rank: number })[]>(() => {
   const tab = activeTab.value
   const out: ListItem[] = []
   if (tab === 'all') {
+    // ⚠️ 申报偏离 6 —— 相册卡的分流（机主 2026-08-04 拍板，方案 a）。见文件头第 6 条。
+    //    相册卡（「相册匹配 N 张」→「打开相册」→ /#/photos?q=）只对**真的在相册库里**的
+    //    命中成立，也就是 images 源（CLIP）与 semantic 的 OCR 命中。filenames 源命中的
+    //    图片可能躺在任何目录（真机实测：/DATA/Documents/life/Nick's receipt.jpg），
+    //    相册库里根本搜不到，塞进相册卡等于给用户一个必然跳空页的入口。
+    //    判据用 badge：'filename' 表示该行有 filenames 源参与（badgeOf 里 filename 优先），
+    //    其余（'ocr' / 'semantic'）才是相册能认的。**不改 buildSearchView**（Task 2 交付物）。
+    const albumMedia = v.mediaRows.filter((m) => m.badge !== 'filename')
+    const fileMedia = v.mediaRows.filter((m) => m.badge === 'filename')
     v.docRows.slice(0, 2).forEach((row) => out.push({ type: 'row', row }))
-    if (v.mediaRows.length) out.push({ type: 'album', media: v.mediaRows })
+    // 组装顺序与 tab 计数都不动（spec §7.7）：媒体块整体仍占原相册卡那一段位置，
+    // 相册卡输入为空时就不渲染相册卡，那些图片按媒体单行接在同一段里。
+    if (albumMedia.length) out.push({ type: 'album', media: albumMedia })
+    fileMedia.forEach((m) => out.push({ type: 'media', media: m }))
     v.docRows.slice(2).forEach((row) => out.push({ type: 'row', row }))
   } else if (tab === 'Images' || tab === 'Videos') {
     v.mediaRows.filter((r) => r.category === tab).forEach((m) => out.push({ type: 'media', media: m }))
@@ -181,6 +203,13 @@ function openRow(row: ResultRow): void {
 function openMedia(row: ResultRow): void {
   const entry: FileEntry = { name: row.name, path: row.realPath, is_dir: false }
   if (!viewer.openItem(entry, [entry])) openPhotos()
+}
+// 媒体单行的左键入口。⚠️ 申报偏离 6 的第二半：**相册相关的兜底与 CTA 只给相册认得的行**。
+//   文件名命中的图片走 openRow（就地预览，打不开则回退到「所在文件夹」）——它可能躺在
+//   任何目录，回退进相册同样是跳空页；images / OCR 命中仍走 openMedia（回退进相册）。
+function openMediaRow(row: ResultRow): void {
+  if (row.badge === 'filename') { openRow(row); return }
+  openMedia(row)
 }
 // 进入 AI 相册并按关键词智能搜索。
 // ⚠️ 申报偏离 1（修真缺陷，不是改界面）：原实现把跳转 origin 写死成同事那台机器的局域网
@@ -322,7 +351,7 @@ watch(query, () => {
               </button>
 
               <!-- 图片 / 视频单行：排名 + 缩略图 + 来源徽标，点击就地预览 -->
-              <div v-else-if="it.type === 'media'" class="media-row" role="button" tabindex="0" @click="openMedia(it.media)" @keyup.enter="openMedia(it.media)">
+              <div v-else-if="it.type === 'media'" class="media-row" role="button" tabindex="0" @click="openMediaRow(it.media)" @keyup.enter="openMediaRow(it.media)">
                 <span class="rank">{{ it.rank }}</span>
                 <span class="media-thumb">
                   <img :src="mediaThumb(it.media)" alt="" @error="onThumbErr($event, it.media)" />
@@ -333,7 +362,11 @@ watch(query, () => {
                        准确率百分比换成来源徽标后已无意义，删除。 -->
                   <span class="media-acc-num" :class="{ 'media-acc-ocr': it.media.badge === 'ocr' }">{{ badgeLabel(it.media) }}</span>
                 </span>
-                <button class="row-open" @click.stop="openPhotos">{{ t('searchOpenAlbum') }}</button>
+                <!-- 申报偏离 6：右上 CTA 也跟着来源走 —— 文件名命中的图片给「打开文件夹」，
+                     只有相册认得的行才给「打开相册」。否则 F1 只修掉一半：主入口不跳空相册了，
+                     旁边这颗按钮照样把用户送进空相册页。 -->
+                <button v-if="it.media.badge === 'filename'" class="row-open" :title="t('searchOpenFolderTitle')" @click.stop="openFolder(it.media.realPath)">{{ t('searchOpenFolder') }}</button>
+                <button v-else class="row-open" @click.stop="openPhotos">{{ t('searchOpenAlbum') }}</button>
               </div>
 
               <!-- 文档 / 音频行：左键预览（目录则直接进目录），右上「打开文件夹」新窗口 -->
