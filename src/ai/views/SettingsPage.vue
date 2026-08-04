@@ -22,11 +22,16 @@
   `createSettingsStore()` 每次新建而从未真正执行过;Pinia 单例下第一次有了
   意义。`&& !job._timer` 守卫逐字保留。
 
-  【新增,非 Vue2 蓝本】
-  - 顶栏「详情」原为 `<router-link to="/ai/knowledge">`(Settings.vue:22-24)。
-    `/ai/knowledge` 要到 SP8-P5 才存在,`router.push` 到不存在的路由会落空白
-    死页 —— 改成 `<button>` + info toast 占位,样式类名 `.set-detail-link`
-    保持不变(视觉 1:1),仅交互目标变了。
+  【新增,非 Vue2 蓝本 —— 下面两条是历史记录 + 现状,不是并列现状】
+  - 【历史】顶栏「详情」蓝本原为 `<router-link to="/ai/knowledge">`(Settings.vue:22-24)。
+    SP8-P2a/P2b 当时该路由尚不存在,`router.push` 过去会落空白死页 —— 临时改成
+    `<button>` + info toast 占位,样式类名 `.set-detail-link` 保持不变(视觉
+    1:1),仅交互目标变了。
+  - 【现状,治理 §15.1 / P5c §8.5】`/ai/knowledge` 外壳早在 SP8-P5a 就建好了,
+    但 P5a/P5b/P5c 三期都漏了把上面那个占位入口还回去 —— 知识库整区因此全程
+    只能敲地址进,2026-08-04 用户验收时发现。**SP8-P5d Task 9 已反转回**蓝本
+    原样 `<router-link to="/ai/knowledge">`(反转不删:被替掉的 `<button>` +
+    `onDetailsClick` 原文见下方 `onDetailsClick` 出现处的注释)。
   - `onSelect()` 里 `DEFERRED_SECTIONS.includes(id)` 时弹一条 info toast ——
     Vue2 没有这个概念(它的 13 个分区本就全是真组件)。**修复轮 M2 更新**:
     SP8-P4 起 `DEFERRED_SECTIONS` 已清空(13 个分区全部接入真组件),这条分支
@@ -175,10 +180,14 @@ function goBack() {
   router.push('/ai/agent')
 }
 
-// P5 前占位(见文件头说明)—— 不 router.push,只弹 toast。
-function onDetailsClick() {
-  toast.show(t('aiCfgKnowledgeSoon'))
-}
+// SP8-P5d Task 9(反转不是删除,治理 §15.1 第 3 条裁定 / P5c §8.5)—— 顶栏
+// 「详情」已改回 router-link(见上方模板 `.set-detail-link` 处),这个 handler
+// 零调用点,删掉;原文留成注释(与 `knowledgeRoutes.ts` 的「反转不删」先例同款):
+//   function onDetailsClick() {
+//     toast.show(t('aiCfgKnowledgeSoon'))
+//   }
+// `DEFERRED_SECTIONS` 占位机制本身不受影响,不许碰 —— 它在 `onSelect()` 里的
+// 另一条分支(见下方)。
 
 function onRefresh() {
   store.loadServicesStatus()
@@ -412,11 +421,15 @@ onUnmounted(() => {
             <span v-if="store.parserStatus.paused" class="badge-pause">⏸</span>
           </span>
         </div>
-        <!-- P5 前占位:样式类名保持 Vue2 的 .set-detail-link,交互改成弹 toast
-             而不是 router-link(见文件头说明)。 -->
-        <button class="set-detail-link" @click="onDetailsClick">
+        <!-- SP8-P5d Task 9 反转(不是删除,治理 §15.1 / P5c §8.5):`/ai/knowledge`
+             外壳自 SP8-P5a 就已建好,P5a/P5b/P5c 三期漏了把这个入口还回去,本刀
+             改回蓝本原样 router-link——`.set-detail-link` 类名与视觉不变
+             (settings-styles.scss 已含 text-decoration: none)。改前是
+             `<button class="set-detail-link" @click="onDetailsClick">`,
+             `onDetailsClick` 原文见下方 script 区块同名注释处(反转不删)。 -->
+        <router-link class="set-detail-link" to="/ai/knowledge">
           {{ t('aiCfgDetails') }} <AgentIcon name="chev" :size="12" />
-        </button>
+        </router-link>
         <button class="set-ibtn" :title="t('aiCfgRefresh')" @click="onRefresh">
           <AgentIcon name="refresh" :size="16" />
         </button>

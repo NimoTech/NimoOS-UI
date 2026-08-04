@@ -22,7 +22,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
-import { createRouter, createMemoryHistory, type Router } from 'vue-router'
+import { createRouter, createMemoryHistory, RouterLink, type Router } from 'vue-router'
 import zh from '../../i18n/zh_cn'
 
 const ai = vi.hoisted(() => ({
@@ -228,17 +228,37 @@ describe('SettingsPage — ② 顶栏', () => {
     w.unmount()
   })
 
-  it('8. 「详情」按钮点击不调 router.push,只弹 toast(P5 前占位契约)', async () => {
+  // SP8-P5d Task 9(票 1,治理 §15.1)—— 反转:上面「8.」原断言「点击不 push、只
+  // 弹 toast」钉住的正是那个占位契约,占位入口已反转回真正的 router-link,旧断言
+  // 必须跟着反转,否则会精确报红(与 `knowledgeRoutes.test.ts` 那套「反转不删」
+  // 先例同款做法)。改前(SP8-P2a 原文,反转前):
+  //   it('8. 「详情」按钮点击不调 router.push,只弹 toast(P5 前占位契约)', async () => {
+  //     const store = useSettingsStore()
+  //     stubNetworkActions(store)
+  //     const { w, router } = await mountPage()
+  //     await flushPromises()
+  //     const pushSpy = vi.spyOn(router, 'push')
+  //     const toast = useToast()
+  //     const showSpy = vi.spyOn(toast, 'show')
+  //     await w.find('.set-detail-link').trigger('click')
+  //     expect(pushSpy).not.toHaveBeenCalled()
+  //     expect(showSpy).toHaveBeenCalledWith('知识库详情页将在后续阶段开启')
+  //     w.unmount()
+  //   })
+  // 改后:`.set-detail-link` 现在是一个真正指向 `/ai/knowledge` 的 RouterLink——
+  // 判据钉在元素身份(RouterLink 组件实例 + `to` prop),不是渲染出的 DOM 标签,
+  // 因为 <router-link> 在测试路由未注册目标时仍会渲染成 <a>,裸比 tag 名判别力
+  // 不够。RED 探针:把产品代码改回占位 `<button>` + toast → 这条必须报红(见任务
+  // 报告)。
+  it('8. 「详情」是指向 /ai/knowledge 的 RouterLink,不再是弹 toast 的占位按钮(票 1 反转,治理 §15.1)', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
-    const { w, router } = await mountPage()
+    const { w } = await mountPage()
     await flushPromises()
-    const pushSpy = vi.spyOn(router, 'push')
-    const toast = useToast()
-    const showSpy = vi.spyOn(toast, 'show')
-    await w.find('.set-detail-link').trigger('click')
-    expect(pushSpy).not.toHaveBeenCalled()
-    expect(showSpy).toHaveBeenCalledWith('知识库详情页将在后续阶段开启')
+    const link = w.findComponent(RouterLink)
+    expect(link.exists()).toBe(true)
+    expect(link.props('to')).toBe('/ai/knowledge')
+    expect(link.classes()).toContain('set-detail-link')
     w.unmount()
   })
 

@@ -209,8 +209,7 @@ function makeRouter() {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: SettingsView },
-      // 蓝本 `:318` 的 `goSandbox()` 目标。生产环境这条路由此刻仍指占位页
-      // (`knowledgeRoutes.ts:63`,T10 才反转)—— 跳过去看到占位页是预期。
+      // 【订正,SP8-P5d Task 9,治理 §15.2】蓝本 `:318` 的 `goSandbox()` 目标;生产里这条路由早已反转成真正的 ParserTest(P5c-T10 产出),本文件路由表的 stub 只管 href 能否解析,与生产是否占位无关。
       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
     ],
   })
@@ -1565,6 +1564,9 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     // head:标题 + × 按钮
     expect(modal!.querySelector('.k-modal-head .k-modal-title')!.textContent).toBe('迁移笔记文件?')
     expect(modal!.querySelector('.k-modal-head button.k-modal-x')).not.toBeNull()
+    const titleEl = modal!.querySelector('.k-modal-title') as HTMLElement
+    expect(titleEl.id).toBe(modal!.getAttribute('aria-labelledby'))
+    expect(modal!.querySelectorAll('[id]')).toHaveLength(1)
     // body:旧路径 → 新路径
     const path = modal!.querySelector('.kn-mig-path')!
     expect(path.querySelector('span')!.textContent).toBe('/DATA/Notes')

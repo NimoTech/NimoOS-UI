@@ -177,7 +177,11 @@ function makeRouter() {
     routes: [
       { path: '/ai/parser/test', name: 'AIParserTest', component: ParserTest },
       // 蓝本 `:5` 的 `router-link to="/ai/parser"` 需要目标路由存在才能解析出 href。
-      // 生产环境这两条路由此刻仍指占位页(`knowledgeRoutes.ts`,T10 才反转)。
+      // 【订正,SP8-P5d Task 9,治理 §15.2 / 计划书 §T9 第 6 条】上一条注释已过期:
+      // 生产里这两条 parser 顶层路由早已反转成真正的 ParserStatus/ParserTest
+      // (P5c-T10 的产出,knowledgeRoutes.ts 头注释有完整记录),不再指占位页。
+      // 这里的 stub 组件只是本测试文件自己路由表里的占位,与生产路由是否占位
+      // 无关——保留 stub 是因为本文件只关心 href 能否解析出来。
       { path: '/ai/parser', name: 'AIParser', component: { template: '<div />' } },
     ],
   })
