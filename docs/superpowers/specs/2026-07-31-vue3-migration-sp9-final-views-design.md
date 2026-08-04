@@ -596,9 +596,51 @@ interface NormalizedAggregate {
 `SearchDialog.vue:262` `openPhotos()` 写死 `http://192.168.1.115/#/photos?q=…` —— **同事机器的 IP**，真机上必然打不开。改为 `/#/photos?q=…`（同源相对跳转）。
 按「界面照 Vue2、逻辑照正确」纪律：这是 bug 不是界面，**改正确并在代码里注释登记**。
 
+### 7.10 P7 开工前订正（2026-08-04 复核 + 用户拍板）
+
+本节优先于 §7.1–§7.9 中与之冲突的记载。
+
+**a. §1.5 那份 fixture 已过时，P7 一律重抓。**
+2026-08-04 同机复核（`POST /v1/search/agent/tool`，`X-NimoOS-User-ID: 1`，query=`receipt`）：
+
+```json
+{"groups":{"semantic":[],"filenames":[
+  {"path":"/DATA/Documents/Recipes/Receipt.pdf","name":"Receipt.pdf","ext":"pdf",
+   "size":53866,"mtime_ms":1784715139167,"is_dir":false,"match":2},
+  {"path":"/DATA/Documents/life/Nick's receipt.jpg","name":"Nick's receipt.jpg","ext":"jpg",
+   "size":42943,"mtime_ms":1783651328200,"is_dir":false,"match":1.5}],
+ "images":null,"notes":null},
+ "stats":{"fileindex_status":"ready","total_candidates":2},
+ "warnings":["images_unavailable"]}
+```
+
+与 §1.5 相比三处变了：`semantic` 由 `null` 变 **`[]`**（Parser 已可用，只是零命中）；`warnings` 只剩 `images_unavailable`（`semantic_unavailable` / `notes_unavailable` 消失）；`notes` 仍是 `null` 却**没有**对应 warning。
+→ **硬结论：「组为 `null`」与「`warnings` 里有该源」不是同一件事，前端必须各守各的，不能用其中一个推另一个。** §1.5 那份响应只留作历史记录，不再当 fixture 用。
+
+**b. 两套写死 demo 整套删除（用户 2026-08-04 拍板）。**
+`DOCS` / `ALBUM` / `RECEIPTS` / `isReceiptDemo` / `SEARCH_DELAY_MS` 假延迟全部删除，**不留兜底、不留隐藏开关**——把 demo 留作"零命中回退"会让用户分不清真假结果，与 §7.8「不得静默显示空结果」直接冲突。
+连带：空态那四个英文建议词（`product spec` / `launch replay` / `morning podcast` / `wallpaper`）一并删掉，只留提示语。它们是 demo 期编的词，真机上点下去大概率零结果，反而让人以为搜索坏了。（两项都在偏离 #1 的授权范围内，不另开偏离。）
+
+**c. `filenames` 源的噪声前端不处理（用户 2026-08-04 拍板）。**
+实测该源会返回 `/DATA/NIMO/openvino_env/lib/python3.13/site-packages/…` 下的 pip 源码，以及 `is_dir: true` 的纯目录项（搜 `how to cook`，头两条是 `cookies.py` 和 `show.py`）。
+前端**如实显示，不过滤、不降权、不隐藏**——排除规则属于索引侧，藏在前端会让前后端口径长期打架，且属于静默丢结果。登记为后端票 **D43**。
+
+**d. 「打开文件夹」复用现成映射，不新造。**
+后端只给真实路径（`/DATA/…`），而文件页路由吃虚拟路径（`/files/NimoOS-HD/…`）。用 `src/files/util/pathUtils.ts` 的 `toVirtualPath(realPath, displayNames)`，`displayNames` 取 `useFilesStore()`（`loadRoots()` 尚未就绪时原样用真实路径兜底，不阻塞跳转）。
+
+**e. 触发方式不变**：回车 / 点搜索图标才发请求，**不做输入即搜的防抖**。每次查询都经 nimoos-ai 网关转发到 Search，逐键触发是没必要的后端压力。
+
+**f. 降级提示条在本机会常驻**：`images_unavailable` 恒存在 → 结果区顶部那条低调提示每次搜索都在。这是 §7.8 定的如实呈现，**不是缺陷**，验收时不要按缺陷报。
+
+**g. 相册卡 / 媒体行在本机跑不到**：`images` 源恒不可用，`semantic.kind === 'ocr'` 也要语义索引才有 → §7.3 的「OCR 命中归媒体」分支、`.album` 相册卡、`Images` / `Videos` 两个 tab 本机无法触达。按政策二：**代码与界面保留**、**纯前端逻辑（分层排名 / 分类派生 / reasons 派生）照测**、不列本机验收项。
+
 ### P7 DoD
 
-`buildSearchView` / reasons 派生 / 排名分层 / 降级态映射各有单测（fixture 逐字取自 §1.5 实测响应）；本机 dev server 验证 filenames 源真命中能渲染；显式 pathspec 提交。
+- 共享包 `search` 域只做归一化（`null → []`、蛇形转驼峰、`stats` / `warnings` 归位），**不含视图模型**，自带单测。
+- `buildSearchView`（合并去重 + 五层排名 + 分类派生）/ `reasons` 派生 / 降级态映射各有单测，**fixture 逐字取自 §7.10a 的真机响应**，每条用例做变异验证。
+- `SearchDialog.vue` 里 demo 常量、建议词、假延迟**零残留**；异步写入带过期守卫（epoch）；错误态有重试按钮。
+- 本机 dev server 验证 filenames 源真命中能渲染、能预览、能打开文件夹。
+- 显式 pathspec 提交。
 
 ---
 
@@ -676,11 +718,14 @@ index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光
 - 每期任务门：全量 `pnpm test` + `pnpm exec vue-tsc --noEmit`，判定标准见 §9.4 第 5 条。
 - **移植纪律**（roadmap 2026-07-27 拍板）：界面严格 1:1；Vue2 的 bug / 竞态 / 吞错**不照抄**，改正确并在代码里注释登记；禁无关重构。本期已识别的「改正确」项：§7.9 硬编码 IP。已识别的「怪癖照抄」项：§6.1 `spicePort` 保活。
 - **fixture 纪律**：外部命令输出 / HTTP 信封的 fixture **必须真机逐字抓取**，§1 已抓好可直接引用；新增的自己抓，**不得手编**。
+  ⚠️ **§1 的 fixture 有保质期** —— §1.5 的搜索响应到 P7 开工（2026-08-04）时已经变了三处（§7.10a）。开工前先重抓一遍再决定能不能直接引用。
 - 台账落 `NimoOS-New-UI/.superpowers/sdd/sp9/`（**gitignore，不进 git**）。SP7 的台账整目录丢失且 git 救不回 → **重要结论同步回 roadmap §4 SP9**，不要只写台账。
 
 ---
 
 ## 11. 债务登记
+
+> **编号说明**：本表只记开工时（P0 前）已知的 D1–D15。**D16–D42 是 P1–P6 各期新发现的，登记在台账 `.superpowers/sdd/sp9/0*.md`（gitignore）与 roadmap §4 SP9 里，不回填本表。** 新增编号一律接台账的最大值往后取（P7 起从 D43 开始）。
 
 | 编号 | 内容 | 归属 |
 |---|---|---|
@@ -698,6 +743,7 @@ index 里另有 3 个 staged 的 `design-export/*.html` 删除（既不是时光
 | **D12** | **`wiki` 域用户拍板挂账** —— roadmap §3.3 追踪表里完全缺席、无 SP 归属；它是 D11 落地的前置 | 需用户排期 |
 | **D13** | 设置 apps tab「清理本地待上传缓存」**界面已做、逻辑待接线**（依赖相册上传 IndexedDB 队列） | SP7-P8 |
 | **D14** | **删除 ISO 无 UI** —— spec 原 §6.2 列了这一项，但 Vue2 `OSSelector` 里根本没有删除入口、`deleteISO` 零调用方（§1.15 #5）。用户 2026-08-03 拍板不做。真要做还得设计「正在被 VM 挂载的 ISO 不能删」的守卫与删后 `vm.iso` 失效的提示 | 需用户排期 |
+| **D43** | **`filenames` 源返回索引噪声** —— `/DATA/**/site-packages/…` 下的依赖源码、以及 `is_dir: true` 的纯目录项都会当结果返回（§7.10c）。排除规则应做在索引侧，前端不代劳 | 后端票 |
 | **D15** | **后端 `POST /v1/kvm/vms` 不接受 `autostart`** —— `model.CreateVMRequest` 无此字段，导致「新建 VM 继承全局设置的自动启动」在 Vue2 里从来没生效过（§1.15）。要么后端加字段，要么前端建完再补一次 `PUT /vms/:id/autostart`（后者多一次请求、且失败态难表达，未采用） | 后端票 |
 
 ---
