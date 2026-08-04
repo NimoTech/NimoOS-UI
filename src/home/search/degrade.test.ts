@@ -34,11 +34,17 @@ describe('deriveDegrade', () => {
     const d = deriveDegrade(agg(['no_accessible_roots']), 0)
     expect(d.empty).toBe('no_roots')
     expect(d.unavailableSources).toEqual([])
+    // no_accessible_roots 必须被这一分支的 continue 吃掉,不能落到 unknownWarnings。
+    // (若删掉 noRoots=true 后面的 continue,它会越过 endsWith('_unavailable') 检查
+    //  漏进 unknownWarnings,而 empty/unavailableSources 恰好不受影响——若不断言这里,
+    //  10 例会照样全绿,变异验证时实测过这个漏洞,所以补这一行。)
+    expect(d.unknownWarnings).toEqual([])
   })
 
   it('no_accessible_roots 优先于 backend_not_ready(即使同时有源不可用)', () => {
     const d = deriveDegrade(agg(['no_accessible_roots', 'images_unavailable']), 0)
     expect(d.empty).toBe('no_roots')
+    expect(d.unknownWarnings).toEqual([])
   })
 
   it('零结果 + 有 warning → backend_not_ready(不是「没找到」)', () => {
