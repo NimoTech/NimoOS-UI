@@ -1,6 +1,5 @@
 // Search 区视图层共享类型。**纯类型,零逻辑、零 Vue、零 i18n 依赖** ——
 // reasons / buildSearchView / degrade 三个纯函数模块与组件共用这一份。
-import type { ImageHit } from '@nimotech/nimoos-service'
 
 /** 排序理由标签的语义色。沿用现有 .rz-* 样式;spec §7.5 删掉了 demote 档
  *  (后端没有任何降权信号,demo 里那个「Likely a person name · demoted」是编的)。 */
@@ -26,7 +25,7 @@ export interface ResultRow {
   isDir: boolean
   reasons: Reason[]
   badge: SourceBadge
-  /** 摘要文本;只有 semantic 源有,其余为空串 */
+  /** 摘要文本:semantic 源的 `preview.text`,或 images 源的 `caption`;filenames 源为空串 */
   snippet: string
   /** 排名层(1–5,见 spec §7.4 + 本计划补充规则 A2);不展示,仅排序用 */
   layer: number
@@ -59,5 +58,3 @@ export interface DegradeState {
   /** 空态种类;'none' = 有结果,不显示空态 */
   empty: 'none' | 'no_roots' | 'backend_not_ready' | 'no_match'
 }
-
-export type { ImageHit }

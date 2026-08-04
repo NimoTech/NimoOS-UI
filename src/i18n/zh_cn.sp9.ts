@@ -574,7 +574,7 @@ export default {
   searchSourceSemantic: '语义搜索不可用',
   searchSourceImages: '图片搜索不可用',
   searchSourceFilenames: '文件名搜索不可用',
-  searchNoticePrefix: '本次未参与搜索:',
+  searchNoticePrefix: '本次未参与搜索：',
   // 三种空态(spec §7.8):「没搜到」与「后端没就绪」必须分得开。
   searchEmptyNoMatch: '没有匹配的文件',   // Vue2 zh_CN.json 逐字
   searchEmptyNoRoots: '没有可搜索的目录',

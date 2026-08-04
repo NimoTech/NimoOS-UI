@@ -280,6 +280,19 @@ describe('SearchDialog', () => {
     expect(document.body.textContent).not.toContain('搜索后端未就绪')
   })
 
+  // no_roots 空态同样要列出哪几源没参与:deriveDegrade 见到 no_accessible_roots 就把
+  // empty 定成 'no_roots',同一批 warnings 里的 images_unavailable 仍会进 noticeItems ——
+  // 若把副标题的条件钉死在 'backend_not_ready',这行信息算出来了却无处渲染,被静默吞掉。
+  it('no_roots 空态也列出未参与的源(不是只有 backend_not_ready 才列)', async () => {
+    agentTool.mockResolvedValue(agg({ warnings: ['no_accessible_roots', 'images_unavailable'] }))
+    await open()
+    await search('zzz')
+    expect(document.body.textContent).toContain('没有可搜索的目录')
+    const sub = document.body.querySelector('.search-empty-sub') as HTMLElement
+    expect(sub).not.toBeNull()
+    expect(sub.textContent).toContain('图片搜索不可用')
+  })
+
   it('请求失败 → 错误态 + 重试按钮,绝不显示成空结果', async () => {
     agentTool.mockRejectedValue(new Error('ai down'))
     await open()

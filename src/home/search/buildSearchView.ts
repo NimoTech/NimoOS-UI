@@ -1,4 +1,7 @@
-import type { NormalizedAggregate, FileNameHit, SemanticHit, ImageHit } from '@nimotech/nimoos-service'
+// 三个 hit 类型不再单独 import:agg.filenames / agg.semantic / agg.images 本来就是
+// FileNameHit[] / SemanticHit[] / ImageHit[],原先那三处 `as XxxHit[]` 是同类型断言(无意义),
+// 删掉断言后这几个名字在本文件里就没有消费方了。
+import type { NormalizedAggregate } from '@nimotech/nimoos-service'
 import { IMAGE_X_GENERIC, VIDEO_X_GENERIC, AUDIO_X_GENERIC } from '../../files/util/fileCategories'
 import { filenameReason, semanticReason, imageReason } from './reasons'
 import type { Reason, ResultCategory, ResultRow, SearchTab, SearchView, SourceBadge } from './types'
@@ -90,7 +93,7 @@ export function buildSearchView(agg: NormalizedAggregate, query: string): Search
     // category 以先到的为准:filenames 先入队,它的 ext 判定比 mime 更贴近用户看到的文件名
   }
 
-  for (const h of agg.filenames as FileNameHit[]) {
+  for (const h of agg.filenames) {
     const exact = !!q && h.name.toLowerCase() === q
     merge({
       realPath: h.path,
@@ -106,7 +109,7 @@ export function buildSearchView(agg: NormalizedAggregate, query: string): Search
     })
   }
 
-  for (const h of agg.semantic as SemanticHit[]) {
+  for (const h of agg.semantic) {
     const path = h.paths[0]?.path
     if (!path) continue // 无路径 → 无法预览/定位,整条丢弃
     const isOcr = h.kind === 'ocr'
@@ -128,7 +131,7 @@ export function buildSearchView(agg: NormalizedAggregate, query: string): Search
     })
   }
 
-  for (const h of agg.images as ImageHit[]) {
+  for (const h of agg.images) {
     merge({
       realPath: h.path,
       name: h.name || nameOf(h.path),

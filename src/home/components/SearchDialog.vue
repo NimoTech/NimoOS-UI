@@ -69,7 +69,10 @@ const { query, state, view, degrade, errorDetail, run, reset } = useSearchQuery(
 
 // displayNames 就绪后 toVirtualPath 才能把 /DATA/... 翻成 /NimoOS-HD/...；
 // 未就绪时 toVirtualPath 原样返回真实路径，不阻塞渲染。
-onMounted(() => { void files.loadRoots() })
+// ⚠️ 必须带 `!files.disks.length` 守卫（照 SharesPage.vue:24 / DropPage.vue:50 的既有写法）：
+//    本组件在 Home.vue 里是**无条件挂载**的，没有守卫的话每次进桌面都多打一次
+//    service.storage.list —— 而这份盘符列表全站共用，别处已经拉过就不必再拉。
+onMounted(() => { if (!files.disks.length) void files.loadRoots() })
 
 const TAB_LABEL_KEYS: Record<string, string> = {
   all: 'searchTabAll', Documents: 'searchTabDocuments', Images: 'searchTabImages', Audio: 'searchTabAudio', Videos: 'searchTabVideos',
@@ -148,8 +151,12 @@ const EMPTY_KEYS: Record<string, string> = {
 }
 const showEmpty = computed(() => state.value === 'done' && view.value?.total === 0)
 const emptyText = computed(() => t(EMPTY_KEYS[degrade.value?.empty ?? 'no_match'] ?? 'searchEmptyNoMatch'))
-// 「后端没就绪」时光说一句还不够，得指出到底哪几源没参与。
-const showEmptySources = computed(() => degrade.value?.empty === 'backend_not_ready' && noticeItems.value.length > 0)
+// 空态时光说一句标题还不够，得指出到底哪几源没参与。
+// ⚠️ 条件不能钉死在 'backend_not_ready'：warnings = ['no_accessible_roots','images_unavailable']
+//    时 deriveDegrade 给出的是 empty='no_roots'，noticeItems 明明算出来了却无处渲染
+//    （降级提示条 .search-notice 只在有结果时才画）—— 那几行信息就这么被吞掉。
+//    放宽成「任何非 none 的空态 + 有内容」。
+const showEmptySources = computed(() => degrade.value?.empty !== 'none' && noticeItems.value.length > 0)
 
 const showResults = computed(() => state.value === 'done' && !!view.value && view.value.total > 0)
 
