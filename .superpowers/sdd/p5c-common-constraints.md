@@ -975,6 +975,57 @@ T10 当时正有未提交的产品改动在工作树里,**被一并清掉**;它�
 若某屏在蓝本里也没有入口(如 `/ai/parser`,T10 已实证 Vue2 相同),
 **要显式写明「无入口是 1:1,靠 X 进入」**,而不是默认读者知道。
 
+### 1.4 🔴🔴 蓝本源锁定与「T0 必须验蓝本源」(2026-08-04 用户拍板 + 协调者补漏)
+
+**用户口径**:整个 Vue2→Vue3 项目以 7-15 那次分支为蓝本;**但知识库(P5)当初明示「按 Vue2 最新远程代码为蓝本」**。
+**这条从来没进过任何治理文件或记忆 —— 这就是它被漏掉的原因。**
+
+#### 事故:P5a/P5b/P5c 三期用的都是 7-31 的本地快照,不是最新远端
+- 本期全程读 `NimoOS-UI` 本地 `main`@**`7a6ee6b7`**(2026-07-31 16:05,`.git/FETCH_HEAD` 也停在 07-31 16:25)。
+- 2026-08-04 走 SSH 实拉真远端(`git fetch git@github.com:NimoTech/NimoOS-UI.git main`)→ **上游领先 16 个提交**,最新 **`65cfda58`**。
+- 🔴 **我原来的治理只写了「蓝本一律 `git show main:` 读、工作树不可信」—— 只防了「别读工作树」,
+  完全没防「`main` 本身可能是旧的」。十份任务书、十刀,一处都没要求验证蓝本源是最新远端。**
+
+#### 比对结果:P5 范围内**功能完全等价**(所以本期不返工)
+元凶提交 `3822d378 chore: translate Chinese to English, and route the last hardcoded strings through i18n (#133)`。
+逐文件比 `7a6ee6b7` vs `65cfda58`:
+
+| 文件 | 差异 |
+|---|---|
+| `ParserStatus.vue`(P5c) | 4 处 **HTML 注释**中→英 |
+| `knowledge.scss` | 1 处**注释**中→英 |
+| `SearchView.vue` / `FileDetailDrawer.vue` / `KFileViewer.vue`(P5e) | 3 + 1 + 1 处**注释**中→英 |
+| `knowledgeStore.js`(参考) | 1 处**注释**中→英 |
+| `zh_CN.json` | 🔴 **0 个键的值变了**;增 18 / 删 16 **全是相册区 + 新闻订阅 + 系统日志**,与知识库零关系 |
+| P5d 五个笔记文件 · `WikiView` · `wikiViewHelpers` · `RootsView` · `AllowlistView` · `searchAggregate` · `SettingsView` · `ParserTest` · `parser-styles.scss` · `parserStore.js` · `FolderBrowser*` | **逐字相同** |
+
+**`$t()` 字符串 / DOM / 类名 / 逻辑 —— 一处都没变。**
+
+#### 🔴 裁定(用户 2026-08-04)
+1. **P5 全期(P5a→P5f)蓝本锁定 `7a6ee6b7`,不换。**
+   理由:① 两个 sha 在 P5 范围内功能等价,换了没收益;② **同一期内基准不许漂** ——
+   P5a-P5c 已按旧的做完,换了 P5d-P5f 就跟前三批不同源、评审对标要分两套基准;
+   ③ 那些差异全是**中文注释翻成英文**,而移植规矩本来就是「注释重写成中文 + 蓝本行号」,**对我们零意义**。
+2. 🔴 **通用纪律(新增):每期 T0 的第一个动作 = SSH fetch 真远端 + 比对本期全部蓝本文件的校验和**,
+   **把「远端 sha + 逐文件比对结果 + 本期锁定哪个 sha」写进 T0 报告**。不许拿本地 `main` 当权威。
+   命令:`git fetch git@github.com:NimoTech/NimoOS-UI.git main`(HTTPS 无凭据必失败,见记忆 `github-fetch-via-ssh`)。
+   ⚠️ **fetch 只写 `FETCH_HEAD` + 下载对象,不动 `main` / `origin/main` / 工作树** —— 已实测确认,
+   共享检出安全(那个仓被 SP7/SP9 并发会话共用)。
+   ⚠️ `65cfda58` 现已在本地对象库,`git show 65cfda58:<path>` 可直接读、不用再 fetch。
+3. **若某期比对出「功能性差异」(非注释),必须停下来问用户换不换基准** —— 不许自己决定。
+
+### 4.5 `AllowlistView` 归属(用户 2026-08-04 拍板)
+
+P5c 把 `AllowlistView.vue`(**249 行**)移出本期后**一直没有新归属**,而 `DEFERRED_TABS` 里 `'allowlist'` 还留着 ——
+若不指派,P5d/P5e/P5f 做完仍会剩 1 个占位项、**「rail 9 项全部落地」永远宣告不了**。
+
+🔴 **用户拍板:`AllowlistView` 归 P5f。**
+→ **P5f = Wiki + 索引根 + 白名单**:`WikiView` 314 + `wikiViewHelpers` 95 + `RootsView` 289 + `AllowlistView` 249 = **947 行**。
+→ P5f 也是**清空 `DEFERRED_TABS` 并保留机制**的那一期(K7,承 P4 I2 教训),一起收干净才能宣告全区落地。
+→ 连带:`.k-section-body`(蓝本 `knowledge.scss:985-991`,P5c 因 Allowlist 移出而**故意没搬**,见 E-3)**归 P5f 搬**。
+
+**剩余三批口径**:P5d 笔记 **717** → P5e 搜索 **820** → P5f Wiki+Roots+Allowlist **947**。
+
 ## 13. 验收清单纪律(**下游与协调者都受约束**)
 
 P5b 验收第 1 轮得来的两条,逐字生效:
