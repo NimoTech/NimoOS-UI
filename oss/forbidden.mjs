@@ -80,6 +80,13 @@ function exactLine(literal) {
  * @codemirror/search、未来任何名字带 "ai" 的包)。parser 走另一条更窄的路径(见下方
  * parser 词条注释)—— photo/gallery/transcript/wiki 这几个词完全不给 lockfile 开洞,
  * 依赖名里真出现就应该被抓到人工看一眼。
+ *
+ * ★ 已知盲区(T15 记账,非缺陷修复):这条"形状"规则只看一行像不像 lockfile 记录行,
+ * 不看包名具体是什么 —— 所以理论上,如果哪天真的引入了一个整包名恰好含 ai/search
+ * 语义的私有包(例如假设的 `@nimotech/nimoos-search`),这条规则会像放行 `@codemirror/search`
+ * 一样把它也放行,不会被抓到人工看一眼。当前 lockfile 里没有这种包(已 grep 核实),
+ * 但后人往 lockfile 引入新依赖时,如果包名本身就是要剥离的私有服务名,不能指望这条
+ * 守卫拦住 —— 需要人工留意包名,或者在这里为该具体包名加一条排除规则。
  */
 const PNPM_LOCK_LINE = /^\s+(resolution|version|specifier|'?@?[\w@/.-]+'?:)/
 

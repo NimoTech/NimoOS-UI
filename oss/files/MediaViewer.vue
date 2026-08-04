@@ -155,6 +155,8 @@ onMounted(async () => {
       screenshot: true,
       airplay: true,
       playsInline: true,
+      // theme-exception:artplayer 控件条主题色是该库自己的内部渲染参数,不接受
+      // CSS 变量,无法 token 化 —— 属于主题约定允许的第三方库例外。
       theme: '#007AE5',
       lang: locale.value.replace('_', '-'),
     })

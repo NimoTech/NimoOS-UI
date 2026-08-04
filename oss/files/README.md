@@ -27,7 +27,8 @@ packages/service/    HTTP / 认证内核共享包(@nimotech/nimoos-service),已�
 
 ## 开始
 
-需要 Node.js ≥ 20 与 **pnpm**(勿用 yarn / npm)。
+需要 Node.js ≥ 20.19(vite 7 的 engines 要求 `^20.19.0 || >=22.12.0`,20.0–20.18 装完会
+撞引擎错误)与 **pnpm**(勿用 yarn / npm)。
 
 ```bash
 pnpm install
