@@ -12,6 +12,111 @@
 - 附录(**T0 产出,缺位不许开工 T1**):`p5d-appendix-A-i18n.md` · `p5d-appendix-B-tokens.md` · `p5d-appendix-D-classes.md`
 - fixture:`p5d-fixtures/`(T0 产出,真机响应体 + README 的重抓命令)
 
+---
+
+# §0 开工必读(**本节自成一体 —— 即使你只读这一节也不许搞错**)
+
+> 🔴 **本节是为「新会话 / 新 subagent 只看到这份计划书」的场景写的。**
+> 下面的工作区、蓝本版本、硬约束**不许从记忆或习惯里推**,一律照本节。
+
+## §0.1 工作区(**最容易造成不可逆损失的一节**)
+
+| 仓 / 目录 | 权限 | 说明 |
+|---|---|---|
+| **`/home/nimo/NimoTech/.sp8/NimoOS-New-UI`** | 🟢 **唯一可写仓** | 分支 **`sp8-ai`**。本期全部产品代码与台账都在这里 |
+| `/home/nimo/NimoTech/.sp8/NimoOS-Service` | 🟡 **本期零改动** | 共享包 `@nimotech/nimoos-service`,17 个 `notes` 方法已在包内 → **不需要跨仓 build、不需要为它 `pnpm install`** |
+| `/home/nimo/NimoTech/NimoOS-UI` | 🔴 **只读** | Vue 2 蓝本源。**唯一例外**是往 `docs/vue3-migration-sp3` 提 spec/plan/roadmap(**必须带 pathspec**;该分支被 SP7/SP9 **并发会话**共用,提交前先看有没有别人的新提交)。<br>🔴🔴 **永远别在这里 `checkout` / `stash` / `reset`** |
+| `/home/nimo/NimoTech/NimoOS-New-UI` | 🔴 **一个字都不许碰** | SP6/SP9 的主工作树 |
+| `/home/nimo/NimoTech/.sp7/NimoOS-New-UI` | 🔴 **一个字都不许碰** | SP7 相册区,**有并发会话** |
+
+**git 禁令**(全期):禁 `git add -A` / `git add .` · 禁 `rebase` / `reset` / `stash` / `merge` / `push`。
+台账与报告在 `.superpowers/` 下、被 `.gitignore` 盖着 → **一律 `git add -f`**。
+🔴 **SP7 曾把整个 `.superpowers` 目录弄丢过(gitignore 导致 git 救不回)。**
+
+## §0.2 蓝本版本(**锁死,不许漂**)
+
+```bash
+# 唯一正确的读蓝本方式:
+git -C /home/nimo/NimoTech/NimoOS-UI show 7a6ee6b7:<path>
+```
+
+- 🔴 **蓝本 = `NimoOS-UI`@`7a6ee6b7`**(= 该仓本地 `main`,2026-07-31)。**P5 全期(P5a→P5f)锁这一个 sha,用户 2026-08-04 拍板,不许换。**
+- 🔴 **禁止读 `NimoOS-UI` 的磁盘工作树** —— 它签出的是 `docs/vue3-migration-sp3`(2026-07-15 分叉),
+  **压根没有 `NotesView.vue`**。读工作树会得到「文件不存在」或旧版内容。
+- **远端核验已完成(2026-08-04,协调者)**:真远端 `main` = **`65cfda58`**(领先 16 个提交)。
+  P5d 五个蓝本 + 四份 Vue2 spec **逐字节相同**;`zh_CN.json` **0 个键的值变了**(增 18/删 16 全是相册+新闻订阅+系统日志);
+  `knowledge.scss` / `knowledgeStore.js` 各 1 处**注释**中→英。**无功能性差异 → 锁 `7a6ee6b7`。**
+  ⚠️ `65cfda58` 已在本地对象库,`git show 65cfda58:<path>` 可直接读、不用再 fetch。
+- 🔴 **T0 仍须独立复跑一遍蓝本源核验**(治理 §1.4 的通用纪律,见下方 T0 的 DoD 第 1 条)。
+  `fetch` 只写 `FETCH_HEAD`,**不动 `main`/`origin/main`/工作树**(已实测,共享检出安全)。
+- **本期起点(可写仓 HEAD)**:`sp8-ai`@**`b905943`**(kickoff 写的 `bbbdca4` 是错的 —— E-26)。
+
+## §0.3 硬约束(违反任一条即缺陷)
+
+1. 🔴 **颜色**:一切可见颜色必须是 `var(--…)`;**禁 `#hex` / `rgb()` / `rgba()` / 具名色**(`white`/`black` 也算);
+   禁 `theme-exception` 逃逸;**注释里也不许出现色字面量**。新 token 必须在 `knowledge.scss` 的
+   **两个**主题块里**都**显式写值。`transparent` 是关键字,不算。
+2. 🔴 **i18n**:新键**必须同时**进 `src/i18n/zh_cn.ts` 与 `src/i18n/en_us.ts`(`parity.test.ts` 会断言键集一致)。
+   zh 值一律**逐字照抄** `git show 7a6ee6b7:src/assets/lang/zh_CN.json`,**不许自己翻译、不许改标点**。
+3. 🔴 **禁部署**:**不许跑 `./scripts/deploy.sh`、不许写 `/var/lib`**。
+   用户 2026-08-03 拍板:master 先发不含 AI/相册的快照版,`sp8-ai` 未合 master → **本期验收全走 dev server。**
+4. 🔴 **验收 dev server 端口 `:5288`,不另起端口。**(**PID 会变,别把 PID 写进 DoD** ——
+   用 `ss -ltnp | grep 5288` 或 `pgrep -af "vite.*5288"` 现查。)
+   **每刀提交后由协调者 kill 重起**(P3a 教训:不重起会验到旧代码)。
+5. 🔴 **`.sp8/NimoOS-New-UI/vite.config.ts` 里的 `optimizeDeps.exclude` 别删** ——
+   它堵的是「dev server 喂旧共享包」那个坑(记忆 `nimoos-service-pnpm-drift`;P5b T11 已栽过一次)。
+6. **移植纪律**:界面严格 1:1(版式/间距/结构/文案/DOM 顺序/按钮位置逐字照蓝本);
+   Vue2 的 bug/竞态/吞错**不照抄**,改正确逻辑并按治理 §3 申报登记;**禁无关重构**。
+7. **偏离**:只有治理文件里 **K1–K44** 登记过的偏离才许做;**照抄不改**的条目是 **N1–N32**。
+   其余一律**先申报再做**;拿不准写 `NEEDS_CONTEXT` 并**停下**。
+8. **零改动清单**:见治理 §1.1。本期**显式解禁**的只有 5 个文件
+   (`SettingsPage.vue` / `SettingsPage.test.ts` / `package.json` / `pnpm-lock.yaml` / `openInApp.ts`)
+   加 3 个测试文件各一条注释。**要改清单里的其它文件 → 停下写 `NEEDS_CONTEXT`。**
+
+## §0.4 三门(每刀提交前必须全过)
+
+```bash
+cd /home/nimo/NimoTech/.sp8/NimoOS-New-UI
+pnpm test                      > /tmp/p5d-tN-test.log  2>&1; echo "exit=$?"
+pnpm exec vue-tsc --noEmit     > /tmp/p5d-tN-tsc.log   2>&1; echo "exit=$?"
+pnpm build                     > /tmp/p5d-tN-build.log 2>&1; echo "exit=$?"
+```
+
+- **全量,不许只跑 `src/ai/` 子集;输出完整落盘,不许 `| tail`。** 报告贴 `Test Files` / `Tests` 两行。
+- 🔴 **起点基线(协调者 2026-08-04 干净单轮实测,零红零复跑)**:
+  **`Test Files 326 passed (326)` / `Tests 3515 passed (3515)`**,`vue-tsc` exit 0,`vite build` exit 0。
+  其它基线:`.vue` **179** · `aiKb*` **295** · 全表键数 **1503**(真实模块导入)· `KIcon.PATHS` **43**。
+- **已知噪声**(只它们红就复跑一次并说明,**不要顺手改**):
+  `src/files/upload/persist.test.ts > persist > dropPersisted removes record + blob and frees budget`(IndexedDB flaky)·
+  `AgentComposer.test.ts` 的 vue-i18n teardown 竞态。
+- **包管理器是 `pnpm`**,勿用 yarn/npm。
+
+## §0.5 🔴 清缓存之后:T0 必须先把基线重新坐实
+
+**用户 2026-08-04 在开工前清了缓存。** 缓存清到哪一层决定要补哪些步骤:
+
+| 清了什么 | 必须补的动作 |
+|---|---|
+| `node_modules/.vite`(Vite 预打包缓存) | **kill 重起 dev server `:5288`**;首次 `pnpm test` 会慢 |
+| `.sp8/NimoOS-New-UI/node_modules` 整个 | `cd ../NimoOS-Service && pnpm install && pnpm build` → 回本仓 `pnpm install`(见仓内 `CLAUDE.md`) |
+| 🔴 **`.sp8/NimoOS-Service/dist/`** | **必须 `cd ../NimoOS-Service && pnpm build` 重建。** 这是共享包产物、消费仓直接吃它。<br>⚠️ **这里有历史事故**:`dist/wiki.d.ts` 被 07-31 的变异探针改成 `pathX` 没还原,因为 `dist/` 在 `.gitignore` 里、**`git status` 全程干净、三门全绿,污染活了三天**(P5c §1.3.1)。**清掉重建反而是好事,但重建后要确认 `dist` 与 `src` 一致。** |
+| `dist/`(本仓构建产物) | 无需动作,`pnpm build` 会重建 |
+
+🔴 **T0 的第 0 步(在做任何别的事之前)**:跑一遍三门,确认仍是 **326 / 3515 / 0 / 0**。
+- **对得上** → 照 §0.4 的基线继续,报告里写「清缓存后基线复核一致」。
+- **对不上** → **立刻停下写 `NEEDS_CONTEXT`**,把差异贴给协调者。
+  🔴 **不许自己「修」到对得上** —— 基线错了,后面十刀的 DoD 数字全是错的。
+
+## §0.6 必读顺序(**跳读会出事**)
+
+1. `p5a-common-constraints.md` 全文 → 2. `p5b-common-constraints.md` 全文 →
+3. `p5c-common-constraints.md` 全文 → 4. **`p5d-common-constraints.md` 全文** → 5. 本计划书 → 6. 三份 `p5d-` 附录
+→ 7. 你自己那一刀的 brief
+
+**同一节里,后读的那份为准。** 权威优先级见本文件开头。
+
+---
+
 **Goal:** 把 Vue2 的知识库笔记区(列表 + 编辑器 + tiptap 富文本)1:1 迁到 New-UI,
 并把知识库整区**从 AI 设置页可点达**(票 1)。
 
@@ -33,7 +138,8 @@
 | Service 仓 | `sp8-ai`,**全期零改动**(17 个 `notes` 方法已在包内,协调者逐个核实)→ 不跨仓 build |
 | 三门基线 | 🔴 **326 文件 / 3515 例全绿** · `vue-tsc` 0 · `vite build` 0(协调者 2026-08-04 干净单轮实测,与 kickoff 逐字一致) |
 | 其它基线 | `.vue` **179** · `aiKb*` **295** · 全表键数 **1503**(真实模块导入) · `KIcon.PATHS` **43** |
-| 验收 | dev server `:5288`(PID 401283)。**每刀提交后由协调者 kill 重起**;🔴 **T4 装完依赖必须重起**(§14-3) |
+| 验收 | dev server **`:5288`**,**PID 会变、别写进 DoD**(用 `ss -ltnp \| grep 5288` 现查)。**每刀提交后由协调者 kill 重起**;🔴 **T4 装完依赖必须重起**(§14-3) |
+| 🔴 清缓存 | 用户 2026-08-04 开工前清了缓存 → **T0 的第 0 步是重新坐实三门基线**,见 **§0.5** |
 | 收官目标 | **331 文件**(+5 测试文件)· color-guard **+3 例**(`.vue` 179 → **182**) |
 
 ## 本期真实体量(kickoff 少算了 scss —— E-28)
@@ -126,6 +232,11 @@ T0 验蓝本源 + 三附录 + fixture + tiptap 可测性探明        (零产品
 
 **DoD**
 
+0. 🔴 **第 0 步(在做任何别的事之前):清缓存后重新坐实三门基线** —— 见 **§0.5**。
+   跑三门,确认仍是 **326 文件 / 3515 例 / tsc 0 / build 0**。
+   **对不上就立刻停下写 `NEEDS_CONTEXT`,不许自己「修」到对得上** ——
+   基线错了,后面十刀的 DoD 数字全是错的。报告里写「清缓存后基线复核一致/不一致 + 实测四个数字」。
+   ⚠️ 若 `.sp8/NimoOS-Service/dist/` 被清了,**先 `cd ../NimoOS-Service && pnpm build` 重建再跑三门**。
 1. 🔴 **蓝本源核验(治理 §1.4 的通用纪律)** —— 协调者已做一遍,**T0 独立复跑并写进报告**:
    `git -C /home/nimo/NimoTech/NimoOS-UI fetch git@github.com:NimoTech/NimoOS-UI.git main`
    (**HTTPS 无凭据必失败**,记忆 `github-fetch-via-ssh`)
