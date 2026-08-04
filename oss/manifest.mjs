@@ -48,8 +48,20 @@ export const DELETE = [
   'CLAUDE.md',
   'design-export',
 
-  // 搜索 demo 的鱼(SearchDialog 写死的 demo 素材)
-  'public/demo/fish_video_poster.jpg',
+  // SP9-P7:搜索面板的视图层纯函数模块 + composable。唯一消费方 SearchDialog.vue /
+  // SearchDialog.test.ts 都在本表里,整目录零消费方。
+  // ⚠️ 必须整目录删,不能只删词表命中的那几个:词表(forbidden.mjs 的 search 条目)只
+  //    命中 types.ts / reasons.ts / reasons.test.ts / buildSearchView.ts /
+  //    buildSearchView.test.ts,而 degrade.ts / degrade.test.ts / useSearchQuery.ts /
+  //    useSearchQuery.test.ts 一个词都不命中 —— 偏偏 useSearchQuery.ts 第 3 行
+  //    `import { buildSearchView } from './buildSearchView'`。只删命中的那批,产出树
+  //    的类型检查与测试必红,而泄漏守卫和 tree 测试全绿(它们只扫词、不构建产物)。
+  //    这正是 tree.test.mjs 末尾那道"产物树能构建"门存在的理由。
+  'src/home/search',
+
+  // (搜索 demo 的鱼 public/demo/fish_video_poster.jpg 已于终审 cleanup 批从私有仓
+  //  直接删除 —— 它在私有版也是零引用的孤儿,不必再由本清单剥离。DELETE 条目路径
+  //  不存在会 exit 1,所以这条必须一并撤掉。)
 
   // 测试同步:整体删除的 9 个孤儿测试(T13;每个都已核实其唯一/主要消费的模块已在
   // 上面 DELETE 掉,不是"混合型",不能靠 PATCH 抠用例保留部分覆盖率——见 task-13-report.md)
@@ -69,6 +81,12 @@ export const DELETE = [
 export const SERVICE_DELETE = [
   'src/photos.ts',
   'src/photos.test.ts',
+  // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,
+  // 唯一消费方是已删的 SearchDialog.vue / src/home/search/**。
+  // 光删这两个文件不够 —— index.ts 里还有三处接线(见下方 SERVICE_PATCH),
+  // 不打那三个补丁的话内嵌共享包直接构建失败,而词表守卫与 tree 测试全绿。
+  'src/search.ts',
+  'src/search.test.ts',
 ]
 
 /** 类 2 · 整文件替换,各带私有侧哈希钉。T10-T13 填。 */
@@ -448,6 +466,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: "" },
   { path: 'src/i18n/en_us.sp9.ts',
     find: "  // ── SP9-P4 folder-permissions ─────────────────────────────────────────\n  settingsFpIntro: 'Manage each smart feature\\'s folders in its own section below.',\n  settingsFpDataPending: 'Data source pending: to be wired after the Photos (SP7) and AI (SP8) areas are merged.',\n  settingsFpFilenameIndex: 'Filename index',\n  settingsFpServiceOffline: 'Service offline',\n  settingsFpFilenameDesc: 'Folders scanned into the filename search index.',\n  settingsFpNoFolders: 'No folders configured.',\n  settingsFpKnowledge: 'Knowledge base',\n  settingsFpKnowledgeDesc: 'Folders indexed into the knowledge base (RAG).',\n  settingsFpIndexedFolders: 'Indexed folders',\n  settingsFpExcludedSubfolders: 'Excluded subfolders',\n  settingsFpAddExclusion: 'Add exclusion',\n  settingsFpNoExclusions: 'No exclusions.',\n  settingsFpAiHidden: 'Folders hidden from AI',\n  settingsFpCurrentUserOnly: 'Current user only',\n  settingsFpAiDesc: 'The AI agent can never see these folders.',\n  settingsFpNoAiBlocked: 'No folders blocked — the AI may access everything except the built-in system blacklist.',\n  settingsFpPhotos: 'Photos',\n  settingsFpUpdateRequired: 'Update required',\n  settingsFpPhotosDesc: 'Folders watched for the photo library.',\n  settingsFpPhotosAuto: 'Automatic mode: Photos currently watches the folders below (follows mounted volumes).',\n  settingsFpSwitchManual: 'Switch to manual management',\n  settingsFpPhotosStale: 'Photos service needs an update before its column can be managed here.',\n  settingsFpCoveredBy: 'Covered by {p}',\n  settingsFpGlobRules: '{n} pattern rules (e.g. *.key) are managed in AI settings.',\n  settingsFpAddFolder: 'Add folder',\n\n",
+    replace: "" },
+
+  // ── SP9-P7:两个 sp9 分片里"Search"整节 20 键(searchReason* 7 / searchBadge* 3 /
+  //    searchSource* 3 / searchNoticePrefix 1 / searchEmpty* 3 / searchError* 2 /
+  //    searchRetry 1)。SearchDialog.vue 与 src/home/search/** 都已整体删除,20 键全是
+  //    孤儿。连同小节标题注释一起删(注释里点名 SearchDialog / spec 章节号 / demo,
+  //    本项目发布的是源码本身,注释会逐字进公开仓库)。
+  //    锚点从小节前的空行开始吃,避免删完在 kvmToggleCustom 与 `}` 之间留一个空行。
+  { path: 'src/i18n/zh_cn.sp9.ts',
+    find: "\n  // ── SP9-P7 Search ──(SearchDialog 接真后端;spec §7.5/§7.6/§7.8)\n  // 排序理由标签(reasons.ts 产 key、这里给文案)。demo 时代那些带计数的英文标签\n  // (Body match ×9 / Transcript match ×3)后端根本不返回,是编的,故新标签不带数字。\n  searchReasonFilename: '文件名命中',\n  searchReasonFilenameFuzzy: '文件名相关',\n  searchReasonBody: '正文命中',\n  searchReasonTranscript: '转写命中',\n  searchReasonOcr: '图片文字命中',\n  searchReasonCaption: '图片内容命中',\n  searchReasonSemantic: '语义相关',\n  // 来源徽标(取代 demo 的「98%」准确率——四源分数互不可比,百分比是编的)。\n  // 中文取自 Vue2 zh_CN.json 的 \"Semantic\" / \"Filenames\";OCR 沿用现状不译。\n  searchBadgeSemantic: '语义',\n  searchBadgeFilename: '文件名',\n  searchBadgeOcr: 'OCR',\n  // 降级提示条:哪些源本次没参与。三条源文案逐字取自 Vue2 zh_CN.json。\n  searchSourceSemantic: '语义搜索不可用',\n  searchSourceImages: '图片搜索不可用',\n  searchSourceFilenames: '文件名搜索不可用',\n  searchNoticePrefix: '本次未参与搜索：',\n  // 三种空态(spec §7.8):「没搜到」与「后端没就绪」必须分得开。\n  searchEmptyNoMatch: '没有匹配的文件',   // Vue2 zh_CN.json 逐字\n  searchEmptyNoRoots: '没有可搜索的目录',\n  searchEmptyNotReady: '搜索后端未就绪',\n  // 错误态(请求失败)。标题逐字取自 Vue2 zh_CN.json。\n  searchErrorTitle: '搜索失败',\n  searchErrorHint: '搜索服务当前不可用,请稍后重试',\n  searchRetry: '重试',\n",
+    replace: "" },
+  { path: 'src/i18n/en_us.sp9.ts',
+    find: "\n  // ── SP9-P7 Search ── (SearchDialog wired to the real backend; spec §7.5/§7.6/§7.8)\n  // Ranking-reason chips (reasons.ts produces the key, the copy lives here). The demo-era\n  // labels carried counts (Body match ×9 / Transcript match ×3) that the backend never\n  // returns — they were invented, so the new labels carry no numbers.\n  searchReasonFilename: 'Filename match',\n  searchReasonFilenameFuzzy: 'Filename related',\n  searchReasonBody: 'Body match',\n  searchReasonTranscript: 'Transcript match',\n  searchReasonOcr: 'Text in image',\n  searchReasonCaption: 'Image content match',\n  searchReasonSemantic: 'Semantically related',\n  // Source badges (replacing the demo's \"98%\" accuracy — the four sources' scores are\n  // not comparable, so the percentage was fabricated). Copy from Vue2's \"Semantic\" /\n  // \"Filenames\"; OCR keeps the existing wording.\n  searchBadgeSemantic: 'Semantic',\n  searchBadgeFilename: 'Filenames',\n  searchBadgeOcr: 'OCR',\n  // Degradation notice: which sources sat this search out.\n  searchSourceSemantic: 'Semantic search unavailable',\n  searchSourceImages: 'Photo search unavailable',\n  searchSourceFilenames: 'Filename search unavailable',\n  searchNoticePrefix: 'Not included in this search:',\n  // Three empty states (spec §7.8): \"found nothing\" must stay distinguishable from\n  // \"backend was not up\".\n  searchEmptyNoMatch: 'No matching files',\n  searchEmptyNoRoots: 'No searchable folders',\n  searchEmptyNotReady: 'Search backend not ready',\n  // Error state (request failed).\n  searchErrorTitle: 'Search failed',\n  searchErrorHint: 'The search service is unavailable, please retry',\n  searchRetry: 'Retry',\n",
     replace: "" },
 
   // ── 复审 Important:settingsAppsPendingDisabledHint 是活键(AppsPanel.vue 保留组件消费),
@@ -1183,4 +1214,14 @@ export const SERVICE_PATCH = [
     replace: '' },
   { path: 'src/types.ts',
     find: 'export interface PhotoAsset { id: string | number; [k: string]: unknown }\n', replace: '' },
+
+  // ── SP9-P7:index.ts 的三处 search 接线(SERVICE_DELETE 删掉 src/search.ts 之后
+  //    这三行全都指向不存在的模块,内嵌共享包直接构建失败)。────────────────────
+  { path: 'src/index.ts', find: "import { createSearch } from './search.js'\n", replace: '' },
+  { path: 'src/index.ts',
+    find: "export type { SearchSource, SearchFilePath, SearchCite, SemanticHit, FileNameHit, ImageHit, NoteHit, NormalizedAggregate } from './search.js'\n",
+    replace: '' },
+  { path: 'src/index.ts',
+    find: '  get search(): ReturnType<typeof createSearch> {\n    return createSearch(getHttp() as AxiosInstance)\n  },\n',
+    replace: '' },
 ]

@@ -39,9 +39,25 @@ describe('类 1 · 整体删除', () => {
       'src/settings/util/folderPermissionsView.ts',
       'src/settings/util/folderBrowser.ts',        // E3:零消费方,改为整体删除
       'src/settings/util/folderBrowser.test.ts',
-      'public/demo/fish_video_poster.jpg',
       'src/home/util/isAssetId.ts',                // T7 尾巴4:bindPhotos/PhotoTile 都没了之后的孤儿
+      // SP9-P7:搜索视图层整目录。前 5 个是词表命中的,后 4 个词表一个都不命中 ——
+      // 但 useSearchQuery.ts import 了 buildSearchView,漏删就是产物构建断裂(见文件末尾的构建门)。
+      'src/home/search',
+      'src/home/search/types.ts',
+      'src/home/search/reasons.ts',
+      'src/home/search/reasons.test.ts',
+      'src/home/search/buildSearchView.ts',
+      'src/home/search/buildSearchView.test.ts',
+      'src/home/search/degrade.ts',
+      'src/home/search/degrade.test.ts',
+      'src/home/search/useSearchQuery.ts',
+      'src/home/search/useSearchQuery.test.ts',
+      // 内嵌共享包的 search 域(SERVICE_DELETE)
+      'packages/service/src/search.ts',
+      'packages/service/src/search.test.ts',
     ]) expect(exists(rel), rel).toBe(false)
+    // fish_video_poster.jpg 不在上面这张表里:它已于终审 cleanup 批从私有仓直接删除
+    // (私有版也是零引用孤儿),不再由本清单剥离,断言它"不在产物里"已经恒真、没有判别力。
   })
 
   it('保留面还在', () => {
@@ -175,6 +191,9 @@ describe('类 3 · 设置与 Service 侧补丁', () => {
   it('E13:Service 不再导出 photos / PhotoAsset', () => {
     const i = read('packages/service/src/index.ts')
     expect(i).not.toMatch(/createPhotos|PhotoAsset|get photos/)
+    // SP9-P7:三处 search 接线(import / export type / getter)必须一起拆掉 ——
+    // 只删 src/search.ts 而留着这三行,内嵌包直接构建失败,而词表守卫全绿。
+    expect(i).not.toMatch(/createSearch|get search|NormalizedAggregate|SemanticHit|FileNameHit|ImageHit|NoteHit|SearchSource/)
     expect(read('packages/service/src/types.ts')).not.toMatch(/PhotoAsset/)
     // 保留面
     expect(read('packages/service/src/types.ts')).toContain('UserFolderPermission')
@@ -233,6 +252,14 @@ describe('类 3 · i18n 与主题 token', () => {
       'settingsFpAiDesc', 'settingsFpNoAiBlocked', 'settingsFpPhotos', 'settingsFpUpdateRequired',
       'settingsFpPhotosDesc', 'settingsFpPhotosAuto', 'settingsFpSwitchManual', 'settingsFpPhotosStale',
       'settingsFpCoveredBy', 'settingsFpGlobRules', 'settingsFpAddFolder',
+      // SP9-P7 搜索面板的 20 键(两个 sp9 分片)。SearchDialog.vue + src/home/search/**
+      // 全部删除后无一消费方。
+      'searchReasonFilename', 'searchReasonFilenameFuzzy', 'searchReasonBody',
+      'searchReasonTranscript', 'searchReasonOcr', 'searchReasonCaption', 'searchReasonSemantic',
+      'searchBadgeSemantic', 'searchBadgeFilename', 'searchBadgeOcr',
+      'searchSourceSemantic', 'searchSourceImages', 'searchSourceFilenames', 'searchNoticePrefix',
+      'searchEmptyNoMatch', 'searchEmptyNoRoots', 'searchEmptyNotReady',
+      'searchErrorTitle', 'searchErrorHint', 'searchRetry',
     ]
     for (const f of LOCALES) for (const k of DEAD) expect(read(f), `${f} :: ${k}`).not.toContain(`${k}:`)
   })
@@ -582,4 +609,33 @@ describe('泄漏守卫', () => {
     walk(tree)
     expect(hits).toEqual([])
   })
+})
+
+// ─── 产物树能构建(SP9-P7 终审 F2 新增)──────────────────────────────────────
+// 为什么需要这道门:上面所有守卫 —— forbidden.mjs 的词表、tree.test.mjs 的字符串断言、
+// "手工抽查"的第二重 grep —— **全都只扫词**。它们能回答"产物里还有没有不该有的字",
+// 回答不了"产物还能不能用"。SP9-P7 剥离时真实踩到的坑正是后者:
+//   · src/home/search/ 九个文件里,词表只命中五个;剩下的 useSearchQuery.ts 第 3 行
+//     import 了会被删掉的 buildSearchView —— 只删命中的那批,词表绿、tree 测试绿,
+//     产物却连类型检查都过不去。
+//   · packages/service/src/index.ts 的三处 search 接线同理:只删 src/search.ts 不打补丁,
+//     内嵌共享包直接构建失败,而所有扫词类守卫依旧全绿。
+// 判据因此定成"产物树能构建",不是"词表不命中"。
+describe('产物树能构建', () => {
+  it('pnpm install + vue-tsc --noEmit 在产物树上全绿(只扫词的守卫抓不到构建断裂)', () => {
+    const run = (file, args, what) => {
+      try {
+        execFileSync(file, args, { cwd: tree, stdio: 'pipe', encoding: 'utf8', env: { ...process.env, CI: '' } })
+      } catch (e) {
+        // stdio:'pipe' 会把编译器输出吞进子进程,不手动带出来的话只剩一句
+        // "Command failed",诊断价值为零 —— 本项目的纪律是"错误消息本身就是产品"。
+        throw new Error(`产物树 ${what} 失败:\n${e.stdout || ''}${e.stderr || ''}`)
+      }
+    }
+    // --prefer-offline:本机 pnpm store 命中时约 1s;冷 store 才会回落到网络。
+    // --no-frozen-lockfile:产物树的 lockfile 刚被 export.mjs 改写过 file: 路径,
+    //   CI 环境下 pnpm 默认 --frozen-lockfile 会因此拒绝安装。
+    run('pnpm', ['install', '--prefer-offline', '--ignore-scripts', '--no-frozen-lockfile'], 'pnpm install')
+    run('pnpm', ['exec', 'vue-tsc', '--noEmit'], 'vue-tsc --noEmit')
+  }, 600_000)
 })
