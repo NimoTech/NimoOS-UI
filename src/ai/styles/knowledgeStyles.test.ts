@@ -1031,6 +1031,7 @@ describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(�
 const KNOWLEDGE_VUE_FILES = [
   'components/FolderBrowser.vue',
   'components/KIcon.vue',
+  'components/NotesMarkdownEditor.vue',
   'parser/ParserStatus.vue',
   'parser/ParserTest.vue',
   'views/DashboardView.vue',
