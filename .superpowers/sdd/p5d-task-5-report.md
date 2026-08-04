@@ -107,7 +107,11 @@ describe:文件清单 1 + 抽取/覆盖度 70 + hex/rgb 70 + 具名色 70 = 211;
 - `git diff --stat`:`openInApp.ts` +27/-0、`openInApp.test.ts` +72/-0、
   `knowledgeStyles.test.ts` +181/-0 —— 全部纯新增,无删改行。
 
-## 修复轮 1 —— 具名色扫描先剥 HTML 注释
+## 修复轮 1 —— 具名色扫描先剥 HTML 注释 【已按协调者裁定回退,理由见「修复轮 2」】
+
+> 🔴 **本节记录的做法已被协调者本人推翻并要求回退**(见下方「修复轮 2(回退)」节)。
+> **反转不删、留痕** —— 本节原文保留,不代表当前代码状态。当前代码状态以「修复轮 2」为准
+> (`knowledgeStyles.test.ts` 逐字节回到 `11ad79b`,即本节改动之前的状态)。
 
 独立评审回执:规格 ✅、质量 ✅、零 Critical/Important。协调者按跨刀风险把评审的一条 Minor
 (`namedColorOffensesInValues` 未先剥 HTML 注释,散文注释里写 `background: black` 会误报)
@@ -208,3 +212,106 @@ hex/rgb/hsl)已由协调者登记为债务票 D-5,交 P5e/P5f。本期 `.vue` �
 (指令只点名前者,且"产品代码之外"的顺手扩大范围本身也需要协调者拍板)。是否需要同款处理,
 留给协调者判断——如需要,改法与本轮完全一致(两处 `stripColorCalls(tmpl)` 各自套一层
 `stripComments`)。
+
+**【修复轮 2 追记】上面这条"平行风险"提得对,但协调者据此得出的结论(两条扫描都该剥注释)
+是反的 —— 真正成立的结论是反过来的:「hex/rgb/hsl 测试不剥注释,是本档一贯且正确的口径」,
+所以具名色测试也不该剥注释。详见下方「修复轮 2」。**
+
+## 修复轮 2(回退)—— 具名色扫描恢复不剥注释(§0.3 明令注释也禁色字面量)
+
+### 协调者的裁定:修复轮 1 的判断是错的
+
+计划书 **§0.3 硬约束第 1 条原文**(协调者取证):
+> 一切可见颜色必须是 `var(--…)`;禁 `#hex` / `rgb()` / `rgba()` / 具名色(`white`/`black` 也算);
+> 禁 `theme-exception` 逃逸;**注释里也不许出现色字面量**。
+
+**结论**:注释里出现 `background: black` 是**真阳性**(§0.3 明令禁止),不是「误报」。
+修复轮 1 里我(实现者)与独立评审都把这个真阳性错判成假阳性,协调者又据此把"T6/T7/T8 的偏差
+申报注释必然含色字面量"当理由把它升级成必修——**这个前提本身不成立**:协调者核实 T2
+(`git show f128450 -- src/ai/styles/knowledge.scss`)的申报注释一律写「蓝本 `knowledge.scss:2060`」
+「附录 B §B.1 是权威」「alpha 沿用蓝本 0.3/0.24」——**引 file:line 与附录行号,不写色字面量**,
+且顺利通过了不剥注释的 hex/rgb 扫描。**T5 提出的"平行风险"(既有 hex/rgb/hsl 扫描同样不剥
+注释)恰恰是发现这个错误裁定的线索**:那条一直不剥注释的扫描不是遗漏,是本档一贯且正确的口径。
+
+### 回退内容
+
+1. 两个 `namedColorOffensesInValues` 调用点(`KNOWLEDGE_VUE_FILES` 与 `COMPONENTS_VUE_FILES`
+   两个 describe 各一处)的 `stripColorCalls(stripComments(tmpl))` 改回
+   `stripColorCalls(tmpl)`,与既有 hex/rgb/hsl 扫描口径一致。
+2. `stripComments` 里修复轮 1 新加的第三档 `.replace(/<!--[\s\S]*?-->/g, '')` 与配套文件头注释
+   一并删除——回退后它零调用点,留着是死代码(同 T5 明令不许补 `openNoteInNewTab` 的道理一致)。
+3. 逐字核对:`git diff 11ad79b -- src/ai/styles/knowledgeStyles.test.ts` **为空**
+   (`git diff 11ad79b..HEAD` 需在本轮提交后核,提交前先核工作树对 `11ad79b` 为空,已确认)。
+
+### 两头判据(还原纪律同上:`cp` 备份 → 行首锚定注入 → 先证落盘 → `cp` 覆盖 → `md5sum` 比对)
+
+复用同一份 `ConfirmCard.vue`(`:79` 锚点,全仓唯一)。
+
+**判据①(真阳性恢复,与回退前相反)**:注入
+`<!-- 蓝本 background: black,已换 --bg-sunken -->`(注释内,不带任何注释外违规)。
+```
+Tests  1 failed | 2 passed | 272 skipped (275)
+FAIL … blocks/ConfirmCard.vue —— 模板内属性值位置…零具名色
+AssertionError: … 发现具名色:
+color: "> …
+```
+**必须报红,且确实报红**——与修复轮 1(同一条注入,当时报绿)结果相反,证明 §0.3 的行为
+（注释也扫)已经恢复。
+
+**判据②(仍有牙)**:还原后,改注入注释外的真违规
+`<span style="color: white">probe</span>`(不带注释)。
+```
+Tests  1 failed | 2 passed | 272 skipped (275)
+FAIL … blocks/ConfirmCard.vue —— 模板内属性值位置…零具名色
+AssertionError: … 发现具名色:
+color: "> …
+```
+仍然精确报红——证明回退后守卫对真实产品违规依旧有判别力(不是"退步到全瞎")。
+
+⚠️ **两次报错的 offender 文本形态相同**(`color: "> …` 这个看起来与注入内容不直接对应的长
+片段)——这是 `namedColorOffensesInValues` 里 `[^;]+` 值捕获本身就有的既有特征(修复轮 1 的
+探针里已出现过同款现象),与本轮回退无关:`ConfirmCard.vue` 里有些 `style="…"` 属性的最后一条
+声明没有跟随的 `;`,值捕获会一路扫到**下一个真实分号**为止(可能跨越好几个标签),把中途任何
+文本(含我们的注入)都吞进同一个"值"里一起判定。**这不影响判据的正确性**(两次都正确检测到
+注入带来的具名色、都精确指名 `ConfirmCard.vue` 报红),只是 offender 的展示片段较长、不总是
+从注入点本身开始——不在本轮回退的修改范围内,不处理。
+
+还原:`cp` 备份覆盖 → `md5sum` 前后一致(`832dc1f…` = `832dc1f…`)、
+`git status --short` / `git diff` 该文件均干净。
+
+### 给 T6/T7/T8 的可直接引用结论
+
+> **§0.3 明令注释里也不许出现色字面量。** 迁移时的偏差申报注释一律**引「蓝本 `file:line`」
+> 与「附录 B 行号」**,**禁在注释里写 `#hex` / `rgb()` / `rgba()` / 具名色**。T2(`f128450`)
+> 已按此做且通过不剥注释的扫描,是可照抄的先例。具名色与 hex/rgb/hsl 两条扫描**都不剥
+> 注释,这是有意为之**,不是遗漏。
+
+### 逐字节自证
+
+```
+$ git diff 11ad79b -- src/ai/styles/knowledgeStyles.test.ts   # 提交前,工作树 vs 11ad79b
+(空输出,exit=0)
+```
+提交后同等价的核法是 `git diff 11ad79b..HEAD -- src/ai/styles/knowledgeStyles.test.ts`(同样应为空)。
+
+### 三门(全量,`/tmp/p5d-t5-fix2-{test,tsc,build}.log`)
+
+```
+pnpm test                  exit=0   Test Files 329 passed (329)  Tests 3839 passed (3839)
+pnpm exec vue-tsc --noEmit exit=0
+pnpm build                 exit=0(仅既有 >500KB chunk 警告)
+```
+与修复轮 1 之前(`11ad79b`)完全一致的数字:329 / 3839 / 0 / 0。
+
+### 产品代码零改动自证
+
+```
+$ git status --short
+ M src/ai/styles/knowledgeStyles.test.ts
+```
+本轮唯一改动文件仍是 `knowledgeStyles.test.ts`(测试文件),且内容已回退到与 `11ad79b`
+逐字节一致;`openInApp.ts` / `openInApp.test.ts` 未再改动。
+
+### 遗留 NEEDS_CONTEXT
+
+无。回退按协调者裁定逐字执行,未发现需要偏离该裁定的理由。
