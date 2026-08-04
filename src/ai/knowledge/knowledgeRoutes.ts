@@ -36,12 +36,28 @@
 // KnowledgeDeferred 反转成真正的 IndexedFilesView(K7 机制不变,反转不是删除 ——
 // 见 knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12/T5 的同一先例)。
 // 其余 6 个子路由 + 2 条独立 parser 路由仍是占位页,留给后续批次逐个替换。
+//
+// 【SP8-P5c Task 10,2026-08-04】本期一次反转**三条**(承 T12 / P5b T5 / P5b T10
+// 三次同款先例,反转不是删除):
+//   · `settings` 子路由 → 真正的 SettingsView(T8 上半 + T9 下半的产出);
+//   · 顶层 `/ai/parser`      → 真正的 ParserStatus(T6 的产出);
+//   · 顶层 `/ai/parser/test` → 真正的 ParserTest(T7 的产出)。
+// 🔴 这也是 `src/ai/styles/parser-styles.scss`(T2b 的产出)**第一次被入口可达地
+// import** —— 在此之前 ParserStatus/ParserTest 全仓零生产 import,模块不进 Vite
+// 图,那份 scss 的 side-effect import 从未求值、产物里编不出任何 CSS(治理 §12.3
+// 的 E-13:`.vue` 光「存在且写了 import」进不了产物)。
+// 🔴 剩下 **5** 个子路由(`search` / `wiki` / `roots` / `allowlist` / `notes`)仍指
+// KnowledgeDeferred,K7 占位机制本身保留;`allowlist` 是用户 2026-08-03 明示移出
+// 本期的(治理 §2.2),不是漏迁。**本期反转后 parser 两条路由已无占位页残留。**
 import type { RouteRecordRaw } from 'vue-router'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
 import DashboardView from './views/DashboardView.vue'
 import QueueView from './views/QueueView.vue'
 import IndexedFilesView from './views/IndexedFilesView.vue'
+import SettingsView from './views/SettingsView.vue'
+import ParserStatus from './parser/ParserStatus.vue'
+import ParserTest from './parser/ParserTest.vue'
 
 export const knowledgeRoutes: RouteRecordRaw[] = [
   {
@@ -56,9 +72,9 @@ export const knowledgeRoutes: RouteRecordRaw[] = [
       { path: 'roots', name: 'KnowledgeRoots', component: KnowledgeDeferred },
       { path: 'allowlist', name: 'KnowledgeAllowlist', component: KnowledgeDeferred },
       { path: 'notes', name: 'KnowledgeNotes', component: KnowledgeDeferred },
-      { path: 'settings', name: 'KnowledgeSettings', component: KnowledgeDeferred },
+      { path: 'settings', name: 'KnowledgeSettings', component: SettingsView },
     ],
   },
-  { path: '/ai/parser', name: 'AIParser', component: KnowledgeDeferred },
-  { path: '/ai/parser/test', name: 'AIParserTest', component: KnowledgeDeferred },
+  { path: '/ai/parser', name: 'AIParser', component: ParserStatus },
+  { path: '/ai/parser/test', name: 'AIParserTest', component: ParserTest },
 ]

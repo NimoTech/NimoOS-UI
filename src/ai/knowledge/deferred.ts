@@ -7,6 +7,13 @@
 // 反转),从这里摘掉,机制本身不变。
 // 【SP8-P5b Task 10,2026-08-02】'indexed-files' 已迁(IndexedFilesView.vue 三刀
 // 收官 + knowledgeRoutes.ts 反转),从这里摘掉,机制本身不变。
+// 【SP8-P5c Task 10,2026-08-04】'settings' 已迁(SettingsView.vue,T8 上半 + T9
+// 下半 + knowledgeRoutes.ts 反转),从这里摘掉 → DEFERRED_TABS 由 6 项变 5 项。
+// 🔴 'allowlist' **留着**:上级设计原把 AllowlistView 算在 P5c,用户 2026-08-03
+// 明示移出本期(治理 §2.2),本期不做,仍落占位页。
+// 🔴 同刀反转的 `/ai/parser` 与 `/ai/parser/test` 是**顶层路由、不是 rail tab**,
+// 从来不在 DEFERRED_TABS 里,故这里无对应项可摘(治理 §5.1 / T10 brief §2)。
+// K7 占位机制本身不变(承 P4 I2 的教训,见下方 KnowledgeTabId 注释与 deferred.test.ts)。
 export type KnowledgeTabId =
   | 'dashboard'
   | 'search'
@@ -24,7 +31,6 @@ export const DEFERRED_TABS = [
   'notes',
   'roots',
   'allowlist',
-  'settings',
 ] as const satisfies readonly KnowledgeTabId[]
 
 export function isDeferred(id: KnowledgeTabId): boolean {

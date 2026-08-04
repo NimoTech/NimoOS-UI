@@ -25,12 +25,30 @@ describe('占位机制(K7)', () => {
   //     expect(isDeferred('dashboard')).toBe(false)
   //     expect(isDeferred('queue')).toBe(false)
   //   })
-  it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,其余 6 个 tab 挂占位', () => {
+  // 【SP8-P5c Task 10,2026-08-04,第三次反转(不是删除)】'settings' 已迁到真正的
+  // SettingsView.vue(T8 上半 + T9 下半,knowledgeRoutes.ts 同步反转),从占位列表
+  // 摘掉 → 6 项变 5 项;机制本身(isDeferred 的判定来源仍是 DEFERRED_TABS)不变。
+  // 承 T5 / P5b T10 的同一模式:反转 + 新增一条正向断言,不删任何既有断言。
+  // 🔴 'allowlist' **仍在列表里**:上级设计原把 AllowlistView 算在 P5c,用户
+  // 2026-08-03 明示移出本期(治理 §2.2)→ 它留在占位列表是**预期**,不是漏迁。
+  // 🔴 同刀反转的两条 parser 路由是**顶层路由、不是 rail tab**,从来不在
+  // DEFERRED_TABS 里,故本条断言与它们无关(治理 §5.1)。
+  //
+  // 改前(P5b T10 原文,反转前):
+  //   it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,其余 6 个 tab 挂占位', () => {
+  //     expect([...DEFERRED_TABS].sort()).toEqual(
+  //       ['allowlist', 'notes', 'roots', 'search', 'settings', 'wiki'])
+  //     expect(isDeferred('dashboard')).toBe(false)
+  //     expect(isDeferred('queue')).toBe(false)
+  //     expect(isDeferred('indexed-files')).toBe(false)
+  //   })
+  it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,P5c-T10 实现 settings,其余 5 个 tab 挂占位', () => {
     expect([...DEFERRED_TABS].sort()).toEqual(
-      ['allowlist', 'notes', 'roots', 'search', 'settings', 'wiki'])
+      ['allowlist', 'notes', 'roots', 'search', 'wiki'])
     expect(isDeferred('dashboard')).toBe(false)
     expect(isDeferred('queue')).toBe(false)
     expect(isDeferred('indexed-files')).toBe(false)
+    expect(isDeferred('settings')).toBe(false)
   })
 
   it('isDeferred 对每个已列 tab 返回 true', () => {

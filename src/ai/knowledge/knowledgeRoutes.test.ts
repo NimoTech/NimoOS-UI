@@ -5,6 +5,9 @@ import KnowledgeLayout from './views/KnowledgeLayout.vue'
 import DashboardView from './views/DashboardView.vue'
 import QueueView from './views/QueueView.vue'
 import IndexedFilesView from './views/IndexedFilesView.vue'
+import SettingsView from './views/SettingsView.vue'
+import ParserStatus from './parser/ParserStatus.vue'
+import ParserTest from './parser/ParserTest.vue'
 
 describe('knowledgeRoutes', () => {
   it('一条布局路由带 9 个子路由 + 两条 Parser 路由', () => {
@@ -114,10 +117,54 @@ describe('knowledgeRoutes', () => {
   //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
   //   })
   //
-  // 改后（本次）：`''` / `queue` / `indexed-files` 三个子路由分别单独钉成
+  // 改后（P5b T10）：`''` / `queue` / `indexed-files` 三个子路由分别单独钉成
   // DashboardView / QueueView / IndexedFilesView；其余 6 个子路由 + 2 条 parser
   // 路由仍钉成 KnowledgeDeferred（K7 占位机制本身不变）。
-  it('父路由(布局位)是 KnowledgeLayout,"" 是 DashboardView,"queue" 是 QueueView,"indexed-files" 是 IndexedFilesView,其余 6 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+  //
+  // 【SP8-P5c Task 10,2026-08-04,第四次反转(不是删除)】上面这条断言把 `settings`
+  // 子路由**与两条 parser 路由**都算进「仍是占位页」的 8 条里 —— 本刀一次反转三条:
+  // `settings` → SettingsView（T8 上半 + T9 下半的产出）、`/ai/parser` → ParserStatus
+  // （T6 的产出）、`/ai/parser/test` → ParserTest（T7 的产出），这条断言必须跟着
+  // 反转，否则会精确报红（承 T12 R8 comment 里预告、T5 与 P5b T10 已复现两次的同一模式）。
+  // 🔴 **本刀之后两条 parser 顶层路由再无占位页残留** → `stillDeferred` 的取数不再
+  // 拼 `knowledgeRoutes[1]/[2]`，改为**只取子路由**，另加两条正向断言分别钉住它们
+  // 是真组件（并 `not.toBe(KnowledgeDeferred)`）。
+  // 🔴 **K7 占位机制仍被本条用例证明活着**:剩下 **5** 个子路由(`search` / `wiki` /
+  // `roots` / `allowlist` / `notes`)仍钉成 KnowledgeDeferred(承 P4 I2 的教训 ——
+  // 清空后要仍有用例证明它有能力，而不是只剩一段没人测的代码)。`allowlist` 留在
+  // 占位页是用户 2026-08-03 明示移出本期的结果(治理 §2.2)，不是漏迁。
+  //
+  // 改前（P5b T10 原文，反转前）：
+  //   it('父路由(布局位)是 KnowledgeLayout,"" 是 DashboardView,"queue" 是 QueueView,"indexed-files" 是 IndexedFilesView,其余 6 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+  //     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+  //
+  //     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
+  //     expect(dashboardChild?.component).toBe(DashboardView)
+  //     expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const queueChild = knowledgeRoutes[0].children!.find((c) => c.path === 'queue')
+  //     expect(queueChild?.component).toBe(QueueView)
+  //     expect(queueChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const indexedFilesChild = knowledgeRoutes[0].children!.find((c) => c.path === 'indexed-files')
+  //     expect(indexedFilesChild?.component).toBe(IndexedFilesView)
+  //     expect(indexedFilesChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const migrated = ['', 'queue', 'indexed-files']
+  //     const stillDeferred = [
+  //       ...knowledgeRoutes[0]
+  //         .children!.filter((c) => !migrated.includes(c.path))
+  //         .map((c) => c.component),
+  //       knowledgeRoutes[1].component,
+  //       knowledgeRoutes[2].component,
+  //     ]
+  //     expect(stillDeferred).toHaveLength(8)
+  //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+  //   })
+  //
+  // 改后（本次）：`''` / `queue` / `indexed-files` / `settings` 四个子路由 + 两条
+  // parser 顶层路由各自单独钉成真组件；剩下 5 个子路由仍钉成 KnowledgeDeferred。
+  it('父路由(布局位)是 KnowledgeLayout,"" / "queue" / "indexed-files" / "settings" 四个子路由与两条 parser 路由都是真组件,其余 5 个子路由仍是占位页 KnowledgeDeferred', () => {
     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
 
     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
@@ -132,15 +179,24 @@ describe('knowledgeRoutes', () => {
     expect(indexedFilesChild?.component).toBe(IndexedFilesView)
     expect(indexedFilesChild?.component).not.toBe(KnowledgeDeferred)
 
-    const migrated = ['', 'queue', 'indexed-files']
-    const stillDeferred = [
-      ...knowledgeRoutes[0]
-        .children!.filter((c) => !migrated.includes(c.path))
-        .map((c) => c.component),
-      knowledgeRoutes[1].component,
-      knowledgeRoutes[2].component,
-    ]
-    expect(stillDeferred).toHaveLength(8)
+    const settingsChild = knowledgeRoutes[0].children!.find((c) => c.path === 'settings')
+    expect(settingsChild?.component).toBe(SettingsView)
+    expect(settingsChild?.component).not.toBe(KnowledgeDeferred)
+
+    expect(knowledgeRoutes[1].component).toBe(ParserStatus)
+    expect(knowledgeRoutes[1].component).not.toBe(KnowledgeDeferred)
+    expect(knowledgeRoutes[2].component).toBe(ParserTest)
+    expect(knowledgeRoutes[2].component).not.toBe(KnowledgeDeferred)
+
+    // K7 机制钉子:剩下 5 个子路由仍必须指向占位页(承 P4 I2)。
+    const migrated = ['', 'queue', 'indexed-files', 'settings']
+    const stillDeferred = knowledgeRoutes[0]
+      .children!.filter((c) => !migrated.includes(c.path))
+      .map((c) => c.component)
+    expect(
+      knowledgeRoutes[0].children!.filter((c) => !migrated.includes(c.path)).map((c) => c.path),
+    ).toEqual(['search', 'wiki', 'roots', 'allowlist', 'notes'])
+    expect(stillDeferred).toHaveLength(5)
     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
   })
 })
