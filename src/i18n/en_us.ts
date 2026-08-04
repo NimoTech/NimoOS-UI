@@ -1721,4 +1721,132 @@ export default {
   aiKbSetSvcRunningLine: '✅ Running',
   aiKbSwitchFailed: 'Switch failed',
   // <<< SP8-P5c Task 1
+  // >>> SP8-P5d Task 1 —— knowledge-base notes area copy (Vue2 NotesView.vue /
+  // NoteEditPane.vue / notesViewHelpers.js NOTE_TYPES/NOTE_SOURCES labelKey targets), 92
+  // keys, all with a Vue2-authoritative value (zero new copy, zero dead keys this task).
+  // Codepoint-verified by .superpowers/sdd/p5d-task-1-i18n-verify.mjs (92/92 MATCH), values
+  // pulled from `git show 7a6ee6b7:src/assets/lang/en_US.json`.
+  //
+  // 🔴 Ruling R10 (T0, p5d-appendix-A-i18n.md §A.0①/coordinator ruling R10): unlike P5a/P5b/
+  // P5c (all measured zero en_US.json overrides), this batch has 2 real ones — Vue2's
+  // default AND fallback locale are both en_us (src/plugins/i18n.js:9-10), so the English UI
+  // actually renders whatever en_US.json says, not the literal $t() source string:
+  //   aiKbNtDeleteBody2 -> 'this cannot be undone.' (extra period; $t() source has none)
+  //   aiKbNoteTypeNote  -> 'Note' (not 'Note item', the $t() source)
+  // Each has a positive + reverse assertion in messageSyntax.test.ts ("P5d Task 1 R10 en_US
+  // overrides") so nobody "cleans up" these values back to the literal source string.
+  //
+  // N32 collisions (11 cross-key + 1 internal to this batch; copy verbatim, never unify —
+  // see messageSyntax.test.ts "P5d Task 1 N32 collision guards" for the en positive/negative
+  // assertions this batch requires per p5d-common-constraints.md §7.1):
+  //   aiKbNtOpenFolder vs aiOpenInFileManager (en differs only in capitalization) ·
+  //   aiKbNtConfirm vs appsSettingsConflictOk · aiKbNtDelete vs appsSettingsRemove ·
+  //   aiKbNeSource/aiKbNeSources vs aiSkAddedBy (and against EACH OTHER — same zh 来源, en
+  //   Source vs Sources must stay distinct) · aiKbNeRemoveTag vs appsSettingsRemove (mirror:
+  //   en collides 'Remove'='Remove', zh deliberately differs 移除 vs 删除) ·
+  //   aiKbNePathCopied vs filesCopiedPath (mirror: en collides, zh deliberately differs) ·
+  //   aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo vs aiResMinutesAgo/aiResHoursAgo/
+  //   aiResDaysAgo (en differs by a space or a letter) · aiKbNoteTypeNote vs aiKbNavNotes.
+  //
+  // K42: aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo deliberately do NOT reuse the existing
+  // aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo — those use {m}/{h}/{d} placeholders (indexedFilesView.ts
+  // :53-57), while this batch's relativeTime() interpolates {n}; reusing them would render
+  // the literal string "{n}" on screen. aiKbJustNow (already shipped, P5a) is the only
+  // relative-time key this batch reuses.
+  //
+  // N23: conflictMessage's hardcoded English string is deliberately NOT ported to i18n here
+  // (it's only ever used as a boolean predicate — see T3).
+  aiKbAiDraft: 'AI draft',
+  aiKbArchived: 'Archived',
+  aiKbCurated: 'Curated',
+  aiKbNeAdoptedDisk: 'Loaded the latest version — your body was replaced',
+  aiKbNeBackToList: 'Back to list',
+  aiKbNeBasedOnRev: 'based on rev {n}',
+  aiKbNeBold: 'Bold',
+  aiKbNeBulletList: 'Bullet list',
+  aiKbNeCodeBlock: 'Code block',
+  aiKbNeConfirmAsCurated: 'Confirm as curated note',
+  aiKbNeConflictBody: 'While you were editing, the file on disk changed (maybe Obsidian or another tab). Choose which body to keep — your title, summary and tags stay as typed.',
+  aiKbNeConflictMine: 'Your unsaved edits',
+  aiKbNeConflictTheirs: 'Latest version on disk',
+  aiKbNeConflictTitle: 'This note was saved by someone else first',
+  aiKbNeCopyMyBody: 'Copy my body',
+  aiKbNeCopyPath: 'Copy path',
+  aiKbNeDescPlaceholder: 'One-line summary (shown in lists and search)',
+  aiKbNeDraftBar1: 'This is an',
+  aiKbNeDraftBar2: 'AI-captured draft',
+  aiKbNeDraftBar3: ', not curated knowledge yet',
+  aiKbNeDraftBarSub: 'Confirm to move it into the knowledge base — you can edit first, then confirm.',
+  aiKbNeDraftCopied: 'Your draft copied',
+  aiKbNeEditDirectHint: 'Editing the file directly also works — synced back within 60 s',
+  aiKbNeFileManager: 'File manager',
+  aiKbNeFileOnDisk: 'File on disk',
+  aiKbNeH2: 'Heading 2',
+  aiKbNeH3: 'Heading 3',
+  aiKbNeItalic: 'Italic',
+  aiKbNeKeepMine: 'Keep my edits',
+  aiKbNeKeptMine: 'Kept your edits — saving will overwrite rev {n}',
+  aiKbNeLastModified: 'Last modified',
+  aiKbNeMdPlaceholder: '# Markdown source…',
+  aiKbNeNChars: '{n} characters',
+  aiKbNeNewFileHint: 'A .md file is created in the notes folder on save',
+  aiKbNeNewStatusHint: 'Becomes a curated note once saved',
+  aiKbNeNotSavedYet: 'Not saved yet',
+  aiKbNeOpenConversation: 'Open source conversation',
+  aiKbNePathCopied: 'Path copied',
+  aiKbNeProperties: 'Properties',
+  aiKbNeQuote: 'Quote',
+  aiKbNeReferencedBy: 'Referenced by',
+  aiKbNeRemoveTag: 'Remove',
+  aiKbNeRevealFile: 'Reveal in file manager',
+  aiKbNeRichText: 'Rich text',
+  aiKbNeSave: 'Save',
+  aiKbNeSaved: 'Saved',
+  aiKbNeSavedRev: 'Saved · rev {n}',
+  aiKbNeSaving: 'Saving…',
+  aiKbNeSource: 'Source',
+  aiKbNeSourceConversation: 'Source conversation',
+  aiKbNeSources: 'Sources',
+  aiKbNeStrike: 'Strikethrough',
+  aiKbNeTagsPlaceholder: 'Tags, comma separated…',
+  aiKbNeTitlePlaceholder: 'Note title…',
+  aiKbNeUnsaved: 'Unsaved changes',
+  aiKbNeUseDisk: 'Use disk version',
+  aiKbNoteConfirmed: 'Note confirmed',
+  aiKbNoteSrcAgent: 'Written by agent',
+  aiKbNoteSrcHuman: 'Written by you',
+  aiKbNoteSrcPipeline: 'Auto-captured',
+  aiKbNoteTypeDigest: 'Digest',
+  aiKbNoteTypeInsight: 'Insight',
+  aiKbNoteTypeNote: 'Note',
+  aiKbNoteTypeSummary: 'Summary',
+  aiKbNtAllTypes: 'All types',
+  aiKbNtArchive: 'Archive',
+  aiKbNtArchiveInstead: 'Archive instead',
+  aiKbNtConfirm: 'Confirm',
+  aiKbNtConfirmAll: 'Confirm all',
+  aiKbNtDelete: 'Delete',
+  aiKbNtDeleteBody1: 'The Markdown file on disk is deleted with it —',
+  aiKbNtDeleteBody2: 'this cannot be undone.',
+  aiKbNtDeleteBody3: 'If you only need it out of the way, use Archive instead.',
+  aiKbNtDeleteTitle: 'Delete note?',
+  aiKbNtEmptySub: 'After a chat with the agent, worthwhile conclusions become AI drafts automatically; you can also create a note directly, or drop .md files into the notes folder.',
+  aiKbNtEmptyTitle: 'No notes yet',
+  aiKbNtInboxFootHint: 'From "Auto-capture insights" — can be turned off under Advanced → Knowledge notes',
+  aiKbNtInboxSub: 'Conclusions captured after conversations. Confirm to make them curated knowledge, delete to discard.',
+  aiKbNtInboxTitle: 'AI drafts awaiting review',
+  aiKbNtListFoot: '{n} notes — searchable globally, recallable by the agent and exposed read-only via MCP',
+  aiKbNtNDraftsConfirmed: '{n} drafts confirmed',
+  aiKbNtNewNote: 'New Note',
+  aiKbNtNoMatch: 'No notes match the filter',
+  aiKbNtNoteArchived: 'Note archived',
+  aiKbNtNoteDeleted: 'Note deleted',
+  aiKbNtOpenFolder: 'Open in file manager',
+  aiKbNtPathLead: 'Every note is a Markdown file in',
+  aiKbNtPathTail: 'edit them with Obsidian or the file manager, synced within 60 s',
+  aiKbNtReviewOneByOne: 'Review one by one',
+  aiKbRelDaysAgo: '{n} d ago',
+  aiKbRelHrAgo: '{n} h ago',
+  aiKbRelMinAgo: '{n} min ago',
+  // <<< SP8-P5d Task 1
 }

@@ -1748,4 +1748,122 @@ export default {
   aiKbSetSvcRunningLine: '✅ 运行中',
   aiKbSwitchFailed: '切换失败',
   // <<< SP8-P5c Task 1
+  // >>> SP8-P5d Task 1 —— 知识库笔记区文案(Vue2 NotesView.vue / NoteEditPane.vue /
+  // notesViewHelpers.js 的 NOTE_TYPES/NOTE_SOURCES labelKey 目标),共 92 条,全部有 Vue2
+  // 权威 zh 值(本期新造 0、死键 0)。逐码点比对见 .superpowers/sdd/p5d-task-1-i18n-verify.mjs
+  // (92/92 MATCH),值取自 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`。
+  //
+  // 🔴 裁定 R10(与本文件的 en 侧连带,详见 en_us.ts 同名注释):en_US.json 的权威源地位本期
+  // 第一次出现 2 处覆盖(aiKbNtDeleteBody2 / aiKbNoteTypeNote),不影响 zh 侧。
+  //
+  // N32 撞车(11 组跨键 + 1 组本期内部,一律照抄不许统一,详见 messageSyntax.test.ts 的
+  // 「P5d Task 1 N32 collision guards」):aiKbNtOpenFolder vs aiOpenInFileManager ·
+  // aiKbNtConfirm vs appsSettingsConflictOk · aiKbNtDelete vs appsSettingsRemove ·
+  // aiKbNeSource/aiKbNeSources vs aiSkAddedBy(且二者彼此内部撞车,来源/Source vs Sources)·
+  // aiKbNeRemoveTag vs appsSettingsRemove(镜像:en 撞车、zh 故意不同)·
+  // aiKbNePathCopied vs filesCopiedPath(镜像)· aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo
+  // vs aiResMinutesAgo/aiResHoursAgo/aiResDaysAgo · aiKbNoteTypeNote vs aiKbNavNotes。
+  //
+  // K42:aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo 的占位符是 {n},故意不复用既有
+  // aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo(占位符名是 {m}/{h}/{d},复用会渲染出字面量 {n})。
+  //
+  // N26:aiKbNeDraftBar1/2/3 与 aiKbNtDeleteBody1/2/3 是蓝本的三段式拼接,照抄不合并
+  // (第三段各以中文逗号 / 句号收尾,但本仓语言包的中文逗号/括号一律是半角 U+002C/U+0028-29,
+  // 实扫不命中全角标点正则 —— 本批 92 条里唯一的全角标点例外只有 aiKbNtDeleteTitle 的
+  // 「？」U+FF1F,详见 messageSyntax.test.ts 与 p5d-appendix-A-i18n.md §A.0②/§A.5)。
+  //
+  // N23:conflictMessage 的硬编码英文串本期不进 i18n(只当布尔谓词用,见 T3)。
+  aiKbAiDraft: 'AI 草稿',
+  aiKbArchived: '已归档',
+  aiKbCurated: '已确认',
+  aiKbNeAdoptedDisk: '已加载最新版本,你的正文已被替换',
+  aiKbNeBackToList: '返回列表',
+  aiKbNeBasedOnRev: '基于 rev {n}',
+  aiKbNeBold: '加粗',
+  aiKbNeBulletList: '无序列表',
+  aiKbNeCodeBlock: '代码块',
+  aiKbNeConfirmAsCurated: '确认为正式笔记',
+  aiKbNeConflictBody: '你编辑期间,这条笔记的文件在磁盘上被修改了(可能是 Obsidian 或另一个标签页)。选择保留哪个正文 — 标题、摘要与标签会保留你的输入。',
+  aiKbNeConflictMine: '你的未保存编辑',
+  aiKbNeConflictTheirs: '磁盘上的最新版本',
+  aiKbNeConflictTitle: '有人先保存了这条笔记',
+  aiKbNeCopyMyBody: '复制我的正文',
+  aiKbNeCopyPath: '复制路径',
+  aiKbNeDescPlaceholder: '一句话摘要(用于列表与搜索展示)',
+  aiKbNeDraftBar1: '这是一条',
+  aiKbNeDraftBar2: 'AI 自动沉淀的草稿',
+  aiKbNeDraftBar3: ',还不是正式知识',
+  aiKbNeDraftBarSub: '确认后进入正式知识库;也可以先修改再确认。',
+  aiKbNeDraftCopied: '已复制你的正文',
+  aiKbNeEditDirectHint: '直接编辑这个文件也可以,60 秒内同步回来',
+  aiKbNeFileManager: '文件管理器',
+  aiKbNeFileOnDisk: '磁盘文件',
+  aiKbNeH2: '二级标题',
+  aiKbNeH3: '三级标题',
+  aiKbNeItalic: '斜体',
+  aiKbNeKeepMine: '保留我的编辑',
+  aiKbNeKeptMine: '保留了你的编辑,保存将覆盖 rev {n}',
+  aiKbNeLastModified: '最后修改',
+  aiKbNeMdPlaceholder: '# Markdown 源码…',
+  aiKbNeNChars: '{n} 字',
+  aiKbNeNewFileHint: '保存后在笔记目录创建 .md 文件',
+  aiKbNeNewStatusHint: '保存后成为「已确认」的正式笔记',
+  aiKbNeNotSavedYet: '尚未保存',
+  aiKbNeOpenConversation: '打开来源对话',
+  aiKbNePathCopied: '路径已复制',
+  aiKbNeProperties: '属性',
+  aiKbNeQuote: '引用',
+  aiKbNeReferencedBy: '被引用',
+  aiKbNeRemoveTag: '移除',
+  aiKbNeRevealFile: '在文件管理器中定位',
+  aiKbNeRichText: '富文本',
+  aiKbNeSave: '保存',
+  aiKbNeSaved: '已保存',
+  aiKbNeSavedRev: '已保存 · rev {n}',
+  aiKbNeSaving: '保存中…',
+  aiKbNeSource: '来源',
+  aiKbNeSourceConversation: '来源对话',
+  aiKbNeSources: '来源',
+  aiKbNeStrike: '删除线',
+  aiKbNeTagsPlaceholder: '标签,逗号分隔…',
+  aiKbNeTitlePlaceholder: '笔记标题…',
+  aiKbNeUnsaved: '有未保存更改',
+  aiKbNeUseDisk: '采用磁盘版本',
+  aiKbNoteConfirmed: '笔记已确认',
+  aiKbNoteSrcAgent: 'Agent 代写',
+  aiKbNoteSrcHuman: '手写',
+  aiKbNoteSrcPipeline: 'AI 沉淀',
+  aiKbNoteTypeDigest: '文摘',
+  aiKbNoteTypeInsight: '洞见',
+  aiKbNoteTypeNote: '笔记',
+  aiKbNoteTypeSummary: '摘要',
+  aiKbNtAllTypes: '全部类型',
+  aiKbNtArchive: '归档',
+  aiKbNtArchiveInstead: '改为归档',
+  aiKbNtConfirm: '确认',
+  aiKbNtConfirmAll: '全部确认',
+  aiKbNtDelete: '删除',
+  aiKbNtDeleteBody1: '磁盘上的 Markdown 文件会一并删除,',
+  aiKbNtDeleteBody2: '不可恢复。',
+  aiKbNtDeleteBody3: '只是暂时不需要的话,建议改用「归档」。',
+  aiKbNtDeleteTitle: '删除该笔记？',
+  aiKbNtEmptySub: '与 agent 聊完后,有价值的结论会自动沉淀成 AI 草稿;也可以直接新建,或把 .md 文件放进笔记目录。',
+  aiKbNtEmptyTitle: '还没有笔记',
+  aiKbNtInboxFootHint: '来自「对话洞见自动沉淀」· 可在 高级 → 知识笔记 中关闭',
+  aiKbNtInboxSub: '对话结束后自动沉淀的结论。确认后成为正式知识,删除则丢弃。',
+  aiKbNtInboxTitle: '条 AI 草稿待确认',
+  aiKbNtListFoot: '{n} 条笔记 · 全部可被全局搜索与 agent 召回,并经 MCP 只读暴露给外部 AI',
+  aiKbNtNDraftsConfirmed: '已确认 {n} 条草稿',
+  aiKbNtNewNote: '新建笔记',
+  aiKbNtNoMatch: '没有符合筛选的笔记',
+  aiKbNtNoteArchived: '笔记已归档',
+  aiKbNtNoteDeleted: '笔记已删除',
+  aiKbNtOpenFolder: '在文件管理器中打开',
+  aiKbNtPathLead: '每条笔记都是一个 Markdown 文件,存放在',
+  aiKbNtPathTail: '用 Obsidian 或文件管理器直接改,60 秒内同步',
+  aiKbNtReviewOneByOne: '逐条审阅',
+  aiKbRelDaysAgo: '{n} 天前',
+  aiKbRelHrAgo: '{n} 小时前',
+  aiKbRelMinAgo: '{n} 分钟前',
+  // <<< SP8-P5d Task 1
 }

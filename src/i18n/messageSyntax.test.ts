@@ -618,6 +618,299 @@ describe('i18n message syntax', () => {
     })
   })
 
+  // SP8-P5d Task 1: 92 new aiKb* keys for the knowledge-base notes area (NotesView.vue,
+  // NoteEditPane.vue, and the NOTE_TYPES/NOTE_SOURCES labelKey targets in
+  // notesViewHelpers.js). Same shape as the P5a Task 8 / P5b Task 1 / P5c Task 1 guards
+  // above (a fixed key list scoped to this batch + presence check + punctuation scan +
+  // placeholder-parity check), per p5d-common-constraints.md §7 and this task's brief.
+  //
+  // Scope is deliberately this batch's 92 keys, never the whole file — see the P5a Task 8
+  // block above for why a file-wide placeholder-parity assertion would be wrong (some
+  // existing keys intentionally differ in placeholder shape between locales).
+  //
+  // 🔴 Two things this batch does differently from every prior P5* Task 1 guard:
+  //
+  //  (1) R10 — en is NOT assumed to equal the literal $t() English source string. P5a/P5b/
+  //      P5c all measured zero en_US.json overrides; this batch has 2 real ones
+  //      (aiKbNtDeleteBody2, aiKbNoteTypeNote — see the dedicated describe block below).
+  //      Vue2's default AND fallback locale are both en_us (src/plugins/i18n.js:9-10), so
+  //      the English UI genuinely renders en_US.json's value, not the $t() key.
+  //
+  //  (2) N32 — this batch has 12 collision groups (11 cross-key + 1 internal) where the zh
+  //      value legitimately matches an unrelated existing key but the en value must NOT
+  //      (or, for two mirror-direction rows, en collides but zh must not) — see the
+  //      dedicated describe block below. Per p5c-common-constraints.md §9.2 (T6 review
+  //      finding I-1): "only compare zh" assertions have ZERO discriminating power here —
+  //      a probe that swapped in the forbidden key passed 47/47 existing assertions in P5c
+  //      because none of them rendered the en value.
+  describe('P5d Task 1 aiKb* keys — punctuation and placeholder guards', () => {
+    // Matches the >>> SP8-P5d Task 1 ... <<< SP8-P5d Task 1 marked block in zh_cn.ts /
+    // en_us.ts (see p5d-task-1-report.md "新增键清单"): Appendix A §A.2's 92 rows. All 92
+    // have a Vue2-authoritative zh value — this batch created zero new copy and left zero
+    // dead keys (N23's conflictMessage English string is deliberately NOT one of these 92;
+    // it stays a hardcoded predicate-only string, never an i18n key).
+    const p5dTask1Keys = [
+      'aiKbAiDraft', 'aiKbArchived', 'aiKbCurated', 'aiKbNeAdoptedDisk', 'aiKbNeBackToList',
+      'aiKbNeBasedOnRev', 'aiKbNeBold', 'aiKbNeBulletList', 'aiKbNeCodeBlock',
+      'aiKbNeConfirmAsCurated', 'aiKbNeConflictBody', 'aiKbNeConflictMine',
+      'aiKbNeConflictTheirs', 'aiKbNeConflictTitle', 'aiKbNeCopyMyBody', 'aiKbNeCopyPath',
+      'aiKbNeDescPlaceholder', 'aiKbNeDraftBar1', 'aiKbNeDraftBar2', 'aiKbNeDraftBar3',
+      'aiKbNeDraftBarSub', 'aiKbNeDraftCopied', 'aiKbNeEditDirectHint', 'aiKbNeFileManager',
+      'aiKbNeFileOnDisk', 'aiKbNeH2', 'aiKbNeH3', 'aiKbNeItalic', 'aiKbNeKeepMine',
+      'aiKbNeKeptMine', 'aiKbNeLastModified', 'aiKbNeMdPlaceholder', 'aiKbNeNChars',
+      'aiKbNeNewFileHint', 'aiKbNeNewStatusHint', 'aiKbNeNotSavedYet',
+      'aiKbNeOpenConversation', 'aiKbNePathCopied', 'aiKbNeProperties', 'aiKbNeQuote',
+      'aiKbNeReferencedBy', 'aiKbNeRemoveTag', 'aiKbNeRevealFile', 'aiKbNeRichText',
+      'aiKbNeSave', 'aiKbNeSaved', 'aiKbNeSavedRev', 'aiKbNeSaving', 'aiKbNeSource',
+      'aiKbNeSourceConversation', 'aiKbNeSources', 'aiKbNeStrike', 'aiKbNeTagsPlaceholder',
+      'aiKbNeTitlePlaceholder', 'aiKbNeUnsaved', 'aiKbNeUseDisk', 'aiKbNoteConfirmed',
+      'aiKbNoteSrcAgent', 'aiKbNoteSrcHuman', 'aiKbNoteSrcPipeline', 'aiKbNoteTypeDigest',
+      'aiKbNoteTypeInsight', 'aiKbNoteTypeNote', 'aiKbNoteTypeSummary', 'aiKbNtAllTypes',
+      'aiKbNtArchive', 'aiKbNtArchiveInstead', 'aiKbNtConfirm', 'aiKbNtConfirmAll',
+      'aiKbNtDelete', 'aiKbNtDeleteBody1', 'aiKbNtDeleteBody2', 'aiKbNtDeleteBody3',
+      'aiKbNtDeleteTitle', 'aiKbNtEmptySub', 'aiKbNtEmptyTitle', 'aiKbNtInboxFootHint',
+      'aiKbNtInboxSub', 'aiKbNtInboxTitle', 'aiKbNtListFoot', 'aiKbNtNDraftsConfirmed',
+      'aiKbNtNewNote', 'aiKbNtNoMatch', 'aiKbNtNoteArchived', 'aiKbNtNoteDeleted',
+      'aiKbNtOpenFolder', 'aiKbNtPathLead', 'aiKbNtPathTail', 'aiKbNtReviewOneByOne',
+      'aiKbRelDaysAgo', 'aiKbRelHrAgo', 'aiKbRelMinAgo',
+    ] as const
+
+    it('covers exactly the 92 keys this task added (list itself does not drift)', () => {
+      expect(p5dTask1Keys.length).toBe(92)
+    })
+
+    // Carried forward from the P5b Task 1 review finding (Important I-1): the length check
+    // above only pins the literal array in this file, it says nothing about whether the
+    // keys exist in the locales. parity.test.ts only compares the two locales against each
+    // other (deleting from both keeps them equal), and the punctuation loop below silently
+    // `continue`s past a non-string value — so without this, an accidental delete/rename
+    // would stay green.
+    it('every key in this batch is present as a string in both locales', () => {
+      const missing = p5dTask1Keys.filter(
+        (k) =>
+          typeof (zh as Record<string, unknown>)[k] !== 'string' ||
+          typeof (en as Record<string, unknown>)[k] !== 'string'
+      )
+      expect(missing).toEqual([])
+    })
+
+    // (a) Full-width punctuation scan. p5d-appendix-A-i18n.md §A.0② found that the 3
+    // exceptions governance §7(a) predicted were ALL false positives — this language pack's
+    // Chinese commas/parens are half-width (U+002C / U+0028-29), not full-width. The scan
+    // over the real 92 shipped values hits exactly 1: aiKbNtDeleteTitle's trailing full-width
+    // question mark (？ U+FF1F), a genuine Vue2-authentic exception. Pinned with an exact
+    // `toBe` below rather than merely skipped, per the brief: 「一律写成 toBe 钉死确切值的强
+    // 断言」. The remaining 91 keys must scan clean.
+    //
+    // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) →(U+2192) …(U+2026) —(U+2014) are NOT in
+    // /[，；：？！（）]/ — do not add keys here because a value "looks full-width"; only the
+    // regex's actual hits belong in this list.
+    const fullWidthExceptions: Record<string, string> = {
+      aiKbNtDeleteTitle: '删除该笔记？',
+    }
+
+    it('registers exactly the 1 full-width-punctuation exception from Appendix A §A.5', () => {
+      expect(Object.keys(fullWidthExceptions).length).toBe(1)
+    })
+
+    it('pins the exact zh_cn value (with its Vue2-authentic full-width punctuation) for the 1 registered exception', () => {
+      for (const [key, value] of Object.entries(fullWidthExceptions)) {
+        expect((zh as Record<string, unknown>)[key]).toBe(value)
+      }
+    })
+
+    it('should not contain full-width ，；：？！（） in any zh_cn value from this batch (except the 1 registered exception)', () => {
+      const fullWidthPunctuation = /[，；：？！（）]/
+      const violations: Array<{ key: string; value: string }> = []
+      for (const key of p5dTask1Keys) {
+        if (key in fullWidthExceptions) continue
+        const value = (zh as Record<string, unknown>)[key]
+        if (typeof value !== 'string') continue
+        if (fullWidthPunctuation.test(value)) violations.push({ key, value })
+      }
+      if (violations.length > 0) {
+        const details = violations.map((v) => `${v.key} = "${v.value}"`).join('\n')
+        expect.fail(
+          `Found full-width ，；：？！（） in P5d Task 1 zh_cn values (should be half-width per the authoritative Vue2 zh_CN.json; if this is a legitimate Vue2-authentic exception, stop and report before adding it here):\n${details}`
+        )
+      }
+    })
+
+    // (b) Placeholder-name parity between zh_cn and en_us, scoped to this batch's 9 keys
+    // that carry {…} interpolation (Appendix A §A.6, re-derived here by scanning the
+    // shipped values rather than trusting the appendix table). All 9 use {n} (K42).
+    const placeholderKeysWithInterpolation = [
+      'aiKbNeBasedOnRev', 'aiKbNeKeptMine', 'aiKbNeNChars', 'aiKbNeSavedRev',
+      'aiKbNtListFoot', 'aiKbNtNDraftsConfirmed', 'aiKbRelDaysAgo', 'aiKbRelHrAgo',
+      'aiKbRelMinAgo',
+    ] as const
+
+    it('covers exactly the 9 keys in this batch that carry interpolation placeholders', () => {
+      expect(placeholderKeysWithInterpolation.length).toBe(9)
+    })
+
+    it('zh_cn and en_us use the same set of {…} placeholder names for each of these keys', () => {
+      const placeholderPattern = /\{([a-zA-Z]+)\}/g
+      const namesOf = (value: string) => {
+        const names: string[] = []
+        let m: RegExpExecArray | null
+        while ((m = placeholderPattern.exec(value)) !== null) names.push(m[1])
+        return names.sort()
+      }
+
+      const violations: Array<{ key: string; zhNames: string[]; enNames: string[] }> = []
+      for (const key of placeholderKeysWithInterpolation) {
+        const zhValue = (zh as Record<string, unknown>)[key]
+        const enValue = (en as Record<string, unknown>)[key]
+        if (typeof zhValue !== 'string' || typeof enValue !== 'string') continue
+        const zhNames = namesOf(zhValue)
+        const enNames = namesOf(enValue)
+        if (JSON.stringify(zhNames) !== JSON.stringify(enNames)) {
+          violations.push({ key, zhNames, enNames })
+        }
+      }
+      if (violations.length > 0) {
+        const details = violations
+          .map((v) => `${v.key}: zh=[${v.zhNames.join(',')}] en=[${v.enNames.join(',')}]`)
+          .join('\n')
+        expect.fail(`Found mismatched {…} placeholder names between locales:\n${details}`)
+      }
+    })
+  })
+
+  // p5d-appendix-A-i18n.md §A.0① / coordinator ruling R10: en_US.json is NOT the identity
+  // map for every English $t() source string in this batch. Vue2's default AND fallback
+  // locale are both en_us (src/plugins/i18n.js:9-10), so the English UI actually renders
+  // en_US.json's override value — "1:1 保真以「渲染值」为准,不以 $t() 的 key 为准". Only a
+  // positive assertion has zero discriminating power here (a value accidentally set back to
+  // the literal $t() source string would look "reasonable" to anyone skimming the diff) —
+  // each key therefore also gets a reverse assertion pinning that it is NOT the literal
+  // source string.
+  describe('P5d Task 1 R10 — en_US.json overrides (en ≠ literal $t() source string)', () => {
+    it('aiKbNtDeleteBody2 renders the en_US.json override "this cannot be undone." (with the trailing period), not the literal $t() source "this cannot be undone"', () => {
+      expect((en as Record<string, unknown>).aiKbNtDeleteBody2).toBe('this cannot be undone.')
+      expect((en as Record<string, unknown>).aiKbNtDeleteBody2).not.toBe('this cannot be undone')
+    })
+
+    it('aiKbNoteTypeNote renders the en_US.json override "Note", not the literal $t() source "Note item"', () => {
+      expect((en as Record<string, unknown>).aiKbNoteTypeNote).toBe('Note')
+      expect((en as Record<string, unknown>).aiKbNoteTypeNote).not.toBe('Note item')
+    })
+  })
+
+  // p5d-common-constraints.md §7.1 / p5d-appendix-A-i18n.md §A.7.1: 11 cross-key collisions
+  // (this batch's key legitimately shares ONE of {zh, en} with an unrelated existing key,
+  // but the axis that actually renders differently must be pinned) plus 1 collision
+  // internal to this batch. Per p5c-common-constraints.md §9.2 (T6 review finding I-1): a
+  // "the zh values happen to match, that's fine" comment with no assertion is exactly the
+  // shape that let a probe swap in the forbidden key and stay 47/47 green in P5c — so every
+  // group here gets a real assertion on the axis that must diverge, not just prose.
+  describe('P5d Task 1 N32 collision guards — this batch must not collapse onto an unrelated existing key', () => {
+    // For 9 of the 11 rows the zh values collide (by design — same Chinese label used
+    // elsewhere in the app) and it's the EN value that must stay distinct, so the English
+    // UI doesn't silently start rendering copy borrowed from an unrelated feature area. Two
+    // rows are the mirror direction (en collides, zh must stay distinct) — flagged with
+    // axis: 'zh'.
+    const crossKeyCollisions: Array<{ ref: string; newKey: string; forbiddenKey: string; axis: 'en' | 'zh' }> = [
+      { ref: 'N32-3', newKey: 'aiKbNtOpenFolder', forbiddenKey: 'aiOpenInFileManager', axis: 'en' },
+      { ref: 'N32-1', newKey: 'aiKbNtConfirm', forbiddenKey: 'appsSettingsConflictOk', axis: 'en' },
+      { ref: 'N32-9', newKey: 'aiKbNtDelete', forbiddenKey: 'appsSettingsRemove', axis: 'en' },
+      { ref: 'N32-4', newKey: 'aiKbNeSource', forbiddenKey: 'aiSkAddedBy', axis: 'en' },
+      { ref: 'N32-10', newKey: 'aiKbNeRemoveTag', forbiddenKey: 'appsSettingsRemove', axis: 'zh' },
+      { ref: 'N32-5', newKey: 'aiKbNeSources', forbiddenKey: 'aiSkAddedBy', axis: 'en' },
+      { ref: 'N32-7', newKey: 'aiKbNePathCopied', forbiddenKey: 'filesCopiedPath', axis: 'zh' },
+      { ref: 'N32-11', newKey: 'aiKbRelMinAgo', forbiddenKey: 'aiResMinutesAgo', axis: 'en' },
+      { ref: 'N32-12', newKey: 'aiKbRelHrAgo', forbiddenKey: 'aiResHoursAgo', axis: 'en' },
+      { ref: 'N32-6', newKey: 'aiKbRelDaysAgo', forbiddenKey: 'aiResDaysAgo', axis: 'en' },
+      { ref: 'N32-2', newKey: 'aiKbNoteTypeNote', forbiddenKey: 'aiKbNavNotes', axis: 'en' },
+    ]
+
+    it('covers exactly the 11 cross-key collision groups from Appendix A §A.7.1', () => {
+      expect(crossKeyCollisions.length).toBe(11)
+    })
+
+    for (const { ref, newKey, forbiddenKey, axis } of crossKeyCollisions) {
+      it(`${ref}: ${newKey} must not collapse onto ${forbiddenKey} on the ${axis} axis`, () => {
+        const zhNew = (zh as Record<string, unknown>)[newKey]
+        const enNew = (en as Record<string, unknown>)[newKey]
+        const zhForbidden = (zh as Record<string, unknown>)[forbiddenKey]
+        const enForbidden = (en as Record<string, unknown>)[forbiddenKey]
+        expect(typeof zhNew, `${newKey} zh`).toBe('string')
+        expect(typeof enNew, `${newKey} en`).toBe('string')
+        expect(typeof zhForbidden, `${forbiddenKey} zh`).toBe('string')
+        expect(typeof enForbidden, `${forbiddenKey} en`).toBe('string')
+
+        if (axis === 'en') {
+          // zh collision is expected and NOT asserted against here (both keys legitimately
+          // share the Chinese label) — the English UI is what must stay distinguishable.
+          expect(enNew, `${newKey}.en must differ from ${forbiddenKey}.en`).not.toBe(enForbidden)
+        } else {
+          // Mirror direction: en collision is expected, zh must differ.
+          expect(zhNew, `${newKey}.zh must differ from ${forbiddenKey}.zh`).not.toBe(zhForbidden)
+        }
+      })
+    }
+
+    // N32-8: collision internal to this batch. NoteEditPane.vue:86 ('Source') and :126
+    // ('Sources') share the zh label 来源 but must keep independent en values so the
+    // English UI still distinguishes singular/plural. Unlike the cross-key rows above,
+    // both keys were written by this task, so both directions are pinned directly.
+    it('N32-8: aiKbNeSource and aiKbNeSources share zh (来源) but keep distinct en values (Source / Sources)', () => {
+      expect((zh as Record<string, unknown>).aiKbNeSource).toBe('来源')
+      expect((zh as Record<string, unknown>).aiKbNeSources).toBe('来源')
+      expect((en as Record<string, unknown>).aiKbNeSource).toBe('Source')
+      expect((en as Record<string, unknown>).aiKbNeSources).toBe('Sources')
+      expect((en as Record<string, unknown>).aiKbNeSource).not.toBe((en as Record<string, unknown>).aiKbNeSources)
+    })
+  })
+
+  // p5d-common-constraints.md K42: aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo must NOT reuse
+  // the existing aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo — those use {m}/{h}/{d} placeholders
+  // (indexedFilesView.ts:53-57), while this batch's relativeTime() (landing in T3)
+  // interpolates with an `n` param. A placeholder-name-parity check alone (the (b) block
+  // above) cannot catch a future "helpfully" swap onto the wrong existing key, because
+  // aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo also have internally-consistent zh/en {…} pairs — the
+  // failure only shows up when you actually interpolate. So this renders through real
+  // vue-i18n `t()` calls with an `{ n: 5 }` param and asserts a real "5" appears (not the
+  // literal string "{n}"), and — as the reverse probe demonstrating why K42 exists — proves
+  // the forbidden keys do NOT substitute when fed an `n` param (they're keyed on m/h/d).
+  describe('P5d Task 1 K42 — relativeTime keys interpolate a real number via {n}, not a literal placeholder', () => {
+    const relKeys = ['aiKbRelMinAgo', 'aiKbRelHrAgo', 'aiKbRelDaysAgo'] as const
+
+    for (const key of relKeys) {
+      it(`${key} interpolates {n} into a real number in zh_cn (not the literal "{n}")`, () => {
+        const i18nZh = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+        const message = i18nZh.global.t(key, { n: 5 })
+        expect(message).toContain('5')
+        expect(message).not.toContain('{n}')
+      })
+
+      it(`${key} interpolates {n} into a real number in en_us (not the literal "{n}")`, () => {
+        const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
+        const message = i18nEn.global.t(key, { n: 5 })
+        expect(message).toContain('5')
+        expect(message).not.toContain('{n}')
+      })
+    }
+
+    it('reusing aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo with the {n} param this batch actually passes would silently drop the number — the reason K42 forbids reuse', () => {
+      const i18nZh = createI18n({
+        legacy: false,
+        locale: 'zh_cn',
+        messages: { zh_cn: zh },
+      })
+      // These 3 keys are keyed on {m}/{h}/{d}, not {n}. Measured behavior (not assumed):
+      // vue-i18n does NOT leave an unmatched placeholder as a literal "{m}" in the output —
+      // it silently substitutes empty string for the unmatched name, so the rendered string
+      // is missing its number entirely (e.g. " 分钟前" with no digit) rather than showing a
+      // literal "{m}". Either failure mode is a real 1:1 break; this pins the one vue-i18n
+      // actually produces.
+      expect(i18nZh.global.t('aiKbMinAgo', { n: 5 })).not.toContain('5')
+      expect(i18nZh.global.t('aiKbHrAgo', { n: 5 })).not.toContain('5')
+      expect(i18nZh.global.t('aiKbDaysAgo', { n: 5 })).not.toContain('5')
+    })
+  })
+
   describe('bare @ guard (unescaped @ detection)', () => {
     it('should not allow bare @ in any key (only {@} escapes or @:key references)', () => {
       const locales = [
