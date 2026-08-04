@@ -554,4 +554,33 @@ export default {
   kvmMountIso: '挂载 ISO',
   kvmParentDir: '上一级',
   kvmToggleCustom: '展开/收起自定义',
+
+  // ── SP9-P7 Search ──(SearchDialog 接真后端;spec §7.5/§7.6/§7.8)
+  // 排序理由标签(reasons.ts 产 key、这里给文案)。demo 时代那些带计数的英文标签
+  // (Body match ×9 / Transcript match ×3)后端根本不返回,是编的,故新标签不带数字。
+  searchReasonFilename: '文件名命中',
+  searchReasonFilenameFuzzy: '文件名相关',
+  searchReasonBody: '正文命中',
+  searchReasonTranscript: '转写命中',
+  searchReasonOcr: '图片文字命中',
+  searchReasonCaption: '图片内容命中',
+  searchReasonSemantic: '语义相关',
+  // 来源徽标(取代 demo 的「98%」准确率——四源分数互不可比,百分比是编的)。
+  // 中文取自 Vue2 zh_CN.json 的 "Semantic" / "Filenames";OCR 沿用现状不译。
+  searchBadgeSemantic: '语义',
+  searchBadgeFilename: '文件名',
+  searchBadgeOcr: 'OCR',
+  // 降级提示条:哪些源本次没参与。三条源文案逐字取自 Vue2 zh_CN.json。
+  searchSourceSemantic: '语义搜索不可用',
+  searchSourceImages: '图片搜索不可用',
+  searchSourceFilenames: '文件名搜索不可用',
+  searchNoticePrefix: '本次未参与搜索:',
+  // 三种空态(spec §7.8):「没搜到」与「后端没就绪」必须分得开。
+  searchEmptyNoMatch: '没有匹配的文件',   // Vue2 zh_CN.json 逐字
+  searchEmptyNoRoots: '没有可搜索的目录',
+  searchEmptyNotReady: '搜索后端未就绪',
+  // 错误态(请求失败)。标题逐字取自 Vue2 zh_CN.json。
+  searchErrorTitle: '搜索失败',
+  searchErrorHint: '搜索服务当前不可用,请稍后重试',
+  searchRetry: '重试',
 }

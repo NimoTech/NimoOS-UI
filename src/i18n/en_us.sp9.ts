@@ -503,4 +503,36 @@ export default {
   kvmMountIso: 'Mount ISO',
   kvmParentDir: 'Parent directory',
   kvmToggleCustom: 'Toggle custom section',
+
+  // ── SP9-P7 Search ── (SearchDialog wired to the real backend; spec §7.5/§7.6/§7.8)
+  // Ranking-reason chips (reasons.ts produces the key, the copy lives here). The demo-era
+  // labels carried counts (Body match ×9 / Transcript match ×3) that the backend never
+  // returns — they were invented, so the new labels carry no numbers.
+  searchReasonFilename: 'Filename match',
+  searchReasonFilenameFuzzy: 'Filename related',
+  searchReasonBody: 'Body match',
+  searchReasonTranscript: 'Transcript match',
+  searchReasonOcr: 'Text in image',
+  searchReasonCaption: 'Image content match',
+  searchReasonSemantic: 'Semantically related',
+  // Source badges (replacing the demo's "98%" accuracy — the four sources' scores are
+  // not comparable, so the percentage was fabricated). Copy from Vue2's "Semantic" /
+  // "Filenames"; OCR keeps the existing wording.
+  searchBadgeSemantic: 'Semantic',
+  searchBadgeFilename: 'Filenames',
+  searchBadgeOcr: 'OCR',
+  // Degradation notice: which sources sat this search out.
+  searchSourceSemantic: 'Semantic search unavailable',
+  searchSourceImages: 'Photo search unavailable',
+  searchSourceFilenames: 'Filename search unavailable',
+  searchNoticePrefix: 'Not included in this search:',
+  // Three empty states (spec §7.8): "found nothing" must stay distinguishable from
+  // "backend was not up".
+  searchEmptyNoMatch: 'No matching files',
+  searchEmptyNoRoots: 'No searchable folders',
+  searchEmptyNotReady: 'Search backend not ready',
+  // Error state (request failed).
+  searchErrorTitle: 'Search failed',
+  searchErrorHint: 'The search service is unavailable, please retry',
+  searchRetry: 'Retry',
 }
