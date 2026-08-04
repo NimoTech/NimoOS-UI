@@ -25,6 +25,16 @@ Vue2 的 i18n 默认 locale 与 fallback **都是 `en_us`**(`src/plugins/i18n.js
 → **落地要求**:`aiKbNtDeleteBody2` 的 en 填 `this cannot be undone.`;`aiKbNoteTypeNote` 的 en 填 `Note`。
 两条各配一条 **en 档正向断言 + 反向断言(≠ 英文原串)**。
 
+#### 🔴 **裁定 R10 —— en 值的权威源(T1 直接照本节做,不必再判断)**
+
+| 项 | 口径 |
+|---|---|
+| **en 的权威源** | **`git show 7a6ee6b7:src/assets/lang/en_US.json`**,不是 `$t()` 里的英文原串。§A.2 的「en 值」列已经是它 |
+| **依据** | Vue2 的默认 locale **与** fallback locale **都是 `en_us`**(`src/plugins/i18n.js:9-10`)→ 英文界面渲染的就是覆盖值。**1:1 保真以「渲染值」为准,不以 `$t()` 的 key 为准** |
+| **本期命中** | **2 条**:`aiKbNtDeleteBody2` → `this cannot be undone.`(多句点)· `aiKbNoteTypeNote` → `Note` |
+| **落地判据** | 这 2 条各配 **en 正向断言**(en locale 挂载后逐字渲染成覆盖值)**+ 反向断言**(`not.toBe('this cannot be undone')` / `not.toBe('Note item')`)。**只写正向零判别力** —— 填错成原串时正向断言同样会红,但反向断言才能钉住「不许有人顺手改回原串」 |
+| 🔴 **verify 脚本** | `p5d-task-1-i18n-verify.mjs` 的 **en 侧不许再假设「en = JSON key」** —— P5c 那份脚本头注释写的「T0 measured zero overrides in that file」**只对 P5a/P5b/P5c 成立,本期第一次失效**(E-31)。en 侧必须逐条读 `en_US.json[原串]` 再比对 `en_us.ts[新键]`,DoD 是 **92/92 MATCH**(zh 侧同样 92/92) |
+
 ### ② **全角标点例外只有 1 条**,治理 §7(a) 点名的那 3 条**全是假阳性**
 
 治理 §7(a) 写「本期例外至少含 N26 的两组三段式(`,还不是正式知识` 以中文逗号开头、
@@ -162,15 +172,22 @@ Vue2 的 i18n 默认 locale 与 fallback **都是 `en_us`**(`src/plugins/i18n.js
 
 **7 个 labelKey 值全部已进 §A.2**(逐条核对 ✅):
 
-| labelKey 原串 | 蓝本 | New-UI 键 | en(en_US.json) | zh |
+> 🔴🔴 **【修复轮 1,裁定 R3】本表的 zh 列一律以 §A.2 为准 —— 本表只为核对「labelKey 归属」,不是值的来源。**
+> 初稿本表的 5 个 zh 值是**手打时自己译的**(`洞察`/`摘录`/`你写的`/`agent 写的`/`自动沉淀`),
+> 与同一份附录 §A.2(脚本直读 `zh_CN.json` 生成)自相矛盾 —— 而两张表都被声明成「T1 的唯一值来源」,
+> T1 抄本表就会错 5 条。**这正是治理 §7 与硬约束 §0.3-2 明令禁止的「自己翻译」。**
+> 已按 `git show 7a6ee6b7:src/assets/lang/zh_CN.json` 的实际值订正(下表 zh 列现与 §A.2 逐字一致)。
+> **教训:附录里凡出现第二张写同一个值的表,就是一个双源缺陷;要么删,要么像本行这样显式指定唯一权威。**
+
+| labelKey 原串 | 蓝本 | New-UI 键 | en(en_US.json) | zh(**权威 = §A.2**) |
 |---|---|---|---|---|
 | `Note item` | `notesViewHelpers.js:6` | `aiKbNoteTypeNote` | 🔴 `Note`(≠原串,见 §A.0①) | `笔记` |
 | `Summary` | `:7` | `aiKbNoteTypeSummary` | `Summary` | `摘要` |
-| `Insight` | `:8` | `aiKbNoteTypeInsight` | `Insight` | `洞察` |
-| `Digest` | `:9` | `aiKbNoteTypeDigest` | `Digest` | `摘录` |
-| `Written by you` | `:17` | `aiKbNoteSrcHuman` | `Written by you` | `你写的` |
-| `Written by agent` | `:18` | `aiKbNoteSrcAgent` | `Written by agent` | `agent 写的` |
-| `Auto-captured` | `:19` | `aiKbNoteSrcPipeline` | `Auto-captured` | `自动沉淀` |
+| `Insight` | `:8` | `aiKbNoteTypeInsight` | `Insight` | **`洞见`** |
+| `Digest` | `:9` | `aiKbNoteTypeDigest` | `Digest` | **`文摘`** |
+| `Written by you` | `:17` | `aiKbNoteSrcHuman` | `Written by you` | **`手写`** |
+| `Written by agent` | `:18` | `aiKbNoteSrcAgent` | `Written by agent` | **`Agent 代写`** |
+| `Auto-captured` | `:19` | `aiKbNoteSrcPipeline` | `Auto-captured` | **`AI 沉淀`** |
 
 🔴 **落地口径(K40 连带)**:`notesViewHelpers.ts` 里 `labelKey` 字段的值必须改成 **New-UI 键名**
 (`labelKey: 'aiKbNoteTypeNote'` …),不是英文原串 —— New-UI 的键是 `aiKb*`,「英文原串即 key」这个

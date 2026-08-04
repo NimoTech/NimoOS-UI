@@ -65,8 +65,11 @@
 - 多停点渐变**无法拆成多个 token**(整个 `linear-gradient(...)` 必须是一个 token 值),而本仓既有
   `--grad-sandbox` / `--grad-iri` 的先例就是**把蓝本的字面色留在 token 值里**。
   → 两个 wash 按先例走,值保持蓝本原样;**它们是 token 声明层里的字面量,受 §6 的豁免登记覆盖**。
-- 🔴 **这一条是 T0 的裁定,不是治理原文** —— 若协调者要求两个 wash 也改用本仓 warning 色相,
-  那是 4 个 alpha 值的重算,**必须由协调者给定值**(不许实现者自算,承 P5a T11 R9 教训)。
+- 🔴 **【修复轮 1 · 裁定 R11】协调者已批准「保留蓝本色相」,本项不再是开放问题。**
+  裁定依据(裁定书 R11 原文):既有 `--grad-sandbox` / `--grad-iri` 先例;**K39 授权新建渐变 token**,
+  而 **A-9「不为透明度差几个点开小灶」管的是 soft 填充**(`--warning-soft` 那族)、**不管渐变**。
+  → **协调者不需要、也不会给那 4 个 alpha**;实现者按上表 §B.1 第 5/6 行的值逐字落地即可,
+  **不许自己重算、也不许改成本仓 warning 色相**。
 
 ### B.1.2 🔴 3 处 `color: #fff` 的 token **定死为 `--text-on-accent`**(实现者不许自选)
 
@@ -158,7 +161,15 @@ P5b 的 **E-11** 就是漏了这一类;P5c 那期真的是 0,**本期不是**。
 
 ## §B.5 K40 —— `.ts` 里的 4 个渐变是**全仓唯一零守卫的配色位置**
 
-`color-guard.test.ts` 只扫 `.vue` 的 `<style>` 块与 `.css`/`.scss`,**压根不扫 `.ts`**(T0 已读该文件确认)。
+`color-guard.test.ts` 只扫 **`.vue` 的 `<style>` 块**与 **`.css`**,**压根不扫 `.ts`**(T0 已读该文件确认)。
+
+> 🔴 **【修复轮 1 · M-1】初稿这句写成「…与 `.css`/`.scss`」是错的:它也不扫 `.scss`。**
+> 实测 `src/styles/color-guard.test.ts:15-16` 的 glob **只有两条**:
+> `import.meta.glob('../**/*.vue', …)` 与 `import.meta.glob('../**/*.css', …)`。
+> **为什么这个错很危险**:它会让下游误以为 `knowledge.scss` 有 color-guard 兜底 ——
+> 实际上本档除 §B.6 登记的两个 token 声明块外,**只有 `knowledgeStyles.test.ts` 的色字面量扫描 +
+> 人肉逐行评审两道防线**(P5a §6 / P5b §6.2 的「⚠️ `color-guard` 不扫 `.scss`」原本就是这么写的)。
+> 承重结论(不扫 `.ts` → K40 的 4 个渐变裸奔)**不受影响,仍成立**。
 → `notesViewHelpers.ts` 的 `NOTE_TYPES[*].color` 改成 `'var(--grad-note-*)'` 之后,
 **必须**在 `notesViewHelpers.test.ts` 里补一条定向断言 + RED 探针:
 
