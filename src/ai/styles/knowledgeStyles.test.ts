@@ -1038,6 +1038,7 @@ const KNOWLEDGE_VUE_FILES = [
   'views/IndexedFilesView.vue',
   'views/KnowledgeDeferred.vue',
   'views/KnowledgeLayout.vue',
+  'views/NotesView.vue',
   'views/QueueView.vue',
   'views/SettingsView.vue',
 ]
