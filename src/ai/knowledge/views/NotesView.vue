@@ -72,10 +72,11 @@
   用非空断言 `!` 而不是 `?.`/提前 return(那会把蓝本的隐式抛错静默改成 no-op,
   不是零行为变化)。
 
-  【尚未存在 NoteEditPane.vue,见下方 setup 里的申报注释】本刀（T6）依计划书
-  单车道顺序早于 T7,子组件真身要到 T7/T8 才落地——挂载点与 `:key="editingId"`
-  仍照蓝本 1:1 写,内部用一个零逻辑占位组件顶替静态 import,防止本刀单独提交
-  时 `vue-tsc`/`vite build` 因引用不存在的模块而失败。
+  【NoteEditPane.vue 已在 T7 落地】T6 提交时该文件尚不存在,内联了一个零逻辑
+  占位组件顶替静态 import(见 p5d-task-6-report.md §7)。T7 创建了真实的
+  `../components/NoteEditPane.vue` 后,依计划书 §T7/brief §2 的「自动上膛」
+  守卫要求(见下方 `NotesView.test.ts` 对应 describe 块),已把下面这个 import
+  换回真组件,占位实现随之删除。
 
   【删除确认弹窗转 reka,申报】计划书 §T8-7 已把冲突弹窗定为「转」,本刀判断
   删除确认弹窗同族(K7 自 P5b 起对本期新增弹窗一律生效,QueueView/
@@ -86,7 +87,7 @@
   `SettingsView.vue:580-624` 抄,不自己发明。
 -->
 <script setup lang="ts">
-import { ref, computed, watch, defineComponent, h } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle } from 'reka-ui'
@@ -95,6 +96,7 @@ import type { Note } from '@nimotech/nimoos-service'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { useToast } from '../../../stores/toast'
 import KIcon from '../components/KIcon.vue'
+import NoteEditPane from '../components/NoteEditPane.vue'
 import { openDirInNewTab } from '../../services/openInApp'
 import { NOTE_TYPES, noteTypeMeta, noteSourceMeta, applyFilters, relativeTime } from '../util/notesViewHelpers'
 
@@ -102,28 +104,6 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const store = useKnowledgeStore()
-
-/**
- * 🔴 T6 依赖说明(p5d-plan.md 依赖链:T6 早于 T7)—— `NoteEditPane.vue` 由
- * T7/T8 交付,本刀提交时该文件尚不存在。挂载点 `<NoteEditPane v-if="editingId"
- * :key="editingId" :note-id="editingId"/>` 与 `:key` 必须照蓝本 1:1 写,但静态
- * `import` 一个尚不存在的模块会让本刀单独提交时 `vue-tsc --noEmit` 与
- * `vite build` 当场失败——单车道流程要求每一刀独立过三门。
- * 用一个**零逻辑**的本地占位组件顶替 import:只满足「挂载点存在 +
- * `:key` 变化触发重建」两件事,不做任何编辑器功能。这不是一个新 `.vue`
- * 文件(不影响 T6「.vue 180→181」的算术,也不算「T6 创建了
- * NoteEditPane.vue」——那仍是 T7 的产出),T7 落地真实的
- * `../components/NoteEditPane.vue` 时会把下面这个 const 换成一行真实 import。
- * 测试里同样吃到这个占位组件即可断言 `:key` 触发的重建(见
- * `NotesView.test.ts` 的「N30」用例),不需要额外 stub 配置。
- */
-const NoteEditPane = defineComponent({
-  name: 'NoteEditPanePlaceholder',
-  props: { noteId: { type: String, required: true } },
-  setup(props) {
-    return () => h('div', { class: 'kn-edit-pane-stub', 'data-note-id': props.noteId })
-  },
-})
 
 const typeMeta = noteTypeMeta
 const sourceMeta = noteSourceMeta

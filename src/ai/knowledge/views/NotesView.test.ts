@@ -52,6 +52,13 @@ const notes = vi.hoisted(() => ({
   curate: vi.fn(),
   archive: vi.fn(),
   remove: vi.fn(),
+  // T7 追加:NoteEditPane.vue 落地后是真组件(不再是 T6 的零逻辑占位),
+  // `?id=` 非空时会真的挂载它并调用 `service.notes.get`/`backlinks`——
+  // 不 mock 这两个方法会在真机之外让本文件的路由类用例(N30/深链)因
+  // `notes.get is not a function` 而炸裂。NoteEditPane 自身的行为(表单/
+  // 编辑器/保存)由 NoteEditPane.test.ts 独立覆盖,本文件只需要它能安静挂载。
+  get: vi.fn(),
+  backlinks: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { notes } }))
 
@@ -177,6 +184,10 @@ function setupDefaultMocks(): void {
   notes.curate.mockImplementation((id: string) => Promise.resolve({ ...NOTE_DRAFT, id, status: 'curated' }))
   notes.archive.mockImplementation((id: string) => Promise.resolve({ ...NOTE_DRAFT, id, status: 'archived' }))
   notes.remove.mockImplementation((id: string) => Promise.resolve({ status: 'deleted', id }))
+  // T7 追加(见上方 notes 的声明处注释):NoteEditPane 挂载时的两发请求,默认
+  // 安静成功,不产生任何 toast——本文件不测 NoteEditPane 自身行为。
+  notes.get.mockImplementation((id: string) => Promise.resolve({ ...NOTE_DRAFT, id }))
+  notes.backlinks.mockResolvedValue([])
 }
 
 beforeEach(() => {
@@ -405,21 +416,29 @@ describe('NotesView — reload() 过期守卫（§5.2）', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // N30 两条一起:watch editingId 只在变空时 reload;:key="editingId" 不许删。
-describe('NotesView — N30（watch editingId 只在变空时 reload + :key 触发重建）', () => {
+// 🔴 T7 追加说明:T6 提交时 `NoteEditPane` 还是 T6 自己的零逻辑占位组件,
+// 这两条用例原先直接读占位组件渲染的 `.kn-edit-pane-stub[data-note-id]`
+// 判断「重建了没有」。T7 落地真组件后占位已被移除(见 NotesView.vue 头注释
+// 「NoteEditPane.vue 已在 T7 落地」),真组件没有这个标记 —— 改用真组件必然
+// 渲染的 `.kn-edit-top`(顶栏,任何笔记都会有)做元素身份见证,并用
+// `notes.get` 的调用参数验证「:key 变化 → 新实例 → 新一发 get(id)」这条
+// 因果链,判据本身(拿掉 `if (!v)` 会让 reload 多跑一次)未变。
+describe('NotesView — N30(watch editingId 只在变空时 reload + :key 触发重建)', () => {
   it('切到另一条笔记(非空 id → 另一个非空 id)不触发 reload,但 :key 变化会重建子组件', async () => {
     const { w, router } = await mountNotesView()
     expect(notes.list).toHaveBeenCalledTimes(1)
 
     await router.push({ query: { id: 'note-a' } })
     await flush()
-    const el1 = w.find('.kn-edit-pane-stub').element
-    expect(el1.getAttribute('data-note-id')).toBe('note-a')
+    expect(notes.get).toHaveBeenCalledWith('note-a')
+    const el1 = w.find('.kn-edit-top').element
 
     notes.list.mockClear()
+    notes.get.mockClear()
     await router.push({ query: { id: 'note-b' } }) // 非空 → 非空,watch 守卫应拦住 reload
     await flush()
-    const el2 = w.find('.kn-edit-pane-stub').element
-    expect(el2.getAttribute('data-note-id')).toBe('note-b')
+    expect(notes.get).toHaveBeenCalledWith('note-b') // :key 变化 → 新实例 → 新一发 get()
+    const el2 = w.find('.kn-edit-top').element
     expect(el2).not.toBe(el1) // :key 变化 → 新 DOM 节点(重建)
     expect(notes.list).not.toHaveBeenCalled() // 判据:拿掉 `if (!v)` 这层会让这里报红
   })
@@ -432,20 +451,23 @@ describe('NotesView — N30（watch editingId 只在变空时 reload + :key 触�
     await router.push({ query: { id: '' } })
     await flush()
     expect(notes.list).toHaveBeenCalledTimes(1)
-    expect(w.find('.kn-edit-pane-stub').exists()).toBe(false)
+    expect(w.find('.kn-edit-top').exists()).toBe(false)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 深链:editingId 来自 route.query.id,直接改地址栏(不经点击)也要生效
 // (记忆 newui-router-query-only-no-remount)。
-describe('NotesView — 深链 ?id= 响应式（记忆 newui-router-query-only-no-remount）', () => {
+// 🔴 T7 追加说明(同 N30 一节):真组件没有 `.kn-edit-pane-stub` 标记,改用
+// `.kn-edit-top`(顶栏)存在与否 + `notes.get` 的调用参数witness「切到编辑态」。
+describe('NotesView — 深链 ?id= 响应式(记忆 newui-router-query-only-no-remount)', () => {
   it('挂载后直接改路由 query(模拟用户手改地址栏)也能切到编辑态,不需要重新挂载整个视图', async () => {
     const { w, router } = await mountNotesView() // 初始 ?id= 缺省(空)
-    expect(w.find('.kn-edit-pane-stub').exists()).toBe(false)
+    expect(w.find('.kn-edit-top').exists()).toBe(false)
     await router.push({ query: { id: 'from-address-bar' } })
     await flush()
-    expect(w.find('.kn-edit-pane-stub').attributes('data-note-id')).toBe('from-address-bar')
+    expect(w.find('.kn-edit-top').exists()).toBe(true)
+    expect(notes.get).toHaveBeenCalledWith('from-address-bar')
   })
 })
 
