@@ -64,6 +64,38 @@
  * 【显式不搬】蓝本 :985-991 的 .k-section-body 是 Allowlist 页专用(A 段的边界因此是
  * :969-984,不是 :969-988 —— 按 :988 切会把它截成半条规则,sass 直接编译报错)。
  *
+ * 【SP8-P5d Task 2 续写】本档第五次扩容:搬入"笔记区"(NotesView / NoteEditPane /
+ * NotesMarkdownEditor)专属段 —— 蓝本 :2029(A,.k-badge[data-tone="warn"] 残余,
+ * .kn-badge 五条 P5b-T2 已搬不重复)+ :2040-2045(A,.kn-type-ic/.kn-src/.kn-tag)·
+ * :2047-2056(B,path strip)· :2057-2085(C,draft inbox)· :2086-2121(D,notes list)·
+ * :2122-2194(E,edit pane,含 :2171-2182 的 .kn-editor-body-wrap .nme-content
+ * .ProseMirror)· :2195-2241(F,edit aside)· :2242-2249(G,conflict modal)·
+ * :2265-2281(H,responsive)· :551-571(K43,.k-seg,21 行,与 P5e 的 SearchView 共用,
+ * P5e 不许重复搬)。全部按 K9 从顶层裸选择器重新嵌进下方 :345 起的 `.knowledge-app { … }`
+ * 基础块,段序照蓝本原序。白名单 226 → 293(附录 D §D.1 的 65 个 k 前缀新类 + R9 追加
+ * 的 nme-content/ProseMirror 2 个非 k* 类)。
+ * 🔴 K44(治理 §6.2 唯一顶层例外,裁定 R4):蓝本 NotesMarkdownEditor.vue:41-46 的
+ * `<style lang="scss">` 全段是非 scoped 的全局规则,对**任何** .nme-content 生效,
+ * 嵌进 .knowledge-app 会缩小作用域 = 改行为 —— 保持顶层裸选择器,紧邻本档
+ * `.knowledge-app { … }` 基础块闭合处落笔(见该处注释)。它与上面 E 段的
+ * .kn-editor-body-wrap .nme-content .ProseMirror 是两条不同选择器、互补生效
+ * (前者管行内代码/代码块/引用,后者管标题/列表/表格),两份都要搬、不许合并
+ * (合并会把特异性从 (0,2,0) 变 (0,3,0))。
+ * K45(裁定 R1,本期新增授权):蓝本 :1569-1570 的 .k-btn.text(+:hover)两行搬入本档
+ * 既有 `.k-btn { … }` 块内(见该处注释),插在 &.danger 之后、&:disabled 之前;
+ * `text` 进 NON_K_HELPER_CLASSES(R8:10→16),不进白名单(R9 的正则扫不到复合类
+ * `.k-btn.text` 里的 `text`)。P5e 不许重复搬(与 K43 同款交接纪律)。
+ * K39 新增 9 个 token(--grad-note-note/-summary/-insight/-digest、--grad-inbox-wash、
+ * --grad-draftbar-wash、--shadow-warning-glow、--code-block-bg、--code-block-fg),
+ * 声明处见下方两个 token 块本批新增分组,取值/出处见附录 B §B.1(诚实登记:4 个笔记
+ * 渐变里只有 --grad-note-note 与既有 --grad-sandbox 逐字同值,另 3 个全仓零同值先例,
+ * 蓝本是值的唯一权威源,不许照抄 P5c 那句"4/4 都有出处")。
+ * 守卫改动(治理 §9.6,knowledgeStyles.test.ts):「没有搬多」正则扩到也扫
+ * `nme(?:-…)?`/`ProseMirror` 且字符集加 A-Z(兑现 P5c §6.4.2 债票,A-11);
+ * `nonKClassNames` 排除条件加 `nme-content`/`ProseMirror`;`NON_K_HELPER_CLASSES`
+ * 10→16(治理 A-10 写"保持 10 项"是错的,裁定 R8 已订正,以实测为准,详见测试文件
+ * 头部注释);K44 顶层例外补一条**新建**的集合相等断言(裁定 R4)。
+ *
  * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent
  * 等原生冷蓝色值),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
  * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
@@ -241,6 +273,31 @@
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:321 */
   --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
 
+  /* K39(P5d-T2 新增,裁定书 R11 已批准渐变保留蓝本色相;附录 B §B.1 是权威)——
+     9 个新 token,两档都显式写值,声明处逐行标蓝本 file:line:
+       --grad-note-*(notesViewHelpers.js:6-9,4 个笔记类型渐变,theme-invariant;
+         --grad-note-insight 与下面 .kn-inbox-icon 共用同一份,不许声明两份 —— K39 明令)
+       --grad-inbox-wash / --grad-draftbar-wash(knowledge.scss:2060/:2132 的 wash 底色
+         渐变,theme-invariant,保留蓝本色相、不开小灶算 alpha —— 裁定 R11)
+       --shadow-warning-glow(knowledge.scss:2067 的 .kn-inbox-icon 外发光,**两档不同值**:
+         RGB 三元组取 --warning-soft-border 两档已有值,alpha 沿用蓝本 0.3/0.24,A-9/A11 同族)
+       --code-block-bg / --code-block-fg(NotesMarkdownEditor.vue:44 的 pre 底色/前景,
+         theme-invariant,两档同 #0d0d0d/#ffffff,与 --switch-thumb 两档同值同族先例)
+     🔴 诚实登记(K39 明令,不许照抄 P5c "4/4 都有出处"那句):4 个笔记渐变里只有
+     --grad-note-note 与既有 --grad-sandbox 逐字同值(仍另建新名,理由同 --grad-sandbox
+     借 --grad-sk-blue 名字会误导的先例:sandbox 是测试沙盒语义,借给笔记类型同样会
+     误导);另外 3 个(--grad-note-summary/-insight/-digest)全仓零同值先例,蓝本设计包
+     是值的唯一权威源。 */
+  --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6,与既有 --grad-sandbox 逐字同值(仍另建新名,理由见上) */
+  --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7,全仓零同值先例 */
+  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8,与 knowledge.scss:2066(.kn-inbox-icon)共用同一份,全仓零同值先例 */
+  --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9,全仓零同值先例 */
+  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060,保留蓝本色相(裁定 R11) */
+  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132,保留蓝本色相(裁定 R11) */
+  --shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3); /* knowledge.scss:2067,RGB 取 --warning-soft-border 暗档三元组 + 蓝本 alpha 0.3 */
+  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
+  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant,与 --text-on-accent 逐字同值但语义不同(近黑代码块上的字,非强调实底上的字) */
+
   /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
   color-scheme: dark;
 }
@@ -334,6 +391,19 @@
   --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:202 */
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:162 */
   --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
+
+  /* K39(见暗色块同名注释)—— 浅色档取值。4 个笔记渐变 + 2 个 wash 渐变 + --code-block-*
+     是 theme-invariant(两档同值);只有 --shadow-warning-glow 两档不同(RGB 三元组换成
+     --warning-soft-border 浅档值,alpha 沿用蓝本 0.24)。 */
+  --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6 */
+  --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7 */
+  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8,与 knowledge.scss:2066 共用同一份 */
+  --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9 */
+  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060,保留蓝本色相(裁定 R11) */
+  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132,保留蓝本色相(裁定 R11) */
+  --shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24); /* knowledge.scss:2067,RGB 取 --warning-soft-border 浅档三元组 + 蓝本 alpha 0.24 */
+  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
+  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant */
 
   /* R3 —— 见头注释 */
   color-scheme: light;
@@ -740,6 +810,16 @@
          按治理文件 §6.2 归属表新造 --danger-hover,两档取值见上方两个声明块。 */
       &:hover:not(:disabled) { background: var(--danger-hover); }
     }
+    &.text {
+      /* K45(裁定 R1)—— 蓝本 knowledge.scss:1569-1570,搬自 P5e"文件聚合搜索"抽屉段的
+         按钮变体(依据 K43 逐字同构先例:同为 .knowledge-app 层级共享原语,P5e 不许
+         重复搬)。零色字面量:transparent 是关键字,--accent/--accent-soft 两档已声明。
+         🔴 "&.text" 在 .k-btn 块内必须恰好出现 2 次(本行 + 下面 hover 行)——
+         knowledgeStyles.test.ts 的 K45 计数断言锚定在本块内,重复搬会精确报红。 */
+      background: transparent;
+      color: var(--accent);
+    }
+    &.text:hover { background: var(--accent-soft); }
     &:disabled {
       background: var(--bg-chip); color: var(--text-quaternary);
       cursor: not-allowed; box-shadow: none;
@@ -1709,6 +1789,315 @@
     font-style: italic;
   }
   .fb-err { color: var(--danger); font-style: normal; }
+
+  /* ---------- P5d-T2 · A(蓝本 :2029 / :2040-2045,"Knowledge Notes" 共享底座残余)----------
+     .kn-badge 五条(蓝本 :2031-2039)P5b-T2 已搬(现状 :1596-1607 起),不重复定义;本段只
+     补 :2029 的 .k-badge[data-tone="warn"] 与 :2040-2045 的 .kn-type-ic/.kn-src/.kn-tag
+     三个类。K9:蓝本原文是顶层裸选择器,重新嵌进 .knowledge-app。
+     色字面量:.kn-type-ic 前景纯白裸色 → var(--text-on-accent)(附录 B §B.1.2 定死 —— 与
+     下面 .kn-inbox-icon 同款:压在渐变实底上的纯白字)。 */
+  .k-badge[data-tone="warn"] { background: var(--warning); }
+  .kn-type-ic {
+    border-radius: 9px; display: grid; place-items: center;
+    color: var(--text-on-accent); flex-shrink: 0; box-shadow: var(--shadow-xs);
+  }
+  .kn-src { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-tertiary); }
+  .kn-tag { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary); background: var(--bg-chip); border-radius: 999px; padding: 1px 8px; }
+
+  /* ---------- P5d-T2 · B(蓝本 :2047-2056,path strip —— 笔记即磁盘文件)---------- 零色字面量。 */
+  .kn-pathstrip {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+    border-radius: var(--r-sm); background: var(--bg-sunken);
+    border: 1px solid var(--line-faint); font-size: 12px; color: var(--text-secondary); flex-wrap: wrap;
+  }
+  .kn-pathstrip code { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary); background: var(--bg-chip); padding: 1px 7px; border-radius: 6px; }
+  .kn-pathstrip a { color: var(--accent); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; cursor: pointer; }
+  .kn-pathstrip a:hover { text-decoration: underline; }
+
+  /* ---------- P5d-T2 · C(蓝本 :2057-2085,draft inbox)----------
+     色字面量(附录 B §B.2 逐处映射):
+       .kn-inbox 边框橙色半透明裸值 → --warning-soft-border(A-9);
+       .kn-inbox 底色渐变(两停点)→ --grad-inbox-wash(K39 新建,保留蓝本色相,裁定 R11);
+       .kn-inbox-icon 渐变(橙→黄两停点裸色)→ --grad-note-insight(K39 新建,与
+         notesViewHelpers.ts 的 NOTE_TYPES.insight 共用同一份,不许声明两份);
+       .kn-inbox-icon 前景纯白裸色 → --text-on-accent(§B.1.2);
+       .kn-inbox-icon 投影(橙色半透明裸值,box-shadow 里)→ --shadow-warning-glow
+         (K39 新建,整条 shadow 进 token,两档不同值);
+       .kn-inbox-rows / .kn-inbox-foot 的 border-top 橙色半透明裸值 → --warning-soft-border;
+       .kn-inbox-foot 底色橙色半透明裸值 → --warning-soft。
+     `dot` 等非 k* 辅助类见 NON_K_HELPER_CLASSES(下方 E 段)。 */
+  .kn-inbox {
+    border-radius: var(--r-lg); border: 1px solid var(--warning-soft-border);
+    background: var(--grad-inbox-wash), var(--bg-elevated);
+    box-shadow: var(--shadow-xs); overflow: hidden;
+  }
+  .kn-inbox-head { display: flex; align-items: center; gap: 12px; padding: 13px 16px; cursor: pointer; user-select: none; }
+  .kn-inbox-icon {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: var(--grad-note-insight); color: var(--text-on-accent);
+    display: grid; place-items: center; flex-shrink: 0; box-shadow: var(--shadow-warning-glow);
+  }
+  .kn-inbox-title { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
+  .kn-inbox-title b { color: var(--warning); font-variant-numeric: tabular-nums; }
+  .kn-inbox-sub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .kn-inbox-chev { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--text-tertiary); transition: transform 180ms ease; flex-shrink: 0; }
+  .kn-inbox[data-open="true"] .kn-inbox-chev { transform: rotate(90deg); }
+  .kn-inbox-rows { border-top: 1px solid var(--warning-soft-border); }
+  .kn-inbox-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-faint); }
+  .kn-inbox-row:first-child { border-top: 0; }
+  .kn-inbox-row-main { flex: 1; min-width: 0; cursor: pointer; }
+  .kn-inbox-row-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kn-inbox-row-main:hover .kn-inbox-row-title { color: var(--accent); }
+  .kn-inbox-row-desc { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .kn-inbox-row-time { font-size: 11px; color: var(--text-quaternary); white-space: nowrap; flex-shrink: 0; }
+  .kn-inbox-acts { display: flex; gap: 6px; flex-shrink: 0; }
+  .kn-inbox-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--warning-soft-border); background: var(--warning-soft); }
+  .kn-inbox-foot-hint { font-size: 11.5px; color: var(--text-tertiary); flex: 1; }
+
+  /* ---------- P5d-T2 · D(蓝本 :2086-2121,notes list)----------
+     色字面量:.kn-act[data-tone="confirm"] 底色绿色半透明裸值 → --success-soft;
+     :hover 底色 var(--success) 不变,前景纯白裸色 → --text-on-accent(压在 --success 实底上,
+     §B.1.2 三处之一);.kn-act[data-tone="danger"]:hover 底色红色半透明裸值
+     → --danger-soft。`sep` 等非 k* 辅助类见下方 NON_K_HELPER_CLASSES 说明。 */
+  .kn-notes-col { display: flex; flex-direction: column; gap: 14px; }
+  .kn-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .kn-list { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-xs); }
+  .kn-note-row {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 6px 14px;
+    align-items: center; padding: 13px 16px; border-top: 1px solid var(--line-faint);
+    cursor: pointer; transition: background 100ms ease; position: relative;
+  }
+  .kn-note-row:first-child { border-top: 0; }
+  .kn-note-row:hover { background: var(--bg-canvas); }
+  .kn-note-row[data-s="archived"] .kn-note-title,
+  .kn-note-row[data-s="archived"] .kn-note-desc { color: var(--text-tertiary); }
+  .kn-note-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .kn-note-line1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .kn-note-title { font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kn-note-desc { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kn-note-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--text-tertiary); }
+  .kn-note-meta .sep { color: var(--text-quaternary); }
+  .kn-note-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .kn-note-time { font-size: 11.5px; color: var(--text-quaternary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .kn-note-actions { display: flex; gap: 5px; opacity: 0; transition: opacity 100ms ease; }
+  .kn-note-row:hover .kn-note-actions { opacity: 1; }
+  .kn-act {
+    display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px;
+    border-radius: 8px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    transition: all 100ms ease; font-family: inherit;
+    background: var(--bg-chip); color: var(--text-secondary); border: 1px solid transparent;
+  }
+  .kn-act:hover { background: var(--line); color: var(--text-primary); }
+  .kn-act[data-tone="confirm"] { background: var(--success-soft); color: var(--success); }
+  .kn-act[data-tone="confirm"]:hover { background: var(--success); color: var(--text-on-accent); }
+  .kn-act[data-tone="danger"]:hover { background: var(--danger-soft); color: var(--danger); }
+  .kn-list-foot { padding: 9px 16px; font-size: 11.5px; color: var(--text-tertiary); border-top: 1px solid var(--line-faint); background: var(--bg-sunken); display: flex; gap: 6px; align-items: center; }
+  .kn-empty-filtered { padding: 44px 20px; text-align: center; color: var(--text-tertiary); font-size: 13px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+  /* ---------- P5d-T2 · E(蓝本 :2122-2194,edit pane)----------
+     色字面量(附录 B):.kn-draftbar 边框橙色半透明裸值 → --warning-soft-border;
+     底色渐变(两停点)→ --grad-draftbar-wash(K39 新建,保留蓝本色相,裁定 R11)。
+     🔴 .kn-editor-body-wrap .nme-content .ProseMirror(蓝本 :2171-2182)与 K44 的顶层
+     .nme-content .ProseMirror(见本档 .knowledge-app 闭合处紧邻的那一段)是两条不同
+     选择器、互补生效(这条管标题/列表/表格,K44 那条管行内代码/代码块/引用)——
+     两份都要搬,不许合并(合并会把特异性从 (0,2,0) 变 (0,3,0),治理 §6.2 / K44)。
+     `dot`/`spacer`/`wide` 等非 k* 辅助类登记见 knowledgeStyles.test.ts 的
+     NON_K_HELPER_CLASSES(裁定 R8:10 → 16)。 */
+  .kn-edit { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+  .kn-edit-top { display: flex; align-items: center; gap: 10px; grid-column: 1 / -1; flex-wrap: wrap; }
+  .kn-edit-top .spacer { flex: 1; }
+  .kn-savehint { font-size: 11.5px; color: var(--text-tertiary); display: inline-flex; align-items: center; gap: 5px; }
+  .kn-savehint .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .kn-savehint[data-dirty="true"] .dot { background: var(--warning); }
+  .kn-draftbar {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 11px 16px;
+    border-radius: var(--r-sm); border: 1px solid var(--warning-soft-border);
+    background: var(--grad-draftbar-wash);
+    font-size: 13px; flex-wrap: wrap;
+  }
+  .kn-draftbar-txt { flex: 1; min-width: 0; }
+  .kn-draftbar-txt b { color: var(--warning); }
+  .kn-draftbar-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+  .kn-edit-main { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .kn-title-input {
+    width: 100%; border: 0; background: transparent; font-family: inherit;
+    font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary);
+    padding: 2px; outline: none;
+  }
+  .kn-title-input::placeholder { color: var(--text-quaternary); }
+  .kn-desc-input {
+    width: 100%; border: 0; background: transparent; font-family: inherit;
+    font-size: 14px; color: var(--text-secondary); padding: 0 2px; outline: none;
+  }
+  .kn-desc-input::placeholder { color: var(--text-quaternary); }
+  .kn-editor {
+    background: var(--bg-elevated); border: 1px solid var(--line-faint);
+    border-radius: var(--r-lg); box-shadow: var(--shadow-xs); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .kn-editor:focus-within { border-color: var(--line-strong); }
+  .kn-editor-toolbar {
+    display: flex; align-items: center; gap: 2px; padding: 6px 8px;
+    border-bottom: 1px solid var(--line-faint); background: var(--bg-sunken); flex-wrap: wrap;
+  }
+  .kn-tb-btn {
+    width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center;
+    color: var(--text-secondary); cursor: pointer; font-size: 12.5px; font-weight: 600;
+    font-family: inherit; transition: all 100ms ease; background: transparent; border: 0;
+  }
+  .kn-tb-btn:hover { background: var(--bg-chip); color: var(--text-primary); }
+  .kn-tb-btn[data-on="true"] { background: var(--accent-soft); color: var(--accent); }
+  .kn-tb-btn.wide { width: auto; padding: 0 8px; }
+  .kn-tb-btn[disabled] { opacity: 0.4; cursor: default; }
+  .kn-tb-sep { width: 1px; height: 16px; background: var(--line); margin: 0 5px; }
+  .kn-editor-body-wrap { padding: 16px 20px; min-height: 300px; font-size: 14px; line-height: 1.65; }
+  .kn-editor-body-wrap .nme-content .ProseMirror {
+    min-height: 280px;
+    h1, h2 { font-size: 17px; letter-spacing: -0.01em; margin: 0.9em 0 0.4em; }
+    h2:first-child, h1:first-child { margin-top: 0; }
+    h3 { font-size: 15px; margin: 0.8em 0 0.3em; }
+    ul, ol { padding-left: 1.3em; margin: 0.4em 0; }
+    li { margin: 0.2em 0; }
+    p { margin: 0.3em 0; }
+    table { border-collapse: collapse; margin: 0.6em 0; font-size: 13px; }
+    th, td { border: 1px solid var(--line); padding: 5px 10px; text-align: left; }
+    th { background: var(--bg-sunken); font-weight: 600; }
+  }
+  .kn-editor-src {
+    width: 100%; border: 0; background: transparent; font-family: var(--font-mono);
+    font-size: 12.5px; line-height: 1.7; color: var(--text-primary);
+    padding: 16px 20px; min-height: 300px; resize: vertical; outline: none;
+  }
+  .kn-editor-status {
+    display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+    border-top: 1px solid var(--line-faint); background: var(--bg-sunken);
+    font-size: 11px; color: var(--text-tertiary);
+  }
+  .kn-editor-status .spacer { flex: 1; }
+
+  /* ---------- P5d-T2 · F(蓝本 :2195-2241,edit aside)---------- 零色字面量。
+     `spacer`/`mono`/`lbl` 见 NON_K_HELPER_CLASSES。 */
+  .kn-edit-aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .kn-aside-card {
+    background: var(--bg-elevated); border: 1px solid var(--line-faint);
+    border-radius: var(--r-lg); box-shadow: var(--shadow-xs);
+    padding: 13px 15px; display: flex; flex-direction: column; gap: 9px;
+  }
+  .kn-aside-title { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+  .kn-aside-title .spacer { flex: 1; }
+  .kn-kv { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+  .kn-kv b { color: var(--text-primary); font-weight: 600; }
+  .kn-filepath {
+    font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary);
+    background: var(--bg-sunken); border: 1px solid var(--line-faint);
+    border-radius: 8px; padding: 7px 9px; word-break: break-all; line-height: 1.5;
+  }
+  .kn-file-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .kn-refbtn {
+    display: flex; align-items: center; gap: 7px; width: 100%; padding: 7px 9px;
+    border-radius: 8px; background: var(--bg-sunken); border: 1px solid var(--line-faint);
+    font-size: 12px; color: var(--text-primary); cursor: pointer; transition: all 100ms ease;
+    font-family: inherit; text-align: left; min-width: 0;
+  }
+  .kn-refbtn:hover { border-color: var(--accent); color: var(--accent); }
+  .kn-refbtn[data-dis="true"] { cursor: default; color: var(--text-tertiary); }
+  .kn-refbtn[data-dis="true"]:hover { border-color: var(--line-faint); color: var(--text-tertiary); }
+  .kn-refbtn .mono { font-family: var(--font-mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .kn-refbtn .lbl { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kn-tagedit {
+    display: flex; flex-wrap: wrap; gap: 5px; padding: 7px 9px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg-elevated); cursor: text;
+  }
+  .kn-tagedit:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-softer); }
+  .kn-tagchip {
+    display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono);
+    font-size: 11px; background: var(--bg-chip); border-radius: 999px;
+    padding: 2px 4px 2px 9px; color: var(--text-secondary);
+  }
+  .kn-tagchip button { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; color: var(--text-quaternary); cursor: pointer; background: transparent; border: 0; padding: 0; }
+  .kn-tagchip button:hover { background: var(--line); color: var(--text-primary); }
+  .kn-tagedit input { border: 0; background: transparent; outline: none; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary); flex: 1; min-width: 60px; }
+  .kn-aside-select {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg-elevated); color: var(--text-primary);
+    font-size: 12.5px; font-family: inherit; padding: 7px 9px;
+  }
+
+  /* ---------- P5d-T2 · G(蓝本 :2242-2249,conflict modal,409)----------
+     色字面量:.kn-diff-pane[data-side="theirs"] 头底色蓝色半透明裸值 → --accent-soft;
+     .kn-diff-pane[data-side="mine"] 头底色橙色半透明裸值 → --warning-soft。 */
+  .kn-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kn-diff-pane { border: 1px solid var(--line-faint); border-radius: var(--r-sm); overflow: hidden; min-width: 0; }
+  .kn-diff-pane-head { font-size: 11px; font-weight: 600; padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
+  .kn-diff-pane[data-side="theirs"] .kn-diff-pane-head { background: var(--accent-soft); color: var(--accent); }
+  .kn-diff-pane[data-side="mine"] .kn-diff-pane-head { background: var(--warning-soft); color: var(--warning); }
+  .kn-diff-body { font-family: var(--font-mono); font-size: 11px; line-height: 1.7; padding: 8px 10px; color: var(--text-secondary); max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
+
+  /* ---------- P5d-T2 · H(蓝本 :2265-2281,responsive)---------- 零色字面量。 */
+  @media (max-width: 980px) {
+    .kn-edit { grid-template-columns: 1fr; }
+    .kn-edit-aside { order: 2; }
+  }
+  @media (max-width: 560px) {
+    .kn-note-row { grid-template-columns: auto 1fr; padding: 12px; }
+    .kn-note-side { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; }
+    .kn-note-actions { opacity: 1; }
+    .kn-inbox-row { flex-wrap: wrap; }
+    .kn-inbox-acts { margin-left: 46px; }
+    .kn-pathstrip a { margin-left: 0; }
+    .kn-title-input { font-size: 20px; }
+    .kn-diff { grid-template-columns: 1fr; }
+    .kn-editor-toolbar { overflow-x: auto; flex-wrap: nowrap; }
+  }
+
+  /* ---------- P5d-T2 · K43(蓝本 :551-571,.k-seg,21 行,零色字面量)----------
+     嵌在蓝本 Search page 段(:457-733)里,但不是搜索专用 —— 是 .knowledge-app 层级的
+     共享分段控件原语,NoteEditPane.vue 的"富文本/Markdown"双模式切换用它(裁定书 R1 依据)。
+     🔴 P5e 的 SearchView 也要用,本期搬完 P5e 不许重复搬(与 K45 同款交接纪律)。 */
+  .k-seg {
+    display: inline-flex;
+    background: var(--bg-chip);
+    border-radius: 7px;
+    padding: 2px;
+    width: fit-content;
+    button {
+      padding: 4px 10px;
+      font-size: 12px; font-weight: 500;
+      color: var(--text-secondary);
+      border-radius: 5px;
+      transition: all 120ms ease;
+      font-variant-numeric: tabular-nums;
+      display: inline-flex; align-items: center; gap: 4px;
+      &[data-on="true"] {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        box-shadow: var(--shadow-xs);
+      }
+    }
+  }
+}
+
+/* ---------- P5d-T2 · K44(治理 §6.2 的唯一顶层例外,裁定 R4)----------
+   蓝本 NotesMarkdownEditor.vue:41-46(<style lang="scss"> 全段)—— 非 scoped 的全局规则,
+   对**任何** .nme-content 生效;若嵌进 .knowledge-app 会缩小作用域 = 改变行为,故保持
+   顶层裸选择器,不按 K9 处理。与上面 .kn-editor-body-wrap .nme-content .ProseMirror
+   (蓝本 :2171-2182,E 段)是两条不同选择器、互补生效(那条管标题/列表/表格,这条管
+   行内代码/代码块/引用)—— 两份都要搬,不许合并(合并会把特异性从 (0,2,0) 变 (0,3,0))。
+   色字面量:code 底色中性灰半透明裸值 → --bg-chip(强先例:.kn-pathstrip code /
+   .kn-tag 已用同一映射);pre 底色近黑裸色 → --code-block-bg(K39 新建,两档同值);
+   pre 前景纯白裸色 → --code-block-fg(K39 新建,两档同值);blockquote 左边框
+   近黑半透明裸值 → --line-strong(A11 同族,引用条要可见,--line 太淡)。
+   `nme-content`/`ProseMirror` 是本档仅有的非 k 前缀、非 fb 前缀正经类(第三方
+   ProseMirror 生成 + 蓝本内部 wrapper),走 knowledgeStyles.test.ts 的 nonKClassNames
+   排除条件,不进 NON_K_HELPER_CLASSES 登记表、但进 WHITELIST_293(R9,治理 §9.6)。
+   🔴 断言口径(裁定 R4,附录 D §D.2.2):knowledgeStyles.test.ts 要求「顶层裸选择器
+   (排除 .knowledge-app 系与 :root 系与 @ 开头的)恰好只有 .nme-content .ProseMirror
+   这一条」—— 本条是新建断言,现状文件里压根没有,不是修改既有断言。 */
+.nme-content .ProseMirror {
+  min-height: 260px; outline: none; line-height: 1.6;
+  code { background: var(--bg-chip); border-radius: 3px; padding: 1px 4px; }
+  pre { background: var(--code-block-bg); color: var(--code-block-fg); border-radius: 6px; padding: 10px 12px; }
+  blockquote { border-left: 2px solid var(--line-strong); padding-left: 12px; }
 }
 
 /* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进

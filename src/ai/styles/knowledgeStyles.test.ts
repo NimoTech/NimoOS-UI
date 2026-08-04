@@ -66,7 +66,19 @@ const css = stripComments(rawSource)
 // 🔴 显式不在此列(见 knowledge.scss 头注释):k-section-body(蓝本 :985-991,Allowlist
 // 专用)与 k-progress-card/-row/-label/-nums/-bar/-fill(蓝本 :1152-1157,N15)——
 // 下面「没有搬多」那条断言负责守住这 7 个类一个都不出现。
-const WHITELIST_226 = [
+//
+// 【P5d-T2 追加】"笔记区"专属段(蓝本 :2029/:2040-2045(A)· :2047-2056(B)·
+// :2057-2085(C)· :2086-2121(D)· :2122-2194(E,含 ProseMirror 段)· :2195-2241(F)·
+// :2242-2249(G)· :2265-2281(H)· :551-571(K43 .k-seg))新增附录 D §D.1 的 65 个
+// k 前缀新类,226 → **293**(常量名跟着数字改,本档既定习惯;226 + 65 + 2 = 293,
+// 后面 2 个是 R9 追加的非 k 前缀类 nme-content/ProseMirror,见下方独立小节)。
+// 🔴 治理/计划书写的「缺 66 类 / 已有 21」两种口径都不成立(E-39),协调者裁定 R9
+// 已订正终值为 293,独立复现命令见 `.superpowers/sdd/p5d-gen-r8r9-sim.mjs`(T2 报告
+// 已贴对拍到本档编辑**之前**的基线状态输出:old 225 / new 225,严格超集自证)。
+// K45(裁定 R1)搬入的 .k-btn.text 不进本白名单 —— 它是复合类 `.k-btn.text` 里的
+// `text`,「没有搬多」的正则(见下方)扫不到复合类里的 `text`,`text` 只归
+// NON_K_HELPER_CLASSES(见下方独立小节),不许同时进两侧(R8/R9 二选一,已实测坐实)。
+const WHITELIST_293 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
@@ -133,9 +145,27 @@ const WHITELIST_226 = [
   'k-svc-cn', 'k-svc-light', 'k-svc-name', 'k-svc-state',
   'k-sw', 'kn-checkline', 'kn-mig-path', 'kn-mig-req',
   'kn-pick-actions', 'kn-pick-note', 'kn-picked',
+  // ---- P5d T2:附录 D.1(65 个)----
+  'k-seg',
+  'kn-act', 'kn-aside-card', 'kn-aside-select', 'kn-aside-title',
+  'kn-desc-input', 'kn-diff', 'kn-diff-body', 'kn-diff-pane', 'kn-diff-pane-head',
+  'kn-draftbar', 'kn-draftbar-sub', 'kn-draftbar-txt',
+  'kn-edit', 'kn-edit-aside', 'kn-edit-main', 'kn-edit-top',
+  'kn-editor', 'kn-editor-body-wrap', 'kn-editor-src', 'kn-editor-status', 'kn-editor-toolbar',
+  'kn-empty-filtered', 'kn-file-acts', 'kn-filepath',
+  'kn-inbox', 'kn-inbox-acts', 'kn-inbox-chev', 'kn-inbox-foot', 'kn-inbox-foot-hint',
+  'kn-inbox-head', 'kn-inbox-icon', 'kn-inbox-row', 'kn-inbox-row-desc', 'kn-inbox-row-main',
+  'kn-inbox-row-time', 'kn-inbox-row-title', 'kn-inbox-rows', 'kn-inbox-sub', 'kn-inbox-title',
+  'kn-kv', 'kn-list', 'kn-list-foot',
+  'kn-note-actions', 'kn-note-desc', 'kn-note-line1', 'kn-note-main', 'kn-note-meta',
+  'kn-note-row', 'kn-note-side', 'kn-note-time', 'kn-note-title', 'kn-notes-col',
+  'kn-pathstrip', 'kn-refbtn', 'kn-savehint', 'kn-src', 'kn-tag',
+  'kn-tagchip', 'kn-tagedit', 'kn-tb-btn', 'kn-tb-sep', 'kn-title-input', 'kn-toolbar', 'kn-type-ic',
+  // ---- P5d T2:R9 追加的非 k 前缀类(2 个,K44 顶层例外段引入)----
+  'nme-content', 'ProseMirror',
 ]
 
-describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a)', () => {
+describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2)', () => {
   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
@@ -144,15 +174,15 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
   // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('226 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_226.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+  it('293 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+    const missing = WHITELIST_293.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
   })
 
   // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
-  it('白名单恰好 226 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39)', () => {
-    expect(WHITELIST_226).toHaveLength(226)
-    expect(new Set(WHITELIST_226).size, '白名单里有重复项').toBe(226)
+  it('白名单恰好 293 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2)', () => {
+    expect(WHITELIST_293).toHaveLength(293)
+    expect(new Set(WHITELIST_293).size, '白名单里有重复项').toBe(293)
   })
 
   it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
@@ -193,12 +223,43 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
   // 🔴 这仍然是**扩大扫描范围**,不是放宽断言:蓝本 :2023-2281 还有几十个 `.kn-*` 是
   // P5d 的、:985-991 的 .k-section-body 与 :1152-1157 的 .k-progress-*(N15)也不该出现
   // —— 手滑多搬任意一条,这里就会精确指名。RED 探针见 P5c-T2a 报告。
-  it('没有搬多 —— 全部 k-/k2-/kn-/fb 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
+  //
+  // 【P5d-T2 再扩:守卫缺口①第三轮(治理 §9.6 / 裁定书「四之二」/附录 D §D.2.1)】
+  // 本任务往本档搬入了 K44 的 `.nme-content .ProseMirror` 顶层段与 K43 的 `.k-seg`。
+  // 上一版正则 `/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g` 扫不到两样东西:
+  // ① `nme-content` / `ProseMirror` —— 前缀不是 k/k2/kn/fb;
+  // ② `ProseMirror`**即使加了 nme 前缀支持也扫不到**——它带大写字母,而旧字符集只有
+  //    `[a-z0-9-]`(P5c §6.4.2 挂账的债票,协调者裁定 A-11:这次不再是理论问题,必须兑现)。
+  // 新正则:`/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g`
+  // —— ① 字符集加 `A-Z`(兑现 A-11);② 新增 `nme(?:-…)?` 与 `ProseMirror` 两个可选分支。
+  // 🔴 这是**扩大扫描范围**,不是放宽断言:程序化实测(见 `p5d-gen-r8r9-sim.mjs`,T2 报告
+  // 已贴对现状文件的严格超集自证输出:old 225 / new 225 完全相同,证明这条改动在改动前的
+  // 现状文件上**零可观测** —— RED 探针是唯一能证明它有判别力的证据,见下方独立 RED 探针
+  // 小节)。被扫到的 `nme-content`/`ProseMirror` 两个新类同样必须落在白名单里(R9:226→293)。
+  it('没有搬多 —— 全部 k-/k2-/kn-/fb/nme/ProseMirror 类都在白名单内(附录 D.4 自检命令②的常驻版,字符集含 A-Z)', () => {
     const found = Array.from(
-      new Set(css.match(/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g) || []),
+      new Set(
+        css.match(/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g) || [],
+      ),
     ).map((s) => s.slice(1))
-    const extra = found.filter((c) => !WHITELIST_226.includes(c))
+    const extra = found.filter((c) => !WHITELIST_293.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
+  })
+
+  // 【P5d-T2 · 严格超集自证(照 P5c §6.4.1 第 1 条的做法,防止「扩范围」变成「悄悄放宽」)】
+  // 对**改动前的现状文件**(git 历史版本,不是本次改动后的当前文件)分别跑旧正则与新正则,
+  // 断言旧正则扫到的每一个类,新正则都扫得到(old ⊆ new)——证明这次扩字符集/扩分支
+  // 纯粹是扩大覆盖,没有让任何原本会被扫到的类逃过去。
+  // 🔴 T2 报告已贴这条断言对 T1 收官版本(`56f8849`)跑出的真实输出(old 225 / new 225,
+  // 完全相同的集合)—— 这也是「本条改动在现状文件上零可观测」的证据来源,RED 探针
+  // (见下方独立小节)才是这条改动唯一有判别力的证明。
+  it('严格超集自证 —— 新正则(含 A-Z + nme/ProseMirror)是旧正则的严格超集(old ⊆ new)', () => {
+    const OLD_RE = /\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g
+    const NEW_RE = /\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
+    const oldHits = new Set((css.match(OLD_RE) || []).map((s) => s.slice(1)))
+    const newHits = new Set((css.match(NEW_RE) || []).map((s) => s.slice(1)))
+    const missing = [...oldHits].filter((c) => !newHits.has(c))
+    expect(missing, `旧正则扫到但新正则漏掉的类(说明扩范围其实是放宽):${missing.join(', ')}`).toEqual([])
   })
 
   // 【P5b-T6 修:守卫缺口④(T2 评审挂账,协调者交给 T6 处置)】上面「没有搬多」那条
@@ -232,6 +293,30 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
     //  它走 nonKClassNames 的**排除条件**,与既有的 knowledge-app 同款处理,登记表保持
     //  "真·嵌套辅助类"的语义。)
     'warn',
+    // ---- P5d-T2 追加(裁定书 R8:10 → 16)----
+    // 🔴 治理 §9.6 / 裁定 A-10 写「NON_K_HELPER_CLASSES 保持 10 项不变」是错的 ——
+    // 那句只算了 `nme`/`nme-content`/`ProseMirror`(且 `nme` 蓝本零选择器、根本扫不到,
+    // `nme-content`/`ProseMirror` 走排除条件不进本表),漏算了下面这 6 个真·嵌套辅助类。
+    // 照 A-10 字面「保持 10 项」做,下面「登记表恰好等于文件里真实存在的非 k* 类」那条
+    // 集合相等断言会**一提交就红**(裁定书 R8 已订正为 16,以程序化实测为准 —— 复现命令
+    // 见 `p5d-gen-r8r9-sim.mjs`,输出逐字见 T2 报告)。
+    // .kn-savehint 内的保存状态小圆点(蓝本 :2127/:2128),P5d-T2 搬入
+    'dot',
+    // .kn-refbtn 内的引用按钮文字(蓝本 :2222),P5d-T2 搬入
+    'lbl',
+    // .kn-note-meta 内的元信息分隔点(蓝本 :2104),P5d-T2 搬入
+    'sep',
+    // .kn-edit-top / .kn-editor-status / .kn-aside-title 内的弹性占位(蓝本 :2125/:2193/:2203),
+    // P5d-T2 搬入
+    'spacer',
+    // K45(裁定 R1)搬入的 .k-btn.text —— `&.text` 是复合类 `.k-btn.text` 里的 `text`,
+    // 与既有 ghost/outline/primary/danger 四个 `&.x` 变体完全同款(蓝本 :1569-1570)。
+    // 🔴 `text` 只归本表(R8),不进 WHITELIST_293(R9 的正则扫不到复合类里的 `text`,
+    // 见上方「没有搬多」小节注释),R8/R9 二选一,不许同时登记两侧。
+    'text',
+    // .kn-tb-btn 内的 H2/H3 加宽变体(蓝本 :2167),写作 `&.wide`,P5d-T2 搬入,与既有
+    // mono/ghost 等「连写变体」同款
+    'wide',
   ]
 
   // 【P5c-T2a 修:守卫缺口④(治理 §6.4-2)】本任务给两个 token 声明块的选择器各扩了一项
@@ -239,8 +324,13 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
   // 这个 `/\.([a-zA-Z]…)/` 扫出来、掉进"未登记的非 k* 类";它是**作用域根**,不是嵌套
   // 辅助类 → 与既有的 `knowledge-app` 同款,走排除条件而不是塞进登记表。
   // 同理 `fb` / `fb-*`(P5c-T2a 从 FolderBrowser.vue:82-143 搬入的 8 个类)是本档正经
-  // 前缀类、已进 WHITELIST_226、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
+  // 前缀类、已进 WHITELIST_293、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
   // 避免同一批类被两条断言用两套互相矛盾的口径判定。
+  //
+  // 【P5d-T2 追加】K44 引入的 `nme-content` / `ProseMirror` 同理是**正经前缀类/第三方
+  // 类**(前者是蓝本 wrapper 类,后者是第三方 ProseMirror 生成的类名,大小写混排,
+  // 本档 kebab 小写惯例之外的唯一一个),不是嵌套辅助类 —— 与 knowledge-app/parser-app/
+  // fb 同款,走排除条件,不进 NON_K_HELPER_CLASSES(治理 §9.6 明令)。
   function nonKClassNames(text: string): string[] {
     const found = new Set([...text.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]))
     return [...found]
@@ -249,7 +339,9 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
           !/^k(?:2|n)?-/.test(c) &&
           !/^fb(?:-|$)/.test(c) &&
           c !== 'knowledge-app' &&
-          c !== 'parser-app',
+          c !== 'parser-app' &&
+          c !== 'nme-content' &&
+          c !== 'ProseMirror',
       )
       .sort()
   }
@@ -259,8 +351,56 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
     expect(extra, `未登记的非 k* 类(每个都要在 NON_K_HELPER_CLASSES 里写明出处):${extra.join(', ')}`).toEqual([])
   })
 
-  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶)', () => {
+  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;R8 终值 16)', () => {
     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
+  })
+
+  it('R8 —— NON_K_HELPER_CLASSES 常量恰好 16 项(裁定书 R8,不是治理 A-10 的 10 项)', () => {
+    expect(NON_K_HELPER_CLASSES).toHaveLength(16)
+    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(16)
+  })
+
+  // 【P5d-T2 · K45 落地 DoD(裁定书 R1-②,附录 D §D.4.1)】「没有搬多」的白名单集合断言
+  // 天然守不住 `.k-btn.text` 被重复搬(`text` 不在它的正则里)—— 改用「.k-btn 作用域内
+  // &.text 恰好出现 2 次(规则 + hover)」的计数断言。🔴 brief §3-2 / T0 复审指出:必须
+  // 锚定在 `.k-btn { … }` 区间内,不能对全文裸计数(全文计数在别处合法出现 `&.text` 时
+  // 会误红,P5e 若在别处重复搬又会漏判)——手法照本档 K10 守 `.k-confirm-*` 的做法:
+  // 先用花括号配对定位 `.k-btn { … }` 声明块(比 declBlockRange 的"下一个 \n}"更严,
+  // 因为 .k-btn 块内有嵌套的 &.xxx { … } 规则,不能假设第一个 \n} 就是块尾),再只在
+  // 区间内计数。
+  function findKBtnBlockRange(text: string): [number, number] {
+    const lines = text.split('\n')
+    let acc = 0
+    let startLine = -1
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === '.k-btn {') {
+        startLine = i
+        break
+      }
+      acc += lines[i].length + 1
+    }
+    expect(startLine, '找不到 .k-btn 声明块(行首行尾锚定,trim 后须恰为 ".k-btn {")').toBeGreaterThanOrEqual(0)
+    const braceAt = text.indexOf('{', acc)
+    let depth = 0
+    let i = braceAt
+    for (; i < text.length; i++) {
+      if (text[i] === '{') depth++
+      else if (text[i] === '}') {
+        depth--
+        if (depth === 0) {
+          i++
+          break
+        }
+      }
+    }
+    return [acc, i]
+  }
+
+  it('K45 —— &.text 只在 .k-btn{…} 作用域内出现,恰好 2 次(规则+hover;重复搬即报红,brief §3-2 / R1-②)', () => {
+    const [start, end] = findKBtnBlockRange(css)
+    const body = css.slice(start, end)
+    const hits = body.match(/&\.text\b/g) || []
+    expect(hits.length, `.k-btn 块内 &.text 出现 ${hits.length} 次(应为 2;≠2 说明 K45 重复搬或漏搬)`).toBe(2)
   })
 })
 
@@ -493,6 +633,69 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     }
   })
 
+  // 【P5d-T2 · K39】本任务新声明 9 个 token(附录 B §B.1 是权威)。7 个 theme-invariant
+  // (4 个笔记渐变 + 2 个 wash 渐变 + 2 个代码块色),两档同值;--shadow-warning-glow
+  // 两档**不同值**(RGB 三元组随 --warning-soft-border 换档,alpha 沿用蓝本 0.3/0.24)。
+  // 🔴 诚实登记(K39 明令,不许照抄 P5c "4/4 都有出处"那句):4 个笔记渐变里只有
+  // --grad-note-note 与既有 --grad-sandbox 逐字同值,另 3 个全仓零同值先例,蓝本设计包
+  // 是值的唯一权威源 —— 这条测试只钉「取值没有被下游重算/改动」,不代表这些值本身
+  // 有仓内先例。
+  it('K39 —— 7 个 theme-invariant 新 token 两档取值逐字相同(附录 B §B.1,禁重算)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    const expected: Record<string, string> = {
+      // notesViewHelpers.js:6,与既有 --grad-sandbox 逐字同值(仍另建新名,理由见 scss 头注释)
+      '--grad-note-note': '--grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF);',
+      // notesViewHelpers.js:7,全仓零同值先例
+      '--grad-note-summary': '--grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759);',
+      // notesViewHelpers.js:8 与 knowledge.scss:2066(.kn-inbox-icon)共用同一份,全仓零同值先例
+      '--grad-note-insight': '--grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00);',
+      // notesViewHelpers.js:9,全仓零同值先例
+      '--grad-note-digest': '--grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55);',
+      // knowledge.scss:2060,保留蓝本色相(裁定 R11)
+      '--grad-inbox-wash':
+        '--grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent);',
+      // knowledge.scss:2132,保留蓝本色相(裁定 R11)
+      '--grad-draftbar-wash':
+        '--grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04));',
+      // NotesMarkdownEditor.vue:44,theme-invariant
+      '--code-block-bg': '--code-block-bg: #0d0d0d;',
+      '--code-block-fg': '--code-block-fg: #ffffff;',
+    }
+    for (const [tok, decl] of Object.entries(expected)) {
+      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
+      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+    }
+  })
+
+  it('K39 —— --shadow-warning-glow 两档取值不同(暗 0.3 / 浅 0.24,附录 B §B.1 第 7 行)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    expect(darkBody, '暗档 --shadow-warning-glow 取值被改动').toContain(
+      '--shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3);',
+    )
+    expect(lightBody, '浅档 --shadow-warning-glow 取值被改动').toContain(
+      '--shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24);',
+    )
+    // 反向:两档不能同值(同值 = 有人把它当成了 theme-invariant)
+    expect(darkBody).not.toContain('--shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24);')
+    expect(lightBody).not.toContain('--shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3);')
+  })
+
+  it('K39 —— #FF9500,#FFCC00 只声明一份 --grad-note-insight(两个消费方共用,不许声明两份)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    for (const body of [darkBody, lightBody]) {
+      const hits = body.match(/--grad-note-insight:/g) || []
+      expect(hits.length, '--grad-note-insight 声明次数应为 1(#FF9500,#FFCC00 两个消费方共用一份)').toBe(1)
+    }
+    // 消费方(.kn-inbox-icon 与 K44 顶层段外的其余引用留给 T3/T6/T7)本刀只核 scss 内的
+    // .kn-inbox-icon 一处,确认它引用 token 而不是重复声明色值。
+    expect(css, '.kn-inbox-icon 应引用 --grad-note-insight 而不是重复声明字面量').toContain(
+      'background: var(--grad-note-insight);',
+    )
+  })
+
   it('--accent-soft-2 不在本档重复声明(R2 例外:全局 theme.css 的 :root 与浅色块已有,跟随全局解析)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
@@ -518,6 +721,50 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     expect(lightBody).not.toContain('--accent: var(--accent)')
     expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
     expect(lightBody).not.toContain('--success: var(--success)')
+  })
+})
+
+// 【P5d-T2 · K44 顶层裸选择器例外(治理 §6.2-2 明令 / 裁定 R4 / 附录 D §D.2.2)】
+// 🔴 这条断言是**新建**,不是修改 —— 现状文件里压根没有任何「顶层裸选择器」相关断言
+// (`grep -n "顶层\|裸选择器\|top-level" knowledgeStyles.test.ts` 在本刀之前只命中
+// K10 注释,查不到这条)。基线:改动前的现状文件 depth-0(顶层、零缩进)开块选择器
+// 共 15 条,全部是 `.knowledge-app`(含与 `.parser-app` 复合的两个 token 声明块)/
+// `:root[data-theme="light"] …`/`@keyframes` —— 排除这三类后「裸选择器」实测 = 0。
+// K44 搬入唯一一条真正的顶层裸选择器:`.nme-content .ProseMirror`(蓝本
+// NotesMarkdownEditor.vue:41-46,理由见 knowledge.scss 该段注释)。
+//
+// 判据:抽出全文件 depth-0(大括号深度为 0 时遇到的 `{`)选择器,过滤掉
+// `.knowledge-app*`/`:root*`/`@*` 三类,断言剩下的**集合恰好等于**
+// `['.nme-content .ProseMirror']` —— 集合相等式,不是「排除掉就算了」(裁定 R4 明令)。
+function depthZeroSelectors(text: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let lastEnd = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '{') {
+      if (depth === 0) {
+        const sel = text.slice(lastEnd, i).trim()
+        if (sel) out.push(sel)
+      }
+      depth++
+    } else if (ch === '}') {
+      depth--
+      if (depth === 0) lastEnd = i + 1
+    }
+  }
+  return out
+}
+
+describe('knowledge.scss —— K44 顶层裸选择器例外(治理 §6.2-2 / 裁定 R4,T2 新建断言)', () => {
+  function bareTopLevelSelectors(): string[] {
+    return depthZeroSelectors(css).filter(
+      (s) => !s.startsWith('.knowledge-app') && !s.startsWith(':root') && !s.startsWith('@'),
+    )
+  }
+
+  it('顶层裸选择器(排除 .knowledge-app 系 / :root 系 / @ 开头)恰好只有 .nme-content .ProseMirror 一条', () => {
+    expect(bareTopLevelSelectors()).toEqual(['.nme-content .ProseMirror'])
   })
 })
 
