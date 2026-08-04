@@ -1225,6 +1225,49 @@ describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块�
   })
 })
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SP8-P5d Task 7 · 修复轮 1(裁定 R17,票据 E-47)—— §0.3「注释里也不许出现
+// 色字面量」在「.vue 的 <script> 块注释」这个位置此前零守卫:
+// `color-guard.test.ts` 只扫 `.vue`/`.css` 的 `<style>`/属性形态,缺口③′ 只扫
+// `<template>` 文本,T5 的具名色扫描钉在 `<template>` 的属性值位置 —— 三条都不看
+// `<script>` 块的注释。评审在 `NoteEditPane.vue`(T7)与 `NotesView.vue`(T6)里
+// 各逮到一处「申报注释里写了 rgba(...) 字面量」的真违规(已修,见两文件头注释)。
+// 🔴 范围钉死在既有 `KNOWLEDGE_VUE_FILES` 清单(与本文件其它守卫同一份文件表),
+// **不扩到全仓** —— 扩范围可能扫出别期产出的既有违规,那是 NEEDS_CONTEXT,不是
+// 本刀该修的(T5 已有此教训)。`transparent` 是关键字,不算色字面量,不扫它。
+describe('§0.3 —— .vue 的 <script> 块注释零色字面量(R17,票据 E-47,范围钉死 KNOWLEDGE_VUE_FILES)', () => {
+  /** 抽取一个 .vue 源文件里全部 `<script ...>...</script>` 块的原始内容
+   * (一个 SFC 可能同时有 `<script>` 与 `<script setup>` 两块,都要扫)。 */
+  function extractScriptBlocks(src: string): string[] {
+    const blocks: string[] = []
+    const re = /<script[^>]*>([\s\S]*?)<\/script>/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(src))) blocks.push(m[1])
+    return blocks
+  }
+
+  /** 从一段脚本源码里抽出全部注释文本(块注释 + 行注释)。§0.3 只管注释,不管
+   * 代码本体(代码本体的颜色治理由 color-guard.test.ts 等既有守卫管)。 */
+  function extractScriptComments(code: string): string {
+    const blockComments = code.match(/\/\*[\s\S]*?\*\//g) || []
+    const lineComments = code.match(/\/\/.*$/gm) || []
+    return [...blockComments, ...lineComments].join('\n')
+  }
+
+  const kbDir2 = resolve(__dirname, '../knowledge')
+
+  it.each(KNOWLEDGE_VUE_FILES)('%s —— <script> 块注释里零 hex / rgb() / hsl() 色字面量', (rel) => {
+    const src: string = readFileSync(resolve(kbDir2, rel), 'utf8')
+    const comments = extractScriptBlocks(src).map(extractScriptComments).join('\n')
+    expect(comments, `${rel}:<script> 块注释里发现裸 hex 色字面量`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(comments, `${rel}:<script> 块注释里发现 rgb()/hsl() 色字面量`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+  })
+
+  // RED + 反向探针见任务报告「修复轮 1」一节(①在清单内文件的 <script> 注释里
+  // 注入色字面量必须报红;②一条只引 file:line + 附录 B 行号、不含色值的正常
+  // 申报注释必须不报红)。探针注入/还原走 cp + md5 逐字节比对,禁 git checkout。
+})
+
 // SP8-P5d Task 5 · 票 3b:同款扫描扩到 `src/ai/components/**`(P2a/P2b 产出,
 // Agent 区的卡片/侧栏/设置子组件)。既有 ③′ 只覆盖 `src/ai/knowledge/**`,
 // 那个目录的模板 `style=`/`:style=` 是盲区。文件清单同样做集合相等防漂移。

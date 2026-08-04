@@ -161,3 +161,77 @@ sass knowledge.scss  exit=0
 ?? src/ai/knowledge/components/NoteEditPane.vue
 ```
 与预期逐一对应,无多余改动。
+
+## 修复轮 1(裁定 R16/R17)
+
+评审 ✅ 通过(规格 DoD 1–11 + 质量),`openConflict()` 经协调者裁定 **R16 追认保留**
+(不挪 T8,理由见协调者消息:计划书 T8「不写清单」与 T7 DoD-9 自相矛盾,E-46)。
+本轮只处理 **R17**(§0.3 注释色字面量,票据 E-47)。
+
+### 1) 两处注释改法(改后原文各贴一行)
+
+- `NoteEditPane.vue`(改后):
+  > 本刀模板段(:7-71)零内联色字面量 —— 唯一一处内联色在蓝本 `:152`(冲突弹窗
+  > 头图标底色,附录 B §B.4 第 35 行是权威映射),归 T8。
+- `NotesView.vue`(改后):
+  > 【缺口③ —— 模板内联色,附录 B §B.4 第 34 行是权威映射】蓝本 `:85` 的草稿
+  > 计数底色字面量藏在 `:style` 的 JS 对象字面量里,已换成 token 引用。
+
+两处均已确认零 `#hex`/`rgb(`/`rgba(`/`hsl(`/`hsla(` 字面量(`grep -nE` 复核零命中)。
+`transparent` 本刀两处注释均未出现,不涉及该关键字判断。
+
+### 2)`NotesView.vue` 仅注释改动的自证
+
+```
+$ git diff -- src/ai/knowledge/views/NotesView.vue
+```
+diff 只有 1 个 hunk,落在 §T7-2 的那段文件头注释里,其余 §T7-1 修复轮 1 已核实
+过的两处结构性改动(import/占位删除)与全部逻辑/模板代码逐行未动。
+
+### 3)新守卫(`knowledgeStyles.test.ts`,范围钉死 `KNOWLEDGE_VUE_FILES` 13 个文件)
+
+新增 describe `§0.3 —— .vue 的 <script> 块注释零色字面量(R17,票据 E-47…)`:
+抽取每个文件全部 `<script ...>` 块 → 只取块注释+行注释文本 → 断言零
+`#hex`/`rgb()`/`hsl()`。**13/13 全绿,清单内没有扫出本期之外的既有既有违规**
+(其余 11 个非本刀文件也一并核实过零命中,证明不是"因为只查了自己改的文件才绿")。
+
+**两头探针**:
+- ① RED —— 临时在 `NotesMarkdownEditor.vue`(清单内、非本刀改动过的文件)的
+  `<script>` 注释里注入一行 `// PROBE-INJECT: 假设这里写了 rgba(255,149,0,.14) …`
+  (md5 `b84f70494ffc68e6a375d37357fea0ef` → `9d78aa21ed4def9cc74d62c6a41676ac`,
+  证真落盘)→ 复跑:
+  ```
+  × components/NotesMarkdownEditor.vue —— <script> 块注释里零 hex/rgb()/hsl() 色字面量
+  AssertionError: <script> 块注释里发现 rgb()/hsl() 色字面量
+  Test Files 1 failed | Tests 1 failed | 12 passed | 281 skipped (294)
+  ```
+  精确指名该文件,其余 12 个文件仍绿。`cp` 备份覆盖还原,md5 复核 =
+  `b84f70494ffc68e6a375d37357fea0ef`(与基线一致),复跑 `13 passed`,
+  `git status --porcelain -- .../NotesMarkdownEditor.vue` 空输出。
+- ② GREEN(反向)—— 不需要额外注入:`NoteEditPane.vue`/`NotesView.vue` 本轮
+  修复后的两处生产注释**正是**「只引 `file:line` + 附录 B 行号、不含色值」的
+  申报注释,且在上面的 13/13 全绿结果里已经真实验证过不报红 —— 这就是最贴近
+  真实用法的反向证据,不是人工编造的最小样例。
+
+### 4)三门(全量,落盘)
+
+```
+Test Files  331 passed (331)
+     Tests  3923 passed (3923)
+vue-tsc --noEmit  exit=0
+vite build        exit=0
+```
+(完整日志:`/tmp/p5d-t7-fix-test.log` / `/tmp/p5d-t7-fix-tsc.log` / `/tmp/p5d-t7-fix-build.log`)
+
+算式:**3910 + 13 = 3923**(本轮新增 13 例 = `KNOWLEDGE_VUE_FILES` 13 个文件
+各 +1 条新守卫用例,`Test Files` 仍是 331,未新增测试文件)。
+
+### 5)提交前自查
+
+```
+$ git status --porcelain
+ M src/ai/knowledge/components/NoteEditPane.vue
+ M src/ai/knowledge/views/NotesView.vue
+ M src/ai/styles/knowledgeStyles.test.ts
+```
+三个改动与本轮范围逐一对应,无多余改动。

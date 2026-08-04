@@ -124,8 +124,8 @@
   `service.notes.create`/`update`/`curate` 返回**单个 Note**(camelCase)。
 
   ═══ 缺口③(模板零裸色)═══
-  本刀模板段(:7-71)零内联色字面量 —— 唯一一处内联色在蓝本 `:152`(冲突弹窗的
-  `background: rgba(255,149,0,.14)`),归 T8。本刀只需把
+  本刀模板段(:7-71)零内联色字面量 —— 唯一一处内联色在蓝本 `:152`(冲突弹窗
+  头图标底色,附录 B §B.4 第 35 行是权威映射),归 T8。本刀只需把
   `components/NoteEditPane.vue` 加进 `../../styles/knowledgeStyles.test.ts` 的
   `KNOWLEDGE_VUE_FILES` 集合(该文件的"守卫缺口③′"贪婪抽取整个 <template> 块
   做文本级正则扫描,天然覆盖本刀这段模板),不需要再补重复的定向断言。

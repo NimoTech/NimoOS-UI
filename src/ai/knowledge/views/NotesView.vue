@@ -52,12 +52,12 @@
   的 computed(天然响应式,不是 onMounted 里一次性读值),避免记忆
   `newui-router-query-only-no-remount` 那个坑——用户改地址栏一行也会生效。
 
-  【缺口③ —— 模板内联色,附录 B 行 34/126】蓝本 `:85` 的
-  `background: 'rgba(255,149,0,.14)'` 藏在 `:style` 的 JS 对象字面量里,换成
-  `'var(--warning-soft)'`。守卫见 `../../styles/knowledgeStyles.test.ts` 的
-  「守卫缺口③′」— 该断言贪婪抽取整个 `<template>` 块做文本级正则扫描,天然覆盖
-  `:style` 对象字面量里的字符串(不止 `style="…"` 属性),本刀把
-  `views/NotesView.vue` 加进 `KNOWLEDGE_VUE_FILES` 清单即可被其覆盖。
+  【缺口③ —— 模板内联色,附录 B §B.4 第 34 行是权威映射】蓝本 `:85` 的草稿
+  计数底色字面量藏在 `:style` 的 JS 对象字面量里,已换成 token 引用。守卫见
+  `../../styles/knowledgeStyles.test.ts` 的「守卫缺口③′」— 该断言贪婪抽取整个
+  `<template>` 块做文本级正则扫描,天然覆盖 `:style` 对象字面量里的字符串(不止
+  `style="…"` 属性),本刀把 `views/NotesView.vue` 加进 `KNOWLEDGE_VUE_FILES`
+  清单即可被其覆盖。
 
   【K41 同族 —— tags 类型收窄】包内 `Note.tags` 是 `unknown[]`
   (`NimoOS-Service/src/notes.ts:25`),蓝本模板把它当字符串数组直接渲染
