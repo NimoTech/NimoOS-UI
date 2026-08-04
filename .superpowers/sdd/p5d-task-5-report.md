@@ -106,3 +106,105 @@ describe:文件清单 1 + 抽取/覆盖度 70 + hex/rgb 70 + 具名色 70 = 211;
 - `git status --short`:仅 3 个已知改动文件,无其它改动。
 - `git diff --stat`:`openInApp.ts` +27/-0、`openInApp.test.ts` +72/-0、
   `knowledgeStyles.test.ts` +181/-0 —— 全部纯新增,无删改行。
+
+## 修复轮 1 —— 具名色扫描先剥 HTML 注释
+
+独立评审回执:规格 ✅、质量 ✅、零 Critical/Important。协调者按跨刀风险把评审的一条 Minor
+(`namedColorOffensesInValues` 未先剥 HTML 注释,散文注释里写 `background: black` 会误报)
+升级为必修 —— 依据:T6/T7/T8 按纪律要写的"偏差申报注释"格式几乎必然引用蓝本原色值
+(如 `<!-- K39:蓝本 rgba(255,149,0,.14) → --warning-soft -->`),这条脆弱点在下三刀近乎必然
+触发,而"扫描撞注释"在本档是反复栽过的家族(P5c §9)。
+
+### 修法:复用既有 `stripComments`,补 HTML 注释这一档
+
+`knowledgeStyles.test.ts:23-27`(改前)只剥两类:`/\*[\s\S]*?\*\//g`(JS/CSS 块注释)+
+`/^[ \t]*\/\/.*$/gm`(整行 `//` 行注释)。**未覆盖 HTML 注释 `<!-- -->`**——而 `.vue`
+模板里的偏差申报注释一律是这一种。按协调者要求**没有另写一个 helper**,而是在既有函数上
+补第三条 `.replace(/<!--[\s\S]*?-->/g, '')`(放在最前面剥,再剥 `/* */`、再剥 `//` 行注释)。
+该函数唯一的既有调用点(`:34` 的 `const css = stripComments(rawSource)`,给 `knowledge.scss`
+——一个纯 `.scss` 文件)不受影响:`.scss` 从不含 `<!-- -->`,新增的这行 `replace` 在那里恒为
+空操作(全量三门跑绿、`knowledge.scss` 相关的全部既有断言数字不变,证实零回归)。
+落地:`namedColorOffensesInValues` 的两个调用点(`KNOWLEDGE_VUE_FILES` 与
+`COMPONENTS_VUE_FILES` 两个 describe 各一处)都改成
+`stripColorCalls(stripComments(tmpl))`(先剥注释、再剥 `var()`/`color-mix()`)。
+**`.vue` 模板里 HTML 注释与 JS/CSS 注释都要覆盖**——本仓 `.vue` 模板段唯一会出现的注释语法
+就是 HTML 注释,`stripComments` 改动后三种语法全覆盖(HTML `<!-- -->` · JS/CSS 块注释
+`/* */` · 整行 `//`),无遗漏语法档。
+
+### 两头判据(探针形式做完即还原,未留成常驻用例——见下方"为什么不留常驻"）
+
+选用 `src/ai/components/blocks/ConfirmCard.vue`(`cp` 备份 → `md5sum` 记录 →
+行首锚定 `sed -i 'N a\...'` 注入 → `diff`/`md5sum` 先证注入落盘 → 跑对应用例 →
+`cp` 备份覆盖还原 → `md5sum` 前后比对一致 · `git status`/`git diff` 干净)。
+
+**判据①(不冤枉)**:在 `:79`(`{{ resolvedValue ? t('aiAccepted') : … }}`,已确认全仓唯一)
+之后插入 `<!-- 蓝本 background: black,已换 --bg-sunken -->`。跑
+`-t "ConfirmCard"`:
+```
+Test Files  1 passed (1)
+     Tests  3 passed | 272 skipped (275)
+```
+三条(抽取/覆盖度、hex/rgb、具名色)全绿——那句散文注释不再被误判。
+
+**判据②(仍有牙,关键的第二条)**:在同一份、**仍带着上面那条注释**的文件里,紧接着
+再插入一行真违规 `<span style="color: white">probe</span>`(注释之外的真代码)。
+再跑 `-t "ConfirmCard"`:
+```
+Tests  1 failed | 2 passed | 272 skipped (275)
+FAIL … blocks/ConfirmCard.vue —— 模板内属性值位置…零具名色
+AssertionError: … 发现具名色:
+color: "> …
+```
+具名色测试精确报红(抽取/hex 两条仍绿)——证明剥注释没有把整个守卫一起剥废。
+
+还原:`cp` 备份覆盖 → `md5sum` 前后一致(`832dc1f…` = `832dc1f…`)、
+`git status --short` / `git diff` 该文件均干净。还原后重跑 `-t "ConfirmCard"`:
+`3 passed | 272 skipped (275)`,恢复绿。
+
+**为什么两条判据都以探针形式做完即还原、未留成常驻用例**:协调者的收尾要求只问"若不留,
+说清为什么";理由是——① 这两条探针验证的是**测试基础设施本身**(`stripComments`/
+`namedColorOffensesInValues` 的组合行为),不是某个具体产品文件应该长期满足的不变量,
+留在 `ConfirmCard.vue` 里会把与该文件业务无关的注释/违规文本永久嵌进生产模板;
+② 现有的 70+11 条具名色 `it.each` 已经是这套逻辑的常驻回归网(它们全部走
+`stripColorCalls(stripComments(tmpl))` 这条新链路),任何未来把 `stripComments` 改回
+不剥 HTML 注释的回归,会在**这些既有用例**上重新暴露(只要有人在真实模板里写申报注释就会
+触发)——判别力已经在常驻断言里,不需要再额外常驻一份"专门验证剥注释行为"的用例。
+
+### 三门(全量,`/tmp/p5d-t5-fix-{test,tsc,build}.log`)
+
+```
+pnpm test                  exit=0   Test Files 329 passed (329)  Tests 3839 passed (3839)
+pnpm exec vue-tsc --noEmit exit=0
+pnpm build                 exit=0(仅既有 >500KB chunk 警告)
+```
+算式:`3839 + 0 = 3839`(本轮零新增常驻用例——原因见上方"为什么不留常驻";两条判据均以
+探针形式做完即还原)。文件数仍 **329**。
+
+### 产品代码零改动自证
+
+```
+$ git status --short
+ M src/ai/styles/knowledgeStyles.test.ts
+$ git diff --stat
+ src/ai/styles/knowledgeStyles.test.ts | 21 ++++++++++++++++-----
+ 1 file changed, 16 insertions(+), 5 deletions(-)
+```
+本轮唯一改动文件是 `knowledgeStyles.test.ts`(测试文件);`openInApp.ts` 与
+`openInApp.test.ts` 均未再改动。
+
+### 债务票 D-5(协调者已登记,本刀不动)
+
+评审 Minor 2(`<style>` 块的具名色扫描仍是全仓缺口,`color-guard.test.ts` 只扫
+hex/rgb/hsl)已由协调者登记为债务票 D-5,交 P5e/P5f。本期 `.vue` 按 K44 纪律零
+`<style>` 块,不会咬到,本刀未做任何处理。
+
+### 附:发现但未处理的一处平行风险(仅供协调者参考,未擅自处理)
+
+既有的 hex/rgb/hsl 具名色测试(`it.each` 那条"模板内…零 hex / rgb / hsl 字面量",
+本刀之前就有)同样只吃 `stripColorCalls(tmpl)`、未剥注释——协调者给的示例注释本身
+(`rgba(255,149,0,.14)`)若真的原样出现在申报注释里,会被那条测试的
+`/\b(rgba?|hsla?)\s*\(/` 命中而误报,风险性质与本轮修的问题完全一致。
+**本轮严格按指令只改了 `namedColorOffensesInValues` 的调用点,未触碰这条 hex/rgb 测试**
+(指令只点名前者,且"产品代码之外"的顺手扩大范围本身也需要协调者拍板)。是否需要同款处理,
+留给协调者判断——如需要,改法与本轮完全一致(两处 `stripColorCalls(tmpl)` 各自套一层
+`stripComments`)。

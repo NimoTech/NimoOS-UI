@@ -17,11 +17,19 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
 
-// 同 settingsStyles.test.ts 的既定手法:只剥「整行以 // 开头」的行注释(本档没有这种
-// 注释,但保持与先例一致)+ 块注释,再做 toContain,防止断言被注释里提到的类名/字符串撞对
-// (P2b 二次评审曾用 RED 探针实证过这类假通过)。
+// 同 settingsStyles.test.ts 的既定手法:剥三种注释再做 toContain/扫描,防止断言被注释里
+// 提到的类名/字符串/色值撞对(P2b 二次评审曾用 RED 探针实证过这类假通过)——
+// 块注释 `/* */`、整行以 `//` 开头的行注释(本档 knowledge.scss 没有这种,但保持与先例一致)。
+// 【P5d Task 5 修复轮 1 新增】补第三种:HTML 注释 `<!-- -->`。起因:票 3a 的具名色守卫
+// (`namedColorOffensesInValues`,见下)扫的是 `.vue` **模板**,而 `.vue` 模板里的注释一律是
+// HTML 注释,不是 `/* */`/`//`;T6/T7/T8 三刀按纪律要写"偏差申报注释"(格式几乎必然引用蓝本
+// 原色值,例如 `<!-- K39:蓝本 rgba(255,149,0,.14) → --warning-soft -->`),若不剥 HTML 注释,
+// 这类合规的申报注释会被误判成裸色违规。三种注释语法互不重叠(HTML 用 `<!-- -->`,
+// JS/CSS 用 `/* */`/`//`),补第三种对本文件已有的两处调用点(`knowledge.scss` 的 `css` 变量、
+// 见 :30)零影响——那是纯 `.scss` 文件,从不含 `<!-- -->`,这条 replace 在那里恒为空操作。
 function stripComments(css: string): string {
   return css
+    .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^[ \t]*\/\/.*$/gm, '')
 }
@@ -1214,10 +1222,12 @@ describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块�
   })
 
   // SP8-P5d Task 5 · 票 3a:属性值位置的具名色扫描(新增)。
+  // 【修复轮 1】先 stripComments 剥掉 HTML 注释再剥 var()/color-mix() —— 否则偏差申报
+  // 注释里引用蓝本原色值(如 `<!-- 蓝本 background: black,已换 --bg-sunken -->`)会被误报。
   it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
-    const scrubbed = stripColorCalls(tmpl)
+    const scrubbed = stripColorCalls(stripComments(tmpl))
     const offenders = namedColorOffensesInValues(scrubbed)
     expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
   })
@@ -1326,10 +1336,11 @@ describe('守卫缺口③′ 扩展(票 3b)—— src/ai/components/** 同款模
     expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
+  // 【修复轮 1】同上,先 stripComments 再剥 var()/color-mix()。
   it.each(COMPONENTS_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
     const src: string = readFileSync(resolve(compDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
-    const scrubbed = stripColorCalls(tmpl)
+    const scrubbed = stripColorCalls(stripComments(tmpl))
     const offenders = namedColorOffensesInValues(scrubbed)
     expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
   })
