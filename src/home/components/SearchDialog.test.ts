@@ -18,6 +18,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 
 import { useHomeUiStore } from '../stores/homeUi'
+import { useFoldersStore } from '../stores/folders'
 import SearchDialog from './SearchDialog.vue'
 
 // i18n 已由 vitest.setup.ts 全局装好(默认 zh_cn),**不要在测试里另建 createI18n**。
@@ -40,9 +41,19 @@ const REAL = agg({
   warnings: ['images_unavailable'],
 })
 
+// 种一块真磁盘,让 displayNames = { '/DATA': 'NimoOS-HD' } —— 否则 displayNames 恒为 {},
+// toVirtualPath 退化成恒等函数,「路径翻成虚拟路径」这件事就无从断言(空转)。
+// 做法照 src/views/Files.test.ts:61 的既有惯例。
+function seedDisks(): void {
+  const folders = useFoldersStore()
+  folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] })
+}
+
 async function open(): Promise<void> {
+  seedDisks()
   useHomeUiStore().openSearch()
   wrapper = mount(SearchDialog, { attachTo: document.body })
+  await flushPromises() // 等 onMounted 的 loadRoots() 落地,displayNames 才就绪
   await nextTick()
 }
 async function search(q: string): Promise<void> {
@@ -111,12 +122,13 @@ describe('SearchDialog', () => {
     expect(document.body.textContent).not.toMatch(/\d+%/)
   })
 
-  it('文档行路径显示所在文件夹(不是 demo 写死的 /files/… 虚拟串)', async () => {
+  it('文档行路径显示所在文件夹的**虚拟路径**(/DATA → /NimoOS-HD)', async () => {
     agentTool.mockResolvedValue(REAL)
     await open()
     await search('receipt')
     const path = document.body.querySelector('.result-path') as HTMLElement
-    expect(path.textContent).toBe('/DATA/Documents/Recipes')
+    // 断言的是翻译后的虚拟路径:磁盘已种,若 folderOf 不过 toVirtualPath 就会是 /DATA/... 而红
+    expect(path.textContent).toBe('/NimoOS-HD/Documents/Recipes')
   })
 
   it('images_unavailable → 结果区顶部挂降级提示条(不是 toast、不遮结果)', async () => {
@@ -189,6 +201,23 @@ describe('SearchDialog', () => {
     expect(document.body.querySelectorAll('.result').length).toBe(1)
   })
 
+  it('先成功再失败 → 错误态不与上一轮结果同屏(view 不清空,只能靠 state 挡)', async () => {
+    agentTool.mockResolvedValue(REAL)
+    await open()
+    await search('receipt')
+    expect(document.body.querySelectorAll('.result').length).toBe(1)
+    // 不改查询词(改词会 reset 把 view 清掉,就抓不到这个陷阱了),直接再回车一次让它失败
+    agentTool.mockReset()
+    agentTool.mockRejectedValue(new Error('ai down'))
+    ;(document.body.querySelector('.searchbox') as HTMLInputElement)
+      .dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }))
+    await flushPromises()
+    await nextTick()
+    expect(document.body.querySelector('.search-error')).not.toBeNull()
+    expect(document.body.querySelectorAll('.result').length).toBe(0)
+    expect(document.body.querySelector('.album')).toBeNull()
+  })
+
   it('搜索中不显示上一轮结果(state 是唯一开关,view 不清空)', async () => {
     agentTool.mockResolvedValue(REAL)
     await open()
@@ -228,10 +257,30 @@ describe('SearchDialog', () => {
       await search('recipes')
       ;(document.body.querySelector('.result') as HTMLElement).click()
       await nextTick()
-      expect(String(openSpy.mock.calls[0]?.[0])).toMatch(/#\/files\/DATA\/Documents\/Recipes$/)
+      expect(String(openSpy.mock.calls[0]?.[0])).toMatch(/#\/files\/NimoOS-HD\/Documents\/Recipes$/)
       ;(document.body.querySelector('.row-open') as HTMLElement).click()
       await nextTick()
-      expect(String(openSpy.mock.calls[1]?.[0])).toMatch(/#\/files\/DATA\/Documents$/)
+      expect(String(openSpy.mock.calls[1]?.[0])).toMatch(/#\/files\/NimoOS-HD\/Documents$/)
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
+  it('路径里的 # ? % 逐段编码,不裸拼进 hash', async () => {
+    // 裸拼时 `#` 会截断 hash（跳到父目录）、`?` 后半段被当 query、`%` 让 vue-router 解码失败。
+    agentTool.mockResolvedValue(agg({
+      filenames: [{ path: '/DATA/Project #2/50% off?.pdf', name: '50% off?.pdf', ext: 'pdf', size: 10, mtimeMs: 1, isDir: false, match: 2 }],
+    }))
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      await open()
+      await search('off')
+      ;(document.body.querySelector('.row-open') as HTMLElement).click()
+      await nextTick()
+      const url = String(openSpy.mock.calls[0]?.[0])
+      expect(url).toMatch(/#\/files\/NimoOS-HD\/Project%20%232$/)
+      // hash 里除了 `#/files` 的那个引导井号,不许再出现裸 # / ? / 未编码的 %
+      expect(url.slice(url.indexOf('#/files') + 1)).not.toMatch(/[#?]/)
     } finally {
       openSpy.mockRestore()
     }

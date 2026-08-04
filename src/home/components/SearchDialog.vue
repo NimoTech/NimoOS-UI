@@ -9,7 +9,7 @@ import { iconNameFor, iconUrl } from '../../files/util/icons'
 import ViewerHost from '../../files/viewers/ViewerHost.vue'
 import { useViewer } from '../../files/viewers/useViewer'
 import { useFilesStore, type FileEntry } from '../../files/stores/files'
-import { toVirtualPath } from '../../files/util/pathUtils'
+import { toVirtualPath, virtualPathToRouteParam } from '../../files/util/pathUtils'
 import { useSearchQuery } from '../search/useSearchQuery'
 import type { ResultRow, SourceBadge } from '../search/types'
 
@@ -26,7 +26,7 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //    带上 `state === 'done'`，绝不能写成 `v-if="view"`：否则请求失败时会把上一轮结果和
 //    错误态一起显示，或者搜索中还挂着旧结果。
 //
-// ── 三处「界面照 Vue2 / 逻辑照正确」的申报偏离 ─────────────────────────────
+// ── 五处「界面照 Vue2 / 逻辑照正确」的申报偏离 ─────────────────────────────
 //   1. openPhotos() 原来写死了同事那台机器的局域网 IP 作为跳转 origin（demo 残留，在任何
 //      别的机器上都跳错地方）→ 改同源相对跳转。这是**修真缺陷**，不是改界面（spec §7.9）。
 //   2. 媒体行的副标题 `.media-acc-label`（"match accuracy" / "text recognized"）删除：
@@ -35,6 +35,12 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //   3. `row.thumbnailUrl`（images 源给的 Photos 缩略图 URL）**本期不消费**，媒体缩略图
 //      统一走 service.image.thumbUrl(realPath)：Photos 缩略图的鉴权方式本机验不了
 //      （images 源在本机恒不可用），贸然改会引入验不了的路径。数据仍在 ResultRow 上，不丢。
+//   4. 跳 /files 的 hash 过 `virtualPathToRouteParam`（逐段 encodeURIComponent），不裸拼
+//      （详见 openFilesAt 处注释）。demo 期这里喂的是写死常量，接真后端后第一次喂用户
+//      真实路径，裸拼就成了可触发缺陷 → **修真缺陷**，不是改界面。
+//   5. `.result-path` 现在显示 `folderOf()` 的结果，**带前导斜杠**（`/NimoOS-HD/Documents/…`）；
+//      旧的 `it.row.folder.replace('/files/', '')` 出来的是无前导斜杠的
+//      `NimoOS-HD/Documents/…`。这是肉眼可见的一处字符差异，登记在案（真机自查时不是新缺陷）。
 //
 // Ask Nimo AI 入口在搜索输入框右侧：渐变胶囊按钮(星标图标 + “Ask Nimo”文字，仿 Gemini)，高度与关闭(✕)按钮一致(36px)。
 // 交互：左键点击结果 = 直接复用文件页的 ViewerHost 就地预览（docx/pdf/xlsx/图片/视频/音频/文本全支持）；
@@ -152,8 +158,14 @@ function folderOf(realPath: string): string {
   return toVirtualPath(dir, files.displayNames)
 }
 // 新窗口跳到前端文件页对应目录（/app/#/files/...）。
+// ⚠️ 申报偏离 4（修真缺陷，不是改界面）：路径必须过 virtualPathToRouteParam（逐段
+//    encodeURIComponent），与仓库其它所有跳 /files 的地方一致（Files.vue / SharesPage.vue /
+//    DropPage.vue 的 goVirtual）。裸拼 hash 会让目录名里的 `#` 截断 hash（跳到父目录）、
+//    `?` 被当成 query、`%` 让 vue-router 解码失败（列表空白）。demo 期这里喂的是写死常量，
+//    接真后端后第一次喂用户真实路径，裸拼就成了可触发缺陷。
 function openFilesAt(virtualPath: string): void {
-  window.open(`${window.location.origin}${import.meta.env.BASE_URL}#/files${virtualPath}`, '_blank', 'noopener')
+  const param = virtualPathToRouteParam(virtualPath)
+  window.open(`${window.location.origin}${import.meta.env.BASE_URL}#/files/${param}`, '_blank', 'noopener')
 }
 function openFolder(realPath: string): void {
   openFilesAt(folderOf(realPath))
