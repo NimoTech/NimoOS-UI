@@ -82,7 +82,7 @@ try {
   const pkgPath = path.join(tmp, 'package.json')
   const pkg = fs.readFileSync(pkgPath, 'utf8')
   const FROM = '"@nimotech/nimoos-service": "file:../NimoOS-Service"'
-  const TO = '"@nimotech/nimoos-service": "file:./packages/service"'
+  const TO = '"@nimotech/nimoos-service": "file:packages/service"'
   if (pkg.split(FROM).length - 1 !== 1) throw new Error(`package.json 的 file: 锚点未唯一命中:${FROM}`)
   fs.writeFileSync(pkgPath, pkg.replace(FROM, TO))
   const lockPath = path.join(tmp, 'pnpm-lock.yaml')

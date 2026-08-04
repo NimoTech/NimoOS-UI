@@ -22,7 +22,7 @@ src/                 前端源码
 packages/service/    HTTP / 认证内核共享包(@nimotech/nimoos-service),已内嵌
 ```
 
-共享包通过 `package.json` 的 `file:./packages/service` 链接 —— clone 一个仓库即可开发,
+共享包通过 `package.json` 的 `file:packages/service` 链接 —— clone 一个仓库即可开发,
 不需要额外拉包。
 
 ## 开始

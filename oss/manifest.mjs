@@ -139,15 +139,14 @@ const SYS_ROUTE: Record<string, string> = {
 function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
-    replace: `// 本版没有需要回退的旧入口,恒 false(保留函数形状以免调用处发散)。
-function cutoverDisabled(): boolean { return false }` },
+    replace: '' },
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
-    replace: `      if (key === 'appstore' && !cutoverDisabled()) { router.push('/apps/store'); return }
-      if (key === 'storage' && !cutoverDisabled()) { router.push('/storage'); return }
+    replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
+      if (key === 'storage') { router.push('/storage'); return }
       router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
@@ -352,13 +351,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
   { path: 'src/settings/util/appPaths.ts',
     find: '// 后端(2026-08-01 实测 GET /v1/sys/paths)返回 4 个 key —— app_data / images / database /\n// photos_data,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。',
-    replace: '// 后端(2026-08-01 实测 GET /v1/sys/paths)可能返回更多 key,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。' },
+    // I5-guard(⑤b)复核:原 replace 仍带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
+    replace: '// 后端(2026-08-01 实测 GET /v1/sys/paths)可能返回更多 key,但界面只渲染前 3 个,这里也只产出 3 行。' },
   { path: 'src/apps/stores/installedApps.ts',
     find: '        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。',
     replace: '        // 系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。' },
   { path: 'src/settings/panels/AppsPanel.vue',
     find: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。\n//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。',
-    replace: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
+    // I5-guard(⑤b)复核:原 replace 仍带 "政策三「做样子」"(内部分级术语,FORBIDDEN 清单
+    // 里的"做样子"本就是冲它去的,REPLACE-only 时代未覆盖到 PATCH,漏检)。
+    replace: '// 「清理本地待上传缓存」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
 
   // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
   { path: '.gitignore',
@@ -700,7 +702,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
       'developer',
     ])
   })`,
-    replace: `  it('8 个 tab,顺序与 Vue2 一致(rail 6 项 + account + developer)', () => {
+    // I5-guard(⑤b)复核:原标题带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
+    replace: `  it('8 个 tab,顺序固定(rail 6 项 + account + developer)', () => {
     expect(SETTINGS_TABS).toEqual([
       'general',
       'storage',
@@ -724,7 +727,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
       'folder-permissions',
     ])
   })`,
-    replace: `  it('rail 只有 6 项 —— account 走用户块、developer 走 general 页内入口(Vue2 L855-863/L13/L315)', () => {
+    // I5-guard(⑤b)复核:原标题带 "Vue2 L855-863/L13/L315"(旧代码具体行号引用,
+    // REPLACE-only 时代未覆盖到 PATCH,漏检)。
+    replace: `  it('rail 只有 6 项 —— account 走用户块、developer 走 general 页内入口', () => {
     expect(RAIL_TABS).toEqual([
       'general',
       'storage',
@@ -777,7 +782,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {" },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带待相册区迁移的标注(政策三"做样子")\', async () => {',
-    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注(政策三"做样子")\', async () => {' },
+    // I5-guard(⑤b)复核:原标题仍带 "政策三"做样子""(REPLACE-only 时代未覆盖到 PATCH,漏检)。
+    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注\', async () => {' },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
     replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
@@ -788,7 +794,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
   { path: 'src/settings/util/appPaths.test.ts',
     find: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),Vue2 只渲染 3 行', () => {",
-    replace: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),Vue2 只渲染 3 行', () => {" },
+    // I5-guard(⑤b)复核:原标题仍带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
+    replace: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),只渲染前 3 行', () => {" },
 
   // ── installedApps.test.ts:注释点名 AI agent / Photos ML,措辞对齐 T7 洗白后
   //    的孪生产品代码注释(installedApps.ts 同一行,已在上面改过) ─────────────
@@ -1060,6 +1067,87 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/views/Home.integration.test.ts',
     find: "      photos: { listAssets: vi.fn(async () => []), thumbnailUrl: vi.fn(() => '') },\n",
     replace: '' },
+
+  // ═══════════════════ 修复波(2026-08-04 final-review 发布前必修)═══════════
+
+  // ── I3:theme.css 5 个孤儿 token(SearchDialog/MediaViewer/AiWidget 唯一消费方
+  //    均已被本清单 DELETE/REPLACE 掉,定义留在门面文件 theme.css 里会误导读者
+  //    以为还有搜索高亮/转录高光功能)。8 行 = 深色块 4 行 + 浅色块 4 行。────────
+  { path: 'src/styles/theme.css',
+    find: '  --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --hl-star: #e8c06a;\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --inner-bg-hi: rgba(255, 255, 255, 0.22);\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --brand-shadow: 0 12px 30px rgba(59, 91, 219, 0.3);\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --inner-bg-hi: #f0eee8;\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --hit-bg: #fce8a6; --hit-fg: #5a4a12;\n', replace: '' },
+  { path: 'src/styles/theme.css',
+    find: '  --hl-star: #c9992f;\n', replace: '' },
+
+  // ── I4:产出树里残留的 strangler/cutover 措辞与一条恒真测试。IDX 6/IDX 7 的
+  //    replace payload 已在上面直接改掉(cutoverDisabled 死代码整块删除、
+  //    调用点去掉恒 false 的守卫)。这里补 8 条:删恒真用例、清理 beforeEach、
+  //    洗白 3 处 "P8 cutover:" 注释与 2 处 it() 标题、洗白 protocol.ts 注释。──
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('storage 与 apps 两把 flag 互不干扰', () => {
+    localStorage.setItem('strangler:disabled:/apps', '1')
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(router.push).toHaveBeenCalledWith('/storage')
+    expect(hrefs.length).toBe(0)
+    localStorage.removeItem('strangler:disabled:/apps')
+  })
+`, replace: '' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  hrefs = []; opens = []
+  localStorage.removeItem('strangler:disabled:/apps')
+  localStorage.removeItem('strangler:disabled:/storage')
+`, replace: `  hrefs = []; opens = []
+` },
+  { path: 'src/home/components/HomeDock.test.ts',
+    find: '// P8 cutover:dock 的 files 图标改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
+    replace: '// dock 的 files 图标走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+  { path: 'src/home/components/GridItem.click.test.ts',
+    find: '// P8 cutover:文件夹瓦片改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
+    replace: '// 文件夹瓦片走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: '// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
+    replace: '// 文件入口走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: "  it('appstore 磁贴应用内 router.push /apps/store(SP5-P8 cutover)', () => {",
+    replace: "  it('appstore 磁贴应用内 router.push /apps/store', () => {" },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: "  it('storage 磁贴应用内 router.push /storage(SP6-P6 cutover)', () => {",
+    replace: "  it('storage 磁贴应用内 router.push /storage', () => {" },
+  { path: 'src/files/drop/protocol.ts',
+    find: '// 硬约束:P8 翻 strangler 前新旧页面并存互传,任何形状/数值改动都会破坏兼容。',
+    replace: '// 硬约束:该协议用于页面间互传,任何形状/数值改动都会破坏兼容。' },
+
+  // ── I6:vite.config.ts 直接点名 Claude Code,与「删 CLAUDE.md 因为它是最直白的
+  //    AI 辅助开发标记」的理由自相矛盾。exclude 数组本身保留(功能无害)。────────
+  { path: 'vite.config.ts',
+    find: '    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),',
+    replace: '    // 本机可能存在 .claude/ 等工具目录(含整个仓库副本),' },
+
+  // ── I7a:注释里泄露内部 SDD 台账路径(.superpowers/sdd/sp9/...)与债务编号。──
+  { path: 'src/settings/util/ifaceForm.ts',
+    find: '// → 写路径的正确性只能靠这里的单测(见台账 .superpowers/sdd/sp9/03-p2.md 债务 D18)。',
+    replace: '// → 写路径的正确性只能靠这里的单测(该接口没有安全的真机验证途径)。' },
+
+  // ── M1:package.json 的 name 是私有仓名(new-ui 暗示存在一个 old UI)。────────
+  { path: 'package.json',
+    find: '  "name": "nimoos-new-ui",', replace: '  "name": "nimoos-web",' },
+
+  // ── M2:scripts/deploy.sh 注释里写着私有仓名。──────────────────────────────
+  { path: 'scripts/deploy.sh',
+    find: '# 构建 NimoOS-New-UI 并部署到 Gateway 的 /app/ 静态目录。',
+    replace: '# 构建本项目并部署到 Gateway 的 /app/ 静态目录。' },
 ]
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */

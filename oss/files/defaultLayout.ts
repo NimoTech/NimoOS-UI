@@ -1,6 +1,6 @@
 import type { LayoutItem } from './types'
 
-// 开源版默认桌面:12 列 × 8 行 = 96 格,占 69 格,上面 6 行填满,最后两行故意留空
+// 默认桌面:12 列 × 8 行 = 96 格,占 69 格,上面 6 行填满,最后两行故意留空
 // 给用户自己加。尺寸全部落在 widgets/registry.ts 各自的 min/max 内。
 //
 //      c1   c2   c3   c4  | c5   c6   c7   c8  | c9   c10 | c11  c12

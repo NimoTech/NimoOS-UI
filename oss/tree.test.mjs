@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { REPLACE } from './manifest.mjs'
+import { REPLACE, PATCH } from './manifest.mjs'
 
 const OSS = path.dirname(new URL(import.meta.url).pathname)
 let tree
@@ -67,7 +67,7 @@ describe('内嵌共享包', () => {
     expect(exists('packages/service/src/index.ts')).toBe(true)
     expect(exists('packages/service/src/photos.ts')).toBe(false)
     const pkg = JSON.parse(read('package.json'))
-    expect(pkg.dependencies['@nimotech/nimoos-service']).toBe('file:./packages/service')
+    expect(pkg.dependencies['@nimotech/nimoos-service']).toBe('file:packages/service')
   })
 
   it('lockfile 里不再有 ../NimoOS-Service 路径', () => {
@@ -88,11 +88,14 @@ describe('类 3 · 桌面侧补丁', () => {
       .toContain("const DEFAULT_FAV = ['files', 'storage', 'vm', 'appstore']")
   })
 
-  it('SYS_ROUTE 指内部路由,cutoverDisabled 恒 false,sendToAI 整个没了', () => {
+  // I4(final-review 发布前必修 ③):cutoverDisabled 是死代码(开源版没有旧入口可回退),
+  // 整个函数连同调用点的恒 false 守卫一并删掉,不再保留"函数形状"。
+  it('SYS_ROUTE 指内部路由,cutoverDisabled 死代码整块删除,sendToAI 整个没了', () => {
     const s = read('src/home/composables/useOpenAction.ts')
     expect(s).toContain("vm: '/kvm', settings: '/settings'")
-    expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled/)
-    expect(s).toContain('function cutoverDisabled(): boolean { return false }')
+    expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled|cutoverDisabled/)
+    expect(s).toContain("if (key === 'appstore') { router.push('/apps/store'); return }")
+    expect(s).toContain("if (key === 'storage') { router.push('/storage'); return }")
   })
 
   it("Kind 联合类型去掉 'photo'", () => {
@@ -419,12 +422,31 @@ describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
   // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。
   // T14(B4):/SP\d/i 原来没有 \b 词边界,会误伤 "wasp7"/"grasp789" 这类纯属巧合含有
   // "sp" + 数字子串的英文单词——当前仓库里恰好零命中,但这是隐患,不是等出现了再补。
-  const FORBIDDEN = [/Task \d/, /\bSP\d/i, /\bsp[789]\b/i, /spec §/, /本期/, /做样子/, /Vue2/, /NimoOS-UI/]
+  // I5-guard(final-review 发布前必修 ⑤):补三条词(开源版/本版/社区版 —— ④ 的教训)
+  // + strangler/cutover(③ 的教训),并把 NimoOS-UI 放宽到能抓 NimoOS-New-UI
+  // (原正则是精确子串匹配,"NimoOS-New-UI" 不含 "NimoOS-UI" 这个连续子串,抓不到)。
+  // (?!\.ts) 沿用下方"复审第二轮"用例(:287-288)已经裁定的同一条豁免:zh_cn.sp9.ts /
+  // en_us.sp9.ts 互相指代对方文件名本身是合法引用,不是内部期号泄漏——这两个文件名
+  // 本身带 sp9(M11,已裁定的范围外大类,产出树文件名洗期号是独立一期的工作),
+  // 把断言作用域扩到 PATCH 的 replace payload 后(见下方 b 部分),这条豁免必须同步
+  // 搬过来,否则会对一个已经裁定"不算泄漏"的地方误报。
+  const FORBIDDEN = [/Task \d/, /\bSP\d(?!\.ts)/i, /\bsp[789]\b(?!\.ts)/i, /spec §/, /本期/, /做样子/, /Vue2/,
+                     /NimoOS-(New-)?UI/, /开源版?/, /本版/, /社区版/, /strangler/i, /cutover/i]
 
   it('REPLACE 表里每一个冻结分身都不含固定清单里的词', () => {
     for (const { path: rel } of REPLACE) {
       const s = read(rel)
       for (const bad of FORBIDDEN) expect(s, `${rel} :: ${bad}`).not.toMatch(bad)
+    }
+  })
+
+  // I5-guard 第 2 部分:REPLACE 只覆盖 4 个冻结分身,PATCH 写入产出树的内容此前完全
+  // 不受这条守卫约束(I5b 的"本版"就是这么从 IDX 6 的 replace payload 里漏出去的)。
+  it('PATCH 的 replace 内容也不含固定清单里的词', () => {
+    for (const [i, p] of PATCH.entries()) {
+      for (const bad of FORBIDDEN) {
+        expect(String(p.replace), `PATCH[${i}] ${p.path} :: ${bad}`).not.toMatch(bad)
+      }
     }
   })
 
