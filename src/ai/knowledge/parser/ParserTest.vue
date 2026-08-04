@@ -34,9 +34,11 @@
   【K24 —— 样式走 JS 侧 import,零 `<style>` 块】`import '../../styles/parser-styles.scss'`
     (T2b 建的独立文件)。蓝本的 scoped 隔离在 New-UI 换成 K9 的「规则全嵌在页面作用域下」。
     先例:`KnowledgeLayout.vue:43` / `AgentPage.vue:72` / `SettingsPage.vue:70` / `ParserStatus.vue:108`。
-    ⚠️ 治理 §12.3 **E-13**:本页此刻**零生产 import**(`/ai/parser/test` 在 `knowledgeRoutes.ts`
-    仍指占位页,T10 才反转)→ 模块不进 Vite 图 → 这条 side-effect import 从未求值
-    → **`dist/assets/*.css` 里搜不到 `parser-test-page` 是预期**,那条门已挪 T10。
+    ⏳ 治理 §12.3 **E-13** 的历史记录:**T7 落地时**本页**零生产 import**(`/ai/parser/test`
+    在 `knowledgeRoutes.ts` 仍指占位页)→ 模块不进 Vite 图 → 这条 side-effect import 从未求值
+    → **当时** `dist/assets/*.css` 里搜不到 `parser-test-page` 是预期,那条门因此挪到 T10。
+    ✅ **P5c T10(2026-08-04)已反转路由,该门已达标**:产物里 `.parser-app .parser-test-page`
+    实测 **53 处**命中(复合形式 0 处 = K31 生效)。**这条 import 现在真的在产 CSS,别删。**
 
   【K27 —— REST 走共享包,且**单参调用**】
     蓝本 :216-219 是

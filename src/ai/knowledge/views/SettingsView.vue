@@ -120,9 +120,12 @@
   【危险区按钮硬编码 `disabled`】蓝本 `:181` 就是死的 `disabled`,永远不可点
     (治理 §13:验收只能验「是灰的 + 旁边有『即将上线』徽标」)。
 
-  【本页此刻未上路由 = 预期】`knowledgeRoutes.ts` 的 `settings` 仍指占位页
-    (`DEFERRED_TABS` 含 `'settings'`),**T10 才反转**;沙盒入口跳的 `/ai/parser/test`
-    同样仍是占位页。浏览器里看不到本页,不是缺陷,不许改路由。
+  【路由现状 —— T10 已反转(2026-08-04)】**本页现在真上路由了**:`knowledgeRoutes.ts` 的
+    `settings` 子路由 → 本组件,沙盒入口跳的 `/ai/parser/test` → `ParserTest`,
+    `DEFERRED_TABS` 也已摘掉 `'settings'`(6 → 5)。
+    ⏳ **历史记录(T8/T9 落地时)**:那两条路由都还指占位页 `KnowledgeDeferred`、
+    `DEFERRED_TABS` 含 `'settings'`,浏览器里看不到本页 —— **当时**那是预期而非缺陷,
+    所以 T8/T9 两刀都没碰路由文件。反转归 T10(治理 §12.3 的 **E-13** 记了这条因果链)。
 
   【数据来源】`controlState` 由 `KnowledgeLayout.vue:186` 的 `store.loadOverview()`
     (挂载即拉 + 10 秒轮询)填充,上半**自己不发只读请求**;唯一的只读请求是蓝本
@@ -431,7 +434,8 @@ async function toggleOcr(): Promise<void> {
   }
 }
 
-/** 蓝本 `goSandbox()`(`:316-319`)—— 复用既有 `/ai/parser/test` 页(此刻仍是占位页,T10 反转)。 */
+/** 蓝本 `goSandbox()`(`:316-319`)—— 复用既有 `/ai/parser/test` 页。
+ *  该路由**在 T9 落地时**仍指占位页,**P5c T10(2026-08-04)已反转**成真正的 `ParserTest`。 */
 function goSandbox(): void {
   router.push('/ai/parser/test')
 }
