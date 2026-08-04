@@ -10,7 +10,8 @@
 //
 // 🔴 **T9 对 T8 既有代码的改动仅 4 处,全部是「插入下半」被迫的机械后果**(逐处见 T9 报告 §3):
 //   ① `vi.hoisted` mock 骨架 +3 个域(`notes` / `wiki` / `folder`)—— 组件现在真的调它们;
-//   ② `mockAllOk()` +3 行默认值 —— 否则 T8 既有用例挂载时 `getSettings()` 返回 undefined,
+//   ② `mockAllOk()` **+5 行**默认值(纯新增,既有 3 行零改动)—— 否则 T8 既有用例挂载时
+//      `getSettings()` 返回 undefined,
 //      模板读 `notesSettings.notesRoot` 当场 TypeError;
 //   ③ 危险区那条断言的**定位器**(不是断言值):插入笔记区后 `.k-section` 有两个、
 //      `w.find('.k-section .k-section-head')` 会先命中笔记区(登记为 E-22);
@@ -1041,6 +1042,27 @@ const dangerFootBtn = (host: HTMLElement) =>
   host.querySelector('.k-modal-foot button.k-btn.danger') as HTMLButtonElement
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 🔴 治理 §4.1 —— mock **层次**的守卫(评审「缺口猎①」,本期第 5 次「产品代码对、守卫为零」)。
+// 评审探针:把 `notes.getSettings` 的 mock **多带** `distill_roots` / `distill_daily_cap` /
+// `background_model` → **112/112 全绿**。即「camelCase 且**恰好两个字段**」这一半此前只由台账里
+// 的 `p5c-task-9-fixture-verify.mjs` 守,**不进三门** → 谁把 fixture 抄本改成 HTTP 原样
+// snake_case、或顺手多带几个字段,三门抓不到。这里把键集钉成集合相等断言。
+describe('SettingsView/T9 —— §4.1:fixture 抄本的 mock 层次(键集相等)', () => {
+  it('🔴 notes 两份抄本是**降层后**的形状:键集恰好相等,一个都不多不少', () => {
+    // `service.notes.getSettings/putSettings` 包内走 `normalizeSettings`
+    // (`NimoOS-Service/src/notes.ts:131-137`)→ **camelCase 且只有这两个键**;
+    // HTTP 层那三个 `distill_roots` / `distill_daily_cap` / `background_model` 被它丢掉了。
+    expect(Object.keys(NOTES_SETTINGS)).toEqual(['notesRoot', 'autoExtract'])
+    // `dirInfo`(`notes.ts:264-267`)只做 `!!` 归一,键名/层次不变。
+    expect(Object.keys(DIR_INFO_NOTES)).toEqual(['exists', 'empty'])
+    // 反向:snake_case 一个都不许出现在抄本里(写成 HTTP 原样就是错的层次)
+    for (const k of [...Object.keys(NOTES_SETTINGS), ...Object.keys(DIR_INFO_NOTES)]) {
+      expect(k).not.toContain('_')
+    }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('SettingsView/T9 —— 笔记区静态渲染(蓝本 :63-102)', () => {
   it('区头:📝 标题 + 提示(N16:emoji 在 t() 外面)', async () => {
     const { w } = await mountPage()
@@ -1129,10 +1151,14 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
     expect(captureSw(w).attributes('data-on')).toBe('false')
   })
 
-  it('🔴 后端漏 `auto_extract` 字段 → 包内 `r.auto_extract !== false` 归一成 true → 绿档', async () => {
-    // §4.1 的那条 ⚠️:HTTP body 少了 `auto_extract` 时,`normalizeSettings`
-    // (`notes.ts:131-137`)给出的是 `autoExtract: true`(不是 false、不是 undefined)——
-    // 这里喂的就是那个归一结果,断言组件把它当「开」渲染,与蓝本 data() 默认值一致。
+  it('autoExtract 为 true 时开关绿档且 `.warn` 行不渲染(蓝本 data() 默认值那一侧)', async () => {
+    // 🔴 **本条只声明组件层语义,不再声明「归一化」**(评审 I-1:原用例名写的
+    //   「后端漏 `auto_extract` → 包内 `r.auto_extract !== false` 归一成 true」**零判别力** ——
+    //   mock 打在**包边界**上,`normalizeSettings` 根本不进回路,本条与上一条的红/绿表现完全相同)。
+    //   那条不变量**归上游守**:`NimoOS-Service/src/notes.test.ts:198-203`;评审变异实测
+    //   「改 Service 的 `normalizeSettings` → New-UI 112/112 全绿、上游那条报红」。
+    //   本仓字面上也补不了:`normalizeSettings` 没从包 index 导出。
+    //   → 组件侧能验的就只有「拿到 `true` 就渲染成开」这一条,本条只声明它。
     notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: true })
     const { w } = await mountPage()
     await flushPromises()

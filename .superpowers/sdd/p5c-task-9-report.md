@@ -9,11 +9,19 @@
 | 提交 | 见文末 §13(`git show --stat`) |
 | 改的文件 | `src/ai/knowledge/views/SettingsView.vue` · `src/ai/knowledge/views/SettingsView.test.ts`(**零新增产品文件**) |
 | 台账新增 | `.superpowers/sdd/p5c-task-9-report.md` · `p5c-task-9-fixture-verify.mjs`(`git add -f`) |
-| 三门 | `pnpm test` **Test Files 326 passed (326) / Tests 3514 passed (3514)**,exit 0 · `vue-tsc --noEmit` exit 0(零输出)· `pnpm build` exit 0(`✓ built in 40.62s`) |
-| 算术 | 测试文件数 **326 不变** · `.vue` **179 不变**(`find src -name '*.vue' | wc -l` = 179)· `color-guard` 用例数不变(零新增 `.vue`)· 用例 3459 → **3514**(+55) |
+| 三门 | 见 §14(**评审轮次后的终值**) |
+| 算术 | 测试文件数 **326 不变** · `.vue` **179 不变**(`find src -name '*.vue' \| wc -l` = 179)· `color-guard` 用例数不变(零新增 `.vue`) |
 
-**用例数算术自证**:`SettingsView.test.ts` 的 `it(` 从 **57**(`git show HEAD:…` 实测)增到 **112**,
-差 **+55**;全量 3459 + 55 = **3514** ✅ 逐字吻合,没有别处被动增减。
+**用例数算术自证**:`SettingsView.test.ts` 的 `it(` 从 **57**(`git show <T8>:…` 实测)增到 **112**
+(首版,+55)→ 评审轮补一条 §4.1 键集断言后 **113**(+56)。
+全量:3459 → **3514**(首版)→ **3515**(评审轮)。逐字吻合,没有别处被动增减。
+
+> 🔴 **本报告已按评审(`Ready to merge`,0C / 1I / 6M)整轮订正。**
+> 订正处:**I-1**(§10 + 测试用例名,见 §15.1)· **缺口猎①**(§4.1 键集断言 + 探针,见 §15.2)·
+> **M-1**(§6 的 `test.ts` 还原 md5)· **M-2**(文件内注释 `+3 行`→`+5 行`)· **M-3**(§3 措辞)·
+> **M-4**(§6 探针表跨基线不自洽 → **整批在最终内容上重跑**)· **M-5**(§1.2 三个区间尾行号)·
+> **M-6** = 缺口猎①。评审已核准并关闭的:**顾虑①**(`dist` 污染,重建可复现性判据 `DIR IDENTICAL`)·
+> **顾虑②**(`DialogTitle as-child` 追认为 **K36**,a11y 契约实测成立)。
 
 ---
 
@@ -25,22 +33,27 @@ New-UI 行号由 `python3` 逐锚点 `re.search` 重算(治理教训:T7 手写�
 
 ### 1.1 模板(下半)
 
+🔴 **M-5 订正**:首版三个**区间的尾**行号偏 1–5 行(单行锚点全部精确)。下表已用「按缩进配平找同级闭合标签」
+的脚本重算,**首行与尾行都逐行核对过**(注释行与元素行分开标注):
+
 | 蓝本 | New-UI | 内容 |
 |---|---|---|
-| `:63-70` | **`:505-513`** | 笔记区 `.k-section` + `.k-section-head`;`.k-section-title` = **`:509`**(`📝` 在 `t()` **外面**) |
-| `:71-102` | **`:514-552`** | 笔记目录行 `.k-set-row`(带 `style="align-items: flex-start"`) |
+| `:63-70` | **`:506-512`**(注释 `:505`) | 笔记区 `.k-section`(`:506`,整段 `:506-571`)+ `.k-section-head`(**`:507-512`**);`.k-section-title` = **`:509`**(`📝` 在 `t()` **外面**) |
+| `:71-102` | **`:513-552`**(卡开于 `:513`,行注释 `:514`,`.k-set-row` `:515-552`) | 笔记卡 `.k-set-card`(整段 `:513-570`)+ 笔记目录行(带 `style="align-items: flex-start"`) |
 | `:77` | **`:521`** | `<code>{{ notesSettings.notesRoot \|\| '/DATA/Notes' }}</code>` + ` — ` + 说明(**兜底照抄**) |
 | `:79` | **`:523`** | 折叠区 `v-if="rootPicker.open"` + `style="border-top: 1px dashed var(--line); …"` |
 | `:80` | **`:524`** | `<FolderBrowser ref="fb" :roots="browserRoots" @pick="onPick" />` |
 | `:81-86` | **`:525-533`** | `.kn-picked` + 「已选择:」+ `<code>` + **三档徽标**(`:530-532`) |
 | `:87-96` | **`:534-546`** | `.kn-pick-actions`:「仅指向」(**`:535`**)·「搬文件」(**`:542`**,两条件 disabled)· `.kn-pick-note`(**`:545`**) |
 | `:99-101` | **`:549-551`** | 「更改 / 取消」按钮(`ghost` / `outline` 二选一) |
-| `:104-116` | **`:554-569`** | 自动捕获行;`.warn` = **`:562`**(`v-if="!notesSettings.autoExtract"`);`.k-sw` = **`:568`**(`String(!!…)`) |
-| `:120-156` | **`:573-617`** | 迁移确认弹窗 —— **K29 转 reka**:`DialogRoot` **`:576`** · `DialogPortal to=".knowledge-app" defer` **`:577`** · `DialogOverlay class="k-modal-bg"` · `DialogContent class="k-modal" style="width: min(460px, 100%)"` |
-| `:124` | **`:583-585`** | `<DialogTitle as-child><div class="k-modal-title">…</div></DialogTitle>` |
+| `:104-116` | **`:555-569`**(注释 `:554`) | 自动捕获行 `.k-set-row`;`.warn` = **`:562`**(`v-if="!notesSettings.autoExtract"`);`.k-sw` = **`:568`**(`String(!!…)`) |
+| `:120-156` | **`:576-620`**(注释 `:573-575`) | 迁移确认弹窗 —— **K29 转 reka**:`DialogRoot` **`:576-620`** · `DialogPortal to=".knowledge-app" defer` **`:577-619`** · `DialogOverlay class="k-modal-bg"` **`:578`** · `DialogContent class="k-modal" style="width: min(460px, 100%)"` **`:579`** |
+| `:123-126` | **`:582-587`** | `.k-modal-head` |
+| `:124` | **`:583-585`** | `<DialogTitle as-child><div class="k-modal-title">…</div></DialogTitle>`(**K36**) |
 | `:125` | **`:586`** | `.k-modal-x` + `<KIcon name="x" :size="13" />` |
+| `:127-148` | **`:588-610`** | `.k-modal-body` |
 | `:128-132` | **`:589-593`** | `.kn-mig-path`:旧路径 `span`(`color: var(--text-tertiary)`)→ `arrowRight`(`color="var(--warning)"`)→ `<b>` 新路径 |
-| `:133-143` | **`:595-605`** | `.kn-mig-req` 三个 `<li>`;第一个的 `:color` **三元** = **`:597`**;红色 `<b v-if>` = **`:600`** |
+| `:133-143` | **`:594-605`** | `.kn-mig-req`(`<ul>` `:594-605`)三个 `<li>`:①`:595-602`(`:color` **三元** = **`:597`**,红色 `<b v-if>` = **`:600`**)· ②`:603` · ③`:604` |
 | `:144-147` | **`:606-609`** | `.kn-checkline` + `<input v-model="migrateAck" type="checkbox" />` |
 | `:149-153` | **`:611-616`** | `.k-modal-foot`:`ghost` 取消 + `danger` `:disabled="!migrateAck"` + `upload` 图标 |
 
@@ -48,13 +61,13 @@ New-UI 行号由 `python3` 逐锚点 `re.search` 重算(治理教训:T7 手写�
 
 | 蓝本 | New-UI | 内容 |
 |---|---|---|
-| `:206-211` | **`:221-241`** | data() 五项:`notesSettings` **`:225`** · `rootPicker` **`:228`** · `dirProbe` **`:232`** · `migrating`/`migrateAck` **`:238-239`** |
+| `:206-211` | **`:225-239`** | data() 五项:`notesSettings` **`:225`** · `rootPicker` **`:228`** · `dirProbe` **`:232-235`** · `migrating` **`:238`** / `migrateAck` **`:239`** |
 | `:80` 的 `ref="fb"` | **`:243`** | `const fb = ref<InstanceType<typeof FolderBrowser> \| null>(null)` |
 | `:224-226` | **`:270`** | `browserRoots = computed(() => pickerRoots(store.wikiCandidates))`(**K1 第二处降层**) |
 | `:228-230` | **`:278-284`** | `created()` → `onMounted(async () => { try … catch { /* keep defaults */ } })` |
-| `:232-240` | **`:292-303`** | `openRootPicker()` |
-| `:241-253` | **`:312-327`** | `onPick(path)`;**守卫① `:317`**(成功分支)· **守卫② `:320`**(catch 侧) |
-| `:254-262` | **`:329-338`** | `toggleAutoExtract()` |
+| `:232-240` | **`:292-302`** | `openRootPicker()` |
+| `:241-253` | **`:312-322`** | `onPick(path)`;**守卫① `:317`**(成功分支)· **守卫② `:320`**(catch 侧) |
+| `:254-262` | **`:329-337`** | `toggleAutoExtract()` |
 | `:263-266` | **`:340-343`** | `closeMigrate()`(**两个 state 都清**) |
 | —(K29 落地件) | **`:351-353`** | `onMigrateOpenChange(v)` —— reka 的 `@update:open` → `closeMigrate()` |
 | `:267-270` | **`:356-359`** | `doMigrate()`(**先关后发**) |
@@ -125,8 +138,15 @@ brief 的「DOM / script / 断言」三类)。
 | ③ | **E-22**:危险区区头的定位器 `w.find('.k-section .k-section-head')` → `dangerSection(w).find('.k-section-head')`,新增语义定位器 `dangerSection`(按「卡上有 `.k-set-danger`」找,**不用下标**) | 插入笔记区后 `.k-section` 有**两个**(笔记区在前),`find` 会先命中笔记区 → 标题变 `📝 知识笔记` → T8 那条断言必红。**三条 `expect` 的值一字未动** |
 | ④ | **E-23**:「每个 catch 都是无参 `catch {`」那条的计数 `4` → `8`(连带用例名「四个 catch」→「每个 catch」、注释同步) | 下半新增 4 个 `catch`(`created` 的 `getSettings` / `onPick` / `toggleAutoExtract` / `applyRoot`)。断言**语义未变**(仍是「全部 catch 都不接错误对象」),只是覆盖面从 4 扩到 8;`.message` / `.response` / `.detail` 三条否定式断言原样保留 |
 
-**T8 的 57 条用例里,`expect` 的值只有触点④ 那一个数字变了;其余 56 条一字未动。**
-T8 的四对 §9.2 en 档断言(N21 #1/#2 + 两对 T8 重扫发现的)**完全没碰**。
+🔴 **M-3 措辞订正**(首版写「其余 56 条一字未动」,略过了触点③ 的定位器行,不够准)。准确说法:
+
+- `test.ts` 的 **11 条 `-` 行 = 7 条注释 + 4 条代码**(与评审独立核出的一致)。
+  4 条代码 = `vi.mock` 工厂 1 行(触点①)+ 触点④ 的 3 行(用例名 / 注释 / `toBe(4)`)+ 触点③ 的
+  定位器 1 行 —— 合计 5 行,其中触点④ 的「注释」那 1 行同时被计入注释类,故按类别数是 7+4。
+- **T8 的 57 条用例里被碰到的恰好 2 条**:
+  - 触点④ 那条(`源码侧:…catch…`):**用例名 + 注释 + 计数 4→8**,断言语义不变;
+  - 触点③ 那条(`区头:⚠️ 标题…`):**只换定位器一行**,三条 `expect` 的值一字未动。
+- **其余 55 条完全没碰**(含 T8 的四对 §9.2 en 档断言:N21 #1/#2 + 两对 T8 重扫发现的)。
 
 ---
 
@@ -214,29 +234,39 @@ MISMATCH ②降层层 notes-settings.json → NOTES_SETTINGS  抄本={"notesRoot
 
 ---
 
-## 6. 🔴 RED 探针 —— 16 条,全部报红,md5 逐字节还原
+## 6. 🔴 RED 探针 —— 17 条,全部报红,md5 逐字节还原
+
+> 🔴 **M-4 订正:整批已在「最终内容」上重跑一遍。**
+> 首版表里的数字来自**三个不同基线**(批跑时 111 条 → 补 P10b 用例后 112 条),跨基线一混就不自洽;
+> 评审据此报 M-4。现在全部数字都以**评审轮结束后的最终内容(113 条用例)**为基线,**跨行可比**。
+> 同一个原因也导致 **M-1**(§6 尾部那两个 md5 是批跑时的旧值,`test.ts` 后来又改过两轮)——
+> 重跑后记录的 md5 **就是提交内容的 md5**,不会再陈旧。
 
 跑批脚本对每条:① 精确替换(**命中数必须等于期望,不等就自我停机**)② 证明注入真落盘(内容 + md5 变化)
 ③ 跑本文件全量并**解析 `Tests` 汇总行**(治理 §9:解析不到就算无效结果)④ 从备份还原 ⑤ md5 比对。
 
-| # | 变异 | 结果 | 代表红项 |
+**全部基线 = `113` 条用例(最终内容)**,所以每行 `failed + passed == 113`,可以横向相加校验。
+
+| # | 变异 | 结果(基线 113) | 代表红项 |
 |---|---|---|---|
-| P1 | `onPick` **成功分支**守卫整行删掉 | `1 failed / 110 passed` | 交错路径:A 的响应后到 → dirProbe 是 B 的结果 |
-| P2 | `onPick` **catch 侧**守卫删掉 | `1 failed / 110` | 交错路径 · catch 侧:A 后到且失败,不许擦掉 B 的徽标 |
-| P3 | **K30** · `applyRoot` 把 `e.response.data.detail` 拼回 toast | `3 failed / 108` | 「源码侧:每个 catch 都不读 e」+ K30 两条排除式断言 |
-| P4 | **K30** · `toggleAutoExtract` 把 `e.message` 拼回 toast | `2 failed / 109` | 同上 + `catch⑥ toggleAutoExtract` |
-| P5 | 「搬文件」`:disabled` **只留一半条件** | `1 failed / 110` | 探针 done + 不可迁移 → 「搬文件」灰 |
-| P6 | `migratable` 判据 `\|\|` 改 `&&` | **`19 failed / 92`** | ②两档 curated 全塌成 draft |
-| P7 | reka portal 宿主**不挂进 body** | **`11 failed / 100`** | 全部弹窗用例 |
-| P8 | `closeMigrate` 只清 `migrating`、不清 `migrateAck` | `1 failed / 110` | 关掉再打开,勾选框应是未勾 |
-| P9 | `doMigrate` 顺序反转(先发请求再关弹窗) | `1 failed / 110` | 「开始迁移」先关后发 |
-| P10a | 目录行的 `\|\| '/DATA/Notes'` 兜底删掉 | `2 failed / 110` | N7 同族兜底 + created catch 保默认 |
-| P10b | **弹窗**旧路径的 `\|\| '/DATA/Notes'` 兜底删掉 | `1 failed / 111` | N7 同族第二处(见下方「自捕」) |
-| P11 | 自动捕获开关的 `!!` 删掉 | `1 failed / 110` | `autoExtract` 缺席时应是 `"false"` 不是 `"undefined"` |
-| P12 | `openRootPicker` 不清上次的 `path` | `1 failed / 110` | 承接 Vue2 spec「重开时清 stale path」 |
-| P13 | `openRootPicker` 不调 `fb.reset()` | `1 failed / 110` | 展开时下一帧调 reset() |
-| P14 | `openRootPicker` 不拉 wiki 候选 | `4 failed / 107` | `loadCandidates` 被调 等 4 条 |
-| P15 | **§9.1**:`rootPicker` 挪到**模块级**(两步注入:加一个 `<script>` 块导出共享 ref + setup 里改成引用它) | **`18 failed / 93`** | **含「两实例交错」那条** ✅ |
+| P1 | `onPick` **成功分支**守卫整行删掉 | `1 failed / 112 passed` | 交错路径:A 的响应后到 → dirProbe 是 B 的结果 |
+| P2 | `onPick` **catch 侧**守卫删掉 | `1 failed / 112` | 交错路径 · catch 侧:A 后到且失败,不许擦掉 B 的徽标 |
+| P3 | **K30** · `applyRoot` 把 `e.response.data.detail` 拼回 toast | `3 failed / 110` | 「源码侧:每个 catch 都不读 e」+ K30 两条排除式断言 |
+| P4 | **K30** · `toggleAutoExtract` 把 `e.message` 拼回 toast | `2 failed / 111` | 同上 + `catch⑥ toggleAutoExtract` |
+| P5 | 「搬文件」`:disabled` **只留一半条件** | `1 failed / 112` | 探针 done + 不可迁移 → 「搬文件」灰 |
+| P6 | `migratable` 判据 `\|\|` 改 `&&` | **`20 failed / 93`** | ②两档 curated 全塌成 draft |
+| P7 | reka portal 宿主**不挂进 body** | **`12 failed / 101`** | 全部弹窗用例 |
+| P8 | `closeMigrate` 只清 `migrating`、不清 `migrateAck` | `1 failed / 112` | 关掉再打开,勾选框应是未勾 |
+| P9 | `doMigrate` 顺序反转(先发请求再关弹窗) | `1 failed / 112` | 「开始迁移」先关后发 |
+| P10a | 目录行的 `\|\| '/DATA/Notes'` 兜底删掉 | `2 failed / 111` | N7 同族兜底 + created catch 保默认 |
+| P10b | **弹窗**旧路径的 `\|\| '/DATA/Notes'` 兜底删掉 | `1 failed / 112` | N7 同族第二处(见下方「自捕」) |
+| P11 | 自动捕获开关的 `!!` 删掉 | `1 failed / 112` | 「`!!` 双取反照抄 —— `autoExtract` 缺席时是 `"false"` 不是 `"undefined"`」 |
+| P12 | `openRootPicker` 不清上次的 `path` | `1 failed / 112` | 承接 Vue2 spec「重开时清 stale path」 |
+| P13 | `openRootPicker` 不调 `fb.reset()` | `1 failed / 112` | 展开时下一帧调 reset() |
+| P14 | `openRootPicker` 不拉 wiki 候选 | `4 failed / 109` | `loadCandidates` 被调 等 4 条 |
+| P15 | **§9.1**:`rootPicker` 挪到**模块级**(两步注入:加一个 `<script>` 块导出共享 ref + setup 里改成引用它) | **`19 failed / 94`** | **含「两实例交错」那条** ✅ |
+| **P17a** | 🔴 **评审轮新增(缺口猎①)**:`NOTES_SETTINGS` 抄本**多带** `distillRoots` / `distillDailyCap` / `backgroundModel` 三个字段 | `1 failed / 112` | 「🔴 notes 两份抄本是**降层后**的形状:键集恰好相等,一个都不多不少」 |
+| **P17b** | 🔴 **评审轮新增(反向)**:`DIR_INFO_NOTES` 键名改成带下划线(`exists_x`)= 层次搞反 | `4 failed / 109` | 同上 + 三条依赖 `exists` 的行为用例 |
 
 **两处「探针自身失效 → 自我停机」的记录(治理 §9 第七条正在起作用)**
 
@@ -249,14 +279,26 @@ MISMATCH ②降层层 notes-settings.json → NOTES_SETTINGS  抄本={"notesRoot
   补上「🔴 N7 同族第二处:notesRoot 为空串时弹窗旧路径也走兜底」后,P10b 变
   `1 failed / 111 passed (112)`。**这正是「假判别力」自查该抓的东西**(治理 §4.2 最后一条)。
 
-**还原自检**
+**还原自检(🔴 M-1 订正:下面这两个 md5 就是**提交内容**的 md5,现测)**
 ```
-SettingsView.vue       58e2cbf1d005af3a19aa89f72224836a  基线 58e2cbf1d005af3a19aa89f72224836a  一致=True
-SettingsView.test.ts   7b54f9f880b2609ca7ef45bf5695a9f7  基线 7b54f9f880b2609ca7ef45bf5695a9f7  一致=True
+$ md5sum src/ai/knowledge/views/SettingsView.vue src/ai/knowledge/views/SettingsView.test.ts
+58e2cbf1d005af3a19aa89f72224836a  src/ai/knowledge/views/SettingsView.vue
+c0b85548af0e1f1a2c883e98511ea10f  src/ai/knowledge/views/SettingsView.test.ts
+
+批跑脚本尾部输出:
+  SettingsView.vue       58e2cbf1d005af3a19aa89f72224836a  基线 58e2cbf1…  一致=True
+  SettingsView.test.ts   c0b85548af0e1f1a2c883e98511ea10f  基线 c0b85548…  一致=True
 全部还原: True
 ```
-探针备份文件(`*.probebak` / `*.p10bak`)已 `rm`,`git status` 只剩那两个 `M` + 台账两份新文件
-(见 §13)。**探针不在提交里。**
+**M-1 的成因**(登记,供后续任务避坑):首版报告抄的是**首轮批跑当时**的 md5
+(`test.ts` = `7b54f9f8…`),但那之后 `test.ts` 又改过两轮(补 P10b 的用例 + 评审轮的 I-1/M-6),
+于是报告里的值与提交内容脱节 —— 评审实测得到 `81b3b91f…`(它测的是它拿到的那一版)。
+**纪律:md5/探针数字必须在「最终内容」上重测,不能沿用中途快照。**
+(顺带:首版把 `test.ts` 的旧 md5 `7b54f9f8…` 与 `.vue` 的 `58e2cbf1…` 并列,评审误以为前者是
+`.vue` 的值 —— 两者其实都不是「串了」,只是 `test.ts` 那个陈旧;现已全部重测。)
+
+探针备份文件(`*.probebak` / `*.p10bak` / `*.p17bak` / `*.mbak`)全部已 `rm`,
+`git status` 只剩产品/台账文件(见 §13)。**探针不在提交里。**
 
 ---
 
@@ -345,7 +387,9 @@ brief 允许「判不需要就给论证」。我判**需要且成本极低,直�
 | `applyRoot` 两个 `mode` | `adopt` / `migrate` 各一条 | — |
 | **K30 两处 catch 排除式断言** | `catch⑤ applyRoot("adopt")` · `catch⑤ migrate 分支` · `catch⑥ toggleAutoExtract` | P3 / P4 |
 | `created` catch 吞错保默认 | 「🔴 created 的 catch 吞错保默认…」 | P10a 连带 |
-| `autoExtract` 两态 + `.warn` 两态 + **后端漏字段归一 true** | 4 条 | P11 |
+| `autoExtract` 两态 + `.warn` 两态 | 3 条(true 侧 / false 侧 / `!!` 缺席侧) | **P11 只对应「`!!` 缺席侧」那一条** |
+| ~~后端漏字段 → 归一成 true~~ | 🔴 **归上游守,本仓论证不适用** —— 见 §15.1(评审 I-1)。首版把它挂在 **P11** 名下是**错的**:P11 验的是模板的 `!!`,与归一化无关 | — |
+| §4.1 **mock 层次:键集恰好相等** | 🔴 **评审轮新增 1 条**(缺口猎①) | **P17a / P17b** |
 | `notesRoot` 空 → 兜底 | 目录行 + **弹窗旧路径**两条 | P10a / P10b |
 
 **「点某个东西」的可点性前置确认(治理 §13 / §9)**:每条点击用例的目标元素都先断言
@@ -437,3 +481,91 @@ $ git status --short
 **新增编号登记**:brief 勘误 **E-22**(危险区定位器)· **E-23**(catch 计数 4→8)——
 两条都不是 brief「写错了」,而是 brief 的硬约束「不许动 T8 的断言」与「插入下半」在这两点上
 **不可能同时满足**;按最小改动 + 断言值不变的口径处理,逐处在代码注释与本报告里登记。
+**评审轮追加**:**E-24** = 「后端漏 `auto_extract` → 归一成 true」这条用例要求本身
+(brief §2 的 ⚠️ 与 §4.3)在 mock 打在包边界的前提下**无法在本仓落地**,见 §15.1;
+偏离编号 **K36** = `DialogTitle as-child`(评审追认)。
+
+---
+
+## 14. 评审轮后的三门终值
+
+```
+$ pnpm test        → Test Files 326 passed (326) / Tests 3515 passed (3515)   exit 0
+$ pnpm exec vue-tsc --noEmit                                                  exit 0(零输出)
+$ pnpm build                                                                  exit 0
+$ find src -name '*.vue' | wc -l                                              179
+```
+- **测试文件数 326 不变**(本轮零新增文件)· **`.vue` 179 不变**(本轮**没碰任何 `.vue`**)·
+  `color-guard` 用例数不变。
+- 用例 **3514 → 3515(+1)**,正是 §4.1 那条键集断言(缺口猎① / M-6)。**没有别处被动增减。**
+- 🔴 **本轮 `pnpm test` 是干净单轮**(零红、零复跑)。
+  (首版那轮首跑曾红一条已登记噪声 `src/files/upload/persist.test.ts > persist >
+  dropPersisted removes record + blob and frees budget` —— IndexedDB flaky,治理 §8 点名,复跑即绿。)
+
+---
+
+## 15. 评审轮的两处实质改动
+
+### 15.1 🔴 I-1 —— 「后端漏 `auto_extract` → 归一成 true」那条用例**零判别力**,改为「论证不适用 + 引上游守卫」
+
+**评审的判定(我复核成立)**:mock 打在**包边界**(`vi.mock('@nimotech/nimoos-service')`),
+`normalizeSettings` 根本不在回路里 → 那条用例喂的 `{ notesRoot, autoExtract: true }` 与
+它上一条(`autoExtract: undefined`)只是**输入不同的同一种组件层断言**,
+对「归一化对不对」**零判别力**。评审探针:变异 Service 的 `normalizeSettings` →
+**New-UI 112/112 全绿**,而 `NimoOS-Service/src/notes.test.ts:198-203` **报红**。
+
+**这条不变量归上游守,本仓字面上补不了**:
+1. 守卫已在上游:`NimoOS-Service/src/notes.test.ts:198-203`(评审变异实测该处会红);
+2. **`normalizeSettings` 没有从包 `index` 导出**(`src/index.ts:33` 只导出类型,不导出这个函数),
+   本仓连「直接调它做单元断言」这条路都没有;
+3. 唯一的替代方案是「不 mock 包、改 mock `axios`」—— 那会把本页 111 条用例的 mock 层次
+   整个换掉(且与 T6/T8 及全期 §4.1 口径相反),代价远超收益。
+
+**落地(按协调者给的正解,不删也不硬凑,只改用例名 + 注释)**:
+- 用例名 `🔴 后端漏 `auto_extract` 字段 → 包内 `r.auto_extract !== false` 归一成 true → 绿档`
+  → **`autoExtract 为 true 时开关绿档且 `.warn` 行不渲染(蓝本 data() 默认值那一侧)`**
+  —— 只声明它**真正**验的组件层语义,**不再声明「归一化」**;
+- 注释里写清「归上游守 + 本仓不可测的两条原因 + 评审那条变异证据」;
+- §10 对账表已订正:首版把这条挂到 **P11** 名下是错的(**P11 验的是模板的 `!!`**,与归一化无关)。
+- **产品代码零改动。**
+
+### 15.2 🔴 缺口猎① / M-6 —— 「恰好两个字段」此前不进三门,补一条键集相等断言
+
+**评审探针**:把 `notes.getSettings` 的 mock 多带 `distill_roots` / `distill_daily_cap` /
+`background_model` → **112/112 全绿**。即 §4.1「camelCase 且**恰好两个字段**」这一半此前只由
+台账里的 `p5c-task-9-fixture-verify.mjs` 守,**不进三门** —— 这是本期第 **5** 次
+「产品代码对、守卫为零」(前四次:T2b 的 `--x:` 逃逸 · T3 的守卫变量作用域 · T6 的 N21 #3 复用 ·
+T8 评审的具名色)。
+
+**补的断言**(新 `describe('SettingsView/T9 —— §4.1:fixture 抄本的 mock 层次(键集相等)')`,1 条 `it`):
+```ts
+expect(Object.keys(NOTES_SETTINGS)).toEqual(['notesRoot', 'autoExtract'])
+expect(Object.keys(DIR_INFO_NOTES)).toEqual(['exists', 'empty'])
+for (const k of [...Object.keys(NOTES_SETTINGS), ...Object.keys(DIR_INFO_NOTES)]) {
+  expect(k).not.toContain('_')          // 反向:写成 HTTP 原样 snake_case 就是错的层次
+}
+```
+
+**两段探针输出(基线 113)**
+```
+P17a   落盘=True 文件已变=True  | 抄本**多带** HTTP 层那三个字段(评审探针的等价复现)
+       exit=1 | Tests 1 failed | 112 passed (113)
+        RED: SettingsView/T9 —— §4.1:fixture 抄本的 mock 层次(键集相等) > 🔴 notes 两份抄本是**降层后**的形状:键集恰好相等,一个都不多不少
+P17b   落盘=True 文件已变=True  | 抄本键名改成带下划线的 snake_case 风格(层次搞反)
+       exit=1 | Tests 4 failed | 109 passed (113)
+        RED: SettingsView/T9 —— §4.1:fixture 抄本的 mock 层次(键集相等) > 🔴 notes 两份抄本是**降层后**的形状:键集恰好相等,一个都不多不少
+        RED: SettingsView/T9 —— dirProbe 四态徽标…③done + !migratable…—— [data-s="draft"]「非空目录 — 只能指向」
+        RED: SettingsView/T9 —— 两个动作按钮的 disabled…→ 「仅指向」可点、「搬文件」灰
+        RED: SettingsView/T9 —— K29:reka 迁移确认弹窗 > 🔴 三元另一侧 —— 目标非空时第一个 check 变 var(--danger) + 渲染红色 <b> 补充句
+
+还原自检:md5=c0b85548af0e1f1a2c883e98511ea10f 基线=c0b85548af0e1f1a2c883e98511ea10f 一致=True
+```
+→ 正向(多带字段)与反向(层次搞反)**两头都报红**,且反向那条连带打掉三条行为用例
+(证明 `exists` / `empty` 这两个键名是真被消费的,不是摆设)。
+
+### 15.3 评审已关闭的两条顾虑(登记)
+
+- **顾虑①(`dist` 污染)已关**:评审用「重建可复现性」做判据 —— 54 文件 md5 → 重建 → `DIR IDENTICAL`,
+  **证明了「之前只被改过那一处」**(我原以为证明不了)。这个判据比宽松正则强,值得沿用。
+- **顾虑②(`DialogTitle as-child`)已关**,追认为 **K36**:实测 `aria-labelledby` 与
+  `.k-modal-title` 的 `id` **同值同元素**、隐藏节点 **0**、`outerHTML` 与蓝本**节点对节点一致**。
