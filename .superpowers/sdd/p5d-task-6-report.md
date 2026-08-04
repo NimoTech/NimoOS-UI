@@ -69,3 +69,65 @@ sass knowledge.scss  exit=0
 ## 10. 已知噪声
 
 未命中已知噪声(`persist.test.ts`/`AgentComposer.test.ts`),全量单跑零复跑。
+
+## 修复轮 1
+
+评审两条(1 Important + 1 Minor,协调者一并要求)均已修复,**产品代码 `NotesView.vue` 本轮零改动**,只改了 `NotesView.test.ts`(自证见 §5)。
+
+### 1)Important —— 占位组件「自动上膛」守卫
+
+原状:`NoteEditPane.vue` 落地后若忘了回来接线,任何测试都不会红(TODO 注释可被无声忽略)。新加一条**文件系统条件断言**(`NotesView.test.ts` 新 describe「T6 占位组件的自动上膛守卫」):用 `node:fs` 的 `existsSync` 探测 `src/ai/knowledge/components/NoteEditPane.vue` 是否存在,`readFileSync` 读 `NotesView.vue` 源码本身,按存在与否分两支各自断言(两支都是会真失败的强断言,不是 `if` 不成立就 `return` 的空转写法):
+
+- **不存在**(现在):断言占位标记(`kn-edit-pane-stub`/`NoteEditPanePlaceholder`)仍在、且不存在指向真文件的 `import` ——两条都可能报红(比如占位被误删但真文件没补上)。
+- **存在**(T7 之后):反过来断言必须已经 `import` 真组件、且占位标记必须清空。
+
+**① 惰性证明**(真执行,非 skip):当前 `src/ai/knowledge/components/NoteEditPane.vue` 不存在,`pnpm exec vitest run NotesView.test.ts -t 自动上膛` 走的正是「不存在」分支,两条 `expect` 都实际求值并通过(不是被 `it.skip` 跳过——用 `--reporter=verbose` 复核该条用例确实出现在通过列表里,耗时 1ms,是真跑不是跳过)。
+
+**② 上膛证明**(RED 探针,临时文件,未提交):
+```
+$ touch/写入 src/ai/knowledge/components/NoteEditPane.vue(最小合法 .vue)
+$ pnpm exec vitest run NotesView.test.ts -t 自动上膛
+ × 🔴 自动上膛:… 1 failed
+ AssertionError: NoteEditPane.vue 已存在:请在 NotesView.vue 里改成
+ `import NoteEditPane from '../components/NoteEditPane.vue'`
+ (T6 遗留的本地占位需要替换,见 T6 报告): expected false to be true
+```
+精确报红,失败信息里已给出下一步操作。随后 `rm src/ai/knowledge/components/NoteEditPane.vue`,`git status --porcelain -- src/ai/knowledge/components/` 输出为空(该目录本轮从未被 git 跟踪任何改动),重跑该用例复绿(`1 passed | 32 skipped`)。
+
+### 2)Minor(协调者升级为必做)—— K36 a11y 常驻断言
+
+`NotesView.test.ts` 的「删除确认弹窗」describe 里新增一条 `🔴 K36 a11y` 用例,照 `IndexedFilesView.test.ts:1947` 先例:打开弹窗后钉死 `modal.getAttribute('role') === 'dialog'`、`aria-labelledby` 与 `.k-modal-title` 的 `id` **同值同元素**、且弹窗内 `[id]` 元素**恰好 1 个**(反向确认 `as-child` 没有像 `VisuallyHidden` 那样多插一个隐藏节点)。
+
+**变异证据(RED 探针,已在生产文件上真跑,非源码推理)**:`cp` 备份 `NotesView.vue` → 把 `<DialogTitle as-child>` 改成 `<DialogTitle>`(去掉 `as-child`)→ `md5sum` 证注入落盘(`b45f5007…` → `b52d7631…`)→ 跑 `pnpm exec vitest run NotesView.test.ts -t K36`:
+
+```
+× 🔴 K36 a11y —— aria-labelledby 与 .k-modal-title 的 id 同值同元素,且没有额外的隐藏 DialogTitle 节点
+AssertionError: expected '' to be 'reka-dialog-title-v-0'
+  - reka-dialog-title-v-0
+  + (空字符串)
+  at NotesView.test.ts:627 expect(titleEl.id).toBe(labelId)
+```
+精确报红(去掉 `as-child` 后 reka 另起一个独立节点持有生成的 `id`,`.k-modal-title` 自己的 `id` 属性变空)。随后用备份文件覆盖还原,`md5sum` 核对与改前完全一致(`b45f5007…`),`git diff -- src/ai/knowledge/views/NotesView.vue` 输出为空,重跑该用例复绿(`33 passed`)。
+
+### 3)三门(全量,落盘)
+
+```
+Test Files  330 passed (330)
+     Tests  3876 passed (3876)
+vue-tsc --noEmit → exit=0
+vite build       → exit=0
+```
+(完整日志:`/tmp/p5d-t6-fix-test.log` / `/tmp/p5d-t6-fix-tsc.log` / `/tmp/p5d-t6-fix-build.log`)
+
+算式:**3874 + 2 = 3876**(本轮新增 2 例:自动上膛守卫 1 例 + K36 a11y 1 例)。`Test Files` 仍是 330(没有新增测试文件,只改了既有的 `NotesView.test.ts`)。
+
+### 4)`NotesView.vue` 零改动自证
+
+```
+$ git diff -- src/ai/knowledge/views/NotesView.vue
+(空输出)
+$ git status --porcelain
+ M src/ai/knowledge/views/NotesView.test.ts
+```
+
+本轮探针(内联色回退、epoch 挪模块级、logic 守卫拿掉)全部按「cp 备份 → 行首锚定注入 → 先证注入落盘(md5)→ 用备份覆盖 → md5 逐字节比对」流程操作,还原后与备份 `md5` 完全一致,`git diff`/`git status` 均确认 `NotesView.vue` 无残留改动。占位组件临时文件已 `rm` 删净,`git status` 对 `src/ai/knowledge/components/` 目录无任何记录。

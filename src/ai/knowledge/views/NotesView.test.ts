@@ -28,6 +28,22 @@ import { i18n } from '../../../i18n'
 import { useToast } from '../../../stores/toast'
 import type { Note } from '@nimotech/nimoos-service'
 import NotesView from './NotesView.vue'
+// 修复轮 1(评审 Important):自动上膛守卫要读 `NotesView.vue` 源码本身与探测
+// `NoteEditPane.vue` 是否存在 —— 本档铁律「测试里读文件一律用 node:fs,不用
+// Vite 的 ?raw」(vitest 的 CSSEnablerPlugin 会把样式源替换成空串,断言会假
+// 通过;先例 knowledgeStyles.test.ts 头注释③)。本仓未装 @types/node,逐行用
+// 下面这个指令抑制 TS2307(照 knowledgeStyles.test.ts / QueueView.test.ts
+// 头注释①②的既定手法逐字复用)。
+// @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明
+import { readFileSync, existsSync } from 'node:fs'
+// @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明
+import { resolve, dirname } from 'node:path'
+// @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明
+import { fileURLToPath } from 'node:url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const NOTES_VIEW_SRC_PATH = resolve(__dirname, './NotesView.vue')
+const NOTE_EDIT_PANE_PATH = resolve(__dirname, '../components/NoteEditPane.vue')
 
 // ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
 const notes = vi.hoisted(() => ({
@@ -590,5 +606,82 @@ describe('NotesView — 删除确认弹窗（K7/K29/K36 reka 化）', () => {
     overlayEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
     await flush()
     expect(host.querySelector('.k-modal')).toBeNull()
+  })
+
+  // 修复轮 1(评审 Important,跨刀一致性,与 T8/IndexedFilesView.test.ts:1947
+  // 的既定做法看齐)—— K36 a11y 常驻断言:DialogContent 的 aria-labelledby
+  // 必须与 .k-modal-title 元素的 id 同值同元素。本页用 <DialogTitle as-child>
+  // (K36 既定选择,蓝本本来就有可见标题,见文件头注释)—— 与 IndexedFilesView
+  // 用 VisuallyHidden 包一个额外隐藏节点不同,as-child 不产生第二个带 id 的节点,
+  // 故额外反向确认「弹窗内恰好只有一个带 id 的元素」证明没有多出隐藏节点。
+  it('🔴 K36 a11y —— aria-labelledby 与 .k-modal-title 的 id 同值同元素,且没有额外的隐藏 DialogTitle 节点', async () => {
+    const host = withHost()
+    const { w } = await mountNotesView()
+    await w.find('.kn-note-row[data-s="draft"] .kn-act[data-tone="danger"]').trigger('click')
+    await flush()
+    const modal = host.querySelector('.k-modal')!
+    expect(modal.getAttribute('role')).toBe('dialog')
+    const labelId = modal.getAttribute('aria-labelledby')
+    expect(labelId).toBeTruthy()
+    const titleEl = modal.querySelector('.k-modal-title') as HTMLElement
+    expect(titleEl.id).toBe(labelId)
+    expect(titleEl.textContent).toBe('删除该笔记？')
+    // as-child 不额外插入 VisuallyHidden 节点 —— 弹窗内带 id 的元素应恰好 1 个。
+    expect(modal.querySelectorAll('[id]')).toHaveLength(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 修复轮 1(评审 Important)—— T6 遗留占位组件的「自动上膛」守卫。
+//
+// 【背景】NoteEditPane.vue(T7/T8)本刀提交时尚不存在,NotesView.vue 内联了一个
+// 零逻辑占位组件顶替 import(见该文件头注释)。裸 `TODO(T7)` 注释可以被无声
+// 忽略 —— 真正的风险是 T7 落地了 NoteEditPane.vue 却忘了回来改 NotesView.vue
+// 的挂载点,那样什么测试都不会红,编辑面板会静默渲染成空白。
+//
+// 【本条断言的设计】用文件系统条件断言:读 NoteEditPane.vue 是否存在,读
+// NotesView.vue 源码本身,按存在与否分两支各自断言,两支都是「真的会失败」
+// 的强断言(不是 if 不成立就直接 return 的空转写法):
+//   · 不存在(现在)—— 断言 NotesView.vue 仍保留本地占位标记、且不含指向
+//     真文件的 import(如果这两条都不成立,说明占位已经被动过手脚但真文件
+//     还没落地,同样要报红)。
+//   · 存在(T7 之后)—— 断言 NotesView.vue 必须已经 import 真组件,且本地占位
+//     标记必须清空。
+// 惰性 / 上膛两条判据的证据见任务报告「修复轮 1」一节(RED 探针:临时在
+// components/ 下放一个占位 .vue 文件,确认本条在「存在」分支下精确报红)。
+describe('NotesView — T6 占位组件的自动上膛守卫(NoteEditPane.vue 落地后必须强制接线)', () => {
+  it('🔴 自动上膛:NoteEditPane.vue 不存在时校验占位仍在且无真 import;一旦存在则反过来要求真 import + 占位清空', () => {
+    const exists = existsSync(NOTE_EDIT_PANE_PATH)
+    const src = readFileSync(NOTES_VIEW_SRC_PATH, 'utf8')
+    const hasRealImport = src.includes("from '../components/NoteEditPane.vue'")
+    const hasLocalPlaceholder = src.includes('kn-edit-pane-stub') || src.includes('NoteEditPanePlaceholder')
+
+    if (exists) {
+      // 上膛态:T7 已经把真文件放到位。
+      expect(
+        hasRealImport,
+        'NoteEditPane.vue 已存在:请在 NotesView.vue 里改成 `import NoteEditPane from ' +
+          "'../components/NoteEditPane.vue'`(T6 遗留的本地占位需要替换,见 T6 报告)",
+      ).toBe(true)
+      expect(
+        hasLocalPlaceholder,
+        'NoteEditPane.vue 已存在:请删除 NotesView.vue 里 T6 遗留的本地占位组件' +
+          '(标记串 kn-edit-pane-stub / NoteEditPanePlaceholder),它不应该再出现',
+      ).toBe(false)
+    } else {
+      // 惰性态(当前):真文件还没落地,产品代码理应仍是 T6 的占位实现 ——
+      // 这两条断言真的会执行(不是被 skip),且如果有人误删了占位却没接
+      // 真组件,同样会在这里报红("挂载点失去了内容"这一类回归)。
+      expect(
+        hasLocalPlaceholder,
+        'NoteEditPane.vue 尚不存在,但 NotesView.vue 里 T6 的本地占位组件也不见了' +
+          '—— 挂载点会失去内容,请恢复占位或补上 NoteEditPane.vue',
+      ).toBe(true)
+      expect(
+        hasRealImport,
+        'NoteEditPane.vue 尚不存在,NotesView.vue 不应该出现指向它的 import' +
+          '(会在 T7 落地之前就让 vue-tsc/vite build 失败)',
+      ).toBe(false)
+    }
   })
 })
