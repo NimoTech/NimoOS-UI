@@ -79,9 +79,10 @@ describe('buildSearchView —— 合并去重', () => {
     expect(v.rows[0].snippet).toBe('the receipt total was 55.72') // 摘要来自 semantic
   })
 
-  it('reasons 按 key 去重(同一路径两条 semantic 同 kind 只留一个标签)', () => {
+  it('reasons 按 key 去重(同一路径两条 semantic 同 kind 只留一个标签),同层取更高分那条', () => {
     const p = '/DATA/s/a.pdf'
-    const v = buildSearchView(agg({ semantic: [sem(p, 'body', 0.9, 'application/pdf', 'fish'), sem(p, 'body', 0.5, 'application/pdf', 'fish')] }), 'fish')
+    // 低分先到、高分后到 —— 若同层"取更高分"的比较被删掉,先到者的低分会被保留,断言翻红
+    const v = buildSearchView(agg({ semantic: [sem(p, 'body', 0.5, 'application/pdf', 'fish'), sem(p, 'body', 0.9, 'application/pdf', 'fish')] }), 'fish')
     expect(v.rows).toHaveLength(1)
     expect(v.rows[0].reasons.map((r) => r.key)).toEqual(['searchReasonBody'])
     expect(v.rows[0].score).toBe(0.9) // 取更高分那条
@@ -114,6 +115,29 @@ describe('buildSearchView —— 合并去重', () => {
     const v = buildSearchView(agg({ semantic: [sem(p, 'ocr', 0.6, 'image/jpeg', 'HOME DEPOT')], images: [img(p, 0.7)] }), 'depot')
     expect(v.rows).toHaveLength(1)
     expect(v.rows[0].badge).toBe('ocr')
+    expect(v.rows[0].isMedia).toBe(true)
+  })
+
+  it('badge 优先级:同路径 filenames + ocr semantic → 徽标仍是 filename(filenames 最高优先)', () => {
+    const p = '/DATA/Documents/life/receipt.jpg'
+    const v = buildSearchView(
+      agg({
+        filenames: [fn('receipt.jpg', 2, { path: p })],
+        semantic: [sem(p, 'ocr', 0.6, 'image/jpeg', 'HOME DEPOT')],
+      }),
+      'receipt',
+    )
+    expect(v.rows).toHaveLength(1)
+    expect(v.rows[0].badge).toBe('filename')
+  })
+
+  it('images 单独命中(不与任何 filenames/semantic 同路径)→ category/badge/snippet/thumbnailUrl/isMedia 全部来自 images', () => {
+    const v = buildSearchView(agg({ images: [{ assetId: 'a1', name: 'sunset.jpg', path: '/DATA/Gallery/sunset.jpg', score: 0.8, takenAt: '', thumbnailUrl: '/thumb/a1', caption: 'a sunset over the lake' }] }), 'sunset')
+    expect(v.rows).toHaveLength(1)
+    expect(v.rows[0].category).toBe('Images')
+    expect(v.rows[0].badge).toBe('semantic')
+    expect(v.rows[0].snippet).toBe('a sunset over the lake')
+    expect(v.rows[0].thumbnailUrl).toBe('/thumb/a1')
     expect(v.rows[0].isMedia).toBe(true)
   })
 })
