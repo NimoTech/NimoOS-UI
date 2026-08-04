@@ -1122,6 +1122,66 @@ function stripColorCalls(s: string): string {
   return out
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SP8-P5d Task 5 —— 票 3(治理 §15.3 / §9.6):守卫缺口③′ 补两条判别力。
+//
+// 【票 3a:具名色扫描】`color-guard.test.ts` 与本文件的既有 ③′ 断言都只认
+// `#hex` / `rgb()`/`hsl()`,CSS 具名色(`color: white` 这种)全程零覆盖。
+// 🔴 朴素的「全文找 white 这个词」会冤枉 `white-space: nowrap`(QueueView.vue:474
+// 就有一处)—— 必须钉在「属性值位置」:只在 `color:` / `background:` /
+// `background-color:` / `border-color:` / `border:` / `box-shadow:` / `fill:` /
+// `stroke:` 的**值**部分里找整词具名色。`white-space` 的属性名本身就进不了这张
+// 名单(它不是上面任何一个字符串,`\s*:` 也不会跟在 `white-space` 后面因为中间
+// 隔着连字符不影响——重点是名单里没有 `white-space` 这个键),因此“钉属性值位置”
+// 这一招天然把 `white-space: nowrap` 排除在外,不需要再对值本身做连字符特判。
+//
+// 【票 3b:覆盖范围】既有 ③′ 只扫 `src/ai/knowledge/**`,`src/ai/components/**`
+// (P2a/P2b 产出,Agent 区的卡片/侧栏/设置子组件)的模板 `style=`/`:style=` 是盲区。
+// 协调者已用独立脚本对全部 70 个文件做过一次性程序化 dry-run(见任务报告 §7):
+// hex / rgb / hsl / 具名色在属性值位置上**零命中**——扩大范围不会带出既有违规,
+// 因此本刀直接把同款断言铺到这个目录,不触发 NEEDS_CONTEXT。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 只在这些 CSS 属性的值部分里找具名色;长名排在短名前面,避免
+ *  `background-color`/`border-color` 被 `background`/`border`/`color` 抢先切碎
+ *  (正则引擎按数组书写顺序尝试各分支,书写顺序即優先级)。*/
+const COLOR_VALUE_PROPS = [
+  'background-color',
+  'border-color',
+  'background',
+  'border',
+  'box-shadow',
+  'color',
+  'fill',
+  'stroke',
+]
+// 与 §5(本文件既有的具名色清单,`:510-517`)保持同一份 8 词清单,口径一致。
+const NAMED_COLORS = ['white', 'black', 'red', 'green', 'blue', 'orange', 'gray', 'grey']
+
+/**
+ * 在「属性值位置」找具名色。先用 `prop\s*:\s*([^;]+)` 抓出每一段 `属性: 值`
+ * (输入应先经 `stripColorCalls` 剥掉 `var(...)`/`color-mix(...)`,token 名字
+ * 本身不会被当成色值误判),再对值部分做整词匹配(`(?<![\w-])COLOR(?![\w-])`,
+ * 同 `:510-517` 的写法,排除 `whitesmoke` 这类以该词为前缀的复合词)。
+ * `white-space: nowrap` 这类行天生不会被抓到——它的属性名 `white-space` 根本
+ * 不在 `COLOR_VALUE_PROPS` 名单里,正则连切都不会去切它。
+ */
+function namedColorOffensesInValues(scrubbed: string): string[] {
+  const offenders: string[] = []
+  const propRe = new RegExp(`\\b(${COLOR_VALUE_PROPS.join('|')})\\s*:\\s*([^;]+)`, 'g')
+  let m: RegExpExecArray | null
+  while ((m = propRe.exec(scrubbed))) {
+    const prop = m[1]
+    const value = m[2]
+    for (const c of NAMED_COLORS) {
+      if (new RegExp(`(?<![\\w-])${c}(?![\\w-])`, 'i').test(value)) {
+        offenders.push(`${prop}: ${value.trim().slice(0, 80)}`)
+      }
+    }
+  }
+  return offenders
+}
+
 describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块零裸色(贪婪抽取 + 覆盖度自检)', () => {
   const kbDir = resolve(__dirname, '../knowledge')
 
@@ -1151,5 +1211,126 @@ describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块�
     const scrubbed = stripColorCalls(tmpl)
     expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+  })
+
+  // SP8-P5d Task 5 · 票 3a:属性值位置的具名色扫描(新增)。
+  it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
+    const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
+    const { tmpl } = extractTemplate(src)
+    const scrubbed = stripColorCalls(tmpl)
+    const offenders = namedColorOffensesInValues(scrubbed)
+    expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
+  })
+})
+
+// SP8-P5d Task 5 · 票 3b:同款扫描扩到 `src/ai/components/**`(P2a/P2b 产出,
+// Agent 区的卡片/侧栏/设置子组件)。既有 ③′ 只覆盖 `src/ai/knowledge/**`,
+// 那个目录的模板 `style=`/`:style=` 是盲区。文件清单同样做集合相等防漂移。
+const COMPONENTS_VUE_FILES = [
+  'blocks/ActionsRow.vue',
+  'blocks/BlockRenderer.vue',
+  'blocks/ConfirmCard.vue',
+  'blocks/ContextUsageBar.vue',
+  'blocks/FileListCard.vue',
+  'blocks/ImageGridCard.vue',
+  'blocks/MarkdownBlock.vue',
+  'blocks/MaxTurnsCard.vue',
+  'blocks/McpCallCard.vue',
+  'blocks/McpInstallCard.vue',
+  'blocks/McpPermissionCard.vue',
+  'blocks/McpWarningCard.vue',
+  'blocks/PermissionRequestCard.vue',
+  'blocks/PhotoGridCard.vue',
+  'blocks/ProcessStrip.vue',
+  'blocks/ProgressCard.vue',
+  'blocks/SearchFileDrawer.vue',
+  'blocks/SearchFullResults.vue',
+  'blocks/SearchImageLightbox.vue',
+  'blocks/SearchResultsCard.vue',
+  'blocks/SemanticSearchCard.vue',
+  'blocks/StorageCard.vue',
+  'blocks/TerminalCard.vue',
+  'blocks/ThinkingBlock.vue',
+  'blocks/ToolCard.vue',
+  'blocks/VideoCard.vue',
+  'icons/AgentIcon.vue',
+  'settings/mcp/McpServerDetail.vue',
+  'settings/mcp/McpServerGroup.vue',
+  'settings/mcp/McpServerModal.vue',
+  'settings/SectionPlaceholder.vue',
+  'settings/sections/BlacklistSection.vue',
+  'settings/sections/ChannelsSection.vue',
+  'settings/sections/ExecutionSection.vue',
+  'settings/sections/McpSection.vue',
+  'settings/sections/McpTokensSection.vue',
+  'settings/sections/MemorySection.vue',
+  'settings/sections/ModelsSection.vue',
+  'settings/sections/ObservabilitySection.vue',
+  'settings/sections/PrivacySection.vue',
+  'settings/sections/ProvidersSection.vue',
+  'settings/sections/SearchSection.vue',
+  'settings/sections/SkillsSection.vue',
+  'settings/sections/ThinkingDefaultsSection.vue',
+  'settings/SetSwitch.vue',
+  'settings/SettingsRail.vue',
+  'settings/skills/AddSkillModal.vue',
+  'settings/skills/SkillDetail.vue',
+  'settings/skills/SkillGroup.vue',
+  'settings/skills/SkillTile.vue',
+  'settings/skills/TestPanel.vue',
+  'settings/SkModal.vue',
+  'shell/AgentComposer.vue',
+  'shell/AgentRightPanel.vue',
+  'shell/AgentSidebar.vue',
+  'shell/AgentTopbar.vue',
+  'shell/KindIcon.vue',
+  'shell/MentionPopover.vue',
+  'shell/ModelPicker.vue',
+  'shell/SlashPopover.vue',
+  'shell/ThinkingBar.vue',
+  'stream/AssistantMessage.vue',
+  'stream/EmptyState.vue',
+  'stream/MessageList.vue',
+  'stream/TimelineMinimap.vue',
+  'stream/UserMessage.vue',
+  'tabs/ActivityTab.vue',
+  'tabs/ContextTab.vue',
+  'tabs/ResourcesTab.vue',
+  'tabs/SystemTab.vue',
+]
+
+describe('守卫缺口③′ 扩展(票 3b)—— src/ai/components/** 同款模板裸色扫描', () => {
+  const compDir = resolve(__dirname, '../components')
+
+  it('文件清单集合相等(防漂移:新增组件必须显式进清单,否则本条报红)', () => {
+    expect(listVueFiles(compDir)).toEqual([...COMPONENTS_VUE_FILES].sort())
+  })
+
+  it.each(COMPONENTS_VUE_FILES)('%s —— 贪婪抽取成功 + 覆盖度自检(片段一直延伸到模板最后一行)', (rel) => {
+    const src: string = readFileSync(resolve(compDir, rel), 'utf8')
+    const { tmpl, byLine, tail } = extractTemplate(src)
+    expect(tmpl, `${rel}:根 <template> 块没抽出来(第 0 列的 <template>/</template> 缺一个?)`).not.toBe('')
+    expect(tail, `${rel}:找不到模板尾部特征串`).not.toBe('')
+    expect(
+      tmpl.endsWith(tail),
+      `${rel}:抽出的模板片段没延伸到最后一行(尾部特征串:\n${tail}\n)—— 被提前截断了`,
+    ).toBe(true)
+    expect(tmpl, `${rel}:字符串抽取与逐行推导不一致 —— 抽取边界错了`).toBe(byLine)
+  })
+
+  it.each(COMPONENTS_VUE_FILES)('%s —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量', (rel) => {
+    const src: string = readFileSync(resolve(compDir, rel), 'utf8')
+    const { tmpl } = extractTemplate(src)
+    const scrubbed = stripColorCalls(tmpl)
+    expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+  })
+
+  it.each(COMPONENTS_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
+    const src: string = readFileSync(resolve(compDir, rel), 'utf8')
+    const { tmpl } = extractTemplate(src)
+    const scrubbed = stripColorCalls(tmpl)
+    const offenders = namedColorOffensesInValues(scrubbed)
+    expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
   })
 })

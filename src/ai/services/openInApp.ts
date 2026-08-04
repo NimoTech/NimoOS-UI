@@ -53,6 +53,14 @@ export function openFileInNewTab(filePath: string | null | undefined): void {
   window.open(filesPathUrl(dir, name), '_blank')
 }
 
+// Open a directory itself (no file highlight) in the Files app.
+// 1:1 移植自 Vue2 openInApp.js:52-55 —— 与 openFileInNewTab 共用本仓既有的
+// filesPathUrl(New-UI /app/ 挂载点),不是蓝本自己的虚拟路径实现。
+export function openDirInNewTab(dirPath: string | null | undefined): void {
+  if (!dirPath) return
+  window.open(filesPathUrl(dirPath, ''), '_blank')
+}
+
 const PHOTOSET_PREFIX = 'nimo:photoset:'
 
 export function photosSetUrl(token: string, activeId: string | number): string {
@@ -98,4 +106,23 @@ function pruneStalePhotoSets(): void {
       if (!ts || ts < cutoff) localStorage.removeItem(k)
     }
   }
+}
+
+// 1:1 移植自 Vue2 openInApp.js:117-124(`agentSessionUrl` / `openAgentSessionInNewTab`)。
+// 🔴 与上面几个不同,这两个函数**逐字照抄蓝本的落点** —— 指向旧 Vue2 应用根挂载的
+// `/#/ai/agent?session=…`,**没有** `/app` 前缀。这是刻意的,不是漏加前缀:
+// New-UI 自己也有 `/ai/agent` 路由(`router/index.ts`),但 AgentPage.vue 与
+// agentStore 全仓零 `?session=` 读取,指到 `/app/#/ai/agent?session=X` 会打开
+// New-UI 的 Agent 页却不选中那条会话(静默失效);Vue2 的 Agent.vue:129/164/212
+// 真的读 `$route.query.session`。同款先例见上面 photosAssetUrl 的处理:
+// New-UI 还没有该能力时,暂时借道旧应用这个真实可用的落点;待 New-UI 的
+// `/ai/agent` 补上 `?session=` 深链支持后,应换成 `/app/#/ai/agent?session=…`。
+// 交接票:「New-UI Agent 页补 `?session=` 深链」(P5e/P5f,依据裁定 A-8)。
+export function agentSessionUrl(sessionId: string | number): string {
+  return '/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
+}
+
+export function openAgentSessionInNewTab(sessionId: string | number | null | undefined): void {
+  if (!sessionId) return
+  window.open(agentSessionUrl(sessionId), '_blank')
 }
