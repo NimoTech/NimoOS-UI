@@ -48,6 +48,16 @@ const notes = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { notes } }))
 
+// T8 —— openInApp 是 T5 的既有产出(全期零改动清单),这里只 spy `openFileInNewTab`/
+// `openAgentSessionInNewTab` 是否被正确的参数调用,不重新实现它们的逻辑(那是 T5
+// 的职责与既有测试范围,见 `openInApp.test.ts`)。手法与 `NotesView.test.ts` 对
+// `openDirInNewTab` 的 spy 同一模具。
+const openInAppMock = vi.hoisted(() => ({
+  openFileInNewTab: vi.fn(),
+  openAgentSessionInNewTab: vi.fn(),
+}))
+vi.mock('../../services/openInApp', () => openInAppMock)
+
 // FIXTURE-COPY-BEGIN  p5d-fixtures/notes-get-one.json(camelCase 化,K1 归一)
 // 逐字段取自该文件的真实回包(2026-08-04 抓取):id/title/description/type/
 // status/createdBy(← created_by)/revision/updatedAt(← updated_at)/path/tags/
@@ -115,6 +125,12 @@ const flush = async () => {
   await nextTick()
 }
 
+/** T8:按 `.kn-aside-title` 的文案精确定位某张侧栏卡(来源卡与被引用卡都用
+ * `.kn-refbtn`,单靠类名区分不了两者,必须靠各自卡片的标题文案区分)。 */
+function findAsideCardByTitle(w: { findAll: (s: string) => Array<{ find: (s: string) => { text: () => string } }> }, title: string) {
+  return w.findAll('.kn-aside-card').find((c) => c.find('.kn-aside-title').text() === title)
+}
+
 function setupDefaultMocks(): void {
   notes.get.mockImplementation((id: string) => Promise.resolve({ ...NOTE_FIXTURE, id }))
   notes.backlinks.mockResolvedValue([])
@@ -148,7 +164,12 @@ describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', 
     expect((w.find('.kn-title-input').element as HTMLInputElement).value).toBe(NOTE_FIXTURE.title)
     expect((w.find('.kn-desc-input').element as HTMLInputElement).value).toBe(NOTE_FIXTURE.description)
     // status==='draft' → 顶栏徽标 + 草稿横幅都渲染
-    expect(w.find('.kn-badge[data-s="draft"]').exists()).toBe(true)
+    // 🔴 T8 加固(brief §3 / DoD-11,被迫改动,「加固而非改弱」对照见任务报告):
+    // T8 在侧栏插入了结构/文案都相同的第二个 `.kn-badge[data-s="draft"]`(状态卡,
+    // 蓝本 :82)。裸 `.kn-badge[data-s="draft"]` 会从「唯一命中」退化成「命中两个,
+    // .find() 巧合仍取到文档序第一个即顶栏那个」——测试仍绿但判别力已经退化。
+    // 钉 `.kn-edit-top` 祖先,恢复「断言到确定元素」而不是「断言到文档序第一个」。
+    expect(w.find('.kn-edit-top .kn-badge[data-s="draft"]').exists()).toBe(true)
     expect(w.find('.kn-draftbar').exists()).toBe(true)
   })
 
@@ -164,7 +185,8 @@ describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', 
   it('status==="archived" 时顶栏只出「已归档」徽标,不出草稿横幅', async () => {
     notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'archived' })
     const { w } = await mountPane(NOTE_FIXTURE.id)
-    expect(w.find('.kn-badge[data-s="archived"]').text()).toBe('已归档')
+    // 🔴 T8 加固,同上一条理由:钉 `.kn-edit-top` 祖先,不再依赖文档序。
+    expect(w.find('.kn-edit-top .kn-badge[data-s="archived"]').text()).toBe('已归档')
     expect(w.find('.kn-draftbar').exists()).toBe(false)
   })
 
@@ -495,5 +517,413 @@ describe('NoteEditPane — 定位器边界自查(为 T8 插入做准备)', () =>
   it('草稿横幅确认按钮定位器 .kn-draftbar .k-btn.primary 在挂载后恰好命中 1 个', async () => {
     const { w } = await mountPane(NOTE_FIXTURE.id) // status: draft
     expect(w.findAll('.kn-draftbar .k-btn.primary')).toHaveLength(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════ 以下全部为 T8 新增(侧栏 5 卡 + 标签编辑 + 冲突弹窗) ═══
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 🔴 DoD-11 加固证据:证明「T7 预警的隐性脆弱点」真实存在 —— 裸
+// `.kn-badge[data-s="draft"/"archived"]` 在插入侧栏状态卡后确实命中 2 个,
+// 而不是理论假设。见上方 T7 两条断言的加固注释(钉 `.kn-edit-top` 祖先)。
+describe('NoteEditPane — 定位器加固(DoD-11,证明加固前的隐患真实存在)', () => {
+  it('draft:裸选择器命中 2 个(顶栏 + 侧栏状态卡);加固后的 .kn-edit-top/.kn-edit-aside 定位器各精确命中 1 个', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // status: draft
+    expect(w.findAll('.kn-badge[data-s="draft"]')).toHaveLength(2)
+    expect(w.findAll('.kn-edit-top .kn-badge[data-s="draft"]')).toHaveLength(1)
+    expect(w.findAll('.kn-edit-aside .kn-badge[data-s="draft"]')).toHaveLength(1)
+  })
+
+  it('archived:同理,裸选择器命中 2 个,加固后的 .kn-edit-top 定位器精确命中 1 个', async () => {
+    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'archived' })
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    expect(w.findAll('.kn-badge[data-s="archived"]')).toHaveLength(2)
+    expect(w.findAll('.kn-edit-top .kn-badge[data-s="archived"]')).toHaveLength(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 侧栏第 1 卡:状态(§9.9 isNew 两侧 + 三态徽标 + Source/Last modified)。
+describe('NoteEditPane — 侧栏状态卡', () => {
+  it('isNew=true → 「保存后成为已确认的正式笔记」提示,无三态徽标', async () => {
+    const { w } = await mountPane('new')
+    const card = w.findAll('.kn-aside-card')[0]
+    expect(card.text()).toContain('保存后成为「已确认」的正式笔记')
+    expect(card.find('.kn-badge').exists()).toBe(false)
+  })
+
+  it('isNew=false, status=draft → 侧栏也出「AI 草稿」徽标 + Source(sourceMeta)+ Last modified(非空)', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // status: draft, createdBy: pipeline
+    const card = w.findAll('.kn-aside-card')[0]
+    expect(card.find('.kn-badge[data-s="draft"]').exists()).toBe(true)
+    const kvs = card.findAll('.kn-kv')
+    // sourceMeta('pipeline') = { labelKey: 'aiKbNoteSrcPipeline' → 'AI 沉淀', icon: 'sparkle' }
+    expect(kvs[1].find('b').text()).toBe('AI 沉淀')
+    expect(kvs[2].find('b').text().length).toBeGreaterThan(0) // relativeTime 边界由 notesViewHelpers.test.ts 单独覆盖(§9.8)
+  })
+
+  it('status="curated"(非 draft 非 archived)→ 侧栏徽标 data-s="curated",文案「已确认」', async () => {
+    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'curated' })
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const card = w.findAll('.kn-aside-card')[0]
+    expect(card.find('.kn-badge[data-s="curated"]').text()).toContain('已确认')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 侧栏第 2 卡:磁盘文件(§9.9 isNew 两侧 + revealFile/copyPath)。
+describe('NoteEditPane — 侧栏磁盘文件卡', () => {
+  it('isNew=true → 「保存后在笔记目录创建 .md 文件」提示,无路径/无按钮', async () => {
+    const { w } = await mountPane('new')
+    const card = w.findAll('.kn-aside-card')[1]
+    expect(card.text()).toContain('保存后在笔记目录创建 .md 文件')
+    expect(card.find('.kn-filepath').exists()).toBe(false)
+    expect(card.find('.kn-file-acts').exists()).toBe(false)
+  })
+
+  it('isNew=false → 路径 + 60 秒同步提示 + 「文件管理器」/「复制路径」按钮', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const card = w.findAll('.kn-aside-card')[1]
+    expect(card.find('.kn-filepath').text()).toBe(NOTE_FIXTURE.path)
+    expect(card.text()).toContain('60 秒内同步回来')
+    expect(card.find('.kn-file-acts').exists()).toBe(true)
+  })
+
+  it('点「文件管理器」调用 openFileInNewTab(note.path)', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const btn = w.findAll('.kn-file-acts .k-btn')[0]
+    await btn.trigger('click')
+    expect(openInAppMock.openFileInNewTab).toHaveBeenCalledWith(NOTE_FIXTURE.path)
+  })
+
+  it('copyPath 成功(navigator.clipboard 存在)→ toast「路径已复制」', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const btn = w.findAll('.kn-file-acts .k-btn')[1]
+    await btn.trigger('click')
+    await flush()
+    expect(writeText).toHaveBeenCalledWith(NOTE_FIXTURE.path)
+    expect(useToast().toasts.map((x) => x.text)).toContain('路径已复制')
+  })
+
+  // 🔴 治理 §9.9 / 记忆 newui-clipboard-insecure-reka:HTTP-IP 真机访问下
+  // navigator.clipboard 不存在(jsdom 默认同样不存在,不需要显式清空即可复现);
+  // 这是蓝本行为(蓝本 `:259-264` 也只有裸 try/catch),按 N 系列照抄,不加
+  // execCommand 兜底(那是 Files 区的既有增强)。前端票见文件头「═══ T8 ═══」。
+  it('🔴 copyPath:navigator.clipboard 在 HTTP-IP 下不存在 → 走 catch,弹「操作失败」(预期,非缺陷)', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const btn = w.findAll('.kn-file-acts .k-btn')[1]
+    await btn.trigger('click')
+    await flush()
+    expect(useToast().toasts.map((x) => x.text)).toContain('操作失败')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 侧栏第 3 卡:属性(类型下拉 + 标签编辑:chip/删除/onTagKey 三分支+反例/
+// focusTagInput/addTag 去重 DoD-4)。
+describe('NoteEditPane — 侧栏属性卡:类型下拉', () => {
+  it('切换类型下拉触发 dirty = true,form.type 跟着变', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // type: insight
+    await flush()
+    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(false)
+    const select = w.find('.kn-aside-select')
+    await select.setValue('summary')
+    await select.trigger('change')
+    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(true)
+    expect((w.vm as unknown as { form: { type: string } }).form.type).toBe('summary')
+  })
+})
+
+describe('NoteEditPane — 侧栏属性卡:标签编辑', () => {
+  it('form.tags 的每个标签渲染成一个 .kn-tagchip', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // tags: ['nimoos','todo-list','widget']
+    const chips = w.findAll('.kn-tagchip')
+    expect(chips.map((c) => c.text().replace('移除', '').trim())).toEqual(NOTE_FIXTURE.tags)
+  })
+
+  it('removeTag:点 chip 的移除按钮删掉该标签 + dirty = true', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    await flush()
+    await w.findAll('.kn-tagchip button')[0].trigger('click')
+    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['todo-list', 'widget'])
+    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(true)
+  })
+
+  it('focusTagInput:点击 .kn-tagedit 容器,标签输入框获得焦点(蓝本 :237 $refs.tagInput.focus())', async () => {
+    const { w } = await mountPane('new')
+    const input = w.find('.kn-tagedit input').element as HTMLInputElement
+    expect(document.activeElement).not.toBe(input)
+    await w.find('.kn-tagedit').trigger('click')
+    expect(document.activeElement).toBe(input)
+  })
+
+  // onTagKey 三条分支 + 一条反例(DoD-3)。
+  it('Enter → preventDefault + addTag()', async () => {
+    const { w } = await mountPane('new')
+    const input = w.find('.kn-tagedit input')
+    await input.setValue('foo')
+    await input.trigger('keydown', { key: 'Enter' })
+    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['foo'])
+    expect((w.find('.kn-tagedit input').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('逗号 "," → preventDefault + addTag()', async () => {
+    const { w } = await mountPane('new')
+    const input = w.find('.kn-tagedit input')
+    await input.setValue('bar')
+    await input.trigger('keydown', { key: ',' })
+    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['bar'])
+  })
+
+  it('Backspace 且输入框为空且已有标签 → 弹掉最后一个 + dirty = true', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // tags: ['nimoos','todo-list','widget']
+    await flush()
+    const input = w.find('.kn-tagedit input')
+    await input.trigger('keydown', { key: 'Backspace' })
+    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['nimoos', 'todo-list'])
+    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(true)
+  })
+
+  it('🔴 反例:Backspace 但输入框非空 → 不弹标签(两条分支都不成立)', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    await flush()
+    const input = w.find('.kn-tagedit input')
+    await input.setValue('typing')
+    await input.trigger('keydown', { key: 'Backspace' })
+    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(NOTE_FIXTURE.tags)
+  })
+
+  // DoD-4:addTag() 去重,T7 未覆盖这条,本刀补齐(核实:T7 只测过"输入框未提交
+  // 的新标签"路径,未测过"输入已存在的标签"路径,见 §2 核实说明)。
+  it('🔴 addTag() 去重:输入一个已存在的标签 → dirty 不变、tags 不变(仅去重逻辑判别,不重写实现)', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // tags: ['nimoos','todo-list','widget']
+    await flush()
+    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(false)
+    const input = w.find('.kn-tagedit input')
+    await input.setValue('nimoos') // 已存在的标签
+    await input.trigger('blur')
+    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(NOTE_FIXTURE.tags)
+    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(false)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 侧栏第 4 卡:来源(§9.9 两侧 + openRef/openSessionRef + refLabel 三档 DoD-9)。
+describe('NoteEditPane — 侧栏来源卡', () => {
+  it('!isNew && sourceRefs.length → 渲染(fixture 实测:pipeline 笔记 source_refs 恒非空,README §4)', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // sourceRefs: [{ session_id: '...' }]
+    expect(w.find('.kn-aside-card .kn-refbtn').exists()).toBe(true)
+  })
+
+  it('sourceRefs 为空数组 → 不渲染(该条件的反面,fixture: notes-backlinks 同源 README §4 场景之一)', async () => {
+    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, sourceRefs: [] })
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    expect(w.find('.kn-refbtn').exists()).toBe(false)
+  })
+
+  it('isNew=true → 不渲染(即使强行给 sourceRefs,isNew 门槛优先)', async () => {
+    const { w } = await mountPane('new')
+    expect(w.find('.kn-aside-card .kn-refbtn').exists()).toBe(false)
+  })
+
+  it('r.session_id 分支:点击调用 openSessionRef(r.session_id) → openAgentSessionInNewTab,label 取 session_id 前 8 位(refLabel 第②档)', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const btn = w.find('.kn-refbtn')
+    expect(btn.text()).toContain('6fe14460') // session_id 前 8 位,refLabel 无 label 时的兜底
+    await btn.trigger('click')
+    expect(openInAppMock.openAgentSessionInNewTab).toHaveBeenCalledWith('6fe14460-9892-4d7e-b104-db1098c749af')
+  })
+
+  // 🔴 mock 形状说明:本机 fixture(README §4)记录 pipeline 笔记的 source_refs
+  // 恒为 `[{session_id}]` 形态,无 `path` 形态的真实抓取样本 —— 下面这条按 K41
+  // 的 `SourceRef` 接口定义(`path?: string`,依据蓝本 `:128`)构造最小示例,
+  // 字段名/形状取自接口定义与蓝本读取行,不是手编信封(信封层次仍是已归一化
+  // 的 `Note.sourceRefs` 数组,只是数组元素内容本机没有该分支的真实样本)。
+  it('r.path 分支(本机无真实样本,按 K41 接口构造):点击调用 openRef(r.path) → openFileInNewTab', async () => {
+    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, sourceRefs: [{ path: '/DATA/Notes/1/other.md' }] })
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const btn = w.find('.kn-refbtn')
+    expect(btn.text()).toContain('/DATA/Notes/1/other.md')
+    await btn.trigger('click')
+    expect(openInAppMock.openFileInNewTab).toHaveBeenCalledWith('/DATA/Notes/1/other.md')
+  })
+
+  // refLabel(r) 三档(DoD-9),经 wrapper.vm 直调(FolderBrowser.test.ts:390 /
+  // IndexedFilesView.test.ts:1670/1960 已确立的技术先例:<script setup> 顶层
+  // 函数可经 wrapper.vm 直接调用,不是新增功能/不是绕过公开行为——第③档
+  // (label 与 session_id 都没有)在模板里没有任何按钮会渲染那个 ref
+  // (v-if="r.path" / v-else-if="r.session_id" 两条都不成立),UI 摸不到)。
+  it('refLabel 三档:① 有 label 直接用;② 无 label 有 session_id 取前 8 位;③ 都没有 → 空串', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id)
+    const refLabel = (
+      w.vm as unknown as {
+        refLabel: (r: { path?: string; session_id?: string; label?: string }) => string
+      }
+    ).refLabel
+    expect(refLabel({ label: 'my-label', session_id: 'abcdefgh12345' })).toBe('my-label')
+    expect(refLabel({ session_id: '6fe14460-9892-4d7e-b104-db1098c749af' })).toBe('6fe14460')
+    expect(refLabel({})).toBe('')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 侧栏第 5 卡:被引用(§9.9 两侧)。
+describe('NoteEditPane — 侧栏被引用卡', () => {
+  it('backlinks 为空(fixture 实测:本机恒 []，README §4)→ 不渲染', async () => {
+    const { w } = await mountPane(NOTE_FIXTURE.id) // notes.backlinks 默认 mock 为 []
+    expect(findAsideCardByTitle(w, '被引用')).toBeUndefined()
+  })
+
+  // 🔴 mock 形状说明:README §4 记录本机 backlinks 端点恒回 `[]`,无非空真实
+  // 抓取样本——下面这条按 K41 的 `Backlink` 接口(`{id: string; title: string}`,
+  // 依据蓝本 `:139`/`:141`)构造最小示例,字段名取自接口定义,信封层次仍是
+  // `service.notes.backlinks()` 已归一化的数组(不是 `{backlinks:[]}`)。
+  it('backlinks 非空(本机无真实样本,按 K41 接口构造)→ 渲染,点击 push 到 ?id=b.id', async () => {
+    notes.backlinks.mockResolvedValue([{ id: 'other-note-id', title: 'Referencing Note' }])
+    const { w, router } = await mountPane(NOTE_FIXTURE.id)
+    await flush()
+    const btn = w.findAll('.kn-refbtn').find((b) => b.text().includes('Referencing Note'))
+    expect(btn).toBeTruthy()
+    await btn!.trigger('click')
+    await flush()
+    expect(router.currentRoute.value.fullPath).toContain('?id=other-note-id')
+  })
+
+  it('isNew=true → 不渲染', async () => {
+    const { w } = await mountPane('new')
+    expect(w.find('.kn-aside-card .kn-refbtn').exists()).toBe(false)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 冲突弹窗(DoD-5/6/7):转 reka + K36 a11y + 三个动作 dirty 断言 + clipboard。
+describe('NoteEditPane — 冲突弹窗(reka 化 + 三个动作)', () => {
+  // K7:弹窗 portal 目标 —— 独立挂载时不在 .knowledge-app 子树里(生产环境由
+  // KnowledgeLayout.vue 提供),先例 QueueView.test.ts::withHost() /
+  // NotesView.test.ts::withHost()。
+  function withHost(): HTMLElement {
+    const host = document.createElement('div')
+    host.className = 'knowledge-app'
+    document.body.appendChild(host)
+    return host
+  }
+
+  async function openConflictModal() {
+    const host = withHost()
+    const { w, router } = await mountPane(NOTE_FIXTURE.id)
+    await flush()
+    notes.update.mockRejectedValueOnce({ response: { status: 409, data: { current_revision: 999 } } })
+    await w.find('.kn-title-input').setValue(NOTE_FIXTURE.title + ' conflict-edit')
+    await w.find('.kn-edit-top .k-btn.primary').trigger('click')
+    await flush()
+    return { host, w, router }
+  }
+
+  it('冲突态被设上后,弹窗 portal 到 .knowledge-app,标题/diff 面板正确渲染', async () => {
+    const { host } = await openConflictModal()
+    const modal = host.querySelector('.k-modal')
+    expect(modal).not.toBeNull()
+    expect(modal!.querySelector('.k-modal-title')!.textContent).toBe('有人先保存了这条笔记')
+    // theirs 面板:latest.revision(openConflict() 内部 get() 默认回 NOTE_FIXTURE 同 revision)
+    expect(modal!.querySelector('[data-side="theirs"]')!.textContent).toContain(`rev ${NOTE_FIXTURE.revision}`)
+    // mine 面板:显示 form.body(未提交的标题改动"conflict-edit"不在这里 —— 蓝本
+    // `:169` 就是 `{{ form.body }}`,不是 `form.title`),baseRevision 同样是
+    // NOTE_FIXTURE.revision(loadNote() 首发已把 note.value.revision 设成它)。
+    expect(modal!.querySelector('[data-side="mine"]')!.textContent).toContain(`基于 rev ${NOTE_FIXTURE.revision}`)
+    expect(modal!.querySelector('[data-side="mine"] .kn-diff-body')!.textContent).toContain('Dockerfile')
+  })
+
+  it('点 × 不关闭(反例:只有点遮罩才关闭);点遮罩关闭弹窗(conflict = null)', async () => {
+    const { host } = await openConflictModal()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+    // reka usePointerDownOutside 用 setTimeout(0) 延后挂 document 监听(先例
+    // QueueView.test.ts/NotesView.test.ts 同款注释),补一次宏任务 tick。
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const titleEl = host.querySelector('.k-modal-title') as HTMLElement
+    titleEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flush()
+    expect(host.querySelector('.k-modal')).not.toBeNull()
+    const overlayEl = host.querySelector('.k-modal-bg') as HTMLElement
+    overlayEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
+  })
+
+  it('🔴 K36 a11y —— aria-labelledby 与 .k-modal-title 的 id 同值同元素,弹窗内恰好一个带 id 元素', async () => {
+    const { host } = await openConflictModal()
+    const modal = host.querySelector('.k-modal')!
+    expect(modal.getAttribute('role')).toBe('dialog')
+    const labelId = modal.getAttribute('aria-labelledby')
+    expect(labelId).toBeTruthy()
+    const titleEl = modal.querySelector('.k-modal-title') as HTMLElement
+    expect(titleEl.id).toBe(labelId)
+    expect(titleEl.textContent).toBe('有人先保存了这条笔记')
+    // as-child 不额外插入 VisuallyHidden 节点 —— 弹窗内带 id 的元素应恰好 1 个。
+    expect(modal.querySelectorAll('[id]')).toHaveLength(1)
+  })
+
+  it('adoptDisk:note=latest + form.body=latest.body + conflict 清空 + dirty=true + toast', async () => {
+    const { host, w } = await openConflictModal()
+    const modal = host.querySelector('.k-modal')!
+    const useDiskBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find(
+      (b) => b.textContent === '采用磁盘版本',
+    ) as HTMLElement
+    useDiskBtn.click()
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
+    const vm = w.vm as unknown as { dirty: boolean; form: { body: string } }
+    expect(vm.dirty).toBe(true)
+    expect(vm.form.body).toBe(NOTE_FIXTURE.body) // latest.body(get() 默认回 NOTE_FIXTURE 同 body)
+    expect(useToast().toasts.map((x) => x.text)).toContain('已加载最新版本,你的正文已被替换')
+  })
+
+  it('keepMine:只 rebase revision(note.revision 变成 latest.revision),body 不动,conflict 清空,dirty=true,toast 带 {n}', async () => {
+    const { host, w } = await openConflictModal()
+    const vmBefore = w.vm as unknown as { form: { body: string } }
+    const bodyBefore = vmBefore.form.body
+    const modal = host.querySelector('.k-modal')!
+    const keepBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('保留我的编辑'),
+    ) as HTMLElement
+    keepBtn.click()
+    await flush()
+    expect(host.querySelector('.k-modal')).toBeNull()
+    const vm = w.vm as unknown as { dirty: boolean; form: { body: string }; note: { revision?: number } }
+    expect(vm.dirty).toBe(true)
+    expect(vm.form.body).toBe(bodyBefore) // body 不动
+    expect(vm.note.revision).toBe(NOTE_FIXTURE.revision) // rebase 到 latest.revision
+    expect(useToast().toasts.map((x) => x.text)).toContain(`保留了你的编辑,保存将覆盖 rev ${NOTE_FIXTURE.revision}`)
+  })
+
+  it('copyMine 成功(navigator.clipboard 存在)→ writeText(form.body),toast「已复制你的正文」,弹窗不关闭', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const { host } = await openConflictModal()
+    const modal = host.querySelector('.k-modal')!
+    const copyBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('复制我的正文'),
+    ) as HTMLElement
+    copyBtn.click()
+    await flush()
+    expect(writeText).toHaveBeenCalledWith(NOTE_FIXTURE.body)
+    expect(useToast().toasts.map((x) => x.text)).toContain('已复制你的正文')
+    expect(host.querySelector('.k-modal')).not.toBeNull() // copyMine 不碰 conflict
+  })
+
+  // 🔴 治理 §9.9 / 记忆 newui-clipboard-insecure-reka(见文件头「═══ T8 ═══」)。
+  it('🔴 copyMine:navigator.clipboard 在 HTTP-IP 下不存在 → 走 catch,弹「操作失败」(预期,非缺陷)', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+    const { host } = await openConflictModal()
+    const modal = host.querySelector('.k-modal')!
+    const copyBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find((b) =>
+      b.textContent!.includes('复制我的正文'),
+    ) as HTMLElement
+    copyBtn.click()
+    await flush()
+    expect(useToast().toasts.map((x) => x.text)).toContain('操作失败')
   })
 })
