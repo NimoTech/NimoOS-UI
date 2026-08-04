@@ -18,7 +18,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import type { Editor } from '@tiptap/vue-3'
+import type { Editor, SingleCommands } from '@tiptap/vue-3'
 import NotesMarkdownEditor from './NotesMarkdownEditor.vue'
 // @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明
 import { readFileSync } from 'node:fs'
@@ -43,6 +43,53 @@ function getEditor(w: Awaited<ReturnType<typeof mountEditor>>): Editor {
   const readyEmits = w.emitted<Editor[]>('ready')
   expect(readyEmits).toBeTruthy()
   return readyEmits![0][0]
+}
+
+/**
+ * 🔴 修复轮 1(评审提供的写法,已验证可行):`ed.commands` 是 getter,`@tiptap/vue-3` 的
+ * `Editor` 继承自 `@tiptap/core` 的 `Editor`,getter 定义在**父类**原型上(`ed` 的直接
+ * 原型没有它,要往上一层才找到)——每次访问该 getter 都用 `Object.fromEntries(...)`
+ * 现造一个新的绑定函数对象,所以 `vi.spyOn(ed.commands, 'setContent')` 只能 spy 到那一次
+ * 访问返回的快照,拦不住之后重新访问 `.commands` 拿到的另一个对象,实测恒记 0 次调用,
+ * 是假阴性 —— 这条路走不通,**但走得通的写法是**:在**实例**(不是原型)上用
+ * `Object.defineProperty(ed, 'commands', {...})` 遮蔽原型链上的 getter;自己的 getter
+ * 内部照样调用原始 getter 拿到真实 `SingleCommands` 对象,再包一层 `Proxy` 只拦截
+ * `setContent` 计数,其余方法原样透传。因为遮蔽发生在实例上,production 代码
+ * (`editor.value.commands.setContent(v)`,`editor.value` 与这里的 `ed` 是同一个引用)
+ * 之后每次访问 `.commands` 走的都是这个被遮蔽的 getter,计数准确。
+ */
+function spySetContentCalls(ed: Editor): { count: () => number } {
+  let proto: object | null = Object.getPrototypeOf(ed)
+  let originalGetter: (() => SingleCommands) | undefined
+  while (proto) {
+    const desc = Object.getOwnPropertyDescriptor(proto, 'commands')
+    if (desc && typeof desc.get === 'function') {
+      originalGetter = desc.get as () => SingleCommands
+      break
+    }
+    proto = Object.getPrototypeOf(proto)
+  }
+  if (!originalGetter) throw new Error('commands getter not found on Editor prototype chain')
+  const getter = originalGetter
+  let calls = 0
+  Object.defineProperty(ed, 'commands', {
+    configurable: true,
+    get(): SingleCommands {
+      const real = getter.call(ed)
+      return new Proxy(real, {
+        get(target, prop, receiver) {
+          if (prop === 'setContent') {
+            return (...args: Parameters<SingleCommands['setContent']>) => {
+              calls += 1
+              return Reflect.get(target, prop, receiver).apply(target, args)
+            }
+          }
+          return Reflect.get(target, prop, receiver)
+        },
+      })
+    },
+  })
+  return { count: () => calls }
 }
 
 describe('NotesMarkdownEditor —— 挂载 + ready 契约', () => {
@@ -84,11 +131,13 @@ describe('NotesMarkdownEditor —— K38:v-model 契约同时发 update:modelVal
 
 describe('NotesMarkdownEditor —— §5.3 防回环', () => {
   // ⚠️ 三条踩坑记录(报告里同步登记):
-  // ① `editor.commands` 是 getter,每次访问都返回一个新构造的绑定函数对象
-  //    (`@tiptap/core` `Editor.prototype` 的 `get commands()`,`Object.fromEntries(...)`
-  //    现造)—— `vi.spyOn(ed.commands, 'setContent')` 只能 spy 到那一次访问返回的快照,
-  //    拦不住 watch 内部 `editor.value.commands.setContent(v)` 重新取到的另一个对象,
-  //    实测这条 spy 恒记 0 次调用,是假阴性断言。
+  // ① `vi.spyOn(ed.commands, 'setContent')` 无效,因为 `commands` 是每次访问都重建
+  //    绑定函数对象的 getter(定义在 `@tiptap/core` `Editor` 原型上,`ed` 的直接原型
+  //    没有它,`@tiptap/vue-3` 的 `Editor` 继承自它、要往上一层才找到)—— spy 只能
+  //    盯住那一次访问返回的快照,拦不住 watch 内部重新访问 `.commands` 拿到的另一个
+  //    对象,实测恒记 0 次调用,是假阴性。**可行写法是实例级
+  //    `Object.defineProperty(ed, 'commands', { get: 返回 Proxy 包过的原 getter 结果 })`
+  //    遮蔽该 getter**(见下方 `spySetContentCalls`,评审提供并已验证可行)。
   // ② 改用 `onTransaction` emit 计数作信号同样不可靠 —— 实测偶发(约 1/5)在「同值写回」
   //    分支也多出 1 次 transaction,与 setContent 有没有被调用无关(jsdom 下 ProseMirror
   //    的 selection/focus 相关事件会派发不影响文档的 transaction,时序上与 mount 后的
@@ -130,6 +179,39 @@ describe('NotesMarkdownEditor —— §5.3 防回环', () => {
     await flushPromises()
     expect(ed.state.doc).not.toBe(docBeforeEcho)
     expect(ed.storage.markdown.getMarkdown()).toBe('# totally different')
+    w.unmount()
+  })
+
+  // 🔴 修复轮 1(评审要求):计划书 §T4-3 / brief §3-② 原文规定的判据 ——
+  // 直接断言 `setContent` 的调用次数,而不是只靠 `editor.state.doc` 引用旁证。
+  // 两侧都断言(只断"0 次"的话,一个从不调用 setContent 的坏实现也能绿)。
+  // ⚠️ **不能**直接 `mountEditor(X)` 后 `setProps({ modelValue: X 的 getMarkdown() })`——
+  // 那个值与挂载时的初始 prop 值内容相同,Vue 的 `watch` 源在新旧值 `Object.is` 相等时
+  // 根本不会调用回调,watch 回调永远不会执行,`spy.count()` 恒为 0,和生产代码里有没有
+  // 写比对逻辑毫无关系(已用 mutation 实测坐实:这么写在删掉 `:69` 比对后仍然全绿,
+  // 零判别力,与上面那条「引用不变」用例的教训③同一个坑)。必须像上面那条一样先真敲字,
+  // 让回写值与挂载初始值不同,Vue 才会触发 watch,回调内部的比对才有意义。
+  it('用户敲字后父组件把同一个值经 v-model 写回,setContent 调用 0 次;写入真正不同的值时调用 1 次', async () => {
+    const w = await mountEditor('start')
+    const ed = getEditor(w)
+    const spy = spySetContentCalls(ed)
+
+    ed.chain().focus().insertContent(' more').run()
+    await nextTick()
+    await flushPromises()
+    const afterType = ed.storage.markdown.getMarkdown()
+    expect(afterType).not.toBe('start')
+
+    await w.setProps({ modelValue: afterType })
+    await nextTick()
+    await flushPromises()
+    expect(spy.count()).toBe(0)
+
+    await w.setProps({ modelValue: '# changed' })
+    await nextTick()
+    await flushPromises()
+    expect(spy.count()).toBe(1)
+    expect(ed.storage.markdown.getMarkdown()).toBe('# changed')
     w.unmount()
   })
 })

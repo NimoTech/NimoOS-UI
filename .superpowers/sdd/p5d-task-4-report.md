@@ -178,3 +178,137 @@ vite build:       exit 0
 ## git 自查
 
 提交前 `git status` 应只剩上述 3 个改动文件 + 2 个新文件（无残留探针/临时文件）。
+
+---
+
+## 修复轮 1(评审反馈)
+
+**问题**:评审指出「spy `setContent` 走不通」这个结论下得太宽 —— `vi.spyOn(ed.commands,
+'setContent')` 确实失效(getter 每次访问重建对象,原因诊断本身评审复核成立),但评审找到
+一个可行写法:**实例级 `Object.defineProperty(ed, 'commands', {...})` 遮蔽原型链上的
+getter**,内部包一层 `Proxy` 拦截 `setContent` 调用次数。计划书 §T4-3 / brief §3-② 原文
+规定的判据("拿掉比对 → `setContent` 调用次数从 0 变 1")其实可以落地,不应写成"做不到"。
+
+### 已验证 Proxy 遮蔽写法可行(隔离脚本,先于改测试文件之前跑通)
+
+```
+descriptor found on direct prototype? false undefined
+found at depth 1 true
+calls after 1 setContent: 1 changed
+```
+(`ed` 的直接原型没有 `commands` getter,往上一层 —— `@tiptap/vue-3` 的 `Editor` 继承的
+`@tiptap/core` `Editor` 原型 —— 才找到,与预期一致:`@tiptap/vue-3` 的 `Editor` 是
+`@tiptap/core` `Editor` 的子类,没有重写 `commands`。)
+
+### 新增用例:直接断言 `setContent` 调用次数(两侧都断言)
+
+补进 `NotesMarkdownEditor.test.ts` 的 `§5.3 防回环` describe 块,**保留**原有的
+`editor.state.doc` 引用同一性用例不删(两条从不同层面守同一件事,均有判别力)。
+新增一个可复用的 `spySetContentCalls(ed)` 辅助函数(实例级 `defineProperty` + `Proxy`,零
+`any`,类型用 `@tiptap/vue-3` 再导出的 `SingleCommands`)。
+
+🔴 **踩坑记录(已在测试用例的注释里登记,供 T7 参考)**:第一版新用例写的是
+`mountEditor('same value')` 后直接 `setProps({ modelValue: 挂载时那个值本身 })` —— 与最初
+写引用同一性用例时踩的坑**是同一个坑**:Vue 的 `watch` 源在新旧 prop 值 `Object.is` 相等
+时根本不会调用回调,不管生产代码里有没有写比对逻辑,`spy.count()` 恒为 0,零判别力
+(已用 mutation 实测坐实:删掉 `:69` 比对后这种写法的新用例仍然全绿,而同一轮 mutation 下
+旧的引用同一性用例正确报红,两者结果不一致,证明新用例的第一版判据是假的)。改成与旧用例
+同款写法 —— 先真敲字(让回写值与挂载初始值不同,确保 Vue 真的会调用 watch)—— 后,
+mutation 才能正确命中两条用例。
+
+### 变异证据(cp 备份 → sed 行首锚定注入 → 先证真落盘 → cp 覆盖还原 → md5 逐字节比对)
+
+**GREEN(修复前,先确认新用例本身通过)**:
+```
+Test Files  1 passed (1)
+Tests  9 passed (9)
+```
+
+**注入**(`NotesMarkdownEditor.vue:69` 的比对条件替换成 `true`,`sed -n '66,72p'` 确认真的
+落盘):
+```
+watch(
+  () => props.modelValue,
+  (v) => {
+    if (editor.value && true /* MUTATED-OUT: v !== editor.value.storage.markdown.getMarkdown() */) {
+      editor.value.commands.setContent(v)
+    }
+  },
+```
+
+**RED**(两条用例都报红,新用例精确指出调用次数从期望 0 变成实际 1):
+```
+ × 用户敲字后父组件把同一个值经 v-model 写回,不重设内容(文档引用不变);写入真正不同的值时才重设
+ × 用户敲字后父组件把同一个值经 v-model 写回,setContent 调用 0 次;写入真正不同的值时调用 1 次
+...
+AssertionError: expected 1 to be +0 // Object.is equality
+- Expected
+0
++ Received
+1
+...
+Test Files  1 failed (1)
+Tests  2 failed | 7 passed (9)
+```
+
+**还原**(`cp` 备份覆盖,md5 逐字节比对一致,`git diff -- .../NotesMarkdownEditor.vue` 为空):
+```
+$ md5sum src/ai/knowledge/components/NotesMarkdownEditor.vue /tmp/.../NME.vue.orig
+b84f70494ffc68e6a375d37357fea0ef  src/ai/knowledge/components/NotesMarkdownEditor.vue
+b84f70494ffc68e6a375d37357fea0ef  /tmp/.../NME.vue.orig
+$ git diff -- src/ai/knowledge/components/NotesMarkdownEditor.vue
+(empty)
+```
+
+### 连跑稳定性(≥5 次要求)
+
+修复后的完整测试文件(9 例)连跑 **7 次,7/7 全绿**,无 flaky:
+```
+Test Files  1 passed (1)  /  Tests  9 passed (9)   ×7(逐次一致)
+```
+
+### 措辞订正
+
+`NotesMarkdownEditor.test.ts` 里「spy 走不通」那条注释已按协调者要求订正为精确表述:
+「`vi.spyOn(ed.commands, 'setContent')` 无效,因为 `commands` 是每次访问都重建 bound
+function 的 getter;可行写法是实例级 `Object.defineProperty(ed,'commands',{get:...})`
+遮蔽该 getter,内部包一层 `Proxy`(见 `spySetContentCalls`)」。`onTransaction` 计数
+~1/5 flaky 那条注释**保留原样未动**(评审已复核成立)。
+
+### 产品代码仅注释变动的自证
+
+本轮**未改动**任何生产代码 —— `git diff -- src/ai/knowledge/components/NotesMarkdownEditor.vue`
+输出为空(见上,与 HEAD `8897d5e` 逐字节一致)。所有变异注入均通过 `cp` 备份 + 覆盖式还原,
+全程未使用 `git checkout`/`git restore`。
+
+### 三门(全量,本轮落盘)
+
+```
+$ pnpm test                  > /tmp/p5d-t4-fix-test.log; echo exit=$?
+Test Files  329 passed (329)
+Tests  3607 passed (3607)
+exit=0
+
+$ pnpm exec vue-tsc --noEmit > /tmp/p5d-t4-fix-tsc.log; echo exit=$?
+(no output)
+exit=0
+
+$ pnpm build                 > /tmp/p5d-t4-fix-build.log; echo exit=$?
+✓ built in 13.01s
+exit=0
+```
+
+**算式**:3606 + 1(新增的 `setContent` 调用次数用例)= **3607** ✅。文件数不变(329,只改
+既有文件,零新建/删除文件)。
+
+### git 改动(本轮)
+
+```
+$ git status --short
+ M src/ai/knowledge/components/NotesMarkdownEditor.test.ts
+```
+只有测试文件被改(+88 行/−6 行:新增 `spySetContentCalls` 辅助函数 + 新用例 + 订正注释）。
+
+### dev server
+
+本轮未装依赖,未重起 `:5288`(协调者已确认 pid 788096 在监听,遵嘱不动)。
