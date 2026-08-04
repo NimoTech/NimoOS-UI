@@ -49,6 +49,13 @@
 // 🔴 剩下 **5** 个子路由(`search` / `wiki` / `roots` / `allowlist` / `notes`)仍指
 // KnowledgeDeferred,K7 占位机制本身保留;`allowlist` 是用户 2026-08-03 明示移出
 // 本期的(治理 §2.2),不是漏迁。**本期反转后 parser 两条路由已无占位页残留。**
+//
+// 【SP8-P5d Task 10,2026-08-05】`notes` 子路由(笔记位)同样从占位页
+// KnowledgeDeferred 反转成真正的 NotesView(T6-T9 四刀收官的产出;K7 占位机制
+// 本身不变 —— 见 knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 / P5b T5 /
+// P5b T10 / P5c T10 四次同款先例)。**本刀是本期(P5d)最后一环** —— `/ai/knowledge`
+// 左栏第 4 项「笔记」第一次真正可达。剩下 4 个子路由(`search` / `wiki` / `roots` /
+// `allowlist`)仍指 KnowledgeDeferred,归属见 `deferred.ts` 文件头。
 import type { RouteRecordRaw } from 'vue-router'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
@@ -56,6 +63,7 @@ import DashboardView from './views/DashboardView.vue'
 import QueueView from './views/QueueView.vue'
 import IndexedFilesView from './views/IndexedFilesView.vue'
 import SettingsView from './views/SettingsView.vue'
+import NotesView from './views/NotesView.vue'
 import ParserStatus from './parser/ParserStatus.vue'
 import ParserTest from './parser/ParserTest.vue'
 
@@ -71,7 +79,7 @@ export const knowledgeRoutes: RouteRecordRaw[] = [
       { path: 'queue', name: 'KnowledgeQueue', component: QueueView },
       { path: 'roots', name: 'KnowledgeRoots', component: KnowledgeDeferred },
       { path: 'allowlist', name: 'KnowledgeAllowlist', component: KnowledgeDeferred },
-      { path: 'notes', name: 'KnowledgeNotes', component: KnowledgeDeferred },
+      { path: 'notes', name: 'KnowledgeNotes', component: NotesView },
       { path: 'settings', name: 'KnowledgeSettings', component: SettingsView },
     ],
   },

@@ -13,6 +13,12 @@
 // 明示移出本期(治理 §2.2),本期不做,仍落占位页。
 // 🔴 同刀反转的 `/ai/parser` 与 `/ai/parser/test` 是**顶层路由、不是 rail tab**,
 // 从来不在 DEFERRED_TABS 里,故这里无对应项可摘(治理 §5.1 / T10 brief §2)。
+// 【SP8-P5d Task 10,2026-08-05】'notes' 已迁(NotesView.vue,T6-T9 四刀收官 +
+// knowledgeRoutes.ts 反转),从这里摘掉 → DEFERRED_TABS 由 5 项变 4 项。
+// 🔴 兑现治理 §15.1「跨期占位烂尾」的通用教训 —— 本期票 1 的起因就是「前三期都
+// 漏了导航入口」,占位烂尾没人认领。逐项写明剩下 4 个占位项归哪一期反转:
+//   · 'search'                       → **P5e**
+//   · 'wiki' / 'roots' / 'allowlist' → **P5f**
 // K7 占位机制本身不变(承 P4 I2 的教训,见下方 KnowledgeTabId 注释与 deferred.test.ts)。
 export type KnowledgeTabId =
   | 'dashboard'
@@ -28,7 +34,6 @@ export type KnowledgeTabId =
 export const DEFERRED_TABS = [
   'search',
   'wiki',
-  'notes',
   'roots',
   'allowlist',
 ] as const satisfies readonly KnowledgeTabId[]
