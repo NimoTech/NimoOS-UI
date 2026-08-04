@@ -354,3 +354,130 @@ describe('usePhotosDeepLinks · 执行顺序(灯箱先开、路由后跳)', () =
     )
   })
 })
+
+// 真机验收反馈修正(2026-08-04):在时间线上直接改地址栏 query(不重新打开标签页),
+// 原实现五式全部没反应——vue-router 4 对同一路由组件只 query 变化不重新 mount,
+// onMounted 那次够不到这种情形。以下每个键补一条"已经停留在 /photos,之后才出现该
+// query"的用例:用同一个 router 实例 `router.push({ path: '/photos', query })`,不
+// 重新 mount Host(与 PhotosSettings.test.ts 的 `已停留在本页时 query 才变为
+// ?section=ai` 用例是同一手法)。
+describe('usePhotosDeepLinks · query-only(已停留在 /photos,之后才出现该 query)', () => {
+  it('?q query-only:watch 路径补上重定向', async () => {
+    const { router } = await mountWithQuery({}, {})
+    await flushPromises()
+    expect(router.replace).not.toHaveBeenCalled()
+    // 这次 push 是测试在模拟"用户手改地址栏"这个动作本身(vue-router 层面地址栏编辑
+    // 就是一次 push/replace 到同路由不同 query),不是断言组合式内部用了 push——组合式
+    // 内部有没有用 replace 由下面对 router.replace 的断言单独锁住。
+    await router.push({ path: '/photos', query: { q: '猫' } })
+    await flushPromises()
+    expect(router.replace).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/photos/search', query: { q: '猫' } }),
+    )
+  })
+
+  it('?album query-only:watch 路径补上路由跳转', async () => {
+    const { router } = await mountWithQuery({}, {})
+    await flushPromises()
+    await router.push({ path: '/photos', query: { album: 'al1' } })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-album-detail')
+    expect(router.currentRoute.value.params.id).toBe('al1')
+  })
+
+  it('?person query-only:watch 路径补上校验 + 跳转', async () => {
+    svc.photos.listPersons.mockResolvedValue({ persons: [{ id: 'p1' }] })
+    const { router } = await mountWithQuery({}, {})
+    await flushPromises()
+    await router.push({ path: '/photos', query: { person: 'p1' } })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-person-detail')
+    expect(router.currentRoute.value.params.id).toBe('p1')
+  })
+
+  it('?asset query-only:watch 路径补上开灯箱', async () => {
+    const { router } = await mountWithQuery({}, { a1: { id: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(false)
+    await router.push({ path: '/photos', query: { asset: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    expect(lb.list.value.map((p) => p.id)).toEqual(['a1'])
+  })
+
+  it('?photoset query-only:watch 路径补上开灯箱(读一次性交接、消费 localStorage)', async () => {
+    const { router } = await mountWithQuery({}, { y: { id: 'y' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(false)
+    localStorage.setItem('nimo:photoset:tok2', JSON.stringify({ ids: ['x', 'y'] }))
+    await router.push({ path: '/photos', query: { photoset: 'tok2', active: 'y' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    expect(lb.list.value.map((p) => p.id)).toEqual(['x', 'y'])
+    expect(lb.current.value?.id).toBe('y')
+    expect(localStorage.getItem('nimo:photoset:tok2')).toBeNull()
+  })
+
+  // 🔴 requirement 2 的核心用例:一次性交接消费之后,编辑一个毫不相关的 query 键
+  // (?q)绝不能让 photoset 分支被误判成"缺失"而重新走降级路径(把灯箱内容缩成
+  // active 单张)。这正是原裁决"禁止 watcher"的理由,现在靠"逐键比较、只处理真的
+  // 变了的那个键"来解禁——这条用例就是证明。
+  it('consumed handoff 之后编辑不相关的 ?q:不重新触发降级,灯箱内容保持不变', async () => {
+    localStorage.setItem('nimo:photoset:tok', JSON.stringify({ ids: ['a', 'b', 'c'] }))
+    const { router } = await mountWithQuery({ photoset: 'tok', active: 'b' }, { b: { id: 'b' } })
+    await flushPromises()
+    expect(lb.list.value.map((p) => p.id)).toEqual(['a', 'b', 'c'])
+    expect(localStorage.getItem('nimo:photoset:tok')).toBeNull() // 已消费
+
+    const callsBefore = svc.photos.getAsset.mock.calls.length
+    await router.push({ path: '/photos', query: { photoset: 'tok', active: 'b', q: '猫' } })
+    await flushPromises()
+
+    // 若 watcher 对"任何 query 变化"都整体重跑五式,这里 photoset 分支会因为 handoff
+    // 已经被消费(localStorage 里已经没有了)而误判成"缺失",降级成只开 active 单张——
+    // 灯箱内容会从三张缩成一张、且会为 'b' 重新发一次 getAsset。用内容 + 调用次数一起
+    // 证明它没有被误触发,同时证明真正变化的 ?q 确实被正常处理了。
+    expect(lb.list.value.map((p) => p.id)).toEqual(['a', 'b', 'c'])
+    expect(svc.photos.getAsset.mock.calls.length).toBe(callsBefore)
+    expect(router.replace).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/photos/search', query: { q: '猫' } }),
+    )
+  })
+
+  // requirement 4:从地址栏删除 ?asset(值变成 undefined)必须是 no-op——不弹 toast、
+  // 不关灯箱、不重新取图。
+  it('?asset 被从地址栏删除(undefined)是 no-op:不弹 toast、不关灯箱', async () => {
+    const { router } = await mountWithQuery({ asset: 'a1' }, { a1: { id: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const callsBefore = svc.photos.getAsset.mock.calls.length
+
+    await router.push({ path: '/photos', query: {} })
+    await flushPromises()
+
+    expect(lb.open.value).toBe(true) // 仍是原来那张,没被关掉
+    expect(lb.list.value[0]?.id).toBe('a1')
+    expect(svc.photos.getAsset.mock.calls.length).toBe(callsBefore)
+    expect(showSpy).not.toHaveBeenCalled()
+  })
+
+  // requirement 3:?asset/?photoset 不改路由、只开灯箱——组件不会因为它们而卸载,
+  // watcher 会一直活着。必须确认"第二次毫不相关的 query 变化"不会把灯箱在同一张
+  // asset 上重新打开一次(取图不该被重新调用)。
+  it('?asset 值没变、只是另一个键(?q)变了:灯箱不重新打开、getAsset 不重新调用', async () => {
+    const { router } = await mountWithQuery({ asset: 'a1' }, { a1: { id: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    const callsBefore = svc.photos.getAsset.mock.calls.length
+
+    await router.push({ path: '/photos', query: { asset: 'a1', q: '猫' } })
+    await flushPromises()
+
+    expect(svc.photos.getAsset.mock.calls.length).toBe(callsBefore)
+    expect(router.replace).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/photos/search', query: { q: '猫' } }),
+    )
+  })
+})
