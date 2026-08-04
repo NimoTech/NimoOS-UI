@@ -531,3 +531,153 @@ export function scanTree(rootDir) {
   walk(rootDir)
   return findings
 }
+
+// ─── T15:dist 扫描 —— 构建产物是第二道后备闸,判据与源码树扫描不同 ─────────────
+//
+// 为什么不能直接把 scanTree 指向 dist/ 了事(T15 实测过,64 条命中,逐条溯源见
+// task-15-report.md):
+//   1. **这道门防的是"我方内容(i18n 值/注释)被打进 bundle",不是审查第三方库内部
+//      写了什么。** 源码树扫描(scanText/scanTree,原样不动,仍是主防线)已经在
+//      "我方代码进产物之前"拦过一轮;dist 扫描的职责窄得多——只确认"打包这一步
+//      没有意外夹带我方泄漏",不是重新审查 pdf.js/xlsx 这些第三方库的实现。
+//   2. **ASCII 软禁词(photo/gallery/search/ai/parser/wiki/speaker/folderPermission）
+//      是通用英文子串**,压缩产物里第三方库类名(pdf.js 的 `Parser` 类)、内嵌数据
+//      (xlsx 的 Excel 97 宏函数表 `GALLERY.AREA`）、MIME 常量
+//      (`image/vnd.ms-photo`)、Rollup 生成的两字母压缩导入别名、SVG 里内嵌的
+//      base64 二进制数据,在这个规模的产物里撞上通用英文子串统计上几乎不可避免。
+//      T15 实测:64 条命中里硬禁词 0、中文软禁词 0,64 条全部是 ASCII 软禁词。
+//      **那两个 0 恰恰是"我方内容漏进 bundle"唯一会亮的信号类别**——我方注释/文案
+//      以中文为主,硬禁词是无歧义的品牌/技术栈标记,压缩后的第三方 ASCII 代码不会
+//      偶然含中文或我方品牌词。
+//   3. **exactLine() 那套逐行白名单在压缩产物里结构性失效。** 构建后整个文件常常
+//      挤在第 1 行(如 `assets/index-*.css`),路径也被内容哈希重命名
+//      (`public/widget-kit.css` 变成 `widget-kit.css`,白名单的 file 正则直接失配)。
+//      继续按"文件+整行"配白名单,等价于把白名单退化成"只要出现在这个哈希文件名
+//      的产物里就放行"——那正是本项目明令禁止的"放宽词表"的另一种写法,而且哈希
+//      文件名每次构建都变,维护上也不可持续。
+//
+// 因此:dist 扫描只用 **HARD(全部,不分中英文)+ SOFT 里 word 含中文字符的条目**,
+// 明确排除纯 ASCII 的 SOFT 词。判断"是不是中文词"用 /[一-龥]/ 测试 word 本身,
+// 不硬编码词名单——以后 HARD/SOFT 加新词,这条判据自动跟着分类,不会漏。
+// HARD/SOFT 词表定义本身一个字不动;这里只是消费方,用不同的过滤条件读它们。
+
+/** word 本身含中文字符即判定为"中文词"。不硬编码词名单,词表增删自动跟着分类。 */
+function isChineseWord(word) {
+  return /[一-龥]/.test(word)
+}
+
+/**
+ * dist 专用内容白名单:压缩产物里"文件+行号"定位失效,改成**内容子串精确匹配**——
+ * 只认逐字摘自源码的字符串本身,不看文件/行号。这两条是 T15 实测到的、当前 dist
+ * 构建里仅有的两处"我方合法内容撞上中文软禁词"(均已在源码树白名单里逐行豁免过,
+ * 见 forbidden.mjs SOFT 表 照片/搜索 词条的注释):
+ *   - raidLevel1Usecase 的 RAID 用途说明("照片库…"),与相册 app 无关。
+ *   - appsStoreSearch 的应用商店筛选框占位符,与 NimoOS-Search 服务无关。
+ * 与源码树 exactLine() 同一条纪律:任何增删都会让子串匹配失效、退回"未豁免",
+ * 不会带着新泄漏一起被放行。命中后**只把这段子串本身替换成等长空白再继续扫描
+ * 同一行的其余内容**——不是跳过整行,因为压缩产物里一行可能是几十 KB 的整个模块,
+ * 跳过整行会连同一行里其余的真实泄漏一起放过。
+ */
+const DIST_ALLOW = [
+  '照片库、个人 NAS、启动卷',
+  '搜索应用…',
+]
+
+/**
+ * T15(b):品牌/私有路径 grep 制度化——原来只在 T15 报告里手工跑过一次、免疫压缩
+ * (查的是服务名/路由前缀这种整串字面量,不是英文子串,不会被压缩打散),现在固定
+ * 成 dist 扫描的一部分,命中即 fatal。`nimoos-search|nimoos-parser|nimoos-photos|
+ * nimoos-ai` 四个私有服务名不会与合法内嵌的 `@nimotech/nimoos-service` 共享包
+ * 混淆——"service" 不是这四个词里任何一个的子串,也不是它们的父串。
+ * `photos_data|qdrant|ollama|immich|wikiRoot|192\.168\.1\.115` 已经在 HARD 表里
+ * 覆盖,这里不重复收;只新增 HARD/SOFT 都没有的两类信号:私有服务名字面量、
+ * `/v1/(ai|search|photos|parser)/` 这四个被剥离服务的网关路由前缀。
+ */
+const BRAND_RE = /nimoos-search|nimoos-parser|nimoos-photos|nimoos-ai|\/v1\/(ai|search|photos|parser)\//
+
+// dist 专属的体积上限:MAX_BYTES(2MB)是为源码树的手写文件定的,真实构建产物里
+// 单个 vendor chunk 轻松超过它(本仓实测 index-*.js 主 chunk 3.4MB、Excel 查看器
+// chunk 1.6MB)——如果沿用 2MB 上限,恰恰是内容最多、最该扫的大文件被当成"预期外
+// 跳过"而 fatal,逼着人每次都去扩体积上限,形同虚设。dist 扫描的输入是构建产物,
+// 数量少(几十到上百个 chunk),体积大但读入内存毫无压力,直接放宽到 64MB——
+// 真出现比这更大的单文件才值得让人停下来看一眼。
+const DIST_MAX_BYTES = 64 * 1024 * 1024
+
+/**
+ * 扫构建产物(dist/)。与 scanTree 结构相同(二进制/符号链接跳过、留痕、
+ * __skipped__ 哨兵、isExpectedSkip 复用),但判词逻辑是上面这套专属规则
+ * (不是 scanText),体积上限也单独放宽(DIST_MAX_BYTES,理由见上)。
+ * 品牌 grep 命中打 word: 'brand-leak'。
+ */
+export function scanDist(rootDir) {
+  const words = [...HARD, ...SOFT.filter((s) => isChineseWord(s.word))]
+  const findings = []
+  const skip = (rel, excerpt) => findings.push({ file: rel, word: '__skipped__', line: 0, excerpt })
+
+  const walk = (dir) => {
+    let entries
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch (err) {
+      skip(path.relative(rootDir, dir) || '.', `目录读取失败,未扫描:${err.message}`)
+      return
+    }
+    for (const e of entries) {
+      const abs = path.join(dir, e.name)
+      const rel = path.relative(rootDir, abs)
+
+      if (e.isSymbolicLink()) {
+        skip(rel, SKIP_REASON_SYMLINK)
+        continue
+      }
+      if (e.isDirectory()) {
+        walk(abs)
+        continue
+      }
+
+      let stat
+      try {
+        stat = fs.statSync(abs)
+      } catch (err) {
+        skip(rel, `stat 失败,未扫描:${err.message}`)
+        continue
+      }
+      if (stat.size > DIST_MAX_BYTES) {
+        skip(rel, `超过 ${DIST_MAX_BYTES} 字节上限,未扫描`)
+        continue
+      }
+
+      let buf
+      try {
+        buf = fs.readFileSync(abs)
+      } catch (err) {
+        skip(rel, `读取失败,未扫描:${err.message}`)
+        continue
+      }
+      if (looksBinary(buf)) {
+        skip(rel, SKIP_REASON_BINARY)
+        continue
+      }
+
+      const text = buf.toString('utf8')
+      const lines = text.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        // 只把已知合法子串本身"挖空"成等长空白,不跳过整行——压缩产物一行可能
+        // 是几十 KB 的整个模块,跳过整行会放过同一行里其余的真实泄漏。
+        let scanLine = line
+        for (const allow of DIST_ALLOW) {
+          if (scanLine.includes(allow)) scanLine = scanLine.split(allow).join(' '.repeat(allow.length))
+        }
+        for (const { word, re } of words) {
+          if (re.test(scanLine)) findings.push({ file: rel, line: i + 1, word, excerpt: line.trim().slice(0, 160) })
+        }
+        if (BRAND_RE.test(scanLine)) {
+          findings.push({ file: rel, line: i + 1, word: 'brand-leak', excerpt: line.trim().slice(0, 160) })
+        }
+      }
+    }
+  }
+  walk(rootDir)
+  return findings
+}

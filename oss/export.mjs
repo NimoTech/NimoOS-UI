@@ -164,7 +164,13 @@ try {
     }
   }
   fs.mkdirSync(OUT, { recursive: true })
-  execFileSync('rsync', ['-a', '--delete', '--exclude', '.git', `${tmp}/`, `${OUT}/`])
+  // T15(e):--exclude node_modules——取源(git archive)天然不含 node_modules,
+  // 若不排除,--delete 每次都会把 --out 目录里已经 `pnpm install` 好的 node_modules
+  // 整个删掉,逼着人每次导出后重装一遍依赖。**故意不排除 dist/**——理由相反:
+  // dist 是构建产物,同样不在取源范围内,让它每次被清掉是对的,否则一次陈旧的、
+  // 对不上当前源码的旧 dist 会被误当成"这次构建的产物"去跑第五道门(dist 扫描),
+  // 扫描结果就不代表这次改动的真实情况。
+  execFileSync('rsync', ['-a', '--delete', '--exclude', '.git', '--exclude', 'node_modules', `${tmp}/`, `${OUT}/`])
   fs.writeFileSync(
     path.join(OUT, '.export-report.txt'),
     `NimoOS-New-UI HEAD: ${headNewUi}\nNimoOS-Service HEAD: ${headService}\n` +
