@@ -25,11 +25,11 @@
 //  2) 不对 lb.openAt 用 vi.fn()/spy 断言调用参数(理由见上),改断言 open/list/index/
 //     current/hasPrev/hasNext 等真实状态。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, type Component } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
-import { usePhotosDeepLinks } from '../usePhotosDeepLinks'
+import { usePhotosDeepLinks, type PhotosDeepLinkHooks } from '../usePhotosDeepLinks'
 import { useLightbox } from '../../lightbox/useLightbox'
 import { useToast } from '../../../stores/toast'
 
@@ -50,24 +50,39 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 const lb = useLightbox()
 
-const Host = defineComponent({
-  setup() {
-    usePhotosDeepLinks()
-    return () => null
-  },
-})
+// P8b:Host 改成工厂 —— `?tab` 是唯一需要宿主页面配合的键(tab 是时间线页内的展示过滤,
+// 不是导航目的地,没有对应路由可跳),所以 usePhotosDeepLinks 收了一个 hooks 参数。
+// 工厂让每次挂载各自带自己的 hooks,不靠模块级可变量在用例之间传递状态。
+function makeHost(hooks?: PhotosDeepLinkHooks) {
+  return defineComponent({
+    setup() {
+      usePhotosDeepLinks(hooks)
+      return () => null
+    },
+  })
+}
 
 // T8 目标路由的占位组件——不复用 Host,避免 <router-view> 之外还额外挂一份
 // usePhotosDeepLinks()(本文件从不挂 <router-view>,Host 是直接 mount 的,但占位组件仍
 // 用最简单的空渲染,减少无关面。real 导航只改 router.currentRoute,不会重新渲染 Host)。
 const Blank = defineComponent({ render: () => null })
 
-function makeRouter(): ReturnType<typeof createRouter> {
+function makeRouter(host: Component): ReturnType<typeof createRouter> {
   const routes: RouteRecordRaw[] = [
-    { path: '/photos', name: 'photos', component: Host },
+    { path: '/photos', name: 'photos', component: host },
     { path: '/photos/search', name: 'photos-search', component: Blank },
     { path: '/photos/albums/:id', name: 'photos-album-detail', component: Blank },
     { path: '/photos/people/:id', name: 'photos-person-detail', component: Blank },
+    // P8b 的落地目的地(?view / ?settings / ?smartview / ?place)。
+    { path: '/photos/albums', name: 'photos-albums', component: Blank },
+    { path: '/photos/people', name: 'photos-people', component: Blank },
+    { path: '/photos/places', name: 'photos-places', component: Blank },
+    { path: '/photos/places/:key', name: 'photos-place-assets', component: Blank },
+    { path: '/photos/smart-views', name: 'photos-smart-views', component: Blank },
+    { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: Blank },
+    { path: '/photos/favorites', name: 'photos-favorites', component: Blank },
+    { path: '/photos/trash', name: 'photos-trash', component: Blank },
+    { path: '/photos/settings', name: 'photos-settings', component: Blank },
   ]
   return createRouter({ history: createWebHashHistory('/app/'), routes })
 }
@@ -80,7 +95,7 @@ function makeRouter(): ReturnType<typeof createRouter> {
 async function mountWithQuery(
   query: Record<string, string>,
   assets: Record<string, { id: string }> = {},
-  opts?: { getAssetImpl?: (id: string) => Promise<unknown> },
+  opts?: { getAssetImpl?: (id: string) => Promise<unknown>; hooks?: PhotosDeepLinkHooks },
 ) {
   if (opts?.getAssetImpl) {
     svc.photos.getAsset.mockImplementation(opts.getAssetImpl)
@@ -90,7 +105,8 @@ async function mountWithQuery(
       throw new Error(`not found: ${id}`)
     })
   }
-  const router = makeRouter()
+  const Host = makeHost(opts?.hooks)
+  const router = makeRouter(Host)
   await router.push({ path: '/photos', query })
   await router.isReady()
   // 先完成初始导航,再挂 spy——不然"进入 /photos"这次 push 本身也会被记进 spy,
@@ -294,10 +310,13 @@ describe('usePhotosDeepLinks · ?person', () => {
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
     svc.photos.listPersons.mockResolvedValueOnce({ persons: [{ id: 'someone-else' }] })
-    const { router } = await mountWithQuery({ person: 'ghost', view: 'people' }, {})
+    // 陪衬键(证明"只摘 person 这一个键、不动其余")P8b 起从 view 换成 highlight ——
+    // ?view 那时是惰性键(New-UI 侧无人处理),现在它自己会导航走了,当陪衬会让
+    // 本用例断言的"留在原地"落空。换一个真正惰性的键继续保住原本的意图。
+    const { router } = await mountWithQuery({ person: 'ghost', highlight: 'x' }, {})
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/photos')
-    expect(router.currentRoute.value.query).toEqual({ view: 'people' })
+    expect(router.currentRoute.value.query).toEqual({ highlight: 'x' })
     expect(showSpy).not.toHaveBeenCalled()
   })
 
@@ -479,5 +498,123 @@ describe('usePhotosDeepLinks · query-only(已停留在 /photos,之后才出现�
     expect(router.replace).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/photos/search', query: { q: '猫' } }),
     )
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P8b:cutover 之后 Vue2 `/photos` 被 strangler 整页重定向到 `/app/#/photos`,它支持的
+// query 键再也不会被 Vue2 自己的组件接住 —— 每个键都必须在这里落地,否则老书签集体变哑。
+// 本段覆盖导航型三键(?view / ?tab / ?settings),回源 Vue2 PhotosTimeline.vue:475-489。
+// ═══════════════════════════════════════════════════════════════════════════
+describe('usePhotosDeepLinks · ?view(Vue2 NAV_KEYS 归一到真实路由)', () => {
+  it('六个 Vue2 值各自跳对应路由', async () => {
+    const cases: Array<[string, string]> = [
+      ['albums', '/photos/albums'],
+      ['people', '/photos/people'],
+      ['places', '/photos/places'],
+      ['smart', '/photos/smart-views'],
+      ['favs', '/photos/favorites'],
+      ['trash', '/photos/trash'],
+    ]
+    for (const [value, path] of cases) {
+      const { router } = await mountWithQuery({ view: value })
+      await flushPromises()
+      expect(router.currentRoute.value.path, value).toBe(path)
+    }
+  })
+
+  it('值不在 Vue2 NAV_KEYS 里(如那个不可达的 upload):什么都不做,留在时间线', async () => {
+    const { router } = await mountWithQuery({ view: 'upload' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+    expect(router.replace).not.toHaveBeenCalled()
+  })
+
+  it('用 replace 不用 push(兼容 URL 不该留在历史里)', async () => {
+    const { router } = await mountWithQuery({ view: 'trash' })
+    await flushPromises()
+    expect(router.replace).toHaveBeenCalledWith('/photos/trash')
+    expect(router.push).not.toHaveBeenCalled()
+  })
+})
+
+describe('usePhotosDeepLinks · ?settings', () => {
+  it('?settings=1 进设置页、不带 section(Vue2 的 "1" = 不指定分区)', async () => {
+    const { router } = await mountWithQuery({ settings: '1' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos/settings')
+    expect(router.currentRoute.value.query.section).toBeUndefined()
+  })
+
+  it('?settings=ai 进设置页并带 section=ai', async () => {
+    const { router } = await mountWithQuery({ settings: 'ai' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos/settings')
+    expect(router.currentRoute.value.query.section).toBe('ai')
+  })
+
+  it('分区名不做白名单校验(与 Vue2 一致地原样传,校验责任在目的地)', async () => {
+    const { router } = await mountWithQuery({ settings: 'nonsense' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos/settings')
+    expect(router.currentRoute.value.query.section).toBe('nonsense')
+  })
+})
+
+describe('usePhotosDeepLinks · ?tab(唯一需要宿主页面配合的键)', () => {
+  it('Vue2 TAB_KEYS 三个值都调用 setTab hook', async () => {
+    for (const v of ['all', 'video', 'ocr']) {
+      const setTab = vi.fn()
+      await mountWithQuery({ tab: v }, {}, { hooks: { setTab } })
+      await flushPromises()
+      expect(setTab, v).toHaveBeenCalledWith(v)
+    }
+  })
+
+  it('不在 TAB_KEYS 里的值不调用 hook(photo 是 Vue2 的默认值,从不出现在 URL 里)', async () => {
+    const setTab = vi.fn()
+    await mountWithQuery({ tab: 'photo' }, {}, { hooks: { setTab } })
+    await flushPromises()
+    expect(setTab).not.toHaveBeenCalled()
+  })
+
+  it('没传 hooks 时 ?tab 不抛(既有调用点 usePhotosDeepLinks() 不传参仍合法)', async () => {
+    const { router } = await mountWithQuery({ tab: 'video' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+  })
+})
+
+describe('usePhotosDeepLinks · P8b 三键的 query-only 路径', () => {
+  it('已停留在 /photos 后手改 ?view 也生效', async () => {
+    const { router } = await mountWithQuery({})
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+
+    await router.push({ path: '/photos', query: { view: 'trash' } })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos/trash')
+  })
+
+  it('已停留在 /photos 后手改 ?tab 也生效', async () => {
+    const setTab = vi.fn()
+    const { router } = await mountWithQuery({}, {}, { hooks: { setTab } })
+    await flushPromises()
+    expect(setTab).not.toHaveBeenCalled()
+
+    await router.push({ path: '/photos', query: { tab: 'video' } })
+    await flushPromises()
+    expect(setTab).toHaveBeenCalledWith('video')
+  })
+
+  it('?tab 值没变、只是别的键变了:不重复调用 setTab', async () => {
+    const setTab = vi.fn()
+    const { router } = await mountWithQuery({ tab: 'video' }, {}, { hooks: { setTab } })
+    await flushPromises()
+    expect(setTab).toHaveBeenCalledTimes(1)
+
+    await router.push({ path: '/photos', query: { tab: 'video', foo: 'bar' } })
+    await flushPromises()
+    expect(setTab).toHaveBeenCalledTimes(1)
   })
 })

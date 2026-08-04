@@ -49,13 +49,18 @@ const store = useTimelineStore()
 const toast = useToast()
 const bus = useMessageBus()
 const lb = useLightbox()
-// Task 7(P8a):深链 ?asset / ?photoset——composable 内部自行 onMounted,这里只挂一次。
-usePhotosDeepLinks()
-
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
 // the port (SP7-P1 review finding), sanctioned fix.
 const tab = ref('photo')
+
+// Task 7(P8a)+ P8b:深链分发器,composable 内部自行 onMounted + watch,这里只挂一次。
+// ?tab 是唯一需要宿主页面配合的键(tab 是本页的展示过滤、不是导航目的地,没有对应路由
+// 可跳),所以把 tab 的写入口通过 hooks 交给它;其余键全靠 router 自己落地。
+// 挂载点放在 `const tab` 之后而不是 setup 开头:闭包虽然只在 onMounted/watch 里才执行、
+// 不会真的撞上 TDZ,但"引用一个还没声明的绑定"是没必要的隐患,顺序上避开更省心。
+usePhotosDeepLinks({ setTab: (v) => { tab.value = v } })
+
 const density = ref('comfortable')
 const selected = ref<Array<string | number>>([])
 

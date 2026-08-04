@@ -12,13 +12,12 @@
 //   分发)+ view, tab, settings, q, place, spot, person, photo(:475-507,
 //   _applyUrlDeepLinks 内)+ album(PhotosAlbumsView.vue:264,相册列表页自己 mounted() 读)
 //   + smartview(PhotosSmartViewsView.vue:340,智能视图页自己 mounted() 读)。
-//   本文件实现:asset / photoset / active / q / album / person —— 6 个。
+//   P8a 实现:asset / photoset / active / q / album / person —— 6 个。
+//   **P8b 追加(cutover 后 Vue2 `/photos` 整页被重定向,老书签只能在这里落地)**:
+//     - view —— 六个 Vue2 NAV_KEYS 值逐个归一到 New-UI 的六条真实路由(VIEW_ROUTES)。
+//     - tab —— 唯一需要宿主页面配合的键,走 PhotosDeepLinkHooks.setTab。
+//     - settings —— 归一到独立设置路由 `/photos/settings?section=`('1' = 不指定分区)。
 //   刻意不实现(留给下一期,由控制器决策,不是遗漏):
-//     - view、tab —— New-UI 用真实路由 path 区分导航目的地/子标签,不需要一个
-//       query 键来在同一页面内切面板;`/photos?view=albums` 这类旧书签本期静默无效。
-//     - settings —— New-UI 已有独立设置路由(`/photos/settings?section=ai`),是
-//       `?settings=1|ai` 的直接对应物,但接线是下一期的入口归一工作,本期未做——
-//       旧书签 `/photos?settings=ai` 本期静默无效,与 view 同一类。
 //     - place、spot —— 依赖后端 place 详情(城市名/spot 坐标)才能落地,New-UI 侧
 //       对应的地点详情路由本期未建。
 //     - photo —— Vue2 的灯箱回填键之一(与 photoset/asset 同类但走 _applyUrlDeepLinks
@@ -68,6 +67,9 @@
 // router.replace(q 的结果先被 album 的 replace 覆盖导航,person 那条异步落地后又覆盖
 // 一次),没有互斥或排队。这是已知限制,不在本期修复范围(deep-link 组合从来不是产品
 // 设计要处理的入口形状,Vue2 也没有为这种组合定义过明确行为)。
+// P8b 追加的 `?view` / `?settings` 属同一类:它们也是"改路由"腿,与 q/album/person 同时
+// 到达时同样是后者覆盖前者,不新增互斥。唯一例外是 `?tab` —— 它只改本页本地状态、不导航,
+// 与任何键都不冲突。
 import { onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { LocationQuery, LocationQueryValue } from 'vue-router'
@@ -79,6 +81,39 @@ import { useToast } from '../../stores/toast'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
 
 const PHOTOSET_KEY_PREFIX = 'nimo:photoset:'
+
+// ── P8b cutover ────────────────────────────────────────────────────────────
+// 翻牌之后 Vue2 `/photos` 被 strangler.js 整页重定向到 `/app/#/photos`,它支持的 query 键
+// 再也不会被 Vue2 自己的组件接住 —— 每个键要么在本文件落地,要么在 cutover 当天变成哑链。
+// 所以 P8a 那批"刻意搁置"的键在这里全部补齐(键集清点闸见 __tests__/deepLinkCoverage.test.ts)。
+
+// 回源 NimoOS-UI src/views/Photos/PhotosTimeline.vue:477 的 NAV_KEYS,逐值对到 New-UI 的
+// 真实路由。Vue2 是"同页面内切 activeNav 面板",New-UI 是六条独立路由 —— 所以这里做的是
+// 入口归一(改路由),不是"在同一页里切本地状态"。
+// 注:Vue2 的 NAV_KEYS 里没有 'upload' —— 上传视图在 Vue2 侧本就是不可达死代码(spec D21),
+// 故这里也不需要为它留位置;值不在表里一律 no-op(照 Vue2 的 includes 守卫)。
+const VIEW_ROUTES: Record<string, string> = {
+  albums: '/photos/albums',
+  people: '/photos/people',
+  places: '/photos/places',
+  smart: '/photos/smart-views',
+  favs: '/photos/favorites',
+  trash: '/photos/trash',
+}
+
+// 回源 :478 的 TAB_KEYS。刻意不含 'photo' —— 那是 Vue2 `data() { tab: 'photo' }` 的默认值,
+// 从来不出现在 URL 里(Vue2 的 includes 判定同样不认它)。
+const TAB_KEYS: readonly string[] = ['all', 'video', 'ocr']
+
+/**
+ * 宿主页面把自己的本地状态交给分发器的缝。
+ * 只有 `?tab` 需要它:tab 是时间线页内的展示过滤,不是导航目的地,没有对应路由可跳。
+ * 其余键全靠 router 落地,不需要回调 —— 所以这个接口刻意只有一个成员,不做成"什么都能塞"
+ * 的通用回调袋(避免把页面内部状态一件件漏给组合式)。
+ */
+export interface PhotosDeepLinkHooks {
+  setTab?: (tab: string) => void
+}
 // 取不到明细时的 toast 停留时长,照 Vue2 :438 / :463 的 duration: 3000。
 const NOT_FOUND_TOAST_MS = 3000
 
@@ -86,7 +121,7 @@ function firstQueryValue(v: LocationQueryValue | LocationQueryValue[]): string {
   return (Array.isArray(v) ? v[0] : v) || ''
 }
 
-export function usePhotosDeepLinks(): void {
+export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
   const route = useRoute()
   const router = useRouter()
   const { t } = useI18n()
@@ -167,6 +202,28 @@ export function usePhotosDeepLinks(): void {
   // 是 vue-router 自己的事,不需要也不应该在这里手工编码)。
   function redirectSearchFromQuery(term: string): void {
     router.replace({ path: '/photos/search', query: { q: term } })
+  }
+
+  // ?view=<NAV_KEYS 之一>:归一成整页重定向。用 replace 不用 push —— 同
+  // redirectSearchFromQuery 的理由:`/photos?view=albums` 是兼容 URL,不该留在浏览器历史
+  // 里让后退键把用户送回一个"已经不存在的中间态"。
+  // 值不在表里一律 no-op,与 Vue2 `if (q.view && NAV_KEYS.includes(q.view))` 逐字一致 ——
+  // 不是"未知值就报错",也不是"未知值就落默认页"。
+  function redirectViewFromQuery(view: string): void {
+    const path = VIEW_ROUTES[view]
+    if (path) router.replace(path)
+  }
+
+  // ?settings=1|<section>:Vue2 :485-488 —— '1' 表示"开设置面板但不指定分区",其余值原样
+  // 当分区名(`settingsInitialSection = q.settings === '1' ? '' : String(q.settings)`)。
+  // New-UI 的对应物是独立路由 /photos/settings?section=storage|ai。
+  // 分区名刻意不做白名单校验(与 Vue2 一致地原样传):PhotosSettings 内部的 isSectionId 会
+  // 把不认识的值当"不滚动"处理,校验责任在目的地,不在入口归一这一层。
+  function redirectSettingsFromQuery(value: string): void {
+    const section = value === '1' ? '' : value
+    router.replace(section
+      ? { path: '/photos/settings', query: { section } }
+      : { path: '/photos/settings' })
   }
 
   // ?album=<id>:Vue2 是 PhotosAlbumsView.vue:264 让相册**列表**页自己校验 + 打开,不做
@@ -258,6 +315,22 @@ export function usePhotosDeepLinks(): void {
     if (qChanged && q) redirectSearchFromQuery(q)
     if (albumChanged && albumId) redirectAlbumFromQuery(albumId)
     if (personChanged && personId) await applyPersonFromQuery(personId)
+
+    // ── P8b:?tab / ?view / ?settings ────────────────────────────────────────
+    // ?tab 先落(纯本地状态、不改路由),再处理会导航走的 ?view/?settings。
+    // 偏离登记:Vue2 :479-489 的行文顺序是 view → tab → settings,三者都作用在同一个页面
+    // 实例上、顺序无可观察差异;New-UI 里 view/settings 会导航离开本页,若先跳走再 setTab,
+    // 改的就是一个正在被卸载的页面的状态了。故按"先本地、后导航"重排,不照抄行文顺序。
+    const tab = firstQueryValue(query.tab)
+    const view = firstQueryValue(query.view)
+    const settings = firstQueryValue(query.settings)
+    const tabChanged = !previous || tab !== firstQueryValue(previous.tab)
+    const viewChanged = !previous || view !== firstQueryValue(previous.view)
+    const settingsChanged = !previous || settings !== firstQueryValue(previous.settings)
+
+    if (tabChanged && TAB_KEYS.includes(tab)) hooks.setTab?.(tab)
+    if (viewChanged && view) redirectViewFromQuery(view)
+    if (settingsChanged && settings) redirectSettingsFromQuery(settings)
   }
 
   // previousQuery 记录"上一次已经分发处理过"的 query 快照——mount 前是 null(逼五键
@@ -292,6 +365,11 @@ export function usePhotosDeepLinks(): void {
       () => route.query.q,
       () => route.query.album,
       () => route.query.person,
+      // P8b 追加的键 —— 漏进这个数组就等于"只有整页挂载时才认",手改地址栏会毫无反应
+      // (P8a 真机验收就是这么被抓到的)。
+      () => route.query.tab,
+      () => route.query.view,
+      () => route.query.settings,
     ],
     () => {
       dispatchQueryChange(route.query)
