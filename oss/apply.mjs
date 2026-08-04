@@ -72,8 +72,14 @@ export function applyReplace(root, entries, ossDir) {
 
 export function applyPatch(root, entries) {
   for (const { path: rel, find, replace } of entries) {
-    if (find === '') {
-      throw new Error(`锚点为空串:${rel} —— 空串无法唯一定位任何位置,manifest 里这条数据有问题`)
+    // T14(B3):find 为 undefined/null 时(manifest 条目把字段名拼错,比如写成 `finf:`
+    // 或漏写了 find)原来会直接掉进 text.split(find) 抛一个原生 TypeError
+    // ("The \"searchString\" argument must be of type string")——这条诊断跟这个项目
+    // 别处"设计过的诊断文案"风格完全对不上,拼错字段名的人得自己猜是怎么回事。
+    // 收进同一句"这是设计意图,不是故障"式的诊断里,连着原来的空串检查一起判。
+    if (typeof find !== 'string' || find === '') {
+      throw new Error(`锚点缺失或不是字符串:${rel}(find=${JSON.stringify(find)})—— manifest 里这条数据有问题:` +
+        `要么字段名拼错(比如写成了 find 之外的名字),要么 find 是空串——空串无法唯一定位任何位置`)
     }
     const abs = assertSafeRelPath(root, rel, `PATCH ${rel}`)
     if (!fs.existsSync(abs)) throw new Error(`PATCH 目标不存在:${rel}`)

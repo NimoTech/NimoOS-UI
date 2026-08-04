@@ -8,7 +8,7 @@ import {
   NEW_UI, SERVICE, DEFAULT_OUT, OSS_DIR, DIRTY_ALLOW,
 } from './manifest.mjs'
 import { checkClean, applyDelete, applyReplace, applyPatch } from './apply.mjs'
-import { scanTree } from './forbidden.mjs'
+import { scanTree, isExpectedSkip } from './forbidden.mjs'
 
 const argv = process.argv.slice(2)
 const flag = (n) => argv.includes(n)
@@ -22,6 +22,12 @@ const ALLOW_DIRTY_OSS = flag('--allow-dirty-oss')
 const log = (m) => console.log(`[oss] ${m}`)
 const git = (dir, ...a) => execFileSync('git', ['-C', dir, ...a], { encoding: 'utf8' }).trim()
 
+// T14(B1):整条主流程包一层 try/catch —— 本项目的纪律是"错误消息本身就是产品"
+// (见 apply.mjs 里每一处 throw 的诊断文案),命中守卫/清单过期这类**预期内、操作员
+// 可见的失败**不该带一段 Node 原始 stack trace,那是噪音,会盖住精心写好的诊断文案。
+// 只在最外层兜底打印 err.message + exit(1);内层各处该抛的 Error 照抛不动,由这里
+// 统一收口成安静的失败退出。
+try {
 // ── 1. 前置检查 ───────────────────────────────────────────────────────────
 log('1/6 前置检查')
 // --allow-dirty-oss 仅供 oss/ 自身的开发迭代测试用(T6-T14 会反复往 manifest.mjs 追加
@@ -31,7 +37,17 @@ log('1/6 前置检查')
 // HEAD 的真实内容,只有"清单"是新的 —— 这种不一致在开发迭代期无害。
 // 正式出包(T15)一律不带这个 flag:那时必须保证 manifest.mjs 描述的清单和
 // `git archive HEAD` 取到的源码版本完全对应,任何 oss/ 下的未提交改动都应该先被看到。
-const dirtyAllowNewUi = ALLOW_DIRTY_OSS ? [...DIRTY_ALLOW, /^.{2}\s+oss\//] : DIRTY_ALLOW
+//
+// T14(B5):`git status --porcelain` 的 rename 行长这样:`R  oss/foo.mjs -> src/moved.ts`
+// ——原来的 /^.{2}\s+oss\//` 只看"状态码+空格"后面紧跟的第一段路径(rename 的旧路径),
+// 一旦旧路径落在 oss/ 下就整行放行,不管新路径搬到哪去了。真把一个文件从 oss/ 移到
+// src/ 下,src 侧这个真实的未提交改动会被这条正则悄悄放过,checkClean 形同虚设。
+// 用一条"消费掉整行"的正则堵住这个洞:允许 " -> " 之前的内容(旧路径)是任意非
+// " -> " 文本,但如果整行确实包含 " -> "(说明是 rename/copy),后面的新路径必须
+// 同样以 oss/ 开头才放行;如果新路径搬出了 oss/,正则匹配不到行尾,回落到"未豁免"。
+// 优先级最低的开发期 flag(T15 不带),但既然要修就修对,不留一半。
+const OSS_RENAME_SAFE = /^.{2}\s+oss\/(?:(?!\s->\s).)*(?:\s->\s+oss\/.*)?$/
+const dirtyAllowNewUi = ALLOW_DIRTY_OSS ? [...DIRTY_ALLOW, OSS_RENAME_SAFE] : DIRTY_ALLOW
 checkClean(NEW_UI, dirtyAllowNewUi)
 checkClean(SERVICE, [])
 const headNewUi = git(NEW_UI, 'rev-parse', 'HEAD')
@@ -86,10 +102,12 @@ try {
   //   · 预期外(读取失败 / stat 失败 / 目录读取失败 / 超过体积上限)—— 这些情形本身就
   //     反常(该被扫的文本文件读不出来,或体积大得异常),必须让人停下来看一眼,跟
   //     "这是个 PNG 图标"不能一视同仁,所以仍然 fatal。
-  // isExpectedSkip 只精确匹配 forbidden.mjs 里两条固定文案(不含动态内容的那两条);
-  // 其余跳过原因(体积超限、各类失败,文案里带 err.message 等动态内容)一律落入"预期
-  // 外"分支 —— 这也让 forbidden.mjs 未来新增的跳过原因默认按"预期外"处理,不会因为
-  // 这里没跟着更新而被静默放过。
+  // isExpectedSkip(从 forbidden.mjs 导入,T14/B2)只精确匹配 SKIP_REASON_SYMLINK /
+  // SKIP_REASON_BINARY 这两条固定文案(不含动态内容);其余跳过原因(体积超限、各类
+  // 失败,文案里带 err.message 等动态内容)一律落入"预期外"分支。分类逻辑与 scanTree
+  // 里实际写入的文案共享同一份具名常量(不是各自硬编码一份中文字符串再指望人工保持
+  // 同步)——forbidden.test.mjs 有单测直接锁住这个函数的分类结果,tree.test.mjs 走的
+  // --skip-guard 完全不经过这段逻辑,覆盖不到。
   let skipReportLines = []
   if (SKIP_GUARD) {
     log('5/6 泄漏守卫 —— 已用 --skip-guard 跳过(仅开发期允许,未扫描任何文件)')
@@ -97,8 +115,6 @@ try {
   } else {
     log('5/6 泄漏守卫')
     const findings = scanTree(tmp)
-    const isExpectedSkip = (excerpt) =>
-      excerpt === '符号链接,未跟随、未扫描' || excerpt === '判定为二进制,未扫描'
     const skipped = findings.filter((f) => f.word === '__skipped__')
     const leaks = findings.filter((f) => f.word !== '__skipped__')
     const expectedSkips = skipped.filter((f) => isExpectedSkip(f.excerpt))
@@ -182,4 +198,8 @@ try {
 } finally {
   if (KEEP_TEMP) log(`临时目录保留:${tmp}`)
   else fs.rmSync(tmp, { recursive: true, force: true })
+}
+} catch (err) {
+  console.error(`[oss] 失败:${err.message}`)
+  process.exit(1)
 }

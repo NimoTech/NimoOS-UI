@@ -417,12 +417,26 @@ describe('类 2 · README', () => {
 describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
   // 固定清单(每次新增 REPLACE 条目都要过一遍,别为单个文件重开断言):
   // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。
-  const FORBIDDEN = [/Task \d/, /SP\d/i, /\bsp[789]\b/i, /spec §/, /本期/, /做样子/, /Vue2/, /NimoOS-UI/]
+  // T14(B4):/SP\d/i 原来没有 \b 词边界,会误伤 "wasp7"/"grasp789" 这类纯属巧合含有
+  // "sp" + 数字子串的英文单词——当前仓库里恰好零命中,但这是隐患,不是等出现了再补。
+  const FORBIDDEN = [/Task \d/, /\bSP\d/i, /\bsp[789]\b/i, /spec §/, /本期/, /做样子/, /Vue2/, /NimoOS-UI/]
 
   it('REPLACE 表里每一个冻结分身都不含固定清单里的词', () => {
     for (const { path: rel } of REPLACE) {
       const s = read(rel)
       for (const bad of FORBIDDEN) expect(s, `${rel} :: ${bad}`).not.toMatch(bad)
+    }
+  })
+
+  // T14(B4):直接对着正则做边界测试,不依赖"仓库里恰好有没有这种词"——
+  // wasp7/grasp789 这类词缀撞车的英文单词必须放行,真实的 SP9/sp7 提法必须仍然命中。
+  it('/\\bSP\\d/i 词边界:wasp7/grasp789 不误伤,真实 SP9/sp7 仍然命中', () => {
+    const SP_DIGIT = /\bSP\d/i
+    for (const text of ['a wasp7 crawled by', 'grasp789 the concept', 'crisp42 response']) {
+      expect(SP_DIGIT.test(text), text).toBe(false)
+    }
+    for (const text of ['SP9 收尾视图', 'this is sp7 photos work', '(SP8)']) {
+      expect(SP_DIGIT.test(text), text).toBe(true)
     }
   })
 })
@@ -513,5 +527,37 @@ describe('类 4 · 测试同步', () => {
 
   it('defaultLayout.test.ts 的 widget 计数降到 6(ai 小组件已删)', () => {
     expect(read('src/home/grid/defaultLayout.test.ts')).toContain('for the 6 widgets')
+  })
+})
+
+// ─── T14:泄漏守卫真正接进导出流程(Task 14 brief §Step 1)────────────────────
+describe('泄漏守卫', () => {
+  it('不带 --skip-guard 也能跑通', () => {
+    const guardOut = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-guard-'))
+    try {
+      // --allow-dirty-oss:见 export.mjs 里的注释,只放行 oss/ 下的未提交改动(开发期
+      // 迭代常态),不削弱 checkClean 对 src/** 的检查——同验收标准 §11 第 4 条的调用形式。
+      const out = execFileSync('node', [path.join(OSS, 'export.mjs'), '--out', guardOut,
+        '--no-commit', '--allow-dirty-oss'],
+        { encoding: 'utf8', stdio: 'pipe' })
+      expect(out).toContain('零真实泄漏命中')
+    } finally {
+      fs.rmSync(guardOut, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('手工抽查:产出树里一律扫不到相册/Nimo AI/transcript/qdrant/内网 IP(独立于 forbidden.mjs 词表的第二重验证)', () => {
+    const hits = []
+    const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.name === '.git' || e.name === 'node_modules') continue
+      const p = path.join(d, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (/\.(ts|vue|css|json|md|svg|html|yaml|sh)$/.test(e.name)) {
+        const t = fs.readFileSync(p, 'utf8')
+        if (/相册|nimo ai|transcript|qdrant|192\.168\.1\.115/i.test(t)) hits.push(path.relative(tree, p))
+      }
+    } }
+    walk(tree)
+    expect(hits).toEqual([])
   })
 })

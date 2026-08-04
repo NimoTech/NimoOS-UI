@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { scanText, scanTree } from './forbidden.mjs'
+import { scanText, scanTree, isExpectedSkip, SKIP_REASON_SYMLINK, SKIP_REASON_BINARY } from './forbidden.mjs'
 
 describe('硬禁词', () => {
   it('相册 / Nimo AI / transcript / qdrant / 内网 IP 一律命中,不给白名单', () => {
@@ -26,8 +26,11 @@ describe('软禁词的精确白名单', () => {
       ['src/files/util/icons.ts', "Gallery: 'folder-pictures',"],
       ['src/files/util/protect.ts', "'/DATA/Gallery',"],
       ['src/settings/util/migrateBrowse.ts', "const SYS = ['Gallery']"],
-      ['src/apps/views/StorePage.vue', "route.query.search as string"],
-      ['src/apps/views/StorePage.vue', 'const searchInput = ref("")'],
+      // T14 复审:旧样本是编造的简化文本,只碰巧匹配旧的"文件+子串"松口径;换成
+      // 逐字摘自源码的真实行,匹配新的整行精确白名单(收紧口径见 forbidden.mjs 里
+      // search 词条 T14 复审注释)。
+      ['src/apps/views/StorePage.vue', "const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')"],
+      ['src/apps/views/StorePage.vue', 'const searchInput = ref(search.value)'],
       // E5:局部变量 ai = anchorIndex,会被 \bai\b 硬词误伤
       ['src/files/stores/files.ts', 'const ai = list.findIndex((e) => e.path === anchor)'],
       // E6:Vue2 逐字移植的路径归一 + 系统目录显示串
@@ -45,7 +48,7 @@ describe('软禁词的精确白名单', () => {
   })
 
   it('白名单是按文件限定的 —— 同一串出现在别的文件里仍然报', () => {
-    expect(scanText('src/home/components/Foo.vue', 'const searchInput = ref("")').length).toBeGreaterThan(0)
+    expect(scanText('src/home/components/Foo.vue', 'const searchInput = ref(search.value)').length).toBeGreaterThan(0)
   })
 
   it('speaker 是哨兵:拆完应零命中', () => {
@@ -312,6 +315,97 @@ describe('英文侧补词:knowledge / RAG 收 HARD,smart 明确不收(T6.5 复�
     ]) {
       expect(scanText(file, text), `${file} :: ${text}`).toEqual([])
     }
+  })
+})
+
+// ─── T14:接上导出流程后新增的白名单 —— 每条都要能证明"同文件真泄漏仍被抓" ──────
+describe('T14:新增白名单的合法原文放行 + 同文件真泄漏仍被抓', () => {
+  it('StorePage.vue/test.ts 的应用商店过滤器代码放行,追加真实泄漏后仍命中(exactLine 结构性保证)', () => {
+    const legit = "const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')"
+    expect(scanText('src/apps/views/StorePage.vue', legit)).toEqual([])
+    // exactLine 要求整行掐头去尾等于原文 —— 追加任何内容都会让匹配失效,回落到"未豁免"
+    expect(scanText('src/apps/views/StorePage.vue', legit + ' // 顺带接入 Nimo AI 语义排序').length).toBeGreaterThan(0)
+  })
+
+  it('Gallery/Photos 系统目录测试镜像放行,追加真实泄漏后仍命中(exactLine 结构性保证)', () => {
+    const legit = "expect(PROTECTED).toEqual(['AppData', 'Documents', 'Downloads', 'Gallery', 'Media'])"
+    expect(scanText('src/files/util/protect.test.ts', legit)).toEqual([])
+    expect(scanText('src/files/util/protect.test.ts', legit + ' // 相册功能也用这份保护名单').length).toBeGreaterThan(0)
+    const legitPhoto = "useFilesStore().currentPath = '/DATA/Photos'"
+    expect(scanText('src/files/composables/useFileOps.test.ts', legitPhoto)).toEqual([])
+    expect(scanText('src/files/composables/useFileOps.test.ts', legitPhoto + ' // AI 相册联动').length).toBeGreaterThan(0)
+  })
+
+  it('fileCategories.ts 的 Illustrator 扩展名放行,同文件混入真实 AI 泄漏仍命中', () => {
+    const legit = "export const APPLICATION_ILLUSTRATOR = ['ai', 'eps']"
+    expect(scanText('src/files/util/fileCategories.ts', legit)).toEqual([])
+    expect(scanText('src/files/util/fileCategories.ts', 'const askNimoAi = true').length).toBeGreaterThan(0)
+  })
+
+  it('三个图标 svg 的 base64 续行放行,但换成同一文件里的一句真实注释仍命中(不是给整个文件开洞)', () => {
+    for (const file of ['src/files/assets/icons/folder-hdd.svg', 'src/files/assets/icons/folder-usb.svg']) {
+      expect(scanText(file, 'F1o5zB3OHX7weyEuuiOcePowIkeQ+OrwwWEKkdATnopORR7K2C2Rv1g2gNQNbsog88AiIffmmreQ')).toEqual([])
+      // 纯 base64 字符集规则要求整行只有 [A-Za-z0-9+/=] —— 混入空格/中文/标签就不再匹配
+      expect(scanText(file, '<!-- 这里也集成了 AI 图标生成 -->').length).toBeGreaterThan(0)
+    }
+    expect(scanText('src/files/assets/icons/folder-root.svg',
+      '\t\t   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA"/>')).toEqual([])
+    // folder-root 的规则要求出现 data:image/png;base64, 这个字面标记 —— 换成别的注释就不豁免
+    expect(scanText('src/files/assets/icons/folder-root.svg', '<!-- 这里也集成了 AI 图标生成 -->').length).toBeGreaterThan(0)
+  })
+
+  it('pnpm-lock.yaml:ai/search 的宽口径放行第三方包记录行,但一句夹在其中的真实 AI 注释仍命中', () => {
+    for (const file of ['pnpm-lock.yaml', 'packages/service/pnpm-lock.yaml']) {
+      expect(scanText(file, "  '@codemirror/search@6.7.1':")).toEqual([])
+      expect(scanText(file, '  resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}')).toEqual([])
+      // 不是"这一整行开洞"——一行不符合 resolution/version/specifier/包名 这个形状的
+      // 手写注释,即便混在 lockfile 里也照样命中。
+      expect(scanText(file, '  // 这里我们悄悄集成了 AI 智能推荐').length).toBeGreaterThan(0)
+    }
+  })
+
+  it('pnpm-lock.yaml:parser 是窄口径按包名精确枚举 —— 已知的 7 个第三方包放行,虚构的 nimoos-parser 依赖仍命中', () => {
+    for (const legit of [
+      "  '@babel/parser@7.29.7':", '  engine.io-parser@2.2.1:', '  socket.io-parser@3.3.5:',
+      '  yargs-parser: 13.1.2', "  '@csstools/css-parser-algorithms@3.0.5':",
+      "  '@csstools/css-color-parser@3.1.0':", "  '@babel/helper-string-parser@7.29.7': {}",
+    ]) {
+      expect(scanText('pnpm-lock.yaml', legit), legit).toEqual([])
+    }
+    // parser 的窄口径不认"像不像 lockfile 记录行"的形状,只认上面 7 个具体包名 ——
+    // 假如私有的 NimoOS-Parser 哪天真的作为依赖出现在 lockfile 里,必须被抓到。
+    expect(scanText('pnpm-lock.yaml', "  nimoos-parser@1.0.0:").length).toBeGreaterThan(0)
+    expect(scanText('pnpm-lock.yaml', "  '@nimotech/nimoos-parser@0.1.0':").length).toBeGreaterThan(0)
+  })
+})
+
+// ─── T14(B2):锁住"预期内跳过 vs 预期外跳过"的分类,不能只靠 --skip-guard 的
+// 导出跑一遍就当测过了(tree.test.mjs 走 --skip-guard,根本不经过这段分类逻辑,
+// 见 export.mjs 里的注释)。isExpectedSkip 现在从 forbidden.mjs 导出,直接单测。
+describe('isExpectedSkip:预期内(二进制/符号链接)只警告,预期外(读取/stat/超限/目录读取失败)仍 fatal', () => {
+  it('scanTree 实际写入的两条固定文案判定为预期内', () => {
+    expect(isExpectedSkip(SKIP_REASON_SYMLINK)).toBe(true)
+    expect(isExpectedSkip(SKIP_REASON_BINARY)).toBe(true)
+    // 双重锁定:常量的字面值就是 scanTree 里真正 skip() 出去的那两句文案,
+    // 防止"常量改了但 scanTree 没跟着改"这种漂移。
+    expect(SKIP_REASON_SYMLINK).toBe('符号链接,未跟随、未扫描')
+    expect(SKIP_REASON_BINARY).toBe('判定为二进制,未扫描')
+  })
+
+  it('其余四类跳过原因(读取/stat/目录读取失败/超过体积上限)一律判定为预期外', () => {
+    for (const excerpt of [
+      '读取失败,未扫描:EACCES: permission denied',
+      'stat 失败,未扫描:ENOENT: no such file or directory',
+      '目录读取失败,未扫描:EACCES: permission denied',
+      '超过 2097152 字节上限,未扫描',
+    ]) {
+      expect(isExpectedSkip(excerpt), excerpt).toBe(false)
+    }
+  })
+
+  it('改一个标点(顿号→逗号)就不再判定为预期内 —— 证明这不是子串/宽松匹配', () => {
+    expect(isExpectedSkip('符号链接,未跟随,未扫描')).toBe(false) // 顿号改逗号
+    expect(isExpectedSkip('判定为二进制未扫描')).toBe(false) // 少一个逗号
   })
 })
 

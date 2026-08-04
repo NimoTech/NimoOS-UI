@@ -67,6 +67,22 @@ function exactLine(literal) {
   return new RegExp(`^\\s*${escaped}\\s*$`)
 }
 
+/**
+ * T14:pnpm-lock.yaml 是自动生成文件,不是手写代码 —— "整行精确匹配"这套武器在这里
+ * 起不到应有的作用(依赖升级一次,精确到字节的哈希/版本号锚点全部作废,逼着后人重新
+ * 手抄一遍,起不到"拦住手工夹带泄漏"的效果)。改用"这一行长得像 pnpm-lock 里的包名/
+ * resolution/version/specifier 记录行"的**形状**规则:
+ *   `resolution:` / `version:` / `specifier:` 这三个字面量键,或
+ *   `'?@?[\w@/.-]+'?:` —— 可选引号 + 可选 @scope + 包名字符集(字母数字@/.-)+
+ *   可选引号 + 冒号,覆盖 `'@babel/parser@7.29.7':`、`engine.io-parser@2.2.1:`、
+ *   `yargs-parser: 13.1.2` 这几种 pnpm-lock 真实出现过的写法。
+ * 只用于词表宁可宽也要收的 ai/search(第三方包名含这两个子串的情况事实上无法穷举:
+ * @codemirror/search、未来任何名字带 "ai" 的包)。parser 走另一条更窄的路径(见下方
+ * parser 词条注释)—— photo/gallery/transcript/wiki 这几个词完全不给 lockfile 开洞,
+ * 依赖名里真出现就应该被抓到人工看一眼。
+ */
+const PNPM_LOCK_LINE = /^\s+(resolution|version|specifier|'?@?[\w@/.-]+'?:)/
+
 // ─── 软禁词 + 精确白名单 ────────────────────────────────────────────────────
 // allow 的每一项是「文件正则 + 该文件里允许的整行正则」。按文件+内容豁免,
 // 绝不按行号 —— 行号会漂,漂了豁免就失效,然后人就会去放宽词表。
@@ -78,6 +94,71 @@ export const SOFT = [
       { file: /src\/files\/util\/fileCategories\.ts$/, re: /APPLICATION_PHOTOSHOP/ },
       { file: /src\/files\/util\/icons\.ts$/, re: /folder-pictures|APPLICATION_PHOTOSHOP/ },
       { file: /src\/apps\/util\/importNormalize\.ts$/, re: /'pictures',\s*'photo'|除 config\/download\/pictures\/photo\/media 外/ },
+      // T14:importNormalize.test.ts —— 同一份 Vue2 逐字移植的关键字表(volumeAutoCheck)
+      // 的测试用例,'photo'/'pictures' 是 Docker 容器路径关键字,不是相册 app。整行精确
+      // 匹配(exactLine),不是给整个文件的 'photo' 开洞。
+      { file: /src\/apps\/util\/importNormalize\.test\.ts$/, re: exactLine("['/photo', 'myapp', '/DATA/Gallery'],") },
+      { file: /src\/apps\/util\/importNormalize\.test\.ts$/, re: exactLine("it('pins Vue2 per-keyword case-sensitivity: config/download/pictures/photo/media are lowercase-literal only', () => {") },
+      { file: /src\/apps\/util\/importNormalize\.test\.ts$/, re: exactLine('// \'photo\'/\'pictures\' are lowercase-only in Vue2 — capitalized "Photo" must NOT match, falls to default.') },
+      { file: /src\/apps\/util\/importNormalize\.test\.ts$/, re: exactLine("expect(volumeAutoCheck('/Photo', 'myapp')).toBe('/DATA/AppData/myapp/Photo')") },
+      // T14:'Photos'(大写 P)在文件区/快照(时间机器)测试里全部是**举例用的普通文件夹名**
+      // (与 Documents/Media 同类),不是被删除的相册 app —— 相册 app 的字面量是小写
+      // kind:'photo'(已被 T9/T11 的 PATCH 从 defaultLayout/AddPanel/GridItem 等处删净,
+      // 见 tree.test.ts 对应断言)。全部整行精确匹配,不是给文件按子串开洞。
+      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("const setup = (names: string[], relPath = 'Photos') => {") },
+      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/snap1/Photos')") },
+      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("const relPath = ref('Photos')") },
+      { file: /src\/files\/composables\/useFileOps\.test\.ts$/, re: exactLine("useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'") },
+      { file: /src\/files\/composables\/useFileOps\.test\.ts$/, re: exactLine("useFilesStore().currentPath = '/DATA/Photos'") },
+      { file: /src\/files\/snapshot\/SnapshotBanner\.test\.ts$/, re: exactLine("const INFO = { mount: '/DATA', snapshotName: '20260713T061900Z_manual_改版前', relPath: 'Photos' }") },
+      { file: /src\/files\/snapshot\/TimeMachineBar\.test\.ts$/, re: exactLine("const w = mountIt({ folderText: '正在查看 /磁盘/Photos 的历史版本' })") },
+      { file: /src\/files\/snapshot\/TimeMachineBar\.test\.ts$/, re: exactLine("expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos', ...props },") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x/Photos')") },
+      // 同一行文本重复出现 5 次(148/160/172/192/203),exactLine 天然覆盖每一处重复。
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('volume-uuid="u-data" mount-point="/DATA" rel-path="Photos" folder-label="/磁盘/Photos"') },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// /Photos/2024 打开时间机器、进去后被扔回卷根还得一层层点回来。卡片展示的就是当前') },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/Photos'") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/.snapshots/snap1/Photos'") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(s.browseInfo).toEqual({ mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos' })") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(useToast().msg).toContain('/DATA/Photos/a.jpg.restored-1')") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.restored-1' })") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(useToast().msg).toContain('/DATA/Photos/a.restored-1')") },
+      // dropEntries.test.ts:'photo.jpg' 是拖拽上传测试里的通用示例文件名(与 video.mp4/
+      // notes.txt 同一 fixture),不是相册 app —— 对 Photos 模块的点名注释已被 T14 的
+      // manifest PATCH 改掉,这两行是纯粹的示例文件名,保留。
+      { file: /src\/files\/upload\/dropEntries\.test\.ts$/, re: exactLine("fileEntry('photo.jpg', '/Folder/photo.jpg'),") },
+      { file: /src\/files\/upload\/dropEntries\.test\.ts$/, re: exactLine("expect(rels).toEqual(['Folder/.hidden', 'Folder/notes.txt', 'Folder/photo.jpg', 'Folder/video.mp4'])") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(parseSnapshotBrowsePath('/DATA/.snapshots/snap1/Photos/2024')).toEqual({") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos/2024',") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('有相对路径就拼上', () => { expect(liveVolumePath('/DATA', 'Photos/2024')).toBe('/DATA/Photos/2024') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("await expect(resolveExitTarget({ mount: '/DATA', snapshotName: 's1', relPath: 'Photos/2024' }, dirExists))") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine(".resolves.toBe('/DATA/Photos/2024')") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(dirExists).toHaveBeenCalledWith('/DATA/Photos/2024')") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(parseSnapshotsContainerPath('/DATA/Photos')).toBeNull()") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('取相对卷根的路径', () => { expect(relPathUnderMount('/DATA', '/DATA/Photos/2024')).toBe('Photos/2024') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('容忍两侧末尾斜杠', () => { expect(relPathUnderMount('/DATA/', '/DATA/Photos/')).toBe('Photos') })") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("const restore = vi.fn().mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("item: { path: '/DATA/.snapshots/snap1/Photos/a.jpg' },") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(restore).toHaveBeenCalledWith({ volume_uuid: 'u-data', snapshot: 'snap1', path: 'Photos/a.jpg' })") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(r).toEqual({ ok: true, restoredPath: '/DATA/Photos/a.jpg.restored-1' })") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("item: { path: '/DATA/Photos/a.jpg' }, info: INFO, listVolumes: async () => VOLS, restore: async () => ({}),") },
+      // en_us.ts / raidLevels.ts:raidLevel1Usecase 的英文原文,zh_cn.ts 的中文孪生值
+      // (照片库、个人 NAS、启动卷)已经是既有白名单 —— 这是同一条 RAID 用途说明的英文侧,
+      // 与相册 app 无关(brief 指定保留面)。
+      { file: /src\/i18n\/en_us\.ts$/, re: exactLine("raidLevel1Usecase: 'Photo library, personal NAS, boot volumes',") },
+      { file: /src\/storage\/util\/raidLevels\.ts$/, re: exactLine("usecase: 'Photo library, personal NAS, boot volumes',") },
+      // avatar.test.ts:'photo.WEBP' 是头像上传扩展名判断的通用示例文件名。
+      { file: /src\/settings\/util\/avatar\.test\.ts$/, re: exactLine("expect(isAllowedImageFile('photo.WEBP', 'application/octet-stream')).toBe(true)") },
+      // Files.test.ts:同 snapshot 系列,'Photos' 全部是举例用的普通文件夹名。
+      { file: /src\/views\/Files\.test\.ts$/, re: exactLine("router.push('/files/NimoOS-HD/Photos'); await router.isReady()") },
+      { file: /src\/views\/Files\.test\.ts$/, re: exactLine("router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()") },
+      { file: /src\/views\/Files\.test\.ts$/, re: exactLine("const w = await mountFiles('/DATA/Photos')") },
     ],
   },
   {
@@ -93,16 +174,75 @@ export const SOFT = [
       // E6:Vue2 逐字移植的路径归一(应用导入时的目录归一化),/DATA/Gallery 是
       // LocalStorage 开机自建的系统目录,与相册功能无关,是保留面。
       { file: /src\/apps\/util\/importNormalize\.ts$/, re: /\/DATA\/Gallery/ },
+      // T14:以下全部是上面这些"Gallery=系统默认文件夹"实现文件各自的**测试镜像**,
+      // 练的是同一条已经被判定为保留面的代码路径,不是相册 app。整行精确匹配。
+      { file: /src\/apps\/util\/importNormalize\.test\.ts$/, re: exactLine("['/pictures', 'myapp', '/DATA/Gallery'],") },
+      { file: /src\/apps\/util\/importNormalize\.test\.ts$/, re: exactLine("['/photo', 'myapp', '/DATA/Gallery'],") },
+      { file: /packages\/service\/src\/samba\.test\.ts$/, re: exactLine("{ id: 1, path: '/DATA/Documents' }, { id: 2, path: '/DATA/Gallery' },") },
+      { file: /packages\/service\/src\/samba\.test\.ts$/, re: exactLine("expect(res).toEqual([{ id: 1, path: '/DATA/Documents' }, { id: 2, path: '/DATA/Gallery' }])") },
+      { file: /src\/files\/util\/clipboard\.test\.ts$/, re: exactLine("await copyText('/NimoOS-HD/Gallery/x.jpg')") },
+      { file: /src\/files\/util\/clipboard\.test\.ts$/, re: exactLine("expect(copied).toBe('/NimoOS-HD/Gallery/x.jpg')") },
+      { file: /src\/files\/util\/icons\.test\.ts$/, re: exactLine("expect(iconNameFor({ name: 'Gallery', is_dir: true })).toBe('folder-pictures')") },
+      { file: /src\/files\/util\/protect\.test\.ts$/, re: exactLine("expect(PROTECTED).toEqual(['AppData', 'Documents', 'Downloads', 'Gallery', 'Media'])") },
+      { file: /src\/home\/components\/FolderTile\.test\.ts$/, re: exactLine("const w = mount(FolderTile, { props: mk('Gallery', '/DATA/Gallery') })") },
+      { file: /src\/home\/components\/FolderTile\.test\.ts$/, re: exactLine("expect(w.text()).toContain('Gallery')") },
+      { file: /src\/home\/components\/GridItem\.click\.test\.ts$/, re: exactLine("const item: LayoutItem = { id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 }") },
+      { file: /src\/home\/components\/GridItem\.click\.test\.ts$/, re: exactLine("expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })") },
+      { file: /src\/home\/composables\/useOpenAction\.test\.ts$/, re: exactLine("openItem({ id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 } as LayoutItem)") },
+      { file: /src\/home\/composables\/useOpenAction\.test\.ts$/, re: exactLine("expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })") },
+      { file: /src\/settings\/panels\/AppsPanel\.test\.ts$/, re: exactLine("expect(w.findAll('.set-app-row')[2].text()).toContain('/Documents & Downloads & Gallery & Media')") },
+      { file: /src\/settings\/util\/migrateBrowse\.test\.ts$/, re: exactLine("'/media/Backup/Gallery', '/media/Backup/Media',") },
+      { file: /src\/settings\/util\/migrateBrowse\.test\.ts$/, re: exactLine("it.each(['AppData', 'Documents', 'Downloads', 'Gallery', 'Media', '.docker', '.containerd'])(") },
     ],
   },
   {
     word: 'search',
     re: /search/i,
     allow: [
-      { file: /src\/apps\/views\/StorePage\.vue$/, re: /query\.search|searchInput|filterStoreApps|appsStoreSearch/ },
       { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
       { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /appsStoreSearch/ },
+      // composeSettings.ts:'DAC_READ_SEARCH' 是 Linux capability 常量名(compose
+      // cap_add/cap_drop 白名单的一项),与搜索功能无关。
+      { file: /src\/apps\/util\/composeSettings\.ts$/, re: exactLine("'DAC_READ_SEARCH',") },
+      // widget-kit.css:第三方桌面小组件开发指南里的示例 JS 代码片段(读 iframe 的
+      // location.search 取 theme/lang 参数),是给第三方开发者看的用法说明,与
+      // NimoOS-Search 服务无关。
+      { file: /public\/widget-kit\.css$/, re: exactLine('*     const q = new URLSearchParams(location.search)') },
+      // T14 复审:原来这里按"文件+子串"(query.search|searchInput|...)豁免 StorePage.vue
+      // 整个文件——等于对文件里任何一行含这些子串的内容开洞,包括在这些行后面追加真实
+      // AI/Search 泄漏也照样放行(同 T6.5 复审 Critical 抓到的 搜索/照片 那个洞是一类
+      // 问题)。收紧为整行精确匹配:StorePage.vue 是应用商店的分类/作者/关键字过滤器
+      // (spec §3.1 三个深链参数之一),与被删除的 NimoOS-Search 服务/SearchDialog.vue
+      // 无关,9 处全部逐字摘自源码。
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine("const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')") },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('const searchInput = ref(search.value)') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('watch(searchInput, (v) => {') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine("if ((v || '') === search.value) return") },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('router.replace({ query: { ...route.query, search: v || undefined } })') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine("watch(search, (v) => { if (v !== searchInput.value) searchInput.value = v })") },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('const shown = computed(() => filterStoreApps(items.value, search.value))') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('const showFeatured = computed(() => category.value === ALL && author.value === ALL && !search.value)') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('<label class="store-search">') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('<input v-model="searchInput" type="search" :placeholder="t(\'appsStoreSearch\')" />') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('.store-search { flex: 1 1 200px; }') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('.store-search input {') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('.store-search input:focus { border-color: var(--accent-soft-bd); }') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('.store-search input::placeholder { color: var(--fg-muted); }') },
+      // StorePage.test.ts:同一功能的测试镜像(6 处命中,4 条不重复的行文本——两行各自
+      // 重复出现两次,exactLine 天然覆盖两处)。
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("await w.get('.store-search input').setValue('jelly')") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("expect(replace).toHaveBeenCalledWith({ query: { search: 'jelly' } })") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('?search= 生效时前端过滤;点卡片进详情', async () => {") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("routeQuery.search = 'jelly'") },
       // findIndex / findLastIndex 等标准库方法名里没有 search;binarySearch 之类若出现须显式登记
+      // pnpm-lock.yaml(根目录 + 内嵌的 packages/service):第三方依赖名/resolution/
+      // integrity 哈希里含 "search" 子串纯属噪声(@codemirror/search 等)——这是自动生成
+      // 内容,不是手写代码,"整行精确匹配"在这里起不到"防止夹带真实泄漏"的作用(锚点会
+      // 随依赖升级漂移),改用"这一行长得像 pnpm-lock 的包名/resolution/version/specifier
+      // 记录行"的形状规则。只豁免这一个词,photo/gallery/transcript/wiki 在 lockfile 里
+      // 仍然报(见下方 parser 的窄口径对比)。
+      { file: /(^|\/)pnpm-lock\.yaml$/, re: PNPM_LOCK_LINE },
     ],
   },
   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
@@ -209,9 +349,34 @@ export const SOFT = [
     allow: [
       // E5:局部变量 ai = anchorIndex(files.ts 的 shift 选区)
       { file: /src\/files\/stores\/files\.ts$/, re: /\bai\b\s*[=<,)\]]|\[lo,\s*hi\]/ },
+      // T14:APPLICATION_ILLUSTRATOR 的 'ai' 是 Adobe Illustrator 的文件扩展名(与 'eps'
+      // 同一常量),文件分类表的单一真源,与 AI 功能无关。
+      { file: /src\/files\/util\/fileCategories\.ts$/, re: exactLine("export const APPLICATION_ILLUSTRATOR = ['ai', 'eps']") },
+      // T14:三个文件夹图标 svg 内嵌了 base64 编码的位图(旧版图标资源的 data URI 兜底),
+      // "ai" 只是 base64 字符集里随机出现的子串,与 AI 功能无关。按文件精确限定 ——
+      // folder-root.svg 的整条 xlink:href 数据 URI 在同一行;folder-hdd.svg/folder-usb.svg
+      // 是数据 URI 换行后的纯 base64 续行(除字母数字 +/= 外不含任何其他字符,真实代码
+      // 不会写出这种形状的行,不会误伤)。
+      { file: /src\/files\/assets\/icons\/folder-root\.svg$/, re: /data:image\/png;base64,/ },
+      { file: /src\/files\/assets\/icons\/folder-hdd\.svg$/, re: /^\s*[A-Za-z0-9+/=]+\s*$/ },
+      { file: /src\/files\/assets\/icons\/folder-usb\.svg$/, re: /^\s*[A-Za-z0-9+/=]+\s*$/ },
+      // pnpm-lock.yaml:同 search 词条的注释 —— 自动生成文件,用"像不像 pnpm-lock 记录行"
+      // 的形状规则,而不是逐字锚定(依赖升级就作废)。
+      { file: /(^|\/)pnpm-lock\.yaml$/, re: PNPM_LOCK_LINE },
     ],
   },
-  { word: 'parser', re: /\bparser\b/i, allow: [] },
+  {
+    word: 'parser',
+    re: /\bparser\b/i,
+    allow: [
+      // T14:pnpm-lock.yaml 里真实存在的 7 个第三方包,名字含 "parser" 但都是知名的
+      // 通用解析器库(Babel/CSS/引擎协议/CLI 参数),与私有的 NimoOS-Parser(RAG 索引
+      // 服务)毫无关系。刻意不用 search/ai 那条"像不像 lockfile 记录行"的宽口径 ——
+      // 这里按**包名精确枚举**,如果 lockfile 里哪天真的出现 nimoos-parser 或任何其他
+      // 新的 "*-parser" 依赖,这条正则不会匹配到它,仍然会被抓到人工看一眼。
+      { file: /(^|\/)pnpm-lock\.yaml$/, re: /@babel\/(helper-string-)?parser\b|@csstools\/css-(parser-algorithms|color-parser)\b|(?:engine|socket)\.io-parser\b|yargs-parser\b/ },
+    ],
+  },
   { word: 'wiki', re: /wiki/i, allow: [] },
   {
     word: 'folderPermission',
@@ -225,6 +390,26 @@ export const SOFT = [
 
 const MAX_BYTES = 2 * 1024 * 1024 // 2 MB —— 超限的文件跳过,但留痕(见 scanTree)
 const SNIFF_BYTES = 8 * 1024 // 只抽查开头 8KB 判二进制,足够且快
+
+// T14(B2):这两条"预期内跳过"文案原来只在 scanTree() 里出现一次、又在 export.mjs 的
+// isExpectedSkip() 里被第二次逐字硬编码比对——两处措辞必须逐字相同,改一个标点(比如
+// 顿号变逗号)就会让 export.mjs 的分类静默滑到"预期外→fatal"那一侧,而且没有任何测试
+// 会发现(tree.test.mjs 跑导出用的是 --skip-guard,根本不经过这段分类逻辑)。提成
+// 具名常量 + 导出的 isExpectedSkip(),让 scanTree 和 export.mjs 共享同一份字面量 ——
+// 结构上排除"两处文案漂移"这种可能性,而不是指望人工保持同步。
+export const SKIP_REASON_SYMLINK = '符号链接,未跟随、未扫描'
+export const SKIP_REASON_BINARY = '判定为二进制,未扫描'
+
+/**
+ * 判断一条 __skipped__ 记录是"预期内"(二进制/符号链接,只警告、不算失败)还是
+ * "预期外"(读取失败/stat 失败/超过体积上限/目录读取失败,仍然 fatal)。
+ * 精确匹配 SKIP_REASON_SYMLINK / SKIP_REASON_BINARY 这两条固定文案;其余一律落入
+ * "预期外"——这也让 scanTree 未来新增的任何跳过原因默认按"预期外"处理,不会因为
+ * 这里没跟着更新而被静默放过。
+ */
+export function isExpectedSkip(excerpt) {
+  return excerpt === SKIP_REASON_SYMLINK || excerpt === SKIP_REASON_BINARY
+}
 
 /**
  * 二进制启发式:开头 8KB 里出现 NUL 字节就判定为二进制。比按扩展名判断可靠 ——
@@ -301,7 +486,7 @@ export function scanTree(rootDir) {
       const rel = path.relative(rootDir, abs)
 
       if (e.isSymbolicLink()) {
-        skip(rel, '符号链接,未跟随、未扫描')
+        skip(rel, SKIP_REASON_SYMLINK)
         continue
       }
       if (e.isDirectory()) {
@@ -330,7 +515,7 @@ export function scanTree(rootDir) {
         continue
       }
       if (looksBinary(buf)) {
-        skip(rel, '判定为二进制,未扫描')
+        skip(rel, SKIP_REASON_BINARY)
         continue
       }
       for (const f of scanText(rel, buf.toString('utf8'))) findings.push({ file: rel, ...f })

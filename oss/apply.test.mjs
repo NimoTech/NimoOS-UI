@@ -145,10 +145,28 @@ describe('applyPatch 的锚点唯一性', () => {
     // 显式拒绝空串必须堵住所有长度,这里逐一验证 0/1/2/3/4 字符。
     for (const content of ['', 'a', 'ab', 'abc', 'abcd']) {
       write(root, 'src/x.ts', content)
-      expect(() => applyPatch(root, [{ path: 'src/x.ts', find: '', replace: 'Z' }])).toThrow(/锚点为空串/)
+      expect(() => applyPatch(root, [{ path: 'src/x.ts', find: '', replace: 'Z' }])).toThrow(/锚点缺失或不是字符串/)
       // 且文件内容必须原封不动 —— 拒绝必须发生在写入之前
       expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe(content)
     }
+  })
+
+  // T14(B3):manifest 条目把字段名拼错(比如少写了 find,或者笔误成别的名字)时,
+  // find 解构出来是 undefined——原来的实现直接把 undefined 传给 text.split(),
+  // 抛的是原生 TypeError("The \"searchString\" argument must be of type string"),
+  // 跟这个项目"错误消息本身就是产品"的纪律对不上。必须给出设计过的诊断文案,而不是
+  // 让人去猜一个 Node 内置类型错误是什么意思。
+  it('find 为 undefined/null(字段名拼错的入口)给出设计过的诊断,不是原生 TypeError', () => {
+    write(root, 'src/x.ts', 'abc')
+    expect(() => applyPatch(root, [{ path: 'src/x.ts', replace: 'Z' }])) // 漏写 find
+      .toThrow(/锚点缺失或不是字符串/)
+    expect(() => applyPatch(root, [{ path: 'src/x.ts', find: null, replace: 'Z' }]))
+      .toThrow(/锚点缺失或不是字符串/)
+    // 且两种情况都不应该是原生 TypeError
+    try { applyPatch(root, [{ path: 'src/x.ts', replace: 'Z' }]) } catch (err) {
+      expect(err).not.toBeInstanceOf(TypeError)
+    }
+    expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe('abc')
   })
 
   it('路径穿越(../)即抛,不会写到 root 之外', () => {

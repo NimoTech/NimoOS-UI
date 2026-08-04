@@ -969,6 +969,97 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 `,
     replace: '' },
+
+  // ═══════════════════ T14:守卫接入后新发现的真泄漏(注释/fixture 洗白) ══════
+  // 这些都不是"该整块删除的功能"(那是 T6-T13 的活),而是散落的**文字残留**——
+  // 注释里直接点名已删组件/服务,或测试 fixture 里混进了真机抓取的敏感值。
+  // 词表本身不放宽(qdrant/相册等仍是硬/软禁词),这里只改导出产物里的这几行文字。
+
+  // theme.css:全局滚动条注释列了三个复用场景,其中"搜索"指向已删的 SearchDialog——
+  // 去掉这一个场景名,"文件预览/Welcome"两个保留场景不受影响。
+  { path: 'src/styles/theme.css',
+    find: '复用于搜索、文件预览、Welcome 等一切滚动区',
+    replace: '复用于文件预览、Welcome 等一切滚动区' },
+  // theme.css:"2.6 环形图 / 迷你图 / AI 光球"分节标题——AiWidget 的光球 token(--orb-core/
+  // --orb-glow)T8 已经删了,但标题文字本身被漏网,直接点名"AI"。环形图/迷你图两个真实
+  // token(--ring-*/--spark-*)与 AI 无关,标题掐掉后半截即可。
+  { path: 'src/styles/theme.css',
+    find: '/* 2.6 环形图 / 迷你图 / AI 光球 */',
+    replace: '/* 2.6 环形图 / 迷你图 */' },
+  // theme.css:两套主题块里"扩展/语义 token"注释各点名了一次 SearchDialog(已删组件)
+  // 作为 token 的历史来源说明,MediaViewer 是仍然保留的真实消费方,原样留着。
+  { path: 'src/styles/theme.css',
+    find: '扩展/语义 token(SearchDialog·MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12',
+    replace: '扩展/语义 token(MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12' },
+  { path: 'src/styles/theme.css',
+    find: '扩展/语义 token(白色纸感,取自 SearchDialog/MediaViewer 原浅色板)',
+    replace: '扩展/语义 token(白色纸感,取自 MediaViewer 原浅色板)' },
+
+  // StartAppDialog.vue:spinner 样式注释拿已删的 SearchDialog 当参照物,改成不点名。
+  { path: 'src/home/components/StartAppDialog.vue',
+    find: '/* 与 SearchDialog .spinner 同款:--ring-track 底圈 + --accent 顶弧 */',
+    replace: '/* 复用统一 spinner 样式:--ring-track 底圈 + --accent 顶弧 */' },
+
+  // GridItem.vue:CSS 注释里还留着"app/folder/photo"三态,但 'photo' 这个 kind 连同
+  // PhotoTile 已经被前面的补丁删干净了——这句纯文字描述没跟着改,补上。
+  { path: 'src/home/components/GridItem.vue',
+    find: 'is not clipped on app/folder/photo items',
+    replace: 'is not clipped on app/folder items' },
+  // MobileHome.vue:同一处道理,"photo 磁贴占 2×2"这个分句描述的是已删的 photo 磁贴。
+  { path: 'src/home/components/MobileHome.vue',
+    find: '图标区:行高=列宽 → 格子恒为正方形;photo 磁贴占 2×2,dense 回填空洞',
+    replace: '图标区:行高=列宽 → 格子恒为正方形,dense 回填空洞' },
+  // gridMath.test.ts:clampSize 是通用的尺寸吸附逻辑,测试标题里仍在举例"photo"这个
+  // 已经不存在的 kind——它不是测试内容(测试本体用的是 kind:'app'),只是标题文字。
+  { path: 'src/home/grid/gridMath.test.ts',
+    find: "it('snaps app/folder/photo to nearest of 1x1 or 2x2', () => {",
+    replace: "it('snaps app/folder to nearest of 1x1 or 2x2', () => {" },
+
+  // dropEntries.ts / dropEntries.test.ts:拖拽上传的通用文件收集逻辑,注释里拿已删的
+  // Photos 模块的 collectFilesFromDataTransfer 函数名当对比对象——直接点名了私有功能
+  // 内部的函数名,改成不点名的表述,行为对比本身(不按媒体类型过滤/不跳过隐藏文件)保留。
+  { path: 'src/files/upload/dropEntries.ts',
+    find: '。与 Photos 的 collectFilesFromDataTransfer 不同:不按媒体',
+    replace: '。不按媒体' },
+  { path: 'src/files/upload/dropEntries.test.ts',
+    find: "    // Unlike Photos' collectFilesFromDataTransfer, the file manager's drop path",
+    replace: '    // The file manager\'s drop path' },
+
+  // Files.vue:旧格式深链来源说明里点名了 Vue2 时代的 "AI" 功能(打开文件位置的入口
+  // 之一),AI 功能整个已经不存在,来源说明改成不点名的"旧版"。
+  { path: 'src/views/Files.vue',
+    find: '来源:Vue2 AI「打开文件位置」、上传通知、',
+    replace: '来源:旧版「打开文件位置」、上传通知、' },
+
+  // useIsoBrowser.test.ts:LISTING 是真机 curl 抓的 /DATA 根目录真实内容,其中
+  // '.wiki.md' 是 NimoOS-Wiki 在真实设备上生成的文件——这份 fixture 只是用来验证
+  // "只保留目录与 .iso"的过滤逻辑,任何一个非目录非 .iso 的文件名都能达到同样的测试
+  // 效果,换成不影射真实设备文件的占位名,过滤逻辑(is_dir:false 且非 .iso → 被剔除)
+  // 不受影响。
+  { path: 'src/kvm/composables/useIsoBrowser.test.ts',
+    find: "  { name: '.wiki.md', path: '/DATA/.wiki.md', is_dir: false, is_symlink: false, size: 2558 },",
+    replace: "  { name: 'notes.txt', path: '/DATA/notes.txt', is_dir: false, is_symlink: false, size: 2558 }," },
+
+  // SystemStatusPanel.test.ts / components.test.ts:GET /v1/gateway/components 的真机
+  // fixture 里 'external' 分组下真实列出了 Qdrant——这暴露了私有部署真的跑着 Qdrant
+  // (Search/Parser 的依赖,两者都已从这份导出里剔除)。分组渲染逻辑只关心 category 字段,
+  // 具体服务名对测试断言无意义,换成不指向任何具体第三方服务的占位名。
+  { path: 'src/settings/panels/SystemStatusPanel.test.ts',
+    find: "  { name: 'Qdrant', category: 'external', version: '1.18.1', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' },",
+    replace: "  { name: 'External Component', category: 'external', version: '1.18.1', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' }," },
+  { path: 'src/settings/panels/SystemStatusPanel.test.ts',
+    find: "    expect(w.text()).toContain('Qdrant')",
+    replace: "    expect(w.text()).toContain('External Component')" },
+  { path: 'src/settings/util/components.test.ts',
+    find: "  { name: 'Qdrant', category: 'external', version: '1.18.1', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' },",
+    replace: "  { name: 'External Component', category: 'external', version: '1.18.1', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' }," },
+
+  // Home.integration.test.ts:vi.mock('@nimotech/nimoos-service') 里还 mock 着
+  // service.photos——Home.vue 早就不导入 usePhotosStore 了(见上面 T7 的补丁与
+  // tree.test.ts 的断言),这一行是纯粹的死 mock,顺手删掉而不是留着当活化石。
+  { path: 'src/views/Home.integration.test.ts',
+    find: "      photos: { listAssets: vi.fn(async () => []), thumbnailUrl: vi.fn(() => '') },\n",
+    replace: '' },
 ]
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
