@@ -96,3 +96,64 @@ vite build:     exit=0
 ## NEEDS_CONTEXT
 
 无。所有 DoD 项均已现场核验完成,未采信任何未复核的既有结论。
+
+---
+
+## 修复轮 1
+
+评审回:规格 ✅ · 质量通过,独立重跑了 K40 与秒/毫秒两组探针均报红→还原一致。
+唯一要修的一条:`applyFilters` 缺「`type`/`status` 两个条件同时非空」的组合筛用例。
+
+### 补的 3 条用例(`notesViewHelpers.test.ts`,只改这一个文件)
+
+1. **组合命中** —— `type='insight'` + `status='draft'`,列表里 `a` 同时满足两者、
+   `b` 只满足 type、`c` 只满足 status。结果 `['a']`,与单按 type 筛的 `['a','b']`、
+   单按 status 筛的 `['a','c']` 均不同,证明不是巧合等于单条件结果。
+2. **组合落空**(🔴 真正抓「误写成 OR」的一条)—— `d` 只满足 type、`e` 只满足
+   status,两者各自都不同时满足两个条件 → 结果必须为 `[]`。
+3. **组合 + `status='active'` 语义** —— `f` type 匹配且非 archived(应中)、
+   `g` type 匹配但 archived(应被 active 语义排除)、`h` 非 archived 但 type 不匹配
+   (应被 type 排除)→ 结果只有 `['f']`。
+
+### 🔴 `&&`→`||` RED 探针(cp+md5 还原,禁 `git checkout`/`restore`)
+
+```
+$ cp notesViewHelpers.ts /tmp/.../notesViewHelpers.ts.fixround1.bak && md5sum 两者
+  03b4c1a...  两者一致(注入前基线)
+$ Edit:第 93-94 行 applyFilters 内部 `&&` 改成 `||`(行首锚定,只改这一处运算符)
+$ grep 确认注入已落盘 → 第 93 行确实是 `|| n.type === type) ||`
+$ pnpm exec vitest run notesViewHelpers.test.ts
+  FAIL × status 为具体值(非 ""/"active")时是精确匹配
+  FAIL × 组合命中:…                                    ← 本轮新增
+  FAIL × 组合落空:… 真正抓「误写成 OR」的那条            ← 本轮新增
+  FAIL × 组合筛纳入 status="active"…                    ← 本轮新增
+  Test Files 1 failed | Tests 6 failed | 26 passed (32)
+$ cp /tmp/.../notesViewHelpers.ts.fixround1.bak notesViewHelpers.ts && md5sum 两者
+  03b4c1a...  两者一致(还原确认,与注入前逐字节相同)
+$ pnpm exec vitest run notesViewHelpers.test.ts
+  Test Files 1 passed (1) / Tests 32 passed (32)
+```
+3 条新增用例(以及 1 条既有的"精确匹配"用例)在 `||` 突变下全部报红,还原后全绿。
+
+### 产品代码零改动自证
+
+```
+$ git status --short
+ M src/ai/knowledge/util/notesViewHelpers.test.ts
+$ git diff -- src/ai/knowledge/util/notesViewHelpers.ts
+(空,零输出)
+```
+探针注入/还原全程针对 `notesViewHelpers.ts`,但还原后与 `git` 索引里的版本(HEAD 的
+新增内容,尚未提交前的工作树基线)逐字节一致、`git diff` 对该文件零输出 —— 只有测试
+文件被净改动。
+
+### 三门(全量,已落盘)
+
+```
+/tmp/p5d-t3-fix-test.log:  Test Files 328 passed (328) / Tests 3595 passed (3595)   exit=0
+/tmp/p5d-t3-fix-tsc.log:   exit=0
+/tmp/p5d-t3-fix-build.log: exit=0
+```
+
+算式:**3592(T3 首轮) + 3(本轮新增) = 3595**(实测 3595)✅。文件数仍 328(未新增文件)。
+零复跑、零红,已知噪声两条本轮均未触发。

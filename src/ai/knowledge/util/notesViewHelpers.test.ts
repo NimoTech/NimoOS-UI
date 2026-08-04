@@ -153,6 +153,41 @@ describe('applyFilters', () => {
     const list = [N({ id: 'a', type: 'digest' }), N({ id: 'b', type: 'summary' })]
     expect(applyFilters(list, { type: '', status: '' }).map((n) => n.id)).toEqual(['a', 'b'])
   })
+
+  // 🔴 修复轮 1 —— 补「两个条件同时非空(组合筛)」的用例。前面 6 条每条都只让
+  // type/status 其中一个非空,「两个各自测过」不等于「组合起来是 AND 而不是 OR」,
+  // 这是筛选函数的经典漏网点(治理 brief §缺口猎)。
+  it('组合命中:type 与 status 同时非空,只有同时满足两者的那条留下(结果与任一单条件筛都不同)', () => {
+    const list = [
+      N({ id: 'a', type: 'insight', status: 'draft' }), // 两者都满足
+      N({ id: 'b', type: 'insight', status: 'curated' }), // 只满足 type
+      N({ id: 'c', type: 'note', status: 'draft' }), // 只满足 status
+    ]
+    // 只按 type 筛会拿到 ['a','b'],只按 status 筛会拿到 ['a','c']——组合结果 ['a']
+    // 与两者都不同,证明这条用例真的在验证"两个条件一起生效"而不是巧合等于单条件结果。
+    expect(applyFilters(list, { type: 'insight', status: '' }).map((n) => n.id)).toEqual(['a', 'b'])
+    expect(applyFilters(list, { type: '', status: 'draft' }).map((n) => n.id)).toEqual(['a', 'c'])
+    expect(applyFilters(list, { type: 'insight', status: 'draft' }).map((n) => n.id)).toEqual(['a'])
+  })
+
+  it('组合落空:分别只满足其中一个条件的笔记都不该出现 —— 真正抓「误写成 OR」的那条', () => {
+    const list = [
+      N({ id: 'd', type: 'insight', status: 'curated' }), // 满足 type,不满足 status
+      N({ id: 'e', type: 'note', status: 'draft' }), // 满足 status,不满足 type
+    ]
+    // 若把 applyFilters 内部的 && 误写成 ||,d 和 e 各自会因为"至少一个条件为真"
+    // 被放进结果——正确的 AND 语义下两者都不满足"两个条件同时为真",结果必须为空。
+    expect(applyFilters(list, { type: 'insight', status: 'draft' })).toEqual([])
+  })
+
+  it('组合筛纳入 status="active"(非精确匹配)—— 三档语义里它最容易被误写成精确匹配', () => {
+    const list = [
+      N({ id: 'f', type: 'insight', status: 'draft' }), // type 匹配 + active(非 archived)→ 应命中
+      N({ id: 'g', type: 'insight', status: 'archived' }), // type 匹配但 archived → active 语义应排除
+      N({ id: 'h', type: 'note', status: 'curated' }), // active 但 type 不匹配 → 应排除
+    ]
+    expect(applyFilters(list, { type: 'insight', status: 'active' }).map((n) => n.id)).toEqual(['f'])
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
