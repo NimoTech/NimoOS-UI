@@ -694,7 +694,18 @@ C-7 的 34 个 `knowledge.scss` 行号 34/34 全对;C-9 的 3 个路由行号 3/
    漏了它会**同时躲过本条扫描、又掉进缺口④ 报错**。
    → **实际落地版 = `/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g`**,T2a 已程序化证明是字面版的
    **严格超集**(`gov ⊆ mine`,零断言放宽)。**评审不要拿字面版来对,以本条为准。**
-2. **附录 B 取舍②(浅档 `--warning` 比 Vue2 的 `#f5a623` 明显更深)从 T2a 起就已生效,不只 Parser 两页** ——
+2. **附录 B 取舍②(浅档 `--warning` / `--success` 比 Vue2 明显更深)从 T2a 起就已生效,不只 Parser 两页** ——
+   🔴 **终审 M-2 订正(2026-08-04)**:本条初稿把两个页面的 Vue2 参照色**张冠李戴**了 ——
+   `#f5a623` / `#2ecc71` 是 **Parser 两页**的 `var(--ns-color-*, fallback)` 回退值;
+   **设置页的真源是 `#FF9500`(warning)/ `#34C759`(success)**。
+   → **实际色差比本条初稿描述的更大。** 三组对照(**验收清单以此为准**):
+
+   | token | 本仓浅档 | 设置页 Vue2 真源 | Parser 页 Vue2 回退 |
+   |---|---|---|---|
+   | `--warning` | `#92600c` | **`#FF9500`** | `#f5a623` |
+   | `--success` | `#15754c` | **`#34C759`** | `#2ecc71` |
+
+   吃在 `.k-svc-light`(服务卡指示灯,含 `[data-state="paused"]`)与 `.k-set-row-desc .warn`(带警告图标那行)上。
    `.k-svc-light[data-state="paused"]` 的橙灯与 `.k-set-row-desc .warn` 都吃这个 token。
    → 🔴 **协调者裁定 A-2 的适用范围据此扩大:设置页(T8/T9)的验收清单也要写这条显式确认项**,
    不要等 Parser 页才提。同理浅档 `--success`(`#15754c` vs Vue2 `#2ecc71`)吃在 `.k-svc-light` 的绿灯上。
@@ -931,6 +942,14 @@ T10 当时正有未提交的产品改动在工作树里,**被一并清掉**;它�
 |---|---|---|---|
 | **E-25** | T10 brief §4 的 `grep -oE "\.parser-app\{[^}]*\}" dist/assets/*.css` 用来核「`.parser-app` 只有 K22 三行、零颜色零 `--x:`」 | 🔴 **该正则分不清两个不同的块**:`parser-styles.scss` 的**结构块** `.parser-app{height…}` 与 **K21 的分组选择器** `.knowledge-app,.parser-app{…一大堆 token…}`。按字面读会命中后者 → 得出「`.parser-app` 里有几十个 `--x:` 声明」→ **假 Critical** | **判据必须选择器感知**(先按选择器精确切块,再看块内容),不能靠子串。T10 已给正确做法并实测四项全过。⚠️ **与 §6.5 那条「朴素具名色匹配会冤枉 `white-space`」同族** —— **协调者给的 grep 判据,下游一律先验证它能区分该区分的东西** |
 
+### 8.4 转 P5d 的两条(终审 M-1 / M-4,2026-08-04)
+
+- **M-1**:**K36 的 a11y 契约没有常驻断言** —— 终审在真渲染里实测 `aria-labelledby` 与 `.k-modal-title` 的
+  `id` 同值同元素(**成立**),但没有用例钉住它;将来有人改 `DialogTitle` 的用法不会被抓。
+  先例 `IndexedFilesView.test.ts:1947`,补 3 行即可。
+- **M-4**:`deferred.ts` **生产侧零消费者**(P5a 起的既有状态;K7 机制的钉子在测试里齐全)。
+  **P5f 清空 `DEFERRED_TABS` 时一并决定去向。**
+
 ## 13. 验收清单纪律(**下游与协调者都受约束**)
 
 P5b 验收第 1 轮得来的两条,逐字生效:
@@ -947,7 +966,12 @@ P5b 验收第 1 轮得来的两条,逐字生效:
      `v-if="!folders.length"` 的 `No pending` 空态 **本机验不到**。
    - **设置页「搬文件到新目录…」按钮**:`:disabled="!rootPicker.path || (dirProbe.state==='done' && !dirProbe.migratable)"`
      —— 选 `/DATA/Notes`(实测 `{exists:true, empty:false}`)时**是灰的**。要点开它必须先在选择器里
-     走到一个**空目录或不存在的目录**(`/DATA/Downloads` 之类多半非空;`/mnt` 下大概率是空的,现场试)。
+     走到一个**空目录或不存在的目录**。
+     🔴 **终审 2026-08-04 实测订正(本条初稿会把机主引进死路)**:请走 **`/DATA/Downloads`**
+     (现测 `{exists:true, empty:true}` → 徽标「空文件夹 · 可迁移」→ 按钮可点)。
+     **不要走 `/mnt` 或 `/media`** —— 后端对它们返 **HTTP 400「path must be under /DATA」**
+     → `dirProbe='error'` → 三档徽标**都不出**,而按钮因 `state !== 'done'` **反而变可点**。
+     (Vue2 同款、**不是缺陷**,但照初稿写「`/mnt` 下大概率是空的」会让机主一路走错。)
    - **设置页「重建全部索引」按钮**:蓝本 `SettingsView.vue:181` 硬编码 `disabled`,**永远不可点**。
      清单只能验「它是灰的 + 旁边有『即将上线』徽标」。
    - **设置页自动捕获的 `.warn` 提示行**:`v-if="!notesSettings.autoExtract"`,本机 `auto_extract: true`
