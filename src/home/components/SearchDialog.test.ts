@@ -126,6 +126,24 @@ describe('SearchDialog', () => {
       .toBe('/thumb?path=' + encodeURIComponent("/DATA/Documents/life/Nick's receipt.jpg"))
   })
 
+  // ── 申报偏离 7:媒体单行补文件名 + 路径 ─────────────────────────────────────
+  // F1 把文件名命中的图片分流到 .media-row 之后,那一行原本只有缩略图 + 来源徽标 ——
+  // 用户搜 receipt 命中 Nick's receipt.jpg,却在行里看不到自己搜的这个名字。
+  // ⚠️ 路径断言靠 open() 里的 seedDisks() 撑着:不种盘时 displayNames 恒为 {},
+  //    toVirtualPath 退化成恒等函数,'/DATA/Documents/life' 也会过,断言就空转了。
+  it('媒体单行显示文件名与所在文件夹的**虚拟路径**(/DATA → /NimoOS-HD)', async () => {
+    agentTool.mockResolvedValue(REAL)
+    await open()
+    await search('receipt')
+    const row = document.body.querySelector('.media-row') as HTMLElement
+    expect(row).not.toBeNull()
+    expect(row.querySelector('.result-name')?.textContent).toBe("Nick's receipt.jpg")
+    expect(row.querySelector('.result-path')?.textContent).toBe('/NimoOS-HD/Documents/life')
+    // 徽标与 CTA 仍在同一行里(补文字没把它们挤走)
+    expect(row.querySelector('.media-acc-num')?.textContent).toBe('文件名')
+    expect(row.querySelector('.row-open')).not.toBeNull()
+  })
+
   it('文件名命中的图片:左键就地预览,右上 CTA 是「打开文件夹」而不是「打开相册」', async () => {
     agentTool.mockResolvedValue(REAL)
     const viewer = useViewer()

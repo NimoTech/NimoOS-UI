@@ -26,7 +26,7 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //    带上 `state === 'done'`，绝不能写成 `v-if="view"`：否则请求失败时会把上一轮结果和
 //    错误态一起显示，或者搜索中还挂着旧结果。
 //
-// ── 六处「界面照 Vue2 / 逻辑照正确」的申报偏离 ─────────────────────────────
+// ── 七处「界面照 Vue2 / 逻辑照正确」的申报偏离 ─────────────────────────────
 //   1. openPhotos() 原来写死了同事那台机器的局域网 IP 作为跳转 origin（demo 残留，在任何
 //      别的机器上都跳错地方）→ 改同源相对跳转。这是**修真缺陷**，不是改界面（spec §7.9）。
 //   2. 媒体行的副标题 `.media-acc-label`（"match accuracy" / "text recognized"）删除：
@@ -51,6 +51,13 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //      两处落点：displayList 的 'all' 分支（分流）、`.media-row` 的左键与右上 CTA（openMediaRow /
 //      按 badge 二选一的按钮）。后者顺带影响 Images / Videos 两个 tab 下**文件名命中**的媒体行
 //      （CTA 由「打开相册 ›」变成「打开文件夹 ›」）—— 同一条理由，一并登记。
+//   7. **`.media-row` 补上文件名 + 所在文件夹两行文字**（机主 2026-08-04 拍板）。这是上面
+//      第 6 条分流的**副作用修补**：`.media-row` 原本是给相册 / OCR 命中设计的 —— 那类行里
+//      缩略图就是重点，所以只画缩略图 + 来源徽标，不显示文件名也不显示路径。分流之后
+//      **文件名命中的图片改走这一行**，于是出现了「用户搜 receipt 命中 Nick's receipt.jpg，
+//      却在那行里看不到自己搜的这个名字」。按 `.result` 行的同款排版（`.result-name` /
+//      `.result-path`，同一套 token）在缩略图右侧补两行。相册 / OCR 命中的行也会跟着显示
+//      文件名与路径 —— 拍板时已知并接受，不再按来源分两种排版。
 //
 // Ask Nimo AI 入口在搜索输入框右侧：渐变胶囊按钮(星标图标 + “Ask Nimo”文字，仿 Gemini)，高度与关闭(✕)按钮一致(36px)。
 // 交互：左键点击结果 = 直接复用文件页的 ViewerHost 就地预览（docx/pdf/xlsx/图片/视频/音频/文本全支持）；
@@ -365,6 +372,11 @@ watch(query, () => {
                   <span v-if="it.media.category === 'Videos'" class="media-play">▶</span>
                 </span>
                 <span class="media-info">
+                  <!-- 申报偏离 7：文件名 + 所在文件夹两行，复用 .result 行的同款类名与排版。
+                       路径走已有的 folderOf()（内部 toVirtualPath，把 /DATA 翻成 /NimoOS-HD），
+                       与 .result-path 是同一个来源，不另写一份。 -->
+                  <span class="result-name">{{ it.media.name }}</span>
+                  <span class="result-path">{{ folderOf(it.media.realPath) }}</span>
                   <!-- 申报偏离 2：原来这里还有一行 .media-acc-label 副标题（"match accuracy"），
                        准确率百分比换成来源徽标后已无意义，删除。 -->
                   <span class="media-acc-num" :class="{ 'media-acc-ocr': it.media.badge === 'ocr' }">{{ badgeLabel(it.media) }}</span>
@@ -552,6 +564,12 @@ watch(query, () => {
    短徽标后偏大 → 13px。同批删掉了下面那行 .media-acc-label 副标题（"match accuracy"）。 */
 .media-acc-num { font-size: 13px; font-weight: 700; color: var(--success); }
 .media-acc-num.media-acc-ocr { color: var(--accent-text); letter-spacing: 0.03em; }
+/* 申报偏离 7：文件名 / 路径两行的字号与颜色全部沿用 .result-name / .result-path（同一套
+   token，不新增）。这里只补一条布局约束：媒体行是「定高缩略图 + 右上 CTA」的紧凑单行，
+   长文件名必须单行省略而不是像 .result 行那样折行 —— 否则行被撑高、右上 CTA 跟着往下掉。
+   .media-info 已有 min-width: 0，省略号才生效。 */
+.media-info .result-name,
+.media-info .result-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 排序理由标签（primary 跟随强调色；其余用固定语义色）。
    demote 档随 spec §7.5 一起删掉了——后端没有任何降权信号，demo 那个「疑似人名·已降权」是编的。 */
