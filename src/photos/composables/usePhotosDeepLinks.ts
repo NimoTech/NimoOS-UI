@@ -17,13 +17,14 @@
 //     - view —— 六个 Vue2 NAV_KEYS 值逐个归一到 New-UI 的六条真实路由(VIEW_ROUTES)。
 //     - tab —— 唯一需要宿主页面配合的键,走 PhotosDeepLinkHooks.setTab。
 //     - settings —— 归一到独立设置路由 `/photos/settings?section=`('1' = 不指定分区)。
-//   刻意不实现(留给下一期,由控制器决策,不是遗漏):
-//     - place、spot —— 依赖后端 place 详情(城市名/spot 坐标)才能落地,New-UI 侧
-//       对应的地点详情路由本期未建。
-//     - photo —— Vue2 的灯箱回填键之一(与 photoset/asset 同类但走 _applyUrlDeepLinks
-//       而非 mounted 里的分发),本期没有实现对应入口。
-//     - smartview —— 智能视图页的深链键,本文件只统一了相册(album)那一个子视图键,
-//       智能视图这一个未纳入。
+//     - photo —— 灯箱链最低优先级的一档(photoset > asset > photo);语义是**状态回显**,
+//       找不到静默清键、不弹 toast(与 ?asset 的分享语义刻意不同)。
+//     - smartview —— 等 fetchSmartViews 就绪后校验存在,跳 /photos/smart-views/:id。
+//     - place、spot —— getPlace 验城市名后跳 /photos/places/:key(?spot 附在 query);
+//       spot 找不到降级整城,city 取不到则清两键。
+//   **刻意不实现:无。Vue2 `/photos` 的 13 个 query 键在本文件已全部有落地点。**
+//   (清点闸:__tests__/deepLinkCoverage.test.ts —— 键集清单 + watch 数组双向核对。
+//   将来 Vue2 侧若再加键,那道闸会红;New-UI 侧漏 watch 也会红。)
 //
 // 挂载约定(真机验收反馈修正,2026-08-04——原裁决"不装 watcher"已撤回,理由见下):
 // usePhotosDeepLinks() 在 /photos 的 setup 里调一次,同时支持**两条到达路径**:
@@ -77,6 +78,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useLightbox } from '../lightbox/useLightbox'
 import { usePhotosPeople } from '../stores/people'
+import { usePhotosSmartViews } from '../stores/smartViews'
 import { useToast } from '../../stores/toast'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
 
@@ -114,6 +116,7 @@ const TAB_KEYS: readonly string[] = ['all', 'video', 'ocr']
 export interface PhotosDeepLinkHooks {
   setTab?: (tab: string) => void
 }
+
 // 取不到明细时的 toast 停留时长,照 Vue2 :438 / :463 的 duration: 3000。
 const NOT_FOUND_TOAST_MS = 3000
 
@@ -226,6 +229,63 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
       : { path: '/photos/settings' })
   }
 
+  // ?photo=<id>:Vue2 :556-571 _applyPhotoFromQuery —— 与 ?asset 都是"单张开灯箱",但
+  // 语义刻意不同,不合并成一条:?asset 是**分享链接**(找不到要弹 toast 告诉用户"这个
+  // 链接失效了"),?photo 是**状态回显**(找不到静默清键、不打扰用户,因为它本来就只是
+  // 把当前打开的图写进 URL 供刷新恢复)。Vue2 自己的注释 :556-557 就点明了这个区别。
+  async function applyPhotoFromQuery(id: string): Promise<void> {
+    const photo = await fetchPhoto(id)
+    if (photo) lb.openAt(photo, [photo])
+    else stripQueryKey('photo')
+  }
+
+  // ?smartview=<id>:Vue2 PhotosSmartViewsView.vue:337-348 _applyRouteSmartView ——
+  // 等列表就绪、校验存在才开,不存在静默清键。id 比较走 String() 归一(同 ?person 的
+  // 全区铁律:后端 id 可能是数字,query 值恒为字符串,`===` 直接比会把存在的项误判成
+  // 不存在)。Vue2 那边是打开同页面内的详情浮层,New-UI 有真实详情路由,故归一成跳转。
+  async function applySmartViewFromQuery(id: string): Promise<void> {
+    const store = usePhotosSmartViews()
+    try {
+      await store.fetchSmartViews()
+      const exists = store.smartViews.some((s) => String(s.id) === String(id))
+      if (exists) router.replace({ name: 'photos-smart-view-detail', params: { id } })
+      else stripQueryKey('smartview')
+    } catch (e) {
+      // 防御性兜底 —— fetchSmartViews 自身已把网络失败吞掉(内部 console.error,不 reject),
+      // 这条 catch 目前不会被触发,留着是防 store 实现变化时仍安全(同 ?person 的写法)。
+      console.error('[photos-deeplinks] fetchSmartViews', e)
+      stripQueryKey('smartview')
+    }
+  }
+
+  // ?place=<key>(+?spot=<spotKey>):Vue2 :527-554 _applyPlaceFromQuery —— 先取详情验
+  // 城市名,拿不到就清 place+spot 两键;spot 在 spots[] 里找不到则降级整城过滤、只丢 spot。
+  //
+  // 偏离登记(不照抄):Vue2 拿到详情后把 spotName/spotLat/spotLon 一起塞进 onPlacesOpenSpot,
+  // 那是它"同页面切面板"架构下的传参方式。New-UI 的目的地是真实路由 /photos/places/:key,
+  // 只带 ?spot;lat/lon 两个可选 query 刻意不带 —— PhotosPlaceAssets 自己会 loadDetail(key)
+  // 把 spot 坐标取回来,那两个 query 是从地图页跳转时的"免二次请求"优化,不是必需入参。
+  // 从一个只有 key 的老书签里硬造 lat/lon 反而要多信一层缓存,没必要。
+  async function applyPlaceFromQuery(placeKey: string, spotKey: string): Promise<void> {
+    try {
+      const detail = (await service.photos.getPlace(placeKey)) as
+        { city?: string; spots?: Array<{ key?: unknown }> } | null
+      const city = detail?.city || ''
+      // Vue2 :531-534:city 为空即视为"这个 place 不存在",清两键、留在原地。
+      if (!city) { stripQueryKey('place', 'spot'); return }
+      // spot key 比较同样走 String() 归一 —— Place.Key 后端是 int32(P0 已实证)。
+      const hit = spotKey
+        ? (detail?.spots || []).some((s) => String(s?.key) === String(spotKey))
+        : false
+      router.replace(hit
+        ? { name: 'photos-place-assets', params: { key: placeKey }, query: { spot: spotKey } }
+        : { name: 'photos-place-assets', params: { key: placeKey } })
+    } catch (e) {
+      console.error('[photos-deeplinks] getPlace', e)
+      stripQueryKey('place', 'spot')
+    }
+  }
+
   // ?album=<id>:Vue2 是 PhotosAlbumsView.vue:264 让相册**列表**页自己校验 + 打开,不做
   // 存在性检查(找不到才会静默清键,但这里 Vue2 从不校验存在——它就是直接赋值)。New-UI
   // 有真实的相册详情路由,直接跳转,同样不加 Vue2 没有的校验(移植纪律:不做无关"改进"、
@@ -256,14 +316,14 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
       if (exists) {
         redirectPersonFromQuery(id)
       } else {
-        stripPersonFromQuery()
+        stripQueryKey('person')
       }
     } catch (e) {
       // Vue2 :521-523 的 catch。防御性兜底——usePhotosPeople().fetchPeople() 自身已经
       // 把网络失败吞掉(内部 console.error,不 reject),这条 catch 目前不会被触发,留着
       // 是防 store 实现变化时仍安全(不会让未捕获异常冒出去炸整个 onMounted 链)。
       console.error('[photos-deeplinks] fetchPeople', e)
-      stripPersonFromQuery()
+      stripQueryKey('person')
     }
   }
 
@@ -271,11 +331,12 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
     router.replace({ name: 'photos-person-detail', params: { id } })
   }
 
-  // 静默摘掉 person 键、留在原地——不动其余 query 键,也不清 path(照 Vue2 mergeQuery
-  // 的语义:只动被摘的那一个键)。
-  function stripPersonFromQuery(): void {
-    const { person, ...rest } = route.query
-    void person
+  // 静默摘掉指定 query 键、留在原地——不动其余键,也不清 path(照 Vue2 mergeQuery 的
+  // 语义:只动被摘的那几个键)。P8b 起被 person / photo / smartview / place+spot 共用;
+  // 收变参是因为 ?place 失败时 Vue2 一次摘 place + spot 两个键(:531 / :552)。
+  function stripQueryKey(...keys: string[]): void {
+    const rest = { ...route.query }
+    for (const k of keys) delete rest[k]
     router.replace({ path: route.path, query: rest })
   }
 
@@ -290,8 +351,10 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
   async function applyDeepLinkChanges(query: LocationQuery, previous: LocationQuery | null): Promise<void> {
     const photosetToken = firstQueryValue(query.photoset)
     const assetId = firstQueryValue(query.asset)
+    const photoId = firstQueryValue(query.photo)
     const photosetChanged = !previous || photosetToken !== firstQueryValue(previous.photoset)
     const assetChanged = !previous || assetId !== firstQueryValue(previous.asset)
+    const photoChanged = !previous || photoId !== firstQueryValue(previous.photo)
 
     // 灯箱先开、路由后跳:这段必须先 await 完,q/album/person 才能跑(见文件头执行
     // 顺序说明)。优先级:photoset 优先于 asset(Vue2 :370-374 的 if / else if——两个
@@ -302,6 +365,12 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
       await openPhotoSetFromQuery(photosetToken, firstQueryValue(query.active))
     } else if (assetChanged && assetId) {
       await openAssetFromQuery(assetId)
+    } else if (photoChanged && photoId && !photosetToken && !assetId) {
+      // ?photo 是灯箱链里优先级最低的一档(Vue2 :504 `if (q.photo && !q.photoset && !q.asset)`)。
+      // 注意它的让位门槛与上面两档的"变了没"判据不同:这里问的是"那两个键**当前有没有值**",
+      // 不是"它们这轮变没变" —— 照 Vue2 逐字。含义是:只要 URL 上还挂着 photoset/asset,
+      // photo 就永远不出手,免得同一次分发里开两次灯箱。
+      await applyPhotoFromQuery(photoId)
     }
 
     // q/album/person:三个键各自独立、互不干扰,都是"改路由"而不是"开灯箱"。
@@ -331,6 +400,20 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
     if (tabChanged && TAB_KEYS.includes(tab)) hooks.setTab?.(tab)
     if (viewChanged && view) redirectViewFromQuery(view)
     if (settingsChanged && settings) redirectSettingsFromQuery(settings)
+
+    // ── P8b:?smartview / ?place(+?spot)—— 两条要先问后端/store 才知道去哪的腿 ──────
+    // place 的变化判据把 spot 也算进来:spot 是 place 的附属键,只改 spot(place 值不变)
+    // 也必须重新落地一次(整城 ↔ 某个 spot 的切换),否则 query-only 路径下改 spot 没反应。
+    const smartViewId = firstQueryValue(query.smartview)
+    const placeKey = firstQueryValue(query.place)
+    const spotKey = firstQueryValue(query.spot)
+    const smartViewChanged = !previous || smartViewId !== firstQueryValue(previous.smartview)
+    const placeChanged = !previous
+      || placeKey !== firstQueryValue(previous.place)
+      || spotKey !== firstQueryValue(previous.spot)
+
+    if (smartViewChanged && smartViewId) await applySmartViewFromQuery(smartViewId)
+    if (placeChanged && placeKey) await applyPlaceFromQuery(placeKey, spotKey)
   }
 
   // previousQuery 记录"上一次已经分发处理过"的 query 快照——mount 前是 null(逼五键
@@ -370,6 +453,12 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
       () => route.query.tab,
       () => route.query.view,
       () => route.query.settings,
+      () => route.query.photo,
+      () => route.query.smartview,
+      () => route.query.place,
+      // spot 是 place 的附属键,但仍要单独 watch —— 只改 spot(place 不变)是真实的用户
+      // 操作(整城 ↔ 某个 spot),漏了它这种改动在 query-only 路径下毫无反应。
+      () => route.query.spot,
     ],
     () => {
       dispatchQueryChange(route.query)

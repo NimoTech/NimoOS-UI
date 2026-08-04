@@ -44,6 +44,9 @@ const svc = vi.hoisted(() => ({
     recordView: vi.fn().mockResolvedValue(undefined),
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     listPersons: vi.fn().mockResolvedValue({ persons: [] }),
+    // P8b:?smartview 走 usePhotosSmartViews().fetchSmartViews();?place 走 getPlace()。
+    listSmartViews: vi.fn().mockResolvedValue([]),
+    getPlace: vi.fn().mockResolvedValue({ city: '', spots: [] }),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -124,6 +127,10 @@ beforeEach(() => {
   svc.photos.listFavoriteIds.mockClear()
   svc.photos.listPersons.mockReset()
   svc.photos.listPersons.mockResolvedValue({ persons: [] })
+  svc.photos.listSmartViews.mockReset()
+  svc.photos.listSmartViews.mockResolvedValue([])
+  svc.photos.getPlace.mockReset()
+  svc.photos.getPlace.mockResolvedValue({ city: '', spots: [] })
   localStorage.clear()
   lb.__resetForTest()
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -616,5 +623,157 @@ describe('usePhotosDeepLinks · P8b 三键的 query-only 路径', () => {
     await router.push({ path: '/photos', query: { tab: 'video', foo: 'bar' } })
     await flushPromises()
     expect(setTab).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P8b 第二批:异步三键(?photo / ?smartview / ?place+?spot)。这三个都要先问后端/store
+// 才能决定去哪,失败一律**静默**(清键、留在原地),与 ?asset 的分享语义不同。
+// 回源 Vue2 PhotosTimeline.vue:504-506 + :556-571(photo)、:527-554(place/spot)、
+// PhotosSmartViewsView.vue:337-348(smartview)。
+// ═══════════════════════════════════════════════════════════════════════════
+describe('usePhotosDeepLinks · ?photo(状态回显,静默语义)', () => {
+  it('取到明细:单张成集开灯箱(与 ?asset 同形态)', async () => {
+    await mountWithQuery({ photo: 'a1' }, { a1: { id: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    expect(lb.current.value?.id).toBe('a1')
+    expect(lb.list.value).toHaveLength(1)
+  })
+
+  it('取不到明细:不弹 toast(与 ?asset 的分享语义不同)、清掉该键', async () => {
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const { router } = await mountWithQuery({ photo: 'gone' }, {})
+    await flushPromises()
+    expect(lb.open.value).toBe(false)
+    expect(showSpy).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.query.photo).toBeUndefined()
+  })
+
+  it('?asset 同时在场时让位给 asset(Vue2 :504 的互斥门槛)', async () => {
+    await mountWithQuery({ photo: 'a1', asset: 'a2' }, { a1: { id: 'a1' }, a2: { id: 'a2' } })
+    await flushPromises()
+    expect(lb.current.value?.id).toBe('a2')
+  })
+
+  it('?photoset 同时在场时也让位(同一条互斥门槛)', async () => {
+    localStorage.setItem('nimo:photoset:tok', JSON.stringify({ ids: ['b'] }))
+    await mountWithQuery({ photo: 'a1', photoset: 'tok' }, { a1: { id: 'a1' }, b: { id: 'b' } })
+    await flushPromises()
+    expect(lb.current.value?.id).toBe('b')
+  })
+})
+
+describe('usePhotosDeepLinks · ?smartview', () => {
+  it('存在:跳智能视图详情路由', async () => {
+    svc.photos.listSmartViews.mockResolvedValueOnce([{ id: 7, name: 'x' }])
+    const { router } = await mountWithQuery({ smartview: '7' })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-smart-view-detail')
+    expect(router.currentRoute.value.params.id).toBe('7')
+  })
+
+  it('不存在:静默清键、留在时间线', async () => {
+    svc.photos.listSmartViews.mockResolvedValueOnce([{ id: 7, name: 'x' }])
+    const { router } = await mountWithQuery({ smartview: '999' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+    expect(router.currentRoute.value.query.smartview).toBeUndefined()
+  })
+
+  // 与 ?person 同一条全区铁律:后端 id 可能是数字,query 值恒为字符串。
+  it('id 比较走 String 归一——后端返数字 id 也认', async () => {
+    svc.photos.listSmartViews.mockResolvedValueOnce([{ id: 42, name: 'x' }])
+    const { router } = await mountWithQuery({ smartview: '42' })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-smart-view-detail')
+  })
+})
+
+describe('usePhotosDeepLinks · ?place(+?spot)', () => {
+  it('有 city 且 spot 命中:跳地点详情并带 spot query', async () => {
+    svc.photos.getPlace.mockResolvedValueOnce({ city: '杭州', spots: [{ key: 's1', name: '西湖' }] })
+    const { router } = await mountWithQuery({ place: 'p1', spot: 's1' })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-place-assets')
+    expect(router.currentRoute.value.params.key).toBe('p1')
+    expect(router.currentRoute.value.query.spot).toBe('s1')
+  })
+
+  it('只有 ?place:跳地点详情、不带 spot(整城)', async () => {
+    svc.photos.getPlace.mockResolvedValueOnce({ city: '杭州', spots: [{ key: 's1' }] })
+    const { router } = await mountWithQuery({ place: 'p1' })
+    await flushPromises()
+    expect(router.currentRoute.value.params.key).toBe('p1')
+    expect(router.currentRoute.value.query.spot).toBeUndefined()
+  })
+
+  it('?spot 在详情的 spots[] 里找不到:降级整城过滤(仍进该地点、只丢 spot)', async () => {
+    svc.photos.getPlace.mockResolvedValueOnce({ city: '杭州', spots: [] })
+    const { router } = await mountWithQuery({ place: 'p1', spot: 'nope' })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-place-assets')
+    expect(router.currentRoute.value.params.key).toBe('p1')
+    expect(router.currentRoute.value.query.spot).toBeUndefined()
+  })
+
+  it('取不到 city:静默清掉 place 与 spot 两个键、留在时间线', async () => {
+    svc.photos.getPlace.mockResolvedValueOnce({ city: '', spots: [] })
+    const { router } = await mountWithQuery({ place: 'p1', spot: 's1' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+    expect(router.currentRoute.value.query.place).toBeUndefined()
+    expect(router.currentRoute.value.query.spot).toBeUndefined()
+  })
+
+  it('请求抛错:同样静默清两键(Vue2 :551-553 的 catch)', async () => {
+    svc.photos.getPlace.mockRejectedValueOnce(new Error('boom'))
+    const { router } = await mountWithQuery({ place: 'p1', spot: 's1' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+    expect(router.currentRoute.value.query.place).toBeUndefined()
+  })
+
+  it('spot key 比较走 String 归一(Place.Key 后端是 int32)', async () => {
+    svc.photos.getPlace.mockResolvedValueOnce({ city: '杭州', spots: [{ key: 12 }] })
+    const { router } = await mountWithQuery({ place: 'p1', spot: '12' })
+    await flushPromises()
+    expect(router.currentRoute.value.query.spot).toBe('12')
+  })
+})
+
+describe('usePhotosDeepLinks · 异步三键的 query-only 路径', () => {
+  it('已停留在 /photos 后手改 ?smartview 也生效', async () => {
+    svc.photos.listSmartViews.mockResolvedValue([{ id: 7 }])
+    const { router } = await mountWithQuery({})
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos')
+
+    await router.push({ path: '/photos', query: { smartview: '7' } })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('photos-smart-view-detail')
+  })
+
+  it('已停留在 /photos 后手改 ?photo 也生效', async () => {
+    const { router } = await mountWithQuery({}, { a1: { id: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(false)
+
+    await router.push({ path: '/photos', query: { photo: 'a1' } })
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    expect(lb.current.value?.id).toBe('a1')
+  })
+
+  it('只改 ?spot(place 值没变)也重新落地——spot 是 place 的附属键', async () => {
+    svc.photos.getPlace.mockResolvedValue({ city: '杭州', spots: [{ key: 's1' }, { key: 's2' }] })
+    const { router } = await mountWithQuery({ place: 'p1', spot: 's1' })
+    await flushPromises()
+    expect(router.currentRoute.value.query.spot).toBe('s1')
+
+    await router.push({ path: '/photos', query: { place: 'p1', spot: 's2' } })
+    await flushPromises()
+    expect(router.currentRoute.value.query.spot).toBe('s2')
   })
 })
