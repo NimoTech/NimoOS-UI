@@ -629,7 +629,9 @@ function onTileClick(p: Photo): void {
 </template>
 
 <style scoped>
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
+   出处见 src/views/Photos.vue 同一规则处的注释。 */
+.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 /* ── 骨架(New-UI 新增)── */

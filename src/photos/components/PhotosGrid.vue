@@ -358,7 +358,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .photos-grid-root { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 68px; }
+/* scrollbar-width:none —— 补 Vue2 契约:photos.scss:103 `.photos-root, .photos-root *
+   { scrollbar-width: none; -ms-overflow-style: none; }` + :301 `.photos-wrap::-webkit-scrollbar
+   { width: 0 }`,Vue2 里照片区滚动条一律不可见,滚动的操作感由右侧月份刻度尺承担。
+   本仓 theme.css:4-16 有全局 10px 半透明滚动条,而 `.scrubber` 是 right:0 的 56px 浮层、
+   刻度文字贴在 right:6px —— 不隐藏就会让滚动条正好压在刻度文字上。
+   (PhotosSearchGrid.vue:126-127 的 `.photos-wrap` 早已这么写,两个网格组件从此一致。) */
+.photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 68px; scrollbar-width: none; }
+.photos-wrap::-webkit-scrollbar { display: none; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }

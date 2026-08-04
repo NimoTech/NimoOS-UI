@@ -258,7 +258,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+/* height(不是 min-height)—— 这一屏封顶,页面本身不滚,只有内层滚动容器滚。
+   照 Vue2 NimoOS-UI src/views/Photos/photos.scss:109 `.app { height: 100vh; overflow: hidden }`
+   + :295-300 `.content { flex:1; min-height:0; overflow:hidden }` / `.photos-wrap { overflow-y:auto }`。
+   移植期误写成 min-height:100%(至少一屏、可无限长高)→ 照片区把整页撑高,侧栏与右侧
+   月份刻度尺跟着照片一起滚走:实测 785 张时侧栏「设置」按钮落在距页顶 83580px 处、
+   刻度尺被拉成 83508px 高(刻度全挤在最顶端,滚下去就点不到)。P8a 验收轮 2 缺陷,
+   全相册区 11 页同源(同一行复制粘贴),逐页同改;反向回归闸见
+   src/views/__tests__/photosLayoutHeightCap.test.ts。 */
+.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .photos-loading { color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 20px 0; }
 .photos-summary { color: var(--fg-muted); font-size: 13px; padding: 4px 4px 0; }
