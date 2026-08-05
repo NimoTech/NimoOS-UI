@@ -224,7 +224,10 @@ describe('类 3 · 设置与 Service 侧补丁', () => {
 })
 
 describe('类 3 · i18n 与主题 token', () => {
-  const LOCALES = ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts', 'src/i18n/zh_cn.sp9.ts', 'src/i18n/en_us.sp9.ts']
+  // 2026-08-05(SP7-P8b):主文件改名 *.base.ts —— 原 zh_cn.ts/en_us.ts 现在是 3 行合并出口
+  // (import base + import photos + 一行展开),相册那 702 键整块进了 *.photos.ts、由 DELETE 表
+  // 删掉。故"键在不在"这类断言一律取 *.base.ts;出口本身没有键定义,另有专项断言(见下)。
+  const LOCALES = ['src/i18n/zh_cn.base.ts', 'src/i18n/en_us.base.ts', 'src/i18n/zh_cn.sp9.ts', 'src/i18n/en_us.sp9.ts']
 
   it('四个 locale 里 AI/相册/搜索/转录/文件夹权限的键全没了', () => {
     const DEAD = [
@@ -265,16 +268,50 @@ describe('类 3 · i18n 与主题 token', () => {
   })
 
   it('播放器控件键与商店筛选键保留', () => {
-    for (const f of ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts']) {
+    for (const f of ['src/i18n/zh_cn.base.ts', 'src/i18n/en_us.base.ts']) {
       for (const k of ['audioSkipBack', 'audioSkipForward', 'audioSpeed', 'appsStoreSearch']) {
         expect(read(f), `${f} :: ${k}`).toContain(`${k}:`)
       }
     }
   })
 
+  // SP7-P8b:相册文案的剥离方式是"删分片文件 + 摘出口那一行",两边都要钉。
+  it('相册文案分片不在产物里,且出口已摘掉 photos 那一路', () => {
+    expect(exists('src/i18n/zh_cn.photos.ts')).toBe(false)
+    expect(exists('src/i18n/en_us.photos.ts')).toBe(false)
+    for (const f of ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts']) {
+      const src = read(f)
+      expect(src, `${f} 还 import 着已删的分片`).not.toContain('.photos')
+      expect(src, `${f} 的展开里还留着 photos`).not.toContain('...photos')
+      // 出口仍必须是有效的合并(只剩 base 一路)
+      expect(src).toContain('...base')
+    }
+  })
+
+  it('产物里没有任何 /photos 路由与相册视图', () => {
+    const router = read('src/router/index.ts')
+    expect(router).not.toMatch(/\/photos/)
+    expect(router).not.toMatch(/Photos/)
+    for (const rel of ['src/photos', 'src/views/Photos.vue', 'src/views/PhotosSettings.vue',
+      'src/views/__tests__/PhotosAlbums.test.ts']) {
+      expect(exists(rel), rel).toBe(false)
+    }
+  })
+
+  it('theme.css 里相册专用 token 组已删净(深浅两套都查)', () => {
+    const css = read('src/styles/theme.css')
+    for (const t of ['--photos-seg-video', '--photos-seg-raw', '--photos-seg-ai', '--photos-seg-other',
+      '--badge-photo', '--badge-video', '--badge-ocr', '--album-cover-fallback', '--avatar-fallback',
+      '--place-row-bg', '--pin-bg', '--pin-cluster-stroke', '--place-current-trip', '--place-home-base',
+      '--map-dot-bg-fallback', '--float-bg', '--zb-hover-bg', '--zb-track-bg', '--zb-thumb-shadow',
+      '--warn-fg', '--warn-bg', '--warn-border']) {
+      expect(css, `theme.css 残留 ${t}`).not.toContain(`${t}:`)
+    }
+  })
+
   it('zh_cn 与 en_us 键数仍然相等(parity 的前置)', () => {
     const keys = (f) => (read(f).match(/^\s{2}[a-zA-Z][a-zA-Z0-9]*:/gm) || []).length
-    expect(keys('src/i18n/zh_cn.ts')).toBe(keys('src/i18n/en_us.ts'))
+    expect(keys('src/i18n/zh_cn.base.ts')).toBe(keys('src/i18n/en_us.base.ts'))
     expect(keys('src/i18n/zh_cn.sp9.ts')).toBe(keys('src/i18n/en_us.sp9.ts'))
   })
 

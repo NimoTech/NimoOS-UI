@@ -155,10 +155,13 @@ export const SOFT = [
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(restore).toHaveBeenCalledWith({ volume_uuid: 'u-data', snapshot: 'snap1', path: 'Photos/a.jpg' })") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(r).toEqual({ ok: true, restoredPath: '/DATA/Photos/a.jpg.restored-1' })") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("item: { path: '/DATA/Photos/a.jpg' }, info: INFO, listVolumes: async () => VOLS, restore: async () => ({}),") },
-      // en_us.ts / raidLevels.ts:raidLevel1Usecase 的英文原文,zh_cn.ts 的中文孪生值
+      // en_us.base.ts / raidLevels.ts:raidLevel1Usecase 的英文原文,zh_cn.base.ts 的中文孪生值
+      // (2026-08-05 SP7-P8b:两个 locale 主文件已改名 *.base.ts —— 内容原地未动,只是
+      //  多了 3 行合并出口 zh_cn.ts/en_us.ts。下面所有 locale 例外的 file 正则跟着改名,
+      //  **词表一个字没放宽**,匹配的还是同样那几行。)
       // (照片库、个人 NAS、启动卷)已经是既有白名单 —— 这是同一条 RAID 用途说明的英文侧,
       // 与相册 app 无关(brief 指定保留面)。
-      { file: /src\/i18n\/en_us\.ts$/, re: exactLine("raidLevel1Usecase: 'Photo library, personal NAS, boot volumes',") },
+      { file: /src\/i18n\/en_us\.base\.ts$/, re: exactLine("raidLevel1Usecase: 'Photo library, personal NAS, boot volumes',") },
       { file: /src\/storage\/util\/raidLevels\.ts$/, re: exactLine("usecase: 'Photo library, personal NAS, boot volumes',") },
       // avatar.test.ts:'photo.WEBP' 是头像上传扩展名判断的通用示例文件名。
       { file: /src\/settings\/util\/avatar\.test\.ts$/, re: exactLine("expect(isAllowedImageFile('photo.WEBP', 'application/octet-stream')).toBe(true)") },
@@ -207,7 +210,8 @@ export const SOFT = [
     re: /search/i,
     allow: [
       { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
-      { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /appsStoreSearch/ },
+      // 2026-08-05(SP7-P8b):两个 locale 主文件改名 *.base.ts,路径跟着改。
+      { file: /src\/i18n\/(zh_cn|en_us)\.base\.ts$/, re: /appsStoreSearch/ },
       // composeSettings.ts:'DAC_READ_SEARCH' 是 Linux capability 常量名(compose
       // cap_add/cap_drop 白名单的一项),与搜索功能无关。
       { file: /src\/apps\/util\/composeSettings\.ts$/, re: exactLine("'DAC_READ_SEARCH',") },
@@ -278,9 +282,9 @@ export const SOFT = [
       // RaidDetailPanel.vue/raidUtils.js"),是文档意义上的"抄录/转写",
       // 与音频转录(AI)功能无关。已用 grep 核实:这三行是本仓 转录 出现
       // 在 zh_cn.ts 里唯二不属于 audio* 转录键的地方。逐行精确匹配,不是关键词。
-      { file: /src\/i18n\/zh_cn\.ts$/, re: exactLine('// 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)') },
-      { file: /src\/i18n\/zh_cn\.ts$/, re: exactLine('// read/write 为该表原始 1-5 评分(5、4),转录为评分文本。') },
-      { file: /src\/i18n\/zh_cn\.ts$/, re: exactLine("// desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)") },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine('// 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)') },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine('// read/write 为该表原始 1-5 评分(5、4),转录为评分文本。') },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("// desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)") },
     ],
   },
   {
@@ -289,7 +293,7 @@ export const SOFT = [
     allow: [
       // raidLevel1Usecase:RAID 用途说明("照片库、个人 NAS、启动卷"),与相册 app 无关
       // (brief 指定保留面)。锚定整行(键名+值),不是只锚键名 —— 见上方复审 Critical 的复现证据。
-      { file: /src\/i18n\/zh_cn\.ts$/, re: exactLine("raidLevel1Usecase: '照片库、个人 NAS、启动卷',") },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("raidLevel1Usecase: '照片库、个人 NAS、启动卷',") },
       // ImageViewer 是通用图片文件查看器(Files 区),"照片"在这里是"图片内容"的泛称,
       // 不是被剥离的 Photos 相册 app。--media-overlay-shadow 同一 token 只被这里消费(已 grep 核实)。
       { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */') },
@@ -301,7 +305,7 @@ export const SOFT = [
     re: /搜索/,
     allow: [
       // appsStoreSearch:应用商店筛选框(brief 指定保留面),与 NimoOS-Search 服务无关。锚定整行。
-      { file: /src\/i18n\/zh_cn\.ts$/, re: exactLine("appsStoreSearch: '搜索应用…',") },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("appsStoreSearch: '搜索应用…',") },
       // StorePage 这三行注释是"应用商店按关键字过滤"语义,与 AI 语义搜索无关。逐行精确匹配,
       // 不是给整个文件的"搜索"二字开洞 —— 见上方复审 Critical 的复现证据。
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框') },

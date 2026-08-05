@@ -1,6 +1,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+// 2026-08-05(SP7-P8b):两个 locale 主文件改名 *.base.ts(内容原地未动,只是多了 3 行合并
+// 出口 zh_cn.ts/en_us.ts,好让开源侧能整体删掉相册文案分片)。本文件所有取样路径与
+// forbidden.mjs 的白名单路径一起改名 —— **词表与白名单的内容一个字没动**。
 import { describe, it, expect } from 'vitest'
 import { scanText, scanTree, isExpectedSkip, SKIP_REASON_SYMLINK, SKIP_REASON_BINARY } from './forbidden.mjs'
 
@@ -109,7 +112,7 @@ describe('软禁词的精确白名单', () => {
   // 键名本身就是禁词",这套设计显式依赖守卫能按键名抓到 Ai 这种首字母大写、第二个字母
   // 小写的驼峰(不是全大写 AI)。原规则的 alt2 只认全大写 AI,漏掉了本仓真实存在的
   // widgetAiSend / pathFromAiPattern / askNimoAi 等 i18n 键与函数名。以下全部用真实文件
-  // 里的原样文本(逐字摘自 src/i18n/zh_cn.ts:258-259、en_us.ts:259-260、
+  // 里的原样文本(逐字摘自 src/i18n/zh_cn.base.ts:258-259、en_us.ts:259-260、
   // FolderPermissionsPanel.vue:146、folderPermissions.test.ts:29-30、SearchDialog.vue:265),
   // 不是自己编的简化版。
   it('驼峰词尾的 Ai(首字母大写、第二字母小写)必须命中,真实机场/航空类词不能被误伤', () => {
@@ -151,11 +154,11 @@ describe('中文痕迹必须命中(T6.5 新增)', () => {
 
   it('转录 / 说话人 / 知识库 / 向量化 / 问 Nimo 一律命中', () => {
     for (const [file, text] of [
-      // 逐字摘自 src/i18n/zh_cn.ts:37-41
-      ['src/i18n/zh_cn.ts', "  audioTranscript: '转录文稿',"],
-      ['src/i18n/zh_cn.ts', "  audioAsk: '问 Nimo',"],
-      ['src/i18n/zh_cn.ts', "  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',"],
-      ['src/i18n/zh_cn.ts', "  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',"],
+      // 逐字摘自 src/i18n/zh_cn.base.ts:37-41
+      ['src/i18n/zh_cn.base.ts', "  audioTranscript: '转录文稿',"],
+      ['src/i18n/zh_cn.base.ts', "  audioAsk: '问 Nimo',"],
+      ['src/i18n/zh_cn.base.ts', "  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',"],
+      ['src/i18n/zh_cn.base.ts', "  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',"],
       // 逐字摘自 src/i18n/zh_cn.sp9.ts:252-253
       ["src/i18n/zh_cn.sp9.ts", "  settingsFpKnowledge: '知识库',"],
       ["src/i18n/zh_cn.sp9.ts", "  settingsFpKnowledgeDesc: '纳入知识库(RAG)索引的文件夹。',"],
@@ -167,17 +170,17 @@ describe('中文痕迹必须命中(T6.5 新增)', () => {
   })
 
   it('智能 命中(候选软禁词,当前全仓无白名单)', () => {
-    // 逐字摘自 src/i18n/zh_cn.ts:235
-    expect(scanText('src/i18n/zh_cn.ts', "  widgetAiDesc: '对话与智能建议',").length).toBeGreaterThan(0)
+    // 逐字摘自 src/i18n/zh_cn.base.ts:235
+    expect(scanText('src/i18n/zh_cn.base.ts', "  widgetAiDesc: '对话与智能建议',").length).toBeGreaterThan(0)
   })
 })
 
 describe('合法中文用法零误报(T6.5 新增)', () => {
   it('appsStoreSearch / raidLevel1Usecase / CSS 语义 token 注释都不命中', () => {
     const keep = [
-      // brief 指定的保留面,逐字摘自 src/i18n/zh_cn.ts:392、:700
-      ['src/i18n/zh_cn.ts', "  appsStoreSearch: '搜索应用…',"],
-      ['src/i18n/zh_cn.ts', "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',"],
+      // brief 指定的保留面,逐字摘自 src/i18n/zh_cn.base.ts:392、:700
+      ['src/i18n/zh_cn.base.ts', "  appsStoreSearch: '搜索应用…',"],
+      ['src/i18n/zh_cn.base.ts', "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',"],
       // 「语义」不收单字词:CSS 设计系统里的"语义"用语与 AI 语义搜索无关。
       // 逐字摘自 src/styles/theme.css:79/298(P6 终端语义色,与 AI 无关)。
       ['src/styles/theme.css', '  /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */'],
@@ -188,17 +191,17 @@ describe('合法中文用法零误报(T6.5 新增)', () => {
   })
 
   it('转录 的白名单是精确到内容的:RAID 文案来源说明不命中,同文件里真正的音频转录键仍命中', () => {
-    // 逐字摘自 src/i18n/zh_cn.ts:663/678/682
+    // 逐字摘自 src/i18n/zh_cn.base.ts:663/678/682
     const raidDocs = [
       '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
       '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。',
       "  // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)",
     ]
     for (const text of raidDocs) {
-      expect(scanText('src/i18n/zh_cn.ts', text), text).toEqual([])
+      expect(scanText('src/i18n/zh_cn.base.ts', text), text).toEqual([])
     }
     // 白名单按内容精确匹配,不是给整个文件开洞:同一文件里真正的音频转录键必须继续命中。
-    expect(scanText('src/i18n/zh_cn.ts', "  audioTranscript: '转录文稿',").length).toBeGreaterThan(0)
+    expect(scanText('src/i18n/zh_cn.base.ts', "  audioTranscript: '转录文稿',").length).toBeGreaterThan(0)
   })
 
   it('照片 的白名单:ImageViewer(通用图片查看器)与 --media-overlay-shadow 注释不命中', () => {
@@ -230,9 +233,9 @@ describe('复审修复:白名单收紧为整行精确匹配,不给整行/整文�
     // 构造样本:在合法值后面追加一段可信的 AI 向量检索描述,刻意避开「向量化」
     // 「语义搜索」「相册」的精确串——专门用来验证"整行精确匹配"而不是"关键词碰运气"。
     const adversarial = "  raidLevel1Usecase: '照片库、个人 NAS、启动卷(这里的照片会自动生成向量做相似检索)',"
-    expect(scanText('src/i18n/zh_cn.ts', adversarial).length, adversarial).toBeGreaterThan(0)
+    expect(scanText('src/i18n/zh_cn.base.ts', adversarial).length, adversarial).toBeGreaterThan(0)
     // 合法原文继续不受影响
-    expect(scanText('src/i18n/zh_cn.ts', "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',")).toEqual([])
+    expect(scanText('src/i18n/zh_cn.base.ts', "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',")).toEqual([])
   })
 
   it('StorePage.vue 注释被追加真实泄漏后必须命中(构造样本,复现评审 Critical)', () => {
@@ -246,16 +249,16 @@ describe('复审修复:白名单收紧为整行精确匹配,不给整行/整文�
   it('转录/照片/搜索 全部 13 条白名单逐条自查:合法原文不误报,同一行追加泄漏后必须命中', () => {
     // 每条 [文件, 合法原文(逐字摘自源码), 追加泄漏后的构造样本]。
     const rows = [
-      ['src/i18n/zh_cn.ts',
+      ['src/i18n/zh_cn.base.ts',
         '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
         '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)(顺带把这段转录接入向量化知识库)'],
-      ['src/i18n/zh_cn.ts',
+      ['src/i18n/zh_cn.base.ts',
         '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。',
         '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。(顺带做语义搜索索引)'],
-      ['src/i18n/zh_cn.ts',
+      ['src/i18n/zh_cn.base.ts',
         "  // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)",
         "  // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明,后续接入知识库)"],
-      ['src/i18n/zh_cn.ts',
+      ['src/i18n/zh_cn.base.ts',
         "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',",
         "  raidLevel1Usecase: '照片库、个人 NAS、启动卷(这里的照片会自动生成向量做相似检索)',"],
       ['src/files/viewers/ImageViewer.vue',
@@ -264,7 +267,7 @@ describe('复审修复:白名单收紧为整行精确匹配,不给整行/整文�
       ['src/styles/theme.css',
         '  /* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,',
         '  /* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,顺带给 AI 相册用,'],
-      ['src/i18n/zh_cn.ts',
+      ['src/i18n/zh_cn.base.ts',
         "  appsStoreSearch: '搜索应用…',",
         "  appsStoreSearch: '搜索应用…(基于语义搜索的应用推荐)',"],
       ['src/apps/views/StorePage.vue',

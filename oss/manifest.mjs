@@ -64,6 +64,54 @@ export const DELETE = [
   //    这正是 tree.test.mjs 末尾那道"产物树能构建"门存在的理由。
   'src/home/search',
 
+  // ═══ SP7-P8b 合流(2026-08-05):相册区整块不进开源版 ═══════════════════════
+  // 本表开篇那条"两支合流后必须为 src/photos/** 扩张"的备注,兑现的就是这一段。
+  // 相册面 = 一个域目录 + 13 个视图 + 16 个视图测试 + 2 个 i18n 分片 + 1 道分片守卫。
+  // ⚠️ 逐条列、不用通配:DELETE 路径不存在即 exit 1,清单过期时要能立刻知道
+  //    (2026-08-05 清点结果:`ls src/views | grep -i photo` = 13、
+  //     `ls src/views/__tests__ | grep -i photo` = 16)。
+  'src/photos',                                   // 组件/store/composable/灯箱/util 全区
+  // i18n 分片:702 个 photos* 键。它们当初就是为了能在这里一行删掉才从主文件拆出来的
+  // (拆之前散在 90 多个区段,剥它们要约 90 条锚点补丁 × 2 语言,改一条文案就打红导出)。
+  'src/i18n/zh_cn.photos.ts',
+  'src/i18n/en_us.photos.ts',
+  'src/i18n/__tests__/photosSlice.test.ts',       // 守的是分片本身,分片没了它就无意义
+  // 这两份是**纯相册键**的 i18n 守卫(P8a 的 71 键清单 / P5 人物键抽样),分片删掉之后
+  // 它们断言的键一个都不存在,留着必红。
+  'src/i18n/__tests__/p8aKeys.test.ts',
+  'src/i18n/__tests__/people.i18n.test.ts',
+  // 13 个视图
+  'src/views/Photos.vue',
+  'src/views/PhotosAlbumDetail.vue',
+  'src/views/PhotosAlbums.vue',
+  'src/views/PhotosFavorites.vue',
+  'src/views/PhotosPeople.vue',
+  'src/views/PhotosPersonDetail.vue',
+  'src/views/PhotosPlaceAssets.vue',
+  'src/views/PhotosPlaces.vue',
+  'src/views/PhotosSearch.vue',
+  'src/views/PhotosSettings.vue',
+  'src/views/PhotosSmartViewDetail.vue',
+  'src/views/PhotosSmartViews.vue',
+  'src/views/PhotosTrash.vue',
+  // 16 个视图测试
+  'src/views/__tests__/Photos.integration.test.ts',
+  'src/views/__tests__/Photos.lightbox.test.ts',
+  'src/views/__tests__/Photos.route.test.ts',
+  'src/views/__tests__/PhotosAlbumDetail.test.ts',
+  'src/views/__tests__/PhotosAlbums.test.ts',
+  'src/views/__tests__/PhotosFavorites.test.ts',
+  'src/views/__tests__/photosLayoutHeightCap.test.ts',
+  'src/views/__tests__/PhotosPeople.test.ts',
+  'src/views/__tests__/PhotosPersonDetail.test.ts',
+  'src/views/__tests__/PhotosPlaceAssets.test.ts',
+  'src/views/__tests__/PhotosPlaces.test.ts',
+  'src/views/__tests__/PhotosSearch.test.ts',
+  'src/views/__tests__/PhotosSettings.test.ts',
+  'src/views/__tests__/PhotosSmartViewDetail.test.ts',
+  'src/views/__tests__/PhotosSmartViews.test.ts',
+  'src/views/__tests__/PhotosTrash.test.ts',
+
   // (搜索 demo 的鱼 public/demo/fish_video_poster.jpg 已于终审 cleanup 批从私有仓
   //  直接删除 —— 它在私有版也是零引用的孤儿,不必再由本清单剥离。DELETE 条目路径
   //  不存在会 exit 1,所以这条必须一并撤掉。)
@@ -86,6 +134,15 @@ export const DELETE = [
 export const SERVICE_DELETE = [
   'src/photos.ts',
   'src/photos.test.ts',
+  // SP7-P8b 合流(2026-08-05):P0 把 photos 域从 4 个方法扩到 60+,测试也跟着按子域拆成
+  // 6 个文件。旧清单只列了 photos.test.ts,这 6 个是新增的 —— 漏了它们,内嵌共享包里会
+  // 留下整套相册接口测试(泄漏守卫实测命中 303 处,过半出自这里)。
+  'src/photos.albums.test.ts',
+  'src/photos.favorites.test.ts',
+  'src/photos.persons.test.ts',
+  'src/photos.places.test.ts',
+  'src/photos.uploads.test.ts',
+  'src/photos.views.test.ts',
   // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,
   // 唯一消费方是已删的 SearchDialog.vue / src/home/search/**。
   // 光删这两个文件不够 —— index.ts 里还有三处接线(见下方 SERVICE_PATCH),
@@ -142,8 +199,11 @@ export const PATCH = [
 
   // ── useOpenAction.ts:SYS_ROUTE 拍成内部路由(§8.2 的有意偏离)──────────
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)与存储区(/storage,SP6-P1)已活在本应用;
-// 其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+    find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)与相册区
+// (/photos,SP7-P8b)已活在本应用;其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+// photos 这条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它,所以它是"回退目标"
+// 而不是"主路径";这也是它与 appstore/storage 的区别(那两个在 Vue2 侧是模态弹窗、没有
+// 自己的路由,回退只能落 /#/legacy 老桌面,故表里从来就没有它们的条目)。
 // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
 const SYS_ROUTE: Record<string, string> = {
   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
@@ -158,7 +218,8 @@ const SYS_ROUTE: Record<string, string> = {
     find: `// 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
 // == '1' 时磁贴退回 Vue2 /#/legacy 老桌面,可逆 cutover。
 // /apps = SP5-P8;/storage = SP6-P6(Vue2 桌面那三个存储入口共用同一把键,
-// 同源共享 localStorage,所以置一次即两侧同时回退)。
+// 同源共享 localStorage,所以置一次即两侧同时回退);/photos = SP7-P8b(与 Vue2
+// strangler.js 的 migratedRoutes 里那条 /photos 共用同一把键,同理置一次两侧同时回退)。
 function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
@@ -166,6 +227,7 @@ function cutoverDisabled(from: string): boolean {
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
+      if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
     replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
@@ -173,7 +235,13 @@ function cutoverDisabled(from: string): boolean {
       router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `    else if (it.kind === 'photo') window.location.href = '/#/photos'
+    find: `    // 桌面照片磁贴:cutover 后进应用内时间线。刻意不带 asset —— Vue2 这里也只是跳
+    // /#/photos、不定位到具体某张(桌面磁贴的 key 是渐变色字符串,不是资产 id),
+    // 界面 1:1 就该保持"点进相册首页"。flag 置 1 时退回 Vue2 老相册。
+    else if (it.kind === 'photo') {
+      if (cutoverDisabled('/photos')) window.location.href = '/#/photos'
+      else router.push('/photos')
+    }
     else if (it.kind === 'widget' && it.key === 'ai') window.location.href = '/#/ai/agent'
   }
 
@@ -397,64 +465,603 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
   // ═══════════════════ T8:i18n 四个 locale + theme.css ═══════════════════
 
-  // ── src/i18n/zh_cn.ts(主分片,8 处锚点,共 44 键)──────────────────────
+  // ── src/i18n/zh_cn.base.ts(全区文案基座,8 处锚点,共 44 键)────────────────
+  //    2026-08-05(SP7-P8b):原 zh_cn.ts 已改名 base、并新增 3 行合并出口 zh_cn.ts,
+  //    锚点路径跟着改。相册那 702 键不在这里剥 —— 它们整块进了 zh_cn.photos.ts,
+  //    由 DELETE 表整体删掉(见类 1),这也是当初拆分片的目的。
   // 11 个 audio 转录键(brief 漏登记的部分;audioSkipBack/Forward/Speed 播放器控件保留)
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  audioSummary: '摘要',\n  audioTranscript: '转录文稿',\n  audioAsk: '问 Nimo',\n  audioAskPlaceholder: '关于这段音频，尽管问…',\n  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',\n  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',\n  audioHighlightsOnly: '只看重点',\n  audioShowAll: '显示全部',\n  audioSpeakerAll: '全部',\n  audioChapters: '章节',\n  audioAllChapters: '全部章节',\n",
     replace: "" },
   // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n",
     replace: "" },
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  widgetAiTitle: 'AI 助手',\n  widgetAiDesc: '对话与智能建议',\n",
     replace: "" },
   // widgetAi* 其余 7 键:AiWidget.vue 已整体删除(DELETE 表),全部孤儿
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  widgetAiGreetShort: '晚上好',\n  widgetAiGreet: '晚上好，有什么可以帮你？',\n  widgetAiPlaceholder: '发消息给 AI 助手…',\n  widgetAiSend: '发送',\n  widgetAiPrompt1: '整理最近的照片',\n  widgetAiPrompt2: '查找 2024 旅行视频',\n  widgetAiPrompt3: '分析存储使用情况',\n",
     replace: "" },
   // addPanelTabPhoto:T11 删 AddPanel 照片 tab 后的孤儿键,此处先清 i18n 侧
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  addPanelTabPhoto: '照片',\n",
     replace: "" },
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  addPanelNoPhotos: '暂无照片',\n",
     replace: "" },
   // topbarSearch(Kbd):HomeTopbar.vue 搜索胶囊按钮已在 T6 删除
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  topbarSearch: '搜索',\n  topbarSearchKbd: '搜索 (⌘K)',\n",
     replace: "" },
   // "主页:搜索面板"整节 18 键:SearchDialog.vue 已整体删除(DELETE 表)
-  { path: 'src/i18n/zh_cn.ts',
+  { path: 'src/i18n/zh_cn.base.ts',
     find: "  // ── 主页:搜索面板 ──\n  searchPlaceholder: '你在找什么?',\n  searchClose: '关闭',\n  searchSearching: '搜索中…',\n  searchResultsCount: '{count} 条结果',\n  searchOpenAlbum: '打开相册 ›',\n  searchAlbumMatches: '在 AI 相册找到 {count} 个匹配(图片 / 视频)',\n  searchOpenFolder: '打开文件夹 ›',\n  searchOpenFolderTitle: '在文件中打开此文件夹',\n  searchAskTitle: '向 Nimo AI 询问「{query}」',\n  searchAskSub: '把它发送给 AI 助手,获得基于你文件的回答',\n  searchAskGo: '询问 ›',\n  searchAskButton: 'Ask Nimo',\n  searchHint: '输入关键词并回车,搜索图片、文档、视频、音频与设置',\n  searchTabAll: '全部结果',\n  searchTabDocuments: '文档',\n  searchTabImages: '图片',\n  searchTabAudio: '音频',\n  searchTabVideos: '视频',\n",
     replace: "" },
 
-  // ── src/i18n/en_us.ts(与上面 8 条逐条成对,parity.test.ts 的前置)────────
-  { path: 'src/i18n/en_us.ts',
+  // ── src/i18n/en_us.base.ts(与上面 8 条逐条成对,parity.test.ts 的前置)──────
+  { path: 'src/i18n/en_us.base.ts',
     find: "  audioSummary: 'Summary',\n  audioTranscript: 'Transcript',\n  audioAsk: 'Ask Nimo',\n  audioAskPlaceholder: 'Ask anything about this audio…',\n  audioAskEmpty: 'This transcript is vectorized — ask Nimo about anything in it.',\n  audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',\n  audioHighlightsOnly: 'Highlights only',\n  audioShowAll: 'Show all',\n  audioSpeakerAll: 'All',\n  audioChapters: 'Chapters',\n  audioAllChapters: 'All chapters',\n",
     replace: "" },
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  appPhotos: 'Photos',\n  appAi: 'Nimo AI',\n",
     replace: "" },
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  widgetAiTitle: 'AI Assistant',\n  widgetAiDesc: 'Chat and smart suggestions',\n",
     replace: "" },
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  widgetAiGreetShort: 'Good evening',\n  widgetAiGreet: 'Good evening — how can I help?',\n  widgetAiPlaceholder: 'Message the AI assistant…',\n  widgetAiSend: 'Send',\n  widgetAiPrompt1: 'Organize recent photos',\n  widgetAiPrompt2: 'Find 2024 travel videos',\n  widgetAiPrompt3: 'Analyze storage usage',\n",
     replace: "" },
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  addPanelTabPhoto: 'Photos',\n",
     replace: "" },
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  addPanelNoPhotos: 'No photos',\n",
     replace: "" },
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  topbarSearch: 'Search',\n  topbarSearchKbd: 'Search (⌘K)',\n",
     replace: "" },
   // 交接清单盲区(E1):settingsFpIntro 那一条不在这批里,英文侧本身就没有任何词命中,靠这份成对表兜底,见下方 sp9 块
-  { path: 'src/i18n/en_us.ts',
+  { path: 'src/i18n/en_us.base.ts',
     find: "  // ── Home: search palette ──\n  searchPlaceholder: 'what are u looking for',\n  searchClose: 'Close',\n  searchSearching: 'Searching…',\n  searchResultsCount: '{count} results',\n  searchOpenAlbum: 'Open Album ›',\n  searchAlbumMatches: 'Found {count} matches in AI Album (images / videos)',\n  searchOpenFolder: 'Open folder ›',\n  searchOpenFolderTitle: 'Open this folder in Files',\n  searchAskTitle: 'Ask Nimo AI about “{query}”',\n  searchAskSub: 'Send this to the AI assistant for an answer grounded in your files',\n  searchAskGo: 'Ask ›',\n  searchAskButton: 'Ask Nimo',\n  searchHint: 'Type a keyword and press Enter to search images, documents, videos, audio and settings',\n  searchTabAll: 'All results',\n  searchTabDocuments: 'Documents',\n  searchTabImages: 'Images',\n  searchTabAudio: 'Audio',\n  searchTabVideos: 'Videos',\n",
     replace: "" },
+
+  // ── 两处"保留文件里顺带提到相册"的注释,改写措辞(不删代码)────────────────
+  //    stores/toast.ts:`action` 参数的来历注释举了相册回收站的撤销 pill 做例子;
+  //    color-guard.test.ts:实测命中的 4 个文件名里有 3 个是相册组件。两处都只是**举例**,
+  //    代码本身与相册无关且必须保留,故改写成不点名的等价说法。
+  { path: 'src/stores/toast.ts',
+    find: "// `action` (Task 9, SP7-P3 photos trash view): optional inline affordance (e.g.\n",
+    replace: "// `action`: optional inline affordance (e.g.\n" },
+  { path: 'src/styles/color-guard.test.ts',
+    find: `// 静默失效。本期实测命中 4 个文件(ClusterActionDialog / PersonRelGraph / PersonPlacesTab /
+// PhotosTrash),当时恰好是绿的(非假绿),但两个隐患都成立。
+`,
+    replace: `// 静默失效。当初实测命中 4 个组件文件,当时恰好是绿的(非假绿),但两个隐患都成立。
+` },
+
+  // ── src/styles/theme.css:相册专用 token 组整块删除 ─────────────────────────
+  //    这些 token 的消费方(src/photos/** 与 13 个相册视图)已在 DELETE 表,删完全部成为
+  //    孤儿;且它们的注释逐条引用 Vue2 photos.scss / photos-places.scss 的行号,属 E7
+  //    「一份内部文档都不带」的范围。照既有 --spk-*/--orb-* 的处理方式整组删(注释与 token
+  //    一起),而不是把注释改写成泛化措辞留下孤儿 token。
+  //    深浅两套主题块各一份,逐块成对。**未删的相册孤儿 token**:--divider / --panel-bg-solid
+  //    ——名字通用、无相册字样、不触发任何禁词,留着零成本,删了反而可能被后来人重新发明。
+  // --album-cover-fallback(PhotosAlbums/PhotosAlbumDetail 专用)
+  { path: 'src/styles/theme.css',
+    find: `  /* 相册无封面渐变占位(PhotosAlbums.vue / PhotosAlbumDetail.vue 曾各写一份逐字相同的
+     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent),提成本 token 消灭
+     重复;两处均改用它,见 THEMING.md 例外清单外的普通语义 token 用法)。 */
+  --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+`,
+    replace: '' },
+  // --avatar-fallback(PersonAvatar 专用)
+  { path: 'src/styles/theme.css',
+    find: `  /* 人物头像三级兜底的渐变实底(PersonAvatar.vue,SP7-P5)。目标是贴近 Vue2 5 处重复的
+     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd)(两套并存本身不一致,
+     这里统一成一份 token)。用 --accent 混黑代替写死紫色,保持"颜色一律走 token"红线;
+     对比度实算见 PersonAvatar.vue 顶部注释与任务报告。 */
+  --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
+`,
+    replace: '' },
+  // --place-row-* 三色(PlacesRail)
+  { path: 'src/styles/theme.css',
+    find: `  /* PlacesRail.vue(P6a-T5)选中城市行三处——Vue2 photos-places.scss:153-156/:163-167
+     的 rgba(var(--accent-rgb), 0.10/0.30/0.18) 精确复刻(该视图只有深色设计,数值级
+     精度要求专用 token,不从 --accent-soft 三档就近凑,同 --drop-bg/--spark-fill/
+     --orb-glow 的既有先例)。 */
+  --place-row-bg: rgba(138, 180, 255, 0.10);
+  --place-row-border: rgba(138, 180, 255, 0.30);
+  --place-thumb-active: rgba(138, 180, 255, 0.18);
+`,
+    replace: '' },
+  // --pin-* 六色 + --pin-cluster-stroke(PlacesMap 图钉)
+  { path: 'src/styles/theme.css',
+    find: `  /* PlacesMap.vue(P6a-T6)图钉——Vue2 photos-places.scss:366-411 的
+     rgba(var(--accent-rgb), α) 精确复刻。--accent-rgb 在 Vue2 明确标注
+     theme-invariant(恒为 110,91,255),即这些 alpha 层在深浅两套 app 主题下都不变——
+     图钉铺的是地图预设自己的画布(4 套预设 + 自定义色,深浅与 app 主题无关,custom 模式
+     恒为黑底),不能按 app 主题去降 alpha,否则「浅色 app 主题 + custom 黑底」会把图钉
+     洗没。故两套主题块 alpha 完全相同,只有 RGB 跟随本仓 --accent-rgb 深浅两档。 */
+  --pin-bg: rgba(138, 180, 255, 0.16);
+  --pin-stroke: rgba(138, 180, 255, 0.55);
+  --pin-active-bg: rgba(138, 180, 255, 0.30);
+  --pin-pulse: rgba(138, 180, 255, 0.25);
+  --pin-cluster-hover-bg: rgba(138, 180, 255, 0.42);
+  --pin-glow: rgba(138, 180, 255, 0.7);
+  /* Vue2 原值是比 accent 更浅的淡紫 rgba(196,184,255,0.85),让簇读作"一组"而非单点;
+     这里 RGB 改取本仓 --accent-text(169,198,255)——语义正是"比 accent 更浅/更可读的
+     accent 色",alpha 精确复刻原值 0.85。 */
+  --pin-cluster-stroke: rgba(169, 198, 255, 0.85);
+`,
+    replace: '' },
+  // --place-current-trip
+  { path: 'src/styles/theme.css',
+    find: `  /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
+     本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
+  --place-current-trip: #34c759;
+`,
+    replace: '' },
+  // --place-home-base(PlaceDetailPanel)
+  { path: 'src/styles/theme.css',
+    find: `  /* PlaceDetailPanel.vue(P6b-T3)「常驻地」标记色——新增 token,精确复刻 Vue2
+     photos-places.scss 内联 \`style="color:#c4b8ff"\`(:1078)。偏离登记(brief 字面要求
+     两套主题给不同值,深色浅紫、浅色改深色向,同 --accent-text 的做法):这里改成
+     **两套主题同值**,不跟随 app 主题深浅——它与紧邻的 --place-current-trip 用在完全
+     相同的语境(.ttl-region 内,叠在 hero 暗化封面照片之上,该遮罩本身钉死恒为深色,
+     与 app 是深色皮肤还是纸感皮肤无关),若照字面给浅色主题一个深紫版本,会在浅色 app
+     主题下把深紫字压在恒暗的照片渐变上,直接违反本任务"hero 前景色红线"的对比度要求。
+     不用 --accent-text 就近凑:那是"比 accent 更浅更可读"的语义(蓝色调),这里要与
+     「本次旅行」并列的第二个状态色(紫色调),同 --pin-cluster-stroke 换基色不换语义的
+     既有先例,但这里连 alpha/精确色值都直接照抄 Vue2 字面量(theme-invariant,同
+     --place-current-trip 的既有先例)。 */
+  --place-home-base: #c4b8ff;
+`,
+    replace: '' },
+  // --map-dot-bg-fallback(PlacesMap 陆地点阵)
+  { path: 'src/styles/theme.css',
+    find: `  /* PlacesMap.vue(P6a-T6)陆地点阵底色的 CSS 回落值——theme-invariant,两套主题块同值。
+     精确复刻 Vue2 photos-places.scss:347 的字面量 rgba(255,255,255,0.10)(该视图刻意不走
+     --ink/文字色系,因为这层压在地图预设自己的深色画布上,与 app 主题无关)。
+     不能用本仓 --fg-faint 顶替:深色 --fg-faint 是 rgba(255,255,255,0.52)(0.52 vs 0.10,
+     陆地点阵会亮到盖过 --map-dot 的已访问点),浅色 --fg-faint 更是不透明的暖灰 #9a958a
+     (铺在 custom 模式的纯黑地图画布上会变成一块不透明灰块)——评审 I1 实测复核过这条
+     失效路径确实可达(Vue2 :150/:137 两条最常见路径的 dotBg 都是 null,即都吃 CSS 回落,
+     不是罕见分支)。 */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+`,
+    replace: '' },
+  // --float-bg(PlacesZoomBar 浮动药丸底)
+  { path: 'src/styles/theme.css',
+    find: `  /* PlacesZoomBar.vue(P6a-T8)垂直缩放滑杆的浮动药丸底——新增 token,精确复刻 Vue2
+     photos.scss:49(NimoOS-UI 全局浮动条/FAB 共用底,不是 photos-places.scss 自己定义的)。
+     本仓之前没有等价的"半透明浮动工具条底"token,--panel-bg(0.1)/--popup-bg(渐变,
+     ~0.9-0.95)/--tool-bg(0.16,不透明纯色)都对不上这个扁平 0.85 的量级,故新增而非近似。 */
+  --float-bg: rgba(20, 20, 28, 0.85);
+`,
+    replace: '' },
+  // --zb-hover-bg / --zb-track-bg
+  { path: 'src/styles/theme.css',
+    find: `  /* 同上组件——Vue2 用 rgba(var(--ink), 0.08/0.12) 给 .zb-btn:hover 背景与 .zb-track 底色
+     做"跟随文字色的透明度斜坡";本仓没有 --ink 这个 RGB 三元组 token。alpha 精确复刻
+     Vue2 的 0.08/0.12,RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)——不照抄
+     Vue2 light 主题里 --ink 的 (35,37,43)(该值本身只是 Vue2 注释自称的"AI --text-primary
+     近似",不是设计精确值),同 --pin-cluster-stroke 的换基色先例。 */
+  --zb-hover-bg: rgba(255, 255, 255, 0.08);
+  --zb-track-bg: rgba(255, 255, 255, 0.12);
+`,
+    replace: '' },
+  // --zb-thumb-shadow
+  { path: 'src/styles/theme.css',
+    find: `  /* .zb-thumb 把手投影第二层——Vue2 photos-places.scss:281 的 box-shadow 里
+     \`0 1px 4px rgba(0,0,0,0.4)\` 从未随 Vue2 自己的深浅主题变化,theme-invariant,
+     两套主题块同值(先例见 --place-current-trip)。 */
+  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
+`,
+    replace: '' },
+  // --warn-*(人脸识别关闭 / Photos AI 离线两条横幅)
+  { path: 'src/styles/theme.css',
+    find: `  /* 警告/降级语义(SP7-P5:人脸识别关闭、Photos AI 后端离线两条横幅)。对齐 Vue2 的
+     #FF9F0A 系;深色主题直接取原值,浅色主题按本仓 --dem-* 的既有做法压暗前景保证对比度。 */
+  --warn-fg: #ff9f0a;
+  --warn-bg: rgba(255, 159, 10, 0.08);
+  --warn-border: rgba(255, 159, 10, 0.32);
+`,
+    replace: '' },
+  // --badge-photo/video/ocr(搜索结果媒体类别徽标)
+  { path: 'src/styles/theme.css',
+    find: `  /* SP7-P7a-T15:搜索结果卡片左上角媒体类别徽标(.type-badge[data-type])三色——
+     数据可视化类别色（THEMING.md §0 第三类例外的变体：同一批结果里要把"照片/视频/
+     OCR 命中"这三种互不相同的类别互相区分开，颜色语义是"第几类"而非"主题强调色"）。
+     精确复刻 Vue2 photos.scss:2768-2770 的字面量,两套主题块同值——不随皮肤深浅走,
+     同 --place-current-trip/--console-bg 的既有先例(同类先例见 THEMING.md §6)。
+     不用 --accent/--danger 就近凑:它们是三个并列的类别标识,不是"强调"或"危险"语义。 */
+  --badge-photo: rgba(50, 190, 230, 0.9);   /* 青 cyan */
+  --badge-video: rgba(255, 149, 10, 0.92);  /* 橙 orange */
+  --badge-ocr: rgba(16, 185, 129, 0.92);    /* 翠绿 emerald */
+`,
+    replace: '' },
+  // --photos-seg-*(设置页容量条分段色)
+  { path: 'src/styles/theme.css',
+    find: `  /* SP7-P8a-T3:设置页存储卡容量条分段色(PhotosStorageCard.vue,消费于
+     src/photos/util/storagePalette.ts 的 STORAGE_SEG_COLORS)——同上一组一样是**数据可视化
+     类别色**:同一条容量条上要把 videos/raw/ai/other 四个互不相同的数据段互相区分开,
+     颜色语义是"第几类数据"而不是"主题强调色"。photos 段用 --accent、thumbs 段用 --success
+     (既有语义 token 直接复用,不新增),这四个是 Vue2 内联的、本仓无对应语义 token 的字面量,
+     故新增。深色精确复刻 Vue2 PhotosSettings.vue:320/321/323 的字面量;浅色不能照抄深色值——
+     videos 的中蓝、raw 的浅粉柔和色铺在本主题纯白 --card-bg 上会偏灰、分段边界糊掉,故各自
+     加深/提高饱和度保持在白底上可辨识(同 --warn-fg 浅色把 #FF9F0A 压成 #96610a 保对比度的
+     既定手法,但这里是三个并列的类别色而非单一警告语义,故各给独立值而非借用 --warn-fg)。 */
+  --photos-seg-video: #5e94ff;
+  --photos-seg-raw: #ff9ac2;
+  --photos-seg-ai: #ff9f0a;
+  /* other 段 Vue2 原值是 rgba(var(--ink),0.25)("跟随文字色的透明度斜坡"),本仓无 --ink
+     三元组 token——同 --zb-hover-bg/--zb-track-bg 的既定换基先例:alpha 精确复刻 0.25,
+     RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)。 */
+  --photos-seg-other: rgba(255, 255, 255, 0.25);
+`,
+    replace: '' },
+  // light:--album-cover-fallback
+  { path: 'src/styles/theme.css',
+    find: `  /* 相册无封面渐变占位(见 :root 同名 token 注释),白色纸感主题下取值同一份公式,
+     --accent/--panel-bg 各自已按本主题定义,结果自然是本主题配色。 */
+  --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+`,
+    replace: '' },
+  // light:--avatar-fallback
+  { path: 'src/styles/theme.css',
+    find: `  /* 见 :root 同名 token 注释;白色纸感主题下 accent 更深,mix 百分比调到 70% 才不至于
+     整块糊成近黑(对比度实算见 PersonAvatar.vue / 任务报告)。 */
+  --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
+`,
+    replace: '' },
+  // light:--place-row-*
+  { path: 'src/styles/theme.css',
+    find: `  /* Vue2 该视图仅有深色设计,浅色值没有原件可照——按 accent 家族深→浅收敛惯例推导
+     (.14→.11、.24→.20、.36→.30,约 ×0.83):.10→.08、.30→.25、.18→.15。 */
+  --place-row-bg: rgba(59, 91, 219, 0.08);
+  --place-row-border: rgba(59, 91, 219, 0.25);
+  --place-thumb-active: rgba(59, 91, 219, 0.15);
+`,
+    replace: '' },
+  // light:--pin-*
+  { path: 'src/styles/theme.css',
+    find: `  /* PlacesMap.vue(P6a-T6)图钉——见 :root 同名 token 注释:alpha 与 :root 完全相同
+     (theme-invariant,铺在地图预设自己的画布上,不随 app 主题降 alpha),RGB 换成本仓
+     浅色 --accent-rgb(59,91,219)。 */
+  --pin-bg: rgba(59, 91, 219, 0.16);
+  --pin-stroke: rgba(59, 91, 219, 0.55);
+  --pin-active-bg: rgba(59, 91, 219, 0.30);
+  --pin-pulse: rgba(59, 91, 219, 0.25);
+  --pin-cluster-hover-bg: rgba(59, 91, 219, 0.42);
+  --pin-glow: rgba(59, 91, 219, 0.7);
+`,
+    replace: '' },
+  // light:--pin-cluster-stroke
+  { path: 'src/styles/theme.css',
+    find: `  /* RGB 取本仓浅色 --accent-text(53,80,196),alpha 精确复刻 Vue2 原值 0.85(见 :root 同名注释)。 */
+  --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
+`,
+    replace: '' },
+  // light:--place-current-trip
+  { path: 'src/styles/theme.css',
+    find: `  /* 两套主题同值,见 :root 同名注释。 */
+  --place-current-trip: #34c759;
+`,
+    replace: '' },
+  // light:--place-home-base
+  { path: 'src/styles/theme.css',
+    find: `  /* 两套主题同值,见 :root 同名注释(偏离登记:未按字面要求给浅色主题一个深紫版本,
+     理由同 :root 块的完整登记——它与 --place-current-trip 语境完全相同,恒叠在
+     hero 的固定暗化渐变之上,与 app 是深色还是纸感皮肤无关)。 */
+  --place-home-base: #c4b8ff;
+`,
+    replace: '' },
+  // light:--map-dot-bg-fallback
+  { path: 'src/styles/theme.css',
+    find: `  /* theme-invariant,两套主题块同值——见 :root 同名 token 注释(不用 --fg-faint 的理由同上,
+     浅色 --fg-faint 是不透明暖灰 #9a958a,同样会在地图画布上变成一块不透明色块)。 */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+`,
+    replace: '' },
+  // light:--float-bg
+  { path: 'src/styles/theme.css',
+    find: `  /* PlacesZoomBar.vue(P6a-T8)——见 :root 同名 token 注释。精确复刻 Vue2 photos.scss:84
+     的浅色浮动条底字面量。 */
+  --float-bg: rgba(255, 255, 255, 0.85);
+`,
+    replace: '' },
+  // light:--zb-hover-bg / --zb-track-bg
+  { path: 'src/styles/theme.css',
+    find: `  /* 见 :root 同名 token 注释:alpha 与 :root 完全相同(0.08/0.12),RGB 换成本仓浅色
+     --fg 的真实分解值(#1c1b19→28,27,25)。 */
+  --zb-hover-bg: rgba(28, 27, 25, 0.08);
+  --zb-track-bg: rgba(28, 27, 25, 0.12);
+`,
+    replace: '' },
+  // light:--zb-thumb-shadow
+  { path: 'src/styles/theme.css',
+    find: `  /* 两套主题同值,见 :root 同名注释。 */
+  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
+`,
+    replace: '' },
+  // light:--warn-*
+  { path: 'src/styles/theme.css',
+    find: `  /* 警告/降级语义(见 :root 同名注释)。#FF9F0A 直接铺在纸感白底上只有 ~1.9:1,
+     故前景压到深琥珀(同 --dem-fg 的 #92600c 一档),底/描边给纸感主题的实色。 */
+  --warn-fg: #96610a;
+  --warn-bg: #fdf3e2;
+  --warn-border: #f0d7a6;
+`,
+    replace: '' },
+  // light:--badge-*
+  { path: 'src/styles/theme.css',
+    find: `  /* SP7-P7a-T15:同 :root 同名注释——三个媒体类别徽标色,两套主题块同值,不随皮肤翻转。 */
+  --badge-photo: rgba(50, 190, 230, 0.9);
+  --badge-video: rgba(255, 149, 10, 0.92);
+  --badge-ocr: rgba(16, 185, 129, 0.92);
+`,
+    replace: '' },
+  // light:--photos-seg-*
+  { path: 'src/styles/theme.css',
+    find: `  /* SP7-P8a-T3:同 :root 同名注释——存储卡容量条分段色。浅色主题按可读性微调(不是照抄
+     Vue2 唯一深色设计的原值):
+     --photos-seg-video 从 Vue2 的中蓝 #5e94ff 加深到 #3560d8——纸感白底 --card-bg(#ffffff)
+     上原值发灰、和相邻分段边界不够清楚,加深/提高饱和度后仍是同一色相的蓝。
+     --photos-seg-raw 从 Vue2 的浅粉 #ff9ac2 加深到 #c93f79——浅粉铺在纯白底上几乎融进背景,
+     压深成同色相的玫红以保证分段轮廓可辨。
+     --photos-seg-ai 从 Vue2 的橙 #ff9f0a 压到 #a15f0a——同 --warn-fg 浅色档处理同一个字面量
+     色值的既定手法(压暗保对比度),但这里是独立的类别标识 token,不直接借用 --warn-fg
+     (那是"警告"语义,这里是"第几类数据"语义,同一个字面量色值、两个不同的 token)。 */
+  --photos-seg-video: #3560d8;
+  --photos-seg-raw: #c93f79;
+  --photos-seg-ai: #a15f0a;
+  /* alpha 与 :root 同为 0.25(精确复刻 Vue2 other 段 rgba(var(--ink),0.25)),RGB 换成本仓
+     浅色 --fg 的真实分解值(#1c1b19→28,27,25)——同 --zb-hover-bg/--zb-track-bg 浅色档的既定
+     换基公式。 */
+  --photos-seg-other: rgba(28, 27, 25, 0.25);
+`,
+    replace: '' },
+
+  // ── src/router/index.ts:13 个相册视图 import + 14 条 /photos* 路由 ────────────
+  //    两段各自连续,整块摘。DELETE 表已删掉那 13 个 .vue 文件,不摘 import 的话开源侧
+  //    vite build 直接找不到模块 —— 这两条补丁与 DELETE 是配对的,少一边都不行。
+  { path: 'src/router/index.ts',
+    find: `import Photos from '../views/Photos.vue'
+import PhotosFavorites from '../views/PhotosFavorites.vue'
+import PhotosTrash from '../views/PhotosTrash.vue'
+import PhotosAlbums from '../views/PhotosAlbums.vue'
+import PhotosAlbumDetail from '../views/PhotosAlbumDetail.vue'
+import PhotosPeople from '../views/PhotosPeople.vue'
+import PhotosPersonDetail from '../views/PhotosPersonDetail.vue'
+import PhotosPlaces from '../views/PhotosPlaces.vue'
+import PhotosPlaceAssets from '../views/PhotosPlaceAssets.vue'
+import PhotosSmartViews from '../views/PhotosSmartViews.vue'
+import PhotosSmartViewDetail from '../views/PhotosSmartViewDetail.vue'
+import PhotosSearch from '../views/PhotosSearch.vue'
+import PhotosSettings from '../views/PhotosSettings.vue'
+`,
+    replace: '' },
+  { path: 'src/router/index.ts',
+    find: `  { path: '/photos', name: 'photos', component: Photos },
+  { path: '/photos/favorites', name: 'photos-favorites', component: PhotosFavorites },
+  { path: '/photos/trash', name: 'photos-trash', component: PhotosTrash },
+  { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
+  { path: '/photos/albums/:id', name: 'photos-album-detail', component: PhotosAlbumDetail },
+  { path: '/photos/people', name: 'photos-people', component: PhotosPeople },
+  { path: '/photos/people/:id', name: 'photos-person-detail', component: PhotosPersonDetail },
+  { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },
+  { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },
+  { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
+  { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
+  { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
+  // SP7-P8a-T5:只追加,不重排——须排在最后一条既有 /photos/* 之后(router/index.test.ts
+  // 用 node:fs 读源文本行序断言,而非 router.getRoutes(),见该测试文件注释)。
+  { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },
+`,
+    replace: '' },
+
+  // ── src/components/AppToast.zIndex.test.ts:去相册两处点名 ──────────────────
+  //    这道闸是**全仓约定守卫**(toast 必须高于所有模态遮罩),开源版要保留 —— 它 glob 全仓
+  //    样式块、相册文件删掉后自然不再被扫到。要摘的只有两处点名:①文件头注释里举例的三条
+  //    相册失败路径与 .pd-scrim/.cad-overlay ②末尾单独钉那两个相册遮罩的 it.each 块
+  //    (整块删:它只有相册两条,前面那条 glob 全量断言仍在)。
+  { path: 'src/components/AppToast.zIndex.test.ts',
+    find: `// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
+// **完全读不到**。本期评审抓到的真实后果 —— 三条「失败了但刻意保留弹窗让用户重试」的路径
+// (人物改名失败 / 建相册失败 / 命名未命名人物失败)全部把失败原因藏在 z-index 220 的
+// .pd-scrim / .cad-overlay 底下,用户只看到按钮"没反应",反复重试。
+`,
+    replace: `// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
+// **完全读不到**——用户只看到按钮"没反应",反复重试。
+` },
+  { path: 'src/components/AppToast.zIndex.test.ts',
+    find: `  // 本期评审命中的三条路径的两个具体遮罩,单独钉一遍(上一条即使被人放宽也还有这道)。
+  it.each([
+    ['src/views/PhotosPersonDetail.vue', '.pd-scrim'],
+    ['src/photos/components/ClusterActionDialog.vue', '.cad-overlay'],
+  ])('%s 的 %s 低于 toast', (rel, selector) => {
+    const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
+    expect(src, \`\${rel} 未被 glob 收到\`).toBeTruthy()
+    const css = styleText(rel, src as string)
+    // 取该选择器所在规则块里的 z-index。
+    const block = new RegExp(\`\\\\\${selector}\\\\s*\\\\{([^}]*)\\\\}\`).exec(css)
+    expect(block, \`\${rel} 里找不到 \${selector} 规则块\`).toBeTruthy()
+    const z = zIndexes((block as RegExpExecArray)[1])
+    expect(z.length, \`\${selector} 规则块里没有 z-index\`).toBe(1)
+    expect(z[0]).toBeLessThan(toastZ)
+  })
+`,
+    replace: '' },
+
+  // ── src/router/index.test.ts:相册路由的 14 条断言整块删除 ──────────────────
+  //    本文件除开头两条 /files 用例外全是相册路由(命中 + "只追加不重排"顺序断言)。
+  //    连带摘掉 `./index.ts?raw` 那个 import 与它上面的说明注释 —— 原文只被顺序断言用到,
+  //    留着会是未使用变量(开源侧 vue-tsc 直接红)。
+  { path: 'src/router/index.test.ts',
+    find: `// 评审 M5:原来这里的注释声称"完整的顺序/未重排断言见 PhotosPlaces.test.ts",但那份文件
+// 只用 \`?raw\` 取 PhotosPlaces.vue 自己的样式块做 pointer-events 断言,从未读过 router/index.ts
+// 的源文本——那句话是不实的。真正的顺序/未重排断言就近放在这里,用 \`?raw\` 读原始文本核对。
+import routerIndexRaw from './index.ts?raw'
+`,
+    replace: '' },
+  { path: 'src/router/index.test.ts',
+    find: `  it('/photos/favorites 命中 photos-favorites 路由', () => {
+    const m = router.resolve('/photos/favorites')
+    expect(m.name).toBe('photos-favorites')
+  })
+  it('/photos/trash 命中 photos-trash 路由', () => {
+    const m = router.resolve('/photos/trash')
+    expect(m.name).toBe('photos-trash')
+  })
+  it('/photos/albums 命中 photos-albums 路由', () => {
+    const m = router.resolve('/photos/albums')
+    expect(m.name).toBe('photos-albums')
+  })
+  it('/photos/albums/7 命中 photos-album-detail 路由,params.id 为字符串 "7"', () => {
+    const m = router.resolve('/photos/albums/7')
+    expect(m.name).toBe('photos-album-detail')
+    expect(m.params.id).toBe('7')
+  })
+  it('/photos/people 命中 photos-people 路由', () => {
+    const m = router.resolve('/photos/people')
+    expect(m.name).toBe('photos-people')
+  })
+  it('/photos/people/7 命中 photos-person-detail 路由,params.id 为字符串 "7"', () => {
+    const m = router.resolve('/photos/people/7')
+    expect(m.name).toBe('photos-person-detail')
+    expect(m.params.id).toBe('7')
+  })
+  it('/photos/places 命中 photos-places 路由', () => {
+    const m = router.resolve('/photos/places')
+    expect(m.name).toBe('photos-places')
+  })
+
+  // P6a-T11:只追加,不重排——新路由必须夹在 /photos/people/:id 与 /login 之间,且两者
+  // 本身的相对顺序不能被打乱(评审 M5:之前这条断言只存在于一句不实的注释里,这里补真的)。
+  it('/photos/places 追加在 /photos/people/:id 之后、/login 之前(只追加,不重排)', () => {
+    const peopleDetailIdx = routerIndexRaw.indexOf(\`{ path: '/photos/people/:id'\`)
+    const placesIdx = routerIndexRaw.indexOf(\`{ path: '/photos/places'\`)
+    const loginIdx = routerIndexRaw.indexOf(\`{ path: '/login'\`)
+    expect(peopleDetailIdx).toBeGreaterThan(-1)
+    expect(placesIdx).toBeGreaterThan(peopleDetailIdx)
+    expect(loginIdx).toBeGreaterThan(placesIdx)
+  })
+
+  // SP7-P7a-T4:/photos/smart-views 命中真实注册的路由(用产线单例 router.resolve 真解析,
+  // 不是 spy push——同上面每一条既有路由断言的既定写法)。
+  it('/photos/smart-views 命中 photos-smart-views 路由', () => {
+    const m = router.resolve('/photos/smart-views')
+    expect(m.name).toBe('photos-smart-views')
+  })
+
+  // 只追加,不重排——新路由必须夹在 /photos/places/:key 与 /login 之间,且两者本身的
+  // 相对顺序不能被打乱(同上 P6a-T11 的既有手法,行序比较而非 getRoutes() 下标——vue-router 4
+  // 会把动态段路由排到静态之前,P6b-T9 实测过,下标比较会得出错误结论)。
+  it('/photos/smart-views 追加在 /photos/places/:key 之后、/login 之前(只追加,不重排)', () => {
+    const placesKeyIdx = routerIndexRaw.indexOf(\`{ path: '/photos/places/:key'\`)
+    const smartViewsIdx = routerIndexRaw.indexOf(\`{ path: '/photos/smart-views'\`)
+    const loginIdx = routerIndexRaw.indexOf(\`{ path: '/login'\`)
+    expect(placesKeyIdx).toBeGreaterThan(-1)
+    expect(smartViewsIdx).toBeGreaterThan(placesKeyIdx)
+    expect(loginIdx).toBeGreaterThan(smartViewsIdx)
+  })
+
+  // SP7-P7a-T6:/photos/smart-views/:id 详情路由,同上既定手法(行序比较 + 真 resolve)。
+  it('/photos/smart-views/7 命中 photos-smart-view-detail 路由,params.id 为字符串 "7"', () => {
+    const m = router.resolve('/photos/smart-views/7')
+    expect(m.name).toBe('photos-smart-view-detail')
+    expect(m.params.id).toBe('7')
+  })
+
+  it('/photos/smart-views/:id 追加在 /photos/smart-views 之后、/login 之前(只追加,不重排)', () => {
+    const listIdx = routerIndexRaw.indexOf(\`{ path: '/photos/smart-views'\`)
+    const detailIdx = routerIndexRaw.indexOf(\`{ path: '/photos/smart-views/:id'\`)
+    const loginIdx = routerIndexRaw.indexOf(\`{ path: '/login'\`)
+    expect(listIdx).toBeGreaterThan(-1)
+    expect(detailIdx).toBeGreaterThan(listIdx)
+    expect(loginIdx).toBeGreaterThan(detailIdx)
+  })
+`,
+    replace: '' },
+
+  // ── src/i18n/parity.test.ts:P6a/P6b 的地点域键守卫整块删除 ────────────────
+  //    它断言 photosPlaces* 键齐备、中文不含工程词、insight 插值槽两语言一致 —— 分片删掉
+  //    之后这些键一个都不存在。前半段(locale parity / 值非空 / 分片不覆盖基座)与相册无关,
+  //    保留。这里连块首那行注释一起摘,免得留下悬空注释。
+  { path: 'src/i18n/parity.test.ts',
+    find: `/* P6a-T4:地点域键的完整性与术语守卫。 */
+describe('photosPlaces 键(SP7-P6a)', () => {
+  it('六个大洲键齐备,且 regionLabelKey 的返回值全部有译文', async () => {
+    const { regionLabelKey } = await import('../photos/util/placesMap')
+    for (const id of ['asia', 'americas', 'europe', 'africa', 'oceania', 'antarctica']) {
+      const k = regionLabelKey(id)!
+      expect(zh).toHaveProperty(k)
+      expect(en).toHaveProperty(k)
+    }
+  })
+
+  it('中文文案不含工程词「簇」「聚类」「气泡」', () => {
+    const bad = Object.entries(zh)
+      .filter(([k]) => k.startsWith('photosPlaces'))
+      .filter(([, v]) => typeof v === 'string' && /簇|聚类|气泡/.test(v))
+    expect(bad).toEqual([])
+  })
+
+  /* P6b-T1:地点详情面板键的完整性与插值槽守卫。 */
+  it('P6b 地点键在两个 locale 都存在且无空值', () => {
+    const keys = ['photosPlacesHomeBase', 'photosPlacesSpotResetName', 'photosPlacesCoverPageInfo',
+      'photosPlacesInsightHome', 'photosPlacesInsightHomeBase', 'photosPlacesVisitHistory']
+    for (const k of keys) {
+      expect(String((zh as Record<string, unknown>)[k] ?? '')).not.toBe('')
+      expect(String((en as Record<string, unknown>)[k] ?? '')).not.toBe('')
+    }
+  })
+  it('insight 键的插值占位符两个 locale 完全一致(漏一个槽 <i18n-t> 会静默丢内容)', () => {
+    const slots = (s: string) => (s.match(/\\{[a-zA-Z]+\\}/g) ?? []).sort()
+    for (const k of ['photosPlacesInsightMostPhotographed', 'photosPlacesInsightTopSpot',
+      'photosPlacesInsightCompanions', 'photosPlacesInsightHome']) {
+      expect(slots(String((zh as Record<string, string>)[k]))).toEqual(slots(String((en as Record<string, string>)[k])))
+    }
+  })
+})
+`,
+    replace: '' },
+
+  // ── src/i18n/{zh_cn,en_us}.ts:3 行合并出口去掉 photos 那一路 ──────────────
+  //    分片文件已在 DELETE 表,这里只需把出口里的 import 与展开摘掉。**改一行文案不会
+  //    动这里** —— 这正是 SP7-P8b 把相册文案拆出去换来的:开源侧对相册文案的耦合从
+  //    约 90 条锚点收敛成下面这 4 条,且锚的是结构、不是文案。
+  { path: 'src/i18n/zh_cn.ts',
+    find: "import base from './zh_cn.base'\nimport photos from './zh_cn.photos'\n\nexport default { ...base, ...photos }\n",
+    replace: "import base from './zh_cn.base'\n\nexport default { ...base }\n" },
+  { path: 'src/i18n/en_us.ts',
+    find: "import base from './en_us.base'\nimport photos from './en_us.photos'\n\nexport default { ...base, ...photos }\n",
+    replace: "import base from './en_us.base'\n\nexport default { ...base }\n" },
+  //    出口文件头那段"为什么拆"的注释整段撤掉:开源版里没有相册区,解释"相册文案怎么
+  //    剥离"既无意义又泄露内部流程(E7)。zh 侧是长段、en 侧是一行,分别处理。
+  { path: 'src/i18n/zh_cn.ts',
+    find: `// SP7-P8b:本文件从"一整份文案表"改成 3 行的**合并出口**,真正的内容拆成两块:
+//   zh_cn.base.ts   —— 全区共用 + 各区自己的文案
+//   zh_cn.photos.ts —— 相册区那 702 个 photos* 键
+//
+// 为什么拆:开源版没有相册区,\`oss/manifest.mjs\` 要把相册文案剥掉。原先那 702 个键散在
+// 主文件 90 多个区段里,剥它们意味着 ~90 条锚点补丁 × 2 语言 —— 而 PATCH 要求锚点命中恰好
+// 1 次,以后**改任何一条相册文案都会把开源导出打红**。拆开之后开源侧只需:删掉
+// zh_cn.photos.ts 一个文件 + 把下面那行 photos 展开补丁掉。
+//
+// 为什么保留本文件作为出口(而不是让消费方各自 import 两块):全仓有 40+ 个测试
+// \`import zh from '…/i18n/zh_cn'\` 自建 createI18n,把它们逐个改成"再多 import 一块"既吵
+// 又会在下次分片时重演。出口不动,消费方就一行都不用改。
+`,
+    replace: `// 中文文案(默认 / fallback locale)。
+` },
+  { path: 'src/i18n/en_us.ts',
+    find: `// SP7-P8b:合并出口 —— 拆分理由与结构说明见 zh_cn.ts 的文件头注释(两语言逐条成对)。
+`,
+    replace: `// English copy. Key set must stay in parity with zh_cn (see parity.test.ts).
+` },
 
   // ── src/i18n/zh_cn.sp9.ts(folder-permissions 整个四分区,26 键;
   //    FolderPermissionsPanel.vue + folderPerm/ 已在 DELETE 表整体删除,
@@ -612,12 +1219,54 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('photo navigates to /#/photos', () => {
+    find: `  it('photo 磁贴应用内 push /photos(SP7-P8b cutover)', () => {
+    const { openItem } = useOpenAction()
+    openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
+    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
+  })
+  it('photo 磁贴:回退 flag 置 1 时退回 Vue2 /#/photos', () => {
+    localStorage.setItem('strangler:disabled:/photos', '1')
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
     expect(hrefs[0]).toBe('/#/photos')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/photos')
   })
 `,
+    replace: '' },
+  // SP7-P8b 新增的三条 photos 磁贴用例:开源版没有相册区,'photos' 不是系统应用,
+  // 三条全删(前两条断言相册路由,第三条断言"photos 的 flag 不影响别人")。
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('photos 磁贴应用内 router.push /photos(SP7-P8b cutover)', () => {
+    const { openApp } = useOpenAction()
+    openApp('photos')
+    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
+  })
+  it('回退 flag strangler:disabled:/photos==1 时 photos 退回 Vue2 /#/photos(不是 /#/legacy)', () => {
+    localStorage.setItem('strangler:disabled:/photos', '1')
+    const { openApp } = useOpenAction()
+    openApp('photos')
+    expect(hrefs[0]).toBe('/#/photos')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/photos')
+  })
+  it('photos 那把 flag 不影响 storage / appstore', () => {
+    localStorage.setItem('strangler:disabled:/photos', '1')
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(router.push).toHaveBeenCalledWith('/storage')
+    openApp('appstore')
+    expect(router.push).toHaveBeenCalledWith('/apps/store')
+    expect(hrefs.length).toBe(0)
+    localStorage.removeItem('strangler:disabled:/photos')
+  })
+`,
+    replace: '' },
+  // beforeEach 里那把 /photos flag 的清理也跟着撤(开源版无此 flag)
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: "  localStorage.removeItem('strangler:disabled:/photos')\n",
     replace: '' },
 
   // ── HomeTopbar.test.ts:唯一的搜索胶囊用例,组件本身已在 T6 删掉 .search-btn ───
@@ -634,11 +1283,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
   // ── GridItem.click.test.ts:唯一的照片瓦片点击用例,'photo' 已不是合法 Kind ──
   { path: 'src/home/components/GridItem.click.test.ts',
-    find: `  it('clicking a photo navigates to /#/photos', async () => {
+    find: `  it('clicking a photo pushes /photos(SP7-P8b cutover)', async () => {
     const item: LayoutItem = { id: 'p', kind: 'photo', key: 'linear-gradient(0,#000)', c: 1, r: 1, w: 2, h: 2 }
     const w = mount(GridItem, { props: { item } })
     await w.get('[data-id="p"]').trigger('click')
-    expect(hrefs[0]).toBe('/#/photos')
+    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
   })
 `,
     replace: '' },
