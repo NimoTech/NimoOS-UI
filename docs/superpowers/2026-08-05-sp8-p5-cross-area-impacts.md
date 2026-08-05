@@ -21,7 +21,7 @@
 
 | # | 动作 | 目标文件 |
 |---|---|---|
-| A-1 | 把 §1 的两张独立票登记进 roadmap | `NimoOS-UI/docs/vue3-migration-roadmap.md` |
+| A-1 | 把 **§1 的两张独立票(A / B)**+ 🔴 **P5e 收官新开的两张(C / D,见 §5)** 一并登记进 roadmap —— **共 4 张** | `NimoOS-UI/docs/vue3-migration-roadmap.md` |
 | A-2 | 把 §3 的 5 处上级设计订正落进上级设计(或在其顶部加勘误横幅,承 `p5d-common-constraints.md` 的先例) | 上级设计 `2026-07-31-…-sp8-p5-knowledge-design.md` |
 | A-3 | 把 §2.1(P5a 视觉缺陷)与 §2.4(P5f 体量与陷阱)同步进 roadmap 的 SP8 节 | roadmap |
 
@@ -178,9 +178,17 @@ P5e-T2 补上基类后,**P5a 的仪表盘 chip 外观会跟着变**(变成蓝本
 | **U-2** | §2 蓝本一律 `git show main:` 读 | 🔴 **用户 2026-08-04 拍板:P5 全期锁 `7a6ee6b7` 不换**(远端已到 `65cfda58`,领先 16 提交,但 P5 范围内差异**全是中文注释翻英文**、功能等价)。**每期 T0 第一动作 = SSH fetch 真远端 + 逐文件比对 + 写进报告**;比出**非注释**差异必须停下问用户 |
 | **E-35 / E-51** | §2.5 与 §4 都写 `KIcon` = **43** 图标 | 🔴 **实测 42**(P5c 记 42 才对;`p5d-common-constraints.md §1.2` 又写回 43) |
 | **E-50** | §4「P5e 搜索 **~820** 行」 | 四个 `.vue`/`.js` 行数 **4/4 全对** ✅,但**没算 scss**(同 §2.1 的 E-28 漏法)→ **P5e ≈ 1245 蓝本行** |
-| **E-53** | §2.4「蓝本 11 个 `.vue` 共 **461** 条去重 `$t()`」 | ⚠️ 协调者按 **`$t('…')` 单引号**扫 13 个 `.vue` 得 **408**。🔴 **这大概率只是扫法差异**(未含双引号 / helper `.js` 里的 `i18n.t()` / 过 `$t(变量)` 的常量表),**不是上级设计错** —— **别急着判成勘误**(P5d 吃过「凭想象补一个不存在的问题、烧 46 万 subagent token」的教训)。**由 P5e-T0 用同口径复扫并给终值。** |
+| **E-53** | §2.4「蓝本 11 个 `.vue` 共 **461** 条去重 `$t()`」 | ⚠️ 协调者按 **`$t('…')` 单引号**扫 13 个 `.vue` 得 **408**。🔴 **这大概率只是扫法差异**(未含双引号 / helper `.js` 里的 `i18n.t()` / 过 `$t(变量)` 的常量表),**不是上级设计错** —— **别急着判成勘误**(P5d 吃过「凭想象补一个不存在的问题、烧 46 万 subagent token」的教训)。**由 P5e-T0 用同口径复扫并给终值。** ⟵ 🔴 **2026-08-05 结案(裁定 R4)**:T0 复扫**未能兑现「同口径」**(它扫 16 个 `.vue`,上级设计说的是 11 个;**没有任何口径能扫出 461**)⇒ **定案:461 与 408 的差异原因未查明,但不影响本期**(本期 i18n 依据是附录 A 的 **63 distinct 终值**,已逐码点复核 0 mismatch)。**不判勘误、也不声称已解释。🔴 不许任何一刀再去追 461。** |
 
-⚠️ **上级设计 §4 给 P5e 的两条开工前置仍然完全有效,P5e 已全部接住**:
+⚠️ **上级设计 §4 给 P5e 的两条开工前置 P5e 已全部接住,但 T0 实测后两条的结论都被订正了** ——
+🔴 **以 `.superpowers/sdd/p5e-coordinator-rulings-T0.md` 的 R5 / R6 为准,本节下面两条原文已过时**:
+
+| 原文 | 🔴 T0 实测后的订正 |
+|---|---|
+| ① 首次调用「约 **16.7 s** / 内存涨到 **~2.8 GB**」 | **裁定 R5**:实测**热态 5.04 s**(`embed_ms 5027`)、Parser RSS 仅 **+19 MB**。16.7 s / 2.8 GB 只对应**冷进程**首次懒加载 BGE-M3。⇒ **验收清单必须写条件句**(「若 Parser 刚重启过可能要等十几秒;已热的进程约 5 秒内返回」),**不许写死「约 17 秒」,也不许因为实测 5 秒就删掉这条** |
+| ② distill「真机可能恒 404」 | **裁定 R6 / 勘误 E-58**:**接口已通**(三条 GET 全 200,`notes/settings` 已下发三字段)⇒ 上级设计 §6.4 的 404 风险**正式解除**。🔴 **但按钮本机仍不可达** —— 7 个索引文件全是 `.log`/`.json`、都不在 `DISTILL_EXTS` 里,叠加结果半区整体不可达 ⇒ **不列真机验收项,理由必须写「元素不渲染」而非「接口不通」** |
+
+**以下两条为历史原文,保留备查(「反转不删」):**
 ① `/v1/ai/search/text` 首次调用 **约 16.7 s / 内存涨到 ~2.8 GB**(paused 模式懒加载 BGE-M3)
 → **验收清单必须写这个时限,否则机主必然当卡死报 bug**;
 ② §6.4 设备上 Python agent 曾落后、`notes/distill` 四条路由全无 → **distill 按钮真机可能恒 404**,
@@ -196,3 +204,51 @@ P5e-T2 补上基类后,**P5a 的仪表盘 chip 外观会跟着变**(变成蓝本
 | `p5e-common-constraints.md` | P5e 治理差异(K46–K51 / N33–N45 / 四项裁定 / 测试质量增补) |
 | `p5e-plan.md` | P5e 九刀(T0–T8)与逐刀 DoD |
 | `p5e-kickoff-prompt.md` | **干净上下文的入口** —— 必读顺序 + 已批准裁定 + 不许重犯的坑 |
+| 🔴 **`p5e-coordinator-rulings-T0.md`** | **P5e 全部协调者裁定 R1–R28** —— **权威仅次于上级设计**;凡本文件与它冲突,**以它为准**(本文件 §0/§3 已按 R4/R5/R6 订正) |
+| `p5e-appendix-{A-i18n,B-tokens,D-classes}.md` · `p5e-fixtures/` | T0 产出的三份附录 + 13 个 fixture + 10 个可跑脚本(`replay.md` 给完整复现路径) |
+| `p5e-task-{0,0b,1,1b,2..8}-report.md` · `p5e-task-{0..8}-review.md` · `p5e-FINAL-review.md` | 九刀实现报告 + 八份独立评审 + 全支终审 |
+| 🔴 **`p5e-handoff-to-p5f.md`** | **P5f 的唯一入口**(承 P5d 先例)—— 债务、交接项、常驻做法 |
+
+---
+
+## 5. 🔴 P5e 收官新开的两张后端票(2026-08-05,**A-1 要一并登记进 roadmap**)
+
+两张都是 **P5e 实测挖出的既有后端缺陷**,与前端迁移无关,**不在 P5e/P5f 范围**。
+
+### 票 C —— 搜索链路授权根缺失(**整机语义搜索恒零结果**)
+
+| 事实(T0 实测 + T0 评审 + 全支终审**三次**独立重现) | 值 |
+|---|---|
+| Qdrant `text_chunks` 总点数 | **5592** |
+| 其中 `root_ids` 含 `dfcd1840f5dab439cd9d7050aa5bafd0` | **5592**(全部) |
+| 其中 `root_ids` 含 `photos` | **0** |
+| 核心 `GET /v1/nimoos/search-roots?user_id=<任意>` | **`{"root_ids":["photos"]}`** |
+
+链路:`NimoOS-Search/route/v1/text.go:34` 拿 `allowed=["photos"]` → `service.ApplyScope` 求交集
+(用户未传 `root_ids` 时返回 `allowed` 全集 ⇒ **非空,不会短路**)→ Qdrant 按 `root_ids ANY ["photos"]` 过滤
+→ 命中 0 → `total_candidates: 0`、**`warnings: []`(没有任何提示,看起来就是「没搜到」)**。
+
+🔴 **根因 = 用户已拍板的 D1(Wiki 后端本期不动)在搜索链路上的连带后果** ——
+授权表由 Wiki 侧对账写入(`NimoOS/route/v1/rootgrants.go` 的 `UpsertGrant` 把 `source` 写死成 `"wiki"`),
+Wiki 打不通 ⇒ 除 `NimoOS/main.go:96` 播种的虚拟根 `"photos"`,**零真实 root 被登记**。
+
+**⇒ 对 P5e 的影响(用户 2026-08-05 已拍板按 D1 政策处理 = 裁定 R2)**:`phase === 'results'` 整条分支真机不可达
+⇒ 结果卡 / 五个类型色 / 相关度徽标 / 详情抽屉 / chunk 阅读器 / in-app 预览器 / distill 按钮 / 下载 —— **全部不列真机验收项**。
+🔴 **建议与 Wiki 数据库运维票一起做**(修 Wiki 才是治根)。
+⚠️ **有一条 loopback-only 的临时开法,用户已明确否掉**(会改设备授权状态、让系统日志对所有登录用户可搜,
+且文件名索引 watcher 的写入不像 DELETE 那样干净可逆)⇒ **裁定 R2 已将其列为硬禁令,任何一刀不得执行。**
+
+### 票 D —— Parser rerank 端点 500
+
+`POST :8283/v1/parser/rerank` → **HTTP 500**(实测 0.07 s 返回)。
+根因(`journalctl -u nimoos-parser.service`):`parser/model_reranker.py:50` → `FlagEmbedding/.../AbsReranker.compute_score`
+→ **`AttributeError: XLMRobertaTokenizer has no attribute prepare_for_model`** = Parser venv 里 `transformers` 与 `FlagEmbedding` 版本不兼容。
+
+**连带**:`NimoOS-Search/service/search.go:176` 是 `if req.Rerank && len(hits) > 0`,而本机 `len(hits)` 恒 0(票 C)
+⇒ **rerank 分支根本不进,`warnings` 永远不会出现 `rerank_unavailable`** ⇒ `.k-rerank-warn` **双重不可达**。
+⚠️ **验收时提一句**:点「精确」(rerank)开关在本机**毫无变化**,不是开关坏了。
+
+### 并入既有票(不新开)
+
+**K52 的「token 进服务端访问日志」** —— 方案 A 让 token 出现在那一次后台 XHR 的 query(**不进**地址栏/历史/Referer)。
+并入记忆里那张 **「终端 WS token 进访问日志」** 后端票。
