@@ -114,6 +114,32 @@ describe('类 3 · 桌面侧补丁', () => {
     expect(s).toContain("if (key === 'storage') { router.push('/storage'); return }")
   })
 
+  // SP9-P8:私有版的 settings / vm 两个磁贴各带一条 cutoverDisabled 判定。开源版没有 flag,
+  // 而 SYS_ROUTE 已经把这两个 key 指向应用内路由 —— 所以产物里既不该有那两个 if,
+  // 也必须仍然能把它们 push 出去(靠末尾那句兜底)。这两件事要一起断言:
+  // 只断言"没有 cutoverDisabled"的话,补丁把整段 if 连兜底一起删掉也照样绿。
+  it('SP9-P8:开源版 vm/settings 磁贴靠 SYS_ROUTE 兜底 push,且产物里不留任何回退 flag 痕迹', () => {
+    const s = read('src/home/composables/useOpenAction.ts')
+    expect(s).toContain("router.push(SYS_ROUTE[key] || '/')")
+    expect(s).not.toContain("key === 'settings'")
+    expect(s).not.toContain("key === 'vm'")
+    expect(s).not.toContain("key === 'photos'")
+    // 私有版注释里那段"回退目标 / 老桌面 / resolveEntryTarget"的来龙去脉也不该外泄
+    expect(s).not.toMatch(/回退|legacy|resolveEntryTarget/)
+  })
+
+  // 测试文件侧:两条正向用例(settings→/settings、vm→/kvm)在开源版依然成立故保留;
+  // 四条与 flag / photos 相关的整块删除。dock 那条链路级用例同理只保留正向。
+  it('SP9-P8:useOpenAction.test.ts 与 HomeDock.test.ts 只留正向用例,flag 用例全删', () => {
+    const t = read('src/home/composables/useOpenAction.test.ts')
+    expect(t).toContain("router.push /settings")
+    expect(t).toContain("router.push /kvm")
+    expect(t).not.toMatch(/strangler:disabled|回退 flag|逐条独立|反向隔离/)
+    const d = read('src/home/components/HomeDock.test.ts')
+    expect(d).toContain("expect(router.push).toHaveBeenCalledWith('/settings')")
+    expect(d).not.toMatch(/strangler:disabled|回退|legacy|SP9-P8/)
+  })
+
   it("Kind 联合类型去掉 'photo'", () => {
     expect(read('src/home/grid/types.ts'))
       .toContain("export type Kind = 'widget' | 'app' | 'folder' | 'appwidget'")

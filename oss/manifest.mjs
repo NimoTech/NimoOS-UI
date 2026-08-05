@@ -200,11 +200,13 @@ export const PATCH = [
 
   // ── useOpenAction.ts:SYS_ROUTE 拍成内部路由(§8.2 的有意偏离)──────────
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)与相册区
-// (/photos,SP7-P8b)已活在本应用;其余系统入口仍指 Vue2,各自 SP 迁移时再改。
-// photos 这条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它,所以它是"回退目标"
-// 而不是"主路径";这也是它与 appstore/storage 的区别(那两个在 Vue2 侧是模态弹窗、没有
-// 自己的路由,回退只能落 /#/legacy 老桌面,故表里从来就没有它们的条目)。
+    find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)、相册区
+// (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)已活在本应用;
+// 其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+// photos / vm 这两条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它们,所以是"回退目标"
+// 而不是"主路径";这也是它们与 appstore/storage/settings 的区别(那三个在 Vue2 侧是模态弹窗、
+// 没有自己的路由,回退只能落 /#/legacy 老桌面 —— settings 因此也用 '/#/legacy' 作回退目标,
+// 落到老桌面后再点「设置」磁贴,由 Vue2 侧的 resolveEntryTarget('/settings') 判定弹老模态)。
 // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
 const SYS_ROUTE: Record<string, string> = {
   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
@@ -217,10 +219,13 @@ const SYS_ROUTE: Record<string, string> = {
 }` },
   { path: 'src/home/composables/useOpenAction.ts',
     find: `// 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
-// == '1' 时磁贴退回 Vue2 /#/legacy 老桌面,可逆 cutover。
+// == '1' 时磁贴退回 Vue2 老页面(见 SYS_ROUTE 各自的目标),可逆 cutover。
 // /apps = SP5-P8;/storage = SP6-P6(Vue2 桌面那三个存储入口共用同一把键,
 // 同源共享 localStorage,所以置一次即两侧同时回退);/photos = SP7-P8b(与 Vue2
-// strangler.js 的 migratedRoutes 里那条 /photos 共用同一把键,同理置一次两侧同时回退)。
+// strangler.js 的 migratedRoutes 里那条 /photos 共用同一把键,同理置一次两侧同时回退);
+// /kvm 与 /settings = SP9-P8,同理一把键管两侧(/kvm 在 Vue2 的 migratedRoutes、
+// /settings 在 migratedEntries)。
+// ⚠️ 键名取的是**路由路径**,不是磁贴 key —— vm 磁贴对应的键是 '/kvm'。
 function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
@@ -229,8 +234,14 @@ function cutoverDisabled(from: string): boolean {
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
       if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
+      if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
+      if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
+    // 开源版没有任何 cutover flag(私有主干那五个分支全靠 cutoverDisabled 才存在),
+    // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
+    // 所以这两个 key 由下面那句 router.push(SYS_ROUTE[key] || '/') 兜底即可,
+    // 不再重复写成两个 if(那只是一层无谓的间接)。photos 在开源版整个不存在。
     replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
       if (key === 'storage') { router.push('/storage'); return }
       router.push(SYS_ROUTE[key] || '/')
@@ -1187,13 +1198,51 @@ describe('photosPlaces 键(SP7-P6a)', () => {
 
   // ═══════════════════ T13:测试同步(混合型文件抠用例/改内容) ══════════════
 
-  // ── useOpenAction.test.ts:4 处断言 window.location.href 的用例,在开源版
+  // ── useOpenAction.test.ts:断言 window.location.href 的用例,在开源版
   //    SYS_ROUTE/cutoverDisabled 改法下行为已变(§8.2 有意偏离),整块删除 ──────
+  // SP9-P8:settings / vm 各有一对用例。**正向那两条(router.push /settings、/kvm)在开源版
+  // 依然成立**(SYS_ROUTE 已指内部路由,由兜底那句 push 出去),保留;只删两条 flag 回退用例。
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('settings 维持 /#/legacy(P8 cutover 不动它)', () => {
+    find: `  it('回退 flag strangler:disabled:/settings==1 时 settings 退回 /#/legacy 老桌面', () => {
+    localStorage.setItem('strangler:disabled:/settings', '1')
     const { openApp } = useOpenAction()
-    openApp('settings'); expect(hrefs[0]).toBe('/#/legacy')
+    openApp('settings')
+    expect(hrefs[0]).toBe('/#/legacy')
     expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/settings')
+  })
+`,
+    replace: '' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('回退 flag strangler:disabled:/kvm==1 时 vm 退回 Vue2 全页 /#/kvm(不是 /#/legacy)', () => {
+    localStorage.setItem('strangler:disabled:/kvm', '1')
+    const { openApp } = useOpenAction()
+    openApp('vm')
+    expect(hrefs[0]).toBe('/#/kvm')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/kvm')
+  })
+`,
+    replace: '' },
+  // 两条跨 flag 隔离用例:开源版一把 flag 都没有(且 photos 不存在),整块删。
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `  it('五把 flag 逐条独立:只关 /kvm,settings/storage/appstore/photos 都照走应用内路由', () => {
+    localStorage.setItem('strangler:disabled:/kvm', '1')
+    const { openApp } = useOpenAction()
+    openApp('settings'); expect(router.push).toHaveBeenCalledWith('/settings')
+    openApp('storage'); expect(router.push).toHaveBeenCalledWith('/storage')
+    openApp('appstore'); expect(router.push).toHaveBeenCalledWith('/apps/store')
+    openApp('photos'); expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
+    localStorage.removeItem('strangler:disabled:/kvm')
+  })
+  it('只关 /settings 时 vm 仍走应用内 /kvm(反向隔离)', () => {
+    localStorage.setItem('strangler:disabled:/settings', '1')
+    const { openApp } = useOpenAction()
+    openApp('vm')
+    expect(router.push).toHaveBeenCalledWith('/kvm')
+    expect(hrefs.length).toBe(0)
+    localStorage.removeItem('strangler:disabled:/settings')
   })
 `,
     replace: '' },
@@ -1265,9 +1314,9 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   })
 `,
     replace: '' },
-  // beforeEach 里那把 /photos flag 的清理也跟着撤(开源版无此 flag)
+  // beforeEach 里那三把 flag 的清理也跟着撤(开源版无任何 cutover flag)
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: "  localStorage.removeItem('strangler:disabled:/photos')\n",
+    find: "  localStorage.removeItem('strangler:disabled:/photos')\n  localStorage.removeItem('strangler:disabled:/settings')\n  localStorage.removeItem('strangler:disabled:/kvm')\n",
     replace: '' },
 
   // ── HomeTopbar.test.ts:唯一的搜索胶囊用例,组件本身已在 T6 删掉 .search-btn ───
@@ -1620,30 +1669,37 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   })` },
 
   // ── 复审(实测 pnpm test 才发现,brief 原始清单没覆盖到)────────────────────
-  // HomeDock.test.ts:点击 dock 上的 settings 图标,断言方式与 useOpenAction.test.ts
-  // 里删掉的那条同源 —— SYS_ROUTE 改内部路由后不再走 window.location.href,
-  // 改成断言 mock 的 router.push(同文件顶部已有 router mock,和 files 那条用例同款)。
+  // HomeDock.test.ts:点击 dock 上的 settings 图标。
+  // ⚠️ 这里**原来有一条 PATCH**,把私有版的 `expect(hrefs[0]).toBe('/#/legacy')` 改写成
+  //    `expect(router.push).toHaveBeenCalledWith('/settings')` —— SP9-P8 之后**私有版自己
+  //    就是这么断言的**(settings 磁贴已翻应用内路由),补丁因此变成恒等变换,已删除。
+  //    留这段注释是为了让后人知道它是被有意撤掉的,不是漏了。
+  // 剩下要处理的只有 P8 新加的那条 flag 回退用例:开源版无 flag,整块删。
   { path: 'src/home/components/HomeDock.test.ts',
-    find: `  it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
+    find: `
+  // 回退可逆也要在 dock 这条链路上验一次:flag 命中时仍整页跳老桌面,且 dock 照样收起。
+  it('expanded: 回退 flag strangler:disabled:/settings==1 时 settings 仍整页跳 /#/legacy', async () => {
     useAppsStore()
+    localStorage.setItem('strangler:disabled:/settings', '1')
     const hrefs: string[] = []
     Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
     const w = mount(HomeDock)
     await w.get('.dock-toggle').trigger('click')
-    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('true')
     await w.get('.dock-app[data-app="settings"]').trigger('click')
     expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
-  })`,
-    replace: `  it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
-    useAppsStore()
-    const w = mount(HomeDock)
-    await w.get('.dock-toggle').trigger('click')
-    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('true')
-    await w.get('.dock-app[data-app="settings"]').trigger('click')
-    expect(router.push).toHaveBeenCalledWith('/settings')
-    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
-  })` },
+  })
+`,
+    replace: '' },
+  // 私有版那条正向用例的注释里提到 cutover / #/legacy(开源版没有这段历史),改掉措辞。
+  { path: 'src/home/components/HomeDock.test.ts',
+    find: `  // SP9-P8 cutover:settings 从整页跳 /#/legacy 改成应用内 router.push('/settings')。
+  // 断言方式与 useOpenAction.test.ts 同一套(那里是单元级,这里是 dock 点击链路级)。
+`,
+    replace: `  // settings 磁贴走应用内路由。断言方式与 useOpenAction.test.ts 同一套
+  // (那里是单元级,这里是 dock 点击链路级)。
+` },
   // 全部应用抽屉的应用总数:oss 只有 5 个系统应用(files/storage/vm/appstore/settings,
   // T6 删了 photos/ai),抽屉里 .dock-app 数量恒等于 apps.order.length = 5,不是私有版的 6
   { path: 'src/home/components/HomeDock.test.ts',
