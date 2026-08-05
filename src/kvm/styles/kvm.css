@@ -22,11 +22,20 @@
  * 的 ALLOWED 白名单里登记好,后续任务(Task 1 起)再逐个把规则填进本文件:
  * kvm-dialog-overlay/kvm-dialog-content(弹窗共用壳)、create-vm-* 与 cv-*(创建弹窗)、
  * settings-tabs/settings-tab(VM 设置分页)、snapshots-body 与 cv-snapshot-*(快照面板)、
- * os-selector-body 与 os-*/category-*/custom-*(OSSelector)。颜色同样一律 var(--kvm-*),
- * 用到的 23 个 token 已在 theme sp9 分片里定义(--kvm-modal-*/--kvm-field-*/
- * --kvm-accent-hover-alt/--kvm-snapshot-*/--kvm-restore-*/--kvm-delete-bg-hover 等)。
+ * os-selector-body 与 os-* / category-* / custom-*(OSSelector)。颜色同样一律 var(--kvm-*),
+ * 用到的 23 个 token 已在 theme sp9 分片里定义(--kvm-modal-* / --kvm-field-* /
+ * --kvm-accent-hover-alt / --kvm-snapshot-* / --kvm-restore-* / --kvm-delete-bg-hover 等)。
  * (Task 11 收尾又新增第 24 个 --kvm-snapshot-name-fg,历史计数不改,见该 token 定义处
  * 与消费处注释。)
+ *
+ * ⚠️⚠️ 上面那几行里枚举类名/token 用的斜杠**必须两侧留空格**。星号紧贴斜杠会构成块注释的
+ * 结束记号,把这个注释**提前关掉**。之后的说明文字被当 CSS 解析,而 CSS 的错误恢复会一路吃到
+ * 下一个 `{…}` 块结束 ⇒ 紧随其后的 `.kvm-page` 整条规则被丢掉,KVM 页就只占视口上半部分、
+ * 背景光斑透上来。2026-08-05 P8 验收时机主一眼看见,本文件里当时**有两处**这样的注释,
+ * 另一处吞掉了 cv-empty-state(快照面板空态)。已加守卫:见 styles 目录下 color-guard 那份
+ * 测试的「CSS 注释完整性」一节,全仓样式表通用。
+ * 同理:本文件任何注释里都不要出现 `*` 紧跟 `/` 的写法。
+ * (注释里也别写形如「点 + 小写单词」的文件后缀,类名白名单测试会把它当成类名。)
  */
 
 .kvm-page {
@@ -2076,8 +2085,8 @@
  * --kvm-restore-bg-hover / --kvm-restore-disabled-bg;字色复用既有 --kvm-on-accent。
  * `.cv-btn-delete` 底复用既有 --kvm-danger(与 Vue2 这条规则的字面量恰好相同,不是
  * 巧合——本文件早前给控制台状态点/横幅错误色定义这个 token 时就是照抄同一个 Vue2 全局
- * 红),hover 底取新 token --kvm-delete-bg-hover。以上 --kvm-snapshot-*/
- * --kvm-restore-*/--kvm-delete-bg-hover 六个 token 均已在 theme sp9 分片里预先定义好
+ * 红),hover 底取新 token --kvm-delete-bg-hover。以上 --kvm-snapshot-* /
+ * --kvm-restore-* / --kvm-delete-bg-hover 六个 token 均已在 theme sp9 分片里预先定义好
  * (Task 1 起的历史遗留,该分片注释里写明"后续任务再消费"),这里是第一次被实际消费,
  * 不是新增 token。
  *

@@ -168,3 +168,42 @@ describe('color-scheme 单值必须走 theme-exception 豁免(防 I1 同类复�
     })
   }
 })
+
+// ── 注释完整性守卫(2026-08-05 SP9-P8 验收暴露的真缺陷:一整条规则被注释吞掉)──────
+//
+// 事故经过:`src/kvm/styles/kvm.css` 文件头那段说明里写了 `os-*/category-*`、
+// `--kvm-modal-*/--kvm-field-*/` —— **`*/` 提前把块注释关掉了**。此后的散文被当成 CSS
+// 解析,而 CSS 的错误恢复会一路吃到下一个 `{...}` 块结束 ⇒ 紧随其后的
+// `.kvm-page { display:flex; height:100vh; position:relative; z-index:1 }` **整条被丢掉**。
+// 后果是 KVM 页只占视口上半部分、背景光斑透上来,机主一眼就看见。
+//
+// **为什么本仓既有的守卫全都抓不到它**:
+//   · `kvmStyles.test.ts` 的类名白名单 / 裸色扫描都是对**源文本**做正则 —— 源文本完全正确,
+//     错的是"解析之后规则不见了",正则对它零判别力。
+//   · 本文件的颜色扫描同理(而且刻意不剥注释)。
+//   · `pnpm exec vue-tsc --noEmit` 不看 CSS;`pnpm build` 也不会因为丢一条规则而失败。
+//   ⇒ 这类缺陷只有"看渲染结果"或"按 CSS 的规则剥注释后再看还剩什么"才抓得到。
+//
+// 检测法(与解析器无关,故不依赖 jsdom 的 CSSOM):按 CSS 语义**非贪婪**剥掉 `/* … */`
+// (第一个 `*/` 即闭合,与浏览器一致),然后看有没有以 `*` 开头的行漏在外面 —— 那正是
+// 块注释里那种 ` * 说明文字` 的续行漏到了注释之外。`* { … }` 通用选择器例外。
+describe('CSS 注释完整性(防「注释里写了 */ 把后面的规则吞掉」)', () => {
+  for (const [rel, src] of Object.entries(cssFiles)) {
+    it(`${rel} 的块注释没有被自身内容提前关闭`, () => {
+      const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '')
+      const leaked: string[] = []
+      stripped.split('\n').forEach((line, i) => {
+        const t = line.trim()
+        // 真的通用选择器放行:`*` 之后紧跟的是选择器语法字符(`{ , : . # [ > + ~`),
+        // 例如 `* {` / `*,` / `*::-webkit-scrollbar` / `* > .x`。
+        // 漏出来的散文则是 `*` 之后接文字/汉字/括号,例如 ` * 用到的 23 个 token …`。
+        if (t.startsWith('*') && !/^\*\s*[{,:.#[>+~]/.test(t)) leaked.push(`  L${i + 1}: ${t.slice(0, 100)}`)
+      })
+      expect(
+        leaked,
+        `\n${rel}:有块注释被自身内容里的 */ 提前关闭,后面的规则会被 CSS 错误恢复吞掉。
+把注释里的 */ 拆开写(例如 \`os-* / category-*\`,斜杠两侧留空格):\n${leaked.join('\n')}`,
+      ).toEqual([])
+    })
+  }
+})
