@@ -61,14 +61,34 @@ describe('占位机制(K7)', () => {
   //     expect(isDeferred('indexed-files')).toBe(false)
   //     expect(isDeferred('settings')).toBe(false)
   //   })
-  it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,P5c-T10 实现 settings,P5d-T10 实现 notes,其余 4 个 tab 挂占位', () => {
+  //
+  // 【SP8-P5e Task 8,2026-08-05,第五次反转(不是删除)】'search' 已迁到真正的
+  // SearchView.vue(T4-T7 四刀收官,knowledgeRoutes.ts 同步反转),从占位列表摘掉
+  // → 4 项变 3 项;机制本身(isDeferred 的判定来源仍是 DEFERRED_TABS)不变。
+  // 承 T5 / P5b T10 / P5c T10 / P5d T10 的同一模式:反转 + 新增一条正向断言,不删
+  // 任何既有断言。**本刀是本期(P5e)最后一环。**
+  // 🔴 'wiki' / 'roots' / 'allowlist' 仍在列表里 —— 三者全部归 P5f(见 `deferred.ts`
+  // 文件头);没有再拆出别期。
+  //
+  // 改前(P5d T10 原文,反转前):
+  //   it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,P5c-T10 实现 settings,P5d-T10 实现 notes,其余 4 个 tab 挂占位', () => {
+  //     expect([...DEFERRED_TABS].sort()).toEqual(
+  //       ['allowlist', 'roots', 'search', 'wiki'])
+  //     expect(isDeferred('dashboard')).toBe(false)
+  //     expect(isDeferred('queue')).toBe(false)
+  //     expect(isDeferred('indexed-files')).toBe(false)
+  //     expect(isDeferred('settings')).toBe(false)
+  //     expect(isDeferred('notes')).toBe(false)
+  //   })
+  it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,P5c-T10 实现 settings,P5d-T10 实现 notes,P5e-T8 实现 search,其余 3 个 tab 挂占位', () => {
     expect([...DEFERRED_TABS].sort()).toEqual(
-      ['allowlist', 'roots', 'search', 'wiki'])
+      ['allowlist', 'roots', 'wiki'])
     expect(isDeferred('dashboard')).toBe(false)
     expect(isDeferred('queue')).toBe(false)
     expect(isDeferred('indexed-files')).toBe(false)
     expect(isDeferred('settings')).toBe(false)
     expect(isDeferred('notes')).toBe(false)
+    expect(isDeferred('search')).toBe(false)
   })
 
   it('isDeferred 对每个已列 tab 返回 true', () => {

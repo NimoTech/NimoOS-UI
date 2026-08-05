@@ -20,6 +20,16 @@
 //   · 'search'                       → **P5e**
 //   · 'wiki' / 'roots' / 'allowlist' → **P5f**
 // K7 占位机制本身不变(承 P4 I2 的教训,见下方 KnowledgeTabId 注释与 deferred.test.ts)。
+//
+// 【SP8-P5e Task 8,2026-08-05,第五次反转(不是删除)】'search' 已迁(SearchView.vue,
+// T4-T7 四刀收官 + knowledgeRoutes.ts 反转),从这里摘掉 → DEFERRED_TABS 由 4 项变
+// 3 项。承 T5(queue)/ P5b-T10(indexed-files)/ P5c-T10(settings)/ P5d-T10(notes)
+// 四次同款先例:反转 + 新增一条正向断言,不删任何既有断言(deferred.test.ts 同步)。
+// 🔴 逐项重申剩下 **3** 个占位项归哪一期反转:
+//   · 'wiki' / 'roots' / 'allowlist' → **P5f**(全部三个都归 P5f,没有再拆出别期)。
+// K7 占位机制本身仍不变(承 P4 I2 的教训 —— 清单摘空之前,每一步都要仍有用例证明
+// 机制本身有能力工作,而不是只剩一段没人测的代码,见下方 KnowledgeTabId 注释与
+// deferred.test.ts 的「机制钉子」用例)。
 export type KnowledgeTabId =
   | 'dashboard'
   | 'search'
@@ -32,7 +42,6 @@ export type KnowledgeTabId =
   | 'settings'
 
 export const DEFERRED_TABS = [
-  'search',
   'wiki',
   'roots',
   'allowlist',

@@ -46,9 +46,16 @@
 // import** —— 在此之前 ParserStatus/ParserTest 全仓零生产 import,模块不进 Vite
 // 图,那份 scss 的 side-effect import 从未求值、产物里编不出任何 CSS(治理 §12.3
 // 的 E-13:`.vue` 光「存在且写了 import」进不了产物)。
-// 🔴 剩下 **5** 个子路由(`search` / `wiki` / `roots` / `allowlist` / `notes`)仍指
-// KnowledgeDeferred,K7 占位机制本身保留;`allowlist` 是用户 2026-08-03 明示移出
-// 本期的(治理 §2.2),不是漏迁。**本期反转后 parser 两条路由已无占位页残留。**
+// 【M-5,2026-08-05,P5e-T8 顺手订正】🔴 本段是 **P5c-T10 落笔时(2026-08-04)的状态
+// 快照**,原文用现在时写「剩下 5 个子路由……仍指 KnowledgeDeferred」—— 这句话早已
+// 被下面 P5d Task 10 的记录推进过一次(5→4),现在又被本文件末尾 P5e Task 8 的记录
+// 再推进一次(4→3)。**此处原文按「反转不删」整体保留,仅把语气从现在时改成历史
+// 记录,不改变它描述的历史事实**:于 P5c-T10 完成的那一刻,`search` / `wiki` /
+// `roots` / `allowlist` / `notes` 这 5 个子路由确实都还指向 KnowledgeDeferred,
+// K7 占位机制本身保留;`allowlist` 是用户 2026-08-03 明示移出本期的(治理 §2.2),
+// 不是漏迁。**P5c-T10 反转后,parser 两条顶层路由已无占位页残留(此后一直如此)。**
+// 🔴 当前最新状态永远以文件末尾最近一次反转记录 + `deferred.ts` 文件头为准,不要
+// 只读这一段。
 //
 // 【SP8-P5d Task 10,2026-08-05】`notes` 子路由(笔记位)同样从占位页
 // KnowledgeDeferred 反转成真正的 NotesView(T6-T9 四刀收官的产出;K7 占位机制
@@ -56,6 +63,13 @@
 // P5b T10 / P5c T10 四次同款先例)。**本刀是本期(P5d)最后一环** —— `/ai/knowledge`
 // 左栏第 4 项「笔记」第一次真正可达。剩下 4 个子路由(`search` / `wiki` / `roots` /
 // `allowlist`)仍指 KnowledgeDeferred,归属见 `deferred.ts` 文件头。
+//
+// 【SP8-P5e Task 8,2026-08-05,第六次反转(不是删除)】`search` 子路由(搜索位)同样
+// 从占位页 KnowledgeDeferred 反转成真正的 SearchView(T4-T7 四刀收官的产出;K7 占位
+// 机制本身不变 —— 见 knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 / P5b T5 /
+// P5b T10 / P5c T10 / P5d T10 五次同款先例)。**本刀是本期(P5e)最后一环** ——
+// `/ai/knowledge` 左栏第 2 项「搜索」第一次真正可达。剩下 3 个子路由(`wiki` /
+// `roots` / `allowlist`)仍指 KnowledgeDeferred,全部归 P5f(见 `deferred.ts` 文件头)。
 import type { RouteRecordRaw } from 'vue-router'
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
@@ -64,6 +78,7 @@ import QueueView from './views/QueueView.vue'
 import IndexedFilesView from './views/IndexedFilesView.vue'
 import SettingsView from './views/SettingsView.vue'
 import NotesView from './views/NotesView.vue'
+import SearchView from './views/SearchView.vue'
 import ParserStatus from './parser/ParserStatus.vue'
 import ParserTest from './parser/ParserTest.vue'
 
@@ -73,7 +88,7 @@ export const knowledgeRoutes: RouteRecordRaw[] = [
     component: KnowledgeLayout,
     children: [
       { path: '', name: 'KnowledgeDashboard', component: DashboardView },
-      { path: 'search', name: 'KnowledgeSearch', component: KnowledgeDeferred },
+      { path: 'search', name: 'KnowledgeSearch', component: SearchView },
       { path: 'wiki', name: 'KnowledgeWiki', component: KnowledgeDeferred },
       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: IndexedFilesView },
       { path: 'queue', name: 'KnowledgeQueue', component: QueueView },

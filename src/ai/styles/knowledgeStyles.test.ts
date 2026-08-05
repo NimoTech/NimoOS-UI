@@ -1767,3 +1767,94 @@ describe('守卫缺口③′ 扩展(票 3b)—— src/ai/components/** 同款模
     expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 【P5e-T8 新增,裁定 R23】补 T4 评审 Important-1「祖先链结论零自动化守卫」的缺口。
+//
+// 事实(T4 评审自加探针实证,见 p5e-task-4-review.md §3-B / 裁定 R23):给
+// `.knowledge-app` 加一行 `transform: translateZ(0)` → 全量 4134/4134 仍绿。
+// K46 的全部立论(`.k-fileviewer-host` 的 `position: fixed; inset: 0` 能铺满
+// 视口,前提是 `.knowledge-app` 及其向上到 <html> 的整条真实 DOM 祖先链都不产生
+// 新的 containing block —— 见 `src/files/viewers/ViewerShell.vue:24` 的
+// `position: absolute; inset: 0; z-index: 200`,它需要一个铺满视口的定位祖先)
+// 目前只靠 T4 的一次性人工实测报告担保,没有自动化回归防线。将来任何一次给
+// `.knowledge-app`/`.k-main`/`body`/`html` 加 transform/filter/will-change 之类
+// 做过渡动画/性能优化(即便本身正当),都会在真机上悄悄让 in-app 预览器塌陷
+// (相对该祖先定位而非铺满视口)—— 而预览器不报错,只错位/不铺满视口,单测、
+// sass 门、color-guard 三道全都抓不到。
+//
+// 本仓可控的真实祖先链(T4 报告 §4 逐段实测,本条断言据此钉住)=
+// router-view → .k-main → .knowledge-app → KnowledgeLayout 根(该组件零
+// <style>,只在 <script setup> 里 JS 侧 import knowledge.scss)→ App.vue(零
+// <style>)→ #app(全仓无此选择器的样式规则)→ body → html。链上真正有 CSS
+// declaration 落点的只有两处:knowledge.scss 的 `.knowledge-app`/`.k-main`
+// 自身声明,以及 theme.css 的 `body`/`html` 自身声明。
+//
+// 🔴 必须排除伪元素:`body::before`(theme.css:335)/ `body::after`
+// (theme.css:352)各自声明了 transform/filter,这是合法且无害的 —— 伪元素是
+// 生成内容子节点,与 `#app` 是兄弟关系而非祖先关系(T4 评审已独立坐实这条 CSS
+// 规范推理:containing block 降级只作用于该属性所应用到的那个盒子本身,
+// `body::before`/`::after` 的 transform/filter 只影响它们自己的盒子,不会让
+// `body` 本身变成新的 containing block)。下面用于抓 `body`/`html` 规则的正则
+// 要求选择器结尾紧跟 `{`(`body::before {` 中间夹了 `::before`,不会被这条规则
+// 捕获),天然只抓 body/html 元素自身的规则,不会误伤伪元素。
+describe('祖先链守卫(R23)—— .knowledge-app / .k-main / body / html 自身声明零 transform·filter·will-change·contain·perspective', () => {
+  // 只匹配「属性名紧跟冒号」的真实声明,不匹配作为别的属性值出现的同名词
+  // (例如 `transition: transform 0.45s var(--ease);` 里的 `transform` 是
+  // transition 的值,不是一条 transform 声明,后面不紧跟冒号,不会被匹配);
+  // 负向前瞻 `(?<![\w-])` 同时排除 `backdrop-filter:` 这类以连字符复合的属性名
+  // (它不建立 transform 意义上的 containing block 关注点,且不在禁用清单里)。
+  const FORBIDDEN = /(?<![\w-])(transform|filter|will-change|contain|perspective)\s*:/
+
+  // 剥掉某个嵌套规则块里所有更深一层的嵌套选择器块,只留该选择器自身的顶层声明。
+  // knowledge.scss 是 SCSS 嵌套写法,`.knowledge-app { … 大段嵌套 … }` 把几乎全部
+  // 规则都嵌在里面(nestedBlockBody 会把这一整段都取出来,含 `.chev`/`.k2-layer:hover`
+  // 等后代选择器自己的 transform/filter——那些只影响各自的盒子,不是 `.knowledge-app`
+  // 自身的祖先链关注点,必须先剥掉才能只看「该选择器自己写了什么」)。逐层剥离
+  // `{[^{}]*}`(先剥最内层、再剥外一层……)直到再也剥不出更多嵌套块为止。
+  function ownDeclarations(nestedText: string): string {
+    const first = nestedText.indexOf('{')
+    const last = nestedText.lastIndexOf('}')
+    let inner = nestedText.slice(first + 1, last)
+    let prev: string
+    do {
+      prev = inner
+      inner = inner.replace(/\{[^{}]*\}/g, '')
+    } while (inner !== prev)
+    return inner
+  }
+
+  // 判据(裁定 R23 ②):给 `.knowledge-app` 加一行 `transform: translateZ(0);` →
+  // 这条必须报红。任务报告贴了改前(绿)/改后(红)两段输出 + cp 副本 md5sum 逐字节
+  // 还原确认,此处的探针改动本身不进 git(只在报告里留痕)。
+  it('.knowledge-app 自身声明零 transform/filter/will-change/contain/perspective(判据:加 transform: translateZ(0) → 必须报红)', () => {
+    const own = ownDeclarations(nestedBlockBody(cssKeepLines, DARK_TOKEN_SELECTOR))
+    const hit = own.match(new RegExp(FORBIDDEN, 'g'))
+    expect(hit, `.knowledge-app 自身出现了禁用属性:${JSON.stringify(hit)}`).toBeNull()
+  })
+
+  it('.k-main 自身声明零 transform/filter/will-change/contain/perspective', () => {
+    const own = ownDeclarations(nestedBlockBody(cssKeepLines, '.k-main {'))
+    const hit = own.match(new RegExp(FORBIDDEN, 'g'))
+    expect(hit, `.k-main 自身出现了禁用属性:${JSON.stringify(hit)}`).toBeNull()
+  })
+
+  // theme.css 的 body/html 自身声明 —— body::before / body::after 伪元素除外
+  // (见头注释:生成内容子节点,不是 #app 的祖先)。
+  it('theme.css 的 body/html 自身声明零 transform/filter/will-change/contain/perspective(body::before/::after 伪元素除外)', () => {
+    const themeRaw = read('../../styles/theme.css')
+    const themeCss = stripComments(themeRaw)
+    // 选择器紧跟 `{`(排除 `body::before {`/`body::after {` 这类伪元素,它们的
+    // `{` 前面还夹着 `::before`/`::after`,不会被这条规则捕获);负向前瞻排除
+    // 前面还带字母/点/井号/连字符的情形(避免误配复合类名或 id 里的同名子串)。
+    const RULE = /(?<![\w.#-])(html|body)\s*\{([^{}]*)\}/g
+    const blocks: string[] = []
+    let m: RegExpExecArray | null
+    while ((m = RULE.exec(themeCss))) blocks.push(m[2])
+    expect(blocks.length, 'theme.css 里一条 body/html 规则块都没扫到 —— 选择器写法是不是变了?').toBeGreaterThan(0)
+    for (const decl of blocks) {
+      const hit = decl.match(new RegExp(FORBIDDEN, 'g'))
+      expect(hit, `theme.css 的 body/html 规则里出现了禁用属性:${JSON.stringify(hit)}\n块内容:\n${decl}`).toBeNull()
+    }
+  })
+})
