@@ -140,6 +140,14 @@ P5d 交接单说「**P5e 一写 `<style>` 块就零保护**」,据此本治理�
 - **不通** → 按上级设计 **D1 政策**:界面做完整、逻辑照抄、**不列真机验收项**、
   **不为打不通的接口编造 fixture**(用「按接口构造的最小样本」并在 README 登记,同 P5d 的 D-6 模具)。
 
+### 0.55 🔴 蓝本源码与上级设计的读法(**混了会读到空文件**)
+
+🔴 **两条读法不同,别混**(协调者 2026-08-05 实测):
+| 读什么 | 怎么读 |
+|---|---|
+| **蓝本源码**(`src/**`) | `git -C ../../NimoOS-UI show 7a6ee6b7:src/views/AI/Knowledge/…`。**`main` 线** |
+| **上级设计 / roadmap**(`docs/**`) | 🔴 **不在 `7a6ee6b7` 上**(实测 `git show 7a6ee6b7:docs/…` = **0 行**)—— 它们只在 **`docs/vue3-migration-sp3`** 分支。用 `git -C ../../NimoOS-UI show 6a8f7825:docs/superpowers/specs/2026-07-31-vue3-migration-sp8-p5-knowledge-design.md`(**钉这个 sha**,已验与 HEAD/工作树逐字节相同;工作树分支还在动,今天刚提交 SP9-P7 关账) |
+
 ### 0.5 T0 必做的第一个动作(承 P5c §4.4 第 2 条,不许省)
 
 ```bash
@@ -160,17 +168,18 @@ P5d §1 全部条款继续生效(可写仓只有 `.sp8/NimoOS-New-UI`;蓝本一�
 `.superpowers/sdd/` 一律 **`git add -f`**)。**订正/新增 4 条**:
 
 1. **起点 commit = `cbcebf9`**(P5d 关账提交)。`git log --oneline -1` 自己现测确认。
-2. 🔴 **`.superpowers/` 仍被 `.gitignore:6` 盖着** —— `git status` 全程干净、零警告。
+2. 🔴 **蓝本源码与上级设计在两条不同的 ref 上,读法不同** —— 见 §0.55。
+3. 🔴 **`.superpowers/` 仍被 `.gitignore:6` 盖着** —— `git status` 全程干净、零警告。
    P5d 收官时发现 **30 个文件从未被 git 跟踪**(含裁定书与整期台账),正是 SP7 整目录丢失的同款向量。
    **每刀提交时就 `git add -f`,别攒到收官。**
    ⚠️ 记忆里「08-05 起 `.superpowers` 不再 gitignore」说的是 **master 那条线(`505e3bf`)**,
    **`sp8-ai` 分支没有这个提交** —— 本期不适用,`git add -f` 纪律不变。
-3. **`.sp8/NimoOS-Service` 本期零改动。** 🔴 已核实**不需要**任何 Service 改动:
+4. **`.sp8/NimoOS-Service` 本期零改动。** 🔴 已核实**不需要**任何 Service 改动:
    `runSearch` / `loadChunkContext` 已在 `knowledgeStore.ts:550/571`;
    `service.ai.searchText` / `searchChunk` 已在包内;`isDistillableName` / `DISTILL_EXTS` /
    `notes.distillFile` 已在包内并从 `index.ts:27` 导出;
    **文件字节流走 `getHttp()`**(见 K50)。→ 不需要跨仓 `pnpm build`,不需要 `pnpm install`。
-4. **验收 dev server 已在 `:5288`(pid 1159107,VITE v7.3.6,服务 `.sp8` 工作树),不另起端口。**
+5. **验收 dev server 已在 `:5288`(pid 1159107,VITE v7.3.6,服务 `.sp8` 工作树),不另起端口。**
    🔴 **`:5277`(SP7 并发会话)与 `:5273`(master/SP9)与 `:5299`(NimoOS-Web)一律不许碰。**
    本期**无新依赖**(见 §14)→ **不需要 kill 重起**;若某刀改了共享包或依赖,才由协调者重起。
    🔴 **`vite.config.ts` 的 `optimizeDeps.exclude` 别删。**

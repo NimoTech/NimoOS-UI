@@ -12,7 +12,9 @@
 > ⚠️ **例外**:凡**用户明示裁定**的,压过上级设计(已发生 2 次,见 §4)。
 >
 > 测量口径:2026-08-05,协调者在 `.sp8/NimoOS-New-UI`@`a67e380` 实测。
-> 蓝本一律 `git show 7a6ee6b7:<path>` 读 —— **`NimoOS-UI` 工作树签出的是 `docs/vue3-migration-sp3`(2026-07-15),没有 `NotesView.vue`/`WikiView.vue`,禁读工作树。**
+> 🔴 **`src/**` 蓝本用 `git show 7a6ee6b7:` 读;上级设计与 roadmap 在 `docs/vue3-migration-sp3` 分支上、
+> `7a6ee6b7` 里没有它们(实测 0 行)→ 用 `git show 6a8f7825:docs/…` 读。**
+> 蓝本源码一律 `git show 7a6ee6b7:<path>` 读 —— **`NimoOS-UI` 工作树签出的是 `docs/vue3-migration-sp3`(2026-07-15),没有 `NotesView.vue`/`WikiView.vue`,禁读工作树。**
 
 ---
 

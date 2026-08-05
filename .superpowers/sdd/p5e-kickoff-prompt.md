@@ -14,7 +14,7 @@
 | | |
 |---|---|
 | 可写仓 | `/home/nimo/NimoTech/.sp8/NimoOS-New-UI` @ `sp8-ai`,起点 **`d2c5d5b` 之后的 HEAD**(自己 `git log --oneline -1` 现测) |
-| 蓝本锁 | `NimoOS-UI` @ **`7a6ee6b7`** · 🔴 **一律 `git show 7a6ee6b7:<path>` 读** |
+| 蓝本锁 | `NimoOS-UI` @ **`7a6ee6b7`**(`src/**`)· 🔴 **读法见 §1 末尾那张两条 ref 的表 —— `docs/**` 不在这个 sha 上** |
 | 验收 | dev server **`:5288`**(应已在监听,服务 `.sp8` 工作树)· 🔴 **禁 `deploy.sh`** |
 | 禁令 | **禁部署 · 禁 push · 禁合 master** · Service 仓零改动 · **零新依赖** |
 | 三门起点 | `Test Files 331` / `Tests 3958` / `vue-tsc` 0 / `vite build` 0(**T0 自己重跑确认**) |
@@ -26,15 +26,21 @@
 
 | # | 文件 | 为什么 |
 |---|---|---|
-| 1 | `NimoOS-UI/docs/superpowers/specs/2026-07-31-vue3-migration-sp8-p5-knowledge-design.md`(296 行) | 🔴 **上级设计 = P5 全期最高权威。** 本期必读 **§4 P5e 段(两条开工前置)· §5.4 · §6.1/§6.4/§6.5 · §7(K1–K8/N1–N7)· §9 · §10** |
-| 2 | `.superpowers/sdd/p5-master-plan.md`(223 行) | 全期按蓝本**逐类实测**重算:**§2.4 P5e 的 52 个 scss 类清单** · **§2.2 的 24 个死代码类** · §4 用户裁定对上级设计的覆盖 |
+| 1 | `NimoOS-UI/docs/superpowers/specs/2026-07-31-vue3-migration-sp8-p5-knowledge-design.md`(约 300 行) | 🔴 **上级设计 = P5 全期最高权威。** 本期必读 **§4 P5e 段(两条开工前置)· §5.4 · §6.1/§6.4/§6.5 · §7(K1–K8/N1–N7)· §9 · §10** |
+| 2 | `.superpowers/sdd/p5-master-plan.md` | 全期按蓝本**逐类实测**重算:**§2.4 P5e 的 52 个 scss 类清单** · **§2.2 的 24 个死代码类** · §4 用户裁定对上级设计的覆盖 |
 | 3 | `docs/superpowers/2026-08-05-sp8-p5-cross-area-impacts.md` | 跨区影响与两张独立票(**进 git,会跟着合并走**) |
-| 4 | `.superpowers/sdd/p5e-common-constraints.md`(757 行) | 本期治理:K46–K51 / N33–N45 / 四项裁定 / 测试质量增补 |
-| 5 | `.superpowers/sdd/p5e-plan.md`(511 行) | 九刀与逐刀 DoD |
+| 4 | `.superpowers/sdd/p5e-common-constraints.md` | 本期治理:K46–K51 / N33–N45 / 四项裁定 / 测试质量增补 |
+| 5 | `.superpowers/sdd/p5e-plan.md` | 九刀与逐刀 DoD |
 | 6 | `.superpowers/sdd/p5d-handoff-to-p5e-p5f.md` | P5d 交下来的债务 + **9 条后续每期都该用的做法** |
 | 7 | `.superpowers/sdd/p5d-coordinator-rulings-T0.md`(R1–R17) | R5 / R8-R9 的方法论、**R17 的守卫形态**本期继续沿用 |
 | 8 | `.superpowers/sdd/p5d-FINAL-review.md` | §0.3 四位置守卫实测表(⚠️ 本期**不接手**修它,见 §2-2) |
 | 9 | `p5a-` → `p5b-` → `p5c-` → `p5d-common-constraints.md` | 每一条都继续生效 |
+
+🔴 **两条读法不同,别混**(协调者 2026-08-05 实测):
+| 读什么 | 怎么读 |
+|---|---|
+| **蓝本源码**(`src/**`) | `git -C ../../NimoOS-UI show 7a6ee6b7:src/views/AI/Knowledge/…`。**`main` 线** |
+| **上级设计 / roadmap**(`docs/**`) | 🔴 **不在 `7a6ee6b7` 上**(实测 `git show 7a6ee6b7:docs/…` = **0 行**)—— 它们只在 **`docs/vue3-migration-sp3`** 分支。用 `git -C ../../NimoOS-UI show 6a8f7825:docs/superpowers/specs/2026-07-31-vue3-migration-sp8-p5-knowledge-design.md`(**钉这个 sha**,已验与 HEAD/工作树逐字节相同;工作树分支还在动,今天刚提交 SP9-P7 关账) |
 
 ⚠️ **`p5d-common-constraints.md` 有 18 处已查实的错(E-31~E-48)**,顶部已有勘误横幅。
 🔴 **不许引它的 A-10 / K37 / §4.2 / §7 / §1.2(43 个 glyph)原文当依据。**
