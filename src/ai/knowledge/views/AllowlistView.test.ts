@@ -509,6 +509,50 @@ describe('AllowlistView —— N47:data-on 是 "true"/"false" 字符串,两侧�
     expect(ai.patchParserAllowlistExtensions).toHaveBeenLastCalledWith({ ext: '.docx', enabled: true })
     expect(toast).toHaveBeenLastCalledWith('已收录 .docx')
   })
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // 🔴 T5 追加(裁定 **R24** 的 Important I-1)—— K58 的**第五个落点**:`toggle()` 的 catch。
+  // 【为什么补】T4 评审实证:K58 的五个落点里,`toggle()` 的 catch **完全没有守卫** ——
+  //   把 K5/K58 最核心的禁令(**回显后端 `e.message`**)直接写进那个 catch,
+  //   `AllowlistView.test.ts` **52/52 全绿、三门也一条都不响**。
+  //   这是「产品代码对、守卫为零」家族的又一次;缺口越早补越不会被遗忘(承 P5e 裁定 R16)。
+  // 🔴 判据 = 把 `e.message` 回显写进 `AllowlistView.vue` 的 `toggle()` catch → **必须报红**
+  //   (T5 报告 §7 贴完整输出 + md5sum 还原)。
+  // ⚠️ 探针文本 `PROBE-K58-8Q3Z-*` 与本文件其余四条 K58 用例同一族;它**故意不出现在
+  //   `AllowlistView.vue` 里**(治理 §9:否定式断言撞注释 = 假报红)。
+  // ⚠️ **本刀只新增用例,`AllowlistView.vue` 的产品码一行未动**(裁定 R24:评审已逐字核为正确)。
+  it('🔴 K58(T5 追加)—— toggle 失败:只弹固定键「保存失败」,不回显后端 body', async () => {
+    const { w, store } = await mountPage(EXT_REPLAYED)
+    const toast = vi.spyOn(store, 'toast')
+    ai.patchParserAllowlistExtensions.mockRejectedValue(new Error('PROBE-K58-8Q3Z-toggle'))
+    // §9.17:先确认这个 chip 在本条数据下真渲染成了可点元素
+    const chip = w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.pdf')!
+    expect(chip.exists(), '.pdf chip 没渲染出来 —— 下面那一发 click 会点在空气上').toBe(true)
+    await chip.trigger('click')
+    await flushPromises()
+    expect(toast).toHaveBeenLastCalledWith('保存失败')
+    expect(toast.mock.calls.flat().join('|')).not.toContain('PROBE-K58-8Q3Z')
+    expect(w.html()).not.toContain('PROBE-K58-8Q3Z')
+  })
+
+  it('🔴 K58(T5 追加)—— 关闭态 chip 的 toggle 失败走同一条 catch(另一侧,同样不回显)', async () => {
+    const { w, store } = await mountPage(EXT_REPLAYED)
+    const toast = vi.spyOn(store, 'toast')
+    ai.patchParserAllowlistExtensions.mockRejectedValue(new Error('PROBE-K58-8Q3Z-toggleoff'))
+    const chip = w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.docx')!
+    expect(chip.attributes('data-on'), '这一侧必须是关闭态,否则两条用例走的是同一条数据').toBe(
+      'false',
+    )
+    await chip.trigger('click')
+    await flushPromises()
+    expect(toast).toHaveBeenLastCalledWith('保存失败')
+    expect(toast.mock.calls.flat().join('|')).not.toContain('PROBE-K58-8Q3Z')
+    expect(w.html()).not.toContain('PROBE-K58-8Q3Z')
+    // 失败后 store 侧不该把 chip 翻过去(store.toggleExtension 抛错 ⇒ 归一化列表没被换)
+    expect(
+      w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.docx')!.attributes('data-on'),
+    ).toBe('false')
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1011,8 +1055,16 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴 裁定 R27 / 勘误 E-62 —— toast 一律走 `store.toast(...)`(内部 2400ms),
 // 直调 `useToast()` 会丢掉蓝本自己的 2400ms(全局 `show()` 默认只有 1500ms)。
-describe('AllowlistView —— R27:9 处 toast 全部经 store.toast(不是直调 useToast)', () => {
-  it('五个成功分支 + 四个失败分支的 toast 都被 store.toast 的 spy 捕获', async () => {
+// 🔴 **T5 顺手订正(裁定 R24 的 Minor M-1)**:落点数原写 **9**,实为 **10**
+//   (5 个成功 + **5** 个 catch,不是 4 个 —— `toggle` 的 catch 被漏数了)。
+//   口径:`AllowlistView.vue` 里 `store.toast(` 共 12 处,其中 2 处在文件头的 `<!-- -->`
+//   注释里(那两行讲的正是这条约定本身)⇒ 真落点 **10**。
+//   ⚠️ **只改注释与用例名,一条断言都没动**(裁定 R24 明令)。
+//   ⚠️ 顺带一条给下一刀的教训:核这个数时用「裸 `/\*[\s\S]*?\*/` 剥块注释」会数成 **9** ——
+//     `saveRule` 里的路径字面量 `'/Downloads/*'` 会被当成块注释的起点,一路吃掉后面的真代码。
+//     剥注释器必须要求 `/*` 前面是空白或行首(E-25 / 裁定 R19 同族)。
+describe('AllowlistView —— R27:10 处 toast 全部经 store.toast(不是直调 useToast)', () => {
+  it('五个成功分支 + 五个失败分支的 toast 都被 store.toast 的 spy 捕获', async () => {
     const { w, store } = await mountPage(EXT_REPLAYED, FOLDER_RULES_CONSTRUCTED)
     const toast = vi.spyOn(store, 'toast')
     // ① toggle 成功

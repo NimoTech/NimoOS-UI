@@ -76,7 +76,10 @@
   【K27 同族 —— toast 一律走 `store.toast(...)`】裁定 **R27** / 勘误 **E-62**:
     `knowledgeStore.ts` 里 `toast()` 内部是 `useToast().show(msg, 2400)`,而**全局 `show()`
     默认只有 1500ms** ⇒ 直调 `useToast()` 会丢掉蓝本自己的 2400ms。既有 6 页全走
-    `store.toast()`,本页照同一份(共 **9 处** = 5 个成功 + 4 个 catch 分支所用的 3 个键)。
+    `store.toast()`,本页照同一份 —— 共 **10 处** = **5 个成功** + **5 个 catch**
+    (catch 侧用 3 个键:`aiKbAlSaveFailed` ×3 / `aiKbAlAddFailed` / `aiKbAlDeleteFailed`)。
+    🔴 **订正(T5 顺手做,裁定 R24 的 Minor M-1)**:本行原写「9 处 = 5 成功 + 4 catch」,
+    漏数了 `toggle()` 的 catch。**只改这段注释,产品代码一行未动。**
 
   ═══════════════════ 照抄申报(§3.5 的 N 条目)═══════════════════
 

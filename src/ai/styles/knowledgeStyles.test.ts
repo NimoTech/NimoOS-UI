@@ -1529,6 +1529,7 @@ const KNOWLEDGE_VUE_FILES = [
   'views/KnowledgeLayout.vue',
   'views/NotesView.vue',
   'views/QueueView.vue',
+  'views/RootsView.vue',
   'views/SearchView.vue',
   'views/SettingsView.vue',
 ]
