@@ -97,16 +97,19 @@ const cssKeepLines = blankComments(rawSource)
 // 🔴 终值以裁定 R8 为准(T0 评审用自己重写的模拟器独立复现过,不是 T0 自报);
 // T2 开工第一动作已独立重跑 `.superpowers/sdd/p5e-fixtures/scripts/sim-r8r9.mjs`
 // 与 `classes2.mjs`,复现 292→347 / 293→348 / 16→19 与 74=54/17/3,输出逐字贴在 T2 报告。
-// ⚠️ **「常量长度 348 ≠ NEW_RE 扫出数 347」那 1 差是现状就有的,不许去「修平」** ——
+// ⚠️ **「常量长度 ≠ NEW_RE 扫出数」那 1 差是现状就有的,不许去「修平」** ——
 // 那一项是 `knowledge-app`,真因是 NEW_RE 的 `k(?:2|n)?-` 分支要求 `k-`/`k2-`/`kn-`,
 // 而 `knowledge-app` 是 `kn` + `o`,**压根匹配不上**(裁定 R8 订正了附录 §D.7.1 给的
 // 「贪婪吃前缀」那个错理由 —— 照数字做,别照那个理由推演)。
+// 🔴 **P5f-T2 订正**:P5f 把该分支扩成 `k(?:2|n|r|w)?-`(裁定 R1),`knowledge-app`
+// **仍然匹配不上**(`k` + 可选组吃掉 `n` 后要 `-` 却遇到 `o`;空匹配后要 `-` 却遇到 `n`)
+// ⇒ **这 1 差在本期落地后依旧是 1**(常量 425 / 扫出 424),真因不变,同样不许修平。
 // ⚠️ `k-suggest-chip` **不在这 55 个里** —— 它早因 Dashboard v2 段那条后代覆盖被扫到、
 // 已在白名单里(E-52 的 HALF-MOVED);本刀补基类不会让白名单数字变。
 // ⚠️ `chev` / `path` / `h-md` **不在这 55 个里** —— 不是 k* 前缀,归 NON_K_HELPER_CLASSES。
 // 🔴 **白名单/登记表报红时,第一件事是回查附录 D §D.3 那 24 个蓝本死类清单
 // (下方有一条常驻断言钉住它们零出现),不许改白名单。**
-const WHITELIST_348 = [
+const WHITELIST_425 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
@@ -204,9 +207,43 @@ const WHITELIST_348 = [
   'k-rcard-name', 'k-rcard-snippet', 'k-rcard-tag', 'k-rel', 'k-rel-dot', 'k-rerank-warn',
   'k-result-count', 'k-results', 'k-search-box', 'k-search-clear', 'k-search-sticky', 'k-search-sticky-inner',
   'k-skel-rcard',
+  // ---- P5f-T2:附录 D §D.7.1 的 27 个 k-*(蓝本 :985-1141 + :1342-1396 + :1500-1503)----
+  // 🔴 `k-section-body`(蓝本 :985)与 `k-frow`(:1077)是**前几期故意没搬、本期反转搬入**
+  // 的两个(勘误 E-67 记的 67→69 差 2 就是它们);`k-frow` 另有一条 :1500-1503 的窄屏
+  // @media 覆盖(偏差 K60 / 裁定 R2)。⚠️ 与 P5b-T6 搬的 `k-frow-f` / `k-frow-fhead` /
+  // `k-frow-pathcell` / `k-frow-pathtxt` / `k-frow-num` / `k-frow-status` **是不同 token**,
+  // 零碰撞 —— 但任何扫描一律用完整 token 精确匹配(`k-frow\b` 会被 `k-frow-path` 假命中 = E-25)。
+  'k-custom-add', 'k-ext-chip', 'k-ext-chip-mark', 'k-ext-chips',
+  'k-extgroup', 'k-extgroup-head', 'k-extgroup-icon', 'k-extgroup-meta',
+  'k-extgroup-title', 'k-extgroup-toggle',
+  'k-field', 'k-field-hint', 'k-field-label', 'k-field-mono',
+  'k-frow', 'k-frow-action', 'k-frow-head', 'k-frow-path', 'k-frow-root', 'k-frow-root-icon',
+  'k-priority-hint',
+  'k-radio-2', 'k-radio-card', 'k-radio-card-desc', 'k-radio-card-icon', 'k-radio-card-text',
+  'k-section-body',
+  // ---- P5f-T2:附录 D §D.7.2 的 41 个 kw-*(蓝本 :2453-2561,Wiki 导航页)----
+  // 🔴 这一族与下面的 `kr-*` 一样,**旧 NEW_RE 的 `k(?:2|n)?-` 分支压根不认**
+  // (`w`/`r` 都不是 `2` 也不是 `n`)⇒ 不处理会一次性掉进 nonKClassNames 打红集合相等断言。
+  // 裁定 **R1** 采纳方案 B:扩 NEW_RE 分支 + 进本白名单 + nonKClassNames 加排除条件
+  // —— 与 P5c-T2a 处理 `fb-*` 的三件套**逐字同款先例**。
+  'kw-actions', 'kw-article', 'kw-article-inner',
+  'kw-change', 'kw-change-name', 'kw-change-time', 'kw-change-type', 'kw-changes',
+  'kw-child', 'kw-child-body', 'kw-child-chev', 'kw-child-ico', 'kw-child-meta',
+  'kw-child-name', 'kw-child-sum', 'kw-children',
+  'kw-crumb', 'kw-foot', 'kw-head', 'kw-md', 'kw-meta',
+  'kw-node', 'kw-node-chev', 'kw-node-ico', 'kw-node-name',
+  'kw-pending', 'kw-pending-orb', 'kw-pending-sub', 'kw-pending-title',
+  'kw-rawsrc',
+  'kw-sec', 'kw-sec-count', 'kw-sec-en', 'kw-sec-head', 'kw-sec-title',
+  'kw-split', 'kw-summary', 'kw-title',
+  'kw-tree', 'kw-tree-note', 'kw-tree-scroll',
+  // ---- P5f-T2:附录 D §D.5 的 9 个 kr-*(偏差 K53,来源 RootsView.vue:223-289 的
+  // `<style lang="scss" scoped>`;勘误 E-63:差集法结构性地看不到 .vue 自带的 style 块)----
+  'kr-adv-row', 'kr-badge', 'kr-check', 'kr-empty', 'kr-error',
+  'kr-hint', 'kr-input', 'kr-label', 'kr-path',
 ]
 
-describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2 + P5e-T2)', () => {
+describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2 + P5e-T2 + P5f-T2)', () => {
   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
@@ -215,15 +252,15 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
   // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('348 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_348.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+  it('425 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+    const missing = WHITELIST_425.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
   })
 
   // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
-  it('白名单恰好 348 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2 + P5e-T2 的 55)', () => {
-    expect(WHITELIST_348).toHaveLength(348)
-    expect(new Set(WHITELIST_348).size, '白名单里有重复项').toBe(348)
+  it('白名单恰好 425 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2 + P5e-T2 的 55 + P5f-T2 的 27+41+9)', () => {
+    expect(WHITELIST_425).toHaveLength(425)
+    expect(new Set(WHITELIST_425).size, '白名单里有重复项').toBe(425)
   })
 
   it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
@@ -277,13 +314,24 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
   // 已贴对现状文件的严格超集自证输出:old 225 / new 225 完全相同,证明这条改动在改动前的
   // 现状文件上**零可观测** —— RED 探针是唯一能证明它有判别力的证据,见下方独立 RED 探针
   // 小节)。被扫到的 `nme-content`/`ProseMirror` 两个新类同样必须落在白名单里(R9:226→293)。
-  it('没有搬多 —— 全部 k-/k2-/kn-/fb/nme/ProseMirror 类都在白名单内(附录 D.4 自检命令②的常驻版,字符集含 A-Z)', () => {
+  //
+  // 【P5f-T2 再扩:守卫缺口①第四轮(裁定 **R1**,方案 B)】本任务往本档搬入了 41 个
+  // `kw-*`(Wiki 页)与 9 个 `kr-*`(K53,来自 RootsView.vue 的 `<style scoped>`)。
+  // 上一版正则的 `k(?:2|n)?-` 分支**只接受 `k-`/`k2-`/`kn-`** —— `kw-` 的 `w`、`kr-` 的 `r`
+  // 都不是 `2` 也不是 `n` ⇒ 这 50 个类**一个都扫不到**,会连同 `cur` 一次性掉进
+  // 下面的 `nonKClassNames`,打红那条集合相等断言。
+  // 新分支:`k(?:2|n|r|w)?-`。三件套(扩正则 + 进白名单 + nonKClassNames 加排除条件)
+  // 与 **P5c-T2a 处理 `fb-*` 的做法逐字同款**,是本仓既定流程,不是新发明。
+  // 🔴 这仍然是**扩大扫描范围 = 加固**,不是放宽:被扫到的类仍然必须全部落在白名单里
+  // (少写一个 → 本条精确指名报红,T2 报告贴了 RED 探针②的输出)。
+  // 严格超集自证见下一条(已同步换成「P5e 版 vs P5f 版」两个正则,否则那条会变空壳)。
+  it('没有搬多 —— 全部 k-/k2-/kn-/kr-/kw-/fb/nme/ProseMirror 类都在白名单内(附录 D.4 自检命令②的常驻版,字符集含 A-Z)', () => {
     const found = Array.from(
       new Set(
-        css.match(/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g) || [],
+        css.match(/\.(?:k(?:2|n|r|w)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g) || [],
       ),
     ).map((s) => s.slice(1))
-    const extra = found.filter((c) => !WHITELIST_348.includes(c))
+    const extra = found.filter((c) => !WHITELIST_425.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
   })
 
@@ -294,13 +342,33 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
   // 🔴 T2 报告已贴这条断言对 T1 收官版本(`56f8849`)跑出的真实输出(old 225 / new 225,
   // 完全相同的集合)—— 这也是「本条改动在现状文件上零可观测」的证据来源,RED 探针
   // (见下方独立小节)才是这条改动唯一有判别力的证明。
-  it('严格超集自证 —— 新正则(含 A-Z + nme/ProseMirror)是旧正则的严格超集(old ⊆ new)', () => {
-    const OLD_RE = /\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g
-    const NEW_RE = /\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
+  //
+  // 🔴🔴 【P5f-T2 必改(裁定 **R1**-③)】本条原先硬编码的是「P5d 版 vs P5e 版」两个正则,
+  // **与本刀真正落地的那条正则无关** —— 不同步换掉,这条自证就变成**空壳**:它会永远
+  // 比较两个与现役正则无关的旧常量,不管现役正则怎么改都恒绿。
+  // 现在 OLD_RE = **P5e 收官时的现役正则**(即上一条断言改动前的原文),
+  // NEW_RE = **本刀落地的现役正则**(加了 `r|w` 两个分支)。
+  // 判据(R1-③ 原文):把 `r|w` 从被测的 NEW_RE 里删掉 → 本条必须报红。
+  // T2 报告贴了这个偏态的实测输出(删 `r|w` 后精确列出 50 个「旧扫到、新漏掉」的类)。
+  // ⚠️ 同时补一条**严格**方向的断言(`new ⊋ old`):只证 `old ⊆ new` 允许两者相等,
+  // 那样「扩范围」有可能其实什么都没扩(P5d 当时在改动前的文件上就是 old 225 / new 225)。
+  // 本刀的文件里 `kr-*`/`kw-*` 已经真实存在 ⇒ 严格真包含**可以且必须**被程序化证明。
+  it('严格超集自证 —— 本刀正则(加 kr-/kw- 分支)是 P5e 现役正则的严格超集(old ⊊ new)', () => {
+    const OLD_RE = /\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
+    const NEW_RE = /\.(?:k(?:2|n|r|w)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
     const oldHits = new Set((css.match(OLD_RE) || []).map((s) => s.slice(1)))
     const newHits = new Set((css.match(NEW_RE) || []).map((s) => s.slice(1)))
     const missing = [...oldHits].filter((c) => !newHits.has(c))
     expect(missing, `旧正则扫到但新正则漏掉的类(说明扩范围其实是放宽):${missing.join(', ')}`).toEqual([])
+    // 覆盖度自检:两个正则都必须真的扫到东西(防「正则失效 → 两个空集 → 恒绿」)
+    expect(oldHits.size, '旧正则一个类都没扫到 —— 零判别力').toBeGreaterThan(300)
+    // 🔴 严格真包含:新正则必须**多**扫到 50 个(41 个 kw-* + 9 个 kr-*),一个不多一个不少
+    const gained = [...newHits].filter((c) => !oldHits.has(c)).sort()
+    expect(
+      gained.length,
+      `新正则相对旧正则的净增量应为 50(41 个 kw-* + 9 个 kr-*),实际 ${gained.length}:${gained.join(', ')}`,
+    ).toBe(50)
+    expect(gained.every((c) => c.startsWith('kw-') || c.startsWith('kr-')), '净增量里混进了非 kw-/kr- 的类').toBe(true)
   })
 
   // 【P5b-T6 修:守卫缺口④(T2 评审挂账,协调者交给 T6 处置)】上面「没有搬多」那条
@@ -352,7 +420,7 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
     'spacer',
     // K45(裁定 R1)搬入的 .k-btn.text —— `&.text` 是复合类 `.k-btn.text` 里的 `text`,
     // 与既有 ghost/outline/primary/danger 四个 `&.x` 变体完全同款(蓝本 :1569-1570)。
-    // 🔴 `text` 只归本表(R8),不进 WHITELIST_348(R9 的正则扫不到复合类里的 `text`,
+    // 🔴 `text` 只归本表(R8),不进 WHITELIST_425(R9 的正则扫不到复合类里的 `text`,
     // 见上方「没有搬多」小节注释),R8/R9 二选一,不许同时登记两侧。
     'text',
     // .kn-tb-btn 内的 H2/H3 加宽变体(蓝本 :2167),写作 `&.wide`,P5d-T2 搬入,与既有
@@ -374,6 +442,14 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
     // 🔴 **蓝本 13 个 .vue 里零 class 引用**,但它嵌在 .k-rcard-snippet 内 → 随父块整体搬、
     // 不单独摘除(附录 D §D.6,同 P5d「statusBadge 零消费者也照抄导出」的 K7 模具)。P5e-T2 搬入
     'h-md',
+    // ---- P5f-T2 追加(裁定 R1 / 附录 D §D.7.4:19 → 20)----
+    // 🔴 本刀只往本表加 **1 个**。裁定 R1 明确否决了方案 A(把 41 个 kw-* + 9 个 kr-*
+    // 全倒进本表)—— 那会把这份「真·嵌套辅助类逐个登记出处」的小表**亲手变成它要防的
+    // 垃圾桶**,而且那 50 个类从此不再受上面「没有搬多」白名单扫描的覆盖 = **净减少
+    // 守卫覆盖面**。方案 B 让它们走 WHITELIST_425 + nonKClassNames 排除条件(同 fb-*)。
+    // Wiki 面包屑里的「当前项」—— .kw-crumb .cur(蓝本 :2475),与既有 right/mono/dot/sep
+    // 同款的真·嵌套辅助类。P5f-T2 搬入
+    'cur',
   ]
 
   // 【P5c-T2a 修:守卫缺口④(治理 §6.4-2)】本任务给两个 token 声明块的选择器各扩了一项
@@ -381,19 +457,24 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
   // 这个 `/\.([a-zA-Z]…)/` 扫出来、掉进"未登记的非 k* 类";它是**作用域根**,不是嵌套
   // 辅助类 → 与既有的 `knowledge-app` 同款,走排除条件而不是塞进登记表。
   // 同理 `fb` / `fb-*`(P5c-T2a 从 FolderBrowser.vue:82-143 搬入的 8 个类)是本档正经
-  // 前缀类、已进 WHITELIST_348、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
+  // 前缀类、已进 WHITELIST_425、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
   // 避免同一批类被两条断言用两套互相矛盾的口径判定。
   //
   // 【P5d-T2 追加】K44 引入的 `nme-content` / `ProseMirror` 同理是**正经前缀类/第三方
   // 类**(前者是蓝本 wrapper 类,后者是第三方 ProseMirror 生成的类名,大小写混排,
   // 本档 kebab 小写惯例之外的唯一一个),不是嵌套辅助类 —— 与 knowledge-app/parser-app/
   // fb 同款,走排除条件,不进 NON_K_HELPER_CLASSES(治理 §9.6 明令)。
+  //
+  // 【P5f-T2 追加(裁定 R1,方案 B)】排除前缀同步扩成 `k(?:2|n|r|w)?-` —— 与上面
+  // 「没有搬多」那条正则**同一口径**(两处必须一致,否则同一批类会被两条断言用互相
+  // 矛盾的口径判定)。`kr-*` / `kw-*` 是本档正经前缀类、已进 WHITELIST_425、且已被
+  // 「没有搬多」扫描覆盖,与 fb-* / knowledge-app / parser-app / nme-content 同款排除。
   function nonKClassNames(text: string): string[] {
     const found = new Set([...text.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]))
     return [...found]
       .filter(
         (c) =>
-          !/^k(?:2|n)?-/.test(c) &&
+          !/^k(?:2|n|r|w)?-/.test(c) &&
           !/^fb(?:-|$)/.test(c) &&
           c !== 'knowledge-app' &&
           c !== 'parser-app' &&
@@ -408,13 +489,13 @@ describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-
     expect(extra, `未登记的非 k* 类(每个都要在 NON_K_HELPER_CLASSES 里写明出处):${extra.join(', ')}`).toEqual([])
   })
 
-  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;P5e 终值 19)', () => {
+  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;P5f 终值 20)', () => {
     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
   })
 
-  it('R8 —— NON_K_HELPER_CLASSES 常量恰好 19 项(P5d 的 16 + P5e-T2 的 3;不是治理 A-10 的 10 项)', () => {
-    expect(NON_K_HELPER_CLASSES).toHaveLength(19)
-    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(19)
+  it('R8/R1 —— NON_K_HELPER_CLASSES 常量恰好 20 项(P5d 的 16 + P5e-T2 的 3 + P5f-T2 的 1;不是治理 A-10 的 10 项)', () => {
+    expect(NON_K_HELPER_CLASSES).toHaveLength(20)
+    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(20)
   })
 
   // 【P5d-T2 · K45 落地 DoD(裁定书 R1-②,附录 D §D.4.1)】「没有搬多」的白名单集合断言
@@ -1856,5 +1937,279 @@ describe('祖先链守卫(R23)—— .knowledge-app / .k-main / body / html 自�
       const hit = decl.match(new RegExp(FORBIDDEN, 'g'))
       expect(hit, `theme.css 的 body/html 规则里出现了禁用属性:${JSON.stringify(hit)}\n块内容:\n${decl}`).toBeNull()
     }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 【SP8-P5f Task 2 新增守卫】本刀搬入四段(蓝本 :985-1141 / :1342-1396 / :2453-2561
+// + K60 的 :1500-1503)与 K53 的 9 个 `kr-*`。以下断言覆盖本刀四类**新增**风险:
+//   ① 段边界陷阱(整段搬会带进已搬类的重复定义 —— 白名单/死类断言都抓不到);
+//   ② K60(裁定 R2)那条 @media 覆盖真的在;
+//   ③ K53 的「自动上膛」条件断言 + `kr-` 前缀全仓唯一(丢 scoped 无害的判据);
+//   ④ K54 的两处兜底真的换成了纯 token、K55 的三个新 token 两档取值没被重算。
+// 🔴 一律只**加**断言,不改任何既有断言(§9.10)。
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('knowledge.scss —— P5f-T2 段边界陷阱:已搬类不许被重复定义(裁定 R4 / 勘误 E-69)', () => {
+  // 🔴 为什么这条必须存在:Allowlist A 段的正确边界是蓝本 `:985-1141`,而治理原文写的是
+  // `:985-1160`。按 `:1160` 整段搬会把 `:1142` 的 `.k-set-card` 与 `:1159` 的 `.k-set-row`
+  // (**P5c-T2a 已搬**)第二次带进来。**重复定义不会被白名单断言捕获**(类名本来就在
+  // 白名单里),也不会被 24 死类断言捕获(它们不是死类)—— 只有这种「恰好 N 处」的
+  // 计数断言会响。手法与本档 K10 守 `.k-confirm-*` 恰好 1 次完全同款。
+  // 同理弹窗段边界是 `:1396` 而不是 `:1400`:`:1398` 起是 `.k-confirm-body`(P5b-T2 已搬),
+  // 那一个由既有的 K10 断言守着,这里不重复。
+  it.each([
+    ['k-set-card', 1],
+    ['k-set-row', 1],
+  ])('%s 在本档恰好 %i 处规则(>1 = A 段按 :1160 整段搬,把 P5c-T2a 已搬的那份又搬了一遍)', (cls, n) => {
+    const hits = css.match(new RegExp(`\\.${cls}(?![\\w-])`, 'g')) || []
+    expect(hits.length, `${cls} 出现 ${hits.length} 次(应为 ${n})`).toBe(n)
+  })
+
+  // 反向覆盖度自检:本刀真的搬进来了 —— 否则上面那条「恰好 1 次」在「整段都没搬」的
+  // 情况下也会绿(零判别力)。`.k-section-body` 与 `.k-priority-hint` 是 A 段的首尾两条。
+  it('覆盖度自检 —— A 段首尾两条规则(.k-section-body / .k-priority-hint)确实在档内', () => {
+    expect(css, 'A 段首条 .k-section-body 没搬进来').toMatch(/\.k-section-body(?![\w-])/)
+    expect(css, 'A 段末条 .k-priority-hint 没搬进来').toMatch(/\.k-priority-hint(?![\w-])/)
+  })
+})
+
+describe('knowledge.scss —— K60(裁定 R2):.k-frow 的窄屏 @media 覆盖(P5f-T2 新建)', () => {
+  // 🔴 事实:P5b 判蓝本 `:1500-1503` 是死规则,判据原文是**条件式**的
+  // (「两个模板里没有任何元素用 class="k-frow"」)。`AllowlistView`(P5f)用的正是
+  // `class="k-frow"` ⇒ 前提到期,裁定 R2 批准搬入,登记为偏差 K60。
+  // 不搬的后果:窄屏(≤860px)下白名单页文件夹规则表格的列宽与 Vue2 不一致 ——
+  // **单测/sass 门/color-guard 三道全都抓不到**,只有这条断言。
+  // 判据:删掉这条 @media 内的 `.k-frow { … }` → 本条必须报红。
+  it('既有 @media (max-width: 860px) 块内含 .k-frow 的窄屏列宽覆盖(删掉 → 报红)', () => {
+    // 用大括号配对切出那个 @media 块,只在块内断言(不对全文裸计数 —— 全文里
+    // `.k-frow` 的**基类**规则也在,裸计数分不清两者)。
+    const body = nestedBlockBody(cssKeepLines, '@media (max-width: 860px) {')
+    expect(body.length, '没抓到 @media (max-width: 860px) 块 —— 零判别力').toBeGreaterThan(100)
+    expect(body, '@media 块里找不到 .k-frow 覆盖(K60 没落地?)').toMatch(/\.k-frow \{/)
+    expect(body, 'K60 的 grid-template-columns 被改动了(蓝本 :1501 逐字)').toContain(
+      'grid-template-columns: 80px 1fr 70px 28px;',
+    )
+    expect(body, 'K60 的 font-size 被改动了(蓝本 :1502 逐字)').toContain('font-size: 12px;')
+  })
+
+  // 🔴 R2-① 的落地判据:只搬了那一条,**没有顺带搬** 同段的 .k-quick-grid / .k-status-strip
+  // (两者仍不在白名单,且 .k-quick-grid 还是 24 个死类之一)。
+  it('R2-① —— 没有顺带搬 .k-status-strip(.k-quick-grid 由 24 死类断言另行钉住)', () => {
+    expect(new RegExp('\\.k-status-strip(?![\\w-])').test(css), '.k-status-strip 被顺带搬了进来').toBe(false)
+  })
+})
+
+describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue 侧零 <style>(P5f-T2 新建)', () => {
+  const VIEWS_DIR = resolve(__dirname, '../knowledge/views')
+  const ROOTS_VUE = resolve(VIEWS_DIR, 'RootsView.vue')
+
+  function exists(p: string): boolean {
+    try {
+      statSync(p)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // 🔴 防空转①(治理 §9.14-4 / §9.19):路径基座必须是真的。少了这条,
+  // 「RootsView.vue 还不存在」那一支会退化成「什么都没测」,而且路径写错
+  // (少一层 `..`、目录改名)永远发现不了 —— 那正是「守卫是空壳」的典型形态。
+  it('防空转 —— views 目录存在且已有 .vue 文件(否则「文件不存在」这个分支毫无意义)', () => {
+    const vues = readdirSync(VIEWS_DIR).filter((f: string) => f.endsWith('.vue'))
+    expect(vues.length, 'views 目录里一个 .vue 都没有 —— 路径基座写错了?').toBeGreaterThan(0)
+  })
+
+  // 🔴 防空转②:同一个「node:fs 读文件 → 找 `<style`」的谓词必须**真的有判别力**。
+  //   (a) 每个既有视图都能读到**非空**内容 —— 直接堵死「读到空串 ⇒ 恒不含 `<style` ⇒
+  //       恒绿」这条空壳路径(Vite `?raw` 在 vitest 下恒空那个铁律要防的正是它);
+  //   (b) 谓词在既有文件上**两种结果都出现过** —— 至少一个视图含 `<style`、至少一个不含。
+  //       只断「全都不含」是不够的:那种写法在谓词恒假时同样全绿。
+  // ⚠️ **实测订正(承 R18)**:brief 把 K44 理解成「知识库区 .vue 一律零 `<style>` 块」,
+  //    但本仓既有视图里 `KnowledgeDeferred` / `KnowledgeLayout` / `SearchView` /
+  //    `SettingsView` **各有一个 `<style>` 块**(P5a–P5e 产出,不在本刀范围)。
+  //    K53 要求零 `<style>` 的是 **`RootsView.vue` 这一个文件**,见下一条。
+  //    这个偏差已在 T2 报告显式申报;本条据实测写,不据 brief 的字面假设。
+  it('防空转 —— 同目录既有视图能读到非空内容,且 <style> 谓词两种结果都出现过(证明它有判别力)', () => {
+    const vues = readdirSync(VIEWS_DIR).filter((f: string) => f.endsWith('.vue'))
+    const withStyle: string[] = []
+    const withoutStyle: string[] = []
+    for (const f of vues) {
+      const src: string = readFileSync(resolve(VIEWS_DIR, f), 'utf8')
+      expect(src.length, `${f} 读出来是空的 —— node:fs 读法失效了`).toBeGreaterThan(0)
+      ;(src.includes('<style') ? withStyle : withoutStyle).push(f)
+    }
+    expect(withStyle.length, '没有任何既有视图含 <style> —— 谓词可能恒假(空壳)').toBeGreaterThan(0)
+    expect(withoutStyle.length, '没有任何既有视图不含 <style> —— 谓词可能恒真').toBeGreaterThan(0)
+  })
+
+  // 🔴 「自动上膛」条件断言(治理 §9.19)。T2 落地时 `RootsView.vue` 还不存在
+  // (它是 T5 的活),本条走「尚未存在」分支;**T5 一建文件就自动上膛**。
+  // §9.19 要求论证与后续刀的范围不冲突:**不冲突** —— K44 是全期纪律,
+  // T5 本来就不许在 `.vue` 里写 `<style>` 块,本条不向 T5 索要任何它无权写的东西
+  // (与 P5e 的 T5↔T6 冲突形成对照:那次是守卫索要 T6 无权写的 markup)。
+  it('K53 —— 若 views/RootsView.vue 存在,则它必须不含 <style>(T5 建文件时自动上膛)', () => {
+    if (!exists(ROOTS_VUE)) {
+      expect(exists(ROOTS_VUE), 'RootsView.vue 尚未创建(T5 的活)—— 本条处于「上膛待发」状态').toBe(false)
+      return
+    }
+    const src: string = readFileSync(ROOTS_VUE, 'utf8')
+    expect(src.length, 'RootsView.vue 读出来是空的').toBeGreaterThan(0)
+    expect(
+      src.includes('<style'),
+      'RootsView.vue 出现 <style> 块 —— K53 要求那 66 行整块搬进 knowledge.scss,.vue 侧零 <style>',
+    ).toBe(false)
+  })
+
+  // 🔴 K53 判据④:丢 `scoped` 无害的**逐类**证明。判据 = `kr-` 前缀在全仓唯一。
+  // 范围钉在「选择器可能出现的地方」= 全部 .scss/.css(本档除外)+ 全部 .vue 的
+  // `<style>` 块内容。**不扫模板与测试**(T5 的模板会写 `class="kr-empty"`、它的测试
+  // 会写 `find('.kr-empty')` —— 那些都不是选择器定义,扫进来会把后续刀无辜打红)。
+  // 🔴 一律用**完整 token 精确匹配** `(?![\w-])`,禁 `\b`(E-25:`\b` 在 `-` 前也成立)。
+  const KR_CLASSES = [
+    'kr-adv-row', 'kr-badge', 'kr-check', 'kr-empty', 'kr-error',
+    'kr-hint', 'kr-input', 'kr-label', 'kr-path',
+  ]
+
+  function collectSelectorSources(dir: string, out: Array<[string, string]> = []): Array<[string, string]> {
+    for (const entry of readdirSync(dir)) {
+      if (entry === 'node_modules' || entry.startsWith('.')) continue
+      const full = resolve(dir, entry)
+      if (statSync(full).isDirectory()) {
+        collectSelectorSources(full, out)
+      } else if (entry.endsWith('.scss') || entry.endsWith('.css')) {
+        if (full.endsWith('/ai/styles/knowledge.scss')) continue
+        out.push([full, readFileSync(full, 'utf8') as string])
+      } else if (entry.endsWith('.vue')) {
+        const src: string = readFileSync(full, 'utf8')
+        const blocks = src.match(/<style[^>]*>[\s\S]*?<\/style>/g) || []
+        if (blocks.length) out.push([full, blocks.join('\n')])
+      }
+    }
+    return out
+  }
+
+  it('K53 判据④ —— 9 个 kr-* 在「knowledge.scss 之外的全部样式来源」里逐类零出现(丢 scoped 无害)', () => {
+    const sources = collectSelectorSources(resolve(__dirname, '../..'))
+    // 覆盖度自检:真的扫到了东西(否则「零命中」是假象 —— R13「没看到 ≠ 不存在」)
+    expect(sources.length, '一个样式来源都没扫到 —— 零判别力').toBeGreaterThan(3)
+    const collisions: string[] = []
+    for (const cls of KR_CLASSES) {
+      const re = new RegExp(`\\.${cls}(?![\\w-])`)
+      for (const [file, text] of sources) if (re.test(text)) collisions.push(`${cls} @ ${file}`)
+    }
+    expect(collisions, `kr-* 前缀发生碰撞(scoped 语义的丢失不再无害):\n${collisions.join('\n')}`).toEqual([])
+  })
+
+  it('K53 —— 9 个 kr-* 在 knowledge.scss 内各恰好 1 条基类规则(整块搬入,不多不少)', () => {
+    for (const cls of KR_CLASSES) {
+      const hits = css.match(new RegExp(`\\.${cls}(?![\\w-])`, 'g')) || []
+      expect(hits.length, `${cls} 在 knowledge.scss 里出现 ${hits.length} 次(应为 1)`).toBe(1)
+    }
+  })
+})
+
+describe('knowledge.scss —— K54:kr-* 的两处 var() 兜底已改成纯 token(P5f-T2 新建)', () => {
+  // 🔴 蓝本原文:`.kr-badge` 是 `var(--bg-tertiary, <中性灰兜底>)`、`.kr-input` 是
+  // `var(--border, <中性灰兜底>)`。治理 §6 明令 rgba() 一律禁止(注释里也不许有)
+  // ⇒ 兜底字面量不能照抄。附录 B §B.2.2 定死落地取值,实现者零裁量。
+  // 上面那条全文色扫只能抓「有没有裸值」,**抓不到「换成了别的 token」** —— 这两条
+  // 把落点逐字钉死(手法同 P5e-T4 的「token → 消费选择器绑定」那批)。
+  //
+  // 🔴🔴 诚实登记(勘误 E-73):`--bg-tertiary` 在蓝本与本仓**两侧都零声明** ⇒ 兜底
+  // 一直在生效 ⇒ `.kr-badge` 换成 `--bg-chip` 是**可见变化,不是等价替换**。
+  // `--border` 那一处才适用「兜底本是死代码」的论证(本仓 theme.css 有声明)。
+  it('K54-① —— .kr-badge 底色是 var(--bg-chip)(附录 B §B.2.2-①,判据:换成别的 token → 报红)', () => {
+    const body = nestedBlockBody(cssKeepLines, '.kr-badge {')
+    expect(body, '.kr-badge 底色不是 var(--bg-chip)').toContain('background: var(--bg-chip);')
+  })
+
+  it('K54-② —— .kr-input 边框是 var(--line)(附录 B §B.2.2-②,判据:换成别的 token → 报红)', () => {
+    const body = nestedBlockBody(cssKeepLines, '.kr-input {')
+    expect(body, '.kr-input 边框不是 1px solid var(--line)').toContain('border: 1px solid var(--line);')
+  })
+
+  it('K54 —— 这两个 token 两档都有值(否则真机会渲染成 guaranteed-invalid)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    for (const tok of ['--bg-chip:', '--line:']) {
+      expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
+      expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
+    }
+  })
+
+  // 🔴 反向:本档不许出现 `--bg-tertiary` / `--border` 这两个名字的 var() 引用
+  // (照抄进来 = K54 没落地;而它们在本档映射层零声明 ⇒ 真机会整块失色)。
+  it('K54 —— 本档零 var(--bg-tertiary) / var(--border) 引用(照抄兜底即报红)', () => {
+    expect(css, '本档出现 var(--bg-tertiary)').not.toMatch(/var\(\s*--bg-tertiary/)
+    expect(css, '本档出现 var(--border[,)])').not.toMatch(/var\(\s*--border\s*[,)]/)
+  })
+
+  // 🔴 M-6 申报的可回归化部分:`.kr-path` / `.kr-input` 的字体栈**逐字照抄蓝本硬编码值**
+  // (裁定 §三 M-6;字体栈不是颜色,不在本仓 token 约束范围内)。这条钉住它没有被
+  // 「顺手统一」成 var(--font-mono) —— 那是改蓝本行为 + 未申报的偏离。
+  it('M-6 —— .kr-path / .kr-input 的字体栈照抄蓝本硬编码值,没有被顺手统一成 var(--font-mono)', () => {
+    const STACK = 'font-family: ui-monospace, SFMono-Regular, Menlo, monospace;'
+    for (const sel of ['.kr-path {', '.kr-input {']) {
+      const body = nestedBlockBody(cssKeepLines, sel)
+      expect(body, `${sel} 的字体栈被改动了(蓝本 RootsView.vue:235 / :259 逐字)`).toContain(STACK)
+      expect(body, `${sel} 被"顺手统一"成 var(--font-mono) —— 那是改蓝本行为`).not.toContain('var(--font-mono)')
+    }
+  })
+})
+
+describe('knowledge.scss —— K55:三个扩展名分组渐变 token 两档取值(P5f-T2 新建)', () => {
+  // 🔴 蓝本把这三个渐变写死在 `AllowlistView.vue` 的 `GROUPS_TEMPLATE` 常量里,
+  // 经 `:style="{background: g.bg}"` 渲染;`color-guard` **压根不扫 `.ts`/`<script>` 常量**
+  // ⇒ 不 token 化就是裸奔(票 B 位置④,变异实测「注释注入 hex 全量全绿」)。
+  // 本刀负责**声明层**;常量侧只留 `var(--…)` 引用 + 定向断言,由 T4 落地。
+  // 两档同值(品牌识别渐变),但按头注释「隐藏坑」段的论证仍须各写一份。
+  it('三个 --grad-ext-* 两档取值逐字相同(theme-invariant,附录 B §B.6,禁重算)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    const expected: Record<string, string> = {
+      '--grad-ext-docs': '--grad-ext-docs: linear-gradient(135deg, #5AC8FA, #007AFF);',
+      '--grad-ext-text': '--grad-ext-text: linear-gradient(135deg, #5DD68A, #2EB05B);',
+      '--grad-ext-code': '--grad-ext-code: linear-gradient(135deg, #C18CFF, #AF52DE);',
+    }
+    for (const [tok, decl] of Object.entries(expected)) {
+      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
+      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+    }
+  })
+
+  // 🔴 为什么另建新名而不复用:--grad-ext-docs 与既有 --grad-note-note / --grad-sandbox
+  // **逐字同值**,但 K39/K40 立的规矩就是「同值也另建新名」(语义属主不同)。
+  // 这条钉住三者各自独立声明,没有被"去重"成互相引用。
+  it('K39/K40 同款 —— 三个 --grad-ext-* 各自独立声明,没有被"去重"成 var(--grad-note-note) 之类', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    for (const tok of ['--grad-ext-docs', '--grad-ext-text', '--grad-ext-code']) {
+      const line = darkBody.split('\n').find((l: string) => l.trim().startsWith(`${tok}:`))
+      expect(line, `找不到 ${tok} 的声明行`).toBeTruthy()
+      expect(line!, `${tok} 被写成了对别的 token 的引用`).not.toContain('var(--grad-')
+    }
+  })
+})
+
+describe('knowledge.scss —— var() 兜底豁免的加固(P5f-T2 新建)', () => {
+  // 【为什么补】既有那条「--g 是本档唯一登记的消费方 inline 注入例外」只断言了
+  // `css` 里含某个字符串,**没有**程序化证明「只有 --g 依赖这层豁免」。本刀搬入的
+  // Wiki 段引入了第二处带兜底的引用 `var(--tone, var(--text-quaternary))`(蓝本 :2529)——
+  // 但 `--tone` 由 `.kw-change[data-type=…]` 四条规则在本档**真实声明**,它**不依赖**
+  // 那层豁免。这条把「谁真的依赖豁免」变成集合相等断言:多出一个未声明的兜底 token
+  // (= 真的靠豁免蒙混过关的引用)就精确指名。🔴 纯新增,既有断言一行未改(§9.10)。
+  const theme2 = read('../../styles/theme.css')
+  function declaredTokens(text: string): Set<string> {
+    return new Set([...text.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
+  }
+
+  it('依赖「带兜底则豁免」的 token 恰好只有 --g(--tone 在本档真实声明,不靠豁免)', () => {
+    const declared = new Set([...declaredTokens(css), ...declaredTokens(theme2)])
+    const withFallback = [...new Set([...css.matchAll(/var\((--[a-z0-9-]+)\s*,/g)].map((m) => m[1]))]
+    // 覆盖度自检:确实抓到了带兜底的引用(否则"恰好只有 --g"是空集恒真)
+    expect(withFallback.length, '一处带兜底的 var() 都没抓到 —— 零判别力').toBeGreaterThanOrEqual(2)
+    const relying = withFallback.filter((t) => !declared.has(t)).sort()
+    expect(relying, `真正依赖兜底豁免的 token(应只有 --g):${relying.join(', ')}`).toEqual(['--g'])
   })
 })
