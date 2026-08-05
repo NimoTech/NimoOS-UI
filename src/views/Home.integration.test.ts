@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
+import { createRouter, createMemoryHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 
 vi.mock('@nimotech/nimoos-service', async () => {
@@ -35,8 +36,14 @@ import Home from './Home.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
+// SP9-P8:Home 挂的 SearchDialog 用 useRoute()/useRouter() 消费深链 ?q=,
+// 所以挂载必须带 router 插件(最小 memory 路由表,不引真实 src/router)。
+function makeRouter() {
+  return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+}
+
 function mountHome() {
-  return mount(Home, { global: { plugins: [i18n] } })
+  return mount(Home, { global: { plugins: [i18n, makeRouter()] } })
 }
 
 describe('Home integration', () => {

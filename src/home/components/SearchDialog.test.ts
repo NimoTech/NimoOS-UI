@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
+import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import type { NormalizedAggregate } from '@nimotech/nimoos-service'
 
 // 共享包整体 mock:search.agentTool 是本期主角;image.thumbUrl 被媒体行消费;
@@ -60,10 +61,21 @@ function seedDisks(): void {
   folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] })
 }
 
+// SearchDialog 从 SP9-P8 起用 useRoute()/useRouter() 消费深链 ?q=,所以挂载必须带 router 插件。
+// 用 memory history 起一个只有 '/' 的最小路由表:本组件不用 <RouterView>,只要能承载 query。
+// ⚠️ 不要 import 真实的 src/router —— 那会把整张路由表(全部页面组件)拖进单测。
+async function mountDialog(url = '/'): Promise<Router> {
+  const r = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+  r.push(url)
+  await r.isReady()
+  wrapper = mount(SearchDialog, { attachTo: document.body, global: { plugins: [r] } })
+  return r
+}
+
 async function open(): Promise<void> {
   seedDisks()
   useHomeUiStore().openSearch()
-  wrapper = mount(SearchDialog, { attachTo: document.body })
+  await mountDialog()
   await flushPromises() // 等 onMounted 的 loadRoots() 落地,displayNames 才就绪
   await nextTick()
 }
@@ -82,7 +94,7 @@ describe('SearchDialog', () => {
   afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = '' })
 
   it('关闭时 DOM 里没有搜索框', async () => {
-    wrapper = mount(SearchDialog, { attachTo: document.body })
+    await mountDialog()
     await nextTick()
     expect(document.body.querySelector('.searchbox')).toBeNull()
   })
@@ -432,5 +444,85 @@ describe('SearchDialog', () => {
     ;(document.body.querySelector('.close-btn') as HTMLElement).click()
     await nextTick()
     expect(useHomeUiStore().searchOpen).toBe(false)
+  })
+})
+
+describe('深链 ?q=(SP9-P8 cutover:Vue2 /search 绞杀到桌面)', () => {
+  beforeEach(() => { setActivePinia(createPinia()); agentTool.mockReset() })
+  afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = '' })
+
+  // 深链场景不能复用 open():那个 helper 会先手动 openSearch() 再挂载,而深链要测的正是
+  // 「组件自己把面板开起来」。这里只挂载,再等两轮微任务 + tick 让 watcher 链跑完。
+  async function deepLink(url: string): Promise<Router> {
+    seedDisks()
+    const r = await mountDialog(url)
+    await flushPromises(); await nextTick(); await flushPromises(); await nextTick()
+    return r
+  }
+
+  it('?q=receipt:自动开面板 + 种词 + 搜一次 + 结果真的渲染出来', async () => {
+    agentTool.mockResolvedValue(REAL)
+    await deepLink('/?q=receipt')
+    const input = document.body.querySelector('.searchbox') as HTMLInputElement
+    expect(input).not.toBeNull()
+    expect(input.value).toBe('receipt')
+    expect(agentTool).toHaveBeenCalledTimes(1)
+    expect(agentTool).toHaveBeenCalledWith('receipt')
+    // ⚠️ 必须断言结果渲染,不能只断言「发过请求」:少等一轮 tick 时请求照样发,
+    //    但结果会被 query watcher 的 reset() 丢掉 —— 只看请求次数抓不到。
+    expect(document.body.textContent).toContain('Receipt.pdf')
+  })
+
+  it('消费后立刻把 q 从地址栏摘掉(关掉面板再刷新不会又弹出来)', async () => {
+    agentTool.mockResolvedValue(REAL)
+    const r = await deepLink('/?q=receipt')
+    expect(r.currentRoute.value.query.q).toBeUndefined()
+    expect(agentTool).toHaveBeenCalledTimes(1) // 摘 query 不会触发第二轮
+  })
+
+  it('?q= 空值(裸 /search 绞杀来的):开面板但不发请求', async () => {
+    await deepLink('/?q=')
+    expect(document.body.querySelector('.searchbox')).not.toBeNull()
+    expect(agentTool).not.toHaveBeenCalled()
+  })
+
+  it('没有 q 键:面板不自动开(普通进桌面不受影响)', async () => {
+    await deepLink('/')
+    expect(document.body.querySelector('.searchbox')).toBeNull()
+    expect(agentTool).not.toHaveBeenCalled()
+  })
+
+  it('?q=a&q=b 数组形态取第一个(不把 "a,b" 当查询词发出去)', async () => {
+    agentTool.mockResolvedValue(REAL)
+    await deepLink('/?q=a&q=b')
+    expect(agentTool).toHaveBeenCalledWith('a')
+  })
+
+  it('?q= 全空白:trim 后为空,不发请求(与 run() 的 trim 语义一致)', async () => {
+    await deepLink('/?q=%20%20')
+    expect(document.body.querySelector('.searchbox')).not.toBeNull()
+    expect(agentTool).not.toHaveBeenCalled()
+  })
+
+  // ⚠️ `?q`(有键但连等号都没有)时 vue-router 给的是 **null**,不是 ''。
+  //    这不是假想:Vue2 那侧只要有人手敲 /search?q 就会绞杀成 /app/#/?q。
+  //    早期实现只挡了 undefined,seed 拿到 null → seed.trim() 直接抛 TypeError。
+  //    vue-tsc 先逮到了它(TS18047 / TS2322),这条用例把它钉在运行时。
+  // ⚠️ 退回旧写法时,失败形态是 vitest 的 **Unhandled Errors**(TypeError: Cannot read
+  //    properties of null (reading 'trim'))+ **exit code 1**,而不是某条断言变红 ——
+  //    抛点在 watcher 里那个 async IIFE 中,断言看不到它。已实测:变异 exit=1、还原 exit=0。
+  it('?q(有键无值,vue-router 给 null):开面板但不发请求,且不抛', async () => {
+    await deepLink('/?q')
+    expect(document.body.querySelector('.searchbox')).not.toBeNull()
+    expect(agentTool).not.toHaveBeenCalled()
+  })
+
+  it('深链搜完之后仍可正常改词再搜(种词没把后续交互弄坏)', async () => {
+    agentTool.mockResolvedValue(REAL)
+    await deepLink('/?q=receipt')
+    expect(agentTool).toHaveBeenCalledTimes(1)
+    await search('invoice')
+    expect(agentTool).toHaveBeenCalledTimes(2)
+    expect(agentTool).toHaveBeenLastCalledWith('invoice')
   })
 })

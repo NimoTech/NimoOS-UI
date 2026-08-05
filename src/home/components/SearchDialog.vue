@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import { DialogRoot, DialogPortal, DialogContent, DialogTitle, VisuallyHidden } from 'reka-ui'
 import { useHomeUiStore } from '../stores/homeUi'
@@ -267,6 +268,40 @@ watch(
 watch(query, () => {
   if (state.value !== 'idle') reset()
 })
+
+// ── 深链 ?q=（SP9-P8 cutover）────────────────────────────────────────────────
+// Vue2 的 /search?q=… 被绞杀到 /app/#/?q=…（strangler.js 里那条 passQuery 条目）：新应用
+// 没有搜索页面，搜索就是桌面上的这个面板，所以深链参数落在桌面路由 '/' 上，由本组件自己消费。
+// 「q 键存在」就开面板（值为空也开 —— 对位 Vue2 裸 /search 那张空搜索页）；词非空才自动搜一次。
+//
+// ⚠️ 两次 await nextTick() 各在等一个**上面已有的 watcher** 冲刷完，顺序不能合并、不能省：
+//   ① 等 searchOpen watcher —— 它在开面板时会把 query 清空（`query.value = ''`）。不等它跑完
+//      就种词，种进去的词会被它抹掉：输入框空、不搜。
+//   ② 等 query watcher —— 它看到 query 变化且 state !== 'idle' 就 reset()，而 reset() 会
+//      epoch++ 让在途请求的结果作废。若在它冲刷前就 performSearch()，请求照样发出去、结果
+//      却被丢掉，面板停在空态提示语上 —— **外观酷似「搜了但什么都没搜到」**。
+//   两条都有专门的回归用例（SearchDialog.test.ts「深链 ?q=」一节），删掉任一 tick 必红。
+// 消费后立即把 q 从地址栏摘掉：① 用户关掉面板再刷新不会又弹出来；② 重新输入同一个 ?q= 时
+// watcher 仍能再次触发（值没被卡在旧值上）。
+const route = useRoute()
+const router = useRouter()
+watch(() => route.query.q, (raw) => {
+  if (raw === undefined) return
+  // ⚠️ `?q`（有键但没有等号）时 vue-router 给的是 **null**，不是 ''；`?q=a&q=b` 给的是数组。
+  //    判据是「键在不在」，值一律归一成字符串 —— 键在就开面板，词为空就只开不搜。
+  //    早先只挡 undefined 的写法会让 seed 拿到 null，后面 seed.trim() 直接抛 TypeError、
+  //    面板连开都开不出来（vue-tsc TS18047 先逮到，已补回归用例）。
+  const first = Array.isArray(raw) ? raw[0] : raw
+  const seed = first ?? ''
+  homeUi.openSearch()
+  void (async () => {
+    await nextTick() // ① 让 searchOpen watcher 先把 query 清空
+    query.value = seed
+    await nextTick() // ② 让 query watcher 冲刷完（此刻 state 仍是 idle，它不会 reset 掉下面这一轮）
+    if (seed.trim()) performSearch()
+  })()
+  void router.replace({ query: { ...route.query, q: undefined } })
+}, { immediate: true })
 </script>
 
 <template>
