@@ -1319,6 +1319,35 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     find: "  localStorage.removeItem('strangler:disabled:/photos')\n  localStorage.removeItem('strangler:disabled:/settings')\n  localStorage.removeItem('strangler:disabled:/kvm')\n",
     replace: '' },
 
+  // ── Home.integration.test.ts / Home.p4b.test.ts:P8 给 mount(Home) 加的 router 脚手架 ──
+  // 私有版加它是因为 Home 无条件挂的那个面板组件消费 useRoute()/useRouter()(深链 ?q=)。
+  // 开源版该组件整个删掉,且 Home 其余子组件**一个都不用** useRoute(已 grep 核实)——
+  // 于是 router 插件在产物里成了纯脚手架,连同注释一并撤回 P8 之前的形态。
+  // (顺带:注释里提到的组件名本身也是被删的东西,tree.test.mjs「混合型测试文件保留,
+  //  但里面不再提被删的东西」那条会抓它 —— 这条补丁正是被那道门逼出来的。)
+  { path: 'src/views/Home.integration.test.ts',
+    find: "import { createRouter, createMemoryHistory } from 'vue-router'\n", replace: '' },
+  { path: 'src/views/Home.integration.test.ts',
+    find: `// SP9-P8:Home 挂的 SearchDialog 用 useRoute()/useRouter() 消费深链 ?q=,
+// 所以挂载必须带 router 插件(最小 memory 路由表,不引真实 src/router)。
+function makeRouter() {
+  return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+}
+
+function mountHome() {
+  return mount(Home, { global: { plugins: [i18n, makeRouter()] } })
+}`,
+    replace: `function mountHome() {
+  return mount(Home, { global: { plugins: [i18n] } })
+}` },
+  { path: 'src/views/Home.p4b.test.ts',
+    find: "import { createRouter, createMemoryHistory } from 'vue-router'\n", replace: '' },
+  { path: 'src/views/Home.p4b.test.ts',
+    find: `    // SP9-P8:Home 挂的 SearchDialog 用 useRoute()/useRouter(),挂载必须带 router 插件。
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+    const w = mount(Home, { global: { plugins: [i18n, router] } })`,
+    replace: '    const w = mount(Home, { global: { plugins: [i18n] } })' },
+
   // ── HomeTopbar.test.ts:唯一的搜索胶囊用例,组件本身已在 T6 删掉 .search-btn ───
   { path: 'src/home/components/HomeTopbar.test.ts',
     find: `  it('search button opens the search palette', async () => {
