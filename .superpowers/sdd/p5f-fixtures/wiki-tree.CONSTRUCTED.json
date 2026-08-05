@@ -1,0 +1,31 @@
+{
+  "__meta": {
+    "label": ".CONSTRUCTED",
+    "why": "GET /v1/wiki/tree 本机实测 90 秒超时、0 字节(D1)⇒ 无真机样本。",
+    "built_from": "NimoOS-Wiki/route/v1/wiki.go:126-132 的匿名 struct `sk`(**snake_case json tag**):path / level / ai_label / user_notes_updated_at / last_modified",
+    "value_units": "ai_label 空串合法;last_modified 是 RFC3339 本地时区字符串,后端 formatTS(ms<=0) 返回 **空串**(wiki.go:47-52)—— 不是 '1970'",
+    "normalized_shape": "经 NimoOS-Service/src/wiki.ts:102 normalizeTreeNode → camelCase { path, level, aiLabel, userNotesUpdatedAt, lastModified }。store.loadWikiTree() 出的是**扁平数组**,buildWikiTree 吃的就是它",
+    "topologies": "🔴 三份样本按治理 §9.16 造:normal(整齐树)/ crossLevel(跨级)/ missingParent(父缺位)/ duplicate(重复行)/ unsorted(乱序)"
+  },
+  "normal": [
+    { "path": "/DATA",           "level": "space",   "ai_label": "主数据盘",   "user_notes_updated_at": "", "last_modified": "2026-08-05T11:32:01+08:00" },
+    { "path": "/DATA/Documents", "level": "project", "ai_label": "文档",       "user_notes_updated_at": "", "last_modified": "2026-08-05T10:12:00+08:00" },
+    { "path": "/DATA/Documents/Specs", "level": "project", "ai_label": "", "user_notes_updated_at": "", "last_modified": "" }
+  ],
+  "crossLevel": [
+    { "path": "/a",     "level": "space",   "ai_label": "", "user_notes_updated_at": "", "last_modified": "" },
+    { "path": "/a/b/c", "level": "project", "ai_label": "", "user_notes_updated_at": "", "last_modified": "" }
+  ],
+  "missingParent": [
+    { "path": "/x/y/z", "level": "project", "ai_label": "", "user_notes_updated_at": "", "last_modified": "" }
+  ],
+  "duplicate": [
+    { "path": "/dup", "level": "space", "ai_label": "first",  "user_notes_updated_at": "", "last_modified": "" },
+    { "path": "/dup", "level": "space", "ai_label": "second", "user_notes_updated_at": "", "last_modified": "" }
+  ],
+  "unsorted": [
+    { "path": "/u/b", "level": "project", "ai_label": "", "user_notes_updated_at": "", "last_modified": "" },
+    { "path": "/u",   "level": "space",   "ai_label": "", "user_notes_updated_at": "", "last_modified": "" },
+    { "path": "/u/a", "level": "project", "ai_label": "", "user_notes_updated_at": "", "last_modified": "" }
+  ]
+}

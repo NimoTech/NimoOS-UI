@@ -1,0 +1,40 @@
+{
+  "__meta": {
+    "label": ".CONSTRUCTED",
+    "why": "GET /v1/wiki/roots 本机实测 90 秒超时、0 字节(D1;file_events 1.42 亿行 + pkg/db/db.go:29 SetMaxOpenConns(1))⇒ 无法抓真机样本。",
+    "built_from": "NimoOS-Wiki/service/repo/models.go:3-18 的 WikiRoot struct(**无 json tag** ⇒ 响应 PascalCase,N46)",
+    "field_units": {
+      "ScanIntervalS": "秒。NimoOS-Wiki/main.go:245 用 int64(root.ScanIntervalS)*1000 与毫秒比较",
+      "CreatedAt": "unix 毫秒",
+      "LastScanAt": "unix 毫秒。NimoOS-Wiki/main.go:266 UpdateLastScanAt(id, time.Now().UnixMilli())"
+    },
+    "id_shape": "32 位小写 hex —— 取自本机真 .wiki.md 头部 root_id: dfcd1840f5dab439cd9d7050aa5bafd0(该值是 REAL,其余字段是构造)",
+    "usage": "这是 **HTTP 原始响应** 形状。store 出口经 NimoOS-Service/src/wiki.ts:85 normalizeRoot 转成 camelCase —— 页面 mock 请用 wiki-roots.normalized.CONSTRUCTED.json"
+  },
+  "raw_response": [
+    {
+      "ID": "dfcd1840f5dab439cd9d7050aa5bafd0",
+      "Path": "/DATA",
+      "Level": "space",
+      "WatchMode": "auto",
+      "StorageMode": "inline",
+      "Enabled": true,
+      "ScanIntervalS": 21600,
+      "CreatedAt": 1754280000000,
+      "LastScanAt": 1754386321000,
+      "NeedsReconcile": false
+    },
+    {
+      "ID": "9b1c77e0aa2f4d3e8c5106b4f7d2a318",
+      "Path": "/DATA/Documents",
+      "Level": "project",
+      "WatchMode": "scan_only",
+      "StorageMode": "inline",
+      "Enabled": false,
+      "ScanIntervalS": 3600,
+      "CreatedAt": 1754281000000,
+      "LastScanAt": 0,
+      "NeedsReconcile": false
+    }
+  ]
+}
