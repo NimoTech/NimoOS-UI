@@ -655,6 +655,45 @@ interface NormalizedAggregate {
 - 逐条验证回退可逆：置 `strangler:disabled:/kvm` / `:/settings` / `:/search` = `'1'` → 确认 Vue2 原页仍能正常打开。
 - **不删任何 Vue2 代码**（roadmap §3.2 铁律，删除全部归 SP10）。
 
+### 8.1 P8 实测订正（2026-08-05，实施时逐行核源码）
+
+> 上面 §8 的原文一字未改，本节是**补订正** —— 后人对照的是「原文 + 订正」，直接改原文会丢掉
+> 「spec 当时是怎么想的」这个信息（做法沿用 `08-p7.md` §7 的规矩）。
+
+1. **§8 漏了「裸 `/search`（不带查询串）」这个入口。** 原文只说「新增 `passQuery: true` 分支，
+   或做成 prefix 条目」。但 Vue2 的 `/search` 无关键词时是**一张空的搜索页**；若只透传查询串，
+   裸 `/search` 会拼出 `/app/#/`，用户落到的就是普通桌面、面板根本不开，行为对不上。
+   → 实施时同时加了 `defaultQuery: '?q='`（无查询串时兜底），并把新应用侧的判据定成
+   「**`q` 键在不在**」而不是「`q` 有没有值」。
+
+2. **§8 只说「Vue2 侧弹设置模态的调用处」，没说是哪几处。** 实测**恰好 2 处**：
+   - `components/Apps/AppCard.vue:219 showSettings()` —— 老桌面「设置」磁贴，**真活入口**
+     （`openSystemApps()` 的 `case 'Settings'`）。
+   - `views/Home.vue:101 showSettingsPanel()` —— 由 `mounted()` 的
+     `$EventBus.$on(events.SHOW_SETTINGS_PANEL)` 触发，而**全仓没有任何地方 emit 该事件**
+     → 当前是**死路径**。仍按同规格接线：它是活代码、随时可能被重新接上，漏掉就等于留一条
+     绕过 cutover 的暗门。（同类死链还有 KVM 那条，登记为 D45 / D46。）
+
+3. **§8 完全没提「开源导出清单会被打断」。** `useOpenAction.ts` 上有 3 个 `oss/manifest.mjs`
+   的 `PATCH` 锚点（`applyPatch` 要求每个 `find` 恰好命中 1 次，否则 `throw`），P8 改的正是
+   那 3 段文本。P8 因此多出一个完整任务（含 2 条新的产物形态断言）。
+   → **后续任何一期只要动 `useOpenAction.ts` / `homeUi.ts` / `views/Home.vue`，都要预留这一步。**
+
+4. **`?q`（有键无值）时 vue-router 给 `null` 不是 `''`。** 第一版守卫只挡 `undefined`，
+   `seed.trim()` 抛 `TypeError`、面板开不出来。由 `vue-tsc`（TS2322 / TS18047）逮到，
+   不是测试逮到 —— 抛点在 watcher 的 async IIFE 里，表现为 vitest 的 Unhandled Errors
+   + exit 1，**没有任何断言会变红**。已修 + 补回归用例。
+
+5. **深链自动搜索踩在两个已有 watcher 的顺序上。** `SearchDialog.vue` 文件尾原有两个 watcher
+   （开面板时清空 `query`、`query` 一变就 `reset()`），所以「开面板 → 种词 → 搜一次」中间
+   必须各让一个 watcher 冲刷完（两个 `await nextTick()`）。少第二个时**请求发了但结果被
+   `reset()` 丢掉，外观酷似「搜了但什么都没搜到」**。两个变异的实测输出见台账 `09-p8.md` §5。
+
+6. **翻磁贴的影响面不止那个 composable 的单测。** dock 上的 settings 图标另有一条**点击链路级**
+   用例（`HomeDock.test.ts`）断言 `/#/legacy`；而给 `SearchDialog.vue` 引入 `useRoute()` 之后，
+   **所有 `mount(Home)` 的测试**都会 `injection "Symbol(route location)" not found`
+   （`Home.vue` 无条件挂它）。两处都是计划漏项，详见台账 `09-p8.md` §2。
+
 ---
 
 ## 9. 三线并发共处（本期一等约束）
