@@ -85,6 +85,55 @@ key="Let's create your initial account"  -> en="Let's create your account"
 **方法**:本期 90 条的 zh 值 / en 值分别去 **1648 全表**里找同值键(**真实模块导入**,不做文本解析),
 **两个方向都扫**。
 
+### 🔴🔴 A.3.0 订正块(T0b · 裁定 **R7** / 评审 **I-4** / 勘误 **E-77**)
+
+> 🔴🔴 **T1 仍必须自己重跑双向扫描,不许因为「T0b 已经补过」而跳过。**
+> 治理 §7.1 **明令假定协调者/上游的表不完整** —— P5c 三刀 / P5d 一刀 / P5e 一刀,**每刀都扫出新的**。
+> **跳过 = 违申报纪律第 1 条。本表只是「待验清单」,不是权威。**
+
+**T0b 的复核方式**(不采信评审,自己重跑;命令与完整输出见 `p5f-task-0b-report.md` §4):
+真实模块导入 `src/i18n/zh_cn.ts` / `en_us.ts`(**esbuild bundle → `import`**,各 **1648** 键、`aiKb*` 各 **441**、
+`zh\en` 与 `en\zh` 差集**均空**),对 §A.6 的 **90** 行**两个方向都扫**。
+
+**T0b 实测复核结果**:
+
+| 项 | 结果 |
+|---|---|
+| §A.6 的 90 行 zh/en 值 vs 蓝本 `zh_CN.json`/`en_US.json` | 🟢 **零不符**(逐码点) |
+| 总撞车行数 | 🟢 **28**,与 T0 / 评审三方一致 |
+| §A.3.1 现有 7 行里那 6 个「en 撞 = —」 | 🟢 **实测确实为空,「—」是对的** |
+
+🔴 **⚠️ 与评审 I-4 的措辞不一致,以 T0b 实测为准(R18)**:
+评审说「§A.3.1 的『en 撞』列**全是**「—」是事实错误」。**这个措辞不准确** ——
+① 该列**不是全「—」**(`Documents` 那行原本就写着 `searchTabDocuments`);
+② 那 6 个「—」**逐个实测都是空的,值本身没写错**。
+
+🔴 **真正的缺陷是「不完整」而不是「值错」**:§A.3.1 只枚举了**判定为不可复用**的 7 行,
+**另有 5 行单侧撞车散落在 §A.2(可复用)与 §A.3.2(两档都撞)里,一处都没登记** ——
+其中包含**本期唯一一条 en 单侧撞车**。**读者会据此以为 en 方向不用扫。** ⇒ 见 §A.3.1a。
+
+### 🔴 A.3.1a 补齐:T0 未列的 5 行单侧撞车(**E-77**,T0b 实测)
+
+> 口径:`both` = 两档撞同一个键 · `zh 单侧` = 只在 zh 撞 · `en 单侧` = 只在 en 撞。
+> **这 5 行的复用判定全部不变** —— 评审逐条验过、T0b 复核同意:**没有一条会因为漏列而选错键。**
+
+| 本期文案 | 现登记在 | 两档都撞(both) | 🔴 **zh 单侧(漏列)** | 🔴 **en 单侧(漏列)** |
+|---|---|---|---|---|
+| **`Removed`** 🔸动态 | §A.2 末三条 | `aiKbStatusRemoved` | `aiCfgDeleted` | 🔴🔴 **`addPanelRemovedToast`** ← **本期唯一的 en 单侧撞车** |
+| `Action` | §A.2(复用 `aiKbColAction`) | `aiKbColAction` | `filesColType` `aiTypeLabel` `aiKbColType` | — |
+| `Delete` | §A.2 末三条 | `filesCtxDelete` `filesUploadCancel` `appsCustomLinkDelete` `aiConfirm` `aiCfgDelete` `aiSkDelete` `aiKbNtDelete` | **`appsSettingsRemove`** | — |
+| `Auto` | §A.2 末三条 | `aiCfgMemSourceAuto` `aiSkTagAuto` `aiKbOriginAuto` `aiKbDeviceAuto` | **`aiCfgAutoPlaceholder`** | — |
+| `Documents` 🔸动态 | §A.3.1(已在表内) | `searchTabDocuments` | `aiKbDocumentsSuffix` | — |
+
+⚠️ **`Root deleted` 的 zh 单侧 `aiCfgDeleted` §A.3.1 原表已列** ✅(评审把它和 `Removed` 并成一行,
+实测是**两个不同的本期文案**:`Root deleted` 纯单侧、`Removed` 有 both 也有单侧)。
+
+🔴 **`Removed` 这一行为什么重要**:它的 **zh 撞 `aiCfgDeleted` + `aiKbStatusRemoved`**、
+**en 撞 `addPanelRemovedToast` + `aiKbStatusRemoved`** —— **两侧撞的键集合不同**。
+只有 `aiKbStatusRemoved` 两档都撞 ⇒ **理论上可复用的只有它**;
+而按裁定 **R3**,`aiKbStatusRemoved` 是**索引文件状态**语义、本期是 **wiki 变更 op**,
+**按 A-1 拒绝复用 ⇒ 新建 `aiKbWkOpRemoved`**。**结论与 §A.2 末三条一致,不变。**
+
 ### A.3.1 🔴 **只撞一侧**的(**绝不能复用** —— 复用会让另一档文案错)
 
 | 本期文案 | zh 撞 | en 撞 | 结论 |
@@ -96,6 +145,10 @@ key="Let's create your initial account"  -> en="Let's create your account"
 | `Root deleted` | `aiCfgDeleted` `aiKbStatusRemoved` | — | 🔴 新建 |
 | `Renamed` | `filesRename` `filesUploadRename` | — | 🔴 新建 |
 | `Documents` | `aiKbDocumentsSuffix`(zh)/ `searchTabDocuments`(两档) | `searchTabDocuments` | 🔴 新建(见下) |
+
+🔴 **本表的 6 个「—」T0b 已逐个实测复核为真空**(见 §A.3.0);
+🔴 **但本表不完整** —— 另有 5 行单侧撞车在 §A.3.1a,**其中含本期唯一的 en 单侧撞车**。
+🔴 **「en 列有『—』」绝不等于「en 方向不用扫」。T1 必须双向重跑。**
 
 ⚠️ **`enabled` 与 `Root enabled` 的 zh 都是「已启用」** —— 🔴 **本期内部也撞车**:
 `AllowlistView` 的 `enabled`(计数后缀)与 `RootsView` 的 `Root enabled`(toast)zh 同值、en 不同值,
