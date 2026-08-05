@@ -298,6 +298,55 @@
   --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
   --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant,与 --text-on-accent 逐字同值但语义不同(近黑代码块上的字,非强调实底上的字) */
 
+  /* P5e-T2 新增 —— 「文件聚合搜索」两屏(结果卡 / 详情抽屉 / in-app 预览)用到的 8 个
+     token,附录 B §B.0 的 17 处色字面量逐处映射后剩下的新声明部分。两档都显式写值,
+     声明处逐行标蓝本 file:line + 附录 B 小节号:
+
+       --paper-surface(蓝本 knowledge.scss:599 的 .k-rcard-icon「白纸片」底色具名裸值)
+         🔴 **不是新建** —— 它是本档尚未声明的**既有例外 token**:AI tokens.scss:193(浅)/
+         :342(暗)两档同值,那里的注释原文把它与 --kind-* / --scrim-dark 列为同族
+         「skin-agnostic」例外;skills-styles.scss:402-404 的注释原文也写「专为这类
+         『白纸片』文件图标登记的例外 token」。.k-rcard-icon 正是同一个东西(一张纸片 +
+         右上折角 + 底部类型标签)。附录 B §B.1 第 1 行
+
+       --rtag-pdf / -md / -doc / -txt / -code(蓝本 :618-622 的 .k-rcard-tag[data-kind]
+         五个不透明实底)—— theme-invariant,与 tokens.scss 的 --kind-* 家族同款两档同值。
+         附录 B §B.2.1
+         🔴 为什么另起 --rtag-* 前缀、不借 --kind-* / --purple 的名字(承 --grad-sk-blue
+         → --grad-sandbox 的改名先例):① tokens.scss:210/:351 的 --kind-txt 与本处 TXT
+         **不同值**(那个是中性灰、也是未知类型的兜底),在 .knowledge-app 里重声明
+         --kind-txt 会造成全仓同名两值 = 评审地雷;② 既然 txt 那一员必须换名,五个就得
+         同一个家族前缀,不许 4 个借名 + 1 个新名;③ --purple 是**纯色相名**、不是文件
+         类型语义,借给 code 标签与 -sk- 借名同类问题。--rtag- = result-card tag
+
+       --shadow-drawer(蓝本 :1582 的 .k-drawer 方向性投影,**整条 box-shadow 值 token**,
+         形态照 K39 的 --shadow-warning-glow 先例;**两档不同值**)。附录 B §B.2.2
+         几何部分 `-20px 0 60px` 逐字照蓝本(方向性投影是 1:1 视觉的一部分);颜色部分
+         照裁定 R4 的既定规则 —— 暗档取本档纯色投影、浅档取本档暖调投影,alpha 沿用同档
+         --shadow-lg 第一段的 alpha。🔴 蓝本原值是冷调,与本档 R4 已统一的两套阴影不同源,
+         **不照抄** —— R4 当时正是为了「暗底上暖灰阴影看不见」才立的规则,这是 K2 主题
+         映射层的既有口径,不是新偏离。
+
+       --mark-hl-bg(蓝本 :1660 的 .k-chunk-content mark 正文高亮底色,**两档不同值**)。
+         附录 B §B.2.3。全仓零同值、零近义 token(theme.css:67/:282 的 --hl-star 是金棕色
+         星标,不同语义)→ 必须新建。浅档逐字照蓝本;🔴 暗档必须降 alpha ——
+         .k-chunk-content 的 color 是 inherit ⇒ 实际取 --text-primary(暗档是浅灰白),
+         照抄浅档 alpha 会把底推到中间调,浅色字压在中间调上对比度最差。这是 K39 第 ③ 条
+         「两档都显式写值」的必然结果,不是自选。
+         ⚠️ **只映射 :1660 这一处**;另两条 mark 规则(:653 .k-rcard-snippet mark /
+         :1645 .k-chunk-item-preview mark)蓝本用的就是 token,原样照抄、不许一起改。
+
+     🔴 --rtag-md 与 --mark-hl-bg 是本期两个「请机主看实物拍板」的配色项(附录 B
+     §B.2.1 末 / §B.2.3 末);机主若要改,改的是 token 值,不动任何选择器。 */
+  --paper-surface: #ffffff; /* AI tokens.scss:342(暗档);knowledge.scss:599 */
+  --rtag-pdf: #FF3B30; /* knowledge.scss:618;与 AI tokens.scss:347 的 --kind-pdf 逐字同值 */
+  --rtag-md: #1a1a1a; /* knowledge.scss:619;与 AI tokens.scss:350 的 --kind-md 逐字同值 */
+  --rtag-doc: #007AFF; /* knowledge.scss:620;与 AI tokens.scss:348 的 --kind-doc 逐字同值 */
+  --rtag-txt: #34C759; /* knowledge.scss:621;与 AI tokens.scss:349 的 --kind-xls 逐字同值(⚠️ 不是 --kind-txt) */
+  --rtag-code: #AF52DE; /* knowledge.scss:622;与本档上方 --purple 逐字同值 */
+  --shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.55); /* knowledge.scss:1582 几何 + 暗档投影色(alpha 取同档 --shadow-lg 首段),裁定 R4 */
+  --mark-hl-bg: rgba(255, 235, 0, 0.22); /* knowledge.scss:1660,暗档降 alpha,理由见上方注释 */
+
   /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
   color-scheme: dark;
 }
@@ -404,6 +453,18 @@
   --shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24); /* knowledge.scss:2067,RGB 取 --warning-soft-border 浅档三元组 + 蓝本 alpha 0.24 */
   --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
   --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant */
+
+  /* P5e-T2 新增(见暗色块同名注释)—— 浅色档取值。--paper-surface 与 5 个 --rtag-* 是
+     theme-invariant(两档同值,按头注释「隐藏坑」段的论证仍必须显式各写一份);
+     --shadow-drawer 与 --mark-hl-bg 两档不同值。 */
+  --paper-surface: #ffffff; /* AI tokens.scss:193(浅档);knowledge.scss:599 */
+  --rtag-pdf: #FF3B30; /* knowledge.scss:618;AI tokens.scss:206 的 --kind-pdf */
+  --rtag-md: #1a1a1a; /* knowledge.scss:619;AI tokens.scss:209 的 --kind-md */
+  --rtag-doc: #007AFF; /* knowledge.scss:620;AI tokens.scss:207 的 --kind-doc */
+  --rtag-txt: #34C759; /* knowledge.scss:621;AI tokens.scss:208 的 --kind-xls(⚠️ 不是 --kind-txt) */
+  --rtag-code: #AF52DE; /* knowledge.scss:622;本档 --purple 浅档值 */
+  --shadow-drawer: -20px 0 60px rgba(40, 35, 25, 0.10); /* knowledge.scss:1582 几何 + 浅档暖调投影色(alpha 取同档 --shadow-lg 首段),裁定 R4 */
+  --mark-hl-bg: rgba(255, 235, 0, 0.40); /* knowledge.scss:1660,浅档逐字照蓝本 alpha,附录 B §B.2.3 */
 
   /* R3 —— 见头注释 */
   color-scheme: light;
@@ -635,6 +696,279 @@
     gap: 22px;
   }
 
+  /* ---------- P5e-T2 · S1(蓝本 :351-367)—— .k-hero-suggest + .k-suggest-chip 基类 ----------
+     🔴 **只搬这 17 行**。蓝本 :272-349 是 7 个「死代码」类(k-hero 系:orb/title/sub/
+     search/search-go/search-kbd),:369-411 起是 k-status-strip 与另 5 个死类(k-stat 系),
+     :413-455 又是 6 个(k-quick 系)—— 附录 D §D.3 的 24 个死类清单里 18 个就紧夹在
+     本段两侧,「整段搬 :272-455」会一次带进 18 个。P5a 正确地没搬,本刀也不搬。
+     ⚠️ 本注释刻意**不写带前导点的类名**:附录 D §D.3 的复现命令是对**原始文本**裸 grep,
+     写成带点形式会被它当成真泄漏(该命令在 T2 之前的基线上就已有 2 处同类假阳性,
+     来自本档 :61 / :1318 / :1605 三条既有注释 —— 见 T2 报告的勘误一节)。
+     knowledgeStyles.test.ts 有一条「24 个死类零出现」的常驻断言,它跑在**剥注释后**的
+     文本上,是这件事的权威判据。
+
+     🔴 E-52 —— .k-suggest-chip 是 **P5a 的跨期漏搬**:P5a 搬了蓝本 :2291 的后代覆盖
+     (本档下方 Dashboard v2 段的 `.k2-suggest .k-suggest-chip { white-space: nowrap }`)
+     却**没搬基类**,而蓝本 DashboardView.vue:292 与 SearchView 都在用它 ⇒ P5a 已验收的
+     仪表盘建议 chip 目前跑在「只有一条 white-space、零基类样式」上(圆角/内距/边框/
+     底色/hover 全缺)= **已交付产出里的真实视觉缺陷**,本刀补。
+     基类插在那条覆盖**之前**(蓝本源序),配一条相对顺序断言。
+     🔴 断言的价值是「钉蓝本源序的移植忠实性」,**不是**「防级联反掉」——
+     基类 (0,2,0) vs 覆盖 (0,3,0)、且覆盖只声明 white-space ⇒ **两者属性集不相交、
+     顺序不影响任何渲染**(勘误 E-56 / 裁定 R7:协调者原先那句「顺序反了会级联反掉」
+     是写错的,已对外更正)。本段零色字面量,全是既有 token。 */
+  .k-hero-suggest {
+    margin-top: 14px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+    justify-content: center;
+    position: relative;
+  }
+  .k-suggest-chip {
+    padding: 5px 11px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-pill);
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 120ms ease;
+    &:hover { border-color: var(--accent); color: var(--accent); }
+  }
+
+  /* ---------- P5e-T2 · S2(蓝本 :457-549,"Search page")----------
+     🔴 到 :549 为止 —— 蓝本 :551-571 是 .k-seg(K43,P5d-T2 已搬到本档下方),不许重复搬。
+     .k-adv-toggle 里嵌的 `.chev` 与下方 S5 的 `.k-more-hint .chev` 是**两条不同的后代
+     规则**,都要搬;`chev` 归 NON_K_HELPER_CLASSES 登记表(不是 k* 前缀)。
+     🔴 「先搬者得」交接项(附录 D §D.5):.k-adv-toggle + 嵌套 .chev 蓝本被 SearchView
+     与 P5f 的 AllowlistView / RootsView 三家用 → **P5f 不许重复搬**(同 K43/K45 模具)。
+     本段零色字面量,全是既有 token;`transparent` 是 CSS 关键字不算配色(附录 B §B.3 口径)。 */
+  .k-search-sticky {
+    position: sticky; top: 0;
+    background: var(--bg-canvas);
+    z-index: 4;
+    margin: -22px -22px 0;
+    padding: 22px 22px 12px;
+    border-bottom: 1px solid var(--line-faint);
+  }
+  .k-search-sticky-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .k-search-box {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 16px 11px 18px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-sm);
+    transition: all 120ms ease;
+    &:focus-within {
+      border-color: var(--accent);
+      box-shadow: var(--shadow-sm), 0 0 0 4px var(--accent-softer);
+    }
+    input {
+      flex: 1; border: 0; outline: none; background: transparent;
+      font-size: 15px; color: var(--text-primary);
+    }
+  }
+  .k-search-clear {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--bg-chip);
+    color: var(--text-tertiary);
+    display: grid; place-items: center;
+    transition: all 120ms ease;
+    &:hover { background: var(--line); color: var(--text-primary); }
+  }
+
+  .k-adv-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    transition: all 120ms ease;
+    background: transparent;
+    width: fit-content;
+    &:hover { background: var(--bg-chip); color: var(--text-primary); }
+    .chev { transition: transform 200ms ease; display: inline-flex; }
+    &[data-open="true"] .chev { transform: rotate(90deg); }
+  }
+
+  .k-adv-panel {
+    margin-top: 4px;
+    padding: 14px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-md);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    box-shadow: var(--shadow-xs);
+  }
+  .k-adv-field { display: flex; flex-direction: column; gap: 6px; }
+  .k-adv-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    font-weight: 600;
+  }
+  .k-adv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .k-adv-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    background: var(--bg-chip);
+    border: 1px solid transparent;
+    border-radius: var(--r-pill);
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 120ms ease;
+    &:hover { background: var(--line); color: var(--text-primary); }
+    &[data-on="true"] {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+  }
+
+  /* ---------- P5e-T2 · S3(蓝本 :573-681,"Result card")----------
+     🔴 到 :681 为止 —— 蓝本 :683-717 是 .k-empty*(P5a 已搬,就在下面),不许重复搬。
+     三个「嵌套零引用/元素选择器」规则**随父块整体搬、不单独摘除**(附录 D §D.6,同 P5d
+     「statusBadge 零消费者也照抄导出」的 K7 模具):
+       · `.k-rcard-snippet mark`(:653)—— 由 v-html 的 highlight() 动态注入(K49),
+         蓝本用的就是 token,原样照抄
+       · `.k-rcard-snippet .h-md`(:660)—— 🔴 蓝本 13 个 .vue 里**零 class 引用**,
+         但它嵌在 .k-rcard-snippet 内,随父块搬;`h-md` 归 NON_K_HELPER_CLASSES
+       · `.k-rcard-meta-item .path`(:670)—— `path` 归 NON_K_HELPER_CLASSES
+         (⚠️ p5-master-plan.md §2.4 的类清单漏列了它,勘误 E-55)
+
+     配色(附录 B §B.0 逐处映射,实现者不许自选):
+       · :599 .k-rcard-icon 底色具名裸值 → --paper-surface(白纸片例外 token,见声明处注释)
+       · :616 .k-rcard-tag 前景具名裸值 → --text-on-accent(实底胶囊上的字;先例逐字同款 =
+         本档 .k-type-legacy 的注释「实底警告色胶囊上的纯白字 → --text-on-accent」;
+         记忆「--on-accent 只在 accent 实底上可用」—— 这里 5 个 [data-kind] 底**都是
+         不透明实底**,成立)
+       · :618-622 五个 [data-kind] 实底 → --rtag-*(本刀新建,见声明处注释)
+       · :639-641 .k-rel[data-level] 三组半透明底 + 三个实字色 → --success-soft/--success /
+         --warning-soft/--warning / --danger-soft/--danger(两档已有)。先例逐字同款:
+         本档 .k-type-tag[data-kind="txt"] 的注释「蓝本 :1893 成功色半透明底 + 深绿前景
+         两处裸值 → token」,而蓝本 :1893 与本处 :639 是**同一对值**(alpha 差 0.02)——
+         A-9 明令「不为透明度差几个点开小灶」。low 档蓝本是偏橙的红,仍归 danger 家族:
+         它是「相关度低」的告警语义,--danger 是本档唯一的红/橙红语义 token。 */
+  .k-results { display: flex; flex-direction: column; gap: 8px; }
+  .k-result-count {
+    font-size: 12px; color: var(--text-tertiary);
+    padding: 4px 4px 2px;
+    b { color: var(--text-primary); font-weight: 600; }
+  }
+
+  .k-rcard {
+    padding: 14px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: all 120ms ease;
+    display: flex; gap: 12px;
+    box-shadow: var(--shadow-xs);
+    &:hover {
+      border-color: var(--line-strong);
+      background: var(--bg-canvas);
+      transform: translateX(2px);
+    }
+  }
+  .k-rcard-icon {
+    width: 30px; height: 36px;
+    border-radius: 4px;
+    background: var(--paper-surface); /* 蓝本 :599 白纸片底色具名裸值 → 既有例外 token,见声明处 */
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-xs);
+    flex-shrink: 0;
+    position: relative;
+    &::after {
+      content: ""; position: absolute; top: 0; right: 0;
+      width: 9px; height: 9px;
+      border-bottom-left-radius: 3px;
+      background: linear-gradient(225deg, transparent 50%, var(--line) 50%);
+    }
+  }
+  .k-rcard-tag {
+    position: absolute; bottom: 4px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px; font-weight: 700;
+    padding: 1px 4px; border-radius: 2px;
+    color: var(--text-on-accent); /* 蓝本 :616 实底胶囊上的前景具名裸值 → token,见段首注释 */
+    letter-spacing: 0.02em;
+    &[data-kind="pdf"] { background: var(--rtag-pdf); } /* 蓝本 :618 */
+    &[data-kind="md"] { background: var(--rtag-md); } /* 蓝本 :619 */
+    &[data-kind="doc"] { background: var(--rtag-doc); } /* 蓝本 :620 */
+    &[data-kind="txt"] { background: var(--rtag-txt); } /* 蓝本 :621 */
+    &[data-kind="code"] { background: var(--rtag-code); } /* 蓝本 :622 */
+  }
+
+  .k-rcard-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .k-rcard-head { display: flex; align-items: center; gap: 8px; }
+  .k-rcard-name {
+    font-size: 14px; font-weight: 600;
+    letter-spacing: -0.005em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1; min-width: 0;
+  }
+  .k-rel {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 7px 2px 5px;
+    border-radius: var(--r-pill);
+    flex-shrink: 0;
+    /* 蓝本 :639-641 三档各两处裸值(半透明底 + 实前景)→ token,见段首注释 */
+    &[data-level="high"] { background: var(--success-soft); color: var(--success); }
+    &[data-level="mid"]  { background: var(--warning-soft); color: var(--warning); }
+    &[data-level="low"]  { background: var(--danger-soft); color: var(--danger); }
+  }
+  .k-rel-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .k-rcard-snippet {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    mark {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 0 1px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    .h-md { font-weight: 600; color: var(--text-primary); }
+  }
+  .k-rcard-meta {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+  .k-rcard-meta-item { display: inline-flex; align-items: center; gap: 4px; }
+  .k-rcard-meta-item .path {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  .k-rerank-warn {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-style: italic;
+    padding: 2px 6px;
+    animation: k-fade-in 200ms ease;
+  }
+
   /* ---------- Empty / loading(蓝本 :683-715,R1 追加的 6 个类)---------- */
   .k-empty {
     padding: 60px 20px 40px;
@@ -677,11 +1011,23 @@
   }
 
   /* ---------- Skeleton(只搬基类 .k-skel,k-skel-rcard 不在白名单)---------- */
+  /* 【P5e-T2 订正(反转不删:上一行原文保留)】上面那句「k-skel-rcard 不在白名单」记的是
+     P5a 当期的状态。.k-skel-rcard(蓝本 :726-732)是搜索页 loading 骨架的容器,归 P5e ——
+     本刀已搬入(见紧接下方),并已进 WHITELIST_348。 */
   .k-skel {
     background: linear-gradient(90deg, var(--bg-chip) 25%, var(--bg-canvas) 50%, var(--bg-chip) 75%);
     background-size: 200% 100%;
     animation: k-shimmer 1.6s linear infinite;
     border-radius: 6px;
+  }
+  /* ---------- P5e-T2 · S4(蓝本 :726-732)---------- 🔴 **不含 :720-725 的 .k-skel 基类**
+     (P5a 已搬,就在上面)。本段零色字面量。 */
+  .k-skel-rcard {
+    padding: 14px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-md);
+    display: flex; gap: 12px;
   }
 
   /* ---------- P5b-T2 · S3 前半(蓝本 :735-817,Queue page)----------
@@ -2143,6 +2489,225 @@
 @keyframes row-done {
   0% { background: var(--success-soft); }
   100% { background: transparent; }
+}
+
+/* 【P5e-T2】蓝本 knowledge.scss:1541-1545 的两个 @keyframes —— 蓝本自己就写在顶层
+ * (在 `.knowledge-app { … }` 那个 :1547-1673 块**之前**),本档按与上面 T4/T11/T6 三批
+ * 完全相同的既定惯例放进这个顶层全局 keyframes 区:scss 里嵌进选择器的 @keyframes 会
+ * 跟着作用域走,而规则里的 `animation: k-drawer-fade …` / `k-drawer-in …` 引用不带任何
+ * 作用域前缀。不搬则 animation-name 悬空 = 抽屉静默无入场动画(而「animation 引用与
+ * @keyframes 声明一一对应」那条断言会精确报红)。两段零色字面量。 */
+@keyframes k-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes k-drawer-in {
+  from { transform: translateX(40px); opacity: 0.6; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+/* ===== P5e-T2 · S5 + S6 —— 1:1 移植自蓝本 knowledge.scss:1547-1673 那个**顶层
+ * `.knowledge-app { … }` 块**(「文件聚合搜索:match pill + detail drawer」)=====
+ * 🔴 原样保留蓝本那一层 `.knowledge-app` 包裹(K9 / K44:不新增任何顶层裸选择器 ——
+ * `bareTopLevelSelectors()` 那条集合相等断言仍是 ['.nme-content .ProseMirror'] 一条,
+ * 一字未改)。位置照蓝本相对序:在顶层 keyframes 区之后、Dashboard v2 段(蓝本
+ * :2282-2452)之前。
+ *
+ * 🔴 **跳过蓝本 :1564-1570 那 7 行**(附录 D §D.2 末尾):
+ *   · :1564-1568 的 `.k-btn.outline` + hover 是蓝本自己的**重复段**(它在 :831 也有一份),
+ *     本档 .k-btn 块内的 `&.outline` 已由 P5a 搬入且与之逐字等价 → 重复搬会污染 .k-btn 块;
+ *   · :1569-1570 的 `.k-btn.text` + hover 是 **K45(P5d-T2 已搬)**,重复搬会让
+ *     「.k-btn 块内 &.text 恰好 2 次」那条计数断言报红 —— **那是有意的**。
+ *
+ * 配色(附录 B §B.0 逐处映射):
+ *   · :1574 .k-drawer-bg 冷调半透明遮罩裸值 → --modal-scrim。先例逐字同款 = 本档
+ *     .k-modal-bg 处的注释「蓝本 :1298 冷调半透明遮罩裸值 → --modal-scrim(P5a 已在两档
+ *     声明)」,同一个决定、已过评审。
+ *   · :1582 .k-drawer 方向性投影 → --shadow-drawer(本刀新建整值 token,见声明处注释)
+ *   · :1660 .k-chunk-content mark 正文高亮底色 → --mark-hl-bg(本刀新建,见声明处注释)
+ *   · ⚠️ :1645 `.k-chunk-item-preview mark` 蓝本用的就是 token,**原样照抄、不许一起改**
+ *     (附录 D §D.6 明令,与 :653 那条同理)
+ *
+ * z-index 相对关系(K46 要求登记,附录 B §B.4.1):`.k-drawer-bg` = 1050 <
+ * `.k-fileviewer-host` = 1100(蓝本 KFileViewer.vue:74 的行尾注释原文就指名 1050),
+ * 两个数字原样搬。`.k-modal-bg` 也是 1100 —— 🔴 蓝本(:1302)与本档(既有)都是 1100,
+ * **与 host 并列是蓝本原生行为、不是本期引入**(裁定 R3.1-M3:K46 无需任何决定,照搬即可)。
+ *
+ * @media (max-width: 720px)(蓝本 :1666-1672)嵌在本块内,照蓝本原位保留 —— 它是本块
+ * 自己的 5 条移动端覆盖,不并进上方 T4/T6 那个既有 @media 块(那个块在文件另一处、
+ * 属另一批次,合并会打乱两批的可追溯性)。 */
+.knowledge-app {
+  /* ---------- S5(蓝本 :1548-1562)---------- */
+  .k-match-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 600;
+    background: var(--accent-soft); color: var(--accent);
+    flex-shrink: 0; font-variant-numeric: tabular-nums;
+  }
+  .k-more-hint {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11.5px; color: var(--accent); font-weight: 500; margin-top: 2px;
+  }
+  .k-more-hint b { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .k-more-hint .chev { transform: rotate(-90deg); }
+  .k-rcard:hover .k-more-hint { text-decoration: underline; }
+
+  /* ---------- S6(蓝本 :1572-1672)---------- */
+  .k-drawer-bg {
+    position: fixed; inset: 0;
+    background: var(--modal-scrim); /* 蓝本 :1574 冷调半透明遮罩裸值 → token,见段首注释 */
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: flex; justify-content: flex-end;
+    z-index: 1050; animation: k-drawer-fade 180ms ease;
+  }
+  .k-drawer {
+    width: min(860px, 90vw); height: 100%;
+    background: var(--bg-canvas); border-left: 1px solid var(--line);
+    box-shadow: var(--shadow-drawer); /* 蓝本 :1582 方向性投影 → 本刀新建整值 token */
+    display: flex; flex-direction: column;
+    animation: k-drawer-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    overflow: hidden;
+  }
+  .k-drawer-head {
+    height: 52px; padding: 0 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--line-faint);
+    background: var(--bg-canvas);
+    flex-shrink: 0;
+  }
+  .k-drawer-back {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px 6px 10px;
+    background: var(--bg-elevated); border: 1px solid var(--line-faint);
+    border-radius: var(--r-pill); color: var(--text-primary);
+    font-size: 13px; font-weight: 500; transition: all 120ms ease; font-family: inherit;
+  }
+  .k-drawer-back:hover { background: var(--bg-chip); border-color: var(--line); }
+  .k-drawer-head-spacer { flex: 1; }
+  .k-drawer-fileinfo {
+    padding: 18px 20px 14px; display: flex; align-items: center; gap: 14px;
+    border-bottom: 1px solid var(--line-faint); background: var(--bg-elevated);
+  }
+  .k-drawer-filename {
+    font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .k-drawer-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .k-drawer-summary {
+    padding: 10px 20px; background: var(--bg-sunken);
+    border-bottom: 1px solid var(--line-faint);
+    font-size: 12.5px; color: var(--text-secondary);
+  }
+  .k-drawer-summary b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .k-drawer-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 280px 1fr; }
+
+  .k-chunk-list {
+    border-right: 1px solid var(--line-faint); overflow-y: auto;
+    background: var(--bg-sunken); display: flex; flex-direction: column;
+    padding: 8px 6px; gap: 4px;
+  }
+  .k-chunk-item {
+    width: 100%; text-align: left; background: transparent;
+    border: 1px solid transparent; border-radius: var(--r-sm);
+    padding: 10px 10px 10px 6px; display: grid; grid-template-columns: 30px 1fr; gap: 6px;
+    cursor: pointer; transition: all 120ms ease; font-family: inherit; align-items: flex-start;
+  }
+  .k-chunk-item:hover { background: var(--bg-elevated); }
+  .k-chunk-item[data-active="true"] { background: var(--bg-elevated); border-color: var(--accent); box-shadow: var(--shadow-xs); }
+  .k-chunk-rank {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    color: var(--text-quaternary); text-align: center; padding-top: 2px; font-variant-numeric: tabular-nums;
+  }
+  .k-chunk-item[data-active="true"] .k-chunk-rank { color: var(--accent); }
+  .k-chunk-item-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .k-chunk-item-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .k-chunk-loc { font-size: 10.5px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+  .k-chunk-item-preview {
+    font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .k-chunk-item-preview mark { background: var(--accent-soft); color: var(--accent); font-weight: 600; padding: 0 1px; border-radius: 2px; }
+
+  .k-chunk-viewer { display: flex; flex-direction: column; background: var(--bg-canvas); overflow: hidden; }
+  .k-chunk-viewer-head {
+    padding: 12px 20px; border-bottom: 1px solid var(--line-faint);
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0; background: var(--bg-elevated);
+  }
+  .k-chunk-viewer-title { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; color: var(--text-secondary); flex: 1; }
+  .k-chunk-nav { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  .k-chunk-nav-count { font-size: 12px; color: var(--text-tertiary); padding: 0 6px; min-width: 50px; text-align: center; }
+  .k-chunk-nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .k-chunk-content {
+    flex: 1; overflow-y: auto; padding: 24px 28px; font-size: 15px; line-height: 1.7;
+    color: var(--text-primary); background: var(--bg-canvas); white-space: pre-wrap;
+  }
+  /* 蓝本 :1660 正文高亮底色裸值 → 本刀新建 token(见声明处注释);`color: inherit` 照抄 */
+  .k-chunk-content mark { background: var(--mark-hl-bg); color: inherit; padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+  .k-chunk-viewer-foot {
+    padding: 10px 20px; border-top: 1px solid var(--line-faint);
+    display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); flex-shrink: 0;
+  }
+
+  @media (max-width: 720px) {
+    .k-drawer { width: 100vw; }
+    .k-drawer-body { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+    .k-chunk-list { border-right: 0; border-bottom: 1px solid var(--line-faint); }
+    .k-drawer-fileinfo { flex-wrap: wrap; }
+    .k-drawer-actions { width: 100%; }
+  }
+
+  /* ---------- P5e-T2 · KF —— 蓝本 KFileViewer.vue 的 `<style lang="scss" scoped>` ----------
+     搬运范围 = **`:71-76` + `:102-119`**(裁定 R3.1 / M-1 订正:附录 B §B.4 / D §D.2 正文
+     原写的 `:103-119` 会丢掉 `:102` 那个 `}`,`.k-fileviewer-host` 不闭合)。
+     🔴 **K44**:落进 knowledge.scss 的 `.knowledge-app` 块内,`.vue` 侧零 `<style>` 块
+     (T4 建 KFileViewer.vue 时不写 style)。scoped → 全局作用域的降级由 `.knowledge-app`
+     祖先兜住(host 只在知识库搜索区渲染)。
+
+     🔴 **K46 —— 蓝本 `:77-101` 的三条 `::v-deep`(`.overlay` / `.v-container` /
+     `.doc-container`)整段不搬**,含 `:84` 的一处色字面量。理由(治理 §2 第 2 条):
+     那三条是补 **Vue2** viewer 依赖 `.file-panel .modal-card .overlay` 祖先链的补丁,
+     而本仓 `DocViewer.vue` / `ExcelViewer.vue` **自身模板零那三个类**、各自内含
+     `ViewerShell`,`.overlay` 已由 `ViewerShell.vue:23-29` 的 scoped 规则自带
+     (`position: absolute; inset: 0; z-index: 200; overflow: hidden; display: flex;
+     flex-direction: column` —— 正是那条 `::v-deep .overlay` 想补的东西)⇒ 照搬 =
+     **复制一个本仓不存在的问题的补丁**。配了一条「这三个类名在本档零出现」的断言。
+     ⚠️ 诚实登记:`.overlay` **不是全仓零命中**(`ViewerShell.vue:9` 会吐 `<div
+     class="overlay">`)—— 但这不削弱 K46,反而加强它:补丁纯属重复。
+
+     🔴 **反过来**:`position: fixed` + `inset: 0` + `z-index: 1100` 三个属性**必须原样
+     保留**,三条独立断言各钉一个(拿掉任一 → 报红)。依据 `ViewerShell.vue:24` 是
+     `position: absolute; inset: 0; z-index: 200` ⇒ 它**需要一个铺满视口的定位祖先**;
+     拿掉 host 的 `fixed` 会让预览器**塌进文档流**。这是本期最容易「顺手清理」出真 bug
+     的一处(治理 §2 第 2 条原文)。
+     ⚠️ `fixed` 相对视口定位、与祖先无关,除非祖先链上有 transform/filter/will-change
+     造成 containing block —— 附录 D §D.8 把这项实测派给 T4。
+
+     配色:`:75` 的一处底色裸值 → `var(--bg-canvas)`(**K47**)。依据:蓝本自己的兄弟
+     规则 `:106` `.k-fileviewer-fallback` 用的就是 `var(--bg-canvas)`,host 与 fallback 是
+     同一个全屏面的两层;蓝本给 host 写死那个值只是浅色单档假设。`:104-118` 两条本来就
+     全是 token,零字面量。 */
+  .k-fileviewer-host {
+    position: fixed;
+    inset: 0;
+    z-index: 1100; /* 蓝本 KFileViewer.vue:74 —— 压在详情抽屉(.k-drawer-bg 的 1050)之上 */
+    background: var(--bg-canvas); /* 蓝本 :75 底色裸值 → token(K47),见段首注释 */
+  }
+  .k-fileviewer-fallback {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-canvas);
+    display: flex;
+    flex-direction: column;
+  }
+  .k-fileviewer-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
 }
 
 /* ===== Dashboard v2 · 三层聚合仪表盘(T11)—— 1:1 移植自蓝本 knowledge.scss:2282-2452。

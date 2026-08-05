@@ -29,6 +29,17 @@ function stripComments(css: string): string {
 const rawSource = read('./knowledge.scss')
 const css = stripComments(rawSource)
 
+// 【P5e-T2 新增】同 stripComments,但把注释内容换成**等量空格**、保留换行 → 行号与源文件
+// 逐行对齐。给「需要报真实行号 / 需要比较两段规则的相对行序」的断言用(stripComments 会
+// 吃掉多行注释里的换行,用它算出来的行号比源文件小一截,报出去会把评审引到错误的行)。
+// 手法逐字照 parserStyles.test.ts:43-48 的既定先例,不是新发明。
+function blankComments(scss: string): string {
+  return scss
+    .replace(/\/\*[\s\S]*?\*\//g, (m: string) => m.replace(/[^\n]/g, ' '))
+    .replace(/^([ \t]*)\/\/.*$/gm, (_m: string, indent: string) => indent)
+}
+const cssKeepLines = blankComments(rawSource)
+
 // R1(协调者拍板)—— 附录 D.1 的 32 个 + 协调者追加的 6 个 k-empty* = 38 个,是 T4
 // (token 声明层 + 壳段 + keyframes)唯一该出现的类全集,一个不多一个不少。
 //
@@ -78,7 +89,24 @@ const css = stripComments(rawSource)
 // K45(裁定 R1)搬入的 .k-btn.text 不进本白名单 —— 它是复合类 `.k-btn.text` 里的
 // `text`,「没有搬多」的正则(见下方)扫不到复合类里的 `text`,`text` 只归
 // NON_K_HELPER_CLASSES(见下方独立小节),不许同时进两侧(R8/R9 二选一,已实测坐实)。
-const WHITELIST_293 = [
+//
+// 【P5e-T2 追加】「文件聚合搜索」两屏 + in-app 预览的 7 段(蓝本 knowledge.scss
+// :351-367(S1)· :457-549(S2)· :573-681(S3)· :726-732(S4)· :1548-1562(S5)·
+// :1572-1672(S6),外加 KFileViewer.vue:71-76 + :102-119(KF))新增 P5e 附录 D §D.7.1
+// 逐字列出的 **55** 个 k 前缀新类,293 → **348**(常量名跟着数字改,本档既定习惯)。
+// 🔴 终值以裁定 R8 为准(T0 评审用自己重写的模拟器独立复现过,不是 T0 自报);
+// T2 开工第一动作已独立重跑 `.superpowers/sdd/p5e-fixtures/scripts/sim-r8r9.mjs`
+// 与 `classes2.mjs`,复现 292→347 / 293→348 / 16→19 与 74=54/17/3,输出逐字贴在 T2 报告。
+// ⚠️ **「常量长度 348 ≠ NEW_RE 扫出数 347」那 1 差是现状就有的,不许去「修平」** ——
+// 那一项是 `knowledge-app`,真因是 NEW_RE 的 `k(?:2|n)?-` 分支要求 `k-`/`k2-`/`kn-`,
+// 而 `knowledge-app` 是 `kn` + `o`,**压根匹配不上**(裁定 R8 订正了附录 §D.7.1 给的
+// 「贪婪吃前缀」那个错理由 —— 照数字做,别照那个理由推演)。
+// ⚠️ `k-suggest-chip` **不在这 55 个里** —— 它早因 Dashboard v2 段那条后代覆盖被扫到、
+// 已在白名单里(E-52 的 HALF-MOVED);本刀补基类不会让白名单数字变。
+// ⚠️ `chev` / `path` / `h-md` **不在这 55 个里** —— 不是 k* 前缀,归 NON_K_HELPER_CLASSES。
+// 🔴 **白名单/登记表报红时,第一件事是回查附录 D §D.3 那 24 个蓝本死类清单
+// (下方有一条常驻断言钉住它们零出现),不许改白名单。**
+const WHITELIST_348 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
@@ -163,9 +191,22 @@ const WHITELIST_293 = [
   'kn-tagchip', 'kn-tagedit', 'kn-tb-btn', 'kn-tb-sep', 'kn-title-input', 'kn-toolbar', 'kn-type-ic',
   // ---- P5d T2:R9 追加的非 k 前缀类(2 个,K44 顶层例外段引入)----
   'nme-content', 'ProseMirror',
+  // ---- P5e T2:附录 D §D.7.1 的 55 个(逐字照抄该节代码块)----
+  'k-adv-chip', 'k-adv-chips', 'k-adv-field', 'k-adv-label', 'k-adv-panel', 'k-adv-toggle',
+  'k-chunk-content', 'k-chunk-item', 'k-chunk-item-body', 'k-chunk-item-head', 'k-chunk-item-preview',
+  'k-chunk-list', 'k-chunk-loc', 'k-chunk-nav', 'k-chunk-nav-count', 'k-chunk-rank',
+  'k-chunk-viewer', 'k-chunk-viewer-foot', 'k-chunk-viewer-head', 'k-chunk-viewer-title',
+  'k-drawer', 'k-drawer-actions', 'k-drawer-back', 'k-drawer-bg', 'k-drawer-body',
+  'k-drawer-fileinfo', 'k-drawer-filename', 'k-drawer-head', 'k-drawer-head-spacer', 'k-drawer-summary',
+  'k-fileviewer-empty', 'k-fileviewer-fallback', 'k-fileviewer-host',
+  'k-hero-suggest', 'k-match-pill', 'k-more-hint',
+  'k-rcard', 'k-rcard-body', 'k-rcard-head', 'k-rcard-icon', 'k-rcard-meta', 'k-rcard-meta-item',
+  'k-rcard-name', 'k-rcard-snippet', 'k-rcard-tag', 'k-rel', 'k-rel-dot', 'k-rerank-warn',
+  'k-result-count', 'k-results', 'k-search-box', 'k-search-clear', 'k-search-sticky', 'k-search-sticky-inner',
+  'k-skel-rcard',
 ]
 
-describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2)', () => {
+describe('knowledge.scss —— 附录 D 白名单落地(348 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2 + P5e-T2)', () => {
   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
@@ -174,15 +215,15 @@ describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-
   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
   // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('293 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
-    const missing = WHITELIST_293.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+  it('348 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+    const missing = WHITELIST_348.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
   })
 
   // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
-  it('白名单恰好 293 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2)', () => {
-    expect(WHITELIST_293).toHaveLength(293)
-    expect(new Set(WHITELIST_293).size, '白名单里有重复项').toBe(293)
+  it('白名单恰好 348 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2 + P5e-T2 的 55)', () => {
+    expect(WHITELIST_348).toHaveLength(348)
+    expect(new Set(WHITELIST_348).size, '白名单里有重复项').toBe(348)
   })
 
   it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
@@ -242,7 +283,7 @@ describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-
         css.match(/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g) || [],
       ),
     ).map((s) => s.slice(1))
-    const extra = found.filter((c) => !WHITELIST_293.includes(c))
+    const extra = found.filter((c) => !WHITELIST_348.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
   })
 
@@ -311,12 +352,28 @@ describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-
     'spacer',
     // K45(裁定 R1)搬入的 .k-btn.text —— `&.text` 是复合类 `.k-btn.text` 里的 `text`,
     // 与既有 ghost/outline/primary/danger 四个 `&.x` 变体完全同款(蓝本 :1569-1570)。
-    // 🔴 `text` 只归本表(R8),不进 WHITELIST_293(R9 的正则扫不到复合类里的 `text`,
+    // 🔴 `text` 只归本表(R8),不进 WHITELIST_348(R9 的正则扫不到复合类里的 `text`,
     // 见上方「没有搬多」小节注释),R8/R9 二选一,不许同时登记两侧。
     'text',
     // .kn-tb-btn 内的 H2/H3 加宽变体(蓝本 :2167),写作 `&.wide`,P5d-T2 搬入,与既有
     // mono/ghost 等「连写变体」同款
     'wide',
+    // ---- P5e-T2 追加(裁定 R8 / 附录 D §D.7.2:16 → 19)----
+    // 🔴 这三个是「登记表变长 = 新扫到的类都必须写明出处」,是**加固**不是放宽:
+    // 下面那条「登记表恰好等于文件里真实存在的非 k* 类,不多不少」的**集合相等**断言
+    // 仍然生效,多写一个/少写一个都报红;本刀新增 3 条真实存在的嵌套辅助类,不写就报红。
+    // 加固前/加固后两次 nonKClassNames() 的逐字输出贴在 T2 报告(16 → 19)。
+    // 折叠箭头图标的旋转容器 —— .k-adv-toggle .chev(蓝本 :509)、
+    // .k-adv-toggle[data-open="true"] .chev(:510)、.k-more-hint .chev(:1561)
+    // 三条**不同的后代规则**,与既有 dot/sep/spacer 同款。P5e-T2 搬入
+    'chev',
+    // 结果卡 meta 里的等宽路径片段 —— .k-rcard-meta-item .path(蓝本 :670)。
+    // ⚠️ p5-master-plan.md §2.4 的类清单漏列了它(勘误 E-55)。与既有 mono 同款。P5e-T2 搬入
+    'path',
+    // 摘要里的「Markdown 标题行」高亮 —— .k-rcard-snippet .h-md(蓝本 :660)。
+    // 🔴 **蓝本 13 个 .vue 里零 class 引用**,但它嵌在 .k-rcard-snippet 内 → 随父块整体搬、
+    // 不单独摘除(附录 D §D.6,同 P5d「statusBadge 零消费者也照抄导出」的 K7 模具)。P5e-T2 搬入
+    'h-md',
   ]
 
   // 【P5c-T2a 修:守卫缺口④(治理 §6.4-2)】本任务给两个 token 声明块的选择器各扩了一项
@@ -324,7 +381,7 @@ describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-
   // 这个 `/\.([a-zA-Z]…)/` 扫出来、掉进"未登记的非 k* 类";它是**作用域根**,不是嵌套
   // 辅助类 → 与既有的 `knowledge-app` 同款,走排除条件而不是塞进登记表。
   // 同理 `fb` / `fb-*`(P5c-T2a 从 FolderBrowser.vue:82-143 搬入的 8 个类)是本档正经
-  // 前缀类、已进 WHITELIST_293、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
+  // 前缀类、已进 WHITELIST_348、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
   // 避免同一批类被两条断言用两套互相矛盾的口径判定。
   //
   // 【P5d-T2 追加】K44 引入的 `nme-content` / `ProseMirror` 同理是**正经前缀类/第三方
@@ -351,13 +408,13 @@ describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-
     expect(extra, `未登记的非 k* 类(每个都要在 NON_K_HELPER_CLASSES 里写明出处):${extra.join(', ')}`).toEqual([])
   })
 
-  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;R8 终值 16)', () => {
+  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;P5e 终值 19)', () => {
     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
   })
 
-  it('R8 —— NON_K_HELPER_CLASSES 常量恰好 16 项(裁定书 R8,不是治理 A-10 的 10 项)', () => {
-    expect(NON_K_HELPER_CLASSES).toHaveLength(16)
-    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(16)
+  it('R8 —— NON_K_HELPER_CLASSES 常量恰好 19 项(P5d 的 16 + P5e-T2 的 3;不是治理 A-10 的 10 项)', () => {
+    expect(NON_K_HELPER_CLASSES).toHaveLength(19)
+    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(19)
   })
 
   // 【P5d-T2 · K45 落地 DoD(裁定书 R1-②,附录 D §D.4.1)】「没有搬多」的白名单集合断言
@@ -396,11 +453,217 @@ describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-
     return [acc, i]
   }
 
-  it('K45 —— &.text 只在 .k-btn{…} 作用域内出现,恰好 2 次(规则+hover;重复搬即报红,brief §3-2 / R1-②)', () => {
+  // 【P5e-T2 · M-4 —— 只改用例名,不动断言(治理 §8.2 的 M-4 交接项)】原用例名写
+  // 「&.text **只在** .k-btn{…} 作用域内出现,恰好 2 次」,比断言实际做的事**宽**:
+  // 断言只在 `.k-btn { … }` 区间内计数,对区间**之外**是否还有 `&.text` 一无所知
+  // (真要守「只在」,得再加一条全文计数 - 区间内计数 === 0 的断言)。改成如实描述
+  // 「在 .k-btn{…} 区间内恰好 2 次」。🔴 断言体一行未动 —— 这是 §9.10 的口径:
+  // 不为了让用例名好看去改断言,也不留一个过度声明的名字骗评审。
+  it('K45 —— .k-btn{…} 区间内 &.text 恰好 2 次(规则+hover;重复搬即报红,brief §3-2 / R1-②)', () => {
     const [start, end] = findKBtnBlockRange(css)
     const body = css.slice(start, end)
     const hits = body.match(/&\.text\b/g) || []
     expect(hits.length, `.k-btn 块内 &.text 出现 ${hits.length} 次(应为 2;≠2 说明 K45 重复搬或漏搬)`).toBe(2)
+  })
+})
+
+// ============================================================================
+// P5e-T2 新增守卫(附录 D §D.3 / §D.4 / K46 / K47)
+// ============================================================================
+
+// 蓝本死代码类的完整清单(逐字抄自 p5-master-plan.md §2.2 / 附录 D §D.3)。
+// 这 24 个类在**蓝本自己**的 13 个 .vue 里零 class 引用,是 v1 仪表盘 / v1 进度卡被
+// k2-* Dashboard v2 取代后留下的遗迹。P5a 正确地没搬,P5e 也不许搬。
+const BLUEPRINT_DEAD_CLASSES = [
+  // 蓝本 :272-349(7)
+  'k-hero', 'k-hero-orb', 'k-hero-title', 'k-hero-sub',
+  'k-hero-search', 'k-hero-search-go', 'k-hero-search-kbd',
+  // 蓝本 :380-411(5)
+  'k-stat', 'k-stat-label', 'k-stat-value', 'k-stat-suffix', 'k-stat-cn',
+  // 蓝本 :413-455(6)
+  'k-quick-grid', 'k-quick-card', 'k-quick-icon',
+  'k-quick-card-title', 'k-quick-card-en', 'k-quick-card-desc',
+  // 蓝本 :1152-1160(6)
+  'k-progress-card', 'k-progress-row', 'k-progress-label',
+  'k-progress-nums', 'k-progress-bar', 'k-progress-fill',
+]
+
+describe('knowledge.scss —— 附录 D §D.3:24 个蓝本死代码类一个都没被搬进来(P5e-T2 新建)', () => {
+  // 🔴 为什么这条断言必须存在:P5e 要搬的 .k-hero-suggest(蓝本 :351)与 .k-suggest-chip
+  // (:357)**紧夹在 .k-hero-search-kbd(:343)与 .k-stat(:380)中间** ⇒ 「整段搬
+  // :272-455」会一次带进 **18** 个死类。上面「没有搬多」那条白名单断言会报红,而实现者
+  // 极可能误判成「白名单数字错了」去改白名单 —— 这条断言把话说清楚:报红先回查死类清单。
+  //
+  // 🔴 判据口径:`(?![\w-])` 负向前瞻,**不许用 `\b`** —— `\b` 在字母↔连字符的过渡处
+  // 同样成立,`/\.k-hero\b/` 会被完全合法的 `.k-hero-suggest`(本刀真要搬的类)**假命中**
+  // (E-25 的坑,协调者规划时栽过一次)。这也是本条与「白名单」那条共用同一手法的原因。
+  //
+  // 🔴 跑在**剥注释后**的 `css` 上:附录 D §D.3 给的复现命令是对**原始文本**裸 grep,
+  // 它在 T2 之前的基线上就已经有 2 处假阳性(k-quick-grid / k-progress-card,来自
+  // knowledge.scss :61 / :1318 / :1605 三条既有注释里带前导点的类名引用)——
+  // 那条命令**不是**权威判据,本断言是。详见 T2 报告的勘误一节。
+  it('24 个死类在 knowledge.scss(剥注释后)零出现', () => {
+    const leaked = BLUEPRINT_DEAD_CLASSES.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(css))
+    expect(
+      leaked,
+      `蓝本死代码类被搬进来了:${leaked.join(', ')} —— 🔴 先回查附录 D §D.3 的清单,` +
+        '**不许改白名单**(那 24 个类在蓝本自己的 13 个 .vue 里零引用,P5a 正确地没搬)',
+    ).toEqual([])
+  })
+
+  // 清单不许当垃圾桶 / 不许被悄悄缩短(同本档其它「例外清单恰好 N 项」的口径)
+  it('死类清单恰好 24 项(7 + 5 + 6 + 6),无重复', () => {
+    expect(BLUEPRINT_DEAD_CLASSES).toHaveLength(24)
+    expect(new Set(BLUEPRINT_DEAD_CLASSES).size, '死类清单里有重复项').toBe(24)
+  })
+
+  // 🔴 参数化守卫防空循环(治理 §9.14-4):24 条独立用例真在跑,不是「清单读失败 → 循环
+  // 体一次没执行 → 全绿」。用 --reporter=verbose 能数到 24 条。
+  for (const cls of BLUEPRINT_DEAD_CLASSES) {
+    it(`死类 ${cls} 零出现`, () => {
+      expect(new RegExp(`\\.${cls}(?![\\w-])`).test(css), `${cls} 被搬进来了`).toBe(false)
+    })
+  }
+})
+
+// 在**保行版**文本里按「整行 trim 后恰等于给定串」定位行号。行首/整行锚定,天然排除
+// 注释里的同名引用(注释已被 blankComments 换成等量空格,连内容都不在了)。
+// 手法同本档 findKBtnBlockRange 的「trim 后精确匹配」口径,不是子串搜索(承本档四次
+// 「子串检查抓不住真实缺陷」的教训)。
+function lineIndexOfExact(text: string, trimmedLine: string): number {
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i++) if (lines[i].trim() === trimmedLine) return i
+  return -1
+}
+
+// 在保行版文本里定位「trim 后恰等于 selectorLine 的那一行」开始的嵌套规则块,用大括号
+// 配对找块尾(不能假设「下一个 \n}」—— 那只对零缩进的顶层块成立)。
+function nestedBlockBody(text: string, selectorLine: string): string {
+  const at = lineIndexOfExact(text, selectorLine)
+  expect(at, `找不到规则块 ${selectorLine}(整行 trim 精确匹配,已排除注释里的同名引用)`).toBeGreaterThanOrEqual(0)
+  const lines = text.split('\n')
+  let offset = 0
+  for (let i = 0; i < at; i++) offset += lines[i].length + 1
+  const braceAt = text.indexOf('{', offset)
+  let depth = 0
+  let i = braceAt
+  for (; i < text.length; i++) {
+    if (text[i] === '{') depth++
+    else if (text[i] === '}') {
+      depth--
+      if (depth === 0) { i++; break }
+    }
+  }
+  return text.slice(offset, i)
+}
+
+describe('knowledge.scss —— E-52:.k-suggest-chip 基类必须在 k2 后代覆盖之前(P5e-T2 新建)', () => {
+  // 【事实】P5a 只搬了蓝本 :2291 的后代覆盖(本档 Dashboard v2 段的
+  // `.k2-suggest .k-suggest-chip { white-space: nowrap; }`),**基类整条漏搬** = 勘误 E-52;
+  // 而蓝本 DashboardView.vue:292 与 SearchView 都在用它 ⇒ P5a 已交付的仪表盘建议 chip
+  // 一直跑在「只有一条 white-space、零基类样式」上(圆角/内距/边框/底色/hover 全缺)
+  // = **已交付产出里的真实视觉缺陷**,本刀补基类。
+  //
+  // 🔴🔴 **本断言钉的是「蓝本源序的移植忠实性」,不是「防级联反掉」**(裁定 R7 / 勘误 E-56):
+  //   · 基类 `.knowledge-app .k-suggest-chip` 特异度 (0,2,0),声明 padding/background/
+  //     border/border-radius/font-size/color/cursor/transition + :hover;
+  //   · 覆盖 `.knowledge-app .k2-suggest .k-suggest-chip` 特异度 (0,3,0),**只声明
+  //     white-space**;
+  //   ⇒ ① (0,3,0) > (0,2,0),顺序颠倒也不会反掉;② 两者**属性集完全不相交**。
+  //   **所以「顺序反了会有可见回归」是假的** —— 协调者原先那句「否则级联反掉而三门全绿」
+  //   是写错的,已对外更正。用例名与注释一律不许再写那个理由。
+  it('基类声明行号 < k2 后代覆盖行号(钉蓝本源序的移植忠实性,不是钉级联结果)', () => {
+    const baseAt = lineIndexOfExact(cssKeepLines, '.k-suggest-chip {')
+    const overrideAt = lineIndexOfExact(cssKeepLines, '.k2-suggest .k-suggest-chip { white-space: nowrap; }')
+    expect(baseAt, '找不到 .k-suggest-chip 基类声明块(E-52 的补搬缺失?)').toBeGreaterThanOrEqual(0)
+    expect(overrideAt, '找不到 .k2-suggest .k-suggest-chip 后代覆盖(P5a 搬入的那条)').toBeGreaterThanOrEqual(0)
+    expect(
+      baseAt,
+      `基类在第 ${baseAt + 1} 行、覆盖在第 ${overrideAt + 1} 行 —— 基类必须在覆盖之前(蓝本源序:` +
+        '基类 :357-367 / 覆盖 :2291)',
+    ).toBeLessThan(overrideAt)
+  })
+
+  // 基类的实体也要在:光有顺序不够,漏搬任何一条声明都是 E-52 没补干净。
+  it('基类块含蓝本 :358-366 的六项声明 + :hover(漏一条即 E-52 没补干净)', () => {
+    const body = nestedBlockBody(cssKeepLines, '.k-suggest-chip {')
+    for (const decl of [
+      'padding: 5px 11px;',
+      'background: var(--bg-elevated);',
+      'border: 1px solid var(--line-faint);',
+      'border-radius: var(--r-pill);',
+      'font-size: 12px;',
+      'color: var(--text-secondary);',
+      'cursor: pointer;',
+      'transition: all 120ms ease;',
+      '&:hover { border-color: var(--accent); color: var(--accent); }',
+    ]) {
+      expect(body, `.k-suggest-chip 基类缺 ${decl}`).toContain(decl)
+    }
+  })
+})
+
+describe('knowledge.scss —— K46 / K47:.k-fileviewer-host 三属性 + 三条 ::v-deep 不搬(P5e-T2 新建)', () => {
+  // 🔴 K46 判据 ③(治理 §3 的 K46 原文):`position: fixed` / `inset: 0` / `z-index: 1100`
+  // 三个属性**必须原样保留**,**各有一条独立断言**(拿掉任一 → 必须报红)。
+  // 依据:`src/files/viewers/ViewerShell.vue:24` 是
+  // `position: absolute; inset: 0; z-index: 200; overflow: hidden;` ——
+  // ViewerShell **需要一个铺满视口的定位祖先**;拿掉 host 的 `fixed` 会让 in-app 预览器
+  // **塌进文档流**(治理 §2 第 2 条原文:这是本期最容易「顺手清理」出真 bug 的一处)。
+  // 三条分开写而不是一条 toContain 三次 —— 一条断言里塞三个 toContain 只要有一个还在
+  // 就可能被误读成「都在」,而 vitest 在第一个失败处就停,后两个失去判别力(本档 R4
+  // 那条「4 个 token 共享一个断言,改坏 1 个仍全绿」的教训同款)。
+  const HOST = '.k-fileviewer-host {'
+
+  it('K46-③a —— .k-fileviewer-host 保留 position: fixed(拿掉 → 预览器塌进文档流)', () => {
+    expect(nestedBlockBody(cssKeepLines, HOST), 'host 丢了 position: fixed').toContain('position: fixed;')
+  })
+
+  it('K46-③b —— .k-fileviewer-host 保留 inset: 0(拿掉 → 铺不满视口)', () => {
+    expect(nestedBlockBody(cssKeepLines, HOST), 'host 丢了 inset: 0').toContain('inset: 0;')
+  })
+
+  it('K46-③c —— .k-fileviewer-host 保留 z-index: 1100(必须压在 .k-drawer-bg 的 1050 之上)', () => {
+    expect(nestedBlockBody(cssKeepLines, HOST), 'host 丢了 z-index: 1100').toContain('z-index: 1100;')
+  })
+
+  // K47 —— host 的底色是本期净剩的唯一一处色字面量,映射到 token(附录 B §B.4)。
+  // 上面那条全文色扫会抓「有没有裸值」,但抓不到「换成了别的 token」。
+  it('K47 —— .k-fileviewer-host 底色是 var(--bg-canvas)(与蓝本兄弟规则 .k-fileviewer-fallback 同源)', () => {
+    expect(nestedBlockBody(cssKeepLines, HOST), 'host 底色不是 --bg-canvas').toContain('background: var(--bg-canvas);')
+  })
+
+  // z-index 相对关系(附录 B §B.4.1):1100 > 1050,两个数字都原样搬。
+  it('K46 —— .k-drawer-bg 的 z-index 是 1050,严格小于 host 的 1100', () => {
+    const bg = nestedBlockBody(cssKeepLines, '.k-drawer-bg {')
+    expect(bg, '.k-drawer-bg 的 z-index 被改动了').toContain('z-index: 1050;')
+    const m = /z-index:\s*(\d+);/.exec(bg)
+    expect(m, '.k-drawer-bg 里找不到 z-index').not.toBeNull()
+    expect(Number(m![1]), '.k-drawer-bg 必须低于 .k-fileviewer-host 的 1100').toBeLessThan(1100)
+  })
+
+  // 🔴 K46 判据主体:蓝本 KFileViewer.vue:77-101 的三条 ::v-deep 规则**整段不搬**。
+  // 它们是补 **Vue2** viewer 依赖 `.file-panel .modal-card .overlay` 祖先链的补丁;
+  // 本仓 DocViewer.vue / ExcelViewer.vue **自身模板零那三个类**,`.overlay` 已由
+  // ViewerShell.vue:23-29 的 scoped 规则自带(position/inset/z-index/overflow/flex 全在)
+  // ⇒ 照搬 = 复制一个本仓不存在的问题的补丁。
+  // ⚠️ 诚实登记:`.overlay` **不是全仓零命中**(ViewerShell.vue:9 会吐 `<div class="overlay">`)
+  // —— 但这不削弱 K46,反而加强它:补丁纯属重复。本断言的范围是 **knowledge.scss 内**。
+  // 跑在剥注释后的 `css` 上(本档 K46 的说明注释里逐字引了这三个类名)。
+  for (const cls of ['overlay', 'v-container', 'doc-container']) {
+    it(`K46 —— .${cls} 在 knowledge.scss(剥注释后)零出现(蓝本 :77-101 整段不搬)`, () => {
+      expect(
+        new RegExp(`\\.${cls}(?![\\w-])`).test(css),
+        `.${cls} 出现在 knowledge.scss 里 —— K46 被违反(那三条 ::v-deep 是 Vue2 祖先链补丁,` +
+          '本仓 ViewerShell 已自带同款定位,照搬是复制一个不存在的问题的补丁)',
+      ).toBe(false)
+    })
+  }
+
+  // 反向:本档确实没有留下任何 ::v-deep / :deep 写法(scoped 降级后它们也没有意义)
+  it('K46 —— knowledge.scss 里零 ::v-deep / :deep(...)(scoped 已降级为 .knowledge-app 作用域)', () => {
+    expect(css, '出现 ::v-deep').not.toMatch(/::v-deep/)
+    expect(css, '出现 :deep(').not.toMatch(/:deep\(/)
   })
 })
 
@@ -694,6 +957,77 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动�
     expect(css, '.kn-inbox-icon 应引用 --grad-note-insight 而不是重复声明字面量').toContain(
       'background: var(--grad-note-insight);',
     )
+  })
+
+  // 【P5e-T2 · 附录 B §B.1 / §B.2】本刀在两档各补 8 个声明:--paper-surface(本档尚未
+  // 声明的**既有例外 token**,不是新建)+ 7 个新建(--rtag-* 五个 / --shadow-drawer /
+  // --mark-hl-bg)。上面「浅色档颜色 token 覆盖完整性」的集合断言只查「有没有声明」,
+  // **查不到取值被谁重算过** —— 这两条照 --danger-hover / K39 那两条的同款写法把取值逐字
+  // 钉死(附录 B §B.5-2 明令「本表以外的任何色字面量 → NEEDS_CONTEXT,不许自选 token」,
+  // 反过来表内的值也不许下游重算)。
+  it('P5e-T2 —— --paper-surface + 5 个 --rtag-* 两档取值逐字相同(theme-invariant,附录 B §B.1/§B.2.1)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    const expected: Record<string, string> = {
+      // AI tokens.scss:193(浅)/:342(暗)两档同值,skin-agnostic 例外 token
+      '--paper-surface': '--paper-surface: #ffffff;',
+      // 蓝本 :618-622;与 AI tokens.scss --kind-pdf/-md/-doc/-xls 及本档 --purple 逐字同值
+      '--rtag-pdf': '--rtag-pdf: #FF3B30;',
+      '--rtag-md': '--rtag-md: #1a1a1a;',
+      '--rtag-doc': '--rtag-doc: #007AFF;',
+      '--rtag-txt': '--rtag-txt: #34C759;',
+      '--rtag-code': '--rtag-code: #AF52DE;',
+    }
+    for (const [tok, decl] of Object.entries(expected)) {
+      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
+      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+    }
+    // 🔴 反向:--rtag-txt 不许被"顺手借名"成 --kind-txt —— tokens.scss:210/:351 的
+    // --kind-txt 是另一个值(中性灰,也是未知类型兜底),在本档重声明会造成全仓同名两值。
+    expect(darkBody, '本档不许重声明 --kind-txt(全仓同名两值)').not.toContain('--kind-txt:')
+    expect(lightBody, '本档不许重声明 --kind-txt(全仓同名两值)').not.toContain('--kind-txt:')
+  })
+
+  it('P5e-T2 —— --shadow-drawer / --mark-hl-bg 两档取值不同(附录 B §B.2.2/§B.2.3,禁重算)', () => {
+    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+    // 几何部分逐字照蓝本 :1582;颜色部分照裁定 R4(暗档纯色投影 / 浅档暖调投影,
+    // alpha 取同档 --shadow-lg 首段)。蓝本原值是冷调,与本档 R4 已统一的两套不同源,不照抄。
+    const darkShadow = '--shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.55);'
+    const lightShadow = '--shadow-drawer: -20px 0 60px rgba(40, 35, 25, 0.10);'
+    expect(darkBody, '暗档 --shadow-drawer 取值被改动').toContain(darkShadow)
+    expect(lightBody, '浅档 --shadow-drawer 取值被改动').toContain(lightShadow)
+    expect(darkBody, '暗档不该出现浅档的暖调投影值').not.toContain(lightShadow)
+    expect(lightBody, '浅档不该出现暗档的投影值').not.toContain(darkShadow)
+    // 蓝本 :1660;浅档逐字照蓝本 alpha,暗档降 alpha(.k-chunk-content 的前景是
+    // --text-primary,照抄浅档 alpha 会把底推到中间调、浅色字对比度最差)。
+    const darkMark = '--mark-hl-bg: rgba(255, 235, 0, 0.22);'
+    const lightMark = '--mark-hl-bg: rgba(255, 235, 0, 0.40);'
+    expect(darkBody, '暗档 --mark-hl-bg 取值被改动').toContain(darkMark)
+    expect(lightBody, '浅档 --mark-hl-bg 取值被改动').toContain(lightMark)
+    expect(darkBody, '暗档不该用浅档的 alpha').not.toContain(lightMark)
+    expect(lightBody, '浅档不该用暗档的 alpha').not.toContain(darkMark)
+  })
+
+  // 🔴 附录 D §D.6 明令:三条 mark 规则里**只有蓝本 :1660 是字面量**,另两条
+  // (:653 .k-rcard-snippet mark / :1645 .k-chunk-item-preview mark)蓝本用的就是
+  // --accent-soft/--accent 两个 token —— **不许一起改成 --mark-hl-bg**。
+  // 上面的全文色扫抓不到这种「改对了方向但改错了对象」的偏离。
+  it('附录 D §D.6 —— 三条 mark 规则各归其位(只有 .k-chunk-content mark 用 --mark-hl-bg)', () => {
+    const markRules = [...css.matchAll(/^\s*(?:\.[\w-]+ )?mark\b[^\n]*$|^\s*\.[\w-]+ mark \{[^\n]*$/gm)].map((m) => m[0].trim())
+    // 逐条精确核对(锚在各自的父块选择器上,不是全文裸计数)
+    const snippetMark = nestedBlockBody(cssKeepLines, '.k-rcard-snippet {')
+    expect(snippetMark, '.k-rcard-snippet mark 应保持蓝本 :654-655 的 token').toContain('background: var(--accent-soft);')
+    expect(snippetMark, '.k-rcard-snippet mark 被误改成 --mark-hl-bg').not.toContain('--mark-hl-bg')
+    const previewLine = css.split('\n').filter((l) => l.includes('.k-chunk-item-preview mark'))
+    expect(previewLine.length, '.k-chunk-item-preview mark 规则应恰好 1 条').toBe(1)
+    expect(previewLine[0], '.k-chunk-item-preview mark 应保持蓝本 :1645 的 token').toContain('background: var(--accent-soft);')
+    expect(previewLine[0], '.k-chunk-item-preview mark 被误改成 --mark-hl-bg').not.toContain('--mark-hl-bg')
+    const contentLine = css.split('\n').filter((l) => l.includes('.k-chunk-content mark'))
+    expect(contentLine.length, '.k-chunk-content mark 规则应恰好 1 条').toBe(1)
+    expect(contentLine[0], '.k-chunk-content mark 应用 --mark-hl-bg(蓝本 :1660 是唯一的字面量处)').toContain('background: var(--mark-hl-bg);')
+    // 覆盖度自检:确实抓到了 mark 规则(防止上面的正则一条都没匹配到而"假通过")
+    expect(markRules.length, '一条 mark 规则都没抓到(正则失效 = 零判别力)').toBeGreaterThanOrEqual(3)
   })
 
   it('--accent-soft-2 不在本档重复声明(R2 例外:全局 theme.css 的 :root 与浅色块已有,跟随全局解析)', () => {
