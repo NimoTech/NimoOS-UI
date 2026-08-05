@@ -667,6 +667,57 @@ describe('knowledge.scss —— K46 / K47:.k-fileviewer-host 三属性 + 三条 
   })
 })
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 【P5e-T4 新增,裁定 R16】Important-1「7 个新 token 的『token → 消费选择器』绑定零守卫」。
+// 事实(T2 评审实证,不是推测):把 [data-kind="md"] 与 [data-kind="doc"] 消费的 token
+// 互换 → 334/334 全绿(探针 G1);把 .k-rcard-icon 底色从 --paper-surface 换成
+// --bg-elevated → 也全绿(探针 G3)。8 个新 token 里只有 --mark-hl-bg 的绑定被既有的
+// 「三条 mark 规则各归其位」断言钉住了,其余 7 个(5 个 --rtag-* + --paper-surface +
+// --shadow-drawer)只有「两档都有声明、值没被重算」的断言,没有「哪个选择器消费哪个
+// token」的绑定断言。产品代码本身经评审逐字比对确认正确(五个 [data-kind] ↔ 五个
+// --rtag-* 无串位,与蓝本 :618-622 源序逐字一致)⇒ 这是纯粹的测试覆盖缺口,不是代码
+// 缺陷。但 --rtag-md 正是裁定 R15-③ 认定「本机不可达 ⇒ 守卫是唯一防线」的拍板项,
+// 串位一次会永久静默 ⇒ 必须补。
+//
+// 判据(裁定 R16 ②):把两个 [data-kind] 消费的 token 互换 → 必须报红;把
+// .k-rcard-icon 的底色换成别的 token → 必须报红(报告贴两段输出 + md5sum 还原)。
+// 只加固,不放宽任何既有断言(§9.10);不改 knowledge.scss 本身。
+describe('knowledge.scss —— R16:7 个新 token 的消费绑定(P5e-T4 新建,补 T2 评审 Important-1 缺口)', () => {
+  const TAG = '.k-rcard-tag {'
+  const ICON = '.k-rcard-icon {'
+  const DRAWER = '.k-drawer {'
+
+  // 5 条 —— .k-rcard-tag[data-kind] ↔ --rtag-* 逐对绑定(蓝本 :618-622 源序)
+  const kindBindings: Array<[string, string]> = [
+    ['pdf', '--rtag-pdf'],
+    ['md', '--rtag-md'],
+    ['doc', '--rtag-doc'],
+    ['txt', '--rtag-txt'],
+    ['code', '--rtag-code'],
+  ]
+  it.each(kindBindings)(
+    'k-rcard-tag[data-kind="%s"] 消费 var(%s)(判据:与另一个 data-kind 互换 → 必须报红,见 T4 报告 RED 探针)',
+    (kind, token) => {
+      const body = nestedBlockBody(cssKeepLines, TAG)
+      expect(body, `.k-rcard-tag[data-kind="${kind}"] 没有绑定 var(${token})`).toContain(
+        `&[data-kind="${kind}"] { background: var(${token}); }`,
+      )
+    },
+  )
+
+  // 第 6 条 —— .k-rcard-icon 底色 ↔ --paper-surface
+  it('k-rcard-icon 底色消费 var(--paper-surface)(判据:换成别的 token → 必须报红)', () => {
+    const body = nestedBlockBody(cssKeepLines, ICON)
+    expect(body, '.k-rcard-icon 底色不是 var(--paper-surface)').toContain('background: var(--paper-surface);')
+  })
+
+  // 第 7 条 —— .k-drawer 投影 ↔ --shadow-drawer
+  it('k-drawer 投影消费 var(--shadow-drawer)(判据:换成别的 token → 必须报红)', () => {
+    const body = nestedBlockBody(cssKeepLines, DRAWER)
+    expect(body, '.k-drawer 投影不是 var(--shadow-drawer)').toContain('box-shadow: var(--shadow-drawer);')
+  })
+})
+
 // 找到「从 selectorLiteral 开始、到下一个独立一行的 `}` 为止」这个声明块的字符区间。
 // 两个 token 声明块都是纯 `--x: y;` 平铺属性,没有嵌套规则,所以「下一个 `\n}`」
 // 就是它的真实结束位置 —— 与 settingsStyles.test.ts 的 blockOf 同一手法。
@@ -1364,6 +1415,7 @@ describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(�
 //   输入下全绿放行)。探针后 md5 逐字节还原、`git status` 干净(治理 §1.3)。
 const KNOWLEDGE_VUE_FILES = [
   'components/FolderBrowser.vue',
+  'components/KFileViewer.vue',
   'components/KIcon.vue',
   'components/NoteEditPane.vue',
   'components/NotesMarkdownEditor.vue',

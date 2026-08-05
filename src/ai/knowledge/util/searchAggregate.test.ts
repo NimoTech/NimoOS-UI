@@ -352,6 +352,28 @@ describe('toFileResults — N45(3)fileVM.score 三档:group.score || 首 chunk.s
     expect(out[0].score).toBe(0.738) // best/first chunk,与蓝本 spec 的 `// best chunk` 注释一致
   })
 
+  // ═════ 【P5e-T4 新增,裁定 R21】补 T3 评审 Important-1 的覆盖缺口 ═════
+  // 事实(T3 评审自加探针 #7 实证):把 groupHits 的"取首 chunk 的 score"改成
+  // "取最高分 chunk 的 score" → 上面那条"档 1(变体)"用例(以及全部 74 条既有用例)
+  // 74/74 全绿,零判别力 —— 根因是 F5b 真实数据里"首 chunk 恰好就是最高分"
+  // (上一条用例自己的注释也承认"本例不可区分")。产品代码本身正确(忠实移植蓝本
+  // groupHits:`score: h.score` 只在第一次见到该 file_id 时写入),这是纯覆盖缺口。
+  // 🔴 构造样本(D-6 模具,不代表真机取值):两个 chunk 命中同一 file_id,
+  // **首条 score(0.5)显式低于**第二条(0.9)—— 若实现被改成"取最高分",这里
+  // 会变成 0.9,而不是断言的 0.5。
+  it('🔴 档 1(变体·构造样本)— 首 chunk 分数低于后续 chunk 时,fileVM.score 仍取首 chunk(判据:实现改成"取最高分" → 必须报红)', () => {
+    const resp = asResp({
+      hits: [
+        { file_id: 'r21-ctor', mime: 'text/plain', kind: 'body', score: 0.5, cite: { chunk_no: 0, page: null }, preview: { text: 'first, lower score' }, paths: [{ path: '/x/r21.txt', mtime_ms: 1 }] },
+        { file_id: 'r21-ctor', mime: 'text/plain', kind: 'body', score: 0.9, cite: { chunk_no: 1, page: null }, preview: { text: 'second, higher score' } },
+      ],
+    })
+    const out = toFileResults(resp)
+    expect(out).toHaveLength(1)
+    expect(out[0].score).toBe(0.5)
+    expect(out[0].score).not.toBe(0.9)
+  })
+
   it('档 2 — group.score 缺失(未定义)→ 兜底取 chunks[0].score(构造样本,真实数据的 files[] 恒带 score,无法自然触发这一档)', () => {
     const resp = asResp({
       files: [
@@ -394,6 +416,12 @@ describe('toFileResults — N45(3)fileVM.score 三档:group.score || 首 chunk.s
 
 // ═══════════════════════════════════════════════════════════════════════════
 // chunkVM 边界(通过 toFileResults 间接测试,蓝本自己也不导出 chunkVM)
+// 🔴 【P5e-T4 顺手补,裁定 R21 · Minor-2 · R3 约束 1】本描述块下面全部用例的
+// fixture(`oneChunkResp` 及其各次调用传入的 chunk 字面量:`cite` 缺失/`chunk_no`
+// 非数字/`page` 缺失或显式 null/`preview.text` 缺失等)都是 **`.CONSTRUCTED`**
+// (D-6 模具)—— 专为覆盖 chunkVM 各个兜底分支手写构造,不代表任何真机取值分布
+// (真机 mime/字段分布见本文件其它 REPLAYED 出处的 F5b 用例)。原文缺这条出处标签,
+// 按裁定 R3 约束 1(三级出处标签必须逐个写明)补上,只补注释,不动任何断言。
 // ═══════════════════════════════════════════════════════════════════════════
 describe('chunkVM 边界 — 蓝本 :25-36', () => {
   function oneChunkResp(chunk: Record<string, unknown>) {
