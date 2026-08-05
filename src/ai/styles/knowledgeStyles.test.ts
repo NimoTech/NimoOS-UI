@@ -1414,6 +1414,7 @@ describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(�
 //   之后塞裸色」的探针,专门证明「贪婪 vs 非贪婪」这次改动本身有判别力(非贪婪写法在那种
 //   输入下全绿放行)。探针后 md5 逐字节还原、`git status` 干净(治理 §1.3)。
 const KNOWLEDGE_VUE_FILES = [
+  'components/FileDetailDrawer.vue',
   'components/FolderBrowser.vue',
   'components/KFileViewer.vue',
   'components/KIcon.vue',
