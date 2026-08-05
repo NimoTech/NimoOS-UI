@@ -626,7 +626,6 @@ export default {
   aiCfgParserPaused: '已暂停 · 待处理 {pending} · 并发 {concurrency}',
   aiCfgParserRunning: '运行中 · 待处理 {pending} · 并发 {concurrency}',
   aiCfgSectionDeferred: '该分区将在后续阶段开启',
-  aiCfgKnowledgeSoon: '知识库详情页将在后续阶段开启',
   aiCfgPlaceholderBody: '该分区尚未迁移到新界面,将在后续阶段开启。',
   // SP8-P2a Task 9 —— ModelsSection(本地模型)。中文值逐字取自 Vue2 生产
   // zh_CN.json 对应英文 key 的既有译文(命令见 brief Global Constraints);
@@ -1866,4 +1865,90 @@ export default {
   aiKbRelHrAgo: '{n} 小时前',
   aiKbRelMinAgo: '{n} 分钟前',
   // <<< SP8-P5d Task 1
+  // >>> SP8-P5e Task 1 —— 知识库搜索区文案(Vue2 SearchView.vue / FileDetailDrawer.vue /
+  // KFileViewer.vue / searchAggregate.js),共 54 条新键,全部有 Vue2 权威 zh 值
+  // (本期新造 0、死键 0)。另有 9 条 aiKb* 既有键直接复用、不在本块内重复声明
+  // (附录 A §A.1/§A.1.1:5 个 SAMPLE_QUERIES + aiKbTry / aiKbSearch / aiKbClose /
+  // aiKbStatusIndexed)。逐码点比对见 .superpowers/sdd/p5e-task-1-i18n-verify.mjs
+  // (54/54 + 9/9 MATCH,值由脚本直接从 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`
+  // 生成、非手抄 —— P5a-T8 的教训是「附录零差异,手抄进 TS 时引入 5 处全角标点错」)。
+  //
+  // 🔴 逐字照抄、不许「顺手规整」的标点(附录 A §A.2.2):
+  //   aiKbFdCopyFailed 的逗号是**半角** `,`(U+002C),不是全角;
+  //   aiKbSrMoreHint 的 `—` 是 U+2014 且两侧各一个半角空格;
+  //   aiKbFdSummary / aiKbSrEmptyTipAllowlist 用「」(U+300C/U+300D);
+  //   aiKbSrPlaceholder 结尾是单字符 `…`(U+2026),不是三个点;
+  //   aiKbSrIdleSub 有两个全角 `，` + 两个全角 `。`。
+  //   全角标点扫描的 5 条例外由 messageSyntax.test.ts 用 toBe 逐条钉死。
+  //
+  // 🔴 高危同值一律新建、不许复用别区键(治理 §7.1 / 附录 A §A.1.2,理由逐字:
+  // 键名语义属于别的区,将来那个区改文案会静默改掉搜索区):
+  //   High/Mid/Low → aiKbSrRelHigh/Mid/Low(**不是** appsSettingsCpu* / aiThinking*;
+  //   aiThinkingMedium 的 en 还是 `Medium` ≠ `Mid`,复用会直接改掉界面文案。
+  //   且 relLabel() 在 util 里走 i18n.global.t → 选错键 SearchView 与
+  //   FileDetailDrawer 会同时静默错);Download → aiKbFdDownload(不是 filesDownload
+  //   / aiResDownload;FileDetailDrawer 与 KFileViewer 共用这一个键);
+  //   Copied → aiKbFdCopied · Similarity → aiKbSrSimilarity · matches →
+  //   aiKbSrCountMatches · Enabled → aiKbSrAdvOn · Search failed → aiKbSrErrorTitle ·
+  //   (Untitled) → aiKbSrUntitled · Advanced → aiKbSrAdvanced(zh 还不同:
+  //   `高级筛选` vs appsSettingsSectionAdvanced 的 `高级`)。
+  //
+  // ⚠️ FILE_TYPES 的 5 个 label(PDF/Markdown/TXT/DOC/Code)蓝本 SearchView.vue:194-200
+  // 是裸字面量、模板 `{{ t.label }}` 没过 $t() → **不进 i18n**,组件里照抄字面量。
+  // 同一文件的 MTIMES(过 $t(m.label))与 SAMPLE_QUERIES(过 $t(s))才进,别搞混。
+  aiKbFdBack: '返回结果列表',
+  aiKbFdCopied: '已复制',
+  aiKbFdCopy: '复制内容',
+  aiKbFdCopyFailed: '复制失败,请手动选择',
+  aiKbFdDistill: '沉淀成笔记',
+  aiKbFdDistillFailed: '无法加入沉淀队列',
+  aiKbFdDistillQueued: '已加入笔记沉淀队列',
+  aiKbFdDownload: '下载',
+  aiKbFdNextSection: '下一段',
+  aiKbFdOpenFile: '打开原文件',
+  aiKbFdPage: '第 {n} 页',
+  aiKbFdPassage: '段落',
+  aiKbFdPrevSection: '上一段',
+  aiKbFdResults: '结果列表',
+  aiKbFdSection: '第 {n} 段',
+  aiKbFdSummary: '为「{query}」找到 {n} 段相关内容，按相似度排序',
+  aiKbFvUnsupported: '此格式暂不支持在线预览',
+  aiKbSrAdvOn: '启用',
+  aiKbSrAdvanced: '高级筛选',
+  aiKbSrCountFiles: '个文件',
+  aiKbSrCountMatches: '条匹配',
+  aiKbSrDownloadFailed: '下载失败',
+  aiKbSrEmptySub: '试试这些方式：',
+  aiKbSrEmptyTipAllowlist: '去「索引范围」看看规则',
+  aiKbSrEmptyTipIndexed: '检查文件是否已经收录',
+  aiKbSrEmptyTipKeyword: '换一个关键词或更短的描述',
+  aiKbSrEmptyTitle: '没找到相关文档',
+  aiKbSrErrorTitle: '搜索失败',
+  aiKbSrFileType: '文件类型',
+  aiKbSrIdleSub: '输入任何自然语言，Nimo 在 NAS 上找到匹配文档。语义匹配，不只是关键词。',
+  aiKbSrIdleTitle: '用自然语言搜索任何东西',
+  aiKbSrMatchPill: '{n} 段匹配',
+  aiKbSrMatchTitle: '命中 {n} 段',
+  aiKbSrModified: '修改时间',
+  aiKbSrMoreHint: '还有 {n} 段相关内容 — 点击查看',
+  aiKbSrMtimeAny: '不限',
+  aiKbSrMtimeMonth: '近 1 月',
+  aiKbSrMtimeWeek: '近 1 周',
+  aiKbSrMtimeYear: '近 1 年',
+  aiKbSrNoPath: '文件路径缺失',
+  aiKbSrNoPreviewToast: '该格式暂不支持预览，请下载查看',
+  aiKbSrOpenFailed: '打开失败',
+  aiKbSrPlaceholder: '搜你的文档…',
+  aiKbSrPopupBlocked: '浏览器拦截了新窗口',
+  aiKbSrQuality: '排序质量',
+  aiKbSrQualityAccurate: '更准',
+  aiKbSrQualityFast: '快',
+  aiKbSrRelHigh: '高',
+  aiKbSrRelLow: '低',
+  aiKbSrRelMid: '中',
+  aiKbSrRerankWarn: '排序质量暂不可用，已自动降级',
+  aiKbSrSimilarity: '相似度',
+  aiKbSrTopK: '返回数量',
+  aiKbSrUntitled: '(未命名)',
+  // <<< SP8-P5e Task 1
 }

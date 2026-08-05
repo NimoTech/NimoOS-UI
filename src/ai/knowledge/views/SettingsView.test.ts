@@ -1884,8 +1884,16 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
     // 依据协调者裁定 R15 / E-43(该快照与本用例被测对象——T9 自己的 29 个键——无关,
     // 只是恰好嵌在同一条用例里,每个后续加键的期都会撞上它一次;D-3 已挂账交 P5e 拍板
     // 是否改成下限断言,本次只订正数字,不重构这条守卫)。
-    expect(Object.keys(zh)).toHaveLength(1595)
-    expect(Object.keys(en)).toHaveLength(1595)
+    // P5c-T9 引入快照 → P5d-T1 订正 1503→1595(裁定 R15 / 勘误 E-43)→ P5e 依据治理 §0.1
+    // (债务票 D-3)改为下限断言。原两行:
+    //   expect(Object.keys(zh)).toHaveLength(1595)
+    //   expect(Object.keys(en)).toHaveLength(1595)
+    // 精确的键集一致性由 src/i18n/parity.test.ts 守(它断言 zh/en 键集完全相等,比「两个数字
+    // 相等」强);快照唯一多出的价值是「键总数不会下降」(防批量误删),下限断言恰好只保留
+    // 这个价值,同时让「每个加键的期都红在一个与该期毫不相干的文件里」的跨期陷阱永久归零。
+    // 下限值 = P5e Task 1 落地后的实测值(真实模块导入,治理 §9.3 第 2 条:文本解析会少算)。
+    expect(Object.keys(zh).length).toBeGreaterThanOrEqual(1648)
+    expect(Object.keys(en).length).toBeGreaterThanOrEqual(1648)
   })
 
   it('🔴 方向 1(§9.2):zh 撞车的对里,en **没有**一对不同(有就必须按 N21 登记)', () => {

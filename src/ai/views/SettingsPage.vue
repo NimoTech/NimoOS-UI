@@ -186,6 +186,8 @@ function goBack() {
 //   function onDetailsClick() {
 //     toast.show(t('aiCfgKnowledgeSoon'))
 //   }
+// 该键已于 P5e 依治理 §0.2(裁定 D-9)从 zh_cn.ts / en_us.ts 删除(零生产消费点;
+// 决策历史留在本注释里,本注释不删)。
 // `DEFERRED_SECTIONS` 占位机制本身不受影响,不许碰 —— 它在 `onSelect()` 里的
 // 另一条分支(见下方)。
 
