@@ -51,6 +51,8 @@ describe('HomeDock', () => {
     window.dispatchEvent(up)
   })
 
+  // SP9-P8 cutover:settings 从整页跳 /#/legacy 改成应用内 router.push('/settings')。
+  // 断言方式与 useOpenAction.test.ts 同一套(那里是单元级,这里是 dock 点击链路级)。
   it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
     useAppsStore()
     const hrefs: string[] = []
@@ -59,7 +61,22 @@ describe('HomeDock', () => {
     await w.get('.dock-toggle').trigger('click')
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('true')
     await w.get('.dock-app[data-app="settings"]').trigger('click')
+    expect(router.push).toHaveBeenCalledWith('/settings')
+    expect(hrefs.length).toBe(0)
+    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
+  })
+
+  // 回退可逆也要在 dock 这条链路上验一次:flag 命中时仍整页跳老桌面,且 dock 照样收起。
+  it('expanded: 回退 flag strangler:disabled:/settings==1 时 settings 仍整页跳 /#/legacy', async () => {
+    useAppsStore()
+    localStorage.setItem('strangler:disabled:/settings', '1')
+    const hrefs: string[] = []
+    Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    await w.get('.dock-app[data-app="settings"]').trigger('click')
     expect(hrefs[0]).toBe('/#/legacy')
+    expect(router.push).not.toHaveBeenCalled()
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
   })
 
