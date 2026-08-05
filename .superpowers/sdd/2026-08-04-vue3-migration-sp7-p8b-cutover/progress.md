@@ -102,17 +102,72 @@ SP9-T9 栽过同形态的坑(白名单只做单向检查,漏搬的整块 CSS 三
 没有清单外的键",再加清单自检(非空、无重复、每条带回源坐标)。
 读源码文本而非 import 模块:要断言的是 watch 依赖列表这种**结构**事实,运行时拿不到。
 
-## Part B(master)
+## Part B(master,2026-08-05 完成)
 
-| 任务 | 状态 |
-|---|---|
-| T5 合并 `sp7-photos` → master(New-UI + Service) | 待做 |
-| T6 Vue2 `strangler.js` 加 `/photos` 行(**必须在 T5 之后**) | 待做 |
-| T7 相册 i18n 键抽成分片 | 待做 |
-| T8 开源导出清单为 `src/photos/**` 扩张 | 待做 |
-| T9 收尾回填 | 待做 |
+**曾暂缓一天**:2026-08-04 动手前实测发现 New-UI master 上 SP9-P7 Search 正在活跃提交
+(16:19-17:08 四个提交 + 未提交的 `src/home/search/degrade.ts`),往别人任务中途落 202
+提交 / 6 万行的 `--no-ff` 合并会让双方的门都分不清归属 ⇒ 用户裁定等 P7 告一段落。
+08-05 P7 收官(9/9 验收通过)后放行,当日走完 T5-T8。
 
-## 交用户的 `:5277` 验收清单
+| 任务 | 坐标 | 要点 |
+|---|---|---|
+| T5 合流两仓 | New-UI `c457e29` / Service `c1da946` | 202 + 11 提交,**零冲突** |
+| T6 Vue2 触点② | NimoOS-UI `971e155f` | `prefix: true` 才透传查询串 |
+| T7 i18n 抽分片 | `dfe0bb9` | 保留 3 行合并出口 = 零测试churn |
+| T8 开源清单扩张 | `b8c3848` | DELETE +35 / PATCH +42 |
+| 台账入库 | `6f2f45a` | 206 份 .md |
+| T9 回填 | NimoOS-UI `25983cc7` | roadmap + spec |
+
+最终门:全量 **474 文件 / 6222 例、退出码 0**(既存的 `avatarPath` unhandled error 随合并
+消失,如 Part A 台账预判)+ `vue-tsc` exit 0 + `pnpm build` ✓ + `npx vitest run oss`
+17 文件 / 424 例(含**产物树里真跑 `pnpm install` + `vue-tsc --noEmit`**)。
+
+### T5 的三个坑(下次跨 worktree 合并直接用)
+
+1. **合并后必须 `pnpm install`** —— sp7 分支新增 `sortablejs` / `@types/sortablejs`,
+   master 工作树的 `node_modules` 里没有(worktree 各有自己的 node_modules),不装
+   `vue-tsc` 直接报 `TS2307: Cannot find module 'sortablejs'`。
+2. **`oss/*` 三个导出测试会因"工作树不干净"整体 abort**(`export.mjs` 的干净检查只放行
+   `design-export/`,见 `DIRTY_ALLOW`)。当时挡路的是 SP9 那条线留下的未跟踪计划书,
+   原样入库(`23ef7e2`)才让 SP7 侧的验证跑得起来。
+3. **`design-export/` 那 3 条未 staged 的删除**要先 `git restore --staged --worktree`
+   才能 merge,收尾再还原成原状(**不是** `git rm --cached` —— 那会变成 staged 删除 +
+   目录变未跟踪,与原状不同;正确做法是 `git reset` 回 HEAD 再把文件从磁盘删掉)。
+
+### T7 的关键决策:保留 `zh_cn.ts` 作为合并出口
+
+第一版按计划书直接拆成 base + photos 两块、让 `index.ts` 各自 import —— **实测打红
+43 个测试文件 / 253 例**:全仓 40+ 个测试写着 `import zh from '…/i18n/zh_cn'` 自建
+`createI18n`,拆完它们只读到 base、相册文案全成 key 名。
+改成"`zh_cn.ts` 变成 3 行合并出口"之后**零测试文件受影响**,`index.ts` 与
+`parity.test.ts` 一行都不用改,开源侧要补丁的也从"约 90 条锚点"收敛成"删 2 个文件 +
+摘出口那一行"。
+
+等价性不是靠"测试还绿"证的,是**逐键逐值比对**:抽片前后各 dump 一份合并后的文案表
+JSON(1918 键),键集与每一个值完全一致(临时脚手架用完即删)。
+
+### T8 的取证顺序(逐轮迭代,每轮只解一个 abort)
+
+导出脚本在第一处失败就 abort,所以只能一轮一个:
+锚点失配(`useOpenAction.ts` 4 条 → i18n 16 条改指 `.base.ts` → 测试侧 3 条)
+→ 泄漏守卫 303 处(Service 侧 6 个 photos 测试文件漏在 `SERVICE_DELETE` 外,过半命中出自这里)
+→ 173 处(locale 白名单的 file 正则没跟着 `.base.ts` 改名)
+→ 70 处(两份纯相册键的 i18n 守卫 + `parity.test.ts` 的 photosPlaces 块 + `router/index.test.ts`)
+→ 39 处(`router/index.ts` 的 import 与路由两段)
+→ 2 处(`theme.css` 27 块相册 token)
+→ **零真实命中**。
+
+`theme.css` 那 27 块是脚本按人工核定的行区间提取的,自检两条:每块必须"注释开头 + token
+结尾"(防切半)、每块在原文恰好出现 1 次;删后做**悬空注释检查并与基线做差**(文件里本来
+就有 1 条会被任何朴素判据误报的注释,基线做差后新引入 0 条)。
+**刻意未删** `--divider` / `--panel-bg-solid`:名字通用、无相册字样、不触发禁词。
+
+## 交用户的验收清单
 
 见计划书末尾 §验收清单(19 条,分 A 翻牌本体 / B 深链十三键 / C 回退可逆 / D 全区回归)。
-启动方式:`cd .sp7/NimoOS-New-UI && pnpm dev --host --port 5277`。**勿 deploy.sh。**
+**cutover 已合入 master,验收改在主工作树起 dev server**:`cd NimoOS-New-UI && pnpm dev`
+(:5273)。**勿 deploy.sh**(用户明示:设备上只有一个 `/app/` 目录、deploy 是
+`rsync --delete`,一部署就覆盖别人的部署)。
+
+`.sp7` 工作树与 `sp7-photos` 分支已可回收 —— 合并 commit `c457e29` 已完全并入,
+`git branch -d` 会放行;台账已在 `6f2f45a` 入库,撤 worktree 不会重演 SP7 那次台账事故。
