@@ -1522,6 +1522,7 @@ const KNOWLEDGE_VUE_FILES = [
   'components/NotesMarkdownEditor.vue',
   'parser/ParserStatus.vue',
   'parser/ParserTest.vue',
+  'views/AllowlistView.vue',
   'views/DashboardView.vue',
   'views/IndexedFilesView.vue',
   'views/KnowledgeDeferred.vue',
