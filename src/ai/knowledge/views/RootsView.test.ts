@@ -1264,3 +1264,103 @@ describe('RootsView —— R27:7 处 toast 全部经 store.toast(不是直调 us
     expect((SRC_CODE.match(/store\.toast\(/g) || []).length, 'store.toast 落点数').toBe(7)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 SP8-P5f **Task 6 追加**(裁定 **R27** —— T5 评审的 Important I-1 派给本刀)
+//
+// ⚠️ 本文件对 T6 是**极窄解禁:只许新增,既有每一行零改动**(裁定 R27)。
+//    🔴 **`RootsView.vue` 产品码一个字都没动** —— 评审已逐字核为**正确**,
+//    缺的从来是守卫(「产品代码对、守卫为零」家族第 N 次)。
+//
+// 【上面那条 submitting 用例为什么是零判别力】
+//   `RootsView —— canSubmit 两侧 + submitting 门` 里的
+//   「🔴 submitting 门:第一发在飞时重复点不发第二发」点的是 `.k-modal-foot` 里的
+//   **「添加」按钮**,而那个按钮带 `:disabled="!canSubmit || submitting"`。
+//   🔴 **jsdom 不向 `:disabled` 元素派发 click 事件** ⇒ 第二次 `.click()` 根本没进入
+//   被测代码 ⇒ 那条用例实测的是 **`:disabled` 绑定**,不是 `submit()` 里的函数门。
+//   评审实证:把 `submit()` 的 `|| submitting.value` 整条门去掉,**60/60 全绿**。
+//   ⚠️ 这是治理 §9.17「点某个东西先确认它在给定数据下真渲染成**可点**元素」的变种:
+//     **元素渲染了,但它是 disabled ⇒ 点击事件根本没发生 ⇒ 用例从未到达被测代码。**
+//     **常驻教训:jsdom 下点 `:disabled` 元素 = 零判别力,验「函数门」必须走无 disabled 的入口。**
+//
+// 【本条走的真实绕过路径】**N50 的「以镜像模式添加」按钮**(`RootsView.vue` 的
+//   `.kr-error` 内联块里那个 `k-btn outline`)—— 它 `@click="submit(true)"` 且
+//   **没有任何 `:disabled` 绑定** ⇒ 双击真的会派发两次 click、真的会进两次 `submit()`。
+//   🔴 判据:去掉 `submit()` 的 `submitting.value` 门 → **本条必须报红**
+//   (带门 1 发 / 去门 2 发 `createRoot`)。RED 输出与 `md5sum` 还原确认贴在
+//   `p5f-task-6-report.md` §7。
+// ═══════════════════════════════════════════════════════════════════════════
+describe('RootsView —— 🔴 submitting 是**函数门**,不只是 :disabled 绑定(裁定 R27)', () => {
+  /** 开弹窗 → 填一个合法路径 → 用 409 换出「以镜像模式添加」按钮(N50)。 */
+  async function openWithMirrorOffer() {
+    const m = await mountPage([])
+    await m.w.find('.k-section-head button.k-btn.primary').trigger('click')
+    await nextTick()
+    await flushPromises()
+    const input = m.host.querySelector('input.kr-input') as HTMLInputElement
+    input.value = '/mnt/ro'
+    input.dispatchEvent(new Event('input'))
+    await nextTick()
+    wiki.createRoot.mockRejectedValueOnce(httpError(409))
+    ;(
+      Array.from(m.host.querySelectorAll('.k-modal-foot button')).find(
+        (b) => norm(b.textContent!) === '添加',
+      ) as HTMLElement
+    ).click()
+    await flushPromises()
+    return m
+  }
+
+  it('🔴 §9.17 前置:「以镜像模式添加」按钮真渲染成**可点**元素(无 disabled)', async () => {
+    const { host } = await openWithMirrorOffer()
+    const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
+    expect(mirrorBtn, 'N50 的镜像按钮没渲染出来 —— 本组会退化成零判别力').not.toBeNull()
+    expect(norm(mirrorBtn.textContent!)).toBe('以镜像模式添加')
+    // 🔴 这才是本条能测到「函数门」的前提:它**不是** disabled 元素。
+    expect(mirrorBtn.hasAttribute('disabled'), '镜像按钮带了 disabled —— jsdom 不会派发 click').toBe(false)
+    expect(mirrorBtn.disabled).toBe(false)
+    // 对照:同一时刻「添加」按钮是 disabled 的(它才是上面那条零判别力用例点的目标)。
+    const addBtn = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
+      (b) => norm(b.textContent!) === '添加',
+    ) as HTMLButtonElement
+    expect(addBtn.disabled, '「添加」按钮此刻应当是 disabled(canSubmit 为真但 submitting 为假?)').toBe(false)
+  })
+
+  it('🔴 双击镜像按钮:submitting 函数门挡住第二发(判据:去掉该门 → 本条必须报红)', async () => {
+    const { host } = await openWithMirrorOffer()
+    const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
+    expect(mirrorBtn).not.toBeNull()
+    wiki.createRoot.mockClear() // 409 那一发不算
+    const d = makeDeferred<unknown>()
+    wiki.createRoot.mockReturnValue(d.promise)
+    // 🔴 **同步双击**:两次点击之间不 await —— Vue 还没重渲染,元素与监听器都还在,
+    //   两次 click **都真的派发到 `submit(true)`**。挡住第二发的只能是函数里的
+    //   `if (!canSubmit.value || submitting.value) return`。
+    mirrorBtn.click()
+    mirrorBtn.click()
+    await flushPromises()
+    expect(
+      wiki.createRoot,
+      '🔴 第二发也发出去了 —— submit() 里的 submitting 门丢了(:disabled 挡不住这个入口)',
+    ).toHaveBeenCalledTimes(1)
+    d.resolve({})
+    await flushPromises()
+  })
+
+  it('第一发落地之后镜像按钮才允许再发(finally 里 submitting 归位)', async () => {
+    const { host } = await openWithMirrorOffer()
+    const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
+    wiki.createRoot.mockClear()
+    wiki.createRoot.mockRejectedValueOnce(httpError(409))
+    mirrorBtn.click()
+    await flushPromises()
+    expect(wiki.createRoot).toHaveBeenCalledTimes(1)
+    // 409 再次给出镜像按钮;门已归位 ⇒ 这一发能出去。
+    const again = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
+    expect(again, '第二次 409 后镜像按钮没回来').not.toBeNull()
+    wiki.createRoot.mockResolvedValueOnce({})
+    again.click()
+    await flushPromises()
+    expect(wiki.createRoot, 'submitting 没在 finally 里归位 —— 门变成了一次性').toHaveBeenCalledTimes(2)
+  })
+})

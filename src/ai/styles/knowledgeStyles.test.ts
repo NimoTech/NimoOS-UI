@@ -1532,6 +1532,9 @@ const KNOWLEDGE_VUE_FILES = [
   'views/RootsView.vue',
   'views/SearchView.vue',
   'views/SettingsView.vue',
+  // SP8-P5f Task 6 —— 新建 `views/WikiView.vue`(上半;T7 续写下半,**不重复登记**)。
+  // 不登记会打红上面那条「文件清单集合相等」防漂移断言 —— 那是正确行为(§9.10)。
+  'views/WikiView.vue',
 ]
 
 /** 递归列出目录下所有 `.vue`,返回相对 `src/ai/knowledge/` 的 POSIX 风格路径。 */

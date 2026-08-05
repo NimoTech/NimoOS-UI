@@ -651,3 +651,123 @@ describe('T3 自动上膛守卫 —— 若 views/WikiView.vue 存在,则它必�
     ).toBe(true)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 SP8-P5f **Task 6 追加**(裁定 **R22** —— T3 评审的 Important I-1 派给本刀)
+//
+// ⚠️ 本文件对 T6 是**极窄解禁:只许新增,既有每一行零改动**(裁定 R22)。
+//    🔴 **`wikiViewHelpers.ts` 产品码一个字都没动** —— 评审已逐字核为**正确**,
+//    缺的从来是守卫(「产品代码对、守卫为零」家族第 N 次)。
+//
+// 【补什么】`buildWikiTree` 的「**同名开头兄弟目录**」拓扑。
+//   评审实证:把 `findParent` 换成「**最长字符串前缀、不做 `'/'` 边界判断**」的错实现,
+//   **既有 49 条全绿** —— 零判别力。真实后果:`/DATA/Media` 与 `/DATA/MediaBackup`
+//   会被**错挂成父子**(后者变成前者的子节点),Wiki 左树的层级从此是错的。
+//   ⚠️ `rootForPath` 有一模一样的 `/DATA2` 边界守卫(本文件上面那条
+//   「非前缀但同名开头」用例),**`buildWikiTree` 这一侧此前是空的**。
+//
+// 【为什么现有四条拓扑抓不到】fixture 的 normal / crossLevel / missingParent /
+//   duplicate / unsorted 五组里**没有任何一对同名开头的兄弟** ——
+//   `/DATA` vs `/DATA/Documents` 是真父子;`/u/a` vs `/u/b` 前缀互不包含。
+//   「最长字符串前缀」的错实现在这五组上与正确实现**同解**。
+//
+// 【样本出处】🔴 **本文件就地构造**(不是 `p5f-fixtures` 里的样本)——
+//   路径由裁定 R22 指定(`/DATA/Media` + `/DATA/MediaBackup`),用本文件既有的
+//   `flatNode()` 按共享包 `WikiTreeNode` 形状造,**已在 T6 报告里显式申报**。
+//   先例:上面 `rootForPath` 的「root.path 带尾斜杠」那条同样是就地构造的变体。
+//
+// 【判据】把 `findParent` 换成下面这个错实现 → **本组必须报红**:
+//   ```ts
+//   function findParent(byPath, path) {
+//     let best = null
+//     for (const k of Object.keys(byPath)) {
+//       if (k !== path && path.startsWith(k) && (!best || k.length > best.length)) best = k
+//     }
+//     return best ? byPath[best] : null
+//   }
+//   ```
+//   (RED 输出与 `md5sum` 还原确认贴在 `p5f-task-6-report.md` §7。)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('buildWikiTree —— 🔴 同名开头的兄弟目录不许被错挂成父子(裁定 R22)', () => {
+  // `/DATA/MediaBackup` 以 `/DATA/Media` 为**字符串前缀**,但**不是**它的子目录
+  // (`/DATA/Media` 后面紧跟的是 `B` 而不是 `/`)。正确的父是 `/DATA`。
+  const siblings = [
+    flatNode('/DATA', { level: 'space' }),
+    flatNode('/DATA/Media', { level: 'project' }),
+    flatNode('/DATA/MediaBackup', { level: 'project' }),
+  ]
+
+  it('🔴 /DATA/MediaBackup 的父是 /DATA,**不是** /DATA/Media', () => {
+    const { roots, byPath } = buildWikiTree(siblings)
+    expect(roots.map((r) => r.path)).toEqual(['/DATA'])
+    // 两个都是 /DATA 的直接子节点(字典序:Media < MediaBackup)。
+    expect(byPath['/DATA'].children.map((c) => c.path)).toEqual([
+      '/DATA/Media',
+      '/DATA/MediaBackup',
+    ])
+    // 🔴 判别点:错实现会把 MediaBackup 塞进 Media 的 children 里。
+    expect(
+      byPath['/DATA/Media'].children,
+      '/DATA/MediaBackup 被错挂成 /DATA/Media 的子节点 —— findParent 丢了 "/" 边界判断',
+    ).toEqual([])
+    expect(byPath['/DATA/MediaBackup'].children).toEqual([])
+  })
+
+  it('🔴 各自的真子目录仍然挂对(边界判断不是靠「一律不挂」蒙对的)', () => {
+    const deeper = [
+      ...siblings,
+      flatNode('/DATA/Media/Movies', { level: 'project' }),
+      flatNode('/DATA/MediaBackup/2026', { level: 'project' }),
+    ]
+    const { byPath } = buildWikiTree(deeper)
+    expect(byPath['/DATA/Media'].children.map((c) => c.path)).toEqual(['/DATA/Media/Movies'])
+    expect(byPath['/DATA/MediaBackup'].children.map((c) => c.path)).toEqual([
+      '/DATA/MediaBackup/2026',
+    ])
+    // 反向:Movies 不许跑到 MediaBackup 底下,2026 也不许跑到 Media 底下。
+    expect(byPath['/DATA/Media'].children.map((c) => c.path)).not.toContain('/DATA/MediaBackup/2026')
+    expect(byPath['/DATA/MediaBackup'].children.map((c) => c.path)).not.toContain('/DATA/Media/Movies')
+    expect(byPath['/DATA'].children.map((c) => c.path)).toEqual(['/DATA/Media', '/DATA/MediaBackup'])
+  })
+
+  it('🔴 同名开头但**父缺位**时不许攀附兄弟:只有 /DATA/Media 与 /DATA/MediaBackup(无 /DATA)', () => {
+    const noParent = [
+      flatNode('/DATA/Media', { level: 'project' }),
+      flatNode('/DATA/MediaBackup', { level: 'project' }),
+    ]
+    const { roots, byPath } = buildWikiTree(noParent)
+    // 两个都没有在表里的祖先 ⇒ **各自成根**,且 name 退化成全路径(蓝本 `:34`)。
+    expect(roots.map((r) => r.path)).toEqual(['/DATA/Media', '/DATA/MediaBackup'])
+    expect(roots.map((r) => r.name)).toEqual(['/DATA/Media', '/DATA/MediaBackup'])
+    expect(byPath['/DATA/Media'].children).toEqual([])
+  })
+
+  it('🔴 单字符差的同名开头(/a 与 /ab)同样不许挂成父子', () => {
+    const { roots, byPath } = buildWikiTree([flatNode('/a'), flatNode('/ab'), flatNode('/a/b')])
+    expect(roots.map((r) => r.path)).toEqual(['/a', '/ab'])
+    expect(byPath['/a'].children.map((c) => c.path)).toEqual(['/a/b'])
+    expect(byPath['/ab'].children, '/ab 被错挂成 /a 的子节点或反之').toEqual([])
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 SP8-P5f **Task 6 追加 · 订正块**(裁定 **R22** 的 Minor M-1)——「反转不删」
+//
+// 被订正的对象:上面 `rootForPath` 那条
+// 「root.path 带尾斜杠时归一化后仍能匹配」用例末尾的结论
+// —— 「蓝本只对 `startsWith` 那一支做归一化,精确相等比的是**原始** path
+//     ⇒ 不带斜杠的写法不命中」。
+// 🔴 **结论本身不变**(照抄蓝本、不记账、不改产品码);变的是**理由**。
+//
+// ~~T3 给的理由(数据层,**有保质期**):「本机 fixture 的两个 root 都不带尾斜杠
+//   ⇒ 不影响实际。」~~
+// 🔴 **订正为(后端层,无保质期)**:后端**根本存不下带尾斜杠的 root path** ——
+//   `NimoOS-Wiki/service/roots/manager.go` 的 `Create()` 在落库之前先跑
+//   `args.Path = filepath.Clean(args.Path)`,而 Go 的 `filepath.Clean` 会把结尾的
+//   `/` 全部剥掉(实测:`"/DATA/"` → `"/DATA"`、`"/DATA//"` → `"/DATA"`、
+//   `"/Backup///"` → `"/Backup"`)。
+//   ⇒ `wikiRoots` 里**不可能**出现带尾斜杠的 `path`,与「本机 fixture 长什么样」无关,
+//     也不会因为将来换一份 fixture / 换一台设备而失效。
+// 🔴 两条独立口径的原始输出(承 **R21**:不许只贴一条)见 `p5f-task-6-report.md` §8。
+// 🔴 本块**只是注释**:上面那条用例的断言一行未动,产品码一行未动。
+// ═══════════════════════════════════════════════════════════════════════════
