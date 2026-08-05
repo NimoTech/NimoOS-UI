@@ -162,6 +162,36 @@ JSON(1918 键),键集与每一个值完全一致(临时脚手架用完即删)。
 就有 1 条会被任何朴素判据误报的注释,基线做差后新引入 0 条)。
 **刻意未删** `--divider` / `--panel-bg-solid`:名字通用、无相册字样、不触发禁词。
 
+## 验收轮 1(2026-08-05):1 个颜色缺陷,已修并经用户确认
+
+用户在 `:5274` 验收期间截了两张图(`/DATA/Documents/test_folder/`),报「一个颜色问题」。
+两张是**同一类**毛病:本该透出玻璃壳的表面被刷成不透明深色板。**已修 `597a1f2`**,用户确认
+「没问题了」。
+
+**根因(一类移植缺陷,值得记住):照抄了 token 名,但两个同名 token 的语境不同。**
+Vue2 相册区是一整块不透明深色页面、页底色就叫 `--bg`,页内元素刷它与页底无缝;New-UI 的
+相册区活在 AreaShell 的**半透明玻璃壳**里,而本仓恰好也有个叫 `--bg` 的应用底色 token ——
+按名字对名字搬过来,就在玻璃上刷出一块实色板。
+
+- `PhotosSearch.vue` `.filterbar`:去 `background: var(--bg)`(截图里横贯整宽那条黑带)。
+  **顺带查实它的 `position: sticky` 是空操作** —— 真滚动容器在 `PhotosSearchGrid` 内部、是
+  这条横条的**兄弟不是祖先**,从来没有内容滚到它下面 ⇒ 那块不透明底色本就毫无功能。但
+  `position`/`z-index` 保留:筛选弹层 `.fpop` 是它的后代,靠这两条才画到下方网格之上。
+- `PhotosSmartViewDetail.vue` `.sv-detail-side`:`--panel-bg-solid` → `--panel-bg`。
+  原先援引 PlaceDetailPanel 当先例,但那条先例是**功能性**的(压在 PlacesMap 画布上,半透会
+  把地图网格点透上来);本栏底下没有地图。同区常驻侧栏 PhotosSidebar / PlacesRail /
+  PhotoInfoPanel / PersonPlacesTab 全是 `var(--panel-bg)`。
+
+**新增闸** `views/__tests__/photosGlassSurfaces.test.ts`(5 例):正向钉两处写法 + 钉
+filterbar 的 border/position/z-index 不被后来人顺手清掉 + **反向白名单钉住
+`--panel-bg-solid` 的消费方集合**(只许 PlaceDetailPanel,新增必须先回答"底下真的有地图吗")。
+变异验证两次均变红后还原。新测试同步进 `oss/manifest.mjs` DELETE 表(29 → 30)。
+
+**踩坑复现**:注释里写了字面色值 `#0A0A0C` 被 color-guard 判红 —— 它**不剥注释**,注释里的
+hex 与声明里的一样拦(记忆 `nimoos`/color-guard 那条早有记载)。改成文字描述后过。
+
+**门**:全量 **475 文件 / 6227 例、退出码 0** + tsc 0 + build ✓ + `oss` 全绿。
+
 ## 交用户的验收清单
 
 见计划书末尾 §验收清单(19 条,分 A 翻牌本体 / B 深链十三键 / C 回退可逆 / D 全区回归)。
