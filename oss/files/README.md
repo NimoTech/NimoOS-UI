@@ -40,7 +40,83 @@ pnpm build        # vue-tsc --noEmit + vite build → dist/
 `pnpm dev` 会把 `/app/` 以外的请求(API、事件总线 WebSocket)转发到 `http://127.0.0.1:80`
 的 NimoOS 网关。改 `vite.config.ts` 里的 `DEV_PROXY` 指向你的设备。
 
-部署:`./scripts/deploy.sh` 会构建并同步 `dist/` 到设备的 `/var/lib/nimoos/www/app/`。
+## 部署
+
+构建产物是一组**纯静态文件**(`dist/`),没有服务端渲染。它的 `base` 是 `/app/`,所有资源
+路径都以 `/app/` 开头 —— **必须挂在 URL 的 `/app/` 路径下**,放到站点根目录会白屏(资源 404)。
+
+前端只是个壳:API 与事件总线 WebSocket 全部由 NimoOS 网关提供,因此产物要和网关**同源**
+托管。网关自带静态托管,默认根目录 `/var/lib/nimoos/www/`(启动参数 `-w` 可改),所以
+URL 的 `/app/` 对应磁盘上的 `/var/lib/nimoos/www/app/`。
+
+### 在设备上直接部署
+
+首次准备目录(只需一次):
+
+```bash
+sudo mkdir -p /var/lib/nimoos/www/app
+sudo chown "$USER:$USER" /var/lib/nimoos/www/app
+```
+
+之后每次部署都是一条命令:
+
+```bash
+./scripts/deploy.sh
+```
+
+它做三件事:`pnpm build` → `rsync` 同步 `dist/` 到 `/var/lib/nimoos/www/app/` → 清掉
+14 天前的陈旧构建产物。完成后浏览器打开:
+
+```
+http://<设备地址>/app/#/
+```
+
+网关默认监听 **80**;若 80 被占用,它会依次尝试 81-89、8080-8089,此时地址需要带上实际端口。
+
+### 从开发机部署到远程设备
+
+```bash
+pnpm build
+rsync -avz --delete --filter='protect assets/*' dist/ user@<设备地址>:/var/lib/nimoos/www/app/
+```
+
+⚠️ **`--filter='protect assets/*'` 不能省。** 每次构建出的 JS/CSS 都带新的内容哈希,而部署前
+已经打开的浏览器标签页仍持有旧的 `index.html`,会按旧文件名去懒加载路由和预览器。如果部署时
+把旧 `assets/` 删干净,这些标签页点开新页面就是 404,而且**不会自愈** —— 表现为"点了没反应,
+手动刷新才好"。保留旧文件、再按修改时间慢慢清理,是唯一对用户无感的做法(`deploy.sh` 就是
+这么做的)。
+
+### 放在 nginx 等反向代理后面
+
+hash 路由(`/app/#/...`)的路径部分恒为 `/app/`,所以**不需要** history fallback 规则。需要的
+只有两条:静态文件挂 `/app/`,其余路径连同 WebSocket 升级一起转发给网关。
+
+```nginx
+location /app/ {
+    alias /var/lib/nimoos/www/app/;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:80;        # 网关实际端口
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade          $http_upgrade;
+    proxy_set_header Connection       "upgrade";
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;   # 见下方警告
+}
+```
+
+⚠️ **`X-Forwarded-For` 必须转发。** 网关对来自 `127.0.0.1` / `::1` 的请求默认**跳过 JWT 校验**
+(留给本机服务间调用的口子)。经反向代理过来的请求,在网关看来源地址就是 `127.0.0.1`,它依靠
+`X-Forwarded-For` 的最后一项还原真实客户端 IP —— 少了这个头,同网段里的任何人都能不带令牌
+直接调用 API。
+
+### 只想快速看一眼构建产物
+
+```bash
+pnpm build
+pnpm preview      # http://localhost:5273/app/ ,API 转发规则与 pnpm dev 相同
+```
 
 ## 配色约定(硬约束)
 
