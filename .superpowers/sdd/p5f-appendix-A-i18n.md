@@ -9,8 +9,8 @@
 | 项 | 值 | 取数 |
 |---|---|---|
 | 本期 **distinct 键** | 🔴 **90** | 静态 `$t('…')` **83** + `OP_LABEL_KEYS` 4 + `GROUPS_TEMPLATE.labelKey` 3 |
-| 其中可复用既有 `aiKb*` | **14** | 见 §A.2 |
-| 其中**需新增** | 🔴 **76** | = 90 − 14 |
+| 其中可复用既有 `aiKb*` | **14** → 🔴 **订正:11**(裁定 **R3** / **R10**,见 §A.2 订正块) | 见 §A.2 |
+| 其中**需新增** | 🔴 **76** → 🔴 **订正:79**(= 90 − 11) | = 90 − 14 |
 | zh 权威命中 | 🟢 **90 / 90** | **零条需要自造中文** |
 | en 权威命中 | 🟢 **90 / 90** | 同上 |
 | `wikiViewHelpers.js` 的 i18n | 🟢 **0**(E-65 结案) | 全文 95 行零 `$t(` / 零 `i18n.t(` |
@@ -49,7 +49,14 @@ key="Let's create your initial account"  -> en="Let's create your account"
 🔴 **E-45**:vue-i18n 对未匹配占位符是**静默置空**,**反向断言不许写「渲染结果含 `{x}` 字面量」**(零判别力),
 要断**真实插值出来的值**(例:`{ n: 3 }` → 断言含 `3 项` / `3 items`)。
 
-## A.2 🟢 可复用的既有 `aiKb*` 键(14 条,**两档逐码点相等**才算)
+## A.2 🟢 可复用的既有 `aiKb*` 键(14 条 → 🔴 **订正:11 条**,**两档逐码点相等**才算)
+
+> 🔴 **订正块(T1b,2026-08-06;守「反转不删」—— 标题原文的「14 条」保留)**:
+> **终值 = 11 条**。末三条 `Delete` / `Auto` / `Removed` 按**裁定 R3**(承 A-1)**新建**
+> `aiKbRtDelete` / `aiKbRtWatchAuto` / `aiKbWkOpRemoved`,**不复用**。
+> 依据:**R3**(与 **R10** 终值表的「复用 11 / 新增 79」一致);T1 已按此落地,`messageSyntax.test.ts`
+> 的 `reused` 清单实测就是 **11** 条。**下游一律按 11 用,别按 14。**
+> ⚠️ **本节表格与 §A.6 的第 50 / 54 / 89 行原文一并保留**,各自就地加了同款订正记号。
 
 > 判据:某既有键的 **zh 值与 en 值同时**与本期该文案逐字相等,**且键名前缀是 `aiKb*`**。
 > 🔴 **只撞一侧的一律不复用**;🔴 **同值但属于别的区的一律按 A-1 拒绝**(见 §A.3)。
@@ -262,11 +269,11 @@ key="Let's create your initial account"  -> en="Let's create your account"
 | 47 | `Last scan:` | Rt | 上次扫描: | Last scan: | 🟢 **可复用** `aiKbLastScan` |
 | 48 | `never` | Rt | 从未 | never | 🟢 **可复用** `aiKbNever` |
 | 49 | `Rescan now` | Rt | 立即重扫 | Rescan now | 🔴 **新建**(同值键 `aiCfgRescanNow` 全在别的区,A-1 拒绝复用) |
-| 50 | `Delete` | Rt | 删除 | Delete | 🟢 **可复用** `aiKbNtDelete` |
+| 50 | `Delete` | Rt | 删除 | Delete | ~~🟢 **可复用** `aiKbNtDelete`~~ → 🔴 **订正(裁定 R3):新建 `aiKbRtDelete`**(原文保留,见 §A.2 订正块) |
 | 51 | `Selected path` | Rt | 已选路径 | Selected path | 🆕 新建 |
 | 52 | `Advanced options` | Rt | 高级选项 | Advanced options | 🆕 新建 |
 | 53 | `Watch mode` | Rt | 监视模式 | Watch mode | 🆕 新建 |
-| 54 | `Auto` | Rt | 自动 | Auto | 🟢 **可复用** `aiKbOriginAuto` / `aiKbDeviceAuto` |
+| 54 | `Auto` | Rt | 自动 | Auto | ~~🟢 **可复用** `aiKbOriginAuto` / `aiKbDeviceAuto`~~ → 🔴 **订正(裁定 R3):新建 `aiKbRtWatchAuto`**(原文保留,见 §A.2 订正块) |
 | 55 | `Scan only` | Rt | 仅扫描 | Scan only | 🆕 新建 |
 | 56 | `Scan interval (hours)` | Rt | 扫描间隔(小时) | Scan interval (hours) | 🆕 新建 |
 | 57 | `Add in mirror mode` | Rt | 以镜像模式添加 | Add in mirror mode | 🆕 新建 |
@@ -301,7 +308,7 @@ key="Let's create your initial account"  -> en="Let's create your account"
 | 86 | `View source` | Wk | 查看原文 | View source | 🆕 新建 |
 | 87 | `Added` 🔸动态 | Wk | 新增 | Added | 🆕 新建 |
 | 88 | `Updated` 🔸动态 | Wk | 更新 | Updated | 🆕 新建 |
-| 89 | `Removed` 🔸动态 | Wk | 已删除 | Removed | 🟢 **可复用** `aiKbStatusRemoved` |
+| 89 | `Removed` 🔸动态 | Wk | 已删除 | Removed | ~~🟢 **可复用** `aiKbStatusRemoved`~~ → 🔴 **订正(裁定 R3):新建 `aiKbWkOpRemoved`**(原文保留,见 §A.2 订正块) |
 | 90 | `Renamed` 🔸动态 | Wk | 重命名 | Renamed | 🆕 新建 |
 
 ## A.7 🔴 动态键的 7 条(不进模板但必须进 i18n)

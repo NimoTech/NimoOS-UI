@@ -1430,3 +1430,100 @@ describe('SearchView —— T7:两个子组件可同时挂载 + N41(Esc 同时�
     expect(vm.viewerFile).toBe(null)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 SP8-P5f Task 1b —— 债务 I-1(P5e 终审 Important-1)的补漏块
+//
+// P5e 终审实测:`runSearch` 的 `topK` / `rerank` 两个入参在本文件里**零守卫**——
+// 把 `rerank` 接反、把 `topK` 焊死成 10,4254 例全绿(终审探针 F1/F2 各自
+// `3125/3125 全绿`),而 SearchView 的结果半区在本机**真机不可达**(治理 §0.3)
+// ⇒ **测试守卫是唯一防线**。
+//
+// 🔴 本块**只加断言,产品码一行未动** —— `SearchView.vue:220-225` 的
+// `topK: topK.value` / `rerank: quality.value === 'accurate'` 经 P5e 终审逐字核为
+// **正确**(蓝本 `bp-SearchView.vue:301-302`),这是纯覆盖缺口,不是缺陷。
+//
+// 入参真实来源(本刀自己回读 `SearchView.vue` 确认,未照抄 brief):
+//   `topK`   ← `const topK = ref(10)`(`:108`),高级面板第 4 个 `.k-adv-field`
+//              的四个按钮 `[5, 10, 20, 50]` 直接赋值 → 原样传给 `runSearch`。
+//   `rerank` ← `const quality = ref<'fast' | 'accurate'>('fast')`(`:107`),
+//              第 3 个 `.k-adv-field` 的两个按钮;传的是**布尔** `quality === 'accurate'`
+//              (不是字符串)——`fast → false`、`accurate → true`。
+//
+// 判据(RED 探针,见 p5f-task-1b-report.md):
+//   ① 把 `rerank` 反转成 `quality.value !== 'accurate'` → 本块必须报红;
+//   ② 把 `topK` 焊死成 `topK: 10` → 本块必须报红。
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('SearchView —— 债务 I-1:runSearch 的 topK / rerank 两入参必须真的取自组件状态', () => {
+  /** 打开高级面板、执行一次搜索,返回 `store.runSearch` 第一次调用的实参。 */
+  async function runAndCapture(
+    pick: (w: ReturnType<typeof mount>) => Promise<void>,
+  ): Promise<{ topK: number; rerank: boolean }> {
+    const store = withPinia()
+    const spy = vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    const { w } = await mountSearch()
+    await openAdv(w)
+    await pick(w)
+    const input = w.find('.k-search-box input')
+    await input.setValue('foo')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(spy).toHaveBeenCalledTimes(1)
+    return spy.mock.calls[0][0] as unknown as { topK: number; rerank: boolean }
+  }
+
+  // ─── rerank:两侧都比(治理 §9「属性态断言两侧都比」)───
+  // 反转探针要报红,必须两个方向都钉:只钉 accurate→true 的话,把判据写成常量 `true`
+  // 仍然绿;只钉 fast→false 同理。
+  it('quality="fast"(默认)→ rerank === false(布尔 false,不是 "fast"/undefined)', async () => {
+    const call = await runAndCapture(async () => {})
+    expect(call.rerank).toBe(false)
+  })
+
+  it('🔴 quality="accurate" → rerank === true(反转即报红)', async () => {
+    const call = await runAndCapture(async (w) => {
+      const qualityButtons = w.findAll('.k-adv-field')[2].findAll('button')
+      // 先确认这个按钮在本机数据下真的渲染成可点元素(治理 §13-1)
+      expect(qualityButtons.length).toBe(2)
+      expect(qualityButtons[1].attributes('data-on')).toBe('false')
+      await qualityButtons[1].trigger('click')
+      expect(qualityButtons[1].attributes('data-on')).toBe('true')
+    })
+    expect(call.rerank).toBe(true)
+  })
+
+  // ─── topK:四个档位逐个钉死(焊死成 10 时,5/20/50 三条必须报红)───
+  const TOPK_BUTTONS = [5, 10, 20, 50] as const
+
+  it('默认(未点任何档位)→ topK === 10', async () => {
+    const call = await runAndCapture(async () => {})
+    expect(call.topK).toBe(10)
+  })
+
+  for (let idx = 0; idx < TOPK_BUTTONS.length; idx++) {
+    const n = TOPK_BUTTONS[idx]
+    it(`🔴 点第 ${idx + 1} 个档位(${n})→ topK === ${n}(焊死成 10 时,非 10 的三档必须报红)`, async () => {
+      const call = await runAndCapture(async (w) => {
+        const topkButtons = w.findAll('.k-adv-field')[3].findAll('button')
+        // 防空循环:四个按钮必须真的渲染出来,否则本用例零判别力
+        expect(topkButtons.length).toBe(TOPK_BUTTONS.length)
+        expect(topkButtons[idx].text()).toBe(String(n))
+        await topkButtons[idx].trigger('click')
+        expect(topkButtons[idx].attributes('data-on')).toBe('true')
+      })
+      expect(call.topK).toBe(n)
+      // 类型也钉住:蓝本传的是 number,不是按钮上的字符串
+      expect(typeof call.topK).toBe('number')
+    })
+  }
+
+  it('🔴 两个入参同时非默认 → 一次调用里 topK 与 rerank 各自独立正确(防「串了一个」)', async () => {
+    const call = await runAndCapture(async (w) => {
+      await w.findAll('.k-adv-field')[2].findAll('button')[1].trigger('click') // accurate
+      await w.findAll('.k-adv-field')[3].findAll('button')[3].trigger('click') // 50
+    })
+    expect(call.topK).toBe(50)
+    expect(call.rerank).toBe(true)
+  })
+})

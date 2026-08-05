@@ -652,3 +652,66 @@ describe('FileDetailDrawer —— T5 DoD-12:自动上膛守卫(views/SearchView.
     expect(src).toMatch(/FileDetailDrawer\.vue/)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 SP8-P5f Task 1b —— 债务 M-1(P5e 终审 Minor-1)的补漏块
+//
+// P5e 终审实测:`fetchFull()` 传给 `store.loadChunkContext` 的实参在本文件里
+// **一条都没被读过**(全量 `mock.calls` 列举里零命中)⇒ 把 `window: 2` 改成任意
+// 值,3125 例全绿(终审探针 F3:`window: 7` → 全绿)。
+//
+// 🔴 本块**只加断言,产品码一行未动** —— `FileDetailDrawer.vue:116-121` 的
+// `window: 2` 经 P5e 终审对蓝本 `bp-FileDetailDrawer.vue:153` 逐字核为**正确**。
+// ⚠️ 杀伤面(终审记录):`knowledgeStore.ts` 的 `loadChunkContext` 默认参数也是 2
+// ⇒ **删掉该入参无害,只有改值才有害** —— 所以判据钉的是「值 === 2」,
+// 不是「键存在」。
+//
+// 判据(RED 探针,见 p5f-task-1b-report.md):把产品码改成 `window: 3` → 必须报红。
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('FileDetailDrawer —— 债务 M-1:loadChunkContext 的实参(window: 2 是硬判据)', () => {
+  it('🔴 window === 2(数值 2,不是字符串/未传;改成 3 即报红)', async () => {
+    const store = withPinia()
+    const spy = vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
+    mount(FileDetailDrawer, { props: { file: makeFile() } })
+    await flushPromises()
+    expect(spy).toHaveBeenCalledTimes(1)
+    const arg = spy.mock.calls[0][0] as { window?: unknown }
+    expect(arg.window).toBe(2)
+    expect(typeof arg.window).toBe('number')
+  })
+
+  // 🔴 加固申报(治理 §9.10 / 裁定 R22):brief 的 DoD 只要求钉住 `window: 2`。
+  // 另外三个入参同样零守卫(同一次 `mock.calls` 缺口),它们与 `window` 一起决定
+  // 这一发请求打向哪个 chunk —— 顺手一并钉住是**加固**,不放宽任何既有断言。
+  it('🔴 四个入参整体形状:fileId / kind / chunkNo 取自当前 chunk,window 恒 2', async () => {
+    const store = withPinia()
+    const spy = vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
+    const file = makeFile()
+    mount(FileDetailDrawer, { props: { file } })
+    await flushPromises()
+    expect(spy.mock.calls[0][0]).toEqual({
+      fileId: file.id,
+      kind: file.chunks[0].kind,
+      chunkNo: file.chunks[0].chunkNo,
+      window: 2,
+    })
+  })
+
+  it('🔴 切到第二个 chunk 后重新发起:chunkNo 跟着变,window 仍是 2(不是只有首发才对)', async () => {
+    const store = withPinia()
+    const spy = vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
+    const file = makeFile()
+    const w = mount(FileDetailDrawer, { props: { file } })
+    await flushPromises()
+    // 治理 §13-1:先确认第二个 chunk 在本用例数据下真的渲染成可点元素
+    const items = w.findAll('.k-chunk-item')
+    expect(items.length).toBe(2)
+    await items[1].trigger('click')
+    await flushPromises()
+    expect(spy).toHaveBeenCalledTimes(2)
+    const arg = spy.mock.calls[1][0] as { chunkNo?: unknown; window?: unknown }
+    expect(arg.chunkNo).toBe(file.chunks[1].chunkNo)
+    expect(arg.window).toBe(2)
+  })
+})

@@ -1012,6 +1012,15 @@ describe('i18n message syntax', () => {
     // §9.3-2: text parsing under-counts) = 1595 baseline + 54 new − 1 deleted (the aiCfg*
     // knowledge-details placeholder key, governance §0.2 / D-9 — deliberately not named here so
     // that D-9's `grep -rw` self-proof keeps hitting only SettingsPage.vue's history comment).
+    //
+    // 🔴 订正(SP8-P5f Task 1b,债务 M-4;守「反转不删」—— 上面那句原文保留):
+    // the stated REASON above ("deliberately not named here so that D-9's grep self-proof keeps
+    // hitting only the history comment") was SUPERSEDED by 裁定 P5e-R13. R13 判定该两难是假的:
+    // 本档既定的死键 grep 口径本来就排除 `*.test.ts`, so naming the key inside a test file keeps
+    // D-9's self-proof literally true. The key IS named a few `it`s below, in the R13
+    // anti-resurrection guard — that guard, not this sentence, is the current口径.
+    // (引条目编号 P5e-R13 / D-9;🔴 不引 file:line —— 行号会随后续改动失效。)
+    //
     // Exact zh↔en key-set equality is parity.test.ts's job.
     // Cross-reference (P5e-T1 review Minor-3): 1648 is pinned as a lower bound in TWO independent
     // places — here and SettingsView.test.ts (the D-3 site). Both are lower bounds, so neither is a

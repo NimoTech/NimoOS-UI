@@ -63,7 +63,7 @@ $ git diff src/i18n/messageSyntax.test.ts | grep -E "^-" | grep -v "^---"
 | 落地后全表 | **1727 / 1727**(起点 1648 + 79);`aiKb*` **441 → 520** |
 | 占位符 | 名字集合 `{ext, group, h, n, path, t}` = **6 个**,分布在 **9 条**键上 |
 | 全角标点例外 | **9 条**(zh);en 侧 **0 条** |
-| **D-4 口径:只有存在性断言的条数** | **62 / 79**(见 §2.4) |
+| **D-4 口径:只有存在性断言的条数** | ~~**62 / 79**~~ → 🔴 **订正:53 / 79**(值级断言 **26** 条,非 17;见 §2.4 订正块) |
 
 ### 2.1 复用的 11 条(判据:zh 值与 en 值**同时**与本期文案逐码点相等,且键名前缀 `aiKb*` 且语义域相符)
 
@@ -118,7 +118,40 @@ $ git diff src/i18n/messageSyntax.test.ts | grep -E "^-" | grep -v "^---"
 🔴 **提醒 T8**:这 7 个键(`aiKbWkOpAdded/Updated/Removed/Renamed` ·
 `aiKbAlGroupDocuments/Text/Code`)在模板里**搜不到**,**不许判成死键**。
 
-### 2.4 D-4 口径:只有存在性断言的条数 = **62 / 79**
+### 2.4 D-4 口径:只有存在性断言的条数 = **62 / 79** → 🔴 **订正:53 / 79**
+
+> 🔴🔴 **订正块(T1b,2026-08-06;守「反转不删」—— 本节原文一律保留)**
+>
+> **终值:值级断言 26 条 / 只有存在性断言 53 条。** 原写的「17 / 62」**少算 9 条**。
+> **根因**:下表三类是 **9 + 12 + 9**,而原文「去重后 = 17」这一步把 **E-45 那 9 条整组漏掉了**
+> (`9 + 8 = 17` 恰好是漏掉 E-45 的结果);且「码点级钉死」一类原文记 **8(+1)= 9**,实测是 **12**
+> —— 少记了 3 条:`aiKbAlDeletedCleaning`(省略号 `…` 循环里与 `aiKbAlSavedCleaning` 成对的那条)、
+> `aiKbRtBackendTooOld` / `aiKbRtEmpty`(en 侧 em dash 循环里的两条)。
+> ⚠️ **这 3 条都已在「全角例外」那 9 条里** ⇒ **UNION 不受它影响,26 这个终值两种算法一致**;
+> 但分类表本身的数字仍应订正(R24 的「自洽」是对每一行说的)。
+>
+> **T1b 独立复算(未照抄评审的数)**:
+> ```
+> 全角例外 toBe        : 9   {aiKbAlAdvancedCustom, aiKbAlDeletedCleaning, aiKbAlExampleHint,
+>                             aiKbAlPathHint, aiKbAlPriorityFull, aiKbAlPriorityHint,
+>                             aiKbRtBackendTooOld, aiKbRtDeleteHint, aiKbRtEmpty}
+> 码点块 toBe/toContain: 12  {aiKbWkEmptySub, aiKbWkRenderNote, aiKbRtDeleteTitle, aiKbRtScanInterval,
+>                             aiKbRtReadOnly, aiKbWkCollapsed, aiKbAlSavedCleaning,
+>                             aiKbAlDeletedCleaning, aiKbAlNoRules, aiKbAlLibraryHint,
+>                             aiKbRtBackendTooOld, aiKbRtEmpty}
+> E-45 插值 toBe       : 9   (= placeholderKeysWithInterpolation 全集)
+> 重叠:全角∩码点 = 3(aiKbAlDeletedCleaning, aiKbRtBackendTooOld, aiKbRtEmpty)
+>       码点∩E-45 = 1(aiKbWkRenderNote)· 全角∩E-45 = 0
+> UNION = 9 ∪ 12 ∪ 9 = 26      只有存在性断言 = 79 − 26 = 53
+> ```
+> **实证**(评审的探针 3,T1b 复核成立):改坏 `aiKbRtScanEvery` 报红 3 条断言,而它**只属于 E-45 那一组**
+> ⇒ 它显然「有值级断言」,却被原口径算进了「只有存在性断言」的一侧。
+>
+> **零代码影响** —— `src/` 一行都不用改;方向是**低估自己的覆盖率**(安全方向)。
+> 订正理由 = 裁定 **R24**「用例数/条数归因表必须与总数自洽,算术叙述错会让下一刀误判基线」;
+> D-4 是治理 §0.3 的跨期挂账项,**这个条数会被 T8 / 收官 / 下一期当基线引用**。
+> 🔴 **下游一律引 26 / 53,不引 17 / 62。**
+> ⚠️ 下面的分类表「码点级钉死 8(+1)」一行同样作废,**以本块的 12 为准**(原文保留)。
 
 **照 P5a–P5e 既定全仓模式,不在 P5f 内单方面反转(治理 §0.3 的 D-4)。**
 本期 79 条里,**17 条**在 `messageSyntax.test.ts` 里有**值级断言**:
@@ -131,6 +164,9 @@ $ git diff src/i18n/messageSyntax.test.ts | grep -E "^-" | grep -v "^---"
 
 去重后 = **17 条有值级断言**,**62 条只有存在性断言**。
 🔴 **这 62 条的值正确性由一次性 `p5f-task-1-i18n-verify.mjs` 逐码点校验兜底**(79/79 MATCH)。
+
+> 🔴 **上面这两行按本节顶部的订正块作废:终值是 26 条有值级断言 / 53 条只有存在性断言**
+> (兜底那句仍然成立,只是条数从 62 改成 53)。
 
 ---
 

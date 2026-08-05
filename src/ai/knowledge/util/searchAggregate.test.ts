@@ -667,3 +667,61 @@ describe('fileVM.name 兜底 — aiKbSrUntitled', () => {
     expect(out[0].name).toBe('(未命名)')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 SP8-P5f Task 1b —— 债务 M-2(P5e 终审 Minor-2)的补漏块
+//
+// P5e 终审实测:`highlight()` 里 `terms` 的最小长度门**零守卫** —— 把它收紧成
+// `s.length >= 2`,3125 例全绿(终审探针 F6),而后果是**所有单字查询彻底不高亮**
+// (中文里「税」「猫」这类单字查询是高发形态)。
+//
+// 🔴 本块**只加断言,产品码一行未动** —— `searchAggregate.ts` 的
+// `.filter((s) => s.length >= 1)` 经 P5e 终审对蓝本 `bp-SearchView.vue:332` 逐字核为
+// **正确**。
+//
+// 本刀自己回读产品码确认的真实判据(未照抄 brief 的 `>= 1` 字面):
+//   `String(query).trim().split(/\s+/).filter((s) => s.length >= 1)`
+//   ⇒ 门槛 = **每个 term 的字符长度 ≥ 1**,即「只要非空就参与高亮」。
+//   ⚠️ `trim()` 之后 `split(/\s+/)` 在非空串上**永远不会**产出空串,唯一能产出空串的
+//   输入是空/全空白 query(`''.split(/\s+/) === ['']`)⇒ 「差一个字符 = 长度 0」这一侧
+//   只能通过空/全空白 query 到达(下方两条已覆盖,也是 K49 块既有断言的另一表述)。
+//
+// 判据(RED 探针,见 p5f-task-1b-report.md):把门槛改成 `>= 2` → 本块必须报红。
+// ⚠️ 相反方向(改成 `>= 0`)由 K49 块既有的「空 query → 原样返回」两条捕获:
+//   `>= 0` 会让空串 term 进入 `new RegExp('', 'gi')`,在每个字符间插入 `<mark></mark>`。
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('highlight — 债务 M-2:term 最小长度门(门槛两侧各一条)', () => {
+  // ─── 门槛侧:长度**恰好 1** 的 term 必须参与高亮 ───
+  it('🔴 单字中文 query(长度 1)→ 必须高亮(门槛收紧成 >= 2 即报红)', () => {
+    expect(highlight('个人所得税申报表', '税')).toBe('个人所得<mark>税</mark>申报表')
+  })
+
+  it('🔴 单字符 ASCII query(长度 1)→ 必须高亮', () => {
+    expect(highlight('a b c', 'b')).toBe('a <mark>b</mark> c')
+  })
+
+  it('🔴 多词 query 里混着一个单字 term → 长短两个 term 都要高亮(不许只留长的)', () => {
+    expect(highlight('猫 咖啡馆', '猫 咖啡馆')).toBe('<mark>猫</mark> <mark>咖啡馆</mark>')
+  })
+
+  // ─── 门槛下一侧:长度 0 的 term 一个都不许进正则 ───
+  // (与 K49 块的「空 query」两条同判据、不同措辞 —— 这里显式写成「长度门的下一侧」,
+  //  让门槛的两侧在同一个 describe 里成对可读;不改动、不放宽 K49 那两条。)
+  it('空 query(长度 0 的唯一到达方式)→ 零 <mark>,原样返回 escape 后的文本', () => {
+    const out = highlight('个人所得税申报表', '')
+    expect(out).toBe('个人所得税申报表')
+    expect(out).not.toContain('<mark>')
+  })
+
+  it('全空白 query(trim 后长度 0)→ 零 <mark>', () => {
+    const out = highlight('个人所得税申报表', ' \t \n ')
+    expect(out).not.toContain('<mark>')
+  })
+
+  // 防「门槛被写死成常量真」:长度 1 的 term 走的是同一条 filter,与长 term 行为一致。
+  it('长度 1 与长度 3 的 term 在同一份文本上行为一致(证明判据是长度门,不是特例分支)', () => {
+    expect(highlight('所得税', '所')).toBe('<mark>所</mark>得税')
+    expect(highlight('所得税', '所得税')).toBe('<mark>所得税</mark>')
+  })
+})
