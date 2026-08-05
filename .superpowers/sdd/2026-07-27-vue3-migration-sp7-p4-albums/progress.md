@@ -1,0 +1,43 @@
+# SDD ledger — plan: /home/nimo/NimoTech/NimoOS-UI/docs/superpowers/plans/2026-07-27-vue3-migration-sp7-p4-albums.md
+
+Task 1: review (spec ✅, 1 Important: sortAlbums 夹具无法区分 created/date 分支;implementer sonnet / reviewer sonnet;实现者主动订正 brief 的 `?? null` → Vue2 实为 `|| null`,评审独立核实属实)
+Task 1: minor (deferred): albumView.ts:92-93,99-100 `Date.parse(x as string)` 类型转换气味(逐字照搬 Vue2 既有行为)
+Task 1: fix round 1/5 (1 addressed, 0 open — sortAlbums 夹具改为 a/b 在 createdAt 与 dateEnd 上名次互换,RED 实证;commits ec5a1eb..e494335)
+Task 1: complete (commits 94186b6..e494335, review clean)
+Task 2: review (spec ⚠️→需修;implementer sonnet / reviewer opus)。十个 action 逐行比对 Vue2 全保真、实现者三处「按 Vue2 源修正 brief」经独立核实全属实、铁律五处归一无遗漏、Service 零改动。1 Important(albums.test.ts:120-129「失败清空非保留旧值」断言空转,删掉实现那行也照样过)+ 5 Minor。
+Task 2: minor (deferred, 已裁定不改): 评审 #6 —— renameAlbum 去掉 `?? name` 兜底后,后端若漏返回 name 会写成 undefined;评审已核实后端 albums.go:157-162 必定返回完整对象,风险纯理论,保持 Vue2 保真(与「移植纪律·逻辑照正确」的张力记录备查)。
+Task 2: fix round 1/5 (1 Important + 4 Minor addressed, 0 open — 失败清空真断言[RED 实证]/mockRejectedValueOnce/deferred in-flight loading 断言/写路径归一用例/两条负向断言;commits 2c435d9..0c8527e)
+Task 2: complete (commits e494335..0c8527e, review clean;实现零缺陷,两轮修复均只动测试)
+Task 3: complete (commits 0c8527e..15b1699, review clean;implementer haiku / reviewer sonnet;87 键 × 2 文件,控制器独立核 192-105=87 + 零重复,评审逐键比对零 Missing/Extra/错拼、占位符 1:1、parity 独立复跑绿)
+Task 3: minor (deferred): zh_cn.ts:663 photosAlbumSort 值末尾多一个半角空格(en 无),纯排版;T7 用到该文案时顺手定夺去留
+Task 4: complete (commits 15b1699..8eb7e86, review clean;implementer+reviewer sonnet)。引 sortablejs ^1.15.7 + @types ^1.15.9;useAlbumDragSort 五 option 逐字、DOM 读序、onEnd 时序守卫(onOrder 先于 nextTick 复位)、refresh 先 destroy 再早退、destroy 幂等;7 例测试评审推演确认「真能抓回归」;职责边界干净(无 store/toast/CSS)。Vue2 逐行比对无出入。
+Task 4: minor (deferred): ①RED 证据是 import 解析失败式而非「存根实现断言失败」式;②Vue2 persistOrder 每次重查容器 vs composable 复用 refresh 时的闭包 el(当前等价,记录备查)
+Task 5: review (spec ❌;implementer+reviewer sonnet)。肯定:store 契约、铁律归一、颜色全 token(--popup-bg 带 P2 注释)、零手拼 URL、五条点名推演测试真有区分力、Vue2 保真无未申报漂移。2 Important(均 plan-mandated):①Esc 走模板 @keydown.esc 依赖真实焦点→真实浏览器基本失效(全仓唯一这么写,PhotosSidebar:22-27/PhotoLightbox:119-139 都是 document 级监听;测试在元素上 trigger 故抓不到);②409 判定漏 brief 要求的 message 兜底(现有 409 测试带 response 字段故掩盖)。+2 Minor(新建行不可键盘访问、assetIds 空时点新建静默无反馈)。
+Task 5: fix round 1/5 (2 Important + 2 Minor addressed, 0 open — Esc 改 document 级监听+watch 开合+onUnmounted 摘除、模板 @keydown.esc/tabindex 删净、onKey 先收输入行再 close、测试改 document.dispatchEvent 并加「关闭后 Esc 失效」例;409 message 兜底 + 无 response 字段测试;新建行改 button;空 assetIds 时新建入口 disabled 且非空场景无回归;两处 RED 实证;commits e77eb25..ba18c17)
+Task 5: complete (commits 8eb7e86..ba18c17, review clean;14/14 组件测试,全量 1573)
+Task 6: review (spec ✅ 但 1 Important;implementer+reviewer sonnet)。硬约束全落实、五条推演测试真有区分力、token 两套主题核实。两条自述裁定:①timeline.allPhotos 漏导出属实(git show 核实,全仓无其它消费方)→ 补导出是正确最小修复,通过;②借用跨域键 filesConfirm → 判 Important 须改 photos 专属键。Minor:报告 :84 虚假自审(称 Vue2 无 X 关闭按钮,实则 PhotosAlbumLibraryPicker.vue:10-12 有)→ 顺带按「界面 1:1」纪律补该按钮 + is-dimmed 0.45→0.4。
+Task 6: fix round 1/5 (1 Important + 3 顺带修 addressed, 0 open — 新增 photosAlbumPickerDiscardConfirm 替换借键、补 Vue2 头部 X 关闭按钮[走 attemptClose 分层确认,RED 实证]、is-dimmed 0.4 对齐 Vue2、报告虚假自审已就地更正;commits 6990e00..b28d0f2)
+Task 6: complete (commits ba18c17..b28d0f2, review clean;12/12 组件测试,全量 1586;顺带修 timeline.ts 的 allPhotos 漏导出)
+Task 7: review (spec ❌;implementer+reviewer sonnet)。硬约束全落实(封面走生成器/Esc document 级+真 dispatchEvent 验证/空态双断言/finally 关模态对齐 Vue2/颜色两套主题/复用 sortAlbums 无自写排序),六条推演五条真有区分力。**1 Important**:recent 分支依赖 timeline.allPhotos 但组件不拉 timeline —— 评审逐行坐实 Vue2 相册视图内嵌于 PhotosTimeline(:315-319 mounted 无条件 fetchTimeline)是结构性保证,真路由化后失效 → 直链进相册页建「最近30天」静默加 0 张 + 虚假成功 toast;裁定为架构改变引入的新缺陷(非照抄 Vue2),且与同级 PhotosFavorites/PhotosTrash「自 mount 拉自己数据」范式无理由分叉。Minor:isConflict 在两文件逐字重复(顺带抽 util,T8/T10 还要用)、近30天缺边界测试。photosAlbumSort 尾随空格已去,评审核实自洽。
+Task 7: fix round 1/5 (1 Important + 2 Minor addressed, 0 open — recent 分支前按 timelineGroups.length===0 守卫补 await fetchTimeline[RED 实证,已预热不重拉]、抽 src/photos/util/httpErrors.ts 的 isConflict 两半判定[两调用点改用,T5 组件级端到端断言保留,单测迁入]、补恰好 30 天边界测试[>= 语义,改 > 必红];commits 7c45986..e68c724)
+Task 7: complete (commits b28d0f2..e68c724, review clean;全量 1603)
+Task 7: minor (deferred): timelineGroups.length===0 无法区分「从未拉取」与「拉过但库为空」,库真空时每次新建 recent 会多一次网络请求(功能正确,效率点)
+Task 8: review (spec ❌;implementer sonnet / reviewer opus)。行为移植评价很高:铁律归一/data-id/拖拽守卫/refresh×3+destroy/document 级 Esc/remove 无二次确认/零手拼 URL/无 Slideshow·AskNimo·add-to-album 残留 全部实现且断言真有区分力;实现者登记的三处 Vue2 出入独立核实成立;自审自捉的 ★Cover 徽章 bug 诊断与修法均对(photos.scss:3741-3745 核实)。
+  **1 Critical(根源在计划,已订正计划文档)**:`--on-accent` 语义是「accent 实底上的前景」,默认深色主题是深藏青 #16203a;hero 七处把它铺在暗化封面照片/--overlay-bg 上 → 默认主题深底深字整块不可读(含 32px 相册标题)。color-guard/tsc/jsdom 三道全测不出。正解=钉死浅色 + theme-exception,循 PhotosTrash.vue:401/410/419、PhotosGrid.vue:401-404 与 Vue2 photos.scss:3571 "pinned … in both themes"。:624 ★Cover 徽章/:648 勾选圈用 --on-accent 是对的不动。
+  **1 Important**:gridRef 只绑三分支 v-if 的第三支,Vue3 分支不复用元素 → 「空相册→点Edit→添加照片→瓦片出现」时无人重新 arm,Sortable 从未创建、拖拽静默失效(Vue2 因两分支同元素无此洞)。修=加 watch(gridRef) 第四触发点。
+  Minor:五处 Vue2 视觉遗漏(封面瓦片 accent 描边/edit 态虚线描边/Sort: 标签/hero display 字体+text-shadow/确认模态垃圾桶图标)、drag-hint 登记理由虚假(评审 grep 证实 Vue2 该类是死 CSS 从未渲染 → 省略正确但理由错)、一帧空态闪现、删除 toast 忽略 deleteAssets 返回计数且丢 4000ms、disabled .bar-btn 无视觉态、标题编辑跨路由残留(Vue2 同洞但纪律要求不照抄)、模板内联 router.push 未处理 promise。
+Task 8: 裁定 —— 擅自新增 2 个 i18n 键(photosAlbumNotFound*)接受(两文件齐、命名合规、parity 真绿、替代更差),流程上本该先问,记账不回退。
+Task 8: fix round 1/5 (1 Critical + 1 Important + 7 Minor addressed, 0 open;commits b6669e1..5e884c8)。**过程事故**:首个修复子代理做完 Critical 1 后被中断(未提交),控制器查工作树实况后派 fresh 续做;fresh 核验残留时发现其 theme-exception 注释文本内嵌字面分号会提前关掉 color-guard 豁免窗口(原样提交会跑红),已修正措辞 —— 再次印证「子代理失败后不信任残留,先查实况」。修复内容:七处 hero chrome 钉死 #fff + theme-exception(★Cover 徽章/勾选圈两处 --on-accent 确认未动)+ Vue2 两处 text-shadow 补回;watch(gridRef) 第四触发点 + RED 实证回归测试;五处视觉遗漏 3 落地(封面 accent 描边/edit 虚线描边[--line-strong 不存在换 --card-border]/Sort: 标签复用既有键零新增 i18n)2 如实登记不移植(--font-display 无该 token、垃圾桶图标无对等组件);空态闪现修(fetchAlbumAssets 提到 setup 顶层)、删除 toast 用真实返回计数 + 4000ms、disabled .bar-btn 视觉态、标题编辑跨路由清理(修正 Vue2 同款潜在 bug,改错相册)、router.push 包函数。23/23,全量 1627。
+Task 8: complete (commits e68c724..5e884c8, review clean)
+Task 8: 裁定(范围外观察,判非缺陷): 标题 input 上的模板 @keydown.esc.prevent 合规 —— document 级规则针对无焦点浮层,而编辑态下该 input 正是焦点所在。
+Task 9: complete (commits 5e884c8..d776c7b, review clean;implementer+reviewer sonnet;全量 1635)。灯箱「加入相册」钮加回(收藏与下载之间,emit 当前 id 且不关灯箱)+ PhotosSelectionToolbar 批量钮(取消与删除之间)+ 三宿主接线(时间线/收藏各两处并清空 selection、详情只接灯箱);既有 delete/toggle-fav/clear/delete 契约零改动并有反向回归断言;两处过时 delta 注释已更新。z-index 230 > 灯箱 200,评审独立核查层叠上下文(三宿主均把两者渲染为 AreaShell 之后的顶层兄弟,祖先链无 transform/filter/opacity 困住)判定成立。
+Task 9: minor (deferred): ①PhotosAlbumDetail 缺「无重复加入相册按钮」的负向断言(结构上不可能触发——该文件未 import PhotosSelectionToolbar,风险为零);②albumPickerOpen 与 T8 遗留 pickerOpen 命名区分点不直观,靠注释缓解
+Task 10: review (spec ❌;implementer+reviewer sonnet)。核心行为(预填/成功实参/409 与通用失败均不关模态且输入保留/复用 isConflict/Esc document 级/--popup-bg 与 T7 一致/纯增量测试)全部正确且断言有区分力。自述1(toast 计数用快照)评审核实**等价且更准**(saveAsAlbum 只 fetchAlbums 不碰 favoritesList),不改。2 Important:①缺重入守卫 —— 快速双击双发,成功 toast 后再弹 409 重名 toast 且模态已关无从压制(**同期 T7 已修过同类,此处重现**);②Vue2 模态副标题(:267-268)+ 脚注(:279-281)缺失 —— **根因是控制器 T3 键清单漏给**,实现者已发现却未按流程上报即默默省略;控制器裁定「界面 1:1 优先」,授权补 photosFavSaveAlbumSub/Note 两键。
+Task 10: fix round 1/5 (2 Important + 3 Minor addressed, 0 open — saveAlbumSaving 重入守卫[入口短路+按钮 disabled+finally 无条件复位,回归测试用永不 resolve 的 Promise 造真并发窗口断言只调 1 次]、补 photosFavSaveAlbumSub/Note 两键[英文逐字取 Vue2 :268/:279-281,中文取 zh_CN.json:2187/:2231,副标题绑 favoritesList.length 真数字]、非调用断言、.prevent、toast 断言收紧;commits 4df898e..ea4c39a)
+Task 10: complete (commits d776c7b..ea4c39a, review clean;18/18,全量 1643)
+Task 11: complete (commits ea4c39a..57c3620, review clean;implementer+reviewer sonnet;全量 1647)。侧栏第 4 条目(library 后 favorites 前)+ /photos/albums 与 /photos/albums/:id 两路由;补三级路径回归测试(评审推演确认:退回 startsWith 会挂红)。收官自查五条评审逐条独立复核:①零手拼 v1/photos(非测试文件)②@keydown.esc 唯一真实绑定在标题 input 自身=合规例外 ③on-accent 4 处(见下)④死键恰 2 个 ⑤stores/albums.ts 与两视图零 TODO/占位/死代码。
+**留给终审的两条跨任务 Important**:
+  (a) PhotosAlbumDetail.vue:708 ★Cover 徽章仍用 --on-accent,但其背景是 color-mix(accent 85%, transparent) 铺在**未暗化的原始封面照片**上,与一个 CSS 块之下刚在 T8 修成钉死 #fff 的 .tile-cover-btn(:725-733,同一瓦片同一角同一照片底)处理不一致;浅色主题下 --accent #3b5bdb + 亮照片可能把合成色拉向中灰,10px 粗体小字有对比度风险。
+  (b) i18n 死键 photosAlbumsMine/photosAlbumsMineHint —— 评审核实 Vue2 PhotosAlbumsView.vue:54-57 **无条件渲染**该「我的相册 / 你创建的相册」分区标题,且 task-3-brief 明确把这两键earmark 给列表页;**正解是 T7 漏渲染、应补 UI,而非删键**(界面 1:1 纪律)。
+Task 11: minor (deferred): PhotosAlbums.vue:389 空态图标处于渐变中段而非 accent 纯色端(装饰性、opacity .7,影响低)
+**P4 全 11 任务实现完成(11/11),进入整支终审(opus)。坐标:New-UI sp7-photos@57c3620(94186b6..57c3620),Service 未改(3f346ad)。全量 1647。**
