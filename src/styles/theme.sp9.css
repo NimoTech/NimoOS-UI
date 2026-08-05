@@ -95,6 +95,18 @@
   --kvm-restore-bg-hover: #c82333;
   --kvm-restore-disabled-bg: #6c757d;
   --kvm-delete-bg-hover: #da3633;
+
+  /* ── P8:原生 <select> 弹出列表 ──
+   * 2026-08-05 P8 验收暴露:蓝色(深色)主题下设置页所有下拉菜单**白底白字**读不出来。
+   * 根因不是缺 color-scheme(theme.css 根节点早就有 color-scheme: dark)—— 而是
+   * `.set-select` 自己设了 `background: var(--chip-bg)`(半透明玻璃)。作者一旦给
+   * <select> 指定背景,Chrome 就把它带到弹出列表上:8%~26% 白叠在列表默认白底上几乎
+   * 是纯白,配上近白的 --fg 就成了白底白字。
+   * ⚠️ 必须是**实心色**:原生 option 只认 background-color 的实色,不渲染 gradient,
+   *    所以复用不了 --chip-bg / --card-bg / --popup-bg / --panel-bg-solid(全是 gradient)。
+   * 取值 = --panel-bg-solid 那个渐变的深色端同色实底,与弹层观感一致。 */
+  --set-option-bg: #1e2234;
+  --set-option-fg: #e9edf7;
 }
 
 :root[data-theme='light'] {
@@ -166,4 +178,11 @@
   --kvm-restore-bg-hover: #c82333;
   --kvm-restore-disabled-bg: #6c757d;
   --kvm-delete-bg-hover: #da3633;
+
+  /* P8:原生 <select> 弹出列表。纸感主题下 .set-select 的 --chip-bg 本就是实心白,
+   * 弹出列表不会白底白字;但 token 必须两套主题都有值(本文件硬约束),
+   * 且显式钉住"白底 + 深字"才不至于哪天 --chip-bg 变了又出问题。
+   * 取值与纸感主题的 --card-bg / --popup-bg(#ffffff)、--fg(#1c1b19)一致。 */
+  --set-option-bg: #ffffff;
+  --set-option-fg: #1c1b19;
 }

@@ -171,6 +171,20 @@
 .set-select {
   appearance: auto;
 }
+/* 原生 <select> 的**弹出列表**(2026-08-05 P8 验收:蓝色主题下所有下拉菜单白底白字)。
+ * 上面那条把 background 设成了 var(--chip-bg)(半透明玻璃)—— 作者一旦给 <select>
+ * 指定背景,Chrome 就把它带到弹出列表上:8%~26% 白叠在列表默认白底上几乎是纯白,
+ * 配上近白的 --fg 就成了白底白字。theme.css 根节点的 color-scheme: dark 救不了它
+ * (作者指定的背景优先)。
+ * 闭合态那个玻璃 chip 观感是设计的一部分(与 .set-input 同形),**不动**;
+ * 只给弹出列表里的 option / optgroup 一个实心底 + 明确字色。
+ * ⚠️ token 必须是实心色:原生 option 不渲染 gradient,复用不了
+ *    --chip-bg / --card-bg / --popup-bg / --panel-bg-solid(全是 gradient)。 */
+.set-select option,
+.set-select optgroup {
+  background-color: var(--set-option-bg);
+  color: var(--set-option-fg);
+}
 .set-input {
   width: 92px;
 }
