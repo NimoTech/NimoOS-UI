@@ -1244,19 +1244,28 @@ describe('i18n message syntax', () => {
     // pairs one axis genuinely diverges, so reusing the forbidden key WOULD visibly change the
     // rendered UI; those are asserted, and the pair set itself is pinned so a newly created
     // one-axis collision has to be registered rather than silently appearing.
-    describe('P5e Task 1 §9.2/§9.3 bidirectional collision scan — the 5 one-axis-divergent pairs', () => {
+    // 🔴 P5f Task 1 registration (2026-08-06): the set below grew 5 → 6. This guard's stated
+    // purpose is 「a newly created one-axis collision has to be registered rather than silently
+    // appearing」, and P5f's aiKbAlFileTypes ('文件类型' / 'File types') is exactly that — it
+    // collides with P5e's aiKbSrFileType on zh while the en side stays distinct ('File types' vs
+    // 'File type'). So this guard fired as designed and the pair is registered here with its own
+    // real assertion. 🔴 §9.10 — the change is strictly ADDITIVE (one more entry, one more
+    // generated `it`, count assertion 5 → 6); no existing assertion was relaxed, and the
+    // set-equality assertion below is still exact. Declared in p5f-task-1-report.md §7.
+    describe('P5e Task 1 §9.2/§9.3 bidirectional collision scan — the one-axis-divergent pairs', () => {
       const divergent: Array<{ newKey: string; forbiddenKey: string; axis: 'en' | 'zh' }> = [
         // Direction 1 (§9.2): zh collides, en must stay distinct.
         { newKey: 'aiKbSrAdvOn', forbiddenKey: 'aiSkEnable', axis: 'en' }, //  启用: Enabled vs Enable
         { newKey: 'aiKbSrRelMid', forbiddenKey: 'appsSettingsCpuMedium', axis: 'en' }, // 中: Mid vs Medium
         { newKey: 'aiKbSrRelMid', forbiddenKey: 'aiThinkingMedium', axis: 'en' }, //      中: Mid vs Medium
+        { newKey: 'aiKbSrFileType', forbiddenKey: 'aiKbAlFileTypes', axis: 'en' }, // 文件类型: File type vs File types (created by P5f-T1)
         // Direction 2 (§9.3, mirror): en collides, zh must stay distinct.
         { newKey: 'aiKbSrAdvOn', forbiddenKey: 'aiCfgChannelsEnabled', axis: 'zh' }, // Enabled: 启用 vs 已启用
         { newKey: 'aiKbSrAdvanced', forbiddenKey: 'appsSettingsSectionAdvanced', axis: 'zh' }, // Advanced: 高级筛选 vs 高级
       ]
 
-      it('covers exactly the 5 one-axis-divergent pairs found by this task\'s own scan', () => {
-        expect(divergent.length).toBe(5)
+      it('covers exactly the 6 one-axis-divergent pairs currently found by this scan (5 from P5e + 1 registered by P5f-T1)', () => {
+        expect(divergent.length).toBe(6)
       })
 
       for (const { newKey, forbiddenKey, axis } of divergent) {
@@ -1282,7 +1291,7 @@ describe('i18n message syntax', () => {
       // the 5 above. Without this, a future key elsewhere in the app that collides with one of
       // this batch's values on a single axis would appear silently, and the "登记 per A-1/N21"
       // discipline would have nothing enforcing it.
-      it('the scan over the whole table finds exactly these 5 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
+      it('the scan over the whole table finds exactly these 6 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
         const zhAll = zh as Record<string, string>
         const enAll = en as Record<string, string>
         const found: string[] = []
@@ -1297,6 +1306,443 @@ describe('i18n message syntax', () => {
         }
         expect(found.sort()).toEqual(
           divergent.map(({ newKey, forbiddenKey, axis }) => `${newKey}|${forbiddenKey}|${axis}`).sort()
+        )
+      })
+    })
+  })
+
+  // SP8-P5f Task 1: 79 new aiKb* keys for the knowledge base's last three pages
+  // (AllowlistView.vue, RootsView.vue, WikiView.vue — plus WikiView's OP_LABEL_KEYS and
+  // AllowlistView's GROUPS_TEMPLATE.labelKey, which reach $t() through a variable and so never
+  // appear literally in a template). Same shape as the five prior P5* Task 1 guards above (a fixed
+  // key list scoped to this batch + presence check + punctuation scan + placeholder parity +
+  // bidirectional collision scan), per p5f-common-constraints.md §7 / p5f-appendix-A-i18n.md /
+  // this task's brief §2.
+  //
+  // Scope is deliberately this batch's 79 keys, never the whole file — see the P5a Task 8 block
+  // above for why a file-wide placeholder-parity assertion would be wrong (aiResTurn /
+  // aiResFilesInTurns intentionally differ, {s} being an English plural suffix).
+  //
+  // 🔴 Ruling R3: three of this batch's strings (`Delete` / `Auto` / `Removed`) are byte-identical
+  // in BOTH locales to existing aiKbNtDelete / aiKbOriginAuto / aiKbDeviceAuto / aiKbStatusRemoved
+  // and were still created new, because those keys' semantic domains are the notes page / a note's
+  // origin / the Parser device / an indexed file's status. A-1's rationale: 「键名语义属于别的区,
+  // 将来那个区改文案会静默改掉知识库」. Value assertions cannot express that decision (the values
+  // are equal by construction), so it is pinned in p5f-task-1-i18n-verify.mjs PART 5 instead.
+  describe('P5f Task 1 aiKb* keys — punctuation, placeholder and collision guards', () => {
+    // Matches the >>> SP8-P5f Task 1 ... <<< SP8-P5f Task 1 marked block in zh_cn.ts / en_us.ts
+    // (see p5f-task-1-report.md "新增键清单"): Appendix A §A.6's 90 rows minus the 11 rows this
+    // batch reuses. All 79 have a Vue2-authoritative zh AND en value (90/90 Vue2 coverage measured,
+    // zero self-invented copy, zero dead keys).
+    const p5fTask1Keys = [
+      'aiKbAdd', 'aiKbAlAddFailed', 'aiKbAlAddFolderRule', 'aiKbAlAddRule', 'aiKbAlAddedExt',
+      'aiKbAlAdvancedCustom', 'aiKbAlAllDeselected', 'aiKbAlAllSelected', 'aiKbAlAllow',
+      'aiKbAlAllowDesc', 'aiKbAlDeleteFailed', 'aiKbAlDeleteRule', 'aiKbAlDeletedCleaning',
+      'aiKbAlDeny', 'aiKbAlDenyDesc', 'aiKbAlEnabledSuffix', 'aiKbAlExampleHint',
+      'aiKbAlFileTypes', 'aiKbAlFileTypesHint', 'aiKbAlFolderRules', 'aiKbAlGroupCode',
+      'aiKbAlGroupDocuments', 'aiKbAlGroupText', 'aiKbAlLibrary', 'aiKbAlLibraryHint',
+      'aiKbAlNoRules', 'aiKbAlNowIndexing', 'aiKbAlPathHint', 'aiKbAlPriorityFull',
+      'aiKbAlPriorityHint', 'aiKbAlSaveFailed', 'aiKbAlSaveRule', 'aiKbAlSavedCleaning',
+      'aiKbAlSelectAll', 'aiKbAlSelectNone', 'aiKbAlStoppedIndexing', 'aiKbRescanStarted',
+      'aiKbRtAddMirror', 'aiKbRtAddRoot', 'aiKbRtAdvancedOptions', 'aiKbRtBackendTooOld',
+      'aiKbRtDelete', 'aiKbRtDeleteHint', 'aiKbRtDeleteTitle', 'aiKbRtEmpty', 'aiKbRtPurgeFiles',
+      'aiKbRtReadOnly', 'aiKbRtRescanNow', 'aiKbRtRootAdded', 'aiKbRtRootDeleted',
+      'aiKbRtRootDisabled', 'aiKbRtRootEnabled', 'aiKbRtScanEvery', 'aiKbRtScanInterval',
+      'aiKbRtSelectedPath', 'aiKbRtSubtitle', 'aiKbRtWatchAuto', 'aiKbRtWatchMode',
+      'aiKbRtWatchScanOnly', 'aiKbWkCollapsed', 'aiKbWkContents', 'aiKbWkEmptySub',
+      'aiKbWkEmptyTitle', 'aiKbWkItemCount', 'aiKbWkMaintained', 'aiKbWkNoSummarySub',
+      'aiKbWkNoSummaryTitle', 'aiKbWkOpAdded', 'aiKbWkOpRemoved', 'aiKbWkOpRenamed',
+      'aiKbWkOpUpdated', 'aiKbWkOpenFolder', 'aiKbWkRecentChanges', 'aiKbWkRenderNote',
+      'aiKbWkRenderedView', 'aiKbWkRescanRoot', 'aiKbWkSummaryUpdated', 'aiKbWkTreeError',
+      'aiKbWkViewSource',
+    ] as const
+
+    // (c) "exactly N keys" drift guard. N = 79, measured (not taken from the appendix table):
+    // 35 aiKbAl* + 22 aiKbRt* + 20 aiKbWk* + 2 stemless (aiKbAdd is used by both Allowlist and
+    // Roots, aiKbRescanStarted by both Roots and Wiki — p5f-common-constraints.md §7's stem rule
+    // sends multi-page copy to the stemless aiKb* namespace).
+    it('covers exactly the 79 keys this task added (list itself does not drift)', () => {
+      expect(p5fTask1Keys.length).toBe(79)
+      expect(p5fTask1Keys.filter((k) => k.startsWith('aiKbAl')).length).toBe(35)
+      expect(p5fTask1Keys.filter((k) => k.startsWith('aiKbRt')).length).toBe(22)
+      expect(p5fTask1Keys.filter((k) => k.startsWith('aiKbWk')).length).toBe(20)
+      expect(p5fTask1Keys.filter((k) => !/^aiKb(Al|Rt|Wk)/.test(k)).length).toBe(2)
+    })
+
+    // Carried forward from the P5b Task 1 review finding (Important I-1): the length check above
+    // only pins the literal array in this file, it says nothing about whether the keys exist in
+    // the locales. parity.test.ts only compares the two locales against each other (deleting
+    // from both keeps them equal), and the punctuation loop below silently `continue`s past a
+    // non-string value — so without this, an accidental delete/rename would stay green.
+    it('every key in this batch is present as a string in both locales', () => {
+      const missing = p5fTask1Keys.filter(
+        (k) =>
+          typeof (zh as Record<string, unknown>)[k] !== 'string' ||
+          typeof (en as Record<string, unknown>)[k] !== 'string'
+      )
+      expect(missing).toEqual([])
+    })
+
+    // The 11 reused keys (Appendix A §A.2 minus ruling R3's three) must still exist — this batch's
+    // Allowlist/Roots/Wiki copy depends on them without redefining them, so a later cleanup that
+    // decides "nothing in the search/notes area uses aiKbColPath any more" would silently blank
+    // out these three pages too.
+    it('the 11 reused aiKb* keys this batch depends on still exist in both locales', () => {
+      const reused = [
+        'aiKbCancel', 'aiKbColAction', 'aiKbColPath', 'aiKbLastScan', 'aiKbManageRoots',
+        'aiKbNavRoots', 'aiKbNever', 'aiKbOpFailed', 'aiKbRealtimeWatch', 'aiKbRetry',
+        'aiKbScheduledScanOnly',
+      ]
+      expect(reused.length).toBe(11)
+      const missing = reused.filter(
+        (k) =>
+          typeof (zh as Record<string, unknown>)[k] !== 'string' ||
+          typeof (en as Record<string, unknown>)[k] !== 'string'
+      )
+      expect(missing).toEqual([])
+    })
+
+    // 🔴 Key-count dual track (ruling R12, standing rule restated in p5f-common-constraints.md
+    // §7): THIS batch's count is pinned exactly (the assertion above), the WHOLE table only as a
+    // lower bound. An exact whole-table number is what debt ticket D-3 removed — it makes every
+    // future key-adding phase go red in a file that has nothing to do with it (that trap cost P5d
+    // one NEEDS_CONTEXT + ruling R15 + erratum E-43). Measured after this task landed: 1727 zh /
+    // 1727 en (real module import via esbuild bundle → ESM import; §9.3-2: text parsing
+    // under-counts) = 1648 baseline + 79 new, aiKb* 441 → 520.
+    // Exact zh↔en key-set equality is parity.test.ts's job.
+    it('the whole locale table never shrinks below the count measured when this batch landed', () => {
+      expect(Object.keys(zh).length).toBeGreaterThanOrEqual(1727)
+      expect(Object.keys(en).length).toBeGreaterThanOrEqual(1727)
+    })
+
+    // (a) Full-width punctuation scan. Exceptions re-measured by this task against the shipped
+    // values (not copied from Appendix A §A.5): the regex hits exactly 9 of the 79 zh values, and
+    // 0 of the 79 en values. Each is pinned with an exact `toBe` rather than merely skipped, per
+    // the brief: 「toBe 钉死的例外清单」. The remaining 70 must scan clean.
+    //
+    // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) —(U+2014) …(U+2026) ×(U+00D7) are NOT in
+    // /[，；：？！（）]/ — do not add a key here because a value "looks full-width"; only the
+    // regex's actual hits belong in this list. Those characters are still copied verbatim and
+    // several of them are pinned by the codepoint assertions further below.
+    const fullWidthExceptions: Record<string, string> = {
+      aiKbAlAdvancedCustom: '高级：自定义扩展名',
+      aiKbAlDeletedCleaning: '已删除，正在清理受影响的文件…',
+      aiKbAlExampleHint: '举例：禁止 /Downloads/* 后，该文件夹下所有文件停止索引',
+      aiKbAlPathHint: '支持 * 通配符，如 /Photos/**/*.raw',
+      aiKbAlPriorityFull: '优先级：禁止 > 允许 > 默认允许。例：禁止 /Downloads/* 下所有文件不被索引。',
+      aiKbAlPriorityHint: '优先级：禁止 > 允许 > 默认允许',
+      aiKbRtBackendTooOld: '后端版本过旧，请先部署 Wiki 服务更新。',
+      aiKbRtDeleteHint: '知识库中的索引数据会保留；重新添加同一目录可直接复用。',
+      aiKbRtEmpty: '尚未配置索引目录，知识库不会索引任何文件。',
+    }
+
+    it('registers exactly the 9 full-width-punctuation exceptions measured in this batch', () => {
+      expect(Object.keys(fullWidthExceptions).length).toBe(9)
+    })
+
+    it('pins the exact zh_cn value (with its Vue2-authentic full-width punctuation) for each of the 9 registered exceptions', () => {
+      for (const [key, value] of Object.entries(fullWidthExceptions)) {
+        expect((zh as Record<string, unknown>)[key]).toBe(value)
+      }
+    })
+
+    it('should not contain full-width ，；：？！（） in any zh_cn value from this batch (except the 9 registered exceptions)', () => {
+      const fullWidthPunctuation = /[，；：？！（）]/
+      const violations: Array<{ key: string; value: string }> = []
+      for (const key of p5fTask1Keys) {
+        if (key in fullWidthExceptions) continue
+        const value = (zh as Record<string, unknown>)[key]
+        if (typeof value !== 'string') continue
+        if (fullWidthPunctuation.test(value)) violations.push({ key, value })
+      }
+      if (violations.length > 0) {
+        const details = violations.map((v) => `${v.key} = "${v.value}"`).join('\n')
+        expect.fail(
+          `Found full-width ，；：？！（） in P5f Task 1 zh_cn values (should be half-width per the authoritative Vue2 zh_CN.json; if this is a legitimate Vue2-authentic exception, stop and report before adding it here):\n${details}`
+        )
+      }
+    })
+
+    it('should not contain full-width ，；：？！（） in any en_us value from this batch (measured: 0 hits)', () => {
+      const fullWidthPunctuation = /[，；：？！（）]/
+      const violations = p5fTask1Keys.filter((k) => {
+        const value = (en as Record<string, unknown>)[k]
+        return typeof value === 'string' && fullWidthPunctuation.test(value)
+      })
+      expect(violations).toEqual([])
+    })
+
+    // The scan regex above cannot see these, and every one of them looks like a typo a future
+    // editor would "tidy". They are Vue2's own bytes and must survive verbatim (移植纪律:
+    // 界面严格 1:1 含文案). Pinned by codepoint membership, not just string equality, so a failure
+    // message names the character.
+    it('pins the codepoint-level characters the full-width scan cannot see', () => {
+      const Z = zh as Record<string, string>
+      // 半角逗号 U+002C sitting inside a Chinese sentence — the sharpest one: "fixing" it to ，
+      // would look like an improvement. Two keys carry it.
+      expect(Z.aiKbWkEmptySub).toBe('添加知识根后,Wiki 导航会自动从你的目录生成。')
+      expect(Z.aiKbWkEmptySub.includes(',')).toBe(true)
+      expect(Z.aiKbWkEmptySub.includes('，')).toBe(false)
+      expect(Z.aiKbWkRenderNote).toBe('本页由 {path} 渲染,索引服务在目录变化后自动重写')
+      expect(Z.aiKbWkRenderNote.includes(',')).toBe(true)
+      expect(Z.aiKbWkRenderNote.includes('，')).toBe(false)
+      // 半角问号 U+003F in a Chinese modal title.
+      expect(Z.aiKbRtDeleteTitle).toBe('删除索引目录?')
+      expect(Z.aiKbRtDeleteTitle.endsWith('?')).toBe(true)
+      expect(Z.aiKbRtDeleteTitle.endsWith('？')).toBe(false)
+      // 半角括号 U+0028/U+0029 in Chinese text — two keys.
+      expect(Z.aiKbRtScanInterval).toBe('扫描间隔(小时)')
+      expect(/[（）]/.test(Z.aiKbRtScanInterval)).toBe(false)
+      expect(/[（）]/.test(Z.aiKbRtReadOnly)).toBe(false)
+      expect(Z.aiKbRtReadOnly).toContain('(wiki 数据存放在中央目录)')
+      // Double em dash U+2014 ×2 with NO surrounding spaces — Vue2 writes 「只读——可改用」.
+      expect(Z.aiKbRtReadOnly).toContain('只读——可改用')
+      // Single em dash U+2014 with one half-width space on each side (a different convention in
+      // the same batch — both are Vue2's own).
+      expect(Z.aiKbWkCollapsed).toBe('已折叠 — 内容不逐项索引')
+      expect(Z.aiKbWkCollapsed).toContain(' — ')
+      // … U+2026 as ONE character, not three dots.
+      for (const k of ['aiKbAlSavedCleaning', 'aiKbAlDeletedCleaning'] as const) {
+        expect(Z[k].endsWith('…'), `${k} 应以单字符省略号结尾`).toBe(true)
+        expect(Z[k].endsWith('...'), `${k} 不许写成三个点`).toBe(false)
+      }
+      // 全角句号 U+3002 twice in aiKbAlNoRules (and the half-width [ ] brackets Vue2 uses there).
+      expect(Z.aiKbAlNoRules).toBe('还没有规则。点右上角 [+ 添加规则] 开始。')
+      expect(Z.aiKbAlNoRules.split('。').length - 1).toBe(2)
+      // en side em dashes: 4 keys carry U+2014 and none of them may become a hyphen.
+      for (const k of [
+        'aiKbAlNoRules', 'aiKbRtBackendTooOld', 'aiKbRtEmpty', 'aiKbRtReadOnly',
+        'aiKbWkCollapsed', 'aiKbWkRenderNote',
+      ] as const) {
+        expect((en as Record<string, string>)[k], `${k}.en 应含 em dash`).toContain('—')
+      }
+      // aiKbAlLibraryHint really carries half-width double quotes around any, in BOTH locales.
+      expect(Z.aiKbAlLibraryHint).toBe('填 "any" 表示所有存储库都生效')
+      expect((en as Record<string, string>).aiKbAlLibraryHint).toBe(
+        'Use "any" to apply to all libraries'
+      )
+    })
+
+    // (b) Placeholder-name parity between zh_cn and en_us, scoped to this batch's 9 keys that
+    // carry {…} interpolation — re-derived by scanning the shipped values, not trusting Appendix
+    // A §A.1. The placeholder-name set is {ext, group, h, n, path, t} = 6 names over 9 keys.
+    const placeholderKeysWithInterpolation = [
+      'aiKbAlAddedExt', 'aiKbAlAllDeselected', 'aiKbAlAllSelected', 'aiKbAlNowIndexing',
+      'aiKbAlStoppedIndexing', 'aiKbRtScanEvery', 'aiKbWkItemCount', 'aiKbWkRenderNote',
+      'aiKbWkSummaryUpdated',
+    ] as const
+
+    it('covers exactly the 9 keys in this batch that carry interpolation placeholders', () => {
+      expect(placeholderKeysWithInterpolation.length).toBe(9)
+    })
+
+    // Re-derive the list instead of only asserting its length: if a future edit adds a
+    // placeholder to a 10th key, the length check above would stay green while the new key never
+    // gets a parity check. This scans all 79 shipped values in both locales and demands the set
+    // of placeholder-bearing keys is exactly the 9 above.
+    it('no other key in this batch carries a {…} placeholder (list is derived from the shipped values, not assumed)', () => {
+      const carries = (v: unknown) => typeof v === 'string' && /\{[a-zA-Z]+\}/.test(v)
+      const found = p5fTask1Keys.filter(
+        (k) =>
+          carries((zh as Record<string, unknown>)[k]) || carries((en as Record<string, unknown>)[k])
+      )
+      expect([...found].sort()).toEqual([...placeholderKeysWithInterpolation].sort())
+    })
+
+    it('the placeholder-name set across this batch is exactly {ext, group, h, n, path, t}', () => {
+      const pattern = /\{([a-zA-Z]+)\}/g
+      const names = new Set<string>()
+      for (const key of placeholderKeysWithInterpolation) {
+        for (const locale of [zh, en] as Array<Record<string, unknown>>) {
+          const value = locale[key]
+          if (typeof value !== 'string') continue
+          for (const m of value.matchAll(pattern)) names.add(m[1])
+        }
+      }
+      expect([...names].sort()).toEqual(['ext', 'group', 'h', 'n', 'path', 't'])
+    })
+
+    it('zh_cn and en_us use the same set of {…} placeholder names for each of these keys', () => {
+      const placeholderPattern = /\{([a-zA-Z]+)\}/g
+      const namesOf = (value: string) => {
+        const names: string[] = []
+        let m: RegExpExecArray | null
+        while ((m = placeholderPattern.exec(value)) !== null) names.push(m[1])
+        return names.sort()
+      }
+
+      const violations: Array<{ key: string; zhNames: string[]; enNames: string[] }> = []
+      for (const key of placeholderKeysWithInterpolation) {
+        const zhValue = (zh as Record<string, unknown>)[key]
+        const enValue = (en as Record<string, unknown>)[key]
+        if (typeof zhValue !== 'string' || typeof enValue !== 'string') continue
+        const zhNames = namesOf(zhValue)
+        const enNames = namesOf(enValue)
+        if (JSON.stringify(zhNames) !== JSON.stringify(enNames)) {
+          violations.push({ key, zhNames, enNames })
+        }
+      }
+      if (violations.length > 0) {
+        const details = violations
+          .map((v) => `${v.key}: zh=[${v.zhNames.join(',')}] en=[${v.enNames.join(',')}]`)
+          .join('\n')
+        expect.fail(`Found mismatched {…} placeholder names between locales:\n${details}`)
+      }
+    })
+
+    // 🔴 E-45: "the output no longer contains the literal {ext}" is a ZERO-discriminating-power
+    // assertion — vue-i18n silently substitutes the empty string for an unmatched placeholder
+    // name, so renaming {ext} to {e} in one locale still yields a string without "{ext}". These
+    // render through real vue-i18n with the params the product code actually passes (Vue2
+    // AllowlistView.vue:200/205/207/216, RootsView.vue:26, WikiView.vue:76/103/135) and pin the
+    // fully interpolated result, so a one-locale placeholder rename fails here.
+    describe('E-45 — placeholders interpolate to the real value (not merely "no literal {x}")', () => {
+      const zhI18n = () => createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+      const enI18n = () => createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
+
+      const cases: Array<{
+        key: string
+        params: Record<string, string | number>
+        zhOut: string
+        enOut: string
+      }> = [
+        { key: 'aiKbAlNowIndexing', params: { ext: '.log' }, zhOut: '已收录 .log', enOut: 'Now indexing .log' },
+        { key: 'aiKbAlStoppedIndexing', params: { ext: '.log' }, zhOut: '已停止收录 .log', enOut: 'Stopped indexing .log' },
+        { key: 'aiKbAlAddedExt', params: { ext: '.log' }, zhOut: '已添加 .log', enOut: 'Added .log' },
+        // {group} is itself a $t() result in the product code ($t(g.labelKey)), so the two locales
+        // legitimately get different group text — that is why each locale is pinned separately.
+        { key: 'aiKbAlAllSelected', params: { group: '文档' }, zhOut: '已全选 文档', enOut: 'All 文档 selected' },
+        { key: 'aiKbAlAllDeselected', params: { group: '文档' }, zhOut: '已全不选 文档', enOut: 'All 文档 deselected' },
+        { key: 'aiKbRtScanEvery', params: { h: 6 }, zhOut: '每 6 小时扫描', enOut: 'Scan every 6 h' },
+        { key: 'aiKbWkItemCount', params: { n: 3 }, zhOut: '3 项', enOut: '3 items' },
+        { key: 'aiKbWkSummaryUpdated', params: { t: '3 天前' }, zhOut: '摘要更新于 3 天前', enOut: 'Summary updated 3 天前' },
+        {
+          key: 'aiKbWkRenderNote',
+          params: { path: '/DATA/Docs/.wiki.md' },
+          zhOut: '本页由 /DATA/Docs/.wiki.md 渲染,索引服务在目录变化后自动重写',
+          enOut: 'This page renders /DATA/Docs/.wiki.md — the index service rewrites it after folder changes',
+        },
+      ]
+
+      // P5e-T1 review Minor-1: pin the parameterised list's length too. Without it, deleting an
+      // entry here silently removes that key's interpolation `toBe` and all three gates stay green.
+      // It must also cover every placeholder-bearing key, not merely have the right length.
+      it('the interpolation list covers exactly the 9 placeholder-bearing keys', () => {
+        expect(cases).toHaveLength(9)
+        expect(cases.map((c) => c.key).sort()).toEqual([...placeholderKeysWithInterpolation].sort())
+      })
+
+      for (const { key, params, zhOut, enOut } of cases) {
+        it(`${key} interpolates ${JSON.stringify(params)} into the exact rendered string in both locales`, () => {
+          expect(zhI18n().global.t(key, params)).toBe(zhOut)
+          expect(enI18n().global.t(key, params)).toBe(enOut)
+        })
+      }
+
+      // The measurement behind E-45, kept as a live assertion rather than a prose claim: an
+      // unmatched placeholder name renders as EMPTY, which is exactly why "not.toContain('{ext}')"
+      // cannot detect a broken placeholder. If a future vue-i18n upgrade changed this to leave
+      // the literal token, this assertion goes red and the comment above needs revisiting.
+      it('vue-i18n substitutes the empty string for an unmatched placeholder name (the reason the assertions above pin the full output)', () => {
+        const rendered = zhI18n().global.t('aiKbAlNowIndexing', { wrongName: '.log' })
+        expect(rendered).toBe('已收录 ')
+        expect(rendered).not.toContain('{ext}')
+      })
+    })
+
+    // 🔴 §7.1 / §9.2 / §9.3 — bidirectional collision scan, re-run here over the shipped tables.
+    // This task re-ran the scan itself (brief §2-5 / ruling R7-②; 「假定协调者的表不完整」) rather
+    // than trusting Appendix A §A.3: 28 of the 90 blueprint strings collide with something already
+    // in the table, and A-1 refuses reuse for every one of them whose same-value key belongs to
+    // another area. For most pairs BOTH axes collide, so no assertion can distinguish the right key
+    // from the wrong one — the protection there is that the components import the aiKb* key
+    // (T4/T5/T6/T7's concern). For the pairs below exactly one axis diverges, so reusing the
+    // forbidden key WOULD visibly change the rendered UI; those are asserted, and the pair set
+    // itself is pinned so a newly created one-axis collision has to be registered rather than
+    // silently appearing.
+    //
+    // 🔴 Two of these are WITHIN this batch and are the reason two seemingly duplicate keys exist:
+    //   aiKbAlEnabledSuffix ("已启用"/"enabled", a per-group counter suffix) vs
+    //   aiKbRtRootEnabled   ("已启用"/"Root enabled", a toast)      ← named by Appendix A §A.3.1
+    //   aiKbRtRootDeleted   ("已删除"/"Root deleted", a toast) vs
+    //   aiKbWkOpRemoved     ("已删除"/"Removed", a change-log op label) ← NOT in the appendix;
+    //                        found by this task's own scan and reported as a new finding.
+    // Merging either pair would silently rewrite the English UI of the other page.
+    describe('P5f Task 1 §9.2/§9.3 bidirectional collision scan — the one-axis-divergent pairs', () => {
+      const divergent: Array<{ newKey: string; forbiddenKey: string; axis: 'en' | 'zh' }> = [
+        // Direction 1 (§9.2): zh collides, en must stay distinct.
+        { newKey: 'aiKbAlAddFailed', forbiddenKey: 'aiCfgAddFailed', axis: 'en' }, //        添加失败: Add failed vs Failed to add
+        { newKey: 'aiKbAlEnabledSuffix', forbiddenKey: 'aiCfgChannelsEnabled', axis: 'en' }, // 已启用: enabled vs Enabled
+        { newKey: 'aiKbAlEnabledSuffix', forbiddenKey: 'aiKbRtRootEnabled', axis: 'en' }, //  已启用: enabled vs Root enabled (within batch)
+        { newKey: 'aiKbAlEnabledSuffix', forbiddenKey: 'aiKbStatusActive', axis: 'en' }, //   已启用: enabled vs Active
+        { newKey: 'aiKbAlEnabledSuffix', forbiddenKey: 'aiSkActive', axis: 'en' }, //         已启用: enabled vs Active
+        { newKey: 'aiKbAlFileTypes', forbiddenKey: 'aiKbSrFileType', axis: 'en' }, //         文件类型: File types vs File type
+        { newKey: 'aiKbAlGroupDocuments', forbiddenKey: 'aiKbDocumentsSuffix', axis: 'en' }, // 文档: Documents vs documents
+        { newKey: 'aiKbRtDelete', forbiddenKey: 'appsSettingsRemove', axis: 'en' }, //         删除: Delete vs Remove
+        { newKey: 'aiKbRtRootDeleted', forbiddenKey: 'aiCfgDeleted', axis: 'en' }, //         已删除: Root deleted vs Deleted
+        { newKey: 'aiKbRtRootDeleted', forbiddenKey: 'aiKbStatusRemoved', axis: 'en' }, //    已删除: Root deleted vs Removed
+        { newKey: 'aiKbRtRootDeleted', forbiddenKey: 'aiKbWkOpRemoved', axis: 'en' }, //      已删除: Root deleted vs Removed (within batch)
+        { newKey: 'aiKbRtRootEnabled', forbiddenKey: 'aiCfgChannelsEnabled', axis: 'en' }, // 已启用: Root enabled vs Enabled
+        { newKey: 'aiKbRtRootEnabled', forbiddenKey: 'aiKbAlEnabledSuffix', axis: 'en' }, //  已启用: Root enabled vs enabled (within batch, mirror)
+        { newKey: 'aiKbRtRootEnabled', forbiddenKey: 'aiKbStatusActive', axis: 'en' }, //     已启用: Root enabled vs Active
+        { newKey: 'aiKbRtRootEnabled', forbiddenKey: 'aiSkActive', axis: 'en' }, //           已启用: Root enabled vs Active
+        { newKey: 'aiKbRtWatchAuto', forbiddenKey: 'aiCfgAutoPlaceholder', axis: 'en' }, //     自动: Auto vs auto
+        { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'aiCfgDeleted', axis: 'en' }, //           已删除: Removed vs Deleted
+        { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'aiKbRtRootDeleted', axis: 'en' }, //      已删除: Removed vs Root deleted (within batch, mirror)
+        { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'filesRename', axis: 'en' }, //             重命名: Renamed vs Rename
+        { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'filesUploadRename', axis: 'en' }, //       重命名: Renamed vs Rename
+        // Direction 2 (§9.3, mirror): en collides, zh must stay distinct. This batch has exactly
+        // one — Appendix A §A.3.1a calls it 「本期唯一的 en 单侧撞车」 and it is the reason the
+        // en direction cannot be skipped just because the zh column looks clean.
+        { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'addPanelRemovedToast', axis: 'zh' }, //  Removed: 已删除 vs 已移除
+      ]
+
+      it("covers exactly the 21 one-axis-divergent pairs found by this task's own scan", () => {
+        expect(divergent.length).toBe(21)
+        expect(divergent.filter((d) => d.axis === 'zh').length).toBe(1)
+        expect(divergent.filter((d) => d.axis === 'en').length).toBe(20)
+      })
+
+      for (const { newKey, forbiddenKey, axis } of divergent) {
+        it(`${newKey} must not collapse onto ${forbiddenKey} on the ${axis} axis`, () => {
+          const zhNew = (zh as Record<string, unknown>)[newKey]
+          const enNew = (en as Record<string, unknown>)[newKey]
+          const zhForbidden = (zh as Record<string, unknown>)[forbiddenKey]
+          const enForbidden = (en as Record<string, unknown>)[forbiddenKey]
+          expect(typeof zhNew, `${newKey} zh`).toBe('string')
+          expect(typeof enNew, `${newKey} en`).toBe('string')
+          expect(typeof zhForbidden, `${forbiddenKey} zh`).toBe('string')
+          expect(typeof enForbidden, `${forbiddenKey} en`).toBe('string')
+          if (axis === 'en') {
+            expect(enNew, `${newKey}.en must differ from ${forbiddenKey}.en`).not.toBe(enForbidden)
+          } else {
+            expect(zhNew, `${newKey}.zh must differ from ${forbiddenKey}.zh`).not.toBe(zhForbidden)
+          }
+        })
+      }
+
+      // Pin the scan's OUTPUT, not just the hand-written table: re-run both directions over the
+      // whole locale table for all 79 batch keys and demand the divergent-pair set is exactly the
+      // 21 above. Without this, a future key elsewhere in the app that collides with one of this
+      // batch's values on a single axis would appear silently, and the 「登记 per A-1」 discipline
+      // would have nothing enforcing it.
+      it('the scan over the whole table finds exactly these 21 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
+        const zhAll = zh as Record<string, string>
+        const enAll = en as Record<string, string>
+        const found: string[] = []
+        for (const k of p5fTask1Keys) {
+          for (const o of Object.keys(zhAll)) {
+            if (o === k) continue
+            const zhSame = zhAll[o] === zhAll[k]
+            const enSame = enAll[o] === enAll[k]
+            if (zhSame === enSame) continue // both collide, or neither — not a one-axis pair
+            found.push(`${k}|${o}|${zhSame ? 'en' : 'zh'}`)
+          }
+        }
+        expect(found.sort()).toEqual(
+          divergent
+            .map(({ newKey, forbiddenKey, axis }) => `${newKey}|${forbiddenKey}|${axis}`)
+            .sort()
         )
       })
     })

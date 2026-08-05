@@ -1951,4 +1951,104 @@ export default {
   aiKbSrTopK: '返回数量',
   aiKbSrUntitled: '(未命名)',
   // <<< SP8-P5e Task 1
+  // >>> SP8-P5f Task 1 —— 知识库最后三页文案(Vue2 AllowlistView.vue / RootsView.vue /
+  // WikiView.vue),共 79 条新键,全部有 Vue2 权威 zh 值(本期新造 0、死键 0)。
+  // 另有 11 条 aiKb* 既有键直接复用、不在本块内重复声明(附录 A §A.2 减去裁定 R3 的三条:
+  // aiKbColPath / aiKbColAction / aiKbCancel / aiKbNavRoots / aiKbRealtimeWatch /
+  // aiKbScheduledScanOnly / aiKbLastScan / aiKbNever / aiKbOpFailed / aiKbRetry /
+  // aiKbManageRoots)。逐码点比对见 .superpowers/sdd/p5f-task-1-i18n-verify.mjs
+  // (79/79 + 11/11 MATCH,值由该脚本的映射表直接从 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`
+  // 生成、非手抄 —— P5a-T8 的教训是「附录零差异,手抄进 TS 时引入 5 处全角标点错」)。
+  //
+  // 🔴 裁定 R3:`Delete` / `Auto` / `Removed` 三条 zh 值虽与既有 aiKbNtDelete / aiKbOriginAuto /
+  // aiKbDeviceAuto / aiKbStatusRemoved 完全相同,仍按 A-1 新建 aiKbRtDelete / aiKbRtWatchAuto /
+  // aiKbWkOpRemoved —— 那几个键的语义域是笔记页 / 来源设备 / 索引文件状态,
+  // 将来那些域改文案会静默改掉本区。
+  //
+  // 🔴 逐字照抄、不许「顺手规整」的标点(全角扫描正则 /[，；：？！（）]/ 看不见它们):
+  //   aiKbWkEmptySub / aiKbWkRenderNote  半角逗号 U+002C 夹在中文句子里(蓝本原文)
+  //   aiKbRtDeleteTitle                  半角问号 U+003F
+  //   aiKbRtScanInterval / aiKbRtReadOnly 半角括号 U+0028/U+0029
+  //   aiKbRtReadOnly                     双 em dash 「——」U+2014 ×2,无空格
+  //   aiKbWkCollapsed / aiKbAlNoRules 等  em dash U+2014 / 全角句号 U+3002 / 省略号 U+2026(单字符)
+  aiKbAdd: '添加',
+  aiKbAlAddFailed: '添加失败',
+  aiKbAlAddFolderRule: '添加文件夹规则',
+  aiKbAlAddRule: '添加规则',
+  aiKbAlAddedExt: '已添加 {ext}',
+  aiKbAlAdvancedCustom: '高级：自定义扩展名',
+  aiKbAlAllDeselected: '已全不选 {group}',
+  aiKbAlAllSelected: '已全选 {group}',
+  aiKbAlAllow: '同意',
+  aiKbAlAllowDesc: '收录该路径下的文件',
+  aiKbAlDeleteFailed: '删除失败',
+  aiKbAlDeleteRule: '删除规则',
+  aiKbAlDeletedCleaning: '已删除，正在清理受影响的文件…',
+  aiKbAlDeny: '拒绝',
+  aiKbAlDenyDesc: '不再收录该路径',
+  aiKbAlEnabledSuffix: '已启用',
+  aiKbAlExampleHint: '举例：禁止 /Downloads/* 后，该文件夹下所有文件停止索引',
+  aiKbAlFileTypes: '文件类型',
+  aiKbAlFileTypesHint: '取消勾选的将不再被收录',
+  aiKbAlFolderRules: '文件夹规则',
+  aiKbAlGroupCode: '代码',
+  aiKbAlGroupDocuments: '文档',
+  aiKbAlGroupText: '文本',
+  aiKbAlLibrary: '存储库',
+  aiKbAlLibraryHint: '填 "any" 表示所有存储库都生效',
+  aiKbAlNoRules: '还没有规则。点右上角 [+ 添加规则] 开始。',
+  aiKbAlNowIndexing: '已收录 {ext}',
+  aiKbAlPathHint: '支持 * 通配符，如 /Photos/**/*.raw',
+  aiKbAlPriorityFull: '优先级：禁止 > 允许 > 默认允许。例：禁止 /Downloads/* 下所有文件不被索引。',
+  aiKbAlPriorityHint: '优先级：禁止 > 允许 > 默认允许',
+  aiKbAlSaveFailed: '保存失败',
+  aiKbAlSaveRule: '保存规则',
+  aiKbAlSavedCleaning: '已保存。正在后台清理不再符合规则的文件…',
+  aiKbAlSelectAll: '全选',
+  aiKbAlSelectNone: '全不选',
+  aiKbAlStoppedIndexing: '已停止收录 {ext}',
+  aiKbRescanStarted: '已开始重新扫描',
+  aiKbRtAddMirror: '以镜像模式添加',
+  aiKbRtAddRoot: '添加索引目录',
+  aiKbRtAdvancedOptions: '高级选项',
+  aiKbRtBackendTooOld: '后端版本过旧，请先部署 Wiki 服务更新。',
+  aiKbRtDelete: '删除',
+  aiKbRtDeleteHint: '知识库中的索引数据会保留；重新添加同一目录可直接复用。',
+  aiKbRtDeleteTitle: '删除索引目录?',
+  aiKbRtEmpty: '尚未配置索引目录，知识库不会索引任何文件。',
+  aiKbRtPurgeFiles: '同时删除该目录下已生成的 .wiki.md 导航文件',
+  aiKbRtReadOnly: '该目录只读——可改用镜像模式添加(wiki 数据存放在中央目录)。',
+  aiKbRtRescanNow: '立即重扫',
+  aiKbRtRootAdded: '已添加索引目录',
+  aiKbRtRootDeleted: '已删除',
+  aiKbRtRootDisabled: '已禁用',
+  aiKbRtRootEnabled: '已启用',
+  aiKbRtScanEvery: '每 {h} 小时扫描',
+  aiKbRtScanInterval: '扫描间隔(小时)',
+  aiKbRtSelectedPath: '已选路径',
+  aiKbRtSubtitle: '知识库扫描的根目录',
+  aiKbRtWatchAuto: '自动',
+  aiKbRtWatchMode: '监视模式',
+  aiKbRtWatchScanOnly: '仅扫描',
+  aiKbWkCollapsed: '已折叠 — 内容不逐项索引',
+  aiKbWkContents: '子项清单',
+  aiKbWkEmptySub: '添加知识根后,Wiki 导航会自动从你的目录生成。',
+  aiKbWkEmptyTitle: '还没有生成任何 wiki',
+  aiKbWkItemCount: '{n} 项',
+  aiKbWkMaintained: '由 Nimo 自动维护',
+  aiKbWkNoSummarySub: '下次定期扫描时会自动生成。',
+  aiKbWkNoSummaryTitle: '此目录还没有 wiki 摘要',
+  aiKbWkOpAdded: '新增',
+  aiKbWkOpRemoved: '已删除',
+  aiKbWkOpRenamed: '重命名',
+  aiKbWkOpUpdated: '更新',
+  aiKbWkOpenFolder: '打开文件夹',
+  aiKbWkRecentChanges: '最近变化',
+  aiKbWkRenderNote: '本页由 {path} 渲染,索引服务在目录变化后自动重写',
+  aiKbWkRenderedView: '渲染视图',
+  aiKbWkRescanRoot: '重新扫描该根',
+  aiKbWkSummaryUpdated: '摘要更新于 {t}',
+  aiKbWkTreeError: '加载 Wiki 树失败',
+  aiKbWkViewSource: '查看原文',
+  // <<< SP8-P5f Task 1
 }
