@@ -325,12 +325,24 @@ describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-
   // 🔴 这仍然是**扩大扫描范围 = 加固**,不是放宽:被扫到的类仍然必须全部落在白名单里
   // (少写一个 → 本条精确指名报红,T2 报告贴了 RED 探针②的输出)。
   // 严格超集自证见下一条(已同步换成「P5e 版 vs P5f 版」两个正则,否则那条会变空壳)。
+  // 🔴🔴 【P5f-T2b 必改(裁定 **R20 的 I-2**;R22:这属于「把内联字面量提到常量」,已申报)】
+  // 原文把扫描正则**内联**写在本条 it 里,而下面「严格超集自证」比的是它的一份**硬编码拷贝**
+  // —— 两者之间零绑定。评审实证:把**本条内联的现役正则**窄回 `k(?:2|n)?-`,
+  // 全档 **374/374 全绿**,50 个 `kw-*`/`kr-*` 一次性脱离「没有搬多」覆盖而无人报红
+  // ⇒ R1-③ 想消灭的「自证变空壳」只是被推迟到了下一期。
+  // 修法:提成模块内共享常量,**「没有搬多」与「严格超集自证」共用同一个源**
+  // ⇒ 窄回现役正则,超集自证的「净增量 = 50」立刻报红。
+  // ⚠️ 这是**纯重构 + 绑定**,不改任何匹配语义(正则源逐字不变);判据见 T2b 报告探针 P-3。
+  // ⚠️ `nonKClassNames()` 的排除前缀 `/^k(?:2|n|r|w)?-/` 是**另一份**独立正则,本刀不动
+  //    (窄回它只会让「未登记的非 k* 类」变多 = 报红,不是静默失守);两处口径一致性
+  //    登记为债务,不在本刀范围。
+  const CLASS_SCAN_RE_SOURCE =
+    '\\.(?:k(?:2|n|r|w)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)'
+  const scanClassNames = (text: string): Set<string> =>
+    new Set((text.match(new RegExp(CLASS_SCAN_RE_SOURCE, 'g')) || []).map((s: string) => s.slice(1)))
+
   it('没有搬多 —— 全部 k-/k2-/kn-/kr-/kw-/fb/nme/ProseMirror 类都在白名单内(附录 D.4 自检命令②的常驻版,字符集含 A-Z)', () => {
-    const found = Array.from(
-      new Set(
-        css.match(/\.(?:k(?:2|n|r|w)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g) || [],
-      ),
-    ).map((s) => s.slice(1))
+    const found = [...scanClassNames(css)]
     const extra = found.filter((c) => !WHITELIST_425.includes(c))
     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
   })
@@ -353,11 +365,18 @@ describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-
   // ⚠️ 同时补一条**严格**方向的断言(`new ⊋ old`):只证 `old ⊆ new` 允许两者相等,
   // 那样「扩范围」有可能其实什么都没扩(P5d 当时在改动前的文件上就是 old 225 / new 225)。
   // 本刀的文件里 `kr-*`/`kw-*` 已经真实存在 ⇒ 严格真包含**可以且必须**被程序化证明。
-  it('严格超集自证 —— 本刀正则(加 kr-/kw- 分支)是 P5e 现役正则的严格超集(old ⊊ new)', () => {
+  //
+  // 🔴🔴 【P5f-T2b 再修(裁定 **R20 的 I-2**)】上一版的 `NEW_RE` 是现役正则的一份**硬编码
+  // 拷贝** ⇒ 现役正则可以被静默窄回而本条恒绿(评审已实证 374/374 全绿)。
+  // 现在 `newHits` 直接走上面的 **`scanClassNames()` = 现役同一个源**,
+  // 只有 `OLD_RE`(P5e 收官时的历史原文)仍是硬编码 —— 它本来就该是历史快照。
+  // 🔴 判据(比 R1-③ 更强):把 `r|w` 从 **`CLASS_SCAN_RE_SOURCE`(现役)** 里删掉 →
+  //    本条必须报红,且「没有搬多」那条**仍然全绿**(那才是这个缺口的真实形态)。
+  it('严格超集自证 —— 现役正则(加 kr-/kw- 分支)是 P5e 现役正则的严格超集(old ⊊ new)', () => {
     const OLD_RE = /\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
-    const NEW_RE = /\.(?:k(?:2|n|r|w)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
     const oldHits = new Set((css.match(OLD_RE) || []).map((s) => s.slice(1)))
-    const newHits = new Set((css.match(NEW_RE) || []).map((s) => s.slice(1)))
+    // 🔴 被测的「新」正则 = **现役**扫描源本身,不是它的拷贝(I-2 的整条要害)
+    const newHits = scanClassNames(css)
     const missing = [...oldHits].filter((c) => !newHits.has(c))
     expect(missing, `旧正则扫到但新正则漏掉的类(说明扩范围其实是放宽):${missing.join(', ')}`).toEqual([])
     // 覆盖度自检:两个正则都必须真的扫到东西(防「正则失效 → 两个空集 → 恒绿」)
@@ -2000,6 +2019,119 @@ describe('knowledge.scss —— K60(裁定 R2):.k-frow 的窄屏 @media 覆盖(P
   })
 })
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 【P5f-T2b 新建,裁定 **R19 / R20 的 C-1**】K44 的「知识库区 `.vue` 一律零 `<style>` 块」
+// 谓词从**裸子串**加固成**先剥注释 + 行首锚定**,并从「只钉 RootsView.vue 一个文件」
+// 扩成 `src/ai/knowledge/**` 全体的参数化断言(一次上膛,T5/T6/T7 免每刀记账)。
+//
+// 🔴 **为什么必须换形态**(裁定 R19 的原文事实,不是推测):T2 用 `src.includes('<style')`
+// 判「文件里有没有 style 块」,它在本仓 `src/ai/knowledge/**` 的 16 个 `.vue` 里命中 **10 个**
+// —— 而这 16 个文件的 `</style>` 计数**全部是 0**,10 个命中**全是注释里
+// 「零 `<style>` 块」/「蓝本 `<style scoped>`」这类**字面文字**。
+// 后果已被评审实证:按同目录既定文风建一个**零 style 块**、注释里写「零 `<style>` 块」的
+// `RootsView.vue`,旧谓词**误报红**,而且报的是「出现 <style> 块」⇒ T5 会去找根本不存在的
+// 东西,最可能的动作是**放宽这条守卫**(正是 §9.10 最要防的)。
+//
+// 🔴 **加固自证(程序化,不是自我声明)**:同一批 16 个文件上
+// 「裸子串命中 10 个 / 剥注释+行首锚定命中 0 个」;全仓 185 个 `.vue` 上
+// 「裸子串 136 / 剥注释+行首锚定 115 / `</style>` 115」——
+// 新谓词与「`</style>` 独立口径」**逐文件同解**,旧谓词多出 21 个假阳性。
+// 这两组数由下面的「加固自证」与「防空转②」两条断言常驻钉住(R21:两条独立口径)。
+//
+// 🔴 剥注释 **和** 行首锚定**缺一不可**:只行首锚定挡不住块注释里独占一行的
+// `<style scoped>` 引用;只剥注释挡不住行内引用被子串撞对。
+function stripVueComments(src: string): string {
+  return src
+    .replace(/<!--[\s\S]*?-->/g, '') // HTML 注释(`<!-- … -->`,SFC 模板/文件头惯用)
+    .replace(/\/\*[\s\S]*?\*\//g, '') // JS/CSS 块注释
+    .replace(/^[ \t]*\/\/.*$/gm, '') // 整行 JS 行注释(同本档 stripComments 的既定口径)
+}
+
+// 真 `<style>` 块的存在式判据。两条独立口径**取或**(更敏感 = 加固):
+// ① 开标签独占行首 `^\s*<style[\s>]`;② 闭标签独占行首 `^\s*</style>`。
+// 🔴 **禁裸子串 `includes('<style')`**(裁定 R19)。
+function hasStyleBlock(src: string): boolean {
+  const stripped = stripVueComments(src)
+  return /^[ \t]*<style[\s>]/m.test(stripped) || /^[ \t]*<\/style>\s*$/m.test(stripped)
+}
+
+function collectVueFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry.startsWith('.')) continue
+    const full = resolve(dir, entry)
+    if (statSync(full).isDirectory()) collectVueFiles(full, out)
+    else if (entry.endsWith('.vue')) out.push(full)
+  }
+  return out
+}
+
+describe('K44(裁定 R19/R20 C-1)—— src/ai/knowledge/** 全体 .vue 零 <style> 块(P5f-T2b 重写)', () => {
+  const KNOWLEDGE_DIR = resolve(__dirname, '../knowledge')
+  const SRC_DIR = resolve(__dirname, '..', '..')
+  const knowledgeVues: string[] = collectVueFiles(KNOWLEDGE_DIR).sort()
+  const relKnowledge = (p: string) => p.slice(KNOWLEDGE_DIR.length + 1)
+
+  // 🔴 防空转①(§9.14-4 / §9.19):路径基座必须是真的 —— 少了这条,目录写错/改名会让
+  // 下面的 it.each 退化成**零用例静默全绿**,而 vitest 对空 it.each 不报任何错。
+  it('防空转① —— knowledge 目录扫到的 .vue > 0,且 views 子目录在扫描范围内', () => {
+    expect(knowledgeVues.length, 'src/ai/knowledge 下一个 .vue 都没扫到 —— 路径基座写错了?').toBeGreaterThan(0)
+    expect(
+      knowledgeVues.some((p: string) => p.includes('/knowledge/views/')),
+      'views 子目录没被递归扫到 —— 参数化断言会漏掉 T5/T6/T7 新建的视图',
+    ).toBe(true)
+  })
+
+  // 🔴 防空转②(裁定 R20 C-1 明令):**正例必须取自全仓真有 style 块的 `.vue`**,
+  // 不是知识库区那 4 行注释。全仓 185 个 `.vue` 里有 115 个真有 style 块
+  // (独立口径:`grep -rl '</style>' src --include=*.vue | wc -l` = 115,两条口径同解)。
+  it('防空转② —— hasStyleBlock 在全仓真有 style 块的 .vue 上恒为真(正例取自 src/**,非知识库区注释)', () => {
+    const allVues = collectVueFiles(SRC_DIR)
+    expect(allVues.length, '全仓一个 .vue 都没扫到 —— 零判别力').toBeGreaterThan(100)
+    // 独立口径:含闭标签的文件集合(与谓词的实现路径不同,R21 的「第二条口径」)
+    const byClosingTag = allVues.filter((p: string) => readFileSync(p, 'utf8').includes('</style>'))
+    expect(byClosingTag.length, '全仓没有任何 .vue 真有 style 块 —— 谓词可能恒假(空壳)').toBeGreaterThan(100)
+    const missed = byClosingTag.filter((p: string) => !hasStyleBlock(readFileSync(p, 'utf8')))
+    expect(missed, `这些文件真有 </style> 却被谓词判成「无 style 块」(谓词漏检):\n${missed.join('\n')}`).toEqual([])
+    // 反向:谓词判真的,必须都真有闭标签(防谓词恒真)
+    const byPredicate = allVues.filter((p: string) => hasStyleBlock(readFileSync(p, 'utf8')))
+    expect(byPredicate.length, '谓词一个都没判真 —— 零判别力').toBeGreaterThan(100)
+    expect(
+      byPredicate.filter((p: string) => !byClosingTag.includes(p)),
+      '谓词判真但没有 </style> —— 谓词可能被注释撞对(裸子串复发)',
+    ).toEqual([])
+  })
+
+  // 🔴 加固自证(§9.10:「加固前 X 命中 N 个 / 加固后 1 个」必须程序化,自我声明不算证明)。
+  // 同一批知识库 `.vue` 上:旧裸子串谓词命中 ≥ 4(实测 10),新谓词命中 0。
+  it('加固自证 —— 同一批知识库 .vue 上,旧裸子串谓词命中 > 0 而新谓词命中 0(证明这次是加固不是放宽)', () => {
+    const naiveHits = knowledgeVues.filter((p: string) => readFileSync(p, 'utf8').includes('<style'))
+    const hardenedHits = knowledgeVues.filter((p: string) => hasStyleBlock(readFileSync(p, 'utf8')))
+    expect(naiveHits.length, '旧裸子串谓词一个都不命中 —— 加固自证失去对照组').toBeGreaterThan(0)
+    expect(
+      hardenedHits.map(relKnowledge),
+      '知识库区出现真 <style> 块(K44 被破) —— 或者新谓词也被注释撞对了',
+    ).toEqual([])
+    expect(naiveHits.length, '加固后命中数没有严格减少 —— 这次改动零可观测').toBeGreaterThan(hardenedHits.length)
+  })
+
+  // 🔴 参数化(裁定 R20 C-1:「扩成 src/ai/knowledge/** 全体,一次上膛,免每刀记账」)。
+  // 清单在**测试运行时**从磁盘读 ⇒ T5 建 `RootsView.vue`、T6 建 `WikiView.vue`、
+  // T7 建 `AllowlistView.vue` 的那一刻,本条自动多出一个用例,无需任何人改这里。
+  // §9.19 跨刀冲突论证:K44 是全期纪律,T5/T6/T7 本来就不许写 `<style>` 块 ⇒ 不冲突。
+  // ⚠️ 这里**故意不做集合相等**(那会变成「每刀记账」,正是 R20 要免掉的)。
+  it.each(knowledgeVues.map((p: string) => [relKnowledge(p), p] as [string, string]))(
+    'K44 —— %s 零 <style> 块(剥注释 + 行首锚定;注释里写「零 <style> 块」必须仍绿)',
+    (_rel: string, full: string) => {
+      const src: string = readFileSync(full, 'utf8')
+      expect(src.length, `${_rel} 读出来是空的 —— node:fs 读法失效了`).toBeGreaterThan(0)
+      expect(
+        hasStyleBlock(src),
+        `${_rel} 出现真 <style> 块 —— K44 要求整块搬进 src/ai/styles/knowledge.scss,.vue 侧零 <style>`,
+      ).toBe(false)
+    },
+  )
+})
+
 describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue 侧零 <style>(P5f-T2 新建)', () => {
   const VIEWS_DIR = resolve(__dirname, '../knowledge/views')
   const ROOTS_VUE = resolve(VIEWS_DIR, 'RootsView.vue')
@@ -2021,27 +2153,30 @@ describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue �
     expect(vues.length, 'views 目录里一个 .vue 都没有 —— 路径基座写错了?').toBeGreaterThan(0)
   })
 
-  // 🔴 防空转②:同一个「node:fs 读文件 → 找 `<style`」的谓词必须**真的有判别力**。
-  //   (a) 每个既有视图都能读到**非空**内容 —— 直接堵死「读到空串 ⇒ 恒不含 `<style` ⇒
-  //       恒绿」这条空壳路径(Vite `?raw` 在 vitest 下恒空那个铁律要防的正是它);
-  //   (b) 谓词在既有文件上**两种结果都出现过** —— 至少一个视图含 `<style`、至少一个不含。
-  //       只断「全都不含」是不够的:那种写法在谓词恒假时同样全绿。
-  // ⚠️ **实测订正(承 R18)**:brief 把 K44 理解成「知识库区 .vue 一律零 `<style>` 块」,
-  //    但本仓既有视图里 `KnowledgeDeferred` / `KnowledgeLayout` / `SearchView` /
-  //    `SettingsView` **各有一个 `<style>` 块**(P5a–P5e 产出,不在本刀范围)。
-  //    K53 要求零 `<style>` 的是 **`RootsView.vue` 这一个文件**,见下一条。
-  //    这个偏差已在 T2 报告显式申报;本条据实测写,不据 brief 的字面假设。
-  it('防空转 —— 同目录既有视图能读到非空内容,且 <style> 谓词两种结果都出现过(证明它有判别力)', () => {
+  // 🔴 防空转②:同一个「node:fs 读文件 → 判有没有 style 块」的谓词必须**真的有判别力**。
+  //   (a) 每个既有视图都能读到**非空**内容 —— 直接堵死「读到空串 ⇒ 恒判无 ⇒ 恒绿」
+  //       这条空壳路径(Vite `?raw` 在 vitest 下恒空那个铁律要防的正是它);
+  //   (b) 谓词在**真有 style 块的文件**上必须判真 —— 正例见上方新 describe 的「防空转②」
+  //       (取自全仓 115 个真有 style 块的 `.vue`)。
+  //
+  // 🔴🔴 **P5f-T2b 订正(裁定 R19,承「反转不删」)**:本条原文写的是
+  // 「至少一个既有视图**含** `<style`、至少一个不含」,谓词用的是裸子串 `src.includes('<style')`。
+  // **那个『正例』完全由 4 行注释文字撑着** —— `KnowledgeDeferred` / `KnowledgeLayout` /
+  // `SearchView` / `SettingsView` 的 `</style>` 计数**全部是 0**,命中的是注释里
+  // 「零 `<style>` 块」这句话本身。⇒ 它证明的不是谓词有判别力,而是注释里有那个词;
+  // 而且任何人改一下那 4 行注释的措辞,本条会**无故报红**。
+  // 现在:谓词换成 `hasStyleBlock()`(先剥注释 + 行首锚定),正例移到上方 describe
+  // 用全仓真样本做;本条只保留「读得到非空内容」这一半 + 「全区判假」。
+  it('防空转 —— 同目录既有视图能读到非空内容,且新谓词在本目录一致判「无 style 块」', () => {
     const vues = readdirSync(VIEWS_DIR).filter((f: string) => f.endsWith('.vue'))
+    expect(vues.length, 'views 目录一个 .vue 都没有 —— 零判别力').toBeGreaterThan(0)
     const withStyle: string[] = []
-    const withoutStyle: string[] = []
     for (const f of vues) {
       const src: string = readFileSync(resolve(VIEWS_DIR, f), 'utf8')
       expect(src.length, `${f} 读出来是空的 —— node:fs 读法失效了`).toBeGreaterThan(0)
-      ;(src.includes('<style') ? withStyle : withoutStyle).push(f)
+      if (hasStyleBlock(src)) withStyle.push(f)
     }
-    expect(withStyle.length, '没有任何既有视图含 <style> —— 谓词可能恒假(空壳)').toBeGreaterThan(0)
-    expect(withoutStyle.length, '没有任何既有视图不含 <style> —— 谓词可能恒真').toBeGreaterThan(0)
+    expect(withStyle, `views 目录出现真 <style> 块的文件(K44 被破):${withStyle.join(', ')}`).toEqual([])
   })
 
   // 🔴 「自动上膛」条件断言(治理 §9.19)。T2 落地时 `RootsView.vue` 还不存在
@@ -2049,6 +2184,10 @@ describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue �
   // §9.19 要求论证与后续刀的范围不冲突:**不冲突** —— K44 是全期纪律,
   // T5 本来就不许在 `.vue` 里写 `<style>` 块,本条不向 T5 索要任何它无权写的东西
   // (与 P5e 的 T5↔T6 冲突形成对照:那次是守卫索要 T6 无权写的 markup)。
+  // 🔴 P5f-T2b:谓词由裸子串换成 `hasStyleBlock()`(剥注释 + 行首锚定),裁定 R19。
+  // 上方新 describe 的参数化断言在 `RootsView.vue` 建出来后会自动覆盖同一件事;
+  // 本条保留是因为它带 K53 专属的错误信息(「那 66 行整块搬进 knowledge.scss」),
+  // 且它是 T2 已过评审的断言 —— §9.10 只许加固不许删。
   it('K53 —— 若 views/RootsView.vue 存在,则它必须不含 <style>(T5 建文件时自动上膛)', () => {
     if (!exists(ROOTS_VUE)) {
       expect(exists(ROOTS_VUE), 'RootsView.vue 尚未创建(T5 的活)—— 本条处于「上膛待发」状态').toBe(false)
@@ -2057,8 +2196,8 @@ describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue �
     const src: string = readFileSync(ROOTS_VUE, 'utf8')
     expect(src.length, 'RootsView.vue 读出来是空的').toBeGreaterThan(0)
     expect(
-      src.includes('<style'),
-      'RootsView.vue 出现 <style> 块 —— K53 要求那 66 行整块搬进 knowledge.scss,.vue 侧零 <style>',
+      hasStyleBlock(src),
+      'RootsView.vue 出现真 <style> 块 —— K53 要求那 66 行整块搬进 knowledge.scss,.vue 侧零 <style>',
     ).toBe(false)
   })
 
@@ -2106,6 +2245,104 @@ describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue �
     for (const cls of KR_CLASSES) {
       const hits = css.match(new RegExp(`\\.${cls}(?![\\w-])`, 'g')) || []
       expect(hits.length, `${cls} 在 knowledge.scss 里出现 ${hits.length} 次(应为 1)`).toBe(1)
+    }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 【P5f-T2b 新建,裁定 **R20 的 I-1**】P5e 裁定 **R16** 同族缺口的**第二次**:
+// 本期把 8 处色字面量映射成 token(附录 B §B.3-②③ 两处 + §B.4 六处),
+// 产品码逐处正确,但**没有一条断言把「哪个选择器消费哪个 token」钉住**
+// ⇒ 评审实证:把 allow / deny 消费的 token **互换**、把 `--text-on-accent` 换成
+// `--text-primary`,跑全量 **4337 全绿,零红**。
+//
+// 现实后果:① allow/deny 互换 = 白名单页「允许」显示成红、「拒绝」显示成绿(**语义反转**),
+// 而 §9.17 认定 `AllowlistView` 两个分区在本机 🟢 **全部可达**、是要逐条真机验收的写操作屏;
+// ② `--text-on-accent` 被换掉 = 压在品牌渐变/accent 实底上的图标变成暗档深色前景,
+// **正是附录 B §B.3.1 花整节警告的失效形态**。
+//
+// 手法沿用本档 R16 小节的 `nestedBlockBody()` 模具,零发明。
+// 🔴 判据(裁定 R20):① 互换 allow/deny 消费的 token → 必须报红;
+//    ② 换掉 `--text-on-accent` → 必须报红。两段输出 + md5sum 还原见 T2b 报告。
+describe('knowledge.scss —— I-1(裁定 R20):8 个色映射落点的 token 消费绑定(P5f-T2b 新建)', () => {
+  // 附录 B §B.4 六处 —— 两个块 × {allow, deny} × {background, color}。
+  // 🔴 逐处钉「选择器 → 属性 → token」,互换任意一对都会精确指名。
+  const B4_BINDINGS: Array<[string, string, string, string]> = [
+    // [块选择器行, 变体选择器, 属性, token]
+    ['.k-frow-action {', '&[data-act="allow"]', 'background', '--success-soft'],
+    ['.k-frow-action {', '&[data-act="allow"]', 'color', '--success'],
+    ['.k-frow-action {', '&[data-act="deny"]', 'background', '--danger-soft'],
+    ['.k-frow-action {', '&[data-act="deny"]', 'color', '--danger'],
+    ['.k-radio-card-icon {', '&[data-tone="allow"]', 'background', '--success-soft'],
+    ['.k-radio-card-icon {', '&[data-tone="allow"]', 'color', '--success'],
+    ['.k-radio-card-icon {', '&[data-tone="deny"]', 'background', '--danger-soft'],
+    ['.k-radio-card-icon {', '&[data-tone="deny"]', 'color', '--danger'],
+  ]
+
+  // 从块体里切出某个 `&[…]` 变体那一行(蓝本源序里它们都是单行 `{ … }`)。
+  // 🔴 整行 trim 后**以变体选择器开头**才算,不是子串搜索(承本档五次「子串撞注释」教训;
+  //    注释在 cssKeepLines 里已被 blankComments 换成等量空格,连内容都不在了)。
+  function variantLine(blockBody: string, variantSelector: string): string {
+    const hits = blockBody
+      .split('\n')
+      .map((l: string) => l.trim())
+      .filter((l: string) => l.startsWith(variantSelector))
+    expect(hits.length, `块内找不到唯一的 ${variantSelector} 变体行(命中 ${hits.length} 条)`).toBe(1)
+    return hits[0]
+  }
+
+  it.each(B4_BINDINGS)(
+    '附录 B §B.4 —— %s 内 %s 的 %s 消费 var(%s)(判据:allow/deny 互换 → 必须报红)',
+    (block: string, variant: string, prop: string, token: string) => {
+      const line = variantLine(nestedBlockBody(cssKeepLines, block), variant)
+      expect(line, `${block} 的 ${variant} 里 ${prop} 不是 var(${token}):${line}`).toContain(
+        `${prop}: var(${token});`,
+      )
+    },
+  )
+
+  // 防空转(§9.14-4):参数化清单必须真的有 8 条,且 8 条各不相同 —— 否则
+  // `it.each([])` 会零用例静默全绿,重复项则会让「8 处全覆盖」变成假象。
+  it('防空转 —— §B.4 绑定清单恰好 8 条且互不重复(防空循环 / 防重复项冒充覆盖)', () => {
+    expect(B4_BINDINGS).toHaveLength(8)
+    expect(new Set(B4_BINDINGS.map((b) => b.join('|'))).size, '绑定清单里有重复项').toBe(8)
+  })
+
+  // 附录 B §B.3-② —— `.k-extgroup-icon` 的前景压在 `g.bg` 品牌渐变实底上
+  it('附录 B §B.3-② —— .k-extgroup-icon 前景消费 var(--text-on-accent)(判据:换成 --text-primary → 必须报红)', () => {
+    const body = nestedBlockBody(cssKeepLines, '.k-extgroup-icon {')
+    expect(body, '.k-extgroup-icon 的 color 不是 var(--text-on-accent) —— 见附录 B §B.3.1').toContain(
+      'color: var(--text-on-accent);',
+    )
+    // 🔴 反向:块内不许出现 --on-accent / --text-primary 这两个已被 §B.3.1 明确排除的替身
+    expect(/var\(--on-accent\)/.test(body), '.k-extgroup-icon 用了 --on-accent(暗档是深色,压实底上失效)').toBe(false)
+  })
+
+  // 附录 B §B.3-③ —— `.k-ext-chip[data-on="true"] .k-ext-chip-mark` 压在 --accent 实底上。
+  // 🔴 `.k-ext-chip-mark {` 在本档有**两处**(嵌套的 + 顶层基类),整行精确匹配会撞对第一处
+  //    ⇒ 必须**逐层下钻**:.k-ext-chip → &[data-on="true"] → .k-ext-chip-mark,不许直接锚。
+  it('附录 B §B.3-③ —— .k-ext-chip[data-on="true"] 下的 .k-ext-chip-mark 前景消费 var(--text-on-accent)', () => {
+    const chip = nestedBlockBody(cssKeepLines, '.k-ext-chip {')
+    const on = nestedBlockBody(chip, '&[data-on="true"] {')
+    const mark = nestedBlockBody(on, '.k-ext-chip-mark {')
+    expect(mark, '[data-on="true"] 下的 .k-ext-chip-mark 前景不是 var(--text-on-accent)').toContain(
+      'color: var(--text-on-accent);',
+    )
+    // 覆盖度自检:真的下钻到了那一层(块体里必须同时有 --accent 底色,否则锚错了块)
+    expect(mark, '下钻到的不是 [data-on="true"] 那一层的 .k-ext-chip-mark').toContain('background: var(--accent);')
+  })
+
+  // 覆盖度自检:8 处 + 2 处 = 附录 B 落在 knowledge.scss 里的全部 10 个 token 引用点。
+  // 🔴 「§B.4 六处」在 scss 里是 4 行 × 平均 2 个属性 = 8 个属性级落点(附录按字面量记 6 处,
+  //    其中 `color: var(--danger)` 两处蓝本本来就是 token、照抄不改 —— 一并钉住是加固)。
+  it('覆盖度自检 —— 4 条变体行确实都在档内且各只有一条(锚点没有漂到别的块)', () => {
+    for (const [block, variant] of [
+      ['.k-frow-action {', '&[data-act="allow"]'],
+      ['.k-frow-action {', '&[data-act="deny"]'],
+      ['.k-radio-card-icon {', '&[data-tone="allow"]'],
+      ['.k-radio-card-icon {', '&[data-tone="deny"]'],
+    ] as Array<[string, string]>) {
+      expect(variantLine(nestedBlockBody(cssKeepLines, block), variant).length).toBeGreaterThan(10)
     }
   })
 })
@@ -2189,6 +2426,104 @@ describe('knowledge.scss —— K55:三个扩展名分组渐变 token 两档取�
       expect(line, `找不到 ${tok} 的声明行`).toBeTruthy()
       expect(line!, `${tok} 被写成了对别的 token 的引用`).not.toContain('var(--grad-')
     }
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 【P5f-T2b 新建,裁定 **R20 的 M-a**】三个 `--grad-ext-*` 目前是**零消费绑定**:
+  // 声明层有两条断言(两档取值逐字 + 没被去重成互相引用),但**没有任何东西保证它们
+  // 真的被消费** —— 消费方 `GROUPS_TEMPLATE` 属于 T4。失效形态是**静默的**:
+  // T4 若忘了换、或换错了对应关系(docs↔code 串位),三个 token 就成死声明,四门全绿。
+  //
+  // 落法 = 「自动上膛」条件断言(§9.19),与 K53 那条同款模具:
+  // **现在**(`views/AllowlistView.vue` 不存在)走惰性分支通过;**T4 一建文件立刻上膛**。
+  // 🔴 §9.19 跨刀冲突论证:计划书 T4-2 本来就明令「`GROUPS_TEMPLATE` 的三个 `bg` 字段改
+  // `var(--…)`(附录 B 定死)」⇒ 本条不向 T4 索要任何它无权写的东西,**不冲突**。
+  // 🔴 §9.19 另一条:新守卫必须自带**防空转断言** —— 见下方「谓词判别力」那条,
+  // 它拿两份合成样本证明 `groupBgErrors()` 在文件还不存在时就已经是有牙的。
+  // 🔴 读文件一律 `node:fs`(铁律:Vite 的 `?raw` 在 vitest 下**恒空**)。
+  const GRAD_EXT_BINDINGS: Array<[string, string]> = [
+    ['docs', '--grad-ext-docs'],
+    ['text', '--grad-ext-text'],
+    ['code', '--grad-ext-code'],
+  ]
+
+  // 纯函数:给一段 `AllowlistView.vue` 源码,返回三个分组的 `bg` 绑定错误清单(空 = 全对)。
+  // 🔴 定位手法**与格式无关**:从 `id: 'docs'` 起、到下一个 `id:` 或文本末尾为止的窗口,
+  //    该窗口内必须出现 `var(--grad-ext-docs)`,且**不许**出现另外两个 `--grad-ext-*`
+  //    (串位就是这样被抓住的);同时该窗口的 `bg` 值里不许有色字面量。
+  function groupBgErrors(src: string): string[] {
+    const errs: string[] = []
+    const idRe = /\bid:\s*['"]([a-z]+)['"]/g
+    const marks: Array<[string, number]> = []
+    let m: RegExpExecArray | null
+    while ((m = idRe.exec(src)) !== null) marks.push([m[1], m.index])
+    for (const [gid, token] of GRAD_EXT_BINDINGS) {
+      const i = marks.findIndex(([name]) => name === gid)
+      if (i < 0) {
+        errs.push(`GROUPS_TEMPLATE 里找不到 id: '${gid}' 分组`)
+        continue
+      }
+      const start = marks[i][1]
+      const end = i + 1 < marks.length ? marks[i + 1][1] : src.length
+      const win = src.slice(start, end)
+      if (!win.includes(`var(${token})`)) errs.push(`分组 '${gid}' 的 bg 没有消费 var(${token})`)
+      for (const [, other] of GRAD_EXT_BINDINGS) {
+        if (other !== token && win.includes(`var(${other})`)) {
+          errs.push(`分组 '${gid}' 的窗口里混进了 var(${other}) —— 三个渐变 token 串位了`)
+        }
+      }
+      // 🔴 color-guard 不扫 `.vue` 的 `<script>` 常量 ⇒ 这里是唯一防线(票 B 位置④)
+      const bgLine = win.match(/\bbg:\s*[^,\n]*/)
+      if (bgLine && /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|linear-gradient\(/.test(bgLine[0])) {
+        errs.push(`分组 '${gid}' 的 bg 里仍有色字面量 / 内联 gradient:${bgLine[0].trim()}`)
+      }
+    }
+    return errs
+  }
+
+  // 🔴 防空转(§9.19 明令,且是「惰性通过期」唯一能证明这条守卫有牙的手段):
+  // 拿两份**合成样本**跑同一个谓词 —— 正确形态必须零错误,三种偏态必须各自被抓住。
+  it('防空转 —— groupBgErrors 谓词在合成样本上有判别力(文件还不存在时就先证明它不是空壳)', () => {
+    const good = `
+      const GROUPS_TEMPLATE = [
+        { id: 'docs', labelKey: 'Documents', icon: 'file', bg: 'var(--grad-ext-docs)' },
+        { id: 'text', labelKey: 'Text', icon: 'edit', bg: 'var(--grad-ext-text)' },
+        { id: 'code', labelKey: 'Code', icon: 'code', bg: 'var(--grad-ext-code)' },
+      ]`
+    expect(groupBgErrors(good), '正确形态被误判成有错 —— 谓词过严,会对 T4 误报').toEqual([])
+    // 偏态①:docs / code 串位
+    const swapped = good.replace('var(--grad-ext-docs)', 'var(--grad-ext-code)')
+    expect(groupBgErrors(swapped).length, '串位没有被抓住 —— 谓词零判别力').toBeGreaterThan(0)
+    // 偏态②:某一组没换 token,照抄蓝本的裸渐变
+    const literal = good.replace("'var(--grad-ext-text)'", "'linear-gradient(135deg, #5DD68A, #2EB05B)'")
+    expect(groupBgErrors(literal).length, '裸色字面量没有被抓住 —— color-guard 不扫这里,本条是唯一防线').toBeGreaterThan(0)
+    // 偏态③:整组缺失
+    const missing = good.replace("{ id: 'code', labelKey: 'Code', icon: 'code', bg: 'var(--grad-ext-code)' },", '')
+    expect(groupBgErrors(missing).length, '分组缺失没有被抓住').toBeGreaterThan(0)
+  })
+
+  it('M-a 自动上膛 —— 若 views/AllowlistView.vue 存在,则 GROUPS_TEMPLATE 三个 bg 各消费对应 --grad-ext-*(T4 建文件时上膛)', () => {
+    const ALLOWLIST_VUE = resolve(__dirname, '../knowledge/views/AllowlistView.vue')
+    let src: string | null = null
+    try {
+      src = readFileSync(ALLOWLIST_VUE, 'utf8') as string
+    } catch {
+      src = null
+    }
+    if (src === null) {
+      // 惰性分支:文件是 T4 的活。🔴 路径基座自检 —— views 目录必须真的存在,
+      // 否则「读不到 ⇒ 惰性通过」会退化成「路径写错也永远通过」的空壳。
+      const vues = readdirSync(resolve(__dirname, '../knowledge/views')).filter((f: string) => f.endsWith('.vue'))
+      expect(vues.length, 'views 目录一个 .vue 都没有 —— 路径基座写错了?').toBeGreaterThan(0)
+      expect(vues, 'AllowlistView.vue 尚未创建(T4 的活)—— 本条处于「上膛待发」状态').not.toContain(
+        'AllowlistView.vue',
+      )
+      return
+    }
+    expect(src.length, 'AllowlistView.vue 读出来是空的 —— node:fs 读法失效了').toBeGreaterThan(0)
+    expect(src, 'AllowlistView.vue 里找不到 GROUPS_TEMPLATE 常量').toContain('GROUPS_TEMPLATE')
+    const errs = groupBgErrors(src)
+    expect(errs, `三个 --grad-ext-* 的消费绑定不成立(附录 B §B.6 / 计划书 T4-2):\n${errs.join('\n')}`).toEqual([])
   })
 })
 
