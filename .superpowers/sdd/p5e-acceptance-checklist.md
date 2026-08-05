@@ -149,3 +149,26 @@ pnpm exec sass --no-source-map src/ai/styles/knowledge.scss /dev/null   # sass �
 curl -s "$(cat /var/run/nimoos/nimoos.url)/v1/nimoos/search-roots?user_id=1"
 #   → 若仍只返 {"root_ids":["photos"]},§0-② 依然成立
 ```
+
+---
+
+## 7. ✅ 验收结论(用户 2026-08-06)
+
+**用户原话**:「因为本机的 parser 还没部署所以搜索不会出来结果,把这部分挂账,现在点击都是正常的」
+
+⇒ **P5e 关账:§2 的可达项(A1–A11)全部通过;§3 的 14 项结果半区按 D1 政策挂账。**
+
+🔴 **一处事实订正(协调者,与用户表述不同,但结论一致)**:
+「搜索不出结果」**不是因为 Parser 没部署** —— Parser **已部署且在跑**(`:8283` 正常响应,
+Qdrant 里已有它索引出的 **5592 条向量**)。**真因是授权根缺失**:
+核心 `GET /v1/nimoos/search-roots` 只返虚拟根 `["photos"]`,与那 5592 条向量挂的 `dfcd1840…` 根**交集为空**。
+授权表由 **Wiki 对账**写入(`NimoOS/route/v1/rootgrants.go` 的 `UpsertGrant` 把 `source` 写死 `"wiki"`),Wiki 挂 ⇒ 零真实根。
+
+🔴 **实践后果(必须记住,否则将来会白折腾)**:
+**光重启 / 重新部署 Parser 不会让搜索出结果** —— 要走 **票 C**,且**建议与 Wiki 数据库运维票一起做**(修 Wiki 才是治根)。
+复验命令:`curl -s "$(cat /var/run/nimoos/nimoos.url)/v1/nimoos/search-roots?user_id=1"` ——
+只要它仍只返 `{"root_ids":["photos"]}`,§0-② 就依然成立。
+
+**挂账清单(等票 C 修好后才可验)**:结果卡 · 结果计数条 · 五个文件类型色(**尤其 MD 深黑底与 TXT 绿底白字两个待拍板项**)·
+相关度徽标 · 「还有 N 段」· 详情抽屉 · chunk 列表与翻页 · chunk 阅读器 · 「复制内容」· 「沉淀成笔记」·
+in-app 预览器 · 「打开原文件」· 「下载」· rerank 警示条 · **按 Esc 同时关两屏**。
