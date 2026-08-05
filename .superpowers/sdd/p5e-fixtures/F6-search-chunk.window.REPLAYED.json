@@ -1,0 +1,13 @@
+{
+ "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+ "kind": "body",
+ "anchor_chunk_no": 2387,
+ "chunks": [
+  {
+   "chunk_no": 2387,
+   "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298439637Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298468195Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.303932291Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/",
+   "offset_start": 4819022,
+   "offset_end": 4821319
+  }
+ ]
+}

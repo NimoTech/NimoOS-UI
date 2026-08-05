@@ -1,0 +1,522 @@
+{
+ "hits": [
+  {
+   "score": 0.738,
+   "raw_score": 0.738,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 8084,
+    "offset_end": 10398,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 4
+   },
+   "preview": {
+    "text": "ream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754090675Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754091481Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.75409469Z\"}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7354,
+   "raw_score": 0.7354,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 10078,
+    "offset_end": 12455,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 5
+   },
+   "preview": {
+    "text": "026-07-18T08:01:43.244354813Z\"}\n{\"log\":\"INFO:     127.0.0.1:44956 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:13.246961978Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/user-settings/thinking HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:31.891844372Z\"}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.6118,
+   "raw_score": 0.6118,
+   "collection": "text_chunks",
+   "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/log.log",
+     "mtime_ms": 1784404128499
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 0,
+    "offset_end": 2286,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 0
+   },
+   "preview": {
+    "text": "2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: images path mismatch, self-healing\t{\"configured\": \"/DATA/.system_data/.docker\", \"actual\": \"/var/lib/docker\", \"func\": \"route.InitPathConfig\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/init.go\", \"line\": 179}\n2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: path config",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.6002,
+   "raw_score": 0.6002,
+   "collection": "text_chunks",
+   "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/log.log",
+     "mtime_ms": 1784404128499
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 1966,
+    "offset_end": 4328,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1
+   },
+   "preview": {
+    "text": "nimoos/file/upload\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/ports\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.5127,
+   "raw_score": 0.5127,
+   "collection": "text_chunks",
+   "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+     "mtime_ms": 1784359333549
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 4077,
+    "offset_end": 6412,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 2
+   },
+   "preview": {
+    "text": "ut\",\"time\":\"2026-07-16T06:44:21.228305712Z\"}\n{\"log\":\"INFO:     127.0.0.1:35496 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:33.728850513Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"POST /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:39.797983808Z\"}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.5044,
+   "raw_score": 0.5044,
+   "collection": "text_chunks",
+   "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+     "mtime_ms": 1784359333549
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 8096,
+    "offset_end": 10319,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 4
+   },
+   "preview": {
+    "text": "2cdce\\u0026model=cloud:1:doubao-seed-2-0-mini-260428 HTTP/1.1\\\" 404 Not Found\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:49:58.154929377Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"POST /agent/sessions/99f7276f-1a33-4c68-96ba-5d836712cdce/run HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:49:58.202140755Z\"}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.4824,
+   "raw_score": 0.4824,
+   "collection": "text_chunks",
+   "file_id": "4018267c2ec373cddb244ac220a06cc2",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/app-management.log",
+     "mtime_ms": 1784434525914
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 3789,
+    "offset_end": 5725,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 2
+   },
+   "preview": {
+    "text": ": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.4666,
+   "raw_score": 0.4666,
+   "collection": "text_chunks",
+   "file_id": "4018267c2ec373cddb244ac220a06cc2",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/app-management.log",
+     "mtime_ms": 1784434525914
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 5405,
+    "offset_end": 7779,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 3
+   },
+   "preview": {
+    "text": "gement/service/appstore.go\", \"line\": 91}\n2026-07-13T17:20:00.933+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  }
+ ],
+ "files": [
+  {
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.738,
+   "chunks": [
+    {
+     "score": 0.738,
+     "raw_score": 0.738,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 8084,
+      "offset_end": 10398,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 4
+     },
+     "preview": {
+      "text": "ream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754090675Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754091481Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.75409469Z\"}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7354,
+     "raw_score": 0.7354,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 10078,
+      "offset_end": 12455,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 5
+     },
+     "preview": {
+      "text": "026-07-18T08:01:43.244354813Z\"}\n{\"log\":\"INFO:     127.0.0.1:44956 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:13.246961978Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/user-settings/thinking HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:31.891844372Z\"}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  },
+  {
+   "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/log.log",
+     "mtime_ms": 1784404128499
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.6118,
+   "chunks": [
+    {
+     "score": 0.6118,
+     "raw_score": 0.6118,
+     "collection": "text_chunks",
+     "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/log.log",
+       "mtime_ms": 1784404128499
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 0,
+      "offset_end": 2286,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 0
+     },
+     "preview": {
+      "text": "2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: images path mismatch, self-healing\t{\"configured\": \"/DATA/.system_data/.docker\", \"actual\": \"/var/lib/docker\", \"func\": \"route.InitPathConfig\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/init.go\", \"line\": 179}\n2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: path config",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.6002,
+     "raw_score": 0.6002,
+     "collection": "text_chunks",
+     "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/log.log",
+       "mtime_ms": 1784404128499
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 1966,
+      "offset_end": 4328,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1
+     },
+     "preview": {
+      "text": "nimoos/file/upload\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/ports\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  },
+  {
+   "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+     "mtime_ms": 1784359333549
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.5127,
+   "chunks": [
+    {
+     "score": 0.5127,
+     "raw_score": 0.5127,
+     "collection": "text_chunks",
+     "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+       "mtime_ms": 1784359333549
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 4077,
+      "offset_end": 6412,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 2
+     },
+     "preview": {
+      "text": "ut\",\"time\":\"2026-07-16T06:44:21.228305712Z\"}\n{\"log\":\"INFO:     127.0.0.1:35496 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:33.728850513Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"POST /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:39.797983808Z\"}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.5044,
+     "raw_score": 0.5044,
+     "collection": "text_chunks",
+     "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+       "mtime_ms": 1784359333549
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 8096,
+      "offset_end": 10319,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 4
+     },
+     "preview": {
+      "text": "2cdce\\u0026model=cloud:1:doubao-seed-2-0-mini-260428 HTTP/1.1\\\" 404 Not Found\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:49:58.154929377Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"POST /agent/sessions/99f7276f-1a33-4c68-96ba-5d836712cdce/run HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:49:58.202140755Z\"}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  },
+  {
+   "file_id": "4018267c2ec373cddb244ac220a06cc2",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/app-management.log",
+     "mtime_ms": 1784434525914
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.4824,
+   "chunks": [
+    {
+     "score": 0.4824,
+     "raw_score": 0.4824,
+     "collection": "text_chunks",
+     "file_id": "4018267c2ec373cddb244ac220a06cc2",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/app-management.log",
+       "mtime_ms": 1784434525914
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 3789,
+      "offset_end": 5725,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 2
+     },
+     "preview": {
+      "text": ": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.4666,
+     "raw_score": 0.4666,
+     "collection": "text_chunks",
+     "file_id": "4018267c2ec373cddb244ac220a06cc2",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/app-management.log",
+       "mtime_ms": 1784434525914
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 5405,
+      "offset_end": 7779,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 3
+     },
+     "preview": {
+      "text": "gement/service/appstore.go\", \"line\": 91}\n2026-07-13T17:20:00.933+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  }
+ ],
+ "stats": {
+  "total_candidates": 40,
+  "rerank_ms": 0,
+  "embed_ms": 5027,
+  "vector_search_ms": 5,
+  "expand_ms": 12
+ },
+ "warnings": []
+}

@@ -1,0 +1,149 @@
+{
+ "query": "404 not found error in the parser upsert log",
+ "qdrant_points": [
+  {
+   "id": "1cca8501-fc89-59fb-9007-f69af8cd9ad6",
+   "version": 42,
+   "score": 0.7379857,
+   "payload": {
+    "offset_start": 4819022,
+    "chunk_no": 2387,
+    "source_model_version": "",
+    "offset_end": 4821319,
+    "tombstoned_at": null,
+    "parser_version": "parser/0.2.0",
+    "kind": "body",
+    "lang": "auto",
+    "root_ids": [
+     "dfcd1840f5dab439cd9d7050aa5bafd0"
+    ],
+    "mime": "text/plain",
+    "indexed_at": 1784424393143,
+    "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+    "embed_model_version": "bge-m3/v1",
+    "mtime_ms": 1784424392240,
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298439637Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298468195Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.303932291Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.303961575Z\"}\n{\"log\":\"index_note failed for 0fafb1c6-b2f5-4e7f-a0db-caec80f41139: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.308765893Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.308791824Z\"}\n{\"log\":\"INFO:     127.0.0.1:47198 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T20:02:00.022215186Z\"}\n{\"log\":\"INFO:     127.0.0.1:54576 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T20:02:30.02564091Z\"}\n{\"log\":\"index_note failed for 4a0de838-0bbb-40e6-890d-0a49002e0826: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:02:50.319016695Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:02:50.319065597Z\"}\n{\"log\":\"index_note failed for 50d6d396-ce4b-46cf-a3a1-e4be9764f36c: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:02:50.326324996Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:02:50.326370247Z\"}\n{\"log\":\"index_note failed for 3e1462d7-ae1c-4498-a891-cf819b3e4156: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:02:50.333038515Z\"}"
+   }
+  },
+  {
+   "id": "ad0f4870-d994-5d53-8b45-e0dfce9548f1",
+   "version": 42,
+   "score": 0.7371224,
+   "payload": {
+    "chunk_no": 20,
+    "embed_model_version": "bge-m3/v1",
+    "root_ids": [
+     "dfcd1840f5dab439cd9d7050aa5bafd0"
+    ],
+    "kind": "body",
+    "text": "-5f6b66ee7364: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.215544301Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.215582907Z\"}\n{\"log\":\"index_note failed for 97a15e4c-511a-4241-82eb-20ec2e82952e: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.22189962Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.221935978Z\"}\n{\"log\":\"index_note failed for 0fafb1c6-b2f5-4e7f-a0db-caec80f41139: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.227852941Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.227888312Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"POST /agent/sessions/bc2e5964-f1c7-4050-b292-9a6c497990fa/run HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:11:51.504502393Z\"}\n{\"log\":\"shell_guard.judge: ollama error: \\u003curlopen error [Errno 111] Connection refused\\u003e\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:59.979122331Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"POST /agent/sessions/bc2e5964-f1c7-4050-b292-9a6c497990fa/confirm HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:12:02.558118527Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"POST /agent/sessions/bc2e5964-f1c7-4050-b292-9a6c497990fa/confirm HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:12:09.633599801Z\"}\n{\"log\":\"INFO:     127.0.0.1:46114 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:12:13.287110663Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/context-usage?session_id=bc2e5964-f1c7-4050-b292-9a6c497990fa\\u0026model=cloud:1:doubao-seed-2-0-lite-260428 HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:12:31.960311575Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/sessions/bc2e5964-f1c7-4050-b292-9a6c497990fa/attachments HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:12:31.961406933Z\"}",
+    "lang": "auto",
+    "indexed_at": 1784424393143,
+    "parser_version": "parser/0.2.0",
+    "mime": "text/plain",
+    "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+    "source_model_version": "",
+    "mtime_ms": 1784424392240,
+    "offset_start": 39876,
+    "tombstoned_at": null,
+    "offset_end": 42210
+   }
+  },
+  {
+   "id": "f846458b-cec0-5997-88e8-50a8e847b4dd",
+   "version": 42,
+   "score": 0.73579574,
+   "payload": {
+    "mtime_ms": 1784424392240,
+    "embed_model_version": "bge-m3/v1",
+    "source_model_version": "",
+    "kind": "body",
+    "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+    "chunk_no": 2459,
+    "root_ids": [
+     "dfcd1840f5dab439cd9d7050aa5bafd0"
+    ],
+    "offset_end": 4966700,
+    "parser_version": "parser/0.2.0",
+    "offset_start": 4964404,
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.551860142Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.551893348Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.556928579Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.556958761Z\"}\n{\"log\":\"index_note failed for 0fafb1c6-b2f5-4e7f-a0db-caec80f41139: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.562088406Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.562119046Z\"}\n{\"log\":\"INFO:     127.0.0.1:40700 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T20:24:00.148253487Z\"}\n{\"log\":\"INFO:     127.0.0.1:39752 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T20:24:30.150372546Z\"}\n{\"log\":\"index_note failed for 4a0de838-0bbb-40e6-890d-0a49002e0826: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:24:52.571590861Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:24:52.571663073Z\"}\n{\"log\":\"index_note failed for 50d6d396-ce4b-46cf-a3a1-e4be9764f36c: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:24:52.576877866Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:24:52.576948891Z\"}\n{\"log\":\"index_note failed for 3e1462d7-ae1c-4498-a891-cf819b3e4156: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:24:52.5817883Z\"}",
+    "indexed_at": 1784424393143,
+    "lang": "auto",
+    "tombstoned_at": null,
+    "mime": "text/plain"
+   }
+  },
+  {
+   "id": "79da5da9-79c7-570a-bf99-521a9d2c6c16",
+   "version": 42,
+   "score": 0.7353604,
+   "payload": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.605606294Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.605648958Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.61059557Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.610637601Z\"}\n{\"log\":\"index_note failed for 0fafb1c6-b2f5-4e7f-a0db-caec80f41139: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.615325351Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.615367574Z\"}\n{\"log\":\"INFO:     127.0.0.1:56510 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T23:16:31.24824821Z\"}\n{\"log\":\"INFO:     127.0.0.1:34146 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T23:17:01.253095342Z\"}\n{\"log\":\"index_note failed for 4a0de838-0bbb-40e6-890d-0a49002e0826: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:17:10.62645384Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:17:10.626506133Z\"}\n{\"log\":\"index_note failed for 50d6d396-ce4b-46cf-a3a1-e4be9764f36c: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:17:10.633175494Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:17:10.633246246Z\"}\n{\"log\":\"index_note failed for 3e1462d7-ae1c-4498-a891-cf819b3e4156: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:17:10.639585699Z\"}",
+    "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+    "source_model_version": "",
+    "indexed_at": 1784424393143,
+    "root_ids": [
+     "dfcd1840f5dab439cd9d7050aa5bafd0"
+    ],
+    "lang": "auto",
+    "mtime_ms": 1784424392240,
+    "offset_end": 6103557,
+    "mime": "text/plain",
+    "embed_model_version": "bge-m3/v1",
+    "kind": "body",
+    "chunk_no": 3022,
+    "parser_version": "parser/0.2.0",
+    "tombstoned_at": null,
+    "offset_start": 6101262
+   }
+  },
+  {
+   "id": "85133828-8c5a-5fa5-87d6-f7a6fb7d9383",
+   "version": 42,
+   "score": 0.7352603,
+   "payload": {
+    "source_model_version": "",
+    "mtime_ms": 1784424392240,
+    "root_ids": [
+     "dfcd1840f5dab439cd9d7050aa5bafd0"
+    ],
+    "kind": "body",
+    "tombstoned_at": null,
+    "mime": "text/plain",
+    "lang": "auto",
+    "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+    "offset_end": 6685146,
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.013745686Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.013775555Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.023733074Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.023766042Z\"}\n{\"log\":\"index_note failed for 0fafb1c6-b2f5-4e7f-a0db-caec80f41139: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.030285266Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.030318457Z\"}\n{\"log\":\"INFO:     127.0.0.1:42056 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-19T00:44:31.917497596Z\"}\n{\"log\":\"INFO:     127.0.0.1:47034 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-19T00:45:01.921485525Z\"}\n{\"log\":\"index_note failed for 4a0de838-0bbb-40e6-890d-0a49002e0826: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:45:20.041338009Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:45:20.041411957Z\"}\n{\"log\":\"index_note failed for 50d6d396-ce4b-46cf-a3a1-e4be9764f36c: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:45:20.048014454Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:45:20.048077241Z\"}\n{\"log\":\"index_note failed for 3e1462d7-ae1c-4498-a891-cf819b3e4156: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:45:20.054160725Z\"}",
+    "parser_version": "parser/0.2.0",
+    "embed_model_version": "bge-m3/v1",
+    "offset_start": 6682848,
+    "chunk_no": 3310,
+    "indexed_at": 1784424393143
+   }
+  },
+  {
+   "id": "60059c77-2c9e-5226-801a-d2c80db91676",
+   "version": 42,
+   "score": 0.734826,
+   "payload": {
+    "root_ids": [
+     "dfcd1840f5dab439cd9d7050aa5bafd0"
+    ],
+    "indexed_at": 1784424393143,
+    "tombstoned_at": null,
+    "mtime_ms": 1784424392240,
+    "parser_version": "parser/0.2.0",
+    "offset_end": 2303175,
+    "lang": "auto",
+    "chunk_no": 1140,
+    "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+    "embed_model_version": "bge-m3/v1",
+    "offset_start": 2300878,
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.240799568Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.240828078Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.245423194Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.245452112Z\"}\n{\"log\":\"index_note failed for 0fafb1c6-b2f5-4e7f-a0db-caec80f41139: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.249929344Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.249957223Z\"}\n{\"log\":\"INFO:     127.0.0.1:47302 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T13:40:27.838047978Z\"}\n{\"log\":\"INFO:     127.0.0.1:47132 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T13:40:57.841842893Z\"}\n{\"log\":\"index_note failed for 4a0de838-0bbb-40e6-890d-0a49002e0826: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:41:16.261515405Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:41:16.26157454Z\"}\n{\"log\":\"index_note failed for 50d6d396-ce4b-46cf-a3a1-e4be9764f36c: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:41:16.269600509Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:41:16.269643853Z\"}\n{\"log\":\"index_note failed for 3e1462d7-ae1c-4498-a891-cf819b3e4156: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:41:16.277574537Z\"}",
+    "source_model_version": "",
+    "kind": "body",
+    "mime": "text/plain"
+   }
+  }
+ ]
+}

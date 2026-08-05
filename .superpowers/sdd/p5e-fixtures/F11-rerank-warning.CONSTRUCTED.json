@@ -1,0 +1,12 @@
+{
+  "_provenance": "CONSTRUCTED, not captured (D-6 mould). Reason: `warnings: [\"rerank_unavailable\"]` is only appended when `req.Rerank && len(hits) > 0` (NimoOS-Search/service/search.go:176). On this device len(hits) is ALWAYS 0 (root-grant mismatch, see README section 3), so the branch is unreachable end-to-end even though the reranker itself really is broken (F9: parser /v1/parser/rerank -> 500).",
+  "_authoritative_string": "NimoOS-Search/service/search.go:180  warnings = append(warnings, \"rerank_unavailable\")",
+  "hits": [],
+  "files": [],
+  "stats": { "total_candidates": 12, "rerank_ms": 41, "embed_ms": 233, "vector_search_ms": 3, "expand_ms": 8 },
+  "warnings": ["rerank_unavailable"],
+  "_other_real_warning_strings_in_the_same_slice": [
+    "no_accessible_roots  (route/v1/text.go:40 - short-circuit, hits=[] ; REAL capture in F4)",
+    "path_expand_unavailable  (service/search.go:245 - Parser ExpandFiles failed)"
+  ]
+}

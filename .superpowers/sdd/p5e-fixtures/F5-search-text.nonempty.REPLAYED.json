@@ -1,0 +1,477 @@
+{
+ "hits": [
+  {
+   "score": 0.7379857,
+   "raw_score": 0.7379857,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 4819022,
+    "offset_end": 4821319,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 2387
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298439637Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298468195Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7371224,
+   "raw_score": 0.7371224,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 39876,
+    "offset_end": 42210,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 20
+   },
+   "preview": {
+    "text": "-5f6b66ee7364: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.215544301Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.215582907Z\"}\n{\"log\":\"index_note failed for 97a15e4c-511a-4241-82eb-20ec2e82952e: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.73579574,
+   "raw_score": 0.73579574,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 4964404,
+    "offset_end": 4966700,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 2459
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.551860142Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.551893348Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7353604,
+   "raw_score": 0.7353604,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 6101262,
+    "offset_end": 6103557,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 3022
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.605606294Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.605648958Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7352603,
+   "raw_score": 0.7352603,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 6682848,
+    "offset_end": 6685146,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 3310
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.013745686Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.013775555Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.734826,
+   "raw_score": 0.734826,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 2300878,
+    "offset_end": 2303175,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1140
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.240799568Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.240828078Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7346915,
+   "raw_score": 0.7346915,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 3365054,
+    "offset_end": 3367350,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1667
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T16:21:33.788995476Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T16:21:33.789036228Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7344978,
+   "raw_score": 0.7344978,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 6246650,
+    "offset_end": 6248947,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 3094
+   },
+   "preview": {
+    "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:38:12.910617616Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:38:12.910644316Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  }
+ ],
+ "files": [
+  {
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.7379857,
+   "chunks": [
+    {
+     "score": 0.7379857,
+     "raw_score": 0.7379857,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 4819022,
+      "offset_end": 4821319,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 2387
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298439637Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:01:50.298468195Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7371224,
+     "raw_score": 0.7371224,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 39876,
+      "offset_end": 42210,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 20
+     },
+     "preview": {
+      "text": "-5f6b66ee7364: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.215544301Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T08:11:49.215582907Z\"}\n{\"log\":\"index_note failed for 97a15e4c-511a-4241-82eb-20ec2e82952e: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.73579574,
+     "raw_score": 0.73579574,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 4964404,
+      "offset_end": 4966700,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 2459
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.551860142Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T20:23:52.551893348Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7353604,
+     "raw_score": 0.7353604,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 6101262,
+      "offset_end": 6103557,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 3022
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.605606294Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:16:10.605648958Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7352603,
+     "raw_score": 0.7352603,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 6682848,
+      "offset_end": 6685146,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 3310
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.013745686Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-19T00:44:20.013775555Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.734826,
+     "raw_score": 0.734826,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 2300878,
+      "offset_end": 2303175,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1140
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.240799568Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T13:40:16.240828078Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7346915,
+     "raw_score": 0.7346915,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 3365054,
+      "offset_end": 3367350,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1667
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T16:21:33.788995476Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T16:21:33.789036228Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7344978,
+     "raw_score": 0.7344978,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 6246650,
+      "offset_end": 6248947,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 3094
+     },
+     "preview": {
+      "text": "-f4b8bca68b49: Client error '404 Not Found' for url 'http://127.0.0.1:8283/v1/parser/notes/upsert'\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:38:12.910617616Z\"}\n{\"log\":\"For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T23:38:12.910644316Z\"}\n{\"log\":\"index_note failed for ba20c0ec-0275-497b-9124-58042e1b7336: Client error",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  }
+ ],
+ "stats": {
+  "total_candidates": 40,
+  "rerank_ms": 0,
+  "embed_ms": 5027,
+  "vector_search_ms": 5,
+  "expand_ms": 12
+ },
+ "warnings": []
+}

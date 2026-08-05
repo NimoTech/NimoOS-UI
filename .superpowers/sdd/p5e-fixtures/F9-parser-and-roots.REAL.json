@@ -1,0 +1,41 @@
+{
+  "_note": "Real captures, 2026-08-05. Parser :8283 (fixed port), NimoOS core :37659, Search :38839.",
+  "GET :8283/v1/parser/control/state": { "paused": true, "concurrency": 2, "device": "auto", "ocr_enabled": false, "resolved_device": "cpu" },
+  "GET :8283/v1/parser/stats": {
+    "queue_depth": { "pending": 339, "running": 1, "failed": 0, "done": 9 },
+    "indexed_files": 7, "total_vectors_text": 5592, "total_vectors_visual": 0,
+    "last_cursor_ms": 1784775953391,
+    "models": [ { "name": "bge-m3", "version": "v1", "modality": "text", "dim": 1024 },
+                { "name": "bge-reranker-v2-m3", "version": "v1", "modality": "rerank", "dim": null } ]
+  },
+  "GET :37659/v1/nimoos/search-roots?user_id=1": { "root_ids": ["photos"] },
+  "_root_ids_actually_carried_by_every_indexed_vector": ["dfcd1840f5dab439cd9d7050aa5bafd0"],
+  "qdrant_counts": {
+    "POST :6333/collections/text_chunks/points/count {exact:true}": 5592,
+    "... filter root_ids ANY [dfcd1840f5dab439cd9d7050aa5bafd0]": 5592,
+    "... filter root_ids ANY [photos]": 0
+  },
+  "POST :8283/v1/parser/rerank {model:'bge-reranker-v2-m3',...}": {
+    "http": 500, "body": "Internal Server Error",
+    "_cause": "parser/model_reranker.py:50 -> FlagEmbedding AbsReranker.compute_score -> transformers: AttributeError: XLMRobertaTokenizer has no attribute prepare_for_model (journalctl -u nimoos-parser.service)"
+  },
+  "GET :8283/v1/parser/_internal/files?file_ids=dce79e8ea5d48719cd4ad16fe48da843": {
+    "files": [ { "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+      "paths": [ { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+        "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+        "mtime_ms": 1784424392240 } ],
+      "mime": "text/plain", "modalities_done": { "text": "bge-m3/v1" },
+      "parser_version": "parser/0.2.0", "indexed_at": 1784424393143, "tombstoned_at": null } ],
+    "missing": []
+  },
+  "_all_7_indexed_files": [
+    { "path": "/DATA/.system_data/log/nimoos/log.log", "mime": "text/plain", "status": "ok", "vector_count": 856 },
+    { "path": "/DATA/.system_data/log/nimoos/app-management.log", "mime": "text/plain", "status": "ok", "vector_count": 696 },
+    { "path": "/DATA/.system_data/home/nimo/.vscode-server/cli/servers/lru.json", "mime": "text/plain", "status": "indexing", "vector_count": 1 },
+    { "path": "/DATA/.system_data/home/nimo/.vscode-server/cli/agent-host-stable.log", "mime": "text/plain", "status": "indexing", "vector_count": 30 },
+    { "path": "/DATA/.system_data/.docker/containers/26be4bc.../26be4bc...-json.log", "mime": "text/plain", "status": "indexing", "vector_count": 3448 },
+    { "path": "/DATA/.system_data/.docker/containers/aade300.../aade300...-json.log", "mime": "text/plain", "status": "indexing", "vector_count": 7 },
+    { "path": "/DATA/.system_data/.docker/containers/9f4d908.../9f4d908...-json.log", "mime": "text/plain", "status": "ok", "vector_count": 554 }
+  ],
+  "_mime_distribution": { "text/markdown+docling/pdf": 0, "application/pdf": 0, "text/markdown": 0, "text/plain": 7, "text/x-source": 0, "text/markdown+docling/docx|pptx|xlsx": 0 }
+}

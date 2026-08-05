@@ -1,0 +1,31 @@
+{
+ "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+ "kind": "body",
+ "anchor_chunk_no": 6,
+ "chunks": [
+  {
+   "chunk_no": 4,
+   "text": "ream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754090675Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754091481Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.75409469Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.754095775Z\"}\n{",
+   "offset_start": 8084,
+   "offset_end": 10398
+  },
+  {
+   "chunk_no": 5,
+   "text": "026-07-18T08:01:43.244354813Z\"}\n{\"log\":\"INFO:     127.0.0.1:44956 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:13.246961978Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/user-settings/thinking HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:31.891844372Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"",
+   "offset_start": 10078,
+   "offset_end": 12455
+  },
+  {
+   "chunk_no": 6,
+   "text": "\"log\":\"INFO:     192.168.1.167:0 - \\\"POST /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:37.1415466Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/sessions/3eae5a52-069d-4cdf-bd58-565389d76aef/thinking HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:02:37.156045095Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/context-usage?session_id=3eae5a",
+   "offset_start": 12135,
+   "offset_end": 14373
+  },
+  {
+   "chunk_no": 8,
+   "text": "/81a333ca-de00-47b7-9bb0-dadab90ba5bf/attachments HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:05:21.940780903Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/sessions/81a333ca-de00-47b7-9bb0-dadab90ba5bf/staged-changes HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-18T08:05:21.941823866Z\"}\n{\"log\":\"INFO:     192.168.1.167:0 - \\\"GET /agent/sessions/81a333ca-de00-47b7-9bb",
+   "offset_start": 16108,
+   "offset_end": 18453
+  }
+ ]
+}
