@@ -6,6 +6,9 @@
 > > `p5e-coordinator-rulings-T0.md`(T0 后产出)> `p5e-common-constraints.md` + 附录 A/B/D
 > > 本计划书 > 任务 brief。**
 > ⚠️ 凡**用户明示裁定**的压过上级设计(已发生 2 次,见 `p5-master-plan.md` §4)。
+>
+> 🔴 **干净上下文从 `p5e-kickoff-prompt.md` 开始读**(必读清单 + 已批准裁定 + 协调者不许重犯的坑)。
+> 🔴 **跨区影响与两张独立票在 `docs/superpowers/2026-08-05-sp8-p5-cross-area-impacts.md`**(进 git)。
 
 | | |
 |---|---|

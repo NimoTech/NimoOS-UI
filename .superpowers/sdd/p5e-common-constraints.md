@@ -7,11 +7,16 @@
 >    §6.1/§6.4/§6.5(后端实测)· §7(K1–K8 / N1–N7)· §9(风险)· §10(记账)**。
 > 2. 🔴 **`p5-master-plan.md`** —— 全期重算(按蓝本逐类实测):**P5e 的 52 个 scss 类逐类清单** ·
 >    **24 个蓝本死代码类** · 用户裁定/勘误对上级设计的覆盖。
-> 3. **`p5d-handoff-to-p5e-p5f.md`** —— P5d 交下来的债务与 9 条做法
-> 4. **`p5d-coordinator-rulings-T0.md`(R1–R17)** —— R5 / R8-R9 的方法论、R17 的守卫形态本期继续沿用
-> 5. **`p5d-FINAL-review.md`** —— 尤其 §0.3 四个位置「谁在守 / 谁裸奔」实测表(⚠️ 本期**不接手**修它,见 §0.3)
-> 6. **`p5e-coordinator-rulings-T0.md`**(本期 T0 评审后产出)
-> 7. **本文件** → 然后才是 `p5a-` → `p5b-` → `p5c-` → `p5d-common-constraints.md`
+> 3. 🔴 **`docs/superpowers/2026-08-05-sp8-p5-cross-area-impacts.md`** —— 跨区影响与两张独立票
+>    (⚠️ 在 `docs/`,**进 git**;`.superpowers/` 是 gitignore 的)。
+>    含:**票 A** Agent notes 分组 · **票 B** color-guard 收口 · **E-52 对 P5a 仪表盘的可见影响** ·
+>    D-3 的跨期约定含义 · **P5f 的整段搬陷阱** · 对上级设计的 5 处订正与待并入 roadmap 的动作项。
+> 4. **`p5e-kickoff-prompt.md`** —— **干净上下文的入口**(已批准裁定 + 六个翻车点 + 协调者不许重犯的坑)。
+> 5. **`p5d-handoff-to-p5e-p5f.md`** —— P5d 交下来的债务与 9 条做法
+> 6. **`p5d-coordinator-rulings-T0.md`(R1–R17)** —— R5 / R8-R9 的方法论、R17 的守卫形态本期继续沿用
+> 7. **`p5d-FINAL-review.md`** —— 尤其 §0.3 四个位置「谁在守 / 谁裸奔」实测表(⚠️ 本期**不接手**修它,见 §0.3)
+> 8. **`p5e-coordinator-rulings-T0.md`**(本期 T0 评审后产出)
+> 9. **本文件** → 然后才是 `p5a-` → `p5b-` → `p5c-` → `p5d-common-constraints.md`
 >
 > ⚠️ **`p5d-common-constraints.md` 有 18 处已查实的错(E-31~E-48),顶部已有勘误横幅** ——
 > 凡与裁定书冲突一律以裁定书为准。**本期不许引它的 A-10 / K37 / §4.2 / §7 / §1.2(43 个 glyph)原文当依据。**
@@ -718,7 +723,7 @@ RED→GREEN 证据(含 RED 探针的两段输出与还原确认;
 | # | 出处原文 | 权威源实际(协调者 2026-08-05 实测) | 处置 |
 |---|---|---|---|
 | **E-49** | `p5d-common-constraints.md` §4.3 / **E-27**:`__tests__/notesMapper.spec.js` **归 P5e** | 🔴 **依据不成立** —— 该 spec 测 `buildSemanticSearchBlock`(agent 卡片映射器,本仓 `src/ai/services/searchMapper.ts`),与 `searchAggregate.js`(搜索页文件级聚合)是**两个不同文件、两条不同链路**。且本仓 `searchMapper.ts`(95 行)**整个 notes 分组都还没移**、`SemanticSearchCard.vue` 与 `SearchFullResults.vue` 各 **0 处** `notes` | **转独立票**(§0.4) |
-| **E-50** | `p5d-kickoff-prompt.md:134`:「P5e 搜索 **820**」= `SearchView` 401 + `searchAggregate` 79 + `FileDetailDrawer` 220 + `KFileViewer` 120 | **四个文件行数 4/4 全对** ✅(逐个 `git show \| wc -l` 实测)。🔴 **但同 E-28 的漏法:没算 scss** —— 蓝本 Search page 段(约 `:457-733`,扣掉已搬部分)+ `:1540-1674`(match pill + detail drawer)+ `KFileViewer` 的 `<style>` 51 行 | **本期真实体量 ≈ 820 + scss(T0 给终值,初估 300-400)**。**scss 独立一刀(T2),别塞进组件刀里** |
+| **E-50** | `p5d-kickoff-prompt.md:134`:「P5e 搜索 **820**」= `SearchView` 401 + `searchAggregate` 79 + `FileDetailDrawer` 220 + `KFileViewer` 120 | **四个文件行数 4/4 全对** ✅(逐个 `git show \| wc -l` 实测)。🔴 **但同 E-28 的漏法:没算 scss** —— 蓝本 Search page 段(约 `:457-733`,扣掉已搬部分)+ `:1540-1674`(match pill + detail drawer)+ `KFileViewer` 的 `<style>` 51 行 | **本期真实体量 ≈ 820 + scss 425 = 1245**(scss = 52 个类,逐类清单见 `p5-master-plan.md` §2.4)。**scss 独立一刀(T2),别塞进组件刀里** |
 | **E-51** | `p5d-common-constraints.md` §1.2 与**上级设计 §2.5/§4** 都写 `KIcon` = **43** 图标 | 🔴 **实测 42**(承 E-35 已订正过一次) | 本文件 §1.2 用 **42** |
 | **E-52** | — | 🔴 **新增:`.k-suggest-chip` 基类是 P5a 的跨期漏搬** —— P5a 搬了 `.k2-suggest .k-suggest-chip` 后代覆盖(New-UI `knowledge.scss:2198`)却没搬基类;蓝本 `DashboardView` 与 `SearchView` **都用它** | **P5e 补基类,插在覆盖之前**(§6.3) |
 | **E-53** | 上级设计 §2.4:蓝本 11 个 `.vue` 共 **461** 条去重 `$t()` | ⚠️ 协调者按 **`$t('…')` 单引号**扫 13 个 `.vue` 得 **408**。**这大概率是扫法差异**(未含双引号 / helper `.js` 里的 `i18n.t()` / 过 `$t(变量)` 的常量表),**不是上级设计错** | 🔴 **T0 用与上级设计同口径复扫并给终值。别急着判成勘误** —— P5d 吃过「凭想象补一个不存在的问题、烧 46 万 token」的教训 |
