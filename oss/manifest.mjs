@@ -101,6 +101,7 @@ export const DELETE = [
   'src/views/__tests__/PhotosAlbumDetail.test.ts',
   'src/views/__tests__/PhotosAlbums.test.ts',
   'src/views/__tests__/PhotosFavorites.test.ts',
+  'src/views/__tests__/photosGlassSurfaces.test.ts',
   'src/views/__tests__/photosLayoutHeightCap.test.ts',
   'src/views/__tests__/PhotosPeople.test.ts',
   'src/views/__tests__/PhotosPersonDetail.test.ts',

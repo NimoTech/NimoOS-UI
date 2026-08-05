@@ -804,10 +804,24 @@ onMounted(() => {
 .understood-v { margin: 0 4px; }
 
 /* ── filterbar(photos.scss:2610-2657)── */
+/* 刻意**不画背景**(修复真机截图里那条横贯整宽的黑带)。
+   Vue2 `photos.scss:2616` 这里是 `background: var(--bg)`,在 Vue2 里成立 —— 它的相册区是
+   一整块**不透明深色页面**(自己的 `--bg` 定义在 `photos.scss:3`,是近黑实色),条底与页底
+   同色、看不出边界。New-UI 的相册区活在 AreaShell 的**玻璃壳**里(半透明,壁纸/渐变透上来),
+   而本仓同名 `--bg`(`theme.css:42`,深蓝灰实色)刷上去就是一块色板。
+   属"照抄 token 名、但两个 --bg 语境不同"的移植缺陷,
+   按「界面照 Vue2(视觉效果)/ 逻辑照正确」修:去掉底色,与上面的 .search-hero、下面的排序行
+   一致由玻璃壳透上来,分界交给 border-bottom。
+   本仓 `--bg` 的正当用法是"占满视口、自己就是页底"的壳(StorageShell / SettingsShell /
+   MediaViewer / SearchDialog)与 SmartViewCard 拼贴图的缝隙色,不该由区域壳内的行/条来刷。
+   **position/z-index 保留**:筛选弹层(.fpop)是本条的后代,靠这两条才画得到下方网格之上;
+   sticky 在本布局里其实是空操作(滚动容器在 PhotosSearchGrid 内部、是兄弟不是祖先),但它
+   同时承担"建立定位上下文"的作用,删掉会让弹层被瓦片压住 —— 与去底色无关,不动。
+   反向闸见 __tests__/photosGlassSurfaces.test.ts。 */
 .filterbar {
   padding: 12px 32px; border-bottom: 1px solid var(--divider);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: var(--bg); position: sticky; top: 0; z-index: 6;
+  position: sticky; top: 0; z-index: 6;
 }
 .filterbar-spacer { flex: 1; }
 .clear { font-size: 12px; color: var(--fg-faint); padding: 6px 8px; background: none; border: 0; cursor: pointer; }

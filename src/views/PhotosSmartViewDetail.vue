@@ -786,8 +786,15 @@ function onTileClick(p: Photo): void {
    `::-webkit-scrollbar` 定制族——照搬 Vue2 那套等于引入死代码。 */
 .sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
+/* 底色订正(真机截图:整条右栏在玻璃壳上显示成一块黑板)。原先按 T6 的映射走
+   `--surface-1` → `--panel-bg-solid`,援引的先例是 PlaceDetailPanel —— 但那条先例是
+   **功能性**的:它压在 PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。
+   本栏底下没有地图、只有区域壳,不透明实底就只剩"与自己所在的区域不一致"这一个效果:
+   同区常驻侧栏 PhotosSidebar:119 / PlacesRail:200 / PhotoInfoPanel:175 / PersonPlacesTab:188
+   全是 `var(--panel-bg)`。改用玻璃底,与它们一致。
+   `--panel-bg-solid` 的消费方白名单见 views/__tests__/photosGlassSurfaces.test.ts。 */
 .sv-detail-side {
-  border-left: 1px solid var(--divider); background: var(--panel-bg-solid);
+  border-left: 1px solid var(--divider); background: var(--panel-bg);
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
 
