@@ -11,7 +11,7 @@
 
 | 段 | 蓝本行段 | 真色字面量 |
 |---|---|---|
-| Allowlist A | `:985-1160` | **6 处**(`:1003` `:1045` `:1120`×2 `:1121`) |
+| Allowlist A | 🔴 **`:985-1141`**(段边界见附录 D §D.3.0) | 🔴 **5 处**(`:1003` `:1045` `:1120`×2 `:1121`)—— ~~6 处~~,见 §B.0.2 |
 | Allowlist 弹窗 | `:1342-1400` | **3 处**(`:1392`×2 `:1393`) |
 | **Wiki** | `:2453-2561` | 🔴 **0 处 —— 已实扫,不是猜的**(见 §B.0.1) |
 | `RootsView` `<style scoped>` | `:223-289` | **2 处**(`:243` `:254`,均为 `var()` 兜底) |
@@ -37,6 +37,32 @@
 
 ⚠️ **T2 的色扫守卫别用 `\bwhite\b`** —— 要用「具名色作为**属性值**出现」的形态,否则每个
 `white-space` 都会报红。
+
+### 🔴 B.0.2 订正块(T0b · 裁定 §三 **M-1**)—— A 段是 **5 处**不是 6 处
+
+**原缺陷**:§B.0 表头把 Allowlist A 段记成「6 处」,但**它自己列出的行号只有 5 个**
+(`:1003` `:1045` `:1120`×2 `:1121`)—— **标题与内容自相矛盾**,是算错了。
+
+🔴 **T0b 自扫复核(口径 `#[0-9a-fA-F]{3,8}` / `rgba?\(` / `hsla?\(` / 具名色词表,含注释;
+完整输出见 `p5f-task-0b-report.md` §6)**:
+
+```
+=== AllowlistA :985-1141(订正后段边界)===
+  :1003  white
+  :1035  transparent          ← CSS 关键字,不算(本附录抬头口径)
+  :1045  white
+  :1112  [假阳性]white         ← white-space,不算(§B.0.1)
+  :1120  #1f9c47  rgba(
+  :1121  rgba(
+  >>> 真色字面量 = 5 ✅
+=== AllowlistModal :1342-1400 → 3 ✅   === Wiki :2453-2561 → 0 ✅(6 行全是 white-space 假阳性)
+```
+
+⚠️ **段边界从 `:985-1160` 收窄到 `:985-1141` 不改变这个数** —— 5 处全部落在 `:1121` 之前。
+
+🔴 **T2 仍要自己实扫一遍**(不许采信 T0 / 评审 / T0b 任何一方的数)。
+🔴 **实扫时禁用 `\bwhite\b`**(裁定 **R11**,常驻)—— 用「具名色作为**属性值**出现」的形态,
+否则每个 `white-space` 都会报红。**§B.3 + §B.4 合起来覆盖全部 8 处(A 段 5 + 弹窗 3),无遗漏。**
 
 ## B.1 🔴 K55 —— `GROUPS_TEMPLATE` 三个 `linear-gradient`(**定死,不许自选**)
 
@@ -85,10 +111,84 @@
 
 ### B.2.2 落地(定死)
 
-| # | 蓝本坐标 | 原文 | 🔴 **落地** | 依据 |
-|---|---|---|---|---|
-| ① | `RootsView.vue:243`(`.kr-badge`) | `background: var(--bg-tertiary, rgba(127, 127, 127, 0.12));` | **`background: var(--bg-chip);`** | `--bg-tertiary` 全仓不存在 ⇒ 兜底**一直在生效**。`.kr-badge` 是 `border-radius: 999px` 的小药丸 —— **蓝本自己**对 999px 药丸底色的用法统计:`var(--bg-chip)` **8 次**居首;本仓同款统计 **7 次**居首 |
-| ② | `RootsView.vue:254`(`.kr-input`) | `border: 1px solid var(--border, rgba(127, 127, 127, 0.25));` | **`border: 1px solid var(--line);`** | `--border` 不在本档映射层。**蓝本自己的同族表单控件 `.k-field select`(`:1350`,就在本期 `:1342-1400` 段内)写的就是 `border: 1px solid var(--line)`** —— 同页同族,零推测 |
+| # | 蓝本坐标 | 原文 | 🔴 **落地** | 🔴 **首要依据(T0b 补,裁定 R8)** | 次要依据(T0 原写) |
+|---|---|---|---|---|---|
+| ① | `RootsView.vue:243`(`.kr-badge`) | `background: var(--bg-tertiary, rgba(127, 127, 127, 0.12));` | **`background: var(--bg-chip);`** | 🔴 **本仓既定先例 `knowledge.scss:2057-2090`(P5c-T2a · FolderBrowser)对同一对 token 的同款兜底处置** —— 见 §B.2.3 | `.kr-badge` 是 `border-radius: 999px` 的小药丸;**蓝本自己**对 999px 药丸底色的统计 `var(--bg-chip)` **8 次**居首,本仓同款 **7 次**居首 |
+| ② | `RootsView.vue:254`(`.kr-input`) | `border: 1px solid var(--border, rgba(127, 127, 127, 0.25));` | **`border: 1px solid var(--line);`** | 🔴 **改引同一条先例 §B.2.3** —— 先例对**逐字同款**的 `var(--border, rgba(127,127,127,0.25))` 落的就是 `var(--line)`(比引 `.k-field select` 硬) | 蓝本同族表单控件 `.k-field select`(`:1350`,在本期 `:1342-1400` 段内)写的是 `border: 1px solid var(--line)` |
+
+### 🔴🔴 B.2.3 本仓既定先例(T0b 补 · 裁定 **R8-1**)—— `knowledge.scss:2057-2090`(P5c-T2a · FolderBrowser)
+
+🔴 **坐标由 T0b 现测**(`grep -n -- "--bg-tertiary" src/ai/styles/knowledge.scss` + 逐行回读 `:2050-2095`;
+输出见 `p5f-task-0b-report.md` §5)。**这是本仓处理过的、同一对 token 的同款兜底**,
+比「999px 药丸统计」和「`.k-field select`」都硬 —— **它是一致性依据,不是类比。**
+
+**先例原文(本仓 `knowledge.scss`)**:
+
+```
+:2057-2072  /* ---------- P5c-T2a · FolderBrowser(蓝本 FolderBrowser.vue:82-143)----------
+   ① `var(--border, 回退值)` / `var(--bg-tertiary, 回退值)`(蓝本 :85 / :95 / :96)——
+      这两个 token 在 Vue2 的 src/ 下零声明,真实渲染的就是回退值 → 不保留这层壳,
+      按回退值的语义直接映射到本档 token */
+:2076   蓝本 :85  var(--border,      rgba(127,127,127,0.25))  →  var(--line)
+:2087   蓝本 :95  var(--border,      rgba(127,127,127,0.18))  →  var(--line-faint)
+:2089   蓝本 :96  var(--bg-tertiary, rgba(127,127,127,0.06))  →  var(--bg-sunken)
+```
+
+**本期与先例的对照**:
+
+| 本期 | 蓝本原文 | 先例同款? | 落地 |
+|---|---|---|---|
+| `RootsView:254` | `var(--border, rgba(127,127,127,**0.25**))` | 🟢 **与先例 `:2076` 逐字同款**(同 token、同 alpha) | **`var(--line)`** —— 抄先例 |
+| `RootsView:243` | `var(--bg-tertiary, rgba(127,127,127,**0.12**))` | 🟡 同 token、**alpha 更大**(0.12 > 先例的 0.06) | **`var(--bg-chip)`** —— 见下 alpha 保序论证 |
+
+#### 🔴 B.2.3.1 alpha 保序论证(**必须写进 T2 报告**)
+
+**中性灰(`rgba(127,127,127,α)`)叠在暗底上,α 越大越亮。** 先例自己就是靠这个**保序**的:
+`:2076` 的 **0.25** → `--line`,`:2087` 的 **0.18** → `--line-faint`(**更淡的一档**),**大小关系被保住**。
+
+本处 **0.12 > 先例 `:2089` 的 0.06** ⇒ 应取**比 `--bg-sunken` 更亮一档**的背景 token。
+**T0b 现测两档值**(`grep -nE '^\s*--(bg-chip|bg-sunken|line|line-faint):' src/ai/styles/knowledge.scss`):
+
+| token | 暗档 | 亮档 | 相对亮度 |
+|---|---|---|---|
+| `--bg-sunken` | `:166` `#161617` | `:359` `var(--tool-bg)` | **更暗** |
+| **`--bg-chip`** | `:167` **`#2A2A2C`** | `:360` **`var(--tool-bg-hi)`** | 🟢 **更亮一档** ✅ |
+| `--line` | `:191` `#2E2E31` | `:401` `var(--card-border)` | — |
+| `--line-faint` | `:193` `#262628` | `:403` `#EEEBE3` | — |
+
+⇒ 🔴 **取 `--bg-chip`,与先例用 `--line`/`--line-faint` 拉开 `0.25`/`0.18` 是同一个做法。四个值两档齐全 ✅**
+
+#### 🔴🔴 B.2.3.2 承 **E-73**:这一处是**可见变化**,不是等价替换
+
+🔴 **T0b 实测(两侧都测了)**:
+
+```
+$ grep -rn -- "--bg-tertiary" src/            # 本仓
+src/ai/styles/knowledge.scss:2064   ← 注释
+src/ai/styles/knowledge.scss:2088   ← 注释
+⇒ 本仓零声明
+
+$ git -C ../../NimoOS-UI grep -nE "^\s*--bg-tertiary\s*:" 7a6ee6b7 -- src/
+(空) ⇒ 🔴 蓝本(Vue2)也零声明
+
+$ git -C ../../NimoOS-UI grep -nE "^\s*--border\s*:" 7a6ee6b7 -- src/
+(空) ⇒ 蓝本零声明;而本仓 theme.css:52(暗)/ :267(亮)有声明
+```
+
+⇒ **`--bg-tertiary` 两侧都零声明 ⇒ 兜底 `rgba(127,127,127,0.12)` 一直在生效,是蓝本真实渲染出来的颜色。**
+⇒ 🔴 **换成 `var(--bg-chip)` 会让 `.kr-badge` 的底色变** —— **这是可见变化,不是等价替换。**
+
+🔴🔴 **T2 不许引治理 K54-③ 那句「兜底本是死代码」当论证**(勘误 **E-73**):
+那句**对 `--border` 成立**(本仓 `theme.css` 有声明 ⇒ 兜底确实是死代码),
+**对 `--bg-tertiary` 不成立**(全仓零声明 ⇒ 兜底一直在生效)。**照抄那句 = 论证前提是假的。**
+
+🔴 **T2 报告必须如实写成**:「这是 K2 主题映射层的**既定后果**,是**可见变化**;
+授权来自 K54(rgba 一律禁止)+ 裁定 **R8**;取值依据是本仓 `knowledge.scss:2057-2090` 的既定先例 + alpha 保序。」
+
+🔴 **验收清单加一条**:
+
+> 「索引根页那个小徽标(实时监视 / 仅定时扫描)的底色采用本仓 chip 语义 token,
+> 与蓝本的中性灰 12% **不完全同值** —— 这是 K2 主题映射层的既定后果,请顺带看一眼。」
 
 🔴 **渲染语义论证(T2 报告要写)**:
 - ① **兜底值原本一直在生效**(`--bg-tertiary` 全仓无声明)⇒ 改成 `--bg-chip` **是可见变化**,
@@ -100,6 +200,36 @@
   `--line` = `:191`(暗 `#2E2E31`)/ `:401`(亮 `var(--card-border)`)。**两档都有 ✅**
 
 🔴 **`--danger` / `--text-tertiary` / `--text-secondary` / `--text-primary` 这些无兜底的 `var()` 照抄不改**(K54-④)。
+
+## 🔴 B.2.4 `kr-path` / `kr-input` 的字体栈:**照抄蓝本原文**(T0b 补 · 裁定 §三 **M-6**)
+
+**T0b 现测蓝本 `RootsView.vue`**:
+
+```
+:235  .kr-path  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; … }
+:259  .kr-input { … font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+```
+
+| 处 | 蓝本坐标 | 🔴 **落地** |
+|---|---|---|
+| `.kr-path` | `RootsView.vue:235` | **`font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`** —— **逐字照抄** |
+| `.kr-input` | `RootsView.vue:259` | **同上,逐字照抄** |
+
+**理由**:①**字体栈不是颜色**,不在本仓「一切可见颜色必须是 token」的约束范围内,`color-guard` 也不扫它;
+②本期纪律是「界面严格 1:1 · 照抄老样子」。
+
+⚠️ **蓝本自己不一致(这才是要申报的原因)**:**同期段内**的 `.k-field-mono input`
+(蓝本 `knowledge.scss:1365`,就在本期 `:1342-1396` 弹窗段里)用的是 **`font-family: var(--font-mono)`**
+—— T0b 现测原文 `.k-field-mono input { font-family: var(--font-mono); font-size: 12.5px; }`;
+同段 `:1367` 的 `.k-field-hint code` 也用 `var(--font-mono)`。
+⇒ **同一次迁移里会同时出现「硬编码字体栈」和「`var(--font-mono)`」两种写法**,而两种都是照抄。
+
+🔴🔴 **T2 必须在报告里显式申报这两处** —— **不申报,下一道评审会把它当成「漏 token 化」而打回。**
+申报原文照这个意思写:「`kr-path:235` / `kr-input:259` 的字体栈**照抄蓝本硬编码值**;
+同段 `.k-field-mono:1365` 照抄的是 `var(--font-mono)`。**两者的差异来自蓝本自身不一致,不是本刀的取舍**;
+字体栈非颜色 token 约束范围(裁定 §三 M-6)。」
+
+⚠️ **不许「顺手统一」成 `var(--font-mono)`** —— 那是改蓝本行为,且是未申报的偏离(=缺陷)。
 
 ## B.3 🔴 `color="white"` / `color: white` 三处具名色(**定死**)
 
