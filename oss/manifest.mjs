@@ -48,6 +48,11 @@ export const DELETE = [
   'CLAUDE.md',
   'design-export',
 
+  // 各期台账(2026-08-05 起入库,见 .superpowers/.gitignore)。282 份报告里写满了
+  // 内部决策、后端接口实测、AI/相册/搜索的设计过程 —— 属于 E7「一份文档都不带」的范围,
+  // 只是它在 08-05 之前是 gitignore 的、git archive 拿不到,所以从前不用列。
+  '.superpowers',
+
   // SP9-P7:搜索面板的视图层纯函数模块 + composable。唯一消费方 SearchDialog.vue /
   // SearchDialog.test.ts 都在本表里,整目录零消费方。
   // ⚠️ 必须整目录删,不能只删词表命中的那几个:词表(forbidden.mjs 的 search 条目)只
@@ -381,8 +386,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '// 「清理本地待上传缓存」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
 
   // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
+  // 2026-08-05 私有侧把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
+  // 锚点跟着改。开源侧两行都不需要:.claude/ 本就不导出,.superpowers/ 已在 DELETE 表。
   { path: '.gitignore',
-    find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n.superpowers/\n',
+    find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n# .superpowers/ **入库** —— 台账是各期唯一的决策记录。SP7 曾把整个目录弄丢且 git 救不回,\n# SP9-P7 又发现 P5/P6 的台账只活在 gitignore 里。规则见 .superpowers/.gitignore:\n# 台账(.md)与自查截图(.png)进库,评审 diff / 备份 / 快照环境这类机器产物不进。\n',
     replace: '' },
   { path: '.gitignore',
     find: '\n# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库\nscripts/tmlab/\nvite.config.tmlab.ts',
