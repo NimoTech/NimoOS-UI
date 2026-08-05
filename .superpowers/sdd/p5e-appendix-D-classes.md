@@ -123,12 +123,20 @@
 
 ## D.2 🔴 `p5-master-plan.md` §2.4 的 52 类清单 —— 逐个对齐 + **2 处漏列(勘误 E-55)**
 
-**§2.4 的 52 个全部在 TO-MOVE 里,零错判 ✅。** 但 §2.4 **漏了 2 个真实必须搬的类**:
+🔴 **订正(评审 Minor-4/Minor-5 / 裁定 R4 的 E-55、R3.1-M2)**:
+① §2.4 的代码块解析出 **53** 个真类(不是 52);其中 **51 个**落在 TO-MOVE,另 2 个各归别节
+(`k-suggest-chip` → §D.4 的 HALF-MOVED · `h-md` → §D.6 的嵌套零引用,**它不在 74 个模板 token 基线里**)。
+🔴 **一律以 §D.1 的 TO-MOVE 清单为准,不看总数句。**
+② §2.4 漏列的是 **3 个**类,不是 2 个 —— **`.path`(蓝本 `:670`,`SearchView` 与 `FileDetailDrawer` 模板都在用)也漏了**。
+对 T2 **无实质影响**:附录 D.1 的 TO-MOVE 54 已含全部 3 个,52/53 只是台账口径。
+
+漏列的 3 个:
 
 | 漏列的类 | 蓝本行 | 谁在用 | 为什么必须搬 | 连带影响 |
 |---|---|---|---|---|
 | 🔴 **`.k-drawer-bg`** | `1572-1578` | `FileDetailDrawer.vue:2` 根元素 | 抽屉的**全屏遮罩**:`position: fixed; inset: 0` + `backdrop-filter: blur(8px)` + `z-index: 1050` + `animation: k-drawer-fade` | 不搬 = 抽屉没有遮罩、**没有定位、直接塞进文档流**;且 `z-index: 1050` 是 **K46 判据里 `.k-fileviewer-host` 1100 的对照基准** |
 | 🔴 **`.k-drawer`** | `1579-1586`,`1667` | `FileDetailDrawer.vue:3` `<aside>` | 抽屉主体:`width: min(860px, 90vw)`、`height: 100%`、`border-left`、`box-shadow`(★色)、`animation: k-drawer-in` | 不搬 = 抽屉没宽度、没动画、没投影 |
+| 🔴 **`.path`** | `670` | `SearchView.vue:148` + `FileDetailDrawer.vue:20` 的 `<span class="path">` | `.k-rcard-meta-item .path` 的等宽路径片段(`--font-mono`) | 不搬 = 路径不是等宽字体。**它归 `NON_K_HELPER_CLASSES`(§D.7.2),不进白名单** |
 
 **连带漏列的 3 样非 class 结构**(§2.4 只列 class,这三样必须一并搬):
 
@@ -154,7 +162,9 @@
 | S5 | `1540-1563` | 两个 `@keyframes` + `.k-match-pill` + `.k-more-hint`(含 `b` / `.chev` / `.k-rcard:hover` 三条后代) | |
 | S6 | `1571-1673` | `.k-drawer-bg` … `.k-chunk-viewer-foot` + `@media` | 🔴 **跳过 `:1564-1570`**(`.k-btn.outline` 重复段 + `.k-btn.text` 的 K45 已搬) |
 
-外加 `KFileViewer.vue:71-76` + `:103-119`(K46 砍掉 `:77-101`)。
+外加 **`KFileViewer.vue:71-76` + `:102-119`**(K46 砍掉 `:77-101`)。
+🔴 **订正(评审 Minor-3 / 裁定 R3.1-M1)**:原写 `:103-119` 会**丢掉 `:102` 的 `}`**,`.k-fileviewer-host` 不闭合。
+`scripts/sim-r8r9.mjs` 一直用的是正确范围(`slice(101,119)` = 行 102–119)。
 
 ---
 
@@ -280,8 +290,12 @@ done; echo done
 | `NEW_RE` 扫出的 class 数(strip 注释后) | **292** | **347** | **+55** |
 | `WHITELIST_293` 常量长度 | **293** | 🔴 **348** | **+55** |
 
-- **常量长度 348 ≠ 扫出数 347**,这是**现状就有的 1 差**(常量里有 1 项只作为更长类名的前缀出现,
-  被 `NEW_RE` 的贪婪匹配吃掉;实测「常量里没有一项在 scss 中无规则」= 0)。**不是错,别去「修平」。**
+- **常量长度 348 ≠ 扫出数 347**,这是**现状就有的 1 差**,🔴 **不是错,别去「修平」**。
+  🔴 **订正(评审 Minor-9 / 裁定 R8)**:那 1 项是 **`knowledge-app`**,真实原因是
+  **`NEW_RE` 的 `k(?:2|n)?-` 分支要求 `k-` / `k2-` / `kn-`,而 `knowledge-app` 是 `kn` + `o`,压根匹配不上**
+  —— 与「贪婪匹配吃掉前缀」**无关**(它是作用域根,不是别的类的前缀)。
+  实测:`whitelist items not in NEW_RE hits = ['knowledge-app']`、`whitelist items with no rule in css = []`。
+  ⚠️ 照错理由去理解会让人以为白名单里还有别的「被吃掉的前缀项」而去翻,白翻。
 - 🔴 **新增的 55 个类**(逐字,T2 直接追加进常量):
 ```
 k-adv-chip k-adv-chips k-adv-field k-adv-label k-adv-panel k-adv-toggle
@@ -328,12 +342,19 @@ k-skel-rcard
 
 ### D.7.3 复现命令
 
+🔴 **T0b 整改后可直接跑(评审 Important-3:原来这里是不可执行的伪命令)**:
 ```bash
-cd /tmp && cat > sim.mjs <<'EOF'
-# 见 T0 报告 §7 的 sim-r8r9.mjs 原文(含 stripComments / NEW_RE / nonKClassNames 三段逐字复制)
-EOF
-node sim.mjs
+cd /home/nimo/NimoTech/.sp8/NimoOS-New-UI
+node .superpowers/sdd/p5e-fixtures/scripts/sim-r8r9.mjs    # 292->347 · 常量 293->348 · NON_K 16->19
+node .superpowers/sdd/p5e-fixtures/scripts/classes2.mjs    # 74 token = TO-MOVE 54 / ALREADY 17 / NO-RULE 3
 ```
+输入全部自取(蓝本走 `git -C <NimoOS-UI> show 7a6ee6b7:`),**零手工准备**;
+`stripComments` / `NEW_RE` / `nonKClassNames` 三段是从 `knowledgeStyles.test.ts` **逐字复制**的。
+🔴 **不用 `p5d-gen-r8r9-sim.mjs`**(硬编码旧常量名,跑起来会抛)。
+
+⚠️ **`sim-r8r9.mjs` 带基线守卫**:T2 一旦把本期段落搬进 `knowledge.scss`,它会打印红字警告
+并提示用 `P5E_SCSS=<T2 之前版本的副本> node sim-r8r9.mjs` 重跑 —— 否则「追加后」的数字会**双算**。
+
 🔴 **T2 必须自己重跑一遍**(治理 §10 申报纪律:带 🔴 的复核项不许采信上一刀的结论)。
 
 ---

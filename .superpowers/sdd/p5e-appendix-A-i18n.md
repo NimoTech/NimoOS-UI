@@ -24,26 +24,34 @@
 
 🔴 **协调者初测「53 静态 + 9 动态 + 1 util = 63」逐项复核完全成立**(53 是三个 `.vue` 去重后的静态并集,不是 SearchView 单个的 35)。
 
-### 🔴 关于 E-53(上级设计 461 vs 协调者 408)—— 复扫结论:**上级设计是对的,不是勘误**
+### 🔴 关于 E-53(上级设计 461 vs 协调者 408)—— **结案:不判勘误;差异原因未查明**
 
-| 口径 | 数 |
+🔴 **订正(评审 Minor-2 / 裁定 R4 的 E-53 结案)—— T0 第一版写的「同口径复扫成立、上级设计是对的」不成立。**
+上级设计 §2.4 说的是 **11 个 `.vue`**,而 T0 扫的是 `views/AI/{Knowledge,Parser}` 下的 **16 个**;
+把各种口径穷举一遍,**没有任何一种给得出 461**:
+
+| 口径(全部由 `scripts/scan-i18n2.mjs` 现测) | 数 |
 |---|---|
-| 上级设计 §2.4「蓝本 11 个 `.vue` 共 461 条去重 `$t()`」 | 461 |
-| **T0 同口径复扫**:`/(?:\$t\|i18n\.t)\(\s*'((?:\\.\|[^\\'])*)'/g`(单引号),对蓝本 `views/AI/{Knowledge,Parser}` 全部 16 个 `.vue` 取「至少出现在一个 `.vue` 里」的去重集 | **462** |
-| 放宽到单/双/反引号三种 | 465 |
-| 含 `.js` helper(`i18n.t()`)的全量去重 | 469(单引号)/ 472(三种引号) |
+| 上级设计 §2.4「蓝本 **11 个** `.vue` 共 461 条去重 `$t()`」 | **461** |
+| Knowledge **顶层** 12 个 `.vue` | 407 |
+| \+ `components/`(14 个 `.vue`) | 424 |
+| \+ Parser(共 16 个 `.vue`,= T0 那个数) | **462** |
+| 放宽到单/双/反引号三种(16 个 `.vue`) | 465 |
+| 含 `.js` helper(`i18n.t()`)的全量去重 | 469 / 472 |
+| 协调者初测 | **408**(与「顶层 12 个 = 407」基本对齐,属扫法欠计) |
 
-→ **462 与上级设计的 461 只差 1 条**,量级完全吻合;协调者那个 **408** 是**扫法欠计**(未含跨行 `$t(\n '…')`、
-`$t('…', { … })` 的多行写法、以及 `.js` helper),**不是上级设计错**。
-🔴 **E-53 结案:登记为「协调者口径欠计」,上级设计 §2.4 无需订正。** 下游不许把 461 当勘误引用。
-(承 P5d「凭想象补一个不存在的问题、烧 46 万 token」的教训 —— 这里只做了复扫,没有升级任何 finding。)
+→ 🔴 **定案措辞(下游一律照抄这句)**:
+> **461 与 408 的差异原因未查明,但不影响本期。** 本期 i18n 依据是本附录的 **63 distinct 终值**
+> (已由独立评审逐码点复核 **0 mismatch**、`53 + 1 + 9 = 63` 算式成立)。
+> **不判勘误、也不声称已解释。**
 
-复现:
+🔴 **不许任何一刀再去追 461**(承 P5d「凭想象补一个不存在的问题、烧 46 万 token」的教训)。
+
+复现(⚠️ **T0 第一版这里给的那条 bash 是错的** —— 它 `sort -u` 去重的是**含 `$t(` 前缀与空白的整段匹配**,
+于是 `$t('X'` 与 `i18n.t('X'`、`$t( 'X'` 与 `$t('X'` 被算成不同项,实跑得 **466** 而不是 462。
+改用脚本,它按**捕获组**去重):
 ```bash
-cd /home/nimo/NimoTech/NimoOS-UI
-for f in $(git ls-tree -r --name-only 7a6ee6b7 src/views/AI/Knowledge src/views/AI/Parser \
-           | grep -E '\.vue$' | grep -v __tests__); do git show 7a6ee6b7:$f; done \
-  | grep -oP "(?:\\\$t|i18n\.t)\(\s*'(?:\\\\.|[^\\\\'])*'" | sort -u | wc -l
+node .superpowers/sdd/p5e-fixtures/scripts/scan-i18n2.mjs
 ```
 
 ---
@@ -284,23 +292,25 @@ const FILE_TYPES = [
 ## A.8 起点全表实测
 
 ```
-zh 1595 / en 1595   (真实模块导入,差集均空)
+zh 1595 / en 1595   (T0 测于 2026-08-05,真实模块导入,差集均空)
 aiKb* 家族          387
 ```
+⚠️ **T1 落地后已变成 1648 / 1648**(1595 + 54 − 1)。**具体计数有保质期**(治理 §13-2)——
+现测命令见 §A.9 的 `propose.mjs`。
 
 ## A.9 复现命令
 
-```bash
-cd /home/nimo/NimoTech/.sp8/NimoOS-New-UI
-# 全表键数(真实模块导入,文本解析会少算 —— 治理 §9.3 第 2 条)
-cat > /tmp/dump.test.ts <<'EOF'
-import { it } from 'vitest'; import fs from 'node:fs'
-import zh from './src/i18n/zh_cn'; import en from './src/i18n/en_us'
-it('dump', () => { fs.writeFileSync('/tmp/p5e-zh.json', JSON.stringify(zh)); fs.writeFileSync('/tmp/p5e-en.json', JSON.stringify(en)) })
-EOF
-cp /tmp/dump.test.ts ./p5e-dump.test.ts && pnpm exec vitest run p5e-dump.test.ts && rm ./p5e-dump.test.ts
-node -e "const z=require('/tmp/p5e-zh.json'),e=require('/tmp/p5e-en.json');console.log(Object.keys(z).length,Object.keys(e).length)"
+🔴 **T0b 整改后,4 个脚本从干净检出即可直接跑(评审 Important-3)**,零手工准备:
+输入全部自取(蓝本走 `git -C <NimoOS-UI> show 7a6ee6b7:`,i18n 全表走 **esbuild 转译后真实模块导入**
+—— 治理 §9.3-2:文本解析会少算)。共享输入层 = `scripts/_inputs.mjs`。
 
-# 本批 63 个键的提取(蓝本侧)
-#   见 T0 报告 §5 的 scan-p5e.mjs / propose.mjs / collide.mjs(脚本原文已贴进报告)
+```bash
+cd /home/nimo/NimoTech/.sp8/NimoOS-New-UI/.superpowers/sdd/p5e-fixtures/scripts
+node scan-p5e.mjs      # 63 distinct(静态并集 53 + util 1 + 动态 9)
+node lookup.mjs        # zh 63/63 命中 · en 覆盖 63/63 · en 覆盖值 != key 的 0 条
+node propose.mjs       # 复用 9 / 新增 54 · aiKbSr* 37 / aiKbFd* 16 / aiKbFv* 1 · 名字撞车 0 · 打印当前全表键数
+node collide.mjs       # 双向撞车扫描(默认排除本批自己的 63 个键,否则 T1 落地后每条都跟自己撞)
+node scan-i18n2.mjs    # i18n 规模各口径(407 / 424 / 462 / 465;**没有 461**)
 ```
+⚠️ **全表键数是活的**:T0 测量时是 **1595 / 1595**;T1 落地后是 **1648**(1595 + 54 − 1,§0.2 删 `aiCfgKnowledgeSoon`)。
+`propose.mjs` 会把现测值打印出来,**别照抄本文件里的数字**。

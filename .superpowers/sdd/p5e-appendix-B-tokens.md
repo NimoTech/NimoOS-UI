@@ -188,13 +188,13 @@
 
 ## B.4 `KFileViewer.vue` 的 `<style scoped>` 处置汇总(K46 + K47)
 
-蓝本 `:70-120`(51 行),三块:
+蓝本 `:70-120`(51 行),三块。🔴 **搬运范围 = `:71-76` + `:102-119`**(不是 `:103-119`):
 
 | 蓝本行 | 内容 | 本期处置 |
 |---|---|---|
 | `:71-76` | `.k-fileviewer-host { position: fixed; inset: 0; z-index: 1100; background: #fff }` | **搬**;`#fff` → `var(--bg-canvas)`(K47 / B.1)。🔴 **`position: fixed; inset: 0; z-index: 1100` 三个属性必须原样保留**并配断言(K46 判据 ③) |
 | `:77-101` | 三条 `::v-deep`(`.overlay` / `.v-container` / `.doc-container`),含 `:84` 的 `background-color: #fff` | 🔴 **整段不搬**(K46)。含那一处 `#fff` |
-| `:103-119` | `.k-fileviewer-fallback` + `.k-fileviewer-empty` | **搬**;两条本来就用 `var(--bg-canvas)` / `var(--text-secondary)`,**零字面量** |
+| 🔴 **`:102-119`** | **`:102` 是 `.k-fileviewer-host` 的闭合 `}`** + `.k-fileviewer-fallback` + `.k-fileviewer-empty` | **搬**;两条本来就用 `var(--bg-canvas)` / `var(--text-secondary)`,**零字面量**。⚠️ **订正(评审 Minor-3 / 裁定 R3.1-M1)**:本行原写 `:103-119`,会**丢掉 `:102` 的 `}`** 导致 `.k-fileviewer-host` 不闭合。T0 的 `sim-r8r9.mjs` 一直是对的(`slice(101,119)` = 行 102–119),只有本表差一行 |
 
 → **净剩 1 处色字面量**(`:75` 的 `#fff`),与治理 §6.1 的「净 1 处(K47)」一致。
 
@@ -221,9 +221,10 @@ grep -rn 'class="overlay"' src/                     →  仅 src/files/viewers/V
 | `.k-drawer-bg`(详情抽屉遮罩) | **1050** | 蓝本 `knowledge.scss:1577` |
 | `.k-fileviewer-host`(in-app 预览) | **1100** | 蓝本 `KFileViewer.vue:74`,行尾注释原文 `/* above the detail drawer (1050) */` |
 | `ViewerShell .overlay`(预览器自身外壳) | 200 | `src/files/viewers/ViewerShell.vue:24` |
-| `.k-modal-bg`(本档既有弹窗遮罩) | 现状见 `knowledge.scss` `.k-modal-bg` 块 | T2 搬 `.k-drawer-bg` 时顺手核一眼别撞 |
+| `.k-modal-bg`(本档既有弹窗遮罩) | **1100** | 🔴 **蓝本 `knowledge.scss:1302` 与本仓 `knowledge.scss:1146` 都是 1100**(评审 Minor-6 代查,裁定 **R3.1-M3**)⇒ 它与 `.k-fileviewer-host` 的 1100 **并列是蓝本原生行为、不是本期引入** ⇒ **K46 无需任何决定,照搬即可**。`.k-drawer-bg` 的 1050 低于两者,不撞 |
 
 🔴 **相对关系 = `1100 > 1050`,且蓝本注释里的 `1050` 与 `.k-drawer-bg` 实际值逐字一致(已核)**。
+🔴 **`.k-modal-bg` 也是 1100(与 host 并列)—— 蓝本原生,T2/T4 什么都不用决定。**
 两个数字都必须原样搬,`ViewerShell` 的 200 是**局部**层(在 host 的 stacking context 里),不参与比较。
 
 ---

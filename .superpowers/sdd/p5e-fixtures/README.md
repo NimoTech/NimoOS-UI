@@ -10,6 +10,8 @@
 >   在测试注释里写明「本机无真样本 + 字段形状的权威源 `file:line`」。
 > - **用法照 P5c §4.4**:抄进测试 + 注释标出处 + 程序化逐字节等价校验,
 >   **不许在运行时读 `.superpowers/`**(那个目录不进构建产物)。
+> - 🔴 **抄进测试时删掉所有 `_` 前缀的键**(台账元数据,后端从不下发)—— 见 §3.3。
+> - 🔴 **复现看 `replay.md`**;改完 fixture 必须跑 `scripts/verify-fixtures.mjs`(exit 0)。
 
 ---
 
@@ -17,20 +19,24 @@
 
 | 文件 | 端点 | 性质 |
 |---|---|---|
-| `F0-qdrant-points.REAL.json` | `POST :6333/collections/text_chunks/points/query` | REAL —— Qdrant 原始 payload 6 条(`F5*` 的原料) |
+| `F0a-parser-embed.REAL.json` | `POST :8283/v1/parser/embed` | REAL —— 真 bge-m3 向量(落盘后重放不依赖模型权重) |
+| `F0-qdrant-points.REAL.json` | `POST :6333/collections/text_chunks/points/query` | REAL —— **全部 40 个原始点、payload 零截断**(`F5` 的原料;`F5` 每条 hit 都能溯回这里) |
+| `F0b-qdrant-scroll-source-points.REAL.json` | `POST :6333/…/points/scroll`(全量翻页) | REAL —— `F5b` 的 8 个源点,payload 零截断 |
+| `F0c-qdrant-chunkwindow-source-points.REAL.json` | 同上,`filter: file_id` | REAL —— `F6`/`F6b` 的源点,payload 零截断 |
 | `F1-search-text.empty.REAL.json` | `POST /v1/search/text` | REAL —— 空结果信封(**本机 100% 的真机路径**) |
 | `F2-search-text.rerank-true.empty.REAL.json` | 同上,`rerank:true` | REAL |
 | `F3-search-text.filtered.empty.REAL.json` | 同上,带 `mime_prefix` + `mtime_after_ms` | REAL |
 | `F4-search-text.no_accessible_roots.REAL.json` | 同上,`filters.root_ids` 交集为空 | REAL —— **唯一真抓到的 `warnings` 非空样本** |
-| `F5-search-text.nonempty.REPLAYED.json` | 同上 | REPLAYED —— 单文件 8 chunk |
-| `F5b-search-text.multifile.REPLAYED.json` | 同上 | REPLAYED —— **4 文件 / 8 chunk / relLevel 高中低各有**(T3/T7 首选) |
-| `F6-search-chunk.window.REPLAYED.json` | `GET /v1/search/chunk` | REPLAYED —— 窗口里只有 anchor 一条 |
-| `F6b-search-chunk.window-multi.REPLAYED.json` | 同上 | REPLAYED —— **4 条、chunk_no 不连续(4,5,6,8)、anchor=6 在内**(T5 首选) |
+| `F5-search-text.nonempty.REPLAYED.json` | 同上 | REPLAYED —— 单文件 8 chunk,**零人工成分**、正文零截断 |
+| `F5b-search-text.multifile.REPLAYED.json` | 同上 | REPLAYED(**含 2 处已申报人工成分**)—— 4 文件 / 8 chunk / relLevel 高中低各有(T3/T7 首选) |
+| `F6-search-chunk.window.REPLAYED.json` | `GET /v1/search/chunk` | REPLAYED —— **满窗口 5 条 `2385..2389`,anchor 2387 居中**(T5 测 prev/next 首选) |
+| `F6b-search-chunk.window-multi.REPLAYED.json` | 同上 | REPLAYED —— **4 条 `0..3`,anchor 1 贴着下界 ⇒ 条数 < 2W+1**(钉住「不保证条数」) |
 | `F7-distill.REAL.json` | `:8282/agent/notes/distill/*` | REAL(成功 POST 那一条除外,见 §6) |
 | `F8-v3file.REAL.json` | `GET /v3/file` | REAL —— **401,含 K50 阻塞点的全部证据** |
 | `F9-parser-and-roots.REAL.json` | Parser / 核心 / Qdrant | REAL —— 设备现状全景 |
 | `F10-page-branch.CONSTRUCTED.json` | `POST /v1/search/text` | CONSTRUCTED —— `cite.page` 非空(含 `page: 0` 陷阱) |
 | `F11-rerank-warning.CONSTRUCTED.json` | 同上 | CONSTRUCTED —— `warnings:["rerank_unavailable"]` |
+| `F12-search-chunk.anchor-absent.CONSTRUCTED.json` | `GET /v1/search/chunk` | CONSTRUCTED —— **anchor 不在 `chunks` 里**(补评审 Minor-7;`FileDetailDrawer.vue:157` 兜底分支的唯一样本) |
 
 ---
 
@@ -90,7 +96,7 @@ curl -s -X POST 'http://127.0.0.1:6333/collections/text_chunks/points/count' \
 | ⑤ | `chunks[].preview.text` 字段名 | **`preview.text`**,类型 `*string`,**无 `omitempty` → 键恒存在**,空串/缺失时是 `null`(`stringOrNilFromAny` 把 `""` 也变成 `nil`)。同层还有恒存在的 `preview.thumbnail_url`(本机恒 `null`) | `service/search.go:55-58`、`:339-347` |
 | ⑥ | `score` 的量纲 → **`relLevel` 的 0.65 / 0.50 在真机上分得开档吗?** | **分得开。** score = bge-m3 **dense 余弦相似度**(sparse 只做 prefetch,最终 `Using: "dense"`)。本机实测:切题查询 **0.7340–0.7380**(→ high),完全不相关的查询 **0.4666–0.4824**(→ low),中间档可达。三档都可达 | `service/qdrant_client.go:53-88` + 本 README §5 的实测 |
 | 附 | `warnings` 真会出现 `rerank_unavailable` 吗? | **本机不会**(见 §4)。真抓到的唯一非空 `warnings` 是 **`no_accessible_roots`**(`F4`) | `service/search.go:176-181`、`route/v1/text.go:39-43` |
-| 附 | `chunks[]` / `anchor_chunk_no` 的真实形状 + **anchor 不在 chunks 里的兜底** | `{file_id, kind, anchor_chunk_no, chunks:[{chunk_no, text, page?, offset_start?, offset_end?}]}`。`anchor_chunk_no` **就是请求里传的 `chunk_no` 原样回显**,后端**不保证它出现在 `chunks` 里**(只按 `[chunk_no-window, chunk_no+window]` 且 `kind` 相同过滤,升序;chunk_no **不连续**,见 `F6b` 的 `4,5,6,8`)。anchor 缺席时蓝本 `fetchFull` 的 `(r.chunks\|\|[]).find(...)` 得 `undefined` → 落到 `c.snippet \|\| ''`(`FileDetailDrawer.vue:156-157`),**这条兜底是可达的,要有用例** | `service/authz.go:103-149` |
+| 附 | `chunks[]` / `anchor_chunk_no` 的真实形状 + **anchor 不在 chunks 里的兜底** | `{file_id, kind, anchor_chunk_no, chunks:[{chunk_no, text, page?, offset_start?, offset_end?}]}`。`anchor_chunk_no` **就是请求里传的 `chunk_no` 原样回显**,后端**不保证它出现在 `chunks` 里**(只按 `[chunk_no-window, chunk_no+window]` 且 `kind` 相同过滤,升序;🔴 **条数不保证 = 2W+1** —— anchor 贴着 `chunk_no` 边界时会少,见 `F6b` 的 `0..3`。⚠️ T0 第一版写的「真机 chunk_no 不连续(4,5,6,8)」是 **Qdrant scroll 未翻页造成的假象**,实测该文件 `chunk_no` **0…3447 完全连续**,详见 `replay.md` §7)。anchor 缺席时蓝本 `fetchFull` 的 `(r.chunks\|\|[]).find(...)` 得 `undefined` → 落到 `c.snippet \|\| ''`(`FileDetailDrawer.vue:156-157`),**这条兜底是可达的,要有用例** —— 本机两个真窗口都含 anchor ⇒ 用 **`F12`(CONSTRUCTED)** | `service/authz.go:103-149` |
 
 ### 🔴 `inline=1` 后端到底支不支持
 
@@ -147,10 +153,44 @@ K50 明令禁用的 `service.file.fileUrl()`(`src/file.ts:65-68`)拼出来的 `/
 - `paths` / `mime` 回填 ← **真 Parser** `GET :8283/v1/parser/_internal/files?file_ids=…`(`service/search.go:243-259`)
 - `files[]` 组装(含 `grp.Score = grp.Chunks[0].Score`)← `service/search.go:263-290`
 
-复现脚本:`.superpowers/sdd/p5e-fixtures/replay.md` 里贴了完整命令。
-`F5b` 的 8 个 `score` 是**从本机实测区间(0.4666–0.7380)里取的档位代表值**,目的是让
-`relLevel` 高/中/低三档在同一个 fixture 里都有样本 —— 这一处、且仅这一处是人工选值,
-其余每个字段都来自真响应。
+**复现:`replay.md`(T0b 补写)+ `scripts/replay-fixtures.mjs`(一条命令全量重跑)+
+`scripts/verify-fixtures.mjs`(逐字段自查,exit 0)。**
+
+### 3.1 🔴 人工成分 —— **完整清单,一条不漏**(T0b 重写,承评审 Important-2)
+
+⚠️ **T0 第一版这里写的是「`F5b` 的 8 个 score …… 这一处、且仅这一处是人工选值,其余每个字段都来自真响应」
+—— 那句话不成立**,评审逐项查实了另外 3 类未申报加工。**本节是订正后的完整清单。**
+处置采用**方案(甲)= 去掉加工**:重放不再截断、`hits` 全部可溯源;下表是**去掉之后仍然剩下的**人工成分。
+
+| # | 哪个文件 | 人工的是什么 | 为什么保留 | 申报落点 |
+|---|---|---|---|---|
+| **1** | **`F5b` 独有** | **8 个 `score`** = `[0.7380, 0.7354, 0.6118, 0.6002, 0.5127, 0.5044, 0.4824, 0.4666]`,取自本机实测区间 **0.4666–0.7380** | 真值分布见 `F0`:40 个点全落在 **0.7340–0.7380**,`relLevel` 三档分不开。不造档位就没有 mid/low 样本 | `F5b._provenance` 人工成分 (1) · `replay.md` §4.2 · 本表 |
+| **2** | **`F5b` 独有** | **「4 文件 × 每文件 2 chunk」这个场景本身**(选点规则 = 按 scroll 顺序取前 4 个 `file_id`,每个取 `chunk_no` 最小的 2 个点) | 本机真查询的 40 个 top hit **全在同一个文件里** ⇒ 多文件聚合没有真样本 | `F0b._selection` · `F5b._provenance` 人工成分 (2) · `replay.md` §4.2 · 本表 |
+| **3** | **`F5b` 独有** | `stats.total_candidates` = **源点数 8**(不是某次真查询的候选数);`embed_ms` / `vector_search_ms` **沿用 `F5` 那次真查询的耗时** | `F5b` 的源是 scroll 不是 query,不存在诚实的 `total_candidates` | `F5b._provenance` 倒数第 2 行 · 本表 |
+| **4** | `F0` | `limit: 40` 这个参数选择(`service/search.go:121-130` 的 candidates 上界是 80,取 40 足够覆盖 8 条 hit) | 减小 fixture 体积,不影响任何字段形状 | `F0._request` · `replay.md` §3.1 |
+| **5** | `F6b` | `anchor = 1` 的**挑选规则**(第一个「窗口内 ≥4 条」的 `chunk_no`) | 机械规则、可复现,**不是手挑数字** | `F0c._windows` · `replay.md` §5 |
+
+**`F5` / `F6` / `F6b` 的每一个字段都来自真响应或上表那条 Go 路径,零人工成分。**
+`F5b` 除上表 3 条之外的每个字段(`cite` / `mime` / `kind` / `file_id` / `preview.text` / `paths`)同样如此。
+
+### 3.2 🔴 T0 第一版被查实的 4 类未申报加工(留痕,别再犯)
+
+| # | 加工 | T0b 处置 |
+|---|---|---|
+| 1 | `preview.text` / `chunks[].text` 被齐刷刷截断成 **400 / 320 / 600** 字,而 `buildHitFromPayload`(`search.go:298-337`)与 `GetChunkWindow`(`authz.go:126`)**全链路零截断** | **不再截断**。`verify-fixtures.mjs` 加了一条「长度不许是齐刷刷整百」的常驻断言 |
+| 2 | `F5` 的 `hits[6]`/`hits[7]`(`chunk_no` 1667/3094)在 `F0` 里**无对应项** | 真因:`F0` 当时只落了 40 个点里的**前 6 个**。现在 `F0` 落**全部 40 点**,8 条 hit 全部可溯(`verify-fixtures.mjs` §1 钉死) |
+| 3 | `stats.expand_ms` 曾被写成 `12`,而真抓的四个 `.REAL` 全是 `0` | 现在 `expand_ms` / `vector_search_ms` / `embed_ms` 都是**本次重放的真实耗时**,`total_candidates` = `len(F0.result.points)` |
+| 4 | 🔴 **T0b 自查新发现**:`F6` 的窗口只有 1 条、`F6b` 是 `[4,5,6,8]`,并据此在 §2 与附录 D 写了「真机 `chunk_no` 不连续」 | **纯属 Qdrant scroll 未翻页的假象**(T0 用单次 `limit:1000`,只拿到该文件 3448 点的第一页)。`scrollAll()` 翻页到底后实测 `chunk_no` **0…3447 完全连续**;`F6` 变成满窗口 5 条。§2 与附录 D 的表述已订正 |
+
+**T0b 未再发现第 5 类。** 自查覆盖面见 `scripts/verify-fixtures.mjs`(4 大类断言:溯源 / 零截断 /
+与 Go struct 的键集逐个对齐 / 三级标签与出处说明),`exit 0`。
+
+### 3.3 🔴 抄进测试时必须删掉 `_` 前缀的键
+
+`.REPLAYED` / `.CONSTRUCTED` 与 `F0*` 里的 `_provenance` / `_request` / `_selection` / `_windows` 等
+**都是台账元数据,后端从不下发**。抄进测试当 mock 时**必须删掉**。
+⚠️ 例外:`F1`–`F4` 四个是**端到端逐字节真抓的纯响应体**,故意零 `_` 前缀键,可以原样抄
+(`verify-fixtures.mjs` 里有显式白名单 `PURE_REAL` 钉住这一点)。
 
 ---
 
@@ -223,7 +263,7 @@ Search 的 EmbedCache 是**进程内**结构,无持久化。
 | 刀 | 用哪个 | 干什么 |
 |---|---|---|
 | **T3** `searchAggregate.ts` | `F5b`(首选)· `F5` · `F1`(空)· `F10`(page 分支 + `page:0` 陷阱) | `toFileResults` 两条分支 · `kindFromMime` 六分支 · `basename`/`dirname` · `chunkVM` 边界 · `fmtMtime` 毫秒 |
-| **T5** `FileDetailDrawer.vue` | `F6b`(首选)· `F6` · `F5b` · `F7` | `fetchFull` 的 `r.chunks`/`r.anchor_chunk_no`/`x.chunk_no`/`anchor.text`(**全 snake_case**)· anchor 缺席兜底 · distill 传 `fullPath` |
+| **T5** `FileDetailDrawer.vue` | `F6`(满窗口 5 条,测 prev/next 首选)· `F6b`(条数 < 2W+1 的边界)· 🔴 **`F12`(anchor 缺席兜底的唯一样本,CONSTRUCTED)** · `F5b` · `F7`(distill,🔴 **GET 不是 POST,见 E-54**) | `fetchFull` 的 `r.chunks`/`r.anchor_chunk_no`/`x.chunk_no`/`anchor.text`(**全 snake_case**)· anchor 缺席兜底 · distill 传 `fullPath` |
 | **T6/T7** `SearchView.vue` | `F1`(empty 态)· `F5b`(results 态)· `F11`(rerank warn)· `F4` | 四态 · `buildFilters` 三档 · 过期守卫交错 |
 
 🔴 **mock 打在哪一层**(治理 §4.1,已复核为真):
