@@ -8,12 +8,69 @@
 
 | 标签 | 含义 | 本期哪些 |
 |---|---|---|
-| **`.REAL`** | **本机真机抓的原始响应,一字未改** | `allowlist-extensions` · `allowlist-folders` · `wiki-candidates`(空)· `wiki-raw-DATA` |
+| **`.REAL`** | **本机真机抓的原始响应内容**;JSON 三份**仅做缩进美化**(见 §0.1),`wiki-raw-DATA.REAL.md` **逐字节未改** | `allowlist-extensions` · `allowlist-folders` · `wiki-candidates`(空)· `wiki-raw-DATA` |
 | **`.REPLAYED`** | **真机响应的形状,只改了值**(字段名/类型/枚举一字未动) | `allowlist-extensions.REPLAYED` |
 | **`.CONSTRUCTED`** | **接口打不通,按 Go 结构体逐字段构造** | 全部 `wiki-roots` / `wiki-tree` / `wiki-node` / `wiki-candidates.CONSTRUCTED` |
 
 🔴 **`.CONSTRUCTED` 不许被说成「真机数据」,也不许拿它去推翻 N46 的命名结论**
 (§9.18-2:命名依据只能来自 Go 源码或共享包的归一化代码)。
+
+### 🔴 0.1 订正块(T0b · 裁定 §三 **M-3**)—— `.REAL` 的口径:**「一字未改」对两份 JSON 不准确**
+
+~~原口径:`.REAL` = 本机真机抓的原始响应,**一字未改**。~~
+🔴 **订正为:原始响应内容,`.json` 三份仅做 JSON 缩进美化(4 空格),字段名 / 值 / 顺序一字未动。**
+
+**T0b 实测证据**(完整输出见 `p5f-task-0b-report.md` §7):
+
+| 文件 | md5 与现抓一致? | 结论 |
+|---|---|---|
+| `wiki-raw-DATA.REAL.md` | 🟢 **一致**(`c0449363eb1069a36c9941a0fb842e18`,3430 字节) | ✅ **真·逐字节相同,这条口径不改** |
+| `allowlist-extensions.REAL.json` | 🔴 **不一致**(现抓 `754e2ef8…` **2082 字节紧凑**,fixture `d9536add…` **4795 字节 4 空格缩进**) | ⚠️ 被 `json.tool` 重排版过;`diff <(json.tool 现抓) <(json.tool fixture)` → **无差异** |
+| `allowlist-folders.REAL.json` | 同上 | ⚠️ 同上(`{"rules": []}` 展开成两行) |
+
+**无功能影响**(T4 抄进测试时用的是**解析后的对象**,缩进不参与语义)。
+🔴 **但仍必须订正措辞** —— 承裁定 R3 的 Imp-2 教训:**未申报的加工本身就是缺陷,哪怕零功能影响。**
+
+### 🔴 0.2 `__meta` 的用法(T0b 补 · 裁定 §三 **M-4**)—— **下游一律只取数据字段**
+
+`__meta` 是**三级出处标签的载体**(这是刻意为之,兑现裁定 R3),但它**不是后端 API 形状的一部分** ——
+真实响应里**没有**这个顶层键。整份抄进 mock 会凭空多出一个后端不存在的字段。
+
+🔴 **T4 / T5 / T6 / T7 一律照这个做。**
+
+⚠️ **与裁定书 §三 M-4 的清单不一致,以 T0b 实测为准(R18)**:裁定书点名 **4 份**
+(`allowlist-extensions.REPLAYED` / `wiki-tree` / `wiki-roots.normalized` / `wiki-node`),
+🔴 **T0b 程序化实测是 6 份** —— 漏掉了 `wiki-candidates.CONSTRUCTED` 与 `wiki-roots.CONSTRUCTED`。
+
+```bash
+$ for f in *.json; do echo -n "$f: "; python3 -c "import json;d=json.load(open('$f'));print('__meta' if isinstance(d,dict) and '__meta' in d else '—')"; done
+allowlist-extensions.REAL.json: —          wiki-candidates.REAL.json: —
+allowlist-folders.REAL.json: —
+allowlist-extensions.REPLAYED.json: __meta      wiki-candidates.CONSTRUCTED.json: __meta   ← 裁定书漏
+wiki-node.CONSTRUCTED.json: __meta              wiki-roots.CONSTRUCTED.json: __meta        ← 裁定书漏
+wiki-roots.normalized.CONSTRUCTED.json: __meta  wiki-tree.CONSTRUCTED.json: __meta
+```
+
+| 样本 | 🔴 **只取** | `__meta` 怎么办 |
+|---|---|---|
+| `allowlist-extensions.REPLAYED.json` | `extensions` 数组 | **转成测试文件里的注释** |
+| `wiki-tree.CONSTRUCTED.json` | 各拓扑的节点数组 | 同上 |
+| `wiki-roots.normalized.CONSTRUCTED.json` | 根数组 | 同上 |
+| `wiki-node.CONSTRUCTED.json` | 节点对象(`child_map` / `recent_changes` …) | 同上 |
+| 🔴 `wiki-candidates.CONSTRUCTED.json`(**补**) | 候选数组 | 同上 |
+| 🔴 `wiki-roots.CONSTRUCTED.json`(**补**) | 根数组(**PascalCase,只用于论证 N46**) | 同上 |
+
+✅ **三份 `.REAL` 与 `wiki-candidates.REAL.json` 没有 `__meta`,可整份直用。**
+
+**注释里要保留 `__meta` 的三级标签与 `built_from`**(出处不许丢),例如:
+
+```ts
+// 出处:p5f-fixtures/wiki-node.CONSTRUCTED.json(.CONSTRUCTED)
+// built_from: NimoOS-Wiki/route/v1/wiki.go:16-42(nodeResponse / nodeChildEntry / nodeRecentEntry)
+const NODE = { /* 只抄数据字段,不抄 __meta */ }
+```
+
+⚠️ **判据**:mock 对象里**不许出现 `__meta` 这个键**。它出现在断言的实参里 = 形状被污染。
 
 ## 1. 取数条件(2026-08-06 实测,**有保质期**)
 
