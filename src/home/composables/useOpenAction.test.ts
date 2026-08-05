@@ -17,6 +17,7 @@ beforeEach(() => {
   hrefs = []; opens = []
   localStorage.removeItem('strangler:disabled:/apps')
   localStorage.removeItem('strangler:disabled:/storage')
+  localStorage.removeItem('strangler:disabled:/photos')
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
   vi.mocked(router.push).mockClear()
@@ -62,6 +63,30 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/storage')
   })
+  it('photos 磁贴应用内 router.push /photos(SP7-P8b cutover)', () => {
+    const { openApp } = useOpenAction()
+    openApp('photos')
+    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
+  })
+  it('回退 flag strangler:disabled:/photos==1 时 photos 退回 Vue2 /#/photos(不是 /#/legacy)', () => {
+    localStorage.setItem('strangler:disabled:/photos', '1')
+    const { openApp } = useOpenAction()
+    openApp('photos')
+    expect(hrefs[0]).toBe('/#/photos')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/photos')
+  })
+  it('photos 那把 flag 不影响 storage / appstore', () => {
+    localStorage.setItem('strangler:disabled:/photos', '1')
+    const { openApp } = useOpenAction()
+    openApp('storage')
+    expect(router.push).toHaveBeenCalledWith('/storage')
+    openApp('appstore')
+    expect(router.push).toHaveBeenCalledWith('/apps/store')
+    expect(hrefs.length).toBe(0)
+    localStorage.removeItem('strangler:disabled:/photos')
+  })
   it('storage 与 apps 两把 flag 互不干扰', () => {
     localStorage.setItem('strangler:disabled:/apps', '1')
     const { openApp } = useOpenAction()
@@ -101,9 +126,18 @@ describe('useOpenAction.openItem', () => {
     expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
     expect(hrefs.length).toBe(0)
   })
-  it('photo navigates to /#/photos', () => {
+  it('photo 磁贴应用内 push /photos(SP7-P8b cutover)', () => {
+    const { openItem } = useOpenAction()
+    openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
+    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
+  })
+  it('photo 磁贴:回退 flag 置 1 时退回 Vue2 /#/photos', () => {
+    localStorage.setItem('strangler:disabled:/photos', '1')
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
     expect(hrefs[0]).toBe('/#/photos')
+    expect(router.push).not.toHaveBeenCalled()
+    localStorage.removeItem('strangler:disabled:/photos')
   })
 })

@@ -119,6 +119,9 @@ importers:
       socket.io-client:
         specifier: 2.5.0
         version: 2.5.0
+      sortablejs:
+        specifier: ^1.15.7
+        version: 1.15.7
       tus-js-client:
         specifier: ^4
         version: 4.3.1
@@ -144,6 +147,9 @@ importers:
       '@types/node':
         specifier: ^26.1.2
         version: 26.1.2
+      '@types/sortablejs':
+        specifier: ^1.15.9
+        version: 1.15.9
       '@vitejs/plugin-vue':
         specifier: ^6
         version: 6.0.7(vite@7.3.6(@types/node@26.1.2)(yaml@2.9.0))(vue@3.5.39(typescript@5.9.3))
@@ -759,6 +765,9 @@ packages:
 
   '@types/node@26.1.2':
     resolution: {integrity: sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg==}
+
+  '@types/sortablejs@1.15.9':
+    resolution: {integrity: sha512-7HP+rZGE2p886PKV9c9OJzLBI6BBJu1O7lJGYnPyG3fS4/duUCcngkNCjsLwIMV+WMqANe3tt4irrXHSIe68OQ==}
 
   '@types/web-bluetooth@0.0.21':
     resolution: {integrity: sha512-oIQLCGWtcFZy2JW77j9k8nHzAOpqMHLQejDA48XXMWH6tjCQHz5RCFz1bzsmROyL6PUm+LLnUiI4BCn221inxA==}
@@ -1679,6 +1688,9 @@ packages:
   socket.io-parser@3.3.5:
     resolution: {integrity: sha512-pn+xG/oVnofxqteOawycpHw9QKclpNRa+Z7RW0vZmrIpkgZOVSVzBvY1YGR+p9kIEZXkeAjpHa21wRNLCZ6UAA==}
 
+  sortablejs@1.15.7:
+    resolution: {integrity: sha512-Kk8wLQPlS+yi1ZEf48a4+fzHa4yxjC30M/Sr2AnQu+f/MPwvvX9XjZ6OWejiz8crBsLwSq8GHqaxaET7u6ux0A==}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -2554,6 +2566,8 @@ snapshots:
   '@types/node@26.1.2':
     dependencies:
       undici-types: 8.3.0
+
+  '@types/sortablejs@1.15.9': {}
 
   '@types/web-bluetooth@0.0.21': {}
 
@@ -3561,6 +3575,8 @@ snapshots:
       isarray: 2.0.1
     transitivePeerDependencies:
       - supports-color
+
+  sortablejs@1.15.7: {}
 
   source-map-js@1.2.1: {}
 

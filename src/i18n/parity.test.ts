@@ -39,3 +39,39 @@ describe('i18n locale parity', () => {
     expect(en.settingsTitle).toBe('Settings')
   })
 })
+
+/* P6a-T4:地点域键的完整性与术语守卫。 */
+describe('photosPlaces 键(SP7-P6a)', () => {
+  it('六个大洲键齐备,且 regionLabelKey 的返回值全部有译文', async () => {
+    const { regionLabelKey } = await import('../photos/util/placesMap')
+    for (const id of ['asia', 'americas', 'europe', 'africa', 'oceania', 'antarctica']) {
+      const k = regionLabelKey(id)!
+      expect(zh).toHaveProperty(k)
+      expect(en).toHaveProperty(k)
+    }
+  })
+
+  it('中文文案不含工程词「簇」「聚类」「气泡」', () => {
+    const bad = Object.entries(zh)
+      .filter(([k]) => k.startsWith('photosPlaces'))
+      .filter(([, v]) => typeof v === 'string' && /簇|聚类|气泡/.test(v))
+    expect(bad).toEqual([])
+  })
+
+  /* P6b-T1:地点详情面板键的完整性与插值槽守卫。 */
+  it('P6b 地点键在两个 locale 都存在且无空值', () => {
+    const keys = ['photosPlacesHomeBase', 'photosPlacesSpotResetName', 'photosPlacesCoverPageInfo',
+      'photosPlacesInsightHome', 'photosPlacesInsightHomeBase', 'photosPlacesVisitHistory']
+    for (const k of keys) {
+      expect(String((zh as Record<string, unknown>)[k] ?? '')).not.toBe('')
+      expect(String((en as Record<string, unknown>)[k] ?? '')).not.toBe('')
+    }
+  })
+  it('insight 键的插值占位符两个 locale 完全一致(漏一个槽 <i18n-t> 会静默丢内容)', () => {
+    const slots = (s: string) => (s.match(/\{[a-zA-Z]+\}/g) ?? []).sort()
+    for (const k of ['photosPlacesInsightMostPhotographed', 'photosPlacesInsightTopSpot',
+      'photosPlacesInsightCompanions', 'photosPlacesInsightHome']) {
+      expect(slots(String((zh as Record<string, string>)[k]))).toEqual(slots(String((en as Record<string, string>)[k])))
+    }
+  })
+})

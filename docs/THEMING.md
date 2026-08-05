@@ -18,11 +18,13 @@
   `var(--accent)` 这类变量，其实际值由**当前主题**决定。组件不关心自己是蓝色还是白色。
 - 现有 token 表达不了某个**新语义**（例如某种警示色）时，**新增一个语义 token**
   （见 §5），并在**每一套主题块里都给它一个值**——绝不就地写死一个字面色。
-- **唯二例外**（有意为之，非历史残留，代码里须有注释标明）：
+- **三类例外**（有意为之，非历史残留，代码里须有注释标明）：
   1. `theme.css` 的 `.ic-*` app 图标渐变——**品牌识别色，皮肤无关**，两套主题都原样保留。
   2. 第三方组件内部无法 token 化的颜色（如 CodeMirror 编辑器主题）——走该库自身的主题机制。
+  3. **数据可视化分类色板**（如人物地点页 `PLACE_PALETTE`）——同一视图上要互相区分的
+     数据系列颜色，与主题皮肤无关，值放 `.ts` 而非 `theme.css`（不造一次性 token）。
 
-  这两类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6。
+  这三类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6。
 - 落地保障：`NimoOS-New-UI/CLAUDE.md` 写入同一强约束（自动注入后续会话）；本文件
   提供完整 token 目录，作为开发者与 AI 的查阅入口。
 
@@ -204,9 +206,29 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--accent-text` | 强调文字（配文案） | `#a9c6ff` | `#3550c4` |
 | `--grad-a` | 渐变左/起点色 | `#7a98ff` | `#4c6fe8` |
 | `--grad-b` | 渐变右/终点色 | `#b79bff` | `#6e5ae0` |
+| `--album-cover-fallback` | 相册无封面渐变占位（PhotosAlbums/PhotosAlbumDetail 共用） | `linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent))` | 同公式（两套主题各自的 `--accent`/`--panel-bg`） |
+| `--avatar-fallback` | 人物头像三级兜底渐变实底（`PersonAvatar.vue`，SP7-P5；对齐 Vue2 5 处重复的紫渐变，统一成一份 token） | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000))` | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000))`（mix 百分比更高，避免纸感主题的深蓝 accent 糊成近黑） |
 | `--accent-soft` | 强调软底（最浅） | `rgba(138,180,255,0.14)` | `rgba(59,91,219,0.11)` |
 | `--accent-soft-2` | 强调软底（中浅） | `rgba(138,180,255,0.24)` | `rgba(59,91,219,0.2)` |
 | `--accent-soft-bd` | 强调软底描边 | `rgba(138,180,255,0.36)` | `rgba(59,91,219,0.3)` |
+| `--place-row-bg` | 地点 rail 选中城市行背景（`PlacesRail.vue`，P6a-T5；Vue2 该视图仅有深色设计，蓝值精确复刻 `photos-places.scss:153`，白值按 accent 家族深→浅收敛惯例约 ×0.83 推导，无原件可照） | `rgba(138,180,255,0.10)` | `rgba(59,91,219,0.08)` **†**（无 Vue2 白色原件，按 accent 家族深→浅收敛惯例推算） |
+| `--place-row-border` | 地点 rail 选中城市行边框色（同上，蓝值复刻 `:154`） | `rgba(138,180,255,0.30)` | `rgba(59,91,219,0.25)` **†**（同上，无原件，按惯例推算） |
+| `--place-thumb-active` | 地点 rail 选中城市行缩略图遮罩（同上，蓝值复刻 `:163`） | `rgba(138,180,255,0.18)` | `rgba(59,91,219,0.15)` **†**（同上，无原件，按惯例推算） |
+| `--pin-bg` | 地图图钉底色（`PlacesMap.vue`，P6a-T6；精确复刻 Vue2 `photos-places.scss:367` 的 `rgba(var(--accent-rgb),0.16)`） | `rgba(138,180,255,0.16)` | `rgba(59,91,219,0.16)` |
+| `--pin-stroke` | 地图图钉描边（同上，复刻 `:368` 的 α=.55） | `rgba(138,180,255,0.55)` | `rgba(59,91,219,0.55)` |
+| `--pin-active-bg` | 激活图钉/簇图钉底色（同上，复刻 `:378`/`:401` 的 α=.30——Vue2 两处恰好同值，合并成一个 token） | `rgba(138,180,255,0.30)` | `rgba(59,91,219,0.30)` |
+| `--pin-pulse` | 激活图钉的扩散脉冲环（同上，复刻 `:413` 的 α=.25） | `rgba(138,180,255,0.25)` | `rgba(59,91,219,0.25)` |
+| `--pin-cluster-hover-bg` | 簇图钉悬停底色（同上，复刻 `:406` 的 α=.42） | `rgba(138,180,255,0.42)` | `rgba(59,91,219,0.42)` |
+| `--pin-glow` | 图钉悬停外发光（同上，复刻 `:365` 的 α=.7） | `rgba(138,180,255,0.7)` | `rgba(59,91,219,0.7)` |
+| `--pin-cluster-stroke` | 簇图钉描边（同上；Vue2 `:402` 原值是比 accent 更浅的淡紫 `rgba(196,184,255,0.85)`，这里 RGB 改取本仓 `--accent-text`——语义正是"比 accent 更浅/更可读的 accent 色"，alpha 精确复刻原值 0.85） | `rgba(169,198,255,0.85)` | `rgba(53,80,196,0.85)` |
+| `--place-current-trip` | 当前行程标记色（同上，复刻 `:375` 的 `#34c759`，两套主题同值——不用 `--good`，那是本仓的青绿 `#5fe3b0`/`#15754c`，与 iOS 绿是近似而非精确复刻，已因此返工过一次） | `#34c759` | `#34c759` |
+| `--place-home-base` | 「常驻地」标记色（`PlaceDetailPanel.vue`，P6b-T3；精确复刻 Vue2 photos-places.scss 内联 `style="color:#c4b8ff"`，:1078。**偏离登记**：task-3-brief 字面要求深浅两套主题给不同值（深色浅紫、浅色改深色向，同 `--accent-text` 的做法），这里改成两套主题**同值**——它与紧邻的 `--place-current-trip` 用在完全相同的语境（`.ttl-region` 内，叠在 hero 固定暗化封面渐变之上，该遮罩本身恒为深色、与 app 是深色还是纸感皮肤无关），若照字面给浅色主题一个深紫版本，会在浅色 app 主题下把深紫字压在恒暗的照片渐变上，直接违反本任务"hero 前景色红线"的对比度要求，同 `--place-current-trip` 的既有先例） | `#c4b8ff` | `#c4b8ff` |
+| `--panel-bg-solid` | 完全不透明的侧栏大面板底（`PlaceDetailPanel.vue`，P6b 真机验收反馈；该面板绝对定位压在地图画布上，`--panel-bg` 的半透白会把地图网格点透上来、正文糊掉。取值 = `--popup-bg` 去掉 alpha 的同色实底，保持与弹层同一观感。左侧 `.map-rail` 在 grid 流内、底下只有 `--app-bg`，不受影响，仍用 `--panel-bg`） | `linear-gradient(157deg,#1e2234,#10131e 62%)` | `#ffffff` |
+| `--map-dot-bg-fallback` | 地图陆地点阵底色的 CSS 回落值（`PlacesMap.vue`，P6a-T6 评审 I1；精确复刻 Vue2 `photos-places.scss:347` 的字面量 `rgba(255,255,255,0.10)`，theme-invariant——Vue2 最常见的两条路径`dotBg` 都是 `null`，即都吃这条 CSS 回落，不是罕见分支。不能用 `--fg-faint` 顶替：深色档是 `rgba(255,255,255,0.52)`，会亮到盖过已访问点；浅色档是不透明暖灰 `#9a958a`，铺在地图黑底画布上会变成一块不透明色块） | `rgba(255,255,255,0.10)` | `rgba(255,255,255,0.10)` |
+| `--float-bg` | 浮动药丸工具条底（`PlacesZoomBar.vue`，P6a-T8；精确复刻 Vue2 `photos.scss:49`/`:84` 的字面量——本仓之前无等价 token，`--panel-bg`(0.1)/`--popup-bg`(渐变)/`--tool-bg`(不透明)量级都对不上这个扁平 0.85） | `rgba(20,20,28,0.85)` | `rgba(255,255,255,0.85)` |
+| `--zb-hover-bg` | 缩放条按钮悬停底（同上；Vue2 用 `rgba(var(--ink),0.08)` 做"跟随文字色的透明度斜坡"，本仓无 `--ink` 三元组 token，alpha 精确复刻 0.08，RGB 改取本仓 `--fg` 的真实分解值，不照抄 Vue2 light `--ink` 的 `(35,37,43)` 近似值） | `rgba(255,255,255,0.08)` | `rgba(28,27,25,0.08)` |
+| `--zb-track-bg` | 缩放条轨道底（同上，alpha 精确复刻 `rgba(var(--ink),0.12)`） | `rgba(255,255,255,0.12)` | `rgba(28,27,25,0.12)` |
+| `--zb-thumb-shadow` | 缩放条滑块把手投影第二层（同上；Vue2 `photos-places.scss:281` 的 `rgba(0,0,0,0.4)` 从未随主题变化，theme-invariant，两套主题同值） | `rgba(0,0,0,0.4)` | `rgba(0,0,0,0.4)` |
 | `--sem-bg` | 语义色/成功 背 | `rgba(95,227,176,0.14)` | `#e7f5ee` |
 | `--sem-fg` | 语义色/成功 文 | `#5fe3b0` | `#15754c` |
 | `--sem-bd` | 语义色/成功 描边 | `rgba(95,227,176,0.35)` | `#b7e2cc` |
@@ -220,6 +242,9 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--hit-fg` | 点击/高亮 文 | `#ffe08a` | `#5a4a12` |
 | `--success` | 成功指示色 | `#5fe3b0` | `#15754c` |
 | `--hl-star` | 高光星标（特殊标记） | `#e8c06a` | `#c9992f` |
+| `--warn-fg` | 警告/降级语义 文（人脸识别关闭、Photos AI 后端离线横幅，SP7-P5；对齐 Vue2 `#FF9F0A`，浅色主题按 `--dem-fg` 惯例压暗保对比度） | `#ff9f0a` | `#96610a` |
+| `--warn-bg` | 警告/降级语义 背 | `rgba(255,159,10,0.08)` | `#fdf3e2` |
+| `--warn-border` | 警告/降级语义 描边 | `rgba(255,159,10,0.32)` | `#f0d7a6` |
 | `--remove-fg` | 危险/删除态文字（区别于 `--remove-bg`） | `#ff8a8a` | `#c0392b` |
 | `--drop-bad` | 非法拖放落点提示底 | `rgba(255, 80, 100, 0.12)` | `rgba(224, 70, 106, 0.12)` |
 | `--skeleton-bg` | 骨架屏/加载占位底 | `rgba(255, 255, 255, 0.06)` | `rgba(28, 27, 25, 0.05)` |
@@ -303,6 +328,10 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 |---|---|---|
 | `.ic-*` app 图标渐变（`.ic-files` / `.ic-photos` / `.ic-video` / `.ic-music` / `.ic-ai` / `.ic-backup` / `.ic-download` / `.ic-docker` / `.ic-vm` / `.ic-share` / `.ic-search` / `.ic-settings` / `.ic-users` / `.ic-storage` / `.ic-appstore` / `.ic-terminal` 等） | `theme.css` §「应用图标配色」 | **品牌识别色，皮肤无关**——文件蓝、照片虹彩、音乐粉紫等是产品视觉资产，两套主题都保持一致，不应随皮肤变。用户靠颜色识别应用。 |
 | 第三方库内部主题（如 CodeMirror 编辑器配色） | 引入该库的组件 | 库有自己的主题机制，颜色由库内部管理，无法用 CSS 变量穿透。应走该库自身的 theme 配置，而非硬塞 token。 |
+| `PLACE_PALETTE`（7 色循环：`#6E5BFF`/`#FF9AC2`/`#5AC8FA`/`#FFD60A`/`#34C759`/`#FF9F0A`/`#FF6B5C`） | `src/photos/util/peopleView.ts`（人物详情页地点 tab：迷你地图点 + 图例 + 地点卡片，消费于 `PersonPlacesTab.vue`） | **数据可视化分类色板**，不是主题皮肤色——同一张地图/图例上要把互不相同的地点互相区分开，颜色语义是"第几个数据系列"而不是"主题强调色"，两套主题下都必须保持同一组值不变。值放 `.ts`（不是 `theme.css`）刻意避免为 7 个数据系列各造一个一次性 token。 |
+| 地图主题预设 4×7 色 | `src/photos/util/placesMapThemes.ts` | 用户可选的地图可视化调色板，与应用主题正交（spec SP7 D5）；浅色变体由全局 data-theme 触发。 |
+| `--badge-photo`（`rgba(50,190,230,0.9)` 青）/ `--badge-video`（`rgba(255,149,10,0.92)` 橙）/ `--badge-ocr`（`rgba(16,185,129,0.92)` 翠绿） | `theme.css`（`:root` 与 `:root[data-theme="light"]` 均定义，同值）；消费于 `src/photos/components/SearchResultTile.vue` 的 `.type-badge[data-type="photo"\|"video"\|"ocr"]` | **数据可视化类别色**（与 `PLACE_PALETTE` 同类，但只有 3 个固定类别、且要在 scoped `<style>` 里按 `[data-type]` 属性选择器消费，故落地为 `theme.css` 里的具名 token 而非 `.ts` 数组）——同一批搜索结果卡片上要把"照片 / 视频 / OCR 命中"三种类别互相区分开，颜色语义是"第几类"而不是"主题强调色"，精确复刻 Vue2 `photos.scss:2768-2770` 的字面量，两套主题块给同一个值，不随皮肤深浅变化。不用 `--accent`/`--danger` 就近凑：那是"强调"/"危险"语义，与这里的"类别标识"语义不同。 |
+| `--photos-seg-video`（深 `#5e94ff` / 浅 `#3560d8`）/ `--photos-seg-raw`（深 `#ff9ac2` / 浅 `#c93f79`）/ `--photos-seg-ai`（深 `#ff9f0a` / 浅 `#a15f0a`）/ `--photos-seg-other`（深 `rgba(255,255,255,0.25)` / 浅 `rgba(28,27,25,0.25)`） | `theme.css`（`:root` 与 `:root[data-theme="light"]` 各给不同值）；消费于 `src/photos/util/storagePalette.ts` 的 `STORAGE_SEG_COLORS`，渲染于 `src/photos/components/PhotosStorageCard.vue` 的容量条 + 图例 | **数据可视化类别色**（与 `--badge-*` 同类）——设置页存储卡的容量条上要把 videos/RAW/AI 索引/其它数据四个类别互相区分开，颜色语义是"第几类数据"而不是"主题强调色"；photos 段与 thumbs 段复用既有 `--accent`/`--success`（不重造）。**与 `--badge-*` 的差异**：`--badge-*` 两套主题同值（Vue2 该视图只有一套设计），这四个 Vue2 深色原值（`PhotosSettings.vue:320/321/323`）铺在本仓浅色主题的纯白 `--card-bg` 上会偏灰、分段边界糊掉，故浅色档各自加深/提高饱和度（同色相）保持可辨识，两套主题给不同值。`other` 段精确复刻 Vue2 `rgba(var(--ink),0.25)` 的 alpha，RGB 换成本仓 `--fg` 的真实分解值（同 `--zb-hover-bg`/`--zb-track-bg` 的既定换基先例，本仓无 `--ink` 三元组 token）。 |
 
 注：`.ic-ai` 与 `.ic-all` / `.ic-app` 例外地**引用了** token（`--accent` / `--accent2` /
 `--orb-core` / `--all-bg` 等）——这部分仍随主题走，只有各图标的**固定品牌渐变**是例外。
@@ -322,5 +351,26 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 - `src/home/components/SearchDialog.vue` —— 白色纸感调色板来源（`#f7f5ef` / `#ffffff` /
   `#1c1b19` / `#e7e3d9` / `#3b5bdb` / `#6e5ae0`）。
 - `docs/superpowers/specs/2026-07-10-new-ui-theme-system-design.md` —— 设计与决策记录。
-</content>
-</invoke>
+
+---
+
+## 8. 浮层层级（z-index）阶梯 ★
+
+> **硬约束：toast 必须高于全仓所有模态遮罩。**
+
+遮罩几乎都带 `backdrop-filter: var(--overlay-blur)`，任何被压在遮罩下方的浮层不是"看起来
+偏灰"，而是**完全读不到**。因此层级不是随手取值，按下表落座：
+
+| 层 | z-index | 例子 |
+|---|---|---|
+| 页内浮层 / 角标 / 悬浮控件 | 1 – 50 | 瓦片角标、hero 下拉菜单（20）、区内下拉（20）、侧栏抽屉遮罩（150） |
+| 局部固定条 | 60 – 150 | 上传面板（70）、选择态浮动条（150） |
+| 区级弹窗遮罩 + 面板 | 200 – 230 | `.mrd-overlay`（200）、`.pd-scrim` / `.cad-overlay`（220） |
+| 通用弹窗遮罩 + 面板 | 1000 / 1001 | `ui-dialog-overlay`（1000）、`Dialog` / `AlertDialog` 面板（1001） |
+| **Toast** | **1100** | `AppToast.vue` `.toast-stack` |
+
+新增浮层时：**不要**在 1100 及以上落座，除非它确实比 toast 更该被看见（目前没有这种东西）。
+`src/components/AppToast.zIndex.test.ts` 会把这条约定钉死——它直接读各组件
+`<style>` 原文比较数值，新加的遮罩若高过 toast，测试即红。
+
+---

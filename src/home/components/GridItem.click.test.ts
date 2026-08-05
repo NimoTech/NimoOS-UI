@@ -24,10 +24,11 @@ describe('GridItem click', () => {
     expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
     expect(hrefs.length).toBe(0)
   })
-  it('clicking a photo navigates to /#/photos', async () => {
+  it('clicking a photo pushes /photos(SP7-P8b cutover)', async () => {
     const item: LayoutItem = { id: 'p', kind: 'photo', key: 'linear-gradient(0,#000)', c: 1, r: 1, w: 2, h: 2 }
     const w = mount(GridItem, { props: { item } })
     await w.get('[data-id="p"]').trigger('click')
-    expect(hrefs[0]).toBe('/#/photos')
+    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(hrefs.length).toBe(0)
   })
 })

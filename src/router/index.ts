@@ -20,6 +20,19 @@ import StorageRaidCreate from '../views/StorageRaidCreate.vue'
 import StorageRaidDetail from '../views/StorageRaidDetail.vue'
 import { settingsRoutes } from '../settings/settingsRoutes'
 import KvmPage from '../kvm/views/KvmPage.vue'
+import Photos from '../views/Photos.vue'
+import PhotosFavorites from '../views/PhotosFavorites.vue'
+import PhotosTrash from '../views/PhotosTrash.vue'
+import PhotosAlbums from '../views/PhotosAlbums.vue'
+import PhotosAlbumDetail from '../views/PhotosAlbumDetail.vue'
+import PhotosPeople from '../views/PhotosPeople.vue'
+import PhotosPersonDetail from '../views/PhotosPersonDetail.vue'
+import PhotosPlaces from '../views/PhotosPlaces.vue'
+import PhotosPlaceAssets from '../views/PhotosPlaceAssets.vue'
+import PhotosSmartViews from '../views/PhotosSmartViews.vue'
+import PhotosSmartViewDetail from '../views/PhotosSmartViewDetail.vue'
+import PhotosSearch from '../views/PhotosSearch.vue'
+import PhotosSettings from '../views/PhotosSettings.vue'
 import { authGuard } from './guard'
 
 const routes: RouteRecordRaw[] = [
@@ -44,6 +57,21 @@ const routes: RouteRecordRaw[] = [
   // /files/:path(.*)* 之前,否则会被那条吃掉。
   { path: '/kvm', name: 'kvm', component: KvmPage },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+  { path: '/photos', name: 'photos', component: Photos },
+  { path: '/photos/favorites', name: 'photos-favorites', component: PhotosFavorites },
+  { path: '/photos/trash', name: 'photos-trash', component: PhotosTrash },
+  { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
+  { path: '/photos/albums/:id', name: 'photos-album-detail', component: PhotosAlbumDetail },
+  { path: '/photos/people', name: 'photos-people', component: PhotosPeople },
+  { path: '/photos/people/:id', name: 'photos-person-detail', component: PhotosPersonDetail },
+  { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },
+  { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },
+  { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
+  { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
+  { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
+  // SP7-P8a-T5:只追加,不重排——须排在最后一条既有 /photos/* 之后(router/index.test.ts
+  // 用 node:fs 读源文本行序断言,而非 router.getRoutes(),见该测试文件注释)。
+  { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
 ]

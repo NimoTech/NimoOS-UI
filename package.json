@@ -47,6 +47,7 @@
     "pinia": "^2.1",
     "reka-ui": "^2.10.1",
     "socket.io-client": "2.5.0",
+    "sortablejs": "^1.15.7",
     "tus-js-client": "^4",
     "vue": "^3.4",
     "vue-advanced-cropper": "^2.8.9",
@@ -57,6 +58,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@types/sortablejs": "^1.15.9",
     "@vitejs/plugin-vue": "^6",
     "@vue/test-utils": "^2",
     "fake-indexeddb": "^6.2.5",
