@@ -1013,9 +1013,31 @@ describe('i18n message syntax', () => {
     // knowledge-details placeholder key, governance §0.2 / D-9 — deliberately not named here so
     // that D-9's `grep -rw` self-proof keeps hitting only SettingsPage.vue's history comment).
     // Exact zh↔en key-set equality is parity.test.ts's job.
+    // Cross-reference (P5e-T1 review Minor-3): 1648 is pinned as a lower bound in TWO independent
+    // places — here and SettingsView.test.ts (the D-3 site). Both are lower bounds, so neither is a
+    // cross-phase trap; they are deliberately not de-duplicated because they guard different
+    // things (that file's is the historical P5c-T9 snapshot, kept per 「反转不删」).
     it('the whole locale table never shrinks below the count measured when this batch landed', () => {
       expect(Object.keys(zh).length).toBeGreaterThanOrEqual(1648)
       expect(Object.keys(en).length).toBeGreaterThanOrEqual(1648)
+    })
+
+    // 🔴 Coordinator ruling R13 — anti-resurrection guard for the key D-9 deleted.
+    //
+    // T1 originally omitted this guard to keep D-9's self-proof (`grep -rw <key> src/` hits only
+    // SettingsPage.vue's history comment) literally true. Ruling R13 判定该两难是假的: 「只命中那条
+    // 注释」原本是「删干净了」的一次性自证, 不是对代码库的永久约束, 而本档既定的死键 grep 口径
+    // (P5d 终审 §1) 本来就排除 `*.test.ts`:
+    //   grep -rlw --include='*.vue' --include='*.ts' -e "$k" src/ \
+    //     | grep -v '^src/i18n/' | grep -v '\.test\.ts$'
+    // ⇒ 守卫写在测试文件里, 两个目标零妥协地同时成立.
+    //
+    // 🔴 判据 = 「两档同时加回也报红」. The P5e-T1 review proved single-locale resurrection would be
+    // caught by parity.test.ts, but resurrecting it in BOTH locales left all 3984 tests green —
+    // a confirmed guard gap, not a hypothetical one. Hence this asserts each locale independently.
+    it('the D-9 deleted key stays deleted in BOTH locales (parity alone cannot catch a two-locale resurrection)', () => {
+      expect('aiCfgKnowledgeSoon' in zh).toBe(false)
+      expect('aiCfgKnowledgeSoon' in en).toBe(false)
     })
 
     // (a) Full-width punctuation scan. Exceptions re-measured by this task against the shipped
@@ -1179,6 +1201,13 @@ describe('i18n message syntax', () => {
           enOut: '7 more matching sections — click to view',
         },
       ]
+
+      // P5e-T1 review Minor-1: this was the only parameterised list in the P5e block whose length
+      // was not pinned (the other 54/5/6/5/9 lists all are). Without it, deleting an entry here
+      // silently removes that key's interpolation `toBe` and all three gates stay green.
+      it('the { n } interpolation list still covers exactly the 5 single-placeholder keys', () => {
+        expect(singleN).toHaveLength(5)
+      })
 
       for (const { key, zhOut, enOut } of singleN) {
         it(`${key} interpolates { n: 7 } into the exact rendered string in both locales`, () => {
