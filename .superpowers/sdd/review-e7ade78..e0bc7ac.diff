@@ -1,0 +1,262 @@
+# Review package: e7ade78..e0bc7ac
+
+## Commits
+e0bc7ac SP8-P1c1 patch: reopen @mention panel on refocus/click into an @token
+
+## Files changed
+ src/ai/components/shell/AgentComposer.test.ts | 74 +++++++++++++++++++++++++
+ src/ai/components/shell/AgentComposer.vue     | 78 ++++++++++++++++++++++-----
+ 2 files changed, 140 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/src/ai/components/shell/AgentComposer.test.ts b/src/ai/components/shell/AgentComposer.test.ts
+index fcf2e23..077234b 100644
+--- a/src/ai/components/shell/AgentComposer.test.ts
++++ b/src/ai/components/shell/AgentComposer.test.ts
+@@ -321,10 +321,84 @@ describe('AgentComposer @提及 / 斜杠', () => {
+   })
+ 
+   it('提及面板打开时 Enter 不发送(交给面板处理)', async () => {
+     const w = mountComposer()
+     const ta = w.find('textarea')
+     await ta.setValue('@doc')
+     await ta.trigger('keydown', { key: 'Enter' })
+     expect(w.emitted('send')).toBeFalsy()
+   })
+ })
++
++// P1c-1 验收补丁 Task 1 —— 失焦关闭后重新聚焦/点击要能重开面板(Vue2 同样缺
++// @focus 处理器,按项目"逻辑跟正确性"规则修的缺陷,见 p1c1-patch-task-1-brief.md)。
++// 用例逐字取自 brief「测试要求」1-4,fake timers 用法对齐 AgentTopbar.test.ts。
++describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((f: any) => f.mockClear?.())
++    vi.useFakeTimers()
++  })
++  afterEach(() => {
++    vi.useRealTimers()
++  })
++
++  it('失焦→重新聚焦会重开面板', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('@doc')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
++
++    await ta.trigger('blur')
++    vi.advanceTimersByTime(200)
++    await flushPromises()
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
++
++    await ta.trigger('focus')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
++    expect(w.findComponent({ name: 'MentionPopover' }).props('query')).toBe('doc')
++  })
++
++  it('重新聚焦时不重开无关面板', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('hello')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
++
++    await ta.trigger('blur')
++    vi.advanceTimersByTime(200)
++    await flushPromises()
++    await ta.trigger('focus')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
++  })
++
++  it('点击把光标移出 @ 词会关闭面板', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    const el = ta.element as HTMLTextAreaElement
++    await ta.setValue('@Drive1/docs/ tail')
++
++    // Caret inside the @ segment, click there first — panel opens.
++    el.setSelectionRange(5, 5)
++    await ta.trigger('click')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
++
++    // Move the caret into ' tail' (outside the mention) and click again.
++    el.setSelectionRange(el.value.length, el.value.length)
++    await ta.trigger('click')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
++  })
++
++  it('聚焦会取消挂起的 blur 关闭', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('@doc')
++    await ta.trigger('blur')
++    vi.advanceTimersByTime(100) // less than the 180ms blur-close delay
++    await ta.trigger('focus')
++    vi.advanceTimersByTime(200)
++    await flushPromises()
++    // The pending blur timer must have been cancelled by focus — the panel
++    // stays open, it does not get closed a moment later by the stale timer.
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
++  })
++})
+diff --git a/src/ai/components/shell/AgentComposer.vue b/src/ai/components/shell/AgentComposer.vue
+index e714ad3..1fa97e3 100644
+--- a/src/ai/components/shell/AgentComposer.vue
++++ b/src/ai/components/shell/AgentComposer.vue
+@@ -28,20 +28,26 @@
+   (613-617)、`activeSessionId` watcher 的 `closeMention()` 调用点(275-281,
+   Task 10 留的座)。MentionPopover 挂载(115-124)、SlashMenu 挂载(131-136)。
+   **不移植** BrowserModal 挂载(138-142)——本期延后,Browse 按钮仍是占位 toast。
+ 
+   Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1):
+   (a) Vue2 onBlur 的 setTimeout 句柄从未存储/清理,组件卸载后仍可能触发—— 这里
+       存进 `blurTimer` 并在 onBeforeUnmount 里 clearTimeout。
+   (b) 见下方 pickItem 内注释——gitignore 409 确认框的 pending 状态用独立的
+       open/target 两个 ref,而不是字面按 brief 描述"合并成一个 ref、在
+       update:open 里清空"——原因见 pickItem 旁注释。
++  (c) P1c1 验收补丁 Task 1(2026-07-27,用户验收反馈):Vue2 同文件 45-53 的
++      textarea 没有 `@focus` 处理器——onBlur(343-346)180ms 后关闭面板,但没有
++      任何路径在重新聚焦时重开它,于是切标签页/点别处再切回来,面板永久消失。
++      这里新增 onFocus(先清挂起的 blurTimer 再按光标重开)+ onClick(点击移动
++      光标进出 @ 词也要跟着开/关),两者共用新抽出的 syncMentionFromCaret()
++      (原 onInput 里的扫描逻辑,一字未改,只是抽出复用)。见各自声明处注释。
+ 
+   gitignore 409 确认(本期唯一有意的交互偏离):Vue2 用阻塞的 `window.confirm`
+   (Vue2 398、630),这里改用仓库的 reka-ui `AlertDialog`。注意 AlertDialog 走
+   `DialogPortal`,渲染在 `.agent-app` 子树之外,`.agent-app` 的 token 不对它生效
+   ——这是既有约定(AgentSidebar 的删除确认已是同样处境),不是本任务引入的新问题。
+ -->
+ <script setup lang="ts">
+ import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+@@ -163,49 +169,95 @@ function grow() {
+   el.style.height = 'auto'
+   el.style.height = Math.min(el.scrollHeight, 220) + 'px'
+ }
+ 
+ /** Vue2 295-299 updateAnchor()。 */
+ function updateAnchor() {
+   if (composerEl.value) anchorRect.value = composerEl.value.getBoundingClientRect()
+ }
+ 
+ /**
+- * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再斜杠触发(307-310——
+- * **仅当**整串正好是 `'/'` 且斜杠菜单未打开时才触发,不会在任何别的位置的
+- * `/` 上误触发),否则走 `scanMention`(Task 5 composerText.ts,逐字对齐 Vue2
+- * 312-334 的"从光标往回扫,遇到非转义 @ 才算命中、遇到空白直接放弃"规则)。
++ * P1c1 验收补丁 Task 1(见文件头「Vue2 缺陷修复」新增项 (c)):抽出 onInput 里
++ * `scanMention` 那段——扫描光标处是否在一个有效的 `@` 词内,是则(重)开面板并
++ * 还原层级/查询词,否则关闭面板。抽出来的原因是 onFocus/onClick 两个新处理器
++ * 要复用同一份逻辑,不能各写一份(避免两份实现漂移)。**未改动扫描规则本身**,
++ * 逐字保留原来 onInput 里的分支。
+  */
+-function onInput() {
+-  grow()
++function syncMentionFromCaret() {
+   const v = text.value
+   const el = ta.value
+   const caret = el ? (el.selectionStart ?? v.length) : v.length
+ 
+-  // Vue2 307-310: slash command only at the very start of input.
+-  if (v.length === 1 && v === '/' && !slashOpen.value) {
+-    slashOpen.value = true
+-    return
+-  }
+-
+   const scan = scanMention(v, caret)
+   if (scan.open) {
+     mentionStart.value = scan.start
+     mentionSegs.value = scan.segments
+     mentionQuery.value = scan.query
+     mentionOpen.value = true
+     updateAnchor()
+     return
+   }
+   closeMention()
+ }
+ 
++/**
++ * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再斜杠触发(307-310——
++ * **仅当**整串正好是 `'/'` 且斜杠菜单未打开时才触发,不会在任何别的位置的
++ * `/` 上误触发),否则走 `syncMentionFromCaret()`(Task 5 composerText.ts 的
++ * `scanMention`,逐字对齐 Vue2 312-334 的"从光标往回扫,遇到非转义 @ 才算命中、
++ * 遇到空白直接放弃"规则——现在与 onFocus/onClick 共用,见上面的抽取注释)。
++ */
++function onInput() {
++  grow()
++  const v = text.value
++
++  // Vue2 307-310: slash command only at the very start of input.
++  if (v.length === 1 && v === '/' && !slashOpen.value) {
++    slashOpen.value = true
++    return
++  }
++
++  syncMentionFromCaret()
++}
++
++/**
++ * P1c1 验收补丁 Task 1 —— 修 Vue2 缺陷 (c):Vue2 `shell/AgentComposer.vue`
++ * 的 textarea(45-53)只绑了 `@input`/`@keydown`/`@blur`,没有 `@focus`。
++ * `onBlur`(343-346)会在 180ms 后调 `closeMention()`,而唯一能重开面板的路径
++ * 是 `onInput` 里的扫描——于是切标签页/点页面别处再切回来,面板永久消失,直到
++ * 用户再敲一个字符。这不是 UI 差异,是逻辑缺陷;按项目 2026-07-27 移植纪律
++ * (界面照 Vue2、逻辑按正确的来)在此修:重新聚焦时,
++ *   1) 先清掉挂起的 blur 关闭定时器——否则"点面板条目→输入框重获焦点"这个
++ *      既有交互会被自己刚排的 180ms 定时器紧接着关掉;
++ *   2) 再用 syncMentionFromCaret() 按光标位置决定面板开/关——层级/查询词由
++ *      scanMention 从文本本身还原,天然保持已钻入的层级,不需要额外状态。
++ * 不触发斜杠菜单:那是 Task 3 的范围,且 `/` 的触发条件(整串正好是 '/')不同,
++ * 重新聚焦本身不该触发它。
++ */
++function onFocus() {
++  if (blurTimer.value !== null) {
++    clearTimeout(blurTimer.value)
++    blurTimer.value = null
++  }
++  syncMentionFromCaret()
++}
++
++/**
++ * P1c1 验收补丁 Task 1 续,同一缺陷 (c) 的另一半:用户可能在已有文本里点一下,
++ * 把光标移进/移出一个 `@` 词,面板要跟着开/关(而不是只在打字时响应)。与
++ * onFocus 调用同一个幂等函数 `syncMentionFromCaret()`——点击输入框时 focus 和
++ * click 两个事件都会触发,重复调用无副作用。
++ */
++function onClick() {
++  syncMentionFromCaret()
++}
++
+ /**
+  * Vue2 336-342 onKeydown()。**补回** Task 9 去掉的 `if (this.mentionOpen)
+  * return` 守卫(336 行)——那时 mention 面板还没接入,守卫是死代码;本任务把
+  * MentionPopover 接上之后,守卫恢复效力:面板打开时键盘交给面板处理(方向键/
+  * Tab/Enter/Esc/Backspace,见 MentionPopover.vue 的 onKey),composer 自己不再
+  * 抢 Enter 发送。IME 双重守卫逐字保留(`e.isComposing || keyCode === 229`,
+  * 后者是历史上部分浏览器/输入法不设置 isComposing 时的兜底,两个都要留)。
+  */
+ function onKeydown(e: KeyboardEvent) {
+   if (mentionOpen.value) return // popover handles keys
+@@ -673,20 +725,22 @@ onBeforeUnmount(() => {
+ 
+       <textarea
+         ref="ta"
+         class="composer-textarea"
+         :placeholder="placeholder"
+         rows="1"
+         v-model="text"
+         @input="onInput"
+         @keydown="onKeydown"
+         @blur="onBlur"
++        @focus="onFocus"
++        @click="onClick"
+       />
+ 
+       <div class="composer-row">
+         <button
+           class="composer-tool"
+           :title="t('aiComposerBrowseTitle')"
+           @click="onBrowseClick"
+         >
+           <AgentIcon name="folder" :size="14" /> {{ t('aiComposerBrowse') }}
+         </button>

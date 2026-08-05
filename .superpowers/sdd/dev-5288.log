@@ -1,0 +1,46 @@
+
+> nimoos-new-ui@ dev /home/nimo/NimoTech/.sp8/NimoOS-New-UI
+> vite "--port" "5288" "--host"
+
+
+  VITE v7.3.6  ready in 175 ms
+
+  ➜  Local:   http://localhost:5288/app/
+  ➜  Network: http://192.168.1.143:5288/app/
+  ➜  Network: http://172.17.0.1:5288/app/
+  ➜  Network: http://172.18.0.1:5288/app/
+  ➜  Network: http://169.254.7.1:5288/app/
+  ➜  Network: http://192.168.122.1:5288/app/
+10:50:07 PM [vite] (client) page reload src/i18n/zh_cn.ts
+10:50:11 PM [vite] (client) page reload src/i18n/en_us.ts
+10:53:43 PM [vite] (client) page reload src/router/index.ts
+10:53:47 PM [vite] (client) page reload src/router/index.ts
+10:54:41 PM [vite] (client) page reload src/router/index.ts
+10:54:57 PM [vite] (client) page reload src/router/index.ts
+11:24:32 PM [vite] (client) page reload src/i18n/en_us.ts
+11:24:45 PM [vite] (client) page reload src/i18n/en_us.ts
+11:25:08 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:25:55 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:26:00 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:26:04 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:31:54 PM [vite] (client) page reload src/i18n/en_us.ts
+11:32:05 PM [vite] (client) page reload src/i18n/en_us.ts
+11:32:21 PM [vite] (client) page reload src/i18n/en_us.ts
+11:33:38 PM [vite] (client) page reload src/i18n/en_us.ts
+11:48:38 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:49:58 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:50:08 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:50:20 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:59:11 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:59:22 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:59:25 PM [vite] (client) page reload src/i18n/en_us.ts
+11:59:36 PM [vite] (client) page reload src/i18n/en_us.ts
+11:59:44 PM [vite] (client) page reload src/i18n/zh_cn.ts
+11:59:59 PM [vite] (client) page reload src/i18n/zh_cn.ts
+12:05:16 AM [vite] (client) page reload src/i18n/zh_cn.ts
+12:08:47 AM [vite] (client) page reload src/i18n/zh_cn.ts
+12:08:52 AM [vite] (client) page reload src/i18n/en_us.ts
+12:09:04 AM [vite] (client) page reload src/i18n/en_us.ts
+12:09:09 AM [vite] (client) page reload src/i18n/zh_cn.ts
+12:09:41 AM [vite] (client) page reload src/i18n/zh_cn.ts
+ ELIFECYCLE  Command failed with exit code 143.

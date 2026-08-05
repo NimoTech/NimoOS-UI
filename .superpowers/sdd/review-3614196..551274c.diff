@@ -1,0 +1,469 @@
+# Review package: 3614196..551274c
+
+## Commits
+551274c SP8-P1c2: right-panel collapse state + topbar toggle
+
+## Files changed
+ src/ai/components/shell/AgentTopbar.test.ts | 23 +++++++++--
+ src/ai/components/shell/AgentTopbar.vue     | 13 ++++++-
+ src/ai/stores/agentStore.p1c2.test.ts       | 60 +++++++++++++++++++++++++++++
+ src/ai/stores/agentStore.test.ts            |  7 +++-
+ src/ai/stores/agentStore.ts                 | 20 +++++++++-
+ src/ai/views/AgentPage.test.ts              | 20 ++++++++++
+ src/ai/views/AgentPage.vue                  | 15 +++++---
+ 7 files changed, 144 insertions(+), 14 deletions(-)
+
+## Diff
+diff --git a/src/ai/components/shell/AgentTopbar.test.ts b/src/ai/components/shell/AgentTopbar.test.ts
+index f33af96..fc588e1 100644
+--- a/src/ai/components/shell/AgentTopbar.test.ts
++++ b/src/ai/components/shell/AgentTopbar.test.ts
+@@ -85,23 +85,38 @@ describe('AgentTopbar', () => {
+     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
+     const w = mount(AgentTopbar, {
+       props: { sessionId: 's1' },
+       global: { plugins: [i18n] },
+     })
+     await w.findAll('.icon-btn')[0].trigger('click') // goHome (arrowLeft)
+     expect(push).toHaveBeenCalledWith('/')
+     historySpy.mockRestore()
+   })
+ 
+-  it('1a 裁剪:不渲染 ModelPicker/ThinkingBar/右侧面板 toggle/AI 改名按钮', () => {
++  it('1a 裁剪:不渲染 ModelPicker/ThinkingBar/AI 改名按钮(右侧面板 toggle 已在 1c-2 回填)', () => {
+     const w = mount(AgentTopbar, {
+       props: { sessionId: 's1' },
+       global: { plugins: [i18n] },
+     })
+     expect(w.html()).toContain('1c: ModelPicker')
+     expect(w.html()).toContain('1c: ThinkingBar')
+-    expect(w.html()).toContain('1c: right-panel toggle')
+     expect(w.html()).toContain('1c: AI-rename button')
+-    // Only 3 icon buttons survive the trim: goHome, toggle-left, theme toggle.
+-    expect(w.findAll('.icon-btn')).toHaveLength(3)
++    expect(w.html()).not.toContain('1c: right-panel toggle')
++    // 4 icon buttons survive: goHome, toggle-left, theme toggle, right-panel toggle.
++    expect(w.findAll('.icon-btn')).toHaveLength(4)
++  })
++
++  it('SP8-P1c2:右侧面板开关按钮 emit toggle-right,data-active 反映 !rightCollapsed(Vue2 shell/AgentTopbar.vue:43-45)', async () => {
++    const w = mount(AgentTopbar, {
++      props: { sessionId: 's1', rightCollapsed: false },
++      global: { plugins: [i18n] },
++    })
++    const buttons = w.findAll('.icon-btn')
++    const rightToggle = buttons[3]
++    expect(rightToggle.attributes('data-active')).toBe('true')
++    await rightToggle.trigger('click')
++    expect(w.emitted('toggle-right')).toHaveLength(1)
++
++    await w.setProps({ rightCollapsed: true })
++    expect(w.findAll('.icon-btn')[3].attributes('data-active')).toBe('false')
+   })
+ })
+diff --git a/src/ai/components/shell/AgentTopbar.vue b/src/ai/components/shell/AgentTopbar.vue
+index 5c3f404..fc91ad8 100644
+--- a/src/ai/components/shell/AgentTopbar.vue
++++ b/src/ai/components/shell/AgentTopbar.vue
+@@ -1,40 +1,48 @@
+ <!--
+   1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentTopbar.vue(230 行),1a 裁剪版:
+   ModelPicker、ThinkingBar、右侧面板 toggle、AI 改名按钮全部整段省略,原位置
+   留 `<!-- 1c: ... -->` 注释标记待 1c 回填。标题输入 500ms 防抖 + blur 立即
+   flush 的语义逐字保留(DEBOUNCE_MS、onInput/onBlur/flushSave)。
++
++  SP8-P1c2 Task 2 —— 右侧面板 toggle 按钮已回填(Vue2 shell/AgentTopbar.vue:
++  43-45,1:1):新增 prop `rightCollapsed`(对齐 Vue2 :73,默认 false)+ emit
++  `toggle-right`。ModelPicker、ThinkingBar、AI 改名按钮仍留给后续任务。
+ -->
+ <script setup lang="ts">
+ import { onBeforeUnmount, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
+ import AgentIcon from '../icons/AgentIcon.vue'
+ 
+ const DEBOUNCE_MS = 500
+ 
+ const props = withDefaults(
+   defineProps<{
+     sessionId?: string
+     storedTitle?: string
+     theme?: 'light' | 'dark'
++    // Vue2 shell/AgentTopbar.vue:73 —— 默认展开(false),用于按钮 data-active。
++    rightCollapsed?: boolean
+   }>(),
+   {
+     sessionId: '',
+     storedTitle: '',
+     theme: 'light',
++    rightCollapsed: false,
+   },
+ )
+ 
+ const emit = defineEmits<{
+   (e: 'toggle-left'): void
+   (e: 'toggle-theme'): void
++  (e: 'toggle-right'): void
+   (e: 'update-title', title: string): void
+ }>()
+ 
+ const { t } = useI18n()
+ const router = useRouter()
+ 
+ const localTitle = ref(props.storedTitle || '')
+ const isFocused = ref(false)
+ let debounceTimer: ReturnType<typeof setTimeout> | null = null
+ 
+@@ -131,21 +139,24 @@ function goHome() {
+           />
+           <!-- 1c: AI-rename button -->
+         </div>
+         <div class="topbar-sub">Connected to NimoOS</div>
+       </div>
+       <div class="topbar-spacer" />
+       <!-- 1c: ModelPicker -->
+       <button class="icon-btn" @click="emit('toggle-theme')">
+         <AgentIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="16" />
+       </button>
+-      <!-- 1c: right-panel toggle -->
++      <!-- Vue2 shell/AgentTopbar.vue:43-45 —— 1:1 端口(无 title,Vue2 亦无)。 -->
++      <button class="icon-btn" :data-active="!rightCollapsed" @click="emit('toggle-right')">
++        <AgentIcon name="panel" :size="16" />
++      </button>
+     </div>
+     <!-- 1c: ThinkingBar -->
+   </header>
+ </template>
+ 
+ <style scoped>
+ /* Override global .topbar fixed height so the trimmed single row still lays out cleanly */
+ .topbar {
+   height: auto !important;
+   flex-direction: column !important;
+diff --git a/src/ai/stores/agentStore.p1c2.test.ts b/src/ai/stores/agentStore.p1c2.test.ts
+new file mode 100644
+index 0000000..1b18bc6
+--- /dev/null
++++ b/src/ai/stores/agentStore.p1c2.test.ts
+@@ -0,0 +1,60 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// SP8-P1c2 Task 2 —— 右栏折叠态 + 当前 tab 的最小状态/动作集。
++// vi.hoisted() 服务 mock + setActivePinia 模式抄自 agentStore.p1c.test.ts。
++const svc = vi.hoisted(() => ({
++  listAgentSessions: vi.fn(), createAgentSession: vi.fn(), deleteAgentSession: vi.fn(),
++  listAgentMessages: vi.fn(), updateAgentSessionTitle: vi.fn(), regenerateAgentSessionTitle: vi.fn(),
++  listModels: vi.fn(), listProviders: vi.fn(), cancelAgentRun: vi.fn(), confirmAgentAction: vi.fn(),
++  listVisibleResources: vi.fn(), addVisibleResource: vi.fn(), removeVisibleResource: vi.fn(),
++  listAttachments: vi.fn(), deleteAttachment: vi.fn(),
++  listStagedChanges: vi.fn(), commitStagedChanges: vi.fn(),
++  revertStagedRun: vi.fn(), revertStagedBatch: vi.fn(), revertStagedItems: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++vi.mock('../services/agentTransport', () => ({
++  runAgentRun: vi.fn().mockResolvedValue(undefined),
++  attachAgentStream: vi.fn().mockResolvedValue({ attached: false }),
++}))
++
++import { useAgentStore } from './agentStore'
++
++describe('agentStore P1c2 Task2:右栏折叠态 + tab', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    localStorage.clear()
++  })
++
++  it('默认值:rightCollapsed=false(展开)、rightTab="activity"(agentStore.js:37-38)', () => {
++    const s = useAgentStore('p1c2-a')
++    expect(s.rightCollapsed).toBe(false)
++    expect(s.rightTab).toBe('activity')
++  })
++
++  it('setRightTab:切换当前激活 tab(agentStore.js:158)', () => {
++    const s = useAgentStore('p1c2-b')
++    s.setRightTab('context')
++    expect(s.rightTab).toBe('context')
++    s.setRightTab('system')
++    expect(s.rightTab).toBe('system')
++    s.setRightTab('resources')
++    expect(s.rightTab).toBe('resources')
++  })
++
++  it('toggleRight:翻转 rightCollapsed(agentStore.js:157)', () => {
++    const s = useAgentStore('p1c2-c')
++    expect(s.rightCollapsed).toBe(false)
++    s.toggleRight()
++    expect(s.rightCollapsed).toBe(true)
++    s.toggleRight()
++    expect(s.rightCollapsed).toBe(false)
++  })
++
++  it('tab 选择不持久化:切 tab 后不写 localStorage(与 theme/selectedModel 不同)', () => {
++    const s = useAgentStore('p1c2-d')
++    s.setRightTab('system')
++    expect(localStorage.length).toBe(0)
++  })
++})
+diff --git a/src/ai/stores/agentStore.test.ts b/src/ai/stores/agentStore.test.ts
+index e6bdb5a..01c35d3 100644
+--- a/src/ai/stores/agentStore.test.ts
++++ b/src/ai/stores/agentStore.test.ts
+@@ -211,27 +211,30 @@ describe('agentStore (session slice)', () => {
+     const s = useAgentStore()
+     s.theme = 'light'
+     s.toggleTheme()
+     expect(s.theme).toBe('dark')
+     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('dark')
+     s.toggleTheme()
+     expect(s.theme).toBe('light')
+     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('light')
+   })
+ 
+-  it('初始态(新鲜 store):busy===false、rightCollapsed 恒 true', () => {
++  it('初始态(新鲜 store):busy===false、rightCollapsed 默认展开(false)', () => {
+     // 注:busy 从本任务(P1b)起可被 setBusy/setStreamingDone 翻转,这里只断言
+     // 一个全新 store 的初始值,不再假设 busy "永不写入"。
+     // pendingPrompt 已在 Task 11 移除(1b 起 send() 直接发送,不再需要暂存座)。
++    // rightCollapsed 断言在 SP8-P1c2 从 true 改为 false —— 1a 阶段右侧面板尚未
++    // 实现故写死收起(true),本期 store 状态 + 顶栏开关落地,改回 Vue2
++    // agentStore.js:37 的默认值(展开)。详见 agentStore.p1c2.test.ts。
+     const s = useAgentStore()
+     expect(s.busy).toBe(false)
+-    expect(s.rightCollapsed).toBe(true)
++    expect(s.rightCollapsed).toBe(false)
+   })
+ 
+   it('toggleLeft:翻转 leftCollapsed', () => {
+     const s = useAgentStore()
+     const before = s.leftCollapsed
+     s.toggleLeft()
+     expect(s.leftCollapsed).toBe(!before)
+   })
+ 
+   it('startAssistant + appendBlock + patchBlock roundtrip', () => {
+diff --git a/src/ai/stores/agentStore.ts b/src/ai/stores/agentStore.ts
+index 69eba0e..15a6418 100644
+--- a/src/ai/stores/agentStore.ts
++++ b/src/ai/stores/agentStore.ts
+@@ -114,22 +114,25 @@ export function useAgentStore(agentType?: string) {
+   const storeId = `ai-agent-${agentType ?? 'general'}`
+ 
+   return defineStore(storeId, () => {
+     const sessions = ref<AgentSession[]>([])
+     const activeSessionId = ref<string | number | null>(null)
+     const messages = ref<AgentMessage[]>([])
+     // 1a 阶段恒 false——streaming(send/attach)是 1b 的事,这里没有任何路径会翻它。
+     const busy = ref(false)
+     const theme = ref<AgentTheme>('light')
+     const leftCollapsed = ref(false)
+-    // 1a 阶段恒 true——右侧面板(活动日志/资源等)要到 streaming 落地才有内容可看。
+-    const rightCollapsed = ref(true)
++    // agentStore.js:37 —— 默认展开(与 Vue2 对齐)。1a 阶段曾写死 true(右侧面板尚未
++    // 实现,收起更直白);本期(1c-2)右栏 shell 即将挂载,改回 Vue2 的默认值。
++    const rightCollapsed = ref(false)
++    // agentStore.js:38 —— 右栏当前激活的 tab,tab 选择不持久化(与 theme/selectedModel 不同)。
++    const rightTab = ref<'activity' | 'context' | 'system' | 'resources'>('activity')
+     // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
+     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
+     // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
+     // controller is a real AbortController, pendingCancel is the in-flight
+     // ai.cancelAgentRun() promise (or null when no cancel is pending).
+     const abortController = ref<AbortController | null>(null)
+     const activitySteps = ref<Record<string, unknown>[]>([])
+     const pendingCancel = ref<Promise<unknown> | null>(null)
+ 
+     // ---- Model bootstrap (SP8-P1b Task 7) — agentStore.js:43-52,599-698 ----
+@@ -275,20 +278,30 @@ export function useAgentStore(agentType?: string) {
+     function toggleTheme() {
+       theme.value = theme.value === 'light' ? 'dark' : 'light'
+       localStorage.setItem(THEME_KEY, theme.value)
+     }
+ 
+     /** agentStore.js:156 —— 翻转左侧会话列表折叠态。 */
+     function toggleLeft() {
+       leftCollapsed.value = !leftCollapsed.value
+     }
+ 
++    /** agentStore.js:157 —— 翻转右侧面板折叠态。 */
++    function toggleRight() {
++      rightCollapsed.value = !rightCollapsed.value
++    }
++
++    /** agentStore.js:158 —— 切换右侧面板当前激活的 tab。 */
++    function setRightTab(tab: 'activity' | 'context' | 'system' | 'resources') {
++      rightTab.value = tab
++    }
++
+     // ---- Streaming primitives (SP8-P1b Task 4) ----
+     // Verbatim port of Vue2 store/agentStore.js:64-150. Vue2-isms converted:
+     // Vue.observable → the refs above; Vue.set/delete → direct assign (not
+     // needed here — no delete-key semantics in these 9); splice(i,1,next)
+     // kept as-is (still the correct array-replacement idiom in Vue3/Pinia).
+ 
+     /** agentStore.js:64-71 —— 压入一条 user 消息。 */
+     function pushUserMessage(text: string, attachmentRefs: AttachmentRef[] = []) {
+       messages.value.push({
+         id: `u${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+@@ -973,20 +986,21 @@ export function useAgentStore(agentType?: string) {
+     }
+ 
+     return {
+       sessions,
+       activeSessionId,
+       messages,
+       busy,
+       theme,
+       leftCollapsed,
+       rightCollapsed,
++      rightTab,
+       abortController,
+       activitySteps,
+       pendingCancel,
+       availableModels,
+       selectedModel,
+       lastFallbackNotice,
+       thinking,
+       pendingSkillId,
+       visibleResources,
+       attachments,
+@@ -994,20 +1008,22 @@ export function useAgentStore(agentType?: string) {
+       committing,
+       reverting,
+       loadSessions,
+       createSession,
+       deleteSession,
+       setSessionTitle,
+       selectSession,
+       initTheme,
+       toggleTheme,
+       toggleLeft,
++      toggleRight,
++      setRightTab,
+       pushUserMessage,
+       startAssistant,
+       appendBlock,
+       patchBlock,
+       setStreamingDone,
+       setBusy,
+       patchAssistantStats,
+       pushActivityStep,
+       markRunningStepDone,
+       appendStagedChange,
+diff --git a/src/ai/views/AgentPage.test.ts b/src/ai/views/AgentPage.test.ts
+index adf4743..d54be7d 100644
+--- a/src/ai/views/AgentPage.test.ts
++++ b/src/ai/views/AgentPage.test.ts
+@@ -208,11 +208,31 @@ describe('AgentPage', () => {
+ 
+   it('ctxUsage:无会话不拉;请求失败置 null', async () => {
+     svc.getContextUsage.mockRejectedValue(new Error('x'))
+     const w = mountPage()
+     await flushPromises()
+     const store = useAgentStore()
+     store.activeSessionId = 'sess-y'
+     await flushPromises()
+     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
+   })
++
++  it('SP8-P1c2:根元素 data-rightcollapsed 默认为 false(展开,对齐 Vue2 agentStore.js:37)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
++    w.unmount()
++  })
++
++  it('SP8-P1c2:data-rightcollapsed 随 store.toggleRight 变化,顶栏按钮亦接线到同一 action', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    store.toggleRight()
++    await flushPromises()
++    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('true')
++    store.toggleRight()
++    await flushPromises()
++    expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
++    w.unmount()
++  })
+ })
+diff --git a/src/ai/views/AgentPage.vue b/src/ai/views/AgentPage.vue
+index f1e123e..9a5edc8 100644
+--- a/src/ai/views/AgentPage.vue
++++ b/src/ai/views/AgentPage.vue
+@@ -1,26 +1,29 @@
+ <!--
+   1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
+   去 AgentComposer(1b 无输入框 UI —— 本期唯一发送入口是 Task 11 的
+   ?search=/?message= 自动发送 + EmptyState 建议卡)、
+-  AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。右侧面板在
+-  本期永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store
+-  状态——store 里 rightCollapsed 恒 true,直接写死更直白)。
++  AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。
+ 
+   SP8-P1c1 Task 12 —— AgentComposer 已挂载(Vue2 Agent.vue:38-42 挂载契约,
+   1:1):props busy/ctx-usage,emits send/stop/send-init 直连 store 同名 action。
+   ctxUsage 状态 + refreshContextUsage() 移植自 Vue2 Agent.vue:99/198-207,
+   三个刷新触发点(mounted 一次、activeSessionId 变化一次、busy true→false 下降
+   沿一次)移植自 Vue2 120-132(**不**移植同一会话 watcher 里的
+   loadSessionThinking/updateThinkingForModel,也**不**移植 lastFallbackNotice
+   toast watcher——两者都属于 ThinkingBar/ModelPicker,留给 1c-2)。
+-  右栏(AgentRightPanel)、ModelPicker、ThinkingBar 仍留 1c-2。
++  ModelPicker、ThinkingBar 仍留 1c-2 后续任务。
++
++  SP8-P1c2 Task 2 —— data-rightcollapsed 解开硬编码,改绑 store.rightCollapsed
++  (Vue2 Agent.vue:4 逐字对齐);AgentTopbar 新增 right-collapsed prop +
++  toggle-right emit → store.toggleRight(Vue2 Agent.vue:20/24)。右栏 shell 本身
++  (AgentRightPanel)仍未挂载,留给后续任务——本任务只解开容器状态 + 顶栏开关。
+ 
+   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
+   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
+ -->
+ <script setup lang="ts">
+ import { computed, onMounted, ref, watch } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import { useAgentStore } from '../stores/agentStore'
+@@ -166,38 +169,40 @@ onMounted(async () => {
+     }
+   }
+ })
+ </script>
+ 
+ <template>
+   <div
+     class="agent-app"
+     :data-theme="store.theme"
+     :data-leftcollapsed="store.leftCollapsed"
+-    :data-rightcollapsed="true"
++    :data-rightcollapsed="store.rightCollapsed"
+   >
+     <AgentSidebar
+       :sessions="store.sessions"
+       :active-id="store.activeSessionId"
+       :collapsed="store.leftCollapsed"
+       @new="store.createSession"
+       @select="store.selectSession"
+       @delete="store.deleteSession"
+       @open-settings="onOpenSettings"
+     />
+     <main class="main">
+       <AgentTopbar
+         :session-id="String(store.activeSessionId ?? '')"
+         :stored-title="currentSessionTitle"
+         :theme="store.theme"
++        :right-collapsed="store.rightCollapsed"
+         @toggle-left="store.toggleLeft"
+         @toggle-theme="store.toggleTheme"
++        @toggle-right="store.toggleRight"
+         @update-title="onUpdateTitle"
+       />
+       <EmptyState v-if="store.messages.length === 0" />
+       <MessageList v-else :messages="messagesForList" :busy="store.busy" />
+       <!--
+         Agent.vue:38-42 挂载契约 —— 1:1(props/emits 名与语义)。emit 处理器写成
+         内联箭头函数、而不是像 Vue2 那样直接 `@send="store.actions.send"` 裸引用
+         方法 —— Vue3 里裸方法引用会在渲染时把 `store.send` 这个函数值本身固化进
+         vnode 的 onSend prop;此后若外部整体替换了 `store.send`(如测试用
+         `vi.spyOn(store, 'send')`,底层走 `Object.defineProperty`,不经过 Vue

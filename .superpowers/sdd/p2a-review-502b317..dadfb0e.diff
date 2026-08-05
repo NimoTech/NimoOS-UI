@@ -1,0 +1,356 @@
+=== commits ===
+dadfb0e SP8-P2a Task 4: 抽出应用级 aiTheme,agentStore 改委托(D1 跨页主题同步)
+
+=== stat ===
+ src/ai/stores/agentStore.test.ts |  9 +++-
+ src/ai/stores/agentStore.ts      | 46 +++++++++++---------
+ src/ai/stores/aiTheme.test.ts    | 93 ++++++++++++++++++++++++++++++++++++++++
+ src/ai/stores/aiTheme.ts         | 50 +++++++++++++++++++++
+ 4 files changed, 177 insertions(+), 21 deletions(-)
+
+=== diff -U10 ===
+diff --git a/src/ai/stores/agentStore.test.ts b/src/ai/stores/agentStore.test.ts
+index 01c35d3..dfee50c 100644
+--- a/src/ai/stores/agentStore.test.ts
++++ b/src/ai/stores/agentStore.test.ts
+@@ -202,21 +202,28 @@ describe('agentStore (session slice)', () => {
+     const matchMediaMock = vi.fn().mockReturnValue({ matches: false })
+     vi.stubGlobal('matchMedia', matchMediaMock)
+     const s = useAgentStore()
+     s.initTheme()
+     expect(s.theme).toBe('light')
+     vi.unstubAllGlobals()
+   })
+ 
+   it('toggleTheme:翻转并写回 localStorage 同一 key', () => {
+     const s = useAgentStore()
+-    s.theme = 'light'
++    // SP8-P2a Task 4:`s.theme = 'light'` 这行删除。原断言的起点保障其实是
++    // 冗余的——每条用例前 `beforeEach` 都 `setActivePinia(createPinia())`
++    // 重建全新 store,而 aiTheme 的初值本就是 'light'(见 aiTheme.ts),所以
++    // 这行从未真正改变断言的前提。Task 4 把 `theme` 委托成
++    // `computed(() => aiTheme.theme)` 后,它从可写 ref 变成只读 computed,
++    // 直接赋值会同时触发 TS2540(编译期只读校验)和运行时 Vue 警告
++    // (`Set operation on key "theme" failed: target is readonly`)。
++    // 断言本体(两次 toggleTheme 翻转 light⇄dark 且落盘)一字不改。
+     s.toggleTheme()
+     expect(s.theme).toBe('dark')
+     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('dark')
+     s.toggleTheme()
+     expect(s.theme).toBe('light')
+     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('light')
+   })
+ 
+   it('初始态(新鲜 store):busy===false、rightCollapsed 默认展开(false)', () => {
+     // 注:busy 从本任务(P1b)起可被 setBusy/setStreamingDone 翻转,这里只断言
+diff --git a/src/ai/stores/agentStore.ts b/src/ai/stores/agentStore.ts
+index c0b1bd5..aac936c 100644
+--- a/src/ai/stores/agentStore.ts
++++ b/src/ai/stores/agentStore.ts
+@@ -1,20 +1,21 @@
+ import { defineStore } from 'pinia'
+-import { ref } from 'vue'
++import { computed, ref } from 'vue'
+ import { service } from '@nimotech/nimoos-service'
+ import { migrateLegacyMessages } from '../services/streamMappers'
+ import { runAgentRun, attachAgentStream } from '../services/agentTransport'
+ import { i18n } from '../../i18n'
++import { useAiTheme, type AiTheme } from './aiTheme'
+ import type { AgentBlock, AgentStats, AttachmentRef, StreamActions } from '../types'
+ 
+-// AI Agent 主题偏好持久化 key —— 与 Vue2 blueprint(Agent.vue:80,90-96,117-119)逐字对齐。
+-const THEME_KEY = 'nimoos.ai.agent.theme'
++// SP8-P2a Task 4 —— THEME_KEY 与主题状态搬到 `./aiTheme`(应用级共享,
++// Agent 页与设置页同源)。原因见该文件头注释。这里不再本地定义。
+ // agentStore.js:626,638,650 —— 已选模型持久化 key(逐字对齐)。
+ const MODEL_KEY = 'nimoos.ai.agent.selectedModel'
+ 
+ /** agentStore.js 里的模型选择器条目(local/cloud 归一化)。 */
+ export interface AgentModel {
+   key: string
+   source: 'local' | 'cloud'
+   displayName: string
+   size?: number
+   supports_thinking?: boolean
+@@ -89,21 +90,22 @@ export function buildCloudModelList(providers: unknown): AgentModel[] {
+ /** agentStore.js:337-348 —— 把 selectedModel key 拆成 { source, modelName }。 */
+ function parseModelKey(key: string): { source: string; modelName: string } {
+   const idx = key.indexOf(':')
+   const source = key.slice(0, idx)
+   const rest = key.slice(idx + 1)
+   if (source === 'local') return { source, modelName: rest }
+   const idx2 = rest.indexOf(':')
+   return { source, modelName: idx2 >= 0 ? rest.slice(idx2 + 1) : rest }
+ }
+ 
+-export type AgentTheme = 'light' | 'dark'
++/** @deprecated 名字保留以免动到既有 import;实体是 `AiTheme`。 */
++export type AgentTheme = AiTheme
+ 
+ /** 会话条目。字段随后端演进(id 归一化见 createSession),这里只声明当前用到的部分。 */
+ export interface AgentSession {
+   id: string | number
+   title?: string | null
+   [key: string]: unknown
+ }
+ 
+ /** 1a 阶段消息按 RAW 装载(migrateLegacyMessages 留给 1b 的 streaming 切片接手)。 */
+ export type AgentMessage = Record<string, unknown>
+@@ -126,21 +128,24 @@ export type AgentMessage = Record<string, unknown>
+  */
+ export function useAgentStore(agentType?: string) {
+   const storeId = `ai-agent-${agentType ?? 'general'}`
+ 
+   return defineStore(storeId, () => {
+     const sessions = ref<AgentSession[]>([])
+     const activeSessionId = ref<string | number | null>(null)
+     const messages = ref<AgentMessage[]>([])
+     // 1a 阶段恒 false——streaming(send/attach)是 1b 的事,这里没有任何路径会翻它。
+     const busy = ref(false)
+-    const theme = ref<AgentTheme>('light')
++    // SP8-P2a Task 4(D1)—— 主题不再是本 store 的私有 ref,而是应用级共享 store 的
++    // 转出。对外签名(store.theme / store.toggleTheme)完全不变,故 AgentPage /
++    // AgentTopbar / 既有测试的调用点一行都不用改。
++    const aiTheme = useAiTheme()
+     const leftCollapsed = ref(false)
+     // agentStore.js:37 —— 默认展开(与 Vue2 对齐)。1a 阶段曾写死 true(右侧面板尚未
+     // 实现,收起更直白);本期(1c-2)右栏 shell 即将挂载,改回 Vue2 的默认值。
+     const rightCollapsed = ref(false)
+     // agentStore.js:38 —— 右栏当前激活的 tab,tab 选择不持久化(与 theme/selectedModel 不同)。
+     const rightTab = ref<'activity' | 'context' | 'system' | 'resources'>('activity')
+     // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
+     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
+     // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
+     // controller is a real AbortController, pendingCancel is the in-flight
+@@ -295,38 +300,37 @@ export function useAgentStore(agentType?: string) {
+       // abortController),就不要再动 busy/abortController——那是新调用的事。
+       if (abortController.value === ctl) {
+         abortController.value = null
+         // 未命中(204/非 ok)→ 清 busy。命中且带 replay 的话,dispatchEvent
+         // 早已看到 'done' 并调过 setStreamingDone();若命中但流仍在跑(还没
+         // done),继续保持 busy。
+         if (!attached) busy.value = false
+       }
+     }
+ 
+-    /** Agent.vue:80,90-96 —— localStorage > matchMedia(prefers-color-scheme: dark) > 'light'。 */
++    /**
++     * Agent.vue:80,90-96 —— localStorage > matchMedia(prefers-color-scheme: dark) > 'light'。
++     * SP8-P2a Task 4(D1)—— 装载逻辑本体搬到 `./aiTheme` 的 `hydrateTheme()`(设置页
++     * 需要同一段逻辑,不能只属于本 store)。这里保留同名函数纯做委托,外部调用点
++     * (`AgentPage.vue` 的 `store.initTheme()`)不用改。
++     */
+     function initTheme() {
+-      const stored = localStorage.getItem(THEME_KEY)
+-      if (stored === 'light' || stored === 'dark') {
+-        theme.value = stored
+-        return
+-      }
+-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+-        theme.value = 'dark'
+-        return
+-      }
+-      theme.value = 'light'
++      aiTheme.hydrateTheme()
+     }
+ 
+-    /** agentStore.js:152-154 + Agent.vue:117-119 —— 翻转并写回同一 localStorage key。 */
++    /**
++     * agentStore.js:152-154 + Agent.vue:117-119 —— 翻转并写回同一 localStorage key。
++     * SP8-P2a Task 4(D1)—— 翻转逻辑本体搬到 `./aiTheme` 的 `toggleTheme()`,使
++     * Agent 页与设置页翻转同一份状态。
++     */
+     function toggleTheme() {
+-      theme.value = theme.value === 'light' ? 'dark' : 'light'
+-      localStorage.setItem(THEME_KEY, theme.value)
++      aiTheme.toggleTheme()
+     }
+ 
+     /** agentStore.js:156 —— 翻转左侧会话列表折叠态。 */
+     function toggleLeft() {
+       leftCollapsed.value = !leftCollapsed.value
+     }
+ 
+     /** agentStore.js:157 —— 翻转右侧面板折叠态。 */
+     function toggleRight() {
+       rightCollapsed.value = !rightCollapsed.value
+@@ -1162,21 +1166,23 @@ export function useAgentStore(agentType?: string) {
+         if (abortController.value) abortController.value = null
+         busy.value = false
+       }
+     }
+ 
+     return {
+       sessions,
+       activeSessionId,
+       messages,
+       busy,
+-      theme,
++      // SP8-P2a Task 4(D1)—— 必须是 computed,不能写成 `aiTheme.theme`(裸值是取值
++      // 那一刻的快照,会丢响应性,详见 aiTheme.ts 头注释与本任务报告 Step 6 的 RED 验证)。
++      theme: computed(() => aiTheme.theme),
+       leftCollapsed,
+       rightCollapsed,
+       rightTab,
+       abortController,
+       activitySteps,
+       pendingCancel,
+       availableModels,
+       selectedModel,
+       lastFallbackNotice,
+       thinking,
+diff --git a/src/ai/stores/aiTheme.test.ts b/src/ai/stores/aiTheme.test.ts
+new file mode 100644
+index 0000000..8061fc1
+--- /dev/null
++++ b/src/ai/stores/aiTheme.test.ts
+@@ -0,0 +1,93 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useAiTheme } from './aiTheme'
++import { useAgentStore } from './agentStore'
++
++const KEY = 'nimoos.ai.agent.theme'
++
++function stubMatchMedia(matches: boolean) {
++  vi.stubGlobal('matchMedia', (q: string) => ({
++    matches, media: q, onchange: null,
++    addListener: vi.fn(), removeListener: vi.fn(),
++    addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
++  }))
++}
++
++describe('useAiTheme', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    localStorage.clear()
++    vi.unstubAllGlobals()
++  })
++
++  it('初值是 light', () => {
++    expect(useAiTheme().theme).toBe('light')
++  })
++
++  it('hydrateTheme 优先读 localStorage', () => {
++    localStorage.setItem(KEY, 'dark')
++    const s = useAiTheme()
++    s.hydrateTheme()
++    expect(s.theme).toBe('dark')
++  })
++
++  it('hydrateTheme 忽略 localStorage 里的非法值,回落系统偏好', () => {
++    localStorage.setItem(KEY, 'chartreuse')
++    stubMatchMedia(true)
++    const s = useAiTheme()
++    s.hydrateTheme()
++    expect(s.theme).toBe('dark')
++  })
++
++  it('无 localStorage 且系统偏好浅色时是 light', () => {
++    stubMatchMedia(false)
++    const s = useAiTheme()
++    s.hydrateTheme()
++    expect(s.theme).toBe('light')
++  })
++
++  it('toggleTheme 翻转并落盘', () => {
++    const s = useAiTheme()
++    s.toggleTheme()
++    expect(s.theme).toBe('dark')
++    expect(localStorage.getItem(KEY)).toBe('dark')
++    s.toggleTheme()
++    expect(s.theme).toBe('light')
++    expect(localStorage.getItem(KEY)).toBe('light')
++  })
++})
++
++describe('agentStore 主题委托给 aiTheme(D1:跨页共享)', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    localStorage.clear()
++    vi.unstubAllGlobals()
++  })
++
++  it('agentStore.theme 读到的是 aiTheme 的值', () => {
++    const shared = useAiTheme()
++    const agent = useAgentStore()
++    shared.toggleTheme()
++    expect(agent.theme).toBe('dark')
++  })
++
++  it('agentStore.toggleTheme() 会翻动共享 store —— 设置页因此能同步看到', () => {
++    const agent = useAgentStore()
++    const shared = useAiTheme()
++    agent.toggleTheme()
++    expect(shared.theme).toBe('dark')
++    expect(agent.theme).toBe('dark')
++  })
++
++  it('agentStore 的 initTheme 装载后,共享 store 也是同一个值', () => {
++    // 实现者注意(brief 裁定):brief 原文的占位名 `loadPersisted()` 经 grep
++    // agentStore.ts 确认真名是 `initTheme()`(store 返回表里对外导出的装载
++    // 函数,承载 brief 所指 `:307-316` 那段 localStorage/matchMedia 装载逻辑)。
++    // 未在 agentStore 上新增任何导出 —— 直接用既有的真实函数名。
++    localStorage.setItem(KEY, 'dark')
++    const agent = useAgentStore()
++    agent.initTheme()
++    expect(agent.theme).toBe('dark')
++    expect(useAiTheme().theme).toBe('dark')
++  })
++})
+diff --git a/src/ai/stores/aiTheme.ts b/src/ai/stores/aiTheme.ts
+new file mode 100644
+index 0000000..ae24ab9
+--- /dev/null
++++ b/src/ai/stores/aiTheme.ts
+@@ -0,0 +1,50 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++
++// SP8-P2a Task 4 —— AI 区(Agent 页 + 设置页)共享的明暗主题。
++//
++// 【为什么要抽出来】Vue2 里 `Agent.vue` 与 `Settings.vue` 各持一份 theme,
++// 靠同一个 localStorage key 对齐;因为 Vue2 路由切换会销毁并重建组件,
++// data()/mounted 每次都重读 localStorage,用户感知是一致的。
++//
++// New-UI 的 Pinia store 是全局单例、切路由不销毁 —— 若两页各持一份 ref,
++// 在设置页切成暗色、返回 /ai/agent 就不会变。这不是 Vue2 的 bug,是组件级
++// store 换成单例 store 之后必然出现的行为差,必须在架构层解决。
++//
++// 做法与 SP8-P1c2 Task 7 的 `src/stores/userProfile.ts`(头像版本号上移)同款:
++// 把状态提到它真正该在的层级,消费方各自读同一份。
++//
++// localStorage key 与 Vue2 逐字一致(`Agent.vue:80`、`Settings.vue:73`),
++// 所以老应用与新应用的主题偏好互通。
++const THEME_KEY = 'nimoos.ai.agent.theme'
++
++export type AiTheme = 'light' | 'dark'
++
++export const useAiTheme = defineStore('ai-theme', () => {
++  const theme = ref<AiTheme>('light')
++
++  /**
++   * 装载一次持久化偏好。优先级与 Vue2 `Settings.vue:102-107` /
++   * `Agent.vue:90-96` 一致:localStorage 合法值 → 系统 prefers-color-scheme →
++   * 'light' 兜底。可重复调用(幂等)。
++   */
++  function hydrateTheme(): void {
++    const stored = localStorage.getItem(THEME_KEY)
++    if (stored === 'light' || stored === 'dark') {
++      theme.value = stored
++      return
++    }
++    if (typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches) {
++      theme.value = 'dark'
++      return
++    }
++    theme.value = 'light'
++  }
++
++  function toggleTheme(): void {
++    theme.value = theme.value === 'light' ? 'dark' : 'light'
++    localStorage.setItem(THEME_KEY, theme.value)
++  }
++
++  return { theme, toggleTheme, hydrateTheme }
++})

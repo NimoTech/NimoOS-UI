@@ -1,0 +1,1061 @@
+f128450 feat(kb): P5d T2 —— knowledge.scss 65 类 + K39 新 token + K45 + 守卫(R4/R8/R9/A-11)
+
+ .superpowers/sdd/p5d-task-2-report.md | 101 +++++++++
+ src/ai/styles/knowledge.scss          | 389 ++++++++++++++++++++++++++++++++++
+ src/ai/styles/knowledgeStyles.test.ts | 273 ++++++++++++++++++++++--
+ 3 files changed, 750 insertions(+), 13 deletions(-)
+
+diff --git a/.superpowers/sdd/p5d-task-2-report.md b/.superpowers/sdd/p5d-task-2-report.md
+new file mode 100644
+index 0000000..6bcdb5c
+--- /dev/null
++++ b/.superpowers/sdd/p5d-task-2-report.md
+@@ -0,0 +1,101 @@
++# P5d · T2 报告 —— `knowledge.scss` 65 类 + K39 新 token + K45 + 守卫(§9.6 + A-11 + R4/R8/R9)
++
++起点 HEAD `56f8849`(T0 `cc6d7c8`/`03db682` + T1 `56f8849` 已关账)。改动仅两个文件:
++`src/ai/styles/knowledge.scss`、`src/ai/styles/knowledgeStyles.test.ts`。零 `.vue`、零测试文件新增。
++
++## 0. 基线复核(先证与协调者同一基准)
++
++`node .superpowers/sdd/p5d-gen-r8r9-sim.mjs`(改动**前**跑,即 T1 收官版本 `56f8849`)输出与
++brief §2 逐字一致:
++
++```
++🔴 R8 终值(10 + 进登记表的) = 16
++'text' 是否被 nonKClassNames 扫到 : true
++'nme' 是否被扫到                  : false
++严格超集自证(现状):old ⊆ new = true  (old 225 / new 225)
++🔴 R9 终值(226 +) = 293
++```
++
++## 1. §T2 逐条兑现
++
++| 计划书 §T2 条目 | 落地 |
++|---|---|
++| 共享底座残余(`:2029` + `:2040-2045`) | A 段(`knowledge.scss:1793-1806`),`.kn-badge` 5 条不重复定义 |
++| path strip(`:2047-2056`) | B 段 |
++| draft inbox(`:2057-2085`) | C 段,含 `--grad-inbox-wash`/`--grad-note-insight`/`--shadow-warning-glow`/`--text-on-accent` |
++| notes list(`:2086-2121`) | D 段,含 `--success-soft`/`--danger-soft`/`--text-on-accent` |
++| edit pane(`:2122-2194`,含 `.kn-editor-body-wrap .nme-content .ProseMirror`) | E 段,含 `--grad-draftbar-wash` |
++| edit aside(`:2195-2241`) | F 段,零色字面量 |
++| conflict modal(`:2242-2249`) | G 段,`--accent-soft`/`--warning-soft` |
++| responsive(`:2265-2281`) | H 段(`@media` ×2) |
++| `.k-seg`(K43,`:551-571`) | 嵌入 `.knowledge-app`,零色字面量,P5e 不许重复搬 |
++| ProseMirror 顶层段(K44) | 保持顶层裸选择器,紧邻 `.knowledge-app` 闭合处 |
++| K45(`.k-btn.text`) | 插入既有 `.k-btn` 块 `&.danger` 后 `&:disabled` 前,`&.text`/`&.text:hover` 各一行 |
++| 不搬清单 | `.k-section-body`/`.k-progress-*`/P5c 已搬的 `kn-*`/P5b 已搬的 `.kn-badge` 均未出现(仅注释提及),已 grep 核实 |
++| 守卫改动 5 条(§9.6) | 全部落地,见 §3 |
++
++## 2. K39 新 token(9 个,附录 B §B.1 逐个核对)
++
++| token | 暗档 | 浅档 | 蓝本出处 |
++|---|---|---|---|
++| `--grad-note-note` | `linear-gradient(135deg,#5AC8FA,#007AFF)` | 同左 | `notesViewHelpers.js:6`,与既有 `--grad-sandbox` 逐字同值(仍另建新名) |
++| `--grad-note-summary` | `linear-gradient(135deg,#30B0C7,#34C759)` | 同左 | `:7`,全仓零同值先例 |
++| `--grad-note-insight` | `linear-gradient(135deg,#FF9500,#FFCC00)` | 同左 | `:8` + `knowledge.scss:2066`,两个消费方共用一份(只声明一次,已测) |
++| `--grad-note-digest` | `linear-gradient(135deg,#AF52DE,#FF2D55)` | 同左 | `:9`,全仓零同值先例 |
++| `--grad-inbox-wash` | 160deg 两停点橙渐变 | 同左 | `knowledge.scss:2060`,保留蓝本色相(R11) |
++| `--grad-draftbar-wash` | 135deg 两停点橙渐变 | 同左 | `:2132`,保留蓝本色相(R11) |
++| `--shadow-warning-glow` | `0 3px 8px rgba(224,165,59,.3)` | `0 3px 8px rgba(200,134,10,.24)` | `:2067`,**两档不同值** |
++| `--code-block-bg` | `#0d0d0d` | 同左 | `NotesMarkdownEditor.vue:44` |
++| `--code-block-fg` | `#ffffff` | 同左 | 同上 |
++
++诚实登记:仅 `--grad-note-note` 与既有 `--grad-sandbox` 逐字同值,另 3 个笔记渐变全仓零同值先例。
++
++## 3. 守卫改动(§9.6)与 K/N 编号申报
++
++- 「没有搬多」正则扩到 `nme(?:-…)?`/`ProseMirror` + 字符集加 `A-Z`(兑现 A-11 债票),新增严格超集自证用例。
++- `nonKClassNames` 排除条件加 `nme-content`/`ProseMirror`。
++- **`NON_K_HELPER_CLASSES` 10 → 16**(裁定 R8,已在注释里明确订正治理 A-10「保持 10 项」是错的)。
++- `WHITELIST_226` → `WHITELIST_293`(裁定 R9)。
++- K44 新建集合相等断言(裁定 R4)。
++- 命中编号:K9、K39、K43、K44、K45、A-9、A-11、R1、R4、R8、R9、R11、E-34、E-39。
++
++## 4. 四组 RED 探针(均 cp+md5 还原,禁 `git checkout`)
++
++**探针①「没有搬多」超集**:注入 `.kn-foo{}` → 报红(`白名单外的类:kn-foo`);还原;注入 `.fb-Foo{}`
++(验证 A-11 字符集含大写)→ 报红(`fb-Foo`);还原。两次 md5 与还原前一致
++(`5b198dc3bd478e971f3c91a2a51b980d`),`git status` 只显示两个预期改动文件。
++
++**探针②K45 锚定作用域**:① 在 `.k-btn` 块内加第 3 个 `&.text` → 报红(`出现 3 次`);还原。
++② 在 `.k-seg` 的 `button{}` 内加一个无关的合法 `&.text`(**不在** `.k-btn` 内)→ 断言仍绿,
++证明锚定不误红;还原。
++
++**探针③K44 顶层集合相等**:① 文件末尾加 `.foo{}` → 报红(`+ ".foo"`);还原。
++② 把 K44 块临时套进 `.knowledge-app{}` → 集合变 `[]` → 报红,证明断言守的是「恰好一条」不是
++「至多一条」;还原。
++
++**探针④`NON_K_HELPER_CLASSES` 集合相等**:注入 `.kn-toolbar .zzz{}`(真嵌套辅助类)→ 两条断言均
++报红(`zzz`);还原,md5 一致。
++
++每次还原后均重跑对应用例转绿,且全程 `git status` 只有 `knowledge.scss`/`knowledgeStyles.test.ts`
++两个预期文件、无 gitignore 产物污染。
++
++## 5. `DARK_/LIGHT_TOKEN_SELECTOR` 一字未改自证
++
++`diff` 逐字节比对 `git show HEAD:...` 与当前文件的三行声明(`knowledgeStyles.test.ts` 现
++`:452-454`)—— **完全一致**;scss 的两个选择器行(现 `:162`/`:306`)与 T1 收官版本(`:130`/`:249`)
++逐字相同,仅因头部新增注释导致行号整体下移,内容零改动。
++
++## 6. 三门 + 两个额外门
++
++- `pnpm test`:**326 files / 3551 tests**,全绿。算式:`3544(T1 基线)+ 7(本刀新增)= 3551`。
++- `pnpm exec vue-tsc --noEmit`:exit 0。
++- `pnpm build`:exit 0。
++- 额外门①`sass --no-source-map`:exit 0。
++- 额外门②:`grep -o "kn-note-row" dist/assets/*.css` 命中(`index-BD7LhLwU.css`)。
++
++日志:`/tmp/p5d-t2-test-final.log`、`/tmp/p5d-t2-tsc-final.log`、`/tmp/p5d-t2-build-final.log`。
++
++## 7. 提交
++
++`git add -f src/ai/styles/knowledge.scss src/ai/styles/knowledgeStyles.test.ts .superpowers/sdd/p5d-task-2-report.md`,
++一个语义提交。
+diff --git a/src/ai/styles/knowledge.scss b/src/ai/styles/knowledge.scss
+index f7eca12..c166843 100644
+--- a/src/ai/styles/knowledge.scss
++++ b/src/ai/styles/knowledge.scss
+@@ -57,20 +57,52 @@
+  * 两档 color-scheme 也一并免费到手(.parser-app 不许再自己声明一次)。
+  * 🔴 只改这两行选择器,两个块的内容一个字节都不动;且选择器**必须写在一行** ——
+  * knowledgeStyles.test.ts 的 declBlockRange 用 `^选择器$` 行首行尾锚定定位声明块,
+  * 换行会让整条断言直接失效。
+  * 【N15 显式不搬】蓝本 :1151-1157 的 .k-progress-card / -row / -label / -nums / -bar /
+  * -fill 六个类夹在 B 段与 C 段正中间,本期两页都不用、本仓也没有 → 不搬;
+  * "没有搬多"那条断言(正则本期已扩到覆盖 fb 前缀)负责守住它们不出现。
+  * 【显式不搬】蓝本 :985-991 的 .k-section-body 是 Allowlist 页专用(A 段的边界因此是
+  * :969-984,不是 :969-988 —— 按 :988 切会把它截成半条规则,sass 直接编译报错)。
+  *
++ * 【SP8-P5d Task 2 续写】本档第五次扩容:搬入"笔记区"(NotesView / NoteEditPane /
++ * NotesMarkdownEditor)专属段 —— 蓝本 :2029(A,.k-badge[data-tone="warn"] 残余,
++ * .kn-badge 五条 P5b-T2 已搬不重复)+ :2040-2045(A,.kn-type-ic/.kn-src/.kn-tag)·
++ * :2047-2056(B,path strip)· :2057-2085(C,draft inbox)· :2086-2121(D,notes list)·
++ * :2122-2194(E,edit pane,含 :2171-2182 的 .kn-editor-body-wrap .nme-content
++ * .ProseMirror)· :2195-2241(F,edit aside)· :2242-2249(G,conflict modal)·
++ * :2265-2281(H,responsive)· :551-571(K43,.k-seg,21 行,与 P5e 的 SearchView 共用,
++ * P5e 不许重复搬)。全部按 K9 从顶层裸选择器重新嵌进下方 :345 起的 `.knowledge-app { … }`
++ * 基础块,段序照蓝本原序。白名单 226 → 293(附录 D §D.1 的 65 个 k 前缀新类 + R9 追加
++ * 的 nme-content/ProseMirror 2 个非 k* 类)。
++ * 🔴 K44(治理 §6.2 唯一顶层例外,裁定 R4):蓝本 NotesMarkdownEditor.vue:41-46 的
++ * `<style lang="scss">` 全段是非 scoped 的全局规则,对**任何** .nme-content 生效,
++ * 嵌进 .knowledge-app 会缩小作用域 = 改行为 —— 保持顶层裸选择器,紧邻本档
++ * `.knowledge-app { … }` 基础块闭合处落笔(见该处注释)。它与上面 E 段的
++ * .kn-editor-body-wrap .nme-content .ProseMirror 是两条不同选择器、互补生效
++ * (前者管行内代码/代码块/引用,后者管标题/列表/表格),两份都要搬、不许合并
++ * (合并会把特异性从 (0,2,0) 变 (0,3,0))。
++ * K45(裁定 R1,本期新增授权):蓝本 :1569-1570 的 .k-btn.text(+:hover)两行搬入本档
++ * 既有 `.k-btn { … }` 块内(见该处注释),插在 &.danger 之后、&:disabled 之前;
++ * `text` 进 NON_K_HELPER_CLASSES(R8:10→16),不进白名单(R9 的正则扫不到复合类
++ * `.k-btn.text` 里的 `text`)。P5e 不许重复搬(与 K43 同款交接纪律)。
++ * K39 新增 9 个 token(--grad-note-note/-summary/-insight/-digest、--grad-inbox-wash、
++ * --grad-draftbar-wash、--shadow-warning-glow、--code-block-bg、--code-block-fg),
++ * 声明处见下方两个 token 块本批新增分组,取值/出处见附录 B §B.1(诚实登记:4 个笔记
++ * 渐变里只有 --grad-note-note 与既有 --grad-sandbox 逐字同值,另 3 个全仓零同值先例,
++ * 蓝本是值的唯一权威源,不许照抄 P5c 那句"4/4 都有出处")。
++ * 守卫改动(治理 §9.6,knowledgeStyles.test.ts):「没有搬多」正则扩到也扫
++ * `nme(?:-…)?`/`ProseMirror` 且字符集加 A-Z(兑现 P5c §6.4.2 债票,A-11);
++ * `nonKClassNames` 排除条件加 `nme-content`/`ProseMirror`;`NON_K_HELPER_CLASSES`
++ * 10→16(治理 A-10 写"保持 10 项"是错的,裁定 R8 已订正,以实测为准,详见测试文件
++ * 头部注释);K44 顶层例外补一条**新建**的集合相等断言(裁定 R4)。
++ *
+  * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent
+  * 等原生冷蓝色值),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
+  * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
+  * 全局主页 theme.css 那套、暗色档取 AI 区 tokens.scss 暗色块那套,跟随 <html> 的
+  * data-theme 切换。因此下面两个声明块的 token 取值全部重写,来源逐条见行尾注释。
+  *
+  * 【R2(协调者拍板)—— *-soft 家族 token 必须在本作用域自行声明】附录 B 原文
+  * "New-UI 已有的直接用 var(--success-soft)" 对 .knowledge-app 是错的:那批 token
+  * 只在 tokens.scss 的 `.agent-app, .ai-toast-scope`(:32)与其暗色块(:250)两个
+  * 选择器上声明,.knowledge-app 两边都不是,解析不到会渲染成透明。本批壳段实际用到
+@@ -234,20 +266,45 @@
+          投影裸值;tokens.scss:201-202 / :345-346 的注释原文说的就是同一个 iOS 开关拨钮)
+        --gloss-inset-dot   (蓝本 :1292 的 .k-sandbox-icon inset 高光裸值)
+        --grad-sandbox      (蓝本 :1287 的 .k-sandbox-icon 底色渐变裸值)
+      🔴 --grad-sandbox 是 tokens.scss:236 的 --grad-sk-blue **改名不改值** —— -sk- 是技能区
+      专用命名,知识库区借名会误导;值有仓内逐字同值出处,不是新造,禁下游重算。 */
+   --switch-thumb: #ffffff; /* AI tokens.scss:345 */
+   --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:346 */
+   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:321 */
+   --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
+ 
++  /* K39(P5d-T2 新增,裁定书 R11 已批准渐变保留蓝本色相;附录 B §B.1 是权威)——
++     9 个新 token,两档都显式写值,声明处逐行标蓝本 file:line:
++       --grad-note-*(notesViewHelpers.js:6-9,4 个笔记类型渐变,theme-invariant;
++         --grad-note-insight 与下面 .kn-inbox-icon 共用同一份,不许声明两份 —— K39 明令)
++       --grad-inbox-wash / --grad-draftbar-wash(knowledge.scss:2060/:2132 的 wash 底色
++         渐变,theme-invariant,保留蓝本色相、不开小灶算 alpha —— 裁定 R11)
++       --shadow-warning-glow(knowledge.scss:2067 的 .kn-inbox-icon 外发光,**两档不同值**:
++         RGB 三元组取 --warning-soft-border 两档已有值,alpha 沿用蓝本 0.3/0.24,A-9/A11 同族)
++       --code-block-bg / --code-block-fg(NotesMarkdownEditor.vue:44 的 pre 底色/前景,
++         theme-invariant,两档同 #0d0d0d/#ffffff,与 --switch-thumb 两档同值同族先例)
++     🔴 诚实登记(K39 明令,不许照抄 P5c "4/4 都有出处"那句):4 个笔记渐变里只有
++     --grad-note-note 与既有 --grad-sandbox 逐字同值(仍另建新名,理由同 --grad-sandbox
++     借 --grad-sk-blue 名字会误导的先例:sandbox 是测试沙盒语义,借给笔记类型同样会
++     误导);另外 3 个(--grad-note-summary/-insight/-digest)全仓零同值先例,蓝本设计包
++     是值的唯一权威源。 */
++  --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6,与既有 --grad-sandbox 逐字同值(仍另建新名,理由见上) */
++  --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7,全仓零同值先例 */
++  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8,与 knowledge.scss:2066(.kn-inbox-icon)共用同一份,全仓零同值先例 */
++  --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9,全仓零同值先例 */
++  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060,保留蓝本色相(裁定 R11) */
++  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132,保留蓝本色相(裁定 R11) */
++  --shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3); /* knowledge.scss:2067,RGB 取 --warning-soft-border 暗档三元组 + 蓝本 alpha 0.3 */
++  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
++  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant,与 --text-on-accent 逐字同值但语义不同(近黑代码块上的字,非强调实底上的字) */
++
+   /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
+   color-scheme: dark;
+ }
+ 
+ /* ===== Design tokens — light ===== */
+ :root[data-theme="light"] .knowledge-app, :root[data-theme="light"] .parser-app {
+   --bg-app: var(--bg); /* 全局 theme.css :root[data-theme="light"] 纸感底色 #f7f5ef */
+   --bg-canvas: var(--bg);
+   --bg-elevated: var(--card-bg); /* #ffffff */
+   --bg-sunken: var(--tool-bg); /* #f0eee8 */
+@@ -328,20 +385,33 @@
+ 
+   /* R2(P5c-T2a 追加)—— 见暗色块同名注释。这 4 个是 theme-invariant(两档同值),但按
+      头注释「隐藏坑」段的论证**浅色块必须显式各写一份**:上面那个基础块的选择器无条件
+      命中,留空不会继承、只会被基础块的值直接命中(所以"两档同值"要写两遍,不是可以省)。
+      取值同暗色块,出处取 AI tokens.scss 浅色块的对应行。 */
+   --switch-thumb: #ffffff; /* AI tokens.scss:201 */
+   --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:202 */
+   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:162 */
+   --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
+ 
++  /* K39(见暗色块同名注释)—— 浅色档取值。4 个笔记渐变 + 2 个 wash 渐变 + --code-block-*
++     是 theme-invariant(两档同值);只有 --shadow-warning-glow 两档不同(RGB 三元组换成
++     --warning-soft-border 浅档值,alpha 沿用蓝本 0.24)。 */
++  --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6 */
++  --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7 */
++  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8,与 knowledge.scss:2066 共用同一份 */
++  --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9 */
++  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060,保留蓝本色相(裁定 R11) */
++  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132,保留蓝本色相(裁定 R11) */
++  --shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24); /* knowledge.scss:2067,RGB 取 --warning-soft-border 浅档三元组 + 蓝本 alpha 0.24 */
++  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
++  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant */
++
+   /* R3 —— 见头注释 */
+   color-scheme: light;
+ }
+ 
+ /* ===== Shell —— 1:1 移植自蓝本 knowledge.scss:59-217(rail/main/topbar 结构量逐字照抄,
+  * 颜色改走上面声明的 token)。白名单以外的类(k-hero 系列、k-quick-grid、k-status-strip、
+  * k-row、k-table 等 D.2/后续批次专用)不在此列,按切档判据不搬。 */
+ .knowledge-app {
+   display: grid;
+   grid-template-columns: 232px 1fr;
+@@ -733,20 +803,30 @@
+       &:hover:not(:disabled) { background: var(--accent-hover); }
+     }
+     &.danger {
+       /* P5b-T2 新增(蓝本 :843-847)—— P5a 当时判定本类不在白名单故未搬。 */
+       background: var(--danger);
+       color: var(--text-on-accent); /* 蓝本 :845 前景裸色 → token */
+       /* 蓝本 :846 是一个加深一档的危险色 hover 底色裸值,全仓无同语义 token →
+          按治理文件 §6.2 归属表新造 --danger-hover,两档取值见上方两个声明块。 */
+       &:hover:not(:disabled) { background: var(--danger-hover); }
+     }
++    &.text {
++      /* K45(裁定 R1)—— 蓝本 knowledge.scss:1569-1570,搬自 P5e"文件聚合搜索"抽屉段的
++         按钮变体(依据 K43 逐字同构先例:同为 .knowledge-app 层级共享原语,P5e 不许
++         重复搬)。零色字面量:transparent 是关键字,--accent/--accent-soft 两档已声明。
++         🔴 "&.text" 在 .k-btn 块内必须恰好出现 2 次(本行 + 下面 hover 行)——
++         knowledgeStyles.test.ts 的 K45 计数断言锚定在本块内,重复搬会精确报红。 */
++      background: transparent;
++      color: var(--accent);
++    }
++    &.text:hover { background: var(--accent-soft); }
+     &:disabled {
+       background: var(--bg-chip); color: var(--text-quaternary);
+       cursor: not-allowed; box-shadow: none;
+     }
+   }
+ 
+   /* ---------- P5b-T2 · S3 后半(蓝本 :854-967,Queue page 表格)---------- */
+   .k-table {
+     background: var(--bg-elevated);
+     border: 1px solid var(--line-faint);
+@@ -1702,20 +1782,329 @@
+     overflow: hidden;
+     text-overflow: ellipsis;
+   }
+   .fb-stub {
+     padding: 12px;
+     font-size: 12px;
+     color: var(--text-tertiary);
+     font-style: italic;
+   }
+   .fb-err { color: var(--danger); font-style: normal; }
++
++  /* ---------- P5d-T2 · A(蓝本 :2029 / :2040-2045,"Knowledge Notes" 共享底座残余)----------
++     .kn-badge 五条(蓝本 :2031-2039)P5b-T2 已搬(现状 :1596-1607 起),不重复定义;本段只
++     补 :2029 的 .k-badge[data-tone="warn"] 与 :2040-2045 的 .kn-type-ic/.kn-src/.kn-tag
++     三个类。K9:蓝本原文是顶层裸选择器,重新嵌进 .knowledge-app。
++     色字面量:.kn-type-ic 前景纯白裸色 → var(--text-on-accent)(附录 B §B.1.2 定死 —— 与
++     下面 .kn-inbox-icon 同款:压在渐变实底上的纯白字)。 */
++  .k-badge[data-tone="warn"] { background: var(--warning); }
++  .kn-type-ic {
++    border-radius: 9px; display: grid; place-items: center;
++    color: var(--text-on-accent); flex-shrink: 0; box-shadow: var(--shadow-xs);
++  }
++  .kn-src { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-tertiary); }
++  .kn-tag { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary); background: var(--bg-chip); border-radius: 999px; padding: 1px 8px; }
++
++  /* ---------- P5d-T2 · B(蓝本 :2047-2056,path strip —— 笔记即磁盘文件)---------- 零色字面量。 */
++  .kn-pathstrip {
++    display: flex; align-items: center; gap: 8px; padding: 9px 14px;
++    border-radius: var(--r-sm); background: var(--bg-sunken);
++    border: 1px solid var(--line-faint); font-size: 12px; color: var(--text-secondary); flex-wrap: wrap;
++  }
++  .kn-pathstrip code { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary); background: var(--bg-chip); padding: 1px 7px; border-radius: 6px; }
++  .kn-pathstrip a { color: var(--accent); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; cursor: pointer; }
++  .kn-pathstrip a:hover { text-decoration: underline; }
++
++  /* ---------- P5d-T2 · C(蓝本 :2057-2085,draft inbox)----------
++     色字面量(附录 B §B.2 逐处映射):
++       .kn-inbox 边框橙色半透明裸值 → --warning-soft-border(A-9);
++       .kn-inbox 底色渐变(两停点)→ --grad-inbox-wash(K39 新建,保留蓝本色相,裁定 R11);
++       .kn-inbox-icon 渐变(橙→黄两停点裸色)→ --grad-note-insight(K39 新建,与
++         notesViewHelpers.ts 的 NOTE_TYPES.insight 共用同一份,不许声明两份);
++       .kn-inbox-icon 前景纯白裸色 → --text-on-accent(§B.1.2);
++       .kn-inbox-icon 投影(橙色半透明裸值,box-shadow 里)→ --shadow-warning-glow
++         (K39 新建,整条 shadow 进 token,两档不同值);
++       .kn-inbox-rows / .kn-inbox-foot 的 border-top 橙色半透明裸值 → --warning-soft-border;
++       .kn-inbox-foot 底色橙色半透明裸值 → --warning-soft。
++     `dot` 等非 k* 辅助类见 NON_K_HELPER_CLASSES(下方 E 段)。 */
++  .kn-inbox {
++    border-radius: var(--r-lg); border: 1px solid var(--warning-soft-border);
++    background: var(--grad-inbox-wash), var(--bg-elevated);
++    box-shadow: var(--shadow-xs); overflow: hidden;
++  }
++  .kn-inbox-head { display: flex; align-items: center; gap: 12px; padding: 13px 16px; cursor: pointer; user-select: none; }
++  .kn-inbox-icon {
++    width: 34px; height: 34px; border-radius: 10px;
++    background: var(--grad-note-insight); color: var(--text-on-accent);
++    display: grid; place-items: center; flex-shrink: 0; box-shadow: var(--shadow-warning-glow);
++  }
++  .kn-inbox-title { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
++  .kn-inbox-title b { color: var(--warning); font-variant-numeric: tabular-nums; }
++  .kn-inbox-sub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
++  .kn-inbox-chev { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--text-tertiary); transition: transform 180ms ease; flex-shrink: 0; }
++  .kn-inbox[data-open="true"] .kn-inbox-chev { transform: rotate(90deg); }
++  .kn-inbox-rows { border-top: 1px solid var(--warning-soft-border); }
++  .kn-inbox-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-faint); }
++  .kn-inbox-row:first-child { border-top: 0; }
++  .kn-inbox-row-main { flex: 1; min-width: 0; cursor: pointer; }
++  .kn-inbox-row-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++  .kn-inbox-row-main:hover .kn-inbox-row-title { color: var(--accent); }
++  .kn-inbox-row-desc { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
++  .kn-inbox-row-time { font-size: 11px; color: var(--text-quaternary); white-space: nowrap; flex-shrink: 0; }
++  .kn-inbox-acts { display: flex; gap: 6px; flex-shrink: 0; }
++  .kn-inbox-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--warning-soft-border); background: var(--warning-soft); }
++  .kn-inbox-foot-hint { font-size: 11.5px; color: var(--text-tertiary); flex: 1; }
++
++  /* ---------- P5d-T2 · D(蓝本 :2086-2121,notes list)----------
++     色字面量:.kn-act[data-tone="confirm"] 底色绿色半透明裸值 → --success-soft;
++     :hover 底色 var(--success) 不变,前景纯白裸色 → --text-on-accent(压在 --success 实底上,
++     §B.1.2 三处之一);.kn-act[data-tone="danger"]:hover 底色红色半透明裸值
++     → --danger-soft。`sep` 等非 k* 辅助类见下方 NON_K_HELPER_CLASSES 说明。 */
++  .kn-notes-col { display: flex; flex-direction: column; gap: 14px; }
++  .kn-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
++  .kn-list { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-xs); }
++  .kn-note-row {
++    display: grid; grid-template-columns: auto 1fr auto; gap: 6px 14px;
++    align-items: center; padding: 13px 16px; border-top: 1px solid var(--line-faint);
++    cursor: pointer; transition: background 100ms ease; position: relative;
++  }
++  .kn-note-row:first-child { border-top: 0; }
++  .kn-note-row:hover { background: var(--bg-canvas); }
++  .kn-note-row[data-s="archived"] .kn-note-title,
++  .kn-note-row[data-s="archived"] .kn-note-desc { color: var(--text-tertiary); }
++  .kn-note-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
++  .kn-note-line1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
++  .kn-note-title { font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++  .kn-note-desc { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++  .kn-note-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--text-tertiary); }
++  .kn-note-meta .sep { color: var(--text-quaternary); }
++  .kn-note-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
++  .kn-note-time { font-size: 11.5px; color: var(--text-quaternary); font-variant-numeric: tabular-nums; white-space: nowrap; }
++  .kn-note-actions { display: flex; gap: 5px; opacity: 0; transition: opacity 100ms ease; }
++  .kn-note-row:hover .kn-note-actions { opacity: 1; }
++  .kn-act {
++    display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px;
++    border-radius: 8px; font-size: 11.5px; font-weight: 600; cursor: pointer;
++    transition: all 100ms ease; font-family: inherit;
++    background: var(--bg-chip); color: var(--text-secondary); border: 1px solid transparent;
++  }
++  .kn-act:hover { background: var(--line); color: var(--text-primary); }
++  .kn-act[data-tone="confirm"] { background: var(--success-soft); color: var(--success); }
++  .kn-act[data-tone="confirm"]:hover { background: var(--success); color: var(--text-on-accent); }
++  .kn-act[data-tone="danger"]:hover { background: var(--danger-soft); color: var(--danger); }
++  .kn-list-foot { padding: 9px 16px; font-size: 11.5px; color: var(--text-tertiary); border-top: 1px solid var(--line-faint); background: var(--bg-sunken); display: flex; gap: 6px; align-items: center; }
++  .kn-empty-filtered { padding: 44px 20px; text-align: center; color: var(--text-tertiary); font-size: 13px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
++
++  /* ---------- P5d-T2 · E(蓝本 :2122-2194,edit pane)----------
++     色字面量(附录 B):.kn-draftbar 边框橙色半透明裸值 → --warning-soft-border;
++     底色渐变(两停点)→ --grad-draftbar-wash(K39 新建,保留蓝本色相,裁定 R11)。
++     🔴 .kn-editor-body-wrap .nme-content .ProseMirror(蓝本 :2171-2182)与 K44 的顶层
++     .nme-content .ProseMirror(见本档 .knowledge-app 闭合处紧邻的那一段)是两条不同
++     选择器、互补生效(这条管标题/列表/表格,K44 那条管行内代码/代码块/引用)——
++     两份都要搬,不许合并(合并会把特异性从 (0,2,0) 变 (0,3,0),治理 §6.2 / K44)。
++     `dot`/`spacer`/`wide` 等非 k* 辅助类登记见 knowledgeStyles.test.ts 的
++     NON_K_HELPER_CLASSES(裁定 R8:10 → 16)。 */
++  .kn-edit { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
++  .kn-edit-top { display: flex; align-items: center; gap: 10px; grid-column: 1 / -1; flex-wrap: wrap; }
++  .kn-edit-top .spacer { flex: 1; }
++  .kn-savehint { font-size: 11.5px; color: var(--text-tertiary); display: inline-flex; align-items: center; gap: 5px; }
++  .kn-savehint .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
++  .kn-savehint[data-dirty="true"] .dot { background: var(--warning); }
++  .kn-draftbar {
++    grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 11px 16px;
++    border-radius: var(--r-sm); border: 1px solid var(--warning-soft-border);
++    background: var(--grad-draftbar-wash);
++    font-size: 13px; flex-wrap: wrap;
++  }
++  .kn-draftbar-txt { flex: 1; min-width: 0; }
++  .kn-draftbar-txt b { color: var(--warning); }
++  .kn-draftbar-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
++  .kn-edit-main { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
++  .kn-title-input {
++    width: 100%; border: 0; background: transparent; font-family: inherit;
++    font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary);
++    padding: 2px; outline: none;
++  }
++  .kn-title-input::placeholder { color: var(--text-quaternary); }
++  .kn-desc-input {
++    width: 100%; border: 0; background: transparent; font-family: inherit;
++    font-size: 14px; color: var(--text-secondary); padding: 0 2px; outline: none;
++  }
++  .kn-desc-input::placeholder { color: var(--text-quaternary); }
++  .kn-editor {
++    background: var(--bg-elevated); border: 1px solid var(--line-faint);
++    border-radius: var(--r-lg); box-shadow: var(--shadow-xs); overflow: hidden;
++    display: flex; flex-direction: column;
++  }
++  .kn-editor:focus-within { border-color: var(--line-strong); }
++  .kn-editor-toolbar {
++    display: flex; align-items: center; gap: 2px; padding: 6px 8px;
++    border-bottom: 1px solid var(--line-faint); background: var(--bg-sunken); flex-wrap: wrap;
++  }
++  .kn-tb-btn {
++    width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center;
++    color: var(--text-secondary); cursor: pointer; font-size: 12.5px; font-weight: 600;
++    font-family: inherit; transition: all 100ms ease; background: transparent; border: 0;
++  }
++  .kn-tb-btn:hover { background: var(--bg-chip); color: var(--text-primary); }
++  .kn-tb-btn[data-on="true"] { background: var(--accent-soft); color: var(--accent); }
++  .kn-tb-btn.wide { width: auto; padding: 0 8px; }
++  .kn-tb-btn[disabled] { opacity: 0.4; cursor: default; }
++  .kn-tb-sep { width: 1px; height: 16px; background: var(--line); margin: 0 5px; }
++  .kn-editor-body-wrap { padding: 16px 20px; min-height: 300px; font-size: 14px; line-height: 1.65; }
++  .kn-editor-body-wrap .nme-content .ProseMirror {
++    min-height: 280px;
++    h1, h2 { font-size: 17px; letter-spacing: -0.01em; margin: 0.9em 0 0.4em; }
++    h2:first-child, h1:first-child { margin-top: 0; }
++    h3 { font-size: 15px; margin: 0.8em 0 0.3em; }
++    ul, ol { padding-left: 1.3em; margin: 0.4em 0; }
++    li { margin: 0.2em 0; }
++    p { margin: 0.3em 0; }
++    table { border-collapse: collapse; margin: 0.6em 0; font-size: 13px; }
++    th, td { border: 1px solid var(--line); padding: 5px 10px; text-align: left; }
++    th { background: var(--bg-sunken); font-weight: 600; }
++  }
++  .kn-editor-src {
++    width: 100%; border: 0; background: transparent; font-family: var(--font-mono);
++    font-size: 12.5px; line-height: 1.7; color: var(--text-primary);
++    padding: 16px 20px; min-height: 300px; resize: vertical; outline: none;
++  }
++  .kn-editor-status {
++    display: flex; align-items: center; gap: 10px; padding: 7px 14px;
++    border-top: 1px solid var(--line-faint); background: var(--bg-sunken);
++    font-size: 11px; color: var(--text-tertiary);
++  }
++  .kn-editor-status .spacer { flex: 1; }
++
++  /* ---------- P5d-T2 · F(蓝本 :2195-2241,edit aside)---------- 零色字面量。
++     `spacer`/`mono`/`lbl` 见 NON_K_HELPER_CLASSES。 */
++  .kn-edit-aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
++  .kn-aside-card {
++    background: var(--bg-elevated); border: 1px solid var(--line-faint);
++    border-radius: var(--r-lg); box-shadow: var(--shadow-xs);
++    padding: 13px 15px; display: flex; flex-direction: column; gap: 9px;
++  }
++  .kn-aside-title { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
++  .kn-aside-title .spacer { flex: 1; }
++  .kn-kv { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
++  .kn-kv b { color: var(--text-primary); font-weight: 600; }
++  .kn-filepath {
++    font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary);
++    background: var(--bg-sunken); border: 1px solid var(--line-faint);
++    border-radius: 8px; padding: 7px 9px; word-break: break-all; line-height: 1.5;
++  }
++  .kn-file-acts { display: flex; gap: 6px; flex-wrap: wrap; }
++  .kn-refbtn {
++    display: flex; align-items: center; gap: 7px; width: 100%; padding: 7px 9px;
++    border-radius: 8px; background: var(--bg-sunken); border: 1px solid var(--line-faint);
++    font-size: 12px; color: var(--text-primary); cursor: pointer; transition: all 100ms ease;
++    font-family: inherit; text-align: left; min-width: 0;
++  }
++  .kn-refbtn:hover { border-color: var(--accent); color: var(--accent); }
++  .kn-refbtn[data-dis="true"] { cursor: default; color: var(--text-tertiary); }
++  .kn-refbtn[data-dis="true"]:hover { border-color: var(--line-faint); color: var(--text-tertiary); }
++  .kn-refbtn .mono { font-family: var(--font-mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
++  .kn-refbtn .lbl { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++  .kn-tagedit {
++    display: flex; flex-wrap: wrap; gap: 5px; padding: 7px 9px;
++    border: 1px solid var(--line); border-radius: 8px; background: var(--bg-elevated); cursor: text;
++  }
++  .kn-tagedit:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-softer); }
++  .kn-tagchip {
++    display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono);
++    font-size: 11px; background: var(--bg-chip); border-radius: 999px;
++    padding: 2px 4px 2px 9px; color: var(--text-secondary);
++  }
++  .kn-tagchip button { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; color: var(--text-quaternary); cursor: pointer; background: transparent; border: 0; padding: 0; }
++  .kn-tagchip button:hover { background: var(--line); color: var(--text-primary); }
++  .kn-tagedit input { border: 0; background: transparent; outline: none; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary); flex: 1; min-width: 60px; }
++  .kn-aside-select {
++    width: 100%; border: 1px solid var(--line); border-radius: 8px;
++    background: var(--bg-elevated); color: var(--text-primary);
++    font-size: 12.5px; font-family: inherit; padding: 7px 9px;
++  }
++
++  /* ---------- P5d-T2 · G(蓝本 :2242-2249,conflict modal,409)----------
++     色字面量:.kn-diff-pane[data-side="theirs"] 头底色蓝色半透明裸值 → --accent-soft;
++     .kn-diff-pane[data-side="mine"] 头底色橙色半透明裸值 → --warning-soft。 */
++  .kn-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
++  .kn-diff-pane { border: 1px solid var(--line-faint); border-radius: var(--r-sm); overflow: hidden; min-width: 0; }
++  .kn-diff-pane-head { font-size: 11px; font-weight: 600; padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
++  .kn-diff-pane[data-side="theirs"] .kn-diff-pane-head { background: var(--accent-soft); color: var(--accent); }
++  .kn-diff-pane[data-side="mine"] .kn-diff-pane-head { background: var(--warning-soft); color: var(--warning); }
++  .kn-diff-body { font-family: var(--font-mono); font-size: 11px; line-height: 1.7; padding: 8px 10px; color: var(--text-secondary); max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
++
++  /* ---------- P5d-T2 · H(蓝本 :2265-2281,responsive)---------- 零色字面量。 */
++  @media (max-width: 980px) {
++    .kn-edit { grid-template-columns: 1fr; }
++    .kn-edit-aside { order: 2; }
++  }
++  @media (max-width: 560px) {
++    .kn-note-row { grid-template-columns: auto 1fr; padding: 12px; }
++    .kn-note-side { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; }
++    .kn-note-actions { opacity: 1; }
++    .kn-inbox-row { flex-wrap: wrap; }
++    .kn-inbox-acts { margin-left: 46px; }
++    .kn-pathstrip a { margin-left: 0; }
++    .kn-title-input { font-size: 20px; }
++    .kn-diff { grid-template-columns: 1fr; }
++    .kn-editor-toolbar { overflow-x: auto; flex-wrap: nowrap; }
++  }
++
++  /* ---------- P5d-T2 · K43(蓝本 :551-571,.k-seg,21 行,零色字面量)----------
++     嵌在蓝本 Search page 段(:457-733)里,但不是搜索专用 —— 是 .knowledge-app 层级的
++     共享分段控件原语,NoteEditPane.vue 的"富文本/Markdown"双模式切换用它(裁定书 R1 依据)。
++     🔴 P5e 的 SearchView 也要用,本期搬完 P5e 不许重复搬(与 K45 同款交接纪律)。 */
++  .k-seg {
++    display: inline-flex;
++    background: var(--bg-chip);
++    border-radius: 7px;
++    padding: 2px;
++    width: fit-content;
++    button {
++      padding: 4px 10px;
++      font-size: 12px; font-weight: 500;
++      color: var(--text-secondary);
++      border-radius: 5px;
++      transition: all 120ms ease;
++      font-variant-numeric: tabular-nums;
++      display: inline-flex; align-items: center; gap: 4px;
++      &[data-on="true"] {
++        background: var(--bg-elevated);
++        color: var(--text-primary);
++        box-shadow: var(--shadow-xs);
++      }
++    }
++  }
++}
++
++/* ---------- P5d-T2 · K44(治理 §6.2 的唯一顶层例外,裁定 R4)----------
++   蓝本 NotesMarkdownEditor.vue:41-46(<style lang="scss"> 全段)—— 非 scoped 的全局规则,
++   对**任何** .nme-content 生效;若嵌进 .knowledge-app 会缩小作用域 = 改变行为,故保持
++   顶层裸选择器,不按 K9 处理。与上面 .kn-editor-body-wrap .nme-content .ProseMirror
++   (蓝本 :2171-2182,E 段)是两条不同选择器、互补生效(那条管标题/列表/表格,这条管
++   行内代码/代码块/引用)—— 两份都要搬,不许合并(合并会把特异性从 (0,2,0) 变 (0,3,0))。
++   色字面量:code 底色中性灰半透明裸值 → --bg-chip(强先例:.kn-pathstrip code /
++   .kn-tag 已用同一映射);pre 底色近黑裸色 → --code-block-bg(K39 新建,两档同值);
++   pre 前景纯白裸色 → --code-block-fg(K39 新建,两档同值);blockquote 左边框
++   近黑半透明裸值 → --line-strong(A11 同族,引用条要可见,--line 太淡)。
++   `nme-content`/`ProseMirror` 是本档仅有的非 k 前缀、非 fb 前缀正经类(第三方
++   ProseMirror 生成 + 蓝本内部 wrapper),走 knowledgeStyles.test.ts 的 nonKClassNames
++   排除条件,不进 NON_K_HELPER_CLASSES 登记表、但进 WHITELIST_293(R9,治理 §9.6)。
++   🔴 断言口径(裁定 R4,附录 D §D.2.2):knowledgeStyles.test.ts 要求「顶层裸选择器
++   (排除 .knowledge-app 系与 :root 系与 @ 开头的)恰好只有 .nme-content .ProseMirror
++   这一条」—— 本条是新建断言,现状文件里压根没有,不是修改既有断言。 */
++.nme-content .ProseMirror {
++  min-height: 260px; outline: none; line-height: 1.6;
++  code { background: var(--bg-chip); border-radius: 3px; padding: 1px 4px; }
++  pre { background: var(--code-block-bg); color: var(--code-block-fg); border-radius: 6px; padding: 10px 12px; }
++  blockquote { border-left: 2px solid var(--line-strong); padding-left: 12px; }
+ }
+ 
+ /* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进
+  * .knowledge-app —— 蓝本模板里 `animation: k-pulse …` 这类引用不会带作用域前缀）=====
+  * k2pulse/k2spin(蓝本 :2440-2441)只被 D.2 的 k2-chip/k2-live-ico(T11 仪表盘批次)
+  * 引用,本批不用,留给 T11 落地时一并补上。 */
+ @keyframes k-float {
+   0%, 100% { transform: translateY(0); }
+   50% { transform: translateY(-4px); }
+ }
+diff --git a/src/ai/styles/knowledgeStyles.test.ts b/src/ai/styles/knowledgeStyles.test.ts
+index 9dd3536..3620ef9 100644
+--- a/src/ai/styles/knowledgeStyles.test.ts
++++ b/src/ai/styles/knowledgeStyles.test.ts
+@@ -59,21 +59,33 @@ const css = stripComments(rawSource)
+ // :1249-1265 / :1267-1293 / :1317-1334 / :2250-2263,外加蓝本
+ // FolderBrowser.vue:82-143 的 <style scoped> 全段)新增 P5c 附录 D.1 的 39 个类,
+ // 187 → **226**(治理 §6.4-3 写的 191 只是举例了 K17 那 4 个,准确增量以附录 D §D.0
+ // 为准,本档实测也是 39)。独立复核:把这 10 段 + FolderBrowser 的 style 块抽出来
+ // `grep -oE '\.(k|k2|kn|fb)[a-z0-9-]*' | sort -u` 得 47 个,减去已在白名单里的 8 个
+ // (k-btn / k-modal / k-modal-bg / k-modal-foot / k-scroll / k-scroll-inner / k-view /
+ // kn-badge,都是 P5a/P5b 搬的),恰好 39 个,与附录 D.1 逐一相同。
+ // 🔴 显式不在此列(见 knowledge.scss 头注释):k-section-body(蓝本 :985-991,Allowlist
+ // 专用)与 k-progress-card/-row/-label/-nums/-bar/-fill(蓝本 :1152-1157,N15)——
+ // 下面「没有搬多」那条断言负责守住这 7 个类一个都不出现。
+-const WHITELIST_226 = [
++//
++// 【P5d-T2 追加】"笔记区"专属段(蓝本 :2029/:2040-2045(A)· :2047-2056(B)·
++// :2057-2085(C)· :2086-2121(D)· :2122-2194(E,含 ProseMirror 段)· :2195-2241(F)·
++// :2242-2249(G)· :2265-2281(H)· :551-571(K43 .k-seg))新增附录 D §D.1 的 65 个
++// k 前缀新类,226 → **293**(常量名跟着数字改,本档既定习惯;226 + 65 + 2 = 293,
++// 后面 2 个是 R9 追加的非 k 前缀类 nme-content/ProseMirror,见下方独立小节)。
++// 🔴 治理/计划书写的「缺 66 类 / 已有 21」两种口径都不成立(E-39),协调者裁定 R9
++// 已订正终值为 293,独立复现命令见 `.superpowers/sdd/p5d-gen-r8r9-sim.mjs`(T2 报告
++// 已贴对拍到本档编辑**之前**的基线状态输出:old 225 / new 225,严格超集自证)。
++// K45(裁定 R1)搬入的 .k-btn.text 不进本白名单 —— 它是复合类 `.k-btn.text` 里的
++// `text`,「没有搬多」的正则(见下方)扫不到复合类里的 `text`,`text` 只归
++// NON_K_HELPER_CLASSES(见下方独立小节),不许同时进两侧(R8/R9 二选一,已实测坐实)。
++const WHITELIST_293 = [
+   'knowledge-app',
+   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
+   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
+   'k-rail-svc', 'k-rail-svc-row', 'k-rail-svc-dot', 'k-rail-svc-name', 'k-rail-svc-meta',
+   'k-rail-foot',
+   'k-main', 'k-topbar', 'k-topbar-title', 'k-topbar-sub', 'k-topbar-spacer',
+   'k-banner', 'k-banner-icon',
+   'k-mobile-tabs', 'k-mobile-tab',
+   'k-badge', 'k-badge-dot',
+   'k-btn',
+@@ -126,40 +138,58 @@ const WHITELIST_226 = [
+   'fb', 'fb-crumb', 'fb-crumbs', 'fb-err',
+   'fb-list', 'fb-name', 'fb-row', 'fb-stub',
+   'k-modal-body', 'k-modal-head', 'k-modal-title', 'k-modal-x',
+   'k-radio-group', 'k-sandbox-icon', 'k-sandbox-link', 'k-section',
+   'k-section-head', 'k-section-hint', 'k-section-title', 'k-set-card',
+   'k-set-danger', 'k-set-row', 'k-set-row-cn', 'k-set-row-desc',
+   'k-set-row-info', 'k-set-row-title', 'k-set-soon', 'k-set-svc',
+   'k-svc-cn', 'k-svc-light', 'k-svc-name', 'k-svc-state',
+   'k-sw', 'kn-checkline', 'kn-mig-path', 'kn-mig-req',
+   'kn-pick-actions', 'kn-pick-note', 'kn-picked',
++  // ---- P5d T2:附录 D.1(65 个)----
++  'k-seg',
++  'kn-act', 'kn-aside-card', 'kn-aside-select', 'kn-aside-title',
++  'kn-desc-input', 'kn-diff', 'kn-diff-body', 'kn-diff-pane', 'kn-diff-pane-head',
++  'kn-draftbar', 'kn-draftbar-sub', 'kn-draftbar-txt',
++  'kn-edit', 'kn-edit-aside', 'kn-edit-main', 'kn-edit-top',
++  'kn-editor', 'kn-editor-body-wrap', 'kn-editor-src', 'kn-editor-status', 'kn-editor-toolbar',
++  'kn-empty-filtered', 'kn-file-acts', 'kn-filepath',
++  'kn-inbox', 'kn-inbox-acts', 'kn-inbox-chev', 'kn-inbox-foot', 'kn-inbox-foot-hint',
++  'kn-inbox-head', 'kn-inbox-icon', 'kn-inbox-row', 'kn-inbox-row-desc', 'kn-inbox-row-main',
++  'kn-inbox-row-time', 'kn-inbox-row-title', 'kn-inbox-rows', 'kn-inbox-sub', 'kn-inbox-title',
++  'kn-kv', 'kn-list', 'kn-list-foot',
++  'kn-note-actions', 'kn-note-desc', 'kn-note-line1', 'kn-note-main', 'kn-note-meta',
++  'kn-note-row', 'kn-note-side', 'kn-note-time', 'kn-note-title', 'kn-notes-col',
++  'kn-pathstrip', 'kn-refbtn', 'kn-savehint', 'kn-src', 'kn-tag',
++  'kn-tagchip', 'kn-tagedit', 'kn-tb-btn', 'kn-tb-sep', 'kn-title-input', 'kn-toolbar', 'kn-type-ic',
++  // ---- P5d T2:R9 追加的非 k 前缀类(2 个,K44 顶层例外段引入)----
++  'nme-content', 'ProseMirror',
+ ]
+ 
+-describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a)', () => {
++describe('knowledge.scss —— 附录 D 白名单落地(293 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2)', () => {
+   // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
+   // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
+   // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
+   // RED 探针实证过(删 .k-topbar 规则,8/8 全绿)。受影响的是白名单里本身就是其它
+   // 类前缀的 9 个:k-rail/k-rail-item/k-rail-svc/k-topbar/k-banner/k-badge/k-scroll/
+   // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
+   // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
+   // (后面接空格/`{`/`,`/`[` 等)才算数。
+-  it('226 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+-    const missing = WHITELIST_226.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
++  it('293 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
++    const missing = WHITELIST_293.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
+     expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
+   })
+ 
+   // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
+-  it('白名单恰好 226 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39)', () => {
+-    expect(WHITELIST_226).toHaveLength(226)
+-    expect(new Set(WHITELIST_226).size, '白名单里有重复项').toBe(226)
++  it('白名单恰好 293 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2)', () => {
++    expect(WHITELIST_293).toHaveLength(293)
++    expect(new Set(WHITELIST_293).size, '白名单里有重复项').toBe(293)
+   })
+ 
+   it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
+     expect(css).not.toMatch(/\.k-toast\b/)
+     expect(css).not.toMatch(/\.k-toast-ico\b/)
+   })
+ 
+   // 【P5b-T2 · K10】蓝本有**两份** .k-confirm-icon/-title/-summary:嵌套版
+   // (:1398-1428,在 .knowledge-app 内)与顶层重复版(:1676-1702)。两份声明逐字等价,
+   // 级联上嵌套版 (0,2,0) 完胜顶层版 (0,1,0) → 顶层那份在 Vue2 里从未生效过,K10 判定
+@@ -186,28 +216,59 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
+   // (蓝本 FolderBrowser.vue:82-143),那 8 个类**一个都扫不到**。治理 §6.4-4 给的正则是
+   // `/\.(?:k(?:2|n)?|fb)-[a-z0-9-]+/g`;实测它仍漏**裸 `.fb`**(没有连字符后缀,
+   // `fb-[a-z0-9-]+` 要求至少一个 `-`),而 `fb` 恰好是附录 D.1 登记的 39 个类之一 ——
+   // 若照字面写,`.fb` 会既躲过本条扫描、又因为不匹配 `^k…-` 前缀而掉进下面
+   // `nonKClassNames` 报成"未登记的非 k* 类"。故把 `fb` 那一支的后缀写成**可选**,
+   // 使本条正则严格是治理给定正则的**超集**(只扫得更多,不放宽任何断言);
+   // 下面 nonKClassNames 的排除条件同步按 `fb` / `fb-*` 处理,两处口径一致。
+   // 🔴 这仍然是**扩大扫描范围**,不是放宽断言:蓝本 :2023-2281 还有几十个 `.kn-*` 是
+   // P5d 的、:985-991 的 .k-section-body 与 :1152-1157 的 .k-progress-*(N15)也不该出现
+   // —— 手滑多搬任意一条,这里就会精确指名。RED 探针见 P5c-T2a 报告。
+-  it('没有搬多 —— 全部 k-/k2-/kn-/fb 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
++  //
++  // 【P5d-T2 再扩:守卫缺口①第三轮(治理 §9.6 / 裁定书「四之二」/附录 D §D.2.1)】
++  // 本任务往本档搬入了 K44 的 `.nme-content .ProseMirror` 顶层段与 K43 的 `.k-seg`。
++  // 上一版正则 `/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g` 扫不到两样东西:
++  // ① `nme-content` / `ProseMirror` —— 前缀不是 k/k2/kn/fb;
++  // ② `ProseMirror`**即使加了 nme 前缀支持也扫不到**——它带大写字母,而旧字符集只有
++  //    `[a-z0-9-]`(P5c §6.4.2 挂账的债票,协调者裁定 A-11:这次不再是理论问题,必须兑现)。
++  // 新正则:`/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g`
++  // —— ① 字符集加 `A-Z`(兑现 A-11);② 新增 `nme(?:-…)?` 与 `ProseMirror` 两个可选分支。
++  // 🔴 这是**扩大扫描范围**,不是放宽断言:程序化实测(见 `p5d-gen-r8r9-sim.mjs`,T2 报告
++  // 已贴对现状文件的严格超集自证输出:old 225 / new 225 完全相同,证明这条改动在改动前的
++  // 现状文件上**零可观测** —— RED 探针是唯一能证明它有判别力的证据,见下方独立 RED 探针
++  // 小节)。被扫到的 `nme-content`/`ProseMirror` 两个新类同样必须落在白名单里(R9:226→293)。
++  it('没有搬多 —— 全部 k-/k2-/kn-/fb/nme/ProseMirror 类都在白名单内(附录 D.4 自检命令②的常驻版,字符集含 A-Z)', () => {
+     const found = Array.from(
+-      new Set(css.match(/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g) || []),
++      new Set(
++        css.match(/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g) || [],
++      ),
+     ).map((s) => s.slice(1))
+-    const extra = found.filter((c) => !WHITELIST_226.includes(c))
++    const extra = found.filter((c) => !WHITELIST_293.includes(c))
+     expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
+   })
+ 
++  // 【P5d-T2 · 严格超集自证(照 P5c §6.4.1 第 1 条的做法,防止「扩范围」变成「悄悄放宽」)】
++  // 对**改动前的现状文件**(git 历史版本,不是本次改动后的当前文件)分别跑旧正则与新正则,
++  // 断言旧正则扫到的每一个类,新正则都扫得到(old ⊆ new)——证明这次扩字符集/扩分支
++  // 纯粹是扩大覆盖,没有让任何原本会被扫到的类逃过去。
++  // 🔴 T2 报告已贴这条断言对 T1 收官版本(`56f8849`)跑出的真实输出(old 225 / new 225,
++  // 完全相同的集合)—— 这也是「本条改动在现状文件上零可观测」的证据来源,RED 探针
++  // (见下方独立小节)才是这条改动唯一有判别力的证明。
++  it('严格超集自证 —— 新正则(含 A-Z + nme/ProseMirror)是旧正则的严格超集(old ⊆ new)', () => {
++    const OLD_RE = /\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g
++    const NEW_RE = /\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
++    const oldHits = new Set((css.match(OLD_RE) || []).map((s) => s.slice(1)))
++    const newHits = new Set((css.match(NEW_RE) || []).map((s) => s.slice(1)))
++    const missing = [...oldHits].filter((c) => !newHits.has(c))
++    expect(missing, `旧正则扫到但新正则漏掉的类(说明扩范围其实是放宽):${missing.join(', ')}`).toEqual([])
++  })
++
+   // 【P5b-T6 修:守卫缺口④(T2 评审挂账,协调者交给 T6 处置)】上面「没有搬多」那条
+   // 与白名单本身都只收 `k*` 前缀 —— 蓝本在几个类里嵌了**非 k 前缀的辅助类**
+   // (`.k-modal-foot .right`、`.k-fd-v.mono`、`.k-btn.ghost/.outline/.primary/.danger`…),
+   // 它们既不在白名单、也不进扫描正则:将来本文件里冒出任意一条 `.right { … }` /
+   // `.mono { … }`,或者有人手滑把别处的辅助类搬了进来,**不会有任何断言说话**。
+   //
+   // 处置:选"补一条覆盖非 k* 类的登记表",而不是"写条注释登记缺口了事"。理由是
+   // 实测下来**零假阳性** —— 本档全文(剥注释后)用 `/\.([a-zA-Z][a-zA-Z0-9_-]*)/`
+   // 扫出来的非 `k*` 标识符恰好只有下面这 9 个,全都是真类名:CSS 里的小数(`0.5`)
+   // 与时长(`1.4s`)点号后面跟的是数字,被 `[a-zA-Z]` 挡掉;`min()`/`repeat()`/
+@@ -225,50 +286,129 @@ describe('knowledge.scss —— 附录 D 白名单落地(226 个,R1 + T11 + P5b-
+     'suffix', 'second',
+     // .k2-live-ico 内的旋转态(蓝本 :2364),P5a T11 搬入
+     'spin',
+     // .k-fd-v 的等宽变体(蓝本 :1957),写作 `&.mono`,P5b-T6 搬入
+     'mono',
+     // .k-set-row-desc 内的警示行(蓝本 :1174),写作嵌套 `.warn { … }`,P5c-T2a 搬入
+     // (附录 D §D.1.1:9 → 10。⚠️ 不要顺手把 parser-app 也塞进来 —— 治理 §6.4-2 已裁定
+     //  它走 nonKClassNames 的**排除条件**,与既有的 knowledge-app 同款处理,登记表保持
+     //  "真·嵌套辅助类"的语义。)
+     'warn',
++    // ---- P5d-T2 追加(裁定书 R8:10 → 16)----
++    // 🔴 治理 §9.6 / 裁定 A-10 写「NON_K_HELPER_CLASSES 保持 10 项不变」是错的 ——
++    // 那句只算了 `nme`/`nme-content`/`ProseMirror`(且 `nme` 蓝本零选择器、根本扫不到,
++    // `nme-content`/`ProseMirror` 走排除条件不进本表),漏算了下面这 6 个真·嵌套辅助类。
++    // 照 A-10 字面「保持 10 项」做,下面「登记表恰好等于文件里真实存在的非 k* 类」那条
++    // 集合相等断言会**一提交就红**(裁定书 R8 已订正为 16,以程序化实测为准 —— 复现命令
++    // 见 `p5d-gen-r8r9-sim.mjs`,输出逐字见 T2 报告)。
++    // .kn-savehint 内的保存状态小圆点(蓝本 :2127/:2128),P5d-T2 搬入
++    'dot',
++    // .kn-refbtn 内的引用按钮文字(蓝本 :2222),P5d-T2 搬入
++    'lbl',
++    // .kn-note-meta 内的元信息分隔点(蓝本 :2104),P5d-T2 搬入
++    'sep',
++    // .kn-edit-top / .kn-editor-status / .kn-aside-title 内的弹性占位(蓝本 :2125/:2193/:2203),
++    // P5d-T2 搬入
++    'spacer',
++    // K45(裁定 R1)搬入的 .k-btn.text —— `&.text` 是复合类 `.k-btn.text` 里的 `text`,
++    // 与既有 ghost/outline/primary/danger 四个 `&.x` 变体完全同款(蓝本 :1569-1570)。
++    // 🔴 `text` 只归本表(R8),不进 WHITELIST_293(R9 的正则扫不到复合类里的 `text`,
++    // 见上方「没有搬多」小节注释),R8/R9 二选一,不许同时登记两侧。
++    'text',
++    // .kn-tb-btn 内的 H2/H3 加宽变体(蓝本 :2167),写作 `&.wide`,P5d-T2 搬入,与既有
++    // mono/ghost 等「连写变体」同款
++    'wide',
+   ]
+ 
+   // 【P5c-T2a 修:守卫缺口④(治理 §6.4-2)】本任务给两个 token 声明块的选择器各扩了一项
+   // `.parser-app`(K21 —— Parser 两页复用本档 token,零复制),于是 `parser-app` 会被下面
+   // 这个 `/\.([a-zA-Z]…)/` 扫出来、掉进"未登记的非 k* 类";它是**作用域根**,不是嵌套
+   // 辅助类 → 与既有的 `knowledge-app` 同款,走排除条件而不是塞进登记表。
+   // 同理 `fb` / `fb-*`(P5c-T2a 从 FolderBrowser.vue:82-143 搬入的 8 个类)是本档正经
+-  // 前缀类、已进 WHITELIST_226、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
++  // 前缀类、已进 WHITELIST_293、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
+   // 避免同一批类被两条断言用两套互相矛盾的口径判定。
++  //
++  // 【P5d-T2 追加】K44 引入的 `nme-content` / `ProseMirror` 同理是**正经前缀类/第三方
++  // 类**(前者是蓝本 wrapper 类,后者是第三方 ProseMirror 生成的类名,大小写混排,
++  // 本档 kebab 小写惯例之外的唯一一个),不是嵌套辅助类 —— 与 knowledge-app/parser-app/
++  // fb 同款,走排除条件,不进 NON_K_HELPER_CLASSES(治理 §9.6 明令)。
+   function nonKClassNames(text: string): string[] {
+     const found = new Set([...text.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]))
+     return [...found]
+       .filter(
+         (c) =>
+           !/^k(?:2|n)?-/.test(c) &&
+           !/^fb(?:-|$)/.test(c) &&
+           c !== 'knowledge-app' &&
+-          c !== 'parser-app',
++          c !== 'parser-app' &&
++          c !== 'nme-content' &&
++          c !== 'ProseMirror',
+       )
+       .sort()
+   }
+ 
+   it('守卫缺口④ —— 非 k* 前缀的嵌套辅助类全部在登记表内(.right/.mono 这类)', () => {
+     const extra = nonKClassNames(css).filter((c) => !NON_K_HELPER_CLASSES.includes(c))
+     expect(extra, `未登记的非 k* 类(每个都要在 NON_K_HELPER_CLASSES 里写明出处):${extra.join(', ')}`).toEqual([])
+   })
+ 
+-  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶)', () => {
++  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;R8 终值 16)', () => {
+     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
+   })
++
++  it('R8 —— NON_K_HELPER_CLASSES 常量恰好 16 项(裁定书 R8,不是治理 A-10 的 10 项)', () => {
++    expect(NON_K_HELPER_CLASSES).toHaveLength(16)
++    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(16)
++  })
++
++  // 【P5d-T2 · K45 落地 DoD(裁定书 R1-②,附录 D §D.4.1)】「没有搬多」的白名单集合断言
++  // 天然守不住 `.k-btn.text` 被重复搬(`text` 不在它的正则里)—— 改用「.k-btn 作用域内
++  // &.text 恰好出现 2 次(规则 + hover)」的计数断言。🔴 brief §3-2 / T0 复审指出:必须
++  // 锚定在 `.k-btn { … }` 区间内,不能对全文裸计数(全文计数在别处合法出现 `&.text` 时
++  // 会误红,P5e 若在别处重复搬又会漏判)——手法照本档 K10 守 `.k-confirm-*` 的做法:
++  // 先用花括号配对定位 `.k-btn { … }` 声明块(比 declBlockRange 的"下一个 \n}"更严,
++  // 因为 .k-btn 块内有嵌套的 &.xxx { … } 规则,不能假设第一个 \n} 就是块尾),再只在
++  // 区间内计数。
++  function findKBtnBlockRange(text: string): [number, number] {
++    const lines = text.split('\n')
++    let acc = 0
++    let startLine = -1
++    for (let i = 0; i < lines.length; i++) {
++      if (lines[i].trim() === '.k-btn {') {
++        startLine = i
++        break
++      }
++      acc += lines[i].length + 1
++    }
++    expect(startLine, '找不到 .k-btn 声明块(行首行尾锚定,trim 后须恰为 ".k-btn {")').toBeGreaterThanOrEqual(0)
++    const braceAt = text.indexOf('{', acc)
++    let depth = 0
++    let i = braceAt
++    for (; i < text.length; i++) {
++      if (text[i] === '{') depth++
++      else if (text[i] === '}') {
++        depth--
++        if (depth === 0) {
++          i++
++          break
++        }
++      }
++    }
++    return [acc, i]
++  }
++
++  it('K45 —— &.text 只在 .k-btn{…} 作用域内出现,恰好 2 次(规则+hover;重复搬即报红,brief §3-2 / R1-②)', () => {
++    const [start, end] = findKBtnBlockRange(css)
++    const body = css.slice(start, end)
++    const hits = body.match(/&\.text\b/g) || []
++    expect(hits.length, `.k-btn 块内 &.text 出现 ${hits.length} 次(应为 2;≠2 说明 K45 重复搬或漏搬)`).toBe(2)
++  })
+ })
+ 
+ // 找到「从 selectorLiteral 开始、到下一个独立一行的 `}` 为止」这个声明块的字符区间。
+ // 两个 token 声明块都是纯 `--x: y;` 平铺属性,没有嵌套规则,所以「下一个 `\n}`」
+ // 就是它的真实结束位置 —— 与 settingsStyles.test.ts 的 blockOf 同一手法。
+ //
+ // 【评审 2026-08-01 Important I-2 订正,本档第五次同族"守卫自己有窟窿"事故】原来
+ // 用 `text.indexOf(selectorLiteral)` 找起点 —— 这是纯子串搜索,会被文件头注释里
+ // **逐字引用的同一个选择器串**撞对:头注释 :8/:46/:51/:179 都写过反引号包着的
+ // `` `.knowledge-app { … }` ``(为了向读者解释选择器写法),`indexOf` 命中的是这些
+@@ -486,20 +626,83 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动
+       '--gloss-inset-dot': '--gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);',
+       // tokens.scss:236 的 --grad-sk-blue 改名不改值(-sk- 是技能区专用命名)
+       '--grad-sandbox': '--grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF);',
+     }
+     for (const [tok, decl] of Object.entries(expected)) {
+       expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
+       expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+     }
+   })
+ 
++  // 【P5d-T2 · K39】本任务新声明 9 个 token(附录 B §B.1 是权威)。7 个 theme-invariant
++  // (4 个笔记渐变 + 2 个 wash 渐变 + 2 个代码块色),两档同值;--shadow-warning-glow
++  // 两档**不同值**(RGB 三元组随 --warning-soft-border 换档,alpha 沿用蓝本 0.3/0.24)。
++  // 🔴 诚实登记(K39 明令,不许照抄 P5c "4/4 都有出处"那句):4 个笔记渐变里只有
++  // --grad-note-note 与既有 --grad-sandbox 逐字同值,另 3 个全仓零同值先例,蓝本设计包
++  // 是值的唯一权威源 —— 这条测试只钉「取值没有被下游重算/改动」,不代表这些值本身
++  // 有仓内先例。
++  it('K39 —— 7 个 theme-invariant 新 token 两档取值逐字相同(附录 B §B.1,禁重算)', () => {
++    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    const expected: Record<string, string> = {
++      // notesViewHelpers.js:6,与既有 --grad-sandbox 逐字同值(仍另建新名,理由见 scss 头注释)
++      '--grad-note-note': '--grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF);',
++      // notesViewHelpers.js:7,全仓零同值先例
++      '--grad-note-summary': '--grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759);',
++      // notesViewHelpers.js:8 与 knowledge.scss:2066(.kn-inbox-icon)共用同一份,全仓零同值先例
++      '--grad-note-insight': '--grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00);',
++      // notesViewHelpers.js:9,全仓零同值先例
++      '--grad-note-digest': '--grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55);',
++      // knowledge.scss:2060,保留蓝本色相(裁定 R11)
++      '--grad-inbox-wash':
++        '--grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent);',
++      // knowledge.scss:2132,保留蓝本色相(裁定 R11)
++      '--grad-draftbar-wash':
++        '--grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04));',
++      // NotesMarkdownEditor.vue:44,theme-invariant
++      '--code-block-bg': '--code-block-bg: #0d0d0d;',
++      '--code-block-fg': '--code-block-fg: #ffffff;',
++    }
++    for (const [tok, decl] of Object.entries(expected)) {
++      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
++      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
++    }
++  })
++
++  it('K39 —— --shadow-warning-glow 两档取值不同(暗 0.3 / 浅 0.24,附录 B §B.1 第 7 行)', () => {
++    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    expect(darkBody, '暗档 --shadow-warning-glow 取值被改动').toContain(
++      '--shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3);',
++    )
++    expect(lightBody, '浅档 --shadow-warning-glow 取值被改动').toContain(
++      '--shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24);',
++    )
++    // 反向:两档不能同值(同值 = 有人把它当成了 theme-invariant)
++    expect(darkBody).not.toContain('--shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24);')
++    expect(lightBody).not.toContain('--shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3);')
++  })
++
++  it('K39 —— #FF9500,#FFCC00 只声明一份 --grad-note-insight(两个消费方共用,不许声明两份)', () => {
++    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    for (const body of [darkBody, lightBody]) {
++      const hits = body.match(/--grad-note-insight:/g) || []
++      expect(hits.length, '--grad-note-insight 声明次数应为 1(#FF9500,#FFCC00 两个消费方共用一份)').toBe(1)
++    }
++    // 消费方(.kn-inbox-icon 与 K44 顶层段外的其余引用留给 T3/T6/T7)本刀只核 scss 内的
++    // .kn-inbox-icon 一处,确认它引用 token 而不是重复声明色值。
++    expect(css, '.kn-inbox-icon 应引用 --grad-note-insight 而不是重复声明字面量').toContain(
++      'background: var(--grad-note-insight);',
++    )
++  })
++
+   it('--accent-soft-2 不在本档重复声明(R2 例外:全局 theme.css 的 :root 与浅色块已有,跟随全局解析)', () => {
+     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
+     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+     expect(darkBody).not.toContain('--accent-soft-2:')
+     expect(lightBody).not.toContain('--accent-soft-2:')
+     // 但壳段确实引用了它(k-banner[data-tone="info"] 与 k-btn.primary 的阴影)
+     expect(css).toContain('var(--accent-soft-2)')
+   })
+ 
+   // 评审 2026-07-31 Critical 订正 —— 初版曾在浅色声明块里"刻意不声明 --accent/
+@@ -514,20 +717,64 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动
+     expect(lightBody, '浅色档缺 --accent(会被暗色块的 #5E97F2 命中)').toContain('--accent: #3b5bdb')
+     expect(lightBody, '浅色档缺 --accent-soft(会被暗色块的值命中)').toContain('--accent-soft: rgba(59, 91, 219, 0.11)')
+     expect(lightBody, '浅色档缺 --success(会被暗色块的 #4FB870 命中)').toContain('--success: #15754c')
+     // 反向:确认没有退回自引用循环写法
+     expect(lightBody).not.toContain('--accent: var(--accent)')
+     expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
+     expect(lightBody).not.toContain('--success: var(--success)')
+   })
+ })
+ 
++// 【P5d-T2 · K44 顶层裸选择器例外(治理 §6.2-2 明令 / 裁定 R4 / 附录 D §D.2.2)】
++// 🔴 这条断言是**新建**,不是修改 —— 现状文件里压根没有任何「顶层裸选择器」相关断言
++// (`grep -n "顶层\|裸选择器\|top-level" knowledgeStyles.test.ts` 在本刀之前只命中
++// K10 注释,查不到这条)。基线:改动前的现状文件 depth-0(顶层、零缩进)开块选择器
++// 共 15 条,全部是 `.knowledge-app`(含与 `.parser-app` 复合的两个 token 声明块)/
++// `:root[data-theme="light"] …`/`@keyframes` —— 排除这三类后「裸选择器」实测 = 0。
++// K44 搬入唯一一条真正的顶层裸选择器:`.nme-content .ProseMirror`(蓝本
++// NotesMarkdownEditor.vue:41-46,理由见 knowledge.scss 该段注释)。
++//
++// 判据:抽出全文件 depth-0(大括号深度为 0 时遇到的 `{`)选择器,过滤掉
++// `.knowledge-app*`/`:root*`/`@*` 三类,断言剩下的**集合恰好等于**
++// `['.nme-content .ProseMirror']` —— 集合相等式,不是「排除掉就算了」(裁定 R4 明令)。
++function depthZeroSelectors(text: string): string[] {
++  const out: string[] = []
++  let depth = 0
++  let lastEnd = 0
++  for (let i = 0; i < text.length; i++) {
++    const ch = text[i]
++    if (ch === '{') {
++      if (depth === 0) {
++        const sel = text.slice(lastEnd, i).trim()
++        if (sel) out.push(sel)
++      }
++      depth++
++    } else if (ch === '}') {
++      depth--
++      if (depth === 0) lastEnd = i + 1
++    }
++  }
++  return out
++}
++
++describe('knowledge.scss —— K44 顶层裸选择器例外(治理 §6.2-2 / 裁定 R4,T2 新建断言)', () => {
++  function bareTopLevelSelectors(): string[] {
++    return depthZeroSelectors(css).filter(
++      (s) => !s.startsWith('.knowledge-app') && !s.startsWith(':root') && !s.startsWith('@'),
++    )
++  }
++
++  it('顶层裸选择器(排除 .knowledge-app 系 / :root 系 / @ 开头)恰好只有 .nme-content .ProseMirror 一条', () => {
++    expect(bareTopLevelSelectors()).toEqual(['.nme-content .ProseMirror'])
++  })
++})
++
+ // 【终审 ⚠️-D1,2026-08-01 补,本轮修复最有价值的一条】上面几条(R2/R4/"3 个同名
+ // token")各自只逐个点名钉住了 13 个具名 token(6 个 *-soft/scrim + 4 个 --shadow-*
+ // + 3 个同名 --accent/--accent-soft/--success)。除这 13 个之外,任何一个颜色 token
+ // 从浅色块消失都**没有任何守卫**——终审 RED 探针实证:删掉浅色块
+ // `--line-strong: #D8D3C7;` 一整行,`knowledgeStyles` + `color-guard` 209/209
+ // 全绿,无人报红。真机后果:浅色主题下 `.k2-root-add` 的虚线边框会取到暗色块的
+ // `#3A3A3D`——本档已经因为同一款故障(浅色块漏声明)吃过一次 Critical
+ // (T4:--accent/--accent-soft/--success 三个)。
+ //
+ // 判据(头注释「隐藏坑」段已经证明过的前提):暗色块 `.knowledge-app { … }` 选择器

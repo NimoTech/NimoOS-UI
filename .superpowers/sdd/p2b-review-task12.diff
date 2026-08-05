@@ -1,0 +1,1286 @@
+# Review package: efcd6f3^..efcd6f3
+
+## Commits
+efcd6f3 SP8-P2b Task 12: ChannelsSection(聊天渠道,承接 Vue2 7 例 + 新增 17 例)
+
+## Files changed
+ .../settings/sections/ChannelsSection.test.ts      | 568 +++++++++++++++++++++
+ .../settings/sections/ChannelsSection.vue          | 484 ++++++++++++++++++
+ src/ai/styles/settings-styles.scss                 |  21 +
+ src/ai/styles/settingsStyles.test.ts               |  17 +
+ src/i18n/en_us.ts                                  |  45 ++
+ src/i18n/zh_cn.ts                                  |  42 ++
+ 6 files changed, 1177 insertions(+)
+
+## Diff
+diff --git a/src/ai/components/settings/sections/ChannelsSection.test.ts b/src/ai/components/settings/sections/ChannelsSection.test.ts
+new file mode 100644
+index 0000000..3971aac
+--- /dev/null
++++ b/src/ai/components/settings/sections/ChannelsSection.test.ts
+@@ -0,0 +1,568 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../../i18n/zh_cn'
++
++// SP8-P2b Task 12 —— 承接 Vue2 src/views/AI/Settings/__tests__/ChannelsSection.spec.js
++// 的 7 条组件级用例(编号 1-7,注释里标出对应 spec.js 的 it() 标题),另加 brief 新增的
++// 16 条(编号 8/10-24;编号 9 是「Vue2 watch:isAdmin 在本仓不可能触发」的未移植项,不写
++// 测试,见 ChannelsSection.vue 头注释与下方 8 号用例后的说明)。
++//
++// Vue2 spec.js 断言的是 `w.vm.*` 内部状态(pairable/revealedCode/showCode/codeInstance/
++// bindings/…)与 mock 调用参数;Vue3 <script setup> 不暴露任何内部状态给外部,故这里把每条
++// 断言改成「渲染出的 DOM + service mock 的调用」这两类可观察事实,断言的仍是同一件事实
++// (承接清单见组件头/任务报告,不在此重复贴)。
++
++const h = vi.hoisted(() => ({
++  listPairableChannelInstances: vi.fn(),
++  listChannelBindings: vi.fn(),
++  listModels: vi.fn(),
++  listProviders: vi.fn(),
++  listChannelInstances: vi.fn(),
++  createChannelInstance: vi.fn(),
++  setChannelInstanceEnabled: vi.fn(),
++  deleteChannelInstance: vi.fn(),
++  createChannelPairingCode: vi.fn(),
++  setChannelBindingModel: vi.fn(),
++  setChannelBindingDownloadDir: vi.fn(),
++  deleteChannelBinding: vi.fn(),
++  copyText: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    ai: {
++      listPairableChannelInstances: h.listPairableChannelInstances,
++      listChannelBindings: h.listChannelBindings,
++      listModels: h.listModels,
++      listProviders: h.listProviders,
++      listChannelInstances: h.listChannelInstances,
++      createChannelInstance: h.createChannelInstance,
++      setChannelInstanceEnabled: h.setChannelInstanceEnabled,
++      deleteChannelInstance: h.deleteChannelInstance,
++      createChannelPairingCode: h.createChannelPairingCode,
++      setChannelBindingModel: h.setChannelBindingModel,
++      setChannelBindingDownloadDir: h.setChannelBindingDownloadDir,
++      deleteChannelBinding: h.deleteChannelBinding,
++    },
++  },
++}))
++vi.mock('../../../../files/util/clipboard', () => ({ copyText: h.copyText }))
++
++import ChannelsSection from './ChannelsSection.vue'
++import { useToast } from '../../../../stores/toast'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++function asAdmin() { localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' })) }
++function asUser() { localStorage.setItem('user', JSON.stringify({ username: 'guest', role: 'user' })) }
++
++function mountSection() {
++  return mount(ChannelsSection, { global: { plugins: [i18n] }, attachTo: document.body })
++}
++
++const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
++
++/** Click the reka-ui AlertDialogAction/Cancel whose visible text matches `label`
++ *  (excludes PromptDialog-style data-testid buttons; same手法 as McpTokensSection.test.ts). */
++function clickAlertButton(label: string) {
++  const btn = Array.from(document.body.querySelectorAll('button')).find(
++    (b) => b.textContent?.trim() === label && b.className.includes('ui-btn') && !b.dataset.testid,
++  ) as HTMLButtonElement | undefined
++  expect(btn).toBeTruthy()
++  btn!.click()
++}
++
++beforeEach(() => {
++  localStorage.clear()
++  setActivePinia(createPinia())
++  for (const fn of Object.values(h)) fn.mockReset()
++  h.listPairableChannelInstances.mockResolvedValue({ instances: [] })
++  h.listChannelBindings.mockResolvedValue({ bindings: [] })
++  h.listModels.mockResolvedValue({ models: [] })
++  h.listProviders.mockResolvedValue([])
++  h.listChannelInstances.mockResolvedValue({ instances: [] })
++  h.createChannelInstance.mockResolvedValue({})
++  h.setChannelInstanceEnabled.mockResolvedValue({})
++  h.deleteChannelInstance.mockResolvedValue({})
++  h.createChannelPairingCode.mockResolvedValue({ code: '' })
++  h.setChannelBindingModel.mockResolvedValue({})
++  h.setChannelBindingDownloadDir.mockResolvedValue({})
++  h.deleteChannelBinding.mockResolvedValue({})
++  h.copyText.mockResolvedValue(undefined)
++  // SkModal portal 目标默认是 '.set-app'(见 SkModal.vue 头注释 D1),目标元素必须在组件
++  // 挂载前就存在于 DOM,同 SkModal.test.ts / McpTokensSection.test.ts 的 host 手法。
++  const host = document.createElement('div')
++  host.className = 'set-app'
++  document.body.appendChild(host)
++})
++
++afterEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('ChannelsSection', () => {
++  // ---- 承接 Vue2 spec.js 7 条 ----
++
++  it('1. loads pairable instances and bindings on create (non-admin)', async () => {
++    h.listPairableChannelInstances.mockResolvedValue({
++      instances: [{ id: 'i1', channel_type: 'telegram', name: 'fam', bot_username: 'fam_bot' }],
++    })
++    asUser()
++    const w = mountSection()
++    await flush()
++    expect(h.listPairableChannelInstances).toHaveBeenCalled()
++    expect(h.listChannelBindings).toHaveBeenCalled()
++    // Vue2 断言 w.vm.pairable 长度为 1 —— 改成断言渲染出的配对行数
++    expect(w.findAll('.set-row')).toHaveLength(1)
++    expect(w.find('.set-row .lbl').text()).toContain('fam')
++    // non-admin 不该加载管理员段数据(否定断言)
++    expect(h.listChannelInstances).not.toHaveBeenCalled()
++    // Vue2 断言 w.vm.isAdmin === false —— 改成断言管理员段未渲染
++    expect(w.find('.sk-section-title').exists() ? w.text().includes('机器人配置') : true).toBe(false)
++  })
++
++  it('2. admin also loads channel instances', async () => {
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    expect(w.text()).toContain('机器人配置')
++    expect(h.listChannelInstances).toHaveBeenCalled()
++  })
++
++  it('3. genCode stores the revealed code and opens the modal', async () => {
++    h.listPairableChannelInstances.mockResolvedValue({
++      instances: [{ id: 'i1', channel_type: 'telegram', name: 'fam', bot_username: 'fam_bot' }],
++    })
++    h.createChannelPairingCode.mockResolvedValue({ code: '12345678', expires_at: 1 })
++    asUser()
++    const w = mountSection()
++    await flush()
++    await w.find('.set-row .sk-btn.primary').trigger('click')
++    await flush()
++    expect(h.createChannelPairingCode).toHaveBeenCalledWith('i1')
++    // Vue2 断言 w.vm.revealedCode / w.vm.showCode —— 改成断言弹窗已挂载且明文码落在只读输入框
++    const codeInput = document.querySelector('.sk-modal input.set-input.full.mono') as HTMLInputElement
++    expect(codeInput.value).toBe('12345678')
++    // codeInstance 驱动配对指引里的 bot 用户名(fillPairInstructions 的 {bot} 替换)
++    expect(document.querySelector('.sk-modal')?.textContent).toContain('fam_bot')
++  })
++
++  it('4. setModel persists the chosen model key and updates the binding', async () => {
++    h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', default_model: null }] })
++    h.listModels.mockResolvedValue({ models: [{ name: 'llama2', size: 500 }] })
++    h.setChannelBindingModel.mockResolvedValue({ ok: true })
++    asUser()
++    const w = mountSection()
++    await flush()
++    const picker = w.findComponent({ name: 'ModelPicker' })
++    expect(picker.exists()).toBe(true)
++    expect(picker.props('selectedKey')).toBeNull()
++    picker.vm.$emit('select', 'local:llama2')
++    await flush()
++    expect(h.setChannelBindingModel).toHaveBeenCalledWith('b1', 'local:llama2')
++    // Vue2 断言 b.default_model —— 改成断言该行 ModelPicker 收到新 selectedKey 且展示新模型名
++    expect(picker.props('selectedKey')).toBe('local:llama2')
++    expect(picker.find('.model-pill-name').text()).toBe('llama2')
++  })
++
++  it('5. saveDownloadDir persists the folder', async () => {
++    h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', download_dir: '/DATA/Downloads/telegram' }] })
++    h.setChannelBindingDownloadDir.mockResolvedValue({ ok: true })
++    asUser()
++    const w = mountSection()
++    await flush()
++    const input = w.find('.tok-row input.set-input')
++    ;(input.element as HTMLInputElement).value = '/DATA/Downloads/tg2'
++    await input.trigger('change')
++    await flush()
++    expect(h.setChannelBindingDownloadDir).toHaveBeenCalledWith('b1', '/DATA/Downloads/tg2')
++    // Vue2 断言 b.download_dir —— 改成断言输入框的受控值确实更新为新目录
++    expect((w.find('.tok-row input.set-input').element as HTMLInputElement).value).toBe('/DATA/Downloads/tg2')
++  })
++
++  it('6. doUnbind removes the binding from the list', async () => {
++    h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1' }, { id: 'b2' }] })
++    h.deleteChannelBinding.mockResolvedValue({ revoked: true })
++    asUser()
++    const w = mountSection()
++    await flush()
++    expect(w.findAll('.tok-row')).toHaveLength(2)
++    await w.findAll('.tok-del')[0].trigger('click')
++    await flush()
++    clickAlertButton('解绑')
++    await flush()
++    expect(h.deleteChannelBinding).toHaveBeenCalledWith('b1')
++    // Vue2 断言 w.vm.bindings.map(id) —— 改成断言剩余行数与该行从 DOM 消失
++    expect(w.findAll('.tok-row')).toHaveLength(1)
++  })
++
++  it('7. addBot uses the selected channel type in the create payload', async () => {
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    const discordBtn = Array.from(document.querySelectorAll('.chan-type-opt')).find(
++      (b) => b.textContent?.trim() === 'Discord',
++    ) as HTMLButtonElement
++    discordBtn.click()
++    await flush()
++    const nameInput = document.querySelector('.sk-modal .sk-field:nth-of-type(2) input') as HTMLInputElement
++    const tokenInput = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
++    nameInput.value = 'fam'
++    nameInput.dispatchEvent(new Event('input'))
++    tokenInput.value = 'disc:token'
++    tokenInput.dispatchEvent(new Event('input'))
++    await flush()
++    const submitBtn = Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
++      (b) => b.textContent?.trim() === '添加机器人',
++    ) as HTMLButtonElement
++    submitBtn.click()
++    await flush()
++    expect(h.createChannelInstance).toHaveBeenCalledWith({
++      channel_type: 'discord', name: 'fam', config: { bot_token: 'disc:token' },
++    })
++  })
++
++  // ---- 新增(编号对齐 brief;9 号是未移植项,不写测试) ----
++
++  it('8. 非管理员不渲染「机器人配置」段;管理员渲染(对照组)', async () => {
++    asUser()
++    const wUser = mountSection()
++    await flush()
++    expect(wUser.text()).not.toContain('机器人配置')
++
++    // useSessionStore().user 是读 localStorage 的 computed,同一 Pinia 实例内首次求值后会
++    // 缓存(见 stores/session.ts 头注释:「computed 读 localStorage 不构成响应式依赖」)——
++    // 复用上面同一个 active pinia 会让这里读到 wUser 求值时缓存的旧结果。换一个新 Pinia
++    // 实例(等价于真实场景的整页重载)才能让第二次挂载读到 asAdmin() 刚写入的新角色。
++    asAdmin()
++    setActivePinia(createPinia())
++    const wAdmin = mountSection()
++    await flush()
++    expect(wAdmin.text()).toContain('机器人配置')
++  })
++
++  it('10. 三个加载各自独立失败,互不影响', async () => {
++    h.listPairableChannelInstances.mockRejectedValue(new Error('boom'))
++    h.listChannelBindings.mockRejectedValue(new Error('boom'))
++    h.listChannelInstances.mockRejectedValue(new Error('boom'))
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    expect(w.find('.sk-section-body .set-note').exists()).toBe(true) // 尚未配置聊天机器人
++    expect(w.text()).toContain('加载失败。')
++    // 管理员段没有崩溃、按钮仍可见(instances 落空数组而非抛出未捕获异常)
++    expect(w.text()).toContain('机器人配置')
++  })
++
++  it('11. 可配对列表为空 → 渲染「尚未配置聊天机器人，请联系管理员添加。」', async () => {
++    asUser()
++    const w = mountSection()
++    await flush()
++    expect(w.text()).toContain('尚未配置聊天机器人，请联系管理员添加。')
++  })
++
++  it('12. 绑定列表为空 → 渲染「还没有绑定账号。…」', async () => {
++    asUser()
++    const w = mountSection()
++    await flush()
++    expect(w.text()).toContain('还没有绑定账号。在上方生成配对码并发送给机器人即可。')
++  })
++
++  it('13. 机器人行显示 @bot_username 与 token 尾号;invite_url 存在才渲染邀请链接(对照组)', async () => {
++    h.listChannelInstances.mockResolvedValue({
++      instances: [
++        { id: 'a', name: 'Fam bot', channel_type: 'telegram', bot_username: 'fam_bot', token_tail: 'ab12', enabled: true, invite_url: 'https://discord.com/invite/xyz' },
++        { id: 'b', name: 'No invite', channel_type: 'telegram', token_tail: 'cd34', enabled: false },
++      ],
++    })
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    const rows = w.findAll('.tok-row')
++    expect(rows[0].text()).toContain('@fam_bot')
++    expect(rows[0].text()).toContain('token ···ab12')
++    const link = rows[0].find('a.chan-invite')
++    expect(link.exists()).toBe(true)
++    expect(link.attributes('target')).toBe('_blank')
++    expect(link.attributes('rel')).toBe('noopener')
++    expect(rows[1].find('a.chan-invite').exists()).toBe(false)
++    expect(rows[1].text()).toContain('token ···cd34')
++  })
++
++  it('14. 切换机器人启用开关成功 → setChannelInstanceEnabled 被调、补拉 listPairableChannelInstances', async () => {
++    h.listChannelInstances.mockResolvedValue({
++      instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: false }],
++    })
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    h.listPairableChannelInstances.mockClear()
++    const checkbox = w.find('.chan-switch input[type="checkbox"]')
++    ;(checkbox.element as HTMLInputElement).checked = true
++    await checkbox.trigger('change')
++    await flush()
++    expect(h.setChannelInstanceEnabled).toHaveBeenCalledWith('a', true)
++    expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1) // Vue2 :246 成功后补拉一次
++  })
++
++  it('15. 启用开关失败 → danger toast,且不改写数据源(inst.enabled 未被写入)', async () => {
++    h.listChannelInstances.mockResolvedValue({
++      instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: true }],
++    })
++    h.setChannelInstanceEnabled.mockRejectedValue({})
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const checkbox = w.find('.chan-switch input[type="checkbox"]')
++    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
++    ;(checkbox.element as HTMLInputElement).checked = false // 模拟用户手动取消勾选
++    await checkbox.trigger('change')
++    await flush()
++    expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
++    expect(h.listPairableChannelInstances).not.toHaveBeenCalledTimes(2) // 失败不补拉(只有挂载时那一次)
++    // Vue2 :280 与本组件都是「inst.enabled = enabled 写在 await 之后,失败时不改」——但
++    // `:checked="inst.enabled"`(非 v-model)这个绑定在 Vue 3(与 Vue2 同理)只有当
++    // `next !== prev` 才会真正把值写回 DOM 的 checked 属性(runtime-core patchElement 对
++    // 'checked' 没有像 'value' 那样的强制回写例外);inst.enabled 从未改变,意味着就算
++    // 强制这个组件整体重渲染,Vue 也不会把我们手动改过的原生 DOM checked 状态纠正回来 ——
++    // 这不是本组件的缺陷,是这个绑定模式(Vue2 原文一样的写法)本身的已知局限,不属于
++    // 「1:1 照 Vue2」要修的可复现错误行为(constraints §7),不在这里改绑定方式。
++    // 因此不测 DOM 残留的 checked 状态,改测「数据源真的没被改写」这件事本身:用同一份
++    // (仍返回 enabled:true 的)mock 全新挂载一份组件实例——一次干净的从零渲染,不经历
++    // 上面这次失败的 patch 残留,能证明失败路径没有把 false 提交回上层数据源。
++    const fresh = mountSection()
++    await flush()
++    const freshCheckbox = fresh.find('.chan-switch input[type="checkbox"]')
++    expect((freshCheckbox.element as HTMLInputElement).checked).toBe(true)
++  })
++
++  it('16. 删除机器人:确认后调用接口、行消失、补拉可配对列表;取消不发请求', async () => {
++    h.listChannelInstances.mockResolvedValue({
++      instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: true }],
++    })
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    // 取消路径
++    await w.find('.tok-del').trigger('click')
++    await flush()
++    clickAlertButton('取消')
++    await flush()
++    expect(h.deleteChannelInstance).not.toHaveBeenCalled()
++    expect(w.findAll('.tok-row')).toHaveLength(1)
++    // 确认路径
++    h.listPairableChannelInstances.mockClear()
++    await w.find('.tok-del').trigger('click')
++    await flush()
++    clickAlertButton('删除')
++    await flush()
++    expect(h.deleteChannelInstance).toHaveBeenCalledWith('a')
++    expect(w.findAll('.tok-row')).toHaveLength(0)
++    expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1)
++  })
++
++  it('17. addBot 的 token 为空/纯空格 → 提交按钮 disabled 且不发请求', async () => {
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    const submitBtn = Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
++      (b) => b.textContent?.trim() === '添加机器人',
++    ) as HTMLButtonElement
++    expect(submitBtn.disabled).toBe(true) // token 为空
++    const tokenInput = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
++    tokenInput.value = '   '
++    tokenInput.dispatchEvent(new Event('input'))
++    await flush()
++    expect(submitBtn.disabled).toBe(true) // 纯空格同样禁用
++    submitBtn.click()
++    await flush()
++    expect(h.createChannelInstance).not.toHaveBeenCalled()
++  })
++
++  it('18. addBot 成功:弹窗关闭、表单复位、两个列表各补拉一次', async () => {
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    const nameInput = document.querySelector('.sk-modal .sk-field:nth-of-type(2) input') as HTMLInputElement
++    const tokenInput = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
++    nameInput.value = 'fam'
++    nameInput.dispatchEvent(new Event('input'))
++    tokenInput.value = 'tg:token'
++    tokenInput.dispatchEvent(new Event('input'))
++    await flush()
++    h.listChannelInstances.mockClear()
++    h.listPairableChannelInstances.mockClear()
++    const submitBtn = Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
++      (b) => b.textContent?.trim() === '添加机器人',
++    ) as HTMLButtonElement
++    submitBtn.click()
++    await flush()
++    expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关闭
++    expect(h.listChannelInstances).toHaveBeenCalledTimes(1)
++    expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1)
++    // 表单复位:重新打开弹窗,字段应回到初始值
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    const reopenedName = document.querySelector('.sk-modal .sk-field:nth-of-type(2) input') as HTMLInputElement
++    const reopenedToken = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
++    const telegramBtn = Array.from(document.querySelectorAll('.chan-type-opt')).find(
++      (b) => b.textContent?.trim() === 'Telegram',
++    ) as HTMLButtonElement
++    expect(reopenedName.value).toBe('')
++    expect(reopenedToken.value).toBe('')
++    expect(telegramBtn.dataset.active).toBe('true')
++  })
++
++  it('19. addBot 失败 → danger toast 用后端消息(兜底「添加失败，请检查 Token。」),弹窗不关', async () => {
++    h.createChannelInstance.mockRejectedValueOnce({ response: { data: { message: '机器人名额已满' } } })
++    asAdmin()
++    const w = mountSection()
++    await flush()
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    const tokenInput = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
++    tokenInput.value = 'tg:token'
++    tokenInput.dispatchEvent(new Event('input'))
++    await flush()
++    const submitBtn = Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
++      (b) => b.textContent?.trim() === '添加机器人',
++    ) as HTMLButtonElement
++    submitBtn.click()
++    await flush()
++    expect(show).toHaveBeenCalledWith('机器人名额已满', 3000, 'danger')
++    expect(document.querySelector('.sk-modal')).not.toBeNull() // 弹窗仍开着
++
++    show.mockClear()
++    h.createChannelInstance.mockRejectedValueOnce({})
++    submitBtn.click()
++    await flush()
++    expect(show).toHaveBeenCalledWith('添加失败，请检查 Token。', 3000, 'danger')
++  })
++
++  it('20. 配对码弹窗指引文案含 bot 用户名与 code;点复制 → copyText(code) + 「已复制」toast', async () => {
++    h.listPairableChannelInstances.mockResolvedValue({
++      instances: [{ id: 'i1', channel_type: 'telegram', name: 'fam', bot_username: 'fam_bot' }],
++    })
++    h.createChannelPairingCode.mockResolvedValue({ code: '87654321' })
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    asUser()
++    const w = mountSection()
++    await flush()
++    await w.find('.set-row .sk-btn.primary').trigger('click')
++    await flush()
++    const hint = document.querySelector('.chan-modal-hint') as HTMLElement
++    expect(hint.textContent).toContain('@fam_bot')
++    expect(hint.textContent).toContain('87654321')
++    const copyBtn = Array.from(document.querySelectorAll('.sk-modal .set-copybtn')).find(
++      (b) => b.textContent?.includes('复制'),
++    ) as HTMLButtonElement
++    copyBtn.click()
++    await flush()
++    expect(h.copyText).toHaveBeenCalledWith('87654321')
++    expect(show).toHaveBeenCalledWith('已复制')
++  })
++
++  it('21. 配对码弹窗关闭(完成) → code 清空、补拉 listChannelBindings', async () => {
++    h.listPairableChannelInstances.mockResolvedValue({
++      instances: [{ id: 'i1', channel_type: 'telegram', name: 'fam', bot_username: 'fam_bot' }],
++    })
++    h.createChannelPairingCode.mockResolvedValue({ code: '87654321' })
++    asUser()
++    const w = mountSection()
++    await flush()
++    await w.find('.set-row .sk-btn.primary').trigger('click')
++    await flush()
++    h.listChannelBindings.mockClear()
++    const doneBtn = Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
++      (b) => b.textContent?.trim() === '完成',
++    ) as HTMLButtonElement
++    doneBtn.click()
++    await flush()
++    expect(document.querySelector('.sk-modal')).toBeNull()
++    expect(h.listChannelBindings).toHaveBeenCalledTimes(1)
++  })
++
++  it('22. setModel / saveDownloadDir 失败 → 各弹 danger toast「保存失败」', async () => {
++    h.listChannelBindings.mockResolvedValue({
++      bindings: [{ id: 'b1', default_model: null, download_dir: '/DATA/Downloads/telegram' }],
++    })
++    h.listModels.mockResolvedValue({ models: [{ name: 'llama2' }] })
++    h.setChannelBindingModel.mockRejectedValueOnce({})
++    h.setChannelBindingDownloadDir.mockRejectedValueOnce({})
++    asUser()
++    const w = mountSection()
++    await flush()
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++
++    const picker = w.findComponent({ name: 'ModelPicker' })
++    picker.vm.$emit('select', 'local:llama2')
++    await flush()
++    expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
++
++    show.mockClear()
++    const input = w.find('.tok-row input.set-input')
++    ;(input.element as HTMLInputElement).value = '/DATA/Downloads/tg2'
++    await input.trigger('change')
++    await flush()
++    expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
++  })
++
++  it('23. saveDownloadDir 输入未变化或为空白 → 不发请求', async () => {
++    h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', download_dir: '/DATA/Downloads/telegram' }] })
++    asUser()
++    const w = mountSection()
++    await flush()
++    const input = w.find('.tok-row input.set-input')
++    ;(input.element as HTMLInputElement).value = '/DATA/Downloads/telegram' // 未变化
++    await input.trigger('change')
++    await flush()
++    expect(h.setChannelBindingDownloadDir).not.toHaveBeenCalled()
++    ;(input.element as HTMLInputElement).value = '   ' // 空白
++    await input.trigger('change')
++    await flush()
++    expect(h.setChannelBindingDownloadDir).not.toHaveBeenCalled()
++  })
++
++  it('24a. loadModels:listModels 给本地模型(前缀 local:),listProviders 失败不影响本地模型', async () => {
++    h.listModels.mockResolvedValue({ models: [{ name: 'llama2', size: 500 }] })
++    h.listProviders.mockRejectedValue(new Error('down'))
++    h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', default_model: null }] })
++    asUser()
++    const w = mountSection()
++    await flush()
++    const picker = w.findComponent({ name: 'ModelPicker' })
++    const models = picker.props('availableModels') as Array<{ key: string; source: string }>
++    expect(models).toEqual([{ key: 'local:llama2', source: 'local', displayName: 'llama2', size: 500 }])
++  })
++
++  it('24b. loadModels:listProviders 经 buildCloudModelList 追加云端模型,listModels 失败不影响云端模型', async () => {
++    h.listModels.mockRejectedValue(new Error('down'))
++    h.listProviders.mockResolvedValue([
++      { id: 6, name: 'DeepSeek', enabled: true, provider_type: 'deepseek', models: [{ name: 'deepseek-chat', favorite: true, supports_thinking: false }] },
++    ])
++    h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', default_model: null }] })
++    asUser()
++    const w = mountSection()
++    await flush()
++    const picker = w.findComponent({ name: 'ModelPicker' })
++    const models = picker.props('availableModels') as Array<{ key: string; source: string }>
++    expect(models).toEqual([{
++      key: 'cloud:6:deepseek-chat', source: 'cloud', displayName: 'deepseek-chat',
++      providerName: 'DeepSeek', providerId: 6, supports_thinking: false, provider_type: 'deepseek',
++    }])
++  })
++})
+diff --git a/src/ai/components/settings/sections/ChannelsSection.vue b/src/ai/components/settings/sections/ChannelsSection.vue
+new file mode 100644
+index 0000000..5f1e291
+--- /dev/null
++++ b/src/ai/components/settings/sections/ChannelsSection.vue
+@@ -0,0 +1,484 @@
++<!--
++  SP8-P2b Task 12 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/ChannelsSection.vue(410 行)。
++  纯函数(bindingLabel / pairInstructions 的 split-join / channelsBotTokenTail 的
++  split-join)已由 Task 11 抽到 ../../../util/channelsFormat.ts,这里只保留组件专属状态
++  与 i18n 拼接。
++
++  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data()
++  是组件本地状态),不做 store 集中。用户 2026-07-28 拍板(见 BlacklistSection.vue 头
++  注释)。
++
++  【D1 申报】Vue2 :46-80(加机器人)与 :140-160(配对码明文)两处手写 `.sk-modal-bg`
++  裸 div + `@click.self` 关闭,换成 Task 3 的 SkModal(reka Dialog 外壳,视觉规则不变,
++  详见 SkModal.vue 头注释的 D1)。Vue2 `$buefy.dialog.confirm`(:287-293 删机器人、
++  :341-347 解绑)→ 共享 AlertDialog。两处都是「纯确认后动作,取消无需复原状态」
++  (与 Task 8 开关那种「取消要复原」场景不同,这里不引入 watch(open)+confirmed 标志),
++  同 McpTokensSection.vue 的 confirmDeleteOpen/pendingDeleteId 手法。
++  Vue2 里 `.chan-x` 关闭按钮 scoped 样式已被 SkModal 内置的 `.sk-x` 收编,这里不再重复
++  定义。
++
++  【范围扩张,已申报:样式落点偏离 brief】brief Step 3 原话是把 Vue2 :387-410 那 9 条
++  `.chan-*` 规则「一并搬进本组件的 <style scoped>」——但那是 brief 对账前写的,phase-wide
++  的既定范式(constraints §4,已被 BlacklistSection/.px-msg 与 McpTokensSection/
++  .mcp-label 两次验证)是分区组件零 <style> 块。这里遵从后者、不遵从 brief:9 条规则
++  (`.chan-x`/`.chan-x:hover` 已被 SkModal 收编,不搬)移到
++  `src/ai/styles/settings-styles.scss`(McpTokensSection 那次的同一落点),回归测试见
++  `src/ai/styles/settingsStyles.test.ts` 新增的 ChannelsSection 描述块。值逐字保留,
++  Vue2 原 9 条本来就全是 `var(--…)`,无需摘裸色。
++
++  【未移植项,已申报】Vue2 :192-195 有 `watch: { isAdmin(v) { if (v && !this.instances.length)
++  this.loadInstances() } } }`,用于「登录后角色从 user 变成 admin」这种运行时切换场景
++  补拉一次管理员数据。本仓 isAdmin 是 computed 读 localStorage(见 useSessionStore 头
++  注释),同一实例生命周期内不会变(角色切换走整页重载,不存在"同一组件实例内角色跳变"
++  的中间态)——这个 watch 在本仓不可能被触发,故不移植,未写对应测试。
++
++  ⚠️ 机器人启用开关是原生 `<input type="checkbox">` 包在 `<label class="chan-switch">`
++  里,不是 SetSwitch —— Vue2 就是这么写的(:34-37),照搬,不"顺手统一"成 SetSwitch(界面
++  改动,超出移植范围)。
++-->
++<script setup lang="ts">
++import { ref, computed, onMounted } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import { useSessionStore } from '../../../../stores/session'
++import { useToast } from '../../../../stores/toast'
++import { apiErrorMessage } from '../../../util/apiError'
++import { copyText } from '../../../../files/util/clipboard'
++import { bindingLabel, fillPairInstructions, fillTokenTail, type ChannelBinding } from '../../../util/channelsFormat'
++import { buildCloudModelList, type AgentModel } from '../../../stores/agentStore'
++import AgentIcon from '../../icons/AgentIcon.vue'
++import ModelPicker from '../../shell/ModelPicker.vue'
++import SkModal from '../SkModal.vue'
++import AlertDialog from '../../../../components/ui/AlertDialog.vue'
++
++interface ChannelInstance {
++  id: string | number
++  name?: string
++  channel_type?: string
++  bot_username?: string
++  token_tail?: string
++  invite_url?: string
++  enabled?: boolean
++}
++
++const { t } = useI18n()
++const toast = useToast()
++const session = useSessionStore()
++const isAdmin = computed(() => session.isAdmin)
++
++const pairable = ref<ChannelInstance[]>([])
++const pairLoading = ref(false)
++const bindings = ref<ChannelBinding[]>([])
++const loading = ref(false)
++const error = ref(false)
++const availableModels = ref<AgentModel[]>([])
++const showCode = ref(false)
++const revealedCode = ref('')
++const codeInstance = ref<ChannelInstance | null>(null)
++const instances = ref<ChannelInstance[]>([])
++const instLoading = ref(false)
++const showAdd = ref(false)
++const newName = ref('')
++const newToken = ref('')
++const newType = ref<'telegram' | 'discord'>('telegram')
++const adding = ref(false)
++const confirmDeleteBotOpen = ref(false)
++const confirmUnbindOpen = ref(false)
++const pendingBotId = ref<string | number | null>(null)
++const pendingBindingId = ref<string | number | null>(null)
++
++const pairInstructions = computed(() =>
++  fillPairInstructions(t('aiCfgChannelsPairInstructions'), codeInstance.value?.bot_username || '', revealedCode.value),
++)
++
++// Vue2 是 created() 里同步触发四个加载,本仓用 onMounted —— 两者对本组件等价(无 SSR、
++// 不依赖挂载前时序),与其余分区写法统一。见文件头「未移植项」关于 isAdmin watch 的申报。
++onMounted(() => {
++  void loadPairable()
++  void loadBindings()
++  void loadModels()
++  if (isAdmin.value) void loadInstances()
++})
++
++async function loadPairable() {
++  pairLoading.value = true
++  try {
++    const res = (await service.ai.listPairableChannelInstances()) as { instances?: ChannelInstance[] } | null | undefined
++    pairable.value = (res && res.instances) || [] // Vue2 :207-208,已剥掉 axios .data 那层(见公共约束 §5)
++  } catch {
++    pairable.value = []
++  } finally {
++    pairLoading.value = false
++  }
++}
++
++async function loadBindings() {
++  loading.value = true
++  error.value = false
++  try {
++    const res = (await service.ai.listChannelBindings()) as { bindings?: ChannelBinding[] } | null | undefined
++    bindings.value = (res && res.bindings) || [] // Vue2 :219-220
++  } catch {
++    error.value = true
++  } finally {
++    loading.value = false
++  }
++}
++
++// Vue2 :227-243:两个独立 try/catch,任一失败不影响另一个。
++async function loadModels() {
++  const models: AgentModel[] = []
++  try {
++    const body = (await service.ai.listModels()) as
++      | { models?: Array<{ name?: string; size?: number }> }
++      | Array<{ name?: string; size?: number }>
++      | null
++      | undefined
++    const list = (body && (Array.isArray(body) ? body : body.models || body)) || []
++    for (const m of list as Array<{ name?: string; size?: number }>) {
++      if (!m || !m.name) continue
++      models.push({ key: 'local:' + m.name, source: 'local', displayName: m.name, size: m.size })
++    }
++  } catch {
++    /* Vue2 :237 local models optional */
++  }
++  try {
++    const provs = await service.ai.listProviders()
++    models.push(...buildCloudModelList(provs || []))
++  } catch {
++    /* Vue2 :241 cloud models optional */
++  }
++  availableModels.value = models
++}
++
++async function loadInstances() {
++  instLoading.value = true
++  try {
++    const res = (await service.ai.listChannelInstances()) as { instances?: ChannelInstance[] } | null | undefined
++    instances.value = (res && res.instances) || [] // Vue2 :247-248
++  } catch {
++    instances.value = []
++  } finally {
++    instLoading.value = false
++  }
++}
++
++async function addBot() {
++  const token = newToken.value.trim()
++  if (!token) return
++  adding.value = true
++  try {
++    await service.ai.createChannelInstance({
++      channel_type: newType.value,
++      name: newName.value.trim(),
++      config: { bot_token: token },
++    })
++    showAdd.value = false
++    newName.value = ''
++    newToken.value = ''
++    newType.value = 'telegram'
++    await loadInstances()
++    await loadPairable()
++  } catch (e) {
++    // Vue2 :270-272 失败时 showAdd 保持 true,不关弹窗
++    toast.show(apiErrorMessage(e, t('aiCfgChannelsAddBotFailed')), 3000, 'danger')
++  } finally {
++    adding.value = false
++  }
++}
++
++// 遮罩点击 / Esc / 右上 × 与「取消」按钮都只是关闭,不做任何复位(与 Vue2 :46/75 一致:
++// 取消不清空表单字段,只有 addBot() 成功时才清空)。
++function onAddOpenChange(v: boolean) {
++  showAdd.value = v
++}
++
++async function toggle(inst: ChannelInstance, enabled: boolean) {
++  try {
++    await service.ai.setChannelInstanceEnabled(inst.id, enabled)
++    inst.enabled = enabled // Vue2 :280 写在 await 之后,失败时不改,开关自然回到原值
++    await loadPairable()
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger')
++  }
++}
++
++function confirmDeleteBot(inst: ChannelInstance) {
++  pendingBotId.value = inst.id
++  confirmDeleteBotOpen.value = true
++}
++
++async function onConfirmDeleteBot() {
++  const id = pendingBotId.value
++  if (id == null) return
++  await doDeleteBot(id)
++}
++
++async function doDeleteBot(id: string | number) {
++  try {
++    await service.ai.deleteChannelInstance(id)
++    instances.value = instances.value.filter((i) => i.id !== id)
++    await loadPairable()
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
++  }
++}
++
++async function genCode(inst: ChannelInstance) {
++  try {
++    const res = (await service.ai.createChannelPairingCode(inst.id)) as { code?: string } | null | undefined
++    revealedCode.value = (res && res.code) || ''
++    codeInstance.value = inst
++    showCode.value = true
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgChannelsCreateCodeFailed')), 3000, 'danger')
++  }
++}
++
++async function setModel(b: ChannelBinding, key: string) {
++  try {
++    await service.ai.setChannelBindingModel(b.id, key)
++    b.default_model = key
++    toast.show(t('aiCfgSaved'))
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger')
++  }
++}
++
++async function saveDownloadDir(b: ChannelBinding, dir: string) {
++  const v = (dir || '').trim()
++  if (!v || v === b.download_dir) return // Vue2 :293
++  try {
++    await service.ai.setChannelBindingDownloadDir(b.id, v)
++    b.download_dir = v
++    toast.show(t('aiCfgSaved'))
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger')
++  }
++}
++
++function confirmUnbind(b: ChannelBinding) {
++  pendingBindingId.value = b.id
++  confirmUnbindOpen.value = true
++}
++
++async function onConfirmUnbind() {
++  const id = pendingBindingId.value
++  if (id == null) return
++  await doUnbind(id)
++}
++
++async function doUnbind(id: string | number) {
++  try {
++    await service.ai.deleteChannelBinding(id)
++    bindings.value = bindings.value.filter((b) => b.id !== id)
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
++  }
++}
++
++// 三条关闭路径(遮罩/Esc/× 经 update:open,「完成」按钮直调)统一走这里 —— 同
++// McpTokensSection.vue 的 onRevealClose/handleRevealOpenChange 先例。清空明文码在
++// await 之前(Vue2 :357-364 同序:先 showCode=false,再清 revealedCode/codeInstance,
++// 再重拉 bindings)。
++async function onCodeClosed() {
++  showCode.value = false
++  revealedCode.value = ''
++  codeInstance.value = null
++  await loadBindings()
++}
++
++function handleCodeOpenChange(open: boolean) {
++  if (!open) void onCodeClosed()
++}
++
++async function copy(text: string) {
++  try {
++    await copyText(text)
++    toast.show(t('aiCopied'))
++  } catch {
++    toast.show(t('aiCfgCopyFailed'), 3000, 'warning')
++  }
++}
++</script>
++
++<template>
++  <div class="set-inner">
++    <div class="set-page-head">
++      <h1 class="set-h1">{{ t('aiCfgChannels') }}</h1>
++      <p class="set-desc">{{ t('aiCfgChannelsDesc') }}</p>
++    </div>
++
++    <!-- admin bot config -->
++    <div v-if="isAdmin" class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgChannelsAdminTitle') }}</div>
++        <div class="sk-section-hint">{{ instances.length }}</div>
++        <button class="sk-btn primary" style="margin-left:auto" @click="showAdd = true">
++          <AgentIcon name="plus" :size="13" /> {{ t('aiCfgChannelsAddBot') }}
++        </button>
++      </div>
++      <div class="sk-section-body">
++        <p class="set-note">{{ t('aiCfgChannelsAdminHint') }}</p>
++        <div v-if="instLoading" class="set-note">{{ t('aiCfgLoadingDots') }}</div>
++        <div v-else v-for="inst in instances" :key="inst.id" class="tok-row">
++          <span class="tok-ic"><AgentIcon name="cloud" :size="16" /></span>
++          <div class="tok-body">
++            <div class="tok-name">
++              {{ inst.name || inst.channel_type }}
++              <span v-if="inst.bot_username" class="chan-bot">@{{ inst.bot_username }}</span>
++            </div>
++            <div class="tok-meta">
++              <span>{{ fillTokenTail(t('aiCfgChannelsBotTokenTail'), inst.token_tail || '') }}</span>
++              <a
++                v-if="inst.invite_url" class="chan-invite" :href="inst.invite_url"
++                target="_blank" rel="noopener"
++              >{{ t('aiCfgChannelsDiscordInvite') }}</a>
++            </div>
++          </div>
++          <label class="chan-switch">
++            <input
++              type="checkbox" :checked="inst.enabled"
++              @change="toggle(inst, ($event.target as HTMLInputElement).checked)"
++            >
++            {{ t('aiCfgChannelsEnabled') }}
++          </label>
++          <button class="tok-del" @click="confirmDeleteBot(inst)">
++            <AgentIcon name="trash" :size="13" /> {{ t('aiCfgDelete') }}
++          </button>
++        </div>
++      </div>
++    </div>
++
++    <!-- Pair a chat account -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgChannelsPairTitle') }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div v-if="pairLoading" class="set-note">{{ t('aiCfgLoadingDots') }}</div>
++        <div v-else-if="!pairable.length" class="set-note">{{ t('aiCfgChannelsNoBots') }}</div>
++        <div v-else class="set-rows">
++          <div v-for="inst in pairable" :key="inst.id" class="set-row">
++            <div class="lbl">
++              {{ inst.name || inst.channel_type }}
++              <span v-if="inst.bot_username" class="chan-bot">@{{ inst.bot_username }}</span>
++            </div>
++            <div class="val">
++              <button class="sk-btn primary" @click="genCode(inst)">
++                <AgentIcon name="plus" :size="13" /> {{ t('aiCfgChannelsGenerateCode') }}
++              </button>
++            </div>
++          </div>
++        </div>
++      </div>
++    </div>
++
++    <!-- My linked accounts -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgChannelsBindingsTitle') }}</div>
++        <div class="sk-section-hint">{{ bindings.length }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div v-if="loading" class="set-note">{{ t('aiCfgLoadingDots') }}</div>
++        <div v-else-if="error" class="set-note">{{ t('aiCfgLoadFailed') }}</div>
++        <div v-else-if="!bindings.length" class="set-note">{{ t('aiCfgChannelsNoBindings') }}</div>
++        <div v-else v-for="b in bindings" :key="b.id" class="tok-row">
++          <span class="tok-ic"><AgentIcon name="user" :size="16" /></span>
++          <div class="tok-body">
++            <div class="tok-name">{{ bindingLabel(b, t('aiCfgNoLabel')) }}</div>
++            <div class="tok-meta">
++              <span>{{ b.instance_name || b.channel_type }}</span>
++              <span class="sep" />
++              <span class="chan-model-lbl">{{ t('aiCfgChannelsBindingDefaultModel') }}:</span>
++              <ModelPicker
++                :available-models="availableModels" :selected-key="b.default_model || null"
++                @select="(k) => setModel(b, k)"
++              />
++              <span class="sep" />
++              <span class="chan-model-lbl">{{ t('aiCfgChannelsBindingDownloadDir') }}:</span>
++              <input
++                class="set-input" style="width:220px" :value="b.download_dir"
++                @change="saveDownloadDir(b, ($event.target as HTMLInputElement).value)"
++              >
++            </div>
++          </div>
++          <button class="tok-del" @click="confirmUnbind(b)">
++            <AgentIcon name="trash" :size="13" /> {{ t('aiCfgChannelsUnbind') }}
++          </button>
++        </div>
++      </div>
++    </div>
++
++    <!-- add-bot modal -->
++    <SkModal :open="showAdd" :title="t('aiCfgChannelsAddBot')" @update:open="onAddOpenChange">
++      <div class="sk-field">
++        <label class="sk-field-label">{{ t('aiCfgChannelsBotType') }}</label>
++        <div class="chan-type-row">
++          <button
++            type="button" class="chan-type-opt" :data-active="newType === 'telegram'"
++            @click="newType = 'telegram'"
++          >{{ t('aiCfgChannelsTypeTelegram') }}</button>
++          <button
++            type="button" class="chan-type-opt" :data-active="newType === 'discord'"
++            @click="newType = 'discord'"
++          >{{ t('aiCfgChannelsTypeDiscord') }}</button>
++        </div>
++      </div>
++      <div class="sk-field">
++        <label class="sk-field-label">{{ t('aiCfgChannelsBotName') }}</label>
++        <input type="text" v-model="newName" maxlength="64">
++      </div>
++      <div class="sk-field">
++        <label class="sk-field-label">{{ t('aiCfgChannelsBotToken') }}</label>
++        <input type="text" v-model="newToken">
++        <p class="chan-field-hint">
++          {{ newType === 'discord' ? t('aiCfgChannelsBotTokenDiscordHint') : t('aiCfgChannelsBotTokenTelegramHint') }}
++        </p>
++        <p v-if="newType === 'discord'" class="chan-field-hint">{{ t('aiCfgChannelsDiscordPairNote') }}</p>
++      </div>
++      <template #footer>
++        <button class="sk-btn ghost" @click="showAdd = false">{{ t('aiCancel') }}</button>
++        <button class="sk-btn primary" :disabled="!newToken.trim() || adding" @click="addBot">
++          {{ t('aiCfgChannelsAddBot') }}
++        </button>
++      </template>
++    </SkModal>
++
++    <!-- pairing-code reveal modal -->
++    <SkModal :open="showCode" :title="t('aiCfgChannelsCodeTitle')" @update:open="handleCodeOpenChange">
++      <p class="chan-modal-warn">{{ t('aiCfgChannelsCodeWarn') }}</p>
++      <div class="set-copy">
++        <input class="set-input full mono" :value="revealedCode" readonly>
++        <button class="set-copybtn" @click="copy(revealedCode)">
++          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++        </button>
++      </div>
++      <p class="chan-modal-hint">{{ pairInstructions }}</p>
++      <template #footer>
++        <button class="sk-btn primary" @click="onCodeClosed">{{ t('aiDone') }}</button>
++      </template>
++    </SkModal>
++
++    <AlertDialog
++      v-model:open="confirmDeleteBotOpen"
++      :title="t('aiCfgDelete')"
++      :message="t('aiCfgChannelsDeleteBotConfirm')"
++      :confirm-text="t('aiCfgDelete')"
++      :cancel-text="t('aiCancel')"
++      destructive
++      @confirm="onConfirmDeleteBot"
++    />
++
++    <AlertDialog
++      v-model:open="confirmUnbindOpen"
++      :title="t('aiCfgChannelsUnbind')"
++      :message="t('aiCfgChannelsUnbindConfirm')"
++      :confirm-text="t('aiCfgChannelsUnbind')"
++      :cancel-text="t('aiCancel')"
++      destructive
++      @confirm="onConfirmUnbind"
++    />
++  </div>
++</template>
+diff --git a/src/ai/styles/settings-styles.scss b/src/ai/styles/settings-styles.scss
+index 858bcda..26e1900 100644
+--- a/src/ai/styles/settings-styles.scss
++++ b/src/ai/styles/settings-styles.scss
+@@ -197,20 +197,41 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
+ // 两处说明标签与警示文案渲染成无样式默认字体/黑色文字 —— 未申报的 1:1 视觉回归,
+ // 评审发现后在这里补上,同 Task 8 `.px-msg` 的先例:放进全局设置样式档而不是给组件
+ // 补 <style> 块(**范围扩张,已申报**:这是本文件第二次因为「组件零 <style> 惯例」把
+ // Vue2 scoped 样式挪到这个全局档)。`mcp-` 前缀已避开撞名,类名原样保留、未改名
+ // (与 `.px-msg` 那次不同,`.px-msg` 当时是因为 Vue2 裸 `.status` 太容易撞名才改名,
+ // 这里 Vue2 本来就是 `mcp-` 前缀,不用再改)。值逐字保留,Vue2 两条都已经是纯 token
+ // (`var(--text-secondary)`/`var(--danger)`),无需摘掉裸色 fallback。
+ .mcp-label { display: block; margin: 0; color: var(--text-secondary); font-size: 13px; }
+ .mcp-reveal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
+ 
++// SP8-P2b Task 12 —— ChannelsSection.vue (Vue2 sections/ChannelsSection.vue:387-410,
++// scoped <style>). Brief Step 3 literally said to keep these rules in the
++// component's own <style scoped>, but the phase-wide convention (constraints §4,
++// already applied twice above for .px-msg / .mcp-label+.mcp-reveal-warn) is a
++// zero-<style> component; per constraints §0 the constraints doc overrides a
++// brief written before reconciliation. Deviation declared here + in the
++// component header. `.chan-x`/`.chan-x:hover` (close button) are intentionally
++// NOT ported — folded into SkModal's own `.sk-x` (same precedent as `.mcp-x`).
++// Values kept verbatim: Vue2's rules were already token-only (var(--...)),
++// nothing to strip.
++.chan-bot { color: var(--text-tertiary); margin-left: 6px; }
++.chan-model-lbl { color: var(--text-secondary); }
++.chan-switch { display: inline-flex; align-items: center; gap: 6px; margin: 0 12px; font-size: 13px; color: var(--text-secondary); }
++.chan-modal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
++.chan-modal-hint { color: var(--text-secondary); font-size: 13px; line-height: 1.55; margin: 0; }
++.chan-type-row { display: flex; gap: 8px; }
++.chan-type-opt { padding: 7px 14px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-canvas); color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 120ms ease; }
++.chan-type-opt[data-active="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
++.chan-field-hint { margin: 6px 0 0; font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
++.chan-invite { margin-left: 10px; font-size: 12.5px; color: var(--accent); }
++
+ /* ---------- Card with internal toolbar ---------- */
+ .set-cardhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 18px; border-bottom: 1px solid var(--line-faint); }
+ .set-cardhead .t { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+ .set-cardhead .ct { font-size: 12px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+ .set-cardhead .sp { flex: 1; }
+ .set-minibtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500; color: var(--text-secondary); background: var(--bg-chip); border: 1px solid var(--line-faint); transition: all 120ms ease; cursor: pointer; }
+ .set-minibtn:hover { background: var(--line); color: var(--text-primary); }
+ 
+ /* ---------- Table ---------- */
+ .set-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+diff --git a/src/ai/styles/settingsStyles.test.ts b/src/ai/styles/settingsStyles.test.ts
+index 72d8f0f..8b56dd6 100644
+--- a/src/ai/styles/settingsStyles.test.ts
++++ b/src/ai/styles/settingsStyles.test.ts
+@@ -75,20 +75,37 @@ describe('settings-styles.scss', () => {
+   // 子串)、且 `.mcp-reveal-warn` 后面确实带着 `color: var(--danger)` 声明 —— 光删规则、
+   // 留注释这条会先因为上面 fixture 层的 stripComments() 就抓不到注释了,这里的 `{`/声明
+   // 断言是第二道保险(即便日后 stripComments 被削弱,裸删规则本身也过不了)。仍然**只证明
+   // 选择器与其声明存在**,不逐字比对全部取值(那部分由评审逐行比对 Vue2 源码负责,同本文件
+   // 头注释的既定分工)。
+   it('保留 McpTokensSection 明文弹窗的 .mcp-label / .mcp-reveal-warn(Vue2 :245/246 scoped 样式迁移)', () => {
+     expect(css).toContain('.mcp-label {')
+     expect(css).toContain('.mcp-reveal-warn {')
+     expect(css).toContain('color: var(--danger)')
+   })
++
++  // SP8-P2b Task 12 —— ChannelsSection.vue 同样走「零 <style> 块」惯例(与 Task 10 的
++  // .mcp-label/.mcp-reveal-warn 同一分工),Vue2 sections/ChannelsSection.vue:387-410
++  // scoped 里的 .chan-* 规则(`.chan-x`/`.chan-x:hover` 已被 SkModal 的 `.sk-x` 收编,不搬)
++  // 迁到本档。同上一条的两道保险:选择器紧跟 `{`(不是裸子串、不会被注释里的反引号类名
++  // 撞对),并抓一条真实声明(`.chan-type-opt[data-active="true"]` 的
++  // `border-color: var(--accent)`)证明规则体还在,不是只剩选择器空壳。
++  it('保留 ChannelsSection 的 .chan-*(Vue2 :387-410 scoped 样式迁移)', () => {
++    for (const sel of [
++      '.chan-bot {', '.chan-model-lbl {', '.chan-switch {', '.chan-modal-warn {',
++      '.chan-modal-hint {', '.chan-type-row {', '.chan-type-opt {',
++      '.chan-type-opt[data-active="true"] {', '.chan-field-hint {', '.chan-invite {',
++    ]) {
++      expect(css).toContain(sel)
++    }
++    expect(css).toContain('border-color: var(--accent)')
++  })
+ })
+ 
+ describe('sk-shared.scss', () => {
+   const css = stripComments(read('./sk-shared.scss'))
+ 
+   it('导出设置区依赖的 6 条通用类', () => {
+     for (const sel of [
+       '.sk-section', '.sk-section-head', '.sk-section-title',
+       '.sk-section-hint', '.sk-section-body', '.sk-btn',
+     ]) {
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 22750dd..799845f 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1135,11 +1135,56 @@ export default {
+   aiCfgCreatedAt: 'Created',
+   aiCfgLastUsed: 'Last used',
+   aiCfgNeverUsed: 'Never used',
+   aiCfgTokenCreated: 'Token created',
+   aiCfgTokenShownOnce: 'This token is shown only once. Copy and save it now — you will not be able to see it again.',
+   aiCfgTokenLabelPrompt: 'Label (e.g. "Claude on laptop")',
+   aiCfgTokenLabel: 'Label',
+   aiCfgCreateFailed: 'Create failed',
+   aiCfgDeleteTokenConfirm: 'Are you sure you want to delete this token?',
+   // <<< SP8-P2b Task 10
++  // >>> SP8-P2b Task 12 —— ChannelsSection (Channels). English values are the literal
++  // Vue2 source strings (brief already reconciled against the production zh_CN.json).
++  // Reused keys (not redefined here): aiCfgChannels (nav h1, built by P2a, value
++  // "Channels" matches this table) / aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/
++  // aiCfgDelete/aiCfgLoadingDots/aiCfgLoadFailed/aiCfgNoLabel/aiCfgSaved/
++  // aiCfgSaveFailed/aiCfgDeleteFailed.
++  // {tail} in aiCfgChannelsBotTokenTail and {bot}/{code} in
++  // aiCfgChannelsPairInstructions are escaped as {'{'}tail{'}'} etc (same Task 9/10
++  // lesson, see channelsFormat.ts header: vue-i18n v9 treats a bare {xxx} as named
++  // interpolation and blanks it when t(key) is called with no params, but the
++  // component needs the literal "{tail}"/"{bot}"/"{code}" substrings to split/join
++  // itself). The literal @ in aiCfgChannelsBotTokenTelegramHint and
++  // aiCfgChannelsPairInstructions is escaped as {'@'} (messageSyntax.test.ts blocks
++  // the link syntax otherwise).
++  aiCfgChannelsDesc: 'Chat with your NimoOS agent from Telegram. Pair your account, then message the bot directly.',
++  aiCfgChannelsAdminTitle: 'Bot configuration',
++  aiCfgChannelsAdminHint: 'Administrator only. The bot serves every NimoOS user; each pairs their own account.',
++  aiCfgChannelsAddBot: 'Add bot',
++  aiCfgChannelsAddBotFailed: 'Could not add bot — check the token.',
++  aiCfgChannelsBotType: 'Platform',
++  aiCfgChannelsTypeTelegram: 'Telegram',
++  aiCfgChannelsTypeDiscord: 'Discord',
++  aiCfgChannelsBotName: 'Name (e.g. "Family bot")',
++  aiCfgChannelsBotToken: 'Bot token',
++  aiCfgChannelsBotTokenTelegramHint: 'Token from {\'@\'}BotFather on Telegram.',
++  aiCfgChannelsBotTokenDiscordHint: 'Bot token from the Discord Developer Portal. You must also enable the Message Content Intent for the bot there.',
++  aiCfgChannelsDiscordPairNote: 'Discord bots can only DM users who share a server with them. Invite the bot to a server, have the user join it, then pair from there.',
++  aiCfgChannelsBotTokenTail: 'token ···{\'{\'}tail{\'}\'}',
++  aiCfgChannelsDiscordInvite: 'Invite the bot to a server',
++  aiCfgChannelsEnabled: 'Enabled',
++  aiCfgChannelsPairTitle: 'Pair a chat account',
++  aiCfgChannelsNoBots: 'No chat bot is configured yet. Ask an administrator to add one.',
++  aiCfgChannelsGenerateCode: 'Generate pairing code',
++  aiCfgChannelsBindingsTitle: 'My linked accounts',
++  aiCfgChannelsNoBindings: 'No linked accounts yet. Generate a pairing code above and send it to the bot.',
++  aiCfgChannelsBindingDefaultModel: 'Default model',
++  aiCfgChannelsBindingDownloadDir: 'Download folder',
++  aiCfgChannelsUnbind: 'Unlink',
++  aiCfgChannelsUnbindConfirm: 'Unlink this account? It will no longer be able to message the agent.',
++  aiCfgChannelsDeleteBotConfirm: 'Delete this bot? All pairings for it will stop working.',
++  aiCfgChannelsCodeTitle: 'Pairing code',
++  aiCfgChannelsCodeWarn: 'This code is valid for 10 minutes and can be used once.',
++  aiCfgChannelsCreateCodeFailed: 'Could not generate a pairing code.',
++  aiCfgChannelsPairInstructions: 'Open Telegram, message {\'@\'}{\'{\'}bot{\'}\'}, and send: /pair {\'{\'}code{\'}\'}',
++  // <<< SP8-P2b Task 12
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index a79cba6..9e65e4c 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1142,11 +1142,53 @@ export default {
+   aiCfgCreatedAt: '创建于',
+   aiCfgLastUsed: '最近使用',
+   aiCfgNeverUsed: '从未使用',
+   aiCfgTokenCreated: '令牌已创建',
+   aiCfgTokenShownOnce: '此令牌只显示这一次,请立即复制保存;关闭后将无法再查看。',
+   aiCfgTokenLabelPrompt: '标签(如「笔记本上的 Claude」)',
+   aiCfgTokenLabel: '标签',
+   aiCfgCreateFailed: '创建失败',
+   aiCfgDeleteTokenConfirm: '确定要删除此令牌吗?',
+   // <<< SP8-P2b Task 10
++  // >>> SP8-P2b Task 12 —— ChannelsSection(聊天渠道)。值逐字取自 brief 表(brief 已回查
++  // Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgChannels(导航 h1,P2a 已建,值
++  // 「聊天渠道」与本表一致)/aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCfgDelete/
++  // aiCfgLoadingDots/aiCfgLoadFailed/aiCfgNoLabel/aiCfgSaved/aiCfgSaveFailed/
++  // aiCfgDeleteFailed。
++  // aiCfgChannelsBotTokenTail 里的 {tail}、aiCfgChannelsPairInstructions 里的
++  // {bot}/{code} 转义成 {'{'}tail{'}'} 等(同 Task 9/10 教训,见 channelsFormat.ts 头
++  // 注释:vue-i18n v9 在 t(key) 不传 params 时会把裸 {xxx} 当命名插值解析成空串,而这里
++  // 组件要拿到字面 "{tail}"/"{bot}"/"{code}" 子串自己 split/join)。
++  // aiCfgChannelsBotTokenTelegramHint 与 aiCfgChannelsPairInstructions 里的字面 @ 转义成
++  // {'@'}(messageSyntax.test.ts 拦链接语法)。
++  aiCfgChannelsDesc: '通过 Telegram 与你的 NimoOS 智能体对话。先配对你的账号，然后直接给机器人发消息。',
++  aiCfgChannelsAdminTitle: '机器人配置',
++  aiCfgChannelsAdminHint: '仅管理员可见。机器人为所有 NimoOS 用户服务，每人各自配对自己的账号。',
++  aiCfgChannelsAddBot: '添加机器人',
++  aiCfgChannelsAddBotFailed: '添加失败，请检查 Token。',
++  aiCfgChannelsBotType: '平台',
++  aiCfgChannelsTypeTelegram: 'Telegram',
++  aiCfgChannelsTypeDiscord: 'Discord',
++  aiCfgChannelsBotName: '名称（如“家庭机器人”）',
++  aiCfgChannelsBotToken: '机器人 Token',
++  aiCfgChannelsBotTokenTelegramHint: 'Token 来自 Telegram 的 {\'@\'}BotFather。',
++  aiCfgChannelsBotTokenDiscordHint: 'Bot token 来自 Discord 开发者后台。还须在后台为该 bot 打开 Message Content Intent 开关。',
++  aiCfgChannelsDiscordPairNote: 'Discord 机器人只能私信与它同处一个服务器的用户。请先用邀请链接把机器人加入某个服务器、让用户加入该服务器，再从那里配对。',
++  aiCfgChannelsBotTokenTail: 'token ···{\'{\'}tail{\'}\'}',
++  aiCfgChannelsDiscordInvite: '邀请机器人进服务器',
++  aiCfgChannelsEnabled: '已启用',
++  aiCfgChannelsPairTitle: '配对聊天账号',
++  aiCfgChannelsNoBots: '尚未配置聊天机器人，请联系管理员添加。',
++  aiCfgChannelsGenerateCode: '生成配对码',
++  aiCfgChannelsBindingsTitle: '我已绑定的账号',
++  aiCfgChannelsNoBindings: '还没有绑定账号。在上方生成配对码并发送给机器人即可。',
++  aiCfgChannelsBindingDefaultModel: '默认模型',
++  aiCfgChannelsBindingDownloadDir: '下载目录',
++  aiCfgChannelsUnbind: '解绑',
++  aiCfgChannelsUnbindConfirm: '确定解绑该账号？解绑后它将无法再与智能体对话。',
++  aiCfgChannelsDeleteBotConfirm: '删除该机器人？其所有配对将失效。',
++  aiCfgChannelsCodeTitle: '配对码',
++  aiCfgChannelsCodeWarn: '此配对码 10 分钟内有效，且仅可使用一次。',
++  aiCfgChannelsCreateCodeFailed: '生成配对码失败。',
++  aiCfgChannelsPairInstructions: '打开 Telegram，给 {\'@\'}{\'{\'}bot{\'}\'} 发送：/pair {\'{\'}code{\'}\'}',
++  // <<< SP8-P2b Task 12
+ }

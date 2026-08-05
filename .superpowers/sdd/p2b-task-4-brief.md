@@ -1,0 +1,482 @@
+## Task 4: `BlacklistSection`（文件系统）+ `apiErrorMessage` 工具
+
+**Files:**
+- Create: `src/ai/util/apiError.ts`
+- Create: `src/ai/util/apiError.test.ts`
+- Create: `src/ai/components/settings/sections/BlacklistSection.vue`
+- Create: `src/ai/components/settings/sections/BlacklistSection.test.ts`
+- Modify: `src/ai/views/SettingsPage.vue`（映射表 `blacklist` 项 + import）
+- Modify: `src/i18n/zh_cn.ts`、`src/i18n/en_us.ts`
+
+**Interfaces:**
+- Consumes: `useSettingsStore()` 的 `blacklist` / `loadBlacklist()` / `addBlacklist(pattern)` / `removeBlacklist(id)`（Task 0 Step 5 已核实签名）；`useToast().show(text, duration?, tier?)`；`AgentIcon`
+- Produces: `apiErrorMessage(e: unknown, fallback: string): string`（Task 5/6/7/8/10/12 都用）；组件 `BlacklistSection`（零 props 自治组件）
+
+**Vue2 蓝本：** `src/views/AI/Settings/sections/BlacklistSection.vue`（105 行）
+
+**这是本期第一个分区，给后面 6 个打样。** 三件事在这里定型：① 分区组件的骨架与注释头 ② 错误提示统一走 `apiErrorMessage` + `toast.show(msg, 3000, 'danger')` ③ 在 `SettingsPage.vue` 映射表里替换占位的做法。
+
+### i18n（本任务新增 9 键）
+
+| 新键名 | Vue2 key | zh_cn 值（逐字） | en_us 值（逐字） |
+|---|---|---|---|
+| `aiCfgFilesystem` **复用 P2a 既有键** | `Filesystem` | 文件系统 | Filesystem |
+| `aiCfgBlacklistDesc` | `blacklistDesc` | 无论你授权哪些文件夹,匹配这些 pattern 的文件 Agent 一律读不到、改不了。内置 pattern 不可修改;下面是你自己追加的。 | No matter which folders you authorize, files matching these patterns are never readable or writable by the Agent. Built-in patterns can't be changed; below are the ones you added. |
+| `aiCfgBuiltinReadonly` | `Built-in (read-only)` | 内置（只读） | Built-in (read-only) |
+| `aiCfgYourPatterns` | `Your patterns` | 你的 pattern | Your patterns |
+| `aiCfgPatternPlaceholder` | `e.g. /DATA/private/** or *.bak` | 例如 /DATA/private/** 或 *.bak | e.g. /DATA/private/** or *.bak |
+| `aiCfgAddPattern` | `+ Add` | + 添加 | + Add |
+| `aiCfgAddingPattern` | `Adding…` | 添加中… | Adding… |
+| `aiCfgNoCustomPatterns` | `No custom patterns yet.` | 还没有自定义 pattern。 | No custom patterns yet. |
+| `aiCfgDelete` | `Delete` | 删除 | Delete |
+| `aiCfgAddFailed` | `Failed to add` | 添加失败 | Failed to add |
+
+`aiCfgDelete` 是**跨分区共用键**（Search / McpTokens / Channels 也用「删除」），**只在本任务加一次**，后续任务直接引用。
+
+- [ ] **Step 1: 写 `apiErrorMessage` 的失败测试**
+
+`src/ai/util/apiError.test.ts`：
+
+```ts
+import { describe, it, expect } from 'vitest'
+import { apiErrorMessage } from './apiError'
+
+describe('apiErrorMessage', () => {
+  it('优先取 response.data.message', () => {
+    const e = { response: { data: { message: '后端说不行' } }, message: 'axios 说不行' }
+    expect(apiErrorMessage(e, '兜底')).toBe('后端说不行')
+  })
+
+  it('response.data 是字符串时直接用', () => {
+    expect(apiErrorMessage({ response: { data: 'plain text 错误' } }, '兜底')).toBe('plain text 错误')
+  })
+
+  it('response.data 是没有 message 的对象时 JSON 序列化（Vue2 BlacklistSection.vue:82 同款行为）', () => {
+    expect(apiErrorMessage({ response: { data: { code: 42 } } }, '兜底')).toBe('{"code":42}')
+  })
+
+  it('没有 response 时退到 error.message', () => {
+    expect(apiErrorMessage(new Error('网络断了'), '兜底')).toBe('网络断了')
+  })
+
+  it('什么都没有时用 fallback', () => {
+    expect(apiErrorMessage({}, '兜底')).toBe('兜底')
+    expect(apiErrorMessage(null, '兜底')).toBe('兜底')
+    expect(apiErrorMessage(undefined, '兜底')).toBe('兜底')
+  })
+
+  it('空字符串不算有效消息，退到下一级', () => {
+    expect(apiErrorMessage({ response: { data: '' }, message: 'axios 说不行' }, '兜底')).toBe('axios 说不行')
+    expect(apiErrorMessage({ message: '' }, '兜底')).toBe('兜底')
+  })
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+Run: `pnpm test src/ai/util/apiError.test.ts`
+Expected: FAIL —— 找不到 `./apiError`。
+
+- [ ] **Step 3: 实现 `apiErrorMessage`**
+
+`src/ai/util/apiError.ts`：
+
+```ts
+// SP8-P2b Task 4 —— 后端错误消息提取。
+//
+// Vue2 的 7 个设置分区里各自手写同一段兜底链(例:BlacklistSection.vue:80-84、
+// McpTokensSection.vue:186、ChannelsSection.vue:210),本期收成一处。取值顺序与
+// 优先级与 Vue2 逐条对齐:response.data.message → response.data(字符串直用/
+// 对象 JSON 序列化) → error.message → 调用方给的兜底文案。
+//
+// 只服务本期新写的 6 个分区。**不回头改 New-UI 既有的 5 处内联写法**
+// (AgentComposer.vue / GoogleDriveAuthDialog.vue / NetworkStorageDialog.vue /
+// files/stores/shares.ts / apps/composables/useInstallFlow.ts)——那属无关重构。
+export function apiErrorMessage(e: unknown, fallback: string): string {
+  const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data
+
+  if (data && typeof data === 'object') {
+    const msg = (data as { message?: unknown }).message
+    if (typeof msg === 'string' && msg) return msg
+    return JSON.stringify(data)
+  }
+  if (typeof data === 'string' && data) return data
+
+  const m = (e as { message?: unknown } | null | undefined)?.message
+  if (typeof m === 'string' && m) return m
+
+  return fallback
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+Run: `pnpm test src/ai/util/apiError.test.ts`
+Expected: PASS（6 例）
+
+- [ ] **Step 5: 写分区组件的失败测试**
+
+`src/ai/components/settings/sections/BlacklistSection.test.ts`：
+
+```ts
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { setActivePinia, createPinia } from 'pinia'
+import { createI18n } from 'vue-i18n'
+import zh from '../../../../i18n/zh_cn'
+import BlacklistSection from './BlacklistSection.vue'
+import { useSettingsStore } from '../../../stores/settingsStore'
+import { useToast } from '../../../../stores/toast'
+
+// 用真 zh_cn 语言包(不用手写 i18n 子集)——P1c2 记账里 ContextTab/AgentTopbar 用
+// 手写子集导致「键名拼错抓不到」,本期起改用真包。
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+
+function mountSection() {
+  return mount(BlacklistSection, { global: { plugins: [i18n] } })
+}
+
+describe('BlacklistSection', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.restoreAllMocks() })
+
+  it('挂载时拉一次列表', async () => {
+    const store = useSettingsStore()
+    const spy = vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    mountSection()
+    await nextTick()
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('挂载时列表接口失败不抛、不弹 toast（Vue2 mounted 就是静默吞）', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockRejectedValue(new Error('boom'))
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    mountSection()
+    await nextTick(); await nextTick()
+    expect(show).not.toHaveBeenCalled()
+  })
+
+  it('内置 pattern 全部渲染成只读 chip，计数与数组长度一致', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    const w = mountSection()
+    await nextTick()
+    const chips = w.findAll('.fs-chip')
+    expect(chips.length).toBe(27)          // BUILTIN 数组长度,见组件常量
+    expect(chips[0].text()).toContain('**/.ssh/**')
+    expect(w.find('.sk-section-hint').text()).toBe('27')
+  })
+
+  it('自定义 pattern 为空时显示空态', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    store.blacklist = []
+    const w = mountSection()
+    await nextTick()
+    expect(w.find('.fs-empty').text()).toBe('还没有自定义 pattern。')
+    expect(w.findAll('.fs-userrow')).toHaveLength(0)
+  })
+
+  it('有自定义 pattern 时逐行渲染', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    store.blacklist = [{ id: 1, pattern: '/DATA/private/**' }, { id: 2, pattern: '*.bak' }] as never
+    const w = mountSection()
+    await nextTick()
+    const rows = w.findAll('.fs-userrow')
+    expect(rows).toHaveLength(2)
+    expect(rows[1].find('.pat').text()).toBe('*.bak')
+    expect(w.find('.fs-empty').exists()).toBe(false)
+  })
+
+  it('输入为空时添加按钮禁用', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    const w = mountSection()
+    await nextTick()
+    expect(w.find('.set-addbtn').attributes('disabled')).toBeDefined()
+    await w.find('.set-input').setValue('*.tmp')
+    expect(w.find('.set-addbtn').attributes('disabled')).toBeUndefined()
+  })
+
+  it('添加成功后清空输入框', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    const add = vi.spyOn(store, 'addBlacklist').mockResolvedValue(undefined)
+    const w = mountSection()
+    await nextTick()
+    const input = w.find('.set-input')
+    await input.setValue('  *.tmp  ')
+    await w.find('.set-addbtn').trigger('click')
+    await nextTick()
+    expect(add).toHaveBeenCalledWith('*.tmp')      // 前后空格被 trim
+    expect((input.element as HTMLInputElement).value).toBe('')
+  })
+
+  it('回车也能添加（Vue2 @keydown.enter）', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    const add = vi.spyOn(store, 'addBlacklist').mockResolvedValue(undefined)
+    const w = mountSection()
+    await nextTick()
+    await w.find('.set-input').setValue('*.tmp')
+    await w.find('.set-input').trigger('keydown', { key: 'Enter' })
+    await nextTick()
+    expect(add).toHaveBeenCalledWith('*.tmp')
+  })
+
+  it('只有空格的输入不发请求', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    const add = vi.spyOn(store, 'addBlacklist').mockResolvedValue(undefined)
+    const w = mountSection()
+    await nextTick()
+    await w.find('.set-input').setValue('   ')
+    await w.find('.set-input').trigger('keydown', { key: 'Enter' })
+    await nextTick()
+    expect(add).not.toHaveBeenCalled()
+  })
+
+  it('添加失败弹 danger toast，用后端 message，且输入不清空', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    vi.spyOn(store, 'addBlacklist').mockRejectedValue({ response: { data: { message: 'pattern 非法' } } })
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    const w = mountSection()
+    await nextTick()
+    await w.find('.set-input').setValue('[[[')
+    await w.find('.set-addbtn').trigger('click')
+    await nextTick(); await nextTick()
+    expect(show).toHaveBeenCalledWith('pattern 非法', 3000, 'danger')
+    expect((w.find('.set-input').element as HTMLInputElement).value).toBe('[[[')
+  })
+
+  it('添加失败且后端没给消息时用兜底文案', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    vi.spyOn(store, 'addBlacklist').mockRejectedValue({})
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    const w = mountSection()
+    await nextTick()
+    await w.find('.set-input').setValue('x')
+    await w.find('.set-addbtn').trigger('click')
+    await nextTick(); await nextTick()
+    expect(show).toHaveBeenCalledWith('添加失败', 3000, 'danger')
+  })
+
+  it('添加过程中按钮禁用并显示「添加中…」', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    let release: () => void = () => {}
+    vi.spyOn(store, 'addBlacklist').mockImplementation(
+      () => new Promise<void>((r) => { release = r }) as never,
+    )
+    const w = mountSection()
+    await nextTick()
+    await w.find('.set-input').setValue('x')
+    await w.find('.set-addbtn').trigger('click')
+    await nextTick()
+    expect(w.find('.set-addbtn').text()).toBe('添加中…')
+    expect(w.find('.set-addbtn').attributes('disabled')).toBeDefined()
+    release()
+    await nextTick(); await nextTick()
+    expect(w.find('.set-addbtn').text()).toBe('+ 添加')
+  })
+
+  it('点删除按钮按 id 调 store', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    const rm = vi.spyOn(store, 'removeBlacklist').mockResolvedValue(undefined)
+    store.blacklist = [{ id: 7, pattern: 'x' }] as never
+    const w = mountSection()
+    await nextTick()
+    await w.find('.dir-del').trigger('click')
+    expect(rm).toHaveBeenCalledWith(7)
+  })
+
+  it('删除失败弹 danger toast', async () => {
+    const store = useSettingsStore()
+    vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
+    vi.spyOn(store, 'removeBlacklist').mockRejectedValue(new Error('删不掉'))
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    store.blacklist = [{ id: 7, pattern: 'x' }] as never
+    const w = mountSection()
+    await nextTick()
+    await w.find('.dir-del').trigger('click')
+    await nextTick(); await nextTick()
+    expect(show).toHaveBeenCalledWith('删不掉', 3000, 'danger')
+  })
+})
+```
+
+- [ ] **Step 6: 跑测试确认失败**
+
+Run: `pnpm test src/ai/components/settings/sections/BlacklistSection.test.ts`
+Expected: FAIL —— 找不到 `./BlacklistSection.vue`。
+
+- [ ] **Step 7: 加 i18n 键**
+
+按上面的 i18n 表，往 `src/i18n/zh_cn.ts` 与 `src/i18n/en_us.ts` **各加 9 个新键**（`aiCfgFilesystem` 已存在，不要重复加）。放在既有 `aiCfg*` 键区块的末尾，两个文件的**插入顺序保持一致**便于 diff 对照。
+
+- [ ] **Step 8: 实现组件**
+
+`src/ai/components/settings/sections/BlacklistSection.vue`：
+
+```vue
+<!--
+  SP8-P2b Task 4 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/BlacklistSection.vue(105 行)。
+
+  【D2 申报】本分区是 7 个分区里唯一消费 settingsStore 的一个 —— 因为 Vue2 的
+  blacklist 状态本来就在 settingsStore.js 里(其余 6 个分区在 Vue2 里是组件本地
+  data + 直调 ai.js,本期照原样保留,不做 P1 Agent 区那种 store 集中)。
+  用户 2026-07-28 拍板。
+
+  【逻辑修正 1】Vue2 mounted 里 loadBlacklist 的错误是静默吞的(`catch (e) {}`),
+  这里照搬 —— 首屏加载失败不弹 toast 是有意的:该分区与另外 4 个分区同属 stack 组
+  会一起挂载,5 个分区同时弹错误 toast 会糊满屏幕。列表为空时空态文案本身就是反馈。
+-->
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useSettingsStore } from '../../../stores/settingsStore'
+import { useToast } from '../../../../stores/toast'
+import { apiErrorMessage } from '../../../util/apiError'
+import AgentIcon from '../../icons/AgentIcon.vue'
+
+// 1:1 取自 Vue2 BlacklistSection.vue:56-64。内置只读黑名单,前端硬编码展示用,
+// 真正的拦截在后端。顺序与分行照抄,便于逐行对照。
+const BUILTIN = [
+  '**/.ssh/**', '**/.gnupg/**', '**/.pki/**', '**/.aws/**',
+  '**/.config/gcloud/**', '**/.docker/config.json',
+  '**/*.key', '**/*.pem', '**/*.p12', '**/*.pfx',
+  '**/id_rsa*', '**/id_ed25519*', '**/id_ecdsa*',
+  '/etc/**', '/root/**', '/proc/**', '/sys/**', '/dev/**', '/boot/**',
+  '/usr/**', '/bin/**', '/sbin/**', '/lib/**', '/lib64/**',
+  '/var/lib/nimoos/**', '/usr/share/nimoos/**', '/opt/nimoos/**',
+]
+
+const { t } = useI18n()
+const store = useSettingsStore()
+const toast = useToast()
+
+const newPattern = ref('')
+const adding = ref(false)
+
+onMounted(() => {
+  void store.loadBlacklist().catch(() => { /* Vue2 mounted 同样静默,见文件头注释 */ })
+})
+
+async function add() {
+  const p = newPattern.value.trim()
+  if (!p) return
+  adding.value = true
+  try {
+    await store.addBlacklist(p)
+    newPattern.value = ''
+  } catch (e) {
+    toast.show(apiErrorMessage(e, t('aiCfgAddFailed')), 3000, 'danger')
+  } finally {
+    adding.value = false
+  }
+}
+
+async function remove(id: string | number) {
+  try {
+    await store.removeBlacklist(id)
+  } catch (e) {
+    toast.show(apiErrorMessage(e, t('aiCfgDelete')), 3000, 'danger')
+  }
+}
+</script>
+
+<template>
+  <div class="set-inner">
+    <div class="set-page-head">
+      <h1 class="set-h1">{{ t('aiCfgFilesystem') }}</h1>
+      <p class="set-desc">{{ t('aiCfgBlacklistDesc') }}</p>
+    </div>
+
+    <div class="sk-section">
+      <div class="sk-section-head">
+        <div class="sk-section-title">{{ t('aiCfgBuiltinReadonly') }}</div>
+        <div class="sk-section-hint">{{ BUILTIN.length }}</div>
+      </div>
+      <div class="sk-section-body">
+        <div class="fs-chips">
+          <span v-for="(p, i) in BUILTIN" :key="i" class="fs-chip">
+            <span class="lk"><AgentIcon name="lock" :size="11" /></span>{{ p }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sk-section">
+      <div class="sk-section-head">
+        <div class="sk-section-title">{{ t('aiCfgYourPatterns') }}</div>
+        <div class="sk-section-hint">{{ store.blacklist.length }}</div>
+      </div>
+      <div class="sk-section-body">
+        <div class="set-addrow">
+          <input
+            v-model="newPattern"
+            class="set-input mono"
+            maxlength="256"
+            :placeholder="t('aiCfgPatternPlaceholder')"
+            @keydown.enter="add"
+          >
+          <button class="set-addbtn" :disabled="!newPattern || adding" @click="add">
+            {{ adding ? t('aiCfgAddingPattern') : t('aiCfgAddPattern') }}
+          </button>
+        </div>
+        <div v-if="store.blacklist.length === 0" class="fs-empty">
+          {{ t('aiCfgNoCustomPatterns') }}
+        </div>
+        <div v-for="p in store.blacklist" v-else :key="p.id" class="fs-userrow">
+          <span class="pat">{{ p.pattern }}</span>
+          <button class="dir-del" :title="t('aiCfgDelete')" @click="remove(p.id)">
+            <AgentIcon name="trash" :size="14" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+```
+
+**注意三处**：① 无 `<style>` 块 —— `.fs-chips` / `.fs-chip` / `.fs-empty` / `.fs-userrow` / `.set-addrow` / `.set-addbtn` / `.pat` / `.lk` / `.dir-del` 全部已在 P2a Task 2 移植的 `settings-styles.scss` 里（已 grep 确认）。② 删除失败的兜底文案 Vue2 用的是 `e.message`（无 fallback 键），本期用 `aiCfgDelete`（「删除」）当兜底 —— 这是**申报级偏离**：Vue2 那里 `e.message` 为空时会弹一个空 toast，属可复现的错误行为。③ `p.id` 的类型来自 store 的 `BlacklistEntry`，若 Task 0 Step 5 查到的字段名不同（比如 `Id`），按实际字段改并在报告里申报。
+
+- [ ] **Step 9: 跑测试确认通过**
+
+Run: `pnpm test src/ai/components/settings/sections/BlacklistSection.test.ts`
+Expected: PASS（14 例）
+
+- [ ] **Step 10: 接进 `SettingsPage.vue` 映射表**
+
+按 Task 0 Step 2 记录的实际写法，把 `blacklist` 从 `SectionPlaceholder` 换成 `BlacklistSection`：import 一行 + 映射表一行。**只改这两行**，不碰其它分区的映射。
+
+- [ ] **Step 11: 全量测试门**
+
+```bash
+pnpm test && pnpm exec vue-tsc --noEmit && pnpm build
+```
+Expected: 全绿。若 `SettingsPage.test.ts` 里有「blacklist 渲染成占位面板」的断言，它会红 —— 这是**预期的**：把该断言改成「渲染出 BlacklistSection」，并在报告里申报改了哪条既有断言、为什么是正当的（占位是 P2a 的临时状态，本任务的职责就是填掉它）。
+
+- [ ] **Step 12: 提交**
+
+```bash
+git add src/ai/util/apiError.ts src/ai/util/apiError.test.ts \
+        src/ai/components/settings/sections/BlacklistSection.vue \
+        src/ai/components/settings/sections/BlacklistSection.test.ts \
+        src/ai/views/SettingsPage.vue src/ai/views/SettingsPage.test.ts \
+        src/i18n/zh_cn.ts src/i18n/en_us.ts
+git commit -m "SP8-P2b Task 4: BlacklistSection(文件系统)+ apiErrorMessage 工具"
+git show --stat HEAD && git status
+```
+
+---
+

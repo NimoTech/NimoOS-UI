@@ -1,0 +1,381 @@
+# Review package: eb0c978..b9f6ca1
+
+## Commits
+b9f6ca1 SP8-P1c2: store regenerateTitle (+ autoTitleFirstTurn delegates)
+
+## Files changed
+ src/ai/stores/agentStore.p1c2.test.ts | 149 +++++++++++++++++++++++++++++++++-
+ src/ai/stores/agentStore.ts           |  51 ++++++++++--
+ 2 files changed, 191 insertions(+), 9 deletions(-)
+
+## Diff
+diff --git a/src/ai/stores/agentStore.p1c2.test.ts b/src/ai/stores/agentStore.p1c2.test.ts
+index b072aa4..6785444 100644
+--- a/src/ai/stores/agentStore.p1c2.test.ts
++++ b/src/ai/stores/agentStore.p1c2.test.ts
+@@ -1,30 +1,38 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
++import { flushPromises } from '@vue/test-utils'
+ 
+ // SP8-P1c2 Task 2 —— 右栏折叠态 + 当前 tab 的最小状态/动作集。
+ // vi.hoisted() 服务 mock + setActivePinia 模式抄自 agentStore.p1c.test.ts。
+ const svc = vi.hoisted(() => ({
+   listAgentSessions: vi.fn(), createAgentSession: vi.fn(), deleteAgentSession: vi.fn(),
+   listAgentMessages: vi.fn(), updateAgentSessionTitle: vi.fn(), regenerateAgentSessionTitle: vi.fn(),
+   listModels: vi.fn(), listProviders: vi.fn(), cancelAgentRun: vi.fn(), confirmAgentAction: vi.fn(),
+   listVisibleResources: vi.fn(), addVisibleResource: vi.fn(), removeVisibleResource: vi.fn(),
+   listAttachments: vi.fn(), deleteAttachment: vi.fn(),
+   listStagedChanges: vi.fn(), commitStagedChanges: vi.fn(),
+   revertStagedRun: vi.fn(), revertStagedBatch: vi.fn(), revertStagedItems: vi.fn(),
+   // SP8-P1c2 Task 3 —— thinking 域(agentStore.js:656-687)。
+   getThinkingDefaults: vi.fn(), getSessionThinking: vi.fn(), patchSessionThinking: vi.fn(),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++// SP8-P1c2 Task 4 —— autoTitleFirstTurn(送经 send())走同一条 regenerateTitle 路径
++// 的测试需要控制 runAgentRun,故此处改成命名 hoisted 引用(抄自 agentStore.test.ts
++// 的 runSpy/attachSpy 模式),Task2/Task3 既有用例不读取这两个引用,不受影响。
++const { runSpy, attachSpy } = vi.hoisted(() => ({
++  runSpy: vi.fn(),
++  attachSpy: vi.fn(),
++}))
+ vi.mock('../services/agentTransport', () => ({
+-  runAgentRun: vi.fn().mockResolvedValue(undefined),
+-  attachAgentStream: vi.fn().mockResolvedValue({ attached: false }),
++  runAgentRun: runSpy,
++  attachAgentStream: attachSpy,
+ }))
+ 
+ import { useAgentStore } from './agentStore'
+ 
+ describe('agentStore P1c2 Task2:右栏折叠态 + tab', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     Object.values(svc).forEach((fn) => fn.mockReset())
+     localStorage.clear()
+   })
+@@ -145,10 +153,147 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
+ 
+   it('setThinkingLevel:有会话且 patch 成功时正常 resolve', async () => {
+     const s = useAgentStore('p1c2-e10')
+     s.activeSessionId = 'sess-5'
+     svc.patchSessionThinking.mockResolvedValue(undefined)
+     await s.setThinkingLevel('high')
+     expect(s.thinking.level).toBe('high')
+     expect(svc.patchSessionThinking).toHaveBeenCalledWith('sess-5', { enabled: true, level: 'high' })
+   })
+ })
++
++// SP8-P1c2 Task 4 —— store regenerateTitle(逐字港 agentStore.js:210-244)+
++// regeneratingTitleFor,以及 autoTitleFirstTurn 改走同一条路径。
++describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    runSpy.mockReset().mockResolvedValue(undefined)
++    attachSpy.mockReset().mockResolvedValue({ attached: false })
++    localStorage.clear()
++  })
++
++  it('无 selectedModel 时直接返回,不发请求(agentStore.js:212-213)', async () => {
++    const s = useAgentStore('p1c2-title-a')
++    s.selectedModel = null
++    await s.regenerateTitle('sess-1')
++    expect(svc.regenerateAgentSessionTitle).not.toHaveBeenCalled()
++    expect(s.regeneratingTitleFor).toBeNull()
++  })
++
++  it('selectedModel 完全无冒号(畸形 key)时直接返回——Vue2 独有 guard(agentStore.js:214-215),parseModelKey 本身对此不等价', async () => {
++    const s = useAgentStore('p1c2-title-b')
++    s.selectedModel = 'not-a-valid-key'
++    await s.regenerateTitle('sess-1')
++    expect(svc.regenerateAgentSessionTitle).not.toHaveBeenCalled()
++  })
++
++  it('local key:解析出裸模型名,provider_type 无命中时回落 ollama(agentStore.js:216-220,228)', async () => {
++    const s = useAgentStore('p1c2-title-c')
++    s.availableModels = []
++    s.selectedModel = 'local:llama'
++    svc.regenerateAgentSessionTitle.mockResolvedValue({})
++    await s.regenerateTitle('sess-1')
++    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'llama', 'ollama')
++  })
++
++  it('cloud key:解析出裸模型名,providerType 取命中 model 的 provider_type(agentStore.js:221-224,227-228)', async () => {
++    const s = useAgentStore('p1c2-title-d')
++    s.availableModels = [
++      { key: 'cloud:p1:chat', source: 'cloud', displayName: 'chat', provider_type: 'deepseek' },
++    ]
++    s.selectedModel = 'cloud:p1:chat'
++    svc.regenerateAgentSessionTitle.mockResolvedValue({})
++    await s.regenerateTitle('sess-1')
++    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'chat', 'deepseek')
++  })
++
++  it('cloud key 无命中 model 时 providerType 回落 other(agentStore.js:228)', async () => {
++    const s = useAgentStore('p1c2-title-e')
++    s.availableModels = []
++    s.selectedModel = 'cloud:p1:chat'
++    svc.regenerateAgentSessionTitle.mockResolvedValue({})
++    await s.regenerateTitle('sess-1')
++    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'chat', 'other')
++  })
++
++  it('成功且 title 非空时写回 sessions[idx].title(agentStore.js:232-237)', async () => {
++    const s = useAgentStore('p1c2-title-f')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
++    s.selectedModel = 'local:llama'
++    s.sessions = [{ id: 'sess-1', title: '' }]
++    svc.regenerateAgentSessionTitle.mockResolvedValue({ title: 'Generated Title' })
++    await s.regenerateTitle('sess-1')
++    expect(s.sessions[0].title).toBe('Generated Title')
++  })
++
++  it('title 为空(falsy)时不写回(agentStore.js:234)', async () => {
++    const s = useAgentStore('p1c2-title-g')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
++    s.selectedModel = 'local:llama'
++    s.sessions = [{ id: 'sess-1', title: 'keep-me' }]
++    svc.regenerateAgentSessionTitle.mockResolvedValue({})
++    await s.regenerateTitle('sess-1')
++    expect(s.sessions[0].title).toBe('keep-me')
++  })
++
++  it('失败被吞(只 console.warn),promise 仍 resolve,regeneratingTitleFor 复位(agentStore.js:238-243,故意保留)', async () => {
++    const s = useAgentStore('p1c2-title-h')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
++    s.selectedModel = 'local:llama'
++    svc.regenerateAgentSessionTitle.mockRejectedValue(new Error('network'))
++    await expect(s.regenerateTitle('sess-1')).resolves.toBeUndefined()
++    expect(s.regeneratingTitleFor).toBeNull()
++  })
++
++  it('background 标记透传 + regeneratingTitleFor 是对象({id,background})而非布尔(agentStore.js:230,顶栏要靠它区分自动/手动)', async () => {
++    const s = useAgentStore('p1c2-title-i')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
++    s.selectedModel = 'local:llama'
++    let resolveFn: (v: unknown) => void = () => {}
++    svc.regenerateAgentSessionTitle.mockReturnValue(new Promise((resolve) => { resolveFn = resolve }))
++    const p = s.regenerateTitle('sess-1', { background: true })
++    // 尚未 resolve 时,regeneratingTitleFor 已同步落上 { id, background: true }。
++    expect(s.regeneratingTitleFor).toEqual({ id: 'sess-1', background: true })
++    resolveFn({ title: 'X' })
++    await p
++    expect(s.regeneratingTitleFor).toBeNull()
++  })
++
++  it('background 默认 false(不传 opts 时,agentStore.js:210)', async () => {
++    const s = useAgentStore('p1c2-title-j')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
++    s.selectedModel = 'local:llama'
++    let resolveFn: (v: unknown) => void = () => {}
++    svc.regenerateAgentSessionTitle.mockReturnValue(new Promise((resolve) => { resolveFn = resolve }))
++    const p = s.regenerateTitle('sess-1')
++    expect(s.regeneratingTitleFor).toEqual({ id: 'sess-1', background: false })
++    resolveFn({})
++    await p
++  })
++
++  it('autoTitleFirstTurn(send() 首轮补标题)委托 regenerateTitle(id,{background:true})——两份实现不并存(agentStore.js:413-419)', async () => {
++    svc.regenerateAgentSessionTitle.mockResolvedValue({ title: 'Auto Generated' })
++    const s = useAgentStore('p1c2-title-k')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama', provider_type: 'ollama' }]
++    s.selectedModel = 'local:llama'
++    s.activeSessionId = 'sess-1'
++    s.sessions = [{ id: 'sess-1', title: '' }]
++    await s.send('hello')
++    // autoTitleFirstTurn 是 send() finally 里的 fire-and-forget 调用,让其内部
++    // 微任务(regenerateTitle 的 await + 写回 title)先跑完再断言。
++    await flushPromises()
++    expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'llama', 'ollama')
++    expect(s.sessions[0].title).toBe('Auto Generated')
++  })
++
++  it('autoTitleFirstTurn 失败时不影响 send() 本轮结果(fire-and-forget + 吞错,agentStore.js:416-417)', async () => {
++    svc.regenerateAgentSessionTitle.mockRejectedValue(new Error('boom'))
++    const s = useAgentStore('p1c2-title-l')
++    s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama', provider_type: 'ollama' }]
++    s.selectedModel = 'local:llama'
++    s.activeSessionId = 'sess-1'
++    s.sessions = [{ id: 'sess-1', title: '' }]
++    await expect(s.send('hello')).resolves.toBeUndefined()
++    expect(s.busy).toBe(false)
++  })
++})
+diff --git a/src/ai/stores/agentStore.ts b/src/ai/stores/agentStore.ts
+index 7056368..ceb7fe9 100644
+--- a/src/ai/stores/agentStore.ts
++++ b/src/ai/stores/agentStore.ts
+@@ -139,20 +139,23 @@ export function useAgentStore(agentType?: string) {
+     const availableModels = ref<AgentModel[]>([])
+     const selectedModel = ref<string | null>(null)
+     const lastFallbackNotice = ref<{ from: string | null; to: string | null } | null>(null)
+     const thinking = ref<ThinkingState>({
+       enabled: true,
+       level: 'medium',
+       supportsThinking: false,
+       providerType: '',
+       defaults: { enabled: true, level: 'medium' },
+     })
++    // agentStore.js:53 —— 正在重生成标题的会话(null|{id,background})。对象而非布尔:
++    // 顶栏要靠 background 区分"自动补标题"(不锁标题输入框)和"手动点 sparkle"(锁)。
++    const regeneratingTitleFor = ref<{ id: string | number; background: boolean } | null>(null)
+     // agentStore.js:60 —— 待consume一次的技能挂号(X-Skill-Id),1c(?skill=)接入前先留位。
+     const pendingSkillId = ref<string | null>(null)
+ 
+     // ── 1c:资源 / 附件 / 暂存区(agentStore.js:54-59)──
+     const visibleResources = ref<VisibleResource[]>([])
+     const attachments = ref<Record<string, unknown>[]>([])
+     const stagedChanges = ref<StagedGroup[]>([])
+     const committing = ref(false)
+     /** 三种键命名空间共用一张表:raw run_id / raw batch_id / 'item:'+staged_id(agentStore.js:59)。 */
+     const reverting = ref<Record<string, boolean>>({})
+@@ -695,45 +698,76 @@ export function useAgentStore(agentType?: string) {
+       if (!sel) {
+         thinking.value.supportsThinking = false
+         thinking.value.providerType = ''
+         return
+       }
+       thinking.value.supportsThinking = !!sel.supports_thinking
+       thinking.value.providerType = sel.provider_type || ''
+     }
+ 
+     /**
+-     * agentStore.js:210-244(regenerateTitle)裁剪 —— send() 首轮成功后台自动补标题,
+-     * 不在 1b 暴露的 action 面里(没有 regeneratingTitleFor 这类 UI 状态,那是 1c 的
+-     * picker/spinner 的事),只留 send() finally 需要的最小行为:标题为空时尝试一次,
+-     * 失败静默吞掉(background best-effort,不影响本轮发送结果)。
++     * agentStore.js:210-244 —— 逐字港 regenerateTitle:解析 selectedModel key 拿到
++     * model 名 + providerType,POST 重生成,成功且 title 非空才写回 sessions[idx],
++     * 失败**只 console.warn 吞掉,promise 仍 resolve**(agentStore.js:238-240,
++     * 有意如此 —— 顶栏 sparkle 按钮和 send() 首轮自动补标题都靠"这个 action 从不
++     * reject"这一点才能用 fire-and-forget 的方式调用,不必额外套 try/catch)。
++     *
++     * model key 解析复用模块顶部的 parseModelKey,但 Vue2 这里(agentStore.js:214-215)
++     * 独有一处防御:key 里完全没有冒号时直接返回,不尝试解析。已核对
++     * parseModelKey 对这个畸形输入**不等价**——它会把无冒号的 key 整段回退成
++     * modelName(而不是返回空串触发下面的 `!modelName` 兜底),所以这里补上 Vue2 的
++     * guard 再委托 parseModelKey 做实际拆分;cloud 分支缺第二个冒号时的容错
++     * (`secondColon < 0 ? rest : rest.slice(...)`)parseModelKey 本身就有,等价,
++     * 不需要另外补。
+      */
+-    async function autoTitleFirstTurn(id: string | number) {
++    async function regenerateTitle(
++      id: string | number,
++      opts: { background?: boolean } = {},
++    ): Promise<void> {
++      const background = opts.background ?? false
+       const key = selectedModel.value
+       if (!key) return
++      if (key.indexOf(':') < 0) return
+       const { source, modelName } = parseModelKey(key)
+       if (!modelName) return
++
+       const sel = availableModels.value.find((m) => m.key === key)
+       const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
++
++      regeneratingTitleFor.value = { id, background }
+       try {
+         const body = await service.ai.regenerateAgentSessionTitle(id, modelName, providerType)
+         const data = (body || {}) as Record<string, unknown>
+         if (data.title) {
+           const idx = sessions.value.findIndex((s) => s.id === id)
+           if (idx >= 0) sessions.value[idx].title = data.title as string
+         }
+       } catch (e) {
+         // eslint-disable-next-line no-console
+-        console.warn('[agentStore] autoTitleFirstTurn failed', e)
++        console.warn('[agentStore] regenerateTitle failed', e)
++      } finally {
++        regeneratingTitleFor.value = null
+       }
+     }
+ 
++    /**
++     * agentStore.js:413-419 —— send() 首轮发送成功后台自动补标题。1b 阶段曾裁剪出
++     * 一份独立实现(没有 regeneratingTitleFor 这类 UI 状态);1c-2 补齐完整
++     * regenerateTitle 后,这里改为纯委托,不再重复解析 model key —— 两份实现不并存。
++     * Vue2 调用处是 `actions.regenerateTitle(id, {background:true}).catch(()=>{})`
++     * (fire-and-forget),对应本文件 send() finally 里的调用点同样不 await、外挂
++     * `.catch(() => {})`。
++     */
++    async function autoTitleFirstTurn(id: string | number): Promise<void> {
++      return regenerateTitle(id, { background: true })
++    }
++
+     /**
+      * agentStore.js:295-421 —— 发一轮消息。字符串 payload 视为纯文本(向后兼容);
+      * busy 守卫防止重复发送;等待上一次 stop() 触发的 pendingCancel 落定,让服务端
+      * 每会话锁先释放掉;无选中模型时直接落一个错误 tool block;否则新建
+      * AbortController → (无会话则先建)→ push user+assistant 消息 → 解析模型 key
+      * (local:<name> / cloud:<id>:<name>)→ 算 providerType → 拼 extraHeaders
+      * (X-Skill-Id 消费一次 + X-Agent-Provider-Id)→ 调 Task 6 runAgentRun,onError
+      * 落一个 error tool block(dual-shape:RAW error 或 {status,body},统一
+      * JSON.stringify 兜底渲染,与 Vue2 一致)→ finally 收尾 busy + 首轮自动补标题。
+      */
+@@ -839,21 +873,22 @@ export function useAgentStore(agentType?: string) {
+           sections: [{ label: 'ERROR', code: typeof e === 'string' ? e : ((e as Error)?.message || JSON.stringify(e)) }],
+         })
+         setStreamingDone()
+       } finally {
+         if (busy.value) setStreamingDone()
+         const aborted = !!(abortController.value && (abortController.value as AbortController).signal.aborted)
+         abortController.value = null
+         if (wasFirstTurn && !aborted && !errorOccurred && activeSessionId.value) {
+           const sess = sessions.value.find((s) => s.id === activeSessionId.value)
+           if (sess && (!sess.title || String(sess.title).trim() === '')) {
+-            autoTitleFirstTurn(activeSessionId.value)
++            // agentStore.js:416-417 —— fire-and-forget,吞掉任何 rejection。
++            autoTitleFirstTurn(activeSessionId.value).catch(() => {})
+           }
+         }
+       }
+     }
+ 
+     /**
+      * agentStore.js:423-489 —— `/init` 斜杠命令的执行体:让 agent 为某个目录生成
+      * agent.md。与 send() 的关键差异(逐字对齐 Vue2,不是疏漏):
+      * 1) user/assistant 两条消息直接 `messages.value.push`,不走
+      *    pushUserMessage/startAssistant(user 消息内容固定为 `[/init] <target>`,
+@@ -1046,20 +1081,21 @@ export function useAgentStore(agentType?: string) {
+       leftCollapsed,
+       rightCollapsed,
+       rightTab,
+       abortController,
+       activitySteps,
+       pendingCancel,
+       availableModels,
+       selectedModel,
+       lastFallbackNotice,
+       thinking,
++      regeneratingTitleFor,
+       pendingSkillId,
+       visibleResources,
+       attachments,
+       stagedChanges,
+       committing,
+       reverting,
+       loadSessions,
+       createSession,
+       deleteSession,
+       setSessionTitle,
+@@ -1092,18 +1128,19 @@ export function useAgentStore(agentType?: string) {
+       revertStagedBatch,
+       revertStagedItem,
+       createStreamActions,
+       loadAvailableModels,
+       selectModel,
+       updateThinkingForModel,
+       loadThinkingDefaults,
+       loadSessionThinking,
+       setThinkingEnabled,
+       setThinkingLevel,
++      regenerateTitle,
+       send,
+       sendInit,
+       stop,
+       continueRun,
+       confirmAgentAction,
+     }
+   })()
+ }

@@ -1,0 +1,735 @@
+# Review package: 9a3e938..f634b47
+
+## Commits
+f634b47 fix(knowledge): 浅色档必须显式声明 --accent/--accent-soft/--success(评审 Critical 订正)
+71ae0ee feat(knowledge): SP8-P5a knowledge.scss token 声明层 + 壳段 + keyframes
+
+## Files changed
+ src/ai/styles/knowledge.scss          | 560 ++++++++++++++++++++++++++++++++++
+ src/ai/styles/knowledgeStyles.test.ts | 151 +++++++++
+ 2 files changed, 711 insertions(+)
+
+## Diff
+diff --git a/src/ai/styles/knowledge.scss b/src/ai/styles/knowledge.scss
+new file mode 100644
+index 0000000..349f5c9
+--- /dev/null
++++ b/src/ai/styles/knowledge.scss
+@@ -0,0 +1,560 @@
++/* 1:1 移植自 Vue2 src/views/AI/Knowledge/styles/knowledge.scss(蓝本共 2561 行）。
++ * 本档是 SP8-P5a 的**第一批**落地:token 声明层 + .knowledge-app 壳段(rail/main/
++ * topbar/banner/mobile-tabs/badge/btn/scroll/skel/empty)+ 全局 keyframes。
++ * T10(KnowledgeLayout.vue)· T11(仪表盘样式)· T12(DashboardView.vue)都建在本档之上,
++ * 会在文件末尾续写各自批次的段落 —— 见文件最后一行占位注释。
++ *
++ * 切档判据:only 附录 D 白名单(D.1 的 32 个 + 协调者 R1 追加的 6 个 k-empty*,
++ * 共 38 个)。蓝本 `.knowledge-app { … }` 那一大段(:59-1509)里混着 P5b-P5f 才用到
++ * 的类(表格/抽屉/笔记/Wiki/仪表盘…),白名单以外一律不搬。
++ *
++ * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent:
++ * #007AFF 等),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
++ * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
++ * 全局主页 theme.css 那套、暗色档取 AI 区 tokens.scss 暗色块那套,跟随 <html> 的
++ * data-theme 切换。因此下面两个声明块的 token 取值全部重写,来源逐条见行尾注释。
++ *
++ * 【R2(协调者拍板)—— *-soft 家族 token 必须在本作用域自行声明】附录 B 原文
++ * "New-UI 已有的直接用 var(--success-soft)" 对 .knowledge-app 是错的:那批 token
++ * 只在 tokens.scss 的 `.agent-app, .ai-toast-scope`(:32)与其暗色块(:250)两个
++ * 选择器上声明,.knowledge-app 两边都不是,解析不到会渲染成透明。本批壳段实际用到
++ * 的只有 4 个(--warning-soft/--warning-soft-border/--success-soft/--danger-soft,
++ * 见下方声明块),已在两档各自补齐,取值抄自 tokens.scss 对应主题块。
++ * 例外:--accent-soft-2 不在此列 —— 它在**全局** src/styles/theme.css 的 :root
++ * (:60)与 :root[data-theme="light"](:275)都有定义,.knowledge-app 跟随全局主题
++ * 天然能解析到,直接 var(--accent-soft-2) 即可,不重复声明(也不要退回
++ * --accent-soft,透明度差一倍)。
++ *
++ * 【R3(协调者拍板)—— color-scheme 必须两档都显式声明】.knowledge-app 是本仓第 4 个
++ * 嵌套主题作用域(data-theme 贴在容器上,不动 <html>)。若不声明,会继承
++ * src/styles/theme.css 在 :root 的 `color-scheme: dark`,导致浅色 AI 页里原生控件
++ * (input[type=number] 上下箭头底板、原生 checkbox 等)被浏览器按暗色 UA 调色板画,
++ * 这正是 P2b 踩过的同一个坑(tokens.scss:33-38 的同类注释)。
++ *
++ * 【自查发现的隐藏坑 —— 3 个同名 token,评审 2026-07-31 订正】附录 B 浅色档表把
++ * --accent / --accent-soft / --success 的取值写成 "var(--全局同名 token)"。但全局
++ * theme.css 里那三个 token 的名字**恰好与本作用域要声明的 token 同名**。若照字面写
++ * `.knowledge-app { --accent: var(--accent); }`,CSS 自定义属性没有"引用外层同名
++ * 值"的语义 —— 这是一次自引用循环,规范规定循环引用的自定义属性计算为
++ * "guaranteed-invalid value",会让 .knowledge-app 内所有用到 var(--accent) 的元素
++ * 在浅色主题下失效/透明。
++ * 【初版的错误修法,已订正】本档第一版曾选择"干脆不在浅色块重新声明这三个 token,
++ * 靠 CSS 继承落到外层浅色值"——这个推理**不成立**:上面的暗色块 `.knowledge-app { … }`
++ * 选择器是无条件的(没有任何 data-theme 限定),在浅色主题下同样命中这个元素本身;
++ * custom property 的继承规则是"元素自身有声明时,自身声明胜出,根本走不到继承",
++ * 所以留空不会继承到浅色值,而是被暗色块的字面值直接命中 —— 浅色主题下知识库区
++ * 的强调色按钮/链接与成功态圆点反而会用暗色调色板,是一个真实回归(评审 RED 探针
++ * 已验证)。
++ * 【正确写法】在浅色声明块里**显式声明字面值**(不写 var()):
++ * `--accent: #3b5bdb`(theme.css:183)/ `--accent-soft: rgba(59,91,219,0.11)`
++ * (theme.css:274)/ `--success: #15754c`(theme.css:281)。这与附录 B 表里"全局无
++ * 同语义 token 时退字面值"是同一处理方式(--accent-softer / --text-quaternary /
++ * --line-strong / --line-faint / --purple/--pink/--teal 全是这个模式),不是新例外。
++ * 代价:这三项以后不会跟随全局主题自动改色;若未来要恢复自动跟随,需要给知识库档
++ * 的 token 改名(如 --k-accent)以消除同名冲突,属独立一期的事。
++ * color-guard 与本档的自建单测都测不到"值对不对"这层(它们只查"有没有裸色字面量/
++ * token 有没有声明"),knowledgeStyles.test.ts 已补一条用例钉住这三项必须在浅色块
++ * 声明(见文件底部对应 describe 块),并已用 RED 探针验证(删一个 → 精确报红)。
++ */
++
++/* ===== Design tokens — dark(New-UI 默认 <html> 无 data-theme)=====
++ * 蓝本 knowledge.scss:6-58 的等价物,数值按【偏离 K2】改用 AI tokens.scss 暗色块
++ * (:249-365)与蓝本 :2444-2447 的 --ly-* 暗色微调。
++ */
++.knowledge-app {
++  --bg-app: #1C1C1E; /* AI tokens.scss:255 */
++  --bg-canvas: #1C1C1E; /* AI tokens.scss:256 */
++  --bg-elevated: #242426; /* AI tokens.scss:257 */
++  --bg-sunken: #161617; /* AI tokens.scss:258 */
++  --bg-chip: #2A2A2C; /* AI tokens.scss:259 */
++
++  --glass-strong: rgba(28, 28, 30, 0.82); /* AI tokens.scss:263 */
++  --glass-medium: rgba(28, 28, 30, 0.6); /* AI tokens.scss:264 */
++  --glass-weak: rgba(28, 28, 30, 0.45); /* AI tokens.scss:265 */
++
++  --text-primary: #E9E7E3; /* AI tokens.scss:267 */
++  --text-secondary: #A3A09A; /* AI tokens.scss:268 */
++  --text-tertiary: #6E6C68; /* AI tokens.scss:269 */
++  --text-quaternary: #4D4B48; /* AI tokens.scss:270 */
++  --text-on-accent: #ffffff; /* AI tokens.scss:275 */
++
++  --accent: #5E97F2; /* AI tokens.scss:277 */
++  --accent-hover: #7AABF5; /* AI tokens.scss:278 */
++  --accent-soft: rgba(94, 151, 242, 0.14); /* AI tokens.scss:279 */
++  --accent-softer: rgba(94, 151, 242, 0.10); /* AI tokens.scss:280 */
++
++  --success: #4FB870; /* AI tokens.scss:282 */
++  --warning: #E0A53B; /* AI tokens.scss:283 */
++  --danger: #F0776B; /* AI tokens.scss:284 */
++  --purple: #AF52DE; /* 两档同值,AI tokens.scss:71(暗色块未重定义,沿用浅色块的值) */
++  --pink: #FF2D55; /* 同上,AI tokens.scss:72 */
++  --teal: #30B0C7; /* 同上,AI tokens.scss:73 */
++
++  --line: #2E2E31; /* AI tokens.scss:293 */
++  --line-strong: #3A3A3D; /* AI tokens.scss:294 */
++  --line-faint: #262628; /* AI tokens.scss:295 */
++
++  /* 三层身份色(Wiki·向量·笔记)—— 蓝本 knowledge.scss:2444-2447 暗色档原值。
++     本批(T4 壳段)不直接使用,D.2 的 k2-layer/kw-node 系列(T11 及后续批次)才用,
++     按附录 B 要求在 token 层一次性声明齐,供后续批次直接消费。 */
++  --ly-wiki: oklch(0.78 0.11 80); --ly-wiki-soft: oklch(0.78 0.11 80 / 0.15); --ly-wiki-line: oklch(0.78 0.11 80 / 0.35);
++  --ly-vec: oklch(0.76 0.10 210); --ly-vec-soft: oklch(0.76 0.10 210 / 0.15); --ly-vec-line: oklch(0.76 0.10 210 / 0.35);
++  --ly-note: oklch(0.76 0.12 300); --ly-note-soft: oklch(0.76 0.12 300 / 0.15); --ly-note-line: oklch(0.76 0.12 300 / 0.35);
++
++  /* 结构量 —— 附录 B:两档共享,只在本(基础)块声明,浅色块不重复 */
++  --r-xs: 6px;
++  --r-sm: 10px;
++  --r-md: 14px;
++  --r-lg: 18px;
++  --r-xl: 24px;
++  --r-2xl: 32px;
++  --r-pill: 999px;
++
++  --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:107 */
++  --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05); /* AI tokens.scss:108 */
++  --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:109 */
++  --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06); /* AI tokens.scss:110 */
++
++  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
++  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
++
++  --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%); /* AI tokens.scss:119 */
++  --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%); /* AI tokens.scss:120 */
++
++  /* R2 —— 本批壳段实际用到的 *-soft 家族(见 .k-rail-svc-dot / .k-banner / .k-banner-icon),
++     取值抄自 AI tokens.scss 暗色块(:249-365)。 */
++  --warning-soft: rgba(224, 165, 59, 0.18); /* AI tokens.scss:303 */
++  --warning-soft-border: rgba(224, 165, 59, 0.3); /* AI tokens.scss:304 */
++  --success-soft: rgba(79, 184, 112, 0.18); /* AI tokens.scss:306 */
++  --danger-soft: rgba(240, 119, 107, 0.16); /* AI tokens.scss:308 */
++
++  /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
++  color-scheme: dark;
++}
++
++/* ===== Design tokens — light ===== */
++:root[data-theme="light"] .knowledge-app {
++  --bg-app: var(--bg); /* 全局 theme.css :root[data-theme="light"] 纸感底色 #f7f5ef */
++  --bg-canvas: var(--bg);
++  --bg-elevated: var(--card-bg); /* #ffffff */
++  --bg-sunken: var(--tool-bg); /* #f0eee8 */
++  --bg-chip: var(--tool-bg-hi); /* #e7e3d9 */
++
++  --glass-strong: rgba(247, 245, 239, 0.82); /* --bg 的 RGB 加透明,全局无 glass 语义 token */
++  --glass-medium: rgba(247, 245, 239, 0.6);
++  --glass-weak: rgba(247, 245, 239, 0.45);
++
++  --text-primary: var(--fg);
++  --text-secondary: var(--fg-muted);
++  --text-tertiary: var(--fg-faint);
++  --text-quaternary: #BCB8AD; /* 全局只有三档文字;取 AI tokens.scss 浅色第四档 :58(同族暖中性) */
++  --text-on-accent: var(--on-accent);
++
++  /* 【评审 2026-07-31 订正】--accent / --accent-soft / --success 必须在本块显式
++     声明字面值,不能"留空靠继承"—— 上面的暗色块 `.knowledge-app { … }` 选择器是
++     **无条件**的(没有任何 data-theme 限定),在浅色主题下同样命中这个元素本身;
++     CSS 自定义属性的继承规则是"元素自身有声明时,自身声明胜出,根本走不到继承",
++     所以留空并不会继承到 :root[data-theme="light"] 的浅色值,而是会被暗色块的
++     `--accent:#5E97F2`/`--accent-soft:rgba(94,151,242,.14)`/`--success:#4FB870`
++     直接命中,浅色主题下的知识库区强调色/成功态反而会用暗色调色板 —— 是本任务
++     实测发现的一个真实回归,已用 RED 探针验证(见 knowledgeStyles.test.ts)。
++     正确写法是**落字面值**,不写 var():因为这三个 token 与全局 theme.css 同名,
++     同名在同一元素上没有"引用外层值"的语义(`var(--accent)` 会是自引用循环,见
++     头注释),这与附录 B 表里"全局无同语义 token 时退字面值"是同一处理方式
++     (--accent-softer / --text-quaternary / --line-strong / --line-faint /
++     --purple/--pink/--teal 全是这个模式),不是新开的例外。
++     代价:这三项以后不会跟随全局主题自动改色(其余走 var() 的 token 会);若未来
++     要恢复自动跟随,需要给知识库档的 token 改名(如 --k-accent)以消除同名冲突,
++     那是独立一期的事,不在本任务范围内。 */
++  --accent: #3b5bdb; /* theme.css:183 */
++  --accent-soft: rgba(59, 91, 219, 0.11); /* theme.css:274 */
++  --success: #15754c; /* theme.css:281 */
++
++  --accent-hover: var(--accent-text); /* #3550c4,全局"更深强调"档,theme.css:271 */
++  --accent-softer: rgba(59, 91, 219, 0.06); /* 全局最淡档 --accent-soft 是 0.11,蓝本要 0.06,无对应 token */
++
++  --warning: var(--toast-warn-fg); /* #92600c,全局无 --warning,借它的警告前景色,theme.css:217 */
++  --danger: var(--toast-danger-fg); /* #c0392b,同上,theme.css:219 */
++  --purple: #AF52DE; /* 全局无;AI tokens.scss:71 浅色值 */
++  --pink: #FF2D55; /* AI tokens.scss:72 */
++  --teal: #30B0C7; /* AI tokens.scss:73 */
++
++  --line: var(--card-border); /* #e7e3d9,theme.css:204 */
++  --line-strong: #D8D3C7; /* 全局无 strong 档;AI tokens.scss:86 浅色值 */
++  --line-faint: #EEEBE3; /* AI tokens.scss:87 */
++
++  --ly-wiki: oklch(0.60 0.12 75); --ly-wiki-soft: oklch(0.60 0.12 75 / 0.11); --ly-wiki-line: oklch(0.60 0.12 75 / 0.32); /* 蓝本 knowledge.scss:2287 */
++  --ly-vec: oklch(0.56 0.11 210); --ly-vec-soft: oklch(0.56 0.11 210 / 0.11); --ly-vec-line: oklch(0.56 0.11 210 / 0.32); /* 蓝本 :2288 */
++  --ly-note: oklch(0.55 0.13 300); --ly-note-soft: oklch(0.55 0.13 300 / 0.11); --ly-note-line: oklch(0.55 0.13 300 / 0.32); /* 蓝本 :2289 */
++
++  /* R2 —— 同上,取值抄自 AI tokens.scss 浅色块(:1-247) */
++  --warning-soft: rgba(200, 134, 10, 0.12); /* AI tokens.scss:126 */
++  --warning-soft-border: rgba(200, 134, 10, 0.24); /* AI tokens.scss:127 */
++  --success-soft: rgba(46, 158, 84, 0.12); /* AI tokens.scss:129 */
++  --danger-soft: rgba(215, 73, 59, 0.1); /* AI tokens.scss:131 */
++
++  /* R3 —— 见头注释 */
++  color-scheme: light;
++}
++
++/* ===== Shell —— 1:1 移植自蓝本 knowledge.scss:59-217(rail/main/topbar 结构量逐字照抄,
++ * 颜色改走上面声明的 token)。白名单以外的类(k-hero 系列、k-quick-grid、k-status-strip、
++ * k-row、k-table 等 D.2/后续批次专用)不在此列,按切档判据不搬。 */
++.knowledge-app {
++  display: grid;
++  grid-template-columns: 232px 1fr;
++  /* minmax(0,1fr): a bare implicit/1fr row is floored at the content's
++   * min-height, so any page taller than the viewport blows past 100vh and
++   * gets clipped by overflow:hidden — .k-scroll then never scrolls. */
++  grid-template-rows: minmax(0, 1fr);
++  height: 100vh;
++  width: 100vw;
++  overflow: hidden;
++  background: var(--bg-app);
++  font-family: var(--font-sans);
++  color: var(--text-primary);
++  font-size: 14px;
++  line-height: 1.4;
++  -webkit-font-smoothing: antialiased;
++  -moz-osx-font-smoothing: grayscale;
++
++  *, *::before, *::after { box-sizing: border-box; }
++  button { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: inherit; }
++  input { font-family: inherit; }
++
++  /* ---------- Left rail ---------- */
++  .k-rail {
++    background: var(--bg-sunken);
++    border-right: 1px solid var(--line-faint);
++    display: flex; flex-direction: column;
++    min-height: 0;
++    overflow-y: auto; /* rail itself can exceed a short viewport (9 nav items + status card) */
++  }
++  .k-rail-head {
++    padding: 14px 16px;
++    display: flex; align-items: center; gap: 10px;
++    border-bottom: 1px solid var(--line-faint);
++    height: 56px;
++  }
++  .k-rail-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
++  .k-rail-sub { font-size: 11px; color: var(--text-tertiary); margin-top: -1px; }
++
++  .k-rail-section {
++    padding: 14px 18px 4px;
++    font-size: 11px; font-weight: 600;
++    color: var(--text-tertiary);
++    letter-spacing: 0.04em; text-transform: uppercase;
++  }
++
++  .k-rail-nav {
++    padding: 4px 8px;
++    display: flex; flex-direction: column;
++    gap: 1px;
++  }
++  .k-rail-item {
++    display: flex; align-items: center; gap: 10px;
++    padding: 8px 10px;
++    border-radius: var(--r-sm);
++    font-size: 13px;
++    font-weight: 500;
++    color: var(--text-secondary);
++    cursor: pointer;
++    transition: background 100ms ease;
++    text-decoration: none;
++    position: relative;
++    &:hover { background: var(--bg-chip); color: var(--text-primary); }
++    &[data-active="true"] {
++      background: var(--bg-elevated);
++      color: var(--text-primary);
++      box-shadow: var(--shadow-xs);
++    }
++  }
++  .k-rail-item-label {
++    flex: 1;
++    display: flex; flex-direction: column;
++    min-width: 0;
++  }
++  .k-rail-item-cn { font-size: 13px; font-weight: 500; }
++  .k-rail-item-en {
++    font-size: 10.5px;
++    color: var(--text-quaternary);
++    margin-top: -1px;
++    letter-spacing: 0.01em;
++  }
++  .k-rail-item[data-active="true"] .k-rail-item-en { color: var(--text-tertiary); }
++
++  .k-badge {
++    font-size: 10px;
++    font-weight: 700;
++    font-variant-numeric: tabular-nums;
++    padding: 1px 6px;
++    border-radius: 999px;
++    background: var(--danger);
++    color: var(--text-on-accent); /* 蓝本 knowledge.scss:145 裸 `white`(前景)→ token,见附录 B */
++    min-width: 18px; height: 16px;
++    display: inline-grid; place-items: center;
++    line-height: 1;
++  }
++  .k-badge-dot {
++    width: 7px; height: 7px;
++    border-radius: 50%;
++    background: var(--warning);
++    flex-shrink: 0;
++    &[data-tone="danger"] { background: var(--danger); }
++  }
++
++  .k-rail-svc {
++    margin: 10px 12px 0;
++    padding: 10px 12px;
++    border-radius: var(--r-md);
++    background: var(--bg-elevated);
++    border: 1px solid var(--line-faint);
++    box-shadow: var(--shadow-xs);
++    display: flex; flex-direction: column; gap: 5px;
++  }
++  .k-rail-svc-row { display: flex; align-items: center; gap: 8px; }
++  .k-rail-svc-dot {
++    width: 8px; height: 8px; border-radius: 50%;
++    background: var(--success);
++    /* 蓝本 knowledge.scss:172 裸 rgba(52,199,89,0.18) → 附录 B「0.1x → success-soft」桶 */
++    box-shadow: 0 0 0 3px var(--success-soft);
++    flex-shrink: 0;
++    &[data-state="paused"] {
++      background: var(--warning);
++      /* 蓝本 :176 裸 rgba(255,149,0,0.18) → 「0.1x → warning-soft」桶 */
++      box-shadow: 0 0 0 3px var(--warning-soft);
++    }
++    &[data-state="error"] {
++      background: var(--danger);
++      /* 蓝本 :180 裸 rgba(255,59,48,0.18) → 「0.1x → danger-soft」桶 */
++      box-shadow: 0 0 0 3px var(--danger-soft);
++    }
++  }
++  .k-rail-svc-name { font-size: 12px; font-weight: 600; flex: 1; }
++  .k-rail-svc-meta { font-size: 11px; color: var(--text-tertiary); }
++
++  .k-rail-foot {
++    margin-top: auto;
++    padding: 10px 12px;
++    border-top: 1px solid var(--line-faint);
++    font-size: 11px;
++    color: var(--text-tertiary);
++    display: flex; gap: 8px; align-items: center;
++  }
++
++  /* ---------- Main pane shell ---------- */
++  .k-main {
++    display: flex; flex-direction: column;
++    min-width: 0;
++    min-height: 0; /* allow the flex column to shrink to its grid row so .k-scroll can own the overflow */
++    background: var(--bg-canvas);
++  }
++  .k-topbar {
++    height: 56px;
++    padding: 0 22px;
++    display: flex; align-items: center; gap: 14px;
++    border-bottom: 1px solid var(--line-faint);
++    background: var(--bg-canvas);
++    flex-shrink: 0;
++    position: sticky; top: 0;
++    z-index: 5;
++  }
++  .k-topbar-title { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; }
++  .k-topbar-sub { font-size: 12px; color: var(--text-tertiary); margin-top: -1px; }
++  .k-topbar-spacer { flex: 1; }
++
++  .k-banner {
++    margin: 14px 22px 0;
++    padding: 10px 14px;
++    border-radius: var(--r-md);
++    /* 蓝本 :223 裸 rgba(255,149,0,0.1) → 「0.1x → warning-soft」桶 */
++    background: var(--warning-soft);
++    /* 蓝本 :224 裸 rgba(255,149,0,0.3) → 「0.2x~0.3x → warning-soft-border」桶 */
++    border: 1px solid var(--warning-soft-border);
++    color: var(--text-primary);
++    font-size: 13px;
++    display: flex; align-items: center; gap: 10px;
++    &[data-tone="info"] {
++      background: var(--accent-softer);
++      /* 蓝本 :230 裸 rgba(0,122,255,0.25) → 附录 B 「0.2x → --accent-soft-2(全局 theme.css token)」 */
++      border-color: var(--accent-soft-2);
++      .k-banner-icon { background: var(--accent-soft); color: var(--accent); }
++    }
++  }
++  .k-banner-icon {
++    width: 22px; height: 22px; border-radius: 7px;
++    /* 蓝本 :236 裸 rgba(255,149,0,0.22) → 「0.2x → warning-soft-border」桶 */
++    background: var(--warning-soft-border);
++    color: var(--warning);
++    display: grid; place-items: center;
++    flex-shrink: 0;
++  }
++  /* 蓝本 k-banner-close(:238-244)不在附录 D 白名单里(KnowledgeLayout.vue/
++     DashboardView.vue 模板都未使用这个类),不搬。 */
++
++  .k-scroll {
++    flex: 1;
++    overflow-y: auto;
++    min-height: 0;
++    padding: 22px;
++  }
++  .k-scroll-inner {
++    max-width: 1080px;
++    margin: 0 auto;
++    display: flex; flex-direction: column;
++    gap: 22px;
++  }
++
++  /* ---------- Empty / loading(蓝本 :683-715,R1 追加的 6 个类)---------- */
++  .k-empty {
++    padding: 60px 20px 40px;
++    display: flex; flex-direction: column;
++    align-items: center; text-align: center;
++    gap: 12px;
++  }
++  .k-empty-illust {
++    width: 96px; height: 96px;
++    border-radius: 50%;
++    background:
++      /* 蓝本 :693 裸 rgba(255,255,255,0.6) 前景高光 —— 附录 B 的映射表没有覆盖"渐变
++         高光图层"这个用法(表里的 white 桶只讲"前景色→ --text-on-accent"),但
++         --text-on-accent 在两档都是不透明的纯白 #ffffff,与蓝本这处装饰性高光同源
++         (都是"纯白,半透明叠加"),用 color-mix 在既有 token 上派生出等价的 60% 透明度,
++         不新增自定义属性、不写死颜色字面量。 */
++      radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--text-on-accent) 60%, transparent), transparent 60%),
++      var(--grad-iri-soft);
++    position: relative;
++    margin-bottom: 6px;
++    display: grid; place-items: center;
++    color: var(--accent);
++  }
++  .k-empty-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
++  .k-empty-sub {
++    font-size: 13px; color: var(--text-secondary);
++    max-width: 380px; line-height: 1.55;
++  }
++  .k-empty-tips {
++    margin-top: 4px;
++    display: flex; flex-direction: column; gap: 6px;
++    font-size: 12.5px; color: var(--text-tertiary);
++  }
++  .k-empty-tip {
++    display: inline-flex; align-items: center; gap: 8px;
++    padding: 6px 12px;
++    background: var(--bg-elevated);
++    border: 1px solid var(--line-faint);
++    border-radius: var(--r-pill);
++  }
++
++  /* ---------- Skeleton(只搬基类 .k-skel,k-skel-rcard 不在白名单)---------- */
++  .k-skel {
++    background: linear-gradient(90deg, var(--bg-chip) 25%, var(--bg-canvas) 50%, var(--bg-chip) 75%);
++    background-size: 200% 100%;
++    animation: k-shimmer 1.6s linear infinite;
++    border-radius: 6px;
++  }
++
++  /* ---------- Buttons(蓝本 :818-849;.danger 修饰不在白名单——KnowledgeLayout.vue/
++     DashboardView.vue 都未用到 k-btn.danger,不搬)---------- */
++  .k-btn {
++    padding: 7px 13px;
++    border-radius: var(--r-sm);
++    font-size: 12.5px; font-weight: 500;
++    display: inline-flex; align-items: center; gap: 6px;
++    transition: all 120ms ease;
++    cursor: pointer;
++    &.ghost {
++      background: var(--bg-chip);
++      color: var(--text-primary);
++      border: 1px solid transparent;
++      &:hover:not(:disabled) { background: var(--line); }
++    }
++    &.outline {
++      background: var(--bg-elevated);
++      color: var(--text-primary);
++      border: 1px solid var(--line);
++      &:hover:not(:disabled) { background: var(--bg-chip); border-color: var(--line-strong); }
++    }
++    &.primary {
++      background: var(--accent);
++      color: var(--text-on-accent); /* 蓝本 :839 裸 `white`(前景)→ token */
++      /* 蓝本 :840 裸 rgba(0,122,255,0.22) → 「0.2x → --accent-soft-2」 */
++      box-shadow: 0 2px 6px var(--accent-soft-2);
++      &:hover:not(:disabled) { background: var(--accent-hover); }
++    }
++    &:disabled {
++      background: var(--bg-chip); color: var(--text-quaternary);
++      cursor: not-allowed; box-shadow: none;
++    }
++  }
++
++  /* ---------- Responsive(蓝本 :1453-1507;只搬 .k-rail/.k-mobile-tabs/.k-mobile-tab,
++     k-quick-grid、k-status-strip、k-row、k-frow 等不在白名单,留给对应批次) ---------- */
++  @media (max-width: 860px) {
++    grid-template-columns: 1fr;
++    grid-template-rows: minmax(0, 1fr) 60px; /* same min-content floor issue as the desktop row */
++    .k-rail { display: none; }
++    .k-mobile-tabs {
++      display: flex;
++      height: 60px;
++      border-top: 1px solid var(--line);
++      background: var(--bg-canvas);
++      padding: 6px 4px;
++    }
++    .k-mobile-tab {
++      flex: 1;
++      display: flex; flex-direction: column;
++      align-items: center; justify-content: center;
++      gap: 2px;
++      border-radius: var(--r-md);
++      color: var(--text-tertiary);
++      font-size: 10px; font-weight: 500;
++      cursor: pointer;
++      transition: color 120ms ease;
++      position: relative;
++      &[data-active="true"] { color: var(--accent); }
++      .k-badge {
++        position: absolute;
++        top: 4px; right: calc(50% - 18px);
++      }
++    }
++  }
++  @media (min-width: 861px) {
++    .k-mobile-tabs { display: none; }
++  }
++}
++
++/* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进
++ * .knowledge-app —— 蓝本模板里 `animation: k-pulse …` 这类引用不会带作用域前缀）=====
++ * k2pulse/k2spin(蓝本 :2440-2441)只被 D.2 的 k2-chip/k2-live-ico(T11 仪表盘批次)
++ * 引用,本批不用,留给 T11 落地时一并补上。 */
++@keyframes k-float {
++  0%, 100% { transform: translateY(0); }
++  50% { transform: translateY(-4px); }
++}
++@keyframes k-pulse-orb {
++  0%, 100% { opacity: 0.5; transform: scale(0.85); }
++  50% { opacity: 1; transform: scale(1); }
++}
++@keyframes k-pulse {
++  0%, 100% { opacity: 1; }
++  50% { opacity: 0.5; }
++}
++@keyframes k-shimmer {
++  from { background-position: 200% 0; }
++  to   { background-position: -200% 0; }
++}
++@keyframes k-fade-in {
++  from { opacity: 0; }
++  to   { opacity: 1; }
++}
++@keyframes k-modal-pop {
++  from { opacity: 0; transform: scale(0.96) translateY(8px); }
++  to   { opacity: 1; transform: scale(1) translateY(0); }
++}
++@keyframes k-toast-rise {
++  from { opacity: 0; transform: translate(-50%, 8px); }
++  to   { opacity: 1; transform: translate(-50%, 0); }
++}
++
++/* P5b–P5f 的段落按 Vue2 原序续写在此之后 */
+diff --git a/src/ai/styles/knowledgeStyles.test.ts b/src/ai/styles/knowledgeStyles.test.ts
+new file mode 100644
+index 0000000..6c63027
+--- /dev/null
++++ b/src/ai/styles/knowledgeStyles.test.ts
+@@ -0,0 +1,151 @@
++import { describe, it, expect } from 'vitest'
++// SP8-P5a Task 4 —— 复刻 settingsStyles.test.ts(SP8-P2a Task 2)头注释里记录的三处环境坑,
++// 逐字照抄同样的解法(不是重新踩坑,是同一份既有解法的复用):
++// ① 本仓 package.json 是 "type": "module" → __dirname 在 ESM 下不可用,改用
++//    import.meta.url + fileURLToPath 的等价写法。
++// ② 本仓未装 @types/node —— node:fs / node:path / node:url 没有类型声明,
++//    `pnpm exec vue-tsc --noEmit`(任务门三条命令之一)会报 TS2307,逐行 @ts-expect-error 抑制。
++// ③ 不用 Vite 的 `?raw` 导入替代 node:fs —— vitest 自带 CSSEnablerPlugin 对 css/scss
++//    一律整体替换成空串(不看查询串),?raw 导入会让断言对空字符串"假通过"。退回 node:fs。
++// @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明,见上方注释
++import { readFileSync } from 'node:fs'
++// @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明,见上方注释
++import { resolve, dirname } from 'node:path'
++// @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明,见上方注释
++import { fileURLToPath } from 'node:url'
++
++const __dirname = dirname(fileURLToPath(import.meta.url))
++const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
++
++// 同 settingsStyles.test.ts 的既定手法:只剥「整行以 // 开头」的行注释(本档没有这种
++// 注释,但保持与先例一致)+ 块注释,再做 toContain,防止断言被注释里提到的类名/字符串撞对
++// (P2b 二次评审曾用 RED 探针实证过这类假通过)。
++function stripComments(css: string): string {
++  return css
++    .replace(/\/\*[\s\S]*?\*\//g, '')
++    .replace(/^[ \t]*\/\/.*$/gm, '')
++}
++
++const css = stripComments(read('./knowledge.scss'))
++
++// R1(协调者拍板)—— 附录 D.1 的 32 个 + 协调者追加的 6 个 k-empty* = 38 个,是本批
++// (T4:token 声明层 + 壳段 + keyframes)唯一该出现的类全集,一个不多一个不少。
++const WHITELIST_38 = [
++  'knowledge-app',
++  'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
++  'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
++  'k-rail-svc', 'k-rail-svc-row', 'k-rail-svc-dot', 'k-rail-svc-name', 'k-rail-svc-meta',
++  'k-rail-foot',
++  'k-main', 'k-topbar', 'k-topbar-title', 'k-topbar-sub', 'k-topbar-spacer',
++  'k-banner', 'k-banner-icon',
++  'k-mobile-tabs', 'k-mobile-tab',
++  'k-badge', 'k-badge-dot',
++  'k-btn',
++  'k-scroll', 'k-scroll-inner',
++  'k-skel',
++  'k-empty', 'k-empty-illust', 'k-empty-title', 'k-empty-sub', 'k-empty-tips', 'k-empty-tip',
++]
++
++describe('knowledge.scss —— 附录 D.4 白名单落地(38 个,R1 拍板)', () => {
++  it('38 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
++    const missing = WHITELIST_38.filter((c) => !new RegExp(`\\.${c}\\b`).test(css))
++    expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
++  })
++
++  it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
++    expect(css).not.toMatch(/\.k-toast\b/)
++    expect(css).not.toMatch(/\.k-toast-ico\b/)
++  })
++
++  it('没有搬多 —— 全部 k-/k2- 类都在白名单内(附录 D.4 自检命令②的常驻版)', () => {
++    const found = Array.from(new Set(css.match(/\.k2?-[a-z0-9-]+/g) || [])).map((s) => s.slice(1))
++    const extra = found.filter((c) => !WHITELIST_38.includes(c))
++    expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
++  })
++})
++
++// 找到「从 selectorLiteral 开始、到下一个独立一行的 `}` 为止」这个声明块的字符区间。
++// 两个 token 声明块都是纯 `--x: y;` 平铺属性,没有嵌套规则,所以「下一个 `\n}`」
++// 就是它的真实结束位置 —— 与 settingsStyles.test.ts 的 blockOf 同一手法。
++function declBlockRange(text: string, selectorLiteral: string): [number, number] {
++  const at = text.indexOf(selectorLiteral)
++  expect(at, `找不到声明块 ${selectorLiteral}`).toBeGreaterThanOrEqual(0)
++  const braceAt = text.indexOf('{', at)
++  const end = text.indexOf('\n}', braceAt)
++  expect(end, `${selectorLiteral} 声明块未闭合`).toBeGreaterThan(0)
++  return [at, end + 2]
++}
++
++function declBlockBody(text: string, selectorLiteral: string): string {
++  const [start, end] = declBlockRange(text, selectorLiteral)
++  return text.slice(start, end)
++}
++
++const DARK_TOKEN_SELECTOR = '.knowledge-app {'
++const LIGHT_TOKEN_SELECTOR = ':root[data-theme="light"] .knowledge-app {'
++
++describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动守卫,§6 豁免登记）', () => {
++  // 【本条是本任务最有价值的守卫】color-guard.test.ts 不扫 .scss(P3a RED 探针实证)——
++  // 这条测试是 knowledge.scss 唯一的裸色回归网。只豁免两个 token 声明块本身
++  // (那里就是 token 的定义处,见 §6),除此之外全文一处裸色字面量都不许有。
++  it('token 声明层之外,全文零色字面量(#hex / rgb() / rgba() / 具名色)', () => {
++    const [darkStart, darkEnd] = declBlockRange(css, DARK_TOKEN_SELECTOR)
++    const [lightStart, lightEnd] = declBlockRange(css, LIGHT_TOKEN_SELECTOR)
++    // 两个声明块必须按文件顺序不重叠(dark 在前、light 紧随其后),否则下面的拼接会切错。
++    expect(darkEnd, 'dark 声明块应先于 light 声明块结束').toBeLessThanOrEqual(lightStart)
++
++    const rest = css.slice(0, darkStart) + css.slice(darkEnd, lightStart) + css.slice(lightEnd)
++
++    expect(rest, '声明层之外出现 #hex').not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
++    expect(rest, '声明层之外出现 rgb()/rgba()').not.toMatch(/rgba?\(/)
++    expect(rest, '声明层之外出现 oklch()').not.toMatch(/oklch\(/)
++    expect(rest, '声明层之外出现具名色 white').not.toMatch(/\bwhite\b/)
++    expect(rest, '声明层之外出现具名色 black').not.toMatch(/\bblack\b/)
++  })
++
++  it('.knowledge-app 两档都显式声明 color-scheme(P2b 教训:嵌套主题作用域不声明会继承 :root)', () => {
++    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    expect(darkBody, '暗色档缺 color-scheme: dark').toContain('color-scheme: dark')
++    expect(lightBody, '浅色档缺 color-scheme: light').toContain('color-scheme: light')
++  })
++
++  // R2(协调者拍板)—— 附录 B「New-UI 已有的直接用」对 *-soft 家族是错的:那批 token
++  // 只在 tokens.scss 的 .agent-app/.ai-toast-scope 作用域声明,.knowledge-app 解析不到,
++  // 必须自己在两档声明层里各补一份。这条钉住:删掉任何一档的任何一个就报红。
++  it('R2 —— 4 个本批用到的 *-soft token 两档都有值(warning-soft/-border, success-soft, danger-soft)', () => {
++    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    for (const tok of ['--warning-soft:', '--warning-soft-border:', '--success-soft:', '--danger-soft:']) {
++      expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
++      expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
++    }
++  })
++
++  it('--accent-soft-2 不在本档重复声明(R2 例外:全局 theme.css 的 :root 与浅色块已有,跟随全局解析)', () => {
++    const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    expect(darkBody).not.toContain('--accent-soft-2:')
++    expect(lightBody).not.toContain('--accent-soft-2:')
++    // 但壳段确实引用了它(k-banner[data-tone="info"] 与 k-btn.primary 的阴影)
++    expect(css).toContain('var(--accent-soft-2)')
++  })
++
++  // 评审 2026-07-31 Critical 订正 —— 初版曾在浅色声明块里"刻意不声明 --accent/
++  // --accent-soft/--success,靠 CSS 继承拿外层浅色值"。这个推理不成立:暗色块
++  // `.knowledge-app { … }` 的选择器无条件命中(没有 data-theme 限定),在浅色主题下
++  // 同样作用于这个元素本身;custom property 继承规则是"元素自身有声明时自身声明
++  // 胜出",所以浅色块留空并不会继承到浅色值,而是被暗色块的字面值(#5E97F2 等)
++  // 直接命中 —— 浅色主题下强调色/成功态会用错暗色调色板。这条钉住浅色块必须显式
++  // 声明这三项字面值,任何一项被"优化掉"都会精确报红。
++  it('浅色档必须显式声明 --accent/--accent-soft/--success(不能靠继承,见头注释订正说明)', () => {
++    const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
++    expect(lightBody, '浅色档缺 --accent(会被暗色块的 #5E97F2 命中)').toContain('--accent: #3b5bdb')
++    expect(lightBody, '浅色档缺 --accent-soft(会被暗色块的值命中)').toContain('--accent-soft: rgba(59, 91, 219, 0.11)')
++    expect(lightBody, '浅色档缺 --success(会被暗色块的 #4FB870 命中)').toContain('--success: #15754c')
++    // 反向:确认没有退回自引用循环写法
++    expect(lightBody).not.toContain('--accent: var(--accent)')
++    expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
++    expect(lightBody).not.toContain('--success: var(--success)')
++  })
++})

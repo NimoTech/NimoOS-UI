@@ -1,0 +1,93 @@
+# Review package: 705649d..feb85bc
+
+## Commits
+feb85bc test(notes): 补 /settings 四方法的返回值判别断言(评审 Important)
+
+## Files changed
+ src/notes.test.ts | 43 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+## Diff
+diff --git a/src/notes.test.ts b/src/notes.test.ts
+index 1ed26d2..0c6f228 100644
+--- a/src/notes.test.ts
++++ b/src/notes.test.ts
+@@ -100,20 +100,63 @@ describe('createNotes — URL/动词表', () => {
+     await n.listDistillJobs()
+     expect(calls[2].cfg).toEqual({ params: { limit: 200 } })   // 无 status 键
+   })
+ 
+   it('backlinks / getDistillStatus 的 null 兜底', async () => {
+     const { http } = recorder(() => ({}))
+     const n = createNotes(http)
+     expect(await n.backlinks('n1')).toEqual([])
+     expect(await n.getDistillStatus()).toEqual({ pending: 0, distilled: 0, quotaRemaining: 0, backgroundModel: '' })
+   })
++
++  // 评审 Important:getSettings/getNotesSettings 都打 /ai/agent/notes/settings,
++  // 光靠 URL/动词表分辨不出内部各自调了哪个归一化器——同一份后端响应喂给两者,
++  // 必须各自钉住字段数与缺省值,「归一化器用错」才会精确报红(而不是仍然全绿)。
++  it('getSettings 只归一化出 2 个字段(notesRoot/autoExtract),不含沉淀字段', async () => {
++    const { http } = recorder(() => ({ notes_root: '/DATA/Notes', auto_extract: true }))
++    const out = await createNotes(http).getSettings()
++    expect(out).toEqual({ notesRoot: '/DATA/Notes', autoExtract: true })
++    expect(Object.keys(out)).toEqual(['notesRoot', 'autoExtract'])
++  })
++
++  it('getNotesSettings 对同一份响应归一化出 5 个字段,沉淀字段各走缺省值', async () => {
++    const { http } = recorder(() => ({ notes_root: '/DATA/Notes', auto_extract: true }))
++    const out = await createNotes(http).getNotesSettings()
++    expect(out).toEqual({
++      notesRoot: '/DATA/Notes', autoExtract: true,
++      distillRoots: [], distillDailyCap: 50, backgroundModel: '',
++    })
++    expect(Object.keys(out).sort()).toEqual(
++      ['autoExtract', 'backgroundModel', 'distillDailyCap', 'distillRoots', 'notesRoot'].sort(),
++    )
++  })
++
++  it('putSettings 用 buildSettingsBody 发 body,返回值只 2 个字段', async () => {
++    const { http, calls } = recorder(() => ({ notes_root: '/x', auto_extract: true }))
++    const out = await createNotes(http).putSettings({ notesRoot: '/x', autoExtract: true })
++    expect(calls[0].body).toEqual({ notes_root: '/x', mode: 'adopt', auto_extract: true })
++    expect(out).toEqual({ notesRoot: '/x', autoExtract: true })
++    expect(Object.keys(out)).toEqual(['notesRoot', 'autoExtract'])
++  })
++
++  it('putNotesSettings 用 buildNotesSettingsBody 发 body(键名与 buildSettingsBody 不同),返回值 5 个字段', async () => {
++    const { http, calls } = recorder(() => ({ notes_root: '/x', auto_extract: true, distill_daily_cap: 20 }))
++    const out = await createNotes(http).putNotesSettings({ distillDailyCap: 20 })
++    expect(calls[0].body).toEqual({ distill_daily_cap: 20 })
++    expect(out).toEqual({
++      notesRoot: '/x', autoExtract: true,
++      distillRoots: [], distillDailyCap: 20, backgroundModel: '',
++    })
++    expect(Object.keys(out).sort()).toEqual(
++      ['autoExtract', 'backgroundModel', 'distillDailyCap', 'distillRoots', 'notesRoot'].sort(),
++    )
++  })
+ })
+ 
+ describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
+   it('normalizeNote 把 snake_case 映射成 camelCase', () => {
+     expect(normalizeNote({ id: 'n1', title: 't', description: 'd', type: 'insight',
+       status: 'draft', tags: ['a'], source_refs: [{ path: '/DATA/x.pdf' }],
+       created_by: 'pipeline', revision: 3, updated_at: 99, path: '1/x.md', body: 'B' }))
+       .toEqual({ id: 'n1', title: 't', description: 'd', type: 'insight', status: 'draft',
+         tags: ['a'], sourceRefs: [{ path: '/DATA/x.pdf' }], createdBy: 'pipeline',
+         revision: 3, updatedAt: 99, path: '1/x.md', body: 'B' })
+
+## 附:治理文件订正提交 6301287 的 diff
+diff --git a/.superpowers/sdd/p5a-common-constraints.md b/.superpowers/sdd/p5a-common-constraints.md
+index 9f2c9ef..3a60fa4 100644
+--- a/.superpowers/sdd/p5a-common-constraints.md
++++ b/.superpowers/sdd/p5a-common-constraints.md
+@@ -189,7 +189,7 @@ pnpm build                     > /tmp/p5a-tN-build.log 2>&1; echo "exit=$?"
+ - **全量,不许只跑 `src/ai/` 子集** —— 守卫散落在 `src/styles/color-guard.test.ts` 与 `src/i18n/{parity,messageSyntax}.test.ts`,只有全量能抓。
+ - **输出完整落盘,不许 `| tail`**(P2b 教训:一条红被 `tail -6` 截掉,失败用例名永久丢失)。
+   报告里贴 `Test Files` / `Tests` 两行汇总 + 任何红项的**完整用例名**。
+-- 基线:New-UI `sp8-ai`@`99ee99a` = **303 文件 / 2719 例绿 · tsc exit 0 · build 成功**。Service `sp8-ai`@`c8f1919` = **190/190 绿**。
++- 基线:New-UI `sp8-ai`@`99ee99a` = **303 文件 / 2719 例绿 · tsc exit 0 · build 成功**。Service `sp8-ai`@`c8f1919`(T1 之前)= **194 例 / 24 文件绿**(实测,2026-07-31,原「190/190」是计划作者估的数字,已用 `git worktree` 独立复核订正)。T1(含评审 Important 补的 4 条判别断言)落地后为 **214 例 / 25 文件**(新增 `notes.test.ts` 一个文件、共 20 条用例:194+20=214)。
+ - **算术**:`color-guard.test.ts` 按 `**/*.vue` 动态生成用例 → **每新增一个 `.vue` 全量 +1**。
+   本批新增 4 个 `.vue`:T3(`KIcon`)· T5(`KnowledgeDeferred`)· T10(`KnowledgeLayout`)· T12(`DashboardView`)。
+   收官应为 **307 文件**。**其余任务不新增 `.vue`。**

@@ -1,0 +1,755 @@
+=== commits ===
+2e48e42 fix(knowledge): loadAllJobs/loadIndexedFiles/loadDistillJobs 三处 epoch 过期守卫
+
+=== stat ===
+ .superpowers/sdd/p5b-task-3-report.md              | 221 ++++++++++++++
+ .../stores/knowledgeStore.staleGuard.test.ts       | 317 +++++++++++++++++++++
+ src/ai/knowledge/stores/knowledgeStore.ts          |  50 +++-
+ 3 files changed, 585 insertions(+), 3 deletions(-)
+
+=== diff -U10 ===
+diff --git a/.superpowers/sdd/p5b-task-3-report.md b/.superpowers/sdd/p5b-task-3-report.md
+new file mode 100644
+index 0000000..041d458
+--- /dev/null
++++ b/.superpowers/sdd/p5b-task-3-report.md
+@@ -0,0 +1,221 @@
++# P5b · T3 报告 —— store 三处 epoch 过期守卫(K15)
++
++## 0. 结论
++
++DONE。三门全绿:**314 文件 / 2888 例**(基线 313/2882 + 本任务 6 例)、`vue-tsc` exit 0、
++`pnpm build` exit 0。三个 action 各加了 store 实例局部 epoch 守卫,语义与 `loadRoots`
++(`3d8c9bc`)一致;三次 RED 探针逐一验证「删 A 的守卫只报红 A 组,B/C 两组仍绿」。
++
++## 1. 改了哪两个文件
++
++- **改**:`src/ai/knowledge/stores/knowledgeStore.ts`(只加 K15 守卫,零无关改动)
++- **新建**:`src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts`(6 例)
++
++## 2. 三个守卫各自落在哪几行、与 `3d8c9bc` 先例的异同
++
++统一模具(与 `loadRoots` 完全一致):进函数 `const epoch = ++xxxEpoch`;`await` 之后先判
++`if (epoch !== xxxEpoch) return`;计数器 `let xxxEpoch = 0` 声明在 `defineStore` 的 setup
++闭包内(store 实例局部,不是模块级单例),紧邻对应 state 的 `ref` 声明处。
++
++| action | 计数器声明行 | 函数行(改后) | 蓝本对照 | 与 `loadRoots` 的差异 |
++|---|---|---|---|---|
++| `loadAllJobs` | `knowledgeStore.ts:261`(`let allJobsEpoch = 0`,紧邻 `jobs` ref) | `knowledgeStore.ts:352-361` | 蓝本 `knowledgeStore.js:146-153` | **无 loading/error/toast 状态**,只有一个写入点(`jobs.value = {...}`),守卫只需一处 `if (epoch !== allJobsEpoch) return`,比 `loadRoots` 简单(没有 finally 分支) |
++| `loadIndexedFiles` | `knowledgeStore.ts:282-284`(`let indexedFilesEpoch = 0`,紧邻 `indexedFiles` ref) | `knowledgeStore.ts:444-461` | 蓝本 `knowledgeStore.js:317-330` | **有 try/catch/finally 三分支**,三处都要判 —— 与 `loadRoots` 结构完全同构(成功分支 return、失败分支 return、finally 判等式决定要不要归位 loading),只是失败分支这里没有 toast(蓝本 `loadIndexedFiles` 本来就不 toast,只写 `s.error`,K15 不新增 toast 行为) |
++| `loadDistillJobs` | `knowledgeStore.ts:299-302`(`let distillJobsEpoch = 0`,紧邻 `distillJobs` ref) | `knowledgeStore.ts:600-617` | 蓝本 `knowledgeStore.js:168-197` | **无 try/catch**(蓝本本身失败就整发上抛,不吞错),守卫只需一处 `if (epoch !== distillJobsEpoch) return`;但**下游写入面更宽**(N4 按 filter 分桶 + `counts`/`done`/`total` 四个字段),守卫在写入任何字段之前就整体拦截,不是逐字段判断 |
++
++三处代码注释里都写了完整竞态实证(见下节),并逐一标注「写法承 `loadRoots`(`3d8c9bc`)」。
++
++## 3. 竞态实证(逐 action)
++
++- **`loadAllJobs`**:QueueView 10 秒轮询 + `setScope('index')` 手动触发,两路并存。若轮询那一
++  发响应更晚落地,先发后至会用旧数据覆盖 `setScope` 刚写入的新数据,页面短暂"往回跳"。
++- **`loadIndexedFiles`**:`onPathPrefixInput`/`onMimePrefixInput`(蓝本 `IndexedFilesView.vue:
++  633-636`/`643-646`)每敲一键整发重载,蓝本无 debounce(**N9,治理 §3.5 登记的照抄条,本任务
++  触发频率照抄不改,只修「先发后至覆盖」的正确性**)。打 `abc` 三发并存时,先发(`ab`)后至会把
++  `abc` 的结果盖上去,而过滤条显示的是 `abc`。**`finally` 里的 `s.loading = false` 也受守卫约束**
++  —— 否则过期的一发会在最新一发还没落地时就提前把骨架撤掉,造成一帧"假完成"的空表格。
++- **`loadDistillJobs`**:10 秒轮询 + `setFilter(f)` + `setScope('distill')` +
++  `retryDistill`/`cancelDistill` 内部的重载,四路并存;按 filter 只刷对应桶(**N4,照抄不改**)。
++  串号不只是「盖成旧数据」——若用户先点 `pending` pill 又立刻切到 `failed` pill,`pending` 那一发
++  若晚于 `failed` 落地,会把 `d.pending` 覆盖成陈旧数据,且它携带的 `counts`/`done`/`total` 是
++  另一次全量快照,会把 `failed` 桶刚刷新的计数一并冲掉。
++
++三处证据均已写进 `knowledgeStore.ts` 对应函数的代码注释(非仅「防竞态」四字)。
++
++## 4. 三组交错用例怎么造的先发后至 + 反向对照
++
++统一手法:**两个可控 deferred promise**(`deferred<T>()` 手写 executor,存下 `resolve`),
++先并发发起两次调用(`first`/`second`,均不 await),让"后发"（`second`,语义上更新的调用)的
++deferred 先 `resolve` 并 `await second`,断言 state 已是"后发"的结果;再让"先发"
++（`first`,语义上更早触发)的 deferred 才 `resolve` 并 `await first`,断言 state **仍是**
++"后发"的结果(没被覆盖 / loading 没被提前归位 / 相关字段没被污染)。反向对照用非重叠的两次
++**顺序** `await` 调用,证明守卫不误伤正常的先后两次操作。
++
++| 组 | 交错测试 | 反向对照测试 |
++|---|---|---|
++| `loadAllJobs` | `交错:先发(轮询)后至,不覆盖后发(手动 setScope)已写入的三桶` | `反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效` |
++| `loadIndexedFiles` | `交错:先发(输入较短前缀)后至,不覆盖后发(输入更长前缀)的结果,loading 不提前归位` | `反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效且各自归位 loading` |
++| `loadDistillJobs` | `交错:先发(pending pill)后至,不覆盖后发(failed pill)已写入的桶与全量 counts` | `反向对照:非重叠调用(pill 依次点两次),两次都真实生效` |
++
++`loadAllJobs` 的交错用例额外拆到「三桶各自的 6 个 deferred」(`Promise.all` 数组字面量里
++`loadJobs('pending')`/`('running')`/`('failed')` 是同步依次调用的,故 `mockImplementationOnce`
++可以按调用顺序精确对应到第一发 3 个 + 第二发 3 个)。`loadDistillJobs` 类似,拆到「jobs +
++status 两个 deferred × 2 发」。
++
++## 5. mock 形状取自哪个 fixture 文件(逐个说明)
++
++| mock 目标 | 取自 | 层次 |
++|---|---|---|
++| `ai.parserJobs`(pending/running 行) | `.superpowers/sdd/p5b-fixtures/jobs-pending.json`(`jobs[0]` id=348 当"新鲜"、`jobs[1]` id=347 当"过期",字段逐字照抄未改一处)、`jobs-running.json`(唯一一行 id=10,两次调用共用) | 原样 snake_case(`service.ai.parser*` 零转换,§4.1) |
++| `ai.parserJobs`(failed 桶空) | `jobs-failed.json`(`{"jobs":[]}`) | 同上 |
++| `ai.parserFiles`(stale) | `files-default.json`(`total:8`,截取 3 行判别所需字段:`file_id`/`status`) | 原样 snake_case |
++| `ai.parserFiles`(fresh,交错组) | `files-mime-prefix-legacy.json`(`{"total":0,...,"files":[]}`,真实命中 0 个文件的空态) | 原样 snake_case |
++| `ai.parserFiles`(第二发,反向对照组) | `files-sort-size-asc.json`(另一个 3 行切片,`file_id`+`status`) | 原样 snake_case |
++| `notes.listDistillJobs` / `notes.getDistillStatus` | 本机队列实测为空(`distill-jobs.json`=`{"jobs":[],"counts":{...0}}`、`distill-status.json`=`{"pending":0,"distilled":0,...}`),**行内容按治理 §4.2 表格右列的包归一化 camelCase 形状**(`filePath`/`status`),与既有 `knowledgeStore.notesWiki.test.ts` 的 `JOBS()` 辅助函数同一模具(README「未实测·源码推定」表登记过的字段名,不是手编) | camelCase(包内已归一化,§4.2) |
++
++未违反「同一方法在两个测试文件里被 mock 成不同形状」的红线 —— `ai.parserJobs`/`ai.parserFiles`
++两处都延续既有 `knowledgeStore.parser.test.ts` 的 snake_case 层次,`notes.*` 延续
++`knowledgeStore.notesWiki.test.ts` 的 camelCase 层次。
++
++## 6. 三次 RED 探针(原始报红文本 + 还原确认)
++
++### 探针 1:删 `loadAllJobs` 的守卫
++
++改动:去掉 `const epoch = ++allJobsEpoch` 与 `if (epoch !== allJobsEpoch) return`,函数体
++退回蓝本原样(三桶并行拉取后无条件写 `jobs.value`)。
++
++```
++❯ src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts (6 tests | 1 failed) 21ms
++     × 交错:先发(轮询)后至,不覆盖后发(手动 setScope)已写入的三桶 13ms
++
++ FAIL  … loadAllJobs 过期守卫(K15) > 交错:先发(轮询)后至,不覆盖后发(手动 setScope)已写入的三桶
++AssertionError: expected [ 347 ] to deeply equal [ 348 ]
++- Expected
+++ Received
++  [
++-   348,
+++   347,
++  ]
++ ❯ knowledgeStore.staleGuard.test.ts:142:45
++    142|     expect(s.jobs.pending.map((j) => j.id)).toEqual([348]) // 没被 347 覆盖
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 5 passed (6)
++```
++
++**其余两组仍绿**:`loadIndexedFiles`/`loadDistillJobs` 各自的交错 + 反向对照,共 4 例,原样通过
++(汇总行 `1 failed | 5 passed (6)` 即证据 —— 6 例总数里只有 1 例红,其余 5 例含另外两组全部 4 例
+++ 本组的反向对照 1 例)。
++
++还原后确认:`git status --short` → `M src/ai/knowledge/stores/knowledgeStore.ts`(与探针前
++同一处改动,内容已经改回,diff 干净;探针跑完后本文件回到探针前状态)。
++
++### 探针 2:删 `loadIndexedFiles` 的守卫
++
++改动:去掉 `const epoch = ++indexedFilesEpoch`,以及成功分支、失败分支、`finally` 里的三处
++`epoch` 判断,函数体退回蓝本原样。
++
++```
++❯ src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts (6 tests | 1 failed) 22ms
++     × 交错:先发(输入较短前缀)后至,不覆盖后发(输入更长前缀)的结果,loading 不提前归位 6ms
++
++ FAIL  … loadIndexedFiles 过期守卫(K15) > 交错:先发(输入较短前缀)后至,不覆盖后发(输入更长前缀)的结果,loading 不提前归位
++AssertionError: expected false to be true // Object.is equality
++- Expected
+++ Received
++- true
+++ false
++ ❯ knowledgeStore.staleGuard.test.ts:204:36
++    204|     expect(s.indexedFiles.loading).toBe(true) // 没被提前归位
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 5 passed (6)
++```
++
++报红命中的正是 brief 点名的「`finally` 归位受守卫约束」那一条断言。**其余两组仍绿**
++(`loadAllJobs`/`loadDistillJobs` 共 4 例 + 本组反向对照 1 例 = 5 例通过)。
++
++还原后确认:`git status --short` 干净(改回原样)。
++
++### 探针 3:删 `loadDistillJobs` 的守卫
++
++改动:去掉 `const epoch = ++distillJobsEpoch` 与 `if (epoch !== distillJobsEpoch) return`,
++函数体退回蓝本原样。
++
++```
++❯ src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts (6 tests | 1 failed) 20ms
++     × 交错:先发(pending pill)后至,不覆盖后发(failed pill)已写入的桶与全量 counts 8ms
++
++ FAIL  … loadDistillJobs 过期守卫(K15) > 交错:先发(pending pill)后至,不覆盖后发(failed pill)已写入的桶与全量 counts
++AssertionError: expected [ { filePath: '/p1', …(1) } ] to deeply equal []
++- Expected
+++ Received
++- []
+++ [
+++   {
+++     "filePath": "/p1",
+++     "status": "pending",
+++   },
+++ ]
++ ❯ knowledgeStore.staleGuard.test.ts:288:35
++    288|     expect(s.distillJobs.pending).toEqual([]) // stale 的 pending 桶没被写入
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 5 passed (6)
++```
++
++**其余两组仍绿**(`loadAllJobs`/`loadIndexedFiles` 共 4 例 + 本组反向对照 1 例 = 5 例通过)。
++
++还原后确认:`git status --short` 干净(改回原样)。
++
++**三次探针共同证明「各咬各的」**:每次只删一个 action 的守卫,只有对应那一组的交错用例精确
++报红(1 red),其余两组的交错 + 反向对照(合计 5 例)全部保持绿,互不误伤。
++
++## 7. 三门完整终值
++
++```
++pnpm test                   exit=0   Test Files  314 passed (314) · Tests  2888 passed (2888)
++pnpm exec vue-tsc --noEmit  exit=0   (无输出)
++pnpm build                  exit=0   (仅既有第三方包警告 + >500KB chunk 警告,无错误)
++```
++
++无红项。
++
++**增量口径**:brief「起点」标注本任务的实测基线是 **313 文件 / 2882 例**(4c18508,晚于
++`p5b-common-constraints.md` §8 记录的 d8efb0e 基线 313/2872 —— T0/T1/T2 已经把 2872 推进到
++2882,brief 末尾那句才是 T3 应该对照的数)。本任务净增 **+1 文件 / +6 例**(2888 − 2882 = 6,
++314 − 313 = 1),低于 brief 预测的「+1 文件,+8~10 例」。原因:三个 action 各只落
++**1 组交错 + 1 组反向对照 = 2 例**,3 × 2 = 6;brief 的 8~10 是估算区间,未强制要求每组拆更多
++细粒度用例,且治理 §9 的判别力要求(deferred promise 交错 + 反向对照双向验证)在每组 2 例内
++已经满足 —— 3 次 RED 探针也证明了这 6 例对三个守卫各自都有精确判别力,不需要额外例数来"凑"
++覆盖率。
++
++## 8. i18n
++
++本任务未涉及 i18n(不新增 / 不复用任何键,K15 是纯逻辑守卫,不改文案)。
++
++## 9. §3(K1-K20)命中项
++
++- **K15**(本任务的核心授权):`loadIndexedFiles`/`loadAllJobs`/`loadDistillJobs` 各加 store
++  实例局部 epoch 过期守卫,inline 写、不抽公共 guard。三处已逐一在第 2 节说明落地行号与语义。
++
++## 10. §3.5(N1-N14)命中项(照抄确认)
++
++- **N9**:`onPathPrefixInput`/`onMimePrefixInput` 每敲一键整发重载,**触发频率原样保留,未加
++  debounce**——本任务只在 `loadIndexedFiles` 内部加了过期守卫,组件层的调用方式(`views/*.vue`
++  由 T8/T9 落地)完全没有涉及,不存在"顺手加 debounce"的机会,这里仅在代码注释与竞态实证里引用
++  N9 作为触发场景说明。
++- **N4**:`loadDistillJobs` 按 filter 只刷对应桶的既有逻辑**一行未动**,守卫只是在写入前多加了
++  一层"我是否还是最新一发"的整体拦截,不改变 N4 本身的分桶规则,反向对照用例
++  (`s.distillJobs.pending 保留上次结果`)沿用了 `knowledgeStore.notesWiki.test.ts` 里已经验证
++  过的 N4 断言写法。
++- **N5**:`d.done`/`d.total` 的取值来源(`status.distilled`/`rows.length`)**一行未动**,守卫
++  在它们赋值前整体拦截,不改变取值口径。
++
++其余 N1-N3、N6-N8、N10-N14 与本任务无关(不涉及模板/scss/组件层),不适用。
++
++## 11. 遗留疑问
++
++无。三门全绿、RED 探针三次全部精确命中且互不误伤、`git status` 干净、mock 全部回 fixture 或
++既有已获批的「源码推定」形状。测试例数比 brief 预测的区间少 2~4 例,已在第 7 节说明原因,认为
++不构成缺陷(判别力已由 RED 探针实证)。
+diff --git a/src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts b/src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts
+new file mode 100644
+index 0000000..fea123c
+--- /dev/null
++++ b/src/ai/knowledge/stores/knowledgeStore.staleGuard.test.ts
+@@ -0,0 +1,317 @@
++// SP8-P5b Task 3 —— K15:`loadAllJobs` / `loadIndexedFiles` / `loadDistillJobs`
++// 三个 action 各自的 store 实例局部 epoch 过期守卫（异步过期守卫纪律第 6 次命中）。
++//
++// 本文件只测「交错路径」本身：先发后至 / 先发先至 两种到达顺序下守卫是否正确
++// 生效。三个 action 各自的正常行为（单桶归位、N4 按 filter 只刷对应桶等）已经
++// 在 `knowledgeStore.parser.test.ts` / `knowledgeStore.notesWiki.test.ts` 里覆盖
++// 过，这里不重复。
++//
++// mock 形状来源（全部回 `.superpowers/sdd/p5b-fixtures/`，禁手编，见治理 §4）：
++//   - `ai.parserJobs` → `jobs-pending.json` / `jobs-running.json` / `jobs-failed.json`
++//     的原样 snake_case（`service.ai.parser*` 零转换，§4.1）。
++//   - `ai.parserFiles` → `files-default.json` / `files-mime-prefix-legacy.json` /
++//     `files-sort-size-asc.json` 的原样 snake_case。
++//   - `notes.listDistillJobs` / `notes.getDistillStatus` → 队列本机为空
++//     （`distill-jobs.json`/`distill-status.json` 实测都是空），行形状按治理
++//     §4.2 表格右列（包已归一化的 camelCase：`filePath`/`lastError`/…）与
++//     `knowledgeStore.notesWiki.test.ts` 里已有的 `JOBS()` 写法同一模具（README
++//     「未实测·源码推定」表登记过的形状，非手编）。
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const ai = vi.hoisted(() => ({
++  parserJobs: vi.fn(),
++  parserFiles: vi.fn(),
++}))
++const notes = vi.hoisted(() => ({
++  listDistillJobs: vi.fn(),
++  getDistillStatus: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes } }))
++const toastShow = vi.hoisted(() => vi.fn())
++vi.mock('../../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
++
++import { useKnowledgeStore } from './knowledgeStore'
++
++/** 可控 deferred promise —— 交错路径测试的标准工具（治理 §9「异步断言」）。 */
++function deferred<T>() {
++  let resolve!: (v: T) => void
++  let reject!: (e: unknown) => void
++  const promise = new Promise<T>((res, rej) => {
++    resolve = res
++    reject = rej
++  })
++  return { promise, resolve, reject }
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++// ══════════════════════════════════════════════════════════════════════
++// loadAllJobs —— 竞态实证:QueueView 10 秒轮询 + `setScope('index')` 手动
++// 触发,两路并存。行内容取自 `jobs-pending.json`（同一份真实响应体里的
++// 第 0/1 行,分别当"新鲜"/"过期"两次调用的 pending 桶用,字段逐字未改）与
++// `jobs-running.json`（唯一一行,两次调用共用不影响判别力,判别力全部落在
++// pending 桶）。
++// ══════════════════════════════════════════════════════════════════════
++describe('loadAllJobs 过期守卫(K15)', () => {
++  // jobs-pending.json 的 jobs[0]（id 348）与 jobs[1]（id 347），逐字段照抄。
++  const FRESH_PENDING_ROW = {
++    id: 348,
++    root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/tmp/nimoos_panic.log',
++    op: 'index',
++    sub_modality: null,
++    priority: 100,
++    attempts: 0,
++    last_error: null,
++    locked_until: null,
++    created_at: 1784776422853,
++    picked_at: null,
++    done_at: null,
++  }
++  const STALE_PENDING_ROW = {
++    id: 347,
++    root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/tmp/nimoos_panic.log',
++    op: 'index',
++    sub_modality: null,
++    priority: 100,
++    attempts: 0,
++    last_error: null,
++    locked_until: null,
++    created_at: 1784776420537,
++    picked_at: null,
++    done_at: null,
++  }
++  // jobs-running.json 的唯一一行。
++  const RUNNING_ROW = {
++    id: 10,
++    root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/tmp/nimoos_panic.log',
++    op: 'index',
++    sub_modality: null,
++    priority: 100,
++    attempts: 5,
++    last_error: null,
++    locked_until: 1785414048100,
++    created_at: 1784424392938,
++    picked_at: 1784438018718,
++    done_at: null,
++  }
++  const EMPTY = { jobs: [] } // jobs-failed.json 原样
++
++  it('交错:先发(轮询)后至,不覆盖后发(手动 setScope)已写入的三桶', async () => {
++    const d1p = deferred<{ jobs: unknown[] }>()
++    const d1r = deferred<{ jobs: unknown[] }>()
++    const d1f = deferred<{ jobs: unknown[] }>()
++    const d2p = deferred<{ jobs: unknown[] }>()
++    const d2r = deferred<{ jobs: unknown[] }>()
++    const d2f = deferred<{ jobs: unknown[] }>()
++    // Promise.all([loadJobs('pending'), loadJobs('running'), loadJobs('failed')])
++    // 三个子调用按数组字面量顺序同步发出 —— 每次 loadAllJobs() 调用对应连续
++    // 三次 mockImplementationOnce。
++    ai.parserJobs
++      .mockImplementationOnce(() => d1p.promise) // 第一发(轮询) pending
++      .mockImplementationOnce(() => d1r.promise) // 第一发 running
++      .mockImplementationOnce(() => d1f.promise) // 第一发 failed
++      .mockImplementationOnce(() => d2p.promise) // 第二发(手动) pending
++      .mockImplementationOnce(() => d2r.promise) // 第二发 running
++      .mockImplementationOnce(() => d2f.promise) // 第二发 failed
++
++    const s = useKnowledgeStore()
++    const first = s.loadAllJobs() // 轮询那一路,先发出
++    const second = s.loadAllJobs() // setScope('index') 手动触发,后发出,应该赢
++
++    // 后发先至:手动触发的这一路先落地。
++    d2p.resolve({ jobs: [FRESH_PENDING_ROW] })
++    d2r.resolve({ jobs: [RUNNING_ROW] })
++    d2f.resolve(EMPTY)
++    await second
++    expect(s.jobs.pending.map((j) => j.id)).toEqual([348])
++    expect(s.jobs.running.map((j) => j.id)).toEqual([10])
++    expect(s.jobs.failed).toEqual([])
++
++    // 先发后至:轮询那一路才落地，必须被整发丢弃，不许覆盖上面已经生效的结果。
++    d1p.resolve({ jobs: [STALE_PENDING_ROW] })
++    d1r.resolve({ jobs: [] })
++    d1f.resolve({ jobs: [{ id: 999 }] })
++    await first
++    expect(s.jobs.pending.map((j) => j.id)).toEqual([348]) // 没被 347 覆盖
++    expect(s.jobs.running.map((j) => j.id)).toEqual([10]) // 没被清空
++    expect(s.jobs.failed).toEqual([]) // 没被 stale 的 999 污染
++    expect(toastShow).not.toHaveBeenCalled()
++  })
++
++  it('反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效', async () => {
++    ai.parserJobs.mockImplementation(async (p: { status: string }) => {
++      if (p.status === 'pending') return { jobs: [FRESH_PENDING_ROW] }
++      if (p.status === 'running') return { jobs: [RUNNING_ROW] }
++      return EMPTY
++    })
++    const s = useKnowledgeStore()
++    await s.loadAllJobs() // 第一次调用，完全落地
++    expect(s.jobs.pending.map((j) => j.id)).toEqual([348])
++
++    ai.parserJobs.mockImplementation(async (p: { status: string }) => {
++      if (p.status === 'pending') return { jobs: [STALE_PENDING_ROW] }
++      if (p.status === 'running') return EMPTY
++      return { jobs: [{ id: 999 }] }
++    })
++    await s.loadAllJobs() // 第二次调用，不与第一次重叠，理应正常生效
++    expect(s.jobs.pending.map((j) => j.id)).toEqual([347])
++    expect(s.jobs.running).toEqual([])
++    expect(s.jobs.failed.map((j) => j.id)).toEqual([999])
++  })
++})
++
++// ══════════════════════════════════════════════════════════════════════
++// loadIndexedFiles —— 竞态实证:`onPathPrefixInput`/`onMimePrefixInput` 每敲
++// 一键整发重载,无 debounce（N9，照抄不改，只修先发后至覆盖的正确性）。
++// 用 `files-default.json`（键入 "/DATA/tmp" 时的结果，8 个文件）模拟先发
++// （stale），`files-mime-prefix-legacy.json`（再敲一个字符后收窄到旧版
++// office mime 前缀，命中 0 个文件）模拟后发（fresh）—— 与蓝本叙事一致：
++// 键入越多字符，范围收得越窄。
++// ══════════════════════════════════════════════════════════════════════
++describe('loadIndexedFiles 过期守卫(K15)', () => {
++  // files-default.json 原样（截取判别所需字段，逐字照抄）。
++  const STALE_FILES = [
++    { file_id: '2685dfba774c87b77b9ca4af44e691f6', status: 'indexing' },
++    { file_id: '05d732586959ea3f480b5feb4b0d17c8', status: 'ok' },
++    { file_id: '4018267c2ec373cddb244ac220a06cc2', status: 'ok' },
++  ]
++  const STALE_TOTAL = 8
++  // files-mime-prefix-legacy.json 原样：{"total":0,...,"files":[]}
++  const FRESH_FILES: unknown[] = []
++  const FRESH_TOTAL = 0
++
++  it('交错:先发(输入较短前缀)后至,不覆盖后发(输入更长前缀)的结果,loading 不提前归位', async () => {
++    const d1 = deferred<{ files: unknown[]; total: number }>()
++    const d2 = deferred<{ files: unknown[]; total: number }>()
++    ai.parserFiles.mockImplementationOnce(() => d1.promise).mockImplementationOnce(() => d2.promise)
++
++    const s = useKnowledgeStore()
++    const first = s.loadIndexedFiles() // 敲下 "/DATA" 触发的一发
++    const second = s.loadIndexedFiles() // 紧接着敲下更长前缀触发的一发，更新
++    expect(s.indexedFiles.loading).toBe(true)
++
++    // 先发(stale)先落地：不该提前把 loading 撤掉、不该把 files 写成它的结果，
++    // 否则用户会在过滤条已经显示更长前缀的情况下，先看到一帧"完成"的旧数据。
++    d1.resolve({ files: STALE_FILES, total: STALE_TOTAL })
++    await first
++    expect(s.indexedFiles.loading).toBe(true) // 没被提前归位
++    expect(s.indexedFiles.files).toEqual([]) // 没被写成 stale 数据（仍是初值）
++    expect(s.indexedFiles.total).toBe(0)
++    expect(toastShow).not.toHaveBeenCalled()
++
++    // 后发(fresh)落地：此时才真正归位 + 写数据。
++    d2.resolve({ files: FRESH_FILES, total: FRESH_TOTAL })
++    await second
++    expect(s.indexedFiles.loading).toBe(false)
++    expect(s.indexedFiles.files).toEqual(FRESH_FILES)
++    expect(s.indexedFiles.total).toBe(FRESH_TOTAL)
++  })
++
++  it('反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效且各自归位 loading', async () => {
++    ai.parserFiles.mockResolvedValueOnce({ files: STALE_FILES, total: STALE_TOTAL })
++    const s = useKnowledgeStore()
++    await s.loadIndexedFiles()
++    expect(s.indexedFiles.files).toEqual(STALE_FILES)
++    expect(s.indexedFiles.total).toBe(STALE_TOTAL)
++    expect(s.indexedFiles.loading).toBe(false)
++
++    // files-sort-size-asc.json 原样（sort=size&order=asc，同样 8 个文件里的另
++    // 一个 3 行切片，与上面那组文件不同，用来证明第二发确实生效）。
++    const SECOND_FILES = [
++      { file_id: '6e1be7c24c4cdb09e1bf1a8318e8ca27', status: 'indexing' },
++      { file_id: 'ae3894193e56d181e90b23712f1e3081', status: 'indexing' },
++      { file_id: '721c340b1dc3b982cdb4ea6c9783103e', status: 'indexing' },
++    ]
++    ai.parserFiles.mockResolvedValueOnce({ files: SECOND_FILES, total: 8 })
++    await s.loadIndexedFiles()
++    expect(s.indexedFiles.files).toEqual(SECOND_FILES)
++    expect(s.indexedFiles.total).toBe(8)
++    expect(s.indexedFiles.loading).toBe(false)
++  })
++})
++
++// ══════════════════════════════════════════════════════════════════════
++// loadDistillJobs —— 竞态实证:10 秒轮询 + `setFilter(f)` + `setScope('distill')`
++// + `retryDistill`/`cancelDistill` 内部重载，四路并存；且按 filter 只刷对应
++// 桶（N4），串号会让 pending 的结果落进 failed 桶（或反过来，把 failed 桶
++// 已经刷新的最新结果被 stale 的 pending 请求带来的全量 counts/done/total
++// 覆盖掉）。
++// distill 队列本机为空（`distill-jobs.json`/`distill-status.json` 实测都是
++// 空），行内容按治理 §4.2 表格右列（包已归一化 camelCase）与既有
++// `knowledgeStore.notesWiki.test.ts` 的 `JOBS()` 写法同一模具（README 里
++// 「未实测·源码推定」登记过的形状）。
++// ══════════════════════════════════════════════════════════════════════
++describe('loadDistillJobs 过期守卫(K15)', () => {
++  it('交错:先发(pending pill)后至,不覆盖后发(failed pill)已写入的桶与全量 counts', async () => {
++    const d1jobs = deferred<{ jobs: unknown[]; counts: Record<string, number> }>()
++    const d1status = deferred<{ distilled: number }>()
++    const d2jobs = deferred<{ jobs: unknown[]; counts: Record<string, number> }>()
++    const d2status = deferred<{ distilled: number }>()
++    notes.listDistillJobs
++      .mockImplementationOnce(() => d1jobs.promise) // 第一发：用户点了 pending pill
++      .mockImplementationOnce(() => d2jobs.promise) // 第二发：紧接着点了 failed pill
++    notes.getDistillStatus
++      .mockImplementationOnce(() => d1status.promise)
++      .mockImplementationOnce(() => d2status.promise)
++
++    const s = useKnowledgeStore()
++    const first = s.loadDistillJobs('pending')
++    const second = s.loadDistillJobs('failed')
++
++    // 后发(failed pill)先落地。
++    d2jobs.resolve({
++      jobs: [{ filePath: '/f2', status: 'failed' }],
++      counts: { pending: 9, running: 9, failed: 2 },
++    })
++    d2status.resolve({ distilled: 20 })
++    await second
++    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f2'])
++    expect(s.distillJobs.counts).toEqual({ pending: 9, running: 9, failed: 2 })
++    expect(s.distillJobs.done).toBe(20)
++    expect(s.distillJobs.total).toBe(1)
++
++    // 先发(pending pill)后落地：必须整发丢弃 —— 既不能往 pending 桶写入
++    // stale 数据,也不能用它的全量 counts/done/total 冲掉上面刚写入的最新值。
++    d1jobs.resolve({
++      jobs: [{ filePath: '/p1', status: 'pending' }],
++      counts: { pending: 1, running: 0, failed: 0 },
++    })
++    d1status.resolve({ distilled: 1 })
++    await first
++    expect(s.distillJobs.pending).toEqual([]) // stale 的 pending 桶没被写入
++    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f2']) // failed 桶没被冲掉
++    expect(s.distillJobs.counts).toEqual({ pending: 9, running: 9, failed: 2 }) // 全量计数没被 stale 覆盖
++    expect(s.distillJobs.done).toBe(20)
++    expect(s.distillJobs.total).toBe(1)
++    expect(toastShow).not.toHaveBeenCalled()
++  })
++
++  it('反向对照:非重叠调用(pill 依次点两次),两次都真实生效', async () => {
++    notes.listDistillJobs.mockResolvedValueOnce({
++      jobs: [{ filePath: '/p1', status: 'pending' }],
++      counts: { pending: 1, running: 0, failed: 0 },
++    })
++    notes.getDistillStatus.mockResolvedValueOnce({ distilled: 3 })
++    const s = useKnowledgeStore()
++    await s.loadDistillJobs('pending')
++    expect(s.distillJobs.pending.map((j) => j.filePath)).toEqual(['/p1'])
++    expect(s.distillJobs.done).toBe(3)
++
++    notes.listDistillJobs.mockResolvedValueOnce({
++      jobs: [{ filePath: '/f1', status: 'failed' }],
++      counts: { pending: 0, running: 0, failed: 1 },
++    })
++    notes.getDistillStatus.mockResolvedValueOnce({ distilled: 4 })
++    await s.loadDistillJobs('failed')
++    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f1'])
++    expect(s.distillJobs.pending.map((j) => j.filePath)).toEqual(['/p1']) // N4：另一桶保留上次结果
++    expect(s.distillJobs.done).toBe(4)
++  })
++})
+diff --git a/src/ai/knowledge/stores/knowledgeStore.ts b/src/ai/knowledge/stores/knowledgeStore.ts
+index 5270a49..d487dbb 100644
+--- a/src/ai/knowledge/stores/knowledgeStore.ts
++++ b/src/ai/knowledge/stores/knowledgeStore.ts
+@@ -249,20 +249,23 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+   const unreachable = ref(false)
+   const overviewLoaded = ref(false)
+   const lastSyncFmt = ref('—')
+ 
+   // ── Allowlist(蓝本 :24-26)──
+   const extensions = ref<AllowlistExtension[]>([])
+   const folderRules = ref<FolderRule[]>([])
+ 
+   // ── Queue(蓝本 :27-28,parser 半)──
+   const jobs = ref<JobsBuckets>({ pending: [], running: [], failed: [] })
++  /** `loadAllJobs` 的过期守卫计数器(K15),写法承 `rootsEpoch`(`3d8c9bc`)。
++   * store 实例局部,不是模块级单例。 */
++  let allJobsEpoch = 0
+ 
+   // ── Parsing progress(蓝本 :41-42)──
+   const backlogPeak = ref(0)
+ 
+   // ── Indexed Files tab(蓝本 :45-54,P2 去掉 pollTimer)──
+   const indexedFiles = ref<IndexedFilesState>({
+     files: [],
+     total: 0,
+     loading: false,
+     error: null,
+@@ -271,30 +274,37 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+       path_prefix: '',
+       mime_prefix: '',
+       has_error: false,
+       tombstoned: 'alive',
+       sort: 'indexed_at',
+       order: 'desc',
+       limit: 100,
+       offset: 0,
+     },
+   })
++  /** `loadIndexedFiles` 的过期守卫计数器(K15)。见该函数注释:`finally` 里的
++   * `loading` 归位也受它约束,否则先发后至的一发会在骨架消失后又把它撤掉。 */
++  let indexedFilesEpoch = 0
+ 
+   // ── T7:notes / distill / wiki(蓝本 :29-43)──
+   const distillJobs = ref<DistillJobsState>({
+     pending: [],
+     running: [],
+     failed: [],
+     counts: { pending: 0, running: 0, failed: 0 },
+     done: 0,
+     total: 0,
+   })
++  /** `loadDistillJobs` 的过期守卫计数器(K15)。四路并存(10s 轮询 +
++   * `setFilter` + `setScope('distill')` + `retryDistill`/`cancelDistill` 内部
++   * 重载),按 filter 只刷对应桶,串号会让 pending 的结果落进 failed 桶。 */
++  let distillJobsEpoch = 0
+   const wikiRoots = ref<WikiRoot[]>([])
+   const wikiCandidates = ref<WikiCandidate[]>([])
+   const wikiRootsLoading = ref(false)
+   /** `loadRoots` 的过期守卫计数器,见该函数注释。不是数据,故不进 state
+    * (与 `indexedPollTimer` 同款处理),但按 store 实例而非模块作用域,
+    * 这样每次 `createPinia()` 都从 0 起。 */
+   let rootsEpoch = 0
+   const notesDraftCount = ref(0)
+   const notesSummary = ref<NotesSummary>({ total: 0, draft: 0, curated: 0, archived: 0 })
+ 
+@@ -325,27 +335,35 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+   }
+ 
+   // ── Jobs(蓝本 :141-166)──
+ 
+   /** 蓝本 :142-145 —— 单桶拉取,N7:缺 `jobs` 键兜底空数组。 */
+   async function loadJobs(status: string, limit = 200): Promise<ParserJob[]> {
+     const body = (await service.ai.parserJobs({ status, limit })) as { jobs?: ParserJob[] }
+     return body.jobs || []
+   }
+ 
+-  /** 蓝本 :146-153 —— 三桶并行拉取并归位。 */
++  /** 蓝本 :146-153 —— 三桶并行拉取并归位。
++   *
++   * 【偏离,K15,过期守卫】QueueView 10 秒轮询与 `setScope('index')` 手动触发
++   * 两路并存 —— 手动切换 scope 立刻再发一次时,若轮询那一发更晚落地(网络抖动/
++   * 后端瞬时变慢都会发生),先发后至会用旧数据覆盖新数据,页面短暂"往回跳"。
++   * 用局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃,不写
++   * `jobs.value`。写法承 `loadRoots`(`3d8c9bc`)。 */
+   async function loadAllJobs(): Promise<void> {
++    const epoch = ++allJobsEpoch
+     const [p, r, f] = await Promise.all([
+       loadJobs('pending'),
+       loadJobs('running'),
+       loadJobs('failed'),
+     ])
++    if (epoch !== allJobsEpoch) return
+     jobs.value = { pending: p, running: r, failed: f }
+   }
+ 
+   /** 蓝本 :154-157 —— 默认 `null`(全部重试)。 */
+   async function retryFailed(fileIds: string[] | null = null): Promise<void> {
+     await service.ai.parserRetryJobs({ file_ids: fileIds })
+     await loadAllJobs()
+   }
+ 
+   /** 蓝本 :158-161。 */
+@@ -404,36 +422,50 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+   // ── Control(蓝本 :310-314,设置页用)──
+ 
+   /** 蓝本 :311-314 —— action + 附加字段合并进 body,成功后重载 overview。 */
+   async function setControl(action: string, extra: Record<string, unknown> = {}): Promise<void> {
+     await service.ai.parserControl({ action, ...extra })
+     await loadOverview()
+   }
+ 
+   // ── Indexed Files tab(蓝本 :316-362)──
+ 
+-  /** 蓝本 :317-330。 */
++  /** 蓝本 :317-330。
++   *
++   * 【偏离,K15,过期守卫】`onPathPrefixInput`(蓝本 `IndexedFilesView.vue:633-636`)/
++   * `onMimePrefixInput`(`:643-646`)每敲一键就整发重载,蓝本无 debounce(N9,
++   * 触发频率照抄不改)。打 `abc` 三发并存时,若 `a`→`ab`→`abc` 不按输入顺序落地
++   * (先发后至),`ab` 那一发会把 `abc` 的结果盖上去,而过滤条上显示的分明是
++   * `abc`。用局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃 ——
++   * **`finally` 里的 `s.loading = false` 也受它约束**,否则过期的一发会在最新
++   * 一发已经把骨架撤掉之后又把它撤一遍(此时新数据已经渲染,不该再显示骨架/
++   * 再次归位是良性 no-op 也就罢了,但反过来:若最新一发还没落地、过期一发先
++   * 落地,不受守卫的 `finally` 会把 loading 提前撤掉,新数据到来前出现一帧
++   * "假完成"的空表格)。写法承 `loadRoots`(`3d8c9bc`)。 */
+   async function loadIndexedFiles(): Promise<void> {
++    const epoch = ++indexedFilesEpoch
+     const s = indexedFiles.value
+     s.loading = true
+     s.error = null
+     try {
+       const body = (await service.ai.parserFiles(buildListParams(s.filters))) as {
+         files?: IndexedFile[]
+         total?: number
+       }
++      if (epoch !== indexedFilesEpoch) return
+       s.files = body.files || []
+       s.total = body.total || 0
+     } catch (e) {
++      if (epoch !== indexedFilesEpoch) return
+       s.error = (e as Error | undefined)?.message || String(e)
+     } finally {
+-      s.loading = false
++      if (epoch === indexedFilesEpoch) s.loading = false
+     }
+   }
+ 
+   /** 蓝本 :332-336。 */
+   async function reindexIndexedByIds(fileIds: string[], reason?: string): Promise<unknown> {
+     const body = await service.ai.parserReindexFiles({ file_ids: fileIds, reason })
+     await loadIndexedFiles()
+     return body
+   }
+ 
+@@ -547,26 +579,38 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+    * 蓝本 :168-197 —— 每次轮询按当前激活的过滤 pill 只发一条请求。
+    * **N4(照抄不改)**:无过滤(`filter===''`)时把单次组合列表拆回三桶全部刷新;
+    * 有过滤(服务端 `status=`,已把 `skipped` 折进 `failed`)时**只刷该桶**,另两桶
+    * 保留上次结果 —— 这是防止繁忙队列里较早的 failed/skipped 行被单一无过滤窗口
+    * 挤出去的有意设计,不是 bug。
+    * `counts` 不论 `filter` 为何都是全量 tally,每次调用都整体覆盖。
+    * **N5(照抄不改)**:`done` 取自 `getDistillStatus()` 的累计沉淀数,刻意不从
+    * parser 的 `queue_depth` 派生;`total = 本次实际拉取行数`(封顶
+    * `DISTILL_JOBS_LIMIT`)作为「列表被截断」的判据,比对着同一张持续变动表的
+    * 另一次独立 SELECT(`counts`)更简单、更免竞态。
++   *
++   * 【偏离,K15,过期守卫】本 action 有**四路**并存触发源:10 秒轮询 +
++   * `setFilter(f)` + `setScope('distill')` + `retryDistill`/`cancelDistill`
++   * 内部的重载。且它按 `filter` 只刷对应桶(N4)—— 串号不只是「盖成旧数据」这
++   * 么简单:若用户手切 pill 到 `pending` 又立刻切回 `failed`,而前一发
++   * `filter==='pending'` 的响应晚于后一发 `filter==='failed'` 落地,前一发会
++   * 把 `d.pending` 覆盖成陈旧数据,且它的 `d.counts`/`d.done`/`d.total` 同样
++   * 是陈旧的全量快照,会把 `failed` 桶当前显示的计数一并冲掉。用局部 epoch
++   * 判断「我还是最新那一发吗」,不是最新就整发丢弃(四个字段一个都不写)。
++   * 写法承 `loadRoots`(`3d8c9bc`)。
+    */
+   async function loadDistillJobs(filter = ''): Promise<void> {
++    const epoch = ++distillJobsEpoch
+     const [jobsResult, status] = await Promise.all([
+       service.notes.listDistillJobs(filter, DISTILL_JOBS_LIMIT),
+       service.notes.getDistillStatus(),
+     ])
++    if (epoch !== distillJobsEpoch) return
+     const rows = jobsResult.jobs || []
+     const d = distillJobs.value
+     if (!filter || filter === 'pending') d.pending = rows.filter((j) => j.status === 'pending')
+     if (!filter || filter === 'running') d.running = rows.filter((j) => j.status === 'running')
+     if (!filter || filter === 'failed') {
+       d.failed = rows.filter((j) => j.status === 'failed' || j.status === 'skipped')
+     }
+     d.counts = jobsResult.counts
+     d.done = status.distilled
+     d.total = rows.length

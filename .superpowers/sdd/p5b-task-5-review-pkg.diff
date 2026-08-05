@@ -1,0 +1,1848 @@
+=== commits ===
+d9d1827 feat(knowledge): SP8-P5b T5 —— QueueView.vue 任务队列页 + queue 路由反转
+
+=== stat ===
+ .superpowers/sdd/p5b-task-5-report.md    | 220 +++++++++
+ src/ai/knowledge/deferred.test.ts        |  15 +-
+ src/ai/knowledge/deferred.ts             |   4 +-
+ src/ai/knowledge/knowledgeRoutes.test.ts |  38 +-
+ src/ai/knowledge/knowledgeRoutes.ts      |   8 +-
+ src/ai/knowledge/views/QueueView.test.ts | 817 +++++++++++++++++++++++++++++++
+ src/ai/knowledge/views/QueueView.vue     | 578 ++++++++++++++++++++++
+ 7 files changed, 1672 insertions(+), 8 deletions(-)
+
+=== diff -U10 ===
+diff --git a/.superpowers/sdd/p5b-task-5-report.md b/.superpowers/sdd/p5b-task-5-report.md
+new file mode 100644
+index 0000000..914349f
+--- /dev/null
++++ b/.superpowers/sdd/p5b-task-5-report.md
+@@ -0,0 +1,220 @@
++# P5b · T5 报告 —— `QueueView.vue` + 路由反转
++
++分支 `sp8-ai`,起点 `9a98106`(315 文件 / 2905 例全绿)。
++
++## 1. 改了哪四个文件
++
++- **新建** `src/ai/knowledge/views/QueueView.vue`(417 行蓝本 → 约 620 行 New-UI,含大量对照注释)
++- **新建** `src/ai/knowledge/views/QueueView.test.ts`(53 个用例)
++- **改** `src/ai/knowledge/knowledgeRoutes.ts`(`queue` 子路由 `component` 反转)
++- **改** `src/ai/knowledge/deferred.ts`(`DEFERRED_TABS` 摘掉 `'queue'`)
++
++**额外触碰的两个既有测试文件**(不在 brief 的「四个文件」字面清单里,但治理 §5 明文要求
++「`knowledgeRoutes.test.ts` 里那条断言反转,不删」,且摘掉 `deferred.ts` 一项后
++`deferred.test.ts` 的固定数组断言必然报红,两者都是编辑 `knowledgeRoutes.ts`/`deferred.ts`
++的直接、不可避免的连带更新,承 P5a T12 先例——那次提交同样带上了 `knowledgeRoutes.test.ts`):
++- `src/ai/knowledge/knowledgeRoutes.test.ts`(断言反转,旧文本留成注释)
++- `src/ai/knowledge/deferred.test.ts`(断言反转,旧文本留成注释)
++
++## 2. 八个区块落在哪(蓝本行区间 → New-UI)
++
++| 区块 | 蓝本行 | New-UI 落点 |
++|---|---|---|
++| scope 切换 | `:6-13` | `<script>` 的 `scope` computed + `setScope()`;模板两个 `.k-filter-pill`(index/distill) |
++| 三桶 pill + 完成统计 | `:16-39` | `counts`/`doneCount` computed;模板三个 filter pill + `.k-done-stat` |
++| 工具条(index) | `:44-75` | 模板 `v-if="scope==='index'"` 分支,`selected.size` 二选一 |
++| 工具条(distill) | `:76-82` | 模板 `v-else` 分支,单行 label |
++| 空态 | `:85-98` | 模板 `v-if="rowsEmpty"`,内联渐变见 §5 |
++| index 表格 | `:100-140` | `indexRows` computed + 对应模板块 |
++| distill 表格 | `:145-185` | `distillRows` computed + 对应模板块 |
++| 清空确认弹窗 | `:190-208` | `<script>` 无对应(纯模板),模板末尾 `DialogRoot` 一族 |
++
++## 3. 承接了 Vue2 哪些行为(逐函数对照)
++
++| Vue2 方法 | New-UI 函数 | 行为 |
++|---|---|---|
++| `loadForScope()` | `loadForScope()` | 原样:按 scope 分发 loadAllJobs/loadDistillJobs |
++| `setScope(s)` | `setScope(s)` | 原样:相同 scope 提前 return,否则清选择 + `router.replace` + 重载 |
++| `setFilter(f)` | `setFilter(f)` | 原样:仅 distill scope 重载 |
++| `toggleSel(id)`/`toggleAll()` | 同名 | K13:`ref(new Set())` 整体替换,无 tick 计数器 |
++| `retryOne`/`bulkRetry`/`retryAllFailed` | 同名 | K18:三处改真发 `retryFailed(null)`,见 §6 |
++| `cancelOne`/`bulkCancel`/`doClearFailed` | 同名 | K5:catch 分支不回显 e.message,改固定 i18n |
++| `retryDistillRow`/`cancelDistillRow` | 同名 | K5(409 分支保留专属友好文案) |
++| `distillIconState`/`basename`/`dirname` | 从 `util/queueView.ts` 导入(K12,T4 已迁) | 零改动,直接复用 |
++| `fmtAgo` | 从 `stores/knowledgeStore.ts` 导入(K11) | 零改动,直接复用 store 版本 |
++
++## 4. 六条点名要求逐条回执
++
++1. **K7(弹窗 reka 原语)**:`DialogRoot > DialogPortal(to=".knowledge-app", defer) > DialogOverlay(class="k-modal-bg") > DialogContent(class="k-modal")`,`VisuallyHidden as-child` 包 `DialogTitle` 满足 a11y(照 `src/ai/components/settings/skills/SkillDetail.vue:488-511` 确认弹窗先例逐字复用结构)。**未用**裸 `<div class="k-modal-bg">`,未用 `Teleport to="body"`。测试用 `withHost()` 在 `document.body` 放一个 `.knowledge-app` 宿主(先例 `SkillDetail.test.ts::withHost()`),`flushPromises()+nextTick()` 后查 `host.querySelector('.k-modal')`。3 条弹窗测试(打开/取消/确认)全绿。
++2. **K18(三个重试入口统一 retryFailed(null))**:`retryOne`/`bulkRetry`/`retryAllFailed` 三个函数体内各自 `await store.retryFailed(null)`,toast 统一 `t('aiKbRetriedAllFailed')`。三处函数上方各自留了引用蓝本行号(`:312-318`/`:337-349`/`:320-328`)+ `repo_jobs.py:107-121` 死形参的完整注释。DoD 要求的“按钮/禁用条件/图标/排版零变动”——三个按钮的 `class`/`:disabled`/`<KIcon>`/文案与蓝本逐字相同,只有函数体内部实际发的请求变了。`QueueView.test.ts` 的「K18」describe 块三条用例分别验证三个入口都精确调用 `ai.parserRetryJobs({ file_ids: null })` 且 toast 文本一致。
++3. **K16(空态 i18n)**:`:96` 两句改用 `aiKbQueueAllPendingDone`/`aiKbQueueNoRunningNow`,两档同填英文原文(已在 T1 落地,T5 只是消费)。测试断言渲染文本精确等于 `'All pending jobs are done.'`/`'No jobs running right now.'`。
++4. **K11(fmtAgo 从 store import)**:`import { useKnowledgeStore, fmtAgo, DISTILL_JOBS_LIMIT } from '../stores/knowledgeStore'`,不从 `util/queueView` 拿(T4 特意没抽)。表格 `k-row-time` 渲染用固定历史时间戳(`created_at: 1784776422853`,对当前系统时钟已是「N 天前」档)验证 `fmtAgo` 真的接上了。
++5. **内联渐变 + 守卫缺口③**:`:87` 的 `.k-empty-illust` 内联 `style=` 保留在模板里(未挪进 scss),三处色字面量按附录 B §B.0 换成 `color-mix(in srgb, var(--text-on-accent) 50%, transparent)` / `color-mix(in srgb, var(--success) 20%, transparent)` / `color-mix(in srgb, var(--accent) 20%, transparent)`,渐变结构(`radial-gradient(circle at 30% 30%, …, transparent 60%), linear-gradient(135deg, …, …)`)逐字不变。补的定向断言用 `node:fs`(非 `?raw`)读 `.vue` 源文件,正则切出 `<template>` 块,剥掉 `var(...)`/`color-mix(...)` 调用后断言零 `#hex`/`rgba?`/`hsla?`。附录 B §B.0.4 给的骨架里 `__dirname`(ESM 下不可用)与 `stripFns`(不存在)两个坑已按 `knowledgeStyles.test.ts` 头注释①②的既定写法改正(`dirname(fileURLToPath(import.meta.url))` + 自实现的 `stripCalls`)。
++6. **路由反转**:`knowledgeRoutes.ts` 的 `queue` 子路由 `component` 从 `KnowledgeDeferred` 改成 `QueueView`;`deferred.ts` 的 `DEFERRED_TABS` 摘掉 `'queue'`(承 P5a T12 对 `''` 子路由的先例)。`knowledgeRoutes.test.ts` 的「11 条路由全是 KnowledgeDeferred」断言(已在 P5a T12 反转成「除 `''` 外 10 条」)再次反转成「除 `''` 与 `queue` 外 9 条」,旧文本留成注释;`deferred.test.ts` 的固定数组同步摘掉 `'queue'`,旧文本留成注释。
++
++## 5. 属性态覆盖表(对照附录 D §D.3)
++
++| 宿主 | 属性 | 蓝本位置 | 真侧断言 | 假侧断言 | 用例位置 |
++|---|---|---|---|---|---|
++| `.k-filter-pill`(scope×2) | `data-on` | `:7,10` | `'true'` | `'false'` | 「scope 切换」describe,两条用例互为对照 |
++| `.k-filter-pill`(filter×3) | `data-on` | `:18,24,30` | `'true'` | `'false'` | 「切 filter pill:data-on 三选一互斥」,五个 pill 逐一断言 |
++| `.k-filter-pill`(failed) | `data-tone` | `:29` | `'danger'` | 其余两个 pill `toBeUndefined()`(静态字面量,无「假值」侧,两侧含义见下方脚注) | 「三桶 pill…」describe |
++| `.k-toolbar` | `data-selecting` | `:44` | `'true'` | `'false'` | 「未选中态」/「选中 >0 行」两条用例 |
++| `.k-row`(index) | `data-selected` | `:110` | `'true'`(选中行) | `'false'`(未选中行,同一渲染内两行对照) | 「data-selected 两侧都覆盖」 |
++| `.k-row`(distill) | `data-scope` | `:146,155` | `'distill'`(distill 行/表头) | `undefined`(index 行,同一断言块内两侧对照) | 「专属栅格 data-scope…」 |
++| `.k-row-status` | `data-state` | `:112,156` | `'pending'/'running'/'failed'`(index 三态各一条) | `distillIconState` 折叠 failed/skipped → `'failed'`(distill,两行对照) | 「data-state 三态…」+「data-state 用 distillIconState…」 |
++| `.k-row-action` | `data-tone` | `:128,173` | `'danger'`(cancel 按钮) | `undefined`(retry 按钮,两侧对照) | 「行操作:pending→取消…」 |
++| `.kn-badge` | `data-s` | `:164,167,168` | `'curated'`/`'archived'`(manual/auto 两侧对照)+`'draft'`/`'failed'`(skipped/failed 两侧对照) | — | 「kn-badge 徽标…」+「failed 桶两行…」 |
++
++脚注(`data-tone` on `.k-filter-pill`):这是蓝本里**唯一一处静态字面量属性**(不随任何响应式条件切换),不存在「同一元素两种取值」的两侧场景;按附录 D.3 的口径,「两侧」落实为「有此属性的元素值精确等于 `danger`」与「结构上不该有此属性的兄弟元素确实没有」两个独立断言,已覆盖。`.k-row-action` 的 `data-tone` 同理(retry 按钮天生没有这个绑定)。
++
++## 6. 6 种 scope × filter 组合的用例位置
++
++`QueueView.test.ts` 的 `describe('QueueView — 6 种 scope × filter 组合(DoD 明确要求)')`(约第 610-630 行)用 `for (const c of combos)` 循环生成 6 个 `it`,分别覆盖 `{filter: pending|running|failed} × {scope: index(缺省)|distill}`,每条断言 scope pill 与 filter pill 的 `data-on` 状态一致,且 `.k-table`/`.k-empty` 二选一恰好渲染一个。此外前面各 describe 块也对 6 种组合的具体渲染内容(表格行、徽标、空态文案)分别有更细的用例覆盖(见 §2 的分区块列表)。
++
++## 7. mock 形状逐个说明取自哪个 fixture
++
++| mock | 取自 | 形状口径 |
++|---|---|---|
++| `ai.parserJobs({status:'pending'})` → `PENDING_JOBS` | `p5b-fixtures/jobs-pending.json` | 原样 snake_case,逐字段复制(3 行) |
++| `ai.parserJobs({status:'running'})` → `RUNNING_JOBS` | `p5b-fixtures/jobs-running.json` | 原样 snake_case(1 行) |
++| `ai.parserJobs({status:'failed'})` → `FAILED_JOBS` | 真机 `jobs-failed.json` 是 `{"jobs":[]}`,人工构造 2 行 | 字段名与 pending/running 两个真 fixture 同一套 schema(`id/root_id/path/op/sub_modality/priority/attempts/last_error/locked_until/created_at/picked_at/done_at`),仅数值不同,专门覆盖 `{n}× retried`/`last_error`/重试按钮几条真机验不了的分支(README §4.5 已登记) |
++| `ai.parserRetryJobs` | `jobs-retry-empty.http` | `{"retried":0}` |
++| `ai.parserDeleteJob` | §4.1 axios 204 空体推定 | `mockResolvedValue('')`(不是 `{}`/`undefined`) |
++| `ai.parserClearFailedJobs` | README「未实测 · 源码推定」段 | `{cleared:0}` |
++| `notes.listDistillJobs`/`getDistillStatus` | `distill-jobs*.json`/`distill-status.json` 真机为空,camelCase 归一化后人工构造 `DISTILL_PENDING`/`RUNNING`/`FAILED` | 字段名严格取自 README「distill job 行的字段(队列非空时)」段(`filePath/status/origin/attempts/lastError/enqueuedAt/updatedAt`),标注「源码推定,真机验不了」 |
++
++## 8. 路由反转前后的断言文本
++
++见 `src/ai/knowledge/knowledgeRoutes.test.ts`(改前原文以注释保留,紧邻新断言上方)与
++`src/ai/knowledge/deferred.test.ts`(同上)。新断言:
++- `knowledgeRoutes.test.ts`:`"queue" 是 QueueView`,其余 7 个子路由 + 2 条 parser 路由(共 9 条)仍是 `KnowledgeDeferred`。
++- `deferred.test.ts`:`DEFERRED_TABS` 排序后等于 `['allowlist','indexed-files','notes','roots','search','settings','wiki']`(7 项),`isDeferred('queue')` 断言为 `false`。
++
++## 9. `dist/assets/*.css` grep 证据
++
++```
++$ grep -o '\.k-filter-pill\b' dist/assets/index-BzyIlTIZ.css | wc -l   → 11
++$ grep -o '\.k-done-stat\b'   dist/assets/index-BzyIlTIZ.css | wc -l   → 4
++$ grep -o '\.k-toolbar\b'     dist/assets/index-BzyIlTIZ.css | wc -l   → 4
++$ grep -o '\.k-empty-illust\b' dist/assets/index-BzyIlTIZ.css | wc -l  → 1
++$ grep -o '\.k-modal-bg\b'    dist/assets/index-BzyIlTIZ.css | wc -l   → 1
++$ grep -o '\.k-confirm-body\b' dist/assets/index-BzyIlTIZ.css | wc -l  → 1
++$ grep -o '\.kn-badge\b'      dist/assets/index-BzyIlTIZ.css | wc -l   → 5
++$ grep -o '\.k-row-status\b'  dist/assets/index-BzyIlTIZ.css | wc -l   → 4
++$ grep -o '\.k-frow-status\b' dist/assets/index-BzyIlTIZ.css | wc -l   → 0  (对照:这是 T6/T8 的类,不该出现在本次构建产物核对里,仅用来确认 grep 方法本身有判别力)
++```
++
++## 10. RED 探针(4 次,均已还原,`git status --short` 干净)
++
++**探针①(brief 指定):摘掉 `data-on` 的 `String()`**
++```diff
++- <button class="k-filter-pill" :data-on="String(scope === 'index')" @click="setScope('index')">
+++ <button class="k-filter-pill" :data-on="scope === 'index'" @click="setScope('index')">
++  (两处,scope 切换的两个 pill)
++```
++运行 `pnpm test -- --run src/ai/knowledge/views/QueueView.test.ts`:**53/53 全绿,零报红**。
++这不是探针失败,而是精确复现了附录 D §D.3.1 的结论:Vue 3 的 `patchAttr` 对 `data-*` 这类
++非特殊布尔属性,`setAttribute(key, true/false)` 会被 DOM API 自动字符串化成 `"true"`/`"false"`,
++与显式 `String(...)` 渲染结果逐字相同——**套不套都不影响渲染**,所以没有可复现的错误行为可
++「修正」,属于「与需求无关的顺手改动」范畴。已还原(`String()` 照抄）。
++
++**补充确认探针(证明测试套件对这块区域仍有判别力):把布尔条件本身取反**
++```diff
++- <button class="k-filter-pill" :data-on="String(scope === 'index')" @click="setScope('index')">
+++ <button class="k-filter-pill" :data-on="String(scope !== 'index')" @click="setScope('index')">
++```
++运行同上命令:**6 个用例精确报红**,报红文本节选:
++```
++AssertionError: expected 'false' to be 'true'
++  at src/ai/knowledge/views/QueueView.test.ts:191
++❯ ... 切 filter pill:data-on 三选一互斥 ...
++  - Expected ["true", "false", "false", "true", "false"]
++  + Received ["false", "false", "false", "true", "false"]
++❯ ... 6 种 scope × filter 组合 ... scope=index filter=pending/running/failed(3 条)
++  AssertionError: expected 'false' to be 'true'
++```
++已还原,`String(scope === 'index')` 恢复。
++
++**探针②(brief 指定):`distillTruncated` 的 `>=` 改成 `>`**
++```diff
++- return (store.distillJobs.total || 0) >= DISTILL_JOBS_LIMIT
+++ return (store.distillJobs.total || 0) > DISTILL_JOBS_LIMIT
++```
++报红文本:
++```
++FAIL  ... 截断提示 distillTruncated 边界:total=499 不出,total=500(DISTILL_JOBS_LIMIT)才出 —— RED 探针②的钉子
++AssertionError: expected false to be true // Object.is equality
++- true
+++ false
++  at src/ai/knowledge/views/QueueView.test.ts:600
++```
++已还原,`>=` 恢复。
++
++**探针③(brief 指定):`bulkRetry` 改回蓝本原文(fileIds 恒空数组、不走 K18)**
++```diff
++  async function bulkRetry(): Promise<void> {
+++   const ids = Array.from(selected.value)
+++   const n = ids.length
+++   const fileIds = (indexRows.value as ...).filter(r => selected.value.has(r.id)).map(r => r.file_id).filter(Boolean)
++    try {
++-     await store.retryFailed(null)
+++     if (fileIds.length) await store.retryFailed(fileIds)
++      selected.value = new Set()
++-     store.toast(t('aiKbRetriedAllFailed'))
+++     store.toast(`Retried ${n} selected jobs`)
++    } catch { ... }
++  }
++```
++报红文本:
++```
++FAIL  ... bulkRetry(批量重试按钮)—— 与蓝本原文「fileIds 恒空数组、一个请求都不发」的假成功不同,真发请求
++AssertionError: expected "vi.fn()" to be called with arguments: [ { file_ids: null } ]
++Number of calls: 0
++  at src/ai/knowledge/views/QueueView.test.ts:656
++```
++精确复现蓝本 bug 的症状(0 次调用),证明本任务的 K18 修正确实是必要的、且测试真的钉住了它。
++已还原,`retryFailed(null)` 版本恢复。
++
++**探针④(brief 建议追加):守卫缺口③的定向断言 —— 把 `color-mix(...)` 改回裸 `rgba(...)`**
++```diff
++- color-mix(in srgb, var(--success) 20%, transparent),
+++ rgba(52,199,89,0.2),
++```
++报红文本:
++```
++FAIL  ... <template> 块内(剥离 var()/color-mix() 之后)不含任何裸 hex / rgb / hsl 字面量
++AssertionError: expected ... not to match /\b(rgba?|hsla?)\s*\(/
++  at src/ai/knowledge/views/QueueView.test.ts:815
++```
++另追加一次同族探针(在**不被** `var()`/`color-mix()` 包裹的位置塞一个 `#ff0000`,验证盲区确实
++被堵死,不只是对 `color-mix` 内部敏感):在 `DialogContent` 的 `style="width: min(420px, 100%)"`
++后追加 `; border-color: #ff0000`,同一条断言精确报红(`not.toMatch(/#[0-9a-fA-F]{3,8}\b/)` 失败)。
++两次均已还原。
++
++**还原后确认**:`git status --short` 只剩本任务应有的 6 个文件变更,无遗留探针代码。
++
++## 11. 三门实测数字
++
++```
++pnpm test                    → Test Files 316 passed (316) · Tests 2959 passed (2959) · exit 0
++pnpm exec vue-tsc --noEmit   → exit 0(零错误)
++pnpm build                   → exit 0(仅既有第三方包警告 + >500KB chunk 警告)
++```
++
++基线 `9a98106` = 315 文件 / 2905 例。**实测增量:+1 文件(仅 `QueueView.test.ts`;`.vue` 不计入
++test files)/ +54 例**(不是 brief 预估的「+2 例(color-guard)+45 例左右」= 47 左右;差异说明:
++①color-guard 本任务只新增 1 个 `.vue`(`QueueView.vue`,T8 的 `IndexedFilesView.vue` 不在本任务
++范围内)→ +1 例不是 brief 假设两个文件都到位时的 +2;②`QueueView.test.ts` 本身含 53 条用例
++(不是预估的「45 例左右」),按 DoD「6 种组合」「5 组属性态两侧」「K7/K18/K16/K11 各自独立钉子」
++「distillTruncated 边界」等要求逐条实作后自然超出预估;53(新文件)+1(color-guard 新增)=54,
++与实测总数增量精确吻合)。
++
++## 12. 遗留疑问
++
++无。K18 三处证据链、K5 系列 catch 分支、K7 弹窗结构、K11/K12 复用点、K16 i18n、路由反转全部
++按治理文件与附录逐条核实落地;`distillIconState`/`basename`/`dirname`/`fmtAgo` 均直接 import
++自 T4/T3(P5a)既有产出,未发现"上游漏了"的缺口。唯一值得协调者知晓的一点(非疑问,仅记录):
++brief 附录 D §D.3 里"`.k-filter-pill` 的 `data-tone`"与"`.k-row-action` 的 `data-tone`"是纯静态
++字面量绑定,不存在真正意义上的"假侧"渲染(它就是「有/无这个属性」的结构性差异,不是同一元素
++在不同状态下切换出的两个字符串值)——已在 §5 表格脚注里显式说明处理口径,供评审核对时参考。
+diff --git a/src/ai/knowledge/deferred.test.ts b/src/ai/knowledge/deferred.test.ts
+index 3f86320..8994d60 100644
+--- a/src/ai/knowledge/deferred.test.ts
++++ b/src/ai/knowledge/deferred.test.ts
+@@ -1,18 +1,29 @@
+ import { describe, it, expect } from 'vitest'
+ import { DEFERRED_TABS, isDeferred } from './deferred'
+ 
+ describe('占位机制(K7)', () => {
+-  it('P5a 只实现 dashboard,其余 8 个 tab 挂占位', () => {
++  // 【SP8-P5b Task 5,2026-08-01,反转(不是删除)】'queue' 已迁到真正的
++  // QueueView.vue(knowledgeRoutes.ts 同步反转),从占位列表摘掉;机制本身
++  // (isDeferred 的判定来源仍是 DEFERRED_TABS)不变。
++  //
++  // 改前(P5a T3 原文):
++  //   it('P5a 只实现 dashboard,其余 8 个 tab 挂占位', () => {
++  //     expect([...DEFERRED_TABS].sort()).toEqual(
++  //       ['allowlist', 'indexed-files', 'notes', 'queue', 'roots', 'search', 'settings', 'wiki'])
++  //     expect(isDeferred('dashboard')).toBe(false)
++  //   })
++  it('P5a 实现 dashboard,P5b-T5 实现 queue,其余 7 个 tab 挂占位', () => {
+     expect([...DEFERRED_TABS].sort()).toEqual(
+-      ['allowlist', 'indexed-files', 'notes', 'queue', 'roots', 'search', 'settings', 'wiki'])
++      ['allowlist', 'indexed-files', 'notes', 'roots', 'search', 'settings', 'wiki'])
+     expect(isDeferred('dashboard')).toBe(false)
++    expect(isDeferred('queue')).toBe(false)
+   })
+ 
+   it('isDeferred 对每个已列 tab 返回 true', () => {
+     for (const id of DEFERRED_TABS) expect(isDeferred(id)).toBe(true)
+   })
+ 
+   // 机制钉子(承 P4 I2:「留了代码没留能力」)——将来 DEFERRED_TABS 清空后,
+   // 这条用例仍必须证明 isDeferred 真的在读那个常量,而不是恒返回 false。
+   it('isDeferred 的判定来源是 DEFERRED_TABS 本身', () => {
+     const notListed = 'dashboard' as const
+diff --git a/src/ai/knowledge/deferred.ts b/src/ai/knowledge/deferred.ts
+index cfbafd6..fca2363 100644
+--- a/src/ai/knowledge/deferred.ts
++++ b/src/ai/knowledge/deferred.ts
+@@ -1,29 +1,31 @@
+ // SP8-P5a 占位机制(偏离 K7)—— 承 P2a 的 DEFERRED_SECTIONS 先例:rail 保持
+ // Vue2 的 9 项 1:1,未迁页面落占位页,分批替换。P5f 会把 DEFERRED_TABS 清空,
+ // **但机制本身保留**(承 P4 I2 的教训:清空后要仍有用例证明它有能力,而不是
+ // 只剩一段没人测的代码)。
++//
++// 【SP8-P5b Task 5,2026-08-01】'queue' 已迁(QueueView.vue + knowledgeRoutes.ts
++// 反转),从这里摘掉,机制本身不变。
+ export type KnowledgeTabId =
+   | 'dashboard'
+   | 'search'
+   | 'wiki'
+   | 'notes'
+   | 'indexed-files'
+   | 'queue'
+   | 'roots'
+   | 'allowlist'
+   | 'settings'
+ 
+ export const DEFERRED_TABS = [
+   'search',
+   'wiki',
+   'notes',
+   'indexed-files',
+-  'queue',
+   'roots',
+   'allowlist',
+   'settings',
+ ] as const satisfies readonly KnowledgeTabId[]
+ 
+ export function isDeferred(id: KnowledgeTabId): boolean {
+   return (DEFERRED_TABS as readonly string[]).includes(id)
+ }
+diff --git a/src/ai/knowledge/knowledgeRoutes.test.ts b/src/ai/knowledge/knowledgeRoutes.test.ts
+index 715566e..77bbfab 100644
+--- a/src/ai/knowledge/knowledgeRoutes.test.ts
++++ b/src/ai/knowledge/knowledgeRoutes.test.ts
+@@ -1,15 +1,16 @@
+ import { describe, it, expect } from 'vitest'
+ import { knowledgeRoutes } from './knowledgeRoutes'
+ import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
+ import KnowledgeLayout from './views/KnowledgeLayout.vue'
+ import DashboardView from './views/DashboardView.vue'
++import QueueView from './views/QueueView.vue'
+ 
+ describe('knowledgeRoutes', () => {
+   it('一条布局路由带 9 个子路由 + 两条 Parser 路由', () => {
+     expect(knowledgeRoutes).toHaveLength(3)
+     const layout = knowledgeRoutes[0]
+     expect(layout.path).toBe('/ai/knowledge')
+     expect(layout.children?.map((c) => c.path)).toEqual(
+       ['', 'search', 'wiki', 'indexed-files', 'queue', 'roots', 'allowlist', 'notes', 'settings'])
+     expect(knowledgeRoutes[1].path).toBe('/ai/parser')
+     expect(knowledgeRoutes[2].path).toBe('/ai/parser/test')
+@@ -52,27 +53,56 @@ describe('knowledgeRoutes', () => {
+   //     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+   //     const stillDeferred = [
+   //       ...knowledgeRoutes[0].children!.map((c) => c.component),
+   //       knowledgeRoutes[1].component,
+   //       knowledgeRoutes[2].component,
+   //     ]
+   //     expect(stillDeferred).toHaveLength(11)
+   //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+   //   })
+   //
+-  // 改后（本次）：`''` 单独钉成 DashboardView；其余 8 个子路由 + 2 条 parser
++  // 改后（P5a T12）：`''` 单独钉成 DashboardView；其余 8 个子路由 + 2 条 parser
+   // 路由仍钉成 KnowledgeDeferred（K7 占位机制本身不变）。
+-  it('父路由(布局位)是 KnowledgeLayout,"" 子路由(仪表盘)是 DashboardView,其余 8 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
++  //
++  // 【SP8-P5b Task 5,2026-08-01,再次反转（不是删除）】上面这条断言把 `queue`
++  // 子路由也算进「仍是占位页」的 10 条里 —— 现在 `queue` 换成真正的 QueueView
++  // （本任务的产出），这条断言必须跟着反转，否则会精确报红（承 T12 R8 comment
++  // 里预告的同一模式）。
++  //
++  // 改前（P5a T12 原文，反转前）：
++  //   it('父路由(布局位)是 KnowledgeLayout,"" 子路由(仪表盘)是 DashboardView,其余 8 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
++  //     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
++  //     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
++  //     expect(dashboardChild?.component).toBe(DashboardView)
++  //     expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
++  //
++  //     const stillDeferred = [
++  //       ...knowledgeRoutes[0].children!.filter((c) => c.path !== '').map((c) => c.component),
++  //       knowledgeRoutes[1].component,
++  //       knowledgeRoutes[2].component,
++  //     ]
++  //     expect(stillDeferred).toHaveLength(10)
++  //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
++  //   })
++  //
++  // 改后（本次）：`''` 与 `queue` 两个子路由分别单独钉成 DashboardView /
++  // QueueView；其余 7 个子路由 + 2 条 parser 路由仍钉成 KnowledgeDeferred。
++  it('父路由(布局位)是 KnowledgeLayout,"" 是 DashboardView,"queue" 是 QueueView,其余 7 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
+     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
++
+     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
+     expect(dashboardChild?.component).toBe(DashboardView)
+     expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
+ 
++    const queueChild = knowledgeRoutes[0].children!.find((c) => c.path === 'queue')
++    expect(queueChild?.component).toBe(QueueView)
++    expect(queueChild?.component).not.toBe(KnowledgeDeferred)
++
+     const stillDeferred = [
+-      ...knowledgeRoutes[0].children!.filter((c) => c.path !== '').map((c) => c.component),
++      ...knowledgeRoutes[0].children!.filter((c) => c.path !== '' && c.path !== 'queue').map((c) => c.component),
+       knowledgeRoutes[1].component,
+       knowledgeRoutes[2].component,
+     ]
+-    expect(stillDeferred).toHaveLength(10)
++    expect(stillDeferred).toHaveLength(9)
+     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+   })
+ })
+diff --git a/src/ai/knowledge/knowledgeRoutes.ts b/src/ai/knowledge/knowledgeRoutes.ts
+index d6fb9eb..4326538 100644
+--- a/src/ai/knowledge/knowledgeRoutes.ts
++++ b/src/ai/knowledge/knowledgeRoutes.ts
+@@ -19,34 +19,40 @@
+ // 裁定这步归 T10(外壳任务的产出不该是死代码)。
+ // 现在父路由 component 改成 KnowledgeLayout,它自己的 `<router-view/>`
+ // 才有内容可渲染。9 个子路由 + 2 条独立 parser 路由**仍然**指向
+ // KnowledgeDeferred——`''` 子路由留给 T12 换成真正的 DashboardView,其余 8
+ // 个子路由与 2 条 parser 路由留给后续批次逐个替换(K7 机制不变,只是父路由
+ // 这一层从「占位页替占位页」变成「真布局 + 占位页子页」)。
+ // 【T12,2026-08-01】`''` 子路由(仪表盘位)从占位页 KnowledgeDeferred 反转成
+ // 真正的 DashboardView(K7 机制不变,反转不是删除 —— 见
+ // knowledgeRoutes.test.ts 的改前/改后原文对照)。其余 8 个子路由 + 2 条独立
+ // parser 路由仍是占位页,留给后续批次逐个替换。
++//
++// 【SP8-P5b Task 5,2026-08-01】`queue` 子路由(任务队列位)同样从占位页
++// KnowledgeDeferred 反转成真正的 QueueView(K7 机制不变,反转不是删除 —— 见
++// knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 对 `''` 子路由的先例)。
++// 其余 7 个子路由 + 2 条独立 parser 路由仍是占位页,留给后续批次逐个替换。
+ import type { RouteRecordRaw } from 'vue-router'
+ import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
+ import KnowledgeLayout from './views/KnowledgeLayout.vue'
+ import DashboardView from './views/DashboardView.vue'
++import QueueView from './views/QueueView.vue'
+ 
+ export const knowledgeRoutes: RouteRecordRaw[] = [
+   {
+     path: '/ai/knowledge',
+     component: KnowledgeLayout,
+     children: [
+       { path: '', name: 'KnowledgeDashboard', component: DashboardView },
+       { path: 'search', name: 'KnowledgeSearch', component: KnowledgeDeferred },
+       { path: 'wiki', name: 'KnowledgeWiki', component: KnowledgeDeferred },
+       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: KnowledgeDeferred },
+-      { path: 'queue', name: 'KnowledgeQueue', component: KnowledgeDeferred },
++      { path: 'queue', name: 'KnowledgeQueue', component: QueueView },
+       { path: 'roots', name: 'KnowledgeRoots', component: KnowledgeDeferred },
+       { path: 'allowlist', name: 'KnowledgeAllowlist', component: KnowledgeDeferred },
+       { path: 'notes', name: 'KnowledgeNotes', component: KnowledgeDeferred },
+       { path: 'settings', name: 'KnowledgeSettings', component: KnowledgeDeferred },
+     ],
+   },
+   { path: '/ai/parser', name: 'AIParser', component: KnowledgeDeferred },
+   { path: '/ai/parser/test', name: 'AIParserTest', component: KnowledgeDeferred },
+ ]
+diff --git a/src/ai/knowledge/views/QueueView.test.ts b/src/ai/knowledge/views/QueueView.test.ts
+new file mode 100644
+index 0000000..4d37bbd
+--- /dev/null
++++ b/src/ai/knowledge/views/QueueView.test.ts
+@@ -0,0 +1,817 @@
++// SP8-P5b Task 5 —— QueueView.vue「任务队列」页测试。
++// 测试脚手架照 KnowledgeLayout.test.ts 的既有写法(治理文件 §9 明令:P5a T10 自己造的
++// makeRouter 曾自递归致 DOM/生命周期翻倍,别自己造)——真 router(createWebHashHistory)
++// + 真 Pinia + 真 i18n(不手写子集)+ vi.hoisted 的 @nimotech/nimoos-service mock(否则
++// onMounted 会真发请求)。异步断言一律 flushPromises() + nextTick()。
++//
++// mock 形状来源(治理文件 §4,禁手编,逐个说明):
++//   ai.parserJobs({status,limit})       —— pending/running 两桶取自 p5b-fixtures/
++//     jobs-pending.json / jobs-running.json 原样(snake_case,service.ai.* 零转换,见 §4.1);
++//     failed 桶真机是空的(jobs-failed.json:{"jobs":[]}),FAILED_JOBS 是本文件按同一 schema
++//     (id/root_id/path/op/sub_modality/priority/attempts/last_error/locked_until/created_at/
++//     picked_at/done_at,与 pending/running 两个真 fixture 逐字同一套字段名)人工构造的非空
++//     场景,专门覆盖「{n}× retried」/last_error/重试按钮几条真机验不了的分支(治理 §4.5 已
++//     登记:failed 桶真机恒空,只能 mock)。
++//   ai.parserRetryJobs / parserDeleteJob / parserClearFailedJobs —— 分别照
++//     jobs-retry-empty.http({"retried":0})· §4.1 axios 204 空体推定(mockResolvedValue(''))·
++//     README「未实测 · 源码推定」段的 {"cleared": n} 形状(mockResolvedValue({cleared:0})）。
++//   notes.listDistillJobs / getDistillStatus —— camelCase(包内已归一化,§4.2),真机队列为空
++//     (distill-jobs.json/distill-status.json),DISTILL_PENDING/RUNNING/FAILED 三个非空数组按
++//     README「distill job 行的字段(队列非空时)」段给出的字段名(filePath/status/origin/
++//     attempts/lastError/enqueuedAt/updatedAt)人工构造,同样标注「源码推定,真机验不了」。
++import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { createPinia, setActivePinia } from 'pinia'
++import { createRouter, createWebHashHistory } from 'vue-router'
++import { i18n } from '../../../i18n'
++import QueueView from './QueueView.vue'
++import { useKnowledgeStore } from '../stores/knowledgeStore'
++// 守卫缺口③(附录 B §B.0.4)的定向断言要读 .vue 源文件本身 —— 一律 node:fs,不用
++// Vite 的 ?raw(vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串,断言会对空
++// 字符串"假通过";先例见 knowledgeStyles.test.ts 头注释③)。本仓 package.json 是
++// "type": "module" → __dirname 在 ESM 下不可用,改用 fileURLToPath + node:path 的
++// 等价写法;本仓未装 @types/node,逐行 @ts-expect-error 抑制 TS2307(照
++// knowledgeStyles.test.ts 头注释①②的既定手法逐字复用)。
++// @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明
++import { readFileSync } from 'node:fs'
++// @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明
++import { resolve, dirname } from 'node:path'
++// @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明
++import { fileURLToPath } from 'node:url'
++
++const __dirname = dirname(fileURLToPath(import.meta.url))
++
++// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
++const ai = vi.hoisted(() => ({
++  parserJobs: vi.fn(),
++  parserRetryJobs: vi.fn(),
++  parserDeleteJob: vi.fn(),
++  parserClearFailedJobs: vi.fn(),
++}))
++const notes = vi.hoisted(() => ({
++  listDistillJobs: vi.fn(),
++  getDistillStatus: vi.fn(),
++  distillFile: vi.fn(),
++  cancelDistillJob: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes } }))
++
++// ── fixture 数据(逐字取自 p5b-fixtures/jobs-pending.json / jobs-running.json)──
++const PENDING_JOBS = [
++  {
++    id: 348, root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/tmp/nimoos_panic.log', op: 'index', sub_modality: null,
++    priority: 100, attempts: 0, last_error: null, locked_until: null,
++    created_at: 1784776422853, picked_at: null, done_at: null,
++  },
++  {
++    id: 347, root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/tmp/nimoos_panic.log', op: 'index', sub_modality: null,
++    priority: 100, attempts: 0, last_error: null, locked_until: null,
++    created_at: 1784776420537, picked_at: null, done_at: null,
++  },
++  {
++    id: 346, root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/opt/qdrant/storage/collections/agent_memory/0/wal/.atomicwritewmbpAO',
++    op: 'delete', sub_modality: null, priority: 100, attempts: 0, last_error: null,
++    locked_until: null, created_at: 1784776420537, picked_at: null, done_at: null,
++  },
++]
++const RUNNING_JOBS = [
++  {
++    id: 10, root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
++    path: '/DATA/.system_data/tmp/nimoos_panic.log', op: 'index', sub_modality: null,
++    priority: 100, attempts: 5, last_error: null, locked_until: 1785414048100,
++    created_at: 1784424392938, picked_at: 1784438018718, done_at: null,
++  },
++]
++// 人工构造(README 登记:failed 桶真机恒空,只能 mock),同一套字段名。
++const FAILED_JOBS = [
++  {
++    id: 500, root_id: 'root-a', path: '/DATA/Docs/broken-1.pdf', op: 'index', sub_modality: null,
++    priority: 100, attempts: 3, last_error: 'timeout talking to bge-m3', locked_until: null,
++    created_at: 1784770000000, picked_at: null, done_at: 1784771000000,
++  },
++  {
++    id: 501, root_id: 'root-a', path: '/DATA/Docs/broken-2.pdf', op: 'index', sub_modality: null,
++    priority: 100, attempts: 0, last_error: null, locked_until: null,
++    created_at: 1784772000000, picked_at: null, done_at: 1784772500000,
++  },
++]
++
++// 人工构造的沉淀队列非空场景(README「distill job 行的字段」段给的字段名,源码推定)。
++const DISTILL_PENDING = [
++  { filePath: '/DATA/Notes/todo.md', status: 'pending', origin: 'auto', attempts: 0, lastError: '', enqueuedAt: 1784770000000, updatedAt: 1784770000000 },
++]
++const DISTILL_RUNNING = [
++  { filePath: '/DATA/Notes/inflight.md', status: 'running', origin: 'manual', attempts: 1, lastError: '', enqueuedAt: 1784770000000, updatedAt: 1784771000000 },
++]
++const DISTILL_FAILED = [
++  { filePath: '/DATA/Notes/failed.md', status: 'failed', origin: 'auto', attempts: 2, lastError: 'llm timeout', enqueuedAt: 1784770000000, updatedAt: 1784772000000 },
++  { filePath: '/DATA/Notes/skipped.md', status: 'skipped', origin: 'manual', attempts: 0, lastError: '', enqueuedAt: 1784770000000, updatedAt: 1784772500000 },
++]
++
++function setupServiceMocks(): void {
++  ai.parserJobs.mockImplementation(({ status }: { status: string }) => {
++    if (status === 'pending') return Promise.resolve({ jobs: PENDING_JOBS })
++    if (status === 'running') return Promise.resolve({ jobs: RUNNING_JOBS })
++    if (status === 'failed') return Promise.resolve({ jobs: FAILED_JOBS })
++    return Promise.resolve({ jobs: [] })
++  })
++  ai.parserRetryJobs.mockResolvedValue({ retried: 0 }) // jobs-retry-empty.http
++  ai.parserDeleteJob.mockResolvedValue('') // §4.1:204 空体,axios res.data === ''
++  ai.parserClearFailedJobs.mockResolvedValue({ cleared: 0 }) // README「源码推定」段
++
++  notes.listDistillJobs.mockImplementation((filterArg: string) => {
++    const counts = { pending: 1, running: 1, failed: 2 }
++    if (filterArg === 'pending') return Promise.resolve({ jobs: DISTILL_PENDING, counts })
++    if (filterArg === 'running') return Promise.resolve({ jobs: DISTILL_RUNNING, counts })
++    if (filterArg === 'failed') return Promise.resolve({ jobs: DISTILL_FAILED, counts })
++    return Promise.resolve({ jobs: [], counts })
++  })
++  notes.getDistillStatus.mockResolvedValue({ pending: 1, distilled: 0, quotaRemaining: 50, backgroundModel: '' })
++  notes.distillFile.mockResolvedValue({})
++  notes.cancelDistillJob.mockResolvedValue({ cancelled: true })
++}
++
++// K7:弹窗 portal 目标 —— QueueView 独立挂载时不在 .knowledge-app 子树里
++// (生产环境由 KnowledgeLayout.vue 提供),测试须先在 body 里放一个同名宿主
++// (先例 SkillDetail.test.ts::withHost())。
++function withHost(): HTMLElement {
++  const host = document.createElement('div')
++  host.className = 'knowledge-app'
++  document.body.appendChild(host)
++  return host
++}
++
++function makeRouter(query: Record<string, string> = {}) {
++  const router = createRouter({
++    history: createWebHashHistory('/app/'),
++    routes: [{ path: '/ai/knowledge/queue', name: 'KnowledgeQueue', component: QueueView }],
++  })
++  router.push({ path: '/ai/knowledge/queue', query })
++  return router
++}
++
++const flush = async () => {
++  await flushPromises()
++  await nextTick()
++}
++
++async function mountQueue(query: Record<string, string> = {}) {
++  const router = makeRouter(query)
++  await router.isReady()
++  const w = mount(QueueView, { global: { plugins: [router, i18n] }, attachTo: document.body } as never)
++  await flush()
++  return { w, router }
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++  setupServiceMocks()
++})
++
++afterEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('QueueView — scope 切换(蓝本 :6-13)', () => {
++  it('默认 scope=index,两个 pill 的 data-on 恰好一真一假', async () => {
++    const { w } = await mountQueue()
++    const pills = w.findAll('.k-filter-pill')
++    expect(pills[0].attributes('data-on')).toBe('true') // index
++    expect(pills[1].attributes('data-on')).toBe('false') // distill
++  })
++
++  it('?scope=distill 深链:distill pill 为 true,index pill 为 false', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    const pills = w.findAll('.k-filter-pill')
++    expect(pills[0].attributes('data-on')).toBe('false')
++    expect(pills[1].attributes('data-on')).toBe('true')
++  })
++
++  it('点击 distill pill 走 router.replace 带 scope=distill,再点 index 走回 scope=index', async () => {
++    const { w, router } = await mountQueue()
++    const pills = w.findAll('.k-filter-pill')
++    await pills[1].trigger('click')
++    await flush()
++    expect(router.currentRoute.value.query.scope).toBe('distill')
++    expect(notes.listDistillJobs).toHaveBeenCalled()
++
++    const pills2 = w.findAll('.k-filter-pill')
++    await pills2[0].trigger('click')
++    await flush()
++    expect(router.currentRoute.value.query.scope).toBe('index')
++  })
++
++  it('已在当前 scope 时再点不重复加载(setScope 提前 return)', async () => {
++    const { w } = await mountQueue()
++    ai.parserJobs.mockClear()
++    const pills = w.findAll('.k-filter-pill')
++    await pills[0].trigger('click') // 已经是 index
++    await flush()
++    expect(ai.parserJobs).not.toHaveBeenCalled()
++  })
++})
++
++describe('QueueView — 三桶 pill + 完成统计(蓝本 :16-39)', () => {
++  it('index scope:三桶计数取自 store.stats.queue_depth,完成数取自 queue_depth.done', async () => {
++    const { w } = await mountQueue()
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 5, running: 2, failed: 3, done: 1234 } }
++    await flush()
++    const pills = w.findAll('.k-filter-pill')
++    expect(pills[2].find('.k-filter-pill-count').text()).toBe('5')
++    expect(pills[3].find('.k-filter-pill-count').text()).toBe('2')
++    expect(pills[4].find('.k-filter-pill-count').text()).toBe('3')
++    expect(w.find('.k-done-stat-num b').text()).toBe('1,234')
++  })
++
++  it('distill scope:三桶计数取自 store.distillJobs.counts(由 loadDistillJobs 真实写入)', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    const pills = w.findAll('.k-filter-pill')
++    // notes.listDistillJobs mock 的 counts 固定 {pending:1,running:1,failed:2}
++    expect(pills[2].find('.k-filter-pill-count').text()).toBe('1')
++    expect(pills[3].find('.k-filter-pill-count').text()).toBe('1')
++    expect(pills[4].find('.k-filter-pill-count').text()).toBe('2')
++  })
++
++  it('failed pill 静态 data-tone="danger",其余两个 pill 没有这个属性', async () => {
++    const { w } = await mountQueue()
++    const pills = w.findAll('.k-filter-pill')
++    expect(pills[4].attributes('data-tone')).toBe('danger')
++    expect(pills[2].attributes('data-tone')).toBeUndefined()
++    expect(pills[3].attributes('data-tone')).toBeUndefined()
++  })
++
++  it('切 filter pill:data-on 三选一互斥(五个 pill 逐一核对,不只测两项)', async () => {
++    const { w } = await mountQueue()
++    const pills = w.findAll('.k-filter-pill')
++    await pills[3].trigger('click') // running
++    await flush()
++    const after = w.findAll('.k-filter-pill')
++    expect(after.map((p) => p.attributes('data-on'))).toEqual(['true', 'false', 'false', 'true', 'false'])
++  })
++})
++
++describe('QueueView — 工具条(index scope,蓝本 :44-75)', () => {
++  it('未选中态:data-selecting 为 false;filter!==failed 时不出批量按钮', async () => {
++    const { w } = await mountQueue()
++    const toolbar = w.find('.k-toolbar')
++    expect(toolbar.attributes('data-selecting')).toBe('false')
++    expect(w.find('.k-btn.outline').exists()).toBe(false)
++  })
++
++  it('filter=pending 未选中态文案:{n} pending jobs', async () => {
++    const { w } = await mountQueue()
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 7, running: 0, failed: 0, done: 0 } }
++    await flush()
++    expect(w.find('.k-toolbar-label').text()).toBe('显示 7 个待处理任务')
++  })
++
++  it('filter=failed 未选中态:失败数为 0 时两个按钮都禁用', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const outline = w.find('.k-btn.outline')
++    const ghost = w.find('.k-btn.ghost')
++    expect(outline.attributes('disabled')).toBeDefined()
++    expect(ghost.attributes('disabled')).toBeDefined()
++  })
++
++  it('filter=failed 未选中态:失败数 > 0 时两个按钮启用,清空按钮变红', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    const outline = w.find('.k-btn.outline')
++    const ghost = w.find('.k-btn.ghost')
++    expect(outline.attributes('disabled')).toBeUndefined()
++    expect(ghost.attributes('disabled')).toBeUndefined()
++    expect(ghost.attributes('style')).toContain('color: var(--danger)')
++  })
++
++  it('选中 >0 行:data-selecting 变 true,标签显示已选数', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    await w.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    expect(w.find('.k-toolbar').attributes('data-selecting')).toBe('true')
++    expect(w.find('.k-toolbar-label').text()).toBe('已选 1 项')
++  })
++
++  it('选中态:filter=failed 才出「重试选中」;非 failed 不出', async () => {
++    const s = useKnowledgeStore()
++    // pending 场景
++    const { w } = await mountQueue()
++    s.stats = { ...s.stats, queue_depth: { pending: 3, running: 0, failed: 0, done: 0 } }
++    await flush()
++    await w.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    expect(w.find('.k-btn.primary').exists()).toBe(false)
++
++    // failed 场景
++    const { w: w2 } = await mountQueue({ filter: 'failed' })
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    await w2.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    expect(w2.find('.k-btn.primary').exists()).toBe(true)
++  })
++
++  it('选中态:filter=failed 时次按钮文案是「清空选中」,否则是「取消选中」', async () => {
++    const s = useKnowledgeStore()
++    const { w } = await mountQueue()
++    s.stats = { ...s.stats, queue_depth: { pending: 3, running: 0, failed: 0, done: 0 } }
++    await flush()
++    await w.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    expect(w.find('.k-toolbar .k-btn.ghost').text()).toContain('取消选中')
++
++    const { w: w2 } = await mountQueue({ filter: 'failed' })
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    await w2.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    expect(w2.find('.k-toolbar .k-btn.ghost').text()).toContain('清空选中')
++  })
++
++  it('「取消」按钮清空选择', async () => {
++    const s = useKnowledgeStore()
++    const { w } = await mountQueue()
++    s.stats = { ...s.stats, queue_depth: { pending: 3, running: 0, failed: 0, done: 0 } }
++    await flush()
++    await w.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    expect(w.find('.k-toolbar').attributes('data-selecting')).toBe('true')
++    const ghosts = w.findAll('.k-toolbar .k-btn.ghost')
++    const cancelBtn = ghosts[ghosts.length - 1]
++    await cancelBtn.trigger('click')
++    await flush()
++    expect(w.find('.k-toolbar').attributes('data-selecting')).toBe('false')
++  })
++})
++
++describe('QueueView — 工具条(distill scope,蓝本 :76-82)', () => {
++  it('只有一行 label,没有任何批量操作按钮', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    const toolbar = w.find('.k-toolbar')
++    expect(toolbar.attributes('data-selecting')).toBeUndefined()
++    expect(toolbar.findAll('button')).toHaveLength(0)
++    expect(toolbar.find('.k-toolbar-label').text()).toBe('显示 1 个待处理任务')
++  })
++})
++
++describe('QueueView — 空态(蓝本 :85-98,K16)', () => {
++  it('failed 桶空(index scope):🎉 全部处理完了 + 索引服务正常提示', async () => {
++    // 真机 failed 桶恒空(jobs-failed.json:{"jobs":[]}),覆盖这条空态分支须临时
++    // 把默认 mock(为其它用例准备的 FAILED_JOBS 非空场景)换回真机原样的空数组。
++    ai.parserJobs.mockImplementation(({ status }: { status: string }) => {
++      if (status === 'pending') return Promise.resolve({ jobs: PENDING_JOBS })
++      if (status === 'running') return Promise.resolve({ jobs: RUNNING_JOBS })
++      return Promise.resolve({ jobs: [] })
++    })
++    const { w } = await mountQueue({ filter: 'failed' })
++    expect(w.find('.k-empty-title').text()).toBe('🎉 全部处理完了')
++    expect(w.find('.k-empty-sub').text()).toBe('全部正常，索引服务运行中。')
++  })
++
++  it('failed 桶空(distill scope):文案换成「没有沉淀失败的任务」', async () => {
++    notes.listDistillJobs.mockImplementation((f: string) =>
++      Promise.resolve({ jobs: [], counts: { pending: 1, running: 1, failed: 0 } }),
++    )
++    const { w } = await mountQueue({ scope: 'distill', filter: 'failed' })
++    expect(w.find('.k-empty-sub').text()).toBe('没有沉淀失败的任务。')
++  })
++
++  it('K16:pending 桶空 → 「队列为空」+ 英文原文 aiKbQueueAllPendingDone(两档同填英文)', async () => {
++    ai.parserJobs.mockImplementation(({ status }: { status: string }) => Promise.resolve({ jobs: [] }))
++    const { w } = await mountQueue()
++    expect(w.find('.k-empty-title').text()).toBe('队列为空')
++    expect(w.find('.k-empty-sub').text()).toBe('All pending jobs are done.')
++  })
++
++  it('K16:running 桶空 → 「暂无处理中任务」+ 英文原文 aiKbQueueNoRunningNow(两侧对照,非 pending 分支)', async () => {
++    ai.parserJobs.mockImplementation(({ status }: { status: string }) => Promise.resolve({ jobs: [] }))
++    const { w } = await mountQueue({ filter: 'running' })
++    expect(w.find('.k-empty-title').text()).toBe('暂无处理中任务')
++    expect(w.find('.k-empty-sub').text()).toBe('No jobs running right now.')
++  })
++})
++
++describe('QueueView — index 表格(蓝本 :100-140)', () => {
++  it('表头文案与列数正确', async () => {
++    const { w } = await mountQueue()
++    const head = w.find('.k-row-head')
++    const spans = head.findAll('span')
++    expect(spans[1].text()).toBe('文件')
++    expect(spans[2].text()).toBe('路径')
++    expect(spans[3].text()).toBe('时间')
++  })
++
++  it('filter=failed 时表头第 5 列显示「重试」,否则为空', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const head = w.find('.k-row-head')
++    expect(head.findAll('span')[4].text()).toBe('重试')
++
++    const { w: w2 } = await mountQueue()
++    const head2 = w2.find('.k-row-head')
++    expect(head2.findAll('span')[4].text()).toBe('')
++  })
++
++  it('全选 checkbox:两侧(全选/取消全选)都覆盖', async () => {
++    const { w } = await mountQueue()
++    const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++    expect(rows).toHaveLength(3) // PENDING_JOBS 3 行
++    const selectAll = w.find('.k-row-head .k-row-check')
++    expect((selectAll.element as HTMLInputElement).checked).toBe(false)
++    await selectAll.trigger('change')
++    await flush()
++    expect((w.find('.k-row-head .k-row-check').element as HTMLInputElement).checked).toBe(true)
++    await w.find('.k-row-head .k-row-check').trigger('change')
++    await flush()
++    expect((w.find('.k-row-head .k-row-check').element as HTMLInputElement).checked).toBe(false)
++  })
++
++  it('data-selected 两侧都覆盖:选中行为 true,未选中行为 false', async () => {
++    const { w } = await mountQueue()
++    const bodyRows = () => w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++    bodyRows().forEach((r) => expect(r.attributes('data-selected')).toBe('false'))
++    await bodyRows()[0].find('.k-row-check').trigger('change')
++    await flush()
++    const after = bodyRows()
++    expect(after[0].attributes('data-selected')).toBe('true')
++    expect(after[1].attributes('data-selected')).toBe('false')
++  })
++
++  it('basename/dirname/fmtAgo 渲染正确(K11:fmtAgo 来自 store,非 util)', async () => {
++    const { w } = await mountQueue()
++    const row = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))[0]
++    expect(row.find('.k-row-name').text()).toBe('nimoos_panic.log')
++    expect(row.find('.k-row-path').text()).toBe('/DATA/.system_data/tmp/')
++    // created_at 1784776422853 是很久以前的时间戳,应落在「N 天前」档
++    expect(row.find('.k-row-time').text()).toMatch(/天前$/)
++  })
++
++  it('filter=failed:{n}× retried 与 last_error 只在 attempts>0 / last_error 非空时渲染', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++    expect(rows[0].find('.k-row-retry').text()).toContain('3× 重试')
++    expect(rows[0].find('.k-row-retry').text()).toContain('timeout talking to bge-m3')
++    // FAILED_JOBS[1] attempts=0 且 last_error=null —— 两侧都要有对照
++    expect(rows[1].find('.k-row-retry').text()).toBe('')
++  })
++
++  it('行操作:pending→取消按钮(data-tone=danger)调用 store.cancelJob,failed→重试按钮触发 K18 全桶重试', async () => {
++    const { w } = await mountQueue()
++    const row = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))[0]
++    const cancelBtn = row.find('.k-row-action')
++    expect(cancelBtn.attributes('data-tone')).toBe('danger')
++    await cancelBtn.trigger('click')
++    await flush()
++    expect(ai.parserDeleteJob).toHaveBeenCalledWith(348)
++
++    const { w: w2 } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    const row2 = w2.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))[0]
++    const retryBtn = row2.find('.k-row-action')
++    expect(retryBtn.attributes('data-tone')).toBeUndefined() // 重试按钮没有这个属性,两侧对照
++    await retryBtn.trigger('click')
++    await flush()
++    // K18:retryOne 不再拼 row.file_id/row.id,一律 retryFailed(null)
++    expect(ai.parserRetryJobs).toHaveBeenCalledWith({ file_ids: null })
++  })
++
++  it('data-state 三态各自渲染正确的图标(pending/running/failed)', async () => {
++    const { w } = await mountQueue()
++    expect(w.find('.k-row-status').attributes('data-state')).toBe('pending')
++    const { w: w2 } = await mountQueue({ filter: 'running' })
++    expect(w2.find('.k-row-status').attributes('data-state')).toBe('running')
++    const { w: w3 } = await mountQueue({ filter: 'failed' })
++    expect(w3.find('.k-row-status').attributes('data-state')).toBe('failed')
++  })
++
++  it('截断提示:边界 199/200 两侧都覆盖(rows.length >= 200)', async () => {
++    const make = (n: number) =>
++      Array.from({ length: n }, (_, i) => ({
++        id: i, path: `/DATA/f${i}.txt`, created_at: 1784776422853,
++      }))
++    const { w } = await mountQueue()
++    const s = useKnowledgeStore()
++    s.jobs = { ...s.jobs, pending: make(199) as never }
++    await flush()
++    expect(w.find('.k-table-foot').exists()).toBe(false)
++    s.jobs = { ...s.jobs, pending: make(200) as never }
++    await flush()
++    expect(w.find('.k-table-foot').exists()).toBe(true)
++    expect(w.find('.k-table-foot').text()).toContain('仅展示前 200 条')
++  })
++})
++
++describe('QueueView — distill 表格(蓝本 :145-185)', () => {
++  it('专属栅格 data-scope="distill" 出现在表头与每一行;index 行完全没有这个属性(两侧对照)', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    expect(w.find('.k-row-head').attributes('data-scope')).toBe('distill')
++    const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++    rows.forEach((r) => expect(r.attributes('data-scope')).toBe('distill'))
++
++    const { w: w2 } = await mountQueue()
++    const indexRow = w2.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))[0]
++    expect(indexRow.attributes('data-scope')).toBeUndefined()
++  })
++
++  it('没有 checkbox 列', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    expect(w.find('.k-row-check').exists()).toBe(false)
++  })
++
++  it('表头文案:File/Path/Status/Error/Time(Error 复用 aiKbStatusError,Vue2 同一个 $t("Error") 字面量)', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    const spans = w.find('.k-row-head').findAll('span')
++    expect(spans[1].text()).toBe('文件')
++    expect(spans[2].text()).toBe('路径')
++    expect(spans[3].text()).toBe('状态')
++    expect(spans[4].text()).toBe('错误')
++    expect(spans[5].text()).toBe('时间')
++  })
++
++  it('kn-badge 徽标:manual→curated,auto→archived(两侧对照)', async () => {
++    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
++    const badge = w.find('.kn-badge')
++    expect(badge.attributes('data-s')).toBe('archived') // DISTILL_PENDING[0].origin='auto'
++    expect(badge.text()).toBe('自动')
++
++    const { w: w2 } = await mountQueue({ scope: 'distill', filter: 'running' })
++    const badge2 = w2.find('.kn-badge')
++    expect(badge2.attributes('data-s')).toBe('curated') // DISTILL_RUNNING[0].origin='manual'
++    expect(badge2.text()).toBe('手动')
++  })
++
++  it('failed 桶两行:一行 status=failed 出「已失败」徽标,一行 status=skipped 出「已跳过」徽标(两侧对照)', async () => {
++    const { w } = await mountQueue({ scope: 'distill', filter: 'failed' })
++    const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++    const badges0 = rows[0].findAll('.kn-badge')
++    expect(badges0[1].attributes('data-s')).toBe('failed')
++    expect(badges0[1].text()).toBe('已失败')
++    const badges1 = rows[1].findAll('.kn-badge')
++    expect(badges1[1].attributes('data-s')).toBe('draft')
++    expect(badges1[1].text()).toBe('已跳过')
++  })
++
++  it('data-state 用 distillIconState:pending/running 直读,failed 与 skipped 共用 failed(K12 照抄)', async () => {
++    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
++    expect(w.find('.k-row-status').attributes('data-state')).toBe('pending')
++    const { w: w2 } = await mountQueue({ scope: 'distill', filter: 'running' })
++    expect(w2.find('.k-row-status').attributes('data-state')).toBe('running')
++    const { w: w3 } = await mountQueue({ scope: 'distill', filter: 'failed' })
++    const states = w3.findAll('.k-row-status').map((el) => el.attributes('data-state'))
++    expect(states).toEqual(['failed', 'failed']) // status=failed 与 status=skipped 都落 'failed'
++  })
++
++  it('行操作:pending→取消调用 cancelDistillJob,failed/skipped→重试调用 distillFile', async () => {
++    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
++    await w.find('.k-row-action').trigger('click')
++    await flush()
++    expect(notes.cancelDistillJob).toHaveBeenCalledWith('/DATA/Notes/todo.md')
++
++    const { w: w2 } = await mountQueue({ scope: 'distill', filter: 'failed' })
++    const rows = w2.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++    await rows[0].find('.k-row-action').trigger('click')
++    await flush()
++    expect(notes.distillFile).toHaveBeenCalledWith('/DATA/Notes/failed.md')
++    await rows[1].find('.k-row-action').trigger('click')
++    await flush()
++    expect(notes.distillFile).toHaveBeenCalledWith('/DATA/Notes/skipped.md')
++  })
++
++  it('截断提示 distillTruncated 边界:total=499 不出,total=500(DISTILL_JOBS_LIMIT)才出 —— RED 探针②的钉子', async () => {
++    const { w } = await mountQueue({ scope: 'distill' })
++    const s = useKnowledgeStore()
++    s.distillJobs = { ...s.distillJobs, total: 499 }
++    await flush()
++    expect(w.find('.k-table-foot').exists()).toBe(false)
++    s.distillJobs = { ...s.distillJobs, total: 500 }
++    await flush()
++    expect(w.find('.k-table-foot').exists()).toBe(true)
++    expect(w.find('.k-table-foot').text()).toContain('仅展示前 500 条')
++  })
++})
++
++describe('QueueView — 6 种 scope × filter 组合(DoD 明确要求)', () => {
++  const combos: Array<{ scope?: string; filter: string }> = [
++    { filter: 'pending' },
++    { filter: 'running' },
++    { filter: 'failed' },
++    { scope: 'distill', filter: 'pending' },
++    { scope: 'distill', filter: 'running' },
++    { scope: 'distill', filter: 'failed' },
++  ]
++  for (const c of combos) {
++    it(`scope=${c.scope || 'index'} filter=${c.filter}:表格/空态渲染不抛错,scope 与 filter 状态一致`, async () => {
++      const query: Record<string, string> = { filter: c.filter }
++      if (c.scope) query.scope = c.scope
++      const { w } = await mountQueue(query)
++      const pills = w.findAll('.k-filter-pill')
++      const expectedScopeIdx = c.scope === 'distill' ? 1 : 0
++      expect(pills[expectedScopeIdx].attributes('data-on')).toBe('true')
++      const filterIdx = { pending: 2, running: 3, failed: 4 }[c.filter as 'pending' | 'running' | 'failed']
++      expect(pills[filterIdx].attributes('data-on')).toBe('true')
++      // 表格或空态二选一必须渲染出恰好一种
++      const hasTable = w.find('.k-table').exists()
++      const hasEmpty = w.find('.k-empty').exists()
++      expect(hasTable !== hasEmpty).toBe(true)
++    })
++  }
++})
++
++describe('QueueView — K18:三个重试入口统一调用 store.retryFailed(null)', () => {
++  it('retryOne(单行重试按钮)', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    const toast = vi.spyOn(s, 'toast')
++    const row = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))[0]
++    await row.find('.k-row-action').trigger('click')
++    await flush()
++    expect(ai.parserRetryJobs).toHaveBeenCalledWith({ file_ids: null })
++    expect(toast).toHaveBeenCalledWith('已重试全部失败任务')
++  })
++
++  it('bulkRetry(批量重试按钮)—— 与蓝本原文「fileIds 恒空数组、一个请求都不发」的假成功不同,真发请求', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    const toast = vi.spyOn(s, 'toast')
++    await w.findAll('.k-row-check')[1].trigger('change')
++    await flush()
++    await w.find('.k-btn.primary').trigger('click')
++    await flush()
++    expect(ai.parserRetryJobs).toHaveBeenCalledWith({ file_ids: null })
++    expect(toast).toHaveBeenCalledWith('已重试全部失败任务')
++  })
++
++  it('retryAllFailed(工具条「重试所有失败的」按钮)', async () => {
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
++    await flush()
++    const toast = vi.spyOn(s, 'toast')
++    await w.find('.k-btn.outline').trigger('click')
++    await flush()
++    expect(ai.parserRetryJobs).toHaveBeenCalledWith({ file_ids: null })
++    expect(toast).toHaveBeenCalledWith('已重试全部失败任务')
++  })
++})
++
++describe('QueueView — K7:清空失败确认弹窗(reka Dialog 原语)', () => {
++  it('点击「清空失败记录」打开弹窗(portal 到 .knowledge-app),标题/正文/按钮正确', async () => {
++    const host = withHost()
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 3, done: 0 } }
++    await flush()
++    expect(host.querySelector('.k-modal')).toBeNull()
++    await w.find('.k-btn.ghost').trigger('click')
++    await flush()
++    const modal = host.querySelector('.k-modal')
++    expect(modal).not.toBeNull()
++    expect(modal!.querySelector('.k-confirm-title')!.textContent).toBe('清空失败记录？')
++    expect(modal!.querySelector('.k-confirm-body div:last-child')!.textContent).toBe(
++      '这将永久删除 3 条失败记录。',
++    )
++  })
++
++  it('点「取消」关闭弹窗且不调用 clearFailed', async () => {
++    const host = withHost()
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 1, done: 0 } }
++    await flush()
++    await w.find('.k-btn.ghost').trigger('click')
++    await flush()
++    const cancelBtn = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
++      (b) => b.textContent === '取消',
++    ) as HTMLElement
++    cancelBtn.click()
++    await flush()
++    expect(host.querySelector('.k-modal')).toBeNull()
++    expect(ai.parserClearFailedJobs).not.toHaveBeenCalled()
++  })
++
++  it('点「确认清空」调用 store.clearFailed 并关闭弹窗、弹 toast', async () => {
++    const host = withHost()
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 1, done: 0 } }
++    await flush()
++    const toast = vi.spyOn(s, 'toast')
++    await w.find('.k-btn.ghost').trigger('click')
++    await flush()
++    const confirmBtn = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
++      b.textContent!.includes('确认清空'),
++    ) as HTMLElement
++    confirmBtn.click()
++    await flush()
++    expect(ai.parserClearFailedJobs).toHaveBeenCalled()
++    expect(host.querySelector('.k-modal')).toBeNull()
++    expect(toast).toHaveBeenCalledWith('已清空 1 条失败记录')
++  })
++})
++
++describe('QueueView — 深链契约(?filter= watcher 立即生效)', () => {
++  it('挂载后 router.replace 改 query.filter,pill 与内容随之切换(非仅初始 immediate)', async () => {
++    const { w, router } = await mountQueue()
++    expect(w.findAll('.k-filter-pill')[2].attributes('data-on')).toBe('true') // pending
++    await router.replace({ query: { filter: 'running' } })
++    await flush()
++    expect(w.findAll('.k-filter-pill')[3].attributes('data-on')).toBe('true') // running
++    expect(w.findAll('.k-filter-pill')[2].attributes('data-on')).toBe('false')
++  })
++})
++
++describe('QueueView — 生命周期:10 秒轮询', () => {
++  it('挂载即加载一次;10s 轮询;document.hidden 时跳过;卸载清定时器', async () => {
++    // 照 KnowledgeLayout.test.ts 的既有写法:onMounted 里的 loadForScope() 是同步
++    // 发起调用(Promise.all 内部的 service.ai.parserJobs(...) 三次调用是同步触发的,
++    // 只是各自的 resolve 走微任务),不需要 runOnlyPendingTimersAsync 去"催"它——
++    // 那个 API 会把尚未到期的 setInterval 也提前打一次,导致误判成 6 次调用。
++    vi.useFakeTimers()
++    setActivePinia(createPinia())
++    const router = makeRouter()
++    await router.isReady()
++    const w = mount(QueueView, { global: { plugins: [router, i18n] } } as never)
++    expect(ai.parserJobs).toHaveBeenCalledTimes(3) // pending+running+failed 三桶并行
++
++    ai.parserJobs.mockClear()
++    vi.advanceTimersByTime(10000)
++    expect(ai.parserJobs).toHaveBeenCalledTimes(3)
++
++    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
++    ai.parserJobs.mockClear()
++    vi.advanceTimersByTime(10000)
++    expect(ai.parserJobs).not.toHaveBeenCalled()
++    hidden.mockReturnValue(false)
++
++    ai.parserJobs.mockClear()
++    vi.advanceTimersByTime(10000)
++    expect(ai.parserJobs).toHaveBeenCalledTimes(3)
++
++    w.unmount()
++    ai.parserJobs.mockClear()
++    vi.advanceTimersByTime(30000)
++    expect(ai.parserJobs).not.toHaveBeenCalled()
++    vi.useRealTimers()
++  })
++})
++
++describe('QueueView — 守卫缺口③:<template> 块零裸色字面量', () => {
++  // 治理文件附录 B §B.0.4:color-guard.test.ts 的 styleLines() 对 .vue 只取
++  // <style> 块,模板 style="…" 属性零扫描;本文件补一条定向断言堵这个盲区。
++  // 读文件手法见文件头注释(node:fs + fileURLToPath,__ts-expect-error 抑制)。
++  it('<template> 块内(剥离 var()/color-mix() 之后)不含任何裸 hex / rgb / hsl 字面量', () => {
++    const src: string = readFileSync(resolve(__dirname, './QueueView.vue'), 'utf8')
++    const m = /<template>([\s\S]*?)\n<\/template>/.exec(src)
++    expect(m).not.toBeNull()
++    const tmpl = m![1]
++
++    // 剥掉 var(...) 与 color-mix(...) 的内部(照 color-guard.test.ts 的 stripVar 同款
++    // 手法:逐字符扫描配对括号深度,支持嵌套 fallback),防止 color-mix(in srgb,
++    // var(--success) 20%, transparent) 里的 token 名 / 关键字被拿去和裸色正则误判。
++    function stripCalls(s: string, prefixes: string[]): string {
++      let out = ''
++      let i = 0
++      while (i < s.length) {
++        const hit = prefixes.find((p) => s.startsWith(p, i))
++        if (hit) {
++          let depth = 0
++          let j = i + hit.length - 1 // 落在开括号上
++          for (; j < s.length; j++) {
++            if (s[j] === '(') depth++
++            else if (s[j] === ')') {
++              depth--
++              if (depth === 0) {
++                j++
++                break
++              }
++            }
++          }
++          i = j
++        } else {
++          out += s[i]
++          i++
++        }
++      }
++      return out
++    }
++    const scrubbed = stripCalls(tmpl, ['var(', 'color-mix('])
++    expect(scrubbed).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
++    expect(scrubbed).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
++  })
++})
+diff --git a/src/ai/knowledge/views/QueueView.vue b/src/ai/knowledge/views/QueueView.vue
+new file mode 100644
+index 0000000..03b7561
+--- /dev/null
++++ b/src/ai/knowledge/views/QueueView.vue
+@@ -0,0 +1,578 @@
++<!--
++  SP8-P5b Task 5 —— 「任务队列」页,1:1 移植自 Vue2 蓝本
++  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/QueueView.vue`(417 行,
++  `git show main:` 读取,治理文件 §1:工作树是旧分支不可信)。
++
++  结构对照(蓝本行区间,见任务 brief 的区块表 → 本文件):
++    :6-13    scope 切换(两个 .k-filter-pill,index/distill)
++    :16-39   三桶 pill(pending/running/failed)+ 完成统计(k-done-stat)
++    :44-75   工具条(index scope):未选中态 / 选中态两支
++    :76-82   工具条(distill scope):单行 label,无批量操作
++    :85-98   空态:failed 桶专属插画 + 🎉;K16 两句改走 i18n;:87 内联渐变见下
++    :100-140 index 表格:全选 + 状态图标 + basename/dirname + fmtAgo + 行操作
++    :145-185 distill 表格:专属栅格(data-scope="distill")· 无 checkbox · kn-badge 徽标
++    :190-208 清空确认弹窗 —— K7:reka Dialog 原语,不用裸 div
++
++  【K7】弹窗一律 reka 原语 + DialogPortal 的 to 指向知识库容器 `.knowledge-app`
++  (SP8 已爆三次)。结构照 src/ai/components/settings/skills/SkillDetail.vue:488-511
++  的确认弹窗先例(VisuallyHidden 包 DialogTitle 满足 reka 的 a11y 要求,视觉上
++  DOM 仍是蓝本的 .k-confirm-body / .k-modal-foot 结构,K17 本期不搬 .k-modal-head
++  一族——蓝本这个弹窗本来就没有它们)。
++
++  【K11】fmtAgo 复用 store 导出版本(knowledgeStore.ts:190-199),不照抄蓝本
++  :405-414 的本地副本——T0 已核两者在非负 diff 下输出相同,store 版只多一个
++  Math.max(0, …) 钳制。
++
++  【K16】:96 两句硬编码英文(`'All pending jobs are done.'` / `'No jobs running
++  right now.'`)改走 aiKbQueueAllPendingDone / aiKbQueueNoRunningNow,两档同填
++  英文原文,渲染结果与 Vue2 逐字相同。
++
++  【K18】failed 桶三个重试入口(retryOne / bulkRetry / retryAllFailed)统一真发
++  store.retryFailed(null),toast 统一 aiKbRetriedAllFailed(不报数)。证据链见
++  治理文件 §4.3:parser_jobs 表没有 file_id 列(NimoOS-Parser/parser/db.py:30-42),
++  retry_failed_jobs() 的 file_ids 是死形参(repo_jobs.py:107-121,源码注释原文
++  `# file_ids param reserved for §B; for MVP retry all failed`)——蓝本
++  retryOne 传的 file_id 恒 undefined、bulkRetry 的 fileIds 恒空数组(一个请求都不
++  发却弹「已重试 {n} 条」的假成功 toast),只有 retryAllFailed 语义正确。三处
++  改动详见下方各函数内的注释,按钮/禁用条件/图标/排版零变动。
++
++  【K5,承 P5a】三处「操作失败」catch 分支不回显后端 body / e.message,改走
++  固定 i18n 键(与 knowledgeStore.ts 的 loadRoots、DashboardView 等既有先例同一
++  模具)。cancelDistillRow 的 409 分支保留蓝本的专属友好提示(aiKbCannotCancel),
++  但不再拼接 Vue2 的 `'Cancel failed: ' + msg` 前缀——蓝本那个前缀本来就是为了
++  拼 e.message 设计的,409 分支现在是一句独立的完整提示,重复加前缀反而是蛇足,
++  不属于「照抄不改」范畴内的可观察行为(纯文案裁剪,不影响任何判断分支/请求)。
++
++  【K12,承 T4】distillIconState / basename / dirname 从 util/queueView.ts 导入,
++  不在本文件重复定义。三处蓝本自身的「怪行为」(failed/skipped 共用 danger 色、
++  空值返回 U+2014、dirname 空路径与单段路径的边界拼接)已在该文件逐字照抄并注释,
++  本文件不再重复解释。
++
++  【偏离,类型安全机械改写】蓝本 computed `rows`/`counts`/`doneCount` 混用两种
++  行形状(ParserJob 与 DistillJob)。TS 严格模式下对同一个 union 数组做
++  `.map(r => r.id)`(index-only)或 `row.filePath`(distill-only)access 需要
++  精确的类型收窄,故拆成 `indexRows`/`distillRows` 两个各自强类型的 computed,
++  外加一个 `rowsEmpty` 计算「当前 scope 下没有行」——功能与蓝本单一 `rows`
++  computed 完全等价(同一份 store 数据、同一个 filter 索引),只是 TS 类型层面
++  的组织方式不同,不是行为改动。
++
++  【偏离,K13 同款】selected 用 ref(new Set()) 整体替换,不用计数器 tick。
++
++  【守卫缺口③,B.0.4】蓝本 :87 的 .k-empty-illust 内联 style= 渐变按附录 B §B.0
++  换成 token 派生(3 处 color-mix),渐变结构/角度/停止位逐字不变。
++-->
++<script setup lang="ts">
++import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
++import { useRoute, useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, VisuallyHidden } from 'reka-ui'
++import KIcon from '../components/KIcon.vue'
++import { useKnowledgeStore, fmtAgo, DISTILL_JOBS_LIMIT } from '../stores/knowledgeStore'
++import type { ParserJob } from '../stores/knowledgeStore'
++import type { DistillJob } from '@nimotech/nimoos-service'
++import { distillIconState, basename, dirname } from '../util/queueView'
++
++const { t } = useI18n()
++const route = useRoute()
++const router = useRouter()
++const store = useKnowledgeStore()
++
++type QueueFilter = 'pending' | 'running' | 'failed'
++type QueueScope = 'index' | 'distill'
++
++/** 蓝本 data() —— filter 默认 'pending',selected 空集合,confirmClear 关闭。 */
++const filter = ref<QueueFilter>('pending')
++const selected = ref<Set<string | number>>(new Set())
++const confirmClear = ref(false)
++let pollTimer: ReturnType<typeof setInterval> | null = null
++
++/** 蓝本 :226 computed scope —— 深链:`?scope=distill` → 沉淀桶,其余(含缺省)
++ * → 文件索引。 */
++const scope = computed<QueueScope>(() => (route.query.scope === 'distill' ? 'distill' : 'index'))
++
++/** 拆分自蓝本单一 `rows` computed(见文件头注释「类型安全机械改写」)。 */
++const indexRows = computed<ParserJob[]>(() => store.jobs[filter.value] || [])
++const distillRows = computed<DistillJob[]>(() => store.distillJobs[filter.value] || [])
++const rowsEmpty = computed<boolean>(() =>
++  (scope.value === 'distill' ? distillRows.value.length : indexRows.value.length) === 0,
++)
++
++/** 蓝本 counts computed —— distill 走 distillJobs.counts(全量 tally),
++ * index 走 stats.queue_depth 三个字段。 */
++const counts = computed<{ pending: number; running: number; failed: number }>(() => {
++  if (scope.value === 'distill') return store.distillJobs.counts
++  return {
++    pending: store.stats.queue_depth.pending,
++    running: store.stats.queue_depth.running,
++    failed: store.stats.queue_depth.failed,
++  }
++})
++
++/** 蓝本 doneCount computed。 */
++const doneCount = computed<number>(() =>
++  scope.value === 'distill' ? store.distillJobs.done || 0 : store.stats.queue_depth.done || 0,
++)
++
++/**
++ * 蓝本 distillTruncated computed —— 沉淀队列单次拉取封顶 DISTILL_JOBS_LIMIT,
++ * 已加载行数(`distillJobs.total`)达到这个上限就视为「被截断」,与判断
++ * index 表格「仅展示前 200 条」同一种手法(比较已加载行数,不是另发一次
++ * COUNT 查询——免竞态,N5 已在 knowledgeStore.ts 里申报照抄)。
++ */
++const distillTruncated = computed<boolean>(() => {
++  if (scope.value !== 'distill') return false
++  return (store.distillJobs.total || 0) >= DISTILL_JOBS_LIMIT
++})
++
++/** 蓝本 watch '$route.query.filter'(immediate)—— 深链 `?filter=failed` 立即生效。
++ * DashboardView.vue:202 已经在推这个 query(该文件属零改动清单,只读不改),
++ * 本任务在这里闭合这条链。 */
++watch(
++  () => route.query.filter,
++  (v) => {
++    if (v) filter.value = v as QueueFilter
++  },
++  { immediate: true },
++)
++
++/** 蓝本 loadForScope() —— 轮询与手动切换共用的分发点。 */
++function loadForScope(): Promise<void> {
++  return scope.value === 'distill' ? store.loadDistillJobs(filter.value) : store.loadAllJobs()
++}
++
++/** 蓝本 setScope(s)。 */
++function setScope(s: QueueScope): void {
++  if (scope.value === s) return
++  selected.value = new Set()
++  router.replace({ query: { ...route.query, scope: s } })
++  if (s === 'distill') store.loadDistillJobs(filter.value)
++  else store.loadAllJobs()
++}
++
++/** 蓝本 setFilter(f)。 */
++function setFilter(f: QueueFilter): void {
++  filter.value = f
++  selected.value = new Set()
++  if (scope.value === 'distill') store.loadDistillJobs(f)
++}
++
++/** 蓝本 toggleSel(id)。 */
++function toggleSel(id: string | number): void {
++  const next = new Set(selected.value)
++  if (next.has(id)) next.delete(id)
++  else next.add(id)
++  selected.value = next
++}
++
++/** 蓝本 toggleAll()。 */
++function toggleAll(): void {
++  selected.value =
++    selected.value.size === indexRows.value.length
++      ? new Set()
++      : new Set(indexRows.value.map((r) => r.id))
++}
++
++/**
++ * 蓝本 retryOne(row)(:312-318)—— 原文 `retryFailed([row.file_id || row.id])`。
++ * K18 证据①:parser_jobs 表没有 file_id 列 → `row.file_id` 恒 undefined,实际
++ * 传的是 job id;证据②:repo_jobs.py:107-121 的 `file_ids` 是死形参,后端无条件
++ * `UPDATE … WHERE done_at IS NOT NULL AND last_error IS NOT NULL`,传什么都重试
++ * 整个 failed 桶。故改真发 retryFailed(null),行为(重试整桶)与后端实际发生的
++ * 事一致,toast 统一 aiKbRetriedAllFailed。按钮/禁用条件/图标/排版零变动。
++ * `row` 形参保留(签名与调用点 `@click="retryOne(row)"` 对齐,承接蓝本方法签名),
++ * K18 后函数体不再读取它的任何字段。
++ */
++async function retryOne(row: ParserJob): Promise<void> {
++  try {
++    await store.retryFailed(null)
++    store.toast(t('aiKbRetriedAllFailed'))
++  } catch {
++    store.toast(t('aiKbRetryFailedErr'))
++  }
++}
++
++/** 蓝本 retryAllFailed()(:320-328)—— 唯一语义本来就正确的一条,`Retrying {n}
++ * failed jobs` 判为死键(附录 A §A.7,K18 后无引用),toast 换成 aiKbRetriedAllFailed
++ * 与另外两处统一。 */
++async function retryAllFailed(): Promise<void> {
++  try {
++    await store.retryFailed(null)
++    store.toast(t('aiKbRetriedAllFailed'))
++  } catch {
++    store.toast(t('aiKbRetryFailedErr'))
++  }
++}
++
++/** 蓝本 cancelOne(row)(K5:不回显 e.message,改固定 i18n 键)。 */
++async function cancelOne(row: ParserJob): Promise<void> {
++  try {
++    await store.cancelJob(row.id)
++    store.toast(t('aiKbCancelled'))
++  } catch {
++    store.toast(t('aiKbCancelFailed'))
++  }
++}
++
++/**
++ * 蓝本 bulkRetry()(:337-349)—— 原文 `rows.filter(r => selected.has(r.id)).map(r
++ * => r.file_id).filter(Boolean)`。K18 证据③:`file_id` 恒 undefined → `fileIds`
++ * 恒为空数组 → `if (fileIds.length)` 恒 false → 一个请求都不发,却弹「已重试
++ * {n} 条」的假成功 toast(`Retried {n} selected jobs` 判为死键,附录 A §A.7)。
++ * 改真发 store.retryFailed(null),toast 统一 aiKbRetriedAllFailed。
++ */
++async function bulkRetry(): Promise<void> {
++  try {
++    await store.retryFailed(null)
++    selected.value = new Set()
++    store.toast(t('aiKbRetriedAllFailed'))
++  } catch {
++    store.toast(t('aiKbRetryFailedErr'))
++  }
++}
++
++/** 蓝本 bulkCancel()(K5:不回显 e.message)。 */
++async function bulkCancel(): Promise<void> {
++  const ids = Array.from(selected.value)
++  try {
++    for (const id of ids) await store.cancelJob(id)
++    selected.value = new Set()
++    store.toast(t('aiKbCancelledNSelected', { n: ids.length }))
++  } catch {
++    store.toast(t('aiKbCancelFailed'))
++  }
++}
++
++/** 蓝本 doClearFailed()(K5:不回显 e.message)。 */
++async function doClearFailed(): Promise<void> {
++  const n = counts.value.failed
++  try {
++    await store.clearFailed()
++    confirmClear.value = false
++    store.toast(t('aiKbClearedNFailed', { n }))
++  } catch {
++    store.toast(t('aiKbClearFailedErr'))
++  }
++}
++
++/** 蓝本 retryDistillRow(row)(K5:不回显 e.message)。 */
++async function retryDistillRow(row: DistillJob): Promise<void> {
++  try {
++    await store.retryDistill(row, filter.value)
++    store.toast(t('aiKbRequeued'))
++  } catch {
++    store.toast(t('aiKbRetryFailedErr'))
++  }
++}
++
++/**
++ * 蓝本 cancelDistillRow(row)—— 409(已不可取消)保留蓝本的专属友好提示
++ * aiKbCannotCancel;其余错误按 K5 改固定 aiKbCancelFailed,不再拼接
++ * e.message(见文件头注释)。
++ */
++async function cancelDistillRow(row: DistillJob): Promise<void> {
++  try {
++    await store.cancelDistill(row, filter.value)
++    store.toast(t('aiKbCancelled'))
++  } catch (e) {
++    const status = (e as { response?: { status?: number } } | undefined)?.response?.status
++    store.toast(status === 409 ? t('aiKbCannotCancel') : t('aiKbCancelFailed'))
++  }
++}
++
++/** 蓝本 created()/beforeDestroy() —— 10 秒轮询,document.hidden 时跳过。 */
++onMounted(() => {
++  loadForScope()
++  pollTimer = setInterval(() => {
++    if (document.hidden) return
++    loadForScope()
++  }, 10000)
++})
++
++onUnmounted(() => {
++  if (pollTimer) {
++    clearInterval(pollTimer)
++    pollTimer = null
++  }
++})
++</script>
++
++<template>
++  <div class="k-view">
++    <div class="k-scroll">
++      <div class="k-scroll-inner">
++        <!-- scope 切换(蓝本 :6-13)—— 🔴 String() 必须套(选择器是 [data-on="true"]) -->
++        <div class="k-queue-head" style="margin-bottom: 4px">
++          <button class="k-filter-pill" :data-on="String(scope === 'index')" @click="setScope('index')">
++            {{ t('aiKbScopeIndex') }}
++          </button>
++          <button class="k-filter-pill" :data-on="String(scope === 'distill')" @click="setScope('distill')">
++            {{ t('aiKbScopeDistill') }}
++          </button>
++        </div>
++
++        <!-- 三桶 pill + 完成统计(蓝本 :16-39) -->
++        <div class="k-queue-head">
++          <button class="k-filter-pill" :data-on="String(filter === 'pending')" @click="setFilter('pending')">
++            <KIcon name="hourglass" :size="13" /> {{ t('aiKbPending') }}
++            <span class="k-filter-pill-count">{{ counts.pending }}</span>
++          </button>
++          <button class="k-filter-pill" :data-on="String(filter === 'running')" @click="setFilter('running')">
++            <KIcon name="spinner" :size="13" /> {{ t('aiKbRunning') }}
++            <span class="k-filter-pill-count">{{ counts.running }}</span>
++          </button>
++          <button
++            class="k-filter-pill"
++            data-tone="danger"
++            :data-on="String(filter === 'failed')"
++            @click="setFilter('failed')"
++          >
++            <KIcon name="x" :size="12" /> {{ t('aiKbFailed') }}
++            <span class="k-filter-pill-count">{{ counts.failed }}</span>
++          </button>
++          <div class="k-done-stat">
++            <div class="k-done-stat-num">{{ t('aiKbTotalDone') }} <b>{{ doneCount.toLocaleString() }}</b></div>
++            <div class="k-done-stat-label">{{ t('aiKbTotalDoneLabel') }}</div>
++          </div>
++        </div>
++
++        <!-- 工具条:index scope 的完整批量工具条(蓝本 :44-75) -->
++        <div v-if="scope === 'index'" class="k-toolbar" :data-selecting="String(selected.size > 0)">
++          <template v-if="selected.size === 0">
++            <span class="k-toolbar-label">
++              <template v-if="filter === 'pending'">{{ t('aiKbNPendingJobs', { n: counts.pending }) }}</template>
++              <template v-else-if="filter === 'running'">{{ t('aiKbNRunningJobs', { n: counts.running }) }}</template>
++              <template v-else-if="filter === 'failed'">{{ t('aiKbNFailedRecords', { n: counts.failed }) }}</template>
++            </span>
++            <div style="margin-left: auto; display: flex; gap: 8px">
++              <template v-if="filter === 'failed'">
++                <button class="k-btn outline" :disabled="counts.failed === 0" @click="retryAllFailed">
++                  <KIcon name="refresh" :size="12" /> {{ t('aiKbRetryAllFailed') }}
++                </button>
++                <button
++                  class="k-btn ghost"
++                  :disabled="counts.failed === 0"
++                  :style="{ color: counts.failed > 0 ? 'var(--danger)' : undefined }"
++                  @click="confirmClear = true"
++                >
++                  <KIcon name="trash" :size="12" /> {{ t('aiKbClearFailedRecords') }}
++                </button>
++              </template>
++            </div>
++          </template>
++          <template v-else>
++            <span class="k-toolbar-label">{{ t('aiKbNSelected', { n: selected.size }) }}</span>
++            <div style="margin-left: auto; display: flex; gap: 8px">
++              <button v-if="filter === 'failed'" class="k-btn primary" @click="bulkRetry">
++                <KIcon name="refresh" :size="12" /> {{ t('aiKbRetrySelected') }}
++              </button>
++              <button class="k-btn ghost" @click="bulkCancel">
++                <KIcon name="x" :size="12" />
++                {{ filter === 'failed' ? t('aiKbClearSelected') : t('aiKbCancelSelected') }}
++              </button>
++              <button class="k-btn ghost" @click="selected = new Set()">{{ t('aiKbCancel') }}</button>
++            </div>
++          </template>
++        </div>
++        <!-- 工具条:distill scope 只有一行 label,无批量操作(蓝本 :76-82 —— 沉淀
++             队列一次只重发单行,批量重试/清空在语义上没有对应操作) -->
++        <div v-else class="k-toolbar">
++          <span class="k-toolbar-label">
++            <template v-if="filter === 'pending'">{{ t('aiKbNPendingJobs', { n: counts.pending }) }}</template>
++            <template v-else-if="filter === 'running'">{{ t('aiKbNRunningJobs', { n: counts.running }) }}</template>
++            <template v-else-if="filter === 'failed'">{{ t('aiKbNFailedRecords', { n: counts.failed }) }}</template>
++          </span>
++        </div>
++
++        <!-- 空态(蓝本 :85-98) -->
++        <div v-if="rowsEmpty" class="k-empty">
++          <template v-if="filter === 'failed'">
++            <!-- 蓝本 QueueView.vue:87 的内联渐变;三处裸色按附录 B §B.0 换成 token 派生,渐变结构逐字不变 -->
++            <div
++              class="k-empty-illust"
++              style="
++                background: radial-gradient(
++                    circle at 30% 30%,
++                    color-mix(in srgb, var(--text-on-accent) 50%, transparent),
++                    transparent 60%
++                  ),
++                  linear-gradient(
++                    135deg,
++                    color-mix(in srgb, var(--success) 20%, transparent),
++                    color-mix(in srgb, var(--accent) 20%, transparent)
++                  )
++              "
++            >
++              <KIcon name="rocket" :size="36" color="var(--success)" />
++            </div>
++            <div class="k-empty-title">🎉 {{ t('aiKbAllCaughtUp') }}</div>
++            <div class="k-empty-sub">
++              {{ scope === 'distill' ? t('aiKbNoFailedDistill') : t('aiKbNoFailedJobs') }}
++            </div>
++          </template>
++          <template v-else>
++            <div class="k-empty-illust"><KIcon name="check" :size="36" color="var(--success)" /></div>
++            <div class="k-empty-title">{{ filter === 'pending' ? t('aiKbQueueEmpty') : t('aiKbNoRunningJobs') }}</div>
++            <!-- K16:蓝本 :96 两句硬编码英文改走 i18n,两档同填英文原文 -->
++            <div class="k-empty-sub">
++              {{ filter === 'pending' ? t('aiKbQueueAllPendingDone') : t('aiKbQueueNoRunningNow') }}
++            </div>
++          </template>
++        </div>
++
++        <!-- index 表格(蓝本 :100-140) -->
++        <div v-else-if="scope === 'index'" class="k-table">
++          <div class="k-row k-row-head">
++            <input
++              type="checkbox"
++              class="k-row-check"
++              :checked="selected.size === indexRows.length && indexRows.length > 0"
++              @change="toggleAll"
++            />
++            <span />
++            <span>{{ t('aiKbColFile') }}</span>
++            <span>{{ t('aiKbColPath') }}</span>
++            <span>{{ t('aiKbColTime') }}</span>
++            <span>{{ filter === 'failed' ? t('aiKbRetry') : '' }}</span>
++            <span />
++          </div>
++          <div v-for="row in indexRows" :key="row.id" class="k-row" :data-selected="String(selected.has(row.id))">
++            <input
++              type="checkbox"
++              class="k-row-check"
++              :checked="selected.has(row.id)"
++              @change="toggleSel(row.id)"
++            />
++            <span class="k-row-status" :data-state="filter">
++              <KIcon v-if="filter === 'pending'" name="hourglass" :size="12" />
++              <KIcon v-else-if="filter === 'running'" name="spinner" :size="12" />
++              <KIcon v-else name="x" :size="12" />
++            </span>
++            <span class="k-row-name" :title="basename(row.path)">{{ basename(row.path) }}</span>
++            <span class="k-row-path" :title="dirname(row.path)">{{ dirname(row.path) }}</span>
++            <!-- ParserJob.created_at 在 knowledgeStore.ts 里声明成 string(该文件本任务
++                 零改动权限),但后端实际下发的是毫秒时间戳数字(见 fixtures
++                 jobs-pending.json)。Number(...) 只是满足 fmtAgo(ms: number) 的类型要求,
++                 对真实数字输入是恒等转换,对 undefined 得到 NaN(!NaN 与 !undefined 同为
++                 truthy 分支,回落 '—'),不改变任何可观察行为。 -->
++            <span class="k-row-time">{{ fmtAgo(Number(row.created_at)) }}</span>
++            <span class="k-row-retry">
++              <template v-if="filter === 'failed' && row.attempts">{{ t('aiKbNRetried', { n: row.attempts }) }}</template>
++              <span
++                v-if="filter === 'failed' && row.last_error"
++                style="
++                  display: block;
++                  font-size: 10px;
++                  color: var(--text-quaternary);
++                  font-weight: 400;
++                  white-space: nowrap;
++                  overflow: hidden;
++                  text-overflow: ellipsis;
++                "
++              >
++                {{ row.last_error }}
++              </span>
++            </span>
++            <span class="k-row-actions">
++              <button
++                v-if="filter === 'pending'"
++                class="k-row-action"
++                data-tone="danger"
++                :title="t('aiKbCancel')"
++                @click="cancelOne(row)"
++              >
++                <KIcon name="x" :size="13" />
++              </button>
++              <button v-if="filter === 'failed'" class="k-row-action" :title="t('aiKbRetry')" @click="retryOne(row)">
++                <KIcon name="refresh" :size="13" />
++              </button>
++            </span>
++          </div>
++          <div v-if="indexRows.length >= 200" class="k-table-foot">
++            <KIcon name="info" :size="12" />
++            {{ t('aiKbShowingFirst200') }}
++          </div>
++        </div>
++
++        <!-- distill 表格(蓝本 :145-185)—— 专属栅格,无 checkbox 列,一行一个重试按钮 -->
++        <div v-else class="k-table">
++          <div class="k-row k-row-head" data-scope="distill">
++            <span />
++            <span>{{ t('aiKbColFile') }}</span>
++            <span>{{ t('aiKbColPath') }}</span>
++            <span>{{ t('aiKbStatus') }}</span>
++            <span>{{ t('aiKbStatusError') }}</span>
++            <span>{{ t('aiKbColTime') }}</span>
++            <span />
++          </div>
++          <div v-for="row in distillRows" :key="row.filePath" class="k-row" data-scope="distill">
++            <span class="k-row-status" :data-state="distillIconState(row)">
++              <KIcon v-if="row.status === 'pending'" name="hourglass" :size="12" />
++              <KIcon v-else-if="row.status === 'running'" name="spinner" :size="12" />
++              <KIcon v-else name="x" :size="12" />
++            </span>
++            <span class="k-row-name" :title="basename(row.filePath)">{{ basename(row.filePath) }}</span>
++            <span class="k-row-path" :title="dirname(row.filePath)">{{ dirname(row.filePath) }}</span>
++            <span class="k-row-badges">
++              <span class="kn-badge" :data-s="row.origin === 'manual' ? 'curated' : 'archived'">
++                {{ row.origin === 'manual' ? t('aiKbOriginManual') : t('aiKbOriginAuto') }}
++              </span>
++              <span v-if="row.status === 'skipped'" class="kn-badge" data-s="draft">{{ t('aiKbSkipped') }}</span>
++              <span v-else-if="row.status === 'failed'" class="kn-badge" data-s="failed">{{ t('aiKbFailed') }}</span>
++            </span>
++            <span class="k-row-error" :title="row.lastError">{{ row.lastError }}</span>
++            <span class="k-row-time">{{ fmtAgo(row.updatedAt || row.enqueuedAt) }}</span>
++            <span class="k-row-actions">
++              <button
++                v-if="row.status === 'pending'"
++                class="k-row-action"
++                data-tone="danger"
++                :title="t('aiKbCancel')"
++                @click="cancelDistillRow(row)"
++              >
++                <KIcon name="x" :size="13" />
++              </button>
++              <button
++                v-if="row.status === 'failed' || row.status === 'skipped'"
++                class="k-row-action"
++                :title="t('aiKbRetry')"
++                @click="retryDistillRow(row)"
++              >
++                <KIcon name="refresh" :size="13" />
++              </button>
++            </span>
++          </div>
++          <div v-if="distillTruncated" class="k-table-foot">
++            <KIcon name="info" :size="12" />
++            {{ t('aiKbShowingFirstN', { n: store.distillJobs.total }) }}
++          </div>
++        </div>
++      </div>
++    </div>
++
++    <!-- 清空确认弹窗(蓝本 :190-208)—— K7:reka Dialog 原语,portal 到知识库容器。 -->
++    <DialogRoot :open="confirmClear" @update:open="confirmClear = $event">
++      <DialogPortal to=".knowledge-app" defer>
++        <DialogOverlay class="k-modal-bg">
++          <DialogContent class="k-modal" style="width: min(420px, 100%)" :aria-describedby="undefined">
++            <VisuallyHidden as-child><DialogTitle>{{ t('aiKbClearFailedConfirmTitle') }}</DialogTitle></VisuallyHidden>
++            <div class="k-confirm-body">
++              <div class="k-confirm-icon"><KIcon name="danger" :size="28" /></div>
++              <div class="k-confirm-title">{{ t('aiKbClearFailedConfirmTitle') }}</div>
++              <div style="text-align: center; color: var(--text-secondary); font-size: 13px">
++                {{ t('aiKbClearFailedConfirmBody', { n: counts.failed }) }}
++              </div>
++            </div>
++            <div class="k-modal-foot">
++              <div class="right" style="margin-left: auto">
++                <button class="k-btn ghost" @click="confirmClear = false">{{ t('aiKbCancel') }}</button>
++                <button class="k-btn danger" @click="doClearFailed">
++                  <KIcon name="trash" :size="12" /> {{ t('aiKbConfirmClear') }}
++                </button>
++              </div>
++            </div>
++          </DialogContent>
++        </DialogOverlay>
++      </DialogPortal>
++    </DialogRoot>
++  </div>
++</template>

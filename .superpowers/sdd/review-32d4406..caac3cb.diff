@@ -1,0 +1,599 @@
+# Review package: 32d4406..caac3cb
+
+## Commits
+caac3cb SP8-P1c2: right panel shell + Activity/Context tabs
+
+## Files changed
+ src/ai/components/shell/AgentRightPanel.test.ts | 109 +++++++++++++++++++++
+ src/ai/components/shell/AgentRightPanel.vue     | 125 ++++++++++++++++++++++++
+ src/ai/components/tabs/ActivityTab.test.ts      |  67 +++++++++++++
+ src/ai/components/tabs/ActivityTab.vue          |  74 ++++++++++++++
+ src/ai/components/tabs/ContextTab.test.ts       |  27 +++++
+ src/ai/components/tabs/ContextTab.vue           |  24 +++++
+ src/ai/util/formatDuration.test.ts              |  32 ++++++
+ src/ai/util/formatDuration.ts                   |  14 +++
+ src/i18n/en_us.ts                               |  15 +++
+ src/i18n/zh_cn.ts                               |  13 +++
+ 10 files changed, 500 insertions(+)
+
+## Diff
+diff --git a/src/ai/components/shell/AgentRightPanel.test.ts b/src/ai/components/shell/AgentRightPanel.test.ts
+new file mode 100644
+index 0000000..645db24
+--- /dev/null
++++ b/src/ai/components/shell/AgentRightPanel.test.ts
+@@ -0,0 +1,109 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue(80 行)。SP8-P1c2
++// Task 10。哑组件:props 进、emit 出,父组件(AgentPage,Task 13 接线)持有全部
++// 状态。System/Resources 两个 tab 是后续任务(Task 11/12)的范围,本任务只保证
++// 4 选 1 的分支结构和 Resources 是 v-else 兜底(未知 tab 值也落这里)与 Vue2 一致
++// ——用 data-testid 占位标注,内容留给对应任务替换。
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import AgentRightPanel from './AgentRightPanel.vue'
++
++const i18n = createI18n({
++  legacy: false,
++  locale: 'zh_cn',
++  messages: {
++    zh_cn: {
++      aiTabActivity: '活动',
++      aiTabContext: '上下文',
++      aiTabSystem: '系统',
++      aiTabResources: '资源',
++      aiActivityHeader: 'Agent 运行',
++      aiActivityRunning: '运行中…',
++      aiActivityWaiting: '等待',
++      aiActivityEmpty: 'Agent 步骤将在运行时显示在这里',
++      aiActivityDone: '完成',
++      aiContextNotYet: '暂不可用',
++      aiContextDesc: '未来会支持把文件加入对话上下文，让 Agent 直接参考它们。',
++    },
++  },
++})
++
++function mountPanel(props = {}) {
++  return mount(AgentRightPanel, { props, global: { plugins: [i18n] } })
++}
++
++describe('AgentRightPanel', () => {
++  it('collapsed=true → 不渲染(v-if="!collapsed")', () => {
++    const w = mountPanel({ collapsed: true })
++    expect(w.find('aside.rightpanel').exists()).toBe(false)
++  })
++
++  it('collapsed=false(默认)→ 渲染 <aside class="rightpanel">', () => {
++    const w = mountPanel({ collapsed: false })
++    expect(w.find('aside.rightpanel').exists()).toBe(true)
++  })
++
++  it('4 个 tab 按钮点击各自 emit set-tab', async () => {
++    const w = mountPanel()
++    const buttons = w.findAll('.right-tab')
++    expect(buttons.length).toBe(4)
++    await buttons[0].trigger('click')
++    await buttons[1].trigger('click')
++    await buttons[2].trigger('click')
++    await buttons[3].trigger('click')
++    expect(w.emitted('set-tab')).toEqual([['activity'], ['context'], ['system'], ['resources']])
++  })
++
++  it('data-active 反映当前 tab', () => {
++    const w = mountPanel({ tab: 'context' })
++    const buttons = w.findAll('.right-tab')
++    expect(buttons[0].attributes('data-active')).toBe('false')
++    expect(buttons[1].attributes('data-active')).toBe('true')
++  })
++
++  it('未知 tab 值落 Resources(v-else 兜底,与 Vue2 逐字一致)', () => {
++    const w = mountPanel({ tab: 'nonexistent-tab' })
++    expect(w.find('[data-testid="resources-tab-placeholder"]').exists()).toBe(true)
++    expect(w.find('[data-testid="system-tab-placeholder"]').exists()).toBe(false)
++    expect(w.findComponent({ name: 'ActivityTab' }).exists()).toBe(false)
++    expect(w.findComponent({ name: 'ContextTab' }).exists()).toBe(false)
++  })
++
++  it('四选一分支:activity/context/system 各自只渲染对应内容', () => {
++    expect(mountPanel({ tab: 'activity' }).findComponent({ name: 'ActivityTab' }).exists()).toBe(true)
++    expect(mountPanel({ tab: 'context' }).findComponent({ name: 'ContextTab' }).exists()).toBe(true)
++    expect(mountPanel({ tab: 'system' }).find('[data-testid="system-tab-placeholder"]').exists()).toBe(true)
++  })
++
++  it('pendingCount > 0 时 Resources 按钮显示 .badge-pending 且数值正确', () => {
++    const w = mountPanel({
++      stagedChanges: [
++        { run_id: 1, created_at: 0, items: [{ seq: 1 }, { seq: 2 }] },
++        { run_id: 2, created_at: 0, items: [{ seq: 3 }] },
++      ],
++    })
++    const badge = w.find('.badge-pending')
++    expect(badge.exists()).toBe(true)
++    expect(badge.text()).toBe('3')
++  })
++
++  it('pendingCount === 0(默认空数组)时不显示角标', () => {
++    const w = mountPanel()
++    expect(w.find('.badge-pending').exists()).toBe(false)
++  })
++
++  it('stagedChanges 里某组缺 items 数组时不炸,按 0 计入', () => {
++    const w = mountPanel({
++      stagedChanges: [
++        { run_id: 1, created_at: 0, items: [{ seq: 1 }] },
++        // 缺 items —— 流式建组时可能先 push 组再补 items,brief 明确要求容错。
++        { run_id: 2, created_at: 0 },
++      ],
++    })
++    expect(w.find('.badge-pending').text()).toBe('1')
++  })
++
++  it('12 个 props 均有合理默认值,空 props 挂载不炸', () => {
++    expect(() => mountPanel()).not.toThrow()
++  })
++})
+diff --git a/src/ai/components/shell/AgentRightPanel.vue b/src/ai/components/shell/AgentRightPanel.vue
+new file mode 100644
+index 0000000..6169105
+--- /dev/null
++++ b/src/ai/components/shell/AgentRightPanel.vue
+@@ -0,0 +1,125 @@
++<!--
++  1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue(80 行)。SP8-P1c2
++  Task 10。哑组件(props 进、events 出),父组件持有全部状态——Vue2 没有 emits
++  声明(Vue2 不强制),本期按 Vue3 惯例补上。
++
++  双重折叠机制(两者都要,brief 明确指出):
++  1) 本组件的 `v-if="!collapsed"` —— collapsed=true 时整个 <aside> 不渲染。
++  2) 页面级 grid 列宽通过 AgentPage 根节点的 `data-rightcollapsed` 属性归零
++     (Task 2 已落地,Task 13 才会把本组件真正挂进 AgentPage)。
++  两个机制分别处理"组件树里有没有这坨 DOM"和"布局网格给不给它留列宽",缺一都会
++  出问题(例如只留 1 不留 2,列宽仍占 360px 但里面空了一块;只留 2 不留 1,DOM
++  还在只是视觉上宽度归零,仍占用 tab 焦点顺序/无障碍树)。
++
++  System/Resources 两个 tab 是分开的任务(Task 11 SystemTab、Task 12
++  ResourcesTab),Resources 是 v-else 兜底分支(未知 tab 值也落这里,与 Vue2
++  AgentRightPanel.vue:15-16 逐字一致)。本任务只用占位 div 占住这两个分支的位置,
++  真实内容留给对应任务替换——不要在这里顺手实现它们。
++-->
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useI18n } from 'vue-i18n'
++import ActivityTab from '../tabs/ActivityTab.vue'
++import ContextTab from '../tabs/ContextTab.vue'
++import type { ActivityStep } from '../tabs/ActivityTab.vue'
++import type { StagedGroup } from '../../stores/agentStore'
++
++const props = withDefaults(
++  defineProps<{
++    collapsed?: boolean
++    tab?: 'activity' | 'context' | 'system' | 'resources'
++    activitySteps?: ActivityStep[]
++    systemMetrics?: Record<string, unknown>
++    storage?: Record<string, unknown> | null
++    busy?: boolean
++    sessionId?: string
++    visibleResources?: Record<string, unknown>[]
++    attachments?: Record<string, unknown>[]
++    stagedChanges?: StagedGroup[]
++    committing?: boolean
++    reverting?: Record<string, boolean>
++  }>(),
++  {
++    collapsed: false,
++    tab: 'activity',
++    activitySteps: () => [],
++    systemMetrics: () => ({}),
++    storage: null,
++    busy: false,
++    sessionId: '',
++    visibleResources: () => [],
++    attachments: () => [],
++    stagedChanges: () => [],
++    committing: false,
++    reverting: () => ({}),
++  },
++)
++
++const emit = defineEmits<{
++  (e: 'set-tab', tab: string): void
++  (e: 'remove-resource', id: string | number): void
++  (e: 'remove-attachment', id: string | number): void
++  (e: 'revert-run', runId: string | number): void
++  (e: 'revert-batch', batchId: string | number): void
++  (e: 'revert-item', stagedId: string | number): void
++  (e: 'commit-all'): void
++}>()
++
++// Vue2 AgentRightPanel.vue:59-61 —— `this.stagedChanges.reduce((n, g) => n +
++// g.items.length, 0)`. Defensive here (brief-mandated): a group can exist in
++// the streamed data before its `items` array is populated, so guard with `?? []`
++// rather than assuming `items` is always an array.
++const pendingCount = computed(() =>
++  props.stagedChanges.reduce((n, g) => n + (g.items?.length ?? 0), 0),
++)
++
++const { t } = useI18n()
++</script>
++
++<template>
++  <aside v-if="!collapsed" class="rightpanel">
++    <div class="right-tabs">
++      <button class="right-tab" :data-active="tab === 'activity'" @click="emit('set-tab', 'activity')">{{ t('aiTabActivity') }}</button>
++      <button class="right-tab" :data-active="tab === 'context'" @click="emit('set-tab', 'context')">{{ t('aiTabContext') }}</button>
++      <button class="right-tab" :data-active="tab === 'system'" @click="emit('set-tab', 'system')">{{ t('aiTabSystem') }}</button>
++      <button class="right-tab" :data-active="tab === 'resources'" @click="emit('set-tab', 'resources')">
++        {{ t('aiTabResources') }}<span v-if="pendingCount > 0" class="badge-pending">{{ pendingCount }}</span>
++      </button>
++    </div>
++    <div class="right-content scroll">
++      <ActivityTab v-if="tab === 'activity'" :steps="activitySteps" :busy="busy" />
++      <ContextTab v-else-if="tab === 'context'" />
++      <!-- SystemTab lands in SP8-P1c2 Task 11 (live utilization + storage card).
++           Replaces this div with <SystemTab :system-metrics="systemMetrics" :storage="storage" />. -->
++      <div v-else-if="tab === 'system'" data-testid="system-tab-placeholder" />
++      <!-- ResourcesTab lands in SP8-P1c2 Task 12 (authorized resources /
++           attachments / staged changes, three-tier revert). This is Vue2's
++           v-else fallback branch — an unrecognised tab value lands here too,
++           matching AgentRightPanel.vue:15-30 exactly. Task 12 replaces this
++           div with the real <ResourcesTab> wired to the props/emits already
++           declared above. -->
++      <div v-else data-testid="resources-tab-placeholder" />
++    </div>
++  </aside>
++</template>
++
++<style scoped>
++/* Vue2 AgentRightPanel.vue:66-80 <style scoped> —— .badge-pending isn't part of
++   agent-styles.scss (that file only owns .rightpanel/.right-tabs/.right-tab/
++   .right-content/.activity-*), it was always this component's own scoped
++   style, so it's ported here rather than touching the shared scss file.
++   Vue2:76 raw `color: white` → `var(--text-on-accent)` (only bare colour). */
++.badge-pending {
++  display: inline-block;
++  margin-left: 4px;
++  min-width: 16px;
++  padding: 0 5px;
++  font-size: 10px;
++  font-weight: 600;
++  border-radius: 8px;
++  background: var(--danger);
++  color: var(--text-on-accent);
++  line-height: 14px;
++  text-align: center;
++}
++</style>
+diff --git a/src/ai/components/tabs/ActivityTab.test.ts b/src/ai/components/tabs/ActivityTab.test.ts
+new file mode 100644
+index 0000000..4d53f93
+--- /dev/null
++++ b/src/ai/components/tabs/ActivityTab.test.ts
+@@ -0,0 +1,67 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/ActivityTab.vue(55 行)。SP8-P1c2 Task 10。
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import ActivityTab from './ActivityTab.vue'
++
++const i18n = createI18n({
++  legacy: false,
++  locale: 'zh_cn',
++  messages: {
++    zh_cn: {
++      aiActivityHeader: 'Agent 运行',
++      aiActivityRunning: '运行中…',
++      aiActivityWaiting: '等待',
++      aiActivityEmpty: 'Agent 步骤将在运行时显示在这里',
++      aiActivityDone: '完成',
++    },
++  },
++})
++
++function mountTab(props = {}) {
++  return mount(ActivityTab, { props, global: { plugins: [i18n] } })
++}
++
++describe('ActivityTab', () => {
++  it('success 步骤显示 formatDuration 的结果', () => {
++    const w = mountTab({ steps: [{ id: 1, name: '搜索文件', state: 'success', durationMs: 4500 }] })
++    expect(w.find('.activity-title').text()).toBe('搜索文件')
++    expect(w.find('.activity-meta').text()).toBe('4.5s')
++    expect(w.find('.activity-bullet').attributes('data-state')).toBe('success')
++  })
++
++  it('success 但 durationMs 缺失(falsy 非 0)→ 显示"完成"', () => {
++    const w = mountTab({ steps: [{ id: 1, name: '整理', state: 'success' }] })
++    expect(w.find('.activity-meta').text()).toBe('完成')
++  })
++
++  it('running 步骤显示"运行中…"', () => {
++    const w = mountTab({ steps: [{ id: 1, name: '扫描磁盘', state: 'running' }] })
++    expect(w.find('.activity-meta').text()).toBe('运行中…')
++  })
++
++  it('其余状态(如 pending)显示"等待"', () => {
++    const w = mountTab({ steps: [{ id: 1, name: '排队中', state: 'pending' }] })
++    expect(w.find('.activity-meta').text()).toBe('等待')
++  })
++
++  it('busy 且无步骤 → 显示 dots 载入态 + "运行中…"', () => {
++    const w = mountTab({ steps: [], busy: true })
++    expect(w.find('.dots').exists()).toBe(true)
++    expect(w.find('.dots').findAll('span').length).toBe(3)
++    expect(w.text()).toContain('运行中…')
++  })
++
++  it('无步骤且不 busy → 空态图标 + 提示文案', () => {
++    const w = mountTab({ steps: [], busy: false })
++    expect(w.find('.dots').exists()).toBe(false)
++    expect(w.text()).toContain('Agent 步骤将在运行时显示在这里')
++    // AgentIcon name="layers" 渲染为 svg
++    expect(w.find('svg').exists()).toBe(true)
++  })
++
++  it('头部标题固定显示 "Agent 运行"(aiActivityHeader)', () => {
++    const w = mountTab()
++    expect(w.text()).toContain('Agent 运行')
++  })
++})
+diff --git a/src/ai/components/tabs/ActivityTab.vue b/src/ai/components/tabs/ActivityTab.vue
+new file mode 100644
+index 0000000..35984df
+--- /dev/null
++++ b/src/ai/components/tabs/ActivityTab.vue
+@@ -0,0 +1,74 @@
++<!--
++  1:1 移植自 Vue2 src/views/AI/Agent/tabs/ActivityTab.vue(55 行)。SP8-P1c2 Task 10。
++
++  步骤列表:`.activity-step`/`.activity-bullet[data-state]`/`.activity-title`/
++  `.activity-meta` 四个 class 由 src/ai/styles/agent-styles.scss:433-451 提供
++  (已 1:1 港入,本组件不新增/不改样式规则)。头部标题 + busy 载入态 + 空态三处
++  Vue2 用的是行内 style(scss 里没有对应 class),原样保留内联样式而非新造 class。
++
++  formatDuration 抽到 ../../util/formatDuration.ts(纯函数 + 独立单测)。Vue2 原
++  函数 falsy 分支返回字面量 'Done'(未 i18n);本期政策要求给这类字面量补键,
++  纯函数改返回 `null` 哨兵,这里映射成 t('aiActivityDone')。
++-->
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import AgentIcon from '../icons/AgentIcon.vue'
++import { formatDuration } from '../../util/formatDuration'
++
++export interface ActivityStep {
++  id: string | number
++  name: string
++  state: string
++  durationMs?: number
++  [k: string]: unknown
++}
++
++withDefaults(
++  defineProps<{
++    steps?: ActivityStep[]
++    busy?: boolean
++  }>(),
++  {
++    steps: () => [],
++    busy: false,
++  },
++)
++
++const { t } = useI18n()
++</script>
++
++<template>
++  <div>
++    <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 10px;
++                font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px">
++      {{ t('aiActivityHeader') }}
++    </div>
++
++    <template v-if="steps.length > 0">
++      <div v-for="step in steps" :key="step.id" class="activity-step">
++        <div class="activity-bullet" :data-state="step.state" />
++        <div style="flex: 1">
++          <div class="activity-title">{{ step.name }}</div>
++          <div class="activity-meta">
++            <template v-if="step.state === 'success'">
++              {{ formatDuration(step.durationMs) ?? t('aiActivityDone') }}
++            </template>
++            <template v-else-if="step.state === 'running'">{{ t('aiActivityRunning') }}</template>
++            <template v-else>{{ t('aiActivityWaiting') }}</template>
++          </div>
++        </div>
++      </div>
++    </template>
++
++    <div v-else-if="busy"
++         style="padding: 20px; text-align: center; color: var(--text-tertiary); font-size: 12px">
++      <span class="dots"><span /><span /><span /></span> {{ t('aiActivityRunning') }}
++    </div>
++
++    <div v-else
++         style="padding: 30px 16px; text-align: center; color: var(--text-tertiary); font-size: 12px">
++      <AgentIcon name="layers" :size="32" color="var(--text-quaternary)" />
++      <div style="margin-top: 12px">{{ t('aiActivityEmpty') }}</div>
++    </div>
++  </div>
++</template>
+diff --git a/src/ai/components/tabs/ContextTab.test.ts b/src/ai/components/tabs/ContextTab.test.ts
+new file mode 100644
+index 0000000..504026f
+--- /dev/null
++++ b/src/ai/components/tabs/ContextTab.test.ts
+@@ -0,0 +1,27 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/ContextTab.vue(16 行)——纯占位面板。
++// SP8-P1c2 Task 10 brief 明确:这是 Vue2 里本来就"尚未支持"的占位,不要顺手实现
++// 真正的"加文件到上下文"功能,原样港过来即可。
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import ContextTab from './ContextTab.vue'
++
++const i18n = createI18n({
++  legacy: false,
++  locale: 'zh_cn',
++  messages: {
++    zh_cn: {
++      aiContextNotYet: '暂不可用',
++      aiContextDesc: '未来会支持把文件加入对话上下文，让 Agent 直接参考它们。',
++    },
++  },
++})
++
++describe('ContextTab', () => {
++  it('渲染占位文案(标题 + 说明句)+ 空态图标', () => {
++    const w = mount(ContextTab, { global: { plugins: [i18n] } })
++    expect(w.text()).toContain('暂不可用')
++    expect(w.text()).toContain('未来会支持把文件加入对话上下文，让 Agent 直接参考它们。')
++    expect(w.find('svg').exists()).toBe(true)
++  })
++})
+diff --git a/src/ai/components/tabs/ContextTab.vue b/src/ai/components/tabs/ContextTab.vue
+new file mode 100644
+index 0000000..ba5c788
+--- /dev/null
++++ b/src/ai/components/tabs/ContextTab.vue
+@@ -0,0 +1,24 @@
++<!--
++  1:1 移植自 Vue2 src/views/AI/Agent/tabs/ContextTab.vue(16 行)。SP8-P1c2 Task 10。
++
++  这是 Vue2 里本来就"尚未支持"的纯占位面板(标题 + 说明句),不是本任务被裁剪掉的
++  功能——按 brief 原样港过来即可,不要顺手实现"把文件加入对话上下文"。
++-->
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import AgentIcon from '../icons/AgentIcon.vue'
++
++const { t } = useI18n()
++</script>
++
++<template>
++  <div style="padding: 30px 16px; text-align: center; color: var(--text-tertiary)">
++    <AgentIcon name="folder" :size="32" color="var(--text-quaternary)" />
++    <div style="margin-top: 12px; font-size: 13px; color: var(--text-secondary); font-weight: 500">
++      {{ t('aiContextNotYet') }}
++    </div>
++    <div style="margin-top: 6px; font-size: 12px; line-height: 1.5">
++      {{ t('aiContextDesc') }}
++    </div>
++  </div>
++</template>
+diff --git a/src/ai/util/formatDuration.test.ts b/src/ai/util/formatDuration.test.ts
+new file mode 100644
+index 0000000..0ddfa6e
+--- /dev/null
++++ b/src/ai/util/formatDuration.test.ts
+@@ -0,0 +1,32 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/ActivityTab.vue:47-52(formatDuration)。
++import { describe, it, expect } from 'vitest'
++import { formatDuration } from './formatDuration'
++
++describe('formatDuration', () => {
++  it('< 1000ms → 整数毫秒 + "ms"', () => {
++    expect(formatDuration(500)).toBe('500ms')
++    expect(formatDuration(999)).toBe('999ms')
++  })
++
++  it('0ms 是合法值(非"完成"分支)→ Math.max(1,...) 兜底成 "1ms"', () => {
++    // Vue2 判据是 `!ms && ms !== 0` —— ms===0 时 !ms 为 true 但 ms!==0 为 false,
++    // 整体为 false,故落到数字格式化分支而非"完成"。
++    expect(formatDuration(0)).toBe('1ms')
++  })
++
++  it('>= 1000ms 且 < 10s → 一位小数 + "s"', () => {
++    expect(formatDuration(1000)).toBe('1.0s')
++    expect(formatDuration(4500)).toBe('4.5s')
++    expect(formatDuration(9499)).toBe('9.5s')
++  })
++
++  it('>= 10s → 四舍五入整数秒 + "s"', () => {
++    expect(formatDuration(15000)).toBe('15s')
++    expect(formatDuration(59999)).toBe('60s')
++  })
++
++  it('falsy 且非 0(null/undefined)→ 返回 null,由调用方渲染成"完成"(aiActivityDone)', () => {
++    expect(formatDuration(null)).toBeNull()
++    expect(formatDuration(undefined)).toBeNull()
++  })
++})
+diff --git a/src/ai/util/formatDuration.ts b/src/ai/util/formatDuration.ts
+new file mode 100644
+index 0000000..61a6598
+--- /dev/null
++++ b/src/ai/util/formatDuration.ts
+@@ -0,0 +1,14 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/ActivityTab.vue:47-52(formatDuration
++// 方法),抽成纯函数供 ActivityTab.vue 消费 + 独立单测。
++//
++// Vue2 原文 falsy 分支直接 `return 'Done'`(未 i18n 的英文字面量)。本期政策
++// (2026-07-27 拍板)是给这类字面量补中文键——但翻译属于渲染层职责,不属于这个
++// 纯函数。所以这里改用 `null` 作为"完成"状态的哨兵值,由调用方
++// (ActivityTab.vue)在渲染时把 `null` 映射成 `t('aiActivityDone')`;毫秒/秒的
++// 数字格式化部分(ms/s 单位)不在本期 i18n 清单里,原样保留字面量后缀。
++export function formatDuration(ms?: number | null): string | null {
++  if (!ms && ms !== 0) return null
++  if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`
++  const s = ms / 1000
++  return `${s < 10 ? s.toFixed(1) : Math.round(s)}s`
++}
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 80af5cb..de9585b 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -773,11 +773,26 @@ export default {
+   aiAttachTooLarge: '{name} exceeds 500 MB limit',
+   aiAttachSessionFailed: 'Failed to create session: {err}',
+   // SP8-P1c1 Task 11 — AgentComposer @mention/slash wiring, gitignore 409 confirm
+   // (AlertDialog replaces Vue2's window.confirm, see the pickItem comment in
+   // AgentComposer.vue). aiGitignoreBlockedMsg is Vue2's exact source string
+   // (AgentComposer.vue:398/631, en_US.json is an identity map for it).
+   // aiGitignoreBlockedTitle is new — AlertDialog needs a title, window.confirm
+   // never had one.
+   aiGitignoreBlockedTitle: 'Blocked by .gitignore',
+   aiGitignoreBlockedMsg: '{path} is blocked by .gitignore. Authorize anyway?',
++  // SP8-P1c2 Task 10 — AgentRightPanel (4 tab buttons) + ActivityTab + ContextTab,
++  // verbatim port. These strings were never i18n'd in Vue2 (raw English literals
++  // passed straight to $t with no zh_CN.json entry, so vue-i18n fell back to the
++  // key itself) — English values here are those exact literals.
++  aiTabActivity: 'Activity',
++  aiTabContext: 'Context',
++  aiTabSystem: 'System',
++  aiTabResources: 'Resources',
++  aiActivityHeader: 'Agent Run',
++  aiActivityRunning: 'Running…',
++  aiActivityWaiting: 'Waiting',
++  aiActivityEmpty: 'Agent steps will appear here while working',
++  aiActivityDone: 'Done',
++  aiContextNotYet: 'Not available yet',
++  aiContextDesc: 'Future support for adding files to conversation context so Agent can reference them directly.',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 05a4d74..b4049c1 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -779,11 +779,24 @@ export default {
+   // 无空格,与 zh_CN.json 保持一致而非按 brief 字面拼写)。
+   aiAttachTooLarge: '{name} 超过 500MB 上限',
+   aiAttachSessionFailed: '创建会话失败：{err}',
+   // SP8-P1c1 Task 11 — AgentComposer @提及/斜杠接线,gitignore 409 确认框
+   // (AlertDialog 取代 Vue2 window.confirm,见 AgentComposer.vue pickItem 注释)。
+   // aiGitignoreBlockedMsg 逐字复用 Vue2 既有 zh_CN.json 对 "{path} is blocked by
+   // .gitignore. Authorize anyway?" 的译文;aiGitignoreBlockedTitle 是 AlertDialog
+   // 需要而 window.confirm 没有的标题,新写,词根与既有译文的"屏蔽"保持一致。
+   aiGitignoreBlockedTitle: '路径被 .gitignore 屏蔽',
+   aiGitignoreBlockedMsg: '{path} 被 .gitignore 屏蔽，确认仍要授权？',
++  // SP8-P1c2 Task 10 —— AgentRightPanel(4 个 tab 按钮)+ ActivityTab + ContextTab
++  // 逐字港。这几个字符串 Vue2 从未 i18n 过(裸英文字面量),按本期拍板补中文键。
++  aiTabActivity: '活动',
++  aiTabContext: '上下文',
++  aiTabSystem: '系统',
++  aiTabResources: '资源',
++  aiActivityHeader: 'Agent 运行',
++  aiActivityRunning: '运行中…',
++  aiActivityWaiting: '等待',
++  aiActivityEmpty: 'Agent 步骤将在运行时显示在这里',
++  aiActivityDone: '完成',
++  aiContextNotYet: '暂不可用',
++  aiContextDesc: '未来会支持把文件加入对话上下文，让 Agent 直接参考它们。',
+ }

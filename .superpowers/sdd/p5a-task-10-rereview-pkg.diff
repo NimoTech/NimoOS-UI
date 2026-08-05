@@ -1,0 +1,535 @@
+# Review package: 15ea9fc..2677f61
+
+## Commits
+2677f61 fix(knowledge): SP8-P5a R8 —— 父路由接上 KnowledgeLayout + 4 条评审补强
+
+## Files changed
+ src/ai/knowledge/knowledgeRoutes.test.ts       | 32 +++++++++++----
+ src/ai/knowledge/knowledgeRoutes.ts            | 16 ++++++--
+ src/ai/knowledge/views/KnowledgeLayout.test.ts | 52 +++++++++++++++++++++++
+ src/ai/knowledge/views/KnowledgeLayout.vue     | 36 ++++++++--------
+ src/ai/styles/knowledgeStyles.test.ts          | 57 +++++++++++++++++++++++++-
+ 5 files changed, 165 insertions(+), 28 deletions(-)
+
+## Diff
+diff --git a/src/ai/knowledge/knowledgeRoutes.test.ts b/src/ai/knowledge/knowledgeRoutes.test.ts
+index 8d7c95e..d11ca5c 100644
+--- a/src/ai/knowledge/knowledgeRoutes.test.ts
++++ b/src/ai/knowledge/knowledgeRoutes.test.ts
+@@ -1,36 +1,54 @@
+ import { describe, it, expect } from 'vitest'
+ import { knowledgeRoutes } from './knowledgeRoutes'
+ import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
++import KnowledgeLayout from './views/KnowledgeLayout.vue'
+ 
+ describe('knowledgeRoutes', () => {
+   it('一条布局路由带 9 个子路由 + 两条 Parser 路由', () => {
+     expect(knowledgeRoutes).toHaveLength(3)
+     const layout = knowledgeRoutes[0]
+     expect(layout.path).toBe('/ai/knowledge')
+     expect(layout.children?.map((c) => c.path)).toEqual(
+       ['', 'search', 'wiki', 'indexed-files', 'queue', 'roots', 'allowlist', 'notes', 'settings'])
+     expect(knowledgeRoutes[1].path).toBe('/ai/parser')
+     expect(knowledgeRoutes[2].path).toBe('/ai/parser/test')
+   })
+ 
+   it('路由名逐字照 Vue2', () => {
+     const names = [knowledgeRoutes[0].children!.map((c) => c.name),
+                    knowledgeRoutes[1].name, knowledgeRoutes[2].name].flat()
+     expect(names).toEqual(['KnowledgeDashboard', 'KnowledgeSearch', 'KnowledgeWiki',
+       'KnowledgeIndexedFiles', 'KnowledgeQueue', 'KnowledgeRoots', 'KnowledgeAllowlist',
+       'KnowledgeNotes', 'KnowledgeSettings', 'AIParser', 'AIParserTest'])
+   })
+ 
+-  // 主动加(brief 未给):T12 会把 '' 子路由的 component 反转成 DashboardView——
+-  // 现在钉住「本期 9 个子路由 + 2 条 parser 路由的 component 全部指向 KnowledgeDeferred」,
+-  // 这样 T12 落地时这条断言会精确报红,提醒改的人同步更新它,而不是被无声继承。
+-  it('本期(P5a)全部 11 条路由的 component 都还是占位页 KnowledgeDeferred', () => {
+-    const components = [
++  // 【评审 R8,Critical,2026-08-01 反转(不是删除)】原断言钉住「本期 11 条路由的
++  // component 全部指向 KnowledgeDeferred」——这条断言本身就是这次 Critical 的
++  // 反面教材:父路由(布局位)一直是 KnowledgeDeferred,KnowledgeLayout(T10)
++  // 全仓零 import、knowledge.scss 从未真正进构建产物,而这条断言全程绿灯,因为
++  // 它把「父路由也是占位页」断言成了「应有行为」。协调者裁定父路由这步归 T10,
++  // 现反转成:父路由(布局位)=== KnowledgeLayout,9 个子路由 + 2 条独立 parser
++  // 路由仍 === KnowledgeDeferred(K7 占位机制本身不变,`''` 子路由留给 T12 换成
++  // 真正的 DashboardView,届时这条断言会精确报红,提醒同步更新)。
++  //
++  // 改前(2026-07-31,T5 原文):
++  //   it('本期(P5a)全部 11 条路由的 component 都还是占位页 KnowledgeDeferred', () => {
++  //     const components = [
++  //       ...knowledgeRoutes[0].children!.map((c) => c.component),
++  //       knowledgeRoutes[1].component,
++  //       knowledgeRoutes[2].component,
++  //     ]
++  //     expect(components).toHaveLength(11)
++  //     for (const c of components) expect(c).toBe(KnowledgeDeferred)
++  //   })
++  it('父路由(布局位)是 KnowledgeLayout,9 个子路由 + 2 条 parser 路由仍是占位页 KnowledgeDeferred', () => {
++    expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
++    const stillDeferred = [
+       ...knowledgeRoutes[0].children!.map((c) => c.component),
+       knowledgeRoutes[1].component,
+       knowledgeRoutes[2].component,
+     ]
+-    expect(components).toHaveLength(11)
+-    for (const c of components) expect(c).toBe(KnowledgeDeferred)
++    expect(stillDeferred).toHaveLength(11)
++    for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+   })
+ })
+diff --git a/src/ai/knowledge/knowledgeRoutes.ts b/src/ai/knowledge/knowledgeRoutes.ts
+index 9eb4445..77e2eb0 100644
+--- a/src/ai/knowledge/knowledgeRoutes.ts
++++ b/src/ai/knowledge/knowledgeRoutes.ts
+@@ -4,29 +4,39 @@
+ // 偏离申报(照治理文件 §2 三件套):
+ // 1) 路由 name 逐字沿用蓝本 PascalCase(KnowledgeDashboard 等),本仓其余路由
+ //    是 kebab-case(ai-agent/ai-settings)——本任务刻意保留蓝本命名,深链接/
+ //    编程式跳转与 name 一一对应,1:1 照 Vue2 优先于本仓命名惯例。
+ // 2) component 用本仓既有的顶部 eager import 风格(见 src/router/index.ts),
+ //    不用蓝本的 () => import(...) 懒加载——照本仓既有路由文件的写法。
+ // 3) 不照抄蓝本 meta.requireAuth/meta.showBackground 与 hidden 字段——本仓
+ //    meta 语义不同(guard.ts 只认 meta.public 标公开路由),照本仓既有的
+ //    ai-agent/ai-settings 路由(均不写 meta)处理,鉴权由全局 authGuard 兜底。
+ //
+-// 本批(K7)全部 9 个子路由 + 2 条 parser 路由的 component 都先指向占位页
+-// KnowledgeDeferred,T12 会把 '' 子路由换成真正的 DashboardView。
++// 【评审 R8,Critical,2026-08-01 修正】父路由(布局位)原来也指向占位页
++// KnowledgeDeferred——KnowledgeDeferred 没有 `<router-view/>` 出口,于是
++// KnowledgeLayout(T10)全仓零 import、成了死代码,knowledge.scss 也因此从未
++// 真正进过构建产物(`dist/assets/*.css` 里搜不到 `knowledge-app`)。T5/T10/T12
++// 三份 brief 都没写「父路由该在哪个任务接上 KnowledgeLayout」这一步,协调者
++// 裁定这步归 T10(外壳任务的产出不该是死代码)。
++// 现在父路由 component 改成 KnowledgeLayout,它自己的 `<router-view/>`
++// 才有内容可渲染。9 个子路由 + 2 条独立 parser 路由**仍然**指向
++// KnowledgeDeferred——`''` 子路由留给 T12 换成真正的 DashboardView,其余 8
++// 个子路由与 2 条 parser 路由留给后续批次逐个替换(K7 机制不变,只是父路由
++// 这一层从「占位页替占位页」变成「真布局 + 占位页子页」)。
+ import type { RouteRecordRaw } from 'vue-router'
+ import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
++import KnowledgeLayout from './views/KnowledgeLayout.vue'
+ 
+ export const knowledgeRoutes: RouteRecordRaw[] = [
+   {
+     path: '/ai/knowledge',
+-    component: KnowledgeDeferred,
++    component: KnowledgeLayout,
+     children: [
+       { path: '', name: 'KnowledgeDashboard', component: KnowledgeDeferred },
+       { path: 'search', name: 'KnowledgeSearch', component: KnowledgeDeferred },
+       { path: 'wiki', name: 'KnowledgeWiki', component: KnowledgeDeferred },
+       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: KnowledgeDeferred },
+       { path: 'queue', name: 'KnowledgeQueue', component: KnowledgeDeferred },
+       { path: 'roots', name: 'KnowledgeRoots', component: KnowledgeDeferred },
+       { path: 'allowlist', name: 'KnowledgeAllowlist', component: KnowledgeDeferred },
+       { path: 'notes', name: 'KnowledgeNotes', component: KnowledgeDeferred },
+       { path: 'settings', name: 'KnowledgeSettings', component: KnowledgeDeferred },
+diff --git a/src/ai/knowledge/views/KnowledgeLayout.test.ts b/src/ai/knowledge/views/KnowledgeLayout.test.ts
+index 3ca835a..b5f0fe8 100644
+--- a/src/ai/knowledge/views/KnowledgeLayout.test.ts
++++ b/src/ai/knowledge/views/KnowledgeLayout.test.ts
+@@ -59,20 +59,21 @@ import { useKnowledgeStore } from '../stores/knowledgeStore'
+ // 子页面而不是自己。这里改成扁平路由(顶层路径直接指向 Stub,不再让
+ // KnowledgeLayout 出现在路由表里),单测里 KnowledgeLayout 的
+ // `<router-view/>` 就是 depth 0,直接匹配到 Stub,行为与生产环境（只是深度
+ // 平移了一层）等价,且不再自我递归。
+ const Stub = { template: '<div class="stub-child"/>' }
+ function makeRouter(path = '/ai/knowledge') {
+   const router = createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+       { path: '/ai/knowledge', name: 'KnowledgeDashboard', component: Stub },
++      { path: '/ai/knowledge/wiki', name: 'KnowledgeWiki', component: Stub },
+       { path: '/ai/knowledge/queue', name: 'KnowledgeQueue', component: Stub },
+       { path: '/ai/knowledge/notes', name: 'KnowledgeNotes', component: Stub },
+       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: Stub },
+     ],
+   })
+   router.push(path)
+   return router
+ }
+ async function mountLayout(path?: string) {
+   const router = makeRouter(path)
+@@ -123,20 +124,49 @@ describe('KnowledgeLayout — rail', () => {
+   })
+ 
+   it('点导航项走 router.push,已在当前页则不 push', async () => {
+     const { w, router } = await mountLayout('/ai/knowledge/queue')
+     const push = vi.spyOn(router, 'push')
+     await w.findAll('.k-rail-item')[5].trigger('click')
+     expect(push).not.toHaveBeenCalled()
+     await w.findAll('.k-rail-item')[3].trigger('click')
+     expect(push).toHaveBeenCalledWith('/ai/knowledge/notes')
+   })
++
++  // 【评审 Important 开放发现 3,2026-08-01 补】rail 9 项与移动端 5 项的图标名
++  // (NAV[].icon)跟 KIcon.PATHS 之间没有任何断言绑定——KIcon.test.ts 那份 22 项
++  // 硬编码数组与 NAV 完全解耦,如果 NAV 里某个图标名手滑写错(比如 KIcon 内部改名
++  // 后 NAV 忘了同步),KIcon 会静默渲染一个空 `<svg></svg>`(可见的空白图标),但
++  // 现有用例(渲染 9 个导航项/href/data-active)全都不看 svg 内容,抓不到。
++  // RED 探针实测:把 `NAV[0].icon` 从 'home' 改成 'homez' → 全量全绿。
++  it('rail 9 项与移动端 5 项渲染出的 svg 图标内容非空(防 NAV 图标名手滑成不存在的 glyph)', async () => {
++    const { w } = await mountLayout()
++    const railSvgs = w.findAll('.k-rail-item svg')
++    expect(railSvgs).toHaveLength(9)
++    railSvgs.forEach((svg, idx) => {
++      expect(svg.element.innerHTML, `rail item #${idx} 的图标渲染为空`).not.toBe('')
++    })
++    const mobileSvgs = w.findAll('.k-mobile-tab svg')
++    expect(mobileSvgs).toHaveLength(5)
++    mobileSvgs.forEach((svg, idx) => {
++      expect(svg.element.innerHTML, `移动端 tab #${idx} 的图标渲染为空`).not.toBe('')
++    })
++  })
++})
++
++describe('KnowledgeLayout — router-view 出口', () => {
++  // 【评审 Minor,2026-08-01 补】`<router-view/>` 渲染出的子页面(测试里是 Stub)
++  // 之前没有任何用例查过,补一条最基础的存在性断言。
++  it('渲染当前路由匹配的子组件', async () => {
++    const { w } = await mountLayout()
++    expect(w.find('.stub-child').exists()).toBe(true)
++  })
+ })
+ 
+ describe('KnowledgeLayout — 徽标', () => {
+   it('failed > 0 时 queue 出数字徽标,=0 时不出', async () => {
+     const { w } = await mountLayout()
+     const s = useKnowledgeStore()
+     s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 3, done: 0 } }
+     await flushPromises()
+     const queueItem = w.findAll('.k-rail-item')[5]
+     expect(queueItem.find('.k-badge').text()).toBe('3')
+@@ -188,20 +218,42 @@ describe('KnowledgeLayout — topbar / banner', () => {
+   it('N8:rail 第 9 项是「系统设置」而 topbar 标题是「高级设置」', async () => {
+     const { w } = await mountLayout('/ai/knowledge/settings')
+     expect(w.findAll('.k-rail-item')[8].find('.k-rail-item-cn').text()).toBe('系统设置')
+     expect(w.find('.k-topbar-title').text()).toBe('高级设置')
+     // 补强:显式断言两者不相等,防止未来有人把两个键合并成一个(N8 的直接回归钉子)。
+     expect(w.findAll('.k-rail-item')[8].find('.k-rail-item-cn').text()).not.toBe(
+       w.find('.k-topbar-title').text(),
+     )
+   })
+ 
++  // 【评审 Important 开放发现 4,2026-08-01 补】TITLES 9 项原来只钉住 dashboard(默认档)
++  // 与 settings(N8)两项,wiki/queue 两项跟 N8 同性质的「titleKey 与 nav 短语不同」
++  // 刻意差异(Wiki vs Wiki map、Queue vs Job Queue)零覆盖;`.k-topbar-sub` 也只测过
++  // dashboard 那条「不带子路径」分支,`'/' + currentTab` 那条分支从没有对照用例
++  // (治理文件 §9:「A 与 B 二选一必须两边都有对照用例」)。
++  // RED 探针实测:把 `TITLES.queue.titleKey` 从 'aiKbTitleJobQueue' 改成
++  // 'aiKbNavQueue'(与 nav 键合并)→ queue 用例精确报红。
++  it('wiki:标题取 aiKbTitleWikiMap,副标题带 /wiki 子路径', async () => {
++    const { w } = await mountLayout('/ai/knowledge/wiki')
++    expect(w.find('.k-topbar-title').text()).toBe('Wiki 导航')
++    expect(w.find('.k-topbar-sub').text()).toBe('Wiki · /ai/knowledge/wiki')
++  })
++
++  it('queue:标题取 aiKbTitleJobQueue(≠ nav 的「任务」),副标题带 /queue 子路径(主钉子,判别力强于 wiki)', async () => {
++    const { w } = await mountLayout('/ai/knowledge/queue')
++    expect(w.find('.k-topbar-title').text()).toBe('任务队列')
++    expect(w.find('.k-topbar-sub').text()).toBe('Job Queue · /ai/knowledge/queue')
++    // wiki 与 nav 中文值恰好都是「Wiki 导航」(N8 说明栏已注),判别力天然弱;
++    // queue 的 nav 中文是「任务」、title 中文是「任务队列」,两者不同,才是真正的钉子。
++    expect(w.find('.k-topbar-title').text()).not.toBe('任务')
++  })
++
+   it('unreachable 时出警示条,否则不出', async () => {
+     const { w } = await mountLayout()
+     expect(w.find('.k-banner').exists()).toBe(false)
+     useKnowledgeStore().unreachable = true
+     await flushPromises()
+     expect(w.find('.k-banner').attributes('data-tone')).toBe('warn')
+   })
+ 
+   it('刷新按钮重载 overview 并 toast', async () => {
+     const { w } = await mountLayout()
+diff --git a/src/ai/knowledge/views/KnowledgeLayout.vue b/src/ai/knowledge/views/KnowledgeLayout.vue
+index cec5948..96154f7 100644
+--- a/src/ai/knowledge/views/KnowledgeLayout.vue
++++ b/src/ai/knowledge/views/KnowledgeLayout.vue
+@@ -1,25 +1,27 @@
+ <!--
+   SP8-P5a Task 10 —— 知识库区外壳,1:1 移植自 Vue2 蓝本
+   `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/KnowledgeLayout.vue`(210 行,
+   `git show main:` 读取,治理文件 §1:工作树是旧分支不可信)。
+ 
+-  结构对照(蓝本行号 → 本文件):
+-    :2-45   .knowledge-app > aside.k-rail(head/section/nav 9 项/状态块/foot)
+-    :47-71  .k-main(topbar/banner/router-view)
+-    :73-85  .k-mobile-tabs(前 4 项 + More)
+-    :87-91  .k-toast —— 不移植(K3),toast() 走全局 useToast().show()
+-    :99-108 NAV / :110-120 TITLES —— 逐字照抄的两个常量
+-    :141-146 currentTab 的 if/endsWith 不对称判据 —— 照抄(蓝本如此)
++  结构对照(蓝本行号 → 本文件;评审 2026-08-01 订正,原头注释行号系统性偏
++  5-6 行,以下已逐个回 `git show main:` 复核):
++    :2-47    .knowledge-app > aside.k-rail(head/section/nav 9 项/状态块/foot)
++    :50-72   .k-main(topbar/banner/router-view)
++    :74-90   .k-mobile-tabs(前 4 项 + More)
++    :92-96   .k-toast —— 不移植(K3),toast() 走全局 useToast().show()
++    :104-114 NAV / :116-126 TITLES —— 逐字照抄的两个常量
++    :140-151 currentTab 的 if/endsWith 不对称判据 —— 照抄(蓝本如此)
+     :176-181 userName —— 蓝本读 Vuex,本仓无 Vuex,改走 K8 既定写法
+              (照 src/ai/components/settings/SettingsRail.vue:75-86 逐字复用)
+     :183-190 created()/beforeDestroy() 的 10s 轮询 —— 迁到 onMounted/onUnmounted
++    :196-199 navigate() / :200-203 onRefresh() —— 原样
+ 
+   i18n 键名适配(纯机械,非行为变化):蓝本 `$t(n.en)`/`$t(titleKey)` 直接拿字面英文
+   短语当 key(Vue2 语言包以短语为 key)。本仓新键一律 `aiKb*` 前缀(附录 A),
+   所以每个 NAV 项与 TITLES 项都多带一个 `*Key` 字段指向对应的 aiKb 键，
+   翻译结果与蓝本逐一对应（见下方 NAV/TITLES 常量旁注）。
+ 
+   【N8 照抄不改】rail 第 9 项标签用 aiKbNavSettings(“系统设置”)，topbar 标题
+   用 aiKbTitleAdvancedSettings(“高级设置”)——同一页面两处不同措辞，蓝本如此。
+ 
+   【K2】根节点 class 只有 knowledge-app，不带 data-theme —— .knowledge-app
+@@ -41,21 +43,21 @@ import type { KnowledgeTabId } from '../deferred'
+ import '../../styles/knowledge.scss'
+ 
+ interface NavItem {
+   id: KnowledgeTabId
+   en: string
+   icon: string
+   /** aiKb* 键，翻译结果 = 蓝本 `$t(n.en)` 的结果（K1 同类机械改名，非行为变化）。 */
+   labelKey: string
+ }
+ 
+-/** 蓝本 :99-108，逐字照抄（顺序即 rail 顺序，也是移动端 tabs `slice(0, 4)` 的依据）。 */
++/** 蓝本 :104-114，逐字照抄（顺序即 rail 顺序，也是移动端 tabs `slice(0, 4)` 的依据）。 */
+ const NAV: NavItem[] = [
+   { id: 'dashboard', en: 'Dashboard', icon: 'home', labelKey: 'aiKbNavDashboard' },
+   { id: 'search', en: 'Search', icon: 'search', labelKey: 'aiKbNavSearch' },
+   { id: 'wiki', en: 'Wiki', icon: 'layers', labelKey: 'aiKbNavWiki' },
+   { id: 'notes', en: 'Notes', icon: 'edit', labelKey: 'aiKbNavNotes' },
+   { id: 'indexed-files', en: 'Indexed Files', icon: 'file', labelKey: 'aiKbNavIndexedFiles' },
+   { id: 'queue', en: 'Queue', icon: 'history', labelKey: 'aiKbNavQueue' },
+   { id: 'roots', en: 'Index Roots', icon: 'drive', labelKey: 'aiKbNavRoots' },
+   { id: 'allowlist', en: 'Allowlist', icon: 'folder', labelKey: 'aiKbNavAllowlist' },
+   { id: 'settings', en: 'Settings', icon: 'settings', labelKey: 'aiKbNavSettings' },
+@@ -65,77 +67,77 @@ interface TitleEntry {
+   /** topbar 副标题的字面英文（不翻译，蓝本 `{{ titles[currentTab].en }}`）。 */
+   en: string
+   /** topbar 标题的 aiKb 键。多数 tab 与该 tab 的 NAV labelKey 是同一个键
+    * （蓝本对同一英文短语调用同一次 $t，翻译结果自然相同）；wiki/queue/settings
+    * 三个 tab 蓝本用了不同的英文短语（'Wiki map'/'Job Queue'/'Advanced Settings'），
+    * 对应附录 A 专门给的 aiKbTitleWikiMap/aiKbTitleJobQueue/aiKbTitleAdvancedSettings
+    * 三个键——这正是 N8 的落点（settings 的 titleKey 与 labelKey 不同）。 */
+   titleKey: string
+ }
+ 
+-/** 蓝本 :110-120,逐字照抄(en 字段照抄字面英文,titleKey 按上面注释换算成 aiKb 键)。 */
++/** 蓝本 :116-126,逐字照抄(en 字段照抄字面英文,titleKey 按上面注释换算成 aiKb 键)。 */
+ const TITLES: Record<KnowledgeTabId, TitleEntry> = {
+   dashboard: { en: 'Dashboard', titleKey: 'aiKbNavDashboard' },
+   search: { en: 'Search', titleKey: 'aiKbNavSearch' },
+   wiki: { en: 'Wiki', titleKey: 'aiKbTitleWikiMap' },
+   'indexed-files': { en: 'Indexed Files', titleKey: 'aiKbNavIndexedFiles' },
+   queue: { en: 'Job Queue', titleKey: 'aiKbTitleJobQueue' },
+   roots: { en: 'Index Roots', titleKey: 'aiKbNavRoots' },
+   allowlist: { en: 'Allowlist', titleKey: 'aiKbNavAllowlist' },
+   notes: { en: 'Notes', titleKey: 'aiKbNavNotes' },
+   settings: { en: 'Advanced Settings', titleKey: 'aiKbTitleAdvancedSettings' },
+ }
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const { t } = useI18n()
+ const store = useKnowledgeStore()
+ 
+-/** 蓝本 :141-153 —— if/endsWith 不对称判据，照抄这个不对称（notes 用
++/** 蓝本 :140-151 —— if/endsWith 不对称判据，照抄这个不对称（notes 用
+  * `.includes`，其余用 `.endsWith`；蓝本如此，不做「统一成一种写法」的顺手重构）。 */
+ const currentTab = computed<KnowledgeTabId>(() => {
+   const p = route.path
+   if (p.includes('/knowledge/notes')) return 'notes'
+   if (p.endsWith('/wiki')) return 'wiki'
+   if (p.endsWith('/search')) return 'search'
+   if (p.endsWith('/indexed-files')) return 'indexed-files'
+   if (p.endsWith('/queue')) return 'queue'
+   if (p.endsWith('/roots')) return 'roots'
+   if (p.endsWith('/allowlist')) return 'allowlist'
+   if (p.endsWith('/settings')) return 'settings'
+   return 'dashboard'
+ })
+ 
+-/** 蓝本 :154-156。 */
++/** 蓝本 :152-154。 */
+ const currentNav = computed<NavItem>(() => NAV.find((n) => n.id === currentTab.value) || NAV[0])
+ 
+-/** 蓝本 :157-161。 */
++/** 蓝本 :155-159。 */
+ const svcState = computed<'error' | 'paused' | 'running'>(() => {
+   if (store.unreachable) return 'error'
+   if (store.controlState.paused) return 'paused'
+   return 'running'
+ })
+ 
+-/** 蓝本 :162-167。 */
++/** 蓝本 :160-165。 */
+ const svcMeta = computed<string>(() => {
+   if (store.unreachable) return t('aiKbOffline')
+   if (store.controlState.paused) return t('aiKbPaused')
+   return t('aiKbRunningIndexed', { n: store.stats.indexed_files.toLocaleString() })
+ })
+ 
+ interface Badge {
+   kind: 'number' | 'dot'
+   value?: number
+   tone?: string
+ }
+ 
+-/** 蓝本 :168-175 —— `allowlist`/`settings` 恒为 null（蓝本 :173 那行
++/** 蓝本 :166-175 —— `allowlist`/`settings` 恒为 null（蓝本 :172 那行
+  * `this.store.state.folderRules.length > 0 ? null : null` 两支结果相同，
+  * 是蓝本的死代码而非可复现的错误行为，照抄不当「顺手清理」）。 */
+ const badges = computed<Partial<Record<KnowledgeTabId, Badge | null>>>(() => {
+   const failed = store.stats.queue_depth.failed
+   const drafts = store.notesDraftCount
+   return {
+     queue: failed > 0 ? { kind: 'number', value: failed } : null,
+     notes: drafts > 0 ? { kind: 'number', value: drafts, tone: 'warn' } : null,
+     allowlist: store.folderRules.length > 0 ? null : null,
+     settings: null,
+@@ -157,46 +159,46 @@ const storedUser = computed<StoredUser>(() => {
+     const raw = localStorage.getItem('user')
+     return raw ? (JSON.parse(raw) as StoredUser) : {}
+   } catch {
+     return {}
+   }
+ })
+ const userLabel = computed<string>(
+   () => storedUser.value.nickname || storedUser.value.username || t('aiCfgYou'),
+ )
+ 
+-/** 蓝本 :191-194。 */
++/** 蓝本 :196-199。 */
+ function navigate(id: KnowledgeTabId): void {
+   const path = id === 'dashboard' ? '/ai/knowledge' : `/ai/knowledge/${id}`
+   if (route.path !== path) router.push(path)
+ }
+ 
+-/** 蓝本 :195-198。 */
++/** 蓝本 :200-203。 */
+ async function onRefresh(): Promise<void> {
+   await store.loadOverview()
+   store.toast(t('aiKbRefreshed'))
+ }
+ 
+ /** 蓝本 :183-190 —— created()/pollTimer 迁到 onMounted，句柄用组件局部
+  * 变量（不进 store，纯 UI 生命周期状态）。 */
+ let pollTimer: ReturnType<typeof setInterval> | null = null
+ 
+ onMounted(() => {
+   store.loadOverview()
+   store.refreshNotesDraftCount()
+   pollTimer = setInterval(() => {
+     if (document.hidden) return
+     store.loadOverview()
+   }, 10000)
+ })
+ 
+-/** 蓝本 :189-190 beforeDestroy()。 */
++/** 蓝本 :192-194 beforeDestroy()。 */
+ onUnmounted(() => {
+   if (pollTimer) {
+     clearInterval(pollTimer)
+     pollTimer = null
+   }
+ })
+ </script>
+ 
+ <template>
+   <div class="knowledge-app">
+diff --git a/src/ai/styles/knowledgeStyles.test.ts b/src/ai/styles/knowledgeStyles.test.ts
+index 7b21769..06eb77b 100644
+--- a/src/ai/styles/knowledgeStyles.test.ts
++++ b/src/ai/styles/knowledgeStyles.test.ts
+@@ -1,21 +1,21 @@
+ import { describe, it, expect } from 'vitest'
+ // SP8-P5a Task 4 —— 复刻 settingsStyles.test.ts(SP8-P2a Task 2)头注释里记录的三处环境坑,
+ // 逐字照抄同样的解法(不是重新踩坑,是同一份既有解法的复用):
+ // ① 本仓 package.json 是 "type": "module" → __dirname 在 ESM 下不可用,改用
+ //    import.meta.url + fileURLToPath 的等价写法。
+ // ② 本仓未装 @types/node —— node:fs / node:path / node:url 没有类型声明,
+ //    `pnpm exec vue-tsc --noEmit`(任务门三条命令之一)会报 TS2307,逐行 @ts-expect-error 抑制。
+ // ③ 不用 Vite 的 `?raw` 导入替代 node:fs —— vitest 自带 CSSEnablerPlugin 对 css/scss
+ //    一律整体替换成空串(不看查询串),?raw 导入会让断言对空字符串"假通过"。退回 node:fs。
+ // @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明,见上方注释
+-import { readFileSync } from 'node:fs'
++import { readFileSync, readdirSync, statSync } from 'node:fs'
+ // @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明,见上方注释
+ import { resolve, dirname } from 'node:path'
+ // @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明,见上方注释
+ import { fileURLToPath } from 'node:url'
+ 
+ const __dirname = dirname(fileURLToPath(import.meta.url))
+ const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
+ 
+ // 同 settingsStyles.test.ts 的既定手法:只剥「整行以 // 开头」的行注释(本档没有这种
+ // 注释,但保持与先例一致)+ 块注释,再做 toContain,防止断言被注释里提到的类名/字符串撞对
+@@ -225,10 +225,65 @@ describe('knowledge.scss —— 配色硬约束(本档除声明层外无自动
+     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
+     expect(lightBody, '浅色档缺 --accent(会被暗色块的 #5E97F2 命中)').toContain('--accent: #3b5bdb')
+     expect(lightBody, '浅色档缺 --accent-soft(会被暗色块的值命中)').toContain('--accent-soft: rgba(59, 91, 219, 0.11)')
+     expect(lightBody, '浅色档缺 --success(会被暗色块的 #4FB870 命中)').toContain('--success: #15754c')
+     // 反向:确认没有退回自引用循环写法
+     expect(lightBody).not.toContain('--accent: var(--accent)')
+     expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
+     expect(lightBody).not.toContain('--success: var(--success)')
+   })
+ })
++
++// 【评审 Important 开放发现 2,2026-08-01 补】把 `KnowledgeLayout.vue:41` 的
++// `import '../../styles/knowledge.scss'` 注释掉 → 全量全绿,无人报红 —— 这是本批
++// 最严重的一类故障(整个知识库区裸奔,视觉上一无所有),之前没有任何自动化守卫。
++// 上面 38 个类的存在性/色字面量等断言全部只读 `knowledge.scss` 这份源文件本身,
++// 完全不关心它有没有被任何生产代码 import——文件内容再正确,没人 import 它就是
++// 死代码,产物里一行 CSS 都不会有(这正是 R8 那条 Critical 的直接后果:C1 之前
++// KnowledgeDeferred.vue 没 import 它、KnowledgeLayout.vue 写了但父路由没接上它、
++// dist 里搜不到 `knowledge-app`)。
++//
++// 复用本档已有的 node:fs 技法(不用 Vite `?raw` —— 同头注释③,CSSEnablerPlugin
++// 会把 .vue SFC 里 <style> 块之外的部分保留,但这里我们直接读 .vue 源文件的原始
++// 文本找 import 语句字面量,不经过任何编译管线,不受 CSSEnablerPlugin 影响,所以
++// 用 `?raw` 或 node:fs 读 .vue 都可以——为了手法统一,同样用 node:fs)。
++//
++// 【自己做 RED 探针时抓到的真实 bug,已修正】第一版用 `content.includes(needle)`
++// 裸子串匹配——把生产文件里的 `import '../../styles/knowledge.scss'` 注释掉
++// (`// import '../../styles/knowledge.scss'`)之后再跑,这条守卫**仍然通过**:
++// 注释掉的那一行文本里子串 `styles/knowledge.scss` 原封不动还在,子串匹配根本
++// 分不清「真的 import」与「写在注释里的同一段文字」。这正是 P3b 教训 4 那类
++// 「子串检查抓不住真实缺陷」的同款坑,只是这次是我自己的探针把自己的守卫抓出来
++// 的。改成逐行检查:只有「整行去空白后以 `import` 开头、且包含 needle」才算数,
++// 注释行(以 `//` 开头)自然不满足「以 import 开头」这个前提,不会被误判。
++function lineIsLiveImport(line: string, needle: string): boolean {
++  const trimmed = line.trim()
++  return trimmed.startsWith('import') && trimmed.includes(needle)
++}
++
++function findVueFilesImporting(dir: string, needle: string): string[] {
++  const hits: string[] = []
++  for (const entry of readdirSync(dir)) {
++    if (entry === 'node_modules' || entry.startsWith('.')) continue
++    const full = resolve(dir, entry)
++    const stat = statSync(full)
++    if (stat.isDirectory()) {
++      hits.push(...findVueFilesImporting(full, needle))
++    } else if (entry.endsWith('.vue')) {
++      const content = readFileSync(full, 'utf8') as string
++      if (content.split('\n').some((line: string) => lineIsLiveImport(line, needle))) hits.push(full)
++    }
++  }
++  return hits
++}
++
++describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(评审 Important 开放发现 2)', () => {
++  it('src/ai 下有 .vue 文件 import 了 knowledge.scss,否则样式表编译不出任何 CSS、整个知识库区裸奔', () => {
++    const aiDir = resolve(__dirname, '..')
++    const importers = findVueFilesImporting(aiDir, 'styles/knowledge.scss')
++    expect(
++      importers.length,
++      '没有任何 .vue 文件 import knowledge.scss —— 见 R8:这曾经是真实发生过的情况' +
++        '(KnowledgeDeferred.vue 不 import、父路由不接 KnowledgeLayout.vue,dist 里搜不到 knowledge-app)',
++    ).toBeGreaterThan(0)
++  })
++})

@@ -1,0 +1,1164 @@
+=== commits ===
+fe235b0 SP8-P2a Task 10 fix: onSave 错误消息改用 duck-typed message 提取
+7a1c71f SP8-P2a Task 10: ProvidersSection(云端提供商)
+
+=== stat ===
+ .../settings/sections/ProvidersSection.test.ts     | 597 +++++++++++++++++++++
+ .../settings/sections/ProvidersSection.vue         | 362 +++++++++++++
+ src/ai/views/SettingsPage.vue                      |   3 +-
+ src/i18n/en_us.ts                                  |  41 ++
+ src/i18n/zh_cn.ts                                  |  40 ++
+ 5 files changed, 1042 insertions(+), 1 deletion(-)
+
+=== diff -U10 ===
+diff --git a/src/ai/components/settings/sections/ProvidersSection.test.ts b/src/ai/components/settings/sections/ProvidersSection.test.ts
+new file mode 100644
+index 0000000..0ddd3f3
+--- /dev/null
++++ b/src/ai/components/settings/sections/ProvidersSection.test.ts
+@@ -0,0 +1,597 @@
++// SP8-P2a Task 10 — 移植自 Vue2 src/views/AI/Settings/sections/ProvidersSection.vue
++// (249 行)。brief Step 1 的 29 条用例清单,逐条落地(部分拆成多个 it() 便于
++// 精确定位失败点,数量只增不减)。
++//
++// 真 store(setActivePinia + useSettingsStore()),不 mock @nimotech/nimoos-service
++// —— 组件从不直接调 service,只调 store 的 action,spy store 方法即可隔离网络层
++// (同 ModelsSection.test.ts 的既定写法)。
++//
++// 真 i18n(zh_cn 完整 locale,不手写子集)—— P1c-2 记账过手写子集会让拼错的键名
++// 抓不到。
++//
++// AlertDialog / PromptDialog 走真实挂载 + attachTo document.body(不 mock
++// reka-ui)—— 同 ModelsSection.test.ts / AgentSidebar.test.ts 的既定手法:reka
++// 的 AlertDialogAction 点击时先 update:open(false) 再派发 confirm,deleteDlg /
++// addModelDlg 把 open 与关联对象打包在同一个 ref、v-model:open 只改 .open,故
++// confirm 处理器仍能读到正确的关联对象。
++
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../../i18n/zh_cn'
++import ProvidersSection from './ProvidersSection.vue'
++import { useSettingsStore, type Provider, type ProviderModelsEntry } from '../../../stores/settingsStore'
++import { useToast } from '../../../../stores/toast'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++function mountSection() {
++  return mount(ProvidersSection, { global: { plugins: [i18n] }, attachTo: document.body })
++}
++
++function makeProvider(overrides: Partial<Provider> = {}): Provider {
++  return {
++    id: 'p1',
++    name: 'My OpenAI',
++    base_url: 'https://api.openai.com/v1',
++    protocol: 'openai',
++    enabled: true,
++    default_model: 'gpt-4o',
++    ...overrides,
++  }
++}
++
++/** Click the reka-ui AlertDialogAction whose visible text matches `label`. */
++function clickDialogAction(label: string) {
++  const btn = Array.from(document.body.querySelectorAll('button')).find(
++    (b) => b.textContent?.trim() === label && b.className.includes('ui-btn') && !b.dataset.testid,
++  )
++  expect(btn).toBeTruthy()
++  btn!.click()
++}
++
++/** Click PromptDialog's confirm button (identified by data-testid, distinct
++ *  from AlertDialog's plain `.ui-btn` — PromptDialog.vue:57-58). */
++function clickPromptConfirm() {
++  const btn = document.body.querySelector('[data-testid="prompt-confirm"]') as HTMLButtonElement | null
++  expect(btn).toBeTruthy()
++  btn!.click()
++}
++
++describe('ProvidersSection', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++  })
++
++  // ── 1. 空态 / 加载中 / 有数据三态 ──
++
++  it('1a. providers 为空 → 渲染空态文案,不渲染 .set-table', () => {
++    const w = mountSection()
++    expect(w.text()).toContain('暂无已配置提供商')
++    expect(w.find('.set-table').exists()).toBe(false)
++  })
++
++  it('1b. providersLoading → 渲染「加载中…」', () => {
++    const store = useSettingsStore()
++    store.providersLoading = true
++    const w = mountSection()
++    expect(w.text()).toContain('加载中…')
++    expect(w.find('.set-table').exists()).toBe(false)
++  })
++
++  it('1c. 有数据 → 渲染 .set-table,行数正确', () => {
++    const store = useSettingsStore()
++    store.providers = [makeProvider({ id: 'p1' }), makeProvider({ id: 'p2', name: 'My Anthropic' })]
++    const w = mountSection()
++    expect(w.find('.set-table').exists()).toBe(true)
++    expect(w.findAll('.set-table tbody tr[data-section-id], .set-table tbody > tr').length).toBeGreaterThanOrEqual(2)
++  })
++
++  // ── 2. 卡头计数 ──
++
++  it('2. 卡头计数等于 providers.length', () => {
++    const store = useSettingsStore()
++    store.providers = [makeProvider({ id: 'p1' }), makeProvider({ id: 'p2' }), makeProvider({ id: 'p3' })]
++    const w = mountSection()
++    expect(w.find('.set-cardhead .ct').text()).toBe('3')
++  })
++
++  // ── 3. 表格列渲染 ──
++
++  it('3. 名称 / base_url(.mono)/ 协议徽章(.set-proto),缺协议时兜底 openai', () => {
++    const store = useSettingsStore()
++    store.providers = [makeProvider({ protocol: undefined })]
++    const w = mountSection()
++    const row = w.find('.set-table tbody tr')
++    expect(row.text()).toContain('My OpenAI')
++    expect(row.find('.mono').text()).toBe('https://api.openai.com/v1')
++    expect(row.find('.set-proto').text()).toBe('openai')
++  })
++
++  // ── 4. 启用开关 ──
++
++  it('4a. 启用开关反映 p.enabled', () => {
++    const store = useSettingsStore()
++    store.providers = [makeProvider({ enabled: false })]
++    const w = mountSection()
++    expect(w.find('.sw').attributes('aria-checked')).toBe('false')
++  })
++
++  it('4b. 拨动开关调 store.toggleProvider(id, v)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'toggleProvider').mockResolvedValue()
++    store.providers = [makeProvider({ id: 'p1', enabled: false })]
++    const w = mountSection()
++    await w.find('.sw').trigger('click')
++    expect(spy).toHaveBeenCalledWith('p1', true)
++  })
++
++  // ── 5. toggleProvider reject → danger toast ──
++
++  it('5. toggleProvider reject → danger 档 toast', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'toggleProvider').mockRejectedValue(new Error('boom'))
++    const toast = useToast()
++    store.providers = [makeProvider({ id: 'p1' })]
++    const w = mountSection()
++    await w.find('.sw').trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('切换失败')
++    expect(toast.toasts[0].tier).toBe('danger')
++  })
++
++  // ── 6-7. 添加/编辑按钮 ──
++
++  it('6. 「添加」按钮调 store.showProviderForm()(无参)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'showProviderForm')
++    const w = mountSection()
++    await w.find('.set-cardhead .sk-btn.primary').trigger('click')
++    expect(spy).toHaveBeenCalledWith()
++  })
++
++  it('7. 「编辑」按钮调 store.showProviderForm(p)(带参)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'showProviderForm')
++    const p = makeProvider({ id: 'p1' })
++    store.providers = [p]
++    const w = mountSection()
++    const editBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('编辑'))[0]
++    await editBtn.trigger('click')
++    expect(spy).toHaveBeenCalledWith(p)
++  })
++
++  // ── 8. 删除先弹确认,确认后才调 deleteProvider ──
++
++  it('8a. 删除按钮先弹确认框,此时还没调 store.deleteProvider', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'deleteProvider').mockResolvedValue()
++    store.providers = [makeProvider({ id: 'p1', name: 'My OpenAI' })]
++    const w = mountSection()
++    const delBtn = w.findAll('.set-tbtn.danger')[0]
++    await delBtn.trigger('click')
++    await nextTick()
++    expect(document.body.textContent).toContain('确定删除提供商 "My OpenAI"')
++    expect(spy).not.toHaveBeenCalled()
++    // 同 ModelsSection.test.ts 6-8 的既定手法:AlertDialog 走真实挂载 +
++    // attachTo document.body,不 unmount 会把对话框 DOM 留在 body 里污染
++    // 下一个 it() 的 querySelectorAll('button') 查找(会命中上一个测试遗留
++    // 的按钮,points 到已失效的 spy 上,导致下一条用例误判为"未调用")。
++    w.unmount()
++  })
++
++  it('8b. 确认后才调 store.deleteProvider(id)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'deleteProvider').mockResolvedValue()
++    store.providers = [makeProvider({ id: 'p1' })]
++    const w = mountSection()
++    await w.findAll('.set-tbtn.danger')[0].trigger('click')
++    await nextTick()
++    clickDialogAction('删除')
++    await nextTick()
++    await nextTick()
++    expect(spy).toHaveBeenCalledWith('p1')
++    w.unmount()
++  })
++
++  // ── 9. providerForm.visible 为 false → 不渲染表单卡(对照组) ──
++
++  it('9. providerForm.visible=false → 不渲染 .set-form', () => {
++    const w = mountSection()
++    expect(w.find('.set-form').exists()).toBe(false)
++  })
++
++  // ── 10. 新建态渲染预设 chip;编辑态不渲染(对照组) ──
++
++  it('10a. 新建态(editing=null)→ 渲染 4 个预设 chip', () => {
++    const store = useSettingsStore()
++    store.showProviderForm()
++    const w = mountSection()
++    expect(w.findAll('.preset-chip')).toHaveLength(4)
++  })
++
++  it('10b. 编辑态(editing 非空)→ 不渲染预设 chip', () => {
++    const store = useSettingsStore()
++    store.showProviderForm(makeProvider({ id: 'p1' }))
++    const w = mountSection()
++    expect(w.findAll('.preset-chip')).toHaveLength(0)
++  })
++
++  // ── 11. 点预设 chip 调 store.applyProviderPreset(preset) ──
++
++  it('11. 点第一个预设 chip 调 store.applyProviderPreset,断言 base_url 精确值', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'applyProviderPreset')
++    store.showProviderForm()
++    const w = mountSection()
++    await w.findAll('.preset-chip')[0].trigger('click')
++    expect(spy).toHaveBeenCalledWith(
++      expect.objectContaining({ name: 'OpenAI', base_url: 'https://api.openai.com/v1', default_model: 'gpt-4o', protocol: 'openai' }),
++    )
++  })
++
++  // ── 12. API Key 输入框 type=password;两种 placeholder ──
++
++  it('12a. API Key 输入框 type="password"', () => {
++    const store = useSettingsStore()
++    store.showProviderForm()
++    const w = mountSection()
++    expect(w.find('input[type="password"]').exists()).toBe(true)
++  })
++
++  it('12b. 编辑态 placeholder 为「留空则不修改」;新建态为「API Key」', () => {
++    const store = useSettingsStore()
++    store.showProviderForm(makeProvider({ id: 'p1' }))
++    const editing = mountSection()
++    expect(editing.find('input[type="password"]').attributes('placeholder')).toBe('留空则不修改')
++
++    store.hideProviderForm()
++    store.showProviderForm()
++    const adding = mountSection()
++    expect(adding.find('input[type="password"]').attributes('placeholder')).toBe('API Key')
++  })
++
++  // ── 13. 协议单选两项,绑 providerForm.data.protocol ──
++
++  it('13. 协议单选两项,绑 store.providerForm.data.protocol', async () => {
++    const store = useSettingsStore()
++    store.showProviderForm()
++    const w = mountSection()
++    const radios = w.findAll('input[type="radio"]')
++    expect(radios).toHaveLength(2)
++    expect(radios[0].attributes('value')).toBe('openai')
++    expect(radios[1].attributes('value')).toBe('anthropic')
++    await radios[1].setValue()
++    expect(store.providerForm.data.protocol).toBe('anthropic')
++  })
++
++  // ── 14. 保存按钮 saving 时 disabled;点击调 store.saveProvider ──
++
++  it('14a. saving=true → 保存按钮 disabled', () => {
++    const store = useSettingsStore()
++    store.showProviderForm()
++    store.providerForm.saving = true
++    const w = mountSection()
++    const saveBtn = w.findAll('.set-actions .sk-btn.primary')[0]
++    expect(saveBtn.attributes('disabled')).toBeDefined()
++  })
++
++  it('14b. 点击保存按钮调 store.saveProvider', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'saveProvider').mockResolvedValue()
++    store.showProviderForm()
++    const w = mountSection()
++    await w.findAll('.set-actions .sk-btn.primary')[0].trigger('click')
++    expect(spy).toHaveBeenCalledTimes(1)
++  })
++
++  // ── 15. saveProvider reject:带 message 用 message,不带用兜底(两条对照) ──
++
++  it('15a. saveProvider reject 带 message → toast 用该 message', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'saveProvider').mockRejectedValue(new Error('名称和 Base URL 为必填项'))
++    const toast = useToast()
++    store.showProviderForm()
++    const w = mountSection()
++    await w.findAll('.set-actions .sk-btn.primary')[0].trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('名称和 Base URL 为必填项')
++    expect(toast.toasts[0].tier).toBe('danger')
++  })
++
++  it('15b. saveProvider reject 不带 message → toast 用兜底「保存失败」', async () => {
++    const store = useSettingsStore()
++    // 模拟一个没有 message 的错误对象(非 Error 实例,e.g. 网络层裸字符串)。
++    vi.spyOn(store, 'saveProvider').mockRejectedValue('network down')
++    const toast = useToast()
++    store.showProviderForm()
++    const w = mountSection()
++    await w.findAll('.set-actions .sk-btn.primary')[0].trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('保存失败')
++    expect(toast.toasts[0].tier).toBe('danger')
++  })
++
++  it('15c. saveProvider reject 用一个「非 Error 实例但带 message 字段」的普通对象 → 仍取其 message(duck-typing,非 instanceof Error 收窄)', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'saveProvider').mockRejectedValue({ message: '后端拒绝' })
++    const toast = useToast()
++    store.showProviderForm()
++    const w = mountSection()
++    await w.findAll('.set-actions .sk-btn.primary')[0].trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('后端拒绝')
++    expect(toast.toasts[0].tier).toBe('danger')
++  })
++
++  // ── 16. 取消按钮调 store.hideProviderForm ──
++
++  it('16. 取消按钮调 store.hideProviderForm', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'hideProviderForm')
++    store.showProviderForm()
++    const w = mountSection()
++    await w.findAll('.set-actions .sk-btn.ghost')[0].trigger('click')
++    expect(spy).toHaveBeenCalledTimes(1)
++  })
++
++  // ── 17-18. 展开模型:首次拉取,再次点击收起 ──
++
++  it('17. 首次点击「展开模型」→ 渲染子面板且调 store.loadProviderModels(id)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'loadProviderModels').mockResolvedValue()
++    store.providers = [makeProvider({ id: 'p1' })]
++    const w = mountSection()
++    expect(w.find('.pm-panel').exists()).toBe(false)
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-panel').exists()).toBe(true)
++    expect(spy).toHaveBeenCalledWith('p1')
++  })
++
++  it('18. 再次点击「展开模型」→ 收起子面板', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'loadProviderModels').mockResolvedValue()
++    store.providers = [makeProvider({ id: 'p1' })]
++    const w = mountSection()
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-panel').exists()).toBe(true)
++    await showBtn.trigger('click')
++    expect(w.find('.pm-panel').exists()).toBe(false)
++  })
++
++  // ── 19. 已有缓存时展开 → 不再调 loadProviderModels(懒加载守卫,对照组) ──
++
++  it('19. providerModels[id] 已缓存 → 展开不再调 loadProviderModels', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'loadProviderModels').mockResolvedValue()
++    store.providers = [makeProvider({ id: 'p1' })]
++    store.providerModels['p1'] = { loading: false, models: [{ name: 'gpt-4o', source: 'auto', favorite: true }] }
++    const w = mountSection()
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-panel').exists()).toBe(true)
++    expect(spy).not.toHaveBeenCalled()
++  })
++
++  // ── 20. loadProviderModels reject → danger toast ──
++
++  it('20. loadProviderModels reject → danger 档 toast', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'loadProviderModels').mockRejectedValue(new Error('boom'))
++    const toast = useToast()
++    store.providers = [makeProvider({ id: 'p1' })]
++    const w = mountSection()
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('加载模型失败')
++    expect(toast.toasts[0].tier).toBe('danger')
++  })
++
++  // ── 21. 子面板:loading / 空态 / 有模型(三条) ──
++
++  function expandWith(entry: ProviderModelsEntry) {
++    const store = useSettingsStore()
++    store.providers = [makeProvider({ id: 'p1' })]
++    store.providerModels['p1'] = entry
++    return mountSection()
++  }
++
++  it('21a. loading → 「加载中…」', async () => {
++    const w = expandWith({ loading: true, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-panel .set-note').text()).toBe('加载中…')
++  })
++
++  it('21b. 模型为空 → 空态提示', async () => {
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-list .set-note').text()).toContain('暂无模型')
++  })
++
++  it('21c. 有模型 → 渲染列表', async () => {
++    const w = expandWith({
++      loading: false,
++      models: [
++        { name: 'gpt-4o', source: 'auto', favorite: true },
++        { name: 'gpt-4o-mini', source: 'auto', favorite: false },
++      ],
++    })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.findAll('.pm-item')).toHaveLength(2)
++  })
++
++  // ── 22. 收藏开关调 store.toggleModelFavorite ──
++
++  it('22. 模型收藏开关调 store.toggleModelFavorite(providerId, name, v)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'toggleModelFavorite').mockResolvedValue()
++    const w = expandWith({ loading: false, models: [{ name: 'gpt-4o', source: 'auto', favorite: false }] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    await w.find('.pm-item .sw').trigger('click')
++    expect(spy).toHaveBeenCalledWith('p1', 'gpt-4o', true)
++  })
++
++  // ── 23. supports_thinking 为 true 才渲染 🧠(两条对照) ──
++
++  it('23a. supports_thinking=true → 渲染 🧠', async () => {
++    const w = expandWith({ loading: false, models: [{ name: 'gpt-4o', source: 'auto', favorite: true, supports_thinking: true }] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-item').text()).toContain('🧠')
++  })
++
++  it('23b. supports_thinking 缺省/false → 不渲染 🧠', async () => {
++    const w = expandWith({ loading: false, models: [{ name: 'gpt-4o', source: 'auto', favorite: true }] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-item').text()).not.toContain('🧠')
++  })
++
++  // ── 24. source==='manual' 才渲染删除按钮(两条对照) ──
++
++  it('24a. source=manual → 渲染删除按钮,点击调 store.removeManualModel', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'removeManualModel').mockResolvedValue()
++    const w = expandWith({ loading: false, models: [{ name: 'custom-model', source: 'manual', favorite: true }] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    const delBtn = w.find('.pm-item .dir-del')
++    expect(delBtn.exists()).toBe(true)
++    await delBtn.trigger('click')
++    expect(spy).toHaveBeenCalledWith('p1', 'custom-model')
++  })
++
++  it('24b. source!==manual → 不渲染删除按钮', async () => {
++    const w = expandWith({ loading: false, models: [{ name: 'gpt-4o', source: 'auto', favorite: true }] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    expect(w.find('.pm-item .dir-del').exists()).toBe(false)
++  })
++
++  // ── 25. 刷新模型:成功 info,失败 warning(不是 danger) ──
++
++  it('25a. 刷新模型成功 → info 档 toast', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'refreshProviderModels').mockResolvedValue()
++    const toast = useToast()
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    await w.find('.pm-head .set-minibtn').trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('已刷新')
++    expect(toast.toasts[0].tier).toBe('info')
++  })
++
++  it('25b. 刷新模型失败 → warning 档 toast(不是 danger)', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'refreshProviderModels').mockRejectedValue(new Error('boom'))
++    const toast = useToast()
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    await w.find('.pm-head .set-minibtn').trigger('click')
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('自动拉取失败，可手动添加')
++    expect(toast.toasts[0].tier).toBe('warning')
++  })
++
++  // ── 26. 「+ 手动添加」打开 PromptDialog ──
++
++  it('26. 「+ 手动添加」打开 PromptDialog(open 为 true)', async () => {
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    const addBtn = w.findAll('.pm-head .set-minibtn').filter((b) => b.text().includes('手动添加'))[0]
++    await addBtn.trigger('click')
++    await nextTick()
++    expect(document.body.textContent).toContain('输入模型名')
++    // 同 8a/8b 的既定手法(见该处注释):PromptDialog 走真实挂载 + attachTo
++    // document.body,不 unmount 会把 [data-testid="prompt-confirm"] 留在 body
++    // 里,污染下一条用例的 querySelector(总是命中最早挂载、先出现在 DOM
++    // 顺序里的那个)。
++    w.unmount()
++  })
++
++  // ── 27-28. PromptDialog 确认:非空 trim 调 addManualModel;空白不调(对照组) ──
++
++  it('27. 确认非空值(带空格)→ 调 store.addManualModel(id, trimmed)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'addManualModel').mockResolvedValue()
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    const addBtn = w.findAll('.pm-head .set-minibtn').filter((b) => b.text().includes('手动添加'))[0]
++    await addBtn.trigger('click')
++    await nextTick()
++    const input = document.body.querySelector('.ui-dialog-input') as HTMLInputElement
++    input.value = '  gpt-4o-custom  '
++    input.dispatchEvent(new Event('input'))
++    await nextTick()
++    clickPromptConfirm()
++    await nextTick()
++    await nextTick()
++    expect(spy).toHaveBeenCalledWith('p1', 'gpt-4o-custom')
++    w.unmount()
++  })
++
++  it('28. 确认空白值("   ")→ 不调 store.addManualModel(对照组)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'addManualModel').mockResolvedValue()
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    const addBtn = w.findAll('.pm-head .set-minibtn').filter((b) => b.text().includes('手动添加'))[0]
++    await addBtn.trigger('click')
++    await nextTick()
++    const input = document.body.querySelector('.ui-dialog-input') as HTMLInputElement
++    input.value = '   '
++    input.dispatchEvent(new Event('input'))
++    await nextTick()
++    clickPromptConfirm()
++    await nextTick()
++    await nextTick()
++    expect(spy).not.toHaveBeenCalled()
++    w.unmount()
++  })
++
++  // ── 29. addManualModel reject → danger toast ──
++
++  it('29. addManualModel reject → danger 档 toast', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'addManualModel').mockRejectedValue(new Error('boom'))
++    const toast = useToast()
++    const w = expandWith({ loading: false, models: [] })
++    const showBtn = w.findAll('.set-tbtn').filter((b) => b.text().includes('模型'))[0]
++    await showBtn.trigger('click')
++    const addBtn = w.findAll('.pm-head .set-minibtn').filter((b) => b.text().includes('手动添加'))[0]
++    await addBtn.trigger('click')
++    await nextTick()
++    const input = document.body.querySelector('.ui-dialog-input') as HTMLInputElement
++    input.value = 'gpt-4o-custom'
++    input.dispatchEvent(new Event('input'))
++    await nextTick()
++    clickPromptConfirm()
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('添加失败')
++    expect(toast.toasts[0].tier).toBe('danger')
++    w.unmount()
++  })
++})
+diff --git a/src/ai/components/settings/sections/ProvidersSection.vue b/src/ai/components/settings/sections/ProvidersSection.vue
+new file mode 100644
+index 0000000..a15c4a4
+--- /dev/null
++++ b/src/ai/components/settings/sections/ProvidersSection.vue
+@@ -0,0 +1,362 @@
++<!--
++  SP8-P2a Task 10 —— 1:1 移植自 Vue2
++  `src/views/AI/Settings/sections/ProvidersSection.vue`(249 行)。本期最大件,
++  三块:
++
++    1. 服务商表格:名称 / Base URL / 协议徽章 / 启用开关 / 操作(展开模型 ·
++       编辑 · 删除)
++    2. 可展开的「模型」子面板(表格里插一整行 colspan=5):刷新模型 · 手动
++       添加 · 每个模型一个收藏开关 + 🧠 思考标记 + 来源徽章 + manual 项的删除
++    3. 内联表单(不是弹窗,是表格下面又一张 `sk-section` 卡):4 个预设 chip
++       (仅新建时出现)+ 名称 / Base URL / API Key / 默认模型 / 协议单选 +
++       保存 / 取消
++
++  【Buefy → New-UI 替换】
++  - $buefy.dialog.confirm(删服务商,:184-196)→ 共享 AlertDialog,destructive。
++    deleteDlg 把 open 与待删 provider 打包在同一个 ref(同 ModelsSection.vue
++    deleteDlg 的既定手法):reka 的 AlertDialogAction 点击时先派发
++    update:open(false) 再派发 confirm,v-model:open 只改 .open,confirm 处理器
++    仍能读到正确的 provider。
++  - $buefy.dialog.prompt(手动加模型,:224-239)→ T6 的 PromptDialog。同款
++    open+关联对象打包手法(addModelDlg 存 { open, provider })。title/
++    confirmText 复用「+手动添加」/「添加」这两个既有动作名,不新造通用「确认」
++    文案(同 AgentSidebar.vue:192-200 先例,ModelsSection.vue 头注释引用过)。
++  - toast 三档:成功/中性 → info(不传第三参);
++    `Auto-fetch failed. You can add models manually.` → **warning 档**
++    (Vue2 :214 是 `is-warning`,不是 danger);其余失败 → danger。
++
++  【Vue3 迁移必改的一处,非行为改动】Vue2 :28 是
++  `<template v-for="p in store.state.providers">` 且把 `:key="p.id"` 打在了
++  子元素 `<tr>` 上。Vue3 要求 `<template v-for>` 的 key 直接标在 `<template>`
++  本身(同 ModelPicker.vue:120 的既定先例)。Vue2 这里一个 `p` 产出两行
++  `<tr>`(主行 + 展开行,原分别用 `:key="p.id"` 和 `:key="p.id + '-models'"`),
++  key 挪到 template 后自然只剩一个 —— Vue3 把 `<template>` 下的多个根节点当
++  一组处理,这是正确的,不是行为改动。
++
++  【expanded 是组件本地状态,不进 store】同 Vue2 `data() { return { expanded: {} } }`
++  —— 展开哪些服务商的模型面板是纯 UI 瞬态,和 Pinia 单例是否会把「上次离开时
++  的状态」带回来无关(D2 只处理 store 里的瞬态字段,expanded 从来就不在 store
++  里,不受影响)。
++
++  【懒加载守卫,Vue2 :203 逐字保留】`if (open && !this.store.state.providerModels[p.id])`
++  —— 首次展开某个服务商时才拉取模型列表,已缓存过的展开不重复请求。
++
++  【i18n:两个从未被 Vue2 $t() 包裹的英文字面量】`Base URL`(:25 表头、:107 表单
++  label)与 `API Key`(:111 表单 label)在 Vue2 源码里是裸字面量,连 $t() 调用
++  都没有 —— 不是「$t 键缺中文译文」那种情况。按 P1a 确立的既定政策(Vue2 从未
++  i18n 的英文字面量,本期补键),这里补了 aiCfgBaseUrl / aiCfgApiKey 两个键,
++  中英文值都保持 "Base URL" / "API Key" 原文(技术术语,生产 zh_CN.json 里也
++  没有这两个词的中译先例)。`OpenAI`/`Anthropic`(:123/:126 协议单选文字)与
++  预设 chip 名称同理是专有名词,Vue2 同样没有 $t() 包裹,不作翻译处理。
++-->
++<script setup lang="ts">
++import { ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { useSettingsStore } from '../../../stores/settingsStore'
++import { useToast } from '../../../../stores/toast'
++import AgentIcon from '../../icons/AgentIcon.vue'
++import SetSwitch from '../SetSwitch.vue'
++import AlertDialog from '../../../../components/ui/AlertDialog.vue'
++import PromptDialog from '../../../../components/ui/PromptDialog.vue'
++import type { Provider, ProviderModel, ProviderPreset } from '../../../stores/settingsStore'
++
++const store = useSettingsStore()
++const toast = useToast()
++const { t } = useI18n()
++
++// Vue2 ProvidersSection.vue:151-156 —— 四个预设,逐字照搬,不改 URL 和默认
++// 模型名。
++const PRESETS: ProviderPreset[] = [
++  { name: 'OpenAI', base_url: 'https://api.openai.com/v1', default_model: 'gpt-4o', protocol: 'openai' },
++  { name: 'Anthropic', base_url: 'https://api.anthropic.com/v1', default_model: 'claude-sonnet-4-6', protocol: 'anthropic' },
++  { name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', default_model: 'deepseek-chat', protocol: 'openai' },
++  { name: 'Moonshot', base_url: 'https://api.moonshot.cn/v1', default_model: 'moonshot-v1-8k', protocol: 'openai' },
++]
++
++// Vue2 ProvidersSection.vue:162 `data() { return { expanded: {} } }` —— 组件
++// 本地瞬态状态,不进 store(见文件头说明)。
++const expanded = ref<Record<string | number, boolean>>({})
++
++function modelsOf(p: Provider) {
++  return store.providerModels[p.id] || { loading: false, models: [] }
++}
++
++/** Vue2 :200-208 —— 首次展开才拉模型,已缓存的展开不重复请求(懒加载守卫)。 */
++function onToggleModels(p: Provider) {
++  const open = !expanded.value[p.id]
++  expanded.value[p.id] = open
++  if (open && !store.providerModels[p.id]) {
++    store.loadProviderModels(p.id).catch(() => {
++      toast.show(t('aiCfgFailedToLoadModels'), 1500, 'danger')
++    })
++  }
++}
++
++/** Vue2 :168-174 */
++async function onToggle(p: Provider, value: boolean) {
++  try {
++    await store.toggleProvider(p.id, value)
++  } catch {
++    toast.show(t('aiCfgToggleFailed'), 1500, 'danger')
++  }
++}
++
++/**
++ * Vue2 :175-182 —— catch 优先展示 e.message,不带 message 才用兜底文案。
++ *
++ * 【类型收窄,非行为改动】Vue2 是 JS 的 duck-typed `e.message`(任何带
++ * `.message` 字段的抛出值都读得到,不要求是 Error 实例)。TS strict 下
++ * catch 变量类型是 `unknown`,这里按 `(e as { message?: unknown })?.message`
++ * 断言窄化,而不是 `e instanceof Error`(后者会漏掉「抛出一个带 message 字段
++ * 的普通对象」这种非 Error 实例的场景,比 Vue2 更严格,是需要避免的收窄)。
++ * 断言写法与本文件同目录 settingsStore.ts:179-182 `isNotFound()` 的既定手法
++ * 一致。
++ */
++async function onSave() {
++  try {
++    await store.saveProvider()
++    toast.show(t('aiCfgSaved'))
++  } catch (e) {
++    const message = (e as { message?: unknown } | null | undefined)?.message
++    toast.show((typeof message === 'string' && message) || t('aiCfgSaveFailed'), 1500, 'danger')
++  }
++}
++
++// ── 删除服务商确认(Vue2 :183-196,Buefy → AlertDialog,见文件头说明)──
++const deleteDlg = ref<{ open: boolean; provider: Provider | null }>({ open: false, provider: null })
++
++function requestDelete(p: Provider) {
++  deleteDlg.value = { open: true, provider: p }
++}
++
++async function onDeleteConfirm() {
++  const p = deleteDlg.value.provider
++  if (!p) return
++  try {
++    await store.deleteProvider(p.id)
++    toast.show(t('aiCfgDeleted'))
++  } catch {
++    toast.show(t('aiCfgDeleteFailed'), 1500, 'danger')
++  }
++}
++
++/** Vue2 :209-216 —— 失败弹 warning 档(不是 danger),文案指向手动添加。 */
++async function onRefreshModels(p: Provider) {
++  try {
++    await store.refreshProviderModels(p.id)
++    toast.show(t('aiCfgRefreshed'))
++  } catch {
++    toast.show(t('aiCfgAutoFetchFailedManual'), 1500, 'warning')
++  }
++}
++
++/** Vue2 :217-223 */
++async function onToggleFav(p: Provider, m: ProviderModel, favorite: boolean) {
++  try {
++    await store.toggleModelFavorite(p.id, m.name, favorite)
++  } catch {
++    toast.show(t('aiCfgSaveFailed'), 1500, 'danger')
++  }
++}
++
++// ── 手动添加模型(Vue2 :224-239,Buefy prompt → PromptDialog,见文件头说明)──
++const addModelDlg = ref<{ open: boolean; provider: Provider | null }>({ open: false, provider: null })
++
++function onAddManual(p: Provider) {
++  addModelDlg.value = { open: true, provider: p }
++}
++
++/** Vue2 :229-231 —— `(value || '').trim()`,空白值直接 return,不调用 action。 */
++async function onAddModelConfirm(value: string) {
++  const p = addModelDlg.value.provider
++  if (!p) return
++  const name = (value || '').trim()
++  if (!name) return
++  try {
++    await store.addManualModel(p.id, name)
++  } catch {
++    toast.show(t('aiCfgAddFailed'), 1500, 'danger')
++  }
++}
++
++/** Vue2 :240-246 */
++async function onRemoveManual(p: Provider, m: ProviderModel) {
++  try {
++    await store.removeManualModel(p.id, m.name)
++  } catch {
++    toast.show(t('aiCfgDeleteFailed'), 1500, 'danger')
++  }
++}
++</script>
++
++<template>
++  <div class="set-inner">
++    <div class="set-page-head">
++      <h1 class="set-h1">{{ t('aiCfgCloudProviders') }}</h1>
++      <p class="set-desc">{{ t('aiCfgProvidersDesc') }}</p>
++    </div>
++
++    <div class="sk-section">
++      <div class="sk-section-body">
++        <div class="set-cardhead">
++          <span class="t">{{ t('aiCfgConfiguredProviders') }}</span>
++          <span class="ct">{{ store.providers.length }}</span>
++          <span class="sp"></span>
++          <button class="sk-btn primary" @click="store.showProviderForm()">
++            <AgentIcon name="plus" :size="13" /> {{ t('aiCfgAdd') }}
++          </button>
++        </div>
++
++        <div v-if="store.providersLoading" class="set-note">{{ t('aiCfgLoadingEllipsis') }}</div>
++        <div v-else-if="store.providers.length === 0" class="set-note">
++          {{ t('aiCfgNoProvidersYet') }}
++        </div>
++        <table v-else class="set-table">
++          <thead>
++            <tr>
++              <th>{{ t('aiCfgColName') }}</th>
++              <th>{{ t('aiCfgBaseUrl') }}</th>
++              <th>{{ t('aiCfgProtocol') }}</th>
++              <th>{{ t('aiCfgEnabled') }}</th>
++              <th class="act">{{ t('aiCfgColActions') }}</th>
++            </tr>
++          </thead>
++          <tbody>
++            <template v-for="p in store.providers" :key="p.id">
++              <tr>
++                <td>{{ p.name }}</td>
++                <td class="mono">{{ p.base_url }}</td>
++                <td>
++                  <span class="set-proto">{{ p.protocol || 'openai' }}</span>
++                </td>
++                <td>
++                  <SetSwitch :model-value="!!p.enabled" @change="(v: boolean) => onToggle(p, v)" />
++                </td>
++                <td class="act">
++                  <button class="set-tbtn" @click="onToggleModels(p)">
++                    <AgentIcon name="chevDown" :size="13" /> {{ t('aiCfgShowModels') }}
++                  </button>
++                  <button class="set-tbtn" @click="store.showProviderForm(p)">
++                    <AgentIcon name="edit" :size="13" /> {{ t('aiCfgEdit') }}
++                  </button>
++                  <button class="set-tbtn danger" @click="requestDelete(p)">
++                    <AgentIcon name="trash" :size="13" /> {{ t('aiCfgDelete') }}
++                  </button>
++                </td>
++              </tr>
++              <tr v-if="expanded[p.id]">
++                <td colspan="5">
++                  <div class="pm-panel">
++                    <div class="pm-head">
++                      <span>{{ t('aiCfgModelsCheckedHint') }}</span>
++                      <span class="sp"></span>
++                      <button class="set-minibtn" :disabled="modelsOf(p).loading" @click="onRefreshModels(p)">
++                        <AgentIcon name="refresh" :size="13" /> {{ t('aiCfgRefreshModels') }}
++                      </button>
++                      <button class="set-minibtn" @click="onAddManual(p)">{{ t('aiCfgAddManually') }}</button>
++                    </div>
++                    <div v-if="modelsOf(p).loading" class="set-note">{{ t('aiCfgLoadingEllipsis') }}</div>
++                    <ul v-else class="pm-list">
++                      <li v-for="m in modelsOf(p).models" :key="m.name" class="pm-item">
++                        <SetSwitch :model-value="!!m.favorite" @change="(v: boolean) => onToggleFav(p, m, v)" />
++                        <span class="nm">{{ m.name }}</span>
++                        <span v-if="m.supports_thinking" :title="t('aiCfgSupportsThinking')">🧠</span>
++                        <span class="src">{{ m.source }}</span>
++                        <button v-if="m.source === 'manual'" class="dir-del"
++                                @click="onRemoveManual(p, m)" :title="t('aiCfgDelete')">
++                          <AgentIcon name="trash" :size="12" />
++                        </button>
++                      </li>
++                      <li v-if="modelsOf(p).models.length === 0" class="set-note">
++                        {{ t('aiCfgNoModelsFoundHint') }}
++                      </li>
++                    </ul>
++                  </div>
++                </td>
++              </tr>
++            </template>
++          </tbody>
++        </table>
++      </div>
++    </div>
++
++    <!-- Inline form -->
++    <div v-if="store.providerForm.visible" class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ store.providerForm.editing ? t('aiCfgEditProvider') : t('aiCfgAddProvider') }}</div>
++        <button class="set-ibtn" @click="store.hideProviderForm()">
++          <AgentIcon name="x" :size="14" />
++        </button>
++      </div>
++      <div class="set-form">
++        <div v-if="!store.providerForm.editing" class="preset-row">
++          <button v-for="preset in PRESETS" :key="preset.name" class="preset-chip"
++                  @click="store.applyProviderPreset(preset)">
++            {{ preset.name }}
++          </button>
++        </div>
++
++        <div class="field">
++          <label>{{ t('aiCfgColName') }} *</label>
++          <input type="text" class="set-input full" v-model="store.providerForm.data.name" :placeholder="t('aiCfgProviderNamePlaceholder')" />
++        </div>
++        <div class="field">
++          <label>{{ t('aiCfgBaseUrl') }} *</label>
++          <input type="text" class="set-input full" v-model="store.providerForm.data.base_url" placeholder="https://api.example.com/v1" />
++        </div>
++        <div class="field">
++          <label>{{ t('aiCfgApiKey') }}</label>
++          <input type="password" class="set-input full" v-model="store.providerForm.data.api_key"
++                 :placeholder="store.providerForm.editing ? t('aiCfgLeaveBlankKeepCurrent') : t('aiCfgApiKey')" />
++        </div>
++        <div class="field">
++          <label>{{ t('aiCfgDefaultModel') }}</label>
++          <input type="text" class="set-input full" v-model="store.providerForm.data.default_model" :placeholder="t('aiCfgEgGpt4o')" />
++        </div>
++        <div class="field">
++          <label>{{ t('aiCfgProtocol') }}</label>
++          <div class="radio-row">
++            <label class="radio-option">
++              <input type="radio" value="openai" v-model="store.providerForm.data.protocol" /> OpenAI
++            </label>
++            <label class="radio-option">
++              <input type="radio" value="anthropic" v-model="store.providerForm.data.protocol" /> Anthropic
++            </label>
++          </div>
++          <p class="help">{{ t('aiCfgProtocolHint') }}</p>
++        </div>
++
++        <div class="set-actions">
++          <button class="sk-btn primary"
++                  :disabled="store.providerForm.saving"
++                  @click="onSave">
++            {{ t('aiCfgSave') }}
++          </button>
++          <button class="sk-btn ghost" @click="store.hideProviderForm()">
++            {{ t('aiCfgCancel') }}
++          </button>
++        </div>
++      </div>
++    </div>
++
++    <AlertDialog
++      v-model:open="deleteDlg.open"
++      :title="t('aiCfgDelete')"
++      :message="t('aiCfgConfirmDeleteProvider', { name: deleteDlg.provider?.name || '' })"
++      :confirm-text="t('aiCfgDelete')"
++      :cancel-text="t('aiCfgCancel')"
++      destructive
++      @confirm="onDeleteConfirm"
++    />
++
++    <PromptDialog
++      v-model:open="addModelDlg.open"
++      :title="t('aiCfgAddManually')"
++      :message="t('aiCfgEnterModelNamePrompt')"
++      :placeholder="t('aiCfgModelNamePromptPlaceholder')"
++      :confirm-text="t('aiCfgAdd')"
++      :cancel-text="t('aiCfgCancel')"
++      @confirm="onAddModelConfirm"
++    />
++  </div>
++</template>
+diff --git a/src/ai/views/SettingsPage.vue b/src/ai/views/SettingsPage.vue
+index e0a4c23..f33743d 100644
+--- a/src/ai/views/SettingsPage.vue
++++ b/src/ai/views/SettingsPage.vue
+@@ -35,20 +35,21 @@
+ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+ import type { Component } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useSettingsStore } from '../stores/settingsStore'
+ import { useAiTheme } from '../stores/aiTheme'
+ import { useToast } from '../../stores/toast'
+ import SettingsRail from '../components/settings/SettingsRail.vue'
+ import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
+ import ModelsSection from '../components/settings/sections/ModelsSection.vue'
++import ProvidersSection from '../components/settings/sections/ProvidersSection.vue'
+ import AgentIcon from '../components/icons/AgentIcon.vue'
+ import {
+   ALL_ITEMS,
+   DEFERRED_SECTIONS,
+   SPLIT_SECTIONS,
+   VALID_SECTIONS,
+   groupOf,
+   type SectionId,
+ } from '../components/settings/sections'
+ import '../styles/tokens.scss'
+@@ -59,21 +60,21 @@ import '../styles/settings-styles.scss'
+ // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
+ //
+ // 本期(P2a)只实现「模型」组的 4 个;其余 9 个渲染 SectionPlaceholder:
+ //   blacklist / execution / search / memory / observability / mcptokens / channels → P2b
+ //   skills → P3 · mcp → P4
+ //
+ // 本任务先让四个模型组分区也指向 SectionPlaceholder(Task 9/10/11 各自替换
+ // 对应一行 + 加一个 import),这样本任务可独立通过测试,不用等分区实现。
+ const SECTION_COMPONENTS: Record<SectionId, Component> = {
+   models: ModelsSection, // Task 9 —— 已替换
+-  providers: SectionPlaceholder, // Task 10 替换
++  providers: ProvidersSection, // Task 10 —— 已替换
+   privacy: SectionPlaceholder, // Task 11 替换
+   thinking: SectionPlaceholder, // Task 11 替换
+   blacklist: SectionPlaceholder,
+   execution: SectionPlaceholder,
+   search: SectionPlaceholder,
+   memory: SectionPlaceholder,
+   observability: SectionPlaceholder,
+   skills: SectionPlaceholder,
+   mcp: SectionPlaceholder,
+   mcptokens: SectionPlaceholder,
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 94e9723..f7bdcc7 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -660,20 +660,61 @@ export default {
+   aiCfgSelectedRepo: 'Selected: {repo}',
+   aiCfgLoadFiles: 'Load files',
+   aiCfgImportBtn: 'Import',
+   aiCfgConfirmDeleteModel: 'Are you sure you want to delete model "{name}"? This cannot be undone.',
+   aiCfgDeletedName: 'Deleted {name}',
+   aiCfgDeleteFailed: 'Delete failed',
+   aiCfgPullStartedFor: 'Pull started for {name}',
+   aiCfgPullRequestFailed: 'Pull request failed',
+   aiCfgSearchFailed: 'Search failed',
+   aiCfgImportStartedFor: 'Import started for {file}',
++
++  // SP8-P2a Task 10 — ProvidersSection (cloud providers). Values reuse Vue2
++  // production en_US.json literals where present (see zh_cn.ts sibling
++  // comment for the lookup method); ad-hoc ones are listed in the report's
++  // "自拟文案清单".
++  // aiCfgCloudProviders (title) reuses the existing Task 3 key, not redefined here.
++  aiCfgProvidersDesc: 'Configure OpenAI-compatible cloud model services. Effective only when the privacy policy allows cloud requests.',
++  aiCfgConfiguredProviders: 'Configured providers',
++  aiCfgAdd: 'Add',
++  aiCfgAddProvider: 'Add provider',
++  aiCfgEditProvider: 'Edit provider',
++  aiCfgShowModels: 'Show models',
++  aiCfgEdit: 'Edit',
++  aiCfgNoProvidersYet: 'No providers configured yet.',
++  aiCfgProtocol: 'Protocol',
++  aiCfgEnabled: 'Enabled',
++  aiCfgRefreshModels: 'Refresh models',
++  aiCfgAddManually: '+ Add manually',
++  aiCfgModelsCheckedHint: 'Models (checked = shown in picker)',
++  aiCfgNoModelsFoundHint: 'No models found. Click "Refresh models" to auto-fetch or "+ Add manually".',
++  aiCfgSupportsThinking: 'Supports thinking',
++  aiCfgProviderNamePlaceholder: 'Provider name',
++  aiCfgLeaveBlankKeepCurrent: 'Leave blank to keep current',
++  aiCfgDefaultModel: 'Default model',
++  aiCfgEgGpt4o: 'e.g. gpt-4o',
++  aiCfgProtocolHint: 'For services compatible with the OpenAI format (e.g. DeepSeek, Moonshot), choose OpenAI.',
++  aiCfgSave: 'Save',
++  aiCfgToggleFailed: 'Toggle failed',
++  aiCfgDeleted: 'Deleted',
++  aiCfgConfirmDeleteProvider: 'Are you sure you want to delete provider "{name}"? The API Key will also be removed.',
++  aiCfgFailedToLoadModels: 'Failed to load models',
++  aiCfgRefreshed: 'Refreshed',
++  aiCfgAutoFetchFailedManual: 'Auto-fetch failed. You can add models manually.',
++  aiCfgEnterModelNamePrompt: 'Enter model name (e.g. gpt-4o)',
++  aiCfgModelNamePromptPlaceholder: 'Model name',
++  // Two bare English literals Vue2 never wrapped in $t() at all (:25/:107
++  // table header/form label, :111 form label) — technical terms, kept as-is
++  // in both locales (see component header comment).
++  aiCfgBaseUrl: 'Base URL',
++  aiCfgApiKey: 'API Key',
++
+   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
+   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
+   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2
+   // Agent.vue:133-142). English values are Vue2's exact literal strings
+   // (Vue2 uses raw English text as i18n keys, e.g. src/assets/lang/en_US.json).
+   aiLocalOllama: 'Local Ollama',
+   aiCloudModels: 'Cloud',
+   aiSearchModelsPlaceholder: 'Search models…',
+   aiModelSelect: 'Select model',
+   aiModelNotSelected: 'Not selected',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 16c74aa..bd71b05 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -667,20 +667,60 @@ export default {
+   aiCfgSelectedRepo: '已选: {repo}',
+   aiCfgLoadFiles: '加载文件',
+   aiCfgImportBtn: '导入',
+   aiCfgConfirmDeleteModel: '确定删除模型 "{name}"？此操作不可恢复。',
+   aiCfgDeletedName: '已删除 {name}',
+   aiCfgDeleteFailed: '删除失败',
+   aiCfgPullStartedFor: '已发起拉取 {name}',
+   aiCfgPullRequestFailed: '拉取请求失败',
+   aiCfgSearchFailed: '搜索失败',
+   aiCfgImportStartedFor: '已发起导入 {file}',
++
++  // SP8-P2a Task 10 —— ProvidersSection(云端提供商)。中文值优先逐字复用
++  // Vue2 生产 zh_CN.json 对应英文 key 的既有译文(查法见 brief 头部);查不到
++  // 的自拟,已在报告的「自拟文案清单」单列。
++  // aiCfgCloudProviders(标题)复用 Task 3 已建的既有键,这里不重复定义。
++  aiCfgProvidersDesc: '配置兼容 OpenAI 协议的云端模型服务。仅在隐私策略允许云端请求时生效。',
++  aiCfgConfiguredProviders: '已配置提供商',
++  aiCfgAdd: '添加',
++  aiCfgAddProvider: '添加提供商',
++  aiCfgEditProvider: '编辑提供商',
++  aiCfgShowModels: '模型',
++  aiCfgEdit: '编辑',
++  aiCfgNoProvidersYet: '暂无已配置提供商',
++  aiCfgProtocol: '协议',
++  aiCfgEnabled: '启用',
++  aiCfgRefreshModels: '刷新模型',
++  aiCfgAddManually: '+ 手动添加',
++  aiCfgModelsCheckedHint: '模型(勾选 = 在选择器中显示)',
++  aiCfgNoModelsFoundHint: '暂无模型，点「刷新模型」自动拉取或「手动添加」。',
++  aiCfgSupportsThinking: '支持思考',
++  aiCfgProviderNamePlaceholder: '提供商名称',
++  aiCfgLeaveBlankKeepCurrent: '留空则不修改',
++  aiCfgDefaultModel: '默认模型',
++  aiCfgEgGpt4o: '如 gpt-4o',
++  aiCfgProtocolHint: 'DeepSeek、Moonshot 等兼容 OpenAI 格式的服务选 OpenAI',
++  aiCfgSave: '保存',
++  aiCfgToggleFailed: '切换失败',
++  aiCfgDeleted: '已删除',
++  aiCfgConfirmDeleteProvider: '确定删除提供商 "{name}"？API Key 也会被清除。',
++  aiCfgFailedToLoadModels: '加载模型失败',
++  aiCfgRefreshed: '已刷新',
++  aiCfgAutoFetchFailedManual: '自动拉取失败，可手动添加',
++  aiCfgEnterModelNamePrompt: '输入模型名(如 gpt-4o)',
++  aiCfgModelNamePromptPlaceholder: '模型名',
++  // 两个 Vue2 从未 $t() 包裹的裸英文字面量(:25/:107 表头/表单 label、:111
++  // 表单 label)—— 技术术语,生产 zh_CN.json 里也没有中译先例,中英文保留
++  // 原文(见组件头注释「i18n:两个从未被 Vue2 $t() 包裹的英文字面量」)。
++  aiCfgBaseUrl: 'Base URL',
++  aiCfgApiKey: 'API Key',
++
+   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
+   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
+   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
+   // 中文值取自 Vue2 src/assets/lang/zh_CN.json 里对应英文 key 的既有译文,保持
+   // 与旧应用一致的措辞。
+   aiLocalOllama: '本地 Ollama',
+   aiCloudModels: '云端',
+   aiSearchModelsPlaceholder: '搜索模型…',
+   aiModelSelect: '选择模型',
+   aiModelNotSelected: '未选择',

@@ -1,0 +1,700 @@
+# Review package: e8f8564^..e8f8564
+
+## Commits
+e8f8564 SP8-P2b Task 6: MemorySection(AI 记忆,承接 Vue2 13 例 + 补失败提示)
+
+## Files changed
+ .../settings/sections/MemorySection.test.ts        | 315 +++++++++++++++++++++
+ .../components/settings/sections/MemorySection.vue | 205 ++++++++++++++
+ src/ai/util/memoryLabels.test.ts                   |  29 ++
+ src/ai/util/memoryLabels.ts                        |  33 +++
+ src/i18n/en_us.ts                                  |  24 ++
+ src/i18n/zh_cn.ts                                  |  23 ++
+ 6 files changed, 629 insertions(+)
+
+## Diff
+diff --git a/src/ai/components/settings/sections/MemorySection.test.ts b/src/ai/components/settings/sections/MemorySection.test.ts
+new file mode 100644
+index 0000000..e0accca
+--- /dev/null
++++ b/src/ai/components/settings/sections/MemorySection.test.ts
+@@ -0,0 +1,315 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../../i18n/zh_cn'
++
++// SP8-P2b Task 6 —— 承接 Vue2 sections/__tests__/MemorySection.spec.js(13 例,借
++// `MemorySection.methods.load.call(ctx)` 直调 methods)。`<script setup>` 没有
++// methods 对象可借,这里改成挂载组件 + spy service,断言内容逐条保留,只换驱动方式。
++// 对照表见 .superpowers/sdd/p2b-task-6-report.md。
++
++const h = vi.hoisted(() => ({
++  getMemorySettings: vi.fn(),
++  listUserMemory: vi.fn(),
++  putMemorySettings: vi.fn(),
++  deleteUserMemory: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    ai: {
++      getMemorySettings: h.getMemorySettings,
++      listUserMemory: h.listUserMemory,
++      putMemorySettings: h.putMemorySettings,
++      deleteUserMemory: h.deleteUserMemory,
++    },
++  },
++}))
++
++import MemorySection from './MemorySection.vue'
++import { useToast } from '../../../../stores/toast'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const mountSection = () => mount(MemorySection, { global: { plugins: [i18n] } })
++const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
++
++describe('MemorySection', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.restoreAllMocks()
++    h.getMemorySettings.mockReset()
++    h.listUserMemory.mockReset()
++    h.putMemorySettings.mockReset()
++    h.deleteUserMemory.mockReset()
++  })
++
++  // 1. load() fills settings + memories
++  it('load() 用后端数据填充设置与记忆列表', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: false })
++    h.listUserMemory.mockResolvedValue([
++      { id: 'a', kind: 'fact', text: 'x', source: 'auto', priority: 0, recall_count: 2, updated_at: 1 },
++    ])
++    const w = mountSection()
++    await flush()
++    expect(w.find('.sw').attributes('data-on')).toBe('false')
++    expect(w.findAll('.mem-row')).toHaveLength(1)
++    expect(w.find('.set-note').exists()).toBe(false)
++  })
++
++  // 2. load() fills compaction_enabled and context_window
++  it('load() 填充 compaction_enabled 与 context_window', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: true, context_window: 8192 })
++    h.listUserMemory.mockResolvedValue([])
++    const w = mountSection()
++    await flush()
++    const switches = w.findAll('.sw')
++    expect(switches[1].attributes('data-on')).toBe('true') // compaction switch
++    const input = w.find('.set-input.num').element as HTMLInputElement
++    expect(input.value).toBe('8192')
++  })
++
++  // 3. load() … false + empty when absent
++  it('load() 缺 compaction_enabled/context_window 时归一为关闭/空串', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([])
++    const w = mountSection()
++    await flush()
++    const switches = w.findAll('.sw')
++    expect(switches[1].attributes('data-on')).toBe('false')
++    const input = w.find('.set-input.num').element as HTMLInputElement
++    expect(input.value).toBe('')
++  })
++
++  // 4. load() sets error on failure
++  it('load() 失败时显示「加载记忆失败。」且无 loading', async () => {
++    h.getMemorySettings.mockRejectedValue(new Error('boom'))
++    const w = mountSection()
++    await flush()
++    expect(w.find('.set-note').text()).toBe('加载记忆失败。')
++  })
++
++  // 5. remove() deletes and drops the item
++  it('remove() 调 deleteUserMemory 并从列表移除该行', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([
++      { id: 'a', kind: 'fact', text: 'x', source: 'auto' },
++      { id: 'b', kind: 'fact', text: 'y', source: 'auto' },
++    ])
++    h.deleteUserMemory.mockResolvedValue({ status: 'deleted' })
++    const w = mountSection()
++    await flush()
++    await w.findAll('.mem-del')[0].trigger('click')
++    await flush()
++    expect(h.deleteUserMemory).toHaveBeenCalledWith('a')
++    expect(w.findAll('.mem-row')).toHaveLength(1)
++    expect(w.find('.mem-text').text()).toBe('y')
++  })
++
++  // 6. remove() keeps the item on failure
++  it('remove() 失败时保留该行', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([{ id: 'a', kind: 'fact', text: 'x', source: 'auto' }])
++    h.deleteUserMemory.mockRejectedValue(new Error('boom'))
++    const w = mountSection()
++    await flush()
++    await w.find('.mem-del').trigger('click')
++    await flush()
++    expect(w.findAll('.mem-row')).toHaveLength(1)
++  })
++
++  // 19. remove failure also toasts danger (new behavior, Vue2 was silent)
++  it('remove() 失败弹 danger toast（逻辑修正,Vue2 注释里只保留条目不提示）', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([{ id: 'a', kind: 'fact', text: 'x', source: 'auto' }])
++    h.deleteUserMemory.mockRejectedValue({ response: { data: { message: '删不掉' } } })
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++    await w.find('.mem-del').trigger('click')
++    await flush()
++    expect(show).toHaveBeenCalledWith('删不掉', 3000, 'danger')
++  })
++
++  // 7. saveEnabled() reverts the toggle on failure
++  it('saveEnabled() 失败时把开关翻回去', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: false })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockRejectedValue(new Error('boom'))
++    const w = mountSection()
++    await flush()
++    expect(w.find('.sw').attributes('data-on')).toBe('false')
++    await w.find('.sw').trigger('click') // -> true, triggers saveEnabled()
++    await flush()
++    expect(w.find('.sw').attributes('data-on')).toBe('false') // reverted back
++  })
++
++  // 16. saveEnabled failure also toasts danger
++  it('saveEnabled() 失败弹 danger toast（逻辑修正,Vue2 静默回滚）', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: false })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockRejectedValue({ response: { data: { message: '存不上' } } })
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++    await w.find('.sw').trigger('click')
++    await flush()
++    expect(show).toHaveBeenCalledWith('存不上', 3000, 'danger')
++  })
++
++  // 8. saveEnabled() calls put… with 三个字段
++  it('saveEnabled() 调 putMemorySettings 时三个字段齐全', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: false, compaction_enabled: true, context_window: 4096 })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockResolvedValue({})
++    const w = mountSection()
++    await flush()
++    await w.find('.sw').trigger('click')
++    await flush()
++    expect(h.putMemorySettings).toHaveBeenCalledWith(
++      expect.objectContaining({ enabled: true, compaction_enabled: true, context_window: 4096 }),
++    )
++  })
++
++  // 9. saveCompaction() … compaction_enabled in payload
++  it('saveCompaction() 调 putMemorySettings 时 payload 含 compaction_enabled 与 context_window:null', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockResolvedValue({})
++    const w = mountSection()
++    await flush()
++    const switches = w.findAll('.sw')
++    await switches[1].trigger('click')
++    await flush()
++    expect(h.putMemorySettings).toHaveBeenCalledWith(
++      expect.objectContaining({ compaction_enabled: true, context_window: null }),
++    )
++  })
++
++  // 10. saveCompaction() reverts on failure
++  it('saveCompaction() 失败时把压缩开关翻回去', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockRejectedValue(new Error('boom'))
++    const w = mountSection()
++    await flush()
++    const switches = w.findAll('.sw')
++    await switches[1].trigger('click')
++    await flush()
++    expect(w.findAll('.sw')[1].attributes('data-on')).toBe('false')
++  })
++
++  // 17. saveCompaction failure also toasts danger
++  it('saveCompaction() 失败弹 danger toast', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockRejectedValue({})
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++    const switches = w.findAll('.sw')
++    await switches[1].trigger('click')
++    await flush()
++    expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
++  })
++
++  // 11. saveContextWindow() … as number
++  it('saveContextWindow() 把输入值当数字发送', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockResolvedValue({})
++    const w = mountSection()
++    await flush()
++    await w.find('.set-input.num').setValue('8192')
++    await flush()
++    expect(h.putMemorySettings).toHaveBeenCalledWith(
++      expect.objectContaining({ context_window: 8192 }),
++    )
++  })
++
++  // 12. saveContextWindow() sends null when blank
++  it('saveContextWindow() 留空时发送 context_window:null', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 8192 })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockResolvedValue({})
++    const w = mountSection()
++    await flush()
++    await w.find('.set-input.num').setValue('')
++    await flush()
++    expect(h.putMemorySettings).toHaveBeenCalledWith(
++      expect.objectContaining({ context_window: null }),
++    )
++  })
++
++  // 13. saveContextWindow() reverts to previous on failure (snapshot before await)
++  it('saveContextWindow() 失败时回到发请求前的快照值(而不是当前值)', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 4096 })
++    h.listUserMemory.mockResolvedValue([])
++    const w = mountSection()
++    await flush()
++    h.putMemorySettings.mockImplementation(async () => {
++      // concurrent mutation during the await — simulated by writing to the input directly
++      await w.find('.set-input.num').setValue('99999')
++      throw new Error('boom')
++    })
++    await w.find('.set-input.num').setValue('8192')
++    await flush()
++    expect((w.find('.set-input.num').element as HTMLInputElement).value).toBe('8192')
++  })
++
++  // 18. saveContextWindow failure also toasts danger
++  it('saveContextWindow() 失败弹 danger toast', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 4096 })
++    h.listUserMemory.mockResolvedValue([])
++    h.putMemorySettings.mockRejectedValue({ response: { data: { message: '窗口非法' } } })
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++    await w.find('.set-input.num').setValue('8192')
++    await flush()
++    expect(show).toHaveBeenCalledWith('窗口非法', 3000, 'danger')
++  })
++
++  // 15. off banner shown when disabled, hidden when enabled
++  it('记忆关闭时显示警告条,开启时不显示', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: false })
++    h.listUserMemory.mockResolvedValue([])
++    const w = mountSection()
++    await flush()
++    expect(w.find('.set-banner.warn').exists()).toBe(true)
++    expect(w.find('.set-banner.warn').text()).toBe(
++      '记忆已关闭 —— 不再记录或注入新内容。已有条目保留,仍可删除。',
++    )
++  })
++
++  it('记忆开启时不显示警告条（对照组）', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([])
++    const w = mountSection()
++    await flush()
++    expect(w.find('.set-banner.warn').exists()).toBe(false)
++  })
++
++  // 20. localized tags: kind, source, recall count (+ recall_count missing -> 0)
++  it('记忆条目的三个标签正确本地化,recall_count 缺失按 0 渲染', async () => {
++    h.getMemorySettings.mockResolvedValue({ enabled: true })
++    h.listUserMemory.mockResolvedValue([
++      { id: 'a', kind: 'preference', text: 'x', source: 'auto', recall_count: 3 },
++      { id: 'b', kind: 'fact', text: 'y', source: 'tool' },
++    ])
++    const w = mountSection()
++    await flush()
++    const rows = w.findAll('.mem-row')
++    const tagsA = rows[0].findAll('.mem-tag')
++    expect(tagsA[0].text()).toBe('偏好')
++    expect(tagsA[1].text()).toBe('自动')
++    expect(tagsA[2].text()).toBe('被召回 3 次')
++    const tagsB = rows[1].findAll('.mem-tag')
++    expect(tagsB[1].text()).toBe('已保存') // aiCfgMemSourceTool
++    expect(tagsB[2].text()).toBe('被召回 0 次') // recall_count missing -> 0
++  })
++})
+diff --git a/src/ai/components/settings/sections/MemorySection.vue b/src/ai/components/settings/sections/MemorySection.vue
+new file mode 100644
+index 0000000..fd87bac
+--- /dev/null
++++ b/src/ai/components/settings/sections/MemorySection.vue
+@@ -0,0 +1,205 @@
++<!--
++  SP8-P2b Task 6 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/MemorySection.vue(159 行)。
++
++  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data()
++  是组件本地状态),不做 store 集中(只有 blacklist 用 store,见 BlacklistSection.vue
++  头注释,用户 2026-07-28 拍板)。
++
++  【逻辑修正 1】`enabled.value = !!s.enabled` 是刻意偏离:Vue2 写的是
++  `this.enabled = s.enabled`(MemorySection.vue:105,不加 `!!`)。后端漏 enabled 字段时
++  会变成 undefined ——SetSwitch 收到 undefined 渲染成关,但 payload 又把 undefined
++  发回去,让后端按「未修改」处理,是个可复现的错误行为。加 `!!` 归一。Vue2 测试第 1
++  条 mock 的是 {enabled:false},加 `!!` 后断言不变。
++
++  【逻辑修正 2】saveEnabled/saveCompaction/saveContextWindow/remove 失败时补
++  danger toast。Vue2 这四处失败都是静默的(MemorySection.vue:122-124/133-135/
++  145-147/153-155,remove 处甚至有注释 `/* keep the item on failure */` 显式说明
++  「只保留不提示」)。本分区不属于挂载即触发的多分区并发场景(不像 BlacklistSection
++  的 mounted 静默吞是为了避免多分区同时挂载时 toast 糊屏),这几处是用户主动操作后
++  的保存/删除失败,静默会让用户以为操作生效了、其实没有,补提示更安全。
++-->
++<script setup lang="ts">
++import { ref, onMounted } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import { useToast } from '../../../../stores/toast'
++import { apiErrorMessage } from '../../../util/apiError'
++import { kindLabel, sourceLabel } from '../../../util/memoryLabels'
++import SetSwitch from '../SetSwitch.vue'
++import AgentIcon from '../../icons/AgentIcon.vue'
++
++interface MemoryItem {
++  id: string | number
++  kind: string
++  text: string
++  source: string
++  recall_count?: number
++}
++
++const { t } = useI18n()
++const toast = useToast()
++
++const memories = ref<MemoryItem[]>([])
++const enabled = ref(true)
++const loading = ref(false)
++const error = ref(false)
++const compactionEnabled = ref(false)
++const contextWindow = ref<string>('') // 与 Vue2 一致:字符串,空串表示自动
++
++onMounted(async () => {
++  await load()
++})
++
++// Vue2 MemorySection.vue:112-116 / :126-130 / :140-144 三处发的是同一个三字段
++// payload,这里收成一处。
++function payload() {
++  return {
++    enabled: enabled.value,
++    compaction_enabled: compactionEnabled.value,
++    context_window: contextWindow.value !== '' ? Number(contextWindow.value) : null,
++  }
++}
++
++async function load() {
++  loading.value = true
++  error.value = false
++  try {
++    const s = (await service.ai.getMemorySettings()) as {
++      enabled?: boolean
++      compaction_enabled?: boolean
++      context_window?: number | null
++    }
++    enabled.value = !!s.enabled // 逻辑修正 1,见文件头注释
++    compactionEnabled.value = !!s.compaction_enabled
++    contextWindow.value = s.context_window != null ? String(s.context_window) : ''
++    memories.value = ((await service.ai.listUserMemory()) as MemoryItem[]) || []
++  } catch {
++    error.value = true
++  } finally {
++    loading.value = false
++  }
++}
++
++async function saveEnabled() {
++  try {
++    await service.ai.putMemorySettings(payload())
++  } catch (e) {
++    enabled.value = !enabled.value // Vue2 :119 同款回滚
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 2
++  }
++}
++
++async function saveCompaction() {
++  try {
++    await service.ai.putMemorySettings(payload())
++  } catch (e) {
++    compactionEnabled.value = !compactionEnabled.value
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 2
++  }
++}
++
++async function saveContextWindow() {
++  const prev = contextWindow.value // Vue2 :138 —— 发请求前先存快照,不是失败时读当前值
++  try {
++    await service.ai.putMemorySettings(payload())
++  } catch (e) {
++    contextWindow.value = prev
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 2
++  }
++}
++
++async function remove(m: MemoryItem) {
++  try {
++    await service.ai.deleteUserMemory(m.id)
++    memories.value = memories.value.filter((x) => x.id !== m.id)
++  } catch (e) {
++    // Vue2 :152 注释是「keep the item on failure」——保留条目这条照搬,但补提示(逻辑修正 2)。
++    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger')
++  }
++}
++
++function onEnabledChange(v: boolean) {
++  enabled.value = v
++  void saveEnabled()
++}
++
++function onCompactionChange(v: boolean) {
++  compactionEnabled.value = v
++  void saveCompaction()
++}
++</script>
++
++<template>
++  <div class="set-inner">
++    <div class="set-page-head">
++      <h1 class="set-h1">{{ t('aiCfgMemory') }}</h1>
++      <p class="set-desc">{{ t('aiCfgMemoryDesc') }}</p>
++    </div>
++
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgCrossSessionMemory') }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div v-if="!enabled" class="set-banner warn">
++          {{ t('aiCfgMemoryOffBanner') }}
++        </div>
++        <div class="set-rows">
++          <div class="set-row">
++            <div class="lbl">
++              {{ t('aiCfgEnableMemory') }}
++              <span class="sub">{{ t('aiCfgEnableMemorySub') }}</span>
++            </div>
++            <div class="val end">
++              <SetSwitch :model-value="enabled" @change="onEnabledChange" />
++            </div>
++          </div>
++          <div class="set-row">
++            <div class="lbl">{{ t('aiCfgContextCompaction') }}</div>
++            <div class="val end">
++              <SetSwitch :model-value="compactionEnabled" @change="onCompactionChange" />
++            </div>
++          </div>
++          <div class="set-row">
++            <div class="lbl">{{ t('aiCfgContextWindow') }}</div>
++            <div class="val end">
++              <input
++                v-model="contextWindow"
++                class="set-input num"
++                type="number"
++                min="1"
++                :placeholder="t('aiCfgAutoPlaceholder')"
++                @change="saveContextWindow"
++              >
++            </div>
++          </div>
++        </div>
++      </div>
++    </div>
++
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgSavedMemories') }}</div>
++        <div class="sk-section-hint">{{ memories.length }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div v-if="loading" class="set-note">{{ t('aiCfgLoadingEllipsis') }}</div>
++        <div v-else-if="error" class="set-note">{{ t('aiCfgMemoryLoadFailed') }}</div>
++        <div v-else-if="memories.length === 0" class="set-note">{{ t('aiCfgNoMemories') }}</div>
++        <div v-else v-for="m in memories" :key="m.id" class="mem-row">
++          <div class="mem-body">
++            <div class="mem-text">{{ m.text }}</div>
++            <div class="mem-tags">
++              <span class="mem-tag" :data-k="m.kind === 'preference' ? 'pref' : 'fact'">{{ t(kindLabel(m.kind)) }}</span>
++              <span class="mem-tag">{{ t(sourceLabel(m.source)) }}</span>
++              <span class="mem-tag recall">{{ t('aiCfgRecalledTimes', { n: m.recall_count || 0 }) }}</span>
++            </div>
++          </div>
++          <button class="mem-del" :title="t('aiCfgDeleteMemory')" @click="remove(m)">
++            <AgentIcon name="x" :size="14" />
++          </button>
++        </div>
++      </div>
++    </div>
++  </div>
++</template>
+diff --git a/src/ai/util/memoryLabels.test.ts b/src/ai/util/memoryLabels.test.ts
+new file mode 100644
+index 0000000..1c39bc0
+--- /dev/null
++++ b/src/ai/util/memoryLabels.test.ts
+@@ -0,0 +1,29 @@
++import { describe, it, expect } from 'vitest'
++import { kindLabel, sourceLabel, KIND_LABEL_KEYS, SOURCE_LABEL_KEYS } from './memoryLabels'
++
++// SP8-P2b Task 6 —— 对齐 Vue2 MemorySection.spec.js 第 14 条
++// 'kindLabel/sourceLabel map known values and pass through unknown'。
++
++describe('memoryLabels', () => {
++  it('kindLabel 映射已知取值到 i18n 键名', () => {
++    expect(kindLabel('preference')).toBe('aiCfgMemKindPreference')
++    expect(kindLabel('fact')).toBe('aiCfgMemKindFact')
++    expect(kindLabel('goal')).toBe('aiCfgMemKindGoal')
++  })
++
++  it('sourceLabel 映射已知取值到 i18n 键名', () => {
++    expect(sourceLabel('auto')).toBe('aiCfgMemSourceAuto')
++    expect(sourceLabel('tool')).toBe('aiCfgMemSourceTool')
++    expect(sourceLabel('user')).toBe('aiCfgMemSourceUser')
++  })
++
++  it('未知取值原样返回（Vue2 同款兜底）', () => {
++    expect(kindLabel('weird')).toBe('weird')
++    expect(sourceLabel('weird')).toBe('weird')
++  })
++
++  it('映射表内容与 Vue2 KIND_LABELS/SOURCE_LABELS 的键集合一致', () => {
++    expect(Object.keys(KIND_LABEL_KEYS)).toEqual(['preference', 'fact', 'goal'])
++    expect(Object.keys(SOURCE_LABEL_KEYS)).toEqual(['auto', 'tool', 'user'])
++  })
++})
+diff --git a/src/ai/util/memoryLabels.ts b/src/ai/util/memoryLabels.ts
+new file mode 100644
+index 0000000..78e7799
+--- /dev/null
++++ b/src/ai/util/memoryLabels.ts
+@@ -0,0 +1,33 @@
++// SP8-P2b Task 6 —— 抽自 Vue2 src/views/AI/Settings/sections/MemorySection.vue:78-79/98-99
++// 的 KIND_LABELS / SOURCE_LABELS 映射 + kindLabel/sourceLabel 两个方法。抽成纯函数是
++// 为了能单独测「未知取值原样返回」这条兜底(brief Step 2 #14),<script setup> 没有
++// methods 对象可借,单测只能靠导出纯函数直调。做法与 Task 9 formatModelSize.ts 同款。
++//
++// 值从 Vue2 的字面英文串(如 'Preference')换成了 i18n 键名(如 'aiCfgMemKindPreference')
++// ——组件里再过一次 t()。未知取值仍然原样返回,不查 i18n:vue-i18n 9 对不存在的键
++// t(key) 会原样渲染 key 本身(控制台有 missing key 告警),视觉结果与 Vue2
++// `$t('weird')` → 'weird' 一致。
++
++/** 对齐 Vue2 MemorySection.vue:78 KIND_LABELS。 */
++export const KIND_LABEL_KEYS: Record<string, string> = {
++  preference: 'aiCfgMemKindPreference',
++  fact: 'aiCfgMemKindFact',
++  goal: 'aiCfgMemKindGoal',
++}
++
++/** 对齐 Vue2 MemorySection.vue:79 SOURCE_LABELS。 */
++export const SOURCE_LABEL_KEYS: Record<string, string> = {
++  auto: 'aiCfgMemSourceAuto',
++  tool: 'aiCfgMemSourceTool',
++  user: 'aiCfgMemSourceUser',
++}
++
++/** 对齐 Vue2 MemorySection.vue:98(`kindLabel`)。 */
++export function kindLabel(k: string): string {
++  return KIND_LABEL_KEYS[k] || k
++}
++
++/** 对齐 Vue2 MemorySection.vue:99(`sourceLabel`)。 */
++export function sourceLabel(s: string): string {
++  return SOURCE_LABEL_KEYS[s] || s
++}
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index f7bdcc7..a4c0a7e 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -997,11 +997,35 @@ export default {
+   // >>> SP8-P2b Task 5 —— ExecutionSection(执行步数)
+   aiCfgExecutionDesc: 'Limit the maximum number of steps the Agent takes on a single task to avoid runaway long runs.',
+   aiCfgMaxStepsPerTask: 'Max steps per task',
+   aiCfgExecutionBanner: 'The maximum number of steps the Agent runs for one task (each tool or model call counts as one step). When the limit is reached it pauses and shows a Continue button. Unlimited may be slower and use more resources.',
+   aiCfgUnlimitedSteps: 'Unlimited (no step limit)',
+   aiCfgMaxSteps: 'Max steps',
+   aiCfgSaving: 'Saving…',
+   aiCfgSaved: 'Saved',
+   aiCfgSaveFailed: 'Save failed',
+   // <<< SP8-P2b Task 5
++  // >>> SP8-P2b Task 6 —— MemorySection(AI 记忆)
++  aiCfgMemoryDesc: "Facts and preferences the assistant remembers about you across sessions. While memory is on, they're injected into the context at the start of every conversation.",
++  aiCfgCrossSessionMemory: 'Cross-session memory',
++  aiCfgMemoryOffBanner: 'Memory is off — nothing new is remembered or injected. Existing items are kept and can still be deleted.',
++  aiCfgEnableMemory: 'Enable memory',
++  aiCfgEnableMemorySub: 'Facts the assistant remembers about you across sessions, injected into every conversation while memory is on.',
++  aiCfgContextCompaction: 'Context compaction',
++  aiCfgContextWindow: 'Context window (blank = auto)',
++  aiCfgAutoPlaceholder: 'auto',
++  aiCfgSavedMemories: 'Saved memories',
++  aiCfgMemoryLoadFailed: 'Failed to load memories.',
++  aiCfgNoMemories: 'No memories yet.',
++  aiCfgRecalledTimes: 'recalled {n}×',
++  aiCfgDeleteMemory: 'Delete memory',
++  aiCfgMemKindPreference: 'Preference',
++  aiCfgMemKindFact: 'Fact',
++  aiCfgMemKindGoal: 'Goal',
++  aiCfgMemSourceAuto: 'Auto',
++  // aiCfgMemSourceTool and aiCfgSaved are both literally "Saved" but mean different
++  // things (memory-source tag vs. save-state hint) — kept as two separate keys on
++  // purpose, not merged; see the warning under the brief's table.
++  aiCfgMemSourceTool: 'Saved',
++  aiCfgMemSourceUser: 'Manual',
++  // <<< SP8-P2b Task 6
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index bd71b05..f5ff43e 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1011,11 +1011,34 @@ export default {
+   // >>> SP8-P2b Task 5 —— ExecutionSection(执行步数)
+   aiCfgExecutionDesc: '限制 Agent 处理单个任务时的最大步数,避免失控的长时间运行。',
+   aiCfgMaxStepsPerTask: '单次任务最大步数',
+   aiCfgExecutionBanner: 'Agent 处理一个任务时最多执行的步数(每次调用工具或模型算一步)。达到上限会暂停并给出「继续」按钮。设为无限可能更慢、更耗资源。',
+   aiCfgUnlimitedSteps: '无限(不限制步数)',
+   aiCfgMaxSteps: '最大步数',
+   aiCfgSaving: '保存中…',
+   aiCfgSaved: '已保存',
+   aiCfgSaveFailed: '保存失败',
+   // <<< SP8-P2b Task 5
++  // >>> SP8-P2b Task 6 —— MemorySection(AI 记忆)
++  aiCfgMemoryDesc: '助手跨会话记住的、关于你的事实与偏好。记忆开启时，会在每次对话开始前注入到上下文中。',
++  aiCfgCrossSessionMemory: '跨会话记忆',
++  aiCfgMemoryOffBanner: '记忆已关闭 —— 不再记录或注入新内容。已有条目保留,仍可删除。',
++  aiCfgEnableMemory: '启用记忆',
++  aiCfgEnableMemorySub: '助手跨会话记住的关于你的事实;记忆开启时会注入到每次对话中。',
++  aiCfgContextCompaction: '上下文压缩',
++  aiCfgContextWindow: '上下文窗口(留空=自动)',
++  aiCfgAutoPlaceholder: '自动',
++  aiCfgSavedMemories: '已保存的记忆',
++  aiCfgMemoryLoadFailed: '加载记忆失败。',
++  aiCfgNoMemories: '暂无记忆。',
++  aiCfgRecalledTimes: '被召回 {n} 次',
++  aiCfgDeleteMemory: '删除记忆',
++  aiCfgMemKindPreference: '偏好',
++  aiCfgMemKindFact: '事实',
++  aiCfgMemKindGoal: '目标',
++  aiCfgMemSourceAuto: '自动',
++  // aiCfgMemSourceTool 与 aiCfgSaved 字面都是「已保存」但语义不同(记忆来源标签 vs
++  // 保存态提示)——刻意分成两个键,不合并,见 brief 表格下方警告。
++  aiCfgMemSourceTool: '已保存',
++  aiCfgMemSourceUser: '手动',
++  // <<< SP8-P2b Task 6
+ }

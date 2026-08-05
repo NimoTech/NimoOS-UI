@@ -1,0 +1,284 @@
+# Review package: afc60c1..f5df936
+
+## Commits
+f5df936 SP8-P1a: AgentPage 集成+/ai 路由
+
+## Files changed
+ src/ai/views/AgentPage.test.ts | 101 +++++++++++++++++++++++++++++++++++
+ src/ai/views/AgentPage.vue     | 116 +++++++++++++++++++++++++++++++++++++++++
+ src/router/index.ts            |   3 ++
+ 3 files changed, 220 insertions(+)
+
+## Diff
+diff --git a/src/ai/views/AgentPage.test.ts b/src/ai/views/AgentPage.test.ts
+new file mode 100644
+index 0000000..d324437
+--- /dev/null
++++ b/src/ai/views/AgentPage.test.ts
+@@ -0,0 +1,101 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  listAgentSessions: vi.fn(),
++  createAgentSession: vi.fn(),
++  deleteAgentSession: vi.fn(),
++  listAgentMessages: vi.fn(),
++  updateAgentSessionTitle: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++
++const push = vi.fn()
++const replace = vi.fn().mockResolvedValue(undefined)
++const routeQuery: Record<string, string> = {}
++vi.mock('vue-router', () => ({
++  useRouter: () => ({ push, replace }),
++  useRoute: () => ({ query: routeQuery }),
++}))
++
++import AgentPage from './AgentPage.vue'
++import { useAgentStore } from '../stores/agentStore'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++let pinia: ReturnType<typeof createPinia>
++
++function mountPage() {
++  return mount(AgentPage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
++}
++
++describe('AgentPage', () => {
++  beforeEach(() => {
++    pinia = createPinia()
++    setActivePinia(pinia)
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    svc.listAgentSessions.mockResolvedValue([])
++    localStorage.clear()
++    for (const k of Object.keys(routeQuery)) delete routeQuery[k]
++    push.mockClear()
++    replace.mockClear()
++  })
++
++  it('挂载后调用 loadSessions', async () => {
++    const w = mountPage()
++    await flushPromises()
++    expect(svc.listAgentSessions).toHaveBeenCalledTimes(1)
++    w.unmount()
++  })
++
++  it('无消息时渲染 EmptyState,不渲染消息流', async () => {
++    const w = mountPage()
++    await flushPromises()
++    expect(w.find('.empty-state').exists()).toBe(true)
++    expect(w.find('.stream-wrap').exists()).toBe(false)
++    w.unmount()
++  })
++
++  it('store.messages 非空时渲染消息流(MessageList),不渲染 EmptyState', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    store.messages.push({ id: 'm1', role: 'user', content: 'hi' })
++    await flushPromises()
++    expect(w.find('.stream-wrap').exists()).toBe(true)
++    expect(w.find('.empty-state').exists()).toBe(false)
++    w.unmount()
++  })
++
++  it('?search=foo → pendingPrompt 落 "foo" 且 router.replace 剥掉 search 参数', async () => {
++    routeQuery.search = 'foo'
++    mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    expect(store.pendingPrompt).toBe('foo')
++    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
++  })
++
++  it('?message=bar(无 search)→ pendingPrompt 落 "bar" 且 router.replace 剥掉 message 参数', async () => {
++    routeQuery.message = 'bar'
++    mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    expect(store.pendingPrompt).toBe('bar')
++    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
++  })
++
++  it('search 与 message 同时存在 → search 生效,message 被跳过(不覆盖 pendingPrompt)', async () => {
++    routeQuery.search = 'foo'
++    routeQuery.message = 'bar'
++    mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    expect(store.pendingPrompt).toBe('foo')
++    expect(replace).toHaveBeenCalledTimes(1)
++    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: 'bar' } })
++  })
++})
+diff --git a/src/ai/views/AgentPage.vue b/src/ai/views/AgentPage.vue
+new file mode 100644
+index 0000000..bb5a828
+--- /dev/null
++++ b/src/ai/views/AgentPage.vue
+@@ -0,0 +1,116 @@
++<!--
++  1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
++  去 AgentComposer(发送链路,1b/1c)、AgentRightPanel(1c),以及
++  systemMetrics/disks/thinking/models 的装载段(1b/1c)。右侧面板在 1a
++  永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store 状态——
++  1a store 里 rightCollapsed 恒 true,直接写死更直白)。
++
++  主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
++  这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
++-->
++<script setup lang="ts">
++import { computed, onMounted } from 'vue'
++import { useRoute, useRouter } from 'vue-router'
++import { useAgentStore } from '../stores/agentStore'
++import AgentSidebar from '../components/shell/AgentSidebar.vue'
++import AgentTopbar from '../components/shell/AgentTopbar.vue'
++import MessageList from '../components/stream/MessageList.vue'
++import EmptyState from '../components/stream/EmptyState.vue'
++import '../styles/tokens.scss'
++import '../styles/agent-styles.scss'
++
++const store = useAgentStore()
++const route = useRoute()
++const router = useRouter()
++
++// store.messages is typed as the loose AgentMessage (Record<string, unknown>) —
++// MessageList needs `role` to be known-present. Runtime shape always has it
++// (backend contract), this is a type-level bridge only.
++interface AgentMsgLike { id?: string | number; role: string; [key: string]: unknown }
++const messagesForList = computed(() => store.messages as unknown as AgentMsgLike[])
++
++// Agent.vue:104-108 semantics: fall back to '' when the active session has no
++// (or an empty) title — AgentTopbar shows its own placeholder in that case.
++const currentSessionTitle = computed(() => {
++  const id = store.activeSessionId
++  const s = store.sessions.find((x) => x.id === id)
++  return s && s.title ? s.title : ''
++})
++
++function onOpenSettings() {
++  // P2 route: /ai/settings does not exist yet in 1a.
++  router.push('/ai/settings')
++}
++
++function onUpdateTitle(title: string) {
++  if (store.activeSessionId) store.setSessionTitle(store.activeSessionId, title)
++}
++
++onMounted(async () => {
++  store.initTheme()
++  try {
++    await store.loadSessions()
++  } catch {
++    /* ignore — mirrors Vue2 Agent.vue's swallow-per-call mounted sequence */
++  }
++
++  // 1c: pendingSkillId (?skill= handoff)
++
++  // Handoff from the global search page / homepage AI widget
++  // (/ai/agent?search=<query> or ?message=<text>): 1a only stashes the raw
++  // intent on the store — the Vue2 blueprint's send-immediately behaviour
++  // (Agent.vue:166-192, including the locale-aware "Search my NAS for…"
++  // wrapper) is 1b's job once streaming send exists. The one-shot
++  // router.replace guard is ported verbatim so a page refresh doesn't
++  // re-populate pendingPrompt from a stale query string. search wins over
++  // message when both are present (message is skipped entirely, matching
++  // Vue2's `seedMessage && !seedQuery` guard).
++  const seedQuery = (route.query.search || '').toString().trim()
++  if (seedQuery) {
++    store.pendingPrompt = seedQuery
++    const cleanQuery = { ...route.query }
++    delete cleanQuery.search
++    router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
++  }
++  const seedMessage = (route.query.message || '').toString().trim()
++  if (seedMessage && !seedQuery) {
++    store.pendingPrompt = seedMessage
++    const cleanQuery = { ...route.query }
++    delete cleanQuery.message
++    router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
++  }
++})
++</script>
++
++<template>
++  <div
++    class="agent-app"
++    :data-theme="store.theme"
++    :data-leftcollapsed="store.leftCollapsed"
++    :data-rightcollapsed="true"
++  >
++    <AgentSidebar
++      :sessions="store.sessions"
++      :active-id="store.activeSessionId"
++      :collapsed="store.leftCollapsed"
++      @new="store.createSession"
++      @select="store.selectSession"
++      @delete="store.deleteSession"
++      @open-settings="onOpenSettings"
++    />
++    <main class="main">
++      <AgentTopbar
++        :session-id="String(store.activeSessionId ?? '')"
++        :stored-title="currentSessionTitle"
++        :theme="store.theme"
++        @toggle-left="store.toggleLeft"
++        @toggle-theme="store.toggleTheme"
++        @update-title="onUpdateTitle"
++      />
++      <EmptyState v-if="store.messages.length === 0" />
++      <MessageList v-else :messages="messagesForList" :busy="store.busy" />
++      <!-- 1b/1c: composer -->
++    </main>
++    <!-- 1c: right panel -->
++  </div>
++</template>
+diff --git a/src/router/index.ts b/src/router/index.ts
+index ca91eba..20b6fe4 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -6,35 +6,38 @@ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
+ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import StorePage from '../apps/views/StorePage.vue'
+ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
+ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
+ import AppConsolePage from '../apps/views/AppConsolePage.vue'
+ import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
+ import SourcesPage from '../apps/views/SourcesPage.vue'
++import AgentPage from '../ai/views/AgentPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/apps/store', name: 'apps-store', component: StorePage },
+   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
+   { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
+   { path: '/apps/sources', name: 'apps-sources', component: SourcesPage },
+   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
+   { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
++  { path: '/ai', redirect: '/ai/agent' },
++  { path: '/ai/agent', name: 'ai-agent', component: AgentPage },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+ // 正常登录逻辑(无探针):见 guard.ts。无 token 时查一次 status 分流 login/welcome。

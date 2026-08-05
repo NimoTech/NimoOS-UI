@@ -1,0 +1,697 @@
+# Review package: 9ec4b06..aacdf76
+
+## Commits
+aacdf76 feat(knowledge): SP8-P5a knowledgeStore notes + wiki + distill 组
+
+## Files changed
+ .../stores/knowledgeStore.notesWiki.test.ts        | 287 +++++++++++++++++++++
+ src/ai/knowledge/stores/knowledgeStore.ts          | 280 ++++++++++++++++++++
+ 2 files changed, 567 insertions(+)
+
+## Diff
+diff --git a/src/ai/knowledge/stores/knowledgeStore.notesWiki.test.ts b/src/ai/knowledge/stores/knowledgeStore.notesWiki.test.ts
+new file mode 100644
+index 0000000..58aa286
+--- /dev/null
++++ b/src/ai/knowledge/stores/knowledgeStore.notesWiki.test.ts
+@@ -0,0 +1,287 @@
++// SP8-P5a Task 7 —— 单测取自任务 brief `.superpowers/sdd/p5a-task-7-brief.md`
++// Step 2 骨架(逐字照用)。覆盖 knowledgeStore 的 notes + distill + wiki 组:
++// setNotesDraftCount / refreshNotesDraftCount / loadNotesSummary / runSearch /
++// loadChunkContext / loadDistillJobs / retryDistill / cancelDistill /
++// loadRoots / loadCandidates / createRoot / deleteRoot / rescanRoot /
++// loadWikiTree / loadWikiNode / loadWikiRaw / setRootEnabled。
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const notes = vi.hoisted(() => ({
++  list: vi.fn(),
++  listDistillJobs: vi.fn(),
++  getDistillStatus: vi.fn(),
++  distillFile: vi.fn(),
++  cancelDistillJob: vi.fn(),
++}))
++const wiki = vi.hoisted(() => ({
++  getRoots: vi.fn(),
++  getCandidates: vi.fn(),
++  createRoot: vi.fn(),
++  deleteRoot: vi.fn(),
++  rescanRoot: vi.fn(),
++  patchRootEnabled: vi.fn(),
++  getTree: vi.fn(),
++  getNode: vi.fn(),
++  getRaw: vi.fn(),
++}))
++const ai = vi.hoisted(() => ({ searchText: vi.fn(), searchChunk: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { notes, wiki, ai } }))
++const toastShow = vi.hoisted(() => vi.fn())
++vi.mock('../../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
++
++import { useKnowledgeStore, DISTILL_JOBS_LIMIT } from './knowledgeStore'
++
++const ROOT = {
++  id: 'r1',
++  path: '/DATA',
++  level: 'space',
++  watchMode: 'auto',
++  storageMode: 'inline',
++  enabled: true,
++  scanIntervalS: 21600,
++  createdAt: 1,
++  lastScanAt: 0,
++  needsReconcile: false,
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('notes 组', () => {
++  it('refreshNotesDraftCount 用 status=draft&limit=200,写 draft 计数', async () => {
++    notes.list.mockResolvedValue([{ id: 'a' }, { id: 'b' }])
++    const s = useKnowledgeStore()
++    await s.refreshNotesDraftCount()
++    expect(notes.list).toHaveBeenCalledWith({ status: 'draft', limit: 200 })
++    expect(s.notesDraftCount).toBe(2)
++  })
++
++  it('refreshNotesDraftCount 在 agent 离线时静默保留旧值', async () => {
++    const s = useKnowledgeStore()
++    s.setNotesDraftCount(5)
++    notes.list.mockRejectedValue(new Error('offline'))
++    await s.refreshNotesDraftCount()
++    expect(s.notesDraftCount).toBe(5)
++    expect(toastShow).not.toHaveBeenCalled()
++  })
++
++  it('loadNotesSummary 用 limit=500,写 summary 并同步 draft 计数', async () => {
++    notes.list.mockResolvedValue([{ status: 'draft' }, { status: 'curated' }, { status: 'archived' }])
++    const s = useKnowledgeStore()
++    await s.loadNotesSummary()
++    expect(notes.list).toHaveBeenCalledWith({ limit: 500 })
++    expect(s.notesSummary).toEqual({ total: 3, draft: 1, curated: 1, archived: 1 })
++    expect(s.notesDraftCount).toBe(1)
++  })
++
++  it('loadNotesSummary 失败时保留旧值且不 toast', async () => {
++    notes.list.mockResolvedValue([{ status: 'draft' }])
++    const s = useKnowledgeStore()
++    await s.loadNotesSummary()
++    notes.list.mockRejectedValue(new Error('offline'))
++    await s.loadNotesSummary()
++    expect(s.notesSummary.total).toBe(1)
++    expect(toastShow).not.toHaveBeenCalled()
++  })
++})
++
++describe('distill 队列(N4/N5)', () => {
++  const JOBS = (rows: unknown[], counts = { pending: 1, running: 2, failed: 3 }) => ({ jobs: rows, counts })
++
++  it('无过滤时刷新三个桶,skipped 归进 failed 桶', async () => {
++    notes.listDistillJobs.mockResolvedValue(
++      JOBS([
++        { filePath: '/p', status: 'pending' },
++        { filePath: '/r', status: 'running' },
++        { filePath: '/f', status: 'failed' },
++        { filePath: '/s', status: 'skipped' },
++      ]),
++    )
++    notes.getDistillStatus.mockResolvedValue({ distilled: 7 })
++    const s = useKnowledgeStore()
++    await s.loadDistillJobs()
++    expect(notes.listDistillJobs).toHaveBeenCalledWith('', DISTILL_JOBS_LIMIT)
++    expect(s.distillJobs.pending).toHaveLength(1)
++    expect(s.distillJobs.running).toHaveLength(1)
++    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f', '/s'])
++    expect(s.distillJobs.counts).toEqual({ pending: 1, running: 2, failed: 3 })
++    expect(s.distillJobs.done).toBe(7)
++    expect(s.distillJobs.total).toBe(4)
++  })
++
++  it('有过滤时只刷该桶,另两桶保留上次结果(N4 的不对称,照抄)', async () => {
++    notes.getDistillStatus.mockResolvedValue({ distilled: 0 })
++    notes.listDistillJobs.mockResolvedValue(
++      JOBS([
++        { filePath: '/p', status: 'pending' },
++        { filePath: '/f', status: 'failed' },
++      ]),
++    )
++    const s = useKnowledgeStore()
++    await s.loadDistillJobs()
++    expect(s.distillJobs.pending).toHaveLength(1)
++    notes.listDistillJobs.mockResolvedValue(JOBS([{ filePath: '/f2', status: 'failed' }]))
++    await s.loadDistillJobs('failed')
++    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f2'])
++    expect(s.distillJobs.pending).toHaveLength(1) // ← 没被清掉
++  })
++
++  it('retryDistill / cancelDistill 之后按当前过滤重载', async () => {
++    notes.listDistillJobs.mockResolvedValue(JOBS([]))
++    notes.getDistillStatus.mockResolvedValue({ distilled: 0 })
++    notes.distillFile.mockResolvedValue({})
++    notes.cancelDistillJob.mockResolvedValue({})
++    const s = useKnowledgeStore()
++    await s.retryDistill({ filePath: '/a' }, 'failed')
++    expect(notes.distillFile).toHaveBeenCalledWith('/a')
++    expect(notes.listDistillJobs).toHaveBeenLastCalledWith('failed', DISTILL_JOBS_LIMIT)
++    await s.cancelDistill({ filePath: '/b' }, 'pending')
++    expect(notes.cancelDistillJob).toHaveBeenCalledWith('/b')
++    expect(notes.listDistillJobs).toHaveBeenLastCalledWith('pending', DISTILL_JOBS_LIMIT)
++  })
++})
++
++describe('搜索转发', () => {
++  it('runSearch 组装固定的 body 字段', async () => {
++    ai.searchText.mockResolvedValue({ groups: {} })
++    const s = useKnowledgeStore()
++    await s.runSearch({ query: 'q', filters: { mime: 'pdf' }, topK: 5, rerank: true })
++    expect(ai.searchText).toHaveBeenCalledWith({
++      query: 'q',
++      filters: { mime: 'pdf' },
++      top_k: 5,
++      rerank: true,
++      group_by_file: true,
++      max_chunks_per_file: 8,
++    })
++  })
++
++  it('runSearch 的默认值(filters {}、topK 10、rerank false)', async () => {
++    ai.searchText.mockResolvedValue({})
++    const s = useKnowledgeStore()
++    await s.runSearch({ query: 'q' })
++    expect(ai.searchText).toHaveBeenCalledWith({
++      query: 'q',
++      filters: {},
++      top_k: 10,
++      rerank: false,
++      group_by_file: true,
++      max_chunks_per_file: 8,
++    })
++  })
++
++  it('loadChunkContext 的 window 默认 2、kind 默认 body', async () => {
++    ai.searchChunk.mockResolvedValue({})
++    const s = useKnowledgeStore()
++    await s.loadChunkContext({ fileId: 'f', chunkNo: 3 })
++    expect(ai.searchChunk).toHaveBeenCalledWith({ file_id: 'f', kind: 'body', chunk_no: 3, window: 2 })
++  })
++})
++
++describe('wiki 索引根(移植 Vue2 knowledgeStoreRoots.spec.js)', () => {
++  it('loadRoots 写入列表并收尾 loading', async () => {
++    wiki.getRoots.mockResolvedValue([ROOT])
++    const s = useKnowledgeStore()
++    await s.loadRoots()
++    expect(s.wikiRoots).toEqual([ROOT])
++    expect(s.wikiRootsLoading).toBe(false)
++  })
++
++  it('loadRoots 失败时 toast 报错并把 loading 归位', async () => {
++    wiki.getRoots.mockRejectedValue(new Error('timeout'))
++    const s = useKnowledgeStore()
++    await s.loadRoots()
++    expect(toastShow).toHaveBeenCalled()
++    expect(String(toastShow.mock.calls[0][0])).not.toContain('timeout') // K5:不回显后端原文
++    expect(s.wikiRootsLoading).toBe(false)
++  })
++
++  it('loadCandidates 失败时静默清空', async () => {
++    wiki.getCandidates.mockRejectedValue(new Error('x'))
++    const s = useKnowledgeStore()
++    await s.loadCandidates()
++    expect(s.wikiCandidates).toEqual([])
++  })
++
++  it('setRootEnabled 乐观更新,成功保留', async () => {
++    wiki.getRoots.mockResolvedValue([{ ...ROOT }])
++    wiki.patchRootEnabled.mockResolvedValue({})
++    const s = useKnowledgeStore()
++    await s.loadRoots()
++    await s.setRootEnabled('r1', false)
++    expect(s.wikiRoots[0].enabled).toBe(false)
++    expect(wiki.patchRootEnabled).toHaveBeenCalledWith('r1', false)
++  })
++
++  it('setRootEnabled 失败时回滚并上抛', async () => {
++    wiki.getRoots.mockResolvedValue([{ ...ROOT }])
++    wiki.patchRootEnabled.mockRejectedValue(new Error('boom'))
++    const s = useKnowledgeStore()
++    await s.loadRoots()
++    await expect(s.setRootEnabled('r1', false)).rejects.toThrow('boom')
++    expect(s.wikiRoots[0].enabled).toBe(true)
++  })
++
++  it('setRootEnabled 对未知 id 直接返回,不发请求', async () => {
++    const s = useKnowledgeStore()
++    await s.setRootEnabled('nope', false)
++    expect(wiki.patchRootEnabled).not.toHaveBeenCalled()
++  })
++
++  it('createRoot 单层取数:直接返回包给的 body 并重载列表', async () => {
++    wiki.createRoot.mockResolvedValue({ id: 'r2' }) // ← 包已剥壳,不是 { data: { id } }
++    wiki.getRoots.mockResolvedValue([ROOT])
++    const s = useKnowledgeStore()
++    expect(await s.createRoot({ Path: '/DATA' })).toEqual({ id: 'r2' })
++    expect(wiki.getRoots).toHaveBeenCalled()
++  })
++
++  it('createRoot 的错误原样上抛(RootsView 要接 409 走 mirror 重试)', async () => {
++    const err = Object.assign(new Error('conflict'), { response: { status: 409 } })
++    wiki.createRoot.mockRejectedValue(err)
++    const s = useKnowledgeStore()
++    await expect(s.createRoot({ Path: '/ro' })).rejects.toBe(err)
++  })
++
++  it('deleteRoot 透传 purge 并重载;rescanRoot 不重载', async () => {
++    wiki.deleteRoot.mockResolvedValue({})
++    wiki.rescanRoot.mockResolvedValue({})
++    wiki.getRoots.mockResolvedValue([])
++    const s = useKnowledgeStore()
++    await s.deleteRoot('r1', true)
++    expect(wiki.deleteRoot).toHaveBeenCalledWith('r1', true)
++    expect(wiki.getRoots).toHaveBeenCalledTimes(1)
++    await s.rescanRoot('r1')
++    expect(wiki.getRoots).toHaveBeenCalledTimes(1) // ← 蓝本刻意不重载
++  })
++})
++
++describe('wiki 导航(N6:404 → null,其余上抛)', () => {
++  it('loadWikiNode / loadWikiRaw 把 404 转成 null', async () => {
++    const e404 = Object.assign(new Error('nf'), { response: { status: 404 } })
++    wiki.getNode.mockRejectedValue(e404)
++    wiki.getRaw.mockRejectedValue(e404)
++    const s = useKnowledgeStore()
++    expect(await s.loadWikiNode('/x')).toBe(null)
++    expect(await s.loadWikiRaw('/x')).toBe(null)
++  })
++
++  it('非 404 错误原样上抛', async () => {
++    const e500 = Object.assign(new Error('boom'), { response: { status: 500 } })
++    wiki.getNode.mockRejectedValue(e500)
++    wiki.getRaw.mockRejectedValue(e500)
++    const s = useKnowledgeStore()
++    await expect(s.loadWikiNode('/x')).rejects.toBe(e500)
++    await expect(s.loadWikiRaw('/x')).rejects.toBe(e500)
++  })
++
++  it('loadWikiTree 直接转发', async () => {
++    wiki.getTree.mockResolvedValue([{ path: '/DATA' }])
++    const s = useKnowledgeStore()
++    expect(await s.loadWikiTree('r1')).toEqual([{ path: '/DATA' }])
++    expect(wiki.getTree).toHaveBeenCalledWith('r1')
++  })
++})
+diff --git a/src/ai/knowledge/stores/knowledgeStore.ts b/src/ai/knowledge/stores/knowledgeStore.ts
+index 7c33dff..1c26ddd 100644
+--- a/src/ai/knowledge/stores/knowledgeStore.ts
++++ b/src/ai/knowledge/stores/knowledgeStore.ts
+@@ -46,23 +46,25 @@
+ // 【i18n】`fmtAgo`(蓝本 :60-69)用 `i18n.t(...)`。本仓 vue-i18n 9 走 composition
+ // 模式,Pinia setup store 不在组件 setup 上下文里、`useI18n()` 用不了,照
+ // agentStore.ts:6,899 的既有先例改用全局实例 `i18n.global.t(...)`。四个键
+ // (`aiKbJustNow`/`aiKbMinAgo`/`aiKbHrAgo`/`aiKbDaysAgo`)由 T8 落地,已在
+ // `src/i18n/{zh_cn,en_us}.ts` 核实存在,插值占位符名 `m`/`h`/`d` 与蓝本
+ // `{m}`/`{h}`/`{d}` 逐字一致。
+ 
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import { service } from '@nimotech/nimoos-service'
++import type { DistillJob, WikiRoot, WikiCandidate, WikiTreeNode, WikiNode } from '@nimotech/nimoos-service'
+ import { i18n } from '../../../i18n'
+ import { useToast } from '../../../stores/toast'
+ import { buildListParams, anyIndexing } from '../util/indexedFiles'
++import { summarizeNotes } from '../util/dashboardHelpers'
+ 
+ // ── 类型:服务端返回体在共享包里都是 `unknown`,这里按蓝本的实际用法窄化 ──
+ // (字段形状见设计 §6.1 / p5a-common-constraints.md §4 的后端实测契约)
+ 
+ export interface QueueDepth {
+   pending: number
+   running: number
+   failed: number
+   done: number
+ }
+@@ -192,20 +194,49 @@ export function fmtAgo(ms: number): string {
+   if (m < 1) return i18n.global.t('aiKbJustNow')
+   if (m < 60) return i18n.global.t('aiKbMinAgo', { m })
+   const h = Math.floor(m / 60)
+   if (h < 24) return i18n.global.t('aiKbHrAgo', { h })
+   return i18n.global.t('aiKbDaysAgo', { d: Math.floor(h / 24) })
+ }
+ 
+ /** P2 —— 定时器句柄移出 state,理由见文件头注释。 */
+ let indexedPollTimer: ReturnType<typeof setInterval> | null = null
+ 
++// ══════════════════════════════════════════════════════════════════════
++// SP8-P5a Task 7 —— notes + wiki + distill 组(蓝本 :99-309,同一份
++// knowledgeStore.js;T6 已落 Parser 组,本节续写)。承接 T6 的口径:
++// K1(单层取数)/P1(Vue.observable→setup store)/K5(HTTP 失败不回显后端
++// body,改 i18n 键)/K6(不照抄 console.error)。N4/N5/N6/N7 四条「照抄不改」
++// 在对应函数处逐一注明。
++// ══════════════════════════════════════════════════════════════════════
++
++/** 蓝本 :35(distillJobs 初值形状)—— pending/running/failed 与 Parser 组
++ * `jobs` 同型,额外带 counts(全量 tally)/done(累计沉淀数)/total(本次
++ * 拉取行数,N5 的截断判据)。 */
++export interface DistillJobsState {
++  pending: DistillJob[]
++  running: DistillJob[]
++  failed: DistillJob[]
++  counts: { pending: number; running: number; failed: number }
++  done: number
++  total: number
++}
++
++/** 蓝本 :43(notesSummary 初值形状)—— 喂给 dashboardHelpers.summarizeNotes 的
++ * 输出,仪表盘构成卡三层分布用。 */
++export interface NotesSummary {
++  total: number
++  draft: number
++  curated: number
++  archived: number
++}
++
+ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+   // ── Dashboard / topbar(蓝本 :18-23)──
+   const stats = ref<ParserStats>({
+     queue_depth: { pending: 0, running: 0, failed: 0, done: 0 },
+     indexed_files: 0,
+     total_vectors_text: 0,
+     total_vectors_visual: 0,
+     last_cursor_ms: 0,
+   })
+   const controlState = ref<ParserControlState>({
+@@ -241,20 +272,35 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+       mime_prefix: '',
+       has_error: false,
+       tombstoned: 'alive',
+       sort: 'indexed_at',
+       order: 'desc',
+       limit: 100,
+       offset: 0,
+     },
+   })
+ 
++  // ── T7:notes / distill / wiki(蓝本 :29-43)──
++  const distillJobs = ref<DistillJobsState>({
++    pending: [],
++    running: [],
++    failed: [],
++    counts: { pending: 0, running: 0, failed: 0 },
++    done: 0,
++    total: 0,
++  })
++  const wikiRoots = ref<WikiRoot[]>([])
++  const wikiCandidates = ref<WikiCandidate[]>([])
++  const wikiRootsLoading = ref(false)
++  const notesDraftCount = ref(0)
++  const notesSummary = ref<NotesSummary>({ total: 0, draft: 0, curated: 0, archived: 0 })
++
+   /** P4 —— `.k-toast` 退役,转调全局 toast,2400ms 与蓝本一致(须显式传参)。 */
+   function toast(msg: string): void {
+     useToast().show(msg, 2400)
+   }
+ 
+   /** 蓝本 :78-96 —— 并行拉 stats + control state;失败置 unreachable,不动既有值。 */
+   async function loadOverview(): Promise<void> {
+     try {
+       const [statsBody, controlBody] = await Promise.all([
+         service.ai.parserStats(),
+@@ -414,42 +460,276 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
+   }
+ 
+   /** 蓝本 :356-362。 */
+   function stopIndexedPolling(): void {
+     if (indexedPollTimer) {
+       clearInterval(indexedPollTimer)
+       indexedPollTimer = null
+     }
+   }
+ 
++  // ── Knowledge notes(蓝本 :98-117)──
++
++  /** 蓝本 :99-101。 */
++  function setNotesDraftCount(n: number): void {
++    notesDraftCount.value = n
++  }
++
++  /** 蓝本 :102-107 —— agent 离线时静默保留旧值,不 toast(K6:不照抄
++   * console.error,连日志都不打)。K1:`service.notes.list` 已归一化返回
++   * `Note[]`,不再剥 `r.data.notes`。 */
++  async function refreshNotesDraftCount(): Promise<void> {
++    try {
++      const list = await service.notes.list({ status: 'draft', limit: 200 })
++      notesDraftCount.value = list.length
++    } catch {
++      // agent offline — keep last value
++    }
++  }
++
++  /** 蓝本 :108-117 —— 仪表盘构成卡的状态汇总;失败静默保留旧值。 */
++  async function loadNotesSummary(): Promise<void> {
++    try {
++      const list: { status?: string }[] = await service.notes.list({ limit: 500 })
++      const s = summarizeNotes(list)
++      notesSummary.value = s
++      notesDraftCount.value = s.draft
++    } catch {
++      // agent offline — keep last values
++    }
++  }
++
++  // ── Search(蓝本 :119-138)──
++
++  interface RunSearchParams {
++    query: string
++    filters?: Record<string, unknown>
++    topK?: number
++    rerank?: boolean
++  }
++
++  /** 蓝本 :120-131 —— 固定字段组装;`service.ai.searchText` 已单层取数
++   * (K1),直接返回。 */
++  async function runSearch(params: RunSearchParams): Promise<unknown> {
++    const { query, filters, topK, rerank } = params
++    const body = {
++      query,
++      filters: filters || {},
++      top_k: topK || 10,
++      rerank: !!rerank,
++      group_by_file: true,
++      max_chunks_per_file: 8,
++    }
++    return service.ai.searchText(body)
++  }
++
++  interface LoadChunkContextParams {
++    fileId: string
++    kind?: string
++    chunkNo: number
++    window?: number
++  }
++
++  /** 蓝本 :134-138 —— `window` 默认 2、`kind` 默认 `'body'`。 */
++  async function loadChunkContext(params: LoadChunkContextParams): Promise<unknown> {
++    const { fileId, kind, chunkNo, window = 2 } = params
++    return service.ai.searchChunk({ file_id: fileId, kind: kind || 'body', chunk_no: chunkNo, window })
++  }
++
++  // ── Distillation queue(蓝本 :168-214)──
++
++  /**
++   * 蓝本 :168-197 —— 每次轮询按当前激活的过滤 pill 只发一条请求。
++   * **N4(照抄不改)**:无过滤(`filter===''`)时把单次组合列表拆回三桶全部刷新;
++   * 有过滤(服务端 `status=`,已把 `skipped` 折进 `failed`)时**只刷该桶**,另两桶
++   * 保留上次结果 —— 这是防止繁忙队列里较早的 failed/skipped 行被单一无过滤窗口
++   * 挤出去的有意设计,不是 bug。
++   * `counts` 不论 `filter` 为何都是全量 tally,每次调用都整体覆盖。
++   * **N5(照抄不改)**:`done` 取自 `getDistillStatus()` 的累计沉淀数,刻意不从
++   * parser 的 `queue_depth` 派生;`total = 本次实际拉取行数`(封顶
++   * `DISTILL_JOBS_LIMIT`)作为「列表被截断」的判据,比对着同一张持续变动表的
++   * 另一次独立 SELECT(`counts`)更简单、更免竞态。
++   */
++  async function loadDistillJobs(filter = ''): Promise<void> {
++    const [jobsResult, status] = await Promise.all([
++      service.notes.listDistillJobs(filter, DISTILL_JOBS_LIMIT),
++      service.notes.getDistillStatus(),
++    ])
++    const rows = jobsResult.jobs || []
++    const d = distillJobs.value
++    if (!filter || filter === 'pending') d.pending = rows.filter((j) => j.status === 'pending')
++    if (!filter || filter === 'running') d.running = rows.filter((j) => j.status === 'running')
++    if (!filter || filter === 'failed') {
++      d.failed = rows.filter((j) => j.status === 'failed' || j.status === 'skipped')
++    }
++    d.counts = jobsResult.counts
++    d.done = status.distilled
++    d.total = rows.length
++  }
++
++  /** 蓝本 :198-205 —— 手动重发是 failed 与 skipped(已回收)两种行共用的重试
++   * 路径,没有单独的「取消跳过」接口;`filter` 是调用方当前激活的 pill,重载
++   * 后停留在同一视图范围。 */
++  async function retryDistill(row: { filePath: string }, filter = ''): Promise<void> {
++    await service.notes.distillFile(row.filePath)
++    await loadDistillJobs(filter)
++  }
++
++  /** 蓝本 :206-214 —— retryDistill 的镜像;后端把行标记 skipped(原因「用户
++   * 取消」),之后会出现在 failed/skipped 桶里,retryDistill 就是它的撤销。
++   * 409(已不可取消)原样上抛,交给视图层显示友好提示。 */
++  async function cancelDistill(row: { filePath: string }, filter = ''): Promise<void> {
++    await service.notes.cancelDistillJob(row.filePath)
++    await loadDistillJobs(filter)
++  }
++
++  // ── Wiki index roots(蓝本 :243-273)──
++
++  /** 蓝本 :244-253 —— K5:失败不回显后端原文,改走 i18n 键
++   * `aiKbOpFailed`(蓝本原文是 `i18n.t('Operation failed') + ': ' + e.message`,
++   * 会把后端错误串拼进 toast)。 */
++  async function loadRoots(): Promise<void> {
++    wikiRootsLoading.value = true
++    try {
++      wikiRoots.value = await service.wiki.getRoots()
++    } catch {
++      toast(i18n.global.t('aiKbOpFailed'))
++    } finally {
++      wikiRootsLoading.value = false
++    }
++  }
++
++  /** 蓝本 :254-260 —— 失败静默清空(候选列表本就是尽力而为的提示)。 */
++  async function loadCandidates(): Promise<void> {
++    try {
++      wikiCandidates.value = await service.wiki.getCandidates()
++    } catch {
++      wikiCandidates.value = []
++    }
++  }
++
++  /** 蓝本 :261-266 —— 错误原样上抛,RootsView 自己接 409→mirror 重试流程。
++   * K1:`service.wiki.createRoot` 包内已剥壳,直接返回,不再剥 `r.data`。 */
++  async function createRoot(body: Record<string, unknown>): Promise<unknown> {
++    const result = await service.wiki.createRoot(body)
++    await loadRoots()
++    return result
++  }
++
++  /** 蓝本 :267-270。 */
++  async function deleteRoot(id: string, purge?: boolean): Promise<void> {
++    await service.wiki.deleteRoot(id, purge)
++    await loadRoots()
++  }
++
++  /** 蓝本 :271-273 —— 刻意不重载列表(与 deleteRoot 不同)。 */
++  async function rescanRoot(id: string): Promise<void> {
++    await service.wiki.rescanRoot(id)
++  }
++
++  // ── Wiki navigation(蓝本 :276-309)──
++
++  /** 蓝本 :276-278。 */
++  async function loadWikiTree(rootId?: string): Promise<WikiTreeNode[]> {
++    return service.wiki.getTree(rootId)
++  }
++
++  function isNotFound(e: unknown): boolean {
++    return !!(
++      e &&
++      typeof e === 'object' &&
++      'response' in e &&
++      (e as { response?: { status?: number } }).response?.status === 404
++    )
++  }
++
++  /** 蓝本 :279-287 —— **N6(照抄不改)**:404(节点尚未入索引)转 `null`,
++   * 其余错误原样上抛,不许把所有错误都吞成 null。 */
++  async function loadWikiNode(path: string): Promise<WikiNode | null> {
++    try {
++      return await service.wiki.getNode(path)
++    } catch (e) {
++      if (isNotFound(e)) return null
++      throw e
++    }
++  }
++
++  /** 蓝本 :288-296 —— 同 loadWikiNode 的 N6 分层(`.wiki.md` 尚未生成 → null)。 */
++  async function loadWikiRaw(path: string): Promise<string | null> {
++    try {
++      return await service.wiki.getRaw(path)
++    } catch (e) {
++      if (isNotFound(e)) return null
++      throw e
++    }
++  }
++
++  /** 蓝本 :297-309 —— 乐观更新:先翻本地状态,失败回滚并上抛;未知 id 直接
++   * 返回、不发请求。 */
++  async function setRootEnabled(id: string, enabled: boolean): Promise<void> {
++    const root = wikiRoots.value.find((r) => r.id === id)
++    if (!root) return
++    const prev = root.enabled
++    root.enabled = enabled
++    try {
++      await service.wiki.patchRootEnabled(id, enabled)
++    } catch (e) {
++      root.enabled = prev
++      throw e
++    }
++  }
++
+   return {
+     // state
+     stats,
+     controlState,
+     unreachable,
+     overviewLoaded,
+     lastSyncFmt,
+     extensions,
+     folderRules,
+     jobs,
+     backlogPeak,
+     indexedFiles,
++    distillJobs,
++    wikiRoots,
++    wikiCandidates,
++    wikiRootsLoading,
++    notesDraftCount,
++    notesSummary,
+     // actions
+     toast,
+     loadOverview,
+     loadJobs,
+     loadAllJobs,
+     retryFailed,
+     cancelJob,
+     clearFailed,
+     loadAllowlist,
+     toggleExtension,
+     addFolderRule,
+     deleteFolderRule,
+     setControl,
+     loadIndexedFiles,
+     reindexIndexedByIds,
+     reindexIndexedByFilter,
+     startIndexedPolling,
+     stopIndexedPolling,
++    setNotesDraftCount,
++    refreshNotesDraftCount,
++    loadNotesSummary,
++    runSearch,
++    loadChunkContext,
++    loadDistillJobs,
++    retryDistill,
++    cancelDistill,
++    loadRoots,
++    loadCandidates,
++    createRoot,
++    deleteRoot,
++    rescanRoot,
++    loadWikiTree,
++    loadWikiNode,
++    loadWikiRaw,
++    setRootEnabled,
+   }
+ })
