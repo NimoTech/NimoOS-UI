@@ -1,0 +1,783 @@
+## Task 8: 更新两行 + 更新弹窗
+
+**⚠️ 自查时不要点「立即更新 / 立即升级」** —— 会真的触发升级并重启这台机器。本机实测 `need_update:false`(两个端点都是),所以正常路径下按钮是「检查更新」并只会弹一个「当前已经是最新版」的提示,这一步可以安全自查;**下载与升级分支靠单测覆盖**。
+
+**Files:**
+- Create: `src/settings/components/UpdateDialog.vue`
+- Create: `src/settings/components/UpdateDialog.test.ts`
+- Create: `src/settings/panels/general/UpdateRow.vue`
+- Create: `src/settings/panels/general/UpdateRow.test.ts`
+
+**Interfaces:**
+- Consumes: `service.sys.getOsVersion(params?)` / `getAppVersion(params?)` / `updateOs()` / `updateApp()` / `cancelDownload()`、`service.file.getContent(path)`(既有,读升级日志)、`useMessageBus().on(event, cb) → 取消订阅函数`、`renderMarkdown`(`src/files/viewers/renderMarkdown.ts`,`html:false`,`v-html` 其输出安全)、`Dialog.vue`、Task 3 的 `.set-btn` / `.set-ok` / `.set-info`
+- Produces:
+  ```ts
+  export type UpdateKind = 'os' | 'app'
+  // UpdateRow：一行 + 自带弹窗
+  <UpdateRow kind="os"  :sub="string" />    // 标签「固件更新」，副标题传 hardware.version
+  <UpdateRow kind="app" />                  // 标签「系统更新」，副标题用 current_version
+  // UpdateDialog
+  <UpdateDialog :open :kind :info="UpdateCheck" :currently-downloading="boolean"
+                @update:open @changed />    // @changed = 让父行重新拉一次状态
+  ```
+  MessageBus 事件(逐字取自 Vue2 `sockets:` 块 L2201-2229):
+  `nimoos:upgrade:progress` / `nimoos:upgrade:downloaded`(os) · `nimoos:app:download:progress` / `nimoos:app:downloaded`(app),进度在 `Properties.progress`(`useMessageBus` 的 `extractProps` 已剥这一层)
+
+- [ ] **Step 1: 写 `UpdateRow` 的失败测试**
+
+`src/settings/panels/general/UpdateRow.test.ts`:
+
+```ts
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
+import zh from '../../../i18n/zh_cn'
+import zhSp9 from '../../../i18n/zh_cn.sp9'
+
+const state = {
+  os: { current_version: '1.0.0', need_update: false } as Record<string, unknown>,
+  app: { current_version: '1.9.3-alpha1+25.gc8d7d14-dirty', need_update: false } as Record<string, unknown>,
+  osCalls: [] as unknown[],
+  appCalls: [] as unknown[],
+}
+const busHandlers: Record<string, ((p: unknown) => void)[]> = {}
+
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    sys: {
+      getOsVersion: async (p?: unknown) => { state.osCalls.push(p); return state.os },
+      getAppVersion: async (p?: unknown) => { state.appCalls.push(p); return state.app },
+      updateOs: async () => {}, updateApp: async () => {}, cancelDownload: async () => {},
+    },
+    file: { getContent: async () => ({ content: '' }) },
+  },
+}))
+vi.mock('../../../composables/useMessageBus', () => ({
+  useMessageBus: () => ({
+    on(event: string, cb: (p: unknown) => void) {
+      ;(busHandlers[event] ||= []).push(cb)
+      return () => { busHandlers[event] = busHandlers[event].filter((f) => f !== cb) }
+    },
+  }),
+}))
+
+import UpdateRow from './UpdateRow.vue'
+
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
+const mountRow = (kind: 'os' | 'app', sub?: string) =>
+  mount(UpdateRow, { props: { kind, sub }, global: { plugins: [i18n] } })
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  state.os = { current_version: '1.0.0', need_update: false }
+  state.app = { current_version: '1.9.3-alpha1+25.gc8d7d14-dirty', need_update: false }
+  state.osCalls = []; state.appCalls = []
+  for (const k of Object.keys(busHandlers)) delete busHandlers[k]
+})
+
+describe('UpdateRow 端点选择(命名陷阱)', () => {
+  it('kind=os 打 getOsVersion(/sys/os_version)', async () => {
+    mountRow('os'); await flushPromises()
+    expect(state.osCalls).toHaveLength(1)
+    expect(state.appCalls).toHaveLength(0)
+  })
+  it('kind=app 打 getAppVersion(/sys/version)', async () => {
+    mountRow('app'); await flushPromises()
+    expect(state.appCalls).toHaveLength(1)
+    expect(state.osCalls).toHaveLength(0)
+  })
+  it('挂载时不带 trigger_download(不能一进设置页就开始下载)', async () => {
+    mountRow('os'); await flushPromises()
+    expect(state.osCalls[0]).toBeUndefined()
+  })
+})
+
+describe('UpdateRow 标签与副标题(Vue2 的标签/数据源是交叉的,1:1 照留)', () => {
+  it('os 行标签「固件更新」,副标题用传入的 sub', async () => {
+    const w = mountRow('os', '1.9.3-alpha1+25.gc8d7d14-dirty'); await flushPromises()
+    expect(w.find('.set-row-label').text()).toBe('固件更新')
+    expect(w.find('.set-row-sub').text()).toBe('v1.9.3-alpha1+25.gc8d7d14-dirty')
+  })
+  it('app 行标签「系统更新」,副标题用自己的 current_version', async () => {
+    const w = mountRow('app'); await flushPromises()
+    expect(w.find('.set-row-label').text()).toBe('系统更新')
+    expect(w.find('.set-row-sub').text()).toBe('v1.9.3-alpha1+25.gc8d7d14-dirty')
+  })
+  it('current_version 缺失时副标题回退 v1.0.0', async () => {
+    state.app = { current_version: '', need_update: false }
+    const w = mountRow('app'); await flushPromises()
+    expect(w.find('.set-row-sub').text()).toBe('v1.0.0')
+  })
+})
+
+describe('UpdateRow 四种状态(对位 Vue2 L249-312)', () => {
+  it('无需更新:显示「当前已经是最新版」+「检查更新」按钮', async () => {
+    const w = mountRow('os'); await flushPromises()
+    expect(w.find('.set-ok').text()).toContain('当前已经是最新版')
+    expect(w.find('.ur-check').text()).toBe('检查更新')
+  })
+
+  it('已下载:显示版本 + 已下载,按钮变「立即升级」', async () => {
+    state.os = { current_version: '1.0.0', latest_version: '1.1.0', need_update: true, is_downloaded: true }
+    const w = mountRow('os'); await flushPromises()
+    expect(w.find('.set-info').text()).toContain('v1.1.0')
+    expect(w.find('.set-info').text()).toContain('已下载')
+    expect(w.find('.ur-open').text()).toBe('立即升级')
+  })
+
+  it('下载中:按钮显示百分比', async () => {
+    state.os = { current_version: '1.0.0', need_update: true, is_downloading: true, download_progress: 37 }
+    const w = mountRow('os'); await flushPromises()
+    expect(w.find('.ur-progress').text()).toContain('37')
+  })
+
+  it('下载中且进度缺失:按 0% 显示而不是 NaN', async () => {
+    state.os = { current_version: '1.0.0', need_update: true, is_downloading: true }
+    const w = mountRow('os'); await flushPromises()
+    expect(w.find('.ur-progress').text()).toContain('0')
+    expect(w.text()).not.toContain('NaN')
+  })
+
+  it('有更新但未下载:按钮是「检查更新」(Vue2 同一个按钮)', async () => {
+    state.os = { current_version: '1.0.0', need_update: true }
+    const w = mountRow('os'); await flushPromises()
+    expect(w.find('.ur-check').exists()).toBe(true)
+  })
+})
+
+describe('UpdateRow 检查更新交互', () => {
+  it('无更新时点检查:不开弹窗,提示已是最新', async () => {
+    const w = mountRow('os'); await flushPromises()
+    await w.find('.ur-check').trigger('click'); await flushPromises()
+    expect(w.findComponent({ name: 'UpdateDialog' }).props('open')).toBe(false)
+  })
+
+  it('有更新时点检查:打开弹窗', async () => {
+    state.os = { current_version: '1.0.0', latest_version: '1.1.0', need_update: true }
+    const w = mountRow('os'); await flushPromises()
+    await w.find('.ur-check').trigger('click'); await flushPromises()
+    expect(w.findComponent({ name: 'UpdateDialog' }).props('open')).toBe(true)
+  })
+
+  it('检查失败不卡在 loading', async () => {
+    const svc = await import('@nimotech/nimoos-service')
+    vi.spyOn(svc.service.sys, 'getOsVersion').mockRejectedValueOnce(new Error('boom'))
+    const w = mountRow('os'); await flushPromises()
+    await w.find('.ur-check').trigger('click'); await flushPromises()
+    expect(w.find('.ur-check').attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('UpdateRow MessageBus 进度(逐字对位 Vue2 sockets 块)', () => {
+  it('os 行只听 upgrade 系事件,app 行只听 app 系事件', async () => {
+    mountRow('os'); await flushPromises()
+    expect(Object.keys(busHandlers).sort()).toEqual(['nimoos:upgrade:downloaded', 'nimoos:upgrade:progress'])
+  })
+
+  it('收到进度事件后行上显示百分比', async () => {
+    const w = mountRow('os'); await flushPromises()
+    busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '42.5' }))
+    await flushPromises()
+    expect(w.find('.ur-progress').text()).toContain('42.5')
+  })
+
+  it('进度不回退(Vue2 checkVersion 有这个保护:轮询回来的旧进度不许覆盖更大的实时进度)', async () => {
+    const w = mountRow('os'); await flushPromises()
+    // 实时事件把进度推到 80
+    busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '80' }))
+    await flushPromises()
+    // 服务端此刻只报到 30;downloaded 事件会触发一次 fetchInfo —— 守卫必须挡住这次回退
+    state.os = { current_version: '1.0.0', need_update: true, is_downloading: true, download_progress: 30 }
+    busHandlers['nimoos:upgrade:downloaded'].forEach((f) => f({}))
+    await flushPromises()
+    expect(w.find('.ur-progress').text()).toContain('80')
+  })
+
+  it('服务端报的进度更大时采用服务端值(守卫只挡回退,不是永不更新)', async () => {
+    const w = mountRow('os'); await flushPromises()
+    busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '20' }))
+    await flushPromises()
+    state.os = { current_version: '1.0.0', need_update: true, is_downloading: true, download_progress: 55 }
+    busHandlers['nimoos:upgrade:downloaded'].forEach((f) => f({}))
+    await flushPromises()
+    expect(w.find('.ur-progress').text()).toContain('55')
+  })
+
+  it('downloaded 事件后重新拉状态', async () => {
+    mountRow('os'); await flushPromises()
+    const before = state.osCalls.length
+    busHandlers['nimoos:upgrade:downloaded'].forEach((f) => f({}))
+    await flushPromises()
+    expect(state.osCalls.length).toBeGreaterThan(before)
+  })
+
+  it('卸载后取消订阅', async () => {
+    const w = mountRow('os'); await flushPromises()
+    w.unmount()
+    expect(busHandlers['nimoos:upgrade:progress']).toHaveLength(0)
+  })
+})
+```
+
+- [ ] **Step 2: 写 `UpdateDialog` 的失败测试**
+
+`src/settings/components/UpdateDialog.test.ts`:
+
+```ts
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
+import zh from '../../i18n/zh_cn'
+import zhSp9 from '../../i18n/zh_cn.sp9'
+
+const state = {
+  os: { current_version: '1.0.0', need_update: true, latest_version: '1.1.0' } as Record<string, unknown>,
+  versionCalls: [] as unknown[],
+  updateOsCalls: 0, cancelCalls: 0, logContent: 'step 1\nstep 2',
+  updateOsFail: false,
+}
+const busHandlers: Record<string, ((p: unknown) => void)[]> = {}
+
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    sys: {
+      getOsVersion: async (p?: unknown) => { state.versionCalls.push(p); return state.os },
+      getAppVersion: async (p?: unknown) => { state.versionCalls.push(p); return state.os },
+      updateOs: async () => { state.updateOsCalls++; if (state.updateOsFail) throw new Error('boom') },
+      updateApp: async () => { state.updateOsCalls++ },
+      cancelDownload: async () => { state.cancelCalls++ },
+    },
+    file: { getContent: async () => ({ content: state.logContent }) },
+  },
+}))
+vi.mock('../../composables/useMessageBus', () => ({
+  useMessageBus: () => ({
+    on(event: string, cb: (p: unknown) => void) {
+      ;(busHandlers[event] ||= []).push(cb)
+      return () => { busHandlers[event] = busHandlers[event].filter((f) => f !== cb) }
+    },
+  }),
+}))
+
+import UpdateDialog from './UpdateDialog.vue'
+
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
+const INFO = { current_version: '1.0.0', need_update: true, latest_version: '1.1.0', version: { change_log: '## 更新内容\n- 修了个 bug' } }
+const mountIt = (props: Record<string, unknown> = {}) =>
+  mount(UpdateDialog, {
+    props: { open: true, kind: 'os', info: INFO, ...props },
+    global: { plugins: [i18n] },
+  })
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  state.versionCalls = []; state.updateOsCalls = 0; state.cancelCalls = 0
+  state.updateOsFail = false
+  for (const k of Object.keys(busHandlers)) delete busHandlers[k]
+  vi.useFakeTimers()
+})
+afterEach(() => { vi.useRealTimers() })
+
+describe('UpdateDialog 默认态', () => {
+  it('标题带版本号', () => {
+    expect(mountIt().text()).toContain('v1.1.0')
+  })
+  it('渲染 changelog 的 markdown(html:false,v-html 安全)', () => {
+    const w = mountIt()
+    expect(w.find('.upd-log').html()).toContain('<h2>')
+    expect(w.find('.upd-log').text()).toContain('修了个 bug')
+  })
+  it('changelog 缺失时不炸', () => {
+    const w = mountIt({ info: { current_version: '1.0.0', need_update: true } })
+    expect(w.find('.upd-log').exists()).toBe(true)
+  })
+  it('未下载时按钮是「立即下载」', () => {
+    expect(mountIt().find('.upd-download').text()).toBe('立即下载')
+  })
+  it('已下载时按钮是「立即更新」', () => {
+    const w = mountIt({ info: { ...INFO, is_downloaded: true } })
+    expect(w.find('.upd-upgrade').text()).toBe('立即更新')
+  })
+})
+
+describe('UpdateDialog 下载', () => {
+  it('点下载时带 trigger_download:1', async () => {
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    expect(state.versionCalls[0]).toEqual({ trigger_download: 1 })
+  })
+
+  it('进入下载态后显示进度条与取消按钮', async () => {
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    expect(w.find('.upd-bar').exists()).toBe(true)
+    expect(w.find('.upd-cancel').exists()).toBe(true)
+  })
+
+  it('MessageBus 进度推进进度条', async () => {
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '66' }))
+    await flushPromises()
+    expect(w.find('.upd-bar').attributes('aria-valuenow')).toBe('66')
+  })
+
+  it('kind=os 忽略 app 系进度事件(串台会显示错的百分比)', async () => {
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    expect(busHandlers['nimoos:app:download:progress']).toBeUndefined()
+  })
+
+  it('触发下载时若后端直接报已下载,收弹窗并 emit changed', async () => {
+    state.os = { current_version: '1.0.0', need_update: true, is_downloaded: true }
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    expect(w.emitted('update:open')).toEqual([[false]])
+    expect(w.emitted('changed')).toBeTruthy()
+  })
+
+  it('downloaded 事件到达时收弹窗并 emit changed', async () => {
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    busHandlers['nimoos:upgrade:downloaded'].forEach((f) => f({}))
+    await flushPromises()
+    expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('点取消:调 cancelDownload,收弹窗并 emit changed', async () => {
+    const w = mountIt()
+    await w.find('.upd-download').trigger('click'); await flushPromises()
+    await w.find('.upd-cancel').trigger('click'); await flushPromises()
+    expect(state.cancelCalls).toBe(1)
+    expect(w.emitted('changed')).toBeTruthy()
+  })
+
+  it('currentlyDownloading=true:一打开就是下载态', () => {
+    const w = mountIt({ info: { ...INFO, is_downloading: true, download_progress: 55 }, currentlyDownloading: true })
+    expect(w.find('.upd-bar').attributes('aria-valuenow')).toBe('55')
+    expect(w.find('.upd-cancel').exists()).toBe(true)
+  })
+})
+
+describe('UpdateDialog 升级', () => {
+  it('kind=os 点升级调 updateOs 并进入日志态', async () => {
+    const w = mountIt({ info: { ...INFO, is_downloaded: true } })
+    await w.find('.upd-upgrade').trigger('click'); await flushPromises()
+    expect(state.updateOsCalls).toBe(1)
+    expect(w.find('.upd-logs').exists()).toBe(true)
+  })
+
+  it('日志按 2 秒轮询,读的是 os 的日志路径', async () => {
+    const svc = await import('@nimotech/nimoos-service')
+    const spy = vi.spyOn(svc.service.file, 'getContent')
+    const w = mountIt({ info: { ...INFO, is_downloaded: true } })
+    await w.find('.upd-upgrade').trigger('click'); await flushPromises()
+    await vi.advanceTimersByTimeAsync(2000); await flushPromises()
+    expect(spy.mock.calls[0][0]).toBe('/var/log/nimoos/upgrade.log')
+  })
+
+  it('kind=app 读的是 app 的日志路径', async () => {
+    const svc = await import('@nimotech/nimoos-service')
+    const spy = vi.spyOn(svc.service.file, 'getContent')
+    const w = mountIt({ kind: 'app', info: { ...INFO, is_downloaded: true } })
+    await w.find('.upd-upgrade').trigger('click'); await flushPromises()
+    await vi.advanceTimersByTimeAsync(2000); await flushPromises()
+    expect(spy.mock.calls[0][0]).toBe('/var/log/nimoos_app_upgrade.log')
+  })
+
+  it('升级接口失败:退出日志态,回到可再试的样子', async () => {
+    state.updateOsFail = true
+    const w = mountIt({ info: { ...INFO, is_downloaded: true } })
+    await w.find('.upd-upgrade').trigger('click'); await flushPromises()
+    expect(w.find('.upd-logs').exists()).toBe(false)
+    expect(w.find('.upd-upgrade').exists()).toBe(true)
+  })
+
+  it('弹窗关闭后停掉日志轮询(不留定时器)', async () => {
+    const svc = await import('@nimotech/nimoos-service')
+    const spy = vi.spyOn(svc.service.file, 'getContent')
+    const w = mountIt({ info: { ...INFO, is_downloaded: true } })
+    await w.find('.upd-upgrade').trigger('click'); await flushPromises()
+    await vi.advanceTimersByTimeAsync(2000); await flushPromises()
+    const before = spy.mock.calls.length
+    w.unmount()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(spy.mock.calls.length).toBe(before)
+  })
+})
+```
+
+- [ ] **Step 3: 跑测试确认失败**
+
+```bash
+pnpm test src/settings/components/UpdateDialog.test.ts src/settings/panels/general/UpdateRow.test.ts 2>&1 | tail -12
+```
+
+- [ ] **Step 4: 实现 `UpdateDialog.vue`**
+
+```vue
+<script setup lang="ts">
+// 对位 Vue2 UpdateModal.vue(321 行)。三种态:changelog(默认)/ 下载中(进度条)/ 升级中(日志)。
+// spec §5.1 还点名了 UpdateCompleteModal(177 行)—— **不移植**:
+// 它只由 Home.vue 在 localStorage['is_update']==='true' 时弹,而全仓没有一处写过该键
+// (触发器从未实现)→ 从未弹过。用户 2026-07-31 拍板跳过,债务 D14。
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { service, type UpdateCheck } from '@nimotech/nimoos-service'
+import Dialog from '../../components/ui/Dialog.vue'
+import { renderMarkdown } from '../../files/viewers/renderMarkdown'
+import { useMessageBus } from '../../composables/useMessageBus'
+import { useToast } from '../../stores/toast'
+import '../styles/settings.css'
+
+export type UpdateKind = 'os' | 'app'
+
+defineOptions({ name: 'UpdateDialog' })
+const props = defineProps<{
+  open: boolean
+  kind: UpdateKind
+  info: UpdateCheck
+  currentlyDownloading?: boolean
+}>()
+const emit = defineEmits<{ 'update:open': [boolean]; changed: [] }>()
+
+const { t } = useI18n()
+const toast = useToast()
+const bus = useMessageBus()
+
+// 事件名逐字取自 Vue2 sockets 块(SettingsPanel.vue L2201-2229 / UpdateModal.vue L203-241)。
+// 两套事件必须按 kind 分开订阅 —— 串台会把固件进度显示到系统更新上。
+const EV = {
+  os: { progress: 'nimoos:upgrade:progress', done: 'nimoos:upgrade:downloaded' },
+  app: { progress: 'nimoos:app:download:progress', done: 'nimoos:app:downloaded' },
+} as const
+const LOG_PATH = {
+  os: '/var/log/nimoos/upgrade.log',
+  app: '/var/log/nimoos_app_upgrade.log',
+} as const
+
+type Phase = 'idle' | 'downloading' | 'upgrading'
+const phase = ref<Phase>('idle')
+const progress = ref(0)
+const logs = ref('')
+
+const changelogHtml = computed(() => renderMarkdown(props.info.version?.change_log ?? ''))
+const isDownloaded = computed(() => props.info.is_downloaded === true)
+
+let logTimer: ReturnType<typeof setInterval> | null = null
+let unsub: (() => void)[] = []
+
+function stopLogs() {
+  if (logTimer) { clearInterval(logTimer); logTimer = null }
+}
+function unbind() {
+  unsub.forEach((f) => f())
+  unsub = []
+}
+onBeforeUnmount(() => { stopLogs(); unbind() })
+
+watch(() => props.open, (o) => {
+  if (!o) { stopLogs(); unbind(); phase.value = 'idle'; return }
+  phase.value = props.currentlyDownloading ? 'downloading' : 'idle'
+  progress.value = props.info.download_progress ?? 0
+  bind()
+}, { immediate: true })
+
+function bind() {
+  unbind()
+  const ev = EV[props.kind]
+  unsub.push(bus.on(ev.progress, (p) => {
+    const v = Number.parseFloat(String((p as { progress?: unknown })?.progress ?? ''))
+    if (!Number.isFinite(v)) return
+    progress.value = v
+    if (v > 0 && v < 100) phase.value = 'downloading'
+  }))
+  unsub.push(bus.on(ev.done, () => {
+    phase.value = 'idle'
+    progress.value = 100
+    toast.show(t('settingsDownloaded'))
+    emit('changed')
+    emit('update:open', false)
+  }))
+}
+
+async function startDownload() {
+  phase.value = 'downloading'
+  progress.value = 0
+  try {
+    // 下载不是独立端点:靠 version 检查带 trigger_download=1 触发
+    const res = props.kind === 'app'
+      ? await service.sys.getAppVersion({ trigger_download: 1 })
+      : await service.sys.getOsVersion({ trigger_download: 1 })
+    if (res.is_downloaded) {
+      phase.value = 'idle'
+      toast.show(t('settingsDownloaded'))
+      emit('changed')
+      emit('update:open', false)
+    }
+    // 否则等 MessageBus 的进度 / downloaded 事件。
+    // Vue2 这里还额外起了 3 秒轮询兜底(UpdateModal startProgressPolling);
+    // MessageBus 的 downloaded 事件已覆盖同一件事,再加一条轮询只是重复,故不照抄。
+  } catch (e) {
+    phase.value = 'idle'
+    console.warn('[settings] trigger download failed', e)
+    toast.show(t('settingsSaveFailed'))
+  }
+}
+
+async function cancel() {
+  try {
+    await service.sys.cancelDownload()
+    toast.show(t('settingsDownloadCancelled'))
+  } catch (e) {
+    console.warn('[settings] cancelDownload failed', e)
+    toast.show(t('settingsDownloadCancelFailed'))
+  } finally {
+    phase.value = 'idle'
+    emit('changed')
+    emit('update:open', false)
+  }
+}
+
+async function upgrade() {
+  phase.value = 'upgrading'
+  logs.value = ''
+  try {
+    if (props.kind === 'app') await service.sys.updateApp()
+    else await service.sys.updateOs()
+  } catch (e) {
+    phase.value = 'idle'      // 让用户能再试一次,而不是卡在日志空屏
+    console.warn('[settings] upgrade failed', e)
+    toast.show(t('settingsUpgradeFailed'))
+    return
+  }
+  pollLogs()
+}
+
+function pollLogs() {
+  stopLogs()
+  const path = LOG_PATH[props.kind]
+  logTimer = setInterval(async () => {
+    try {
+      // FileContent 是具名类型({ content: string }),不需要 cast
+      const res = await service.file.getContent(path)
+      logs.value = res.content ?? ''
+    } catch { /* 日志文件可能还没建出来,静默重试 */ }
+  }, 2000)
+}
+</script>
+
+<template>
+  <Dialog
+    :open="open"
+    :title="`${isDownloaded ? t('settingsUpdateTitle') : t('settingsUpdateAvailable')} v${info.latest_version ?? ''}`"
+    @update:open="emit('update:open', $event)"
+  >
+    <div class="upd-body">
+      <div v-if="phase === 'downloading'" class="upd-dl">
+        <div class="upd-dl-head">
+          <span>{{ t('settingsDownloadingSystem') }}…</span>
+          <strong>{{ progress }}%</strong>
+        </div>
+        <div
+          class="upd-bar"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="progress"
+        ><span class="upd-bar-fill" :style="{ width: `${progress}%` }"></span></div>
+      </div>
+
+      <pre v-else-if="phase === 'upgrading'" class="upd-logs">{{ logs }}</pre>
+
+      <!-- renderMarkdown 是 html:false 的 markdown-it —— 原始 HTML 被转义,v-html 其输出安全 -->
+      <div v-else class="upd-log" v-html="changelogHtml"></div>
+    </div>
+
+    <template #footer>
+      <button v-if="phase === 'downloading'" class="set-btn upd-cancel" type="button" @click="cancel">
+        {{ t('settingsCancel') }}
+      </button>
+      <button
+        v-else-if="!isDownloaded && phase !== 'upgrading'"
+        class="set-btn primary upd-download"
+        type="button"
+        @click="startDownload"
+      >{{ t('settingsDownloadNow') }}</button>
+      <button
+        v-else-if="phase !== 'upgrading'"
+        class="set-btn primary upd-upgrade"
+        type="button"
+        @click="upgrade"
+      >{{ t('settingsUpgradeNow') }}</button>
+    </template>
+  </Dialog>
+</template>
+
+<style scoped>
+.upd-body { min-width: min(560px, 82vw); max-height: 52vh; overflow-y: auto; }
+.upd-dl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; color: var(--fg-muted); }
+.upd-bar { height: 8px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
+.upd-bar-fill { display: block; height: 100%; background: var(--accent); transition: width 0.2s var(--ease); }
+.upd-logs {
+  margin: 0; padding: 12px; border-radius: var(--radius-sm);
+  background: var(--console-bg); color: var(--console-fg);
+  font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 46vh; overflow-y: auto;
+}
+.upd-log { font-size: 14px; line-height: 1.6; }
+.upd-log :deep(h1), .upd-log :deep(h2), .upd-log :deep(h3) { font-size: 15px; margin: 12px 0 6px; }
+.upd-log :deep(ul) { padding-left: 20px; margin: 6px 0; }
+.upd-log :deep(a) { color: var(--accent-text); }
+</style>
+```
+
+- [ ] **Step 5: 实现 `UpdateRow.vue`**
+
+```vue
+<script setup lang="ts">
+// 对位 Vue2 SettingsPanel.vue 的两行:
+//   - L249-278「Firmware Update」,数据来自 /sys/os_version(kind='os')
+//   - L281-312「System Update」(源码注释写 App Update),数据来自 /sys/version(kind='app')
+// ⚠️ Vue2 的标签与数据源确实是交叉的,界面 1:1 就照留,别"纠正"标签。
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { service, type UpdateCheck } from '@nimotech/nimoos-service'
+import SettingsRow from '../../components/SettingsRow.vue'
+import UpdateDialog, { type UpdateKind } from '../../components/UpdateDialog.vue'
+import { useMessageBus } from '../../../composables/useMessageBus'
+import { useToast } from '../../../stores/toast'
+import '../../styles/settings.css'
+
+const props = defineProps<{ kind: UpdateKind; sub?: string }>()
+
+const { t } = useI18n()
+const toast = useToast()
+const bus = useMessageBus()
+
+const EV = {
+  os: { progress: 'nimoos:upgrade:progress', done: 'nimoos:upgrade:downloaded' },
+  app: { progress: 'nimoos:app:download:progress', done: 'nimoos:app:downloaded' },
+} as const
+
+const info = ref<UpdateCheck>({ current_version: '', need_update: false })
+const checking = ref(false)
+const dialogOpen = ref(false)
+const wasDownloading = ref(false)
+
+const label = computed(() => (props.kind === 'os' ? t('settingsFirmwareUpdate') : t('settingsSystemUpdate')))
+// os 行副标题由父组件传 hardware.version(Vue2 L254);app 行用自己的 current_version(L287)
+const subLabel = computed(() => `v${props.sub || info.value.current_version || '1.0.0'}`)
+const progress = computed(() => info.value.download_progress ?? 0)
+
+async function fetchInfo(): Promise<UpdateCheck | null> {
+  try {
+    const res = props.kind === 'app' ? await service.sys.getAppVersion() : await service.sys.getOsVersion()
+    // Vue2 checkVersion/checkAppVersion 的保护:轮询回来的旧进度不许覆盖更大的实时进度
+    if (res.is_downloading && (info.value.download_progress ?? 0) > (res.download_progress ?? 0)) {
+      res.download_progress = info.value.download_progress
+    }
+    info.value = res
+    return res
+  } catch (e) {
+    console.warn('[settings] version check failed', props.kind, e)
+    return null
+  }
+}
+
+let unsub: (() => void)[] = []
+onMounted(async () => {
+  await fetchInfo()
+  const ev = EV[props.kind]
+  unsub.push(bus.on(ev.progress, (p) => {
+    const v = Number.parseFloat(String((p as { progress?: unknown })?.progress ?? ''))
+    if (!Number.isFinite(v)) return
+    info.value = { ...info.value, is_downloading: true, download_progress: v }
+  }))
+  unsub.push(bus.on(ev.done, () => { void fetchInfo() }))
+})
+onBeforeUnmount(() => { unsub.forEach((f) => f()); unsub = [] })
+
+// 对位 Vue2 showUpdateModal / showAppUpdateModal:先查一次,没更新就只弹提示
+async function check() {
+  checking.value = true
+  const res = await fetchInfo()
+  checking.value = false
+  if (!res) return
+  if (!res.need_update) {
+    toast.show(t('settingsLatestVersion'))
+    return
+  }
+  wasDownloading.value = false
+  dialogOpen.value = true
+}
+
+// 对位 Vue2 showFirmwareDownloadingModal / showAppDownloadingModal:直接进下载态
+function openDownloading() {
+  wasDownloading.value = true
+  dialogOpen.value = true
+}
+</script>
+
+<template>
+  <SettingsRow :label="label" :sub="subLabel">
+    <template #control>
+      <span v-if="!info.need_update" class="set-ok">{{ t('settingsLatestVersion') }} ✓</span>
+      <span v-else-if="info.is_downloaded" class="set-info">
+        v{{ info.latest_version }} {{ t('settingsDownloaded') }} ✓
+      </span>
+      <button v-else-if="info.is_downloading" class="set-btn primary ur-progress" type="button" @click="openDownloading">
+        {{ t('settingsDownloading') }} {{ progress }}%
+      </button>
+
+      <button v-if="info.is_downloaded" class="set-btn primary ur-open" type="button" @click="dialogOpen = true">
+        {{ t('settingsUpdateNow') }}
+      </button>
+      <button
+        v-else-if="!info.is_downloading"
+        class="set-btn primary ur-check"
+        type="button"
+        :disabled="checking"
+        @click="check"
+      >{{ t('settingsCheckUpdate') }}</button>
+    </template>
+  </SettingsRow>
+
+  <UpdateDialog
+    :open="dialogOpen"
+    :kind="kind"
+    :info="info"
+    :currently-downloading="wasDownloading"
+    @update:open="dialogOpen = $event"
+    @changed="fetchInfo"
+  />
+</template>
+```
+
+> `UpdateDialog.vue` 用 `export type UpdateKind` 从 `<script setup>` 导出类型:`<script setup>` 里的 `export` 是不允许的 —— 把 `export type UpdateKind = 'os' | 'app'` 移到**同文件的普通 `<script lang="ts">` 块**里(与 `<script setup>` 并存),或单独放 `src/settings/util/updateKind.ts`。**实现时选后者更稳**,并同步修正两个文件的 import。
+
+- [ ] **Step 6: 跑测试确认通过 + 任务门 + 提交**
+
+```bash
+pnpm test src/settings 2>&1 | tail -8
+pnpm test 2>&1 | tail -8
+pnpm exec vue-tsc --noEmit
+git status --short
+git add src/settings/components/UpdateDialog.vue src/settings/components/UpdateDialog.test.ts \
+        src/settings/panels/general/UpdateRow.vue src/settings/panels/general/UpdateRow.test.ts \
+        src/settings/util/updateKind.ts
+git commit src/settings/components/UpdateDialog.vue src/settings/components/UpdateDialog.test.ts \
+           src/settings/panels/general/UpdateRow.vue src/settings/panels/general/UpdateRow.test.ts \
+           src/settings/util/updateKind.ts \
+  -m "feat(settings): 固件更新与系统更新两行 + 更新弹窗(SP9-P1)
+
+- os/app 两套 MessageBus 事件按 kind 分开订阅,防串台
+- 保留 Vue2 的进度不回退保护(轮询旧进度不覆盖更大的实时进度)
+- 升级接口失败退出日志态让用户能再试,不卡空屏
+- 不照抄 UpdateModal 的 3 秒轮询兜底:downloaded 事件已覆盖同一件事
+- UpdateCompleteModal 不移植:Vue2 触发器从未实现,从未弹过(债务 D14)"
+```
+
+---
+

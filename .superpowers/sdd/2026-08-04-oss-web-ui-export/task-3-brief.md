@@ -1,0 +1,230 @@
+### Task 3: 泄漏守卫 `oss/forbidden.mjs`
+
+**Files:**
+- Create: `oss/forbidden.mjs`
+- Test: `oss/forbidden.test.mjs`
+
+**Interfaces:**
+- Produces:
+  - `HARD: {word: string, re: RegExp}[]` — 硬禁词,无白名单
+  - `SOFT: {word: string, re: RegExp, allow: {file: RegExp, re: RegExp}[]}[]` — 软禁词 + 白名单
+  - `scanText(relPath: string, text: string): {word: string, line: number, excerpt: string}[]`
+  - `scanTree(rootDir: string): {file: string, word: string, line: number, excerpt: string}[]`
+
+**三条纪律(spec §6.3,必须落进实现)**:白名单按「文件 + 允许的正则」豁免,**绝不按行号**(行号会漂,漂了就有人去放宽词表 —— 那是这类守卫烂掉的标准路径);扫描范围是产出树**全部**文本文件,含 `package.json`/`pnpm-lock.yaml`/`*.svg`/`public/`/i18n/**以及注释**(注释是本次最大的泄漏面);孤儿 i18n 键不需要单独检查 —— 键名本身就是禁词。
+
+- [ ] **Step 1: 写失败测试**
+
+创建 `oss/forbidden.test.mjs`:
+
+```js
+import { describe, it, expect } from 'vitest'
+import { scanText } from './forbidden.mjs'
+
+describe('硬禁词', () => {
+  it('相册 / Nimo AI / transcript / qdrant / 内网 IP 一律命中,不给白名单', () => {
+    for (const [file, text] of [
+      ['src/x.ts', '// 打开相册'],
+      ['src/x.ts', "t('Nimo AI')"],
+      ['src/x.ts', 'import { lookupTranscript } from "./audioTranscripts"'],
+      ['src/x.ts', 'const q = "qdrant"'],
+      ['src/x.vue', 'http://192.168.1.115/v1'],
+      ['src/x.ts', 'immich-ml'],
+    ]) {
+      expect(scanText(file, text).length, `${file} :: ${text}`).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('软禁词的精确白名单', () => {
+  it('保留面不许误报', () => {
+    const keep = [
+      ['src/files/util/fileCategories.ts', "export const APPLICATION_PHOTOSHOP = ['psd','psb']"],
+      ['src/files/util/icons.ts', "Gallery: 'folder-pictures',"],
+      ['src/files/util/protect.ts', "'/DATA/Gallery',"],
+      ['src/settings/util/migrateBrowse.ts', "const SYS = ['Gallery']"],
+      ['src/apps/views/StorePage.vue', "route.query.search as string"],
+      ['src/apps/views/StorePage.vue', 'const searchInput = ref("")'],
+      // E5:局部变量 ai = anchorIndex,会被 \bai\b 硬词误伤
+      ['src/files/stores/files.ts', 'const ai = list.findIndex((e) => e.path === anchor)'],
+      // E6:Vue2 逐字移植的路径归一 + 系统目录显示串
+      ['src/apps/util/importNormalize.ts', "{ keywords: ['pictures', 'photo'], value: '/DATA/Gallery' },"],
+      ['src/settings/panels/AppsPanel.vue', 'return `${virtual}/Documents & Downloads & Gallery & Media`'],
+      // E4:成员文件夹授权的类型名,必须保留
+      ['src/settings/panels/account/MemberFoldersView.vue', 'type UserFolderPermission } from "@nimotech/nimoos-service"'],
+      ['packages/service/src/types.ts', 'export interface UserFolderPermission {'],
+      // 保留的波形 token
+      ['src/files/viewers/MediaViewer.vue', "return 'var(--wave-none)'"],
+    ]
+    for (const [file, text] of keep) {
+      expect(scanText(file, text), `${file} :: ${text}`).toEqual([])
+    }
+  })
+
+  it('白名单是按文件限定的 —— 同一串出现在别的文件里仍然报', () => {
+    expect(scanText('src/home/components/Foo.vue', 'const searchInput = ref("")').length).toBeGreaterThan(0)
+  })
+
+  it('speaker 是哨兵:拆完应零命中', () => {
+    expect(scanText('src/files/viewers/MediaViewer.vue', 'function speakerColor(id) {}').length).toBeGreaterThan(0)
+  })
+
+  it('词边界:parse / chain / main / 中文不被误伤', () => {
+    for (const [file, text] of [
+      ['src/x.ts', 'JSON.parse(raw)'],
+      ['src/x.ts', 'const chain = []'],
+      ['src/x.ts', 'export function main() {}'],
+      ['src/x.ts', '// 布局重排'],
+    ]) {
+      expect(scanText(file, text), text).toEqual([])
+    }
+  })
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+Run: `pnpm exec vitest run oss/forbidden.test.mjs`
+Expected: FAIL —— `Failed to resolve import "./forbidden.mjs"`
+
+- [ ] **Step 3: 实现 `oss/forbidden.mjs`**
+
+```js
+import fs from 'node:fs'
+import path from 'node:path'
+
+// ─── 硬禁词:出现即失败,无白名单 ────────────────────────────────────────────
+// 注意 E4:spec §6.1 原本把 folderPermission 放在这里,那会让守卫永久红 ——
+// UserFolderPermission 是成员文件夹授权的类型名,是保留面。已降为软禁词。
+export const HARD = [
+  ['相册', /相册/],
+  ['Nimo AI', /Nimo\s*AI/i],
+  ['ask nimo', /ask\s*nimo/i],
+  ['transcript', /transcript/i],
+  ['qdrant', /qdrant/i],
+  ['ollama', /ollama/i],
+  ['embedding', /embedding/i],
+  ['CLIP', /\bCLIP\b/],
+  ['immich', /immich/i],
+  ['photos_data', /photos_data/],
+  ['wikiRoot', /wikiRoot/i],
+  ['192.168.1.115', /192\.168\.1\.115/],
+].map(([word, re]) => ({ word, re }))
+
+// ─── 软禁词 + 精确白名单 ────────────────────────────────────────────────────
+// allow 的每一项是「文件正则 + 该文件里允许的整行正则」。按文件+内容豁免,
+// 绝不按行号 —— 行号会漂,漂了豁免就失效,然后人就会去放宽词表。
+export const SOFT = [
+  {
+    word: 'photo',
+    re: /photo/i,
+    allow: [
+      { file: /src\/files\/util\/fileCategories\.ts$/, re: /APPLICATION_PHOTOSHOP/ },
+      { file: /src\/files\/util\/icons\.ts$/, re: /folder-pictures|APPLICATION_PHOTOSHOP/ },
+      { file: /src\/apps\/util\/importNormalize\.ts$/, re: /'pictures',\s*'photo'|除 config\/download\/pictures\/photo\/media 外/ },
+    ],
+  },
+  {
+    word: 'gallery',
+    re: /gallery/i,
+    allow: [
+      { file: /src\/files\/util\/protect\.ts$/, re: /\/DATA\/Gallery|'Gallery'/ },
+      { file: /src\/files\/util\/icons\.ts$/, re: /Gallery/ },
+      { file: /src\/settings\/util\/migrateBrowse\.ts$/, re: /Gallery/ },
+      { file: /src\/settings\/panels\/AppsPanel\.vue$/, re: /Gallery/ },
+      { file: /src\/home\/grid\/defaultLayout\.ts$/, re: /\/DATA\/Gallery/ },
+      { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /Gallery/ },
+    ],
+  },
+  {
+    word: 'search',
+    re: /search/i,
+    allow: [
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: /query\.search|searchInput|filterStoreApps|appsStoreSearch/ },
+      { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
+      { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /appsStoreSearch/ },
+      // findIndex / findLastIndex 等标准库方法名里没有 search;binarySearch 之类若出现须显式登记
+    ],
+  },
+  { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
+  {
+    word: 'ai',
+    re: /(?<![A-Za-z])ai(?![A-Za-z])/,              // 词边界:不碰中文、chain、main
+    allow: [
+      // E5:局部变量 ai = anchorIndex(files.ts 的 shift 选区)
+      { file: /src\/files\/stores\/files\.ts$/, re: /\bai\b\s*[=<,)\]]|\[lo,\s*hi\]/ },
+    ],
+  },
+  { word: 'parser', re: /\bparser\b/i, allow: [] },
+  { word: 'wiki', re: /wiki/i, allow: [] },
+  {
+    word: 'folderPermission',
+    re: /folderPermission/i,
+    allow: [
+      // E4:成员文件夹授权,与 AI 无关,保留面
+      { file: /.*/, re: /UserFolderPermission/ },
+    ],
+  },
+]
+
+const TEXT_EXT = new Set([
+  '.ts', '.tsx', '.js', '.mjs', '.cjs', '.vue', '.css', '.scss', '.json', '.yaml', '.yml',
+  '.md', '.html', '.svg', '.sh', '.txt', '.gitignore',
+])
+
+function allowed(rules, relPath, line) {
+  return rules.some((r) => r.file.test(relPath) && r.re.test(line))
+}
+
+/** 扫一段文本。返回命中列表(空数组 = 干净)。 */
+export function scanText(relPath, text) {
+  const out = []
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    for (const { word, re } of HARD) {
+      if (re.test(line)) out.push({ word, line: i + 1, excerpt: line.trim().slice(0, 160) })
+    }
+    for (const { word, re, allow } of SOFT) {
+      if (re.test(line) && !allowed(allow, relPath, line)) {
+        out.push({ word, line: i + 1, excerpt: line.trim().slice(0, 160) })
+      }
+    }
+  }
+  return out
+}
+
+/** 递归扫整棵树。二进制文件按扩展名跳过(图片资源靠 DELETE 表管)。 */
+export function scanTree(rootDir) {
+  const findings = []
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, e.name)
+      const rel = path.relative(rootDir, abs)
+      if (e.isDirectory()) {
+        if (e.name === '.git' || e.name === 'node_modules' || e.name === 'dist') continue
+        walk(abs)
+      } else if (TEXT_EXT.has(path.extname(e.name)) || e.name.startsWith('.git')) {
+        for (const f of scanText(rel, fs.readFileSync(abs, 'utf8'))) findings.push({ file: rel, ...f })
+      }
+    }
+  }
+  walk(rootDir)
+  return findings
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+Run: `pnpm exec vitest run oss/forbidden.test.mjs`
+Expected: PASS(4 个 describe 全绿)
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add oss/forbidden.mjs oss/forbidden.test.mjs
+git commit -m "feat(oss): 泄漏守卫词表与扫描器(硬禁词 + 按文件白名单)"
+```
+
+---
+

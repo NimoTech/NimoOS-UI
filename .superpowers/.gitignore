@@ -1,0 +1,16 @@
+# 台账入库规则(2026-08-05 起,机主指定)
+#
+# 背景:SP7 把 NimoOS-UI/.superpowers 整个目录弄丢过,gitignore 让 git 也救不回;
+# SP9-P7 收尾时又发现 P5/P6 的台账从来没进过 roadmap、只活在这里。
+# 所以台账本身必须入库,只有「能从 git 重新生成的机器产物」才排除。
+#
+# 入库:*.md(台账、任务简报、实现报告、评审记录)、*.png(配色/真机自查截图)
+# 不入库:评审 diff 包(能用 git diff 重放)、编辑备份、快照环境变量
+
+# 评审 diff 包 —— review-package 脚本每轮生成,`git diff <base>..<head>` 可原样重放
+*.diff
+review-*.txt
+
+# 编辑备份与本地快照环境
+*.bak
+snap.env
