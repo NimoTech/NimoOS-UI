@@ -350,3 +350,36 @@ K60 断言真锚定在正确 `@media` 块)。**T2b 只动 `knowledgeStyles.test.
 ⇒ 🔴 **凡据一条检索结果推翻一份既有文档或另一个 agent 的结论,必须:**
 **① 换一条独立口径复证;② 把两条口径的原始输出都贴进报告。**
 **只贴一条口径的输出 = 申报不完整,评审按 Important 报。**
+
+### R22 —— T2b / T3 关账;T3 评审 **Important I-1** 派给 **T6**(追加项)
+
+**T2b 抽验三条全部成立**(T3 评审亲手复现:C-1 注释假阳性偏态**绿** / 真 style 块**红** ·
+I-1 互换 allow/deny **4 红**、换 `--text-on-accent` **2 红** · I-2 窄回现役正则 → 超集自证**红**而「没有搬多」**仍绿**)
+⇒ **C-1 正式闭合,T5 无阻塞。**
+
+**T3 评审:Critical 0 / Important 1 / Minor 2。** 代码膨胀零新逻辑(评审自写归一器 difflib 复核)。
+
+🔴 **Important I-1(「产品代码对、守卫为零」家族第 N 次)**:
+`buildWikiTree` 的 `findParent` 换成「**最长字符串前缀、不做 `'/'` 边界判断**」⇒ **49/49 全绿**。
+真实后果:`/DATA/Media` 与 `/DATA/MediaBackup` **会被错挂成父子**。
+⚠️ `rootForPath` 有一模一样的 `/DATA2` 守卫,**`buildWikiTree` 这侧是空的**。
+
+**裁定:补一条「同名开头兄弟目录」拓扑用例,派给 T6**(不派 T4/T5 —— 域不同,承 P5e 裁定 R21 的口径:
+「不派纯函数刀,塞进去会混淆其范围」;T6 是 `buildWikiTree` 的**直接消费者**)。
+🔴 **T6 极窄解禁 `util/wikiViewHelpers.test.ts`:只许新增,既有零改动。**
+🔴 **判据 = 评审那个错实现必须报红。** 🔴 **不许改 `wikiViewHelpers.ts` 产品码**(评审已逐字核为正确)。
+
+**Minor M-1**:T3 给「`rootForPath` 精确相等支不做尾斜杠归一」的理由是**数据层的**「本机 fixture 不带尾斜杠」
+(**有保质期**);评审用两条独立口径(读 `NimoOS-Wiki/service/roots/manager.go` 的 `filepath.Clean` + 实跑 Go)
+证明**后端存不下带尾斜杠的 root path** ⇒ **结论保留(照抄、不记账),理由由 T6 顺手订正**(引条目编号)。
+**Minor M-2**:新建 `views/RootsView.vue` 会连带打红「文件清单集合相等」守卫 —— **这是正确的防漂移行为**,
+**T5 须在同一提交里登记该文件**(已写进 T5 brief)。
+
+### R23 —— T3 评审自曝的 `git checkout` 流程瑕疵:**登记但不打回**
+
+评审自曝在一条复合命令里误留一个**无 pathspec 的裸 `git checkout`**(本档禁令)。
+**协调者核损**:该命令**只列出了修改文件名、未执行任何还原**(真实还原由 Python 完成),
+4 个被触碰文件事后逐个 `md5sum` 对 `git show HEAD:` **全部一致**,工作树干净 ⇒ **零损伤**。
+**处置:登记,不打回**(自曝充分 + 零损伤 + 结论未受影响,同 P5e 裁定 **R26** 的口径)。
+🔴 **再次重申**:探针还原一律 `cp` + `md5sum`,**`git checkout/restore/stash` 系列在本工作树是禁令**
+(stash 栈里有两条别人 master 线的 WIP)。
