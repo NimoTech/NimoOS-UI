@@ -1,46 +1,54 @@
 <script setup lang="ts">
-// SP8-P5e Task 6 —— `SearchView.vue` 上半(1:1 移植自蓝本
+// SP8-P5e Task 6+7 —— `SearchView.vue`(1:1 移植自蓝本
 // `NimoOS-UI@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`,401 行)。
 //
-// 本刀范围(治理 `p5e-plan.md` §T6,`p5e-coordinator-rulings-T0.md` R25):
+// T6 范围(治理 `p5e-plan.md` §T6,`p5e-coordinator-rulings-T0.md` R25):
 //   模板 `:1-119`(sticky 搜索框 + 高级面板 + idle/loading/empty 三态)+
 //   `:158-162`(error 态)+ script 常量块(`SAMPLE_QUERIES`/`FILE_TYPES`/
 //   `MIME_PREFIXES`/`MTIMES`/`WEEK_MS`/`MONTH_MS`/`YEAR_MS`)+
 //   `advEnabled`/`totalChunks` + `clear`/`quickSearch`/`toggleSet`/
 //   `buildFilters`/`run` + `$route.query.q` 的 watch。
-// 🔴 不写(全归 T7):结果卡列表(`:121-156`)· 两个子组件挂载 markup
-// (`:164-172`)· `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast`。
-// ⚠️ 不为了"能看见"提前写结果卡 markup —— `phase === 'results'` 分支目前
-// 是一个空壳容器,内容由 T7 续写这个文件时填入。
+// T7 范围(本次续写,`p5e-plan.md` §T7 · 裁定 R1「方案 A」):
+//   结果卡列表(`:121-156`)+ 两个子组件挂载 markup(`:164-172`)+
+//   `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast` + 两个 ext
+//   常量集(`:186-190`)。
 //
 // ═══ 🔴 K44 —— `.vue` 侧零 `<style>` 块(scss 全部由 T2 搬进 `src/ai/styles/knowledge.scss`) ═══
 //
-// ═══ 🔴 R25(裁定)—— 本文件 import `FileDetailDrawer` 但不挂载 markup ═══
-// 原因:T5 DoD-12 给 `FileDetailDrawer.test.ts` 加了一条自动上膛守卫 ——
-// 「若 `views/SearchView.vue` 存在,则它必须 import `FileDetailDrawer`」,而本刀
-// (T6)按范围明令不许写两个子组件的挂载 markup(那是 T7 的活)。R25 裁定:
-// T6 只 import、不挂载 —— 这条 import **专门为了满足 T5 DoD-12 的上膛守卫**,
-// 不是本文件当前逻辑需要它。T7 续写本文件、加上 `<FileDetailDrawer ...>`
-// markup 时会真正用到这个 import。🔴 不 import `KFileViewer` ——
-// T4 没有给它加同类守卫,它的 import 与 markup 一起归 T7(少 import 一个不会
-// 有守卫报红,多 import 一个才是越权,见裁定 R25 第②条)。
+// ═══ 🔴 K52(裁定 R1,方案 A)—— 文件字节流走 `service.file.fileUrl()` + `getHttp()` ═══
+// 治理 K50 原文规定的落法(`getHttp().get('/v3/file', { params, responseType:'blob' })`)
+// 在真机上 100% 401 ——`/v3/file`(`NimoOS/route/v2.go:237-266` 的 `InitFile()`)是裸
+// `http.HandlerFunc`、零 JWT 中间件,只读 `?token=` query 参数,`getHttp()` 只设
+// `Authorization` 头、从不往 query 拼 token。用户 2026-08-05 拍板方案 A:改走
+// `service.file.fileUrl(path)`(唯一接受该端点认证形式的调用)拼出的 URL 去发那一次
+// XHR,仍用 `getHttp()`(Service 仓零改动),`inline` 时手工拼 `&inline=1`(后端真支持,
+// `route/v2.go:257-261`)。`window.open`/`<a href>` 消费的是 `URL.createObjectURL()`
+// 产出的 `blob:` 地址,不是 `fileUrl()` 本身 —— 地址栏/浏览历史/Referer 不含 token,
+// 代价是 token 进这一次后台 XHR 的 query(并入既有的「终端 WS token 进访问日志」后端票)。
+// `/v3/file` 不会被 `withVersion()` 改写成 `/v1/v3/file`
+// (`.sp8/NimoOS-Service/src/http.ts:6-10` 的 `/^\/v[1-9]/` 原样放行,`v3` 命中)。
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { getHttp, service } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 见上方 R25 说明:此 import
-// 本刀不消费(未挂载 markup),只为满足 T5 DoD-12 的自动上膛守卫。tsconfig 未开
-// noUnusedLocals(已实测确认),vite build 只会 tree-shake,不报错、三门不受影响。
 import FileDetailDrawer from '../components/FileDetailDrawer.vue'
+import KFileViewer from '../components/KFileViewer.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
-import { toFileResults, chunkCount } from '../util/searchAggregate'
+import { chunkCount, fmtMtime, highlight, relLabel, relLevel, toFileResults } from '../util/searchAggregate'
 import type { FileVM, SearchTextResponseRaw } from '../util/searchAggregate'
 
 const { t } = useI18n()
 const route = useRoute()
 const store = useKnowledgeStore()
 
-// ─── 蓝本 :186-219 script 常量(本刀范围内的部分;两个 ext 常量集归 T7) ───
+// ─── 蓝本 :186-219 script 常量 ───
+
+// 蓝本 :188。浏览器不能原生预览这些 office 格式 —— 走 in-app 的 `@vue-office`
+// 预览器(`KFileViewer`),不新开标签页。
+const OFFICE_INAPP_EXTS = new Set(['docx', 'wps', 'xls', 'xlsx', 'csv'])
+// 蓝本 :190。既非浏览器也非 `@vue-office` 能处理的旧版二进制 office —— 只能提示下载。
+const NO_PREVIEW_EXTS = new Set(['doc', 'ppt', 'pptx'])
 
 // 蓝本 :192。🔴 N33:五个示例查询照抄且过 i18n —— 本仓没有用蓝本那种「英文短语
 // 本身当 key」的写法,T1 已把它们落成 `aiKbSample*` 键(zh_cn.ts/en_us.ts),这里存
@@ -237,6 +245,100 @@ async function run() {
 }
 
 /**
+ * 蓝本 :346-355 `fetchBlobUrl`。🔴 K52/裁定 R1(方案 A,见文件头说明):不走
+ * `getHttp().get('/v3/file', {params, responseType:'blob'})`(那条落法在本后端上恒
+ * 401)——改走 `service.file.fileUrl(fullPath)` 拼出的 URL 字符串(该端点唯一接受的
+ * 认证形式)去发同一次 `getHttp()` XHR。`inline` 为真时手工拼 `&inline=1`
+ * (后端真支持,`route/v2.go:257-261`),否则 URL 里不含 `inline`。
+ * 🔴 **`responseType: 'blob'` 是硬断言**——`blob` 会从响应 `Content-Type` 带上真实类型,
+ * `arraybuffer` 会丢它,新标签页会变成下载而不是预览(判据:改成 `'arraybuffer'` →
+ * 用例必须报红)。返回值是 `URL.createObjectURL()` 产出的同源 `blob:` 地址——
+ * `window.open`/`<a href>` 消费的必须是这个,不许是 `fileUrl()` 本身
+ * (地址栏/浏览历史/Referer 不含 token,K52 的隐私收益落点)。
+ */
+async function fetchBlobUrl(fullPath: string, opts: { inline?: boolean } = {}): Promise<string> {
+  const url = service.file.fileUrl(fullPath) + (opts.inline ? '&inline=1' : '')
+  const resp = await getHttp().get(url, { responseType: 'blob' })
+  return URL.createObjectURL(resp.data as Blob)
+}
+
+/**
+ * 蓝本 :357-380 `openOriginal`。按扩展名路由:office in-app 格式 → `viewerFile`
+ * (不发请求);无预览器的旧版 office → toast 提示下载(不发请求);其余 → 新标签页
+ * 打开 blob URL(浏览器原生预览快)。
+ * 🔴 ext 提取是 `(file.name || '').split('.').pop().toLowerCase()`(`|| ''` 是
+ * TS 层面对 `.pop()` 返回类型 `string | undefined` 的防御写法,与 `KFileViewer.vue`
+ * 同款,运行时对非空数组永不触发——不是行为变化)——**无扩展名的文件名会把整个
+ * 名字当 ext**(例如文件名恰好是 `docx`,零扩展名,会被误判成 in-app 可预览格式),
+ * 照抄,不"修好"。
+ */
+async function openOriginal(payload: { file: FileVM }) {
+  const file = payload.file
+  if (!file || !file.fullPath) {
+    store.toast(t('aiKbSrNoPath'))
+    return
+  }
+  const ext = ((file.name || '').split('.').pop() || '').toLowerCase()
+  if (OFFICE_INAPP_EXTS.has(ext)) {
+    viewerFile.value = file
+    return
+  }
+  if (NO_PREVIEW_EXTS.has(ext)) {
+    store.toast(t('aiKbSrNoPreviewToast'))
+    return
+  }
+  try {
+    const url = await fetchBlobUrl(file.fullPath, { inline: true })
+    const w = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!w) store.toast(t('aiKbSrPopupBlocked'))
+    // N38 同族:蓝本自带的 60s 延迟回收,照抄。
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } catch (e) {
+    const err = e as { message?: string } | undefined
+    // `String(...)` 只是让 TS(`e: unknown`)编译通过——JS 的 `+` 本来就会对非字符串
+    // 操作数做同样的隐式 ToString,运行时输出与蓝本 `... + e` 逐字相同,不是行为变化。
+    store.toast(t('aiKbSrOpenFailed') + ': ' + String((err && err.message) || e))
+  }
+}
+
+/**
+ * 蓝本 :382-397 `downloadFile`。取字节 → 造 `<a download>` → 触发点击 → 清理。
+ * 🔴 逐步都要断:`a.download` 的 `file.name || 'download'` 兜底 · `rel` ·
+ * `document.body.removeChild(a)` 真的被调用(否则 DOM 泄漏)· 60s 延迟
+ * `revokeObjectURL`。
+ */
+async function downloadFile(file: FileVM) {
+  if (!file || !file.fullPath) {
+    store.toast(t('aiKbSrNoPath'))
+    return
+  }
+  try {
+    const url = await fetchBlobUrl(file.fullPath)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name || 'download'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } catch (e) {
+    const err = e as { message?: string } | undefined
+    store.toast(t('aiKbSrDownloadFailed') + ': ' + String((err && err.message) || e))
+  }
+}
+
+/**
+ * 蓝本 :398 `onDrawerToast`。`FileDetailDrawer` 的通知约定是 emit `toast`
+ * (蓝本 `:186-190` 注释),由父组件转发到 store 的 toast action
+ * (`store.toast` 内部调 `useToast().show(msg, 2400)`,治理 §5.1)。
+ * 🔴 不许让子组件直接调 `useToast()` —— 那会改掉蓝本的组件契约。
+ */
+function onDrawerToast(msg: string) {
+  store.toast(msg)
+}
+
+/**
  * 蓝本 :252-261 watch('$route.query.q', {immediate:true})。🔴 N40:必须用响应式
  * `watch`,不许只在 `onMounted` 里读一次(记忆 `newui-router-query-only-no-remount`:
  * 用户改地址栏一行都不跑)。条件 `v && v !== q.value` —— query 与当前 `q` 相同时
@@ -398,9 +500,50 @@ watch(
         </div>
       </div>
 
-      <!-- phase === 'results':结果卡列表归 T7(蓝本 :121-156),本刀不写内容,
-           留空容器等 T7 续写本文件时填入 —— 不为了"能看见"提前写结果卡 markup。 -->
-      <div v-else-if="phase === 'results'" class="k-results" />
+      <!-- phase === 'results':蓝本 :121-156(T7)。 -->
+      <div v-else-if="phase === 'results'" class="k-results">
+        <div class="k-result-count">
+          <b>{{ results.length }}</b> {{ t('aiKbSrCountFiles') }} ·
+          <b>{{ totalChunks }}</b> {{ t('aiKbSrCountMatches') }} · for <b>"{{ lastQuery }}"</b>
+          <span style="color: var(--text-quaternary); margin-left: 6px">
+            <!-- 蓝本 :125 `v-if="ms"`——🔴 ms === 0 时不渲染(falsy),不是空字符串占位。 -->
+            <span v-if="ms"> · {{ ms }} ms</span>
+          </span>
+        </div>
+        <div v-for="r in results" :key="r.id" class="k-rcard" @click="openFile = r">
+          <div class="k-rcard-icon">
+            <span class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
+          </div>
+          <div class="k-rcard-body">
+            <div class="k-rcard-head">
+              <div class="k-rcard-name">{{ r.name }}</div>
+              <!-- 🔴 :title 与可见文案是两个不同的 i18n 键(蓝本 :135-136),不许合并。 -->
+              <span class="k-match-pill" :title="t('aiKbSrMatchTitle', { n: r.chunks.length })">
+                <KIcon name="search" :size="10" /> {{ t('aiKbSrMatchPill', { n: r.chunks.length }) }}
+              </span>
+              <span class="k-rel" :data-level="relLevel(r.score)" :title="`${t('aiKbSrSimilarity')} ${(r.score * 100).toFixed(0)}%`">
+                <span class="k-rel-dot" /> {{ relLabel(r.score) }}
+              </span>
+            </div>
+            <!-- 蓝本 :142:`r.chunks[0] && r.chunks[0].snippet` —— 零 chunk 的文件不许抛。
+                 K49:v-html 消费 highlight() 的转义输出,XSS 面已在 util 层测过,这里补
+                 组件层渲染后的真实 DOM 断言(见测试文件)。 -->
+            <div class="k-rcard-snippet" v-html="highlight(r.chunks[0] && r.chunks[0].snippet, lastQuery)" />
+            <!-- 蓝本 :143:v-if 用 chunks.length > 1,文案用 chunks.length - 1(两侧都要用例)。 -->
+            <div v-if="r.chunks.length > 1" class="k-more-hint">
+              <span class="chev"><KIcon name="chev" :size="11" /></span>
+              {{ t('aiKbSrMoreHint', { n: r.chunks.length - 1 }) }}
+            </div>
+            <div class="k-rcard-meta">
+              <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path }}</span></span>
+              <span style="color: var(--text-quaternary)">·</span>
+              <span class="k-rcard-meta-item">{{ t('aiKbSrModified') }} {{ fmtMtime(r.mtimeMs) }}</span>
+              <span style="color: var(--text-quaternary)">·</span>
+              <span class="k-rcard-meta-item"><KIcon name="check" :size="11" color="var(--success)" /> {{ t('aiKbStatusIndexed') }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div v-else-if="phase === 'error'" class="k-empty">
         <div class="k-empty-illust" style="color: var(--danger)"><KIcon name="danger" :size="32" /></div>
@@ -408,8 +551,19 @@ watch(
         <div class="k-empty-sub">{{ errorMsg }}</div>
       </div>
 
-      <!-- 两个子组件挂载归 T7(蓝本 :164-172):FileDetailDrawer(四个监听全接)+
-           KFileViewer。本刀不写任何 <FileDetailDrawer>/<KFileViewer> markup。 -->
+      <!-- 蓝本 :164-172(T7)。FileDetailDrawer 四个监听全接(T5 DoD-12 自动上膛守卫
+           在此刻满足);onDrawerToast 把子组件的 toast 约定转发到 store.toast。 -->
+      <FileDetailDrawer
+        v-if="openFile"
+        :file="openFile"
+        :query="lastQuery"
+        @close="openFile = null"
+        @open="openOriginal"
+        @download="downloadFile"
+        @toast="onDrawerToast"
+      />
+
+      <KFileViewer v-if="viewerFile" :file="viewerFile" @close="viewerFile = null" @download="downloadFile" />
     </div>
   </div>
 </template>

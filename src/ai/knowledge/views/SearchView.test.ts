@@ -1,23 +1,28 @@
-// SP8-P5e Task 6 —— `SearchView.vue` 上半单测(搜索框 + 高级面板 + `run()` + 四态)。
-// 蓝本 `NimoOS-UI@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`。
+// SP8-P5e Task 6+7 —— `SearchView.vue` 单测(T6:搜索框 + 高级面板 + `run()` + 四态;
+// T7 续写:结果卡列表 + 两个子组件接线 + `fetchBlobUrl`/`openOriginal`/
+// `downloadFile`/`onDrawerToast`)。蓝本 `NimoOS-UI@7a6ee6b7`
+// `src/views/AI/Knowledge/SearchView.vue`(401 行)。
 //
-// ═══ 范围自证 ═══
-// 本文件不测(全归 T7):结果卡列表的渲染细节(`:121-156`,除了"phase 变成
-// 'results' 且 results/totalChunks 数值正确"这个**状态层**事实——那属于本刀的
-// run() 分支,markup 归 T7)· 两个子组件的挂载 markup(`FileDetailDrawer`/
-// `KFileViewer` 的 `<template>` 接线)· `fetchBlobUrl`/`openOriginal`/
-// `downloadFile`/`onDrawerToast` 的任何行为。
+// ═══ T7 范围(本次续写)═══
+// 结果卡列表(`:121-156`)· `k-result-count` 的 `ms` v-if · 两个子组件的挂载
+// markup(`FileDetailDrawer`/`KFileViewer` 的 `<template>` 接线)·
+// `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast` 的全部行为
+// (K50/裁定 R1「方案 A」)。
 //
 // ═══ mock 边界(治理 §4.1)═══
-// `store.runSearch` 用真 Pinia + `vi.spyOn(store, 'runSearch')` 逐条 mock,返回值
-// = 后端原始 snake_case(`knowledgeStore.ts:550-561` 零归一化),不是 camelCase——
-// `toFileResults` 才是归一化的地方,搞反了按 Critical。
+// `store.runSearch`/`store.loadChunkContext` 用真 Pinia + `vi.spyOn` 逐条 mock,
+// 返回值 = 后端原始 snake_case(`knowledgeStore.ts:550-561`/`:571-574` 零归一化),
+// 不是 camelCase——`toFileResults` 才是归一化的地方,搞反了按 Critical。
+// 🔴 T7 新增:`@nimotech/nimoos-service` 走 `importOriginal` 部分 mock——
+// `service.file.fileUrl` 与 `getHttp().get` 是 `fetchBlobUrl` 唯一消费的两个
+// 外部符号,mock 形态照既定先例 `src/files/stores/files.test.ts:17`
+// / `FileDetailDrawer.test.ts` 的 `vi.hoisted` 写法。
 //
 // ═══ fixture 出处(三级标签逐个标注,裁定 R3 约束 1 / R9)═══
 //   F1  —— REAL,`.superpowers/sdd/p5e-fixtures/F1-search-text.empty.REAL.json`,
 //          原样(该文件本来就零 `_` 前缀键,见 README §3.3 的 PURE_REAL 例外)。
 //   F4  —— REAL,`F4-search-text.no_accessible_roots.REAL.json`,原样。用于 N38
-//          反向断言(非空 `warnings` 但不含 `rerank_unavailable` → 不应置真)。
+//          反向断言(非空 `warnings` 但非 rerank_unavailable → 不应置真)。
 //   F11 —— CONSTRUCTED(D-6 模具,裁定 R2:rerank 真机不可达,这条 warning 本机
 //          无法端到端触达),`F11-rerank-warning.CONSTRUCTED.json`,已删
 //          `_provenance`/`_authoritative_string`/
@@ -28,30 +33,54 @@
 //          都标了完整值的 `len`/`sha256`(完整正文的等价校验已在
 //          `FileDetailDrawer.test.ts` 里对同一份 `file_id`(`dce79e8ea5…`)的两个
 //          chunk 做过,本文件不重复贴全文)。已删 `_provenance` 台账键(§3.3)。
-//          本刀只用它验证 `results.length`/`totalChunks`/`phase` 这些状态层事实,
-//          不渲染 chunk 内容(结果卡 markup 归 T7)。`hits[]` 字段在这条代码路径
-//          不被消费(`toFileResults` 优先取非空 `files`),故省略为 `[]`——
-//          hits-回退分支已在 `searchAggregate.test.ts` 里覆盖过,不在本文件重复。
+//          T6 只用它验证 `results.length`/`totalChunks`/`phase` 这些状态层事实;
+//          T7 用它渲染结果卡的可见字段(`data-kind`/`k-match-pill`/`k-rel`/
+//          `k-more-hint`/`k-rcard-meta`)。`hits[]` 字段在这条代码路径不被消费
+//          (`toFileResults` 优先取非空 `files`),故省略为 `[]`——hits-回退分支
+//          已在 `searchAggregate.test.ts` 里覆盖过,不在本文件重复。
+//   T7 新增本地构造用例(`.CONSTRUCTED`,非 fixture 文件,已在各用例内联标注):
+//   K49 注入样本(含 `<script>` 的 `preview.text`)· 零 chunk 文件样本 ·
+//   单 chunk 文件样本(`k-more-hint` 反向)· `makeFileVM` 工厂产出的 wiring 样本
+//   (`chunks: []`,专为绕开 `FileDetailDrawer.fetchFull()` 的网络调用,见下方
+//   `makeFileVM` 注释)。
 //
 // ═══ K/N 命中(逐条见对应 describe 块内注释)═══
-// K44(零 <style>)· K51(toggleSet 响应性)· N33(SAMPLE_QUERIES)· N34(advEnabled
-// 反直觉判据)· N35(MIME_PREFIXES 逐字)· N36(buildFilters 三档假时钟)·
-// N37(catch 不清 ms)· N38(showRerankWarn 假时钟)· N39(clear 清 openFile/
-// viewerFile)· N40(?q= 深链 watch,immediate + 三条件)· 治理 §5.2 run() 过期
-// 守卫(蓝本无,本期新增)· 裁定 R25(自动上膛守卫,本刀新加一条)。
+// K44(零 <style>)· K49(v-html 组件层注入,T7 新增)· K51(toggleSet 响应性)·
+// K52/裁定 R1「方案 A」(fetchBlobUrl 四条自证,T7 新增)· N33(SAMPLE_QUERIES)·
+// N34(advEnabled 反直觉判据)· N35(MIME_PREFIXES 逐字)· N36(buildFilters 三档
+// 假时钟)· N37(catch 不清 ms)· N38(showRerankWarn 假时钟)· N39(clear 清
+// openFile/viewerFile)· N40(?q= 深链 watch,immediate + 三条件)·
+// N41(两个 Esc 监听同时关闭,T7 新增接线验证)· 治理 §5.2 run() 过期守卫(蓝本无,
+// 本期新增)· 裁定 R25(自动上膛守卫,T6 建、T7 满足)。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { i18n } from '../../../i18n'
 import SearchView from './SearchView.vue'
+import FileDetailDrawer from '../components/FileDetailDrawer.vue'
+import KFileViewer from '../components/KFileViewer.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
+import type { FileVM } from '../util/searchAggregate'
 // @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明(先例见 KFileViewer.test.ts / FileDetailDrawer.test.ts)
 import { readFileSync } from 'node:fs'
 // @ts-expect-error -- 本仓未装 @types/node,node:path 无类型声明
 import { resolve, dirname as pathDirname } from 'node:path'
 // @ts-expect-error -- 本仓未装 @types/node,node:url 无类型声明
 import { fileURLToPath } from 'node:url'
+
+// ─── T7 —— mock `@nimotech/nimoos-service`(K50/裁定 R1「方案 A」)───
+// `service.file.fileUrl` 与 `getHttp().get` 是 `fetchBlobUrl` 唯一消费的两个外部
+// 符号。mock 值故意在返回的 URL 里嵌入 `token=TEST_TOKEN_ABC` 字样——这样才能
+// 断言「window.open/<a href> 打开的不含 token=」(K50 判据②的反向断言需要一个
+// 会暴露 token 的 fileUrl() 输出作对照组)。`isDistillableName`(`FileDetailDrawer`
+// 消费,N44)走 `importOriginal` 保留真实实现,不受影响——本文件不测 distill。
+const fileUrl = vi.hoisted(() => vi.fn((p: string) => `/v3/file?token=TEST_TOKEN_ABC&path=${encodeURIComponent(p)}`))
+const httpGet = vi.hoisted(() => vi.fn())
+vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return { ...actual, service: { file: { fileUrl } }, getHttp: () => ({ get: httpGet }) }
+})
 
 const __dirname = pathDirname(fileURLToPath(import.meta.url))
 const read = (rel: string) => readFileSync(resolve(__dirname, rel), 'utf8') as string
@@ -260,6 +289,49 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+// ─── T7 —— URL.createObjectURL/revokeObjectURL(jsdom 未实现,`typeof` 恒
+// `undefined`,直接赋值而非 `vi.spyOn`——spyOn 要求属性已存在,见 T5 report 对
+// `document.execCommand` 同款问题的处理)───
+let createObjectURLMock: ReturnType<typeof vi.fn>
+let revokeObjectURLMock: ReturnType<typeof vi.fn>
+let blobUrlSeq = 0
+// 🔴 jsdom 真的会对 <a href="blob:...">.click() 尝试导航(内部用 setTimeout 调度,
+// 见 `HTMLHyperlinkElementUtils-impl.js`),不 mock 会在测试完成后异步打印
+// "Not implemented: navigation" 噪声(不影响断言结果,但污染输出)——全局 stub 掉。
+let anchorClickMock: ReturnType<typeof vi.fn>
+beforeEach(() => {
+  blobUrlSeq = 0
+  createObjectURLMock = vi.fn(() => `blob:mock-url-${++blobUrlSeq}`)
+  revokeObjectURLMock = vi.fn()
+  ;(URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURLMock
+  ;(URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = revokeObjectURLMock
+  anchorClickMock = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+})
+afterEach(() => {
+  anchorClickMock.mockRestore()
+})
+
+// ─── T7 —— FileVM 工厂(wiring/K50 用例专用)───
+// 🔴 默认 `chunks: []` —— 这样挂载 `FileDetailDrawer` 时 `fetchFull()` 在
+// `c.chunkNo == null` 早退(见 FileDetailDrawer.vue `:108`),不会调用
+// `store.loadChunkContext`,专门用来隔离"子组件接线"这件事本身,不牵连
+// FileDetailDrawer 自己的取数逻辑(那是 FileDetailDrawer.test.ts 的范围)。
+// 需要非空 chunks 的用例(结果卡渲染字段)一律用 F5B_RESPONSE 真实数据,不用这个工厂。
+function makeFileVM(overrides: Partial<FileVM> = {}): FileVM {
+  return {
+    id: 'file-1',
+    name: 'report.pdf',
+    path: '/DATA/Documents/',
+    fullPath: '/DATA/Documents/report.pdf',
+    kind: 'pdf',
+    mime: 'application/pdf',
+    mtimeMs: 1700000000000,
+    score: 0.7,
+    chunks: [],
+    ...overrides,
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 
 describe('SearchView —— K44:.vue 侧零 <style> 块', () => {
@@ -269,15 +341,20 @@ describe('SearchView —— K44:.vue 侧零 <style> 块', () => {
   })
 })
 
-describe('SearchView —— 范围自证:不写结果卡 markup / 不写两个子组件挂载 markup', () => {
-  it('模板不含 <FileDetailDrawer/<KFileViewer markup(只 import,不挂载,裁定 R25)', () => {
+describe('SearchView —— T7 范围自证:两个子组件挂载 markup 齐全(蓝本 :164-172)', () => {
+  // T6 阶段这条断言的是"markup 不存在"(裁定 R25:只 import,不挂载)。T7 续写本文件、
+  // 补上 markup 后,这条必须反转成"markup 存在且四/两个监听齐全"——否则会与 T7
+  // 的真实产出矛盾。旧断言的历史见 SearchView.vue 文件头 R25 注释(反转不删)。
+  it('模板含 <FileDetailDrawer 四个监听 + <KFileViewer 两个监听,两者均已 import', () => {
     const raw = read('./SearchView.vue')
     const src = stripLineComments(raw) // 剥注释,否则会被本文件自己的申报注释假阳性命中
-    expect(/<FileDetailDrawer[\s/>]/.test(src), '不许出现 <FileDetailDrawer 挂载 markup(归 T7)').toBe(false)
-    expect(/<KFileViewer/.test(src), '不许 import 或挂载 KFileViewer(归 T7)').toBe(false)
-    expect(/from '\.\.\/components\/FileDetailDrawer\.vue'/.test(raw), '必须 import FileDetailDrawer 以满足 T5 DoD-12').toBe(
-      true,
-    )
+    expect(/<FileDetailDrawer[\s/>]/.test(src), '必须出现 <FileDetailDrawer 挂载 markup').toBe(true)
+    expect(/<KFileViewer[\s/>]/.test(src), '必须出现 <KFileViewer 挂载 markup').toBe(true)
+    expect(/from '\.\.\/components\/FileDetailDrawer\.vue'/.test(raw)).toBe(true)
+    expect(/from '\.\.\/components\/KFileViewer\.vue'/.test(raw)).toBe(true)
+    for (const ev of ['@close', '@open', '@download', '@toast']) {
+      expect(src.includes(ev), `FileDetailDrawer 必须接 ${ev}`).toBe(true)
+    }
   })
 })
 
@@ -781,20 +858,575 @@ describe('SearchView —— N40:?q= 深链,watch(immediate:true) + 条件 v && v
 })
 
 describe('SearchView —— 自动上膛守卫(T6 自建):若模板出现 <FileDetailDrawer,四个监听必须全部出现', () => {
-  // 🔴 本 describe 块只放"惰性时该恒过"的永久用例。「上膛证明」(临时把
-  // `<FileDetailDrawer v-if="openFile" ... />` 加进模板 → 必须报红 → 补全四个
-  // 监听 → 转绿 → 删除还原)不写进永久测试文件——那样会把一次性验证行为烧进
-  // CI(读写真实文件系统、其中一步故意制造失败态),已按 T5 DoD-12 同款手法在
-  // 报告里用 cp/临时文件 + 完整命令输出的方式手工做了这两类 RED 探针并逐一贴出。
-  it('🔴 现在模板不含 <FileDetailDrawer(markup 归 T7)⇒ 惰性通过,非 skip/todo', () => {
+  // 🔴 T6 阶段这条走"惰性通过"分支(markup 不存在)。T7 续写本文件、写入
+  // markup 后,这条**现在因 markup 出现而上膛**——见下方 `hasMarkup` 分支,断言
+  // 四个监听全部出现,已满足(见报告 §T5 DoD-12 证据小节)。原 describe 名与结构
+  // 保留(反转不删),条件分支本身是通用的,不需要改代码,只是现在走另一支。
+  it('模板含 <FileDetailDrawer ⇒ 四个监听全部出现(现在因 T7 markup 而上膛,已满足)', () => {
     const src = stripLineComments(read('./SearchView.vue')) // 剥注释,防假阳性(同上一个 describe 块的教训)
     const hasMarkup = /<FileDetailDrawer[\s/>]/.test(src)
+    expect(hasMarkup, 'T7 已写入 markup,此断言现在应为 true').toBe(true)
     if (!hasMarkup) {
-      expect(hasMarkup).toBe(false)
       return
     }
     for (const ev of ['@close', '@open', '@download', '@toast']) {
       expect(src.includes(ev), `模板含 <FileDetailDrawer 时必须同时接 ${ev}`).toBe(true)
     }
+  })
+})
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// T7 —— 结果卡列表(蓝本 :121-156)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('SearchView —— T7:结果卡渲染字段(蓝本 :121-156,用 F5B_RESPONSE)', () => {
+  async function mountWithF5b() {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F5B_RESPONSE)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('deprecation')
+    await input.trigger('keydown.enter')
+    await flush()
+    return { w, store }
+  }
+
+  it(':key=r.id · data-kind + toUpperCase() · k-match-pill 的 title 与可见文案是两个不同的键(蓝本 :135-136,不许合并)', async () => {
+    const { w } = await mountWithF5b()
+    const cards = w.findAll('.k-rcard')
+    expect(cards.length).toBe(4)
+    const first = cards[0]
+    // file_id='dce79e8ea5…',mime='text/plain' → kindFromMime → 'txt'
+    expect(first.find('.k-rcard-tag').attributes('data-kind')).toBe('txt')
+    expect(first.find('.k-rcard-tag').text()).toBe('TXT')
+    const pill = first.find('.k-match-pill')
+    // 🔴 title 用 aiKbSrMatchTitle('命中 {n} 段'),可见文案用 aiKbSrMatchPill('{n} 段匹配')——两个不同键
+    expect(pill.attributes('title')).toBe('命中 2 段')
+    expect(pill.text()).toContain('2 段匹配')
+  })
+
+  it('k-rel 的 data-level 与 title(含 (score*100).toFixed(0)%)', async () => {
+    const { w } = await mountWithF5b()
+    const first = w.findAll('.k-rcard')[0]
+    const rel = first.find('.k-rel')
+    // score=0.738 → relLevel >= 0.65 → 'high'
+    expect(rel.attributes('data-level')).toBe('high')
+    expect(rel.attributes('title')).toBe('相似度 74%')
+    expect(rel.text()).toContain('高')
+  })
+
+  it('🔴 k-more-hint:chunks.length > 1(F5B 每文件 2 chunk)→ 显示,文案用 chunks.length - 1', async () => {
+    const { w } = await mountWithF5b()
+    const first = w.findAll('.k-rcard')[0]
+    expect(first.find('.k-more-hint').exists()).toBe(true)
+    expect(first.find('.k-more-hint').text()).toContain('还有 1 段相关内容')
+  })
+
+  it('🔴 反向:chunks.length === 1(单 chunk 文件)→ 不显示 k-more-hint', async () => {
+    const store = withPinia()
+    const singleChunkResp = {
+      hits: [],
+      files: [{ ...F5B_RESPONSE.files[2], chunks: [F5B_RESPONSE.files[2].chunks[0]] }],
+      stats: { total_candidates: 1, rerank_ms: 0, embed_ms: 1, vector_search_ms: 1, expand_ms: 0 },
+      warnings: [],
+    }
+    vi.spyOn(store, 'runSearch').mockResolvedValue(singleChunkResp)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('foo')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(w.findAll('.k-rcard').length).toBe(1)
+    expect(w.find('.k-more-hint').exists()).toBe(false)
+  })
+
+  it('k-rcard-meta 三段:路径 · 修改时间 · 已收录(aiKbStatusIndexed)', async () => {
+    const { w } = await mountWithF5b()
+    const first = w.findAll('.k-rcard')[0]
+    const meta = first.findAll('.k-rcard-meta-item')
+    expect(meta.length).toBe(3)
+    expect(meta[0].text()).toContain('/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/') // r.path = dirname(fullPath),不含文件名
+    expect(meta[1].text()).toContain('修改时间')
+    expect(meta[2].text()).toContain('已收录')
+  })
+
+  it('点结果卡 → openFile = r(蓝本 :128 @click="openFile = r")', async () => {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F5B_RESPONSE)
+    vi.spyOn(store, 'loadChunkContext').mockResolvedValue({ chunks: [], anchor_chunk_no: 0 })
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('foo')
+    await input.trigger('keydown.enter')
+    await flush()
+    await w.findAll('.k-rcard')[0].trigger('click')
+    await flush()
+    const vm = w.vm as unknown as { openFile: FileVM | null }
+    expect(vm.openFile?.id).toBe('dce79e8ea5d48719cd4ad16fe48da843')
+  })
+
+  it('🔴 蓝本 :142 空数组兜底:r.chunks[0] && r.chunks[0].snippet —— 零 chunk 的文件不许抛', async () => {
+    const store = withPinia()
+    const zeroChunkResp = {
+      hits: [],
+      files: [
+        {
+          file_id: 'zero-chunk-file',
+          mime: 'text/plain',
+          kind: 'body',
+          score: 0.5,
+          paths: [{ path: '/DATA/empty.txt', mtime_ms: 1700000000000 }],
+          chunks: [], // .CONSTRUCTED —— 专为验证空数组兜底构造,非真机样本
+        },
+      ],
+      stats: { total_candidates: 0, rerank_ms: 0, embed_ms: 0, vector_search_ms: 0, expand_ms: 0 },
+      warnings: [],
+    }
+    vi.spyOn(store, 'runSearch').mockResolvedValue(zeroChunkResp)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('foo')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(w.findAll('.k-rcard').length).toBe(1)
+    expect(w.find('.k-rcard-snippet').exists()).toBe(true)
+    expect(w.find('.k-rcard-snippet').html()).not.toContain('undefined')
+    expect(w.find('.k-more-hint').exists()).toBe(false)
+  })
+})
+
+describe('SearchView —— T7:K49 结果卡 v-html 注入用例(.k-rcard-snippet)', () => {
+  it('🔴 喂含 <script> 的 snippet → 渲染 DOM 里 querySelector("script") 为 null,<mark> 仍在', async () => {
+    const store = withPinia()
+    // .CONSTRUCTED —— 专为 XSS 注入验证构造的 snippet,取自 F5B_RESPONSE 的字段形状
+    // 但正文替换成含 <script> 的攻击样本,非真机数据。highlight() 的转义本身已在
+    // searchAggregate.test.ts 测过(K49),这里补组件层 v-html 渲染后的真实 DOM 断言。
+    const evilResp = {
+      hits: [],
+      files: [
+        {
+          ...F5B_RESPONSE.files[0],
+          chunks: [
+            {
+              ...F5B_RESPONSE.files[0].chunks[0],
+              preview: { text: '<script>alert(1)</script> hello world' },
+            },
+          ],
+        },
+      ],
+      stats: F5B_RESPONSE.stats,
+      warnings: [],
+    }
+    vi.spyOn(store, 'runSearch').mockResolvedValue(evilResp)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('hello')
+    await input.trigger('keydown.enter')
+    await flush()
+    const snippet = w.find('.k-rcard-snippet')
+    expect(snippet.find('script').exists()).toBe(false)
+    expect(snippet.html()).toContain('&lt;script&gt;')
+    expect(snippet.find('mark').exists()).toBe(true)
+  })
+})
+
+describe('SearchView —— T7:k-result-count(蓝本 :122-127)', () => {
+  it('results.length / totalChunks / lastQuery 正确渲染', async () => {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F5B_RESPONSE)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('deprecation')
+    await input.trigger('keydown.enter')
+    await flush()
+    const text = w.find('.k-result-count').text()
+    expect(text).toContain('4')
+    expect(text).toContain('8')
+    expect(text).toContain('deprecation')
+  })
+
+  it('🔴 ms === 0 时不渲染 " · N ms"(蓝本 :125 v-if="ms",falsy 不渲染)', async () => {
+    vi.useFakeTimers()
+    const store = withPinia()
+    // mock 立即 resolve、系统时钟未推进 → Date.now() - t0 === 0
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F5B_RESPONSE)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('foo')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(w.find('.k-result-count').text()).not.toMatch(/\d+ ms/)
+  })
+
+  it('ms 非零时渲染 " · N ms"', async () => {
+    vi.useFakeTimers()
+    const start = 1_700_000_000_000
+    vi.setSystemTime(start)
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockImplementation(async () => {
+      vi.setSystemTime(start + 456)
+      return F5B_RESPONSE
+    })
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('foo')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(w.find('.k-result-count').text()).toContain('456 ms')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// T7 —— K50/裁定 R1「方案 A」:fetchBlobUrl 四条自证(评审第一必查项)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('SearchView —— T7:K50/裁定 R1(方案 A)—— fetchBlobUrl 自证', () => {
+  function openOriginalOf(w: ReturnType<typeof mount>) {
+    return (w.vm as unknown as { openOriginal: (payload: { file: FileVM }) => Promise<void> }).openOriginal
+  }
+  function downloadFileOf(w: ReturnType<typeof mount>) {
+    return (w.vm as unknown as { downloadFile: (file: FileVM) => Promise<void> }).downloadFile
+  }
+
+  async function mountBasic() {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    return mountSearch()
+  }
+
+  it('① 🔴 responseType 硬断言:getHttp().get 的第二个参数恰好是 { responseType: "blob" }(判据:改成 arraybuffer → 报红,见报告 RED 探针)', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const { w } = await mountBasic()
+    await downloadFileOf(w)(makeFileVM({ fullPath: '/DATA/a.txt' }))
+    await flush()
+    expect(httpGet).toHaveBeenCalledTimes(1)
+    expect(httpGet.mock.calls[0][1]).toEqual({ responseType: 'blob' })
+  })
+
+  it('② 🔴 window.open 打开的是 URL.createObjectURL() 产出的 blob: 地址,不含 token=(判据:改成直接 open fileUrl() → 报红,见报告 RED 探针)', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const { w } = await mountBasic()
+    await openOriginalOf(w)({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const [openedUrl] = openSpy.mock.calls[0]
+    expect(String(openedUrl)).toMatch(/^blob:/)
+    expect(String(openedUrl)).not.toContain('token=')
+    openSpy.mockRestore()
+  })
+
+  it('③ service.file.fileUrl() 的返回值(含 token)只作那一次 XHR 的 URL,不直接交给 window.open —— fileUrl mock 仍被调用(用于发那次请求),但可见的 open 参数是 blob', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const { w } = await mountBasic()
+    await openOriginalOf(w)({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(fileUrl).toHaveBeenCalledWith('/DATA/a.pdf')
+    const [xhrUrl] = httpGet.mock.calls[0]
+    expect(String(xhrUrl)).toContain('token=TEST_TOKEN_ABC') // 那一次 XHR 的 URL 含 token,符合预期
+    const [openedUrl] = openSpy.mock.calls[0]
+    expect(String(openedUrl)).not.toContain('token=') // 但 window.open 拿到的不含
+    openSpy.mockRestore()
+  })
+
+  it('④ inline:true → URL 含 &inline=1;downloadFile(不传 inline) → URL 不含 inline(两条)', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const { w } = await mountBasic()
+    await openOriginalOf(w)({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(String(httpGet.mock.calls[0][0])).toContain('&inline=1')
+    httpGet.mockClear()
+    await downloadFileOf(w)(makeFileVM({ fullPath: '/DATA/b.pdf' }))
+    await flush()
+    expect(String(httpGet.mock.calls[0][0])).not.toContain('inline')
+    openSpy.mockRestore()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// T7 —— openOriginal 三条路由分支(蓝本 :361-380)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('SearchView —— T7:openOriginal 三条路由分支(蓝本 :361-380)', () => {
+  function openOriginalOf(w: ReturnType<typeof mount>) {
+    return (w.vm as unknown as { openOriginal: (payload: { file: FileVM }) => Promise<void>; viewerFile: FileVM | null }) as {
+      openOriginal: (payload: { file: FileVM }) => Promise<void>
+      viewerFile: FileVM | null
+    }
+  }
+  async function mountBasic() {
+    const store = withPinia()
+    const toastSpy = vi.spyOn(store, 'toast')
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    const { w } = await mountSearch()
+    return { w, toastSpy }
+  }
+
+  it('ext ∈ {docx,wps,xls,xlsx,csv} → 设 viewerFile,不发请求(判据:getHttp mock 零调用)', async () => {
+    const { w } = await mountBasic()
+    const file = makeFileVM({ name: 'sheet.xlsx' })
+    await openOriginalOf(w).openOriginal({ file })
+    await flush()
+    expect(openOriginalOf(w).viewerFile).toEqual(file)
+    expect(httpGet).not.toHaveBeenCalled()
+  })
+
+  it('ext ∈ {doc,ppt,pptx} → toast "该格式暂不支持预览,请下载查看",不发请求', async () => {
+    const { w, toastSpy } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ name: 'slides.ppt' }) })
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('该格式暂不支持预览，请下载查看')
+    expect(httpGet).not.toHaveBeenCalled()
+    expect(openOriginalOf(w).viewerFile).toBe(null)
+  })
+
+  it('其余 ext → fetchBlobUrl(inline:true) + window.open(url,"_blank","noopener,noreferrer")', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const { w } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    expect(openSpy.mock.calls[0][1]).toBe('_blank')
+    expect(openSpy.mock.calls[0][2]).toBe('noopener,noreferrer')
+    openSpy.mockRestore()
+  })
+
+  it('🔴 window.open 返回 null(弹窗被拦)→ toast "浏览器拦截了新窗口"', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    const { w, toastSpy } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('浏览器拦截了新窗口')
+    openSpy.mockRestore()
+  })
+
+  it('🔴 setTimeout(revokeObjectURL, 60000)(假时钟)', async () => {
+    vi.useFakeTimers()
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const { w } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(revokeObjectURLMock).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(60000)
+    expect(revokeObjectURLMock).toHaveBeenCalledTimes(1)
+    openSpy.mockRestore()
+  })
+
+  it('!file.fullPath → toast "文件路径缺失",不发请求', async () => {
+    const { w, toastSpy } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ fullPath: '' }) })
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('文件路径缺失')
+    expect(httpGet).not.toHaveBeenCalled()
+  })
+
+  it('抛错 → toast "打开失败: <msg>"', async () => {
+    httpGet.mockRejectedValue(new Error('network down'))
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const { w, toastSpy } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ name: 'a.pdf', fullPath: '/DATA/a.pdf' }) })
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('打开失败: network down')
+    openSpy.mockRestore()
+  })
+
+  it('🔴 ext 提取整名当 ext:文件名恰好是 "docx"(无扩展名)→ 误判成 in-app 可预览格式(照抄蓝本既有怪行为)', async () => {
+    const { w } = await mountBasic()
+    await openOriginalOf(w).openOriginal({ file: makeFileVM({ name: 'docx' }) })
+    await flush()
+    expect(openOriginalOf(w).viewerFile?.name).toBe('docx')
+    expect(httpGet).not.toHaveBeenCalled()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// T7 —— downloadFile(蓝本 :382-397)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('SearchView —— T7:downloadFile(蓝本 :382-397)', () => {
+  function downloadFileOf(w: ReturnType<typeof mount>) {
+    return (w.vm as unknown as { downloadFile: (file: FileVM) => Promise<void> }).downloadFile
+  }
+  async function mountBasic() {
+    const store = withPinia()
+    const toastSpy = vi.spyOn(store, 'toast')
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    const { w } = await mountSearch()
+    return { w, toastSpy }
+  }
+
+  it('🔴 成功:造 <a download> → appendChild → click → removeChild(同一元素)→ 60s 后 revokeObjectURL', async () => {
+    vi.useFakeTimers()
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const { w } = await mountBasic()
+    const appendSpy = vi.spyOn(document.body, 'appendChild')
+    const removeSpy = vi.spyOn(document.body, 'removeChild')
+    await downloadFileOf(w)(makeFileVM({ name: 'report.pdf', fullPath: '/DATA/report.pdf' }))
+    await flush()
+    expect(appendSpy).toHaveBeenCalledTimes(1)
+    const a = appendSpy.mock.calls[0][0] as HTMLAnchorElement
+    expect(a.tagName).toBe('A')
+    expect(a.download).toBe('report.pdf')
+    expect(a.rel).toBe('noopener noreferrer')
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+    // 🔴 removeChild 真的被调用,且是同一个元素(否则 DOM 泄漏)
+    expect(removeSpy).toHaveBeenCalledTimes(1)
+    expect(removeSpy.mock.calls[0][0]).toBe(a)
+    expect(revokeObjectURLMock).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(60000)
+    expect(revokeObjectURLMock).toHaveBeenCalledTimes(1)
+    appendSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  it('🔴 a.download 兜底:file.name 为空 → "download"', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['bytes']) })
+    const { w } = await mountBasic()
+    const appendSpy = vi.spyOn(document.body, 'appendChild')
+    await downloadFileOf(w)(makeFileVM({ name: '', fullPath: '/DATA/x' }))
+    await flush()
+    const a = appendSpy.mock.calls[0][0] as HTMLAnchorElement
+    expect(a.download).toBe('download')
+    appendSpy.mockRestore()
+  })
+
+  it('!file.fullPath → toast "文件路径缺失",不发请求', async () => {
+    const { w, toastSpy } = await mountBasic()
+    await downloadFileOf(w)(makeFileVM({ fullPath: '' }))
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('文件路径缺失')
+    expect(httpGet).not.toHaveBeenCalled()
+  })
+
+  it('抛错 → toast "下载失败: <msg>"', async () => {
+    httpGet.mockRejectedValue(new Error('disk full'))
+    const { w, toastSpy } = await mountBasic()
+    await downloadFileOf(w)(makeFileVM({ fullPath: '/DATA/x' }))
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('下载失败: disk full')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// T7 —— 两个子组件挂载 wiring(蓝本 :164-172)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('SearchView —— T7:FileDetailDrawer 四个监听全接(蓝本 :164-168)', () => {
+  async function mountWithOpenFile(fileOverrides: Partial<FileVM> = {}) {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    const toastSpy = vi.spyOn(store, 'toast')
+    const { w } = await mountSearch()
+    const vm = w.vm as unknown as { openFile: FileVM | null; viewerFile: FileVM | null }
+    vm.openFile = makeFileVM(fileOverrides)
+    await flush()
+    return { w, vm, toastSpy }
+  }
+
+  it('挂载后传 :file/:query 正确(query = lastQuery)', async () => {
+    const { w, vm } = await mountWithOpenFile()
+    const drawer = w.findComponent(FileDetailDrawer)
+    expect(drawer.exists()).toBe(true)
+    expect(drawer.props('file')).toEqual(vm.openFile)
+    expect(drawer.props('query')).toBe('')
+  })
+
+  it('@close → openFile = null', async () => {
+    const { w, vm } = await mountWithOpenFile()
+    const drawer = w.findComponent(FileDetailDrawer)
+    drawer.vm.$emit('close')
+    await flush()
+    expect(vm.openFile).toBe(null)
+  })
+
+  it('@open → 调用 openOriginal(转发的 file 决定路由分支,这里用 office ext 验证落到 viewerFile)', async () => {
+    const { w, vm } = await mountWithOpenFile()
+    const drawer = w.findComponent(FileDetailDrawer)
+    drawer.vm.$emit('open', { file: makeFileVM({ name: 'sheet.xlsx' }) })
+    await flush()
+    expect(vm.viewerFile?.name).toBe('sheet.xlsx')
+  })
+
+  it('@download → 调用 downloadFile(触发 fetchBlobUrl,证明是同一个函数)', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['x']) })
+    const { w } = await mountWithOpenFile()
+    const drawer = w.findComponent(FileDetailDrawer)
+    drawer.vm.$emit('download', makeFileVM({ fullPath: '/DATA/dl.txt' }))
+    await flush()
+    expect(fileUrl).toHaveBeenCalledWith('/DATA/dl.txt')
+    expect(httpGet).toHaveBeenCalledTimes(1)
+  })
+
+  it('🔴 @toast → 转发到 store.toast(K3,不直接调用全局 useToast)', async () => {
+    const { w, toastSpy } = await mountWithOpenFile()
+    const drawer = w.findComponent(FileDetailDrawer)
+    drawer.vm.$emit('toast', '已复制')
+    await flush()
+    expect(toastSpy).toHaveBeenCalledWith('已复制')
+  })
+})
+
+describe('SearchView —— T7:KFileViewer 两个监听全接(蓝本 :170-172)', () => {
+  async function mountWithViewerFile(fileOverrides: Partial<FileVM> = {}) {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    const { w } = await mountSearch()
+    const vm = w.vm as unknown as { viewerFile: FileVM | null }
+    // 用不在 VIEWER_MAP 里的扩展名 → KFileViewer 走 fallback 分支,不挂载真实
+    // DocViewer/ExcelViewer(避开 @vue-office 在 jsdom 下的已知崩溃,§9.12 同族)。
+    vm.viewerFile = makeFileVM({ name: 'weird.xyz', ...fileOverrides })
+    await flush()
+    return { w, vm }
+  }
+
+  it('挂载后传 :file 正确,走 fallback 分支(未知扩展名)', async () => {
+    const { w, vm } = await mountWithViewerFile()
+    const viewer = w.findComponent(KFileViewer)
+    expect(viewer.exists()).toBe(true)
+    expect(viewer.props('file')).toEqual(vm.viewerFile)
+    expect(w.find('.k-fileviewer-fallback').exists()).toBe(true)
+  })
+
+  it('@close → viewerFile = null', async () => {
+    const { w, vm } = await mountWithViewerFile()
+    const viewer = w.findComponent(KFileViewer)
+    viewer.vm.$emit('close')
+    await flush()
+    expect(vm.viewerFile).toBe(null)
+  })
+
+  it('@download → 调用 downloadFile(与 FileDetailDrawer 复用同一个函数)', async () => {
+    httpGet.mockResolvedValue({ data: new Blob(['x']) })
+    const { w } = await mountWithViewerFile()
+    const viewer = w.findComponent(KFileViewer)
+    viewer.vm.$emit('download', makeFileVM({ fullPath: '/DATA/weird.xyz' }))
+    await flush()
+    expect(fileUrl).toHaveBeenCalledWith('/DATA/weird.xyz')
+    expect(httpGet).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('SearchView —— T7:两个子组件可同时挂载 + N41(Esc 同时关闭两者)', () => {
+  it('🔴 openFile 与 viewerFile 都非空 → 两个子组件同时渲染;按 Esc → 两个都关(蓝本既有行为,不加 stopPropagation)', async () => {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F1_EMPTY)
+    const { w } = await mountSearch()
+    const vm = w.vm as unknown as { openFile: FileVM | null; viewerFile: FileVM | null }
+    vm.openFile = makeFileVM({ id: 'a', chunks: [] })
+    vm.viewerFile = makeFileVM({ id: 'b', name: 'weird.xyz', chunks: [] })
+    await flush()
+    expect(w.findComponent(FileDetailDrawer).exists()).toBe(true)
+    expect(w.findComponent(KFileViewer).exists()).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flush()
+    expect(vm.openFile).toBe(null)
+    expect(vm.viewerFile).toBe(null)
   })
 })
