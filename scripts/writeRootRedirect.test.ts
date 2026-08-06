@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,11 +75,58 @@ describe('write-root-redirect.sh', () => {
     expect(String(err.stderr)).toMatch(/usage/)
   })
 
+  // www 根目录不可写时(装机说明历史上只 chown 了 app 子目录,根目录常年是
+  // root:root)不能甩一句裸的 Permission denied 就中止——那样 rsync 明明成功了,
+  // 操作者却只看到"部署失败"且不知道下一步做什么。断言退出非 0 且提示里带
+  // 可执行的 chown 命令,而不是断言具体报错文案(避免测试锁死措辞)。
+  // root 用户对任何权限位都能写(access(2) 对 root 会绕过 DAC 检查),chmod 0555
+  // 挡不住,这条用例在 root 下必然测不出东西,跳过而不是造出假红/假绿。
+  it.skipIf(process.getuid?.() === 0)(
+    '🔴 www 根目录不可写时非零退出,并打印带 chown 命令的可操作提示',
+    () => {
+      chmodSync(root, 0o555)
+      let err: any
+      try {
+        run(root)
+      } catch (e) {
+        err = e
+      } finally {
+        chmodSync(root, 0o755) // 改回可写,afterEach 的 rmSync 才删得掉
+      }
+      expect(err, '目录不可写时必须失败').toBeDefined()
+      expect(err.status).not.toBe(0)
+      const stderr = String(err.stderr)
+      expect(stderr, '提示要点名具体路径').toContain(root)
+      expect(stderr, '提示要给出可执行的修复命令,不能是裸错误').toMatch(/chown/)
+    }
+  )
+
   // deploy.sh 是 `./scripts/write-root-redirect.sh …` 直接执行的(不带 bash 前缀),
   // 而本测试全程用 `bash SCRIPT` 调 —— 少了这条,可执行位丢了测试照绿、真机部署 Permission denied。
   // 断言 git 索引里的模式而不只是本地文件权限:模式要跟着提交走才对下一个 clone 有效。
-  it('🔴 脚本可执行,且 git 索引里记的是 100755', () => {
+  //
+  // ⚠️ 这个文件会随 `git archive HEAD` 进入不含 .git 的产物树(tarball 消费者
+  // 拿到的就是纯文件,没有 git 仓库),此时 `git ls-files` 会以 128 退出、抛异常。
+  // 优雅退化:先探测是否身处 git 工作树,是则连带断言索引模式(更强的保证——
+  // 模式真的跟着提交走);不是则只退回到断言本地文件权限位,保证在非 git 的
+  // 产物树里跑测试也能过,而不是整条有价值的断言直接删掉。
+  it('🔴 脚本可执行,若身处 git 工作树则索引里记的也是 100755', () => {
     expect(statSync(SCRIPT).mode & 0o111).toBeTruthy()
+
+    let inWorkTree = false
+    try {
+      inWorkTree =
+        execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim() === 'true'
+    } catch {
+      inWorkTree = false
+    }
+
+    if (!inWorkTree) return // 非 git 产物树(如 tarball 解包后跑测试):文件权限位已经断言过,到此为止
+
     const entry = execFileSync('git', ['ls-files', '-s', 'scripts/write-root-redirect.sh'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
