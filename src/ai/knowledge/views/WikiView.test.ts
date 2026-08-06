@@ -31,7 +31,8 @@
 //
 // ═══ 环境坑(逐字沿用 `wikiViewHelpers.test.ts` 的既定解法)═══
 // 本仓 `package.json` 是 `"type": "module"` ⇒ `__dirname` 不可用,改 `import.meta.url`;
-// 未装 `@types/node` ⇒ `node:fs` / `node:path` / `node:url` 逐行 `@ts-expect-error`。
+// 已装 `@types/node`(SP8-P6 合流自 master)⇒ `node:fs` / `node:path` / `node:url` 直接
+// 导入即可,**不需要** `@ts-expect-error`(sp8-ai 分支上原有的抑制行已在合流时删除)。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'

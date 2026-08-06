@@ -31,8 +31,9 @@ import { useKnowledgeStore } from '../stores/knowledgeStore'
 // Vite 的 ?raw(vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串,断言会对空
 // 字符串"假通过";先例见 knowledgeStyles.test.ts 头注释③)。本仓 package.json 是
 // "type": "module" → __dirname 在 ESM 下不可用,改用 fileURLToPath + node:path 的
-// 等价写法;本仓已装 @types/node(SP8-P6 合流自 master),逐行 @ts-expect-error 抑制 TS2307(照
-// knowledgeStyles.test.ts 头注释①②的既定手法逐字复用)。
+// 等价写法。node: 前缀模块的类型声明由 `@types/node` 提供,本仓已装(SP8-P6 合流自 master),
+// vue-tsc 直接通过,**不需要** @ts-expect-error 抑制(sp8-ai 分支上原有的抑制行已在合流时删除;
+// 参见 knowledgeStyles.test.ts 头注释①②)。
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -891,7 +892,7 @@ describe('QueueView — 生命周期:10 秒轮询', () => {
 describe('QueueView — 守卫缺口③:<template> 块零裸色字面量', () => {
   // 治理文件附录 B §B.0.4:color-guard.test.ts 的 styleLines() 对 .vue 只取
   // <style> 块,模板 style="…" 属性零扫描;本文件补一条定向断言堵这个盲区。
-  // 读文件手法见文件头注释(node:fs + fileURLToPath,__ts-expect-error 抑制)。
+  // 读文件手法见文件头注释(node:fs + fileURLToPath;合流后已装 @types/node,无需抑制)。
   it('<template> 块内(剥离 var()/color-mix() 之后)不含任何裸 hex / rgb / hsl 字面量', () => {
     const src: string = readFileSync(resolve(__dirname, './QueueView.vue'), 'utf8')
     const m = /<template>([\s\S]*?)\n<\/template>/.exec(src)

@@ -19,8 +19,9 @@
 // 🔴 环境坑三条 —— 逐字沿用 `knowledgeStyles.test.ts:1-17` 的既定解法(不是重新踩坑):
 // ① 本仓 `package.json` 是 `"type": "module"` ⇒ `__dirname` 在 ESM 下不可用,
 //    改用 `import.meta.url` + `fileURLToPath` 的等价写法;
-// ② 本仓未装 `@types/node` ⇒ `node:fs` / `node:path` / `node:url` 无类型声明,
-//    `vue-tsc --noEmit`(任务门之一)会报 TS2307,逐行 `@ts-expect-error` 抑制;
+// ② `node:fs` / `node:path` / `node:url` 的类型声明由 `@types/node` 提供,本仓已装
+//    (SP8-P6 合流自 master)⇒ `vue-tsc --noEmit`(任务门之一)直接通过,**不需要**
+//    `@ts-expect-error` 抑制;sp8-ai 分支上原有的抑制行已在合流时删除;
 // ③ 🔴 **不用 Vite 的 `?raw` 替代 `node:fs`** —— vitest 的 CSSEnablerPlugin 会让 `?raw`
 //    读出空串,断言对空字符串「假通过」(铁律)。
 import { describe, it, expect } from 'vitest'

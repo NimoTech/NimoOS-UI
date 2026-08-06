@@ -48,8 +48,9 @@ import { fmtBytes as fmtBytesRef, fmtAbs as fmtAbsRef } from '../util/indexedFil
 // 不用 Vite 的 ?raw(vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串,断言
 // 会对空字符串"假通过";先例见 knowledgeStyles.test.ts 头注释③,QueueView.test.ts
 // 同款复用)。本仓 "type": "module" → __dirname 在 ESM 下不可用,改用
-// fileURLToPath + node:path 的等价写法;本仓已装 @types/node(SP8-P6 合流自 master),逐行用下面这条
-// 指令抑制 TS2307(照 knowledgeStyles.test.ts 头注释①②的既定手法逐字复用)。
+// fileURLToPath + node:path 的等价写法。node: 前缀模块的类型声明由 `@types/node` 提供,本仓
+// 已装(SP8-P6 合流自 master),vue-tsc 直接通过,**不需要** @ts-expect-error 抑制(sp8-ai
+// 分支上原有的抑制行已在合流时删除;参见 knowledgeStyles.test.ts 头注释①②)。
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'

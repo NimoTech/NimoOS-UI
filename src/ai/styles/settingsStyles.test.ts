@@ -19,6 +19,16 @@ import { describe, it, expect } from 'vitest'
 //    `@ts-expect-error` 就地抑制这三行找不到模块声明的类型错误(运行时已验证可用,
 //    见下方 vitest 实跑结果);模块解析失败后被推断的类型退化为 any,故后续两处
 //    filter 回调参数显式标注 `l: string` 以满足 noImplicitAny。
+//    🔴 【SP8-P6 T10 订正 —— 上面②那段是 P2a 当时的历史记录,现已不成立】合流后本仓
+//    已装 `@types/node`(devDependencies ^26.1.2)。tsconfig 的 `types` 数组仍只列
+//    `["vite/client","vitest/globals"]`,但那只管**全局**类型的自动引入;`node:fs` 这类
+//    **显式模块导入**照样解析得到 @types/node 的模块声明 ⇒ vue-tsc 直接通过,本文件的
+//    `@ts-expect-error` 抑制行已在合流时删除。反过来,全局 `process` 之类仍然没有类型
+//    (见 knowledge/views/DashboardView.test.ts 里那处 globalThis 窄化,那条注释依然成立)。
+//    结论未变:仍然用 node:fs、仍然不用 `?raw`(CSSEnablerPlugin 那条坑与类型无关)。
+//    另:上面提到的「color-guard.test.ts 的 `?raw` glob 对 .css 空转」也**已经修掉了**
+//    (它现在 .css 走 node:fs、只有 .vue 保留 glob);剩下的缺口是它**不收 `.scss`**
+//    ——本期立票 I3,见 docs/vue3-migration-roadmap.md。
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'

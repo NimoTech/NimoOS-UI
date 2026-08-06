@@ -11,8 +11,9 @@ import { describe, it, expect } from 'vitest'
 // 环境坑逐字沿用 `knowledgeStyles.test.ts` 头注释记录的三条既有解法(不是重新踩坑):
 // ① 本仓 package.json 是 "type": "module" → __dirname 在 ESM 下不可用,改用
 //    import.meta.url + fileURLToPath 的等价写法(先例:P5b T11)。
-// ② 本仓已装 @types/node(SP8-P6 合流自 master) —— node:fs / node:path / node:url 没有类型声明,
-//    `pnpm exec vue-tsc --noEmit`(任务门三条命令之一)会报 TS2307,逐行 @ts-expect-error 抑制。
+// ② node:fs / node:path / node:url 的类型声明由 `@types/node` 提供。本仓已装(SP8-P6 合流自
+//    master 时带进来的),`pnpm exec vue-tsc --noEmit`(任务门三条命令之一)直接通过,
+//    **不需要** @ts-expect-error 抑制 —— sp8-ai 分支上原有的那几行逐行抑制已在合流时删除。
 // ③ 🔴 **不用 Vite 的 `?raw` 导入替代 node:fs** —— vitest 自带的 CSSEnablerPlugin 对 css/scss
 //    一律整体替换成空串(不看查询串),`?raw` 导入会让下面每一条断言都对**空字符串**"假通过"
 //    (`expect('').not.toMatch(...)` 恒真、`expect([]).toEqual([...])` 才会红但也不是真在测源文件)。

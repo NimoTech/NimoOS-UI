@@ -31,9 +31,10 @@ import NotesView from './NotesView.vue'
 // 修复轮 1(评审 Important):自动上膛守卫要读 `NotesView.vue` 源码本身与探测
 // `NoteEditPane.vue` 是否存在 —— 本档铁律「测试里读文件一律用 node:fs,不用
 // Vite 的 ?raw」(vitest 的 CSSEnablerPlugin 会把样式源替换成空串,断言会假
-// 通过;先例 knowledgeStyles.test.ts 头注释③)。本仓已装 @types/node(SP8-P6 合流自 master),逐行用
-// 下面这个指令抑制 TS2307(照 knowledgeStyles.test.ts / QueueView.test.ts
-// 头注释①②的既定手法逐字复用)。
+// 通过;先例 knowledgeStyles.test.ts 头注释③)。node: 前缀模块的类型声明由 `@types/node`
+// 提供,本仓已装(SP8-P6 合流自 master),vue-tsc 直接通过,**不需要** @ts-expect-error
+// 抑制(sp8-ai 分支上原有的抑制行已在合流时删除;参见 knowledgeStyles.test.ts /
+// QueueView.test.ts 头注释①②)。
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
