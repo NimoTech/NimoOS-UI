@@ -10,8 +10,11 @@
 > 照原文点会全部连不上、报一串假「打不开」(SP9-P8 验出 6 条假缺陷正是这个根因)。
 >
 > 🔴 **下面那张「我已实测的环境事实」表是 2026-07-30 的快照,已经漂了 —— 跑之前先重测一遍。**
-> 已知至少一条反转:**Parser 现在是 active**(`:8283` 有监听),所以顶栏 Parser 状态灯
-> **应为绿**,不再是原表写的「应为红 = 正常」。重测命令:
+> T10 已就地改掉两行(格式统一用「~~原文~~ + 订正」):**dev server 行**(改成部署产物、80 端口)、
+> **Parser 行**(`inactive` → **active**,顶栏灯应为绿,与原文相反)。
+> **其余各行 T10 复测过、结论未变**(Ollama 仍 `:11434` 无监听 · 其余 9 服务 + Qdrant 全 active ·
+> Agent `:8282` 在)。带具体条数的几行(`memory_entries` 7 条 / `mcp_tokens` 0 条 / `o_users` 1 个 /
+> 渠道 0 条)**没有复测,数字自行以现测为准**。重测命令:
 > ```bash
 > systemctl is-active nimoos-ai nimoos-search nimoos-wiki nimoos-photos nimoos-gateway
 > for p in 8282 8283 11434 6333; do echo -n "$p: "; curl -s -o /dev/null -w "%{http_code}\n" --max-time 2 http://127.0.0.1:$p/; done
@@ -26,7 +29,7 @@
 | ModelPicker 修复是否上线 | curl 服务端模块,已是 `buildCloudModelList(providersResp.value)`(旧的 `body.data` 已不在) | 顶栏应能选模型 |
 | 云端模型 | `providers` 1 条「火山」`enabled=1`;`provider_models` **4 条 favorite=1** | 顶栏应出现 4 个 `doubao-*` |
 | Ollama | `inactive`,`:11434` 无监听 | 选择器**没有「本地」组 = 正常**,不是缺陷 |
-| Parser | 服务 `inactive`(`:8283` 无监听) | 顶栏 Parser 状态灯**应为红 = 正常** |
+| ~~Parser~~ **Parser**(T10 订正,**已反转**) | 原记「服务 `inactive`(`:8283` 无监听)」已作废;现测 `:8283` **有监听** | 顶栏 Parser 状态灯**应为绿**;若看到红灯才是缺陷(与原文相反) |
 | 其余 9 个服务 | Gateway/MessageBus/UserService/AI/Search/Wiki/Photos/AppMgmt/LocalStorage 全 `active`;Qdrant active | 其余 4 灯应为绿 |
 | Agent 后端 | `:8282` 有全部 P2b 端点(user-memory / mcp-tokens / channels / observability / max-turns) | §1–§7 接口侧齐备 |
 | 记忆数据 | `memory_entries` **7 条** | §4 有真实列表可验 |
