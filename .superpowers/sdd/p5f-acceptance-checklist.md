@@ -6,10 +6,13 @@
 
 ## 0. 怎么开始
 
-**验收地址**:`http://<设备IP>:5288/app/#/ai/knowledge`
-dev server **已在 5288 监听**(pid 1159107,服务 `.sp8` 工作树)。**不要跑 `deploy.sh`** —— 那会覆盖 master 那条线的部署。
+**验收地址**:`http://<设备IP>/app/#/ai/knowledge`(设备 IP 现测 `192.168.1.143`,**80 端口**)
 
-⚠️ 如果打不开,让我重起即可;**别自己动 `:5277`(SP7)/ `:5273`(master、SP9)/ `:5299` 三个端口**,那是别的线在用。
+> 🔴 **2026-08-06(SP8-P6 T10)订正。** 原文写的是 `:5288` dev server、并要求「不要跑
+> `deploy.sh`」—— 那是 `sp8-ai` 未合 master 时期的约束。**现在 `sp8-ai` 已合入 master 并已
+> 部署到真机 80 端口**,`:5288` 那个 dev server 早已不在(端口也早改回 `5273`)。
+> 本清单原有的 5 处 `:5288` 已统一改成 80 端口 —— 照原文点会全部连不上、报一串假「打不开」。
+> 现在跑本清单**不需要**我起任何 dev server,浏览器直接开 `http://192.168.1.143/app/` 即可。
 
 ---
 
@@ -28,9 +31,9 @@ dev server **已在 5288 监听**(pid 1159107,服务 `.sp8` 工作树)。**不�
 
 **可直接粘贴的深链**(绕开导航直达):
 ```
-http://<设备IP>:5288/app/#/ai/knowledge/wiki
-http://<设备IP>:5288/app/#/ai/knowledge/roots
-http://<设备IP>:5288/app/#/ai/knowledge/allowlist
+http://<设备IP>/app/#/ai/knowledge/wiki
+http://<设备IP>/app/#/ai/knowledge/roots
+http://<设备IP>/app/#/ai/knowledge/allowlist
 ```
 
 ---

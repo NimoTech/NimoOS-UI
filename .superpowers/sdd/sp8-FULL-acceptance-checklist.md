@@ -1,14 +1,28 @@
 # SP8 一次性全量人眼验收清单(合并 P2a + P2b + P1 三期挂账)
 
 生成时间 2026-07-30 · 分支 `sp8-ai`@`a942196` · 工作树干净
-入口:`http://192.168.1.143:5288/app/#/ai/agent`(**不跑 deploy.sh、不碰真机 /app/**)
+入口:`http://192.168.1.143/app/#/ai/agent`
+
+> 🔴 **2026-08-06(SP8-P6 T10)订正了本清单的验收地址。** 原文写的是 `:5288` dev server
+> 并注明「不跑 deploy.sh、不碰真机 /app/」—— 那是 `sp8-ai` 分支未合 master 时期的约束。
+> **现在 `sp8-ai` 已合入 master 并已 `deploy.sh` 部署到真机 80 端口**,`:5288` 那个 dev
+> server 早已不在(端口也早改回 `5273`)。全清单原有的 4 处 `:5288` 直链已统一改成 80 端口,
+> 照原文点会全部连不上、报一串假「打不开」(SP9-P8 验出 6 条假缺陷正是这个根因)。
+>
+> 🔴 **下面那张「我已实测的环境事实」表是 2026-07-30 的快照,已经漂了 —— 跑之前先重测一遍。**
+> 已知至少一条反转:**Parser 现在是 active**(`:8283` 有监听),所以顶栏 Parser 状态灯
+> **应为绿**,不再是原表写的「应为红 = 正常」。重测命令:
+> ```bash
+> systemctl is-active nimoos-ai nimoos-search nimoos-wiki nimoos-photos nimoos-gateway
+> for p in 8282 8283 11434 6333; do echo -n "$p: "; curl -s -o /dev/null -w "%{http_code}\n" --max-time 2 http://127.0.0.1:$p/; done
+> ```
 
 ## 我已实测的环境事实(不是推断)
 
 | 项 | 实测结果 | 对验收的影响 |
 |---|---|---|
 | 三门 | `pnpm test` 285 文件 / **2298 例全绿**(69s) | — |
-| dev server | PID 698934,cwd = `.sp8/NimoOS-New-UI`,`:5288` HTTP 200 | 直接刷新即用,**不用重启** |
+| ~~dev server~~ **部署产物**(T10 订正) | 原记「PID 698934,`.sp8` 工作树 `:5288`」已作废;现为 master 经 `./scripts/deploy.sh` 部署到 `/var/lib/nimoos/www/app/`,走 80 端口 | 直接刷新 `http://192.168.1.143/app/` 即用 |
 | ModelPicker 修复是否上线 | curl 服务端模块,已是 `buildCloudModelList(providersResp.value)`(旧的 `body.data` 已不在) | 顶栏应能选模型 |
 | 云端模型 | `providers` 1 条「火山」`enabled=1`;`provider_models` **4 条 favorite=1** | 顶栏应出现 4 个 `doubao-*` |
 | Ollama | `inactive`,`:11434` 无监听 | 选择器**没有「本地」组 = 正常**,不是缺陷 |
@@ -137,8 +151,8 @@
 > ⚠️ **入口别认错(2026-07-30 用户踩过)**:左栏有**两个** MCP 条目。
 > - 「**MCP connections / MCP 连接**」(grid 图标)= **P4 才做**,点进去就是 coming soon 占位,**不是这一屏**。
 > - 「**Expose as MCP server / 对外 MCP 服务**」(**钥匙图标**)= 要验的就是它。
->   直链:`http://192.168.1.143:5288/app/#/ai/settings?section=mcptokens`
-- [ ] 「MCP 端点」显示 `http://192.168.1.143:5288/v1/ai/mcp-rpc/` 之类只读 URL,点「复制」→ 弹「已复制」,**粘贴到地址栏验证真的复制到了**(这是明文 HTTP 非 localhost 环境,`navigator.clipboard` 不存在,走的是 execCommand 兜底 —— 本期修的坑)
+>   直链:`http://192.168.1.143/app/#/ai/settings?section=mcptokens`
+- [ ] 「MCP 端点」显示 `http://192.168.1.143/v1/ai/mcp-rpc/` 之类只读 URL(端口随浏览器当前访问的端口走,80 端口下不带端口号),点「复制」→ 弹「已复制」,**粘贴到地址栏验证真的复制到了**(这是明文 HTTP 非 localhost 环境,`navigator.clipboard` 不存在,走的是 execCommand 兜底 —— 本期修的坑)
 - [ ] 「接入 AI Agent」两个只读框里看到占位符 `<YOUR_TOKEN>`,**不应看到裸的 `{url}` / `{token}` 字面量**(看到=阻断级)
 - [ ] 点「创建令牌」→ 输入框弹窗,填「验收测试」→ 确认
 - [ ] **明文令牌弹窗四项视觉检查**:
