@@ -162,7 +162,7 @@ Serialized Error: { status: 1, ... stderr: '[oss] 失败:/home/nimo/NimoTech/Nim
  M src/ai/knowledge/util/wikiViewHelpers.test.ts\n M src/ai/knowledge/views/IndexedFilesView.test.ts\n ...' }
 ```
 
-**提交后复跑 oss 套件的结果见 §2.5。**
+**提交后(工作树干净)复跑的结果见 §2.5 —— 全绿。**
 
 ### NEW-UI · `pnpm exec vue-tsc --noEmit`
 
@@ -216,9 +216,47 @@ DEPLOY_EXIT=0
 ✅ **失败集合 = `{tests/nimoTaskBar.test.js, tests/settingsStore.test.js}`,与 T0/T6 基线逐文件相同,零新增。**
 文件数 159 / 用例数 1485 也与 T6 收官时的实测一致。
 
-### 2.5 · oss 套件复跑(提交后、工作树干净)
+### 2.5 · 提交后复跑(工作树干净)—— **这才是本刀的最终门结果**
 
-见文末「提交后复验」一节。
+上面那 3 个 oss 失败纯粹是「工作树里有未提交改动 ⇒ `export.mjs` 前置检查 abort」。
+把改动提交掉之后,两条都重跑了一遍:
+
+**oss 套件**
+```
+ ✓ oss/tree.test.mjs > 泄漏守卫 > 手工抽查:产出树里一律扫不到相册/Nimo AI/transcript/qdrant/内网 IP(独立于 forbidden.mjs 词表的第二重验证) 39ms
+ ✓ oss/tree.test.mjs > 产物树能构建 > pnpm install + vue-tsc --noEmit 在产物树上全绿(只扫词的守卫抓不到构建断裂) 10627ms
+
+ Test Files  17 passed (17)
+      Tests  428 passed (428)
+   Start at  18:40:00
+   Duration  16.33s (transform 10.09s, setup 3.61s, import 12.76s, tests 27.26s, environment 5.89s)
+```
+✅ 17 文件 / 428 例全绿,且**「产物树能构建」那道门是真跑的**(10627ms,`✓` 而非 `↓` 跳过)。
+
+**New-UI 全量重跑**
+```
+EXIT=0
+ ✓ src/files/upload/budget.test.ts > canStoreBlob > rejects empty, over-cap, and over-budget 1ms
+ ✓ src/home/grid/dockMath.test.ts > magScale > peaks at distance 0 (1+0.55) and decays with distance 1ms
+
+ Test Files  602 passed (602)
+      Tests  9927 passed (9927)
+   Start at  18:40:32
+   Duration  147.30s (transform 33.01s, setup 103.94s, import 133.87s, tests 182.37s, environment 217.17s)
+```
+✅ **602 文件 / 9927 例全部通过,exit 0,零跳过。**
+(第一次跑记的 `70 skipped` 是 oss 套件 abort 时被连带跳过的那些,现在全部真跑了。)
+
+### 三仓门总表
+
+| 仓 / 门 | 结果 |
+|---|---|
+| NEW-UI `vitest run`(工作树干净) | **602 文件 / 9927 例全绿,exit 0** |
+| NEW-UI `vue-tsc --noEmit` | **exit 0**,零输出 |
+| NEW-UI `pnpm build` | **`✓ built in 16.86s`**,exit 0 |
+| NEW-UI oss 套件 | **17 文件 / 428 例全绿**,「产物树能构建」10627ms 真跑 |
+| SERVICE `vitest run` | **37 文件 / 377 例全绿** |
+| VUE2 `vitest run` | **159 文件 / 1485 例,8 个既有失败** —— 失败集合 `{nimoTaskBar, settingsStore}` 与 T0/T6 基线**逐文件相同、零新增** |
 
 ---
 
@@ -428,10 +466,16 @@ $ /usr/bin/grep -n "5288" sp8-FULL-acceptance-checklist.md p5f-acceptance-checkl
 | 仓 | commit | 内容 |
 |---|---|---|
 | NEW-UI | `c968fab` | M5:8 处 `@types/node` 注释(pathspec `-- src/ai`) |
-| NEW-UI | 见下 | 三份验收清单 + 本报告(`git add -f .superpowers/sdd/...`) |
+| NEW-UI | `66684d5` | 三份验收清单 + 本报告(`git add -f .superpowers/sdd/...`) |
+| NEW-UI | 末位见下 | 本报告的门结果回填 |
 | VUE2 | `9b86d3ee` | M4 `strangler.js` + M6 spec §4(pathspec `-- src/router/strangler.js docs/superpowers/specs`) |
-| VUE2 | 见下 | roadmap 记账(pathspec `-- docs/vue3-migration-roadmap.md`) |
-| SERVICE | — | 本刀零改动 |
+| VUE2 | **`7d82874c`** | roadmap 记账(pathspec `-- docs/vue3-migration-roadmap.md`) |
+| SERVICE | — | **本刀零改动**,仍在 `ac39cd7` |
+
+**交付末位**:NEW-UI `master` 见下方回填提交 · VUE2 `docs/vue3-migration-sp3`@**`7d82874c`** · SERVICE `master`@**`ac39cd7`**。
+
+⚠️ NEW-UI 工作树里那 3 个 `design-export/*.html` 的 staged 删除是**长期存在的既有状态**,
+本刀原样保留(T0 已登记:它们会挡 `git merge`,配方是 restore → merge → `git rm`)。
 
 🔴 全程 pathspec 提交。VUE2 仓那 6 个 `docs/vue3-pending/*.md` 未提交改动属别的线,一字未动。
 
