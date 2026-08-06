@@ -52,7 +52,7 @@ tmp="$(mktemp "$WWW_ROOT/.index.html.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 chmod 644 "$tmp"  # mktemp 建出的文件默认 0600,不 chmod 网关读不到
 
-# 下面写的两行降级路径不对称:有 JS 时 script 会把 search/hash 原样带过去;
+# 下面写的两行降级路径不对称:有 JS 时 script 会把查询串/hash 原样带过去;
 # <noscript> 里的 meta refresh 只能落 /app/ 首页,拿不到查询串/hash——meta
 # refresh 没有运行时变量可用,这是硬限制不是疏漏。无 JS 时书签式深链接会失效。
 cat > "$tmp" <<EOF
