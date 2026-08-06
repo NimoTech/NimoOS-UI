@@ -100,3 +100,22 @@ describe('write-root-redirect.sh', () => {
     expect(readdirSync(root)).toEqual(['index.html'])
   })
 })
+
+describe('deploy.sh 接线', () => {
+  // 用文件顶部已有的 HERE 常量拼路径。⚠️ 不要写 `new URL('./deploy.sh', import.meta.url)`:
+  // 这个两参数字面量形态会被 Vite 当资源 URL 静态转换,vitest(jsdom)下解析成 http: 而非
+  // file:,fileURLToPath 直接抛 TypeError 且整个测试文件 0 collected(Task 1 已实测踩过)。
+  const deploySrc = readFileSync(join(HERE, 'deploy.sh'), 'utf8')
+
+  it('调用了重定向脚本,并且传的是 www 根而不是 app 子目录', () => {
+    expect(deploySrc).toContain('./scripts/write-root-redirect.sh /var/lib/nimoos/www')
+    expect(deploySrc).not.toContain('write-root-redirect.sh /var/lib/nimoos/www/app')
+  })
+
+  it('调用点在 rsync 之后(先把应用铺好,再补根目录那一跳)', () => {
+    const rsyncAt = deploySrc.indexOf('rsync -a --delete')
+    const callAt = deploySrc.indexOf('./scripts/write-root-redirect.sh')
+    expect(rsyncAt).toBeGreaterThan(-1)
+    expect(callAt).toBeGreaterThan(rsyncAt)
+  })
+})

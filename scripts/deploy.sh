@@ -10,4 +10,9 @@ pnpm build
 # 陈旧 chunk 由下面的 find 按 mtime 清理(每次构建产物都是新 mtime,只会清到真正的旧版本)。
 rsync -a --delete --filter='protect assets/*' dist/ /var/lib/nimoos/www/app/
 find /var/lib/nimoos/www/app/assets -type f -mtime +14 -delete 2>/dev/null || true
+# 本应用挂在 /app/ 下,根目录不属于它 —— 补一个 / → /app/ 的重定向页,
+# 让只部署了本应用的机器上,输入 / 也能落到应用里。
+# 脚本自带覆盖守卫:根目录已有别的首页时一字不动(详见脚本头部注释)。
+# 本脚本开头已 `cd "$(dirname "$0")/.."`,所以这里的相对路径就是仓库根。
+./scripts/write-root-redirect.sh /var/lib/nimoos/www
 echo "Deployed to /var/lib/nimoos/www/app/  →  http://<host>/app/#/"
