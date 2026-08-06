@@ -13,7 +13,7 @@
 //
 // ⚠️ 判据是「背景是渐变或半透明」,不是「有没有背景」——
 //    `background: #2a2a2a` 这类**实心深色**底会被原样带到弹出列表,渲染出来是深底浅字,
-//    完全正常(KVM 的 .cv-select-native 与 AI 的 .strength-select 就是这种,不需要修)。
+//    完全正常(KVM 的 .cv-select-native 就是这种,不需要修)。
 //    2026-08-06 这道守卫第一版按「有背景就要修」写,把那 4 处也点名了,是过报。
 //
 // 为什么需要这道守卫:既有的门一道都拦不住这一类问题 ——
@@ -71,10 +71,11 @@ const bodyOf = (rule: string) => rule.slice(rule.indexOf('{'))
 /**
  * 全仓 token 定义表:token 名 → [{ 取值, 主题作用域 }]。
  *
- * ⚠️ 必须带作用域,否则展开 `var()` 会跨主题串味 —— 实际踩过:AI 区
- * `--bg-elevated: var(--card-bg)` 只写在 `:root[data-theme="light"] .knowledge-app` 里,
+ * ⚠️ 必须带作用域,否则展开 `var()` 会跨主题串味 —— 实际踩过:有个区把
+ * `--bg-elevated: var(--card-bg)` **只写在 `:root[data-theme="light"] …` 块里**,
  * 那里的 `--card-bg` 是纸感白;若不分作用域就把**深色主题**的 `--card-bg`(渐变)也算进来,
- * 两个本来正常的 AI 下拉会被误报成缺陷。
+ * 两个本来正常的下拉会被误报成缺陷。
+ * (本文件的注释刻意不写具体区名 —— 开源导出的泄漏守卫按词表扫源码,提到那几个区名会被拦下。)
  */
 type Scope = 'light' | 'dark' | 'base'
 const scopeOf = (selector: string): Scope =>
