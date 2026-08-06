@@ -318,3 +318,160 @@ exit=0
  Test Files  7 passed (7)
       Tests  184 passed (184)
 ```
+
+---
+---
+
+# 修复轮 1/5 —— 独立评审回执处理
+
+评审结论 **Spec ✅**;i18n 切分被用运行时 `Object.keys` 集合运算(不碰正则)独立复证为无损,
+1207 与假注释判断成立,toast 判别联合过变异验证。以下逐条处理 2 Important + 3 Minor。
+
+## Important 1 —— 🔴 我原报告 §1 的根因判定是错的,已订正
+
+**订正:上面 §1 里「三条 oss 红都是环境问题、与本刀无关」的结论作废。**
+真实根因是 **T3 自己打断了 `oss/manifest.mjs` 里已有的 4 条锚点**:
+
+| # | manifest.mjs | 锚的是什么 | 为什么断 |
+|---|---|---|---|
+| 1 | :1048 | `zh_cn.ts` 的 3 行出口结构 | 我把出口改成 4 行(加了 `ai`) |
+| 2 | :1051 | `en_us.ts` 的 3 行出口结构 | 同上 |
+| 3 | :1056 | `zh_cn.ts` 文件头「为什么拆」整段注释 | 我重写了这段注释 |
+| 4 | :1072 | `en_us.ts` 文件头那一行注释 | 我加了一行 |
+
+我独立复核过评审的取证:亲本 `3942b47:src/i18n/zh_cn.ts` 的结尾与 manifest 锚点串**逐字相同**
+
+```
+// 又会在下次分片时重演。出口不动,消费方就一行都不用改。
+import base from './zh_cn.base'
+import photos from './zh_cn.photos'
+
+export default { ...base, ...photos }
+```
+
+⇒ **锚点是本刀打断的,不是既有红。** 评审在 Service 工作树干净后拿到的真失败是:
+
+```
+ FAIL  oss/tree.test.mjs
+Error: [oss] 失败:锚点未命中:src/i18n/zh_cn.ts
+找的是:"import base from './zh_cn.base'\nimport photos from './zh_cn.photos'\n\nexport default { ...base, ...photos }\n"
+```
+
+### 🔴 我为什么会判错(方法论教训,要带进后续刀)
+
+`oss/export.mjs` 的**「工作树不干净」守卫跑在锚点检查之前并直接 abort**,把真失败**短路**掉了。
+我看到的三条报错全是 `工作树不干净,导出中止`,就据此下了「环境问题、与本刀无关」的结论 ——
+**把"最先报出来的那条"当成了"唯一的那条"**。取证时必须先让工作树干净再跑,否则守卫会替你
+掩盖后面所有检查。我实测复现了这个短路顺序:把 Service 那个未跟踪目录临时移开后,
+守卫立刻改口卡在 **New-UI 自己**的未提交状态上(仍不是锚点),说明这道守卫会**逐个仓库**
+挡在前面,两个仓库都干净之前根本走不到锚点检查。
+
+> 附带更正:原 §1 说这三条「合流后仍红、仍是同一条报错」——**报错文字相同不等于根因相同**。
+> 合流前是 Service 树脏(brief 目录),合流后同样的文字底下已经换成了锚点未命中。
+> 「同样的报错 ⇒ 同样的根因」这一步推理是错的。
+
+**按交办要求未改 `oss/manifest.mjs`** —— 那 4 条锚点归 T7 修(T7 本就要重写这一段)。
+
+## Important 2 —— dev 端口改回 5273 ✅
+
+`vite.config.ts` `server.port` **5288 → 5273**。上方那段 ⚠️ 注释重写为说明「合流后统一回 5273」:
+5286/5287/5288 是三条并行线各占端口时期的产物,SP8 并回主干后只剩一条线,
+`CLAUDE.md` 的 `pnpm dev → localhost:5273/app/` 是唯一约定。
+`host: true` 与 master 的 `DEV_PROXY` 未动(评审已核实取的是严格超集,正确)。
+
+## Minor 3 —— `docs/THEMING.md` ✅
+
+- **§8 阶梯表按实测重写。** 我用 node:fs 扫了全仓 195 处 `z-index` 声明,实际最高档是:
+  `10100`(toast)/ `10000`(SearchImageLightbox、SearchFileDrawer)/ `9999`(SearchFullResults)/
+  `1100`(knowledge.scss、sk-shared.scss、settings.css 共 5 处)/ `1050`(knowledge.scss)。
+  表里补了「全屏叠层 900」「AI 区弹窗遮罩 1050/1100」「AI 区搜索结果全屏层 9999/10000」三档,
+  toast 行 1100 → **10100**,并把「不要在 1100 及以上落座」改成「不要在 **10100** 及以上落座」,
+  另加一段说明旧表为何过时。
+- **§0「三类例外」→「四类例外」**,并把 §6 已有但 §0 漏掉的两类补进去(数据可视化色板那条
+  补上 `--badge-*` / `--photos-seg-*`;新增第 4 类「生成式/哈希取色」= 本次合流带进来的 2 行)。
+  §6 现有 8 行,已在 §0 注明「现 8 行」。
+
+## Minor 4 —— z-index 守卫补 `.scss`:**绿**,但过程中发现更严重的问题
+
+**结论先说:补完后守卫是绿的(5/5),没有放宽任何阈值。**
+
+但**不能只加一行 glob** —— 我在加之前先探针验证了 glob 到底读到什么,结果:
+
+```
+vue : 文件 340 个, 非空 340 个, 总字符 2699948
+css : 文件   5 个, 非空   0 个, 总字符 0     ← theme.css 等全是 len=0
+scss: 文件   9 个, 非空   0 个, 总字符 0
+```
+
+🔴 **vitest 的 CSSEnablerPlugin 把 css/scss 一律替换成空串,且不看查询串 —— `?raw` 恒空。**
+所以:
+1. 新加的 `.scss` glob 若照搬写法,9 个文件全是空串 ⇒ 守卫"绿"得毫无判别力(假绿);
+2. **更要紧的是:原有的 `.css` glob 一直就是空壳** —— 这道「全仓任何其它 z-index 都严格低于
+   toast」的守卫,在 SP8-P6 之前**只看得见 `.vue`**,5 个独立 `.css`(含 `theme.css`)从来没被扫过。
+   这不是我引入的,是既有盲区,但它让"全仓"两个字一直名不副实。
+
+**处理**:`.vue` 仍走 glob(不受该插件影响,340/340 非空),`.css`/`.scss` 改走 **`node:fs`**
+递归读盘(沿用 `photosSlice.test.ts` / `knowledgeStyles.test.ts` 已确立的手法)。
+另补一条**「取数有效」断言**钉死这点:要求读到 >100 个非空 `.vue`、>5 个非空样式表、
+且样式表里至少扫出 1 个 z-index —— 以后再空壳化会立刻打红而不是静默通过。
+
+**变异验证**(证明它现在真有判别力,而不是"读到了但仍恒真"):
+把 `knowledge.scss:1719` 的 `1100` 临时改成 `10500`,守卫立刻打红并精确点名,改回后复绿:
+
+```
+ × 全仓任何其它 z-index 都严格低于 toast 7ms
+  src/ai/styles/knowledge.scss: z-index 10500 (toast = 10100): expected [ Array(1) ] to deeply equal []
++   "  src/ai/styles/knowledge.scss: z-index 10500 (toast = 10100)",
+      Tests  1 failed | 4 passed (5)
+```
+
+(`git diff --stat src/ai/styles/knowledge.scss` 变异后为空,已确认还原干净。)
+
+## Minor 5 —— 计数订正 ✅
+
+三组数字我都重新实测过,评审给的值全部复现:
+
+| 项 | 我原来写的 | 实测(订正后) | 怎么测的 |
+|---|---|---|---|
+| tier 调用点 | 48 | **57**(产品 50 / 测试 7) | 括号配对解析 `.show(` 实参,取第三个顶层实参 |
+| action 调用点 | 4 | **10**(产品 7 / 测试 3) | 同上。行级 grep 只得 9,漏掉跨行的 `PhotosPlaces.vue:303` |
+| 合计调用点 | 52 | **67** | |
+| 删除的 `@ts-expect-error` | 19 文件 / 57 行 | **20 文件 / 62 行** | `git diff 261bebd^2 261bebd -- src` 里以 `-` 开头且含该指令的行 |
+
+原来那两个数偏小的原因:行级正则 `\.show\([^)]*,` 里的 `[^)]*` 撞上实参里自带的括号
+(如 `apiErrorMessage(e, t('aiCfgAddFailed'))`)就断掉,跨行调用也整个看不见。
+**这与 §2.1/§2.2 是同一类错误**(用行级正则解析嵌套结构),已按同样的办法改用配对解析。
+
+`{zh_cn,en_us}.ai.ts` / `zh_cn.ts` 文件头里的 **1206 → 1207** 已改;
+zh 侧另注明了那个引号键 `'ai.searchMyNas'` 是差额来源。en 侧文件头不含数字(指向 zh 侧说明),无需改。
+
+## 本轮验证命令与输出(原文)
+
+```
+$ pnpm exec vitest run src/components/AppToast.zIndex.test.ts src/i18n --reporter=verbose
+ ✓ src/components/AppToast.zIndex.test.ts > … > 取数有效:.vue 与 .css/.scss 都读到了非空内容,且扫得出 z-index 3ms
+ ✓ src/components/AppToast.zIndex.test.ts > … > AppToast .toast-stack 的 z-index 能被读出且是最高档 0ms
+ ✓ src/components/AppToast.zIndex.test.ts > … > 全仓任何其它 z-index 都严格低于 toast 4ms
+ ✓ src/components/AppToast.zIndex.test.ts > … > src/views/PhotosPersonDetail.vue 的 .pd-scrim 低于 toast 1ms
+ ✓ src/components/AppToast.zIndex.test.ts > … > src/photos/components/ClusterActionDialog.vue 的 .cad-overlay 低于 toast 0ms
+ ✓ src/i18n/__tests__/photosSlice.test.ts > 相册文案分片 · 出口是纯合并 > zh_cn.ts / en_us.ts 导出的就是 base ∪ photos ∪ ai,不多不少 6ms
+ ✓ src/i18n/__tests__/photosSlice.test.ts > 相册文案分片 · 出口是纯合并 > 三片两两不相交(…) 4ms
+
+ Test Files  7 passed (7)
+      Tests  184 passed (184)
+   Duration  2.55s
+```
+
+```
+$ pnpm exec vue-tsc --noEmit
+exit=0    (grep -c 'error TS' = 0)
+```
+
+## 本轮遗留 / 交接
+
+- **`oss/manifest.mjs` 的 4 条锚点仍是断的**(:1048 / :1051 / :1056 / :1072),按交办留给 T7。
+  T7 需要注意:出口现在是 **4 行**(`base` + `photos` + `ai`),文件头注释也整段换过,
+  两条结构锚点和两条注释锚点**都要重写**,不是只改 photos 那一路。
+- **`.css`/`.scss` 的 `?raw` 恒空是全仓性问题**,不止这一道守卫。本轮只修了
+  `AppToast.zIndex.test.ts`。建议后续排查其它用 `import.meta.glob(...'?raw')` 读样式表的守卫
+  (记忆里 color-guard 有过同款),它们可能同样在空转。**未在本刀展开,记为债务。**

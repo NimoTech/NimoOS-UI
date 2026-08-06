@@ -18,13 +18,15 @@
   `var(--accent)` 这类变量，其实际值由**当前主题**决定。组件不关心自己是蓝色还是白色。
 - 现有 token 表达不了某个**新语义**（例如某种警示色）时，**新增一个语义 token**
   （见 §5），并在**每一套主题块里都给它一个值**——绝不就地写死一个字面色。
-- **三类例外**（有意为之，非历史残留，代码里须有注释标明）：
+- **四类例外**（有意为之，非历史残留，代码里须有注释标明）：
   1. `theme.css` 的 `.ic-*` app 图标渐变——**品牌识别色，皮肤无关**，两套主题都原样保留。
   2. 第三方组件内部无法 token 化的颜色（如 CodeMirror 编辑器主题）——走该库自身的主题机制。
-  3. **数据可视化分类色板**（如人物地点页 `PLACE_PALETTE`）——同一视图上要互相区分的
-     数据系列颜色，与主题皮肤无关，值放 `.ts` 而非 `theme.css`（不造一次性 token）。
+  3. **数据可视化分类色板**（如人物地点页 `PLACE_PALETTE`、搜索结果 `--badge-*`、
+     存储卡 `--photos-seg-*`）——同一视图上要互相区分的数据系列颜色，与主题皮肤无关。
+  4. **生成式 / 哈希取色的装饰与身份识别色**（AI 区 `VideoCard` / `ImageGridCard` 的占位
+     马赛克色板、`DRIVE_PALETTE` 的按盘取色）——不代表任何语义状态，两套主题都原样保留。
 
-  这三类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6。
+  这四类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6（现 8 行）。
 - 落地保障：`NimoOS-New-UI/CLAUDE.md` 写入同一强约束（自动注入后续会话）；本文件
   提供完整 token 目录，作为开发者与 AI 的查阅入口。
 
@@ -367,12 +369,24 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 |---|---|---|
 | 页内浮层 / 角标 / 悬浮控件 | 1 – 50 | 瓦片角标、hero 下拉菜单（20）、区内下拉（20）、侧栏抽屉遮罩（150） |
 | 局部固定条 | 60 – 150 | 上传面板（70）、选择态浮动条（150） |
-| 区级弹窗遮罩 + 面板 | 200 – 230 | `.mrd-overlay`（200）、`.pd-scrim` / `.cad-overlay`（220） |
-| 通用弹窗遮罩 + 面板 | 1000 / 1001 | `ui-dialog-overlay`（1000）、`Dialog` / `AlertDialog` 面板（1001） |
-| **Toast** | **1100** | `AppToast.vue` `.toast-stack` |
+| 区级弹窗遮罩 + 面板 | 200 – 300 | `.mrd-overlay`（200）、`.pd-scrim` / `.cad-overlay`（220）、相册选择器（230）、MediaViewer（240） |
+| 全屏叠层 | 900 | `TimeMachineOverlay.vue` |
+| 通用弹窗遮罩 + 面板 | 1000 / 1001 | `ui-dialog-overlay`（1000）、`Dialog` / `AlertDialog` 面板（1001）、AI 区 `popover.scss`（1000） |
+| AI 区弹窗遮罩 | 1050 / 1100 | `knowledge.scss`（1050 / 1100）、`sk-shared.scss` `.sk-modal-bg`（1100）、`settings.css`（1100） |
+| AI 区搜索结果全屏层 | 9999 / 10000 | `SearchFullResults.vue`（9999）、`SearchImageLightbox.vue` / `SearchFileDrawer.vue`（10000） |
+| **Toast** | **10100** | `AppToast.vue` `.toast-stack` |
 
-新增浮层时：**不要**在 1100 及以上落座，除非它确实比 toast 更该被看见（目前没有这种东西）。
-`src/components/AppToast.zIndex.test.ts` 会把这条约定钉死——它直接读各组件
-`<style>` 原文比较数值，新加的遮罩若高过 toast，测试即红。
+> **SP8-P6 合流后本表已重写。** 旧表把 toast 记作 1100 并写着「不要在 1100 及以上落座」——
+> AI 区随合流进入主干后，1100 及以上实际已有四档（1100 / 9999 / 10000 / 10100），
+> 那句话与现状矛盾。toast 相应抬到 **10100**，仍是全仓唯一的最高档。
+
+新增浮层时：**不要**在 **10100** 及以上落座，除非它确实比 toast 更该被看见（目前没有这种东西）。
+需要盖住 AI 区搜索层的，请落在 10000 以下的既有档位里，不要新造更高档。
+
+`src/components/AppToast.zIndex.test.ts` 会把这条约定钉死——它读 `.vue` 的 `<style>` 原文
+**以及 `.css` / `.scss` 全文**比较数值，新加的遮罩若高过 toast，测试即红。
+🔴 该守卫读独立样式表**必须走 `node:fs`**：vitest 的 CSSEnablerPlugin 把 css/scss 一律替换成
+空串且不看查询串，`?raw` 恒空——SP8-P6 之前它就是这么在 5 个 `.css` 上空转的（只看得见
+`.vue`）。守卫里另有一条「取数有效」断言钉住这点，空壳化会立刻打红。
 
 ---

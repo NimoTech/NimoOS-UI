@@ -51,13 +51,14 @@ export default defineConfig({
   // Vue2 登录页)全部转发真机网关 80。
   // SP9-P0 补 dev 这一份 —— 此前只有 preview 有,dev server 上登录必 404(踩过)。
   //
-  // SP8-P6-T3 合流:端口取 sp8 的 :5288(合流口径明确要求保留,不被 master 的 5273 覆盖)。
+  // SP8-P6-T3 合流:**端口统一回 5273**。5286/5287/5288 那套是「三条并行线各占一个端口、
+  // 互不覆盖真机 /app/ 部署」时期的产物;SP8 随本次合流并回主干后只剩一条线,
+  // CLAUDE.md 记的 `pnpm dev → http://localhost:5273/app/` 就是唯一约定。
   // 转发规则取 master 的 DEV_PROXY —— 它的 `^/(?!app/)` 是 sp8 那四条(/v1、/v2、^/$、
-  // 静态目录)的**严格超集**,且带 ws:true,所以 sp8 「在 :5288 走 Vue2 登录拿 token
-  // 再进 /app/#/ai/* 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。
-  // host: true 来自 sp8(局域网设备上验收要用)。
-  // ⚠️ 与 CLAUDE.md 记的「pnpm dev → localhost:5273」不一致,合流后请确认以哪个为准。
-  server: { port: 5288, host: true, proxy: DEV_PROXY },
+  // 静态目录)的**严格超集**,且带 ws:true,所以 sp8 「走 Vue2 登录拿 token 再进
+  // /app/#/ai/* 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。
+  // host: true 来自 sp8(局域网设备上验收要用),予以保留。
+  server: { port: 5273, host: true, proxy: DEV_PROXY },
   // SP6 并行验收(spec §5):只伺服 /app/ 构建产物。正式部署仍走 scripts/deploy.sh。
   preview: {
     port: 5273,
