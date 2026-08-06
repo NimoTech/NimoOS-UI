@@ -172,6 +172,33 @@ export const SERVICE_DELETE = [
   // 不打那三个补丁的话内嵌共享包直接构建失败,而词表守卫与 tree 测试全绿。
   'src/search.ts',
   'src/search.test.ts',
+
+  // SP8-P6-T8(2026-08-06):Service 仓自己的台账目录。
+  // 私有侧 2026-08-05 起把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
+  // New-UI 那份当时就进了上面的 DELETE 表(第 54 行),**Service 这份一直漏着** ——
+  // `git archive HEAD` 会把 32 份 SP7 期台账原样带进 packages/service/。
+  // 实测:产物树泄漏命中 977 处里有 437 处出自这一个目录。既有问题、不是本刀造成的,
+  // 但它就在 SERVICE_DELETE 的地盘上,一并补。
+  '.superpowers',
+
+  // SP8-P6-T8(2026-08-06):AI 域四个模块 + 各自的测试。
+  // 开源版没有 AI 助手 / 知识库 / 笔记 / Wiki 导航。取证(见 p6-task-8-report.md):
+  //   · service.ai / service.notes / service.wiki 的调用点**全部**落在已删的 src/ai/**;
+  //   · 具名导出 isDistillableName / DISTILL_EXTS / createRootBody 同上;
+  //   · sse.ts 是通用 SSE 助手,但 Service 仓内除 index.ts 的再导出外无人 import 它,
+  //     消费端 sseRequest 的两个调用点(src/ai/services/agentTransport.ts、
+  //     skillTestTransport.ts)也都在 src/ai/** 里 —— 删掉 AI 域后 sse.ts 即成孤儿。
+  // 🔴 只删这八个文件不够:index.ts 里还有 13 处接线(4 import + 1 具名导出项 +
+  // 3 条 export…from + 2 条 export type + 3 个 getter),见下方 SERVICE_PATCH。
+  // 不打那些补丁的话内嵌共享包直接构建失败,而词表守卫与 tree 测试可能全绿。
+  'src/ai.ts',
+  'src/ai.test.ts',
+  'src/notes.ts',
+  'src/notes.test.ts',
+  'src/sse.ts',
+  'src/sse.test.ts',
+  'src/wiki.ts',
+  'src/wiki.test.ts',
 ]
 
 /** 类 2 · 整文件替换,各带私有侧哈希钉。T10-T13 填。 */
@@ -2532,5 +2559,36 @@ export const SERVICE_PATCH = [
     replace: '' },
   { path: 'src/index.ts',
     find: '  get search(): ReturnType<typeof createSearch> {\n    return createSearch(getHttp() as AxiosInstance)\n  },\n',
+    replace: '' },
+
+  // ── SP8-P6-T8:index.ts 的 13 处 AI 域接线(SERVICE_DELETE 删掉 ai/notes/sse/wiki
+  //    四个模块之后,这些行全都指向不存在的模块,内嵌共享包直接构建失败)。
+  //    锚点是 2026-08-06 从 NimoOS-Service@ac39cd7 的 src/index.ts 现场逐字抓的,
+  //    不是照抄 brief —— 本项目「手编锚点」已栽过多次。────────────────────────────
+  { path: 'src/index.ts', find: "import { createAi } from './ai.js'\n", replace: '' },
+  { path: 'src/index.ts', find: "import { sseRequest } from './sse.js'\n", replace: '' },
+  { path: 'src/index.ts', find: "import { createNotes } from './notes.js'\n", replace: '' },
+  { path: 'src/index.ts', find: "import { createWiki } from './wiki.js'\n", replace: '' },
+  // 具名导出行:整行换整行(比抠 ', sseRequest' 更稳 —— 后者依赖那个逗号的位置)。
+  { path: 'src/index.ts',
+    find: 'export { initService, getHttp, refreshAccessToken, parseUtil, UPLOAD_TUS_ENDPOINT, networkErrorText, sseRequest }\n',
+    replace: 'export { initService, getHttp, refreshAccessToken, parseUtil, UPLOAD_TUS_ENDPOINT, networkErrorText }\n' },
+  { path: 'src/index.ts', find: "export { isDistillableName, DISTILL_EXTS } from './notes.js'\n", replace: '' },
+  { path: 'src/index.ts', find: "export { createRootBody } from './wiki.js'\n", replace: '' },
+  { path: 'src/index.ts', find: "export type { SseOptions, SseOutcome } from './sse.js'\n", replace: '' },
+  { path: 'src/index.ts',
+    find: "export type { Note, CreateNoteFields, UpdateNoteFields, NotesSettings, SettingsFields, NotesDistillSettings, DistillSettingsPatch, DistillJob, DistillJobsView } from './notes.js'\n",
+    replace: '' },
+  { path: 'src/index.ts',
+    find: "export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'\n",
+    replace: '' },
+  { path: 'src/index.ts',
+    find: '  get ai(): ReturnType<typeof createAi> {\n    return createAi(getHttp() as AxiosInstance, () => getConfig().getToken())\n  },\n',
+    replace: '' },
+  { path: 'src/index.ts',
+    find: '  get notes(): ReturnType<typeof createNotes> {\n    return createNotes(getHttp() as AxiosInstance)\n  },\n',
+    replace: '' },
+  { path: 'src/index.ts',
+    find: '  get wiki(): ReturnType<typeof createWiki> {\n    return createWiki(getHttp() as AxiosInstance)\n  },\n',
     replace: '' },
 ]
