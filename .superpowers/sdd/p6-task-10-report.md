@@ -481,6 +481,115 @@ $ /usr/bin/grep -n "5288" sp8-FULL-acceptance-checklist.md p5f-acceptance-checkl
 
 ---
 
+## 7b. 复评修复轮(T10 fix round 1)
+
+复评回来两条 Important,均已收掉。
+
+### Important 1 · 两份旧清单的状态块与表格行
+
+- **`p5f-acceptance-checklist.md` 头部自相矛盾**:第 4-5 行还写「`.sp8 @ sp8-ai @ 0060669` /
+  **未部署 · 未 push · 未合 master**」,而第 11-15 行已说合了 master、部署了 80。
+  I2 那轮只改 URL、没动状态块。**已改成对照表**:现坐标 `master` 主工作树、部署出去的构建
+  = 产品码末位 **`c968fab`**、已合 master(`261bebd`)、已部署 80、**仍未推 origin**;
+  并写明「P5f 那批代码一个字节没改过,只是它现在活在 master 上并且已部署」。
+- **`sp8-FULL-acceptance-checklist.md` 的 Parser 行**在表格里仍是旧的(只有上方横幅纠正),
+  而 dev server 行已用删除线改写过 —— **同一个问题两种处理**。已统一成「~~原文~~ + 订正」格式;
+  横幅同步改成「已就地改两行 / 其余各行已复测结论未变 / 带条数的几行未复测」。
+
+### Important 2 · 我那处「刻意没动」的判断是错的
+
+**复评的探针我自己独立重做了一遍,结论一致:**
+
+```
+探针 A(src/__ts_probe__.ts,既不 import node: 也无 reference 指令):
+    export const b = process.platform
+  → pnpm exec vue-tsc --noEmit   EXIT_A=0
+
+探针 B(同一文件追加反向对照):
+    const wrong: number = 'string'
+  → src/__ts_probe__.ts(2,7): error TS2322: Type 'string' is not assignable to type 'number'.
+    EXIT_B=2          ⇒ 探针文件确实进了编译程序,A 的 exit 0 不是空过
+探针文件已删除,git status 已复原。
+```
+
+**机制我又往下追了一层**(比「别的文件的 `node:` import 带进来的」更精确):
+
+```
+$ /usr/bin/grep -rln 'reference types="node"' src/     → 7 个文件
+    viteOptimizeDepsGuard.test.ts / styles/theme.sp9.test.ts / styles/color-guard.test.ts /
+    styles/selectPopup.test.ts / settings/panels/panels.test.ts /
+    settings/styles/settingsStyles.test.ts / kvm/styles/kvmStyles.test.ts
+$ /usr/bin/grep -n "var process" node_modules/@types/node/globals.d.ts
+    3:declare var process: NodeJS.Process;
+$ /usr/bin/grep -rn "var process|namespace NodeJS" node_modules/vite/client.d.ts node_modules/vitest/globals.d.ts
+    (零命中 —— 排除了 tsconfig types 数组里那两个包)
+```
+⇒ `/// <reference types="node" />` 是**程序级**指令,把 `@types/node/globals.d.ts` 拉进整个
+编译程序;`tsconfig` 的 `types` 数组只挡「**自动**包含」,挡不住显式 reference。全局 `process` 有类型。
+
+### 本轮改掉的注释(纯注释,零可执行代码变更)
+
+| # | 文件:行 | 病症 |
+|---|---|---|
+| **9** | `src/ai/knowledge/views/DashboardView.test.ts:583-585` | 「没有 `@types/node`,故不能直接引用全局 `process` 的类型」—— 错 |
+| **10** | `src/photos/components/__tests__/PlaceDetailPanel.test.ts:346` | 「本仓也没装 `@types/node`,`node:fs` 会报 TS2307」+「这正是 color-guard 把 theme.css 整个跳过的原因」—— **两条都错** |
+| **11** | `src/views/__tests__/PhotosPlaceAssets.test.ts:16-17` | 「本仓本就没有装它」—— 错(前半句「`?raw` 不需要 `@types/node`」仍对,只有尾巴错) |
+| **12** | `src/styles/color-guard.test.ts:9-10` | 「这里只作用于本文件」—— 错,reference 指令是程序级的 |
+| **13** | `src/ai/styles/settingsStyles.test.ts:29` | 🔴 **我自己在 M5 那轮写下的**「反过来,全局 `process` 之类仍然没有类型」也是错的 |
+
+🔴 **第 13 条值得单独留痕**:我在订正别人的过时注释时,顺手写下了一条**自己没验过**的新断言,
+而且把它写成了「依然成立」的确认口吻。教训已写进该文件的注释里:
+**订正过时注释时,别顺手写没验过的新断言。**
+
+另给 `settingsStyles.test.ts` 那段 P2a 历史叙事(:5-24)加了「⚠️ 此条是历史记录、现已不成立,
+直接跳到文末订正」的显式路标 —— 原来只有末尾有订正块,顺读的人会先吃到 20 行过时内容。
+
+### 全仓复扫(确认是一次清完,不是又漏一批)
+
+```
+$ /usr/bin/grep -rn "未装.*@types/node|没装.*@types/node|@types/node.*未装|@types/node.*没装|
+    没有.*@types/node|没有装它|无 @types/node|缺 @types/node|不装 @types/node" src/ oss/
+$ /usr/bin/grep -rn "只作用于本文件|仅作用于本文件" src/ oss/
+$ /usr/bin/grep -rn "TS2307" src/ oss/
+$ /usr/bin/grep -rn "仍然没有类型|没有类型的|不能直接引用全局" src/ oss/
+```
+四条扫下来,**残留命中全部落在显式标注的「T10 订正」块里**(引用旧错文本本身),
+以及 `settingsStyles.test.ts` 那段已加路标的历史叙事内。
+
+**累计清掉 13 处**:M5 那轮 8 处(brief 点名 5 + 我沿 grep 追加 3)+ 本轮 5 处。
+(brief 的口径是「10 处」——差额是我把 `color-guard.test.ts` 的「只作用于本文件」
+与我自己写错的那条也算进来了,两者同族。)
+
+### `PlaceDetailPanel` 那个「不读 theme.css」的决定,今天还成不成立?
+
+**理由不成立了,决定本身按纪律不动,已登记为债务 I4。** 拆开看:
+
+| 原文给的理由 | 今天 |
+|---|---|
+| `?raw` / `?inline` 两种 glob 对 `.css` 实测返回空串 | ✅ **仍成立**(CSSEnablerPlugin 整体替换成空串且不看查询串) |
+| 「本仓也没装 `@types/node`,`node:fs` 会让 `vue-tsc` 报 TS2307」 | ❌ **已不成立** —— `@types/node` 已装,`node:fs` 直接用,`vue-tsc` exit 0 |
+| 「这正是 `color-guard.test.ts` 把 `styles/theme.css` 整个跳过的原因」 | ❌ **已不成立,而且从来就不是这个原因** —— `color-guard.test.ts:113` 的跳过条件旁边写着真实理由:「token 定义文件:裸字面量是它的本职工作」;而且它**现在正是用 `node:fs` 直读全部 `.css`** |
+
+⇒ **读 `theme.css` 文本这条路今天是通的。** 「要不要补一条程序化断言,钉死
+`--panel-bg-solid` 在明/暗两套主题块里都不带 alpha」现在是**纯设计取舍**,不再有技术阻塞。
+按你的指示 **不改测试实现,只登记债务** —— 已落 VUE2 `docs/vue3-migration-roadmap.md`
+§SP8 债务台账 **I4**,并在票里写了「找同类规避」的扫描命令(全仓可能还有别处因同一个
+过时理由缩小了断言范围)。
+
+### 本轮门
+
+```
+$ pnpm exec vue-tsc --noEmit          → VUE_TSC_EXIT=0
+$ pnpm exec vitest run --reporter=verbose
+ Test Files  602 passed (602)
+      Tests  9927 passed (9927)
+   Duration  143.49s
+```
+✅ 全绿(含 oss 套件 —— 新写的注释没有踩泄漏词表)。
+`git status --short` 恰好 3 行 ` D design-export/...`,与要求一致。
+
+---
+
 ## 8. Concern / 交给机主的判断
 
 1. **真机验收尚未跑** —— 本刀只做到「部署完成 + 机器侧自证通过」。三份清单等机主逐条点。

@@ -6,7 +6,7 @@
 >
 > | | 现在 | ~~原文(P5f 交付当时)~~ |
 > |---|---|---|
-> | 代码坐标 | **`NimoOS-New-UI` `master` @ `83d78c7`**(主工作树,不是 `.sp8`) | ~~`.sp8/NimoOS-New-UI` @ `sp8-ai` @ `0060669`(产品码末位 `8792830`)~~ |
+> | 代码坐标 | **`NimoOS-New-UI` `master`**(主工作树,不是 `.sp8`);**部署出去的那次构建 = 产品码末位 `c968fab`**,其后的提交全是 `.superpowers/` 文档、不进构建 | ~~`.sp8/NimoOS-New-UI` @ `sp8-ai` @ `0060669`(产品码末位 `8792830`)~~ |
 > | 合并状态 | **✅ `sp8-ai` 已合入 `master`**(T3 `--no-ff`,合并 commit `261bebd`) | ~~未合 master~~ |
 > | 部署状态 | **✅ 已部署真机 80 端口**(`./scripts/deploy.sh` → `/var/lib/nimoos/www/app/`) | ~~未部署~~ |
 > | push 状态 | ⛔ **仍未推 origin**(这一条没变) | 未 push |
