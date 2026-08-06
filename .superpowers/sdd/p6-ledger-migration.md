@@ -16,7 +16,7 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short && fi
 **实测(2026-08-06,T9 开工时)**:
 
 1. `NimoOS-UI/docs/vue3-pending/` —— **未跟踪**,8 个文件 / 1574 行(2026-08-06 当天全期未做项审计,400+ 条)。✅ 确认还在,已处置(见 §2)。
-2. `NimoOS-UI/FRONTEND_API_GUIDE.md` —— **未跟踪**,333 行。✅ 确认还在,**保持原状**(见 §3,等机主拍板)。
+2. `NimoOS-UI/FRONTEND_API_GUIDE.md` —— 当时**未跟踪**,333 行。✅ 确认还在;**机主 2026-08-06 拍板入库,已提交 VUE2 commit `6c5c632f`**(见 §3)。
 3. `.sp8/NimoOS-Service/.superpowers/` —— 整目录被 `.superpowers/sdd/.gitignore`(内容裸 `*`)吃掉,`git status --ignored --short` 只报一行 `!! .superpowers/`;`find .superpowers -type f | wc -l` = **13**。✅ 确认还在,已处置(见 §4)。
 
 ---
@@ -34,13 +34,17 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short && fi
 
 ---
 
-## Step 3:`FRONTEND_API_GUIDE.md` 定性 —— 🔴 等机主拍板,当前保持原状
+## Step 3:`FRONTEND_API_GUIDE.md` 定性 —— 🟢 机主 2026-08-06 拍板:入库,已提交(不再是"等拍板")
 
-**没有 `git add`,也没有删除。**
+**机主拍板**:文档记的几个坑(缺 `Bearer` 前缀、响应信封层数、401 刷新队列)正是本项目反复栽过的地方,SP10 删掉 Vue2 之前都是活的参考;不入库则一次 `git clean` 就没了。
 
 🔴 **订正(修复轮 1/5)**:本节上一版写「读了全部 179 行」是错的,独立评审用四种方法(`wc -l`/`wc -c`/`awk 'END{print NR}'`/python `readlines()`)交叉实测**全部得 333 行**,且当时的内容摘要也确实只覆盖到第 3 节,完全没提第 4-8 节(实时通信/Vuex/i18n/Home.vue 结构/9 条重构红线,全部在第 179 行之后)。误读成因、防范措施、补读后的完整内容判断与建议,见 `p6-task-9-report.md` §2.0–§2.2(那份文档是权威版本,这里不重复贴长文本,只留一句指引)。
 
-**结论摘要(完整版见 `p6-task-9-report.md` §2.2)**:补读第 4-8 节后,**建议不变——入库**。这是一份**面向"接手重构 `Home.vue` 的开发者"的 Vue2 前端架构说明**,共 8 节,覆盖 HTTP 对接(第 3 节)之外,还有实时通信三套机制(Socket.io/WebSocket/EventBus,第 4 节)、Vuex 状态管理(第 5 节)、i18n(第 6 节)、当前主页结构(第 7 节)、以及 9 条重构红线(第 8 节)。全篇纯描述性,没有密钥、没有敏感数据,是**准确的技术文档**(含第 4-8 节,与代码/CLAUDE.md 核对一致,没发现错误)。价值不止服务于"重构 Home.vue"这一次性任务——第 8 节的 9 条红线本身就是一份可复用的验收清单。**这条仍需机主本人答复,我没有替他决定。**
+**结论摘要(完整版见 `p6-task-9-report.md` §2.2/§9.1)**:补读第 4-8 节后,**建议不变——入库**。这是一份**面向"接手重构 `Home.vue` 的开发者"的 Vue2 前端架构说明**,共 8 节,覆盖 HTTP 对接(第 3 节)之外,还有实时通信三套机制(Socket.io/WebSocket/EventBus,第 4 节)、Vuex 状态管理(第 5 节)、i18n(第 6 节)、当前主页结构(第 7 节)、以及 9 条重构红线(第 8 节)。全篇纯描述性,没有密钥、没有敏感数据,是**准确的技术文档**(含第 4-8 节,与代码/CLAUDE.md 核对一致,没发现错误)。价值不止服务于"重构 Home.vue"这一次性任务——第 8 节的 9 条红线本身就是一份可复用的验收清单。
+
+**入库前第三次安全复核**(不可逆动作,再核一遍全文 333 行):真实 token/密码/私钥——无;内网 IP 或主机名——无(`VUE_APP_DEV_IP`/`VUE_APP_DEV_PORT` 只是变量名);机主个人信息——无。三类均干净。
+
+**已执行**:`cd NimoOS-UI && git add FRONTEND_API_GUIDE.md`(带 pathspec)→ commit **`6c5c632f`**。VUE2 工作树自此归零。
 
 **但这是机主的判断,不是我能替他做的决定** —— 我只给结论供参考,实际处置等答复。
 
@@ -147,13 +151,12 @@ git diff 39e8a4e..501cc97 --stat | tail -3
 cd /home/nimo/NimoTech/.sp8/NimoOS-New-UI && git status --ignored --short   # 只应有 !! dist/ 与 !! node_modules/
 cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short  # 只应有 !! .superpowers/(内容已按 Step 4 处置完毕,允许继续留在 worktree 里直到撤除,只是不随合流带出去)/ !! dist/ / !! node_modules/
 
-# 2. 本刀落盘的三份文档必须已提交、工作区干净
-cd /home/nimo/NimoTech/NimoOS-UI && git log --oneline -2   # 应看到 7dfe35ce 与 9b83c539
-cd /home/nimo/NimoTech/NimoOS-UI && git status --short docs/vue3-pending/ docs/vue3-migration-roadmap.md  # 应为空(无输出)
+# 2. 本刀落盘的文档必须已提交、工作区干净
+cd /home/nimo/NimoTech/NimoOS-UI && git log --oneline -5   # 应看到 7dfe35ce / 9b83c539 / 8ba172b7 / 6c5c632f / 6ff26538
 cd /home/nimo/NimoTech/NimoOS-New-UI && git status --short .superpowers/sdd/p6-ledger-migration.md .superpowers/sdd/p6-task-9-report.md  # 应为空(无输出,提交后)
 
-# 3. FRONTEND_API_GUIDE.md 仍原状未决,确认没被误删或误加
-cd /home/nimo/NimoTech/NimoOS-UI && git status --short FRONTEND_API_GUIDE.md   # 应仍是 `?? FRONTEND_API_GUIDE.md`
+# 3. FRONTEND_API_GUIDE.md 已经机主拍板入库,确认工作树因此归零(不再是"仍原状未决")
+cd /home/nimo/NimoTech/NimoOS-UI && git status --short   # 应为空(0 行)——这是本轮与上一版核验门的唯一差异
 
 # 4. 全局约束复核:NEW-UI 主工作树(非 .sp8 那份)status 应恰好 3 行 design-export 删除,SERVICE 主仓 0 行
 cd /home/nimo/NimoTech/NimoOS-New-UI && git status --short   # 恰好 3 行 " D design-export/..."
@@ -171,12 +174,15 @@ VUE2(`NimoOS-UI`,分支 `docs/vue3-migration-sp3`):
 ```
 7dfe35ce docs: Vue3 迁移未做项全期审计入库(8 文件)
 9b83c539 docs(p6-t9): P5f 挂账落进长期台账 + 撤 worktree 前核验门
+8ba172b7 fix(p6-t9): 修复轮 1/5 —— 取数命令订正
+6c5c632f docs: 前端架构 & API 对接指南入库(机主 2026-08-06 拍板)
+6ff26538 docs(p6-t9): oss/export.mjs 的 DEFAULT_OUT 危险默认值单独立票
 ```
 
 NEW-UI(`NimoOS-New-UI`,`git add -f` 因为 `.superpowers/` 被 gitignore):
 
 ```
-本文件 + p6-task-9-report.md,commit 见仓库 log(T9 报告里贴了 SHA)
+本文件 + p6-task-9-report.md,commit 见仓库 log(T9 报告里贴了 SHA,含修复轮与机主拍板执行两次追加提交)
 ```
 
 ---

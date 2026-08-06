@@ -4,7 +4,7 @@
 
 三处暴露的东西都已复核还在,并按 brief + 台账要求逐一处置:
 - `NimoOS-UI/docs/vue3-pending/`(8 文件/1574 行,2026-08-06 全期未做项审计)→ **已入库**(VUE2 commit `7dfe35ce` + `9b83c539`)。
-- `NimoOS-UI/FRONTEND_API_GUIDE.md`(333 行)→ **保持原状,等机主拍板**(见 §2)。
+- `NimoOS-UI/FRONTEND_API_GUIDE.md`(333 行)→ **机主 2026-08-06 拍板入库,已提交 `6c5c632f`**(见 §2)。
 - `.sp8/NimoOS-Service/.superpowers/`(13 个文件,gitignore 掉)→ **9 个真区间 diff 全部可达/可重生成,不入库;2 个空文件零信息;1 个 18 行支撑文件已抄录进 `p6-ledger-migration.md` §7 兜底**(见 §3)。
 - P5f 挂账(D-10/D-11/D-12/票 A-E/Wiki 运维票/守卫常量表)→ **全部落盘**,细目见 §4。
 
@@ -39,9 +39,13 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short && fi
 
 ---
 
-## §2 FRONTEND_API_GUIDE.md 定性 —— 需机主拍板
+## §2 FRONTEND_API_GUIDE.md 定性 —— 🟢 机主 2026-08-06 拍板:入库,已提交
 
-**没有 `git add`,也没有删除,保持原状。**
+**机主拍板理由**(原话要点):文档记的几个坑(缺 `Bearer` 前缀、响应信封层数、401 刷新队列)正是本项目反复栽过的地方,SP10 删掉 Vue2 之前都是活的参考;不入库则一次 `git clean` 就没了。
+
+**入库前的安全复核**(不可逆动作,提交前再核一遍全文 333 行):逐行检查了真实 token/密码/私钥、内网 IP 或主机名、机主个人信息三类——**三类均未发现**。`VUE_APP_DEV_IP`/`VUE_APP_DEV_PORT`、`access_token`/`refresh_token` 等只是字段名/环境变量名,不是实际取值;全篇无 IP 地址、无主机名、无姓名/邮箱等个人信息。
+
+**已提交**:VUE2(`NimoOS-UI`,`docs/vue3-migration-sp3`)commit `6c5c632f`,`git add FRONTEND_API_GUIDE.md` 带 pathspec。
 
 ### §2.0 🔴 订正:上一版本报告「读了全部 179 行」是错的,实际全文 333 行
 
@@ -65,11 +69,11 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short && fi
 
 补读后的判断:全篇纯描述性,**无密钥无敏感数据**,内容与代码/CLAUDE.md 核对一致(含第 4-8 节),没发现错误。第 4-8 节进一步印证了这份文档的价值不止第 3 节的 HTTP 对接——第 8 节的"9 条重构红线"和第 5 节"别动 IndexedDB 持久化模块"这类提示,是**任何后续要动 Home.vue 或其依赖的人都需要的护栏**,不是只服务于 HTTP 层的窄范围文档。
 
-### §2.2 建议(结论不变,但现在基于完整内容):入库
+### §2.2 建议(结论不变,现在基于完整内容):入库 —— 🟢 机主已拍板采纳,已执行
 
 理由:① 内容有长期价值,不止服务于一次性的 Home.vue 重构任务,覆盖了 Vue2 前端从 HTTP、鉴权、实时通信、状态管理到 i18n 的完整消费层图景,现有 CLAUDE.md 没有这个颗粒度(尤其是 `Authorization` 头无 `Bearer` 前缀、`sockets:{}` 声明式订阅、`getCustomStorage`/`setCustomStorage` 持久化约定这几条,别处找不到);② 第 8 节的"重构红线"本身就是一份可复用的验收清单,对任何后续 Vue2→Vue3 迁移或重构工作都有参考价值,不止 Home.vue;③ 没有需要保密或丢弃的理由,全篇无密钥无敏感数据。
 
-**这条仍然需要机主本人答复,我没有替他决定,文件保持原状(不 add 不删)。**
+**机主 2026-08-06 拍板:入库。已提交 VUE2 commit `6c5c632f`(`git add FRONTEND_API_GUIDE.md`,带 pathspec)。**
 
 ---
 
@@ -153,12 +157,12 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short
 cd /home/nimo/NimoTech/NimoOS-UI && git log --oneline -2
 cd /home/nimo/NimoTech/NimoOS-UI && git status --short docs/vue3-pending/ docs/vue3-migration-roadmap.md
 cd /home/nimo/NimoTech/NimoOS-New-UI && git status --short .superpowers/sdd/p6-ledger-migration.md .superpowers/sdd/p6-task-9-report.md
-cd /home/nimo/NimoTech/NimoOS-UI && git status --short FRONTEND_API_GUIDE.md
+cd /home/nimo/NimoTech/NimoOS-UI && git status --short   # FRONTEND_API_GUIDE.md 已入库,现应无输出(0 行)
 cd /home/nimo/NimoTech/NimoOS-New-UI && git status --short
 cd /home/nimo/NimoTech/NimoOS-Service && git status --short
 ```
 
-完整命令与每条的期望输出见 `p6-ledger-migration.md` §6。
+完整命令与每条的期望输出见 `p6-ledger-migration.md` §6(该文档同一轮已同步更新)。
 
 ---
 
@@ -169,6 +173,9 @@ VUE2(`NimoOS-UI`,分支 `docs/vue3-migration-sp3`):
 ```
 7dfe35ce docs: Vue3 迁移未做项全期审计入库(8 文件)
 9b83c539 docs(p6-t9): P5f 挂账落进长期台账 + 撤 worktree 前核验门
+8ba172b7 fix(p6-t9): 修复轮 1/5 —— 取数命令订正
+6c5c632f docs: 前端架构 & API 对接指南入库(机主 2026-08-06 拍板)
+6ff26538 docs(p6-t9): oss/export.mjs 的 DEFAULT_OUT 危险默认值单独立票
 ```
 
 NEW-UI(`NimoOS-New-UI`,master,`git add -f` 因为 `.superpowers/` 被 gitignore):见本仓 git log(本报告所在的那次提交)。
@@ -179,9 +186,10 @@ SERVICE:本刀未写任何东西(遵守全局约束"不要往 SERVICE 仓写任�
 
 ## §7 结束状态
 
+- VUE2 `git status --short`:**0 行**(`FRONTEND_API_GUIDE.md` 从 `??` 变成已提交,工作树干净)。
 - NEW-UI `git status --short`:恰好 3 行 ` D design-export/...`(未受本刀影响)。
 - SERVICE `git status --short`:0 行。
-- VUE2:除 `FRONTEND_API_GUIDE.md`(等机主拍板,故意保持未跟踪)外,全部改动已提交。
+- VUE2:全部改动已提交,`FRONTEND_API_GUIDE.md` 经机主拍板已入库(commit `6c5c632f`)。
 - `.sp8/NimoOS-Service/.superpowers/`:内容未变(不需要变,已在 gitignore 里且信息已妥善处置),T10 撤 worktree 时会被一并丢弃,按 §3 结论这是安全的。
 
 ---
@@ -222,3 +230,36 @@ sed -n "/path: '\/ai\/knowledge',/,/\],\$/p" src/router/route.js | /usr/bin/grep
 **没问题、抽查后确认支持结论的**(不改):`.vue` 总数(`find src -name "*.vue" | wc -l` → 340)、`WHITELIST_425`/`NON_K_HELPER_CLASSES` 两条(`toHaveLength(425)`/`toHaveLength(20)` 现测两行都还在)、`?raw` 空转排查命令(跑出真实的 4 个命中文件)、color-guard 实扫文件数(换成具体的 `find src -name "*.vue" -o -name "*.css" | wc -l` → 345,取代了原来"读 glob 结果集大小"这种非可执行的描述性建议)。
 
 **这次自查的教训**(同一条,写进 `roadmap.md` 引言段):**「命令能跑」不等于「输出支持旁边写的结论」,也不等于「路径是对的仓」**——本刀一次性踩中路径错(strangler.js/T8-D3/D47 共 3 处指向错仓或错目录)、取数口径错(aiKb/全表用错了行数 vs 键数)两类问题,且都是在"看起来像能用"的状态下混进文档的。以后落盘任何取数命令前,都要**在目标仓库实际跑一次**,确认输出数字与旁边的中文结论对得上,而不是凭命令语法「看起来对」就收录。
+
+---
+
+## §9 机主拍板执行(2026-08-06,§2 那条"等机主拍板"已解除)
+
+### 9.1 拍板内容与执行
+
+机主拍板:`FRONTEND_API_GUIDE.md` **入库**。理由(机主原话要点):文档记的几个坑(缺 `Bearer` 前缀、响应信封层数、401 刷新队列)正是本项目反复栽过的地方,SP10 删掉 Vue2 之前都是活的参考;不入库则一次 `git clean` 就没了。
+
+**入库前的第三次安全复核**(不可逆动作,进 git 历史就在了,再核一遍):逐行核对全文 333 行,专门过一遍三类——① 真实 token/密码/私钥:**无**(只有 `access_token`/`refresh_token`/`login(u,p)` 这类字段名/参数名,没有任何字面值);② 内网 IP 或主机名:**无**(`VUE_APP_DEV_IP`/`VUE_APP_DEV_PORT` 只是环境变量名,文中没有出现任何实际 IP 或域名);③ 机主个人信息:**无**(全篇零姓名/邮箱/其它 PII)。三类均干净,未发现需要暂停报告的内容。
+
+**执行**:`cd NimoOS-UI && git add FRONTEND_API_GUIDE.md && git commit`,带 pathspec,commit `6c5c632f`。VUE2 工作树自此归零(`git status --short` 0 行)。
+
+### 9.2 `DEFAULT_OUT` 危险默认值单独立票
+
+按要求把 §8.3 里发现的 `oss/export.mjs` `DEFAULT_OUT` 问题从"藏在 T8-D3 取数命令旁注里"提升成 `roadmap.md` §SP8 债务台账里的**独立一行**(排在"本期新产生的债务"表最前面,🔴 标记),标题直接点名"会伤人的默认值",不再需要点开 T8-D3 那格才看到。VUE2 commit `6ff26538`。该行的两条取数命令(`DEFAULT_OUT` 定义行 + `NO_COMMIT` 分支逻辑)已现测验证,输出与断言一致。
+
+### 9.3 本轮涉及的全部 VUE2 commit(按时间顺序)
+
+```
+7dfe35ce docs: Vue3 迁移未做项全期审计入库(8 文件)
+9b83c539 docs(p6-t9): P5f 挂账落进长期台账 + 撤 worktree 前核验门
+8ba172b7 fix(p6-t9): 修复轮 1/5 —— 取数命令订正
+6c5c632f docs: 前端架构 & API 对接指南入库(机主 2026-08-06 拍板)
+6ff26538 docs(p6-t9): oss/export.mjs 的 DEFAULT_OUT 危险默认值单独立票
+```
+
+### 9.4 最终结束状态(本轮结束时实测)
+
+- VUE2 `git status --short`:**0 行**。
+- NEW-UI `git status --short`:恰好 3 行 ` D design-export/...`。
+- SERVICE `git status --short`:0 行。
+- `NimoOS-Web` 未被本刀触碰,仍停在 `748aa8f`(那处已知的未提交 `M README.md` 是既有状态,不是本刀引入的)。
