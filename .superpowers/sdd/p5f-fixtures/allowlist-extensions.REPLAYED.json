@@ -1,0 +1,17 @@
+{
+  "__meta": {
+    "label": ".REPLAYED",
+    "why": "🔴 本机真机 45 个扩展名 **enabled 全是 1**(见 allowlist-extensions.REAL.json,实测 enabled 取值集合 = {1})⇒ 真机抓不到 `enabled: 0` 的样本。",
+    "built_from": "把 allowlist-extensions.REAL.json 的**真机响应**取其中 6 条,只把部分 enabled 由 1 改成 0(**字段名/类型/source 值一字未动**)",
+    "n47": "🔴 enabled 是 SQLite **整数 0/1**,不是 boolean —— store 侧 `!!e.enabled` 归一化是必需的(knowledgeStore.ts:395),不归一化 chip 永不视觉翻转",
+    "n47_page_side": "页面侧 `:data-on=\"String(e.enabled)\"` 照抄 ⇒ 归一化后测试断 'true'/'false' 字符串"
+  },
+  "extensions": [
+    { "ext": ".pdf",  "enabled": 1, "source": "default" },
+    { "ext": ".docx", "enabled": 0, "source": "default" },
+    { "ext": ".md",   "enabled": 1, "source": "default" },
+    { "ext": ".txt",  "enabled": 0, "source": "default" },
+    { "ext": ".py",   "enabled": 1, "source": "default" },
+    { "ext": ".go",   "enabled": 1, "source": "default" }
+  ]
+}

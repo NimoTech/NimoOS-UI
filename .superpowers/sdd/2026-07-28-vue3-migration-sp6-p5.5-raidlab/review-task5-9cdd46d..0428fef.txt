@@ -1,0 +1,460 @@
+=== 仓库: nimo_os_docs  范围: 9cdd46d..0428fef ===
+
+=== git log --oneline ===
+0428fef feat(raidlab): up/down 子命令 + main 分派与执行守卫
+
+=== git diff --stat ===
+ scripts/raidlab.sh      | 273 ++++++++++++++++++++++++++++++++++++++++++++++++
+ scripts/raidlab.test.sh |  64 +++++++++++-
+ 2 files changed, 336 insertions(+), 1 deletion(-)
+
+=== git diff -U12 ===
+diff --git a/scripts/raidlab.sh b/scripts/raidlab.sh
+index d4c1c14..5f3c8c2 100755
+--- a/scripts/raidlab.sh
++++ b/scripts/raidlab.sh
+@@ -10,24 +10,29 @@
+ #
+ # ⚠️ 安全:后端创建 RAID 前会清扫成员盘,选错盘等于抹掉 /DATA。所以本脚本
+ #    每个涉及具体块设备的破坏性操作前都必须先过 assert_fake_disk —— 它同时
+ #    要求「设备名不含 nvme」和「sysfs model 恰为 scsi_debug」,缺一不可。
+ set -uo pipefail
+ 
+ # 外部依赖全部经环境变量注入,测试可替换成临时目录。
+ RAIDLAB_SYSFS_ROOT="${RAIDLAB_SYSFS_ROOT:-/sys}"
+ RAIDLAB_API_BASE="${RAIDLAB_API_BASE:-http://127.0.0.1}"
+ RAIDLAB_NUM_TGTS="${RAIDLAB_NUM_TGTS:-4}"
+ RAIDLAB_DEV_SIZE_MB="${RAIDLAB_DEV_SIZE_MB:-512}"
+ RAIDLAB_PROC_MDSTAT="${RAIDLAB_PROC_MDSTAT:-/proc/mdstat}"
++RAIDLAB_FSTAB="${RAIDLAB_FSTAB:-/etc/fstab}"
++RAIDLAB_MDADM_CONF="${RAIDLAB_MDADM_CONF:-/etc/mdadm/mdadm.conf}"
++# 后端白名单标记文件:NimoOS-LocalStorage 只在它存在时才承认 scsi_debug 假盘
++# (出厂产品默认拒绝伪盘,防止把内存假盘当真存储推给用户)。up 建、down 撤。
++RAIDLAB_PSEUDO_MARKER="${RAIDLAB_PSEUDO_MARKER:-/etc/nimoos/allow-pseudo-disks}"
+ 
+ # scsi_debug 假盘在 sysfs 里的型号标识。真实内容尾部带空格,判定时会 trim。
+ FAKE_DISK_MODEL="scsi_debug"
+ 
+ # --- 假盘护栏 ---------------------------------------------------------------
+ 
+ # is_fake_disk <dev> —— <dev> 为裸设备名(sda),不带 /dev/。
+ # 两道条件必须同时满足,缺一不可。
+ is_fake_disk() {
+ 	local dev="${1:-}"
+ 	[[ -n "$dev" ]] || return 1
+ 
+@@ -248,24 +253,72 @@ assert_md_all_fake() {
+ #     这种目录名字面上凑巧以该串结尾、但根本不是这个功能挂载点的条目也
+ #     一起删掉。
+ fstab_drop_snapshots() {
+ 	awk '$1 ~ /^\/dev\/md[0-9]+$/ && $2 ~ /\/\.snapshots$/ { next } { print }'
+ }
+ 
+ # mdadm_conf_drop_arrays —— stdin 读 mdadm.conf,删掉 ARRAY 行,其余原样。
+ # 调用方必须先对每个在场阵列跑过 assert_md_all_fake。
+ mdadm_conf_drop_arrays() {
+ 	awk '$1 == "ARRAY" { next } { print }'
+ }
+ 
++# --- down 前置断言:配置文件里的 md 设备是否都已核实 ------------------------
++#
++# fstab_drop_snapshots / mdadm_conf_drop_arrays 都是按行全局删除,只问"这行
++# 长得像不像该删的样子",不问"这个阵列有没有被核实过"。assert_md_all_fake
++# 只核查 md_arrays()(读 /proc/mdstat)能看到的、已组装的阵列——一台有真实
++# 但未组装阵列的机器,该阵列不会出现在 md_arrays() 里,assert_md_all_fake
++# 就没机会核查它,但它在 fstab/mdadm.conf 里的条目照样会被两个过滤器删掉。
++# 下面这组函数把"配置文件提到的 md 设备,必须都在已核实集合里"做成可单测
++# 的纯函数,供 cmd_down 在清理前调用;对不上就该看作"未核实",拒绝而不是猜
++# ——不管对不上的原因是"这确实是别的阵列",还是"同一阵列在两个文件里的
++# 写法不一致导致认不出来"(如 fstab 的 /dev/md127 与 mdadm.conf 里可能出现
++# 的 /dev/md/<name> 符号链接形式),两种情况都不能证明安全。
++
++# fstab_md_sources —— stdin 读 fstab,打印所有源设备字段以 /dev/md 开头的行,
++# 裸名(去掉 /dev/ 前缀),每行一个。刻意比 fstab_drop_snapshots 的删除条件
++# (精确 /dev/md[0-9]+ 且挂载点为 .snapshots)更宽:这里要回答的是"fstab 里
++# 究竟提到了哪些看起来像 md 设备的东西",不是"这一行会不会被删"——核实关口
++# 宁可多疑一个,也不要漏看一个。
++fstab_md_sources() {
++	awk '$1 ~ /^\/dev\/md/ { sub(/^\/dev\//, "", $1); print $1 }'
++}
++
++# mdadm_conf_md_devices —— stdin 读 mdadm.conf,打印每条 ARRAY 行的设备字段
++# (第 2 列),裸名(去掉 /dev/ 前缀),每行一个。
++mdadm_conf_md_devices() {
++	awk '$1 == "ARRAY" { dev = $2; sub(/^\/dev\//, "", dev); print dev }'
++}
++
++# devices_not_in_set <verified-集合,换行分隔> —— stdin 读候选裸设备名,把不在
++# verified 集合里的原样打到 stdout;全部命中则不输出任何内容。纯字符串比较
++# ——"/dev/md127"和"/dev/md/nimo1"是否实指同一阵列,这里不通过解析符号链接
++# 去证明,解不出对应关系本身就该判"未核实"(调用方据此拒绝),而不是想办法
++# 证明它安全。
++devices_not_in_set() {
++	local set="$1" dev line hit
++	while IFS= read -r dev; do
++		[[ -n "$dev" ]] || continue
++		hit=0
++		while IFS= read -r line; do
++			if [[ -n "$line" && "$dev" == "$line" ]]; then
++				hit=1
++				break
++			fi
++		done <<< "$set"
++		[[ "$hit" -eq 1 ]] || echo "$dev"
++	done
++}
++
+ # --- status ----------------------------------------------------------------
+ 
+ # cmd_status —— 打印测试台四视图,验收时对账用。始终返回 0(纯观测)。
+ cmd_status() {
+ 	echo "=== 假盘(sysfs model == scsi_debug)==="
+ 	local fakes
+ 	fakes="$(list_fake_disks)"
+ 	if [[ -n "$fakes" ]]; then
+ 		echo "$fakes"
+ 	else
+ 		echo "(无)"
+ 	fi
+@@ -288,12 +341,232 @@ cmd_status() {
+ 		echo "(空 —— 若假盘已在场,说明白名单补丁未部署)"
+ 	fi
+ 
+ 	echo
+ 	echo "=== 后端快照卷(GET /v2/snapshot/volumes)==="
+ 	api_get /v2/snapshot/volumes 2>/dev/null || echo "(请求失败)"
+ 	echo
+ 
+ 	echo "=== 后端 RAID 阵列(GET /v2/raid)==="
+ 	api_get /v2/raid 2>/dev/null || echo "(请求失败)"
+ 	echo
+ }
++
++# --- up ----------------------------------------------------------------------
++
++# cmd_up —— 加载 scsi_debug、等设备就绪、建后端白名单标记、核对后端能看见
++# 且只看见假盘。
++cmd_up() {
++	if [[ -n "$(list_fake_disks)" ]]; then
++		echo "raidlab: 假盘已在场,无需重复 up。当前状态:" >&2
++		list_fake_disks >&2
++		echo "         要重建请先 ./raidlab.sh down。" >&2
++		return 1
++	fi
++
++	echo "raidlab: 加载 scsi_debug(num_tgts=$RAIDLAB_NUM_TGTS dev_size_mb=$RAIDLAB_DEV_SIZE_MB)..."
++	sudo modprobe scsi_debug \
++		"num_tgts=$RAIDLAB_NUM_TGTS" \
++		"dev_size_mb=$RAIDLAB_DEV_SIZE_MB" || {
++		echo "raidlab: modprobe scsi_debug 失败。" >&2
++		return 1
++	}
++
++	# 建后端白名单标记:NimoOS-LocalStorage 只在 $RAIDLAB_PSEUDO_MARKER 存在
++	# 时才承认 scsi_debug 假盘,否则 IsDiskSupported 会把它们当不支持的设备
++	# 过滤掉,avail 永远看不见——放在 modprobe 成功之后、核对 avail 之前建,
++	# 让后面的重试轮次一开始就有机会看见假盘。
++	echo "raidlab: 建立假盘白名单标记 $RAIDLAB_PSEUDO_MARKER..."
++	sudo touch "$RAIDLAB_PSEUDO_MARKER" || {
++		echo "raidlab: 建立标记文件 $RAIDLAB_PSEUDO_MARKER 失败。" >&2
++		return 1
++	}
++
++	# 等设备节点出现(udev 异步)。10 次 × 1s 足够;实测约 2s。
++	echo "raidlab: 等待设备节点..."
++	local i count
++	for i in $(seq 1 10); do
++		count="$(list_fake_disks | wc -l)"
++		[[ "$count" -ge "$RAIDLAB_NUM_TGTS" ]] && break
++		sleep 1
++	done
++	count="$(list_fake_disks | wc -l)"
++	if [[ "$count" -lt "$RAIDLAB_NUM_TGTS" ]]; then
++		echo "raidlab: 只出现 $count 块假盘,期望 $RAIDLAB_NUM_TGTS 块。" >&2
++		return 1
++	fi
++	echo "raidlab: 假盘就位:"
++	list_fake_disks | sed 's/^/  /'
++
++	# 后端磁盘列表有 100s 缓存(GetDiskList 走 LSBLK(false) 不吃缓存,但
++	# SMART 缓存与 udev 仍需时间),重试几轮再判定。
++	echo "raidlab: 核对后端 avail..."
++	for i in $(seq 1 6); do
++		if api_get /v1/disks 2>/dev/null | avail_disk_names | verify_avail_only_fake 2>/dev/null; then
++			echo "raidlab: 后端已看见全部假盘,且 avail 里没有真盘。"
++			echo
++			echo "raidlab: 测试台就绪。下一步按验收清单在 5273 预览页操作。"
++			return 0
++		fi
++		sleep 3
++	done
++
++	# 最后一次不吞 stderr,把准确诊断打给用户
++	echo "raidlab: 核对失败,详情:" >&2
++	api_get /v1/disks 2>/dev/null | avail_disk_names | verify_avail_only_fake
++	echo "raidlab: 另一个常见原因:标记文件 $RAIDLAB_PSEUDO_MARKER 没建成功" >&2
++	echo "         (后端只在它存在时才承认 scsi_debug 假盘),确认它确实存在。" >&2
++	return 1
++}
++
++# --- down ----------------------------------------------------------------------
++
++# cmd_down —— 拆台并复核回基线。顺序不可调换:必须在停阵列「之前」核查成员
++# 并核对配置文件引用,停完阵列成员信息就没了。
++cmd_down() {
++	local md rc=0
++
++	# 1. 核查所有在场阵列都是测试台建的
++	local arrays
++	arrays="$(md_arrays)"
++	if [[ -n "$arrays" ]]; then
++		while IFS= read -r md; do
++			[[ -n "$md" ]] || continue
++			assert_md_all_fake "$md" || return 1
++		done <<< "$arrays"
++	fi
++
++	# 1.5 前置断言:fstab_drop_snapshots / mdadm_conf_drop_arrays 都是按行
++	#     全局删除,只问"这行像不像该删的样子",不问"这个阵列有没有被核实
++	#     过"。上一步的 $arrays 只覆盖 md_arrays()(读 /proc/mdstat)能看到
++	#     的、已组装的阵列——一台有真实但未组装阵列的机器,该阵列不会出现
++	#     在 $arrays 里,上一步就没机会核查它,但它在 fstab/mdadm.conf 里的
++	#     条目照样会被两个过滤器删掉。这里把"配置文件提到的 md 设备,必须
++	#     都在 $arrays(已逐个核实为全假盘)里"当作继续往下走的前提,对不上
++	#     就拒绝、一个文件都不动——不管对不上是因为"这确实是别的阵列",还是
++	#     "同一阵列在两个文件里的写法不一致导致认不出来"。
++	local unverified
++	unverified="$(
++		{
++			[[ -r "$RAIDLAB_FSTAB" ]] && fstab_md_sources < "$RAIDLAB_FSTAB"
++			[[ -r "$RAIDLAB_MDADM_CONF" ]] && mdadm_conf_md_devices < "$RAIDLAB_MDADM_CONF"
++		} | devices_not_in_set "$arrays" | sort -u
++	)"
++	if [[ -n "$unverified" ]]; then
++		echo "raidlab: $RAIDLAB_FSTAB / $RAIDLAB_MDADM_CONF 里引用了未核实的 md 设备,拒绝继续,一个文件都不动:" >&2
++		echo "$unverified" | sed 's/^/  /' >&2
++		echo "         可能是台上有真实但未组装的阵列(md_arrays 看不到它,上一步没机会核查)," >&2
++		echo "         也可能是同一阵列在两处文件里的写法不一致(如 /dev/md127 与" >&2
++		echo "         /dev/md/<name>)导致认不出对应关系——两种情况都不能证明安全,请手动" >&2
++		echo "         核实后再清理。" >&2
++		return 1
++	fi
++
++	# 2. 清 fstab(在停阵列前做,条目里的 /dev/md* 此刻还有意义)
++	if [[ -r "$RAIDLAB_FSTAB" ]]; then
++		local tmp_fstab
++		tmp_fstab="$(mktemp)"
++		fstab_drop_snapshots < "$RAIDLAB_FSTAB" > "$tmp_fstab"
++		if ! diff -q "$RAIDLAB_FSTAB" "$tmp_fstab" >/dev/null 2>&1; then
++			echo "raidlab: 清理 $RAIDLAB_FSTAB 里的 @snapshots 条目..."
++			sudo cp "$RAIDLAB_FSTAB" "$RAIDLAB_FSTAB.raidlab.bak"
++			sudo cp "$tmp_fstab" "$RAIDLAB_FSTAB"
++		fi
++		rm -f "$tmp_fstab"
++	fi
++
++	# 3. 卸挂载点并停阵列。同一设备可能有多个独立挂载点(基础子卷 + 各自
++	#    的 .snapshots 子卷各占一行 fstab,共用同一个源设备)——用 -A
++	#    (unmount all mountpoints for the given device),而不是 -R(对某个
++	#    目录递归卸掉它下面的子挂载,处理的是另一种场景:目录树里嵌套的
++	#    bind mount,不是"同一设备的多个平级挂载点")。
++	if [[ -n "$arrays" ]]; then
++		while IFS= read -r md; do
++			[[ -n "$md" ]] || continue
++			echo "raidlab: 停止阵列 /dev/$md..."
++			sudo umount -A "/dev/$md" 2>/dev/null || true
++			sudo mdadm --stop "/dev/$md" || rc=1
++		done <<< "$arrays"
++	fi
++
++	# 4. 清 mdadm.conf
++	if [[ -r "$RAIDLAB_MDADM_CONF" ]]; then
++		local tmp_mdconf
++		tmp_mdconf="$(mktemp)"
++		mdadm_conf_drop_arrays < "$RAIDLAB_MDADM_CONF" > "$tmp_mdconf"
++		if ! diff -q "$RAIDLAB_MDADM_CONF" "$tmp_mdconf" >/dev/null 2>&1; then
++			echo "raidlab: 清理 $RAIDLAB_MDADM_CONF 里的 ARRAY 行..."
++			sudo cp "$RAIDLAB_MDADM_CONF" "$RAIDLAB_MDADM_CONF.raidlab.bak"
++			sudo cp "$tmp_mdconf" "$RAIDLAB_MDADM_CONF"
++		fi
++		rm -f "$tmp_mdconf"
++	fi
++
++	# 5. 卸模块
++	if lsmod | grep -q '^scsi_debug'; then
++		echo "raidlab: 卸载 scsi_debug..."
++		sudo rmmod scsi_debug || rc=1
++	fi
++
++	# 6. 撤回后端白名单标记(在 rmmod 之后:模块还在的时候没必要急着撤)
++	if [[ -e "$RAIDLAB_PSEUDO_MARKER" ]]; then
++		echo "raidlab: 撤回假盘白名单标记 $RAIDLAB_PSEUDO_MARKER..."
++		sudo rm -f "$RAIDLAB_PSEUDO_MARKER" || rc=1
++	fi
++
++	# 7. 复核基线
++	echo "raidlab: 复核基线..."
++	local left
++	left="$(list_fake_disks)"
++	if [[ -n "$left" ]]; then
++		echo "raidlab: 仍有假盘残留:" >&2
++		echo "$left" >&2
++		rc=1
++	fi
++	if [[ -n "$(md_arrays)" ]]; then
++		echo "raidlab: 仍有 md 阵列残留:" >&2
++		md_arrays >&2
++		rc=1
++	fi
++
++	if [[ "$rc" -eq 0 ]]; then
++		echo "raidlab: 已回到基线。"
++	else
++		echo "raidlab: 拆台未完全成功,请跑 ./raidlab.sh status 查看。" >&2
++	fi
++	return "$rc"
++}
++
++# --- 分派 ------------------------------------------------------------------
++
++usage() {
++	cat <<'EOF'
++用法: ./raidlab.sh <子命令>
++
++  up      加载 scsi_debug 造假盘,核对后端能看见且只看见假盘
++  down    核查并停阵列、清 fstab/mdadm.conf、卸模块、复核回基线
++  status  打印假盘/mdstat/lsblk/后端 avail/快照卷/RAID 六视图(纯观测)
++
++环境变量(默认值):
++  RAIDLAB_NUM_TGTS=4          假盘数量
++  RAIDLAB_DEV_SIZE_MB=512     每块假盘大小
++  RAIDLAB_API_BASE=http://127.0.0.1
++  RAIDLAB_PSEUDO_MARKER=/etc/nimoos/allow-pseudo-disks
++EOF
++}
++
++main() {
++	case "${1:-}" in
++	up) cmd_up ;;
++	down) cmd_down ;;
++	status) cmd_status ;;
++	*)
++		usage >&2
++		return 1
++		;;
++	esac
++}
++
++# 执行守卫:被 source 时(测试)只定义函数,不跑 main。
++if [[ "${RAIDLAB_LIB_ONLY:-0}" != "1" ]]; then
++	main "$@"
++fi
+diff --git a/scripts/raidlab.test.sh b/scripts/raidlab.test.sh
+index 8ac21a9..26d841c 100755
+--- a/scripts/raidlab.test.sh
++++ b/scripts/raidlab.test.sh
+@@ -5,25 +5,26 @@
+ # 用法: ./raidlab.test.sh
+ set -uo pipefail
+ 
+ HERE="$(cd "$(dirname "$0")" && pwd)"
+ # shellcheck source=raidlab.sh
+ RAIDLAB_LIB_ONLY=1 source "$HERE/raidlab.sh"
+ set +e   # 防御性关闭 -e:两个脚本目前都只用 set -uo pipefail,没有 -e;
+          # 但万一以后给 raidlab.sh 加上 -e,这行能保证它不会拖垮这个 harness。
+ 
+ # t_ok/t_no 部分用例要走管道(bash -c 起子 shell),子 shell 不继承已 source
+ # 的函数,必须显式导出。
+ export -f is_fake_disk assert_fake_disk list_fake_disks avail_disk_names verify_avail_only_fake \
+-	md_arrays md_members assert_md_all_fake fstab_drop_snapshots mdadm_conf_drop_arrays
++	md_arrays md_members assert_md_all_fake fstab_drop_snapshots mdadm_conf_drop_arrays \
++	fstab_md_sources mdadm_conf_md_devices devices_not_in_set main cmd_status usage
+ export FAKE_DISK_MODEL
+ 
+ PASS=0
+ FAIL=0
+ 
+ # t_ok <用例名> <命令...>   —— 命令应成功(退出 0)
+ t_ok() {
+ 	local name="$1"; shift
+ 	if "$@" >/dev/null 2>&1; then
+ 		echo "  ok   $name"; PASS=$((PASS + 1))
+ 	else
+ 		echo "  FAIL $name  (期望成功,实际退出码 $?)"; FAIL=$((FAIL + 1))
+@@ -280,15 +281,76 @@ t_eq "真实 tab 分隔 + 尾部 NimoOS 注释的行被正确删掉(Entry.String
+ 
+ MDADM_IN='# mdadm.conf
+ DEVICE partitions
+ ARRAY /dev/md/nimo1 metadata=1.2 name=nimo:1 UUID=1234:5678:9abc:def0
+ MAILADDR root'
+ 
+ MDADM_WANT='# mdadm.conf
+ DEVICE partitions
+ MAILADDR root'
+ 
+ t_eq "只删 ARRAY 行" "$MDADM_WANT" "$(printf '%s' "$MDADM_IN" | mdadm_conf_drop_arrays)"
+ 
++echo
++echo "== fstab_md_sources / mdadm_conf_md_devices / devices_not_in_set(down 前置断言)=="
++
++# fstab_md_sources:比 fstab_drop_snapshots 的删除条件更宽——只要源字段以
++# /dev/md 开头就报,不要求精确 /dev/md<数字>、也不要求挂载点是 .snapshots,
++# 因为这里要回答的是"fstab 里提到了哪些看起来像 md 设备的东西"。
++FSTAB_MIXED='UUID=78db4224-e926-42c4-a899-8f8f00224d22 /boot ext4 defaults 0 2
++/dev/nvme0n1p8 /DATA ext4 defaults 0 2
++/dev/md127 /DATA/vol1 btrfs subvol=/@ 0 0
++/dev/md127 /DATA/vol1/.snapshots btrfs subvol=/@snapshots 0 0
++/dev/md0p1 /mnt/whatever ext4 defaults 0 2
++/dev/md/nimo1 /mnt/named btrfs defaults 0 0'
++
++t_eq "提取所有 /dev/md 开头的源设备(含非精确形式)" "md127
++md127
++md0p1
++md/nimo1" "$(printf '%s' "$FSTAB_MIXED" | fstab_md_sources)"
++
++t_eq "无 md 源时输出空" "" "$(printf 'UUID=x /boot ext4 defaults 0 2' | fstab_md_sources)"
++
++# mdadm_conf_md_devices:提取每条 ARRAY 行的设备字段,裸名。
++MDADM_MIXED='# mdadm.conf
++DEVICE partitions
++ARRAY /dev/md127 metadata=1.2 UUID=1234:5678:9abc:def0
++ARRAY /dev/md/nimo1 metadata=1.2 name=nimo:1 UUID=aaaa:bbbb:cccc:dddd
++MAILADDR root'
++
++t_eq "提取 ARRAY 行设备字段(数字形式与命名形式都要提到)" "md127
++md/nimo1" "$(printf '%s' "$MDADM_MIXED" | mdadm_conf_md_devices)"
++
++t_eq "无 ARRAY 行时输出空" "" "$(printf '# mdadm.conf\nDEVICE partitions' | mdadm_conf_md_devices)"
++
++# devices_not_in_set:纯字符串比较,不解析符号链接。
++t_eq "全部命中 verified 集合时输出空" "" "$(printf 'md127\nmd1\n' | devices_not_in_set "$(printf 'md127\nmd1')")"
++t_eq "命中之外的设备原样吐出" "md0p1
++md/nimo1" "$(printf 'md127\nmd0p1\nmd/nimo1\n' | devices_not_in_set "$(printf 'md127')")"
++t_eq "verified 集合为空时全部判未核实" "md127" "$(printf 'md127\n' | devices_not_in_set '')"
++t_eq "空 stdin 不输出任何内容" "" "$(printf '' | devices_not_in_set "$(printf 'md127')")"
++
++# 组合验证(down 步骤 1.5 实际会跑的管道):fstab 有一个精确 /dev/md127 条目
++# 且 md127 已核实为全假盘 → 通过;mdadm.conf 里混进了一个命名形式的
++# /dev/md/nimo1(同一台机器上一个真实但未组装、只在 mdadm.conf 留痕的阵列,
++# 或者是同一阵列的另一种写法——两种情况这里都认不出、都该拒绝)。
++COMBINED_UNVERIFIED="$(
++	{ printf '%s' "$FSTAB_MIXED" | fstab_md_sources
++	  printf '%s' "$MDADM_MIXED" | mdadm_conf_md_devices
++	} | devices_not_in_set "$(printf 'md127')" | sort -u
++)"
++# 排序结果依赖运行环境的 locale(en_US.UTF-8 下 sort 把标点排在字母数字之后,
++# 与 C locale 的纯字节序不同);这里只断言"两个都在、且 md127 被过滤掉"这个
++# 与 locale 无关的事实,不去断言两者之间谁先谁后。
++t_eq "组合场景:命名形式与非精确源都判未核实、md127 被过滤掉,不断言二者顺序" \
++	"$(printf 'md/nimo1\nmd0p1\n' | sort -u)" "$COMBINED_UNVERIFIED"
++
++echo
++echo "== main 参数分派 =="
++
++t_no "未知子命令返回非 0"  main frobnicate
++t_no "无参数返回非 0"      main
++t_eq "未知子命令打出用法" "1" "$(main frobnicate 2>&1 | grep -c '用法: ')"
++
+ echo
+ echo "通过 $PASS,失败 $FAIL"
+ [[ "$FAIL" -eq 0 ]]

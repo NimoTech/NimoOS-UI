@@ -1,0 +1,124 @@
+# Review package: 38913dd..d589d22
+
+## Commits
+d589d22 feat: vue-i18n 9 with minimal zh_cn locale
+
+## Files changed
+ src/App.vue           |  7 +++++--
+ src/i18n/i18n.test.ts | 10 ++++++++++
+ src/i18n/index.ts     | 15 +++++++++++++++
+ src/i18n/zh_cn.ts     |  9 +++++++++
+ src/main.ts           |  2 ++
+ 5 files changed, 41 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/App.vue b/src/App.vue
+index 4285429..66fc0ed 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -1,15 +1,18 @@
+ <template>
+   <div class="screen">
+     <header class="topbar">
+-      <a class="back" href="/">← 返回主应用</a>
++      <a class="back" href="/">{{ t('backToOld') }}</a>
+     </header>
+     <router-view />
+   </div>
+ </template>
+ 
+-<script setup lang="ts"></script>
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++const { t } = useI18n()
++</script>
+ 
+ <style scoped>
+ .topbar { display: flex; align-items: center; padding: 12px 16px; }
+ .back { color: var(--accent); text-decoration: none; font-size: 14px; }
+ </style>
+diff --git a/src/i18n/i18n.test.ts b/src/i18n/i18n.test.ts
+new file mode 100644
+index 0000000..80095d6
+--- /dev/null
++++ b/src/i18n/i18n.test.ts
+@@ -0,0 +1,10 @@
++import { describe, it, expect } from 'vitest'
++import { messages } from './zh_cn'
++
++describe('i18n zh_cn messages', () => {
++  it('provides required skeleton keys', () => {
++    expect(messages.zh_cn.backToOld).toBe('← 返回主应用')
++    expect(messages.zh_cn.cpu).toBe('处理器')
++    expect(messages.zh_cn.collecting).toBe('采集中…')
++  })
++})
+diff --git a/src/i18n/index.ts b/src/i18n/index.ts
+new file mode 100644
+index 0000000..464c439
+--- /dev/null
++++ b/src/i18n/index.ts
+@@ -0,0 +1,15 @@
++import { createI18n } from 'vue-i18n'
++import { messages } from './zh_cn'
++
++function initialLocale(): string {
++  const stored = localStorage.getItem('lang')
++  if (stored && stored in messages) return stored
++  return 'zh_cn'
++}
++
++export const i18n = createI18n({
++  legacy: false,
++  locale: initialLocale(),
++  fallbackLocale: 'zh_cn',
++  messages,
++})
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+new file mode 100644
+index 0000000..59062a1
+--- /dev/null
++++ b/src/i18n/zh_cn.ts
+@@ -0,0 +1,9 @@
++export const messages = {
++  zh_cn: {
++    appTitle: 'NimoOS · 新主页地基',
++    backToOld: '← 返回主应用',
++    cpu: '处理器',
++    memory: '内存',
++    collecting: '采集中…',
++  },
++}
+diff --git a/src/main.ts b/src/main.ts
+index 56cdd9a..87e12c8 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,26 +1,28 @@
+ import { createApp } from 'vue'
+ import { createPinia } from 'pinia'
+ import { initService } from '@nimotech/nimoos-service'
+ import App from './App.vue'
+ import { router } from './router'
++import { i18n } from './i18n'
+ import { useSessionStore } from './stores/session'
+ import './styles/theme.css'
+ 
+ const app = createApp(App)
+ const pinia = createPinia()
+ app.use(pinia)
+ 
+ const session = useSessionStore(pinia)
+ initService({
+   getToken: () => localStorage.getItem('access_token'),
+   getRefresh: () => localStorage.getItem('refresh_token'),
+   setTokens: (a, r, expiresAt) => session.setTokens(a, r, expiresAt),
+   onAuthFail: () => { window.location.href = '/#/login' },
+   getLang: () => {
+     const l = (navigator.language || 'en').toLowerCase().replace('-', '_')
+     return localStorage.getItem('lang') || l
+   },
+ })
+ 
++app.use(i18n)
+ app.use(router)
+ app.mount('#app')

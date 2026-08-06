@@ -1,0 +1,95 @@
+# Review package: e4f9120..d127e2c
+
+## Commits
+d127e2c feat(files-viewer): useViewer 单例 composable(overlay 分发状态)
+
+## Files changed
+ src/files/viewers/useViewer.test.ts | 35 +++++++++++++++++++++++++++++++++++
+ src/files/viewers/useViewer.ts      | 37 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 72 insertions(+)
+
+## Diff
+diff --git a/src/files/viewers/useViewer.test.ts b/src/files/viewers/useViewer.test.ts
+new file mode 100644
+index 0000000..5610441
+--- /dev/null
++++ b/src/files/viewers/useViewer.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { useViewer } from './useViewer'
++import type { FileEntry } from '../stores/files'
++
++const img: FileEntry = { name: 'a.png', path: '/DATA/a.png', is_dir: false }
++const zip: FileEntry = { name: 'a.zip', path: '/DATA/a.zip', is_dir: false }
++
++describe('useViewer', () => {
++  beforeEach(() => useViewer().close())
++  it('命中查看器 → openItem 返回 true 并打开', () => {
++    const v = useViewer()
++    expect(v.openItem(img, [img, zip])).toBe(true)
++    expect(v.open.value).toBe(true)
++    expect(v.panelType.value).toBe('image-viewer')
++    expect(v.currentItem.value).toStrictEqual(img)
++    expect(v.list.value).toEqual([img, zip])
++  })
++  it('未命中 → openItem 返回 false 且不打开', () => {
++    const v = useViewer()
++    expect(v.openItem(zip, [zip])).toBe(false)
++    expect(v.open.value).toBe(false)
++  })
++  it('close 复位', () => {
++    const v = useViewer()
++    v.openItem(img, [img])
++    v.close()
++    expect(v.open.value).toBe(false)
++    expect(v.panelType.value).toBeNull()
++    expect(v.currentItem.value).toBeNull()
++  })
++  it('单例:多次调用共享状态', () => {
++    useViewer().openItem(img, [img])
++    expect(useViewer().open.value).toBe(true)
++  })
++})
+diff --git a/src/files/viewers/useViewer.ts b/src/files/viewers/useViewer.ts
+new file mode 100644
+index 0000000..60e025e
+--- /dev/null
++++ b/src/files/viewers/useViewer.ts
+@@ -0,0 +1,37 @@
++import { ref, type Ref } from 'vue'
++import { getPanelType, type PanelType } from './panelMap'
++import type { FileEntry } from '../stores/files'
++
++// 模块级单例状态
++const open = ref(false)
++const panelType = ref<PanelType | null>(null)
++const currentItem = ref<FileEntry | null>(null)
++const list = ref<FileEntry[]>([])
++
++function openItem(entry: FileEntry, entryList: FileEntry[]): boolean {
++  const t = getPanelType(entry.name)
++  if (!t) return false
++  panelType.value = t
++  currentItem.value = entry
++  list.value = entryList
++  open.value = true
++  return true
++}
++
++function close(): void {
++  open.value = false
++  panelType.value = null
++  currentItem.value = null
++  list.value = []
++}
++
++export function useViewer(): {
++  open: Ref<boolean>
++  panelType: Ref<PanelType | null>
++  currentItem: Ref<FileEntry | null>
++  list: Ref<FileEntry[]>
++  openItem: (entry: FileEntry, entryList: FileEntry[]) => boolean
++  close: () => void
++} {
++  return { open, panelType, currentItem, list, openItem, close }
++}

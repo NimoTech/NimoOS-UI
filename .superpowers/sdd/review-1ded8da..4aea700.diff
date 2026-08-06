@@ -1,0 +1,355 @@
+# Review package: 1ded8da..4aea700
+
+## Commits
+4aea700 fix(apps): SP5-P2 终审修复——轮播内容后载重算端点态、loadCatalog 乱序守卫+categories 解耦、搜索防抖卸载清理
+
+## Files changed
+ src/apps/stores/appstore.test.ts    | 33 ++++++++++++++++++++++++++++
+ src/apps/stores/appstore.ts         | 32 ++++++++++++++++++++-------
+ src/apps/views/StorePage.test.ts    | 11 ++++++++++
+ src/apps/views/StorePage.vue        |  5 ++++-
+ src/components/SnapCarousel.test.ts | 44 +++++++++++++++++++++++++++++++++++++
+ src/components/SnapCarousel.vue     | 26 +++++++++++++++++++---
+ 6 files changed, 139 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/src/apps/stores/appstore.test.ts b/src/apps/stores/appstore.test.ts
+index c939dbc..dcb05b9 100644
+--- a/src/apps/stores/appstore.test.ts
++++ b/src/apps/stores/appstore.test.ts
+@@ -54,20 +54,53 @@ describe('appstore store', () => {
+     svc.listApps.mockRejectedValueOnce(new Error('boom'))
+     await s.loadCatalog('Media', ALL)
+     expect(s.error).toBe(true)
+     expect(s.loading).toBe(false)
+     svc.listApps.mockResolvedValueOnce(CATALOG)
+     await s.retry()
+     expect(svc.listApps).toHaveBeenLastCalledWith({ category: 'Media' })
+     expect(s.error).toBe(false)
+   })
+ 
++  it('loadCatalog 乱序响应守卫:先发请求晚回,不应覆盖后发请求写入的更新状态(含 loading)', async () => {
++    const s = useAppstoreStore()
++    let resolve1: (v: unknown) => void = () => {}
++    let resolve2: (v: unknown) => void = () => {}
++    svc.listApps
++      .mockImplementationOnce(() => new Promise((res) => { resolve1 = res }))
++      .mockImplementationOnce(() => new Promise((res) => { resolve2 = res }))
++
++    const p1 = s.loadCatalog('Media', ALL)
++    const p2 = s.loadCatalog('Cloud', ALL)
++
++    // 第二次发出的请求先回来
++    resolve2({ installed: [], list: { nextcloud: { title: { en_us: 'Nextcloud' }, category: 'Cloud' } } })
++    await p2
++    expect(Object.keys(s.list)).toEqual(['nextcloud'])
++    expect(s.loading).toBe(false)
++
++    // 第一次发出的请求(更旧)后回来,不应覆盖上面已经生效的更新结果
++    resolve1({ installed: [], list: { jellyfin: { title: { en_us: 'Jellyfin' }, category: 'Media' } } })
++    await p1
++    expect(Object.keys(s.list)).toEqual(['nextcloud'])
++    expect(s.loading).toBe(false)
++  })
++
++  it('categories() 失败不应连累 listApps 已成功的目录——仅 chip 栏降级,error 仍为 false', async () => {
++    const s = useAppstoreStore()
++    svc.categories.mockRejectedValueOnce(new Error('boom'))
++    await s.loadCatalog()
++    expect(s.error).toBe(false)
++    expect(Object.keys(s.list)).toEqual(['jellyfin', 'nextcloud'])
++    expect(s.categories).toEqual([])
++  })
++
+   it('loadFeatured:recommend=true;失败静默置空不抛', async () => {
+     const s = useAppstoreStore()
+     await s.loadFeatured()
+     expect(svc.listApps).toHaveBeenCalledWith({ recommend: true })
+     expect(Object.keys(s.featured)).toHaveLength(2)
+     svc.listApps.mockRejectedValueOnce(new Error('boom'))
+     await expect(s.loadFeatured()).resolves.toBeUndefined()
+     expect(s.featured).toEqual({})
+   })
+ 
+diff --git a/src/apps/stores/appstore.ts b/src/apps/stores/appstore.ts
+index 3f97a44..2767f46 100644
+--- a/src/apps/stores/appstore.ts
++++ b/src/apps/stores/appstore.ts
+@@ -7,46 +7,62 @@ export const ALL = 'All'
+ 
+ export const useAppstoreStore = defineStore('appstore', () => {
+   const categories = ref<AppCategory[]>([])
+   const list = ref<Record<string, StoreAppInfo>>({})
+   const installed = ref<string[]>([])
+   const featured = ref<Record<string, StoreAppInfo>>({})
+   const loading = ref(false)
+   const error = ref(false)
+   const catalogLoaded = ref(false)
+   let lastQuery: { category: string; authorType: string } = { category: ALL, authorType: ALL }
++  // 请求序号:多次 loadCatalog 并发(如快速切换分类/作者)时,只有"最新发出的那次"的响应
++  // 才允许写入 list/installed/catalogLoaded/error,以及在 finally 里翻转 loading——
++  // 否则一个更早发出但更晚返回的响应会用陈旧数据覆盖后一次已经生效的新状态。
++  let seq = 0
+ 
+   const detail = ref<StoreAppInfo | null>(null)
+   const detailLoading = ref(false)
+   const detailError = ref(false)
+ 
+   async function loadCatalog(category: string = ALL, authorType: string = ALL) {
+     lastQuery = { category, authorType }
++    const mySeq = ++seq
+     loading.value = true
+     error.value = false
++    const params: { category?: string; authorType?: string } = {}
++    if (category !== ALL) params.category = category
++    if (authorType !== ALL) params.authorType = authorType
++
++    // categories() 与 listApps() 解耦结算:分类拉取失败只应降级 chip 栏(留空/沿用缓存),
++    // 不该连累已经成功的 listApps 结果被打成全局错误态——因此把 categories() 的失败
++    // 在这里自行吞掉,不让它使下面的 Promise.all 整体 reject。
++    const categoriesPromise = categories.value.length
++      ? Promise.resolve(null)
++      : service.appstore.categories().catch((e) => {
++          console.warn('[appstore] loadCatalog categories', e)
++          return null
++        })
++
+     try {
+-      const params: { category?: string; authorType?: string } = {}
+-      if (category !== ALL) params.category = category
+-      if (authorType !== ALL) params.authorType = authorType
+-      const [cats, catalog] = await Promise.all([
+-        categories.value.length ? Promise.resolve(null) : service.appstore.categories(),
+-        service.appstore.listApps(params),
+-      ])
++      const [cats, catalog] = await Promise.all([categoriesPromise, service.appstore.listApps(params)])
++      if (mySeq !== seq) return // 更新的请求已经在跑/已经写入,这次陈旧响应静默丢弃
+       if (cats) categories.value = cats.filter((c) => (c.count ?? 0) > 0)
+       list.value = catalog.list
+       installed.value = catalog.installed
+       catalogLoaded.value = true
++      error.value = false
+     } catch (e) {
++      if (mySeq !== seq) return
+       error.value = true
+       console.warn('[appstore] loadCatalog', e)
+     } finally {
+-      loading.value = false
++      if (mySeq === seq) loading.value = false
+     }
+   }
+ 
+   function retry() {
+     return loadCatalog(lastQuery.category, lastQuery.authorType)
+   }
+ 
+   /** Featured 失败静默置空:推荐带缺失不该挡住浏览主链路(spec §7.5 同容忍度) */
+   async function loadFeatured() {
+     try {
+diff --git a/src/apps/views/StorePage.test.ts b/src/apps/views/StorePage.test.ts
+index 7346666..82f7ae2 100644
+--- a/src/apps/views/StorePage.test.ts
++++ b/src/apps/views/StorePage.test.ts
+@@ -72,20 +72,31 @@ describe('StorePage', () => {
+     vi.useFakeTimers()
+     const w = mount(StorePage, { global: { plugins: [i18n] } })
+     await flushPromises()
+     await w.get('.store-search input').setValue('jelly')
+     expect(replace).not.toHaveBeenCalled()
+     vi.advanceTimersByTime(260)
+     expect(replace).toHaveBeenCalledWith({ query: { search: 'jelly' } })
+     vi.useRealTimers()
+   })
+ 
++  it('组件卸载后清理防抖定时器——不应在卸载后(如已跳转详情页)仍触发 replace', async () => {
++    vi.useFakeTimers()
++    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    await flushPromises()
++    await w.get('.store-search input').setValue('jelly')
++    w.unmount()
++    vi.advanceTimersByTime(260)
++    expect(replace).not.toHaveBeenCalled()
++    vi.useRealTimers()
++  })
++
+   it('?search= 生效时前端过滤;点卡片进详情', async () => {
+     routeQuery.search = 'jelly'
+     const w = mount(StorePage, { global: { plugins: [i18n] } })
+     await flushPromises()
+     const cards = w.findAll('.store-card')
+     expect(cards).toHaveLength(1)
+     await cards[0].trigger('click')
+     expect(push).toHaveBeenCalledWith({ name: 'apps-store-detail', params: { id: 'jellyfin' } })
+   })
+ 
+diff --git a/src/apps/views/StorePage.vue b/src/apps/views/StorePage.vue
+index 16df39a..22eb665 100644
+--- a/src/apps/views/StorePage.vue
++++ b/src/apps/views/StorePage.vue
+@@ -1,12 +1,12 @@
+ <script setup lang="ts">
+-import { computed, onMounted, ref, watch } from 'vue'
++import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import StoreCard from '../components/StoreCard.vue'
+ import CategoryBar from '../components/CategoryBar.vue'
+ import FeaturedStrip from '../components/FeaturedStrip.vue'
+ import { useAppstoreStore, ALL } from '../stores/appstore'
+ import { mapStoreApp, filterStoreApps } from '../util/storeApp'
+ 
+@@ -32,20 +32,23 @@ const AUTHORS = [
+ const searchInput = ref(search.value)
+ let timer: ReturnType<typeof setTimeout> | undefined
+ watch(searchInput, (v) => {
+   clearTimeout(timer)
+   timer = setTimeout(() => {
+     if ((v || '') === search.value) return
+     router.replace({ query: { ...route.query, search: v || undefined } })
+   }, 250)
+ })
+ watch(search, (v) => { if (v !== searchInput.value) searchInput.value = v })
++// 卸载(如点卡片跳转详情页)时清理未触发的防抖定时器——否则 250ms 窗口内残留的
++// setTimeout 会在离开本页后仍对已销毁组件捕获的 router 触发一次多余的 replace。
++onUnmounted(() => clearTimeout(timer))
+ 
+ // 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉
+ watch([category, author], () => { store.loadCatalog(category.value, author.value) })
+ onMounted(() => {
+   store.loadCatalog(category.value, author.value)
+   store.loadFeatured()
+ })
+ 
+ const items = computed(() => Object.entries(store.list).map(([id, raw]) => mapStoreApp(id, raw, locale.value)))
+ const shown = computed(() => filterStoreApps(items.value, search.value))
+diff --git a/src/components/SnapCarousel.test.ts b/src/components/SnapCarousel.test.ts
+index 8609f97..7432e7e 100644
+--- a/src/components/SnapCarousel.test.ts
++++ b/src/components/SnapCarousel.test.ts
+@@ -1,12 +1,13 @@
+ import { describe, it, expect, vi } from 'vitest'
+ import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../i18n/zh_cn'
+ import SnapCarousel from './SnapCarousel.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+ describe('SnapCarousel', () => {
+   it('渲染 slot 项;翻页钮按视口宽度 scrollBy', async () => {
+     const w = mount(SnapCarousel, {
+       global: { plugins: [i18n] },
+@@ -17,11 +18,54 @@ describe('SnapCarousel', () => {
+     viewport.scrollBy = vi.fn()
+     Object.defineProperty(viewport, 'clientWidth', { value: 1000, configurable: true })
+     // jsdom 里 scrollWidth=0 → 两端钮均 disabled,先撑出可滚动几何再点
+     Object.defineProperty(viewport, 'scrollWidth', { value: 3000, configurable: true })
+     await w.get('.snap-viewport').trigger('scroll') // 触发一次几何重算
+     await w.get('.snap-next').trigger('click')
+     expect(viewport.scrollBy).toHaveBeenCalledWith({ left: 900, behavior: 'smooth' })
+     await w.get('.snap-prev').trigger('click')
+     expect(viewport.scrollBy).toHaveBeenCalledWith({ left: -900, behavior: 'smooth' })
+   })
++
++  it('slot 内容在挂载后异步撑大(如 img 懒加载解码完成)——viewport 自身盒子不变,ResizeObserver 不会重算,需靠 load 事件兜底重算端点态', async () => {
++    const w = mount(SnapCarousel, {
++      global: { plugins: [i18n] },
++      slots: { default: '<img class="probe" />' },
++    })
++    const viewport = w.get('.snap-viewport').element as HTMLElement
++    const img = w.get('.probe').element as HTMLElement
++    Object.defineProperty(viewport, 'clientWidth', { value: 1000, configurable: true })
++    // 挂载时刻:图片还没解码,scrollWidth≈0 → atEnd=true → next 钮 disabled
++    Object.defineProperty(viewport, 'scrollWidth', { value: 0, configurable: true })
++    await nextTick()
++    expect(w.get('.snap-next').attributes('disabled')).toBeDefined()
++
++    // 图片异步解码完成撑开内容;img 的 load 事件不冒泡,但捕获阶段应能被 viewport 上的监听捕获到并触发重算
++    Object.defineProperty(viewport, 'scrollWidth', { value: 3000, configurable: true })
++    img.dispatchEvent(new Event('load'))
++    await nextTick()
++
++    expect(w.get('.snap-next').attributes('disabled')).toBeUndefined()
++  })
++
++  it('slot 内容通过 childList 变更长大(如详情页动态插入截图)—— MutationObserver 兜底重算端点态', async () => {
++    const w = mount(SnapCarousel, {
++      global: { plugins: [i18n] },
++      slots: { default: '<div class="probe">a</div>' },
++    })
++    const viewport = w.get('.snap-viewport').element as HTMLElement
++    Object.defineProperty(viewport, 'clientWidth', { value: 1000, configurable: true })
++    Object.defineProperty(viewport, 'scrollWidth', { value: 0, configurable: true })
++    await nextTick()
++    expect(w.get('.snap-next').attributes('disabled')).toBeDefined()
++
++    Object.defineProperty(viewport, 'scrollWidth', { value: 3000, configurable: true })
++    const extra = document.createElement('div')
++    extra.className = 'probe'
++    viewport.appendChild(extra)
++    // MutationObserver 回调是微任务,需多等一拍
++    await new Promise((r) => setTimeout(r, 0))
++    await nextTick()
++
++    expect(w.get('.snap-next').attributes('disabled')).toBeUndefined()
++  })
+ })
+diff --git a/src/components/SnapCarousel.vue b/src/components/SnapCarousel.vue
+index 5287d13..f942136 100644
+--- a/src/components/SnapCarousel.vue
++++ b/src/components/SnapCarousel.vue
+@@ -20,28 +20,48 @@ function page(dir: 1 | -1) {
+   const el = viewport.value
+   if (!el) return
+   el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: 'smooth' })
+   // 乐观更新:刚朝一个方向翻页,必然离开了对侧端点——不必等 smooth 滚动的 scroll 事件才解锁对侧按钮。
+   // 真实端点状态仍由 @scroll -> recalc() 持续校正(见下方监听),这里只处理"刚离开的那一侧"。
+   if (dir > 0) atStart.value = false
+   else atEnd.value = false
+ }
+ 
+ let ro: ResizeObserver | undefined
++let mo: MutationObserver | undefined
++// 捕获元素引用于挂载时刻,而非在 onUnmounted 里重读 viewport.value——
++// Vue 卸载流程中模板 ref 可能已先于 onUnmounted 回调被置空。
++let viewportEl: HTMLElement | null = null
+ onMounted(() => {
+   recalc()
+-  if (typeof ResizeObserver !== 'undefined' && viewport.value) {
++  viewportEl = viewport.value
++  if (!viewportEl) return
++  if (typeof ResizeObserver !== 'undefined') {
+     ro = new ResizeObserver(recalc)
+-    ro.observe(viewport.value)
++    ro.observe(viewportEl)
+   }
++  // ResizeObserver 只测视口自身盒子;详情页截图是 <img loading="lazy"> 只固定高度,
++  // 挂载时 scrollWidth≈0,解码完成后内容变宽但视口盒子不变,recalc 不会自动重触发。
++  // 用两条兜底路径捕捉"内容变化而非容器变化":
++  //  1) MutationObserver(childList+subtree):slot 内容动态增删时重算。
++  //  2) 捕获阶段 load 监听:img 的 load 事件不冒泡,但捕获阶段能从 viewport 往下传递到位。
++  if (typeof MutationObserver !== 'undefined') {
++    mo = new MutationObserver(recalc)
++    mo.observe(viewportEl, { childList: true, subtree: true })
++  }
++  viewportEl.addEventListener('load', recalc, true)
++})
++onUnmounted(() => {
++  ro?.disconnect()
++  mo?.disconnect()
++  viewportEl?.removeEventListener('load', recalc, true)
+ })
+-onUnmounted(() => ro?.disconnect())
+ </script>
+ 
+ <template>
+   <div class="snap-carousel" :aria-label="ariaLabel">
+     <button class="snap-btn snap-prev" type="button" :disabled="atStart" :aria-label="t('carouselPrev')" @click="page(-1)">‹</button>
+     <div ref="viewport" class="snap-viewport" @scroll.passive="recalc">
+       <slot />
+     </div>
+     <button class="snap-btn snap-next" type="button" :disabled="atEnd" :aria-label="t('carouselNext')" @click="page(1)">›</button>
+   </div>

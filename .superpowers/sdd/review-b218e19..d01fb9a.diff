@@ -1,0 +1,56 @@
+# Review package: b218e19..d01fb9a
+
+## Commits
+d01fb9a chore(i18n): files-upload zh_cn audit closeout
+
+## Files changed
+ src/files/components/UploadPanel.vue | 2 +-
+ src/i18n/zh_cn.ts                    | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index 1131fe6..161cdbb 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -174,21 +174,21 @@ async function onReselect(e: Event) {
+     <div v-else class="upload-panel">
+       <div class="up-head">
+         <span class="up-title">{{ t('filesUploadTitle') }}</span>
+         <div class="up-head-actions">
+           <button v-if="anyRunning" class="up-link-btn" @click="store.pauseAll()">{{ t('filesUploadPauseAll') }}</button>
+           <button v-else-if="anyPaused" class="up-link-btn" @click="store.resumeAll()">{{ t('filesUploadResumeAll') }}</button>
+           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
+             {{ t('filesUploadClearDone') }}
+           </button>
+           <button v-if="totalCount" class="up-link-btn up-delete-all" @click="askDelete(t('filesUploadDeleteAllConfirm'), () => store.cancelAll())">{{ t('filesUploadDeleteAll') }}</button>
+-          <button class="up-close" @click="open = false" aria-label="close">×</button>
++          <button class="up-close" @click="open = false" :aria-label="t('filesUploadClose')">×</button>
+         </div>
+       </div>
+ 
+       <div v-if="showRestoreNotice" class="up-restore-notice">
+         <span>{{ t('filesUploadRestoreNotice', { count: store.restoreNoticeCount }) }}</span>
+         <button class="up-link-btn" @click="reselectDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
+       </div>
+ 
+       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
+ 
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 6d606fd..82ca7fc 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -90,12 +90,13 @@ export const messages = {
+     filesUploadErrNetwork: '网络错误',
+     filesUploadReselect: '重选文件',
+     filesUploadNeedsFile: '需重新选择文件以继续上传',
+     filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
+     filesUploadRestoreDismiss: '知道了',
+     filesUploadPause: '暂停',
+     filesUploadResume: '继续',
+     filesUploadPauseAll: '全部暂停',
+     filesUploadResumeAll: '全部继续',
+     filesUploadPaused: '已暂停',
++    filesUploadClose: '关闭',
+   },
+ }

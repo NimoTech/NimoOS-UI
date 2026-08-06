@@ -1,0 +1,990 @@
+# Review package: c8f1919..03d3028
+
+## Commits
+03d3028 fixup(wiki): 补 WikiCandidate 类型 + 四个写方法的偏离行内注释(评审 Important+Minor)
+55f42dc feat(wiki): SP8-P5a wiki 域进包(PascalCase 双向归一化)
+feb85bc test(notes): 补 /settings 四方法的返回值判别断言(评审 Important)
+705649d feat(notes): SP8-P5a notes 域进包(Python agent 知识笔记 API)
+
+## Files changed
+ src/index.ts      |  12 +++
+ src/notes.test.ts | 236 +++++++++++++++++++++++++++++++++++++++++
+ src/notes.ts      | 310 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/wiki.test.ts  | 145 +++++++++++++++++++++++++
+ src/wiki.ts       | 203 +++++++++++++++++++++++++++++++++++
+ 5 files changed, 906 insertions(+)
+
+## Diff
+diff --git a/src/index.ts b/src/index.ts
+index c042e32..eb01470 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -13,26 +13,32 @@ import { createImage } from './image.js'
+ import { parseUtil } from './parseUtil.js'
+ import { createSamba } from './samba.js'
+ import { createDisks } from './disks.js'
+ import { createCloud } from './cloud.js'
+ import { createDriver } from './driver.js'
+ import { createContainer } from './container.js'
+ import { createAppstore } from './appstore.js'
+ import { createCompose } from './compose.js'
+ import { createAi } from './ai.js'
+ import { sseRequest } from './sse.js'
++import { createNotes } from './notes.js'
++import { createWiki } from './wiki.js'
+ 
+ export { initService, getHttp, refreshAccessToken, parseUtil, UPLOAD_TUS_ENDPOINT, sseRequest }
++export { isDistillableName, DISTILL_EXTS } from './notes.js'
++export { createRootBody } from './wiki.js'
+ export type { SseOptions, SseOutcome } from './sse.js'
+ export type { ServiceConfig } from './config.js'
+ export type { Utilization, UtilSection, StdEnvelope, EventModel, FolderEntry, FolderListing, AppGridWidget, AppGridItem, PhotoAsset, FileContent, ServerUploadTask, UploadPrecheckResult, LoginResult, UserStatus, UserInfo, SambaConnection, CloudMount, CloudDriver, HardwareInfo, DockerNetwork, AppCategory, StoreAppInfo, StoreAppCatalog, UpgradableAppInfo, AppStoreSource, ComposeAppWithStoreInfo } from './types.js'
+ export type { ComposeContainerSummary, ComposeContainersInfo } from './compose.js'
++export type { Note, CreateNoteFields, UpdateNoteFields, NotesSettings, SettingsFields, NotesDistillSettings, DistillSettingsPatch, DistillJob, DistillJobsView } from './notes.js'
++export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'
+ 
+ // 惰性域服务:initService 之后访问。
+ export const service = {
+   get sys(): ReturnType<typeof createSys> {
+     return createSys(getHttp() as AxiosInstance)
+   },
+   get users(): ReturnType<typeof createUsers> {
+     return createUsers(getHttp() as AxiosInstance)
+   },
+   get folder(): ReturnType<typeof createFolder> {
+@@ -73,11 +79,17 @@ export const service = {
+   },
+   get appstore(): ReturnType<typeof createAppstore> {
+     return createAppstore(getHttp() as AxiosInstance)
+   },
+   get compose(): ReturnType<typeof createCompose> {
+     return createCompose(getHttp() as AxiosInstance)
+   },
+   get ai(): ReturnType<typeof createAi> {
+     return createAi(getHttp() as AxiosInstance, () => getConfig().getToken())
+   },
++  get notes(): ReturnType<typeof createNotes> {
++    return createNotes(getHttp() as AxiosInstance)
++  },
++  get wiki(): ReturnType<typeof createWiki> {
++    return createWiki(getHttp() as AxiosInstance)
++  },
+ }
+diff --git a/src/notes.test.ts b/src/notes.test.ts
+new file mode 100644
+index 0000000..0c6f228
+--- /dev/null
++++ b/src/notes.test.ts
+@@ -0,0 +1,236 @@
++import { describe, it, expect } from 'vitest'
++import type { AxiosInstance } from 'axios'
++import {
++  createNotes, normalizeNote, buildCreateBody, buildUpdateBody,
++  normalizeSettings, buildSettingsBody, normalizeNotesSettings,
++  buildNotesSettingsBody, normalizeDistillJobs, isDistillableName, DISTILL_EXTS,
++} from './notes'
++
++type Call = { verb: string; url: string; body?: unknown; cfg?: Record<string, unknown> }
++function recorder(dataFor?: (verb: string, url: string) => unknown) {
++  const calls: Call[] = []
++  const push = (verb: string, url: string, body: unknown, cfg: unknown) => {
++    calls.push({ verb, url, body, cfg: cfg as Record<string, unknown> | undefined })
++    return { data: dataFor ? dataFor(verb, url) : null }
++  }
++  const http = {
++    get: async (u: string, c?: unknown) => push('get', u, undefined, c),
++    post: async (u: string, b?: unknown, c?: unknown) => push('post', u, b, c),
++    delete: async (u: string, c?: unknown) => push('delete', u, undefined, c),
++    put: async (u: string, b?: unknown, c?: unknown) => push('put', u, b, c),
++  } as unknown as AxiosInstance
++  return { http, calls }
++}
++
++describe('createNotes — URL/动词表', () => {
++  it('每个方法各调一次,URL 与动词逐条吻合', async () => {
++    const { http, calls } = recorder((verb, url) => {
++      if (url === '/ai/agent/notes' && verb === 'get') return { notes: [] }
++      if (url.endsWith('/backlinks')) return { backlinks: [{ id: 'x' }] }
++      if (url.endsWith('/dir-info')) return { exists: true, empty: false }
++      if (url.endsWith('/distill/jobs')) return { jobs: [], counts: {} }
++      if (url.endsWith('/distill/status')) return { pending: 1, distilled: 2, quota_remaining: 3, background_model: 'm' }
++      if (url.endsWith('/settings')) return { notes_root: '/DATA/Notes', auto_extract: true }
++      return { id: 'n1', title: 't', type: 'note', status: 'draft', revision: 1 }
++    })
++    const notes = createNotes(http)
++
++    await notes.list({ type: 'insight', status: 'draft', limit: 5 })
++    await notes.get('n1')
++    await notes.create({ title: 'T', content: 'C' })
++    await notes.update('n1', { expectedRevision: 2, content: 'C' })
++    await notes.remove('n1')
++    await notes.curate('n1')
++    await notes.archive('n1')
++    await notes.backlinks('n1')
++    await notes.getSettings()
++    await notes.putSettings({ autoExtract: false })
++    await notes.dirInfo('/DATA/N')
++    await notes.getNotesSettings()
++    await notes.putNotesSettings({ distillDailyCap: 20 })
++    await notes.distillFile('/DATA/a.pdf')
++    await notes.cancelDistillJob('/DATA/a.pdf')
++    await notes.listDistillJobs('failed', 200)
++    await notes.getDistillStatus()
++
++    expect(calls.map((c) => `${c.verb} ${c.url}`)).toEqual([
++      'get /ai/agent/notes',
++      'get /ai/agent/notes/n1',
++      'post /ai/agent/notes',
++      'put /ai/agent/notes/n1',
++      'delete /ai/agent/notes/n1',
++      'post /ai/agent/notes/n1/curate',
++      'post /ai/agent/notes/n1/archive',
++      'get /ai/agent/notes/n1/backlinks',
++      'get /ai/agent/notes/settings',
++      'put /ai/agent/notes/settings',
++      'get /ai/agent/notes/dir-info',
++      'get /ai/agent/notes/settings',
++      'put /ai/agent/notes/settings',
++      'post /ai/agent/notes/distill',
++      'post /ai/agent/notes/distill/jobs/cancel',
++      'get /ai/agent/notes/distill/jobs',
++      'get /ai/agent/notes/distill/status',
++    ])
++  })
++
++  it('list 把查询参数放进 params,并 map 成 camelCase', async () => {
++    const { http, calls } = recorder(() => ({ notes: [{ id: 'n1', title: 't', type: 'note', status: 'draft', revision: 1, source_refs: [{ session_id: 's' }] }] }))
++    const out = await createNotes(http).list({ status: 'draft', limit: 200 })
++    expect(calls[0].cfg).toEqual({ params: { type: '', status: 'draft', limit: 200 } })
++    expect(out).toEqual([{ id: 'n1', title: 't', description: '', type: 'note', status: 'draft',
++      tags: [], sourceRefs: [{ session_id: 's' }], createdBy: '', revision: 1, updatedAt: 0,
++      path: '', body: undefined }])
++  })
++
++  it('list 默认参数与 Vue2 一致(type/status 空串、limit 100)', async () => {
++    const { http, calls } = recorder(() => ({ notes: [] }))
++    await createNotes(http).list()
++    expect(calls[0].cfg).toEqual({ params: { type: '', status: '', limit: 100 } })
++  })
++
++  it('dirInfo / listDistillJobs 的查询参数', async () => {
++    const { http, calls } = recorder((_v, url) =>
++      url.endsWith('/dir-info') ? { exists: 1, empty: 0 } : { jobs: [], counts: {} })
++    const n = createNotes(http)
++    expect(await n.dirInfo('/DATA/N')).toEqual({ exists: true, empty: false })
++    expect(calls[0].cfg).toEqual({ params: { path: '/DATA/N' } })
++    await n.listDistillJobs('failed', 200)
++    expect(calls[1].cfg).toEqual({ params: { limit: 200, status: 'failed' } })
++    await n.listDistillJobs()
++    expect(calls[2].cfg).toEqual({ params: { limit: 200 } })   // 无 status 键
++  })
++
++  it('backlinks / getDistillStatus 的 null 兜底', async () => {
++    const { http } = recorder(() => ({}))
++    const n = createNotes(http)
++    expect(await n.backlinks('n1')).toEqual([])
++    expect(await n.getDistillStatus()).toEqual({ pending: 0, distilled: 0, quotaRemaining: 0, backgroundModel: '' })
++  })
++
++  // 评审 Important:getSettings/getNotesSettings 都打 /ai/agent/notes/settings,
++  // 光靠 URL/动词表分辨不出内部各自调了哪个归一化器——同一份后端响应喂给两者,
++  // 必须各自钉住字段数与缺省值,「归一化器用错」才会精确报红(而不是仍然全绿)。
++  it('getSettings 只归一化出 2 个字段(notesRoot/autoExtract),不含沉淀字段', async () => {
++    const { http } = recorder(() => ({ notes_root: '/DATA/Notes', auto_extract: true }))
++    const out = await createNotes(http).getSettings()
++    expect(out).toEqual({ notesRoot: '/DATA/Notes', autoExtract: true })
++    expect(Object.keys(out)).toEqual(['notesRoot', 'autoExtract'])
++  })
++
++  it('getNotesSettings 对同一份响应归一化出 5 个字段,沉淀字段各走缺省值', async () => {
++    const { http } = recorder(() => ({ notes_root: '/DATA/Notes', auto_extract: true }))
++    const out = await createNotes(http).getNotesSettings()
++    expect(out).toEqual({
++      notesRoot: '/DATA/Notes', autoExtract: true,
++      distillRoots: [], distillDailyCap: 50, backgroundModel: '',
++    })
++    expect(Object.keys(out).sort()).toEqual(
++      ['autoExtract', 'backgroundModel', 'distillDailyCap', 'distillRoots', 'notesRoot'].sort(),
++    )
++  })
++
++  it('putSettings 用 buildSettingsBody 发 body,返回值只 2 个字段', async () => {
++    const { http, calls } = recorder(() => ({ notes_root: '/x', auto_extract: true }))
++    const out = await createNotes(http).putSettings({ notesRoot: '/x', autoExtract: true })
++    expect(calls[0].body).toEqual({ notes_root: '/x', mode: 'adopt', auto_extract: true })
++    expect(out).toEqual({ notesRoot: '/x', autoExtract: true })
++    expect(Object.keys(out)).toEqual(['notesRoot', 'autoExtract'])
++  })
++
++  it('putNotesSettings 用 buildNotesSettingsBody 发 body(键名与 buildSettingsBody 不同),返回值 5 个字段', async () => {
++    const { http, calls } = recorder(() => ({ notes_root: '/x', auto_extract: true, distill_daily_cap: 20 }))
++    const out = await createNotes(http).putNotesSettings({ distillDailyCap: 20 })
++    expect(calls[0].body).toEqual({ distill_daily_cap: 20 })
++    expect(out).toEqual({
++      notesRoot: '/x', autoExtract: true,
++      distillRoots: [], distillDailyCap: 20, backgroundModel: '',
++    })
++    expect(Object.keys(out).sort()).toEqual(
++      ['autoExtract', 'backgroundModel', 'distillDailyCap', 'distillRoots', 'notesRoot'].sort(),
++    )
++  })
++})
++
++describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
++  it('normalizeNote 把 snake_case 映射成 camelCase', () => {
++    expect(normalizeNote({ id: 'n1', title: 't', description: 'd', type: 'insight',
++      status: 'draft', tags: ['a'], source_refs: [{ path: '/DATA/x.pdf' }],
++      created_by: 'pipeline', revision: 3, updated_at: 99, path: '1/x.md', body: 'B' }))
++      .toEqual({ id: 'n1', title: 't', description: 'd', type: 'insight', status: 'draft',
++        tags: ['a'], sourceRefs: [{ path: '/DATA/x.pdf' }], createdBy: 'pipeline',
++        revision: 3, updatedAt: 99, path: '1/x.md', body: 'B' })
++  })
++
++  it('normalizeNote 容忍缺省可选字段', () => {
++    const n = normalizeNote({ id: 'n2', title: 't', type: 'note', status: 'curated', revision: 1 })
++    expect(n.tags).toEqual([])
++    expect(n.sourceRefs).toEqual([])
++    expect(n.body).toBe(undefined)
++  })
++
++  it('buildCreateBody 发 snake_case', () => {
++    expect(buildCreateBody({ title: 'T', content: 'C', noteType: 'note', tags: ['x'], sourceRefs: [], description: 'd' }))
++      .toEqual({ title: 'T', content: 'C', note_type: 'note', tags: ['x'], source_refs: [], description: 'd' })
++  })
++
++  it('buildCreateBody 的默认值', () => {
++    expect(buildCreateBody({ title: 'T', content: 'C' }))
++      .toEqual({ title: 'T', content: 'C', note_type: 'note', tags: [], source_refs: [], description: '' })
++  })
++
++  it('buildUpdateBody 丢掉 undefined 字段但保留 revision', () => {
++    expect(buildUpdateBody({ expectedRevision: 2, content: 'C' }))
++      .toEqual({ expected_revision: 2, content: 'C' })
++    expect(buildUpdateBody({ expectedRevision: 7, title: 'T', status: 'curated', tags: [], description: '' }))
++      .toEqual({ expected_revision: 7, title: 'T', status: 'curated', tags: [], description: '' })
++  })
++
++  it('buildSettingsBody 只发给出的字段,notesRoot 带 mode', () => {
++    expect(buildSettingsBody({ notesRoot: '/DATA/N', mode: 'migrate' }))
++      .toEqual({ notes_root: '/DATA/N', mode: 'migrate' })
++    expect(buildSettingsBody({ autoExtract: false })).toEqual({ auto_extract: false })
++    expect(buildSettingsBody({ notesRoot: '/x', autoExtract: true }))
++      .toEqual({ notes_root: '/x', mode: 'adopt', auto_extract: true })
++    expect(buildSettingsBody()).toEqual({})
++  })
++
++  it('normalizeSettings 的默认值(auto_extract 缺省为 true)', () => {
++    expect(normalizeSettings({ notes_root: '/DATA/Notes', auto_extract: false }))
++      .toEqual({ notesRoot: '/DATA/Notes', autoExtract: false })
++    expect(normalizeSettings({}).autoExtract).toBe(true)
++    expect(normalizeSettings().notesRoot).toBe('')
++  })
++
++  it('normalizeNotesSettings 的沉淀字段默认值', () => {
++    expect(normalizeNotesSettings(null))
++      .toEqual({ notesRoot: '', autoExtract: true, distillRoots: [], distillDailyCap: 50, backgroundModel: '' })
++    expect(normalizeNotesSettings({ distill_roots: ['/a', 1], distill_daily_cap: 0 }).distillRoots)
++      .toEqual(['/a', '1'])
++    expect(normalizeNotesSettings({ distill_daily_cap: 0 }).distillDailyCap).toBe(0)
++    expect(normalizeNotesSettings({ distill_daily_cap: 'x' }).distillDailyCap).toBe(50)
++  })
++
++  it('buildNotesSettingsBody 只发给出的字段', () => {
++    expect(buildNotesSettingsBody({ distillDailyCap: 20 })).toEqual({ distill_daily_cap: 20 })
++    expect(buildNotesSettingsBody({})).toEqual({})
++  })
++
++  it('normalizeDistillJobs 映射行与 counts,并容忍非数组', () => {
++    expect(normalizeDistillJobs({ jobs: [{ file_path: '/a', status: 'failed', attempts: 2, last_error: 'e', enqueued_at: 1, updated_at: 2 }], counts: { pending: 3 } }))
++      .toEqual({ jobs: [{ filePath: '/a', status: 'failed', origin: 'auto', attempts: 2, lastError: 'e', enqueuedAt: 1, updatedAt: 2 }],
++                 counts: { pending: 3, running: 0, failed: 0 } })
++    expect(normalizeDistillJobs({ jobs: 'nope' }).jobs).toEqual([])
++    expect(normalizeDistillJobs(null)).toEqual({ jobs: [], counts: { pending: 0, running: 0, failed: 0 } })
++  })
++
++  it('isDistillableName 大小写不敏感,且与 DISTILL_EXTS 同源', () => {
++    expect(isDistillableName('A.PDF')).toBe(true)
++    expect(isDistillableName('a.md')).toBe(true)
++    expect(isDistillableName('a.png')).toBe(false)
++    expect(isDistillableName('')).toBe(false)
++    expect(isDistillableName(undefined as unknown as string)).toBe(false)
++    expect(DISTILL_EXTS).toContain('.wps')
++    expect(DISTILL_EXTS).toHaveLength(14)
++  })
++})
+diff --git a/src/notes.ts b/src/notes.ts
+new file mode 100644
+index 0000000..5f83f97
+--- /dev/null
++++ b/src/notes.ts
+@@ -0,0 +1,310 @@
++import type { AxiosInstance } from 'axios'
++
++/**
++ * notes 域 —— Python agent(:8282)的知识笔记 API,经 NimoOS-AI 反代
++ * `/v1/ai/agent/notes/*`(`route/v2.go:189-191` 给 settings 与 dir-info 另套了 AdminOnly)。
++ *
++ * 1:1 移植自 Vue2 `src/service/notes.js`(203 行)。
++ * 【返回值约定】与 ai 域「body 原样不 unwrap」不同:本域**返回已归一化的 camelCase 值**
++ * —— Vue2 里这层归一化就在 service 层完成(视图只见 camelCase),照搬其分层。
++ * 【为什么单独成域而不并进 ai.ts】① 消费方将来含文件区右键「沉淀」(非 AI 区)
++ * ② 8 个纯函数需要脱离 http 实例被单测与消费方直接 import。
++ *
++ * 【结构性偏离,SP8-P5a Task 1 申报】Vue2 里 getNotesSettings/putNotesSettings/
++ * distillFile/cancelDistillJob/listDistillJobs/getDistillStatus 六个函数是模块级具名导出,
++ * 不在默认导出的 `notes` 对象里(蓝本把它们放在文件下半段,单独 export）。本仓消费口径
++ * 是「REST 一律经 `service.notes.*`」,一个域一个入口,故按 brief 要求把它们收进
++ * `createNotes(http)` 返回对象里,成为其方法。这是包 API 形状的调整,不是界面/行为改动——
++ * 方法体逐行照蓝本搬,无逻辑变化。
++ */
++
++export interface Note {
++  id: string
++  title: string
++  description: string
++  type?: string
++  status?: string
++  tags: unknown[]
++  sourceRefs: unknown[]
++  createdBy: string
++  revision?: number
++  updatedAt: number
++  path: string
++  body?: unknown
++}
++
++export interface CreateNoteFields {
++  title: string
++  content: string
++  noteType?: string
++  tags?: unknown[]
++  sourceRefs?: unknown[]
++  description?: string
++}
++
++export interface UpdateNoteFields {
++  expectedRevision: number
++  content?: string
++  title?: string
++  status?: string
++  tags?: unknown[]
++  description?: string
++}
++
++export interface NotesSettings {
++  notesRoot: string
++  autoExtract: boolean
++}
++
++export interface SettingsFields {
++  notesRoot?: string
++  mode?: string
++  autoExtract?: boolean | null
++}
++
++export interface NotesDistillSettings {
++  notesRoot: string
++  autoExtract: boolean
++  distillRoots: string[]
++  distillDailyCap: number
++  backgroundModel: string
++}
++
++export interface DistillSettingsPatch {
++  distillRoots?: string[]
++  distillDailyCap?: number
++  backgroundModel?: string
++}
++
++export interface DistillJob {
++  filePath: string
++  status: string
++  origin: string
++  attempts: number
++  lastError: string
++  enqueuedAt: number
++  updatedAt: number
++}
++
++export interface DistillJobsView {
++  jobs: DistillJob[]
++  counts: { pending: number; running: number; failed: number }
++}
++
++const PREFIX = '/ai/agent/notes'
++
++/* Python agent returns snake_case JSON; normalize here so views only ever
++ * see camelCase (same layering convention as wiki.js). */
++export function normalizeNote(n: Record<string, unknown>): Note {
++  return {
++    id: n.id as string,
++    title: (n.title as string) || '',
++    description: (n.description as string) || '',
++    type: n.type as string | undefined,
++    status: n.status as string | undefined,
++    tags: (n.tags as unknown[]) || [],
++    sourceRefs: (n.source_refs as unknown[]) || [],
++    createdBy: (n.created_by as string) || '',
++    revision: n.revision as number | undefined,
++    updatedAt: (n.updated_at as number) || 0,
++    path: (n.path as string) || '',
++    body: n.body,
++  }
++}
++
++export function buildCreateBody(f: CreateNoteFields): Record<string, unknown> {
++  const { title, content, noteType = 'note', tags = [], sourceRefs = [], description = '' } = f
++  return { title, content, note_type: noteType, tags, source_refs: sourceRefs, description }
++}
++
++export function buildUpdateBody(f: UpdateNoteFields): Record<string, unknown> {
++  const { expectedRevision, content, title, status, tags, description } = f
++  const body: Record<string, unknown> = { expected_revision: expectedRevision }
++  if (content !== undefined) body.content = content
++  if (title !== undefined) body.title = title
++  if (status !== undefined) body.status = status
++  if (tags !== undefined) body.tags = tags
++  if (description !== undefined) body.description = description
++  return body
++}
++
++export function normalizeSettings(d?: Record<string, unknown>): NotesSettings {
++  const r = d || {}
++  return {
++    notesRoot: (r.notes_root as string) || '',
++    autoExtract: r.auto_extract !== false,
++  }
++}
++
++export function buildSettingsBody(f?: SettingsFields): Record<string, unknown> {
++  const { notesRoot, mode = 'adopt', autoExtract } = f || {}
++  const body: Record<string, unknown> = {}
++  if (notesRoot) { body.notes_root = notesRoot; body.mode = mode }
++  if (autoExtract !== undefined && autoExtract !== null) body.auto_extract = !!autoExtract
++  return body
++}
++
++/* Distillation settings. Server speaks snake_case; views only ever see
++ * camelCase (same layering convention as the note normalizer above). */
++export function normalizeNotesSettings(raw: unknown): NotesDistillSettings {
++  const r = (raw || {}) as Record<string, unknown>
++  return {
++    notesRoot: (r.notes_root as string) || '',
++    autoExtract: r.auto_extract !== false,
++    distillRoots: Array.isArray(r.distill_roots) ? (r.distill_roots as unknown[]).map(String) : [],
++    distillDailyCap: Number.isFinite(r.distill_daily_cap) ? (r.distill_daily_cap as number) : 50,
++    backgroundModel: (r.background_model as string) || '',
++  }
++}
++
++export function buildNotesSettingsBody(p?: DistillSettingsPatch): Record<string, unknown> {
++  const { distillRoots, distillDailyCap, backgroundModel } = p || {}
++  const body: Record<string, unknown> = {}
++  if (distillRoots !== undefined) body.distill_roots = distillRoots
++  if (distillDailyCap !== undefined) body.distill_daily_cap = distillDailyCap
++  if (backgroundModel !== undefined) body.background_model = backgroundModel
++  return body
++}
++
++/* Single source of truth for "can this file be distilled into a note".
++ * Gates menu-item/button VISIBILITY only (ContextMenu.vue, FileDetailDrawer.vue) —
++ * the backend has its own authoritative gate in
++ * NimoOS-AI/agent/notes_distill.py's DISTILL_EXTS and re-checks on the server
++ * side regardless of what the UI shows. The two lists are a deliberate
++ * duplicate and MUST stay identical: edit one, edit the other. */
++export const DISTILL_EXTS: string[] = [
++  '.md', '.txt', '.rst', '.pdf', '.docx', '.doc', '.wps',
++  '.pptx', '.ppt', '.xlsx', '.xls', '.odt', '.html', '.htm',
++]
++
++export function isDistillableName(name: string): boolean {
++  const n = String(name || '').toLowerCase()
++  return DISTILL_EXTS.some((e) => n.endsWith(e))
++}
++
++/* Distillation job queue listing. Server speaks snake_case; views only
++ * ever see camelCase (same layering convention as the normalizers above). */
++export function normalizeDistillJobs(raw: unknown): DistillJobsView {
++  const r = (raw || {}) as Record<string, unknown>
++  const c = (r.counts || {}) as Record<string, unknown>
++  const jobsRaw = Array.isArray(r.jobs) ? (r.jobs as Record<string, unknown>[]) : []
++  return {
++    jobs: jobsRaw.map((j) => ({
++      filePath: (j.file_path as string) || '',
++      status: (j.status as string) || '',
++      origin: (j.origin as string) || 'auto',
++      attempts: (j.attempts as number) || 0,
++      lastError: (j.last_error as string) || '',
++      enqueuedAt: (j.enqueued_at as number) || 0,
++      updatedAt: (j.updated_at as number) || 0,
++    })),
++    counts: {
++      pending: (c.pending as number) || 0,
++      running: (c.running as number) || 0,
++      failed: (c.failed as number) || 0,
++    },
++  }
++}
++
++export function createNotes(http: AxiosInstance) {
++  return {
++    async list(p?: { type?: string; status?: string; limit?: number }): Promise<Note[]> {
++      const { type = '', status = '', limit = 100 } = p || {}
++      const res = await http.get(PREFIX, { params: { type, status, limit } })
++      return ((res.data.notes as Record<string, unknown>[]) || []).map(normalizeNote)
++    },
++
++    async get(id: string): Promise<Note> {
++      const res = await http.get(`${PREFIX}/${id}`)
++      return normalizeNote(res.data)
++    },
++
++    async create(fields: CreateNoteFields): Promise<Note> {
++      const res = await http.post(PREFIX, buildCreateBody(fields))
++      return normalizeNote(res.data)
++    },
++
++    async update(id: string, fields: UpdateNoteFields): Promise<Note> {
++      const res = await http.put(`${PREFIX}/${id}`, buildUpdateBody(fields))
++      return normalizeNote(res.data)
++    },
++
++    async remove(id: string): Promise<unknown> {
++      const res = await http.delete(`${PREFIX}/${id}`)
++      return res.data
++    },
++
++    async curate(id: string): Promise<Note> {
++      const res = await http.post(`${PREFIX}/${id}/curate`)
++      return normalizeNote(res.data)
++    },
++
++    async archive(id: string): Promise<Note> {
++      const res = await http.post(`${PREFIX}/${id}/archive`)
++      return normalizeNote(res.data)
++    },
++
++    async backlinks(id: string): Promise<unknown[]> {
++      const res = await http.get(`${PREFIX}/${id}/backlinks`)
++      return (res.data.backlinks as unknown[]) || []
++    },
++
++    async getSettings(): Promise<NotesSettings> {
++      const res = await http.get(`${PREFIX}/settings`)
++      return normalizeSettings(res.data)
++    },
++
++    async putSettings(fields?: SettingsFields): Promise<NotesSettings> {
++      const res = await http.put(`${PREFIX}/settings`, buildSettingsBody(fields))
++      return normalizeSettings(res.data)
++    },
++
++    /* Probe a candidate notes folder (admin-gated like settings).
++     * Same emptiness semantics as the backend migrate guard. */
++    async dirInfo(path: string): Promise<{ exists: boolean; empty: boolean }> {
++      const res = await http.get(`${PREFIX}/dir-info`, { params: { path } })
++      return { exists: !!res.data.exists, empty: !!res.data.empty }
++    },
++
++    async getNotesSettings(): Promise<NotesDistillSettings> {
++      const res = await http.get(`${PREFIX}/settings`)
++      return normalizeNotesSettings(res.data)
++    },
++
++    async putNotesSettings(patch: DistillSettingsPatch): Promise<NotesDistillSettings> {
++      const res = await http.put(`${PREFIX}/settings`, buildNotesSettingsBody(patch))
++      return normalizeNotesSettings(res.data)
++    },
++
++    async distillFile(path: string): Promise<unknown> {
++      const res = await http.post(`${PREFIX}/distill`, { path })
++      return res.data
++    },
++
++    /* Cancel a still-pending distill job. 409 means it's no longer cancellable
++     * (not found / not yours / already running / terminal) — callers surface
++     * that as a friendly message rather than a raw error. */
++    async cancelDistillJob(path: string): Promise<unknown> {
++      const res = await http.post(`${PREFIX}/distill/jobs/cancel`, { path })
++      return res.data
++    },
++
++    async listDistillJobs(status = '', limit = 200): Promise<DistillJobsView> {
++      const params: Record<string, unknown> = { limit }
++      if (status) params.status = status
++      const res = await http.get(`${PREFIX}/distill/jobs`, { params })
++      return normalizeDistillJobs(res.data)
++    },
++
++    async getDistillStatus(): Promise<{ pending: number; distilled: number; quotaRemaining: number; backgroundModel: string }> {
++      const res = await http.get(`${PREFIX}/distill/status`)
++      const d = res.data || {}
++      return {
++        pending: d.pending || 0,
++        distilled: d.distilled || 0,
++        quotaRemaining: d.quota_remaining || 0,
++        backgroundModel: d.background_model || '',
++      }
++    },
++  }
++}
+diff --git a/src/wiki.test.ts b/src/wiki.test.ts
+new file mode 100644
+index 0000000..95fb451
+--- /dev/null
++++ b/src/wiki.test.ts
+@@ -0,0 +1,145 @@
++import { describe, it, expect } from 'vitest'
++import type { AxiosInstance } from 'axios'
++import { createWiki, normalizeRoot, normalizeTreeNode, normalizeNode, createRootBody } from './wiki'
++
++type Call = { verb: string; url: string; body?: unknown; cfg?: Record<string, unknown> }
++function recorder(dataFor?: (verb: string, url: string) => unknown) {
++  const calls: Call[] = []
++  const push = (verb: string, url: string, body: unknown, cfg: unknown) => {
++    calls.push({ verb, url, body, cfg: cfg as Record<string, unknown> | undefined })
++    return { data: dataFor ? dataFor(verb, url) : null }
++  }
++  const http = {
++    get: async (u: string, c?: unknown) => push('get', u, undefined, c),
++    post: async (u: string, b?: unknown, c?: unknown) => push('post', u, b, c),
++    delete: async (u: string, c?: unknown) => push('delete', u, undefined, c),
++    patch: async (u: string, b?: unknown, c?: unknown) => push('patch', u, b, c),
++  } as unknown as AxiosInstance
++  return { http, calls }
++}
++
++describe('createWiki — URL/动词表', () => {
++  it('每个方法各调一次', async () => {
++    const { http, calls } = recorder((_v, url) => (url === '/wiki/node' ? { path: '/x' } : []))
++    const wiki = createWiki(http)
++    await wiki.getRoots()
++    await wiki.getCandidates()
++    await wiki.getTree()
++    await wiki.getTree('r1')
++    await wiki.getNode('/DATA')
++    await wiki.createRoot({ Path: '/DATA' })
++    await wiki.deleteRoot('r1')
++    await wiki.deleteRoot('r1', true)
++    await wiki.rescanRoot('r1')
++    await wiki.patchRootEnabled('r1', false)
++    expect(calls.map((c) => `${c.verb} ${c.url}`)).toEqual([
++      'get /wiki/roots', 'get /wiki/candidates', 'get /wiki/tree', 'get /wiki/tree',
++      'get /wiki/node', 'post /wiki/roots',
++      'delete /wiki/roots/r1', 'delete /wiki/roots/r1?purge_files=true',
++      'post /wiki/roots/r1/rescan', 'patch /wiki/roots/r1',
++    ])
++    expect(calls[2].cfg).toBe(undefined)                       // 无 rootId → 不传 params
++    expect(calls[3].cfg).toEqual({ params: { root_id: 'r1' } }) // 有 rootId → 传
++    expect(calls[9].body).toEqual({ enabled: false })
++  })
++
++  it('getRoots 对 null 响应兜底成空数组(Go nil slice 序列化成 null)', async () => {
++    const { http } = recorder(() => null)
++    expect(await createWiki(http).getRoots()).toEqual([])
++    expect(await createWiki(http).getCandidates()).toEqual([])
++    expect(await createWiki(http).getTree()).toEqual([])
++  })
++
++  it('getRaw 把非字符串 body 强制成字符串,null/undefined 成空串', async () => {
++    const mk = (v: unknown) => createWiki(recorder(() => v).http)
++    expect(await mk('# hi').getRaw('/a')).toBe('# hi')
++    expect(await mk(null).getRaw('/a')).toBe('')
++    expect(await mk(undefined).getRaw('/a')).toBe('')
++    expect(await mk(42).getRaw('/a')).toBe('42')
++  })
++
++  it('getRaw / getNode 用 path 作 query 参数', async () => {
++    const { http, calls } = recorder(() => 'x')
++    await createWiki(http).getRaw('/DATA/a b')
++    expect(calls[0].cfg).toEqual({ params: { path: '/DATA/a b' } })
++  })
++})
++
++describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
++  it('normalizeRoot 把 Go PascalCase 映射成 camelCase', () => {
++    expect(normalizeRoot({ ID: 'r1', Path: '/DATA', Level: 'space', WatchMode: 'auto',
++      StorageMode: 'inline', Enabled: true, ScanIntervalS: 21600, CreatedAt: 1,
++      LastScanAt: 0, NeedsReconcile: true }))
++      .toEqual({ id: 'r1', path: '/DATA', level: 'space', watchMode: 'auto',
++        storageMode: 'inline', enabled: true, scanIntervalS: 21600, createdAt: 1,
++        lastScanAt: 0, needsReconcile: true })
++  })
++
++  it('normalizeRoot 缺省时 needsReconcile / enabled 为 false、数值为 0', () => {
++    const r = normalizeRoot({ ID: 'r2', Path: '/x' })
++    expect(r.needsReconcile).toBe(false)
++    expect(r.enabled).toBe(false)
++    expect(r.scanIntervalS).toBe(0)
++    expect(r.lastScanAt).toBe(0)
++  })
++
++  it('normalizeTreeNode 映射 /wiki/tree 的 snake_case 行', () => {
++    expect(normalizeTreeNode({ path: '/DATA/Wiki', level: 'dir', ai_label: 'Work notes',
++      user_notes_updated_at: '', last_modified: '2026-07-20T10:00:00+08:00' }))
++      .toEqual({ path: '/DATA/Wiki', level: 'dir', aiLabel: 'Work notes',
++        userNotesUpdatedAt: '', lastModified: '2026-07-20T10:00:00+08:00' })
++  })
++
++  it('normalizeNode 映射 child_map / recent_changes 并容忍 null', () => {
++    const n = normalizeNode({ path: '/DATA', level: 'root', ai_label: '', summary: null,
++      child_map: [{ name: 'Docs', last_modified: 't1', is_opaque: 1 }],
++      recent_changes: [{ path: '/DATA/a.md', op: 'create', at: 't2' }],
++      user_notes: '', subwikis: null, etag: 'abc' })
++    expect(n.childMap).toEqual([{ name: 'Docs', fileCount: 0, lastModified: 't1', isOpaque: true }])
++    expect(n.recentChanges).toEqual([{ path: '/DATA/a.md', op: 'create', at: 't2' }])
++    expect(n.subwikis).toEqual([])
++    expect(n.summary).toBe(null)
++    expect(n.etag).toBe('abc')
++  })
++
++  it('normalizeNode 顶得住最小载荷', () => {
++    const n = normalizeNode({ path: '/x' })
++    expect(n.childMap).toEqual([])
++    expect(n.recentChanges).toEqual([])
++    expect(n.userNotes).toBe('')
++    expect(n.parentWiki).toBe('')
++  })
++
++  it('createRootBody 用 Go 字段名(无下划线)与固定默认值', () => {
++    expect(createRootBody({ path: '/DATA' })).toEqual({ Path: '/DATA', Level: 'space',
++      WatchMode: 'auto', StorageMode: 'inline', ScanIntervalS: 21600 })
++  })
++
++  it('createRootBody 支持 mirror 重试与自定义间隔,且间隔至少 1 小时', () => {
++    const b = createRootBody({ path: '/mnt/ro', watchMode: 'scan_only', scanIntervalH: 2, mirror: true })
++    expect(b.StorageMode).toBe('mirror')
++    expect(b.WatchMode).toBe('scan_only')
++    expect(b.ScanIntervalS).toBe(7200)
++    expect(createRootBody({ path: '/x', scanIntervalH: 0 }).ScanIntervalS).toBe(3600)
++  })
++})
++
++describe('判别力补充断言(评审教训:getRoots/getCandidates/getTree 三者都是「取数组→兜底[]→map normalizer」形状,互换 normalizer 用 brief 原有断言测不出)', () => {
++  it('getRoots 对非空真实响应用 normalizeRoot 归一化(与 normalizeTreeNode 输出形状不同,用错 normalizer 必报红)', async () => {
++    const { http } = recorder(() => [{ ID: 'r1', Path: '/DATA', Level: 'space', WatchMode: 'auto',
++      StorageMode: 'inline', Enabled: true, ScanIntervalS: 21600, CreatedAt: 1,
++      LastScanAt: 0, NeedsReconcile: true }])
++    const out = await createWiki(http).getRoots()
++    expect(out).toEqual([{ id: 'r1', path: '/DATA', level: 'space', watchMode: 'auto',
++      storageMode: 'inline', enabled: true, scanIntervalS: 21600, createdAt: 1,
++      lastScanAt: 0, needsReconcile: true }])
++  })
++
++  it('getTree 对非空真实响应用 normalizeTreeNode 归一化(snake_case → camelCase,与 normalizeRoot 输出形状不同)', async () => {
++    const { http } = recorder(() => [{ path: '/DATA/Wiki', level: 'dir', ai_label: 'Work notes',
++      user_notes_updated_at: '', last_modified: '2026-07-20T10:00:00+08:00' }])
++    const out = await createWiki(http).getTree()
++    expect(out).toEqual([{ path: '/DATA/Wiki', level: 'dir', aiLabel: 'Work notes',
++      userNotesUpdatedAt: '', lastModified: '2026-07-20T10:00:00+08:00' }])
++  })
++})
+diff --git a/src/wiki.ts b/src/wiki.ts
+new file mode 100644
+index 0000000..d0e49f2
+--- /dev/null
++++ b/src/wiki.ts
+@@ -0,0 +1,203 @@
++import type { AxiosInstance } from 'axios'
++
++/**
++ * wiki 域 —— NimoOS-Wiki 服务,Gateway 直达 `/v1/wiki/*`(不经 NimoOS-AI)。
++ * 1:1 移植自 Vue2 `src/service/wiki.js`(99 行)。
++ * ⚠️ 设备现状(2026-07-31):`file_events` 1.42 亿行 + `pkg/db/db.go:29`
++ * SetMaxOpenConns(1) → `/roots`、`/tree`、`/node` 实测超时(60 s axios timeout);
++ * `/candidates`、`/raw` 200。见设计 §6.3。本域实现与单测不受影响。
++ */
++
++export interface WikiRoot {
++  id: string
++  path: string
++  level: string
++  watchMode: string
++  storageMode: string
++  enabled: boolean
++  scanIntervalS: number
++  createdAt: number
++  lastScanAt: number
++  needsReconcile: boolean
++}
++
++/**
++ * getCandidates() 的元素形状 —— **声明式断言,不是运行时保证**:
++ * 蓝本 `wiki.js:77` 的行尾注释写 `// [{path, type, size, label}]`,`getCandidates`
++ * 本身 `return r.data || []` 原样透传、不做任何归一化,所以这个类型只是给 TS 一个
++ * 标注,后端字段真变了也不会在这里报错。
++ * 已回后端复核(2026-08-01,只读,未改 NimoOS-Wiki 仓):
++ * `NimoOS-Wiki/service/roots/candidates.go:13-18` 的 `Candidate` struct 与蓝本注释
++ * 完全吻合 —— `Path`/`Type` 恒有(json tag 无 omitempty),`Size`/`Label` 是
++ * `omitempty`(值为零/空时整个键缺失,不是空字符串/0)。
++ * ⚠️ 设计 §6.3 实测:设备上 `/candidates` 现状回 `[]`(它不查库,只是当前无候选)—
++ * **没有真机非空样本可对**,这条类型完全靠蓝本注释 + 后端源码推导,未经真机验证。
++ */
++export interface WikiCandidate {
++  path: string
++  type: string
++  size?: number
++  label?: string
++}
++
++export interface WikiTreeNode {
++  path: string
++  level: string
++  aiLabel: string
++  userNotesUpdatedAt: string
++  lastModified: string
++}
++
++export interface WikiChildMapEntry {
++  name: string
++  fileCount: number
++  lastModified: string
++  isOpaque: boolean
++}
++
++export interface WikiRecentChange {
++  path: string
++  op: string
++  at: string
++}
++
++export interface WikiNode {
++  path: string
++  level: string
++  aiLabel: string
++  summary: unknown
++  childMap: WikiChildMapEntry[]
++  recentChanges: WikiRecentChange[]
++  userNotes: string
++  parentWiki: string
++  subwikis: unknown[]
++  etag: string
++}
++
++const PREFIX = '/wiki'
++
++/* NimoOS-Wiki's WikiRoot / CreateArgs structs have no json tags:
++ * responses come back PascalCase, and POST bodies must use the Go field
++ * names — Go's decoder matches case-insensitively but underscores do NOT
++ * match, so `watch_mode` would be silently dropped. Normalize both ways
++ * here so views only ever see camelCase. */
++
++export function normalizeRoot(r: Record<string, unknown>): WikiRoot {
++  return {
++    id: r.ID as string,
++    path: r.Path as string,
++    level: r.Level as string,
++    watchMode: r.WatchMode as string,
++    storageMode: r.StorageMode as string,
++    enabled: !!r.Enabled,
++    scanIntervalS: (r.ScanIntervalS as number) || 0,
++    createdAt: (r.CreatedAt as number) || 0,
++    lastScanAt: (r.LastScanAt as number) || 0,
++    needsReconcile: !!r.NeedsReconcile,
++  }
++}
++
++/* /wiki/tree|node|raw use snake_case json tags (unlike the roots structs);
++ * normalize to camelCase for the same reason as normalizeRoot. */
++export function normalizeTreeNode(n: Record<string, unknown>): WikiTreeNode {
++  return {
++    path: n.path as string,
++    level: (n.level as string) || '',
++    aiLabel: (n.ai_label as string) || '',
++    userNotesUpdatedAt: (n.user_notes_updated_at as string) || '',
++    lastModified: (n.last_modified as string) || '',
++  }
++}
++
++export function normalizeNode(n: Record<string, unknown>): WikiNode {
++  const childMap = (n.child_map as Record<string, unknown>[] | undefined) || []
++  const recentChanges = (n.recent_changes as Record<string, unknown>[] | undefined) || []
++  return {
++    path: n.path as string,
++    level: (n.level as string) || '',
++    aiLabel: (n.ai_label as string) || '',
++    summary: n.summary || null, // backend currently always sends null
++    childMap: childMap.map((c) => ({
++      name: c.name as string,
++      fileCount: (c.file_count as number) || 0,
++      lastModified: (c.last_modified as string) || '',
++      isOpaque: !!c.is_opaque,
++    })),
++    recentChanges: recentChanges.map((c) => ({
++      path: c.path as string, op: c.op as string, at: (c.at as string) || '',
++    })),
++    userNotes: (n.user_notes as string) || '',
++    parentWiki: (n.parent_wiki as string) || '',
++    subwikis: (n.subwikis as unknown[]) || [],
++    etag: (n.etag as string) || '',
++  }
++}
++
++export function createRootBody(a: { path: string; watchMode?: string; scanIntervalH?: number; mirror?: boolean }): Record<string, unknown> {
++  const { path, watchMode = 'auto', scanIntervalH = 6, mirror = false } = a
++  return {
++    Path: path,
++    Level: 'space',
++    WatchMode: watchMode,
++    StorageMode: mirror ? 'mirror' : 'inline',
++    ScanIntervalS: Math.max(1, Math.round(scanIntervalH)) * 3600,
++  }
++}
++
++export function createWiki(http: AxiosInstance) {
++  return {
++    async getRoots(): Promise<WikiRoot[]> {
++      const res = await http.get(`${PREFIX}/roots`)
++      return ((res.data as Record<string, unknown>[] | null) || []).map(normalizeRoot) // backend returns null when empty
++    },
++
++    async getCandidates(): Promise<WikiCandidate[]> {
++      const res = await http.get(`${PREFIX}/candidates`)
++      return (res.data as WikiCandidate[] | null) || [] // [{path, type, size, label}] — see WikiCandidate doc comment
++    },
++
++    /* Wiki navigation view */
++    async getTree(rootId?: string): Promise<WikiTreeNode[]> {
++      const res = await http.get(`${PREFIX}/tree`, rootId ? { params: { root_id: rootId } } : undefined)
++      return ((res.data as Record<string, unknown>[] | null) || []).map(normalizeTreeNode)
++    },
++
++    async getNode(path: string): Promise<WikiNode> {
++      const res = await http.get(`${PREFIX}/node`, { params: { path } })
++      return normalizeNode(res.data as Record<string, unknown>)
++    },
++
++    async getRaw(path: string): Promise<string> {
++      const res = await http.get(`${PREFIX}/raw`, { params: { path } })
++      // text/markdown — axios hands the body through as a string
++      return typeof res.data === 'string' ? res.data : String(res.data == null ? '' : res.data)
++    },
++
++    /* SP8-P5a Task 2 结构性偏离(评审裁定合理): 蓝本 wiki.js:89-92 的这四个
++     * 方法是 `return api.post(...)` / `return api.delete(...)` 等,直接把
++     * axios 响应对象原样交给调用方(调用方自己再取 `.data`)。本包统一改成
++     * `await` + `return res.data`,把「剥一层信封」的职责收进包内,与本文件
++     * 其余方法(getRoots/getNode/…)及 T1 notes.ts 的既定分层一致(K1:
++     * 单层取数——消费端不应再剥一层)。请求 verb/URL/body 逐行照抄蓝本,
++     * 只挪了「解包」这一步,不是行为改动。*/
++    async createRoot(body: Record<string, unknown>): Promise<unknown> {
++      const res = await http.post(`${PREFIX}/roots`, body)
++      return res.data
++    },
++
++    async deleteRoot(id: string | number, purge?: boolean): Promise<unknown> {
++      const res = await http.delete(`${PREFIX}/roots/${id}${purge ? '?purge_files=true' : ''}`)
++      return res.data
++    },
++
++    async rescanRoot(id: string | number): Promise<unknown> {
++      const res = await http.post(`${PREFIX}/roots/${id}/rescan`)
++      return res.data
++    },
++
++    async patchRootEnabled(id: string | number, enabled: boolean): Promise<unknown> {
++      const res = await http.patch(`${PREFIX}/roots/${id}`, { enabled })
++      return res.data
++    },
++  }
++}

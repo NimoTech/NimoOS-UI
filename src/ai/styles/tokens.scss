@@ -1,0 +1,384 @@
+// 1:1 移植自 Vue2 Agent;字面色值为作用域内既有体系,豁免全局 token 规则。
+// Tokens for AI Agent page. Imported once by Agent.vue.
+// Redesign: warm-neutral flat palette + muted blue accent (2026-06-30).
+// Token NAMES are stable; only values changed/added so long-tail
+// components re-skin automatically.
+//
+// ===== 例外清单(刻意跳过 token,与 docs/THEMING.md §6 同一登记表)=====
+// 除该文档 §6 已登记的 `.ic-*` 品牌图标渐变 / 第三方库内部主题外,本子树(src/ai/)
+// 再登记一类:**生成式、按 seed 取色的占位马赛克色板**——
+//   - `VideoCard.vue` 的 `PAL`(视频缩略图占位渐变)
+//   - `ImageGridCard.vue` 的 `PALETTES`(图片格无缩略图时的占位马赛克)
+//   - `SearchFullResults.vue` 的 `PALETTES`、`SemanticSearchCard.vue` 的 `PALETTES`
+//     (SP8-P1b Task 9 —— Vue2 源里就是同一份 PALETTES 数组复制到两个文件,同属
+//     "图片无缩略图时的占位马赛克"这一类,不是新例外)
+// 这两处的十六进制字面量是"皮肤无关"的装饰性生成色(按 block 里的 seed 索引取值,
+// 不代表任何语义状态),与 `.ic-*` 品牌识别色同属"两套主题都原样保留"的例外类目,
+// 不接入 token 体系。组件内注释均指回本节。
+// 另登记一项(非占位马赛克,是身份识别色):`src/ai/util/mentionFormat.ts` 的
+// `DRIVE_PALETTE`——按 drive/挂载点标签哈希取色,标识"这是哪个盘",皮肤无关,
+// 两套主题都原样保留,与 `.ic-*` 品牌渐变同属一类。
+// 另登记一项(SP8-P2a Task 2):`src/ai/styles/settings-styles.scss` 与
+// `src/ai/styles/sk-shared.scss` —— 从 Vue2 设置区/技能区整档 1:1 移植的样式档,
+// 内含约 20 处半透明色字面量(多为 --success/--danger/--accent/--warning/--purple
+// 的透明变体)。与 `agent-styles.scss` 同属「整档移植件」例外,原值保留以保证
+// 视觉 1:1;**两档均不许再塞新裸色**,新写的 .vue 组件 <style> 块不在豁免范围内。
+// SP8-P2b Task 1 追加:`sk-shared.scss` 末尾的 `.sk-modal-bg` 遮罩底色
+// `rgba(15, 20, 30, 0.32)` 同属该整档移植件豁免(Vue2 skills-styles.scss:577)。
+// =====================================================================
+
+/* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */
+.agent-app,
+.ai-toast-scope {
+  /* AI 区是嵌套主题作用域(data-theme 贴在本容器上,不动 <html>),所以必须自己声明
+     color-scheme —— 否则会继承 src/styles/theme.css 的 `:root { color-scheme: dark }`,
+     让浏览器用暗色 UA 调色板画原生控件内部(input[type=number] 的上下箭头底板、原生
+     checkbox 等),浅色 AI 页上就会出现黑色箭头底板。非颜色 token,故不进 THEMING 的
+     token 表,与 theme.css 在 :root 的同名声明同性质。 */
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg-app: #FAF9F6;
+  --bg-canvas: #FAF9F6;
+  --bg-elevated: #FFFFFF;
+  --bg-sunken: #F2F0EA;
+  --bg-chip: #ECEAE3;
+  --bg-hover: #ECEAE3;
+  --bg-code: #F4F2EC;
+
+  /* Translucent surfaces (kept for any leftover backdrop use; flattened) */
+  --glass-strong: rgba(250, 249, 246, 0.82);
+  --glass-medium: rgba(250, 249, 246, 0.6);
+  --glass-weak: rgba(250, 249, 246, 0.45);
+
+  /* Text */
+  --text-primary: #2A2723;
+  --text-secondary: #6C6860;
+  --text-tertiary: #9C988E;
+  --text-quaternary: #BCB8AD;
+  --text-on-accent: #ffffff;
+
+  /* Accent — muted blue */
+  --accent: #3B6FD4;
+  --accent-hover: #2F5CB8;
+  --accent-soft: rgba(59, 111, 212, 0.10);
+  --accent-softer: rgba(59, 111, 212, 0.06);
+
+  /* Semantic */
+  --success: #2E9E54;
+  --warning: #C8860A;
+  --danger: #D7493B;
+  --purple: #AF52DE;
+  --pink: #FF2D55;
+  --teal: #30B0C7;
+  --amber: #C8860A;
+  --photos-accent: #6E5BFF;
+
+  /* Diff */
+  --add: #2E9E54;
+  --add-bg: rgba(46, 158, 84, 0.08);
+  --add-gutter: rgba(46, 158, 84, 0.16);
+  --del: #D7493B;
+  --del-bg: rgba(215, 73, 59, 0.07);
+
+  /* Lines */
+  --line: #E6E2D9;
+  --line-strong: #D8D3C7;
+  --line-faint: #EEEBE3;
+
+  /* SP8-P1c1 Task 7 — glass-layer outer hairline ring (MentionPopover popover
+     shadow); a skin-agnostic ultra-faint stroke, not a semantic color. */
+  --hairline-ring: rgba(0, 0, 0, 0.04);
+
+  /* Timeline minimap */
+  --tl-tick: #CFCABD;
+  --tl-active: var(--accent);
+
+  /* Radii — unchanged */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  /* Shadows — soft, warm-tinted, lighter */
+  --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04);
+  --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05);
+  --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04);
+  --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06);
+  --shadow-pop: 0 16px 48px rgba(40, 35, 25, 0.16);
+
+  /* Type — unchanged */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-serif: "New York", "Times New Roman", serif;
+
+  /* Iridescent gradient — retained for incidental accents only (no longer drives orb) */
+  --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%);
+  --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%);
+
+  /* SP8-P1b Task 8 — soft semantic backgrounds/borders for ported block-renderer
+     badges/rings (icon-bg chips, MCP call/permission cards, confirm-card ring).
+     Kept as a small fixed set (not one-per-Vue2-opacity) so ported components share
+     a single consistent "soft badge" language instead of re-deriving ad hoc rgba(). */
+  --warning-soft: rgba(200, 134, 10, 0.12);
+  --warning-soft-border: rgba(200, 134, 10, 0.24);
+  --warning-ring: rgba(200, 134, 10, 0.08);
+  --success-soft: rgba(46, 158, 84, 0.12);
+  --success-soft-border: rgba(46, 158, 84, 0.2);
+  --danger-soft: rgba(215, 73, 59, 0.1);
+  --danger-soft-border: rgba(215, 73, 59, 0.16);
+  --purple-soft: rgba(175, 82, 222, 0.1);
+  --purple-soft-border: rgba(175, 82, 222, 0.16);
+  /* SP8-P1b Task 8 fix — a fainter "wash" tier per hue, ~60% of -soft's opacity.
+     Vue2 McpCallCard.vue used two distinct opacities per hue: the state-badge
+     PILL (bolder, matches -soft above) vs. the segment-head background WASH
+     behind "Call · ARGUMENTS"/"Return · RESULT"/"Return · ERROR" (fainter).
+     Collapsing both onto -soft made the wash as saturated as the pill — this
+     tier restores that pill>wash hierarchy. Use -soft for pills, -soft-faint
+     for washes; -soft-border is unaffected (still used for the wash's
+     border-bottom, matching Vue2's border opacity being its own third value). */
+  --purple-soft-faint: rgba(175, 82, 222, 0.06);
+  --success-soft-faint: rgba(46, 158, 84, 0.07);
+  --danger-soft-faint: rgba(215, 73, 59, 0.06);
+  /* Lighter purple gradient stop (McpCallCard tile) — decorative, not redefined
+     per-theme, same convention as --purple itself not being redefined in dark. */
+  --purple-light: #C18CFF;
+  --teal-soft: rgba(48, 176, 199, 0.12);
+  /* Fixed-darkness scrim for photo-thumbnail hover overlays — intentionally same
+     value in both themes (a darkening overlay on an image, not a UI surface). */
+  --scrim-dark: rgba(0, 0, 0, 0.35);
+  /* Tiny inset gloss highlight on colored tiles (McpCallCard) — same in both themes. */
+  --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  /* SP8-P3b Task 1 — same "colored chip + white inset gloss" family as
+     --gloss-inset above, used by .sk-color-dot (skills-styles.scss) in the
+     AddSkillModal color picker. Vue2 source (skills-styles.scss:677) uses a
+     distinct opacity (0.2) from --gloss-inset's 0.18 — kept as its own token to
+     preserve Vue2's exact value rather than drift by reusing --gloss-inset
+     (same precedent as --modal-scrim-soft being separate from --modal-scrim
+     below). Theme-invariant chrome, same in both themes. */
+  --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
+
+  /* SP8-P1b Task 9 — SearchImageLightbox is a fullscreen black "stage" (a photo
+     viewer chrome, like Photos/Preview), intentionally theme-invariant — same
+     rationale as --scrim-dark/--gloss-inset above, not a skin surface. */
+  --overlay-scrim: rgba(0, 0, 0, 0.92);
+  --overlay-fg-strong: rgba(255, 255, 255, 0.95);
+  --overlay-fg-soft: rgba(255, 255, 255, 0.6);
+  --overlay-chip-bg: rgba(255, 255, 255, 0.1);
+  --overlay-chip-bg-hover: rgba(255, 255, 255, 0.2);
+  --overlay-chip-border: rgba(255, 255, 255, 0.16);
+  --overlay-btn-bg: rgba(255, 255, 255, 0.08);
+  --overlay-btn-bg-hover: rgba(255, 255, 255, 0.16);
+  --overlay-nav-bg: rgba(0, 0, 0, 0.5);
+  --overlay-nav-bg-hover: rgba(0, 0, 0, 0.8);
+  --overlay-nav-border: rgba(255, 255, 255, 0.1);
+  --overlay-img-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+
+  /* Dim-behind-blur backdrop shared by SearchFileDrawer/SearchFullResults modals
+     — a scrim, not a skin surface, same value both themes (--scrim-dark sibling). */
+  --modal-scrim: rgba(0, 0, 0, 0.5);
+  /* SP8-P1c1 (final review, 2026-07-27) — a lighter scrim tier for SlashMenu.
+     Vue2 shell/SlashMenu.vue's overlay literal was rgba(0,0,0,0.3), noticeably
+     lighter than --modal-scrim's 0.5; reusing --modal-scrim there would be a
+     visible 1:1 deviation, so this is a separate token, same value both themes
+     (a scrim, not a skin surface — same family as --modal-scrim/--scrim-dark). */
+  --modal-scrim-soft: rgba(0, 0, 0, 0.3);
+
+  /* "Paper" file-icon face (SearchFileDrawer/SearchFullResults/SemanticSearchCard
+     file-kind icons) — a white sheet-of-paper look, same convention real file
+     managers use in dark mode too; theme-invariant like --paper items above. */
+  --paper-surface: #ffffff;
+
+  /* SP8-P2a Task 6 — iOS-style switch thumb (SetSwitch.vue / .sw::after in
+     sk-shared.scss). Vue2 source (skills-styles.scss:235-249) had a literal
+     `background: white` + `box-shadow: 0 2px 4px rgba(0,0,0,0.18)` for the
+     round knob. Same family as --paper-surface/--scrim-dark: a skin-agnostic
+     chrome detail (iOS switches always have a white knob regardless of
+     theme), not a semantic surface — theme-invariant, same value both blocks. */
+  --switch-thumb: #ffffff;
+  --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
+
+  /* File-extension color badges (kindColor ext→color map). Brand/semantic file-type
+     coding (à la Finder tags), theme-invariant like --purple/--pink/--teal above. */
+  --kind-pdf: #FF3B30;
+  --kind-doc: #007AFF;
+  --kind-xls: #34C759;
+  --kind-md: #1a1a1a;
+  --kind-txt: #8E8E93; /* also the default/unknown-kind fallback */
+  --kind-archive: #FF9500; /* zip / ppt / pptx */
+
+  /* Dark caption/badge scrim laid over photo thumbnails (score chip, bottom name
+     gradient) in SearchFullResults/SemanticSearchCard image grids — theme-invariant
+     (a darkening overlay on an image, same family as --scrim-dark). */
+  --photo-caption-scrim: rgba(0, 0, 0, 0.55);
+  /* "Open in Photos" glass pill shown on thumbnail hover (stronger than the lightbox's
+     own --overlay-chip-* since it must stand out over a dimmed photo, not near-black). */
+  --photo-chip-bg: rgba(255, 255, 255, 0.16);
+  --photo-chip-bg-hover: rgba(255, 255, 255, 0.3);
+  --photo-chip-border: rgba(255, 255, 255, 0.22);
+  --photo-overlay-fg: rgba(255, 255, 255, 0.85);
+
+  /* Composed from existing tokens (var()-in-var()) so a single declaration already
+     adapts per theme — same convention as --tl-active: var(--accent) above, not
+     redefined in the dark block. */
+  --icon-tile-glow: 0 3px 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  --grad-photo: linear-gradient(135deg, var(--purple), var(--pink));
+  --grad-file: linear-gradient(135deg, var(--accent), var(--teal));
+
+  /* SP8-P3a Task 1 — skill-tile identifier-color gradients (SkillTile.vue swatch
+     picker in Vue2 `SkillTile.vue:19-27`). Decorative, skin-agnostic identifier
+     colors (a skill just "is" blue/purple/pink/etc regardless of theme), same
+     convention as --grad-photo/--grad-file directly above — not redefined in the
+     dark block. */
+  --grad-sk-blue: linear-gradient(135deg, #5AC8FA, #007AFF);
+  --grad-sk-purple: linear-gradient(135deg, #C18CFF, #AF52DE);
+  --grad-sk-pink: linear-gradient(135deg, #FF6E8A, #FF2D55);
+  --grad-sk-orange: linear-gradient(135deg, #FFB75A, #FF7A00);
+  --grad-sk-green: linear-gradient(135deg, #5DD68A, #2EB05B);
+  --grad-sk-teal: linear-gradient(135deg, #5AD2CF, #008C8C);
+  --grad-sk-slate: linear-gradient(135deg, #98A2B3, #475467);
+
+  /* Dim meta-row icon tint on TerminalCard's dark chrome (`.term-meta` in the
+     already-exempted global agent-styles.scss) — same theme-invariant family. */
+  --term-icon-dim: rgba(255, 255, 255, 0.5);
+}
+
+.agent-app[data-theme="dark"],
+.ai-toast-scope[data-theme="dark"] {
+  /* 与浅色基座对称:暗色 AI 页要按暗色 UA 调色板画原生控件(见 .agent-app 处的注释)。
+     若全局是浅色主题而 AI 区切暗色,没有这行就会出现白色箭头底板压在深色输入框上。 */
+  color-scheme: dark;
+
+  --bg-app: #1C1C1E;
+  --bg-canvas: #1C1C1E;
+  --bg-elevated: #242426;
+  --bg-sunken: #161617;
+  --bg-chip: #2A2A2C;
+  --bg-hover: #2A2A2C;
+  --bg-code: #15171C;
+
+  --glass-strong: rgba(28, 28, 30, 0.82);
+  --glass-medium: rgba(28, 28, 30, 0.6);
+  --glass-weak: rgba(28, 28, 30, 0.45);
+
+  --text-primary: #E9E7E3;
+  --text-secondary: #A3A09A;
+  --text-tertiary: #6E6C68;
+  --text-quaternary: #4D4B48;
+  /* F3 修复(review)—— tokens.scss 约定每个颜色 token 两套主题块都要有值;
+     此前只在 .agent-app(light)声明过,虽然级联到 dark 也能正确取到同一份纯白值
+     (无视觉 bug),但违反约定本身。与 --paper-surface/--kind-* 同款,显式补一份
+     相同取值。 */
+  --text-on-accent: #ffffff;
+
+  --accent: #5E97F2;
+  --accent-hover: #7AABF5;
+  --accent-soft: rgba(94, 151, 242, 0.14);
+  --accent-softer: rgba(94, 151, 242, 0.10);
+
+  --success: #4FB870;
+  --warning: #E0A53B;
+  --danger: #F0776B;
+  --amber: #E0A53B;
+
+  --add: #4FB870;
+  --add-bg: rgba(46, 160, 67, 0.12);
+  --add-gutter: rgba(46, 160, 67, 0.30);
+  --del: #F0776B;
+  --del-bg: rgba(240, 119, 107, 0.10);
+
+  --line: #2E2E31;
+  --line-strong: #3A3A3D;
+  --line-faint: #262628;
+
+  /* SP8-P1c1 Task 7 — dark-theme value for --hairline-ring above. */
+  --hairline-ring: rgba(255, 255, 255, 0.06);
+
+  --tl-tick: #3C3C3F;
+
+  /* SP8-P1b Task 8 — dark-theme values for the soft-badge tokens added above. */
+  --warning-soft: rgba(224, 165, 59, 0.18);
+  --warning-soft-border: rgba(224, 165, 59, 0.3);
+  --warning-ring: rgba(224, 165, 59, 0.14);
+  --success-soft: rgba(79, 184, 112, 0.18);
+  --success-soft-border: rgba(79, 184, 112, 0.28);
+  --danger-soft: rgba(240, 119, 107, 0.16);
+  --danger-soft-border: rgba(240, 119, 107, 0.24);
+  --purple-soft: rgba(175, 82, 222, 0.18);
+  --purple-soft-border: rgba(175, 82, 222, 0.26);
+  --purple-soft-faint: rgba(175, 82, 222, 0.11);
+  --success-soft-faint: rgba(79, 184, 112, 0.11);
+  --danger-soft-faint: rgba(240, 119, 107, 0.1);
+  --purple-light: #C18CFF;
+  --teal-soft: rgba(48, 176, 199, 0.2);
+  --scrim-dark: rgba(0, 0, 0, 0.35);
+  --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  /* SP8-P3b Task 1 — dark-theme value for --gloss-inset-dot above (same value as
+     light block — theme-invariant, see comment there). */
+  --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
+
+  /* SP8-P1b Task 9 — same values as light block (all theme-invariant chrome, see
+     comments there); dark-theme copies exist only to satisfy "every token has a
+     value in both blocks" for tokens that aren't var()-composed. */
+  --overlay-scrim: rgba(0, 0, 0, 0.92);
+  --overlay-fg-strong: rgba(255, 255, 255, 0.95);
+  --overlay-fg-soft: rgba(255, 255, 255, 0.6);
+  --overlay-chip-bg: rgba(255, 255, 255, 0.1);
+  --overlay-chip-bg-hover: rgba(255, 255, 255, 0.2);
+  --overlay-chip-border: rgba(255, 255, 255, 0.16);
+  --overlay-btn-bg: rgba(255, 255, 255, 0.08);
+  --overlay-btn-bg-hover: rgba(255, 255, 255, 0.16);
+  --overlay-nav-bg: rgba(0, 0, 0, 0.5);
+  --overlay-nav-bg-hover: rgba(0, 0, 0, 0.8);
+  --overlay-nav-border: rgba(255, 255, 255, 0.1);
+  --overlay-img-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+  --modal-scrim: rgba(0, 0, 0, 0.5);
+  /* SP8-P1c1 (final review, 2026-07-27) — dark-theme value for --modal-scrim-soft
+     above (see light block comment); same value both themes, like --modal-scrim. */
+  --modal-scrim-soft: rgba(0, 0, 0, 0.3);
+  --paper-surface: #ffffff;
+  /* SP8-P2a Task 6 — dark-theme value for --switch-thumb/--switch-thumb-shadow
+     above (same values as light block — theme-invariant, see comment there). */
+  --switch-thumb: #ffffff;
+  --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
+  --kind-pdf: #FF3B30;
+  --kind-doc: #007AFF;
+  --kind-xls: #34C759;
+  --kind-md: #1a1a1a;
+  --kind-txt: #8E8E93;
+  --kind-archive: #FF9500;
+  --photo-caption-scrim: rgba(0, 0, 0, 0.55);
+  --photo-chip-bg: rgba(255, 255, 255, 0.16);
+  --photo-chip-bg-hover: rgba(255, 255, 255, 0.3);
+  --photo-chip-border: rgba(255, 255, 255, 0.22);
+  --photo-overlay-fg: rgba(255, 255, 255, 0.85);
+  --term-icon-dim: rgba(255, 255, 255, 0.5);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ===== SP8-P2b 验收第 3 轮(用户 2026-07-30 拍板「只改 AI 区、桌面零影响」)=====
+   `AppToast` 挂在 `App.vue` 最外层,不在 `.agent-app` 里面,所以它读的是 theme.css 在
+   `:root` 的 toast token:半透明白底(`rgba(255,255,255,.28→.12)`)+ `--toast-fg` 未定义
+   退回 `--fg` = `#ffffff`。画在 AI 区的浅色页面(`--bg-app: #FAF9F6`)上就是白底白字 =
+   全隐形,AI 区所有 toast 用户都看不见(验收时表现为「复制按钮点了一点反应没有」)。
+   上面两个主题块的选择器已带上 `.ai-toast-scope`,所以本类拿得到整套 AI token;这里只把
+   toast 那几个覆盖成 AI 语义色。**全部引用 AI token,不写颜色字面量。**
+   何时生效:AI 页面挂载期间由 `aiTheme` store 登记(见该文件 aiSurfaces 注释),
+   `AppToast` 据此贴上本类 + `data-theme`;离开 AI 路由两个绑定都不生效 → 桌面观感零变化。 */
+.ai-toast-scope {
+  --toast-bg: var(--bg-elevated);
+  --toast-fg: var(--text-primary);
+  --toast-warn-bg: var(--warning-soft);
+  --toast-warn-fg: var(--warning);
+  --toast-danger-bg: var(--danger-soft);
+  --toast-danger-fg: var(--danger);
+  --chip-border: var(--line);
+}

@@ -1,0 +1,538 @@
+11ad79b feat(kb): P5d T5 —— openInApp 补两函数(§16)+ 票 3 具名色/覆盖范围守卫债(§15.3)
+
+ .superpowers/sdd/p5d-task-5-report.md | 108 ++++++++++++++++++++
+ src/ai/services/openInApp.test.ts     |  72 ++++++++++++++
+ src/ai/services/openInApp.ts          |  27 +++++
+ src/ai/styles/knowledgeStyles.test.ts | 181 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 388 insertions(+)
+
+diff --git a/.superpowers/sdd/p5d-task-5-report.md b/.superpowers/sdd/p5d-task-5-report.md
+new file mode 100644
+index 0000000..8a5f8ba
+--- /dev/null
++++ b/.superpowers/sdd/p5d-task-5-report.md
+@@ -0,0 +1,108 @@
++# P5d · T5 报告 —— `openInApp.ts` 补两函数(§16)+ 票 3 守卫债(§15.3)
++
++起点 HEAD `cb73071`(T0–T4 五刀关账、评审 clean)。改动仅 3 个已改文件,**零新建文件**
++(文件数仍 329,`.vue` 仍 180)。
++
++## 计划书 §T5 逐条对照
++
++1. **`openDirInNewTab(dirPath)`** —— 逐字照抄蓝本 `openInApp.js:52-55`
++   (`if (!dirPath) return; window.open(filesPathUrl(dirPath, ''), '_blank')`),
++   `filesPathUrl` 用本仓既有的那个(`:41-43`,`/app/#/files?path=…&highlight=…`)。
++   落在 `openFileInNewTab` 之后、`PHOTOSET_PREFIX` 之前(`openInApp.ts:56-62`)。
++2. **`agentSessionUrl(sessionId)` + `openAgentSessionInNewTab(sessionId)`** —— 按裁定 A-8
++   逐字照抄蓝本 `openInApp.js:117-124`,指向旧 Vue2 应用 `/#/ai/agent?session=…`
++   (**无** `/app` 前缀)。落在文件末尾(`:111-128`),申报注释同款
++   `photosAssetUrl`(`:37-39` + 文件头 `:5-9`)的写法,写明「New-UI 的 `/ai/agent`
++   尚未实现 `?session=` 深链(AgentPage.vue / agentStore 零读取),故借道旧应用;
++   实现后应换成 `/app/#/ai/agent?session=…`」。
++3. **早退两侧用例**:`openDirInNewTab('')` / `(null)` / `(undefined)` 与
++   `openAgentSessionInNewTab('')` / `(null)` / `(undefined)` 各自断言 `window.open`
++   **不被调用**(`openInApp.test.ts` 新增 describe 块,均已跑绿)。
++4. **`openNoteInNewTab` 确认未补**:`grep -rn "openNoteInNewTab" src/` 全仓零命中。
++   登记进 P5e/P5f 交接项(见下)。
++5. **开票(A-8)**:**「New-UI Agent 页补 `?session=` 深链」** —— `AgentPage.vue` /
++   `agentStore` 目前零 `?route.query.session` 读取,`openAgentSessionInNewTab` 暂借道
++   旧 Vue2 应用;待 New-UI 侧补上该深链支持后,`agentSessionUrl` 应改回
++   `/app/#/ai/agent?session=…`。
++6. **具名色扫描**(票 3a)——`knowledgeStyles.test.ts` 新增
++   `namedColorOffensesInValues()`:只在 `background-color` / `border-color` /
++   `background` / `border` / `box-shadow` / `color` / `fill` / `stroke` 的**值**部分
++   找 8 个整词具名色(与既有 `:510-517` 同一份清单)。**RED + 反向探针两头验**(见 §RED 探针)。
++7. **覆盖范围扩到 `src/ai/components/**`**:新增 `COMPONENTS_VUE_FILES`(70 个文件,
++   `find src/ai/components -name "*.vue" | wc -l` 实测 70)+ 集合相等防漂移断言 + 抽取/
++   覆盖度自检 + hex/rgb/hsl + 具名色,四类断言全套铺开。**扩范围前先用独立脚本
++   `/tmp/scan_components.mjs`(逻辑与生产测试代码同构)对 70 个文件做过一次性
++   dry-run:`anyIssue: false`(零 hex/rgb/hsl/具名色命中,且 70 个文件全部抽取成功、
++   无 `NO TEMPLATE EXTRACTED`)。真实测试跑绿印证同一结论,不触发 NEEDS_CONTEXT。**
++8. **`src/` 下非测试文件除 `openInApp.ts` 外零改动**:`git diff --name-only` 只有
++   `src/ai/services/openInApp.ts`(改)· `src/ai/services/openInApp.test.ts`(测试)·
++   `src/ai/styles/knowledgeStyles.test.ts`(测试)。`openInApp.ts` 的 `git diff` 全部是
++   `+` 新增行,原有 7 个导出(`fileDirAndName`/`photosAssetUrl`/`filesPathUrl`/
++   `openPhotoInNewTab`/`openFileInNewTab`/`photosSetUrl`/`openPhotoSetInNewTab`)
++   一字未改。
++
++## 具名色守卫两头探针(票 3a DoD)
++
++**探针①(必须报红)**:在 `QueueView.vue:474`(`white-space: nowrap;`)之后插入
++`color: white;`(`cp` 备份 → `sed -i '474a\  color: white;'` 行首锚定注入 → `diff` 先证
++落盘)。跑 `-t "具名色"`:
++```
++FAIL views/QueueView.vue —— 模板内属性值位置…零具名色
++AssertionError: … 发现具名色:
++color: white: expected [ 'color: white' ] to deeply equal []
++```
++还原:`cp` 备份覆盖 →
++`md5sum` 前后一致(`ff6bd0d…` = `ff6bd0d…`)、`git diff`/`git status` 该文件干净。
++
++**探针②(必须不报红)**:同一个 `QueueView.vue:474` 的真实 `white-space: nowrap;`
++——探针①还原后重跑 `-t "具名色"`:`82 passed`,`views/QueueView.vue` 那条在其中,
++零红。属性名 `white-space` 根本不在 `COLOR_VALUE_PROPS` 名单里,天然被排除,
++不需要额外的连字符特判。
++
++**两头都过** —— 守卫成立。
++
++## `agentSessionUrl` 正向 + 反向断言(带判别力验证)
++
++正向:`expect(agentSessionUrl('sess 1')).toBe('/#/ai/agent?session=sess%201')`。
++反向:`expect(agentSessionUrl('sess 1')).not.toBe('/app/#/ai/agent?session=sess%201')`。
++**RED 探针**(模拟「顺手统一前缀」回归):`cp` 备份 → 把
++`return '/#/ai/agent?session=' + …` 改成 `'/app/#/ai/agent?session=' + …` → 跑
++`openInApp.test.ts -t agentSessionUrl`:5 条失败(含正向断言、反向断言、
++`toHaveBeenCalledWith` 三种形式),证明该组测试对这个具体回归有判别力。
++还原:`cp` 覆盖 → `md5sum` 前后一致(`248a875…` = `248a875…`)、`git status` 干净。
++还原后重跑全量 `openInApp.test.ts`:`33 passed`。
++
++## `src/ai/components/**` 扫描结果(票 3b)
++
++零既有违规(见条目 7),**未触发 NEEDS_CONTEXT**。
++
++## 三门(全量)
++
++```
++pnpm test                  exit=0   Test Files 329 passed (329)  Tests 3839 passed (3839)
++pnpm exec vue-tsc --noEmit exit=0
++pnpm build                 exit=0(仅既有 >500KB chunk 警告)
++```
++算式:起点 `3607` + 本刀新增 `232` = `3839`(实测)。构成:`openInApp.test.ts` +10
++(`openDirInNewTab` 3 条 + `agentSessionUrl`/`openAgentSessionInNewTab` 7 条)、
++`knowledgeStyles.test.ts` +222(知识库区具名色 it.each 11 条 + components 扩展
++describe:文件清单 1 + 抽取/覆盖度 70 + hex/rgb 70 + 具名色 70 = 211;
++10+222=232)。文件数仍 **329**(零新建)。
++
++## K/N 申报
++
++无新增 K/N 号偏离 —— `agentSessionUrl`/`openAgentSessionInNewTab` 是**逐字照抄蓝本**
++(裁定 A-8 直接授权,非本任务自定偏离);`openDirInNewTab` 沿用既有落点惯例
++(`filesPathUrl`,文件头注释里早已申报过,非本刀新增申报)。守卫加强本身不是产品逻辑
++偏离,不占 K 号。
++
++## 交接项登记
++
++- **票(A-8)**:New-UI Agent 页补 `?session=` 深链支持(转 P5e/P5f)。
++- `openNoteInNewTab` 本期未补,登记进 P5e/P5f(`FileDetailDrawer` 可能要用)。
++
++## 自证
++
++- `git status --short`:仅 3 个已知改动文件,无其它改动。
++- `git diff --stat`:`openInApp.ts` +27/-0、`openInApp.test.ts` +72/-0、
++  `knowledgeStyles.test.ts` +181/-0 —— 全部纯新增,无删改行。
+diff --git a/src/ai/services/openInApp.test.ts b/src/ai/services/openInApp.test.ts
+index 9640aca..84726f3 100644
+--- a/src/ai/services/openInApp.test.ts
++++ b/src/ai/services/openInApp.test.ts
+@@ -1,26 +1,34 @@
+ // 1:1 移植目标:Vue2 src/views/AI/Agent/services/openInApp.js 的
+ // __tests__/openInApp.spec.js。断言逐条照搬,仅按 openInApp.ts 顶部注释调整两处
+ // 落点差异(New-UI 相对 Vue2 的真实行为,不是本文件的改动):
+ //   - 文件类:Vue2 落 `/#/files?...`(root-mounted),New-UI 落
+ //     `/app/#/files?...`(New-UI 自己的 Files 页,SP4 已收官)。
+ //   - 照片类:两边都落 `/#/photos?...` —— New-UI 暂借道旧 Vue2 Photos 页
+ //     (SP7 相册区尚未合并到本分支),保持不变。
++//
++// SP8-P5d Task 5(治理 §16):补 openDirInNewTab / agentSessionUrl /
++// openAgentSessionInNewTab 三个新导出的用例。agentSessionUrl 那组**没有**落点
++// 差异 —— 裁定 A-8 要求逐字指向旧 Vue2 应用 `/#/ai/agent?session=…`
++// (无 `/app` 前缀),见 openInApp.ts 里对应的申报注释。
+ import { describe, it, expect, vi, afterEach } from 'vitest'
+ import {
+   fileDirAndName,
+   photosAssetUrl,
+   filesPathUrl,
+   openPhotoInNewTab,
+   openFileInNewTab,
++  openDirInNewTab,
+   photosSetUrl,
+   openPhotoSetInNewTab,
++  agentSessionUrl,
++  openAgentSessionInNewTab,
+ } from './openInApp'
+ 
+ describe('fileDirAndName', () => {
+   it('splits a normal absolute file path', () => {
+     expect(fileDirAndName('/DATA/a/b.txt')).toEqual({ dir: '/DATA/a', name: 'b.txt' })
+   })
+   it('handles a bare filename with no directory', () => {
+     expect(fileDirAndName('foo.txt')).toEqual({ dir: 'foo.txt', name: 'foo.txt' })
+   })
+   it('strips a trailing slash (directory form)', () => {
+@@ -86,20 +94,43 @@ describe('openPhotoInNewTab / openFileInNewTab', () => {
+     expect(spy).not.toHaveBeenCalled()
+   })
+   it('does nothing when the file path is null/undefined', () => {
+     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
+     openFileInNewTab(null)
+     openFileInNewTab(undefined)
+     expect(spy).not.toHaveBeenCalled()
+   })
+ })
+ 
++// SP8-P5d Task 5:openDirInNewTab(治理 §16 条 1)—— 逐字照抄蓝本 openInApp.js:52-55,
++// 复用本仓既有的 filesPathUrl(/app/ 挂载点),highlight 段固定传空字符串。
++describe('openDirInNewTab', () => {
++  afterEach(() => { vi.restoreAllMocks() })
++
++  it('opens the directory url (no highlight) in a new tab, under New-UI /app/ mount', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openDirInNewTab('/DATA/Notes')
++    expect(spy).toHaveBeenCalledWith('/app/#/files?path=%2FDATA%2FNotes&highlight=', '_blank')
++  })
++  it('does nothing when the dir path is empty', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openDirInNewTab('')
++    expect(spy).not.toHaveBeenCalled()
++  })
++  it('does nothing when the dir path is null/undefined', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openDirInNewTab(null)
++    openDirInNewTab(undefined)
++    expect(spy).not.toHaveBeenCalled()
++  })
++})
++
+ describe('photosSetUrl', () => {
+   it('builds a photoset url encoding token and active (still root-mounted /#/photos)', () => {
+     expect(photosSetUrl('tok 1', 'a&b')).toBe('/#/photos?photoset=tok%201&active=a%26b')
+   })
+ })
+ 
+ describe('openPhotoSetInNewTab', () => {
+   afterEach(() => { vi.restoreAllMocks(); localStorage.clear() })
+ 
+   it('stores the id set and opens a photoset url with the active id', () => {
+@@ -152,10 +183,51 @@ describe('openPhotoSetInNewTab', () => {
+     localStorage.setItem('nimo:photoset:notanumber', JSON.stringify({ ids: ['bad'] }))
+     localStorage.setItem('nimo:photoset:' + (now - 1000) + '_fresh', JSON.stringify({ ids: ['fresh'] }))
+ 
+     openPhotoSetInNewTab(['a'], 'a')
+ 
+     expect(localStorage.getItem('nimo:photoset:' + (now - 200000) + '_stale')).toBeNull()
+     expect(localStorage.getItem('nimo:photoset:notanumber')).toBeNull()
+     expect(localStorage.getItem('nimo:photoset:' + (now - 1000) + '_fresh')).not.toBeNull()
+   })
+ })
++
++// SP8-P5d Task 5:agentSessionUrl / openAgentSessionInNewTab(治理 §16 条 2,裁定 A-8)。
++// 🔴 正向断言 URL 逐字 + 反向断言「不等于带 /app 前缀的那个」—— 反向断言是判别力核心:
++// 若将来有人「顺手统一前缀」把这两个函数改成指向 New-UI 自己的 /app/#/ai/agent 路由,
++// 由于该路由至今零 ?session= 读取,这个功能会静默失效而正向断言仍可能因为字符串
++// 巧合被改对但反向断言一定报红(反之亦然,两条互为交叉验证)。
++describe('agentSessionUrl / openAgentSessionInNewTab', () => {
++  afterEach(() => { vi.restoreAllMocks() })
++
++  it('builds a URL pointing at the OLD Vue2 app (root-mounted, no /app prefix)', () => {
++    expect(agentSessionUrl('sess 1')).toBe('/#/ai/agent?session=sess%201')
++  })
++  it('does NOT point at the New-UI-mounted equivalent (reverse assertion, guards against a silent regression)', () => {
++    expect(agentSessionUrl('sess 1')).not.toBe('/app/#/ai/agent?session=sess%201')
++  })
++  it('encodes special characters in the session id', () => {
++    expect(agentSessionUrl('a&b c')).toBe('/#/ai/agent?session=a%26b%20c')
++  })
++
++  it('opens the agent session url in a new tab', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openAgentSessionInNewTab('sess-1')
++    expect(spy).toHaveBeenCalledWith('/#/ai/agent?session=sess-1', '_blank')
++  })
++  it('the opened url is NOT the /app-prefixed New-UI route (reverse assertion)', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openAgentSessionInNewTab('sess-1')
++    expect(spy.mock.calls[0][0]).not.toBe('/app/#/ai/agent?session=sess-1')
++  })
++  it('does nothing when the session id is empty', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openAgentSessionInNewTab('')
++    expect(spy).not.toHaveBeenCalled()
++  })
++  it('does nothing when the session id is null/undefined', () => {
++    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
++    openAgentSessionInNewTab(null)
++    openAgentSessionInNewTab(undefined)
++    expect(spy).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/ai/services/openInApp.ts b/src/ai/services/openInApp.ts
+index b74fffd..200856b 100644
+--- a/src/ai/services/openInApp.ts
++++ b/src/ai/services/openInApp.ts
+@@ -46,20 +46,28 @@ export function openPhotoInNewTab(id: string | number | null | undefined): void
+   if (!id) return
+   window.open(photosAssetUrl(id), '_blank')
+ }
+ 
+ export function openFileInNewTab(filePath: string | null | undefined): void {
+   if (!filePath) return
+   const { dir, name } = fileDirAndName(filePath)
+   window.open(filesPathUrl(dir, name), '_blank')
+ }
+ 
++// Open a directory itself (no file highlight) in the Files app.
++// 1:1 移植自 Vue2 openInApp.js:52-55 —— 与 openFileInNewTab 共用本仓既有的
++// filesPathUrl(New-UI /app/ 挂载点),不是蓝本自己的虚拟路径实现。
++export function openDirInNewTab(dirPath: string | null | undefined): void {
++  if (!dirPath) return
++  window.open(filesPathUrl(dirPath, ''), '_blank')
++}
++
+ const PHOTOSET_PREFIX = 'nimo:photoset:'
+ 
+ export function photosSetUrl(token: string, activeId: string | number): string {
+   return '/#/photos?photoset=' + encodeURIComponent(token) + '&active=' + encodeURIComponent(String(activeId))
+ }
+ 
+ // Open the Photos page in a new tab showing a whole set of search-result images
+ // (browsable in the lightbox), with `activeId` shown first. The id list is handed
+ // off via localStorage (keyed by a one-shot token) so it survives any size and is
+ // not capped by URL length. Falls back to a single-asset open if storage fails.
+@@ -92,10 +100,29 @@ export function openPhotoSetInNewTab(
+ function pruneStalePhotoSets(): void {
+   const cutoff = Date.now() - 120000
+   for (let i = localStorage.length - 1; i >= 0; i--) {
+     const k = localStorage.key(i)
+     if (k && k.indexOf(PHOTOSET_PREFIX) === 0) {
+       const ts = parseInt(k.slice(PHOTOSET_PREFIX.length), 10)
+       if (!ts || ts < cutoff) localStorage.removeItem(k)
+     }
+   }
+ }
++
++// 1:1 移植自 Vue2 openInApp.js:117-124(`agentSessionUrl` / `openAgentSessionInNewTab`)。
++// 🔴 与上面几个不同,这两个函数**逐字照抄蓝本的落点** —— 指向旧 Vue2 应用根挂载的
++// `/#/ai/agent?session=…`,**没有** `/app` 前缀。这是刻意的,不是漏加前缀:
++// New-UI 自己也有 `/ai/agent` 路由(`router/index.ts`),但 AgentPage.vue 与
++// agentStore 全仓零 `?session=` 读取,指到 `/app/#/ai/agent?session=X` 会打开
++// New-UI 的 Agent 页却不选中那条会话(静默失效);Vue2 的 Agent.vue:129/164/212
++// 真的读 `$route.query.session`。同款先例见上面 photosAssetUrl 的处理:
++// New-UI 还没有该能力时,暂时借道旧应用这个真实可用的落点;待 New-UI 的
++// `/ai/agent` 补上 `?session=` 深链支持后,应换成 `/app/#/ai/agent?session=…`。
++// 交接票:「New-UI Agent 页补 `?session=` 深链」(P5e/P5f,依据裁定 A-8)。
++export function agentSessionUrl(sessionId: string | number): string {
++  return '/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
++}
++
++export function openAgentSessionInNewTab(sessionId: string | number | null | undefined): void {
++  if (!sessionId) return
++  window.open(agentSessionUrl(sessionId), '_blank')
++}
+diff --git a/src/ai/styles/knowledgeStyles.test.ts b/src/ai/styles/knowledgeStyles.test.ts
+index d0c0a0a..a0075ef 100644
+--- a/src/ai/styles/knowledgeStyles.test.ts
++++ b/src/ai/styles/knowledgeStyles.test.ts
+@@ -1115,20 +1115,80 @@ function stripColorCalls(s: string): string {
+       }
+       i = j
+     } else {
+       out += s[i]
+       i++
+     }
+   }
+   return out
+ }
+ 
++// ═══════════════════════════════════════════════════════════════════════════
++// SP8-P5d Task 5 —— 票 3(治理 §15.3 / §9.6):守卫缺口③′ 补两条判别力。
++//
++// 【票 3a:具名色扫描】`color-guard.test.ts` 与本文件的既有 ③′ 断言都只认
++// `#hex` / `rgb()`/`hsl()`,CSS 具名色(`color: white` 这种)全程零覆盖。
++// 🔴 朴素的「全文找 white 这个词」会冤枉 `white-space: nowrap`(QueueView.vue:474
++// 就有一处)—— 必须钉在「属性值位置」:只在 `color:` / `background:` /
++// `background-color:` / `border-color:` / `border:` / `box-shadow:` / `fill:` /
++// `stroke:` 的**值**部分里找整词具名色。`white-space` 的属性名本身就进不了这张
++// 名单(它不是上面任何一个字符串,`\s*:` 也不会跟在 `white-space` 后面因为中间
++// 隔着连字符不影响——重点是名单里没有 `white-space` 这个键),因此“钉属性值位置”
++// 这一招天然把 `white-space: nowrap` 排除在外,不需要再对值本身做连字符特判。
++//
++// 【票 3b:覆盖范围】既有 ③′ 只扫 `src/ai/knowledge/**`,`src/ai/components/**`
++// (P2a/P2b 产出,Agent 区的卡片/侧栏/设置子组件)的模板 `style=`/`:style=` 是盲区。
++// 协调者已用独立脚本对全部 70 个文件做过一次性程序化 dry-run(见任务报告 §7):
++// hex / rgb / hsl / 具名色在属性值位置上**零命中**——扩大范围不会带出既有违规,
++// 因此本刀直接把同款断言铺到这个目录,不触发 NEEDS_CONTEXT。
++// ═══════════════════════════════════════════════════════════════════════════
++
++/** 只在这些 CSS 属性的值部分里找具名色;长名排在短名前面,避免
++ *  `background-color`/`border-color` 被 `background`/`border`/`color` 抢先切碎
++ *  (正则引擎按数组书写顺序尝试各分支,书写顺序即優先级)。*/
++const COLOR_VALUE_PROPS = [
++  'background-color',
++  'border-color',
++  'background',
++  'border',
++  'box-shadow',
++  'color',
++  'fill',
++  'stroke',
++]
++// 与 §5(本文件既有的具名色清单,`:510-517`)保持同一份 8 词清单,口径一致。
++const NAMED_COLORS = ['white', 'black', 'red', 'green', 'blue', 'orange', 'gray', 'grey']
++
++/**
++ * 在「属性值位置」找具名色。先用 `prop\s*:\s*([^;]+)` 抓出每一段 `属性: 值`
++ * (输入应先经 `stripColorCalls` 剥掉 `var(...)`/`color-mix(...)`,token 名字
++ * 本身不会被当成色值误判),再对值部分做整词匹配(`(?<![\w-])COLOR(?![\w-])`,
++ * 同 `:510-517` 的写法,排除 `whitesmoke` 这类以该词为前缀的复合词)。
++ * `white-space: nowrap` 这类行天生不会被抓到——它的属性名 `white-space` 根本
++ * 不在 `COLOR_VALUE_PROPS` 名单里,正则连切都不会去切它。
++ */
++function namedColorOffensesInValues(scrubbed: string): string[] {
++  const offenders: string[] = []
++  const propRe = new RegExp(`\\b(${COLOR_VALUE_PROPS.join('|')})\\s*:\\s*([^;]+)`, 'g')
++  let m: RegExpExecArray | null
++  while ((m = propRe.exec(scrubbed))) {
++    const prop = m[1]
++    const value = m[2]
++    for (const c of NAMED_COLORS) {
++      if (new RegExp(`(?<![\\w-])${c}(?![\\w-])`, 'i').test(value)) {
++        offenders.push(`${prop}: ${value.trim().slice(0, 80)}`)
++      }
++    }
++  }
++  return offenders
++}
++
+ describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块零裸色(贪婪抽取 + 覆盖度自检)', () => {
+   const kbDir = resolve(__dirname, '../knowledge')
+ 
+   it('文件清单集合相等(防漂移:新增视图必须显式进清单,否则本条报红)', () => {
+     expect(listVueFiles(kbDir)).toEqual([...KNOWLEDGE_VUE_FILES].sort())
+   })
+ 
+   it.each(KNOWLEDGE_VUE_FILES)('%s —— 贪婪抽取成功 + 覆盖度自检(片段一直延伸到模板最后一行)', (rel) => {
+     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
+     const { tmpl, byLine, tail } = extractTemplate(src)
+@@ -1145,11 +1205,132 @@ describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块
+     expect(tmpl, `${rel}:字符串抽取与逐行推导不一致 —— 抽取边界错了`).toBe(byLine)
+   })
+ 
+   it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量', (rel) => {
+     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
+     const { tmpl } = extractTemplate(src)
+     const scrubbed = stripColorCalls(tmpl)
+     expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+     expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+   })
++
++  // SP8-P5d Task 5 · 票 3a:属性值位置的具名色扫描(新增)。
++  it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
++    const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
++    const { tmpl } = extractTemplate(src)
++    const scrubbed = stripColorCalls(tmpl)
++    const offenders = namedColorOffensesInValues(scrubbed)
++    expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
++  })
++})
++
++// SP8-P5d Task 5 · 票 3b:同款扫描扩到 `src/ai/components/**`(P2a/P2b 产出,
++// Agent 区的卡片/侧栏/设置子组件)。既有 ③′ 只覆盖 `src/ai/knowledge/**`,
++// 那个目录的模板 `style=`/`:style=` 是盲区。文件清单同样做集合相等防漂移。
++const COMPONENTS_VUE_FILES = [
++  'blocks/ActionsRow.vue',
++  'blocks/BlockRenderer.vue',
++  'blocks/ConfirmCard.vue',
++  'blocks/ContextUsageBar.vue',
++  'blocks/FileListCard.vue',
++  'blocks/ImageGridCard.vue',
++  'blocks/MarkdownBlock.vue',
++  'blocks/MaxTurnsCard.vue',
++  'blocks/McpCallCard.vue',
++  'blocks/McpInstallCard.vue',
++  'blocks/McpPermissionCard.vue',
++  'blocks/McpWarningCard.vue',
++  'blocks/PermissionRequestCard.vue',
++  'blocks/PhotoGridCard.vue',
++  'blocks/ProcessStrip.vue',
++  'blocks/ProgressCard.vue',
++  'blocks/SearchFileDrawer.vue',
++  'blocks/SearchFullResults.vue',
++  'blocks/SearchImageLightbox.vue',
++  'blocks/SearchResultsCard.vue',
++  'blocks/SemanticSearchCard.vue',
++  'blocks/StorageCard.vue',
++  'blocks/TerminalCard.vue',
++  'blocks/ThinkingBlock.vue',
++  'blocks/ToolCard.vue',
++  'blocks/VideoCard.vue',
++  'icons/AgentIcon.vue',
++  'settings/mcp/McpServerDetail.vue',
++  'settings/mcp/McpServerGroup.vue',
++  'settings/mcp/McpServerModal.vue',
++  'settings/SectionPlaceholder.vue',
++  'settings/sections/BlacklistSection.vue',
++  'settings/sections/ChannelsSection.vue',
++  'settings/sections/ExecutionSection.vue',
++  'settings/sections/McpSection.vue',
++  'settings/sections/McpTokensSection.vue',
++  'settings/sections/MemorySection.vue',
++  'settings/sections/ModelsSection.vue',
++  'settings/sections/ObservabilitySection.vue',
++  'settings/sections/PrivacySection.vue',
++  'settings/sections/ProvidersSection.vue',
++  'settings/sections/SearchSection.vue',
++  'settings/sections/SkillsSection.vue',
++  'settings/sections/ThinkingDefaultsSection.vue',
++  'settings/SetSwitch.vue',
++  'settings/SettingsRail.vue',
++  'settings/skills/AddSkillModal.vue',
++  'settings/skills/SkillDetail.vue',
++  'settings/skills/SkillGroup.vue',
++  'settings/skills/SkillTile.vue',
++  'settings/skills/TestPanel.vue',
++  'settings/SkModal.vue',
++  'shell/AgentComposer.vue',
++  'shell/AgentRightPanel.vue',
++  'shell/AgentSidebar.vue',
++  'shell/AgentTopbar.vue',
++  'shell/KindIcon.vue',
++  'shell/MentionPopover.vue',
++  'shell/ModelPicker.vue',
++  'shell/SlashPopover.vue',
++  'shell/ThinkingBar.vue',
++  'stream/AssistantMessage.vue',
++  'stream/EmptyState.vue',
++  'stream/MessageList.vue',
++  'stream/TimelineMinimap.vue',
++  'stream/UserMessage.vue',
++  'tabs/ActivityTab.vue',
++  'tabs/ContextTab.vue',
++  'tabs/ResourcesTab.vue',
++  'tabs/SystemTab.vue',
++]
++
++describe('守卫缺口③′ 扩展(票 3b)—— src/ai/components/** 同款模板裸色扫描', () => {
++  const compDir = resolve(__dirname, '../components')
++
++  it('文件清单集合相等(防漂移:新增组件必须显式进清单,否则本条报红)', () => {
++    expect(listVueFiles(compDir)).toEqual([...COMPONENTS_VUE_FILES].sort())
++  })
++
++  it.each(COMPONENTS_VUE_FILES)('%s —— 贪婪抽取成功 + 覆盖度自检(片段一直延伸到模板最后一行)', (rel) => {
++    const src: string = readFileSync(resolve(compDir, rel), 'utf8')
++    const { tmpl, byLine, tail } = extractTemplate(src)
++    expect(tmpl, `${rel}:根 <template> 块没抽出来(第 0 列的 <template>/</template> 缺一个?)`).not.toBe('')
++    expect(tail, `${rel}:找不到模板尾部特征串`).not.toBe('')
++    expect(
++      tmpl.endsWith(tail),
++      `${rel}:抽出的模板片段没延伸到最后一行(尾部特征串:\n${tail}\n)—— 被提前截断了`,
++    ).toBe(true)
++    expect(tmpl, `${rel}:字符串抽取与逐行推导不一致 —— 抽取边界错了`).toBe(byLine)
++  })
++
++  it.each(COMPONENTS_VUE_FILES)('%s —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量', (rel) => {
++    const src: string = readFileSync(resolve(compDir, rel), 'utf8')
++    const { tmpl } = extractTemplate(src)
++    const scrubbed = stripColorCalls(tmpl)
++    expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
++    expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
++  })
++
++  it.each(COMPONENTS_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
++    const src: string = readFileSync(resolve(compDir, rel), 'utf8')
++    const { tmpl } = extractTemplate(src)
++    const scrubbed = stripColorCalls(tmpl)
++    const offenders = namedColorOffensesInValues(scrubbed)
++    expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
++  })
+ })

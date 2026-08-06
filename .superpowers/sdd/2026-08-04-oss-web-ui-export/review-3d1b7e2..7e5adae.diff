@@ -1,0 +1,265 @@
+# Review package: 3d1b7e2..HEAD
+
+## Commits
+7e5adae feat(oss): i18n 四个 locale + theme.css 补丁(--wave-none 保留,E11)
+
+## Files changed
+ oss/manifest.mjs  | 147 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ oss/tree.test.mjs |  67 +++++++++++++++++++++++++
+ 2 files changed, 214 insertions(+)
+
+## Diff
+diff --git a/oss/manifest.mjs b/oss/manifest.mjs
+index 64a2b19..569a814 100644
+--- a/oss/manifest.mjs
++++ b/oss/manifest.mjs
+@@ -330,20 +330,167 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+     find: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。\n//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。',
+     replace: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
+ 
+   // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
+   { path: '.gitignore',
+     find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n.superpowers/\n',
+     replace: '' },
+   { path: '.gitignore',
+     find: '\n# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库\nscripts/tmlab/\nvite.config.tmlab.ts',
+     replace: '\n# 导出报告(含上游 commit hash),仅供本地追溯\n.export-report.txt' },
++
++  // ═══════════════════ T8:i18n 四个 locale + theme.css ═══════════════════
++
++  // ── src/i18n/zh_cn.ts(主分片,8 处锚点,共 44 键)──────────────────────
++  // 11 个 audio 转录键(brief 漏登记的部分;audioSkipBack/Forward/Speed 播放器控件保留)
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  audioSummary: '摘要',\n  audioTranscript: '转录文稿',\n  audioAsk: '问 Nimo',\n  audioAskPlaceholder: '关于这段音频，尽管问…',\n  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',\n  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',\n  audioHighlightsOnly: '只看重点',\n  audioShowAll: '显示全部',\n  audioSpeakerAll: '全部',\n  audioChapters: '章节',\n  audioAllChapters: '全部章节',\n",
++    replace: "" },
++  // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n",
++    replace: "" },
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  widgetAiTitle: 'AI 助手',\n  widgetAiDesc: '对话与智能建议',\n",
++    replace: "" },
++  // widgetAi* 其余 7 键:AiWidget.vue 已整体删除(DELETE 表),全部孤儿
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  widgetAiGreetShort: '晚上好',\n  widgetAiGreet: '晚上好，有什么可以帮你？',\n  widgetAiPlaceholder: '发消息给 AI 助手…',\n  widgetAiSend: '发送',\n  widgetAiPrompt1: '整理最近的照片',\n  widgetAiPrompt2: '查找 2024 旅行视频',\n  widgetAiPrompt3: '分析存储使用情况',\n",
++    replace: "" },
++  // addPanelTabPhoto:T11 删 AddPanel 照片 tab 后的孤儿键,此处先清 i18n 侧
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  addPanelTabPhoto: '照片',\n",
++    replace: "" },
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  addPanelNoPhotos: '暂无照片',\n",
++    replace: "" },
++  // topbarSearch(Kbd):HomeTopbar.vue 搜索胶囊按钮已在 T6 删除
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  topbarSearch: '搜索',\n  topbarSearchKbd: '搜索 (⌘K)',\n",
++    replace: "" },
++  // "主页:搜索面板"整节 18 键:SearchDialog.vue 已整体删除(DELETE 表)
++  { path: 'src/i18n/zh_cn.ts',
++    find: "  // ── 主页:搜索面板 ──\n  searchPlaceholder: '你在找什么?',\n  searchClose: '关闭',\n  searchSearching: '搜索中…',\n  searchResultsCount: '{count} 条结果',\n  searchOpenAlbum: '打开相册 ›',\n  searchAlbumMatches: '在 AI 相册找到 {count} 个匹配(图片 / 视频)',\n  searchOpenFolder: '打开文件夹 ›',\n  searchOpenFolderTitle: '在文件中打开此文件夹',\n  searchAskTitle: '向 Nimo AI 询问「{query}」',\n  searchAskSub: '把它发送给 AI 助手,获得基于你文件的回答',\n  searchAskGo: '询问 ›',\n  searchAskButton: 'Ask Nimo',\n  searchHint: '输入关键词并回车,搜索图片、文档、视频、音频与设置',\n  searchTabAll: '全部结果',\n  searchTabDocuments: '文档',\n  searchTabImages: '图片',\n  searchTabAudio: '音频',\n  searchTabVideos: '视频',\n",
++    replace: "" },
++
++  // ── src/i18n/en_us.ts(与上面 8 条逐条成对,parity.test.ts 的前置)────────
++  { path: 'src/i18n/en_us.ts',
++    find: "  audioSummary: 'Summary',\n  audioTranscript: 'Transcript',\n  audioAsk: 'Ask Nimo',\n  audioAskPlaceholder: 'Ask anything about this audio…',\n  audioAskEmpty: 'This transcript is vectorized — ask Nimo about anything in it.',\n  audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',\n  audioHighlightsOnly: 'Highlights only',\n  audioShowAll: 'Show all',\n  audioSpeakerAll: 'All',\n  audioChapters: 'Chapters',\n  audioAllChapters: 'All chapters',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.ts',
++    find: "  appPhotos: 'Photos',\n  appAi: 'Nimo AI',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.ts',
++    find: "  widgetAiTitle: 'AI Assistant',\n  widgetAiDesc: 'Chat and smart suggestions',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.ts',
++    find: "  widgetAiGreetShort: 'Good evening',\n  widgetAiGreet: 'Good evening — how can I help?',\n  widgetAiPlaceholder: 'Message the AI assistant…',\n  widgetAiSend: 'Send',\n  widgetAiPrompt1: 'Organize recent photos',\n  widgetAiPrompt2: 'Find 2024 travel videos',\n  widgetAiPrompt3: 'Analyze storage usage',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.ts',
++    find: "  addPanelTabPhoto: 'Photos',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.ts',
++    find: "  addPanelNoPhotos: 'No photos',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.ts',
++    find: "  topbarSearch: 'Search',\n  topbarSearchKbd: 'Search (⌘K)',\n",
++    replace: "" },
++  // 交接清单盲区(E1):settingsFpIntro 那一条不在这批里,英文侧本身就没有任何词命中,靠这份成对表兜底,见下方 sp9 块
++  { path: 'src/i18n/en_us.ts',
++    find: "  // ── Home: search palette ──\n  searchPlaceholder: 'what are u looking for',\n  searchClose: 'Close',\n  searchSearching: 'Searching…',\n  searchResultsCount: '{count} results',\n  searchOpenAlbum: 'Open Album ›',\n  searchAlbumMatches: 'Found {count} matches in AI Album (images / videos)',\n  searchOpenFolder: 'Open folder ›',\n  searchOpenFolderTitle: 'Open this folder in Files',\n  searchAskTitle: 'Ask Nimo AI about “{query}”',\n  searchAskSub: 'Send this to the AI assistant for an answer grounded in your files',\n  searchAskGo: 'Ask ›',\n  searchAskButton: 'Ask Nimo',\n  searchHint: 'Type a keyword and press Enter to search images, documents, videos, audio and settings',\n  searchTabAll: 'All results',\n  searchTabDocuments: 'Documents',\n  searchTabImages: 'Images',\n  searchTabAudio: 'Audio',\n  searchTabVideos: 'Videos',\n",
++    replace: "" },
++
++  // ── src/i18n/zh_cn.sp9.ts(folder-permissions 整个四分区,26 键;
++  //    FolderPermissionsPanel.vue + folderPerm/ 已在 DELETE 表整体删除,
++  //    这 26 个键零消费方——brief 原文只点了 8-10 个样本键,实数 26,已重新核验)──
++  { path: 'src/i18n/zh_cn.sp9.ts',
++    find: "  settingsTabFolderPermissions: '文件夹权限',\n",
++    replace: "" },
++  // settingsFpIntro 在这个块里(盲区键,英文侧值只含 smart,守卫不收,靠本条手动清)
++  { path: 'src/i18n/zh_cn.sp9.ts',
++    find: "  // ── SP9-P4 folder-permissions(四分区) ─────────────────────────────────\n  settingsFpIntro: '在下方各分区分别管理每个智能功能的文件夹。',\n  settingsFpDataPending: '数据源待相册区(SP7)与 AI 区(SP8)合并后接入。',  // 🆕本期新增\n  settingsFpFilenameIndex: '文件名索引',\n  settingsFpServiceOffline: '服务离线',\n  settingsFpFilenameDesc: '纳入文件名搜索索引的文件夹。',\n  settingsFpNoFolders: '暂无文件夹。',\n  settingsFpKnowledge: '知识库',\n  settingsFpKnowledgeDesc: '纳入知识库(RAG)索引的文件夹。',\n  settingsFpIndexedFolders: '索引目录',\n  settingsFpExcludedSubfolders: '排除的子目录',\n  settingsFpAddExclusion: '添加排除',\n  settingsFpNoExclusions: '暂无排除。',\n  settingsFpAiHidden: '禁止 AI 访问的文件夹',\n  settingsFpCurrentUserOnly: '仅当前用户',\n  settingsFpAiDesc: 'AI agent 永远无法看到这些文件夹。',\n  settingsFpNoAiBlocked: '未禁止任何文件夹——除内置系统黑名单外,AI 可访问全部。',\n  settingsFpPhotos: '照片',\n  settingsFpUpdateRequired: '需要更新',\n  settingsFpPhotosDesc: '照片库监视的文件夹。',\n  settingsFpPhotosAuto: '自动模式:Photos 当前监视以下文件夹(动态跟随挂载卷)。',\n  settingsFpSwitchManual: '转为手动管理',\n  settingsFpPhotosStale: 'Photos 服务需要更新后才能在此管理其目录。',\n  settingsFpCoveredBy: '已被 {p} 覆盖',\n  settingsFpGlobRules: '另有 {n} 条模式规则(如 *.key)在 AI 设置中管理。',\n  settingsFpAddFolder: '添加文件夹',\n\n",
++    replace: "" },
++
++  // ── src/i18n/en_us.sp9.ts(与上面成对)────────────────────────────────────
++  { path: 'src/i18n/en_us.sp9.ts',
++    find: "  settingsTabFolderPermissions: 'Folder Permissions',\n",
++    replace: "" },
++  { path: 'src/i18n/en_us.sp9.ts',
++    find: "  // ── SP9-P4 folder-permissions ─────────────────────────────────────────\n  settingsFpIntro: 'Manage each smart feature\\'s folders in its own section below.',\n  settingsFpDataPending: 'Data source pending: to be wired after the Photos (SP7) and AI (SP8) areas are merged.',\n  settingsFpFilenameIndex: 'Filename index',\n  settingsFpServiceOffline: 'Service offline',\n  settingsFpFilenameDesc: 'Folders scanned into the filename search index.',\n  settingsFpNoFolders: 'No folders configured.',\n  settingsFpKnowledge: 'Knowledge base',\n  settingsFpKnowledgeDesc: 'Folders indexed into the knowledge base (RAG).',\n  settingsFpIndexedFolders: 'Indexed folders',\n  settingsFpExcludedSubfolders: 'Excluded subfolders',\n  settingsFpAddExclusion: 'Add exclusion',\n  settingsFpNoExclusions: 'No exclusions.',\n  settingsFpAiHidden: 'Folders hidden from AI',\n  settingsFpCurrentUserOnly: 'Current user only',\n  settingsFpAiDesc: 'The AI agent can never see these folders.',\n  settingsFpNoAiBlocked: 'No folders blocked — the AI may access everything except the built-in system blacklist.',\n  settingsFpPhotos: 'Photos',\n  settingsFpUpdateRequired: 'Update required',\n  settingsFpPhotosDesc: 'Folders watched for the photo library.',\n  settingsFpPhotosAuto: 'Automatic mode: Photos currently watches the folders below (follows mounted volumes).',\n  settingsFpSwitchManual: 'Switch to manual management',\n  settingsFpPhotosStale: 'Photos service needs an update before its column can be managed here.',\n  settingsFpCoveredBy: 'Covered by {p}',\n  settingsFpGlobRules: '{n} pattern rules (e.g. *.key) are managed in AI settings.',\n  settingsFpAddFolder: 'Add folder',\n\n",
++    replace: "" },
++
++  // ── src/styles/theme.css(E11:说话人/orb/照片磁贴 token 与类,--wave-none 保留)──
++  // 分节标题去掉"照片"(应用/文件夹磁贴结构本身保留)
++  { path: 'src/styles/theme.css',
++    find: "/* ---- P4c: 应用 / 文件夹 / 照片 磁贴结构 ---- */\n",
++    replace: "/* ---- P4c: 应用 / 文件夹 磁贴结构 ---- */\n" },
++  // :root 说话人配色注释 + --spk-1..5(锚点跨过 --wave-none,见下条单独删 --wave-dim)
++  { path: 'src/styles/theme.css',
++    find: "  /* 说话人配色(音频转录/波形,最多 5 色循环;dark 用亮版;避开金色以免与星标混淆) */\n  --spk-1: oklch(0.74 0.13 250);   /* 蓝 */\n  --spk-2: oklch(0.72 0.13 305);   /* 紫 */\n  --spk-3: oklch(0.77 0.12 190);   /* 青 */\n  --spk-4: oklch(0.73 0.15 18);    /* 珊瑚 */\n  --spk-5: oklch(0.79 0.14 150);   /* 绿 */\n",
++    replace: "" },
++  // :root --wave-dim(--wave-none 保留,两者不连续,分开删)
++  { path: 'src/styles/theme.css',
++    find: "  --wave-dim: var(--fg-faint);     /* 波形:过滤时被弱化的竖条 */\n",
++    replace: "" },
++  // light 主题同一批 --spk-1..5
++  { path: 'src/styles/theme.css',
++    find: "  /* 说话人配色(白色纸感用暗版,同 hue 系) */\n  --spk-1: oklch(0.52 0.15 255);\n  --spk-2: oklch(0.50 0.16 305);\n  --spk-3: oklch(0.53 0.12 200);\n  --spk-4: oklch(0.55 0.18 22);\n  --spk-5: oklch(0.52 0.15 150);\n",
++    replace: "" },
++  // light 主题 --wave-dim
++  { path: 'src/styles/theme.css',
++    find: "  --wave-dim: var(--fg-faint);\n",
++    replace: "" },
++  // :root --orb-core/--orb-glow,唯一消费方 AiWidget.vue 已删
++  { path: 'src/styles/theme.css',
++    find: "  --orb-core: #2a3566;\n  --orb-glow: rgba(138, 180, 255, 0.5);\n",
++    replace: "" },
++  // light 主题同一对
++  { path: 'src/styles/theme.css',
++    find: "  --orb-core: #d9def5;\n  --orb-glow: rgba(59, 91, 219, 0.4);\n",
++    replace: "" },
++  { path: 'src/styles/theme.css',
++    find: "@keyframes pulse { 50% { box-shadow: 0 0 54px var(--orb-glow); } }\n",
++    replace: "" },
++  // "照片磁贴"分节标题 + .kind-photo + .photo-thumb
++  { path: 'src/styles/theme.css',
++    find: "/* 照片磁贴 */\n.kind-photo { padding: 0; }\n.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); }\n",
++    replace: "" },
++  { path: 'src/styles/theme.css',
++    find: ".ic-photos   { background: conic-gradient(from 20deg, #ff735f, #ffd54f, #60e27c, #55baff, #ca83ff, #ff735f); }\n",
++    replace: "" },
++  // .ic-ai 消费的 --orb-core 已随上面删除,该规则本身也删
++  { path: 'src/styles/theme.css',
++    find: ".ic-ai       { background: radial-gradient(circle at 64% 24%, var(--accent2), transparent 40%), radial-gradient(circle at 28% 80%, var(--accent), transparent 46%), var(--orb-core, #1a2050); }\n",
++    replace: "" },
++  { path: 'src/styles/theme.css',
++    find: ".ic-search   { background: linear-gradient(145deg, #c4b5fd, #8b5cf6 60%, #6d28d9); }\n",
++    replace: "" },
++  // .photo-thumb.has-img 两条
++  { path: 'src/styles/theme.css',
++    find: ".photo-thumb.has-img { background: none; overflow: hidden; }\n.photo-thumb.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }\n",
++    replace: "" },
++  // 从共享 transition 规则的选择器列表里摘掉 .kind-photo .photo-thumb,其余 3 个选择器保留
++  { path: 'src/styles/theme.css',
++    find: ".kind-folder .folder-ic,\n.kind-photo .photo-thumb { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), filter .18s var(--ease, ease); }",
++    replace: ".kind-folder .folder-ic { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), filter .18s var(--ease, ease); }" },
++  // 同上,z-index 提升规则
++  { path: 'src/styles/theme.css',
++    find: ".grid-item:not(.editing).kind-folder:hover,\n.grid-item:not(.editing).kind-photo:hover { z-index: 6; }",
++    replace: ".grid-item:not(.editing).kind-folder:hover { z-index: 6; }" },
++  // 同上,悬停放大规则(声明体本身不含 photo 相关内容,保留)
++  { path: 'src/styles/theme.css',
++    find: ".grid-item:not(.editing).kind-folder:hover .folder-ic,\n.grid-item:not(.editing).kind-photo:hover .photo-thumb {",
++    replace: ".grid-item:not(.editing).kind-folder:hover .folder-ic {" },
++  // 同上,按压反馈规则
++  { path: 'src/styles/theme.css',
++    find: ".grid-item:not(.editing).kind-folder:active .folder-tile,\n.grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }",
++    replace: ".grid-item:not(.editing).kind-folder:active .folder-tile { transform: scale(.95); transition: transform .1s var(--ease, ease); }" },
+ ]
+ 
+ /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
+ export const SERVICE_PATCH = [
+   { path: 'src/index.ts', find: "import { createPhotos } from './photos.js'\n", replace: '' },
+   { path: 'src/index.ts', find: 'PhotoAsset, ', replace: '' },
+   { path: 'src/index.ts',
+     find: '  get photos(): ReturnType<typeof createPhotos> {\n    return createPhotos(getHttp() as AxiosInstance, () => getConfig().getToken())\n  },\n',
+     replace: '' },
+   { path: 'src/types.ts',
+diff --git a/oss/tree.test.mjs b/oss/tree.test.mjs
+index c5b279b..d1d6522 100644
+--- a/oss/tree.test.mjs
++++ b/oss/tree.test.mjs
+@@ -192,10 +192,77 @@ describe('类 3 · 设置与 Service 侧补丁', () => {
+   it('E9:.gitignore 洗掉 4 行,加 .export-report.txt', () => {
+     const g = read('.gitignore')
+     for (const bad of ['.claude/', '.superpowers/', 'scripts/tmlab/', 'vite.config.tmlab.ts']) {
+       expect(g, bad).not.toContain(bad)
+     }
+     expect(g).toContain('.export-report.txt')
+     // E9:断言必须落在"独立一行",不能被写成 *.txt 之类的通配、也不能和别的内容挤在同一行
+     expect(g.split('\n')).toContain('.export-report.txt')
+   })
+ })
++
++describe('类 3 · i18n 与主题 token', () => {
++  const LOCALES = ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts', 'src/i18n/zh_cn.sp9.ts', 'src/i18n/en_us.sp9.ts']
++
++  it('四个 locale 里 AI/相册/搜索/转录/文件夹权限的键全没了', () => {
++    const DEAD = [
++      // 桌面:系统应用名 / 组件(AiWidget.vue 已整体删除,widgetAi* 全部是孤儿,不止 brief 点名的 2 个)
++      'appPhotos', 'appAi',
++      'widgetAiTitle', 'widgetAiDesc', 'widgetAiGreetShort', 'widgetAiGreet',
++      'widgetAiPlaceholder', 'widgetAiSend', 'widgetAiPrompt1', 'widgetAiPrompt2', 'widgetAiPrompt3',
++      // AddPanel 照片 tab(T11 的活,这里先清 i18n 侧)
++      'addPanelTabPhoto', 'addPanelNoPhotos',
++      // 顶栏搜索胶囊 + 搜索面板整节(SearchDialog.vue 已整体删除,18 键全部是孤儿)
++      'topbarSearch', 'topbarSearchKbd',
++      'searchPlaceholder', 'searchClose', 'searchSearching', 'searchResultsCount',
++      'searchOpenAlbum', 'searchAlbumMatches', 'searchOpenFolder', 'searchOpenFolderTitle',
++      'searchAskTitle', 'searchAskSub', 'searchAskGo', 'searchAskButton', 'searchHint',
++      'searchTabAll', 'searchTabDocuments', 'searchTabImages', 'searchTabAudio', 'searchTabVideos',
++      // E1:spec 漏登记的 11 个 audio 转录键(audioSkipBack/Forward/Speed 播放器控件保留,见下一个 it)
++      'audioSummary', 'audioTranscript', 'audioAsk', 'audioAskPlaceholder', 'audioAskEmpty', 'audioAskDemo',
++      'audioHighlightsOnly', 'audioShowAll', 'audioSpeakerAll', 'audioChapters', 'audioAllChapters',
++      // 文件夹权限四分区(FolderPermissionsPanel.vue + folderPerm/ 已整体删除):26 个键全是孤儿,
++      // 不止 chinese-leaks.md 列出的 8-10 个中文候选词样本 —— 已逐一核实零消费方(见 task-8-report.md)
++      'settingsTabFolderPermissions', 'settingsFpIntro', 'settingsFpDataPending', 'settingsFpFilenameIndex',
++      'settingsFpServiceOffline', 'settingsFpFilenameDesc', 'settingsFpNoFolders', 'settingsFpKnowledge',
++      'settingsFpKnowledgeDesc', 'settingsFpIndexedFolders', 'settingsFpExcludedSubfolders',
++      'settingsFpAddExclusion', 'settingsFpNoExclusions', 'settingsFpAiHidden', 'settingsFpCurrentUserOnly',
++      'settingsFpAiDesc', 'settingsFpNoAiBlocked', 'settingsFpPhotos', 'settingsFpUpdateRequired',
++      'settingsFpPhotosDesc', 'settingsFpPhotosAuto', 'settingsFpSwitchManual', 'settingsFpPhotosStale',
++      'settingsFpCoveredBy', 'settingsFpGlobRules', 'settingsFpAddFolder',
++    ]
++    for (const f of LOCALES) for (const k of DEAD) expect(read(f), `${f} :: ${k}`).not.toContain(`${k}:`)
++  })
++
++  it('播放器控件键与商店筛选键保留', () => {
++    for (const f of ['src/i18n/zh_cn.ts', 'src/i18n/en_us.ts']) {
++      for (const k of ['audioSkipBack', 'audioSkipForward', 'audioSpeed', 'appsStoreSearch']) {
++        expect(read(f), `${f} :: ${k}`).toContain(`${k}:`)
++      }
++    }
++  })
++
++  it('zh_cn 与 en_us 键数仍然相等(parity 的前置)', () => {
++    const keys = (f) => (read(f).match(/^\s{2}[a-zA-Z][a-zA-Z0-9]*:/gm) || []).length
++    expect(keys('src/i18n/zh_cn.ts')).toBe(keys('src/i18n/en_us.ts'))
++    expect(keys('src/i18n/zh_cn.sp9.ts')).toBe(keys('src/i18n/en_us.sp9.ts'))
++  })
++
++  it('theme.css:说话人/AI token 与照片磁贴样式删净,--wave-none 保留(E11)', () => {
++    const c = read('src/styles/theme.css')
++    for (const bad of ['--spk-', '--wave-dim', '--orb-core', '--orb-glow',
++                       '@keyframes pulse', '.ic-photos', '.ic-ai', '.ic-search',
++                       '.photo-thumb', '.kind-photo']) {
++      expect(c, bad).not.toContain(bad)
++    }
++    // 两套主题块里都要还有 --wave-none
++    expect(c.match(/--wave-none/g)?.length).toBe(2)
++  })
++
++  it('theme.sp9.css 不含任何 AI/相册/搜索/说话人相关 token(核查结论:干净,未改动)', () => {
++    const c = read('src/styles/theme.sp9.css')
++    for (const bad of ['spk', 'wave-', 'orb-', 'photo', 'knowledge', 'transcript', 'speaker',
++                       '说话人', '转录', '相册', '智能', '照片', '搜索', '知识库']) {
++      expect(c.toLowerCase(), bad).not.toContain(bad.toLowerCase())
++    }
++  })
++})

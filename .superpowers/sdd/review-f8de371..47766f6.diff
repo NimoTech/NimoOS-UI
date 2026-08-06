@@ -1,0 +1,195 @@
+# Review package: f8de371..HEAD
+
+## Commits
+47766f6 fix(apps-settings): string command 保守写回 + 多网络服务写回刹车(P5 挂账两决策)
+
+## Files changed
+ src/apps/util/composeSettings.test.ts | 50 +++++++++++++++++++++++++++++++++++
+ src/apps/util/composeSettings.ts      | 22 +++++++++------
+ 2 files changed, 64 insertions(+), 8 deletions(-)
+
+## Diff
+diff --git a/src/apps/util/composeSettings.test.ts b/src/apps/util/composeSettings.test.ts
+index 0b4ad83..3d7277a 100644
+--- a/src/apps/util/composeSettings.test.ts
++++ b/src/apps/util/composeSettings.test.ts
+@@ -275,20 +275,70 @@ services:
+ `
+     const m = parseSettings(y, 'zh_cn')
+     const svc = m.services[0]
+     expect(svc.ports).toEqual([])
+     expect(svc.portsExtra).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
+     const out = YAML.parse(buildYaml(y, m)) as { services: Record<string, { ports: unknown[] }> }
+     expect(out.services.x.ports).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
+   })
+ })
+ 
++describe('command 保守写回(P6 修复:string 不再塌成单元素 exec 数组)', () => {
++  it('string command 解析时标记 commandWasString', () => {
++    const m = parseSettings('services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n', 'zh_cn')
++    expect(m.services[0].commandWasString).toBe(true)
++    expect(m.services[0].commandTokens).toEqual(['redis-server --appendonly yes'])
++  })
++  it('数组 command 标记为 false', () => {
++    const m = parseSettings('services:\n  app:\n    image: redis\n    command: ["redis-server", "--appendonly"]\n', 'zh_cn')
++    expect(m.services[0].commandWasString).toBe(false)
++  })
++  it('原 string + 编辑后仍单 token → 写回 string(不是单元素数组)', () => {
++    const yml = 'services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].commandTokens = ['redis-server --appendonly no']
++    m.services[0].commandDirty = true
++    const doc = YAML.parse(buildYaml(yml, m))
++    expect(doc.services.app.command).toBe('redis-server --appendonly no')
++  })
++  it('原 string + 编辑成多 token → 正常写数组', () => {
++    const yml = 'services:\n  app:\n    image: redis\n    command: redis-server\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].commandTokens = ['redis-server', '--appendonly', 'yes']
++    m.services[0].commandDirty = true
++    const doc = YAML.parse(buildYaml(yml, m))
++    expect(doc.services.app.command).toEqual(['redis-server', '--appendonly', 'yes'])
++  })
++})
++
++describe('多网络防护(P6 修复:networksMultiple 时 buildYaml 不动网络)', () => {
++  const MULTI = 'services:\n  app:\n    image: x\n    networks:\n      - net_a\n      - net_b\n'
++  it('多网络解析时标记 networksMultiple', () => {
++    expect(parseSettings(MULTI, 'zh_cn').services[0].networksMultiple).toBe(true)
++  })
++  it('单网络/network_mode 标记为 false', () => {
++    expect(parseSettings('services:\n  app:\n    image: x\n    networks: [net_a]\n', 'zh_cn').services[0].networksMultiple).toBe(false)
++    expect(parseSettings('services:\n  app:\n    image: x\n    network_mode: host\n', 'zh_cn').services[0].networksMultiple).toBe(false)
++  })
++  it('dict 形式多网络同样标记', () => {
++    expect(parseSettings('services:\n  app:\n    image: x\n    networks:\n      net_a: {}\n      net_b: {}\n', 'zh_cn').services[0].networksMultiple).toBe(true)
++  })
++  it('即使 networkDirty 被误置 true,多网络服务的 networks 也原样保留(带刹车)', () => {
++    const m = parseSettings(MULTI, 'zh_cn')
++    m.services[0].network = 'bridge'
++    m.services[0].networkDirty = true
++    const doc = YAML.parse(buildYaml(MULTI, m))
++    expect(doc.services.app.networks).toEqual(['net_a', 'net_b'])
++    expect(doc.services.app.network_mode).toBeUndefined()
++  })
++})
++
+ describe('mode:ingress 容忍(后端 GET yaml 归一化产物,Crafty 验收实锤)', () => {
+   const yml = `name: crafty
+ services:
+   crafty:
+     image: crafty:latest
+     ports:
+       - target: 8443
+         published: "8111"
+         protocol: tcp
+         mode: ingress
+diff --git a/src/apps/util/composeSettings.ts b/src/apps/util/composeSettings.ts
+index 5b79c12..0f767b3 100644
+--- a/src/apps/util/composeSettings.ts
++++ b/src/apps/util/composeSettings.ts
+@@ -10,22 +10,24 @@ export interface ServiceModel {
+   portsExtra: unknown[]       // 表单认不出的 ports 原始条目,原样透传
+   volumes: PairRow[]          // a=host(source) b=container(target)
+   devices: PairRow[]          // a=host b=container
+   privileged: boolean; capAdd: string[]
+   restart: string             // 'unless-stopped' | 'always' | 'on-failure'
+   containerName: string
+   cpuShares: number           // 10 | 50 | 90(归一化)
+   memoryMB: number | null     // limits.memory;null=未设限
+   commandTokens: string[]     // command 逐 token 展示;数组→逐项,字符串→保守单 token
+   commandDirty: boolean       // 编辑任一 token/增删 才置 true;false 时 buildYaml 不动 command
++  commandWasString: boolean   // 原 YAML 里 command 是 string 写法;编辑后单 token 时保 string 写回(P6 保守修)
+   network: string             // network_mode 优先,否则 networks 首个 key/元素,缺省 ''
+   networkDirty: boolean       // 编辑网络下拉才置 true;false 时 buildYaml 不动 network_mode/networks
++  networksMultiple: boolean   // 服务挂了 >1 个网络;表单下拉禁用,buildYaml 双保险不写回(P6 防静默塌单网络)
+ }
+ export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
+ export interface SettingsModel {
+   services: ServiceModel[]; webui: WebUiModel; tipsCustom: string; extKey: 'x-nimoos' | 'x-casaos'
+   /** true = tips.custom 缺省时借 before_install 回落文案预填 tipsCustom(仅用于预填 UI,不代表用户已确认此文案要落盘) */
+   tipsFromFallback: boolean
+ }
+ 
+ export const RESTART_OPTIONS = ['unless-stopped', 'always', 'on-failure']
+ export const CPU_OPTIONS = [
+@@ -118,42 +120,45 @@ function parseService(name: string, raw: Dict): ServiceModel {
+     if (v && typeof v === 'object') { const o = v as Dict; return { a: String(o.source ?? ''), b: String(o.target ?? '') } }
+     const parts = String(v).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? '' } // :ro 等 flag 丢弃(Vue2 同行为)
+   }).filter((r) => r.a || r.b)
+   const devices: PairRow[] = (Array.isArray(raw.devices) ? raw.devices : []).map((d) => {
+     const parts = String(d).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? parts[0] ?? '' }
+   })
+   const restartRaw = String(raw.restart ?? '')
+   const cpuRaw = Number(raw.cpu_shares)
+   const deploy = asDict(asDict(asDict(raw.deploy).resources).limits)
+   const cmdRaw = raw.command
++  const commandWasString = !Array.isArray(cmdRaw) && cmdRaw != null && cmdRaw !== ''
+   const commandTokens: string[] = Array.isArray(cmdRaw)
+     ? cmdRaw.map(String)
+     : (cmdRaw != null && cmdRaw !== '' ? [String(cmdRaw)] : [])
+   const networkMode = raw.network_mode != null ? String(raw.network_mode) : ''
+   let network = networkMode
++  const netsRaw = raw.networks
++  const netCount = Array.isArray(netsRaw) ? netsRaw.length : Object.keys(asDict(netsRaw)).length
++  const networksMultiple = netCount > 1
+   if (!network) {
+-    const nets = raw.networks
+-    if (Array.isArray(nets)) network = nets.length ? String(nets[0]) : ''
+-    else network = Object.keys(asDict(nets))[0] ?? ''
++    if (Array.isArray(netsRaw)) network = netsRaw.length ? String(netsRaw[0]) : ''
++    else network = Object.keys(asDict(netsRaw))[0] ?? ''
+   }
+   return {
+     name,
+     image: String(raw.image ?? ''),
+     environment, ports, portsExtra, volumes, devices,
+     privileged: raw.privileged === true,
+     capAdd: Array.isArray(raw.cap_add) ? raw.cap_add.map(String) : [],
+     restart: !restartRaw || restartRaw === 'no' ? 'unless-stopped' : restartRaw,
+     containerName: String(raw.container_name ?? ''),
+     cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 归一化(ComposeConfig.vue:550-559)
+     memoryMB: parseMemoryToMB(deploy.memory),
+-    commandTokens, commandDirty: false,
+-    network, networkDirty: false,
++    commandTokens, commandDirty: false, commandWasString,
++    network, networkDirty: false, networksMultiple,
+   }
+ }
+ 
+ const NETWORK_MODE_VALUES = new Set(['host', 'bridge', 'none'])
+ 
+ /** image 的 tag 段改写:最后一个冒号后若含 '/' 说明那是 registry:port,不是 tag,直接追加;否则替换该段(Vue2 patchNetworkValue 邻域,但这里是 tag 不是 network)。 */
+ export function rewriteImageTag(image: string, tag: string): string {
+   const i = image.lastIndexOf(':')
+   if (i < 0) return `${image}:${tag}`
+   const after = image.slice(i + 1)
+@@ -212,24 +217,25 @@ export function buildYaml(originalYaml: string, model: SettingsModel): string {
+     if (sm.memoryMB && sm.memoryMB > 0) {
+       limits.memory = `${Math.round(sm.memoryMB)}M`
+       resources.limits = limits; deploy.resources = resources; svc.deploy = deploy
+     } else {
+       delete limits.memory
+       if (!Object.keys(limits).length) delete resources.limits
+       if (Object.keys(resources).length) { deploy.resources = resources; svc.deploy = deploy }
+       else { delete deploy.resources; if (Object.keys(deploy).length) svc.deploy = deploy; else delete svc.deploy }
+     }
+     if (sm.commandDirty) {
+-      if (sm.commandTokens.length) svc.command = [...sm.commandTokens]
+-      else delete svc.command
++      if (!sm.commandTokens.length) delete svc.command
++      else if (sm.commandWasString && sm.commandTokens.length === 1) svc.command = sm.commandTokens[0]
++      else svc.command = [...sm.commandTokens]
+     }
+-    if (sm.networkDirty) {
++    if (sm.networkDirty && !sm.networksMultiple) {
+       delete svc.network_mode
+       delete svc.networks
+       if (sm.network) {
+         if (NETWORK_MODE_VALUES.has(sm.network)) {
+           svc.network_mode = sm.network
+         } else {
+           svc.networks = [sm.network]
+           const topNetworks = asDict(doc.networks)
+           if (!topNetworks[sm.network]) topNetworks[sm.network] = { external: false, name: sm.network }
+           doc.networks = topNetworks

@@ -1,0 +1,225 @@
+# Review package: 88c6fae..HEAD
+
+## Commits
+38c07c5 feat(oss): 泄漏守卫补中文词条(本库注释全中文,原词表只有「相册」一个中文词)
+
+## Files changed
+ oss/forbidden.mjs      | 61 +++++++++++++++++++++++++++++++++++++
+ oss/forbidden.test.mjs | 82 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 143 insertions(+)
+
+## Diff
+diff --git a/oss/forbidden.mjs b/oss/forbidden.mjs
+index 517574e..581b597 100644
+--- a/oss/forbidden.mjs
++++ b/oss/forbidden.mjs
+@@ -10,20 +10,30 @@ export const HARD = [
+   ['ask nimo', /ask\s*nimo/i],
+   ['transcript', /transcript/i],
+   ['qdrant', /qdrant/i],
+   ['ollama', /ollama/i],
+   ['embedding', /embedding/i],
+   ['CLIP', /\bCLIP\b/],
+   ['immich', /immich/i],
+   ['photos_data', /photos_data/i],
+   ['wikiRoot', /wikiRoot/i],
+   ['192.168.1.115', /192\.168\.1\.115/],
++
++  // ── T6.5:中文硬禁词 ──────────────────────────────────────────────────
++  // 本库注释与界面文案全中文,原词表只有「相册」一个中文词,是个大盲区(见
++  // T6.5 brief 的实测表:搜索/照片/转录/说话人/知识库/向量化/智能 命中数原本全是 0)。
++  // 以下四条已在全仓 grep 核实:所有出现都属于「该剥离的 AI/音频转录功能」,
++  // 没有发现任何合法用法,故直接 HARD(不给白名单)。
++  ['说话人', /说话人/],       // 音频转录的说话人分离/diarization,仅见于 MediaViewer/theme.css/speakerWave 一族
++  ['知识库', /知识库/],       // RAG 知识库,仅见于 settingsFp(folder-permissions,AI 消费方)i18n 键
++  ['向量化', /向量化/],       // 向量化/embedding 的中文说法,仅见于 Ask Nimo 音频问答文案
++  ['问 Nimo', /问\s*Nimo/i], // "Ask Nimo" 的中文说法(audioAsk/audioAskEmpty),与「Nimo AI」分开收
+ ].map(([word, re]) => ({ word, re }))
+ 
+ // ─── 软禁词 + 精确白名单 ────────────────────────────────────────────────────
+ // allow 的每一项是「文件正则 + 该文件里允许的整行正则」。按文件+内容豁免,
+ // 绝不按行号 —— 行号会漂,漂了豁免就失效,然后人就会去放宽词表。
+ export const SOFT = [
+   {
+     word: 'photo',
+     re: /photo/i,
+     allow: [
+@@ -51,20 +61,71 @@ export const SOFT = [
+     word: 'search',
+     re: /search/i,
+     allow: [
+       { file: /src\/apps\/views\/StorePage\.vue$/, re: /query\.search|searchInput|filterStoreApps|appsStoreSearch/ },
+       { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
+       { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /appsStoreSearch/ },
+       // findIndex / findLastIndex 等标准库方法名里没有 search;binarySearch 之类若出现须显式登记
+     ],
+   },
+   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
++
++  // ── T6.5:中文软禁词 ──────────────────────────────────────────────────
++  // 搜索/照片/转录 三个字面上比硬禁词常见,已实测在本仓存在合法用法(见各自
++  // allow 注释的 grep 证据),按纪律「禁止放宽词表消除误报」只能精确白名单。
++  {
++    word: '转录',
++    re: /转录/,
++    allow: [
++      // zh_cn.ts:663/678/682 —— RAID 级别文案的来源说明("逐字转录自
++      // RaidDetailPanel.vue/raidUtils.js"),是文档意义上的"抄录/转写",
++      // 与音频转录(AI)功能无关。已用 grep 核实:这三行是本仓 转录 出现
++      // 在 zh_cn.ts 里唯二不属于 audio* 转录键的地方。
++      { file: /src\/i18n\/zh_cn\.ts$/, re: /逐字转录自 NimoOS-UI RaidDetailPanel|转录为评分文本|逐字转录\(非我方发明\)/ },
++    ],
++  },
++  {
++    word: '照片',
++    re: /照片/,
++    allow: [
++      // raidLevel1Usecase:RAID 用途说明("照片库、个人 NAS、启动卷"),与相册 app 无关(brief 指定保留面)。
++      { file: /src\/i18n\/zh_cn\.ts$/, re: /raidLevel1Usecase/ },
++      // ImageViewer 是通用图片文件查看器(Files 区),"照片"在这里是"图片内容"的泛称,
++      // 不是被剥离的 Photos 相册 app。--media-overlay-shadow 同一 token 只被这里消费(已 grep 核实)。
++      { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: /瓦片接缝会在照片上显出白色网格细线/ },
++      { file: /src\/styles\/theme\.css$/, re: /媒体\(照片\/视频\)上方浮层的投影/ },
++    ],
++  },
++  {
++    word: '搜索',
++    re: /搜索/,
++    allow: [
++      // appsStoreSearch:应用商店筛选框(brief 指定保留面),与 NimoOS-Search 服务无关。
++      { file: /src\/i18n\/zh_cn\.ts$/, re: /appsStoreSearch/ },
++      // StorePage 整个文件只有"应用商店按关键字过滤"这一个"搜索"语义,与 AI 语义搜索无关。
++      { file: /src\/apps\/views\/StorePage\.vue$/, re: /搜索/ },
++      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: /搜索/ },
++      // Files.vue:粘贴上传的"焦点在输入框(重命名/搜索等)"是 Files 区自己的文件名过滤输入框,
++      // 不是被删除的 SearchDialog/NimoOS-Search。
++      { file: /src\/views\/Files\.vue$/, re: /重命名\/搜索等/ },
++    ],
++  },
++  // 智能:brief 点名的候选软禁词,但全仓 grep 核实后目前没有找到非 AI 的合法用法
++  // (2026-08-04:src/home/components/SearchDialog.vue、MediaViewer.vue、audioTranscripts.ts、
++  // zh_cn.ts/zh_cn.sp9.ts 里全部出现都属于要剥离的 AI 功能)。仍然放 SOFT 而不是 HARD——
++  // 「智能」是通用词,未来任何非 AI 功能(如磁盘/网络的"智能识别")都可能合法用到它,
++  // 一旦出现应加白名单而不是被迫放宽词表。当前 allow 为空,等同哨兵:任何命中都是待办。
++  { word: '智能', re: /智能/, allow: [] },
++  // 语义搜索:brief 特别警告"语义"单字词命中 51 个 CSS token 注释文件,禁止收单字。
++  // 这里只收词组"语义搜索"。当前全仓 0 命中(sp7-photos/sp8-ai 合并前语义搜索功能还
++  // 没有落地到 New-UI),先占位当哨兵,防止未来该功能被引入后悄悄漏进开源包。
++  { word: '语义搜索', re: /语义搜索/, allow: [] },
+   {
+     word: 'ai',
+     // 词边界:不碰中文、chain、main、Chairman。
+     //
+     // 第二轮复审 Important:第一轮的 alt2(要求 "AI" 前面不挨字母,即只认 "AI" 打头的
+     // camelCase/PascalCase,如 AIService)漏掉了 "AI" 结尾的驼峰,比如 sendToAI/chatAI/
+     // openAIRequest —— sendToAI 恰恰是本仓真实存在、且正是这次要清除的 AI 链路的核心
+     // 函数名(src/home/composables/useOpenAction.ts:54 等 8 处),守卫必须抓到它。
+     //
+     // 改成两条子规则:
+diff --git a/oss/forbidden.test.mjs b/oss/forbidden.test.mjs
+index b712d00..250acc9 100644
+--- a/oss/forbidden.test.mjs
++++ b/oss/forbidden.test.mjs
+@@ -127,20 +127,102 @@ describe('软禁词的精确白名单', () => {
+       'const country = "Thai"',
+       'const plant = "bonsai"',
+       'useAirport()',
+       'const x: Aircraft = load()',
+     ]) {
+       expect(scanText('src/x.ts', text), text).toEqual([])
+     }
+   })
+ })
+ 
++// ─── T6.5:中文痕迹 ──────────────────────────────────────────────────────────
++// 背景:本库注释与界面文案全中文,原词表只有「相册」一个中文词。以下样本全部
++// 逐字摘自本仓真实文件(私有侧原文,未做任何简化改写)——本项目手编 fixture
++// 栽过三次,这里不重蹈。
++describe('中文痕迹必须命中(T6.5 新增)', () => {
++  it('T6 评审抓到的静默泄漏:HomeTopbar.vue 那句"保留搜索与主题切换"(私有侧原文,' +
++     '导出树里这句已被 Task 6 的 PATCH 改掉,但守卫必须能在改之前拦住它)', () => {
++    // 逐字摘自 src/home/components/HomeTopbar.vue:57(git show HEAD 原文)
++    const text = '/* ≤720px 手机启动器为只读:隐藏添加/编辑入口(排序增删在桌面做),保留搜索与主题切换 */'
++    expect(scanText('src/home/components/HomeTopbar.vue', text).length, text).toBeGreaterThan(0)
++  })
++
++  it('转录 / 说话人 / 知识库 / 向量化 / 问 Nimo 一律命中', () => {
++    for (const [file, text] of [
++      // 逐字摘自 src/i18n/zh_cn.ts:37-41
++      ['src/i18n/zh_cn.ts', "  audioTranscript: '转录文稿',"],
++      ['src/i18n/zh_cn.ts', "  audioAsk: '问 Nimo',"],
++      ['src/i18n/zh_cn.ts', "  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',"],
++      ['src/i18n/zh_cn.ts', "  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',"],
++      // 逐字摘自 src/i18n/zh_cn.sp9.ts:252-253
++      ["src/i18n/zh_cn.sp9.ts", "  settingsFpKnowledge: '知识库',"],
++      ["src/i18n/zh_cn.sp9.ts", "  settingsFpKnowledgeDesc: '纳入知识库(RAG)索引的文件夹。',"],
++      // 逐字摘自 src/files/viewers/MediaViewer.vue:282(说话人分离注释)
++      ['src/files/viewers/MediaViewer.vue', '// 说话人分离：id → 显示名 / 颜色 token(--spk-N,5 色循环;波形与转录共用同一映射)。'],
++    ]) {
++      expect(scanText(file, text).length, `${file} :: ${text}`).toBeGreaterThan(0)
++    }
++  })
++
++  it('智能 命中(候选软禁词,当前全仓无白名单)', () => {
++    // 逐字摘自 src/i18n/zh_cn.ts:235
++    expect(scanText('src/i18n/zh_cn.ts', "  widgetAiDesc: '对话与智能建议',").length).toBeGreaterThan(0)
++  })
++})
++
++describe('合法中文用法零误报(T6.5 新增)', () => {
++  it('appsStoreSearch / raidLevel1Usecase / CSS 语义 token 注释都不命中', () => {
++    const keep = [
++      // brief 指定的保留面,逐字摘自 src/i18n/zh_cn.ts:392、:700
++      ['src/i18n/zh_cn.ts', "  appsStoreSearch: '搜索应用…',"],
++      ['src/i18n/zh_cn.ts', "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',"],
++      // 「语义」不收单字词:CSS 设计系统里的"语义"用语与 AI 语义搜索无关。
++      // 逐字摘自 src/styles/theme.css:79/298(P6 终端语义色,与 AI 无关)。
++      ['src/styles/theme.css', '  /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */'],
++    ]
++    for (const [file, text] of keep) {
++      expect(scanText(file, text), `${file} :: ${text}`).toEqual([])
++    }
++  })
++
++  it('转录 的白名单是精确到内容的:RAID 文案来源说明不命中,同文件里真正的音频转录键仍命中', () => {
++    // 逐字摘自 src/i18n/zh_cn.ts:663/678/682
++    const raidDocs = [
++      '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
++      '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。',
++      "  // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)",
++    ]
++    for (const text of raidDocs) {
++      expect(scanText('src/i18n/zh_cn.ts', text), text).toEqual([])
++    }
++    // 白名单按内容精确匹配,不是给整个文件开洞:同一文件里真正的音频转录键必须继续命中。
++    expect(scanText('src/i18n/zh_cn.ts', "  audioTranscript: '转录文稿',").length).toBeGreaterThan(0)
++  })
++
++  it('照片 的白名单:ImageViewer(通用图片查看器)与 --media-overlay-shadow 注释不命中', () => {
++    // 逐字摘自 src/files/viewers/ImageViewer.vue:207-209
++    const text = '     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */'
++    expect(scanText('src/files/viewers/ImageViewer.vue', text)).toEqual([])
++    // 换个文件就不再豁免(按文件限定,不是按文本全局豁免)
++    expect(scanText('src/home/components/PhotoTile.vue', text).length).toBeGreaterThan(0)
++  })
++
++  it('搜索 的白名单:StorePage(应用商店过滤)与 Files.vue(重命名/搜索输入焦点)不命中', () => {
++    // 逐字摘自 src/apps/views/StorePage.vue:59
++    expect(scanText('src/apps/views/StorePage.vue', '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框')).toEqual([])
++    // 逐字摘自 src/views/Files.vue:208
++    expect(scanText('src/views/Files.vue', '// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。')).toEqual([])
++    // 白名单按文件限定:同一串文本出现在别的文件里仍然报
++    expect(scanText('src/home/components/SearchDialog.vue', '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框').length).toBeGreaterThan(0)
++  })
++})
++
+ describe('scanTree:排除法,不是扩展名白名单', () => {
+   const mktmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'oss-forbidden-'))
+ 
+   // 评审 Important #2 复现用例:原实现按 TEXT_EXT 扩展名白名单跳过文件,
+   // .env / Dockerfile 这类没有被枚举到扩展名的文件会被整体放过、连读都不读。
+   it('.env / 无扩展名文件必须被扫描到 —— 不能按扩展名放过', () => {
+     const dir = mktmp()
+     try {
+       fs.writeFileSync(path.join(dir, '.env'), 'AI_ENDPOINT=http://192.168.1.115\n')
+       fs.writeFileSync(path.join(dir, 'Dockerfile'), 'ENV NIMO_QDRANT_URL=qdrant://x\n')

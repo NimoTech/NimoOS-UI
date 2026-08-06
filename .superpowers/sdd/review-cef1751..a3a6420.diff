@@ -1,0 +1,59 @@
+# Review package: cef1751..a3a6420
+
+## Commits
+a3a6420 feat(toast): add app-level useToast store (single source of truth)
+
+## Files changed
+ src/stores/toast.test.ts | 20 ++++++++++++++++++++
+ src/stores/toast.ts      | 16 ++++++++++++++++
+ 2 files changed, 36 insertions(+)
+
+## Diff
+diff --git a/src/stores/toast.test.ts b/src/stores/toast.test.ts
+new file mode 100644
+index 0000000..6490925
+--- /dev/null
++++ b/src/stores/toast.test.ts
+@@ -0,0 +1,20 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useToast } from './toast'
++
++describe('useToast', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.useFakeTimers() })
++
++  it('show sets message then clears after 1500ms', () => {
++    const t = useToast()
++    t.show('hi'); expect(t.msg).toBe('hi')
++    vi.advanceTimersByTime(1500); expect(t.msg).toBe('')
++  })
++
++  it('a newer toast cancels the older clear', () => {
++    const t = useToast()
++    t.show('a'); vi.advanceTimersByTime(800); t.show('b')
++    vi.advanceTimersByTime(800); expect(t.msg).toBe('b') // old 1500ms clear must not wipe b
++    vi.advanceTimersByTime(700); expect(t.msg).toBe('')
++  })
++})
+diff --git a/src/stores/toast.ts b/src/stores/toast.ts
+new file mode 100644
+index 0000000..568e253
+--- /dev/null
++++ b/src/stores/toast.ts
+@@ -0,0 +1,16 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++
++// App-level toast (single source of truth). Logic verbatim from the former
++// home-ui toast: set message, auto-clear after 1500ms; monotonic token so a
++// newer toast cancels an older pending clear.
++export const useToast = defineStore('toast', () => {
++  const msg = ref('')
++  let token = 0
++  function show(text: string) {
++    msg.value = text
++    const my = ++token
++    setTimeout(() => { if (token === my) msg.value = '' }, 1500)
++  }
++  return { msg, show }
++})

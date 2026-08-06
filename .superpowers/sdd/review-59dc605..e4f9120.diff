@@ -1,0 +1,94 @@
+# Review package: 59dc605..e4f9120
+
+## Commits
+e4f9120 feat(files-viewer): panelMap 扩展名→查看器纯模块(移植 Vue2 filePanelMap)
+
+## Files changed
+ src/files/viewers/panelMap.test.ts | 32 +++++++++++++++++++++++++++++++
+ src/files/viewers/panelMap.ts      | 39 ++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 71 insertions(+)
+
+## Diff
+diff --git a/src/files/viewers/panelMap.test.ts b/src/files/viewers/panelMap.test.ts
+new file mode 100644
+index 0000000..5cd4101
+--- /dev/null
++++ b/src/files/viewers/panelMap.test.ts
+@@ -0,0 +1,32 @@
++import { describe, it, expect } from 'vitest'
++import { getPanelType } from './panelMap'
++
++describe('getPanelType', () => {
++  it('图片扩展名 → image-viewer', () => {
++    for (const n of ['a.png', 'b.JPG', 'c.jpeg', 'd.bmp', 'e.gif', 'f.webp', 'g.svg', 'h.tiff'])
++      expect(getPanelType(n)).toBe('image-viewer')
++  })
++  it('代码/文本扩展名 → code-editor', () => {
++    for (const n of ['a.js', 'b.ts.txt', 'c.go', 'd.py', 'e.json', 'f.yaml', 'g.html', 'h.css', 'Makefile', 'Dockerfile'])
++      expect(getPanelType(n)).toBe('code-editor')
++  })
++  it('md → markdown(Vue2 注释掉了,这里启用)', () => {
++    expect(getPanelType('readme.md')).toBe('markdown')
++  })
++  it('可播放视频白名单 → video-player', () => {
++    for (const n of ['a.mp4', 'b.m4v', 'c.webm', 'd.mov', 'e.3gp'])
++      expect(getPanelType(n)).toBe('video-player')
++  })
++  it('不可播放视频容器 → null(对齐 Vue2,落下载)', () => {
++    for (const n of ['a.mkv', 'b.avi', 'c.wmv', 'd.flv', 'e.mpeg', 'f.ts'])
++      expect(getPanelType(n)).toBeNull()
++  })
++  it('音频全套 → video-player', () => {
++    for (const n of ['a.mp3', 'b.flac', 'c.m4a', 'd.wav', 'e.ogg', 'f.opus', 'g.aac'])
++      expect(getPanelType(n)).toBe('video-player')
++  })
++  it('未知扩展名 → null', () => {
++    expect(getPanelType('a.zip')).toBeNull()
++    expect(getPanelType('a.exe')).toBeNull()
++  })
++})
+diff --git a/src/files/viewers/panelMap.ts b/src/files/viewers/panelMap.ts
+new file mode 100644
+index 0000000..60601a6
+--- /dev/null
++++ b/src/files/viewers/panelMap.ts
+@@ -0,0 +1,39 @@
++import { fileExt } from '../util/ext'
++
++export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown'
++
++// 逐字移植 Vue2 mixin.js typeMap(仅 P4a 相关组)
++const typeMap: Record<string, string[]> = {
++  'image-x-generic': ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff'],
++  'audio-x-generic': ['aac', 'aiff', 'alac', 'amr', 'ape', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wma', 'wav'],
++  'text-x-generic': ['txt', 'log', 'pages', 'conf', 'config', 'list', 'ini', 'toml', 'cfg', 'rc', 'env', 'service', 'conf.d', 'htaccess', 'gitconfig', 'vim', 'curlrc', 'wgetrc', 'gitignore'],
++  'text-markdown': ['md'],
++  'text-css': ['php', 'css', 'less', 'scss', 'sass', 'aspx', 'lua', 'vue', 'js', 'go', 'asp', 'bat', 'c', 'cpp', 'cs', 'json', 'py', 'perl', 'sh', 'xml', 'yaml', 'vb', 'vbs', 'sql', 'swift', 'rust', 'rs', 'jsp', 'yml', 'r', 'pl', 'rb', 'src', 'h', 'tex', 'rtf', 'jsonld', 'ttl', 'n3', 'rss', 'atom', 'srt', 'ass', 'tsv', 'vcard', 'asc', 'url', 'diff', 'plaintext'],
++  'text-html': ['html', 'htm', 'shtml', 'shtm'],
++  'text-x-cmake': ['makefile', 'cmake', 'dockerfile'],
++  'text-dockerfile': ['dockerfile'],
++}
++
++// 播放白名单(Vue2 mixin.js:33-40)——视频图标覆盖更广,但播放器只认这 5 个
++const browserPlayableVideo = ['mp4', 'm4v', 'webm', 'mov', '3gp']
++
++function union(...groups: string[][]): string[] {
++  return Array.from(new Set(groups.flat()))
++}
++
++// Vue2 filePanelMap(mixin.js:43-51),markdown 键启用(spec D-MD)
++const filePanelMap: Record<PanelType, string[]> = {
++  'code-editor': union(typeMap['text-x-generic'], typeMap['text-css'], typeMap['text-html'], typeMap['text-x-cmake'], typeMap['text-dockerfile']),
++  'video-player': union(browserPlayableVideo, typeMap['audio-x-generic']),
++  'image-viewer': typeMap['image-x-generic'],
++  'markdown': typeMap['text-markdown'],
++}
++
++export function getPanelType(name: string): PanelType | null {
++  const ext = fileExt(name) // 已小写
++  // 与 Vue2 getPanelType 一致:遍历映射,命中返回其键
++  for (const key of Object.keys(filePanelMap) as PanelType[]) {
++    if (filePanelMap[key].includes(ext)) return key
++  }
++  return null
++}

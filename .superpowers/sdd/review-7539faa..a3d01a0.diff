@@ -1,0 +1,379 @@
+# Review package: 7539faa..a3d01a0
+
+## Commits
+a3d01a0 feat(upload): Files.vue triggers/drop-zone/guard + context-menu upload items (SP4-P3a)
+
+## Files changed
+ src/files/components/FileContextMenu.test.ts | 19 ++++++
+ src/files/components/FileContextMenu.vue     |  3 +
+ src/views/Files.upload.test.ts               | 93 ++++++++++++++++++++++++++++
+ src/views/Files.vue                          | 79 ++++++++++++++++++++++-
+ 4 files changed, 192 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FileContextMenu.test.ts b/src/files/components/FileContextMenu.test.ts
+index 35f5b58..55c508d 100644
+--- a/src/files/components/FileContextMenu.test.ts
++++ b/src/files/components/FileContextMenu.test.ts
+@@ -141,11 +141,30 @@ describe('FileContextMenu', () => {
+ 
+   it('文件项菜单含「下载」项且恒显(单选)', () => {
+     const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 1 })
+     expect(wrapper.find('.ctx-download').exists()).toBe(true)
+   })
+ 
+   it('多选时「下载」仍显示', () => {
+     const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 3 })
+     expect(wrapper.find('.ctx-download').exists()).toBe(true)
+   })
++
++  it('空白区:含上传文件/上传文件夹', () => {
++    const w = mountMenu({ entry: null, selectedCount: 0 })
++    const txt = w.find('.menu').text()
++    expect(txt).toContain('上传文件')
++    expect(txt).toContain('上传文件夹')
++  })
++
++  it('点上传文件项 emit action=upload-file', async () => {
++    const w = mountMenu({ entry: null, selectedCount: 0 })
++    await w.find('.ctx-upload-file').trigger('click')
++    expect(w.emitted('action')?.[0]).toEqual(['upload-file', null])
++  })
++
++  it('点上传文件夹项 emit action=upload-folder', async () => {
++    const w = mountMenu({ entry: null, selectedCount: 0 })
++    await w.find('.ctx-upload-folder').trigger('click')
++    expect(w.emitted('action')?.[0]).toEqual(['upload-folder', null])
++  })
+ })
+diff --git a/src/files/components/FileContextMenu.vue b/src/files/components/FileContextMenu.vue
+index f295aaf..e861823 100644
+--- a/src/files/components/FileContextMenu.vue
++++ b/src/files/components/FileContextMenu.vue
+@@ -38,20 +38,23 @@ function fire(action: string) { emit('action', action, props.entry) }
+       <template v-if="entry === null">
+         <ContextMenuItem class="ui-ctx-item ctx-new-folder" @select="fire('new-folder')">{{ t('filesNewFolder') }}</ContextMenuItem>
+         <ContextMenuItem class="ui-ctx-item ctx-new-file" @select="fire('new-file')">{{ t('filesNewFile') }}</ContextMenuItem>
+         <ContextMenuSeparator class="ui-ctx-sep" />
+         <ContextMenuItem class="ui-ctx-item ctx-refresh" @select="fire('refresh')">{{ t('filesCtxRefresh') }}</ContextMenuItem>
+         <template v-if="clipboard.hasPasteData">
+           <ContextMenuSeparator class="ui-ctx-sep" />
+           <ContextMenuItem class="ui-ctx-item ctx-paste-overwrite" @select="fire('paste-overwrite')">{{ t('filesCtxPasteOverwrite') }}</ContextMenuItem>
+           <ContextMenuItem class="ui-ctx-item ctx-paste-skip" @select="fire('paste-skip')">{{ t('filesCtxPasteSkip') }}</ContextMenuItem>
+         </template>
++        <ContextMenuSeparator class="ui-ctx-sep" />
++        <ContextMenuItem class="ui-ctx-item ctx-upload-file" @select="fire('upload-file')">{{ t('filesCtxUploadFile') }}</ContextMenuItem>
++        <ContextMenuItem class="ui-ctx-item ctx-upload-folder" @select="fire('upload-folder')">{{ t('filesCtxUploadFolder') }}</ContextMenuItem>
+       </template>
+       <!-- 文件/文件夹项菜单 -->
+       <template v-else>
+         <ContextMenuItem class="ui-ctx-item ctx-download" @select="fire('download')">{{ t('filesCtxDownload') }}</ContextMenuItem>
+         <ContextMenuItem class="ui-ctx-item ctx-copy" @select="fire('copy')">{{ t('filesCtxCopy') }}</ContextMenuItem>
+         <ContextMenuItem v-if="operable" class="ui-ctx-item ctx-cut" @select="fire('cut')">{{ t('filesCtxCut') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showCopyPath" class="ui-ctx-item ctx-copy-path" @select="fire('copy-path')">{{ t('filesCtxCopyPath') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showRename" class="ui-ctx-item ctx-rename" @select="fire('rename')">{{ t('filesRename') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showFavorite" class="ui-ctx-item ctx-fav" @select="fire('toggle-favorite')">{{ favorited ? t('filesCtxRemoveFavorite') : t('filesCtxAddFavorite') }}</ContextMenuItem>
+         <ContextMenuSeparator v-if="showSeparator" class="ui-ctx-sep" />
+diff --git a/src/views/Files.upload.test.ts b/src/views/Files.upload.test.ts
+new file mode 100644
+index 0000000..a625484
+--- /dev/null
++++ b/src/views/Files.upload.test.ts
+@@ -0,0 +1,93 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { createRouter, createWebHashHistory } from 'vue-router'
++import { messages } from '../i18n/zh_cn'
++import Files from './Files.vue'
++import { useFilesStore } from '../files/stores/files'
++import { useFoldersStore } from '../home/stores/folders'
++import { useUploadsStore } from '../files/stores/uploads'
++import { useToast } from '../stores/toast'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    folder: {
++      getList: vi.fn(async (path: string) => ({
++        content: [
++          { name: 'Documents', path: (path === '/DATA' ? '/DATA' : path) + '/Documents', is_dir: true },
++          { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
++        ],
++      })),
++    },
++    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
++    image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
++  },
++  getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++function makeRouter() {
++  return createRouter({
++    history: createWebHashHistory('/app/'),
++    routes: [
++      { path: '/', name: 'home', component: { template: '<div/>' } },
++      { path: '/files', name: 'files', component: Files },
++      { path: '/files/:path(.*)*', name: 'files-path', component: Files },
++    ],
++  })
++}
++
++describe('Files.vue upload wiring', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    ;(globalThis as any).IntersectionObserver = class {
++      cb: (e: { isIntersecting: boolean }[]) => void
++      constructor(cb: any) { this.cb = cb }
++      observe() { this.cb([{ isIntersecting: true }]) }
++      disconnect() {}
++    }
++  })
++
++  it('enqueues a selected file against the real current path', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++
++    const files = useFilesStore()
++    const uploads = useUploadsStore()
++    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
++
++    const fakeFile = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
++    await (w.vm as any).handleSelectedFiles([fakeFile])
++    await flushPromises()
++
++    expect(spy).toHaveBeenCalledWith([
++      { file: fakeFile, targetPath: files.currentPath, relativePath: 'a.txt' },
++    ])
++  })
++
++  it('toasts a protected rejection instead of enqueuing it', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++
++    const uploads = useUploadsStore()
++    vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: ['AppData/x'] })
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++
++    const fakeFile = { name: 'x', webkitRelativePath: 'AppData/x' } as unknown as File
++    await (w.vm as any).handleSelectedFiles([fakeFile])
++    await flushPromises()
++
++    expect(showSpy).toHaveBeenCalledWith('「AppData/x」位于受保护目录,已跳过。')
++  })
++})
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 648db3b..39c8c6f 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -6,38 +6,45 @@ import FilesShell from '../files/components/FilesShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import NewItemDialog from '../files/components/NewItemDialog.vue'
+ import RenameDialog from '../files/components/RenameDialog.vue'
+ import AlertDialog from '../components/ui/AlertDialog.vue'
+ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
++import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
++import { useUploadsStore } from '../files/stores/uploads'
++import { useToast } from '../stores/toast'
++import { installUnloadGuard } from '../files/upload/unloadGuard'
++import type { SelectedFile } from '../files/upload/types'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const ops = useFileOps()
+ const fileOps = useFileOpsStore()
+ const clipboard = useClipboardStore()
++const uploads = useUploadsStore()
++const toast = useToast()
+ const bus = useMessageBus()
+ const { t } = useI18n()
+ 
+ // 对话框开关 + 上下文
+ const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
+ const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+ const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+ 
+ // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
+ const ctxEntry = ref<FileEntry | null>(null)
+@@ -79,23 +86,69 @@ function onCtxAction(action: string, entry: FileEntry | null) {
+     case 'delete': {
+       const sel = files.entries.filter((e) => files.isSelected(e.path))
+       deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
+       break
+     }
+     case 'copy': ops.copy(selectedOr(entry)); break
+     case 'cut': ops.cut(selectedOr(entry)); break
+     case 'download': ops.download(selectedOr(entry)); break
+     case 'paste-overwrite': ops.paste('overwrite'); break
+     case 'paste-skip': ops.paste('skip'); break
++    case 'upload-file': triggerFileSelect(); break
++    case 'upload-folder': triggerFolderSelect(); break
+   }
+ }
+ 
++// ── 上传:隐藏 input 触发 + 拖拽落区 ──
++const fileInput = ref<HTMLInputElement | null>(null)
++const folderInput = ref<HTMLInputElement | null>(null)
++function triggerFileSelect() { fileInput.value?.click() }
++function triggerFolderSelect() { folderInput.value?.click() }
++
++function onInputChange(e: Event) {
++  const input = e.target as HTMLInputElement
++  if (input.files && input.files.length) handleSelectedFiles(input.files)
++  input.value = '' // 允许重复选择同一文件再次触发 change
++}
++
++async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
++  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
++  const sel: SelectedFile[] = Array.from(list).map((f) => {
++    const raw = (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name
++    // 防御:去掉开头的 '/' —— 下游受保护目录判断按 split('/')[0] 取首段,
++    // 前导斜杠会产生空首段从而绕过检查。
++    return { file: f, targetPath, relativePath: raw.replace(/^\/+/, '') }
++  })
++  const { rejected } = await uploads.addFilesToQueue(sel)
++  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
++}
++defineExpose({ handleSelectedFiles })
++
++// ── 拖拽落区(.files-main 全域可放)──
++const isDragIn = ref(false)
++let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
++function onDragOver() {
++  if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
++  isDragIn.value = true
++}
++function onDragLeave() {
++  // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
++  if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
++  dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
++}
++function onDrop(e: DragEvent) {
++  if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
++  isDragIn.value = false
++  const list = e.dataTransfer?.files
++  if (list && list.length) handleSelectedFiles(list)
++}
++
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+   if (renameDlg.value.entry) ops.rename(renameDlg.value.entry, name)
+ }
+ function confirmDelete() {
+   ops.remove(deleteDlg.value.entries)
+   deleteDlg.value.open = false
+@@ -203,33 +256,46 @@ function onMarqueeUp() {
+ onMounted(async () => {
+   await files.loadRoots()
+   favorites.load()
+   await sync()
+ })
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ 
+ let offOperate: (() => void) | null = null
+ onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+ onUnmounted(() => { offOperate?.() })
++
++let offUnloadGuard: (() => void) | null = null
++onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
++onUnmounted(() => { offUnloadGuard?.() })
+ </script>
+ 
+ <template>
+   <FilesShell>
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+-      <div class="files-main" @mousedown="onMarqueeDown">
++      <div
++        class="files-main"
++        @mousedown="onMarqueeDown"
++        @dragover.prevent="onDragOver"
++        @dragleave="onDragLeave"
++        @drop.prevent="onDrop"
++      >
++        <div v-if="isDragIn" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
+         <div class="files-topbar">
+           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
+           <div class="files-topbar-right">
+             <div class="files-actions">
+               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
+               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
++              <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
++              <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
+               <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste('overwrite')">{{ t('filesPaste') }}</button>
+             </div>
+             <div class="files-viewtoggle">
+               <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+               <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+             </div>
+           </div>
+         </div>
+         <SelectionToolbar
+           v-if="files.selectedCount > 0"
+@@ -273,25 +339,34 @@ onUnmounted(() => { offOperate?.() })
+     <AlertDialog
+       v-model:open="deleteDlg.open"
+       :title="t('filesCtxDelete')"
+       :message="t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
+       :confirm-text="t('filesCtxDelete')"
+       :cancel-text="t('filesCancel')"
+       destructive
+       @confirm="confirmDelete"
+     />
+     <OperationStatusBar />
++    <UploadPanel />
++    <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
++    <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
+   </FilesShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+-.files-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
++.files-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+ .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+ .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+ .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+ .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+ .files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+ .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
++.files-drop-mask {
++  position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
++  border: 2px dashed var(--accent, #6ea8fe); border-radius: 12px;
++  background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
++  color: var(--fg); font-size: 14px; font-weight: 600; pointer-events: none;
++}
+ </style>

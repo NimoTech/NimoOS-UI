@@ -1,0 +1,1047 @@
+# Review package: 24e4bd2..bc5e39c
+
+## Commits
+bc5e39c fix(files-p6): gate share on not-already-shared + surface backend error + refresh after share
+082cd81 feat(files-p6): wire share — folder ctx-menu + multiselect toolbar + link dialog
+0d8e788 feat(files-p6): shares list page + row + /files/shares route + sidebar entry
+2b6cd33 feat(files-p6): ShareLinkDialog — UNC/SMB paths + clipboard copy
+ac8f915 feat(files-p6): sambaPath util + shares store + zh_cn keys
+
+## Files changed
+ src/files/components/FileContextMenu.test.ts  | 31 +++++++++++++
+ src/files/components/FileContextMenu.vue      |  6 ++-
+ src/files/components/FilesSidebar.test.ts     | 33 +++++++++----
+ src/files/components/FilesSidebar.vue         | 11 +++++
+ src/files/components/SelectionToolbar.test.ts |  8 ++--
+ src/files/components/SelectionToolbar.vue     |  5 +-
+ src/files/shares/ShareLinkDialog.test.ts      | 30 ++++++++++++
+ src/files/shares/ShareLinkDialog.vue          | 43 +++++++++++++++++
+ src/files/shares/ShareRow.vue                 | 45 ++++++++++++++++++
+ src/files/shares/SharesPage.vue               | 67 +++++++++++++++++++++++++++
+ src/files/stores/shares.test.ts               | 49 ++++++++++++++++++++
+ src/files/stores/shares.ts                    | 60 ++++++++++++++++++++++++
+ src/files/util/sambaPath.test.ts              | 16 +++++++
+ src/files/util/sambaPath.ts                   | 13 ++++++
+ src/i18n/zh_cn.ts                             | 20 ++++++++
+ src/router/index.test.ts                      | 18 +++++++
+ src/router/index.ts                           |  2 +
+ src/views/Files.vue                           | 24 ++++++++++
+ 18 files changed, 465 insertions(+), 16 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FileContextMenu.test.ts b/src/files/components/FileContextMenu.test.ts
+index 55c508d..26e64ba 100644
+--- a/src/files/components/FileContextMenu.test.ts
++++ b/src/files/components/FileContextMenu.test.ts
+@@ -160,11 +160,42 @@ describe('FileContextMenu', () => {
+     const w = mountMenu({ entry: null, selectedCount: 0 })
+     await w.find('.ctx-upload-file').trigger('click')
+     expect(w.emitted('action')?.[0]).toEqual(['upload-file', null])
+   })
+ 
+   it('点上传文件夹项 emit action=upload-folder', async () => {
+     const w = mountMenu({ entry: null, selectedCount: 0 })
+     await w.find('.ctx-upload-folder').trigger('click')
+     expect(w.emitted('action')?.[0]).toEqual(['upload-folder', null])
+   })
++
++  it('文件夹单选显示「共享到局域网」', () => {
++    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
++    const w = mountMenu({ entry, selectedCount: 1 })
++    expect(w.find('.ctx-share').exists()).toBe(true)
++  })
++
++  it('文件项不显示「共享到局域网」', () => {
++    const entry: FileEntry = { name: 'f.txt', path: '/DATA/f.txt', is_dir: false }
++    const w = mountMenu({ entry, selectedCount: 1 })
++    expect(w.find('.ctx-share').exists()).toBe(false)
++  })
++
++  it('文件夹多选不显示「共享到局域网」(共享入口仅单选)', () => {
++    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
++    const w = mountMenu({ entry, selectedCount: 3 })
++    expect(w.find('.ctx-share').exists()).toBe(false)
++  })
++
++  it('已共享的文件夹不显示「共享到局域网」(避免后端 SHARE_ALREADY_EXISTS)', () => {
++    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true, extensions: { share: { shared: 'true' } } }
++    const w = mountMenu({ entry, selectedCount: 1 })
++    expect(w.find('.ctx-share').exists()).toBe(false)
++  })
++
++  it('点共享项 emit action=share', async () => {
++    const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
++    const w = mountMenu({ entry, selectedCount: 1 })
++    await w.find('.ctx-share').trigger('click')
++    expect(w.emitted('action')?.[0]).toEqual(['share', entry])
++  })
+ })
+diff --git a/src/files/components/FileContextMenu.vue b/src/files/components/FileContextMenu.vue
+index e861823..f94841c 100644
+--- a/src/files/components/FileContextMenu.vue
++++ b/src/files/components/FileContextMenu.vue
+@@ -10,28 +10,31 @@ import { useClipboardStore } from '../stores/clipboard'
+ 
+ const props = defineProps<{ entry: FileEntry | null; selectedCount: number }>()
+ const emit = defineEmits<{ (e: 'action', action: string, entry: FileEntry | null): void }>()
+ const { t } = useI18n()
+ const favorites = useFavoritesStore()
+ const clipboard = useClipboardStore()
+ 
+ const single = computed(() => props.selectedCount <= 1)
+ const operable = computed(() => (props.entry ? canOperate(props.entry) : false))
+ const favorited = computed(() => (props.entry ? favorites.isFavorite(props.entry.path) : false))
++const alreadyShared = computed(() => props.entry?.extensions?.share?.shared === 'true')
+ 
+ // 单项操作(多选时隐藏,与复制路径/重命名一致);收藏仅对文件夹
+ const showCopyPath = computed(() => single.value)
+ const showRename = computed(() => single.value && operable.value)
+ const showFavorite = computed(() => single.value && !!props.entry?.is_dir)
++// 共享仅对文件夹,且未共享(已共享的走「共享」列表页取消,不重复弹入口 → 避免后端 SHARE_ALREADY_EXISTS)
++const showShare = computed(() => single.value && !!props.entry?.is_dir && !alreadyShared.value)
+ // 分割线只在"删除之上确实有其它项"时出现(否则只剩删除会出现悬空分割线)
+ const showSeparator = computed(
+-  () => operable.value && (showCopyPath.value || showRename.value || showFavorite.value),
++  () => operable.value && (showCopyPath.value || showRename.value || showFavorite.value || showShare.value),
+ )
+ 
+ function fire(action: string) { emit('action', action, props.entry) }
+ </script>
+ 
+ <template>
+   <ContextMenu>
+     <slot />
+     <template #menu>
+       <!-- 空白区菜单 -->
+@@ -50,16 +53,17 @@ function fire(action: string) { emit('action', action, props.entry) }
+         <ContextMenuItem class="ui-ctx-item ctx-upload-folder" @select="fire('upload-folder')">{{ t('filesCtxUploadFolder') }}</ContextMenuItem>
+       </template>
+       <!-- 文件/文件夹项菜单 -->
+       <template v-else>
+         <ContextMenuItem class="ui-ctx-item ctx-download" @select="fire('download')">{{ t('filesCtxDownload') }}</ContextMenuItem>
+         <ContextMenuItem class="ui-ctx-item ctx-copy" @select="fire('copy')">{{ t('filesCtxCopy') }}</ContextMenuItem>
+         <ContextMenuItem v-if="operable" class="ui-ctx-item ctx-cut" @select="fire('cut')">{{ t('filesCtxCut') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showCopyPath" class="ui-ctx-item ctx-copy-path" @select="fire('copy-path')">{{ t('filesCtxCopyPath') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showRename" class="ui-ctx-item ctx-rename" @select="fire('rename')">{{ t('filesRename') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showFavorite" class="ui-ctx-item ctx-fav" @select="fire('toggle-favorite')">{{ favorited ? t('filesCtxRemoveFavorite') : t('filesCtxAddFavorite') }}</ContextMenuItem>
++        <ContextMenuItem v-if="showShare" class="ui-ctx-item ctx-share" @select="fire('share')">{{ t('filesShareToLan') }}</ContextMenuItem>
+         <ContextMenuSeparator v-if="showSeparator" class="ui-ctx-sep" />
+         <ContextMenuItem v-if="operable" class="ui-ctx-item danger ctx-delete" @select="fire('delete')">{{ t('filesCtxDelete') }}</ContextMenuItem>
+       </template>
+     </template>
+   </ContextMenu>
+ </template>
+diff --git a/src/files/components/FilesSidebar.test.ts b/src/files/components/FilesSidebar.test.ts
+index aafe5af..66e9f06 100644
+--- a/src/files/components/FilesSidebar.test.ts
++++ b/src/files/components/FilesSidebar.test.ts
+@@ -1,87 +1,102 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
++import { createRouter, createMemoryHistory } from 'vue-router'
+ import FilesSidebar from './FilesSidebar.vue'
+ import { useFilesStore } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+     folder: { getList: vi.fn() },
+     // AddMountMenu(子组件)onMounted 里调用 service.driver.listDrivers();mounts store 的
+     // ejectCloud/loadMounts 走 service.cloud —— 均需 mock 以避免未处理拒绝的控制台告警。
+     driver: { listDrivers: vi.fn().mockResolvedValue([]) },
+     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
+   },
+ }))
+ 
+-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏' } } })
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏', filesSharesNav: '共享' } } })
++
++// FilesSidebar now reads useRoute()/useRouter() for the shares nav item's active state — a
++// router plugin must be installed or vue-router's injection throws on mount.
++const testRouter = createRouter({
++  history: createMemoryHistory(),
++  routes: [
++    { path: '/', name: 'home', component: { template: '<div/>' } },
++    { path: '/files/shares', name: 'files-shares', component: { template: '<div/>' } },
++  ],
++})
+ 
+ function seedFiles() {
+   const files = useFilesStore()
+   files.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any
+   files.displayNames = { '/DATA': 'NimoOS-HD' }
+   files.currentPath = '/DATA'
+   return files
+ }
+ 
+ describe('FilesSidebar', () => {
+   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+ 
+   it('renders disks and an empty-favorites hint', () => {
+     seedFiles()
+-    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++    const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+     expect(w.text()).toContain('暂无收藏')
+     expect(w.text()).toContain('NimoOS-HD')
+   })
+ 
+   it('clicking a disk emits navigate with the virtual path (not /DATA)', async () => {
+     seedFiles()
+-    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
+-    await w.findAll('.side-item')[0].trigger('click')
++    const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
++    const diskItem = w.findAll('.side-item').find((li) => li.text().includes('NimoOS-HD'))!
++    await diskItem.trigger('click')
+     const ev = w.emitted('navigate')
+     expect(ev![0][0]).toBe('/NimoOS-HD')
+     expect(ev![0][0]).not.toContain('/DATA')
+   })
+ 
+   it('clicking a favorite emits its virtual path; remove mutates the store', async () => {
+     seedFiles()
+     const fav = useFavoritesStore()
+     fav.list = [{ name: 'Docs', path: '/DATA/Documents' }] as any
+-    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++    const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+     const favItem = w.findAll('.side-item').find((li) => li.text().includes('Docs'))!
+     await favItem.trigger('click')
+     expect(w.emitted('navigate')!.some((e) => e[0] === '/NimoOS-HD/Documents')).toBe(true)
+     await favItem.get('.side-remove').trigger('click')
+     expect(fav.list.find((f) => f.path === '/DATA/Documents')).toBeUndefined()
+   })
+ 
+   it('dragging a disk reorders the rendered list in the same tick and persists order+default', async () => {
+     const files = useFilesStore()
+     files.disks = [
+       { name: 'DiskA', path: '/DATA', usb: false },
+       { name: 'DiskB', path: '/mnt/b', usb: false },
+     ] as any
+     files.displayNames = { '/DATA': 'DiskA', '/mnt/b': 'DiskB' }
+     files.currentPath = '/DATA'
+-    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++    const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
++
++    // scope to the disks section — the sidebar now also renders a leading shares-nav .side-item
++    const disksItems = () => w.findAll('.side-item').filter((li) => li.text() === 'DiskA' || li.text() === 'DiskB')
+ 
+-    const before = w.findAll('.side-item').map((li) => li.text())
++    const before = disksItems().map((li) => li.text())
+     expect(before).toEqual(['DiskA', 'DiskB'])
+ 
+     // drag DiskB (index 1) onto DiskA's slot (index 0)
+-    const items = w.findAll('.side-item')
++    const items = disksItems()
+     await items[1].trigger('dragstart')
+     await items[0].trigger('drop')
+ 
+     // rendered order updates immediately — no loadRoots / reload needed (regression: localStorage isn't reactive)
+-    const after = w.findAll('.side-item').map((li) => li.text())
++    const after = disksItems().map((li) => li.text())
+     expect(after).toEqual(['DiskB', 'DiskA'])
+ 
+     // persisted order + default reflect the new arrangement
+     expect(JSON.parse(localStorage.getItem('nimoos:location-order')!)).toEqual(['/mnt/b', '/DATA'])
+     expect(localStorage.getItem('nimoos:location-default')).toBe('/mnt/b')
+   })
+ })
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index 96fb247..b5773b1 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -1,26 +1,29 @@
+ <script setup lang="ts">
+ import { computed, ref } from 'vue'
++import { useRouter, useRoute } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useFilesStore } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useMountsStore } from '../stores/mounts'
+ import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+ import { buildAuthUrl } from '../util/cloudAuth'
+ import type { CloudDriver } from '@nimotech/nimoos-service'
+ import AddMountMenu from './AddMountMenu.vue'
+ import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
++const router = useRouter()
++const route = useRoute()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const mounts = useMountsStore()
+ const dialogOpen = ref(false)
+ const { t } = useI18n()
+ 
+ function go(realPath: string) {
+   emit('navigate', toVirtualPath(realPath, files.displayNames))
+ }
+ function isActive(realPath: string): boolean {
+@@ -88,20 +91,28 @@ function onDiskDrop(i: number) {
+   orderVersion.value++
+ }
+ </script>
+ 
+ <template>
+   <aside class="files-sidebar">
+     <div class="side-head">
+       <span class="side-head-title">{{ t('filesMountManage') }}</span>
+       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
+     </div>
++    <section class="side-section">
++      <ul class="side-list">
++        <li class="side-item" :class="{ active: route.name === 'files-shares' }" @click="router.push('/files/shares')">
++          <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
++          <span class="side-name">{{ t('filesSharesNav') }}</span>
++        </li>
++      </ul>
++    </section>
+     <section class="side-section">
+       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
+       <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>
+       <ul class="side-list">
+         <li
+           v-for="(fav, i) in favorites.list"
+           :key="fav.path"
+           class="side-item"
+           :class="{ active: isActive(fav.path) }"
+           draggable="true"
+diff --git a/src/files/components/SelectionToolbar.test.ts b/src/files/components/SelectionToolbar.test.ts
+index dd7cc05..c0e2944 100644
+--- a/src/files/components/SelectionToolbar.test.ts
++++ b/src/files/components/SelectionToolbar.test.ts
+@@ -3,43 +3,43 @@ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import SelectionToolbar from './SelectionToolbar.vue'
+ 
+ const i18n = createI18n({
+   legacy: false, locale: 'zh_cn',
+   messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
+ })
+ 
+ describe('SelectionToolbar', () => {
+   it('shows the count and emits select-all / clear', async () => {
+-    const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false }, global: { plugins: [i18n] } })
++    const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
+     expect(w.text()).toContain('已选 3 项')
+     await w.get('.sel-all').trigger('click')
+     expect(w.emitted('select-all')).toBeTruthy()
+     await w.get('.sel-clear').trigger('click')
+     expect(w.emitted('clear')).toBeTruthy()
+   })
+ 
+   it('has a delete button that emits delete', async () => {
+-    const w = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
++    const w = mount(SelectionToolbar, { props: { count: 2, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
+     await w.get('.sel-delete').trigger('click')
+     expect(w.emitted('delete')).toBeTruthy()
+   })
+ 
+   it('复制/剪切按钮 emit copy/cut', async () => {
+     const wrapper = mount(SelectionToolbar, {
+-      props: { count: 2, allSelected: false },
++      props: { count: 2, allSelected: false, canShare: false },
+       global: { plugins: [i18n] },
+     })
+     await wrapper.find('.sel-copy').trigger('click')
+     await wrapper.find('.sel-cut').trigger('click')
+     expect(wrapper.emitted('copy')).toBeTruthy()
+     expect(wrapper.emitted('cut')).toBeTruthy()
+   })
+ 
+   it('渲染下载按钮并 emit download', async () => {
+-    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
++    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
+     const btn = wrapper.find('.sel-download')
+     expect(btn.exists()).toBe(true)
+     await btn.trigger('click')
+     expect(wrapper.emitted('download')).toBeTruthy()
+   })
+ })
+diff --git a/src/files/components/SelectionToolbar.vue b/src/files/components/SelectionToolbar.vue
+index b4a6bd0..33d8710 100644
+--- a/src/files/components/SelectionToolbar.vue
++++ b/src/files/components/SelectionToolbar.vue
+@@ -1,25 +1,26 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+-const props = defineProps<{ count: number; allSelected: boolean }>()
+-const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void; (e: 'download'): void }>()
++const props = defineProps<{ count: number; allSelected: boolean; canShare: boolean }>()
++const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void; (e: 'download'): void; (e: 'share'): void }>()
+ const { t } = useI18n()
+ </script>
+ 
+ <template>
+   <div class="selection-toolbar">
+     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
+     <button class="sel-btn sel-all" @click="emit('select-all')">{{ t('filesSelectAll') }}</button>
+     <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>
+     <button class="sel-btn sel-copy" @click="emit('copy')">{{ t('filesCtxCopy') }}</button>
+     <button class="sel-btn sel-cut" @click="emit('cut')">{{ t('filesCtxCut') }}</button>
+     <button class="sel-btn sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
++    <button v-if="props.canShare" class="sel-btn sel-share" @click="emit('share')">{{ t('filesShareToLan') }}</button>
+     <span class="sel-spacer"></span>
+     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .selection-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
+ .sel-count { flex: 0 0 auto; }
+ .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
+ .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+diff --git a/src/files/shares/ShareLinkDialog.test.ts b/src/files/shares/ShareLinkDialog.test.ts
+new file mode 100644
+index 0000000..29c51b3
+--- /dev/null
++++ b/src/files/shares/ShareLinkDialog.test.ts
+@@ -0,0 +1,30 @@
++import { describe, it, expect, beforeEach, afterEach } from 'vitest'
++import { mount, DOMWrapper } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { createPinia, setActivePinia } from 'pinia'
++import { i18n } from '../../i18n'
++import ShareLinkDialog from './ShareLinkDialog.vue'
++
++// reka-ui's Dialog teleports its content to <body>, outside the mounted
++// wrapper's own DOM subtree (see src/components/ui/Dialog.test.ts and
++// NewItemDialog.test.ts) — mount with attachTo: document.body, await one
++// nextTick for the Portal content to land, then query document.body directly.
++const body = () => new DOMWrapper(document.body)
++
++beforeEach(() => setActivePinia(createPinia()))
++afterEach(() => { document.body.innerHTML = '' })
++
++describe('ShareLinkDialog', () => {
++  it('open 时渲染 host+name 的 UNC/SMB 路径', async () => {
++    Object.defineProperty(window, 'location', { value: { hostname: '10.0.0.5' }, writable: true })
++    mount(ShareLinkDialog, {
++      props: { open: true, name: 'Docs' },
++      global: { plugins: [i18n] },
++      attachTo: document.body,
++    })
++    await nextTick()
++    const html = body().html()
++    expect(html).toContain('\\\\10.0.0.5\\Docs')
++    expect(html).toContain('smb://10.0.0.5/Docs')
++  })
++})
+diff --git a/src/files/shares/ShareLinkDialog.vue b/src/files/shares/ShareLinkDialog.vue
+new file mode 100644
+index 0000000..7f11ae5
+--- /dev/null
++++ b/src/files/shares/ShareLinkDialog.vue
+@@ -0,0 +1,43 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++import { useToast } from '../../stores/toast'
++import { buildSmbPaths, getShareHost } from '../util/sambaPath'
++
++const props = defineProps<{ open: boolean; name: string }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
++const { t } = useI18n()
++const toast = useToast()
++
++const paths = computed(() => buildSmbPaths(getShareHost(), props.name))
++
++async function copy(text: string) {
++  try {
++    await navigator.clipboard.writeText(text)
++    toast.show(t('filesShareCopied'))
++  } catch { /* 剪贴板不可用时静默 */ }
++}
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('filesShareLinkTitle')" @update:open="emit('update:open', $event)">
++    <p class="share-hint">{{ t('filesShareLinkHint') }}</p>
++    <label class="share-label">{{ t('filesShareWindows') }}</label>
++    <div class="share-path"><input class="ui-input" readonly :value="paths.windows" /><button class="ui-btn" @click="copy(paths.windows)">{{ t('filesShareCopy') }}</button></div>
++    <label class="share-label">{{ t('filesShareMac') }}</label>
++    <div class="share-path"><input class="ui-input" readonly :value="paths.mac" /><button class="ui-btn" @click="copy(paths.mac)">{{ t('filesShareCopy') }}</button></div>
++    <template #footer>
++      <button class="ui-btn primary" @click="emit('update:open', false)">{{ t('filesGotIt') }}</button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.share-hint { font-size: 13px; color: var(--fg-muted, #9aa4bf); margin: 0 0 14px; }
++.share-label { display: block; font-size: 12px; color: var(--fg-muted, #9aa4bf); margin: 12px 0 6px; }
++.share-path { display: flex; gap: 8px; }
++.ui-input { flex: 1 1 auto; min-width: 0; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--chip-border, rgba(255,255,255,0.16)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; outline: none; }
++.ui-btn { flex: 0 0 auto; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
++.ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
++</style>
+diff --git a/src/files/shares/ShareRow.vue b/src/files/shares/ShareRow.vue
+new file mode 100644
+index 0000000..c4e5f6a
+--- /dev/null
++++ b/src/files/shares/ShareRow.vue
+@@ -0,0 +1,45 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { ContextMenuItem } from 'reka-ui'
++import ContextMenu from '../../components/ui/ContextMenu.vue'
++import { iconUrl } from '../util/icons'
++import type { ShareRow } from '../stores/shares'
++
++const props = defineProps<{ row: ShareRow }>()
++const emit = defineEmits<{ (e: 'get-link', row: ShareRow): void; (e: 'goto', row: ShareRow): void; (e: 'unshare', row: ShareRow): void }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <li class="share-row">
++    <ContextMenu>
++      <div class="share-row-main">
++        <img class="share-icon" :src="iconUrl('folder-default')" alt="" />
++        <span class="share-name">{{ props.row.name }}</span>
++        <span class="share-actions">
++          <button class="share-act" @click="emit('get-link', props.row)">{{ t('filesShareGetLink') }}</button>
++          <button class="share-act" @click="emit('goto', props.row)">{{ t('filesShareGoto') }}</button>
++          <button class="share-act danger" @click="emit('unshare', props.row)">{{ t('filesUnshare') }}</button>
++        </span>
++      </div>
++      <template #menu>
++        <ContextMenuItem class="ui-ctx-item" @select="emit('get-link', props.row)">{{ t('filesShareGetLink') }}</ContextMenuItem>
++        <ContextMenuItem class="ui-ctx-item" @select="emit('goto', props.row)">{{ t('filesShareGoto') }}</ContextMenuItem>
++        <ContextMenuItem class="ui-ctx-item danger" @select="emit('unshare', props.row)">{{ t('filesUnshare') }}</ContextMenuItem>
++      </template>
++    </ContextMenu>
++  </li>
++</template>
++
++<style scoped>
++.share-row { list-style: none; }
++.share-row-main { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; }
++.share-row-main:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
++.share-icon { width: 28px; height: 28px; flex: 0 0 auto; }
++.share-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
++.share-actions { display: flex; gap: 6px; opacity: 0; transition: opacity .12s; }
++.share-row-main:hover .share-actions { opacity: 1; }
++.share-act { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
++.share-act:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
++.share-act.danger { color: #ff8a8a; border-color: color-mix(in srgb, #ff5d5d 45%, transparent); }
++</style>
+diff --git a/src/files/shares/SharesPage.vue b/src/files/shares/SharesPage.vue
+new file mode 100644
+index 0000000..5f4d4e0
+--- /dev/null
++++ b/src/files/shares/SharesPage.vue
+@@ -0,0 +1,67 @@
++<script setup lang="ts">
++import { onMounted, ref } from 'vue'
++import { useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import FilesShell from '../components/FilesShell.vue'
++import FilesSidebar from '../components/FilesSidebar.vue'
++import ShareRow from './ShareRow.vue'
++import ShareLinkDialog from './ShareLinkDialog.vue'
++import AlertDialog from '../../components/ui/AlertDialog.vue'
++import { useSharesStore, type ShareRow as ShareRowT } from '../stores/shares'
++import { useFilesStore } from '../stores/files'
++import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
++
++const router = useRouter()
++const { t } = useI18n()
++const shares = useSharesStore()
++const files = useFilesStore()
++
++const linkDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
++const delDlg = ref<{ open: boolean; row: ShareRowT | null }>({ open: false, row: null })
++
++onMounted(() => {
++  shares.load()
++  if (!files.disks.length) files.loadRoots() // 供「前往」做 real→virtual 封顶
++})
++
++function goVirtual(virtualPath: string) {
++  router.push('/files/' + virtualPathToRouteParam(virtualPath))
++}
++function onGetLink(row: ShareRowT) { linkDlg.value = { open: true, name: row.name } }
++function onGoto(row: ShareRowT) { goVirtual(toVirtualPath(row.path, files.displayNames)) }
++function onUnshare(row: ShareRowT) { delDlg.value = { open: true, row } }
++function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row.id); delDlg.value.open = false }
++</script>
++
++<template>
++  <FilesShell>
++    <div class="files-layout">
++      <FilesSidebar @navigate="goVirtual" />
++      <main class="shares-main">
++        <h2 class="shares-title">{{ t('filesSharesTitle') }}</h2>
++        <p v-if="!shares.loading && !shares.items.length" class="shares-empty">{{ t('filesSharesEmpty') }}</p>
++        <ul class="shares-list">
++          <ShareRow v-for="row in shares.items" :key="row.id" :row="row" @get-link="onGetLink" @goto="onGoto" @unshare="onUnshare" />
++        </ul>
++      </main>
++    </div>
++    <ShareLinkDialog v-model:open="linkDlg.open" :name="linkDlg.name" />
++    <AlertDialog
++      v-model:open="delDlg.open"
++      :title="t('filesUnshareConfirmTitle')"
++      :message="t('filesUnshareConfirmMsg', { name: delDlg.row?.name ?? '' })"
++      :confirm-text="t('filesUnshare')"
++      :cancel-text="t('filesCancel')"
++      destructive
++      @confirm="confirmUnshare"
++    />
++  </FilesShell>
++</template>
++
++<style scoped>
++.files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
++.shares-main { flex: 1 1 auto; min-width: 0; }
++.shares-title { font-size: 16px; font-weight: 600; margin: 4px 0 14px; }
++.shares-empty { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
++.shares-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
++</style>
+diff --git a/src/files/stores/shares.test.ts b/src/files/stores/shares.test.ts
+new file mode 100644
+index 0000000..79732ef
+--- /dev/null
++++ b/src/files/stores/shares.test.ts
+@@ -0,0 +1,49 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const { listShares, createShare, deleteShare } = vi.hoisted(() => ({
++  listShares: vi.fn(),
++  createShare: vi.fn(async () => {}),
++  deleteShare: vi.fn(async () => {}),
++}))
++vi.mock('@nimotech/nimoos-service', async () => {
++  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
++  return { ...actual, service: { samba: { listShares, createShare, deleteShare } } }
++})
++import { useSharesStore } from './shares'
++
++describe('useSharesStore', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    listShares.mockReset(); createShare.mockReset(); deleteShare.mockReset()
++    createShare.mockResolvedValue(undefined); deleteShare.mockResolvedValue(undefined)
++  })
++
++  it('load 把 {id,path} 映射成含末段 name 的行', async () => {
++    listShares.mockResolvedValue([{ id: 1, path: '/DATA/Documents' }])
++    const s = useSharesStore()
++    await s.load()
++    expect(s.items).toEqual([{ id: 1, path: '/DATA/Documents', name: 'Documents' }])
++  })
++
++  it('create 用原始 realPath 数组调 createShare 并回 true', async () => {
++    listShares.mockResolvedValue([])
++    const s = useSharesStore()
++    const ok = await s.create(['/DATA/a', '/DATA/b'])
++    expect(createShare).toHaveBeenCalledWith(['/DATA/a', '/DATA/b'])
++    expect(ok).toBe(true)
++  })
++
++  it('create 空数组不打网络、回 false', async () => {
++    const s = useSharesStore()
++    expect(await s.create([])).toBe(false)
++    expect(createShare).not.toHaveBeenCalled()
++  })
++
++  it('remove 调 deleteShare(id) 并重载', async () => {
++    listShares.mockResolvedValue([])
++    const s = useSharesStore()
++    await s.remove(7)
++    expect(deleteShare).toHaveBeenCalledWith(7)
++  })
++})
+diff --git a/src/files/stores/shares.ts b/src/files/stores/shares.ts
+new file mode 100644
+index 0000000..1190061
+--- /dev/null
++++ b/src/files/stores/shares.ts
+@@ -0,0 +1,60 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { useToast } from '../../stores/toast'
++import { i18n } from '../../i18n'
++import { shareName } from '../util/sambaPath'
++
++export interface ShareRow { id: number; path: string; name: string }
++
++// 透出后端错误消息(如「已共享」),取不到则回退通用文案。仿 NetworkStorageDialog。
++function errMsg(e: unknown): string | undefined {
++  return (e as { response?: { data?: { message?: string } } })?.response?.data?.message
++}
++
++export const useSharesStore = defineStore('shares', () => {
++  const items = ref<ShareRow[]>([])
++  const loading = ref(false)
++  const toast = useToast()
++  const t = i18n.global.t
++
++  async function load(): Promise<void> {
++    loading.value = true
++    try {
++      const raw = await service.samba.listShares()
++      items.value = raw.map((s) => ({ id: s.id, path: s.path, name: shareName(s.path) }))
++    } catch (e) {
++      items.value = []
++      console.warn('[shares] load failed', e)
++    } finally {
++      loading.value = false
++    }
++  }
++
++  async function create(paths: string[]): Promise<boolean> {
++    if (!paths.length) return false
++    try {
++      await service.samba.createShare(paths)
++      await load()
++      toast.show(paths.length > 1 ? t('filesShareBatchDone', { count: paths.length }) : t('filesShareDone'))
++      return true
++    } catch (e) {
++      toast.show(errMsg(e) || t('filesShareFailed'))
++      return false
++    }
++  }
++
++  async function remove(id: number): Promise<boolean> {
++    try {
++      await service.samba.deleteShare(id)
++      await load()
++      toast.show(t('filesUnshareDone'))
++      return true
++    } catch (e) {
++      toast.show(errMsg(e) || t('filesShareFailed'))
++      return false
++    }
++  }
++
++  return { items, loading, load, create, remove }
++})
+diff --git a/src/files/util/sambaPath.test.ts b/src/files/util/sambaPath.test.ts
+new file mode 100644
+index 0000000..bb57f26
+--- /dev/null
++++ b/src/files/util/sambaPath.test.ts
+@@ -0,0 +1,16 @@
++import { describe, it, expect } from 'vitest'
++import { buildSmbPaths, shareName } from './sambaPath'
++
++describe('sambaPath', () => {
++  it('buildSmbPaths → Windows UNC + Mac smb', () => {
++    expect(buildSmbPaths('192.168.1.9', 'Documents')).toEqual({
++      windows: '\\\\192.168.1.9\\Documents',
++      mac: 'smb://192.168.1.9/Documents',
++    })
++  })
++  it('shareName 取路径末段', () => {
++    expect(shareName('/DATA/Documents')).toBe('Documents')
++    expect(shareName('/DATA/Media/Movies/')).toBe('Movies')
++    expect(shareName('Solo')).toBe('Solo')
++  })
++})
+diff --git a/src/files/util/sambaPath.ts b/src/files/util/sambaPath.ts
+new file mode 100644
+index 0000000..bec102d
+--- /dev/null
++++ b/src/files/util/sambaPath.ts
+@@ -0,0 +1,13 @@
++export interface SmbPaths { windows: string; mac: string }
++
++export function buildSmbPaths(host: string, name: string): SmbPaths {
++  return { windows: `\\\\${host}\\${name}`, mac: `smb://${host}/${name}` }
++}
++
++export function getShareHost(): string {
++  return window.location.hostname
++}
++
++export function shareName(path: string): string {
++  return path.replace(/\/+$/, '').split('/').pop() || path
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index e5bfe6d..bcddb95 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -134,20 +134,40 @@ export const messages = {
+     filesMountConnectFailed: '连接失败',
+     filesMountInvalidAddress: '请输入正确的地址(smb:// 或 nfs://)',
+     filesMountCredsRequired: '用户名和密码不能为空',
+     filesMountManage: '存储',
+     filesMountNetworkSection: '网络存储',
+     filesMountEject: '弹出',
+     filesMountCloudSection: '云盘',
+     filesMountCloudOk: '云盘已连接',
+     filesMountCloudWarn: '云盘连接警告',
+     filesMountCloudFail: '云盘连接失败',
++    filesSharesTitle: '本地网络分享',
++    filesSharesNav: '共享',
++    filesSharesEmpty: '还没有共享。右键任意文件夹即可共享到局域网。',
++    filesShareToLan: '共享到局域网',
++    filesShareDone: '已共享',
++    filesShareBatchDone: '已共享 {count} 个文件夹',
++    filesShareFailed: '操作失败',
++    filesUnshareDone: '已取消共享',
++    filesShareGetLink: '获取链接',
++    filesShareGoto: '前往',
++    filesUnshare: '取消共享',
++    filesUnshareConfirmTitle: '取消共享',
++    filesUnshareConfirmMsg: '确定取消共享「{name}」吗?局域网将无法再访问它。',
++    filesShareLinkTitle: '文件夹已共享',
++    filesShareLinkHint: '在下列地址访问共享文件夹(Samba)。',
++    filesShareWindows: 'PC(Windows 资源管理器)',
++    filesShareMac: 'Mac(访达)',
++    filesShareCopy: '复制',
++    filesShareCopied: '已复制',
++    filesGotIt: '我知道了',
+     authUsername: '用户名',
+     authPassword: '密码',
+     authLogin: '登录',
+     authLoginFailed: '用户名或密码错误',
+     validateRequired: '必填',
+     validateMin6: '至少 6 位',
+     validateConfirm: '两次输入的密码不一致',
+     welcomeTitle: '欢迎使用 NimoOS',
+     welcomeSubtitle: '创建你的初始账户',
+     welcomeGo: '开始 →',
+diff --git a/src/router/index.test.ts b/src/router/index.test.ts
+new file mode 100644
+index 0000000..3f40687
+--- /dev/null
++++ b/src/router/index.test.ts
+@@ -0,0 +1,18 @@
++import { describe, it, expect, vi } from 'vitest'
++
++// router/index.ts pulls in Welcome.vue → lottie-web, which calls canvas getContext();
++// jsdom has no canvas backend. Same mock as Welcome.test.ts to make router importable here.
++vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
++
++import { router } from './index'
++
++describe('router', () => {
++  it('/files/shares 命中 files-shares 而非 catch-all files-path', () => {
++    const m = router.resolve('/files/shares')
++    expect(m.name).toBe('files-shares')
++  })
++  it('/files/NimoOS-HD/Documents 仍命中 files-path', () => {
++    const m = router.resolve('/files/NimoOS-HD/Documents')
++    expect(m.name).toBe('files-path')
++  })
++})
+diff --git a/src/router/index.ts b/src/router/index.ts
+index 410a9f8..7142acb 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -1,21 +1,23 @@
+ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
++import SharesPage from '../files/shares/SharesPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
++  { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 64df774..7ef22bd 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -4,33 +4,36 @@ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import FilesShell from '../files/components/FilesShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import NewItemDialog from '../files/components/NewItemDialog.vue'
+ import RenameDialog from '../files/components/RenameDialog.vue'
++import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
+ import AlertDialog from '../components/ui/AlertDialog.vue'
+ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+ import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useViewer } from '../files/viewers/useViewer'
+ import ViewerHost from '../files/viewers/ViewerHost.vue'
+ import { resolveOpen } from '../files/viewers/resolveOpen'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
+ import { useMountsStore } from '../files/stores/mounts'
++import { useSharesStore } from '../files/stores/shares'
++import { shareName } from '../files/util/sambaPath'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+ import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ import { readDefault } from '../files/util/locationOrder'
+@@ -39,29 +42,31 @@ import { parseRecover } from '../files/util/recoverEvent'
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const ops = useFileOps()
+ const viewer = useViewer()
+ const fileOps = useFileOpsStore()
+ const clipboard = useClipboardStore()
+ const uploads = useUploadsStore()
+ const mounts = useMountsStore()
++const shares = useSharesStore()
+ const toast = useToast()
+ const bus = useMessageBus()
+ const { t } = useI18n()
+ 
+ // 对话框开关 + 上下文
+ const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
+ const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+ const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+ const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
++const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
+ 
+ // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
+ const ctxEntry = ref<FileEntry | null>(null)
+ function onItemContextmenu(payload: { entry: FileEntry; event: MouseEvent }) {
+   // 右键未选中的项 → 只针对它;右键已选中的项 → 保留整个选区(菜单按 selectedCount 判断单/多)
+   if (!files.isSelected(payload.entry.path)) files.selectOnly(payload.entry.path)
+   ctxEntry.value = payload.entry
+ }
+ // 容器 contextmenu 会话 onItemContextmenu 冒泡触发(同一原生事件),但只有当右键落在
+ // 空白处(target 不在任何 [data-path] 行/卡内)才应重置为 null —— 否则会清掉刚设置的 entry。
+@@ -72,20 +77,35 @@ function onBlankContextmenu(e: MouseEvent) {
+ }
+ 
+ function openNew(mode: 'file' | 'folder') { newDlg.value = { open: true, mode } }
+ 
+ // 取选中或右键项(复用于 delete/copy/cut)
+ function selectedOr(entry: FileEntry | null): FileEntry[] {
+   const sel = files.entries.filter((e) => files.isSelected(e.path))
+   return sel.length ? sel : entry ? [entry] : []
+ }
+ 
++// 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
++const selectionHasFolder = computed(() => files.entries.some((e) => files.isSelected(e.path) && e.is_dir))
++
++// 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
++// 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
++async function onShare(entry: FileEntry | null) {
++  const folders = selectedOr(entry).filter((e) => e.is_dir)
++  if (!folders.length) return
++  const ok = await shares.create(folders.map((f) => f.path))
++  if (ok) {
++    ops.refresh() // 刷新列表,让刚共享的文件夹 extensions.share.shared 更新(否则右键仍显示「共享到局域网」)
++    if (folders.length === 1) shareDlg.value = { open: true, name: shareName(folders[0].path) }
++  }
++}
++
+ // 右键菜单动作分发
+ function onCtxAction(action: string, entry: FileEntry | null) {
+   switch (action) {
+     case 'new-folder': openNew('folder'); break
+     case 'new-file': openNew('file'); break
+     case 'refresh': ops.refresh(); break
+     case 'copy-path': if (entry) ops.copyPath(entry); break
+     case 'rename': if (entry) renameDlg.value = { open: true, entry }; break
+     case 'toggle-favorite':
+       if (entry) {
+@@ -98,20 +118,21 @@ function onCtxAction(action: string, entry: FileEntry | null) {
+       deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
+       break
+     }
+     case 'copy': ops.copy(selectedOr(entry)); break
+     case 'cut': ops.cut(selectedOr(entry)); break
+     case 'download': ops.download(selectedOr(entry)); break
+     case 'paste-overwrite': ops.paste('overwrite'); break
+     case 'paste-skip': ops.paste('skip'); break
+     case 'upload-file': triggerFileSelect(); break
+     case 'upload-folder': triggerFolderSelect(); break
++    case 'share': onShare(entry); break
+   }
+ }
+ 
+ // ── 上传:隐藏 input 触发 + 拖拽落区 ──
+ const fileInput = ref<HTMLInputElement | null>(null)
+ const folderInput = ref<HTMLInputElement | null>(null)
+ function triggerFileSelect() { fileInput.value?.click() }
+ function triggerFolderSelect() { folderInput.value?.click() }
+ 
+ function onInputChange(e: Event) {
+@@ -346,26 +367,28 @@ onMounted(() => { uploads.initUploads() })
+             <div class="files-viewtoggle">
+               <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+               <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+             </div>
+           </div>
+         </div>
+         <SelectionToolbar
+           v-if="files.selectedCount > 0"
+           :count="files.selectedCount"
+           :all-selected="files.allSelected"
++          :can-share="selectionHasFolder"
+           @select-all="files.selectAll"
+           @clear="files.clearSelection"
+           @delete="onToolbarDelete"
+           @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
+           @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
+           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
++          @share="onShare(null)"
+         />
+         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
+           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+             <FileGridView
+               v-if="files.viewMode === 'grid'"
+               :entries="files.sortedEntries"
+               :selected-paths="files.selected"
+               @open="openEntry"
+               @select="onSelect"
+               @contextmenu="onItemContextmenu"
+@@ -381,20 +404,21 @@ onMounted(() => { uploads.initUploads() })
+               @select="onSelect"
+               @contextmenu="onItemContextmenu"
+             />
+             <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
+           </div>
+         </FileContextMenu>
+       </div>
+     </div>
+     <NewItemDialog v-model:open="newDlg.open" :mode="newDlg.mode" @confirm="confirmNew" />
+     <RenameDialog v-if="renameDlg.entry" v-model:open="renameDlg.open" :name="renameDlg.entry.name" @confirm="confirmRename" />
++    <ShareLinkDialog v-model:open="shareDlg.open" :name="shareDlg.name" />
+     <AlertDialog
+       v-model:open="deleteDlg.open"
+       :title="t('filesCtxDelete')"
+       :message="t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
+       :confirm-text="t('filesCtxDelete')"
+       :cancel-text="t('filesCancel')"
+       destructive
+       @confirm="confirmDelete"
+     />
+     <AlertDialog

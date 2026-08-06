@@ -1,0 +1,105 @@
+# Review package: 499bfc3..757a578
+
+## Commits
+757a578 feat(apps): installedApps 支持 apply-changes pending 收敛(SP5-P4)
+
+## Files changed
+ src/apps/stores/installedApps.test.ts | 14 ++++++++++++++
+ src/apps/stores/installedApps.ts      |  9 ++++++---
+ 2 files changed, 20 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/apps/stores/installedApps.test.ts b/src/apps/stores/installedApps.test.ts
+index 5a65b56..e76aaed 100644
+--- a/src/apps/stores/installedApps.test.ts
++++ b/src/apps/stores/installedApps.test.ts
+@@ -139,11 +139,25 @@ describe('installedApps store', () => {
+   })
+ 
+   it('evict 立即移除条目并清 pending(容器 destroy / 卸载完成)', async () => {
+     const s = useInstalledAppsStore()
+     await s.refresh()
+     s.onAppEvent('app:uninstall-begin', { 'app:name': 'a' })
+     s.evict('a')
+     expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
+     expect(s.pending['a']).toBeUndefined()
+   })
++
++  it('markApplying sets pending and app:apply-changes-end resolves it', async () => {
++    const s = useInstalledAppsStore()
++    s.markApplying('syncthing')
++    expect(s.pending['syncthing']).toBe('apply-changes')
++    s.onAppEvent('app:apply-changes-end', { 'app:name': 'syncthing' })
++    expect(s.pending['syncthing']).toBeUndefined()
++  })
++
++  it('app:apply-changes-begin from another client also marks pending', () => {
++    const s = useInstalledAppsStore()
++    s.onAppEvent('app:apply-changes-begin', { 'app:name': 'jellyfin' })
++    expect(s.pending['jellyfin']).toBe('apply-changes')
++  })
+ })
+diff --git a/src/apps/stores/installedApps.ts b/src/apps/stores/installedApps.ts
+index eb78994..41ec0e8 100644
+--- a/src/apps/stores/installedApps.ts
++++ b/src/apps/stores/installedApps.ts
+@@ -1,18 +1,18 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import { service, type ComposeAppWithStoreInfo } from '@nimotech/nimoos-service'
+ import { resolveAppTitle } from '../util/appTitle'
+ import { composeWebUrl, type WebUrlSource } from '../util/appUrl'
+ import { isSystemComposeApp } from '../util/systemApp'
+ 
+-export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall'
++export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall' | 'apply-changes'
+ 
+ export interface InstalledApp {
+   id: string
+   title: string
+   icon: string
+   status: string          // docker 主容器 State;后端取不到时 "unknown"
+   updateAvailable: boolean
+   isUncontrolled: boolean
+   webUrl: string | null
+ }
+@@ -26,21 +26,21 @@ export function mapInstalled(id: string, raw: ComposeAppWithStoreInfo, currentHo
+     id,
+     title: resolveAppTitle(si.title, id),
+     icon: typeof si.icon === 'string' ? si.icon : '',
+     status: raw.status || 'unknown',
+     updateAvailable: !!raw.update_available,
+     isUncontrolled: !!raw.is_uncontrolled,
+     webUrl: composeWebUrl(si, currentHost),
+   }
+ }
+ 
+-const EVENT_RE = /^app:(start|stop|restart|update|uninstall)-(begin|end|error)$/
++const EVENT_RE = /^app:(start|stop|restart|update|uninstall|apply-changes)-(begin|end|error)$/
+ 
+ export const useInstalledAppsStore = defineStore('installed-apps', () => {
+   const apps = ref<InstalledApp[]>([])
+   const loading = ref(false)
+   const pending = ref<Record<string, AppOp>>({})
+   const timers: Record<string, ReturnType<typeof setTimeout>> = {}
+ 
+   async function refresh() {
+     loading.value = true
+     try {
+@@ -116,12 +116,15 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
+     if (!m) return
+     const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
+     const id = typeof p['app:name'] === 'string' ? p['app:name'] : ''
+     if (!id) return
+     const [, op, phase] = m
+     if (phase === 'begin') begin(id, op as AppOp)
+     else if (op === 'uninstall' && phase === 'end') { evict(id); resolve(id) } // 图标立即消失,再重拉收敛
+     else resolve(id) // end 与 error 都收敛;error 的 toast 由页面层做
+   }
+ 
+-  return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent }
++  /** 设置保存受理后置 pending(PUT 受理即返,Apply 是 go func 异步;收敛靠 apply-changes 事件/30s 兜底) */
++  function markApplying(id: string) { begin(id, 'apply-changes') }
++
++  return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent, markApplying }
+ })

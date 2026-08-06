@@ -1,0 +1,3543 @@
+# Review package: 314741c..HEAD
+
+## Commits
+b16c87d feat(apps): 外部链接 App——custom 页管理 + 桌面展示(custom storage key=link,与 Vue2 互通)
+cf8fa33 fix(apps): 自定义安装 D4 同名守卫先补拉已装列表——深链空 store 绕过硬挡
+be7a6c8 feat(apps): /apps/custom——YAML 编辑安装(CM6)+ docker run 导入(composerize)
+996c34c fix(apps): 导入规整 util——volumeAutoCheck 大小写按 Vue2 逐字、tmpfs 长语法透传
+4e90610 feat(apps): 导入规整 util——name/x-nimoos 注入、volumeAutoCheck、composerize docker run 转换
+1267a80 feat(apps): 设置表单补 D5——command 编辑/docker 网络下拉/stable tag 下拉(dirty-flag 不动未编辑域)
+355574a feat(apps): 设置表单只读展示透传端口条目
+4a57217 fix(apps): 设置保存端口透传——裸端口/端口段等表单认不出条目原样保留(P4 挂账,Crafty 实锤)
+
+## Files changed
+ package.json                                       |   1 +
+ pnpm-lock.yaml                                     | 133 ++++++++
+ src/apps/components/AppsSidebar.test.ts            |  17 +-
+ src/apps/components/AppsSidebar.vue                |   9 +-
+ src/apps/components/custom/YamlEditor.test.ts      |  62 ++++
+ src/apps/components/custom/YamlEditor.vue          |  60 ++++
+ .../settings/ComposeSettingsForm.test.ts           |  51 ++++
+ .../components/settings/ComposeSettingsForm.vue    |  92 +++++-
+ src/apps/components/settings/PortsEditor.test.ts   |  11 +
+ src/apps/components/settings/PortsEditor.vue       |  14 +-
+ src/apps/composables/useCustomInstall.test.ts      | 151 +++++++++
+ src/apps/composables/useCustomInstall.ts           |  84 +++++
+ src/apps/util/composeSettings.test.ts              | 138 ++++++++-
+ src/apps/util/composeSettings.ts                   |  96 ++++--
+ src/apps/util/importNormalize.test.ts              | 191 ++++++++++++
+ src/apps/util/importNormalize.ts                   | 159 ++++++++++
+ src/apps/util/linkApps.test.ts                     | 117 +++++++
+ src/apps/util/linkApps.ts                          |  86 ++++++
+ src/apps/views/AppSettingsPage.test.ts             |   2 +
+ src/apps/views/AppSettingsPage.vue                 |  16 +-
+ src/apps/views/CustomAppsPage.test.ts              | 246 +++++++++++++++
+ src/apps/views/CustomAppsPage.vue                  | 338 +++++++++++++++++++++
+ src/home/stores/apps.test.ts                       |  45 +++
+ src/home/stores/apps.ts                            |  16 +-
+ src/i18n/en_us.ts                                  |  28 ++
+ src/i18n/zh_cn.ts                                  |  28 ++
+ src/router/index.ts                                |   2 +
+ src/types/composerize.d.ts                         |   6 +
+ 28 files changed, 2164 insertions(+), 35 deletions(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index 0d44c29..053d73a 100644
+--- a/package.json
++++ b/package.json
+@@ -28,20 +28,21 @@
+     "@codemirror/view": "^6.43.5",
+     "@nimotech/nimoos-service": "file:../NimoOS-Service",
+     "@types/markdown-it": "^14.1.2",
+     "@uiw/codemirror-theme-monokai": "^4.25.10",
+     "@vue-office/docx": "^1.6.0",
+     "@vue-office/excel": "^1.6.0",
+     "aplayer": "^1.10.1",
+     "artplayer": "^5.4.0",
+     "axios": "^1.7",
+     "codemirror": "^6.0.2",
++    "composerize": "^1.7.6",
+     "lottie-web": "^5.13.0",
+     "markdown-it": "^14.3.0",
+     "music-metadata-browser": "^2.5.11",
+     "pdfjs-dist": "^6.1.200",
+     "pinia": "^2.1",
+     "reka-ui": "^2.10.1",
+     "socket.io-client": "2.5.0",
+     "tus-js-client": "^4",
+     "vue": "^3.4",
+     "vue-demi": "^0.14.10",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index fe52df5..01d6bd3 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -76,20 +76,23 @@ importers:
+         version: 1.10.1
+       artplayer:
+         specifier: ^5.4.0
+         version: 5.4.0
+       axios:
+         specifier: ^1.7
+         version: 1.18.1
+       codemirror:
+         specifier: ^6.0.2
+         version: 6.0.2
++      composerize:
++        specifier: ^1.7.6
++        version: 1.7.6
+       lottie-web:
+         specifier: ^5.13.0
+         version: 5.13.0
+       markdown-it:
+         specifier: ^14.3.0
+         version: 14.3.0
+       music-metadata-browser:
+         specifier: ^2.5.11
+         version: 2.5.11
+       pdfjs-dist:
+@@ -889,23 +892,35 @@ packages:
+     resolution: {integrity: sha512-QbJ0NTQ/I9DI3uSJA4cbexiwQeRAfjPScqIbSjUDd9TOrcg6pTkdgziesOqxBMBzit8vFCTwrP27t13vFOORRA==}
+ 
+   agent-base@6.0.2:
+     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
+     engines: {node: '>= 6.0.0'}
+ 
+   agent-base@7.1.4:
+     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
+     engines: {node: '>= 14'}
+ 
++  ajv-errors@3.0.0:
++    resolution: {integrity: sha512-V3wD15YHfHz6y0KdhYFjyy9vWtEVALT9UrxfN3zqlI6dMioHnJrqOYfyPKol3oqrnCM9uwkcdCwkJ0WUcbLMTQ==}
++    peerDependencies:
++      ajv: ^8.0.1
++
++  ajv@8.20.0:
++    resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
++
+   alien-signals@1.0.13:
+     resolution: {integrity: sha512-OGj9yyTnJEttvzhTUWuscOvtqxq5vrhF7vL9oS0xJ2mK0ItPYP1/y+vCFebfxoEyAz0++1AIwJ5CMr+Fk3nDmg==}
+ 
++  ansi-colors@4.1.3:
++    resolution: {integrity: sha512-/6w/C21Pm1A7aZitlI5Ni/2J6FFQN8i1Cvz3kHABAAbw93v/NlvKdVOqz7CCWz/3iv/JplRSEEZ83XION15ovw==}
++    engines: {node: '>=6'}
++
+   ansi-regex@5.0.1:
+     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
+     engines: {node: '>=8'}
+ 
+   ansi-regex@6.2.2:
+     resolution: {integrity: sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg==}
+     engines: {node: '>=12'}
+ 
+   ansi-styles@4.3.0:
+     resolution: {integrity: sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==}
+@@ -966,20 +981,24 @@ packages:
+   buffer-from@1.1.2:
+     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
+ 
+   buffer@6.0.3:
+     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
+ 
+   call-bind-apply-helpers@1.0.2:
+     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
+     engines: {node: '>= 0.4'}
+ 
++  camelcase@5.3.1:
++    resolution: {integrity: sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==}
++    engines: {node: '>=6'}
++
+   chai@6.2.2:
+     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
+     engines: {node: '>=18'}
+ 
+   codemirror@6.0.2:
+     resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
+ 
+   color-convert@2.0.1:
+     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
+     engines: {node: '>=7.0.0'}
+@@ -1000,30 +1019,41 @@ packages:
+ 
+   component-bind@1.0.0:
+     resolution: {integrity: sha512-WZveuKPeKAG9qY+FkYDeADzdHyTYdIboXS59ixDeRJL5ZhxpqUnxSOwop4FQjMsiYm3/Or8cegVbpAHNA7pHxw==}
+ 
+   component-emitter@1.3.1:
+     resolution: {integrity: sha512-T0+barUSQRTUQASh8bx02dl+DhF54GtIDY13Y3m9oWTklKbb3Wv974meRpeZ3lp1JpLVECWWNHC4vaG2XHXouQ==}
+ 
+   component-inherit@0.0.3:
+     resolution: {integrity: sha512-w+LhYREhatpVqTESyGFg3NlP6Iu0kEKUHETY9GoZP/pQyW4mHFZuFWRUCIqVPZ36ueVLtoOEZaAqbCF2RDndaA==}
+ 
++  composerize@1.7.6:
++    resolution: {integrity: sha512-zFdKAE6H8j2OSdnOol+U1f+/rJxbd80cCpDSReVMDA2aOZPH+N2IUVor6UdMwtdLCl8Lpr9Qb8xBO0VOTj5jDg==}
++    hasBin: true
++
++  composeverter@1.7.5:
++    resolution: {integrity: sha512-XUPZdktweMFFMk7oLFOOFZeuZ4U0jY/MpisUmRkHImybn9PvixceiKGVMMwSL19P9Mr5Ty1A7bmG2lFWn5UWTA==}
++
+   config-chain@1.1.13:
+     resolution: {integrity: sha512-qj+f8APARXHrM0hraqXYb2/bOVSV4PvJQlNZ/DVj0QrmNM2q2euizkeuVckQ57J+W0mRH6Hvi+k50M4Jul2VRQ==}
+ 
+   content-type@1.0.5:
+     resolution: {integrity: sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==}
+     engines: {node: '>= 0.6'}
+ 
+   convert-source-map@2.0.0:
+     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
+ 
++  core-js@2.6.12:
++    resolution: {integrity: sha512-Kb2wC0fvsWfQrgk8HU5lW6U/Lcs8+9aaYcy4ZFc6DDlo4nZ7n70dEgE5rtR0oG6ufKDUnrwfWL1mXR5ljDatrQ==}
++    deprecated: core-js@<3.23.3 is no longer maintained and not recommended for usage due to the number of issues. Because of the V8 engine whims, feature detection in old core-js versions could cause a slowdown up to 100x even if nothing is polyfilled. Some versions have web compatibility issues. Please, upgrade your dependencies to the actual version of core-js.
++
+   crelt@1.0.7:
+     resolution: {integrity: sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA==}
+ 
+   cross-spawn@7.0.6:
+     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
+     engines: {node: '>= 8'}
+ 
+   cssstyle@4.6.0:
+     resolution: {integrity: sha512-2z+rWdzbbSZv6/rhtvzvqeZQHrBaqgogqt85sqFNbabZOuFbCVFb8kPeEtZjiKkbrm395irpNKiYeFeLiQnFPg==}
+     engines: {node: '>=18'}
+@@ -1051,23 +1081,31 @@ packages:
+ 
+   debug@4.4.3:
+     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
+     engines: {node: '>=6.0'}
+     peerDependencies:
+       supports-color: '*'
+     peerDependenciesMeta:
+       supports-color:
+         optional: true
+ 
++  decamelize@1.2.0:
++    resolution: {integrity: sha512-z2S+W9X73hAUUki+N+9Za2lBlun89zigOyGrsax+KUQ6wKW4ZoWpEYBkGhQjwAjjDCkWxhY0VKEhk8wzY7F5cA==}
++    engines: {node: '>=0.10.0'}
++
+   decimal.js@10.6.0:
+     resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==}
+ 
++  deepmerge@2.2.1:
++    resolution: {integrity: sha512-R9hc1Xa/NOBi9WRVUWg19rl1UB7Tt4kuPd+thNJgFZoxXsTz7ncaPaeIm+40oSGuP33DfMb4sZt1QIGiJzC4EA==}
++    engines: {node: '>=0.10.0'}
++
+   defu@6.1.7:
+     resolution: {integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==}
+ 
+   delayed-stream@1.0.0:
+     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
+     engines: {node: '>=0.4.0'}
+ 
+   dunder-proto@1.0.1:
+     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
+     engines: {node: '>= 0.4'}
+@@ -1085,20 +1123,24 @@ packages:
+ 
+   emoji-regex@9.2.2:
+     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
+ 
+   engine.io-client@3.5.6:
+     resolution: {integrity: sha512-2fDMKiXSU7bGRDCWEw9cHEdRNfoU8cpP6lt+nwJhv72tSJpO7YBsqMqYZ63eVvwX3l9prPl2k/mxhfVhY+SDWg==}
+ 
+   engine.io-parser@2.2.1:
+     resolution: {integrity: sha512-x+dN/fBH8Ro8TFwJ+rkB2AmuVw9Yu2mockR/p3W8f8YtExwFgDvBDi0GWyb4ZLkpahtDGZgtr3zLovanJghPqg==}
+ 
++  enquirer@2.4.1:
++    resolution: {integrity: sha512-rRqJg/6gd538VHvR3PSrdRBb/1Vy2YfzHqzvbhGIQpDRKIa4FgV/54b5Q1xYSxOOwKvjXweS26E0Q+nAMwp2pQ==}
++    engines: {node: '>=8.6'}
++
+   entities@4.5.0:
+     resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
+     engines: {node: '>=0.12'}
+ 
+   entities@6.0.1:
+     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
+     engines: {node: '>=0.12'}
+ 
+   entities@7.0.1:
+     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
+@@ -1143,20 +1185,26 @@ packages:
+     engines: {node: '>=0.8.x'}
+ 
+   expect-type@1.4.0:
+     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
+     engines: {node: '>=12.0.0'}
+ 
+   fake-indexeddb@6.2.5:
+     resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+     engines: {node: '>=18'}
+ 
++  fast-deep-equal@3.1.3:
++    resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
++
++  fast-uri@3.1.4:
++    resolution: {integrity: sha512-8JnbkQ4juDyvYs4mgFGQqg4yCYtFDtUtmp2QIQq11ZZe5CFQ5wcqm1rqDgAh/QdMySuBnPzMUiJUNZG5N/AiQw==}
++
+   fdir@6.5.0:
+     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
+     engines: {node: '>=12.0.0'}
+     peerDependencies:
+       picomatch: ^3 || ^4
+     peerDependenciesMeta:
+       picomatch:
+         optional: true
+ 
+   file-type@16.5.4:
+@@ -1252,20 +1300,23 @@ packages:
+ 
+   ieee754@1.2.1:
+     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
+ 
+   indexof@0.0.1:
+     resolution: {integrity: sha512-i0G7hLJ1z0DE8dsqJa2rycj9dBmNKgXBvotXtZYXakU9oivfB9Uj2ZBC27qqef2U58/ZLwalxa1X/RDCdkHtVg==}
+ 
+   ini@1.3.8:
+     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
+ 
++  invariant@2.2.4:
++    resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
++
+   is-fullwidth-code-point@3.0.0:
+     resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
+     engines: {node: '>=8'}
+ 
+   is-potential-custom-element-name@1.0.1:
+     resolution: {integrity: sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ==}
+ 
+   is-stream@2.0.1:
+     resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}
+     engines: {node: '>=8'}
+@@ -1283,29 +1334,35 @@ packages:
+     resolution: {integrity: sha512-65kvbemyZhj+ExQt1PEFyBEjL5vAHysu1lJdW1AwhhChkO8ZBPizYk/m9GVrpbS2Je1hF+UYZ+6KywqtZV8mHw==}
+ 
+   js-beautify@1.15.4:
+     resolution: {integrity: sha512-9/KXeZUKKJwqCXUdBxFJ3vPh467OCckSBmYDwSK/EtV090K+iMJ7zx2S3HLVDIWFQdqMIsZWbnaGiba18aWhaA==}
+     engines: {node: '>=14'}
+     hasBin: true
+ 
+   js-cookie@3.0.8:
+     resolution: {integrity: sha512-yeJd4aNAdYZQjaon2bpD/Gb0B/omw7HQOsynXXcOiWVCacbBcPlgn8S/d1X6blFSaHao7ozqtW7NZW19xpCtIw==}
+ 
++  js-tokens@4.0.0:
++    resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
++
+   jsdom@24.1.3:
+     resolution: {integrity: sha512-MyL55p3Ut3cXbeBEG7Hcv0mVM8pp8PBNWxRqchZnSfAiES1v1mRnMeFfaHWIPULpwsYfvO+ZmMZz5tGCnjzDUQ==}
+     engines: {node: '>=18'}
+     peerDependencies:
+       canvas: ^2.11.2
+     peerDependenciesMeta:
+       canvas:
+         optional: true
+ 
++  json-schema-traverse@1.0.0:
++    resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
++
+   kind-of@6.0.3:
+     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
+     engines: {node: '>=0.10.0'}
+ 
+   linkify-it@5.0.2:
+     resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
+ 
+   lodash._baseiteratee@4.7.0:
+     resolution: {integrity: sha512-nqB9M+wITz0BX/Q2xg6fQ8mLkyfF7MU7eE+MNBNjTHFKeKaZAPEzEg+E8LWxKWf1DQVflNEn9N49yAuqKh2mWQ==}
+ 
+@@ -1323,20 +1380,24 @@ packages:
+ 
+   lodash._stringtopath@4.8.0:
+     resolution: {integrity: sha512-SXL66C731p0xPDC5LZg4wI5H+dJo/EO4KTqOMwLYCH3+FmmfAKJEZCm6ohGpI+T1xwsDsJCfL4OnhorllvlTPQ==}
+ 
+   lodash.throttle@4.1.1:
+     resolution: {integrity: sha512-wIkUCfVKpVsWo3JSZlc+8MB5it+2AN5W8J7YVMST30UrvcQNZ1Okbj+rbVniijTWE6FGYy4XJq/rHkas8qJMLQ==}
+ 
+   lodash.uniqby@4.5.0:
+     resolution: {integrity: sha512-IRt7cfTtHy6f1aRVA5n7kT8rgN3N1nH6MOWLcHfpWG2SH19E3JksLK38MktLxZDhlAjCP9jpIXkOnRXlu6oByQ==}
+ 
++  loose-envify@1.4.0:
++    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
++    hasBin: true
++
+   lottie-web@5.13.0:
+     resolution: {integrity: sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ==}
+ 
+   lru-cache@10.4.3:
+     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
+ 
+   magic-string@0.30.21:
+     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+ 
+   markdown-it@14.3.0:
+@@ -1501,20 +1562,24 @@ packages:
+ 
+   readable-web-to-node-stream@3.0.4:
+     resolution: {integrity: sha512-9nX56alTf5bwXQ3ZDipHJhusu9NTQJ/CVPtb/XHAJCXihZeitfJvIRS4GqQ/mfIoOE3IelHMrpayVrosdHBuLw==}
+     engines: {node: '>=8'}
+ 
+   reka-ui@2.10.1:
+     resolution: {integrity: sha512-drcOQ4rQtDYAcGCsyQBqQg8QQ+H3B+zDaMJU0h8KPEPMa7g9BHu3zcOi4OB39XJSWizceFoNO0Z9tctSGLOXqg==}
+     peerDependencies:
+       vue: '>= 3.4.0'
+ 
++  require-from-string@2.0.2:
++    resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
++    engines: {node: '>=0.10.0'}
++
+   requires-port@1.0.0:
+     resolution: {integrity: sha512-KigOCHcocU3XODJxsu8i/j8T9tzT4adHiecwORRQ0ZZFcp7ahwXuRU1m+yuO90C5ZUyGeGfocHDI14M3L3yDAQ==}
+ 
+   retry@0.12.0:
+     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==}
+     engines: {node: '>= 4'}
+ 
+   rollup@4.62.2:
+     resolution: {integrity: sha512-RFnrW4lhXA3s3eqHDZvN654g8OTjzRfqpIRJYczCGB6HzphckVAi/Qh4tbPUbRuDi7s1Llv8g/NspLkttY3gTA==}
+     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
+@@ -1858,20 +1923,23 @@ packages:
+ 
+   xmlhttprequest-ssl@1.6.3:
+     resolution: {integrity: sha512-3XfeQE/wNkvrIktn2Kf0869fC0BN6UpydVasGIeSm2B1Llihf7/0UfZM+eCkOw3P7bP4+qPgqhm7ZoxuJtFU0Q==}
+     engines: {node: '>=0.4.0'}
+ 
+   yaml@2.9.0:
+     resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+     engines: {node: '>= 14.6'}
+     hasBin: true
+ 
++  yargs-parser@13.1.2:
++    resolution: {integrity: sha512-3lbsNRf/j+A4QuSZfDRA7HRSfWrzO0YjqTJd5kjAq37Zep1CEgaYmrH9Q3GwPiB9cHyd1Y1UwggGhJGoxipbzg==}
++
+   yeast@0.1.2:
+     resolution: {integrity: sha512-8HFIh676uyGYP6wP13R/j6OJ/1HwJ46snpvzE7aHAN3Ryqh2yX6Xox2B4CUmTwwOIzlG3Bs7ocsP5dZH/R1Qbg==}
+ 
+ snapshots:
+ 
+   '@asamuzakjp/css-color@3.2.0':
+     dependencies:
+       '@csstools/css-calc': 2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
+       '@csstools/css-color-parser': 3.1.0(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
+       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
+@@ -2616,22 +2684,35 @@ snapshots:
+   after@0.8.2: {}
+ 
+   agent-base@6.0.2:
+     dependencies:
+       debug: 4.4.3
+     transitivePeerDependencies:
+       - supports-color
+ 
+   agent-base@7.1.4: {}
+ 
++  ajv-errors@3.0.0(ajv@8.20.0):
++    dependencies:
++      ajv: 8.20.0
++
++  ajv@8.20.0:
++    dependencies:
++      fast-deep-equal: 3.1.3
++      fast-uri: 3.1.4
++      json-schema-traverse: 1.0.0
++      require-from-string: 2.0.2
++
+   alien-signals@1.0.13: {}
+ 
++  ansi-colors@4.1.3: {}
++
+   ansi-regex@5.0.1: {}
+ 
+   ansi-regex@6.2.2: {}
+ 
+   ansi-styles@4.3.0:
+     dependencies:
+       color-convert: 2.0.1
+ 
+   ansi-styles@6.2.3: {}
+ 
+@@ -2688,20 +2769,22 @@ snapshots:
+   buffer@6.0.3:
+     dependencies:
+       base64-js: 1.5.1
+       ieee754: 1.2.1
+ 
+   call-bind-apply-helpers@1.0.2:
+     dependencies:
+       es-errors: 1.3.0
+       function-bind: 1.1.2
+ 
++  camelcase@5.3.1: {}
++
+   chai@6.2.2: {}
+ 
+   codemirror@6.0.2:
+     dependencies:
+       '@codemirror/autocomplete': 6.20.3
+       '@codemirror/commands': 6.10.4
+       '@codemirror/language': 6.12.4
+       '@codemirror/lint': 6.9.7
+       '@codemirror/search': 6.7.1
+       '@codemirror/state': 6.7.1
+@@ -2723,29 +2806,47 @@ snapshots:
+       delayed-stream: 1.0.0
+ 
+   commander@10.0.1: {}
+ 
+   component-bind@1.0.0: {}
+ 
+   component-emitter@1.3.1: {}
+ 
+   component-inherit@0.0.3: {}
+ 
++  composerize@1.7.6:
++    dependencies:
++      composeverter: 1.7.5
++      core-js: 2.6.12
++      deepmerge: 2.2.1
++      enquirer: 2.4.1
++      invariant: 2.2.4
++      yargs-parser: 13.1.2
++
++  composeverter@1.7.5:
++    dependencies:
++      ajv: 8.20.0
++      ajv-errors: 3.0.0(ajv@8.20.0)
++      core-js: 2.6.12
++      yaml: 2.9.0
++
+   config-chain@1.1.13:
+     dependencies:
+       ini: 1.3.8
+       proto-list: 1.2.4
+ 
+   content-type@1.0.5: {}
+ 
+   convert-source-map@2.0.0: {}
+ 
++  core-js@2.6.12: {}
++
+   crelt@1.0.7: {}
+ 
+   cross-spawn@7.0.6:
+     dependencies:
+       path-key: 3.1.1
+       shebang-command: 2.0.0
+       which: 2.0.2
+ 
+   cssstyle@4.6.0:
+     dependencies:
+@@ -2764,22 +2865,26 @@ snapshots:
+   de-indent@1.0.2: {}
+ 
+   debug@3.1.0:
+     dependencies:
+       ms: 2.0.0
+ 
+   debug@4.4.3:
+     dependencies:
+       ms: 2.1.3
+ 
++  decamelize@1.2.0: {}
++
+   decimal.js@10.6.0: {}
+ 
++  deepmerge@2.2.1: {}
++
+   defu@6.1.7: {}
+ 
+   delayed-stream@1.0.0: {}
+ 
+   dunder-proto@1.0.1:
+     dependencies:
+       call-bind-apply-helpers: 1.0.2
+       es-errors: 1.3.0
+       gopd: 1.2.0
+ 
+@@ -2815,20 +2920,25 @@ snapshots:
+       - utf-8-validate
+ 
+   engine.io-parser@2.2.1:
+     dependencies:
+       after: 0.8.2
+       arraybuffer.slice: 0.0.7
+       base64-arraybuffer: 0.1.4
+       blob: 0.0.5
+       has-binary2: 1.0.3
+ 
++  enquirer@2.4.1:
++    dependencies:
++      ansi-colors: 4.1.3
++      strip-ansi: 6.0.1
++
+   entities@4.5.0: {}
+ 
+   entities@6.0.1: {}
+ 
+   entities@7.0.1: {}
+ 
+   es-define-property@1.0.1: {}
+ 
+   es-errors@1.3.0: {}
+ 
+@@ -2881,20 +2991,24 @@ snapshots:
+       '@types/estree': 1.0.9
+ 
+   event-target-shim@5.0.1: {}
+ 
+   events@3.3.0: {}
+ 
+   expect-type@1.4.0: {}
+ 
+   fake-indexeddb@6.2.5: {}
+ 
++  fast-deep-equal@3.1.3: {}
++
++  fast-uri@3.1.4: {}
++
+   fdir@6.5.0(picomatch@4.0.4):
+     optionalDependencies:
+       picomatch: 4.0.4
+ 
+   file-type@16.5.4:
+     dependencies:
+       readable-web-to-node-stream: 3.0.4
+       strtok3: 6.3.0
+       token-types: 4.2.1
+ 
+@@ -2995,20 +3109,24 @@ snapshots:
+   iconv-lite@0.6.3:
+     dependencies:
+       safer-buffer: 2.1.2
+ 
+   ieee754@1.2.1: {}
+ 
+   indexof@0.0.1: {}
+ 
+   ini@1.3.8: {}
+ 
++  invariant@2.2.4:
++    dependencies:
++      loose-envify: 1.4.0
++
+   is-fullwidth-code-point@3.0.0: {}
+ 
+   is-potential-custom-element-name@1.0.1: {}
+ 
+   is-stream@2.0.1: {}
+ 
+   isarray@2.0.1: {}
+ 
+   isexe@2.0.0: {}
+ 
+@@ -3023,20 +3141,22 @@ snapshots:
+   js-beautify@1.15.4:
+     dependencies:
+       config-chain: 1.1.13
+       editorconfig: 1.0.7
+       glob: 10.5.0
+       js-cookie: 3.0.8
+       nopt: 7.2.1
+ 
+   js-cookie@3.0.8: {}
+ 
++  js-tokens@4.0.0: {}
++
+   jsdom@24.1.3:
+     dependencies:
+       cssstyle: 4.6.0
+       data-urls: 5.0.0
+       decimal.js: 10.6.0
+       form-data: 4.0.6
+       html-encoding-sniffer: 4.0.0
+       http-proxy-agent: 7.0.2
+       https-proxy-agent: 7.0.6
+       is-potential-custom-element-name: 1.0.1
+@@ -3051,20 +3171,22 @@ snapshots:
+       whatwg-encoding: 3.1.1
+       whatwg-mimetype: 4.0.0
+       whatwg-url: 14.2.0
+       ws: 8.21.0
+       xml-name-validator: 5.0.0
+     transitivePeerDependencies:
+       - bufferutil
+       - supports-color
+       - utf-8-validate
+ 
++  json-schema-traverse@1.0.0: {}
++
+   kind-of@6.0.3: {}
+ 
+   linkify-it@5.0.2:
+     dependencies:
+       uc.micro: 2.1.0
+ 
+   lodash._baseiteratee@4.7.0:
+     dependencies:
+       lodash._stringtopath: 4.8.0
+ 
+@@ -3083,20 +3205,24 @@ snapshots:
+     dependencies:
+       lodash._basetostring: 4.12.0
+ 
+   lodash.throttle@4.1.1: {}
+ 
+   lodash.uniqby@4.5.0:
+     dependencies:
+       lodash._baseiteratee: 4.7.0
+       lodash._baseuniq: 4.6.0
+ 
++  loose-envify@1.4.0:
++    dependencies:
++      js-tokens: 4.0.0
++
+   lottie-web@5.13.0: {}
+ 
+   lru-cache@10.4.3: {}
+ 
+   magic-string@0.30.21:
+     dependencies:
+       '@jridgewell/sourcemap-codec': 1.5.5
+ 
+   markdown-it@14.3.0:
+     dependencies:
+@@ -3261,20 +3387,22 @@ snapshots:
+       '@tanstack/vue-virtual': 3.13.31(vue@3.5.39(typescript@5.9.3))
+       '@vueuse/core': 14.3.0(vue@3.5.39(typescript@5.9.3))
+       '@vueuse/shared': 14.3.0(vue@3.5.39(typescript@5.9.3))
+       aria-hidden: 1.2.6
+       defu: 6.1.7
+       ohash: 2.0.11
+       vue: 3.5.39(typescript@5.9.3)
+     transitivePeerDependencies:
+       - '@vue/composition-api'
+ 
++  require-from-string@2.0.2: {}
++
+   requires-port@1.0.0: {}
+ 
+   retry@0.12.0: {}
+ 
+   rollup@4.62.2:
+     dependencies:
+       '@types/estree': 1.0.9
+     optionalDependencies:
+       '@rollup/rollup-android-arm-eabi': 4.62.2
+       '@rollup/rollup-android-arm64': 4.62.2
+@@ -3568,11 +3696,16 @@ snapshots:
+   ws@8.21.0: {}
+ 
+   xml-name-validator@5.0.0: {}
+ 
+   xmlchars@2.2.0: {}
+ 
+   xmlhttprequest-ssl@1.6.3: {}
+ 
+   yaml@2.9.0: {}
+ 
++  yargs-parser@13.1.2:
++    dependencies:
++      camelcase: 5.3.1
++      decamelize: 1.2.0
++
+   yeast@0.1.2: {}
+diff --git a/src/apps/components/AppsSidebar.test.ts b/src/apps/components/AppsSidebar.test.ts
+index b1e5f2f..6684c2a 100644
+--- a/src/apps/components/AppsSidebar.test.ts
++++ b/src/apps/components/AppsSidebar.test.ts
+@@ -29,18 +29,33 @@ describe('AppsSidebar', () => {
+     expect(item.classes()).toContain('active')
+     await w.get('.side-home-btn').trigger('click')
+     expect(push).toHaveBeenCalledWith('/')
+   })
+ 
+   it('商店导航项存在;详情路由也高亮商店项(startsWith)', async () => {
+     routeState.name = 'apps-store-detail'
+     routeState.fullPath = '/apps/store/jellyfin'
+     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
+     const items = w.findAll('.side-item')
+-    expect(items).toHaveLength(2)
++    expect(items).toHaveLength(3)
+     expect(items[1].text()).toContain('应用商店')
+     expect(items[1].classes()).toContain('active')
+     expect(items[0].classes()).not.toContain('active')
++    expect(items[2].classes()).not.toContain('active')
+     await items[1].trigger('click')
+     expect(push).toHaveBeenCalledWith('/apps/store')
+   })
++
++  it('自定义安装导航项存在,当前路由为其前缀时高亮并可跳转', async () => {
++    routeState.name = 'apps-custom'
++    routeState.fullPath = '/apps/custom'
++    const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
++    const items = w.findAll('.side-item')
++    expect(items).toHaveLength(3)
++    expect(items[2].text()).toContain('自定义安装')
++    expect(items[2].classes()).toContain('active')
++    expect(items[0].classes()).not.toContain('active')
++    expect(items[1].classes()).not.toContain('active')
++    await items[2].trigger('click')
++    expect(push).toHaveBeenCalledWith('/apps/custom')
++  })
+ })
+diff --git a/src/apps/components/AppsSidebar.vue b/src/apps/components/AppsSidebar.vue
+index 17dc882..1cd530e 100644
+--- a/src/apps/components/AppsSidebar.vue
++++ b/src/apps/components/AppsSidebar.vue
+@@ -14,30 +14,33 @@ const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
+ // 路由变化后抽屉自动收起;桌面态 close 是 no-op
+ watch(() => route.fullPath, () => closeDrawer())
+ 
+ function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
+ watch(drawerOpen, (o) => {
+   if (o) document.addEventListener('keydown', onDrawerKeydown)
+   else document.removeEventListener('keydown', onDrawerKeydown)
+ })
+ onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
+ 
+-// P5/P7 增补:自定义 /apps/custom、源 /apps/sources
++// P7 增补:源 /apps/sources
+ const nav = [
+   { name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' },
+   { name: 'apps-store', labelKey: 'appsNavStore', to: '/apps/store' },
++  { name: 'apps-custom', labelKey: 'appsNavCustom', to: '/apps/custom' },
+ ]
+ 
+-/** 商店详情(apps-store-detail)也高亮「应用商店」——子路由归属父导航项 */
++/** 商店详情(apps-store-detail)也高亮「应用商店」;自定义安装同款前缀匹配预留给未来子路由——子路由归属父导航项 */
+ function isActive(n: { name: string }): boolean {
+   const cur = String(route.name ?? '')
+-  return n.name === 'apps-store' ? cur.startsWith('apps-store') : cur === n.name
++  if (n.name === 'apps-store') return cur.startsWith('apps-store')
++  if (n.name === 'apps-custom') return cur.startsWith('apps-custom')
++  return cur === n.name
+ }
+ </script>
+ 
+ <template>
+   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
+   <aside class="apps-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+     <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏走顶栏,抽屉内不重复 -->
+     <div v-if="!isNarrow" class="side-top">
+       <h1 class="side-app-title">{{ t('appsTitle') }}</h1>
+       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('areaBackHome') }}</button>
+diff --git a/src/apps/components/custom/YamlEditor.test.ts b/src/apps/components/custom/YamlEditor.test.ts
+new file mode 100644
+index 0000000..e5e6c06
+--- /dev/null
++++ b/src/apps/components/custom/YamlEditor.test.ts
+@@ -0,0 +1,62 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { EditorView } from '@codemirror/view'
++import YamlEditor from './YamlEditor.vue'
++
++// CM6 in jsdom: mounting、doc content 与 dispatch→updateListener 全部真的跑(手工探针验证过,
++// 非 mock)。唯独"用户真实敲键盘"在 jsdom 里无法可靠模拟(依赖浏览器原生 contenteditable/IME 事件),
++// 所以"文档变化→emit"这条走 EditorView.findFromDOM(公开 CM6 API,不是 hack)拿到真实 view 实例,
++// 用 view.dispatch() 制造一次真实的文档变更事务——这就是组件对外契约(修改文档→emit)的忠实模拟,
++// 只是换了个"敲键盘"的入口而已,不是绕过组件逻辑。
++function mountEditor(modelValue: string) {
++  return mount(YamlEditor, { props: { modelValue }, attachTo: document.body })
++}
++
++describe('YamlEditor', () => {
++  it('挂载时用 modelValue 初始化 CM6 文档内容', () => {
++    const w = mountEditor('services:\n  a:\n    image: foo\n')
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)
++    expect(view).not.toBeNull()
++    expect(view!.state.doc.toString()).toBe('services:\n  a:\n    image: foo\n')
++    w.unmount()
++  })
++
++  it('文档变化(view.dispatch 制造的真实事务)→ emit update:modelValue', async () => {
++    const w = mountEditor('a: 1')
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)!
++    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'b: 2' } })
++    await nextTick()
++    const emitted = w.emitted('update:modelValue')
++    expect(emitted).toBeTruthy()
++    expect(emitted![emitted!.length - 1]).toEqual(['b: 2'])
++    w.unmount()
++  })
++
++  it('外部 modelValue 变化(如 tab2 转换写入)同步进编辑器', async () => {
++    const w = mountEditor('a: 1')
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    await w.setProps({ modelValue: 'name: converted\nservices: {}\n' })
++    await nextTick()
++    const view = EditorView.findFromDOM(host)!
++    expect(view.state.doc.toString()).toBe('name: converted\nservices: {}\n')
++    w.unmount()
++  })
++
++  it('回填相同内容不触发反馈环(setProps 用当前文档同值不 dispatch,不产生多余 emit)', async () => {
++    const w = mountEditor('a: 1')
++    await w.setProps({ modelValue: 'a: 1' }) // 与当前文档一致
++    await nextTick()
++    expect(w.emitted('update:modelValue')).toBeFalsy()
++    w.unmount()
++  })
++
++  it('销毁时清理 EditorView(卸载后 findFromDOM 拿不到实例)', () => {
++    const w = mountEditor('a: 1')
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    w.unmount()
++    expect(EditorView.findFromDOM(host)).toBeNull()
++  })
++})
+diff --git a/src/apps/components/custom/YamlEditor.vue b/src/apps/components/custom/YamlEditor.vue
+new file mode 100644
+index 0000000..579a4e7
+--- /dev/null
++++ b/src/apps/components/custom/YamlEditor.vue
+@@ -0,0 +1,60 @@
++<script setup lang="ts">
++import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
++import { EditorState, type Extension } from '@codemirror/state'
++import { EditorView, keymap } from '@codemirror/view'
++import { basicSetup } from 'codemirror'
++import { indentWithTab } from '@codemirror/commands'
++import { monokai } from '@uiw/codemirror-theme-monokai'
++import { yaml } from '@codemirror/lang-yaml'
++
++// 照 CodeViewer.vue(files/viewers/CodeViewer.vue:87-97)的 CM6 构建模式——不做通用抽取回填
++// CodeViewer(extract-not-predict,defer)。
++const props = defineProps<{ modelValue: string }>()
++const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
++
++const host = ref<HTMLElement | null>(null)
++let view: EditorView | null = null
++// 组件在异步场景下可能已被卸载(与 CodeViewer 同款防御,这里同步构造用不上但保持习惯一致)
++let disposed = false
++
++onMounted(() => {
++  if (disposed) return
++  const exts: Extension[] = [
++    basicSetup,
++    monokai,
++    yaml(),
++    keymap.of([indentWithTab]),
++    EditorView.updateListener.of((u) => {
++      if (u.docChanged) emit('update:modelValue', u.state.doc.toString())
++    }),
++  ]
++  view = new EditorView({
++    state: EditorState.create({ doc: props.modelValue, extensions: exts }),
++    parent: host.value!,
++  })
++})
++
++// 外部 modelValue 变化(如 tab2 转换写入)需要同步进编辑器——但只在真的不同于当前文档时才
++// dispatch,否则用户敲字触发的 emit 经父组件 v-model 回写会被这个 watch 反过来再 setState 一次,
++// 形成反馈环(且会打断光标位置/撤销栈)。
++watch(() => props.modelValue, (v) => {
++  if (!view) return
++  if (v === view.state.doc.toString()) return
++  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } })
++})
++
++onBeforeUnmount(() => {
++  disposed = true
++  view?.destroy()
++  view = null
++})
++</script>
++
++<template>
++  <div ref="host" class="yaml-editor" data-test="yaml-editor"></div>
++</template>
++
++<style scoped>
++.yaml-editor { width: 100%; height: 100%; overflow: auto; border-radius: var(--radius); border: 1px solid var(--card-border); }
++.yaml-editor :deep(.cm-editor) { height: 100%; }
++</style>
+diff --git a/src/apps/components/settings/ComposeSettingsForm.test.ts b/src/apps/components/settings/ComposeSettingsForm.test.ts
+index c075b82..6748bea 100644
+--- a/src/apps/components/settings/ComposeSettingsForm.test.ts
++++ b/src/apps/components/settings/ComposeSettingsForm.test.ts
+@@ -46,11 +46,62 @@ describe('ComposeSettingsForm', () => {
+     await w.find('[data-test="tips-preview-btn"]').trigger('click')
+     expect(w.find('[data-test="tips-preview"]').html()).toContain('<h1>')
+   })
+   it('memory input empty -> null, number -> MB', async () => {
+     const { w, model } = mk()
+     await w.find('[data-test="svc-memory"]').setValue('512')
+     expect(model.services[0].memoryMB).toBe(512)
+     await w.find('[data-test="svc-memory"]').setValue('')
+     expect(model.services[0].memoryMB).toBeNull()
+   })
++  it('command 编辑器:加/删 token 置 commandDirty', async () => {
++    const { w, model } = mk()
++    expect(model.services[0].commandDirty).toBe(false)
++    await w.find('[data-test="cmd-add"]').trigger('click')
++    expect(model.services[0].commandTokens).toEqual([''])
++    expect(model.services[0].commandDirty).toBe(true)
++    await w.find('[data-test="cmd-input"]').setValue('redis-server')
++    expect(model.services[0].commandTokens).toEqual(['redis-server'])
++    model.services[0].commandDirty = false // 复位再验证删除也置 dirty
++    await w.find('[data-test="cmd-del"]').trigger('click')
++    expect(model.services[0].commandTokens).toEqual([])
++    expect(model.services[0].commandDirty).toBe(true)
++  })
++  it('networks prop 渲染下拉且按 driver 分组,选择置 networkDirty', async () => {
++    const model = reactive(parseSettings(YAML2, 'zh_cn'))
++    const w = mount(ComposeSettingsForm, {
++      props: {
++        model,
++        networks: [
++          { name: 'bridge', driver: 'bridge', id: '1' },
++          { name: 'host', driver: 'host', id: '2' },
++          { name: 'mynet', driver: 'bridge', id: '3' },
++          { name: 'vlan1', driver: 'macvlan', id: '4' },
++        ],
++      },
++      global: { plugins: [i18n] },
++    })
++    const select = w.find('[data-test="svc-network"]')
++    expect(select.exists()).toBe(true)
++    const groups = select.findAll('optgroup')
++    expect(groups.length).toBeGreaterThan(0)
++    expect(select.html()).toContain('mynet')
++    expect(select.html()).toContain('vlan1')
++    await select.setValue('host')
++    expect(model.services[0].network).toBe('host')
++    expect(model.services[0].networkDirty).toBe(true)
++  })
++  it('stableTags 有值时 tag 下拉出现,选 stable 改写 image tag;非商店应用(null)不渲染', async () => {
++    const model = reactive(parseSettings(YAML2, 'zh_cn'))
++    const w = mount(ComposeSettingsForm, {
++      props: { model, stableTags: { a: '1.2.3', b: null } },
++      global: { plugins: [i18n] },
++    })
++    const tagSelect = w.find('[data-test="tag-select"]')
++    expect(tagSelect.exists()).toBe(true)
++    expect(tagSelect.html()).toContain('1.2.3')
++    await tagSelect.setValue('stable')
++    expect(model.services[0].image).toBe('img/a:1.2.3')
++    await w.findAll('[data-test="svc-tab"]')[1].trigger('click')
++    expect(w.find('[data-test="tag-select"]').exists()).toBe(false)
++  })
+ })
+diff --git a/src/apps/components/settings/ComposeSettingsForm.vue b/src/apps/components/settings/ComposeSettingsForm.vue
+index f08945b..13b17be 100644
+--- a/src/apps/components/settings/ComposeSettingsForm.vue
++++ b/src/apps/components/settings/ComposeSettingsForm.vue
+@@ -1,33 +1,78 @@
+ <script setup lang="ts">
+ import { ref, computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
++import type { DockerNetwork } from '@nimotech/nimoos-service'
+ import type { SettingsModel } from '../../util/composeSettings'
+-import { RESTART_OPTIONS, CPU_OPTIONS, CAP_OPTIONS } from '../../util/composeSettings'
++import { RESTART_OPTIONS, CPU_OPTIONS, CAP_OPTIONS, rewriteImageTag } from '../../util/composeSettings'
+ import { renderMarkdown } from '../../../files/viewers/renderMarkdown'
+ import PairRowsEditor from './PairRowsEditor.vue'
+ import PortsEditor from './PortsEditor.vue'
+ 
+-const props = defineProps<{ model: SettingsModel; conflicts?: string[] }>()
++const props = defineProps<{
++  model: SettingsModel; conflicts?: string[]
++  networks?: DockerNetwork[]
++  stableTags?: Record<string, string | null>
++}>()
+ const { t } = useI18n()
+ 
++const NETWORK_MODE_VALUES = ['bridge', 'host', 'none']
++
+ const cur = ref(0)
+ const svc = computed(() => props.model.services[cur.value])
+ const showPreview = ref(false)
+ const tipsHtml = computed(() => renderMarkdown(props.model.tipsCustom))
+ 
+ const memoryStr = computed({
+   get: () => (svc.value.memoryMB == null ? '' : String(svc.value.memoryMB)),
+   set: (v: string) => { const n = parseInt(v, 10); svc.value.memoryMB = Number.isFinite(n) && n > 0 ? n : null },
+ })
+ 
+ const publishedPorts = computed(() => props.model.services.flatMap((s) => s.ports.map((p) => p.published)).filter(Boolean))
++
++// ── D5: command 逐 token 编辑 ──
++function addCmd() { svc.value.commandTokens.push(''); svc.value.commandDirty = true }
++function delCmd(i: number) { svc.value.commandTokens.splice(i, 1); svc.value.commandDirty = true }
++function setCmd(i: number, ev: Event) { svc.value.commandTokens[i] = (ev.target as HTMLInputElement).value; svc.value.commandDirty = true }
++
++// ── D5: 网络下拉,按 driver 分组,bridge/host/none 置顶 ──
++const networkGroups = computed(() => {
++  const groups = new Map<string, DockerNetwork[]>()
++  for (const n of props.networks ?? []) {
++    if (NETWORK_MODE_VALUES.includes(n.name)) continue // 默认网络已固定置顶,不重复列出
++    if (!groups.has(n.driver)) groups.set(n.driver, [])
++    groups.get(n.driver)!.push(n)
++  }
++  return [...groups.entries()].map(([driver, nets]) => ({ driver, nets }))
++})
++function onNetworkChange() { svc.value.networkDirty = true }
++
++// ── D5: stable tag 下拉,贴在 image 输入框旁 ──
++const currentStableTag = computed(() => props.stableTags?.[svc.value.name] ?? null)
++function imageTagOf(image: string): string {
++  const i = image.lastIndexOf(':')
++  if (i < 0) return ''
++  const after = image.slice(i + 1)
++  return after.includes('/') ? '' : after
++}
++const tagSelect = computed<string>({
++  get: () => {
++    const cur = imageTagOf(svc.value.image)
++    if (currentStableTag.value && cur === currentStableTag.value) return 'stable'
++    if (cur === 'latest') return 'latest'
++    return ''
++  },
++  set: (v: string) => {
++    if (v === 'latest') svc.value.image = rewriteImageTag(svc.value.image, 'latest')
++    else if (v === 'stable' && currentStableTag.value) svc.value.image = rewriteImageTag(svc.value.image, currentStableTag.value)
++  },
++})
+ </script>
+ 
+ <template>
+   <div class="settings-form">
+     <div v-if="model.services.length > 1" class="svc-tabs">
+       <button
+         v-for="(s, i) in model.services" :key="s.name" type="button"
+         class="svc-tab" :class="{ on: i === cur }" data-test="svc-tab" @click="cur = i"
+       >{{ s.name }}</button>
+     </div>
+@@ -42,39 +87,69 @@ const publishedPorts = computed(() => props.model.services.flatMap((s) => s.port
+         </label>
+         <label>{{ t('appsSettingsHostname') }}<input v-model="model.webui.hostname" class="set-input" :placeholder="t('appsSettingsHostnamePh')" /></label>
+         <label>{{ t('appsSettingsWebPort') }}<input v-model="model.webui.portMap" class="set-input" data-test="webui-port" list="webui-ports" /></label>
+         <label>{{ t('appsSettingsIndex') }}<input v-model="model.webui.index" class="set-input" /></label>
+       </div>
+       <datalist id="webui-ports"><option v-for="p in publishedPorts" :key="p" :value="p" /></datalist>
+     </section>
+ 
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionPorts') }}</h3>
+-      <PortsEditor :rows="svc.ports" :conflicts="conflicts" />
++      <PortsEditor :rows="svc.ports" :conflicts="conflicts" :extras="svc.portsExtra" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionEnv') }}</h3>
+       <PairRowsEditor :rows="svc.environment" :label-a="t('appsSettingsKey')" :label-b="t('appsSettingsValue')" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionVolumes') }}</h3>
+       <PairRowsEditor :rows="svc.volumes" :label-a="t('appsSettingsVolHost')" :label-b="t('appsSettingsVolContainer')" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionDevices') }}</h3>
+       <PairRowsEditor :rows="svc.devices" :label-a="t('appsSettingsDevHost')" :label-b="t('appsSettingsDevContainer')" />
+     </section>
++    <section class="set-section">
++      <h3>{{ t('appsSettingsCommand') }}</h3>
++      <div class="pair-editor">
++        <div v-for="(tok, i) in svc.commandTokens" :key="i" class="cmd-row">
++          <input :value="tok" class="set-input" type="text" data-test="cmd-input" @input="setCmd(i, $event)" />
++          <button class="row-del" type="button" data-test="cmd-del" :aria-label="t('appsSettingsRemove')" @click="delCmd(i)">✕</button>
++        </div>
++        <button class="row-add" type="button" data-test="cmd-add" @click="addCmd">+ {{ t('appsSettingsAdd') }}</button>
++      </div>
++    </section>
++    <section class="set-section">
++      <h3>{{ t('appsSettingsNetwork') }}</h3>
++      <select v-model="svc.network" class="set-input" data-test="svc-network" @change="onNetworkChange">
++        <option value="">—</option>
++        <option value="bridge">bridge</option>
++        <option value="host">host</option>
++        <option value="none">none</option>
++        <optgroup v-for="g in networkGroups" :key="g.driver" :label="g.driver">
++          <option v-for="n in g.nets" :key="n.id" :value="n.name">{{ n.name }}</option>
++        </optgroup>
++      </select>
++    </section>
+ 
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionAdvanced') }}</h3>
+       <div class="set-grid">
+-        <label>{{ t('appsSettingsImage') }}<input v-model="svc.image" class="set-input" data-test="svc-image" /></label>
++        <label>{{ t('appsSettingsImage') }}
++          <div class="image-row">
++            <input v-model="svc.image" class="set-input" data-test="svc-image" />
++            <select v-if="currentStableTag != null" v-model="tagSelect" class="set-input tag-select" data-test="tag-select">
++              <option value="latest">{{ t('appsSettingsTagLatest') }}</option>
++              <option value="stable">{{ t('appsSettingsTagStable') }} ({{ currentStableTag }})</option>
++            </select>
++          </div>
++        </label>
+         <label>{{ t('appsSettingsContainerName') }}<input v-model="svc.containerName" class="set-input" /></label>
+         <label>{{ t('appsSettingsRestart') }}
+           <select v-model="svc.restart" class="set-input"><option v-for="r in RESTART_OPTIONS" :key="r" :value="r">{{ r }}</option></select>
+         </label>
+         <label>{{ t('appsSettingsMemory') }}<input v-model="memoryStr" class="set-input" data-test="svc-memory" type="text" inputmode="numeric" :placeholder="t('appsSettingsMemoryPh')" /></label>
+         <label>{{ t('appsSettingsCpu') }}
+           <select v-model.number="svc.cpuShares" class="set-input"><option v-for="c in CPU_OPTIONS" :key="c.value" :value="c.value">{{ t(c.labelKey) }}</option></select>
+         </label>
+         <label class="set-check"><input v-model="svc.privileged" type="checkbox" />{{ t('appsSettingsPrivileged') }}</label>
+       </div>
+@@ -120,23 +195,32 @@ const publishedPorts = computed(() => props.model.services.flatMap((s) => s.port
+ .set-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+ .set-check { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 13px !important; color: var(--fg) !important; }
+ 
+ .set-input {
+   width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 13px;
+   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
+ }
+ .set-input:focus { border-color: var(--accent); }
+ .tips-area { resize: vertical; font-family: inherit; }
+ 
++.pair-editor { display: flex; flex-direction: column; gap: 8px; }
++.cmd-row { display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: center; }
++
++.image-row { display: flex; gap: 8px; }
++.image-row .set-input { flex: 1 1 auto; min-width: 0; }
++.tag-select { flex: 0 0 auto; width: auto; }
++
+ .row-add { padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
+ .row-add:hover { background: var(--chip-bg-hi); }
+ .row-add.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-bd); }
++.row-del { width: 28px; height: 28px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--fg-muted); }
++.row-del:hover { background: var(--chip-bg-hi); color: var(--remove-fg); }
+ 
+ .tips-toolbar { display: flex; gap: 8px; }
+ 
+ .cap-details { color: var(--fg); }
+ .cap-details summary { cursor: pointer; font-size: 13px; color: var(--fg-muted); }
+ .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-top: 8px; }
+ 
+ .tips-preview { font-size: 13px; line-height: 1.7; color: var(--fg); overflow-wrap: anywhere; }
+ .tips-preview :deep(a) { color: var(--accent); }
+ .tips-preview :deep(img) { max-width: 100%; }
+diff --git a/src/apps/components/settings/PortsEditor.test.ts b/src/apps/components/settings/PortsEditor.test.ts
+index 39f844e..81d635d 100644
+--- a/src/apps/components/settings/PortsEditor.test.ts
++++ b/src/apps/components/settings/PortsEditor.test.ts
+@@ -17,11 +17,22 @@ describe('PortsEditor', () => {
+     expect(items[0].classes()).toContain('conflict')
+     expect(items[1].classes()).not.toContain('conflict')
+   })
+   it('add/remove rows mutates array', async () => {
+     const rows: Array<{ published: string; target: string; protocol: 'tcp' | 'udp' }> = []
+     const w = mount(PortsEditor, { props: { rows }, global: { plugins: [i18n] } })
+     await w.find('[data-test="port-add"]').trigger('click')
+     expect(rows).toHaveLength(1)
+     expect(rows[0].protocol).toBe('tcp')
+   })
++  it('extras 只读展示,不产生输入框', () => {
++    const w = mount(PortsEditor, {
++      props: { rows: [], extras: ['25500-25600:25500-25600', { target: 19132, published: '19132-19140', protocol: 'udp' }] },
++      global: { plugins: [i18n] },
++    })
++    const chips = w.findAll('[data-test="port-extra"]')
++    expect(chips).toHaveLength(2)
++    expect(chips[0].text()).toContain('25500-25600:25500-25600')
++    expect(chips[1].text()).toContain('19132-19140')
++    expect(chips[0].find('input').exists()).toBe(false)
++  })
+ })
+diff --git a/src/apps/components/settings/PortsEditor.vue b/src/apps/components/settings/PortsEditor.vue
+index 2f2cba5..7df66f6 100644
+--- a/src/apps/components/settings/PortsEditor.vue
++++ b/src/apps/components/settings/PortsEditor.vue
+@@ -1,38 +1,50 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ import type { PortRow } from '../../util/composeSettings'
+-const props = defineProps<{ rows: PortRow[]; conflicts?: string[] }>()
++const props = defineProps<{ rows: PortRow[]; conflicts?: string[]; extras?: unknown[] }>()
+ const { t } = useI18n()
+ function isConflict(r: PortRow) { return (props.conflicts ?? []).includes(`${r.published}/${r.protocol}`) }
+ function add() { props.rows.push({ published: '', target: '', protocol: 'tcp' }) }
+ function del(i: number) { props.rows.splice(i, 1) }
++function extraLabel(e: unknown): string {
++  if (typeof e !== 'object' || e === null) return String(e)
++  const o = e as Record<string, unknown>
++  return `${o.published ?? ''}:${o.target ?? ''}${o.protocol ? '/' + o.protocol : ''}`
++}
+ </script>
+ 
+ <template>
+   <div class="pair-editor">
+     <div class="port-head"><span>{{ t('appsSettingsPortHost') }}</span><span>{{ t('appsSettingsPortContainer') }}</span><span>{{ t('appsSettingsPortProtocol') }}</span><span /></div>
+     <div v-for="(r, i) in rows" :key="i" class="port-row" :class="{ conflict: isConflict(r) }" data-test="port-row">
+       <input v-model="r.published" class="set-input" type="text" inputmode="numeric" />
+       <input v-model="r.target" class="set-input" type="text" inputmode="numeric" />
+       <select v-model="r.protocol" class="set-input"><option value="tcp">TCP</option><option value="udp">UDP</option></select>
+       <button class="row-del" type="button" :aria-label="t('appsSettingsRemove')" @click="del(i)">✕</button>
+     </div>
+     <button class="row-add" type="button" data-test="port-add" @click="add">+ {{ t('appsSettingsAdd') }}</button>
++    <div v-if="extras?.length" class="extra-box">
++      <div class="extra-note">{{ t('appsSettingsPortExtraNote') }}</div>
++      <span v-for="(e, i) in extras" :key="i" class="extra-chip" data-test="port-extra">{{ extraLabel(e) }}</span>
++    </div>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .pair-editor { display: flex; flex-direction: column; gap: 8px; }
+ .port-head, .port-row { display: grid; grid-template-columns: 1fr 1fr 88px 28px; gap: 8px; align-items: center; }
+ .port-head { font-size: 11px; color: var(--fg-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+ .set-input {
+   width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 13px;
+   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
+ }
+ .set-input:focus { border-color: var(--accent); }
+ .port-row.conflict .set-input { border-color: var(--remove-fg); }
+ .row-del { width: 28px; height: 28px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--fg-muted); }
+ .row-del:hover { background: var(--chip-bg-hi); color: var(--remove-fg); }
+ .row-add { align-self: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
+ .row-add:hover { background: var(--chip-bg-hi); }
++.extra-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--card-border); }
++.extra-note { font-size: 11px; color: var(--fg-muted); }
++.extra-chip { display: inline-block; margin: 2px 6px 0 0; padding: 4px 10px; font-size: 12px; color: var(--fg); background: var(--chip-bg); border: 1px dashed var(--card-border); border-radius: 9px; }
+ </style>
+diff --git a/src/apps/composables/useCustomInstall.test.ts b/src/apps/composables/useCustomInstall.test.ts
+new file mode 100644
+index 0000000..f7411e2
+--- /dev/null
++++ b/src/apps/composables/useCustomInstall.test.ts
+@@ -0,0 +1,151 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { defineComponent } from 'vue'
++import { createPinia, setActivePinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  compose: { install: vi.fn(), list: vi.fn().mockResolvedValue({}), get: vi.fn() },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: vi.fn(() => () => {}) }) }))
++
++import { useCustomInstall } from './useCustomInstall'
++import { useInstallProgressStore } from '../stores/installProgress'
++import { useInstalledAppsStore } from '../stores/installedApps'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++// composable 依赖 useI18n → 必须在组件 setup 内调用(仓内惯例,同 useInstallFlow.test.ts)
++function mountFlow() {
++  let flow!: ReturnType<typeof useCustomInstall>
++  mount(defineComponent({ setup() { flow = useCustomInstall(); return () => null } }), {
++    global: { plugins: [i18n] },
++  })
++  return flow
++}
++
++const NAMELESS = 'services:\n  sonarr:\n    image: linuxserver/sonarr:latest\n'
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  localStorage.clear() // installProgress 任务表落盘,不清会跨用例恢复出上个用例的任务
++  svc.compose.install.mockReset().mockResolvedValue(undefined)
++})
++
++describe('useCustomInstall.installYaml', () => {
++  it('无 name YAML 自动得名并 track(icon 取 ensureComposeMeta 注入的 x-nimoos.icon)', async () => {
++    const flow = mountFlow()
++    const progress = useInstallProgressStore()
++    const res = await flow.installYaml(NAMELESS)
++    expect(res).toEqual({ ok: true, name: 'sonarr' })
++    expect(progress.tasks['sonarr']).toMatchObject({
++      title: 'sonarr',
++      icon: 'https://icon.nimoos.io/main/all/sonarr.png',
++      state: 'installing',
++    })
++  })
++
++  it('成功链:dry_run → install → track 顺序', async () => {
++    const flow = mountFlow()
++    const progress = useInstallProgressStore()
++    await flow.installYaml(NAMELESS)
++    expect(svc.compose.install).toHaveBeenNthCalledWith(1, expect.stringContaining('sonarr'), { dryRun: true, checkPortConflict: true })
++    expect(svc.compose.install).toHaveBeenNthCalledWith(2, expect.stringContaining('sonarr'), { checkPortConflict: true })
++    expect(progress.tasks['sonarr']).toBeDefined()
++  })
++
++  it('同名已装(D4)→ ok:false 提示改名,不发任何 install 调用', async () => {
++    const flow = mountFlow()
++    const installed = useInstalledAppsStore()
++    installed.apps = [{ id: 'sonarr', title: 'Sonarr', icon: '', status: 'running', updateAvailable: false, isUncontrolled: false, webUrl: null }]
++    const res = await flow.installYaml(NAMELESS)
++    expect(res.ok).toBe(false)
++    expect(svc.compose.install).not.toHaveBeenCalled()
++    expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
++  })
++
++  it('深链空 store → refresh 补拉 → D4 同名检出(回归测试:防深链绕过守卫)', async () => {
++    // store 初始空,refresh 会拉已装列表;这防止深链 /apps/custom 时 store 未初始化导致名冲突守卫失效
++    svc.compose.list.mockResolvedValueOnce({
++      sonarr: { store_info: {}, status: 'running' },
++    })
++    const flow = mountFlow()
++    const installed = useInstalledAppsStore()
++    // 验证初始确实为空
++    expect(installed.apps).toEqual([])
++    const res = await flow.installYaml(NAMELESS)
++    // refresh 被 installYaml 触发,补拉列表后检出冲突
++    expect(res.ok).toBe(false)
++    expect(svc.compose.install).not.toHaveBeenCalled()
++    expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
++  })
++
++  it('YAML 解析失败 → ok:false,不发 install', async () => {
++    const flow = mountFlow()
++    const res = await flow.installYaml(': not: valid: yaml: [')
++    expect(res.ok).toBe(false)
++    expect(svc.compose.install).not.toHaveBeenCalled()
++  })
++
++  it('dry_run 400 端口冲突 → ok:false,ports 归一化(parseInstallError 同款 port/proto)', async () => {
++    svc.compose.install.mockRejectedValueOnce({
++      response: { data: { message: 'conflict', data: { ports_in_use: { tcp: [8080] } } } },
++    })
++    const flow = mountFlow()
++    const res = await flow.installYaml(NAMELESS)
++    expect(res.ok).toBe(false)
++    if (!res.ok) {
++      expect(res.ports).toEqual(['8080/tcp'])
++      expect(res.message).toBe('conflict')
++    }
++    expect(svc.compose.install).toHaveBeenCalledTimes(1) // dry_run 挂了,真装不发
++    expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
++  })
++
++  it('真装(第二次 install)失败 → ok:false,不 track', async () => {
++    svc.compose.install
++      .mockResolvedValueOnce(undefined) // dry_run 过
++      .mockRejectedValueOnce({ response: { data: { message: 'boom' } } }) // 真装挂
++    const flow = mountFlow()
++    const res = await flow.installYaml(NAMELESS)
++    expect(res.ok).toBe(false)
++    expect(useInstallProgressStore().tasks['sonarr']).toBeUndefined()
++  })
++})
++
++describe('useCustomInstall.validateYaml', () => {
++  it('成功 → ok:true,不发真装(只 dry_run)', async () => {
++    const flow = mountFlow()
++    const res = await flow.validateYaml(NAMELESS)
++    expect(res).toEqual({ ok: true })
++    expect(svc.compose.install).toHaveBeenCalledTimes(1)
++    expect(svc.compose.install).toHaveBeenCalledWith(expect.stringContaining('sonarr'), { dryRun: true, checkPortConflict: true })
++  })
++
++  it('YAML 解析失败 → ok:false,不发 dry_run', async () => {
++    const flow = mountFlow()
++    const res = await flow.validateYaml('not a yaml doc: [')
++    expect(res.ok).toBe(false)
++    expect(svc.compose.install).not.toHaveBeenCalled()
++  })
++
++  it('dry_run 400 → ok:false + ports', async () => {
++    svc.compose.install.mockRejectedValueOnce({
++      response: { data: { message: 'conflict', data: { ports_in_use: { tcp: [80] } } } },
++    })
++    const flow = mountFlow()
++    const res = await flow.validateYaml(NAMELESS)
++    expect(res.ok).toBe(false)
++    if (!res.ok) expect(res.ports).toEqual(['80/tcp'])
++  })
++
++  it('同名已装 —— validateYaml 不做 D4 硬挡(只做①+③,校验通过不代表能装)', async () => {
++    const flow = mountFlow()
++    const installed = useInstalledAppsStore()
++    installed.apps = [{ id: 'sonarr', title: 'Sonarr', icon: '', status: 'running', updateAvailable: false, isUncontrolled: false, webUrl: null }]
++    const res = await flow.validateYaml(NAMELESS)
++    expect(res).toEqual({ ok: true })
++  })
++})
+diff --git a/src/apps/composables/useCustomInstall.ts b/src/apps/composables/useCustomInstall.ts
+new file mode 100644
+index 0000000..1c7b80e
+--- /dev/null
++++ b/src/apps/composables/useCustomInstall.ts
+@@ -0,0 +1,84 @@
++import { useI18n } from 'vue-i18n'
++import YAML from 'yaml'
++import { service } from '@nimotech/nimoos-service'
++import { useInstalledAppsStore } from '../stores/installedApps'
++import { useInstallProgressStore } from '../stores/installProgress'
++import { ensureComposeMeta } from '../util/importNormalize'
++import { parseInstallError } from './useInstallFlow'
++
++export type CustomInstallResult =
++  | { ok: true; name: string }
++  | { ok: false; message: string; ports?: string[] }
++
++export type CustomValidateResult =
++  | { ok: true }
++  | { ok: false; message: string; ports?: string[] }
++
++type NormalizeResult = { ok: true; yaml: string; name: string } | { ok: false; message: string }
++
++type Dict = Record<string, unknown>
++const asDict = (v: unknown): Dict => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {})
++
++/** ensureComposeMeta 把 icon 注入 x-nimoos(或已存在 x-casaos 时的 x-casaos)扩展块里——
++ *  取回真实值(可能是用户 YAML 里自带的,不一定是默认公式 URL),供 installProgress.track() 用。 */
++function extractIcon(yamlText: string): string {
++  const doc = asDict(YAML.parse(yamlText))
++  const icon = asDict(doc['x-nimoos']).icon ?? asDict(doc['x-casaos']).icon
++  return typeof icon === 'string' ? icon : ''
++}
++
++export function useCustomInstall() {
++  const { t } = useI18n()
++  const installedApps = useInstalledAppsStore()
++  const progress = useInstallProgressStore()
++
++  /** ①规整:解析失败(坏 YAML)在这里就地拦下,后续步骤都不会跑。 */
++  function normalize(rawYaml: string): NormalizeResult {
++    try {
++      const { yaml, name } = ensureComposeMeta(rawYaml)
++      return { ok: true, yaml, name }
++    } catch (e) {
++      return { ok: false, message: e instanceof Error ? e.message : String(e) }
++    }
++  }
++
++  /** 「校验」按钮:①规整 + ③dry_run 预检,不做 D4 同名硬挡、不真装。 */
++  async function validateYaml(rawYaml: string): Promise<CustomValidateResult> {
++    const meta = normalize(rawYaml)
++    if (!meta.ok) return meta
++    try {
++      await service.compose.install(meta.yaml, { dryRun: true, checkPortConflict: true })
++      return { ok: true }
++    } catch (e) {
++      const { message, ports } = parseInstallError(e)
++      return { ok: false, message: message || t('appsInstallFailed', { name: meta.name }), ports: ports.length ? ports : undefined }
++    }
++  }
++
++  /** 「安装」按钮:①规整 →②D4 同名硬挡 →③dry_run →④真装 →⑤track。 */
++  async function installYaml(rawYaml: string): Promise<CustomInstallResult> {
++    const meta = normalize(rawYaml)
++    if (!meta.ok) return meta
++    const { yaml, name } = meta
++
++    // D4:后端对同名应用是静默覆盖已装应用的工作目录——宁可在前端硬挡,也不让用户无声丢数据。
++    // 深链 /apps/custom 时 store 可能为空,需先补拉已装列表(离线情况下兜底)。
++    if (!installedApps.apps.length) await installedApps.refresh().catch(() => {})
++    if (installedApps.apps.some((a) => a.id === name)) {
++      return { ok: false, message: t('appsCustomNameConflict') }
++    }
++
++    try {
++      await service.compose.install(yaml, { dryRun: true, checkPortConflict: true })
++      await service.compose.install(yaml, { checkPortConflict: true })
++    } catch (e) {
++      const { message, ports } = parseInstallError(e)
++      return { ok: false, message: message || t('appsInstallFailed', { name }), ports: ports.length ? ports : undefined }
++    }
++
++    progress.track(name, name, extractIcon(yaml))
++    return { ok: true, name }
++  }
++
++  return { validateYaml, installYaml }
++}
+diff --git a/src/apps/util/composeSettings.test.ts b/src/apps/util/composeSettings.test.ts
+index 433e570..ec7f1ad 100644
+--- a/src/apps/util/composeSettings.test.ts
++++ b/src/apps/util/composeSettings.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, it, expect } from 'vitest'
+-import { parseSettings, buildYaml, parseMemoryToMB, minMemoryMB } from './composeSettings'
++import { parseSettings, buildYaml, parseMemoryToMB, minMemoryMB, rewriteImageTag } from './composeSettings'
+ import YAML from 'yaml'
+ 
+ const FIXTURE = `name: syncthing
+ services:
+   syncthing:
+     image: linuxserver/syncthing:1.23.0
+     environment:
+       - PUID=$PUID
+       - TZ=$TZ
+     ports:
+@@ -71,20 +71,114 @@ describe('parseSettings', () => {
+   })
+   it('extKey falls back to x-casaos when only x-casaos exists', () => {
+     const y = FIXTURE.replace(/x-nimoos:/, 'x-casaos:')
+     expect(parseSettings(y, 'zh_cn').extKey).toBe('x-casaos')
+   })
+   it('normalizes restart no/empty to unless-stopped and env object map to rows', () => {
+     const m = parseSettings('services:\n  a:\n    image: x\n    restart: "no"\n    environment:\n      FOO: bar\n', 'zh_cn')
+     expect(m.services[0].restart).toBe('unless-stopped')
+     expect(m.services[0].environment).toEqual([{ a: 'FOO', b: 'bar' }])
+   })
++  it('command 解析:数组逐项映射为 token,commandDirty 初始 false', () => {
++    const m = parseSettings(FIXTURE, 'zh_cn')
++    expect(m.services[0].commandTokens).toEqual(['--verbose'])
++    expect(m.services[0].commandDirty).toBe(false)
++  })
++  it('command 解析:字符串保守展示为单 token,commandDirty 初始 false', () => {
++    const y = 'services:\n  a:\n    image: x\n    command: echo "hello world"\n'
++    const m = parseSettings(y, 'zh_cn')
++    expect(m.services[0].commandTokens).toEqual(['echo "hello world"'])
++    expect(m.services[0].commandDirty).toBe(false)
++  })
++  it('command 解析:缺省为空 tokens', () => {
++    const m = parseSettings('services:\n  a:\n    image: x\n', 'zh_cn')
++    expect(m.services[0].commandTokens).toEqual([])
++  })
++  it('network 解析:network_mode 优先于 networks,networkDirty 初始 false', () => {
++    const y = 'services:\n  a:\n    image: x\n    network_mode: host\n    networks: [other]\n'
++    const m = parseSettings(y, 'zh_cn')
++    expect(m.services[0].network).toBe('host')
++    expect(m.services[0].networkDirty).toBe(false)
++  })
++  it('network 解析:无 network_mode 时取 networks 首个元素/key,都缺省则空串', () => {
++    expect(parseSettings('services:\n  a:\n    image: x\n    networks: [mynet, other]\n', 'zh_cn').services[0].network).toBe('mynet')
++    expect(parseSettings('services:\n  a:\n    image: x\n    networks:\n      mynet: {}\n      other: {}\n', 'zh_cn').services[0].network).toBe('mynet')
++    expect(parseSettings('services:\n  a:\n    image: x\n', 'zh_cn').services[0].network).toBe('')
++  })
++})
++
++describe('command/network dirty-flag build (D5)', () => {
++  it('command 未编辑原样保留(string 形式不被改写)', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\n    command: echo "hello world"\n'
++    const m = parseSettings(yml, 'zh_cn')
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { command: unknown }> }
++    expect(out.services.a.command).toBe('echo "hello world"')
++  })
++  it('command 编辑后写数组形式', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].commandTokens = ['redis-server', '--appendonly', 'yes']
++    m.services[0].commandDirty = true
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { command: unknown }> }
++    expect(out.services.a.command).toEqual(['redis-server', '--appendonly', 'yes'])
++  })
++  it('command 编辑为空 tokens 时删除 command', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\n    command: ["--verbose"]\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].commandTokens = []
++    m.services[0].commandDirty = true
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { command?: unknown }> }
++    expect(out.services.a.command).toBeUndefined()
++  })
++  it('network 未编辑不写回(原 network_mode 保留)', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\n    network_mode: host\n'
++    const m = parseSettings(yml, 'zh_cn')
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { network_mode?: string }> }
++    expect(out.services.a.network_mode).toBe('host')
++  })
++  it('network 选 host 写 network_mode', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].network = 'host'; m.services[0].networkDirty = true
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { network_mode?: string }> }
++    expect(out.services.a.network_mode).toBe('host')
++  })
++  it('network 选自定义网络写 networks 并 merge 顶层', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].network = 'mynet'; m.services[0].networkDirty = true
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { networks?: string[] }>; networks?: Record<string, unknown> }
++    expect(out.services.a.networks).toEqual(['mynet'])
++    expect(out.networks).toHaveProperty('mynet')
++  })
++  it('network 选自定义网络时顶层已有同名定义则保留原样(??= merge 语义)', () => {
++    const yml = 'name: a\nservices:\n  a:\n    image: x\nnetworks:\n  mynet:\n    external: true\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].network = 'mynet'; m.services[0].networkDirty = true
++    const out = YAML.parse(buildYaml(yml, m)) as { networks?: Record<string, { external?: boolean }> }
++    expect(out.networks?.mynet.external).toBe(true)
++  })
++})
++
++describe('rewriteImageTag', () => {
++  it('替换已有 tag', () => {
++    expect(rewriteImageTag('linuxserver/syncthing:1.23.0', 'latest')).toBe('linuxserver/syncthing:latest')
++  })
++  it('无 tag 时追加', () => {
++    expect(rewriteImageTag('redis', 'stable')).toBe('redis:stable')
++  })
++  it('registry 带端口且无 tag 时追加(不误判端口为 tag)', () => {
++    expect(rewriteImageTag('myregistry:5000/redis', 'stable')).toBe('myregistry:5000/redis:stable')
++  })
++  it('registry 带端口且有 tag 时只替换 tag 段', () => {
++    expect(rewriteImageTag('myregistry:5000/redis:1.2', 'stable')).toBe('myregistry:5000/redis:stable')
++  })
+ })
+ 
+ describe('buildYaml', () => {
+   it('round-trips: untouched model keeps command/extensions; edits land; empty memory removes limit', () => {
+     const m = parseSettings(FIXTURE, 'zh_cn')
+     m.services[0].ports[0].published = '9384'
+     m.services[0].environment.push({ a: 'NEW', b: '1' })
+     m.services[0].memoryMB = null
+     m.webui.portMap = '9384'
+     const out = YAML.parse(buildYaml(FIXTURE, m))
+@@ -120,10 +214,52 @@ describe('parseMemoryToMB / minMemoryMB', () => {
+     expect(parseMemoryToMB(undefined)).toBeNull()
+     expect(parseMemoryToMB('abc')).toBeNull()
+   })
+   it('minMemoryMB reads reservations of services[appId], falls back to first service, null-safe', () => {
+     expect(minMemoryMB(FIXTURE, 'syncthing')).toBe(256)
+     expect(minMemoryMB(FIXTURE, 'not-there')).toBe(256)
+     expect(minMemoryMB('services: {}', 'x')).toBeNull()
+     expect(minMemoryMB('not: yaml: [', 'x')).toBeNull()
+   })
+ })
++
++describe('ports pass-through (P4 挂账修复)', () => {
++  const yml = `name: crafty
++services:
++  crafty:
++    image: registry.gitlab.com/crafty-controller/crafty-4:latest
++    ports:
++      - "8443:8443"
++      - "25500-25600:25500-25600"
++      - "3000"
++      - target: 19132
++        published: 19132-19140
++        protocol: udp
++`
++  it('认不出的条目进 portsExtra,认得出的进 ports', () => {
++    const m = parseSettings(yml, 'zh_cn')
++    const svc = m.services[0]
++    expect(svc.ports).toEqual([{ published: '8443', target: '8443', protocol: 'tcp' }])
++    expect(svc.portsExtra).toEqual([
++      '25500-25600:25500-25600',
++      '3000',
++      { target: 19132, published: '19132-19140', protocol: 'udp' },
++    ])
++  })
++  it('buildYaml 原样写回 portsExtra,不塌陷不丢失', () => {
++    const m = parseSettings(yml, 'zh_cn')
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
++    const ports = out.services.crafty.ports
++    expect(ports).toContainEqual('25500-25600:25500-25600')
++    expect(ports).toContainEqual('3000')
++    expect(ports).toContainEqual({ target: 19132, published: '19132-19140', protocol: 'udp' })
++    // 可编辑行仍正常序列化
++    expect(ports).toContainEqual({ target: 8443, published: '8443', protocol: 'tcp' })
++  })
++  it('用户编辑可编辑行不影响透传条目', () => {
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].ports[0].published = '9443'
++    const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
++    expect(out.services.crafty.ports).toContainEqual({ target: 8443, published: '9443', protocol: 'tcp' })
++    expect(out.services.crafty.ports).toContainEqual('25500-25600:25500-25600')
++  })
++})
+diff --git a/src/apps/util/composeSettings.ts b/src/apps/util/composeSettings.ts
+index 2a59d10..fd0887e 100644
+--- a/src/apps/util/composeSettings.ts
++++ b/src/apps/util/composeSettings.ts
+@@ -1,26 +1,31 @@
+ import YAML from 'yaml'
+ import { resolveAppText } from './appTitle'
+ 
+ export interface PortRow { published: string; target: string; protocol: 'tcp' | 'udp'; hostIp?: string }
+ export interface PairRow { a: string; b: string }
+ export interface ServiceModel {
+   name: string; image: string
+   environment: PairRow[]      // a=KEY b=VALUE
+   ports: PortRow[]
++  portsExtra: unknown[]       // 表单认不出的 ports 原始条目,原样透传
+   volumes: PairRow[]          // a=host(source) b=container(target)
+   devices: PairRow[]          // a=host b=container
+   privileged: boolean; capAdd: string[]
+   restart: string             // 'unless-stopped' | 'always' | 'on-failure'
+   containerName: string
+   cpuShares: number           // 10 | 50 | 90(归一化)
+   memoryMB: number | null     // limits.memory;null=未设限
++  commandTokens: string[]     // command 逐 token 展示;数组→逐项,字符串→保守单 token
++  commandDirty: boolean       // 编辑任一 token/增删 才置 true;false 时 buildYaml 不动 command
++  network: string             // network_mode 优先,否则 networks 首个 key/元素,缺省 ''
++  networkDirty: boolean       // 编辑网络下拉才置 true;false 时 buildYaml 不动 network_mode/networks
+ }
+ export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
+ export interface SettingsModel {
+   services: ServiceModel[]; webui: WebUiModel; tipsCustom: string; extKey: 'x-nimoos' | 'x-casaos'
+   /** true = tips.custom 缺省时借 before_install 回落文案预填 tipsCustom(仅用于预填 UI,不代表用户已确认此文案要落盘) */
+   tipsFromFallback: boolean
+ }
+ 
+ export const RESTART_OPTIONS = ['unless-stopped', 'always', 'on-failure']
+ export const CPU_OPTIONS = [
+@@ -66,68 +71,98 @@ export function parseMemoryToMB(v: unknown): number | null {
+   const n = parseFloat(m[1])
+   const unit = (m[2] ?? '').toLowerCase()
+   if (!unit) return Math.round(n / 1024 / 1024) // 裸数字=字节(compose-go UnitBytes 序列化格式)
+   const factor = { k: 1 / 1024, m: 1, g: 1024, t: 1024 * 1024 }[unit as 'k' | 'm' | 'g' | 't']
+   return Math.round(n * factor)
+ }
+ 
+ type Dict = Record<string, unknown>
+ const asDict = (v: unknown): Dict => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {})
+ 
+-function parsePortEntry(p: unknown): PortRow | null {
++type PortParse = { row: PortRow } | { extra: unknown }
++const SINGLE_PORT = /^\d+$/
++
++function classifyPortEntry(p: unknown): PortParse {
+   if (p && typeof p === 'object') {
+-    const o = p as Dict // compose 长语法
+-    const target = o.target != null ? String(o.target).split('-')[0] : ''
+-    const published = o.published != null ? String(o.published).split('-')[0] : target
+-    if (!target) return null
+-    const proto = String(o.protocol ?? 'tcp').toLowerCase() === 'udp' ? 'udp' : 'tcp'
+-    return { published, target, protocol: proto, ...(o.host_ip ? { hostIp: String(o.host_ip) } : {}) }
+-  }
+-  // 短语法 [ip:]published[-range]:target[-range][/proto](range 取首段,Vue2 同行为)
+-  const m = /^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?([\d-]+):([\d-]+)(?:\/(tcp|udp))?$/i.exec(String(p).trim())
+-  if (!m) return null
+-  return {
+-    published: m[2].split('-')[0], target: m[3].split('-')[0],
+-    protocol: (m[4]?.toLowerCase() as 'tcp' | 'udp') ?? 'tcp',
+-    ...(m[1] ? { hostIp: m[1] } : {}),
++    const o = p as Dict
++    const t = o.target != null ? String(o.target) : ''
++    const pub = o.published != null ? String(o.published) : t
++    const extras = Object.keys(o).filter((k) => !['target', 'published', 'protocol', 'host_ip'].includes(k))
++    if (SINGLE_PORT.test(t) && SINGLE_PORT.test(pub) && !extras.length) {
++      const proto = String(o.protocol ?? 'tcp').toLowerCase() === 'udp' ? 'udp' : 'tcp'
++      return { row: { published: pub, target: t, protocol: proto, ...(o.host_ip ? { hostIp: String(o.host_ip) } : {}) } }
++    }
++    return { extra: p } // long-syntax range / mode:host 等异形 → 原样透传
+   }
++  const m = /^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d+):(\d+)(?:\/(tcp|udp))?$/i.exec(String(p).trim())
++  if (!m) return { extra: p } // 裸端口 "3000"、range "a-b:a-b"、其它异形 → 原样透传
++  return { row: { published: m[2], target: m[3], protocol: (m[4]?.toLowerCase() as 'tcp' | 'udp') ?? 'tcp', ...(m[1] ? { hostIp: m[1] } : {}) } }
+ }
+ 
+ function parseService(name: string, raw: Dict): ServiceModel {
+   const envRaw = raw.environment
+   const environment: PairRow[] = Array.isArray(envRaw)
+     ? envRaw.map((e) => { const i = String(e).indexOf('='); return i < 0 ? { a: String(e), b: '' } : { a: String(e).slice(0, i), b: String(e).slice(i + 1) } })
+     : Object.entries(asDict(envRaw)).map(([a, b]) => ({ a, b: b == null ? '' : String(b) }))
+-  const ports = (Array.isArray(raw.ports) ? raw.ports : []).map(parsePortEntry).filter((x): x is PortRow => !!x)
++  const ports: PortRow[] = []
++  const portsExtra: unknown[] = []
++  for (const p of Array.isArray(raw.ports) ? raw.ports : []) {
++    const r = classifyPortEntry(p)
++    if ('row' in r) ports.push(r.row); else portsExtra.push(r.extra)
++  }
+   const volumes: PairRow[] = (Array.isArray(raw.volumes) ? raw.volumes : []).map((v) => {
+     if (v && typeof v === 'object') { const o = v as Dict; return { a: String(o.source ?? ''), b: String(o.target ?? '') } }
+     const parts = String(v).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? '' } // :ro 等 flag 丢弃(Vue2 同行为)
+   }).filter((r) => r.a || r.b)
+   const devices: PairRow[] = (Array.isArray(raw.devices) ? raw.devices : []).map((d) => {
+     const parts = String(d).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? parts[0] ?? '' }
+   })
+   const restartRaw = String(raw.restart ?? '')
+   const cpuRaw = Number(raw.cpu_shares)
+   const deploy = asDict(asDict(asDict(raw.deploy).resources).limits)
++  const cmdRaw = raw.command
++  const commandTokens: string[] = Array.isArray(cmdRaw)
++    ? cmdRaw.map(String)
++    : (cmdRaw != null && cmdRaw !== '' ? [String(cmdRaw)] : [])
++  const networkMode = raw.network_mode != null ? String(raw.network_mode) : ''
++  let network = networkMode
++  if (!network) {
++    const nets = raw.networks
++    if (Array.isArray(nets)) network = nets.length ? String(nets[0]) : ''
++    else network = Object.keys(asDict(nets))[0] ?? ''
++  }
+   return {
+     name,
+     image: String(raw.image ?? ''),
+-    environment, ports, volumes, devices,
++    environment, ports, portsExtra, volumes, devices,
+     privileged: raw.privileged === true,
+     capAdd: Array.isArray(raw.cap_add) ? raw.cap_add.map(String) : [],
+     restart: !restartRaw || restartRaw === 'no' ? 'unless-stopped' : restartRaw,
+     containerName: String(raw.container_name ?? ''),
+     cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 归一化(ComposeConfig.vue:550-559)
+     memoryMB: parseMemoryToMB(deploy.memory),
++    commandTokens, commandDirty: false,
++    network, networkDirty: false,
+   }
+ }
+ 
++const NETWORK_MODE_VALUES = new Set(['host', 'bridge', 'none'])
++
++/** image 的 tag 段改写:最后一个冒号后若含 '/' 说明那是 registry:port,不是 tag,直接追加;否则替换该段(Vue2 patchNetworkValue 邻域,但这里是 tag 不是 network)。 */
++export function rewriteImageTag(image: string, tag: string): string {
++  const i = image.lastIndexOf(':')
++  if (i < 0) return `${image}:${tag}`
++  const after = image.slice(i + 1)
++  if (after.includes('/')) return `${image}:${tag}`
++  return `${image.slice(0, i)}:${tag}`
++}
++
+ export function parseSettings(yamlText: string, lang: string): SettingsModel {
+   const doc = asDict(YAML.parse(yamlText))
+   const services = Object.entries(asDict(doc.services)).map(([n, s]) => parseService(n, asDict(s)))
+   const extKey: SettingsModel['extKey'] = !doc['x-nimoos'] && doc['x-casaos'] ? 'x-casaos' : 'x-nimoos'
+   const ext = asDict(doc['x-nimoos'] ?? doc['x-casaos'])
+   const tips = asDict(ext.tips)
+   const title = asDict(ext.title)
+   const hasCustomTip = typeof tips.custom === 'string' && tips.custom
+   const fallbackTip = resolveAppText(tips.before_install as Record<string, string> | undefined, lang, '')
+   return {
+@@ -147,41 +182,62 @@ export function parseSettings(yamlText: string, lang: string): SettingsModel {
+ }
+ 
+ export function buildYaml(originalYaml: string, model: SettingsModel): string {
+   const doc = asDict(YAML.parse(originalYaml))
+   const services = asDict(doc.services)
+   for (const sm of model.services) {
+     const svc = asDict(services[sm.name])
+     if (!Object.keys(svc).length && !services[sm.name]) continue // 原 YAML 没有的服务不凭空造
+     if (sm.image.trim()) svc.image = sm.image.trim()
+     svc.environment = sm.environment.filter((r) => r.a.trim()).map((r) => `${r.a.trim()}=${r.b}`)
+-    svc.ports = sm.ports
+-      .filter((r) => r.published.trim() && r.target.trim())
+-      .map((r) => ({ target: Number(r.target), published: String(r.published), protocol: r.protocol, ...(r.hostIp ? { host_ip: r.hostIp } : {}) }))
++    svc.ports = [
++      ...sm.ports
++        .filter((r) => r.published.trim() && r.target.trim())
++        .map((r) => ({ target: Number(r.target), published: String(r.published), protocol: r.protocol, ...(r.hostIp ? { host_ip: r.hostIp } : {}) })),
++      ...sm.portsExtra, // 表单认不出的条目原样写回
++    ]
+     svc.volumes = sm.volumes.filter((r) => r.a.trim() && r.b.trim()).map((r) => ({ type: 'bind', source: r.a.trim(), target: r.b.trim() }))
+     const devs = sm.devices.filter((r) => r.a.trim() && r.b.trim()).map((r) => `${r.a.trim()}:${r.b.trim()}`)
+     if (devs.length) svc.devices = devs; else delete svc.devices
+     if (sm.privileged) svc.privileged = true; else delete svc.privileged
+     if (sm.capAdd.length) svc.cap_add = [...sm.capAdd]; else delete svc.cap_add
+     svc.restart = sm.restart
+     if (sm.containerName.trim()) svc.container_name = sm.containerName.trim(); else delete svc.container_name
+     svc.cpu_shares = sm.cpuShares
+     const deploy = asDict(svc.deploy); const resources = asDict(deploy.resources); const limits = asDict(resources.limits)
+     if (sm.memoryMB && sm.memoryMB > 0) {
+       limits.memory = `${Math.round(sm.memoryMB)}M`
+       resources.limits = limits; deploy.resources = resources; svc.deploy = deploy
+     } else {
+       delete limits.memory
+       if (!Object.keys(limits).length) delete resources.limits
+       if (Object.keys(resources).length) { deploy.resources = resources; svc.deploy = deploy }
+       else { delete deploy.resources; if (Object.keys(deploy).length) svc.deploy = deploy; else delete svc.deploy }
+     }
++    if (sm.commandDirty) {
++      if (sm.commandTokens.length) svc.command = [...sm.commandTokens]
++      else delete svc.command
++    }
++    if (sm.networkDirty) {
++      delete svc.network_mode
++      delete svc.networks
++      if (sm.network) {
++        if (NETWORK_MODE_VALUES.has(sm.network)) {
++          svc.network_mode = sm.network
++        } else {
++          svc.networks = [sm.network]
++          const topNetworks = asDict(doc.networks)
++          if (!topNetworks[sm.network]) topNetworks[sm.network] = { external: false, name: sm.network }
++          doc.networks = topNetworks
++        }
++      }
++    }
+     services[sm.name] = svc
+   }
+   doc.services = services
+   const ext = asDict(doc[model.extKey])
+   const w = model.webui
+   if (w.titleCustom.trim()) ext.title = { ...asDict(ext.title), custom: w.titleCustom.trim() }
+   if (w.icon.trim()) ext.icon = w.icon.trim(); else delete ext.icon
+   ext.scheme = w.scheme
+   if (w.hostname.trim()) ext.hostname = w.hostname.trim(); else delete ext.hostname
+   if (w.portMap.trim()) ext.port_map = w.portMap.trim(); else delete ext.port_map
+diff --git a/src/apps/util/importNormalize.test.ts b/src/apps/util/importNormalize.test.ts
+new file mode 100644
+index 0000000..2d32400
+--- /dev/null
++++ b/src/apps/util/importNormalize.test.ts
+@@ -0,0 +1,191 @@
++import { describe, it, expect } from 'vitest'
++import YAML from 'yaml'
++import { ensureComposeMeta, volumeAutoCheck, normalizeVolumes, dockerRunToCompose } from './importNormalize'
++
++describe('ensureComposeMeta', () => {
++  it('injects top-level name + x-nimoos title/icon when both absent', () => {
++    const src = `services:\n  sonarr:\n    image: linuxserver/sonarr:latest\n`
++    const { yaml, name } = ensureComposeMeta(src)
++    expect(name).toBe('sonarr')
++    const doc = YAML.parse(yaml)
++    expect(doc.name).toBe('sonarr')
++    expect(doc['x-nimoos'].title).toEqual({ custom: 'sonarr', en_us: 'sonarr' })
++    expect(doc['x-nimoos'].icon).toBe('https://icon.nimoos.io/main/all/sonarr.png')
++  })
++
++  it('does not overwrite an existing top-level name', () => {
++    const src = `name: myapp\nservices:\n  sonarr:\n    image: linuxserver/sonarr:latest\n`
++    const { yaml, name } = ensureComposeMeta(src)
++    expect(name).toBe('myapp')
++    const doc = YAML.parse(yaml)
++    expect(doc.name).toBe('myapp')
++  })
++
++  it('slugifies a service key used as the derived name', () => {
++    const src = `services:\n  My_Service:\n    image: foo/bar:1.2\n`
++    const { name } = ensureComposeMeta(src)
++    expect(name).toBe('my-service')
++  })
++
++  it('falls back to slugified image short-name when the only service key is unusable', () => {
++    const src = `services:\n  "":\n    image: registry.example.com:5000/some/repo/foo-bar:1.2\n`
++    const { name } = ensureComposeMeta(src)
++    expect(name).toBe('foo-bar')
++  })
++
++  it('does not inject x-nimoos when x-casaos is already present — injects missing title/icon into x-casaos instead', () => {
++    const src = `name: plexy\nservices:\n  plex:\n    image: plexinc/pms-docker\nx-casaos:\n  scheme: http\n`
++    const { yaml } = ensureComposeMeta(src)
++    const doc = YAML.parse(yaml)
++    expect(doc['x-nimoos']).toBeUndefined()
++    expect(doc['x-casaos'].title).toEqual({ custom: 'plexy', en_us: 'plexy' })
++    expect(doc['x-casaos'].icon).toBe('https://icon.nimoos.io/main/all/plexy.png')
++    expect(doc['x-casaos'].scheme).toBe('http') // untouched existing field
++  })
++
++  it('never overwrites an existing title/icon inside x-nimoos', () => {
++    const src = `name: keepme\nservices:\n  svc:\n    image: foo\nx-nimoos:\n  icon: https://example.com/custom.png\n  title:\n    custom: Kept Title\n`
++    const { yaml } = ensureComposeMeta(src)
++    const doc = YAML.parse(yaml)
++    expect(doc['x-nimoos'].icon).toBe('https://example.com/custom.png')
++    expect(doc['x-nimoos'].title.custom).toBe('Kept Title')
++    // missing en_us sub-field still gets filled in without touching custom
++    expect(doc['x-nimoos'].title.en_us).toBe('keepme')
++  })
++
++  it('guesses the icon URL from the final slugified name', () => {
++    const src = `services:\n  My App:\n    image: foo\n`
++    const { yaml, name } = ensureComposeMeta(src)
++    expect(name).toBe('my-app')
++    const doc = YAML.parse(yaml)
++    expect(doc['x-nimoos'].icon).toBe('https://icon.nimoos.io/main/all/my-app.png')
++  })
++
++  it('falls back to the "app" name when the YAML has no name and no services at all', () => {
++    const { yaml, name } = ensureComposeMeta('{}')
++    expect(name).toBe('app')
++    const doc = YAML.parse(yaml)
++    expect(doc.name).toBe('app')
++    expect(doc['x-nimoos'].title).toEqual({ custom: 'app', en_us: 'app' })
++  })
++})
++
++describe('volumeAutoCheck', () => {
++  it.each([
++    ['/config', 'myapp', '/DATA/AppData/myapp/config'],
++    ['/data/tvshows', 'myapp', '/DATA/Media/TV Shows'],
++    ['/tv', 'myapp', '/DATA/Media/TV Shows'],
++    ['/movies', 'myapp', '/DATA/Media/Movies'],
++    ['/music', 'myapp', '/DATA/Media/Music'],
++    ['/downloads', 'myapp', '/DATA/Downloads'],
++    ['/pictures', 'myapp', '/DATA/Gallery'],
++    ['/photo', 'myapp', '/DATA/Gallery'],
++    ['/media', 'myapp', '/DATA/Media'],
++    ['/srv/random', 'myapp', '/DATA/AppData/myapp/srv/random'],
++  ])('maps %s -> %s', (containerPath, appName, expected) => {
++    expect(volumeAutoCheck(containerPath, appName)).toBe(expected)
++  })
++
++  it('pins Vue2 per-keyword case-sensitivity: config/download/pictures/photo/media are lowercase-literal only', () => {
++    // 'config' has no case variant in the Vue2 checkArray — but its mapped value is the *same formula*
++    // as the default fallback, so this only proves the default path, not a genuine config match.
++    expect(volumeAutoCheck('/CONFIG', 'myapp')).toBe('/DATA/AppData/myapp/CONFIG')
++    // 'download' is lowercase-only in Vue2 — capitalized "Downloads" must NOT match, falls to default.
++    expect(volumeAutoCheck('/Downloads', 'myapp')).toBe('/DATA/AppData/myapp/Downloads')
++    // 'photo'/'pictures' are lowercase-only in Vue2 — capitalized "Photo" must NOT match, falls to default.
++    expect(volumeAutoCheck('/Photo', 'myapp')).toBe('/DATA/AppData/myapp/Photo')
++  })
++
++  it('pins Vue2 dual-case keyword variants: tv/movie/music each list a handful of explicit cases', () => {
++    expect(volumeAutoCheck('/TV', 'myapp')).toBe('/DATA/Media/TV Shows')
++    expect(volumeAutoCheck('/Movie', 'myapp')).toBe('/DATA/Media/Movies')
++    expect(volumeAutoCheck('/Music', 'myapp')).toBe('/DATA/Media/Music')
++  })
++
++  it('pins the Vue2 forEach-overwrite order: later keyword in the check order wins on overlap', () => {
++    // "media" (last in the check order) overwrites the earlier "config" match — verbatim Vue2 quirk.
++    expect(volumeAutoCheck('/media/config', 'myapp')).toBe('/DATA/Media')
++  })
++})
++
++describe('normalizeVolumes', () => {
++  it('rewrites relative and named-volume sources, leaves absolute sources untouched (short syntax)', () => {
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - ./cfg:/config\n      - dbdata:/var/lib/data\n      - /DATA/AppData/app/keep:/keep\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    const vols: string[] = doc.services.app.volumes
++    expect(vols).toContain('/DATA/AppData/app/config:/config')
++    expect(vols).toContain('/DATA/AppData/app/var/lib/data:/var/lib/data')
++    expect(vols).toContain('/DATA/AppData/app/keep:/keep')
++  })
++
++  it('rewrites a bare target-only (anonymous volume) entry into a full source:target bind', () => {
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - /var/lib/data\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    expect(doc.services.app.volumes).toContain('/DATA/AppData/app/var/lib/data:/var/lib/data')
++  })
++
++  it('preserves a trailing :ro mode flag while rewriting the source', () => {
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - dbdata:/var/lib/data:ro\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    expect(doc.services.app.volumes).toContain('/DATA/AppData/app/var/lib/data:/var/lib/data:ro')
++  })
++
++  it('rewrites long-syntax object volumes with missing/relative source, leaves absolute source untouched', () => {
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - type: volume\n        source: dbdata\n        target: /var/lib/data\n      - type: bind\n        source: /DATA/AppData/app/keep\n        target: /keep\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    const vols = doc.services.app.volumes
++    expect(vols).toContainEqual({ type: 'bind', source: '/DATA/AppData/app/var/lib/data', target: '/var/lib/data' })
++    expect(vols).toContainEqual({ type: 'bind', source: '/DATA/AppData/app/keep', target: '/keep' })
++  })
++
++  it('drops top-level named-volume declarations that are no longer referenced after rewriting', () => {
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - dbdata:/var/lib/data\nvolumes:\n  dbdata: {}\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    expect(doc.volumes).toBeUndefined()
++  })
++
++  it('drops a top-level named-volume declaration that was never referenced by any service in the first place', () => {
++    // "unrelated" never appears as any service's volume source (rewritten or not) — the cleanup rule
++    // removes any top-level key not found among current sources, referenced-or-never-referenced alike.
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - /DATA/keep:/keep\nvolumes:\n  unrelated: {}\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    expect(doc.volumes).toBeUndefined()
++  })
++
++  it('leaves a non-bind/volume long-syntax entry (tmpfs) byte-identical — no source injected, type untouched', () => {
++    const src = `services:\n  app:\n    image: foo\n    volumes:\n      - type: tmpfs\n        target: /app/cache\n        tmpfs:\n          size: 100000000\n`
++    const out = normalizeVolumes(src, 'app')
++    const doc = YAML.parse(out)
++    expect(doc.services.app.volumes).toEqual([
++      { type: 'tmpfs', target: '/app/cache', tmpfs: { size: 100000000 } },
++    ])
++  })
++})
++
++describe('dockerRunToCompose', () => {
++  it('converts a real docker run command into YAML containing ports and volumes', () => {
++    const out = dockerRunToCompose('docker run -d -p 8080:80 -v ./cfg:/config nginx')
++    expect(out).toContain('image: nginx')
++    expect(out).toContain('8080:80')
++    expect(out).toContain('./cfg:/config')
++  })
++
++  it('strips shell-style and backtick comments before conversion (Vue2-parity cleaning)', () => {
++    const out = dockerRunToCompose('docker run -d -p 8080:80 nginx # trailing comment\n`# a backtick comment`')
++    expect(out).toContain('image: nginx')
++  })
++
++  it('throws on garbage input', () => {
++    expect(() => dockerRunToCompose('this is not a docker command at all')).toThrow()
++  })
++
++  it('throws on empty input', () => {
++    expect(() => dockerRunToCompose('')).toThrow()
++  })
++})
+diff --git a/src/apps/util/importNormalize.ts b/src/apps/util/importNormalize.ts
+new file mode 100644
+index 0000000..44c81a2
+--- /dev/null
++++ b/src/apps/util/importNormalize.ts
+@@ -0,0 +1,159 @@
++import YAML from 'yaml'
++import composerize from 'composerize'
++
++type Dict = Record<string, unknown>
++const asDict = (v: unknown): Dict => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {})
++
++/** 小写化 + 非 [a-z0-9-] 字符替换为 '-' + 折叠连续 '-' + 去首尾 '-'。 */
++function slugify(raw: string): string {
++  return raw
++    .toLowerCase()
++    .replace(/[^a-z0-9-]+/g, '-')
++    .replace(/-+/g, '-')
++    .replace(/^-|-$/g, '')
++}
++
++/** image 短名:去掉 digest(@sha256:...)与 tag,再取最后一个 '/' 之后的段。 */
++function shortImageName(image: string): string {
++  let img = image.split('@')[0] ?? ''
++  const lastSlash = img.lastIndexOf('/')
++  const lastColon = img.lastIndexOf(':')
++  if (lastColon > lastSlash) img = img.slice(0, lastColon)
++  return img.slice(img.lastIndexOf('/') + 1)
++}
++
++/** name 派生级联:顶层 name → 首个可用 service key → 首个 service 的 image 短名 → 'app' 兜底。 */
++function deriveRawName(doc: Dict): string {
++  if (typeof doc.name === 'string' && doc.name.trim()) return doc.name.trim()
++  const services = asDict(doc.services)
++  const keys = Object.keys(services).filter((k) => k.trim())
++  if (keys.length) return keys[0]!
++  const firstSvc = asDict(Object.values(services)[0])
++  const image = typeof firstSvc.image === 'string' ? firstSvc.image : ''
++  if (image) return shortImageName(image)
++  return 'app'
++}
++
++export function ensureComposeMeta(yamlText: string): { yaml: string; name: string } {
++  const doc = asDict(YAML.parse(yamlText))
++  const name = slugify(deriveRawName(doc)) || 'app'
++
++  if (!(typeof doc.name === 'string' && doc.name.trim())) doc.name = name
++
++  const extKey: 'x-nimoos' | 'x-casaos' = !doc['x-nimoos'] && doc['x-casaos'] ? 'x-casaos' : 'x-nimoos'
++  const ext = asDict(doc[extKey])
++  const title = asDict(ext.title)
++  if (typeof title.custom !== 'string' || !title.custom) title.custom = name
++  if (typeof title.en_us !== 'string' || !title.en_us) title.en_us = name
++  ext.title = title
++  if (typeof ext.icon !== 'string' || !ext.icon) ext.icon = `https://icon.nimoos.io/main/all/${name}.png`
++  doc[extKey] = ext
++
++  return { yaml: YAML.stringify(doc), name }
++}
++
++/**
++ * Vue2 关键词映射逐字移植,实际调用点为
++ * `NimoOS-UI/src/components/Apps/ComposeConfig.vue:585-608`(ImportPanel.vue 里也有一份同源拷贝)。
++ * **逐字**包括大小写:除 config/download/pictures/photo/media 外,原版只有 tv 系列与
++ * movie/music 系列各自罗列了几个大小写变体(`['tvshows','TV','tv']`、`['movies','Movie','movie']`、
++ * `['Music','music']`),不是整体大小写不敏感 —— 因此这里逐关键词做区分大小写的 `includes`,
++ * 不对 containerPath 做 toLowerCase()。
++ * 保留其 forEach 逐条覆盖语义:数组靠后的关键词命中会覆盖靠前的命中结果
++ * (例如 `/media/config` 同时命中 config 与 media,最终落在 media —— 这是刻意保留的原版怪癖,非 bug)。
++ */
++export function volumeAutoCheck(containerPath: string, appName: string): string {
++  const checkOrder: { keywords: string[]; value: string }[] = [
++    { keywords: ['config'], value: `/DATA/AppData/${appName}${containerPath}` },
++    { keywords: ['tvshows', 'TV', 'tv'], value: '/DATA/Media/TV Shows' },
++    { keywords: ['movies', 'Movie', 'movie'], value: '/DATA/Media/Movies' },
++    { keywords: ['Music', 'music'], value: '/DATA/Media/Music' },
++    { keywords: ['download'], value: '/DATA/Downloads' },
++    { keywords: ['pictures', 'photo'], value: '/DATA/Gallery' },
++    { keywords: ['media'], value: '/DATA/Media' },
++  ]
++  let result = `/DATA/AppData/${appName}${containerPath}`
++  for (const item of checkOrder) {
++    if (item.keywords.some((k) => containerPath.includes(k))) result = item.value
++  }
++  return result
++}
++
++function needsRewrite(source: string): boolean {
++  return !source.startsWith('/')
++}
++
++/** 短语法字符串条目:"source:target[:mode]" 或裸 "target"(匿名卷,无 source)。 */
++function rewriteShortVolume(entry: string, appName: string): string {
++  const parts = entry.split(':')
++  if (parts.length === 1) {
++    // 裸路径 = 匿名卷,无 source
++    const target = parts[0] ?? ''
++    return `${volumeAutoCheck(target, appName)}:${target}`
++  }
++  const [source, target, ...rest] = parts
++  if (source && !needsRewrite(source)) return entry // 绝对路径不动
++  const newSource = volumeAutoCheck(target ?? '', appName)
++  return [newSource, target, ...rest].join(':')
++}
++
++const REWRITABLE_VOLUME_TYPES = new Set([undefined, 'bind', 'volume'])
++
++/** tmpfs/npipe/cluster 等非 bind/volume 类型没有真正的 host source 概念 —— 原样透传,绝不注入 source。 */
++function rewriteLongVolume(entry: Dict, appName: string): Dict {
++  const type = typeof entry.type === 'string' ? entry.type : undefined
++  if (!REWRITABLE_VOLUME_TYPES.has(type)) return entry
++  const source = typeof entry.source === 'string' ? entry.source : ''
++  const target = typeof entry.target === 'string' ? entry.target : ''
++  if (source && !needsRewrite(source)) return entry
++  return { ...entry, type: 'bind', source: volumeAutoCheck(target, appName) }
++}
++
++export function normalizeVolumes(yamlText: string, appName: string): string {
++  const doc = asDict(YAML.parse(yamlText))
++  const services = asDict(doc.services)
++
++  for (const key of Object.keys(services)) {
++    const svc = asDict(services[key])
++    const volumes = svc.volumes
++    if (!Array.isArray(volumes)) continue
++    svc.volumes = volumes.map((v) => {
++      if (v && typeof v === 'object') return rewriteLongVolume(v as Dict, appName)
++      return rewriteShortVolume(String(v), appName)
++    })
++    services[key] = svc
++  }
++  doc.services = services
++
++  // 顶层 volumes: 里不再被任何 service 引用的具名卷声明予以清理。
++  const topVolumes = asDict(doc.volumes)
++  if (Object.keys(topVolumes).length) {
++    const referenced = new Set<string>()
++    for (const key of Object.keys(services)) {
++      const svc = asDict(services[key])
++      for (const v of Array.isArray(svc.volumes) ? svc.volumes : []) {
++        if (v && typeof v === 'object') {
++          const src = (v as Dict).source
++          if (typeof src === 'string') referenced.add(src)
++        } else {
++          const src = String(v).split(':')[0]
++          if (src) referenced.add(src)
++        }
++      }
++    }
++    const kept: Dict = {}
++    for (const key of Object.keys(topVolumes)) {
++      if (referenced.has(key)) kept[key] = topVolumes[key]
++    }
++    if (Object.keys(kept).length) doc.volumes = kept
++    else delete doc.volumes
++  }
++
++  return YAML.stringify(doc)
++}
++
++/** composerize 是 CJS(module.exports = fn);esModuleInterop 下按默认导出使用即可,行为已在测试里锁定。 */
++export function dockerRunToCompose(cmd: string): string {
++  const cleaned = cmd.replace(/`#.*?`/g, '').replace(/#.*$/gm, '').trim()
++  return composerize(cleaned)
++}
+diff --git a/src/apps/util/linkApps.test.ts b/src/apps/util/linkApps.test.ts
+new file mode 100644
+index 0000000..8932d2c
+--- /dev/null
++++ b/src/apps/util/linkApps.test.ts
+@@ -0,0 +1,117 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++
++const getCustomStorage = vi.fn()
++const setCustomStorage = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { users: {
++    getCustomStorage: (k: string) => getCustomStorage(k),
++    setCustomStorage: (k: string, d: unknown) => setCustomStorage(k, d),
++  } },
++}))
++
++import { parseLinkApps, listLinkApps, saveLinkApp, deleteLinkApp } from './linkApps'
++
++describe('parseLinkApps', () => {
++  it('empty-string data (curl-verified empty custom storage) → []', () => {
++    expect(parseLinkApps('')).toEqual([])
++  })
++  it('null/undefined → []', () => {
++    expect(parseLinkApps(null)).toEqual([])
++    expect(parseLinkApps(undefined)).toEqual([])
++  })
++  it('non-array object → []', () => {
++    expect(parseLinkApps({ foo: 'bar' })).toEqual([])
++  })
++  it('array of well-formed items passes through', () => {
++    const raw = [{ name: 'MyNAS', hostname: 'http://nas.local', icon: 'http://x/i.png', app_type: 'LinkApp', status: 'running' }]
++    expect(parseLinkApps(raw)).toEqual(raw)
++  })
++  it('JSON-string of an array is parsed (Vue2 setLinkAppList stores JSON.stringify)', () => {
++    const raw = JSON.stringify([{ name: 'A', hostname: 'http://a', icon: '' }])
++    expect(parseLinkApps(raw)).toEqual([{ name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++  it('malformed JSON string → []', () => {
++    expect(parseLinkApps('not json{')).toEqual([])
++  })
++  it('legacy field migration: type→app_type, host→hostname, state→status', () => {
++    const raw = [{ name: 'Old', host: 'http://old', type: 'LinkApp', state: 'running' }]
++    expect(parseLinkApps(raw)).toEqual([{ name: 'Old', hostname: 'http://old', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++  it('missing icon defaults to empty string', () => {
++    expect(parseLinkApps([{ name: 'A', hostname: 'http://a' }])).toEqual([
++      { name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++  })
++  it('dedupe by name, first wins', () => {
++    const raw = [
++      { name: 'A', hostname: 'http://first' },
++      { name: 'A', hostname: 'http://second' },
++    ]
++    expect(parseLinkApps(raw)).toEqual([{ name: 'A', hostname: 'http://first', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++  it('drops entries missing name or hostname', () => {
++    const raw = [
++      { hostname: 'http://no-name' },
++      { name: 'no-hostname' },
++      { name: '', hostname: 'http://empty-name' },
++      { name: 'ok', hostname: '' },
++    ]
++    expect(parseLinkApps(raw)).toEqual([])
++  })
++  it('non-object array entries are skipped', () => {
++    expect(parseLinkApps(['x', 42, null, { name: 'ok', hostname: 'http://ok' }])).toEqual([
++      { name: 'ok', hostname: 'http://ok', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++  })
++})
++
++describe('listLinkApps', () => {
++  beforeEach(() => { getCustomStorage.mockReset(); setCustomStorage.mockReset().mockResolvedValue(undefined) })
++
++  it('get + parse: empty string → []', async () => {
++    getCustomStorage.mockResolvedValue('')
++    expect(await listLinkApps()).toEqual([])
++    expect(getCustomStorage).toHaveBeenCalledWith('link')
++  })
++
++  it('get + parse: array passes through', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://a' }])
++    expect(await listLinkApps()).toEqual([{ name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++
++  it('any error degrades to []', async () => {
++    getCustomStorage.mockRejectedValue(new Error('network'))
++    expect(await listLinkApps()).toEqual([])
++  })
++})
++
++describe('saveLinkApp', () => {
++  beforeEach(() => { getCustomStorage.mockReset(); setCustomStorage.mockReset().mockResolvedValue(undefined) })
++
++  it('appends a new entry when name not present', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://a', icon: '' }])
++    const result = await saveLinkApp({ name: 'B', hostname: 'http://b', icon: 'http://b/icon.png' })
++    expect(result).toEqual([
++      { name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' },
++      { name: 'B', hostname: 'http://b', icon: 'http://b/icon.png', app_type: 'LinkApp', status: 'running' },
++    ])
++    expect(setCustomStorage).toHaveBeenCalledWith('link', result)
++  })
++
++  it('replaces hostname/icon in place for a same-name entry (Vue2 connect() semantics)', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://old', icon: 'http://old/i.png' }])
++    const result = await saveLinkApp({ name: 'A', hostname: 'http://new', icon: 'http://new/i.png' })
++    expect(result).toEqual([{ name: 'A', hostname: 'http://new', icon: 'http://new/i.png', app_type: 'LinkApp', status: 'running' }])
++  })
++})
++
++describe('deleteLinkApp', () => {
++  beforeEach(() => { getCustomStorage.mockReset(); setCustomStorage.mockReset().mockResolvedValue(undefined) })
++
++  it('filters the named entry out and persists', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://a' }, { name: 'B', hostname: 'http://b' }])
++    const result = await deleteLinkApp('A')
++    expect(result).toEqual([{ name: 'B', hostname: 'http://b', icon: '', app_type: 'LinkApp', status: 'running' }])
++    expect(setCustomStorage).toHaveBeenCalledWith('link', result)
++  })
++})
+diff --git a/src/apps/util/linkApps.ts b/src/apps/util/linkApps.ts
+new file mode 100644
+index 0000000..00bd112
+--- /dev/null
++++ b/src/apps/util/linkApps.ts
+@@ -0,0 +1,86 @@
++import { service } from '@nimotech/nimoos-service'
++
++// 外部链接 App:纯前端概念,存在 UserService custom storage(key='link')。旧 Vue2 UI
++// 读写同一个 key(见 NimoOS-UI/src/mixins/app/Business_LinkApp.js),字段名/形状必须兼容:
++// { name, hostname, icon, app_type: 'LinkApp', status: 'running' }。
++export interface LinkApp {
++  name: string
++  hostname: string
++  icon: string
++  app_type: 'LinkApp'
++  status: 'running'
++}
++
++interface RawLinkAppLike {
++  name?: unknown
++  hostname?: unknown
++  host?: unknown // 旧字段(Vue2 更早版本)
++  icon?: unknown
++}
++
++function normalizeOne(raw: unknown): LinkApp | null {
++  if (!raw || typeof raw !== 'object') return null
++  const r = raw as RawLinkAppLike
++  const name = typeof r.name === 'string' ? r.name : ''
++  const hostname = typeof r.hostname === 'string' ? r.hostname
++    : typeof r.host === 'string' ? r.host // 旧字段迁移:host → hostname
++      : ''
++  if (!name || !hostname) return null
++  const icon = typeof r.icon === 'string' ? r.icon : ''
++  // app_type/status 旧字段(type/state)历史上恒等于 'LinkApp'/'running',直接落成字面量类型,
++  // 无需保留旧值——这就是 type→app_type、state→status 迁移的全部含义。
++  return { name, hostname, icon, app_type: 'LinkApp', status: 'running' }
++}
++
++/** 容忍 ""/null/数组/JSON 字符串(实证:空 key data="");逐项归一化旧字段,按 name 去重(先到先得),
++ *  缺 name/hostname 的条目丢弃。 */
++export function parseLinkApps(raw: unknown): LinkApp[] {
++  let data: unknown = raw
++  if (typeof data === 'string') {
++    const trimmed = data.trim()
++    if (!trimmed) return []
++    try { data = JSON.parse(trimmed) } catch { return [] }
++  }
++  if (!Array.isArray(data)) return []
++  const seen = new Set<string>()
++  const out: LinkApp[] = []
++  for (const item of data) {
++    const n = normalizeOne(item)
++    if (!n || seen.has(n.name)) continue
++    seen.add(n.name)
++    out.push(n)
++  }
++  return out
++}
++
++export async function listLinkApps(): Promise<LinkApp[]> {
++  try {
++    const raw = await service.users.getCustomStorage('link')
++    return parseLinkApps(raw)
++  } catch {
++    return []
++  }
++}
++
++/** 拉现有列表 → 同名替换 hostname/icon,否则追加 → 落盘 → 返回新列表(与 Vue2 connect() 语义一致)。 */
++export async function saveLinkApp(item: { name: string; hostname: string; icon: string }): Promise<LinkApp[]> {
++  const list = await listLinkApps()
++  let found = false
++  const next = list.map((l) => {
++    if (l.name !== item.name) return l
++    found = true
++    return { ...l, hostname: item.hostname, icon: item.icon }
++  })
++  if (!found) {
++    next.push({ name: item.name, hostname: item.hostname, icon: item.icon, app_type: 'LinkApp', status: 'running' })
++  }
++  await service.users.setCustomStorage('link', next)
++  return next
++}
++
++export async function deleteLinkApp(name: string): Promise<LinkApp[]> {
++  const list = await listLinkApps()
++  const next = list.filter((l) => l.name !== name)
++  await service.users.setCustomStorage('link', next)
++  return next
++}
+diff --git a/src/apps/views/AppSettingsPage.test.ts b/src/apps/views/AppSettingsPage.test.ts
+index fa63369..44f65d0 100644
+--- a/src/apps/views/AppSettingsPage.test.ts
++++ b/src/apps/views/AppSettingsPage.test.ts
+@@ -1,18 +1,20 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createPinia, setActivePinia, type Pinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import zh from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   compose: { getYaml: vi.fn(), applySettings: vi.fn(), list: vi.fn().mockResolvedValue({}) },
++  container: { getNetworks: vi.fn().mockResolvedValue([]) },
++  appstore: { stableTag: vi.fn().mockResolvedValue(null) },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ const routerMock = vi.hoisted(() => ({ push: vi.fn() }))
+ vi.mock('vue-router', async (orig) => ({
+   ...(await orig()),
+   useRoute: () => ({ params: { name: 'demo' } }),
+   useRouter: () => routerMock,
+ }))
+ import AppSettingsPage from './AppSettingsPage.vue'
+ 
+diff --git a/src/apps/views/AppSettingsPage.vue b/src/apps/views/AppSettingsPage.vue
+index 5631333..19691dc 100644
+--- a/src/apps/views/AppSettingsPage.vue
++++ b/src/apps/views/AppSettingsPage.vue
+@@ -1,36 +1,48 @@
+ <script setup lang="ts">
+ import { computed, nextTick, onMounted, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import {
+   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle,
+ } from 'reka-ui'
++import { service, type DockerNetwork } from '@nimotech/nimoos-service'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import ComposeSettingsForm from '../components/settings/ComposeSettingsForm.vue'
+ import { useAppSettings } from '../composables/useAppSettings'
+ import { useInstalledAppsStore } from '../stores/installedApps'
+ import { useToast } from '../../stores/toast'
+ 
+ const { t } = useI18n()
+ const route = useRoute()
+ const router = useRouter()
+ const toast = useToast()
+ const installed = useInstalledAppsStore()
+ const id = computed(() => String(route.params.name ?? ''))
+ const s = useAppSettings(id)
+ const app = computed(() => installed.apps.find((a) => a.id === id.value))
+ 
++const networks = ref<DockerNetwork[]>([])
++const stableTags = ref<Record<string, string | null>>({})
++
+ onMounted(() => {
+-  void s.load()
++  void s.load().then(() => {
++    const m = s.model.value
++    if (!m) return
++    // 逐 service 查 stable tag;非商店应用(如手动导入)返回 null,tag 下拉自动隐藏
++    void Promise.all(m.services.map((svc) =>
++      service.appstore.stableTag(id.value, svc.name).then((tag) => [svc.name, tag] as const).catch(() => [svc.name, null] as const),
++    )).then((entries) => { stableTags.value = Object.fromEntries(entries) })
++  })
+   if (!installed.apps.length) installed.refresh().catch(() => {})  // 深链直达补一次(标题/图标用)
++  service.container.getNetworks().then((n) => { networks.value = n }).catch(() => { networks.value = [] })
+ })
+ 
+ // 端口冲突先弹窗:保存钮在长表单最底部,顶部红条在视野外,用户看不到(真机验收反馈)。
+ // 确认后关弹窗,顶部红条 + 端口行标红保留,并滚回红条处。
+ const conflictDlg = ref(false)
+ const bannerEl = ref<HTMLElement | null>(null)
+ 
+ async function onSave() {
+   const ok = await s.save()
+   if (ok) {
+@@ -64,21 +76,21 @@ function back() { router.push({ name: 'apps' }) }
+         <p v-if="s.loading.value" class="apps-empty">{{ t('appsSettingsLoading') }}</p>
+         <div v-else-if="s.loadError.value" class="apps-empty">
+           {{ t('appsSettingsLoadFailed') }}
+           <button class="bar-btn" type="button" @click="s.load()">{{ t('appsStoreRetry') }}</button>
+         </div>
+ 
+         <template v-else-if="s.model.value">
+           <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
+             {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
+           </div>
+-          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" />
++          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" :networks="networks" :stable-tags="stableTags" />
+           <div class="set-actions">
+             <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
+             <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
+               {{ s.saving.value ? t('appsWorking') : t('appsSettingsSave') }}
+             </button>
+           </div>
+         </template>
+       </main>
+     </div>
+ 
+diff --git a/src/apps/views/CustomAppsPage.test.ts b/src/apps/views/CustomAppsPage.test.ts
+new file mode 100644
+index 0000000..fff5276
+--- /dev/null
++++ b/src/apps/views/CustomAppsPage.test.ts
+@@ -0,0 +1,246 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { createPinia, setActivePinia, type Pinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { EditorView } from '@codemirror/view'
++import zh from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  compose: { install: vi.fn(), list: vi.fn().mockResolvedValue({}), get: vi.fn() },
++  users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: vi.fn(() => () => {}) }) }))
++
++import CustomAppsPage from './CustomAppsPage.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++let pinia: Pinia
++
++// 真路由(memory history):tab 状态是路由 query 驱动的深链,需要真实响应式 route 才能观察到
++// "点击切 tab / 转换后自动切 tab" 这类导航后果——静态 mock route(StorePage.test.ts 那种)只能断言
++// replace() 的调用参数,验证不了"切换后确实渲染另一个面板",而这正是本页面 brief 明确要求的用例。
++async function mountPage(initial = '/apps/custom') {
++  const router = createRouter({
++    history: createMemoryHistory(),
++    routes: [
++      { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
++      { path: '/apps', name: 'apps', component: { template: '<div data-test="apps-page">apps</div>' } },
++    ],
++  })
++  await router.push(initial)
++  const w = mount(CustomAppsPage, {
++    global: {
++      plugins: [i18n, pinia, router],
++      stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true },
++    },
++  })
++  return { w, router }
++}
++
++beforeEach(() => {
++  pinia = createPinia()
++  setActivePinia(pinia)
++  localStorage.clear()
++  document.body.innerHTML = ''
++  svc.compose.install.mockReset().mockResolvedValue(undefined)
++  svc.compose.list.mockReset().mockResolvedValue({})
++  svc.users.getCustomStorage.mockReset().mockResolvedValue([])
++  svc.users.setCustomStorage.mockReset().mockResolvedValue(undefined)
++})
++
++describe('CustomAppsPage — tab 路由 query', () => {
++  it('默认(无 ?tab)显示 tab1 YAML 安装面板', async () => {
++    const { w } = await mountPage('/apps/custom')
++    expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
++  })
++
++  it('?tab=import → 显示 tab2 面板', async () => {
++    const { w } = await mountPage('/apps/custom?tab=import')
++    expect(w.find('[data-test="panel-import"]').exists()).toBe(true)
++    expect(w.find('[data-test="panel-yaml"]').exists()).toBe(false)
++  })
++
++  it('?tab=link → 显示 tab3 占位', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    expect(w.find('[data-test="tab-link"]').exists()).toBe(true)
++  })
++
++  it('?tab=garbage → 兜底回 tab1(非法值不识别)', async () => {
++    const { w } = await mountPage('/apps/custom?tab=garbage')
++    expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
++  })
++
++  it('点击 tab 按钮 → 路由 query 切换,面板跟着换(深链可逆向验证)', async () => {
++    const { w, router } = await mountPage('/apps/custom')
++    await w.find('[data-test="tab-import"]').trigger('click')
++    await flushPromises()
++    expect(router.currentRoute.value.query.tab).toBe('import')
++    expect(w.find('[data-test="panel-import"]').exists()).toBe(true)
++  })
++})
++
++describe('CustomAppsPage — tab2 docker run 转换', () => {
++  it('粘贴 docker run 命令点转换 → 编辑器内容含镜像名且自动切到 tab1', async () => {
++    const { w, router } = await mountPage('/apps/custom?tab=import')
++    await w.find('[data-test="custom-import-textarea"]').setValue('docker run -p 8080:80 nginx')
++    await w.find('[data-test="custom-convert"]').trigger('click')
++    await flushPromises()
++    expect(router.currentRoute.value.query.tab).toBeUndefined() // tab=yaml 时 query 里 tab 键被清空
++    expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)
++    expect(view!.state.doc.toString()).toContain('nginx')
++  })
++
++  it('转换失败(垃圾输入)→ 就地报错,不切 tab', async () => {
++    const { w, router } = await mountPage('/apps/custom?tab=import')
++    await w.find('[data-test="custom-import-textarea"]').setValue('this is not a docker command at all')
++    await w.find('[data-test="custom-convert"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="convert-error"]').exists()).toBe(true)
++    expect(router.currentRoute.value.query.tab).toBe('import') // 未切走
++  })
++})
++
++describe('CustomAppsPage — tab1 安装', () => {
++  it('安装成功 → 调用 useCustomInstall 真实链路(dry_run→install)并跳转 /apps', async () => {
++    const { w, router } = await mountPage('/apps/custom')
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)!
++    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'services:\n  demo:\n    image: demo:1\n' } })
++    await nextTick()
++
++    await w.find('[data-test="custom-install"]').trigger('click')
++    await flushPromises()
++
++    expect(svc.compose.install).toHaveBeenNthCalledWith(1, expect.stringContaining('demo'), { dryRun: true, checkPortConflict: true })
++    expect(svc.compose.install).toHaveBeenNthCalledWith(2, expect.stringContaining('demo'), { checkPortConflict: true })
++    expect(router.currentRoute.value.path).toBe('/apps')
++  })
++
++  it('安装失败(dry_run 400 端口冲突)→ 就地红条含端口,不跳转', async () => {
++    svc.compose.install.mockRejectedValueOnce({
++      response: { data: { message: 'conflict', data: { ports_in_use: { tcp: [8080] } } } },
++    })
++    const { w, router } = await mountPage('/apps/custom')
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)!
++    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'services:\n  demo:\n    image: demo:1\n' } })
++    await nextTick()
++
++    await w.find('[data-test="custom-install"]').trigger('click')
++    await flushPromises()
++
++    expect(w.find('[data-test="yaml-error"]').exists()).toBe(true)
++    expect(w.find('[data-test="yaml-error"]').text()).toContain('8080/tcp')
++    expect(router.currentRoute.value.path).toBe('/apps/custom')
++  })
++
++  it('校验成功 → toast appsCustomValidateOk,不发真装', async () => {
++    const { w } = await mountPage('/apps/custom')
++    await w.find('[data-test="custom-validate"]').trigger('click')
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenCalledTimes(1) // 只 dry_run
++    expect(svc.compose.install).toHaveBeenCalledWith(expect.any(String), { dryRun: true, checkPortConflict: true })
++  })
++})
++
++describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
++  it('挂载即读 link 列表并展示 name/hostname', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    expect(svc.users.getCustomStorage).toHaveBeenCalledWith('link')
++    const row = w.find('[data-test="link-row"]')
++    expect(row.exists()).toBe(true)
++    expect(row.text()).toContain('MyNAS')
++    expect(row.text()).toContain('http://nas.local')
++  })
++
++  it('列表为空时显示空态提示', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    expect(w.find('[data-test="link-empty"]').exists()).toBe(true)
++  })
++
++  it('地址留空提交 → 就地报错,不调 saveLinkApp(setCustomStorage 不发)', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-name"]').setValue('Router')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="link-error"]').exists()).toBe(true)
++    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
++  })
++
++  it('地址不以 http(s):// 开头 → 报 appsCustomLinkHostInvalid,不提交', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-name"]').setValue('Router')
++    await w.find('[data-test="link-hostname"]').setValue('ftp://nope')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="link-error"]').text()).toBe(zh.appsCustomLinkHostInvalid)
++    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
++  })
++
++  it('新增:填名称+地址提交 → saveLinkApp 落盘,刷新列表并清空表单', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-name"]').setValue('Router')
++    await w.find('[data-test="link-hostname"]').setValue('http://192.168.1.1')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [
++      { name: 'Router', hostname: 'http://192.168.1.1', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++    expect((w.find('[data-test="link-name"]').element as HTMLInputElement).value).toBe('')
++    expect(w.find('[data-test="link-row"]').text()).toContain('Router')
++  })
++
++  it('编辑:点「编辑」回填表单且名称字段锁定(Vue2 disableEditName 同款),提交只改 hostname/icon', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://old', icon: '' }])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-edit"]').trigger('click')
++    await nextTick()
++    const nameInput = w.find('[data-test="link-name"]').element as HTMLInputElement
++    expect(nameInput.value).toBe('MyNAS')
++    expect(nameInput.disabled).toBe(true)
++
++    await w.find('[data-test="link-hostname"]').setValue('http://new')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [
++      { name: 'MyNAS', hostname: 'http://new', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++  })
++
++  it('删除:AlertDialog 确认后调 deleteLinkApp,取消不删', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++
++    await w.find('[data-test="link-delete"]').trigger('click')
++    await nextTick()
++    expect(document.body.textContent).toContain(zh.appsCustomLinkDeleteConfirm)
++
++    // 取消:不落盘
++    const cancelBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCancel)!
++    cancelBtn.click()
++    await flushPromises()
++    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
++
++    // 再次删除并确认
++    await w.find('[data-test="link-delete"]').trigger('click')
++    await nextTick()
++    const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCustomLinkDelete)!
++    confirmBtn.click()
++    await flushPromises()
++    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [])
++  })
++})
+diff --git a/src/apps/views/CustomAppsPage.vue b/src/apps/views/CustomAppsPage.vue
+new file mode 100644
+index 0000000..a39f682
+--- /dev/null
++++ b/src/apps/views/CustomAppsPage.vue
+@@ -0,0 +1,338 @@
++<script setup lang="ts">
++import { computed, onMounted, ref } from 'vue'
++import { useRoute, useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import AreaShell from '../../components/shell/AreaShell.vue'
++import AppsSidebar from '../components/AppsSidebar.vue'
++import YamlEditor from '../components/custom/YamlEditor.vue'
++import AlertDialog from '../../components/ui/AlertDialog.vue'
++import { useCustomInstall } from '../composables/useCustomInstall'
++import { ensureComposeMeta, normalizeVolumes, dockerRunToCompose } from '../util/importNormalize'
++import { listLinkApps, saveLinkApp, deleteLinkApp, type LinkApp } from '../util/linkApps'
++import { useValidation } from '../../composables/useValidation'
++import { useToast } from '../../stores/toast'
++
++type TabKey = 'yaml' | 'import' | 'link'
++const TABS: TabKey[] = ['yaml', 'import', 'link']
++
++const { t } = useI18n()
++const route = useRoute()
++const router = useRouter()
++const toast = useToast()
++const { validateYaml, installYaml } = useCustomInstall()
++const { required } = useValidation()
++
++// 单一事实源=路由 query,深链可达(?tab=yaml|import|link,默认 yaml)
++const tab = computed<TabKey>(() => {
++  const q = route.query.tab
++  return typeof q === 'string' && (TABS as string[]).includes(q) ? (q as TabKey) : 'yaml'
++})
++function setTab(k: TabKey) {
++  router.replace({ query: { ...route.query, tab: k === 'yaml' ? undefined : k } })
++}
++
++// ── tab1:YAML 编辑安装 ──
++const yamlText = ref('')
++const yamlBusy = ref(false)
++const yamlError = ref<{ message: string; ports?: string[] } | null>(null)
++
++async function onValidate() {
++  if (yamlBusy.value) return
++  yamlError.value = null
++  yamlBusy.value = true
++  try {
++    const res = await validateYaml(yamlText.value)
++    if (res.ok) toast.show(t('appsCustomValidateOk'))
++    else yamlError.value = { message: res.message, ports: res.ports }
++  } finally {
++    yamlBusy.value = false
++  }
++}
++async function onInstall() {
++  if (yamlBusy.value) return
++  yamlError.value = null
++  yamlBusy.value = true
++  try {
++    const res = await installYaml(yamlText.value)
++    if (res.ok) router.push('/apps') // 进 /apps 看安装进度卡
++    else yamlError.value = { message: res.message, ports: res.ports }
++  } finally {
++    yamlBusy.value = false
++  }
++}
++
++// ── tab2:docker run 命令导入 ──
++const dockerCmd = ref('')
++const convertError = ref('')
++
++function onConvert() {
++  convertError.value = ''
++  try {
++    const composeRaw = dockerRunToCompose(dockerCmd.value)
++    // 先取一次派生名(供 normalizeVolumes 的 appName 用);最终 meta(name/title/icon)注入
++    // 在 volumes 归一化之后再做一遍,确保注入落在最终产出的 YAML 上。
++    const { name } = ensureComposeMeta(composeRaw)
++    const normalized = normalizeVolumes(composeRaw, name)
++    const { yaml } = ensureComposeMeta(normalized)
++    yamlText.value = yaml
++    setTab('yaml')
++  } catch (e) {
++    convertError.value = e instanceof Error ? e.message : String(e)
++  }
++}
++
++// ── tab3:外部链接(LinkApp)管理 ──
++const links = ref<LinkApp[]>([])
++const linksLoading = ref(false)
++const editingName = ref<string | null>(null) // 非空=编辑既有条目,名称字段锁定(Vue2 disableEditName 同款)
++const linkName = ref('')
++const linkHostname = ref('')
++const linkIcon = ref('')
++const linkError = ref('')
++const linkBusy = ref(false)
++
++onMounted(() => { void loadLinks() })
++
++async function loadLinks() {
++  linksLoading.value = true
++  try {
++    links.value = await listLinkApps()
++  } finally {
++    linksLoading.value = false
++  }
++}
++
++function resetLinkForm() {
++  editingName.value = null
++  linkName.value = ''
++  linkHostname.value = ''
++  linkIcon.value = ''
++  linkError.value = ''
++}
++
++function onEditLink(l: LinkApp) {
++  editingName.value = l.name
++  linkName.value = l.name
++  linkHostname.value = l.hostname
++  linkIcon.value = l.icon
++  linkError.value = ''
++}
++
++function validateLinkForm(): boolean {
++  const nameErr = required(linkName.value)
++  if (nameErr) { linkError.value = t(nameErr); return false }
++  const hostErr = required(linkHostname.value)
++  if (hostErr) { linkError.value = t(hostErr); return false }
++  if (!/^https?:\/\//.test(linkHostname.value.trim())) {
++    linkError.value = t('appsCustomLinkHostInvalid')
++    return false
++  }
++  return true
++}
++
++async function onSubmitLink() {
++  if (linkBusy.value) return
++  linkError.value = ''
++  if (!validateLinkForm()) return
++  linkBusy.value = true
++  try {
++    links.value = await saveLinkApp({ name: linkName.value.trim(), hostname: linkHostname.value.trim(), icon: linkIcon.value.trim() })
++    resetLinkForm()
++  } catch (e) {
++    linkError.value = e instanceof Error ? e.message : String(e)
++  } finally {
++    linkBusy.value = false
++  }
++}
++
++// 删除确认:open 标志与 target 用两个独立 ref 存(不是同一个对象的字段)——
++// reka AlertDialogAction 点击时会先 emit update:open(false) 再触发 @confirm,若两者共享
++// 同一处清空逻辑,target 可能在 confirm 处理器读到之前已被清掉。两个独立 ref 从根上避免这个时序坑。
++const linkDelOpen = ref(false)
++const linkDelTarget = ref<LinkApp | null>(null)
++function onDeleteLink(l: LinkApp) { linkDelTarget.value = l; linkDelOpen.value = true }
++async function confirmDeleteLink() {
++  const target = linkDelTarget.value
++  if (!target) return
++  links.value = await deleteLinkApp(target.name)
++  if (editingName.value === target.name) resetLinkForm()
++}
++</script>
++
++<template>
++  <AreaShell :title="t('appsTitle')">
++    <div class="apps-layout">
++      <AppsSidebar />
++      <main class="apps-main">
++        <div class="custom-tabs" role="tablist">
++          <button
++            type="button" class="custom-tab" data-test="tab-yaml"
++            :class="{ active: tab === 'yaml' }" @click="setTab('yaml')"
++          >{{ t('appsCustomTabYaml') }}</button>
++          <button
++            type="button" class="custom-tab" data-test="tab-import"
++            :class="{ active: tab === 'import' }" @click="setTab('import')"
++          >{{ t('appsCustomTabImport') }}</button>
++          <button
++            type="button" class="custom-tab" data-test="tab-link"
++            :class="{ active: tab === 'link' }" @click="setTab('link')"
++          >{{ t('appsCustomTabLink') }}</button>
++        </div>
++
++        <section v-if="tab === 'yaml'" class="custom-panel" data-test="panel-yaml">
++          <YamlEditor v-model="yamlText" class="custom-editor" />
++          <div v-if="yamlError" class="custom-error" data-test="yaml-error">
++            <p>{{ yamlError.message }}</p>
++            <p v-if="yamlError.ports?.length">{{ t('appsInstallPortConflict', { ports: yamlError.ports.join(', ') }) }}</p>
++          </div>
++          <div class="custom-actions">
++            <button
++              type="button" class="bar-btn" data-test="custom-validate"
++              :disabled="yamlBusy" @click="onValidate"
++            >{{ t('appsCustomValidate') }}</button>
++            <button
++              type="button" class="custom-install-btn" data-test="custom-install"
++              :disabled="yamlBusy" @click="onInstall"
++            >{{ t('appsCustomInstall') }}</button>
++          </div>
++        </section>
++
++        <section v-else-if="tab === 'import'" class="custom-panel" data-test="panel-import">
++          <p class="custom-hint">{{ t('appsCustomImportHint') }}</p>
++          <textarea
++            v-model="dockerCmd" class="custom-textarea" data-test="custom-import-textarea"
++            :placeholder="t('appsCustomImportPlaceholder')" rows="6"
++          ></textarea>
++          <div v-if="convertError" class="custom-error" data-test="convert-error">
++            {{ t('appsCustomConvertFail') }}: {{ convertError }}
++          </div>
++          <div class="custom-actions">
++            <button type="button" class="custom-install-btn" data-test="custom-convert" @click="onConvert">
++              {{ t('appsCustomConvert') }}
++            </button>
++          </div>
++        </section>
++
++        <section v-else class="custom-panel" data-test="tab-link-panel">
++          <div class="link-form">
++            <div class="link-field">
++              <label>{{ t('appsCustomLinkName') }}</label>
++              <input
++                v-model="linkName" class="set-input" type="text" data-test="link-name"
++                :disabled="!!editingName"
++              />
++            </div>
++            <div class="link-field">
++              <label>{{ t('appsCustomLinkHost') }}</label>
++              <input v-model="linkHostname" class="set-input" type="text" data-test="link-hostname" placeholder="https://" />
++            </div>
++            <div class="link-field">
++              <label>{{ t('appsCustomLinkIcon') }}</label>
++              <input v-model="linkIcon" class="set-input" type="text" data-test="link-icon" />
++            </div>
++            <div v-if="linkError" class="custom-error" data-test="link-error">{{ linkError }}</div>
++            <div class="custom-actions">
++              <button
++                v-if="editingName" type="button" class="bar-btn" data-test="link-cancel-edit"
++                @click="resetLinkForm"
++              >{{ t('appsCancel') }}</button>
++              <button type="button" class="custom-install-btn" data-test="link-submit" :disabled="linkBusy" @click="onSubmitLink">
++                {{ editingName ? t('appsCustomLinkSave') : t('appsCustomLinkAdd') }}
++              </button>
++            </div>
++          </div>
++
++          <p v-if="!linksLoading && !links.length" class="custom-hint" data-test="link-empty">{{ t('appsCustomLinkEmpty') }}</p>
++          <ul v-else class="link-list">
++            <li v-for="l in links" :key="l.name" class="link-row" data-test="link-row">
++              <span class="link-ic" :class="l.icon ? 'has-img' : 'ic-app'">
++                <img v-if="l.icon" :src="l.icon" alt="" loading="lazy" />
++                <span v-else>{{ (l.name[0] || '?').toUpperCase() }}</span>
++              </span>
++              <span class="link-name">{{ l.name }}</span>
++              <span class="link-host">{{ l.hostname }}</span>
++              <button type="button" class="bar-btn" data-test="link-edit" @click="onEditLink(l)">{{ t('appsCustomLinkEdit') }}</button>
++              <button type="button" class="bar-btn" data-test="link-delete" @click="onDeleteLink(l)">{{ t('appsCustomLinkDelete') }}</button>
++            </li>
++          </ul>
++        </section>
++      </main>
++    </div>
++
++    <AlertDialog
++      v-model:open="linkDelOpen"
++      :title="t('appsCustomLinkDelete')"
++      :message="t('appsCustomLinkDeleteConfirm')"
++      :confirm-text="t('appsCustomLinkDelete')"
++      :cancel-text="t('appsCancel')"
++      destructive
++      @confirm="confirmDeleteLink"
++    />
++  </AreaShell>
++</template>
++
++<style scoped>
++.apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
++.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
++
++.custom-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
++.custom-tab {
++  font-size: 13px; padding: 7px 16px; cursor: pointer; color: var(--fg);
++  background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 999px;
++}
++.custom-tab.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
++
++.custom-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
++.custom-editor { flex: 1 1 auto; min-height: 320px; }
++.custom-hint { color: var(--fg-muted); font-size: 13px; margin: 0; }
++.custom-textarea {
++  width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--font-mono, monospace);
++  font-size: 13px; padding: 10px 12px; color: var(--fg); background: var(--chip-bg);
++  border: 1px solid var(--card-border); border-radius: var(--radius); outline: none;
++}
++.custom-textarea::placeholder { color: var(--fg-muted); }
++.custom-textarea:focus { border-color: var(--accent-soft-bd); }
++
++.custom-error {
++  /* 同 AppSettingsPage .set-conflict:半透明 --drop-bad 底 + --remove-fg 字,统一「冲突/失败」视觉语言 */
++  padding: 10px 14px; font-size: 13px; border-radius: var(--radius);
++  color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
++}
++.custom-error p { margin: 0; }
++.custom-error p + p { margin-top: 4px; }
++
++.custom-actions { display: flex; justify-content: flex-end; gap: 10px; }
++.custom-install-btn {
++  font-size: 13.5px; padding: 8px 24px; cursor: pointer; color: var(--on-accent);
++  background: var(--accent); border: none; border-radius: 10px;
++}
++.custom-install-btn:hover { filter: brightness(1.08); }
++.custom-install-btn:disabled { opacity: 0.55; cursor: default; filter: none; }
++@media (max-width: 768px) { .apps-layout { gap: 0; } }
++
++/* ── tab3:外部链接(LinkApp) ── */
++.link-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
++.link-field { display: flex; flex-direction: column; gap: 5px; }
++.link-field label { font-size: 12px; color: var(--fg-muted); }
++.set-input {
++  width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 13px;
++  color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
++}
++.set-input:focus { border-color: var(--accent); }
++.set-input:disabled { opacity: 0.6; cursor: not-allowed; }
++
++.link-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
++.link-row {
++  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
++  background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px;
++}
++.link-ic {
++  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; overflow: hidden;
++  display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--on-accent);
++}
++.link-ic.has-img { background: var(--chip-bg-hi); }
++.link-ic.has-img img { width: 100%; height: 100%; object-fit: contain; }
++/* .ic-app 是 theme.css 里的品牌渐变(theme-exception:图标兜底渐变,皮肤无关,详见 theme.css 顶部注释) */
++.link-name { flex: 0 1 auto; font-size: 13.5px; color: var(--fg); font-weight: 500; }
++.link-host { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++</style>
+diff --git a/src/home/stores/apps.test.ts b/src/home/stores/apps.test.ts
+index ba5357a..b67d1da 100644
+--- a/src/home/stores/apps.test.ts
++++ b/src/home/stores/apps.test.ts
+@@ -121,10 +121,55 @@ describe('desktop 应用透传', () => {
+         { name: 'link', status: 'exited', app_type: 'LinkApp' },
+       ] as never)
+       expect(s.isStopped('run')).toBe(false)
+       expect(s.isStopped('nostatus')).toBe(false)
+       expect(s.isStopped('link')).toBe(false)
+       expect(s.isStopped('files')).toBe(false) // 系统应用
+       expect(s.isStopped('ghost')).toBe(false) // 不存在
+     })
+   })
+ })
++
++describe('LinkApp 桌面拼接(setApps 第二参)', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('setApps([], links) 追加 LinkApp 项:app_type 透传,order 含之', () => {
++    const s = useAppsStore()
++    s.setApps([], [{ name: 'MyNAS', hostname: 'http://nas.local', icon: '', app_type: 'LinkApp', status: 'running' }])
++    expect(s.app('MyNAS')?.app_type).toBe('LinkApp')
++    expect(s.app('MyNAS')?.status).toBe('running')
++    expect(s.app('MyNAS')?.hostname).toBe('http://nas.local')
++    expect(s.order).toContain('MyNAS')
++  })
++
++  it('name 与容器应用同名时,容器应用胜出,不被 LinkApp 覆盖', () => {
++    const s = useAppsStore()
++    s.setApps(
++      [{ name: 'jellyfin', title: { en_us: 'Jellyfin' }, status: 'running', app_type: 'WebApp' }] as never,
++      [{ name: 'jellyfin', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }],
++    )
++    expect(s.app('jellyfin')?.app_type).toBe('WebApp')
++    expect(s.app('jellyfin')?.name).toBe('Jellyfin')
++  })
++
++  it('glyph = name 首字符大写(无 icon 时的兜底),icon 为空字符串时落 null', () => {
++    const s = useAppsStore()
++    s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }])
++    expect(s.app('myapp')?.glyph).toBe('M')
++    expect(s.app('myapp')?.icon).toBeNull()
++    expect(s.app('myapp')?.cls).toBe('ic-app')
++    expect(s.app('myapp')?.system).toBe(false)
++  })
++
++  it('icon 有值时透传用户填的 URL', () => {
++    const s = useAppsStore()
++    s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: 'http://icon', app_type: 'LinkApp', status: 'running' }])
++    expect(s.app('myapp')?.icon).toBe('http://icon')
++  })
++
++  it('links 缺省(不传)不影响既有行为', () => {
++    const s = useAppsStore()
++    s.setApps([{ name: 'jellyfin', title: { en_us: 'J' }, status: 'running' }] as never)
++    expect(s.app('jellyfin')?.name).toBe('J')
++    expect(s.order).not.toContain('MyNAS')
++  })
++})
+diff --git a/src/home/stores/apps.ts b/src/home/stores/apps.ts
+index d9d7c79..7a68a32 100644
+--- a/src/home/stores/apps.ts
++++ b/src/home/stores/apps.ts
+@@ -1,16 +1,17 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import { service, type AppGridItem, type AppGridWidget } from '@nimotech/nimoos-service'
+ import type { WidgetSize } from '../grid/types'
+ import { APP_WIDGET_SIZE, appWidgetRange } from '../widgets/appWidgetSize'
+ import { SYSTEM_APPS } from '../apps/systemApps'
++import { listLinkApps, type LinkApp } from '../../apps/util/linkApps'
+ 
+ export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
+ 
+ /** spec §3:初始尺寸夹进有效范围(缺省 = 全局 w 2..4 / h 1..4);非法/缺省 → 2×2 再夹 */
+ export function clampWidgetDecl(w?: number, h?: number, range: WidgetSize = APP_WIDGET_SIZE): [number, number] {
+   const iw = !w || w <= 0 ? 2 : w
+   const ih = !h || h <= 0 ? 2 : h
+   return [
+     Math.max(range.min[0], Math.min(range.max[0], iw)),
+     Math.max(range.min[1], Math.min(range.max[1], ih)),
+@@ -20,21 +21,21 @@ export function clampWidgetDecl(w?: number, h?: number, range: WidgetSize = APP_
+ export interface AppMeta {
+   name: string; cls: string; glyph: string; icon: string | null; system: boolean
+   app_type?: string; status?: string; scheme?: string; port?: string | number; index?: string; hostname?: string
+   desktop?: boolean; widget?: AppGridWidget
+ }
+ 
+ export const useAppsStore = defineStore('home-apps', () => {
+   const apps = ref<Record<string, AppMeta>>({})
+   const order = ref<string[]>([])
+ 
+-  function setApps(container: AppGridItem[]) {
++  function setApps(container: AppGridItem[], links?: LinkApp[]) {
+     const map: Record<string, AppMeta> = {}
+     const ord: string[] = []
+     SYSTEM_APPS.forEach((s) => {
+       map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
+       ord.push(s.key)
+     })
+     ;(container || []).forEach((a) => {
+       const key = a.name
+       if (!key || map[key]) return // 不覆盖系统应用
+       // 标题多语言键大小写不统一:应用市场装的 v2 应用来自 store 的 title 用 `en_US`(大写),
+@@ -46,27 +47,36 @@ export const useAppsStore = defineStore('home-apps', () => {
+       if (a.desktop && icon && icon.startsWith('/') && a.port) {
+         icon = `${a.scheme || 'http'}://${a.hostname || window.location.hostname}:${a.port}${icon}`
+       }
+       map[key] = {
+         name: title, cls: 'ic-app', glyph: '', icon, system: false,
+         app_type: (a as { appType?: string }).appType || a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,
+         desktop: a.desktop, widget: a.widget,
+       }
+       ord.push(key)
+     })
++    ;(links || []).forEach((l) => {
++      const key = l.name
++      if (!key || map[key]) return // 系统/容器应用已占用该 key,外部链接不覆盖(容器应用胜出)
++      map[key] = {
++        name: l.name, cls: 'ic-app', glyph: (l.name[0] || '').toUpperCase(), icon: l.icon || null, system: false,
++        app_type: l.app_type, status: l.status, hostname: l.hostname,
++      }
++      ord.push(key)
++    })
+     apps.value = map
+     order.value = ord
+   }
+ 
+   async function loadGrid() {
+-    const list = await service.apps.getGrid()
+-    setApps(list || [])
++    const [list, links] = await Promise.all([service.apps.getGrid(), listLinkApps().catch(() => [])])
++    setApps(list || [], links)
+   }
+ 
+   function app(key: string): AppMeta | undefined { return apps.value[key] }
+ 
+   /** 已停止(可启动)的容器应用:系统应用/LinkApp/无状态来源不算。
+    *  status 缺省视为运行(与 desktopDecls 同一约定,不误伤)。 */
+   function isStopped(key: string): boolean {
+     const a = apps.value[key]
+     if (!a || a.system || a.app_type === 'LinkApp') return false
+     return !!a.status && a.status !== 'running'
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index d4bacca..5aa0ba2 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -410,32 +410,60 @@ export default {
+   appsStoreZoomClose: 'Close preview',
+   appsInstalling: 'Installing',
+   appsInstallingPercent: 'Installing {percent}%',
+   appsInstallFailed: 'Failed to install {name}',
+   appsInstallPortConflict: 'Ports in use: {ports}',
+   appsInstallDismiss: 'Dismiss',
+   appsInstallTipsTitle: 'Before you install',
+   appsInstallTipsConfirm: 'Continue',
+   appsStoreIncompatible: 'Not compatible with this device ({arch})',
+   appsInstallStalled: 'No install progress received — check the app list later',
++  // ── Custom install (/apps/custom) ──
++  appsNavCustom: 'Custom install',
++  appsCustomTabYaml: 'YAML install',
++  appsCustomTabImport: 'Command import',
++  appsCustomTabLink: 'External links',
++  appsCustomValidate: 'Validate',
++  appsCustomInstall: 'Install',
++  appsCustomConvert: 'Convert',
++  appsCustomNameConflict: 'An app with this name is already installed. Change the top-level name and try again',
++  appsCustomValidateOk: 'Validation passed',
++  appsCustomConvertFail: 'Conversion failed',
++  appsCustomImportPlaceholder: 'Paste a docker run command…',
++  appsCustomImportHint: 'Paste a docker run command, click "Convert" to generate compose YAML and switch to the YAML install tab',
++  appsCustomLinkName: 'Name',
++  appsCustomLinkHost: 'Address',
++  appsCustomLinkIcon: 'Icon URL',
++  appsCustomLinkAdd: 'Add link',
++  appsCustomLinkSave: 'Save',
++  appsCustomLinkEdit: 'Edit',
++  appsCustomLinkDelete: 'Delete',
++  appsCustomLinkDeleteConfirm: 'Delete this external link?',
++  appsCustomLinkHostInvalid: 'Address must start with http:// or https://',
++  appsCustomLinkEmpty: 'No external links yet',
+   // ── App settings: row editors ──
+   appsSettingsAdd: 'Add',
+   appsSettingsRemove: 'Remove',
+   appsSettingsPortHost: 'Host port',
+   appsSettingsPortContainer: 'Container port',
+   appsSettingsPortProtocol: 'Protocol',
++  appsSettingsPortExtraNote: 'The following port entries are preserved as-is and cannot be edited here',
+   // ── App settings: form (service tabs / WebUI / advanced / tips) ──
+   appsSettingsSectionWeb: 'Web UI',
+   appsSettingsSectionPorts: 'Ports',
+   appsSettingsSectionEnv: 'Environment',
+   appsSettingsSectionVolumes: 'Volumes',
+   appsSettingsSectionDevices: 'Devices',
++  appsSettingsCommand: 'Container command',
++  appsSettingsNetwork: 'Network',
++  appsSettingsTagStable: 'Stable',
++  appsSettingsTagLatest: 'Latest',
+   appsSettingsSectionAdvanced: 'Advanced',
+   appsSettingsSectionTips: 'Usage tips',
+   appsSettingsAppTitle: 'App name',
+   appsSettingsIconUrl: 'Icon URL',
+   appsSettingsScheme: 'Scheme',
+   appsSettingsHostname: 'Host',
+   appsSettingsHostnamePh: 'Empty = current host',
+   appsSettingsWebPort: 'Web port',
+   appsSettingsIndex: 'Path',
+   appsSettingsKey: 'Key',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 38ba9e7..562b6c6 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -409,32 +409,60 @@ export default {
+   appsStoreZoomClose: '关闭预览',
+   appsInstalling: '安装中',
+   appsInstallingPercent: '安装中 {percent}%',
+   appsInstallFailed: '{name} 安装失败',
+   appsInstallPortConflict: '端口被占用:{ports}',
+   appsInstallDismiss: '知道了',
+   appsInstallTipsTitle: '安装前须知',
+   appsInstallTipsConfirm: '继续安装',
+   appsStoreIncompatible: '与本机架构({arch})不兼容',
+   appsInstallStalled: '长时间未收到安装进度,请稍后在应用列表确认',
++  // ── 自定义安装(/apps/custom) ──
++  appsNavCustom: '自定义安装',
++  appsCustomTabYaml: 'YAML 安装',
++  appsCustomTabImport: '命令导入',
++  appsCustomTabLink: '外部链接',
++  appsCustomValidate: '校验',
++  appsCustomInstall: '安装',
++  appsCustomConvert: '转换',
++  appsCustomNameConflict: '已存在同名应用,请修改 compose 顶层 name 后再安装',
++  appsCustomValidateOk: '校验通过',
++  appsCustomConvertFail: '转换失败',
++  appsCustomImportPlaceholder: '粘贴 docker run 命令…',
++  appsCustomImportHint: '粘贴一条 docker run 命令,点击「转换」生成 compose YAML 并跳转到 YAML 安装标签页',
++  appsCustomLinkName: '名称',
++  appsCustomLinkHost: '地址',
++  appsCustomLinkIcon: '图标 URL',
++  appsCustomLinkAdd: '添加链接',
++  appsCustomLinkSave: '保存',
++  appsCustomLinkEdit: '编辑',
++  appsCustomLinkDelete: '删除',
++  appsCustomLinkDeleteConfirm: '删除这个外部链接?',
++  appsCustomLinkHostInvalid: '地址必须以 http:// 或 https:// 开头',
++  appsCustomLinkEmpty: '还没有外部链接',
+   // ── 应用设置:行编辑器 ──
+   appsSettingsAdd: '添加',
+   appsSettingsRemove: '删除',
+   appsSettingsPortHost: '主机端口',
+   appsSettingsPortContainer: '容器端口',
+   appsSettingsPortProtocol: '协议',
++  appsSettingsPortExtraNote: '以下端口条目由系统原样保留,不支持在表单中编辑',
+   // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
+   appsSettingsSectionWeb: 'Web 界面',
+   appsSettingsSectionPorts: '端口',
+   appsSettingsSectionEnv: '环境变量',
+   appsSettingsSectionVolumes: '存储卷',
+   appsSettingsSectionDevices: '设备',
++  appsSettingsCommand: '容器命令',
++  appsSettingsNetwork: '网络',
++  appsSettingsTagStable: '稳定版',
++  appsSettingsTagLatest: '最新',
+   appsSettingsSectionAdvanced: '高级',
+   appsSettingsSectionTips: '使用提示',
+   appsSettingsAppTitle: '应用名称',
+   appsSettingsIconUrl: '图标 URL',
+   appsSettingsScheme: '协议',
+   appsSettingsHostname: '主机',
+   appsSettingsHostnamePh: '留空=当前访问地址',
+   appsSettingsWebPort: 'Web 端口',
+   appsSettingsIndex: '路径',
+   appsSettingsKey: '变量名',
+diff --git a/src/router/index.ts b/src/router/index.ts
+index 3091b6d..d42dd58 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -3,30 +3,32 @@ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
+ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import StorePage from '../apps/views/StorePage.vue'
+ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
+ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
++import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/apps/store', name: 'apps-store', component: StorePage },
+   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
++  { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
+   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+diff --git a/src/types/composerize.d.ts b/src/types/composerize.d.ts
+new file mode 100644
+index 0000000..43c95e8
+--- /dev/null
++++ b/src/types/composerize.d.ts
+@@ -0,0 +1,6 @@
++// composerize ships no type declarations (plain CJS, `module.exports = fn`).
++// Kept minimal on purpose — only the single call shape we use.
++declare module 'composerize' {
++  const composerize: (dockerRunCommand: string) => string
++  export default composerize
++}

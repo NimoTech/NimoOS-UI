@@ -1,0 +1,167 @@
+# Review package: 6159be7..2232ec3
+
+## Commits
+2232ec3 feat(files-upload): pure server-task sync planner (contentKey + planServerSync)
+
+## Files changed
+ src/files/upload/serverSync.test.ts | 75 +++++++++++++++++++++++++++++++++++++
+ src/files/upload/serverSync.ts      | 69 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 144 insertions(+)
+
+## Diff
+diff --git a/src/files/upload/serverSync.test.ts b/src/files/upload/serverSync.test.ts
+new file mode 100644
+index 0000000..8ec9b0f
+--- /dev/null
++++ b/src/files/upload/serverSync.test.ts
+@@ -0,0 +1,75 @@
++import { describe, it, expect } from 'vitest'
++import { contentKey, planServerSync } from './serverSync'
++import type { UploadItem } from './types'
++
++function localItem(over: Partial<UploadItem> = {}): UploadItem {
++  return {
++    id: 'fq_1_0_0.5', file: null, fileName: 'a.txt', fileType: '', size: 100,
++    targetPath: '/DATA/Documents', relativePath: 'a.txt', status: 'needs_file',
++    progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0,
++    error: '', createdAt: 1, batchId: 'b1', batchTotal: 1, restored: true,
++    conflictPolicy: '', oversize: false, ...over,
++  }
++}
++function serverTask(over: Record<string, unknown> = {}) {
++  return {
++    id: 'abc123', filename: 'a.txt', relative_path: 'a.txt', target_path: '/DATA/Documents',
++    size: 100, mime: 'text/plain', offset: 40, upload_url: '/v2/nimoos/file/upload-tus/abc123',
++    retry_count: 2, created_at: 1700, batch_id: 'srv-b', ...over,
++  } as never
++}
++
++describe('contentKey', () => {
++  it('joins target + relative + size', () => {
++    expect(contentKey('/DATA/x', 'a.txt', 100)).toBe('/DATA/x a.txt 100')
++  })
++  it('tolerates empties', () => {
++    expect(contentKey('', '', 0)).toBe('  0')
++  })
++})
++
++describe('planServerSync', () => {
++  it('skips a task whose id already exists locally', () => {
++    const q = [localItem({ id: 'abc123' })]
++    const plan = planServerSync(q, [serverTask()])
++    expect(plan.merges).toEqual([])
++    expect(plan.appends).toEqual([])
++  })
++
++  it('merges resume point into a content-matched local item (max offset, keep local url if set)', () => {
++    const q = [localItem({ id: 'fq_x', bytesSent: 10, tusUploadUrl: null })]
++    const plan = planServerSync(q, [serverTask({ offset: 40 })])
++    expect(plan.appends).toEqual([])
++    expect(plan.merges).toEqual([
++      { id: 'fq_x', patch: { tusUploadUrl: '/v2/nimoos/file/upload-tus/abc123', bytesSent: 40 } },
++    ])
++  })
++
++  it('keeps the larger of local bytesSent vs server offset', () => {
++    const q = [localItem({ id: 'fq_x', bytesSent: 90, tusUploadUrl: '/keep/url' })]
++    const plan = planServerSync(q, [serverTask({ offset: 40 })])
++    expect(plan.merges[0].patch).toEqual({ tusUploadUrl: '/keep/url', bytesSent: 90 })
++  })
++
++  it('appends a needs_file row for a server-only task (id = tus id, offset preserved)', () => {
++    const plan = planServerSync([], [serverTask()])
++    expect(plan.merges).toEqual([])
++    expect(plan.appends).toHaveLength(1)
++    const a = plan.appends[0]
++    expect(a.id).toBe('abc123')
++    expect(a.status).toBe('needs_file')
++    expect(a.file).toBeNull()
++    expect(a.bytesSent).toBe(40)
++    expect(a.tusUploadUrl).toBe('/v2/nimoos/file/upload-tus/abc123')
++    expect(a.relativePath).toBe('a.txt')
++    expect(a.retryCount).toBe(2)
++    expect(a.createdAt).toBe(1700 * 1000) // created_at is unix seconds
++    expect(a.batchId).toBe('srv-b')
++    expect(a.restored).toBe(true)
++  })
++
++  it('falls back relative_path→filename when relative_path missing', () => {
++    const plan = planServerSync([], [serverTask({ relative_path: '', filename: 'b.png' })])
++    expect(plan.appends[0].relativePath).toBe('b.png')
++  })
++})
+diff --git a/src/files/upload/serverSync.ts b/src/files/upload/serverSync.ts
+new file mode 100644
+index 0000000..bf5e8e7
+--- /dev/null
++++ b/src/files/upload/serverSync.ts
+@@ -0,0 +1,69 @@
++import type { ServerUploadTask } from '@nimotech/nimoos-service'
++import type { UploadItem } from './types'
++
++// Content identity of an upload item/task: target dir + relative path + size.
++// Server tasks are keyed by their tus hex id, IDB-restored items by fq_ ids —
++// different id spaces, so id-dedup alone double-lists the same file. Dedup by
++// content instead: a content match merges the server resume point into the
++// local row; only genuinely server-only tasks become new rows.
++export function contentKey(targetPath: string, relativePath: string, size: number): string {
++  return `${targetPath || ''} ${relativePath || ''} ${size || 0}`
++}
++
++export interface ServerSyncPlan {
++  merges: Array<{ id: string; patch: Partial<UploadItem> }>
++  appends: UploadItem[]
++}
++
++// Reconcile the server's active upload tasks against the local queue.
++// Ported verbatim from Vue2 store/modules/fileUpload.js:189-245.
++// - task.id already present locally → skip (already tracked).
++// - content match with a local item → merge resume point (upload_url + max offset).
++// - otherwise → append as a needs_file row (byte stream can't be recovered
++//   cross-device, only the server offset; user re-picks the file to resume).
++export function planServerSync(queue: UploadItem[], tasks: ServerUploadTask[]): ServerSyncPlan {
++  const localIds = new Set(queue.map((i) => i.id))
++  const byContent = new Map<string, UploadItem>()
++  for (const i of queue) byContent.set(contentKey(i.targetPath, i.relativePath || i.fileName, i.size), i)
++
++  const merges: ServerSyncPlan['merges'] = []
++  const appends: UploadItem[] = []
++  for (const t of tasks) {
++    if (localIds.has(t.id)) continue
++    const rp = t.relative_path || t.filename
++    const local = byContent.get(contentKey(t.target_path, rp, t.size || 0))
++    if (local) {
++      merges.push({
++        id: local.id,
++        patch: {
++          tusUploadUrl: local.tusUploadUrl || t.upload_url || '',
++          bytesSent: Math.max(local.bytesSent || 0, t.offset || 0),
++        },
++      })
++      continue
++    }
++    appends.push({
++      id: t.id,
++      file: null,
++      fileName: t.filename,
++      fileType: t.mime || '',
++      size: t.size || 0,
++      targetPath: t.target_path,
++      relativePath: rp,
++      status: 'needs_file',
++      progress: 0,
++      bytesSent: t.offset || 0,
++      speed: 0,
++      tusUploadUrl: t.upload_url || '',
++      retryCount: t.retry_count || 0,
++      error: '',
++      createdAt: (t.created_at || 0) * 1000,
++      batchId: t.batch_id || '',
++      batchTotal: 1,
++      restored: true,
++      conflictPolicy: '',
++      oversize: false,
++    })
++  }
++  return { merges, appends }
++}

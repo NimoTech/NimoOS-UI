@@ -1,0 +1,70 @@
+# Review package: 8608784..HEAD
+
+## Commits
+d1b1f46 fix(home): evict 加 seen 守卫防误删系统/手动图标
+
+## Files changed
+ src/home/stores/layout.test.ts | 13 ++++++++++++-
+ src/home/stores/layout.ts      |  4 +++-
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/home/stores/layout.test.ts b/src/home/stores/layout.test.ts
+index 87317ec..7f9694a 100644
+--- a/src/home/stores/layout.test.ts
++++ b/src/home/stores/layout.test.ts
+@@ -177,13 +177,24 @@ describe('autoPin', () => {
+     // seen 已清:同名容器再出现要能重新自动上桌
+     s.autoPin([dl('tasklist', { w: 2, h: 2 })], DIMS)
+     expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(2)
+   })
+ 
+   it('evict 不误伤其他项且无匹配时不报错', () => {
+     const s = useLayoutStore()
+     s.replaceAll([])
+     s.autoPin([dl('other')], DIMS)
+     s.evict('nonexistent')
+-    expect(s.items.filter((i) => i.key === 'other').length).toBeGreaterThan(0)
++    expect(s.items.filter((i) => i.key === 'other')).toHaveLength(1)
++  })
++
++  it('evict 不触碰非 seen 的手动/系统图标', () => {
++    const s = useLayoutStore()
++    s.replaceAll([])
++    // 手动放置一个系统图标，不经过 autoPin，因此不在 seen 中
++    s.pin({ kind: 'app', key: 'files', c: 0, r: 0, w: 1, h: 1 })
++    expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
++    // evict 不应影响非 seen 的图标
++    s.evict('files')
++    expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
+   })
+ })
+diff --git a/src/home/stores/layout.ts b/src/home/stores/layout.ts
+index 041804b..392ed3f 100644
+--- a/src/home/stores/layout.ts
++++ b/src/home/stores/layout.ts
+@@ -160,21 +160,23 @@ export const useLayoutStore = defineStore('home-layout', () => {
+       if (d.widget) {
+         const wpos = firstFree(d.widget.w, d.widget.h, items.value, dims)
+         if (wpos) items.value = [...items.value, tag({ kind: 'appwidget', key: d.key, c: wpos.c, r: wpos.r, w: d.widget.w, h: d.widget.h })]
+       }
+       seen.value.add(d.key) // 满桌也记 seen:不反复尝试,用户可从添加面板手动加
+       changed = true
+     }
+     if (changed) { save(); saveSeen() }
+   }
+ 
+-  /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期 */
++  /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期。
++   *  只清 autoPin 管理(seen)的项 —— 手动固定与系统图标免疫。 */
+   function evict(key: string) {
++    if (!seen.value.has(key)) return
+     const before = items.value.length
+     items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
+     const hadSeen = seen.value.delete(key)
+     missingSince.delete(key)
+     if (items.value.length !== before || hadSeen) { save(); saveSeen() }
+   }
+ 
+   return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen, evict }
+ })

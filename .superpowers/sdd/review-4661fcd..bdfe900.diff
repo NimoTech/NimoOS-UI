@@ -1,0 +1,524 @@
+# Review package: 4661fcd..bdfe900
+
+## Commits
+bdfe900 feat(files): P2c Files.vue 接线下载(右键 download + 多选工具栏 @download)
+1ce32c6 feat(files): P2c 多选工具栏加「下载」按钮
+105b2f6 feat(files): P2c 右键菜单加「下载」项(恒显)
+f567377 feat(files): P2c useFileOps.download(条件预刷新+端点选择+iframe 驱动)
+7841349 feat(files): P2c 单例隐藏 iframe 下载驱动
+5508546 feat(files): P2c 下载纯逻辑(planDownload 端点选择 + shouldRefreshBeforeDownload 预刷新判定)
+
+## Files changed
+ src/files/components/FileContextMenu.test.ts  | 10 +++++
+ src/files/components/FileContextMenu.vue      |  1 +
+ src/files/components/SelectionToolbar.test.ts | 10 ++++-
+ src/files/components/SelectionToolbar.vue     |  3 +-
+ src/files/composables/useFileOps.test.ts      | 64 ++++++++++++++++++++++++++-
+ src/files/composables/useFileOps.ts           | 21 ++++++++-
+ src/files/util/download.test.ts               | 40 +++++++++++++++++
+ src/files/util/download.ts                    | 21 +++++++++
+ src/files/util/iframeDownload.test.ts         | 23 ++++++++++
+ src/files/util/iframeDownload.ts              | 11 +++++
+ src/i18n/zh_cn.ts                             |  2 +
+ src/views/Files.vue                           |  2 +
+ 12 files changed, 202 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FileContextMenu.test.ts b/src/files/components/FileContextMenu.test.ts
+index 6a9eae9..35f5b58 100644
+--- a/src/files/components/FileContextMenu.test.ts
++++ b/src/files/components/FileContextMenu.test.ts
+@@ -131,11 +131,21 @@ describe('FileContextMenu', () => {
+       global: { plugins: [pinia, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },
+     })
+     expect(w.find('.ctx-paste-overwrite').exists()).toBe(true)
+     expect(w.find('.ctx-paste-skip').exists()).toBe(true)
+   })
+ 
+   it('空白区:无剪贴板内容时无粘贴项', () => {
+     const w = mountMenu({ entry: null, selectedCount: 0 })
+     expect(w.find('.ctx-paste-overwrite').exists()).toBe(false)
+   })
++
++  it('文件项菜单含「下载」项且恒显(单选)', () => {
++    const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 1 })
++    expect(wrapper.find('.ctx-download').exists()).toBe(true)
++  })
++
++  it('多选时「下载」仍显示', () => {
++    const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 3 })
++    expect(wrapper.find('.ctx-download').exists()).toBe(true)
++  })
+ })
+diff --git a/src/files/components/FileContextMenu.vue b/src/files/components/FileContextMenu.vue
+index 8846058..f295aaf 100644
+--- a/src/files/components/FileContextMenu.vue
++++ b/src/files/components/FileContextMenu.vue
+@@ -41,20 +41,21 @@ function fire(action: string) { emit('action', action, props.entry) }
+         <ContextMenuSeparator class="ui-ctx-sep" />
+         <ContextMenuItem class="ui-ctx-item ctx-refresh" @select="fire('refresh')">{{ t('filesCtxRefresh') }}</ContextMenuItem>
+         <template v-if="clipboard.hasPasteData">
+           <ContextMenuSeparator class="ui-ctx-sep" />
+           <ContextMenuItem class="ui-ctx-item ctx-paste-overwrite" @select="fire('paste-overwrite')">{{ t('filesCtxPasteOverwrite') }}</ContextMenuItem>
+           <ContextMenuItem class="ui-ctx-item ctx-paste-skip" @select="fire('paste-skip')">{{ t('filesCtxPasteSkip') }}</ContextMenuItem>
+         </template>
+       </template>
+       <!-- 文件/文件夹项菜单 -->
+       <template v-else>
++        <ContextMenuItem class="ui-ctx-item ctx-download" @select="fire('download')">{{ t('filesCtxDownload') }}</ContextMenuItem>
+         <ContextMenuItem class="ui-ctx-item ctx-copy" @select="fire('copy')">{{ t('filesCtxCopy') }}</ContextMenuItem>
+         <ContextMenuItem v-if="operable" class="ui-ctx-item ctx-cut" @select="fire('cut')">{{ t('filesCtxCut') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showCopyPath" class="ui-ctx-item ctx-copy-path" @select="fire('copy-path')">{{ t('filesCtxCopyPath') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showRename" class="ui-ctx-item ctx-rename" @select="fire('rename')">{{ t('filesRename') }}</ContextMenuItem>
+         <ContextMenuItem v-if="showFavorite" class="ui-ctx-item ctx-fav" @select="fire('toggle-favorite')">{{ favorited ? t('filesCtxRemoveFavorite') : t('filesCtxAddFavorite') }}</ContextMenuItem>
+         <ContextMenuSeparator v-if="showSeparator" class="ui-ctx-sep" />
+         <ContextMenuItem v-if="operable" class="ui-ctx-item danger ctx-delete" @select="fire('delete')">{{ t('filesCtxDelete') }}</ContextMenuItem>
+       </template>
+     </template>
+   </ContextMenu>
+diff --git a/src/files/components/SelectionToolbar.test.ts b/src/files/components/SelectionToolbar.test.ts
+index f742ba3..dd7cc05 100644
+--- a/src/files/components/SelectionToolbar.test.ts
++++ b/src/files/components/SelectionToolbar.test.ts
+@@ -1,18 +1,18 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import SelectionToolbar from './SelectionToolbar.vue'
+ 
+ const i18n = createI18n({
+   legacy: false, locale: 'zh_cn',
+-  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxDelete: '删除' } },
++  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
+ })
+ 
+ describe('SelectionToolbar', () => {
+   it('shows the count and emits select-all / clear', async () => {
+     const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false }, global: { plugins: [i18n] } })
+     expect(w.text()).toContain('已选 3 项')
+     await w.get('.sel-all').trigger('click')
+     expect(w.emitted('select-all')).toBeTruthy()
+     await w.get('.sel-clear').trigger('click')
+     expect(w.emitted('clear')).toBeTruthy()
+@@ -27,11 +27,19 @@ describe('SelectionToolbar', () => {
+   it('复制/剪切按钮 emit copy/cut', async () => {
+     const wrapper = mount(SelectionToolbar, {
+       props: { count: 2, allSelected: false },
+       global: { plugins: [i18n] },
+     })
+     await wrapper.find('.sel-copy').trigger('click')
+     await wrapper.find('.sel-cut').trigger('click')
+     expect(wrapper.emitted('copy')).toBeTruthy()
+     expect(wrapper.emitted('cut')).toBeTruthy()
+   })
++
++  it('渲染下载按钮并 emit download', async () => {
++    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
++    const btn = wrapper.find('.sel-download')
++    expect(btn.exists()).toBe(true)
++    await btn.trigger('click')
++    expect(wrapper.emitted('download')).toBeTruthy()
++  })
+ })
+diff --git a/src/files/components/SelectionToolbar.vue b/src/files/components/SelectionToolbar.vue
+index e07dd7f..b4a6bd0 100644
+--- a/src/files/components/SelectionToolbar.vue
++++ b/src/files/components/SelectionToolbar.vue
+@@ -1,24 +1,25 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ const props = defineProps<{ count: number; allSelected: boolean }>()
+-const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void }>()
++const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void; (e: 'download'): void }>()
+ const { t } = useI18n()
+ </script>
+ 
+ <template>
+   <div class="selection-toolbar">
+     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
+     <button class="sel-btn sel-all" @click="emit('select-all')">{{ t('filesSelectAll') }}</button>
+     <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>
+     <button class="sel-btn sel-copy" @click="emit('copy')">{{ t('filesCtxCopy') }}</button>
+     <button class="sel-btn sel-cut" @click="emit('cut')">{{ t('filesCtxCut') }}</button>
++    <button class="sel-btn sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
+     <span class="sel-spacer"></span>
+     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .selection-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
+ .sel-count { flex: 0 0 auto; }
+ .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
+ .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+diff --git a/src/files/composables/useFileOps.test.ts b/src/files/composables/useFileOps.test.ts
+index a83bf7b..56da4b2 100644
+--- a/src/files/composables/useFileOps.test.ts
++++ b/src/files/composables/useFileOps.test.ts
+@@ -6,30 +6,37 @@ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ import { useFileOps } from './useFileOps'
+ import { useFilesStore } from '../stores/files'
+ 
+ const folderCreate = vi.fn().mockResolvedValue(undefined)
+ const fileCreate = vi.fn().mockResolvedValue(undefined)
+ const fileRename = vi.fn().mockResolvedValue(undefined)
+ const batchDelete = vi.fn().mockResolvedValue(undefined)
+ const batchTask = vi.fn().mockResolvedValue(undefined)
+ const getList = vi.fn().mockResolvedValue({ content: [] })
++const fileUrl = vi.fn((p: string) => `/v3/file?token=TK&path=${encodeURIComponent(p)}`)
++const batchUrl = vi.fn((f: string) => `/v1/batch?token=TK&files=${encodeURIComponent(f)}`)
++const refreshMock = vi.fn().mockResolvedValue('new-token')
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     folder: { create: (...a: unknown[]) => folderCreate(...a), getList: (...a: unknown[]) => getList(...a) },
+-    file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a) },
+-    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a) },
++    file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a), fileUrl: (...a: unknown[]) => fileUrl(...(a as [string])) },
++    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a), batchUrl: (...a: unknown[]) => batchUrl(...(a as [string])) },
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+   },
++  refreshAccessToken: (...a: unknown[]) => refreshMock(...a),
+ }))
+ 
++const triggerMock = vi.fn()
++vi.mock('../util/iframeDownload', () => ({ triggerIframeDownload: (...a: unknown[]) => triggerMock(...(a as [string])) }))
++
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+ // 在组件 setup 内实例化 composable,拿到其 API
+ function makeOps() {
+   let api!: ReturnType<typeof useFileOps>
+   const Host = defineComponent({ setup() { api = useFileOps(); return () => h('div') } })
+   mount(Host, { global: { plugins: [i18n] } })
+   return api
+ }
+ 
+@@ -127,11 +134,64 @@ describe('useFileOps', () => {
+     await ops.paste('overwrite')
+     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
+     expect(clip.operateObject).toBeNull()
+   })
+ 
+   it('paste 无剪贴板内容时不发请求', async () => {
+     const ops = makeOps()
+     await ops.paste('overwrite')
+     expect(batchTask).not.toHaveBeenCalled()
+   })
++
++  it('download 单文件 → service.file.fileUrl(真实路径) 并触发 iframe', async () => {
++    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // 充裕,不刷新
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(fileUrl).toHaveBeenCalledWith('/DATA/a.txt')
++    expect(batchUrl).not.toHaveBeenCalled()
++    expect(triggerMock).toHaveBeenCalledWith('/v3/file?token=TK&path=%2FDATA%2Fa.txt')
++    expect(refreshMock).not.toHaveBeenCalled()
++  })
++
++  it('download 单目录/多选 → service.batch.batchUrl(逗号连接真实路径)', async () => {
++    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
++    const ops = makeOps()
++    await ops.download([
++      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
++      { name: 'Docs', path: '/DATA/Docs', is_dir: true },
++    ])
++    expect(batchUrl).toHaveBeenCalledWith('/DATA/a.txt,/DATA/Docs')
++    expect(fileUrl).not.toHaveBeenCalled()
++    expect(triggerMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('download token 快过期 → 先 refreshAccessToken 再构 URL', async () => {
++    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // 10s 后过期,进缓冲
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(refreshMock).toHaveBeenCalledTimes(1)
++    expect(triggerMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('download expires_at 缺失 → 保守刷新', async () => {
++    localStorage.removeItem('expires_at')
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(refreshMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('download 刷新失败 → 不触发下载', async () => {
++    localStorage.removeItem('expires_at') // 触发刷新
++    refreshMock.mockRejectedValueOnce(new Error('auth fail'))
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(triggerMock).not.toHaveBeenCalled()
++  })
++
++  it('download 空选区 → 无操作', async () => {
++    const ops = makeOps()
++    await ops.download([])
++    expect(fileUrl).not.toHaveBeenCalled()
++    expect(batchUrl).not.toHaveBeenCalled()
++    expect(triggerMock).not.toHaveBeenCalled()
++  })
+ })
+diff --git a/src/files/composables/useFileOps.ts b/src/files/composables/useFileOps.ts
+index 8ce981c..cc00330 100644
+--- a/src/files/composables/useFileOps.ts
++++ b/src/files/composables/useFileOps.ts
+@@ -1,20 +1,22 @@
+ import { useI18n } from 'vue-i18n'
+-import { service } from '@nimotech/nimoos-service'
++import { service, refreshAccessToken } from '@nimotech/nimoos-service'
+ import { useFilesStore, type FileEntry } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useToast } from '../../stores/toast'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { joinPath, renameTo } from '../util/pathOps'
+ import { canOperate } from '../util/protect'
+ import { useClipboardStore } from '../stores/clipboard'
+ import { buildPastePayload } from '../util/fileOps'
++import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
++import { triggerIframeDownload } from '../util/iframeDownload'
+ 
+ function errMsg(e: unknown, fallback: string): string {
+   const m = (e as { message?: string } | undefined)?.message
+   return m || fallback
+ }
+ 
+ export function useFileOps() {
+   const files = useFilesStore()
+   const favorites = useFavoritesStore()
+   const toast = useToast()
+@@ -69,12 +71,27 @@ export function useFileOps() {
+ 
+   async function paste(style: 'overwrite' | 'skip') {
+     const o = clipboard.operateObject
+     if (!o) return
+     try {
+       await service.batch.task(buildPastePayload(o, files.currentPath, style))
+       clipboard.clear()
+     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+   }
+ 
+-  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, refresh }
++  async function download(entries: FileEntry[]) {
++    if (!entries.length) return
++    toast.show(t('filesDownloadPreparing'))
++    // 过期预刷新:iframe 下载 fire-and-forget 无法反应式重试,过期须先刷 token(唯一修法)。
++    const raw = localStorage.getItem('expires_at') // 后端下发 unix 秒
++    const expiresAt = raw != null && raw !== '' ? Number(raw) : null
++    if (shouldRefreshBeforeDownload(expiresAt, Date.now())) {
++      try { await refreshAccessToken() }
++      catch { return } // 刷新失败:共享包已 onAuthFail→/logout,不发起下载
++    }
++    const plan = planDownload(entries)
++    const url = plan.kind === 'file' ? service.file.fileUrl(plan.path) : service.batch.batchUrl(plan.files)
++    triggerIframeDownload(url)
++  }
++
++  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, download, refresh }
+ }
+diff --git a/src/files/util/download.test.ts b/src/files/util/download.test.ts
+new file mode 100644
+index 0000000..ab18844
+--- /dev/null
++++ b/src/files/util/download.test.ts
+@@ -0,0 +1,40 @@
++import { describe, it, expect } from 'vitest'
++import { planDownload, shouldRefreshBeforeDownload } from './download'
++
++describe('planDownload', () => {
++  it('单个文件(非目录)→ /v3/file 计划,带真实路径', () => {
++    expect(planDownload([{ path: '/DATA/a.txt', is_dir: false }]))
++      .toEqual({ kind: 'file', path: '/DATA/a.txt' })
++  })
++
++  it('单个目录 → /v1/batch 计划,files=该目录真实路径', () => {
++    expect(planDownload([{ path: '/DATA/Docs', is_dir: true }]))
++      .toEqual({ kind: 'batch', files: '/DATA/Docs' })
++  })
++
++  it('多选 → /v1/batch 计划,files=逗号连接真实路径(保留原顺序)', () => {
++    expect(planDownload([
++      { path: '/DATA/a.txt', is_dir: false },
++      { path: '/DATA/Docs', is_dir: true },
++    ])).toEqual({ kind: 'batch', files: '/DATA/a.txt,/DATA/Docs' })
++  })
++})
++
++describe('shouldRefreshBeforeDownload', () => {
++  const now = 1_000_000_000_000 // 固定 now(ms)
++  it('expires_at 缺失(null)→ 保守刷新', () => {
++    expect(shouldRefreshBeforeDownload(null, now)).toBe(true)
++  })
++  it('已过期 → 刷新', () => {
++    const expiredSec = Math.floor(now / 1000) - 10
++    expect(shouldRefreshBeforeDownload(expiredSec, now)).toBe(true)
++  })
++  it('≤60s 内过期 → 刷新', () => {
++    const soonSec = Math.floor(now / 1000) + 30 // 30s 后过期,进 60s 缓冲
++    expect(shouldRefreshBeforeDownload(soonSec, now)).toBe(true)
++  })
++  it('充裕(>60s)→ 不刷新', () => {
++    const farSec = Math.floor(now / 1000) + 3600 // 1h 后过期
++    expect(shouldRefreshBeforeDownload(farSec, now)).toBe(false)
++  })
++})
+diff --git a/src/files/util/download.ts b/src/files/util/download.ts
+new file mode 100644
+index 0000000..ea6258c
+--- /dev/null
++++ b/src/files/util/download.ts
+@@ -0,0 +1,21 @@
++// 下载纯逻辑:端点选择 + 过期预刷新判定。DOM 副作用见 iframeDownload.ts。
++
++export type DownloadPlan = { kind: 'file'; path: string } | { kind: 'batch'; files: string }
++
++// 移植 Vue2 getFileUrl:单个非目录 → /v3/file;单目录 或 多选 → /v1/batch(zip),files 逗号连接。
++// 传入的 path 必须是真实路径(含 /DATA),与后端契约一致。
++export function planDownload(entries: { path: string; is_dir: boolean }[]): DownloadPlan {
++  if (entries.length === 1 && !entries[0].is_dir) {
++    return { kind: 'file', path: entries[0].path }
++  }
++  return { kind: 'batch', files: entries.map((e) => e.path).join(',') }
++}
++
++const REFRESH_BUFFER_MS = 60_000
++
++// 下载(fire-and-forget iframe,无法反应式重试)前的条件式预刷新判定。
++// expiresAt 为后端下发的 unix 秒;缺失(null)保守刷新;已过期或 ≤60s 内过期则刷新。
++export function shouldRefreshBeforeDownload(expiresAt: number | null, now: number): boolean {
++  if (expiresAt == null) return true
++  return now > expiresAt * 1000 - REFRESH_BUFFER_MS
++}
+diff --git a/src/files/util/iframeDownload.test.ts b/src/files/util/iframeDownload.test.ts
+new file mode 100644
+index 0000000..e289f55
+--- /dev/null
++++ b/src/files/util/iframeDownload.test.ts
+@@ -0,0 +1,23 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { triggerIframeDownload } from './iframeDownload'
++
++describe('triggerIframeDownload', () => {
++  beforeEach(() => { document.body.innerHTML = '' })
++
++  it('首次调用创建一个隐藏 iframe 并设 src', () => {
++    triggerIframeDownload('/v3/file?token=t&path=%2FDATA%2Fa.txt')
++    const frames = document.body.querySelectorAll('iframe')
++    expect(frames).toHaveLength(1)
++    const f = frames[0] as HTMLIFrameElement
++    expect(f.style.display).toBe('none')
++    expect(f.src).toContain('/v3/file?token=t&path=%2FDATA%2Fa.txt')
++  })
++
++  it('二次调用复用同一 iframe,只更新 src(不新增)', () => {
++    triggerIframeDownload('/v3/file?token=t&path=%2FDATA%2Fa.txt')
++    triggerIframeDownload('/v1/batch?token=t&files=%2FDATA%2FDocs')
++    const frames = document.body.querySelectorAll('iframe')
++    expect(frames).toHaveLength(1)
++    expect((frames[0] as HTMLIFrameElement).src).toContain('/v1/batch?token=t&files=%2FDATA%2FDocs')
++  })
++})
+diff --git a/src/files/util/iframeDownload.ts b/src/files/util/iframeDownload.ts
+new file mode 100644
+index 0000000..fe191bc
+--- /dev/null
++++ b/src/files/util/iframeDownload.ts
+@@ -0,0 +1,11 @@
++// 移植 Vue2 downloadFile 的隐藏 iframe:全应用复用一个,只换 src 触发下载。
++let iframe: HTMLIFrameElement | null = null
++
++export function triggerIframeDownload(url: string): void {
++  if (!iframe || !document.body.contains(iframe)) {
++    iframe = document.createElement('iframe')
++    iframe.style.display = 'none'
++    document.body.appendChild(iframe)
++  }
++  iframe.src = url
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 67cd93d..1127cd4 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -21,31 +21,33 @@ export const messages = {
+     filesSelectAll: '全选',
+     filesClearSel: '清空',
+     filesOpFailed: '操作失败',
+     filesProtectedDelete: '此项目受保护,无法删除',
+     filesProtectedRename: '此项目受保护,无法重命名',
+     filesProtectedMove: '此项目受保护,无法移动',
+     filesCopiedPath: '已复制路径',
+     filesNewFolder: '新建文件夹',
+     filesNewFile: '新建文件',
+     filesPaste: '粘贴',
++    filesDownloadPreparing: '正在准备下载…',
+     filesRename: '重命名',
+     filesDefaultFolderName: 'New Folder',
+     filesDefaultFileName: 'New File',
+     filesConfirm: '确定',
+     filesCancel: '取消',
+     filesCtxRefresh: '刷新',
+     filesCtxCopyPath: '复制路径',
+     filesCtxAddFavorite: '收藏',
+     filesCtxRemoveFavorite: '取消收藏',
+     filesCtxDelete: '删除',
+     filesCtxCopy: '复制',
++    filesCtxDownload: '下载',
+     filesCtxCut: '剪切',
+     filesCtxPasteOverwrite: '粘贴(覆盖)',
+     filesCtxPasteSkip: '粘贴(跳过)',
+     filesTasksTitle: '当前任务',
+     filesCancelAll: '全部取消',
+     filesOpCopy: '复制',
+     filesOpMove: '移动',
+     filesDeleteConfirm: '确定删除选中的 {count} 项?此操作不可恢复。',
+   },
+ }
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 8d1bc5f..648db3b 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -76,20 +76,21 @@ function onCtxAction(action: string, entry: FileEntry | null) {
+         else favorites.add({ name: entry.name, path: entry.path })
+       }
+       break
+     case 'delete': {
+       const sel = files.entries.filter((e) => files.isSelected(e.path))
+       deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
+       break
+     }
+     case 'copy': ops.copy(selectedOr(entry)); break
+     case 'cut': ops.cut(selectedOr(entry)); break
++    case 'download': ops.download(selectedOr(entry)); break
+     case 'paste-overwrite': ops.paste('overwrite'); break
+     case 'paste-skip': ops.paste('skip'); break
+   }
+ }
+ 
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+@@ -232,20 +233,21 @@ onUnmounted(() => { offOperate?.() })
+         </div>
+         <SelectionToolbar
+           v-if="files.selectedCount > 0"
+           :count="files.selectedCount"
+           :all-selected="files.allSelected"
+           @select-all="files.selectAll"
+           @clear="files.clearSelection"
+           @delete="onToolbarDelete"
+           @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
+           @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
++          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+         />
+         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
+           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+             <FileGridView
+               v-if="files.viewMode === 'grid'"
+               :entries="files.sortedEntries"
+               :selected-paths="files.selected"
+               @open="openEntry"
+               @select="onSelect"
+               @contextmenu="onItemContextmenu"

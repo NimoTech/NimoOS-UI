@@ -1,0 +1,209 @@
+=== 仓库: nimo_os_docs  范围: bc8f043..bc57887 ===
+
+=== git log --oneline ===
+bc57887 feat(raidlab): avail 解析/核对 + status 子命令
+
+=== git diff --stat ===
+ scripts/raidlab.sh      | 97 ++++++++++++++++++++++++++++++++++++++++++++++++-
+ scripts/raidlab.test.sh | 26 +++++++++++++
+ 2 files changed, 122 insertions(+), 1 deletion(-)
+
+=== git diff -U10 ===
+diff --git a/scripts/raidlab.sh b/scripts/raidlab.sh
+index 5f811f8..20cf80c 100755
+--- a/scripts/raidlab.sh
++++ b/scripts/raidlab.sh
+@@ -37,21 +37,21 @@ is_fake_disk() {
+ 	#    进来),而这条护栏的下游是 mdadm --create(会清扫成员盘),必须在
+ 	#    入口把设备名的合法形状钉死——只允许字母、数字、_、-、. 组成(真实
+ 	#    块设备名如 sda/nvme0n1/md127/dm-0 都在这个集合内),含 / 或恰为
+ 	#    ./.. 一律拒绝,防止 model_file 拼出的路径逃出 RAIDLAB_SYSFS_ROOT。
+ 	case "$dev" in
+ 	*nvme*) return 1 ;;
+ 	.|..) return 1 ;;
+ 	*[!A-Za-z0-9._-]*) return 1 ;;
+ 	esac
+ 
+-	# ② sysfs 型号必须恰为 scsi_debug(去掉所有空白后比较)。
++	# ③ sysfs 型号必须恰为 scsi_debug(去掉所有空白后比较)。
+ 	local model_file="$RAIDLAB_SYSFS_ROOT/block/$dev/device/model"
+ 	[[ -r "$model_file" ]] || return 1
+ 	local model
+ 	model="$(tr -d '[:space:]' < "$model_file")"
+ 	[[ "$model" == "$FAKE_DISK_MODEL" ]]
+ }
+ 
+ # assert_fake_disk <dev-or-path> —— 接受 sda 或 /dev/sda。
+ # 不是假盘就往 stderr 说明并返回 1(不 exit,由调用方决定怎么处理)。
+ assert_fake_disk() {
+@@ -69,10 +69,105 @@ assert_fake_disk() {
+ list_fake_disks() {
+ 	local path dev
+ 	for path in "$RAIDLAB_SYSFS_ROOT"/block/*; do
+ 		[[ -e "$path" ]] || continue
+ 		dev="$(basename "$path")"
+ 		if is_fake_disk "$dev"; then
+ 			echo "$dev"
+ 		fi
+ 	done | sort
+ }
++
++# --- API 视图 ---------------------------------------------------------------
++
++# api_get <path> —— 取 $RAIDLAB_API_BASE<path>。走本机 Gateway,localhost
++# 免 JWT,所以不需要带令牌。
++api_get() {
++	curl -sS -m 20 "$RAIDLAB_API_BASE$1"
++}
++
++# avail_disk_names —— stdin 读 GET /v1/disks 响应,stdout 打 avail 里的设备名。
++# 用 python3 而不是 grep/sed:响应是嵌套 JSON,文本切割在 children 数组上必错。
++# 任何解析失败都输出空 + 退出 0,由调用方(verify_avail_only_fake)去判定。
++avail_disk_names() {
++	python3 -c '
++import json, sys
++try:
++    doc = json.load(sys.stdin)
++except Exception:
++    sys.exit(0)
++data = doc.get("data") if isinstance(doc, dict) else None
++if not isinstance(data, dict):
++    sys.exit(0)
++for entry in data.get("avail") or []:
++    if not isinstance(entry, dict):
++        continue
++    name = entry.get("name") or (entry.get("path") or "").rsplit("/", 1)[-1]
++    if name:
++        print(name)
++'
++}
++
++# verify_avail_only_fake —— stdin 读设备名清单(每行一个)。
++# 全是假盘返回 0;出现非假盘返回 1;空清单也返回 1 —— 空 avail 正是 Task 1
++# 白名单补丁未部署时的表现,当成失败才能给出准确诊断。
++verify_avail_only_fake() {
++	local dev
++	local count=0
++	while IFS= read -r dev; do
++		[[ -n "$dev" ]] || continue
++		count=$((count + 1))
++		if ! is_fake_disk "$dev"; then
++			echo "raidlab: 后端 avail 里出现非假盘 '$dev',中止。" >&2
++			echo "         测试台不能在真盘可被选中的状态下使用。" >&2
++			return 1
++		fi
++	done
++	if [[ "$count" -eq 0 ]]; then
++		echo "raidlab: 后端 avail 为空 —— 假盘存在但后端看不见。" >&2
++		echo "         几乎肯定是 IsDiskSupported 白名单补丁未部署:" >&2
++		echo "         cd ~/NimoTech && nimo_os_docs/scripts/deploy.sh local-storage" >&2
++		return 1
++	fi
++	return 0
++}
++
++# --- status ----------------------------------------------------------------
++
++# cmd_status —— 打印测试台四视图,验收时对账用。始终返回 0(纯观测)。
++cmd_status() {
++	echo "=== 假盘(sysfs model == scsi_debug)==="
++	local fakes
++	fakes="$(list_fake_disks)"
++	if [[ -n "$fakes" ]]; then
++		echo "$fakes"
++	else
++		echo "(无)"
++	fi
++
++	echo
++	echo "=== /proc/mdstat ==="
++	cat "${RAIDLAB_PROC_MDSTAT:-/proc/mdstat}" 2>/dev/null || echo "(读不到)"
++
++	echo
++	echo "=== lsblk ==="
++	lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL 2>/dev/null || echo "(lsblk 失败)"
++
++	echo
++	echo "=== 后端 avail(GET /v1/disks)==="
++	local names
++	names="$(api_get /v1/disks 2>/dev/null | avail_disk_names)"
++	if [[ -n "$names" ]]; then
++		echo "$names"
++	else
++		echo "(空 —— 若假盘已在场,说明白名单补丁未部署)"
++	fi
++
++	echo
++	echo "=== 后端快照卷(GET /v2/snapshot/volumes)==="
++	api_get /v2/snapshot/volumes 2>/dev/null || echo "(请求失败)"
++	echo
++
++	echo "=== 后端 RAID 阵列(GET /v2/raid)==="
++	api_get /v2/raid 2>/dev/null || echo "(请求失败)"
++	echo
++}
+diff --git a/scripts/raidlab.test.sh b/scripts/raidlab.test.sh
+index f00674e..53174f5 100755
+--- a/scripts/raidlab.test.sh
++++ b/scripts/raidlab.test.sh
+@@ -4,20 +4,25 @@
+ # 让它只定义函数不执行 main),用临时目录伪造 sysfs/fstab 等外部依赖。
+ # 用法: ./raidlab.test.sh
+ set -uo pipefail
+ 
+ HERE="$(cd "$(dirname "$0")" && pwd)"
+ # shellcheck source=raidlab.sh
+ RAIDLAB_LIB_ONLY=1 source "$HERE/raidlab.sh"
+ set +e   # 防御性关闭 -e:两个脚本目前都只用 set -uo pipefail,没有 -e;
+          # 但万一以后给 raidlab.sh 加上 -e,这行能保证它不会拖垮这个 harness。
+ 
++# t_ok/t_no 部分用例要走管道(bash -c 起子 shell),子 shell 不继承已 source
++# 的函数,必须显式导出。
++export -f is_fake_disk assert_fake_disk list_fake_disks avail_disk_names verify_avail_only_fake
++export FAKE_DISK_MODEL
++
+ PASS=0
+ FAIL=0
+ 
+ # t_ok <用例名> <命令...>   —— 命令应成功(退出 0)
+ t_ok() {
+ 	local name="$1"; shift
+ 	if "$@" >/dev/null 2>&1; then
+ 		echo "  ok   $name"; PASS=$((PASS + 1))
+ 	else
+ 		echo "  FAIL $name  (期望成功,实际退出码 $?)"; FAIL=$((FAIL + 1))
+@@ -106,13 +111,34 @@ t_no "路径穿越:名字恰为 . 被拒(诱饵已埋)"                      is_
+ 
+ t_ok "assert 接受裸设备名"                   assert_fake_disk sda
+ t_ok "assert 接受 /dev/ 全路径"              assert_fake_disk /dev/sda
+ t_no "assert 拒绝真盘路径"                   assert_fake_disk /dev/sdc
+ t_no "assert 拒绝 nvme 路径"                 assert_fake_disk /dev/nvme0n1
+ 
+ t_eq "list_fake_disks 只列假盘且排序" "dm-0
+ sda
+ sdb" "$(list_fake_disks)"
+ 
++echo
++echo "== avail_disk_names / verify_avail_only_fake =="
++
++# 真实响应形状(GET /v1/disks):{"success":200,"message":"ok","data":{"avail":[...],"disks":[...]}}
++JSON_TWO_FAKE='{"success":200,"message":"ok","data":{"avail":[{"name":"sda","path":"/dev/sda"},{"name":"sdb","path":"/dev/sdb"}],"disks":[{"name":"nvme0n1"}]}}'
++JSON_EMPTY='{"success":200,"message":"ok","data":{"avail":[],"disks":[{"name":"nvme0n1"}]}}'
++JSON_HAS_REAL='{"success":200,"message":"ok","data":{"avail":[{"name":"sda"},{"name":"nvme0n1"}]}}'
++JSON_NO_NAME='{"success":200,"message":"ok","data":{"avail":[{"path":"/dev/sdb"}]}}'
++JSON_NO_DATA='{"message":"no matching operation was found"}'
++
++t_eq "解析出两块假盘" "sda
++sdb" "$(printf '%s' "$JSON_TWO_FAKE" | avail_disk_names)"
++t_eq "avail 为空时输出空" "" "$(printf '%s' "$JSON_EMPTY" | avail_disk_names)"
++t_eq "缺 name 时回退用 path 尾段" "sdb" "$(printf '%s' "$JSON_NO_NAME" | avail_disk_names)"
++t_eq "缺 data 键时输出空而不报错" "" "$(printf '%s' "$JSON_NO_DATA" | avail_disk_names)"
++t_ok "缺 data 键时退出码仍为 0" bash -c "printf '%s' '$JSON_NO_DATA' | avail_disk_names"
++
++t_ok "全是假盘 → 通过"    bash -c "printf 'sda\nsdb\n' | verify_avail_only_fake"
++t_no "混进真盘 → 拒绝"    bash -c "printf 'sda\nnvme0n1\n' | verify_avail_only_fake"
++t_no "空清单 → 拒绝(补丁未生效的信号)" bash -c "printf '' | verify_avail_only_fake"
++
+ echo
+ echo "通过 $PASS,失败 $FAIL"
+ [[ "$FAIL" -eq 0 ]]

@@ -1011,7 +1011,9 @@ describe('保存为智能视图', () => {
     await flushPromises()
 
     expect(toastSpy).toHaveBeenCalledTimes(1)
-    const [text, duration, action] = toastSpy.mock.calls[0]!
+    const [text, duration, arg] = toastSpy.mock.calls[0]!
+    // SP8-P6-T3 合流:show() 第三参现为判别联合(字符串=tier / 对象=action),按 typeof 收窄回 action。
+    const action = typeof arg === 'string' ? undefined : arg
     expect(text).toBe(zh.photosSearchNameSavedSmartView.replace('{name}', 'my trip'))
     expect(duration).toBe(5000)
     expect(action?.label).toBe(zh.photosSearchOpenSmartViews)

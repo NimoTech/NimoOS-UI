@@ -1,0 +1,225 @@
+# Review package: 9fc5d54..895c50c
+
+## Commits
+895c50c feat(upload): Pinia uploads store — queue/precheck/conflict/scheduler wiring (SP4-P3a)
+
+## Files changed
+ src/files/stores/uploads.test.ts |  59 ++++++++++++++++
+ src/files/stores/uploads.ts      | 143 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 202 insertions(+)
+
+## Diff
+diff --git a/src/files/stores/uploads.test.ts b/src/files/stores/uploads.test.ts
+new file mode 100644
+index 0000000..2737f20
+--- /dev/null
++++ b/src/files/stores/uploads.test.ts
+@@ -0,0 +1,59 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: vi.fn().mockResolvedValue('t'),
++  service: { file: { uploadPrecheck: vi.fn().mockResolvedValue({ results: [] }) } },
++}))
++// Prevent real TUS: stub the scheduler to immediately mark items done.
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: (deps: any) => ({
++    isRunning: () => false,
++    abort: vi.fn(),
++    run: async () => { let it; while ((it = deps.claimNext())) deps.patch(it.id, { status: 'done', progress: 100 }) },
++  }),
++}))
++vi.mock('../stores/files', () => ({ useFilesStore: () => ({ currentPath: '/DATA/x', load: vi.fn() }) }))
++
++import { useUploadsStore } from './uploads'
++
++const sel = (name: string, target = '/DATA/x') =>
++  ({ file: new File(['x'], name), targetPath: target, relativePath: name })
++
++beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
++
++describe('uploads store', () => {
++  it('rejects protected-folder targets and enqueues the rest', async () => {
++    const s = useUploadsStore()
++    const { rejected } = await s.addFilesToQueue([sel('a.txt'), { file: new File(['y'], 'y'), targetPath: '/DATA/x', relativePath: 'AppData/y' }])
++    expect(rejected).toContain('AppData/y')
++    expect(s.queue.some(i => i.relativePath === 'a.txt')).toBe(true)
++    expect(s.queue.some(i => i.relativePath === 'AppData/y')).toBe(false)
++  })
++
++  it('marks precheck hits as conflict', async () => {
++    const { service } = await import('@nimotech/nimoos-service') as any
++    service.file.uploadPrecheck.mockResolvedValueOnce({ results: [{ relativePath: 'a.txt', exists: true }] })
++    const s = useUploadsStore()
++    await s.addFilesToQueue([sel('a.txt')])
++    expect(s.queue.find(i => i.relativePath === 'a.txt')?.status).toBe('conflict')
++  })
++
++  it('resolveConflict skip marks done; overwrite re-queues with policy', async () => {
++    const { service } = await import('@nimotech/nimoos-service') as any
++    service.file.uploadPrecheck.mockResolvedValueOnce({ results: [{ relativePath: 'a.txt', exists: true }] })
++    const s = useUploadsStore()
++    await s.addFilesToQueue([sel('a.txt')])
++    const id = s.queue[0].id
++    s.resolveConflict(id, 'skip')
++    expect(s.queue[0].status).toBe('done')
++  })
++
++  it('clearDone removes done items', async () => {
++    const s = useUploadsStore()
++    await s.addFilesToQueue([sel('a.txt')]) // scheduler stub marks done
++    s.clearDone()
++    expect(s.queue.length).toBe(0)
++  })
++})
+diff --git a/src/files/stores/uploads.ts b/src/files/stores/uploads.ts
+new file mode 100644
+index 0000000..a2a4b99
+--- /dev/null
++++ b/src/files/stores/uploads.ts
+@@ -0,0 +1,143 @@
++import { defineStore } from 'pinia'
++import { ref, computed } from 'vue'
++import { refreshAccessToken } from '@nimotech/nimoos-service'
++import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
++import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
++import { canStoreBlob } from '../upload/budget'
++import type { UploadItem, SelectedFile } from '../upload/types'
++import { PROTECTED } from '../util/protect'
++import { useFilesStore } from './files'
++
++export const useUploadsStore = defineStore('files-uploads', () => {
++  const queue = ref<UploadItem[]>([])
++  const uploading = ref(false)
++  const restoreNoticeCount = ref(0)
++
++  let scheduler: ReturnType<typeof createScheduler> | null = null
++
++  function claimNext(): UploadItem | null {
++    const item = queue.value.find((i) => i.status === 'pending' && i.file)
++    if (!item) return null
++    item.status = 'uploading'
++    return item
++  }
++
++  function patch(id: string, p: Partial<UploadItem>) {
++    const item = queue.value.find((i) => i.id === id)
++    if (item) Object.assign(item, p)
++  }
++
++  function getScheduler() {
++    if (!scheduler) {
++      const deps: SchedulerDeps = {
++        claimNext,
++        patch,
++        refresh: () => refreshAccessToken().then((t) => t, () => null),
++        concurrency: 3,
++      }
++      scheduler = createScheduler(deps)
++    }
++    return scheduler
++  }
++
++  function startUpload(): void {
++    if (uploading.value) return
++    uploading.value = true
++    getScheduler()
++      .run()
++      .finally(() => {
++        uploading.value = false
++        const files = useFilesStore()
++        files.load(files.currentPath)
++      })
++  }
++
++  async function addFilesToQueue(files: SelectedFile[]): Promise<{ rejected: string[] }> {
++    const rejected: string[] = []
++    const survivors: SelectedFile[] = []
++    for (const f of files) {
++      const first = f.relativePath.split('/')[0]
++      if (PROTECTED.includes(first)) rejected.push(f.relativePath)
++      else survivors.push(f)
++    }
++
++    const batchId = crypto.randomUUID()
++    const items: UploadItem[] = survivors.map((f, i) => ({
++      id: `fq_${Date.now()}_${i}_${Math.random().toString(36).slice(2)}`,
++      file: f.file,
++      fileName: f.file.name,
++      fileType: f.file.type,
++      size: f.file.size,
++      targetPath: f.targetPath,
++      relativePath: f.relativePath,
++      status: 'pending',
++      progress: 0,
++      bytesSent: 0,
++      speed: 0,
++      tusUploadUrl: null,
++      retryCount: 0,
++      error: '',
++      createdAt: Date.now(),
++      batchId,
++      batchTotal: survivors.length,
++      restored: false,
++      conflictPolicy: '',
++      oversize: !canStoreBlob(f.file.size),
++    }))
++
++    try {
++      const set = await precheckExisting(survivors)
++      for (const item of items) {
++        item.status = set.has(conflictKey(item.targetPath, item.relativePath)) ? 'conflict' : 'pending'
++      }
++    } catch {
++      // Precheck unavailable — leave everything pending, server will still
++      // reject/handle actual conflicts.
++    }
++
++    queue.value.push(...items)
++    if (items.some((i) => i.status === 'pending')) startUpload()
++    return { rejected }
++  }
++
++  function resolveConflict(id: string, choice: string): void {
++    const policy = decideConflictPolicy(choice)
++    if (policy === 'skip') {
++      patch(id, { status: 'done' })
++    } else {
++      patch(id, { conflictPolicy: policy, status: 'pending' })
++    }
++    startUpload()
++  }
++
++  function retryItem(id: string): void {
++    patch(id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
++    startUpload()
++  }
++
++  function cancelItem(id: string): void {
++    getScheduler().abort(id)
++    queue.value = queue.value.filter((i) => i.id !== id)
++  }
++
++  function clearDone(): void {
++    queue.value = queue.value.filter((i) => i.status !== 'done')
++  }
++
++  const hasActive = computed(() =>
++    uploading.value || queue.value.some((i) => i.status === 'pending' && !!i.file),
++  )
++
++  return {
++    queue,
++    uploading,
++    restoreNoticeCount,
++    hasActive,
++    addFilesToQueue,
++    resolveConflict,
++    startUpload,
++    retryItem,
++    cancelItem,
++    clearDone,
++  }
++})

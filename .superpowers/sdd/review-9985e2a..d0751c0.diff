@@ -1,0 +1,910 @@
+# Review package: 9985e2a..d0751c0
+
+## Commits
+d0751c0 feat(files-p5a): local disk drag-reorder + remembered default location
+70ec162 feat(files-p5a): sidebar network section + eject + add-mount menu + socket refresh
+82491ef feat(files-p5a): AddMountMenu — reka-ui dropdown for adding mounts
+8f546d3 feat(files-p5a): NetworkStorageDialog — Samba/NFS connect form + host history
+4462e7f feat(files-p5a): mountsStore — network+usb aggregation, eject
+6edf69a feat(files-p5a): pure utils — shouldNavigateHome, samba address/history, location order
+
+## Files changed
+ src/files/components/AddMountMenu.vue         |  32 ++++++++
+ src/files/components/FilesSidebar.test.ts     |  29 ++++++-
+ src/files/components/FilesSidebar.vue         |  75 +++++++++++++++++-
+ src/files/components/NetworkStorageDialog.vue | 109 ++++++++++++++++++++++++++
+ src/files/stores/mounts.test.ts               |  69 ++++++++++++++++
+ src/files/stores/mounts.ts                    |  64 +++++++++++++++
+ src/files/util/locationOrder.test.ts          |  24 ++++++
+ src/files/util/locationOrder.ts               |  36 +++++++++
+ src/files/util/mounts.test.ts                 |  17 ++++
+ src/files/util/mounts.ts                      |   5 ++
+ src/files/util/sambaHistory.test.ts           |  33 ++++++++
+ src/files/util/sambaHistory.ts                |  36 +++++++++
+ src/i18n/zh_cn.ts                             |  17 ++++
+ src/views/Files.test.ts                       |   2 +
+ src/views/Files.vue                           |  17 +++-
+ 15 files changed, 561 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/files/components/AddMountMenu.vue b/src/files/components/AddMountMenu.vue
+new file mode 100644
+index 0000000..0e2e52e
+--- /dev/null
++++ b/src/files/components/AddMountMenu.vue
+@@ -0,0 +1,32 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import {
++  DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuPortal,
++  DropdownMenuContent, DropdownMenuItem,
++} from 'reka-ui'
++
++const emit = defineEmits<{ (e: 'connect-network'): void }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <DropdownMenuRoot>
++    <DropdownMenuTrigger class="add-mount-btn" :aria-label="t('filesMountAdd')">＋</DropdownMenuTrigger>
++    <DropdownMenuPortal>
++      <DropdownMenuContent class="add-mount-menu" :side-offset="4" align="start">
++        <DropdownMenuItem class="add-mount-item" @select="emit('connect-network')">
++          {{ t('filesMountConnectNetwork') }}
++        </DropdownMenuItem>
++        <!-- 云盘驱动项在 P5b 追加 -->
++      </DropdownMenuContent>
++    </DropdownMenuPortal>
++  </DropdownMenuRoot>
++</template>
++
++<style scoped>
++.add-mount-btn { width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
++.add-mount-btn:hover { background: var(--chip-hover, rgba(255,255,255,0.12)); }
++.add-mount-menu { min-width: 180px; padding: 6px; border-radius: 12px; background: var(--popup-bg, rgba(20,23,35,0.95)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px); box-shadow: 0 16px 40px rgba(0,0,0,0.45); z-index: 1000; }
++.add-mount-item { padding: 8px 12px; border-radius: 8px; font-size: 13px; color: var(--fg); cursor: pointer; outline: none; }
++.add-mount-item[data-highlighted] { background: var(--chip-bg, rgba(255,255,255,0.08)); }
++</style>
+diff --git a/src/files/components/FilesSidebar.test.ts b/src/files/components/FilesSidebar.test.ts
+index d83adfc..d335bd3 100644
+--- a/src/files/components/FilesSidebar.test.ts
++++ b/src/files/components/FilesSidebar.test.ts
+@@ -17,21 +17,21 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { f
+ 
+ function seedFiles() {
+   const files = useFilesStore()
+   files.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any
+   files.displayNames = { '/DATA': 'NimoOS-HD' }
+   files.currentPath = '/DATA'
+   return files
+ }
+ 
+ describe('FilesSidebar', () => {
+-  beforeEach(() => setActivePinia(createPinia()))
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+ 
+   it('renders disks and an empty-favorites hint', () => {
+     seedFiles()
+     const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
+     expect(w.text()).toContain('暂无收藏')
+     expect(w.text()).toContain('NimoOS-HD')
+   })
+ 
+   it('clicking a disk emits navigate with the virtual path (not /DATA)', async () => {
+     seedFiles()
+@@ -46,11 +46,38 @@ describe('FilesSidebar', () => {
+     seedFiles()
+     const fav = useFavoritesStore()
+     fav.list = [{ name: 'Docs', path: '/DATA/Documents' }] as any
+     const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
+     const favItem = w.findAll('.side-item').find((li) => li.text().includes('Docs'))!
+     await favItem.trigger('click')
+     expect(w.emitted('navigate')!.some((e) => e[0] === '/NimoOS-HD/Documents')).toBe(true)
+     await favItem.get('.side-remove').trigger('click')
+     expect(fav.list.find((f) => f.path === '/DATA/Documents')).toBeUndefined()
+   })
++
++  it('dragging a disk reorders the rendered list in the same tick and persists order+default', async () => {
++    const files = useFilesStore()
++    files.disks = [
++      { name: 'DiskA', path: '/DATA', usb: false },
++      { name: 'DiskB', path: '/mnt/b', usb: false },
++    ] as any
++    files.displayNames = { '/DATA': 'DiskA', '/mnt/b': 'DiskB' }
++    files.currentPath = '/DATA'
++    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++
++    const before = w.findAll('.side-item').map((li) => li.text())
++    expect(before).toEqual(['DiskA', 'DiskB'])
++
++    // drag DiskB (index 1) onto DiskA's slot (index 0)
++    const items = w.findAll('.side-item')
++    await items[1].trigger('dragstart')
++    await items[0].trigger('drop')
++
++    // rendered order updates immediately — no loadRoots / reload needed (regression: localStorage isn't reactive)
++    const after = w.findAll('.side-item').map((li) => li.text())
++    expect(after).toEqual(['DiskB', 'DiskA'])
++
++    // persisted order + default reflect the new arrangement
++    expect(JSON.parse(localStorage.getItem('nimoos:location-order')!)).toEqual(['/mnt/b', '/DATA'])
++    expect(localStorage.getItem('nimoos:location-default')).toBe('/mnt/b')
++  })
+ })
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index 6b614b2..885b560 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -1,43 +1,90 @@
+ <script setup lang="ts">
+-import { ref } from 'vue'
++import { computed, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useFilesStore } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
++import { useMountsStore } from '../stores/mounts'
++import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
++import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
++import AddMountMenu from './AddMountMenu.vue'
++import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
++const mounts = useMountsStore()
++const dialogOpen = ref(false)
+ const { t } = useI18n()
+ 
+ function go(realPath: string) {
+   emit('navigate', toVirtualPath(realPath, files.displayNames))
+ }
+ function isActive(realPath: string): boolean {
+   return files.currentPath === realPath
+ }
+ function diskIcon(usb: boolean): string {
+   return iconUrl(usb ? 'folder-usb' : 'folder-hdd')
+ }
+ 
++async function onEjectNetwork(entry: { id?: number; realPath: string }) {
++  const home = shouldNavigateHome(files.currentPath, entry.realPath)
++  const ok = entry.id != null && (await mounts.ejectNetwork(entry.id))
++  if (ok && home) emit('navigate', toVirtualPath('/DATA', files.displayNames))
++}
++async function onEjectUsb(entry: { realPath: string }) {
++  const home = shouldNavigateHome(files.currentPath, entry.realPath)
++  const ok = await mounts.ejectUsb(entry.realPath)
++  if (ok && home) emit('navigate', toVirtualPath('/DATA', files.displayNames))
++}
++function onConnected(mountPoint: string) {
++  emit('navigate', toVirtualPath(mountPoint, files.displayNames))
++}
++
+ const dragIndex = ref<number | null>(null)
+ function onDragStart(i: number) { dragIndex.value = i }
+ function onDrop(i: number) {
+   if (dragIndex.value !== null && dragIndex.value !== i) favorites.reorder(dragIndex.value, i)
+   dragIndex.value = null
+ }
++
++// localStorage 不是响应式:drop 后仅靠 files.disks 无法触发重算(读到的是缓存,拖拽项会弹回)。
++// orderVersion 作为显式响应式触发器,写入顺序后自增,强制 computed 重新读取最新 readOrder()。
++const orderVersion = ref(0)
++const orderedDisks = computed(() => {
++  orderVersion.value
++  return applyOrder(files.disks, readOrder())
++})
++const diskDragIndex = ref<number | null>(null)
++function onDiskDragStart(i: number) { diskDragIndex.value = i }
++function onDiskDrop(i: number) {
++  const from = diskDragIndex.value
++  diskDragIndex.value = null
++  if (from === null || from === i) return
++  const arr = [...orderedDisks.value]
++  const [moved] = arr.splice(from, 1)
++  arr.splice(i, 0, moved)
++  const order = arr.map((d) => d.path)
++  writeOrder(order)
++  writeDefault(order[0] || '')
++  orderVersion.value++
++}
+ </script>
+ 
+ <template>
+   <aside class="files-sidebar">
++    <div class="side-head">
++      <span class="side-head-title">{{ t('filesMountManage') }}</span>
++      <AddMountMenu @connect-network="dialogOpen = true" />
++    </div>
+     <section class="side-section">
+       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
+       <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>
+       <ul class="side-list">
+         <li
+           v-for="(fav, i) in favorites.list"
+           :key="fav.path"
+           class="side-item"
+           :class="{ active: isActive(fav.path) }"
+           draggable="true"
+@@ -49,36 +96,60 @@ function onDrop(i: number) {
+           <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+           <span class="side-name">{{ fav.name }}</span>
+           <button class="side-remove" @click.stop="favorites.remove(fav.path)">×</button>
+         </li>
+       </ul>
+     </section>
+     <section class="side-section">
+       <h4 class="side-title">{{ t('filesDisks') }}</h4>
+       <ul class="side-list">
+         <li
+-          v-for="disk in files.disks"
++          v-for="(disk, i) in orderedDisks"
+           :key="disk.path"
+           class="side-item"
+           :class="{ active: isActive(disk.path) }"
++          draggable="true"
+           @click="go(disk.path)"
++          @dragstart="onDiskDragStart(i)"
++          @dragover.prevent
++          @drop="onDiskDrop(i)"
+         >
+           <img class="side-icon" :src="diskIcon(disk.usb)" alt="" />
+           <span class="side-name">{{ disk.name }}</span>
++          <button v-if="disk.usb" class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectUsb({ realPath: disk.path })">⏏</button>
++        </li>
++      </ul>
++    </section>
++    <section v-if="mounts.network.length" class="side-section">
++      <h4 class="side-title">{{ t('filesMountNetworkSection') }}</h4>
++      <ul class="side-list">
++        <li
++          v-for="m in mounts.network"
++          :key="m.realPath"
++          class="side-item"
++          :class="{ active: isActive(m.realPath) }"
++          @click="go(m.realPath)"
++        >
++          <img class="side-icon" :src="diskIcon(false)" alt="" />
++          <span class="side-name">{{ m.name }}</span>
++          <button class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectNetwork(m)">⏏</button>
+         </li>
+       </ul>
+     </section>
++    <NetworkStorageDialog v-model:open="dialogOpen" @connected="onConnected" />
+   </aside>
+ </template>
+ 
+ <style scoped>
+ .files-sidebar { flex: 0 0 220px; display: flex; flex-direction: column; gap: 18px; padding: 4px 12px 4px 0; overflow-y: auto; }
++.side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
++.side-head-title { font-size: 13px; font-weight: 600; color: var(--fg); }
+ .side-section { min-width: 0; }
+ .side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; }
+ .side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }
+ .side-list { list-style: none; margin: 0; padding: 0; }
+ .side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
+ .side-item:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+ .side-item.active { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+ .side-icon { width: 20px; height: 20px; flex: 0 0 auto; }
+ .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
+diff --git a/src/files/components/NetworkStorageDialog.vue b/src/files/components/NetworkStorageDialog.vue
+new file mode 100644
+index 0000000..92b67a0
+--- /dev/null
++++ b/src/files/components/NetworkStorageDialog.vue
+@@ -0,0 +1,109 @@
++<script setup lang="ts">
++import { ref, watch, computed } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import Dialog from '../../components/ui/Dialog.vue'
++import { useToast } from '../../stores/toast'
++import { useMountsStore } from '../stores/mounts'
++import { parseAddress, readHosts, addHost, writeHosts, type SambaHost } from '../util/sambaHistory'
++
++const props = defineProps<{ open: boolean }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'connected', mountPoint: string): void }>()
++const { t } = useI18n()
++const toast = useToast()
++const mounts = useMountsStore()
++
++const GUEST = 'guest'
++const address = ref('')
++const isGuest = ref(true)
++const username = ref('')
++const password = ref('')
++const connecting = ref(false)
++const hosts = ref<SambaHost[]>([])
++
++watch(() => props.open, (o) => {
++  if (!o) return
++  address.value = ''; isGuest.value = true; username.value = ''; password.value = ''; connecting.value = false
++  hosts.value = readHosts()
++})
++
++// 输入前缀合法 + 有主机时才可连接;非访客要求用户名/密码
++const canConnect = computed(() => {
++  const { protocol, host } = parseAddress(address.value)
++  if (!protocol || !host) return false
++  if (!isGuest.value && (!username.value || !password.value)) return false
++  return true
++})
++
++async function connect() {
++  const { protocol, host } = parseAddress(address.value)
++  if (!protocol || !host) { toast.show(t('filesMountInvalidAddress')); return }
++  if (!isGuest.value && (!username.value || !password.value)) { toast.show(t('filesMountCredsRequired')); return }
++  connecting.value = true
++  try {
++    const { mountPoint } = await service.samba.createConnection({
++      host,
++      username: isGuest.value ? GUEST : username.value,
++      password: isGuest.value ? GUEST : password.value,
++    })
++    writeHosts(addHost(hosts.value, { host, guest: isGuest.value, username: username.value }))
++    await mounts.loadMounts()
++    emit('connected', mountPoint)
++    emit('update:open', false)
++  } catch (e) {
++    const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
++    toast.show(msg || t('filesMountConnectFailed'))
++  } finally {
++    connecting.value = false
++  }
++}
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('filesMountConnectNetwork')" @update:open="emit('update:open', $event)">
++    <div class="net-form">
++      <label class="net-label">{{ t('filesMountServerAddress') }}</label>
++      <input
++        class="ui-input"
++        list="samba-hosts"
++        :placeholder="'smb://192.168.1.1'"
++        v-model="address"
++        @keyup.enter="canConnect && connect()"
++      />
++      <datalist id="samba-hosts">
++        <option v-for="h in hosts" :key="h.host" :value="'smb://' + h.host" />
++      </datalist>
++      <p class="net-hint">{{ t('filesMountAddressHint') }}</p>
++
++      <label class="net-switch">
++        <span>{{ t('filesMountConnectAsGuest') }}</span>
++        <input type="checkbox" v-model="isGuest" />
++      </label>
++
++      <template v-if="!isGuest">
++        <label class="net-label">{{ t('filesMountUsername') }}</label>
++        <input class="ui-input" v-model="username" name="username" />
++        <label class="net-label">{{ t('filesMountPassword') }}</label>
++        <input class="ui-input" type="password" v-model="password" name="password" />
++      </template>
++    </div>
++    <template #footer>
++      <button class="ui-btn" @click="emit('update:open', false)">{{ t('filesCancel') }}</button>
++      <button class="ui-btn primary" :disabled="!canConnect || connecting" @click="connect">
++        {{ connecting ? t('filesMountConnecting') : t('filesMountConnect') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.net-form { display: flex; flex-direction: column; gap: 8px; }
++.net-label { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
++.net-hint { font-size: 12px; color: var(--fg-muted, #9aa4bf); margin: 0; }
++.net-switch { display: flex; align-items: center; justify-content: space-between; margin: 6px 0; font-size: 14px; }
++.ui-input { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--chip-border, rgba(255,255,255,0.16)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 14px; outline: none; }
++.ui-input:focus { border-color: var(--accent, #6ea8fe); }
++.ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
++.ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
++.ui-btn:disabled { opacity: 0.4; cursor: default; }
++</style>
+diff --git a/src/files/stores/mounts.test.ts b/src/files/stores/mounts.test.ts
+new file mode 100644
+index 0000000..63498b1
+--- /dev/null
++++ b/src/files/stores/mounts.test.ts
+@@ -0,0 +1,69 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// service mock:必须在 import store 前(vi.mock 提升)
++const listConnections = vi.fn()
++const deleteConnection = vi.fn()
++const umountUsb = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    samba: { listConnections: (...a: unknown[]) => listConnections(...a), deleteConnection: (...a: unknown[]) => deleteConnection(...a) },
++    disks: { umountUsb: (...a: unknown[]) => umountUsb(...a) },
++  },
++}))
++// toast + i18n mock
++vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: vi.fn() }) }))
++vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
++
++import { useMountsStore } from './mounts'
++import { useFilesStore } from './files'
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  listConnections.mockReset(); deleteConnection.mockReset(); umountUsb.mockReset()
++})
++
++describe('mountsStore', () => {
++  it('loadMounts 把连接映射成 network 条目', async () => {
++    listConnections.mockResolvedValue([{ id: 1, host: 'h', mountPoint: '/mnt/h' }])
++    const m = useMountsStore()
++    await m.loadMounts()
++    expect(m.network).toEqual([{ kind: 'network', id: 1, name: 'h', realPath: '/mnt/h' }])
++  })
++
++  it('loadMounts 失败 → network 置空,不抛', async () => {
++    listConnections.mockRejectedValue(new Error('net'))
++    const m = useMountsStore()
++    await m.loadMounts()
++    expect(m.network).toEqual([])
++  })
++
++  it('usb 从 filesStore.disks 的 usb===true 派生', () => {
++    const files = useFilesStore()
++    files.disks = [{ name: 'HD', path: '/DATA', usb: false }, { name: 'U盘', path: '/media/u', usb: true }] as never
++    const m = useMountsStore()
++    expect(m.usb).toEqual([{ kind: 'usb', name: 'U盘', realPath: '/media/u' }])
++  })
++
++  it('ejectNetwork 成功 → 调 deleteConnection + reload + 返回 true', async () => {
++    listConnections.mockResolvedValue([])
++    deleteConnection.mockResolvedValue(undefined)
++    const m = useMountsStore()
++    const ok = await m.ejectNetwork(1)
++    expect(deleteConnection).toHaveBeenCalledWith(1)
++    expect(ok).toBe(true)
++  })
++
++  it('ejectNetwork 失败 → 返回 false,不抛', async () => {
++    deleteConnection.mockRejectedValue(new Error('x'))
++    const m = useMountsStore()
++    expect(await m.ejectNetwork(1)).toBe(false)
++  })
++
++  it('ejectUsb 成功 → 调 umountUsb + 返回 true', async () => {
++    umountUsb.mockResolvedValue(undefined)
++    const m = useMountsStore()
++    expect(await m.ejectUsb('/media/u')).toBe(true)
++    expect(umountUsb).toHaveBeenCalledWith('/media/u')
++  })
++})
+diff --git a/src/files/stores/mounts.ts b/src/files/stores/mounts.ts
+new file mode 100644
+index 0000000..f5749fe
+--- /dev/null
++++ b/src/files/stores/mounts.ts
+@@ -0,0 +1,64 @@
++import { defineStore } from 'pinia'
++import { ref, computed } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { useFilesStore } from './files'
++import { useToast } from '../../stores/toast'
++import { i18n } from '../../i18n'
++
++export interface MountEntry {
++  kind: 'network' | 'usb'
++  id?: number
++  name: string
++  realPath: string
++}
++
++export const useMountsStore = defineStore('mounts', () => {
++  const network = ref<MountEntry[]>([])
++  const loading = ref(false)
++  const files = useFilesStore()
++  const toast = useToast()
++  const t = i18n.global.t
++
++  async function loadMounts(): Promise<void> {
++    loading.value = true
++    try {
++      const conns = await service.samba.listConnections()
++      network.value = conns.map((c) => ({ kind: 'network' as const, id: c.id, name: c.host, realPath: c.mountPoint }))
++    } catch (e) {
++      network.value = []
++      console.warn('[mounts] loadMounts failed', e)
++    } finally {
++      loading.value = false
++    }
++  }
++
++  // USB 直接派生自 filesStore.disks(不重复请求);热插由 Files.vue 的 socket 触发 files.loadRoots() 更新。
++  const usb = computed<MountEntry[]>(() =>
++    files.disks.filter((d) => d.usb).map((d) => ({ kind: 'usb' as const, name: d.name, realPath: d.path })),
++  )
++
++  async function ejectNetwork(id: number): Promise<boolean> {
++    try {
++      await service.samba.deleteConnection(id)
++      await loadMounts()
++      toast.show(t('filesMountEjectSuccess'))
++      return true
++    } catch {
++      toast.show(t('filesMountEjectFailed'))
++      return false
++    }
++  }
++
++  async function ejectUsb(realPath: string): Promise<boolean> {
++    try {
++      await service.disks.umountUsb(realPath)
++      toast.show(t('filesMountEjectSuccess'))
++      return true
++    } catch {
++      toast.show(t('filesMountEjectFailed'))
++      return false
++    }
++  }
++
++  return { network, usb, loading, loadMounts, ejectNetwork, ejectUsb }
++})
+diff --git a/src/files/util/locationOrder.test.ts b/src/files/util/locationOrder.test.ts
+new file mode 100644
+index 0000000..fd5de5f
+--- /dev/null
++++ b/src/files/util/locationOrder.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { applyOrder, readOrder, writeOrder, readDefault, writeDefault } from './locationOrder'
++
++beforeEach(() => localStorage.clear())
++
++describe('applyOrder', () => {
++  const disks = [{ path: '/a' }, { path: '/b' }, { path: '/c' }]
++  it('无保存顺序 → 原样', () => {
++    expect(applyOrder(disks, []).map((d) => d.path)).toEqual(['/a', '/b', '/c'])
++  })
++  it('按保存顺序重排', () => {
++    expect(applyOrder(disks, ['/c', '/a']).map((d) => d.path)).toEqual(['/c', '/a', '/b'])
++  })
++  it('未记录的新盘排到已知项之后、保持相对序', () => {
++    expect(applyOrder([{ path: '/a' }, { path: '/x' }, { path: '/b' }], ['/b', '/a']).map((d) => d.path))
++      .toEqual(['/b', '/a', '/x'])
++  })
++})
++
++describe('order/default 持久化', () => {
++  it('order 往返', () => { writeOrder(['/a', '/b']); expect(readOrder()).toEqual(['/a', '/b']) })
++  it('default 往返', () => { writeDefault('/a'); expect(readDefault()).toBe('/a') })
++  it('缺失/损坏 → 空', () => { expect(readOrder()).toEqual([]); expect(readDefault()).toBe('') })
++})
+diff --git a/src/files/util/locationOrder.ts b/src/files/util/locationOrder.ts
+new file mode 100644
+index 0000000..9305e5f
+--- /dev/null
++++ b/src/files/util/locationOrder.ts
+@@ -0,0 +1,36 @@
++const ORDER_KEY = 'nimoos:location-order'
++const DEFAULT_KEY = 'nimoos:location-default'
++
++// 按保存顺序重排;未记录项(新盘)保持原相对位置、排到已知项之后。对齐 Vue2 applyLocationOrder。
++export function applyOrder<T extends { path: string }>(disks: T[], order: string[]): T[] {
++  if (!order.length) return disks
++  const rank = (p: string) => {
++    const i = order.indexOf(p)
++    return i === -1 ? Number.MAX_SAFE_INTEGER : i
++  }
++  return disks
++    .map((item, idx) => ({ item, idx }))
++    .sort((a, b) => rank(a.item.path) - rank(b.item.path) || a.idx - b.idx)
++    .map((x) => x.item)
++}
++
++export function readOrder(): string[] {
++  try {
++    const v = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]')
++    return Array.isArray(v) ? v : []
++  } catch {
++    return []
++  }
++}
++
++export function writeOrder(order: string[]): void {
++  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)) } catch { /* 忽略 */ }
++}
++
++export function readDefault(): string {
++  try { return localStorage.getItem(DEFAULT_KEY) || '' } catch { return '' }
++}
++
++export function writeDefault(path: string): void {
++  try { localStorage.setItem(DEFAULT_KEY, path) } catch { /* 忽略 */ }
++}
+diff --git a/src/files/util/mounts.test.ts b/src/files/util/mounts.test.ts
+new file mode 100644
+index 0000000..dc583fb
+--- /dev/null
++++ b/src/files/util/mounts.test.ts
+@@ -0,0 +1,17 @@
++import { describe, it, expect } from 'vitest'
++import { shouldNavigateHome } from './mounts'
++
++describe('shouldNavigateHome', () => {
++  it('当前就在被弹出挂载点 → true', () => {
++    expect(shouldNavigateHome('/mnt/host', '/mnt/host')).toBe(true)
++  })
++  it('当前在其子目录 → true', () => {
++    expect(shouldNavigateHome('/mnt/host/share/a', '/mnt/host')).toBe(true)
++  })
++  it('前缀相同但非同一挂载点(host vs host2)→ false', () => {
++    expect(shouldNavigateHome('/mnt/host2', '/mnt/host')).toBe(false)
++  })
++  it('无关路径 → false', () => {
++    expect(shouldNavigateHome('/DATA/Documents', '/mnt/host')).toBe(false)
++  })
++})
+diff --git a/src/files/util/mounts.ts b/src/files/util/mounts.ts
+new file mode 100644
+index 0000000..2d0dbe9
+--- /dev/null
++++ b/src/files/util/mounts.ts
+@@ -0,0 +1,5 @@
++// 弹出某挂载点后,若用户当前正处在它(或其子目录)内,需导航回 /DATA。
++// 注意 Vue2 用裸 startsWith 会把 /mnt/host2 误判为 /mnt/host 之下;这里用精确 + 分隔符边界修正。
++export function shouldNavigateHome(currentReal: string, ejectedReal: string): boolean {
++  return currentReal === ejectedReal || currentReal.startsWith(ejectedReal + '/')
++}
+diff --git a/src/files/util/sambaHistory.test.ts b/src/files/util/sambaHistory.test.ts
+new file mode 100644
+index 0000000..6e9cdeb
+--- /dev/null
++++ b/src/files/util/sambaHistory.test.ts
+@@ -0,0 +1,33 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { parseAddress, readHosts, addHost, writeHosts } from './sambaHistory'
++
++beforeEach(() => localStorage.clear())
++
++describe('parseAddress', () => {
++  it('解析 smb:// 并取 / 前主机', () => {
++    expect(parseAddress('smb://192.168.1.10/share')).toEqual({ protocol: 'smb', host: '192.168.1.10' })
++  })
++  it('解析 nfs://', () => {
++    expect(parseAddress('nfs://10.0.0.2')).toEqual({ protocol: 'nfs', host: '10.0.0.2' })
++  })
++  it('无合法前缀 → protocol null', () => {
++    expect(parseAddress('192.168.1.1')).toEqual({ protocol: null, host: '' })
++  })
++})
++
++describe('samba host history', () => {
++  it('addHost 去重(host+guest)且不含密码字段', () => {
++    let list = addHost([], { host: 'h', guest: true, username: '' })
++    list = addHost(list, { host: 'h', guest: true, username: '' }) // 重复
++    expect(list).toEqual([{ host: 'h', guest: true, username: '' }])
++    expect(Object.keys(list[0])).not.toContain('password')
++  })
++  it('write→read 往返', () => {
++    writeHosts([{ host: 'h', guest: false, username: 'u' }])
++    expect(readHosts()).toEqual([{ host: 'h', guest: false, username: 'u' }])
++  })
++  it('localStorage 损坏时 readHosts 返回 []', () => {
++    localStorage.setItem('nimoos:samba-hosts', '{bad json')
++    expect(readHosts()).toEqual([])
++  })
++})
+diff --git a/src/files/util/sambaHistory.ts b/src/files/util/sambaHistory.ts
+new file mode 100644
+index 0000000..3a990b4
+--- /dev/null
++++ b/src/files/util/sambaHistory.ts
+@@ -0,0 +1,36 @@
++const KEY = 'nimoos:samba-hosts'
++
++export interface SambaHost {
++  host: string
++  guest: boolean
++  username: string // 仅存用户名,绝不存密码(对齐 Vue2)
++}
++
++export function parseAddress(input: string): { protocol: 'smb' | 'nfs' | null; host: string } {
++  const m = /^(smb|nfs):\/\/(.+)$/i.exec(input.trim())
++  if (!m) return { protocol: null, host: '' }
++  return { protocol: m[1].toLowerCase() as 'smb' | 'nfs', host: m[2].split('/')[0] }
++}
++
++export function readHosts(): SambaHost[] {
++  try {
++    const v = JSON.parse(localStorage.getItem(KEY) || '[]')
++    return Array.isArray(v) ? v : []
++  } catch {
++    return []
++  }
++}
++
++export function addHost(list: SambaHost[], h: SambaHost): SambaHost[] {
++  const entry: SambaHost = { host: h.host, guest: h.guest, username: h.guest ? '' : h.username }
++  if (list.some((x) => x.host === entry.host && x.guest === entry.guest)) return list
++  return [...list, entry]
++}
++
++export function writeHosts(list: SambaHost[]): void {
++  try {
++    localStorage.setItem(KEY, JSON.stringify(list))
++  } catch {
++    /* 非安全上下文/隐私模式:忽略 */
++  }
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index e411f65..7eeab30 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -112,20 +112,37 @@ export const messages = {
+     filesUploadReselect: '重选文件',
+     filesUploadNeedsFile: '需重新选择文件以继续上传',
+     filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
+     filesUploadRestoreDismiss: '知道了',
+     filesUploadPause: '暂停',
+     filesUploadResume: '继续',
+     filesUploadPauseAll: '全部暂停',
+     filesUploadResumeAll: '全部继续',
+     filesUploadPaused: '已暂停',
+     filesUploadClose: '关闭',
++    filesMountEjectSuccess: '弹出成功',
++    filesMountEjectFailed: '弹出失败',
++    filesMountAdd: '添加挂载',
++    filesMountConnectNetwork: '连接网络存储',
++    filesMountServerAddress: '服务器地址',
++    filesMountAddressHint: '支持 Samba/NFS 地址,例:smb://192.168.1.1',
++    filesMountConnectAsGuest: '以访客身份连接',
++    filesMountUsername: '用户名',
++    filesMountPassword: '密码',
++    filesMountConnect: '连接',
++    filesMountConnecting: '连接中…',
++    filesMountConnectFailed: '连接失败',
++    filesMountInvalidAddress: '请输入正确的地址(smb:// 或 nfs://)',
++    filesMountCredsRequired: '用户名和密码不能为空',
++    filesMountManage: '存储',
++    filesMountNetworkSection: '网络存储',
++    filesMountEject: '弹出',
+     authUsername: '用户名',
+     authPassword: '密码',
+     authLogin: '登录',
+     authLoginFailed: '用户名或密码错误',
+     validateRequired: '必填',
+     validateMin6: '至少 6 位',
+     validateConfirm: '两次输入的密码不一致',
+     welcomeTitle: '欢迎使用 NimoOS',
+     welcomeSubtitle: '创建你的初始账户',
+     welcomeGo: '开始 →',
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+index 74bdbac..3aef350 100644
+--- a/src/views/Files.test.ts
++++ b/src/views/Files.test.ts
+@@ -14,20 +14,22 @@ vi.mock('@nimotech/nimoos-service', () => ({
+     folder: {
+       getList: vi.fn(async (path: string) => ({
+         content: [
+           { name: 'Documents', path: (path === '/DATA' ? '/DATA' : path) + '/Documents', is_dir: true },
+           { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+         ],
+       })),
+     },
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
++    // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
++    samba: { listConnections: vi.fn().mockResolvedValue([]) },
+   },
+   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
+ }))
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+ function makeRouter() {
+   return createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 760caa1..646f95c 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -16,39 +16,42 @@ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+ import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useViewer } from '../files/viewers/useViewer'
+ import ViewerHost from '../files/viewers/ViewerHost.vue'
+ import { resolveOpen } from '../files/viewers/resolveOpen'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
++import { useMountsStore } from '../files/stores/mounts'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+ import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
++import { readDefault } from '../files/util/locationOrder'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const ops = useFileOps()
+ const viewer = useViewer()
+ const fileOps = useFileOpsStore()
+ const clipboard = useClipboardStore()
+ const uploads = useUploadsStore()
++const mounts = useMountsStore()
+ const toast = useToast()
+ const bus = useMessageBus()
+ const { t } = useI18n()
+ 
+ // 对话框开关 + 上下文
+ const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
+ const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+ const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+ const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+ 
+@@ -174,21 +177,21 @@ function onToolbarDelete() {
+ }
+ 
+ const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
+ 
+ function goVirtual(vp: string) {
+   router.push('/files/' + virtualPathToRouteParam(vp))
+ }
+ async function sync() {
+   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
+   if (vp === '/') {
+-    const rootReal = files.defaultRootReal()
++    const rootReal = readDefault() || files.defaultRootReal()
+     if (!rootReal) return
+     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
+     return
+   }
+   await files.load(toRealPath(vp, files.displayNames))
+ }
+ function openEntry(entry: FileEntry) {
+   const r = resolveOpen(entry, files.sortedEntries)
+   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
+   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
+@@ -277,20 +280,32 @@ onMounted(async () => {
+   await files.loadRoots()
+   favorites.load()
+   await sync()
+ })
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ 
+ let offOperate: (() => void) | null = null
+ onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+ onUnmounted(() => { offOperate?.() })
+ 
++let offDiskAdd: (() => void) | undefined
++let offDiskRemove: (() => void) | undefined
++let offStorage: (() => void) | undefined
++onMounted(() => { mounts.loadMounts() })
++onMounted(() => {
++  const refresh = () => { mounts.loadMounts(); files.loadRoots() }
++  offDiskAdd = bus.on('local-storage:disk:added', refresh)
++  offDiskRemove = bus.on('local-storage:disk:removed', refresh)
++  offStorage = bus.on('local-storage:storage_status', refresh)
++})
++onUnmounted(() => { offDiskAdd?.(); offDiskRemove?.(); offStorage?.() })
++
+ let offUnloadGuard: (() => void) | null = null
+ onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+ onUnmounted(() => { offUnloadGuard?.() })
+ 
+ // 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
+ // 失败降级为内存模式,不阻断文件区渲染。
+ onMounted(() => { uploads.initUploads() })
+ </script>
+ 
+ <template>

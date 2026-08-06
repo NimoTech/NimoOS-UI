@@ -1,0 +1,153 @@
+# Review package: b13bb05..HEAD
+
+## Commits
+5868256 feat(upload): recursive folder drag-drop reader (dropEntries.ts) (SP4-P3b)
+
+## Files changed
+ src/files/upload/dropEntries.test.ts | 58 +++++++++++++++++++++++++++++
+ src/files/upload/dropEntries.ts      | 72 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 130 insertions(+)
+
+## Diff
+diff --git a/src/files/upload/dropEntries.test.ts b/src/files/upload/dropEntries.test.ts
+new file mode 100644
+index 0000000..8a924b2
+--- /dev/null
++++ b/src/files/upload/dropEntries.test.ts
+@@ -0,0 +1,58 @@
++import { describe, it, expect } from 'vitest'
++import { readDroppedEntries } from './dropEntries'
++
++function fileEntry(name: string, fullPath: string, content = 'x') {
++  const f = new File([content], name)
++  return {
++    isFile: true, isDirectory: false, name, fullPath,
++    file: (cb: (f: File) => void) => cb(f),
++  }
++}
++function dirEntry(name: string, fullPath: string, children: any[]) {
++  let read = false
++  return {
++    isFile: false, isDirectory: true, name, fullPath,
++    createReader: () => ({
++      readEntries: (cb: (e: any[]) => void) => { cb(read ? [] : children); read = true },
++    }),
++  }
++}
++function dtWithEntries(entries: any[]): any {
++  return {
++    items: entries.map((e) => ({ kind: 'file', webkitGetAsEntry: () => e })),
++    files: [],
++  }
++}
++
++describe('readDroppedEntries', () => {
++  it('flattens a dropped folder, preserving relativePath (leading slash stripped)', async () => {
++    const dt = dtWithEntries([
++      dirEntry('MyFolder', '/MyFolder', [
++        fileEntry('a.txt', '/MyFolder/a.txt'),
++        dirEntry('sub', '/MyFolder/sub', [fileEntry('b.txt', '/MyFolder/sub/b.txt')]),
++      ]),
++    ])
++    const out = await readDroppedEntries(dt)
++    const rels = out.map((o) => o.relativePath).sort()
++    expect(rels).toEqual(['MyFolder/a.txt', 'MyFolder/sub/b.txt'])
++    expect(out[0].file).toBeInstanceOf(File)
++  })
++
++  it('single dropped file → relativePath is the name', async () => {
++    const dt = dtWithEntries([fileEntry('c.txt', '/c.txt')])
++    const out = await readDroppedEntries(dt)
++    expect(out).toHaveLength(1)
++    expect(out[0].relativePath).toBe('c.txt')
++  })
++
++  it('falls back to flat dt.files when entries API unavailable', async () => {
++    const f = new File(['x'], 'd.txt')
++    const dt: any = { items: null, files: [f] }
++    const out = await readDroppedEntries(dt)
++    expect(out).toEqual([{ file: f, relativePath: 'd.txt' }])
++  })
++
++  it('null → empty', async () => {
++    expect(await readDroppedEntries(null)).toEqual([])
++  })
++})
+diff --git a/src/files/upload/dropEntries.ts b/src/files/upload/dropEntries.ts
+new file mode 100644
+index 0000000..7082298
+--- /dev/null
++++ b/src/files/upload/dropEntries.ts
+@@ -0,0 +1,72 @@
++// 拖拽文件夹上传:用 webkitGetAsEntry 递归读取目录,保留 relativePath(供受保护
++// 目录判断 + 批聚合)。与 Photos 的 collectFilesFromDataTransfer 不同:不按媒体
++// 类型过滤(文件管理器通用),不跳过隐藏文件。纯逻辑,无 Vue/store 依赖。
++
++interface FsEntry {
++  isFile: boolean
++  isDirectory: boolean
++  name: string
++  fullPath: string
++  file?: (ok: (f: File) => void, err?: () => void) => void
++  createReader?: () => { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }
++}
++export interface DroppedFile { file: File; relativePath: string }
++
++function stripLead(p: string): string { return p.replace(/^\/+/, '') }
++
++// readEntries returns at most ~100 entries per call (Chrome); loop until empty.
++function readAllEntries(reader: { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }): Promise<FsEntry[]> {
++  return new Promise((resolve) => {
++    const all: FsEntry[] = []
++    const read = () => {
++      reader.readEntries((entries) => {
++        if (!entries || entries.length === 0) return resolve(all)
++        all.push(...entries)
++        Promise.resolve().then(read)
++      }, () => resolve(all))
++    }
++    read()
++  })
++}
++
++function entryToFile(entry: FsEntry): Promise<File | null> {
++  return new Promise((resolve) => {
++    if (!entry.file) return resolve(null)
++    entry.file((f) => resolve(f), () => resolve(null))
++  })
++}
++
++async function walk(entry: FsEntry | null, out: DroppedFile[]): Promise<void> {
++  if (!entry) return
++  if (entry.isFile) {
++    const f = await entryToFile(entry)
++    if (f) out.push({ file: f, relativePath: stripLead(entry.fullPath || entry.name) })
++    return
++  }
++  if (entry.isDirectory && entry.createReader) {
++    const children = await readAllEntries(entry.createReader())
++    for (const child of children) await walk(child, out)
++  }
++}
++
++export async function readDroppedEntries(dt: DataTransfer | null): Promise<DroppedFile[]> {
++  const out: DroppedFile[] = []
++  if (!dt) return out
++  const items = dt.items as unknown as (DataTransferItem & { webkitGetAsEntry?: () => FsEntry | null })[] | null
++  const supportsEntries = !!(items && items.length && items[0].webkitGetAsEntry)
++  if (supportsEntries) {
++    // Snapshot entries synchronously: DataTransferItemList is invalidated once the
++    // event loop yields (after any await).
++    const entries: (FsEntry | null)[] = []
++    for (let i = 0; i < items!.length; i++) {
++      if (items![i].kind === 'file') entries.push(items![i].webkitGetAsEntry!())
++    }
++    for (const entry of entries) {
++      try { await walk(entry, out) } catch (e) { console.error('[files][drop] walk failed', e) }
++    }
++    return out
++  }
++  // Fallback: flat file list (no folder traversal possible).
++  for (const f of Array.from(dt.files || [])) out.push({ file: f, relativePath: f.name })
++  return out
++}

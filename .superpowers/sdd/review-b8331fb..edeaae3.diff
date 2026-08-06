@@ -1,0 +1,134 @@
+# Review package: b8331fb..HEAD
+
+## Commits
+edeaae3 feat(files): useSidebarDrawer 抽屉状态单例(matchMedia ≤768px)
+
+## Files changed
+ src/files/composables/useSidebarDrawer.test.ts | 70 ++++++++++++++++++++++++++
+ src/files/composables/useSidebarDrawer.ts      | 41 +++++++++++++++
+ 2 files changed, 111 insertions(+)
+
+## Diff
+diff --git a/src/files/composables/useSidebarDrawer.test.ts b/src/files/composables/useSidebarDrawer.test.ts
+new file mode 100644
+index 0000000..63a4b0e
+--- /dev/null
++++ b/src/files/composables/useSidebarDrawer.test.ts
+@@ -0,0 +1,70 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { useSidebarDrawer, __resetSidebarDrawerForTest } from './useSidebarDrawer'
++
++type Listener = (e: { matches: boolean }) => void
++let listeners: Listener[]
++let mqMatches: boolean
++
++function stubMatchMedia() {
++  vi.stubGlobal('matchMedia', (media: string) => ({
++    matches: mqMatches,
++    media,
++    addEventListener: (_: string, fn: Listener) => { listeners.push(fn) },
++    removeEventListener: (_: string, fn: Listener) => { listeners = listeners.filter((l) => l !== fn) },
++  }))
++}
++function fireChange(matches: boolean) { listeners.forEach((fn) => fn({ matches })) }
++
++describe('useSidebarDrawer', () => {
++  beforeEach(() => {
++    __resetSidebarDrawerForTest()
++    vi.unstubAllGlobals()
++    listeners = []
++    mqMatches = false
++  })
++
++  it('窄屏初始:isNarrow 反映 matchMedia.matches', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const d = useSidebarDrawer()
++    expect(d.isNarrow.value).toBe(true)
++    expect(d.open.value).toBe(false)
++  })
++
++  it('toggle/close 开合抽屉', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const d = useSidebarDrawer()
++    d.toggle()
++    expect(d.open.value).toBe(true)
++    d.close()
++    expect(d.open.value).toBe(false)
++  })
++
++  it('拉宽离开窄屏 → open 强制归 false', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const d = useSidebarDrawer()
++    d.toggle()
++    fireChange(false)
++    expect(d.isNarrow.value).toBe(false)
++    expect(d.open.value).toBe(false)
++  })
++
++  it('多次调用共享同一状态(模块单例)', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const a = useSidebarDrawer()
++    const b = useSidebarDrawer()
++    a.toggle()
++    expect(b.open.value).toBe(true)
++  })
++
++  it('无 matchMedia(jsdom 裸环境)退化为桌面态且不抛错', () => {
++    // 不 stub —— jsdom 默认没有 window.matchMedia
++    const d = useSidebarDrawer()
++    expect(d.isNarrow.value).toBe(false)
++    d.toggle() // 不应抛错
++    expect(d.open.value).toBe(true)
++  })
++})
+diff --git a/src/files/composables/useSidebarDrawer.ts b/src/files/composables/useSidebarDrawer.ts
+new file mode 100644
+index 0000000..dcbfa92
+--- /dev/null
++++ b/src/files/composables/useSidebarDrawer.ts
+@@ -0,0 +1,41 @@
++import { ref } from 'vue'
++
++// 模块级单例(useDock/useAddPanel 同款):FilesShell(☰ 钮)与 FilesSidebar(抽屉/遮罩)
++// 以及三个页面(Files/Shares/Drop)共享同一份状态。
++// matchMedia 不存在时(jsdom)isNarrow 恒 false,一切退化为桌面常驻侧栏。
++const isNarrow = ref(false)
++const open = ref(false)
++let mq: MediaQueryList | null = null
++let inited = false
++
++function onChange(e: MediaQueryListEvent | { matches: boolean }) {
++  isNarrow.value = e.matches
++  if (!e.matches) open.value = false // 离开窄屏清零抽屉态,桌面恒常驻
++}
++
++function init() {
++  if (inited) return
++  inited = true
++  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
++  mq = window.matchMedia('(max-width: 768px)')
++  isNarrow.value = mq.matches
++  mq.addEventListener('change', onChange)
++}
++
++export function useSidebarDrawer() {
++  init()
++  return {
++    isNarrow,
++    open,
++    toggle() { open.value = !open.value },
++    close() { open.value = false },
++  }
++}
++
++export function __resetSidebarDrawerForTest() {
++  mq?.removeEventListener('change', onChange)
++  mq = null
++  inited = false
++  isNarrow.value = false
++  open.value = false
++}

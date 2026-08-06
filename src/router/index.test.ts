@@ -95,4 +95,12 @@ describe('router', () => {
     expect(detailIdx).toBeGreaterThan(listIdx)
     expect(loginIdx).toBeGreaterThan(detailIdx)
   })
+
+  it('主路由表已展开 knowledge 路由', async () => {
+    const { router } = await import('./index')
+    const paths = router.getRoutes().map((r) => r.path)
+    expect(paths).toContain('/ai/knowledge')
+    expect(paths).toContain('/ai/knowledge/notes')
+    expect(paths).toContain('/ai/parser/test')
+  })
 })

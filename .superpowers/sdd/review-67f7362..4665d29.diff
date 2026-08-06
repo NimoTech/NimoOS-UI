@@ -1,0 +1,69 @@
+# Review package: 67f7362..4665d29
+
+## Commits
+4665d29 feat(files): renderSize + dateFmt formatters (Vue2 port)
+
+## Files changed
+ src/files/util/format.test.ts | 24 ++++++++++++++++++++++++
+ src/files/util/format.ts      | 22 ++++++++++++++++++++++
+ 2 files changed, 46 insertions(+)
+
+## Diff
+diff --git a/src/files/util/format.test.ts b/src/files/util/format.test.ts
+new file mode 100644
+index 0000000..ea97f6f
+--- /dev/null
++++ b/src/files/util/format.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect } from 'vitest'
++import { renderSize, dateFmt } from './format'
++
++describe('renderSize', () => {
++  it('humanizes bytes across units', () => {
++    expect(renderSize(0)).toBe('0 Bytes')
++    expect(renderSize(512)).toBe('512 Bytes')
++    expect(renderSize(1024)).toBe('1 KB')
++    expect(renderSize(1536)).toBe('1.5 KB')
++    expect(renderSize(1048576)).toBe('1 MB')
++    expect(renderSize('2097152')).toBe('2 MB')
++  })
++})
++
++describe('dateFmt', () => {
++  it('returns a non-empty string for a valid date and stable for a fixed input', () => {
++    const out = dateFmt('2026-01-15T09:05:00Z')
++    expect(typeof out).toBe('string')
++    expect(out.length).toBeGreaterThan(0)
++  })
++  it('empty/invalid input yields empty string', () => {
++    expect(dateFmt('')).toBe('')
++  })
++})
+diff --git a/src/files/util/format.ts b/src/files/util/format.ts
+new file mode 100644
+index 0000000..96f9546
+--- /dev/null
++++ b/src/files/util/format.ts
+@@ -0,0 +1,22 @@
++const SIZES = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
++
++export function renderSize(bytes: number | string): string {
++  const n = typeof bytes === 'string' ? Number(bytes) : bytes
++  if (!n || n <= 0) return '0 Bytes'
++  const i = Math.floor(Math.log(n) / Math.log(1024))
++  if (i === 0) return `${n} ${SIZES[0]}`
++  return `${parseFloat((n / 1024 ** i).toFixed(2))} ${SIZES[i]}`
++}
++
++export function dateFmt(value: string | number | Date): string {
++  if (!value) return ''
++  const d = new Date(value)
++  if (isNaN(d.getTime())) return ''
++  const now = new Date()
++  const sameYear = d.getFullYear() === now.getFullYear()
++  const locale = (localStorage.getItem('lang') || navigator.language || 'en').replace('_', '-')
++  const opts: Intl.DateTimeFormatOptions = sameYear
++    ? { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }
++    : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }
++  return new Intl.DateTimeFormat(locale, opts).format(d)
++}

@@ -1,0 +1,331 @@
+# Review package: f171501..26d888f
+
+## Commits
+26d888f feat(storage): store 写操作 createStorage/formatVolume + 全部在途守卫(SP6-P2)
+
+## Files changed
+ src/i18n/en_us.ts                  |  4 ++
+ src/i18n/zh_cn.ts                  |  4 ++
+ src/storage/stores/storage.test.ts | 95 +++++++++++++++++++++++++++++++++++++-
+ src/storage/stores/storage.ts      | 78 +++++++++++++++++++++++++++++--
+ 4 files changed, 176 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index ed181bd..b30c9d7 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -553,11 +553,15 @@ export default {
+   storageUnmountTitle: 'Remove storage',
+   storageUnmountMsg: 'Storage "{name}" will be removed. Data is not deleted and becomes available again after remounting. Enter your login password to continue:',
+   storageUnmountPassword: 'Login password',
+   storageUnmountOk: 'Remove',
+   storageCancel: 'Cancel',
+   storageDrivesEmpty: 'No drives detected',
+   storageDriveHealth: 'Health',
+   storageDriveHealthy: 'Healthy',
+   storageDriveDamaged: 'Damaged',
+   storageDriveTemp: 'Temp',
++  storageCreateSuccess: 'Storage created',
++  storageCreateFailed: 'Failed to create storage, please try again',
++  storageFormatSuccess: 'Storage formatted',
++  storageFormatFailed: 'Failed to format, check your password and try again',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 74b48db..a2f0cf3 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -552,11 +552,15 @@ export default {
+   storageUnmountTitle: '移除存储',
+   storageUnmountMsg: '将移除存储「{name}」,数据不会被删除,重新插入或挂载后可再次访问。输入登录密码以继续:',
+   storageUnmountPassword: '登录密码',
+   storageUnmountOk: '确认移除',
+   storageCancel: '取消',
+   storageDrivesEmpty: '未检测到硬盘',
+   storageDriveHealth: '健康',
+   storageDriveHealthy: '正常',
+   storageDriveDamaged: '损坏',
+   storageDriveTemp: '温度',
++  storageCreateSuccess: '存储已创建',
++  storageCreateFailed: '创建失败,请重试',
++  storageFormatSuccess: '存储已格式化',
++  storageFormatFailed: '格式化失败,请检查密码后重试',
+ }
+diff --git a/src/storage/stores/storage.test.ts b/src/storage/stores/storage.test.ts
+index db8216f..a8f7031 100644
+--- a/src/storage/stores/storage.test.ts
++++ b/src/storage/stores/storage.test.ts
+@@ -1,20 +1,26 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ 
+ const storageList = vi.fn()
+ const raidList = vi.fn()
+ const getDiskList = vi.fn()
+ const umount = vi.fn()
++const createMock = vi.fn()
++const formatMock = vi.fn()
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+-    storage: { list: (...a: unknown[]) => storageList(...a) },
++    storage: {
++      list: (...a: unknown[]) => storageList(...a),
++      create: (...a: unknown[]) => createMock(...a),
++      format: (...a: unknown[]) => formatMock(...a),
++    },
+     raid: { list: (...a: unknown[]) => raidList(...a) },
+     disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
+   },
+ }))
+ const toastShow = vi.fn()
+ vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
+ vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
+ 
+ import { useStorageStore } from './storage'
+ 
+@@ -84,10 +90,97 @@ describe('unmount', () => {
+     expect(ok).toBe(true)
+   })
+   it('失败:toast 失败文案、返回 false、不抛', async () => {
+     umount.mockRejectedValue(new Error('wrong password'))
+     const s = useStorageStore()
+     const ok = await s.unmount('/dev/sda', 'bad')
+     expect(toastShow).toHaveBeenCalledWith('storageUnmountFailed')
+     expect(ok).toBe(false)
+   })
+ })
++
++describe('createStorage', () => {
++  it('POST /storage 请求体逐字 {path,name,format},成功 toast + 返回 true', async () => {
++    createMock.mockResolvedValue({})
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [], avail: [] })
++    const s = useStorageStore()
++    const ok = await s.createStorage({ path: '/dev/sdb', name: 'Main-storage', format: true })
++    expect(ok).toBe(true)
++    expect(createMock).toHaveBeenCalledWith({ path: '/dev/sdb', name: 'Main-storage', format: true })
++    expect(toastShow).toHaveBeenCalledWith('storageCreateSuccess')
++  })
++  it('失败返回 false + 失败 toast,且成败都刷新列表(Vue2 语义)', async () => {
++    createMock.mockRejectedValue(new Error('boom'))
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [], avail: [] })
++    const s = useStorageStore()
++    const ok = await s.createStorage({ path: '/dev/sdb', name: 'a', format: false })
++    expect(ok).toBe(false)
++    expect(toastShow).toHaveBeenCalledWith('storageCreateFailed')
++    expect(storageList).toHaveBeenCalled() // loadAll 触达 storage.list
++  })
++  it('在途守卫:创建进行中再调直接返回 false,不重复发请求', async () => {
++    let resolve!: (v: unknown) => void
++    createMock.mockReturnValue(new Promise((r) => (resolve = r)))
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [], avail: [] })
++    const s = useStorageStore()
++    const p1 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
++    const p2 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
++    await expect(p2).resolves.toBe(false)
++    expect(createMock).toHaveBeenCalledTimes(1)
++    resolve({})
++    await expect(p1).resolves.toBe(true)
++  })
++})
++
++describe('formatVolume', () => {
++  it('PUT /storage 请求体逐字 {path,volume,password},仅成功刷新', async () => {
++    formatMock.mockResolvedValue({})
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [], avail: [] })
++    const s = useStorageStore()
++    const ok = await s.formatVolume({ path: '/dev/sdb1', volume: '/mnt/a', password: 'pw' })
++    expect(ok).toBe(true)
++    expect(formatMock).toHaveBeenCalledWith({ path: '/dev/sdb1', volume: '/mnt/a', password: 'pw' })
++  })
++  it('失败只记 message(不打整个 error,防明文密码)', async () => {
++    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
++    formatMock.mockRejectedValue(Object.assign(new Error('bad'), { config: { data: 'password=pw' } }))
++    const s = useStorageStore()
++    const ok = await s.formatVolume({ path: '/dev/sdb1', volume: '/mnt/a', password: 'pw' })
++    expect(ok).toBe(false)
++    for (const call of warn.mock.calls) {
++      expect(JSON.stringify(call)).not.toContain('password=pw')
++    }
++    warn.mockRestore()
++  })
++})
++
++describe('unmount 在途守卫(P1 债①)', () => {
++  it('进行中再调返回 false 且只发一次请求', async () => {
++    let resolve!: (v: unknown) => void
++    umount.mockReturnValue(new Promise((r) => (resolve = r)))
++    const s = useStorageStore()
++    const p1 = s.unmount('/dev/sda', 'pw')
++    const p2 = s.unmount('/dev/sda', 'pw')
++    await expect(p2).resolves.toBe(false)
++    expect(umount).toHaveBeenCalledTimes(1)
++    resolve({})
++    await expect(p1).resolves.toBe(true)
++  })
++})
++
++describe('loadDrives 候选盘', () => {
++  it('avail 字段映射进 availDisks', async () => {
++    getDiskList.mockResolvedValue({ disks: [], avail: [{ path: '/dev/sdb', name: 'sdb', need_format: 'true' }] })
++    const s = useStorageStore()
++    await s.loadDrives()
++    expect(s.availDisks).toHaveLength(1)
++    expect(s.availDisks[0].needFormat).toBe(true)
++  })
++})
+diff --git a/src/storage/stores/storage.ts b/src/storage/stores/storage.ts
+index c223744..0e1cde0 100644
+--- a/src/storage/stores/storage.ts
++++ b/src/storage/stores/storage.ts
+@@ -1,69 +1,139 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import { service } from '@nimotech/nimoos-service'
+ import { i18n } from '../../i18n'
+ import { useToast } from '../../stores/toast'
+-import { mapVolumes, mapDrives, type StorageVolume, type PhysicalDrive } from '../util/storageMap'
++import { mapVolumes, mapDrives, mapAvailDisks, type StorageVolume, type PhysicalDrive, type AvailDisk } from '../util/storageMap'
+ 
+ export const useStorageStore = defineStore('storage', () => {
+   const volumes = ref<StorageVolume[]>([])
+   const drives = ref<PhysicalDrive[]>([])
++  const availDisks = ref<AvailDisk[]>([])
++  const raidNames = ref<string[]>([])
+   const loading = ref(false)
++  const unmounting = ref(false)
++  const creating = ref(false)
++  const formatting = ref(false)
+   const t = i18n.global.t
+ 
+   async function loadVolumes() {
+     try {
+       // raid.list 兜底空数组:老后端无 /v2/raid 时卷列表照常工作
+       const [storageRes, raidRes] = await Promise.all([
+         service.storage.list({ system: 'show' }),
+         service.raid.list().catch(() => [] as unknown[]),
+       ])
++      const raidArr = Array.isArray(raidRes) ? raidRes : []
+       const raidMounts = new Set(
+-        (Array.isArray(raidRes) ? raidRes : [])
++        raidArr
+           .map((r) => (r as { mount_point?: string })?.mount_point)
+           .filter((m): m is string => !!m),
+       )
++      raidNames.value = raidArr
++        .map((r) => (r as { name?: string })?.name)
++        .filter((n): n is string => !!n)
+       volumes.value = mapVolumes(storageRes, raidMounts)
+     } catch (e) {
+       console.warn('[storage] volumes load failed', e)
+       volumes.value = []
+     }
+   }
+ 
+   async function loadDrives() {
+     try {
+-      const res = (await service.disks.getDiskList()) as { disks?: unknown } | null
++      const res = (await service.disks.getDiskList()) as { disks?: unknown; avail?: unknown } | null
+       drives.value = mapDrives(res?.disks)
++      availDisks.value = mapAvailDisks(res?.avail)
+     } catch (e) {
+       console.warn('[storage] drives load failed', e)
+       drives.value = []
++      availDisks.value = []
+     }
+   }
+ 
+   async function loadAll() {
+     loading.value = true
+     try {
+       await Promise.all([loadVolumes(), loadDrives()])
+     } finally {
+       loading.value = false
+     }
+   }
+ 
+   async function unmount(diskPath: string, password: string): Promise<boolean> {
++    if (unmounting.value) return false
++    unmounting.value = true
+     const toast = useToast()
+     try {
+       // 契约:DELETE /v1/disks {path: 父盘路径, password}(Vue2 StorageItem 同款)
+       await service.disks.umount({ path: diskPath, password })
+       toast.show(t('storageUnmountSuccess'))
+       await loadAll()
+       return true
+     } catch (e) {
+       // 只记 message:AxiosError 携带请求体(含明文密码),不可整个打日志
+       console.warn('[storage] unmount failed', (e as Error)?.message)
+       toast.show(t('storageUnmountFailed'))
+       return false
++    } finally {
++      unmounting.value = false
++    }
++  }
++
++  async function createStorage(payload: { path: string; name: string; format: boolean }): Promise<boolean> {
++    if (creating.value) return false
++    creating.value = true
++    const toast = useToast()
++    let ok = false
++    try {
++      // 契约:POST /v1/storage {path, name, format} 仅三字段(Vue2 submitCreate 同款)
++      await service.storage.create(payload)
++      toast.show(t('storageCreateSuccess'))
++      ok = true
++    } catch (e) {
++      console.warn('[storage] create failed', (e as Error)?.message)
++      toast.show(t('storageCreateFailed'))
++    } finally {
++      creating.value = false
++    }
++    await loadAll() // Vue2 语义:成败都刷新
++    return ok
++  }
++
++  async function formatVolume(payload: { path: string; volume: string; password: string }): Promise<boolean> {
++    if (formatting.value) return false
++    formatting.value = true
++    const toast = useToast()
++    try {
++      // 契约:PUT /v1/storage {path: 分区路径, volume: 挂载点, password}(Vue2 StorageItem formatStorage 同款)
++      await service.storage.format(payload)
++      toast.show(t('storageFormatSuccess'))
++      await loadAll() // Vue2 语义:格式化仅成功刷新
++      return true
++    } catch (e) {
++      // 只记 message:请求体含明文密码
++      console.warn('[storage] format failed', (e as Error)?.message)
++      toast.show(t('storageFormatFailed'))
++      return false
++    } finally {
++      formatting.value = false
+     }
+   }
+ 
+-  return { volumes, drives, loading, loadVolumes, loadDrives, loadAll, unmount }
++  return {
++    volumes,
++    drives,
++    availDisks,
++    raidNames,
++    loading,
++    creating,
++    formatting,
++    unmounting,
++    loadVolumes,
++    loadDrives,
++    loadAll,
++    unmount,
++    createStorage,
++    formatVolume,
++  }
+ })

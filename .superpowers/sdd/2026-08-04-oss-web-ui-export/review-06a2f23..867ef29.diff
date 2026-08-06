@@ -1,0 +1,71 @@
+# Review package: 06a2f23..HEAD
+
+## Commits
+867ef29 docs(oss): §13 恢复计划源头逐字标点(半角),修正误全角化
+
+## Files changed
+ .../specs/2026-08-03-oss-web-ui-export-design.md   | 40 +++++++++++-----------
+ 1 file changed, 20 insertions(+), 20 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/specs/2026-08-03-oss-web-ui-export-design.md b/docs/superpowers/specs/2026-08-03-oss-web-ui-export-design.md
+index ba3f863..0fdc522 100644
+--- a/docs/superpowers/specs/2026-08-03-oss-web-ui-export-design.md
++++ b/docs/superpowers/specs/2026-08-03-oss-web-ui-export-design.md
+@@ -548,36 +548,36 @@ New-UI 自己**已经有** `/settings` 和 `/kvm` 路由（P0–P5 做完了）
+ ## §12 交付边界
+ 
+ **做**：`NimoOS-New-UI/oss/` 全套机制 · `NimoOS-Web/` 产出仓（本地，不加 remote）·
+ `oss/files/` 里 5 个替换文件 · README 重写 · THEMING.md 洗白。
+ 
+ **不做**：推 GitHub（用户自己定时机）· LICENSE/NOTICE · 后端剔除 · ISO/安装脚本 ·
+ 私有基础设施地址 · sp7/sp8 的合并或插件化 · 任何新功能。
+ 
+ ---
+ 
+-## §13 勘误（2026-08-04 现场核实）
++## §13 勘误(2026-08-04 现场核实)
+ 
+-本节推翻前文若干结论，阅读顺序：§0 → §13 → 其余各节。
++本节推翻前文若干结论,阅读顺序:§0 → §13 → 其余各节。
+ 
+-**门槛已达成：SP9-P6 已关账，可以开工也可以出包。** P6 的 `1935b3e..cd382d5` 里，非 `src/kvm/**`、非 `docs/`、非测试的改动只有 3 个文件（`i18n/zh_cn.sp9.ts`、`i18n/en_us.sp9.ts`、`styles/theme.sp9.css`），其中前两个本来就在锚点清单里 —— **spec §8.1「P6 不碰锚点」的判断成立**。
++**门槛已达成:SP9-P6 已关账,可以开工也可以出包。** P6 的 `1935b3e..cd382d5` 里,非 `src/kvm/**`、非 `docs/`、非测试的改动只有 3 个文件(`i18n/zh_cn.sp9.ts`、`i18n/en_us.sp9.ts`、`styles/theme.sp9.css`),其中前两个本来就在锚点清单里 —— **spec §8.1「P6 不碰锚点」的判断成立**。
+ 
+-以下 14 条是核实中查出的 spec 偏差，T1 负责写回 spec，后续任务按本计划执行：
++以下 14 条是核实中查出的 spec 偏差,T1 负责写回 spec,后续任务按本计划执行:
+ 
+ | # | spec 怎么写的 | 现场事实 |
+ |---|---|---|
+-| E1 | `zh_cn.ts` 待删 33 键 | **44 键**。33 是对的（`widgetAiPrompt1/2/3` 因末位数字被 spec 的正则漏掉），但**另有 11 个 `audio*` 转录键完全没登记**：`audioSummary` `audioTranscript` `audioAsk` `audioAskPlaceholder` `audioAskEmpty` `audioAskDemo` `audioHighlightsOnly` `audioShowAll` `audioSpeakerAll` `audioChapters` `audioAllChapters`（第 47-49 行的 `audioSkipBack`/`audioSkipForward`/`audioSpeed` 是播放器控件，**保留**） |
+-| E2 | 未登记 | **`settings/util/systemConfig.ts` 的 `search_switch` 是真泄漏面**（接口字段 + `SYSTEM_DEFAULTS` 各一处）。决定删两行（索引签名 `[k: string]: unknown` 已保证读改写不丢未知字段），并同步改 `stores/locale.test.ts` 的 mock |
+-| E3 | `folderBrowser.ts` 走锚点补丁（切断 Wiki 候选） | 删掉 `FolderPermissionsPanel` 后 **`folderBrowser.ts` 零消费方**（`pickerRoots`/`dirEntries`/`crumbsFor` 只有 `folderPerm/FolderPickerDialog.vue` 和它自己的测试在用）→ 改为**整体删除** `folderBrowser.ts` + `folderBrowser.test.ts`。类 3 少一条 |
+-| E4 | 硬禁词表含 `folderPermission`（无白名单） | **会让守卫永久红**：`UserFolderPermission` 是成员文件夹授权的类型名，`types.ts`/`users.ts`/`MemberFoldersView.vue` 都要保留（spec §4.1 自己说的）。`folderPermission` 必须降为软禁词 + 白名单 `UserFolderPermission` |
+-| E5 | 未登记 | **`\bai\b` 硬词会误伤 `files/stores/files.ts:139-142`** 的局部变量 `const ai = list.findIndex(...)`（anchorIndex 缩写）。必须进白名单 |
+-| E6 | §4.1 列了 8 个假阳性 | 另有 3 个未登记的假阳性要进白名单：`apps/util/importNormalize.ts`（`'photo'` 关键词 → `/DATA/Gallery` 路径归一，Vue2 逐字移植）· `settings/panels/AppsPanel.vue`（`Gallery` 出现在系统目录显示串里）· `files/stores/files.ts`（见 E5） |
+-| E7 | 类 1 未列 | **`CLAUDE.md` 必须删**。它是全仓最直白的「AI 辅助开发」标记，且正文引用了 `docs/THEMING.md` 与 `docs/superpowers/specs/...`（导出后这些路径不存在）。spec 完全没覆盖根目录这一层 |
+-| E8 | 决策 6 假设导出 `docs/THEMING.md` + `docs/nimoos-app-label-spec.md` | **用户 2026-08-04 拍板：一份文档都不带** → `docs/` 整目录删。类 2 替换从 5 个降为 **4 个**（`THEMING.md` 那条作废） |
+-| E9 | `.gitignore` 洗到什么程度待拍板 | **用户 2026-08-04 拍板**：删 `.claude/`、`.superpowers/`、`scripts/tmlab/`、`vite.config.tmlab.ts` 四行 + 加 `.export-report.txt` |
+-| E10 | §0.1 写「sp7/sp8 永久忽略，绝不合并」 | **用户 2026-08-04 拍板：快照发布后仍要合进 master。** 本期剥离清单只覆盖 master 现有残留面；两支合流后，清单需为 `src/photos/**`、`src/ai/**` 两个完整功能区大幅扩张（几十个测试文件、路由、i18n 分片）。§0.1 的措辞要订正，并在 `oss/manifest.mjs` 顶部写明这一预期 |
+-| E11 | §5.2 担心删 token 会把保留的波形弄没颜色 | **已查清**：`--wave-none` 保留（波形静场竖条在用）、`--spk-1..5` 与 `--wave-dim` 删。另外 `@keyframes pulse` / `--orb-core` / `--orb-glow` 的**唯一**消费方是 `AiWidget.vue`，可以放心删 —— `DropPage.vue` 用的是自己的 `@keyframes dropPulse`，不受影响 |
+-| E12 | §7.4 说退出码 1 的原因是 `service.users.avatarPath is not a function` | 现象仍在但落点更精确：`src/settings/views/SettingsPage.test.ts` 的 `service.users` mock **缺 `avatarPath`**，测试跳到 `/settings/account` 时 `AccountPanel.vue:43` 的 `avatarSrc` computed 抛错，在用例结束后才浮出 → vitest 报 `Errors 1` 并退出 1，**但 3078 例全绿**。修法是给那个 mock 补一行（T2） |
+-| E13 | Service 侧只列 `src/photos.ts` + `src/index.ts` | 还要删 `src/types.ts` 的 `export interface PhotoAsset`（第 63 行）。`UserFolderPermission`（第 116 行）**保留** |
+-| E14 | §0.2 基线 | `src/` 778 → **804** 文件；测试 → **352 文件 / 3078 例**；命中禁词的测试文件仍是 42 个 |
+-
+-**明确划在范围外（观察到但不动）**：全仓注释里大量引用 `Vue2` / `NimoOS-UI` / `SP4-P8` / `策略 C` / 债务编号 —— 它们泄露的是「有一个旧 UI 和一套内部迁移计划」，**不是 AI/相册/搜索**，不在用户这次的目标里。若以后想洗，是一次独立的工作。
++| E1 | `zh_cn.ts` 待删 33 键 | **44 键**。33 是对的(`widgetAiPrompt1/2/3` 因末位数字被 spec 的正则漏掉),但**另有 11 个 `audio*` 转录键完全没登记**:`audioSummary` `audioTranscript` `audioAsk` `audioAskPlaceholder` `audioAskEmpty` `audioAskDemo` `audioHighlightsOnly` `audioShowAll` `audioSpeakerAll` `audioChapters` `audioAllChapters`(第 47-49 行的 `audioSkipBack`/`audioSkipForward`/`audioSpeed` 是播放器控件,**保留**) |
++| E2 | 未登记 | **`settings/util/systemConfig.ts` 的 `search_switch` 是真泄漏面**(接口字段 + `SYSTEM_DEFAULTS` 各一处)。决定删两行(索引签名 `[k: string]: unknown` 已保证读改写不丢未知字段),并同步改 `stores/locale.test.ts` 的 mock |
++| E3 | `folderBrowser.ts` 走锚点补丁(切断 Wiki 候选) | 删掉 `FolderPermissionsPanel` 后 **`folderBrowser.ts` 零消费方**(`pickerRoots`/`dirEntries`/`crumbsFor` 只有 `folderPerm/FolderPickerDialog.vue` 和它自己的测试在用)→ 改为**整体删除** `folderBrowser.ts` + `folderBrowser.test.ts`。类 3 少一条 |
++| E4 | 硬禁词表含 `folderPermission`(无白名单) | **会让守卫永久红**:`UserFolderPermission` 是成员文件夹授权的类型名,`types.ts`/`users.ts`/`MemberFoldersView.vue` 都要保留(spec §4.1 自己说的)。`folderPermission` 必须降为软禁词 + 白名单 `UserFolderPermission` |
++| E5 | 未登记 | **`\bai\b` 硬词会误伤 `files/stores/files.ts:139-142`** 的局部变量 `const ai = list.findIndex(...)`(anchorIndex 缩写)。必须进白名单 |
++| E6 | §4.1 列了 8 个假阳性 | 另有 3 个未登记的假阳性要进白名单:`apps/util/importNormalize.ts`(`'photo'` 关键词 → `/DATA/Gallery` 路径归一,Vue2 逐字移植)· `settings/panels/AppsPanel.vue`(`Gallery` 出现在系统目录显示串里)· `files/stores/files.ts`(见 E5) |
++| E7 | 类 1 未列 | **`CLAUDE.md` 必须删**。它是全仓最直白的「AI 辅助开发」标记,且正文引用了 `docs/THEMING.md` 与 `docs/superpowers/specs/...`(导出后这些路径不存在)。spec 完全没覆盖根目录这一层 |
++| E8 | 决策 6 假设导出 `docs/THEMING.md` + `docs/nimoos-app-label-spec.md` | **用户 2026-08-04 拍板:一份文档都不带** → `docs/` 整目录删。类 2 替换从 5 个降为 **4 个**(`THEMING.md` 那条作废) |
++| E9 | `.gitignore` 洗到什么程度待拍板 | **用户 2026-08-04 拍板**:删 `.claude/`、`.superpowers/`、`scripts/tmlab/`、`vite.config.tmlab.ts` 四行 + 加 `.export-report.txt` |
++| E10 | §0.1 写「sp7/sp8 永久忽略,绝不合并」 | **用户 2026-08-04 拍板:快照发布后仍要合进 master。** 本期剥离清单只覆盖 master 现有残留面;两支合流后,清单需为 `src/photos/**`、`src/ai/**` 两个完整功能区大幅扩张(几十个测试文件、路由、i18n 分片)。§0.1 的措辞要订正,并在 `oss/manifest.mjs` 顶部写明这一预期 |
++| E11 | §5.2 担心删 token 会把保留的波形弄没颜色 | **已查清**:`--wave-none` 保留(波形静场竖条在用)、`--spk-1..5` 与 `--wave-dim` 删。另外 `@keyframes pulse` / `--orb-core` / `--orb-glow` 的**唯一**消费方是 `AiWidget.vue`,可以放心删 —— `DropPage.vue` 用的是自己的 `@keyframes dropPulse`,不受影响 |
++| E12 | §7.4 说退出码 1 的原因是 `service.users.avatarPath is not a function` | 现象仍在但落点更精确:`src/settings/views/SettingsPage.test.ts` 的 `service.users` mock **缺 `avatarPath`**,测试跳到 `/settings/account` 时 `AccountPanel.vue:43` 的 `avatarSrc` computed 抛错,在用例结束后才浮出 → vitest 报 `Errors 1` 并退出 1,**但 3078 例全绿**。修法是给那个 mock 补一行(T2) |
++| E13 | Service 侧只列 `src/photos.ts` + `src/index.ts` | 还要删 `src/types.ts` 的 `export interface PhotoAsset`(第 63 行)。`UserFolderPermission`(第 116 行)**保留** |
++| E14 | §0.2 基线 | `src/` 778 → **804** 文件;测试 → **352 文件 / 3078 例**;命中禁词的测试文件仍是 42 个 |
++
++**明确划在范围外(观察到但不动)**:全仓注释里大量引用 `Vue2` / `NimoOS-UI` / `SP4-P8` / `策略 C` / 债务编号 —— 它们泄露的是「有一个旧 UI 和一套内部迁移计划」,**不是 AI/相册/搜索**,不在用户这次的目标里。若以后想洗,是一次独立的工作。

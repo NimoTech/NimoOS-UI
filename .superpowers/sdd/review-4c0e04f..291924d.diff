@@ -1,0 +1,80 @@
+# Review package: 4c0e04f..HEAD
+
+## Commits
+291924d chore(upload): remove dead uploadListGroups (superseded by groupByBatch) (SP4-P3b)
+
+## Files changed
+ src/files/upload/uploadListGroups.test.ts | 18 --------------
+ src/files/upload/uploadListGroups.ts      | 39 -------------------------------
+ 2 files changed, 57 deletions(-)
+
+## Diff
+diff --git a/src/files/upload/uploadListGroups.test.ts b/src/files/upload/uploadListGroups.test.ts
+deleted file mode 100644
+index 8257be3..0000000
+--- a/src/files/upload/uploadListGroups.test.ts
++++ /dev/null
+@@ -1,18 +0,0 @@
+-import { describe, it, expect } from 'vitest'
+-import { groupUploadQueue } from './uploadListGroups'
+-import type { UploadItem } from './types'
+-const mk = (p: Partial<UploadItem>): UploadItem => ({
+-  id: 'x', file: null, fileName: 'f', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'f',
+-  status: 'pending', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
+-  createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '', oversize: false, ...p,
+-})
+-describe('groupUploadQueue', () => {
+-  it('splits into problem/active/done with active uploading-first', () => {
+-    const q = [mk({ id: 'e', status: 'error' }), mk({ id: 'p', status: 'pending' }),
+-      mk({ id: 'u', status: 'uploading' }), mk({ id: 'd', status: 'done', doneAt: 5 })]
+-    const g = groupUploadQueue(q)
+-    expect(g.problemItems.map(i => i.id)).toEqual(['e'])
+-    expect(g.activeItems.map(i => i.id)).toEqual(['u', 'p'])
+-    expect(g.doneItems.map(i => i.id)).toEqual(['d'])
+-  })
+-})
+diff --git a/src/files/upload/uploadListGroups.ts b/src/files/upload/uploadListGroups.ts
+deleted file mode 100644
+index f2dccd3..0000000
+--- a/src/files/upload/uploadListGroups.ts
++++ /dev/null
+@@ -1,39 +0,0 @@
+-import type { UploadItem } from './types'
+-
+-export interface UploadQueueGroups {
+-  problemItems: UploadItem[]
+-  activeItems: UploadItem[]
+-  doneItems: UploadItem[]
+-}
+-
+-export function groupUploadQueue(queue: UploadItem[]): UploadQueueGroups {
+-  const problemItems: UploadItem[] = []
+-  const activeItems: UploadItem[] = []
+-  const doneItems: UploadItem[] = []
+-
+-  for (const item of queue) {
+-    if (['error', 'needs_file', 'conflict'].includes(item.status)) {
+-      problemItems.push(item)
+-    } else if (item.status === 'done') {
+-      doneItems.push(item)
+-    } else if (['uploading', 'pending'].includes(item.status)) {
+-      activeItems.push(item)
+-    }
+-  }
+-
+-  // Sort active items: uploading first, then pending
+-  activeItems.sort((a, b) => {
+-    if (a.status === 'uploading' && b.status !== 'uploading') return -1
+-    if (a.status !== 'uploading' && b.status === 'uploading') return 1
+-    return 0
+-  })
+-
+-  // Sort done items by doneAt ?? createdAt ascending
+-  doneItems.sort((a, b) => {
+-    const aTime = a.doneAt ?? a.createdAt
+-    const bTime = b.doneAt ?? b.createdAt
+-    return aTime - bTime
+-  })
+-
+-  return { problemItems, activeItems, doneItems }
+-}

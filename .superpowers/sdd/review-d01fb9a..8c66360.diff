@@ -1,0 +1,116 @@
+# Review package: d01fb9a..8c66360
+
+## Commits
+8c66360 fix(files-upload): independent reselect/retry/resume buttons for mixed problem-zone batches
+
+## Files changed
+ .../components/UploadPanel.mixed-batch.test.ts     | 38 ++++++++++++++++++++++
+ src/files/components/UploadPanel.vue               | 13 +++++---
+ 2 files changed, 46 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/src/files/components/UploadPanel.mixed-batch.test.ts b/src/files/components/UploadPanel.mixed-batch.test.ts
+new file mode 100644
+index 0000000..70a8993
+--- /dev/null
++++ b/src/files/components/UploadPanel.mixed-batch.test.ts
+@@ -0,0 +1,38 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount } from '@vue/test-utils'
++import UploadPanel from './UploadPanel.vue'
++import { useUploadsStore } from '../stores/uploads'
++import { i18n } from '../../i18n'
++import type { UploadItem } from '../upload/types'
++
++function item(over: Partial<UploadItem>): UploadItem {
++  return {
++    id: Math.random().toString(), file: null, fileName: 'f', fileType: '', size: 10,
++    targetPath: '/DATA/x', relativePath: 'f', status: 'error', progress: 0, bytesSent: 0,
++    speed: 0, tusUploadUrl: null, retryCount: 0, error: 'server', createdAt: 0,
++    batchId: 'mix', batchTotal: 3, restored: false, conflictPolicy: '', oversize: false, ...over,
++  }
++}
++
++describe('UploadPanel mixed problem-zone batch', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('shows both 重选文件 and 重试 for a needs_file + error batch', () => {
++    const s = useUploadsStore()
++    s.queue.push(item({ id: 'a', status: 'error' }), item({ id: 'b', status: 'needs_file', file: null }))
++    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
++    const labels = w.findAll('.up-item-actions .up-link-btn').map((b) => b.text())
++    expect(labels).toContain(i18n.global.t('filesUploadReselect'))
++    expect(labels).toContain(i18n.global.t('filesUploadRetry'))
++  })
++
++  it('shows 继续 for a paused + error batch', () => {
++    const s = useUploadsStore()
++    s.queue.push(item({ id: 'a', status: 'error' }), item({ id: 'b', status: 'paused' }))
++    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
++    const labels = w.findAll('.up-item-actions .up-link-btn').map((b) => b.text())
++    expect(labels).toContain(i18n.global.t('filesUploadResume'))
++    expect(labels).toContain(i18n.global.t('filesUploadRetry'))
++  })
++})
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index 161cdbb..a7d851d 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -97,20 +97,24 @@ function toggleExpand(batchId: string) {
+ // PATH SAFETY: show only the file's basename, never the real /DATA/... path.
+ function itemName(it: UploadItem): string {
+   const p = it.relativePath || it.fileName
+   return p.split('/').pop() || p
+ }
+ 
+ function onRetry(b: BatchView) {
+   if (b.multi) store.retryBatch(b.batchId)
+   else store.retryItem(b.items[0].id)
+ }
++function onResume(b: BatchView) {
++  if (b.multi) store.resumeBatch(b.batchId)
++  else store.resumeItem(b.items[0].id)
++}
+ function onCancel(b: BatchView) {
+   if (b.multi) store.cancelBatch(b.batchId)
+   else store.cancelItem(b.items[0].id)
+ }
+ 
+ // Delete confirmation (mirrors the file-delete AlertDialog). Each delete
+ // trigger stashes a message + the actual delete closure; confirm runs it.
+ // NOTE: `pendingRun` is intentionally NOT cleared in @update:open. reka-ui's
+ // AlertDialogAction fires update:open(false) on the SAME click as our confirm,
+ // and it can run first — clearing the closure there would drop it before
+@@ -193,27 +197,26 @@ async function onReselect(e: Event) {
+       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
+ 
+       <div v-if="problemBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneProblem') }}</div>
+         <div v-for="b in problemBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
+           </div>
+           <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
+-          <template v-else>
+-            <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+-            <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
+-          </template>
++          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
++          <div v-else-if="b.errorCount > 0 && b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
+           <div class="up-item-actions">
+             <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
+-            <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
++            <button v-if="b.errorCount > 0" class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
++            <button v-if="b.pausedCount > 0" class="up-link-btn" @click="onResume(b)">{{ t('filesUploadResume') }}</button>
+             <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
+           </div>
+         </div>
+       </div>
+ 
+       <div v-if="activeBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneActive') }}</div>
+         <div v-for="b in activeBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>

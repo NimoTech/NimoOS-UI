@@ -1,0 +1,599 @@
+# Review package: f290910..33d3aef
+
+## Commits
+33d3aef SP8-P1c1: pure modules for composer text/cursor math, attachment meta, mention format, ctx-usage geometry
+
+## Files changed
+ src/ai/util/attachmentMeta.test.ts |  63 ++++++++++++++++++++
+ src/ai/util/attachmentMeta.ts      |  74 ++++++++++++++++++++++++
+ src/ai/util/composerText.test.ts   |  67 +++++++++++++++++++++
+ src/ai/util/composerText.ts        | 115 +++++++++++++++++++++++++++++++++++++
+ src/ai/util/contextUsage.test.ts   |  43 ++++++++++++++
+ src/ai/util/contextUsage.ts        |  29 ++++++++++
+ src/ai/util/mentionFormat.test.ts  |  79 +++++++++++++++++++++++++
+ src/ai/util/mentionFormat.ts       |  64 +++++++++++++++++++++
+ 8 files changed, 534 insertions(+)
+
+## Diff
+diff --git a/src/ai/util/attachmentMeta.test.ts b/src/ai/util/attachmentMeta.test.ts
+new file mode 100644
+index 0000000..c85a746
+--- /dev/null
++++ b/src/ai/util/attachmentMeta.test.ts
+@@ -0,0 +1,63 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:160-171 / 460-504 / 531
++import { describe, it, expect } from 'vitest'
++import { TEXT_EXTS, DOCUMENT_EXTS, ACCEPT_TYPES, MAX_ATTACHMENT_BYTES, docErrorKey, docErrorShortKey } from './attachmentMeta'
++
++// Inline copy of the Vue2 accept-types build (AgentComposer.vue:167-171) to compare
++// against verbatim, so a future edit to either side gets caught immediately.
++const VUE2_TEXT_EXTS = [
++  'txt', 'md', 'csv', 'json', 'log',
++  'py', 'js', 'ts', 'go', 'rs', 'java', 'c', 'h', 'cpp',
++  'yaml', 'yml', 'ini', 'toml', 'conf',
++  'html', 'css', 'xml', 'sql', 'sh',
++]
++const VUE2_DOCUMENT_EXTS = ['pdf', 'docx', 'xlsx', 'xlsm', 'pptx']
++const VUE2_ACCEPT_TYPES = [
++  'image/*', 'video/*', 'audio/*',
++  ...VUE2_TEXT_EXTS.map((e) => '.' + e),
++  ...VUE2_DOCUMENT_EXTS.map((e) => '.' + e),
++].join(',')
++
++describe('attachmentMeta 常量(AgentComposer.vue:160-171)', () => {
++  it('TEXT_EXTS/DOCUMENT_EXTS 与 Vue2 完全一致', () => {
++    expect(TEXT_EXTS).toEqual(VUE2_TEXT_EXTS)
++    expect(DOCUMENT_EXTS).toEqual(VUE2_DOCUMENT_EXTS)
++  })
++  it('ACCEPT_TYPES 与 Vue2 原串完全一致', () => {
++    expect(ACCEPT_TYPES).toBe(VUE2_ACCEPT_TYPES)
++  })
++  it('MAX_ATTACHMENT_BYTES === 524288000(500 MB, AgentComposer.vue:531)', () => {
++    expect(MAX_ATTACHMENT_BYTES).toBe(524288000)
++  })
++})
++
++describe('docErrorKey(AgentComposer.vue:460-471 docErrorLabel)', () => {
++  it('8 个 extract_error code 各自映射到独立 i18n 键', () => {
++    expect(docErrorKey('empty_scanned')).toEqual({ key: 'aiDocErrEmptyScanned' })
++    expect(docErrorKey('encrypted')).toEqual({ key: 'aiDocErrEncrypted' })
++    expect(docErrorKey('zip_bomb')).toEqual({ key: 'aiDocErrZipBomb' })
++    expect(docErrorKey('timeout')).toEqual({ key: 'aiDocErrTimeout' })
++    expect(docErrorKey('parse_error')).toEqual({ key: 'aiDocErrParseError' })
++    expect(docErrorKey('sidecar_write_failed')).toEqual({ key: 'aiDocErrSidecarWriteFailed' })
++    expect(docErrorKey('not_installed')).toEqual({ key: 'aiDocErrNotInstalled' })
++    expect(docErrorKey('vanished')).toEqual({ key: 'aiDocErrVanished' })
++  })
++  it('未知 code 落 aiDocErrGeneric 且带 { code } 参数', () => {
++    expect(docErrorKey('some_new_code')).toEqual({ key: 'aiDocErrGeneric', params: { code: 'some_new_code' } })
++  })
++})
++
++describe('docErrorShortKey(AgentComposer.vue:474-486 docErrorShort)', () => {
++  it('8 个映射', () => {
++    expect(docErrorShortKey('empty_scanned')).toBe('aiDocErrShortScannedDoc')
++    expect(docErrorShortKey('encrypted')).toBe('aiDocErrShortEncrypted')
++    expect(docErrorShortKey('zip_bomb')).toBe('aiDocErrShortTooLarge')
++    expect(docErrorShortKey('timeout')).toBe('aiDocErrShortTimedOut')
++    expect(docErrorShortKey('parse_error')).toBe('aiDocErrShortParseFailed')
++    expect(docErrorShortKey('sidecar_write_failed')).toBe('aiDocErrShortCacheFailed')
++    expect(docErrorShortKey('not_installed')).toBe('aiDocErrShortParserMissing')
++    expect(docErrorShortKey('vanished')).toBe('aiDocErrShortLost')
++  })
++  it('未知 code 落 aiDocErrShortParse', () => {
++    expect(docErrorShortKey('some_new_code')).toBe('aiDocErrShortParse')
++  })
++})
+diff --git a/src/ai/util/attachmentMeta.ts b/src/ai/util/attachmentMeta.ts
+new file mode 100644
+index 0000000..f3fda6d
+--- /dev/null
++++ b/src/ai/util/attachmentMeta.ts
+@@ -0,0 +1,74 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:
++//   TEXT_EXTS/DOCUMENT_EXTS/ACCEPT_TYPES        :160-171
++//   docErrorLabel/docErrorShort (extract_error → label maps) :460-486
++//   500 MB per-file limit                       :531
++//
++// docErrorKey/docErrorShortKey return i18n KEY NAMES, not translated text —
++// the actual zh_cn/en_us strings are added by a later task (they don't exist
++// yet in this repo's locale files).
++
++// Mirrors agent/attachments/kind.py: text whitelist + native image/video/audio
++// MIME majors + document extensions. Used as the <input accept=...> hint so
++// the OS picker doesn't have to enumerate every plugin handler — and as the
++// tooltip text shown to the user. Keep in sync with the backend or
++// classify() will still call most things "binary".
++export const TEXT_EXTS: string[] = [
++  'txt', 'md', 'csv', 'json', 'log',
++  'py', 'js', 'ts', 'go', 'rs', 'java', 'c', 'h', 'cpp',
++  'yaml', 'yml', 'ini', 'toml', 'conf',
++  'html', 'css', 'xml', 'sql', 'sh',
++]
++
++export const DOCUMENT_EXTS: string[] = ['pdf', 'docx', 'xlsx', 'xlsm', 'pptx']
++
++export const ACCEPT_TYPES: string = [
++  'image/*', 'video/*', 'audio/*',
++  ...TEXT_EXTS.map((e) => '.' + e),
++  ...DOCUMENT_EXTS.map((e) => '.' + e),
++].join(',')
++
++/** Single-attachment size limit: 500 MB (AgentComposer.vue:531). */
++export const MAX_ATTACHMENT_BYTES: number = 500 * 1024 * 1024
++
++export type PendingKind = 'image' | 'document' | 'binary' | 'text' | 'video' | 'audio' | string
++
++// Maps backend extract_error codes (agent/attachments/extract.py) to i18n
++// key names. Codes are authoritative from AgentComposer.vue:461-470/475-484.
++const DOC_ERROR_KEYS: Record<string, string> = {
++  empty_scanned: 'aiDocErrEmptyScanned',
++  encrypted: 'aiDocErrEncrypted',
++  zip_bomb: 'aiDocErrZipBomb',
++  timeout: 'aiDocErrTimeout',
++  parse_error: 'aiDocErrParseError',
++  sidecar_write_failed: 'aiDocErrSidecarWriteFailed',
++  not_installed: 'aiDocErrNotInstalled',
++  vanished: 'aiDocErrVanished',
++}
++
++const DOC_ERROR_SHORT_KEYS: Record<string, string> = {
++  empty_scanned: 'aiDocErrShortScannedDoc',
++  encrypted: 'aiDocErrShortEncrypted',
++  zip_bomb: 'aiDocErrShortTooLarge',
++  timeout: 'aiDocErrShortTimedOut',
++  parse_error: 'aiDocErrShortParseFailed',
++  sidecar_write_failed: 'aiDocErrShortCacheFailed',
++  not_installed: 'aiDocErrShortParserMissing',
++  vanished: 'aiDocErrShortLost',
++}
++
++/** Full-sentence label key for an `extract_error` code (docErrorLabel,
++ *  AgentComposer.vue:460-472). Unknown codes fall back to the generic
++ *  "Document extraction failed: {code}" key, carrying `code` as an i18n param
++ *  (mirrors the Vue2 `this.$t('Document extraction failed: {code}', { code })` fallback). */
++export function docErrorKey(code: string): { key: string; params?: Record<string, unknown> } {
++  const key = DOC_ERROR_KEYS[code]
++  if (key) return { key }
++  return { key: 'aiDocErrGeneric', params: { code } }
++}
++
++/** ≤6-char short label key for an `extract_error` code (docErrorShort,
++ *  AgentComposer.vue:474-486). Unknown codes fall back to the generic
++ *  "Parse failed" short key. */
++export function docErrorShortKey(code: string): string {
++  return DOC_ERROR_SHORT_KEYS[code] || 'aiDocErrShortParse'
++}
+diff --git a/src/ai/util/composerText.test.ts b/src/ai/util/composerText.test.ts
+new file mode 100644
+index 0000000..96dfb78
+--- /dev/null
++++ b/src/ai/util/composerText.test.ts
+@@ -0,0 +1,67 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:180-196 / 300-335 / 355-428
++import { describe, it, expect } from 'vitest'
++import { getExt, basename, dirname, scanMention, buildDrillText, buildPopText, stripMentionToken } from './composerText'
++
++describe('composerText 路径小工具(AgentComposer.vue:180-196)', () => {
++  it('getExt:无点或首字符为点时返回空串', () => {
++    expect(getExt('a.TXT')).toBe('txt')
++    expect(getExt('noext')).toBe('')
++    expect(getExt('.bashrc')).toBe('')
++  })
++  it('basename:先剥尾部斜杠', () => {
++    expect(basename('/DATA/docs/')).toBe('docs')
++    expect(basename('/DATA/a.txt')).toBe('a.txt')
++  })
++  it('dirname:根一级返回 /', () => {
++    expect(dirname('/DATA/docs/a.txt')).toBe('/DATA/docs')
++    expect(dirname('/a')).toBe('/')
++  })
++})
++
++describe('scanMention 触发判定(AgentComposer.vue:300-335)', () => {
++  it('@ 在开头即触发,segments 取除末段外全部', () => {
++    const t = '@Drive1/docs/re'
++    expect(scanMention(t, t.length)).toEqual({ open: true, start: 0, segments: ['Drive1', 'docs'], query: 're' })
++  })
++  it('@ 前是空白也触发', () => {
++    const t = 'look @doc'
++    expect(scanMention(t, t.length)).toMatchObject({ open: true, start: 5, query: 'doc' })
++  })
++  it('@ 前是单词字符(邮箱)不触发', () => {
++    const t = 'me@host'
++    expect(scanMention(t, t.length).open).toBe(false)
++  })
++  it('遇到空白先于 @ 则不触发(mention 路径不含空格)', () => {
++    const t = '@Drive1 docs'
++    expect(scanMention(t, t.length).open).toBe(false)
++  })
++  it('无 @ 时不触发', () => {
++    expect(scanMention('hello', 5).open).toBe(false)
++  })
++})
++
++describe('mention 文本改写与光标(AgentComposer.vue:355-428)', () => {
++  it('buildDrillText:追加 "<name>/" 并把光标落在其后', () => {
++    const r = buildDrillText('@Dr', 0, 3, [], 'Drive1')
++    expect(r.text).toBe('@Drive1/')
++    expect(r.segments).toEqual(['Drive1'])
++    expect(r.caretPos).toBe(8)
++  })
++  it('buildDrillText:保留光标之后的原文', () => {
++    const r = buildDrillText('@Dr tail', 0, 3, [], 'Drive1')
++    expect(r.text).toBe('@Drive1/ tail')
++  })
++  it('buildPopText:弹掉最后一段;段全空时只留 @', () => {
++    const r1 = buildPopText('@Drive1/docs/', 0, 13, ['Drive1', 'docs'])
++    expect(r1.text).toBe('@Drive1/')
++    expect(r1.segments).toEqual(['Drive1'])
++    const r2 = buildPopText('@Drive1/', 0, 8, ['Drive1'])
++    expect(r2.text).toBe('@')
++    expect(r2.segments).toEqual([])
++  })
++  it('stripMentionToken:整段 @token 删掉、不插入任何文本', () => {
++    const r = stripMentionToken('see @Drive1/a.txt now', 4, 17)
++    expect(r.text).toBe('see  now')
++    expect(r.caretPos).toBe(4)
++  })
++})
+diff --git a/src/ai/util/composerText.ts b/src/ai/util/composerText.ts
+new file mode 100644
+index 0000000..f545989
+--- /dev/null
++++ b/src/ai/util/composerText.ts
+@@ -0,0 +1,115 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:
++//   getExt/basename/dirname            :180-196
++//   mention 触发扫描(onInput 内联逻辑)  :300-335
++//   drillIn/pickItem/popSegment 的文本+光标数学 :355-428
++//
++// Pure text/cursor math extracted so the composer SFC (a later task) can stay
++// thin wiring. No DOM/Vue dependency here — callers pass caret position
++// explicitly instead of reading `this.$refs.ta.selectionStart`.
++
++/** File extension, lowercased, without the dot. '' if there is no extension
++ *  or the name starts with a dot (e.g. dotfiles like `.bashrc`). */
++export function getExt(name: string): string {
++  const i = name.lastIndexOf('.')
++  return i < 1 ? '' : name.slice(i + 1).toLowerCase()
++}
++
++/** Last path segment, after stripping trailing slashes. */
++export function basename(p: string): string {
++  if (!p) return ''
++  const trimmed = p.replace(/\/+$/, '')
++  const i = trimmed.lastIndexOf('/')
++  return i < 0 ? trimmed : trimmed.slice(i + 1)
++}
++
++/** Parent path. Root-level paths (single leading slash) collapse to '/'. */
++export function dirname(p: string): string {
++  if (!p) return ''
++  const trimmed = p.replace(/\/+$/, '')
++  const i = trimmed.lastIndexOf('/')
++  if (i <= 0) return '/'
++  return trimmed.slice(0, i)
++}
++
++export interface MentionScan {
++  open: boolean
++  start: number
++  segments: string[]
++  query: string
++}
++
++/**
++ * Walk back from `caret` to find an active `@mention` trigger.
++ * Ported verbatim from the `onInput` smart-@ scan (AgentComposer.vue:312-334):
++ * an `@` counts as a trigger only if it's at index 0 or preceded by
++ * whitespace (so `me@host` does not trigger); hitting whitespace before
++ * finding such an `@` aborts the scan (mention paths never contain spaces).
++ */
++export function scanMention(text: string, caret: number): MentionScan {
++  let i = caret - 1
++  while (i >= 0) {
++    const ch = text[i]
++    if (ch === '@') {
++      const prev = i > 0 ? text[i - 1] : ''
++      if (i === 0 || /\s/.test(prev)) {
++        const after = text.slice(i + 1, caret)
++        const parts = after.split('/')
++        const segments = parts.slice(0, -1)
++        const query = parts[parts.length - 1] || ''
++        return { open: true, start: i, segments, query }
++      }
++      break
++    }
++    if (/\s/.test(ch)) break
++    i--
++  }
++  return { open: false, start: -1, segments: [], query: '' }
++}
++
++/** Drill into a folder/drive: append "<name>/" after the @ pattern
++ *  (AgentComposer.vue:355-371, `drillIn`). */
++export function buildDrillText(
++  text: string,
++  start: number,
++  caret: number,
++  segments: string[],
++  name: string,
++): { text: string; segments: string[]; caretPos: number } {
++  const newSegs = [...segments, name]
++  const newPath = '@' + newSegs.join('/') + '/'
++  const before = text.slice(0, start)
++  const after = text.slice(caret)
++  return {
++    text: before + newPath + after,
++    segments: newSegs,
++    caretPos: (before + newPath).length,
++  }
++}
++
++/** Pop the last mention segment (AgentComposer.vue:412-428, `popSegment`).
++ *  When no segments remain, collapses back to a bare '@'. */
++export function buildPopText(
++  text: string,
++  start: number,
++  caret: number,
++  segments: string[],
++): { text: string; segments: string[]; caretPos: number } {
++  const newSegs = segments.slice(0, -1)
++  const newPath = '@' + (newSegs.length ? newSegs.join('/') + '/' : '')
++  const before = text.slice(0, start)
++  const after = text.slice(caret)
++  return {
++    text: before + newPath + after,
++    segments: newSegs,
++    caretPos: (before + newPath).length,
++  }
++}
++
++/** Remove the whole @token with nothing inserted in its place
++ *  (AgentComposer.vue:374-379, `pickItem`'s text-splice step). */
++export function stripMentionToken(text: string, start: number, caret: number): { text: string; caretPos: number } {
++  return {
++    text: text.slice(0, start) + text.slice(caret),
++    caretPos: start,
++  }
++}
+diff --git a/src/ai/util/contextUsage.test.ts b/src/ai/util/contextUsage.test.ts
+new file mode 100644
+index 0000000..340e23c
+--- /dev/null
++++ b/src/ai/util/contextUsage.test.ts
+@@ -0,0 +1,43 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28,
++// test cases ported from ContextUsageBar.spec.js:8-52 (pure-function part only;
++// the Vue2 spec's `rendering` describe block covers SFC mounting, which is out
++// of scope for this pure-module task).
++import { describe, it, expect } from 'vitest'
++import { RING_R, RING_C, formatTokens, levelFor, dashArrayFor } from './contextUsage'
++
++describe('RING_R/RING_C', () => {
++  it('RING_R === 15.5, RING_C === 2*PI*R', () => {
++    expect(RING_R).toBe(15.5)
++    expect(RING_C).toBeCloseTo(2 * Math.PI * 15.5, 10)
++  })
++})
++
++describe('formatTokens', () => {
++  it('formats 1200 → "1.2K"', () => { expect(formatTokens(1200)).toBe('1.2K') })
++  it('formats 8192 → "8.2K"', () => { expect(formatTokens(8192)).toBe('8.2K') })
++  it('formats 500 → "500"', () => { expect(formatTokens(500)).toBe('500') })
++  it('formats 128000 → "128K"', () => { expect(formatTokens(128000)).toBe('128K') })
++  it('formats 200000 → "200K"', () => { expect(formatTokens(200000)).toBe('200K') })
++})
++
++describe('levelFor', () => {
++  it('69 → ok', () => { expect(levelFor(69)).toBe('ok') })
++  it('75 → warn', () => { expect(levelFor(75)).toBe('warn') })
++  it('95 → danger', () => { expect(levelFor(95)).toBe('danger') })
++  // Boundary cases not covered by the Vue2 spec.
++  it('70 → warn(边界)', () => { expect(levelFor(70)).toBe('warn') })
++  it('90 → danger(边界)', () => { expect(levelFor(90)).toBe('danger') })
++})
++
++describe('dashArrayFor', () => {
++  const fmt = (p: number) => ((p / 100) * (2 * Math.PI * 15.5)).toFixed(2)
++  it('15 → "<filled> <circumference>"', () => {
++    expect(dashArrayFor(15)).toBe(`${fmt(15)} ${RING_C.toFixed(2)}`)
++  })
++  it('110 → 截顶到满圆', () => {
++    expect(dashArrayFor(110)).toBe(`${RING_C.toFixed(2)} ${RING_C.toFixed(2)}`)
++  })
++  it('0 → 零长弧', () => {
++    expect(dashArrayFor(0)).toBe(`0.00 ${RING_C.toFixed(2)}`)
++  })
++})
+diff --git a/src/ai/util/contextUsage.ts b/src/ai/util/contextUsage.ts
+new file mode 100644
+index 0000000..0e963d3
+--- /dev/null
++++ b/src/ai/util/contextUsage.ts
+@@ -0,0 +1,29 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28
++// Pure geometry/formatting for the context-usage ring, extracted so the
++// component (a later task) only wires props → these functions.
++
++/** SVG ring radius (viewBox 0 0 36 36, matches ContextUsageBar.vue's <circle r="15.5">). */
++export const RING_R = 15.5
++
++/** Ring circumference. */
++export const RING_C = 2 * Math.PI * RING_R
++
++/** '1.2K' style compaction for token counts >= 1000; plain digits below that. */
++export function formatTokens(n: number): string {
++  if (n >= 1000) {
++    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
++  }
++  return String(n)
++}
++
++/** Usage-severity bucket for the ring color (>=90 danger, >=70 warn, else ok). */
++export function levelFor(pct: number): 'ok' | 'warn' | 'danger' {
++  return pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : 'ok'
++}
++
++/** `stroke-dasharray` value: "<filled> <circumference>", pct clamped to [0,100]. */
++export function dashArrayFor(pct: number): string {
++  const p = Math.min(100, Math.max(0, pct))
++  const filled = (p / 100) * RING_C
++  return `${filled.toFixed(2)} ${RING_C.toFixed(2)}`
++}
+diff --git a/src/ai/util/mentionFormat.test.ts b/src/ai/util/mentionFormat.test.ts
+new file mode 100644
+index 0000000..89be337
+--- /dev/null
++++ b/src/ai/util/mentionFormat.test.ts
+@@ -0,0 +1,79 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue:87-107 / 273-299
++import { describe, it, expect } from 'vitest'
++import { DRIVE_PALETTE, driveColor, formatBytes, formatTime, escapeHtml, highlightMatch } from './mentionFormat'
++
++describe('driveColor(MentionPopover.vue:89-93)', () => {
++  it('同名同色(确定性)', () => {
++    expect(driveColor('Drive1')).toBe(driveColor('Drive1'))
++  })
++  it('结果始终落在调色板内', () => {
++    for (const label of ['Drive1', 'Movies', 'a', '云盘', '']) {
++      expect(DRIVE_PALETTE).toContain(driveColor(label))
++    }
++  })
++})
++
++describe('formatBytes(MentionPopover.vue:95-101)', () => {
++  it('四档:B/KB/MB/GB', () => {
++    expect(formatBytes(500)).toBe('500 B')
++    expect(formatBytes(2048)).toBe('2.0 KB')
++    expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB')
++    expect(formatBytes(3 * 1024 * 1024 * 1024)).toBe('3.00 GB')
++  })
++  it('null/NaN 返回空串', () => {
++    expect(formatBytes(null as unknown as number)).toBe('')
++    expect(formatBytes(NaN)).toBe('')
++  })
++})
++
++describe('formatTime(MentionPopover.vue:287-299)', () => {
++  it('unix 秒(≤1e12)要 ×1000', () => {
++    const now = new Date()
++    const seconds = Math.floor(now.getTime() / 1000)
++    const out = formatTime(seconds)
++    expect(out.length).toBeGreaterThan(0)
++  })
++  it('unix 毫秒直接使用', () => {
++    const ms = Date.now()
++    const out = formatTime(ms)
++    expect(out.length).toBeGreaterThan(0)
++  })
++  it('ISO 串同年只出月日,跨年出年月', () => {
++    const now = new Date()
++    const sameYearIso = new Date(now.getFullYear(), 0, 15).toISOString()
++    const out = formatTime(sameYearIso)
++    expect(out).not.toMatch(new RegExp(String(now.getFullYear())))
++    const lastYearIso = new Date(now.getFullYear() - 1, 0, 15).toISOString()
++    const outLast = formatTime(lastYearIso)
++    expect(outLast).toMatch(new RegExp(String(now.getFullYear() - 1)))
++  })
++  it('falsy 输入返回空串', () => {
++    expect(formatTime(0)).toBe('')
++    expect(formatTime('')).toBe('')
++  })
++})
++
++describe('escapeHtml(MentionPopover.vue:282-285)', () => {
++  it('五字符全转义', () => {
++    expect(escapeHtml(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#39;')
++  })
++})
++
++describe('highlightMatch(MentionPopover.vue:273-280)', () => {
++  it('大小写不敏感首次匹配', () => {
++    expect(highlightMatch('MyDocs', 'doc')).toBe('My<mark>Doc</mark>s')
++  })
++  it('三段都转义,且只有 <mark> 是真标签', () => {
++    const out = highlightMatch('<b>abc', 'a')
++    expect(out).toContain('&lt;b&gt;')
++    // strip the one legitimate <mark>...</mark> pair and confirm nothing else looks like a tag
++    const stripped = out.replace('<mark>', '').replace('</mark>', '')
++    expect(stripped).not.toMatch(/<[^&]/)
++  })
++  it('无 query 时只转义不高亮', () => {
++    expect(highlightMatch('<b>abc', '')).toBe('&lt;b&gt;abc')
++  })
++  it('无匹配时只转义', () => {
++    expect(highlightMatch('abc', 'zzz')).toBe('abc')
++  })
++})
+diff --git a/src/ai/util/mentionFormat.ts b/src/ai/util/mentionFormat.ts
+new file mode 100644
+index 0000000..69bafd3
+--- /dev/null
++++ b/src/ai/util/mentionFormat.ts
+@@ -0,0 +1,64 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue:
++//   DRIVE_PALETTE/driveColor/formatBytes/getExt   :87-107
++//   highlight/escapeHtml/formatTime                :273-299
++//
++// NOTE on getExt: MentionPopover.vue:103-107 defines its own getExt, but it
++// is byte-for-byte identical to AgentComposer.vue:180-183 (same `i < 1`
++// guard, same lowercase). Re-exported from composerText.ts rather than
++// duplicated, per task instructions ("check whether they behave
++// identically; export it once ... if so").
++export { getExt } from './composerText'
++
++// Brand/identity placeholder colors carried over verbatim from Vue2 — one of
++// this repo's registered exceptions to the "no color literals" rule (see
++// src/ai/styles/tokens.scss header lines 7-18, same category as the
++// seed-indexed PALETTES in SearchFullResults.vue).
++export const DRIVE_PALETTE: string[] = ['#007AFF', '#AF52DE', '#34C759', '#FF9500', '#FF3B30', '#30B0C7']
++
++/** Deterministic color for a drive/mount label, hashed into DRIVE_PALETTE. */
++export function driveColor(label: string): string {
++  let h = 0
++  for (const c of label) h = ((h << 5) - h + c.charCodeAt(0)) | 0
++  return DRIVE_PALETTE[Math.abs(h) % DRIVE_PALETTE.length]
++}
++
++/** Human file size, thresholds/format matching MentionPopover.vue:95-101
++ *  exactly (distinct from src/files/util/format.ts's renderSize — that one
++ *  has different thresholds/output and must not be reused here). */
++export function formatBytes(n: number): string {
++  if (n == null || isNaN(n)) return ''
++  if (n < 1024) return `${n} B`
++  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
++  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(1)} MB`
++  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
++}
++
++/** Accepts unix seconds, unix ms, or an ISO string (MentionPopover.vue:287-299).
++ *  Same-year dates render as "month day"; other years as "year month". */
++export function formatTime(t: number | string): string {
++  if (!t) return ''
++  let d: Date
++  if (typeof t === 'number') d = new Date(t > 1e12 ? t : t * 1000)
++  else d = new Date(t)
++  if (isNaN(d.getTime())) return ''
++  const now = new Date()
++  const sameYear = d.getFullYear() === now.getFullYear()
++  return d.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short' })
++}
++
++/** Escape the five HTML-significant characters (MentionPopover.vue:282-285). */
++export function escapeHtml(s: string): string {
++  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
++}
++
++/** Wrap the first case-insensitive match of `query` in `name` with <mark>,
++ *  escaping all three surrounding segments (MentionPopover.vue:273-280). */
++export function highlightMatch(name: string, query: string): string {
++  if (!query) return escapeHtml(name)
++  const i = name.toLowerCase().indexOf(query.toLowerCase())
++  if (i < 0) return escapeHtml(name)
++  const a = name.slice(0, i)
++  const m = name.slice(i, i + query.length)
++  const b = name.slice(i + query.length)
++  return `${escapeHtml(a)}<mark>${escapeHtml(m)}</mark>${escapeHtml(b)}`
++}

@@ -1,0 +1,216 @@
+# Review package: 24e4bd2..ac8f915
+
+## Commits
+ac8f915 feat(files-p6): sambaPath util + shares store + zh_cn keys
+
+## Files changed
+ src/files/stores/shares.test.ts  | 49 +++++++++++++++++++++++++++++++++++
+ src/files/stores/shares.ts       | 55 ++++++++++++++++++++++++++++++++++++++++
+ src/files/util/sambaPath.test.ts | 16 ++++++++++++
+ src/files/util/sambaPath.ts      | 13 ++++++++++
+ src/i18n/zh_cn.ts                | 20 +++++++++++++++
+ 5 files changed, 153 insertions(+)
+
+## Diff
+diff --git a/src/files/stores/shares.test.ts b/src/files/stores/shares.test.ts
+new file mode 100644
+index 0000000..79732ef
+--- /dev/null
++++ b/src/files/stores/shares.test.ts
+@@ -0,0 +1,49 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const { listShares, createShare, deleteShare } = vi.hoisted(() => ({
++  listShares: vi.fn(),
++  createShare: vi.fn(async () => {}),
++  deleteShare: vi.fn(async () => {}),
++}))
++vi.mock('@nimotech/nimoos-service', async () => {
++  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
++  return { ...actual, service: { samba: { listShares, createShare, deleteShare } } }
++})
++import { useSharesStore } from './shares'
++
++describe('useSharesStore', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    listShares.mockReset(); createShare.mockReset(); deleteShare.mockReset()
++    createShare.mockResolvedValue(undefined); deleteShare.mockResolvedValue(undefined)
++  })
++
++  it('load 把 {id,path} 映射成含末段 name 的行', async () => {
++    listShares.mockResolvedValue([{ id: 1, path: '/DATA/Documents' }])
++    const s = useSharesStore()
++    await s.load()
++    expect(s.items).toEqual([{ id: 1, path: '/DATA/Documents', name: 'Documents' }])
++  })
++
++  it('create 用原始 realPath 数组调 createShare 并回 true', async () => {
++    listShares.mockResolvedValue([])
++    const s = useSharesStore()
++    const ok = await s.create(['/DATA/a', '/DATA/b'])
++    expect(createShare).toHaveBeenCalledWith(['/DATA/a', '/DATA/b'])
++    expect(ok).toBe(true)
++  })
++
++  it('create 空数组不打网络、回 false', async () => {
++    const s = useSharesStore()
++    expect(await s.create([])).toBe(false)
++    expect(createShare).not.toHaveBeenCalled()
++  })
++
++  it('remove 调 deleteShare(id) 并重载', async () => {
++    listShares.mockResolvedValue([])
++    const s = useSharesStore()
++    await s.remove(7)
++    expect(deleteShare).toHaveBeenCalledWith(7)
++  })
++})
+diff --git a/src/files/stores/shares.ts b/src/files/stores/shares.ts
+new file mode 100644
+index 0000000..14e1aa1
+--- /dev/null
++++ b/src/files/stores/shares.ts
+@@ -0,0 +1,55 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { useToast } from '../../stores/toast'
++import { i18n } from '../../i18n'
++import { shareName } from '../util/sambaPath'
++
++export interface ShareRow { id: number; path: string; name: string }
++
++export const useSharesStore = defineStore('shares', () => {
++  const items = ref<ShareRow[]>([])
++  const loading = ref(false)
++  const toast = useToast()
++  const t = i18n.global.t
++
++  async function load(): Promise<void> {
++    loading.value = true
++    try {
++      const raw = await service.samba.listShares()
++      items.value = raw.map((s) => ({ id: s.id, path: s.path, name: shareName(s.path) }))
++    } catch (e) {
++      items.value = []
++      console.warn('[shares] load failed', e)
++    } finally {
++      loading.value = false
++    }
++  }
++
++  async function create(paths: string[]): Promise<boolean> {
++    if (!paths.length) return false
++    try {
++      await service.samba.createShare(paths)
++      await load()
++      toast.show(paths.length > 1 ? t('filesShareBatchDone', { count: paths.length }) : t('filesShareDone'))
++      return true
++    } catch {
++      toast.show(t('filesShareFailed'))
++      return false
++    }
++  }
++
++  async function remove(id: number): Promise<boolean> {
++    try {
++      await service.samba.deleteShare(id)
++      await load()
++      toast.show(t('filesUnshareDone'))
++      return true
++    } catch {
++      toast.show(t('filesShareFailed'))
++      return false
++    }
++  }
++
++  return { items, loading, load, create, remove }
++})
+diff --git a/src/files/util/sambaPath.test.ts b/src/files/util/sambaPath.test.ts
+new file mode 100644
+index 0000000..bb57f26
+--- /dev/null
++++ b/src/files/util/sambaPath.test.ts
+@@ -0,0 +1,16 @@
++import { describe, it, expect } from 'vitest'
++import { buildSmbPaths, shareName } from './sambaPath'
++
++describe('sambaPath', () => {
++  it('buildSmbPaths → Windows UNC + Mac smb', () => {
++    expect(buildSmbPaths('192.168.1.9', 'Documents')).toEqual({
++      windows: '\\\\192.168.1.9\\Documents',
++      mac: 'smb://192.168.1.9/Documents',
++    })
++  })
++  it('shareName 取路径末段', () => {
++    expect(shareName('/DATA/Documents')).toBe('Documents')
++    expect(shareName('/DATA/Media/Movies/')).toBe('Movies')
++    expect(shareName('Solo')).toBe('Solo')
++  })
++})
+diff --git a/src/files/util/sambaPath.ts b/src/files/util/sambaPath.ts
+new file mode 100644
+index 0000000..bec102d
+--- /dev/null
++++ b/src/files/util/sambaPath.ts
+@@ -0,0 +1,13 @@
++export interface SmbPaths { windows: string; mac: string }
++
++export function buildSmbPaths(host: string, name: string): SmbPaths {
++  return { windows: `\\\\${host}\\${name}`, mac: `smb://${host}/${name}` }
++}
++
++export function getShareHost(): string {
++  return window.location.hostname
++}
++
++export function shareName(path: string): string {
++  return path.replace(/\/+$/, '').split('/').pop() || path
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index e5bfe6d..bcddb95 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -134,20 +134,40 @@ export const messages = {
+     filesMountConnectFailed: '连接失败',
+     filesMountInvalidAddress: '请输入正确的地址(smb:// 或 nfs://)',
+     filesMountCredsRequired: '用户名和密码不能为空',
+     filesMountManage: '存储',
+     filesMountNetworkSection: '网络存储',
+     filesMountEject: '弹出',
+     filesMountCloudSection: '云盘',
+     filesMountCloudOk: '云盘已连接',
+     filesMountCloudWarn: '云盘连接警告',
+     filesMountCloudFail: '云盘连接失败',
++    filesSharesTitle: '本地网络分享',
++    filesSharesNav: '共享',
++    filesSharesEmpty: '还没有共享。右键任意文件夹即可共享到局域网。',
++    filesShareToLan: '共享到局域网',
++    filesShareDone: '已共享',
++    filesShareBatchDone: '已共享 {count} 个文件夹',
++    filesShareFailed: '操作失败',
++    filesUnshareDone: '已取消共享',
++    filesShareGetLink: '获取链接',
++    filesShareGoto: '前往',
++    filesUnshare: '取消共享',
++    filesUnshareConfirmTitle: '取消共享',
++    filesUnshareConfirmMsg: '确定取消共享「{name}」吗?局域网将无法再访问它。',
++    filesShareLinkTitle: '文件夹已共享',
++    filesShareLinkHint: '在下列地址访问共享文件夹(Samba)。',
++    filesShareWindows: 'PC(Windows 资源管理器)',
++    filesShareMac: 'Mac(访达)',
++    filesShareCopy: '复制',
++    filesShareCopied: '已复制',
++    filesGotIt: '我知道了',
+     authUsername: '用户名',
+     authPassword: '密码',
+     authLogin: '登录',
+     authLoginFailed: '用户名或密码错误',
+     validateRequired: '必填',
+     validateMin6: '至少 6 位',
+     validateConfirm: '两次输入的密码不一致',
+     welcomeTitle: '欢迎使用 NimoOS',
+     welcomeSubtitle: '创建你的初始账户',
+     welcomeGo: '开始 →',

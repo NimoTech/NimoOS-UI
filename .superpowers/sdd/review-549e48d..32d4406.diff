@@ -1,0 +1,1215 @@
+# Review package: 549e48d..32d4406
+
+## Commits
+32d4406 SP8-P1c2: ModelPicker + fallback notice + AI-rename button
+
+## Files changed
+ src/ai/components/shell/AgentTopbar.test.ts |  99 +++++++++++++++--
+ src/ai/components/shell/AgentTopbar.vue     |  66 ++++++++++-
+ src/ai/components/shell/ModelPicker.test.ts | 125 +++++++++++++++++++++
+ src/ai/components/shell/ModelPicker.vue     | 164 ++++++++++++++++++++++++++++
+ src/ai/composables/useClickOutside.test.ts  |  43 ++++++++
+ src/ai/composables/useClickOutside.ts       |  31 ++++++
+ src/ai/util/modelPickerView.test.ts         |  65 +++++++++++
+ src/ai/util/modelPickerView.ts              |  48 ++++++++
+ src/ai/views/AgentPage.test.ts              |  94 ++++++++++++++++
+ src/ai/views/AgentPage.vue                  |  45 ++++++++
+ src/i18n/en_us.ts                           |  14 +++
+ src/i18n/zh_cn.ts                           |  14 +++
+ 12 files changed, 793 insertions(+), 15 deletions(-)
+
+## Diff
+diff --git a/src/ai/components/shell/AgentTopbar.test.ts b/src/ai/components/shell/AgentTopbar.test.ts
+index 7bfdbd2..ea8a19b 100644
+--- a/src/ai/components/shell/AgentTopbar.test.ts
++++ b/src/ai/components/shell/AgentTopbar.test.ts
+@@ -2,21 +2,40 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import AgentTopbar from './AgentTopbar.vue'
+ 
+ const push = vi.fn().mockResolvedValue(undefined)
+ const routeState = { path: '/agent' }
+ vi.mock('vue-router', () => ({
+   useRouter: () => ({ push, currentRoute: { value: routeState } }),
+ }))
+ 
+-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { aiBack: '返回', aiNewConversation: '新对话' } } })
++const i18n = createI18n({
++  legacy: false,
++  locale: 'zh_cn',
++  messages: {
++    zh_cn: {
++      aiBack: '返回',
++      aiNewConversation: '新对话',
++      // SP8-P1c2 Task 9 —— AI-rename 按钮 tooltip + ModelPicker(真实挂载,非
++      // stub)所需的全部文案。
++      aiRename: 'AI 重命名',
++      aiLocalOllama: '本地 Ollama',
++      aiCloudModels: '云端',
++      aiSearchModelsPlaceholder: '搜索模型…',
++      aiModelSelect: '选择模型',
++      aiModelNotSelected: '未选择',
++      aiModelEmptyText: '还没有可用模型',
++      aiGoToSettings: '前往设置',
++    },
++  },
++})
+ 
+ describe('AgentTopbar', () => {
+   beforeEach(() => {
+     vi.useFakeTimers()
+     push.mockClear()
+     routeState.path = '/agent'
+   })
+ 
+   afterEach(() => {
+     vi.useRealTimers()
+@@ -70,61 +89,66 @@ describe('AgentTopbar', () => {
+   })
+ 
+   it('主题切换按钮 emit toggle-theme;左侧面板按钮 emit toggle-left', async () => {
+     const w = mount(AgentTopbar, {
+       props: { sessionId: 's1', theme: 'light' },
+       global: { plugins: [i18n] },
+     })
+     const buttons = w.findAll('.icon-btn')
+     await buttons[1].trigger('click') // panelLeft toggle
+     expect(w.emitted('toggle-left')).toBeTruthy()
+-    await buttons[2].trigger('click') // theme toggle
++    // Index shifts by one since SP8-P1c2 Task 9 inserted the AI-rename button
++    // (also `.icon-btn`) ahead of the theme toggle: goHome, toggle-left,
++    // ai-rename, theme, right-panel-toggle.
++    await buttons[3].trigger('click') // theme toggle
+     expect(w.emitted('toggle-theme')).toBeTruthy()
+   })
+ 
+   it('goHome:有历史且不在首页时走 router.push', async () => {
+     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
+     const w = mount(AgentTopbar, {
+       props: { sessionId: 's1' },
+       global: { plugins: [i18n] },
+     })
+     await w.findAll('.icon-btn')[0].trigger('click') // goHome (arrowLeft)
+     expect(push).toHaveBeenCalledWith('/')
+     historySpy.mockRestore()
+   })
+ 
+-  it('1a 裁剪:不渲染 ModelPicker/AI 改名按钮(右侧面板 toggle 已在 1c-2 回填,ThinkingBar 已在 1c-2 Task 8 回填)', () => {
++  it('SP8-P1c2 Task 9:ModelPicker 与 AI 改名按钮已回填(占位注释消失)', () => {
+     const w = mount(AgentTopbar, {
+       props: { sessionId: 's1' },
+       global: { plugins: [i18n] },
+     })
+-    expect(w.html()).toContain('1c: ModelPicker')
+-    expect(w.html()).toContain('1c: AI-rename button')
+-    expect(w.html()).not.toContain('1c: right-panel toggle')
+-    expect(w.html()).not.toContain('1c: ThinkingBar')
+-    // 4 icon buttons survive: goHome, toggle-left, theme toggle, right-panel toggle.
+-    expect(w.findAll('.icon-btn')).toHaveLength(4)
++    expect(w.html()).not.toContain('1c: ModelPicker')
++    expect(w.html()).not.toContain('1c: AI-rename button')
++    expect(w.findComponent({ name: 'ModelPicker' }).exists()).toBe(true)
++    expect(w.find('.ai-rename-btn').exists()).toBe(true)
++    // 5 icon buttons now: goHome, toggle-left, ai-rename, theme, right-panel-toggle.
++    expect(w.findAll('.icon-btn')).toHaveLength(5)
+   })
+ 
+   it('SP8-P1c2:右侧面板开关按钮 emit toggle-right,data-active 反映 !rightCollapsed(Vue2 shell/AgentTopbar.vue:43-45)', async () => {
+     const w = mount(AgentTopbar, {
+       props: { sessionId: 's1', rightCollapsed: false },
+       global: { plugins: [i18n] },
+     })
++    // Index shifts by one since SP8-P1c2 Task 9 inserted the AI-rename button
++    // ahead of the theme toggle: goHome, toggle-left, ai-rename, theme, right-panel-toggle.
+     const buttons = w.findAll('.icon-btn')
+-    const rightToggle = buttons[3]
++    const rightToggle = buttons[4]
+     expect(rightToggle.attributes('data-active')).toBe('true')
+     await rightToggle.trigger('click')
+     expect(w.emitted('toggle-right')).toHaveLength(1)
+ 
+     await w.setProps({ rightCollapsed: true })
+-    expect(w.findAll('.icon-btn')[3].attributes('data-active')).toBe('false')
++    expect(w.findAll('.icon-btn')[4].attributes('data-active')).toBe('false')
+   })
+ 
+   it('SP8-P1c2 Task 8:ThinkingBar 挂在第二行,props 从 thinking 拆开传入(Vue2 shell/AgentTopbar.vue:47-54)', () => {
+     const w = mount(AgentTopbar, {
+       props: {
+         sessionId: 's1',
+         thinking: { enabled: false, level: 'high', supportsThinking: true, providerType: 'deepseek' },
+       },
+       global: { plugins: [i18n] },
+     })
+@@ -162,11 +186,64 @@ describe('AgentTopbar', () => {
+       global: { plugins: [i18n] },
+     })
+     const bar = w.findComponent({ name: 'ThinkingBar' })
+     expect(bar.props()).toMatchObject({
+       enabled: true,
+       level: 'medium',
+       supportsThinking: false,
+       providerType: '',
+     })
+   })
++
++  it('SP8-P1c2 Task 9:ModelPicker 拿到 availableModels/selectedModel,select/open-settings 转发成 select-model/open-settings', async () => {
++    const models = [{ key: 'local:a', source: 'local' as const, displayName: 'A' }]
++    const w = mount(AgentTopbar, {
++      props: { sessionId: 's1', availableModels: models, selectedModel: 'local:a' },
++      global: { plugins: [i18n] },
++    })
++    const picker = w.findComponent({ name: 'ModelPicker' })
++    expect(picker.props('availableModels')).toEqual(models)
++    expect(picker.props('selectedKey')).toBe('local:a')
++    picker.vm.$emit('select', 'local:b')
++    expect(w.emitted('select-model')?.[0]).toEqual(['local:b'])
++    picker.vm.$emit('open-settings')
++    expect(w.emitted('open-settings')).toHaveLength(1)
++  })
++
++  it('SP8-P1c2 Task 9:点 sparkle emit regenerate-title;本会话正在重生成(前台或后台)时禁用,标题输入框仅前台重生成时禁用', async () => {
++    const w = mount(AgentTopbar, {
++      props: { sessionId: 's1', storedTitle: '旧标题' },
++      global: { plugins: [i18n] },
++    })
++    const renameBtn = w.find('.ai-rename-btn')
++    expect(renameBtn.attributes('disabled')).toBeUndefined()
++    expect(w.find('.topbar-title-input').attributes('disabled')).toBeUndefined()
++    await renameBtn.trigger('click')
++    expect(w.emitted('regenerate-title')).toHaveLength(1)
++
++    // Background regenerate (auto title-on-first-turn): sparkle disabled, title input stays editable.
++    await w.setProps({ regeneratingTitleFor: { id: 's1', background: true } })
++    expect(w.find('.ai-rename-btn').attributes('disabled')).toBeDefined()
++    expect(w.find('.topbar-title-input').attributes('disabled')).toBeUndefined()
++
++    // Foreground (explicit sparkle click) regenerate: both disabled.
++    await w.setProps({ regeneratingTitleFor: { id: 's1', background: false } })
++    expect(w.find('.ai-rename-btn').attributes('disabled')).toBeDefined()
++    expect(w.find('.topbar-title-input').attributes('disabled')).toBeDefined()
++
++    // A regenerate for a *different* session must not affect this topbar's disable state.
++    await w.setProps({ regeneratingTitleFor: { id: 'other-session', background: false } })
++    expect(w.find('.ai-rename-btn').attributes('disabled')).toBeUndefined()
++    expect(w.find('.topbar-title-input').attributes('disabled')).toBeUndefined()
++  })
++
++  it('SP8-P1c2 Task 9:标题输入框获得焦点时 sparkle 亦禁用(Vue2 shell/AgentTopbar.vue:24 isFocused)', async () => {
++    const w = mount(AgentTopbar, {
++      props: { sessionId: 's1' },
++      global: { plugins: [i18n] },
++    })
++    await w.find('.topbar-title-input').trigger('focus')
++    expect(w.find('.ai-rename-btn').attributes('disabled')).toBeDefined()
++    await w.find('.topbar-title-input').trigger('blur')
++    expect(w.find('.ai-rename-btn').attributes('disabled')).toBeUndefined()
++  })
+ })
+diff --git a/src/ai/components/shell/AgentTopbar.vue b/src/ai/components/shell/AgentTopbar.vue
+index cd9ef11..3007a03 100644
+--- a/src/ai/components/shell/AgentTopbar.vue
++++ b/src/ai/components/shell/AgentTopbar.vue
+@@ -6,77 +6,114 @@
+ 
+   SP8-P1c2 Task 2 —— 右侧面板 toggle 按钮已回填(Vue2 shell/AgentTopbar.vue:
+   43-45,1:1):新增 prop `rightCollapsed`(对齐 Vue2 :73,默认 false)+ emit
+   `toggle-right`。ModelPicker、ThinkingBar、AI 改名按钮仍留给后续任务。
+ 
+   SP8-P1c2 Task 8 —— ThinkingBar 第二行已挂载(Vue2 shell/AgentTopbar.vue:47-54,
+   1:1):新增 prop `thinking`(形状对齐 store 的 ThinkingState 子集），拆开传给
+   ThinkingBar 四个 prop；ThinkingBar 的 `update:enabled`/`update:level` 在此处
+   重映射成 `thinking-enabled`/`thinking-level` 往上抛给 AgentPage（Vue2 同名两行
+   `@update:enabled="$emit('thinking-enabled', ...)"` / `@update:level="..."`）。
+-  ModelPicker、AI 改名按钮仍留给后续任务。
++
++  SP8-P1c2 Task 9 —— ModelPicker 挂载 + AI 改名按钮回填(Vue2 shell/AgentTopbar.vue
++  逐字):新增 prop `availableModels`/`selectedModel`(直传 ModelPicker)、
++  `regeneratingTitleFor`(与 sessionId 一起推导 isAnyRegenerating/
++  isExplicitRegenerating,Vue2 :93-100);新增 emit `select-model`(ModelPicker
++  的 `select`)、`open-settings`(ModelPicker 的空态"去设置"按钮,与顶栏本身未来
++  可能有的设置入口共用同一上抛事件名)、`regenerate-title`(sparkle 按钮点击)。
++  标题输入框在 `isExplicitRegenerating` 时禁用(Vue2 :17);sparkle 按钮在
++  `isAnyRegenerating || isFocused` 时禁用(Vue2 :24)。
+ -->
+ <script setup lang="ts">
+-import { onBeforeUnmount, ref, watch } from 'vue'
++import { computed, onBeforeUnmount, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
+ import AgentIcon from '../icons/AgentIcon.vue'
++import ModelPicker from './ModelPicker.vue'
+ import ThinkingBar from './ThinkingBar.vue'
++import type { AgentModel } from '../../stores/agentStore'
+ 
+ const DEBOUNCE_MS = 500
+ 
+ const props = withDefaults(
+   defineProps<{
+     sessionId?: string
+     storedTitle?: string
+     theme?: 'light' | 'dark'
+     // Vue2 shell/AgentTopbar.vue:73 —— 默认展开(false),用于按钮 data-active。
+     rightCollapsed?: boolean
+     // Vue2 shell/AgentTopbar.vue:76-84 —— 默认值逐字对齐(与 store 的
+     // ThinkingState 兜底一致：enabled=true, level='medium', supportsThinking=false)。
+     thinking?: {
+       enabled: boolean
+       level: string
+       supportsThinking: boolean
+       providerType: string
+     }
++    // Vue2 shell/AgentTopbar.vue:74-75,71 —— ModelPicker 直传 + regenerate-title
++    // 禁用矩阵所需的当前重生成状态。
++    availableModels?: AgentModel[]
++    selectedModel?: string | null
++    regeneratingTitleFor?: { id: string | number; background: boolean } | null
+   }>(),
+   {
+     sessionId: '',
+     storedTitle: '',
+     theme: 'light',
+     rightCollapsed: false,
+     thinking: () => ({
+       enabled: true,
+       level: 'medium',
+       supportsThinking: false,
+       providerType: '',
+     }),
++    availableModels: () => [],
++    selectedModel: null,
++    regeneratingTitleFor: null,
+   },
+ )
+ 
+ const emit = defineEmits<{
+   (e: 'toggle-left'): void
+   (e: 'toggle-theme'): void
+   (e: 'toggle-right'): void
+   (e: 'update-title', title: string): void
+   (e: 'thinking-enabled', value: boolean): void
+   (e: 'thinking-level', value: string): void
++  (e: 'select-model', key: string): void
++  (e: 'open-settings'): void
++  (e: 'regenerate-title'): void
+ }>()
+ 
+ const { t } = useI18n()
+ const router = useRouter()
+ 
+ const localTitle = ref(props.storedTitle || '')
+ const isFocused = ref(false)
+ let debounceTimer: ReturnType<typeof setTimeout> | null = null
+ 
++// Vue2 shell/AgentTopbar.vue:93-100 —— disable matrix for the title input /
++// sparkle button. `isExplicitRegenerating` is true only for a foreground
++// (non-background) regenerate targeting *this* session — it locks the title
++// input so the user doesn't edit a value that's about to be overwritten.
++// `isAnyRegenerating` also covers the background auto-title-on-first-turn
++// case and only gates the sparkle button (still clickable-but-disabled while
++// either kind of regenerate is in flight for this session).
++const isExplicitRegenerating = computed(() => {
++  const r = props.regeneratingTitleFor
++  return !!(r && r.id === props.sessionId && !r.background)
++})
++const isAnyRegenerating = computed(() => {
++  const r = props.regeneratingTitleFor
++  return !!(r && r.id === props.sessionId)
++})
++
+ function clearTimer() {
+   if (debounceTimer) {
+     clearTimeout(debounceTimer)
+     debounceTimer = null
+   }
+ }
+ 
+ function flushSave() {
+   const trimmed = (localTitle.value || '').trim()
+   if (trimmed) emit('update-title', trimmed)
+@@ -150,30 +187,43 @@ function goHome() {
+       </button>
+       <button class="icon-btn" @click="emit('toggle-left')">
+         <AgentIcon name="panelLeft" :size="16" />
+       </button>
+       <div class="title-block">
+         <div class="title-row">
+           <input
+             class="topbar-title-input"
+             v-model="localTitle"
+             :placeholder="storedTitle || t('aiNewConversation')"
++            :disabled="isExplicitRegenerating"
+             @input="onInput"
+             @focus="onFocus"
+             @blur="onBlur"
+           />
+-          <!-- 1c: AI-rename button -->
++          <button
++            class="icon-btn ai-rename-btn"
++            :disabled="isAnyRegenerating || isFocused"
++            :title="t('aiRename')"
++            @click="emit('regenerate-title')"
++          >
++            <AgentIcon name="sparkle" :size="14" />
++          </button>
+         </div>
+         <div class="topbar-sub">Connected to NimoOS</div>
+       </div>
+       <div class="topbar-spacer" />
+-      <!-- 1c: ModelPicker -->
++      <ModelPicker
++        :available-models="availableModels"
++        :selected-key="selectedModel"
++        @select="emit('select-model', $event)"
++        @open-settings="emit('open-settings')"
++      />
+       <button class="icon-btn" @click="emit('toggle-theme')">
+         <AgentIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="16" />
+       </button>
+       <!-- Vue2 shell/AgentTopbar.vue:43-45 —— 1:1 端口(无 title,Vue2 亦无)。 -->
+       <button class="icon-btn" :data-active="!rightCollapsed" @click="emit('toggle-right')">
+         <AgentIcon name="panel" :size="16" />
+       </button>
+     </div>
+     <ThinkingBar
+       :enabled="thinking.enabled"
+@@ -233,11 +283,19 @@ function goHome() {
+   color: var(--text-tertiary);
+   opacity: 0.7;
+ }
+ .topbar-title-input:hover:not(:disabled) {
+   background: var(--bg-hover);
+ }
+ .topbar-title-input:focus {
+   background: var(--bg-elevated);
+   border-color: var(--line-strong);
+ }
++.topbar-title-input:disabled {
++  opacity: 0.6;
++  cursor: not-allowed;
++}
++.ai-rename-btn:disabled {
++  opacity: 0.4;
++  cursor: not-allowed;
++}
+ </style>
+diff --git a/src/ai/components/shell/ModelPicker.test.ts b/src/ai/components/shell/ModelPicker.test.ts
+new file mode 100644
+index 0000000..c4a624c
+--- /dev/null
++++ b/src/ai/components/shell/ModelPicker.test.ts
+@@ -0,0 +1,125 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import ModelPicker from './ModelPicker.vue'
++import type { AgentModel } from '../../stores/agentStore'
++
++// 1:1 逐字港 Vue2 src/views/AI/Agent/shell/ModelPicker.vue(127 行)。
++const messages = {
++  zh_cn: {
++    aiLocalOllama: '本地 Ollama',
++    aiCloudModels: '云端',
++    aiSearchModelsPlaceholder: '搜索模型…',
++    aiModelSelect: '选择模型',
++    aiModelNotSelected: '未选择',
++    aiModelEmptyText: '还没有可用模型',
++    aiGoToSettings: '前往设置',
++  },
++}
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++function local(key: string, displayName: string, size?: number): AgentModel {
++  return { key, source: 'local', displayName, size }
++}
++function cloud(
++  key: string,
++  displayName: string,
++  providerId: string,
++  providerName: string,
++  supportsThinking = false,
++): AgentModel {
++  return {
++    key,
++    source: 'cloud',
++    displayName,
++    providerId,
++    providerName,
++    supports_thinking: supportsThinking,
++  }
++}
++
++function mountPicker(props: Partial<InstanceType<typeof ModelPicker>['$props']> = {}) {
++  return mount(ModelPicker, { props, global: { plugins: [i18n] }, attachTo: document.body })
++}
++
++describe('ModelPicker', () => {
++  it('已选中模型时 pill 显示其 displayName', () => {
++    const models = [local('local:llama3', 'Llama 3')]
++    const w = mountPicker({ availableModels: models, selectedKey: 'local:llama3' })
++    expect(w.find('.model-pill-name').text()).toBe('Llama 3')
++  })
++
++  it('有模型可选但未选中 → pill 显示"未选择";完全无模型 → pill 显示"选择模型"', () => {
++    const withModels = mountPicker({ availableModels: [local('a', 'A')], selectedKey: null })
++    expect(withModels.find('.model-pill-name').text()).toBe('未选择')
++
++    const noModels = mountPicker({ availableModels: [], selectedKey: null })
++    expect(noModels.find('.model-pill-name').text()).toBe('选择模型')
++  })
++
++  it('本地组(💻)与云组(☁️)分别渲染,各自的选项列全部出现', async () => {
++    const models = [
++      local('local:a', 'A模型'),
++      cloud('cloud:1:b', 'B模型', 'p1', 'P1'),
++    ]
++    const w = mountPicker({ availableModels: models })
++    await w.find('.model-pill').trigger('click')
++    const groupLabels = w.findAll('.model-group-label').map((n) => n.text())
++    expect(groupLabels).toEqual(['💻 本地 Ollama', '☁️ 云端'])
++    const optionNames = w.findAll('.model-option-name').map((n) => n.text())
++    expect(optionNames).toEqual(['A模型', 'B模型'])
++  })
++
++  it('云模型 <=6 个不出现搜索框,7 个及以上出现搜索框', async () => {
++    const sixCloud = Array.from({ length: 6 }, (_, i) => cloud(`c${i}`, `M${i}`, 'p', 'P'))
++    const w6 = mountPicker({ availableModels: sixCloud })
++    await w6.find('.model-pill').trigger('click')
++    expect(w6.find('.model-search').exists()).toBe(false)
++
++    const sevenCloud = Array.from({ length: 7 }, (_, i) => cloud(`c${i}`, `M${i}`, 'p', 'P'))
++    const w7 = mountPicker({ availableModels: sevenCloud })
++    await w7.find('.model-pill').trigger('click')
++    expect(w7.find('.model-search').exists()).toBe(true)
++  })
++
++  it('点击选项 emit select(key) 并收起下拉', async () => {
++    const models = [local('local:a', 'A'), local('local:b', 'B')]
++    const w = mountPicker({ availableModels: models, selectedKey: 'local:a' })
++    await w.find('.model-pill').trigger('click')
++    expect(w.find('.model-dropdown').exists()).toBe(true)
++    const options = w.findAll('.model-option')
++    await options[1].trigger('click')
++    expect(w.emitted('select')?.[0]).toEqual(['local:b'])
++    expect(w.find('.model-dropdown').exists()).toBe(false)
++  })
++
++  it('外部点击关闭下拉(并清空搜索 query)', async () => {
++    const sevenCloud = Array.from({ length: 7 }, (_, i) => cloud(`c${i}`, `M${i}`, 'p', 'P'))
++    const w = mountPicker({ availableModels: sevenCloud })
++    await w.find('.model-pill').trigger('click')
++    expect(w.find('.model-dropdown').exists()).toBe(true)
++    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.find('.model-dropdown').exists()).toBe(false)
++  })
++
++  it('🧠 仅在 supports_thinking 为真的云模型选项上出现', async () => {
++    const models = [
++      cloud('cloud:1:a', 'A', 'p1', 'P1', true),
++      cloud('cloud:1:b', 'B', 'p1', 'P1', false),
++    ]
++    const w = mountPicker({ availableModels: models })
++    await w.find('.model-pill').trigger('click')
++    const metas = w.findAll('.model-option').map((opt) => opt.find('.model-option-meta').exists())
++    expect(metas).toEqual([true, false])
++  })
++
++  it('空态:显示"还没有可用模型"文案,点"前往设置" emit open-settings 并收起下拉', async () => {
++    const w = mountPicker({ availableModels: [] })
++    await w.find('.model-pill').trigger('click')
++    expect(w.find('.model-empty-text').text()).toBe('还没有可用模型')
++    await w.find('.model-empty-btn').trigger('click')
++    expect(w.emitted('open-settings')).toHaveLength(1)
++    expect(w.find('.model-dropdown').exists()).toBe(false)
++  })
++})
+diff --git a/src/ai/components/shell/ModelPicker.vue b/src/ai/components/shell/ModelPicker.vue
+new file mode 100644
+index 0000000..5654327
+--- /dev/null
++++ b/src/ai/components/shell/ModelPicker.vue
+@@ -0,0 +1,164 @@
++<!--
++  1:1 逐字港 Vue2 src/views/AI/Agent/shell/ModelPicker.vue(127 行)。
++
++  Vue2-ism 转换清单(SP8-P1c2 Task 9):
++  - `directives: { 'click-outside': {...bind/unbind} }` → `useClickOutside`
++    composable(见 ../../composables/useClickOutside.ts 顶部注释)。
++  - `<template v-for="grp in cloudGroups">` 的 `:key="grp.providerId"` 在 Vue2
++    源码(:28-38)里落在了子元素 `.model-subgroup-label` 上而不是 `<template>`
++    本身——Vue3 对此会告警/错乱(`<template>` 作为 v-for 根时 key 必须直接标在
++    `<template>` 上)。这里把 key 移到了 `<template v-for>` 上,是本次移植唯一
++    需要修正的结构性问题,其余逐字保留。
++  - 补齐 Vue3 `emits` 声明(Vue2 靠隐式 `this.$emit` 不需要声明)。
++
++  「去设置」按钮(Vue2 :43 `onOpenSettings` → `$emit('open-settings')`)本身的
++  行为不变;它的**去向**由挂载点(AgentTopbar → AgentPage）决定——本期(P2 之前)
++  AgentPage 侧把它接到跟顶栏设置按钮同一个"设置页即将开启"占位 toast,而不是真的
++  跳转路由,这是 2026-07-27 的产品决策,不是本组件自己的逻辑。
++
++  纯计算逻辑(本地/云分组、size 格式化)拆到 ../../util/modelPickerView.ts,
++  组件这里只做渲染 + 交互状态(open/query)。
++-->
++<script setup lang="ts">
++import { computed, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import AgentIcon from '../icons/AgentIcon.vue'
++import { useClickOutside } from '../../composables/useClickOutside'
++import { splitModels, cloudGroups as buildCloudGroups, formatModelSize } from '../../util/modelPickerView'
++import type { AgentModel } from '../../stores/agentStore'
++
++const props = withDefaults(
++  defineProps<{
++    availableModels?: AgentModel[]
++    selectedKey?: string | null
++  }>(),
++  {
++    availableModels: () => [],
++    selectedKey: null,
++  },
++)
++
++const emit = defineEmits<{
++  (e: 'select', key: string): void
++  (e: 'open-settings'): void
++}>()
++
++const { t } = useI18n()
++
++const rootEl = ref<HTMLElement | null>(null)
++const open = ref(false)
++const query = ref('')
++
++const selectedItem = computed(
++  () => props.availableModels.find((m) => m.key === props.selectedKey) || null,
++)
++const pillLabel = computed(() => {
++  if (selectedItem.value) return selectedItem.value.displayName
++  return props.availableModels.length === 0 ? t('aiModelSelect') : t('aiModelNotSelected')
++})
++
++const splits = computed(() => splitModels(props.availableModels))
++const localModels = computed(() => splits.value.local)
++const cloudModels = computed(() => splits.value.cloud)
++const cloudGroups = computed(() => buildCloudGroups(cloudModels.value, query.value))
++
++function closeDropdown() {
++  open.value = false
++  query.value = ''
++}
++useClickOutside(rootEl, closeDropdown)
++
++function onSelect(key: string) {
++  emit('select', key)
++  open.value = false
++  query.value = ''
++}
++
++function onOpenSettings() {
++  emit('open-settings')
++  open.value = false
++}
++</script>
++
++<template>
++  <div class="model-picker" ref="rootEl">
++    <button class="model-pill" @click="open = !open">
++      <span class="model-pill-icon" :data-source="selectedItem ? selectedItem.source : 'none'">
++        <AgentIcon :name="selectedItem && selectedItem.source === 'local' ? 'bot' : 'sparkle'" :size="13" />
++      </span>
++      <span class="model-pill-name">{{ pillLabel }}</span>
++      <AgentIcon name="chevDown" :size="13" />
++    </button>
++
++    <div v-if="open" class="model-dropdown">
++      <template v-if="availableModels.length > 0">
++        <div v-if="localModels.length > 0" class="model-group">
++          <div class="model-group-label">💻 {{ t('aiLocalOllama') }}</div>
++          <button
++            v-for="mdl in localModels"
++            :key="mdl.key"
++            class="model-option"
++            :data-active="mdl.key === selectedKey"
++            @click="onSelect(mdl.key)"
++          >
++            <AgentIcon v-if="mdl.key === selectedKey" name="check" :size="13" />
++            <span v-else style="width: 13px"></span>
++            <span class="model-option-name">{{ mdl.displayName }}</span>
++            <span v-if="mdl.size" class="model-option-meta">{{ formatModelSize(mdl.size) }}</span>
++          </button>
++        </div>
++        <div v-if="cloudModels.length > 0" class="model-group">
++          <div class="model-group-label">☁️ {{ t('aiCloudModels') }}</div>
++          <input
++            v-if="cloudModels.length > 6"
++            v-model="query"
++            class="model-search"
++            type="text"
++            :placeholder="t('aiSearchModelsPlaceholder')"
++            @click.stop
++          />
++          <template v-for="grp in cloudGroups" :key="grp.providerId">
++            <div class="model-subgroup-label">{{ grp.providerName }}</div>
++            <button
++              v-for="mdl in grp.models"
++              :key="mdl.key"
++              class="model-option"
++              :data-active="mdl.key === selectedKey"
++              @click="onSelect(mdl.key)"
++            >
++              <AgentIcon v-if="mdl.key === selectedKey" name="check" :size="13" />
++              <span v-else style="width: 13px"></span>
++              <span class="model-option-name">{{ mdl.displayName }}</span>
++              <span v-if="mdl.supports_thinking" class="model-option-meta">🧠</span>
++            </button>
++          </template>
++        </div>
++      </template>
++      <div v-else class="model-empty">
++        <div class="model-empty-text">{{ t('aiModelEmptyText') }}</div>
++        <button class="model-empty-btn" @click="onOpenSettings">{{ t('aiGoToSettings') }}</button>
++      </div>
++    </div>
++  </div>
++</template>
++
++<style scoped>
++/*
++  Vue2 shell/ModelPicker.vue:124-125 —— these two rules lived in the
++  component's own scoped <style> and were NOT part of the shared .model-*
++  block later ported to ../../styles/agent-styles.scss (confirmed absent
++  there). Per this phase's brief, agent-styles.scss is not to be touched, so
++  they stay local here exactly as in Vue2 — layout-only, no colours.
++*/
++.model-search {
++  width: calc(100% - 16px);
++  margin: 4px 8px;
++  padding: 4px 8px;
++  font-size: 12px;
++}
++.model-subgroup-label {
++  padding: 4px 12px 2px;
++  font-size: 11px;
++  opacity: 0.6;
++}
++</style>
+diff --git a/src/ai/composables/useClickOutside.test.ts b/src/ai/composables/useClickOutside.test.ts
+new file mode 100644
+index 0000000..64050ec
+--- /dev/null
++++ b/src/ai/composables/useClickOutside.test.ts
+@@ -0,0 +1,43 @@
++import { describe, it, expect, vi } from 'vitest'
++import { defineComponent, h, ref } from 'vue'
++import { mount } from '@vue/test-utils'
++import { useClickOutside } from './useClickOutside'
++
++// Vue2 shell/ModelPicker.vue:52-63 —— a locally-registered `click-outside`
++// directive with `bind`/`unbind` hooks. Those hook names don't exist on Vue 3
++// components, so this is ported as a composable (onMounted/onUnmounted using
++// the equivalent semantics: attach a document `mousedown` listener while
++// mounted, detach it on unmount).
++function makeHost(handler: () => void) {
++  return defineComponent({
++    setup() {
++      const el = ref<HTMLElement | null>(null)
++      useClickOutside(el, handler)
++      return () => h('div', { ref: el }, [h('button', 'inside')])
++    },
++  })
++}
++
++describe('useClickOutside', () => {
++  it('外部 mousedown 触发 handler;元素内部的 mousedown 不触发', async () => {
++    const handler = vi.fn()
++    const w = mount(makeHost(handler), { attachTo: document.body })
++
++    await w.find('button').trigger('mousedown')
++    expect(handler).not.toHaveBeenCalled()
++
++    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
++    expect(handler).toHaveBeenCalledTimes(1)
++
++    w.unmount()
++  })
++
++  it('卸载后 document 上的监听器被移除,不再触发 handler', () => {
++    const handler = vi.fn()
++    const w = mount(makeHost(handler), { attachTo: document.body })
++    w.unmount()
++
++    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
++    expect(handler).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/ai/composables/useClickOutside.ts b/src/ai/composables/useClickOutside.ts
+new file mode 100644
+index 0000000..0becea3
+--- /dev/null
++++ b/src/ai/composables/useClickOutside.ts
+@@ -0,0 +1,31 @@
++// Vue2 shell/ModelPicker.vue:52-63 —— a locally-registered `click-outside`
++// directive:
++//   bind(el, binding)   { document.addEventListener('mousedown', ...) }
++//   unbind(el)          { document.removeEventListener('mousedown', ...) }
++// Vue 3 custom directives don't have `bind`/`unbind` hooks (renamed to
++// `mounted`/`unmounted`, and directive objects need a different shape per
++// component instance to close over per-instance state cleanly) — ported here
++// as a composable instead, using the component lifecycle hooks that carry the
++// equivalent semantics: attach the listener once the host element exists in
++// the DOM (`onMounted`), detach it when the host unmounts (`onUnmounted`).
++import { onMounted, onUnmounted, type Ref } from 'vue'
++
++/**
++ * Calls `handler` on any `mousedown` that lands outside `elRef.value`.
++ * `elRef` should be a template ref bound to the root element that defines
++ * "inside" (e.g. the whole dropdown + its trigger pill).
++ */
++export function useClickOutside(elRef: Ref<HTMLElement | null | undefined>, handler: () => void): void {
++  function onMouseDown(event: MouseEvent) {
++    const el = elRef.value
++    if (el && !el.contains(event.target as Node)) handler()
++  }
++
++  onMounted(() => {
++    document.addEventListener('mousedown', onMouseDown)
++  })
++
++  onUnmounted(() => {
++    document.removeEventListener('mousedown', onMouseDown)
++  })
++}
+diff --git a/src/ai/util/modelPickerView.test.ts b/src/ai/util/modelPickerView.test.ts
+new file mode 100644
+index 0000000..78a2c23
+--- /dev/null
++++ b/src/ai/util/modelPickerView.test.ts
+@@ -0,0 +1,65 @@
++import { describe, it, expect } from 'vitest'
++import { splitModels, cloudGroups, formatModelSize } from './modelPickerView'
++import type { AgentModel } from '../stores/agentStore'
++
++function m(overrides: Partial<AgentModel>): AgentModel {
++  return { key: 'x', source: 'cloud', displayName: 'X', ...overrides }
++}
++
++describe('splitModels', () => {
++  it('按 source 拆成 { local, cloud } 两组,组内保持原顺序', () => {
++    const list = [
++      m({ key: 'l1', source: 'local' }),
++      m({ key: 'c1', source: 'cloud' }),
++      m({ key: 'l2', source: 'local' }),
++    ]
++    const { local, cloud } = splitModels(list)
++    expect(local.map((x) => x.key)).toEqual(['l1', 'l2'])
++    expect(cloud.map((x) => x.key)).toEqual(['c1'])
++  })
++})
++
++describe('cloudGroups', () => {
++  it('按 provider 首次出现顺序分组(Vue2 ModelPicker.vue:89-100 的 index 表逻辑)', () => {
++    const list = [
++      m({ key: 'a', providerId: 'p2', providerName: 'P2' }),
++      m({ key: 'b', providerId: 'p1', providerName: 'P1' }),
++      m({ key: 'c', providerId: 'p2', providerName: 'P2' }),
++    ]
++    const groups = cloudGroups(list, '')
++    expect(groups.map((g) => g.providerId)).toEqual(['p2', 'p1'])
++    expect(groups[0].models.map((x) => x.key)).toEqual(['a', 'c'])
++    expect(groups[1].models.map((x) => x.key)).toEqual(['b'])
++  })
++
++  it('query 非空时只按 displayName 过滤,命中 provider 名但不命中任何 displayName 时返回空(Vue2 :84-100)', () => {
++    const list = [
++      m({ key: 'a', displayName: 'GPT-4', providerId: 'openai', providerName: 'OpenAI' }),
++      m({ key: 'b', displayName: 'Claude', providerId: 'anthropic', providerName: 'Anthropic' }),
++    ]
++    // "openai" only matches providerName, never displayName — Vue2 never searches
++    // providerName, so the filtered set (and therefore the groups) must be empty.
++    expect(cloudGroups(list, 'openai')).toEqual([])
++  })
++
++  it('query 命中 displayName(大小写不敏感,两侧 trim)', () => {
++    const list = [m({ key: 'a', displayName: 'GPT-4', providerId: 'p1' })]
++    expect(cloudGroups(list, '  GPT ').map((g) => g.models.map((x) => x.key))).toEqual([['a']])
++    expect(cloudGroups(list, 'nope')).toEqual([])
++  })
++})
++
++describe('formatModelSize', () => {
++  it('>=1GB 显示一位小数的 GB', () => {
++    expect(formatModelSize(1.5 * 1024 * 1024 * 1024)).toBe('1.5 GB')
++  })
++
++  it('<1GB 显示取整的 MB', () => {
++    expect(formatModelSize(500 * 1024 * 1024)).toBe('500 MB')
++  })
++
++  it('0 或 undefined 返回空串', () => {
++    expect(formatModelSize(0)).toBe('')
++    expect(formatModelSize(undefined)).toBe('')
++  })
++})
+diff --git a/src/ai/util/modelPickerView.ts b/src/ai/util/modelPickerView.ts
+new file mode 100644
+index 0000000..1aa0983
+--- /dev/null
++++ b/src/ai/util/modelPickerView.ts
+@@ -0,0 +1,48 @@
++// 1:1 逐字港 Vue2 src/views/AI/Agent/shell/ModelPicker.vue 的纯计算逻辑
++// (computed: localModels/cloudModels/cloudGroups 与 methods.formatSize),
++// 拆成独立纯函数供 ModelPicker.vue 和单测直接调用。
++import type { AgentModel } from '../stores/agentStore'
++
++/** Vue2 ModelPicker.vue:82-83 —— 按 source 拆成两组,保持原顺序。 */
++export function splitModels(list: AgentModel[]): { local: AgentModel[]; cloud: AgentModel[] } {
++  return {
++    local: list.filter((m) => m.source === 'local'),
++    cloud: list.filter((m) => m.source === 'cloud'),
++  }
++}
++
++export interface CloudGroup {
++  providerId: string | number
++  providerName?: string
++  models: AgentModel[]
++}
++
++/**
++ * Vue2 ModelPicker.vue:84-100 —— query 非空时**只按 displayName** 过滤(不搜索
++ * providerName),然后按 provider 首次出现的顺序分组(index 表记录每个
++ * providerId 第一次出现时分配到的组下标)。
++ */
++export function cloudGroups(cloud: AgentModel[], query: string): CloudGroup[] {
++  const q = query.trim().toLowerCase()
++  const filtered = q ? cloud.filter((m) => m.displayName.toLowerCase().includes(q)) : cloud
++
++  const byProvider: CloudGroup[] = []
++  const index: Record<string, number> = {}
++  for (const m of filtered) {
++    const pid = String(m.providerId)
++    if (index[pid] === undefined) {
++      index[pid] = byProvider.length
++      byProvider.push({ providerId: m.providerId as string | number, providerName: m.providerName, models: [] })
++    }
++    byProvider[index[pid]].models.push(m)
++  }
++  return byProvider
++}
++
++/** Vue2 ModelPicker.vue:113-118 —— >=1GB 显示一位小数的 GB,否则取整 MB,0/undefined 返回空串。 */
++export function formatModelSize(bytes?: number): string {
++  if (!bytes) return ''
++  const gb = bytes / 1024 / 1024 / 1024
++  if (gb >= 1) return gb.toFixed(1) + ' GB'
++  return (bytes / 1024 / 1024).toFixed(0) + ' MB'
++}
+diff --git a/src/ai/views/AgentPage.test.ts b/src/ai/views/AgentPage.test.ts
+index 12037e2..2432142 100644
+--- a/src/ai/views/AgentPage.test.ts
++++ b/src/ai/views/AgentPage.test.ts
+@@ -301,11 +301,105 @@ describe('AgentPage', () => {
+     await flushPromises()
+     const store = useAgentStore()
+     store.toggleRight()
+     await flushPromises()
+     expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('true')
+     store.toggleRight()
+     await flushPromises()
+     expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
+     w.unmount()
+   })
++
++  it('SP8-P1c2 Task 9:AgentTopbar 的 select-model 接到 store.selectModel,available-models/selected-model 直传', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    store.availableModels = [{ key: 'local:a', source: 'local', displayName: 'A' }]
++    store.selectedModel = 'local:a'
++    await flushPromises()
++    const topbar = w.findComponent({ name: 'AgentTopbar' })
++    expect(topbar.props('availableModels')).toEqual(store.availableModels)
++    expect(topbar.props('selectedModel')).toBe('local:a')
++    const selectSpy = vi.spyOn(store, 'selectModel')
++    topbar.vm.$emit('select-model', 'local:b')
++    expect(selectSpy).toHaveBeenCalledWith('local:b')
++    w.unmount()
++  })
++
++  it('SP8-P1c2 Task 9:AgentTopbar 的 open-settings 与侧栏共用同一占位 toast(不 router.push)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++    const topbar = w.findComponent({ name: 'AgentTopbar' })
++    topbar.vm.$emit('open-settings')
++    expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
++    expect(push).not.toHaveBeenCalled()
++    w.unmount()
++  })
++
++  it('SP8-P1c2 Task 9:regenerate-title → store.regenerateTitle(activeSessionId);无活跃会话时不调用(Vue2 Agent.vue:216-220)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    const regenSpy = vi.spyOn(store, 'regenerateTitle').mockResolvedValue(undefined)
++    const topbar = w.findComponent({ name: 'AgentTopbar' })
++
++    topbar.vm.$emit('regenerate-title')
++    expect(regenSpy).not.toHaveBeenCalled()
++
++    store.activeSessionId = 'sess-1'
++    await flushPromises()
++    topbar.vm.$emit('regenerate-title')
++    expect(regenSpy).toHaveBeenCalledWith('sess-1')
++    w.unmount()
++  })
++
++  it('SP8-P1c2 Task 9:regeneratingTitleFor 直传顶栏(禁用矩阵由 AgentTopbar 自己算,这里只验证透传)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    store.regeneratingTitleFor = { id: 'sess-1', background: true }
++    await flushPromises()
++    const topbar = w.findComponent({ name: 'AgentTopbar' })
++    expect(topbar.props('regeneratingTitleFor')).toEqual({ id: 'sess-1', background: true })
++    w.unmount()
++  })
++
++  it('SP8-P1c2 Task 9:lastFallbackNotice 变化 → 4000ms warning toast,随后被置回 null(Vue2 Agent.vue:133-142)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++
++    store.lastFallbackNotice = { from: 'cloud:openai:gpt-4', to: 'local:llama3' }
++    await flushPromises()
++    expect(showSpy).toHaveBeenCalledWith(
++      '原模型 cloud:openai:gpt-4 不可用，已切换到 local:llama3',
++      4000,
++      'warning',
++    )
++    // The store itself never clears this — the view must, so a later
++    // identical fallback still re-fires the watcher instead of being
++    // swallowed by an unchanged (still-truthy) value.
++    expect(store.lastFallbackNotice).toBe(null)
++    w.unmount()
++  })
++
++  it('SP8-P1c2 Task 9:lastFallbackNotice.to 为空 → 用 aiNoModelAvailable 兜底文案', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++
++    store.lastFallbackNotice = { from: 'cloud:openai:gpt-4', to: null }
++    await flushPromises()
++    expect(showSpy).toHaveBeenCalledWith(
++      '原模型 cloud:openai:gpt-4 不可用，已切换到 无可用模型',
++      4000,
++      'warning',
++    )
++    w.unmount()
++  })
+ })
+diff --git a/src/ai/views/AgentPage.vue b/src/ai/views/AgentPage.vue
+index edbeb2b..a9857a5 100644
+--- a/src/ai/views/AgentPage.vue
++++ b/src/ai/views/AgentPage.vue
+@@ -21,20 +21,33 @@
+   SP8-P1c2 Task 3 —— 补齐上面 Task 12 留白的那两行:会话 watcher(Vue2
+   Agent.vue:120-123)现在与 refreshContextUsage() 并列触发
+   loadSessionThinking(newId)/updateThinkingForModel()(仅 newId 非空时,顺序照
+   Vue2,不 await);mounted 里在 loadSessions/loadAvailableModels 之前新增一次
+   store.loadThinkingDefaults()(Vue2 Agent.vue:151)。lastFallbackNotice toast
+   watcher 仍不在本任务范围(ModelPicker 的事,留后续任务)。ThinkingBar/
+   ModelPicker UI 本身仍未挂载——本任务只管 store 状态 + 页面接线。
+ 
+   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
+   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
++
++  SP8-P1c2 Task 9 —— ModelPicker 挂载 + 模型回退提示 + AI-rename 按钮(Vue2
++  Agent.vue:15-33 的 AgentTopbar 挂载契约剩余部分):
++  - AgentTopbar 新增 `available-models`/`selected-model`/`regenerating-title-for`
++    三个 prop 直传 store 同名字段;`select-model` → `store.selectModel(key)`,
++    `regenerate-title` → `onRegenerateTitle`(Vue2 Agent.vue:216-220,带
++    activeSessionId 非空守卫)。
++  - ModelPicker 空态的"去设置" 与顶栏未来的设置入口共用同一个 `open-settings`
++    事件名,复用已有的 `onOpenSettings`(P2 前占位 toast,不路由跳转)。
++  - `lastFallbackNotice` watcher 逐字港 Vue2 Agent.vue:133-142:非空时弹一条
++    4000ms 的 warning toast(Task 6 的 tier),`to` 为空时兜底显示
++    `t('aiNoModelAvailable')`;**watcher 自己把 store.lastFallbackNotice 置回
++    null**——store 侧(agentStore.ts)特意不清空这个字段,清空职责在消费它的视图。
+ -->
+ <script setup lang="ts">
+ import { computed, onMounted, ref, watch } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import { useAgentStore } from '../stores/agentStore'
+ import { provideAgentStore } from '../composables/useProvidedAgentStore'
+ import { useToast } from '../../stores/toast'
+ import AgentSidebar from '../components/shell/AgentSidebar.vue'
+@@ -69,20 +82,46 @@ const currentSessionTitle = computed(() => {
+ function onOpenSettings() {
+   // P2: router.push('/ai/settings') — 路由该期才存在,先占位(评审跟进:
+   // 路由不存在且无 catch-all,push 会落到空白死页)。
+   toast.show(t('aiSettingsComingSoon'))
+ }
+ 
+ function onUpdateTitle(title: string) {
+   if (store.activeSessionId) store.setSessionTitle(store.activeSessionId, title)
+ }
+ 
++// Vue2 Agent.vue:216-220 —— sparkle click, guarded by activeSessionId (no-op
++// with no active session, mirrors the same guard onUpdateTitle uses above).
++function onRegenerateTitle() {
++  if (store.activeSessionId) store.regenerateTitle(store.activeSessionId)
++}
++
++// Vue2 Agent.vue:133-142 —— model-fallback toast. The store deliberately
++// never clears `lastFallbackNotice` itself (see agentStore.ts) — clearing it
++// is this watcher's job, same as Vue2 did inline (`this.store.state
++// .lastFallbackNotice = null`), so a second identical fallback later still
++// re-fires the watcher instead of being silently swallowed by an unchanged
++// (falsy) value.
++watch(
++  () => store.lastFallbackNotice,
++  (notice) => {
++    if (notice) {
++      toast.show(
++        t('aiModelFallback', { from: notice.from, to: notice.to || t('aiNoModelAvailable') }),
++        4000,
++        'warning',
++      )
++      store.lastFallbackNotice = null
++    }
++  },
++)
++
+ // Agent.vue:99 ctxUsage state, populated by refreshContextUsage() below.
+ const ctxUsage = ref<{ tokens: number; window: number; pct: number } | null>(null)
+ 
+ // Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1)—— Agent.vue
+ // 198-207 的 refreshContextUsage 没有 in-flight/顺序守卫:一次快速切会话可能触发
+ // 两次重叠请求,若旧请求晚落地,会用上一个会话的用量覆盖当前会话的 ctxUsage。这里
+ // 加一个自增序号,只有仍是"最新一次调用"的结果才写回 ctxUsage,过期结果直接丢弃 ——
+ // 不改变三个触发点各自的调用次数/时机语义,修复面仅限"谁能写回"。
+ let ctxUsageSeq = 0
+ 
+@@ -210,27 +249,33 @@ onMounted(async () => {
+       :collapsed="store.leftCollapsed"
+       @new="store.createSession"
+       @select="store.selectSession"
+       @delete="store.deleteSession"
+       @open-settings="onOpenSettings"
+     />
+     <main class="main">
+       <AgentTopbar
+         :session-id="String(store.activeSessionId ?? '')"
+         :stored-title="currentSessionTitle"
++        :regenerating-title-for="store.regeneratingTitleFor"
+         :theme="store.theme"
+         :right-collapsed="store.rightCollapsed"
++        :available-models="store.availableModels"
++        :selected-model="store.selectedModel"
+         :thinking="store.thinking"
+         @toggle-left="store.toggleLeft"
+         @toggle-theme="store.toggleTheme"
+         @toggle-right="store.toggleRight"
+         @update-title="onUpdateTitle"
++        @select-model="(key) => store.selectModel(key)"
++        @open-settings="onOpenSettings"
++        @regenerate-title="onRegenerateTitle"
+         @thinking-enabled="(v) => store.setThinkingEnabled(v)"
+         @thinking-level="(v) => store.setThinkingLevel(v)"
+       />
+       <EmptyState v-if="store.messages.length === 0" />
+       <MessageList v-else :messages="messagesForList" :busy="store.busy" />
+       <!--
+         Agent.vue:38-42 挂载契约 —— 1:1(props/emits 名与语义)。emit 处理器写成
+         内联箭头函数、而不是像 Vue2 那样直接 `@send="store.actions.send"` 裸引用
+         方法 —— Vue3 里裸方法引用会在渲染时把 `store.send` 这个函数值本身固化进
+         vnode 的 onSend prop;此后若外部整体替换了 `store.send`(如测试用
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 23e5663..80af5cb 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -569,20 +569,34 @@ export default {
+   aiEmptyOrganize: 'Organize folders',
+   aiEmptyOrganizePrompt: 'Reorganize /Documents by topic and year, suggest a structure',
+   aiEmptyOrganizeExample: 'Sort /Documents by topic and year',
+   aiEmptyScript: 'Write a script',
+   aiEmptyScriptPrompt: 'Write a Python script that scans /DATA and reports disk usage by folder as a chart',
+   aiEmptyScriptExample: 'Build a small tool or automation',
+   aiConfirm: 'Delete',
+   aiCancel: 'Cancel',
+   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
++  // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
++  // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2
++  // Agent.vue:133-142). English values are Vue2's exact literal strings
++  // (Vue2 uses raw English text as i18n keys, e.g. src/assets/lang/en_US.json).
++  aiLocalOllama: 'Local Ollama',
++  aiCloudModels: 'Cloud',
++  aiSearchModelsPlaceholder: 'Search models…',
++  aiModelSelect: 'Select model',
++  aiModelNotSelected: 'Not selected',
++  aiModelEmptyText: 'No models available yet',
++  aiGoToSettings: 'Go to Settings',
++  aiModelFallback: 'Model {from} unavailable, switched to {to}',
++  aiNoModelAvailable: 'no model available',
++  aiRename: 'AI rename',
+   // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
+   'ai.searchMyNas': 'Search my NAS for "{query}".',
+   // SP8-P1b Task 8 —— block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
+   aiMcpConnectFailed: 'MCP server {server} failed to connect: {error}',
+   aiConfirmRequiredTitle: 'Confirmation required: {action}',
+   aiHighRiskOperation: 'High-risk operation',
+   aiConfirmWaitingApproval: 'Agent is waiting for your approval',
+   aiAccept: 'Accept',
+   aiDeny: 'Deny',
+   aiConfirmInvalid: 'Confirmation request invalid (missing confirm_id)',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 109edf0..05a4d74 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -568,20 +568,34 @@ export default {
+   aiEmptyOrganize: '整理文件夹',
+   aiEmptyOrganizePrompt: '按主题和年份重新整理 /Documents,给出目录结构建议',
+   aiEmptyOrganizeExample: '按主题和年份整理 /Documents',
+   aiEmptyScript: '写个脚本',
+   aiEmptyScriptPrompt: '写一个 Python 脚本,扫描 /DATA 并用图表展示各文件夹的磁盘占用',
+   aiEmptyScriptExample: '搭一个小工具或自动化脚本',
+   aiConfirm: '删除',
+   aiCancel: '取消',
+   aiSettingsComingSoon: '设置页将在后续阶段开启',
+   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
++  // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
++  // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
++  // 中文值取自 Vue2 src/assets/lang/zh_CN.json 里对应英文 key 的既有译文,保持
++  // 与旧应用一致的措辞。
++  aiLocalOllama: '本地 Ollama',
++  aiCloudModels: '云端',
++  aiSearchModelsPlaceholder: '搜索模型…',
++  aiModelSelect: '选择模型',
++  aiModelNotSelected: '未选择',
++  aiModelEmptyText: '还没有可用模型',
++  aiGoToSettings: '前往设置',
++  aiModelFallback: '原模型 {from} 不可用，已切换到 {to}',
++  aiNoModelAvailable: '无可用模型',
++  aiRename: 'AI 重命名',
+   // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
+   'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',
+   // SP8-P1b Task 8 —— 块渲染器批次 A(confirm/mcp 系列卡片),1:1 对齐 Vue2
+   // src/assets/lang/zh_CN.json 里同一批 key 的既有译文。
+   aiMcpConnectFailed: 'MCP 服务「{server}」连接失败：{error}',
+   aiConfirmRequiredTitle: '需要确认：{action}',
+   aiHighRiskOperation: '高危操作',
+   aiConfirmWaitingApproval: 'Agent 等待你的批准',
+   aiAccept: '接受',
+   aiDeny: '拒绝',

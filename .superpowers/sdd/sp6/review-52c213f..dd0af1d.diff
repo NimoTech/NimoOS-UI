@@ -1,0 +1,294 @@
+# Review package: 52c213f..dd0af1d
+
+## Commits
+dd0af1d feat(storage): 卷格式化弹窗 + VolumeCard 格式化入口(SP6-P2)
+
+## Files changed
+ src/i18n/en_us.ts                           |  4 ++
+ src/i18n/zh_cn.ts                           |  4 ++
+ src/storage/components/FormatDialog.test.ts | 70 +++++++++++++++++++++++++++++
+ src/storage/components/FormatDialog.vue     | 52 +++++++++++++++++++++
+ src/storage/components/VolumeCard.test.ts   | 13 ++++--
+ src/storage/components/VolumeCard.vue       | 17 ++++---
+ 6 files changed, 150 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 2349929..c33d8e6 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -567,11 +567,15 @@ export default {
+   storageCreate: 'Create storage',
+   storageCreateName: 'Storage name',
+   storageCreateChooseDisk: 'Choose drive',
+   storageCreateWarnTitle: 'Warning',
+   storageCreateWarnErase: 'The selected drive will be erased. Please make sure there is no important data on it that needs to be backed up.',
+   storageCreateAttentionTitle: 'Attention',
+   storageCreateAttentionDirect: 'This drive can be used as storage directly, or created after formatting. Formatting erases the selected drive.',
+   storageCreateOk: 'Format and create',
+   storageCreateDirect: 'Create',
+   storageCreating: 'Creating…',
++  storageFormat: 'Format',
++  storageFormatTitle: 'Format storage',
++  storageFormatMsg: 'Storage "{name}" will be formatted. All data on it will be erased and cannot be recovered. Enter your login password to continue:',
++  storageFormatOk: 'Format',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 658ca25..72d1e4d 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -566,11 +566,15 @@ export default {
+   storageCreate: '创建存储',
+   storageCreateName: '存储名称',
+   storageCreateChooseDisk: '选择硬盘',
+   storageCreateWarnTitle: '警告',
+   storageCreateWarnErase: '所选硬盘将被清空。请再次确认所选硬盘上没有需要备份的重要数据。',
+   storageCreateAttentionTitle: '提示',
+   storageCreateAttentionDirect: '该硬盘可直接用作存储,也可以选择格式化后创建;格式化会清空所选硬盘。',
+   storageCreateOk: '格式化并创建',
+   storageCreateDirect: '直接创建',
+   storageCreating: '创建中…',
++  storageFormat: '格式化',
++  storageFormatTitle: '格式化存储',
++  storageFormatMsg: '将格式化存储「{name}」,其中所有数据将被清空且无法恢复。输入登录密码以继续:',
++  storageFormatOk: '确认格式化',
+ }
+diff --git a/src/storage/components/FormatDialog.test.ts b/src/storage/components/FormatDialog.test.ts
+new file mode 100644
+index 0000000..cee9057
+--- /dev/null
++++ b/src/storage/components/FormatDialog.test.ts
+@@ -0,0 +1,70 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import FormatDialog from './FormatDialog.vue'
++
++beforeEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('FormatDialog', () => {
++  it('open 时渲染 name 插值消息与密码框,确认键无密码时禁用', async () => {
++    const w = mount(FormatDialog, { props: { open: true, name: 'Storage1' } })
++    await w.vm.$nextTick()
++    const msg = document.body.querySelector<HTMLParagraphElement>('.fd-msg')
++    expect(msg?.textContent).toContain('Storage1')
++    const input = document.body.querySelector<HTMLInputElement>('.fd-input')
++    expect(input).toBeTruthy()
++    const okBtn = document.body.querySelector<HTMLButtonElement>('.fd-btn.danger')
++    expect(okBtn?.disabled).toBe(true)
++  })
++  it('输入密码点确认 emit confirm(password)', async () => {
++    const w = mount(FormatDialog, { props: { open: true, name: 'Storage1' } })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
++    input.value = 'secret'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    document.body.querySelector<HTMLButtonElement>('.fd-btn.danger')!.click()
++    expect(w.emitted('confirm')![0]).toEqual(['secret'])
++  })
++  it('回车提交 emit confirm(password)', async () => {
++    const w = mount(FormatDialog, { props: { open: true, name: 'A' } })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
++    input.value = 'secret'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }))
++    expect(w.emitted('confirm')![0]).toEqual(['secret'])
++  })
++  it('busy 时确认与取消按钮均禁用', async () => {
++    const w = mount(FormatDialog, { props: { open: true, name: 'A', busy: true } })
++    await w.vm.$nextTick()
++    const btns = document.body.querySelectorAll<HTMLButtonElement>('.fd-btn')
++    expect(btns.length).toBeGreaterThan(0)
++    expect(Array.from(btns).every((b) => b.disabled)).toBe(true)
++  })
++  it('busy 时回车不提交', async () => {
++    const w = mount(FormatDialog, { props: { open: true, name: 'A', busy: true } })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
++    input.value = 'secret'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }))
++    expect(w.emitted('confirm')).toBeUndefined()
++  })
++  it('弹窗关闭时清空密码(取消后明文不驻留,不重新打开也须已清空)', async () => {
++    const w = mount(FormatDialog, { props: { open: true, name: 'A' } })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
++    input.value = 'secret'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    await w.setProps({ open: false })
++    await w.vm.$nextTick()
++    // 故意不重新打开:只有「关闭本身清空」这条路径被实现时此断言才通过——
++    // 旧的 `if (o) password.value = ''` 实现在此处仍残留明文 'secret'。
++    expect(document.body.querySelector<HTMLInputElement>('.fd-input')!.value).toBe('')
++  })
++})
+diff --git a/src/storage/components/FormatDialog.vue b/src/storage/components/FormatDialog.vue
+new file mode 100644
+index 0000000..b7a2df4
+--- /dev/null
++++ b/src/storage/components/FormatDialog.vue
+@@ -0,0 +1,52 @@
++<script setup lang="ts">
++import { ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++
++const props = defineProps<{ open: boolean; name: string; busy?: boolean }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', password: string): void }>()
++const { t } = useI18n()
++const password = ref('')
++// 开/关都清空:关闭后明文密码不得驻留内存(P1 债③)
++watch(
++  () => props.open,
++  () => {
++    password.value = ''
++  },
++)
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('storageFormatTitle')" @update:open="emit('update:open', $event)">
++    <p class="fd-msg">{{ t('storageFormatMsg', { name }) }}</p>
++    <input
++      v-model="password"
++      type="password"
++      class="fd-input"
++      :placeholder="t('storageUnmountPassword')"
++      @keyup.enter="password && !busy && emit('confirm', password)"
++    />
++    <template #footer>
++      <button class="fd-btn" type="button" :disabled="busy" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
++      <button class="fd-btn danger" type="button" :disabled="!password || busy" @click="emit('confirm', password)">
++        {{ t('storageFormatOk') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.fd-msg { margin: 0 0 12px; font-size: 14px; color: var(--fg-muted); }
++.fd-input {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); outline: none;
++}
++.fd-input:focus { border-color: var(--accent); }
++.fd-btn {
++  padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
++}
++.fd-btn:disabled { opacity: 0.45; cursor: not-allowed; }
++.fd-btn.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
++</style>
+diff --git a/src/storage/components/VolumeCard.test.ts b/src/storage/components/VolumeCard.test.ts
+index ee8bbc2..84ac775 100644
+--- a/src/storage/components/VolumeCard.test.ts
++++ b/src/storage/components/VolumeCard.test.ts
+@@ -17,21 +17,28 @@ describe('VolumeCard', () => {
+     expect(w.text()).toContain('477 GB') // fmtSize(512110190592) → "477 GB"
+   })
+   it('进度条按占用率上色分级', () => {
+     const ok = mount(VolumeCard, { props: { volume: VOL } })
+     expect(ok.find('.vc-fill.ok').exists()).toBe(true)
+     const warn = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 85 } } })
+     expect(warn.find('.vc-fill.warn').exists()).toBe(true)
+     const danger = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 95 } } })
+     expect(danger.find('.vc-fill.danger').exists()).toBe(true)
+   })
+-  it('系统卷:显示 OS 徽标、无移除按钮', () => {
++  it('系统卷:显示 OS 徽标、无移除按钮、无格式化按钮', () => {
+     const w = mount(VolumeCard, { props: { volume: { ...VOL, isSystem: true } } })
+     expect(w.find('.vc-os').exists()).toBe(true)
+-    expect(w.find('.vc-remove').exists()).toBe(false)
++    expect(w.find('.vc-act.danger').exists()).toBe(false)
++    expect(w.find('.vc-act').exists()).toBe(false)
+   })
+   it('非系统卷:点移除按钮 emit unmount', async () => {
+     const w = mount(VolumeCard, { props: { volume: VOL } })
+-    await w.find('.vc-remove').trigger('click')
++    await w.find('.vc-act.danger').trigger('click')
+     expect(w.emitted('unmount')).toHaveLength(1)
+   })
++  it('非系统卷:点格式化按钮 emit format', async () => {
++    const w = mount(VolumeCard, { props: { volume: VOL } })
++    const fmtBtn = w.findAll('.vc-act').find((b) => !b.classes('danger'))!
++    await fmtBtn.trigger('click')
++    expect(w.emitted('format')).toHaveLength(1)
++  })
+ })
+diff --git a/src/storage/components/VolumeCard.vue b/src/storage/components/VolumeCard.vue
+index 9d58e77..9064efb 100644
+--- a/src/storage/components/VolumeCard.vue
++++ b/src/storage/components/VolumeCard.vue
+@@ -1,30 +1,31 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ import { fmtSize } from '../../home/util/format'
+ import { usageLevel, type StorageVolume } from '../util/storageMap'
+ 
+ defineProps<{ volume: StorageVolume }>()
+-defineEmits<{ (e: 'unmount'): void }>()
++defineEmits<{ (e: 'unmount'): void; (e: 'format'): void }>()
+ const { t } = useI18n()
+ </script>
+ 
+ <template>
+   <article class="volume-card">
+     <div class="vc-head">
+       <h3 class="vc-name">
+         {{ volume.name }}
+         <span v-if="volume.isSystem" class="vc-os">OS</span>
+       </h3>
+-      <button v-if="!volume.isSystem" class="vc-remove" type="button" @click="$emit('unmount')">
+-        {{ t('storageUnmount') }}
+-      </button>
++      <div v-if="!volume.isSystem" class="vc-actions">
++        <button class="vc-act" type="button" @click="$emit('format')">{{ t('storageFormat') }}</button>
++        <button class="vc-act danger" type="button" @click="$emit('unmount')">{{ t('storageUnmount') }}</button>
++      </div>
+     </div>
+     <p class="vc-meta">{{ t('storageVolumeSingle') }} · {{ volume.fsType.toUpperCase() }}</p>
+     <p class="vc-usage">{{ fmtSize(volume.usedSize) }} / {{ fmtSize(volume.size) }}</p>
+     <div class="vc-track" role="progressbar" :aria-valuenow="volume.usePercent" aria-valuemin="0" aria-valuemax="100">
+       <div class="vc-fill" :class="usageLevel(volume.usePercent)" :style="{ width: Math.min(100, Math.max(0, volume.usePercent)) + '%' }" />
+     </div>
+   </article>
+ </template>
+ 
+ <style scoped>
+@@ -32,23 +33,25 @@ const { t } = useI18n()
+   padding: 16px 18px; background: var(--card-bg);
+   border: 1px solid var(--card-border); border-radius: var(--radius-sm);
+ }
+ .volume-card + .volume-card { margin-top: 12px; }
+ .vc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+ .vc-name { margin: 0; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
+ .vc-os {
+   font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+   background: var(--nrm-bg); color: var(--nrm-fg); border: 1px solid var(--nrm-bd);
+ }
+-.vc-remove {
+-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--remove-fg);
++.vc-actions { display: flex; gap: 8px; flex: none; }
++.vc-act {
++  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
+   border-radius: 999px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; flex: none;
+ }
+-.vc-remove:hover { background: var(--chip-bg-hi); }
++.vc-act:hover { background: var(--chip-bg-hi); }
++.vc-act.danger { color: var(--remove-fg); }
+ .vc-meta { margin: 3px 0 0; font-size: 13px; color: var(--fg-muted); }
+ .vc-usage { margin: 10px 0 6px; font-size: 12.5px; color: var(--fg-muted); font-family: var(--num-font); }
+ .vc-track { height: 6px; border-radius: 999px; background: var(--nrm-bg); overflow: hidden; }
+ .vc-fill { height: 100%; border-radius: 999px; }
+ .vc-fill.ok { background: var(--accent); }
+ .vc-fill.warn { background: var(--dem-fg); }
+ .vc-fill.danger { background: var(--remove-fg); }
+ </style>

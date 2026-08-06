@@ -1,0 +1,122 @@
+# Review package: dbb01b9..4636275
+
+## Commits
+4636275 feat(i18n): add locale store with server persistence (read-modify-write)
+
+## Files changed
+ src/stores/locale.test.ts | 57 +++++++++++++++++++++++++++++++++++++++++++++++
+ src/stores/locale.ts      | 42 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 99 insertions(+)
+
+## Diff
+diff --git a/src/stores/locale.test.ts b/src/stores/locale.test.ts
+new file mode 100644
+index 0000000..75bf863
+--- /dev/null
++++ b/src/stores/locale.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it, expect, beforeEach, vi, MockedFunction } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const getCustomStorage: MockedFunction<(k: string) => Promise<unknown>> = vi.fn(async () => null)
++const setCustomStorage: MockedFunction<(k: string, d: unknown) => Promise<unknown>> = vi.fn(async () => ({}))
++vi.mock('@nimotech/nimoos-service', async () => {
++  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
++  return { ...actual, service: { users: {
++    getCustomStorage: (k: string) => getCustomStorage(k),
++    setCustomStorage: (k: string, d: unknown) => setCustomStorage(k, d),
++  } } }
++})
++
++import { i18n } from '../i18n'
++import { useLocaleStore } from './locale'
++
++describe('locale store', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    localStorage.clear()
++    vi.clearAllMocks()
++    i18n.global.locale.value = 'zh_cn'
++  })
++
++  it('setLocale 改 i18n 与 localStorage', () => {
++    useLocaleStore().setLocale('en_us')
++    expect(i18n.global.locale.value).toBe('en_us')
++    expect(localStorage.getItem('lang')).toBe('en_us')
++  })
++
++  it('loadFromServer 应用 blob 内合法 lang', async () => {
++    getCustomStorage.mockResolvedValueOnce({ lang: 'en_us', timezone: 'UTC' })
++    await useLocaleStore().loadFromServer()
++    expect(i18n.global.locale.value).toBe('en_us')
++  })
++
++  it('loadFromServer 支持字符串 JSON blob', async () => {
++    getCustomStorage.mockResolvedValueOnce(JSON.stringify({ lang: 'en_us' }))
++    await useLocaleStore().loadFromServer()
++    expect(i18n.global.locale.value).toBe('en_us')
++  })
++
++  it('loadFromServer 忽略非法 lang，不改当前语言', async () => {
++    getCustomStorage.mockResolvedValueOnce({ lang: 'fr_fr' })
++    await useLocaleStore().loadFromServer()
++    expect(i18n.global.locale.value).toBe('zh_cn')
++  })
++
++  it('persist 读-改-写：保留 blob 其它字段，仅覆盖 lang', async () => {
++    getCustomStorage.mockResolvedValueOnce({ timezone: 'UTC', search_switch: true })
++    await useLocaleStore().persist('en_us')
++    expect(setCustomStorage).toHaveBeenCalledTimes(1)
++    expect(setCustomStorage.mock.calls[0]?.[0]).toBe('system')
++    expect(setCustomStorage.mock.calls[0]?.[1]).toEqual({ timezone: 'UTC', search_switch: true, lang: 'en_us' })
++    expect(i18n.global.locale.value).toBe('en_us')
++  })
++})
+diff --git a/src/stores/locale.ts b/src/stores/locale.ts
+new file mode 100644
+index 0000000..605ac36
+--- /dev/null
++++ b/src/stores/locale.ts
+@@ -0,0 +1,42 @@
++import { defineStore } from 'pinia'
++import { service } from '@nimotech/nimoos-service'
++import { i18n } from '../i18n'
++
++export const LOCALES = ['zh_cn', 'en_us'] as const
++export type Locale = (typeof LOCALES)[number]
++const SYSTEM_KEY = 'system'
++
++function isLocale(v: unknown): v is Locale {
++  return typeof v === 'string' && (LOCALES as readonly string[]).includes(v)
++}
++
++export const useLocaleStore = defineStore('locale', () => {
++  function setLocale(lang: Locale) {
++    i18n.global.locale.value = lang
++    localStorage.setItem('lang', lang)
++  }
++
++  async function readSystemBlob(): Promise<Record<string, unknown>> {
++    let data: unknown = await service.users.getCustomStorage(SYSTEM_KEY)
++    if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
++    return data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
++  }
++
++  async function loadFromServer(): Promise<void> {
++    try {
++      const blob = await readSystemBlob()
++      if (isLocale(blob.lang)) setLocale(blob.lang)
++    } catch (e) { console.warn('[locale] server load failed', e) }
++  }
++
++  async function persist(lang: Locale): Promise<void> {
++    setLocale(lang)
++    try {
++      const blob = await readSystemBlob()
++      blob.lang = lang
++      await service.users.setCustomStorage(SYSTEM_KEY, blob)
++    } catch (e) { console.warn('[locale] server save failed', e) }
++  }
++
++  return { setLocale, loadFromServer, persist }
++})

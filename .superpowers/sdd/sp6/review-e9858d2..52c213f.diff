@@ -1,0 +1,276 @@
+# Review package: e9858d2..52c213f
+
+## Commits
+52c213f feat(storage): 创建存储弹窗组件(选盘+格式化警告+双按钮,SP6-P2)
+
+## Files changed
+ src/i18n/en_us.ts                                  |  10 ++
+ src/i18n/zh_cn.ts                                  |  10 ++
+ src/storage/components/CreateStorageDialog.test.ts | 109 +++++++++++++++++++++
+ src/storage/components/CreateStorageDialog.vue     |  90 +++++++++++++++++
+ 4 files changed, 219 insertions(+)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index b30c9d7..2349929 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -557,11 +557,21 @@ export default {
+   storageCancel: 'Cancel',
+   storageDrivesEmpty: 'No drives detected',
+   storageDriveHealth: 'Health',
+   storageDriveHealthy: 'Healthy',
+   storageDriveDamaged: 'Damaged',
+   storageDriveTemp: 'Temp',
+   storageCreateSuccess: 'Storage created',
+   storageCreateFailed: 'Failed to create storage, please try again',
+   storageFormatSuccess: 'Storage formatted',
+   storageFormatFailed: 'Failed to format, check your password and try again',
++  storageCreate: 'Create storage',
++  storageCreateName: 'Storage name',
++  storageCreateChooseDisk: 'Choose drive',
++  storageCreateWarnTitle: 'Warning',
++  storageCreateWarnErase: 'The selected drive will be erased. Please make sure there is no important data on it that needs to be backed up.',
++  storageCreateAttentionTitle: 'Attention',
++  storageCreateAttentionDirect: 'This drive can be used as storage directly, or created after formatting. Formatting erases the selected drive.',
++  storageCreateOk: 'Format and create',
++  storageCreateDirect: 'Create',
++  storageCreating: 'Creating…',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index a2f0cf3..658ca25 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -556,11 +556,21 @@ export default {
+   storageCancel: '取消',
+   storageDrivesEmpty: '未检测到硬盘',
+   storageDriveHealth: '健康',
+   storageDriveHealthy: '正常',
+   storageDriveDamaged: '损坏',
+   storageDriveTemp: '温度',
+   storageCreateSuccess: '存储已创建',
+   storageCreateFailed: '创建失败,请重试',
+   storageFormatSuccess: '存储已格式化',
+   storageFormatFailed: '格式化失败,请检查密码后重试',
++  storageCreate: '创建存储',
++  storageCreateName: '存储名称',
++  storageCreateChooseDisk: '选择硬盘',
++  storageCreateWarnTitle: '警告',
++  storageCreateWarnErase: '所选硬盘将被清空。请再次确认所选硬盘上没有需要备份的重要数据。',
++  storageCreateAttentionTitle: '提示',
++  storageCreateAttentionDirect: '该硬盘可直接用作存储,也可以选择格式化后创建;格式化会清空所选硬盘。',
++  storageCreateOk: '格式化并创建',
++  storageCreateDirect: '直接创建',
++  storageCreating: '创建中…',
+ }
+diff --git a/src/storage/components/CreateStorageDialog.test.ts b/src/storage/components/CreateStorageDialog.test.ts
+new file mode 100644
+index 0000000..1c97d2b
+--- /dev/null
++++ b/src/storage/components/CreateStorageDialog.test.ts
+@@ -0,0 +1,109 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import CreateStorageDialog from './CreateStorageDialog.vue'
++
++const DISKS = [
++  { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1e12, needFormat: true, serial: 'S1' },
++  { path: '/dev/sdc', name: 'sdc', model: 'SG Iron', size: 2e12, needFormat: false, serial: 'S2' },
++]
++
++beforeEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('CreateStorageDialog', () => {
++  it('打开时填入默认名并预选第一块盘', async () => {
++    const w = mount(CreateStorageDialog, {
++      props: { open: true, disks: DISKS, defaultName: 'Main-storage1' },
++    })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.cs-input')!
++    expect(input.value).toBe('Main-storage1')
++    const select = document.body.querySelector<HTMLSelectElement>('.cs-select')!
++    expect(select.value).toBe('0')
++  })
++
++  it('名称输入过滤非法字符(仅 \\w 和连字符)', async () => {
++    const w = mount(CreateStorageDialog, {
++      props: { open: true, disks: DISKS, defaultName: 'x' },
++    })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.cs-input')!
++    input.value = 'a b!c-d'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    expect(input.value).toBe('abc-d')
++  })
++
++  it('need_format 盘显示清空警告;可直连盘显示提示且多出「直接创建」按钮', async () => {
++    const w = mount(CreateStorageDialog, {
++      props: { open: true, disks: DISKS, defaultName: 'x' },
++    })
++    await w.vm.$nextTick()
++    // index0 = needFormat
++    let warn = document.body.querySelector('.cs-warn')!
++    expect(warn.classList.contains('danger')).toBe(true)
++    expect(warn.textContent).toContain(
++      '所选硬盘将被清空。请再次确认所选硬盘上没有需要备份的重要数据。',
++    )
++    expect(document.body.textContent).not.toContain('直接创建')
++
++    // 切到 index1 = 可直连
++    const select = document.body.querySelector<HTMLSelectElement>('.cs-select')!
++    select.value = '1'
++    select.dispatchEvent(new Event('change'))
++    await w.vm.$nextTick()
++    warn = document.body.querySelector('.cs-warn')!
++    expect(warn.classList.contains('notice')).toBe(true)
++    expect(warn.textContent).toContain(
++      '该硬盘可直接用作存储,也可以选择格式化后创建;格式化会清空所选硬盘。',
++    )
++    expect(document.body.textContent).toContain('直接创建')
++  })
++
++  it('确认 emit 完整 payload:格式化按钮 format:true,直连按钮 format:false', async () => {
++    const w = mount(CreateStorageDialog, {
++      props: { open: true, disks: DISKS, defaultName: 'MyVol' },
++    })
++    await w.vm.$nextTick()
++    // 选 sdc(index1,可直连)
++    const select = document.body.querySelector<HTMLSelectElement>('.cs-select')!
++    select.value = '1'
++    select.dispatchEvent(new Event('change'))
++    await w.vm.$nextTick()
++
++    const btns = Array.from(
++      document.body.querySelectorAll<HTMLButtonElement>('.cs-btn'),
++    )
++    const directBtn = btns.find((b) => b.textContent?.includes('直接创建'))!
++    directBtn.click()
++    expect(w.emitted('confirm')![0]).toEqual([
++      { path: '/dev/sdc', name: 'MyVol', format: false },
++    ])
++
++    const okBtn = document.body.querySelector<HTMLButtonElement>('.cs-btn.danger')!
++    okBtn.click()
++    expect(w.emitted('confirm')![1]).toEqual([
++      { path: '/dev/sdc', name: 'MyVol', format: true },
++    ])
++  })
++
++  it('名称为空时提交按钮禁用;busy 时全部按钮禁用且主按钮文案变 storageCreating', async () => {
++    const w = mount(CreateStorageDialog, {
++      props: { open: true, disks: DISKS, defaultName: '' },
++    })
++    await w.vm.$nextTick()
++    const okBtn = document.body.querySelector<HTMLButtonElement>('.cs-btn.danger')!
++    expect(okBtn.disabled).toBe(true)
++
++    await w.setProps({ busy: true, defaultName: 'Vol' })
++    await w.setProps({ open: false })
++    await w.setProps({ open: true })
++    await w.vm.$nextTick()
++    const btns = document.body.querySelectorAll<HTMLButtonElement>('.cs-btn')
++    expect(btns.length).toBeGreaterThan(0)
++    expect(Array.from(btns).every((b) => b.disabled)).toBe(true)
++    const okBtn2 = document.body.querySelector<HTMLButtonElement>('.cs-btn.danger')!
++    expect(okBtn2.textContent?.trim()).toBe('创建中…')
++  })
++})
+diff --git a/src/storage/components/CreateStorageDialog.vue b/src/storage/components/CreateStorageDialog.vue
+new file mode 100644
+index 0000000..9e5ebc3
+--- /dev/null
++++ b/src/storage/components/CreateStorageDialog.vue
+@@ -0,0 +1,90 @@
++<script setup lang="ts">
++import { computed, ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++import { fmtSize } from '../../home/util/format'
++import type { AvailDisk } from '../util/storageMap'
++
++const props = defineProps<{ open: boolean; disks: AvailDisk[]; defaultName: string; busy?: boolean }>()
++const emit = defineEmits<{
++  (e: 'update:open', v: boolean): void
++  (e: 'confirm', payload: { path: string; name: string; format: boolean }): void
++}>()
++const { t } = useI18n()
++
++const name = ref('')
++const diskIndex = ref(0)
++// 每次打开重置为默认名 + 预选第一块盘;immediate 兜住「初始即 open:true」的挂载
++watch(
++  () => props.open,
++  (o) => {
++    if (o) {
++      name.value = props.defaultName
++      diskIndex.value = 0
++    }
++  },
++  { immediate: true },
++)
++// Vue2 同款:名称只允许 \w 与连字符
++function onNameInput(e: Event) {
++  const el = e.target as HTMLInputElement
++  name.value = el.value.replace(/[^\w-]/g, '')
++  el.value = name.value
++}
++const selected = computed<AvailDisk | undefined>(() => props.disks[diskIndex.value])
++const canSubmit = computed(() => !!name.value && !!selected.value && !props.busy)
++function submit(format: boolean) {
++  if (!canSubmit.value || !selected.value) return
++  emit('confirm', { path: selected.value.path, name: name.value, format })
++}
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('storageCreate')" @update:open="emit('update:open', $event)">
++    <label class="cs-label">{{ t('storageCreateName') }}</label>
++    <input :value="name" class="cs-input" type="text" @input="onNameInput" />
++    <label class="cs-label">{{ t('storageCreateChooseDisk') }}</label>
++    <select v-model.number="diskIndex" class="cs-input cs-select">
++      <option v-for="(d, i) in disks" :key="d.path" :value="i">
++        {{ d.name }} ({{ d.model }} - {{ fmtSize(d.size) }})
++      </option>
++    </select>
++    <aside v-if="selected" class="cs-warn" :class="selected.needFormat ? 'danger' : 'notice'">
++      <strong>{{ selected.needFormat ? t('storageCreateWarnTitle') : t('storageCreateAttentionTitle') }}</strong>
++      <p>{{ selected.needFormat ? t('storageCreateWarnErase') : t('storageCreateAttentionDirect') }}</p>
++      <p v-if="!selected.needFormat">{{ t('storageCreateWarnErase') }}</p>
++    </aside>
++    <template #footer>
++      <button class="cs-btn" type="button" :disabled="busy" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
++      <button v-if="selected && !selected.needFormat" class="cs-btn" type="button" :disabled="!canSubmit" @click="submit(false)">
++        {{ t('storageCreateDirect') }}
++      </button>
++      <button class="cs-btn danger" type="button" :disabled="!canSubmit" @click="submit(true)">
++        {{ busy ? t('storageCreating') : t('storageCreateOk') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.cs-label { display: block; margin: 12px 0 6px; font-size: 12.5px; color: var(--fg-muted); }
++.cs-label:first-of-type { margin-top: 0; }
++.cs-input {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); outline: none;
++}
++.cs-input:focus { border-color: var(--accent); }
++.cs-select { appearance: auto; }
++.cs-warn { margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; border: 1px solid var(--chip-border); }
++.cs-warn strong { display: block; margin-bottom: 4px; font-size: 13px; }
++.cs-warn p { margin: 0 0 4px; color: var(--fg-muted); }
++.cs-warn.danger { border-color: var(--remove-fg); }
++.cs-warn.danger strong { color: var(--remove-fg); }
++.cs-btn {
++  padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
++}
++.cs-btn:disabled { opacity: 0.45; cursor: not-allowed; }
++.cs-btn.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
++</style>

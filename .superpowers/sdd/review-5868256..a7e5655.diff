@@ -1,0 +1,98 @@
+# Review package: 5868256..HEAD
+
+## Commits
+a7e5655 feat(upload): folder drag-drop + auto-restore on files mount (SP4-P3b)
+
+## Files changed
+ src/views/Files.vue | 19 ++++++++++++++++---
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 39c8c6f..bfeee83 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -15,20 +15,21 @@ import AlertDialog from '../components/ui/AlertDialog.vue'
+ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+ import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
++import { readDroppedEntries } from '../files/upload/dropEntries'
+ import type { SelectedFile } from '../files/upload/types'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+@@ -128,25 +129,33 @@ const isDragIn = ref(false)
+ let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
+ function onDragOver() {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = true
+ }
+ function onDragLeave() {
+   // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
+   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
+   dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
+ }
+-function onDrop(e: DragEvent) {
++async function onDrop(e: DragEvent) {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = false
+-  const list = e.dataTransfer?.files
+-  if (list && list.length) handleSelectedFiles(list)
++  const dropped = await readDroppedEntries(e.dataTransfer)
++  if (!dropped.length) return
++  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
++  const sel: SelectedFile[] = dropped.map((d) => ({
++    file: d.file,
++    targetPath,
++    relativePath: d.relativePath.replace(/^\/+/, ''),
++  }))
++  const { rejected } = await uploads.addFilesToQueue(sel)
++  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+ }
+ 
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+   if (renameDlg.value.entry) ops.rename(renameDlg.value.entry, name)
+ }
+ function confirmDelete() {
+@@ -260,20 +269,24 @@ onMounted(async () => {
+ })
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ 
+ let offOperate: (() => void) | null = null
+ onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+ onUnmounted(() => { offOperate?.() })
+ 
+ let offUnloadGuard: (() => void) | null = null
+ onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+ onUnmounted(() => { offUnloadGuard?.() })
++
++// 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
++// 失败降级为内存模式,不阻断文件区渲染。
++onMounted(() => { uploads.initUploads() })
+ </script>
+ 
+ <template>
+   <FilesShell>
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <div
+         class="files-main"
+         @mousedown="onMarqueeDown"
+         @dragover.prevent="onDragOver"

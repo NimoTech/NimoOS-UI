@@ -1,0 +1,208 @@
+# Review package: e9a5a46..9933702
+
+## Commits
+9933702 refactor(files-upload): extract commitSelectedFiles; strip leading slash in onReselect
+
+## Files changed
+ src/files/components/UploadPanel.vue   |  4 +++-
+ src/files/upload/selectedFiles.test.ts | 36 ++++++++++++++++++++++++++++++++++
+ src/files/upload/selectedFiles.ts      | 17 ++++++++++++++++
+ src/views/Files.vue                    | 32 +++++++++++++++---------------
+ 4 files changed, 72 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index a7d851d..72fe22e 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -154,21 +154,23 @@ const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !resele
+ function triggerReselect() {
+   reselectInput.value?.click()
+ }
+ async function onReselect(e: Event) {
+   const input = e.target as HTMLInputElement
+   const list = input.files
+   if (list && list.length) {
+     const sel = Array.from(list).map((f) => ({
+       file: f,
+       targetPath: files.currentPath,
+-      relativePath: (f as any).webkitRelativePath || f.name,
++      // 与 commitSelectedFiles 一致:剥离前导 '/',避免受保护目录判断
++      // (split('/')[0])被空首段绕过。
++      relativePath: ((f as any).webkitRelativePath || f.name).replace(/^\/+/, ''),
+     }))
+     await store.reattachFiles(sel)
+   }
+   input.value = ''
+ }
+ </script>
+ 
+ <template>
+   <div v-if="totalCount" class="upload-panel-wrap">
+     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
+diff --git a/src/files/upload/selectedFiles.test.ts b/src/files/upload/selectedFiles.test.ts
+new file mode 100644
+index 0000000..4c67532
+--- /dev/null
++++ b/src/files/upload/selectedFiles.test.ts
+@@ -0,0 +1,36 @@
++import { describe, it, expect } from 'vitest'
++import { toSelectedFiles } from './selectedFiles'
++
++describe('toSelectedFiles', () => {
++  it('strips a leading slash from relativePath', () => {
++    const f = new File(['x'], 'a.txt')
++    const out = toSelectedFiles([{ file: f, relativePath: '/Docs/a.txt' }], '/DATA/Documents')
++    expect(out).toEqual([{ file: f, targetPath: '/DATA/Documents', relativePath: 'Docs/a.txt' }])
++  })
++
++  it('strips multiple leading slashes', () => {
++    const f = new File(['x'], 'a.txt')
++    const out = toSelectedFiles([{ file: f, relativePath: '///a.txt' }], '/DATA')
++    expect(out[0].relativePath).toBe('a.txt')
++  })
++
++  it('leaves a relativePath with no leading slash untouched', () => {
++    const f = new File(['x'], 'a.txt')
++    const out = toSelectedFiles([{ file: f, relativePath: 'Docs/a.txt' }], '/DATA')
++    expect(out[0].relativePath).toBe('Docs/a.txt')
++  })
++
++  it('propagates targetPath onto every entry', () => {
++    const f1 = new File(['x'], 'a.txt')
++    const f2 = new File(['y'], 'b.txt')
++    const out = toSelectedFiles(
++      [{ file: f1, relativePath: 'a.txt' }, { file: f2, relativePath: 'b.txt' }],
++      '/DATA/Shared',
++    )
++    expect(out.every((e) => e.targetPath === '/DATA/Shared')).toBe(true)
++  })
++
++  it('returns an empty array for empty input', () => {
++    expect(toSelectedFiles([], '/DATA')).toEqual([])
++  })
++})
+diff --git a/src/files/upload/selectedFiles.ts b/src/files/upload/selectedFiles.ts
+new file mode 100644
+index 0000000..3a8ad83
+--- /dev/null
++++ b/src/files/upload/selectedFiles.ts
+@@ -0,0 +1,17 @@
++import type { SelectedFile } from './types'
++
++// Shared normalization for both the file/folder picker (handleSelectedFiles)
++// and drag-drop (onDrop) in Files.vue, plus needs_file reselect in
++// UploadPanel.vue: strip leading slashes from relativePath — the downstream
++// protected-dir check reads split('/')[0] to take the first segment, and a
++// leading slash would produce an empty first segment that bypasses it.
++export function toSelectedFiles(
++  entries: { file: File; relativePath: string }[],
++  targetPath: string,
++): SelectedFile[] {
++  return entries.map((e) => ({
++    file: e.file,
++    targetPath,
++    relativePath: e.relativePath.replace(/^\/+/, ''),
++  }))
++}
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index bfeee83..72e529c 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -16,21 +16,21 @@ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+ import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+-import type { SelectedFile } from '../files/upload/types'
++import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+@@ -104,58 +104,58 @@ const fileInput = ref<HTMLInputElement | null>(null)
+ const folderInput = ref<HTMLInputElement | null>(null)
+ function triggerFileSelect() { fileInput.value?.click() }
+ function triggerFolderSelect() { folderInput.value?.click() }
+ 
+ function onInputChange(e: Event) {
+   const input = e.target as HTMLInputElement
+   if (input.files && input.files.length) handleSelectedFiles(input.files)
+   input.value = '' // 允许重复选择同一文件再次触发 change
+ }
+ 
+-async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
++// Shared enqueue path for both the file/folder picker and drag-drop: normalize
++// leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
++// any files rejected for being in a protected dir.
++async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
+-  const sel: SelectedFile[] = Array.from(list).map((f) => {
+-    const raw = (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name
+-    // 防御:去掉开头的 '/' —— 下游受保护目录判断按 split('/')[0] 取首段,
+-    // 前导斜杠会产生空首段从而绕过检查。
+-    return { file: f, targetPath, relativePath: raw.replace(/^\/+/, '') }
+-  })
++  const sel = toSelectedFiles(entries, targetPath)
+   const { rejected } = await uploads.addFilesToQueue(sel)
+   for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+ }
++
++async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
++  await commitSelectedFiles(
++    Array.from(list).map((f) => ({
++      file: f,
++      relativePath: (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name,
++    })),
++  )
++}
+ defineExpose({ handleSelectedFiles })
+ 
+ // ── 拖拽落区(.files-main 全域可放)──
+ const isDragIn = ref(false)
+ let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
+ function onDragOver() {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = true
+ }
+ function onDragLeave() {
+   // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
+   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
+   dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
+ }
+ async function onDrop(e: DragEvent) {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = false
+   const dropped = await readDroppedEntries(e.dataTransfer)
+   if (!dropped.length) return
+-  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
+-  const sel: SelectedFile[] = dropped.map((d) => ({
+-    file: d.file,
+-    targetPath,
+-    relativePath: d.relativePath.replace(/^\/+/, ''),
+-  }))
+-  const { rejected } = await uploads.addFilesToQueue(sel)
+-  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
++  await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+ }
+ 
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+   if (renameDlg.value.entry) ops.rename(renameDlg.value.entry, name)
+ }
+ function confirmDelete() {

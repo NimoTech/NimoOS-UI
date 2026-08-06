@@ -1,0 +1,356 @@
+# Review package: aa9bf9a..HEAD
+
+## Commits
+81e7c0c feat(home): AppIframeWidget — 第三方应用 iframe 小组件渲染 + 占位/重试
+
+## Files changed
+ src/home/components/GridItem.vue                |  4 +-
+ src/home/components/widgets/AppIframeWidget.vue | 73 +++++++++++++++++++++++++
+ src/home/components/widgets/WidgetCard.vue      | 17 +++++-
+ src/home/util/appWidgetUrl.test.ts              | 19 +++++++
+ src/home/util/appWidgetUrl.ts                   | 19 +++++++
+ src/i18n/en_us.ts                               |  4 ++
+ src/i18n/zh_cn.ts                               |  4 ++
+ 7 files changed, 137 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/home/components/GridItem.vue b/src/home/components/GridItem.vue
+index d23fa67..44c6132 100644
+--- a/src/home/components/GridItem.vue
++++ b/src/home/components/GridItem.vue
+@@ -2,36 +2,37 @@
+   <div
+     class="grid-item"
+     :class="[`kind-${item.kind}`, { editing, dragging, resizing, pop: popping }]"
+     :data-id="item.id"
+     :data-kind="item.kind"
+     :style="style"
+     @pointerdown="onRootDown"
+     @click="onClick"
+   >
+     <button v-if="editing" class="remove" :aria-label="t('gridRemove')" @click.stop="onRemove">−</button>
+-    <WidgetCard v-if="item.kind === 'widget'" :item="sized" />
++    <WidgetCard v-if="item.kind === 'widget' || item.kind === 'appwidget'" :item="sized" />
+     <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
+     <AppTile v-else-if="item.kind === 'app'" :item="item" />
+     <FolderTile v-else-if="item.kind === 'folder'" :item="item" />
+     <span v-else class="item-label">{{ label }}</span>
+     <span v-if="editing && canResize" class="resize-handle" :aria-label="t('gridResize')" @pointerdown.stop="$emit('resize-down', $event)" />
+   </div>
+ </template>
+ 
+ <script setup lang="ts">
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import type { LayoutItem } from '../grid/types'
+ import { WIDGETS } from '../widgets/registry'
+ import { sizeOfItem } from '../widgets/registry'
+ import { SYSTEM_APPS } from '../apps/systemApps'
++import { useAppsStore } from '../stores/apps'
+ import { useOpenAction } from '../composables/useOpenAction'
+ import { useEditMode } from '../composables/useEditMode'
+ import { useLayoutStore } from '../stores/layout'
+ import { useHomeUiStore } from '../stores/homeUi'
+ import WidgetCard from './widgets/WidgetCard.vue'
+ import PhotoTile from './PhotoTile.vue'
+ import AppTile from './AppTile.vue'
+ import FolderTile from './FolderTile.vue'
+ 
+ const props = defineProps<{
+@@ -60,20 +61,21 @@ const sized = computed(() =>
+ )
+ 
+ const style = computed(() => ({
+   gridColumn: `${props.item.c} / span ${sized.value.w}`,
+   gridRow: `${props.item.r} / span ${sized.value.h}`,
+ }))
+ 
+ const label = computed(() => {
+   const it = props.item
+   if (it.kind === 'widget') { const k = WIDGETS[it.key]?.title; return k ? t(k) : it.key }
++  if (it.kind === 'appwidget') return useAppsStore().app(it.key)?.name ?? it.key
+   if (it.kind === 'app') { const k = SYSTEM_APPS.find((a) => a.key === it.key)?.label; return k ? t(k) : it.key }
+   return it.key // folder
+ })
+ 
+ const canResize = computed(() => {
+   if (props.item.kind === 'widget' || props.item.kind === 'appwidget') {
+     const ws = sizeOfItem(props.item)
+     if (!ws) return false
+     return ws.min[0] !== ws.max[0] || ws.min[1] !== ws.max[1]
+   }
+diff --git a/src/home/components/widgets/AppIframeWidget.vue b/src/home/components/widgets/AppIframeWidget.vue
+new file mode 100644
+index 0000000..8092134
+--- /dev/null
++++ b/src/home/components/widgets/AppIframeWidget.vue
+@@ -0,0 +1,73 @@
++<template>
++  <div ref="root" class="aw">
++    <iframe
++      v-if="src && running && inView && !failed"
++      :key="src + retry"
++      class="aw-frame"
++      :src="src"
++      sandbox="allow-scripts allow-same-origin allow-forms"
++      referrerpolicy="no-referrer"
++      @load="onLoad"
++    />
++    <div v-else class="aw-fallback">
++      <img v-if="app?.icon" class="aw-ic" :src="app.icon" alt="" />
++      <span class="aw-msg">{{ running ? t('appWidgetUnavailable') : t('appWidgetNotRunning') }}</span>
++      <button v-if="running && failed" class="aw-retry" type="button" @click="onRetry">{{ t('appWidgetRetry') }}</button>
++    </div>
++  </div>
++</template>
++<script setup lang="ts">
++import { computed, ref, watch, onBeforeUnmount } from 'vue'
++import { useI18n } from 'vue-i18n'
++import type { LayoutItem } from '../../grid/types'
++import { useAppsStore } from '../../stores/apps'
++import { useThemeStore } from '../../../stores/theme'
++import { useInView } from '../../../files/composables/useInView'
++import { appWidgetUrl } from '../../util/appWidgetUrl'
++
++const props = defineProps<{ item: LayoutItem }>()
++const { t, locale } = useI18n()
++const apps = useAppsStore()
++const theme = useThemeStore()
++const root = ref<HTMLElement | null>(null)
++const inView = useInView(root)
++const failed = ref(false)
++const retry = ref(0)
++let timer: ReturnType<typeof setTimeout> | null = null
++
++const app = computed(() => apps.app(props.item.key))
++const running = computed(() => app.value?.status === 'running')
++const src = computed(() => {
++  if (!app.value) return null
++  return appWidgetUrl(app.value, {
++    host: window.location.hostname,
++    origin: window.location.origin,
++    theme: theme.theme === 'light' ? 'light' : 'dark', // blue 主题映射 dark
++    lang: String(locale.value),
++  })
++})
++
++function armTimeout() {
++  if (timer) clearTimeout(timer)
++  timer = setTimeout(() => { failed.value = true }, 8000)
++}
++function onLoad() { if (timer) { clearTimeout(timer); timer = null } }
++function onRetry() { failed.value = false; retry.value++ }
++
++watch([src, inView, running, retry], ([s, v, r]) => {
++  if (s && v && r && !failed.value) armTimeout()
++}, { immediate: true })
++onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
++</script>
++<style scoped>
++.aw { width: 100%; height: 100%; display: flex; }
++.aw-frame { flex: 1; border: 0; border-radius: var(--radius-sm); background: transparent; }
++.aw-fallback { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
++.aw-ic { width: 36px; height: 36px; border-radius: 10px; opacity: 0.7; }
++.aw-msg { color: var(--fg-muted); font-size: 13px; }
++.aw-retry {
++  border: 1px solid var(--border); background: transparent; color: var(--fg);
++  border-radius: 999px; padding: 3px 14px; font-size: 12px; cursor: pointer;
++}
++.aw-retry:hover { border-color: var(--accent); color: var(--accent); }
++</style>
+diff --git a/src/home/components/widgets/WidgetCard.vue b/src/home/components/widgets/WidgetCard.vue
+index 6474617..131cddb 100644
+--- a/src/home/components/widgets/WidgetCard.vue
++++ b/src/home/components/widgets/WidgetCard.vue
+@@ -1,47 +1,57 @@
+ <template>
+   <div class="card" :class="meta?.extra ? `w-${meta.extra}` : ''">
+-    <div class="card-head"><span class="card-ic" v-html="iconSvg" /><span class="card-title">{{ meta?.title ? t(meta.title) : '' }}</span></div>
++    <div class="card-head">
++      <img v-if="isApp && appMeta?.icon" class="card-ic-img" :src="appMeta.icon" alt="" />
++      <span v-else class="card-ic" v-html="iconSvg" />
++      <span class="card-title">{{ cardTitle }}</span>
++    </div>
+     <div class="card-in">
+       <component :is="bodyComp" v-if="bodyComp" :item="item" />
+     </div>
+   </div>
+ </template>
+ <script setup lang="ts">
+ import { computed, type Component } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import type { LayoutItem } from '../../grid/types'
+ import { WIDGETS } from '../../widgets/registry'
+ import AiWidget from './AiWidget.vue'
+ import ClockWidget from './ClockWidget.vue'
+ import StorageWidget from './StorageWidget.vue'
+ import CpuWidget from './CpuWidget.vue'
+ import GpuWidget from './GpuWidget.vue'
+ import NetworkWidget from './NetworkWidget.vue'
+ import EventsWidget from './EventsWidget.vue'
++import AppIframeWidget from './AppIframeWidget.vue'
++import { useAppsStore } from '../../stores/apps'
+ 
+ const props = defineProps<{ item: LayoutItem }>()
+ const { t } = useI18n()
+ const meta = computed(() => WIDGETS[props.item.key])
+ const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.icon ?? ''}</svg>`)
+ 
++const isApp = computed(() => props.item.kind === 'appwidget')
++const appMeta = computed(() => (isApp.value ? useAppsStore().app(props.item.key) : undefined))
++const cardTitle = computed(() => (isApp.value ? appMeta.value?.name ?? props.item.key : meta.value?.title ? t(meta.value.title) : ''))
++
+ // 各 widget 组件由后续任务(T6 起)逐个 import 并登记进此 map
+ const WIDGET_COMPONENTS: Record<string, Component> = {
+   ai: AiWidget,
+   clock: ClockWidget,
+   storage: StorageWidget,
+   cpu: CpuWidget,
+   gpu: GpuWidget,
+   network: NetworkWidget,
+   events: EventsWidget,
+ }
+-const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
++const bodyComp = computed(() => (isApp.value ? AppIframeWidget : WIDGET_COMPONENTS[props.item.key]))
+ </script>
+ <style scoped>
+ /* ── Base card: glass material (P4c spatial skin) ───────────────────────── */
+ /* overflow:visible lets remove/resize badges on .grid-item show outside card */
+ /* container-type:size + width/height:100% = P2 collapse fix — do NOT split  */
+ .card {
+   overflow: visible;
+   container-type: size;
+   container-name: card;
+   width: 100%;
+@@ -112,20 +122,23 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
+   display: flex;
+   align-items: center;
+   gap: 9px;
+   font-size: var(--title-size, 14px);
+   font-weight: 600;
+   letter-spacing: -0.1px;
+   color: var(--fg, #fff);
+   text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45); /* theme-exception: Dark text shadow for readability on glass cards; semantic doesn't fit existing shadow tokens */
+ }
+ 
++/* ── App-widget icon (WidgetCard: appwidget kind shows app icon, not svg) ── */
++.card-ic-img { width: 18px; height: 18px; border-radius: 5px; flex: none; }
++
+ /* ── Widget icon (.card-ic wraps the svg injected via v-html) ───────────── */
+ .card-ic :deep(svg) {
+   width: clamp(14px, 6cqmin, 18px);
+   height: clamp(14px, 6cqmin, 18px);
+   color: var(--accent);
+   fill: none;
+   stroke: currentColor;
+   stroke-width: 1.7;
+ }
+ 
+diff --git a/src/home/util/appWidgetUrl.test.ts b/src/home/util/appWidgetUrl.test.ts
+new file mode 100644
+index 0000000..5830ad9
+--- /dev/null
++++ b/src/home/util/appWidgetUrl.test.ts
+@@ -0,0 +1,19 @@
++import { describe, it, expect } from 'vitest'
++import { appWidgetUrl } from './appWidgetUrl'
++
++const OPTS = { host: 'nas.local', origin: 'http://nas.local', theme: 'dark', lang: 'zh_cn' }
++
++describe('appWidgetUrl', () => {
++  it('拼 scheme/host/port/path + theme/lang/home 参数', () => {
++    const u = appWidgetUrl({ scheme: 'http', port: '8080', widget: { path: '/widget' } }, OPTS)
++    expect(u).toBe('http://nas.local:8080/widget?theme=dark&lang=zh_cn&home=http%3A%2F%2Fnas.local')
++  })
++  it('hostname 覆盖 host;path 已带 query 用 & 续接;无斜杠 path 补斜杠', () => {
++    const u = appWidgetUrl({ hostname: '10.0.0.9', port: 81, widget: { path: 'w?x=1' } }, OPTS)
++    expect(u).toBe('http://10.0.0.9:81/w?x=1&theme=dark&lang=zh_cn&home=http%3A%2F%2Fnas.local')
++  })
++  it('无 widget.path 或无 port 返回 null', () => {
++    expect(appWidgetUrl({ port: '80', widget: undefined }, OPTS)).toBeNull()
++    expect(appWidgetUrl({ widget: { path: '/w' } }, OPTS)).toBeNull()
++  })
++})
+diff --git a/src/home/util/appWidgetUrl.ts b/src/home/util/appWidgetUrl.ts
+new file mode 100644
+index 0000000..ea14316
+--- /dev/null
++++ b/src/home/util/appWidgetUrl.ts
+@@ -0,0 +1,19 @@
++export interface AppWidgetTarget {
++  scheme?: string
++  hostname?: string
++  port?: string | number
++  widget?: { path?: string }
++}
++
++export interface AppWidgetUrlOpts { host: string; origin: string; theme: string; lang: string }
++
++// iframe 小组件 URL(spec §5.3):应用自己伺服 widget 页,桌面附 theme/lang/home 三参
++export function appWidgetUrl(a: AppWidgetTarget, opts: AppWidgetUrlOpts): string | null {
++  const path = a.widget?.path
++  if (!path || !a.port) return null
++  const scheme = a.scheme || 'http'
++  const host = a.hostname || opts.host
++  const p = path.startsWith('/') ? path : '/' + path
++  const q = `theme=${encodeURIComponent(opts.theme)}&lang=${encodeURIComponent(opts.lang)}&home=${encodeURIComponent(opts.origin)}`
++  return `${scheme}://${host}:${a.port}${p}${p.includes('?') ? '&' : '?'}${q}`
++}
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index e6df95d..0dcde7d 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -258,20 +258,24 @@ export const messages = {
+     addPanelDisks: 'Disks',
+     addPanelNoSubfolders: 'No subfolders',
+     addPanelNoPhotos: 'No photos',
+     addPanelReset: 'Reset to default layout',
+     addPanelFull: 'This screen is full — remove something first',
+     addPanelWidgetExists: 'This widget is already on the home screen',
+     addPanelNoRoom: 'It won’t fit there',
+     addPanelAddedToast: 'Added: {key}',
+     addPanelRemovedToast: 'Removed',
+     addPanelResetToast: 'Reset to default layout',
++    appWidgetUnavailable: 'Unreachable',
++    appWidgetRetry: 'Retry',
++    appWidgetNotRunning: 'App not running',
++    addPanelAppWidgetDesc: 'Widget from app',
+     // ── Home: drag / resize ──
+     dragResized: 'Resized to {w}×{h}',
+     dragNoRoom: 'Not enough space',
+     dragPlaced: 'Placed — nearby widgets moved aside',
+     dragCantFit: 'This screen is full — returned to place',
+     // ── Home: grid item ──
+     gridRemove: 'Remove',
+     gridResize: 'Resize',
+     gridCanvas: 'Home canvas',
+     // ── Home: open action ──
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index b04b8d5..28f5eb5 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -257,20 +257,24 @@ export const messages = {
+     addPanelDisks: '磁盘',
+     addPanelNoSubfolders: '暂无子文件夹',
+     addPanelNoPhotos: '暂无照片',
+     addPanelReset: '恢复默认布局',
+     addPanelFull: '这一屏放满了,先移除点东西',
+     addPanelWidgetExists: '该组件已在主页',
+     addPanelNoRoom: '那儿放不下',
+     addPanelAddedToast: '已添加:{key}',
+     addPanelRemovedToast: '已移除',
+     addPanelResetToast: '已恢复默认布局',
++    appWidgetUnavailable: '无法连接',
++    appWidgetRetry: '重试',
++    appWidgetNotRunning: '应用未运行',
++    addPanelAppWidgetDesc: '来自应用的小组件',
+     // ── 主页:拖拽/缩放 ──
+     dragResized: '已调整为 {w}×{h}',
+     dragNoRoom: '空间不够,放不下',
+     dragPlaced: '已放置,旁边组件已让位',
+     dragCantFit: '这一屏实在放不下了,已归位',
+     // ── 主页:网格项 ──
+     gridRemove: '移除',
+     gridResize: '缩放',
+     gridCanvas: '主页画布',
+     // ── 主页:打开动作 ──

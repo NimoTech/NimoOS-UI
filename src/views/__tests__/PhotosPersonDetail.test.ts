@@ -681,7 +681,9 @@ describe('PhotosPersonDetail.vue —— 删除人物', () => {
     await w.vm.$nextTick()
 
     expect(showSpy).toHaveBeenCalledTimes(1)
-    const [text, duration, action] = showSpy.mock.calls[0]
+    const [text, duration, arg] = showSpy.mock.calls[0]
+    // SP8-P6-T3 合流:show() 第三参现为判别联合(字符串=tier / 对象=action),按 typeof 收窄回 action。
+    const action = typeof arg === 'string' ? undefined : arg
     expect(text).toContain('妈妈')
     expect(duration).toBe(5000)
     expect(action).toBeTruthy()

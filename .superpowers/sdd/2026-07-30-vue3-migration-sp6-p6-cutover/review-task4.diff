@@ -1,0 +1,132 @@
+# Review package: d489c5f..c8bac32
+
+## Commits
+c8bac32 feat(storage): 存储磁贴补回退 flag strangler:disabled:/storage(SP6-P6)
+
+## Files changed
+ src/home/composables/useOpenAction.test.ts | 23 +++++++++++++++++++++++
+ src/home/composables/useOpenAction.ts      | 16 ++++++++--------
+ 2 files changed, 31 insertions(+), 8 deletions(-)
+
+## Diff
+diff --git a/src/home/composables/useOpenAction.test.ts b/src/home/composables/useOpenAction.test.ts
+index 0b28402..6f50e5b 100644
+--- a/src/home/composables/useOpenAction.test.ts
++++ b/src/home/composables/useOpenAction.test.ts
+@@ -9,20 +9,21 @@ import type { LayoutItem } from '../grid/types'
+ vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
+ import { router } from '../../router'
+ 
+ let hrefs: string[]
+ let opens: string[]
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   __resetStartAppForTest()
+   hrefs = []; opens = []
+   localStorage.removeItem('strangler:disabled:/apps')
++  localStorage.removeItem('strangler:disabled:/storage')
+   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
+   vi.mocked(router.push).mockClear()
+ })
+ 
+ describe('useOpenAction.openApp', () => {
+   it('system app files 应用内 router.push,不整页跳', () => {
+     const { openApp } = useOpenAction()
+     openApp('files')
+     expect(router.push).toHaveBeenCalledWith('/files')
+@@ -40,20 +41,42 @@ describe('useOpenAction.openApp', () => {
+     expect(hrefs.length).toBe(0)
+   })
+   it('回退 flag strangler:disabled:/apps==1 时 appstore 退回 /#/legacy', () => {
+     localStorage.setItem('strangler:disabled:/apps', '1')
+     const { openApp } = useOpenAction()
+     openApp('appstore')
+     expect(hrefs[0]).toBe('/#/legacy')
+     expect(router.push).not.toHaveBeenCalled()
+     localStorage.removeItem('strangler:disabled:/apps')
+   })
++  it('storage 磁贴应用内 router.push /storage(SP6-P6 cutover)', () => {
++    const { openApp } = useOpenAction()
++    openApp('storage')
++    expect(router.push).toHaveBeenCalledWith('/storage')
++    expect(hrefs.length).toBe(0)
++  })
++  it('回退 flag strangler:disabled:/storage==1 时 storage 退回 /#/legacy', () => {
++    localStorage.setItem('strangler:disabled:/storage', '1')
++    const { openApp } = useOpenAction()
++    openApp('storage')
++    expect(hrefs[0]).toBe('/#/legacy')
++    expect(router.push).not.toHaveBeenCalled()
++    localStorage.removeItem('strangler:disabled:/storage')
++  })
++  it('storage 与 apps 两把 flag 互不干扰', () => {
++    localStorage.setItem('strangler:disabled:/apps', '1')
++    const { openApp } = useOpenAction()
++    openApp('storage')
++    expect(router.push).toHaveBeenCalledWith('/storage')
++    expect(hrefs.length).toBe(0)
++    localStorage.removeItem('strangler:disabled:/apps')
++  })
+   it('running container app opens scheme://host:port/index', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jf', status: 'running', scheme: 'http', port: 8096, index: '/web' }] as never)
+     const { openApp } = useOpenAction()
+     openApp('jf'); expect(opens[0]).toBe('http://host:8096/web')
+   })
+   it('stopped container app opens the start prompt instead of a URL', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jf', status: 'exited', port: 8096 }] as never)
+     const { openApp } = useOpenAction()
+diff --git a/src/home/composables/useOpenAction.ts b/src/home/composables/useOpenAction.ts
+index e90ffe2..afbaab0 100644
+--- a/src/home/composables/useOpenAction.ts
++++ b/src/home/composables/useOpenAction.ts
+@@ -4,39 +4,39 @@ import { useStartApp, appUrl } from './useStartApp'
+ import { router } from '../../router'
+ 
+ // 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)与存储区(/storage,SP6-P1)已活在本应用;
+ // 其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+ // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
+ const SYS_ROUTE: Record<string, string> = {
+   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
+   settings: '/#/legacy',
+ }
+ 
+-// SP5-P8 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
+-// == '1' 时磁贴退回 Vue2 /#/legacy 老弹窗,可逆 cutover。
+-function appsCutoverDisabled(): boolean {
+-  try { return localStorage.getItem('strangler:disabled:/apps') === '1' } catch { return false }
++// 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
++// == '1' 时磁贴退回 Vue2 /#/legacy 老桌面,可逆 cutover。
++// /apps = SP5-P8;/storage = SP6-P6(Vue2 桌面那三个存储入口共用同一把键,
++// 同源共享 localStorage,所以置一次即两侧同时回退)。
++function cutoverDisabled(from: string): boolean {
++  try { return localStorage.getItem(`strangler:disabled:${from}`) === '1' } catch { return false }
+ }
+ 
+ export function useOpenAction() {
+   const apps = useAppsStore()
+   const startApp = useStartApp()
+ 
+   function openApp(key: string) {
+     const a = apps.app(key)
+     if (!a) return
+     if (a.system) {
+       if (key === 'files') { router.push('/files'); return }
+-      if (key === 'appstore' && !appsCutoverDisabled()) { router.push('/apps/store'); return }
+-      // SP6-P1:存储区磁贴直接进应用内 /storage。注意此处尚无 strangler 回退 flag
+-      // (应用区有 strangler:disabled:/apps),SP6-P6 cutover 时补齐。
+-      if (key === 'storage') { router.push('/storage'); return }
++      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
++      if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
+       window.location.href = SYS_ROUTE[key] || '/#/legacy'
+       return
+     }
+     if (a.app_type === 'LinkApp') { if (a.hostname) window.open(a.hostname, '_blank', 'noopener'); return }
+     const url = appUrl(a)
+     if (a.status === 'running') {
+       if (url) window.open(url, '_blank', 'noopener')
+     } else if (a.status) {
+       // 未运行(exited/dead/unknown…):不开网页,弹"是否启动"确认框(StartAppDialog)。
+       // status 缺省的非容器来源维持无动作(与灰显判定同一约定)。

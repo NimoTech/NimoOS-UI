@@ -1,0 +1,124 @@
+<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/McpPermissionCard.vue -->
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import AgentIcon from '../icons/AgentIcon.vue'
+import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
+
+const props = withDefaults(
+  defineProps<{ confirmId?: string; server?: string; tool?: string; rememberScope?: string }>(),
+  { confirmId: '', server: '', tool: '', rememberScope: 'tool' },
+)
+const { t } = useI18n()
+const store = useProvidedAgentStore()
+
+const decision = ref<'allow' | 'always' | 'deny' | null>(null)
+const submitting = ref(false)
+const error = ref('')
+
+async function resolve(confirmed: boolean, remember: boolean) {
+  if (!props.confirmId) { error.value = t('aiConfirmInvalid'); return }
+  if (submitting.value) return
+  submitting.value = true
+  error.value = ''
+  try {
+    await store.confirmAgentAction(props.confirmId, confirmed, remember)
+    decision.value = !confirmed ? 'deny' : (remember ? 'always' : 'allow')
+  } catch (e: any) {
+    const status = e && e.response && e.response.status
+    if (status === 409) error.value = t('aiConfirmExpired')
+    else error.value = t('aiSubmitFailed', { detail: (e && e.message) || t('aiUnknownError') })
+  } finally {
+    submitting.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="mcc-perm">
+    <div v-if="decision" class="mcc-perm-resolved" :data-decision="decision">
+      <span class="rico"><AgentIcon :name="decision === 'deny' ? 'x' : 'check'" :size="13" /></span>
+      <span v-if="decision === 'allow'">{{ t('aiMcpAllowedOnce', { tool }) }}</span>
+      <span v-else-if="decision === 'always'">{{ t('aiMcpAlwaysAllowTool', { tool }) }}</span>
+      <span v-else>{{ t('aiMcpDeniedTool', { tool }) }}</span>
+      <button class="undo" @click="decision = null">{{ t('aiChange') }}</button>
+    </div>
+    <template v-else>
+      <div class="mcc-perm-ribbon">
+        <AgentIcon name="bell" :size="12" />
+        {{ t('aiMcpFirstPermission') }}
+        <span class="badge">MCP</span>
+      </div>
+      <div class="mcc-perm-ask">
+        {{ t('aiMcpCallAsk', { tool, server }) }}
+        {{ t('aiMcpFirstUse') }}
+      </div>
+      <div class="mcc-perm-foot">
+        <button class="mcc-btn primary mcc-allow-once" :disabled="submitting" @click="resolve(true, false)">
+          <AgentIcon name="check" :size="13" /> {{ t('aiAllowOnce') }}
+        </button>
+        <button class="mcc-btn ghost mcc-allow-always" :disabled="submitting" @click="resolve(true, true)">
+          {{ t('aiAlwaysAllowTool') }}
+        </button>
+        <button class="mcc-btn deny mcc-deny" :disabled="submitting" @click="resolve(false, false)">
+          {{ t('aiDeny') }}
+        </button>
+        <span v-if="error" class="mcc-err">{{ error }}</span>
+      </div>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.mcc-perm {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--bg-elevated); box-shadow: var(--shadow-sm);
+  overflow: hidden; max-width: 560px; margin: 2px 0;
+}
+.mcc-perm-ribbon {
+  display: flex; align-items: center; gap: 7px; padding: 7px 14px;
+  font-size: 11px; font-weight: 600; color: var(--purple);
+  background: var(--purple-soft); border-bottom: 1px solid var(--purple-soft-border);
+}
+.mcc-perm-ribbon .badge {
+  margin-left: auto; font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--purple-soft-border); color: var(--purple); text-transform: uppercase;
+}
+.mcc-perm-ask {
+  padding: 12px 16px; font-size: 13.5px; line-height: 1.55; color: var(--text-secondary);
+}
+.mcc-perm-foot {
+  display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+  border-top: 1px solid var(--line-faint); background: var(--bg-canvas); flex-wrap: wrap;
+}
+.mcc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500;
+  border: 0; cursor: pointer; transition: all 120ms ease; white-space: nowrap;
+}
+.mcc-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+.mcc-btn.primary { background: var(--purple); color: var(--text-on-accent); }
+.mcc-btn.primary:hover { filter: brightness(1.06); }
+.mcc-btn.ghost { background: var(--bg-chip); color: var(--text-secondary); }
+.mcc-btn.ghost:hover { background: var(--line); color: var(--text-primary); }
+.mcc-btn.deny { background: transparent; color: var(--text-tertiary); margin-left: auto; }
+.mcc-btn.deny:hover { color: var(--danger); background: var(--danger-soft); }
+.mcc-err { font-size: 12px; color: var(--danger); width: 100%; }
+.mcc-perm-resolved {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  font-size: 13px; color: var(--text-secondary); background: var(--bg-canvas);
+}
+.mcc-perm-resolved .rico {
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.mcc-perm-resolved[data-decision="allow"] .rico,
+.mcc-perm-resolved[data-decision="always"] .rico { background: var(--success-soft); color: var(--success); }
+.mcc-perm-resolved[data-decision="deny"] .rico { background: var(--danger-soft); color: var(--danger); }
+.mcc-perm-resolved .undo {
+  margin-left: auto; font-size: 12px; font-weight: 500; color: var(--purple);
+  padding: 4px 8px; border-radius: 6px; border: 0; background: transparent; cursor: pointer;
+}
+.mcc-perm-resolved .undo:hover { background: var(--purple-soft); }
+</style>

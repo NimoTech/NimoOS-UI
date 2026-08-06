@@ -1,0 +1,107 @@
+# Review package: c75d89b..HEAD
+
+## Commits
+4771ecf feat(drop): /files/drop 路由 + 侧栏互传入口
+
+## Files changed
+ src/files/components/FilesSidebar.vue | 6 ++++++
+ src/router/index.ts                   | 2 ++
+ 2 files changed, 8 insertions(+)
+
+## Diff
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index 7ddc215..d316665 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -3,34 +3,36 @@ import { computed, ref } from 'vue'
+ import { useRouter, useRoute } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useFilesStore } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useMountsStore } from '../stores/mounts'
+ import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+ import { buildAuthUrl } from '../util/cloudAuth'
++import { dropAsset } from '../drop/dropIcons'
+ import type { CloudDriver } from '@nimotech/nimoos-service'
+ import AddMountMenu from './AddMountMenu.vue'
+ import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+ const router = useRouter()
+ const route = useRoute()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const mounts = useMountsStore()
+ const dialogOpen = ref(false)
+ const gdriveOpen = ref(false)
+ const { t } = useI18n()
++const dropNavIcon = dropAsset('drop_icon')
+ 
+ function go(realPath: string) {
+   emit('navigate', toVirtualPath(realPath, files.displayNames))
+ }
+ function isActive(realPath: string): boolean {
+   return files.currentPath === realPath
+ }
+ function diskIcon(usb: boolean): string {
+   return iconUrl(usb ? 'folder-usb' : 'folder-hdd')
+ }
+@@ -108,20 +110,24 @@ function onDiskDrop(i: number) {
+     <div class="side-head">
+       <span class="side-head-title">{{ t('filesMountManage') }}</span>
+       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
+     </div>
+     <section class="side-section">
+       <ul class="side-list">
+         <li class="side-item" :class="{ active: route.name === 'files-shares' }" @click="router.push('/files/shares')">
+           <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+           <span class="side-name">{{ t('filesSharesNav') }}</span>
+         </li>
++        <li class="side-item" :class="{ active: route.name === 'files-drop' }" @click="router.push('/files/drop')">
++          <img class="side-icon" :src="dropNavIcon" alt="" />
++          <span class="side-name">{{ t('filesDropNav') }}</span>
++        </li>
+       </ul>
+     </section>
+     <section class="side-section">
+       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
+       <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>
+       <ul class="side-list">
+         <li
+           v-for="(fav, i) in favorites.list"
+           :key="fav.path"
+           class="side-item"
+diff --git a/src/router/index.ts b/src/router/index.ts
+index 7142acb..fbb642f 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -1,23 +1,25 @@
+ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
++import DropPage from '../files/drop/components/DropPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
++  { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 

@@ -1,0 +1,222 @@
+# Review package: 7c585db..ed740c7
+
+## Commits
+ed740c7 feat(home/p4c): mouse-parallax bokeh field
+
+## Files changed
+ src/home/composables/useParallax.test.ts | 95 ++++++++++++++++++++++++++++++++
+ src/home/composables/useParallax.ts      | 42 ++++++++++++++
+ src/views/Home.vue                       |  8 ++-
+ 3 files changed, 144 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/home/composables/useParallax.test.ts b/src/home/composables/useParallax.test.ts
+new file mode 100644
+index 0000000..6c619bd
+--- /dev/null
++++ b/src/home/composables/useParallax.test.ts
+@@ -0,0 +1,95 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++
++// Stub rAF to execute synchronously so tests are deterministic
++const rafStub = (cb: FrameRequestCallback): number => { cb(0); return 0 }
++const cafStub = (_id: number): void => {}
++
++describe('useParallax', () => {
++  beforeEach(() => {
++    // Reset CSS vars
++    document.documentElement.style.removeProperty('--mx')
++    document.documentElement.style.removeProperty('--my')
++
++    // Stub rAF/cAF globally — synchronous execution
++    vi.stubGlobal('requestAnimationFrame', rafStub)
++    vi.stubGlobal('cancelAnimationFrame', cafStub)
++
++    // Default: reduced-motion OFF
++    vi.stubGlobal('matchMedia', (query: string) => ({
++      matches: false,
++      media: query,
++      onchange: null,
++      addListener: () => {},
++      removeListener: () => {},
++      addEventListener: () => {},
++      removeEventListener: () => {},
++      dispatchEvent: () => false,
++    }))
++
++    // Known viewport
++    vi.stubGlobal('innerWidth', 1000)
++    vi.stubGlobal('innerHeight', 800)
++  })
++
++  afterEach(() => {
++    vi.unstubAllGlobals()
++  })
++
++  it('Test A: sets --mx and --my on pointermove after rAF flush', async () => {
++    const { useParallax } = await import('./useParallax')
++    const { stop } = useParallax()
++
++    // clientX=750 → mx = 750/1000 - 0.5 = 0.25
++    // clientY=600 → my = 600/800  - 0.5 = 0.25
++    const evt = new MouseEvent('pointermove', { clientX: 750, clientY: 600, bubbles: true })
++    window.dispatchEvent(evt)
++
++    expect(document.documentElement.style.getPropertyValue('--mx')).toBe('0.25')
++    expect(document.documentElement.style.getPropertyValue('--my')).toBe('0.25')
++
++    stop()
++  })
++
++  it('Test B: reduced-motion=true → no-op, --mx stays unset', async () => {
++    vi.stubGlobal('matchMedia', (query: string) => ({
++      matches: query === '(prefers-reduced-motion: reduce)',
++      media: query,
++      onchange: null,
++      addListener: () => {},
++      removeListener: () => {},
++      addEventListener: () => {},
++      removeEventListener: () => {},
++      dispatchEvent: () => false,
++    }))
++
++    const { useParallax } = await import('./useParallax')
++    const { stop } = useParallax()
++
++    const evt = new MouseEvent('pointermove', { clientX: 750, clientY: 600, bubbles: true })
++    window.dispatchEvent(evt)
++
++    expect(document.documentElement.style.getPropertyValue('--mx')).toBe('')
++    expect(document.documentElement.style.getPropertyValue('--my')).toBe('')
++
++    stop()
++  })
++
++  it('Test C: after stop(), subsequent pointermove does not update --mx', async () => {
++    const { useParallax } = await import('./useParallax')
++    const { stop } = useParallax()
++
++    // First move to establish a value
++    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 500, clientY: 400, bubbles: true }))
++    expect(document.documentElement.style.getPropertyValue('--mx')).toBe('0')
++
++    stop()
++
++    // Reset so we can detect any change
++    document.documentElement.style.setProperty('--mx', 'sentinel')
++
++    // Move after stop — should not update
++    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 750, clientY: 600, bubbles: true }))
++
++    expect(document.documentElement.style.getPropertyValue('--mx')).toBe('sentinel')
++  })
++})
+diff --git a/src/home/composables/useParallax.ts b/src/home/composables/useParallax.ts
+new file mode 100644
+index 0000000..dbef9cc
+--- /dev/null
++++ b/src/home/composables/useParallax.ts
+@@ -0,0 +1,42 @@
++/**
++ * useParallax — sets --mx/--my CSS custom properties on document.documentElement
++ * on pointermove, throttled via requestAnimationFrame.
++ * Values are normalised to −0.5..0.5 (0 = centre of viewport).
++ * No-op when prefers-reduced-motion: reduce is active.
++ * Returns a stop() function that removes the listener and cancels pending rAF.
++ */
++export function useParallax(): { stop: () => void } {
++  // Guard: reduced-motion check
++  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) {
++    return { stop: () => {} }
++  }
++
++  let rafId: number | null = null
++  let pendingX = 0
++  let pendingY = 0
++
++  function onPointerMove(e: MouseEvent): void {
++    pendingX = e.clientX / window.innerWidth - 0.5
++    pendingY = e.clientY / window.innerHeight - 0.5
++
++    if (rafId !== null) return // already scheduled, coalesce
++
++    rafId = requestAnimationFrame(() => {
++      rafId = null
++      document.documentElement.style.setProperty('--mx', String(pendingX))
++      document.documentElement.style.setProperty('--my', String(pendingY))
++    })
++  }
++
++  window.addEventListener('pointermove', onPointerMove as EventListener)
++
++  function stop(): void {
++    window.removeEventListener('pointermove', onPointerMove as EventListener)
++    if (rafId !== null) {
++      cancelAnimationFrame(rafId)
++      rafId = null
++    }
++  }
++
++  return { stop }
++}
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+index 6d277b1..7dd4750 100644
+--- a/src/views/Home.vue
++++ b/src/views/Home.vue
+@@ -18,49 +18,55 @@ import AddPanel from '../home/components/AddPanel.vue'
+ import { useLayoutStore } from '../home/stores/layout'
+ import { useAppsStore } from '../home/stores/apps'
+ import { usePhotosStore } from '../home/stores/photos'
+ import { useHomeUiStore } from '../home/stores/homeUi'
+ import { useGridMeasure } from '../home/composables/useGridMeasure'
+ import { useLiveStats } from '../home/composables/useLiveStats'
+ import { useEvents } from '../home/composables/useEvents'
+ import { reconcileGpu } from '../home/composables/reconcileGpu'
+ import { useAddPanel } from '../home/composables/useAddPanel'
+ import { useDock } from '../home/composables/useDock'
++import { useParallax } from '../home/composables/useParallax'
+ 
+ const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
+ const dock = ref<InstanceType<typeof HomeDock> | null>(null)
+ const gridEl = ref<HTMLElement | null>(null)
+ const layout = useLayoutStore()
+ const apps = useAppsStore()
+ const photos = usePhotosStore()
+ const homeUi = useHomeUiStore()
+ const live = useLiveStats()
+ const addPanel = useAddPanel({ cols: 12, rows: 8 })
+ useEvents()
+ 
+ // dockEl points to HomeDock root element for useGridMeasure to read dockTop
+ const dockEl = computed(() => dock.value?.root ?? null)
+ 
+ const { cols, rows, cell, gap, relayout } = useGridMeasure(gridEl, dockEl)
+ watch(() => live.gpu, () => reconcileGpu(layout, live))
+ 
+ let onResize: (() => void) | null = null
++let stopParallax: (() => void) | null = null
+ 
+ onMounted(async () => {
+   layout.loadInitial()
+   await nextTick()
+   gridEl.value = canvas.value?.gridEl ?? null
+   relayout()
+   layout.loadServer().then(() => relayout()).catch(() => {})
+   onResize = () => relayout()
+   window.addEventListener('resize', onResize)
++  stopParallax = useParallax().stop
+ 
+   apps.loadGrid().then(() => useDock().refresh()).catch((e) => console.warn('[home] appgrid', e))
+   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
+ })
+ 
+-onUnmounted(() => { if (onResize) window.removeEventListener('resize', onResize) })
++onUnmounted(() => {
++  if (onResize) window.removeEventListener('resize', onResize)
++  if (stopParallax) stopParallax()
++})
+ </script>
+ 
+ <style scoped>
+ .home-screen { min-height: 100vh; padding: 24px 24px 12px; box-sizing: border-box; }
+ </style>

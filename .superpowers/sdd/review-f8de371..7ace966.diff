@@ -1,0 +1,1646 @@
+# Review package: f8de371..HEAD
+
+## Commits
+7ace966 fix(apps-console): load() 加序号守卫防快速切换竞态(旧响应覆盖/误弹回)
+29b3e84 feat(apps-console): /apps/:name/console 双 tab 页 + 多服务选择器 + 卡片菜单入口
+591d632 feat(apps-console): 日志面板(5s 轮询+手动刷新+贴底滚动;纯文本渲染修 Vue2 v-html 隐患)
+0b52b12 feat(apps-console): TerminalPane(xterm 三件新依赖,断线手动重连,全屏)
+3fcd252 fix(apps-console): close() 取消进行中的 connect(代际守卫,防卸载后连接复活)
+7b76d3f feat(apps-console): 终端 WS 连接纯模块(连前预刷新/无自动重连);token 过期判定提升为全局 util
+8b671b2 feat(apps-settings): command 输入格式引导 + 多网络下拉只读防护
+47766f6 fix(apps-settings): string command 保守写回 + 多网络服务写回刹车(P5 挂账两决策)
+
+## Files changed
+ package.json                                       |   3 +
+ pnpm-lock.yaml                                     |  32 ++++
+ src/apps/components/InstalledAppCard.test.ts       |   9 ++
+ src/apps/components/InstalledAppCard.vue           |   2 +
+ .../settings/ComposeSettingsForm.test.ts           |  21 +++
+ .../components/settings/ComposeSettingsForm.vue    |  10 +-
+ src/apps/console/LogsPane.test.ts                  |  53 +++++++
+ src/apps/console/LogsPane.vue                      |  37 +++++
+ src/apps/console/TerminalPane.test.ts              |  57 +++++++
+ src/apps/console/TerminalPane.vue                  |  79 ++++++++++
+ src/apps/console/terminalSocket.test.ts            |  82 ++++++++++
+ src/apps/console/terminalSocket.ts                 |  60 ++++++++
+ src/apps/console/useAppLogs.test.ts                |  36 +++++
+ src/apps/console/useAppLogs.ts                     |  36 +++++
+ src/apps/util/composeSettings.test.ts              |  50 ++++++
+ src/apps/util/composeSettings.ts                   |  22 ++-
+ src/apps/views/AppConsolePage.test.ts              | 167 +++++++++++++++++++++
+ src/apps/views/AppConsolePage.vue                  | 139 +++++++++++++++++
+ src/apps/views/InstalledAppsPage.vue               |   1 +
+ src/files/util/download.ts                         |   9 +-
+ src/i18n/en_us.ts                                  |  14 ++
+ src/i18n/zh_cn.ts                                  |  14 ++
+ src/router/index.ts                                |   2 +
+ src/styles/theme.css                               |   8 +
+ src/util/tokenExpiry.ts                            |  11 ++
+ vitest.setup.ts                                    |   8 +
+ 26 files changed, 944 insertions(+), 18 deletions(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index 053d73a..2199ce2 100644
+--- a/package.json
++++ b/package.json
+@@ -24,20 +24,23 @@
+     "@codemirror/lang-xml": "^6.1.0",
+     "@codemirror/lang-yaml": "^6.1.3",
+     "@codemirror/language": "^6.12.4",
+     "@codemirror/state": "^6.7.1",
+     "@codemirror/view": "^6.43.5",
+     "@nimotech/nimoos-service": "file:../NimoOS-Service",
+     "@types/markdown-it": "^14.1.2",
+     "@uiw/codemirror-theme-monokai": "^4.25.10",
+     "@vue-office/docx": "^1.6.0",
+     "@vue-office/excel": "^1.6.0",
++    "@xterm/addon-attach": "^0.11.0",
++    "@xterm/addon-fit": "^0.10.0",
++    "@xterm/xterm": "^5.5.0",
+     "aplayer": "^1.10.1",
+     "artplayer": "^5.4.0",
+     "axios": "^1.7",
+     "codemirror": "^6.0.2",
+     "composerize": "^1.7.6",
+     "lottie-web": "^5.13.0",
+     "markdown-it": "^14.3.0",
+     "music-metadata-browser": "^2.5.11",
+     "pdfjs-dist": "^6.1.200",
+     "pinia": "^2.1",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 01d6bd3..263f609 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -64,20 +64,29 @@ importers:
+         version: 14.1.2
+       '@uiw/codemirror-theme-monokai':
+         specifier: ^4.25.10
+         version: 4.25.10(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.5)
+       '@vue-office/docx':
+         specifier: ^1.6.0
+         version: 1.6.3(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
+       '@vue-office/excel':
+         specifier: ^1.6.0
+         version: 1.7.14(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
++      '@xterm/addon-attach':
++        specifier: ^0.11.0
++        version: 0.11.0(@xterm/xterm@5.5.0)
++      '@xterm/addon-fit':
++        specifier: ^0.10.0
++        version: 0.10.0(@xterm/xterm@5.5.0)
++      '@xterm/xterm':
++        specifier: ^5.5.0
++        version: 5.5.0
+       aplayer:
+         specifier: ^1.10.1
+         version: 1.10.1
+       artplayer:
+         specifier: ^5.4.0
+         version: 5.4.0
+       axios:
+         specifier: ^1.7
+         version: 1.18.1
+       codemirror:
+@@ -873,20 +882,33 @@ packages:
+       vue: ^3.5.0
+ 
+   '@vueuse/metadata@14.3.0':
+     resolution: {integrity: sha512-BwxmbAzwAVF50+MW57GXOUEV61nFBGnlBvrTqj49PqWJu3uw7hdu72ztXeZ33RdZtDY6kO+bfCAE1PCn88Tktw==}
+ 
+   '@vueuse/shared@14.3.0':
+     resolution: {integrity: sha512-bZpge9eSXwa4ToSiqJ7j6KRwhAsneMFoSz3LMWKQDkqimm3D/tbFlrklrs/IOqC8tEcYmXQZJ6N0UrjhBirVCg==}
+     peerDependencies:
+       vue: ^3.5.0
+ 
++  '@xterm/addon-attach@0.11.0':
++    resolution: {integrity: sha512-JboCN0QAY6ZLY/SSB/Zl2cQ5zW1Eh4X3fH7BnuR1NB7xGRhzbqU2Npmpiw/3zFlxDaU88vtKzok44JKi2L2V2Q==}
++    peerDependencies:
++      '@xterm/xterm': ^5.0.0
++
++  '@xterm/addon-fit@0.10.0':
++    resolution: {integrity: sha512-UFYkDm4HUahf2lnEyHvio51TNGiLK66mqP2JoATy7hRZeXaGMRDr00JiSF7m63vR5WKATF605yEggJKsw0JpMQ==}
++    peerDependencies:
++      '@xterm/xterm': ^5.0.0
++
++  '@xterm/xterm@5.5.0':
++    resolution: {integrity: sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==}
++
+   abbrev@2.0.0:
+     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
+     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+ 
+   abort-controller@3.0.0:
+     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
+     engines: {node: '>=6.5'}
+ 
+   after@0.8.2:
+     resolution: {integrity: sha512-QbJ0NTQ/I9DI3uSJA4cbexiwQeRAfjPScqIbSjUDd9TOrcg6pTkdgziesOqxBMBzit8vFCTwrP27t13vFOORRA==}
+@@ -2668,20 +2690,30 @@ snapshots:
+       '@vueuse/metadata': 14.3.0
+       '@vueuse/shared': 14.3.0(vue@3.5.39(typescript@5.9.3))
+       vue: 3.5.39(typescript@5.9.3)
+ 
+   '@vueuse/metadata@14.3.0': {}
+ 
+   '@vueuse/shared@14.3.0(vue@3.5.39(typescript@5.9.3))':
+     dependencies:
+       vue: 3.5.39(typescript@5.9.3)
+ 
++  '@xterm/addon-attach@0.11.0(@xterm/xterm@5.5.0)':
++    dependencies:
++      '@xterm/xterm': 5.5.0
++
++  '@xterm/addon-fit@0.10.0(@xterm/xterm@5.5.0)':
++    dependencies:
++      '@xterm/xterm': 5.5.0
++
++  '@xterm/xterm@5.5.0': {}
++
+   abbrev@2.0.0: {}
+ 
+   abort-controller@3.0.0:
+     dependencies:
+       event-target-shim: 5.0.1
+ 
+   after@0.8.2: {}
+ 
+   agent-base@6.0.2:
+     dependencies:
+diff --git a/src/apps/components/InstalledAppCard.test.ts b/src/apps/components/InstalledAppCard.test.ts
+index dd3efd7..8710fa9 100644
+--- a/src/apps/components/InstalledAppCard.test.ts
++++ b/src/apps/components/InstalledAppCard.test.ts
+@@ -65,20 +65,29 @@ describe('InstalledAppCard', () => {
+ 
+   it('menu has settings item that emits settings', async () => {
+     const w = mountCard()
+     const items = w.get('.menu').findAll('div')
+     const settingsItem = items.find((it) => it.text() === '设置')
+     expect(settingsItem).toBeTruthy()
+     await settingsItem!.trigger('click')
+     expect(w.emitted('settings')).toHaveLength(1)
+   })
+ 
++  it('⋮ 菜单含「终端与日志」,点击 emit console', async () => {
++    const w = mountCard()
++    const items = w.get('.menu').findAll('div')
++    const consoleItem = items.find((it) => it.text() === '终端与日志')
++    expect(consoleItem).toBeTruthy()
++    await consoleItem!.trigger('click')
++    expect(w.emitted('console')).toHaveLength(1)
++  })
++
+   it('pending:卡片处理中态,主按钮禁用', () => {
+     const w = mountCard({}, 'restart')
+     expect(w.text()).toContain('处理中')
+     expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
+   })
+ 
+   it('状态标签映射:running=运行中,exited=已停止,unknown=未知', () => {
+     expect(mountCard().text()).toContain('运行中')
+     expect(mountCard({ status: 'exited' }).text()).toContain('已停止')
+     expect(mountCard({ status: 'unknown' }).text()).toContain('未知')
+diff --git a/src/apps/components/InstalledAppCard.vue b/src/apps/components/InstalledAppCard.vue
+index 1cb54da..0eacde8 100644
+--- a/src/apps/components/InstalledAppCard.vue
++++ b/src/apps/components/InstalledAppCard.vue
+@@ -3,20 +3,21 @@ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { DropdownMenuItem, DropdownMenuSeparator } from 'reka-ui'
+ import AppActionsMenu from './AppActionsMenu.vue'
+ import type { InstalledApp, AppOp } from '../stores/installedApps'
+ 
+ const props = defineProps<{ app: InstalledApp; pendingOp?: AppOp }>()
+ const emit = defineEmits<{
+   (e: 'open'): void
+   (e: 'action', op: 'start' | 'stop' | 'restart' | 'update'): void
+   (e: 'settings'): void
++  (e: 'console'): void
+   (e: 'uninstall'): void
+ }>()
+ const { t } = useI18n()
+ 
+ const running = computed(() => props.app.status === 'running')
+ const busy = computed(() => !!props.pendingOp)
+ const statusKey = computed(() => {
+   switch (props.app.status) {
+     case 'running': return 'appsStatusRunning'
+     case 'paused': return 'appsStatusPaused'
+@@ -47,20 +48,21 @@ function onPrimary() {
+           <i class="dot" />{{ busy ? t('appsWorking') : t(statusKey) }}
+         </span>
+       </div>
+       <AppActionsMenu :ariaLabel="t('appsMenuAria')">
+         <template #menu>
+           <template v-if="running">
+             <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'stop')">{{ t('appsStop') }}</DropdownMenuItem>
+             <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'restart')">{{ t('appsRestart') }}</DropdownMenuItem>
+           </template>
+           <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('settings')">{{ t('appsSettings') }}</DropdownMenuItem>
++          <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('console')">{{ t('appsConsole') }}</DropdownMenuItem>
+           <DropdownMenuItem v-if="!app.isUncontrolled" class="ui-drop-item" :disabled="busy" @select="emit('action', 'update')">{{ t('appsCheckUpdate') }}</DropdownMenuItem>
+           <DropdownMenuSeparator class="ui-drop-sep" />
+           <DropdownMenuItem class="ui-drop-item danger" :disabled="busy" @select="emit('uninstall')">{{ t('appsUninstall') }}</DropdownMenuItem>
+         </template>
+       </AppActionsMenu>
+     </div>
+     <button class="bar-btn card-primary" type="button" :disabled="primaryDisabled" @click="onPrimary">
+       {{ running ? t('appsOpen') : t('appsStart') }}
+     </button>
+   </div>
+diff --git a/src/apps/components/settings/ComposeSettingsForm.test.ts b/src/apps/components/settings/ComposeSettingsForm.test.ts
+index 6748bea..76edc3e 100644
+--- a/src/apps/components/settings/ComposeSettingsForm.test.ts
++++ b/src/apps/components/settings/ComposeSettingsForm.test.ts
+@@ -83,20 +83,41 @@ describe('ComposeSettingsForm', () => {
+     const select = w.find('[data-test="svc-network"]')
+     expect(select.exists()).toBe(true)
+     const groups = select.findAll('optgroup')
+     expect(groups.length).toBeGreaterThan(0)
+     expect(select.html()).toContain('mynet')
+     expect(select.html()).toContain('vlan1')
+     await select.setValue('host')
+     expect(model.services[0].network).toBe('host')
+     expect(model.services[0].networkDirty).toBe(true)
+   })
++  it('command 区展示格式引导文案,token 输入框有 placeholder', async () => {
++    const { w } = mk()
++    await w.find('[data-test="cmd-add"]').trigger('click')
++    expect(w.text()).toContain('每格填一个参数')
++    const inputs = w.findAll('[data-test="cmd-input"]')
++    expect(inputs[0].attributes('placeholder')).toBeTruthy()
++  })
++  it('多网络服务:网络下拉禁用 + 展示说明', async () => {
++    const model = reactive(parseSettings(YAML2, 'zh_cn'))
++    model.services[0].networksMultiple = true
++    const w = mount(ComposeSettingsForm, { props: { model }, global: { plugins: [i18n] } })
++    const sel = w.find('[data-test="svc-network"]')
++    expect(sel.attributes('disabled')).toBeDefined()
++    expect(w.text()).toContain('多个网络')
++  })
++  it('单网络服务:下拉可用、无多网络说明', () => {
++    const { w } = mk()
++    const sel = w.find('[data-test="svc-network"]')
++    expect(sel.attributes('disabled')).toBeUndefined()
++    expect(w.text()).not.toContain('多个网络')
++  })
+   it('stableTags 有值时 tag 下拉出现,选 stable 改写 image tag;非商店应用(null)不渲染', async () => {
+     const model = reactive(parseSettings(YAML2, 'zh_cn'))
+     const w = mount(ComposeSettingsForm, {
+       props: { model, stableTags: { a: '1.2.3', b: null } },
+       global: { plugins: [i18n] },
+     })
+     const tagSelect = w.find('[data-test="tag-select"]')
+     expect(tagSelect.exists()).toBe(true)
+     expect(tagSelect.html()).toContain('1.2.3')
+     await tagSelect.setValue('stable')
+diff --git a/src/apps/components/settings/ComposeSettingsForm.vue b/src/apps/components/settings/ComposeSettingsForm.vue
+index 4572994..aa14aba 100644
+--- a/src/apps/components/settings/ComposeSettingsForm.vue
++++ b/src/apps/components/settings/ComposeSettingsForm.vue
+@@ -103,31 +103,35 @@ const tagSelect = computed<string>({
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionVolumes') }}</h3>
+       <PairRowsEditor :rows="svc.volumes" :label-a="t('appsSettingsVolHost')" :label-b="t('appsSettingsVolContainer')" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionDevices') }}</h3>
+       <PairRowsEditor :rows="svc.devices" :label-a="t('appsSettingsDevHost')" :label-b="t('appsSettingsDevContainer')" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsCommand') }}</h3>
++      <p class="set-hint">{{ t('appsSettingsCmdHint') }}</p>
+       <div class="pair-editor">
+         <div v-for="(tok, i) in svc.commandTokens" :key="i" class="cmd-row">
+-          <input :value="tok" class="set-input" type="text" data-test="cmd-input" @input="setCmd(i, $event)" />
++          <input :value="tok" class="set-input" type="text" data-test="cmd-input"
++            :placeholder="t('appsSettingsCmdTokenPh')" @input="setCmd(i, $event)" />
+           <button class="row-del" type="button" data-test="cmd-del" :aria-label="t('appsSettingsRemove')" @click="delCmd(i)">✕</button>
+         </div>
+         <button class="row-add" type="button" data-test="cmd-add" @click="addCmd">+ {{ t('appsSettingsAdd') }}</button>
+       </div>
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsNetwork') }}</h3>
+-      <select v-model="svc.network" class="set-input" data-test="svc-network" @change="onNetworkChange">
++      <p v-if="svc.networksMultiple" class="set-hint">{{ t('appsSettingsNetworkMulti') }}</p>
++      <select v-model="svc.network" class="set-input" data-test="svc-network"
++        :disabled="svc.networksMultiple" @change="onNetworkChange">
+         <option value="">—</option>
+         <option value="bridge">bridge</option>
+         <option value="host">host</option>
+         <option value="none">none</option>
+         <optgroup v-for="g in networkGroups" :key="g.driver" :label="g.driver">
+           <option v-for="n in g.nets" :key="n.id" :value="n.name">{{ n.name }}</option>
+         </optgroup>
+       </select>
+     </section>
+ 
+@@ -195,20 +199,22 @@ const tagSelect = computed<string>({
+ .set-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+ .set-check { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 13px !important; color: var(--fg) !important; }
+ 
+ .set-input {
+   width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 13px;
+   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
+ }
+ .set-input:focus { border-color: var(--accent); }
+ .tips-area { resize: vertical; font-family: inherit; }
+ 
++.set-hint { margin: 2px 0 8px; font-size: 12px; color: var(--fg-muted); }
++
+ .pair-editor { display: flex; flex-direction: column; gap: 8px; }
+ .cmd-row { display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: center; }
+ 
+ .image-row { display: flex; gap: 8px; }
+ .image-row .set-input { flex: 1 1 auto; min-width: 0; }
+ .tag-select { flex: 0 0 auto; width: auto; }
+ 
+ .row-add { align-self: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
+ .row-add:hover { background: var(--chip-bg-hi); }
+ .row-add.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-bd); }
+diff --git a/src/apps/console/LogsPane.test.ts b/src/apps/console/LogsPane.test.ts
+new file mode 100644
+index 0000000..3303785
+--- /dev/null
++++ b/src/apps/console/LogsPane.test.ts
+@@ -0,0 +1,53 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++const { logsMock } = vi.hoisted(() => ({ logsMock: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: { logs: logsMock } } }))
++import LogsPane from './LogsPane.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++beforeEach(() => {
++  vi.useFakeTimers()
++  logsMock.mockReset().mockResolvedValue('line1\nline2')
++})
++afterEach(() => vi.useRealTimers())
++
++describe('LogsPane', () => {
++  it('挂载后拉日志展示;卸载停止轮询', async () => {
++    const w = mount(LogsPane, { props: { appId: 'a1' }, global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(logsMock).toHaveBeenCalledWith('a1', { lines: 1000 })
++    expect(w.find('[data-test="logs-pre"]').text()).toBe('line1\nline2')
++    w.unmount()
++    logsMock.mockClear()
++    await vi.advanceTimersByTimeAsync(10000)
++    expect(logsMock).not.toHaveBeenCalled()
++  })
++
++  it('手动刷新按钮触发再拉', async () => {
++    const w = mount(LogsPane, { props: { appId: 'a1' }, global: { plugins: [i18n] } })
++    await flushPromises()
++    logsMock.mockClear()
++    await w.find('[data-test="logs-refresh"]').trigger('click')
++    await flushPromises()
++    expect(logsMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('无日志时显示空态文案', async () => {
++    logsMock.mockResolvedValue('')
++    const w = mount(LogsPane, { props: { appId: 'a1' }, global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(w.find('[data-test="logs-pre"]').text()).toBe('暂无日志')
++  })
++
++  it('日志按纯文本渲染 —— HTML 不被解释(Vue2 v-html 隐患的回归锁)', async () => {
++    logsMock.mockResolvedValue('<img src=x onerror=alert(1)>')
++    const w = mount(LogsPane, { props: { appId: 'a' }, global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(w.find('img').exists()).toBe(false)
++    expect(w.text()).toContain('<img src=x onerror=alert(1)>')
++  })
++})
+diff --git a/src/apps/console/LogsPane.vue b/src/apps/console/LogsPane.vue
+new file mode 100644
+index 0000000..c0b380d
+--- /dev/null
++++ b/src/apps/console/LogsPane.vue
+@@ -0,0 +1,37 @@
++<script setup lang="ts">
++import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { useAppLogs } from './useAppLogs'
++
++const props = defineProps<{ appId: string }>()
++const { t } = useI18n()
++const logs = useAppLogs(() => props.appId)
++const box = ref<HTMLElement | null>(null)
++
++watch(logs.text, () => {
++  const el = box.value
++  if (!el) return
++  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
++  if (atBottom) void nextTick(() => { el.scrollTop = el.scrollHeight })
++})
++onMounted(() => logs.start())
++onBeforeUnmount(() => logs.stop())
++</script>
++
++<template>
++  <div class="logs-wrap">
++    <div class="logs-bar">
++      <span v-if="logs.error.value" class="logs-err">{{ logs.error.value }}</span>
++      <button type="button" class="logs-refresh" data-test="logs-refresh" :disabled="logs.loading.value" @click="logs.refresh()">{{ t('appsConsoleRefresh') }}</button>
++    </div>
++    <pre ref="box" class="logs-pre" data-test="logs-pre">{{ logs.text.value || t('appsConsoleLogsEmpty') }}</pre>
++  </div>
++</template>
++
++<style scoped>
++.logs-wrap { display: flex; flex-direction: column; height: 480px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
++.logs-bar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 6px 10px; }
++.logs-err { color: var(--remove-fg); font-size: 12px; margin-right: auto; }
++.logs-refresh { padding: 3px 12px; border-radius: 8px; border: 1px solid var(--card-border); background: var(--chip-bg-hi); color: var(--fg); cursor: pointer; font-size: 12px; }
++.logs-pre { flex: 1; margin: 0; padding: 10px 14px; overflow: auto; color: var(--console-fg); font: 13px/1.5 Consolas, Monaco, monospace; white-space: pre-wrap; word-break: break-all; }
++</style>
+diff --git a/src/apps/console/TerminalPane.test.ts b/src/apps/console/TerminalPane.test.ts
+new file mode 100644
+index 0000000..be61e2e
+--- /dev/null
++++ b/src/apps/console/TerminalPane.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it, expect, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++// vi.mock factories must return constructable functions (`new Terminal(...)` etc. in the
++// component) — plain `function` expressions have [[Construct]], arrow functions don't.
++const termMock = { open: vi.fn(), loadAddon: vi.fn(), dispose: vi.fn(), cols: 80, rows: 24 }
++vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn(function () { return termMock }) }))
++vi.mock('@xterm/addon-fit', () => ({ FitAddon: vi.fn(function () { return { fit: vi.fn(), dispose: vi.fn() } }) }))
++vi.mock('@xterm/addon-attach', () => ({ AttachAddon: vi.fn(function () { return { dispose: vi.fn() } }) }))
++
++let statusCb: ((s: string) => void) | null = null
++const connectMock = vi.fn().mockResolvedValue(null)
++const closeMock = vi.fn()
++vi.mock('./terminalSocket', () => ({
++  TerminalSocket: vi.fn(function (deps: { onStatus: (s: string) => void }) {
++    statusCb = deps.onStatus
++    return { connect: connectMock, close: closeMock }
++  }),
++  buildTerminalWsUrl: vi.fn(),
++}))
++
++import TerminalPane from './TerminalPane.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++describe('TerminalPane', () => {
++  it('挂载即连接;断开后显示重连按钮,点击再连', async () => {
++    const w = mount(TerminalPane, { props: { containerId: 'c1' }, global: { plugins: [i18n] } })
++    await nextTick()
++    expect(connectMock).toHaveBeenCalledTimes(1)
++    statusCb?.('closed')
++    await nextTick()
++    const btn = w.find('[data-test="term-reconnect"]')
++    expect(btn.exists()).toBe(true)
++    await btn.trigger('click')
++    expect(connectMock).toHaveBeenCalledTimes(2)
++  })
++
++  it('卸载时关闭 socket 并释放 xterm 实例', async () => {
++    const w = mount(TerminalPane, { props: { containerId: 'c2' }, global: { plugins: [i18n] } })
++    await nextTick()
++    w.unmount()
++    expect(closeMock).toHaveBeenCalled()
++    expect(termMock.dispose).toHaveBeenCalled()
++  })
++
++  it('全屏按钮切换 fullscreen 类', async () => {
++    const w = mount(TerminalPane, { props: { containerId: 'c3' }, global: { plugins: [i18n] } })
++    await nextTick()
++    expect(w.find('.term-wrap').classes()).not.toContain('fullscreen')
++    await w.find('[data-test="term-fs"]').trigger('click')
++    expect(w.find('.term-wrap').classes()).toContain('fullscreen')
++  })
++})
+diff --git a/src/apps/console/TerminalPane.vue b/src/apps/console/TerminalPane.vue
+new file mode 100644
+index 0000000..c72bc82
+--- /dev/null
++++ b/src/apps/console/TerminalPane.vue
+@@ -0,0 +1,79 @@
++<script setup lang="ts">
++import { onBeforeUnmount, onMounted, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { Terminal } from '@xterm/xterm'
++import { FitAddon } from '@xterm/addon-fit'
++import { AttachAddon } from '@xterm/addon-attach'
++import '@xterm/xterm/css/xterm.css'
++import { refreshAccessToken } from '@nimotech/nimoos-service'
++import { TerminalSocket, type TerminalStatus } from './terminalSocket'
++
++const props = defineProps<{ containerId: string }>()
++const { t } = useI18n()
++const host = ref<HTMLElement | null>(null)
++const status = ref<TerminalStatus>('idle')
++const fullscreen = ref(false)
++
++let term: Terminal | null = null
++let fit: FitAddon | null = null
++let attach: AttachAddon | null = null
++let sock: TerminalSocket | null = null
++
++function makeDeps() {
++  return {
++    getToken: () => localStorage.getItem('access_token'),
++    getExpiresAt: () => { const raw = localStorage.getItem('expires_at'); return raw != null && raw !== '' ? Number(raw) : null },
++    refresh: () => refreshAccessToken(),
++    now: () => Date.now(),
++    wsBase: () => `${location.protocol.startsWith('https') ? 'wss:' : 'ws:'}//${location.host}`,
++    makeSocket: (url: string) => new WebSocket(url),
++    onStatus: (s: TerminalStatus) => { status.value = s },
++  }
++}
++
++async function connect() {
++  if (!host.value) return
++  if (!term) {
++    term = new Terminal({
++      fontSize: 13, cursorBlink: true, cursorStyle: 'underline',
++      fontFamily: 'Consolas, Monaco, monospace',
++      theme: { background: '#1e1e1e' }, // xterm JS 主题对象吃不到 CSS var,与 --console-bg 保持同值
++    })
++    fit = new FitAddon()
++    term.loadAddon(fit)
++    term.open(host.value)
++  }
++  fit?.fit()
++  attach?.dispose(); attach = null
++  sock = new TerminalSocket(makeDeps())
++  const ws = await sock.connect(props.containerId, term.cols, term.rows)
++  if (ws && term) { attach = new AttachAddon(ws); term.loadAddon(attach) }
++}
++
++function toggleFullscreen() { fullscreen.value = !fullscreen.value; requestAnimationFrame(() => fit?.fit()) }
++
++onMounted(() => { void connect() })
++onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
++</script>
++
++<template>
++  <div class="term-wrap" :class="{ fullscreen }">
++    <button class="term-fs" type="button" data-test="term-fs" :aria-label="t('appsConsoleFullscreen')" @click="toggleFullscreen">⛶</button>
++    <div ref="host" class="term-host" />
++    <div v-if="status === 'closed'" class="term-overlay">
++      <p>{{ t('appsConsoleDisconnected') }}</p>
++      <button type="button" data-test="term-reconnect" class="term-reconnect" @click="connect()">{{ t('appsConsoleReconnect') }}</button>
++    </div>
++    <div v-else-if="status === 'connecting'" class="term-overlay">{{ t('appsConsoleConnecting') }}</div>
++  </div>
++</template>
++
++<style scoped>
++.term-wrap { position: relative; height: 480px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
++.term-wrap.fullscreen { position: fixed; inset: 0; z-index: 200; height: auto; border-radius: 0; }
++.term-host { position: absolute; inset: 8px; }
++.term-fs { position: absolute; top: 8px; right: 12px; z-index: 10; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; }
++.term-fs:hover { opacity: 1; }
++.term-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; color: var(--console-fg); background: color-mix(in srgb, var(--console-bg) 82%, transparent); }
++.term-reconnect { padding: 6px 18px; border-radius: 9px; border: 1px solid var(--card-border); background: var(--chip-bg-hi); color: var(--fg); cursor: pointer; }
++</style>
+diff --git a/src/apps/console/terminalSocket.test.ts b/src/apps/console/terminalSocket.test.ts
+new file mode 100644
+index 0000000..4f4f80b
+--- /dev/null
++++ b/src/apps/console/terminalSocket.test.ts
+@@ -0,0 +1,82 @@
++import { describe, it, expect, vi } from 'vitest'
++import { buildTerminalWsUrl, TerminalSocket, type TerminalSocketDeps } from './terminalSocket'
++
++class FakeWS {
++  onopen: (() => void) | null = null
++  onclose: (() => void) | null = null
++  onerror: (() => void) | null = null
++  closed = false
++  close() { this.closed = true; this.onclose?.() }
++}
++function makeDeps(over: Partial<TerminalSocketDeps> = {}) {
++  const ws = new FakeWS()
++  const deps: TerminalSocketDeps = {
++    // getExpiresAt 默认给远未来值(而非 null)—— null 是 shouldRefreshToken 的"保守刷新"哨兵,
++    // 会让 connect() 在建 socket 前多等一次 refresh() 微任务,与下面几个测试同步触发 ws.onopen 的写法冲突。
++    // 需要显式测试"快过期先 refresh"路径的用例会自行覆盖 getExpiresAt。
++    getToken: () => 'tok', getExpiresAt: () => 9_999_999_999, refresh: vi.fn().mockResolvedValue(undefined),
++    now: () => 1000, wsBase: () => 'ws://host', makeSocket: vi.fn(() => ws as unknown as WebSocket),
++    onStatus: vi.fn(), ...over,
++  }
++  return { deps, ws }
++}
++
++it('URL 含容器 id、token、cols/rows 且正确编码', () => {
++  expect(buildTerminalWsUrl('ws://h', 'abc123', 't+k', 120, 30))
++    .toBe('ws://h/v1/container/abc123/terminal?token=t%2Bk&cols=120&rows=30')
++})
++it('快过期时先 refresh 再连', async () => {
++  const { deps, ws } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000 })
++  const s = new TerminalSocket(deps)
++  const p = s.connect('c1', 80, 24)
++  await vi.waitFor(() => expect(deps.makeSocket).toHaveBeenCalled())
++  expect(deps.refresh).toHaveBeenCalled()
++  ws.onopen?.()
++  await expect(p).resolves.toBeTruthy()
++})
++it('refresh 失败 → 不建 socket,resolve null,status=closed', async () => {
++  const { deps } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000, refresh: vi.fn().mockRejectedValue(new Error('x')) })
++  const s = new TerminalSocket(deps)
++  await expect(s.connect('c1', 80, 24)).resolves.toBeNull()
++  expect(deps.makeSocket).not.toHaveBeenCalled()
++  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
++})
++it('open 前先 connecting,open 后 status=open;远端断开 → closed(不自动重连)', async () => {
++  const { deps, ws } = makeDeps()
++  const s = new TerminalSocket(deps)
++  const p = s.connect('c1', 80, 24)
++  expect(deps.onStatus).toHaveBeenLastCalledWith('connecting')
++  ws.onopen?.()
++  await p
++  expect(deps.onStatus).toHaveBeenLastCalledWith('open')
++  ws.onclose?.()
++  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
++  expect(deps.makeSocket).toHaveBeenCalledTimes(1) // 无自动重连
++})
++it('close() 幂等且置 closed', async () => {
++  const { deps, ws } = makeDeps()
++  const s = new TerminalSocket(deps)
++  const p = s.connect('c1', 80, 24); ws.onopen?.(); await p
++  s.close(); s.close()
++  expect(ws.closed).toBe(true)
++  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
++})
++it('无 token → resolve null 不建连', async () => {
++  const { deps } = makeDeps({ getToken: () => null })
++  await expect(new TerminalSocket(deps).connect('c1', 80, 24)).resolves.toBeNull()
++  expect(deps.makeSocket).not.toHaveBeenCalled()
++})
++it('close() 打在 refresh() 挂起期间 → refresh 落定后不建 socket,resolve null,status=closed(代际守卫)', async () => {
++  let resolveRefresh: (() => void) | undefined
++  const refresh = vi.fn(() => new Promise<void>((resolve) => { resolveRefresh = resolve }))
++  const { deps } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000, refresh })
++  const s = new TerminalSocket(deps)
++  const p = s.connect('c1', 80, 24)
++  await vi.waitFor(() => expect(refresh).toHaveBeenCalled())
++  s.close() // 卸载场景:refresh 还没落定,调用方已经 close()
++  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
++  resolveRefresh?.()
++  await expect(p).resolves.toBeNull()
++  expect(deps.makeSocket).not.toHaveBeenCalled()
++  expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
++})
+diff --git a/src/apps/console/terminalSocket.ts b/src/apps/console/terminalSocket.ts
+new file mode 100644
+index 0000000..5ad36ec
+--- /dev/null
++++ b/src/apps/console/terminalSocket.ts
+@@ -0,0 +1,60 @@
++// 终端 WS 连接管理(纯逻辑,无 xterm/DOM 依赖,Vue 层注入 deps)。
++// 协议事实:后端 resize 消息是死代码(NimoOS-Common ssh/helper.go:408 注释掉了),
++// PTY 尺寸只认连接时的 ?cols=&rows= —— 所以本模块不提供 resize,尺寸在 connect 时定死。
++// 断连不自动重连(spec §178:终端语义下自动重连丢会话上下文),由 UI 给手动重连按钮。
++import { shouldRefreshToken } from '../../util/tokenExpiry'
++
++export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'closed'
++
++export interface TerminalSocketDeps {
++  getToken: () => string | null
++  getExpiresAt: () => number | null
++  refresh: () => Promise<unknown>
++  now: () => number
++  wsBase: () => string
++  makeSocket: (url: string) => WebSocket
++  onStatus: (s: TerminalStatus) => void
++}
++
++export function buildTerminalWsUrl(base: string, containerId: string, token: string, cols: number, rows: number): string {
++  return `${base}/v1/container/${encodeURIComponent(containerId)}/terminal?token=${encodeURIComponent(token)}&cols=${cols}&rows=${rows}`
++}
++
++export class TerminalSocket {
++  private socket: WebSocket | null = null
++  // 代际计数器:close() 递增代际,connect() 在每个恢复点(await 之后)核对代际是否被换代,
++  // 换代即视为"已被取消"—— 不再建 socket、不再翻状态(close() 已经把状态钉在 closed 了),直接 resolve null。
++  // 目的是堵住"卸载期间 close() 打在 refresh() 挂起时,refresh 落定后仍复活连接"的竞态。
++  private generation = 0
++
++  constructor(private deps: TerminalSocketDeps) {}
++
++  async connect(containerId: string, cols: number, rows: number): Promise<WebSocket | null> {
++    const myGeneration = this.generation
++    this.deps.onStatus('connecting')
++    if (shouldRefreshToken(this.deps.getExpiresAt(), this.deps.now())) {
++      try { await this.deps.refresh() } catch { this.deps.onStatus('closed'); return null }
++      if (myGeneration !== this.generation) return null // 等 refresh 的当口被 close() 取消,不再建连
++    }
++    const token = this.deps.getToken()
++    if (!token) { this.deps.onStatus('closed'); return null }
++    const ws = this.deps.makeSocket(buildTerminalWsUrl(this.deps.wsBase(), containerId, token, cols, rows))
++    this.socket = ws
++    return new Promise((resolve) => {
++      ws.onopen = () => {
++        if (myGeneration !== this.generation) return // 已被 close() 取消,吞掉迟到的 onopen,不翻回 open
++        this.deps.onStatus('open'); resolve(ws)
++      }
++      ws.onclose = () => { this.socket = null; this.deps.onStatus('closed'); resolve(null) }
++      ws.onerror = () => {} // close 随后触发
++    })
++  }
++
++  close(): void {
++    this.generation++
++    const s = this.socket
++    this.socket = null
++    if (s) s.close()
++    this.deps.onStatus('closed')
++  }
++}
+diff --git a/src/apps/console/useAppLogs.test.ts b/src/apps/console/useAppLogs.test.ts
+new file mode 100644
+index 0000000..a720ac9
+--- /dev/null
++++ b/src/apps/console/useAppLogs.test.ts
+@@ -0,0 +1,36 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++
++const { logsMock } = vi.hoisted(() => ({ logsMock: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: { logs: logsMock } } }))
++import { useAppLogs } from './useAppLogs'
++
++beforeEach(() => { vi.useFakeTimers(); logsMock.mockReset().mockResolvedValue('line1\nline2') })
++afterEach(() => vi.useRealTimers())
++
++describe('useAppLogs', () => {
++  it('refresh 拉日志入 text', async () => {
++    const l = useAppLogs(() => 'app1')
++    await l.refresh()
++    expect(logsMock).toHaveBeenCalledWith('app1', { lines: 1000 })
++    expect(l.text.value).toBe('line1\nline2')
++  })
++
++  it('start 后每 5s 再拉;stop 停止', async () => {
++    const l = useAppLogs(() => 'app1')
++    l.start()
++    await vi.advanceTimersByTimeAsync(5000)
++    expect(logsMock).toHaveBeenCalledTimes(2) // start 立即 1 次 + 5s 1 次
++    l.stop()
++    await vi.advanceTimersByTimeAsync(15000)
++    expect(logsMock).toHaveBeenCalledTimes(2)
++  })
++
++  it('拉取失败进 error,已有 text 保留', async () => {
++    const l = useAppLogs(() => 'app1')
++    await l.refresh()
++    logsMock.mockRejectedValueOnce(new Error('boom'))
++    await l.refresh()
++    expect(l.error.value).toBeTruthy()
++    expect(l.text.value).toBe('line1\nline2')
++  })
++})
+diff --git a/src/apps/console/useAppLogs.ts b/src/apps/console/useAppLogs.ts
+new file mode 100644
+index 0000000..fff0ce7
+--- /dev/null
++++ b/src/apps/console/useAppLogs.ts
+@@ -0,0 +1,36 @@
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++
++const POLL_MS = 5000 // Vue2 AppTerminalPanel 同款节奏
++const LINES = 1000 // 后端默认;够看且不撑爆 DOM
++
++export function useAppLogs(appId: () => string) {
++  const text = ref('')
++  const loading = ref(false)
++  const error = ref('')
++  let timer: ReturnType<typeof setInterval> | null = null
++
++  async function refresh() {
++    loading.value = true
++    try {
++      text.value = await service.compose.logs(appId(), { lines: LINES })
++      error.value = ''
++    } catch (e) {
++      error.value = e instanceof Error ? e.message : String(e) // 旧 text 保留,轮询下一轮自愈
++    } finally {
++      loading.value = false
++    }
++  }
++
++  function start() {
++    if (timer) return
++    void refresh()
++    timer = setInterval(() => { void refresh() }, POLL_MS)
++  }
++
++  function stop() {
++    if (timer) { clearInterval(timer); timer = null }
++  }
++
++  return { text, loading, error, refresh, start, stop }
++}
+diff --git a/src/apps/util/composeSettings.test.ts b/src/apps/util/composeSettings.test.ts
+index 0b4ad83..3d7277a 100644
+--- a/src/apps/util/composeSettings.test.ts
++++ b/src/apps/util/composeSettings.test.ts
+@@ -275,20 +275,70 @@ services:
+ `
+     const m = parseSettings(y, 'zh_cn')
+     const svc = m.services[0]
+     expect(svc.ports).toEqual([])
+     expect(svc.portsExtra).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
+     const out = YAML.parse(buildYaml(y, m)) as { services: Record<string, { ports: unknown[] }> }
+     expect(out.services.x.ports).toEqual([{ target: 132, published: 132, protocol: 'sctp' }])
+   })
+ })
+ 
++describe('command 保守写回(P6 修复:string 不再塌成单元素 exec 数组)', () => {
++  it('string command 解析时标记 commandWasString', () => {
++    const m = parseSettings('services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n', 'zh_cn')
++    expect(m.services[0].commandWasString).toBe(true)
++    expect(m.services[0].commandTokens).toEqual(['redis-server --appendonly yes'])
++  })
++  it('数组 command 标记为 false', () => {
++    const m = parseSettings('services:\n  app:\n    image: redis\n    command: ["redis-server", "--appendonly"]\n', 'zh_cn')
++    expect(m.services[0].commandWasString).toBe(false)
++  })
++  it('原 string + 编辑后仍单 token → 写回 string(不是单元素数组)', () => {
++    const yml = 'services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].commandTokens = ['redis-server --appendonly no']
++    m.services[0].commandDirty = true
++    const doc = YAML.parse(buildYaml(yml, m))
++    expect(doc.services.app.command).toBe('redis-server --appendonly no')
++  })
++  it('原 string + 编辑成多 token → 正常写数组', () => {
++    const yml = 'services:\n  app:\n    image: redis\n    command: redis-server\n'
++    const m = parseSettings(yml, 'zh_cn')
++    m.services[0].commandTokens = ['redis-server', '--appendonly', 'yes']
++    m.services[0].commandDirty = true
++    const doc = YAML.parse(buildYaml(yml, m))
++    expect(doc.services.app.command).toEqual(['redis-server', '--appendonly', 'yes'])
++  })
++})
++
++describe('多网络防护(P6 修复:networksMultiple 时 buildYaml 不动网络)', () => {
++  const MULTI = 'services:\n  app:\n    image: x\n    networks:\n      - net_a\n      - net_b\n'
++  it('多网络解析时标记 networksMultiple', () => {
++    expect(parseSettings(MULTI, 'zh_cn').services[0].networksMultiple).toBe(true)
++  })
++  it('单网络/network_mode 标记为 false', () => {
++    expect(parseSettings('services:\n  app:\n    image: x\n    networks: [net_a]\n', 'zh_cn').services[0].networksMultiple).toBe(false)
++    expect(parseSettings('services:\n  app:\n    image: x\n    network_mode: host\n', 'zh_cn').services[0].networksMultiple).toBe(false)
++  })
++  it('dict 形式多网络同样标记', () => {
++    expect(parseSettings('services:\n  app:\n    image: x\n    networks:\n      net_a: {}\n      net_b: {}\n', 'zh_cn').services[0].networksMultiple).toBe(true)
++  })
++  it('即使 networkDirty 被误置 true,多网络服务的 networks 也原样保留(带刹车)', () => {
++    const m = parseSettings(MULTI, 'zh_cn')
++    m.services[0].network = 'bridge'
++    m.services[0].networkDirty = true
++    const doc = YAML.parse(buildYaml(MULTI, m))
++    expect(doc.services.app.networks).toEqual(['net_a', 'net_b'])
++    expect(doc.services.app.network_mode).toBeUndefined()
++  })
++})
++
+ describe('mode:ingress 容忍(后端 GET yaml 归一化产物,Crafty 验收实锤)', () => {
+   const yml = `name: crafty
+ services:
+   crafty:
+     image: crafty:latest
+     ports:
+       - target: 8443
+         published: "8111"
+         protocol: tcp
+         mode: ingress
+diff --git a/src/apps/util/composeSettings.ts b/src/apps/util/composeSettings.ts
+index 5b79c12..0f767b3 100644
+--- a/src/apps/util/composeSettings.ts
++++ b/src/apps/util/composeSettings.ts
+@@ -10,22 +10,24 @@ export interface ServiceModel {
+   portsExtra: unknown[]       // 表单认不出的 ports 原始条目,原样透传
+   volumes: PairRow[]          // a=host(source) b=container(target)
+   devices: PairRow[]          // a=host b=container
+   privileged: boolean; capAdd: string[]
+   restart: string             // 'unless-stopped' | 'always' | 'on-failure'
+   containerName: string
+   cpuShares: number           // 10 | 50 | 90(归一化)
+   memoryMB: number | null     // limits.memory;null=未设限
+   commandTokens: string[]     // command 逐 token 展示;数组→逐项,字符串→保守单 token
+   commandDirty: boolean       // 编辑任一 token/增删 才置 true;false 时 buildYaml 不动 command
++  commandWasString: boolean   // 原 YAML 里 command 是 string 写法;编辑后单 token 时保 string 写回(P6 保守修)
+   network: string             // network_mode 优先,否则 networks 首个 key/元素,缺省 ''
+   networkDirty: boolean       // 编辑网络下拉才置 true;false 时 buildYaml 不动 network_mode/networks
++  networksMultiple: boolean   // 服务挂了 >1 个网络;表单下拉禁用,buildYaml 双保险不写回(P6 防静默塌单网络)
+ }
+ export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
+ export interface SettingsModel {
+   services: ServiceModel[]; webui: WebUiModel; tipsCustom: string; extKey: 'x-nimoos' | 'x-casaos'
+   /** true = tips.custom 缺省时借 before_install 回落文案预填 tipsCustom(仅用于预填 UI,不代表用户已确认此文案要落盘) */
+   tipsFromFallback: boolean
+ }
+ 
+ export const RESTART_OPTIONS = ['unless-stopped', 'always', 'on-failure']
+ export const CPU_OPTIONS = [
+@@ -118,42 +120,45 @@ function parseService(name: string, raw: Dict): ServiceModel {
+     if (v && typeof v === 'object') { const o = v as Dict; return { a: String(o.source ?? ''), b: String(o.target ?? '') } }
+     const parts = String(v).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? '' } // :ro 等 flag 丢弃(Vue2 同行为)
+   }).filter((r) => r.a || r.b)
+   const devices: PairRow[] = (Array.isArray(raw.devices) ? raw.devices : []).map((d) => {
+     const parts = String(d).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? parts[0] ?? '' }
+   })
+   const restartRaw = String(raw.restart ?? '')
+   const cpuRaw = Number(raw.cpu_shares)
+   const deploy = asDict(asDict(asDict(raw.deploy).resources).limits)
+   const cmdRaw = raw.command
++  const commandWasString = !Array.isArray(cmdRaw) && cmdRaw != null && cmdRaw !== ''
+   const commandTokens: string[] = Array.isArray(cmdRaw)
+     ? cmdRaw.map(String)
+     : (cmdRaw != null && cmdRaw !== '' ? [String(cmdRaw)] : [])
+   const networkMode = raw.network_mode != null ? String(raw.network_mode) : ''
+   let network = networkMode
++  const netsRaw = raw.networks
++  const netCount = Array.isArray(netsRaw) ? netsRaw.length : Object.keys(asDict(netsRaw)).length
++  const networksMultiple = netCount > 1
+   if (!network) {
+-    const nets = raw.networks
+-    if (Array.isArray(nets)) network = nets.length ? String(nets[0]) : ''
+-    else network = Object.keys(asDict(nets))[0] ?? ''
++    if (Array.isArray(netsRaw)) network = netsRaw.length ? String(netsRaw[0]) : ''
++    else network = Object.keys(asDict(netsRaw))[0] ?? ''
+   }
+   return {
+     name,
+     image: String(raw.image ?? ''),
+     environment, ports, portsExtra, volumes, devices,
+     privileged: raw.privileged === true,
+     capAdd: Array.isArray(raw.cap_add) ? raw.cap_add.map(String) : [],
+     restart: !restartRaw || restartRaw === 'no' ? 'unless-stopped' : restartRaw,
+     containerName: String(raw.container_name ?? ''),
+     cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 归一化(ComposeConfig.vue:550-559)
+     memoryMB: parseMemoryToMB(deploy.memory),
+-    commandTokens, commandDirty: false,
+-    network, networkDirty: false,
++    commandTokens, commandDirty: false, commandWasString,
++    network, networkDirty: false, networksMultiple,
+   }
+ }
+ 
+ const NETWORK_MODE_VALUES = new Set(['host', 'bridge', 'none'])
+ 
+ /** image 的 tag 段改写:最后一个冒号后若含 '/' 说明那是 registry:port,不是 tag,直接追加;否则替换该段(Vue2 patchNetworkValue 邻域,但这里是 tag 不是 network)。 */
+ export function rewriteImageTag(image: string, tag: string): string {
+   const i = image.lastIndexOf(':')
+   if (i < 0) return `${image}:${tag}`
+   const after = image.slice(i + 1)
+@@ -212,24 +217,25 @@ export function buildYaml(originalYaml: string, model: SettingsModel): string {
+     if (sm.memoryMB && sm.memoryMB > 0) {
+       limits.memory = `${Math.round(sm.memoryMB)}M`
+       resources.limits = limits; deploy.resources = resources; svc.deploy = deploy
+     } else {
+       delete limits.memory
+       if (!Object.keys(limits).length) delete resources.limits
+       if (Object.keys(resources).length) { deploy.resources = resources; svc.deploy = deploy }
+       else { delete deploy.resources; if (Object.keys(deploy).length) svc.deploy = deploy; else delete svc.deploy }
+     }
+     if (sm.commandDirty) {
+-      if (sm.commandTokens.length) svc.command = [...sm.commandTokens]
+-      else delete svc.command
++      if (!sm.commandTokens.length) delete svc.command
++      else if (sm.commandWasString && sm.commandTokens.length === 1) svc.command = sm.commandTokens[0]
++      else svc.command = [...sm.commandTokens]
+     }
+-    if (sm.networkDirty) {
++    if (sm.networkDirty && !sm.networksMultiple) {
+       delete svc.network_mode
+       delete svc.networks
+       if (sm.network) {
+         if (NETWORK_MODE_VALUES.has(sm.network)) {
+           svc.network_mode = sm.network
+         } else {
+           svc.networks = [sm.network]
+           const topNetworks = asDict(doc.networks)
+           if (!topNetworks[sm.network]) topNetworks[sm.network] = { external: false, name: sm.network }
+           doc.networks = topNetworks
+diff --git a/src/apps/views/AppConsolePage.test.ts b/src/apps/views/AppConsolePage.test.ts
+new file mode 100644
+index 0000000..de70419
+--- /dev/null
++++ b/src/apps/views/AppConsolePage.test.ts
+@@ -0,0 +1,167 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
++import { createPinia, setActivePinia, type Pinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { reactive } from 'vue'
++import zh from '../../i18n/zh_cn'
++import { useToast } from '../../stores/toast'
++
++const svc = vi.hoisted(() => ({
++  compose: { containers: vi.fn(), list: vi.fn().mockResolvedValue({}) },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++const routerMock = vi.hoisted(() => ({ push: vi.fn() }))
++// Reactive so tests can mutate `.params.name` in place to simulate an in-place route-param
++// change (same route name `apps-console`, vue-router reuses the component instance) — this
++// is what drives AppConsolePage's `watch(id, load)` without a remount.
++const routeMock = reactive({ params: { name: 'demo' } })
++vi.mock('vue-router', async (orig) => ({
++  ...(await orig()),
++  useRoute: () => routeMock,
++  useRouter: () => routerMock,
++}))
++
++// TerminalPane/LogsPane are self-managed (real xterm socket / 5s polling) and already
++// unit-tested in their own files (T5/T6) — here we only need to assert the props
++// AppConsolePage passes them and their mount/visibility lifecycle. Mocking the whole SFC
++// module (rather than just VTU `stubs`) matters: AppConsolePage.vue statically imports
++// TerminalPane.vue, and `stubs` only swaps the render output — it does NOT stop the real
++// module (and its `@xterm/xterm` import, which touches canvas at load time under jsdom)
++// from being evaluated. vi.mock intercepts the import itself, so the real xterm/socket
++// code never runs and the test stays quiet (no jsdom "canvas not implemented" noise).
++const { TerminalStub, LogsStub } = vi.hoisted(() => ({
++  TerminalStub: { name: 'TerminalPane', props: ['containerId'], template: '<div class="term-stub" />' },
++  LogsStub: { name: 'LogsPane', props: ['appId'], template: '<div class="logs-stub" />' },
++}))
++vi.mock('../console/TerminalPane.vue', () => ({ default: TerminalStub }))
++vi.mock('../console/LogsPane.vue', () => ({ default: LogsStub }))
++
++import AppConsolePage from './AppConsolePage.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++let pinia: Pinia
++
++// routeMock is a shared reactive object (see above) — without auto-unmount, a wrapper left
++// mounted from an earlier test keeps its `watch(id, load)` alive and reacts to a later test's
++// `routeMock.params.name = ...` mutation too, double-firing containers() calls across tests.
++enableAutoUnmount(afterEach)
++
++beforeEach(() => {
++  pinia = createPinia()
++  setActivePinia(pinia)
++  vi.clearAllMocks()
++  svc.compose.list.mockResolvedValue({})
++  routeMock.params.name = 'demo' // routeMock is shared/mutable across tests (regression test below mutates it) — reset each run
++})
++
++const mk = () =>
++  mount(AppConsolePage, {
++    global: {
++      plugins: [i18n, pinia],
++      stubs: {
++        AreaShell: { template: '<div><slot /></div>' },
++        AppsSidebar: true,
++      },
++    },
++  })
++
++describe('AppConsolePage', () => {
++  it('单服务应用:不显示服务选择器,终端 tab 默认激活', async () => {
++    svc.compose.containers.mockResolvedValue({ main: 'app', containers: { app: { ID: 'c1' } } })
++    const w = mk()
++    await flushPromises()
++    expect(w.find('[data-test="console-svc-select"]').exists()).toBe(false)
++    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c1')
++    expect(w.find('[data-test="console-tab-terminal"]').attributes('aria-selected')).toBe('true')
++  })
++
++  it('多服务应用:显示选择器,默认选 main;切换后 TerminalPane 拿到新容器 id', async () => {
++    svc.compose.containers.mockResolvedValue({
++      main: 'web',
++      containers: { db: { ID: 'cdb' }, web: { ID: 'cweb' } },
++    })
++    const w = mk()
++    await flushPromises()
++    const sel = w.find('[data-test="console-svc-select"]')
++    expect(sel.exists()).toBe(true)
++    expect((sel.element as HTMLSelectElement).value).toBe('web')
++    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('cweb')
++    await sel.setValue('db')
++    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('cdb')
++  })
++
++  it('日志 tab 懒挂载:切过去才出现 LogsPane,切回终端不销毁日志轮询组件(v-show 保活)', async () => {
++    svc.compose.containers.mockResolvedValue({ main: 'app', containers: { app: { ID: 'c1' } } })
++    // v-show toggling is asserted via isVisible(), which reads getComputedStyle — that only
++    // reflects real inline styles when the element is connected to the live document (an
++    // unattached wrapper's getComputedStyle() returns empty defaults, so display:none would
++    // read as "visible"). attachTo: document.body + explicit unmount (PreInstallTips/
++    // AppSettingsPage conflict-dialog tests use the same pattern) makes isVisible() meaningful.
++    const w = mount(AppConsolePage, {
++      global: {
++        plugins: [i18n, pinia],
++        stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true },
++      },
++      attachTo: document.body,
++    })
++    await flushPromises()
++    expect(w.findComponent({ name: 'LogsPane' }).exists()).toBe(false)
++
++    await w.find('[data-test="console-tab-logs"]').trigger('click')
++    const logs = w.findComponent({ name: 'LogsPane' })
++    expect(logs.exists()).toBe(true)
++    expect(logs.isVisible()).toBe(true)
++    expect(w.findComponent({ name: 'TerminalPane' }).isVisible()).toBe(false)
++
++    await w.find('[data-test="console-tab-terminal"]').trigger('click')
++    // 还在(v-show 隐藏,不是卸载重挂)——LogsPane 的 5s 轮询不因切 tab 中断
++    expect(w.findComponent({ name: 'LogsPane' }).exists()).toBe(true)
++    expect(w.findComponent({ name: 'LogsPane' }).isVisible()).toBe(false)
++    expect(w.findComponent({ name: 'TerminalPane' }).isVisible()).toBe(true)
++    w.unmount()
++  })
++
++  it('应用不存在(containers→undefined):toast + 跳回 /apps', async () => {
++    svc.compose.containers.mockResolvedValue(undefined)
++    const toast = useToast()
++    mk()
++    await flushPromises()
++    expect(routerMock.push).toHaveBeenCalledWith({ name: 'apps' })
++    expect(toast.toasts.length).toBe(1)
++  })
++
++  it('快速切换应用(A→B)后 A 的陈旧响应落地:不覆盖 B 的状态,不误弹 toast/跳转', async () => {
++    // Two controllable deferred promises — containers() call #1 (for app A, "demo") resolves
++    // LAST with app B's own stale-invalid-app shape (empty containers, the 404-ish branch),
++    // call #2 (for app B, "other") resolves FIRST with valid data. Regression: without the
++    // seq guard, A's late resolution would win, toast + router.push({name:'apps'}) firing and
++    // yanking the user off B's now-current, valid console.
++    let resolveA!: (v: unknown) => void
++    let resolveB!: (v: unknown) => void
++    const pA = new Promise((res) => { resolveA = res })
++    const pB = new Promise((res) => { resolveB = res })
++    svc.compose.containers.mockImplementationOnce(() => pA)
++    svc.compose.containers.mockImplementationOnce(() => pB)
++
++    const toast = useToast()
++    const w = mk()
++    await flushPromises() // onMounted's load() (id="demo") issues call #1, awaiting pA
++
++    routeMock.params.name = 'other' // in-place route-param change — watch(id, load) fires, issues call #2, awaiting pB
++    await flushPromises()
++
++    // B resolves first (in flight order), with valid single-container data
++    resolveB({ main: 'app', containers: { app: { ID: 'c-b' } } })
++    await flushPromises()
++    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c-b')
++
++    // A's stale call resolves last with the invalid-app shape (empty containers) — must be a no-op
++    resolveA({ main: '', containers: {} })
++    await flushPromises()
++
++    expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c-b') // still B's container — not overwritten
++    expect(routerMock.push).not.toHaveBeenCalled() // stale invalid-app branch must NOT redirect
++    expect(toast.toasts.length).toBe(0) // ...and must NOT toast
++  })
++})
+diff --git a/src/apps/views/AppConsolePage.vue b/src/apps/views/AppConsolePage.vue
+new file mode 100644
+index 0000000..5b785ff
+--- /dev/null
++++ b/src/apps/views/AppConsolePage.vue
+@@ -0,0 +1,139 @@
++<script setup lang="ts">
++import { computed, onMounted, ref, watch } from 'vue'
++import { useRoute, useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import { service, type ComposeContainersInfo } from '@nimotech/nimoos-service'
++import AreaShell from '../../components/shell/AreaShell.vue'
++import AppsSidebar from '../components/AppsSidebar.vue'
++import TerminalPane from '../console/TerminalPane.vue'
++import LogsPane from '../console/LogsPane.vue'
++import { useInstalledAppsStore } from '../stores/installedApps'
++import { useToast } from '../../stores/toast'
++
++const { t } = useI18n()
++const route = useRoute()
++const router = useRouter()
++const toast = useToast()
++const installed = useInstalledAppsStore()
++const id = computed(() => String(route.params.name ?? ''))
++const app = computed(() => installed.apps.find((a) => a.id === id.value))
++
++const tab = ref<'terminal' | 'logs'>('terminal')
++const logsVisited = ref(false) // lazy-mount LogsPane; once true, kept alive via v-show so polling survives tab switches
++const info = ref<ComposeContainersInfo | null>(null)
++const selectedService = ref('')
++const containerId = computed(() => info.value?.containers[selectedService.value]?.ID ?? '')
++const serviceNames = computed(() => Object.keys(info.value?.containers ?? {}))
++
++// Monotonic request-sequence guard (same pattern as appstore.ts's loadCatalog `mySeq`):
++// rapid successive route-param changes (app A → app B before A's fetch resolves) fire
++// load() twice with both in flight. Without this, whichever `containers()` response lands
++// LAST wins unconditionally — a stale response can overwrite the newer app's info/selectedService,
++// or worse, fire the invalid-app toast + router.push({name:'apps'}) and yank the user off an
++// app's console they've since navigated to. Capture `mySeq` at entry; after every await,
++// bail out silently (no state write, no toast, no redirect) if a newer load() has since started.
++let seq = 0
++
++async function load() {
++  const mySeq = ++seq
++  // Reset per-app UI state up front. vue-router reuses this component instance when only
++  // the `:name` route param changes (same route name `apps-console`), so navigating from one
++  // app's console straight to another's does NOT remount AppConsolePage. TerminalPane/LogsPane
++  // have no watcher on their id props (T6 review), so without resetting here the stale
++  // container/tab/logs state from the previous app would keep showing. `containerId` is keyed
++  // into TerminalPane's :key below, which forces a fresh terminal connection; logsVisited=false
++  // unmounts LogsPane so it re-lazy-mounts (fresh polling) for the new app if the user opens the
++  // Logs tab again.
++  tab.value = 'terminal'
++  logsVisited.value = false
++  info.value = null
++  selectedService.value = ''
++  try {
++    const r = await service.compose.containers(id.value)
++    if (mySeq !== seq) return // a newer load() has since started — this response is stale, drop it silently
++    if (!r || !Object.keys(r.containers).length) {
++      toast.show(t('appsConsoleNotFound'))
++      void router.push({ name: 'apps' })
++      return
++    }
++    info.value = r
++    selectedService.value = r.main && r.containers[r.main] ? r.main : Object.keys(r.containers)[0]
++  } catch {
++    if (mySeq !== seq) return
++    toast.show(t('appsConsoleLoadFailed'))
++    void router.push({ name: 'apps' })
++  }
++}
++
++onMounted(() => {
++  if (!installed.apps.length) installed.refresh().catch(() => {}) // deep-link direct hit backfills title (same as AppSettingsPage)
++  void load()
++})
++// Route param changed in place (same route name, reused instance) — reload containers for the new app.
++watch(id, () => { void load() })
++
++function switchTab(v: 'terminal' | 'logs') { tab.value = v; if (v === 'logs') logsVisited.value = true }
++function back() { router.push({ name: 'apps' }) }
++</script>
++
++<template>
++  <AreaShell :title="t('appsTitle')">
++    <div class="apps-layout">
++      <AppsSidebar />
++      <main class="apps-main">
++        <button class="bar-btn detail-back" type="button" @click="back">‹ {{ t('appsSettingsBack') }}</button>
++        <div class="console-page">
++          <header class="console-head">
++            <h2 class="console-title">{{ app?.title ?? id }}</h2>
++            <select
++              v-if="serviceNames.length > 1"
++              v-model="selectedService"
++              class="console-svc"
++              data-test="console-svc-select"
++            >
++              <option v-for="s in serviceNames" :key="s" :value="s">{{ s }}</option>
++            </select>
++            <nav class="console-tabs" role="tablist">
++              <button
++                type="button" role="tab" data-test="console-tab-terminal"
++                :aria-selected="tab === 'terminal'" :class="{ on: tab === 'terminal' }"
++                @click="switchTab('terminal')"
++              >{{ t('appsConsoleTerminal') }}</button>
++              <button
++                type="button" role="tab" data-test="console-tab-logs"
++                :aria-selected="tab === 'logs'" :class="{ on: tab === 'logs' }"
++                @click="switchTab('logs')"
++              >{{ t('appsConsoleLogs') }}</button>
++            </nav>
++          </header>
++          <template v-if="containerId">
++            <!-- Keyed by containerId: switching the service selector = new container = new terminal session -->
++            <TerminalPane v-show="tab === 'terminal'" :key="containerId" :container-id="containerId" />
++            <LogsPane v-if="logsVisited" v-show="tab === 'logs'" :app-id="id" />
++          </template>
++        </div>
++      </main>
++    </div>
++  </AreaShell>
++</template>
++
++<style scoped>
++.apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
++.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
++.detail-back { font-size: 13px; margin-bottom: 14px; }
++.console-page { display: flex; flex-direction: column; gap: 14px; }
++.console-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
++.console-title { margin: 0; font-size: 18px; font-weight: 600; color: var(--fg); }
++.console-svc {
++  width: auto; min-width: 140px; box-sizing: border-box; padding: 7px 10px; font-size: 13px;
++  color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
++}
++.console-svc:focus { border-color: var(--accent); }
++.console-tabs { display: flex; gap: 6px; margin-left: auto; }
++.console-tabs button {
++  padding: 5px 16px; border-radius: 9px; border: 1px solid var(--card-border);
++  background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 13px;
++}
++.console-tabs button.on { background: var(--chip-bg-hi); color: var(--fg); }
++@media (max-width: 768px) { .apps-layout { gap: 0; } }
++</style>
+diff --git a/src/apps/views/InstalledAppsPage.vue b/src/apps/views/InstalledAppsPage.vue
+index 4fd8a52..c1764f5 100644
+--- a/src/apps/views/InstalledAppsPage.vue
++++ b/src/apps/views/InstalledAppsPage.vue
+@@ -105,20 +105,21 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+           />
+         </div>
+         <p v-if="!store.loading && !store.apps.length && !installingTasks.length" class="apps-empty">{{ t('appsEmpty') }}</p>
+         <div v-else class="apps-grid">
+           <InstalledAppCard
+             v-for="a in store.apps" :key="a.id"
+             :app="a" :pending-op="store.pending[a.id]"
+             @open="onOpen(a)"
+             @action="(op) => onAction(a, op)"
+             @settings="router.push({ name: 'apps-settings', params: { name: a.id } })"
++            @console="router.push({ name: 'apps-console', params: { name: a.id } })"
+             @uninstall="uninstallDlg = { open: true, app: a }"
+           />
+         </div>
+         <UninstallConfirm
+           :open="uninstallDlg.open"
+           :name="uninstallDlg.app?.title ?? ''"
+           @update:open="(v) => { uninstallDlg.open = v }"
+           @confirm="onUninstallConfirm"
+         />
+         <AlertDialog
+diff --git a/src/files/util/download.ts b/src/files/util/download.ts
+index a2ed821..3ee5c31 100644
+--- a/src/files/util/download.ts
++++ b/src/files/util/download.ts
+@@ -4,18 +4,11 @@ export type DownloadPlan = { kind: 'file'; path: string } | { kind: 'batch'; fil
+ 
+ // 移植 Vue2 getFileUrl:单个非目录 → /v3/file;单目录 或 多选 → /v1/batch(zip),files 逗号连接。
+ // 传入的 path 必须是真实路径(含 /DATA),与后端契约一致。
+ export function planDownload(entries: { path: string; is_dir: boolean }[]): DownloadPlan {
+   if (entries.length === 1 && !entries[0].is_dir) {
+     return { kind: 'file', path: entries[0].path }
+   }
+   return { kind: 'batch', files: entries.map((e) => e.path).join(',') }
+ }
+ 
+-const REFRESH_BUFFER_MS = 60_000
+-
+-// 下载(fire-and-forget iframe,无法反应式重试)前的条件式预刷新判定。
+-// expiresAt 为后端下发的 unix 秒;缺失(null)保守刷新;已过期或 ≤60s 内过期则刷新。
+-export function shouldRefreshBeforeDownload(expiresAt: number | null, now: number): boolean {
+-  if (expiresAt == null || !Number.isFinite(expiresAt)) return true
+-  return now > expiresAt * 1000 - REFRESH_BUFFER_MS
+-}
++export { shouldRefreshToken as shouldRefreshBeforeDownload } from '../../util/tokenExpiry'
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 3b7b326..4426689 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -450,21 +450,24 @@ export default {
+   appsSettingsPortContainer: 'Container port',
+   appsSettingsPortProtocol: 'Protocol',
+   appsSettingsPortExtraNote: 'The following port entries are preserved as-is and cannot be edited here',
+   // ── App settings: form (service tabs / WebUI / advanced / tips) ──
+   appsSettingsSectionWeb: 'Web UI',
+   appsSettingsSectionPorts: 'Ports',
+   appsSettingsSectionEnv: 'Environment',
+   appsSettingsSectionVolumes: 'Volumes',
+   appsSettingsSectionDevices: 'Devices',
+   appsSettingsCommand: 'Container command',
++  appsSettingsCmdHint: 'One argument per field, e.g. redis-server / --appendonly / yes. Split a full command with spaces into separate fields.',
++  appsSettingsCmdTokenPh: 'Single argument',
+   appsSettingsNetwork: 'Network',
++  appsSettingsNetworkMulti: 'This service is attached to multiple networks, which cannot be edited here.',
+   appsSettingsTagStable: 'Stable',
+   appsSettingsTagLatest: 'Latest',
+   appsSettingsSectionAdvanced: 'Advanced',
+   appsSettingsSectionTips: 'Usage tips',
+   appsSettingsAppTitle: 'App name',
+   appsSettingsIconUrl: 'Icon URL',
+   appsSettingsScheme: 'Scheme',
+   appsSettingsHostname: 'Host',
+   appsSettingsHostnamePh: 'Empty = current host',
+   appsSettingsWebPort: 'Web port',
+@@ -492,11 +495,22 @@ export default {
+   appsSettingsBack: 'Back to apps',
+   appsSettingsLoading: 'Loading settings…',
+   appsSettingsLoadFailed: 'Failed to load settings',
+   appsSettingsSave: 'Save & apply',
+   appsSettingsCancel: 'Cancel',
+   appsSettingsApplying: 'Applying changes; containers will be recreated',
+   appsSettingsSaveFailed: 'Save failed',
+   appsSettingsPortConflict: 'Ports already in use: {ports}',
+   appsSettingsPortConflictTitle: 'Ports in use',
+   appsSettingsConflictOk: 'OK',
++  appsConsoleFullscreen: 'Fullscreen',
++  appsConsoleDisconnected: 'Connection closed',
++  appsConsoleReconnect: 'Reconnect',
++  appsConsoleConnecting: 'Connecting…',
++  appsConsoleRefresh: 'Refresh',
++  appsConsoleLogsEmpty: 'No logs yet',
++  appsConsole: 'Terminal & Logs',
++  appsConsoleTerminal: 'Terminal',
++  appsConsoleLogs: 'Logs',
++  appsConsoleNotFound: 'App not found or has no running container',
++  appsConsoleLoadFailed: 'Failed to load, please retry',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index dd948db..0bea2cb 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -449,21 +449,24 @@ export default {
+   appsSettingsPortContainer: '容器端口',
+   appsSettingsPortProtocol: '协议',
+   appsSettingsPortExtraNote: '以下端口条目由系统原样保留,不支持在表单中编辑',
+   // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
+   appsSettingsSectionWeb: 'Web 界面',
+   appsSettingsSectionPorts: '端口',
+   appsSettingsSectionEnv: '环境变量',
+   appsSettingsSectionVolumes: '存储卷',
+   appsSettingsSectionDevices: '设备',
+   appsSettingsCommand: '容器命令',
++  appsSettingsCmdHint: '每格填一个参数,如:redis-server、--appendonly、yes;含空格的整句命令请拆成多格填写',
++  appsSettingsCmdTokenPh: '单个参数',
+   appsSettingsNetwork: '网络',
++  appsSettingsNetworkMulti: '该服务配置了多个网络,暂不支持在界面修改',
+   appsSettingsTagStable: '稳定版',
+   appsSettingsTagLatest: '最新',
+   appsSettingsSectionAdvanced: '高级',
+   appsSettingsSectionTips: '使用提示',
+   appsSettingsAppTitle: '应用名称',
+   appsSettingsIconUrl: '图标 URL',
+   appsSettingsScheme: '协议',
+   appsSettingsHostname: '主机',
+   appsSettingsHostnamePh: '留空=当前访问地址',
+   appsSettingsWebPort: 'Web 端口',
+@@ -491,11 +494,22 @@ export default {
+   appsSettingsBack: '返回应用',
+   appsSettingsLoading: '正在读取设置…',
+   appsSettingsLoadFailed: '设置加载失败',
+   appsSettingsSave: '保存并应用',
+   appsSettingsCancel: '取消',
+   appsSettingsApplying: '正在应用更改,容器将重建',
+   appsSettingsSaveFailed: '保存失败',
+   appsSettingsPortConflict: '端口已被占用:{ports}',
+   appsSettingsPortConflictTitle: '端口被占用',
+   appsSettingsConflictOk: '确认',
++  appsConsoleFullscreen: '全屏',
++  appsConsoleDisconnected: '连接已断开',
++  appsConsoleReconnect: '重新连接',
++  appsConsoleConnecting: '连接中…',
++  appsConsoleRefresh: '刷新',
++  appsConsoleLogsEmpty: '暂无日志',
++  appsConsole: '终端与日志',
++  appsConsoleTerminal: '终端',
++  appsConsoleLogs: '日志',
++  appsConsoleNotFound: '应用不存在或没有运行中的容器',
++  appsConsoleLoadFailed: '加载失败,请重试',
+ }
+diff --git a/src/router/index.ts b/src/router/index.ts
+index d42dd58..8efd888 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -3,33 +3,35 @@ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
+ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import StorePage from '../apps/views/StorePage.vue'
+ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
+ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
++import AppConsolePage from '../apps/views/AppConsolePage.vue'
+ import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/apps/store', name: 'apps-store', component: StorePage },
+   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
+   { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
+   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
++  { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index 160ef69..e29b7aa 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -68,20 +68,24 @@
+   /* 说话人配色(音频转录/波形,最多 5 色循环;dark 用亮版;避开金色以免与星标混淆) */
+   --spk-1: oklch(0.74 0.13 250);   /* 蓝 */
+   --spk-2: oklch(0.72 0.13 305);   /* 紫 */
+   --spk-3: oklch(0.77 0.12 190);   /* 青 */
+   --spk-4: oklch(0.73 0.15 18);    /* 珊瑚 */
+   --spk-5: oklch(0.79 0.14 150);   /* 绿 */
+   --wave-none: var(--fg-subtle);   /* 波形:静场/无人声竖条 */
+   --wave-dim: var(--fg-faint);     /* 波形:过滤时被弱化的竖条 */
+   --remove-fg: #ff8a8a; --drop-bad: rgba(255, 80, 100, 0.12); --skeleton-bg: rgba(255, 255, 255, 0.06);
+ 
++  /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
++  --console-bg: #1e1e1e;
++  --console-fg: #d4d4d4;
++
+   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
+   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
+ 
+   /* 通透玻璃 chip / 按钮 */
+   --chip-border: rgba(255, 255, 255, 0.4);
+   --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
+   --chip-bg-hi: linear-gradient(160deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.16));
+   --chip-radius: 999px;
+   --dot: rgba(255, 255, 255, 0.45);
+   --dot-on: #fff;
+@@ -252,20 +256,24 @@
+   --hl-star: #c9992f;
+   /* 说话人配色(白色纸感用暗版,同 hue 系) */
+   --spk-1: oklch(0.52 0.15 255);
+   --spk-2: oklch(0.50 0.16 305);
+   --spk-3: oklch(0.53 0.12 200);
+   --spk-4: oklch(0.55 0.18 22);
+   --spk-5: oklch(0.52 0.15 150);
+   --wave-none: var(--fg-subtle);
+   --wave-dim: var(--fg-faint);
+   --remove-fg: #c0392b; --drop-bad: rgba(224, 70, 106, 0.12); --skeleton-bg: rgba(28, 27, 25, 0.05);
++
++  /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
++  --console-bg: #1e1e1e;
++  --console-fg: #d4d4d4;
+ }
+ 
+ /* 白色主题:滚动条滑块贴浅底改深色;关闭散景光斑与暗角(纸感不要 bokeh)。见 THEMING.md §2.11 */
+ :root[data-theme="light"] { scrollbar-color: rgba(28, 27, 25, 0.22) transparent; }
+ :root[data-theme="light"] *::-webkit-scrollbar-thumb {
+   background: rgba(28, 27, 25, 0.22); border: 2px solid transparent; background-clip: padding-box;
+ }
+ :root[data-theme="light"] *::-webkit-scrollbar-thumb:hover { background: rgba(28, 27, 25, 0.4); background-clip: padding-box; }
+ :root[data-theme="light"] body::before,
+ :root[data-theme="light"] body::after { background: none; }
+diff --git a/src/util/tokenExpiry.ts b/src/util/tokenExpiry.ts
+new file mode 100644
+index 0000000..43d177d
+--- /dev/null
++++ b/src/util/tokenExpiry.ts
+@@ -0,0 +1,11 @@
++// token 过期预判:iframe 下载 / WS 握手这类 fire-and-forget 通道吃不到 axios 401 拦截器,
++// 只能连/发之前先判快过期就刷。P2c 下载首创,P7 Drop、P6 终端复用。
++
++const REFRESH_BUFFER_MS = 60_000
++
++// 下载(fire-and-forget iframe,无法反应式重试)前的条件式预刷新判定。
++// expiresAt 为后端下发的 unix 秒;缺失(null)保守刷新;已过期或 ≤60s 内过期则刷新。
++export function shouldRefreshToken(expiresAt: number | null, now: number): boolean {
++  if (expiresAt == null || !Number.isFinite(expiresAt)) return true
++  return now > expiresAt * 1000 - REFRESH_BUFFER_MS
++}
+diff --git a/vitest.setup.ts b/vitest.setup.ts
+index 0d61f02..168b876 100644
+--- a/vitest.setup.ts
++++ b/vitest.setup.ts
+@@ -3,16 +3,24 @@
+ // Blob IS recognized, so tests that round-trip blobs through IndexedDB use it.
+ import { Blob as NodeBlob } from 'node:buffer'
+ globalThis.Blob = NodeBlob as unknown as typeof Blob
+ 
+ import { vi } from 'vitest'
+ // router/index.ts 被 useOpenAction(应用内跳转,P8)静态引入后,任何挂载 home 组件的测试
+ // 都会拖进 Welcome.vue → lottie-web(它在 import 期做 canvas 探测,jsdom 无 canvas 必炸)。
+ // 在此全局 mock 一处封掉 —— router/index.test.ts 的同款 workaround 上移为全局。
+ vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
+ 
++// Same problem, new source (T7): router/index.ts now also statically imports AppConsolePage.vue
++// → TerminalPane.vue → '@xterm/xterm', which does canvas feature-detection at module *import*
++// time (not just on `new Terminal()`) — jsdom has no canvas, so any test that transitively
++// imports router (nearly all of them) would print a jsdom "getContext not implemented" error.
++// Global mock, same remedy as lottie-web above; components that need real xterm behavior
++// (TerminalPane.test.ts, AppConsolePage.test.ts) mock it themselves with more detail anyway.
++vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn(function () { return { open: vi.fn(), loadAddon: vi.fn(), dispose: vi.fn(), cols: 80, rows: 24 } }) }))
++
+ // Install i18n globally for all component mounts so any component using
+ // useI18n()/$t works without each test wiring the plugin. Tests that pass their
+ // own i18n instance via `global.plugins` still override this (applied later).
+ import { config } from '@vue/test-utils'
+ import { i18n } from './src/i18n'
+ config.global.plugins = [...(config.global.plugins ?? []), i18n]

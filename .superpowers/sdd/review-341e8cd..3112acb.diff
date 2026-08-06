@@ -1,0 +1,633 @@
+# Review package: 341e8cd..HEAD
+
+## Commits
+3112acb feat(apps-settings): 设置页 YAML 标签页(表单表达不了的配置逃生口)
+
+## Files changed
+ src/apps/composables/useAppSettings.test.ts | 69 ++++++++++++++++++++++++
+ src/apps/composables/useAppSettings.ts      | 66 ++++++++++++++++++++---
+ src/apps/views/AppSettingsPage.test.ts      | 75 ++++++++++++++++++++++++++
+ src/apps/views/AppSettingsPage.vue          | 81 +++++++++++++++++++++++++----
+ src/i18n/en_us.ts                           |  6 ++-
+ src/i18n/zh_cn.ts                           |  6 ++-
+ 6 files changed, 285 insertions(+), 18 deletions(-)
+
+## Diff
+diff --git a/src/apps/composables/useAppSettings.test.ts b/src/apps/composables/useAppSettings.test.ts
+index b5792b8..476f82a 100644
+--- a/src/apps/composables/useAppSettings.test.ts
++++ b/src/apps/composables/useAppSettings.test.ts
+@@ -1,18 +1,19 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { ref, type Ref } from 'vue'
+ import { mount } from '@vue/test-utils'
+ import { defineComponent } from 'vue'
+ import { createPinia, setActivePinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import YAML from 'yaml'
+ import zh from '../../i18n/zh_cn'
++import { parseSettings } from '../util/composeSettings'
+ 
+ const svc = vi.hoisted(() => ({
+   getYaml: vi.fn(), applySettings: vi.fn(),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
+ import { useAppSettings } from './useAppSettings'
+ 
+ const Y = 'services:\n  demo:\n    image: img:1\n    ports: ["80:80"]\n'
+ const Y_WITH_TIP = `services:
+   demo:
+@@ -85,11 +86,79 @@ describe('useAppSettings', () => {
+   it('save after user edits tips text: the edited text is written as tips.custom', async () => {
+     svc.getYaml.mockResolvedValue(Y_WITH_TIP)
+     svc.applySettings.mockResolvedValue(undefined)
+     const s = mountSettings(ref('demo'))
+     await s.load()
+     s.model.value!.tipsCustom = '改端口后记得重登'
+     await s.save()
+     const yamlSent = svc.applySettings.mock.calls[0][1] as string
+     expect(YAML.parse(yamlSent)['x-nimoos']?.tips?.custom).toBe('改端口后记得重登')
+   })
++
++  it('toYaml round-trips: load → toYaml → parse yields an equivalent model', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const yamlText = s.toYaml()
++    const reparsed = parseSettings(yamlText, 'zh_cn')
++    expect(reparsed).toEqual(s.model.value)
++  })
++
++  it('toYaml carries form edits made before switching to the YAML tab', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    s.model.value!.services[0].image = 'img:2'
++    const yamlText = s.toYaml()
++    expect(YAML.parse(yamlText).services.demo.image).toBe('img:2')
++  })
++
++  it('replaceFromYaml: bad text returns false, sets parseError, does not touch model', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const before = s.model.value
++    const ok = s.replaceFromYaml('services:\n  demo:\n  bad indent\n- broken: [')
++    expect(ok).toBe(false)
++    expect(s.parseError.value).toBeTruthy()
++    expect(s.model.value).toBe(before) // 同一引用,未被重建
++  })
++
++  it('replaceFromYaml: good text rebuilds model and becomes the new base for save()', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    svc.applySettings.mockResolvedValue(undefined)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const edited = 'services:\n  demo:\n    image: img:9\n    ports: ["80:80"]\n'
++    const ok = s.replaceFromYaml(edited)
++    expect(ok).toBe(true)
++    expect(s.parseError.value).toBe('')
++    expect(s.model.value?.services[0].image).toBe('img:9')
++    await s.save()
++    const yamlSent = svc.applySettings.mock.calls[0][1] as string
++    expect(YAML.parse(yamlSent).services.demo.image).toBe('img:9')
++  })
++
++  it('saveYaml: dry_run first, then real PUT, returns true', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    svc.applySettings.mockResolvedValue(undefined)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const raw = 'services:\n  demo:\n    image: img:3\n'
++    const ok = await s.saveYaml(raw)
++    expect(ok).toBe(true)
++    expect(svc.applySettings).toHaveBeenCalledTimes(2)
++    expect(svc.applySettings.mock.calls[0]).toEqual(['demo', raw, { dryRun: true, checkPortConflict: true }])
++    expect(svc.applySettings.mock.calls[1]).toEqual(['demo', raw, { checkPortConflict: true }])
++  })
++
++  it('saveYaml: dry_run 400 ports_in_use -> conflicts populated, no real PUT, returns false', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    svc.applySettings.mockRejectedValueOnce({ response: { status: 400, data: { message: 'there are ports in use', data: { ports_in_use: { TCP: ['80'] } } } } })
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const ok = await s.saveYaml('services:\n  demo:\n    image: img:3\n')
++    expect(ok).toBe(false)
++    expect(s.conflicts.value).toEqual(['80/tcp'])
++    expect(svc.applySettings).toHaveBeenCalledTimes(1)
++  })
+ })
+diff --git a/src/apps/composables/useAppSettings.ts b/src/apps/composables/useAppSettings.ts
+index 6561e36..9d71fb3 100644
+--- a/src/apps/composables/useAppSettings.ts
++++ b/src/apps/composables/useAppSettings.ts
+@@ -7,50 +7,104 @@ import { useInstalledAppsStore } from '../stores/installedApps'
+ 
+ export function useAppSettings(id: Ref<string>) {
+   const { locale } = useI18n()
+   const installed = useInstalledAppsStore()
+   const model = ref<SettingsModel | null>(null)
+   const loading = ref(false)
+   const loadError = ref(false)
+   const saving = ref(false)
+   const saveError = ref('')
+   const conflicts = ref<string[]>([])
++  const parseError = ref('')
+   let originalYaml = ''
+   let initialTips = ''
+ 
+   async function load() {
+     loading.value = true; loadError.value = false; model.value = null
+     try {
+       originalYaml = await service.compose.getYaml(id.value)
+       model.value = parseSettings(originalYaml, locale.value)
+       initialTips = model.value.tipsCustom
+     } catch (e) {
+       console.warn('[apps] settings load', id.value, e)
+       loadError.value = true
+     } finally { loading.value = false }
+   }
+ 
++  /**
++   * save()/toYaml() 共享:把当前 model 序列化为 YAML。
++   * tipsCustom 若只是 parseSettings 借 before_install 回落预填、用户从未编辑过,不能当用户确认的自定义提示落盘
++   * (否则会把当前语言的回落文案冻结进 tips.custom,遮蔽未来的多语言回落解析)——此时清空后再喂给 buildYaml。
++   */
++  function serializeModel(m: SettingsModel): string {
++    const untouchedFallback = m.tipsFromFallback && m.tipsCustom === initialTips
++    const forBuild = untouchedFallback ? { ...m, tipsCustom: '' } : m
++    return buildYaml(originalYaml, forBuild)
++  }
++
+   /** dry_run 预检 → 真 PUT(受理即返)→ markApplying。端口冲突落 conflicts,其余错误落 saveError。 */
+   async function save(): Promise<boolean> {
+     if (!model.value || saving.value) return false
+     saving.value = true; saveError.value = ''; conflicts.value = []
+     try {
+-      // tipsCustom 若只是 parseSettings 借 before_install 回落预填、用户从未编辑过,不能当用户确认的自定义提示落盘
+-      // (否则会把当前语言的回落文案冻结进 tips.custom,遮蔽未来的多语言回落解析)——此时清空后再喂给 buildYaml。
+-      const untouchedFallback = model.value.tipsFromFallback && model.value.tipsCustom === initialTips
+-      const forBuild = untouchedFallback ? { ...model.value, tipsCustom: '' } : model.value
+-      const yaml = buildYaml(originalYaml, forBuild)
++      const yaml = serializeModel(model.value)
+       await service.compose.applySettings(id.value, yaml, { dryRun: true, checkPortConflict: true })
+       await service.compose.applySettings(id.value, yaml, { checkPortConflict: true })
+       installed.markApplying(id.value)
+       return true
+     } catch (e) {
+       console.warn('[apps] settings save', id.value, e)
+       const { message, ports } = parseInstallError(e)
+       conflicts.value = ports
+       saveError.value = message
+       return false
+     } finally { saving.value = false }
+   }
+ 
+-  return { model, loading, loadError, saving, saveError, conflicts, load, save }
++  /** 进 YAML tab 时取文本:当前 model 序列化(带过表单已做的修改),复用 save() 同款 tipsFromFallback 处理。 */
++  function toYaml(): string {
++    return model.value ? serializeModel(model.value) : originalYaml
++  }
++
++  /**
++   * YAML tab 编辑完切回表单:重 parse 重建 model,originalYaml 换成这份新文本。
++   * 成功后所有 dirty 标记自然归零(model 是刚 parse 出来的新对象),originalYaml 也已替换——
++   * 后续 save() 会以这份新文本为 base 再 buildYaml,语义正确(YAML tab 的编辑不会被 form tab 覆盖回去)。
++   * 解析失败:不触碰现有 model/originalYaml,只落 parseError,返回 false。
++   */
++  function replaceFromYaml(text: string): boolean {
++    try {
++      const parsed = parseSettings(text, locale.value)
++      model.value = parsed
++      initialTips = parsed.tipsCustom
++      originalYaml = text
++      parseError.value = ''
++      return true
++    } catch (e) {
++      parseError.value = e instanceof Error ? e.message : String(e)
++      return false
++    }
++  }
++
++  /** YAML tab 内保存:不经表单 model,直接以原文走 dry_run→PUT(与 save() 同款错误/冲突处理)。成功 true。 */
++  async function saveYaml(text: string): Promise<boolean> {
++    if (saving.value) return false
++    saving.value = true; saveError.value = ''; conflicts.value = []; parseError.value = ''
++    try {
++      await service.compose.applySettings(id.value, text, { dryRun: true, checkPortConflict: true })
++      await service.compose.applySettings(id.value, text, { checkPortConflict: true })
++      installed.markApplying(id.value)
++      return true
++    } catch (e) {
++      console.warn('[apps] settings save yaml', id.value, e)
++      const { message, ports } = parseInstallError(e)
++      conflicts.value = ports
++      saveError.value = message
++      return false
++    } finally { saving.value = false }
++  }
++
++  return {
++    model, loading, loadError, saving, saveError, conflicts, parseError,
++    load, save, toYaml, replaceFromYaml, saveYaml,
++  }
+ }
+diff --git a/src/apps/views/AppSettingsPage.test.ts b/src/apps/views/AppSettingsPage.test.ts
+index 44f65d0..845c8d2 100644
+--- a/src/apps/views/AppSettingsPage.test.ts
++++ b/src/apps/views/AppSettingsPage.test.ts
+@@ -1,14 +1,15 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createPinia, setActivePinia, type Pinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
++import { EditorView } from '@codemirror/view'
+ import zh from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   compose: { getYaml: vi.fn(), applySettings: vi.fn(), list: vi.fn().mockResolvedValue({}) },
+   container: { getNetworks: vi.fn().mockResolvedValue([]) },
+   appstore: { stableTag: vi.fn().mockResolvedValue(null) },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ const routerMock = vi.hoisted(() => ({ push: vi.fn() }))
+ vi.mock('vue-router', async (orig) => ({
+@@ -57,10 +58,84 @@ describe('AppSettingsPage', () => {
+     ;(document.body.querySelector('[data-test="settings-conflict-ok"]') as HTMLButtonElement).click()
+     await flushPromises()
+     // 确认后弹窗关、顶部红条保留、端口行冲突标红保留、不跳页
+     expect(document.body.querySelector('[data-test="settings-conflict-dlg"]')).toBeNull()
+     expect(w.find('[data-test="settings-conflict"]').exists()).toBe(true)
+     expect(w.find('[data-test="port-row"].conflict').exists()).toBe(true)
+     expect(routerMock.push).not.toHaveBeenCalled()
+     w.unmount()
+   })
+ })
++
++describe('AppSettingsPage — YAML tab (P6 验收补丁②)', () => {
++  it('form → yaml: editor appears and carries form edits made before switching', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="svc-image"]').setValue('img:2')
++    await w.find('[data-test="settings-tab-yaml"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="settings-yaml-panel"]').exists()).toBe(true)
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)!
++    expect(view.state.doc.toString()).toContain('img:2')
++  })
++
++  it('yaml → form: invalid yaml blocks the switch and shows a parse-error banner', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="settings-tab-yaml"]').trigger('click')
++    await flushPromises()
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)!
++    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'services:\n  demo:\n  bad indent\n- broken: [' } })
++    await w.find('[data-test="settings-tab-form"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="settings-yaml-panel"]').exists()).toBe(true) // 未切走,仍在 yaml tab
++    expect(w.find('[data-test="yaml-parse-error"]').exists()).toBe(true)
++    expect(w.find('[data-test="yaml-parse-error"]').text()).toContain(zh.appsSettingsYamlParseError)
++  })
++
++  it('yaml → form: valid yaml switches tabs and rebuilds the form model', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="settings-tab-yaml"]').trigger('click')
++    await flushPromises()
++    const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
++    const view = EditorView.findFromDOM(host)!
++    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'services:\n  demo:\n    image: img:9\n    ports: ["80:80"]\n' } })
++    await w.find('[data-test="settings-tab-form"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="settings-yaml-panel"]').exists()).toBe(false)
++    expect((w.find('[data-test="svc-image"]').element as HTMLInputElement).value).toBe('img:9')
++  })
++
++  it('yaml tab save success -> navigates back to /apps', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    svc.compose.applySettings.mockResolvedValue(undefined)
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="settings-tab-yaml"]').trigger('click')
++    await flushPromises()
++    await w.find('[data-test="settings-yaml-save"]').trigger('click')
++    await flushPromises()
++    expect(svc.compose.applySettings).toHaveBeenCalledTimes(2)
++    expect(routerMock.push).toHaveBeenCalledWith({ name: 'apps' })
++  })
++
++  it('yaml tab save port conflict -> in-tab banner lists ports, no dialog, no navigation', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    svc.compose.applySettings.mockRejectedValueOnce({ response: { status: 400, data: { message: 'there are ports in use', data: { ports_in_use: { TCP: ['80'] } } } } })
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="settings-tab-yaml"]').trigger('click')
++    await flushPromises()
++    await w.find('[data-test="settings-yaml-save"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="settings-conflict-dlg"]').exists()).toBe(false)
++    expect(w.find('[data-test="settings-conflict"]').exists()).toBe(true)
++    expect(w.find('[data-test="settings-conflict"]').text()).toContain('80/tcp')
++    expect(routerMock.push).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/apps/views/AppSettingsPage.vue b/src/apps/views/AppSettingsPage.vue
+index 19691dc..8155ef7 100644
+--- a/src/apps/views/AppSettingsPage.vue
++++ b/src/apps/views/AppSettingsPage.vue
+@@ -2,36 +2,47 @@
+ import { computed, nextTick, onMounted, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import {
+   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle,
+ } from 'reka-ui'
+ import { service, type DockerNetwork } from '@nimotech/nimoos-service'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import ComposeSettingsForm from '../components/settings/ComposeSettingsForm.vue'
++import YamlEditor from '../components/custom/YamlEditor.vue'
+ import { useAppSettings } from '../composables/useAppSettings'
+ import { useInstalledAppsStore } from '../stores/installedApps'
+ import { useToast } from '../../stores/toast'
+ 
+ const { t } = useI18n()
+ const route = useRoute()
+ const router = useRouter()
+ const toast = useToast()
+ const installed = useInstalledAppsStore()
+ const id = computed(() => String(route.params.name ?? ''))
+ const s = useAppSettings(id)
+ const app = computed(() => installed.apps.find((a) => a.id === id.value))
+ 
+ const networks = ref<DockerNetwork[]>([])
+ const stableTags = ref<Record<string, string | null>>({})
+ 
++// 表单⇄YAML 逃生口(P6 验收补丁②):默认 form,yamlText 只在切到 yaml tab 时由 toYaml() 现取一次
++// (带过表单已做的修改);切回 form 走 replaceFromYaml,失败则不切换、留在 yaml tab 看红条。
++const tab = ref<'form' | 'yaml'>('form')
++const yamlText = ref('')
++function selectTab(next: 'form' | 'yaml') {
++  if (next === tab.value) return
++  if (next === 'yaml') { yamlText.value = s.toYaml(); tab.value = 'yaml' }
++  else if (s.replaceFromYaml(yamlText.value)) tab.value = 'form'
++}
++
+ onMounted(() => {
+   void s.load().then(() => {
+     const m = s.model.value
+     if (!m) return
+     // 逐 service 查 stable tag;非商店应用(如手动导入)返回 null,tag 下拉自动隐藏
+     void Promise.all(m.services.map((svc) =>
+       service.appstore.stableTag(id.value, svc.name).then((tag) => [svc.name, tag] as const).catch(() => [svc.name, null] as const),
+     )).then((entries) => { stableTags.value = Object.fromEntries(entries) })
+   })
+   if (!installed.apps.length) installed.refresh().catch(() => {})  // 深链直达补一次(标题/图标用)
+@@ -52,20 +63,30 @@ async function onSave() {
+     conflictDlg.value = true
+   } else {
+     toast.show(s.saveError.value || t('appsSettingsSaveFailed'), 5000)
+   }
+ }
+ function onConflictAck() {
+   conflictDlg.value = false
+   // scrollIntoView 在 jsdom 未实现,可选链保护
+   void nextTick(() => bannerEl.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
+ }
++
++// YAML tab 内保存:直接以原文 dry_run→PUT,不经表单弹窗,冲突/其它错误都走 tab 内红条(brief 明确
++// 不做表单那套行级标红+弹窗,直接红条即可)。
++async function onSaveYaml() {
++  const ok = await s.saveYaml(yamlText.value)
++  if (ok) {
++    toast.show(t('appsSettingsApplying'), 5000)
++    router.push({ name: 'apps' })
++  }
++}
+ function back() { router.push({ name: 'apps' }) }
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('appsTitle')">
+     <div class="apps-layout">
+       <AppsSidebar />
+       <main class="apps-main">
+         <button class="bar-btn detail-back" type="button" @click="back">‹ {{ t('appsSettingsBack') }}</button>
+         <header class="set-head">
+@@ -73,29 +94,61 @@ function back() { router.push({ name: 'apps' }) }
+           <h2 class="set-title">{{ app?.title ?? id }} · {{ t('appsSettings') }}</h2>
+         </header>
+ 
+         <p v-if="s.loading.value" class="apps-empty">{{ t('appsSettingsLoading') }}</p>
+         <div v-else-if="s.loadError.value" class="apps-empty">
+           {{ t('appsSettingsLoadFailed') }}
+           <button class="bar-btn" type="button" @click="s.load()">{{ t('appsStoreRetry') }}</button>
+         </div>
+ 
+         <template v-else-if="s.model.value">
+-          <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
+-            {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
+-          </div>
+-          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" :networks="networks" :stable-tags="stableTags" />
+-          <div class="set-actions">
+-            <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
+-            <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
+-              {{ s.saving.value ? t('appsWorking') : t('appsSettingsSave') }}
+-            </button>
++          <nav class="settings-tabs" role="tablist">
++            <button
++              type="button" role="tab" data-test="settings-tab-form"
++              :aria-selected="tab === 'form'" :class="{ on: tab === 'form' }"
++              @click="selectTab('form')"
++            >{{ t('appsSettingsTabForm') }}</button>
++            <button
++              type="button" role="tab" data-test="settings-tab-yaml"
++              :aria-selected="tab === 'yaml'" :class="{ on: tab === 'yaml' }"
++              @click="selectTab('yaml')"
++            >{{ t('appsSettingsTabYaml') }}</button>
++          </nav>
++
++          <template v-if="tab === 'form'">
++            <div v-if="s.conflicts.value.length" ref="bannerEl" class="set-conflict" data-test="settings-conflict">
++              {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
++            </div>
++            <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" :networks="networks" :stable-tags="stableTags" />
++            <div class="set-actions">
++              <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
++              <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
++                {{ s.saving.value ? t('appsWorking') : t('appsSettingsSave') }}
++              </button>
++            </div>
++          </template>
++
++          <div v-else class="settings-yaml-panel" data-test="settings-yaml-panel">
++            <div v-if="s.parseError.value" class="set-conflict" data-test="yaml-parse-error">
++              {{ t('appsSettingsYamlParseError') }}{{ s.parseError.value }}
++            </div>
++            <div v-else-if="s.conflicts.value.length" class="set-conflict" data-test="settings-conflict">
++              {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
++            </div>
++            <div v-else-if="s.saveError.value" class="set-conflict" data-test="yaml-save-error">{{ s.saveError.value }}</div>
++            <YamlEditor v-model="yamlText" class="settings-yaml-editor" />
++            <div class="set-actions">
++              <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
++              <button class="set-save" type="button" data-test="settings-yaml-save" :disabled="s.saving.value" @click="onSaveYaml">
++                {{ s.saving.value ? t('appsWorking') : t('appsSettingsYamlSave') }}
++              </button>
++            </div>
+           </div>
+         </template>
+       </main>
+     </div>
+ 
+     <DialogRoot :open="conflictDlg" @update:open="(v) => { if (!v) onConflictAck() }">
+       <DialogPortal>
+         <DialogOverlay class="cfl-overlay" />
+         <DialogContent class="cfl-content" data-test="settings-conflict-dlg">
+           <DialogTitle class="cfl-title">{{ t('appsSettingsPortConflictTitle') }}</DialogTitle>
+@@ -106,26 +159,34 @@ function back() { router.push({ name: 'apps' }) }
+             </button>
+           </div>
+         </DialogContent>
+       </DialogPortal>
+     </DialogRoot>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+-.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
++.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
+ .detail-back { font-size: 13px; margin-bottom: 14px; }
+ .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
+ .set-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+ .set-icon { width: 44px; height: 44px; border-radius: 11px; object-fit: contain; }
+ .set-title { font-size: 18px; font-weight: 600; margin: 0; color: var(--fg); }
++.settings-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
++.settings-tabs button {
++  padding: 5px 16px; border-radius: 9px; border: 1px solid var(--card-border);
++  background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 13px;
++}
++.settings-tabs button.on { background: var(--chip-bg-hi); color: var(--fg); }
++.settings-yaml-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
++.settings-yaml-editor { flex: 1 1 auto; min-height: 320px; }
+ .set-conflict {
+   /* 全仓库其它「危险/冲突」提示均用半透明 --drop-bad 当底 + --remove-fg 当字(见 GridGhost.vue .bad、
+      OperationStatusBar.vue 等)——brief 原稿写的 background: var(--remove-bg) 与本行 color 撞色(两者色相/明度
+      接近,深色主题下几乎不出对比度),改用 --drop-bad 保持可读,同为 token,不算新增字面量色。 */
+   margin-bottom: 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius);
+   color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
+ }
+ .set-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+ .set-save { font-size: 13.5px; padding: 8px 24px; cursor: pointer; color: var(--on-accent); background: var(--accent); border: none; border-radius: 10px; }
+ .set-save:hover { filter: brightness(1.08); }
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 4426689..0feda31 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -453,21 +453,21 @@ export default {
+   // ── App settings: form (service tabs / WebUI / advanced / tips) ──
+   appsSettingsSectionWeb: 'Web UI',
+   appsSettingsSectionPorts: 'Ports',
+   appsSettingsSectionEnv: 'Environment',
+   appsSettingsSectionVolumes: 'Volumes',
+   appsSettingsSectionDevices: 'Devices',
+   appsSettingsCommand: 'Container command',
+   appsSettingsCmdHint: 'One argument per field, e.g. redis-server / --appendonly / yes. Split a full command with spaces into separate fields.',
+   appsSettingsCmdTokenPh: 'Single argument',
+   appsSettingsNetwork: 'Network',
+-  appsSettingsNetworkMulti: 'This service is attached to multiple networks, which cannot be edited here.',
++  appsSettingsNetworkMulti: 'This service is attached to multiple networks — switch to the YAML tab to edit them.',
+   appsSettingsTagStable: 'Stable',
+   appsSettingsTagLatest: 'Latest',
+   appsSettingsSectionAdvanced: 'Advanced',
+   appsSettingsSectionTips: 'Usage tips',
+   appsSettingsAppTitle: 'App name',
+   appsSettingsIconUrl: 'Icon URL',
+   appsSettingsScheme: 'Scheme',
+   appsSettingsHostname: 'Host',
+   appsSettingsHostnamePh: 'Empty = current host',
+   appsSettingsWebPort: 'Web port',
+@@ -495,20 +495,24 @@ export default {
+   appsSettingsBack: 'Back to apps',
+   appsSettingsLoading: 'Loading settings…',
+   appsSettingsLoadFailed: 'Failed to load settings',
+   appsSettingsSave: 'Save & apply',
+   appsSettingsCancel: 'Cancel',
+   appsSettingsApplying: 'Applying changes; containers will be recreated',
+   appsSettingsSaveFailed: 'Save failed',
+   appsSettingsPortConflict: 'Ports already in use: {ports}',
+   appsSettingsPortConflictTitle: 'Ports in use',
+   appsSettingsConflictOk: 'OK',
++  appsSettingsTabForm: 'Form',
++  appsSettingsTabYaml: 'YAML',
++  appsSettingsYamlParseError: 'Failed to parse YAML: ',
++  appsSettingsYamlSave: 'Save YAML',
+   appsConsoleFullscreen: 'Fullscreen',
+   appsConsoleDisconnected: 'Connection closed',
+   appsConsoleReconnect: 'Reconnect',
+   appsConsoleConnecting: 'Connecting…',
+   appsConsoleRefresh: 'Refresh',
+   appsConsoleLogsEmpty: 'No logs yet',
+   appsConsole: 'Terminal & Logs',
+   appsConsoleTerminal: 'Terminal',
+   appsConsoleLogs: 'Logs',
+   appsConsoleNotFound: 'App not found or has no running container',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 0bea2cb..42ebda7 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -452,21 +452,21 @@ export default {
+   // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
+   appsSettingsSectionWeb: 'Web 界面',
+   appsSettingsSectionPorts: '端口',
+   appsSettingsSectionEnv: '环境变量',
+   appsSettingsSectionVolumes: '存储卷',
+   appsSettingsSectionDevices: '设备',
+   appsSettingsCommand: '容器命令',
+   appsSettingsCmdHint: '每格填一个参数,如:redis-server、--appendonly、yes;含空格的整句命令请拆成多格填写',
+   appsSettingsCmdTokenPh: '单个参数',
+   appsSettingsNetwork: '网络',
+-  appsSettingsNetworkMulti: '该服务配置了多个网络,暂不支持在界面修改',
++  appsSettingsNetworkMulti: '该服务配置了多个网络,请切换到 YAML 标签页修改',
+   appsSettingsTagStable: '稳定版',
+   appsSettingsTagLatest: '最新',
+   appsSettingsSectionAdvanced: '高级',
+   appsSettingsSectionTips: '使用提示',
+   appsSettingsAppTitle: '应用名称',
+   appsSettingsIconUrl: '图标 URL',
+   appsSettingsScheme: '协议',
+   appsSettingsHostname: '主机',
+   appsSettingsHostnamePh: '留空=当前访问地址',
+   appsSettingsWebPort: 'Web 端口',
+@@ -494,20 +494,24 @@ export default {
+   appsSettingsBack: '返回应用',
+   appsSettingsLoading: '正在读取设置…',
+   appsSettingsLoadFailed: '设置加载失败',
+   appsSettingsSave: '保存并应用',
+   appsSettingsCancel: '取消',
+   appsSettingsApplying: '正在应用更改,容器将重建',
+   appsSettingsSaveFailed: '保存失败',
+   appsSettingsPortConflict: '端口已被占用:{ports}',
+   appsSettingsPortConflictTitle: '端口被占用',
+   appsSettingsConflictOk: '确认',
++  appsSettingsTabForm: '表单',
++  appsSettingsTabYaml: 'YAML',
++  appsSettingsYamlParseError: 'YAML 解析失败:',
++  appsSettingsYamlSave: '保存 YAML',
+   appsConsoleFullscreen: '全屏',
+   appsConsoleDisconnected: '连接已断开',
+   appsConsoleReconnect: '重新连接',
+   appsConsoleConnecting: '连接中…',
+   appsConsoleRefresh: '刷新',
+   appsConsoleLogsEmpty: '暂无日志',
+   appsConsole: '终端与日志',
+   appsConsoleTerminal: '终端',
+   appsConsoleLogs: '日志',
+   appsConsoleNotFound: '应用不存在或没有运行中的容器',

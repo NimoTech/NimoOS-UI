@@ -1,0 +1,384 @@
+# Review package: 447e99b..68f231e
+
+## Commits
+68f231e feat(home): 存储系统应用入口 + loadDisks 统一走 service.storage(SP6-P1)
+
+## Files changed
+ src/files/shares/SharesPage.test.ts   | 16 +++++------
+ src/home/apps/icons/storage.svg       | 15 +++++++++++
+ src/home/apps/systemApps.ts           |  3 +++
+ src/home/composables/useOpenAction.ts |  3 ++-
+ src/home/stores/folders.test.ts       | 51 +++++++++++++++++++++++++++++------
+ src/home/stores/folders.ts            | 17 +++++++-----
+ src/i18n/en_us.ts                     |  1 +
+ src/i18n/zh_cn.ts                     |  1 +
+ 8 files changed, 83 insertions(+), 24 deletions(-)
+
+## Diff
+diff --git a/src/files/shares/SharesPage.test.ts b/src/files/shares/SharesPage.test.ts
+index 0833ec6..7bfb12b 100644
+--- a/src/files/shares/SharesPage.test.ts
++++ b/src/files/shares/SharesPage.test.ts
+@@ -1,42 +1,42 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createMemoryHistory } from 'vue-router'
+ import zh from '../../i18n/zh_cn'
+ import SharesPage from './SharesPage.vue'
+ 
+ // SharesPage 经 FilesSidebar 读取 useRoute()/useRouter(),shares.load()/files.loadRoots() 打
+-// service.samba / getHttp —— 都需要 mock,否则 vue-router 注入会抛错、onMounted 会打真实网络。
++// service.samba / service.storage.list —— 都需要 mock,否则 vue-router 注入会抛错、onMounted 会打真实网络。
+ //
+-// storageGet 是一个受控的 deferred:onMounted 里 files.loadRoots() 首次调用会挂在它上不 resolve,
++// storageList 是一个受控的 deferred:onMounted 里 files.loadRoots() 首次调用会挂在它上不 resolve,
+ // 用来模拟深链场景「loadRoots() 还没跑完用户就点了前往」的真实竞态,而不是让 mock 立即 resolve 把
+-// 竞态窗口“测没了”。
+-const { listShares, storageGet, resolveStorage } = vi.hoisted(() => {
++// 竞态窗口”测没了”。
++const { listShares, storageList, resolveStorage } = vi.hoisted(() => {
+   let resolveFn!: (v: unknown) => void
+   const pending = new Promise((resolve) => { resolveFn = resolve })
+-  return { listShares: vi.fn(), storageGet: vi.fn(() => pending), resolveStorage: () => resolveFn }
++  return { listShares: vi.fn(), storageList: vi.fn(() => pending), resolveStorage: () => resolveFn }
+ })
+ 
+ vi.mock('@nimotech/nimoos-service', async () => {
+   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
+   return {
+     ...actual,
+     service: {
+       samba: { listShares, deleteShare: vi.fn().mockResolvedValue(undefined) },
+       users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+       folder: { getList: vi.fn() },
+       driver: { listDrivers: vi.fn().mockResolvedValue([]) },
+       cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
++      storage: { list: storageList },
+     },
+-    getHttp: () => ({ get: storageGet }),
+   }
+ })
+ 
+ const testRouter = createRouter({
+   history: createMemoryHistory(),
+   routes: [
+     { path: '/', name: 'home', component: { template: '<div/>' } },
+     { path: '/files', name: 'files', component: { template: '<div/>' } },
+     { path: '/files/shares', name: 'files-shares', component: { template: '<div/>' } },
+     { path: '/files/:path(.*)*', name: 'files-path', component: { template: '<div/>' } },
+@@ -50,36 +50,36 @@ describe('SharesPage — 「前往」防 /DATA 泄漏', () => {
+     setActivePinia(createPinia())
+     localStorage.clear()
+     listShares.mockReset()
+     listShares.mockResolvedValue([{ id: 1, path: '/DATA/Documents' }])
+     await testRouter.push('/files/shares')
+     await testRouter.isReady()
+   })
+ 
+   it('loadRoots() 未 resolve 时点「前往」不会立刻用 raw real path 跳转;resolve 后才带 /NimoOS-HD 跳转', async () => {
+     // /storage 请求还悬而未决(还没调用 resolveStorage()),模拟 disks/displayNames 仍为空的深链窗口。
+-    storageGet.mockReturnValueOnce(new Promise(() => {})) // onMounted 的 loadRoots() 调用:永久 pending,不干扰下面的可控 pending
++    storageList.mockReturnValueOnce(new Promise(() => {})) // onMounted 的 loadRoots() 调用:永久 pending,不干扰下面的可控 pending
+     const pushSpy = vi.spyOn(testRouter, 'push')
+ 
+     const w = mount(SharesPage, { global: { plugins: [i18n, testRouter] } })
+     await flushPromises() // shares.load() 完成,ShareRow 渲染出来;上面那次 loadRoots() 仍卡在 pending
+ 
+     const gotoBtn = w.findAll('.share-act').find((b) => b.text() === zh.filesShareGoto)
+     expect(gotoBtn).toBeTruthy()
+ 
+     await gotoBtn!.trigger('click') // onGoto: disks 为空 → await files.loadRoots()(第二次调用,命中下面可控的 pending promise)
+     await flushPromises()
+ 
+     // 竞态被正确挡住:loadRoots() 还没 resolve,不能已经跳转到裸 real path。
+     expect(pushSpy).not.toHaveBeenCalled()
+ 
+-    resolveStorage()({ data: { data: [{ type: 'hdd', children: [{ mount_point: '/', label: 'NimoOS-HD' }] }] } })
++    resolveStorage()([{ type: 'hdd', children: [{ mount_point: '/', label: 'NimoOS-HD' }] }])
+     await flushPromises()
+     await flushPromises() // loadDisks -> rebuildDisplayNames -> onGoto 继续 -> goVirtual 是多跳 await 链,多 flush 一轮更稳
+ 
+     expect(pushSpy).toHaveBeenCalledTimes(1)
+     const pushedPath = pushSpy.mock.calls[0][0] as string
+     expect(pushedPath).not.toContain('/DATA')
+     expect(pushedPath).not.toContain('/mnt')
+     expect(pushedPath).toBe('/files/NimoOS-HD/Documents')
+   })
+ })
+diff --git a/src/home/apps/icons/storage.svg b/src/home/apps/icons/storage.svg
+new file mode 100644
+index 0000000..890e7c7
+--- /dev/null
++++ b/src/home/apps/icons/storage.svg
+@@ -0,0 +1,15 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
++  <defs>
++    <linearGradient id="stg" x1="0" y1="0" x2="1" y2="1">
++      <stop offset="0" stop-color="#fcd34d"/>
++      <stop offset="0.6" stop-color="#f59e0b"/>
++      <stop offset="1" stop-color="#b45309"/>
++    </linearGradient>
++  </defs>
++  <rect width="96" height="96" rx="22" fill="url(#stg)"/>
++  <g fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
++    <rect x="24" y="30" width="48" height="36" rx="7"/>
++    <path d="M24 52h48"/>
++  </g>
++  <circle cx="61" cy="59" r="3" fill="#ffffff"/>
++</svg>
+diff --git a/src/home/apps/systemApps.ts b/src/home/apps/systemApps.ts
+index 711c3ba..06b7633 100644
+--- a/src/home/apps/systemApps.ts
++++ b/src/home/apps/systemApps.ts
+@@ -1,30 +1,33 @@
+ import iconFiles from './icons/files.svg'
+ import iconPhotos from './icons/photos.svg'
+ import iconAi from './icons/ai.svg'
+ import iconVm from './icons/kvm.svg'
+ import iconSettings from './icons/settings.png'
+ import iconAppstore from './icons/appstore.svg'
++import iconStorage from './icons/storage.svg'
+ 
+ // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
+ // `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
+ export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string; icon: string }
+ 
+ const G = {
+   folder: '<path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1 1.3h7.1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"/>',
+   photos: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="8.8" cy="9.3" r="1.5"/><path d="m4 17 5-4 3.5 2.6L16 13l4.5 3.5"/>',
+   vm: '<rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M8 19.5h8M12 15.5v4"/>',
+   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.8m0 13.4v2.8M2.5 12h2.8m13.4 0h2.8M5.1 5.1l2 2m9.8 9.8 2 2m0-13.8-2 2M7.1 16.9l-2 2"/>',
+   bag: '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>',
+   ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
++  drive: '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M4 13.5h16"/><circle cx="16.5" cy="15.2" r=".8"/>',
+ }
+ 
+ export const SYSTEM_APPS: SystemApp[] = [
+   { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder, icon: iconFiles },
++  { key: 'storage', name: 'Storage', label: 'appStorage', cls: 'ic-storage', glyph: G.drive, icon: iconStorage },
+   { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },
+   { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },
+   { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm },
+   { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
+   { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },
+ ]
+ 
+ export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)
+diff --git a/src/home/composables/useOpenAction.ts b/src/home/composables/useOpenAction.ts
+index 06a2ccd..024d127 100644
+--- a/src/home/composables/useOpenAction.ts
++++ b/src/home/composables/useOpenAction.ts
+@@ -1,31 +1,32 @@
+ import type { LayoutItem } from '../grid/types'
+ import { useAppsStore } from '../stores/apps'
+ import { useStartApp, appUrl } from './useStartApp'
+ import { router } from '../../router'
+ 
+-// P8 cutover 起文件区活在本应用(/files);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
++// P8 cutover 起文件区活在本应用(/files);存储区也活在本应用(/storage);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+ // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
+ const SYS_ROUTE: Record<string, string> = {
+   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
+   settings: '/#/legacy', appstore: '/#/legacy',
+ }
+ 
+ export function useOpenAction() {
+   const apps = useAppsStore()
+   const startApp = useStartApp()
+ 
+   function openApp(key: string) {
+     const a = apps.app(key)
+     if (!a) return
+     if (a.system) {
+       if (key === 'files') { router.push('/files'); return }
++      if (key === 'storage') { router.push('/storage'); return }
+       window.location.href = SYS_ROUTE[key] || '/#/legacy'
+       return
+     }
+     if (a.app_type === 'LinkApp') { if (a.hostname) window.open(a.hostname, '_blank', 'noopener'); return }
+     const url = appUrl(a)
+     if (a.status === 'running') {
+       if (url) window.open(url, '_blank', 'noopener')
+     } else if (a.status) {
+       // 未运行(exited/dead/unknown…):不开网页,弹"是否启动"确认框(StartAppDialog)。
+       // status 缺省的非容器来源维持无动作(与灰显判定同一约定)。
+diff --git a/src/home/stores/folders.test.ts b/src/home/stores/folders.test.ts
+index 774b16d..59776ea 100644
+--- a/src/home/stores/folders.test.ts
++++ b/src/home/stores/folders.test.ts
+@@ -1,19 +1,54 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ 
+ vi.mock('@nimotech/nimoos-service', async () => {
+   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
+-  return { ...actual, service: { folder: { getList: vi.fn(async () => ({ content: [
+-    { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
+-  ] })) } } }
++  return {
++    ...actual,
++    service: {
++      folder: { getList: vi.fn(async () => ({ content: [
++        { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
++      ] })) },
++      storage: { list: vi.fn() }
++    }
++  }
+ })
+ import { useFoldersStore } from './folders'
++import { service } from '@nimotech/nimoos-service'
+ 
+ describe('useFoldersStore', () => {
+-  beforeEach(() => setActivePinia(createPinia()))
+-  it('loadFolder caches only directories', async () => {
+-    const s = useFoldersStore()
+-    await s.loadFolder('/DATA')
+-    expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.clearAllMocks()
++  })
++
++  describe('loadFolder', () => {
++    it('caches only directories', async () => {
++      const s = useFoldersStore()
++      await s.loadFolder('/DATA')
++      expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
++    })
++  })
++
++  describe('loadDisks(经 service.storage.list)', () => {
++    it('根挂载点折算为 /DATA、label 兜底 NimoOS-HD、usb 标记', async () => {
++      vi.mocked(service.storage.list).mockResolvedValue([
++        { type: 'nvme', children: [{ mount_point: '/', label: '' }] },
++        { type: 'usb', children: [{ mount_point: '/mnt/u1', label: 'U盘' }] },
++      ] as any)
++      const s = useFoldersStore()
++      await s.loadDisks()
++      expect(service.storage.list).toHaveBeenCalledWith({ system: 'show' })
++      expect(s.disks).toEqual([
++        { name: 'NimoOS-HD', path: '/DATA', usb: false },
++        { name: 'U盘', path: '/mnt/u1', usb: true },
++      ])
++    })
++    it('失败置空不抛', async () => {
++      vi.mocked(service.storage.list).mockRejectedValue(new Error('x'))
++      const s = useFoldersStore()
++      await expect(s.loadDisks()).resolves.toBeUndefined()
++      expect(s.disks).toEqual([])
++    })
+   })
+ })
+diff --git a/src/home/stores/folders.ts b/src/home/stores/folders.ts
+index 265a714..ca48ec0 100644
+--- a/src/home/stores/folders.ts
++++ b/src/home/stores/folders.ts
+@@ -1,13 +1,13 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+-import { service, getHttp } from '@nimotech/nimoos-service'
++import { service } from '@nimotech/nimoos-service'
+ 
+ export interface DiskRoot { name: string; path: string; usb: boolean }
+ 
+ export const useFoldersStore = defineStore('home-folders', () => {
+   const cache = ref<Record<string, { name: string; path: string }[]>>({})
+   // Selectable disk roots (NimoOS-HD, USB drives). The folder picker starts here —
+   // never at the raw filesystem root `/` (which would expose server internals).
+   const disks = ref<DiskRoot[]>([])
+ 
+   async function loadFolder(path: string) {
+@@ -16,30 +16,33 @@ export const useFoldersStore = defineStore('home-folders', () => {
+       const content = (data && data.content) || []
+       cache.value[path] = content.filter((x) => x.is_dir).map((x) => ({ name: x.name, path: x.path }))
+     } catch (e) { console.warn('[home] folder load failed', path, e); cache.value[path] = [] }
+   }
+ 
+   // GET /v1/storage?system=show → disk groups; each child partition has a
+   // mount_point + label. The system disk reports mount_point "/" + label
+   // "NimoOS-HD" — remap it to /DATA so we never browse from `/`.
+   async function loadDisks() {
+     try {
+-      const res = await getHttp().get('/storage', { params: { system: 'show' } })
+-      const groups: any[] = res?.data?.data || []
++      // SP6-P1:统一走 service.storage.list(行为等价,原 getHttp 直打 /storage)
++      const groups = ((await service.storage.list({ system: 'show' })) as any[]) || []
+       const out: DiskRoot[] = []
+       const seen = new Set<string>()
+       for (const g of groups) {
+         const usb = g?.type === 'usb'
+-        for (const child of (g?.children || [])) {
+-          let mp: string = child?.mount_point || ''
+-          let label: string = child?.label || ''
+-          if (mp === '/') { mp = '/DATA'; if (!label) label = 'NimoOS-HD' }
++        for (const child of g?.children || []) {
++          let mp = child?.mount_point || ''
++          let label = child?.label || ''
++          if (mp === '/') {
++            mp = '/DATA'
++            if (!label) label = 'NimoOS-HD'
++          }
+           if (!mp || seen.has(mp)) continue
+           if (!label) label = mp.split('/').filter(Boolean).pop() || mp
+           seen.add(mp)
+           out.push({ name: label, path: mp, usb })
+         }
+       }
+       disks.value = out
+     } catch (e) { console.warn('[home] disk load failed', e); disks.value = [] }
+   }
+ 
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index dbc3d8c..ed181bd 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -212,20 +212,21 @@ export default {
+   welcomeSubtitle: 'Create your initial account',
+   welcomeGo: 'Go →',
+   welcomeCreateAccount: 'Create account',
+   welcomeConfirmPassword: 'Confirm password',
+   welcomeCreate: 'Create',
+   welcomeDone: 'All done!',
+   welcomeRegisterFailed: 'Registration failed',
+   welcomeLanguage: 'Language',
+   // ── Home: system app names ──
+   appFiles: 'Files',
++  appStorage: 'Storage',
+   appPhotos: 'Photos',
+   appAi: 'Nimo AI',
+   appVm: 'KVM',
+   appSettings: 'Settings',
+   appAppStore: 'App Store',
+   // ── Home: widget titles & descriptions ──
+   widgetClockTitle: 'Clock',
+   widgetClockDesc: 'Local time and date',
+   widgetStorageTitle: 'Storage',
+   widgetStorageDesc: 'Capacity usage and disk status',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 687d276..74b48db 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -211,20 +211,21 @@ export default {
+   welcomeSubtitle: '创建你的初始账户',
+   welcomeGo: '开始 →',
+   welcomeCreateAccount: '创建账户',
+   welcomeConfirmPassword: '确认密码',
+   welcomeCreate: '创建',
+   welcomeDone: '全部完成！',
+   welcomeRegisterFailed: '注册失败',
+   welcomeLanguage: '语言',
+   // ── 主页:系统应用名 ──
+   appFiles: '文件',
++  appStorage: '存储',
+   appPhotos: '照片',
+   appAi: 'Nimo AI',
+   appVm: 'KVM',
+   appSettings: '设置',
+   appAppStore: 'AppStore',
+   // ── 主页:组件标题与描述 ──
+   widgetClockTitle: '时间',
+   widgetClockDesc: '本地时间与日期',
+   widgetStorageTitle: '存储',
+   widgetStorageDesc: '容量使用与磁盘状态',

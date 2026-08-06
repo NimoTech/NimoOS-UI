@@ -1,0 +1,269 @@
+# Review package: 3f6eb61..59dc605
+
+## Commits
+59dc605 test(files-upload): backfill budget/drop/reattach-autostart/pause coverage gaps
+
+## Files changed
+ src/files/stores/uploads.pauseUploading.test.ts    | 51 +++++++++++++++
+ .../stores/uploads.reattach-autostart.test.ts      | 74 ++++++++++++++++++++++
+ src/files/upload/dropEntries.test.ts               | 17 +++++
+ src/files/upload/persist.test.ts                   | 34 ++++++++++
+ 4 files changed, 176 insertions(+)
+
+## Diff
+diff --git a/src/files/stores/uploads.pauseUploading.test.ts b/src/files/stores/uploads.pauseUploading.test.ts
+new file mode 100644
+index 0000000..148aa01
+--- /dev/null
++++ b/src/files/stores/uploads.pauseUploading.test.ts
+@@ -0,0 +1,51 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { pauseSpy } = vi.hoisted(() => ({ pauseSpy: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta: vi.fn(), dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++// Fake scheduler with an observable `pause` handle — asserts pauseItem routes
++// through the scheduler for an uploading item instead of patching status directly.
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: () => ({ isRunning: () => false, abort: vi.fn(), pause: pauseSpy, run: async () => {} }),
++}))
++
++import { useUploadsStore } from './uploads'
++
++function seedUploading(store: any, over: Record<string, unknown> = {}) {
++  store.queue.push({
++    id: 'u1', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
++    relativePath: 'a', status: 'uploading', progress: 30, bytesSent: 3, speed: 5, tusUploadUrl: 'u',
++    retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
++    conflictPolicy: '', oversize: false, ...over,
++  })
++}
++
++describe('pauseItem on an uploading item', () => {
++  beforeEach(() => { setActivePinia(createPinia()); pauseSpy.mockClear() })
++
++  it('routes through scheduler.pause(id), not a direct status patch', () => {
++    const s = useUploadsStore()
++    seedUploading(s)
++
++    s.pauseItem('u1')
++
++    expect(pauseSpy).toHaveBeenCalledWith('u1')
++    expect(pauseSpy).toHaveBeenCalledTimes(1)
++    // The uploading branch of pauseItem does not patch status itself — only the
++    // (real, unmocked) scheduler flips it to 'paused' once the in-flight upload
++    // handle actually pauses.
++    expect(s.queue[0].status).toBe('uploading')
++  })
++})
+diff --git a/src/files/stores/uploads.reattach-autostart.test.ts b/src/files/stores/uploads.reattach-autostart.test.ts
+new file mode 100644
+index 0000000..51a5e26
+--- /dev/null
++++ b/src/files/stores/uploads.reattach-autostart.test.ts
+@@ -0,0 +1,74 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { persistNewItem, runSpy } = vi.hoisted(() => ({
++  persistNewItem: vi.fn(),
++  runSpy: vi.fn(async () => {}),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++vi.mock('../upload/conflict', async (orig) => {
++  const actual = await (orig as any)()
++  return { ...actual, precheckExisting: () => Promise.resolve(new Set<string>()) }
++})
++// Fake scheduler whose run() is directly observable — this is the side effect
++// we assert on instead of vi.spyOn(store, 'startUpload'), which can't intercept
++// a Pinia setup-store's internal direct call to its own closure (P3b gotcha).
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: () => ({ isRunning: () => false, abort: vi.fn(), pause: vi.fn(), run: runSpy }),
++}))
++vi.mock('../stores/files', () => ({ useFilesStore: () => ({ currentPath: '/DATA', load: vi.fn() }) }))
++
++import { useUploadsStore } from './uploads'
++import type { UploadItem } from '../upload/types'
++
++function needsFileItem(over: Partial<UploadItem> = {}): UploadItem {
++  return {
++    id: 'nf', file: null, fileName: 'a.txt', fileType: '', size: 3, targetPath: '/DATA',
++    relativePath: 'a.txt', status: 'needs_file', progress: 0, bytesSent: 0, speed: 0,
++    tusUploadUrl: null, retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1,
++    restored: true, conflictPolicy: '', oversize: false, ...over,
++  }
++}
++
++describe('reattachFiles auto-starts the upload when idle', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    persistNewItem.mockClear()
++    runSpy.mockClear()
++  })
++
++  it('matches a pending-restore item and triggers the scheduler while uploading===false', async () => {
++    const s = useUploadsStore()
++    s.queue.push(needsFileItem())
++    expect(s.uploading).toBe(false)
++
++    const f = new File(['abc'], 'a.txt')
++    const { matched } = await s.reattachFiles([{ file: f, targetPath: '/DATA', relativePath: 'a.txt' }])
++
++    expect(matched).toBe(1)
++    expect(runSpy).toHaveBeenCalled() // the fake scheduler was actually driven
++  })
++
++  it('does not start a second run when an upload is already in flight', async () => {
++    const s = useUploadsStore()
++    s.queue.push(needsFileItem({ id: 'nf2' }))
++    s.uploading = true // simulate an upload already running
++
++    const f = new File(['abc'], 'a.txt')
++    await s.reattachFiles([{ file: f, targetPath: '/DATA', relativePath: 'a.txt' }])
++
++    expect(runSpy).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/files/upload/dropEntries.test.ts b/src/files/upload/dropEntries.test.ts
+index 278cf14..862a4cf 100644
+--- a/src/files/upload/dropEntries.test.ts
++++ b/src/files/upload/dropEntries.test.ts
+@@ -35,20 +35,37 @@ describe('readDroppedEntries', () => {
+         fileEntry('a.txt', '/MyFolder/a.txt'),
+         dirEntry('sub', '/MyFolder/sub', [fileEntry('b.txt', '/MyFolder/sub/b.txt')]),
+       ]),
+     ])
+     const out = await readDroppedEntries(dt)
+     const rels = out.map((o) => o.relativePath).sort()
+     expect(rels).toEqual(['MyFolder/a.txt', 'MyFolder/sub/b.txt'])
+     expect(out[0].file).toBeInstanceOf(File)
+   })
+ 
++  it('does not filter hidden dotfiles or media files out of a dropped folder', async () => {
++    // Unlike Photos' collectFilesFromDataTransfer, the file manager's drop path
++    // must accept everything the OS handed it — no media-type allowlist, no
++    // dotfile skip.
++    const dt = dtWithEntries([
++      dirEntry('Folder', '/Folder', [
++        fileEntry('.hidden', '/Folder/.hidden'),
++        fileEntry('photo.jpg', '/Folder/photo.jpg'),
++        fileEntry('video.mp4', '/Folder/video.mp4'),
++        fileEntry('notes.txt', '/Folder/notes.txt'),
++      ]),
++    ])
++    const out = await readDroppedEntries(dt)
++    const rels = out.map((o) => o.relativePath).sort()
++    expect(rels).toEqual(['Folder/.hidden', 'Folder/notes.txt', 'Folder/photo.jpg', 'Folder/video.mp4'])
++  })
++
+   it('single dropped file → relativePath is the name', async () => {
+     const dt = dtWithEntries([fileEntry('c.txt', '/c.txt')])
+     const out = await readDroppedEntries(dt)
+     expect(out).toHaveLength(1)
+     expect(out[0].relativePath).toBe('c.txt')
+   })
+ 
+   it('falls back to flat dt.files when entries API unavailable', async () => {
+     const f = new File(['x'], 'd.txt')
+     const dt: any = { items: null, files: [f] }
+diff --git a/src/files/upload/persist.test.ts b/src/files/upload/persist.test.ts
+index 01564cb..34652ce 100644
+--- a/src/files/upload/persist.test.ts
++++ b/src/files/upload/persist.test.ts
+@@ -1,17 +1,18 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { IDBFactory } from 'fake-indexeddb'
+ import { _resetForTest, getAllQueueItems, getBlob, putQueueItem, putBlob } from './idb'
+ import {
+   persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB,
+   pruneOldItems, _resetBudgetForTest,
+ } from './persist'
++import { canStoreBlob, PER_FILE_BLOB_CAP, TOTAL_BLOB_BUDGET } from './budget'
+ import type { UploadItem } from './types'
+ 
+ function mkItem(over: Partial<UploadItem> = {}): UploadItem {
+   return {
+     id: 'i1', file: new Blob(['data']), fileName: 'a.txt', fileType: 'text/plain',
+     size: 4, targetPath: '/DATA/x', relativePath: 'a.txt', status: 'pending',
+     progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0,
+     error: '', createdAt: 1000, batchId: 'b', batchTotal: 1, restored: false,
+     conflictPolicy: '', oversize: false, ...over,
+   }
+@@ -142,20 +143,53 @@ describe('persist', () => {
+     persistItemMeta(updated)
+     await flush()
+ 
+     const rows = await getAllQueueItems()
+     expect(rows).toHaveLength(1)
+     expect(rows[0].id).toBe('m2')
+     expect(rows[0].status).toBe('uploading')
+     expect(rows[0].blobStored).toBe(false) // oversize items never stored
+   })
+ 
++  it('cumulative budget: fills TOTAL_BLOB_BUDGET across many items, then rejects the overflow item and stops accounting growth', async () => {
++    // Fill the budget with as many max-per-file-size items as fit, leaving a
++    // remainder smaller than PER_FILE_BLOB_CAP so the next full-size item cannot fit.
++    const n = Math.floor(TOTAL_BLOB_BUDGET / PER_FILE_BLOB_CAP)
++    for (let i = 0; i < n; i++) {
++      persistNewItem(mkItem({ id: `bulk${i}`, size: PER_FILE_BLOB_CAP }))
++    }
++    await flush()
++    const rowsAfterBulk = await getAllQueueItems()
++    expect(rowsAfterBulk.filter((r) => r.blobStored).length).toBe(n)
++
++    const usedAfterBulk = n * PER_FILE_BLOB_CAP
++    const remaining = TOTAL_BLOB_BUDGET - usedAfterBulk
++    expect(remaining).toBeGreaterThan(0)
++    expect(remaining).toBeLessThan(PER_FILE_BLOB_CAP) // sanity: next full-size item must not fit
++    expect(canStoreBlob(PER_FILE_BLOB_CAP, usedAfterBulk)).toBe(false)
++
++    // One more full-size item goes over budget: meta persists, but no blob is stored.
++    persistNewItem(mkItem({ id: 'overBudget', size: PER_FILE_BLOB_CAP }))
++    await flush()
++    const overRow = (await getAllQueueItems()).find((r) => r.id === 'overBudget')
++    expect(overRow?.blobStored).toBe(false)
++    expect(await getBlob('overBudget')).toBeUndefined()
++
++    // The rejected attempt must not have grown the accounting: an item sized to
++    // exactly the remaining headroom should still fit.
++    persistNewItem(mkItem({ id: 'fitsRemaining', size: remaining }))
++    await flush()
++    const fitsRow = (await getAllQueueItems()).find((r) => r.id === 'fitsRemaining')
++    expect(fitsRow?.blobStored).toBe(true)
++    expect(await getBlob('fitsRemaining')).toBeInstanceOf(Blob)
++  })
++
+   it('dropPersisted frees budget (observable)', async () => {
+     // Persist item A with blob stored
+     persistNewItem(mkItem({ id: 'a', size: 4 }))
+     await flush()
+     expect((await getAllQueueItems())[0].blobStored).toBe(true)
+ 
+     // Drop item A — budget slot is released
+     dropPersisted('a')
+     await flush()
+     expect(await getAllQueueItems()).toEqual([])

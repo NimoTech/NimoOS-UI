@@ -1,0 +1,302 @@
+# Review package: edeaae3..HEAD
+
+## Commits
+e975224 feat(files): ≤768px 侧栏收覆盖式抽屉(☰/遮罩/ESC/导航自动收起)
+
+## Files changed
+ src/files/components/FilesShell.vue              |  9 +++
+ src/files/components/FilesSidebar.drawer.test.ts | 85 ++++++++++++++++++++++++
+ src/files/components/FilesSidebar.vue            | 32 ++++++++-
+ src/i18n/en_us.ts                                |  1 +
+ src/i18n/zh_cn.ts                                |  1 +
+ 5 files changed, 126 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FilesShell.vue b/src/files/components/FilesShell.vue
+index d30aa61..321af15 100644
+--- a/src/files/components/FilesShell.vue
++++ b/src/files/components/FilesShell.vue
+@@ -1,27 +1,36 @@
+ <script setup lang="ts">
+ import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
++import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+ 
+ const router = useRouter()
+ const { t } = useI18n()
++const { isNarrow, toggle } = useSidebarDrawer()
+ function goHome() { router.push('/') }
+ </script>
+ 
+ <template>
+   <div class="files-shell">
+     <header class="files-bar">
++      <button v-if="isNarrow" class="bar-btn files-menu-btn" type="button" :aria-label="t('filesSidebarToggle')" @click="toggle">☰</button>
+       <button class="bar-btn files-home-btn" type="button" @click="goHome">‹ {{ t('filesBackHome') }}</button>
+       <h1 class="files-title">{{ t('filesTitle') }}</h1>
+     </header>
+     <main class="files-body">
+       <slot />
+     </main>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .files-shell { display: flex; flex-direction: column; height: 100vh; color: var(--fg); }
+ .files-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
+ .files-title { font-size: 18px; font-weight: 600; margin: 0; }
+ .files-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }
++
++/* 窄屏(≤768px):侧栏变抽屉,头部内边距/间距收紧以省空间 */
++@media (max-width: 768px) {
++  .files-bar { padding: 12px; gap: 10px; }
++  .files-body { padding: 0 12px 12px; }
++}
+ </style>
+diff --git a/src/files/components/FilesSidebar.drawer.test.ts b/src/files/components/FilesSidebar.drawer.test.ts
+new file mode 100644
+index 0000000..d2050b7
+--- /dev/null
++++ b/src/files/components/FilesSidebar.drawer.test.ts
+@@ -0,0 +1,85 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount, flushPromises } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { nextTick } from 'vue'
++import FilesSidebar from './FilesSidebar.vue'
++import { useFilesStore } from '../stores/files'
++import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../composables/useSidebarDrawer'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
++    folder: { getList: vi.fn() },
++    driver: { listDrivers: vi.fn().mockResolvedValue([]) },
++    cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
++  },
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏', filesSharesNav: '共享', filesDropNav: '互传', filesMountManage: '挂载管理', filesMountEject: '弹出' } } })
++
++const testRouter = createRouter({
++  history: createMemoryHistory(),
++  routes: [
++    { path: '/', name: 'home', component: { template: '<div/>' } },
++    { path: '/files/shares', name: 'files-shares', component: { template: '<div/>' } },
++    { path: '/files/drop', name: 'files-drop', component: { template: '<div/>' } },
++  ],
++})
++
++function mountSidebar() {
++  const files = useFilesStore()
++  files.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as never
++  files.displayNames = { '/DATA': 'NimoOS-HD' }
++  files.currentPath = '/DATA'
++  return mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
++}
++
++describe('FilesSidebar drawer', () => {
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetSidebarDrawerForTest() })
++
++  it('桌面态(isNarrow=false):无遮罩、无 is-drawer class', () => {
++    const w = mountSidebar()
++    expect(w.find('.side-scrim').exists()).toBe(false)
++    expect(w.find('aside.files-sidebar').classes()).not.toContain('is-drawer')
++  })
++
++  it('窄屏 + 打开:出遮罩,aside 带 is-drawer/is-open;点遮罩关闭', async () => {
++    const d = useSidebarDrawer()
++    d.isNarrow.value = true
++    d.open.value = true
++    const w = mountSidebar()
++    await nextTick()
++    expect(w.find('.side-scrim').exists()).toBe(true)
++    const aside = w.find('aside.files-sidebar')
++    expect(aside.classes()).toContain('is-drawer')
++    expect(aside.classes()).toContain('is-open')
++    await w.find('.side-scrim').trigger('click')
++    expect(d.open.value).toBe(false)
++    expect(w.find('.side-scrim').exists()).toBe(false)
++  })
++
++  it('ESC 关闭抽屉', async () => {
++    const d = useSidebarDrawer()
++    d.isNarrow.value = true
++    d.open.value = true
++    mountSidebar()
++    await nextTick()
++    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
++    expect(d.open.value).toBe(false)
++  })
++
++  it('路由变化(点导航项)后自动收起', async () => {
++    const d = useSidebarDrawer()
++    d.isNarrow.value = true
++    d.open.value = true
++    const w = mountSidebar()
++    await nextTick()
++    await w.findAll('.side-item')[0].trigger('click') // 「共享」项 → router.push('/files/shares')
++    await testRouter.isReady()
++    await nextTick(); await nextTick() // 等 watch(route.fullPath) 触发
++    await flushPromises() // router.push 的 pending navigation 在本仓库 vue-router 版本下需要一个宏任务才能落定,纯 nextTick 不够(已实测排查)
++    expect(d.open.value).toBe(false)
++  })
++})
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index d316665..419f22a 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -1,39 +1,54 @@
+ <script setup lang="ts">
+-import { computed, ref } from 'vue'
++import { computed, ref, watch, onUnmounted } from 'vue'
+ import { useRouter, useRoute } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useFilesStore } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useMountsStore } from '../stores/mounts'
+ import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+ import { buildAuthUrl } from '../util/cloudAuth'
+ import { dropAsset } from '../drop/dropIcons'
+ import type { CloudDriver } from '@nimotech/nimoos-service'
+ import AddMountMenu from './AddMountMenu.vue'
+ import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
++import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+ const router = useRouter()
+ const route = useRoute()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const mounts = useMountsStore()
+ const dialogOpen = ref(false)
+ const gdriveOpen = ref(false)
+ const { t } = useI18n()
+ const dropNavIcon = dropAsset('drop_icon')
+ 
++// 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)
++const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
++
++// 任何路由变化(点收藏/磁盘/共享/互传导航)后抽屉自动收起;桌面态 close 是 no-op。
++watch(() => route.fullPath, () => closeDrawer())
++
++// ESC 关抽屉。注:预览器(ViewerShell)有自己的 ESC;抽屉只在窄屏打开时监听,冲突面可忽略。
++function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
++watch(drawerOpen, (o) => {
++  if (o) document.addEventListener('keydown', onDrawerKeydown)
++  else document.removeEventListener('keydown', onDrawerKeydown)
++})
++onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
++
+ function go(realPath: string) {
+   emit('navigate', toVirtualPath(realPath, files.displayNames))
+ }
+ function isActive(realPath: string): boolean {
+   return files.currentPath === realPath
+ }
+ function diskIcon(usb: boolean): string {
+   return iconUrl(usb ? 'folder-usb' : 'folder-hdd')
+ }
+ 
+@@ -99,21 +114,22 @@ function onDiskDrop(i: number) {
+   const [moved] = arr.splice(from, 1)
+   arr.splice(i, 0, moved)
+   const order = arr.map((d) => d.path)
+   writeOrder(order)
+   writeDefault(order[0] || '')
+   orderVersion.value++
+ }
+ </script>
+ 
+ <template>
+-  <aside class="files-sidebar">
++  <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
++  <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+     <div class="side-head">
+       <span class="side-head-title">{{ t('filesMountManage') }}</span>
+       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
+     </div>
+     <section class="side-section">
+       <ul class="side-list">
+         <li class="side-item" :class="{ active: route.name === 'files-shares' }" @click="router.push('/files/shares')">
+           <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+           <span class="side-name">{{ t('filesSharesNav') }}</span>
+         </li>
+@@ -209,11 +225,23 @@ function onDiskDrop(i: number) {
+ .side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; }
+ .side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }
+ .side-list { list-style: none; margin: 0; padding: 0; }
+ .side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
+ .side-item:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+ .side-item.active { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+ .side-icon { width: 20px; height: 20px; flex: 0 0 auto; }
+ .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
+ .side-item:hover .side-remove { opacity: 1; }
++
++/* 窄屏抽屉:遮罩 + 侧栏浮层覆盖(z-index 备忘:ViewerShell=200、MediaViewer ask 面板=240、
++   ui-ctx 默认 120 → 抽屉 150/151 压住内容、避让预览器) */
++.side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
++.files-sidebar.is-drawer {
++  position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
++  padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
++  border-right: 1px solid var(--card-border);
++  transform: translateX(-105%); transition: transform 0.25s var(--ease);
++}
++.files-sidebar.is-drawer.is-open { transform: none; }
++@media (prefers-reduced-motion: reduce) { .files-sidebar.is-drawer { transition: none; } }
+ </style>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 5c3c1c1..5090b64 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1,18 +1,19 @@
+ export const messages = {
+   en_us: {
+     appTitle: 'NimoOS · New Home Base',
+     backToOld: '← Back to main app',
+     cpu: 'CPU',
+     memory: 'Memory',
+     collecting: 'Collecting…',
+     filesTitle: 'Files',
++    filesSidebarToggle: 'Sidebar',
+     filesBackHome: 'Home',
+     filesEmpty: 'This folder is empty',
+     filesViewList: 'List',
+     filesViewGrid: 'Grid',
+     filesColName: 'Name',
+     filesColType: 'Type',
+     filesColDate: 'Date modified',
+     filesColSize: 'Size',
+     filesFavorites: 'Favorites',
+     filesDisks: 'Disks',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 0d757f5..1f7557f 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1,18 +1,19 @@
+ export const messages = {
+   zh_cn: {
+     appTitle: 'NimoOS · 新主页地基',
+     backToOld: '← 返回主应用',
+     cpu: '处理器',
+     memory: '内存',
+     collecting: '采集中…',
+     filesTitle: '文件',
++    filesSidebarToggle: '侧栏',
+     filesBackHome: '回主页',
+     filesEmpty: '此文件夹为空',
+     filesViewList: '列表',
+     filesViewGrid: '网格',
+     filesColName: '名称',
+     filesColType: '类型',
+     filesColDate: '修改日期',
+     filesColSize: '大小',
+     filesFavorites: '收藏',
+     filesDisks: '磁盘',

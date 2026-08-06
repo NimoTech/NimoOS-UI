@@ -1,0 +1,788 @@
+# Review package: 06d285c..ada2b98
+
+## Commits
+ada2b98 feat(files): P1d wiring — select dispatch + selection toolbar + marquee container
+34df9bf feat(files): SelectionToolbar (count + select-all + clear) + i18n
+b721ab8 feat(files): row/tile checkbox + modifier-click select + data-path; views forward select
+4a166f6 feat(files): marquee pure helpers (rectFromPoints + marqueeSelect)
+b282414 feat(files): selection state in filesStore (toggle/range/all/clear, per-dir clear)
+
+## Files changed
+ src/files/components/FileGridView.vue         | 16 ++++--
+ src/files/components/FileListView.vue         | 19 +++++--
+ src/files/components/FileRow.test.ts          | 38 ++++++++++----
+ src/files/components/FileRow.vue              | 28 ++++++++--
+ src/files/components/FileTile.vue             | 28 ++++++++--
+ src/files/components/SelectionToolbar.test.ts | 20 ++++++++
+ src/files/components/SelectionToolbar.vue     | 21 ++++++++
+ src/files/stores/files.test.ts                | 67 ++++++++++++++++++++++++
+ src/files/stores/files.ts                     | 52 ++++++++++++++++++-
+ src/files/util/marquee.test.ts                | 27 ++++++++++
+ src/files/util/marquee.ts                     | 20 ++++++++
+ src/i18n/zh_cn.ts                             |  3 ++
+ src/views/Files.test.ts                       | 20 ++++++++
+ src/views/Files.vue                           | 73 +++++++++++++++++++++++++--
+ 14 files changed, 407 insertions(+), 25 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FileGridView.vue b/src/files/components/FileGridView.vue
+index 5fc547f..27b2909 100644
+--- a/src/files/components/FileGridView.vue
++++ b/src/files/components/FileGridView.vue
+@@ -1,16 +1,26 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import FileTile from './FileTile.vue'
+-const props = defineProps<{ entries: FileEntry[] }>()
+-const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
++const props = defineProps<{ entries: FileEntry[]; selectedPaths?: Set<string> }>()
++const emit = defineEmits<{
++  (e: 'open', entry: FileEntry): void
++  (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++}>()
+ </script>
+ 
+ <template>
+   <div class="file-grid">
+-    <FileTile v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
++    <FileTile
++      v-for="entry in props.entries"
++      :key="entry.path"
++      :entry="entry"
++      :selected="props.selectedPaths?.has(entry.path)"
++      @open="emit('open', $event)"
++      @select="emit('select', $event)"
++    />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
+ </style>
+diff --git a/src/files/components/FileListView.vue b/src/files/components/FileListView.vue
+index cd85424..799d587 100644
+--- a/src/files/components/FileListView.vue
++++ b/src/files/components/FileListView.vue
+@@ -1,42 +1,55 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ import type { FileEntry } from '../stores/files'
+ import FileRow from './FileRow.vue'
+ 
+-const props = defineProps<{ entries: FileEntry[]; sort: string; order: string }>()
+-const emit = defineEmits<{ (e: 'open', entry: FileEntry): void; (e: 'reorder', sort: string): void }>()
++const props = defineProps<{ entries: FileEntry[]; sort: string; order: string; selectedPaths?: Set<string> }>()
++const emit = defineEmits<{
++  (e: 'open', entry: FileEntry): void
++  (e: 'reorder', sort: string): void
++  (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++}>()
+ const { t } = useI18n()
+ 
+ const COLS = [
+   { key: 'name', label: 'filesColName', cls: 'col-name' },
+   { key: 'format', label: 'filesColType', cls: 'col-format' },
+   { key: 'date', label: 'filesColDate', cls: 'col-date' },
+   { key: 'size', label: 'filesColSize', cls: 'col-size' },
+ ]
+ function arrow(key: string) { return props.sort === key ? (props.order === 'asc' ? ' ▲' : ' ▼') : '' }
+ </script>
+ 
+ <template>
+   <div class="file-listview">
+     <div class="file-listhead">
++      <span class="head-cell col-check"></span>
+       <span
+         v-for="c in COLS"
+         :key="c.key"
+         :class="['head-cell', c.cls]"
+         @click="emit('reorder', c.key)"
+       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
+       <span class="head-cell col-star"></span>
+     </div>
+-    <FileRow v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
++    <FileRow
++      v-for="entry in props.entries"
++      :key="entry.path"
++      :entry="entry"
++      :selected="props.selectedPaths?.has(entry.path)"
++      @open="emit('open', $event)"
++      @select="emit('select', $event)"
++    />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
+ .head-cell { cursor: pointer; user-select: none; }
++.col-check { flex: 0 0 28px; }
+ .col-name { flex: 1 1 auto; margin-left: 40px; }
+ .col-format { flex: 0 0 48px; }
+ .col-date { flex: 0 0 160px; }
+ .col-size { flex: 0 0 80px; text-align: right; }
+ .col-star { flex: 0 0 32px; }
+ </style>
+diff --git a/src/files/components/FileRow.test.ts b/src/files/components/FileRow.test.ts
+index ab22e9e..f808670 100644
+--- a/src/files/components/FileRow.test.ts
++++ b/src/files/components/FileRow.test.ts
+@@ -1,26 +1,46 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import FileRow from './FileRow.vue'
+ 
+ const mountOpts = { global: { stubs: { FileThumb: true, FavoriteStar: true } } }
++const fileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 1536, date: '2026-01-02T10:00:00Z' }
+ 
+ describe('FileRow', () => {
+-  it('renders name, a FileThumb, size for files; emits open on click', async () => {
+-    const entry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 1536, date: '2026-01-02T10:00:00Z' }
+-    const w = mount(FileRow, { props: { entry }, ...mountOpts })
++  it('renders name, a FileThumb, size; plain click emits open', async () => {
++    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
+     expect(w.text()).toContain('a.txt')
+-    expect(w.find('.file-icon').exists()).toBe(true)   // FileThumb stub 根带 file-icon 类
++    expect(w.find('.file-icon').exists()).toBe(true)
+     expect(w.text()).toContain('1.5 KB')
+     await w.trigger('click')
+     expect(w.emitted('open')).toBeTruthy()
+-    expect(w.emitted('open')![0][0]).toEqual(entry)
++    expect(w.emitted('select')).toBeFalsy()
+   })
+ 
+-  it('keeps the size column but shows no size text for directories (column alignment)', () => {
+-    const entry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
+-    const w = mount(FileRow, { props: { entry }, ...mountOpts })
+-    expect(w.text()).toContain('Docs')
++  it('keeps an empty size cell for directories (column alignment)', () => {
++    const w = mount(FileRow, { props: { entry: { name: 'Docs', path: '/DATA/Docs', is_dir: true } }, ...mountOpts })
+     expect(w.find('.file-size').exists()).toBe(true)
+     expect(w.find('.file-size').text()).toBe('')
+   })
++
++  it('ctrl/meta click emits select toggle; shift click emits select range; no open', async () => {
++    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
++    await w.trigger('click', { ctrlKey: true })
++    expect(w.emitted('select')![0][0]).toEqual({ entry: fileEntry, mode: 'toggle' })
++    await w.trigger('click', { shiftKey: true })
++    expect(w.emitted('select')![1][0]).toEqual({ entry: fileEntry, mode: 'range' })
++    expect(w.emitted('open')).toBeFalsy()
++  })
++
++  it('checkbox click emits select toggle and does NOT emit open', async () => {
++    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
++    await w.get('input.row-check').trigger('change')
++    expect(w.emitted('select')![0][0]).toEqual({ entry: fileEntry, mode: 'toggle' })
++    expect(w.emitted('open')).toBeFalsy()
++  })
++
++  it('adds .selected class and checks the box when selected', () => {
++    const w = mount(FileRow, { props: { entry: fileEntry, selected: true }, ...mountOpts })
++    expect(w.classes()).toContain('selected')
++    expect((w.get('input.row-check').element as HTMLInputElement).checked).toBe(true)
++  })
+ })
+diff --git a/src/files/components/FileRow.vue b/src/files/components/FileRow.vue
+index 6ec5b0e..7445c6c 100644
+--- a/src/files/components/FileRow.vue
++++ b/src/files/components/FileRow.vue
+@@ -1,34 +1,56 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import { renderSize, dateFmt } from '../util/format'
+ import { fileExt } from '../util/ext'
+ import FileThumb from './FileThumb.vue'
+ import FavoriteStar from './FavoriteStar.vue'
+ 
+-const props = defineProps<{ entry: FileEntry }>()
+-const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
++const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
++const emit = defineEmits<{
++  (e: 'open', entry: FileEntry): void
++  (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++}>()
++
++function onClick(e: MouseEvent) {
++  if (e.shiftKey) emit('select', { entry: props.entry, mode: 'range' })
++  else if (e.ctrlKey || e.metaKey) emit('select', { entry: props.entry, mode: 'toggle' })
++  else emit('open', props.entry)
++}
+ </script>
+ 
+ <template>
+-  <div class="file-row" @click="emit('open', props.entry)">
++  <div class="file-row" :class="{ selected: props.selected }" :data-path="props.entry.path" @click="onClick">
++    <span class="file-check">
++      <input
++        type="checkbox"
++        class="row-check"
++        :checked="props.selected"
++        @click.stop
++        @change="emit('select', { entry: props.entry, mode: 'toggle' })"
++      />
++    </span>
+     <FileThumb class="file-icon" :entry="props.entry" />
+     <span class="file-name">{{ props.entry.name }}</span>
+     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
+     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
+     <span class="file-size">{{ props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0) }}</span>
+     <span class="file-star"><FavoriteStar :path="props.entry.path" :name="props.entry.name" /></span>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; cursor: pointer; color: var(--fg); }
+ .file-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
++.file-row.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
++.file-check { flex: 0 0 28px; display: flex; justify-content: center; }
++.row-check { opacity: 0; cursor: pointer; }
++.file-row:hover .row-check, .file-row.selected .row-check { opacity: 1; }
+ .file-icon { width: 28px; height: 28px; flex: 0 0 auto; }
+ .file-name { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }
+ .file-date { flex: 0 0 160px; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
+ .file-size { flex: 0 0 80px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-align: right; }
+ .file-star { flex: 0 0 32px; display: flex; justify-content: center; }
+ .file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
+ .file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
+ </style>
+diff --git a/src/files/components/FileTile.vue b/src/files/components/FileTile.vue
+index dfe3f96..2c61bee 100644
+--- a/src/files/components/FileTile.vue
++++ b/src/files/components/FileTile.vue
+@@ -1,29 +1,51 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import { dateFmt } from '../util/format'
+ import FileThumb from './FileThumb.vue'
+ import FavoriteStar from './FavoriteStar.vue'
+ 
+-const props = defineProps<{ entry: FileEntry }>()
+-const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
++const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
++const emit = defineEmits<{
++  (e: 'open', entry: FileEntry): void
++  (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++}>()
++
++function onClick(e: MouseEvent) {
++  if (e.shiftKey) emit('select', { entry: props.entry, mode: 'range' })
++  else if (e.ctrlKey || e.metaKey) emit('select', { entry: props.entry, mode: 'toggle' })
++  else emit('open', props.entry)
++}
+ </script>
+ 
+ <template>
+-  <div class="file-tile" @click="emit('open', props.entry)">
++  <div class="file-tile" :class="{ selected: props.selected }" :data-path="props.entry.path" @click="onClick">
++    <span class="tile-check">
++      <input
++        type="checkbox"
++        class="tile-check-box"
++        :checked="props.selected"
++        @click.stop
++        @change="emit('select', { entry: props.entry, mode: 'toggle' })"
++      />
++    </span>
+     <FavoriteStar class="tile-star" :path="props.entry.path" :name="props.entry.name" />
+     <FileThumb class="tile-icon" :entry="props.entry" />
+     <span class="tile-name">{{ props.entry.name }}</span>
+     <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: transparent; border: 1px solid transparent; }
+ .file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
++.file-tile.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+ .tile-icon { width: var(--app-size, 64px); height: var(--app-size, 64px); }
+ .tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+ .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
+ .tile-star { position: absolute; top: 6px; right: 6px; }
++.tile-check { position: absolute; top: 6px; left: 6px; }
++.tile-check-box { opacity: 0; cursor: pointer; }
++.file-tile:hover .tile-check-box, .file-tile.selected .tile-check-box { opacity: 1; }
+ .file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
+ .file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
+ </style>
+diff --git a/src/files/components/SelectionToolbar.test.ts b/src/files/components/SelectionToolbar.test.ts
+new file mode 100644
+index 0000000..9407b69
+--- /dev/null
++++ b/src/files/components/SelectionToolbar.test.ts
+@@ -0,0 +1,20 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import SelectionToolbar from './SelectionToolbar.vue'
++
++const i18n = createI18n({
++  legacy: false, locale: 'zh_cn',
++  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空' } },
++})
++
++describe('SelectionToolbar', () => {
++  it('shows the count and emits select-all / clear', async () => {
++    const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false }, global: { plugins: [i18n] } })
++    expect(w.text()).toContain('已选 3 项')
++    await w.get('.sel-all').trigger('click')
++    expect(w.emitted('select-all')).toBeTruthy()
++    await w.get('.sel-clear').trigger('click')
++    expect(w.emitted('clear')).toBeTruthy()
++  })
++})
+diff --git a/src/files/components/SelectionToolbar.vue b/src/files/components/SelectionToolbar.vue
+new file mode 100644
+index 0000000..139fb85
+--- /dev/null
++++ b/src/files/components/SelectionToolbar.vue
+@@ -0,0 +1,21 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++const props = defineProps<{ count: number; allSelected: boolean }>()
++const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <div class="selection-toolbar">
++    <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
++    <button class="sel-btn sel-all" @click="emit('select-all')">{{ t('filesSelectAll') }}</button>
++    <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>
++  </div>
++</template>
++
++<style scoped>
++.selection-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
++.sel-count { flex: 0 0 auto; }
++.sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
++.sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
++</style>
+diff --git a/src/files/stores/files.test.ts b/src/files/stores/files.test.ts
+index a1e7a68..36fb028 100644
+--- a/src/files/stores/files.test.ts
++++ b/src/files/stores/files.test.ts
+@@ -62,10 +62,77 @@ describe('filesStore', () => {
+   it('setSort toggles order when same column clicked; setView persists', () => {
+     const files = useFilesStore()
+     files.setSort('name', 'asc')
+     files.setSort('name')            // same col → toggle
+     expect(files.order).toBe('desc')
+     files.setView('grid')
+     expect(files.viewMode).toBe('grid')
+     expect(localStorage.getItem('nimoos:file-view')).toBe('grid')
+   })
+ })
++
++describe('filesStore selection', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  function seed() {
++    const files = useFilesStore()
++    files.entries = [
++      { name: 'Alpha', path: '/DATA/Alpha', is_dir: true },
++      { name: 'Zeta', path: '/DATA/Zeta', is_dir: true },
++      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 10 },
++      { name: 'b.txt', path: '/DATA/b.txt', is_dir: false, size: 20 },
++    ] as any
++    files.setSort('name', 'asc') // sortedEntries: Alpha, Zeta, a.txt, b.txt
++    return files
++  }
++
++  it('toggleSelect flips membership and sets the anchor', () => {
++    const files = seed()
++    files.toggleSelect('/DATA/a.txt')
++    expect(files.isSelected('/DATA/a.txt')).toBe(true)
++    expect(files.selectedCount).toBe(1)
++    files.toggleSelect('/DATA/a.txt')
++    expect(files.isSelected('/DATA/a.txt')).toBe(false)
++    expect(files.selectedCount).toBe(0)
++  })
++
++  it('selectOnly clears others; selectAll selects everything', () => {
++    const files = seed()
++    files.toggleSelect('/DATA/a.txt')
++    files.selectOnly('/DATA/b.txt')
++    expect(files.selectedCount).toBe(1)
++    expect(files.isSelected('/DATA/b.txt')).toBe(true)
++    files.selectAll()
++    expect(files.selectedCount).toBe(4)
++    expect(files.allSelected).toBe(true)
++  })
++
++  it('selectRange selects the contiguous span in sortedEntries order (anchor→target)', () => {
++    const files = seed()
++    files.toggleSelect('/DATA/Alpha')      // anchor = Alpha (index 0)
++    files.selectRange('/DATA/a.txt')       // index 2 → span [Alpha, Zeta, a.txt]
++    expect([...files.selected].sort()).toEqual(['/DATA/Alpha', '/DATA/Zeta', '/DATA/a.txt'].sort())
++  })
++
++  it('selectRange without an anchor degrades to selectOnly', () => {
++    const files = seed()
++    files.selectRange('/DATA/Zeta')
++    expect([...files.selected]).toEqual(['/DATA/Zeta'])
++  })
++
++  it('setSelection replaces the whole selection; clearSelection empties it', () => {
++    const files = seed()
++    files.setSelection(['/DATA/a.txt', '/DATA/b.txt'])
++    expect(files.selectedCount).toBe(2)
++    files.clearSelection()
++    expect(files.selectedCount).toBe(0)
++    expect(files.selectionAnchor).toBe(null)
++  })
++
++  it('load clears the selection (per-directory)', async () => {
++    const files = seed()
++    files.toggleSelect('/DATA/a.txt')
++    expect(files.selectedCount).toBe(1)
++    await files.load('/DATA')
++    expect(files.selectedCount).toBe(0)
++  })
++})
+diff --git a/src/files/stores/files.ts b/src/files/stores/files.ts
+index ff70b17..f4b5b08 100644
+--- a/src/files/stores/files.ts
++++ b/src/files/stores/files.ts
+@@ -31,20 +31,21 @@ export const useFilesStore = defineStore('files', () => {
+     const map: DisplayNames = {}
+     for (const d of disks.value) map[d.path] = d.name
+     displayNames.value = map
+   }
+ 
+   function defaultRootReal(): string {
+     return disks.value.length ? disks.value[0].path : ''
+   }
+ 
+   async function load(realPath: string) {
++    clearSelection()
+     loading.value = true
+     try {
+       const data = await service.folder.getList(realPath)
+       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
+       entries.value = content.filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
+       currentPath.value = realPath
+     } catch (e) {
+       console.warn('[files] load failed', realPath, e)
+       entries.value = []
+       currentPath.value = realPath
+@@ -82,12 +83,61 @@ export const useFilesStore = defineStore('files', () => {
+     localStorage.setItem('nimoos:file-view', v)
+   }
+   function setSort(s: string, o?: 'asc' | 'desc') {
+     const next = (o ?? (s === sort.value ? (order.value === 'asc' ? 'desc' : 'asc') : 'asc')) as 'asc' | 'desc'
+     sort.value = s as typeof sort.value
+     order.value = next
+     localStorage.setItem('nimoos:file-sort', sort.value)
+     localStorage.setItem('nimoos:file-order', order.value)
+   }
+ 
+-  return { displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load, viewMode, sort, order, sortedEntries, setView, setSort }
++  const selected = ref<Set<string>>(new Set())
++  const selectionAnchor = ref<string | null>(null)
++
++  function isSelected(path: string): boolean {
++    return selected.value.has(path)
++  }
++  const selectedCount = computed(() => selected.value.size)
++  const allSelected = computed(
++    () => entries.value.length > 0 && sortedEntries.value.every((e) => selected.value.has(e.path)),
++  )
++  function clearSelection() {
++    selected.value = new Set()
++    selectionAnchor.value = null
++  }
++  function setSelection(paths: string[]) {
++    selected.value = new Set(paths)
++  }
++  function toggleSelect(path: string) {
++    const next = new Set(selected.value)
++    if (next.has(path)) next.delete(path)
++    else next.add(path)
++    selected.value = next
++    selectionAnchor.value = path
++  }
++  function selectOnly(path: string) {
++    selected.value = new Set([path])
++    selectionAnchor.value = path
++  }
++  function selectRange(path: string) {
++    const list = sortedEntries.value
++    const anchor = selectionAnchor.value
++    if (!anchor) { selectOnly(path); return }
++    const ai = list.findIndex((e) => e.path === anchor)
++    const bi = list.findIndex((e) => e.path === path)
++    if (ai === -1 || bi === -1) { toggleSelect(path); return }
++    const [lo, hi] = ai <= bi ? [ai, bi] : [bi, ai]
++    const next = new Set(selected.value)
++    for (let i = lo; i <= hi; i++) next.add(list[i].path)
++    selected.value = next
++  }
++  function selectAll() {
++    selected.value = new Set(sortedEntries.value.map((e) => e.path))
++  }
++
++  return {
++    displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load,
++    viewMode, sort, order, sortedEntries, setView, setSort,
++    selected, selectionAnchor, isSelected, selectedCount, allSelected,
++    toggleSelect, selectOnly, selectRange, selectAll, clearSelection, setSelection,
++  }
+ })
+diff --git a/src/files/util/marquee.test.ts b/src/files/util/marquee.test.ts
+new file mode 100644
+index 0000000..369b9ef
+--- /dev/null
++++ b/src/files/util/marquee.test.ts
+@@ -0,0 +1,27 @@
++import { describe, it, expect } from 'vitest'
++import { rectFromPoints, marqueeSelect, type ItemRect } from './marquee'
++
++describe('rectFromPoints', () => {
++  it('normalizes any drag direction into a top-left/bottom-right rect', () => {
++    expect(rectFromPoints(10, 10, 40, 50)).toEqual({ left: 10, top: 10, right: 40, bottom: 50 })
++    expect(rectFromPoints(40, 50, 10, 10)).toEqual({ left: 10, top: 10, right: 40, bottom: 50 })
++  })
++})
++
++describe('marqueeSelect', () => {
++  const items: ItemRect[] = [
++    { path: 'a', rect: { left: 0, top: 0, right: 20, bottom: 20 } },
++    { path: 'b', rect: { left: 30, top: 0, right: 50, bottom: 20 } },
++    { path: 'c', rect: { left: 0, top: 30, right: 20, bottom: 50 } },
++  ]
++  it('returns items overlapping the selection rect', () => {
++    expect(marqueeSelect(items, { left: 5, top: 5, right: 35, bottom: 10 })).toEqual(['a', 'b'])
++  })
++  it('returns empty when nothing overlaps', () => {
++    expect(marqueeSelect(items, { left: 100, top: 100, right: 120, bottom: 120 })).toEqual([])
++  })
++  it('edge-touching does not count as overlap (strict)', () => {
++    // selRect right edge at 30 exactly meets b.left=30 → no overlap
++    expect(marqueeSelect(items, { left: 22, top: 0, right: 30, bottom: 20 })).toEqual([])
++  })
++})
+diff --git a/src/files/util/marquee.ts b/src/files/util/marquee.ts
+new file mode 100644
+index 0000000..68ba6b5
+--- /dev/null
++++ b/src/files/util/marquee.ts
+@@ -0,0 +1,20 @@
++export interface Rect { left: number; top: number; right: number; bottom: number }
++export interface ItemRect { path: string; rect: Rect }
++
++export function rectFromPoints(x1: number, y1: number, x2: number, y2: number): Rect {
++  return {
++    left: Math.min(x1, x2),
++    top: Math.min(y1, y2),
++    right: Math.max(x1, x2),
++    bottom: Math.max(y1, y2),
++  }
++}
++
++// 标准 AABB 严格相交(边缘相接不算)
++function overlaps(a: Rect, b: Rect): boolean {
++  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
++}
++
++export function marqueeSelect(items: ItemRect[], selRect: Rect): string[] {
++  return items.filter((it) => overlaps(it.rect, selRect)).map((it) => it.path)
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 45f3046..788ea4d 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -10,12 +10,15 @@ export const messages = {
+     filesEmpty: '此文件夹为空',
+     filesViewList: '列表',
+     filesViewGrid: '网格',
+     filesColName: '名称',
+     filesColType: '类型',
+     filesColDate: '修改日期',
+     filesColSize: '大小',
+     filesFavorites: '收藏',
+     filesDisks: '磁盘',
+     filesNoFavorites: '暂无收藏',
++    filesSelectedCount: '已选 {count} 项',
++    filesSelectAll: '全选',
++    filesClearSel: '清空',
+   },
+ }
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+index bdeca4c..78d5355 100644
+--- a/src/views/Files.test.ts
++++ b/src/views/Files.test.ts
+@@ -120,11 +120,31 @@ describe('Files.vue browse pipe', () => {
+     await flushPromises()
+     // sidebar shows the disk root
+     expect(w.find('.files-sidebar').exists()).toBe(true)
+     expect(w.find('.files-sidebar').text()).toContain('NimoOS-HD')
+     // breadcrumb shows virtual segments, never the real path
+     const crumbs = w.findAll('.crumb').map((c) => c.text())
+     expect(crumbs).toContain('NimoOS-HD')
+     expect(crumbs).toContain('Documents')
+     expect(w.find('.breadcrumb').text()).not.toContain('/DATA')
+   })
++
++  it('ctrl-click in list view selects a row and shows the selection toolbar; clear resets', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    localStorage.clear()
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    await w.get('.view-toggle-list').trigger('click')
++    const files = useFilesStore()
++    const row = w.findAll('.file-row')[0]
++    await row.trigger('click', { ctrlKey: true })
++    expect(files.selectedCount).toBe(1)
++    expect(w.find('.selection-toolbar').exists()).toBe(true)
++    expect(w.find('.selection-toolbar').text()).toContain('已选 1 项')
++    await w.get('.selection-toolbar .sel-clear').trigger('click')
++    expect(files.selectedCount).toBe(0)
++    expect(w.find('.selection-toolbar').exists()).toBe(false)
++  })
+ })
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index c4fd5b4..6d3ee5d 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,21 +1,23 @@
+ <script setup lang="ts">
+-import { watch, onMounted, computed } from 'vue'
++import { watch, onMounted, computed, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import FilesShell from '../files/components/FilesShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
++import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
++import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const { t } = useI18n()
+ 
+@@ -31,45 +33,110 @@ async function sync() {
+     if (!rootReal) return
+     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
+     return
+   }
+   await files.load(toRealPath(vp, files.displayNames))
+ }
+ function openEntry(entry: FileEntry) {
+   if (!entry.is_dir) return
+   goVirtual(toVirtualPath(entry.path, files.displayNames))
+ }
++function onSelect(payload: { entry: FileEntry; mode: 'toggle' | 'range' }) {
++  if (payload.mode === 'range') files.selectRange(payload.entry.path)
++  else files.toggleSelect(payload.entry.path)
++}
++
++// ── 框选(几何真机验;纯 marqueeSelect/rectFromPoints 已单测)──
++const listwrap = ref<HTMLElement | null>(null)
++const marquee = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
++const marqueeStyle = computed(() => {
++  if (!marquee.value) return {}
++  const r = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
++  return { left: r.left + 'px', top: r.top + 'px', width: r.right - r.left + 'px', height: r.bottom - r.top + 'px' }
++})
++function onMarqueeDown(e: MouseEvent) {
++  if (e.button !== 0) return
++  const el = e.target as HTMLElement
++  if (el.closest('[data-path]') || el.closest('input,button,a')) return // 空白区才起框
++  marquee.value = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY }
++  window.addEventListener('mousemove', onMarqueeMove)
++  window.addEventListener('mouseup', onMarqueeUp)
++}
++function onMarqueeMove(e: MouseEvent) {
++  if (!marquee.value) return
++  marquee.value = { ...marquee.value, x2: e.clientX, y2: e.clientY }
++  const selRect = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
++  const items: ItemRect[] = []
++  listwrap.value?.querySelectorAll<HTMLElement>('[data-path]').forEach((node) => {
++    const b = node.getBoundingClientRect()
++    items.push({ path: node.dataset.path as string, rect: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } })
++  })
++  files.setSelection(marqueeSelect(items, selRect))
++}
++function onMarqueeUp() {
++  marquee.value = null
++  window.removeEventListener('mousemove', onMarqueeMove)
++  window.removeEventListener('mouseup', onMarqueeUp)
++}
++
+ onMounted(async () => {
+   await files.loadRoots()
+   favorites.load()
+   await sync()
+ })
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ </script>
+ 
+ <template>
+   <FilesShell>
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <div class="files-main">
+         <div class="files-topbar">
+           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
+           <div class="files-viewtoggle">
+             <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+             <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+           </div>
+         </div>
+-        <FileGridView v-if="files.viewMode === 'grid'" :entries="files.sortedEntries" @open="openEntry" />
+-        <FileListView v-else :entries="files.sortedEntries" :sort="files.sort" :order="files.order" @open="openEntry" @reorder="files.setSort" />
++        <SelectionToolbar
++          v-if="files.selectedCount > 0"
++          :count="files.selectedCount"
++          :all-selected="files.allSelected"
++          @select-all="files.selectAll"
++          @clear="files.clearSelection"
++        />
++        <div ref="listwrap" class="files-listwrap" @mousedown="onMarqueeDown">
++          <FileGridView
++            v-if="files.viewMode === 'grid'"
++            :entries="files.sortedEntries"
++            :selected-paths="files.selected"
++            @open="openEntry"
++            @select="onSelect"
++          />
++          <FileListView
++            v-else
++            :entries="files.sortedEntries"
++            :sort="files.sort"
++            :order="files.order"
++            :selected-paths="files.selected"
++            @open="openEntry"
++            @reorder="files.setSort"
++            @select="onSelect"
++          />
++          <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
++        </div>
+       </div>
+     </div>
+   </FilesShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; }
+ .files-main { flex: 1 1 auto; min-width: 0; }
+ .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+ .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
++.files-listwrap { position: relative; min-height: 200px; user-select: none; }
++.marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
+ </style>

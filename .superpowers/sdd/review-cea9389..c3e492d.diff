@@ -1,0 +1,541 @@
+# Review package: cea9389..c3e492d
+
+## Commits
+c3e492d feat(files-viewer): MarkdownViewer 只读渲染预览(markdown-it,spec D-MD)
+
+## Files changed
+ package.json                             |  2 +
+ pnpm-lock.yaml                           | 71 ++++++++++++++++++++++++++++++++
+ src/files/viewers/MarkdownViewer.vue     | 34 ++++++++++++++-
+ src/files/viewers/renderMarkdown.test.ts | 16 +++++++
+ src/files/viewers/renderMarkdown.ts      |  7 ++++
+ 5 files changed, 129 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index fe37918..a2cca70 100644
+--- a/package.json
++++ b/package.json
+@@ -20,25 +20,27 @@
+     "@codemirror/lang-php": "^6.0.2",
+     "@codemirror/lang-python": "^6.2.1",
+     "@codemirror/lang-rust": "^6.0.2",
+     "@codemirror/lang-sql": "^6.10.0",
+     "@codemirror/lang-xml": "^6.1.0",
+     "@codemirror/lang-yaml": "^6.1.3",
+     "@codemirror/language": "^6.12.4",
+     "@codemirror/state": "^6.7.1",
+     "@codemirror/view": "^6.43.5",
+     "@nimotech/nimoos-service": "file:../NimoOS-Service",
++    "@types/markdown-it": "^14.1.2",
+     "@uiw/codemirror-theme-monokai": "^4.25.10",
+     "aplayer": "^1.10.1",
+     "artplayer": "^5.4.0",
+     "axios": "^1.7",
+     "codemirror": "^6.0.2",
++    "markdown-it": "^14.3.0",
+     "music-metadata-browser": "^2.5.11",
+     "pinia": "^2.1",
+     "reka-ui": "^2.10.1",
+     "socket.io-client": "2.5.0",
+     "tus-js-client": "^4",
+     "v-viewer": "^3",
+     "viewerjs": "^1.11.7",
+     "vue": "^3.4",
+     "vue-i18n": "^9.9",
+     "vue-router": "^4.3"
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 60a57b8..8c6c502 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -52,35 +52,41 @@ importers:
+         version: 6.12.4
+       '@codemirror/state':
+         specifier: ^6.7.1
+         version: 6.7.1
+       '@codemirror/view':
+         specifier: ^6.43.5
+         version: 6.43.5
+       '@nimotech/nimoos-service':
+         specifier: file:../NimoOS-Service
+         version: file:../NimoOS-Service
++      '@types/markdown-it':
++        specifier: ^14.1.2
++        version: 14.1.2
+       '@uiw/codemirror-theme-monokai':
+         specifier: ^4.25.10
+         version: 4.25.10(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.5)
+       aplayer:
+         specifier: ^1.10.1
+         version: 1.10.1
+       artplayer:
+         specifier: ^5.4.0
+         version: 5.4.0
+       axios:
+         specifier: ^1.7
+         version: 1.18.1
+       codemirror:
+         specifier: ^6.0.2
+         version: 6.0.2
++      markdown-it:
++        specifier: ^14.3.0
++        version: 14.3.0
+       music-metadata-browser:
+         specifier: ^2.5.11
+         version: 2.5.11
+       pinia:
+         specifier: ^2.1
+         version: 2.3.1(typescript@5.9.3)(vue@3.5.39(typescript@5.9.3))
+       reka-ui:
+         specifier: ^2.10.1
+         version: 2.10.1(vue@3.5.39(typescript@5.9.3))
+       socket.io-client:
+@@ -629,20 +635,29 @@ packages:
+ 
+   '@types/chai@5.2.3':
+     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+ 
+   '@types/deep-eql@4.0.2':
+     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
+ 
+   '@types/estree@1.0.9':
+     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+ 
++  '@types/linkify-it@5.0.0':
++    resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
++
++  '@types/markdown-it@14.1.2':
++    resolution: {integrity: sha512-promo4eFwuiW+TfGxhi+0x3czqTYJkG8qB17ZUJiVF10Xm7NLVRSLUsfRTU/6h1e24VvRnXCx+hG7li58lkzog==}
++
++  '@types/mdurl@2.0.0':
++    resolution: {integrity: sha512-RGdgjQUZba5p6QEFAVx2OGb8rQDL/cPRG7GiedRzMcJ1tYnUANBncjbSB1NRGwbvjcPeikRABz2nshyPk1bhWg==}
++
+   '@types/web-bluetooth@0.0.21':
+     resolution: {integrity: sha512-oIQLCGWtcFZy2JW77j9k8nHzAOpqMHLQejDA48XXMWH6tjCQHz5RCFz1bzsmROyL6PUm+LLnUiI4BCn221inxA==}
+ 
+   '@uiw/codemirror-theme-monokai@4.25.10':
+     resolution: {integrity: sha512-H6MgopRmxHEtk0uxsk7LYePLTc1bWmIz2tQyLQotIsf9aYwCHb8hlTL6benrGKYlAatzPy6CADpw0Du0PjfHmA==}
+ 
+   '@uiw/codemirror-themes@4.25.10':
+     resolution: {integrity: sha512-Fqiz1HIuDlDftcL+/O53V333UOH6MqQ84VbiQB5egn6u+uDwAqACp1FrdAoi4wgpR3b3TGW4Gr0wIYcrJSSz1A==}
+     peerDependencies:
+       '@codemirror/language': '>=6.0.0'
+@@ -794,20 +809,23 @@ packages:
+     resolution: {integrity: sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==}
+     engines: {node: '>=8'}
+ 
+   ansi-styles@6.2.3:
+     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==}
+     engines: {node: '>=12'}
+ 
+   aplayer@1.10.1:
+     resolution: {integrity: sha512-HAfyxgCUTLAqtYlxzzK9Fyqg6y+kZ9CqT1WfeWE8FSzwspT6oBqWOZHANPHF3RGTtC33IsyEgrfthPDzU5r9kQ==}
+ 
++  argparse@2.0.1:
++    resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
++
+   aria-hidden@1.2.6:
+     resolution: {integrity: sha512-ik3ZgC9dY/lYVVM++OISsaYDeg1tb0VtP5uL3ouh1koGOaUMDPpbFIei4JkFimWUFPn90sbMNMXQAIVOlnYKJA==}
+     engines: {node: '>=10'}
+ 
+   arraybuffer.slice@0.0.7:
+     resolution: {integrity: sha512-wGUIVQXuehL5TCqQun8OW81jGzAWycqzFF8lFp+GOM5BXLYj3bKNsYC4daB7n6XjCqxQA/qgTJ+8ANR3acjrog==}
+ 
+   artplayer@5.4.0:
+     resolution: {integrity: sha512-2B+plbx8N2yNsjK4nJU3+EOG8TULm1LRZk/QPkWRAMEX2Ee/MSnZG/WJYz8kcoZxZuLKcQ3uXifqLuPxZOH29A==}
+ 
+@@ -965,20 +983,24 @@ packages:
+ 
+   emoji-regex@9.2.2:
+     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
+ 
+   engine.io-client@3.5.6:
+     resolution: {integrity: sha512-2fDMKiXSU7bGRDCWEw9cHEdRNfoU8cpP6lt+nwJhv72tSJpO7YBsqMqYZ63eVvwX3l9prPl2k/mxhfVhY+SDWg==}
+ 
+   engine.io-parser@2.2.1:
+     resolution: {integrity: sha512-x+dN/fBH8Ro8TFwJ+rkB2AmuVw9Yu2mockR/p3W8f8YtExwFgDvBDi0GWyb4ZLkpahtDGZgtr3zLovanJghPqg==}
+ 
++  entities@4.5.0:
++    resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
++    engines: {node: '>=0.12'}
++
+   entities@6.0.1:
+     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
+     engines: {node: '>=0.12'}
+ 
+   entities@7.0.1:
+     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
+     engines: {node: '>=0.12'}
+ 
+   es-define-property@1.0.1:
+     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
+@@ -1172,20 +1194,23 @@ packages:
+     peerDependencies:
+       canvas: ^2.11.2
+     peerDependenciesMeta:
+       canvas:
+         optional: true
+ 
+   kind-of@6.0.3:
+     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
+     engines: {node: '>=0.10.0'}
+ 
++  linkify-it@5.0.2:
++    resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
++
+   lodash-es@4.18.1:
+     resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
+ 
+   lodash._baseiteratee@4.7.0:
+     resolution: {integrity: sha512-nqB9M+wITz0BX/Q2xg6fQ8mLkyfF7MU7eE+MNBNjTHFKeKaZAPEzEg+E8LWxKWf1DQVflNEn9N49yAuqKh2mWQ==}
+ 
+   lodash._basetostring@4.12.0:
+     resolution: {integrity: sha512-SwcRIbyxnN6CFEEK4K1y+zuApvWdpQdBHM/swxP962s8HIxPO3alBH5t3m/dl+f4CMUug6sJb7Pww8d13/9WSw==}
+ 
+   lodash._baseuniq@4.6.0:
+@@ -1205,24 +1230,31 @@ packages:
+ 
+   lodash.uniqby@4.5.0:
+     resolution: {integrity: sha512-IRt7cfTtHy6f1aRVA5n7kT8rgN3N1nH6MOWLcHfpWG2SH19E3JksLK38MktLxZDhlAjCP9jpIXkOnRXlu6oByQ==}
+ 
+   lru-cache@10.4.3:
+     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
+ 
+   magic-string@0.30.21:
+     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+ 
++  markdown-it@14.3.0:
++    resolution: {integrity: sha512-RCEsPjR+sr0x+AuYp601tKTkgFG4YEPLCzHST3cQ/fhlJkqAkz1L2/Qbp1j9qw5SBwQHFBoW8+hoN5xssOF0Tw==}
++    hasBin: true
++
+   math-intrinsics@1.1.0:
+     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
+     engines: {node: '>= 0.4'}
+ 
++  mdurl@2.0.0:
++    resolution: {integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==}
++
+   media-typer@1.1.0:
+     resolution: {integrity: sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw==}
+     engines: {node: '>= 0.8'}
+ 
+   mime-db@1.52.0:
+     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
+     engines: {node: '>= 0.6'}
+ 
+   mime-types@2.1.35:
+     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
+@@ -1339,20 +1371,24 @@ packages:
+   proto-list@1.2.4:
+     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
+ 
+   proxy-from-env@2.1.0:
+     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
+     engines: {node: '>=10'}
+ 
+   psl@1.15.0:
+     resolution: {integrity: sha512-JZd3gMVBAVQkSs6HdNZo9Sdo0LNcQeMNP3CozBJb3JYC/QUYZTnKxP+f8oWRX4rHP5EurWxqAHTSwUCjlNKa1w==}
+ 
++  punycode.js@2.3.1:
++    resolution: {integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==}
++    engines: {node: '>=6'}
++
+   punycode@2.3.1:
+     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
+     engines: {node: '>=6'}
+ 
+   querystringify@2.2.0:
+     resolution: {integrity: sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==}
+ 
+   readable-stream@4.7.0:
+     resolution: {integrity: sha512-oIGGmcpTLwPga8Bn6/Z75SVaH1z5dUut2ibSyAMVhmUggWpmDn2dapB0n7f8nwaSiRtepAsfJyfXIO5DCVAODg==}
+     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+@@ -1500,20 +1536,23 @@ packages:
+ 
+   tus-js-client@4.3.1:
+     resolution: {integrity: sha512-ZLeYmjrkaU1fUsKbIi8JML52uAocjEZtBx4DKjRrqzrZa0O4MYwT6db+oqePlspV+FxXJAyFBc/L5gwUi2OFsg==}
+     engines: {node: '>=18'}
+ 
+   typescript@5.9.3:
+     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+     engines: {node: '>=14.17'}
+     hasBin: true
+ 
++  uc.micro@2.1.0:
++    resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
++
+   universalify@0.2.0:
+     resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
+     engines: {node: '>= 4.0.0'}
+ 
+   url-parse@1.5.10:
+     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
+ 
+   v-viewer@3.0.23:
+     resolution: {integrity: sha512-u/Zd/FXTdtdE2k2YeYMf6mU4oL0ILEZ9STHnZT7myyfRwQot68GO3O+6DwxNnHTaATiiAJTrz2MXjaqYKoB7iA==}
+     peerDependencies:
+@@ -2221,20 +2260,29 @@ snapshots:
+ 
+   '@types/chai@5.2.3':
+     dependencies:
+       '@types/deep-eql': 4.0.2
+       assertion-error: 2.0.1
+ 
+   '@types/deep-eql@4.0.2': {}
+ 
+   '@types/estree@1.0.9': {}
+ 
++  '@types/linkify-it@5.0.0': {}
++
++  '@types/markdown-it@14.1.2':
++    dependencies:
++      '@types/linkify-it': 5.0.0
++      '@types/mdurl': 2.0.0
++
++  '@types/mdurl@2.0.0': {}
++
+   '@types/web-bluetooth@0.0.21': {}
+ 
+   '@uiw/codemirror-theme-monokai@4.25.10(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.5)':
+     dependencies:
+       '@uiw/codemirror-themes': 4.25.10(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.5)
+     transitivePeerDependencies:
+       - '@codemirror/language'
+       - '@codemirror/state'
+       - '@codemirror/view'
+ 
+@@ -2426,20 +2474,22 @@ snapshots:
+       color-convert: 2.0.1
+ 
+   ansi-styles@6.2.3: {}
+ 
+   aplayer@1.10.1:
+     dependencies:
+       balloon-css: 0.5.2
+       promise-polyfill: 7.1.0
+       smoothscroll: 0.4.0
+ 
++  argparse@2.0.1: {}
++
+   aria-hidden@1.2.6:
+     dependencies:
+       tslib: 2.8.1
+ 
+   arraybuffer.slice@0.0.7: {}
+ 
+   artplayer@5.4.0:
+     dependencies:
+       option-validator: 2.0.6
+ 
+@@ -2605,20 +2655,22 @@ snapshots:
+       - utf-8-validate
+ 
+   engine.io-parser@2.2.1:
+     dependencies:
+       after: 0.8.2
+       arraybuffer.slice: 0.0.7
+       base64-arraybuffer: 0.1.4
+       blob: 0.0.5
+       has-binary2: 1.0.3
+ 
++  entities@4.5.0: {}
++
+   entities@6.0.1: {}
+ 
+   entities@7.0.1: {}
+ 
+   es-define-property@1.0.1: {}
+ 
+   es-errors@1.3.0: {}
+ 
+   es-module-lexer@2.1.0: {}
+ 
+@@ -2841,20 +2893,24 @@ snapshots:
+       whatwg-url: 14.2.0
+       ws: 8.21.0
+       xml-name-validator: 5.0.0
+     transitivePeerDependencies:
+       - bufferutil
+       - supports-color
+       - utf-8-validate
+ 
+   kind-of@6.0.3: {}
+ 
++  linkify-it@5.0.2:
++    dependencies:
++      uc.micro: 2.1.0
++
+   lodash-es@4.18.1: {}
+ 
+   lodash._baseiteratee@4.7.0:
+     dependencies:
+       lodash._stringtopath: 4.8.0
+ 
+   lodash._basetostring@4.12.0: {}
+ 
+   lodash._baseuniq@4.6.0:
+     dependencies:
+@@ -2875,22 +2931,33 @@ snapshots:
+     dependencies:
+       lodash._baseiteratee: 4.7.0
+       lodash._baseuniq: 4.6.0
+ 
+   lru-cache@10.4.3: {}
+ 
+   magic-string@0.30.21:
+     dependencies:
+       '@jridgewell/sourcemap-codec': 1.5.5
+ 
++  markdown-it@14.3.0:
++    dependencies:
++      argparse: 2.0.1
++      entities: 4.5.0
++      linkify-it: 5.0.2
++      mdurl: 2.0.0
++      punycode.js: 2.3.1
++      uc.micro: 2.1.0
++
+   math-intrinsics@1.1.0: {}
+ 
++  mdurl@2.0.0: {}
++
+   media-typer@1.1.0: {}
+ 
+   mime-db@1.52.0: {}
+ 
+   mime-types@2.1.35:
+     dependencies:
+       mime-db: 1.52.0
+ 
+   minimatch@9.0.9:
+     dependencies:
+@@ -2996,20 +3063,22 @@ snapshots:
+       signal-exit: 3.0.7
+ 
+   proto-list@1.2.4: {}
+ 
+   proxy-from-env@2.1.0: {}
+ 
+   psl@1.15.0:
+     dependencies:
+       punycode: 2.3.1
+ 
++  punycode.js@2.3.1: {}
++
+   punycode@2.3.1: {}
+ 
+   querystringify@2.2.0: {}
+ 
+   readable-stream@4.7.0:
+     dependencies:
+       abort-controller: 3.0.0
+       buffer: 6.0.3
+       events: 3.3.0
+       process: 0.11.10
+@@ -3199,20 +3268,22 @@ snapshots:
+       buffer-from: 1.1.2
+       combine-errors: 3.0.3
+       is-stream: 2.0.1
+       js-base64: 3.8.0
+       lodash.throttle: 4.1.1
+       proper-lockfile: 4.1.2
+       url-parse: 1.5.10
+ 
+   typescript@5.9.3: {}
+ 
++  uc.micro@2.1.0: {}
++
+   universalify@0.2.0: {}
+ 
+   url-parse@1.5.10:
+     dependencies:
+       querystringify: 2.2.0
+       requires-port: 1.0.0
+ 
+   v-viewer@3.0.23(viewerjs@1.11.7)(vue@3.5.39(typescript@5.9.3)):
+     dependencies:
+       lodash-es: 4.18.1
+diff --git a/src/files/viewers/MarkdownViewer.vue b/src/files/viewers/MarkdownViewer.vue
+index 031de0d..673ae59 100644
+--- a/src/files/viewers/MarkdownViewer.vue
++++ b/src/files/viewers/MarkdownViewer.vue
+@@ -1,11 +1,43 @@
+ <script setup lang="ts">
++import { ref, onMounted } from 'vue'
++import { service } from '@nimotech/nimoos-service'
+ import ViewerShell from './ViewerShell.vue'
++import { renderMarkdown } from './renderMarkdown'
++import { coerceContent } from './codeContent'
+ import type { FileEntry } from '../stores/files'
++
+ const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
+ const emit = defineEmits<{ (e: 'close'): void; (e: 'download'): void }>()
++const html = ref('')
++
++onMounted(async () => {
++  // Controller-verified (same as Task 6 CodeViewer): /v1/file/content is a
++  // standard envelope whose `data` is the raw content STRING — pass straight
++  // to coerceContent, do not access `.content`.
++  const res = await service.file.getContent(props.item.path)
++  html.value = renderMarkdown(coerceContent(res))
++})
+ </script>
++
+ <template>
+   <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download')">
+-    <div style="padding:24px">markdown placeholder: {{ props.item.name }}</div>
++    <div class="md-scroll">
++      <!-- 只读渲染:renderMarkdown 已 html:false 过滤内嵌 HTML,v-html 安全 -->
++      <article class="md-body" v-html="html"></article>
++    </div>
+   </ViewerShell>
+ </template>
++
++<style scoped>
++.md-scroll { width: 100%; height: 100%; overflow: auto; display: flex; justify-content: center; }
++.md-body { max-width: 820px; width: 100%; padding: 32px 28px; line-height: 1.7; color: var(--fg, #fff); }
++.md-body :deep(h1), .md-body :deep(h2), .md-body :deep(h3) { margin: 1.2em 0 0.5em; font-weight: 700; }
++.md-body :deep(h1) { font-size: 1.7em; border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.2)); padding-bottom: 0.3em; }
++.md-body :deep(code) { background: rgba(255,255,255,0.1); padding: 0.15em 0.4em; border-radius: 4px; font-family: Consolas, monospace; }
++.md-body :deep(pre) { background: rgba(0,0,0,0.35); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
++.md-body :deep(pre) code { background: none; padding: 0; }
++.md-body :deep(a) { color: var(--accent, #8ab4ff); }
++.md-body :deep(table) { border-collapse: collapse; }
++.md-body :deep(th), .md-body :deep(td) { border: 1px solid var(--card-border, rgba(255,255,255,0.2)); padding: 6px 12px; }
++.md-body :deep(blockquote) { border-left: 3px solid var(--accent, #8ab4ff); margin: 1em 0; padding-left: 1em; color: var(--fg-muted, rgba(255,255,255,0.74)); }
++</style>
+diff --git a/src/files/viewers/renderMarkdown.test.ts b/src/files/viewers/renderMarkdown.test.ts
+new file mode 100644
+index 0000000..c3e9938
+--- /dev/null
++++ b/src/files/viewers/renderMarkdown.test.ts
+@@ -0,0 +1,16 @@
++import { describe, it, expect } from 'vitest'
++import { renderMarkdown } from './renderMarkdown'
++
++describe('renderMarkdown', () => {
++  it('# 标题 → <h1>', () => {
++    expect(renderMarkdown('# Hi')).toContain('<h1>Hi</h1>')
++  })
++  it('列表 → <ul><li>', () => {
++    const html = renderMarkdown('- a\n- b')
++    expect(html).toContain('<li>a</li>')
++    expect(html).toContain('<li>b</li>')
++  })
++  it('空串 → 空(不抛)', () => {
++    expect(renderMarkdown('')).toBe('')
++  })
++})
+diff --git a/src/files/viewers/renderMarkdown.ts b/src/files/viewers/renderMarkdown.ts
+new file mode 100644
+index 0000000..cf24d43
+--- /dev/null
++++ b/src/files/viewers/renderMarkdown.ts
+@@ -0,0 +1,7 @@
++import MarkdownIt from 'markdown-it'
++
++const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
++
++export function renderMarkdown(src: string): string {
++  return md.render(src ?? '')
++}

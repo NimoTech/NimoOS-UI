@@ -1,0 +1,208 @@
+# Review package: 69027db..f996da3
+
+## Commits
+f996da3 feat(files-viewer): PdfViewer 旧版 Office 走 getPreviewBytes(后端转 PDF)+ 转换态文案
+7b94179 feat(files-viewer): 旧版 Office(doc/wps/xls/ppt/pptx)路由到 PDF 查看器(转换),xls 出 excel
+
+## Files changed
+ src/files/viewers/PdfViewer.vue    |  9 +++++++--
+ src/files/viewers/panelMap.test.ts | 20 +++++++++++---------
+ src/files/viewers/panelMap.ts      | 13 ++++++-------
+ src/i18n/zh_cn.ts                  |  1 +
+ 4 files changed, 25 insertions(+), 18 deletions(-)
+
+## Diff
+diff --git a/src/files/viewers/PdfViewer.vue b/src/files/viewers/PdfViewer.vue
+index 9ca935f..295fa42 100644
+--- a/src/files/viewers/PdfViewer.vue
++++ b/src/files/viewers/PdfViewer.vue
+@@ -1,30 +1,32 @@
+ <script setup lang="ts">
+ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import * as pdfjsLib from 'pdfjs-dist'
+ // Vite:?url 拿到 worker 资源地址,交给 pdfjs 的 GlobalWorkerOptions。
+ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+ import ViewerShell from './ViewerShell.vue'
+ import { service } from '@nimotech/nimoos-service'
++import { fileExt } from '../util/ext'
+ import type { FileEntry } from '../stores/files'
+ import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist'
+ 
+ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+ 
+ const ZOOM_MIN = 0.5
+ const ZOOM_MAX = 3
+ const ZOOM_STEP = 0.25
+ 
+ const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
+ const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
+ const { t } = useI18n()
++const isConvert = fileExt(props.item.name) !== 'pdf'
+ 
+ const state = ref<'loading' | 'ready' | 'error'>('loading')
+ const errorDetail = ref('')
+ const total = ref(0)
+ const zoom = ref(1)                        // 相对「适应宽度」的倍数
+ const currentPage = ref(1)                 // 随滚动更新的当前页
+ const pageInput = ref(1)                   // 页码输入框(手动跳页)
+ const pagesEl = ref<HTMLElement | null>(null)   // 竖排所有页 canvas 的滚动容器
+ 
+ // 异步加载/渲染期间可能已被卸载(用户快速关闭)——卸载后放弃后续操作,销毁文档。
+@@ -40,21 +42,24 @@ let renderGen = 0
+ function isCancelled(e: unknown): boolean {
+   return e instanceof Error && e.name === 'RenderingCancelledException'
+ }
+ function cancelTasks(): void {
+   for (const tk of renderTasks) { try { tk.cancel() } catch { /* 已结束 */ } }
+   renderTasks = []
+ }
+ 
+ onMounted(async () => {
+   try {
+-    const buf = await service.file.getBytes(props.item.path)   // 真实路径,走共享 axios(401 自愈)
++    // 原生 .pdf → 直接取;旧版 Office → 后端 LibreOffice 转 PDF 后取(getPreviewBytes)。
++    const buf = isConvert
++      ? await service.file.getPreviewBytes(props.item.path)
++      : await service.file.getBytes(props.item.path)
+     if (disposed) return
+     loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) })
+     pdfDoc = await loadingTask.promise
+     if (disposed) return
+     total.value = pdfDoc.numPages
+     state.value = 'ready'
+     await nextTick()                                           // 等滚动容器挂载(v-show ready 后)
+     await renderAll()
+   } catch {
+     if (disposed) return
+@@ -154,21 +159,21 @@ onBeforeUnmount(() => {
+             v-model.number="pageInput"
+             @focus="onInputFocus"
+             @blur="onInputBlur"
+             @keyup.enter="goToPage(pageInput)"
+           />
+           <span class="pdf-page-sep">/ {{ total }}</span>
+         </span>
+       </div>
+     </template>
+     <div class="office-body">
+-      <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
++      <div v-if="state === 'loading'" class="viewer-status">{{ t(isConvert ? 'filesViewerConverting' : 'filesViewerLoading') }}</div>
+       <div v-else-if="state === 'error'" class="viewer-status">
+         <p>{{ t('filesViewerError') }}</p>
+         <p v-if="errorDetail" class="detail">{{ errorDetail }}</p>
+         <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
+       </div>
+       <div v-show="state === 'ready'" ref="pagesEl" class="pdf-scroll" @scroll="onScroll"></div>
+     </div>
+   </ViewerShell>
+ </template>
+ 
+diff --git a/src/files/viewers/panelMap.test.ts b/src/files/viewers/panelMap.test.ts
+index d857a7e..b226e93 100644
+--- a/src/files/viewers/panelMap.test.ts
++++ b/src/files/viewers/panelMap.test.ts
+@@ -26,25 +26,27 @@ describe('getPanelType', () => {
+       expect(getPanelType(n)).toBe('video-player')
+   })
+   it('未知扩展名 → null', () => {
+     expect(getPanelType('a.zip')).toBeNull()
+     expect(getPanelType('a.exe')).toBeNull()
+   })
+   it('pdf → pdf-viewer', () => {
+     expect(getPanelType('report.pdf')).toBe('pdf-viewer')
+     expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
+   })
+-  it('word doc/docx/wps → doc-viewer (legacy .doc/.wps show in-viewer error + download)', () => {
++  it('docx → doc-viewer; 旧版 doc/wps → pdf-viewer(转换)', () => {
+     expect(getPanelType('a.docx')).toBe('doc-viewer')
+-    expect(getPanelType('a.doc')).toBe('doc-viewer')
+-    expect(getPanelType('a.wps')).toBe('doc-viewer')
++    expect(getPanelType('a.doc')).toBe('pdf-viewer')
++    expect(getPanelType('a.wps')).toBe('pdf-viewer')
+   })
+-  it('excel → excel-viewer', () => {
+-    expect(getPanelType('a.xls')).toBe('excel-viewer')
++  it('pdf + 旧版 ppt/pptx/xls → pdf-viewer', () => {
++    expect(getPanelType('a.pdf')).toBe('pdf-viewer')
++    expect(getPanelType('a.ppt')).toBe('pdf-viewer')
++    expect(getPanelType('a.pptx')).toBe('pdf-viewer')
++    expect(getPanelType('a.xls')).toBe('pdf-viewer')
++  })
++  it('新版 xlsx/csv → excel-viewer(不含 xls)', () => {
+     expect(getPanelType('a.xlsx')).toBe('excel-viewer')
+     expect(getPanelType('a.csv')).toBe('excel-viewer')
+-  })
+-  it('ppt/pptx stay unmapped → download (Vue2 parity)', () => {
+-    expect(getPanelType('deck.ppt')).toBeNull()
+-    expect(getPanelType('deck.pptx')).toBeNull()
++    expect(getPanelType('a.xls')).not.toBe('excel-viewer')
+   })
+ })
+diff --git a/src/files/viewers/panelMap.ts b/src/files/viewers/panelMap.ts
+index a3dad78..c183af1 100644
+--- a/src/files/viewers/panelMap.ts
++++ b/src/files/viewers/panelMap.ts
+@@ -1,30 +1,29 @@
+ import { fileExt } from '../util/ext'
+-import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_WORD, APPLICATION_VND_MS_EXCEL } from '../util/fileCategories'
++import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO } from '../util/fileCategories'
+ 
+ export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer' | 'doc-viewer' | 'excel-viewer'
+ 
+ function union(...groups: string[][]): string[] {
+   return Array.from(new Set(groups.flat()))
+ }
+ 
+-// Vue2 filePanelMap(mixin.js:43-51),markdown 键启用(spec D-MD);分类数组单一真源见 ../util/fileCategories
++// pdf-viewer 覆盖原生 pdf + 需后端转换的旧版 Office(doc/wps/xls/ppt/pptx);
++// doc-viewer 仅 .docx(OOXML);各组扩展名互不相交,first-match 成立
+ const filePanelMap: Record<PanelType, string[]> = {
+   'code-editor': union(TEXT_X_GENERIC, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE),
+   'video-player': union(BROWSER_PLAYABLE_VIDEO, AUDIO_X_GENERIC),
+   'image-viewer': IMAGE_X_GENERIC,
+   'markdown': TEXT_MARKDOWN,
+-  'pdf-viewer': APPLICATION_PDF,
+-  // doc/docx/wps 都进查看器:真 .docx(OOXML)渲染;旧版二进制 .doc/.wps(OLE2)
+-  // docx-preview 无法解析,查看器显示「旧版格式,无法预览 + 改为下载」(而非静默下载)。
+-  'doc-viewer': APPLICATION_VND_MS_WORD,
+-  'excel-viewer': APPLICATION_VND_MS_EXCEL,
++  'pdf-viewer': ['pdf', 'doc', 'wps', 'xls', 'ppt', 'pptx'],
++  'doc-viewer': ['docx'],
++  'excel-viewer': ['xlsx', 'csv'],
+ }
+ 
+ export function getPanelType(name: string): PanelType | null {
+   const ext = fileExt(name) // 已小写
+   // 与 Vue2 getPanelType 一致:遍历映射,命中返回其键
+   for (const key of Object.keys(filePanelMap) as PanelType[]) {
+     if (filePanelMap[key].includes(ext)) return key
+   }
+   return null
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 077e201..bec71d3 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -25,20 +25,21 @@ export const messages = {
+     filesProtectedRename: '此项目受保护,无法重命名',
+     filesProtectedMove: '此项目受保护,无法移动',
+     filesCopiedPath: '已复制路径',
+     filesNewFolder: '新建文件夹',
+     filesNewFile: '新建文件',
+     filesPaste: '粘贴',
+     filesDownloadPreparing: '正在准备下载…',
+     filesDownload: '下载',
+     filesViewerClose: '关闭',
+     filesViewerLoading: '加载中…',
++    filesViewerConverting: '正在转换预览…',
+     filesViewerError: '无法预览此文件',
+     filesViewerDownloadInstead: '改为下载',
+     filesViewerPrev: '上一张',
+     filesViewerNext: '下一张',
+     filesViewerZoomIn: '放大',
+     filesViewerZoomOut: '缩小',
+     filesViewerRotate: '旋转',
+     filesViewerReset: '重置',
+     filesViewerSave: '保存',
+     filesViewerSaved: '已保存',

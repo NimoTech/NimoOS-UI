@@ -23,6 +23,12 @@ import zhBase from '../zh_cn.base'
 import enBase from '../en_us.base'
 import zhPhotos from '../zh_cn.photos'
 import enPhotos from '../en_us.photos'
+// SP8-P6-T3 合流:出口从 {base, photos} 变成 {base, photos, ai}(AI 区同理要在开源版
+// 整体剥掉,做法与 photos 分片逐条对应)。本文件是 photos 分片的守卫,只在"出口是纯合并"
+// 那一条上把 ai 一并计入 —— 否则该断言会把 AI 键当成"出口凭空多出来的内容"而误报。
+// ai 分片自身的守卫(前缀、两语言一致、反向引用)由 T4 单独补,不在本文件里。
+import zhAi from '../zh_cn.ai'
+import enAi from '../en_us.ai'
 
 const I18N_DIR = path.resolve(__dirname, '..')
 const SRC_DIR = path.resolve(__dirname, '../..')
@@ -55,16 +61,25 @@ describe('相册文案分片 · 分片自身', () => {
 })
 
 describe('相册文案分片 · 出口是纯合并', () => {
-  it('zh_cn.ts / en_us.ts 导出的就是 base ∪ photos,不多不少', () => {
+  it('zh_cn.ts / en_us.ts 导出的就是 base ∪ photos ∪ ai,不多不少', () => {
     expect(Object.keys(merged as Record<string, unknown>).sort())
-      .toEqual([...Object.keys(zhBase as Record<string, unknown>), ...zhKeys].sort())
+      .toEqual([...Object.keys(zhBase as Record<string, unknown>), ...zhKeys,
+        ...Object.keys(zhAi as Record<string, unknown>)].sort())
     expect(Object.keys(mergedEn as Record<string, unknown>).sort())
-      .toEqual([...Object.keys(enBase as Record<string, unknown>), ...enKeys].sort())
+      .toEqual([...Object.keys(enBase as Record<string, unknown>), ...enKeys,
+        ...Object.keys(enAi as Record<string, unknown>)].sort())
   })
 
   it('base 与 photos 键集不相交(展开顺序因此不构成语义)', () => {
     const dup = zhKeys.filter((k) => k in (zhBase as Record<string, unknown>))
     expect(dup, `base 与分片撞键: ${dup.join(', ')}`).toEqual([])
+  })
+
+  it('三片两两不相交(同上:展开顺序不构成语义,后展开的不会静默盖掉前面的)', () => {
+    const ai = Object.keys(zhAi as Record<string, unknown>)
+    expect(ai.filter((k) => k in (zhBase as Record<string, unknown>)),
+      'base 与 ai 分片撞键').toEqual([])
+    expect(ai.filter((k) => zhKeys.includes(k)), 'photos 与 ai 分片撞键').toEqual([])
   })
 
   it('出口文件本身不含任何键定义(只许 import + 一行展开)', () => {

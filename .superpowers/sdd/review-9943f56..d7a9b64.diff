@@ -1,0 +1,205 @@
+# Review package: 9943f56..d7a9b64
+
+## Commits
+d7a9b64 feat(files): P2a 行/卡右键 emit contextmenu(带目标 entry)
+
+## Files changed
+ src/files/components/FileGridView.vue | 2 ++
+ src/files/components/FileListView.vue | 2 ++
+ src/files/components/FileRow.test.ts  | 6 ++++++
+ src/files/components/FileRow.vue      | 9 ++++++++-
+ src/files/components/FileTile.vue     | 9 ++++++++-
+ 5 files changed, 26 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FileGridView.vue b/src/files/components/FileGridView.vue
+index 27b2909..9eccca1 100644
+--- a/src/files/components/FileGridView.vue
++++ b/src/files/components/FileGridView.vue
+@@ -1,26 +1,28 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import FileTile from './FileTile.vue'
+ const props = defineProps<{ entries: FileEntry[]; selectedPaths?: Set<string> }>()
+ const emit = defineEmits<{
+   (e: 'open', entry: FileEntry): void
+   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+ }>()
+ </script>
+ 
+ <template>
+   <div class="file-grid">
+     <FileTile
+       v-for="entry in props.entries"
+       :key="entry.path"
+       :entry="entry"
+       :selected="props.selectedPaths?.has(entry.path)"
+       @open="emit('open', $event)"
+       @select="emit('select', $event)"
++      @contextmenu="emit('contextmenu', $event)"
+     />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
+ </style>
+diff --git a/src/files/components/FileListView.vue b/src/files/components/FileListView.vue
+index 799d587..e70928d 100644
+--- a/src/files/components/FileListView.vue
++++ b/src/files/components/FileListView.vue
+@@ -1,20 +1,21 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ import type { FileEntry } from '../stores/files'
+ import FileRow from './FileRow.vue'
+ 
+ const props = defineProps<{ entries: FileEntry[]; sort: string; order: string; selectedPaths?: Set<string> }>()
+ const emit = defineEmits<{
+   (e: 'open', entry: FileEntry): void
+   (e: 'reorder', sort: string): void
+   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+ }>()
+ const { t } = useI18n()
+ 
+ const COLS = [
+   { key: 'name', label: 'filesColName', cls: 'col-name' },
+   { key: 'format', label: 'filesColType', cls: 'col-format' },
+   { key: 'date', label: 'filesColDate', cls: 'col-date' },
+   { key: 'size', label: 'filesColSize', cls: 'col-size' },
+ ]
+ function arrow(key: string) { return props.sort === key ? (props.order === 'asc' ? ' ▲' : ' ▼') : '' }
+@@ -32,20 +33,21 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
+       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
+       <span class="head-cell col-star"></span>
+     </div>
+     <FileRow
+       v-for="entry in props.entries"
+       :key="entry.path"
+       :entry="entry"
+       :selected="props.selectedPaths?.has(entry.path)"
+       @open="emit('open', $event)"
+       @select="emit('select', $event)"
++      @contextmenu="emit('contextmenu', $event)"
+     />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
+ .head-cell { cursor: pointer; user-select: none; }
+ .col-check { flex: 0 0 28px; }
+ .col-name { flex: 1 1 auto; margin-left: 40px; }
+ .col-format { flex: 0 0 48px; }
+diff --git a/src/files/components/FileRow.test.ts b/src/files/components/FileRow.test.ts
+index f808670..9afd10b 100644
+--- a/src/files/components/FileRow.test.ts
++++ b/src/files/components/FileRow.test.ts
+@@ -36,11 +36,17 @@ describe('FileRow', () => {
+     await w.get('input.row-check').trigger('change')
+     expect(w.emitted('select')![0][0]).toEqual({ entry: fileEntry, mode: 'toggle' })
+     expect(w.emitted('open')).toBeFalsy()
+   })
+ 
+   it('adds .selected class and checks the box when selected', () => {
+     const w = mount(FileRow, { props: { entry: fileEntry, selected: true }, ...mountOpts })
+     expect(w.classes()).toContain('selected')
+     expect((w.get('input.row-check').element as HTMLInputElement).checked).toBe(true)
+   })
++
++  it('右键 emit contextmenu 带 entry,并阻止默认', async () => {
++    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
++    await w.trigger('contextmenu')
++    expect(w.emitted('contextmenu')?.[0]?.[0]).toMatchObject({ entry: fileEntry })
++  })
+ })
+diff --git a/src/files/components/FileRow.vue b/src/files/components/FileRow.vue
+index 7445c6c..dd812cd 100644
+--- a/src/files/components/FileRow.vue
++++ b/src/files/components/FileRow.vue
+@@ -2,31 +2,38 @@
+ import type { FileEntry } from '../stores/files'
+ import { renderSize, dateFmt } from '../util/format'
+ import { fileExt } from '../util/ext'
+ import FileThumb from './FileThumb.vue'
+ import FavoriteStar from './FavoriteStar.vue'
+ 
+ const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
+ const emit = defineEmits<{
+   (e: 'open', entry: FileEntry): void
+   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+ }>()
+ 
+ function onClick(e: MouseEvent) {
+   if (e.shiftKey) emit('select', { entry: props.entry, mode: 'range' })
+   else if (e.ctrlKey || e.metaKey) emit('select', { entry: props.entry, mode: 'toggle' })
+   else emit('open', props.entry)
+ }
+ </script>
+ 
+ <template>
+-  <div class="file-row" :class="{ selected: props.selected }" :data-path="props.entry.path" @click="onClick">
++  <div
++    class="file-row"
++    :class="{ selected: props.selected }"
++    :data-path="props.entry.path"
++    @click="onClick"
++    @contextmenu.prevent="emit('contextmenu', { entry: props.entry, event: $event })"
++  >
+     <span class="file-check">
+       <input
+         type="checkbox"
+         class="row-check"
+         :checked="props.selected"
+         @click.stop
+         @change="emit('select', { entry: props.entry, mode: 'toggle' })"
+       />
+     </span>
+     <FileThumb class="file-icon" :entry="props.entry" />
+diff --git a/src/files/components/FileTile.vue b/src/files/components/FileTile.vue
+index 2c61bee..83b5e6e 100644
+--- a/src/files/components/FileTile.vue
++++ b/src/files/components/FileTile.vue
+@@ -1,31 +1,38 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import { dateFmt } from '../util/format'
+ import FileThumb from './FileThumb.vue'
+ import FavoriteStar from './FavoriteStar.vue'
+ 
+ const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
+ const emit = defineEmits<{
+   (e: 'open', entry: FileEntry): void
+   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
++  (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+ }>()
+ 
+ function onClick(e: MouseEvent) {
+   if (e.shiftKey) emit('select', { entry: props.entry, mode: 'range' })
+   else if (e.ctrlKey || e.metaKey) emit('select', { entry: props.entry, mode: 'toggle' })
+   else emit('open', props.entry)
+ }
+ </script>
+ 
+ <template>
+-  <div class="file-tile" :class="{ selected: props.selected }" :data-path="props.entry.path" @click="onClick">
++  <div
++    class="file-tile"
++    :class="{ selected: props.selected }"
++    :data-path="props.entry.path"
++    @click="onClick"
++    @contextmenu.prevent="emit('contextmenu', { entry: props.entry, event: $event })"
++  >
+     <span class="tile-check">
+       <input
+         type="checkbox"
+         class="tile-check-box"
+         :checked="props.selected"
+         @click.stop
+         @change="emit('select', { entry: props.entry, mode: 'toggle' })"
+       />
+     </span>
+     <FavoriteStar class="tile-star" :path="props.entry.path" :name="props.entry.name" />

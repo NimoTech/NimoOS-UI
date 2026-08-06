@@ -1,0 +1,323 @@
+=== 修复轮 diff  仓库: nimo_os_docs  范围: 0428fef..a1a1e13 ===
+
+=== git log --oneline ===
+a1a1e13 fix(raidlab): 备份 cp 失败必须拒绝覆写(修复轮 1/5,评审 Important)
+
+=== git diff --stat ===
+ scripts/raidlab.sh      | 83 ++++++++++++++++++++++++++++++++++++++++---------
+ scripts/raidlab.test.sh | 78 ++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 147 insertions(+), 14 deletions(-)
+
+=== git diff -U12 ===
+diff --git a/scripts/raidlab.sh b/scripts/raidlab.sh
+index 5f3c8c2..151aef0 100755
+--- a/scripts/raidlab.sh
++++ b/scripts/raidlab.sh
+@@ -265,24 +265,43 @@ mdadm_conf_drop_arrays() {
+ # --- down 前置断言:配置文件里的 md 设备是否都已核实 ------------------------
+ #
+ # fstab_drop_snapshots / mdadm_conf_drop_arrays 都是按行全局删除,只问"这行
+ # 长得像不像该删的样子",不问"这个阵列有没有被核实过"。assert_md_all_fake
+ # 只核查 md_arrays()(读 /proc/mdstat)能看到的、已组装的阵列——一台有真实
+ # 但未组装阵列的机器,该阵列不会出现在 md_arrays() 里,assert_md_all_fake
+ # 就没机会核查它,但它在 fstab/mdadm.conf 里的条目照样会被两个过滤器删掉。
+ # 下面这组函数把"配置文件提到的 md 设备,必须都在已核实集合里"做成可单测
+ # 的纯函数,供 cmd_down 在清理前调用;对不上就该看作"未核实",拒绝而不是猜
+ # ——不管对不上的原因是"这确实是别的阵列",还是"同一阵列在两个文件里的
+ # 写法不一致导致认不出来"(如 fstab 的 /dev/md127 与 mdadm.conf 里可能出现
+ # 的 /dev/md/<name> 符号链接形式),两种情况都不能证明安全。
++#
++# ⚠️ TASK 6 待验证项(评审判定:全篇最大的开放风险点)——
++# 读 NimoOS-LocalStorage 源码只能确认 mdadm.Create() 从不传 --name=、
++# NextAvailableDevice() 恒生成 /dev/md<数字>;但 SaveConfig() 是
++# `mdadm --detail --scan > /etc/mdadm/mdadm.conf`(整份覆盖),而 mdadm 的
++# 1.x 超级块即使没有显式命名,也可能带隐式 hostname:index 名并生成
++# /dev/md/<name> 符号链接——`--detail --scan` 在这种情况下有没有可能选用
++# 符号链接形式而不是 /dev/mdN 作为 ARRAY 行的设备字段,仅凭代码审查无法
++# 100% 排除。如果实际是后者,mdadm_conf_md_devices 提出来的就是
++# "md/<name>"而不是"md127",永远对不上 $arrays 里的核实结果——这道前置
++# 断言就会在**每一次正常 down** 上都拒绝,把"安全拒绝"变成"功能不可用"。
++#
++# Task 6 真机 up 一次之后,第一件事就是核对 /etc/mdadm/mdadm.conf 的真实
++# ARRAY 行长什么样。如果证实是符号链接形式,补救方向是给 mdadm_conf_md_devices
++# 或它的调用点加一步解析:设备字段形如 /dev/md/<name> 时,用
++# `readlink -f "/dev/md/<name>"` 解出它实际指向的 /dev/mdN,再拿解出来的
++# mdN 去跟 $arrays 比对(需要注入一个类似 RAIDLAB_DEV_ROOT 的环境变量,
++# 测试里用假 symlink 模拟 /dev/md/*,不能直接读真实 /dev)。在此之前,
++# 保守选择是"解不出对应关系就拒绝",不是尝试证明它安全。
+ 
+ # fstab_md_sources —— stdin 读 fstab,打印所有源设备字段以 /dev/md 开头的行,
+ # 裸名(去掉 /dev/ 前缀),每行一个。刻意比 fstab_drop_snapshots 的删除条件
+ # (精确 /dev/md[0-9]+ 且挂载点为 .snapshots)更宽:这里要回答的是"fstab 里
+ # 究竟提到了哪些看起来像 md 设备的东西",不是"这一行会不会被删"——核实关口
+ # 宁可多疑一个,也不要漏看一个。
+ fstab_md_sources() {
+ 	awk '$1 ~ /^\/dev\/md/ { sub(/^\/dev\//, "", $1); print $1 }'
+ }
+ 
+ # mdadm_conf_md_devices —— stdin 读 mdadm.conf,打印每条 ARRAY 行的设备字段
+ # (第 2 列),裸名(去掉 /dev/ 前缀),每行一个。
+@@ -411,29 +430,42 @@ cmd_up() {
+ 	done
+ 
+ 	# 最后一次不吞 stderr,把准确诊断打给用户
+ 	echo "raidlab: 核对失败,详情:" >&2
+ 	api_get /v1/disks 2>/dev/null | avail_disk_names | verify_avail_only_fake
+ 	echo "raidlab: 另一个常见原因:标记文件 $RAIDLAB_PSEUDO_MARKER 没建成功" >&2
+ 	echo "         (后端只在它存在时才承认 scsi_debug 假盘),确认它确实存在。" >&2
+ 	return 1
+ }
+ 
+ # --- down ----------------------------------------------------------------------
+ 
++# cmd_down 步骤 2/4 用的临时文件路径。刻意声明为脚本级变量而不是函数局部
++# (下面 cmd_down 里不用 local tmp_fstab/tmp_mdconf):EXIT trap 在整个进程
++# 退出时才触发,那时函数早已 return、局部变量已经出栈——如果 trap 引用的是
++# 局部变量,在 set -u 下会踩到"unbound variable",反倒在正常收尾时打出一句
++# 吓人的错误。声明成脚本级、默认空字符串,trap 无论何时触发都能安全地
++# rm -f 一个可能为空的路径(rm -f 对空参数/已删除路径都是no-op)。
++RAIDLAB_TMP_FSTAB=""
++RAIDLAB_TMP_MDCONF=""
++
+ # cmd_down —— 拆台并复核回基线。顺序不可调换:必须在停阵列「之前」核查成员
+ # 并核对配置文件引用,停完阵列成员信息就没了。
+ cmd_down() {
+ 	local md rc=0
+ 
++	# 中途被 Ctrl-C 打断(尤其是卡在 diff/sudo cp 期间)不留孤儿临时文件。
++	# 本脚本此前没有任何脚本级 trap,这里直接设,不存在覆盖谁的问题。
++	trap 'rm -f "$RAIDLAB_TMP_FSTAB" "$RAIDLAB_TMP_MDCONF" 2>/dev/null' EXIT
++
+ 	# 1. 核查所有在场阵列都是测试台建的
+ 	local arrays
+ 	arrays="$(md_arrays)"
+ 	if [[ -n "$arrays" ]]; then
+ 		while IFS= read -r md; do
+ 			[[ -n "$md" ]] || continue
+ 			assert_md_all_fake "$md" || return 1
+ 		done <<< "$arrays"
+ 	fi
+ 
+ 	# 1.5 前置断言:fstab_drop_snapshots / mdadm_conf_drop_arrays 都是按行
+ 	#     全局删除,只问"这行像不像该删的样子",不问"这个阵列有没有被核实
+@@ -454,60 +486,81 @@ cmd_down() {
+ 	if [[ -n "$unverified" ]]; then
+ 		echo "raidlab: $RAIDLAB_FSTAB / $RAIDLAB_MDADM_CONF 里引用了未核实的 md 设备,拒绝继续,一个文件都不动:" >&2
+ 		echo "$unverified" | sed 's/^/  /' >&2
+ 		echo "         可能是台上有真实但未组装的阵列(md_arrays 看不到它,上一步没机会核查)," >&2
+ 		echo "         也可能是同一阵列在两处文件里的写法不一致(如 /dev/md127 与" >&2
+ 		echo "         /dev/md/<name>)导致认不出对应关系——两种情况都不能证明安全,请手动" >&2
+ 		echo "         核实后再清理。" >&2
+ 		return 1
+ 	fi
+ 
+ 	# 2. 清 fstab(在停阵列前做,条目里的 /dev/md* 此刻还有意义)
+ 	if [[ -r "$RAIDLAB_FSTAB" ]]; then
+-		local tmp_fstab
+-		tmp_fstab="$(mktemp)"
+-		fstab_drop_snapshots < "$RAIDLAB_FSTAB" > "$tmp_fstab"
+-		if ! diff -q "$RAIDLAB_FSTAB" "$tmp_fstab" >/dev/null 2>&1; then
++		RAIDLAB_TMP_FSTAB="$(mktemp)"
++		fstab_drop_snapshots < "$RAIDLAB_FSTAB" > "$RAIDLAB_TMP_FSTAB"
++		if ! diff -q "$RAIDLAB_FSTAB" "$RAIDLAB_TMP_FSTAB" >/dev/null 2>&1; then
+ 			echo "raidlab: 清理 $RAIDLAB_FSTAB 里的 @snapshots 条目..."
+-			sudo cp "$RAIDLAB_FSTAB" "$RAIDLAB_FSTAB.raidlab.bak"
+-			sudo cp "$tmp_fstab" "$RAIDLAB_FSTAB"
++			# 备份失败(权限/磁盘满/只读文件系统)必须拒绝继续覆写——脚本
++			# 顶部只有 set -uo pipefail,没有 -e,这次 cp 若不显式检查返回码,
++			# 静默失败也挡不住下一行把清理后的内容写回原文件,"改前必留
++			# .bak"这条安全承诺就会被击穿(评审 Important #1)。
++			sudo cp "$RAIDLAB_FSTAB" "$RAIDLAB_FSTAB.raidlab.bak" || {
++				echo "raidlab: 备份 $RAIDLAB_FSTAB 失败,拒绝继续覆写。" >&2
++				rm -f "$RAIDLAB_TMP_FSTAB"
++				return 1
++			}
++			if ! sudo cp "$RAIDLAB_TMP_FSTAB" "$RAIDLAB_FSTAB"; then
++				echo "raidlab: 写回 $RAIDLAB_FSTAB 失败——它现在可能处于半写状态," >&2
++				echo "         备份已保存在 $RAIDLAB_FSTAB.raidlab.bak,请手动核对/恢复。" >&2
++				rc=1
++			fi
+ 		fi
+-		rm -f "$tmp_fstab"
++		rm -f "$RAIDLAB_TMP_FSTAB"
++		RAIDLAB_TMP_FSTAB=""
+ 	fi
+ 
+ 	# 3. 卸挂载点并停阵列。同一设备可能有多个独立挂载点(基础子卷 + 各自
+ 	#    的 .snapshots 子卷各占一行 fstab,共用同一个源设备)——用 -A
+ 	#    (unmount all mountpoints for the given device),而不是 -R(对某个
+ 	#    目录递归卸掉它下面的子挂载,处理的是另一种场景:目录树里嵌套的
+ 	#    bind mount,不是"同一设备的多个平级挂载点")。
+ 	if [[ -n "$arrays" ]]; then
+ 		while IFS= read -r md; do
+ 			[[ -n "$md" ]] || continue
+ 			echo "raidlab: 停止阵列 /dev/$md..."
+ 			sudo umount -A "/dev/$md" 2>/dev/null || true
+ 			sudo mdadm --stop "/dev/$md" || rc=1
+ 		done <<< "$arrays"
+ 	fi
+ 
+ 	# 4. 清 mdadm.conf
+ 	if [[ -r "$RAIDLAB_MDADM_CONF" ]]; then
+-		local tmp_mdconf
+-		tmp_mdconf="$(mktemp)"
+-		mdadm_conf_drop_arrays < "$RAIDLAB_MDADM_CONF" > "$tmp_mdconf"
+-		if ! diff -q "$RAIDLAB_MDADM_CONF" "$tmp_mdconf" >/dev/null 2>&1; then
++		RAIDLAB_TMP_MDCONF="$(mktemp)"
++		mdadm_conf_drop_arrays < "$RAIDLAB_MDADM_CONF" > "$RAIDLAB_TMP_MDCONF"
++		if ! diff -q "$RAIDLAB_MDADM_CONF" "$RAIDLAB_TMP_MDCONF" >/dev/null 2>&1; then
+ 			echo "raidlab: 清理 $RAIDLAB_MDADM_CONF 里的 ARRAY 行..."
+-			sudo cp "$RAIDLAB_MDADM_CONF" "$RAIDLAB_MDADM_CONF.raidlab.bak"
+-			sudo cp "$tmp_mdconf" "$RAIDLAB_MDADM_CONF"
++			# 同上:备份失败必须拒绝继续覆写,不能假装成功。
++			sudo cp "$RAIDLAB_MDADM_CONF" "$RAIDLAB_MDADM_CONF.raidlab.bak" || {
++				echo "raidlab: 备份 $RAIDLAB_MDADM_CONF 失败,拒绝继续覆写。" >&2
++				rm -f "$RAIDLAB_TMP_MDCONF"
++				return 1
++			}
++			if ! sudo cp "$RAIDLAB_TMP_MDCONF" "$RAIDLAB_MDADM_CONF"; then
++				echo "raidlab: 写回 $RAIDLAB_MDADM_CONF 失败——它现在可能处于半写状态," >&2
++				echo "         备份已保存在 $RAIDLAB_MDADM_CONF.raidlab.bak,请手动核对/恢复。" >&2
++				rc=1
++			fi
+ 		fi
+-		rm -f "$tmp_mdconf"
++		rm -f "$RAIDLAB_TMP_MDCONF"
++		RAIDLAB_TMP_MDCONF=""
+ 	fi
+ 
+ 	# 5. 卸模块
+ 	if lsmod | grep -q '^scsi_debug'; then
+ 		echo "raidlab: 卸载 scsi_debug..."
+ 		sudo rmmod scsi_debug || rc=1
+ 	fi
+ 
+ 	# 6. 撤回后端白名单标记(在 rmmod 之后:模块还在的时候没必要急着撤)
+ 	if [[ -e "$RAIDLAB_PSEUDO_MARKER" ]]; then
+ 		echo "raidlab: 撤回假盘白名单标记 $RAIDLAB_PSEUDO_MARKER..."
+ 		sudo rm -f "$RAIDLAB_PSEUDO_MARKER" || rc=1
+@@ -542,24 +595,26 @@ usage() {
+ 	cat <<'EOF'
+ 用法: ./raidlab.sh <子命令>
+ 
+   up      加载 scsi_debug 造假盘,核对后端能看见且只看见假盘
+   down    核查并停阵列、清 fstab/mdadm.conf、卸模块、复核回基线
+   status  打印假盘/mdstat/lsblk/后端 avail/快照卷/RAID 六视图(纯观测)
+ 
+ 环境变量(默认值):
+   RAIDLAB_NUM_TGTS=4          假盘数量
+   RAIDLAB_DEV_SIZE_MB=512     每块假盘大小
+   RAIDLAB_API_BASE=http://127.0.0.1
+   RAIDLAB_PSEUDO_MARKER=/etc/nimoos/allow-pseudo-disks
++  RAIDLAB_FSTAB=/etc/fstab
++  RAIDLAB_MDADM_CONF=/etc/mdadm/mdadm.conf
+ EOF
+ }
+ 
+ main() {
+ 	case "${1:-}" in
+ 	up) cmd_up ;;
+ 	down) cmd_down ;;
+ 	status) cmd_status ;;
+ 	*)
+ 		usage >&2
+ 		return 1
+ 		;;
+diff --git a/scripts/raidlab.test.sh b/scripts/raidlab.test.sh
+index 26d841c..893f0ed 100755
+--- a/scripts/raidlab.test.sh
++++ b/scripts/raidlab.test.sh
+@@ -342,15 +342,93 @@ COMBINED_UNVERIFIED="$(
+ # 与 C locale 的纯字节序不同);这里只断言"两个都在、且 md127 被过滤掉"这个
+ # 与 locale 无关的事实,不去断言两者之间谁先谁后。
+ t_eq "组合场景:命名形式与非精确源都判未核实、md127 被过滤掉,不断言二者顺序" \
+ 	"$(printf 'md/nimo1\nmd0p1\n' | sort -u)" "$COMBINED_UNVERIFIED"
+ 
+ echo
+ echo "== main 参数分派 =="
+ 
+ t_no "未知子命令返回非 0"  main frobnicate
+ t_no "无参数返回非 0"      main
+ t_eq "未知子命令打出用法" "1" "$(main frobnicate 2>&1 | grep -c '用法: ')"
+ 
++echo
++echo "== cmd_down:备份失败必须拒绝覆写(评审 Important #1)=="
++#
++# 这是唯一一处真的调用 cmd_down 的测试(其余子命令逻辑因为要 root + 改内核
++# 状态,按约定不在单测里跑)。搭一套全部指向临时目录的假环境,让 cmd_down
++# 走到"清 fstab"这一步、且确实需要覆写(md127 是已核实的全假盘阵列,fstab
++# 里有它的 .snapshots 条目);唯一的破坏面是桩 sudo,不会碰真实系统:
++#   - 桩 sudo 只在目标路径以 .raidlab.bak 结尾时(也就是"备份"那次 cp)才
++#     模拟失败;换成任何其它 cp(也就是"覆写"那次)会用真正的 /bin/cp 照做。
++#     这个区分是关键:如果桩 sudo 对所有 cp 都无差别地失败,那"备份失败后
++#     有没有守卫"这两种代码在这个测试里会长得一模一样(覆写那次也一并失败,
++#     文件永远不会被改),测试就验证不了真正的漏洞——真正的漏洞恰恰是
++#     "备份失败,但紧接着的覆写照样会成功"。
++#   - mdadm.conf / 标记文件都指向不存在的路径,cmd_down 会因为
++#     [[ -r/-e ... ]] 判空跳过那两段,不会再触发别的 sudo 调用——有守卫时
++#     应该在清 fstab 这一步就 return 1,压根走不到后面的 umount/mdadm/rmmod。
++DOWNTEST="$TMP/down_backup_fail"
++mkdir -p "$DOWNTEST/sys/block/sda/device" "$DOWNTEST/sys/block/sdb/device" \
++	"$DOWNTEST/sys/block/md127/md/dev-sda" "$DOWNTEST/sys/block/md127/md/dev-sdb"
++printf 'scsi_debug\n' > "$DOWNTEST/sys/block/sda/device/model"
++printf 'scsi_debug\n' > "$DOWNTEST/sys/block/sdb/device/model"
++
++cat > "$DOWNTEST/mdstat" <<'EOF'
++Personalities : [raid1]
++md127 : active raid1 sdb[1] sda[0]
++      524224 blocks super 1.2 [2/2] [UU]
++
++unused devices: <none>
++EOF
++
++FSTAB_ORIG='UUID=78db4224-e926-42c4-a899-8f8f00224d22 /boot ext4 defaults 0 2
++/dev/md127 /DATA/vol1/.snapshots btrfs subvol=/@snapshots,nofail 0 0'
++printf '%s' "$FSTAB_ORIG" > "$DOWNTEST/fstab"
++
++mkdir -p "$DOWNTEST/bin"
++cat > "$DOWNTEST/bin/sudo" <<'STUB'
++#!/bin/bash
++# 桩 sudo:只认 "cp SRC DST" 这一种调用形状(raidlab.sh 里两处都是这么调
++# 的,不带任何 flag)。目标以 .raidlab.bak 结尾 → 模拟备份失败,不真的做
++# 任何事;其余 cp(即覆写)放行,用真 /bin/cp 真的执行,让"没有守卫时是否
++# 真的会覆写"这件事在这个假环境里可验证。其它子命令一律报错退出——这条
++# 测试路径理论上不该用到它们,用到了就该响亮暴露,而不是静默"假装成功"。
++if [[ "$1" == "cp" ]]; then
++	case "$3" in
++	*.raidlab.bak)
++		echo "stub-sudo: 模拟备份 cp 失败: $*" >&2
++		exit 1
++		;;
++	*)
++		exec /bin/cp "$2" "$3"
++		;;
++	esac
++fi
++echo "stub-sudo: 未预期的调用(测试环境搭建有缺陷): $*" >&2
++exit 1
++STUB
++chmod +x "$DOWNTEST/bin/sudo"
++
++DOWN_OUT="$(
++	PATH="$DOWNTEST/bin:$PATH" \
++	RAIDLAB_LIB_ONLY=1 \
++	RAIDLAB_SYSFS_ROOT="$DOWNTEST/sys" \
++	RAIDLAB_PROC_MDSTAT="$DOWNTEST/mdstat" \
++	RAIDLAB_FSTAB="$DOWNTEST/fstab" \
++	RAIDLAB_MDADM_CONF="$DOWNTEST/no-such-mdadm.conf" \
++	RAIDLAB_PSEUDO_MARKER="$DOWNTEST/no-such-marker" \
++	bash -c "source '$HERE/raidlab.sh'; cmd_down" 2>&1
++)"
++DOWN_RC=$?
++
++t_eq "备份失败:cmd_down 返回非 0" "1" "$([[ "$DOWN_RC" -ne 0 ]] && echo 1 || echo 0)"
++t_eq "备份失败:fstab 原文件内容未被改动(没有被写入清理后的内容)" \
++	"$FSTAB_ORIG" "$(cat "$DOWNTEST/fstab")"
++t_eq "备份失败:没有留下 .raidlab.bak(说明备份那次 cp 确实没成功过)" \
++	"0" "$([[ -e "$DOWNTEST/fstab.raidlab.bak" ]] && echo 1 || echo 0)"
++t_eq "备份失败:诊断信息提到「拒绝继续覆写」" \
++	"1" "$(printf '%s' "$DOWN_OUT" | grep -c '拒绝继续覆写')"
++
+ echo
+ echo "通过 $PASS,失败 $FAIL"
+ [[ "$FAIL" -eq 0 ]]

@@ -1,0 +1,176 @@
+# Review package: a92f463..9eb28e0
+
+## Commits
+9eb28e0 feat(files): /files route + Files.vue browse pipe (route<->virtual<->real)
+
+## Files changed
+ src/router/index.ts     |  3 +++
+ src/views/Files.test.ts | 65 +++++++++++++++++++++++++++++++++++++++++++++++++
+ src/views/Files.vue     | 63 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 131 insertions(+)
+
+## Diff
+diff --git a/src/router/index.ts b/src/router/index.ts
+index 5d40b3d..2bf6c78 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -1,16 +1,19 @@
+ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+ import Home from '../views/Home.vue'
++import Files from '../views/Files.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
++  { path: '/files', name: 'files', component: Files },
++  { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+ // 无 token 跳回 Vue 2 应用登录页(同源 hash 路由)
+ router.beforeEach(
+   authGuard(
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+new file mode 100644
+index 0000000..23a48ae
+--- /dev/null
++++ b/src/views/Files.test.ts
+@@ -0,0 +1,65 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { createRouter, createWebHashHistory } from 'vue-router'
++import { messages } from '../i18n/zh_cn'
++import Files from './Files.vue'
++import { useFilesStore } from '../files/stores/files'
++import { useFoldersStore } from '../home/stores/folders'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    folder: {
++      getList: vi.fn(async (path: string) => ({
++        content: [
++          { name: 'Documents', path: (path === '/DATA' ? '/DATA' : path) + '/Documents', is_dir: true },
++          { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
++        ],
++      })),
++    },
++  },
++  getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++function makeRouter() {
++  return createRouter({
++    history: createWebHashHistory('/app/'),
++    routes: [
++      { path: '/', name: 'home', component: { template: '<div/>' } },
++      { path: '/files', name: 'files', component: Files },
++      { path: '/files/:path(.*)*', name: 'files-path', component: Files },
++    ],
++  })
++}
++
++describe('Files.vue browse pipe', () => {
++  beforeEach(() => { setActivePinia(createPinia()) })
++
++  it('bare /files redirects to default disk root (virtual) and lists it', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    expect(router.currentRoute.value.fullPath).toContain('/files/NimoOS-HD')
++    const files = useFilesStore()
++    expect(files.currentPath).toBe('/DATA')
++    expect(w.text()).toContain('Documents')
++  })
++
++  it('deep virtual route resolves to real path and lists it', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD/Documents'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    const files = useFilesStore()
++    expect(files.currentPath).toBe('/DATA/Documents')
++    expect(w.text()).toContain('Documents')
++  })
++})
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+new file mode 100644
+index 0000000..d6e9e7f
+--- /dev/null
++++ b/src/views/Files.vue
+@@ -0,0 +1,63 @@
++<script setup lang="ts">
++import { watch, onMounted } from 'vue'
++import { useRoute, useRouter } from 'vue-router'
++import FilesShell from '../files/components/FilesShell.vue'
++import { useFilesStore, type FileEntry } from '../files/stores/files'
++import {
++  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
++} from '../files/util/pathUtils'
++
++const route = useRoute()
++const router = useRouter()
++const files = useFilesStore()
++
++async function sync() {
++  const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
++  if (vp === '/') {
++    const rootReal = files.defaultRootReal()
++    if (!rootReal) return
++    const rootVirtual = toVirtualPath(rootReal, files.displayNames)
++    router.replace('/files/' + virtualPathToRouteParam(rootVirtual))
++    return
++  }
++  await files.load(toRealPath(vp, files.displayNames))
++}
++
++function openEntry(entry: FileEntry) {
++  if (!entry.is_dir) return
++  const vp = toVirtualPath(entry.path, files.displayNames)
++  router.push('/files/' + virtualPathToRouteParam(vp))
++}
++
++onMounted(async () => {
++  await files.loadRoots()
++  await sync()
++})
++
++watch(() => route.params.path, () => { sync() })
++</script>
++
++<template>
++  <FilesShell>
++    <ul class="files-list">
++      <li
++        v-for="entry in files.entries"
++        :key="entry.path"
++        class="files-row"
++        :class="{ 'is-dir': entry.is_dir }"
++        @click="openEntry(entry)"
++      >
++        <span class="files-row-mark">{{ entry.is_dir ? '📁' : '📄' }}</span>
++        <span class="files-row-name">{{ entry.name }}</span>
++      </li>
++    </ul>
++  </FilesShell>
++</template>
++
++<style scoped>
++.files-list { list-style: none; margin: 0; padding: 0; }
++.files-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; cursor: default; }
++.files-row.is-dir { cursor: pointer; }
++.files-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
++.files-row-name { font-size: 14px; }
++</style>

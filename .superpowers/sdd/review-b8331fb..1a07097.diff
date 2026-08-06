@@ -1,0 +1,994 @@
+# Review package: b8331fb..HEAD
+
+## Commits
+1a07097 style(files): 修手机端 actions 溢出(flex-basis 100%)+ 删除钮并入左侧按钮组(验收反馈轮2) Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+9d599bb style(files): 窄屏工具栏/选中操作栏折行为 2-3 行(闸门验收反馈)
+5fb39ee test(home): GridItem/HomeDock 断言跟进 files 应用内跳转
+058820f test: 全局 mock lottie-web(router 被 useOpenAction 引入后的 jsdom canvas 崩溃,一处封掉)
+0f2f60a feat(home): 文件图标/文件夹瓦片改应用内跳转(P8 cutover 前置)
+ab9ca69 feat(files): 接住旧格式深链 ?path=/?highlight=(归一跳转+定位闪烁)
+b90f30f feat(files): resolveInputPath 深链归一化(Vue2 同款,真实/虚拟双输入)
+75e6785 style(files): ≤768px 单列布局 + 工具栏换行(跨断点 polish,真机眼验项)
+e975224 feat(files): ≤768px 侧栏收覆盖式抽屉(☰/遮罩/ESC/导航自动收起)
+edeaae3 feat(files): useSidebarDrawer 抽屉状态单例(matchMedia ≤768px)
+
+## Files changed
+ src/files/components/FilesShell.vue              |  9 +++
+ src/files/components/FilesSidebar.drawer.test.ts | 85 ++++++++++++++++++++++++
+ src/files/components/FilesSidebar.vue            | 32 ++++++++-
+ src/files/components/SelectionToolbar.vue        |  6 +-
+ src/files/composables/useSidebarDrawer.test.ts   | 70 +++++++++++++++++++
+ src/files/composables/useSidebarDrawer.ts        | 41 ++++++++++++
+ src/files/drop/components/DropPage.vue           |  3 +
+ src/files/shares/SharesPage.vue                  |  3 +
+ src/files/util/pathUtils.test.ts                 | 26 +++++++-
+ src/files/util/pathUtils.ts                      | 10 +++
+ src/home/components/GridItem.click.test.ts       |  8 ++-
+ src/home/components/HomeDock.test.ts             |  8 ++-
+ src/home/composables/useOpenAction.test.ts       | 16 +++--
+ src/home/composables/useOpenAction.ts            | 13 +++-
+ src/i18n/en_us.ts                                |  1 +
+ src/i18n/zh_cn.ts                                |  1 +
+ src/styles/theme.css                             |  4 ++
+ src/views/Files.vue                              | 44 +++++++++++-
+ vitest.setup.ts                                  |  6 ++
+ 19 files changed, 369 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FilesShell.vue b/src/files/components/FilesShell.vue
+index d30aa61..321af15 100644
+--- a/src/files/components/FilesShell.vue
++++ b/src/files/components/FilesShell.vue
+@@ -1,27 +1,36 @@
+ <script setup lang="ts">
+ import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
++import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+ 
+ const router = useRouter()
+ const { t } = useI18n()
++const { isNarrow, toggle } = useSidebarDrawer()
+ function goHome() { router.push('/') }
+ </script>
+ 
+ <template>
+   <div class="files-shell">
+     <header class="files-bar">
++      <button v-if="isNarrow" class="bar-btn files-menu-btn" type="button" :aria-label="t('filesSidebarToggle')" @click="toggle">☰</button>
+       <button class="bar-btn files-home-btn" type="button" @click="goHome">‹ {{ t('filesBackHome') }}</button>
+       <h1 class="files-title">{{ t('filesTitle') }}</h1>
+     </header>
+     <main class="files-body">
+       <slot />
+     </main>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .files-shell { display: flex; flex-direction: column; height: 100vh; color: var(--fg); }
+ .files-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
+ .files-title { font-size: 18px; font-weight: 600; margin: 0; }
+ .files-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }
++
++/* 窄屏(≤768px):侧栏变抽屉,头部内边距/间距收紧以省空间 */
++@media (max-width: 768px) {
++  .files-bar { padding: 12px; gap: 10px; }
++  .files-body { padding: 0 12px 12px; }
++}
+ </style>
+diff --git a/src/files/components/FilesSidebar.drawer.test.ts b/src/files/components/FilesSidebar.drawer.test.ts
+new file mode 100644
+index 0000000..d2050b7
+--- /dev/null
++++ b/src/files/components/FilesSidebar.drawer.test.ts
+@@ -0,0 +1,85 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount, flushPromises } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { nextTick } from 'vue'
++import FilesSidebar from './FilesSidebar.vue'
++import { useFilesStore } from '../stores/files'
++import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../composables/useSidebarDrawer'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
++    folder: { getList: vi.fn() },
++    driver: { listDrivers: vi.fn().mockResolvedValue([]) },
++    cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
++  },
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏', filesSharesNav: '共享', filesDropNav: '互传', filesMountManage: '挂载管理', filesMountEject: '弹出' } } })
++
++const testRouter = createRouter({
++  history: createMemoryHistory(),
++  routes: [
++    { path: '/', name: 'home', component: { template: '<div/>' } },
++    { path: '/files/shares', name: 'files-shares', component: { template: '<div/>' } },
++    { path: '/files/drop', name: 'files-drop', component: { template: '<div/>' } },
++  ],
++})
++
++function mountSidebar() {
++  const files = useFilesStore()
++  files.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as never
++  files.displayNames = { '/DATA': 'NimoOS-HD' }
++  files.currentPath = '/DATA'
++  return mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
++}
++
++describe('FilesSidebar drawer', () => {
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetSidebarDrawerForTest() })
++
++  it('桌面态(isNarrow=false):无遮罩、无 is-drawer class', () => {
++    const w = mountSidebar()
++    expect(w.find('.side-scrim').exists()).toBe(false)
++    expect(w.find('aside.files-sidebar').classes()).not.toContain('is-drawer')
++  })
++
++  it('窄屏 + 打开:出遮罩,aside 带 is-drawer/is-open;点遮罩关闭', async () => {
++    const d = useSidebarDrawer()
++    d.isNarrow.value = true
++    d.open.value = true
++    const w = mountSidebar()
++    await nextTick()
++    expect(w.find('.side-scrim').exists()).toBe(true)
++    const aside = w.find('aside.files-sidebar')
++    expect(aside.classes()).toContain('is-drawer')
++    expect(aside.classes()).toContain('is-open')
++    await w.find('.side-scrim').trigger('click')
++    expect(d.open.value).toBe(false)
++    expect(w.find('.side-scrim').exists()).toBe(false)
++  })
++
++  it('ESC 关闭抽屉', async () => {
++    const d = useSidebarDrawer()
++    d.isNarrow.value = true
++    d.open.value = true
++    mountSidebar()
++    await nextTick()
++    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
++    expect(d.open.value).toBe(false)
++  })
++
++  it('路由变化(点导航项)后自动收起', async () => {
++    const d = useSidebarDrawer()
++    d.isNarrow.value = true
++    d.open.value = true
++    const w = mountSidebar()
++    await nextTick()
++    await w.findAll('.side-item')[0].trigger('click') // 「共享」项 → router.push('/files/shares')
++    await testRouter.isReady()
++    await nextTick(); await nextTick() // 等 watch(route.fullPath) 触发
++    await flushPromises() // router.push 的 pending navigation 在本仓库 vue-router 版本下需要一个宏任务才能落定,纯 nextTick 不够(已实测排查)
++    expect(d.open.value).toBe(false)
++  })
++})
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index d316665..419f22a 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -1,39 +1,54 @@
+ <script setup lang="ts">
+-import { computed, ref } from 'vue'
++import { computed, ref, watch, onUnmounted } from 'vue'
+ import { useRouter, useRoute } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useFilesStore } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useMountsStore } from '../stores/mounts'
+ import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+ import { buildAuthUrl } from '../util/cloudAuth'
+ import { dropAsset } from '../drop/dropIcons'
+ import type { CloudDriver } from '@nimotech/nimoos-service'
+ import AddMountMenu from './AddMountMenu.vue'
+ import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
++import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+ const router = useRouter()
+ const route = useRoute()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const mounts = useMountsStore()
+ const dialogOpen = ref(false)
+ const gdriveOpen = ref(false)
+ const { t } = useI18n()
+ const dropNavIcon = dropAsset('drop_icon')
+ 
++// 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)
++const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
++
++// 任何路由变化(点收藏/磁盘/共享/互传导航)后抽屉自动收起;桌面态 close 是 no-op。
++watch(() => route.fullPath, () => closeDrawer())
++
++// ESC 关抽屉。注:预览器(ViewerShell)有自己的 ESC;抽屉只在窄屏打开时监听,冲突面可忽略。
++function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
++watch(drawerOpen, (o) => {
++  if (o) document.addEventListener('keydown', onDrawerKeydown)
++  else document.removeEventListener('keydown', onDrawerKeydown)
++})
++onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
++
+ function go(realPath: string) {
+   emit('navigate', toVirtualPath(realPath, files.displayNames))
+ }
+ function isActive(realPath: string): boolean {
+   return files.currentPath === realPath
+ }
+ function diskIcon(usb: boolean): string {
+   return iconUrl(usb ? 'folder-usb' : 'folder-hdd')
+ }
+ 
+@@ -99,21 +114,22 @@ function onDiskDrop(i: number) {
+   const [moved] = arr.splice(from, 1)
+   arr.splice(i, 0, moved)
+   const order = arr.map((d) => d.path)
+   writeOrder(order)
+   writeDefault(order[0] || '')
+   orderVersion.value++
+ }
+ </script>
+ 
+ <template>
+-  <aside class="files-sidebar">
++  <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
++  <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+     <div class="side-head">
+       <span class="side-head-title">{{ t('filesMountManage') }}</span>
+       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
+     </div>
+     <section class="side-section">
+       <ul class="side-list">
+         <li class="side-item" :class="{ active: route.name === 'files-shares' }" @click="router.push('/files/shares')">
+           <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+           <span class="side-name">{{ t('filesSharesNav') }}</span>
+         </li>
+@@ -209,11 +225,23 @@ function onDiskDrop(i: number) {
+ .side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; }
+ .side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }
+ .side-list { list-style: none; margin: 0; padding: 0; }
+ .side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
+ .side-item:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+ .side-item.active { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+ .side-icon { width: 20px; height: 20px; flex: 0 0 auto; }
+ .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
+ .side-item:hover .side-remove { opacity: 1; }
++
++/* 窄屏抽屉:遮罩 + 侧栏浮层覆盖(z-index 备忘:ViewerShell=200、MediaViewer ask 面板=240、
++   ui-ctx 默认 120 → 抽屉 150/151 压住内容、避让预览器) */
++.side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
++.files-sidebar.is-drawer {
++  position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
++  padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
++  border-right: 1px solid var(--card-border);
++  transform: translateX(-105%); transition: transform 0.25s var(--ease);
++}
++.files-sidebar.is-drawer.is-open { transform: none; }
++@media (prefers-reduced-motion: reduce) { .files-sidebar.is-drawer { transition: none; } }
+ </style>
+diff --git a/src/files/components/SelectionToolbar.vue b/src/files/components/SelectionToolbar.vue
+index 76bb4c9..2d32aae 100644
+--- a/src/files/components/SelectionToolbar.vue
++++ b/src/files/components/SelectionToolbar.vue
+@@ -7,24 +7,26 @@ const { t } = useI18n()
+ 
+ <template>
+   <div class="selection-toolbar">
+     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
+     <button class="sel-btn sel-all" @click="emit('select-all')">{{ t('filesSelectAll') }}</button>
+     <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>
+     <button class="sel-btn sel-copy" @click="emit('copy')">{{ t('filesCtxCopy') }}</button>
+     <button class="sel-btn sel-cut" @click="emit('cut')">{{ t('filesCtxCut') }}</button>
+     <button class="sel-btn sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
+     <button v-if="props.canShare" class="sel-btn sel-share" @click="emit('share')">{{ t('filesShareToLan') }}</button>
+-    <span class="sel-spacer"></span>
+     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .selection-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
+ .sel-count { flex: 0 0 auto; }
+ .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
+ .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+-.sel-spacer { flex: 1 1 auto; }
+ .sel-btn.danger { color: var(--remove-fg, #ff8a8a); border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); }
+ .sel-btn.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
++/* ≤768px:按钮流成 2-3 行(真机验收反馈);spacer 在换行布局里不再撑开,删除钮随流排列 */
++@media (max-width: 768px) {
++  .selection-toolbar { flex-wrap: wrap; row-gap: 8px; }
++}
+ </style>
+diff --git a/src/files/composables/useSidebarDrawer.test.ts b/src/files/composables/useSidebarDrawer.test.ts
+new file mode 100644
+index 0000000..63a4b0e
+--- /dev/null
++++ b/src/files/composables/useSidebarDrawer.test.ts
+@@ -0,0 +1,70 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { useSidebarDrawer, __resetSidebarDrawerForTest } from './useSidebarDrawer'
++
++type Listener = (e: { matches: boolean }) => void
++let listeners: Listener[]
++let mqMatches: boolean
++
++function stubMatchMedia() {
++  vi.stubGlobal('matchMedia', (media: string) => ({
++    matches: mqMatches,
++    media,
++    addEventListener: (_: string, fn: Listener) => { listeners.push(fn) },
++    removeEventListener: (_: string, fn: Listener) => { listeners = listeners.filter((l) => l !== fn) },
++  }))
++}
++function fireChange(matches: boolean) { listeners.forEach((fn) => fn({ matches })) }
++
++describe('useSidebarDrawer', () => {
++  beforeEach(() => {
++    __resetSidebarDrawerForTest()
++    vi.unstubAllGlobals()
++    listeners = []
++    mqMatches = false
++  })
++
++  it('窄屏初始:isNarrow 反映 matchMedia.matches', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const d = useSidebarDrawer()
++    expect(d.isNarrow.value).toBe(true)
++    expect(d.open.value).toBe(false)
++  })
++
++  it('toggle/close 开合抽屉', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const d = useSidebarDrawer()
++    d.toggle()
++    expect(d.open.value).toBe(true)
++    d.close()
++    expect(d.open.value).toBe(false)
++  })
++
++  it('拉宽离开窄屏 → open 强制归 false', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const d = useSidebarDrawer()
++    d.toggle()
++    fireChange(false)
++    expect(d.isNarrow.value).toBe(false)
++    expect(d.open.value).toBe(false)
++  })
++
++  it('多次调用共享同一状态(模块单例)', () => {
++    mqMatches = true
++    stubMatchMedia()
++    const a = useSidebarDrawer()
++    const b = useSidebarDrawer()
++    a.toggle()
++    expect(b.open.value).toBe(true)
++  })
++
++  it('无 matchMedia(jsdom 裸环境)退化为桌面态且不抛错', () => {
++    // 不 stub —— jsdom 默认没有 window.matchMedia
++    const d = useSidebarDrawer()
++    expect(d.isNarrow.value).toBe(false)
++    d.toggle() // 不应抛错
++    expect(d.open.value).toBe(true)
++  })
++})
+diff --git a/src/files/composables/useSidebarDrawer.ts b/src/files/composables/useSidebarDrawer.ts
+new file mode 100644
+index 0000000..dcbfa92
+--- /dev/null
++++ b/src/files/composables/useSidebarDrawer.ts
+@@ -0,0 +1,41 @@
++import { ref } from 'vue'
++
++// 模块级单例(useDock/useAddPanel 同款):FilesShell(☰ 钮)与 FilesSidebar(抽屉/遮罩)
++// 以及三个页面(Files/Shares/Drop)共享同一份状态。
++// matchMedia 不存在时(jsdom)isNarrow 恒 false,一切退化为桌面常驻侧栏。
++const isNarrow = ref(false)
++const open = ref(false)
++let mq: MediaQueryList | null = null
++let inited = false
++
++function onChange(e: MediaQueryListEvent | { matches: boolean }) {
++  isNarrow.value = e.matches
++  if (!e.matches) open.value = false // 离开窄屏清零抽屉态,桌面恒常驻
++}
++
++function init() {
++  if (inited) return
++  inited = true
++  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
++  mq = window.matchMedia('(max-width: 768px)')
++  isNarrow.value = mq.matches
++  mq.addEventListener('change', onChange)
++}
++
++export function useSidebarDrawer() {
++  init()
++  return {
++    isNarrow,
++    open,
++    toggle() { open.value = !open.value },
++    close() { open.value = false },
++  }
++}
++
++export function __resetSidebarDrawerForTest() {
++  mq?.removeEventListener('change', onChange)
++  mq = null
++  inited = false
++  isNarrow.value = false
++  open.value = false
++}
+diff --git a/src/files/drop/components/DropPage.vue b/src/files/drop/components/DropPage.vue
+index 74daedb..c7d35cc 100644
+--- a/src/files/drop/components/DropPage.vue
++++ b/src/files/drop/components/DropPage.vue
+@@ -103,11 +103,14 @@ onBeforeUnmount(() => {
+   animation: dropPulse 6s linear infinite; opacity: 0;
+ }
+ .drop-pulse i:nth-child(1) { width: 300px; height: 300px; }
+ .drop-pulse i:nth-child(2) { width: 300px; height: 300px; animation-delay: 2s; }
+ .drop-pulse i:nth-child(3) { width: 300px; height: 300px; animation-delay: 4s; }
+ @keyframes dropPulse {
+   0% { transform: translateX(-50%) scale(0.4); opacity: 0; }
+   20% { opacity: 0.6; }
+   100% { transform: translateX(-50%) scale(3.2); opacity: 0; }
+ }
++@media (max-width: 768px) {
++  .files-layout { gap: 0; }
++}
+ </style>
+diff --git a/src/files/shares/SharesPage.vue b/src/files/shares/SharesPage.vue
+index 911dccc..2269ce0 100644
+--- a/src/files/shares/SharesPage.vue
++++ b/src/files/shares/SharesPage.vue
+@@ -63,11 +63,14 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
+     />
+   </FilesShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .shares-main { flex: 1 1 auto; min-width: 0; }
+ .shares-title { font-size: 16px; font-weight: 600; margin: 4px 0 14px; }
+ .shares-empty { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
+ .shares-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
++@media (max-width: 768px) {
++  .files-layout { gap: 0; }
++}
+ </style>
+diff --git a/src/files/util/pathUtils.test.ts b/src/files/util/pathUtils.test.ts
+index ccda41d..1d357e0 100644
+--- a/src/files/util/pathUtils.test.ts
++++ b/src/files/util/pathUtils.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, it, expect } from 'vitest'
+-import { toVirtualPath, toRealPath, virtualPathToRouteParam, routeParamToVirtualPath } from './pathUtils'
++import { toVirtualPath, toRealPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath } from './pathUtils'
+ 
+ const DN = { '/DATA': 'NimoOS-HD', '/media/usb1': 'MyUSB' }
+ 
+ describe('pathUtils', () => {
+   it('toVirtualPath maps mount point (longest-first) and passes through unknown', () => {
+     expect(toVirtualPath('/DATA/Documents', DN)).toBe('/NimoOS-HD/Documents')
+     expect(toVirtualPath('/DATA', DN)).toBe('/NimoOS-HD')
+     expect(toVirtualPath('/media/usb1/a', DN)).toBe('/MyUSB/a')
+     expect(toVirtualPath('/etc/hosts', DN)).toBe('/etc/hosts')
+   })
+@@ -24,10 +24,34 @@ describe('pathUtils', () => {
+     expect(virtualPathToRouteParam('')).toBe('')
+   })
+ 
+   it('routeParamToVirtualPath rebuilds virtual path from router4 param (array or string)', () => {
+     expect(routeParamToVirtualPath(['NimoOS-HD', 'My Folder'])).toBe('/NimoOS-HD/My Folder')
+     expect(routeParamToVirtualPath('NimoOS-HD/Docs')).toBe('/NimoOS-HD/Docs')
+     expect(routeParamToVirtualPath(undefined)).toBe('/')
+     expect(routeParamToVirtualPath([])).toBe('/')
+   })
+ })
++
++describe('resolveInputPath(旧格式深链归一,Vue2 同款)', () => {
++  const dn = { '/DATA': 'NimoOS-HD', '/mnt/smb-nas': 'nas' }
++
++  it('真实路径 → 归一为虚拟', () => {
++    expect(resolveInputPath('/DATA/Documents', dn)).toEqual({ realPath: '/DATA/Documents', virtualPath: '/NimoOS-HD/Documents' })
++  })
++
++  it('虚拟路径输入 → 原样规范化', () => {
++    expect(resolveInputPath('/NimoOS-HD/Documents', dn)).toEqual({ realPath: '/DATA/Documents', virtualPath: '/NimoOS-HD/Documents' })
++  })
++
++  it('挂载根本身(真实=挂载点)', () => {
++    expect(resolveInputPath('/mnt/smb-nas', dn)).toEqual({ realPath: '/mnt/smb-nas', virtualPath: '/nas' })
++  })
++
++  it('未知前缀(不在 displayNames)原样透过', () => {
++    expect(resolveInputPath('/unknown/x', dn)).toEqual({ realPath: '/unknown/x', virtualPath: '/unknown/x' })
++  })
++
++  it('空输入 → 根', () => {
++    expect(resolveInputPath('', dn)).toEqual({ realPath: '/', virtualPath: '/' })
++  })
++})
+diff --git a/src/files/util/pathUtils.ts b/src/files/util/pathUtils.ts
+index 6b8912d..025606e 100644
+--- a/src/files/util/pathUtils.ts
++++ b/src/files/util/pathUtils.ts
+@@ -25,10 +25,20 @@ export function virtualPathToRouteParam(virtualPath: string): string {
+   if (!virtualPath || virtualPath === '/') return ''
+   return virtualPath.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/')
+ }
+ 
+ export function routeParamToVirtualPath(param: string | string[] | undefined): string {
+   if (!param) return '/'
+   const joined = Array.isArray(param) ? param.join('/') : param
+   if (!joined) return '/'
+   return '/' + joined.replace(/^\/+/, '')
+ }
++
++// 旧格式深链归一(Vue2 utils/pathUtils.js resolveInputPath 同款):输入可能是真实路径
++// (/DATA/x、/mnt/smb-y/z)也可能是虚拟路径(/NimoOS-HD/x)。先 toRealPath(虚拟→真实,
++// 真实无虚拟前缀可匹配、原样透过)再 toVirtualPath 规范化,两边幂等。
++export function resolveInputPath(input: string, displayNames: DisplayNames): { realPath: string; virtualPath: string } {
++  if (!input) return { realPath: '/', virtualPath: '/' }
++  const realPath = toRealPath(input, displayNames)
++  const virtualPath = toVirtualPath(realPath, displayNames)
++  return { realPath, virtualPath }
++}
+diff --git a/src/home/components/GridItem.click.test.ts b/src/home/components/GridItem.click.test.ts
+index 6b185d9..4d0361b 100644
+--- a/src/home/components/GridItem.click.test.ts
++++ b/src/home/components/GridItem.click.test.ts
+@@ -1,27 +1,33 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import GridItem from './GridItem.vue'
+ import type { LayoutItem } from '../grid/types'
+ 
++// P8 cutover:文件夹瓦片改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
++vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
++import { router } from '../../router'
++
+ let hrefs: string[]
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   hrefs = []
+   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
++  vi.mocked(router.push).mockClear()
+ })
+ 
+ describe('GridItem click', () => {
+   it('clicking a folder navigates to files', async () => {
+     const item: LayoutItem = { id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 }
+     const w = mount(GridItem, { props: { item } })
+     await w.get('[data-id="i"]').trigger('click')
+-    expect(hrefs[0]).toBe('/#/files?path=' + encodeURIComponent('/DATA/Gallery'))
++    expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
++    expect(hrefs.length).toBe(0)
+   })
+   it('clicking a photo navigates to /#/photos', async () => {
+     const item: LayoutItem = { id: 'p', kind: 'photo', key: 'linear-gradient(0,#000)', c: 1, r: 1, w: 2, h: 2 }
+     const w = mount(GridItem, { props: { item } })
+     await w.get('[data-id="p"]').trigger('click')
+     expect(hrefs[0]).toBe('/#/photos')
+   })
+ })
+diff --git a/src/home/components/HomeDock.test.ts b/src/home/components/HomeDock.test.ts
+index 5295eaa..545a2b2 100644
+--- a/src/home/components/HomeDock.test.ts
++++ b/src/home/components/HomeDock.test.ts
+@@ -1,20 +1,25 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useAppsStore } from '../stores/apps'
+ import { __resetDockForTest } from '../composables/useDock'
+ import HomeDock from './HomeDock.vue'
+ 
++// P8 cutover:dock 的 files 图标改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
++vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
++import { router } from '../../router'
++
+ beforeEach(() => {
+   setActivePinia(createPinia()); localStorage.clear(); __resetDockForTest()
+   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(_v: string) {}, get href() { return '' } } })
++  vi.mocked(router.push).mockClear()
+ })
+ 
+ describe('HomeDock', () => {
+   it('renders favorite dock apps with labels', () => {
+     useAppsStore()
+     const w = mount(HomeDock)
+     const labels = w.findAll('.dock-app').map((b) => b.text())
+     expect(labels.join(' ')).toContain('文件')
+     expect(w.findAll('.dock-app').length).toBeGreaterThanOrEqual(5)
+   })
+@@ -57,14 +62,15 @@ describe('HomeDock', () => {
+     expect(hrefs[0]).toBe('/#/legacy')
+     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
+   })
+ 
+   it('collapsed: clicking a fav app opens it without toggling expanded', async () => {
+     useAppsStore()
+     const hrefs: string[] = []
+     Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+     const w = mount(HomeDock)
+     await w.get('.dock-app[data-app="files"]').trigger('click')
+-    expect(hrefs[0]).toBe('/#/files')
++    expect(router.push).toHaveBeenCalledWith('/files')
++    expect(hrefs.length).toBe(0)
+     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
+   })
+ })
+diff --git a/src/home/composables/useOpenAction.test.ts b/src/home/composables/useOpenAction.test.ts
+index 6982d8a..5c80ffd 100644
+--- a/src/home/composables/useOpenAction.test.ts
++++ b/src/home/composables/useOpenAction.test.ts
+@@ -1,31 +1,38 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useAppsStore } from '../stores/apps'
+ import { useOpenAction } from './useOpenAction'
+ import { useStartApp, __resetStartAppForTest } from './useStartApp'
+ import type { LayoutItem } from '../grid/types'
+ 
++// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
++vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
++import { router } from '../../router'
++
+ let hrefs: string[]
+ let opens: string[]
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   __resetStartAppForTest()
+   hrefs = []; opens = []
+   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
++  vi.mocked(router.push).mockClear()
+ })
+ 
+ describe('useOpenAction.openApp', () => {
+-  it('system app navigates to its hash route', () => {
++  it('system app files 应用内 router.push,不整页跳', () => {
+     const { openApp } = useOpenAction()
+-    openApp('files'); expect(hrefs[0]).toBe('/#/files')
++    openApp('files')
++    expect(router.push).toHaveBeenCalledWith('/files')
++    expect(hrefs.length).toBe(0)
+   })
+   it('settings/appstore navigate to /#/legacy', () => {
+     const { openApp } = useOpenAction()
+     openApp('settings'); expect(hrefs[0]).toBe('/#/legacy')
+     openApp('appstore'); expect(hrefs[1]).toBe('/#/legacy')
+   })
+   it('running container app opens scheme://host:port/index', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jf', status: 'running', scheme: 'http', port: 8096, index: '/web' }] as never)
+     const { openApp } = useOpenAction()
+@@ -43,21 +50,22 @@ describe('useOpenAction.openApp', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jf', status: 'running' }] as never)
+     const { openApp } = useOpenAction()
+     openApp('jf')
+     expect(opens.length).toBe(0)
+     expect(useStartApp().state.value).toBe(null)
+   })
+ })
+ 
+ describe('useOpenAction.openItem', () => {
+-  it('folder navigates to files with encoded path', () => {
++  it('folder 应用内 push /files?path=(靠 Files.vue 深链归一化落目录)', () => {
+     const { openItem } = useOpenAction()
+     openItem({ id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 } as LayoutItem)
+-    expect(hrefs[0]).toBe('/#/files?path=' + encodeURIComponent('/DATA/Gallery'))
++    expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
++    expect(hrefs.length).toBe(0)
+   })
+   it('photo navigates to /#/photos', () => {
+     const { openItem } = useOpenAction()
+     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
+     expect(hrefs[0]).toBe('/#/photos')
+   })
+ })
+diff --git a/src/home/composables/useOpenAction.ts b/src/home/composables/useOpenAction.ts
+index e6c439b..06a2ccd 100644
+--- a/src/home/composables/useOpenAction.ts
++++ b/src/home/composables/useOpenAction.ts
+@@ -1,41 +1,48 @@
+ import type { LayoutItem } from '../grid/types'
+ import { useAppsStore } from '../stores/apps'
+ import { useStartApp, appUrl } from './useStartApp'
++import { router } from '../../router'
+ 
++// P8 cutover 起文件区活在本应用(/files);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
++// router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
+ const SYS_ROUTE: Record<string, string> = {
+-  files: '/#/files', photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
++  photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
+   settings: '/#/legacy', appstore: '/#/legacy',
+ }
+ 
+ export function useOpenAction() {
+   const apps = useAppsStore()
+   const startApp = useStartApp()
+ 
+   function openApp(key: string) {
+     const a = apps.app(key)
+     if (!a) return
+-    if (a.system) { window.location.href = SYS_ROUTE[key] || '/#/legacy'; return }
++    if (a.system) {
++      if (key === 'files') { router.push('/files'); return }
++      window.location.href = SYS_ROUTE[key] || '/#/legacy'
++      return
++    }
+     if (a.app_type === 'LinkApp') { if (a.hostname) window.open(a.hostname, '_blank', 'noopener'); return }
+     const url = appUrl(a)
+     if (a.status === 'running') {
+       if (url) window.open(url, '_blank', 'noopener')
+     } else if (a.status) {
+       // 未运行(exited/dead/unknown…):不开网页,弹"是否启动"确认框(StartAppDialog)。
+       // status 缺省的非容器来源维持无动作(与灰显判定同一约定)。
+       startApp.prompt(key)
+     }
+   }
+ 
+   function openItem(it: LayoutItem) {
+     if (it.kind === 'app') openApp(it.key)
+-    else if (it.kind === 'folder') window.location.href = '/#/files?path=' + encodeURIComponent(it.path || '/DATA/' + it.key)
++    else if (it.kind === 'folder') router.push({ path: '/files', query: { path: it.path || '/DATA/' + it.key } })
+     else if (it.kind === 'photo') window.location.href = '/#/photos'
+     else if (it.kind === 'widget' && it.key === 'ai') window.location.href = '/#/ai/agent'
+   }
+ 
+   function sendToAI(text?: string) {
+     const q = (text || '').trim()
+     window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
+   }
+ 
+   return { openApp, openItem, sendToAI }
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 5c3c1c1..5090b64 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1,18 +1,19 @@
+ export const messages = {
+   en_us: {
+     appTitle: 'NimoOS · New Home Base',
+     backToOld: '← Back to main app',
+     cpu: 'CPU',
+     memory: 'Memory',
+     collecting: 'Collecting…',
+     filesTitle: 'Files',
++    filesSidebarToggle: 'Sidebar',
+     filesBackHome: 'Home',
+     filesEmpty: 'This folder is empty',
+     filesViewList: 'List',
+     filesViewGrid: 'Grid',
+     filesColName: 'Name',
+     filesColType: 'Type',
+     filesColDate: 'Date modified',
+     filesColSize: 'Size',
+     filesFavorites: 'Favorites',
+     filesDisks: 'Disks',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 0d757f5..1f7557f 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1,18 +1,19 @@
+ export const messages = {
+   zh_cn: {
+     appTitle: 'NimoOS · 新主页地基',
+     backToOld: '← 返回主应用',
+     cpu: '处理器',
+     memory: '内存',
+     collecting: '采集中…',
+     filesTitle: '文件',
++    filesSidebarToggle: '侧栏',
+     filesBackHome: '回主页',
+     filesEmpty: '此文件夹为空',
+     filesViewList: '列表',
+     filesViewGrid: '网格',
+     filesColName: '名称',
+     filesColType: '类型',
+     filesColDate: '修改日期',
+     filesColSize: '大小',
+     filesFavorites: '收藏',
+     filesDisks: '磁盘',
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index 0059f0e..0ef7bdf 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -480,10 +480,14 @@ body::after {
+ }
+ /* 文件夹是无底板 SVG:悬停保留抬升缩放,但去掉方块底板发光/投影(否则会在透明图标上画出一圈发光矩形) */
+ .grid-item:not(.editing).kind-folder:hover .folder-ic { box-shadow: none; filter: none; }
+ /* NOTE: .tile-2up is NOT emitted by GridItem in New-UI (item.w/h are available but no class is set).
+    Deferred: add .tile-2up emission to GridItem when w>=2 && h>=2 for gentler var(--card-hover) scale.
+    For now, scale(1.2) applies uniformly to all tile sizes. */
+ /* 按压下沉 */
+ .grid-item:not(.editing).kind-app:active .app-ic,
+ .grid-item:not(.editing).kind-folder:active .folder-tile,
+ .grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }
++
++/* 文件区深链 ?highlight= 定位闪烁(挂在 FileRow/FileTile 根上,跨组件 class 放全局)*/
++@keyframes file-flash-kf { 0%, 100% { background: transparent; } 30%, 70% { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
++.file-flash { animation: file-flash-kf 1.25s ease 2; border-radius: 10px; }
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index ed6d050..227a006 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,12 +1,12 @@
+ <script setup lang="ts">
+-import { watch, onMounted, onUnmounted, computed, ref } from 'vue'
++import { watch, onMounted, onUnmounted, computed, ref, nextTick } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import FilesShell from '../files/components/FilesShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import NewItemDialog from '../files/components/NewItemDialog.vue'
+@@ -27,21 +27,21 @@ import { useUploadsStore } from '../files/stores/uploads'
+ import { useMountsStore } from '../files/stores/mounts'
+ import { useSharesStore } from '../files/stores/shares'
+ import { shareName } from '../files/util/sambaPath'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+ import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+-  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
++  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath,
+ } from '../files/util/pathUtils'
+ import { readDefault } from '../files/util/locationOrder'
+ import { parseRecover } from '../files/util/recoverEvent'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const ops = useFileOps()
+ const viewer = useViewer()
+@@ -202,28 +202,57 @@ function onToolbarDelete() {
+   if (!sel.length) return
+   deleteDlg.value = { open: true, entries: sel }
+ }
+ 
+ const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
+ 
+ function goVirtual(vp: string) {
+   router.push('/files/' + virtualPathToRouteParam(vp))
+ }
+ async function sync() {
++  // 旧格式深链:/files?path=X(X 真实或虚拟;来源:Vue2 AI「打开文件位置」、上传通知、
++  // Home 文件夹瓦片)→ 归一化成规范 /files/<虚拟段>,highlight 透传。
++  // displayNames 已由 onMounted 的 loadRoots() 就绪(P6 SharesPage 竞态教训)。
++  const qp = route.query.path
++  if (typeof qp === 'string' && qp) {
++    const { virtualPath } = resolveInputPath(qp, files.displayNames)
++    router.replace({
++      path: '/files/' + virtualPathToRouteParam(virtualPath),
++      query: typeof route.query.highlight === 'string' ? { highlight: route.query.highlight } : undefined,
++    })
++    return
++  }
+   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
+   if (vp === '/') {
+     const rootReal = readDefault() || files.defaultRootReal()
+     if (!rootReal) return
+     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
+     return
+   }
+   await files.load(toRealPath(vp, files.displayNames))
++  applyHighlight()
++}
++// 深链 ?highlight=<文件名>:目录加载后按名定位 → 滚动到可视区 + 闪烁 2.5s(Vue2 _highlight
++// 同款体验)。找不到(已删/改名)静默;URL 不清 highlight,刷新重闪无害(与 Vue2 一致)。
++// 命令式 DOM class(而非 prop 下钻):瞬态视觉,列表重渲染丢 class 可接受。
++function applyHighlight() {
++  const name = typeof route.query.highlight === 'string' ? route.query.highlight : ''
++  if (!name) return
++  const entry = files.sortedEntries.find((e) => e.name === name)
++  if (!entry) return
++  nextTick(() => {
++    const el = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
++    if (!el) return
++    el.scrollIntoView({ block: 'center' })
++    el.classList.add('file-flash')
++    setTimeout(() => el.classList.remove('file-flash'), 2500)
++  })
+ }
+ function openEntry(entry: FileEntry) {
+   const r = resolveOpen(entry, files.sortedEntries)
+   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
+   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
+   // 不可预览的文件类型:先征询,由用户决定是否下载,而非直接触发下载。
+   downloadDlg.value = { open: true, entry }
+ }
+ function confirmDownload() {
+   if (downloadDlg.value.entry) ops.download([downloadDlg.value.entry])
+@@ -301,21 +330,22 @@ function onMarqueeUp() {
+     window.addEventListener('click', swallow, true)
+     setTimeout(() => window.removeEventListener('click', swallow, true), 0)
+   }
+ }
+ 
+ onMounted(async () => {
+   await files.loadRoots()
+   favorites.load()
+   await sync()
+ })
+-watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
++// params.path(常规导航)或 query.path(?path= 深链落到同组件)变化都要重新 sync。
++watch(() => [route.params.path, route.query.path], () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ 
+ let offOperate: (() => void) | null = null
+ onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+ onUnmounted(() => { offOperate?.() })
+ 
+ let offDiskAdd: (() => void) | undefined
+ let offDiskRemove: (() => void) | undefined
+ onMounted(() => { mounts.loadMounts() })
+ onMounted(() => {
+   // local-storage:storage_status 是每 5s 定时上报的心跳,不是变更事件 —— 不要订阅它,
+@@ -452,11 +482,19 @@ onMounted(() => { uploads.initUploads() })
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+ .files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+ .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
+ .files-drop-mask {
+   position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+   border: 2px dashed var(--accent, #6ea8fe); border-radius: 12px;
+   background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
+   color: var(--fg); font-size: 14px; font-weight: 600; pointer-events: none;
+ }
++/* ≤768px:侧栏已收抽屉(FilesSidebar.is-drawer 脱离文档流),布局单列;工具栏允许换行 */
++@media (max-width: 768px) {
++  .files-layout { gap: 0; }
++  .files-topbar { flex-direction: column; align-items: stretch; gap: 8px; }
++  .files-topbar-right { flex-wrap: wrap; justify-content: flex-start; row-gap: 8px; }
++  /* flex-basis 100% 迫使 actions 占满整行、宽度被约束,内部 chips 才会真正折行(0 0 auto 会按 max-content 溢出屏幕) */
++  .files-actions { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
++}
+ </style>
+diff --git a/vitest.setup.ts b/vitest.setup.ts
+index 196639e..0d61f02 100644
+--- a/vitest.setup.ts
++++ b/vitest.setup.ts
+@@ -1,12 +1,18 @@
+ // fake-indexeddb clones values via structuredClone, which does not recognize
+ // jsdom's Blob class (a jsdom Blob silently serializes to {}). Node's native
+ // Blob IS recognized, so tests that round-trip blobs through IndexedDB use it.
+ import { Blob as NodeBlob } from 'node:buffer'
+ globalThis.Blob = NodeBlob as unknown as typeof Blob
+ 
++import { vi } from 'vitest'
++// router/index.ts 被 useOpenAction(应用内跳转,P8)静态引入后,任何挂载 home 组件的测试
++// 都会拖进 Welcome.vue → lottie-web(它在 import 期做 canvas 探测,jsdom 无 canvas 必炸)。
++// 在此全局 mock 一处封掉 —— router/index.test.ts 的同款 workaround 上移为全局。
++vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
++
+ // Install i18n globally for all component mounts so any component using
+ // useI18n()/$t works without each test wiring the plugin. Tests that pass their
+ // own i18n instance via `global.plugins` still override this (applied later).
+ import { config } from '@vue/test-utils'
+ import { i18n } from './src/i18n'
+ config.global.plugins = [...(config.global.plugins ?? []), i18n]

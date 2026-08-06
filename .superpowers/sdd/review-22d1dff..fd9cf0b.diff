@@ -1,0 +1,539 @@
+# Review package: 22d1dff..fd9cf0b
+
+## Commits
+fd9cf0b SP8-P1c1: AgentComposer skeleton (chips + textarea + toolbar + send/stop)
+
+## Files changed
+ src/ai/components/shell/AgentComposer.test.ts |  86 +++++++
+ src/ai/components/shell/AgentComposer.vue     | 321 ++++++++++++++++++++++++++
+ src/i18n/en_us.ts                             |  17 +-
+ src/i18n/zh_cn.ts                             |  16 +-
+ 4 files changed, 438 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/ai/components/shell/AgentComposer.test.ts b/src/ai/components/shell/AgentComposer.test.ts
+new file mode 100644
+index 0000000..a2b7e03
+--- /dev/null
++++ b/src/ai/components/shell/AgentComposer.test.ts
+@@ -0,0 +1,86 @@
++// SP8-P1c1 Task 9 —— AgentComposer 骨架:chips + textarea + 工具栏 + 发送/停止。
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue 的对应片段(见组件顶部注释)。
++// 附件上传管线(Task 10)与 @mention/slash 接线(Task 11)不在本任务范围,测试用例
++// 逐字取自 .superpowers/sdd/p1c1-task-9-brief.md Step 1。
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  listAgentSessions: vi.fn(), createAgentSession: vi.fn(), listAgentMessages: vi.fn(),
++  listMounts: vi.fn().mockResolvedValue([]), listFsEntries: vi.fn().mockResolvedValue([]),
++  removeVisibleResource: vi.fn(), uploadAttachment: vi.fn(), deleteAttachment: vi.fn(),
++  attachmentRawUrl: vi.fn(() => '/raw'),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++
++import AgentComposer from './AgentComposer.vue'
++import { useAgentStore } from '../../stores/agentStore'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const mountComposer = (props = {}) =>
++  mount(AgentComposer, { props, global: { plugins: [i18n] }, attachTo: document.body })
++
++describe('AgentComposer 骨架', () => {
++  beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
++
++  it('空输入时发送键禁用;有文本后启用', async () => {
++    const w = mountComposer()
++    expect(w.find('.send-btn').attributes('disabled')).toBeDefined()
++    await w.find('textarea').setValue('hello')
++    expect(w.find('.send-btn').attributes('disabled')).toBeUndefined()
++  })
++
++  it('Enter 发送并清空;Shift+Enter 不发送', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('hi there')
++    await ta.trigger('keydown', { key: 'Enter', shiftKey: true })
++    expect(w.emitted('send')).toBeFalsy()
++    await ta.trigger('keydown', { key: 'Enter' })
++    expect(w.emitted('send')![0][0]).toEqual({ text: 'hi there', attachmentIds: [], attachmentRefs: [] })
++    expect((ta.element as HTMLTextAreaElement).value).toBe('')
++  })
++
++  it('IME 组合中的 Enter 不发送', async () => {
++    const w = mountComposer()
++    await w.find('textarea').setValue('中')
++    await w.find('textarea').trigger('keydown', { key: 'Enter', isComposing: true })
++    expect(w.emitted('send')).toBeFalsy()
++  })
++
++  it('busy 时显示停止键并 emit stop', async () => {
++    const w = mountComposer({ busy: true })
++    expect(w.find('.send-btn.busy').exists()).toBe(true)
++    await w.find('.send-btn.busy').trigger('click')
++    expect(w.emitted('stop')).toBeTruthy()
++  })
++
++  it('visibleResources 渲染成 chip,× 调 store.removeVisibleResource', async () => {
++    const store = useAgentStore()
++    store.activeSessionId = 'sess-1'
++    store.visibleResources.push({ id: 5, path: '/DATA/docs', kind: 'folder' })
++    const spy = vi.spyOn(store, 'removeVisibleResource').mockResolvedValue(undefined)
++    const w = mountComposer()
++    const chip = w.find('.ctx-chip')
++    expect(chip.text()).toContain('docs')
++    await chip.find('.ctx-chip-x').trigger('click')
++    expect(spy).toHaveBeenCalledWith(5)
++  })
++
++  it('ctxUsage 存在时渲染占用环', () => {
++    const w = mountComposer({ ctxUsage: { tokens: 100, window: 1000, pct: 10 } })
++    expect(w.find('.ctx-usage').exists()).toBe(true)
++  })
++
++  it('Browse 按钮弹 toast 占位(BrowserModal 本期不做)', async () => {
++    const w = mountComposer()
++    const browse = w.findAll('.composer-tool')[0]
++    await browse.trigger('click')
++    // toast store 里应有一条
++    const { useToast } = await import('../../../stores/toast')
++    expect(useToast().toasts.length).toBe(1)
++  })
++})
+diff --git a/src/ai/components/shell/AgentComposer.vue b/src/ai/components/shell/AgentComposer.vue
+new file mode 100644
+index 0000000..4b0acff
+--- /dev/null
++++ b/src/ai/components/shell/AgentComposer.vue
+@@ -0,0 +1,321 @@
++<!--
++  SP8-P1c1 Task 9 —— AgentComposer 骨架:chips + textarea + 工具栏 + 发送/停止。
++  1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue(830 行)。本任务只做
++  骨架:可见资源 chips(Vue2 5-17)、自增高 textarea(45-54)、工具栏行(56-113)、
++  caption(127-129)。**不做**(留给 Task 10/11,接线处见下方注释):
++    - 附件 chips(Vue2 18-42)、上传/删除管线(onFilesPicked/removeAttachment,
++      Vue2 506-611)——`attachments` 数组在本任务里恒为空数组。
++    - @mention 面板(MentionPopover)与 `/init` 斜杠面板(SlashMenu)——onInput 的
++      mention 扫描(Vue2 306-334)、drillIn/pickItem/popSegment、onInit 均未接入。
++    - Vue2 的 BrowserModal(浏览 NAS 弹窗)——本期用户决定延后,Browse 按钮改为
++      toast 占位提示。
++    - `activeSessionId` watcher(Vue2 275-281)——Vue2 里这个 watcher 同时做两件事
++      (关闭 mention 面板 + 清空待附件列表),两者都属于下一任务范围,若本任务加上
++      一个空 watcher 体只会是死代码,故整体挪到 Task 10。
++-->
++<script setup lang="ts">
++import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
++import { useI18n } from 'vue-i18n'
++import AgentIcon from '../icons/AgentIcon.vue'
++import KindIcon from './KindIcon.vue'
++import ContextUsageBar from '../blocks/ContextUsageBar.vue'
++import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
++import { useToast } from '../../../stores/toast'
++import { getExt, basename, dirname } from '../../util/composerText'
++import { ACCEPT_TYPES } from '../../util/attachmentMeta'
++
++const props = withDefaults(
++  defineProps<{ busy?: boolean; ctxUsage?: { tokens: number; window: number; pct: number } | null }>(),
++  { busy: false, ctxUsage: null },
++)
++
++// 三个 emit 名与 payload 形状是 Task 12 接线契约,不可改
++// (p1c1-task-9-brief.md Interfaces 段)。`send-init` 本任务无调用方
++// (SlashMenu/onInit 是 Task 11 的事),这里先声明接口占位。
++const emit = defineEmits<{
++  send: [payload: { text: string; attachmentIds: string[]; attachmentRefs: unknown[] }]
++  stop: []
++  'send-init': [target: string]
++}>()
++
++const { t } = useI18n()
++const store = useProvidedAgentStore()
++const toast = useToast()
++
++const text = ref('')
++const composerEl = ref<HTMLElement | null>(null)
++const ta = ref<HTMLTextAreaElement | null>(null)
++const attachFileInput = ref<HTMLInputElement | null>(null)
++// Vue2 295-299 anchorRect: 供 MentionPopover 定位,面板本身留 Task 11,这里先把
++// 计算+resize 联动的骨架搭好,不留半截状态。
++const anchorRect = ref<DOMRect | null>(null)
++
++const placeholder = computed(() => t('aiComposerPlaceholder'))
++const acceptTypes = ACCEPT_TYPES
++
++/** Vue2 289-294 grow() —— 逐字对齐(min(scrollHeight, 220))。 */
++function grow() {
++  const el = ta.value
++  if (!el) return
++  el.style.height = 'auto'
++  el.style.height = Math.min(el.scrollHeight, 220) + 'px'
++}
++
++/** Vue2 295-299 updateAnchor()。 */
++function updateAnchor() {
++  if (composerEl.value) anchorRect.value = composerEl.value.getBoundingClientRect()
++}
++
++/**
++ * Vue2 300-335 onInput() 的骨架切片:本任务只保留 grow() 副作用。@ 提及扫描
++ * (Vue2 312-334,`scanMention` 已在 Task 5 的 composerText.ts 里备好纯函数)
++ * 与 `/` 斜杠检测(Vue2 307-310)留给 Task 11 往这个函数体里续接——函数名保持
++ * `onInput` 不变,模板绑定不需要跟着改。
++ */
++function onInput() {
++  grow()
++}
++
++/**
++ * Vue2 336-342 onKeydown()。**修正一处**:去掉了 `if (this.mentionOpen) return`
++ * 守卫——mention 面板本任务未接入,该分支目前恒不成立,是死代码。IME 双重守卫
++ * 逐字保留(`e.isComposing || keyCode === 229`,后者是历史上部分浏览器/输入法
++ * 不设置 isComposing 时的兜底,两个都要留)。
++ */
++function onKeydown(e: KeyboardEvent) {
++  if (e.key !== 'Enter' || e.shiftKey) return
++  if (e.isComposing || (e as unknown as { keyCode?: number }).keyCode === 229) return
++  e.preventDefault()
++  submit()
++}
++
++/**
++ * Vue2 245-250 canSend()。Vue2 原逻辑同时看 `attachments`(是否有已上传就绪项 /
++ * 是否有正在上传项);本任务附件数组恒为空数组(上传管线是 Task 10 的事),
++ * 代入空数组化简后就是纯文本非空判断——Task 10 补上 attachments 状态后需要把
++ * 这里换回 Vue2 原始的三段式判断。
++ */
++const canSend = computed(() => text.value.trim().length > 0)
++
++/** Vue2 260-272 chips()——用 Task 5 composerText.ts 的 basename/dirname/getExt。 */
++const chips = computed(() =>
++  store.visibleResources.map((r) => {
++    const isFile = r.kind === 'file'
++    return {
++      id: r.id,
++      path: r.path,
++      name: basename(r.path),
++      parent: dirname(r.path),
++      kind: r.kind,
++      ext: isFile ? getExt(r.path) : '',
++    }
++  }),
++)
++
++/** Vue2 654-657 toastError()——removeChip 失败时的提示;本任务新增
++ *  `aiComposerRemoveFailed` 键(brief 未列举,但 removeChip 的错误分支需要它,
++ *  否则移除资源失败会被静默吞掉)。 */
++function toastError(e: unknown) {
++  const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
++  const msg = err?.response?.data?.detail || err?.message || 'unknown'
++  toast.show(t('aiComposerRemoveFailed', { msg }), 5000)
++}
++
++/** Vue2 430-434 removeChip()。 */
++async function removeChip(c: { id?: string | number }) {
++  if (c.id === undefined) return
++  try {
++    await store.removeVisibleResource(c.id)
++  } catch (e) {
++    toastError(e)
++  }
++}
++
++/**
++ * Vue2 436-454 submit()。附件部分本任务恒为空数组(Task 10 接入上传管线后,
++ * 把这里换回 Vue2 原始的 readyAttachments 派生逻辑)。
++ */
++function submit() {
++  const trimmed = text.value.trim()
++  if (!trimmed) return
++  emit('send', { text: trimmed, attachmentIds: [], attachmentRefs: [] })
++  text.value = ''
++  onSubmitted()
++}
++
++function onSubmitted() {
++  // nextTick 避免在 DOM 更新前读 scrollHeight;用普通函数包一层方便这里独立注释。
++  requestAnimationFrame(grow)
++}
++
++/** Vue2 651-653 notSupported()(语音键)。Vue2 用 'is-warning' 类型,不是错误,
++ *  用默认 toast 时长。 */
++function notSupported() {
++  toast.show(t('aiNotSupportedYet'))
++}
++
++/**
++ * **本期有意偏离 Vue2**:Vue2 点击 Browse 直接打开 `<BrowserModal>`
++ * (浏览 NAS 弹窗)。该弹窗本阶段不做(用户决定,见 Task 9 brief「Browse 按钮」
++ * 一节),这里改为 toast 占位提示,不设 browserOpen 状态、不渲染
++ * `data-active`(Vue2 59 行的 `:data-active="browserOpen"` 因此一并去掉)。
++ */
++function onBrowseClick() {
++  toast.show(t('aiBrowseComingSoon'))
++}
++
++onMounted(() => window.addEventListener('resize', updateAnchor))
++onBeforeUnmount(() => window.removeEventListener('resize', updateAnchor))
++</script>
++
++<template>
++  <div class="composer-wrap">
++    <div class="composer" ref="composerEl">
++      <div v-if="chips.length > 0" class="composer-chips">
++        <div v-for="c in chips" :key="c.id" class="ctx-chip" :title="c.path">
++          <KindIcon :kind="c.kind === 'file' ? 'file' : 'folder'" :ext="c.ext" :size="12" />
++          <span class="ctx-chip-name">{{ c.name }}</span>
++          <span class="ctx-chip-path">{{ c.parent || '/' }}</span>
++          <button class="ctx-chip-x" @click="removeChip(c)">
++            <AgentIcon name="x" :size="10" />
++          </button>
++        </div>
++      </div>
++
++      <textarea
++        ref="ta"
++        class="composer-textarea"
++        :placeholder="placeholder"
++        rows="1"
++        v-model="text"
++        @input="onInput"
++        @keydown="onKeydown"
++      />
++
++      <div class="composer-row">
++        <button
++          class="composer-tool"
++          :title="t('aiComposerBrowseTitle')"
++          @click="onBrowseClick"
++        >
++          <AgentIcon name="folder" :size="14" /> {{ t('aiComposerBrowse') }}
++        </button>
++        <!-- Seam for Task 10: hidden file input, styling trick kept verbatim
++             (Vue2 663-673 — a display:none input does not fire a synthetic
++             .click() in some browsers, hence position+opacity instead).
++             :accept bound now; @change (onFilesPicked) wired by Task 10. -->
++        <input
++          type="file"
++          ref="attachFileInput"
++          :accept="acceptTypes"
++          multiple
++          class="attach-file-input"
++        />
++        <button class="composer-tool">
++          <AgentIcon name="paperclip" :size="14" />
++        </button>
++        <button class="composer-tool" :title="t('aiComposerVoice')" @click="notSupported">
++          <AgentIcon name="mic" :size="14" />
++        </button>
++        <div class="composer-spacer" />
++        <ContextUsageBar
++          v-if="ctxUsage"
++          :tokens="ctxUsage.tokens"
++          :window="ctxUsage.window"
++          :pct="ctxUsage.pct"
++          class="composer-ctx-usage"
++        />
++        <button
++          v-if="props.busy"
++          class="send-btn busy"
++          @click="emit('stop')"
++        >
++          <AgentIcon name="stop" :size="12" />
++        </button>
++        <button
++          v-else
++          class="send-btn"
++          :disabled="!canSend"
++          @click="submit"
++        >
++          <AgentIcon name="send" :size="14" />
++        </button>
++      </div>
++    </div>
++
++    <div class="composer-caption">
++      {{ t('aiComposerCaption') }}
++    </div>
++  </div>
++</template>
++
++<style scoped>
++/* agent-styles.scss:353-406 已经全局定了 .composer-wrap/.composer/
++   .composer-textarea/.composer-row/.composer-tool/.send-btn 的布局(sticky 定位、
++   pointer-events 开关、圆角/边框/阴影、focus-within 高亮、悬停态等)——这里只
++   补它没有的部分,不重复布局规则。 */
++
++.attach-file-input {
++  /* Keep the input in the render tree so $refs.attachFileInput.click()
++     always lands on a live element. `hidden` attribute also works but some
++     browsers won't dispatch synthetic click events on display:none inputs.
++     (Vue2 663-673, verbatim.) */
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  opacity: 0;
++  pointer-events: none;
++  overflow: hidden;
++}
++
++.composer-chips {
++  display: flex; gap: 6px; flex-wrap: wrap;
++  margin-bottom: 8px;
++}
++.ctx-chip {
++  display: inline-flex; align-items: center; gap: 6px;
++  padding: 4px 4px 4px 7px;
++  background: var(--bg-chip);
++  border: 1px solid var(--line);
++  border-radius: var(--r-pill);
++  font-size: 12px;
++  color: var(--text-primary);
++  max-width: 280px;
++}
++.ctx-chip-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.ctx-chip-path {
++  font-family: var(--font-mono); font-size: 10.5px;
++  color: var(--text-tertiary);
++  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
++  max-width: 140px;
++}
++.ctx-chip-x {
++  width: 18px; height: 18px;
++  display: grid; place-items: center;
++  border-radius: 50%;
++  color: var(--text-tertiary);
++  background: transparent; border: none; cursor: pointer;
++  transition: all 120ms ease;
++}
++.ctx-chip-x:hover { background: var(--bg-elevated); color: var(--text-primary); }
++
++.composer-textarea::placeholder { color: var(--text-tertiary); }
++
++.composer-spacer { flex: 1; }
++
++.send-btn.busy {
++  background: var(--bg-chip);
++  color: var(--text-primary);
++  box-shadow: none;
++}
++
++.composer-caption {
++  text-align: center; margin-top: 8px;
++  font-size: 11px; color: var(--text-quaternary);
++}
++
++.composer-ctx-usage {
++  margin-right: 8px;
++  flex-shrink: 0;
++}
++</style>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 9efe5e9..f75a795 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -558,21 +558,20 @@ export default {
+   aiEmptyCleanDupPrompt: 'Scan /Downloads folder, find duplicate or similar files, list recoverable space',
+   aiEmptyCleanDupExample: 'Scan /Downloads for redundant files',
+   aiEmptyOrganize: 'Organize folders',
+   aiEmptyOrganizePrompt: 'Reorganize /Documents by topic and year, suggest a structure',
+   aiEmptyOrganizeExample: 'Sort /Documents by topic and year',
+   aiEmptyScript: 'Write a script',
+   aiEmptyScriptPrompt: 'Write a Python script that scans /DATA and reports disk usage by folder as a chart',
+   aiEmptyScriptExample: 'Build a small tool or automation',
+   aiConfirm: 'Delete',
+   aiCancel: 'Cancel',
+-  aiComingSoon: 'Sending will be enabled in the next phase',
+   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
+   // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
+   'ai.searchMyNas': 'Search my NAS for "{query}".',
+   // SP8-P1b Task 8 —— block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
+   aiMcpConnectFailed: 'MCP server {server} failed to connect: {error}',
+   aiConfirmRequiredTitle: 'Confirmation required: {action}',
+   aiHighRiskOperation: 'High-risk operation',
+   aiConfirmWaitingApproval: 'Agent is waiting for your approval',
+   aiAccept: 'Accept',
+@@ -686,11 +685,27 @@ export default {
+   aiMentionKbdDrill: 'Drill in',
+   aiMentionKbdSelect: 'Select',
+   aiMentionKbdUp: 'Up',
+   aiMentionKbdClose: 'Close',
+   // SP8-P1c1 Task 8 — SlashMenu (`/init` slash panel), verbatim English strings
+   // from Vue2 src/views/AI/Agent/shell/SlashMenu.vue template lines 1-23
+   // (the `/init` literal itself is not translated).
+   aiSlashInitDesc: 'Generate agent.md for a directory',
+   aiSlashNoFolders: 'No visible directories — use @ to select one first',
+   aiSlashInitialize: 'Initialize',
++  // SP8-P1c1 Task 9 — AgentComposer (input skeleton: chips + textarea + toolbar).
++  // aiComposerPlaceholder reuses the existing English string from Vue2
++  // src/assets/lang/en_US.json's agent.composerPlaceholder key, verbatim.
++  aiComposerPlaceholder: 'Ask Nimo, or type @ to reference a file…',
++  aiComposerVoice: 'Voice',
++  // Full sentence from Vue2 AgentComposer.vue:128 (matches existing en_US.json translation).
++  aiComposerCaption: 'Files stay on your NAS. Nimo can read, organize, and manage them.',
++  aiComposerBrowse: 'Browse',
++  aiComposerBrowseTitle: 'Browse NAS',
++  // BrowserModal is deferred this phase (user decision, see Task 9 brief) — placeholder toast.
++  aiBrowseComingSoon: 'The browser dialog is coming in a later release',
++  aiNotSupportedYet: 'This feature is not yet supported',
++  // Not enumerated by the brief — removeChip (Vue2 430-434)'s error branch needs
++  // a message or it would be silently swallowed; mirrors Vue2 toastError()'s
++  // "Authorization failed: {msg}" semantics.
++  aiComposerRemoveFailed: 'Failed to remove: {msg}',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index a286534..893a690 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -557,21 +557,20 @@ export default {
+   aiEmptyCleanDupPrompt: '扫描 /Downloads 文件夹,找出重复或相似文件,列出可回收空间',
+   aiEmptyCleanDupExample: '扫描 /Downloads 里的冗余文件',
+   aiEmptyOrganize: '整理文件夹',
+   aiEmptyOrganizePrompt: '按主题和年份重新整理 /Documents,给出目录结构建议',
+   aiEmptyOrganizeExample: '按主题和年份整理 /Documents',
+   aiEmptyScript: '写个脚本',
+   aiEmptyScriptPrompt: '写一个 Python 脚本,扫描 /DATA 并用图表展示各文件夹的磁盘占用',
+   aiEmptyScriptExample: '搭一个小工具或自动化脚本',
+   aiConfirm: '删除',
+   aiCancel: '取消',
+-  aiComingSoon: '对话发送将在下一期开启',
+   aiSettingsComingSoon: '设置页将在后续阶段开启',
+   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
+   // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
+   'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',
+   // SP8-P1b Task 8 —— 块渲染器批次 A(confirm/mcp 系列卡片),1:1 对齐 Vue2
+   // src/assets/lang/zh_CN.json 里同一批 key 的既有译文。
+   aiMcpConnectFailed: 'MCP 服务「{server}」连接失败：{error}',
+   aiConfirmRequiredTitle: '需要确认：{action}',
+   aiHighRiskOperation: '高危操作',
+   aiConfirmWaitingApproval: 'Agent 等待你的批准',
+@@ -683,11 +682,26 @@ export default {
+   aiMentionKbdNav: '导航',
+   aiMentionKbdDrill: '进入',
+   aiMentionKbdSelect: '选择',
+   aiMentionKbdUp: '上一级',
+   aiMentionKbdClose: '关闭',
+   // SP8-P1c1 Task 8 — SlashMenu(`/init` 斜杠面板),对齐 Vue2
+   // src/views/AI/Agent/shell/SlashMenu.vue 模板 1-23 的全部可见文案(`/init` 字面量不译)。
+   aiSlashInitDesc: '为某个目录生成 agent.md',
+   aiSlashNoFolders: '还没有可见目录 —— 先用 @ 选一个',
+   aiSlashInitialize: '初始化',
++  // SP8-P1c1 Task 9 — AgentComposer(输入框骨架:chips + textarea + 工具栏)。
++  // aiComposerPlaceholder 取自 Vue2 src/assets/lang/zh_CN.json 里
++  // agent.composerPlaceholder 的既有译文,逐字复用。
++  aiComposerPlaceholder: '问 Nimo，或输入 @ 引用文件…',
++  aiComposerVoice: '语音',
++  // Vue2 AgentComposer.vue:128 的整句 caption(对齐既有 zh_CN.json 译文)。
++  aiComposerCaption: '文件保留在你的 NAS。Nimo 可以读取、整理、操作它们。',
++  aiComposerBrowse: '浏览',
++  aiComposerBrowseTitle: '浏览 NAS',
++  // Browse 弹窗(BrowserModal)本期不做,点击后的占位提示(用户决定,见 Task 9 brief)。
++  aiBrowseComingSoon: '浏览弹窗将在后续版本开启',
++  aiNotSupportedYet: '该功能暂未支持',
++  // brief 未列举此键——removeChip(Vue2 430-434)失败分支需要一条提示,否则会被
++  // 静默吞掉;沿用 Vue2 toastError() 的语义("Authorization failed: {msg}"的等价物)。
++  aiComposerRemoveFailed: '移除失败：{msg}',
+ }

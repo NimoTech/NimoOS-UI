@@ -1,0 +1,250 @@
+# Review package: 558ca36..dbb01b9
+
+## Commits
+dbb01b9 feat(i18n): add English locale and merge into vue-i18n
+
+## Files changed
+ src/i18n/en_us.ts       | 181 ++++++++++++++++++++++++++++++++++++++++++++++++
+ src/i18n/index.ts       |   5 +-
+ src/i18n/parity.test.ts |  24 +++++++
+ 3 files changed, 209 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+new file mode 100644
+index 0000000..0d084e4
+--- /dev/null
++++ b/src/i18n/en_us.ts
+@@ -0,0 +1,181 @@
++export const messages = {
++  en_us: {
++    appTitle: 'NimoOS · New Home Base',
++    backToOld: '← Back to main app',
++    cpu: 'CPU',
++    memory: 'Memory',
++    collecting: 'Collecting…',
++    filesTitle: 'Files',
++    filesBackHome: 'Home',
++    filesEmpty: 'This folder is empty',
++    filesViewList: 'List',
++    filesViewGrid: 'Grid',
++    filesColName: 'Name',
++    filesColType: 'Type',
++    filesColDate: 'Date modified',
++    filesColSize: 'Size',
++    filesFavorites: 'Favorites',
++    filesDisks: 'Disks',
++    filesNoFavorites: 'No favorites yet',
++    filesSelectedCount: '{count} selected',
++    filesSelectAll: 'Select all',
++    filesClearSel: 'Clear',
++    filesOpFailed: 'Operation failed',
++    filesProtectedDelete: 'This item is protected and cannot be deleted',
++    filesProtectedRename: 'This item is protected and cannot be renamed',
++    filesProtectedMove: 'This item is protected and cannot be moved',
++    filesCopiedPath: 'Path copied',
++    filesNewFolder: 'New folder',
++    filesNewFile: 'New file',
++    filesPaste: 'Paste',
++    filesDownloadPreparing: 'Preparing download…',
++    filesDownload: 'Download',
++    filesViewerClose: 'Close',
++    filesViewerLoading: 'Loading…',
++    filesViewerConverting: 'Converting preview…',
++    filesViewerError: 'Unable to preview this file',
++    filesViewerDownloadInstead: 'Download instead',
++    filesDownloadPromptTitle: 'Cannot preview',
++    filesDownloadPromptMessage: '"{name}" cannot be previewed online. Download it to your device instead?',
++    filesViewerPrev: 'Previous',
++    filesViewerNext: 'Next',
++    filesViewerZoomIn: 'Zoom in',
++    filesViewerZoomOut: 'Zoom out',
++    filesViewerRotate: 'Rotate',
++    filesViewerReset: 'Reset',
++    filesViewerSave: 'Save',
++    filesViewerSaved: 'Saved',
++    filesViewerSaveFailed: 'Save failed',
++    filesViewerWantSave: 'Save changes?',
++    filesViewerUnsavedHint: 'If you don’t save, your changes will be lost.',
++    filesViewerDontSave: "Don't save",
++    filesViewerReadFailed: 'Failed to read file',
++    filesRename: 'Rename',
++    filesDefaultFolderName: 'New Folder',
++    filesDefaultFileName: 'New File',
++    filesConfirm: 'OK',
++    filesCancel: 'Cancel',
++    filesCtxRefresh: 'Refresh',
++    filesCtxCopyPath: 'Copy path',
++    filesCtxAddFavorite: 'Add to favorites',
++    filesCtxRemoveFavorite: 'Remove from favorites',
++    filesCtxDelete: 'Delete',
++    filesCtxCopy: 'Copy',
++    filesCtxDownload: 'Download',
++    filesCtxCut: 'Cut',
++    filesCtxPasteOverwrite: 'Paste (overwrite)',
++    filesCtxPasteSkip: 'Paste (skip)',
++    filesTasksTitle: 'Current tasks',
++    filesCancelAll: 'Cancel all',
++    filesOpCopy: 'Copy',
++    filesOpMove: 'Move',
++    filesDeleteConfirm: 'Delete the selected {count} item(s)? This cannot be undone.',
++    filesCtxUploadFile: 'Upload files',
++    filesCtxUploadFolder: 'Upload folder',
++    filesUpload: 'Upload',
++    filesUploadTitle: 'Upload',
++    filesUploadTo: 'Upload to {name}',
++    filesUploadDrop: 'Drop files here to upload',
++    filesUploadOversize:
++      'Uploading a large file — keep this page open until it finishes; if interrupted, you’ll need to reselect the file to continue.',
++    filesUploadClearDone: 'Clear completed',
++    filesUploadDone: '"{name}" uploaded successfully',
++    filesUploadExists: '"{name}" already exists, skipped',
++    filesUploadFolderDone: '"{name}" uploaded successfully',
++    filesUploadFilesDone: '{count} files uploaded successfully',
++    filesUploadFolderPartial: '"{name}" upload finished, {failed} failed',
++    filesUploadFilesPartial: '{count} files uploaded, {failed} failed',
++    filesUploadBatchFolder: '{name} ({count})',
++    filesUploadBatchFiles: '{count} files',
++    filesUploadFailedCount: '{count} failed',
++    filesUploadBatchProgress: '{done}/{total}',
++    filesUploadRetry: 'Retry',
++    filesUploadCancel: 'Delete',
++    filesUploadDeleteAll: 'Delete all',
++    filesUploadDeleteOne: 'Delete "{name}"? Any uploaded portion will also be cancelled.',
++    filesUploadDeleteAllConfirm: 'Delete all upload tasks? Any uploaded portions will also be cancelled.',
++    filesUploadConflictTitle: 'File already exists',
++    filesUploadConflictMsg: 'A file named "{name}" already exists in the destination folder. What would you like to do?',
++    filesUploadOverwrite: 'Overwrite',
++    filesUploadRename: 'Rename',
++    filesUploadSkip: 'Skip',
++    filesUploadZoneProblem: 'Needs action',
++    filesUploadZoneActive: 'Uploading',
++    filesUploadZoneDone: 'Completed',
++    filesUploadProtected: '"{name}" is in a protected directory and was skipped.',
++    filesUploadErrDuplicate: 'File already exists (skipped)',
++    filesUploadErrExpired: 'Session expired',
++    filesUploadErrNoSpace: 'Not enough storage space on the NAS',
++    filesUploadErrProtected: 'This directory is protected; uploads are not allowed',
++    filesUploadErrBadName: 'Invalid file name or path',
++    filesUploadErrServer: 'Server error',
++    filesUploadErrNetwork: 'Network error',
++    filesUploadReselect: 'Reselect file',
++    filesUploadNeedsFile: 'Reselect the file to continue uploading',
++    filesUploadRestoreNotice: 'Restored {count} unfinished upload(s)',
++    filesUploadRestoreDismiss: 'Got it',
++    filesUploadPause: 'Pause',
++    filesUploadResume: 'Resume',
++    filesUploadPauseAll: 'Pause all',
++    filesUploadResumeAll: 'Resume all',
++    filesUploadPaused: 'Paused',
++    filesUploadClose: 'Close',
++    filesMountEjectSuccess: 'Eject succeeded',
++    filesMountEjectFailed: 'Eject failed',
++    filesMountAdd: 'Add mount',
++    filesMountConnectNetwork: 'Connect network storage',
++    filesMountConnectCloud: 'Connect {name}',
++    filesMountServerAddress: 'Server address',
++    filesMountAddressHint: 'Supports Samba/NFS addresses, e.g. smb://192.168.1.1',
++    filesMountConnectAsGuest: 'Connect as guest',
++    filesMountUsername: 'Username',
++    filesMountPassword: 'Password',
++    filesMountConnect: 'Connect',
++    filesMountConnecting: 'Connecting…',
++    filesMountConnectFailed: 'Connection failed',
++    filesMountInvalidAddress: 'Please enter a valid address (smb:// or nfs://)',
++    filesMountCredsRequired: 'Username and password cannot be empty',
++    filesMountManage: 'Storage',
++    filesMountNetworkSection: 'Network storage',
++    filesMountEject: 'Eject',
++    filesMountCloudSection: 'Cloud drives',
++    filesMountCloudOk: 'Cloud drive connected',
++    filesMountCloudWarn: 'Cloud drive connection warning',
++    filesMountCloudFail: 'Cloud drive connection failed',
++    filesSharesTitle: 'Local network sharing',
++    filesSharesNav: 'Shared',
++    filesSharesEmpty: 'No shares yet. Right-click any folder to share it on the local network.',
++    filesShareToLan: 'Share to local network',
++    filesShareDone: 'Shared',
++    filesShareBatchDone: 'Shared {count} folder(s)',
++    filesShareFailed: 'Operation failed',
++    filesUnshareDone: 'Unshared',
++    filesShareGetLink: 'Get link',
++    filesShareGoto: 'Go',
++    filesUnshare: 'Unshare',
++    filesUnshareConfirmTitle: 'Unshare',
++    filesUnshareConfirmMsg: 'Unshare "{name}"? It will no longer be accessible on the local network.',
++    filesShareLinkTitle: 'Folder has been shared',
++    filesShareLinkHint: 'Access the shared folder at the addresses below (Samba).',
++    filesShareWindows: 'PC (Windows Explorer)',
++    filesShareMac: 'Mac (Finder)',
++    filesShareCopy: 'Copy',
++    filesShareCopied: 'Copied',
++    filesGotIt: 'Got it',
++    authUsername: 'Username',
++    authPassword: 'Password',
++    authLogin: 'Login',
++    authLoginFailed: 'Incorrect username or password',
++    validateRequired: 'Required',
++    validateMin6: 'At least 6 characters',
++    validateConfirm: 'Passwords do not match',
++    welcomeTitle: 'Welcome to NimoOS',
++    welcomeSubtitle: 'Create your initial account',
++    welcomeGo: 'Go →',
++    welcomeCreateAccount: 'Create account',
++    welcomeConfirmPassword: 'Confirm password',
++    welcomeCreate: 'Create',
++    welcomeDone: 'All done!',
++    welcomeRegisterFailed: 'Registration failed',
++  },
++}
+diff --git a/src/i18n/index.ts b/src/i18n/index.ts
+index 464c439..bcaf62e 100644
+--- a/src/i18n/index.ts
++++ b/src/i18n/index.ts
+@@ -1,12 +1,15 @@
+ import { createI18n } from 'vue-i18n'
+-import { messages } from './zh_cn'
++import { messages as zhMessages } from './zh_cn'
++import { messages as enMessages } from './en_us'
++
++const messages = { ...zhMessages, ...enMessages }
+ 
+ function initialLocale(): string {
+   const stored = localStorage.getItem('lang')
+   if (stored && stored in messages) return stored
+   return 'zh_cn'
+ }
+ 
+ export const i18n = createI18n({
+   legacy: false,
+   locale: initialLocale(),
+diff --git a/src/i18n/parity.test.ts b/src/i18n/parity.test.ts
+new file mode 100644
+index 0000000..c361181
+--- /dev/null
++++ b/src/i18n/parity.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect } from 'vitest'
++import { messages as zh } from './zh_cn'
++import { messages as en } from './en_us'
++
++describe('i18n locale parity', () => {
++  it('en_us 与 zh_cn 顶层 key 集合完全一致', () => {
++    const zhKeys = Object.keys(zh.zh_cn).sort()
++    const enKeys = Object.keys(en.en_us).sort()
++    expect(enKeys).toEqual(zhKeys)
++  })
++
++  it('en_us 值均为非空字符串', () => {
++    for (const [k, v] of Object.entries(en.en_us)) {
++      expect(typeof v, `key ${k}`).toBe('string')
++      expect((v as string).length, `key ${k}`).toBeGreaterThan(0)
++    }
++  })
++
++  it('抽查若干英文文案', () => {
++    expect(en.en_us.cpu).toBe('CPU')
++    expect(en.en_us.memory).toBe('Memory')
++    expect(en.en_us.filesTitle).toBe('Files')
++  })
++})

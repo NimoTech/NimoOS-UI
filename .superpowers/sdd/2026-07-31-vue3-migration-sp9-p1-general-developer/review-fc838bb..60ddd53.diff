@@ -1,0 +1,46 @@
+# Review package: fc838bb..60ddd53
+
+## Commits
+60ddd53 test(settings): 补 DeviceInfoDialog 两接口独立成败的回归测试
+
+## Files changed
+ src/settings/components/DeviceInfoDialog.test.ts | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+## Diff
+diff --git a/src/settings/components/DeviceInfoDialog.test.ts b/src/settings/components/DeviceInfoDialog.test.ts
+index 28766ae..7e15567 100644
+--- a/src/settings/components/DeviceInfoDialog.test.ts
++++ b/src/settings/components/DeviceInfoDialog.test.ts
+@@ -82,11 +82,31 @@ describe('DeviceInfoDialog', () => {
+   })
+ 
+   it('接口失败不抛,渲染占位 ---', async () => {
+     const svc = await import('@nimotech/nimoos-service')
+     vi.spyOn(svc.service.sys, 'hardwareInfo').mockRejectedValueOnce(new Error('boom'))
+     vi.spyOn(svc.service.sys, 'getBaseInfo').mockRejectedValueOnce(new Error('boom'))
+     mountIt()
+     await flushPromises()
+     expect(body().text()).toContain('---')
+   })
++
++  // 两个接口必须各自成败:一个挂了不能把另一个已经拿到的值也抹掉。
++  // 这两条是 Promise.allSettled → Promise.all 的回归守卫 ——
++  // 换成 all 之后聚合 promise 会 reject,赋值那行被跳过,成功那个接口的数据就丢了。
++  it('hardwareInfo 失败但 getBaseInfo 成功时,DC 仍然显示出来', async () => {
++    const svc = await import('@nimotech/nimoos-service')
++    vi.spyOn(svc.service.sys, 'hardwareInfo').mockRejectedValueOnce(new Error('boom'))
++    mountIt()
++    await flushPromises()
++    // DC 来自 getBaseInfo,必须还在
++    expect(body().text()).toContain('2389ab5a67ce8f1d541d5c5048afd5cd')
++  })
++
++  it('getBaseInfo 失败但 hardwareInfo 成功时,CPU 型号仍然显示出来', async () => {
++    const svc = await import('@nimotech/nimoos-service')
++    vi.spyOn(svc.service.sys, 'getBaseInfo').mockRejectedValueOnce(new Error('boom'))
++    mountIt()
++    await flushPromises()
++    expect(body().text()).toContain('Intel(R) Core(TM) 5 320')
++  })
+ })

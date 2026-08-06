@@ -1,0 +1,309 @@
+# Review package: a2678e2..HEAD
+
+## Commits
+db66834 feat(files): chapter dropdown multi-select filter (AND with speaker/highlights, waveform dim)
+
+## Files changed
+ src/files/viewers/MediaViewer.vue | 98 ++++++++++++++++++++++++++++++++++-----
+ src/i18n/en_us.ts                 |  2 +
+ src/i18n/zh_cn.ts                 |  2 +
+ 3 files changed, 90 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/src/files/viewers/MediaViewer.vue b/src/files/viewers/MediaViewer.vue
+index 6a7d1a3..51ce0fc 100644
+--- a/src/files/viewers/MediaViewer.vue
++++ b/src/files/viewers/MediaViewer.vue
+@@ -1,21 +1,25 @@
+ <script setup lang="ts">
+ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import ViewerShell from './ViewerShell.vue'
+ import { mediaKind } from './mediaKind'
+ import { lookupTranscript, parseTimestamp } from './audioTranscripts'
+ import type { TranscriptSegment } from './audioTranscripts'
+-import { speakerToken, segMatches, barSpeakers } from './speakerWave'
++import { speakerToken, segMatches, barSpeakers, segChapterIndex, barChapterIndex } from './speakerWave'
+ import { WAVE_N, synthWaveform, decodeWaveform, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
+ import type { FileEntry } from '../stores/files'
++import {
++  DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuPortal,
++  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
++} from 'reka-ui'
+ 
+ const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
+ const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
+ const { t, locale } = useI18n()
+ 
+ const kind = mediaKind(props.item.name)
+ 
+ // 音频转录/摘要（写死 demo）：命中文件名才显示下方面板。默认展开「摘要」页。
+ const transcript = computed(() => (kind === 'audio' ? lookupTranscript(props.item.name) : null))
+ const tab = ref<'summary' | 'transcript' | 'ask'>('summary')
+@@ -74,32 +78,41 @@ function startWaveDecode(): void {
+ const playedBars = computed(() => Math.round((progressPct.value / 100) * WAVE_N))
+ 
+ // 波形×说话人:仅当转录带说话人数据时启用(spec §3;无说话人音频保持旧渲染分支零变化)。
+ // durTime 为 0(loadedmetadata 前)时 barSpeakers 返回全 null → 全部竖条先走 --wave-none,就绪后响应式重算。
+ const barSpk = computed<(string | null)[]>(() => {
+   const tr = transcript.value
+   if (!tr?.speakers?.length) return []
+   return barSpeakers(tr.segments, durTime.value, WAVE_N)
+ })
+ const waveSpeakerMode = computed(() => barSpk.value.length > 0)
++// 竖条→章节归属(仅说话人模式下波形参与压暗;spec §5 限制)
++const barChap = computed<number[]>(() =>
++  waveSpeakerMode.value ? barChapterIndex(chapters.value, durTime.value, WAVE_N) : [],
++)
+ // 竖条内联色:dim 时直接给 var(--wave-dim)(内联样式优先级高于样式表,.dim 的 CSS 覆盖到不了内联值)。
+ function barColor(i: number): string {
+   if (barDim(i)) return 'var(--wave-dim)'
+   const id = barSpk.value[i]
+   return id ? speakerColor(id) : 'var(--wave-none)'
+ }
+-// 过滤压暗:非全选时,该条说话人不在选中集(或静场条)即压暗;
+-// 全选=等效无过滤全不压暗,全不选=全压暗(与转录列表口径一致)。
++// 过滤压暗(说话人/章节任一维度命中即压暗,各维度全选=该维度不参与):
++// 说话人维度:非全选且该条说话人不在选中集(静场条同暗);
++// 章节维度:非全选且该条所在章节不在选中集。与转录列表口径一致。
+ function barDim(i: number): boolean {
+-  if (!waveSpeakerMode.value || allPicked.value) return false
+-  const id = barSpk.value[i]
+-  return !id || !pickedSpeakers.value.has(id)
++  if (!waveSpeakerMode.value) return false
++  if (!allPicked.value) {
++    const id = barSpk.value[i]
++    if (!id || !pickedSpeakers.value.has(id)) return true
++  }
++  if (chapterFiltering.value && !pickedChapters.value.has(barChap.value[i])) return true
++  return false
+ }
+ 
+ function fmtTime(sec: number): string {
+   if (!isFinite(sec) || sec < 0) sec = 0
+   const m = Math.floor(sec / 60)
+   const s = Math.floor(sec % 60)
+   return `${m}:${s.toString().padStart(2, '0')}`
+ }
+ function togglePlay(): void {
+   const a = audioMedia.value
+@@ -211,39 +224,60 @@ const pickedSpeakers = ref<Set<string>>(new Set(speakers.value.map((s) => s.id))
+ const allPicked = computed(() => hasSpeakers.value && pickedSpeakers.value.size === speakers.value.length)
+ function toggleSpeaker(id: string): void {
+   const next = new Set(pickedSpeakers.value)
+   if (next.has(id)) next.delete(id)
+   else next.add(id)
+   pickedSpeakers.value = next
+ }
+ function toggleAll(): void {
+   pickedSpeakers.value = allPicked.value ? new Set() : new Set(speakers.value.map((s) => s.id))
+ }
++// 章节过滤(master-checkbox,与说话人同一套语义):选中集=显示哪些章节,初始全选;
++// 全选=等效不过滤;空集=全不选=全隐藏。整体替换 Set 保证 watch 可靠触发。
++const chapters = computed(() => transcript.value?.chapters ?? [])
++const hasChapters = computed(() => chapters.value.length > 0)
++const pickedChapters = ref<Set<number>>(new Set(chapters.value.map((_, k) => k)))
++const allChaptersPicked = computed(() => hasChapters.value && pickedChapters.value.size === chapters.value.length)
++function toggleChapter(k: number): void {
++  const next = new Set(pickedChapters.value)
++  if (next.has(k)) next.delete(k)
++  else next.add(k)
++  pickedChapters.value = next
++}
++function toggleAllChapters(): void {
++  pickedChapters.value = allChaptersPicked.value ? new Set() : new Set(chapters.value.map((_, k) => k))
++}
++// 段落原始索引 → 章节序号查表(过滤条件按索引 O(1) 查)
++const segChap = computed(() => segChapterIndex(transcript.value?.segments ?? [], chapters.value))
+ // 过滤变化后若当前段仍在列表,平滑滚回可见（需求 5）。
+-watch([pickedSpeakers, highlightsOnly], () => void nextTick(scrollActiveIntoView))
++watch([pickedSpeakers, pickedChapters, highlightsOnly], () => void nextTick(scrollActiveIntoView))
+ 
+ // 转录展示行：把「智能章节」标题穿插进分段流。row 携带分段原始索引 i（用于高亮/跳转/定位）。
+ type TransRow =
+   | { type: 'chapter'; title: string; t: string }
+   | { type: 'seg'; seg: TranscriptSegment; i: number }
+-// 说话人过滤"激活"= 非全选(全选等效于没过滤);无说话人数据时恒不激活。
+-const filtering = computed(() => highlightsOnly.value || (hasSpeakers.value && !allPicked.value))
++// 各过滤维度"激活"= 非全选(全选等效于没过滤);无对应数据时恒不激活。
++const speakerFiltering = computed(() => hasSpeakers.value && !allPicked.value)
++const chapterFiltering = computed(() => hasChapters.value && !allChaptersPicked.value)
+ const transcriptRows = computed<TransRow[]>(() => {
+   const tr = transcript.value
+   if (!tr) return []
+   const chapterAt = new Map<string, string>()
+   for (const c of tr.chapters ?? []) chapterAt.set(c.t, c.title)
+   const rows: TransRow[] = []
++  // 章节头:只看重点/说话人过滤会造成"空章节",激活时全部隐藏(现状规则);
++  // 只按章节过滤时保留——被滤掉的章连段带头整体消失,可见章的头帮助识别段落归属。
++  const showHeads = !highlightsOnly.value && !speakerFiltering.value
+   tr.segments.forEach((seg, i) => {
++    if (chapterFiltering.value && !pickedChapters.value.has(segChap.value[i])) return
+     if (!segMatches(seg, hasSpeakers.value ? pickedSpeakers.value : null, highlightsOnly.value)) return
+-    // 过滤激活（只看重点 / 说话人筛选）时不插章节头（避免出现空章节）。
+-    if (!filtering.value && chapterAt.has(seg.t)) {
++    if (showHeads && chapterAt.has(seg.t)) {
+       rows.push({ type: 'chapter', title: chapterAt.get(seg.t) as string, t: seg.t })
+     }
+     rows.push({ type: 'seg', seg, i })
+   })
+   return rows
+ })
+ const hasHighlights = computed(() => !!transcript.value?.segments.some((s) => s.highlight))
+ 
+ // 说话人分离：id → 显示名 / 颜色 token(--spk-N,5 色循环;波形与转录共用同一映射)。
+ function speakerName(id?: string): string {
+@@ -485,25 +519,51 @@ onBeforeUnmount(() => {
+             <div class="ap-summary">
+               <p class="ap-summary-text">{{ transcript.summary }}</p>
+               <div v-if="transcript.keywords.length" class="ap-kw">
+                 <span v-for="k in transcript.keywords" :key="k" class="ap-chip">{{ k }}</span>
+               </div>
+             </div>
+           </div>
+ 
+           <!-- Transcript：智能章节 + 说话人分离 + 重点高光（含「只看重点」筛选） -->
+           <template v-else-if="tab === 'transcript'">
+-            <div v-if="hasHighlights || hasSpeakers" class="ap-tools">
++            <div v-if="hasHighlights || hasSpeakers || hasChapters" class="ap-tools">
+               <button v-if="hasHighlights" type="button" class="ap-tool" :class="{ on: highlightsOnly }" @click="highlightsOnly = !highlightsOnly">
+                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.7 6.2.6-4.7 4.1 1.4 6.1L12 16.9 6.5 20.1l1.4-6.1L3.2 9.8l6.2-.6z" /></svg>
+                 {{ highlightsOnly ? t('audioShowAll') : t('audioHighlightsOnly') }}
+               </button>
++              <!-- 章节过滤:下拉多选(master-checkbox,与说话人同语义);点选项不关菜单(@select.prevent) -->
++              <DropdownMenuRoot v-if="hasChapters">
++                <DropdownMenuTrigger class="ap-tool ap-ch-trigger" :class="{ on: chapterFiltering }">
++                  {{ t('audioChapters') }}<template v-if="chapterFiltering">&nbsp;{{ pickedChapters.size }}/{{ chapters.length }}</template>
++                  <svg class="ap-ch-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z" /></svg>
++                </DropdownMenuTrigger>
++                <DropdownMenuPortal>
++                  <!-- Portal 到 body:scoped 样式够不到,ap-ch-* 全在非 scoped 块;z-index 须盖过预览浮层(200) -->
++                  <DropdownMenuContent class="ui-ctx-content ap-ch-menu" :side-offset="4" align="start">
++                    <DropdownMenuItem class="ui-ctx-item ap-ch-item" @select.prevent="toggleAllChapters">
++                      <span class="ap-ch-check">{{ allChaptersPicked ? '✓' : '' }}</span>{{ t('audioAllChapters') }}
++                    </DropdownMenuItem>
++                    <DropdownMenuSeparator class="ui-ctx-sep" />
++                    <DropdownMenuItem
++                      v-for="(c, k) in chapters"
++                      :key="c.t"
++                      class="ui-ctx-item ap-ch-item"
++                      @select.prevent="toggleChapter(k)"
++                    >
++                      <span class="ap-ch-check">{{ pickedChapters.has(k) ? '✓' : '' }}</span>
++                      <span class="ap-ch-t">{{ c.t }}</span>
++                      <span class="ap-ch-title">{{ c.title }}</span>
++                    </DropdownMenuItem>
++                  </DropdownMenuContent>
++                </DropdownMenuPortal>
++              </DropdownMenuRoot>
+               <!-- 说话人过滤 chips:「全部」=全选/全不选主开关(全选时亮),每说话人一个多选;与只看重点 AND 叠加 -->
+               <template v-if="hasSpeakers">
+                 <button type="button" class="spk-chip spk-chip-all" :class="{ on: allPicked }" @click="toggleAll">
+                   {{ t('audioSpeakerAll') }}
+                 </button>
+                 <button
+                   v-for="(sp, si) in speakers"
+                   :key="sp.id"
+                   type="button"
+                   class="spk-chip"
+@@ -732,20 +792,24 @@ onBeforeUnmount(() => {
+ .spk-chip .spk-dot {
+   width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--c);
+   box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 20%, transparent); transition: box-shadow 0.15s;
+ }
+ .spk-chip:hover { border-color: var(--fg-faint); color: var(--fg); }
+ .spk-chip.on { color: var(--fg); border-color: var(--c); background: color-mix(in oklab, var(--c) 15%, transparent); }
+ .spk-chip.on .spk-dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 38%, transparent); }
+ /* 「全部」chip:无说话人色,选中用中性 accent */
+ .spk-chip-all.on { color: var(--accent-text); border-color: var(--accent-soft-bd); background: var(--accent-soft); }
+ 
++/* 章节下拉触发器:沿用 .ap-tool 形态,补齿轮箭头与计数间距 */
++.ap-ch-trigger { display: inline-flex; align-items: center; gap: 4px; }
++.ap-ch-caret { width: 14px; height: 14px; fill: currentColor; }
++
+ /* ── Ask Nimo（架子占位）───────────────────────────────────────── */
+ .ap-ask-scroll { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 10px 20px; display: flex; flex-direction: column; }
+ .ap-ask-empty { margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; padding: 20px 0; }
+ .ap-ask-hint { margin: 0; font-size: 15px; line-height: 1.6; color: var(--fg-muted); max-width: 30rem; }
+ .ap-ask-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+ .ap-ask-chips-bar { justify-content: flex-start; padding: 4px 16px 0; }
+ .ap-chip-btn { cursor: pointer; color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-soft-bd); transition: background 0.16s, border-color 0.16s; }
+ .ap-chip-btn:hover { background: var(--accent-soft-2); border-color: var(--accent-soft-bd); }
+ .ap-ask-msgs { display: flex; flex-direction: column; gap: 10px; }
+ .ap-msg { max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+@@ -768,10 +832,20 @@ onBeforeUnmount(() => {
+ }
+ .ap-ask-send svg { width: 20px; height: 20px; fill: #fff; } /* theme-exception: 图标恒叠在彩色渐变按钮上，白色对比度两套主题都稳定 */
+ .ap-ask-send:hover { filter: brightness(1.06); transform: translateY(-1px); }
+ .ap-ask-send:disabled { opacity: 0.45; cursor: default; transform: none; filter: none; }
+ 
+ /* 窄屏：收紧内边距 */
+ @media (max-width: 860px) {
+   .audio-layout { gap: 16px; padding: 16px; }
+ }
+ </style>
++
++<style>
++/* 章节下拉菜单:Portal 传送到 body,拿不到 scoped 属性,须非 scoped(先例 AddMountMenu.vue)。
++   z-index 240 盖过预览浮层(ViewerShell z-index:200;共享 ui-ctx-content 默认 120)。 */
++.ap-ch-menu { z-index: 240; max-height: 320px; overflow-y: auto; }
++.ap-ch-item { display: flex; align-items: center; gap: 8px; max-width: 22rem; }
++.ap-ch-check { flex: 0 0 auto; width: 14px; font-size: 12px; font-weight: 700; color: var(--accent-text); }
++.ap-ch-t { flex: 0 0 auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
++.ap-ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++</style>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 20bb7da..e6df95d 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -34,20 +34,22 @@ export const messages = {
+     filesViewerLoading: 'Loading…',
+     audioSummary: 'Summary',
+     audioTranscript: 'Transcript',
+     audioAsk: 'Ask Nimo',
+     audioAskPlaceholder: 'Ask anything about this audio…',
+     audioAskEmpty: 'This transcript is vectorized — ask Nimo about anything in it.',
+     audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',
+     audioHighlightsOnly: 'Highlights only',
+     audioShowAll: 'Show all',
+     audioSpeakerAll: 'All',
++    audioChapters: 'Chapters',
++    audioAllChapters: 'All chapters',
+     audioSkipBack: 'Rewind {s}s',
+     audioSkipForward: 'Forward {s}s',
+     audioSpeed: 'Playback speed',
+     filesViewerConverting: 'Converting preview…',
+     filesViewerError: 'Unable to preview this file',
+     filesViewerDownloadInstead: 'Download instead',
+     filesDownloadPromptTitle: 'Cannot preview',
+     filesDownloadPromptMessage: '"{name}" cannot be previewed online. Download it to your device instead?',
+     filesViewerPrev: 'Previous',
+     filesViewerNext: 'Next',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 3e3e6bc..b04b8d5 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -34,20 +34,22 @@ export const messages = {
+     filesViewerLoading: '加载中…',
+     audioSummary: '摘要',
+     audioTranscript: '转录文稿',
+     audioAsk: '问 Nimo',
+     audioAskPlaceholder: '关于这段音频，尽管问…',
+     audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',
+     audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',
+     audioHighlightsOnly: '只看重点',
+     audioShowAll: '显示全部',
+     audioSpeakerAll: '全部',
++    audioChapters: '章节',
++    audioAllChapters: '全部章节',
+     audioSkipBack: '快退 {s} 秒',
+     audioSkipForward: '快进 {s} 秒',
+     audioSpeed: '播放速度',
+     filesViewerConverting: '正在转换预览…',
+     filesViewerError: '无法预览此文件',
+     filesViewerDownloadInstead: '改为下载',
+     filesDownloadPromptTitle: '无法预览',
+     filesDownloadPromptMessage: '「{name}」无法在线预览,是否下载到本地?',
+     filesViewerPrev: '上一张',
+     filesViewerNext: '下一张',

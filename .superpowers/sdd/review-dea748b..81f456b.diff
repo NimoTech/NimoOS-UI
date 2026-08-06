@@ -1,0 +1,207 @@
+# Review package: dea748b..81f456b
+
+## Commits
+81f456b feat(files): FavoriteStar (hover on row/tile + active), aligned list star column
+
+## Files changed
+ src/files/components/FavoriteStar.test.ts | 34 +++++++++++++++++++++++++++++++
+ src/files/components/FavoriteStar.vue     | 21 +++++++++++++++++++
+ src/files/components/FileListView.vue     |  2 ++
+ src/files/components/FileRow.test.ts      |  2 +-
+ src/files/components/FileRow.vue          |  5 +++++
+ src/files/components/FileTile.vue         |  7 ++++++-
+ 6 files changed, 69 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FavoriteStar.test.ts b/src/files/components/FavoriteStar.test.ts
+new file mode 100644
+index 0000000..0eb8cd0
+--- /dev/null
++++ b/src/files/components/FavoriteStar.test.ts
+@@ -0,0 +1,34 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount } from '@vue/test-utils'
++import FavoriteStar from './FavoriteStar.vue'
++import { useFavoritesStore } from '../stores/favorites'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { users: {
++    getCustomStorage: vi.fn().mockResolvedValue([]),
++    setCustomStorage: vi.fn().mockResolvedValue(undefined),
++  } },
++}))
++
++describe('FavoriteStar', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('shows ☆ when not favorited, adds and flips to ★ on click', async () => {
++    const w = mount(FavoriteStar, { props: { path: '/DATA/Docs', name: 'Docs' } })
++    expect(w.text()).toBe('☆')
++    await w.trigger('click')
++    const fav = useFavoritesStore()
++    expect(fav.isFavorite('/DATA/Docs')).toBe(true)
++    expect(w.text()).toBe('★')
++  })
++
++  it('shows ★ when already favorited and removes on click', async () => {
++    const fav = useFavoritesStore()
++    await fav.add({ name: 'Docs', path: '/DATA/Docs' })
++    const w = mount(FavoriteStar, { props: { path: '/DATA/Docs', name: 'Docs' } })
++    expect(w.text()).toBe('★')
++    await w.trigger('click')
++    expect(fav.isFavorite('/DATA/Docs')).toBe(false)
++  })
++})
+diff --git a/src/files/components/FavoriteStar.vue b/src/files/components/FavoriteStar.vue
+new file mode 100644
+index 0000000..0b1285e
+--- /dev/null
++++ b/src/files/components/FavoriteStar.vue
+@@ -0,0 +1,21 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useFavoritesStore } from '../stores/favorites'
++
++const props = defineProps<{ path: string; name: string }>()
++const favorites = useFavoritesStore()
++const active = computed(() => favorites.isFavorite(props.path))
++function toggle() {
++  if (active.value) favorites.remove(props.path)
++  else favorites.add({ name: props.name, path: props.path })
++}
++</script>
++
++<template>
++  <button class="favorite-star" :class="{ active }" :aria-pressed="active" @click.stop="toggle">{{ active ? '★' : '☆' }}</button>
++</template>
++
++<style scoped>
++.favorite-star { background: none; border: none; cursor: pointer; color: var(--fg-muted, #9aa4bf); font-size: 15px; line-height: 1; padding: 2px 4px; }
++.favorite-star.active { color: var(--accent, #f5c451); }
++</style>
+diff --git a/src/files/components/FileListView.vue b/src/files/components/FileListView.vue
+index b1b5281..cd85424 100644
+--- a/src/files/components/FileListView.vue
++++ b/src/files/components/FileListView.vue
+@@ -18,23 +18,25 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
+ 
+ <template>
+   <div class="file-listview">
+     <div class="file-listhead">
+       <span
+         v-for="c in COLS"
+         :key="c.key"
+         :class="['head-cell', c.cls]"
+         @click="emit('reorder', c.key)"
+       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
++      <span class="head-cell col-star"></span>
+     </div>
+     <FileRow v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
+ .head-cell { cursor: pointer; user-select: none; }
+ .col-name { flex: 1 1 auto; margin-left: 40px; }
+ .col-format { flex: 0 0 48px; }
+ .col-date { flex: 0 0 160px; }
+ .col-size { flex: 0 0 80px; text-align: right; }
++.col-star { flex: 0 0 32px; }
+ </style>
+diff --git a/src/files/components/FileRow.test.ts b/src/files/components/FileRow.test.ts
+index f6065bf..ab22e9e 100644
+--- a/src/files/components/FileRow.test.ts
++++ b/src/files/components/FileRow.test.ts
+@@ -1,15 +1,15 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import FileRow from './FileRow.vue'
+ 
+-const mountOpts = { global: { stubs: { FileThumb: true } } }
++const mountOpts = { global: { stubs: { FileThumb: true, FavoriteStar: true } } }
+ 
+ describe('FileRow', () => {
+   it('renders name, a FileThumb, size for files; emits open on click', async () => {
+     const entry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 1536, date: '2026-01-02T10:00:00Z' }
+     const w = mount(FileRow, { props: { entry }, ...mountOpts })
+     expect(w.text()).toContain('a.txt')
+     expect(w.find('.file-icon').exists()).toBe(true)   // FileThumb stub 根带 file-icon 类
+     expect(w.text()).toContain('1.5 KB')
+     await w.trigger('click')
+     expect(w.emitted('open')).toBeTruthy()
+diff --git a/src/files/components/FileRow.vue b/src/files/components/FileRow.vue
+index b25fcd1..6ec5b0e 100644
+--- a/src/files/components/FileRow.vue
++++ b/src/files/components/FileRow.vue
+@@ -1,29 +1,34 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import { renderSize, dateFmt } from '../util/format'
+ import { fileExt } from '../util/ext'
+ import FileThumb from './FileThumb.vue'
++import FavoriteStar from './FavoriteStar.vue'
+ 
+ const props = defineProps<{ entry: FileEntry }>()
+ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
+ </script>
+ 
+ <template>
+   <div class="file-row" @click="emit('open', props.entry)">
+     <FileThumb class="file-icon" :entry="props.entry" />
+     <span class="file-name">{{ props.entry.name }}</span>
+     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
+     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
+     <span class="file-size">{{ props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0) }}</span>
++    <span class="file-star"><FavoriteStar :path="props.entry.path" :name="props.entry.name" /></span>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; cursor: pointer; color: var(--fg); }
+ .file-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+ .file-icon { width: 28px; height: 28px; flex: 0 0 auto; }
+ .file-name { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }
+ .file-date { flex: 0 0 160px; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
+ .file-size { flex: 0 0 80px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-align: right; }
++.file-star { flex: 0 0 32px; display: flex; justify-content: center; }
++.file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
++.file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
+ </style>
+diff --git a/src/files/components/FileTile.vue b/src/files/components/FileTile.vue
+index ae44e91..dfe3f96 100644
+--- a/src/files/components/FileTile.vue
++++ b/src/files/components/FileTile.vue
+@@ -1,24 +1,29 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+ import { dateFmt } from '../util/format'
+ import FileThumb from './FileThumb.vue'
++import FavoriteStar from './FavoriteStar.vue'
+ 
+ const props = defineProps<{ entry: FileEntry }>()
+ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
+ </script>
+ 
+ <template>
+   <div class="file-tile" @click="emit('open', props.entry)">
++    <FavoriteStar class="tile-star" :path="props.entry.path" :name="props.entry.name" />
+     <FileThumb class="tile-icon" :entry="props.entry" />
+     <span class="tile-name">{{ props.entry.name }}</span>
+     <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
+   </div>
+ </template>
+ 
+ <style scoped>
+-.file-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: transparent; border: 1px solid transparent; }
++.file-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: transparent; border: 1px solid transparent; }
+ .file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
+ .tile-icon { width: var(--app-size, 64px); height: var(--app-size, 64px); }
+ .tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+ .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
++.tile-star { position: absolute; top: 6px; right: 6px; }
++.file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
++.file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
+ </style>

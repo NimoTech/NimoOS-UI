@@ -1,0 +1,417 @@
+# Review package: 06313c8..HEAD
+
+## Commits
+32f0ff0 docs: mark audio real-waveform spec as implemented
+f45a4b8 feat(files): audio wave bars use real decoded peaks with synth fallback
+d81de3d feat(files): decodeWaveform — fetch with 50MB gate + decodeAudioData peaks
+66d9c0e feat(files): waveform module — synth placeholder + bucketPeaks + session cache
+
+## Files changed
+ ...2026-07-10-new-ui-audio-real-waveform-design.md |   2 +-
+ src/files/viewers/MediaViewer.vue                  |  61 ++++-----
+ src/files/viewers/waveform.test.ts                 |  61 +++++++++
+ src/files/viewers/waveform.ts                      | 138 +++++++++++++++++++++
+ 4 files changed, 223 insertions(+), 39 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md b/docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
+index 5d26c12..42af464 100644
+--- a/docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
++++ b/docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
+@@ -1,14 +1,14 @@
+ # NimoOS-New-UI 音频真实波形（合成占位 + 后台解码替换）设计
+ 
+ - 日期：2026-07-10
+-- 状态：设计已定，待实现
++- 状态：已实现（2026-07-13，commit 见 git log）
+ - 范围仓库：`NimoOS-New-UI`（Vue 3 + TS + Vite，挂 `/app/`）
+ - 影响文件：`src/files/viewers/MediaViewer.vue`（音频分支）、新增 `src/files/viewers/waveform.ts` + `waveform.test.ts`
+ 
+ ## 1. 背景与目标
+ 
+ `MediaViewer.vue` 的音频播放器已把进度条做成「录音 app 声波」观感：居中圆角竖条 + 静音处虚线基线，已播部分染强调色，可点击/拖拽 seek（见 `.np-wave` 相关实现）。
+ 
+ 但当前波形是**合成的**：用文件名做种子确定性生成一串「像语音」的竖条（`synthWaveform`），**与音频实际的响度/静音位置对不上**——只是视觉上像，内容上是虚构的。这与本播放器其余写死的 demo 数据（转录、摘要、Ask Nimo）一致。
+ 
+ 目标：让竖条高度**真实对应音频波形**，同时不牺牲打开速度、不拖垮低配设备。
+diff --git a/src/files/viewers/MediaViewer.vue b/src/files/viewers/MediaViewer.vue
+index d58ad13..c7106b0 100644
+--- a/src/files/viewers/MediaViewer.vue
++++ b/src/files/viewers/MediaViewer.vue
+@@ -1,18 +1,19 @@
+ <script setup lang="ts">
+ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import ViewerShell from './ViewerShell.vue'
+ import { mediaKind } from './mediaKind'
+ import { lookupTranscript, parseTimestamp } from './audioTranscripts'
+ import type { TranscriptSegment } from './audioTranscripts'
++import { WAVE_N, synthWaveform, decodeWaveform, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
+ import type { FileEntry } from '../stores/files'
+ 
+ const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
+ const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
+ const { t, locale } = useI18n()
+ 
+ const kind = mediaKind(props.item.name)
+ 
+ // 音频转录/摘要（写死 demo）：命中文件名才显示下方面板。默认展开「摘要」页。
+ const transcript = computed(() => (kind === 'audio' ? lookupTranscript(props.item.name) : null))
+@@ -40,59 +41,41 @@ const playing = ref(false)
+ const curTime = ref(0)
+ const durTime = ref(0)
+ let dragging = false
+ 
+ const progressPct = computed(() =>
+   durTime.value ? Math.min(100, Math.max(0, (curTime.value / durTime.value) * 100)) : 0,
+ )
+ 
+ // ── 声波进度条（仿录音 app）──────────────────────────────────────────
+ //   进度条画成语音波形：居中的圆角竖条 + 静音处的虚线基线。已播部分染强调色。
+-//   波形按文件名确定性生成（本播放器为写死 demo，与转录/摘要一致，不解码真实音频）。
+-const WAVE_N = 96
+-function hashStr(s: string): number {
+-  let h = 2166136261
+-  for (let i = 0; i < s.length; i++) {
+-    h ^= s.charCodeAt(i)
+-    h = Math.imul(h, 16777619)
+-  }
+-  return h >>> 0
+-}
+-function mulberry32(a: number): () => number {
+-  return function () {
+-    a |= 0
+-    a = (a + 0x6d2b79f5) | 0
+-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
++//   数据源两级：先按文件名合成占位(0 延迟)，后台解码真实音频后无缝替换；
++//   超 50MB / 解码失败 / 命中不了都静默停留在合成，详见 ./waveform 与设计 spec。
++const MAX_DECODE_BYTES = 50 * 1024 * 1024
++const waveBars = ref<number[]>(synthWaveform(props.item.name || 'audio', WAVE_N))
++let waveAbort: AbortController | null = null
++
++function startWaveDecode(): void {
++  const key = waveCacheKey(props.item)
++  const hit = getCachedWave(key)
++  if (hit) {
++    waveBars.value = hit
++    return
+   }
++  waveAbort = new AbortController()
++  void decodeWaveform(url, WAVE_N, { maxBytes: MAX_DECODE_BYTES, signal: waveAbort.signal }).then((bars) => {
++    // 在途结果到达时组件可能已卸载(disposed)——丢弃，不写缓存也不触发渲染。
++    if (!bars || disposed) return
++    setCachedWave(key, bars)
++    waveBars.value = bars
++  })
+ }
+-// 语音包络：交替「说话簇」(正弦升降包络 + 抖动) 与「静音间隙」(幅值 0 → 只留虚线)。
+-const waveBars = computed<number[]>(() => {
+-  const rnd = mulberry32(hashStr(props.item.name || 'audio'))
+-  const amps: number[] = []
+-  while (amps.length < WAVE_N) {
+-    if (rnd() < 0.22) {
+-      const gap = 2 + Math.floor(rnd() * 4)
+-      for (let k = 0; k < gap && amps.length < WAVE_N; k++) amps.push(0)
+-    } else {
+-      const len = 5 + Math.floor(rnd() * 16)
+-      const peak = 0.35 + rnd() * 0.65
+-      for (let k = 0; k < len && amps.length < WAVE_N; k++) {
+-        const env = Math.sin((k / Math.max(1, len - 1)) * Math.PI)
+-        const jitter = 0.7 + rnd() * 0.5
+-        amps.push(Math.min(1, Math.max(0.08, env * peak * jitter)))
+-      }
+-    }
+-  }
+-  return amps
+-})
+ // 已播竖条数量 = 进度占比 × 总条数（决定每条染色/留白）。
+ const playedBars = computed(() => Math.round((progressPct.value / 100) * WAVE_N))
+ 
+ function fmtTime(sec: number): string {
+   if (!isFinite(sec) || sec < 0) sec = 0
+   const m = Math.floor(sec / 60)
+   const s = Math.floor(sec % 60)
+   return `${m}:${s.toString().padStart(2, '0')}`
+ }
+ function togglePlay(): void {
+@@ -332,20 +315,21 @@ onMounted(async () => {
+       fullscreen: true,
+       autoplay: true,
+       pip: true,
+       screenshot: true,
+       airplay: true,
+       playsInline: true,
+       theme: '#007AE5',
+       lang: locale.value.replace('_', '-'),
+     })
+   } else if (kind === 'audio') {
++    startWaveDecode()
+     // 尝试自动播放（被浏览器策略拦截则等用户点播放按钮）。
+     void audioMedia.value?.play?.().catch(() => {})
+     // 封面 + 标题/艺术家(Vue2 mm.fetchFromUrl)——元数据失败不阻断播放。
+     try {
+       const mm = await import('music-metadata-browser')
+       if (disposed) return
+       const metadata = await mm.fetchFromUrl(url)
+       if (disposed) return
+       const pic = metadata.common.picture?.[0]
+       if (pic) {
+@@ -359,20 +343,21 @@ onMounted(async () => {
+       }
+       if (metadata.common.title) audioTitle.value = metadata.common.title
+       if (metadata.common.artist) audioArtist.value = metadata.common.artist
+     } catch {
+       /* 元数据失败不阻断播放 */
+     }
+   }
+ })
+ onBeforeUnmount(() => {
+   disposed = true
++  waveAbort?.abort()
+   stopStream()
+   if (artInst?.destroy) artInst.destroy(false)
+   if (poster.value) URL.revokeObjectURL(poster.value)
+ })
+ </script>
+ 
+ <template>
+   <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
+     <div ref="wrap" class="media-wrap" :class="{ 'has-panel': kind === 'audio' && !!transcript }">
+       <div v-if="kind === 'audio' && poster" class="audio-blur"></div>
+@@ -594,21 +579,21 @@ onBeforeUnmount(() => {
+    竖条以 flex-basis 固定宽 + space-between 均布，窄屏自动收窄；点击热区靠 ::before 上下各撑 6px。 */
+ .np-wave {
+   position: relative; flex: 1 1 auto; height: 46px; min-width: 0;
+   display: flex; align-items: center; justify-content: space-between;
+   cursor: pointer; touch-action: none;
+ }
+ .np-wave::before { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+ /* 静音虚线基线（贯穿整条，静音间隙处只剩它） */
+ .np-wave-base { position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 1px dashed var(--fg-faint); transform: translateY(-50%); pointer-events: none; }
+ /* 单根竖条：固定 3px 宽、圆头；未播=中性淡色，已播=强调色。height 由振幅内联控制。 */
+-.np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--fg-subtle); transition: background 0.12s; }
++.np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--fg-subtle); transition: background 0.12s, height 0.3s var(--ease); }
+ .np-wave-bar.played { background: var(--accent); }
+ .np-wave:hover .np-wave-bar.played { background: var(--accent2); }
+ 
+ /* 转录/摘要面板 —— 消费全局 theme token（见 src/styles/theme.css）：
+    白色模式=米白底 + 白卡 + Azure 蓝强调；蓝色模式=深色玻璃。 */
+ .audio-panel {
+   flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0;
+   display: flex; flex-direction: column; overflow: hidden;
+   border-radius: 20px; border: 1px solid var(--border);
+   background: var(--bg); color: var(--fg);
+diff --git a/src/files/viewers/waveform.test.ts b/src/files/viewers/waveform.test.ts
+new file mode 100644
+index 0000000..ec9ed90
+--- /dev/null
++++ b/src/files/viewers/waveform.test.ts
+@@ -0,0 +1,61 @@
++import { describe, it, expect } from 'vitest'
++import { WAVE_N, synthWaveform, bucketPeaks, waveCacheKey, getCachedWave, setCachedWave } from './waveform'
++
++describe('synthWaveform', () => {
++  it('同 seed 输出稳定、长度 = n、值域 [0,1]', () => {
++    const a = synthWaveform('demo.mp3', WAVE_N)
++    const b = synthWaveform('demo.mp3', WAVE_N)
++    expect(a).toEqual(b)
++    expect(a).toHaveLength(WAVE_N)
++    for (const v of a) {
++      expect(v).toBeGreaterThanOrEqual(0)
++      expect(v).toBeLessThanOrEqual(1)
++    }
++  })
++  it('不同 seed 输出不同', () => {
++    expect(synthWaveform('a.mp3', WAVE_N)).not.toEqual(synthWaveform('b.mp3', WAVE_N))
++  })
++})
++
++describe('bucketPeaks', () => {
++  it('输出长度 = n;峰桶归一化为 1、静音桶为 0、半峰桶为 0.5', () => {
++    // 4 桶 × 每桶 100 样本:桶0 峰 0.4、桶1 全 0、桶2 峰 0.8(全局最大)、桶3 峰 -0.8(取绝对值)
++    const s = new Float32Array(400)
++    s[10] = 0.4
++    s[250] = 0.8
++    s[350] = -0.8
++    const out = bucketPeaks(s, 4)
++    expect(out).toHaveLength(4)
++    expect(out[0]).toBeCloseTo(0.5)
++    expect(out[1]).toBe(0)
++    expect(out[2]).toBeCloseTo(1)
++    expect(out[3]).toBeCloseTo(1)
++  })
++  it('全零输入 → 全零输出(不除以 0)', () => {
++    expect(bucketPeaks(new Float32Array(100), 4)).toEqual([0, 0, 0, 0])
++  })
++  it('len < n 的边界不崩,输出仍是 n 条 [0,1]', () => {
++    const out = bucketPeaks(new Float32Array([0.5, -1, 0.25]), 8)
++    expect(out).toHaveLength(8)
++    for (const v of out) {
++      expect(v).toBeGreaterThanOrEqual(0)
++      expect(v).toBeLessThanOrEqual(1)
++    }
++    expect(Math.max(...out)).toBe(1)
++  })
++  it('空输入 → 全零输出', () => {
++    expect(bucketPeaks(new Float32Array(0), 4)).toEqual([0, 0, 0, 0])
++  })
++})
++
++describe('wave cache', () => {
++  it('waveCacheKey 用 path|size|date;size/date 缺失时该位留空', () => {
++    expect(waveCacheKey({ path: '/DATA/a.mp3', size: 123, date: '2026-07-01' })).toBe('/DATA/a.mp3|123|2026-07-01')
++    expect(waveCacheKey({ path: '/DATA/a.mp3' })).toBe('/DATA/a.mp3||')
++  })
++  it('set 后 get 命中;未 set 的键 → undefined', () => {
++    expect(getCachedWave('nope')).toBeUndefined()
++    setCachedWave('k1', [0, 0.5, 1])
++    expect(getCachedWave('k1')).toEqual([0, 0.5, 1])
++  })
++})
+diff --git a/src/files/viewers/waveform.ts b/src/files/viewers/waveform.ts
+new file mode 100644
+index 0000000..7a4a0b8
+--- /dev/null
++++ b/src/files/viewers/waveform.ts
+@@ -0,0 +1,138 @@
++// 音频波形模块:合成占位(纯函数) + 真实解码(浏览器编排) + 会话级缓存。
++// 设计:docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
++// 策略:打开即渲染合成波形(0 延迟),后台解码真实音频后无缝替换;
++//       超 50MB / 任一失败 → 静默保持合成,功能永不退化。
++
++/** 进度条竖条数(与 MediaViewer 渲染一致) */
++export const WAVE_N = 96
++
++// —— 以下两个 PRNG 辅助从 MediaViewer.vue 原样迁入,不改行为 ——
++function hashStr(s: string): number {
++  let h = 2166136261
++  for (let i = 0; i < s.length; i++) {
++    h ^= s.charCodeAt(i)
++    h = Math.imul(h, 16777619)
++  }
++  return h >>> 0
++}
++function mulberry32(a: number): () => number {
++  return function () {
++    a |= 0
++    a = (a + 0x6d2b79f5) | 0
++    let t = Math.imul(a ^ (a >>> 15), 1 | a)
++    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
++  }
++}
++
++/**
++ * 合成波形:seed(文件名)确定性生成「像语音」的包络——
++ * 交替「说话簇」(正弦升降包络 + 抖动)与「静音间隙」(幅值 0 → 只留虚线基线)。
++ */
++export function synthWaveform(seed: string, n: number): number[] {
++  const rnd = mulberry32(hashStr(seed || 'audio'))
++  const amps: number[] = []
++  while (amps.length < n) {
++    if (rnd() < 0.22) {
++      const gap = 2 + Math.floor(rnd() * 4)
++      for (let k = 0; k < gap && amps.length < n; k++) amps.push(0)
++    } else {
++      const len = 5 + Math.floor(rnd() * 16)
++      const peak = 0.35 + rnd() * 0.65
++      for (let k = 0; k < len && amps.length < n; k++) {
++        const env = Math.sin((k / Math.max(1, len - 1)) * Math.PI)
++        const jitter = 0.7 + rnd() * 0.5
++        amps.push(Math.min(1, Math.max(0.08, env * peak * jitter)))
++      }
++    }
++  }
++  return amps
++}
++
++/**
++ * 分桶取峰:把解码后的单声道样本压成 n 条。
++ * 每桶取 |max|(peak,非 RMS),按全局最大归一化到 [0,1];真静音桶保持 0。
++ * 桶边界按比例索引(而非固定桶宽),len < n 时相邻桶共享样本,天然不崩。
++ */
++export function bucketPeaks(samples: Float32Array, n: number): number[] {
++  const out = new Array<number>(n).fill(0)
++  const len = samples.length
++  if (!len || n <= 0) return out
++  for (let i = 0; i < n; i++) {
++    const start = Math.floor((i * len) / n)
++    const end = Math.max(start + 1, Math.floor(((i + 1) * len) / n))
++    let peak = 0
++    for (let j = start; j < end && j < len; j++) {
++      const v = Math.abs(samples[j])
++      if (v > peak) peak = v
++    }
++    out[i] = peak
++  }
++  const max = Math.max(...out)
++  return max === 0 ? out : out.map((v) => v / max)
++}
++
++// —— 会话级内存缓存:单条仅 96 个 number,不设淘汰;刷新即清 ——
++const cache = new Map<string, number[]>()
++
++/** 缓存键 = path|size|date(FileEntry 无 mtime,用 date;缺失位留空串)。 */
++export function waveCacheKey(e: { path: string; size?: number | string; date?: string }): string {
++  return `${e.path}|${e.size ?? ''}|${e.date ?? ''}`
++}
++export function getCachedWave(key: string): number[] | undefined {
++  return cache.get(key)
++}
++export function setCachedWave(key: string, bars: number[]): void {
++  cache.set(key, bars)
++}
++
++/**
++ * 解码真实波形:fetch 整个文件 → AudioContext.decodeAudioData → 取第 1 声道 → bucketPeaks。
++ * 大小闸:Content-Length > maxBytes 直接放弃;无该头则边读边计字节,超限即中止——
++ * 避免无头大文件读爆内存。任一异常(含 AbortError)→ null,调用方静默保持合成波形。
++ */
++export async function decodeWaveform(
++  url: string,
++  n: number,
++  opts: { maxBytes: number; signal: AbortSignal },
++): Promise<number[] | null> {
++  try {
++    const res = await fetch(url, { signal: opts.signal })
++    if (!res.ok || !res.body) return null
++    const lenHeader = res.headers.get('content-length')
++    if (lenHeader && Number(lenHeader) > opts.maxBytes) return null
++
++    const reader = res.body.getReader()
++    const chunks: Uint8Array[] = []
++    let total = 0
++    for (;;) {
++      const { done, value } = await reader.read()
++      if (done) break
++      total += value.byteLength
++      if (total > opts.maxBytes) {
++        void reader.cancel()
++        return null
++      }
++      chunks.push(value)
++    }
++    // 用显式 ArrayBuffer 承接,避免 Uint8Array#buffer 的 ArrayBufferLike 类型歧义。
++    const ab = new ArrayBuffer(total)
++    const buf = new Uint8Array(ab)
++    let off = 0
++    for (const c of chunks) {
++      buf.set(c, off)
++      off += c.byteLength
++    }
++
++    const ctx = new AudioContext()
++    try {
++      const audio = await ctx.decodeAudioData(ab)
++      // 只取第 1 声道(省内存);bucketPeaks 返回后不再持有 AudioBuffer,任其回收。
++      return bucketPeaks(audio.getChannelData(0), n)
++    } finally {
++      void ctx.close()
++    }
++  } catch {
++    return null
++  }
++}

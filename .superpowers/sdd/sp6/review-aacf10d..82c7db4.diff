@@ -1,0 +1,519 @@
+# Review package: aacf10d..82c7db4
+
+## Commits
+82c7db4 feat(storage): RAID 换盘弹窗+成员行入口(P4 T7)
+
+## Files changed
+ src/i18n/en_us.ts                                |  7 ++
+ src/i18n/zh_cn.ts                                |  7 ++
+ src/storage/components/RaidMemberList.test.ts    | 23 ++++++
+ src/storage/components/RaidMemberList.vue        | 23 +++++-
+ src/storage/components/RaidReplaceDialog.test.ts | 93 ++++++++++++++++++++++++
+ src/storage/components/RaidReplaceDialog.vue     | 87 ++++++++++++++++++++++
+ src/views/StorageRaidDetail.vue                  | 31 +++++++-
+ 7 files changed, 269 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 314a8e9..85f3dac 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -596,20 +596,27 @@ export default {
+   raidCreateFailed: 'Creation failed',
+   raidCreateFailedToast: 'Failed to create RAID',
+   raidRemoveSuccess: 'RAID array deleted',
+   raidRemoveFailed: 'Failed to delete array',
+   raidRemove: 'Delete Array',
+   raidRemoveTitle: 'Delete RAID Array',
+   raidRemoveMsg: 'This will stop the array and clear mdadm metadata. Data will be unrecoverable.',
+   raidRemoveWarning: 'Ensure all member disks are connected. Offline disks will retain mdadm superblocks and may need manual cleanup.',
+   raidRemoveTypeName: 'Type the array name "{name}" to confirm',
+   raidRemoveOk: 'Delete',
++  raidReplace: 'Replace Disk',
++  raidReplaceTitle: 'Replace Faulty Disk',
++  raidReplaceFaulty: 'Faulty Disk',
++  raidReplaceRemoveHint: 'This disk will be removed from the array',
++  raidReplaceNew: 'Replacement Disk',
++  raidReplaceSelect: 'Select a disk',
++  raidReplaceWarning: 'Replacing triggers an array rebuild; performance is reduced during rebuild.',
+   raidReplaceSuccess: 'Disk replacement started',
+   raidReplaceFailed: 'Failed to replace disk',
+   raidRecoverSuccess: 'Array recovered',
+   raidRecoverFailed: 'Discovery failed, check disk connections',
+   raidBaySelectAll: 'Select all healthy',
+   raidBayClear: 'Clear',
+   raidBayFilterAll: 'All',
+   raidBaySelected: '{n} selected · {size}',
+   raidTaskMeta: 'RAID-{level} · {n} disks · {fs}',
+   raidDetailsBtn: 'Details',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 68b7652..e0cf0e6 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -595,20 +595,27 @@ export default {
+   raidCreateFailed: '创建失败',
+   raidCreateFailedToast: 'RAID 创建失败',
+   raidRemoveSuccess: 'RAID 阵列已删除',
+   raidRemoveFailed: '删除失败',
+   raidRemove: '删除阵列',
+   raidRemoveTitle: '删除 RAID 阵列',
+   raidRemoveMsg: '这将停止阵列并清除 mdadm 元数据,数据将无法恢复。',
+   raidRemoveWarning: '请确保所有成员磁盘已连接。离线磁盘将保留 mdadm 超块,可能需要手动清除。',
+   raidRemoveTypeName: '输入阵列名「{name}」以确认删除',
+   raidRemoveOk: '删除',
++  raidReplace: '更换硬盘',
++  raidReplaceTitle: '更换故障硬盘',
++  raidReplaceFaulty: '故障硬盘',
++  raidReplaceRemoveHint: '该硬盘将从阵列中移除',
++  raidReplaceNew: '更换硬盘',
++  raidReplaceSelect: '选择一块硬盘',
++  raidReplaceWarning: '更换将触发阵列重建,期间性能下降。',
+   raidReplaceSuccess: '已开始更换硬盘',
+   raidReplaceFailed: '更换失败',
+   raidRecoverSuccess: '阵列已恢复',
+   raidRecoverFailed: '识别失败,请检查磁盘连接',
+   raidBaySelectAll: '全选健康盘',
+   raidBayClear: '清空',
+   raidBayFilterAll: '全部',
+   raidBaySelected: '已选 {n} 块 · {size}',
+   raidTaskMeta: 'RAID-{level} · {n} 块盘 · {fs}',
+   raidDetailsBtn: '详情',
+diff --git a/src/storage/components/RaidMemberList.test.ts b/src/storage/components/RaidMemberList.test.ts
+index c6ec585..f09cd09 100644
+--- a/src/storage/components/RaidMemberList.test.ts
++++ b/src/storage/components/RaidMemberList.test.ts
+@@ -22,11 +22,34 @@ describe('RaidMemberList', () => {
+       { path: '/dev/sdc', state: 'active sync set-A', number: 2 },
+     ] }, global: { plugins: [i18n] } })
+     expect(w.findAll('.rml-pair').length).toBe(2)
+   })
+   it('重建中成员显示 rebuild_pct', () => {
+     const w = mount(RaidMemberList, { props: { level: 1, members: [
+       { path: '/dev/sda', state: 'spare rebuilding', number: 0, rebuild_pct: 33 },
+     ] }, global: { plugins: [i18n] } })
+     expect(w.text()).toContain('33')
+   })
++  it('degraded 阵列:faulty 成员行渲染 .rml-replace,点击 emit replace-disk(该盘 path)', async () => {
++    const w = mount(RaidMemberList, { props: { level: 1, isDegraded: true, members: [
++      { path: '/dev/sda', state: 'active sync', number: 0 },
++      { path: '/dev/sdb', state: 'faulty', number: 1 },
++    ] }, global: { plugins: [i18n] } })
++    const buttons = w.findAll('.rml-replace')
++    expect(buttons.length).toBe(1)
++    await buttons[0].trigger('click')
++    expect(w.emitted('replace-disk')).toHaveLength(1)
++    expect(w.emitted('replace-disk')![0]).toEqual(['/dev/sdb'])
++  })
++  it('非 degraded 阵列:faulty 成员行也无替换按钮', () => {
++    const w = mount(RaidMemberList, { props: { level: 1, isDegraded: false, members: [
++      { path: '/dev/sdb', state: 'faulty', number: 1 },
++    ] }, global: { plugins: [i18n] } })
++    expect(w.findAll('.rml-replace').length).toBe(0)
++  })
++  it('degraded 阵列:非 faulty 成员行无替换按钮', () => {
++    const w = mount(RaidMemberList, { props: { level: 1, isDegraded: true, members: [
++      { path: '/dev/sda', state: 'active sync', number: 0 },
++    ] }, global: { plugins: [i18n] } })
++    expect(w.findAll('.rml-replace').length).toBe(0)
++  })
+ })
+diff --git a/src/storage/components/RaidMemberList.vue b/src/storage/components/RaidMemberList.vue
+index 47e58b7..a4ced21 100644
+--- a/src/storage/components/RaidMemberList.vue
++++ b/src/storage/components/RaidMemberList.vue
+@@ -2,65 +2,86 @@
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import type { RaidMemberDisk } from '@nimotech/nimoos-service'
+ import { memberSquare, mirrorPairs } from '../util/raidView'
+ 
+ // 后端在重建期间会给某些成员挂 rebuild_pct(RaidDetailPanel.vue L163),
+ // 但共享包 RaidMemberDisk 尚未声明该可选字段(见 NimoOS-Service/src/raid.ts)——
+ // 本地扩一层类型即可,不改共享包。
+ export type RaidMember = RaidMemberDisk & { rebuild_pct?: number }
+ 
+-const props = defineProps<{ level: number; members: RaidMember[] }>()
++// isDegraded:复用父视图(StorageRaidDetail.vue)既有的 resolveRaidState().isDegraded 计算结果,
++// 不在本组件内重复推导阵列级 degraded 状态(该判定跨 members 之外还看 array.state/isRebuilding 互斥,
++// 详见 raidView.ts resolveRaidState)。
++const props = defineProps<{ level: number; members: RaidMember[]; isDegraded?: boolean }>()
++const emit = defineEmits<{ (e: 'replace-disk', diskPath: string): void }>()
+ const { t } = useI18n()
+ 
+ const pairGroups = computed<RaidMember[][]>(() =>
+   props.level === 10 ? (mirrorPairs(props.members) as RaidMember[][]) : [],
+ )
+ 
+ function dotStyle(state: string) {
+   return { background: `var(${memberSquare(state).token})` }
+ }
+ // unknown 类(labelKey 为空)回退原始 state 字符串
+ function labelFor(m: RaidMember): string {
+   const sq = memberSquare(m.state)
+   return sq.labelKey ? t(sq.labelKey) : m.state
+ }
++// 严格对齐 Vue2 RaidTab.vue:238-251 openReplaceDisk 的判定(m.state === "faulty"),
++// 不复用 memberSquare().kind==='fail'(它还把 'removed' 归为同类)——'removed' 盘不提供替换入口,
++// 与 Vue2 行为一致。
++function showReplace(m: RaidMember): boolean {
++  return !!props.isDegraded && m.state === 'faulty'
++}
+ </script>
+ 
+ <template>
+   <div class="rml">
+     <template v-if="level === 10">
+       <div v-for="(pair, pi) in pairGroups" :key="pi" class="rml-pair">
+         <div v-for="(m, i) in pair" :key="i" class="rml-row">
+           <span class="rml-dot" :style="dotStyle(m.state)"></span>
+           <span class="rml-path">{{ m.path }}</span>
+           <span class="rml-label">{{ labelFor(m) }}</span>
+           <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
++          <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">
++            {{ t('raidReplace') }}
++          </button>
+         </div>
+       </div>
+     </template>
+     <template v-else>
+       <div v-for="(m, i) in members" :key="i" class="rml-row">
+         <span class="rml-dot" :style="dotStyle(m.state)"></span>
+         <span class="rml-path">{{ m.path }}</span>
+         <span class="rml-label">{{ labelFor(m) }}</span>
+         <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
++        <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">
++          {{ t('raidReplace') }}
++        </button>
+       </div>
+     </template>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .rml-row {
+   display: flex; align-items: center; gap: 10px;
+   padding: 8px 12px; border-bottom: 1px solid var(--card-border);
+   font-size: 12.5px;
+ }
+ .rml-row:last-child { border-bottom: none; }
+ .rml-pair { border-bottom: 1px solid var(--card-border); }
+ .rml-pair:last-child { border-bottom: none; }
+ .rml-pair .rml-row:last-child { border-bottom: none; }
+ .rml-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+ .rml-path { font-family: var(--num-font); font-weight: 500; }
+ .rml-label { color: var(--fg-muted); }
+ .rml-pct { margin-left: auto; font-weight: 600; color: var(--accent); }
++.rml-replace {
++  margin-left: auto; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--remove-fg);
++  background: var(--chip-bg); color: var(--remove-fg); cursor: pointer; font-size: 11.5px;
++}
++.rml-replace:hover { background: var(--chip-bg-hi); }
+ </style>
+diff --git a/src/storage/components/RaidReplaceDialog.test.ts b/src/storage/components/RaidReplaceDialog.test.ts
+new file mode 100644
+index 0000000..896969e
+--- /dev/null
++++ b/src/storage/components/RaidReplaceDialog.test.ts
+@@ -0,0 +1,93 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import RaidReplaceDialog from './RaidReplaceDialog.vue'
++import zh from '../../i18n/zh_cn'
++import type { RaidDisk } from '../util/raidLevels'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++// attachTo: document.body 挂载(reka-ui Portal Teleport 到 body)——同目录
++// RaidDeleteDialog.test.ts/FormatDialog.test.ts 同款教训:测试间须清空 body。
++beforeEach(() => {
++  document.body.innerHTML = ''
++})
++
++const disks: RaidDisk[] = [
++  { path: '/dev/sda', size: 1000 },
++  { path: '/dev/sdb', size: 2000 },
++  { path: '/dev/sdc', size: 3000 },
++]
++
++describe('RaidReplaceDialog', () => {
++  const mountIt = (props: Record<string, unknown> = {}) =>
++    mount(RaidReplaceDialog, {
++      props: { open: true, raidId: 7, faultyDiskPath: '/dev/sdb', availableDisks: disks, ...props },
++      global: { plugins: [i18n] },
++      attachTo: document.body,
++    })
++
++  it('新盘下拉排除故障盘', async () => {
++    mountIt()
++    await new Promise((r) => setTimeout(r))
++    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
++    const values = Array.from(select.options).map((o) => o.value).filter(Boolean)
++    expect(values).toEqual(['/dev/sda', '/dev/sdc'])
++  })
++
++  it('未选新盘时确认按钮禁用,选中后启用', async () => {
++    mountIt()
++    await new Promise((r) => setTimeout(r))
++    const ok = document.body.querySelector<HTMLButtonElement>('.rrd-ok')!
++    expect(ok.disabled).toBe(true)
++    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
++    select.value = '/dev/sda'
++    select.dispatchEvent(new Event('change'))
++    await new Promise((r) => setTimeout(r))
++    expect(ok.disabled).toBe(false)
++  })
++
++  it('点击确认按钮 emit confirm(选中的新盘 path),无二次确认弹层', async () => {
++    const w = mountIt()
++    await new Promise((r) => setTimeout(r))
++    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
++    select.value = '/dev/sdc'
++    select.dispatchEvent(new Event('change'))
++    await new Promise((r) => setTimeout(r))
++    document.body.querySelector<HTMLButtonElement>('.rrd-ok')!.click()
++    expect(w.emitted('confirm')).toHaveLength(1)
++    expect(w.emitted('confirm')![0]).toEqual(['/dev/sdc'])
++  })
++
++  it('开/关都清空已选新盘', async () => {
++    const w = mountIt()
++    await new Promise((r) => setTimeout(r))
++    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
++    select.value = '/dev/sda'
++    select.dispatchEvent(new Event('change'))
++    await w.setProps({ open: false })
++    await w.setProps({ open: true })
++    await new Promise((r) => setTimeout(r))
++    expect(document.body.querySelector<HTMLSelectElement>('.rrd-select')!.value).toBe('')
++  })
++
++  it('busy 时确认按钮禁用', async () => {
++    mountIt({ busy: true })
++    await new Promise((r) => setTimeout(r))
++    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
++    select.value = '/dev/sda'
++    select.dispatchEvent(new Event('change'))
++    await new Promise((r) => setTimeout(r))
++    expect(document.body.querySelector<HTMLButtonElement>('.rrd-ok')!.disabled).toBe(true)
++  })
++
++  it('故障盘只读展示 faultyDiskPath', async () => {
++    mountIt()
++    await new Promise((r) => setTimeout(r))
++    // 故障盘展示在 disabled <input> 里,value 不进 textContent,须单独查 .value;
++    // Dialog 内容经 reka-ui Portal Teleport 到 body(同目录 RaidDeleteDialog.test.ts 同款教训)。
++    const input = document.body.querySelector<HTMLInputElement>('.rrd-input')!
++    expect(input.value).toBe('/dev/sdb')
++    expect(input.disabled).toBe(true)
++  })
++})
+diff --git a/src/storage/components/RaidReplaceDialog.vue b/src/storage/components/RaidReplaceDialog.vue
+new file mode 100644
+index 0000000..9482ab1
+--- /dev/null
++++ b/src/storage/components/RaidReplaceDialog.vue
+@@ -0,0 +1,87 @@
++<script setup lang="ts">
++import { ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++import { fmtSize } from '../../home/util/format'
++import type { RaidDisk } from '../util/raidLevels'
++
++// 迁移自 NimoOS-UI/src/components/Storage/raid/RaidReplaceDisk.vue(96 行)。
++// 逐字对齐:故障盘只读展示(:9-15)、新盘单选下拉排除故障盘(:18-28)、黄色警告(:31-33)、
++// footer danger 按钮直接执行——无二次确认弹层(:36-40)。
++// store 调用留给父视图(StorageRaidDetail.vue),本组件只 emit confirm(newDiskPath)。
++const props = defineProps<{
++  open: boolean
++  raidId: number | string
++  faultyDiskPath: string
++  availableDisks: RaidDisk[]
++  busy?: boolean
++}>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', newDiskPath: string): void }>()
++const { t } = useI18n()
++const newDiskPath = ref('')
++
++// 开/关都清空选择:对齐 RaidDeleteDialog/FormatDialog 同款教训——不重新打开也须已清空,
++// 避免下一次打开残留上一块盘的选中。
++watch(
++  () => props.open,
++  () => {
++    newDiskPath.value = ''
++  },
++)
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('raidReplaceTitle')" @update:open="emit('update:open', $event)">
++    <div class="rrd-field">
++      <label class="rrd-label">{{ t('raidReplaceFaulty') }}</label>
++      <input class="rrd-input" type="text" :value="faultyDiskPath" disabled />
++      <p class="rrd-hint">{{ t('raidReplaceRemoveHint') }}</p>
++    </div>
++    <div class="rrd-field">
++      <label class="rrd-label">{{ t('raidReplaceNew') }}</label>
++      <select v-model="newDiskPath" class="rrd-select">
++        <option value="" disabled>{{ t('raidReplaceSelect') }}</option>
++        <option
++          v-for="disk in availableDisks.filter((d) => d.path !== faultyDiskPath)"
++          :key="disk.path"
++          :value="disk.path"
++        >
++          {{ disk.path }} — {{ fmtSize(disk.size) }}
++        </option>
++      </select>
++    </div>
++    <p class="rrd-warning">⚠️ {{ t('raidReplaceWarning') }}</p>
++    <template #footer>
++      <button class="rrd-cancel" type="button" :disabled="busy" @click="emit('update:open', false)">
++        {{ t('storageCancel') }}
++      </button>
++      <button class="rrd-ok danger" type="button" :disabled="!newDiskPath || busy" @click="emit('confirm', newDiskPath)">
++        {{ t('raidReplace') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.rrd-field { margin-bottom: 12px; }
++.rrd-label { display: block; font-size: 12px; color: var(--fg-muted); margin-bottom: 4px; }
++.rrd-input {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg-muted); outline: none;
++}
++.rrd-select {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); outline: none;
++}
++.rrd-select:focus { border-color: var(--accent); }
++.rrd-hint { margin: 4px 0 0; font-size: 12px; color: var(--remove-fg); }
++.rrd-warning { margin: 0 0 12px; font-size: 12px; color: var(--dem-fg); }
++.rrd-cancel, .rrd-ok {
++  padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
++}
++.rrd-cancel:disabled, .rrd-ok:disabled { opacity: 0.45; cursor: not-allowed; }
++.rrd-ok.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
++</style>
+diff --git a/src/views/StorageRaidDetail.vue b/src/views/StorageRaidDetail.vue
+index b27b535..bdd408a 100644
+--- a/src/views/StorageRaidDetail.vue
++++ b/src/views/StorageRaidDetail.vue
+@@ -1,17 +1,18 @@
+ <script setup lang="ts">
+ import { computed, onMounted, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import StorageShell from '../storage/components/StorageShell.vue'
+ import RaidMemberList from '../storage/components/RaidMemberList.vue'
+ import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
++import RaidReplaceDialog from '../storage/components/RaidReplaceDialog.vue'
+ import { useStorageStore } from '../storage/stores/storage'
+ import { useGuardedPoll } from '../composables/useGuardedPoll'
+ import { fmtSize } from '../home/util/format'
+ import {
+   resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo,
+   type RaidArray,
+ } from '../storage/util/raidView'
+ 
+ const store = useStorageStore()
+ const route = useRoute()
+@@ -94,20 +95,33 @@ function backToList() {
+ }
+ 
+ const deleteOpen = ref(false)
+ async function onDelete() {
+   const ok = await store.removeRaid(idStr.value)
+   if (ok) {
+     deleteOpen.value = false
+     router.push('/storage/raid')
+   }
+ }
++
++// 换盘(P4 T7):RaidMemberList 的 faulty 成员行 emit replace-disk(diskPath) → 开弹窗;
++// 弹窗 emit confirm(newDiskPath) 才真正调 store(store 调用留在视图,不在弹窗内)。
++const replaceOpen = ref(false)
++const replaceTarget = ref('')
++function onReplaceRequested(diskPath: string) {
++  replaceTarget.value = diskPath
++  replaceOpen.value = true
++}
++async function onReplace(newDiskPath: string) {
++  const ok = await store.replaceRaidDisk(idStr.value, { old_disk_path: replaceTarget.value, new_disk_path: newDiskPath })
++  if (ok) replaceOpen.value = false
++}
+ </script>
+ 
+ <template>
+   <StorageShell>
+     <div class="rd">
+       <header class="rd-head">
+         <button class="rd-back" type="button" @click="backToList">‹ {{ t('storageTabRaid') }}</button>
+         <h2 class="rd-name">{{ array.name }}</h2>
+         <span class="rd-level">RAID {{ array.level }}</span>
+         <span class="rc-badge" :class="severity">{{ t(labelKey) }}</span>
+@@ -115,20 +129,30 @@ async function onDelete() {
+       </header>
+ 
+       <RaidDeleteDialog
+         :open="deleteOpen"
+         :name="array.name"
+         :busy="store.raidRemoving"
+         @update:open="deleteOpen = $event"
+         @confirm="onDelete"
+       />
+ 
++      <RaidReplaceDialog
++        :open="replaceOpen"
++        :raid-id="idStr"
++        :faulty-disk-path="replaceTarget"
++        :available-disks="store.availDisks"
++        :busy="store.raidReplacing"
++        @update:open="replaceOpen = $event"
++        @confirm="onReplace"
++      />
++
+       <div class="rd-cols">
+         <div class="rd-col-left">
+           <div class="rd-card rd-donut-card">
+             <div class="rd-donut" :style="donutStyle">
+               <div class="rd-donut-center">
+                 <div class="rd-donut-pct">{{ pct }}%</div>
+               </div>
+             </div>
+             <div class="rd-legend">
+               <div class="rd-legend-row">
+@@ -165,21 +189,26 @@ async function onDelete() {
+               <span class="rd-val" :style="{ color: `var(${severityToken(severity)})` }">{{ t(labelKey) }}</span>
+             </div>
+             <div v-if="rebuildFinish" class="rd-row"><span class="rd-key">{{ t('raidRebuildFinish') }}</span><span class="rd-val" style="color: var(--accent)">{{ rebuildFinish }}</span></div>
+             <div v-if="rebuildSpeed" class="rd-row"><span class="rd-key">{{ t('raidRebuildSpeed') }}</span><span class="rd-val" style="color: var(--accent)">{{ rebuildSpeed }}</span></div>
+             <div v-if="showBtrfsRows" class="rd-row"><span class="rd-key">{{ t('raidBtrfsFreeEst') }}</span><span class="rd-val">{{ fmtSize(btrfsFreeBytes) }}</span></div>
+             <div v-if="showBtrfsRows && btrfsCachedAtLabel" class="rd-row"><span class="rd-key">{{ t('raidBtrfsCachedAt') }}</span><span class="rd-val">{{ btrfsCachedAtLabel }}</span></div>
+           </div>
+ 
+           <div class="rd-card">
+             <div class="rd-card-title">{{ t('raidMembers') }} ({{ members.length }})</div>
+-            <RaidMemberList :level="array.level" :members="members" />
++            <RaidMemberList
++              :level="array.level"
++              :members="members"
++              :is-degraded="flags.isDegraded"
++              @replace-disk="onReplaceRequested"
++            />
+           </div>
+         </div>
+       </div>
+     </div>
+   </StorageShell>
+ </template>
+ 
+ <style scoped>
+ .rd-head { display: flex; align-items: center; gap: 12px; padding: 4px 0 16px; flex-wrap: wrap; }
+ .rd-back {

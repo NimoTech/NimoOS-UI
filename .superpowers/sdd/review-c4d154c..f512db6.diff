@@ -1,0 +1,596 @@
+# Review package: c4d154c..HEAD
+
+## Commits
+f512db6 refactor(shell): FilesShell 提升为通用 AreaShell(title 走 prop),useSidebarDrawer 上移通用层;files 三页换壳零行为变化(SP5-P1)
+
+## Files changed
+ .../shell/AreaShell.test.ts}                       | 13 ++++---
+ src/components/shell/AreaShell.vue                 | 44 ++++++++++++++++++++++
+ .../composables/useSidebarDrawer.test.ts           |  0
+ src/{files => }/composables/useSidebarDrawer.ts    |  2 +-
+ src/files/components/FilesShell.vue                | 43 ---------------------
+ src/files/components/FilesSidebar.drawer.test.ts   |  2 +-
+ src/files/components/FilesSidebar.vue              |  4 +-
+ src/files/drop/components/DropPage.test.ts         |  4 +-
+ src/files/drop/components/DropPage.vue             |  6 +--
+ src/files/shares/SharesPage.vue                    |  6 +--
+ src/i18n/en_us.ts                                  |  2 +
+ src/i18n/zh_cn.ts                                  |  2 +
+ src/styles/theme.css                               |  2 +-
+ src/views/Files.vue                                |  6 +--
+ 14 files changed, 71 insertions(+), 65 deletions(-)
+
+## Diff
+diff --git a/src/files/components/FilesShell.test.ts b/src/components/shell/AreaShell.test.ts
+similarity index 68%
+rename from src/files/components/FilesShell.test.ts
+rename to src/components/shell/AreaShell.test.ts
+index 3fcff51..1c3a6ee 100644
+--- a/src/files/components/FilesShell.test.ts
++++ b/src/components/shell/AreaShell.test.ts
+@@ -1,26 +1,27 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+-import FilesShell from './FilesShell.vue'
++import AreaShell from './AreaShell.vue'
+ 
+ const push = vi.fn()
+ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+-describe('FilesShell', () => {
++describe('AreaShell', () => {
+   beforeEach(() => { setActivePinia(createPinia()); push.mockClear() })
+ 
+-  it('renders title, slot content, and back-home button that routes to /', async () => {
+-    const w = mount(FilesShell, {
++  it('渲染 title prop、slot 内容,回主页键 push /', async () => {
++    const w = mount(AreaShell, {
++      props: { title: '应用' },
+       global: { plugins: [i18n] },
+       slots: { default: '<div class="probe">hi</div>' },
+     })
+     expect(w.get('.probe').text()).toBe('hi')
+-    expect(w.text()).toContain('文件')
+-    await w.get('.files-home-btn').trigger('click')
++    expect(w.text()).toContain('应用')
++    await w.get('.area-home-btn').trigger('click')
+     expect(push).toHaveBeenCalledWith('/')
+   })
+ })
+diff --git a/src/components/shell/AreaShell.vue b/src/components/shell/AreaShell.vue
+new file mode 100644
+index 0000000..df89cc9
+--- /dev/null
++++ b/src/components/shell/AreaShell.vue
+@@ -0,0 +1,44 @@
++<script setup lang="ts">
++import { useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
++
++defineProps<{ title: string }>()
++const router = useRouter()
++const { t } = useI18n()
++const { isNarrow, toggle } = useSidebarDrawer()
++function goHome() { router.push('/') }
++</script>
++
++<template>
++  <div class="area-shell">
++    <header class="area-bar">
++      <button v-if="isNarrow" class="bar-btn area-menu-btn" type="button" :aria-label="t('areaSidebarToggle')" @click="toggle">☰</button>
++      <button class="bar-btn area-home-btn" type="button" @click="goHome">‹ {{ t('areaBackHome') }}</button>
++      <h1 class="area-title">{{ title }}</h1>
++    </header>
++    <main class="area-body">
++      <slot />
++    </main>
++  </div>
++</template>
++
++<style scoped>
++/* 100dvh:手机浏览器的 100vh 含被地址栏/工具条遮住的区域,会把最后一行内容压到工具条背后;
++   dvh 随浏览器 UI 伸缩取真实可见高度。前一行 100vh 是旧内核兜底。 */
++.area-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; color: var(--fg); }
++.area-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
++.area-title { font-size: 18px; font-weight: 600; margin: 0; }
++.area-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }
++
++/* 窄屏(≤768px):侧栏变抽屉,头部内边距/间距收紧以省空间 */
++@media (max-width: 768px) {
++  .area-bar { padding: 12px; gap: 10px; }
++  .area-body { padding: 0 12px 12px; }
++}
++/* 桌面态:回主页+标题已并入各区侧栏玻璃面板(Sidebar .side-top),顶栏整条隐藏、内容顶到上缘 */
++@media (min-width: 769px) {
++  .area-bar { display: none; }
++  .area-body { padding: 20px; }
++}
++</style>
+diff --git a/src/files/composables/useSidebarDrawer.test.ts b/src/composables/useSidebarDrawer.test.ts
+similarity index 100%
+rename from src/files/composables/useSidebarDrawer.test.ts
+rename to src/composables/useSidebarDrawer.test.ts
+diff --git a/src/files/composables/useSidebarDrawer.ts b/src/composables/useSidebarDrawer.ts
+similarity index 90%
+rename from src/files/composables/useSidebarDrawer.ts
+rename to src/composables/useSidebarDrawer.ts
+index dcbfa92..77ec938 100644
+--- a/src/files/composables/useSidebarDrawer.ts
++++ b/src/composables/useSidebarDrawer.ts
+@@ -1,13 +1,13 @@
+ import { ref } from 'vue'
+ 
+-// 模块级单例(useDock/useAddPanel 同款):FilesShell(☰ 钮)与 FilesSidebar(抽屉/遮罩)
++// 模块级单例(useDock/useAddPanel 同款):AreaShell(☰ 钮)与各区 Sidebar(files/apps)(抽屉/遮罩)
+ // 以及三个页面(Files/Shares/Drop)共享同一份状态。
+ // matchMedia 不存在时(jsdom)isNarrow 恒 false,一切退化为桌面常驻侧栏。
+ const isNarrow = ref(false)
+ const open = ref(false)
+ let mq: MediaQueryList | null = null
+ let inited = false
+ 
+ function onChange(e: MediaQueryListEvent | { matches: boolean }) {
+   isNarrow.value = e.matches
+   if (!e.matches) open.value = false // 离开窄屏清零抽屉态,桌面恒常驻
+diff --git a/src/files/components/FilesShell.vue b/src/files/components/FilesShell.vue
+deleted file mode 100644
+index 9993a3a..0000000
+--- a/src/files/components/FilesShell.vue
++++ /dev/null
+@@ -1,43 +0,0 @@
+-<script setup lang="ts">
+-import { useRouter } from 'vue-router'
+-import { useI18n } from 'vue-i18n'
+-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+-
+-const router = useRouter()
+-const { t } = useI18n()
+-const { isNarrow, toggle } = useSidebarDrawer()
+-function goHome() { router.push('/') }
+-</script>
+-
+-<template>
+-  <div class="files-shell">
+-    <header class="files-bar">
+-      <button v-if="isNarrow" class="bar-btn files-menu-btn" type="button" :aria-label="t('filesSidebarToggle')" @click="toggle">☰</button>
+-      <button class="bar-btn files-home-btn" type="button" @click="goHome">‹ {{ t('filesBackHome') }}</button>
+-      <h1 class="files-title">{{ t('filesTitle') }}</h1>
+-    </header>
+-    <main class="files-body">
+-      <slot />
+-    </main>
+-  </div>
+-</template>
+-
+-<style scoped>
+-/* 100dvh:手机浏览器的 100vh 含被地址栏/工具条遮住的区域,会把最后一行文件压到工具条背后;
+-   dvh 随浏览器 UI 伸缩取真实可见高度。前一行 100vh 是旧内核兜底。 */
+-.files-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; color: var(--fg); }
+-.files-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
+-.files-title { font-size: 18px; font-weight: 600; margin: 0; }
+-.files-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }
+-
+-/* 窄屏(≤768px):侧栏变抽屉,头部内边距/间距收紧以省空间 */
+-@media (max-width: 768px) {
+-  .files-bar { padding: 12px; gap: 10px; }
+-  .files-body { padding: 0 12px 12px; }
+-}
+-/* 桌面态:回主页+标题已并入侧栏玻璃面板(FilesSidebar .side-top),顶栏整条隐藏、内容顶到上缘 */
+-@media (min-width: 769px) {
+-  .files-bar { display: none; }
+-  .files-body { padding: 20px; }
+-}
+-</style>
+diff --git a/src/files/components/FilesSidebar.drawer.test.ts b/src/files/components/FilesSidebar.drawer.test.ts
+index d2050b7..74cdc7b 100644
+--- a/src/files/components/FilesSidebar.drawer.test.ts
++++ b/src/files/components/FilesSidebar.drawer.test.ts
+@@ -1,19 +1,19 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createMemoryHistory } from 'vue-router'
+ import { nextTick } from 'vue'
+ import FilesSidebar from './FilesSidebar.vue'
+ import { useFilesStore } from '../stores/files'
+-import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../composables/useSidebarDrawer'
++import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+     folder: { getList: vi.fn() },
+     driver: { listDrivers: vi.fn().mockResolvedValue([]) },
+     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
+   },
+ }))
+ 
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index d327ad9..c78b458 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -8,21 +8,21 @@ import { useMountsStore } from '../stores/mounts'
+ import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+ import { buildAuthUrl } from '../util/cloudAuth'
+ import { dropAsset } from '../drop/dropIcons'
+ import type { CloudDriver } from '@nimotech/nimoos-service'
+ import AddMountMenu from './AddMountMenu.vue'
+ import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
+-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
++import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+ const router = useRouter()
+ const route = useRoute()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const mounts = useMountsStore()
+ const dialogOpen = ref(false)
+ const gdriveOpen = ref(false)
+ const { t } = useI18n()
+@@ -116,21 +116,21 @@ function onDiskDrop(i: number) {
+   const order = arr.map((d) => d.path)
+   writeOrder(order)
+   writeDefault(order[0] || '')
+   orderVersion.value++
+ }
+ </script>
+ 
+ <template>
+   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
+   <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(FilesShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
++    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
+     <div v-if="!isNarrow" class="side-top">
+       <h1 class="side-app-title">{{ t('filesTitle') }}</h1>
+       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>
+     </div>
+     <div class="side-head">
+       <span class="side-head-title">{{ t('filesMountManage') }}</span>
+       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
+     </div>
+     <section class="side-section">
+       <ul class="side-list">
+diff --git a/src/files/drop/components/DropPage.test.ts b/src/files/drop/components/DropPage.test.ts
+index 1f922a8..119828e 100644
+--- a/src/files/drop/components/DropPage.test.ts
++++ b/src/files/drop/components/DropPage.test.ts
+@@ -8,21 +8,21 @@ import { i18n } from '../../../i18n'
+ 
+ vi.mock('../serverConnection', () => ({ ServerConnection: class { connect = vi.fn(); destroy = vi.fn(); send = vi.fn() } }))
+ vi.mock('../peersManager', () => ({ PeersManager: class { handleServerMessage = vi.fn(); sendFiles = vi.fn(() => true); destroy = vi.fn() } }))
+ vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () => {}), service: {} }))
+ 
+ const router = createRouter({ history: createWebHashHistory(), routes: [{ path: '/:p(.*)*', component: { template: '<div/>' } }] })
+ 
+ describe('DropPage', () => {
+   let pinia: ReturnType<typeof createPinia>
+   beforeEach(() => { pinia = createPinia(); setActivePinia(pinia) })
+-  const mountPage = () => mount(DropPage, { global: { plugins: [pinia, i18n, router], stubs: { FilesShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
++  const mountPage = () => mount(DropPage, { global: { plugins: [pinia, i18n, router], stubs: { AreaShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
+ 
+   it('mount 调 store.init,unmount 调 destroy', async () => {
+     const s = useDropStore()
+     const initSpy = vi.spyOn(s, 'init')
+     const destroySpy = vi.spyOn(s, 'destroy')
+     const w = mountPage()
+     await flushPromises()
+     expect(initSpy).toHaveBeenCalledOnce()
+     w.unmount()
+     expect(destroySpy).toHaveBeenCalledOnce()
+@@ -37,21 +37,21 @@ describe('DropPage', () => {
+     const w = mountPage()
+     await flushPromises()
+     expect(w.findAllComponents({ name: 'DropItem' }).length).toBe(2)
+     expect(w.text()).toContain('Pad')
+   })
+   it('侧栏 @navigate 事件跳转到目标路径', async () => {
+     const w = mount(DropPage, {
+       global: {
+         plugins: [pinia, i18n, router],
+         stubs: {
+-          FilesShell: { template: '<div><slot/></div>' },
++          AreaShell: { template: '<div><slot/></div>' },
+           FilesSidebar: { template: '<button class="nav-stub" @click="$emit(\'navigate\', \'TestDisk/docs\')" />' },
+         },
+       },
+     })
+     await router.isReady()
+     await flushPromises()
+     w.find('.nav-stub').trigger('click')
+     await flushPromises()
+     expect(router.currentRoute.value.path).toBe('/files/TestDisk/docs')
+   })
+diff --git a/src/files/drop/components/DropPage.vue b/src/files/drop/components/DropPage.vue
+index c7d35cc..773f41b 100644
+--- a/src/files/drop/components/DropPage.vue
++++ b/src/files/drop/components/DropPage.vue
+@@ -1,16 +1,16 @@
+ <!-- src/files/drop/components/DropPage.vue -->
+ <script setup lang="ts">
+ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+ import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+-import FilesShell from '../../components/FilesShell.vue'
++import AreaShell from '../../../components/shell/AreaShell.vue'
+ import FilesSidebar from '../../components/FilesSidebar.vue'
+ import DropItem from './DropItem.vue'
+ import DropCenter from './DropCenter.vue'
+ import DropAddButton from './DropAddButton.vue'
+ import ReceivePrompt from './ReceivePrompt.vue'
+ import { useDropStore } from '../stores/drop'
+ import { useFilesStore } from '../../stores/files'
+ import { contentsBox, positionFor, DISPLAY_ORDER } from '../dropLayout'
+ import { virtualPathToRouteParam } from '../../util/pathUtils'
+ 
+@@ -49,21 +49,21 @@ onMounted(() => {
+   drop.init()
+   if (!files.disks.length) files.loadRoots() // 侧栏盘符列表(对齐 SharesPage;漏掉则 DISKS 区恒空)
+ })
+ onBeforeUnmount(() => {
+   window.removeEventListener('resize', resize)
+   drop.destroy()
+ })
+ </script>
+ 
+ <template>
+-  <FilesShell>
++  <AreaShell :title="t('filesTitle')">
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <main ref="areaEl" class="drop-main" :class="{ narrow: isNarrow }">
+         <h2 class="drop-title">{{ t('filesDropTitle') }}</h2>
+         <div class="drop-pulse" aria-hidden="true"><i /><i /><i /></div>
+         <div class="drop-area" :style="!isNarrow ? { width: box.width + 'px', height: box.height + 'px' } : undefined">
+           <DropItem
+             v-for="p in placed"
+             :key="p.peer.id"
+             :device="p.peer"
+@@ -73,21 +73,21 @@ onBeforeUnmount(() => {
+             :transfer="drop.transfers[p.peer.id]"
+             :suspended="!drop.connected"
+             @select-files="(files) => drop.sendFiles(p.peer.id, files)"
+           />
+         </div>
+         <DropCenter v-if="!isNarrow" />
+         <DropAddButton />
+         <ReceivePrompt />
+       </main>
+     </div>
+-  </FilesShell>
++  </AreaShell>
+ </template>
+ 
+ <style scoped>
+ /* Drop 页与 SharesPage 的关键差异:本页主区内容全是绝对定位(不撑高度),
+    容器必须给出确定高度——height:100%(而非 min-height)+ drop-main 拉伸,
+    否则 .drop-main 塌缩到标题高,resize() 量出 ~56px,contentsBox 算出负几何,气泡全部飞出可视区。 */
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+ .drop-main { position: relative; flex: 1; align-self: stretch; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+ .drop-title { align-self: flex-start; margin: 16px 20px; font-size: 18px; color: var(--fg); }
+ .drop-area { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
+diff --git a/src/files/shares/SharesPage.vue b/src/files/shares/SharesPage.vue
+index 2269ce0..850f4e6 100644
+--- a/src/files/shares/SharesPage.vue
++++ b/src/files/shares/SharesPage.vue
+@@ -1,15 +1,15 @@
+ <script setup lang="ts">
+ import { onMounted, ref } from 'vue'
+ import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+-import FilesShell from '../components/FilesShell.vue'
++import AreaShell from '../../components/shell/AreaShell.vue'
+ import FilesSidebar from '../components/FilesSidebar.vue'
+ import ShareRow from './ShareRow.vue'
+ import ShareLinkDialog from './ShareLinkDialog.vue'
+ import AlertDialog from '../../components/ui/AlertDialog.vue'
+ import { useSharesStore, type ShareRow as ShareRowT } from '../stores/shares'
+ import { useFilesStore } from '../stores/files'
+ import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
+ 
+ const router = useRouter()
+ const { t } = useI18n()
+@@ -33,42 +33,42 @@ function onGetLink(row: ShareRowT) { linkDlg.value = { open: true, name: row.nam
+ // await loadRoots() 拿到 displayNames 再映射,不依赖 onMounted 那次 fire-and-forget 调用的时序。
+ async function onGoto(row: ShareRowT) {
+   if (!files.disks.length) await files.loadRoots()
+   goVirtual(toVirtualPath(row.path, files.displayNames))
+ }
+ function onUnshare(row: ShareRowT) { delDlg.value = { open: true, row } }
+ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row.id); delDlg.value.open = false }
+ </script>
+ 
+ <template>
+-  <FilesShell>
++  <AreaShell :title="t('filesTitle')">
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <main class="shares-main">
+         <h2 class="shares-title">{{ t('filesSharesTitle') }}</h2>
+         <p v-if="!shares.loading && !shares.items.length" class="shares-empty">{{ t('filesSharesEmpty') }}</p>
+         <ul class="shares-list">
+           <ShareRow v-for="row in shares.items" :key="row.id" :row="row" @get-link="onGetLink" @goto="onGoto" @unshare="onUnshare" />
+         </ul>
+       </main>
+     </div>
+     <ShareLinkDialog v-model:open="linkDlg.open" :name="linkDlg.name" />
+     <AlertDialog
+       v-model:open="delDlg.open"
+       :title="t('filesUnshareConfirmTitle')"
+       :message="t('filesUnshareConfirmMsg', { name: delDlg.row?.name ?? '' })"
+       :confirm-text="t('filesUnshare')"
+       :cancel-text="t('filesCancel')"
+       destructive
+       @confirm="confirmUnshare"
+     />
+-  </FilesShell>
++  </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .shares-main { flex: 1 1 auto; min-width: 0; }
+ .shares-title { font-size: 16px; font-weight: 600; margin: 4px 0 14px; }
+ .shares-empty { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
+ .shares-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+ @media (max-width: 768px) {
+   .files-layout { gap: 0; }
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 5090b64..57145a6 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1,20 +1,22 @@
+ export const messages = {
+   en_us: {
+     appTitle: 'NimoOS · New Home Base',
+     backToOld: '← Back to main app',
+     cpu: 'CPU',
+     memory: 'Memory',
+     collecting: 'Collecting…',
+     filesTitle: 'Files',
+     filesSidebarToggle: 'Sidebar',
+     filesBackHome: 'Home',
++    areaSidebarToggle: 'Sidebar',
++    areaBackHome: 'Home',
+     filesEmpty: 'This folder is empty',
+     filesViewList: 'List',
+     filesViewGrid: 'Grid',
+     filesColName: 'Name',
+     filesColType: 'Type',
+     filesColDate: 'Date modified',
+     filesColSize: 'Size',
+     filesFavorites: 'Favorites',
+     filesDisks: 'Disks',
+     filesNoFavorites: 'No favorites yet',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 1f7557f..c50afbd 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1,20 +1,22 @@
+ export const messages = {
+   zh_cn: {
+     appTitle: 'NimoOS · 新主页地基',
+     backToOld: '← 返回主应用',
+     cpu: '处理器',
+     memory: '内存',
+     collecting: '采集中…',
+     filesTitle: '文件',
+     filesSidebarToggle: '侧栏',
+     filesBackHome: '回主页',
++    areaSidebarToggle: '侧栏',
++    areaBackHome: '回主页',
+     filesEmpty: '此文件夹为空',
+     filesViewList: '列表',
+     filesViewGrid: '网格',
+     filesColName: '名称',
+     filesColType: '类型',
+     filesColDate: '修改日期',
+     filesColSize: '大小',
+     filesFavorites: '收藏',
+     filesDisks: '磁盘',
+     filesNoFavorites: '暂无收藏',
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index bc74928..160ef69 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -276,21 +276,21 @@ body {
+   margin: 0;
+   min-height: 100dvh;
+   color: var(--fg);
+   font-family: var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif);
+   overflow: hidden;
+ }
+ button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+ :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+ .icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: var(--stroke, 1.9); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+ 
+-/* 通透玻璃 chip 按钮（全局），HomeTopbar/FilesShell/ViewerShell 共用同一形态 */
++/* 通透玻璃 chip 按钮（全局），HomeTopbar/AreaShell/ViewerShell 共用同一形态 */
+ .bar-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border: 1px solid var(--chip-border); border-radius: var(--chip-radius, 999px); background: var(--chip-bg); color: var(--fg); font-size: 13px; font-weight: 500; cursor: pointer; backdrop-filter: var(--blur); transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; text-decoration: none; }
+ .bar-btn:hover { background: var(--chip-bg-hi); }
+ .bar-btn .icon { width: 16px; height: 16px; }
+ 
+ /* ---- 柔光纵深背景（暗调环境，让通透面板浮起来）+ 视差 ---- */
+ body {
+   background: var(--app-bg);
+   background-attachment: fixed;
+ }
+ /* 散景光斑层（高斯模糊 + 缓动 + 随鼠标视差） */
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 227a006..e26ca80 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,15 +1,15 @@
+ <script setup lang="ts">
+ import { watch, onMounted, onUnmounted, computed, ref, nextTick } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+-import FilesShell from '../files/components/FilesShell.vue'
++import AreaShell from '../components/shell/AreaShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import NewItemDialog from '../files/components/NewItemDialog.vue'
+ import RenameDialog from '../files/components/RenameDialog.vue'
+ import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
+ import AlertDialog from '../components/ui/AlertDialog.vue'
+@@ -371,21 +371,21 @@ onUnmounted(() => { offRecover?.() })
+ let offUnloadGuard: (() => void) | null = null
+ onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+ onUnmounted(() => { offUnloadGuard?.() })
+ 
+ // 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
+ // 失败降级为内存模式,不阻断文件区渲染。
+ onMounted(() => { uploads.initUploads() })
+ </script>
+ 
+ <template>
+-  <FilesShell>
++  <AreaShell :title="t('filesTitle')">
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <div
+         class="files-main"
+         @mousedown="onMarqueeDown"
+         @dragover.prevent="onDragOver"
+         @dragleave="onDragLeave"
+         @drop.prevent="onDrop"
+       >
+         <div v-if="isDragIn" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
+@@ -462,21 +462,21 @@ onMounted(() => { uploads.initUploads() })
+       :message="t('filesDownloadPromptMessage', { name: downloadDlg.entry?.name ?? '' })"
+       :confirm-text="t('filesDownload')"
+       :cancel-text="t('filesCancel')"
+       @confirm="confirmDownload"
+     />
+     <OperationStatusBar />
+     <UploadPanel />
+     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
+     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
+     <ViewerHost />
+-  </FilesShell>
++  </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .files-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+ .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+ .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+ .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+ .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }

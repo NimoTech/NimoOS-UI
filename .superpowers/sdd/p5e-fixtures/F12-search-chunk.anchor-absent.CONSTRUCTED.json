@@ -1,0 +1,20 @@
+{
+ "_provenance": "CONSTRUCTED(D-6 模具)—— 本机无真样本:F6/F6b 两个真窗口都恰好包含 anchor。\n字段形状的权威源 = NimoOS-Search/service/authz.go:96-101 (ChunkContextResponse) + :103-149。\n构造依据(为什么这个响应是后端真会产生的):GetChunkWindow 把请求里的 chunk_no 原样回显成\nanchor_chunk_no(authz.go:146-148),而 chunks 只保留「kind 相同 且 落在 [chunk_no-W, chunk_no+W]」的点\n(:120-125)—— 若 anchor 那一条被 re-chunk / tombstone 掉而邻居还在,anchor 就不在 chunks 里。\n⇒ 蓝本 FileDetailDrawer.vue:156 的 (r.chunks||[]).find(x => x.chunk_no === r.anchor_chunk_no) 得 undefined,\n   落到 :157 的 (anchor && anchor.text) || c.snippet || '' —— 这条兜底分支的唯一样本。\n🔴 抄进测试时删掉所有 _ 前缀的键。",
+ "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+ "kind": "body",
+ "anchor_chunk_no": 2387,
+ "chunks": [
+  {
+   "chunk_no": 2386,
+   "text": "neighbour before the anchor",
+   "offset_start": 1000,
+   "offset_end": 2000
+  },
+  {
+   "chunk_no": 2388,
+   "text": "neighbour after the anchor",
+   "offset_start": 3000,
+   "offset_end": 4000
+  }
+ ]
+}

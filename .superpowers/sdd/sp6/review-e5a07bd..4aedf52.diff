@@ -1,0 +1,230 @@
+# Review package: e5a07bd..4aedf52
+
+## Commits
+4aedf52 feat(storage): 映射纯函数——字符串数值转换/占用率/health 严格判定(SP6-P1)
+
+## Files changed
+ src/storage/util/storageMap.test.ts | 100 +++++++++++++++++++++++++++++++++
+ src/storage/util/storageMap.ts      | 107 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 207 insertions(+)
+
+## Diff
+diff --git a/src/storage/util/storageMap.test.ts b/src/storage/util/storageMap.test.ts
+new file mode 100644
+index 0000000..8b5c0b9
+--- /dev/null
++++ b/src/storage/util/storageMap.test.ts
+@@ -0,0 +1,100 @@
++import { describe, it, expect } from 'vitest'
++import { mapVolumes, mapDrives, usageLevel, toFahrenheit } from './storageMap'
++
++// 真机 2026-07-23 实拍:size/avail 是字符串
++const LIVE_GROUPS = [
++  {
++    disk_name: 'System', size: 512110190592, path: '/dev/nvme0n1', type: 'nvme',
++    children: [
++      {
++        uuid: 'da0e4da3', mount_point: '/', size: '512110190592', avail: '384614653440',
++        used: '127495537152', type: 'ext4', path: '/dev/nvme0n1p7',
++        drive_name: 'nvme0n1p7', label: 'NimoOS-HD',
++      },
++    ],
++  },
++  {
++    disk_name: 'Storage1', size: 2000000000000, path: '/dev/sda', type: 'sata',
++    children: [
++      { uuid: 'aaa', mount_point: '/mnt/s1', size: '2000000000000', avail: '1000000000000', type: 'ext4', path: '/dev/sda1', drive_name: 'sda1', label: 'Storage1' },
++      { uuid: 'bbb', mount_point: '/mnt/raid0', size: '100', avail: '50', type: 'ext4', path: '/dev/sda9', drive_name: 'sda9', label: 'zzz-on-raid' },
++    ],
++  },
++]
++
++describe('mapVolumes', () => {
++  it('拍平 children、字符串数值转数字、算占用率', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    const sys = v.find((x) => x.isSystem)!
++    expect(sys.name).toBe('NimoOS-HD')
++    expect(sys.size).toBe(512110190592)
++    expect(sys.availSize).toBe(384614653440)
++    expect(sys.usedSize).toBe(512110190592 - 384614653440)
++    // Vue2 逐字:100 - Math.floor(avail*100/size)
++    expect(sys.usePercent).toBe(100 - Math.floor((384614653440 * 100) / 512110190592))
++    expect(sys.fsType).toBe('ext4')
++    expect(sys.mountPoint).toBe('/')
++    expect(sys.disk).toBe('/dev/nvme0n1')
++    expect(sys.driveName).toBe('nvme0n1p7')
++  })
++  it('isSystem 只认 disk_name === "System"', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    expect(v.filter((x) => x.isSystem)).toHaveLength(1)
++    expect(v.find((x) => x.name === 'Storage1')!.isSystem).toBe(false)
++  })
++  it('RAID 挂载点被排除', () => {
++    const v = mapVolumes(LIVE_GROUPS, new Set(['/mnt/raid0']))
++    expect(v.map((x) => x.name)).not.toContain('zzz-on-raid')
++    expect(v).toHaveLength(2)
++  })
++  it('排序:父盘名 desc、label asc(System 在前)', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    expect(v[0].isSystem).toBe(true)
++    expect(v[1].name < (v[2]?.name ?? '￿')).toBe(true)
++  })
++  it('size 为 0 或缺失时占用率为 0,不产生 NaN', () => {
++    const v = mapVolumes([{ disk_name: 'X', path: '/dev/x', children: [{ label: 'e', mount_point: '/e' }] }])
++    expect(v[0].usePercent).toBe(0)
++    expect(v[0].size).toBe(0)
++  })
++  it('非数组/垃圾输入返回空数组', () => {
++    expect(mapVolumes(null)).toEqual([])
++    expect(mapVolumes({ nope: 1 })).toEqual([])
++  })
++})
++
++describe('mapDrives', () => {
++  const LIVE_DISKS = [
++    { name: 'nvme0n1', size: 512110190592, model: 'WPBSNM8-512GTP', health: 'true', temperature: 35, disk_type: 'SSD', serial: 'LP0625', path: '/dev/nvme0n1' },
++  ]
++  it('映射真机字段', () => {
++    const d = mapDrives(LIVE_DISKS)
++    expect(d[0]).toMatchObject({ name: 'nvme0n1', model: 'WPBSNM8-512GTP', size: 512110190592, diskType: 'SSD', healthy: true, temperature: 35 })
++  })
++  it('health 只认 true/"true"(修正 Vue2 把字符串 "false" 当健康的隐患)', () => {
++    expect(mapDrives([{ health: 'false' }])[0].healthy).toBe(false)
++    expect(mapDrives([{ health: true }])[0].healthy).toBe(true)
++    expect(mapDrives([{}])[0].healthy).toBe(false)
++  })
++  it('非数组输入返回空数组', () => {
++    expect(mapDrives(undefined)).toEqual([])
++  })
++})
++
++describe('usageLevel', () => {
++  it('阈值与 Vue2 getProgressType 一致(80/90)', () => {
++    expect(usageLevel(0)).toBe('ok')
++    expect(usageLevel(79)).toBe('ok')
++    expect(usageLevel(80)).toBe('warn')
++    expect(usageLevel(89)).toBe('warn')
++    expect(usageLevel(90)).toBe('danger')
++    expect(usageLevel(100)).toBe('danger')
++  })
++})
++
++describe('toFahrenheit', () => {
++  it('与 Vue2 filter 一致:(32 + c*1.8).toFixed(1)', () => {
++    expect(toFahrenheit(35)).toBe('95.0')
++    expect(toFahrenheit(0)).toBe('32.0')
++  })
++})
+diff --git a/src/storage/util/storageMap.ts b/src/storage/util/storageMap.ts
+new file mode 100644
+index 0000000..472ce3b
+--- /dev/null
++++ b/src/storage/util/storageMap.ts
+@@ -0,0 +1,107 @@
++// /v1/storage children 的 size/avail/used 是字符串(2026-07-23 真机核实),必须显式 Number()。
++// usePercent 公式与 Vue2 StorageManagerPanel 逐字一致,保证迁移前后读数不变。
++
++export interface StorageVolume {
++  uuid: string
++  name: string
++  isSystem: boolean
++  fsType: string
++  size: number
++  availSize: number
++  usedSize: number
++  usePercent: number
++  driveName: string
++  path: string
++  mountPoint: string
++  disk: string
++}
++
++export interface PhysicalDrive {
++  name: string
++  model: string
++  size: number
++  diskType: string
++  healthy: boolean
++  temperature: number
++}
++
++interface RawChild {
++  uuid?: string
++  label?: string
++  type?: string
++  size?: unknown
++  avail?: unknown
++  path?: string
++  drive_name?: string
++  mount_point?: string
++}
++interface RawGroup { path?: string; disk_name?: string; children?: RawChild[] }
++
++export function mapVolumes(groups: unknown, raidMountPoints: Set<string> = new Set()): StorageVolume[] {
++  const arr = Array.isArray(groups) ? (groups as RawGroup[]) : []
++  const flat: Array<RawChild & { _disk: string; _diskName: string }> = []
++  for (const g of arr) {
++    for (const c of g?.children || []) {
++      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID 卷归 /storage/raid(P3)
++      flat.push({ ...c, _disk: g?.path || '', _diskName: g?.disk_name || '' })
++    }
++  }
++  // Vue2 orderBy(['diskName','label'],['desc','asc']):System 组排最前
++  flat.sort((a, b) => {
++    if (a._diskName !== b._diskName) return a._diskName < b._diskName ? 1 : -1
++    const la = a.label || ''
++    const lb = b.label || ''
++    return la < lb ? -1 : la > lb ? 1 : 0
++  })
++  return flat.map((c) => {
++    const size = Number(c.size) || 0
++    const avail = Number(c.avail) || 0
++    return {
++      uuid: c.uuid || '',
++      name: c.label || c.drive_name || '',
++      isSystem: c._diskName === 'System',
++      fsType: c.type || '',
++      size,
++      availSize: avail,
++      usedSize: Math.max(0, size - avail),
++      usePercent: size > 0 ? 100 - Math.floor((avail * 100) / size) : 0,
++      driveName: c.drive_name || '',
++      path: c.path || '',
++      mountPoint: c.mount_point || '',
++      disk: c._disk,
++    }
++  })
++}
++
++interface RawDisk {
++  name?: string
++  model?: string
++  size?: unknown
++  disk_type?: string
++  health?: unknown
++  temperature?: unknown
++}
++
++export function mapDrives(disks: unknown): PhysicalDrive[] {
++  const arr = Array.isArray(disks) ? (disks as RawDisk[]) : []
++  return arr.map((d) => ({
++    name: d.name || '',
++    model: d.model || '',
++    size: Number(d.size) || 0,
++    diskType: d.disk_type || '',
++    // 后端 health 是字符串 "true"/"false";严格比较,避免 "false" 被当真值(Vue2 隐患)
++    healthy: d.health === true || d.health === 'true',
++    temperature: Number(d.temperature) || 0,
++  }))
++}
++
++// 与 Vue2 mixin getProgressType 阈值一致
++export function usageLevel(pct: number): 'ok' | 'warn' | 'danger' {
++  if (pct < 80) return 'ok'
++  if (pct < 90) return 'warn'
++  return 'danger'
++}
++
++export function toFahrenheit(c: number): string {
++  return (32 + c * 1.8).toFixed(1)
++}

@@ -1,0 +1,326 @@
+# Review package: 6dd8434..HEAD
+
+## Commits
+f763f92 feat(home): 添加面板列应用小组件(手删可加回)+ AppTile 停止态变暗
+
+## Files changed
+ src/home/components/AddPanel.test.ts     | 14 ++++++++++++++
+ src/home/components/AddPanel.vue         | 30 +++++++++++++++++++++++++++++-
+ src/home/components/AppTile.test.ts      | 10 ++++++++++
+ src/home/components/AppTile.vue          |  3 ++-
+ src/home/composables/useAddPanel.test.ts |  9 +++++++++
+ src/home/composables/useAddPanel.ts      | 11 +++++++----
+ 6 files changed, 71 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/home/components/AddPanel.test.ts b/src/home/components/AddPanel.test.ts
+index c7c8be8..2489029 100644
+--- a/src/home/components/AddPanel.test.ts
++++ b/src/home/components/AddPanel.test.ts
+@@ -1,25 +1,39 @@
+ import { describe, it, expect, beforeEach } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useLayoutStore } from '../stores/layout'
++import { useAppsStore } from '../stores/apps'
+ import { __resetAddPanelForTest } from '../composables/useAddPanel'
+ import AddPanel from './AddPanel.vue'
+ 
+ describe('AddPanel', () => {
+   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetAddPanelForTest() })
+   it('widget tab lists widgets and marks used ones', async () => {
+     const layout = useLayoutStore(); layout.replaceAll([{ kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 }])
+     const w = mount(AddPanel, { props: { open: true } })
+     expect(w.text()).toContain('时间') // clock widget card
+     expect(w.text()).toContain('✓ 已添加') // clock used badge
+   })
++  it('widget tab also lists app-declared widgets, marks used ones, and pins on click', async () => {
++    const apps = useAppsStore()
++    apps.setApps([{ name: 'my-dl', title: { zh_cn: '下载器' }, status: 'running', port: '8080', desktop: true, widget: { path: '/widget', w: 3, h: 2 } }] as any)
++    const layout = useLayoutStore(); layout.replaceAll([])
++    const w = mount(AddPanel, { props: { open: true }, attachTo: document.body })
++    expect(w.text()).toContain('下载器') // app widget card
++    const card = w.get('.lib-card[data-key="aw-my-dl"]')
++    expect(card.find('.lib-used-badge').exists()).toBe(false)
++    await card.trigger('pointerdown', { clientX: 0, clientY: 0 })
++    await card.trigger('pointerup', { clientX: 0, clientY: 0 })
++    expect(layout.items.some((i) => i.kind === 'appwidget' && i.key === 'my-dl')).toBe(true)
++    w.unmount()
++  })
+   it('clicking an app card pins it to the grid', async () => {
+     const layout = useLayoutStore(); layout.replaceAll([])
+     const w = mount(AddPanel, { props: { open: true }, attachTo: document.body })
+     await w.get('[data-tab="app"]').trigger('click')
+     // pointerdown starts the gesture; pointerup (no move) triggers the click-to-pin path
+     const icon = w.get('.lib-icon[data-key="vm"]')
+     await icon.trigger('pointerdown', { clientX: 0, clientY: 0 })
+     await icon.trigger('pointerup', { clientX: 0, clientY: 0 })
+     expect(layout.items.some((i) => i.key === 'vm')).toBe(true)
+     w.unmount()
+diff --git a/src/home/components/AddPanel.vue b/src/home/components/AddPanel.vue
+index 08f9fc4..fe1d27b 100644
+--- a/src/home/components/AddPanel.vue
++++ b/src/home/components/AddPanel.vue
+@@ -26,20 +26,35 @@
+         :data-key="key"
+         @pointerdown="onSpawnDown($event, { kind: 'widget', key: String(key), w: meta.default[0], h: meta.default[1] })"
+       >
+         <svg class="lib-card-icon" viewBox="0 0 24 24" v-html="meta.icon" />
+         <div class="lib-card-info">
+           <span class="lib-card-title">{{ t(meta.title) }}</span>
+           <span class="lib-card-desc">{{ t(meta.desc) }}</span>
+         </div>
+         <span v-if="ap.widgetUsed(String(key))" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
+       </div>
++      <div
++        v-for="d in appWidgetCards"
++        :key="'aw-' + d.key"
++        class="lib-card"
++        :data-key="'aw-' + d.key"
++        @pointerdown="onSpawnDown($event, { kind: 'appwidget', key: d.key, w: d.w, h: d.h })"
++      >
++        <img v-if="d.icon" class="lib-card-icon lib-card-icon-img" :src="d.icon" alt="" />
++        <svg v-else class="lib-card-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" /></svg>
++        <div class="lib-card-info">
++          <span class="lib-card-title">{{ d.name }}</span>
++          <span class="lib-card-desc">{{ t('addPanelAppWidgetDesc') }}</span>
++        </div>
++        <span v-if="ap.appWidgetUsed(d.key)" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
++      </div>
+     </div>
+ 
+     <!-- App tab -->
+     <div v-if="ap.curTab.value === 'app'" class="lib-content lib-app-grid">
+       <div
+         v-for="key in appsStore.order"
+         :key="key"
+         class="lib-icon"
+         :data-key="key"
+         @pointerdown="onSpawnDown($event, { kind: 'app', key, w: 1, h: 1 })"
+@@ -103,21 +118,21 @@
+       <button class="lib-reset-btn" @click="ap.reset()">{{ t('addPanelReset') }}</button>
+     </div>
+   </aside>
+ </template>
+ 
+ <script setup lang="ts">
+ import { computed, onMounted, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useAddPanel } from '../composables/useAddPanel'
+ import { useHomeUiStore } from '../stores/homeUi'
+-import { useAppsStore } from '../stores/apps'
++import { useAppsStore, clampWidgetDecl } from '../stores/apps'
+ import { useFoldersStore } from '../stores/folders'
+ import { usePhotosStore } from '../stores/photos'
+ import { useLiveStatsStore } from '../stores/liveStats'
+ import { WIDGETS } from '../widgets/registry'
+ import type { Kind } from '../grid/types'
+ 
+ const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number; gridEl?: HTMLElement | null }>()
+ defineEmits<{ close: [] }>()
+ 
+ type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string }
+@@ -209,20 +224,32 @@ const TABS = [
+   { key: 'photo',  label: 'addPanelTabPhoto' },
+ ] as const
+ 
+ // Hide gpu widget when no GPU present
+ const visibleWidgets = computed(() => {
+   return Object.fromEntries(
+     Object.entries(WIDGETS).filter(([key]) => key !== 'gpu' || liveStats.gpuPresent)
+   )
+ })
+ 
++// App-declared widgets (Task 5/9: desktop apps with a `widget` decl) — listed
++// alongside the built-in widget cards so a manually-removed app widget can be
++// re-added from here.
++const appWidgetCards = computed(() =>
++  appsStore.desktopDecls()
++    .filter((d) => d.widget)
++    .map((d) => {
++      const a = appsStore.apps[d.key]
++      const [w, h] = clampWidgetDecl(d.widget!.w, d.widget!.h)
++      return { key: d.key, name: a?.name ?? d.key, icon: a?.icon ?? null, w, h }
++    }))
++
+ // Breadcrumbs: from the selected disk root down to the current folder.
+ // Never includes segments above the disk root (so `/` is never reachable).
+ const breadcrumbs = computed(() => {
+   const disk = ap.fsDisk.value
+   if (!disk) return []
+   const root = disk.path.replace(/\/+$/, '') || '/'
+   const cur = ap.fsPath.value || root
+   const rel = cur.startsWith(root) ? cur.slice(root.length) : ''
+   const parts = rel.split('/').filter(Boolean)
+   const segs: { label: string; path: string }[] = [{ label: disk.name, path: root }]
+@@ -344,20 +371,21 @@ function appGlyph(key: string): string {
+   cursor: pointer;
+   backdrop-filter: var(--blur, blur(44px) saturate(1.7) brightness(1.08));
+   transition: transform .18s var(--ease, ease), border-color .18s;
+ }
+ .lib-card:hover { transform: translateY(-2px); border-color: var(--accent, #8ab4ff); }
+ 
+ .lib-card-icon {
+   width: 32px; height: 32px; flex-shrink: 0;
+   fill: none; stroke: var(--accent, #8ab4ff); stroke-width: 1.6; opacity: .9;
+ }
++.lib-card-icon-img { border-radius: 8px; object-fit: cover; }
+ .lib-card-info { flex: 1; }
+ .lib-card-title { display: block; font-size: 14px; font-weight: 500; color: var(--fg, #fff); }
+ .lib-card-desc { display: block; font-size: 14px; color: var(--fg-muted, rgba(255,255,255,.74)); margin-top: 2px; }
+ 
+ /* ✓ 已添加 badge — accent text, top-right */
+ .lib-used-badge {
+   position: absolute; top: 12px; right: 12px;
+   font-size: 14px; font-weight: 600;
+   color: var(--accent, #8ab4ff); white-space: nowrap;
+ }
+diff --git a/src/home/components/AppTile.test.ts b/src/home/components/AppTile.test.ts
+index ca8f5d8..ae19186 100644
+--- a/src/home/components/AppTile.test.ts
++++ b/src/home/components/AppTile.test.ts
+@@ -14,11 +14,21 @@ describe('AppTile', () => {
+     expect(w.find('svg').exists()).toBe(true)
+     expect(w.text()).toContain('文件')
+   })
+   it('renders a remote img for a container app with icon', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jellyfin', title: { zh_cn: '影音' }, icon: 'http://x/i.png' }] as any)
+     const w = mount(AppTile, { props: { item: item('jellyfin') } })
+     expect(w.find('img').attributes('src')).toBe('http://x/i.png')
+     expect(w.text()).toContain('影音')
+   })
++  it('dims a non-system stopped app but not a running one or a system app', () => {
++    const s = useAppsStore()
++    s.setApps([
++      { name: 'jellyfin', title: { zh_cn: '影音' }, status: 'stopped' },
++      { name: 'plex', title: { zh_cn: '播放' }, status: 'running' },
++    ] as any)
++    expect(mount(AppTile, { props: { item: item('jellyfin') } }).classes()).toContain('stopped')
++    expect(mount(AppTile, { props: { item: item('plex') } }).classes()).not.toContain('stopped')
++    expect(mount(AppTile, { props: { item: item('files') } }).classes()).not.toContain('stopped') // system app never dims
++  })
+ })
+diff --git a/src/home/components/AppTile.vue b/src/home/components/AppTile.vue
+index b9a32d1..3b58466 100644
+--- a/src/home/components/AppTile.vue
++++ b/src/home/components/AppTile.vue
+@@ -1,12 +1,12 @@
+ <template>
+-  <div class="app-tile">
++  <div class="app-tile" :class="{ stopped: !meta?.system && meta?.status !== 'running' }">
+     <span
+       v-if="meta?.icon"
+       class="app-ic has-img"
+       :class="meta?.cls || 'ic-app'"
+     ><img :src="meta.icon" alt="" loading="lazy" /></span>
+     <span
+       v-else
+       class="app-ic"
+       :class="meta?.cls || 'ic-app'"
+       v-html="glyphSvg"
+@@ -29,17 +29,18 @@ const displayName = computed(() => {
+   const m = meta.value
+   if (!m) return props.item.key
+   return m.system ? t(m.name) : m.name
+ })
+ const BAG = '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>'
+ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.glyph || BAG}</svg>`)
+ </script>
+ <style scoped>
+ /* kind-app flex column layout lives in global theme.css (.kind-app rule) */
+ .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
++.app-tile.stopped { opacity: 0.45; filter: grayscale(0.6); }
+ /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
+    here we set width/height for the within-tile context (kind-app .app-ic is flex:1 1 auto globally) */
+ .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
+ .app-ic :deep(svg) { width: 44%; height: 44%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+ /* has-img: overflow+background handled globally; local transition kept for smooth load */
+ .app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+ </style>
+diff --git a/src/home/composables/useAddPanel.test.ts b/src/home/composables/useAddPanel.test.ts
+index 04b80f9..3f173b4 100644
+--- a/src/home/composables/useAddPanel.test.ts
++++ b/src/home/composables/useAddPanel.test.ts
+@@ -23,11 +23,20 @@ describe('useAddPanel', () => {
+   })
+   it('spawnPlace displaces others and adds at target', () => {
+     const layout = useLayoutStore(); layout.replaceAll([{ kind: 'app', key: 'files', c: 1, r: 1, w: 1, h: 1 }])
+     vi.spyOn(layout, 'save').mockImplementation(() => {})
+     const ap = useAddPanel(DIMS)
+     const ok = ap.spawnPlace({ kind: 'app', key: 'vm', w: 1, h: 1 } as any, 1, 1) // 占 files 处 → files 让位
+     expect(ok).toBe(true)
+     expect(layout.items.some((i) => i.key === 'vm' && i.c === 1 && i.r === 1)).toBe(true)
+     expect(layout.items.some((i) => i.key === 'files')).toBe(true) // files 还在(让位)
+   })
++  it('appWidgetUsed 反映桌面上的 appwidget;pinToFree 拒绝重复 appwidget', () => {
++    const layout = useLayoutStore()
++    layout.replaceAll([])
++    const ap = useAddPanel({ cols: 12, rows: 8 })
++    expect(ap.appWidgetUsed('my-dl')).toBe(false)
++    expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(true)
++    expect(ap.appWidgetUsed('my-dl')).toBe(true)
++    expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(false)
++  })
+ })
+diff --git a/src/home/composables/useAddPanel.ts b/src/home/composables/useAddPanel.ts
+index 2a00d7f..cce9a0f 100644
+--- a/src/home/composables/useAddPanel.ts
++++ b/src/home/composables/useAddPanel.ts
+@@ -23,49 +23,52 @@ export function __resetAddPanelForTest() {
+   curTab.value = 'widget'
+   fsDisk.value = null
+   fsPath.value = ''
+ }
+ 
+ export function useAddPanel(dims: Dims) {
+   const layout = useLayoutStore()
+   const ui = useHomeUiStore()
+ 
+   const widgetUsed = (key: string) => layout.items.some((it) => it.kind === 'widget' && it.key === key)
++  const appWidgetUsed = (key: string) => layout.items.some((it) => it.kind === 'appwidget' && it.key === key)
++  const dupWidget = (desc: Desc) =>
++    (desc.kind === 'widget' && widgetUsed(desc.key)) || (desc.kind === 'appwidget' && appWidgetUsed(desc.key))
+ 
+   function defaultSize(kind: string, key: string): [number, number] {
+     if (kind === 'widget') return WIDGETS[key]?.default ?? [2, 2]
+     if (kind === 'photo') return [2, 2]
+     return [1, 1]
+   }
+ 
+   function pinToFree(desc: Desc): boolean {
+-    if (desc.kind === 'widget' && widgetUsed(desc.key)) return false
++    if (dupWidget(desc)) return false
+     const pos = firstFree(desc.w, desc.h, layout.items, dims)
+     if (!pos) { ui.showToast(i18n.global.t('addPanelFull')); return false }
+     layout.pin({ ...desc, c: pos.c, r: pos.r })
+     layout.save()
+     return true
+   }
+ 
+   function spawnPlace(desc: Desc, tc: number, tr: number): boolean {
+-    if (desc.kind === 'widget' && widgetUsed(desc.key)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
++    if (dupWidget(desc)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
+     const others = planFootprint(tc, tr, desc.w, desc.h, null, layout.items, dims)
+     if (!others) { ui.showToast(i18n.global.t('addPanelNoRoom')); return false }
+     layout.applyPlan(others as PlanEntry[])
+     layout.pin({ ...desc, c: tc, r: tr })
+     layout.save(); ui.showToast(i18n.global.t('addPanelAddedToast', { key: desc.key }))
+     return true
+   }
+ 
+   function toggleWidget(key: string, w: number, h: number) {
+-    if (widgetUsed(key)) {
++    if (dupWidget({ kind: 'widget', key, w, h })) {
+       const it = layout.items.find((i) => i.kind === 'widget' && i.key === key)
+       if (it) { layout.remove(it.id); layout.save(); ui.showToast(i18n.global.t('addPanelRemovedToast')) }
+     } else pinToFree({ kind: 'widget', key, w, h })
+   }
+ 
+   function openLib() { ui.toggleEdit(true); curTab.value = 'widget'; open.value = true }
+   function close() { open.value = false }
+   function reset() { layout.reset(); close(); ui.showToast(i18n.global.t('addPanelResetToast')) }
+ 
+-  return { open, curTab, fsDisk, fsPath, widgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
++  return { open, curTab, fsDisk, fsPath, widgetUsed, appWidgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
+ }

@@ -1,0 +1,76 @@
+# Review package: 9fd7b60..HEAD
+
+## Commits
+806b000 feat(upload): restoreFromIDB keeps paused items paused across refresh (SP4-P3 pause)
+
+## Files changed
+ src/files/upload/persist.test.ts | 10 ++++++++++
+ src/files/upload/persist.ts      |  5 ++++-
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/files/upload/persist.test.ts b/src/files/upload/persist.test.ts
+index 4c50d30..01564cb 100644
+--- a/src/files/upload/persist.test.ts
++++ b/src/files/upload/persist.test.ts
+@@ -59,20 +59,30 @@ describe('persist', () => {
+     await putQueueItem({ ...stripFile(mkItem({ id: 'r1' })), blobStored: true })
+     await putBlob('r1', new Blob(['data']))
+     const { items, resumedCount } = await restoreFromIDB()
+     expect(items).toHaveLength(1)
+     expect(items[0].status).toBe('pending')
+     expect(items[0].file).toBeInstanceOf(Blob)
+     expect(items[0].restored).toBe(true)
+     expect(resumedCount).toBe(1)
+   })
+ 
++  it('restoreFromIDB keeps paused items paused (not auto-resumed)', async () => {
++    await putQueueItem({ ...stripFile(mkItem({ id: 'pz', status: 'paused' })), blobStored: true })
++    await putBlob('pz', new Blob(['data']))
++    const { items, resumedCount } = await restoreFromIDB()
++    expect(items).toHaveLength(1)
++    expect(items[0].status).toBe('paused')
++    expect(items[0].file).toBeTruthy()
++    expect(resumedCount).toBe(0) // paused does not count as auto-resumed
++  })
++
+   it('restoreFromIDB: blobStored but blob gone → needs_file', async () => {
+     await putQueueItem({ ...stripFile(mkItem({ id: 'r2' })), blobStored: true })
+     const { items, resumedCount } = await restoreFromIDB()
+     expect(items[0].status).toBe('needs_file')
+     expect(items[0].file).toBeNull()
+     expect(resumedCount).toBe(0)
+   })
+ 
+   it('restoreFromIDB: no blobStored → needs_file', async () => {
+     await putQueueItem({ ...stripFile(mkItem({ id: 'r3' })), blobStored: false })
+diff --git a/src/files/upload/persist.ts b/src/files/upload/persist.ts
+index eb4a43f..336fac1 100644
+--- a/src/files/upload/persist.ts
++++ b/src/files/upload/persist.ts
+@@ -73,21 +73,24 @@ export async function restoreFromIDB(): Promise<{ items: UploadItem[]; resumedCo
+       if (it.status === 'done') {
+         // Leftover from an interrupted cleanup — drop defensively.
+         await removeItemAndBlob(it.id).catch(() => {})
+         continue
+       }
+       if (it.blobStored) {
+         const blob = await getBlob(it.id)
+         if (blob) {
+           const size = blobSizeOf({ size: it.size, file: blob })
+           storedBlob.set(it.id, size)
+-          items.push({ ...it, status: 'pending', file: blob, restored: true })
++          // Preserve an explicit paused state across refresh; everything else with
++          // bytes resumes automatically.
++          const status = it.status === 'paused' ? 'paused' : 'pending'
++          items.push({ ...it, status, file: blob, restored: true })
+           continue
+         }
+         // Bytes gone (evicted/quota) — fall through to re-select.
+       }
+       items.push({ ...it, status: 'needs_file', file: null, restored: true })
+     }
+     const resumedCount = items.filter((it) => it.status === 'pending' && it.file).length
+     return { items, resumedCount }
+   } catch (e) {
+     console.warn('[file upload persist] restoreFromIDB failed; memory-only mode', e)

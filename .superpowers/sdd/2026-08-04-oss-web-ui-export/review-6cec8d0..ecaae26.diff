@@ -1,0 +1,671 @@
+# Review package: 6cec8d0..HEAD
+
+## Commits
+ecaae26 fix(oss): 发布前必修 10 条(final-review 修复波)
+
+## Files changed
+ oss/README.md              | 193 +++++++++++++++++++++++++++++++++++++++++++++
+ oss/export.mjs             |   2 +-
+ oss/files/README.md        |   2 +-
+ oss/files/defaultLayout.ts |   2 +-
+ oss/manifest.mjs           | 108 ++++++++++++++++++++++---
+ oss/tree.test.mjs          |  34 ++++++--
+ 6 files changed, 322 insertions(+), 19 deletions(-)
+
+## Diff
+diff --git a/oss/README.md b/oss/README.md
+new file mode 100644
+index 0000000..69872cb
+--- /dev/null
++++ b/oss/README.md
+@@ -0,0 +1,193 @@
++# oss/ —— NimoOS-Web 导出机制运维手册
++
++`oss/` 本身**不进产物**(`DELETE` 表第一条就是 `'oss'`)——这份文档只服务于在
++`NimoOS-New-UI`(本仓)里维护导出机制的人,不随 NimoOS-Web 发布。
++
++台账 / 决策记录在 `.superpowers/sdd/`,但那个目录被 `.gitignore` 排除、不进 git
++——本文件是**唯一进 git、能存活下来的**导出运维手册。写完请连同代码一起提交。
++
++---
++
++## 1. 六步流程 + 五道门
++
++`oss/export.mjs` 单文件编排,固定六步(见该文件内 `1/6`..`6/6` 的 log):
++
++1. **前置检查** —— 两个源仓(`NimoOS-New-UI` 本仓 + 同级 `NimoOS-Service`)工作树必须干净
++   (`checkClean`),记录两边 HEAD。
++2. **取源** —— `git archive HEAD | tar -x` 到临时目录(天然排除 `.git`/`node_modules`/
++   `dist`/`.superpowers` 等未跟踪或被 gitignore 的内容),`NimoOS-Service` 取到
++   `packages/service/` 子目录下。
++3. **应用清单** —— 顺序固定 `DELETE → REPLACE → PATCH`(`manifest.mjs` 的五张表)。
++4. **内嵌 Service** —— 改 `package.json` 的 `file:` 依赖路径 + `pnpm-lock.yaml` 的对应路径,
++   把 `../NimoOS-Service` 变成仓内的 `packages/service`。
++5. **泄漏守卫** —— `forbidden.mjs` 的 `scanTree` 扫全部文本文件(HARD 硬禁词 + SOFT 中文
++   软禁词,逐条白名单),命中即 `throw`,一个字节都不落盘。
++6. **落盘 + 零历史提交** —— `rsync --delete` 覆盖 `--out` 目录,`git init -b main`(或
++   `--amend` 已有仓库)得到 **rev-list 恒为 1** 的单提交仓库。
++
++**正式出包 = 这六步跑完之后,必须人工再跑五道门 + `--frozen-lockfile`。**
++`vue-tsc --noEmit` 是唯一能抓到「PATCH 漏改导致类型不匹配」这类错误的门,**不在任何
++自动测试里**,不可省。确切命令:
++
++```bash
++# 门 0:oss/ 自身单测(改完 manifest.mjs / *.mjs 之后先跑这个)
++cd NimoOS-New-UI
++pnpm exec vitest run oss/
++
++# 正式出包(不带 --skip-guard / --allow-dirty-oss —— 工作树必须干净、清单必须描述
++# HEAD 的真实内容)
++node oss/export.mjs
++# 期望末行 [oss] 完成 → ../NimoOS-Web,5/6 报「零真实泄漏命中」
++
++# 门 1:装依赖(★ C1 的回归保护,CI 默认 --frozen-lockfile,裸 install 测不出这类问题)
++cd ../NimoOS-Web
++rm -rf node_modules
++pnpm install --frozen-lockfile   # 必须 EXIT=0,且装完 lockfile 一字节不变
++
++# 门 2:测试
++pnpm test                        # 必须 EXIT=0
++
++# 门 3:类型检查(不可省,唯一能抓 PATCH 漏改的门)
++pnpm exec vue-tsc --noEmit       # 必须 EXIT=0
++
++# 门 4:构建
++pnpm build                       # 必须 EXIT=0(vue-tsc --noEmit + vite build)
++
++# 门 5:构建产物扫描 + 品牌 grep
++cd ../NimoOS-New-UI
++node oss/scan-dist.mjs ../NimoOS-Web/dist   # 必须 EXIT=0,零命中
++grep -ric "nimoos-search\|nimoos-parser\|nimoos-photos\|nimoos-ai" ../NimoOS-Web/dist \
++  | grep -v ':0$'                            # 必须无输出
++```
++
++再验零历史 + 幂等:
++
++```bash
++git -C ../NimoOS-Web rev-list --count HEAD   # 必须是 1
++git -C ../NimoOS-Web remote -v               # 必须为空
++node oss/export.mjs                          # 再跑一次
++git -C ../NimoOS-Web status --porcelain      # 应为空(幂等)
++git -C ../NimoOS-Web rev-list --count HEAD   # 仍是 1(--amend,不是新提交)
++```
++
++## 2. 四个 flag
++
++| flag | 用途 |
++|---|---|
++| `--out <dir>` | 产出目录,默认 `../NimoOS-Web`。 |
++| `--skip-guard` | 跳过第 5 步泄漏守卫,**只供开发期**(比如临时确认取源/清单本身没问题,不代表内容安全)。 |
++| `--no-commit` | 跳过第 6 步的 `git init`/`commit`,只落盘文件,不建仓库。配合 `--out /tmp/xxx` 做一次性验证时常用。 |
++| `--keep-temp` | 落盘后不删中间临时目录(取源 + 应用清单之后的那份),排查"清单到底改出了什么"时有用。 |
++| `--allow-dirty-oss` | 放行 `oss/` 目录下的未提交改动(其余源码仍必须干净)。**只供 oss/ 自身的开发迭代**——反复改 `manifest.mjs` 时不用每次都先 commit 才能跑一次导出验证。 |
++
++**正式出包一律不带 `--skip-guard` 与 `--allow-dirty-oss`。** 前者会让一次导出完全不经过
++安全检查;后者会让产物对不上 `git archive HEAD` 实际取到的源码版本——"清单描述的删改"
++和"清单描述时刻的源码"必须是同一个 commit。
++
++## 3. 三条决策树
++
++**锚点漂了怎么办**(`applyPatch`/`applyReplace`/`applyDelete` 抛"未命中"/"目标不存在"类错误)：
++私有主干这行代码已经变了(改名、重排、被别的改动动过)。打开对应文件现场
++`sed -n` 逐字抓新的原文，更新 `manifest.mjs` 里的 `find`/`path`。**不要**猜一个大概齐的
++新锚点就往上填——命中次数必须现场用 `node -e` 或 `grep -c -F` 验证恰好 1 次再写进去，
++这是本项目在"手编 fixture"上吃过三次亏后定的规矩。
++
++**哈希钉响了怎么办**(`REPLACE` 的 `privateSha256` 不匹配)：私有侧那个源文件被后续开发
++改动过，`oss/files/` 里的冻结分身没跟着更新。**禁止删掉哈希钉让脚本跑过**——那等于让这条
++路重新变成哑火（私有侧继续变化，产出树永远停在旧快照）。正确做法：对比私有侧新内容和
++冻结分身，把新增/删改的部分**重新做一遍剥离**（不是整份复制过去——分身本来就是"私有版
++减掉不该公开的部分"），改完再把 `privateSha256` 更新为私有侧的新哈希。
++
++**守卫误报怎么办**(`forbidden.mjs` 的 `scanTree`/`scanDist` 命中了合法内容)：先确认真的
++是误报（合法上下文里包含了词表里的字面量，比如"上传照片库"里的"照片"其实是文件类型
++枚举、不是相册功能）。**禁止放宽词表/删词/改松正则来消除误报**——往对应词条的 `allow`
++数组里加一条**精确**的原文白名单（`SOFT` 表每条都有 `word` + `allow: []`），使其只放行
++这一处具体上下文，不放行其他任何含同一字面量的位置。加完记得反向验证：在同一行**紧邻**
++处人为注入一句真泄漏，确认白名单不会连带放过它（`forbidden.test.mjs` 里的"同行加泄漏
++必命中"就是这个模式）。
++
++## 4. 两条铁律
++
++1. **禁止放宽词表消除误报。** 见上面"守卫误报怎么办"——唯一允许的动作是加精确白名单，
++   不允许删词、放松正则、缩小扫描范围。
++2. **禁止删哈希钉。** 见上面"哈希钉响了怎么办"——`privateSha256` 存在的意义就是逼着人
++   在私有侧变化时**看一眼**要不要同步冻结分身，删掉它等于放弃这层保护。
++
++## 5. 发布路径：走 `git push`，不是打包目录
++
++`export.mjs` 落盘后得到的是**一个本地 git 仓库**（`rev-list --count HEAD === 1`），
++发布方式是把这个仓库 `git push` 到公开托管平台（GitHub 等），**不是**把 `NimoOS-Web/`
++目录整个打包（tar/zip）发出去。
++
++这个区别是硬性的，原因是两个已知的"只在打包时才会漏"的坑：
++
++- `.export-report.txt`（含两个私有仓的 commit hash）在产出仓的 `.gitignore` 里，
++  `git push` 天然不会带上它；但如果改成"打包整个目录"发布，这个文件会原样躺在压缩包里。
++- `public/demo/`（空目录）同理——git 不跟踪空目录，`git push` 不会带上它；打包目录会。
++
++**结论：发布前先确认走的是 `git remote add` + `git push` 这条路，不要图省事直接打包
++`NimoOS-Web/` 目录整个发出去。**
++
++## 6. E10 预告：sp7/sp8 合流后要扩清单
++
++`manifest.mjs` 顶部已有一段拍板记录：sp7-photos / sp8-ai 两支在快照发布后仍要合进
++`master`。**本清单目前只覆盖 master 上的 AI/相册残留面**——sp7/sp8 合流后，
++`src/photos/**` 与 `src/ai/**` 会作为两个完整功能区出现在主干上，需要为它们扩张
++`DELETE`/`REPLACE`/`PATCH` 三张表（路由、i18n 分片、数十个测试文件）。这是一次独立的
++工作，不是本次修复波的范围。合流开工前建议先过一遍 `.superpowers/sdd/` 里
++`2026-08-04-oss-web-ui-export/` 目录下的评审记录（若已按 §「顺带建议」放行进 git，
++否则先找回台账副本）。
++
++---
++
++## 7. 2026-08-04 修复波改了什么(final-review 发布前必修 10 条)
++
++评审记录：`.superpowers/sdd/2026-08-04-oss-web-ui-export/final-review-findings.md`
++第 1 节「发布前必修」。这一波只动了 `oss/` 下的文件，`170` 条 `PATCH`（原 `150`）：
++
++1. **C1(Critical)** `package.json` 的 `file:` 依赖路径与 `pnpm-lock.yaml` 的路径写法
++   不一致(`file:./packages/service` vs `file:packages/service`)，CI 默认
++   `--frozen-lockfile` 直接报 `ERR_PNPM_OUTDATED_LOCKFILE`。改 `export.mjs`/
++   `tree.test.mjs`/`oss/files/README.md` 三处统一成不带 `./` 的写法。
++2. **I3** `theme.css` 5 个孤儿 token(`--hit-bg`/`--hit-fg`/`--hl-star`/`--brand-shadow`/
++   `--inner-bg-hi`)——唯一消费方（SearchDialog/AiWidget/MediaViewer 的转录高光）已被
++   剥离，定义留着会误导读者以为还有对应功能。新增 8 条 `PATCH`（深色/浅色块各 4 行）
++   整行删除。
++3. **I4** 产出树残留 13 处 `strangler`/`cutover` 措辞 + 一条永远为真的死代码回归测试
++   （`cutoverDisabled` 已经是恒 `false`，测它的用例测不出任何东西）。改了 2 条已有
++   `PATCH` 的 `replace`（`cutoverDisabled` 整块删除、调用点去掉恒 false 守卫），
++   新增 8 条 `PATCH`（删恒真用例、清 `beforeEach`、洗白 3 处注释 + 2 处 `it()` 标题、
++   洗白 `protocol.ts` 注释）。
++4. **I5a** `oss/files/defaultLayout.ts`（冻结分身）注释里写着"开源版默认桌面"——
++   暗示还有一个"非开源版"，改成不带版本区分的措辞。
++5. **I5-guard** `tree.test.mjs` 的固定禁词清单原来只扫 4 个 `REPLACE` 冻结分身、不扫
++   `PATCH` 的 `replace` payload，且缺"开源版/本版/社区版/strangler/cutover"几个词、
++   `NimoOS-UI` 正则抓不到私有仓名 `NimoOS-New-UI`。补齐词表 + 把断言作用域扩到全部
++   `PATCH`。**扩大扫描范围后额外揪出 7 处此前从未被检查覆盖的残留**（`appPaths.ts`/
++   `AppsPanel.vue`/`tabs.test.ts`/`AppsPanel.test.ts`/`appPaths.test.ts` 里的
++   "Vue2"/"政策三「做样子」"字样）——已一并改写对应 `PATCH` 的 `replace`，都是纯文字
++   洗白，不改变任何测试断言的行为。**已知例外**：`zh_cn.sp9.ts`/`en_us.sp9.ts` 两个
++   文件互相引用对方文件名本身（`See zh_cn.sp9.ts.`）不算泄漏——这两个文件名自己带
++   `sp9` 后缀是已裁定的范围外问题（见 §6 与评审 M11），词表对 `SP\d`/`sp[789]` 加了
++   `(?!\.ts)` 的精确豁免，只放行"指代自己文件名"这一种写法，不放行其他任何含
++   `SP` + 数字的内容。
++6. **I6** `vite.config.ts` 注释直接点名 "Claude Code"，与"删 `CLAUDE.md` 因为它是最
++   直白的 AI 辅助开发标记"的理由自相矛盾。新增 1 条 `PATCH` 改成不点名工具的措辞
++   （`.claude/**` 的 `exclude` 数组本身保留，功能无害）。**未做**：findings 里"顺带
++   建议"的 `vite.config.ts:38` 那条(`file:../NimoOS-Service` 的开发态注释)——那是
++   标注为可选的加分项，为了让这次改动的 `PATCH` 新增数量精确对应评审给出的预期
++   （20 条），没有顺带做，需要的话可以单独开一条。
++7. **I7a** `src/settings/util/ifaceForm.ts` 注释里的 `.superpowers/sdd/sp9/03-p2.md`
++   台账路径 + 债务编号 `D18`，泄露内部 SDD 工作流目录结构。新增 1 条 `PATCH` 改成
++   不带路径的措辞。
++8. **M1** `package.json` 的 `name` 是 `nimoos-new-ui`——发布仓叫 `NimoOS-Web`，
++   `new-ui` 暗示还有一个 old UI。新增 1 条 `PATCH` 改成 `nimoos-web`。
++9. **M2** `scripts/deploy.sh` 注释里写着私有仓名 `NimoOS-New-UI`。新增 1 条 `PATCH`
++   改成不带仓名的措辞。
++10. **I9** 就是本文件——`oss/` 此前零 `.md`，唯一的决策记录（`.superpowers/sdd/`）被
++    `.gitignore` 排除、不进 git。
++
++**这一波之外、明确不动的范围**（评审第 2/3/4 节）：产出树类型检查/装依赖/`--no-commit`
++提交块从不自动跑（I0/I0-a/I0-c）、泄漏守卫按行扫描漏折行禁词（I1）、`applyPatch` 不校验
++`replace` 字段类型（I2）、`scanDist` 的挖空法重叠绕过（I8）、`assertSafeRelPath` 放行
++`'.'`（M12）等——这些留给"合流前必修"，不在本次修复波范围内，理由见 findings 文档 §0。
+diff --git a/oss/export.mjs b/oss/export.mjs
+index c5cd34d..edf188d 100644
+--- a/oss/export.mjs
++++ b/oss/export.mjs
+@@ -75,21 +75,21 @@ try {
+   applyDelete(svcDir, SERVICE_DELETE)
+   applyReplace(tmp, REPLACE, path.join(OSS_DIR, 'files'))
+   applyPatch(tmp, PATCH)
+   applyPatch(svcDir, SERVICE_PATCH)
+ 
+   // ── 4. 内嵌 Service:改 package.json 的 file: 一行 + lockfile 路径 ────────
+   log('4/6 内嵌共享包')
+   const pkgPath = path.join(tmp, 'package.json')
+   const pkg = fs.readFileSync(pkgPath, 'utf8')
+   const FROM = '"@nimotech/nimoos-service": "file:../NimoOS-Service"'
+-  const TO = '"@nimotech/nimoos-service": "file:./packages/service"'
++  const TO = '"@nimotech/nimoos-service": "file:packages/service"'
+   if (pkg.split(FROM).length - 1 !== 1) throw new Error(`package.json 的 file: 锚点未唯一命中:${FROM}`)
+   fs.writeFileSync(pkgPath, pkg.replace(FROM, TO))
+   const lockPath = path.join(tmp, 'pnpm-lock.yaml')
+   const lock = fs.readFileSync(lockPath, 'utf8')
+   if (!lock.includes('../NimoOS-Service')) throw new Error('pnpm-lock.yaml 里没有 ../NimoOS-Service,锚点已漂')
+   fs.writeFileSync(
+     lockPath,
+     lock.replaceAll('file:../NimoOS-Service', 'file:packages/service')
+         .replaceAll('directory: ../NimoOS-Service', 'directory: packages/service'),
+   )
+diff --git a/oss/files/README.md b/oss/files/README.md
+index e9c78b5..ecd4ccd 100644
+--- a/oss/files/README.md
++++ b/oss/files/README.md
+@@ -15,21 +15,21 @@ Dock / 小组件 / Docker 应用识别)、文件区(管理 / 上传 / 分享 / 
+ - socket.io-client(事件总线)· tus-js-client(断点续传上传)· @novnc/novnc(虚机控制台)
+ - 测试:Vitest + @vue/test-utils,测试文件与实现同目录(`*.test.ts`)
+ 
+ ## 目录结构
+ 
+ ```
+ src/                 前端源码
+ packages/service/    HTTP / 认证内核共享包(@nimotech/nimoos-service),已内嵌
+ ```
+ 
+-共享包通过 `package.json` 的 `file:./packages/service` 链接 —— clone 一个仓库即可开发,
++共享包通过 `package.json` 的 `file:packages/service` 链接 —— clone 一个仓库即可开发,
+ 不需要额外拉包。
+ 
+ ## 开始
+ 
+ 需要 Node.js ≥ 20.19(vite 7 的 engines 要求 `^20.19.0 || >=22.12.0`,20.0–20.18 装完会
+ 撞引擎错误)与 **pnpm**(勿用 yarn / npm)。
+ 
+ ```bash
+ pnpm install
+ pnpm dev          # http://localhost:5273/app/
+diff --git a/oss/files/defaultLayout.ts b/oss/files/defaultLayout.ts
+index 4812883..ba415b7 100644
+--- a/oss/files/defaultLayout.ts
++++ b/oss/files/defaultLayout.ts
+@@ -1,13 +1,13 @@
+ import type { LayoutItem } from './types'
+ 
+-// 开源版默认桌面:12 列 × 8 行 = 96 格,占 69 格,上面 6 行填满,最后两行故意留空
++// 默认桌面:12 列 × 8 行 = 96 格,占 69 格,上面 6 行填满,最后两行故意留空
+ // 给用户自己加。尺寸全部落在 widgets/registry.ts 各自的 min/max 内。
+ //
+ //      c1   c2   c3   c4  | c5   c6   c7   c8  | c9   c10 | c11  c12
+ // r1  [ 时钟 4×2         ][ 存储 4×2          ][ GPU 4×2            ]
+ // r2  [                  ][                   ][                    ]
+ // r3  [ 网络 4×4         ][ CPU 4×3           ][事件 2×4 ][文件][设置]
+ // r4  [                  ][                   ][         ][商店][虚机]
+ // r5  [                  ][                   ][         ][存储][    ]
+ // r6  [                  ][文档][下载][媒体][图库][      ][    ][    ]
+ // r7   （留空）
+diff --git a/oss/manifest.mjs b/oss/manifest.mjs
+index c7596b5..27ee494 100644
+--- a/oss/manifest.mjs
++++ b/oss/manifest.mjs
+@@ -132,29 +132,28 @@ const SYS_ROUTE: Record<string, string> = {
+   vm: '/kvm', settings: '/settings',
+ }` },
+   { path: 'src/home/composables/useOpenAction.ts',
+     find: `// 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
+ // == '1' 时磁贴退回 Vue2 /#/legacy 老桌面,可逆 cutover。
+ // /apps = SP5-P8;/storage = SP6-P6(Vue2 桌面那三个存储入口共用同一把键,
+ // 同源共享 localStorage,所以置一次即两侧同时回退)。
+ function cutoverDisabled(from: string): boolean {
+   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
+ }`,
+-    replace: `// 本版没有需要回退的旧入口,恒 false(保留函数形状以免调用处发散)。
+-function cutoverDisabled(): boolean { return false }` },
++    replace: '' },
+   { path: 'src/home/composables/useOpenAction.ts',
+     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
+       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
+       window.location.href = SYS_ROUTE[key] || '/#/legacy'
+       return`,
+-    replace: `      if (key === 'appstore' && !cutoverDisabled()) { router.push('/apps/store'); return }
+-      if (key === 'storage' && !cutoverDisabled()) { router.push('/storage'); return }
++    replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
++      if (key === 'storage') { router.push('/storage'); return }
+       router.push(SYS_ROUTE[key] || '/')
+       return` },
+   { path: 'src/home/composables/useOpenAction.ts',
+     find: `    else if (it.kind === 'photo') window.location.href = '/#/photos'
+     else if (it.kind === 'widget' && it.key === 'ai') window.location.href = '/#/ai/agent'
+   }
+ 
+   function sendToAI(text?: string) {
+     const q = (text || '').trim()
+     window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
+@@ -345,27 +344,30 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+     find: '  search_switch?: boolean\n', replace: '' },
+   { path: 'src/settings/util/systemConfig.ts',
+     find: '  search_switch: true,\n', replace: '' },
+ 
+   // ── 注释洗白(代码一个字节不动)────────────────────────────────────────
+   { path: 'src/apps/util/systemApp.ts',
+     find: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(AI agent 运行时 /\n *  Photos ML 后端等),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。",
+     replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
+   { path: 'src/settings/util/appPaths.ts',
+     find: '// 后端(2026-08-01 实测 GET /v1/sys/paths)返回 4 个 key —— app_data / images / database /\n// photos_data,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。',
+-    replace: '// 后端(2026-08-01 实测 GET /v1/sys/paths)可能返回更多 key,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。' },
++    // I5-guard(⑤b)复核:原 replace 仍带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
++    replace: '// 后端(2026-08-01 实测 GET /v1/sys/paths)可能返回更多 key,但界面只渲染前 3 个,这里也只产出 3 行。' },
+   { path: 'src/apps/stores/installedApps.ts',
+     find: '        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。',
+     replace: '        // 系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。' },
+   { path: 'src/settings/panels/AppsPanel.vue',
+     find: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。\n//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。',
+-    replace: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
++    // I5-guard(⑤b)复核:原 replace 仍带 "政策三「做样子」"(内部分级术语,FORBIDDEN 清单
++    // 里的"做样子"本就是冲它去的,REPLACE-only 时代未覆盖到 PATCH,漏检)。
++    replace: '// 「清理本地待上传缓存」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
+ 
+   // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
+   { path: '.gitignore',
+     find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n.superpowers/\n',
+     replace: '' },
+   { path: '.gitignore',
+     find: '\n# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库\nscripts/tmlab/\nvite.config.tmlab.ts',
+     replace: '\n# 导出报告(含上游 commit hash),仅供本地追溯\n.export-report.txt' },
+ 
+   // ═══════════════════ T8:i18n 四个 locale + theme.css ═══════════════════
+@@ -693,21 +695,22 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+       'storage',
+       'network',
+       'apps',
+       'terminal',
+       'system-status',
+       'folder-permissions',
+       'account',
+       'developer',
+     ])
+   })`,
+-    replace: `  it('8 个 tab,顺序与 Vue2 一致(rail 6 项 + account + developer)', () => {
++    // I5-guard(⑤b)复核:原标题带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
++    replace: `  it('8 个 tab,顺序固定(rail 6 项 + account + developer)', () => {
+     expect(SETTINGS_TABS).toEqual([
+       'general',
+       'storage',
+       'network',
+       'apps',
+       'terminal',
+       'system-status',
+       'account',
+       'developer',
+     ])
+@@ -717,21 +720,23 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+     expect(RAIL_TABS).toEqual([
+       'general',
+       'storage',
+       'network',
+       'apps',
+       'terminal',
+       'system-status',
+       'folder-permissions',
+     ])
+   })`,
+-    replace: `  it('rail 只有 6 项 —— account 走用户块、developer 走 general 页内入口(Vue2 L855-863/L13/L315)', () => {
++    // I5-guard(⑤b)复核:原标题带 "Vue2 L855-863/L13/L315"(旧代码具体行号引用,
++    // REPLACE-only 时代未覆盖到 PATCH,漏检)。
++    replace: `  it('rail 只有 6 项 —— account 走用户块、developer 走 general 页内入口', () => {
+     expect(RAIL_TABS).toEqual([
+       'general',
+       'storage',
+       'network',
+       'apps',
+       'terminal',
+       'system-status',
+     ])
+   })` },
+   { path: 'src/settings/util/tabs.test.ts',
+@@ -770,32 +775,34 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+   //    且组件本身只认 app_data/images/database,第 4 个 key 叫什么都无所谓)+
+   //    待上传缓存禁用态标注的断言跟着 T7 洗白后的新文案走(HARD 禁词「相册」)──
+   { path: 'src/settings/panels/AppsPanel.test.ts',
+     find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
+     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
+   { path: 'src/settings/panels/AppsPanel.test.ts',
+     find: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含 photos_data),界面 1:1 只显示 3 行', async () => {",
+     replace: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {" },
+   { path: 'src/settings/panels/AppsPanel.test.ts',
+     find: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带待相册区迁移的标注(政策三"做样子")\', async () => {',
+-    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注(政策三"做样子")\', async () => {' },
++    // I5-guard(⑤b)复核:原标题仍带 "政策三"做样子""(REPLACE-only 时代未覆盖到 PATCH,漏检)。
++    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注\', async () => {' },
+   { path: 'src/settings/panels/AppsPanel.test.ts',
+     find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
+     replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
+ 
+   // ── appPaths.test.ts:同一份 fixture 的 photos_data 键改名(HARD 禁词)────────
+   { path: 'src/settings/util/appPaths.test.ts',
+     find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
+     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
+   { path: 'src/settings/util/appPaths.test.ts',
+     find: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),Vue2 只渲染 3 行', () => {",
+-    replace: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),Vue2 只渲染 3 行', () => {" },
++    // I5-guard(⑤b)复核:原标题仍带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
++    replace: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),只渲染前 3 行', () => {" },
+ 
+   // ── installedApps.test.ts:注释点名 AI agent / Photos ML,措辞对齐 T7 洗白后
+   //    的孪生产品代码注释(installedApps.ts 同一行,已在上面改过) ─────────────
+   { path: 'src/apps/stores/installedApps.test.ts',
+     find: "  it('refresh 过滤系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)', async () => {",
+     replace: "  it('refresh 过滤系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)', async () => {" },
+ 
+   // ── systemApp.test.ts:文件头注释独立复述了同一段解释,同样点名 Photos ML,
+   //    与 systemApp.ts 源文件那处 T7 洗白对齐(该文件本身不在 REPLACE/PATCH 表里
+   //    改过,是测试文件自己写的第二份类似文案)─────────────────────────────────
+@@ -1053,20 +1060,101 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+   { path: 'src/settings/util/components.test.ts',
+     find: "  { name: 'Qdrant', category: 'external', version: '1.18.1', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' },",
+     replace: "  { name: 'External Component', category: 'external', version: '1.18.1', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' }," },
+ 
+   // Home.integration.test.ts:vi.mock('@nimotech/nimoos-service') 里还 mock 着
+   // service.photos——Home.vue 早就不导入 usePhotosStore 了(见上面 T7 的补丁与
+   // tree.test.ts 的断言),这一行是纯粹的死 mock,顺手删掉而不是留着当活化石。
+   { path: 'src/views/Home.integration.test.ts',
+     find: "      photos: { listAssets: vi.fn(async () => []), thumbnailUrl: vi.fn(() => '') },\n",
+     replace: '' },
++
++  // ═══════════════════ 修复波(2026-08-04 final-review 发布前必修)═══════════
++
++  // ── I3:theme.css 5 个孤儿 token(SearchDialog/MediaViewer/AiWidget 唯一消费方
++  //    均已被本清单 DELETE/REPLACE 掉,定义留在门面文件 theme.css 里会误导读者
++  //    以为还有搜索高亮/转录高光功能)。8 行 = 深色块 4 行 + 浅色块 4 行。────────
++  { path: 'src/styles/theme.css',
++    find: '  --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --hl-star: #e8c06a;\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --inner-bg-hi: rgba(255, 255, 255, 0.22);\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --brand-shadow: 0 12px 30px rgba(59, 91, 219, 0.3);\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --inner-bg-hi: #f0eee8;\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --hit-bg: #fce8a6; --hit-fg: #5a4a12;\n', replace: '' },
++  { path: 'src/styles/theme.css',
++    find: '  --hl-star: #c9992f;\n', replace: '' },
++
++  // ── I4:产出树里残留的 strangler/cutover 措辞与一条恒真测试。IDX 6/IDX 7 的
++  //    replace payload 已在上面直接改掉(cutoverDisabled 死代码整块删除、
++  //    调用点去掉恒 false 的守卫)。这里补 8 条:删恒真用例、清理 beforeEach、
++  //    洗白 3 处 "P8 cutover:" 注释与 2 处 it() 标题、洗白 protocol.ts 注释。──
++  { path: 'src/home/composables/useOpenAction.test.ts',
++    find: `  it('storage 与 apps 两把 flag 互不干扰', () => {
++    localStorage.setItem('strangler:disabled:/apps', '1')
++    const { openApp } = useOpenAction()
++    openApp('storage')
++    expect(router.push).toHaveBeenCalledWith('/storage')
++    expect(hrefs.length).toBe(0)
++    localStorage.removeItem('strangler:disabled:/apps')
++  })
++`, replace: '' },
++  { path: 'src/home/composables/useOpenAction.test.ts',
++    find: `  hrefs = []; opens = []
++  localStorage.removeItem('strangler:disabled:/apps')
++  localStorage.removeItem('strangler:disabled:/storage')
++`, replace: `  hrefs = []; opens = []
++` },
++  { path: 'src/home/components/HomeDock.test.ts',
++    find: '// P8 cutover:dock 的 files 图标改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
++    replace: '// dock 的 files 图标走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
++  { path: 'src/home/components/GridItem.click.test.ts',
++    find: '// P8 cutover:文件夹瓦片改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
++    replace: '// 文件夹瓦片走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
++  { path: 'src/home/composables/useOpenAction.test.ts',
++    find: '// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
++    replace: '// 文件入口走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
++  { path: 'src/home/composables/useOpenAction.test.ts',
++    find: "  it('appstore 磁贴应用内 router.push /apps/store(SP5-P8 cutover)', () => {",
++    replace: "  it('appstore 磁贴应用内 router.push /apps/store', () => {" },
++  { path: 'src/home/composables/useOpenAction.test.ts',
++    find: "  it('storage 磁贴应用内 router.push /storage(SP6-P6 cutover)', () => {",
++    replace: "  it('storage 磁贴应用内 router.push /storage', () => {" },
++  { path: 'src/files/drop/protocol.ts',
++    find: '// 硬约束:P8 翻 strangler 前新旧页面并存互传,任何形状/数值改动都会破坏兼容。',
++    replace: '// 硬约束:该协议用于页面间互传,任何形状/数值改动都会破坏兼容。' },
++
++  // ── I6:vite.config.ts 直接点名 Claude Code,与「删 CLAUDE.md 因为它是最直白的
++  //    AI 辅助开发标记」的理由自相矛盾。exclude 数组本身保留(功能无害)。────────
++  { path: 'vite.config.ts',
++    find: '    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),',
++    replace: '    // 本机可能存在 .claude/ 等工具目录(含整个仓库副本),' },
++
++  // ── I7a:注释里泄露内部 SDD 台账路径(.superpowers/sdd/sp9/...)与债务编号。──
++  { path: 'src/settings/util/ifaceForm.ts',
++    find: '// → 写路径的正确性只能靠这里的单测(见台账 .superpowers/sdd/sp9/03-p2.md 债务 D18)。',
++    replace: '// → 写路径的正确性只能靠这里的单测(该接口没有安全的真机验证途径)。' },
++
++  // ── M1:package.json 的 name 是私有仓名(new-ui 暗示存在一个 old UI)。────────
++  { path: 'package.json',
++    find: '  "name": "nimoos-new-ui",', replace: '  "name": "nimoos-web",' },
++
++  // ── M2:scripts/deploy.sh 注释里写着私有仓名。──────────────────────────────
++  { path: 'scripts/deploy.sh',
++    find: '# 构建 NimoOS-New-UI 并部署到 Gateway 的 /app/ 静态目录。',
++    replace: '# 构建本项目并部署到 Gateway 的 /app/ 静态目录。' },
+ ]
+ 
+ /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
+ export const SERVICE_PATCH = [
+   // ── T13 复审 Critical:内嵌包不带构建产物,`pnpm test` 编译不过 ─────────────
+   // export.mjs 用 `git archive HEAD` 取源(见该文件"取源"注释),NimoOS-Service
+   // 的 dist/ 是构建产物、.gitignore 里就没进 git,git archive 天然拿不到它 ——
+   // package.json 却指向 ./dist/index.js,导致 pnpm install 按 "files": ["dist"]
+   // 打包出的 @nimotech/nimoos-service 里只剩一个 package.json,任何消费它的测试
+   // 文件全部 "Failed to resolve entry for package"(T13 是第一个真的在产出树里跑
+diff --git a/oss/tree.test.mjs b/oss/tree.test.mjs
+index 8696cae..b01052e 100644
+--- a/oss/tree.test.mjs
++++ b/oss/tree.test.mjs
+@@ -1,16 +1,16 @@
+ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+ import fs from 'node:fs'
+ import os from 'node:os'
+ import path from 'node:path'
+ import { execFileSync } from 'node:child_process'
+-import { REPLACE } from './manifest.mjs'
++import { REPLACE, PATCH } from './manifest.mjs'
+ 
+ const OSS = path.dirname(new URL(import.meta.url).pathname)
+ let tree
+ 
+ beforeAll(() => {
+   tree = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-out-'))
+   execFileSync('node', [path.join(OSS, 'export.mjs'), '--out', tree, '--skip-guard', '--no-commit', '--allow-dirty-oss'], {
+     stdio: 'pipe', encoding: 'utf8',
+   })
+ }, 180_000)
+@@ -60,46 +60,49 @@ describe('类 1 · 整体删除', () => {
+     expect(exists('CLAUDE.md')).toBe(false)
+     expect(exists('design-export')).toBe(false)
+   })
+ })
+ 
+ describe('内嵌共享包', () => {
+   it('Service 落到 packages/service/,package.json 的 file: 指过去', () => {
+     expect(exists('packages/service/src/index.ts')).toBe(true)
+     expect(exists('packages/service/src/photos.ts')).toBe(false)
+     const pkg = JSON.parse(read('package.json'))
+-    expect(pkg.dependencies['@nimotech/nimoos-service']).toBe('file:./packages/service')
++    expect(pkg.dependencies['@nimotech/nimoos-service']).toBe('file:packages/service')
+   })
+ 
+   it('lockfile 里不再有 ../NimoOS-Service 路径', () => {
+     expect(read('pnpm-lock.yaml')).not.toContain('NimoOS-Service')
+   })
+ })
+ 
+ describe('类 3 · 桌面侧补丁', () => {
+   it('系统应用清单只剩 5 个,photos/ai 的 import 与 glyph 都没了', () => {
+     const s = read('src/home/apps/systemApps.ts')
+     expect(s).not.toMatch(/photos|iconAi|G\.ai/)
+     expect(s.match(/\{ key: '/g)).toHaveLength(5)
+     for (const k of ['files', 'storage', 'vm', 'settings', 'appstore']) expect(s).toContain(`key: '${k}'`)
+   })
+ 
+   it('Dock 默认收藏 = files/storage/vm/appstore', () => {
+     expect(read('src/home/composables/useDock.ts'))
+       .toContain("const DEFAULT_FAV = ['files', 'storage', 'vm', 'appstore']")
+   })
+ 
+-  it('SYS_ROUTE 指内部路由,cutoverDisabled 恒 false,sendToAI 整个没了', () => {
++  // I4(final-review 发布前必修 ③):cutoverDisabled 是死代码(开源版没有旧入口可回退),
++  // 整个函数连同调用点的恒 false 守卫一并删掉,不再保留"函数形状"。
++  it('SYS_ROUTE 指内部路由,cutoverDisabled 死代码整块删除,sendToAI 整个没了', () => {
+     const s = read('src/home/composables/useOpenAction.ts')
+     expect(s).toContain("vm: '/kvm', settings: '/settings'")
+-    expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled/)
+-    expect(s).toContain('function cutoverDisabled(): boolean { return false }')
++    expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled|cutoverDisabled/)
++    expect(s).toContain("if (key === 'appstore') { router.push('/apps/store'); return }")
++    expect(s).toContain("if (key === 'storage') { router.push('/storage'); return }")
+   })
+ 
+   it("Kind 联合类型去掉 'photo'", () => {
+     expect(read('src/home/grid/types.ts'))
+       .toContain("export type Kind = 'widget' | 'app' | 'folder' | 'appwidget'")
+   })
+ 
+   it('小组件注册表与 WidgetCard 不再有 ai', () => {
+     expect(read('src/home/widgets/registry.ts')).not.toMatch(/\bai:/)
+     expect(read('src/home/components/widgets/WidgetCard.vue')).not.toMatch(/AiWidget/)
+@@ -412,29 +415,48 @@ describe('类 2 · README', () => {
+       expect(s, k).toContain(k)
+     }
+   })
+ })
+ 
+ describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
+   // 固定清单(每次新增 REPLACE 条目都要过一遍,别为单个文件重开断言):
+   // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。
+   // T14(B4):/SP\d/i 原来没有 \b 词边界,会误伤 "wasp7"/"grasp789" 这类纯属巧合含有
+   // "sp" + 数字子串的英文单词——当前仓库里恰好零命中,但这是隐患,不是等出现了再补。
+-  const FORBIDDEN = [/Task \d/, /\bSP\d/i, /\bsp[789]\b/i, /spec §/, /本期/, /做样子/, /Vue2/, /NimoOS-UI/]
++  // I5-guard(final-review 发布前必修 ⑤):补三条词(开源版/本版/社区版 —— ④ 的教训)
++  // + strangler/cutover(③ 的教训),并把 NimoOS-UI 放宽到能抓 NimoOS-New-UI
++  // (原正则是精确子串匹配,"NimoOS-New-UI" 不含 "NimoOS-UI" 这个连续子串,抓不到)。
++  // (?!\.ts) 沿用下方"复审第二轮"用例(:287-288)已经裁定的同一条豁免:zh_cn.sp9.ts /
++  // en_us.sp9.ts 互相指代对方文件名本身是合法引用,不是内部期号泄漏——这两个文件名
++  // 本身带 sp9(M11,已裁定的范围外大类,产出树文件名洗期号是独立一期的工作),
++  // 把断言作用域扩到 PATCH 的 replace payload 后(见下方 b 部分),这条豁免必须同步
++  // 搬过来,否则会对一个已经裁定"不算泄漏"的地方误报。
++  const FORBIDDEN = [/Task \d/, /\bSP\d(?!\.ts)/i, /\bsp[789]\b(?!\.ts)/i, /spec §/, /本期/, /做样子/, /Vue2/,
++                     /NimoOS-(New-)?UI/, /开源版?/, /本版/, /社区版/, /strangler/i, /cutover/i]
+ 
+   it('REPLACE 表里每一个冻结分身都不含固定清单里的词', () => {
+     for (const { path: rel } of REPLACE) {
+       const s = read(rel)
+       for (const bad of FORBIDDEN) expect(s, `${rel} :: ${bad}`).not.toMatch(bad)
+     }
+   })
+ 
++  // I5-guard 第 2 部分:REPLACE 只覆盖 4 个冻结分身,PATCH 写入产出树的内容此前完全
++  // 不受这条守卫约束(I5b 的"本版"就是这么从 IDX 6 的 replace payload 里漏出去的)。
++  it('PATCH 的 replace 内容也不含固定清单里的词', () => {
++    for (const [i, p] of PATCH.entries()) {
++      for (const bad of FORBIDDEN) {
++        expect(String(p.replace), `PATCH[${i}] ${p.path} :: ${bad}`).not.toMatch(bad)
++      }
++    }
++  })
++
+   // T14(B4):直接对着正则做边界测试,不依赖"仓库里恰好有没有这种词"——
+   // wasp7/grasp789 这类词缀撞车的英文单词必须放行,真实的 SP9/sp7 提法必须仍然命中。
+   it('/\\bSP\\d/i 词边界:wasp7/grasp789 不误伤,真实 SP9/sp7 仍然命中', () => {
+     const SP_DIGIT = /\bSP\d/i
+     for (const text of ['a wasp7 crawled by', 'grasp789 the concept', 'crisp42 response']) {
+       expect(SP_DIGIT.test(text), text).toBe(false)
+     }
+     for (const text of ['SP9 收尾视图', 'this is sp7 photos work', '(SP8)']) {
+       expect(SP_DIGIT.test(text), text).toBe(true)
+     }

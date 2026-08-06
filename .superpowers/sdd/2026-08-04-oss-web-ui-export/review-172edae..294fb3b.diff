@@ -1,0 +1,111 @@
+# Review package: 172edae..HEAD
+
+## Commits
+294fb3b fix(oss): 冻结分身注释洗白内部编号 + 补固定清单守卫
+
+## Files changed
+ oss/files/AddPanel.vue    |  2 +-
+ oss/files/MediaViewer.vue |  2 +-
+ oss/tree.test.mjs         | 14 ++++++++++++++
+ 3 files changed, 16 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/oss/files/AddPanel.vue b/oss/files/AddPanel.vue
+index 77be895..1c8f685 100644
+--- a/oss/files/AddPanel.vue
++++ b/oss/files/AddPanel.vue
+@@ -209,21 +209,21 @@ const TABS = [
+   { key: 'folder', label: 'addPanelTabFolder' },
+ ] as const
+ 
+ // Hide gpu widget when no GPU present
+ const visibleWidgets = computed(() => {
+   return Object.fromEntries(
+     Object.entries(WIDGETS).filter(([key]) => key !== 'gpu' || liveStats.gpuPresent)
+   )
+ })
+ 
+-// App-declared widgets (Task 5/9: desktop apps with a `widget` decl) — listed
++// App-declared widgets: desktop apps with a `widget` decl — listed
+ // alongside the built-in widget cards so a manually-removed app widget can be
+ // re-added from here.
+ const appWidgetCards = computed(() =>
+   appsStore.desktopDecls()
+     .filter((d) => d.widget)
+     .map((d) => {
+       const a = appsStore.apps[d.key]
+       const [w, h] = clampWidgetDecl(d.widget!.w, d.widget!.h)
+       return { key: d.key, name: a?.name ?? d.key, icon: a?.icon ?? null, w, h }
+     }))
+diff --git a/oss/files/MediaViewer.vue b/oss/files/MediaViewer.vue
+index 957ad6f..ff1eea1 100644
+--- a/oss/files/MediaViewer.vue
++++ b/oss/files/MediaViewer.vue
+@@ -155,21 +155,21 @@ onMounted(async () => {
+       screenshot: true,
+       airplay: true,
+       playsInline: true,
+       theme: '#007AE5',
+       lang: locale.value.replace('_', '-'),
+     })
+   } else if (kind === 'audio') {
+     startWaveDecode()
+     // 尝试自动播放（被浏览器策略拦截则等用户点播放按钮）。
+     void audioMedia.value?.play?.().catch(() => {})
+-    // 封面 + 标题/艺术家(Vue2 mm.fetchFromUrl)——元数据失败不阻断播放。
++    // 封面 + 标题/艺术家(mm.fetchFromUrl)——元数据失败不阻断播放。
+     try {
+       const mm = await import('music-metadata-browser')
+       if (disposed) return
+       const metadata = await mm.fetchFromUrl(url)
+       if (disposed) return
+       const pic = metadata.common.picture?.[0]
+       if (pic) {
+         const blob = new Blob([new Uint8Array(pic.data)], { type: pic.format })
+         poster.value = URL.createObjectURL(blob)
+         if (wrap.value) {
+diff --git a/oss/tree.test.mjs b/oss/tree.test.mjs
+index 768b2a1..d328a1a 100644
+--- a/oss/tree.test.mjs
++++ b/oss/tree.test.mjs
+@@ -1,15 +1,16 @@
+ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+ import fs from 'node:fs'
+ import os from 'node:os'
+ import path from 'node:path'
+ import { execFileSync } from 'node:child_process'
++import { REPLACE } from './manifest.mjs'
+ 
+ const OSS = path.dirname(new URL(import.meta.url).pathname)
+ let tree
+ 
+ beforeAll(() => {
+   tree = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-out-'))
+   execFileSync('node', [path.join(OSS, 'export.mjs'), '--out', tree, '--skip-guard', '--no-commit', '--allow-dirty-oss'], {
+     stdio: 'pipe', encoding: 'utf8',
+   })
+ }, 180_000)
+@@ -388,10 +389,23 @@ describe('类 2 · MediaViewer 拆转录', () => {
+                      'audioSkipBack', 'audioSkipForward', 'audioSpeed',
+                      'var(--wave-none)', 'music-metadata-browser', 'artplayer']) {
+       expect(s, k).toContain(k)
+     }
+   })
+ 
+   it('文件明显变短(852 行 → 600 行以内)', () => {
+     expect(read('src/files/viewers/MediaViewer.vue').split('\n').length).toBeLessThan(600)
+   })
+ })
++
++describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
++  // 固定清单(每次新增 REPLACE 条目都要过一遍,别为单个文件重开断言):
++  // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。
++  const FORBIDDEN = [/Task \d/, /SP\d/i, /\bsp[789]\b/i, /spec §/, /本期/, /做样子/, /Vue2/, /NimoOS-UI/]
++
++  it('REPLACE 表里每一个冻结分身都不含固定清单里的词', () => {
++    for (const { path: rel } of REPLACE) {
++      const s = read(rel)
++      for (const bad of FORBIDDEN) expect(s, `${rel} :: ${bad}`).not.toMatch(bad)
++    }
++  })
++})

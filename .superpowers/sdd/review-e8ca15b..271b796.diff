@@ -1,0 +1,402 @@
+# Review package: e8ca15b..271b796
+
+## Commits
+271b796 feat(files-viewer): ImageViewer(v-viewer + 自定义工具栏 + 翻页,忠于 Vue2)
+
+## Files changed
+ package.json                       |   2 +
+ pnpm-lock.yaml                     |  28 ++++++++
+ src/files/viewers/ImageViewer.vue  | 131 ++++++++++++++++++++++++++++++++++++-
+ src/files/viewers/imageNav.test.ts |  20 ++++++
+ src/files/viewers/imageNav.ts      |  15 +++++
+ src/i18n/zh_cn.ts                  |   6 ++
+ 6 files changed, 200 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index 9c8dff6..76bc906 100644
+--- a/package.json
++++ b/package.json
+@@ -9,20 +9,22 @@
+     "test": "vitest run",
+     "test:watch": "vitest"
+   },
+   "dependencies": {
+     "@nimotech/nimoos-service": "file:../NimoOS-Service",
+     "axios": "^1.7",
+     "pinia": "^2.1",
+     "reka-ui": "^2.10.1",
+     "socket.io-client": "2.5.0",
+     "tus-js-client": "^4",
++    "v-viewer": "^3",
++    "viewerjs": "^1.11.7",
+     "vue": "^3.4",
+     "vue-i18n": "^9.9",
+     "vue-router": "^4.3"
+   },
+   "devDependencies": {
+     "@vitejs/plugin-vue": "^6",
+     "@vue/test-utils": "^2",
+     "fake-indexeddb": "^6.2.5",
+     "jsdom": "^24",
+     "typescript": "^5",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index ce68282..0e33b43 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -19,20 +19,26 @@ importers:
+         version: 2.3.1(typescript@5.9.3)(vue@3.5.39(typescript@5.9.3))
+       reka-ui:
+         specifier: ^2.10.1
+         version: 2.10.1(vue@3.5.39(typescript@5.9.3))
+       socket.io-client:
+         specifier: 2.5.0
+         version: 2.5.0
+       tus-js-client:
+         specifier: ^4
+         version: 4.3.1
++      v-viewer:
++        specifier: ^3
++        version: 3.0.23(viewerjs@1.11.7)(vue@3.5.39(typescript@5.9.3))
++      viewerjs:
++        specifier: ^1.11.7
++        version: 1.11.7
+       vue:
+         specifier: ^3.4
+         version: 3.5.39(typescript@5.9.3)
+       vue-i18n:
+         specifier: ^9.9
+         version: 9.14.5(vue@3.5.39(typescript@5.9.3))
+       vue-router:
+         specifier: ^4.3
+         version: 4.6.4(vue@3.5.39(typescript@5.9.3))
+     devDependencies:
+@@ -943,20 +949,23 @@ packages:
+ 
+   jsdom@24.1.3:
+     resolution: {integrity: sha512-MyL55p3Ut3cXbeBEG7Hcv0mVM8pp8PBNWxRqchZnSfAiES1v1mRnMeFfaHWIPULpwsYfvO+ZmMZz5tGCnjzDUQ==}
+     engines: {node: '>=18'}
+     peerDependencies:
+       canvas: ^2.11.2
+     peerDependenciesMeta:
+       canvas:
+         optional: true
+ 
++  lodash-es@4.18.1:
++    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
++
+   lodash._baseiteratee@4.7.0:
+     resolution: {integrity: sha512-nqB9M+wITz0BX/Q2xg6fQ8mLkyfF7MU7eE+MNBNjTHFKeKaZAPEzEg+E8LWxKWf1DQVflNEn9N49yAuqKh2mWQ==}
+ 
+   lodash._basetostring@4.12.0:
+     resolution: {integrity: sha512-SwcRIbyxnN6CFEEK4K1y+zuApvWdpQdBHM/swxP962s8HIxPO3alBH5t3m/dl+f4CMUug6sJb7Pww8d13/9WSw==}
+ 
+   lodash._baseuniq@4.6.0:
+     resolution: {integrity: sha512-Ja1YevpHZctlI5beLA7oc5KNDhGcPixFhcqSiORHNsp/1QTv7amAXzw+gu4YOvErqVlMVyIJGgtzeepCnnur0A==}
+ 
+   lodash._createset@4.0.3:
+@@ -1221,20 +1230,29 @@ packages:
+     engines: {node: '>=14.17'}
+     hasBin: true
+ 
+   universalify@0.2.0:
+     resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
+     engines: {node: '>= 4.0.0'}
+ 
+   url-parse@1.5.10:
+     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
+ 
++  v-viewer@3.0.23:
++    resolution: {integrity: sha512-u/Zd/FXTdtdE2k2YeYMf6mU4oL0ILEZ9STHnZT7myyfRwQot68GO3O+6DwxNnHTaATiiAJTrz2MXjaqYKoB7iA==}
++    peerDependencies:
++      viewerjs: ^1.11.0
++      vue: ^3.0.0
++
++  viewerjs@1.11.7:
++    resolution: {integrity: sha512-0JuVqOmL5v1jmEAlG5EBDR3XquxY8DWFQbFMprOXgaBB0F7Q/X9xWdEaQc59D8xzwkdUgXEMSSknTpriq95igg==}
++
+   vite@7.3.6:
+     resolution: {integrity: sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg==}
+     engines: {node: ^20.19.0 || >=22.12.0}
+     hasBin: true
+     peerDependencies:
+       '@types/node': ^20.19.0 || >=22.12.0
+       jiti: '>=1.21.0'
+       less: ^4.0.0
+       lightningcss: ^1.21.0
+       sass: ^1.70.0
+@@ -2260,20 +2278,22 @@ snapshots:
+       whatwg-encoding: 3.1.1
+       whatwg-mimetype: 4.0.0
+       whatwg-url: 14.2.0
+       ws: 8.21.0
+       xml-name-validator: 5.0.0
+     transitivePeerDependencies:
+       - bufferutil
+       - supports-color
+       - utf-8-validate
+ 
++  lodash-es@4.18.1: {}
++
+   lodash._baseiteratee@4.7.0:
+     dependencies:
+       lodash._stringtopath: 4.8.0
+ 
+   lodash._basetostring@4.12.0: {}
+ 
+   lodash._baseuniq@4.6.0:
+     dependencies:
+       lodash._createset: 4.0.3
+       lodash._root: 3.0.1
+@@ -2557,20 +2577,28 @@ snapshots:
+ 
+   typescript@5.9.3: {}
+ 
+   universalify@0.2.0: {}
+ 
+   url-parse@1.5.10:
+     dependencies:
+       querystringify: 2.2.0
+       requires-port: 1.0.0
+ 
++  v-viewer@3.0.23(viewerjs@1.11.7)(vue@3.5.39(typescript@5.9.3)):
++    dependencies:
++      lodash-es: 4.18.1
++      viewerjs: 1.11.7
++      vue: 3.5.39(typescript@5.9.3)
++
++  viewerjs@1.11.7: {}
++
+   vite@7.3.6:
+     dependencies:
+       esbuild: 0.28.1
+       fdir: 6.5.0(picomatch@4.0.4)
+       picomatch: 4.0.4
+       postcss: 8.5.16
+       rollup: 4.62.2
+       tinyglobby: 0.2.17
+     optionalDependencies:
+       fsevents: 2.3.3
+diff --git a/src/files/viewers/ImageViewer.vue b/src/files/viewers/ImageViewer.vue
+index a7b5d20..6714d4c 100644
+--- a/src/files/viewers/ImageViewer.vue
++++ b/src/files/viewers/ImageViewer.vue
+@@ -1,11 +1,138 @@
+ <script setup lang="ts">
++import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import { component as VViewer } from 'v-viewer'
++import 'viewerjs/dist/viewer.css'
+ import ViewerShell from './ViewerShell.vue'
++import { filterImages, imageIndex } from './imageNav'
+ import type { FileEntry } from '../stores/files'
++
+ const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
+ const emit = defineEmits<{ (e: 'close'): void; (e: 'download'): void }>()
++const { t } = useI18n()
++
++const items = filterImages(props.list.length ? props.list : [props.item])
++const index = ref(imageIndex(items, props.item))
++const current = computed(() => items[index.value] ?? props.item)
++const srcArray = computed(() => [service.file.fileUrl(current.value.path)])
++
++// ViewerJS options:全关原生 chrome(忠于 Vue2 ImageViewer.vue viewerOptions)
++const viewerOptions = {
++  button: false,
++  toolbar: false,
++  title: false,
++  navbar: false,
++  backdrop: false,
++  transition: false,
++  inline: true,
++  initialViewIndex: 0,
++}
++
++// v-viewer v3 组件 `inited` 事件回传的是底层 viewerjs 实例本身(zoom/rotate/reset/show 等方法齐全)。
++let viewerInst: { zoom: (n: number) => void; rotate: (n: number) => void; reset: () => void; show: () => void } | null = null
++function inited(v: typeof viewerInst) {
++  viewerInst = v
++  viewerInst?.show()
++}
++
++const disablePrev = computed(() => index.value === 0)
++const disableNext = computed(() => index.value === items.length - 1)
++function prev() {
++  if (index.value > 0) index.value--
++}
++function next() {
++  if (index.value < items.length - 1) index.value++
++}
++
++// 工具栏 5s 无操作自动隐藏(忠于 Vue2 onMouseMove)
++const isMoving = ref(false)
++let hideTimer: ReturnType<typeof setTimeout> | null = null
++function onMouseMove() {
++  isMoving.value = true
++  if (hideTimer) clearTimeout(hideTimer)
++  hideTimer = setTimeout(() => {
++    isMoving.value = false
++    hideTimer = null
++  }, 5000)
++}
++
++function onKey(e: KeyboardEvent) {
++  if (e.code === 'ArrowRight') next()
++  else if (e.code === 'ArrowLeft') prev()
++}
++onMounted(() => {
++  window.addEventListener('keyup', onKey)
++  onMouseMove()
++})
++onBeforeUnmount(() => {
++  window.removeEventListener('keyup', onKey)
++  if (hideTimer) clearTimeout(hideTimer)
++})
+ </script>
++
+ <template>
+-  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download')">
+-    <div style="padding:24px">image placeholder: {{ props.item.name }}</div>
++  <ViewerShell :title="current.name" downloadable @close="emit('close')" @download="emit('download')">
++    <div class="img-wrap" @mousemove="onMouseMove" @touchmove="onMouseMove">
++      <div v-if="isMoving" class="img-toolbar">
++        <button class="tb-item" :class="{ disabled: disablePrev }" :title="t('filesViewerPrev')" @click="prev">‹</button>
++        <button class="tb-item" :title="t('filesViewerZoomIn')" @click="viewerInst?.zoom(0.1)">＋</button>
++        <button class="tb-item" :title="t('filesViewerRotate')" @click="viewerInst?.rotate(90)">⟳</button>
++        <button class="tb-item" :title="t('filesViewerReset')" @click="viewerInst?.reset()">⤢</button>
++        <button class="tb-item" :title="t('filesViewerZoomOut')" @click="viewerInst?.zoom(-0.1)">－</button>
++        <button class="tb-item" :class="{ disabled: disableNext }" :title="t('filesViewerNext')" @click="next">›</button>
++      </div>
++      <VViewer :images="srcArray" :options="viewerOptions" class="viewer" @inited="inited">
++        <template #default="{ images }">
++          <img v-for="src in images" :key="src" :src="src" alt="image" />
++        </template>
++      </VViewer>
++    </div>
+   </ViewerShell>
+ </template>
++
++<style scoped>
++.img-wrap {
++  width: 100%;
++  height: 100%;
++  position: relative;
++}
++.viewer {
++  width: 100%;
++  height: 100%;
++}
++.viewer :deep(.viewer-canvas) {
++  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 16 16'%3E%3Cpath fill='%23ccc' d='M8 6.5A1.5 1.5 0 1 0 8 9.5A1.5 1.5 0 1 0 8 6.5z' fill-opacity='0.1'/%3E%3C/svg%3E");
++  background-color: transparent;
++  background-repeat: repeat;
++}
++.img-toolbar {
++  position: absolute;
++  bottom: 40px;
++  left: 50%;
++  transform: translateX(-50%);
++  z-index: 10;
++  display: flex;
++  gap: 4px;
++  padding: 6px 10px;
++  border-radius: 10px;
++  background: rgb(49, 49, 54);
++}
++.tb-item {
++  width: 34px;
++  height: 34px;
++  border: none;
++  background: transparent;
++  color: #fff;
++  font-size: 18px;
++  cursor: pointer;
++  border-radius: 6px;
++}
++.tb-item:hover {
++  background: rgba(255, 255, 255, 0.15);
++}
++.tb-item.disabled {
++  opacity: 0.35;
++  pointer-events: none;
++}
++</style>
+diff --git a/src/files/viewers/imageNav.test.ts b/src/files/viewers/imageNav.test.ts
+new file mode 100644
+index 0000000..e1c78d8
+--- /dev/null
++++ b/src/files/viewers/imageNav.test.ts
+@@ -0,0 +1,20 @@
++import { describe, it, expect } from 'vitest'
++import { filterImages, imageIndex } from './imageNav'
++import type { FileEntry } from '../stores/files'
++
++const mk = (name: string, is_dir = false): FileEntry => ({ name, path: '/DATA/' + name, is_dir })
++const list = [mk('a.png'), mk('sub', true), mk('b.txt'), mk('c.JPG'), mk('d.gif')]
++
++describe('imageNav', () => {
++  it('filterImages 仅保留图片、去目录', () => {
++    expect(filterImages(list).map(i => i.name)).toEqual(['a.png', 'c.JPG', 'd.gif'])
++  })
++  it('imageIndex 定位当前项', () => {
++    const imgs = filterImages(list)
++    expect(imageIndex(imgs, imgs[1])).toBe(1)
++  })
++  it('imageIndex 找不到返回 0', () => {
++    const imgs = filterImages(list)
++    expect(imageIndex(imgs, mk('z.png'))).toBe(0)
++  })
++})
+diff --git a/src/files/viewers/imageNav.ts b/src/files/viewers/imageNav.ts
+new file mode 100644
+index 0000000..a66ddf0
+--- /dev/null
++++ b/src/files/viewers/imageNav.ts
+@@ -0,0 +1,15 @@
++// 图片翻页/过滤纯逻辑,复刻 Vue2 filebrowser/viewers/ImageViewer.vue 的
++// XIMAGES 常量 + filterImages/getCurrentImageIndex。
++import { fileExt } from '../util/ext'
++import type { FileEntry } from '../stores/files'
++
++const XIMAGES = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff']
++
++export function filterImages(list: FileEntry[]): FileEntry[] {
++  return list.filter(i => !i.is_dir && XIMAGES.includes(fileExt(i.name)))
++}
++
++export function imageIndex(items: FileEntry[], current: FileEntry): number {
++  const i = items.findIndex(x => x.path === current.path)
++  return i < 0 ? 0 : i
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index bc5824c..1a0a8ed 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -24,20 +24,26 @@ export const messages = {
+     filesProtectedDelete: '此项目受保护,无法删除',
+     filesProtectedRename: '此项目受保护,无法重命名',
+     filesProtectedMove: '此项目受保护,无法移动',
+     filesCopiedPath: '已复制路径',
+     filesNewFolder: '新建文件夹',
+     filesNewFile: '新建文件',
+     filesPaste: '粘贴',
+     filesDownloadPreparing: '正在准备下载…',
+     filesDownload: '下载',
+     filesViewerClose: '关闭',
++    filesViewerPrev: '上一张',
++    filesViewerNext: '下一张',
++    filesViewerZoomIn: '放大',
++    filesViewerZoomOut: '缩小',
++    filesViewerRotate: '旋转',
++    filesViewerReset: '重置',
+     filesRename: '重命名',
+     filesDefaultFolderName: 'New Folder',
+     filesDefaultFileName: 'New File',
+     filesConfirm: '确定',
+     filesCancel: '取消',
+     filesCtxRefresh: '刷新',
+     filesCtxCopyPath: '复制路径',
+     filesCtxAddFavorite: '收藏',
+     filesCtxRemoveFavorite: '取消收藏',
+     filesCtxDelete: '删除',

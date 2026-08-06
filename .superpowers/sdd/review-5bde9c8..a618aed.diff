@@ -1,0 +1,362 @@
+# Review package: 5bde9c8..a618aed
+
+## Commits
+a618aed P7: 商店源 store 并发注册守卫 + 收敛测试补强
+04d3698 P7: 商店源 store(注册事件+轮询双通道收敛,同步错误透出)
+
+## Files changed
+ src/apps/stores/sources.test.ts | 155 ++++++++++++++++++++++++++++++++++++++++
+ src/apps/stores/sources.ts      | 137 +++++++++++++++++++++++++++++++++++
+ src/i18n/en_us.ts               |   6 ++
+ src/i18n/zh_cn.ts               |   6 ++
+ 4 files changed, 304 insertions(+)
+
+## Diff
+diff --git a/src/apps/stores/sources.test.ts b/src/apps/stores/sources.test.ts
+new file mode 100644
+index 0000000..fa6da56
+--- /dev/null
++++ b/src/apps/stores/sources.test.ts
+@@ -0,0 +1,155 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const svc = vi.hoisted(() => ({
++  appstore: {
++    listSources: vi.fn(),
++    registerSource: vi.fn(),
++    unregisterSource: vi.fn(),
++  },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++// 捕获事件处理器,测试里手动触发
++const busHandlers = vi.hoisted(() => new Map<string, (props: unknown) => void>())
++const busOn = vi.hoisted(() =>
++  vi.fn((ev: string, cb: (props: unknown) => void) => {
++    busHandlers.set(ev, cb)
++    return () => {}
++  }),
++)
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
++
++import { useSourcesStore } from './sources'
++import { useAppstoreStore } from './appstore'
++import { useToast } from '../../stores/toast'
++
++const SRC = { id: 0, url: 'https://github.com/NimoTech/NimoOS-AppStore/archive/main.zip', store_root: 'NimoOS-AppStore-main' }
++const THIRD = { id: 1, url: 'https://github.com/WisdomSky/CasaOS-Coolstore/archive/main.zip' }
++
++describe('sources store', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    busHandlers.clear()
++    vi.clearAllMocks()
++    vi.useFakeTimers()
++  })
++  afterEach(() => vi.useRealTimers())
++
++  it('load 成功写 sources/loaded;失败置 error', async () => {
++    const store = useSourcesStore()
++    svc.appstore.listSources.mockResolvedValueOnce([SRC, THIRD])
++    await store.load()
++    expect(store.sources).toEqual([SRC, THIRD])
++    expect(store.loaded).toBe(true)
++    expect(store.error).toBe(false)
++
++    svc.appstore.listSources.mockRejectedValueOnce(new Error('boom'))
++    await store.load()
++    expect(store.error).toBe(true)
++  })
++
++  it('register 受理:registeringUrl 置目标,service 收到 trim 后 URL', async () => {
++    const store = useSourcesStore()
++    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
++    await store.register('  https://example.com/store.zip  ')
++    expect(svc.appstore.registerSource).toHaveBeenCalledWith('https://example.com/store.zip')
++    expect(store.registeringUrl).toBe('https://example.com/store.zip')
++  })
++
++  it('register 同步 409:抛后端 message,registeringUrl 复位', async () => {
++    const store = useSourcesStore()
++    svc.appstore.registerSource.mockRejectedValueOnce({
++      response: { data: { message: 'appstore source already exists' } },
++    })
++    await expect(store.register('https://dup.example.com/s.zip')).rejects.toThrow('appstore source already exists')
++    expect(store.registeringUrl).toBeNull()
++  })
++
++  it('register-end 事件收敛:清 pending + 重拉列表 + invalidate + toast', async () => {
++    const store = useSourcesStore()
++    const appstore = useAppstoreStore()
++    const inv = vi.spyOn(appstore, 'invalidate')
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++
++    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
++    await store.register('https://example.com/store.zip')
++    svc.appstore.listSources.mockResolvedValueOnce([SRC, THIRD])
++
++    busHandlers.get('app-store:register-end')!({})
++    // 断言全部同步可验:convergeRegistered 同步清 pending/调 invalidate/toast,load() 同步发起 listSources
++    expect(store.registeringUrl).toBeNull()
++    expect(inv).toHaveBeenCalled()
++    expect(show).toHaveBeenCalled()
++    expect(svc.appstore.listSources).toHaveBeenCalled()
++  })
++
++  it('register-error 事件:清 pending + toast 带后端 message,不重拉', async () => {
++    const store = useSourcesStore()
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
++    await store.register('https://bad.example.com/s.zip')
++
++    busHandlers.get('app-store:register-error')!({ message: 'not an appstore' })
++    expect(store.registeringUrl).toBeNull()
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('not an appstore'), expect.any(Number))
++    expect(svc.appstore.listSources).not.toHaveBeenCalled()
++  })
++
++  it('并发守卫:注册在途时再次 register() 直接拒绝,不二次调用 service,不清在途 URL', async () => {
++    const store = useSourcesStore()
++    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
++    await store.register('https://a.example.com/store.zip')
++    expect(store.registeringUrl).toBe('https://a.example.com/store.zip')
++
++    await expect(store.register('https://b.example.com/store.zip')).rejects.toThrow()
++    expect(svc.appstore.registerSource).toHaveBeenCalledTimes(1)
++    expect(store.registeringUrl).toBe('https://a.example.com/store.zip')
++  })
++
++  it('事件丢失兜底:15s 轮询 listSources 看到新 URL 即收敛(大小写不敏感)', async () => {
++    const store = useSourcesStore()
++    const appstore = useAppstoreStore()
++    const inv = vi.spyOn(appstore, 'invalidate')
++    svc.appstore.registerSource.mockResolvedValueOnce(undefined)
++    await store.register('https://Example.com/Store.zip')
++
++    // 第一轮:还没出现 → 仍 pending
++    svc.appstore.listSources.mockResolvedValueOnce([SRC])
++    await vi.advanceTimersByTimeAsync(15_000)
++    expect(store.registeringUrl).not.toBeNull()
++
++    // 第二轮:出现(后端存的小写)→ 收敛
++    svc.appstore.listSources.mockResolvedValue([SRC, { id: 1, url: 'https://example.com/store.zip' }])
++    await vi.advanceTimersByTimeAsync(15_000)
++    expect(store.registeringUrl).toBeNull()
++    expect(inv).toHaveBeenCalled()
++
++    // 收敛后轮询必须真的停了:再推 15s,listSources 调用数不应再增长
++    const callsAfterConverge = svc.appstore.listSources.mock.calls.length
++    await vi.advanceTimersByTimeAsync(15_000)
++    expect(svc.appstore.listSources.mock.calls.length).toBe(callsAfterConverge)
++  })
++
++  it('unregister 成功:重拉 + invalidate;失败:toast 后端 message', async () => {
++    const store = useSourcesStore()
++    const appstore = useAppstoreStore()
++    const inv = vi.spyOn(appstore, 'invalidate')
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++
++    svc.appstore.unregisterSource.mockResolvedValueOnce(undefined)
++    svc.appstore.listSources.mockResolvedValueOnce([SRC])
++    await store.unregister(1)
++    expect(svc.appstore.unregisterSource).toHaveBeenCalledWith(1)
++    expect(inv).toHaveBeenCalled()
++
++    svc.appstore.unregisterSource.mockRejectedValueOnce({
++      response: { data: { message: 'cannot unregister the last app store - need at least one app store' } },
++    })
++    await store.unregister(0)
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('cannot unregister the last app store'), expect.any(Number))
++  })
++})
+diff --git a/src/apps/stores/sources.ts b/src/apps/stores/sources.ts
+new file mode 100644
+index 0000000..0e85c4c
+--- /dev/null
++++ b/src/apps/stores/sources.ts
+@@ -0,0 +1,137 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service, type AppStoreSource } from '@nimotech/nimoos-service'
++import { useMessageBus } from '../../composables/useMessageBus'
++import { useToast } from '../../stores/toast'
++import { i18n } from '../../i18n'
++import { useAppstoreStore } from './appstore'
++
++/** 注册期间的兜底轮询间隔:MessageBus 订阅通道 buffer=1 可能丢事件(系统已知),
++ *  register-end 丢失时靠轮询 listSources 看到新 URL 收敛,不永久转圈(Vue2 只靠事件,是旧 bug)。 */
++const REGISTER_POLL_MS = 15_000
++
++function errMsg(e: unknown): string {
++  const r = (e as { response?: { data?: { message?: string } } })?.response
++  if (r?.data?.message) return r.data.message
++  return e instanceof Error ? e.message : String(e)
++}
++
++export const useSourcesStore = defineStore('appSources', () => {
++  const t = i18n.global.t
++  const toast = useToast()
++  const appstore = useAppstoreStore()
++
++  const sources = ref<AppStoreSource[]>([])
++  const loading = ref(false)
++  const error = ref(false)
++  const loaded = ref(false)
++  /** 正在注册的源 URL;null=空闲。一次只允许一个注册在途(对齐后端异步任务语义)。 */
++  const registeringUrl = ref<string | null>(null)
++
++  let seq = 0
++  let pollTimer: ReturnType<typeof setInterval> | null = null
++
++  async function load() {
++    const mySeq = ++seq
++    loading.value = true
++    error.value = false
++    try {
++      const list = await service.appstore.listSources()
++      if (mySeq !== seq) return
++      sources.value = list
++      loaded.value = true
++    } catch (e) {
++      if (mySeq !== seq) return
++      error.value = true
++      console.warn('[sources] load', e)
++    } finally {
++      if (mySeq === seq) loading.value = false
++    }
++  }
++
++  function stopPoll() {
++    if (pollTimer) {
++      clearInterval(pollTimer)
++      pollTimer = null
++    }
++  }
++
++  function settleRegister() {
++    registeringUrl.value = null
++    stopPoll()
++  }
++
++  /** 注册成功收敛(事件或轮询,谁先到谁生效):清 pending + toast + 重拉列表 + 失效商店目录缓存 */
++  function convergeRegistered() {
++    if (registeringUrl.value === null) return
++    settleRegister()
++    toast.show(t('appsSourcesRegisterOk'), 4000)
++    void load()
++    appstore.invalidate()
++  }
++
++  /** 注册第三方源。同步 HTTP 错误(409 重复/400 坏 URL)抛 Error(message) 给调用方就地展示;
++   *  受理(200)后是后端异步任务,由 app-store:register-end/-error 事件或轮询收敛。
++   *  一次只允许一个注册在途(店级约束):registeringUrl 是单一 ref,轮询的 needle 在
++   *  发起时闭包捕获——若并发第二个 register() 覆盖 registeringUrl,前一个的收敛会把
++   *  ref 置 null,导致后一个的轮询守卫(见下方 setInterval 里的 null 检查)和事件处理器
++   *  的 null 守卫都永久失效,后一个注册的结果被无声吞掉。因此在这里前置守卫拒绝。 */
++  async function register(url: string) {
++    if (registeringUrl.value !== null) throw new Error(t('appsSourcesBusy'))
++    const target = url.trim()
++    registeringUrl.value = target
++    try {
++      await service.appstore.registerSource(target)
++    } catch (e) {
++      settleRegister()
++      throw new Error(errMsg(e))
++    }
++    const needle = target.toLowerCase() // 后端重复判定不区分大小写,轮询对齐
++    stopPoll()
++    pollTimer = setInterval(async () => {
++      if (registeringUrl.value === null) return
++      try {
++        const list = await service.appstore.listSources()
++        if (registeringUrl.value !== null && list.some((s) => s.url.toLowerCase() === needle)) {
++          convergeRegistered()
++        }
++      } catch {
++        /* 轮询失败静默,下个周期再试 */
++      }
++    }, REGISTER_POLL_MS)
++  }
++
++  /** 注销:后端无事件,同步等待(Vue2 同款)。错误(如删最后一个源的 400)toast 透出,不抛。 */
++  async function unregister(id: number) {
++    try {
++      await service.appstore.unregisterSource(id)
++      toast.show(t('appsSourcesRemoveOk'), 4000)
++      await load()
++      appstore.invalidate()
++    } catch (e) {
++      toast.show(t('appsSourcesRemoveFail', { msg: errMsg(e) }), 5000)
++    }
++  }
++
++  // 订阅挂 store 生命周期(应用级单例):注册是慢任务(下载 tarball),
++  // 用户切走页面也要能收敛 + toast(installProgress 同款模式)
++  const bus = useMessageBus()
++  bus.on('app-store:register-end', () => {
++    if (registeringUrl.value !== null) {
++      convergeRegistered()
++    } else {
++      // 别的客户端注册的源:静默同步(不 toast,不是本页发起的)
++      if (loaded.value) void load()
++      appstore.invalidate()
++    }
++  })
++  bus.on('app-store:register-error', (props) => {
++    if (registeringUrl.value === null) return
++    const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
++    const msg = typeof p['message'] === 'string' ? p['message'] : ''
++    settleRegister()
++    toast.show(t('appsSourcesRegisterFail', { msg }), 5000)
++  })
++
++  return { sources, loading, error, loaded, registeringUrl, load, register, unregister }
++})
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 0feda31..7f934b9 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -510,11 +510,17 @@ export default {
+   appsConsoleDisconnected: 'Connection closed',
+   appsConsoleReconnect: 'Reconnect',
+   appsConsoleConnecting: 'Connecting…',
+   appsConsoleRefresh: 'Refresh',
+   appsConsoleLogsEmpty: 'No logs yet',
+   appsConsole: 'Terminal & Logs',
+   appsConsoleTerminal: 'Terminal',
+   appsConsoleLogs: 'Logs',
+   appsConsoleNotFound: 'App not found or has no running container',
+   appsConsoleLoadFailed: 'Failed to load, please retry',
++  // ── App store sources (/apps/sources, store lands in P7-T3; page in T4) ──
++  appsSourcesRegisterOk: 'App store source registered',
++  appsSourcesRegisterFail: 'Failed to register source: {msg}',
++  appsSourcesRemoveOk: 'App store source removed',
++  appsSourcesRemoveFail: 'Failed to remove source: {msg}',
++  appsSourcesBusy: 'A source registration is already in progress',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 42ebda7..f1e2cbd 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -509,11 +509,17 @@ export default {
+   appsConsoleDisconnected: '连接已断开',
+   appsConsoleReconnect: '重新连接',
+   appsConsoleConnecting: '连接中…',
+   appsConsoleRefresh: '刷新',
+   appsConsoleLogsEmpty: '暂无日志',
+   appsConsole: '终端与日志',
+   appsConsoleTerminal: '终端',
+   appsConsoleLogs: '日志',
+   appsConsoleNotFound: '应用不存在或没有运行中的容器',
+   appsConsoleLoadFailed: '加载失败,请重试',
++  // ── 商店源(/apps/sources,P7-T3 store 先落,页面在 T4)──
++  appsSourcesRegisterOk: '商店源注册成功',
++  appsSourcesRegisterFail: '商店源注册失败:{msg}',
++  appsSourcesRemoveOk: '商店源已移除',
++  appsSourcesRemoveFail: '移除商店源失败:{msg}',
++  appsSourcesBusy: '已有一个源正在注册,请等它完成',
+ }

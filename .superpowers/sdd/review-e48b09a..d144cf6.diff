@@ -1,0 +1,142 @@
+d144cf6 test(kb): P5d T3 修复轮 1 —— applyFilters 组合筛用例
+
+ .superpowers/sdd/p5d-task-3-report.md          | 61 ++++++++++++++++++++++++++
+ src/ai/knowledge/util/notesViewHelpers.test.ts | 35 +++++++++++++++
+ 2 files changed, 96 insertions(+)
+
+diff --git a/.superpowers/sdd/p5d-task-3-report.md b/.superpowers/sdd/p5d-task-3-report.md
+index 27a7e5a..59d75cc 100644
+--- a/.superpowers/sdd/p5d-task-3-report.md
++++ b/.superpowers/sdd/p5d-task-3-report.md
+@@ -89,10 +89,71 @@ vite build:     exit=0
+ - 文件数:**326 + 2 = 328**(实测 328)✅
+ - 用例数:**3551 + 41 = 3592**(实测 3592;新增 41 = notesViewHelpers.test.ts 29 例 +
+   noteEditHelpers.test.ts 12 例)✅
+ 
+ 零复跑、零红、`AgentComposer.test.ts` / `persist.test.ts` 两条已知噪声本轮均未触发。
+ `git status --short` 全程只有 4 个预期的 `??` 新文件,无其它改动。
+ 
+ ## NEEDS_CONTEXT
+ 
+ 无。所有 DoD 项均已现场核验完成,未采信任何未复核的既有结论。
++
++---
++
++## 修复轮 1
++
++评审回:规格 ✅ · 质量通过,独立重跑了 K40 与秒/毫秒两组探针均报红→还原一致。
++唯一要修的一条:`applyFilters` 缺「`type`/`status` 两个条件同时非空」的组合筛用例。
++
++### 补的 3 条用例(`notesViewHelpers.test.ts`,只改这一个文件)
++
++1. **组合命中** —— `type='insight'` + `status='draft'`,列表里 `a` 同时满足两者、
++   `b` 只满足 type、`c` 只满足 status。结果 `['a']`,与单按 type 筛的 `['a','b']`、
++   单按 status 筛的 `['a','c']` 均不同,证明不是巧合等于单条件结果。
++2. **组合落空**(🔴 真正抓「误写成 OR」的一条)—— `d` 只满足 type、`e` 只满足
++   status,两者各自都不同时满足两个条件 → 结果必须为 `[]`。
++3. **组合 + `status='active'` 语义** —— `f` type 匹配且非 archived(应中)、
++   `g` type 匹配但 archived(应被 active 语义排除)、`h` 非 archived 但 type 不匹配
++   (应被 type 排除)→ 结果只有 `['f']`。
++
++### 🔴 `&&`→`||` RED 探针(cp+md5 还原,禁 `git checkout`/`restore`)
++
++```
++$ cp notesViewHelpers.ts /tmp/.../notesViewHelpers.ts.fixround1.bak && md5sum 两者
++  03b4c1a...  两者一致(注入前基线)
++$ Edit:第 93-94 行 applyFilters 内部 `&&` 改成 `||`(行首锚定,只改这一处运算符)
++$ grep 确认注入已落盘 → 第 93 行确实是 `|| n.type === type) ||`
++$ pnpm exec vitest run notesViewHelpers.test.ts
++  FAIL × status 为具体值(非 ""/"active")时是精确匹配
++  FAIL × 组合命中:…                                    ← 本轮新增
++  FAIL × 组合落空:… 真正抓「误写成 OR」的那条            ← 本轮新增
++  FAIL × 组合筛纳入 status="active"…                    ← 本轮新增
++  Test Files 1 failed | Tests 6 failed | 26 passed (32)
++$ cp /tmp/.../notesViewHelpers.ts.fixround1.bak notesViewHelpers.ts && md5sum 两者
++  03b4c1a...  两者一致(还原确认,与注入前逐字节相同)
++$ pnpm exec vitest run notesViewHelpers.test.ts
++  Test Files 1 passed (1) / Tests 32 passed (32)
++```
++3 条新增用例(以及 1 条既有的"精确匹配"用例)在 `||` 突变下全部报红,还原后全绿。
++
++### 产品代码零改动自证
++
++```
++$ git status --short
++ M src/ai/knowledge/util/notesViewHelpers.test.ts
++$ git diff -- src/ai/knowledge/util/notesViewHelpers.ts
++(空,零输出)
++```
++探针注入/还原全程针对 `notesViewHelpers.ts`,但还原后与 `git` 索引里的版本(HEAD 的
++新增内容,尚未提交前的工作树基线)逐字节一致、`git diff` 对该文件零输出 —— 只有测试
++文件被净改动。
++
++### 三门(全量,已落盘)
++
++```
++/tmp/p5d-t3-fix-test.log:  Test Files 328 passed (328) / Tests 3595 passed (3595)   exit=0
++/tmp/p5d-t3-fix-tsc.log:   exit=0
++/tmp/p5d-t3-fix-build.log: exit=0
++```
++
++算式:**3592(T3 首轮) + 3(本轮新增) = 3595**(实测 3595)✅。文件数仍 328(未新增文件)。
++零复跑、零红,已知噪声两条本轮均未触发。
+diff --git a/src/ai/knowledge/util/notesViewHelpers.test.ts b/src/ai/knowledge/util/notesViewHelpers.test.ts
+index 1ab465a..d2fc8c0 100644
+--- a/src/ai/knowledge/util/notesViewHelpers.test.ts
++++ b/src/ai/knowledge/util/notesViewHelpers.test.ts
+@@ -146,20 +146,55 @@ describe('applyFilters', () => {
+ 
+   it('status 为具体值(非 ""/"active")时是精确匹配', () => {
+     const list = [N({ id: 'a', status: 'draft' }), N({ id: 'b', status: 'archived' }), N({ id: 'c', status: 'archived' })]
+     expect(applyFilters(list, { type: '', status: 'archived' }).map((n) => n.id)).toEqual(['b', 'c'])
+   })
+ 
+   it('type 为空字符串时不过滤 type(独立于 status 生效)', () => {
+     const list = [N({ id: 'a', type: 'digest' }), N({ id: 'b', type: 'summary' })]
+     expect(applyFilters(list, { type: '', status: '' }).map((n) => n.id)).toEqual(['a', 'b'])
+   })
++
++  // 🔴 修复轮 1 —— 补「两个条件同时非空(组合筛)」的用例。前面 6 条每条都只让
++  // type/status 其中一个非空,「两个各自测过」不等于「组合起来是 AND 而不是 OR」,
++  // 这是筛选函数的经典漏网点(治理 brief §缺口猎)。
++  it('组合命中:type 与 status 同时非空,只有同时满足两者的那条留下(结果与任一单条件筛都不同)', () => {
++    const list = [
++      N({ id: 'a', type: 'insight', status: 'draft' }), // 两者都满足
++      N({ id: 'b', type: 'insight', status: 'curated' }), // 只满足 type
++      N({ id: 'c', type: 'note', status: 'draft' }), // 只满足 status
++    ]
++    // 只按 type 筛会拿到 ['a','b'],只按 status 筛会拿到 ['a','c']——组合结果 ['a']
++    // 与两者都不同,证明这条用例真的在验证"两个条件一起生效"而不是巧合等于单条件结果。
++    expect(applyFilters(list, { type: 'insight', status: '' }).map((n) => n.id)).toEqual(['a', 'b'])
++    expect(applyFilters(list, { type: '', status: 'draft' }).map((n) => n.id)).toEqual(['a', 'c'])
++    expect(applyFilters(list, { type: 'insight', status: 'draft' }).map((n) => n.id)).toEqual(['a'])
++  })
++
++  it('组合落空:分别只满足其中一个条件的笔记都不该出现 —— 真正抓「误写成 OR」的那条', () => {
++    const list = [
++      N({ id: 'd', type: 'insight', status: 'curated' }), // 满足 type,不满足 status
++      N({ id: 'e', type: 'note', status: 'draft' }), // 满足 status,不满足 type
++    ]
++    // 若把 applyFilters 内部的 && 误写成 ||,d 和 e 各自会因为"至少一个条件为真"
++    // 被放进结果——正确的 AND 语义下两者都不满足"两个条件同时为真",结果必须为空。
++    expect(applyFilters(list, { type: 'insight', status: 'draft' })).toEqual([])
++  })
++
++  it('组合筛纳入 status="active"(非精确匹配)—— 三档语义里它最容易被误写成精确匹配', () => {
++    const list = [
++      N({ id: 'f', type: 'insight', status: 'draft' }), // type 匹配 + active(非 archived)→ 应命中
++      N({ id: 'g', type: 'insight', status: 'archived' }), // type 匹配但 archived → active 语义应排除
++      N({ id: 'h', type: 'note', status: 'curated' }), // active 但 type 不匹配 → 应排除
++    ]
++    expect(applyFilters(list, { type: 'insight', status: 'active' }).map((n) => n.id)).toEqual(['f'])
++  })
+ })
+ 
+ // ═══════════════════════════════════════════════════════════════════════════
+ // relativeTime —— 蓝本 :40-49。
+ // 🔴 unixSec 是"秒"不是毫秒(蓝本注释 :41)—— 喂毫秒会让所有输入都落进第 5 档,
+ // 4 个边界的用例全部"通过"但一个都没真正测到。本文件全程用整数秒运算,规避此坑。
+ // 🔴 用 vitest 假时钟(vi.spyOn(Date,'now')),禁真实时间(治理 §9.8)。
+ // 4 个边界(60/3600/86400/86400*30 秒)两侧都要用例;第 5 档走
+ // toLocaleDateString(),断言用同式比对,不钉死具体字符串(依赖环境 locale/TZ)。
+ // ═══════════════════════════════════════════════════════════════════════════

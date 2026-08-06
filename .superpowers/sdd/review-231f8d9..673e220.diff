@@ -1,0 +1,327 @@
+# Review package: 231f8d9..HEAD
+
+## Commits
+673e220 feat(apps): /apps 路由 + AppsSidebar + 已装应用页骨架——进区拉取 + app:*/容器事件接线(SP5-P1)
+
+## Files changed
+ src/apps/components/AppsSidebar.test.ts  | 29 ++++++++++++
+ src/apps/components/AppsSidebar.vue      | 80 ++++++++++++++++++++++++++++++++
+ src/apps/views/InstalledAppsPage.test.ts | 45 ++++++++++++++++++
+ src/apps/views/InstalledAppsPage.vue     | 59 +++++++++++++++++++++++
+ src/i18n/en_us.ts                        |  4 ++
+ src/i18n/zh_cn.ts                        |  4 ++
+ src/router/index.ts                      |  2 +
+ 7 files changed, 223 insertions(+)
+
+## Diff
+diff --git a/src/apps/components/AppsSidebar.test.ts b/src/apps/components/AppsSidebar.test.ts
+new file mode 100644
+index 0000000..0cac6c9
+--- /dev/null
++++ b/src/apps/components/AppsSidebar.test.ts
+@@ -0,0 +1,29 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++import AppsSidebar from './AppsSidebar.vue'
++import { __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
++
++const push = vi.fn()
++vi.mock('vue-router', () => ({
++  useRouter: () => ({ push }),
++  useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++describe('AppsSidebar', () => {
++  beforeEach(() => { setActivePinia(createPinia()); __resetSidebarDrawerForTest(); push.mockClear() })
++
++  it('渲染区标题、回主页键与「已装应用」导航项(当前路由高亮)', async () => {
++    const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
++    expect(w.text()).toContain('应用')
++    const item = w.get('.side-item')
++    expect(item.text()).toContain('已装应用')
++    expect(item.classes()).toContain('active')
++    await w.get('.side-home-btn').trigger('click')
++    expect(push).toHaveBeenCalledWith('/')
++  })
++})
+diff --git a/src/apps/components/AppsSidebar.vue b/src/apps/components/AppsSidebar.vue
+new file mode 100644
+index 0000000..6e264ec
+--- /dev/null
++++ b/src/apps/components/AppsSidebar.vue
+@@ -0,0 +1,80 @@
++<script setup lang="ts">
++import { watch, onUnmounted } from 'vue'
++import { useRouter, useRoute } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
++
++const router = useRouter()
++const route = useRoute()
++const { t } = useI18n()
++
++// 抽屉态:必须解构(嵌套 ref 在模板里不自动解包,drawer.isNarrow 恒真值是坑)
++const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
++
++// 路由变化后抽屉自动收起;桌面态 close 是 no-op
++watch(() => route.fullPath, () => closeDrawer())
++
++function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
++watch(drawerOpen, (o) => {
++  if (o) document.addEventListener('keydown', onDrawerKeydown)
++  else document.removeEventListener('keydown', onDrawerKeydown)
++})
++onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
++
++// P2+ 增补:商店 /apps/store、自定义 /apps/custom、源 /apps/sources
++const nav = [{ name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' }]
++</script>
++
++<template>
++  <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
++  <aside class="apps-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
++    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏走顶栏,抽屉内不重复 -->
++    <div v-if="!isNarrow" class="side-top">
++      <h1 class="side-app-title">{{ t('appsTitle') }}</h1>
++      <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('areaBackHome') }}</button>
++    </div>
++    <section class="side-section">
++      <ul class="side-list">
++        <li
++          v-for="n in nav" :key="n.name"
++          class="side-item" :class="{ active: route.name === n.name }"
++          @click="router.push(n.to)"
++        >
++          <span class="side-name">{{ t(n.labelKey) }}</span>
++        </li>
++      </ul>
++    </section>
++  </aside>
++</template>
++
++<style scoped>
++/* 与 FilesSidebar 同一壳形态(玻璃面板 + 窄屏抽屉)。第二次出现:第三区(SP6)时抽 AreaSidebar。 */
++.apps-sidebar {
++  flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
++  display: flex; flex-direction: column; gap: 18px;
++  padding: 14px; overflow-y: auto;
++  background: var(--panel-bg); border: 1px solid var(--card-border);
++  border-radius: var(--radius); box-shadow: var(--panel-shadow);
++  backdrop-filter: var(--blur);
++}
++.side-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
++.side-home-btn { font-size: 13px; flex: 0 0 auto; }
++.side-app-title { font-size: clamp(20px, 1.8vw, 28px); font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
++.side-section { min-width: 0; }
++.side-list { list-style: none; margin: 0; padding: 0; }
++.side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
++.side-item:hover { background: var(--chip-bg-hi); }
++.side-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
++.side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++
++.side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
++.apps-sidebar.is-drawer {
++  position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
++  padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
++  border: none; border-right: 1px solid var(--card-border);
++  border-radius: 0; box-shadow: none;
++  transform: translateX(-105%); transition: transform 0.25s var(--ease);
++}
++.apps-sidebar.is-drawer.is-open { transform: none; }
++@media (prefers-reduced-motion: reduce) { .apps-sidebar.is-drawer { transition: none; } }
++</style>
+diff --git a/src/apps/views/InstalledAppsPage.test.ts b/src/apps/views/InstalledAppsPage.test.ts
+new file mode 100644
+index 0000000..d8299cc
+--- /dev/null
++++ b/src/apps/views/InstalledAppsPage.test.ts
+@@ -0,0 +1,45 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({ list: vi.fn().mockResolvedValue({}) }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
++
++const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
++vi.mock('vue-router', () => ({
++  useRouter: () => ({ push: vi.fn() }),
++  useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
++}))
++
++import InstalledAppsPage from './InstalledAppsPage.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++describe('InstalledAppsPage', () => {
++  beforeEach(() => { setActivePinia(createPinia()); svc.list.mockClear(); busOn.mockClear() })
++
++  it('进区拉列表;空列表渲染空态;订阅容器事件与 app 生命周期事件', async () => {
++    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(svc.list).toHaveBeenCalledTimes(1)
++    expect(w.text()).toContain('还没有安装任何应用')
++    const events = busOn.mock.calls.map((c) => c[0])
++    expect(events).toContain('docker:container:state-changed')
++    expect(events).toContain('app:start-begin')
++    expect(events).toContain('app:uninstall-end')
++    expect(events).toContain('app:install-end')
++  })
++
++  it('有应用时渲染卡片网格', async () => {
++    svc.list.mockResolvedValue({
++      jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
++    })
++    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(w.find('.apps-grid').exists()).toBe(true)
++    expect(w.text()).toContain('Jellyfin')
++  })
++})
+diff --git a/src/apps/views/InstalledAppsPage.vue b/src/apps/views/InstalledAppsPage.vue
+new file mode 100644
+index 0000000..25ed067
+--- /dev/null
++++ b/src/apps/views/InstalledAppsPage.vue
+@@ -0,0 +1,59 @@
++<script setup lang="ts">
++import { onMounted, onUnmounted } from 'vue'
++import { useI18n } from 'vue-i18n'
++import AreaShell from '../../components/shell/AreaShell.vue'
++import AppsSidebar from '../components/AppsSidebar.vue'
++import { useInstalledAppsStore } from '../stores/installedApps'
++import { useMessageBus } from '../../composables/useMessageBus'
++import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
++
++const { t } = useI18n()
++const store = useInstalledAppsStore()
++const bus = useMessageBus()
++
++// app:* 生命周期(spec §2.3);install-end 单列:后台装完新应用要浮出列表
++const APP_EVENTS = [
++  'app:start-begin', 'app:start-end', 'app:start-error',
++  'app:stop-begin', 'app:stop-end', 'app:stop-error',
++  'app:restart-begin', 'app:restart-end', 'app:restart-error',
++  'app:update-begin', 'app:update-end', 'app:update-error',
++  'app:uninstall-begin', 'app:uninstall-end', 'app:uninstall-error',
++]
++const offs: Array<() => void> = []
++const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refresh: () => { store.refresh().catch(() => {}) } })
++
++onMounted(() => {
++  store.refresh().catch((e) => console.warn('[apps] load', e))
++  APP_EVENTS.forEach((ev) => offs.push(bus.on(ev, (props) => store.onAppEvent(ev, props))))
++  offs.push(bus.on('app:install-end', () => { store.refresh().catch(() => {}) }))
++  offs.push(bus.on(CONTAINER_EVENT, (props) => bridge.handle(props)))
++})
++onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
++</script>
++
++<template>
++  <AreaShell :title="t('appsTitle')">
++    <div class="apps-layout">
++      <AppsSidebar />
++      <main class="apps-main">
++        <p v-if="!store.loading && !store.apps.length" class="apps-empty">{{ t('appsEmpty') }}</p>
++        <div v-else class="apps-grid">
++          <!-- Task 5 用 InstalledAppCard 替换此占位卡 -->
++          <div v-for="a in store.apps" :key="a.id" class="app-card-placeholder">
++            <img v-if="a.icon" :src="a.icon" alt="" width="40" height="40" />
++            <span>{{ a.title }}</span>
++            <span>{{ a.status }}</span>
++          </div>
++        </div>
++      </main>
++    </div>
++  </AreaShell>
++</template>
++
++<style scoped>
++.apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
++.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
++.apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
++.apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
++@media (max-width: 768px) { .apps-layout { gap: 0; } }
++</style>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 57145a6..649ae09 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -359,12 +359,16 @@ export const messages = {
+     searchAskTitle: 'Ask Nimo AI about “{query}”',
+     searchAskSub: 'Send this to the AI assistant for an answer grounded in your files',
+     searchAskGo: 'Ask ›',
+     searchAskButton: 'Ask Nimo',
+     searchHint: 'Type a keyword and press Enter to search images, documents, videos, audio and settings',
+     searchTabAll: 'All results',
+     searchTabDocuments: 'Documents',
+     searchTabImages: 'Images',
+     searchTabAudio: 'Audio',
+     searchTabVideos: 'Videos',
++    // ── Apps area ──
++    appsTitle: 'Apps',
++    appsNavInstalled: 'Installed',
++    appsEmpty: 'No apps installed yet',
+   },
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index c50afbd..edd544c 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -358,12 +358,16 @@ export const messages = {
+     searchAskTitle: '向 Nimo AI 询问「{query}」',
+     searchAskSub: '把它发送给 AI 助手,获得基于你文件的回答',
+     searchAskGo: '询问 ›',
+     searchAskButton: 'Ask Nimo',
+     searchHint: '输入关键词并回车,搜索图片、文档、视频、音频与设置',
+     searchTabAll: '全部结果',
+     searchTabDocuments: '文档',
+     searchTabImages: '图片',
+     searchTabAudio: '音频',
+     searchTabVideos: '视频',
++    // ── 应用区 ──
++    appsTitle: '应用',
++    appsNavInstalled: '已装应用',
++    appsEmpty: '还没有安装任何应用',
+   },
+ }
+diff --git a/src/router/index.ts b/src/router/index.ts
+index fbb642f..7204826 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -1,25 +1,27 @@
+ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
++import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
++  { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 

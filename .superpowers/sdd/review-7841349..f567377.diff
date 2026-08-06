@@ -1,0 +1,204 @@
+# Review package: 7841349..f567377
+
+## Commits
+f567377 feat(files): P2c useFileOps.download(条件预刷新+端点选择+iframe 驱动)
+
+## Files changed
+ src/files/composables/useFileOps.test.ts | 64 +++++++++++++++++++++++++++++++-
+ src/files/composables/useFileOps.ts      | 21 ++++++++++-
+ src/i18n/zh_cn.ts                        |  1 +
+ 3 files changed, 82 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/files/composables/useFileOps.test.ts b/src/files/composables/useFileOps.test.ts
+index a83bf7b..56da4b2 100644
+--- a/src/files/composables/useFileOps.test.ts
++++ b/src/files/composables/useFileOps.test.ts
+@@ -6,30 +6,37 @@ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ import { useFileOps } from './useFileOps'
+ import { useFilesStore } from '../stores/files'
+ 
+ const folderCreate = vi.fn().mockResolvedValue(undefined)
+ const fileCreate = vi.fn().mockResolvedValue(undefined)
+ const fileRename = vi.fn().mockResolvedValue(undefined)
+ const batchDelete = vi.fn().mockResolvedValue(undefined)
+ const batchTask = vi.fn().mockResolvedValue(undefined)
+ const getList = vi.fn().mockResolvedValue({ content: [] })
++const fileUrl = vi.fn((p: string) => `/v3/file?token=TK&path=${encodeURIComponent(p)}`)
++const batchUrl = vi.fn((f: string) => `/v1/batch?token=TK&files=${encodeURIComponent(f)}`)
++const refreshMock = vi.fn().mockResolvedValue('new-token')
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     folder: { create: (...a: unknown[]) => folderCreate(...a), getList: (...a: unknown[]) => getList(...a) },
+-    file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a) },
+-    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a) },
++    file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a), fileUrl: (...a: unknown[]) => fileUrl(...(a as [string])) },
++    batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a), batchUrl: (...a: unknown[]) => batchUrl(...(a as [string])) },
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+   },
++  refreshAccessToken: (...a: unknown[]) => refreshMock(...a),
+ }))
+ 
++const triggerMock = vi.fn()
++vi.mock('../util/iframeDownload', () => ({ triggerIframeDownload: (...a: unknown[]) => triggerMock(...(a as [string])) }))
++
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+ // 在组件 setup 内实例化 composable,拿到其 API
+ function makeOps() {
+   let api!: ReturnType<typeof useFileOps>
+   const Host = defineComponent({ setup() { api = useFileOps(); return () => h('div') } })
+   mount(Host, { global: { plugins: [i18n] } })
+   return api
+ }
+ 
+@@ -127,11 +134,64 @@ describe('useFileOps', () => {
+     await ops.paste('overwrite')
+     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
+     expect(clip.operateObject).toBeNull()
+   })
+ 
+   it('paste 无剪贴板内容时不发请求', async () => {
+     const ops = makeOps()
+     await ops.paste('overwrite')
+     expect(batchTask).not.toHaveBeenCalled()
+   })
++
++  it('download 单文件 → service.file.fileUrl(真实路径) 并触发 iframe', async () => {
++    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // 充裕,不刷新
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(fileUrl).toHaveBeenCalledWith('/DATA/a.txt')
++    expect(batchUrl).not.toHaveBeenCalled()
++    expect(triggerMock).toHaveBeenCalledWith('/v3/file?token=TK&path=%2FDATA%2Fa.txt')
++    expect(refreshMock).not.toHaveBeenCalled()
++  })
++
++  it('download 单目录/多选 → service.batch.batchUrl(逗号连接真实路径)', async () => {
++    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
++    const ops = makeOps()
++    await ops.download([
++      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
++      { name: 'Docs', path: '/DATA/Docs', is_dir: true },
++    ])
++    expect(batchUrl).toHaveBeenCalledWith('/DATA/a.txt,/DATA/Docs')
++    expect(fileUrl).not.toHaveBeenCalled()
++    expect(triggerMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('download token 快过期 → 先 refreshAccessToken 再构 URL', async () => {
++    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // 10s 后过期,进缓冲
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(refreshMock).toHaveBeenCalledTimes(1)
++    expect(triggerMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('download expires_at 缺失 → 保守刷新', async () => {
++    localStorage.removeItem('expires_at')
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(refreshMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('download 刷新失败 → 不触发下载', async () => {
++    localStorage.removeItem('expires_at') // 触发刷新
++    refreshMock.mockRejectedValueOnce(new Error('auth fail'))
++    const ops = makeOps()
++    await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
++    expect(triggerMock).not.toHaveBeenCalled()
++  })
++
++  it('download 空选区 → 无操作', async () => {
++    const ops = makeOps()
++    await ops.download([])
++    expect(fileUrl).not.toHaveBeenCalled()
++    expect(batchUrl).not.toHaveBeenCalled()
++    expect(triggerMock).not.toHaveBeenCalled()
++  })
+ })
+diff --git a/src/files/composables/useFileOps.ts b/src/files/composables/useFileOps.ts
+index 8ce981c..cc00330 100644
+--- a/src/files/composables/useFileOps.ts
++++ b/src/files/composables/useFileOps.ts
+@@ -1,20 +1,22 @@
+ import { useI18n } from 'vue-i18n'
+-import { service } from '@nimotech/nimoos-service'
++import { service, refreshAccessToken } from '@nimotech/nimoos-service'
+ import { useFilesStore, type FileEntry } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useToast } from '../../stores/toast'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { joinPath, renameTo } from '../util/pathOps'
+ import { canOperate } from '../util/protect'
+ import { useClipboardStore } from '../stores/clipboard'
+ import { buildPastePayload } from '../util/fileOps'
++import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
++import { triggerIframeDownload } from '../util/iframeDownload'
+ 
+ function errMsg(e: unknown, fallback: string): string {
+   const m = (e as { message?: string } | undefined)?.message
+   return m || fallback
+ }
+ 
+ export function useFileOps() {
+   const files = useFilesStore()
+   const favorites = useFavoritesStore()
+   const toast = useToast()
+@@ -69,12 +71,27 @@ export function useFileOps() {
+ 
+   async function paste(style: 'overwrite' | 'skip') {
+     const o = clipboard.operateObject
+     if (!o) return
+     try {
+       await service.batch.task(buildPastePayload(o, files.currentPath, style))
+       clipboard.clear()
+     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+   }
+ 
+-  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, refresh }
++  async function download(entries: FileEntry[]) {
++    if (!entries.length) return
++    toast.show(t('filesDownloadPreparing'))
++    // 过期预刷新:iframe 下载 fire-and-forget 无法反应式重试,过期须先刷 token(唯一修法)。
++    const raw = localStorage.getItem('expires_at') // 后端下发 unix 秒
++    const expiresAt = raw != null && raw !== '' ? Number(raw) : null
++    if (shouldRefreshBeforeDownload(expiresAt, Date.now())) {
++      try { await refreshAccessToken() }
++      catch { return } // 刷新失败:共享包已 onAuthFail→/logout,不发起下载
++    }
++    const plan = planDownload(entries)
++    const url = plan.kind === 'file' ? service.file.fileUrl(plan.path) : service.batch.batchUrl(plan.files)
++    triggerIframeDownload(url)
++  }
++
++  return { createFolder, createFile, rename, remove, copyPath, copy, cut, paste, download, refresh }
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 67cd93d..99f2fce 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -21,20 +21,21 @@ export const messages = {
+     filesSelectAll: '全选',
+     filesClearSel: '清空',
+     filesOpFailed: '操作失败',
+     filesProtectedDelete: '此项目受保护,无法删除',
+     filesProtectedRename: '此项目受保护,无法重命名',
+     filesProtectedMove: '此项目受保护,无法移动',
+     filesCopiedPath: '已复制路径',
+     filesNewFolder: '新建文件夹',
+     filesNewFile: '新建文件',
+     filesPaste: '粘贴',
++    filesDownloadPreparing: '正在准备下载…',
+     filesRename: '重命名',
+     filesDefaultFolderName: 'New Folder',
+     filesDefaultFileName: 'New File',
+     filesConfirm: '确定',
+     filesCancel: '取消',
+     filesCtxRefresh: '刷新',
+     filesCtxCopyPath: '复制路径',
+     filesCtxAddFavorite: '收藏',
+     filesCtxRemoveFavorite: '取消收藏',
+     filesCtxDelete: '删除',

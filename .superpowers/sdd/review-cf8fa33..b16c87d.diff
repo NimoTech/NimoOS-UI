@@ -1,0 +1,859 @@
+# Review package: cf8fa33..HEAD
+
+## Commits
+b16c87d feat(apps): 外部链接 App——custom 页管理 + 桌面展示(custom storage key=link,与 Vue2 互通)
+
+## Files changed
+ src/apps/util/linkApps.test.ts        | 117 ++++++++++++++++++++++++
+ src/apps/util/linkApps.ts             |  86 ++++++++++++++++++
+ src/apps/views/CustomAppsPage.test.ts | 101 +++++++++++++++++++++
+ src/apps/views/CustomAppsPage.vue     | 161 +++++++++++++++++++++++++++++++++-
+ src/home/stores/apps.test.ts          |  45 ++++++++++
+ src/home/stores/apps.ts               |  16 +++-
+ src/i18n/en_us.ts                     |  11 ++-
+ src/i18n/zh_cn.ts                     |  11 ++-
+ 8 files changed, 541 insertions(+), 7 deletions(-)
+
+## Diff
+diff --git a/src/apps/util/linkApps.test.ts b/src/apps/util/linkApps.test.ts
+new file mode 100644
+index 0000000..8932d2c
+--- /dev/null
++++ b/src/apps/util/linkApps.test.ts
+@@ -0,0 +1,117 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++
++const getCustomStorage = vi.fn()
++const setCustomStorage = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { users: {
++    getCustomStorage: (k: string) => getCustomStorage(k),
++    setCustomStorage: (k: string, d: unknown) => setCustomStorage(k, d),
++  } },
++}))
++
++import { parseLinkApps, listLinkApps, saveLinkApp, deleteLinkApp } from './linkApps'
++
++describe('parseLinkApps', () => {
++  it('empty-string data (curl-verified empty custom storage) → []', () => {
++    expect(parseLinkApps('')).toEqual([])
++  })
++  it('null/undefined → []', () => {
++    expect(parseLinkApps(null)).toEqual([])
++    expect(parseLinkApps(undefined)).toEqual([])
++  })
++  it('non-array object → []', () => {
++    expect(parseLinkApps({ foo: 'bar' })).toEqual([])
++  })
++  it('array of well-formed items passes through', () => {
++    const raw = [{ name: 'MyNAS', hostname: 'http://nas.local', icon: 'http://x/i.png', app_type: 'LinkApp', status: 'running' }]
++    expect(parseLinkApps(raw)).toEqual(raw)
++  })
++  it('JSON-string of an array is parsed (Vue2 setLinkAppList stores JSON.stringify)', () => {
++    const raw = JSON.stringify([{ name: 'A', hostname: 'http://a', icon: '' }])
++    expect(parseLinkApps(raw)).toEqual([{ name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++  it('malformed JSON string → []', () => {
++    expect(parseLinkApps('not json{')).toEqual([])
++  })
++  it('legacy field migration: type→app_type, host→hostname, state→status', () => {
++    const raw = [{ name: 'Old', host: 'http://old', type: 'LinkApp', state: 'running' }]
++    expect(parseLinkApps(raw)).toEqual([{ name: 'Old', hostname: 'http://old', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++  it('missing icon defaults to empty string', () => {
++    expect(parseLinkApps([{ name: 'A', hostname: 'http://a' }])).toEqual([
++      { name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++  })
++  it('dedupe by name, first wins', () => {
++    const raw = [
++      { name: 'A', hostname: 'http://first' },
++      { name: 'A', hostname: 'http://second' },
++    ]
++    expect(parseLinkApps(raw)).toEqual([{ name: 'A', hostname: 'http://first', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++  it('drops entries missing name or hostname', () => {
++    const raw = [
++      { hostname: 'http://no-name' },
++      { name: 'no-hostname' },
++      { name: '', hostname: 'http://empty-name' },
++      { name: 'ok', hostname: '' },
++    ]
++    expect(parseLinkApps(raw)).toEqual([])
++  })
++  it('non-object array entries are skipped', () => {
++    expect(parseLinkApps(['x', 42, null, { name: 'ok', hostname: 'http://ok' }])).toEqual([
++      { name: 'ok', hostname: 'http://ok', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++  })
++})
++
++describe('listLinkApps', () => {
++  beforeEach(() => { getCustomStorage.mockReset(); setCustomStorage.mockReset().mockResolvedValue(undefined) })
++
++  it('get + parse: empty string → []', async () => {
++    getCustomStorage.mockResolvedValue('')
++    expect(await listLinkApps()).toEqual([])
++    expect(getCustomStorage).toHaveBeenCalledWith('link')
++  })
++
++  it('get + parse: array passes through', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://a' }])
++    expect(await listLinkApps()).toEqual([{ name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' }])
++  })
++
++  it('any error degrades to []', async () => {
++    getCustomStorage.mockRejectedValue(new Error('network'))
++    expect(await listLinkApps()).toEqual([])
++  })
++})
++
++describe('saveLinkApp', () => {
++  beforeEach(() => { getCustomStorage.mockReset(); setCustomStorage.mockReset().mockResolvedValue(undefined) })
++
++  it('appends a new entry when name not present', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://a', icon: '' }])
++    const result = await saveLinkApp({ name: 'B', hostname: 'http://b', icon: 'http://b/icon.png' })
++    expect(result).toEqual([
++      { name: 'A', hostname: 'http://a', icon: '', app_type: 'LinkApp', status: 'running' },
++      { name: 'B', hostname: 'http://b', icon: 'http://b/icon.png', app_type: 'LinkApp', status: 'running' },
++    ])
++    expect(setCustomStorage).toHaveBeenCalledWith('link', result)
++  })
++
++  it('replaces hostname/icon in place for a same-name entry (Vue2 connect() semantics)', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://old', icon: 'http://old/i.png' }])
++    const result = await saveLinkApp({ name: 'A', hostname: 'http://new', icon: 'http://new/i.png' })
++    expect(result).toEqual([{ name: 'A', hostname: 'http://new', icon: 'http://new/i.png', app_type: 'LinkApp', status: 'running' }])
++  })
++})
++
++describe('deleteLinkApp', () => {
++  beforeEach(() => { getCustomStorage.mockReset(); setCustomStorage.mockReset().mockResolvedValue(undefined) })
++
++  it('filters the named entry out and persists', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'A', hostname: 'http://a' }, { name: 'B', hostname: 'http://b' }])
++    const result = await deleteLinkApp('A')
++    expect(result).toEqual([{ name: 'B', hostname: 'http://b', icon: '', app_type: 'LinkApp', status: 'running' }])
++    expect(setCustomStorage).toHaveBeenCalledWith('link', result)
++  })
++})
+diff --git a/src/apps/util/linkApps.ts b/src/apps/util/linkApps.ts
+new file mode 100644
+index 0000000..00bd112
+--- /dev/null
++++ b/src/apps/util/linkApps.ts
+@@ -0,0 +1,86 @@
++import { service } from '@nimotech/nimoos-service'
++
++// 外部链接 App:纯前端概念,存在 UserService custom storage(key='link')。旧 Vue2 UI
++// 读写同一个 key(见 NimoOS-UI/src/mixins/app/Business_LinkApp.js),字段名/形状必须兼容:
++// { name, hostname, icon, app_type: 'LinkApp', status: 'running' }。
++export interface LinkApp {
++  name: string
++  hostname: string
++  icon: string
++  app_type: 'LinkApp'
++  status: 'running'
++}
++
++interface RawLinkAppLike {
++  name?: unknown
++  hostname?: unknown
++  host?: unknown // 旧字段(Vue2 更早版本)
++  icon?: unknown
++}
++
++function normalizeOne(raw: unknown): LinkApp | null {
++  if (!raw || typeof raw !== 'object') return null
++  const r = raw as RawLinkAppLike
++  const name = typeof r.name === 'string' ? r.name : ''
++  const hostname = typeof r.hostname === 'string' ? r.hostname
++    : typeof r.host === 'string' ? r.host // 旧字段迁移:host → hostname
++      : ''
++  if (!name || !hostname) return null
++  const icon = typeof r.icon === 'string' ? r.icon : ''
++  // app_type/status 旧字段(type/state)历史上恒等于 'LinkApp'/'running',直接落成字面量类型,
++  // 无需保留旧值——这就是 type→app_type、state→status 迁移的全部含义。
++  return { name, hostname, icon, app_type: 'LinkApp', status: 'running' }
++}
++
++/** 容忍 ""/null/数组/JSON 字符串(实证:空 key data="");逐项归一化旧字段,按 name 去重(先到先得),
++ *  缺 name/hostname 的条目丢弃。 */
++export function parseLinkApps(raw: unknown): LinkApp[] {
++  let data: unknown = raw
++  if (typeof data === 'string') {
++    const trimmed = data.trim()
++    if (!trimmed) return []
++    try { data = JSON.parse(trimmed) } catch { return [] }
++  }
++  if (!Array.isArray(data)) return []
++  const seen = new Set<string>()
++  const out: LinkApp[] = []
++  for (const item of data) {
++    const n = normalizeOne(item)
++    if (!n || seen.has(n.name)) continue
++    seen.add(n.name)
++    out.push(n)
++  }
++  return out
++}
++
++export async function listLinkApps(): Promise<LinkApp[]> {
++  try {
++    const raw = await service.users.getCustomStorage('link')
++    return parseLinkApps(raw)
++  } catch {
++    return []
++  }
++}
++
++/** 拉现有列表 → 同名替换 hostname/icon,否则追加 → 落盘 → 返回新列表(与 Vue2 connect() 语义一致)。 */
++export async function saveLinkApp(item: { name: string; hostname: string; icon: string }): Promise<LinkApp[]> {
++  const list = await listLinkApps()
++  let found = false
++  const next = list.map((l) => {
++    if (l.name !== item.name) return l
++    found = true
++    return { ...l, hostname: item.hostname, icon: item.icon }
++  })
++  if (!found) {
++    next.push({ name: item.name, hostname: item.hostname, icon: item.icon, app_type: 'LinkApp', status: 'running' })
++  }
++  await service.users.setCustomStorage('link', next)
++  return next
++}
++
++export async function deleteLinkApp(name: string): Promise<LinkApp[]> {
++  const list = await listLinkApps()
++  const next = list.filter((l) => l.name !== name)
++  await service.users.setCustomStorage('link', next)
++  return next
++}
+diff --git a/src/apps/views/CustomAppsPage.test.ts b/src/apps/views/CustomAppsPage.test.ts
+index 7ce69d8..fff5276 100644
+--- a/src/apps/views/CustomAppsPage.test.ts
++++ b/src/apps/views/CustomAppsPage.test.ts
+@@ -2,20 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { nextTick } from 'vue'
+ import { createPinia, setActivePinia, type Pinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createMemoryHistory } from 'vue-router'
+ import { EditorView } from '@codemirror/view'
+ import zh from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   compose: { install: vi.fn(), list: vi.fn().mockResolvedValue({}), get: vi.fn() },
++  users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: vi.fn(() => () => {}) }) }))
+ 
+ import CustomAppsPage from './CustomAppsPage.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ let pinia: Pinia
+ 
+ // 真路由(memory history):tab 状态是路由 query 驱动的深链,需要真实响应式 route 才能观察到
+@@ -36,22 +37,25 @@ async function mountPage(initial = '/apps/custom') {
+       stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true },
+     },
+   })
+   return { w, router }
+ }
+ 
+ beforeEach(() => {
+   pinia = createPinia()
+   setActivePinia(pinia)
+   localStorage.clear()
++  document.body.innerHTML = ''
+   svc.compose.install.mockReset().mockResolvedValue(undefined)
+   svc.compose.list.mockReset().mockResolvedValue({})
++  svc.users.getCustomStorage.mockReset().mockResolvedValue([])
++  svc.users.setCustomStorage.mockReset().mockResolvedValue(undefined)
+ })
+ 
+ describe('CustomAppsPage — tab 路由 query', () => {
+   it('默认(无 ?tab)显示 tab1 YAML 安装面板', async () => {
+     const { w } = await mountPage('/apps/custom')
+     expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
+   })
+ 
+   it('?tab=import → 显示 tab2 面板', async () => {
+     const { w } = await mountPage('/apps/custom?tab=import')
+@@ -136,10 +140,107 @@ describe('CustomAppsPage — tab1 安装', () => {
+   })
+ 
+   it('校验成功 → toast appsCustomValidateOk,不发真装', async () => {
+     const { w } = await mountPage('/apps/custom')
+     await w.find('[data-test="custom-validate"]').trigger('click')
+     await flushPromises()
+     expect(svc.compose.install).toHaveBeenCalledTimes(1) // 只 dry_run
+     expect(svc.compose.install).toHaveBeenCalledWith(expect.any(String), { dryRun: true, checkPortConflict: true })
+   })
+ })
++
++describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
++  it('挂载即读 link 列表并展示 name/hostname', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    expect(svc.users.getCustomStorage).toHaveBeenCalledWith('link')
++    const row = w.find('[data-test="link-row"]')
++    expect(row.exists()).toBe(true)
++    expect(row.text()).toContain('MyNAS')
++    expect(row.text()).toContain('http://nas.local')
++  })
++
++  it('列表为空时显示空态提示', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    expect(w.find('[data-test="link-empty"]').exists()).toBe(true)
++  })
++
++  it('地址留空提交 → 就地报错,不调 saveLinkApp(setCustomStorage 不发)', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-name"]').setValue('Router')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="link-error"]').exists()).toBe(true)
++    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
++  })
++
++  it('地址不以 http(s):// 开头 → 报 appsCustomLinkHostInvalid,不提交', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-name"]').setValue('Router')
++    await w.find('[data-test="link-hostname"]').setValue('ftp://nope')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="link-error"]').text()).toBe(zh.appsCustomLinkHostInvalid)
++    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
++  })
++
++  it('新增:填名称+地址提交 → saveLinkApp 落盘,刷新列表并清空表单', async () => {
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-name"]').setValue('Router')
++    await w.find('[data-test="link-hostname"]').setValue('http://192.168.1.1')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [
++      { name: 'Router', hostname: 'http://192.168.1.1', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++    expect((w.find('[data-test="link-name"]').element as HTMLInputElement).value).toBe('')
++    expect(w.find('[data-test="link-row"]').text()).toContain('Router')
++  })
++
++  it('编辑:点「编辑」回填表单且名称字段锁定(Vue2 disableEditName 同款),提交只改 hostname/icon', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://old', icon: '' }])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++    await w.find('[data-test="link-edit"]').trigger('click')
++    await nextTick()
++    const nameInput = w.find('[data-test="link-name"]').element as HTMLInputElement
++    expect(nameInput.value).toBe('MyNAS')
++    expect(nameInput.disabled).toBe(true)
++
++    await w.find('[data-test="link-hostname"]').setValue('http://new')
++    await w.find('[data-test="link-submit"]').trigger('click')
++    await flushPromises()
++    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [
++      { name: 'MyNAS', hostname: 'http://new', icon: '', app_type: 'LinkApp', status: 'running' },
++    ])
++  })
++
++  it('删除:AlertDialog 确认后调 deleteLinkApp,取消不删', async () => {
++    svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
++    const { w } = await mountPage('/apps/custom?tab=link')
++    await flushPromises()
++
++    await w.find('[data-test="link-delete"]').trigger('click')
++    await nextTick()
++    expect(document.body.textContent).toContain(zh.appsCustomLinkDeleteConfirm)
++
++    // 取消:不落盘
++    const cancelBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCancel)!
++    cancelBtn.click()
++    await flushPromises()
++    expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
++
++    // 再次删除并确认
++    await w.find('[data-test="link-delete"]').trigger('click')
++    await nextTick()
++    const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCustomLinkDelete)!
++    confirmBtn.click()
++    await flushPromises()
++    expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [])
++  })
++})
+diff --git a/src/apps/views/CustomAppsPage.vue b/src/apps/views/CustomAppsPage.vue
+index aaad4d0..a39f682 100644
+--- a/src/apps/views/CustomAppsPage.vue
++++ b/src/apps/views/CustomAppsPage.vue
+@@ -1,29 +1,33 @@
+ <script setup lang="ts">
+-import { computed, ref } from 'vue'
++import { computed, onMounted, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import YamlEditor from '../components/custom/YamlEditor.vue'
++import AlertDialog from '../../components/ui/AlertDialog.vue'
+ import { useCustomInstall } from '../composables/useCustomInstall'
+ import { ensureComposeMeta, normalizeVolumes, dockerRunToCompose } from '../util/importNormalize'
++import { listLinkApps, saveLinkApp, deleteLinkApp, type LinkApp } from '../util/linkApps'
++import { useValidation } from '../../composables/useValidation'
+ import { useToast } from '../../stores/toast'
+ 
+ type TabKey = 'yaml' | 'import' | 'link'
+ const TABS: TabKey[] = ['yaml', 'import', 'link']
+ 
+ const { t } = useI18n()
+ const route = useRoute()
+ const router = useRouter()
+ const toast = useToast()
+ const { validateYaml, installYaml } = useCustomInstall()
++const { required } = useValidation()
+ 
+ // 单一事实源=路由 query,深链可达(?tab=yaml|import|link,默认 yaml)
+ const tab = computed<TabKey>(() => {
+   const q = route.query.tab
+   return typeof q === 'string' && (TABS as string[]).includes(q) ? (q as TabKey) : 'yaml'
+ })
+ function setTab(k: TabKey) {
+   router.replace({ query: { ...route.query, tab: k === 'yaml' ? undefined : k } })
+ }
+ 
+@@ -69,20 +73,97 @@ function onConvert() {
+     // 在 volumes 归一化之后再做一遍,确保注入落在最终产出的 YAML 上。
+     const { name } = ensureComposeMeta(composeRaw)
+     const normalized = normalizeVolumes(composeRaw, name)
+     const { yaml } = ensureComposeMeta(normalized)
+     yamlText.value = yaml
+     setTab('yaml')
+   } catch (e) {
+     convertError.value = e instanceof Error ? e.message : String(e)
+   }
+ }
++
++// ── tab3:外部链接(LinkApp)管理 ──
++const links = ref<LinkApp[]>([])
++const linksLoading = ref(false)
++const editingName = ref<string | null>(null) // 非空=编辑既有条目,名称字段锁定(Vue2 disableEditName 同款)
++const linkName = ref('')
++const linkHostname = ref('')
++const linkIcon = ref('')
++const linkError = ref('')
++const linkBusy = ref(false)
++
++onMounted(() => { void loadLinks() })
++
++async function loadLinks() {
++  linksLoading.value = true
++  try {
++    links.value = await listLinkApps()
++  } finally {
++    linksLoading.value = false
++  }
++}
++
++function resetLinkForm() {
++  editingName.value = null
++  linkName.value = ''
++  linkHostname.value = ''
++  linkIcon.value = ''
++  linkError.value = ''
++}
++
++function onEditLink(l: LinkApp) {
++  editingName.value = l.name
++  linkName.value = l.name
++  linkHostname.value = l.hostname
++  linkIcon.value = l.icon
++  linkError.value = ''
++}
++
++function validateLinkForm(): boolean {
++  const nameErr = required(linkName.value)
++  if (nameErr) { linkError.value = t(nameErr); return false }
++  const hostErr = required(linkHostname.value)
++  if (hostErr) { linkError.value = t(hostErr); return false }
++  if (!/^https?:\/\//.test(linkHostname.value.trim())) {
++    linkError.value = t('appsCustomLinkHostInvalid')
++    return false
++  }
++  return true
++}
++
++async function onSubmitLink() {
++  if (linkBusy.value) return
++  linkError.value = ''
++  if (!validateLinkForm()) return
++  linkBusy.value = true
++  try {
++    links.value = await saveLinkApp({ name: linkName.value.trim(), hostname: linkHostname.value.trim(), icon: linkIcon.value.trim() })
++    resetLinkForm()
++  } catch (e) {
++    linkError.value = e instanceof Error ? e.message : String(e)
++  } finally {
++    linkBusy.value = false
++  }
++}
++
++// 删除确认:open 标志与 target 用两个独立 ref 存(不是同一个对象的字段)——
++// reka AlertDialogAction 点击时会先 emit update:open(false) 再触发 @confirm,若两者共享
++// 同一处清空逻辑,target 可能在 confirm 处理器读到之前已被清掉。两个独立 ref 从根上避免这个时序坑。
++const linkDelOpen = ref(false)
++const linkDelTarget = ref<LinkApp | null>(null)
++function onDeleteLink(l: LinkApp) { linkDelTarget.value = l; linkDelOpen.value = true }
++async function confirmDeleteLink() {
++  const target = linkDelTarget.value
++  if (!target) return
++  links.value = await deleteLinkApp(target.name)
++  if (editingName.value === target.name) resetLinkForm()
++}
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('appsTitle')">
+     <div class="apps-layout">
+       <AppsSidebar />
+       <main class="apps-main">
+         <div class="custom-tabs" role="tablist">
+           <button
+             type="button" class="custom-tab" data-test="tab-yaml"
+@@ -126,24 +207,74 @@ function onConvert() {
+             {{ t('appsCustomConvertFail') }}: {{ convertError }}
+           </div>
+           <div class="custom-actions">
+             <button type="button" class="custom-install-btn" data-test="custom-convert" @click="onConvert">
+               {{ t('appsCustomConvert') }}
+             </button>
+           </div>
+         </section>
+ 
+         <section v-else class="custom-panel" data-test="tab-link-panel">
+-          <div data-test="tab-link" class="custom-hint">{{ t('appsCustomLinkComingSoon') }}</div>
++          <div class="link-form">
++            <div class="link-field">
++              <label>{{ t('appsCustomLinkName') }}</label>
++              <input
++                v-model="linkName" class="set-input" type="text" data-test="link-name"
++                :disabled="!!editingName"
++              />
++            </div>
++            <div class="link-field">
++              <label>{{ t('appsCustomLinkHost') }}</label>
++              <input v-model="linkHostname" class="set-input" type="text" data-test="link-hostname" placeholder="https://" />
++            </div>
++            <div class="link-field">
++              <label>{{ t('appsCustomLinkIcon') }}</label>
++              <input v-model="linkIcon" class="set-input" type="text" data-test="link-icon" />
++            </div>
++            <div v-if="linkError" class="custom-error" data-test="link-error">{{ linkError }}</div>
++            <div class="custom-actions">
++              <button
++                v-if="editingName" type="button" class="bar-btn" data-test="link-cancel-edit"
++                @click="resetLinkForm"
++              >{{ t('appsCancel') }}</button>
++              <button type="button" class="custom-install-btn" data-test="link-submit" :disabled="linkBusy" @click="onSubmitLink">
++                {{ editingName ? t('appsCustomLinkSave') : t('appsCustomLinkAdd') }}
++              </button>
++            </div>
++          </div>
++
++          <p v-if="!linksLoading && !links.length" class="custom-hint" data-test="link-empty">{{ t('appsCustomLinkEmpty') }}</p>
++          <ul v-else class="link-list">
++            <li v-for="l in links" :key="l.name" class="link-row" data-test="link-row">
++              <span class="link-ic" :class="l.icon ? 'has-img' : 'ic-app'">
++                <img v-if="l.icon" :src="l.icon" alt="" loading="lazy" />
++                <span v-else>{{ (l.name[0] || '?').toUpperCase() }}</span>
++              </span>
++              <span class="link-name">{{ l.name }}</span>
++              <span class="link-host">{{ l.hostname }}</span>
++              <button type="button" class="bar-btn" data-test="link-edit" @click="onEditLink(l)">{{ t('appsCustomLinkEdit') }}</button>
++              <button type="button" class="bar-btn" data-test="link-delete" @click="onDeleteLink(l)">{{ t('appsCustomLinkDelete') }}</button>
++            </li>
++          </ul>
+         </section>
+       </main>
+     </div>
++
++    <AlertDialog
++      v-model:open="linkDelOpen"
++      :title="t('appsCustomLinkDelete')"
++      :message="t('appsCustomLinkDeleteConfirm')"
++      :confirm-text="t('appsCustomLinkDelete')"
++      :cancel-text="t('appsCancel')"
++      destructive
++      @confirm="confirmDeleteLink"
++    />
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
+ 
+ .custom-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+ .custom-tab {
+   font-size: 13px; padding: 7px 16px; cursor: pointer; color: var(--fg);
+@@ -171,11 +302,37 @@ function onConvert() {
+ .custom-error p + p { margin-top: 4px; }
+ 
+ .custom-actions { display: flex; justify-content: flex-end; gap: 10px; }
+ .custom-install-btn {
+   font-size: 13.5px; padding: 8px 24px; cursor: pointer; color: var(--on-accent);
+   background: var(--accent); border: none; border-radius: 10px;
+ }
+ .custom-install-btn:hover { filter: brightness(1.08); }
+ .custom-install-btn:disabled { opacity: 0.55; cursor: default; filter: none; }
+ @media (max-width: 768px) { .apps-layout { gap: 0; } }
++
++/* ── tab3:外部链接(LinkApp) ── */
++.link-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
++.link-field { display: flex; flex-direction: column; gap: 5px; }
++.link-field label { font-size: 12px; color: var(--fg-muted); }
++.set-input {
++  width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 13px;
++  color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
++}
++.set-input:focus { border-color: var(--accent); }
++.set-input:disabled { opacity: 0.6; cursor: not-allowed; }
++
++.link-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
++.link-row {
++  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
++  background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px;
++}
++.link-ic {
++  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; overflow: hidden;
++  display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--on-accent);
++}
++.link-ic.has-img { background: var(--chip-bg-hi); }
++.link-ic.has-img img { width: 100%; height: 100%; object-fit: contain; }
++/* .ic-app 是 theme.css 里的品牌渐变(theme-exception:图标兜底渐变,皮肤无关,详见 theme.css 顶部注释) */
++.link-name { flex: 0 1 auto; font-size: 13.5px; color: var(--fg); font-weight: 500; }
++.link-host { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ </style>
+diff --git a/src/home/stores/apps.test.ts b/src/home/stores/apps.test.ts
+index ba5357a..b67d1da 100644
+--- a/src/home/stores/apps.test.ts
++++ b/src/home/stores/apps.test.ts
+@@ -121,10 +121,55 @@ describe('desktop 应用透传', () => {
+         { name: 'link', status: 'exited', app_type: 'LinkApp' },
+       ] as never)
+       expect(s.isStopped('run')).toBe(false)
+       expect(s.isStopped('nostatus')).toBe(false)
+       expect(s.isStopped('link')).toBe(false)
+       expect(s.isStopped('files')).toBe(false) // 系统应用
+       expect(s.isStopped('ghost')).toBe(false) // 不存在
+     })
+   })
+ })
++
++describe('LinkApp 桌面拼接(setApps 第二参)', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('setApps([], links) 追加 LinkApp 项:app_type 透传,order 含之', () => {
++    const s = useAppsStore()
++    s.setApps([], [{ name: 'MyNAS', hostname: 'http://nas.local', icon: '', app_type: 'LinkApp', status: 'running' }])
++    expect(s.app('MyNAS')?.app_type).toBe('LinkApp')
++    expect(s.app('MyNAS')?.status).toBe('running')
++    expect(s.app('MyNAS')?.hostname).toBe('http://nas.local')
++    expect(s.order).toContain('MyNAS')
++  })
++
++  it('name 与容器应用同名时,容器应用胜出,不被 LinkApp 覆盖', () => {
++    const s = useAppsStore()
++    s.setApps(
++      [{ name: 'jellyfin', title: { en_us: 'Jellyfin' }, status: 'running', app_type: 'WebApp' }] as never,
++      [{ name: 'jellyfin', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }],
++    )
++    expect(s.app('jellyfin')?.app_type).toBe('WebApp')
++    expect(s.app('jellyfin')?.name).toBe('Jellyfin')
++  })
++
++  it('glyph = name 首字符大写(无 icon 时的兜底),icon 为空字符串时落 null', () => {
++    const s = useAppsStore()
++    s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }])
++    expect(s.app('myapp')?.glyph).toBe('M')
++    expect(s.app('myapp')?.icon).toBeNull()
++    expect(s.app('myapp')?.cls).toBe('ic-app')
++    expect(s.app('myapp')?.system).toBe(false)
++  })
++
++  it('icon 有值时透传用户填的 URL', () => {
++    const s = useAppsStore()
++    s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: 'http://icon', app_type: 'LinkApp', status: 'running' }])
++    expect(s.app('myapp')?.icon).toBe('http://icon')
++  })
++
++  it('links 缺省(不传)不影响既有行为', () => {
++    const s = useAppsStore()
++    s.setApps([{ name: 'jellyfin', title: { en_us: 'J' }, status: 'running' }] as never)
++    expect(s.app('jellyfin')?.name).toBe('J')
++    expect(s.order).not.toContain('MyNAS')
++  })
++})
+diff --git a/src/home/stores/apps.ts b/src/home/stores/apps.ts
+index d9d7c79..7a68a32 100644
+--- a/src/home/stores/apps.ts
++++ b/src/home/stores/apps.ts
+@@ -1,16 +1,17 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import { service, type AppGridItem, type AppGridWidget } from '@nimotech/nimoos-service'
+ import type { WidgetSize } from '../grid/types'
+ import { APP_WIDGET_SIZE, appWidgetRange } from '../widgets/appWidgetSize'
+ import { SYSTEM_APPS } from '../apps/systemApps'
++import { listLinkApps, type LinkApp } from '../../apps/util/linkApps'
+ 
+ export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
+ 
+ /** spec §3:初始尺寸夹进有效范围(缺省 = 全局 w 2..4 / h 1..4);非法/缺省 → 2×2 再夹 */
+ export function clampWidgetDecl(w?: number, h?: number, range: WidgetSize = APP_WIDGET_SIZE): [number, number] {
+   const iw = !w || w <= 0 ? 2 : w
+   const ih = !h || h <= 0 ? 2 : h
+   return [
+     Math.max(range.min[0], Math.min(range.max[0], iw)),
+     Math.max(range.min[1], Math.min(range.max[1], ih)),
+@@ -20,21 +21,21 @@ export function clampWidgetDecl(w?: number, h?: number, range: WidgetSize = APP_
+ export interface AppMeta {
+   name: string; cls: string; glyph: string; icon: string | null; system: boolean
+   app_type?: string; status?: string; scheme?: string; port?: string | number; index?: string; hostname?: string
+   desktop?: boolean; widget?: AppGridWidget
+ }
+ 
+ export const useAppsStore = defineStore('home-apps', () => {
+   const apps = ref<Record<string, AppMeta>>({})
+   const order = ref<string[]>([])
+ 
+-  function setApps(container: AppGridItem[]) {
++  function setApps(container: AppGridItem[], links?: LinkApp[]) {
+     const map: Record<string, AppMeta> = {}
+     const ord: string[] = []
+     SYSTEM_APPS.forEach((s) => {
+       map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
+       ord.push(s.key)
+     })
+     ;(container || []).forEach((a) => {
+       const key = a.name
+       if (!key || map[key]) return // 不覆盖系统应用
+       // 标题多语言键大小写不统一:应用市场装的 v2 应用来自 store 的 title 用 `en_US`(大写),
+@@ -46,27 +47,36 @@ export const useAppsStore = defineStore('home-apps', () => {
+       if (a.desktop && icon && icon.startsWith('/') && a.port) {
+         icon = `${a.scheme || 'http'}://${a.hostname || window.location.hostname}:${a.port}${icon}`
+       }
+       map[key] = {
+         name: title, cls: 'ic-app', glyph: '', icon, system: false,
+         app_type: (a as { appType?: string }).appType || a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,
+         desktop: a.desktop, widget: a.widget,
+       }
+       ord.push(key)
+     })
++    ;(links || []).forEach((l) => {
++      const key = l.name
++      if (!key || map[key]) return // 系统/容器应用已占用该 key,外部链接不覆盖(容器应用胜出)
++      map[key] = {
++        name: l.name, cls: 'ic-app', glyph: (l.name[0] || '').toUpperCase(), icon: l.icon || null, system: false,
++        app_type: l.app_type, status: l.status, hostname: l.hostname,
++      }
++      ord.push(key)
++    })
+     apps.value = map
+     order.value = ord
+   }
+ 
+   async function loadGrid() {
+-    const list = await service.apps.getGrid()
+-    setApps(list || [])
++    const [list, links] = await Promise.all([service.apps.getGrid(), listLinkApps().catch(() => [])])
++    setApps(list || [], links)
+   }
+ 
+   function app(key: string): AppMeta | undefined { return apps.value[key] }
+ 
+   /** 已停止(可启动)的容器应用:系统应用/LinkApp/无状态来源不算。
+    *  status 缺省视为运行(与 desktopDecls 同一约定,不误伤)。 */
+   function isStopped(key: string): boolean {
+     const a = apps.value[key]
+     if (!a || a.system || a.app_type === 'LinkApp') return false
+     return !!a.status && a.status !== 'running'
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 5861c51..5aa0ba2 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -423,21 +423,30 @@ export default {
+   appsCustomTabImport: 'Command import',
+   appsCustomTabLink: 'External links',
+   appsCustomValidate: 'Validate',
+   appsCustomInstall: 'Install',
+   appsCustomConvert: 'Convert',
+   appsCustomNameConflict: 'An app with this name is already installed. Change the top-level name and try again',
+   appsCustomValidateOk: 'Validation passed',
+   appsCustomConvertFail: 'Conversion failed',
+   appsCustomImportPlaceholder: 'Paste a docker run command…',
+   appsCustomImportHint: 'Paste a docker run command, click "Convert" to generate compose YAML and switch to the YAML install tab',
+-  appsCustomLinkComingSoon: 'External link install is coming soon',
++  appsCustomLinkName: 'Name',
++  appsCustomLinkHost: 'Address',
++  appsCustomLinkIcon: 'Icon URL',
++  appsCustomLinkAdd: 'Add link',
++  appsCustomLinkSave: 'Save',
++  appsCustomLinkEdit: 'Edit',
++  appsCustomLinkDelete: 'Delete',
++  appsCustomLinkDeleteConfirm: 'Delete this external link?',
++  appsCustomLinkHostInvalid: 'Address must start with http:// or https://',
++  appsCustomLinkEmpty: 'No external links yet',
+   // ── App settings: row editors ──
+   appsSettingsAdd: 'Add',
+   appsSettingsRemove: 'Remove',
+   appsSettingsPortHost: 'Host port',
+   appsSettingsPortContainer: 'Container port',
+   appsSettingsPortProtocol: 'Protocol',
+   appsSettingsPortExtraNote: 'The following port entries are preserved as-is and cannot be edited here',
+   // ── App settings: form (service tabs / WebUI / advanced / tips) ──
+   appsSettingsSectionWeb: 'Web UI',
+   appsSettingsSectionPorts: 'Ports',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 2d82d49..562b6c6 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -422,21 +422,30 @@ export default {
+   appsCustomTabImport: '命令导入',
+   appsCustomTabLink: '外部链接',
+   appsCustomValidate: '校验',
+   appsCustomInstall: '安装',
+   appsCustomConvert: '转换',
+   appsCustomNameConflict: '已存在同名应用,请修改 compose 顶层 name 后再安装',
+   appsCustomValidateOk: '校验通过',
+   appsCustomConvertFail: '转换失败',
+   appsCustomImportPlaceholder: '粘贴 docker run 命令…',
+   appsCustomImportHint: '粘贴一条 docker run 命令,点击「转换」生成 compose YAML 并跳转到 YAML 安装标签页',
+-  appsCustomLinkComingSoon: '外部链接安装即将上线',
++  appsCustomLinkName: '名称',
++  appsCustomLinkHost: '地址',
++  appsCustomLinkIcon: '图标 URL',
++  appsCustomLinkAdd: '添加链接',
++  appsCustomLinkSave: '保存',
++  appsCustomLinkEdit: '编辑',
++  appsCustomLinkDelete: '删除',
++  appsCustomLinkDeleteConfirm: '删除这个外部链接?',
++  appsCustomLinkHostInvalid: '地址必须以 http:// 或 https:// 开头',
++  appsCustomLinkEmpty: '还没有外部链接',
+   // ── 应用设置:行编辑器 ──
+   appsSettingsAdd: '添加',
+   appsSettingsRemove: '删除',
+   appsSettingsPortHost: '主机端口',
+   appsSettingsPortContainer: '容器端口',
+   appsSettingsPortProtocol: '协议',
+   appsSettingsPortExtraNote: '以下端口条目由系统原样保留,不支持在表单中编辑',
+   // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
+   appsSettingsSectionWeb: 'Web 界面',
+   appsSettingsSectionPorts: '端口',

@@ -1,0 +1,3615 @@
+# Review package: b056ed3..5039e01
+
+## Commits
+5039e01 chore: vite preview 5273 代理真机网关,供 SP6 并行验收(SP6-P1)
+68f231e feat(home): 存储系统应用入口 + loadDisks 统一走 service.storage(SP6-P1)
+447e99b feat(storage): /storage 存储卷列表 + 密码确认卸载弹窗(SP6-P1)
+71301be feat(storage): StorageShell 骨架 + /storage/drives 物理盘列表 + 热插拔刷新(SP6-P1)
+ea1c737 feat(storage): Pinia store——卷/盘装载、RAID 排除、卸载动作(SP6-P1)
+4aedf52 feat(storage): 映射纯函数——字符串数值转换/占用率/health 严格判定(SP6-P1)
+e5a07bd docs: SP6-P1 骨架+只读列表实施计划
+85b556f SP6-P0 实施计划 + spec 回填核查结论(local_storage 域死刑定案、快照后端版本差=P5 前置部署)
+08b0c43 spec: 预览方式升级为独立端口真部署(每期构建产物经 vite preview :5273 常驻,验收门只认构建产物)
+783da34 SP6 存储区迁移设计 spec(形态/分期 P0-P6/并行纪律/验收口径/MergerFS 台账)
+
+## Files changed
+ .../2026-07-23-vue3-migration-sp6-p0-domains.md    |  478 +++++++
+ .../2026-07-23-vue3-migration-sp6-p1-skeleton.md   | 1448 ++++++++++++++++++++
+ ...2026-07-23-vue3-migration-sp6-storage-design.md |  127 ++
+ src/files/shares/SharesPage.test.ts                |   16 +-
+ src/home/apps/icons/storage.svg                    |   15 +
+ src/home/apps/systemApps.ts                        |    3 +
+ src/home/composables/useOpenAction.ts              |    3 +-
+ src/home/stores/folders.test.ts                    |   51 +-
+ src/home/stores/folders.ts                         |   17 +-
+ src/i18n/en_us.ts                                  |   21 +
+ src/i18n/zh_cn.ts                                  |   21 +
+ src/router/index.ts                                |    4 +
+ src/storage/components/DriveCard.test.ts           |   28 +
+ src/storage/components/DriveCard.vue               |   50 +
+ src/storage/components/StorageShell.test.ts        |   43 +
+ src/storage/components/StorageShell.vue            |   50 +
+ src/storage/components/UnmountDialog.test.ts       |   28 +
+ src/storage/components/UnmountDialog.vue           |   52 +
+ src/storage/components/VolumeCard.test.ts          |   37 +
+ src/storage/components/VolumeCard.vue              |   54 +
+ src/storage/stores/storage.test.ts                 |   93 ++
+ src/storage/stores/storage.ts                      |   68 +
+ src/storage/util/storageMap.test.ts                |  100 ++
+ src/storage/util/storageMap.ts                     |  107 ++
+ src/views/StorageDrives.test.ts                    |   79 ++
+ src/views/StorageDrives.vue                        |   48 +
+ src/views/StorageVolumes.vue                       |   63 +
+ vite.config.ts                                     |    9 +
+ 28 files changed, 3089 insertions(+), 24 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/plans/2026-07-23-vue3-migration-sp6-p0-domains.md b/docs/superpowers/plans/2026-07-23-vue3-migration-sp6-p0-domains.md
+new file mode 100644
+index 0000000..a9888fa
+--- /dev/null
++++ b/docs/superpowers/plans/2026-07-23-vue3-migration-sp6-p0-domains.md
+@@ -0,0 +1,478 @@
++# SP6-P0 共享包存储域迁移 Implementation Plan
++
++> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
++
++**Goal:** 在 `@nimotech/nimoos-service` 补全 `disks` 域并新建 `raid`、`snapshot` 两域,为 SP6 存储区 UI(P1–P5)备齐网络层。
++
++**Architecture:** 照包内既有 domain 模式:`createX(http: AxiosInstance)` 工厂 + `unwrap` 拆标准信封 `{Success,Message,Data}`;惰性 getter 挂到 `index.ts` 的 `service` 上。快照域必须保留 Vue2 已修的两个语义:策略 PUT 全量替换→写操作走读-改-写 `patchPolicy`;快照名可含中文→URL 编码。
++
++**Tech Stack:** TypeScript(NodeNext,**相对 import 必须带 `.js` 后缀**)、axios(注入)、vitest。
++
++## Global Constraints
++
++- 工作区:**只在 `/home/nimo/NimoTech/.sp6/NimoOS-Service`**(worktree,分支 `sp6-storage`)改代码;禁止碰 `/home/nimo/NimoTech/NimoOS-Service`(SP5 会话在用)。
++- 包管理 pnpm;测试 `pnpm test`(vitest run);构建 `pnpm build`(tsc)。
++- 相对 import 一律 `./xxx.js` 后缀(NodeNext,SP3-T9 教训)。
++- 域方法返回**拆信封后的数据**(`unwrap`),不返回 axios response(包内既定契约)。
++- 请求形状以 Vue2 现网行为为准(下面每个方法都注了对应后端端点);不发明新字段。
++- 背景事实(2026-07-23 真机核查):`/v2/raid` 经网关 200;`/v2/snapshot/*` 经网关 404 = **设备二进制 2026-06-22 旧于快照代码(07-12)**,属版本差非路由错;快照域照迁,P5 前部署新后端。`local_storage` 域不迁(唯二消费者是 MergerFS 死组件)。
++
++---
++
++### Task 1: disks 域补全(getDiskList / umount / getUsbs)
++
++**Files:**
++- Modify: `src/disks.ts`(现仅 `umountUsb`)
++- Test: `src/disks.test.ts`(已存在,追加用例)
++
++**Interfaces:**
++- Produces: `service.disks.getDiskList(params?): Promise<unknown>`(GET `/disks`,信封拆包,Data 通常为盘数组)、`service.disks.umount(data): Promise<unknown>`(DELETE `/disks`,body 透传)、`service.disks.getUsbs(): Promise<unknown>`(GET `/disks/usb`)。`umountUsb` 保持原签名不动。
++
++- [ ] **Step 1: 写失败测试**(追加到 `src/disks.test.ts`)
++
++```ts
++it('getDiskList forwards params and unwraps envelope', async () => {
++  let seen: unknown
++  const http = { get: async (_u: string, cfg?: { params?: unknown }) => { seen = cfg?.params; return { data: { success: 200, data: [{ path: '/dev/sda' }] } } } } as unknown as AxiosInstance
++  const res = await createDisks(http).getDiskList({ type: 'all' })
++  expect(seen).toEqual({ type: 'all' })
++  expect(res).toEqual([{ path: '/dev/sda' }])
++})
++
++it('umount deletes /disks with body; getUsbs gets /disks/usb and unwraps', async () => {
++  const log: Array<[string, string, unknown]> = []
++  const http = {
++    get: async (u: string) => { log.push(['get', u, undefined]); return { data: { success: 200, data: [{ name: 'usb0' }] } } },
++    delete: async (u: string, cfg?: { data?: unknown }) => { log.push(['delete', u, cfg?.data]); return { data: { success: 200, data: 'ok' } } },
++  } as unknown as AxiosInstance
++  const d = createDisks(http)
++  await d.umount({ path: '/dev/sda' })
++  const usbs = await d.getUsbs()
++  expect(log).toEqual([['delete', '/disks', { path: '/dev/sda' }], ['get', '/disks/usb', undefined]])
++  expect(usbs).toEqual([{ name: 'usb0' }])
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `cd /home/nimo/NimoTech/.sp6/NimoOS-Service && pnpm test -- disks`
++Expected: FAIL,`getDiskList is not a function`
++
++- [ ] **Step 3: 最小实现**(`src/disks.ts` 整文件替换)
++
++```ts
++import type { AxiosInstance } from 'axios'
++import { unwrap } from './unwrap.js'
++
++export function createDisks(http: AxiosInstance) {
++  return {
++    // GET /v1/disks — 物理盘列表(信封 Data = 数组)
++    async getDiskList(params?: Record<string, unknown>): Promise<unknown> {
++      const res = await http.get('/disks', { params })
++      const d = res.data
++      return Array.isArray(d) ? d : unwrap<unknown>(d)
++    },
++    // DELETE /v1/disks — 卸载盘(body 透传,Vue2 disks.umount 同形)
++    async umount(data: unknown): Promise<unknown> {
++      const res = await http.delete('/disks', { data })
++      return unwrap<unknown>(res.data)
++    },
++    // GET /v1/disks/usb — USB 设备列表
++    async getUsbs(): Promise<unknown> {
++      const res = await http.get('/disks/usb')
++      const d = res.data
++      return Array.isArray(d) ? d : unwrap<unknown>(d)
++    },
++    async umountUsb(mountPoint: string): Promise<void> {
++      await http.delete('/disks/usb', { data: { mount_point: mountPoint } })
++    },
++  }
++}
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- disks`
++Expected: PASS(原有 umountUsb 用例 + 新增 2 例)
++
++- [ ] **Step 5: Commit**
++
++```bash
++git add src/disks.ts src/disks.test.ts
++git commit -m "feat(disks): 补全 getDiskList/umount/getUsbs(SP6-P0)"
++```
++
++---
++
++### Task 2: raid 域新建(9 方法 + 类型)
++
++**Files:**
++- Create: `src/raid.ts`
++- Create: `src/raid.test.ts`
++
++**Interfaces:**
++- Produces: `createRaid(http)` 返回
++  `list(): Promise<RaidStatus[]>` · `create(data: unknown): Promise<unknown>` ·
++  `remove(id: number | string): Promise<unknown>` · `getStatus(id): Promise<RaidStatus>` ·
++  `getUsage(id): Promise<unknown>` · `replaceDisk(id, data: unknown): Promise<unknown>` ·
++  `recover(id): Promise<unknown>` · `listTasks(): Promise<unknown>` · `getTask(taskId: string): Promise<unknown>`。
++  类型 `RaidStatus` / `RaidMemberDisk` 从 `raid.ts` 导出(字段抄自后端
++  `NimoOS-LocalStorage/service/v2/raid.go:38-56`;DB 内嵌字段走索引签名,不猜名)。
++
++- [ ] **Step 1: 写失败测试**(`src/raid.test.ts` 新文件)
++
++```ts
++import { describe, it, expect } from 'vitest'
++import type { AxiosInstance } from 'axios'
++import { createRaid } from './raid'
++
++function fakeHttp(log: Array<[string, string, unknown]>, data: unknown = {}) {
++  return {
++    get: async (u: string, cfg?: { params?: unknown }) => { log.push(['get', u, cfg?.params]); return { data: { success: 200, data } } },
++    post: async (u: string, b?: unknown) => { log.push(['post', u, b]); return { data: { success: 200, data } } },
++    delete: async (u: string, cfg?: { data?: unknown }) => { log.push(['delete', u, cfg?.data]); return { data: { success: 200, data } } },
++  } as unknown as AxiosInstance
++}
++
++describe('createRaid', () => {
++  it('list unwraps RAIDStatus array', async () => {
++    const log: Array<[string, string, unknown]> = []
++    const arr = [{ live_state: 'clean', rebuild_pct: 0, total_bytes: 1, used_bytes: 0, free_bytes: 1, members: [] }]
++    const res = await createRaid(fakeHttp(log, arr)).list()
++    expect(log).toEqual([['get', '/v2/raid', undefined]])
++    expect(res).toEqual(arr)
++  })
++
++  it('urls and verbs match Vue2 raid.js exactly', async () => {
++    const log: Array<[string, string, unknown]> = []
++    const r = createRaid(fakeHttp(log))
++    await r.create({ name: 'md0' }); await r.remove(3); await r.getStatus(3); await r.getUsage(3)
++    await r.replaceDisk(3, { old: '/dev/sda', new: '/dev/sdb' }); await r.recover(3)
++    await r.listTasks(); await r.getTask('t1')
++    expect(log).toEqual([
++      ['post', '/v2/raid', { name: 'md0' }],
++      ['delete', '/v2/raid/3', undefined],
++      ['get', '/v2/raid/3/status', undefined],
++      ['get', '/v2/raid/3/usage', undefined],
++      ['post', '/v2/raid/3/disk', { old: '/dev/sda', new: '/dev/sdb' }],
++      ['post', '/v2/raid/3/recover', undefined],
++      ['get', '/v2/raid/tasks', undefined],
++      ['get', '/v2/raid/tasks/t1', undefined],
++    ])
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- raid`
++Expected: FAIL,`Cannot find module './raid'`(或等价)
++
++- [ ] **Step 3: 最小实现**(`src/raid.ts` 新文件)
++
++```ts
++import type { AxiosInstance } from 'axios'
++import { unwrap } from './unwrap.js'
++
++// 字段抄自 NimoOS-LocalStorage/service/v2/raid.go RAIDStatus/MemberDiskStatus;
++// 内嵌 DB model(*model.RAIDArray)字段后端拍平在同层,走索引签名。
++export interface RaidMemberDisk {
++  path: string
++  state: string
++  number: number
++}
++export interface RaidStatus {
++  live_state: string
++  rebuild_pct: number
++  rebuild_finish: string
++  rebuild_speed: string
++  total_bytes: number
++  used_bytes: number
++  free_bytes: number
++  members: RaidMemberDisk[]
++  [k: string]: unknown
++}
++
++export function createRaid(http: AxiosInstance) {
++  return {
++    // GET /v2/raid — 阵列列表(含 mdadm 实时态)
++    async list(): Promise<RaidStatus[]> {
++      const res = await http.get('/v2/raid')
++      return unwrap<RaidStatus[]>(res.data)
++    },
++    // POST /v2/raid — 创建阵列(破坏性;body 同 Vue2 RaidCreateForm)
++    async create(data: unknown): Promise<unknown> {
++      const res = await http.post('/v2/raid', data)
++      return unwrap<unknown>(res.data)
++    },
++    // DELETE /v2/raid/:id — 删除阵列(破坏性)
++    async remove(id: number | string): Promise<unknown> {
++      const res = await http.delete(`/v2/raid/${id}`)
++      return unwrap<unknown>(res.data)
++    },
++    async getStatus(id: number | string): Promise<RaidStatus> {
++      const res = await http.get(`/v2/raid/${id}/status`)
++      return unwrap<RaidStatus>(res.data)
++    },
++    async getUsage(id: number | string): Promise<unknown> {
++      const res = await http.get(`/v2/raid/${id}/usage`)
++      return unwrap<unknown>(res.data)
++    },
++    // POST /v2/raid/:id/disk — 换盘(破坏性)
++    async replaceDisk(id: number | string, data: unknown): Promise<unknown> {
++      const res = await http.post(`/v2/raid/${id}/disk`, data)
++      return unwrap<unknown>(res.data)
++    },
++    async recover(id: number | string): Promise<unknown> {
++      const res = await http.post(`/v2/raid/${id}/recover`)
++      return unwrap<unknown>(res.data)
++    },
++    async listTasks(): Promise<unknown> {
++      const res = await http.get('/v2/raid/tasks')
++      return unwrap<unknown>(res.data)
++    },
++    async getTask(taskId: string): Promise<unknown> {
++      const res = await http.get(`/v2/raid/tasks/${taskId}`)
++      return unwrap<unknown>(res.data)
++    },
++  }
++}
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- raid`
++Expected: PASS(2 例)
++
++- [ ] **Step 5: Commit**
++
++```bash
++git add src/raid.ts src/raid.test.ts
++git commit -m "feat(raid): 新建 raid 域,9 方法对齐 Vue2 raid.js + RaidStatus 类型(SP6-P0)"
++```
++
++---
++
++### Task 3: snapshot 域新建(8 方法,保留读-改-写与编码语义)
++
++**Files:**
++- Create: `src/snapshot.ts`
++- Create: `src/snapshot.test.ts`
++
++**Interfaces:**
++- Produces: `createSnapshot(http)` 返回
++  `listVolumes(): Promise<SnapshotVolume[]>` · `list(volumeUuid: string): Promise<unknown>` ·
++  `getPolicy(volumeUuid: string): Promise<SnapshotPolicy>` · `updatePolicy(policy: SnapshotPolicy): Promise<unknown>` ·
++  `patchPolicy(volumeUuid: string, patch: Partial<SnapshotPolicy>): Promise<unknown>` ·
++  `togglePolicy(volumeUuid: string, enabled: boolean): Promise<unknown>` ·
++  `create(data: unknown): Promise<unknown>` · `remove(name: string, volumeUuid: string): Promise<unknown>` ·
++  `restore(data: { volume_uuid: string; snapshot: string; path: string }): Promise<unknown>`。
++  类型 `SnapshotVolume` / `SnapshotPolicy` 从 `snapshot.ts` 导出。
++- **两条铁律语义(Vue2 snapshot.js 注释原样搬)**:
++  1. `PUT /v2/snapshot/policy` 是**全量替换**——所有策略写操作必须经 `patchPolicy`(先 GET 再合并再 PUT),严禁在别处从零拼 PUT body;
++  2. 快照 `name` 常含用户中文(如 `20260712T101502Z_manual_改版前`)——DELETE 的路径段必须 `encodeURIComponent`。
++
++- [ ] **Step 1: 写失败测试**(`src/snapshot.test.ts` 新文件)
++
++```ts
++import { describe, it, expect } from 'vitest'
++import type { AxiosInstance } from 'axios'
++import { createSnapshot } from './snapshot'
++
++describe('createSnapshot', () => {
++  it('listVolumes/list/getPolicy pass volume_uuid as query and unwrap', async () => {
++    const log: Array<[string, string, unknown]> = []
++    const http = { get: async (u: string, cfg?: { params?: unknown }) => { log.push(['get', u, cfg?.params]); return { data: { success: 200, data: [] } } } } as unknown as AxiosInstance
++    const s = createSnapshot(http)
++    await s.listVolumes(); await s.list('uu-1'); await s.getPolicy('uu-1')
++    expect(log).toEqual([
++      ['get', '/v2/snapshot/volumes', undefined],
++      ['get', '/v2/snapshot', { volume_uuid: 'uu-1' }],
++      ['get', '/v2/snapshot/policy', { volume_uuid: 'uu-1' }],
++    ])
++  })
++
++  it('patchPolicy does read-modify-write (PUT body = current policy + patch)', async () => {
++    let putBody: unknown
++    const current = { volume_uuid: 'uu-1', enabled: false, hourly_keep: 6, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 }
++    const http = {
++      get: async () => ({ data: { success: 200, data: current } }),
++      put: async (_u: string, b?: unknown) => { putBody = b; return { data: { success: 200, data: 'ok' } } },
++    } as unknown as AxiosInstance
++    await createSnapshot(http).togglePolicy('uu-1', true)
++    expect(putBody).toEqual({ ...current, enabled: true })
++  })
++
++  it('remove URL-encodes Chinese snapshot names in the path segment', async () => {
++    let seen = ''
++    const http = { delete: async (u: string, cfg?: { params?: unknown }) => { seen = u + ':' + JSON.stringify(cfg?.params); return { data: { success: 200, data: 'ok' } } } } as unknown as AxiosInstance
++    await createSnapshot(http).remove('20260712T101502Z_manual_改版前', 'uu-1')
++    expect(seen).toBe(`/v2/snapshot/${encodeURIComponent('20260712T101502Z_manual_改版前')}:{"volume_uuid":"uu-1"}`)
++  })
++
++  it('create posts to root; restore posts {volume_uuid,snapshot,path}', async () => {
++    const log: Array<[string, string, unknown]> = []
++    const http = { post: async (u: string, b?: unknown) => { log.push(['post', u, b]); return { data: { success: 200, data: 'ok' } } } } as unknown as AxiosInstance
++    const s = createSnapshot(http)
++    await s.create({ volume_uuid: 'uu-1', type: 'manual' })
++    await s.restore({ volume_uuid: 'uu-1', snapshot: 'snap', path: 'docs/a.txt' })
++    expect(log).toEqual([
++      ['post', '/v2/snapshot', { volume_uuid: 'uu-1', type: 'manual' }],
++      ['post', '/v2/snapshot/restore', { volume_uuid: 'uu-1', snapshot: 'snap', path: 'docs/a.txt' }],
++    ])
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- snapshot`
++Expected: FAIL,`Cannot find module './snapshot'`(或等价)
++
++- [ ] **Step 3: 最小实现**(`src/snapshot.ts` 新文件)
++
++```ts
++import type { AxiosInstance } from 'axios'
++import { unwrap } from './unwrap.js'
++
++// 字段以 Vue2 SnapshotPanel/snapshot.js 实际消费为准(supported/enabled/mount/last_at 等),
++// 其余走索引签名——后端 route/snapshot.go 的响应未做 openapi 定义。
++export interface SnapshotVolume {
++  mount?: string
++  volume_uuid?: string
++  supported?: boolean
++  enabled?: boolean
++  [k: string]: unknown
++}
++export interface SnapshotPolicy {
++  volume_uuid?: string
++  enabled?: boolean
++  hourly_keep?: number
++  daily_keep?: number
++  weekly_keep?: number
++  pause_threshold_pct?: number
++  [k: string]: unknown
++}
++
++export function createSnapshot(http: AxiosInstance) {
++  const api = {
++    async listVolumes(): Promise<SnapshotVolume[]> {
++      const res = await http.get('/v2/snapshot/volumes')
++      return unwrap<SnapshotVolume[]>(res.data)
++    },
++    async list(volumeUuid: string): Promise<unknown> {
++      const res = await http.get('/v2/snapshot', { params: { volume_uuid: volumeUuid } })
++      return unwrap<unknown>(res.data)
++    },
++    async getPolicy(volumeUuid: string): Promise<SnapshotPolicy> {
++      const res = await http.get('/v2/snapshot/policy', { params: { volume_uuid: volumeUuid } })
++      return unwrap<SnapshotPolicy>(res.data)
++    },
++    // ⚠️ PUT /v2/snapshot/policy 是全量替换:发部分 body 会把没带的 keep 字段清零。
++    // 所有策略写操作必须走 patchPolicy(读-改-写),严禁在别处从零拼 PUT body。
++    async updatePolicy(policy: SnapshotPolicy): Promise<unknown> {
++      const res = await http.put('/v2/snapshot/policy', policy)
++      return unwrap<unknown>(res.data)
++    },
++    async patchPolicy(volumeUuid: string, patch: Partial<SnapshotPolicy>): Promise<unknown> {
++      const current = await api.getPolicy(volumeUuid)
++      return api.updatePolicy({ ...current, ...patch })
++    },
++    async togglePolicy(volumeUuid: string, enabled: boolean): Promise<unknown> {
++      return api.patchPolicy(volumeUuid, { enabled })
++    },
++    async create(data: unknown): Promise<unknown> {
++      const res = await http.post('/v2/snapshot', data)
++      return unwrap<unknown>(res.data)
++    },
++    // 快照名常含用户中文(如 20260712T101502Z_manual_改版前)——路径段必须编码。
++    async remove(name: string, volumeUuid: string): Promise<unknown> {
++      const res = await http.delete(`/v2/snapshot/${encodeURIComponent(name)}`, { params: { volume_uuid: volumeUuid } })
++      return unwrap<unknown>(res.data)
++    },
++    // POST /v2/snapshot/restore 永不覆盖,目标名由后端定;path 相对卷根(非快照目录)。
++    async restore(data: { volume_uuid: string; snapshot: string; path: string }): Promise<unknown> {
++      const res = await http.post('/v2/snapshot/restore', data)
++      return unwrap<unknown>(res.data)
++    },
++  }
++  return api
++}
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- snapshot`
++Expected: PASS(4 例)
++
++- [ ] **Step 5: Commit**
++
++```bash
++git add src/snapshot.ts src/snapshot.test.ts
++git commit -m "feat(snapshot): 新建 snapshot 域,保留策略读-改-写与中文名编码语义(SP6-P0)"
++```
++
++---
++
++### Task 4: index.ts 挂载导出 + 构建 + 消费方回归
++
++**Files:**
++- Modify: `src/index.ts`(import + `service` getter + 类型导出)
++- Test: 全量 `pnpm test` + `pnpm build`;New-UI worktree 重链后全量回归
++
++**Interfaces:**
++- Consumes: Task 2 `createRaid`/`RaidStatus`/`RaidMemberDisk`,Task 3 `createSnapshot`/`SnapshotVolume`/`SnapshotPolicy`。
++- Produces: `service.raid` / `service.snapshot` 惰性 getter(P1–P5 的 UI 用这个入口);类型经包根导出。
++
++- [ ] **Step 1: 挂载**(`src/index.ts` 三处追加)
++
++import 区(照现有排列,注意 `.js` 后缀):
++
++```ts
++import { createRaid } from './raid.js'
++import { createSnapshot } from './snapshot.js'
++```
++
++类型导出行追加(与现有 `export type {...} from './types.js'` 并列,新加一行):
++
++```ts
++export type { RaidStatus, RaidMemberDisk } from './raid.js'
++export type { SnapshotVolume, SnapshotPolicy } from './snapshot.js'
++```
++
++`service` 对象内追加(照 `storage` getter 的样子):
++
++```ts
++  get raid(): ReturnType<typeof createRaid> {
++    return createRaid(getHttp() as AxiosInstance)
++  },
++  get snapshot(): ReturnType<typeof createSnapshot> {
++    return createSnapshot(getHttp() as AxiosInstance)
++  },
++```
++
++- [ ] **Step 2: 包内全量测试 + 构建**
++
++Run: `cd /home/nimo/NimoTech/.sp6/NimoOS-Service && pnpm test && pnpm build`
++Expected: 全部 PASS(117 基线 + 本期新增 8 例),tsc 零错误
++
++- [ ] **Step 3: 消费方重链 + 回归**(pnpm file: 依赖不自动同步——`nimoos-service-pnpm-drift` 教训)
++
++Run: `cd /home/nimo/NimoTech/.sp6/NimoOS-New-UI && pnpm install && pnpm test && npx vue-tsc --noEmit`
++Expected: install 重链本地包;New-UI 1197 基线全 PASS;tsc 零错误
++
++- [ ] **Step 4: Commit**
++
++```bash
++cd /home/nimo/NimoTech/.sp6/NimoOS-Service
++git add src/index.ts
++git commit -m "feat: service.raid / service.snapshot 挂载导出(SP6-P0 收口)"
++```
++
++---
++
++## 完成定义(P0 关账条件)
++
++1. Service worktree:disks 3 新方法 + raid 域 9 方法 + snapshot 域 8 方法,全部有 URL/动词/语义锁死的单测;`pnpm test`、`pnpm build` 双清。
++2. New-UI worktree 重链后 1197 基线 + tsc 双清(本期不改 New-UI 代码)。
++3. 不迁清单已核实并留证:`local_storage` 域(死,唯二消费者为 MergerFS 死组件;`display_names` 后端活但无消费者)、`port` 域(推迟 SP9)——记入 spec §6 台账,合并时进 roadmap。
+diff --git a/docs/superpowers/plans/2026-07-23-vue3-migration-sp6-p1-skeleton.md b/docs/superpowers/plans/2026-07-23-vue3-migration-sp6-p1-skeleton.md
+new file mode 100644
+index 0000000..1850f14
+--- /dev/null
++++ b/docs/superpowers/plans/2026-07-23-vue3-migration-sp6-p1-skeleton.md
+@@ -0,0 +1,1448 @@
++# SP6-P1 存储区骨架 + 只读列表 实施计划
++
++> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
++
++**Goal:** 在 New-UI 建立 `/storage` 路由区骨架,交付存储卷列表(含卸载)与物理盘列表两个只读页 + 磁盘热插拔刷新 + 主页入口,并为 5273 预览端口配好 API 代理。
++
++**Architecture:** 纯映射函数(TS + 单测)→ Pinia setup store(service 域调用 + toast)→ StorageShell 自带头部(回主页 + 页签)包两个视图;主页入口走 SYSTEM_APPS + useOpenAction 应用内跳转。全部工作在 `.sp6/NimoOS-New-UI` worktree(分支 `sp6-storage`)。
++
++**Tech Stack:** Vue 3 `<script setup>` + Pinia + vue-router 4 + vue-i18n 9 + reka-ui(经 `src/components/ui/Dialog.vue` 壳)+ `@nimotech/nimoos-service`(P0 已补 `disks`/`raid` 域)。
++
++## Global Constraints
++
++- 工作目录:`/home/nimo/NimoTech/.sp6/NimoOS-New-UI`,分支 `sp6-storage`。**禁止**触碰 `/home/nimo/NimoTech/NimoOS-New-UI`(主检出)、NimoOS-UI 仓、`deploy.sh`、`/var/lib/nimoos`。
++- 包管理器 pnpm。测试命令:`pnpm test`(vitest 全量),类型检查:`pnpm exec vue-tsc --noEmit`。
++- **一切可见颜色必须是 theme token(`var(--…)`)**,禁止 hex/rgb/具名色字面量(`src/styles/color-guard.test.ts` 强制;例外须带 `theme-exception` 注释,仅限既有例外类)。
++- **i18n 键必须同时加进 `src/i18n/zh_cn.ts` 与 `src/i18n/en_us.ts`**(`parity.test.ts` 强制),平铺 camelCase,存储区统一 `storage*` 前缀。
++- **后端契约(2026-07-23 真机核实)**:`GET /v1/storage?system=show` 返回的 children 里 `size`/`avail`/`used` 是**字符串**,必须 `Number()` 显式转换;系统卷判定 `disk_name === "System"`;占用率 `100 - Math.floor(avail*100/size)`(与 Vue2 逐字一致)。
++- **卸载契约**:`DELETE /v1/disks`,body `{ path: <父盘路径>, password: <登录密码> }`——注意 path 是卷条目的 `disk`(父盘 path),不是分区 path。
++- MessageBus 订阅 handler **不可阻塞**(buffer=1):热插拔刷新用 500ms `setTimeout` 防抖(Vue2 MountList 先例)。
++- service 调用一律 `import { service } from '@nimotech/nimoos-service'`;测试里在模块边界 `vi.mock('@nimotech/nimoos-service', …)`(hoisted,先 mock 后 import store)。
++- 语义色:良好 `var(--sem-fg)`,警示 `var(--dem-fg)`,危险 `var(--remove-fg)`,主进度 `var(--accent)`。
++- 容量格式化复用 `src/home/util/format.ts` 的 `fmtSize`,不得另写字节格式化。
++
++---
++
++### Task 1: storage 映射纯函数
++
++**Files:**
++- Create: `src/storage/util/storageMap.ts`
++- Test: `src/storage/util/storageMap.test.ts`
++
++**Interfaces:**
++- Consumes: 无(纯函数,零依赖)。
++- Produces: `StorageVolume`、`PhysicalDrive` 接口;`mapVolumes(groups, raidMountPoints?)`、`mapDrives(disks)`、`usageLevel(pct)`、`toFahrenheit(c)` —— Task 2 的 store 与 Task 3/4 的组件按此签名消费。
++
++- [ ] **Step 1: 写失败测试**
++
++`src/storage/util/storageMap.test.ts`:
++
++```ts
++import { describe, it, expect } from 'vitest'
++import { mapVolumes, mapDrives, usageLevel, toFahrenheit } from './storageMap'
++
++// 真机 2026-07-23 实拍:size/avail 是字符串
++const LIVE_GROUPS = [
++  {
++    disk_name: 'System', size: 512110190592, path: '/dev/nvme0n1', type: 'nvme',
++    children: [
++      {
++        uuid: 'da0e4da3', mount_point: '/', size: '512110190592', avail: '384614653440',
++        used: '127495537152', type: 'ext4', path: '/dev/nvme0n1p7',
++        drive_name: 'nvme0n1p7', label: 'NimoOS-HD',
++      },
++    ],
++  },
++  {
++    disk_name: 'Storage1', size: 2000000000000, path: '/dev/sda', type: 'sata',
++    children: [
++      { uuid: 'aaa', mount_point: '/mnt/s1', size: '2000000000000', avail: '1000000000000', type: 'ext4', path: '/dev/sda1', drive_name: 'sda1', label: 'Storage1' },
++      { uuid: 'bbb', mount_point: '/mnt/raid0', size: '100', avail: '50', type: 'ext4', path: '/dev/sda9', drive_name: 'sda9', label: 'zzz-on-raid' },
++    ],
++  },
++]
++
++describe('mapVolumes', () => {
++  it('拍平 children、字符串数值转数字、算占用率', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    const sys = v.find((x) => x.isSystem)!
++    expect(sys.name).toBe('NimoOS-HD')
++    expect(sys.size).toBe(512110190592)
++    expect(sys.availSize).toBe(384614653440)
++    expect(sys.usedSize).toBe(512110190592 - 384614653440)
++    // Vue2 逐字:100 - Math.floor(avail*100/size)
++    expect(sys.usePercent).toBe(100 - Math.floor((384614653440 * 100) / 512110190592))
++    expect(sys.fsType).toBe('ext4')
++    expect(sys.mountPoint).toBe('/')
++    expect(sys.disk).toBe('/dev/nvme0n1')
++    expect(sys.driveName).toBe('nvme0n1p7')
++  })
++  it('isSystem 只认 disk_name === "System"', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    expect(v.filter((x) => x.isSystem)).toHaveLength(1)
++    expect(v.find((x) => x.name === 'Storage1')!.isSystem).toBe(false)
++  })
++  it('RAID 挂载点被排除', () => {
++    const v = mapVolumes(LIVE_GROUPS, new Set(['/mnt/raid0']))
++    expect(v.map((x) => x.name)).not.toContain('zzz-on-raid')
++    expect(v).toHaveLength(2)
++  })
++  it('排序:父盘名 desc、label asc(System 在前)', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    expect(v[0].isSystem).toBe(true)
++    expect(v[1].name < (v[2]?.name ?? '￿')).toBe(true)
++  })
++  it('size 为 0 或缺失时占用率为 0,不产生 NaN', () => {
++    const v = mapVolumes([{ disk_name: 'X', path: '/dev/x', children: [{ label: 'e', mount_point: '/e' }] }])
++    expect(v[0].usePercent).toBe(0)
++    expect(v[0].size).toBe(0)
++  })
++  it('非数组/垃圾输入返回空数组', () => {
++    expect(mapVolumes(null)).toEqual([])
++    expect(mapVolumes({ nope: 1 })).toEqual([])
++  })
++})
++
++describe('mapDrives', () => {
++  const LIVE_DISKS = [
++    { name: 'nvme0n1', size: 512110190592, model: 'WPBSNM8-512GTP', health: 'true', temperature: 35, disk_type: 'SSD', serial: 'LP0625', path: '/dev/nvme0n1' },
++  ]
++  it('映射真机字段', () => {
++    const d = mapDrives(LIVE_DISKS)
++    expect(d[0]).toMatchObject({ name: 'nvme0n1', model: 'WPBSNM8-512GTP', size: 512110190592, diskType: 'SSD', healthy: true, temperature: 35 })
++  })
++  it('health 只认 true/"true"(修正 Vue2 把字符串 "false" 当健康的隐患)', () => {
++    expect(mapDrives([{ health: 'false' }])[0].healthy).toBe(false)
++    expect(mapDrives([{ health: true }])[0].healthy).toBe(true)
++    expect(mapDrives([{}])[0].healthy).toBe(false)
++  })
++  it('非数组输入返回空数组', () => {
++    expect(mapDrives(undefined)).toEqual([])
++  })
++})
++
++describe('usageLevel', () => {
++  it('阈值与 Vue2 getProgressType 一致(80/90)', () => {
++    expect(usageLevel(0)).toBe('ok')
++    expect(usageLevel(79)).toBe('ok')
++    expect(usageLevel(80)).toBe('warn')
++    expect(usageLevel(89)).toBe('warn')
++    expect(usageLevel(90)).toBe('danger')
++    expect(usageLevel(100)).toBe('danger')
++  })
++})
++
++describe('toFahrenheit', () => {
++  it('与 Vue2 filter 一致:(32 + c*1.8).toFixed(1)', () => {
++    expect(toFahrenheit(35)).toBe('95.0')
++    expect(toFahrenheit(0)).toBe('32.0')
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- src/storage/util/storageMap.test.ts`
++Expected: FAIL(模块不存在)
++
++- [ ] **Step 3: 实现**
++
++`src/storage/util/storageMap.ts`:
++
++```ts
++// /v1/storage children 的 size/avail/used 是字符串(2026-07-23 真机核实),必须显式 Number()。
++// usePercent 公式与 Vue2 StorageManagerPanel 逐字一致,保证迁移前后读数不变。
++
++export interface StorageVolume {
++  uuid: string
++  name: string
++  isSystem: boolean
++  fsType: string
++  size: number
++  availSize: number
++  usedSize: number
++  usePercent: number
++  driveName: string
++  path: string
++  mountPoint: string
++  disk: string
++}
++
++export interface PhysicalDrive {
++  name: string
++  model: string
++  size: number
++  diskType: string
++  healthy: boolean
++  temperature: number
++}
++
++interface RawChild {
++  uuid?: string
++  label?: string
++  type?: string
++  size?: unknown
++  avail?: unknown
++  path?: string
++  drive_name?: string
++  mount_point?: string
++}
++interface RawGroup { path?: string; disk_name?: string; children?: RawChild[] }
++
++export function mapVolumes(groups: unknown, raidMountPoints: Set<string> = new Set()): StorageVolume[] {
++  const arr = Array.isArray(groups) ? (groups as RawGroup[]) : []
++  const flat: Array<RawChild & { _disk: string; _diskName: string }> = []
++  for (const g of arr) {
++    for (const c of g?.children || []) {
++      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID 卷归 /storage/raid(P3)
++      flat.push({ ...c, _disk: g?.path || '', _diskName: g?.disk_name || '' })
++    }
++  }
++  // Vue2 orderBy(['diskName','label'],['desc','asc']):System 组排最前
++  flat.sort((a, b) => {
++    if (a._diskName !== b._diskName) return a._diskName < b._diskName ? 1 : -1
++    const la = a.label || ''
++    const lb = b.label || ''
++    return la < lb ? -1 : la > lb ? 1 : 0
++  })
++  return flat.map((c) => {
++    const size = Number(c.size) || 0
++    const avail = Number(c.avail) || 0
++    return {
++      uuid: c.uuid || '',
++      name: c.label || c.drive_name || '',
++      isSystem: c._diskName === 'System',
++      fsType: c.type || '',
++      size,
++      availSize: avail,
++      usedSize: Math.max(0, size - avail),
++      usePercent: size > 0 ? 100 - Math.floor((avail * 100) / size) : 0,
++      driveName: c.drive_name || '',
++      path: c.path || '',
++      mountPoint: c.mount_point || '',
++      disk: c._disk,
++    }
++  })
++}
++
++interface RawDisk {
++  name?: string
++  model?: string
++  size?: unknown
++  disk_type?: string
++  health?: unknown
++  temperature?: unknown
++}
++
++export function mapDrives(disks: unknown): PhysicalDrive[] {
++  const arr = Array.isArray(disks) ? (disks as RawDisk[]) : []
++  return arr.map((d) => ({
++    name: d.name || '',
++    model: d.model || '',
++    size: Number(d.size) || 0,
++    diskType: d.disk_type || '',
++    // 后端 health 是字符串 "true"/"false";严格比较,避免 "false" 被当真值(Vue2 隐患)
++    healthy: d.health === true || d.health === 'true',
++    temperature: Number(d.temperature) || 0,
++  }))
++}
++
++// 与 Vue2 mixin getProgressType 阈值一致
++export function usageLevel(pct: number): 'ok' | 'warn' | 'danger' {
++  if (pct < 80) return 'ok'
++  if (pct < 90) return 'warn'
++  return 'danger'
++}
++
++export function toFahrenheit(c: number): string {
++  return (32 + c * 1.8).toFixed(1)
++}
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- src/storage/util/storageMap.test.ts`
++Expected: PASS(全部用例)
++
++- [ ] **Step 5: 类型检查 + 提交**
++
++```bash
++pnpm exec vue-tsc --noEmit
++git add src/storage/util/storageMap.ts src/storage/util/storageMap.test.ts
++git commit -m "feat(storage): 映射纯函数——字符串数值转换/占用率/health 严格判定(SP6-P1)"
++```
++
++---
++
++### Task 2: storage Pinia store
++
++**Files:**
++- Create: `src/storage/stores/storage.ts`
++- Test: `src/storage/stores/storage.test.ts`
++- Modify: `src/i18n/zh_cn.ts`、`src/i18n/en_us.ts`(加 2 个键)
++
++**Interfaces:**
++- Consumes: Task 1 的 `mapVolumes/mapDrives` 与类型;`service.storage.list` / `service.raid.list` / `service.disks.getDiskList` / `service.disks.umount`(P0 已在共享包);`useToast()`(`src/stores/toast`)、`i18n.global.t`。
++- Produces: `useStorageStore()` → `{ volumes, drives, loading, loadVolumes(), loadDrives(), loadAll(), unmount(diskPath, password): Promise<boolean> }` —— Task 3/4 视图消费。
++
++- [ ] **Step 1: 写失败测试**
++
++`src/storage/stores/storage.test.ts`(照 `src/files/stores/mounts.test.ts` 的 hoisted mock 模式):
++
++```ts
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const storageList = vi.fn()
++const raidList = vi.fn()
++const getDiskList = vi.fn()
++const umount = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    storage: { list: (...a: unknown[]) => storageList(...a) },
++    raid: { list: (...a: unknown[]) => raidList(...a) },
++    disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
++  },
++}))
++const toastShow = vi.fn()
++vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
++vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
++
++import { useStorageStore } from './storage'
++
++const GROUPS = [
++  { disk_name: 'System', path: '/dev/nvme0n1', children: [{ label: 'NimoOS-HD', mount_point: '/', size: '100', avail: '40', type: 'ext4', drive_name: 'p7', path: '/dev/nvme0n1p7', uuid: 'u1' }] },
++  { disk_name: 'S1', path: '/dev/sda', children: [{ label: 'raidvol', mount_point: '/mnt/r0', size: '10', avail: '5', type: 'ext4', drive_name: 'sda1', path: '/dev/sda1', uuid: 'u2' }] },
++]
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('loadVolumes', () => {
++  it('storage+raid 并取,RAID 挂载点被排除', async () => {
++    storageList.mockResolvedValue(GROUPS)
++    raidList.mockResolvedValue([{ id: 1, mount_point: '/mnt/r0' }])
++    const s = useStorageStore()
++    await s.loadVolumes()
++    expect(storageList).toHaveBeenCalledWith({ system: 'show' })
++    expect(s.volumes).toHaveLength(1)
++    expect(s.volumes[0].name).toBe('NimoOS-HD')
++  })
++  it('raid.list 失败不影响卷列表', async () => {
++    storageList.mockResolvedValue(GROUPS)
++    raidList.mockRejectedValue(new Error('404'))
++    const s = useStorageStore()
++    await s.loadVolumes()
++    expect(s.volumes).toHaveLength(2)
++  })
++  it('storage.list 失败置空,不抛', async () => {
++    storageList.mockRejectedValue(new Error('boom'))
++    raidList.mockResolvedValue([])
++    const s = useStorageStore()
++    await expect(s.loadVolumes()).resolves.toBeUndefined()
++    expect(s.volumes).toEqual([])
++  })
++})
++
++describe('loadDrives', () => {
++  it('取 disks 字段映射', async () => {
++    getDiskList.mockResolvedValue({ disks: [{ name: 'nvme0n1', model: 'M', size: 100, disk_type: 'SSD', health: 'true', temperature: 35 }], avail: [] })
++    const s = useStorageStore()
++    await s.loadDrives()
++    expect(s.drives).toHaveLength(1)
++    expect(s.drives[0].healthy).toBe(true)
++  })
++  it('失败置空不抛', async () => {
++    getDiskList.mockRejectedValue(new Error('x'))
++    const s = useStorageStore()
++    await expect(s.loadDrives()).resolves.toBeUndefined()
++    expect(s.drives).toEqual([])
++  })
++})
++
++describe('unmount', () => {
++  it('成功:发 {path,password}、toast 成功文案、重载、返回 true', async () => {
++    umount.mockResolvedValue({})
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [] })
++    const s = useStorageStore()
++    const ok = await s.unmount('/dev/sda', 'pw')
++    expect(umount).toHaveBeenCalledWith({ path: '/dev/sda', password: 'pw' })
++    expect(toastShow).toHaveBeenCalledWith('storageUnmountSuccess')
++    expect(storageList).toHaveBeenCalled()
++    expect(ok).toBe(true)
++  })
++  it('失败:toast 失败文案、返回 false、不抛', async () => {
++    umount.mockRejectedValue(new Error('wrong password'))
++    const s = useStorageStore()
++    const ok = await s.unmount('/dev/sda', 'bad')
++    expect(toastShow).toHaveBeenCalledWith('storageUnmountFailed')
++    expect(ok).toBe(false)
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- src/storage/stores/storage.test.ts`
++Expected: FAIL(store 不存在)
++
++- [ ] **Step 3: 实现 store + i18n 键**
++
++`src/storage/stores/storage.ts`:
++
++```ts
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { i18n } from '../../i18n'
++import { useToast } from '../../stores/toast'
++import { mapVolumes, mapDrives, type StorageVolume, type PhysicalDrive } from '../util/storageMap'
++
++export const useStorageStore = defineStore('storage', () => {
++  const volumes = ref<StorageVolume[]>([])
++  const drives = ref<PhysicalDrive[]>([])
++  const loading = ref(false)
++  const t = i18n.global.t
++
++  async function loadVolumes() {
++    try {
++      // raid.list 兜底空数组:老后端无 /v2/raid 时卷列表照常工作
++      const [storageRes, raidRes] = await Promise.all([
++        service.storage.list({ system: 'show' }),
++        service.raid.list().catch(() => [] as unknown[]),
++      ])
++      const raidMounts = new Set(
++        (Array.isArray(raidRes) ? raidRes : [])
++          .map((r) => (r as { mount_point?: string })?.mount_point)
++          .filter((m): m is string => !!m),
++      )
++      volumes.value = mapVolumes(storageRes, raidMounts)
++    } catch (e) {
++      console.warn('[storage] volumes load failed', e)
++      volumes.value = []
++    }
++  }
++
++  async function loadDrives() {
++    try {
++      const res = (await service.disks.getDiskList()) as { disks?: unknown } | null
++      drives.value = mapDrives(res?.disks)
++    } catch (e) {
++      console.warn('[storage] drives load failed', e)
++      drives.value = []
++    }
++  }
++
++  async function loadAll() {
++    loading.value = true
++    try {
++      await Promise.all([loadVolumes(), loadDrives()])
++    } finally {
++      loading.value = false
++    }
++  }
++
++  async function unmount(diskPath: string, password: string): Promise<boolean> {
++    const toast = useToast()
++    try {
++      // 契约:DELETE /v1/disks {path: 父盘路径, password}(Vue2 StorageItem 同款)
++      await service.disks.umount({ path: diskPath, password })
++      toast.show(t('storageUnmountSuccess'))
++      await loadAll()
++      return true
++    } catch (e) {
++      console.warn('[storage] unmount failed', e)
++      toast.show(t('storageUnmountFailed'))
++      return false
++    }
++  }
++
++  return { volumes, drives, loading, loadVolumes, loadDrives, loadAll, unmount }
++})
++```
++
++i18n:在 `src/i18n/zh_cn.ts` 加(位置:文件内新起 `// storage 存储区` 注释组,放在文件已有分组之后):
++
++```ts
++  storageUnmountSuccess: '存储已移除',
++  storageUnmountFailed: '移除失败,请检查密码后重试',
++```
++
++`src/i18n/en_us.ts` 同名键:
++
++```ts
++  storageUnmountSuccess: 'Storage removed',
++  storageUnmountFailed: 'Failed to remove, check your password and try again',
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- src/storage/stores/storage.test.ts src/i18n/parity.test.ts`
++Expected: PASS
++
++- [ ] **Step 5: 类型检查 + 提交**
++
++```bash
++pnpm exec vue-tsc --noEmit
++git add src/storage/stores/storage.ts src/storage/stores/storage.test.ts src/i18n/zh_cn.ts src/i18n/en_us.ts
++git commit -m "feat(storage): Pinia store——卷/盘装载、RAID 排除、卸载动作(SP6-P1)"
++```
++
++---
++
++### Task 3: StorageShell + 物理盘视图 + 路由
++
++**Files:**
++- Create: `src/storage/components/StorageShell.vue`
++- Create: `src/storage/components/DriveCard.vue`
++- Create: `src/views/StorageDrives.vue`
++- Modify: `src/router/index.ts`(加 `/storage/drives` 路由)
++- Modify: `src/i18n/zh_cn.ts`、`src/i18n/en_us.ts`
++- Test: `src/storage/components/StorageShell.test.ts`、`src/storage/components/DriveCard.test.ts`、`src/views/StorageDrives.test.ts`
++
++**Interfaces:**
++- Consumes: Task 1 `PhysicalDrive`/`toFahrenheit`;Task 2 `useStorageStore`;`fmtSize`(`src/home/util/format.ts`);`useMessageBus`(`src/composables/useMessageBus`,`bus.on(event, cb) → off()`)。
++- Produces: `StorageShell`(default slot 容器,自带回主页 + 「存储卷/物理硬盘」页签)—— Task 4 复用;路由名 `storage-drives`。
++
++- [ ] **Step 1: 写失败测试**
++
++`src/storage/components/DriveCard.test.ts`:
++
++```ts
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import DriveCard from './DriveCard.vue'
++
++const DRIVE = { name: 'nvme0n1', model: 'WPBSNM8-512GTP', size: 512110190592, diskType: 'SSD', healthy: true, temperature: 35 }
++
++describe('DriveCard', () => {
++  it('渲染名称/型号/容量/类型', () => {
++    const w = mount(DriveCard, { props: { drive: DRIVE } })
++    expect(w.text()).toContain('nvme0n1')
++    expect(w.text()).toContain('WPBSNM8-512GTP')
++    expect(w.text()).toContain('SSD')
++    expect(w.text()).toContain('477 GB') // fmtSize(512110190592):≥100 取整 → "477 GB"
++  })
++  it('健康态:healthy=true 绿色文案,false 危险文案', () => {
++    const ok = mount(DriveCard, { props: { drive: DRIVE } })
++    expect(ok.find('.dc-health.ok').exists()).toBe(true)
++    const bad = mount(DriveCard, { props: { drive: { ...DRIVE, healthy: false } } })
++    expect(bad.find('.dc-health.bad').exists()).toBe(true)
++  })
++  it('温度:>0 显示 °C/°F,否则 N/A', () => {
++    const w = mount(DriveCard, { props: { drive: DRIVE } })
++    expect(w.text()).toContain('35°C')
++    expect(w.text()).toContain('95.0°F')
++    const na = mount(DriveCard, { props: { drive: { ...DRIVE, temperature: 0 } } })
++    expect(na.text()).toContain('N/A')
++  })
++})
++```
++
++`src/storage/components/StorageShell.test.ts`:
++
++```ts
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { defineComponent } from 'vue'
++import StorageShell from './StorageShell.vue'
++
++const Stub = defineComponent({ template: '<div />' })
++
++async function mountShell(path: string) {
++  const router = createRouter({
++    history: createMemoryHistory(),
++    routes: [
++      { path: '/', component: Stub },
++      { path: '/storage', component: Stub },
++      { path: '/storage/drives', component: Stub },
++    ],
++  })
++  await router.push(path)
++  await router.isReady()
++  const w = mount(StorageShell, { global: { plugins: [router] }, slots: { default: '<p class="probe">body</p>' } })
++  return { w, router }
++}
++
++describe('StorageShell', () => {
++  it('渲染标题、两个页签和 slot 内容', async () => {
++    const { w } = await mountShell('/storage')
++    expect(w.find('.st-title').exists()).toBe(true)
++    expect(w.findAll('.st-tab')).toHaveLength(2)
++    expect(w.find('.probe').text()).toBe('body')
++  })
++  it('当前路由的页签带 active', async () => {
++    const { w } = await mountShell('/storage/drives')
++    const tabs = w.findAll('.st-tab')
++    expect(tabs[0].classes()).not.toContain('active')
++    expect(tabs[1].classes()).toContain('active')
++  })
++  it('回主页按钮 push /', async () => {
++    const { w, router } = await mountShell('/storage')
++    await w.find('.st-home').trigger('click')
++    await router.isReady()
++    expect(router.currentRoute.value.path).toBe('/')
++  })
++})
++```
++
++`src/views/StorageDrives.test.ts`(锁热插拔接线:订阅两事件、500ms 防抖合并、卸载时退订):
++
++```ts
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { defineComponent } from 'vue'
++
++const storageList = vi.fn().mockResolvedValue([])
++const raidList = vi.fn().mockResolvedValue([])
++const getDiskList = vi.fn().mockResolvedValue({ disks: [] })
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    storage: { list: (...a: unknown[]) => storageList(...a) },
++    raid: { list: (...a: unknown[]) => raidList(...a) },
++    disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: vi.fn() },
++  },
++}))
++
++const handlers: Record<string, (p?: unknown) => void> = {}
++const offs: Record<string, ReturnType<typeof vi.fn>> = {}
++vi.mock('../composables/useMessageBus', () => ({
++  useMessageBus: () => ({
++    on: (ev: string, cb: (p?: unknown) => void) => {
++      handlers[ev] = cb
++      offs[ev] = vi.fn()
++      return offs[ev]
++    },
++  }),
++}))
++
++import StorageDrives from './StorageDrives.vue'
++
++const Stub = defineComponent({ template: '<div />' })
++
++async function mountView() {
++  const router = createRouter({
++    history: createMemoryHistory(),
++    routes: [
++      { path: '/', component: Stub },
++      { path: '/storage', component: Stub },
++      { path: '/storage/drives', component: StorageDrives },
++    ],
++  })
++  await router.push('/storage/drives')
++  await router.isReady()
++  return mount(StorageDrives, { global: { plugins: [router] } })
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++  vi.useFakeTimers()
++})
++afterEach(() => {
++  vi.useRealTimers()
++})
++
++describe('StorageDrives 热插拔接线', () => {
++  it('挂载即取数,并订阅 added/removed 两事件', async () => {
++    await mountView()
++    expect(getDiskList).toHaveBeenCalledTimes(1)
++    expect(handlers['local-storage:disk:added']).toBeTypeOf('function')
++    expect(handlers['local-storage:disk:removed']).toBeTypeOf('function')
++  })
++  it('热插拔 500ms 防抖合并成一次刷新', async () => {
++    await mountView()
++    getDiskList.mockClear()
++    handlers['local-storage:disk:added']()
++    handlers['local-storage:disk:removed']()
++    expect(getDiskList).not.toHaveBeenCalled() // handler 本身不打接口(不阻塞)
++    vi.advanceTimersByTime(500)
++    expect(getDiskList).toHaveBeenCalledTimes(1)
++  })
++  it('组件卸载时退订', async () => {
++    const w = await mountView()
++    w.unmount()
++    expect(offs['local-storage:disk:added']).toHaveBeenCalled()
++    expect(offs['local-storage:disk:removed']).toHaveBeenCalled()
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- src/storage/components src/views/StorageDrives.test.ts`
++Expected: FAIL(组件不存在)
++
++- [ ] **Step 3: 实现组件、视图、路由、i18n**
++
++`src/storage/components/StorageShell.vue`:
++
++```vue
++<script setup lang="ts">
++import { useRouter, useRoute } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++
++const router = useRouter()
++const route = useRoute()
++const { t } = useI18n()
++function goHome() {
++  router.push('/')
++}
++</script>
++
++<template>
++  <div class="storage-shell">
++    <header class="st-bar">
++      <button class="st-home" type="button" @click="goHome">‹ {{ t('areaBackHome') }}</button>
++      <h1 class="st-title">{{ t('storageTitle') }}</h1>
++      <nav class="st-tabs">
++        <RouterLink to="/storage" class="st-tab" :class="{ active: route.path === '/storage' }">{{ t('storageTabVolumes') }}</RouterLink>
++        <RouterLink to="/storage/drives" class="st-tab" :class="{ active: route.path === '/storage/drives' }">{{ t('storageTabDrives') }}</RouterLink>
++      </nav>
++    </header>
++    <main class="st-body"><slot /></main>
++  </div>
++</template>
++
++<style scoped>
++.storage-shell { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
++.st-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; }
++.st-home {
++  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
++  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
++}
++.st-home:hover { background: var(--chip-bg-hi); }
++.st-title { font-size: 18px; font-weight: 600; margin: 0; }
++.st-tabs { display: flex; gap: 6px; margin-left: auto; }
++.st-tab {
++  padding: 6px 16px; border-radius: 999px; font-size: 13px; text-decoration: none;
++  color: var(--fg-muted); border: 1px solid transparent;
++}
++.st-tab:hover { color: var(--fg); background: var(--hover); }
++.st-tab.active { color: var(--fg); background: var(--chip-bg-hi); border-color: var(--chip-border); }
++.st-body { flex: 1; overflow-y: auto; padding: 8px 22px 28px; }
++.st-body > :deep(*) { max-width: 980px; margin-left: auto; margin-right: auto; }
++@media (max-width: 768px) {
++  .st-bar { flex-wrap: wrap; padding: 10px 14px; gap: 8px; }
++  .st-tabs { margin-left: 0; width: 100%; }
++  .st-body { padding: 4px 14px 20px; }
++}
++</style>
++```
++
++`src/storage/components/DriveCard.vue`:
++
++```vue
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { fmtSize } from '../../home/util/format'
++import { toFahrenheit, type PhysicalDrive } from '../util/storageMap'
++
++defineProps<{ drive: PhysicalDrive }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <article class="drive-card">
++    <div class="dc-icon" aria-hidden="true">
++      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
++        <rect x="3.5" y="6.5" width="17" height="11" rx="2" />
++        <path d="M3.5 13.5h17" />
++        <circle cx="17" cy="15.5" r="0.9" fill="currentColor" stroke="none" />
++      </svg>
++    </div>
++    <div class="dc-main">
++      <h3 class="dc-name">{{ drive.name }}</h3>
++      <p class="dc-meta">{{ drive.model || '—' }} · {{ fmtSize(drive.size) }} {{ drive.diskType }}</p>
++      <p class="dc-stats">
++        <span class="dc-health" :class="drive.healthy ? 'ok' : 'bad'">
++          {{ t('storageDriveHealth') }}: <b>{{ drive.healthy ? t('storageDriveHealthy') : t('storageDriveDamaged') }}</b>
++        </span>
++        <span class="dc-temp">
++          {{ t('storageDriveTemp') }}:
++          <b v-if="drive.temperature > 0">{{ drive.temperature }}°C / {{ toFahrenheit(drive.temperature) }}°F</b>
++          <b v-else>N/A</b>
++        </span>
++      </p>
++    </div>
++  </article>
++</template>
++
++<style scoped>
++.drive-card {
++  display: flex; gap: 16px; align-items: center; padding: 16px 18px;
++  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm);
++}
++.drive-card + .drive-card { margin-top: 12px; }
++.dc-icon { width: 44px; height: 44px; flex: none; color: var(--fg-muted); }
++.dc-icon svg { width: 100%; height: 100%; }
++.dc-main { min-width: 0; }
++.dc-name { margin: 0; font-size: 15px; font-weight: 600; }
++.dc-meta { margin: 3px 0 0; font-size: 13px; color: var(--fg-muted); }
++.dc-stats { margin: 6px 0 0; font-size: 12.5px; color: var(--fg-muted); display: flex; gap: 16px; flex-wrap: wrap; }
++.dc-health.ok b { color: var(--sem-fg); }
++.dc-health.bad b { color: var(--remove-fg); }
++</style>
++```
++
++`src/views/StorageDrives.vue`:
++
++```vue
++<script setup lang="ts">
++import { onMounted, onUnmounted } from 'vue'
++import { useI18n } from 'vue-i18n'
++import StorageShell from '../storage/components/StorageShell.vue'
++import DriveCard from '../storage/components/DriveCard.vue'
++import { useStorageStore } from '../storage/stores/storage'
++import { useMessageBus } from '../composables/useMessageBus'
++
++const store = useStorageStore()
++const { t } = useI18n()
++const bus = useMessageBus()
++
++// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
++let hotplugTimer: number | undefined
++function onHotplug() {
++  clearTimeout(hotplugTimer)
++  hotplugTimer = window.setTimeout(() => {
++    store.loadAll()
++  }, 500)
++}
++
++let offAdd: (() => void) | undefined
++let offRemove: (() => void) | undefined
++onMounted(() => {
++  store.loadAll()
++  offAdd = bus.on('local-storage:disk:added', onHotplug)
++  offRemove = bus.on('local-storage:disk:removed', onHotplug)
++})
++onUnmounted(() => {
++  offAdd?.()
++  offRemove?.()
++  clearTimeout(hotplugTimer)
++})
++</script>
++
++<template>
++  <StorageShell>
++    <div v-if="store.loading && !store.drives.length" class="st-hint">{{ t('storageLoading') }}</div>
++    <p v-else-if="!store.drives.length" class="st-hint">{{ t('storageDrivesEmpty') }}</p>
++    <div v-else>
++      <DriveCard v-for="d in store.drives" :key="d.name" :drive="d" />
++    </div>
++  </StorageShell>
++</template>
++
++<style scoped>
++.st-hint { padding: 40px 0; text-align: center; color: var(--fg-muted); font-size: 14px; }
++</style>
++```
++
++`src/router/index.ts`:在 import 区加
++
++```ts
++import StorageDrives from '../views/StorageDrives.vue'
++```
++
++在路由表 `/apps/sources` 之后、`/files/:path(.*)*` 通配之前加:
++
++```ts
++  { path: '/storage/drives', name: 'storage-drives', component: StorageDrives },
++```
++
++i18n `zh_cn.ts`(追加进 Task 2 建的 storage 组):
++
++```ts
++  storageTitle: '存储',
++  storageTabVolumes: '存储卷',
++  storageTabDrives: '物理硬盘',
++  storageLoading: '加载中…',
++  storageDrivesEmpty: '未检测到硬盘',
++  storageDriveHealth: '健康',
++  storageDriveHealthy: '正常',
++  storageDriveDamaged: '损坏',
++  storageDriveTemp: '温度',
++```
++
++`en_us.ts`:
++
++```ts
++  storageTitle: 'Storage',
++  storageTabVolumes: 'Volumes',
++  storageTabDrives: 'Drives',
++  storageLoading: 'Loading…',
++  storageDrivesEmpty: 'No drives detected',
++  storageDriveHealth: 'Health',
++  storageDriveHealthy: 'Healthy',
++  storageDriveDamaged: 'Damaged',
++  storageDriveTemp: 'Temp',
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- src/storage src/i18n/parity.test.ts src/styles/color-guard.test.ts`
++Expected: PASS
++
++- [ ] **Step 5: 类型检查 + 全量测试 + 提交**
++
++```bash
++pnpm exec vue-tsc --noEmit
++pnpm test
++git add src/storage/components/StorageShell.vue src/storage/components/StorageShell.test.ts src/storage/components/DriveCard.vue src/storage/components/DriveCard.test.ts src/views/StorageDrives.vue src/views/StorageDrives.test.ts src/router/index.ts src/i18n/zh_cn.ts src/i18n/en_us.ts
++git commit -m "feat(storage): StorageShell 骨架 + /storage/drives 物理盘列表 + 热插拔刷新(SP6-P1)"
++```
++
++---
++
++### Task 4: 存储卷视图 + 卸载弹窗
++
++**Files:**
++- Create: `src/storage/components/VolumeCard.vue`
++- Create: `src/storage/components/UnmountDialog.vue`
++- Create: `src/views/StorageVolumes.vue`
++- Modify: `src/router/index.ts`(加 `/storage` 路由)
++- Modify: `src/i18n/zh_cn.ts`、`src/i18n/en_us.ts`
++- Test: `src/storage/components/VolumeCard.test.ts`、`src/storage/components/UnmountDialog.test.ts`
++
++**Interfaces:**
++- Consumes: Task 1 `StorageVolume`/`usageLevel`;Task 2 `useStorageStore().unmount(diskPath, password)`;Task 3 `StorageShell`;`src/components/ui/Dialog.vue`(`open`/`title` props + `update:open` + default/footer slots)。
++- Produces: 路由名 `storage`(路径 `/storage`)。
++
++- [ ] **Step 1: 写失败测试**
++
++`src/storage/components/VolumeCard.test.ts`:
++
++```ts
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import VolumeCard from './VolumeCard.vue'
++
++const VOL = {
++  uuid: 'u1', name: 'NimoOS-HD', isSystem: false, fsType: 'ext4',
++  size: 512110190592, availSize: 384614653440, usedSize: 127495537152, usePercent: 25,
++  driveName: 'nvme0n1p7', path: '/dev/nvme0n1p7', mountPoint: '/', disk: '/dev/nvme0n1',
++}
++
++describe('VolumeCard', () => {
++  it('渲染名称、文件系统、已用/总量', () => {
++    const w = mount(VolumeCard, { props: { volume: VOL } })
++    expect(w.text()).toContain('NimoOS-HD')
++    expect(w.text()).toContain('EXT4')
++    expect(w.text()).toContain('119 GB') // fmtSize(127495537152):≥100 取整 → "119 GB"
++    expect(w.text()).toContain('477 GB') // fmtSize(512110190592) → "477 GB"
++  })
++  it('进度条按占用率上色分级', () => {
++    const ok = mount(VolumeCard, { props: { volume: VOL } })
++    expect(ok.find('.vc-fill.ok').exists()).toBe(true)
++    const warn = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 85 } } })
++    expect(warn.find('.vc-fill.warn').exists()).toBe(true)
++    const danger = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 95 } } })
++    expect(danger.find('.vc-fill.danger').exists()).toBe(true)
++  })
++  it('系统卷:显示 OS 徽标、无移除按钮', () => {
++    const w = mount(VolumeCard, { props: { volume: { ...VOL, isSystem: true } } })
++    expect(w.find('.vc-os').exists()).toBe(true)
++    expect(w.find('.vc-remove').exists()).toBe(false)
++  })
++  it('非系统卷:点移除按钮 emit unmount', async () => {
++    const w = mount(VolumeCard, { props: { volume: VOL } })
++    await w.find('.vc-remove').trigger('click')
++    expect(w.emitted('unmount')).toHaveLength(1)
++  })
++})
++```
++
++`src/storage/components/UnmountDialog.test.ts`(Dialog 经 Portal 挂到 body,断言用 `document.body`):
++
++```ts
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import UnmountDialog from './UnmountDialog.vue'
++
++beforeEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('UnmountDialog', () => {
++  it('open 时渲染密码框,确认键无密码时禁用', async () => {
++    mount(UnmountDialog, { props: { open: true, name: 'Storage1' } })
++    const input = document.body.querySelector<HTMLInputElement>('.ud-input')
++    expect(input).toBeTruthy()
++    const okBtn = document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')
++    expect(okBtn?.disabled).toBe(true)
++  })
++  it('输入密码点确认 emit confirm(password)', async () => {
++    const w = mount(UnmountDialog, { props: { open: true, name: 'Storage1' } })
++    const input = document.body.querySelector<HTMLInputElement>('.ud-input')!
++    input.value = 'secret'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')!.click()
++    expect(w.emitted('confirm')![0]).toEqual(['secret'])
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- src/storage/components/VolumeCard.test.ts src/storage/components/UnmountDialog.test.ts`
++Expected: FAIL(组件不存在)
++
++- [ ] **Step 3: 实现**
++
++`src/storage/components/VolumeCard.vue`:
++
++```vue
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { fmtSize } from '../../home/util/format'
++import { usageLevel, type StorageVolume } from '../util/storageMap'
++
++defineProps<{ volume: StorageVolume }>()
++defineEmits<{ (e: 'unmount'): void }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <article class="volume-card">
++    <div class="vc-head">
++      <h3 class="vc-name">
++        {{ volume.name }}
++        <span v-if="volume.isSystem" class="vc-os">OS</span>
++      </h3>
++      <button v-if="!volume.isSystem" class="vc-remove" type="button" @click="$emit('unmount')">
++        {{ t('storageUnmount') }}
++      </button>
++    </div>
++    <p class="vc-meta">{{ t('storageVolumeSingle') }} · {{ volume.fsType.toUpperCase() }}</p>
++    <p class="vc-usage">{{ fmtSize(volume.usedSize) }} / {{ fmtSize(volume.size) }}</p>
++    <div class="vc-track" role="progressbar" :aria-valuenow="volume.usePercent" aria-valuemin="0" aria-valuemax="100">
++      <div class="vc-fill" :class="usageLevel(volume.usePercent)" :style="{ width: Math.min(100, Math.max(0, volume.usePercent)) + '%' }" />
++    </div>
++  </article>
++</template>
++
++<style scoped>
++.volume-card {
++  padding: 16px 18px; background: var(--card-bg);
++  border: 1px solid var(--card-border); border-radius: var(--radius-sm);
++}
++.volume-card + .volume-card { margin-top: 12px; }
++.vc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
++.vc-name { margin: 0; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
++.vc-os {
++  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
++  background: var(--nrm-bg); color: var(--nrm-fg); border: 1px solid var(--nrm-bd);
++}
++.vc-remove {
++  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--remove-fg);
++  border-radius: 999px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; flex: none;
++}
++.vc-remove:hover { background: var(--chip-bg-hi); }
++.vc-meta { margin: 3px 0 0; font-size: 13px; color: var(--fg-muted); }
++.vc-usage { margin: 10px 0 6px; font-size: 12.5px; color: var(--fg-muted); font-family: var(--num-font); }
++.vc-track { height: 6px; border-radius: 999px; background: var(--nrm-bg); overflow: hidden; }
++.vc-fill { height: 100%; border-radius: 999px; }
++.vc-fill.ok { background: var(--accent); }
++.vc-fill.warn { background: var(--dem-fg); }
++.vc-fill.danger { background: var(--remove-fg); }
++</style>
++```
++
++`src/storage/components/UnmountDialog.vue`:
++
++```vue
++<script setup lang="ts">
++import { ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++
++const props = defineProps<{ open: boolean; name: string }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', password: string): void }>()
++const { t } = useI18n()
++const password = ref('')
++// 每次打开清空上次输入
++watch(
++  () => props.open,
++  (o) => {
++    if (o) password.value = ''
++  },
++)
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('storageUnmountTitle')" @update:open="emit('update:open', $event)">
++    <p class="ud-msg">{{ t('storageUnmountMsg', { name }) }}</p>
++    <input
++      v-model="password"
++      type="password"
++      class="ud-input"
++      :placeholder="t('storageUnmountPassword')"
++      @keyup.enter="password && emit('confirm', password)"
++    />
++    <template #footer>
++      <button class="ud-btn" type="button" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
++      <button class="ud-btn danger" type="button" :disabled="!password" @click="emit('confirm', password)">
++        {{ t('storageUnmountOk') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.ud-msg { margin: 0 0 12px; font-size: 14px; color: var(--fg-muted); }
++.ud-input {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); outline: none;
++}
++.ud-input:focus { border-color: var(--accent); }
++.ud-btn {
++  padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
++}
++.ud-btn:disabled { opacity: 0.45; cursor: not-allowed; }
++.ud-btn.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
++</style>
++```
++
++`src/views/StorageVolumes.vue`:
++
++```vue
++<script setup lang="ts">
++import { onMounted, onUnmounted, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import StorageShell from '../storage/components/StorageShell.vue'
++import VolumeCard from '../storage/components/VolumeCard.vue'
++import UnmountDialog from '../storage/components/UnmountDialog.vue'
++import { useStorageStore } from '../storage/stores/storage'
++import { useMessageBus } from '../composables/useMessageBus'
++import type { StorageVolume } from '../storage/util/storageMap'
++
++const store = useStorageStore()
++const { t } = useI18n()
++const bus = useMessageBus()
++
++const dialogOpen = ref(false)
++const pending = ref<StorageVolume | null>(null)
++function askUnmount(v: StorageVolume) {
++  pending.value = v
++  dialogOpen.value = true
++}
++async function doUnmount(password: string) {
++  if (!pending.value) return
++  const ok = await store.unmount(pending.value.disk, password)
++  if (ok) dialogOpen.value = false
++}
++
++// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
++let hotplugTimer: number | undefined
++function onHotplug() {
++  clearTimeout(hotplugTimer)
++  hotplugTimer = window.setTimeout(() => {
++    store.loadAll()
++  }, 500)
++}
++
++let offAdd: (() => void) | undefined
++let offRemove: (() => void) | undefined
++onMounted(() => {
++  store.loadAll()
++  offAdd = bus.on('local-storage:disk:added', onHotplug)
++  offRemove = bus.on('local-storage:disk:removed', onHotplug)
++})
++onUnmounted(() => {
++  offAdd?.()
++  offRemove?.()
++  clearTimeout(hotplugTimer)
++})
++</script>
++
++<template>
++  <StorageShell>
++    <div v-if="store.loading && !store.volumes.length" class="st-hint">{{ t('storageLoading') }}</div>
++    <p v-else-if="!store.volumes.length" class="st-hint">{{ t('storageVolumesEmpty') }}</p>
++    <div v-else>
++      <VolumeCard v-for="v in store.volumes" :key="v.uuid || v.path" :volume="v" @unmount="askUnmount(v)" />
++    </div>
++    <UnmountDialog v-model:open="dialogOpen" :name="pending?.name || ''" @confirm="doUnmount" />
++  </StorageShell>
++</template>
++
++<style scoped>
++.st-hint { padding: 40px 0; text-align: center; color: var(--fg-muted); font-size: 14px; }
++</style>
++```
++
++`src/router/index.ts`:import 区加
++
++```ts
++import StorageVolumes from '../views/StorageVolumes.vue'
++```
++
++路由表在 `/storage/drives` 前一行加:
++
++```ts
++  { path: '/storage', name: 'storage', component: StorageVolumes },
++```
++
++i18n `zh_cn.ts` 追加:
++
++```ts
++  storageVolumesEmpty: '还没有存储卷',
++  storageVolumeSingle: '单盘存储',
++  storageUnmount: '移除',
++  storageUnmountTitle: '移除存储',
++  storageUnmountMsg: '将移除存储「{name}」,数据不会被删除,重新插入或挂载后可再次访问。输入登录密码以继续:',
++  storageUnmountPassword: '登录密码',
++  storageUnmountOk: '确认移除',
++  storageCancel: '取消',
++```
++
++`en_us.ts` 追加:
++
++```ts
++  storageVolumesEmpty: 'No storage volumes yet',
++  storageVolumeSingle: 'Single drive storage',
++  storageUnmount: 'Remove',
++  storageUnmountTitle: 'Remove storage',
++  storageUnmountMsg: 'Storage "{name}" will be removed. Data is not deleted and becomes available again after remounting. Enter your login password to continue:',
++  storageUnmountPassword: 'Login password',
++  storageUnmountOk: 'Remove',
++  storageCancel: 'Cancel',
++```
++
++> 台账备注(P6 记入 roadmap):Vue2 系统卷占用 ≥80% 时的「Free up storage」CasaOS wiki 外链**不迁**(外链已过时)。
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- src/storage src/i18n/parity.test.ts src/styles/color-guard.test.ts`
++Expected: PASS
++
++- [ ] **Step 5: 类型检查 + 全量测试 + 提交**
++
++```bash
++pnpm exec vue-tsc --noEmit
++pnpm test
++git add src/storage/components/VolumeCard.vue src/storage/components/VolumeCard.test.ts src/storage/components/UnmountDialog.vue src/storage/components/UnmountDialog.test.ts src/views/StorageVolumes.vue src/router/index.ts src/i18n/zh_cn.ts src/i18n/en_us.ts
++git commit -m "feat(storage): /storage 存储卷列表 + 密码确认卸载弹窗(SP6-P1)"
++```
++
++---
++
++### Task 5: 主页入口 + folders.loadDisks 统一通道
++
++**Files:**
++- Create: `src/home/apps/icons/storage.svg`
++- Modify: `src/home/apps/systemApps.ts`
++- Modify: `src/home/composables/useOpenAction.ts`
++- Modify: `src/home/stores/folders.ts`
++- Modify: `src/i18n/zh_cn.ts`、`src/i18n/en_us.ts`(加 `appStorage`)
++- Test: `src/home/stores/folders.test.ts`(已存在则改造其 mock;不存在则新建)
++
++**Interfaces:**
++- Consumes: `SYSTEM_APPS` 注册表(`SystemApp` 接口)、`useOpenAction.openApp` 的 system 分支、`service.storage.list`。
++- Produces: 主页出现「存储」系统应用磁贴,点击 `router.push('/storage')`。
++
++- [ ] **Step 1: 写失败测试**
++
++先看 `src/home/stores/folders.test.ts` 是否已存在:存在则在其中把 `loadDisks` 的数据来源 mock 从 `getHttp` 改为 `service.storage.list` 并保持既有断言;不存在则新建:
++
++```ts
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const storageList = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { storage: { list: (...a: unknown[]) => storageList(...a) } },
++}))
++
++import { useFoldersStore } from './folders'
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('loadDisks(经 service.storage.list)', () => {
++  it('根挂载点折算为 /DATA、label 兜底 NimoOS-HD、usb 标记', async () => {
++    storageList.mockResolvedValue([
++      { type: 'nvme', children: [{ mount_point: '/', label: '' }] },
++      { type: 'usb', children: [{ mount_point: '/mnt/u1', label: 'U盘' }] },
++    ])
++    const s = useFoldersStore()
++    await s.loadDisks()
++    expect(storageList).toHaveBeenCalledWith({ system: 'show' })
++    expect(s.disks).toEqual([
++      { name: 'NimoOS-HD', path: '/DATA', usb: false },
++      { name: 'U盘', path: '/mnt/u1', usb: true },
++    ])
++  })
++  it('失败置空不抛', async () => {
++    storageList.mockRejectedValue(new Error('x'))
++    const s = useFoldersStore()
++    await expect(s.loadDisks()).resolves.toBeUndefined()
++    expect(s.disks).toEqual([])
++  })
++})
++```
++
++> 注意:folders store 若还有其他 service 依赖(读文件夹列表等),mock 对象需按现文件补齐,以现有测试文件/实现为准——**不改 loadDisks 之外的行为**。
++
++- [ ] **Step 2: 跑测试确认失败**
++
++Run: `pnpm test -- src/home/stores/folders.test.ts`
++Expected: FAIL(loadDisks 仍走 getHttp,`service.storage.list` 未被调用)
++
++- [ ] **Step 3: 实现**
++
++`src/home/stores/folders.ts` 里 `loadDisks()` 的取数改为(**映射逻辑保持逐字不动**):
++
++```ts
++  async function loadDisks() {
++    try {
++      // SP6-P1:统一走 service.storage.list(行为等价,原 getHttp 直打 /storage)
++      const groups = ((await service.storage.list({ system: 'show' })) as any[]) || []
++      const out: DiskRoot[] = []
++      const seen = new Set<string>()
++      for (const g of groups) {
++        const usb = g?.type === 'usb'
++        for (const child of g?.children || []) {
++          let mp = child?.mount_point || ''
++          let label = child?.label || ''
++          if (mp === '/') {
++            mp = '/DATA'
++            if (!label) label = 'NimoOS-HD'
++          }
++          if (!mp || seen.has(mp)) continue
++          if (!label) label = mp.split('/').filter(Boolean).pop() || mp
++          seen.add(mp)
++          out.push({ name: label, path: mp, usb })
++        }
++      }
++      disks.value = out
++    } catch (e) {
++      console.warn('[home] disk load failed', e)
++      disks.value = []
++    }
++  }
++```
++
++import 区把 `getHttp` 改为 `service`(若 `getHttp` 在该文件还有其他用途则保留双导入)。
++
++`src/home/apps/icons/storage.svg`(新建;渐变与 theme.css `.ic-storage` 同族琥珀色——图标资产不受 CSS token 约束,同既有 `.ic-*` 例外):
++
++```svg
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
++  <defs>
++    <linearGradient id="stg" x1="0" y1="0" x2="1" y2="1">
++      <stop offset="0" stop-color="#fcd34d"/>
++      <stop offset="0.6" stop-color="#f59e0b"/>
++      <stop offset="1" stop-color="#b45309"/>
++    </linearGradient>
++  </defs>
++  <rect width="96" height="96" rx="22" fill="url(#stg)"/>
++  <g fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
++    <rect x="24" y="30" width="48" height="36" rx="7"/>
++    <path d="M24 52h48"/>
++  </g>
++  <circle cx="61" cy="59" r="3" fill="#ffffff"/>
++</svg>
++```
++
++`src/home/apps/systemApps.ts`:
++
++- import 区加 `import iconStorage from './icons/storage.svg'`
++- `G` 加一条:`drive: '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M4 13.5h16"/><circle cx="16.5" cy="15.2" r=".8"/>',`
++- `SYSTEM_APPS` 在 `files` 条目之后插入:
++
++```ts
++  { key: 'storage', name: 'Storage', label: 'appStorage', cls: 'ic-storage', glyph: G.drive, icon: iconStorage },
++```
++
++`src/home/composables/useOpenAction.ts` 的 `openApp` system 分支,`files` 之后加:
++
++```ts
++      if (key === 'storage') { router.push('/storage'); return }
++```
++
++(同时把文件顶部注释里「其余系统入口仍指 Vue2」的清单口径更新:storage 已迁本应用。`SYS_ROUTE` 里**不要**加 storage。)
++
++i18n:`zh_cn.ts` 在既有 `app*` 组加 `appStorage: '存储',`;`en_us.ts` 加 `appStorage: 'Storage',`。
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm test -- src/home src/i18n/parity.test.ts`
++Expected: PASS(若 home 区既有测试对 SYSTEM_APPS 数量/键有快照断言,按新增 storage 条目更新断言)
++
++- [ ] **Step 5: 类型检查 + 全量测试 + 提交**
++
++```bash
++pnpm exec vue-tsc --noEmit
++pnpm test
++git add src/home/apps/icons/storage.svg src/home/apps/systemApps.ts src/home/composables/useOpenAction.ts src/home/stores/folders.ts src/home/stores/folders.test.ts src/i18n/zh_cn.ts src/i18n/en_us.ts
++git commit -m "feat(home): 存储系统应用入口 + loadDisks 统一走 service.storage(SP6-P1)"
++```
++
++---
++
++### Task 6: vite preview 代理(5273 独立端口部署)
++
++**Files:**
++- Modify: `vite.config.ts`
++
++**Interfaces:**
++- Consumes: 现有 `defineConfig`(`base: '/app/'`,`server.port: 5273`)。
++- Produces: `pnpm build && pnpm exec vite preview --host` 后,`:5273/app/#/storage` 可用真机数据(API/WS/旧 UI 均转发 `127.0.0.1:80`)。
++
++- [ ] **Step 1: 修改配置**
++
++在 `vite.config.ts` 的 `server: { port: 5273 },` 之后加:
++
++```ts
++  // SP6 并行验收(spec §5):5273 只伺服 /app/ 构建产物,其余(API /v1|/v2|/v3、
++  // MessageBus WS、Vue2 登录页)全部转发真机网关 80。正式部署仍走 scripts/deploy.sh。
++  preview: {
++    port: 5273,
++    host: true,
++    proxy: {
++      '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
++    },
++  },
++```
++
++- [ ] **Step 2: 构建 + 冒烟验证**
++
++```bash
++pnpm build
++pnpm exec vite preview --host >/tmp/claude-1000/-home-nimo-NimoTech/c9494a60-34fb-4269-8212-e69415925ed6/scratchpad/vite-preview-smoke.log 2>&1 &
++sleep 2
++curl -s http://127.0.0.1:5273/v1/storage | head -c 120   # 期望:{"success":200,...}(代理通)
++curl -s http://127.0.0.1:5273/app/ | head -c 120          # 期望:<!DOCTYPE html>(产物通)
++kill %1
++```
++
++Expected: 两个 curl 分别返回 JSON envelope 与 HTML。
++
++- [ ] **Step 3: 提交**
++
++```bash
++git add vite.config.ts
++git commit -m "chore: vite preview 5273 代理真机网关,供 SP6 并行验收(SP6-P1)"
++```
++
++---
++
++## 收尾(控制者执行,不派子代理)
++
++1. 全量回归:`pnpm test` + `pnpm exec vue-tsc --noEmit` 全绿。
++2. 全分支终审(requesting-code-review,BASE = New-UI 分支起点 `b056ed3`)。
++3. 常驻部署:`pnpm build` 后以后台常驻方式起 `pnpm exec vite preview --host`,冒烟 curl 通过。
++4. 请用户浏览器眼验 `http://<设备IP>:5273/app/#/storage`(新端口 localStorage 独立,需登录一次):卷列表(本机预期显示系统卷 NimoOS-HD)、物理硬盘页(NVMe 型号/温度/健康)、主页「存储」磁贴、窄屏样式;卸载按钮只验到弹窗(本机无非系统卷,天然只读)。
+diff --git a/docs/superpowers/specs/2026-07-23-vue3-migration-sp6-storage-design.md b/docs/superpowers/specs/2026-07-23-vue3-migration-sp6-storage-design.md
+new file mode 100644
+index 0000000..d00b94c
+--- /dev/null
++++ b/docs/superpowers/specs/2026-07-23-vue3-migration-sp6-storage-design.md
+@@ -0,0 +1,127 @@
++# SP6 存储区迁移设计(Vue2 → Vue3 New-UI)
++
++> 日期:2026-07-23。状态:用户已批准设计五节,spec 待用户审阅。
++> 本 spec 随 `sp6-storage` 分支入库(New-UI 仓)。**与 SP5 会话并行开发**,故不写
++> NimoOS-UI 仓的 roadmap/specs 目录;合并收尾时在 roadmap 补记账并加本文件指针。
++> 遵循 roadmap §3「区域迁移标准套路」10 条 DoD(NimoOS-UI/docs/vue3-migration-roadmap.md)。
++
++## 0. 范围一句话
++
++把 Vue2 存储管理弹窗(`StorageManagerPanel` 三 Tab:Storage / Drive / RAID,含 RAID
++创建向导、详情、换盘、btrfs 快照面板,合计约 6100 行)迁成 New-UI 的 `/storage`
++独立路由区;**MergerFS 合并卷不迁**(见 §6 台账);RAID + 快照**全量迁,内部分期**。
++
++## 1. 现状盘点要点(2026-07-23 探查结论)
++
++- **Vue2 存储 UI 无路由**:`StorageManagerPanel.vue`(572 行)是 Buefy 模态框,三个打开入口:
++  1. `views/Home.vue:263` `showStorageManagerPanelModal()`(EventBus `casaUI:openStorageManager`,Home.vue:83);
++  2. `widgets/Disks.vue:108`(桌面「存储状态」小组件点击);
++  3. `components/filebrowser/components/MountActionButton.vue:110`(文件区挂载按钮)。
++  → 绞杀不能走路由表,收口时改**入口跳转**(§4 P6)。
++- **MergerFS 前后端均已下线**:Vue2 侧唯一引用被注释(`StorageManagerPanel.vue:33-34`),
++  `MergeStorages.vue`(683 行)/`StorageCombination.vue`(190 行)为死代码;后端
++  NimoOS-LocalStorage 的 `/merge`、`/display_name(s)` 端点未注册(merge 代码休眠,
++  `EnableMergerFS=false`,`EnsureDefaultMergePoint` 被注释)。
++- **Vue2 `service/local_storage.js` 疑似整域已死**:其 PREFIX `/v2/nimoos/local_storage`
++  与后端 openapi server URL `/v2/local_storage` 不匹配;`/merge`、`/display_name(s)`
++  后端根本没有。→ P0 开工前核查(§4 P0)。
++- **共享包缺口**:`storage` 域已齐(list/create/format/delete);`disks` 只有 `umountUsb`,
++  缺 `getDiskList`/`umount`/`getUsbs`;`raid`(10 方法)、`snapshot`(7 接口 + 5 纯函数)
++  整域缺失。`samba`/`cloud` SP4 已进包,SP6 不动。
++- **后端 API 面**(NimoOS-LocalStorage):v1 `/disks` `/storage`;v2 `/v2/raid`(9 端点)、
++  `/v2/snapshot`(8 端点)、`/v2/local_storage/mount`(CRUD)。
++- **MessageBus 事件**:`local-storage:disk:added` / `local-storage:disk:removed`(热插拔),
++  socket `nimoos:system:utilization` 的 `sys_disk`/`sys_usb`(容量实时,New-UI liveStats 已消费)。
++- **Vue2-only 依赖**(全部不带过来):Buefy(模态/表单/tabs)、vee-validate、vue-popperjs、
++  lottie-web-vue、vue-smooth-reflow。lodash 零散用法改原生。
++- **New-UI 已有可复用**:`files/stores/mounts.ts`(samba/cloud/usb 卸载)、FilesShell 布局壳
++  模式、reka-ui 原语(Dialog/AlertDialog/ContextMenu)、`home/stores/liveStats.ts`(磁盘容量
++  socket)、StorageWidget(桌面容量小组件,保持不动)。
++
++## 2. 形态与导航(已批准)
++
++- New-UI 新增 **`/storage` 路由区**,照 `/files` 模式:`StorageShell`(公共容器 + 回主页键
++  + 窄屏适配)。子路由:
++  - `/storage`(默认 = 存储卷列表,对应 Vue2 Storage Tab)
++  - `/storage/drives`(物理盘,对应 Drive Tab)
++  - `/storage/raid`(RAID 列表)、`/storage/raid/create`(创建向导)、
++    `/storage/raid/:id`(详情,内含快照面板)
++- 入口:主页存储小组件点击 + 主页系统应用图标(`home/apps/systemApps` 注册)→
++  `useOpenAction` 走应用内 `router.push`(SP4-P8 同款)。
++- **Vue2 侧 SP6 全程零改动**,弹窗为活安全网;入口改跳只在 P6(合并后)做。
++
++## 3. 技术要点(已批准)
++
++- UI 原语:reka-ui + 手写组件;表单校验手写(不引 vee-validate 替代品)。
++- `utils/raidUtils.js`(178 行)→ TS 纯模块 + 单测(TDD 主场);
++  `snapshot.js` 里 5 个纯函数(resolveSnapshotState/validatePolicyForm/groupSnapshotsByDay/
++  defaultExpandedDayKeys/snapshotBrowsePath)→ 判定为 UI 专属逻辑,落 New-UI
++  `src/storage/util/`,不进共享包(§3.3 判断法:共享包只装网络层留存代码)。
++- 磁盘热插拔:`useMessageBus` 订阅 `local-storage:disk:added/removed` → 刷新列表
++  (**不阻塞 handler**,MessageBus buffer=1)。
++- 顺手改进:`home/stores/folders.ts:26` `loadDisks()` 直打 `/storage` 改为
++  `service.storage.list`(统一通道;行为等价,带回归测试)。
++- i18n:只迁存储区 key,zh_cn 优先 + en_us parity(双向扫描零中文占位,SP4-P8 口径)。
++- 埋点 `$messageBus('widget_storagemanager'…)`:New-UI 现无埋点通道,与 SP4/SP5 same——不迁。
++
++## 4. 分期(P0–P6;P0–P5 在 worktree 并行,P6 等 SP5 合并后)
++
++每期收尾:单测 + tsc 全绿 → 5273 预览端口真数据眼验(见 §5)→ 台账勾选。
++
++- **P0 域迁包**(NimoOS-Service,`sp6-storage` 分支):
++  - `disks` 补全:`getDiskList`(GET /disks)、`umount`(DELETE /disks)、`getUsbs`(GET /disks/usb);
++  - 新建 `raid` 域:list/create/remove/getStatus/getUsage/replaceDisk/recover/listTasks/getTask;
++  - 新建 `snapshot` 域:listVolumes/list/getPolicy/updatePolicy/togglePolicy/create/remove/restore;
++  - **核查项**:curl 真机核实 `/v2/nimoos/local_storage/*` 与 `/v2/local_storage/mount`
++    实际可达性;死的部分不迁、记台账(与 MergerFS 同待遇)。
++  - **`port` 域不迁**(UI 在设置面板,归 SP9)——偏离 roadmap 原清单,合并时在 roadmap 记录。
++- **P1 骨架 + 只读列表**:StorageShell + `/storage` 存储卷列表(名称/容量/占用/卸载)+
++  `/storage/drives` 物理盘列表(型号/温度/健康)+ 热插拔事件刷新 + 主页入口注册。
++- **P2 创建存储向导**:选盘 → 格式化警告 → 执行(v1 POST/PUT /storage)。破坏性:
++  界面链路做全,真格式化按 §6 验收口径。
++- **P3 RAID 只读**:列表卡片、状态、详情面板(不含快照)、使用率、创建任务进度卡
++  (listTasks/getTask 轮询,轮询带在途守卫——SP5-P6 教训)。
++- **P4 RAID 写操作**:创建向导(盘位图 RaidDriveBay + 级别矩阵 RaidMatrix 重写)、
++  换盘、恢复、删除(AlertDialog 确认 + 密码/明确输入确认,照 Vue2 交互强度)。
++- **P5 快照**:RAID 详情内快照面板 + 时间线 + 策略编辑(v2 /snapshot 全量)。
++  **前置**:设备 local-storage 二进制为 2026-06-22 版,早于快照后端代码(07-12),
++  `/v2/snapshot/*` 现网 404(2026-07-23 核实,直连与网关同)——P5 开工前需
++  `nimo_os_docs/scripts/deploy.sh local-storage` 部署新后端(动真机,挑窗口与 SP5 协调)。
++- **P6 收口 + cutover(唯一动 Vue2 仓与真机的一期,前置条件 = SP5 已合入 master、
++  本分支已合回)**:i18n 审计;Vue2 三入口改跳 `/app/#/storage`(每入口带回退 flag,
++  `strangler:disabled:storage-entry` 口径,验回退可逆);`deploy.sh` 正式部署 `/app/`;
++  真机终验;roadmap 记账(SP6 状态 + MergerFS/local_storage/port 台账)。
++
++## 5. 并行开发与部署纪律(已批准)
++
++- **工作区**:`/home/nimo/NimoTech/.sp6/{NimoOS-Service,NimoOS-New-UI}` 两 worktree
++  (兄弟目录,`file:../NimoOS-Service` 依赖闭环),分支均 `sp6-storage`。
++  基线已验:New-UI 1197/1197 + tsc 清,Service build+test 过。
++- **禁区**:不跑 `deploy.sh`、不写 `/var/lib/nimoos/www`、不改 NimoOS-UI 仓、
++  不改 roadmap——全部推迟到 P6。
++- **独立端口部署(用户拍板 2026-07-23:真部署,非 dev 预览)**:每期收尾 `pnpm build`
++  构建生产产物 → `vite preview`(:5273,`--host` 暴露 LAN)**后台常驻**伺服构建产物,
++  配 catch-all 代理:凡非 `/app/` 前缀(API `/v1|/v2|/v3`、socket.io ws、Vue2 登录页)
++  转发 `http://127.0.0.1:80`。浏览器随时访问 `http://<设备IP>:5273/app/#/storage`。
++  构建产物与正式部署同源(压缩/分包/base 路径问题每期即暴露)。开发中途迭代可临时用
++  vite dev(HMR),但**每期验收门只认构建产物**。注意:新端口 localStorage 独立,
++  首次需登录一次。
++- **合并收尾**:SP5 合入 master 后,`sp6-storage` merge master 解冲突(预计:路由表、
++  systemApps、i18n 文件),全量测试,合回 master,进 P6。
++
++## 6. 验收口径与台账
++
++- **每期验收门**:单测 + tsc → 5273 真数据眼验(只读全验;破坏性操作验到确认弹窗前一步)。
++  CSS/容器查询类必须眼验(SP2 血泪)。
++- **破坏性链路(格式化/建 RAID/换盘/恢复/删阵列)**:接口层单测锁死请求形状;
++  实盘验证 = **待补**,用户"验收时再想办法"——有闲盘则升级实盘验,没有则在 roadmap
++  标注「未实盘验证」随 P6 记账。
++- **台账(合并时写进 roadmap)**:
++  1. **MergerFS 不迁**:前端死代码 + 后端端点未注册,双双下线;待产品拍板复活时
++     作为独立项目(后端复活 + 前端向导)一起做;Vue2 侧死代码随 SP10 删。
++  2. **`local_storage` 域:不迁(2026-07-23 核查定案)**——`/v2/nimoos/local_storage/{mount,merge}`
++     404 死;`display_names` 在 core NimoOS 服务上 200 活但全仓唯二消费者是 MergerFS
++     死组件(grep 留证),无人使用→与 MergerFS 同待遇记账。
++  3. **`port` 域**:推迟 SP9(设置区)。
++  4. Vue2 桌面「存储状态」小组件、设置面板 StorageDriveDetailModal:不属 SP6
++     (前者 New-UI 已有 StorageWidget,后者归 SP9 设置区)。
+diff --git a/src/files/shares/SharesPage.test.ts b/src/files/shares/SharesPage.test.ts
+index 0833ec6..7bfb12b 100644
+--- a/src/files/shares/SharesPage.test.ts
++++ b/src/files/shares/SharesPage.test.ts
+@@ -1,42 +1,42 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createMemoryHistory } from 'vue-router'
+ import zh from '../../i18n/zh_cn'
+ import SharesPage from './SharesPage.vue'
+ 
+ // SharesPage 经 FilesSidebar 读取 useRoute()/useRouter(),shares.load()/files.loadRoots() 打
+-// service.samba / getHttp —— 都需要 mock,否则 vue-router 注入会抛错、onMounted 会打真实网络。
++// service.samba / service.storage.list —— 都需要 mock,否则 vue-router 注入会抛错、onMounted 会打真实网络。
+ //
+-// storageGet 是一个受控的 deferred:onMounted 里 files.loadRoots() 首次调用会挂在它上不 resolve,
++// storageList 是一个受控的 deferred:onMounted 里 files.loadRoots() 首次调用会挂在它上不 resolve,
+ // 用来模拟深链场景「loadRoots() 还没跑完用户就点了前往」的真实竞态,而不是让 mock 立即 resolve 把
+-// 竞态窗口“测没了”。
+-const { listShares, storageGet, resolveStorage } = vi.hoisted(() => {
++// 竞态窗口”测没了”。
++const { listShares, storageList, resolveStorage } = vi.hoisted(() => {
+   let resolveFn!: (v: unknown) => void
+   const pending = new Promise((resolve) => { resolveFn = resolve })
+-  return { listShares: vi.fn(), storageGet: vi.fn(() => pending), resolveStorage: () => resolveFn }
++  return { listShares: vi.fn(), storageList: vi.fn(() => pending), resolveStorage: () => resolveFn }
+ })
+ 
+ vi.mock('@nimotech/nimoos-service', async () => {
+   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
+   return {
+     ...actual,
+     service: {
+       samba: { listShares, deleteShare: vi.fn().mockResolvedValue(undefined) },
+       users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+       folder: { getList: vi.fn() },
+       driver: { listDrivers: vi.fn().mockResolvedValue([]) },
+       cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
++      storage: { list: storageList },
+     },
+-    getHttp: () => ({ get: storageGet }),
+   }
+ })
+ 
+ const testRouter = createRouter({
+   history: createMemoryHistory(),
+   routes: [
+     { path: '/', name: 'home', component: { template: '<div/>' } },
+     { path: '/files', name: 'files', component: { template: '<div/>' } },
+     { path: '/files/shares', name: 'files-shares', component: { template: '<div/>' } },
+     { path: '/files/:path(.*)*', name: 'files-path', component: { template: '<div/>' } },
+@@ -50,36 +50,36 @@ describe('SharesPage — 「前往」防 /DATA 泄漏', () => {
+     setActivePinia(createPinia())
+     localStorage.clear()
+     listShares.mockReset()
+     listShares.mockResolvedValue([{ id: 1, path: '/DATA/Documents' }])
+     await testRouter.push('/files/shares')
+     await testRouter.isReady()
+   })
+ 
+   it('loadRoots() 未 resolve 时点「前往」不会立刻用 raw real path 跳转;resolve 后才带 /NimoOS-HD 跳转', async () => {
+     // /storage 请求还悬而未决(还没调用 resolveStorage()),模拟 disks/displayNames 仍为空的深链窗口。
+-    storageGet.mockReturnValueOnce(new Promise(() => {})) // onMounted 的 loadRoots() 调用:永久 pending,不干扰下面的可控 pending
++    storageList.mockReturnValueOnce(new Promise(() => {})) // onMounted 的 loadRoots() 调用:永久 pending,不干扰下面的可控 pending
+     const pushSpy = vi.spyOn(testRouter, 'push')
+ 
+     const w = mount(SharesPage, { global: { plugins: [i18n, testRouter] } })
+     await flushPromises() // shares.load() 完成,ShareRow 渲染出来;上面那次 loadRoots() 仍卡在 pending
+ 
+     const gotoBtn = w.findAll('.share-act').find((b) => b.text() === zh.filesShareGoto)
+     expect(gotoBtn).toBeTruthy()
+ 
+     await gotoBtn!.trigger('click') // onGoto: disks 为空 → await files.loadRoots()(第二次调用,命中下面可控的 pending promise)
+     await flushPromises()
+ 
+     // 竞态被正确挡住:loadRoots() 还没 resolve,不能已经跳转到裸 real path。
+     expect(pushSpy).not.toHaveBeenCalled()
+ 
+-    resolveStorage()({ data: { data: [{ type: 'hdd', children: [{ mount_point: '/', label: 'NimoOS-HD' }] }] } })
++    resolveStorage()([{ type: 'hdd', children: [{ mount_point: '/', label: 'NimoOS-HD' }] }])
+     await flushPromises()
+     await flushPromises() // loadDisks -> rebuildDisplayNames -> onGoto 继续 -> goVirtual 是多跳 await 链,多 flush 一轮更稳
+ 
+     expect(pushSpy).toHaveBeenCalledTimes(1)
+     const pushedPath = pushSpy.mock.calls[0][0] as string
+     expect(pushedPath).not.toContain('/DATA')
+     expect(pushedPath).not.toContain('/mnt')
+     expect(pushedPath).toBe('/files/NimoOS-HD/Documents')
+   })
+ })
+diff --git a/src/home/apps/icons/storage.svg b/src/home/apps/icons/storage.svg
+new file mode 100644
+index 0000000..890e7c7
+--- /dev/null
++++ b/src/home/apps/icons/storage.svg
+@@ -0,0 +1,15 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
++  <defs>
++    <linearGradient id="stg" x1="0" y1="0" x2="1" y2="1">
++      <stop offset="0" stop-color="#fcd34d"/>
++      <stop offset="0.6" stop-color="#f59e0b"/>
++      <stop offset="1" stop-color="#b45309"/>
++    </linearGradient>
++  </defs>
++  <rect width="96" height="96" rx="22" fill="url(#stg)"/>
++  <g fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
++    <rect x="24" y="30" width="48" height="36" rx="7"/>
++    <path d="M24 52h48"/>
++  </g>
++  <circle cx="61" cy="59" r="3" fill="#ffffff"/>
++</svg>
+diff --git a/src/home/apps/systemApps.ts b/src/home/apps/systemApps.ts
+index 711c3ba..06b7633 100644
+--- a/src/home/apps/systemApps.ts
++++ b/src/home/apps/systemApps.ts
+@@ -1,30 +1,33 @@
+ import iconFiles from './icons/files.svg'
+ import iconPhotos from './icons/photos.svg'
+ import iconAi from './icons/ai.svg'
+ import iconVm from './icons/kvm.svg'
+ import iconSettings from './icons/settings.png'
+ import iconAppstore from './icons/appstore.svg'
++import iconStorage from './icons/storage.svg'
+ 
+ // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
+ // `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
+ export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string; icon: string }
+ 
+ const G = {
+   folder: '<path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1 1.3h7.1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"/>',
+   photos: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="8.8" cy="9.3" r="1.5"/><path d="m4 17 5-4 3.5 2.6L16 13l4.5 3.5"/>',
+   vm: '<rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M8 19.5h8M12 15.5v4"/>',
+   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.8m0 13.4v2.8M2.5 12h2.8m13.4 0h2.8M5.1 5.1l2 2m9.8 9.8 2 2m0-13.8-2 2M7.1 16.9l-2 2"/>',
+   bag: '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>',
+   ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
++  drive: '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M4 13.5h16"/><circle cx="16.5" cy="15.2" r=".8"/>',
+ }
+ 
+ export const SYSTEM_APPS: SystemApp[] = [
+   { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder, icon: iconFiles },
++  { key: 'storage', name: 'Storage', label: 'appStorage', cls: 'ic-storage', glyph: G.drive, icon: iconStorage },
+   { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },
+   { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },
+   { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm },
+   { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
+   { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },
+ ]
+ 
+ export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)
+diff --git a/src/home/composables/useOpenAction.ts b/src/home/composables/useOpenAction.ts
+index 06a2ccd..024d127 100644
+--- a/src/home/composables/useOpenAction.ts
++++ b/src/home/composables/useOpenAction.ts
+@@ -1,31 +1,32 @@
+ import type { LayoutItem } from '../grid/types'
+ import { useAppsStore } from '../stores/apps'
+ import { useStartApp, appUrl } from './useStartApp'
+ import { router } from '../../router'
+ 
+-// P8 cutover 起文件区活在本应用(/files);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
++// P8 cutover 起文件区活在本应用(/files);存储区也活在本应用(/storage);其余系统入口仍指 Vue2,各自 SP 迁移时再改。
+ // router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
+ const SYS_ROUTE: Record<string, string> = {
+   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
+   settings: '/#/legacy', appstore: '/#/legacy',
+ }
+ 
+ export function useOpenAction() {
+   const apps = useAppsStore()
+   const startApp = useStartApp()
+ 
+   function openApp(key: string) {
+     const a = apps.app(key)
+     if (!a) return
+     if (a.system) {
+       if (key === 'files') { router.push('/files'); return }
++      if (key === 'storage') { router.push('/storage'); return }
+       window.location.href = SYS_ROUTE[key] || '/#/legacy'
+       return
+     }
+     if (a.app_type === 'LinkApp') { if (a.hostname) window.open(a.hostname, '_blank', 'noopener'); return }
+     const url = appUrl(a)
+     if (a.status === 'running') {
+       if (url) window.open(url, '_blank', 'noopener')
+     } else if (a.status) {
+       // 未运行(exited/dead/unknown…):不开网页,弹"是否启动"确认框(StartAppDialog)。
+       // status 缺省的非容器来源维持无动作(与灰显判定同一约定)。
+diff --git a/src/home/stores/folders.test.ts b/src/home/stores/folders.test.ts
+index 774b16d..59776ea 100644
+--- a/src/home/stores/folders.test.ts
++++ b/src/home/stores/folders.test.ts
+@@ -1,19 +1,54 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ 
+ vi.mock('@nimotech/nimoos-service', async () => {
+   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
+-  return { ...actual, service: { folder: { getList: vi.fn(async () => ({ content: [
+-    { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
+-  ] })) } } }
++  return {
++    ...actual,
++    service: {
++      folder: { getList: vi.fn(async () => ({ content: [
++        { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
++      ] })) },
++      storage: { list: vi.fn() }
++    }
++  }
+ })
+ import { useFoldersStore } from './folders'
++import { service } from '@nimotech/nimoos-service'
+ 
+ describe('useFoldersStore', () => {
+-  beforeEach(() => setActivePinia(createPinia()))
+-  it('loadFolder caches only directories', async () => {
+-    const s = useFoldersStore()
+-    await s.loadFolder('/DATA')
+-    expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.clearAllMocks()
++  })
++
++  describe('loadFolder', () => {
++    it('caches only directories', async () => {
++      const s = useFoldersStore()
++      await s.loadFolder('/DATA')
++      expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
++    })
++  })
++
++  describe('loadDisks(经 service.storage.list)', () => {
++    it('根挂载点折算为 /DATA、label 兜底 NimoOS-HD、usb 标记', async () => {
++      vi.mocked(service.storage.list).mockResolvedValue([
++        { type: 'nvme', children: [{ mount_point: '/', label: '' }] },
++        { type: 'usb', children: [{ mount_point: '/mnt/u1', label: 'U盘' }] },
++      ] as any)
++      const s = useFoldersStore()
++      await s.loadDisks()
++      expect(service.storage.list).toHaveBeenCalledWith({ system: 'show' })
++      expect(s.disks).toEqual([
++        { name: 'NimoOS-HD', path: '/DATA', usb: false },
++        { name: 'U盘', path: '/mnt/u1', usb: true },
++      ])
++    })
++    it('失败置空不抛', async () => {
++      vi.mocked(service.storage.list).mockRejectedValue(new Error('x'))
++      const s = useFoldersStore()
++      await expect(s.loadDisks()).resolves.toBeUndefined()
++      expect(s.disks).toEqual([])
++    })
+   })
+ })
+diff --git a/src/home/stores/folders.ts b/src/home/stores/folders.ts
+index 265a714..ca48ec0 100644
+--- a/src/home/stores/folders.ts
++++ b/src/home/stores/folders.ts
+@@ -1,13 +1,13 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+-import { service, getHttp } from '@nimotech/nimoos-service'
++import { service } from '@nimotech/nimoos-service'
+ 
+ export interface DiskRoot { name: string; path: string; usb: boolean }
+ 
+ export const useFoldersStore = defineStore('home-folders', () => {
+   const cache = ref<Record<string, { name: string; path: string }[]>>({})
+   // Selectable disk roots (NimoOS-HD, USB drives). The folder picker starts here —
+   // never at the raw filesystem root `/` (which would expose server internals).
+   const disks = ref<DiskRoot[]>([])
+ 
+   async function loadFolder(path: string) {
+@@ -16,30 +16,33 @@ export const useFoldersStore = defineStore('home-folders', () => {
+       const content = (data && data.content) || []
+       cache.value[path] = content.filter((x) => x.is_dir).map((x) => ({ name: x.name, path: x.path }))
+     } catch (e) { console.warn('[home] folder load failed', path, e); cache.value[path] = [] }
+   }
+ 
+   // GET /v1/storage?system=show → disk groups; each child partition has a
+   // mount_point + label. The system disk reports mount_point "/" + label
+   // "NimoOS-HD" — remap it to /DATA so we never browse from `/`.
+   async function loadDisks() {
+     try {
+-      const res = await getHttp().get('/storage', { params: { system: 'show' } })
+-      const groups: any[] = res?.data?.data || []
++      // SP6-P1:统一走 service.storage.list(行为等价,原 getHttp 直打 /storage)
++      const groups = ((await service.storage.list({ system: 'show' })) as any[]) || []
+       const out: DiskRoot[] = []
+       const seen = new Set<string>()
+       for (const g of groups) {
+         const usb = g?.type === 'usb'
+-        for (const child of (g?.children || [])) {
+-          let mp: string = child?.mount_point || ''
+-          let label: string = child?.label || ''
+-          if (mp === '/') { mp = '/DATA'; if (!label) label = 'NimoOS-HD' }
++        for (const child of g?.children || []) {
++          let mp = child?.mount_point || ''
++          let label = child?.label || ''
++          if (mp === '/') {
++            mp = '/DATA'
++            if (!label) label = 'NimoOS-HD'
++          }
+           if (!mp || seen.has(mp)) continue
+           if (!label) label = mp.split('/').filter(Boolean).pop() || mp
+           seen.add(mp)
+           out.push({ name: label, path: mp, usb })
+         }
+       }
+       disks.value = out
+     } catch (e) { console.warn('[home] disk load failed', e); disks.value = [] }
+   }
+ 
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 55d78ca..ed181bd 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -212,20 +212,21 @@ export default {
+   welcomeSubtitle: 'Create your initial account',
+   welcomeGo: 'Go →',
+   welcomeCreateAccount: 'Create account',
+   welcomeConfirmPassword: 'Confirm password',
+   welcomeCreate: 'Create',
+   welcomeDone: 'All done!',
+   welcomeRegisterFailed: 'Registration failed',
+   welcomeLanguage: 'Language',
+   // ── Home: system app names ──
+   appFiles: 'Files',
++  appStorage: 'Storage',
+   appPhotos: 'Photos',
+   appAi: 'Nimo AI',
+   appVm: 'KVM',
+   appSettings: 'Settings',
+   appAppStore: 'App Store',
+   // ── Home: widget titles & descriptions ──
+   widgetClockTitle: 'Clock',
+   widgetClockDesc: 'Local time and date',
+   widgetStorageTitle: 'Storage',
+   widgetStorageDesc: 'Capacity usage and disk status',
+@@ -532,11 +533,31 @@ export default {
+   appsSourcesRemove: 'Remove',
+   appsSourcesRemoveTitle: 'Remove app source',
+   appsSourcesRemoveMsg: 'Remove "{name}"? Its apps will disappear from the store; installed apps are not affected.',
+   appsSourcesRemoveOk: 'App source removed',
+   appsSourcesRemoveFail: 'Failed to remove: {msg}',
+   appsSourcesBusy: 'A source registration is already in progress',
+   appsSourcesLoading: 'Loading…',
+   appsSourcesLoadFailed: 'Failed to load, please retry',
+   appsSourcesRetry: 'Retry',
+   appsSourcesEmpty: 'No app sources',
++  // ── storage 存储区 ──
++  storageUnmountSuccess: 'Storage removed',
++  storageUnmountFailed: 'Failed to remove, check your password and try again',
++  storageTitle: 'Storage',
++  storageTabVolumes: 'Volumes',
++  storageTabDrives: 'Drives',
++  storageLoading: 'Loading…',
++  storageVolumesEmpty: 'No storage volumes yet',
++  storageVolumeSingle: 'Single drive storage',
++  storageUnmount: 'Remove',
++  storageUnmountTitle: 'Remove storage',
++  storageUnmountMsg: 'Storage "{name}" will be removed. Data is not deleted and becomes available again after remounting. Enter your login password to continue:',
++  storageUnmountPassword: 'Login password',
++  storageUnmountOk: 'Remove',
++  storageCancel: 'Cancel',
++  storageDrivesEmpty: 'No drives detected',
++  storageDriveHealth: 'Health',
++  storageDriveHealthy: 'Healthy',
++  storageDriveDamaged: 'Damaged',
++  storageDriveTemp: 'Temp',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 1bd83fc..74b48db 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -211,20 +211,21 @@ export default {
+   welcomeSubtitle: '创建你的初始账户',
+   welcomeGo: '开始 →',
+   welcomeCreateAccount: '创建账户',
+   welcomeConfirmPassword: '确认密码',
+   welcomeCreate: '创建',
+   welcomeDone: '全部完成！',
+   welcomeRegisterFailed: '注册失败',
+   welcomeLanguage: '语言',
+   // ── 主页:系统应用名 ──
+   appFiles: '文件',
++  appStorage: '存储',
+   appPhotos: '照片',
+   appAi: 'Nimo AI',
+   appVm: 'KVM',
+   appSettings: '设置',
+   appAppStore: 'AppStore',
+   // ── 主页:组件标题与描述 ──
+   widgetClockTitle: '时间',
+   widgetClockDesc: '本地时间与日期',
+   widgetStorageTitle: '存储',
+   widgetStorageDesc: '容量使用与磁盘状态',
+@@ -531,11 +532,31 @@ export default {
+   appsSourcesRemove: '移除',
+   appsSourcesRemoveTitle: '移除商店源',
+   appsSourcesRemoveMsg: '确定移除「{name}」?该源的应用将从商店中消失,已安装的应用不受影响。',
+   appsSourcesRemoveOk: '已移除商店源',
+   appsSourcesRemoveFail: '移除失败:{msg}',
+   appsSourcesBusy: '已有一个源正在注册,请等它完成',
+   appsSourcesLoading: '加载中…',
+   appsSourcesLoadFailed: '加载失败,请重试',
+   appsSourcesRetry: '重试',
+   appsSourcesEmpty: '暂无商店源',
++  // ── storage 存储区 ──
++  storageUnmountSuccess: '存储已移除',
++  storageUnmountFailed: '移除失败,请检查密码后重试',
++  storageTitle: '存储',
++  storageTabVolumes: '存储卷',
++  storageTabDrives: '物理硬盘',
++  storageLoading: '加载中…',
++  storageVolumesEmpty: '还没有存储卷',
++  storageVolumeSingle: '单盘存储',
++  storageUnmount: '移除',
++  storageUnmountTitle: '移除存储',
++  storageUnmountMsg: '将移除存储「{name}」,数据不会被删除,重新插入或挂载后可再次访问。输入登录密码以继续:',
++  storageUnmountPassword: '登录密码',
++  storageUnmountOk: '确认移除',
++  storageCancel: '取消',
++  storageDrivesEmpty: '未检测到硬盘',
++  storageDriveHealth: '健康',
++  storageDriveHealthy: '正常',
++  storageDriveDamaged: '损坏',
++  storageDriveTemp: '温度',
+ }
+diff --git a/src/router/index.ts b/src/router/index.ts
+index ca91eba..fe05cbc 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -6,34 +6,38 @@ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
+ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import StorePage from '../apps/views/StorePage.vue'
+ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
+ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
+ import AppConsolePage from '../apps/views/AppConsolePage.vue'
+ import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
+ import SourcesPage from '../apps/views/SourcesPage.vue'
++import StorageVolumes from '../views/StorageVolumes.vue'
++import StorageDrives from '../views/StorageDrives.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/apps/store', name: 'apps-store', component: StorePage },
+   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
+   { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
+   { path: '/apps/sources', name: 'apps-sources', component: SourcesPage },
+   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
+   { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
++  { path: '/storage', name: 'storage', component: StorageVolumes },
++  { path: '/storage/drives', name: 'storage-drives', component: StorageDrives },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+diff --git a/src/storage/components/DriveCard.test.ts b/src/storage/components/DriveCard.test.ts
+new file mode 100644
+index 0000000..065822b
+--- /dev/null
++++ b/src/storage/components/DriveCard.test.ts
+@@ -0,0 +1,28 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import DriveCard from './DriveCard.vue'
++
++const DRIVE = { name: 'nvme0n1', model: 'WPBSNM8-512GTP', size: 512110190592, diskType: 'SSD', healthy: true, temperature: 35 }
++
++describe('DriveCard', () => {
++  it('渲染名称/型号/容量/类型', () => {
++    const w = mount(DriveCard, { props: { drive: DRIVE } })
++    expect(w.text()).toContain('nvme0n1')
++    expect(w.text()).toContain('WPBSNM8-512GTP')
++    expect(w.text()).toContain('SSD')
++    expect(w.text()).toContain('477 GB') // fmtSize(512110190592):≥100 取整 → "477 GB"
++  })
++  it('健康态:healthy=true 绿色文案,false 危险文案', () => {
++    const ok = mount(DriveCard, { props: { drive: DRIVE } })
++    expect(ok.find('.dc-health.ok').exists()).toBe(true)
++    const bad = mount(DriveCard, { props: { drive: { ...DRIVE, healthy: false } } })
++    expect(bad.find('.dc-health.bad').exists()).toBe(true)
++  })
++  it('温度:>0 显示 °C/°F,否则 N/A', () => {
++    const w = mount(DriveCard, { props: { drive: DRIVE } })
++    expect(w.text()).toContain('35°C')
++    expect(w.text()).toContain('95.0°F')
++    const na = mount(DriveCard, { props: { drive: { ...DRIVE, temperature: 0 } } })
++    expect(na.text()).toContain('N/A')
++  })
++})
+diff --git a/src/storage/components/DriveCard.vue b/src/storage/components/DriveCard.vue
+new file mode 100644
+index 0000000..c5317e8
+--- /dev/null
++++ b/src/storage/components/DriveCard.vue
+@@ -0,0 +1,50 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { fmtSize } from '../../home/util/format'
++import { toFahrenheit, type PhysicalDrive } from '../util/storageMap'
++
++defineProps<{ drive: PhysicalDrive }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <article class="drive-card">
++    <div class="dc-icon" aria-hidden="true">
++      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
++        <rect x="3.5" y="6.5" width="17" height="11" rx="2" />
++        <path d="M3.5 13.5h17" />
++        <circle cx="17" cy="15.5" r="0.9" fill="currentColor" stroke="none" />
++      </svg>
++    </div>
++    <div class="dc-main">
++      <h3 class="dc-name">{{ drive.name }}</h3>
++      <p class="dc-meta">{{ drive.model || '—' }} · {{ fmtSize(drive.size) }} {{ drive.diskType }}</p>
++      <p class="dc-stats">
++        <span class="dc-health" :class="drive.healthy ? 'ok' : 'bad'">
++          {{ t('storageDriveHealth') }}: <b>{{ drive.healthy ? t('storageDriveHealthy') : t('storageDriveDamaged') }}</b>
++        </span>
++        <span class="dc-temp">
++          {{ t('storageDriveTemp') }}:
++          <b v-if="drive.temperature > 0">{{ drive.temperature }}°C / {{ toFahrenheit(drive.temperature) }}°F</b>
++          <b v-else>N/A</b>
++        </span>
++      </p>
++    </div>
++  </article>
++</template>
++
++<style scoped>
++.drive-card {
++  display: flex; gap: 16px; align-items: center; padding: 16px 18px;
++  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm);
++}
++.drive-card + .drive-card { margin-top: 12px; }
++.dc-icon { width: 44px; height: 44px; flex: none; color: var(--fg-muted); }
++.dc-icon svg { width: 100%; height: 100%; }
++.dc-main { min-width: 0; }
++.dc-name { margin: 0; font-size: 15px; font-weight: 600; }
++.dc-meta { margin: 3px 0 0; font-size: 13px; color: var(--fg-muted); }
++.dc-stats { margin: 6px 0 0; font-size: 12.5px; color: var(--fg-muted); display: flex; gap: 16px; flex-wrap: wrap; }
++.dc-health.ok b { color: var(--sem-fg); }
++.dc-health.bad b { color: var(--remove-fg); }
++</style>
+diff --git a/src/storage/components/StorageShell.test.ts b/src/storage/components/StorageShell.test.ts
+new file mode 100644
+index 0000000..6456415
+--- /dev/null
++++ b/src/storage/components/StorageShell.test.ts
+@@ -0,0 +1,43 @@
++import { describe, it, expect } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { defineComponent } from 'vue'
++import StorageShell from './StorageShell.vue'
++
++const Stub = defineComponent({ template: '<div />' })
++
++async function mountShell(path: string) {
++  const router = createRouter({
++    history: createMemoryHistory(),
++    routes: [
++      { path: '/', component: Stub },
++      { path: '/storage', component: Stub },
++      { path: '/storage/drives', component: Stub },
++    ],
++  })
++  await router.push(path)
++  await router.isReady()
++  const w = mount(StorageShell, { global: { plugins: [router] }, slots: { default: '<p class="probe">body</p>' } })
++  return { w, router }
++}
++
++describe('StorageShell', () => {
++  it('渲染标题、两个页签和 slot 内容', async () => {
++    const { w } = await mountShell('/storage')
++    expect(w.find('.st-title').exists()).toBe(true)
++    expect(w.findAll('.st-tab')).toHaveLength(2)
++    expect(w.find('.probe').text()).toBe('body')
++  })
++  it('当前路由的页签带 active', async () => {
++    const { w } = await mountShell('/storage/drives')
++    const tabs = w.findAll('.st-tab')
++    expect(tabs[0].classes()).not.toContain('active')
++    expect(tabs[1].classes()).toContain('active')
++  })
++  it('回主页按钮 push /', async () => {
++    const { w, router } = await mountShell('/storage')
++    await w.find('.st-home').trigger('click')
++    await flushPromises()
++    expect(router.currentRoute.value.path).toBe('/')
++  })
++})
+diff --git a/src/storage/components/StorageShell.vue b/src/storage/components/StorageShell.vue
+new file mode 100644
+index 0000000..3dac19a
+--- /dev/null
++++ b/src/storage/components/StorageShell.vue
+@@ -0,0 +1,50 @@
++<script setup lang="ts">
++import { useRouter, useRoute } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++
++const router = useRouter()
++const route = useRoute()
++const { t } = useI18n()
++function goHome() {
++  router.push('/')
++}
++</script>
++
++<template>
++  <div class="storage-shell">
++    <header class="st-bar">
++      <button class="st-home" type="button" @click="goHome">‹ {{ t('areaBackHome') }}</button>
++      <h1 class="st-title">{{ t('storageTitle') }}</h1>
++      <nav class="st-tabs">
++        <RouterLink to="/storage" class="st-tab" :class="{ active: route.path === '/storage' }">{{ t('storageTabVolumes') }}</RouterLink>
++        <RouterLink to="/storage/drives" class="st-tab" :class="{ active: route.path === '/storage/drives' }">{{ t('storageTabDrives') }}</RouterLink>
++      </nav>
++    </header>
++    <main class="st-body"><slot /></main>
++  </div>
++</template>
++
++<style scoped>
++.storage-shell { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
++.st-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; }
++.st-home {
++  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
++  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
++}
++.st-home:hover { background: var(--chip-bg-hi); }
++.st-title { font-size: 18px; font-weight: 600; margin: 0; }
++.st-tabs { display: flex; gap: 6px; margin-left: auto; }
++.st-tab {
++  padding: 6px 16px; border-radius: 999px; font-size: 13px; text-decoration: none;
++  color: var(--fg-muted); border: 1px solid transparent;
++}
++.st-tab:hover { color: var(--fg); background: var(--hover); }
++.st-tab.active { color: var(--fg); background: var(--chip-bg-hi); border-color: var(--chip-border); }
++.st-body { flex: 1; overflow-y: auto; padding: 8px 22px 28px; }
++.st-body > :deep(*) { max-width: 980px; margin-left: auto; margin-right: auto; }
++@media (max-width: 768px) {
++  .st-bar { flex-wrap: wrap; padding: 10px 14px; gap: 8px; }
++  .st-tabs { margin-left: 0; width: 100%; }
++  .st-body { padding: 4px 14px 20px; }
++}
++</style>
+diff --git a/src/storage/components/UnmountDialog.test.ts b/src/storage/components/UnmountDialog.test.ts
+new file mode 100644
+index 0000000..f1f60e6
+--- /dev/null
++++ b/src/storage/components/UnmountDialog.test.ts
+@@ -0,0 +1,28 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import UnmountDialog from './UnmountDialog.vue'
++
++beforeEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('UnmountDialog', () => {
++  it('open 时渲染密码框,确认键无密码时禁用', async () => {
++    const w = mount(UnmountDialog, { props: { open: true, name: 'Storage1' } })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.ud-input')
++    expect(input).toBeTruthy()
++    const okBtn = document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')
++    expect(okBtn?.disabled).toBe(true)
++  })
++  it('输入密码点确认 emit confirm(password)', async () => {
++    const w = mount(UnmountDialog, { props: { open: true, name: 'Storage1' } })
++    await w.vm.$nextTick()
++    const input = document.body.querySelector<HTMLInputElement>('.ud-input')!
++    input.value = 'secret'
++    input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')!.click()
++    expect(w.emitted('confirm')![0]).toEqual(['secret'])
++  })
++})
+diff --git a/src/storage/components/UnmountDialog.vue b/src/storage/components/UnmountDialog.vue
+new file mode 100644
+index 0000000..fd911e7
+--- /dev/null
++++ b/src/storage/components/UnmountDialog.vue
+@@ -0,0 +1,52 @@
++<script setup lang="ts">
++import { ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++
++const props = defineProps<{ open: boolean; name: string }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', password: string): void }>()
++const { t } = useI18n()
++const password = ref('')
++// 每次打开清空上次输入
++watch(
++  () => props.open,
++  (o) => {
++    if (o) password.value = ''
++  },
++)
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('storageUnmountTitle')" @update:open="emit('update:open', $event)">
++    <p class="ud-msg">{{ t('storageUnmountMsg', { name }) }}</p>
++    <input
++      v-model="password"
++      type="password"
++      class="ud-input"
++      :placeholder="t('storageUnmountPassword')"
++      @keyup.enter="password && emit('confirm', password)"
++    />
++    <template #footer>
++      <button class="ud-btn" type="button" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
++      <button class="ud-btn danger" type="button" :disabled="!password" @click="emit('confirm', password)">
++        {{ t('storageUnmountOk') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.ud-msg { margin: 0 0 12px; font-size: 14px; color: var(--fg-muted); }
++.ud-input {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); outline: none;
++}
++.ud-input:focus { border-color: var(--accent); }
++.ud-btn {
++  padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
++}
++.ud-btn:disabled { opacity: 0.45; cursor: not-allowed; }
++.ud-btn.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
++</style>
+diff --git a/src/storage/components/VolumeCard.test.ts b/src/storage/components/VolumeCard.test.ts
+new file mode 100644
+index 0000000..ee8bbc2
+--- /dev/null
++++ b/src/storage/components/VolumeCard.test.ts
+@@ -0,0 +1,37 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import VolumeCard from './VolumeCard.vue'
++
++const VOL = {
++  uuid: 'u1', name: 'NimoOS-HD', isSystem: false, fsType: 'ext4',
++  size: 512110190592, availSize: 384614653440, usedSize: 127495537152, usePercent: 25,
++  driveName: 'nvme0n1p7', path: '/dev/nvme0n1p7', mountPoint: '/', disk: '/dev/nvme0n1',
++}
++
++describe('VolumeCard', () => {
++  it('渲染名称、文件系统、已用/总量', () => {
++    const w = mount(VolumeCard, { props: { volume: VOL } })
++    expect(w.text()).toContain('NimoOS-HD')
++    expect(w.text()).toContain('EXT4')
++    expect(w.text()).toContain('119 GB') // fmtSize(127495537152):≥100 取整 → "119 GB"
++    expect(w.text()).toContain('477 GB') // fmtSize(512110190592) → "477 GB"
++  })
++  it('进度条按占用率上色分级', () => {
++    const ok = mount(VolumeCard, { props: { volume: VOL } })
++    expect(ok.find('.vc-fill.ok').exists()).toBe(true)
++    const warn = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 85 } } })
++    expect(warn.find('.vc-fill.warn').exists()).toBe(true)
++    const danger = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 95 } } })
++    expect(danger.find('.vc-fill.danger').exists()).toBe(true)
++  })
++  it('系统卷:显示 OS 徽标、无移除按钮', () => {
++    const w = mount(VolumeCard, { props: { volume: { ...VOL, isSystem: true } } })
++    expect(w.find('.vc-os').exists()).toBe(true)
++    expect(w.find('.vc-remove').exists()).toBe(false)
++  })
++  it('非系统卷:点移除按钮 emit unmount', async () => {
++    const w = mount(VolumeCard, { props: { volume: VOL } })
++    await w.find('.vc-remove').trigger('click')
++    expect(w.emitted('unmount')).toHaveLength(1)
++  })
++})
+diff --git a/src/storage/components/VolumeCard.vue b/src/storage/components/VolumeCard.vue
+new file mode 100644
+index 0000000..9d58e77
+--- /dev/null
++++ b/src/storage/components/VolumeCard.vue
+@@ -0,0 +1,54 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { fmtSize } from '../../home/util/format'
++import { usageLevel, type StorageVolume } from '../util/storageMap'
++
++defineProps<{ volume: StorageVolume }>()
++defineEmits<{ (e: 'unmount'): void }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <article class="volume-card">
++    <div class="vc-head">
++      <h3 class="vc-name">
++        {{ volume.name }}
++        <span v-if="volume.isSystem" class="vc-os">OS</span>
++      </h3>
++      <button v-if="!volume.isSystem" class="vc-remove" type="button" @click="$emit('unmount')">
++        {{ t('storageUnmount') }}
++      </button>
++    </div>
++    <p class="vc-meta">{{ t('storageVolumeSingle') }} · {{ volume.fsType.toUpperCase() }}</p>
++    <p class="vc-usage">{{ fmtSize(volume.usedSize) }} / {{ fmtSize(volume.size) }}</p>
++    <div class="vc-track" role="progressbar" :aria-valuenow="volume.usePercent" aria-valuemin="0" aria-valuemax="100">
++      <div class="vc-fill" :class="usageLevel(volume.usePercent)" :style="{ width: Math.min(100, Math.max(0, volume.usePercent)) + '%' }" />
++    </div>
++  </article>
++</template>
++
++<style scoped>
++.volume-card {
++  padding: 16px 18px; background: var(--card-bg);
++  border: 1px solid var(--card-border); border-radius: var(--radius-sm);
++}
++.volume-card + .volume-card { margin-top: 12px; }
++.vc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
++.vc-name { margin: 0; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
++.vc-os {
++  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
++  background: var(--nrm-bg); color: var(--nrm-fg); border: 1px solid var(--nrm-bd);
++}
++.vc-remove {
++  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--remove-fg);
++  border-radius: 999px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; flex: none;
++}
++.vc-remove:hover { background: var(--chip-bg-hi); }
++.vc-meta { margin: 3px 0 0; font-size: 13px; color: var(--fg-muted); }
++.vc-usage { margin: 10px 0 6px; font-size: 12.5px; color: var(--fg-muted); font-family: var(--num-font); }
++.vc-track { height: 6px; border-radius: 999px; background: var(--nrm-bg); overflow: hidden; }
++.vc-fill { height: 100%; border-radius: 999px; }
++.vc-fill.ok { background: var(--accent); }
++.vc-fill.warn { background: var(--dem-fg); }
++.vc-fill.danger { background: var(--remove-fg); }
++</style>
+diff --git a/src/storage/stores/storage.test.ts b/src/storage/stores/storage.test.ts
+new file mode 100644
+index 0000000..db8216f
+--- /dev/null
++++ b/src/storage/stores/storage.test.ts
+@@ -0,0 +1,93 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const storageList = vi.fn()
++const raidList = vi.fn()
++const getDiskList = vi.fn()
++const umount = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    storage: { list: (...a: unknown[]) => storageList(...a) },
++    raid: { list: (...a: unknown[]) => raidList(...a) },
++    disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
++  },
++}))
++const toastShow = vi.fn()
++vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
++vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
++
++import { useStorageStore } from './storage'
++
++const GROUPS = [
++  { disk_name: 'System', path: '/dev/nvme0n1', children: [{ label: 'NimoOS-HD', mount_point: '/', size: '100', avail: '40', type: 'ext4', drive_name: 'p7', path: '/dev/nvme0n1p7', uuid: 'u1' }] },
++  { disk_name: 'S1', path: '/dev/sda', children: [{ label: 'raidvol', mount_point: '/mnt/r0', size: '10', avail: '5', type: 'ext4', drive_name: 'sda1', path: '/dev/sda1', uuid: 'u2' }] },
++]
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('loadVolumes', () => {
++  it('storage+raid 并取,RAID 挂载点被排除', async () => {
++    storageList.mockResolvedValue(GROUPS)
++    raidList.mockResolvedValue([{ id: 1, mount_point: '/mnt/r0' }])
++    const s = useStorageStore()
++    await s.loadVolumes()
++    expect(storageList).toHaveBeenCalledWith({ system: 'show' })
++    expect(s.volumes).toHaveLength(1)
++    expect(s.volumes[0].name).toBe('NimoOS-HD')
++  })
++  it('raid.list 失败不影响卷列表', async () => {
++    storageList.mockResolvedValue(GROUPS)
++    raidList.mockRejectedValue(new Error('404'))
++    const s = useStorageStore()
++    await s.loadVolumes()
++    expect(s.volumes).toHaveLength(2)
++  })
++  it('storage.list 失败置空,不抛', async () => {
++    storageList.mockRejectedValue(new Error('boom'))
++    raidList.mockResolvedValue([])
++    const s = useStorageStore()
++    await expect(s.loadVolumes()).resolves.toBeUndefined()
++    expect(s.volumes).toEqual([])
++  })
++})
++
++describe('loadDrives', () => {
++  it('取 disks 字段映射', async () => {
++    getDiskList.mockResolvedValue({ disks: [{ name: 'nvme0n1', model: 'M', size: 100, disk_type: 'SSD', health: 'true', temperature: 35 }], avail: [] })
++    const s = useStorageStore()
++    await s.loadDrives()
++    expect(s.drives).toHaveLength(1)
++    expect(s.drives[0].healthy).toBe(true)
++  })
++  it('失败置空不抛', async () => {
++    getDiskList.mockRejectedValue(new Error('x'))
++    const s = useStorageStore()
++    await expect(s.loadDrives()).resolves.toBeUndefined()
++    expect(s.drives).toEqual([])
++  })
++})
++
++describe('unmount', () => {
++  it('成功:发 {path,password}、toast 成功文案、重载、返回 true', async () => {
++    umount.mockResolvedValue({})
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [] })
++    const s = useStorageStore()
++    const ok = await s.unmount('/dev/sda', 'pw')
++    expect(umount).toHaveBeenCalledWith({ path: '/dev/sda', password: 'pw' })
++    expect(toastShow).toHaveBeenCalledWith('storageUnmountSuccess')
++    expect(storageList).toHaveBeenCalled()
++    expect(ok).toBe(true)
++  })
++  it('失败:toast 失败文案、返回 false、不抛', async () => {
++    umount.mockRejectedValue(new Error('wrong password'))
++    const s = useStorageStore()
++    const ok = await s.unmount('/dev/sda', 'bad')
++    expect(toastShow).toHaveBeenCalledWith('storageUnmountFailed')
++    expect(ok).toBe(false)
++  })
++})
+diff --git a/src/storage/stores/storage.ts b/src/storage/stores/storage.ts
+new file mode 100644
+index 0000000..d662f1d
+--- /dev/null
++++ b/src/storage/stores/storage.ts
+@@ -0,0 +1,68 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { i18n } from '../../i18n'
++import { useToast } from '../../stores/toast'
++import { mapVolumes, mapDrives, type StorageVolume, type PhysicalDrive } from '../util/storageMap'
++
++export const useStorageStore = defineStore('storage', () => {
++  const volumes = ref<StorageVolume[]>([])
++  const drives = ref<PhysicalDrive[]>([])
++  const loading = ref(false)
++  const t = i18n.global.t
++
++  async function loadVolumes() {
++    try {
++      // raid.list 兜底空数组:老后端无 /v2/raid 时卷列表照常工作
++      const [storageRes, raidRes] = await Promise.all([
++        service.storage.list({ system: 'show' }),
++        service.raid.list().catch(() => [] as unknown[]),
++      ])
++      const raidMounts = new Set(
++        (Array.isArray(raidRes) ? raidRes : [])
++          .map((r) => (r as { mount_point?: string })?.mount_point)
++          .filter((m): m is string => !!m),
++      )
++      volumes.value = mapVolumes(storageRes, raidMounts)
++    } catch (e) {
++      console.warn('[storage] volumes load failed', e)
++      volumes.value = []
++    }
++  }
++
++  async function loadDrives() {
++    try {
++      const res = (await service.disks.getDiskList()) as { disks?: unknown } | null
++      drives.value = mapDrives(res?.disks)
++    } catch (e) {
++      console.warn('[storage] drives load failed', e)
++      drives.value = []
++    }
++  }
++
++  async function loadAll() {
++    loading.value = true
++    try {
++      await Promise.all([loadVolumes(), loadDrives()])
++    } finally {
++      loading.value = false
++    }
++  }
++
++  async function unmount(diskPath: string, password: string): Promise<boolean> {
++    const toast = useToast()
++    try {
++      // 契约:DELETE /v1/disks {path: 父盘路径, password}(Vue2 StorageItem 同款)
++      await service.disks.umount({ path: diskPath, password })
++      toast.show(t('storageUnmountSuccess'))
++      await loadAll()
++      return true
++    } catch (e) {
++      console.warn('[storage] unmount failed', e)
++      toast.show(t('storageUnmountFailed'))
++      return false
++    }
++  }
++
++  return { volumes, drives, loading, loadVolumes, loadDrives, loadAll, unmount }
++})
+diff --git a/src/storage/util/storageMap.test.ts b/src/storage/util/storageMap.test.ts
+new file mode 100644
+index 0000000..8b5c0b9
+--- /dev/null
++++ b/src/storage/util/storageMap.test.ts
+@@ -0,0 +1,100 @@
++import { describe, it, expect } from 'vitest'
++import { mapVolumes, mapDrives, usageLevel, toFahrenheit } from './storageMap'
++
++// 真机 2026-07-23 实拍:size/avail 是字符串
++const LIVE_GROUPS = [
++  {
++    disk_name: 'System', size: 512110190592, path: '/dev/nvme0n1', type: 'nvme',
++    children: [
++      {
++        uuid: 'da0e4da3', mount_point: '/', size: '512110190592', avail: '384614653440',
++        used: '127495537152', type: 'ext4', path: '/dev/nvme0n1p7',
++        drive_name: 'nvme0n1p7', label: 'NimoOS-HD',
++      },
++    ],
++  },
++  {
++    disk_name: 'Storage1', size: 2000000000000, path: '/dev/sda', type: 'sata',
++    children: [
++      { uuid: 'aaa', mount_point: '/mnt/s1', size: '2000000000000', avail: '1000000000000', type: 'ext4', path: '/dev/sda1', drive_name: 'sda1', label: 'Storage1' },
++      { uuid: 'bbb', mount_point: '/mnt/raid0', size: '100', avail: '50', type: 'ext4', path: '/dev/sda9', drive_name: 'sda9', label: 'zzz-on-raid' },
++    ],
++  },
++]
++
++describe('mapVolumes', () => {
++  it('拍平 children、字符串数值转数字、算占用率', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    const sys = v.find((x) => x.isSystem)!
++    expect(sys.name).toBe('NimoOS-HD')
++    expect(sys.size).toBe(512110190592)
++    expect(sys.availSize).toBe(384614653440)
++    expect(sys.usedSize).toBe(512110190592 - 384614653440)
++    // Vue2 逐字:100 - Math.floor(avail*100/size)
++    expect(sys.usePercent).toBe(100 - Math.floor((384614653440 * 100) / 512110190592))
++    expect(sys.fsType).toBe('ext4')
++    expect(sys.mountPoint).toBe('/')
++    expect(sys.disk).toBe('/dev/nvme0n1')
++    expect(sys.driveName).toBe('nvme0n1p7')
++  })
++  it('isSystem 只认 disk_name === "System"', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    expect(v.filter((x) => x.isSystem)).toHaveLength(1)
++    expect(v.find((x) => x.name === 'Storage1')!.isSystem).toBe(false)
++  })
++  it('RAID 挂载点被排除', () => {
++    const v = mapVolumes(LIVE_GROUPS, new Set(['/mnt/raid0']))
++    expect(v.map((x) => x.name)).not.toContain('zzz-on-raid')
++    expect(v).toHaveLength(2)
++  })
++  it('排序:父盘名 desc、label asc(System 在前)', () => {
++    const v = mapVolumes(LIVE_GROUPS)
++    expect(v[0].isSystem).toBe(true)
++    expect(v[1].name < (v[2]?.name ?? '￿')).toBe(true)
++  })
++  it('size 为 0 或缺失时占用率为 0,不产生 NaN', () => {
++    const v = mapVolumes([{ disk_name: 'X', path: '/dev/x', children: [{ label: 'e', mount_point: '/e' }] }])
++    expect(v[0].usePercent).toBe(0)
++    expect(v[0].size).toBe(0)
++  })
++  it('非数组/垃圾输入返回空数组', () => {
++    expect(mapVolumes(null)).toEqual([])
++    expect(mapVolumes({ nope: 1 })).toEqual([])
++  })
++})
++
++describe('mapDrives', () => {
++  const LIVE_DISKS = [
++    { name: 'nvme0n1', size: 512110190592, model: 'WPBSNM8-512GTP', health: 'true', temperature: 35, disk_type: 'SSD', serial: 'LP0625', path: '/dev/nvme0n1' },
++  ]
++  it('映射真机字段', () => {
++    const d = mapDrives(LIVE_DISKS)
++    expect(d[0]).toMatchObject({ name: 'nvme0n1', model: 'WPBSNM8-512GTP', size: 512110190592, diskType: 'SSD', healthy: true, temperature: 35 })
++  })
++  it('health 只认 true/"true"(修正 Vue2 把字符串 "false" 当健康的隐患)', () => {
++    expect(mapDrives([{ health: 'false' }])[0].healthy).toBe(false)
++    expect(mapDrives([{ health: true }])[0].healthy).toBe(true)
++    expect(mapDrives([{}])[0].healthy).toBe(false)
++  })
++  it('非数组输入返回空数组', () => {
++    expect(mapDrives(undefined)).toEqual([])
++  })
++})
++
++describe('usageLevel', () => {
++  it('阈值与 Vue2 getProgressType 一致(80/90)', () => {
++    expect(usageLevel(0)).toBe('ok')
++    expect(usageLevel(79)).toBe('ok')
++    expect(usageLevel(80)).toBe('warn')
++    expect(usageLevel(89)).toBe('warn')
++    expect(usageLevel(90)).toBe('danger')
++    expect(usageLevel(100)).toBe('danger')
++  })
++})
++
++describe('toFahrenheit', () => {
++  it('与 Vue2 filter 一致:(32 + c*1.8).toFixed(1)', () => {
++    expect(toFahrenheit(35)).toBe('95.0')
++    expect(toFahrenheit(0)).toBe('32.0')
++  })
++})
+diff --git a/src/storage/util/storageMap.ts b/src/storage/util/storageMap.ts
+new file mode 100644
+index 0000000..472ce3b
+--- /dev/null
++++ b/src/storage/util/storageMap.ts
+@@ -0,0 +1,107 @@
++// /v1/storage children 的 size/avail/used 是字符串(2026-07-23 真机核实),必须显式 Number()。
++// usePercent 公式与 Vue2 StorageManagerPanel 逐字一致,保证迁移前后读数不变。
++
++export interface StorageVolume {
++  uuid: string
++  name: string
++  isSystem: boolean
++  fsType: string
++  size: number
++  availSize: number
++  usedSize: number
++  usePercent: number
++  driveName: string
++  path: string
++  mountPoint: string
++  disk: string
++}
++
++export interface PhysicalDrive {
++  name: string
++  model: string
++  size: number
++  diskType: string
++  healthy: boolean
++  temperature: number
++}
++
++interface RawChild {
++  uuid?: string
++  label?: string
++  type?: string
++  size?: unknown
++  avail?: unknown
++  path?: string
++  drive_name?: string
++  mount_point?: string
++}
++interface RawGroup { path?: string; disk_name?: string; children?: RawChild[] }
++
++export function mapVolumes(groups: unknown, raidMountPoints: Set<string> = new Set()): StorageVolume[] {
++  const arr = Array.isArray(groups) ? (groups as RawGroup[]) : []
++  const flat: Array<RawChild & { _disk: string; _diskName: string }> = []
++  for (const g of arr) {
++    for (const c of g?.children || []) {
++      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID 卷归 /storage/raid(P3)
++      flat.push({ ...c, _disk: g?.path || '', _diskName: g?.disk_name || '' })
++    }
++  }
++  // Vue2 orderBy(['diskName','label'],['desc','asc']):System 组排最前
++  flat.sort((a, b) => {
++    if (a._diskName !== b._diskName) return a._diskName < b._diskName ? 1 : -1
++    const la = a.label || ''
++    const lb = b.label || ''
++    return la < lb ? -1 : la > lb ? 1 : 0
++  })
++  return flat.map((c) => {
++    const size = Number(c.size) || 0
++    const avail = Number(c.avail) || 0
++    return {
++      uuid: c.uuid || '',
++      name: c.label || c.drive_name || '',
++      isSystem: c._diskName === 'System',
++      fsType: c.type || '',
++      size,
++      availSize: avail,
++      usedSize: Math.max(0, size - avail),
++      usePercent: size > 0 ? 100 - Math.floor((avail * 100) / size) : 0,
++      driveName: c.drive_name || '',
++      path: c.path || '',
++      mountPoint: c.mount_point || '',
++      disk: c._disk,
++    }
++  })
++}
++
++interface RawDisk {
++  name?: string
++  model?: string
++  size?: unknown
++  disk_type?: string
++  health?: unknown
++  temperature?: unknown
++}
++
++export function mapDrives(disks: unknown): PhysicalDrive[] {
++  const arr = Array.isArray(disks) ? (disks as RawDisk[]) : []
++  return arr.map((d) => ({
++    name: d.name || '',
++    model: d.model || '',
++    size: Number(d.size) || 0,
++    diskType: d.disk_type || '',
++    // 后端 health 是字符串 "true"/"false";严格比较,避免 "false" 被当真值(Vue2 隐患)
++    healthy: d.health === true || d.health === 'true',
++    temperature: Number(d.temperature) || 0,
++  }))
++}
++
++// 与 Vue2 mixin getProgressType 阈值一致
++export function usageLevel(pct: number): 'ok' | 'warn' | 'danger' {
++  if (pct < 80) return 'ok'
++  if (pct < 90) return 'warn'
++  return 'danger'
++}
++
++export function toFahrenheit(c: number): string {
++  return (32 + c * 1.8).toFixed(1)
++}
+diff --git a/src/views/StorageDrives.test.ts b/src/views/StorageDrives.test.ts
+new file mode 100644
+index 0000000..46abc43
+--- /dev/null
++++ b/src/views/StorageDrives.test.ts
+@@ -0,0 +1,79 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { defineComponent } from 'vue'
++
++const storageList = vi.fn().mockResolvedValue([])
++const raidList = vi.fn().mockResolvedValue([])
++const getDiskList = vi.fn().mockResolvedValue({ disks: [] })
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    storage: { list: (...a: unknown[]) => storageList(...a) },
++    raid: { list: (...a: unknown[]) => raidList(...a) },
++    disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: vi.fn() },
++  },
++}))
++
++const handlers: Record<string, (p?: unknown) => void> = {}
++const offs: Record<string, ReturnType<typeof vi.fn>> = {}
++vi.mock('../composables/useMessageBus', () => ({
++  useMessageBus: () => ({
++    on: (ev: string, cb: (p?: unknown) => void) => {
++      handlers[ev] = cb
++      offs[ev] = vi.fn()
++      return offs[ev]
++    },
++  }),
++}))
++
++import StorageDrives from './StorageDrives.vue'
++
++const Stub = defineComponent({ template: '<div />' })
++
++async function mountView() {
++  const router = createRouter({
++    history: createMemoryHistory(),
++    routes: [
++      { path: '/', component: Stub },
++      { path: '/storage', component: Stub },
++      { path: '/storage/drives', component: StorageDrives },
++    ],
++  })
++  await router.push('/storage/drives')
++  await router.isReady()
++  return mount(StorageDrives, { global: { plugins: [router] } })
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++  vi.useFakeTimers()
++})
++afterEach(() => {
++  vi.useRealTimers()
++})
++
++describe('StorageDrives 热插拔接线', () => {
++  it('挂载即取数,并订阅 added/removed 两事件', async () => {
++    await mountView()
++    expect(getDiskList).toHaveBeenCalledTimes(1)
++    expect(handlers['local-storage:disk:added']).toBeTypeOf('function')
++    expect(handlers['local-storage:disk:removed']).toBeTypeOf('function')
++  })
++  it('热插拔 500ms 防抖合并成一次刷新', async () => {
++    await mountView()
++    getDiskList.mockClear()
++    handlers['local-storage:disk:added']()
++    handlers['local-storage:disk:removed']()
++    expect(getDiskList).not.toHaveBeenCalled() // handler 本身不打接口(不阻塞)
++    vi.advanceTimersByTime(500)
++    expect(getDiskList).toHaveBeenCalledTimes(1)
++  })
++  it('组件卸载时退订', async () => {
++    const w = await mountView()
++    w.unmount()
++    expect(offs['local-storage:disk:added']).toHaveBeenCalled()
++    expect(offs['local-storage:disk:removed']).toHaveBeenCalled()
++  })
++})
+diff --git a/src/views/StorageDrives.vue b/src/views/StorageDrives.vue
+new file mode 100644
+index 0000000..2dcf080
+--- /dev/null
++++ b/src/views/StorageDrives.vue
+@@ -0,0 +1,48 @@
++<script setup lang="ts">
++import { onMounted, onUnmounted } from 'vue'
++import { useI18n } from 'vue-i18n'
++import StorageShell from '../storage/components/StorageShell.vue'
++import DriveCard from '../storage/components/DriveCard.vue'
++import { useStorageStore } from '../storage/stores/storage'
++import { useMessageBus } from '../composables/useMessageBus'
++
++const store = useStorageStore()
++const { t } = useI18n()
++const bus = useMessageBus()
++
++// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
++let hotplugTimer: number | undefined
++function onHotplug() {
++  clearTimeout(hotplugTimer)
++  hotplugTimer = window.setTimeout(() => {
++    store.loadAll()
++  }, 500)
++}
++
++let offAdd: (() => void) | undefined
++let offRemove: (() => void) | undefined
++onMounted(() => {
++  store.loadAll()
++  offAdd = bus.on('local-storage:disk:added', onHotplug)
++  offRemove = bus.on('local-storage:disk:removed', onHotplug)
++})
++onUnmounted(() => {
++  offAdd?.()
++  offRemove?.()
++  clearTimeout(hotplugTimer)
++})
++</script>
++
++<template>
++  <StorageShell>
++    <div v-if="store.loading && !store.drives.length" class="st-hint">{{ t('storageLoading') }}</div>
++    <p v-else-if="!store.drives.length" class="st-hint">{{ t('storageDrivesEmpty') }}</p>
++    <div v-else>
++      <DriveCard v-for="d in store.drives" :key="d.name" :drive="d" />
++    </div>
++  </StorageShell>
++</template>
++
++<style scoped>
++.st-hint { padding: 40px 0; text-align: center; color: var(--fg-muted); font-size: 14px; }
++</style>
+diff --git a/src/views/StorageVolumes.vue b/src/views/StorageVolumes.vue
+new file mode 100644
+index 0000000..fb1fcb8
+--- /dev/null
++++ b/src/views/StorageVolumes.vue
+@@ -0,0 +1,63 @@
++<script setup lang="ts">
++import { onMounted, onUnmounted, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import StorageShell from '../storage/components/StorageShell.vue'
++import VolumeCard from '../storage/components/VolumeCard.vue'
++import UnmountDialog from '../storage/components/UnmountDialog.vue'
++import { useStorageStore } from '../storage/stores/storage'
++import { useMessageBus } from '../composables/useMessageBus'
++import type { StorageVolume } from '../storage/util/storageMap'
++
++const store = useStorageStore()
++const { t } = useI18n()
++const bus = useMessageBus()
++
++const dialogOpen = ref(false)
++const pending = ref<StorageVolume | null>(null)
++function askUnmount(v: StorageVolume) {
++  pending.value = v
++  dialogOpen.value = true
++}
++async function doUnmount(password: string) {
++  if (!pending.value) return
++  const ok = await store.unmount(pending.value.disk, password)
++  if (ok) dialogOpen.value = false
++}
++
++// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
++let hotplugTimer: number | undefined
++function onHotplug() {
++  clearTimeout(hotplugTimer)
++  hotplugTimer = window.setTimeout(() => {
++    store.loadAll()
++  }, 500)
++}
++
++let offAdd: (() => void) | undefined
++let offRemove: (() => void) | undefined
++onMounted(() => {
++  store.loadAll()
++  offAdd = bus.on('local-storage:disk:added', onHotplug)
++  offRemove = bus.on('local-storage:disk:removed', onHotplug)
++})
++onUnmounted(() => {
++  offAdd?.()
++  offRemove?.()
++  clearTimeout(hotplugTimer)
++})
++</script>
++
++<template>
++  <StorageShell>
++    <div v-if="store.loading && !store.volumes.length" class="st-hint">{{ t('storageLoading') }}</div>
++    <p v-else-if="!store.volumes.length" class="st-hint">{{ t('storageVolumesEmpty') }}</p>
++    <div v-else>
++      <VolumeCard v-for="v in store.volumes" :key="v.uuid || v.path" :volume="v" @unmount="askUnmount(v)" />
++    </div>
++    <UnmountDialog v-model:open="dialogOpen" :name="pending?.name || ''" @confirm="doUnmount" />
++  </StorageShell>
++</template>
++
++<style scoped>
++.st-hint { padding: 40px 0; text-align: center; color: var(--fg-muted); font-size: 14px; }
++</style>
+diff --git a/vite.config.ts b/vite.config.ts
+index c90384a..8a95177 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -23,20 +23,29 @@ function copyPdfjsAssets(): Plugin {
+         )
+       }
+     },
+   }
+ }
+ 
+ export default defineConfig({
+   base: '/app/',
+   plugins: [vue(), copyPdfjsAssets()],
+   server: { port: 5273 },
++  // SP6 并行验收(spec §5):5273 只伺服 /app/ 构建产物,其余(API /v1|/v2|/v3、
++  // MessageBus WS、Vue2 登录页)全部转发真机网关 80。正式部署仍走 scripts/deploy.sh。
++  preview: {
++    port: 5273,
++    host: true,
++    proxy: {
++      '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
++    },
++  },
+   test: {
+     environment: 'jsdom',
+     globals: true,
+     // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),
+     // 不排除的话 vitest 会递归进去跑别的会话的测试并大片报错。
+     exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
+     setupFiles: ['./vitest.setup.ts'],
+     server: {
+       deps: {
+         inline: ['@nimotech/nimoos-service'],

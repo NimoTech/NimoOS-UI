@@ -1,0 +1,218 @@
+# Review package: e156aaa..4207446
+
+## Commits
+4207446 SP8-P1b: port groupBlocks + timelineMath pure modules
+
+## Files changed
+ src/ai/util/groupBlocks.test.ts  | 44 +++++++++++++++++++++++++++++
+ src/ai/util/groupBlocks.ts       | 38 +++++++++++++++++++++++++
+ src/ai/util/timelineMath.test.ts | 39 ++++++++++++++++++++++++++
+ src/ai/util/timelineMath.ts      | 60 ++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 181 insertions(+)
+
+## Diff
+diff --git a/src/ai/util/groupBlocks.test.ts b/src/ai/util/groupBlocks.test.ts
+new file mode 100644
+index 0000000..5f7d8f3
+--- /dev/null
++++ b/src/ai/util/groupBlocks.test.ts
+@@ -0,0 +1,44 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/stream/groupBlocks.spec.js
++import { describe, it, expect } from 'vitest'
++import { groupBlocks } from './groupBlocks'
++
++const think = (text: string) => ({ type: 'thinking', text })
++const tool = (name: string) => ({ type: 'tool', name })
++const md = (text: string) => ({ type: 'md', text })
++
++describe('groupBlocks', () => {
++  it('returns [] for empty / nullish', () => {
++    expect(groupBlocks([])).toEqual([])
++    expect(groupBlocks(null as unknown as never)).toEqual([])
++  })
++
++  it('passes through non thinking/tool blocks untouched', () => {
++    const blocks = [md('a'), md('b')]
++    expect(groupBlocks(blocks)).toEqual(blocks)
++  })
++
++  it('merges consecutive thinking + tool into one process group', () => {
++    const out = groupBlocks([think('t'), tool('read'), tool('scan'), md('done')])
++    expect(out).toHaveLength(2)
++    expect((out[0] as { __process: boolean }).__process).toBe(true)
++    expect((out[0] as { steps: unknown[] }).steps).toHaveLength(3)
++    expect(out[1]).toEqual(md('done'))
++  })
++
++  it('breaks the group when a non thinking/tool block interrupts', () => {
++    const out = groupBlocks([tool('a'), md('x'), tool('b')])
++    expect(out).toHaveLength(3)
++    expect((out[0] as { __process: boolean }).__process).toBe(true)
++    expect((out[0] as { steps: unknown[] }).steps).toHaveLength(1)
++    expect(out[1]).toEqual(md('x'))
++    expect((out[2] as { __process: boolean }).__process).toBe(true)
++    expect((out[2] as { steps: unknown[] }).steps).toHaveLength(1)
++  })
++
++  it('keeps md before and process after in order', () => {
++    const out = groupBlocks([md('intro'), think('t'), tool('a')])
++    expect(out[0]).toEqual(md('intro'))
++    expect((out[1] as { __process: boolean }).__process).toBe(true)
++    expect((out[1] as { steps: unknown[] }).steps).toHaveLength(2)
++  })
++})
+diff --git a/src/ai/util/groupBlocks.ts b/src/ai/util/groupBlocks.ts
+new file mode 100644
+index 0000000..2e748b6
+--- /dev/null
++++ b/src/ai/util/groupBlocks.ts
+@@ -0,0 +1,38 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/stream/groupBlocks.js
++// Group consecutive thinking/tool blocks into a single process strip item.
++// Other block types pass through untouched, preserving order.
++//
++// NOTE: src/ai/types.ts does not exist yet (created in Task 4). Using a
++// minimal local structural type here; Task 4/10 will likely swap this for
++// the shared AgentBlock type.
++
++export interface AgentBlockLike {
++  type: string
++  [key: string]: unknown
++}
++
++export interface ProcessGroup {
++  __process: true
++  steps: AgentBlockLike[]
++}
++
++const STEP_TYPES = new Set(['thinking', 'tool'])
++
++export function groupBlocks(blocks: AgentBlockLike[]): (AgentBlockLike | ProcessGroup)[] {
++  if (!Array.isArray(blocks)) return []
++  const out: (AgentBlockLike | ProcessGroup)[] = []
++  let current: ProcessGroup | null = null
++  for (const b of blocks) {
++    if (b && STEP_TYPES.has(b.type)) {
++      if (!current) {
++        current = { __process: true, steps: [] }
++        out.push(current)
++      }
++      current.steps.push(b)
++    } else {
++      current = null
++      out.push(b)
++    }
++  }
++  return out
++}
+diff --git a/src/ai/util/timelineMath.test.ts b/src/ai/util/timelineMath.test.ts
+new file mode 100644
+index 0000000..9cdce6b
+--- /dev/null
++++ b/src/ai/util/timelineMath.test.ts
+@@ -0,0 +1,39 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/stream/timelineMath.spec.js
++import { describe, it, expect } from 'vitest'
++import { tickWidth, clip, ticksFromMessages } from './timelineMath'
++
++describe('tickWidth', () => {
++  it('returns base width at zero distance plus full amplitude', () => {
++    // distance 0 => base + amp
++    expect(tickWidth(0, { base: 14, amp: 36, spread: 22 })).toBeCloseTo(50, 5)
++  })
++  it('decays toward base as distance grows', () => {
++    const near = tickWidth(5, { base: 14, amp: 36, spread: 22 })
++    const far = tickWidth(80, { base: 14, amp: 36, spread: 22 })
++    expect(near).toBeGreaterThan(far)
++    expect(far).toBeCloseTo(14, 1)
++  })
++  it('returns base when distance is null (idle)', () => {
++    expect(tickWidth(null)).toBe(14)
++  })
++})
++
++describe('clip', () => {
++  it('keeps short strings', () => { expect(clip('abc', 15)).toBe('abc') })
++  it('truncates with ellipsis', () => { expect(clip('0123456789abcdef', 15)).toBe('0123456789abcde…') })
++  it('handles empty', () => { expect(clip('', 15)).toBe('') })
++})
++
++describe('ticksFromMessages', () => {
++  it('maps role user→user, anything else→ai, and pulls text', () => {
++    const out = ticksFromMessages([
++      { id: 'a', role: 'user', content: 'hi' },
++      { id: 'b', role: 'assistant', blocks: [{ type: 'md', text: 'hello there' }] },
++    ])
++    expect(out).toEqual([
++      { role: 'user', id: 'a', text: 'hi' },
++      { role: 'ai', id: 'b', text: 'hello there' },
++    ])
++  })
++  it('returns [] for nullish', () => { expect(ticksFromMessages(null as unknown as never)).toEqual([]) })
++})
+diff --git a/src/ai/util/timelineMath.ts b/src/ai/util/timelineMath.ts
+new file mode 100644
+index 0000000..40693ba
+--- /dev/null
++++ b/src/ai/util/timelineMath.ts
+@@ -0,0 +1,60 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/stream/timelineMath.js
++// Pure helpers for the timeline minimap (dock magnification + previews).
++//
++// NOTE: src/ai/types.ts does not exist yet (created in Task 4). Using a
++// minimal local structural type here for the message shape consumed by
++// ticksFromMessages; Task 4/10 will likely swap this for AgentMessage.
++
++export interface AgentMessageLike {
++  id?: unknown
++  role?: string
++  content?: unknown
++  blocks?: { type: string; text?: string; [key: string]: unknown }[]
++  [key: string]: unknown
++}
++
++export interface TickWidthOpts {
++  base?: number
++  amp?: number
++  spread?: number
++}
++
++export interface Tick {
++  role: 'user' | 'ai'
++  id: unknown
++  text: string
++}
++
++const DEFAULTS = { base: 14, amp: 36, spread: 22 }
++
++/** Dock-style width for a tick given cursor distance in px (null = idle). */
++export function tickWidth(distancePx: number | null, opts: TickWidthOpts = {}): number {
++  const { base, amp, spread } = { ...DEFAULTS, ...opts }
++  if (distancePx == null) return base
++  return base + amp * Math.exp(-(distancePx * distancePx) / (2 * spread * spread))
++}
++
++/** Truncate to n chars with an ellipsis. */
++export function clip(str: string, n = 15): string {
++  if (!str) return ''
++  return str.length > n ? str.slice(0, n) + '…' : str
++}
++
++/** Derive minimap ticks from the message list. */
++export function ticksFromMessages(messages: AgentMessageLike[]): Tick[] {
++  if (!Array.isArray(messages)) return []
++  return messages.map((m) => ({
++    role: m.role === 'user' ? 'user' : 'ai',
++    id: m.id,
++    text: textOf(m),
++  }))
++}
++
++function textOf(m: AgentMessageLike): string {
++  if (typeof m.content === 'string') return m.content
++  if (Array.isArray(m.blocks)) {
++    const t = m.blocks.find((b) => b.type === 'md' || b.type === 'text')
++    return t ? t.text || '' : ''
++  }
++  return ''
++}

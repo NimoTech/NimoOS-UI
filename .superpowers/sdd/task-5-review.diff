@@ -1,0 +1,56 @@
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index 9c357aa..cc55269 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -46,6 +46,25 @@
+   --good: #5fe3b0;
+   --on-accent: #16203a;
+ 
++  /* 扩展/语义 token(SearchDialog·MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12 */
++  --card: #232a45;
++  --border: rgba(255, 255, 255, 0.14);
++  --fg-subtle: rgba(255, 255, 255, 0.4);
++  --divider: rgba(255, 255, 255, 0.1);
++  --hover: rgba(255, 255, 255, 0.08);
++  --accent-text: #a9c6ff;
++  --grad-a: #7a98ff;
++  --grad-b: #b79bff;
++  --accent-soft: rgba(138, 180, 255, 0.14);
++  --accent-soft-2: rgba(138, 180, 255, 0.24);
++  --accent-soft-bd: rgba(138, 180, 255, 0.36);
++  --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
++  --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
++  --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
++  --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;
++  --success: #5fe3b0;
++  --hl-bg: rgba(232, 192, 106, 0.16); --hl-bd: rgba(232, 192, 106, 0.4); --hl-fg: #e8c06a; --hl-star: #e8c06a;
++
+   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
+   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
+ 
+@@ -196,6 +215,25 @@
+   /* 2.10 模糊(纸感不用玻璃) */
+   --blur: none;
+   --overlay-blur: blur(8px);
++
++  /* 扩展/语义 token(白色纸感,取自 SearchDialog/MediaViewer 原浅色板) */
++  --card: #ffffff;
++  --border: #e7e3d9;
++  --fg-subtle: #9a958a;
++  --divider: rgba(28, 27, 25, 0.08);
++  --hover: rgba(28, 27, 25, 0.045);
++  --accent-text: #3550c4;
++  --grad-a: #4c6fe8;
++  --grad-b: #6e5ae0;
++  --accent-soft: rgba(59, 91, 219, 0.11);
++  --accent-soft-2: rgba(59, 91, 219, 0.2);
++  --accent-soft-bd: rgba(59, 91, 219, 0.3);
++  --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
++  --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
++  --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
++  --hit-bg: #fce8a6; --hit-fg: #5a4a12;
++  --success: #15754c;
++  --hl-bg: #fdf4d9; --hl-bd: #f0d9a8; --hl-fg: #92600c; --hl-star: #c9992f;
+ }
+ 
+ /* 白色主题:滚动条滑块贴浅底改深色;关闭散景光斑与暗角(纸感不要 bokeh)。见 THEMING.md §2.11 */

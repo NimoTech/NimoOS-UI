@@ -1,0 +1,149 @@
+# Review package: c24b675..HEAD
+
+## Commits
+357432e feat(upload): restore/resume/prune + initUploads orchestrator (SP4-P3b)
+
+## Files changed
+ src/files/stores/uploads.test.ts | 34 ++++++++++++++++++++++++++++++++++
+ src/files/stores/uploads.ts      | 35 ++++++++++++++++++++++++++++++++++-
+ 2 files changed, 68 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/files/stores/uploads.test.ts b/src/files/stores/uploads.test.ts
+index 00b9a46..a0223f2 100644
+--- a/src/files/stores/uploads.test.ts
++++ b/src/files/stores/uploads.test.ts
+@@ -187,10 +187,44 @@ describe('uploads persistence hooks', () => {
+   it('cancelItem drops persisted record', async () => {
+     const store = useUploadsStore()
+     const file = new File(['x'], 'a.txt')
+     await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
+     const id = store.queue[0].id
+     vi.clearAllMocks()
+     store.cancelItem(id)
+     expect(persist.dropPersisted).toHaveBeenCalledWith(id)
+   })
+ })
++
++describe('uploads restore/resume', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  it('restoreQueue loads items and sets restore notice count', async () => {
++    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({
++      items: [{ id: 'r1', status: 'pending', file: new Blob(['x']), batchId: 'b', batchTotal: 1, size: 1, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1, targetPath: '/DATA', relativePath: 'a', fileName: 'a', fileType: '', restored: true, conflictPolicy: '', oversize: false }],
++      resumedCount: 1,
++    })
++    const store = useUploadsStore()
++    await store.restoreQueue()
++    expect(store.queue).toHaveLength(1)
++    expect(store.restoreNoticeCount).toBe(1)
++  })
++
++  it('resumePending starts upload only when a pending item has a file', () => {
++    const store = useUploadsStore()
++    const spy = vi.spyOn(store, 'startUpload').mockImplementation(() => {})
++    store.queue.push({ id: 'n', status: 'needs_file', file: null } as any)
++    store.resumePending()
++    expect(spy).not.toHaveBeenCalled()
++    store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
++    store.resumePending()
++    expect(spy).toHaveBeenCalled()
++  })
++
++  it('initUploads restores, prunes, then resumes', async () => {
++    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({ items: [], resumedCount: 0 })
++    const store = useUploadsStore()
++    await store.initUploads()
++    expect(persist.restoreFromIDB).toHaveBeenCalled()
++    expect(persist.pruneOldItems).toHaveBeenCalled()
++  })
++})
+diff --git a/src/files/stores/uploads.ts b/src/files/stores/uploads.ts
+index ee7efbb..fe90434 100644
+--- a/src/files/stores/uploads.ts
++++ b/src/files/stores/uploads.ts
+@@ -1,19 +1,19 @@
+ import { defineStore } from 'pinia'
+ import { ref, computed } from 'vue'
+ import { refreshAccessToken } from '@nimotech/nimoos-service'
+ import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
+ import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
+ import { canStoreBlob } from '../upload/budget'
+ import { safeRandomUUID } from '../upload/uuid'
+ import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
+-import { persistNewItem, persistItemMeta, dropPersisted } from '../upload/persist'
++import { persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB, pruneOldItems as prunePersisted } from '../upload/persist'
+ import type { UploadItem, SelectedFile } from '../upload/types'
+ import { PROTECTED } from '../util/protect'
+ import { useFilesStore } from './files'
+ import { useToast } from '../../stores/toast'
+ import { i18n } from '../../i18n'
+ 
+ export const useUploadsStore = defineStore('files-uploads', () => {
+   const queue = ref<UploadItem[]>([])
+   const uploading = ref(false)
+   const restoreNoticeCount = ref(0)
+@@ -201,30 +201,63 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+     }
+     queue.value = queue.value.filter((i) => i.batchId !== batchId)
+     toastedBatches.delete(batchId)
+   }
+ 
+   function clearDone(): void {
+     for (const i of queue.value.filter((i) => i.status === 'done')) dropPersisted(i.id)
+     queue.value = queue.value.filter((i) => i.status !== 'done')
+   }
+ 
++  async function restoreQueue(): Promise<void> {
++    const { items, resumedCount } = await restoreFromIDB()
++    if (items.length) queue.value.push(...(items as UploadItem[]))
++    restoreNoticeCount.value = resumedCount
++  }
++
++  function resumePending(): void {
++    // Route through useUploadsStore() (not the bare `startUpload` closure) so
++    // this goes through Pinia's wrapped action — required for $onAction
++    // subscribers/devtools and for tests that `vi.spyOn(store, 'startUpload')`.
++    // Safe: by the time resumePending() actually runs, setup() has already
++    // returned and the store is registered, so this resolves to the singleton.
++    if (queue.value.some((i) => i.status === 'pending' && !!i.file)) useUploadsStore().startUpload()
++  }
++
++  async function pruneOldItems(days = 30): Promise<void> {
++    await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
++  }
++
++  async function initUploads(): Promise<void> {
++    try {
++      await restoreQueue()
++      await pruneOldItems(30)
++      resumePending()
++    } catch (e) {
++      console.warn('[uploads] initUploads failed; memory-only mode', e)
++    }
++  }
++
+   const hasActive = computed(() =>
+     uploading.value || queue.value.some((i) => i.status === 'pending' && !!i.file),
+   )
+ 
+   return {
+     queue,
+     uploading,
+     restoreNoticeCount,
+     hasActive,
+     patch,
+     addFilesToQueue,
+     resolveConflict,
+     startUpload,
+     retryItem,
+     cancelItem,
+     retryBatch,
+     cancelBatch,
+     clearDone,
++    restoreQueue,
++    resumePending,
++    pruneOldItems,
++    initUploads,
+   }
+ })

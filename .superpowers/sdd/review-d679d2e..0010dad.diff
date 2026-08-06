@@ -1,0 +1,361 @@
+# Review package: d679d2e..HEAD
+
+## Commits
+0010dad feat(drop): 设备图标资产+助手(mobile_offline 兜底)+ i18n 17 键双语
+
+## Files changed
+ src/files/drop/assets/add_btn.svg         | 11 +++++++++++
+ src/files/drop/assets/desktop_offline.svg | 16 ++++++++++++++++
+ src/files/drop/assets/desktop_online.svg  | 19 +++++++++++++++++++
+ src/files/drop/assets/drop_icon.svg       |  9 +++++++++
+ src/files/drop/assets/mobile_online.svg   | 20 ++++++++++++++++++++
+ src/files/drop/assets/self.svg            | 27 +++++++++++++++++++++++++++
+ src/files/drop/assets/tablet_offline.svg  | 15 +++++++++++++++
+ src/files/drop/assets/tablet_online.svg   | 18 ++++++++++++++++++
+ src/files/drop/dropIcons.test.ts          | 14 ++++++++++++++
+ src/files/drop/dropIcons.ts               | 18 ++++++++++++++++++
+ src/i18n/en_us.ts                         | 17 +++++++++++++++++
+ src/i18n/zh_cn.ts                         | 17 +++++++++++++++++
+ vite.config.ts                            |  3 +++
+ 13 files changed, 204 insertions(+)
+
+## Diff
+diff --git a/src/files/drop/assets/add_btn.svg b/src/files/drop/assets/add_btn.svg
+new file mode 100644
+index 0000000..ae83e57
+--- /dev/null
++++ b/src/files/drop/assets/add_btn.svg
+@@ -0,0 +1,11 @@
++<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M18 6C11.3726 6 6 11.3726 6 18C6 24.6274 11.3726 30 18 30C18.8284 30 19.5 30.6716 19.5 31.5C19.5 32.3284 18.8284 33 18 33C9.71573 33 3 26.2843 3 18C3 9.71573 9.71573 3 18 3C26.2843 3 33 9.71573 33 18C33 18.8284 32.3284 19.5 31.5 19.5C30.6716 19.5 30 18.8284 30 18C30 11.3726 24.6274 6 18 6Z"
++		  fill="#5A6C7C"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M16.5 24C16.5 24.8284 17.1716 25.5 18 25.5C18.8284 25.5 19.5 24.8284 19.5 24V19.5L24 19.5C24.8284 19.5 25.5 18.8284 25.5 18C25.5 17.1716 24.8284 16.5 24 16.5L19.5 16.5V12C19.5 11.1716 18.8284 10.5 18 10.5C17.1716 10.5 16.5 11.1716 16.5 12V16.5H12C11.1716 16.5 10.5 17.1716 10.5 18C10.5 18.8284 11.1716 19.5 12 19.5H16.5V24Z"
++		  fill="#5A6C7C"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M33 27C33 30.3137 30.3137 33 27 33C23.6863 33 21 30.3137 21 27C21 23.6863 23.6863 21 27 21C30.3137 21 33 23.6863 33 27ZM26.25 25.5C26.25 25.0858 26.5858 24.75 27 24.75C27.4142 24.75 27.75 25.0858 27.75 25.5C27.75 25.7035 27.67 25.8867 27.538 26.0225C27.4951 26.0667 27.445 26.1167 27.3903 26.1712C27.2032 26.358 26.9625 26.5982 26.773 26.8416C26.5166 27.171 26.25 27.6277 26.25 28.2C26.25 28.6142 26.5858 28.95 27 28.95C27.4142 28.95 27.75 28.6142 27.75 28.2C27.75 28.1096 27.7905 27.9765 27.9567 27.7629C28.0833 27.6002 28.2254 27.4583 28.395 27.2888C28.4633 27.2206 28.536 27.148 28.614 27.0677C29.0069 26.6632 29.25 26.1092 29.25 25.5C29.25 24.2574 28.2426 23.25 27 23.25C25.7574 23.25 24.75 24.2574 24.75 25.5C24.75 25.9142 25.0858 26.25 25.5 26.25C25.9142 26.25 26.25 25.9142 26.25 25.5ZM27.975 30.45C27.975 30.9885 27.5384 31.425 27 31.425C26.4615 31.425 26.025 30.9885 26.025 30.45C26.025 29.9116 26.4615 29.475 27 29.475C27.5384 29.475 27.975 29.9116 27.975 30.45Z"
++		  fill="#5A6C7C"/>
++</svg>
+diff --git a/src/files/drop/assets/desktop_offline.svg b/src/files/drop/assets/desktop_offline.svg
+new file mode 100644
+index 0000000..56fe3cb
+--- /dev/null
++++ b/src/files/drop/assets/desktop_offline.svg
+@@ -0,0 +1,16 @@
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path d="M5 8H43V32H5V8Z" fill="#DAE4F2"/>
++	<path d="M20.5 24.5576C22.433 24.5576 24 22.9906 24 21.0576C24 19.1246 22.433 17.5576 20.5 17.5576C18.567 17.5576 17 19.1246 17 21.0576C17 22.9906 18.567 24.5576 20.5 24.5576Z"
++		  fill="white"/>
++	<path d="M24 24.5727C26.6434 24.5727 28.7864 22.4298 28.7864 19.7864C28.7864 17.1429 26.6434 15 24 15C21.3566 15 19.2136 17.1429 19.2136 19.7864C19.2136 22.4298 21.3566 24.5727 24 24.5727Z"
++		  fill="#ACB8C3"/>
++	<path d="M27.5 24.5576C29.433 24.5576 31 22.9906 31 21.0576C31 19.1246 29.433 17.5576 27.5 17.5576C25.567 17.5576 24 19.1246 24 21.0576C24 22.9906 25.567 24.5576 27.5 24.5576Z"
++		  fill="white"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M42 8.5H6C5.72386 8.5 5.5 8.72386 5.5 9V31.5H42.5V9C42.5 8.72386 42.2761 8.5 42 8.5ZM6 7C4.89543 7 4 7.89543 4 9V33H44V9C44 7.89543 43.1046 7 42 7H6Z"
++		  fill="#181F25"/>
++	<path d="M4 33H44V34C44 35.1046 43.1046 36 42 36H6C4.89543 36 4 35.1046 4 34V33Z" fill="#DEE6ED"/>
++	<path d="M19 36H29V41H19V36Z" fill="#C2CDD6"/>
++	<path d="M14 42C14 41.4477 14.4477 41 15 41H33C33.5523 41 34 41.4477 34 42C34 42.5523 33.5523 43 33 43H15C14.4477 43 14 42.5523 14 42Z"
++		  fill="#E4EBF1"/>
++</svg>
+diff --git a/src/files/drop/assets/desktop_online.svg b/src/files/drop/assets/desktop_online.svg
+new file mode 100644
+index 0000000..4a59fc8
+--- /dev/null
++++ b/src/files/drop/assets/desktop_online.svg
+@@ -0,0 +1,19 @@
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path d="M5 8H43V32H5V8Z" fill="#DAE4F2"/>
++	<path opacity="0.95"
++		  d="M20.5 24.5576C22.433 24.5576 24 22.9906 24 21.0576C24 19.1246 22.433 17.5576 20.5 17.5576C18.567 17.5576 17 19.1246 17 21.0576C17 22.9906 18.567 24.5576 20.5 24.5576Z"
++		  fill="#4CE7FF"/>
++	<path opacity="0.95"
++		  d="M24 24.5727C26.6434 24.5727 28.7864 22.4298 28.7864 19.7864C28.7864 17.1429 26.6434 15 24 15C21.3566 15 19.2136 17.1429 19.2136 19.7864C19.2136 22.4298 21.3566 24.5727 24 24.5727Z"
++		  fill="#0067C2"/>
++	<path opacity="0.95"
++		  d="M27.5 24.5576C29.433 24.5576 31 22.9906 31 21.0576C31 19.1246 29.433 17.5576 27.5 17.5576C25.567 17.5576 24 19.1246 24 21.0576C24 22.9906 25.567 24.5576 27.5 24.5576Z"
++		  fill="#4CE7FF"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M42 8.5H6C5.72386 8.5 5.5 8.72386 5.5 9V31.5H42.5V9C42.5 8.72386 42.2761 8.5 42 8.5ZM6 7C4.89543 7 4 7.89543 4 9V33H44V9C44 7.89543 43.1046 7 42 7H6Z"
++		  fill="#181F25"/>
++	<path d="M4 33H44V34C44 35.1046 43.1046 36 42 36H6C4.89543 36 4 35.1046 4 34V33Z" fill="#DEE6ED"/>
++	<path d="M19 36H29V41H19V36Z" fill="#C2CDD6"/>
++	<path d="M14 42C14 41.4477 14.4477 41 15 41H33C33.5523 41 34 41.4477 34 42C34 42.5523 33.5523 43 33 43H15C14.4477 43 14 42.5523 14 42Z"
++		  fill="#E4EBF1"/>
++</svg>
+diff --git a/src/files/drop/assets/drop_icon.svg b/src/files/drop/assets/drop_icon.svg
+new file mode 100644
+index 0000000..4e2b422
+--- /dev/null
++++ b/src/files/drop/assets/drop_icon.svg
+@@ -0,0 +1,9 @@
++<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path d="M26.8 67.6L36.8 54.2667C38.4 52.1333 41.6 52.1333 43.2 54.2667L53.2 67.6C55.1777 70.2369 53.2962 74 50 74H30C26.7038 74 24.8223 70.2369 26.8 67.6Z"
++		  fill="#0F8FFF"/>
++	<path d="M61.4243 61C66.729 55.5887 70 48.1764 70 40C70 23.4315 56.5685 10 40 10C23.4315 10 10 23.4315 10 40C10 48.1764 13.271 55.5887 18.5757 61"
++		  stroke="#0F8FFF" stroke-width="5" stroke-linecap="round"/>
++	<path d="M52.4907 50C54.6866 47.2608 56 43.7838 56 40C56 31.1634 48.8366 24 40 24C31.1634 24 24 31.1634 24 40C24 43.7838 25.3134 47.2608 27.5093 50"
++		  stroke="#0F8FFF" stroke-width="5" stroke-linecap="round"/>
++	<circle cx="40" cy="40" r="5" fill="#0F8FFF"/>
++</svg>
+diff --git a/src/files/drop/assets/mobile_online.svg b/src/files/drop/assets/mobile_online.svg
+new file mode 100644
+index 0000000..a23f6ca
+--- /dev/null
++++ b/src/files/drop/assets/mobile_online.svg
+@@ -0,0 +1,20 @@
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path d="M15 9C15 8.44772 15.4477 8 16 8H32C32.5523 8 33 8.44772 33 9V39C33 39.5523 32.5523 40 32 40H16C15.4477 40 15 39.5523 15 39V9Z"
++		  fill="#DAE4F2"/>
++	<path opacity="0.95"
++		  d="M21.5 26.8271C22.8807 26.8271 24 25.7079 24 24.3271C24 22.9464 22.8807 21.8271 21.5 21.8271C20.1193 21.8271 19 22.9464 19 24.3271C19 25.7079 20.1193 26.8271 21.5 26.8271Z"
++		  fill="#4CE7FF"/>
++	<path opacity="0.95"
++		  d="M24.0001 26.8377C25.8883 26.8377 27.419 25.307 27.419 23.4188C27.419 21.5307 25.8883 20 24.0001 20C22.112 20 20.5813 21.5307 20.5813 23.4188C20.5813 25.307 22.112 26.8377 24.0001 26.8377Z"
++		  fill="#0067C2"/>
++	<path opacity="0.95"
++		  d="M26.5 26.8271C27.8807 26.8271 29 25.7079 29 24.3271C29 22.9464 27.8807 21.8271 26.5 21.8271C25.1193 21.8271 24 22.9464 24 24.3271C24 25.7079 25.1193 26.8271 26.5 26.8271Z"
++		  fill="#4CE7FF"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M31.5 8H16.5C15.6716 8 15 8.67157 15 9.5V38.5C15 39.3284 15.6716 40 16.5 40H31.5C32.3284 40 33 39.3284 33 38.5V9.5C33 8.67157 32.3284 8 31.5 8ZM16.5 7C15.1193 7 14 8.11929 14 9.5V38.5C14 39.8807 15.1193 41 16.5 41H31.5C32.8807 41 34 39.8807 34 38.5V9.5C34 8.11929 32.8807 7 31.5 7H16.5Z"
++		  fill="#181F25"/>
++	<path d="M19.5 8H28.5C28.2093 8.05815 28 8.31342 28 8.6099V8.73069C28 9.15557 27.6556 9.5 27.2307 9.5H20.7693C20.3444 9.5 20 9.15557 20 8.73069V8.6099C20 8.31342 19.7907 8.05815 19.5 8Z"
++		  fill="#181F25"/>
++	<path d="M25 38C25 38.5523 24.5523 39 24 39C23.4477 39 23 38.5523 23 38C23 37.4477 23.4477 37 24 37C24.5523 37 25 37.4477 25 38Z"
++		  fill="#181F25"/>
++</svg>
+diff --git a/src/files/drop/assets/self.svg b/src/files/drop/assets/self.svg
+new file mode 100644
+index 0000000..993b5dd
+--- /dev/null
++++ b/src/files/drop/assets/self.svg
+@@ -0,0 +1,27 @@
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<g clip-path="url(#clip0_204_8747)">
++		<circle cx="24" cy="24" r="20" fill="#DAE4F2"/>
++		<mask id="mask0_204_8747" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="4" y="4" width="40" height="40">
++			<circle cx="24" cy="24" r="20" fill="#DAE4F2"/>
++		</mask>
++		<g mask="url(#mask0_204_8747)">
++			<path d="M10.5 43C10.5 35.5442 16.5442 29.5 24 29.5C31.4558 29.5 37.5 35.5442 37.5 43V48.5H10.5V43Z"
++				  fill="white" stroke="#181F25"/>
++		</g>
++		<path d="M35.5 22C35.5 23.0068 35.1933 23.8991 34.7213 24.5284C34.2495 25.1576 33.6358 25.5 33 25.5C32.3642 25.5 31.7505 25.1576 31.2787 24.5284C30.8067 23.8991 30.5 23.0068 30.5 22C30.5 20.9932 30.8067 20.1009 31.2787 19.4716C31.7505 18.8424 32.3642 18.5 33 18.5C33.6358 18.5 34.2495 18.8424 34.7213 19.4716C35.1933 20.1009 35.5 20.9932 35.5 22Z"
++			  fill="#E4EBF1" stroke="#181F25"/>
++		<path d="M17.5 22C17.5 23.0068 17.1933 23.8991 16.7213 24.5284C16.2495 25.1576 15.6358 25.5 15 25.5C14.3642 25.5 13.7505 25.1576 13.2787 24.5284C12.8067 23.8991 12.5 23.0068 12.5 22C12.5 20.9932 12.8067 20.1009 13.2787 19.4716C13.7505 18.8424 14.3642 18.5 15 18.5C15.6358 18.5 16.2495 18.8424 16.7213 19.4716C17.1933 20.1009 17.5 20.9932 17.5 22Z"
++			  fill="#E4EBF1" stroke="#181F25"/>
++		<circle cx="24" cy="22" r="9.5" fill="white" stroke="#181F25"/>
++		<circle cx="24" cy="24" r="6.5" fill="white" stroke="#181F25"/>
++		<circle cx="24" cy="37" r="3.25" fill="#0F8FFF" stroke="#181F25" stroke-width="0.5"/>
++		<circle cx="23" cy="21" r="1.75" fill="white" stroke="#181F25" stroke-width="0.5"/>
++		<circle cx="20" cy="25" r="0.75" fill="white" stroke="#181F25" stroke-width="0.5"/>
++		<circle cx="24" cy="24" r="19.25" stroke="#181F25" stroke-width="1.5"/>
++	</g>
++	<defs>
++		<clipPath id="clip0_204_8747">
++			<rect width="48" height="48" fill="white"/>
++		</clipPath>
++	</defs>
++</svg>
+diff --git a/src/files/drop/assets/tablet_offline.svg b/src/files/drop/assets/tablet_offline.svg
+new file mode 100644
+index 0000000..1de9424
+--- /dev/null
++++ b/src/files/drop/assets/tablet_offline.svg
+@@ -0,0 +1,15 @@
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path d="M10 5H38V43H10V5Z" fill="#DAE4F2"/>
++	<path d="M20.5 27.5579C22.433 27.5579 24 25.9909 24 24.0579C24 22.1249 22.433 20.5579 20.5 20.5579C18.567 20.5579 17 22.1249 17 24.0579C17 25.9909 18.567 27.5579 20.5 27.5579Z"
++		  fill="white"/>
++	<path d="M23.9999 27.5727C26.6433 27.5727 28.7862 25.4298 28.7862 22.7864C28.7862 20.1429 26.6433 18 23.9999 18C21.3564 18 19.2135 20.1429 19.2135 22.7864C19.2135 25.4298 21.3564 27.5727 23.9999 27.5727Z"
++		  fill="#ACB8C3"/>
++	<path d="M27.5 27.5579C29.433 27.5579 31 25.9909 31 24.0579C31 22.1249 29.433 20.5579 27.5 20.5579C25.567 20.5579 24 22.1249 24 24.0579C24 25.9909 25.567 27.5579 27.5 27.5579Z"
++		  fill="white"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M36.5 5.5H11.5C10.9477 5.5 10.5 5.94772 10.5 6.5V41.5C10.5 42.0523 10.9477 42.5 11.5 42.5H36.5C37.0523 42.5 37.5 42.0523 37.5 41.5V6.5C37.5 5.94771 37.0523 5.5 36.5 5.5ZM11.5 4C10.1193 4 9 5.11929 9 6.5V41.5C9 42.8807 10.1193 44 11.5 44H36.5C37.8807 44 39 42.8807 39 41.5V6.5C39 5.11929 37.8807 4 36.5 4H11.5Z"
++		  fill="#181F25"/>
++	<path d="M25 41C25 41.5523 24.5523 42 24 42C23.4477 42 23 41.5523 23 41C23 40.4477 23.4477 40 24 40C24.5523 40 25 40.4477 25 41Z"
++		  fill="#181F25"/>
++	<path d="M20.5 5.5H27.5C27.5 6.05228 27.0523 6.5 26.5 6.5H21.5C20.9477 6.5 20.5 6.05228 20.5 5.5Z" fill="#181F25"/>
++</svg>
+diff --git a/src/files/drop/assets/tablet_online.svg b/src/files/drop/assets/tablet_online.svg
+new file mode 100644
+index 0000000..92977b3
+--- /dev/null
++++ b/src/files/drop/assets/tablet_online.svg
+@@ -0,0 +1,18 @@
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<path d="M10 5H38V43H10V5Z" fill="#DAE4F2"/>
++	<path opacity="0.95"
++		  d="M20.5 27.5576C22.433 27.5576 24 25.9906 24 24.0576C24 22.1246 22.433 20.5576 20.5 20.5576C18.567 20.5576 17 22.1246 17 24.0576C17 25.9906 18.567 27.5576 20.5 27.5576Z"
++		  fill="#4CE7FF"/>
++	<path opacity="0.95"
++		  d="M24 27.5727C26.6434 27.5727 28.7864 25.4298 28.7864 22.7864C28.7864 20.1429 26.6434 18 24 18C21.3566 18 19.2136 20.1429 19.2136 22.7864C19.2136 25.4298 21.3566 27.5727 24 27.5727Z"
++		  fill="#0067C2"/>
++	<path opacity="0.95"
++		  d="M27.5 27.5576C29.433 27.5576 31 25.9906 31 24.0576C31 22.1246 29.433 20.5576 27.5 20.5576C25.567 20.5576 24 22.1246 24 24.0576C24 25.9906 25.567 27.5576 27.5 27.5576Z"
++		  fill="#4CE7FF"/>
++	<path fill-rule="evenodd" clip-rule="evenodd"
++		  d="M36.5 5.5H11.5C10.9477 5.5 10.5 5.94772 10.5 6.5V41.5C10.5 42.0523 10.9477 42.5 11.5 42.5H36.5C37.0523 42.5 37.5 42.0523 37.5 41.5V6.5C37.5 5.94771 37.0523 5.5 36.5 5.5ZM11.5 4C10.1193 4 9 5.11929 9 6.5V41.5C9 42.8807 10.1193 44 11.5 44H36.5C37.8807 44 39 42.8807 39 41.5V6.5C39 5.11929 37.8807 4 36.5 4H11.5Z"
++		  fill="#181F25"/>
++	<path d="M25 41C25 41.5523 24.5523 42 24 42C23.4477 42 23 41.5523 23 41C23 40.4477 23.4477 40 24 40C24.5523 40 25 40.4477 25 41Z"
++		  fill="#181F25"/>
++	<path d="M20.5 5.5H27.5C27.5 6.05228 27.0523 6.5 26.5 6.5H21.5C20.9477 6.5 20.5 6.05228 20.5 5.5Z" fill="#181F25"/>
++</svg>
+diff --git a/src/files/drop/dropIcons.test.ts b/src/files/drop/dropIcons.test.ts
+new file mode 100644
+index 0000000..5185db2
+--- /dev/null
++++ b/src/files/drop/dropIcons.test.ts
+@@ -0,0 +1,14 @@
++import { describe, it, expect } from 'vitest'
++import { dropIconUrl } from './dropIcons'
++
++describe('dropIconUrl', () => {
++  it('self 恒 self 图标', () => expect(dropIconUrl('desktop', false, true)).toContain('self'))
++  it('model+状态拼名', () => {
++    expect(dropIconUrl('tablet', true, false)).toContain('tablet_offline')
++    expect(dropIconUrl('desktop', false, false)).toContain('desktop_online')
++  })
++  it('缺失图标回退 desktop 同状态(mobile_offline 资产缺失)', () => {
++    expect(dropIconUrl('mobile', true, false)).toContain('desktop_offline')
++    expect(dropIconUrl('unknown-model', false, false)).toContain('desktop_online')
++  })
++})
+diff --git a/src/files/drop/dropIcons.ts b/src/files/drop/dropIcons.ts
+new file mode 100644
+index 0000000..0f69c97
+--- /dev/null
++++ b/src/files/drop/dropIcons.ts
+@@ -0,0 +1,18 @@
++// 设备图标:名字 = `${model}_${online|offline}`(Vue2 deviceIcon computed)。
++// Vue2 资产缺 mobile_offline(离线手机在 Vue2 会 require 炸)——此处兜底回退 desktop_同状态。
++const ICONS = import.meta.glob<string>('./assets/*.svg', { eager: true, import: 'default' }) as Record<string, string>
++const URL_BY_NAME: Record<string, string> = {}
++for (const [path, url] of Object.entries(ICONS)) {
++  const m = path.match(/\/([^/]+)\.svg$/)
++  if (m) URL_BY_NAME[m[1]] = url
++}
++
++export function dropIconUrl(model: string, offline: boolean, isSelf: boolean): string {
++  if (isSelf) return URL_BY_NAME['self']
++  const state = offline ? 'offline' : 'online'
++  return URL_BY_NAME[`${model}_${state}`] || URL_BY_NAME[`desktop_${state}`]
++}
++
++export function dropAsset(name: 'add_btn' | 'drop_icon'): string {
++  return URL_BY_NAME[name]
++}
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 92417eb..5c3c1c1 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -175,20 +175,37 @@ export const messages = {
+     filesUnshare: 'Unshare',
+     filesUnshareConfirmTitle: 'Unshare',
+     filesUnshareConfirmMsg: 'Unshare "{name}"? It will no longer be accessible on the local network.',
+     filesShareLinkTitle: 'Folder has been shared',
+     filesShareLinkHint: 'Access the shared folder at the addresses below (Samba).',
+     filesShareWindows: 'PC (Windows Explorer)',
+     filesShareMac: 'Mac (Finder)',
+     filesShareCopy: 'Copy',
+     filesShareCopied: 'Copied',
+     filesGotIt: 'Got it',
++    filesDropNav: 'Drop',
++    filesDropTitle: 'Drop',
++    filesDropHint: 'Drop files to another device anytime, anywhere',
++    filesDropSelfTip: 'This device (you)',
++    filesDropSendTip: 'Click or drop files to send to this device',
++    filesDropOfflineTip: 'The device is offline',
++    filesDropSending: 'Sending {num} files',
++    filesDropReceiving: 'Receiving {num} files',
++    filesDropSavePrompt: 'Save {name} ({size}) from {device}?',
++    filesDropSave: 'Save',
++    filesDropIgnore: 'Ignore',
++    filesDropDone: 'File transfer completed',
++    filesDropLost: 'Connection lost. Retrying in 5 seconds…',
++    filesDropLanTitle: 'Local network access',
++    filesDropLanHint: 'Open this address on another device',
++    filesDropMenuSend: 'Send files',
++    filesDropUnsupported: 'Peer does not support P2P transfer',
+     authUsername: 'Username',
+     authPassword: 'Password',
+     authLogin: 'Login',
+     authLoginFailed: 'Incorrect username or password',
+     validateRequired: 'Required',
+     validateMin6: 'At least 6 characters',
+     validateConfirm: 'Passwords do not match',
+     welcomeTitle: 'Welcome to NimoOS',
+     welcomeSubtitle: 'Create your initial account',
+     welcomeGo: 'Go →',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 924edc0..0d757f5 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -174,20 +174,37 @@ export const messages = {
+     filesUnshare: '取消共享',
+     filesUnshareConfirmTitle: '取消共享',
+     filesUnshareConfirmMsg: '确定取消共享「{name}」吗?局域网将无法再访问它。',
+     filesShareLinkTitle: '文件夹已共享',
+     filesShareLinkHint: '在下列地址访问共享文件夹(Samba)。',
+     filesShareWindows: 'PC(Windows 资源管理器)',
+     filesShareMac: 'Mac(访达)',
+     filesShareCopy: '复制',
+     filesShareCopied: '已复制',
+     filesGotIt: '我知道了',
++    filesDropNav: '互传',
++    filesDropTitle: '互传',
++    filesDropHint: '随时随地,把文件传到另一台设备',
++    filesDropSelfTip: '当前设备(你自己)',
++    filesDropSendTip: '点击或拖入文件,发送到该设备',
++    filesDropOfflineTip: '设备离线',
++    filesDropSending: '正在发送 {num} 个文件',
++    filesDropReceiving: '正在接收 {num} 个文件',
++    filesDropSavePrompt: '保存来自 {device} 的 {name}({size})?',
++    filesDropSave: '保存',
++    filesDropIgnore: '忽略',
++    filesDropDone: '文件传输完成',
++    filesDropLost: '连接断开,5 秒后重连…',
++    filesDropLanTitle: '局域网访问',
++    filesDropLanHint: '用另一台设备打开以下地址',
++    filesDropMenuSend: '发送文件',
++    filesDropUnsupported: '对方设备不支持点对点传输',
+     authUsername: '用户名',
+     authPassword: '密码',
+     authLogin: '登录',
+     authLoginFailed: '用户名或密码错误',
+     validateRequired: '必填',
+     validateMin6: '至少 6 位',
+     validateConfirm: '两次输入的密码不一致',
+     welcomeTitle: '欢迎使用 NimoOS',
+     welcomeSubtitle: '创建你的初始账户',
+     welcomeGo: '开始 →',
+diff --git a/vite.config.ts b/vite.config.ts
+index c90384a..51688e4 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -23,20 +23,23 @@ function copyPdfjsAssets(): Plugin {
+         )
+       }
+     },
+   }
+ }
+ 
+ export default defineConfig({
+   base: '/app/',
+   plugins: [vue(), copyPdfjsAssets()],
+   server: { port: 5273 },
++  build: {
++    assetsInlineLimit: 0, // 禁用资产内联(包括 SVG),总是输出为分离文件
++  },
+   test: {
+     environment: 'jsdom',
+     globals: true,
+     // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),
+     // 不排除的话 vitest 会递归进去跑别的会话的测试并大片报错。
+     exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
+     setupFiles: ['./vitest.setup.ts'],
+     server: {
+       deps: {
+         inline: ['@nimotech/nimoos-service'],

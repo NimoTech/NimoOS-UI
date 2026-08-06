@@ -1,0 +1,787 @@
+# Review package: 3c5677d..c14c441
+
+## Commits
+c14c441 feat(home): click-to-open delegation + Home loads appgrid/photos + AiWidget via useOpenAction
+74db10f feat(home): photos store + bindPhotos + PhotoTile
+11fcb1d feat(home): folders store + FolderTile
+639727c feat(home): useOpenAction (deep-link open app/folder/photo + sendToAI)
+182ea72 feat(home): apps store + AppTile (system glyph / container icon)
+
+## Files changed
+ src/home/apps/systemApps.ts                  | 23 ++++++++----
+ src/home/components/AppTile.test.ts          | 24 +++++++++++++
+ src/home/components/AppTile.vue              | 26 ++++++++++++++
+ src/home/components/FolderTile.test.ts       | 10 ++++++
+ src/home/components/FolderTile.vue           | 16 +++++++++
+ src/home/components/GridItem.click.test.ts   | 27 ++++++++++++++
+ src/home/components/GridItem.vue             | 14 +++++++-
+ src/home/components/PhotoTile.test.ts        | 35 ++++++++++++++++++
+ src/home/components/PhotoTile.vue            | 20 +++++++++++
+ src/home/components/widgets/AiWidget.test.ts |  6 +++-
+ src/home/components/widgets/AiWidget.vue     |  4 ++-
+ src/home/composables/useOpenAction.test.ts   | 53 ++++++++++++++++++++++++++++
+ src/home/composables/useOpenAction.ts        | 38 ++++++++++++++++++++
+ src/home/stores/apps.test.ts                 | 24 +++++++++++++
+ src/home/stores/apps.ts                      | 45 +++++++++++++++++++++++
+ src/home/stores/folders.test.ts              | 19 ++++++++++
+ src/home/stores/folders.ts                   | 15 ++++++++
+ src/home/stores/layout.ts                    | 15 +++++++-
+ src/home/stores/photos.test.ts               | 23 ++++++++++++
+ src/home/stores/photos.ts                    | 15 ++++++++
+ src/home/util/isAssetId.ts                   |  4 +++
+ src/views/Home.vue                           |  7 ++++
+ 22 files changed, 452 insertions(+), 11 deletions(-)
+
+## Diff
+diff --git a/src/home/apps/systemApps.ts b/src/home/apps/systemApps.ts
+index 793fb36..99fbbac 100644
+--- a/src/home/apps/systemApps.ts
++++ b/src/home/apps/systemApps.ts
+@@ -1,12 +1,21 @@
+-export interface SystemApp { key: string; name: string; label: string; cls: string }
++export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string }
++
++const G = {
++  folder: '<path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1 1.3h7.1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"/>',
++  photos: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="8.8" cy="9.3" r="1.5"/><path d="m4 17 5-4 3.5 2.6L16 13l4.5 3.5"/>',
++  vm: '<rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M8 19.5h8M12 15.5v4"/>',
++  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.8m0 13.4v2.8M2.5 12h2.8m13.4 0h2.8M5.1 5.1l2 2m9.8 9.8 2 2m0-13.8-2 2M7.1 16.9l-2 2"/>',
++  bag: '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>',
++  ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
++}
+ 
+ export const SYSTEM_APPS: SystemApp[] = [
+-  { key: 'files', name: 'Files', label: '文件', cls: 'ic-files' },
+-  { key: 'photos', name: 'Photos', label: '照片', cls: 'ic-photos' },
+-  { key: 'ai', name: 'AI', label: 'AI 助手', cls: 'ic-ai' },
+-  { key: 'vm', name: 'KVM', label: '虚拟机', cls: 'ic-vm' },
+-  { key: 'settings', name: 'Settings', label: '设置', cls: 'ic-settings' },
+-  { key: 'appstore', name: 'App Store', label: 'AppStore', cls: 'ic-appstore' },
++  { key: 'files', name: 'Files', label: '文件', cls: 'ic-files', glyph: G.folder },
++  { key: 'photos', name: 'Photos', label: '照片', cls: 'ic-photos', glyph: G.photos },
++  { key: 'ai', name: 'AI', label: 'AI 助手', cls: 'ic-ai', glyph: G.ai },
++  { key: 'vm', name: 'KVM', label: '虚拟机', cls: 'ic-vm', glyph: G.vm },
++  { key: 'settings', name: 'Settings', label: '设置', cls: 'ic-settings', glyph: G.gear },
++  { key: 'appstore', name: 'App Store', label: 'AppStore', cls: 'ic-appstore', glyph: G.bag },
+ ]
+ 
+ export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)
+diff --git a/src/home/components/AppTile.test.ts b/src/home/components/AppTile.test.ts
+new file mode 100644
+index 0000000..ca8f5d8
+--- /dev/null
++++ b/src/home/components/AppTile.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { useAppsStore } from '../stores/apps'
++import AppTile from './AppTile.vue'
++import type { LayoutItem } from '../grid/types'
++
++const item = (key: string): LayoutItem => ({ id: 'i', kind: 'app', key, c: 1, r: 1, w: 1, h: 1 })
++
++describe('AppTile', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++  it('renders an inline glyph + label for a system app', () => {
++    const w = mount(AppTile, { props: { item: item('files') } })
++    expect(w.find('svg').exists()).toBe(true)
++    expect(w.text()).toContain('文件')
++  })
++  it('renders a remote img for a container app with icon', () => {
++    const s = useAppsStore()
++    s.setApps([{ name: 'jellyfin', title: { zh_cn: '影音' }, icon: 'http://x/i.png' }] as any)
++    const w = mount(AppTile, { props: { item: item('jellyfin') } })
++    expect(w.find('img').attributes('src')).toBe('http://x/i.png')
++    expect(w.text()).toContain('影音')
++  })
++})
+diff --git a/src/home/components/AppTile.vue b/src/home/components/AppTile.vue
+new file mode 100644
+index 0000000..0a431d0
+--- /dev/null
++++ b/src/home/components/AppTile.vue
+@@ -0,0 +1,26 @@
++<template>
++  <div class="app-tile">
++    <span v-if="meta?.icon" class="app-ic has-img"><img :src="meta.icon" alt="" loading="lazy" /></span>
++    <span v-else class="app-ic" v-html="glyphSvg" />
++    <span class="app-label">{{ meta?.name ?? item.key }}</span>
++  </div>
++</template>
++<script setup lang="ts">
++import { computed } from 'vue'
++import type { LayoutItem } from '../grid/types'
++import { useAppsStore } from '../stores/apps'
++
++const props = defineProps<{ item: LayoutItem }>()
++const store = useAppsStore()
++const meta = computed(() => store.app(props.item.key))
++const BAG = '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>'
++const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.glyph || BAG}</svg>`)
++</script>
++<style scoped>
++.app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 100%; }
++.app-ic { width: var(--app-size, 48px); height: var(--app-size, 48px); display: grid; place-items: center; background: rgba(255,255,255,.08); border-radius: 22%; }
++.app-ic.has-img { background: none; }
++.app-ic :deep(svg) { width: 60%; height: 60%; fill: none; stroke: currentColor; stroke-width: 1.6; }
++.app-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: 22%; }
++.app-label { font-size: 11px; opacity: .85; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++</style>
+diff --git a/src/home/components/FolderTile.test.ts b/src/home/components/FolderTile.test.ts
+new file mode 100644
+index 0000000..5fd761e
+--- /dev/null
++++ b/src/home/components/FolderTile.test.ts
+@@ -0,0 +1,10 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import FolderTile from './FolderTile.vue'
++import type { LayoutItem } from '../grid/types'
++describe('FolderTile', () => {
++  it('renders the folder name', () => {
++    const w = mount(FolderTile, { props: { item: { id: 'i', kind: 'folder', key: 'Gallery', c: 1, r: 1, w: 1, h: 1 } as LayoutItem } })
++    expect(w.text()).toContain('Gallery')
++  })
++})
+diff --git a/src/home/components/FolderTile.vue b/src/home/components/FolderTile.vue
+new file mode 100644
+index 0000000..fc34b93
+--- /dev/null
++++ b/src/home/components/FolderTile.vue
+@@ -0,0 +1,16 @@
++<template>
++  <div class="folder-tile-wrap">
++    <span class="folder-tile" aria-hidden="true"><i /><i /><i /><i /></span>
++    <span class="app-label">{{ item.key }}</span>
++  </div>
++</template>
++<script setup lang="ts">
++import type { LayoutItem } from '../grid/types'
++defineProps<{ item: LayoutItem }>()
++</script>
++<style scoped>
++.folder-tile-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 100%; }
++.folder-tile { width: var(--app-size, 48px); height: var(--app-size, 48px); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; padding: 6px; background: rgba(255,255,255,.08); border-radius: 22%; box-sizing: border-box; }
++.folder-tile i { background: linear-gradient(145deg, #9fd0ff, #4c8dff); border-radius: 4px; }
++.app-label { font-size: 11px; opacity: .85; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++</style>
+diff --git a/src/home/components/GridItem.click.test.ts b/src/home/components/GridItem.click.test.ts
+new file mode 100644
+index 0000000..6b185d9
+--- /dev/null
++++ b/src/home/components/GridItem.click.test.ts
+@@ -0,0 +1,27 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import GridItem from './GridItem.vue'
++import type { LayoutItem } from '../grid/types'
++
++let hrefs: string[]
++beforeEach(() => {
++  setActivePinia(createPinia())
++  hrefs = []
++  Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
++})
++
++describe('GridItem click', () => {
++  it('clicking a folder navigates to files', async () => {
++    const item: LayoutItem = { id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 }
++    const w = mount(GridItem, { props: { item } })
++    await w.get('[data-id="i"]').trigger('click')
++    expect(hrefs[0]).toBe('/#/files?path=' + encodeURIComponent('/DATA/Gallery'))
++  })
++  it('clicking a photo navigates to /#/photos', async () => {
++    const item: LayoutItem = { id: 'p', kind: 'photo', key: 'linear-gradient(0,#000)', c: 1, r: 1, w: 2, h: 2 }
++    const w = mount(GridItem, { props: { item } })
++    await w.get('[data-id="p"]').trigger('click')
++    expect(hrefs[0]).toBe('/#/photos')
++  })
++})
+diff --git a/src/home/components/GridItem.vue b/src/home/components/GridItem.vue
+index a2d4547..319c068 100644
+--- a/src/home/components/GridItem.vue
++++ b/src/home/components/GridItem.vue
+@@ -1,44 +1,56 @@
+ <template>
+   <div
+     class="grid-item"
+     :class="`kind-${item.kind}`"
+     :data-id="item.id"
+     :data-kind="item.kind"
+     :style="style"
++    @click="onClick"
+   >
+     <WidgetCard v-if="item.kind === 'widget'" :item="item" />
+-    <div v-else-if="item.kind === 'photo'" class="photo-fill" :style="{ background: item.key }" />
++    <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
++    <AppTile v-else-if="item.kind === 'app'" :item="item" />
++    <FolderTile v-else-if="item.kind === 'folder'" :item="item" />
+     <span v-else class="item-label">{{ label }}</span>
+   </div>
+ </template>
+ 
+ <script setup lang="ts">
+ import { computed } from 'vue'
+ import type { LayoutItem } from '../grid/types'
+ import { WIDGETS } from '../widgets/registry'
+ import { SYSTEM_APPS } from '../apps/systemApps'
++import { useOpenAction } from '../composables/useOpenAction'
+ import WidgetCard from './widgets/WidgetCard.vue'
++import PhotoTile from './PhotoTile.vue'
++import AppTile from './AppTile.vue'
++import FolderTile from './FolderTile.vue'
+ 
+ const props = defineProps<{ item: LayoutItem }>()
++const { openItem } = useOpenAction()
+ 
+ const style = computed(() => ({
+   gridColumn: `${props.item.c} / span ${props.item.w}`,
+   gridRow: `${props.item.r} / span ${props.item.h}`,
+ }))
+ 
+ const label = computed(() => {
+   const it = props.item
+   if (it.kind === 'widget') return WIDGETS[it.key]?.title ?? it.key
+   if (it.kind === 'app') return SYSTEM_APPS.find((a) => a.key === it.key)?.label ?? it.key
+   return it.key // folder
+ })
++
++function onClick() {
++  if (props.item.kind === 'app' || props.item.kind === 'folder' || props.item.kind === 'photo') openItem(props.item)
++}
+ </script>
+ 
+ <style scoped>
+ .grid-item {
+   background: rgba(255, 255, 255, 0.06);
+   border-radius: 16px;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   overflow: hidden;
+diff --git a/src/home/components/PhotoTile.test.ts b/src/home/components/PhotoTile.test.ts
+new file mode 100644
+index 0000000..2335ec1
+--- /dev/null
++++ b/src/home/components/PhotoTile.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { initService } from '@nimotech/nimoos-service'
++import PhotoTile from './PhotoTile.vue'
++import type { LayoutItem } from '../grid/types'
++
++const item = (key: string): LayoutItem => ({ id: 'i', kind: 'photo', key, c: 1, r: 1, w: 2, h: 2 })
++
++describe('PhotoTile', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    initService({
++      getToken: () => 'test-token',
++      getRefresh: () => 'test-refresh',
++      setTokens: () => {},
++      onAuthFail: () => {},
++      getLang: () => 'en',
++    })
++  })
++  it('renders an img for a real asset id', () => {
++    const w = mount(PhotoTile, { props: { item: item('asset42') } })
++    expect(w.find('img').exists()).toBe(true)
++    expect(w.find('img').attributes('src')).toContain('/v1/photos/assets/asset42/thumbnail')
++  })
++  it('renders a gradient placeholder for a gradient key', () => {
++    const gradientKey = 'linear-gradient(145deg,#fff)'
++    const w = mount(PhotoTile, { props: { item: item(gradientKey) } })
++    expect(w.find('img').exists()).toBe(false)
++    // Vue's style binding puts the CSS property inline; check the computed style
++    const elem = w.find('.photo-thumb').element as HTMLElement
++    const computedStyle = window.getComputedStyle(elem).background
++    expect(computedStyle).toBeDefined()
++  })
++})
+diff --git a/src/home/components/PhotoTile.vue b/src/home/components/PhotoTile.vue
+new file mode 100644
+index 0000000..9219655
+--- /dev/null
++++ b/src/home/components/PhotoTile.vue
+@@ -0,0 +1,20 @@
++<template>
++  <div v-if="isReal" class="photo-thumb has-img"><img :src="src" alt="" loading="lazy" /></div>
++  <div v-else class="photo-thumb" :style="{ background: gradient }" />
++</template>
++<script setup lang="ts">
++import { computed } from 'vue'
++import type { LayoutItem } from '../grid/types'
++import { usePhotosStore } from '../stores/photos'
++import { isAssetId } from '../util/isAssetId'
++import { PHOTO_PLACEHOLDERS } from '../grid/defaultLayout'
++const props = defineProps<{ item: LayoutItem }>()
++const store = usePhotosStore()
++const isReal = computed(() => isAssetId(props.item.key))
++const src = computed(() => store.thumbnailUrl(props.item.key))
++const gradient = computed(() => (isAssetId(props.item.key) ? PHOTO_PLACEHOLDERS[0] : props.item.key))
++</script>
++<style scoped>
++.photo-thumb { width: 100%; height: 100%; border-radius: 14px; overflow: hidden; background-size: cover; background-position: center; }
++.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
++</style>
+diff --git a/src/home/components/widgets/AiWidget.test.ts b/src/home/components/widgets/AiWidget.test.ts
+index 0f77967..823ce51 100644
+--- a/src/home/components/widgets/AiWidget.test.ts
++++ b/src/home/components/widgets/AiWidget.test.ts
+@@ -1,16 +1,20 @@
+-import { describe, it, expect, vi } from 'vitest'
++import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
+ import AiWidget from './AiWidget.vue'
+ import type { LayoutItem } from '../../grid/types'
+ const item = (w: number, h: number): LayoutItem => ({ id: 'i', kind: 'widget', key: 'ai', c: 1, r: 1, w, h })
+ describe('AiWidget', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++  })
+   it('submitting the input navigates to the agent with the message', async () => {
+     const hrefs: string[] = []
+     const orig = window.location
+     // 用可写 stub 捕获 location.href 赋值
+     Object.defineProperty(window, 'location', { configurable: true, value: { set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+     const w = mount(AiWidget, { props: { item: item(4, 4) } })
+     await w.get('.ai-input').setValue('整理照片')
+     await w.get('.ai-send').trigger('submit')
+     expect(hrefs[0]).toBe('/#/ai/agent?message=' + encodeURIComponent('整理照片'))
+     Object.defineProperty(window, 'location', { configurable: true, value: orig })
+diff --git a/src/home/components/widgets/AiWidget.vue b/src/home/components/widgets/AiWidget.vue
+index 53ed38c..fd962de 100644
+--- a/src/home/components/widgets/AiWidget.vue
++++ b/src/home/components/widgets/AiWidget.vue
+@@ -7,31 +7,33 @@
+       <button class="ai-go" type="submit" aria-label="发送">↑</button>
+     </form>
+     <div v-if="!tiny" class="prompts">
+       <button v-for="p in prompts" :key="p" class="prompt" @click="send(p)">{{ p }}</button>
+     </div>
+   </div>
+ </template>
+ <script setup lang="ts">
+ import { ref, computed } from 'vue'
+ import type { LayoutItem } from '../../grid/types'
++import { useOpenAction } from '../../composables/useOpenAction'
+ const props = defineProps<{ item: LayoutItem }>()
+ const text = ref('')
++const { sendToAI } = useOpenAction()
+ const big = computed(() => props.item.w >= 4 && props.item.h >= 4)
+ const tiny = computed(() => !(props.item.h >= 2 && props.item.w >= 3) && !big.value)
+ const layoutClass = computed(() => (big.value ? 'big' : tiny.value ? 'tiny' : 'mid'))
+ const allPrompts = ['整理最近的照片', '查找 2024 旅行视频', '分析存储使用情况']
+ const prompts = computed(() => (big.value ? allPrompts : allPrompts.slice(0, 1)))
+ function send(preset?: string) {
+   const msg = (preset ?? text.value).trim()
+   if (!msg) return
+-  window.location.href = '/#/ai/agent?message=' + encodeURIComponent(msg)
++  sendToAI(msg)
+ }
+ </script>
+ <style scoped>
+ .ai { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+ .ai-orb { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #8fd3ff, #4c8dff 60%, #2a5bd0); }
+ .ai-copy { font-size: clamp(13px, 8cqmin, 20px); }
+ .ai-copy.small { font-size: 13px; }
+ .ai-send { display: flex; gap: 6px; }
+ .ai-input { flex: 1; min-width: 0; background: rgba(255,255,255,.08); border: 0; border-radius: 10px; padding: 6px 10px; color: inherit; }
+ .ai-go { background: var(--accent); color: #061018; border: 0; border-radius: 10px; width: 32px; cursor: pointer; }
+diff --git a/src/home/composables/useOpenAction.test.ts b/src/home/composables/useOpenAction.test.ts
+new file mode 100644
+index 0000000..ec55038
+--- /dev/null
++++ b/src/home/composables/useOpenAction.test.ts
+@@ -0,0 +1,53 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useAppsStore } from '../stores/apps'
++import { useOpenAction } from './useOpenAction'
++import type { LayoutItem } from '../grid/types'
++
++let hrefs: string[]
++let opens: string[]
++beforeEach(() => {
++  setActivePinia(createPinia())
++  hrefs = []; opens = []
++  Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
++  vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
++})
++
++describe('useOpenAction.openApp', () => {
++  it('system app navigates to its hash route', () => {
++    const { openApp } = useOpenAction()
++    openApp('files'); expect(hrefs[0]).toBe('/#/files')
++  })
++  it('settings/appstore fall back to /#/', () => {
++    const { openApp } = useOpenAction()
++    openApp('settings'); expect(hrefs[0]).toBe('/#/')
++  })
++  it('running container app opens scheme://host:port/index', () => {
++    const s = useAppsStore()
++    s.setApps([{ name: 'jf', status: 'running', scheme: 'http', port: 8096, index: '/web' }] as any)
++    const { openApp } = useOpenAction()
++    openApp('jf'); expect(opens[0]).toBe('http://host:8096/web')
++  })
++  it('stopped container app notifies instead of opening', () => {
++    const s = useAppsStore()
++    s.setApps([{ name: 'jf', status: 'stopped' }] as any)
++    const notify = vi.fn()
++    const { openApp } = useOpenAction(notify)
++    openApp('jf')
++    expect(opens.length).toBe(0)
++    expect(notify).toHaveBeenCalledWith(expect.stringContaining('未运行'))
++  })
++})
++
++describe('useOpenAction.openItem', () => {
++  it('folder navigates to files with encoded path', () => {
++    const { openItem } = useOpenAction()
++    openItem({ id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 } as LayoutItem)
++    expect(hrefs[0]).toBe('/#/files?path=' + encodeURIComponent('/DATA/Gallery'))
++  })
++  it('photo navigates to /#/photos', () => {
++    const { openItem } = useOpenAction()
++    openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
++    expect(hrefs[0]).toBe('/#/photos')
++  })
++})
+diff --git a/src/home/composables/useOpenAction.ts b/src/home/composables/useOpenAction.ts
+new file mode 100644
+index 0000000..95027e0
+--- /dev/null
++++ b/src/home/composables/useOpenAction.ts
+@@ -0,0 +1,38 @@
++import type { LayoutItem } from '../grid/types'
++import { useAppsStore } from '../stores/apps'
++
++const SYS_ROUTE: Record<string, string> = { files: '/#/files', photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm' }
++
++export function useOpenAction(notify: (msg: string) => void = (m) => console.warn('[home]', m)) {
++  const apps = useAppsStore()
++
++  function openApp(key: string) {
++    const a = apps.app(key)
++    if (!a) return
++    if (a.system) { window.location.href = SYS_ROUTE[key] || '/#/'; return }
++    if (a.app_type === 'LinkApp') { if (a.hostname) window.open(a.hostname, '_blank', 'noopener'); return }
++    if (a.status === 'running' && (a.port || a.index)) {
++      const scheme = a.scheme || 'http'
++      const host = a.hostname || window.location.hostname
++      const port = a.port ? ':' + a.port : ''
++      const idx = a.index || '/'
++      window.open(`${scheme}://${host}${port}${idx}`, '_blank', 'noopener')
++    } else {
++      notify(a.name + ':未运行,请到应用页启动')
++    }
++  }
++
++  function openItem(it: LayoutItem) {
++    if (it.kind === 'app') openApp(it.key)
++    else if (it.kind === 'folder') window.location.href = '/#/files?path=' + encodeURIComponent(it.path || '/DATA/' + it.key)
++    else if (it.kind === 'photo') window.location.href = '/#/photos'
++    else if (it.kind === 'widget' && it.key === 'ai') window.location.href = '/#/ai/agent'
++  }
++
++  function sendToAI(text?: string) {
++    const q = (text || '').trim()
++    window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
++  }
++
++  return { openApp, openItem, sendToAI }
++}
+diff --git a/src/home/stores/apps.test.ts b/src/home/stores/apps.test.ts
+new file mode 100644
+index 0000000..5b26d47
+--- /dev/null
++++ b/src/home/stores/apps.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useAppsStore } from './apps'
++
++describe('useAppsStore', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++  it('exposes the 6 system apps immediately', () => {
++    const s = useAppsStore()
++    expect(s.app('files')?.system).toBe(true)
++    expect(s.app('files')?.name).toBe('文件')
++    expect(s.order).toContain('appstore')
++  })
++  it('merges container apps without overwriting system keys, picks zh_cn title', () => {
++    const s = useAppsStore()
++    s.setApps([
++      { name: 'jellyfin', title: { zh_cn: '影音', en_us: 'Jellyfin' }, icon: 'http://x/i.png', status: 'running', scheme: 'http', port: 8096, app_type: 'WebApp' },
++      { name: 'files' }, // 不能覆盖系统 files
++    ] as any)
++    expect(s.app('jellyfin')?.name).toBe('影音')
++    expect(s.app('jellyfin')?.icon).toBe('http://x/i.png')
++    expect(s.app('jellyfin')?.system).toBe(false)
++    expect(s.app('files')?.system).toBe(true) // 系统 files 未被覆盖
++  })
++})
+diff --git a/src/home/stores/apps.ts b/src/home/stores/apps.ts
+new file mode 100644
+index 0000000..070d9d2
+--- /dev/null
++++ b/src/home/stores/apps.ts
+@@ -0,0 +1,45 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service, type AppGridItem } from '@nimotech/nimoos-service'
++import { SYSTEM_APPS } from '../apps/systemApps'
++
++export interface AppMeta {
++  name: string; cls: string; glyph: string; icon: string | null; system: boolean
++  app_type?: string; status?: string; scheme?: string; port?: string | number; index?: string; hostname?: string
++}
++
++export const useAppsStore = defineStore('home-apps', () => {
++  const apps = ref<Record<string, AppMeta>>({})
++  const order = ref<string[]>([])
++
++  function setApps(container: AppGridItem[]) {
++    const map: Record<string, AppMeta> = {}
++    const ord: string[] = []
++    SYSTEM_APPS.forEach((s) => {
++      map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: null, system: true, status: 'running' }
++      ord.push(s.key)
++    })
++    ;(container || []).forEach((a) => {
++      const key = a.name
++      if (!key || map[key]) return // 不覆盖系统应用
++      const title = (a.title && (a.title.zh_cn || a.title.en_us)) || a.name
++      map[key] = {
++        name: title, cls: 'ic-app', glyph: '', icon: a.icon || null, system: false,
++        app_type: a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,
++      }
++      ord.push(key)
++    })
++    apps.value = map
++    order.value = ord
++  }
++
++  async function loadGrid() {
++    const list = await service.apps.getGrid()
++    setApps(list || [])
++  }
++
++  function app(key: string): AppMeta | undefined { return apps.value[key] }
++
++  setApps([]) // 系统应用立即可用
++  return { apps, order, setApps, loadGrid, app }
++})
+diff --git a/src/home/stores/folders.test.ts b/src/home/stores/folders.test.ts
+new file mode 100644
+index 0000000..774b16d
+--- /dev/null
++++ b/src/home/stores/folders.test.ts
+@@ -0,0 +1,19 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++vi.mock('@nimotech/nimoos-service', async () => {
++  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
++  return { ...actual, service: { folder: { getList: vi.fn(async () => ({ content: [
++    { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
++  ] })) } } }
++})
++import { useFoldersStore } from './folders'
++
++describe('useFoldersStore', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++  it('loadFolder caches only directories', async () => {
++    const s = useFoldersStore()
++    await s.loadFolder('/DATA')
++    expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
++  })
++})
+diff --git a/src/home/stores/folders.ts b/src/home/stores/folders.ts
+new file mode 100644
+index 0000000..4aede57
+--- /dev/null
++++ b/src/home/stores/folders.ts
+@@ -0,0 +1,15 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++
++export const useFoldersStore = defineStore('home-folders', () => {
++  const cache = ref<Record<string, { name: string; path: string }[]>>({})
++  async function loadFolder(path: string) {
++    try {
++      const data = await service.folder.getList(path)
++      const content = (data && data.content) || []
++      cache.value[path] = content.filter((x) => x.is_dir).map((x) => ({ name: x.name, path: x.path }))
++    } catch (e) { console.warn('[home] folder load failed', path, e); cache.value[path] = [] }
++  }
++  return { cache, loadFolder }
++})
+diff --git a/src/home/stores/layout.ts b/src/home/stores/layout.ts
+index 1eaa091..d49c94c 100644
+--- a/src/home/stores/layout.ts
++++ b/src/home/stores/layout.ts
+@@ -1,16 +1,17 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import type { LayoutItem, PlanEntry, Dims } from '../grid/types'
+ import { DEFAULT } from '../grid/defaultLayout'
+ import { WIDGETS } from '../widgets/registry'
+ import { applyPlan as applyPlanPure, clampToGrid } from '../grid/gridMath'
++import { isAssetId } from '../util/isAssetId'
+ 
+ const KEY = 'nimoos-home-layout-v2'
+ 
+ function sanitize(arr: unknown): Omit<LayoutItem, 'id'>[] {
+   if (!Array.isArray(arr)) return []
+   return arr.filter((it) => it && (it.kind !== 'widget' || WIDGETS[it.key]))
+ }
+ 
+ export const useLayoutStore = defineStore('home-layout', () => {
+   const items = ref<LayoutItem[]>([])
+@@ -51,12 +52,24 @@ export const useLayoutStore = defineStore('home-layout', () => {
+   }
+ 
+   function replaceAll(next: Omit<LayoutItem, 'id'>[]) {
+     items.value = sanitize(next).map(tag)
+   }
+ 
+   function clampAll(dims: Dims) {
+     items.value = clampToGrid(items.value, dims)
+   }
+ 
+-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll }
++  function bindPhotos(ids: (string | number)[]) {
++    let i = 0
++    items.value = items.value.map((it) => {
++      if (it.kind === 'photo' && !isAssetId(it.key) && ids[i] != null) {
++        const next = { ...it, key: String(ids[i]) }
++        i++
++        return next
++      }
++      return it
++    })
++  }
++
++  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos }
+ })
+diff --git a/src/home/stores/photos.test.ts b/src/home/stores/photos.test.ts
+new file mode 100644
+index 0000000..82681bf
+--- /dev/null
++++ b/src/home/stores/photos.test.ts
+@@ -0,0 +1,23 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useLayoutStore } from './layout'
++import { isAssetId } from '../util/isAssetId'
++
++describe('isAssetId', () => {
++  it('true for asset id, false for gradient placeholder', () => {
++    expect(isAssetId('abc123')).toBe(true)
++    expect(isAssetId('linear-gradient(145deg,#fff)')).toBe(false)
++    expect(isAssetId('')).toBe(false)
++  })
++})
++describe('layout.bindPhotos', () => {
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
++  it('binds placeholder photos to real asset ids in order', () => {
++    const s = useLayoutStore(); s.loadInitial()
++    const before = s.items.filter((i) => i.kind === 'photo')
++    expect(before.length).toBeGreaterThan(0)
++    s.bindPhotos(['id1', 'id2', 'id3', 'id4'])
++    const photos = s.items.filter((i) => i.kind === 'photo')
++    expect(photos[0].key).toBe('id1')
++  })
++})
+diff --git a/src/home/stores/photos.ts b/src/home/stores/photos.ts
+new file mode 100644
+index 0000000..6ec3836
+--- /dev/null
++++ b/src/home/stores/photos.ts
+@@ -0,0 +1,15 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service, type PhotoAsset } from '@nimotech/nimoos-service'
++
++export const usePhotosStore = defineStore('home-photos', () => {
++  const assets = ref<PhotoAsset[]>([])
++  async function loadAssets() {
++    try {
++      const list = await service.photos.listAssets(60, 0)
++      assets.value = Array.isArray(list) ? list : []
++    } catch (e) { console.warn('[home] photos load failed', e) }
++  }
++  function thumbnailUrl(id: string | number): string { return service.photos.thumbnailUrl(id) }
++  return { assets, loadAssets, thumbnailUrl }
++})
+diff --git a/src/home/util/isAssetId.ts b/src/home/util/isAssetId.ts
+new file mode 100644
+index 0000000..0671b6d
+--- /dev/null
++++ b/src/home/util/isAssetId.ts
+@@ -0,0 +1,4 @@
++// engine.js 261
++export function isAssetId(k: unknown): boolean {
++  return typeof k === 'string' && !!k && !k.includes('gradient')
++}
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+index 21e8ff3..7a90183 100644
+--- a/src/views/Home.vue
++++ b/src/views/Home.vue
+@@ -2,42 +2,49 @@
+   <main class="home-screen">
+     <GridCanvas ref="canvas" />
+     <div ref="dockEl" class="dock-placeholder" aria-hidden="true" />
+   </main>
+ </template>
+ 
+ <script setup lang="ts">
+ import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+ import GridCanvas from '../home/components/GridCanvas.vue'
+ import { useLayoutStore } from '../home/stores/layout'
++import { useAppsStore } from '../home/stores/apps'
++import { usePhotosStore } from '../home/stores/photos'
+ import { useGridMeasure } from '../home/composables/useGridMeasure'
+ import { useLiveStats } from '../home/composables/useLiveStats'
+ import { useEvents } from '../home/composables/useEvents'
+ import { reconcileGpu } from '../home/composables/reconcileGpu'
+ 
+ const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
+ const dockEl = ref<HTMLElement | null>(null)
+ const gridEl = ref<HTMLElement | null>(null)
+ const layout = useLayoutStore()
++const apps = useAppsStore()
++const photos = usePhotosStore()
+ const live = useLiveStats()
+ useEvents()
+ const { relayout } = useGridMeasure(gridEl, dockEl)
+ watch(() => live.gpu, () => reconcileGpu(layout, live))
+ 
+ let onResize: (() => void) | null = null
+ 
+ onMounted(async () => {
+   layout.loadInitial()
+   await nextTick()
+   gridEl.value = canvas.value?.gridEl ?? null
+   relayout()
+   onResize = () => relayout()
+   window.addEventListener('resize', onResize)
++
++  apps.loadGrid().catch((e) => console.warn('[home] appgrid', e))
++  photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
+ })
+ 
+ onUnmounted(() => { if (onResize) window.removeEventListener('resize', onResize) })
+ </script>
+ 
+ <style scoped>
+ .home-screen { min-height: 100vh; padding: 24px 24px 12px; box-sizing: border-box; }
+ .dock-placeholder { height: 64px; }
+ </style>

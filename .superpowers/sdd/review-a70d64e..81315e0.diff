@@ -1,0 +1,30 @@
+# Review package: a70d64e..81315e0
+
+## Commits
+81315e0 test(files-viewer): ppt/pptx 落下载回归(Vue2 parity)
+
+## Files changed
+ src/files/viewers/panelMap.test.ts | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+## Diff
+diff --git a/src/files/viewers/panelMap.test.ts b/src/files/viewers/panelMap.test.ts
+index 2091726..93c8364 100644
+--- a/src/files/viewers/panelMap.test.ts
++++ b/src/files/viewers/panelMap.test.ts
+@@ -36,11 +36,15 @@ describe('getPanelType', () => {
+   it('word → doc-viewer', () => {
+     expect(getPanelType('a.doc')).toBe('doc-viewer')
+     expect(getPanelType('a.docx')).toBe('doc-viewer')
+     expect(getPanelType('a.wps')).toBe('doc-viewer')
+   })
+   it('excel → excel-viewer', () => {
+     expect(getPanelType('a.xls')).toBe('excel-viewer')
+     expect(getPanelType('a.xlsx')).toBe('excel-viewer')
+     expect(getPanelType('a.csv')).toBe('excel-viewer')
+   })
++  it('ppt/pptx stay unmapped → download (Vue2 parity)', () => {
++    expect(getPanelType('deck.ppt')).toBeNull()
++    expect(getPanelType('deck.pptx')).toBeNull()
++  })
+ })

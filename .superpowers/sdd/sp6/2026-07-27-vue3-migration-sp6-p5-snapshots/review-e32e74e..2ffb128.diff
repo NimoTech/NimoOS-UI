@@ -1,0 +1,457 @@
+# Review package: e32e74e..HEAD
+
+## Commits
+2ffb128 fix(storage): 快照 store 复位+换卷 watcher+过期响应守卫(P5 终审修复波)
+
+## Files changed
+ src/storage/components/SnapshotPanel.test.ts    | 53 +++++++++++++++++++++++++
+ src/storage/components/SnapshotPanel.vue        | 10 ++++-
+ src/storage/components/SnapshotTimeline.test.ts |  6 ++-
+ src/storage/components/SnapshotTimeline.vue     |  4 ++
+ src/storage/stores/snapshot.test.ts             | 53 +++++++++++++++++++++++++
+ src/storage/stores/snapshot.ts                  | 40 +++++++++++++++++--
+ 6 files changed, 160 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/storage/components/SnapshotPanel.test.ts b/src/storage/components/SnapshotPanel.test.ts
+index cc81003..a71b3d3 100644
+--- a/src/storage/components/SnapshotPanel.test.ts
++++ b/src/storage/components/SnapshotPanel.test.ts
+@@ -28,20 +28,23 @@ vi.mock('@nimotech/nimoos-service', () => ({
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ const mountPanel = () => mount(SnapshotPanel, { props: { volumeUuid: 'u1' }, global: { plugins: [i18n] } })
+ const flush = async (w: ReturnType<typeof mountPanel>) => {
+   await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   vi.clearAllMocks()
+   getPolicy.mockResolvedValue({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
++  // vi.clearAllMocks() 只清调用记录、不还原 mockImplementation:"切换在途"那条用例把
++  // togglePolicy 换成永不 resolve 的 promise,不在这里复位就会泄漏到后面的用例。
++  togglePolicy.mockResolvedValue(undefined)
+   patchPolicy.mockResolvedValue(null)
+   createSnap.mockResolvedValue(undefined)
+ })
+ 
+ describe('SnapshotPanel 三态', () => {
+   it('端点 404(listVolumes 抛错)→ 不支持态:有说明、无开关,且不拉策略', async () => {
+     listVolumes.mockRejectedValue(new Error('404'))
+     vi.spyOn(console, 'warn').mockImplementation(() => {})
+     const w = mountPanel(); await flush(w)
+     expect(w.find('.sp-unsupported').exists()).toBe(true)
+@@ -110,20 +113,31 @@ describe('SnapshotPanel 保护开关', () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
+     let release: (v?: unknown) => void = () => {}
+     togglePolicy.mockImplementation(() => new Promise((r) => { release = r }))
+     const w = mountPanel(); await flush(w)
+     await w.find('.sp-switch').trigger('click')
+     await w.vm.$nextTick()
+     expect((w.find('.sp-switch').element as HTMLButtonElement).disabled).toBe(true)
+     release(); await flush(w)
+     expect((w.find('.sp-switch').element as HTMLButtonElement).disabled).toBe(false)
+   })
++
++  it('必修 4 接缝测试:disabled→enabled 后 watch(state) 触发一次 loadPolicy', async () => {
++    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
++    const w = mountPanel(); await flush(w)
++    expect(getPolicy).not.toHaveBeenCalled()
++    await w.find('.sp-switch').trigger('click')
++    await flush(w)
++    expect(togglePolicy).toHaveBeenCalledWith('u1', true)
++    expect(getPolicy).toHaveBeenCalledTimes(1)
++    expect(getPolicy).toHaveBeenCalledWith('u1')
++  })
+ })
+ 
+ describe('SnapshotPanel 高级策略表单', () => {
+   const enabledVol = [{ volume_uuid: 'u1', supported: true, enabled: true, count: 2, last_at: '2026-07-27T01:00:00Z' }]
+ 
+   it('点"高级设置"→ 表单以当前策略为初值展开,摘要行让位', async () => {
+     listVolumes.mockResolvedValue(enabledVol)
+     const w = mountPanel(); await flush(w)
+     await w.find('.sp-advanced-btn').trigger('click')
+     expect(w.find('.sp-advanced').exists()).toBe(true)
+@@ -214,20 +228,59 @@ describe('SnapshotPanel 手动创建快照', () => {
+     createSnap.mockImplementation(() => new Promise((r) => { release = r }))
+     const w = mountPanel(); await flush(w)
+     await w.find('.sp-create').trigger('click'); await w.vm.$nextTick()
+     expect((w.find('.sp-create').element as HTMLButtonElement).disabled).toBe(true)
+     expect((w.find('.sp-label-input').element as HTMLInputElement).disabled).toBe(true)
+     release(); await flush(w)
+     expect((w.find('.sp-create').element as HTMLButtonElement).disabled).toBe(false)
+   })
+ })
+ 
++describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
++  // 复现路径:同一个 pinia 实例下先挂 A(有 count、enabled=true),再把 prop 切到 B
++  // (B 的卷数据不同:enabled=false/count=0)。没有 reset()+watch(volumeUuid) 的话,
++  // 单例 store 会让面板一直显示 A 的开关/数量,却对 B 发出保护开关与保留策略写入。
++  it('切到 B 后不再残留 A 的开关/数量,B 重新拉了卷', async () => {
++    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7, last_at: '2026-07-27T01:00:00Z' }])
++    const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
++    await flush(w)
++    expect(w.find('.sp-switch').attributes('aria-checked')).toBe('true')
++    expect(w.find('.sp-status').text()).toContain('7')
++    expect(getPolicy).toHaveBeenCalledWith('A')
++
++    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'B', supported: true, enabled: false, count: 0 }])
++    await w.setProps({ volumeUuid: 'B' })
++    await flush(w)
++
++    expect(listVolumes).toHaveBeenCalledTimes(2)
++    expect(w.find('.sp-switch').attributes('aria-checked')).toBe('false')
++    // disabled 态没有状态行 —— 如果还残留 A 的渲染,这里会仍然看到 "7"
++    expect(w.find('.sp-status').exists()).toBe(false)
++  })
++
++  it('切到 B 且 B 也是 enabled → getPolicy 以 B 被重新调用过(不是继续用 A 的策略)', async () => {
++    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7 }])
++    getPolicy.mockResolvedValueOnce({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
++    const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
++    await flush(w)
++    expect(getPolicy).toHaveBeenCalledWith('A')
++
++    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'B', supported: true, enabled: true, count: 2 }])
++    getPolicy.mockResolvedValueOnce({ hourly_keep: 1, daily_keep: 1, weekly_keep: 1, pause_threshold_pct: 50 })
++    await w.setProps({ volumeUuid: 'B' })
++    await flush(w)
++
++    expect(getPolicy).toHaveBeenCalledWith('B')
++    expect(w.find('.sp-policy-summary').text()).toContain('1')
++  })
++})
++
+ describe('SnapshotPanel 内嵌时间线可见性(1:1 照 Vue2)', () => {
+   it('已启用 → 时间线出现', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 0 }])
+     const w = mountPanel(); await flush(w)
+     expect(w.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(true)
+   })
+   it('已关闭且有历史快照 → 时间线仍出现(保住"快照仍保留"的承诺)', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 3 }])
+     const w = mountPanel(); await flush(w)
+     expect(w.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(true)
+diff --git a/src/storage/components/SnapshotPanel.vue b/src/storage/components/SnapshotPanel.vue
+index 0e7abbf..fcdc34e 100644
+--- a/src/storage/components/SnapshotPanel.vue
++++ b/src/storage/components/SnapshotPanel.vue
+@@ -31,34 +31,42 @@ const policySummaryText = computed(() => {
+   if (!p) return ''
+   return t('snapPolicySummary', { hourly: p.hourly_keep, daily: p.daily_keep, weekly: p.weekly_keep })
+ })
+ 
+ // Vue2 的 state watcher(SnapshotPanel.vue:160-164):只在"变成 enabled"这一刻拉策略,
+ // 每次转换只拉一次(初次加载即 enabled 也算一次转换)。
+ watch(state, (val, oldVal) => {
+   if (val === 'enabled' && oldVal !== 'enabled') store.loadPolicy(props.volumeUuid)
+ })
+ 
+-onMounted(() => { store.loadVolume(props.volumeUuid) })
++// 必修 1(Critical):单例 store 跨路由存活,换阵列(/storage/raid/7 → /storage/raid/8)
++// 时若 StorageRaidDetail 实例被 vue-router 复用,本组件首帧可能吃到旧 volumeUuid prop,
++// 随后 prop 才更新为新卷 —— 没有这个 watcher 就会一直显示旧卷的开关/数量/策略摘要,
++// 却对 props.volumeUuid(新卷)发出保护开关与保留策略写入。reset() 把 volumeLoading
++// 打回 true,面板收起、内嵌 SnapshotTimeline 随之卸载重挂,避免它拿着旧展开态残留。
++onMounted(() => { store.reset(); store.loadVolume(props.volumeUuid) })
++watch(() => props.volumeUuid, (uuid) => { store.reset(); store.loadVolume(uuid) })
+ 
+ function onToggle() {
+   store.toggle(props.volumeUuid, !(store.volume?.enabled ?? false))
+ }
+ 
+ // --- 高级保留策略表单(Vue2 SnapshotPanel.vue:209-223) ----------------------
+ const advancedOpen = ref(false)
+ const policyForm = ref<PolicyForm>({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
+ const fieldErrors = ref<Partial<Record<keyof PolicyForm, string>>>({})
+ const manualLabel = ref('')
+ 
+ function openAdvanced() {
+   const p = store.policy
++  // Number() 包裹:后端可能把这些字段序列化成数字字符串,不归一的话 validatePolicyForm
++  // 里的 Number.isInteger 会误判合法值为非法(字符串永远不是 integer),白白挡用户保存。
+   policyForm.value = {
+     hourly_keep: Number(p?.hourly_keep ?? 24),
+     daily_keep: Number(p?.daily_keep ?? 7),
+     weekly_keep: Number(p?.weekly_keep ?? 4),
+     pause_threshold_pct: Number(p?.pause_threshold_pct ?? 90),
+   }
+   fieldErrors.value = {}
+   advancedOpen.value = true
+ }
+ 
+diff --git a/src/storage/components/SnapshotTimeline.test.ts b/src/storage/components/SnapshotTimeline.test.ts
+index 5b076f9..8b39a08 100644
+--- a/src/storage/components/SnapshotTimeline.test.ts
++++ b/src/storage/components/SnapshotTimeline.test.ts
+@@ -70,24 +70,26 @@ describe('SnapshotTimeline', () => {
+   })
+   it('条目渲染时钟/类别徽章/备注,类别圆点带类别修饰类', async () => {
+     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', label: '升级前', created_at: day(27, 9) }])
+     const w = mountIt(); await flush(w)
+     const item = w.find('.st-item')
+     expect(item.find('.st-time').text()).toBe('09:00')
+     expect(item.find('.st-badge').text()).toBe(zh.snapTypeManual)
+     expect(item.find('.st-label').text()).toBe('升级前')
+     expect(item.find('.st-dot').classes()).toContain('manual')
+   })
+-  it('不渲染[浏览]入口(文件区快照套件推迟)', async () => {
++  it('不渲染[浏览]入口(文件区快照套件推迟);动作区只有删除一个按钮', async () => {
+     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
+     const w = mountIt(); await flush(w)
+-    expect(w.find('.st-browse').exists()).toBe(false)
++    // .st-browse 这个类从未出现在实现里,原断言是空断言(恒真);改成对动作区按钮数量
++    // 的实质约束 —— 只有删除一个按钮,才是"浏览入口未渲染"真正会失败的检验。
++    expect(w.findAll('.st-actions button')).toHaveLength(1)
+     expect(w.text()).not.toContain(zh.filesTitle ?? '文件')
+   })
+   it('换卷 → 重置展开态并重拉(不沿用旧卷的展开集合)', async () => {
+     // 旧卷:单条,落在与新卷完全不同的日期(2026-07-15),默认展开。
+     // 新卷:3 组(2+1+1),默认展开规则是"最近 2 组" —— 若换卷不重置
+     // expandedKeys/expandInitialized,旧卷的展开键('2026-07-15')在新卷分组里
+     // 找不到任何匹配,会导致新卷的三组全部维持"收起"(0 条可见),而不是新卷
+     // 自己应有的默认展开结果(2 条 + 1 条 = 3 条可见、第三组收起)。
+     listMock
+       .mockResolvedValueOnce([{ id: 1, name: 'old', type: 'manual', created_at: day(15, 9) }])
+diff --git a/src/storage/components/SnapshotTimeline.vue b/src/storage/components/SnapshotTimeline.vue
+index 76acabb..59cefc5 100644
+--- a/src/storage/components/SnapshotTimeline.vue
++++ b/src/storage/components/SnapshotTimeline.vue
+@@ -19,20 +19,24 @@ const deleteTarget = ref<SnapshotItemView | null>(null)
+ // 弹窗正文里的时间:Vue2 用 new Date(item.createdAt).toLocaleString()
+ const deleteTimeText = computed(() =>
+   deleteTarget.value ? new Date(deleteTarget.value.createdAt).toLocaleString() : '',
+ )
+ 
+ function confirmDelete(item: SnapshotItemView) {
+   deleteTarget.value = item
+   deleteOpen.value = true
+ }
+ 
++// 偏离披露(Important I1):Vue2 用的 buefy dialog.confirm 是点确认瞬间就关闭弹窗,
++// 删除请求转入后台跑,失败时只弹一个 toast、用户已经看不到弹窗了。这里**故意不照抄**:
++// 弹窗只在删除成功后才关闭,失败则留在原地(仍是 busy→非 busy,可直接重试),让用户
++// 不必重新找回该条目再点一次删除 —— 行为对用户更正确,但明确是对 Vue2 的一处偏离。
+ async function onDeleteConfirmed() {
+   const target = deleteTarget.value
+   if (!target) return
+   const ok = await store.removeSnapshot(props.volumeUuid, target.name)
+   if (ok) { deleteOpen.value = false; deleteTarget.value = null }
+ }
+ 
+ const groups = computed(() => groupSnapshotsByDay(store.snapshots))
+ 
+ // Vue2:首次拿到非空分组时才初始化默认展开(最近 2 天),之后刷新不覆盖用户的折叠选择
+diff --git a/src/storage/stores/snapshot.test.ts b/src/storage/stores/snapshot.test.ts
+index 24e59db..9c39b8c 100644
+--- a/src/storage/stores/snapshot.test.ts
++++ b/src/storage/stores/snapshot.test.ts
+@@ -24,21 +24,61 @@ vi.mock('@nimotech/nimoos-service', () => ({
+ const toastShow = vi.fn()
+ vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
+ vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
+ 
+ import { useSnapshotStore } from './snapshot'
+ 
+ const VOL = { volume_uuid: 'u1', mount: '/DATA', supported: true, enabled: true, count: 2, last_at: '2026-07-27T01:00:00Z' }
+ 
+ beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+ 
++describe('reset', () => {
++  it('清空卷/策略/快照,两个 loading 打回 true(必修 1)', async () => {
++    listVolumes.mockResolvedValue([VOL])
++    getPolicy.mockResolvedValue({ hourly_keep: 1, daily_keep: 1, weekly_keep: 1, pause_threshold_pct: 1 })
++    listMock.mockResolvedValue([{ name: 'a', created_at: '2026-07-27T00:00:00Z' }])
++    const s = useSnapshotStore()
++    await s.loadVolume('u1')
++    await s.loadPolicy('u1')
++    await s.loadSnapshots('u1')
++    s.reset()
++    expect(s.volume).toBeNull()
++    expect(s.policy).toBeNull()
++    expect(s.snapshots).toEqual([])
++    expect(s.volumeLoading).toBe(true)
++    expect(s.listLoading).toBe(true)
++  })
++})
++
+ describe('loadVolume', () => {
++  it('空 uuid 早退:不发请求,volume=null,volumeLoading 释放(台账 7)', async () => {
++    const s = useSnapshotStore()
++    await s.loadVolume('')
++    expect(listVolumes).not.toHaveBeenCalled()
++    expect(s.volume).toBeNull()
++    expect(s.volumeLoading).toBe(false)
++  })
++  it('过期响应守卫:A 的慢响应不得覆盖 B 已经落地的数据(必修 2)', async () => {
++    let resolveA: (v: unknown) => void = () => {}
++    listVolumes.mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
++    const s = useSnapshotStore()
++    const pA = s.loadVolume('A') // 慢请求,先发,尚未 resolve
++    listVolumes.mockResolvedValueOnce([{ volume_uuid: 'B', supported: true, enabled: true, count: 9 }])
++    await s.loadVolume('B') // 快请求,后发先至
++    expect(s.volume?.volume_uuid).toBe('B')
++    // A 的响应此时才姗姗来迟,且数据与 B 明显不同(用于证明没有被写进去)
++    resolveA([{ volume_uuid: 'A', supported: true, enabled: false, count: 1 }])
++    await pA
++    expect(s.volume?.volume_uuid).toBe('B')
++    expect(s.volume?.count).toBe(9)
++    expect(s.volumeLoading).toBe(false)
++  })
+   it('按 volume_uuid 命中本卷,收窄成视图对象', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'other' }, VOL])
+     const s = useSnapshotStore()
+     await s.loadVolume('u1')
+     expect(s.volume?.volume_uuid).toBe('u1')
+     expect(s.volume?.count).toBe(2)
+     expect(s.volumeLoading).toBe(false)
+   })
+   it('列表里没有本卷 → volume=null(面板落 unsupported 态)', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'other' }])
+@@ -71,20 +111,33 @@ describe('loadSnapshots', () => {
+     expect(s.listLoading).toBe(false)
+   })
+   it('抛错 → 列表清空、loading 释放', async () => {
+     listMock.mockRejectedValue(new Error('x'))
+     vi.spyOn(console, 'warn').mockImplementation(() => {})
+     const s = useSnapshotStore()
+     await s.loadSnapshots('u1')
+     expect(s.snapshots).toEqual([])
+     expect(s.listLoading).toBe(false)
+   })
++  it('过期响应守卫:A 的慢响应不得覆盖 B 已经落地的列表(必修 2)', async () => {
++    let resolveA: (v: unknown) => void = () => {}
++    listMock.mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
++    const s = useSnapshotStore()
++    const pA = s.loadSnapshots('A')
++    listMock.mockResolvedValueOnce([{ name: 'b-snap', created_at: '2026-07-27T00:00:00Z' }])
++    await s.loadSnapshots('B')
++    expect(s.snapshots.map((x) => x.name)).toEqual(['b-snap'])
++    resolveA([{ name: 'a-snap', created_at: '2026-07-26T00:00:00Z' }])
++    await pA
++    expect(s.snapshots.map((x) => x.name)).toEqual(['b-snap'])
++    expect(s.listLoading).toBe(false)
++  })
+ })
+ 
+ describe('toggle', () => {
+   it('成功:调 togglePolicy(uuid, enabled)、本地 enabled 跟随、出成功 toast、单飞', async () => {
+     listVolumes.mockResolvedValue([VOL])
+     togglePolicy.mockResolvedValue(undefined)
+     const s = useSnapshotStore()
+     await s.loadVolume('u1')
+     await Promise.all([s.toggle('u1', false), s.toggle('u1', false)]) // 并发第二发被守卫吞掉
+     expect(togglePolicy).toHaveBeenCalledTimes(1)
+diff --git a/src/storage/stores/snapshot.ts b/src/storage/stores/snapshot.ts
+index 833470a..fa71b8b 100644
+--- a/src/storage/stores/snapshot.ts
++++ b/src/storage/stores/snapshot.ts
+@@ -13,56 +13,90 @@ export const useSnapshotStore = defineStore('snapshot', () => {
+   // Vue2 SnapshotPanel/SnapshotTimeline 的 loading 初值都是 true(面板 v-if="!loading"),
+   // 首帧不闪空态,逐字继承。
+   const volumeLoading = ref(true)
+   const listLoading = ref(true)
+   const toggling = ref(false)
+   const policySaving = ref(false)
+   const creatingSnapshot = ref(false)
+   const deletingName = ref<string | null>(null)
+   const t = i18n.global.t
+ 
++  // 过期响应守卫(必修 2):loadVolume/loadSnapshots 换卷时,记录"当前认领这次调用"的
++  // uuid;响应回来时如果这个守卫已经指向别的 uuid(说明期间又发起了更新的一次调用),
++  // 整段丢弃 —— 不写 state、不落 loading,避免旧卷的慢响应盖掉新卷已经落地的快响应。
++  let volumeRequestUuid: string | null = null
++  let snapshotsRequestUuid: string | null = null
++
++  // 必修 1(Critical):单例 store 天然跨路由存活,Vue2 里 volume/policy/loading 是组件
++  // data(),每次挂载自动复位;这里需要显式复位配合 SnapshotPanel 的 onMounted/watch 调用,
++  // 否则换阵列时(同一路由组件实例被 vue-router 复用)首帧会用旧卷数据渲染。
++  // volumeLoading/listLoading 打回 true 让面板收起(1:1 复刻 Vue2 loading:true 初值),
++  // 直到新卷数据落地才重新展开,不会闪一帧旧卷的开关/摘要;两个 request 守卫一并清空,
++  // 让任何仍在途的旧请求肯定被判定为过期。
++  function reset() {
++    volume.value = null
++    policy.value = null
++    snapshots.value = []
++    volumeLoading.value = true
++    listLoading.value = true
++    volumeRequestUuid = null
++    snapshotsRequestUuid = null
++  }
++
+   async function loadVolume(uuid: string) {
++    // 台账 7:空 uuid 不发请求 —— 列表里可能有另一个同样无 uuid 的卷,find() 会误命中。
++    if (!uuid) {
++      volume.value = null
++      volumeLoading.value = false
++      return
++    }
++    volumeRequestUuid = uuid
+     try {
+       const list = await service.snapshot.listVolumes()
++      if (volumeRequestUuid !== uuid) return // 过期响应:已有更新的一次调用在途/落地
+       const hit = (Array.isArray(list) ? list : []).find(
+         (v) => (v as { volume_uuid?: string })?.volume_uuid === uuid,
+       )
+       volume.value = hit ? asSnapshotVolume(hit) : null
+     } catch (e) {
++      if (volumeRequestUuid !== uuid) return
+       // 快照是可选功能(老后端 /v2/snapshot/* 全 404):吞错落 unsupported 态,
+       // 绝不能把 RAID 详情页拖垮 —— Vue2 SnapshotPanel.fetchVolume 同款语义。
+       console.warn('[snapshot] load volume failed', (e as Error)?.message)
+       volume.value = null
+     } finally {
+-      volumeLoading.value = false
++      if (volumeRequestUuid === uuid) volumeLoading.value = false
+     }
+   }
+ 
+   async function loadPolicy(uuid: string) {
+     try {
+       policy.value = await service.snapshot.getPolicy(uuid)
+     } catch (e) {
+       console.warn('[snapshot] load policy failed', (e as Error)?.message)
+       policy.value = null
+     }
+   }
+ 
+   async function loadSnapshots(uuid: string) {
++    snapshotsRequestUuid = uuid
+     listLoading.value = true
+     try {
+       const res = await service.snapshot.list(uuid)
++      if (snapshotsRequestUuid !== uuid) return // 过期响应,同 loadVolume 的守卫语义
+       snapshots.value = Array.isArray(res) ? (res as SnapshotRaw[]) : []
+     } catch (e) {
++      if (snapshotsRequestUuid !== uuid) return
+       console.warn('[snapshot] load list failed', (e as Error)?.message)
+       snapshots.value = []
+     } finally {
+-      listLoading.value = false
++      if (snapshotsRequestUuid === uuid) listLoading.value = false
+     }
+   }
+ 
+   async function toggle(uuid: string, enabled: boolean) {
+     if (toggling.value) return
+     toggling.value = true
+     const toast = useToast()
+     try {
+       await service.snapshot.togglePolicy(uuid, enabled)
+       if (volume.value) volume.value.enabled = enabled
+@@ -139,13 +173,13 @@ export const useSnapshotStore = defineStore('snapshot', () => {
+       toast.show(t('snapDeleteFailed'))
+       return false
+     } finally {
+       deletingName.value = null
+     }
+   }
+ 
+   return {
+     volume, policy, snapshots,
+     volumeLoading, listLoading, toggling, policySaving, creatingSnapshot, deletingName,
+-    loadVolume, loadPolicy, loadSnapshots, toggle, savePolicy, createSnapshot, removeSnapshot,
++    reset, loadVolume, loadPolicy, loadSnapshots, toggle, savePolicy, createSnapshot, removeSnapshot,
+   }
+ })

@@ -1,0 +1,209 @@
+# Review package: 148093a..e690379
+
+## Commits
+e690379 feat(upload): pure helpers — types/clientId/budget/list-groups/visibility (SP4-P3a)
+
+## Files changed
+ src/files/upload/budget.test.ts               | 10 +++++++
+ src/files/upload/budget.ts                    |  6 +++++
+ src/files/upload/clientId.test.ts             | 11 ++++++++
+ src/files/upload/clientId.ts                  |  9 +++++++
+ src/files/upload/types.ts                     | 32 ++++++++++++++++++++++
+ src/files/upload/uploadListGroups.test.ts     | 18 +++++++++++++
+ src/files/upload/uploadListGroups.ts          | 39 +++++++++++++++++++++++++++
+ src/files/upload/uploadListVisibility.test.ts |  9 +++++++
+ src/files/upload/uploadListVisibility.ts      |  3 +++
+ 9 files changed, 137 insertions(+)
+
+## Diff
+diff --git a/src/files/upload/budget.test.ts b/src/files/upload/budget.test.ts
+new file mode 100644
+index 0000000..fe3f532
+--- /dev/null
++++ b/src/files/upload/budget.test.ts
+@@ -0,0 +1,10 @@
++import { describe, it, expect } from 'vitest'
++import { canStoreBlob, PER_FILE_BLOB_CAP, TOTAL_BLOB_BUDGET } from './budget'
++describe('canStoreBlob', () => {
++  it('rejects empty, over-cap, and over-budget', () => {
++    expect(canStoreBlob(0)).toBe(false)
++    expect(canStoreBlob(PER_FILE_BLOB_CAP + 1)).toBe(false)
++    expect(canStoreBlob(10, TOTAL_BLOB_BUDGET)).toBe(false)
++    expect(canStoreBlob(10, 0)).toBe(true)
++  })
++})
+diff --git a/src/files/upload/budget.ts b/src/files/upload/budget.ts
+new file mode 100644
+index 0000000..eed19ce
+--- /dev/null
++++ b/src/files/upload/budget.ts
+@@ -0,0 +1,6 @@
++export const PER_FILE_BLOB_CAP = 200 * 1024 * 1024
++export const TOTAL_BLOB_BUDGET = 3 * 1024 * 1024 * 1024
++
++export function canStoreBlob(size: number, used = 0): boolean {
++  return size > 0 && size <= PER_FILE_BLOB_CAP && used + size <= TOTAL_BLOB_BUDGET
++}
+diff --git a/src/files/upload/clientId.test.ts b/src/files/upload/clientId.test.ts
+new file mode 100644
+index 0000000..c8e7940
+--- /dev/null
++++ b/src/files/upload/clientId.test.ts
+@@ -0,0 +1,11 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { getClientId } from './clientId'
++beforeEach(() => localStorage.clear())
++describe('getClientId', () => {
++  it('persists and returns a stable id', () => {
++    const a = getClientId()
++    expect(a).toBeTruthy()
++    expect(getClientId()).toBe(a)
++    expect(localStorage.getItem('nimoos:upload-client-id')).toBe(a)
++  })
++})
+diff --git a/src/files/upload/clientId.ts b/src/files/upload/clientId.ts
+new file mode 100644
+index 0000000..151674b
+--- /dev/null
++++ b/src/files/upload/clientId.ts
+@@ -0,0 +1,9 @@
++export function getClientId(): string {
++  const key = 'nimoos:upload-client-id'
++  let id = localStorage.getItem(key)
++  if (!id) {
++    id = crypto.randomUUID()
++    localStorage.setItem(key, id)
++  }
++  return id
++}
+diff --git a/src/files/upload/types.ts b/src/files/upload/types.ts
+new file mode 100644
+index 0000000..ab32b01
+--- /dev/null
++++ b/src/files/upload/types.ts
+@@ -0,0 +1,32 @@
++export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'needs_file' | 'conflict'
++
++export interface UploadItem {
++  id: string
++  file: File | Blob | null
++  fileName: string
++  fileType: string
++  size: number
++  targetPath: string
++  relativePath: string
++  status: UploadStatus
++  progress: number
++  bytesSent: number
++  speed: number
++  tusUploadUrl: string | null
++  retryCount: number
++  error: string
++  createdAt: number
++  doneAt?: number
++  batchId: string
++  batchTotal: number
++  restored: boolean
++  conflictPolicy: '' | 'overwrite' | 'rename' | 'skip'
++  oversize: boolean
++  thumbUrl?: string
++}
++
++export interface SelectedFile {
++  file: File
++  targetPath: string
++  relativePath: string
++}
+diff --git a/src/files/upload/uploadListGroups.test.ts b/src/files/upload/uploadListGroups.test.ts
+new file mode 100644
+index 0000000..8257be3
+--- /dev/null
++++ b/src/files/upload/uploadListGroups.test.ts
+@@ -0,0 +1,18 @@
++import { describe, it, expect } from 'vitest'
++import { groupUploadQueue } from './uploadListGroups'
++import type { UploadItem } from './types'
++const mk = (p: Partial<UploadItem>): UploadItem => ({
++  id: 'x', file: null, fileName: 'f', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'f',
++  status: 'pending', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
++  createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '', oversize: false, ...p,
++})
++describe('groupUploadQueue', () => {
++  it('splits into problem/active/done with active uploading-first', () => {
++    const q = [mk({ id: 'e', status: 'error' }), mk({ id: 'p', status: 'pending' }),
++      mk({ id: 'u', status: 'uploading' }), mk({ id: 'd', status: 'done', doneAt: 5 })]
++    const g = groupUploadQueue(q)
++    expect(g.problemItems.map(i => i.id)).toEqual(['e'])
++    expect(g.activeItems.map(i => i.id)).toEqual(['u', 'p'])
++    expect(g.doneItems.map(i => i.id)).toEqual(['d'])
++  })
++})
+diff --git a/src/files/upload/uploadListGroups.ts b/src/files/upload/uploadListGroups.ts
+new file mode 100644
+index 0000000..f2dccd3
+--- /dev/null
++++ b/src/files/upload/uploadListGroups.ts
+@@ -0,0 +1,39 @@
++import type { UploadItem } from './types'
++
++export interface UploadQueueGroups {
++  problemItems: UploadItem[]
++  activeItems: UploadItem[]
++  doneItems: UploadItem[]
++}
++
++export function groupUploadQueue(queue: UploadItem[]): UploadQueueGroups {
++  const problemItems: UploadItem[] = []
++  const activeItems: UploadItem[] = []
++  const doneItems: UploadItem[] = []
++
++  for (const item of queue) {
++    if (['error', 'needs_file', 'conflict'].includes(item.status)) {
++      problemItems.push(item)
++    } else if (item.status === 'done') {
++      doneItems.push(item)
++    } else if (['uploading', 'pending'].includes(item.status)) {
++      activeItems.push(item)
++    }
++  }
++
++  // Sort active items: uploading first, then pending
++  activeItems.sort((a, b) => {
++    if (a.status === 'uploading' && b.status !== 'uploading') return -1
++    if (a.status !== 'uploading' && b.status === 'uploading') return 1
++    return 0
++  })
++
++  // Sort done items by doneAt ?? createdAt ascending
++  doneItems.sort((a, b) => {
++    const aTime = a.doneAt ?? a.createdAt
++    const bTime = b.doneAt ?? b.createdAt
++    return aTime - bTime
++  })
++
++  return { problemItems, activeItems, doneItems }
++}
+diff --git a/src/files/upload/uploadListVisibility.test.ts b/src/files/upload/uploadListVisibility.test.ts
+new file mode 100644
+index 0000000..0348118
+--- /dev/null
++++ b/src/files/upload/uploadListVisibility.test.ts
+@@ -0,0 +1,9 @@
++import { describe, it, expect } from 'vitest'
++import { shouldAutoOpenUploadList } from './uploadListVisibility'
++describe('shouldAutoOpenUploadList', () => {
++  it('opens only when the queue grows', () => {
++    expect(shouldAutoOpenUploadList(0, 1)).toBe(true)
++    expect(shouldAutoOpenUploadList(2, 2)).toBe(false)
++    expect(shouldAutoOpenUploadList(3, 2)).toBe(false)
++  })
++})
+diff --git a/src/files/upload/uploadListVisibility.ts b/src/files/upload/uploadListVisibility.ts
+new file mode 100644
+index 0000000..5672600
+--- /dev/null
++++ b/src/files/upload/uploadListVisibility.ts
+@@ -0,0 +1,3 @@
++export function shouldAutoOpenUploadList(prevLen: number, curLen: number): boolean {
++  return curLen > prevLen
++}

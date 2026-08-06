@@ -1,0 +1,1139 @@
+### THEME FEATURE — tracked-file delta vs pre-Task-1 snapshot (aaa9a03):
+ index.html                                    |   8 ++
+ src/components/SkeletonWidget.vue             |   2 +-
+ src/components/ui/AlertDialog.vue             |   6 +-
+ src/components/ui/ContextMenu.vue             |   4 +-
+ src/components/ui/Dialog.vue                  |   4 +-
+ src/files/components/AddMountMenu.vue         |   2 +-
+ src/files/components/OperationStatusBar.vue   |   6 +-
+ src/files/components/SelectionToolbar.vue     |   4 +-
+ src/files/components/UploadPanel.vue          |  14 +--
+ src/files/shares/ShareRow.vue                 |   2 +-
+ src/files/viewers/ImageViewer.vue             |   6 +-
+ src/files/viewers/MarkdownViewer.vue          |   4 +-
+ src/files/viewers/MediaViewer.vue             |  48 +++++-----
+ src/files/viewers/PdfViewer.vue               |  10 +-
+ src/files/viewers/ViewerShell.vue             |   6 +-
+ src/files/viewers/viewers.css                 |   2 +-
+ src/home/components/AddPanel.vue              |   8 +-
+ src/home/components/AppTile.vue               |   2 +-
+ src/home/components/HomeTopbar.vue            |   4 +-
+ src/home/components/widgets/AiWidget.vue      |   4 +-
+ src/home/components/widgets/ClockWidget.vue   |  10 +-
+ src/home/components/widgets/NetChart.vue      |   8 +-
+ src/home/components/widgets/NetworkWidget.vue |   4 +-
+ src/home/components/widgets/WidgetCard.vue    |   4 +-
+ src/i18n/en_us.ts                             |   3 +
+ src/i18n/zh_cn.ts                             |   3 +
+ src/main.ts                                   |   3 +
+ src/styles/theme.css                          | 128 ++++++++++++++++++++++++++
+ src/views/Login.vue                           |  16 ++--
+ src/views/Welcome.vue                         |  22 ++---
+ 30 files changed, 245 insertions(+), 102 deletions(-)
+
+=== FULL DIFF ===
+diff --git a/index.html b/index.html
+index 8ba3934..66c5800 100644
+--- a/index.html
++++ b/index.html
+@@ -4,6 +4,14 @@
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+     <title>NimoOS</title>
++    <script>
++      // 主题防闪:在 JS bundle 加载前就贴 data-theme(与 src/stores/theme.ts 逻辑一致)
++      try {
++        if (localStorage.getItem('theme') === 'light') {
++          document.documentElement.dataset.theme = 'light'
++        }
++      } catch (e) { /* localStorage 不可用时静默,回落默认蓝 */ }
++    </script>
+   </head>
+   <body>
+     <div id="app"></div>
+diff --git a/src/components/SkeletonWidget.vue b/src/components/SkeletonWidget.vue
+index cbafa9a..ca3309f 100644
+--- a/src/components/SkeletonWidget.vue
++++ b/src/components/SkeletonWidget.vue
+@@ -18,7 +18,7 @@ const store = useUtilizationStore()
+ </script>
+ 
+ <style scoped>
+-.widget { background: rgba(255,255,255,.06); border-radius: 16px; padding: 16px; max-width: 320px; }
++.widget { background: var(--skeleton-bg); border-radius: 16px; padding: 16px; max-width: 320px; }
+ .row { display: flex; justify-content: space-between; padding: 4px 0; }
+ .row b { color: var(--accent); }
+ .empty { opacity: .6; }
+diff --git a/src/components/ui/AlertDialog.vue b/src/components/ui/AlertDialog.vue
+index a396e0a..d01aaf1 100644
+--- a/src/components/ui/AlertDialog.vue
++++ b/src/components/ui/AlertDialog.vue
+@@ -27,16 +27,16 @@ const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm'):
+ </template>
+ 
+ <style scoped>
+-.ui-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 1000; }
++.ui-dialog-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
+ .ui-dialog-content {
+   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
+   min-width: 320px; max-width: 92vw; padding: 20px; border-radius: 18px;
+   background: var(--popup-bg, rgba(20,23,35,0.95)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px);
+-  color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,0.5);
++  color: var(--fg); box-shadow: var(--card-shadow-hi);
+ }
+ .ui-dialog-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+ .ui-alert-msg { font-size: 14px; color: var(--fg-muted, #9aa4bf); margin: 0; }
+ .ui-dialog-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+ .ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
+-.ui-btn.danger { background: color-mix(in srgb, #ff5d5d 30%, transparent); border-color: #ff5d5d; }
++.ui-btn.danger { background: color-mix(in srgb, #ff5d5d 30%, transparent); border-color: #ff5d5d; /* theme-exception: danger button needs dedicated token */ }
+ </style>
+diff --git a/src/components/ui/ContextMenu.vue b/src/components/ui/ContextMenu.vue
+index bc43ff6..d729692 100644
+--- a/src/components/ui/ContextMenu.vue
++++ b/src/components/ui/ContextMenu.vue
+@@ -20,13 +20,13 @@ import { ContextMenuRoot, ContextMenuTrigger, ContextMenuPortal, ContextMenuCont
+ .ui-ctx-content {
+   min-width: 190px; padding: 6px; border-radius: 14px; z-index: 120;
+   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px);
+-  box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
++  box-shadow: var(--card-shadow-hi); color: var(--fg);
+ }
+ .ui-ctx-item {
+   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 9px;
+   font-size: 13px; cursor: pointer; user-select: none; outline: none;
+ }
+ .ui-ctx-item[data-highlighted] { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+-.ui-ctx-item.danger { color: #ff8a8a; }
++.ui-ctx-item.danger { color: #ff8a8a; /* theme-exception: danger text color needs dedicated token */ }
+ .ui-ctx-sep { height: 1px; margin: 5px 4px; background: var(--card-border, rgba(255,255,255,0.1)); }
+ </style>
+diff --git a/src/components/ui/Dialog.vue b/src/components/ui/Dialog.vue
+index 7e01583..28ca710 100644
+--- a/src/components/ui/Dialog.vue
++++ b/src/components/ui/Dialog.vue
+@@ -19,12 +19,12 @@ const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
+ </template>
+ 
+ <style scoped>
+-.ui-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 1000; }
++.ui-dialog-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
+ .ui-dialog-content {
+   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
+   min-width: 320px; max-width: 92vw; padding: 20px; border-radius: 18px;
+   background: var(--popup-bg, rgba(20,23,35,0.95)); border: 1px solid var(--card-border, rgba(255,255,255,0.12)); backdrop-filter: blur(20px);
+-  color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,0.5);
++  color: var(--fg); box-shadow: var(--card-shadow-hi);
+ }
+ .ui-dialog-title { font-size: 16px; font-weight: 600; margin: 0 0 14px; }
+ .ui-dialog-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+diff --git a/src/files/components/AddMountMenu.vue b/src/files/components/AddMountMenu.vue
+index bafd218..b5c9d23 100644
+--- a/src/files/components/AddMountMenu.vue
++++ b/src/files/components/AddMountMenu.vue
+@@ -48,7 +48,7 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin)
+ 
+ <style scoped>
+ .add-mount-btn { width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
+-.add-mount-btn:hover { background: var(--chip-hover, rgba(255,255,255,0.12)); }
++.add-mount-btn:hover { background: var(--chip-bg-hi); }
+ </style>
+ 
+ <style>
+diff --git a/src/files/components/OperationStatusBar.vue b/src/files/components/OperationStatusBar.vue
+index 771fb25..295b1e4 100644
+--- a/src/files/components/OperationStatusBar.vue
++++ b/src/files/components/OperationStatusBar.vue
+@@ -40,12 +40,12 @@ function baseName(p: string): string {
+   position: fixed; left: 24px; bottom: 24px; z-index: 60; width: 340px; max-width: calc(100vw - 48px);
+   padding: 12px 14px; border-radius: 16px;
+   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+-  backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
++  backdrop-filter: blur(20px); box-shadow: var(--card-shadow-hi); color: var(--fg);
+ }
+ .op-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+ .op-title { font-size: 13px; font-weight: 600; }
+-.op-cancel-all { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, #ff5d5d 45%, transparent); background: transparent; color: #ff8a8a; cursor: pointer; font-size: 12px; }
+-.op-cancel-all:hover { background: color-mix(in srgb, #ff5d5d 22%, transparent); }
++.op-cancel-all { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); background: transparent; color: var(--remove-fg, #ff8a8a); cursor: pointer; font-size: 12px; }
++.op-cancel-all:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
+ .op-task { margin-top: 8px; }
+ .op-task-line { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+ .op-task-label { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
+diff --git a/src/files/components/SelectionToolbar.vue b/src/files/components/SelectionToolbar.vue
+index 33d8710..76bb4c9 100644
+--- a/src/files/components/SelectionToolbar.vue
++++ b/src/files/components/SelectionToolbar.vue
+@@ -25,6 +25,6 @@ const { t } = useI18n()
+ .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
+ .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+ .sel-spacer { flex: 1 1 auto; }
+-.sel-btn.danger { color: #ff8a8a; border-color: color-mix(in srgb, #ff5d5d 45%, transparent); }
+-.sel-btn.danger:hover { background: color-mix(in srgb, #ff5d5d 22%, transparent); }
++.sel-btn.danger { color: var(--remove-fg, #ff8a8a); border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); }
++.sel-btn.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
+ </style>
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index 69557f5..03d57cc 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -291,26 +291,26 @@ async function onReselect(e: Event) {
+ .upload-panel-toggle {
+   padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+   background: var(--popup-bg, rgba(20,23,35,0.96)); color: var(--fg); cursor: pointer; font-size: 13px;
+-  backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5);
++  backdrop-filter: blur(20px); box-shadow: var(--card-shadow-hi);
+ }
+ .upload-panel {
+   width: 460px; max-width: calc(100vw - 48px); max-height: 74vh; overflow-y: auto;
+   padding: 16px 18px; border-radius: 18px;
+   background: var(--popup-bg, rgba(20,23,35,0.96)); border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+-  backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5); color: var(--fg);
++  backdrop-filter: blur(20px); box-shadow: var(--card-shadow-hi); color: var(--fg);
+ }
+ .up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+ .up-title { font-size: 15px; font-weight: 600; }
+ /* Compound selectors so red wins over .up-link-btn's accent color regardless of
+    stylesheet order (both are single-class = equal specificity otherwise). */
+-.up-link-btn.up-del { color: #ff8a8a; }
++.up-link-btn.up-del { color: var(--remove-fg, #ff8a8a); }
+ .up-head-actions { display: flex; align-items: center; gap: 10px; }
+-.up-link-btn.up-delete-all { color: #ff8a8a; }
++.up-link-btn.up-delete-all { color: var(--remove-fg, #ff8a8a); }
+ .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
+ .up-oversize-banner {
+   margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px;
+-  background: color-mix(in srgb, #f5a623 20%, transparent); border: 1px solid color-mix(in srgb, #f5a623 45%, transparent);
+-  color: #f5c777;
++  background: color-mix(in srgb, var(--dem-bg, #f5a623) 20%, transparent); border: 1px solid color-mix(in srgb, var(--dem-bg, #f5a623) 45%, transparent);
++  color: var(--dem-fg, #f5c777);
+ }
+ .up-zone { margin-top: 6px; }
+ .up-zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 8px 0 4px; }
+@@ -325,7 +325,7 @@ async function onReselect(e: Event) {
+ .up-item-meta { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+ .up-item-speed { font-size: 11px; color: var(--fg-muted, #9aa4bf); text-align: left; font-variant-numeric: tabular-nums; }
+ .up-item-size { margin-left: auto; text-align: right; font-size: 11px; color: var(--fg-muted, #9aa4bf); font-variant-numeric: tabular-nums; }
+-.up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }
++.up-item-error { font-size: 11px; color: var(--remove-fg, #ff8a8a); margin-top: 2px; }
+ .up-progress { height: 5px; border-radius: 999px; background: var(--chip-bg, rgba(255,255,255,0.1)); overflow: hidden; margin-top: 4px; }
+ .up-progress-fill { height: 100%; background: var(--accent, #6ea8fe); transition: width .2s; }
+ .up-item-actions { display: flex; gap: 10px; margin-top: 4px; }
+diff --git a/src/files/shares/ShareRow.vue b/src/files/shares/ShareRow.vue
+index c4e5f6a..8d868ee 100644
+--- a/src/files/shares/ShareRow.vue
++++ b/src/files/shares/ShareRow.vue
+@@ -41,5 +41,5 @@ const { t } = useI18n()
+ .share-row-main:hover .share-actions { opacity: 1; }
+ .share-act { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
+ .share-act:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
+-.share-act.danger { color: #ff8a8a; border-color: color-mix(in srgb, #ff5d5d 45%, transparent); }
++.share-act.danger { color: var(--remove-bg); border-color: var(--remove-bg); opacity: 0.7; }
+ </style>
+diff --git a/src/files/viewers/ImageViewer.vue b/src/files/viewers/ImageViewer.vue
+index 052a990..387b899 100644
+--- a/src/files/viewers/ImageViewer.vue
++++ b/src/files/viewers/ImageViewer.vue
+@@ -133,18 +133,18 @@ onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTime
+   gap: 4px;
+   padding: 6px 10px;
+   border-radius: 10px;
+-  background: rgb(49, 49, 54);
++  background: var(--card-bg);
+ }
+ .tb-item {
+   width: 34px;
+   height: 34px;
+   border: none;
+   background: transparent;
+-  color: #fff;
++  color: var(--fg);
+   font-size: 18px;
+   cursor: pointer;
+   border-radius: 6px;
+ }
+-.tb-item:hover { background: rgba(255, 255, 255, 0.15); }
++.tb-item:hover { background: var(--tool-bg-hi); }
+ .tb-item.disabled { opacity: 0.35; pointer-events: none; }
+ </style>
+diff --git a/src/files/viewers/MarkdownViewer.vue b/src/files/viewers/MarkdownViewer.vue
+index 9431c0c..254accf 100644
+--- a/src/files/viewers/MarkdownViewer.vue
++++ b/src/files/viewers/MarkdownViewer.vue
+@@ -42,8 +42,8 @@ onMounted(async () => {
+ .md-body { max-width: 820px; width: 100%; padding: 32px 28px; line-height: 1.7; color: var(--fg, #fff); }
+ .md-body :deep(h1), .md-body :deep(h2), .md-body :deep(h3) { margin: 1.2em 0 0.5em; font-weight: 700; }
+ .md-body :deep(h1) { font-size: 1.7em; border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.2)); padding-bottom: 0.3em; }
+-.md-body :deep(code) { background: rgba(255,255,255,0.1); padding: 0.15em 0.4em; border-radius: 4px; font-family: Consolas, monospace; }
+-.md-body :deep(pre) { background: rgba(0,0,0,0.35); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
++.md-body :deep(code) { background: var(--inner-bg); padding: 0.15em 0.4em; border-radius: 4px; font-family: Consolas, monospace; }
++.md-body :deep(pre) { background: var(--card-bg); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
+ .md-body :deep(pre) code { background: none; padding: 0; }
+ .md-body :deep(a) { color: var(--accent, #8ab4ff); }
+ .md-body :deep(table) { border-collapse: collapse; }
+diff --git a/src/files/viewers/MediaViewer.vue b/src/files/viewers/MediaViewer.vue
+index 932bba0..197d225 100644
+--- a/src/files/viewers/MediaViewer.vue
++++ b/src/files/viewers/MediaViewer.vue
+@@ -422,9 +422,10 @@ onBeforeUnmount(() => {
+ <style scoped>
+ .media-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+ .media-video { width: 100%; height: 100%; }
++/* theme-exception: 叠在任意音频封面图之上的暗化/模糊层（非页面背景），需固定中性暗色保证控件在任意封面上都可读，与页面主题无关 */
+ .audio-blur {
+   position: absolute; inset: 0; z-index: 0; background-size: cover; background-position: center;
+-  background-color: rgba(53, 54, 58, 0.4); backdrop-filter: blur(10px) saturate(180%);
++  background-color: rgba(53, 54, 58, 0.4); /* theme-exception: 叠在封面图上的玻璃底, 与主题无关 */ backdrop-filter: blur(10px) saturate(180%);
+ }
+ 
+ /* 音频布局：纵向——播放器在上、转录/摘要面板在下；居中限宽。
+@@ -436,50 +437,45 @@ onBeforeUnmount(() => {
+ /* ── 自定义极简播放器（仿参考图）──────────────────────────────
+    播放钮居中在进度条上方；进度条透明轨道 + 蓝紫已播 + 圆形拉链；配色沿用主页蓝紫。 */
+ .np { width: 100%; max-width: 40rem; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+-.np-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, 0.92); }
++.np-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--fg); }
+ 
+ .np-play {
+   flex: 0 0 auto; width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer;
+   display: flex; align-items: center; justify-content: center;
+-  background: linear-gradient(135deg, #4c6fe8, #6e5ae0);
+-  box-shadow: 0 8px 22px -6px rgba(59, 91, 219, 0.6);
++  background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
++  box-shadow: 0 8px 22px -6px var(--accent-soft-bd);
+   transition: transform 0.16s ease, box-shadow 0.16s ease;
+ }
+-.np-play:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 10px 26px -6px rgba(59, 91, 219, 0.75); }
++.np-play:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 10px 26px -6px var(--accent-soft-bd); }
+ .np-play:active { transform: scale(0.97); }
+-.np-play svg { width: 26px; height: 26px; fill: #fff; }
++.np-play svg { width: 26px; height: 26px; fill: #fff; } /* theme-exception: 播放钮图标恒叠在彩色渐变按钮上，白色对比度两套主题都稳定 */
+ .np-play svg.tri { margin-left: 3px; } /* 三角形光学居中 */
+ 
+ .np-bar-row { display: flex; align-items: center; gap: 14px; width: 100%; }
+-.np-time { flex: 0 0 auto; min-width: 46px; font-size: 15px; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.62); }
++.np-time { flex: 0 0 auto; min-width: 46px; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+ .np-time-end { text-align: right; }
+ 
+ /* 透明轨道 + 圆角 + 加大点击热区（::before 上下各撑 9px） */
+-.np-track { position: relative; flex: 1 1 auto; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); cursor: pointer; touch-action: none; }
++.np-track { position: relative; flex: 1 1 auto; height: 5px; border-radius: 999px; background: var(--tool-bg); cursor: pointer; touch-action: none; }
+ .np-track::before { content: ''; position: absolute; left: 0; right: 0; top: -9px; bottom: -9px; }
+-.np-played { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4c6fe8, #6e5ae0); }
+-/* 圆形拉链：白色圆点 + Azure 光晕，始终可见 */
++.np-played { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--grad-a), var(--grad-b)); }
++/* 圆形拉链：白色圆点(theme-exception，恒叠在彩色渐变轨道上，两套主题都需与轨道形成对比) + Azure 光晕 token 化 */
+ .np-thumb {
+   position: absolute; right: 0; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+-  background: #ffffff; transform: translate(50%, -50%);
+-  box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
++  background: #ffffff; /* theme-exception: 进度条拉链, 恒白 */ transform: translate(50%, -50%);
++  /* 第二段 0 2px 6px rgba(0,0,0,.35) 是纯中性小投影，为拉链提供离底深度，主题无关(theme-exception) */
++  box-shadow: 0 0 0 3px var(--accent-soft-bd), 0 2px 6px rgba(0, 0, 0, 0.35);
+ }
+ .np-track:hover .np-thumb { width: 16px; height: 16px; }
+ 
+-/* 转录/摘要面板 —— 白/米白卡（配色沿用主页搜索框：米白底 + 白卡 + Azure 蓝强调） */
++/* 转录/摘要面板 —— 消费全局 theme token（见 src/styles/theme.css）：
++   白色模式=米白底 + 白卡 + Azure 蓝强调；蓝色模式=深色玻璃。 */
+ .audio-panel {
+-  /* 搜索框同款调色板 */
+-  --bg: #f7f5ef; --card: #ffffff; --fg: #1c1b19; --fg-muted: #6e6a61; --fg-subtle: #9a958a;
+-  --border: #e7e3d9; --hover: rgba(28, 27, 25, 0.05);
+-  --accent: #3b5bdb; --accent-text: #3550c4;
+-  --grad-a: #4c6fe8; --grad-b: #6e5ae0;
+-  --accent-soft: rgba(59, 91, 219, 0.11); --accent-soft-2: rgba(59, 91, 219, 0.2); --accent-soft-bd: rgba(59, 91, 219, 0.3);
+-  --hl-bg: #fdf4d9; --hl-bd: #f0d9a8; --hl-fg: #92600c; --hl-star: #c9992f;
+   flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0;
+   display: flex; flex-direction: column; overflow: hidden;
+   border-radius: 20px; border: 1px solid var(--border);
+   background: var(--bg); color: var(--fg);
+-  box-shadow: 0 32px 80px -28px rgba(60, 50, 30, 0.3), 0 4px 16px rgba(60, 50, 30, 0.08);
++  box-shadow: var(--card-shadow-hi);
+ }
+ .ap-tabs { display: flex; gap: 8px; padding: 16px 18px 10px; flex: 0 0 auto; }
+ .ap-tab {
+@@ -513,7 +509,7 @@ onBeforeUnmount(() => {
+ .ap-seg.active .ap-seg-text { color: var(--fg); font-weight: 500; }
+ /* 重点句高光（金句）——柔和琥珀底 + 金色星标 */
+ .ap-seg.hl { background: var(--hl-bg); }
+-.ap-seg.hl:hover { background: #f7ebc8; }
++.ap-seg.hl:hover { background: var(--hl-bd); }
+ .ap-hl-star { width: 13px; height: 13px; fill: var(--hl-star); vertical-align: -2px; margin-right: 5px; }
+ 
+ /* 智能章节标题（点击跳转） */
+@@ -545,8 +541,8 @@ onBeforeUnmount(() => {
+ .ap-chip-btn:hover { background: var(--accent-soft-2); border-color: var(--accent-soft-bd); }
+ .ap-ask-msgs { display: flex; flex-direction: column; gap: 10px; }
+ .ap-msg { max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+-.ap-msg.user { align-self: flex-end; color: #fff; background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); border-bottom-right-radius: 5px; }
+-.ap-msg.ai { align-self: flex-start; color: var(--fg); background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 5px; box-shadow: 0 4px 14px -10px rgba(60, 50, 30, 0.4); }
++.ap-msg.user { align-self: flex-end; color: #fff; /* theme-exception: 用户气泡恒为彩色渐变(--grad-a/--grad-b)，白字对比度两套主题都稳定 */ background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); border-bottom-right-radius: 5px; }
++.ap-msg.ai { align-self: flex-start; color: var(--fg); background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 5px; box-shadow: var(--card-shadow); }
+ 
+ .ap-ask-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 12px 16px 16px; }
+ .ap-ask-input {
+@@ -559,10 +555,10 @@ onBeforeUnmount(() => {
+ .ap-ask-send {
+   flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+   display: flex; align-items: center; justify-content: center;
+-  background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); box-shadow: 0 6px 16px -6px rgba(59, 91, 219, 0.6);
++  background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); box-shadow: 0 6px 16px -6px var(--accent-soft-bd);
+   transition: filter 0.16s, transform 0.16s, opacity 0.16s;
+ }
+-.ap-ask-send svg { width: 20px; height: 20px; fill: #fff; }
++.ap-ask-send svg { width: 20px; height: 20px; fill: #fff; } /* theme-exception: 图标恒叠在彩色渐变按钮上，白色对比度两套主题都稳定 */
+ .ap-ask-send:hover { filter: brightness(1.06); transform: translateY(-1px); }
+ .ap-ask-send:disabled { opacity: 0.45; cursor: default; transform: none; filter: none; }
+ 
+diff --git a/src/files/viewers/PdfViewer.vue b/src/files/viewers/PdfViewer.vue
+index b3da3eb..51add76 100644
+--- a/src/files/viewers/PdfViewer.vue
++++ b/src/files/viewers/PdfViewer.vue
+@@ -191,24 +191,24 @@ onBeforeUnmount(() => {
+   position: relative;
+   width: 100%; height: 100%; overflow: auto;
+   display: flex; flex-direction: column; align-items: center; gap: 16px;
+-  padding: 16px; background: rgba(0, 0, 0, 0.25);
++  padding: 16px; background: var(--app-bg);
+ }
+ .pdf-scroll :deep(.pdf-page-canvas) {
+   max-width: 100%; height: auto;
+-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4); background: #fff;
++  box-shadow: var(--card-shadow-hi); background: #fff; /* theme-exception: PDF canvas white background for document readability */
+ }
+ .pdf-tools { display: flex; align-items: center; gap: 10px; }
+ .pdf-btn {
+   width: 30px; height: 30px; border: none; border-radius: 50%; cursor: pointer;
+-  background: rgba(255, 255, 255, 0.14); color: var(--fg, #fff); font-size: 17px; line-height: 1;
++  background: var(--tool-bg); color: var(--fg, #fff); font-size: 17px; line-height: 1;
+ }
+ .pdf-btn:disabled { opacity: 0.35; cursor: default; }
+-.pdf-btn:not(:disabled):hover { background: rgba(255, 255, 255, 0.26); }
++.pdf-btn:not(:disabled):hover { background: var(--tool-bg-hi); }
+ .pdf-zoom { font-size: 13px; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+ .pdf-pager { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+ .pdf-page-input {
+   width: 46px; height: 26px; text-align: center; border-radius: 6px;
+-  border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1);
++  border: 1px solid var(--inner-border); background: var(--inner-bg);
+   color: var(--fg, #fff); font-size: 13px; font-variant-numeric: tabular-nums;
+ }
+ .pdf-page-sep { font-size: 13px; opacity: 0.75; }
+diff --git a/src/files/viewers/ViewerShell.vue b/src/files/viewers/ViewerShell.vue
+index ee6b831..38d4c02 100644
+--- a/src/files/viewers/ViewerShell.vue
++++ b/src/files/viewers/ViewerShell.vue
+@@ -30,7 +30,7 @@ const { t } = useI18n()
+ /* 主页同款散景光斑，让预览背景与主页保持一致 */
+ .overlay::before {
+   content: ""; position: absolute; inset: -12%; z-index: 0; pointer-events: none;
+-  background:
++  background: /* theme-exception: 装饰性 accent bokeh, 与主页背景一致, 皮肤无关 */
+     radial-gradient(22vw 22vw at 22% 26%, rgba(150, 185, 255, 0.5), transparent 60%),
+     radial-gradient(18vw 18vw at 78% 30%, rgba(183, 155, 255, 0.42), transparent 62%),
+     radial-gradient(20vw 20vw at 60% 80%, rgba(95, 227, 176, 0.32), transparent 62%),
+@@ -48,8 +48,8 @@ const { t } = useI18n()
+ .viewer-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+ .viewer-close {
+   width: 32px; height: 32px; border: none; border-radius: 50%;
+-  background: rgba(255,255,255,0.12); color: var(--fg, #fff); cursor: pointer; font-size: 15px;
++  background: var(--tool-bg); color: var(--fg, #fff); cursor: pointer; font-size: 15px;
+ }
+-.viewer-close:hover { background: rgba(255,255,255,0.22); }
++.viewer-close:hover { background: var(--tool-bg-hi); }
+ .viewer-body { flex: 1 1 auto; overflow: hidden; position: relative; z-index: 1; min-height: 0; }
+ </style>
+diff --git a/src/files/viewers/viewers.css b/src/files/viewers/viewers.css
+index a5d02cd..f1d2725 100644
+--- a/src/files/viewers/viewers.css
++++ b/src/files/viewers/viewers.css
+@@ -20,7 +20,7 @@
+ }
+ .viewer-status .chip {
+   padding: 6px 14px; border: none; border-radius: 999px; cursor: pointer;
+-  background: rgba(255, 255, 255, 0.16); color: var(--fg, #fff);
++  background: var(--tool-bg); color: var(--fg, #fff);
+ }
+ .viewer-status .detail {
+   font-size: 12px; opacity: 0.7; max-width: 80%; text-align: center; word-break: break-all;
+diff --git a/src/home/components/AddPanel.vue b/src/home/components/AddPanel.vue
+index 7ebf9b1..08f9fc4 100644
+--- a/src/home/components/AddPanel.vue
++++ b/src/home/components/AddPanel.vue
+@@ -281,7 +281,7 @@ function appGlyph(key: string): string {
+   background: var(--overlay-bg, rgba(20, 26, 46, 0.46));
+   backdrop-filter: var(--overlay-blur, blur(50px) saturate(1.5) brightness(1.05));
+   border-left: 1px solid var(--card-border, rgba(255,255,255,.36));
+-  box-shadow: -34px 0 70px -34px rgba(0,0,0,.6);
++  box-shadow: -34px 0 70px -34px rgba(0,0,0,.6); /* theme-exception: drop shadow, theme-independent */
+   display: flex; flex-direction: column;
+   z-index: 200;
+   overflow: hidden;
+@@ -373,7 +373,7 @@ function appGlyph(key: string): string {
+   width: var(--app-size, 64px); height: var(--app-size, 64px);   /* match desktop/dock icon size */
+   display: grid; place-items: center;
+   border-radius: var(--icon-radius, 22px);
+-  color: #fff;                                    /* glyph stroke reads on the colored gradient */
++  color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */
+   box-shadow: var(--icon-shadow, 0 14px 30px -8px rgba(6,10,26,.6), inset 0 1px 0 rgba(255,255,255,.4));
+   transition: transform .18s var(--ease, ease), box-shadow .18s;
+   /* background comes from the bound .ic-* class (global): vivid gradient for
+@@ -382,9 +382,9 @@ function appGlyph(key: string): string {
+ .lib-icon:hover .lib-app-ic {
+   transform: translateY(-3px) scale(1.06);
+   box-shadow:
+-    inset 0 1px 0 rgba(255,255,255,.6),
++    inset 0 1px 0 rgba(255,255,255,.6), /* theme-exception: inset highlight, theme-independent */
+     inset 0 0 18px -4px var(--accent, #8ab4ff),
+-    0 20px 38px -8px rgba(6,10,26,.6);
++    0 20px 38px -8px rgba(6,10,26,.6); /* theme-exception: drop shadow, theme-independent */
+ }
+ /* With real image: no background tint, overflow clip to preserve border-radius */
+ .lib-app-ic.has-img {
+diff --git a/src/home/components/AppTile.vue b/src/home/components/AppTile.vue
+index 607e97c..b9a32d1 100644
+--- a/src/home/components/AppTile.vue
++++ b/src/home/components/AppTile.vue
+@@ -38,7 +38,7 @@ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.va
+ .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
+ /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
+    here we set width/height for the within-tile context (kind-app .app-ic is flex:1 1 auto globally) */
+-.app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; box-shadow: var(--icon-shadow); }
++.app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
+ .app-ic :deep(svg) { width: 44%; height: 44%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+ /* has-img: overflow+background handled globally; local transition kept for smooth load */
+ .app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+diff --git a/src/home/components/HomeTopbar.vue b/src/home/components/HomeTopbar.vue
+index 80be3f1..e8c1824 100644
+--- a/src/home/components/HomeTopbar.vue
++++ b/src/home/components/HomeTopbar.vue
+@@ -8,6 +8,7 @@
+       </button>
+       <button class="bar-btn add-btn" @click="$emit('add')">+ {{ t('topbarAdd') }}</button>
+       <button class="bar-btn edit-btn" :aria-pressed="editing" @click="toggleEdit()">{{ editing ? t('topbarDone') : '✎ ' + t('topbarEdit') }}</button>
++      <ThemeToggle />
+     </div>
+   </header>
+ </template>
+@@ -16,6 +17,7 @@ import { onMounted, onUnmounted } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useEditMode } from '../composables/useEditMode'
+ import { useHomeUiStore } from '../stores/homeUi'
++import ThemeToggle from './ThemeToggle.vue'
+ defineEmits<{ add: [] }>()
+ const { t } = useI18n()
+ const { editing, toggleEdit } = useEditMode()
+@@ -33,7 +35,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
+ .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 40px; padding: 0 20px; }
+ 
+ /* brand — base.css:30 + skin-spatial.css:163 */
+-.brand { display: flex; align-items: center; gap: 11px; font-weight: 600; font-size: 16px; letter-spacing: -0.2px; font-family: var(--brand-font, inherit); text-shadow: 0 1px 4px rgba(8, 12, 28, 0.4); }
++.brand { display: flex; align-items: center; gap: 11px; font-weight: 600; font-size: 16px; letter-spacing: -0.2px; font-family: var(--brand-font, inherit); text-shadow: var(--label-shadow); }
+ 
+ /* status area — base.css:35 */
+ .status { display: flex; justify-content: flex-end; align-items: center; gap: 10px; color: var(--fg-muted); font-size: 13px; }
+diff --git a/src/home/components/widgets/AiWidget.vue b/src/home/components/widgets/AiWidget.vue
+index b8cec54..2100c7a 100644
+--- a/src/home/components/widgets/AiWidget.vue
++++ b/src/home/components/widgets/AiWidget.vue
+@@ -34,14 +34,14 @@ function send(preset?: string) {
+ <style scoped>
+ /* base.css:198-218 — AI widget interior + skin-spatial.css:160 orb box-shadow */
+ .ai { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+-.ai-orb { width: clamp(48px, 24cqmin, 96px); height: clamp(48px, 24cqmin, 96px); margin: 4px auto 14px; border-radius: 50%; background: radial-gradient(circle at 36% 34%, #fff 0 4px, transparent 5px), radial-gradient(circle at 60% 34%, #fff 0 4px, transparent 5px), radial-gradient(circle at 64% 22%, var(--accent2), transparent 30%), radial-gradient(circle at 26% 80%, var(--accent), transparent 36%), var(--orb-core, #1a2050); box-shadow: 0 0 46px var(--orb-glow), inset 0 0 22px rgba(255,255,255,.3); animation: pulse 4s var(--ease, ease) infinite; }
++.ai-orb { width: clamp(48px, 24cqmin, 96px); height: clamp(48px, 24cqmin, 96px); margin: 4px auto 14px; border-radius: 50%; background: radial-gradient(circle at 36% 34%, var(--fg) 0 4px, transparent 5px), radial-gradient(circle at 60% 34%, var(--fg) 0 4px, transparent 5px), radial-gradient(circle at 64% 22%, var(--accent2), transparent 30%), radial-gradient(circle at 26% 80%, var(--accent), transparent 36%), var(--orb-core, #1a2050); box-shadow: 0 0 46px var(--orb-glow), inset 0 0 22px rgba(255,255,255,.3); /* theme-exception: Inset glow uses semi-transparent white for lighting effect; needs new glow token */ animation: pulse 4s var(--ease, ease) infinite; }
+ .ai-copy { text-align: center; font-size: clamp(12px, 6cqmin, 16px); font-weight: 500; color: var(--fg-muted); }
+ .card-in:has(.ai-copy.small) { justify-content: center; gap: 10px; }
+ .ai-copy.small { font-size: clamp(13px, 7cqmin, 17px); }
+ .prompts { display: grid; gap: 8px; margin-top: 14px; }
+ .prompt { display: flex; align-items: center; gap: 9px; min-height: clamp(32px, 14cqmin, 42px); padding: 0 13px; border: 1px solid var(--inner-border); border-radius: var(--prompt-radius, 999px); background: var(--inner-bg); font-size: clamp(11.5px, 5cqmin, 14px); cursor: pointer; transition: background .18s, border-color .18s; }
+ .prompt:hover { background: var(--inner-bg-hi); }
+-.dot { width: clamp(18px, 9cqmin, 24px); height: clamp(18px, 9cqmin, 24px); flex: 0 0 auto; border-radius: 7px; display: grid; place-items: center; font-size: clamp(10px, 4.5cqmin, 12px); font-weight: 700; color: #fff; background: linear-gradient(145deg, var(--accent2), var(--accent)); }
++.dot { width: clamp(18px, 9cqmin, 24px); height: clamp(18px, 9cqmin, 24px); flex: 0 0 auto; border-radius: 7px; display: grid; place-items: center; font-size: clamp(10px, 4.5cqmin, 12px); font-weight: 700; color: var(--on-accent); background: linear-gradient(145deg, var(--accent2), var(--accent)); }
+ .ai-send { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 4px 4px 4px 14px; border: 1px solid var(--inner-border); border-radius: var(--prompt-radius, 999px); background: var(--inner-bg); }
+ .ai-send:focus-within { border-color: var(--accent); }
+ .ai-input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: clamp(11.5px, 5cqmin, 14px); outline: none; }
+diff --git a/src/home/components/widgets/ClockWidget.vue b/src/home/components/widgets/ClockWidget.vue
+index c8d06f4..086b2fc 100644
+--- a/src/home/components/widgets/ClockWidget.vue
++++ b/src/home/components/widgets/ClockWidget.vue
+@@ -88,7 +88,7 @@ const variant = computed<'mini' | 'wide' | 'med' | 'square'>(() => {
+ </script>
+ 
+ <style scoped>
+-.clock { width: 100%; height: 100%; display: flex; color: #fff; overflow: hidden; }
++.clock { width: 100%; height: 100%; display: flex; color: var(--fg); overflow: hidden; }
+ .txt { display: flex; flex-direction: column; }
+ .time {
+   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+@@ -129,14 +129,14 @@ const variant = computed<'mini' | 'wide' | 'med' | 'square'>(() => {
+ 
+ /* —— 表盘 —— */
+ .dial { flex: 0 0 auto; }
+-.face { fill: rgba(255, 255, 255, .06); stroke: rgba(255, 255, 255, .38); stroke-width: 1; }
+-.tick { stroke: rgba(255, 255, 255, .62); stroke-width: 1; stroke-linecap: round; }
++.face { fill: rgba(255, 255, 255, .06); stroke: rgba(255, 255, 255, .38); stroke-width: 1; } /* theme-exception: SVG dial face semi-transparent white, requires new dial-specific tokens */
++.tick { stroke: rgba(255, 255, 255, .62); stroke-width: 1; stroke-linecap: round; } /* theme-exception: Clock tick marks use semi-transparent white for dial visibility */
+ .tick.major { stroke-width: 2; }
+-.hand { stroke: #fff; stroke-linecap: round; }
++.hand { stroke: var(--fg); stroke-linecap: round; }
+ .hand.hour { stroke-width: 3; }
+ .hand.minute { stroke-width: 2; }
+ .hand.second { stroke: var(--accent2, #b79bff); stroke-width: 1.4; }
+-.pin { fill: #fff; }
++.pin { fill: var(--fg); }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .hand { transition: none; }
+diff --git a/src/home/components/widgets/NetChart.vue b/src/home/components/widgets/NetChart.vue
+index ad581cd..084a5c3 100644
+--- a/src/home/components/widgets/NetChart.vue
++++ b/src/home/components/widgets/NetChart.vue
+@@ -35,9 +35,9 @@ const d = computed(() => netChartPoints(props.down, peak.value))
+ .chart-plot .net-chart { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; }
+ .net-chart .grid { stroke: var(--inner-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+ .net-chart .line { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+-.net-chart .line.up { stroke: rgb(0, 143, 251); }
+-.net-chart .line.down { stroke: rgb(0, 227, 150); }
++.net-chart .line.up { stroke: var(--accent); }
++.net-chart .line.down { stroke: var(--good); }
+ .net-chart .area { stroke: none; opacity: .16; }
+-.net-chart .area.up { fill: rgb(0, 143, 251); }
+-.net-chart .area.down { fill: rgb(0, 227, 150); }
++.net-chart .area.up { fill: var(--accent); }
++.net-chart .area.down { fill: var(--good); }
+ </style>
+diff --git a/src/home/components/widgets/NetworkWidget.vue b/src/home/components/widgets/NetworkWidget.vue
+index d0a36d0..5d2bb71 100644
+--- a/src/home/components/widgets/NetworkWidget.vue
++++ b/src/home/components/widgets/NetworkWidget.vue
+@@ -35,7 +35,7 @@ const peak = computed(() => { const p = netPeak(hist.value.up, hist.value.down);
+ .net-dev.on { border-color: var(--accent); color: var(--accent); }
+ .net-devs.single { color: var(--fg-muted); font-size: 12px; }
+ .net-legend { display: flex; gap: 16px; align-items: baseline; font-size: clamp(11px, 6cqmin, 14px); font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
+-.net-up { color: rgb(0, 143, 251); }
+-.net-down { color: rgb(0, 227, 150); }
++.net-up { color: var(--accent); }
++.net-down { color: var(--good); }
+ .net-peak { color: var(--fg-faint); font-size: clamp(9px, 5cqmin, 12px); }
+ </style>
+diff --git a/src/home/components/widgets/WidgetCard.vue b/src/home/components/widgets/WidgetCard.vue
+index ae34cac..6474617 100644
+--- a/src/home/components/widgets/WidgetCard.vue
++++ b/src/home/components/widgets/WidgetCard.vue
+@@ -70,7 +70,7 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
+   pointer-events: none;
+   /* thin top-edge gloss only — kept small so it doesn't read as a bright patch
+      covering the top-left title/content (was transparent 26% / opacity .55) */
+-  background: linear-gradient(148deg, rgba(255, 255, 255, 0.16), transparent 14%);
++  background: linear-gradient(148deg, rgba(255, 255, 255, 0.16), transparent 14%); /* theme-exception: Top-edge gloss/shine effect on glass cards; white highlight semantic doesn't map to existing tokens */
+   mix-blend-mode: screen;
+   opacity: 0.4;
+ }
+@@ -116,7 +116,7 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
+   font-weight: 600;
+   letter-spacing: -0.1px;
+   color: var(--fg, #fff);
+-  text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45);  /* skin-spatial.css:158 */
++  text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45); /* theme-exception: Dark text shadow for readability on glass cards; semantic doesn't fit existing shadow tokens */
+ }
+ 
+ /* ── Widget icon (.card-ic wraps the svg injected via v-html) ───────────── */
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index a3277fc..26f7ff2 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -302,6 +302,9 @@ export const messages = {
+     topbarAdd: 'Add',
+     topbarEdit: 'Edit',
+     topbarDone: 'Done',
++    themeToggle: 'Theme',
++    themeLight: 'White',
++    themeBlue: 'Blue',
+     // ── Home: search palette ──
+     searchPlaceholder: 'what are u looking for',
+     searchClose: 'Close',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 43b9f84..1837c73 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -301,6 +301,9 @@ export const messages = {
+     topbarAdd: '添加',
+     topbarEdit: '编辑',
+     topbarDone: '完成',
++    themeToggle: '主题',
++    themeLight: '白色',
++    themeBlue: '蓝色',
+     // ── 主页:搜索面板 ──
+     searchPlaceholder: '你在找什么?',
+     searchClose: '关闭',
+diff --git a/src/main.ts b/src/main.ts
+index 7c69a7e..6e7c6f2 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -6,6 +6,7 @@ import { router } from './router'
+ import { i18n } from './i18n'
+ import { useSessionStore } from './stores/session'
+ import { makeAuthFailHandler } from './router/onAuthFail'
++import { applyTheme, initialTheme } from './stores/theme'
+ import './styles/theme.css'
+ import './files/viewers/viewers.css'
+ 
+@@ -32,4 +33,6 @@ initService({
+ 
+ app.use(i18n)
+ app.use(router)
++// 冷启动:mount 前先把 data-theme 贴到 <html>,避免先渲染默认蓝再跳白的闪烁。
++applyTheme(initialTheme())
+ app.mount('#app')
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index 31ff355..8ac7f49 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -46,6 +46,26 @@
+   --good: #5fe3b0;
+   --on-accent: #16203a;
+ 
++  /* 扩展/语义 token(SearchDialog·MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12 */
++  --card: #232a45;
++  --border: rgba(255, 255, 255, 0.14);
++  --fg-subtle: rgba(255, 255, 255, 0.4);
++  --divider: rgba(255, 255, 255, 0.1);
++  --hover: rgba(255, 255, 255, 0.08);
++  --accent-text: #a9c6ff;
++  --grad-a: #7a98ff;
++  --grad-b: #b79bff;
++  --accent-soft: rgba(138, 180, 255, 0.14);
++  --accent-soft-2: rgba(138, 180, 255, 0.24);
++  --accent-soft-bd: rgba(138, 180, 255, 0.36);
++  --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
++  --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
++  --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
++  --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;
++  --success: #5fe3b0;
++  --hl-bg: rgba(232, 192, 106, 0.16); --hl-bd: rgba(232, 192, 106, 0.4); --hl-fg: #e8c06a; --hl-star: #e8c06a;
++  --remove-fg: #ff8a8a; --drop-bad: rgba(255, 80, 100, 0.12); --skeleton-bg: rgba(255, 255, 255, 0.06);
++
+   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
+   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
+ 
+@@ -119,6 +139,114 @@
+     linear-gradient(180deg, #2a3354 0%, #1c2339 58%, #141a2b 100%);
+ }
+ 
++/* ═══ 白色 / 米白纸感主题:覆盖全部颜色 token(结构 token 沿用 :root)。权威取值见 docs/THEMING.md §2 ═══ */
++:root[data-theme="light"] {
++  color-scheme: light;
++
++  /* 2.1 基础色 */
++  --bg: #f7f5ef;
++  --fg: #1c1b19;
++  --fg-muted: #6e6a61;
++  --fg-faint: #9a958a;
++  --accent: #3b5bdb;
++  --accent2: #6e5ae0;
++  --good: #15754c;
++  --on-accent: #ffffff;
++
++  /* 2.2 品牌渐变 */
++  --brand-bg: linear-gradient(135deg, #4c6fe8, #6e5ae0);
++  --brand-shadow: 0 12px 30px rgba(59, 91, 219, 0.3);
++
++  /* 2.3 chip / 通透按钮 */
++  --chip-border: #e7e3d9;
++  --chip-bg: #ffffff;
++  --chip-bg-hi: #f2efe7;
++  --dot: rgba(28, 27, 25, 0.35);
++  --dot-on: #1c1b19;
++
++  /* 2.4 卡片 / 浮层 */
++  --card-bg: #ffffff;
++  --popup-bg: #ffffff;
++  --card-border: #e7e3d9;
++  --card-shadow: 0 2px 6px rgba(60, 50, 30, 0.06), 0 26px 50px -20px rgba(60, 50, 30, 0.3);
++  --card-shadow-hi: 0 4px 10px rgba(60, 50, 30, 0.08), 0 40px 70px -22px rgba(60, 50, 30, 0.34);
++  --card-shadow-drag: 0 10px 20px rgba(60, 50, 30, 0.12), 0 60px 90px -28px rgba(60, 50, 30, 0.4);
++  --clock-bg: linear-gradient(157deg, rgba(59, 91, 219, 0.1), #ffffff 60%);
++  --folder-glass: linear-gradient(157deg, #ffffff, #f4f1e9);
++  --folder-mini: linear-gradient(150deg, #ece7dc, #dcd6c8);
++  --toast-bg: #ffffff;
++
++  /* 2.5 工具 / 内嵌面 */
++  --tool-bg: #f0eee8;
++  --tool-bg-hi: #e7e3d9;
++  --inner-bg: #f7f5ef;
++  --inner-bg-hi: #f0eee8;
++  --inner-border: #e7e3d9;
++  --grid-dot: rgba(28, 27, 25, 0.14);
++
++  /* 2.6 环形图 / 迷你图 / AI 光球 */
++  --ring-hole: rgba(255, 255, 255, 0.85);
++  --ring-track: rgba(28, 27, 25, 0.1);
++  --spark-fill: rgba(59, 91, 219, 0.14);
++  --spark-grid: rgba(28, 27, 25, 0.06);
++  --num-color: #1c1b19;
++  --orb-core: #d9def5;
++  --orb-glow: rgba(59, 91, 219, 0.4);
++
++  /* 2.7 图标 / 标签 / 文件夹 */
++  --folder-bg: linear-gradient(180deg, #a9c2f5, #6e8fe8);
++  --icon-shadow: 0 14px 30px -8px rgba(60, 50, 30, 0.22);
++  --label-color: rgba(28, 27, 25, 0.92);
++  --label-shadow: none;
++
++  /* 2.8 Dock / 全部应用 */
++  --dock-bg: rgba(255, 255, 255, 0.9);
++  --dock-border: #e7e3d9;
++  --dock-shadow: 0 30px 60px -18px rgba(60, 50, 30, 0.32);
++  --all-bg: #f0eee8;
++  --all-fg: #1c1b19;
++  --all-border: #e7e3d9;
++
++  /* 2.9 浮层 / 背景 / 危险 / 拖放 */
++  --overlay-bg: rgba(40, 36, 28, 0.28);
++  --remove-bg: #e0466a;
++  --drop-bg: rgba(59, 91, 219, 0.12);
++  --app-bg: #f7f5ef;
++
++  /* 2.10 模糊(纸感不用玻璃) */
++  --blur: none;
++  --overlay-blur: blur(8px);
++
++  /* 扩展/语义 token(白色纸感,取自 SearchDialog/MediaViewer 原浅色板) */
++  --card: #ffffff;
++  --border: #e7e3d9;
++  --fg-subtle: #9a958a;
++  --divider: rgba(28, 27, 25, 0.08);
++  --hover: rgba(28, 27, 25, 0.045);
++  --accent-text: #3550c4;
++  --grad-a: #4c6fe8;
++  --grad-b: #6e5ae0;
++  --accent-soft: rgba(59, 91, 219, 0.11);
++  --accent-soft-2: rgba(59, 91, 219, 0.2);
++  --accent-soft-bd: rgba(59, 91, 219, 0.3);
++  --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
++  --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
++  --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
++  --hit-bg: #fce8a6; --hit-fg: #5a4a12;
++  --success: #15754c;
++  --hl-bg: #fdf4d9; --hl-bd: #f0d9a8; --hl-fg: #92600c; --hl-star: #c9992f;
++  --remove-fg: #c0392b; --drop-bad: rgba(224, 70, 106, 0.12); --skeleton-bg: rgba(28, 27, 25, 0.05);
++}
++
++/* 白色主题:滚动条滑块贴浅底改深色;关闭散景光斑与暗角(纸感不要 bokeh)。见 THEMING.md §2.11 */
++:root[data-theme="light"] { scrollbar-color: rgba(28, 27, 25, 0.22) transparent; }
++:root[data-theme="light"] *::-webkit-scrollbar-thumb {
++  background: rgba(28, 27, 25, 0.22); border: 2px solid transparent; background-clip: padding-box;
++}
++:root[data-theme="light"] *::-webkit-scrollbar-thumb:hover { background: rgba(28, 27, 25, 0.4); background-clip: padding-box; }
++:root[data-theme="light"] body::before,
++:root[data-theme="light"] body::after { background: none; }
++
+ * { box-sizing: border-box; }
+ html, body { min-height: 100%; }
+ body {
+diff --git a/src/views/Login.vue b/src/views/Login.vue
+index dd32d75..32f28b6 100644
+--- a/src/views/Login.vue
++++ b/src/views/Login.vue
+@@ -78,17 +78,17 @@ async function submit() {
+   width: 22rem; max-width: calc(100vw - 3rem); padding: 2.5rem 2.25rem;
+   display: flex; flex-direction: column; gap: 0.5rem;
+   background: var(--popup-bg); backdrop-filter: blur(18px);
+-  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 22px;
+-  color: var(--fg); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
++  border: 1px solid var(--card-border); border-radius: 22px;
++  color: var(--fg); box-shadow: var(--card-shadow-hi);
+   animation: itemIn 0.4s ease both;
+ }
+ .auth-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; align-self: center; margin-bottom: 0.75rem; }
+ .auth-label { font-size: 0.8rem; opacity: 0.75; margin-top: 0.5rem; }
+ .auth-input {
+-  padding: 0.6rem 0.8rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18);
+-  background: rgba(255, 255, 255, 0.12); color: var(--fg); outline: none;
++  padding: 0.6rem 0.8rem; border-radius: 12px; border: 1px solid var(--card-border);
++  background: var(--inner-bg); color: var(--fg); outline: none;
+ }
+-.auth-input:focus { border-color: rgba(255, 255, 255, 0.4); }
++.auth-input:focus { border-color: var(--card-border); }
+ .login-password-field { position: relative; display: flex; }
+ .login-password-field .login-password { flex: 1; padding-right: 2.4rem; }
+ .login-reveal {
+@@ -100,11 +100,11 @@ async function submit() {
+ .login-reveal:hover { opacity: 1; }
+ .auth-btn {
+   margin-top: 1.25rem; padding: 0.7rem; border: none; border-radius: 14px; cursor: pointer;
+-  background: var(--accent, #3b82f6); color: #fff; font-weight: 600;
++  background: var(--accent, #3b82f6); color: var(--on-accent); font-weight: 600;
+ }
+ .auth-btn:disabled { opacity: 0.6; cursor: default; }
+ .login-error {
+-  background: rgba(220, 38, 38, 0.22); border: 1px solid rgba(220, 38, 38, 0.5);
+-  color: #fecaca; padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 0.85rem;
++  background: rgba(220, 38, 38, 0.22); border: 1px solid rgba(220, 38, 38, 0.5); /* theme-exception: error state needs dedicated token */
++  color: #fecaca; /* theme-exception: error text color needs dedicated token */ padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 0.85rem;
+ }
+ </style>
+diff --git a/src/views/Welcome.vue b/src/views/Welcome.vue
+index 5636be7..99b5be7 100644
+--- a/src/views/Welcome.vue
++++ b/src/views/Welcome.vue
+@@ -124,8 +124,8 @@ onUnmounted(() => {
+   width: 24rem; max-width: calc(100vw - 3rem); padding: 2.75rem 2.5rem;
+   display: flex; flex-direction: column; gap: 0.5rem; text-align: center;
+   background: var(--popup-bg); backdrop-filter: blur(18px);
+-  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 22px;
+-  color: var(--fg); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
++  border: 1px solid var(--card-border); border-radius: 22px;
++  color: var(--fg); box-shadow: var(--card-shadow-hi);
+   animation: itemIn 0.4s ease both;
+ }
+ .welcome-title { font-size: 1.5rem; font-weight: 700; }
+@@ -133,10 +133,10 @@ onUnmounted(() => {
+ .welcome-step2 { text-align: left; }
+ .auth-label { font-size: 0.8rem; opacity: 0.75; margin-top: 0.5rem; display: block; }
+ .auth-input {
+-  width: 100%; padding: 0.6rem 0.8rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18);
+-  background: rgba(255, 255, 255, 0.12); color: var(--fg); outline: none; box-sizing: border-box;
++  width: 100%; padding: 0.6rem 0.8rem; border-radius: 12px; border: 1px solid var(--card-border);
++  background: var(--inner-bg); color: var(--fg); outline: none; box-sizing: border-box;
+ }
+-.auth-input:focus { border-color: rgba(255, 255, 255, 0.4); }
++.auth-input:focus { border-color: var(--card-border); }
+ .welcome-password-field { position: relative; display: flex; }
+ .welcome-password-field .auth-input { padding-right: 2.4rem; }
+ .welcome-reveal {
+@@ -148,20 +148,20 @@ onUnmounted(() => {
+ .welcome-reveal:hover { opacity: 1; }
+ .auth-btn {
+   margin-top: 1.25rem; padding: 0.7rem 1.5rem; border: none; border-radius: 14px; cursor: pointer;
+-  background: var(--accent, #3b82f6); color: #fff; font-weight: 600;
++  background: var(--accent, #3b82f6); color: var(--on-accent); font-weight: 600;
+ }
+ .auth-btn:disabled { opacity: 0.6; cursor: default; }
+ .login-error {
+-  background: rgba(220, 38, 38, 0.22); border: 1px solid rgba(220, 38, 38, 0.5);
+-  color: #fecaca; padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 0.85rem;
++  background: rgba(220, 38, 38, 0.22); border: 1px solid rgba(220, 38, 38, 0.5); /* theme-exception: error state needs dedicated token */
++  color: #fecaca; /* theme-exception: error text color needs dedicated token */ padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 0.85rem;
+ }
+ .welcome-done-anim { width: 120px; height: 120px; margin: 1rem auto 0; }
+ .welcome-lang { margin: 0.25rem 0 0.5rem; }
+ .welcome-lang-btns { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
+ .welcome-lang-btns button {
+   flex: 1; padding: 0.45rem 0.5rem; border-radius: 10px; cursor: pointer;
+-  background: rgba(255, 255, 255, 0.12); color: var(--fg);
+-  border: 1px solid rgba(255, 255, 255, 0.18);
++  background: var(--chip-bg); color: var(--fg);
++  border: 1px solid var(--chip-border);
+ }
+-.welcome-lang-btns button.active { border-color: var(--accent, #3b82f6); background: rgba(59, 130, 246, 0.25); }
++.welcome-lang-btns button.active { border-color: var(--accent, #3b82f6); background: var(--accent-soft); }
+ </style>
+
+### NEW files (full):
+diff --git a/src/stores/theme.ts b/src/stores/theme.ts
+new file mode 100644
+index 0000000..a8b7afa
+--- /dev/null
++++ b/src/stores/theme.ts
+@@ -0,0 +1,31 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++
++export const THEMES = ['blue', 'light'] as const // blue = 默认/兜底
++export type Theme = (typeof THEMES)[number]
++
++export function isTheme(v: unknown): v is Theme {
++  return typeof v === 'string' && (THEMES as readonly string[]).includes(v)
++}
++
++// 直接写 <html data-theme>,无需 Pinia —— 供 main.ts 在 mount 前调用(防闪)。
++// blue 是 :root 默认块,移除属性即回落;light 置属性触发 :root[data-theme="light"] 覆盖块。
++export function applyTheme(t: Theme): void {
++  if (t === 'blue') delete document.documentElement.dataset.theme
++  else document.documentElement.dataset.theme = t
++}
++
++export function initialTheme(): Theme {
++  const stored = localStorage.getItem('theme')
++  return isTheme(stored) ? stored : 'blue'
++}
++
++export const useThemeStore = defineStore('theme', () => {
++  const theme = ref<Theme>(initialTheme())
++  function setTheme(t: Theme) {
++    theme.value = t
++    applyTheme(t)
++    localStorage.setItem('theme', t)
++  }
++  return { theme, setTheme }
++})
+diff --git a/src/home/components/ThemeToggle.vue b/src/home/components/ThemeToggle.vue
+new file mode 100644
+index 0000000..9805dbe
+--- /dev/null
++++ b/src/home/components/ThemeToggle.vue
+@@ -0,0 +1,69 @@
++<template>
++  <div class="theme-toggle">
++    <button class="bar-btn theme-btn" :aria-label="t('themeToggle')" :title="t('themeToggle')" @click="open = !open">
++      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
++        <circle cx="12" cy="12" r="9" />
++        <path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none" />
++      </svg>
++    </button>
++    <template v-if="open">
++      <div class="theme-scrim" @click="open = false" />
++      <div class="theme-menu" role="menu">
++        <button
++          v-for="opt in THEMES"
++          :key="opt"
++          class="theme-opt"
++          :class="{ on: theme.theme === opt }"
++          role="menuitemradio"
++          :aria-checked="theme.theme === opt"
++          @click="pick(opt)"
++        >
++          <span class="sw" :class="'sw-' + opt" />
++          <span class="lbl">{{ t(opt === 'light' ? 'themeLight' : 'themeBlue') }}</span>
++          <span v-if="theme.theme === opt" class="ck">✓</span>
++        </button>
++      </div>
++    </template>
++  </div>
++</template>
++
++<script setup lang="ts">
++import { ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { useThemeStore, THEMES, type Theme } from '../../stores/theme'
++const { t } = useI18n()
++const theme = useThemeStore()
++const open = ref(false)
++function pick(v: Theme) {
++  theme.setTheme(v)
++  open.value = false
++}
++</script>
++
++<style scoped>
++.theme-toggle { position: relative; }
++.theme-btn { padding: 0 11px; }
++.theme-btn .ic { width: 17px; height: 17px; }
++.theme-scrim { position: fixed; inset: 0; z-index: 40; }
++.theme-menu {
++  position: absolute; top: calc(100% + 8px); right: 0; z-index: 41;
++  display: flex; flex-direction: column; gap: 2px; min-width: 148px; padding: 6px;
++  border: 1px solid var(--card-border); border-radius: 14px;
++  background: var(--popup-bg); box-shadow: var(--card-shadow-hi);
++  backdrop-filter: var(--blur);
++}
++.theme-opt {
++  display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px;
++  border: 0; border-radius: 9px; background: transparent; color: var(--fg);
++  font-size: 13px; cursor: pointer; text-align: left;
++}
++.theme-opt:hover { background: var(--tool-bg-hi); }
++.theme-opt.on { color: var(--accent); }
++.theme-opt .lbl { flex: 1; }
++.theme-opt .ck { color: var(--accent); font-weight: 600; }
++.sw { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--card-border); flex: 0 0 auto; }
++/* theme-exception: 主题预览色块必须显示各主题的真实配色,与当前主题无关,故写死品牌色。 */
++.sw-blue { background: linear-gradient(135deg, #8ab4ff, #b79bff); }
++/* theme-exception: 同上,白色主题预览块。 */
++.sw-light { background: linear-gradient(135deg, #f7f5ef 40%, #3b5bdb); }
++</style>
+diff --git a/src/styles/color-guard.test.ts b/src/styles/color-guard.test.ts
+new file mode 100644
+index 0000000..17818d2
+--- /dev/null
++++ b/src/styles/color-guard.test.ts
+@@ -0,0 +1,86 @@
++// 约定守卫(见 CLAUDE.md / docs/THEMING.md §0):New-UI 一切可见颜色必须走 theme token。
++// 扫描所有 .vue 的 <style> 与 .css(theme.css 除外——它是 token 定义处),
++// 发现 var(--token, …) 之外的裸颜色字面量(#hex / rgb()/rgba()/hsl())即失败。
++//
++// 允许:  color: var(--fg)          / background: var(--card-bg, #fff)  (token 驱动主题, fallback 可留)
++// 允许:  color: #fff /* theme-exception: 叠在缩略图上的图标, 皮肤无关 */  (注释在值行或其上一行)
++// 失败:  color: #fff               (裸字面量, 未走 token)
++import { describe, it, expect } from 'vitest'
++
++const HEX = /#[0-9a-fA-F]{3,8}\b/
++const FUNC = /\b(rgba?|hsla?)\s*\(/
++
++// Vite raw-import 所有样式源(相对本文件 = src/styles/,故 ../** = src/**)。免用 node:fs。
++const files: Record<string, string> = {
++  ...(import.meta.glob('../**/*.vue', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
++  ...(import.meta.glob('../**/*.css', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
++}
++
++// 移除整段 var(...)(含嵌套 fallback),使其内部 token 名与 fallback 字面量不计入扫描。
++function stripVar(s: string): string {
++  let out = ''
++  let i = 0
++  while (i < s.length) {
++    if (s.startsWith('var(', i)) {
++      let depth = 0
++      let j = i + 3
++      for (; j < s.length; j++) {
++        if (s[j] === '(') depth++
++        else if (s[j] === ')') {
++          depth--
++          if (depth === 0) {
++            j++
++            break
++          }
++        }
++      }
++      i = j
++    } else {
++      out += s[i]
++      i++
++    }
++  }
++  return out
++}
++
++// .vue 只取 <style> 块;.css 取全文。返回 [绝对行号, 行文本][]。
++function styleLines(rel: string, src: string): Array<[number, string]> {
++  const out: Array<[number, string]> = []
++  if (rel.endsWith('.css')) {
++    src.split('\n').forEach((l, i) => out.push([i + 1, l]))
++    return out
++  }
++  const re = /<style[^>]*>([\s\S]*?)<\/style>/gi
++  let m: RegExpExecArray | null
++  while ((m = re.exec(src))) {
++    const startLine = src.slice(0, m.index).split('\n').length
++    m[1].split('\n').forEach((l, i) => out.push([startLine + i, l]))
++  }
++  return out
++}
++
++describe('color-token guard (§0 约定: 颜色一律走 var(--token))', () => {
++  for (const [path, src] of Object.entries(files)) {
++    const rel = path.replace(/^\.\.\//, '').replace(/\\/g, '/')
++    if (rel === 'styles/theme.css') continue
++    it(`${rel} 无裸颜色字面量`, () => {
++      const lines = styleLines(rel, src)
++      const offenders: string[] = []
++      // theme-exception 的豁免作用到「当前声明结束」(下一个 ; 或 }),
++      // 覆盖跨多行的值(如多层 radial-gradient 背景),也支持注释写在值行的上一行。
++      let exempt = false
++      lines.forEach(([n, line]) => {
++        if (line.includes('theme-exception')) exempt = true
++        if (!exempt) {
++          const bare = stripVar(line)
++          if (HEX.test(bare) || FUNC.test(bare)) offenders.push(`  L${n}: ${line.trim()}`)
++        }
++        if (line.includes(';') || line.includes('}')) exempt = false
++      })
++      expect(
++        offenders,
++        `\n${rel} 发现裸颜色字面量(改为 var(--token) 或加 /* theme-exception: 原因 */):\n${offenders.join('\n')}`,
++      ).toEqual([])
++    })
++  }
++})

@@ -1,0 +1,240 @@
+# Review package: 07a999d..HEAD
+
+## Commits
+7b12772 fix(oss): 泄漏守卫补第二轮复审发现(ai 驼峰词尾 + scanTree 符号链接)
+
+## Files changed
+ oss/forbidden.mjs      | 79 +++++++++++++++++++++++++++++++++++++++-----------
+ oss/forbidden.test.mjs | 50 ++++++++++++++++++++++++++++++++
+ 2 files changed, 112 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/oss/forbidden.mjs b/oss/forbidden.mjs
+index 00f5a45..5573709 100644
+--- a/oss/forbidden.mjs
++++ b/oss/forbidden.mjs
+@@ -53,29 +53,43 @@ export const SOFT = [
+     allow: [
+       { file: /src\/apps\/views\/StorePage\.vue$/, re: /query\.search|searchInput|filterStoreApps|appsStoreSearch/ },
+       { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
+       { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /appsStoreSearch/ },
+       // findIndex / findLastIndex 等标准库方法名里没有 search;binarySearch 之类若出现须显式登记
+     ],
+   },
+   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
+   {
+     word: 'ai',
+-    // 词边界:不碰中文、chain、main、Chairman。评审 Important #1:原正则没有大小写标志,
+-    // 独立大写 AI(类名、注释、i18n 文案里最常见的书写形态)完全漏检。
+-    // 不能简单套用整条 /i 标志了事 —— 那样 [A-Za-z] 类里的大小写区分也会被吃掉,
+-    // 导致 "AIService" 这种「大写缩写 + 新 PascalCase 单词」永远匹配不到(见 alt2)。
+-    // 两条子规则用显式大小写字符类拼接,只在需要的地方做大小写不敏感:
+-    //   alt1:独立词 ai/AI/Ai/aI(前后都不挨字母)—— 覆盖 "AI 总结"、"AI-powered"、"const ai ="
+-    //   alt2:精确 "AI"(全大写)后面紧跟一个大写字母 —— 覆盖 "AIService" 这种缩写紧贴新词、
+-    //        中间没有分隔符的写法(camelCase/PascalCase 惯例里这就是词边界)
+-    re: /(?<![A-Za-z])[Aa][Ii](?![A-Za-z])|(?<![a-zA-Z])AI(?=[A-Z])/,
++    // 词边界:不碰中文、chain、main、Chairman。
++    //
++    // 第二轮复审 Important:第一轮的 alt2(要求 "AI" 前面不挨字母,即只认 "AI" 打头的
++    // camelCase/PascalCase,如 AIService)漏掉了 "AI" 结尾的驼峰,比如 sendToAI/chatAI/
++    // openAIRequest —— sendToAI 恰恰是本仓真实存在、且正是这次要清除的 AI 链路的核心
++    // 函数名(src/home/composables/useOpenAction.ts:54 等 8 处),守卫必须抓到它。
++    //
++    // 改成两条子规则:
++    //   alt1(大小写不敏感):独立词 ai/AI/Ai/aI,前面不挨字母、后面不挨"小写"字母 ——
++    //        覆盖裸词 "ai"/"AI"、"AI 总结"、"AI-powered"、"AIService"(后面跟大写 S 不算挨着)。
++    //   alt2(精确大小写,只认 "AI" 两个大写字母):前面挨一个小写字母、后面不挨小写字母 ——
++    //        覆盖 "驼峰词尾的 AI" 这种写法,如 sendToAI、chatAI、openAIRequest。
++    //
++    // alt2 **必须区分大小写、不能套 /i**:src/settings/util/timezones.ts 里有真实存在的
++    // Asia/Shanghai、Asia/Dubai —— 若 alt2 大小写不敏感,"ai" 前面挨小写字母、后面到词尾
++    // 的模式会把 Shanghai/Dubai 也当成命中,那是本仓合法的时区字符串,不能误报。
++    // 同理 Mumbai/Thai/bonsai/Aircraft/Cairo 等词也依赖这条"大小写敏感"的边界才不会被误伤。
++    // 后人若想"顺手统一大小写标志",请先看这条注释。
++    //
++    // 代价:const AIRPORT=1 这类"AI"后面直接接大写字母的全大写标识符仍会被 alt1 命中
++    // (机场号码/常量名一类罕见样式)。按纪律「词表宁可宽」接受这个已知的假阳性,不为它
++    // 收窄规则去冒漏掉真实 AI 代码的风险。
++    re: /(?<![A-Za-z])[Aa][Ii](?![a-z])|(?<=[a-z])AI(?![a-z])/,
+     allow: [
+       // E5:局部变量 ai = anchorIndex(files.ts 的 shift 选区)
+       { file: /src\/files\/stores\/files\.ts$/, re: /\bai\b\s*[=<,)\]]|\[lo,\s*hi\]/ },
+     ],
+   },
+   { word: 'parser', re: /\bparser\b/i, allow: [] },
+   { word: 'wiki', re: /wiki/i, allow: [] },
+   {
+     word: 'folderPermission',
+     re: /folderPermission/i,
+@@ -119,45 +133,76 @@ export function scanText(relPath, text) {
+       if (re.test(line) && !allowed(allow, relPath, line)) {
+         out.push({ word, line: i + 1, excerpt: line.trim().slice(0, 160) })
+       }
+     }
+   }
+   return out
+ }
+ 
+ /**
+  * 递归扫整棵树。排除法,不是白名单法:除 `.git`/`node_modules`/`dist` 目录外,
+- * **每个文件都读**。只跳过两类,且跳过绝不静默 —— 每次跳过都在返回数组里追加
+- * 一条 `word: '__skipped__'` 的记录,消费方(Task 14 的导出流程)一旦看到这个
++ * **每个文件都读**。跳过绝不静默 —— 每次跳过都在返回数组里追加一条
++ * `word: '__skipped__'` 的记录,消费方(Task 14 的导出流程)一旦看到这个
+  * 哨兵词就知道该文件没有被内容扫描过,得自己决定要不要额外处理。
+  * 纪律 #3 的精神是「守卫烂掉的标准路径是静默豁免」——不留痕的跳过等于悄悄开了个口子。
+  *
+- *   ① 体积超过 MAX_BYTES 的
+- *   ② 开头 8KB 判定为二进制的(looksBinary)
++ * 跳过的情形:
++ *   ① 符号链接(不跟随,不管指向文件还是目录) —— 第二轮复审 Important:本仓
++ *      `.claude/worktrees/NimoOS-Service` 是一个指向目录的符号链接。
++ *      `readdirSync(..., {withFileTypes:true})` 内部用 lstat,`Dirent.isDirectory()`
++ *      对符号链接返回 false(不跟随),会落进"文件"分支;而 `fs.statSync`/
++ *      `fs.readFileSync` 默认跟随符号链接,对指向目录的链接跟读会直接抛
++ *      `EISDIR` 崩掉整个扫描。改成先用 `Dirent.isSymbolicLink()` 识别并跳过 ——
++ *      符号链接指向的真实内容如果本就在树内,会通过它的真实路径被正常扫到,
++ *      不会因为跳过链接本身而漏扫。
++ *   ② 体积超过 MAX_BYTES 的
++ *   ③ 开头 8KB 判定为二进制的(looksBinary)
++ *   ④ 任何 stat/read 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧
+  */
+ export function scanTree(rootDir) {
+   const findings = []
++  const skip = (rel, excerpt) => findings.push({ file: rel, word: '__skipped__', line: 0, excerpt })
++
+   const walk = (dir) => {
+     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+       const abs = path.join(dir, e.name)
+       const rel = path.relative(rootDir, abs)
++
++      if (e.isSymbolicLink()) {
++        skip(rel, '符号链接,未跟随、未扫描')
++        continue
++      }
+       if (e.isDirectory()) {
+         if (e.name === '.git' || e.name === 'node_modules' || e.name === 'dist') continue
+         walk(abs)
+         continue
+       }
+-      const stat = fs.statSync(abs)
++
++      let stat
++      try {
++        stat = fs.statSync(abs)
++      } catch (err) {
++        skip(rel, `stat 失败,未扫描:${err.message}`)
++        continue
++      }
+       if (stat.size > MAX_BYTES) {
+-        findings.push({ file: rel, word: '__skipped__', line: 0, excerpt: `超过 ${MAX_BYTES} 字节上限,未扫描` })
++        skip(rel, `超过 ${MAX_BYTES} 字节上限,未扫描`)
++        continue
++      }
++
++      let buf
++      try {
++        buf = fs.readFileSync(abs)
++      } catch (err) {
++        skip(rel, `读取失败,未扫描:${err.message}`)
+         continue
+       }
+-      const buf = fs.readFileSync(abs)
+       if (looksBinary(buf)) {
+-        findings.push({ file: rel, word: '__skipped__', line: 0, excerpt: '判定为二进制,未扫描' })
++        skip(rel, '判定为二进制,未扫描')
+         continue
+       }
+       for (const f of scanText(rel, buf.toString('utf8'))) findings.push({ file: rel, ...f })
+     }
+   }
+   walk(rootDir)
+   return findings
+ }
+diff --git a/oss/forbidden.test.mjs b/oss/forbidden.test.mjs
+index daafe83..1166f82 100644
+--- a/oss/forbidden.test.mjs
++++ b/oss/forbidden.test.mjs
+@@ -71,20 +71,43 @@ describe('软禁词的精确白名单', () => {
+       '// 我们集成了 AI 总结功能',
+       'const AI = 1',
+       '// AI-powered',
+     ]) {
+       expect(scanText('src/x.ts', text).length, text).toBeGreaterThan(0)
+     }
+     for (const text of ['const chain = []', 'export function main() {}', 'class Chairman {}']) {
+       expect(scanText('src/x.ts', text), text).toEqual([])
+     }
+   })
++
++  // 第二轮复审 Important:第一轮的 ai 正则只认"AI 打头"的驼峰(AIService),漏掉
++  // "AI 结尾"的驼峰。sendToAI 是本仓真实存在的函数名(useOpenAction.ts:54 等 8 处),
++  // 正是这次要清除的 AI 链路核心入口,必须命中。同时 Asia/Shanghai、Asia/Dubai(本仓
++  // timezones.ts 里真实存在的时区字符串)、Thai、bonsai 这类合法词必须继续不命中。
++  it('驼峰词尾的 AI(sendToAI/chatAI)必须命中,真实时区/地名字符串不能被误伤', () => {
++    for (const text of [
++      'function sendToAI(text?: string) {',
++      'const { sendToAI } = useOpenAction()',
++      'const chatAI = 1',
++      'const openAIRequest = 1',
++    ]) {
++      expect(scanText('src/x.ts', text).length, text).toBeGreaterThan(0)
++    }
++    for (const text of [
++      "{ label: '(GMT+08:00) Beijing, Chongqing, Hong Kong, Urumqi', value: 'Asia/Shanghai' },",
++      "{ label: '(GMT+04:00) Abu Dhabi, Muscat', value: 'Asia/Dubai' },",
++      'const country = "Thai"',
++      'const plant = "bonsai"',
++    ]) {
++      expect(scanText('src/settings/util/timezones.ts', text), text).toEqual([])
++    }
++  })
+ })
+ 
+ describe('scanTree:排除法,不是扩展名白名单', () => {
+   const mktmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'oss-forbidden-'))
+ 
+   // 评审 Important #2 复现用例:原实现按 TEXT_EXT 扩展名白名单跳过文件,
+   // .env / Dockerfile 这类没有被枚举到扩展名的文件会被整体放过、连读都不读。
+   it('.env / 无扩展名文件必须被扫描到 —— 不能按扩展名放过', () => {
+     const dir = mktmp()
+     try {
+@@ -118,11 +141,38 @@ describe('scanTree:排除法,不是扩展名白名单', () => {
+       fs.writeFileSync(path.join(dir, 'node_modules', 'x.js'), 'qdrant')
+       fs.mkdirSync(path.join(dir, '.git'))
+       fs.writeFileSync(path.join(dir, '.git', 'CONFIG'), 'qdrant')
+       fs.writeFileSync(path.join(dir, 'clean.ts'), 'export const x = 1\n')
+       const findings = scanTree(dir)
+       expect(findings).toEqual([])
+     } finally {
+       fs.rmSync(dir, { recursive: true, force: true })
+     }
+   })
++
++  // 第二轮复审 Important:指向目录的符号链接原本会让 scanTree 整体抛 EISDIR 崩掉
++  // (本仓 .claude/worktrees/NimoOS-Service 就是这么个链接,复审拿真实仓库复现的)。
++  // 修复后必须优雅跳过并留痕,而不是抛异常。
++  it('指向目录的符号链接不应让 scanTree 抛异常,而是留下 __skipped__ 痕迹;真实目录仍被正常扫描', () => {
++    const dir = mktmp()
++    try {
++      const realDir = path.join(dir, 'real-target')
++      fs.mkdirSync(realDir)
++      fs.writeFileSync(path.join(realDir, 'inner.ts'), 'const q = "qdrant"\n')
++      const linkPath = path.join(dir, 'link-to-dir')
++      fs.symlinkSync(realDir, linkPath, 'dir')
++
++      let findings
++      expect(() => {
++        findings = scanTree(dir)
++      }).not.toThrow()
++
++      expect(findings.some((f) => f.file === 'link-to-dir' && f.word === '__skipped__')).toBe(true)
++      // 真实目录是通过它自己的真实路径被正常遍历到的(不是通过链接),
++      // 证明"跳过链接本身"没有连带漏扫链接指向的真实内容。
++      const innerFile = path.join('real-target', 'inner.ts')
++      expect(findings.some((f) => f.file === innerFile && f.word === 'qdrant')).toBe(true)
++    } finally {
++      fs.rmSync(dir, { recursive: true, force: true })
++    }
++  })
+ })

@@ -1,0 +1,546 @@
+# Review package: d79745c..6799a7a
+
+## Commits
+6799a7a feat(apps): /apps/:name/settings 设置页——dry_run 预检/端口冲突内联/apply-changes 收敛(SP5-P4)
+
+## Files changed
+ src/apps/components/InstalledAppCard.test.ts |  9 +++
+ src/apps/components/InstalledAppCard.vue     |  2 +
+ src/apps/composables/useAppSettings.test.ts  | 59 ++++++++++++++++++
+ src/apps/composables/useAppSettings.ts       | 50 +++++++++++++++
+ src/apps/views/AppSettingsPage.test.ts       | 51 +++++++++++++++
+ src/apps/views/AppSettingsPage.vue           | 92 ++++++++++++++++++++++++++++
+ src/apps/views/InstalledAppsPage.vue         |  4 ++
+ src/i18n/en_us.ts                            |  9 +++
+ src/i18n/zh_cn.ts                            |  9 +++
+ src/router/index.ts                          |  2 +
+ 10 files changed, 287 insertions(+)
+
+## Diff
+diff --git a/src/apps/components/InstalledAppCard.test.ts b/src/apps/components/InstalledAppCard.test.ts
+index 2a56aff..44109a1 100644
+--- a/src/apps/components/InstalledAppCard.test.ts
++++ b/src/apps/components/InstalledAppCard.test.ts
+@@ -56,20 +56,29 @@ describe('InstalledAppCard', () => {
+     const w = mountCard({ webUrl: null })
+     expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
+   })
+ 
+   it('is_uncontrolled:菜单无 检查并更新;update_available 显示徽标', () => {
+     const w = mountCard({ isUncontrolled: true, updateAvailable: true })
+     expect(w.get('.menu').text()).not.toContain('检查并更新')
+     expect(w.text()).toContain('可更新')
+   })
+ 
++  it('menu has settings item that emits settings', async () => {
++    const w = mountCard()
++    const items = w.get('.menu').findAll('div')
++    const settingsItem = items.find((it) => it.text() === '设置')
++    expect(settingsItem).toBeTruthy()
++    await settingsItem!.trigger('click')
++    expect(w.emitted('settings')).toHaveLength(1)
++  })
++
+   it('pending:卡片处理中态,主按钮禁用', () => {
+     const w = mountCard({}, 'restart')
+     expect(w.text()).toContain('处理中')
+     expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
+   })
+ 
+   it('状态标签映射:running=运行中,exited=已停止,unknown=未知', () => {
+     expect(mountCard().text()).toContain('运行中')
+     expect(mountCard({ status: 'exited' }).text()).toContain('已停止')
+     expect(mountCard({ status: 'unknown' }).text()).toContain('未知')
+diff --git a/src/apps/components/InstalledAppCard.vue b/src/apps/components/InstalledAppCard.vue
+index bf2b916..1cb54da 100644
+--- a/src/apps/components/InstalledAppCard.vue
++++ b/src/apps/components/InstalledAppCard.vue
+@@ -2,20 +2,21 @@
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { DropdownMenuItem, DropdownMenuSeparator } from 'reka-ui'
+ import AppActionsMenu from './AppActionsMenu.vue'
+ import type { InstalledApp, AppOp } from '../stores/installedApps'
+ 
+ const props = defineProps<{ app: InstalledApp; pendingOp?: AppOp }>()
+ const emit = defineEmits<{
+   (e: 'open'): void
+   (e: 'action', op: 'start' | 'stop' | 'restart' | 'update'): void
++  (e: 'settings'): void
+   (e: 'uninstall'): void
+ }>()
+ const { t } = useI18n()
+ 
+ const running = computed(() => props.app.status === 'running')
+ const busy = computed(() => !!props.pendingOp)
+ const statusKey = computed(() => {
+   switch (props.app.status) {
+     case 'running': return 'appsStatusRunning'
+     case 'paused': return 'appsStatusPaused'
+@@ -45,20 +46,21 @@ function onPrimary() {
+         <span class="app-status" :class="{ on: running }">
+           <i class="dot" />{{ busy ? t('appsWorking') : t(statusKey) }}
+         </span>
+       </div>
+       <AppActionsMenu :ariaLabel="t('appsMenuAria')">
+         <template #menu>
+           <template v-if="running">
+             <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'stop')">{{ t('appsStop') }}</DropdownMenuItem>
+             <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'restart')">{{ t('appsRestart') }}</DropdownMenuItem>
+           </template>
++          <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('settings')">{{ t('appsSettings') }}</DropdownMenuItem>
+           <DropdownMenuItem v-if="!app.isUncontrolled" class="ui-drop-item" :disabled="busy" @select="emit('action', 'update')">{{ t('appsCheckUpdate') }}</DropdownMenuItem>
+           <DropdownMenuSeparator class="ui-drop-sep" />
+           <DropdownMenuItem class="ui-drop-item danger" :disabled="busy" @select="emit('uninstall')">{{ t('appsUninstall') }}</DropdownMenuItem>
+         </template>
+       </AppActionsMenu>
+     </div>
+     <button class="bar-btn card-primary" type="button" :disabled="primaryDisabled" @click="onPrimary">
+       {{ running ? t('appsOpen') : t('appsStart') }}
+     </button>
+   </div>
+diff --git a/src/apps/composables/useAppSettings.test.ts b/src/apps/composables/useAppSettings.test.ts
+new file mode 100644
+index 0000000..92cb5da
+--- /dev/null
++++ b/src/apps/composables/useAppSettings.test.ts
+@@ -0,0 +1,59 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { ref, type Ref } from 'vue'
++import { mount } from '@vue/test-utils'
++import { defineComponent } from 'vue'
++import { createPinia, setActivePinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  getYaml: vi.fn(), applySettings: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
++import { useAppSettings } from './useAppSettings'
++
++const Y = 'services:\n  demo:\n    image: img:1\n    ports: ["80:80"]\n'
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++// useAppSettings 依赖 useI18n → 需在组件 setup 内调用(仓内 composable 测试惯例,同 useInstallFlow.test.ts)
++function mountSettings(id: Ref<string>) {
++  let s!: ReturnType<typeof useAppSettings>
++  mount(defineComponent({ setup() { s = useAppSettings(id); return () => null } }), {
++    global: { plugins: [i18n] },
++  })
++  return s
++}
++
++describe('useAppSettings', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  it('load parses yaml into model', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    expect(s.model.value?.services[0].image).toBe('img:1')
++  })
++
++  it('save: dry_run first, then real PUT, marks pending, returns true', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    svc.applySettings.mockResolvedValue(undefined)
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const ok = await s.save()
++    expect(ok).toBe(true)
++    expect(svc.applySettings).toHaveBeenCalledTimes(2)
++    expect(svc.applySettings.mock.calls[0][2]).toMatchObject({ dryRun: true, checkPortConflict: true })
++    expect(svc.applySettings.mock.calls[1][2]).toMatchObject({ checkPortConflict: true })
++  })
++
++  it('save: dry_run 400 ports_in_use -> conflicts populated, no real PUT, returns false', async () => {
++    svc.getYaml.mockResolvedValue(Y)
++    svc.applySettings.mockRejectedValueOnce({ response: { status: 400, data: { message: 'there are ports in use', data: { ports_in_use: { TCP: ['80'] } } } } })
++    const s = mountSettings(ref('demo'))
++    await s.load()
++    const ok = await s.save()
++    expect(ok).toBe(false)
++    expect(s.conflicts.value).toEqual(['80/tcp'])
++    expect(svc.applySettings).toHaveBeenCalledTimes(1)
++  })
++})
+diff --git a/src/apps/composables/useAppSettings.ts b/src/apps/composables/useAppSettings.ts
+new file mode 100644
+index 0000000..4c1b97e
+--- /dev/null
++++ b/src/apps/composables/useAppSettings.ts
+@@ -0,0 +1,50 @@
++import { ref, type Ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import { parseSettings, buildYaml, type SettingsModel } from '../util/composeSettings'
++import { parseInstallError } from './useInstallFlow'
++import { useInstalledAppsStore } from '../stores/installedApps'
++
++export function useAppSettings(id: Ref<string>) {
++  const { locale } = useI18n()
++  const installed = useInstalledAppsStore()
++  const model = ref<SettingsModel | null>(null)
++  const loading = ref(false)
++  const loadError = ref(false)
++  const saving = ref(false)
++  const saveError = ref('')
++  const conflicts = ref<string[]>([])
++  let originalYaml = ''
++
++  async function load() {
++    loading.value = true; loadError.value = false; model.value = null
++    try {
++      originalYaml = await service.compose.getYaml(id.value)
++      model.value = parseSettings(originalYaml, locale.value)
++    } catch (e) {
++      console.warn('[apps] settings load', id.value, e)
++      loadError.value = true
++    } finally { loading.value = false }
++  }
++
++  /** dry_run 预检 → 真 PUT(受理即返)→ markApplying。端口冲突落 conflicts,其余错误落 saveError。 */
++  async function save(): Promise<boolean> {
++    if (!model.value || saving.value) return false
++    saving.value = true; saveError.value = ''; conflicts.value = []
++    try {
++      const yaml = buildYaml(originalYaml, model.value)
++      await service.compose.applySettings(id.value, yaml, { dryRun: true, checkPortConflict: true })
++      await service.compose.applySettings(id.value, yaml, { checkPortConflict: true })
++      installed.markApplying(id.value)
++      return true
++    } catch (e) {
++      console.warn('[apps] settings save', id.value, e)
++      const { message, ports } = parseInstallError(e)
++      conflicts.value = ports
++      saveError.value = message
++      return false
++    } finally { saving.value = false }
++  }
++
++  return { model, loading, loadError, saving, saveError, conflicts, load, save }
++}
+diff --git a/src/apps/views/AppSettingsPage.test.ts b/src/apps/views/AppSettingsPage.test.ts
+new file mode 100644
+index 0000000..f5cca75
+--- /dev/null
++++ b/src/apps/views/AppSettingsPage.test.ts
+@@ -0,0 +1,51 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { createPinia, setActivePinia, type Pinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  compose: { getYaml: vi.fn(), applySettings: vi.fn(), list: vi.fn().mockResolvedValue({}) },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++const routerMock = vi.hoisted(() => ({ push: vi.fn() }))
++vi.mock('vue-router', async (orig) => ({
++  ...(await orig()),
++  useRoute: () => ({ params: { name: 'demo' } }),
++  useRouter: () => routerMock,
++}))
++import AppSettingsPage from './AppSettingsPage.vue'
++
++const Y = 'services:\n  demo:\n    image: img:1\n    ports: ["80:80"]\n'
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++let pinia: Pinia
++beforeEach(() => { pinia = createPinia(); setActivePinia(pinia); vi.clearAllMocks() })
++const mk = () => mount(AppSettingsPage, { global: { plugins: [i18n, pinia], stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true } } })
++
++describe('AppSettingsPage', () => {
++  it('loads yaml on mount and renders form', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    const w = mk()
++    await flushPromises()
++    expect(w.find('[data-test="svc-image"]').exists()).toBe(true)
++  })
++  it('save success -> navigates back to /apps', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    svc.compose.applySettings.mockResolvedValue(undefined)
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="settings-save"]').trigger('click')
++    await flushPromises()
++    expect(routerMock.push).toHaveBeenCalledWith({ name: 'apps' })
++  })
++  it('port conflict -> banner shown, stays on page', async () => {
++    svc.compose.getYaml.mockResolvedValue(Y)
++    svc.compose.applySettings.mockRejectedValueOnce({ response: { status: 400, data: { message: 'there are ports in use', data: { ports_in_use: { TCP: ['80'] } } } } })
++    const w = mk()
++    await flushPromises()
++    await w.find('[data-test="settings-save"]').trigger('click')
++    await flushPromises()
++    expect(w.find('[data-test="settings-conflict"]').exists()).toBe(true)
++    expect(routerMock.push).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/apps/views/AppSettingsPage.vue b/src/apps/views/AppSettingsPage.vue
+new file mode 100644
+index 0000000..5791f5d
+--- /dev/null
++++ b/src/apps/views/AppSettingsPage.vue
+@@ -0,0 +1,92 @@
++<script setup lang="ts">
++import { computed, onMounted } from 'vue'
++import { useRoute, useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import AreaShell from '../../components/shell/AreaShell.vue'
++import AppsSidebar from '../components/AppsSidebar.vue'
++import ComposeSettingsForm from '../components/settings/ComposeSettingsForm.vue'
++import { useAppSettings } from '../composables/useAppSettings'
++import { useInstalledAppsStore } from '../stores/installedApps'
++import { useToast } from '../../stores/toast'
++
++const { t } = useI18n()
++const route = useRoute()
++const router = useRouter()
++const toast = useToast()
++const installed = useInstalledAppsStore()
++const id = computed(() => String(route.params.name ?? ''))
++const s = useAppSettings(id)
++const app = computed(() => installed.apps.find((a) => a.id === id.value))
++
++onMounted(() => {
++  void s.load()
++  if (!installed.apps.length) installed.refresh().catch(() => {})  // 深链直达补一次(标题/图标用)
++})
++
++async function onSave() {
++  const ok = await s.save()
++  if (ok) {
++    toast.show(t('appsSettingsApplying'), 5000)
++    router.push({ name: 'apps' })
++  } else if (!s.conflicts.value.length) {
++    toast.show(s.saveError.value || t('appsSettingsSaveFailed'), 5000)
++  }
++}
++function back() { router.push({ name: 'apps' }) }
++</script>
++
++<template>
++  <AreaShell :title="t('appsTitle')">
++    <div class="apps-layout">
++      <AppsSidebar />
++      <main class="apps-main">
++        <button class="bar-btn detail-back" type="button" @click="back">‹ {{ t('appsSettingsBack') }}</button>
++        <header class="set-head">
++          <img v-if="app?.icon" :src="app.icon" alt="" class="set-icon" />
++          <h2 class="set-title">{{ app?.title ?? id }} · {{ t('appsSettings') }}</h2>
++        </header>
++
++        <p v-if="s.loading.value" class="apps-empty">{{ t('appsSettingsLoading') }}</p>
++        <div v-else-if="s.loadError.value" class="apps-empty">
++          {{ t('appsSettingsLoadFailed') }}
++          <button class="bar-btn" type="button" @click="s.load()">{{ t('appsStoreRetry') }}</button>
++        </div>
++
++        <template v-else-if="s.model.value">
++          <div v-if="s.conflicts.value.length" class="set-conflict" data-test="settings-conflict">
++            {{ t('appsSettingsPortConflict', { ports: s.conflicts.value.join(', ') }) }}
++          </div>
++          <ComposeSettingsForm :model="s.model.value" :conflicts="s.conflicts.value" />
++          <div class="set-actions">
++            <button class="bar-btn" type="button" :disabled="s.saving.value" @click="back">{{ t('appsSettingsCancel') }}</button>
++            <button class="set-save" type="button" data-test="settings-save" :disabled="s.saving.value" @click="onSave">
++              {{ s.saving.value ? t('appsWorking') : t('appsSettingsSave') }}
++            </button>
++          </div>
++        </template>
++      </main>
++    </div>
++  </AreaShell>
++</template>
++
++<style scoped>
++.apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
++.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
++.detail-back { font-size: 13px; margin-bottom: 14px; }
++.apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
++.set-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
++.set-icon { width: 44px; height: 44px; border-radius: 11px; object-fit: contain; }
++.set-title { font-size: 18px; font-weight: 600; margin: 0; color: var(--fg); }
++.set-conflict {
++  /* 全仓库其它「危险/冲突」提示均用半透明 --drop-bad 当底 + --remove-fg 当字(见 GridGhost.vue .bad、
++     OperationStatusBar.vue 等)——brief 原稿写的 background: var(--remove-bg) 与本行 color 撞色(两者色相/明度
++     接近,深色主题下几乎不出对比度),改用 --drop-bad 保持可读,同为 token,不算新增字面量色。 */
++  margin-bottom: 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius);
++  color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
++}
++.set-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
++.set-save { font-size: 13.5px; padding: 8px 24px; cursor: pointer; color: var(--on-accent); background: var(--accent); border: none; border-radius: 10px; }
++.set-save:hover { filter: brightness(1.08); }
++.set-save:disabled { opacity: 0.55; cursor: default; filter: none; }
++@media (max-width: 768px) { .apps-layout { gap: 0; } }
++</style>
+diff --git a/src/apps/views/InstalledAppsPage.vue b/src/apps/views/InstalledAppsPage.vue
+index b0425b5..e909481 100644
+--- a/src/apps/views/InstalledAppsPage.vue
++++ b/src/apps/views/InstalledAppsPage.vue
+@@ -1,25 +1,27 @@
+ <script setup lang="ts">
+ import { computed, onMounted, onUnmounted, ref } from 'vue'
++import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import InstalledAppCard from '../components/InstalledAppCard.vue'
+ import InstallingAppCard from '../components/InstallingAppCard.vue'
+ import UninstallConfirm from '../components/UninstallConfirm.vue'
+ import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
+ import { useInstallProgressStore } from '../stores/installProgress'
+ import { useMessageBus } from '../../composables/useMessageBus'
+ import { useToast } from '../../stores/toast'
+ import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
+ 
+ const { t } = useI18n()
++const router = useRouter()
+ const store = useInstalledAppsStore()
+ const progress = useInstallProgressStore()
+ const installingTasks = computed(() => Object.values(progress.tasks))
+ const bus = useMessageBus()
+ const toast = useToast()
+ // reka-ui 的 AlertDialogAction 本身是个 DialogClose:点击红色确认按钮时,
+ // update:open(false) 先于 @click 派发的 confirm 事件触发。若 open 标志和 target
+ // 共用一个 ref,update:open 处理器会先把 target 置空,confirm 读到的就是 null,
+ // store.uninstall 永远不会被调用(SP5-P1 终审 CRITICAL)。参照 SharesPage.vue 的
+ // delDlg 模式:open 与 app 打包在同一个 ref 里,只在 confirm 读取后才关闭 open,
+@@ -55,20 +57,21 @@ async function onUninstallConfirm(deleteConfigFolder: boolean) {
+   }
+ }
+ 
+ // app:* 生命周期(spec §2.3);install-* 由 installProgress store 全局订阅收敛(D6)
+ const APP_EVENTS = [
+   'app:start-begin', 'app:start-end', 'app:start-error',
+   'app:stop-begin', 'app:stop-end', 'app:stop-error',
+   'app:restart-begin', 'app:restart-end', 'app:restart-error',
+   'app:update-begin', 'app:update-end', 'app:update-error',
+   'app:uninstall-begin', 'app:uninstall-end', 'app:uninstall-error',
++  'app:apply-changes-begin', 'app:apply-changes-end', 'app:apply-changes-error',
+ ]
+ const offs: Array<() => void> = []
+ const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refresh: () => { store.refresh().catch(() => {}) } })
+ 
+ onMounted(() => {
+   store.refresh().catch((e) => console.warn('[apps] load', e))
+   APP_EVENTS.forEach((ev) => offs.push(bus.on(ev, (props) => store.onAppEvent(ev, props))))
+   offs.push(bus.on(CONTAINER_EVENT, (props) => bridge.handle(props)))
+ })
+ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+@@ -85,20 +88,21 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+             :task="tk" @dismiss="progress.dismiss(tk.id)"
+           />
+         </div>
+         <p v-if="!store.loading && !store.apps.length && !installingTasks.length" class="apps-empty">{{ t('appsEmpty') }}</p>
+         <div v-else class="apps-grid">
+           <InstalledAppCard
+             v-for="a in store.apps" :key="a.id"
+             :app="a" :pending-op="store.pending[a.id]"
+             @open="onOpen(a)"
+             @action="(op) => onAction(a, op)"
++            @settings="router.push({ name: 'apps-settings', params: { name: a.id } })"
+             @uninstall="uninstallDlg = { open: true, app: a }"
+           />
+         </div>
+         <UninstallConfirm
+           :open="uninstallDlg.open"
+           :name="uninstallDlg.app?.title ?? ''"
+           @update:open="(v) => { uninstallDlg.open = v }"
+           @confirm="onUninstallConfirm"
+         />
+       </main>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 240670a..7855de3 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -450,14 +450,23 @@ export const messages = {
+     appsSettingsMemory: 'Memory limit (MB)',
+     appsSettingsMemoryPh: 'Empty = unlimited',
+     appsSettingsCpu: 'CPU priority',
+     appsSettingsCpuLow: 'Low',
+     appsSettingsCpuMedium: 'Medium',
+     appsSettingsCpuHigh: 'High',
+     appsSettingsPrivileged: 'Privileged',
+     appsSettingsCapAdd: 'Capabilities',
+     appsSettingsTipsEdit: 'Edit',
+     appsSettingsTipsPreview: 'Preview',
++    appsSettings: 'Settings',
++    appsSettingsBack: 'Back to apps',
++    appsSettingsLoading: 'Loading settings…',
++    appsSettingsLoadFailed: 'Failed to load settings',
++    appsSettingsSave: 'Save & apply',
++    appsSettingsCancel: 'Cancel',
++    appsSettingsApplying: 'Applying changes; containers will be recreated',
++    appsSettingsSaveFailed: 'Save failed',
++    appsSettingsPortConflict: 'Ports already in use: {ports}',
+   },
+ }
+ 
+ export default messages.en_us
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index afae842..a68c798 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -449,14 +449,23 @@ export const messages = {
+     appsSettingsMemory: '内存上限 (MB)',
+     appsSettingsMemoryPh: '留空=不限制',
+     appsSettingsCpu: 'CPU 优先级',
+     appsSettingsCpuLow: '低',
+     appsSettingsCpuMedium: '中',
+     appsSettingsCpuHigh: '高',
+     appsSettingsPrivileged: '特权模式',
+     appsSettingsCapAdd: '附加内核权限',
+     appsSettingsTipsEdit: '编辑',
+     appsSettingsTipsPreview: '预览',
++    appsSettings: '设置',
++    appsSettingsBack: '返回应用',
++    appsSettingsLoading: '正在读取设置…',
++    appsSettingsLoadFailed: '设置加载失败',
++    appsSettingsSave: '保存并应用',
++    appsSettingsCancel: '取消',
++    appsSettingsApplying: '正在应用更改,容器将重建',
++    appsSettingsSaveFailed: '保存失败',
++    appsSettingsPortConflict: '端口已被占用:{ports}',
+   },
+ }
+ 
+ export default messages.zh_cn
+diff --git a/src/router/index.ts b/src/router/index.ts
+index 0574da8..3091b6d 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -2,30 +2,32 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
+ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
+ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import StorePage from '../apps/views/StorePage.vue'
+ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
++import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/apps/store', name: 'apps-store', component: StorePage },
+   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
++  { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 

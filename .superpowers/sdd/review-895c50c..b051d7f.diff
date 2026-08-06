@@ -1,0 +1,109 @@
+# Review package: 895c50c..b051d7f
+
+## Commits
+b051d7f feat(upload): unload guard (SP4-P3a)
+
+## Files changed
+ src/files/upload/unloadGuard.test.ts | 33 ++++++++++++++++++++++
+ src/files/upload/unloadGuard.ts      | 53 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 86 insertions(+)
+
+## Diff
+diff --git a/src/files/upload/unloadGuard.test.ts b/src/files/upload/unloadGuard.test.ts
+new file mode 100644
+index 0000000..5ef3aa6
+--- /dev/null
++++ b/src/files/upload/unloadGuard.test.ts
+@@ -0,0 +1,33 @@
++import { describe, it, expect, vi } from 'vitest'
++import { hasActiveUploads, installUnloadGuard } from './unloadGuard'
++import type { UploadItem } from './types'
++const mk = (p: Partial<UploadItem>): UploadItem => ({
++  id: 'x', file: new Blob(['x']), fileName: 'f', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'f',
++  status: 'pending', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
++  createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '', oversize: false, ...p,
++})
++describe('hasActiveUploads', () => {
++  it('true for uploading or pending-with-file, false for needs_file', () => {
++    expect(hasActiveUploads([mk({ status: 'uploading' })])).toBe(true)
++    expect(hasActiveUploads([mk({ status: 'pending', file: new Blob(['x']) })])).toBe(true)
++    expect(hasActiveUploads([mk({ status: 'needs_file', file: null })])).toBe(false)
++    expect(hasActiveUploads([mk({ status: 'done' })])).toBe(false)
++  })
++})
++describe('installUnloadGuard', () => {
++  it('prevents unload only when active, and unsubscribes', () => {
++    let queue: UploadItem[] = [mk({ status: 'uploading' })]
++    const listeners: Record<string, any> = {}
++    const win: any = { addEventListener: (k: string, f: any) => (listeners[k] = f), removeEventListener: (k: string) => delete listeners[k] }
++    const off = installUnloadGuard(() => queue, win)
++    const e: any = { preventDefault: vi.fn(), returnValue: undefined }
++    listeners.beforeunload(e)
++    expect(e.preventDefault).toHaveBeenCalled()
++    queue = [mk({ status: 'done' })]
++    const e2: any = { preventDefault: vi.fn(), returnValue: undefined }
++    listeners.beforeunload(e2)
++    expect(e2.preventDefault).not.toHaveBeenCalled()
++    off()
++    expect(listeners.beforeunload).toBeUndefined()
++  })
++})
+diff --git a/src/files/upload/unloadGuard.ts b/src/files/upload/unloadGuard.ts
+new file mode 100644
+index 0000000..262c7cf
+--- /dev/null
++++ b/src/files/upload/unloadGuard.ts
+@@ -0,0 +1,53 @@
++import type { UploadItem } from './types'
++
++/**
++ * Checks if there are active uploads that would be lost on page reload.
++ * Returns true for:
++ * - Items with status 'uploading' (in flight)
++ * - Items with status 'pending' that still have their File attached
++ *
++ * Excludes 'needs_file' items since they have no data to lose.
++ */
++export function hasActiveUploads(queue: UploadItem[]): boolean {
++  if (!Array.isArray(queue)) {
++    return false
++  }
++  return queue.some(item => item.status === 'uploading' || (item.status === 'pending' && item.file))
++}
++
++/**
++ * Registers a beforeunload listener that prompts the browser's native "leave site?" dialog
++ * while uploads are active. Useful for preventing accidental data loss on non-secure origins
++ * where in-memory File bytes cannot be auto-resumed after reload.
++ *
++ * @param getQueue A function that returns the current upload queue
++ * @param win Optional window object (default: global window). Useful for testing.
++ * @returns An unsubscribe function that removes the beforeunload listener
++ */
++export function installUnloadGuard(
++  getQueue: () => UploadItem[],
++  win?: Window
++): () => void {
++  const targetWindow = win || (typeof window !== 'undefined' ? window : null)
++
++  if (!targetWindow || typeof targetWindow.addEventListener !== 'function') {
++    return () => {} // No-op cleanup function
++  }
++
++  const handler = (e: BeforeUnloadEvent) => {
++    if (!hasActiveUploads(getQueue())) {
++      return undefined
++    }
++    // Both forms are needed across browsers to trigger the confirmation prompt
++    e.preventDefault()
++    e.returnValue = ''
++    return ''
++  }
++
++  targetWindow.addEventListener('beforeunload', handler as EventListener)
++
++  // Return cleanup function
++  return () => {
++    targetWindow.removeEventListener('beforeunload', handler as EventListener)
++  }
++}

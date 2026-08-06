@@ -1,0 +1,90 @@
+# Review package: 405c5e8..feb3dff
+
+## Commits
+feb3dff fix(home/p4c): remove dead scoped ancestor rules in ClockWidget; ensure GpuWidget ring-row grid (T5 review)
+
+## Files changed
+ src/home/components/widgets/ClockWidget.vue | 4 +---
+ src/home/components/widgets/GpuWidget.vue   | 1 +
+ src/home/components/widgets/WidgetCard.vue  | 3 ++-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/home/components/widgets/ClockWidget.vue b/src/home/components/widgets/ClockWidget.vue
+index bf11c6e..60ab364 100644
+--- a/src/home/components/widgets/ClockWidget.vue
++++ b/src/home/components/widgets/ClockWidget.vue
+@@ -14,20 +14,18 @@ let timer: ReturnType<typeof setInterval> | null = null
+ function tick() {
+   const d = new Date()
+   time.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+   date.value = d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })
+ }
+ tick()
+ onMounted(() => { timer = setInterval(tick, 1000) })
+ onUnmounted(() => { if (timer) clearInterval(timer) })
+ </script>
+ <style scoped>
+-/* base.css:132-139 — clock interior (w-clock mapping: WidgetCard adds .w-clock on .card) */
+-.card.w-clock .card-in { justify-content: center; }
+-.w-clock { background: var(--clock-bg, var(--card-bg)); }
++/* base.css:135-139 — clock interior (card-level overrides live in WidgetCard.vue) */
+ .clock { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+ .clock-time { font-size: clamp(28px, 30cqmin, 72px); font-weight: var(--clock-weight, 300); line-height: .92; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
+ .clock-date { margin-top: 12px; font-size: clamp(11px, 7cqmin, 15px); font-weight: 500; color: var(--fg-muted); }
+ .clock-time.mini { font-size: clamp(20px, 22cqmin, 32px); letter-spacing: -.5px; }
+ .clock-time.mini + .clock-date { margin-top: 4px; font-size: clamp(10px, 6cqmin, 13px); }
+ .clock-meta { margin-top: 7px; font-size: 13px; color: var(--fg-faint); }
+ </style>
+diff --git a/src/home/components/widgets/GpuWidget.vue b/src/home/components/widgets/GpuWidget.vue
+index 87abc93..70f241a 100644
+--- a/src/home/components/widgets/GpuWidget.vue
++++ b/src/home/components/widgets/GpuWidget.vue
+@@ -21,20 +21,21 @@ defineProps<{ item: LayoutItem }>()
+ const store = useLiveStatsStore()
+ const g = computed<any>(() => store.gpu && store.gpu[0])
+ const usage = computed(() => g.value && g.value.utilization_gpu != null ? Math.round(g.value.utilization_gpu) : null)
+ const memUse = computed(() => g.value && g.value.utilization_memory != null ? Math.round(g.value.utilization_memory) + '%' : '—')
+ const col = computed(() => heatColor(g.value && g.value.temperature))
+ const vram = computed(() => g.value && g.value.memory_total != null ? fmtSize(g.value.memory_total) : '—')
+ const temp = computed(() => g.value && g.value.temperature != null ? Math.round(g.value.temperature) + '℃' : '—')
+ </script>
+ <style scoped>
+ /* base.css:142,147,156-158,186-192 — gpu widget (ring-row.solo + stats + pill-grid) */
++.ring-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; flex: 1; }
+ .ring-row.solo { grid-template-columns: 1fr; place-items: center; }
+ .stats { display: grid; gap: 2px; }
+ .stat { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(11px, 5cqmin, 14px); color: var(--fg-muted); padding: 4px 0; }
+ .stat b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
+ .pill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+ .card-in > .pill-grid { flex: 1; grid-auto-rows: 1fr; }
+ .card-in > .pill-grid .pill { display: flex; flex-direction: column; justify-content: center; }
+ .pill { padding: 9px 11px; border: 1px solid var(--inner-border); border-radius: var(--radius-sm); background: var(--inner-bg); }
+ .pill s { text-decoration: none; display: block; font-size: clamp(9px, 4.5cqmin, 12px); color: var(--fg-faint); }
+ .pill b { display: block; margin-top: 4px; font-size: clamp(12px, 6cqmin, 16px); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); color: var(--num-color, var(--fg)); }
+diff --git a/src/home/components/widgets/WidgetCard.vue b/src/home/components/widgets/WidgetCard.vue
+index 2b03764..81a87ae 100644
+--- a/src/home/components/widgets/WidgetCard.vue
++++ b/src/home/components/widgets/WidgetCard.vue
+@@ -112,19 +112,20 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
+ .card-ic :deep(svg) {
+   width: clamp(14px, 6cqmin, 18px);
+   height: clamp(14px, 6cqmin, 18px);
+   color: var(--accent);
+   fill: none;
+   stroke: currentColor;
+   stroke-width: 1.7;
+ }
+ 
+ /* ── Per-widget card-level overrides (base.css:132,153-155,228) ─────────── */
+-/* Clock: center card-in vertically */
++/* Clock: center card-in vertically; custom background (base.css:132-133) */
+ .card.w-clock .card-in { justify-content: center; }
++.card.w-clock { background: var(--clock-bg, var(--card-bg)); }
+ /* CPU: ring + chart-box size overrides (base.css:153-155) */
+ .card.w-cpu :deep(.ring) { width: clamp(56px, 34cqmin, 96px); }
+ .card.w-cpu :deep(.ring b) { font-size: clamp(15px, 9cqmin, 22px); }
+ .card.w-cpu :deep(.chart-box) { flex: 1 1 0; height: 0; min-height: clamp(28px, 16cqmin, 40px); margin-bottom: 2px; }
+ /* Events: tighter gap between events list (base.css:228) */
+ .card.w-events .card-in { gap: 11px; }
+ </style>

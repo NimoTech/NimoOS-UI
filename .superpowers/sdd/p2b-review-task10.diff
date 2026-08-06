@@ -1,0 +1,772 @@
+# Review package: 4b0c7f7^..4b0c7f7
+
+## Commits
+4b0c7f7 SP8-P2b Task 10: McpTokensSection(对外 MCP 服务,承接 Vue2 6 例 + 新增 11 例)
+
+## Files changed
+ .../settings/sections/McpTokensSection.test.ts     | 328 +++++++++++++++++++++
+ .../settings/sections/McpTokensSection.vue         | 320 ++++++++++++++++++++
+ src/i18n/en_us.ts                                  |  35 +++
+ src/i18n/zh_cn.ts                                  |  32 ++
+ 4 files changed, 715 insertions(+)
+
+## Diff
+diff --git a/src/ai/components/settings/sections/McpTokensSection.test.ts b/src/ai/components/settings/sections/McpTokensSection.test.ts
+new file mode 100644
+index 0000000..2367c9d
+--- /dev/null
++++ b/src/ai/components/settings/sections/McpTokensSection.test.ts
+@@ -0,0 +1,328 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../../i18n/zh_cn'
++
++// SP8-P2b Task 10 —— 承接 Vue2 sections/__tests__/McpTokensSection.spec.js 的 5 条
++// 组件级用例(1 load 三条 + createToken + doDelete + onRevealClosed 共 6 条,brief 数了
++// 5 条时把 load 的 3 条算成 1 组;这里按 Vue2 蓝本的 it() 数量,逐条落地为下面 1-6),
++// 另加 brief 新增的 11 条(7-17)。纯函数断言(endpointUrl/buildInstruction/buildJson/
++// fmtCreated/fmtLastUsed)已被 Task 9 的 mcpConnect.test.ts 承接,不在此重复。
++
++const h = vi.hoisted(() => ({
++  listMCPTokens: vi.fn(),
++  createMCPToken: vi.fn(),
++  deleteMCPToken: vi.fn(),
++  copyText: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    ai: {
++      listMCPTokens: h.listMCPTokens,
++      createMCPToken: h.createMCPToken,
++      deleteMCPToken: h.deleteMCPToken,
++    },
++  },
++}))
++vi.mock('../../../../files/util/clipboard', () => ({ copyText: h.copyText }))
++
++import McpTokensSection from './McpTokensSection.vue'
++import { useToast } from '../../../../stores/toast'
++import { mcpEndpointUrl } from '../../../util/mcpConnect'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++function mountSection() {
++  return mount(McpTokensSection, { global: { plugins: [i18n] }, attachTo: document.body })
++}
++
++const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
++
++/** Click the reka-ui AlertDialogAction whose visible text matches `label`
++ *  (excludes PromptDialog's data-testid buttons, same手法 as ProvidersSection.test.ts). */
++function clickAlertAction(label: string) {
++  const btn = Array.from(document.body.querySelectorAll('button')).find(
++    (b) => b.textContent?.trim() === label && b.className.includes('ui-btn') && !b.dataset.testid,
++  ) as HTMLButtonElement | undefined
++  expect(btn).toBeTruthy()
++  btn!.click()
++}
++
++function typePromptValue(value: string) {
++  const input = document.body.querySelector('.ui-dialog-input') as HTMLInputElement
++  input.value = value
++  input.dispatchEvent(new Event('input'))
++}
++
++function clickPromptConfirm() {
++  const btn = document.body.querySelector('[data-testid="prompt-confirm"]') as HTMLButtonElement | null
++  expect(btn).toBeTruthy()
++  btn!.click()
++}
++
++function clickPromptCancel() {
++  const btn = document.body.querySelector('[data-testid="prompt-cancel"]') as HTMLButtonElement | null
++  expect(btn).toBeTruthy()
++  btn!.click()
++}
++
++describe('McpTokensSection', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    h.listMCPTokens.mockReset()
++    h.createMCPToken.mockReset()
++    h.deleteMCPToken.mockReset()
++    h.copyText.mockReset()
++    h.listMCPTokens.mockResolvedValue({ tokens: [] })
++    // SkModal 的明文弹窗 portal 目标默认是 '.set-app'(见 SkModal.vue 头注释 D1)。
++    // 目标元素必须在组件挂载前就存在于 DOM,同 SkModal.test.ts 的 withHost() 手法。
++    const host = document.createElement('div')
++    host.className = 'set-app'
++    document.body.appendChild(host)
++  })
++
++  afterEach(() => {
++    document.body.innerHTML = ''
++  })
++
++  // ---- 承接 Vue2 6 条 ----
++
++  it('1. load() 用 res.tokens 填充列表（本仓 service.ai.* 已剥掉 Vue2 axios 那层 .data，见组件头注释）', async () => {
++    h.listMCPTokens.mockResolvedValue({
++      tokens: [{ id: 'a', label: 'laptop', created_at: 1710000000000, last_used_at: null }],
++    })
++    const w = mountSection()
++    await flush()
++    const rows = w.findAll('.tok-row')
++    expect(rows).toHaveLength(1)
++    expect(rows[0].find('.tok-name').text()).toBe('laptop')
++    expect(w.find('.set-note').exists()).toBe(false)
++  })
++
++  it('2. tokens 键缺失时归一为空数组，渲染空态文案', async () => {
++    h.listMCPTokens.mockResolvedValue({})
++    const w = mountSection()
++    await flush()
++    expect(w.findAll('.tok-row')).toHaveLength(0)
++    expect(w.find('.set-note').text()).toBe('还没有令牌。创建一个,让外部 AI agent 能连接你的 NAS。')
++  })
++
++  it('3. load() 失败渲染「加载失败。」', async () => {
++    h.listMCPTokens.mockRejectedValue(new Error('boom'))
++    const w = mountSection()
++    await flush()
++    expect(w.find('.set-note').text()).toBe('加载失败。')
++  })
++
++  it('4. createToken() 一次性展示明文、不进列表、不重拉列表', async () => {
++    h.createMCPToken.mockResolvedValue({ id: 'b', token: 'nimoos_mcp_secret', label: 'x' })
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    typePromptValue('x')
++    await nextTick()
++    h.listMCPTokens.mockClear()
++    clickPromptConfirm()
++    await flush()
++    expect(h.createMCPToken).toHaveBeenCalledWith({ label: 'x' })
++    expect(h.listMCPTokens).not.toHaveBeenCalled()
++    // 明文落在 <input readonly> 的 .value 属性上,不是文本节点,不能用 textContent 抓
++    const revealInput = document.querySelector('.sk-modal input.set-input.full.mono') as HTMLInputElement
++    expect(revealInput.value).toBe('nimoos_mcp_secret')
++    // 组件自身子树(不含 teleport 到 .set-app 的弹窗内容)不含明文,证明列表没被写入
++    expect(w.html()).not.toContain('nimoos_mcp_secret')
++  })
++
++  it('5. doDelete() 调用接口并移除该行，另一行保留', async () => {
++    h.listMCPTokens.mockResolvedValue({
++      tokens: [{ id: 'a', label: 'one' }, { id: 'b', label: 'two' }],
++    })
++    h.deleteMCPToken.mockResolvedValue({ revoked: true })
++    const w = mountSection()
++    await flush()
++    await w.findAll('.tok-del')[0].trigger('click')
++    await flush()
++    clickAlertAction('删除')
++    await flush()
++    expect(h.deleteMCPToken).toHaveBeenCalledWith('a')
++    expect(w.findAll('.tok-name').map((el) => el.text())).toEqual(['two'])
++  })
++
++  it('6. onRevealClose()（完成按钮）清明文并重新拉取列表', async () => {
++    h.createMCPToken.mockResolvedValue({ id: 'b', token: 'nimoos_mcp_secret', label: 'x' })
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    typePromptValue('x')
++    await nextTick()
++    clickPromptConfirm()
++    await flush()
++    let revealInput = document.querySelector('.sk-modal input.set-input.full.mono') as HTMLInputElement
++    expect(revealInput.value).toBe('nimoos_mcp_secret')
++
++    h.listMCPTokens.mockResolvedValueOnce({
++      tokens: [{ id: 'b', label: 'x', created_at: 2, last_used_at: null }],
++    })
++    const doneBtn = Array.from(document.body.querySelectorAll('button')).find(
++      (b) => b.textContent?.trim() === '完成' && b.className.includes('sk-btn'),
++    ) as HTMLButtonElement
++    expect(doneBtn).toBeTruthy()
++    doneBtn.click()
++    await flush()
++    expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关闭,明文连 DOM 都不在了
++    expect(h.listMCPTokens).toHaveBeenCalledTimes(2) // 挂载时一次 + 关闭弹窗后重拉一次
++    expect(w.findAll('.tok-name').map((el) => el.text())).toEqual(['x'])
++  })
++
++  // ---- 新增 11 条 ----
++
++  it('7. 端点 URL 只读输入框展示 mcpEndpointUrl() 的值', async () => {
++    const w = mountSection()
++    await flush()
++    const input = w.find('.set-row.top .set-input.full.mono')
++    expect((input.element as HTMLInputElement).value).toBe(mcpEndpointUrl())
++    expect(input.attributes('readonly')).toBeDefined()
++  })
++
++  it('8. 端点复制按钮调用 copyText(endpointUrl) 并弹「已复制」', async () => {
++    h.copyText.mockResolvedValue(undefined)
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++    await w.findAll('.set-copybtn')[0].trigger('click')
++    await flush()
++    expect(h.copyText).toHaveBeenCalledWith(mcpEndpointUrl())
++    expect(show).toHaveBeenCalledWith('已复制')
++  })
++
++  it('9. 常驻接入说明框用占位令牌 <YOUR_TOKEN>（不是真令牌）', async () => {
++    const w = mountSection()
++    await flush()
++    const textareas = w.findAll('textarea.set-input.code')
++    expect(textareas).toHaveLength(2)
++    expect((textareas[0].element as HTMLTextAreaElement).value).toContain('<YOUR_TOKEN>')
++    expect((textareas[1].element as HTMLTextAreaElement).value).toContain('<YOUR_TOKEN>')
++  })
++
++  it('10. 两个常驻复制按钮分别复制说明文本（模板开头）与合法配置 JSON', async () => {
++    h.copyText.mockResolvedValue(undefined)
++    const w = mountSection()
++    await flush()
++    const copyBtns = w.findAll('.set-copybtn')
++    await copyBtns[1].trigger('click')
++    await flush()
++    const instrArg = h.copyText.mock.calls[0][0] as string
++    expect(instrArg.startsWith('你将获得一台 NimoOS 个人云 MCP 服务器的访问权限')).toBe(true)
++
++    h.copyText.mockClear()
++    await copyBtns[2].trigger('click')
++    await flush()
++    const jsonArg = h.copyText.mock.calls[0][0] as string
++    const parsed = JSON.parse(jsonArg)
++    expect(parsed.mcpServers.nimoos.url).toBe(mcpEndpointUrl())
++  })
++
++  it('11. copyText 失败弹「复制失败,请手动选择」warning toast', async () => {
++    h.copyText.mockRejectedValue(new Error('denied'))
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++    await w.findAll('.set-copybtn')[0].trigger('click')
++    await flush()
++    expect(show).toHaveBeenCalledWith('复制失败,请手动选择', 3000, 'warning')
++  })
++
++  it('12. 令牌行元信息：创建于 / 从未使用(.never) / 最近使用', async () => {
++    h.listMCPTokens.mockResolvedValue({
++      tokens: [
++        { id: 'a', label: 'never-one', created_at: 1710000000000, last_used_at: null },
++        { id: 'b', label: 'used-one', created_at: 1710000000000, last_used_at: 1720000000000 },
++      ],
++    })
++    const w = mountSection()
++    await flush()
++    const rows = w.findAll('.tok-row')
++
++    expect(rows[0].findAll('.tok-meta span')[0].text()).toBe(`创建于: ${new Date(1710000000000).toLocaleString()}`)
++    const neverSpan = rows[0].find('.tok-meta .never')
++    expect(neverSpan.exists()).toBe(true)
++    expect(neverSpan.text()).toBe('从未使用')
++
++    const usedSpans = rows[1].findAll('.tok-meta span')
++    const usedSpan = usedSpans[usedSpans.length - 1]
++    expect(usedSpan.text()).toBe(`最近使用: ${new Date(1720000000000).toLocaleString()}`)
++    expect(usedSpan.classes()).not.toContain('never')
++  })
++
++  it('13. label 为空时显示「(无标签)」', async () => {
++    h.listMCPTokens.mockResolvedValue({
++      tokens: [{ id: 'a', label: '', created_at: 1, last_used_at: null }],
++    })
++    const w = mountSection()
++    await flush()
++    expect(w.find('.tok-name').text()).toBe('(无标签)')
++  })
++
++  it('14. 令牌数量渲染在 .sk-section-hint', async () => {
++    h.listMCPTokens.mockResolvedValue({
++      tokens: [{ id: 'a', label: 'x' }, { id: 'b', label: 'y' }],
++    })
++    const w = mountSection()
++    await flush()
++    expect(w.find('.sk-section-hint').text()).toBe('2')
++  })
++
++  it('15. 创建令牌弹窗点取消 -> createMCPToken 不被调', async () => {
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    clickPromptCancel()
++    await flush()
++    expect(h.createMCPToken).not.toHaveBeenCalled()
++  })
++
++  it('16. PromptDialog 输入前后有空格 -> 传给接口的 label 被 trim', async () => {
++    h.createMCPToken.mockResolvedValue({ id: 'c', token: 'sek', label: 'x' })
++    const w = mountSection()
++    await flush()
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    typePromptValue('  x  ')
++    await nextTick()
++    clickPromptConfirm()
++    await flush()
++    expect(h.createMCPToken).toHaveBeenCalledWith({ label: 'x' })
++  })
++
++  it('17. 创建/删除失败分别弹 danger toast（后端消息优先，兜底文案）', async () => {
++    h.listMCPTokens.mockResolvedValue({ tokens: [{ id: 'a', label: 'one' }] })
++    h.createMCPToken.mockRejectedValueOnce({ response: { data: { message: '名额已满' } } })
++    h.deleteMCPToken.mockRejectedValueOnce({}) // 无 response.data.message、无 .message -> 走兜底文案
++    const toast = useToast()
++    const show = vi.spyOn(toast, 'show')
++    const w = mountSection()
++    await flush()
++
++    await w.find('.sk-btn.primary').trigger('click')
++    await flush()
++    typePromptValue('x')
++    await nextTick()
++    clickPromptConfirm()
++    await flush()
++    expect(show).toHaveBeenCalledWith('名额已满', 3000, 'danger')
++
++    show.mockClear()
++    await w.find('.tok-del').trigger('click')
++    await flush()
++    clickAlertAction('删除')
++    await flush()
++    expect(show).toHaveBeenCalledWith('删除失败', 3000, 'danger')
++  })
++})
+diff --git a/src/ai/components/settings/sections/McpTokensSection.vue b/src/ai/components/settings/sections/McpTokensSection.vue
+new file mode 100644
+index 0000000..ac24616
+--- /dev/null
++++ b/src/ai/components/settings/sections/McpTokensSection.vue
+@@ -0,0 +1,320 @@
++<!--
++  SP8-P2b Task 10 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/McpTokensSection.vue(247 行)。
++  纯函数(endpointUrl computed / buildInstruction / buildJson / fmtCreated 与 fmtLastUsed 的
++  「按毫秒格式化」核心)已由 Task 9 抽到 ../../../util/mcpConnect.ts,这里只保留组件专属状态
++  与 i18n 拼接。
++
++  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data() 是
++  组件本地状态),不做 store 集中。用户 2026-07-28 拍板(见 BlacklistSection.vue 头注释)。
++
++  【D1 申报】Vue2 :91-120 的明文令牌弹窗是手写 `.sk-modal-bg` 裸 div + `@click.self` 关闭,
++  换成 Task 3 的 SkModal(reka Dialog 外壳,视觉规则不变,详见 SkModal.vue 头注释的 D1)。
++  Vue2 里 `.mcp-x` 关闭按钮 scoped 样式已被 SkModal 内置的 `.sk-x` 收编,这里不再重复定义。
++  Vue2 `$buefy.dialog.confirm`(:185-191 删除确认)→ 共享 AlertDialog;
++  Vue2 `$buefy.dialog.prompt`(:167-174 创建令牌)→ 共享 PromptDialog(P2a Task 6 建)——
++  用法与 title/confirmText 复用既有动作名的手法,同 ProvidersSection.vue 的既定先例。
++
++  【SkModal 三条关闭路径统一处理】遮罩点击 / Esc / 右上 × 都会经 `update:open(false)`,
++  「完成」按钮走同一个 `onRevealClose`——与 Vue2 `@click.self="closeReveal"` 和 × 都走同一个
++  `closeReveal` 语义一致,详见下方 `handleRevealOpenChange`。
++
++  【服务端响应形状核实,纠正 brief Step 3 伪代码】brief 给的伪代码把 load()/createToken()
++  写成 `res?.data?.tokens` / `res?.data?.token`,那是把 Vue2 的 axios 包装层重复算了一遍:
++  Vue2 `res` 是 axios 响应,`res.data` 才是后端 body,`res.data.tokens` 只有一层 `.data`。
++  已读 NimoOS-AI/agent/main.py:232-235(`GET /mcp-tokens` 返回 `{"tokens": [...]}`)与
++  :221-229(`POST /mcp-tokens` 返回 `{"id","token","label"}`)确认后端 body 是**扁平**结构,
++  没有信封。本仓 `service.ai.*`「返回 body 原样」= Vue2 的 `res.data`,所以正确映射是
++  `res.tokens` / `res.token`(比 brief 伪代码少一层 `.data`)——公共约束 §5 明确禁止
++  「多剥一层 .data」,这里就是那一层要去掉的地方。防御性 `&&`/`|| []` 兜底语义原样保留。
++
++  【PromptDialog 无 maxlength prop,降级方案,已在 brief Step 3 获授权】Vue2 :170
++  `inputAttrs.maxlength = 64` 在 PromptDialog(P2a 共享原语)上没有对应 prop;本期不给它
++  加 prop(会动 P2a 在途文件),改为在 `createToken()` 里 `label.slice(0, 64)`——用户能多打
++  但存不进去多的字符,行为等价降级,不是静默丢弃需求。
++-->
++<script setup lang="ts">
++import { ref, computed, onMounted } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import { useToast } from '../../../../stores/toast'
++import { apiErrorMessage } from '../../../util/apiError'
++import { copyText } from '../../../../files/util/clipboard'
++import {
++  mcpEndpointUrl, buildMcpInstruction, buildMcpJson, formatEpochMs, MCP_PLACEHOLDER_TOKEN,
++} from '../../../util/mcpConnect'
++import AgentIcon from '../../icons/AgentIcon.vue'
++import SkModal from '../SkModal.vue'
++import AlertDialog from '../../../../components/ui/AlertDialog.vue'
++import PromptDialog from '../../../../components/ui/PromptDialog.vue'
++
++interface McpToken {
++  id: string | number
++  label?: string
++  created_at?: number
++  last_used_at?: number | null
++}
++
++const { t } = useI18n()
++const toast = useToast()
++
++const tokens = ref<McpToken[]>([])
++const loading = ref(false)
++const error = ref(false)
++const revealedToken = ref('')
++const showReveal = ref(false)
++const promptOpen = ref(false)
++const confirmDeleteOpen = ref(false)
++const pendingDeleteId = ref<string | number | null>(null)
++
++const endpointUrl = computed(() => mcpEndpointUrl())
++const instructionTemplate = computed(() => t('aiCfgMcpInstructionTemplate'))
++
++// Vue2 是 created() 里 load(),本仓用 onMounted —— 两者对本组件等价(无 SSR、不依赖
++// 挂载前时序),且与其余 6 个分区写法统一。
++onMounted(() => { void load() })
++
++async function load() {
++  loading.value = true
++  error.value = false
++  try {
++    const res = (await service.ai.listMCPTokens()) as { tokens?: McpToken[] } | null | undefined
++    tokens.value = (res && res.tokens) || [] // Vue2 :150 三重兜底,已核实后端 body 扁平,见文件头注释
++  } catch {
++    error.value = true
++  } finally {
++    loading.value = false
++  }
++}
++
++function buildInstruction(token: string): string {
++  return buildMcpInstruction(instructionTemplate.value, endpointUrl.value, token)
++}
++
++function buildJson(token: string): string {
++  return buildMcpJson(endpointUrl.value, token)
++}
++
++function openPrompt() {
++  promptOpen.value = true
++}
++
++// Vue2 :172 `(value || '').trim()` —— trim 在这里做,64 字软上限在 createToken() 里做
++// (见文件头注释)。
++function onPromptConfirm(value: string) {
++  void createToken((value || '').trim())
++}
++
++async function createToken(label: string) {
++  const trimmedLabel = label.slice(0, 64)
++  try {
++    const res = (await service.ai.createMCPToken({ label: trimmedLabel })) as { token?: string } | null | undefined
++    revealedToken.value = (res && res.token) || ''
++    showReveal.value = true
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgCreateFailed')), 3000, 'danger')
++  }
++}
++
++function confirmDelete(tk: McpToken) {
++  pendingDeleteId.value = tk.id
++  confirmDeleteOpen.value = true
++}
++
++async function onConfirmDelete() {
++  const id = pendingDeleteId.value
++  if (id == null) return
++  await doDelete(id)
++}
++
++async function doDelete(id: string | number) {
++  try {
++    await service.ai.deleteMCPToken(id)
++    tokens.value = tokens.value.filter((x) => x.id !== id)
++  } catch (e) {
++    toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
++  }
++}
++
++// 明文弹窗关闭时:先清明文、再重新拉列表(Vue2 :207-211 同序)。清明文必须在 await 之前
++// —— 否则请求在途这段时间明文还留在内存/DOM 里。
++async function onRevealClose() {
++  showReveal.value = false
++  revealedToken.value = ''
++  await load()
++}
++
++// 遮罩点击 / Esc / 右上 × 三条路径统一走这里(见文件头 D1 说明)。
++function handleRevealOpenChange(open: boolean) {
++  if (!open) void onRevealClose()
++}
++
++function fmtCreated(tk: McpToken): string {
++  return `${t('aiCfgCreatedAt')}: ${formatEpochMs(tk.created_at)}`
++}
++
++function fmtLastUsed(tk: McpToken): string {
++  // 承接 Task 9 复核结论:last_used_at 为空时是裸「从未使用」串,不带前缀
++  // (Vue2 :213-216),不能写成 `'上次使用:' + formatEpochMs(x)`(会渲染成
++  // 「上次使用:-」的 1:1 回归)。
++  if (!tk.last_used_at) return t('aiCfgNeverUsed')
++  return `${t('aiCfgLastUsed')}: ${formatEpochMs(tk.last_used_at)}`
++}
++
++async function copy(text: string) {
++  try {
++    await copyText(text)
++    toast.show(t('aiCopied'))
++  } catch {
++    toast.show(t('aiCfgCopyFailed'), 3000, 'warning')
++  }
++}
++</script>
++
++<template>
++  <div class="set-inner">
++    <div class="set-page-head">
++      <h1 class="set-h1">{{ t('aiCfgMcpTokens') }}</h1>
++      <p class="set-desc">{{ t('aiCfgMcpTokensDesc') }}</p>
++    </div>
++
++    <!-- A. connection info -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgMcpEndpoint') }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div class="set-rows">
++          <div class="set-row top">
++            <div class="lbl">{{ t('aiCfgMcpEndpointUrl') }}</div>
++            <div class="val">
++              <div class="set-copy">
++                <input class="set-input full mono" :value="endpointUrl" readonly>
++                <button class="set-copybtn" @click="copy(endpointUrl)">
++                  <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++                </button>
++              </div>
++            </div>
++          </div>
++        </div>
++        <div class="set-banner">
++          <span class="ico"><AgentIcon name="key" :size="12" /></span>
++          <span>{{ t('aiCfgMcpEndpointBanner') }}</span>
++        </div>
++      </div>
++    </div>
++
++    <!-- A2. onboarding (persistent, placeholder token) -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgConnectAnAgent') }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div class="set-rows">
++          <div class="set-row top">
++            <div class="lbl">{{ t('aiCfgGiveThisToAgent') }}</div>
++            <div class="val">
++              <div class="set-copy">
++                <textarea
++                  class="set-input code" :value="buildInstruction(MCP_PLACEHOLDER_TOKEN)"
++                  readonly rows="7"
++                />
++                <button class="set-copybtn" @click="copy(buildInstruction(MCP_PLACEHOLDER_TOKEN))">
++                  <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++                </button>
++              </div>
++            </div>
++          </div>
++          <div class="set-row top">
++            <div class="lbl">{{ t('aiCfgOrPasteIntoConfig') }}</div>
++            <div class="val">
++              <div class="set-copy">
++                <textarea class="set-input code" :value="buildJson(MCP_PLACEHOLDER_TOKEN)" readonly rows="7" />
++                <button class="set-copybtn" @click="copy(buildJson(MCP_PLACEHOLDER_TOKEN))">
++                  <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++                </button>
++              </div>
++            </div>
++          </div>
++        </div>
++      </div>
++    </div>
++
++    <!-- B & C. tokens list -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgTokens') }}</div>
++        <div class="sk-section-hint">{{ tokens.length }}</div>
++        <button class="sk-btn primary" style="margin-left:auto" @click="openPrompt">
++          <AgentIcon name="plus" :size="13" /> {{ t('aiCfgCreateToken') }}
++        </button>
++      </div>
++      <div class="sk-section-body">
++        <div v-if="loading" class="set-note">{{ t('aiCfgLoadingDots') }}</div>
++        <div v-else-if="error" class="set-note">{{ t('aiCfgLoadFailed') }}</div>
++        <div v-else-if="!tokens.length" class="set-note">{{ t('aiCfgNoTokensYet') }}</div>
++        <div v-else v-for="tk in tokens" :key="tk.id" class="tok-row">
++          <span class="tok-ic"><AgentIcon name="key" :size="16" /></span>
++          <div class="tok-body">
++            <div class="tok-name">{{ tk.label || t('aiCfgNoLabel') }}</div>
++            <div class="tok-meta">
++              <span>{{ fmtCreated(tk) }}</span>
++              <span class="sep" />
++              <span :class="{ never: !tk.last_used_at }">{{ fmtLastUsed(tk) }}</span>
++            </div>
++          </div>
++          <button class="tok-del" @click="confirmDelete(tk)">
++            <AgentIcon name="trash" :size="13" /> {{ t('aiCfgDelete') }}
++          </button>
++        </div>
++      </div>
++    </div>
++
++    <!-- reveal modal: plaintext + inlined onboarding shown once -->
++    <SkModal :open="showReveal" :title="t('aiCfgTokenCreated')" @update:open="handleRevealOpenChange">
++      <p class="mcp-reveal-warn">{{ t('aiCfgTokenShownOnce') }}</p>
++      <div class="set-copy">
++        <input class="set-input full mono" :value="revealedToken" readonly>
++        <button class="set-copybtn" @click="copy(revealedToken)">
++          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++        </button>
++      </div>
++      <label class="mcp-label">{{ t('aiCfgGiveThisToAgent') }}</label>
++      <div class="set-copy">
++        <textarea class="set-input code" :value="buildInstruction(revealedToken)" readonly rows="6" />
++        <button class="set-copybtn" @click="copy(buildInstruction(revealedToken))">
++          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++        </button>
++      </div>
++      <label class="mcp-label">{{ t('aiCfgOrPasteIntoConfig') }}</label>
++      <div class="set-copy">
++        <textarea class="set-input code" :value="buildJson(revealedToken)" readonly rows="7" />
++        <button class="set-copybtn" @click="copy(buildJson(revealedToken))">
++          <AgentIcon name="copy" :size="13" /> {{ t('aiCopy') }}
++        </button>
++      </div>
++      <template #footer>
++        <button class="sk-btn primary" @click="onRevealClose">{{ t('aiDone') }}</button>
++      </template>
++    </SkModal>
++
++    <AlertDialog
++      v-model:open="confirmDeleteOpen"
++      :title="t('aiCfgDelete')"
++      :message="t('aiCfgDeleteTokenConfirm')"
++      :confirm-text="t('aiCfgDelete')"
++      :cancel-text="t('aiCancel')"
++      destructive
++      @confirm="onConfirmDelete"
++    />
++
++    <PromptDialog
++      v-model:open="promptOpen"
++      :title="t('aiCfgCreateToken')"
++      :message="t('aiCfgTokenLabelPrompt')"
++      :placeholder="t('aiCfgTokenLabel')"
++      :confirm-text="t('aiCfgCreateToken')"
++      :cancel-text="t('aiCancel')"
++      @confirm="onPromptConfirm"
++    />
++  </div>
++</template>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index d0ba72f..22750dd 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1100,11 +1100,46 @@ export default {
+   aiCfgPhoenixInstallConfirm: 'Agent monitoring needs the Phoenix app (Docker). Download and install it now?',
+   aiCfgDownloadAndInstall: 'Download & install',
+   aiCfgPhoenixStopConfirm: 'Turning off will also stop the Phoenix container to save resources. Continue?',
+   aiCfgContinue: 'Continue',
+   aiCfgInstallationFailed: 'Installation failed',
+   aiCfgFailedToSaveSetting: 'Failed to save setting',
+   aiCfgPhoenixRunning: 'Running',
+   aiCfgPhoenixNotInstalled: 'Not installed',
+   aiCfgPhoenixStopped: 'Stopped',
+   // <<< SP8-P2b Task 8
++  // >>> SP8-P2b Task 10 —— McpTokensSection (Expose as MCP server). English values are the
++  // literal Vue2 source strings (brief already reconciled against the production
++  // zh_CN.json). Reused keys (not redefined here): aiCfgMcpTokens (nav h1, built by P2a) /
++  // aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed (found
++  // already present with an identical value, reused instead of redefining).
++  aiCfgMcpTokensDesc: 'Long-lived tokens external AI agents use to connect to this NAS over MCP. Tokens grant read-only tools and can be revoked anytime.',
++  aiCfgMcpEndpoint: 'MCP endpoint',
++  aiCfgMcpEndpointUrl: 'MCP endpoint URL',
++  aiCfgMcpEndpointBanner: 'Use it as the MCP server URL; put the token in the Authorization: Bearer header. Provides read-only search / read-document / Wiki / photos tools.',
++  aiCfgConnectAnAgent: 'Connect an AI agent',
++  aiCfgGiveThisToAgent: 'Give this to another AI agent to add this NAS as an MCP server:',
++  aiCfgOrPasteIntoConfig: 'Or paste this into its MCP config file:',
++  // {url}/{token} are this component's own placeholder markers (see mcpConnect.ts
++  // buildMcpInstruction's split/join), not vue-i18n named interpolation — must be
++  // escaped as {'{'}url{'}'} / {'{'}token{'}'}, otherwise t() with no params
++  // resolves bare {url}/{token} as (missing) interpolation vars and blanks them
++  // (confirmed empirically via the component test; same escaping mechanism as the
++  // literal @ -> {'@'} rule in messageSyntax.test.ts).
++  aiCfgMcpInstructionTemplate: 'You are being given access to a NimoOS personal-cloud MCP server. Please add it as an MCP server using the Streamable HTTP transport.\n\nEndpoint URL: {\'{\'}url{\'}\'}\nAuth: send the HTTP header  Authorization: Bearer {\'{\'}token{\'}\'}\n\nIt exposes read-only tools: search files, read documents, view document pages, browse the Wiki, and search photos. After adding it, call tools/list to confirm the connection.',
++  aiCfgTokens: 'Tokens',
++  aiCfgCreateToken: 'Create token',
++  aiCfgLoadingDots: 'Loading...',
++  aiCfgLoadFailed: 'Failed to load.',
++  aiCfgNoTokensYet: 'No tokens yet. Create one to let external AI agents connect.',
++  aiCfgNoLabel: '(no label)',
++  aiCfgCreatedAt: 'Created',
++  aiCfgLastUsed: 'Last used',
++  aiCfgNeverUsed: 'Never used',
++  aiCfgTokenCreated: 'Token created',
++  aiCfgTokenShownOnce: 'This token is shown only once. Copy and save it now — you will not be able to see it again.',
++  aiCfgTokenLabelPrompt: 'Label (e.g. "Claude on laptop")',
++  aiCfgTokenLabel: 'Label',
++  aiCfgCreateFailed: 'Create failed',
++  aiCfgDeleteTokenConfirm: 'Are you sure you want to delete this token?',
++  // <<< SP8-P2b Task 10
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 77e8242..a79cba6 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1110,11 +1110,43 @@ export default {
+   aiCfgPhoenixInstallConfirm: 'Agent 监控需要 Phoenix 应用(Docker)。现在下载并安装?',
+   aiCfgDownloadAndInstall: '下载并安装',
+   aiCfgPhoenixStopConfirm: '关闭将同时停止 Phoenix 容器以节省资源,是否继续?',
+   aiCfgContinue: '继续',
+   aiCfgInstallationFailed: '安装失败',
+   aiCfgFailedToSaveSetting: '保存设置失败',
+   aiCfgPhoenixRunning: '运行中',
+   aiCfgPhoenixNotInstalled: '未安装',
+   aiCfgPhoenixStopped: '已停止',
+   // <<< SP8-P2b Task 8
++  // >>> SP8-P2b Task 10 —— McpTokensSection(对外 MCP 服务)。值逐字取自 brief 表(brief
++  // 已回查 Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgMcpTokens(导航 h1,
++  // P2a 已建)/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed
++  // (发现已存在且值相同,直接复用,未重复定义)。
++  aiCfgMcpTokensDesc: '外部 AI Agent 通过 MCP 连接本 NAS 时所用的长期令牌。令牌仅授予只读工具,可随时吊销。',
++  aiCfgMcpEndpoint: 'MCP 端点',
++  aiCfgMcpEndpointUrl: 'MCP 端点 URL',
++  aiCfgMcpEndpointBanner: '把它作为 MCP 客户端的服务器 URL,令牌放在 Authorization: Bearer 请求头里。提供搜索 / 读文档 / Wiki / 相册等只读工具。',
++  aiCfgConnectAnAgent: '接入 AI Agent',
++  aiCfgGiveThisToAgent: '把下面这段交给别的 AI Agent，它就能把本 NAS 加为 MCP 服务器：',
++  aiCfgOrPasteIntoConfig: '或把下面的配置粘贴到它的 MCP 配置文件：',
++  // {url}/{token} 是本组件自己的占位标记(见 mcpConnect.ts buildMcpInstruction 的
++  // split/join),不是 vue-i18n 的命名插值 —— 必须转义成 {'{'}url{'}'} / {'{'}token{'}'}，
++  // 否则 t() 在不传 params 时会把裸 {url}/{token} 当成插值变量,解析成空串(已用组件测试
++  // 实测确认;同 messageSyntax.test.ts 对字面 @ 的 {'@'} 转义是同一套机制)。
++  aiCfgMcpInstructionTemplate: '你将获得一台 NimoOS 个人云 MCP 服务器的访问权限。请使用 Streamable HTTP 传输方式，把它添加为一个 MCP server。\n\n端点 URL：{\'{\'}url{\'}\'}\n鉴权：发送 HTTP 请求头  Authorization: Bearer {\'{\'}token{\'}\'}\n\n它提供只读工具：搜索文件、读取文档、查看文档页、浏览 Wiki、搜索相册。添加完成后，请调用 tools/list 确认连接。',
++  aiCfgTokens: '令牌',
++  aiCfgCreateToken: '创建令牌',
++  aiCfgLoadingDots: '加载中...',
++  aiCfgLoadFailed: '加载失败。',
++  aiCfgNoTokensYet: '还没有令牌。创建一个,让外部 AI agent 能连接你的 NAS。',
++  aiCfgNoLabel: '(无标签)',
++  aiCfgCreatedAt: '创建于',
++  aiCfgLastUsed: '最近使用',
++  aiCfgNeverUsed: '从未使用',
++  aiCfgTokenCreated: '令牌已创建',
++  aiCfgTokenShownOnce: '此令牌只显示这一次,请立即复制保存;关闭后将无法再查看。',
++  aiCfgTokenLabelPrompt: '标签(如「笔记本上的 Claude」)',
++  aiCfgTokenLabel: '标签',
++  aiCfgCreateFailed: '创建失败',
++  aiCfgDeleteTokenConfirm: '确定要删除此令牌吗?',
++  // <<< SP8-P2b Task 10
+ }

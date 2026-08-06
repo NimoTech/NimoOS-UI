@@ -1,0 +1,80 @@
+=== 仓库: NimoOS-LocalStorage  范围: 1ab91a9..c0d0861 ===
+
+=== git log --oneline ===
+c0d0861 feat(disk): IsDiskSupported 接受 block:scsi:pseudo,并补齐该函数单测
+
+=== git diff --stat ===
+ service/disk.go      |  3 +++
+ service/disk_test.go | 26 ++++++++++++++++++++++++++
+ 2 files changed, 29 insertions(+)
+
+=== git diff -U10 ===
+diff --git a/service/disk.go b/service/disk.go
+index 7e4503d..b289982 100644
+--- a/service/disk.go
++++ b/service/disk.go
+@@ -773,20 +773,23 @@ func NewDiskService(db *gorm.DB) DiskService {
+ 
+ func IsDiskSupported(d model.LSBLKModel) bool {
+ 	return d.Tran == "sata" ||
+ 		d.Tran == "nvme" ||
+ 		d.Tran == "spi" ||
+ 		d.Tran == "sas" ||
+ 		strings.Contains(d.SubSystems, "virtio") ||
+ 		strings.Contains(d.SubSystems, "block:scsi:vmbus:acpi") || // Microsoft Hyper-V
+ 		strings.Contains(d.SubSystems, "block:mmc:mmc_host:pci") ||
+ 		strings.Contains(d.SubSystems, "block:mmc:mmc_host:platform") ||
++		// scsi_debug 伪 SCSI 主机(SP6-P5.5 存储区实盘验收测试台)。生产机上
++		// 这个子系统链只可能来自主动 modprobe scsi_debug,不会自然出现。
++		strings.Contains(d.SubSystems, "block:scsi:pseudo") ||
+ 		strings.Contains(d.SubSystems, "block:scsi:pci") || d.Tran == "usb"
+ }
+ 
+ func IsFormatSupported(d model.LSBLKModel) bool {
+ 	if d.FsType == "vfat" || d.FsType == "ext4" || d.FsType == "ext3" || d.FsType == "ext2" || d.FsType == "exfat" || d.FsType == "ntfs-3g" || d.FsType == "iso9660" {
+ 		return true
+ 	}
+ 	return false
+ }
+ 
+diff --git a/service/disk_test.go b/service/disk_test.go
+index 1725939..10102b3 100644
+--- a/service/disk_test.go
++++ b/service/disk_test.go
+@@ -52,10 +52,36 @@ func TestParseBlockDevices_MountPointsPlural(t *testing.T) {
+ 	blkList, err := ParseBlockDevices([]byte(jsonText))
+ 
+ 	assert.NilError(t, err)
+ 	assert.Equal(t, len(blkList), 1)
+ 
+ 	assert.Equal(t, blkList[0].MountPoint, "/media/RAID_0/.snapshots")
+ 	assert.Equal(t, len(blkList[0].MountPoints), 2)
+ 	assert.Equal(t, blkList[0].MountPoints[0], "")
+ 	assert.Equal(t, blkList[0].MountPoints[1], "/media/RAID_0")
+ }
++
++// scsi_debug 假盘(SP6-P5.5 测试台)的 subsystems 是 block:scsi:pseudo,
++// tran 为空 —— 白名单必须认它,否则 route/v1/disk.go:128 会把它从
++// disks/avail 两个数组同时抹掉,存储区实盘验收就无盘可用。
++func TestIsDiskSupported(t *testing.T) {
++	cases := []struct {
++		name       string
++		tran       string
++		subSystems string
++		want       bool
++	}{
++		{"nvme 真盘", "nvme", "block:nvme:pci", true},
++		{"sata 真盘", "sata", "block:scsi:pci", true},
++		{"usb 盘", "usb", "block:scsi:usb:pci", true},
++		{"virtio 虚拟盘", "", "block:scsi:virtio:pci", true},
++		{"scsi_debug 假盘", "", "block:scsi:pseudo", true},
++		{"zram 之类裸 block", "", "block", false},
++		{"未知传输方式", "fibre", "block:unknown", false},
++	}
++	for _, c := range cases {
++		t.Run(c.name, func(t *testing.T) {
++			got := IsDiskSupported(model.LSBLKModel{Tran: c.tran, SubSystems: c.subSystems})
++			assert.Equal(t, got, c.want)
++		})
++	}
++}

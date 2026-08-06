@@ -1,0 +1,86 @@
+# Review package: 105b2f6..1ce32c6
+
+## Commits
+1ce32c6 feat(files): P2c 多选工具栏加「下载」按钮
+
+## Files changed
+ src/files/components/SelectionToolbar.test.ts | 10 +++++++++-
+ src/files/components/SelectionToolbar.vue     |  3 ++-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/files/components/SelectionToolbar.test.ts b/src/files/components/SelectionToolbar.test.ts
+index f742ba3..dd7cc05 100644
+--- a/src/files/components/SelectionToolbar.test.ts
++++ b/src/files/components/SelectionToolbar.test.ts
+@@ -1,18 +1,18 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import SelectionToolbar from './SelectionToolbar.vue'
+ 
+ const i18n = createI18n({
+   legacy: false, locale: 'zh_cn',
+-  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxDelete: '删除' } },
++  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
+ })
+ 
+ describe('SelectionToolbar', () => {
+   it('shows the count and emits select-all / clear', async () => {
+     const w = mount(SelectionToolbar, { props: { count: 3, allSelected: false }, global: { plugins: [i18n] } })
+     expect(w.text()).toContain('已选 3 项')
+     await w.get('.sel-all').trigger('click')
+     expect(w.emitted('select-all')).toBeTruthy()
+     await w.get('.sel-clear').trigger('click')
+     expect(w.emitted('clear')).toBeTruthy()
+@@ -27,11 +27,19 @@ describe('SelectionToolbar', () => {
+   it('复制/剪切按钮 emit copy/cut', async () => {
+     const wrapper = mount(SelectionToolbar, {
+       props: { count: 2, allSelected: false },
+       global: { plugins: [i18n] },
+     })
+     await wrapper.find('.sel-copy').trigger('click')
+     await wrapper.find('.sel-cut').trigger('click')
+     expect(wrapper.emitted('copy')).toBeTruthy()
+     expect(wrapper.emitted('cut')).toBeTruthy()
+   })
++
++  it('渲染下载按钮并 emit download', async () => {
++    const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false }, global: { plugins: [i18n] } })
++    const btn = wrapper.find('.sel-download')
++    expect(btn.exists()).toBe(true)
++    await btn.trigger('click')
++    expect(wrapper.emitted('download')).toBeTruthy()
++  })
+ })
+diff --git a/src/files/components/SelectionToolbar.vue b/src/files/components/SelectionToolbar.vue
+index e07dd7f..b4a6bd0 100644
+--- a/src/files/components/SelectionToolbar.vue
++++ b/src/files/components/SelectionToolbar.vue
+@@ -1,24 +1,25 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ const props = defineProps<{ count: number; allSelected: boolean }>()
+-const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void }>()
++const emit = defineEmits<{ (e: 'select-all'): void; (e: 'clear'): void; (e: 'delete'): void; (e: 'copy'): void; (e: 'cut'): void; (e: 'download'): void }>()
+ const { t } = useI18n()
+ </script>
+ 
+ <template>
+   <div class="selection-toolbar">
+     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
+     <button class="sel-btn sel-all" @click="emit('select-all')">{{ t('filesSelectAll') }}</button>
+     <button class="sel-btn sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>
+     <button class="sel-btn sel-copy" @click="emit('copy')">{{ t('filesCtxCopy') }}</button>
+     <button class="sel-btn sel-cut" @click="emit('cut')">{{ t('filesCtxCut') }}</button>
++    <button class="sel-btn sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
+     <span class="sel-spacer"></span>
+     <button class="sel-btn sel-delete danger" @click="emit('delete')">{{ t('filesCtxDelete') }}</button>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .selection-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
+ .sel-count { flex: 0 0 auto; }
+ .sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
+ .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }

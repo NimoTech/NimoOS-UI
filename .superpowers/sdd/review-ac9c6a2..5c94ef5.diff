@@ -1,0 +1,53 @@
+# Review package: ac9c6a2..5c94ef5
+
+## Commits
+5c94ef5 feat(files): P2a pathOps.joinPath/renameTo 真实路径拼接纯函数
+
+## Files changed
+ src/files/util/pathOps.test.ts | 18 ++++++++++++++++++
+ src/files/util/pathOps.ts      | 12 ++++++++++++
+ 2 files changed, 30 insertions(+)
+
+## Diff
+diff --git a/src/files/util/pathOps.test.ts b/src/files/util/pathOps.test.ts
+new file mode 100644
+index 0000000..fa422b3
+--- /dev/null
++++ b/src/files/util/pathOps.test.ts
+@@ -0,0 +1,18 @@
++import { describe, it, expect } from 'vitest'
++import { joinPath, renameTo } from './pathOps'
++
++describe('pathOps', () => {
++  it('joinPath 拼接,折叠重复斜杠', () => {
++    expect(joinPath('/DATA/Docs', 'a.txt')).toBe('/DATA/Docs/a.txt')
++    expect(joinPath('/DATA/Docs/', 'a.txt')).toBe('/DATA/Docs/a.txt')
++  })
++  it('joinPath 根目录', () => {
++    expect(joinPath('/', 'New Folder')).toBe('/New Folder')
++  })
++  it('renameTo 替换末段保留父目录', () => {
++    expect(renameTo('/DATA/Docs/old.txt', 'new.txt')).toBe('/DATA/Docs/new.txt')
++  })
++  it('renameTo 顶层项', () => {
++    expect(renameTo('/DATA', 'HD')).toBe('/HD')
++  })
++})
+diff --git a/src/files/util/pathOps.ts b/src/files/util/pathOps.ts
+new file mode 100644
+index 0000000..6548bb6
+--- /dev/null
++++ b/src/files/util/pathOps.ts
+@@ -0,0 +1,12 @@
++// 真实路径拼接(仅操作真实路径;虚拟↔真实转换在 pathUtils)。
++export function joinPath(parentReal: string, name: string): string {
++  const base = parentReal.replace(/\/+$/, '')
++  return (base === '' ? '' : base) + '/' + name
++}
++
++export function renameTo(realPath: string, newName: string): string {
++  const trimmed = realPath.replace(/\/+$/, '')
++  const idx = trimmed.lastIndexOf('/')
++  const parent = idx <= 0 ? '' : trimmed.slice(0, idx)
++  return parent + '/' + newName
++}

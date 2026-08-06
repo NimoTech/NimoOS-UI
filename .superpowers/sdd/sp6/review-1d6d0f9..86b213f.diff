@@ -1,0 +1,96 @@
+# Review package: 1d6d0f9..86b213f
+
+## Commits
+86b213f fix(storage): 定义 --radius-xs token + 进度弹窗当前步标签越界回退 raidPreparing
+
+## Files changed
+ src/storage/components/RaidCreateProgressModal.test.ts |  7 +++++++
+ src/storage/components/RaidCreateProgressModal.vue     | 10 +++++++---
+ src/styles/theme.css                                   |  1 +
+ 3 files changed, 15 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/storage/components/RaidCreateProgressModal.test.ts b/src/storage/components/RaidCreateProgressModal.test.ts
+index 2a7ac99..c71ed0a 100644
+--- a/src/storage/components/RaidCreateProgressModal.test.ts
++++ b/src/storage/components/RaidCreateProgressModal.test.ts
+@@ -25,11 +25,18 @@ describe('RaidCreateProgressModal', () => {
+   it('failed:当前步标记 failed', async () => {
+     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ step: 3, status: 'failed' }) }, global: { plugins: [i18n] } })
+     await w.vm.$nextTick()
+     expect(document.body.querySelectorAll('.rpm-step.failed').length).toBe(1)
+   })
+   it('done:全部步 done', async () => {
+     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ status: 'done', step: 6 }) }, global: { plugins: [i18n] } })
+     await w.vm.$nextTick()
+     expect(document.body.querySelectorAll('.rpm-step.done').length).toBe(6)
+   })
++  it('step=0(尚未进入首个真实步骤)→ 当前步标签回退 raidPreparing,而非字面量 raidStep0', async () => {
++    const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ step: 0, status: 'creating' }) }, global: { plugins: [i18n] } })
++    await w.vm.$nextTick()
++    const body = document.body.textContent || ''
++    expect(body).toContain(zh.raidPreparing)
++    expect(body).not.toContain('raidStep0')
++  })
+ })
+diff --git a/src/storage/components/RaidCreateProgressModal.vue b/src/storage/components/RaidCreateProgressModal.vue
+index 97fbda9..eb61615 100644
+--- a/src/storage/components/RaidCreateProgressModal.vue
++++ b/src/storage/components/RaidCreateProgressModal.vue
+@@ -25,23 +25,27 @@ const steps = computed(() =>
+     label: n === 4 && props.task.filesystem
+       ? t('raidStepInitFs', { fs: props.task.filesystem })
+       : t('raidStep' + n),
+     done: isStepDone(n),
+     active: isStepActive(n),
+     failed: isStepFailed(n),
+   })),
+ )
+ 
+ const currentStepLabel = computed(() => {
+-  if (props.task.status === 'done') return t('raidCreateDone')
+-  if (props.task.status === 'failed') return t('raidCreateFailed')
+-  return t('raidStep' + props.task.step) || t('raidPreparing')
++  const s = props.task
++  if (s.status === 'done') return t('raidCreateDone')
++  if (s.status === 'failed') return t('raidCreateFailed')
++  if (s.step >= 1 && s.step <= 6) {
++    return s.step === 4 && s.filesystem ? t('raidStepInitFs', { fs: s.filesystem }) : t('raidStep' + s.step)
++  }
++  return t('raidPreparing')
+ })
+ </script>
+ 
+ <template>
+   <Dialog :open="open" @update:open="emit('update:open', $event)">
+     <div class="rpm">
+       <div class="rpm-head">
+         <div v-if="task.status === 'creating'" class="rpm-spinner" />
+         <span v-else-if="task.status === 'done'" class="rpm-icon done">✓</span>
+         <span v-else class="rpm-icon failed">✕</span>
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index fa7b46c..51581db 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -19,20 +19,21 @@
+   color-scheme: dark;
+   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+   --num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+   --stroke: 1.9;
+   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+   --gap: clamp(12px, 1vw, 16px);
+   --blur: blur(44px) saturate(1.7) brightness(1.08);
+ 
+   --radius: 28px;
+   --radius-sm: 18px;
++  --radius-xs: 6px;
+   /* 百分比圆角：按元素自身尺寸等比缩放（≈22px/70px 默认观感），图标各处必须保持正方形 */
+   --icon-radius: 31%;
+ 
+   /* 拖拽时的高一档投影（更"浮"）+ 文件夹玻璃 + 编辑网格点 */
+   --card-shadow-drag:
+     inset 0 1px 0 rgba(255, 255, 255, 0.72),
+     0 10px 20px rgba(8, 12, 28, 0.3),
+     0 60px 90px -28px rgba(6, 10, 26, 0.85);
+   --folder-glass: linear-gradient(157deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.075));
+   --folder-mini: linear-gradient(150deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.22));

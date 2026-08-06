@@ -1,0 +1,550 @@
+19fa973 feat(kb): P5d T9 反转知识库导航入口 + 注释债 + K36 a11y 常驻断言
+
+ .superpowers/sdd/p5d-task-9-report.md        | 135 +++++++++++++++++++++++++++
+ src/ai/knowledge/parser/ParserStatus.test.ts |   7 +-
+ src/ai/knowledge/parser/ParserTest.test.ts   |   6 +-
+ src/ai/knowledge/views/SettingsView.test.ts  |   6 +-
+ src/ai/views/SettingsPage.test.ts            |  38 ++++++--
+ src/ai/views/SettingsPage.vue                |  39 +++++---
+ 6 files changed, 205 insertions(+), 26 deletions(-)
+
+diff --git a/.superpowers/sdd/p5d-task-9-report.md b/.superpowers/sdd/p5d-task-9-report.md
+new file mode 100644
+index 0000000..c629c96
+--- /dev/null
++++ b/.superpowers/sdd/p5d-task-9-report.md
+@@ -0,0 +1,135 @@
++# P5d · Task 9 报告 —— 票 1 导航入口 + 票 2 注释债 + K36 a11y 常驻断言
++
++坐标:分支 `sp8-ai`,起点 `71eab1f`,本刀改 5 个文件(§1.1 显式解禁例外),零新建,
++331 文件 / 182 `.vue` 不变。
++
++## §T9 1-7 条逐条兑现
++
++1. `SettingsPage.vue`:`<button @click="onDetailsClick">` → `<router-link to="/ai/knowledge">`,
++   内容物 `{{ t('aiCfgDetails') }} <AgentIcon name="chev" :size="12" />` 一字不动
++   (文案键仍 `aiCfgDetails`,图标仍 `AgentIcon`)。
++2. `.set-detail-link` 类名/视觉零改动;`settings-styles.scss` 全文件 0 diff(见下方自证)。
++3. `onDetailsClick` 已删,原文整段留成注释(位置见下方「原文留成注释的位置」)。
++4. `SettingsPage.test.ts:239` 那条改成断言 `.set-detail-link` 是 `to="/ai/knowledge"` 的
++   `RouterLink`;RED 探针两段输出见下。
++5. `SettingsPage.vue:26-29` 注释订正为「历史记录 + 现状」两段,引「治理 §15.1 / P5c §8.5」,
++   零 file:line(本仓)引用。
++6. 3 处过期注释(`ParserStatus.test.ts` / `ParserTest.test.ts` / `SettingsView.test.ts`)
++   均改成引条目编号,不引行号;仅改注释行,非注释行 0 改动(见下方自证)。
++7. `SettingsView.test.ts` 补 3 行 K36 a11y 断言(元素身份 + `[id]` 计数=1),
++   变异证据见下方。
++
++## 逐文件「其余一字未动」自证
++
++**`src/ai/views/SettingsPage.vue`**(3 处改动,均在授权范围内):
++- header 注释 `:26-29` 替换成两段「历史/现状」——`-` 的 4 行是旧的单段过期说明
++  (说 `/ai/knowledge` 要到 SP8-P5 才存在,已不成立),理由已在条目 5 说明。
++- `onDetailsClick` 函数体(3 行)删除 → 理由:治理 §15.1 第 3 条明确裁定「删掉 handler,
++  原文留成注释」,原文完整保留在紧邻的新注释里(逐字未丢一行)。
++- 模板注释 2 行 + `<button ...>`/`</button>` 2 行删除 → 替换成新注释 6 行 +
++  `<router-link ...>`/`</router-link>`,理由已在条目 1/2 说明。
++- **其余全文件字节级未动**(其它 D1-D3、SECTION_COMPONENTS、goBack、onRefresh 等区块
++  未出现在 diff 里)。
++
++**`src/ai/views/SettingsPage.test.ts`**:
++- import 行加 `RouterLink`(1 处增量,无删除)。
++- 用例「8.」整体替换:`-` 的 11 行是旧版占位契约断言体(mount 后 spy router.push/toast.show、
++  trigger click、断言 toast 文案),已作为「改前原文」逐字保留在新增注释里,零丢失。
++  理由:治理 §15.1 第 4 条要求这条必须改(旧断言与反转后的行为矛盾)。
++- 其余 30 条既有用例(1-7、9-31)未出现在 diff 里。
++
++**`src/ai/knowledge/parser/ParserStatus.test.ts`**:仅 `:206` 一行删除、替换成 6 行订正注释
++(只在注释块内,`-` 的那 1 行是过期结论,替换理由=双重过期,见条目 6)。非注释行改动 0。
++
++**`src/ai/knowledge/parser/ParserTest.test.ts`**:仅 `:180` 一行删除、替换成 5 行订正注释。
++非注释行改动 0。
++
++**`src/ai/knowledge/views/SettingsView.test.ts`**:
++- `:212-213` 两行删除、替换成 1 行订正注释(净 -1 行,符合「只许加 1 行注释」预算)。
++- 迁移弹窗测试内插入 3 行 K36 断言(`titleEl.id`/`aria-labelledby` 比对 + `[id]` 计数=1)。
++- **两处合计,预算「3 行 + 1 行注释」严格用满、未超**;文件其余 1946 行未出现在 diff 里。
++
++## 票 1 RED 探针(两段输出)
++
++**注入**(`cp` 备份 → 行首锚定改回 `<button @click="onDetailsClick">` + 恢复
++`function onDetailsClick(){ toast.show(t('aiCfgKnowledgeSoon')) }`,`grep` 确认落盘):
++```
++183:function onDetailsClick() {
++425:        <button class="set-detail-link" @click="onDetailsClick">
++```
++
++**报红**：
++```
++FAIL  src/ai/views/SettingsPage.test.ts > SettingsPage — ② 顶栏 > 8. 「详情」是指向 /ai/knowledge 的 RouterLink,不再是弹 toast 的占位按钮(票 1 反转,治理 §15.1)
++AssertionError: expected false to be true
++  ❯ src/ai/views/SettingsPage.test.ts:259:27
++    expect(link.exists()).toBe(true)
++ Test Files  1 failed (1)
++      Tests  1 failed | 2 passed | 28 skipped (31)
++```
++
++还原:`cp` 备份覆盖 → `md5sum` 比对一致(`93b0f52e7852ca7febdf8b9ea7115fae` = `93b0f52e7852ca7febdf8b9ea7115fae`)。
++复跑该用例回绿:`Test Files 1 passed / Tests 31 passed`。
++
++## K36 断言强度 + 变异证据
++
++强度:直接读 `.k-modal-title` 元素自身的 `titleEl.id`,与 `modal.getAttribute('aria-labelledby')`
++比对(不是拿 `labelId` 反查字符串);另加 `modal.querySelectorAll('[id]')` 长度 = 1 排除多节点
++退化 —— 与 T6(`NoteEditPane.test.ts:856-867`)/T8 同款先例齐平,强于 `IndexedFilesView.test.ts:1947`
++（那条只比字符串值,没有元素身份 + 计数守卫）。
++
++**变异**(`cp` 备份 `SettingsView.vue` → 行首锚定去掉 `<DialogTitle as-child>` 的 `as-child` →
++`grep` 确认落盘 `587: <DialogTitle>`)：
++```
++FAIL  src/ai/knowledge/views/SettingsView.test.ts > SettingsView/T9 —— K29:reka 迁移确认弹窗 > 默认不渲染;点「搬文件」后 portal 到 .knowledge-app,head/body/foot 内容逐字
++AssertionError: expected '' to be 'reka-dialog-title-v-0'
++  ❯ src/ai/knowledge/views/SettingsView.test.ts:1568:24
++    expect(titleEl.id).toBe(modal!.getAttribute('aria-labelledby'))
++ Tests  1 failed | 112 skipped (113)
++```
++还原:`cp` 覆盖 → `md5sum` 一致(`b5f84730b7c3b503f794f5c52a00a3ba` = `b5f84730b7c3b503f794f5c52a00a3ba`);
++`git status`/`git diff --stat` 对 `SettingsView.vue` 显示零改动(该文件全期零改动清单,本刀未获解禁,
++只做了临时探针后已 100% 还原)。复跑回绿。
++
++## `onDetailsClick` 原文留成注释的位置
++
++`SettingsPage.vue` script 区块,紧接 `goBack()` 之后、`onRefresh()` 之前(原函数所在位置)。
++
++## `settings-styles.scss` 与 `src/i18n/**` 零改动自证
++
++```
++$ git diff --stat -- src/ai/styles/settings-styles.scss src/i18n/ \
++    src/ai/knowledge/knowledgeRoutes.ts src/ai/knowledge/deferred.ts \
++    src/ai/knowledge/stores/knowledgeStore.ts
++(无输出,exit=0)
++```
++
++## 命中的 K/N 编号
++
++无新增偏离编号;沿用已授权的「反转不删」先例(K7 同族做法,承 T12/P5b-T5/P5b-T10/P5c-T10 四代)
++与治理 §15.1/§15.2 的既定裁定,未触发任何需要新申报的偏离。
++
++## 三门算式
++
++`git status --porcelain`(non-`??`)= 5 个改动文件,与坐标表一致。
++```
++Test Files  331 passed (331)
++     Tests  3958 passed (3958)
++vue-tsc --noEmit  exit=0
++vite build        exit=0
++```
++算式:基线 331 文件 / 3958 例 + 本刀新增 N=0(票 1 反转/票 2 注释是「改」不是「加」,
++K36 是往已有用例里加断言而非新增用例)= 实测 3958,与全绿口径一致。零新建文件、
++`.vue` 仍 182。无已知噪声命中。
++
++## 给协调者的验收提示 —— 反转后从产品正常导航进入知识库
++
++**点击路径**:AI 区 → 点顶部导航 Agent/Settings 切到「设置」页(`/ai/settings`,SettingsPage.vue)
++→ 顶栏「详情」链接(`.set-detail-link`,现在是真正的 `<router-link to="/ai/knowledge">`)
++→ 跳转到 `/ai/knowledge`(KnowledgeLayout + DashboardView,rail 第 1 项「仪表盘」高亮)
++→ 若要验证「笔记」区(本期新入口带来的连带可达性),点左栏 rail 第 4 项「笔记」
++(`aiKbNavNotes`,当前仍是占位页 `KnowledgeDeferred`,notes 路由反转归 T10)。
++
++**可直接粘贴的 URL**(dev :5288):
++`http://<host>:5288/app/#/ai/settings` → 点「详情」,或直达
++`http://<host>:5288/app/#/ai/knowledge`。
+diff --git a/src/ai/knowledge/parser/ParserStatus.test.ts b/src/ai/knowledge/parser/ParserStatus.test.ts
+index 2f43403..864cbdd 100644
+--- a/src/ai/knowledge/parser/ParserStatus.test.ts
++++ b/src/ai/knowledge/parser/ParserStatus.test.ts
+@@ -191,31 +191,36 @@ function deferred<T>() {
+   })
+   return { promise, resolve, reject }
+ }
+ 
+ // 每个用例挂载的 wrapper 统一在 afterEach unmount —— 本页 `onMounted` 起了一个真实
+ // `setInterval(…, 5000)`(N20),不 unmount 会把定时器和 store 引用漏到别的用例
+ // (先例 `QueueView.test.ts:162-167` 的同款脚手架,那里是 10 秒轮询)。
+ const mountedWrappers: Array<ReturnType<typeof mount>> = []
+ 
+ function makeRouter() {
+   const router = createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+       { path: '/ai/parser', name: 'AIParser', component: ParserStatus },
+       // 蓝本 `:6` 的 `router-link to="/ai/parser/test"` 需要目标路由存在才能解析出 href。
+-      // 生产环境这条路由此刻仍指占位页(`knowledgeRoutes.ts:63`,T10 才反转)。
++      // 【订正,SP8-P5d Task 9,治理 §15.2 / 计划书 §T9 第 6 条】上一条注释双重过期:
++      // ① 说「生产环境这条路由此刻仍指占位页」——生产里这条路由早已反转成真正的
++      // ParserTest(P5c-T10 的产出,knowledgeRoutes.ts 头注释有完整记录);
++      // ② 它引的行号也早漂了。这里的 stub 组件只是本测试文件自己路由表里的占位,
++      // 与生产路由是否占位无关——保留 stub 是因为本文件只关心 href 能否解析出来,
++      // 不关心 `/ai/parser/test` 页面本身渲染什么。
+       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
+     ],
+   })
+   router.push('/ai/parser')
+   return router
+ }
+ 
+ /** 挂载但**不 flush** —— 用于观察「四发在飞时」的 `loading` 档。 */
+ async function mountRaw() {
+   const router = makeRouter()
+   await router.isReady()
+   const w = mount(ParserStatus, { global: { plugins: [router, i18n] } } as never)
+   mountedWrappers.push(w)
+   return w
+ }
+diff --git a/src/ai/knowledge/parser/ParserTest.test.ts b/src/ai/knowledge/parser/ParserTest.test.ts
+index c1263c9..4a94a88 100644
+--- a/src/ai/knowledge/parser/ParserTest.test.ts
++++ b/src/ai/knowledge/parser/ParserTest.test.ts
+@@ -165,31 +165,35 @@ function readSrc(): string {
+ }
+ 
+ /** 造一个指定 size 的 File(jsdom 的 `File.size` 只读 → 用 defineProperty 覆写)。 */
+ function makeFile(name: string, size: number, type = 'text/markdown'): File {
+   const f = new File(['x'], name, { type })
+   Object.defineProperty(f, 'size', { value: size, configurable: true })
+   return f
+ }
+ 
+ function makeRouter() {
+   const router = createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+       { path: '/ai/parser/test', name: 'AIParserTest', component: ParserTest },
+       // 蓝本 `:5` 的 `router-link to="/ai/parser"` 需要目标路由存在才能解析出 href。
+-      // 生产环境这两条路由此刻仍指占位页(`knowledgeRoutes.ts`,T10 才反转)。
++      // 【订正,SP8-P5d Task 9,治理 §15.2 / 计划书 §T9 第 6 条】上一条注释已过期:
++      // 生产里这两条 parser 顶层路由早已反转成真正的 ParserStatus/ParserTest
++      // (P5c-T10 的产出,knowledgeRoutes.ts 头注释有完整记录),不再指占位页。
++      // 这里的 stub 组件只是本测试文件自己路由表里的占位,与生产路由是否占位
++      // 无关——保留 stub 是因为本文件只关心 href 能否解析出来。
+       { path: '/ai/parser', name: 'AIParser', component: { template: '<div />' } },
+     ],
+   })
+   router.push('/ai/parser/test')
+   return router
+ }
+ 
+ const mountedWrappers: Array<ReturnType<typeof mount>> = []
+ 
+ async function mountPage() {
+   const router = makeRouter()
+   await router.isReady()
+   const w = mount(ParserTest, { global: { plugins: [router, i18n] } } as never)
+   mountedWrappers.push(w)
+   return w
+diff --git a/src/ai/knowledge/views/SettingsView.test.ts b/src/ai/knowledge/views/SettingsView.test.ts
+index 66647d9..6b31876 100644
+--- a/src/ai/knowledge/views/SettingsView.test.ts
++++ b/src/ai/knowledge/views/SettingsView.test.ts
+@@ -197,32 +197,31 @@ function mockAllOk(): void {
+   // T9:下半的四个只读/写入口默认全成功,喂 fixture 抄本(层次见文件头 mock 策略)。
+   notes.getSettings.mockResolvedValue(NOTES_SETTINGS)
+   notes.putSettings.mockResolvedValue(NOTES_SETTINGS)
+   notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
+   wiki.getCandidates.mockResolvedValue(WIKI_CANDIDATES)
+   folder.getList.mockResolvedValue(EMPTY_LISTING)
+ }
+ 
+ const mountedWrappers: Array<ReturnType<typeof mount>> = []
+ 
+ function makeRouter() {
+   const router = createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: SettingsView },
+-      // 蓝本 `:318` 的 `goSandbox()` 目标。生产环境这条路由此刻仍指占位页
+-      // (`knowledgeRoutes.ts:63`,T10 才反转)—— 跳过去看到占位页是预期。
++      // 【订正,SP8-P5d Task 9,治理 §15.2】蓝本 `:318` 的 `goSandbox()` 目标;生产里这条路由早已反转成真正的 ParserTest(P5c-T10 产出),本文件路由表的 stub 只管 href 能否解析,与生产是否占位无关。
+       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
+     ],
+   })
+   router.push('/ai/knowledge/settings')
+   return router
+ }
+ 
+ /**
+  * 挂载。`controlState` 在生产里由 `KnowledgeLayout.vue:186` 的 `loadOverview()` 填充
+  * (本页自己不发只读请求),测试里显式先跑一次同一个 action —— 走真 store、真 service
+  * mock,K1 降层与 snake_case 字段名都在这条路径上被验到。
+  */
+ async function mountPage(state?: Partial<ParserControlState>) {
+   if (state) ai.parserState.mockResolvedValue({ ...STATE, ...state })
+   const router = makeRouter()
+@@ -1553,30 +1552,33 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
+     await flushPromises()
+     await openPicker(w)
+     await pickRoot(w, 0)
+     expect(host.querySelector('.k-modal')).toBeNull()
+ 
+     await moveBtn(w).trigger('click')
+     await nextTick()
+     await flushPromises()
+     const modal = host.querySelector('.k-modal')
+     expect(modal).not.toBeNull()
+     // 遮罩类名照抄蓝本 :121
+     expect(host.querySelector('.k-modal-bg')).not.toBeNull()
+     // head:标题 + × 按钮
+     expect(modal!.querySelector('.k-modal-head .k-modal-title')!.textContent).toBe('迁移笔记文件?')
+     expect(modal!.querySelector('.k-modal-head button.k-modal-x')).not.toBeNull()
++    const titleEl = modal!.querySelector('.k-modal-title') as HTMLElement
++    expect(titleEl.id).toBe(modal!.getAttribute('aria-labelledby'))
++    expect(modal!.querySelectorAll('[id]')).toHaveLength(1)
+     // body:旧路径 → 新路径
+     const path = modal!.querySelector('.kn-mig-path')!
+     expect(path.querySelector('span')!.textContent).toBe('/DATA/Notes')
+     expect(path.querySelector('b')!.textContent).toBe('/DATA')
+     // body:三条要求
+     const lis = Array.from(modal!.querySelectorAll('.kn-mig-req li'))
+     expect(lis).toHaveLength(3)
+     expect(norm(lis[0]!.textContent!)).toBe('目标目录必须为空 — 非空目录后端会拒绝迁移。')
+     expect(norm(lis[1]!.textContent!)).toBe('文件会被移动(不是复制),原目录随后为空。')
+     expect(norm(lis[2]!.textContent!)).toBe('迁移期间笔记短暂只读,通常几秒内完成。')
+     // body:勾选行
+     const check = modal!.querySelector('.kn-checkline input') as HTMLInputElement
+     expect(check.type).toBe('checkbox')
+     expect(norm(modal!.querySelector('.kn-checkline')!.textContent!)).toBe(
+       '我已了解这是移动磁盘文件的操作',
+diff --git a/src/ai/views/SettingsPage.test.ts b/src/ai/views/SettingsPage.test.ts
+index 0be9013..909c73b 100644
+--- a/src/ai/views/SettingsPage.test.ts
++++ b/src/ai/views/SettingsPage.test.ts
+@@ -10,31 +10,31 @@
+ //
+ // 路由用真实 `createMemoryHistory()`(不 mock vue-router)—— `?section=` 深链
+ // 契约(用例 13-18)需要真正响应式的 `route.query`,静态 mock 对象在这里不够
+ // (静态对象上的属性读取不会被 Vue 的依赖收集追踪到,watch 永远不会触发)。
+ //
+ // ⚠️ jsdom 没有 IntersectionObserver:多数用例根本不需要它 —— jsdom 环境下
+ // `typeof IntersectionObserver === 'undefined'`,`setupSpy()` 的守卫直接静默
+ // 跳过(与 Vue2 同款优雅降级,见 Settings.vue:216),不会报错。仅在文件末尾
+ // 「非清单要求」的补充测试里手动挂一个假的 IntersectionObserver 类,捕获
+ // 构造函数传入的回调,手动喂 entries 触发它,验证 scroll-spy 真的接上了线。
+ 
+ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createPinia, setActivePinia, type Pinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+-import { createRouter, createMemoryHistory, type Router } from 'vue-router'
++import { createRouter, createMemoryHistory, RouterLink, type Router } from 'vue-router'
+ import zh from '../../i18n/zh_cn'
+ 
+ const ai = vi.hoisted(() => ({
+   getServicesStatus: vi.fn(),
+   listModels: vi.fn(),
+   listProviders: vi.fn(),
+   getPolicy: vi.fn(),
+   getImportStatus: vi.fn(),
+   cancelImport: vi.fn(),
+   // SP8-P3a Task 7 —— skills 分区不再是占位,挂载真组件 SkillsSection 会在
+   // onMounted 里调 service.ai.listSkills()。裸 vi.fn()(无 mockResolvedValue)
+   // 调用返回 undefined,`await undefined` 合法且 SkillsSection 的
+   // `Array.isArray(list)` 兜底把它当空列表处理,不抛错、不弹 toast —— 足够
+   // 让本文件里与 skills 无关的用例（换到该分区只是路过）保持沉默；需要断言
+   // 列表内容的用例会自己 `mockResolvedValue`。
+@@ -216,41 +216,61 @@ describe('SettingsPage — ② 顶栏', () => {
+     const store = useSettingsStore()
+     stubNetworkActions(store)
+     const { w } = await mountPage()
+     await flushPromises()
+ 
+     store.parserStatus.paused = true
+     await flushPromises()
+     expect(w.find('.badge-pause').exists()).toBe(true)
+ 
+     store.parserStatus.paused = false
+     await flushPromises()
+     expect(w.find('.badge-pause').exists()).toBe(false)
+     w.unmount()
+   })
+ 
+-  it('8. 「详情」按钮点击不调 router.push,只弹 toast(P5 前占位契约)', async () => {
++  // SP8-P5d Task 9(票 1,治理 §15.1)—— 反转:上面「8.」原断言「点击不 push、只
++  // 弹 toast」钉住的正是那个占位契约,占位入口已反转回真正的 router-link,旧断言
++  // 必须跟着反转,否则会精确报红(与 `knowledgeRoutes.test.ts` 那套「反转不删」
++  // 先例同款做法)。改前(SP8-P2a 原文,反转前):
++  //   it('8. 「详情」按钮点击不调 router.push,只弹 toast(P5 前占位契约)', async () => {
++  //     const store = useSettingsStore()
++  //     stubNetworkActions(store)
++  //     const { w, router } = await mountPage()
++  //     await flushPromises()
++  //     const pushSpy = vi.spyOn(router, 'push')
++  //     const toast = useToast()
++  //     const showSpy = vi.spyOn(toast, 'show')
++  //     await w.find('.set-detail-link').trigger('click')
++  //     expect(pushSpy).not.toHaveBeenCalled()
++  //     expect(showSpy).toHaveBeenCalledWith('知识库详情页将在后续阶段开启')
++  //     w.unmount()
++  //   })
++  // 改后:`.set-detail-link` 现在是一个真正指向 `/ai/knowledge` 的 RouterLink——
++  // 判据钉在元素身份(RouterLink 组件实例 + `to` prop),不是渲染出的 DOM 标签,
++  // 因为 <router-link> 在测试路由未注册目标时仍会渲染成 <a>,裸比 tag 名判别力
++  // 不够。RED 探针:把产品代码改回占位 `<button>` + toast → 这条必须报红(见任务
++  // 报告)。
++  it('8. 「详情」是指向 /ai/knowledge 的 RouterLink,不再是弹 toast 的占位按钮(票 1 反转,治理 §15.1)', async () => {
+     const store = useSettingsStore()
+     stubNetworkActions(store)
+-    const { w, router } = await mountPage()
++    const { w } = await mountPage()
+     await flushPromises()
+-    const pushSpy = vi.spyOn(router, 'push')
+-    const toast = useToast()
+-    const showSpy = vi.spyOn(toast, 'show')
+-    await w.find('.set-detail-link').trigger('click')
+-    expect(pushSpy).not.toHaveBeenCalled()
+-    expect(showSpy).toHaveBeenCalledWith('知识库详情页将在后续阶段开启')
++    const link = w.findComponent(RouterLink)
++    expect(link.exists()).toBe(true)
++    expect(link.props('to')).toBe('/ai/knowledge')
++    expect(link.classes()).toContain('set-detail-link')
+     w.unmount()
+   })
+ 
+   it('9. 刷新按钮调用 store.loadServicesStatus', async () => {
+     const store = useSettingsStore()
+     const spies = stubNetworkActions(store)
+     const { w } = await mountPage()
+     await flushPromises()
+     const base = spies.services.mock.calls.length
+     await w.find('[title="刷新"]').trigger('click')
+     expect(spies.services.mock.calls.length).toBe(base + 1)
+     w.unmount()
+   })
+ })
+ 
+diff --git a/src/ai/views/SettingsPage.vue b/src/ai/views/SettingsPage.vue
+index 207036b..20110e3 100644
+--- a/src/ai/views/SettingsPage.vue
++++ b/src/ai/views/SettingsPage.vue
+@@ -10,35 +10,40 @@
+   【与 Vue2 的差异,均按移植纪律申报】
+ 
+   D1(架构差异,任务 4 已解决)—— 主题不再是本组件私有 state,委托给应用级
+   `useAiTheme()`(Agent 页与设置页共享同一份,同一个 localStorage key)。
+ 
+   D2(架构差异,任务 5 + 本任务)—— Vue2 `Settings.vue:100-111` 每次挂载
+   `createSettingsStore()` 新建 state,所以 activeSection 恒从 'models' 起、
+   表单恒收起、HF 搜索结果恒为空。Pinia 单例会把上次离开时的状态带回来,故
+   `onMounted` 必须**先调用 `store.resetTransientUi()`,再读 `?section=`**——
+   顺序颠倒会让深链被复位冲掉(brief 用例 13,Step 8 有专门的 RED 验证)。
+ 
+   D3(申报,见下方恢复循环上方的完整注释)—— Vue2 的下载恢复循环因为
+   `createSettingsStore()` 每次新建而从未真正执行过;Pinia 单例下第一次有了
+   意义。`&& !job._timer` 守卫逐字保留。
+ 
+-  【新增,非 Vue2 蓝本】
+-  - 顶栏「详情」原为 `<router-link to="/ai/knowledge">`(Settings.vue:22-24)。
+-    `/ai/knowledge` 要到 SP8-P5 才存在,`router.push` 到不存在的路由会落空白
+-    死页 —— 改成 `<button>` + info toast 占位,样式类名 `.set-detail-link`
+-    保持不变(视觉 1:1),仅交互目标变了。
++  【新增,非 Vue2 蓝本 —— 下面两条是历史记录 + 现状,不是并列现状】
++  - 【历史】顶栏「详情」蓝本原为 `<router-link to="/ai/knowledge">`(Settings.vue:22-24)。
++    SP8-P2a/P2b 当时该路由尚不存在,`router.push` 过去会落空白死页 —— 临时改成
++    `<button>` + info toast 占位,样式类名 `.set-detail-link` 保持不变(视觉
++    1:1),仅交互目标变了。
++  - 【现状,治理 §15.1 / P5c §8.5】`/ai/knowledge` 外壳早在 SP8-P5a 就建好了,
++    但 P5a/P5b/P5c 三期都漏了把上面那个占位入口还回去 —— 知识库整区因此全程
++    只能敲地址进,2026-08-04 用户验收时发现。**SP8-P5d Task 9 已反转回**蓝本
++    原样 `<router-link to="/ai/knowledge">`(反转不删:被替掉的 `<button>` +
++    `onDetailsClick` 原文见下方 `onDetailsClick` 出现处的注释)。
+   - `onSelect()` 里 `DEFERRED_SECTIONS.includes(id)` 时弹一条 info toast ——
+     Vue2 没有这个概念(它的 13 个分区本就全是真组件)。**修复轮 M2 更新**:
+     SP8-P4 起 `DEFERRED_SECTIONS` 已清空(13 个分区全部接入真组件),这条分支
+     现在**不会触发**,但机制本身保留(用户明示「反转不删」)供将来新增未完成
+     分区时复用——见下方 `SECTION_COMPONENTS` 注释与 `onSelect()` 处的说明。
+ -->
+ <script setup lang="ts">
+ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+ import type { Component } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useSettingsStore } from '../stores/settingsStore'
+ import { useAiTheme } from '../stores/aiTheme'
+ import { useToast } from '../../stores/toast'
+ import SettingsRail from '../components/settings/SettingsRail.vue'
+@@ -163,34 +168,38 @@ const parserBadgeTitle = computed(() => {
+   if (!p.running) return t('aiCfgParserNotRunning')
+   if (p.paused) {
+     return t('aiCfgParserPaused', { pending: p.pending, concurrency: p.concurrency })
+   }
+   return t('aiCfgParserRunning', { pending: p.pending, concurrency: p.concurrency })
+ })
+ 
+ function onToggleTheme() {
+   aiTheme.toggleTheme()
+ }
+ 
+ function goBack() {
+   router.push('/ai/agent')
+ }
+ 
+-// P5 前占位(见文件头说明)—— 不 router.push,只弹 toast。
+-function onDetailsClick() {
+-  toast.show(t('aiCfgKnowledgeSoon'))
+-}
++// SP8-P5d Task 9(反转不是删除,治理 §15.1 第 3 条裁定 / P5c §8.5)—— 顶栏
++// 「详情」已改回 router-link(见上方模板 `.set-detail-link` 处),这个 handler
++// 零调用点,删掉;原文留成注释(与 `knowledgeRoutes.ts` 的「反转不删」先例同款):
++//   function onDetailsClick() {
++//     toast.show(t('aiCfgKnowledgeSoon'))
++//   }
++// `DEFERRED_SECTIONS` 占位机制本身不受影响,不许碰 —— 它在 `onSelect()` 里的
++// 另一条分支(见下方)。
+ 
+ function onRefresh() {
+   store.loadServicesStatus()
+ }
+ 
+ // 非 Vue2 蓝本 —— suppressSpy 是模拟点击滚动期间抑制 IntersectionObserver 高亮
+ // 抖动用的纯内部旗标(Vue2 `this._suppressSpy`),不需要响应式,普通闭包变量足够。
+ let suppressSpy = false
+ let spyTimer: ReturnType<typeof setTimeout> | null = null
+ let statusPollTimer: ReturnType<typeof setInterval> | null = null
+ let io: IntersectionObserver | null = null
+ let visible: Record<string, number | null> = {}
+ 
+ /** Vue2 Settings.vue:199-208 —— 非 stack 组直接释放抑制;stack 组滚过去再释放。 */
+ function scrollToSection(id: SectionId) {
+@@ -400,35 +409,39 @@ onUnmounted(() => {
+           >
+           <span class="set-pill" :data-s="pillState(store.servicesStatus.agent)"
+             ><span class="d" />Agent</span
+           >
+           <span class="set-pill" :data-s="pillState(store.searchStatus.running)"
+             ><span class="d" />Search</span
+           >
+           <span class="set-pill" :data-s="parserPillState" :title="parserBadgeTitle">
+             <span class="d" />Parser
+             <span v-if="store.parserStatus.pending > 0" class="badge-count">{{
+               store.parserStatus.pending
+             }}</span>
+             <span v-if="store.parserStatus.paused" class="badge-pause">⏸</span>
+           </span>
+         </div>
+-        <!-- P5 前占位:样式类名保持 Vue2 的 .set-detail-link,交互改成弹 toast
+-             而不是 router-link(见文件头说明)。 -->
+-        <button class="set-detail-link" @click="onDetailsClick">
++        <!-- SP8-P5d Task 9 反转(不是删除,治理 §15.1 / P5c §8.5):`/ai/knowledge`
++             外壳自 SP8-P5a 就已建好,P5a/P5b/P5c 三期漏了把这个入口还回去,本刀
++             改回蓝本原样 router-link——`.set-detail-link` 类名与视觉不变
++             (settings-styles.scss 已含 text-decoration: none)。改前是
++             `<button class="set-detail-link" @click="onDetailsClick">`,
++             `onDetailsClick` 原文见下方 script 区块同名注释处(反转不删)。 -->
++        <router-link class="set-detail-link" to="/ai/knowledge">
+           {{ t('aiCfgDetails') }} <AgentIcon name="chev" :size="12" />
+-        </button>
++        </router-link>
+         <button class="set-ibtn" :title="t('aiCfgRefresh')" @click="onRefresh">
+           <AgentIcon name="refresh" :size="16" />
+         </button>
+         <button class="set-ibtn" :title="t('aiCfgToggleTheme')" @click="onToggleTheme">
+           <AgentIcon :name="aiTheme.theme === 'dark' ? 'sun' : 'moon'" :size="16" />
+         </button>
+       </header>
+ 
+       <div ref="bodyEl" class="set-body" :class="{ 'set-body-split': isSplitSection }">
+         <!-- Stacked group: every section rendered top-to-bottom, rail navigates
+              by scrolling; scroll position drives the rail highlight. -->
+         <template v-if="activeGroup.stack">
+           <section
+             v-for="item in activeGroup.items"
+             :key="item.id"

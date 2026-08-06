@@ -1,0 +1,110 @@
+# Review package: d589d22..7b6da70
+
+## Commits
+7b6da70 feat: useMessageBus socket.io lazy-connect composable
+
+## Files changed
+ src/composables/messageBus.test.ts | 14 +++++++++++
+ src/composables/useMessageBus.ts   | 49 ++++++++++++++++++++++++++++++++++++++
+ src/types/socket.io-client.d.ts    | 17 +++++++++++++
+ 3 files changed, 80 insertions(+)
+
+## Diff
+diff --git a/src/composables/messageBus.test.ts b/src/composables/messageBus.test.ts
+new file mode 100644
+index 0000000..4a6a566
+--- /dev/null
++++ b/src/composables/messageBus.test.ts
+@@ -0,0 +1,14 @@
++import { describe, it, expect } from 'vitest'
++import { extractProps } from './useMessageBus'
++
++describe('extractProps', () => {
++  it('prefers capitalized Properties', () => {
++    expect(extractProps({ Properties: { a: 1 } })).toEqual({ a: 1 })
++  })
++  it('falls back to lowercase properties', () => {
++    expect(extractProps({ properties: { b: 2 } })).toEqual({ b: 2 })
++  })
++  it('returns the message itself when neither present', () => {
++    expect(extractProps({ c: 3 })).toEqual({ c: 3 })
++  })
++})
+diff --git a/src/composables/useMessageBus.ts b/src/composables/useMessageBus.ts
+new file mode 100644
+index 0000000..12ace80
+--- /dev/null
++++ b/src/composables/useMessageBus.ts
+@@ -0,0 +1,49 @@
++import io from 'socket.io-client'
++
++export function extractProps(msg: unknown): unknown {
++  if (msg && typeof msg === 'object') {
++    const m = msg as Record<string, unknown>
++    if (m.Properties != null) return m.Properties
++    if (m.properties != null) return m.properties
++  }
++  return msg
++}
++
++type Handler = (props: unknown, raw: unknown) => void
++
++let socket: ReturnType<typeof io> | null = null
++const listeners: Record<string, Set<Handler>> = {}
++const bound = new Set<string>()
++
++function dispatch(event: string, raw: unknown) {
++  const set = listeners[event]
++  if (!set) return
++  const props = extractProps(raw)
++  set.forEach((cb) => { try { cb(props, raw) } catch (e) { console.error('[messageBus]', event, e) } })
++}
++
++function ensureSocket() {
++  if (!socket) {
++    socket = io({ path: '/v2/message_bus/socket.io/', transports: ['websocket', 'polling'] })
++    Object.keys(listeners).forEach(bind)
++  }
++  return socket
++}
++
++function bind(event: string) {
++  if (socket && !bound.has(event)) {
++    bound.add(event)
++    socket.on(event, (raw: unknown) => dispatch(event, raw))
++  }
++}
++
++export function useMessageBus() {
++  return {
++    on(event: string, cb: Handler): () => void {
++      ;(listeners[event] || (listeners[event] = new Set())).add(cb)
++      ensureSocket()
++      bind(event)
++      return () => { listeners[event]?.delete(cb) }
++    },
++  }
++}
+diff --git a/src/types/socket.io-client.d.ts b/src/types/socket.io-client.d.ts
+new file mode 100644
+index 0000000..c94c947
+--- /dev/null
++++ b/src/types/socket.io-client.d.ts
+@@ -0,0 +1,17 @@
++declare module 'socket.io-client' {
++  interface Socket {
++    on(event: string, callback: (...args: any[]) => void): this
++    off(event: string, callback?: (...args: any[]) => void): this
++    emit(event: string, ...args: any[]): this
++    disconnect(): void
++  }
++
++  interface SocketOptions {
++    path?: string
++    transports?: string[]
++  }
++
++  function io(options?: SocketOptions): Socket
++
++  export default io
++}

@@ -1,0 +1,210 @@
+# Review package: 96dd199..55ad6b7
+
+## Commits
+55ad6b7 feat(storage): RaidCard 列表卡片(只读状态/成员/容量,零字面量色)
+
+## Files changed
+ src/i18n/en_us.ts                       | 13 ++++++
+ src/i18n/zh_cn.ts                       | 13 ++++++
+ src/storage/components/RaidCard.test.ts | 55 +++++++++++++++++++++++++
+ src/storage/components/RaidCard.vue     | 72 +++++++++++++++++++++++++++++++++
+ 4 files changed, 153 insertions(+)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 94e23a4..c144364 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -572,11 +572,24 @@ export default {
+   storageCreateWarnErase: 'The selected drive will be erased. Please make sure there is no important data on it that needs to be backed up.',
+   storageCreateAttentionTitle: 'Attention',
+   storageCreateAttentionDirect: 'This drive can be used as storage directly, or created after formatting. Formatting erases the selected drive.',
+   storageCreateOk: 'Format and create',
+   storageCreateDirect: 'Create',
+   storageCreating: 'Creating…',
+   storageFormat: 'Format',
+   storageFormatTitle: 'Format storage',
+   storageFormatMsg: 'Storage "{name}" will be formatted. All data on it will be erased and cannot be recovered. Enter your login password to continue:',
+   storageFormatOk: 'Format',
++  raidStateHealthy: 'Healthy',
++  raidStateDegraded: 'Array Degraded',
++  raidStateRebuilding: 'Rebuilding',
++  raidStateFailed: 'Failed',
++  raidStateRetrying: 'Retrying',
++  raidDisksOnline: 'Disks online {n}/{total}',
++  raidRebuildFinish: 'ETA',
++  raidRebuildSpeed: 'Speed',
++  raidMemberActive: 'Active',
++  raidMemberFaulty: 'Faulty',
++  raidMemberRebuilding: 'Rebuilding',
++  raidNoArrays: 'No RAID arrays',
++  raidCapacity: 'Capacity',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 263454e..e44533b 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -571,11 +571,24 @@ export default {
+   storageCreateWarnErase: '所选硬盘将被清空。请再次确认所选硬盘上没有需要备份的重要数据。',
+   storageCreateAttentionTitle: '提示',
+   storageCreateAttentionDirect: '该硬盘可直接用作存储,也可以选择格式化后创建;格式化会清空所选硬盘。',
+   storageCreateOk: '格式化并创建',
+   storageCreateDirect: '直接创建',
+   storageCreating: '创建中…',
+   storageFormat: '格式化',
+   storageFormatTitle: '格式化存储',
+   storageFormatMsg: '将格式化存储「{name}」,其中所有数据将被清空且无法恢复。输入登录密码以继续:',
+   storageFormatOk: '确认格式化',
++  raidStateHealthy: '健康',
++  raidStateDegraded: '阵列降级',
++  raidStateRebuilding: '重建中',
++  raidStateFailed: '已失效',
++  raidStateRetrying: '重试中',
++  raidDisksOnline: '在线磁盘 {n}/{total}',
++  raidRebuildFinish: '预计完成',
++  raidRebuildSpeed: '速度',
++  raidMemberActive: '活动',
++  raidMemberFaulty: '故障',
++  raidMemberRebuilding: '重建中',
++  raidNoArrays: '暂无 RAID 阵列',
++  raidCapacity: '容量',
+ }
+diff --git a/src/storage/components/RaidCard.test.ts b/src/storage/components/RaidCard.test.ts
+new file mode 100644
+index 0000000..3febfdd
+--- /dev/null
++++ b/src/storage/components/RaidCard.test.ts
+@@ -0,0 +1,55 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import type { RaidStatus } from '@nimotech/nimoos-service'
++import RaidCard from './RaidCard.vue'
++import zh from '../../i18n/zh_cn'
++import type { RaidArray } from '../util/raidView'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const mountCard = (array: Record<string, unknown>, status?: Record<string, unknown>) =>
++  mount(RaidCard, {
++    props: { array: array as unknown as RaidArray, status: status as unknown as RaidStatus | undefined },
++    global: { plugins: [i18n] },
++  })
++
++describe('RaidCard', () => {
++  it('渲染名称与 RAID {level} 徽章', () => {
++    const w = mountCard({ id: 1, name: 'md0', level: 1, state: 'active' })
++    expect(w.text()).toContain('md0')
++    expect(w.text()).toContain('RAID 1')
++  })
++  it('健康态:severity=ok 徽章类', () => {
++    const w = mountCard({ id: 1, name: 'a', level: 1, state: 'active' }, { live_state: 'active', state: 'active', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 })
++    expect(w.find('.rc-badge.ok').exists()).toBe(true)
++  })
++  it('降级态:severity=danger', () => {
++    const w = mountCard({ id: 1, name: 'a', level: 1, state: 'degraded' }, { live_state: 'degraded', state: 'degraded', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 })
++    expect(w.find('.rc-badge.danger').exists()).toBe(true)
++  })
++  it('重建态:显示进度百分比', () => {
++    const w = mountCard({ id: 1, name: 'a', level: 1, state: 'rebuilding' }, { live_state: 'recovering', rebuild_pct: 42.37, rebuild_finish: '2min', rebuild_speed: '100M/s', members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 })
++    expect(w.find('.rc-badge.info').exists()).toBe(true)
++    expect(w.text()).toContain('42.4') // rebuild_pct 保留 0.1
++  })
++  it('容量 used/total 用 fmtSize', () => {
++    const w = mountCard({ id: 1, name: 'a', level: 1, state: 'active' }, { live_state: 'active', total_bytes: 2147483648, used_bytes: 1073741824, free_bytes: 1073741824, members: [], rebuild_pct: 0 })
++    expect(w.text()).toMatch(/1(\.0)?\s?GB/i) // fmtSize(1073741824)
++  })
++  it('点击卡片 emit select', async () => {
++    const w = mountCard({ id: 5, name: 'a', level: 1, state: 'active' })
++    await w.find('.raid-card').trigger('click')
++    expect(w.emitted('select')).toBeTruthy()
++  })
++  it('成员方块:active/faulty/rebuild 各类', () => {
++    const w = mountCard({ id: 1, name: 'a', level: 1, state: 'degraded' }, {
++      live_state: 'degraded', rebuild_pct: 0, total_bytes: 0, used_bytes: 0, free_bytes: 0,
++      members: [
++        { path: '/dev/sda', state: 'active sync', number: 0 },
++        { path: '/dev/sdb', state: 'faulty', number: 1 },
++      ],
++    })
++    expect(w.findAll('.rc-sq.ok').length).toBe(1)
++    expect(w.findAll('.rc-sq.fail').length).toBe(1)
++  })
++})
+diff --git a/src/storage/components/RaidCard.vue b/src/storage/components/RaidCard.vue
+new file mode 100644
+index 0000000..c5b8af0
+--- /dev/null
++++ b/src/storage/components/RaidCard.vue
+@@ -0,0 +1,72 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useI18n } from 'vue-i18n'
++import type { RaidStatus, RaidMemberDisk } from '@nimotech/nimoos-service'
++import { fmtSize } from '../../home/util/format'
++import { usageLevel } from '../util/storageMap'
++import {
++  resolveRaidState, raidSeverity, raidStateLabelKey, countActiveDisks,
++  memberSquare, raidUsagePercent, type RaidArray,
++} from '../util/raidView'
++
++const props = defineProps<{ array: RaidArray; status?: RaidStatus }>()
++defineEmits<{ (e: 'select'): void }>()
++const { t } = useI18n()
++
++const flags = computed(() => resolveRaidState(props.array, props.status))
++const severity = computed(() => raidSeverity(flags.value))
++const labelKey = computed(() => raidStateLabelKey(flags.value))
++const members = computed<RaidMemberDisk[]>(() => props.status?.members || [])
++const total = computed(() => Number(props.status?.total_bytes) || 0)
++const used = computed(() => Number(props.status?.used_bytes) || 0)
++const pct = computed(() => raidUsagePercent(used.value, total.value))
++const totalDisks = computed(() => members.value.length || (props.array.member_disks?.length ?? 0))
++const activeDisks = computed(() => countActiveDisks(members.value, totalDisks.value))
++const rebuildPct = computed(() => Math.round((Number(props.status?.rebuild_pct) || 0) * 10) / 10)
++const squares = computed(() => members.value.map((m) => ({ ...memberSquare(m.state), path: m.path })))
++</script>
++
++<template>
++  <article class="raid-card" @click="$emit('select')">
++    <div class="rc-head">
++      <h3 class="rc-name">{{ array.name }} <span class="rc-level">RAID {{ array.level }}</span></h3>
++      <span class="rc-badge" :class="severity">{{ t(labelKey) }}</span>
++    </div>
++    <div class="rc-squares">
++      <span v-for="(s, i) in squares" :key="i" class="rc-sq" :class="s.kind"
++        :style="{ color: `var(${s.token})` }" :title="s.path">{{ s.glyph }}</span>
++    </div>
++    <p class="rc-usage">{{ fmtSize(used) }} / {{ fmtSize(total) }}
++      <span class="rc-online">· {{ t('raidDisksOnline', { n: activeDisks, total: totalDisks }) }}</span></p>
++    <div class="rc-track"><div class="rc-fill" :class="usageLevel(pct)" :style="{ width: Math.min(100, Math.max(0, pct)) + '%' }" /></div>
++    <p v-if="flags.isRebuilding" class="rc-rebuild">
++      {{ t('raidStateRebuilding') }} {{ rebuildPct }}%
++      <span v-if="status?.rebuild_finish"> · {{ t('raidRebuildFinish') }} {{ status.rebuild_finish }}</span>
++      <span v-if="status?.rebuild_speed"> · {{ t('raidRebuildSpeed') }} {{ status.rebuild_speed }}</span>
++    </p>
++  </article>
++</template>
++
++<style scoped>
++.raid-card { padding: 16px 18px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); cursor: pointer; }
++.raid-card + .raid-card { margin-top: 12px; }
++.raid-card:hover { background: var(--hover); }
++.rc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
++.rc-name { margin: 0; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
++.rc-level { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--nrm-bg); color: var(--nrm-fg); border: 1px solid var(--nrm-bd); }
++.rc-badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--nrm-bg); border: 1px solid var(--nrm-bd); }
++.rc-badge.ok { color: var(--sem-fg); }
++.rc-badge.info { color: var(--accent); }
++.rc-badge.warning { color: var(--dem-fg); }
++.rc-badge.danger { color: var(--remove-fg); }
++.rc-squares { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 6px; font-size: 12px; }
++.rc-sq { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: var(--nrm-bg); border: 1px solid var(--nrm-bd); }
++.rc-usage { margin: 6px 0; font-size: 12.5px; color: var(--fg-muted); font-family: var(--num-font); }
++.rc-online { color: var(--fg-muted); }
++.rc-track { height: 6px; border-radius: 999px; background: var(--nrm-bg); overflow: hidden; }
++.rc-fill { height: 100%; border-radius: 999px; }
++.rc-fill.ok { background: var(--accent); }
++.rc-fill.warn { background: var(--dem-fg); }
++.rc-fill.danger { background: var(--remove-fg); }
++.rc-rebuild { margin: 8px 0 0; font-size: 12px; color: var(--accent); }
++</style>

@@ -1,0 +1,250 @@
+# Review package: 9151758..HEAD
+
+## Commits
+5456cd5 feat(drop): Pinia store 编排(连接生命周期/进度 ingest/接收队列)
+
+## Files changed
+ src/files/drop/stores/drop.test.ts |  92 +++++++++++++++++++++++++
+ src/files/drop/stores/drop.ts      | 135 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 227 insertions(+)
+
+## Diff
+diff --git a/src/files/drop/stores/drop.test.ts b/src/files/drop/stores/drop.test.ts
+new file mode 100644
+index 0000000..1016306
+--- /dev/null
++++ b/src/files/drop/stores/drop.test.ts
+@@ -0,0 +1,92 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const h = vi.hoisted(() => ({
++  connect: vi.fn(async () => {}),
++  destroy: vi.fn(),
++  send: vi.fn(),
++  pmHandle: vi.fn(),
++  pmSendFiles: vi.fn(() => true),
++  pmDestroy: vi.fn(),
++  capturedDeps: null as Record<string, unknown> | null,
++  capturedEvents: null as Record<string, (...a: never[]) => void> | null,
++}))
++vi.mock('../serverConnection', () => ({
++  ServerConnection: class {
++    constructor(deps: Record<string, unknown>) { h.capturedDeps = deps }
++    connect = h.connect; destroy = h.destroy; send = h.send
++  },
++}))
++vi.mock('../peersManager', () => ({
++  PeersManager: class {
++    constructor(_s: unknown, events: Record<string, (...a: never[]) => void>) { h.capturedEvents = events }
++    handleServerMessage = h.pmHandle; sendFiles = h.pmSendFiles; destroy = h.pmDestroy
++  },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () => {}) }))
++
++import { useDropStore } from './drop'
++
++beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); localStorage.clear() })
++
++const peerInfo = (id: string) => ({ id, name: { model: 'desktop', deviceName: 'd', displayName: 'Dev-' + id }, rtcSupported: true })
++const dispatch = (msg: unknown) => (h.capturedDeps!.onMessage as (m: unknown) => void)(msg)
++
++describe('useDropStore', () => {
++  it('init 幂等:二次调用不重建连接', () => {
++    const s = useDropStore()
++    s.init(); s.init()
++    expect(h.connect).toHaveBeenCalledTimes(1)
++  })
++  it('peers/peer-joined/peer-left 维护列表并转发引擎;display-name 记 selfId+持久化 peerid+self 置顶', () => {
++    const s = useDropStore()
++    s.init()
++    dispatch({ type: 'peers', peers: [peerInfo('a')] })
++    expect(s.peers.map((p) => p.id)).toEqual(['a'])
++    expect(h.pmHandle).toHaveBeenCalled()
++    dispatch({ type: 'display-name', message: { id: 'me1', deviceName: 'nas', displayName: 'Me' } })
++    expect(s.selfId).toBe('me1')
++    expect(localStorage.getItem('peerid')).toBe('me1')
++    expect(s.peers[0].id).toBe('me1') // self 置顶
++    dispatch({ type: 'peer-joined', peer: peerInfo('b') })
++    expect(s.peers.some((p) => p.id === 'b')).toBe(true)
++    dispatch({ type: 'peer-left', peerId: 'a' })
++    expect(s.peers.some((p) => p.id === 'a')).toBe(false)
++  })
++  it('进度 ingest:sending=files 非空;progress===1 清条目;接收计数来自 text', () => {
++    const s = useDropStore()
++    s.init()
++    const ev = h.capturedEvents!
++    ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 0.5, filesQueue: 2, files: [new File(['x'], 'x')] })
++    expect(s.transfers['a']).toEqual({ progress: 50, sending: true, count: 2 })
++    ;(ev.onTextReceived as (e: unknown) => void)({ text: '3', sender: 'b' })
++    ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'b', progress: 0.2, filesQueue: 1, files: [] })
++    expect(s.transfers['b']).toEqual({ progress: 20, sending: false, count: 3 })
++    ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 1, filesQueue: 1, files: [new File(['x'], 'x')] })
++    expect(s.transfers['a']).toBeUndefined()
++  })
++  it('接收队列:onFileReceived 入队;saveCurrent/ignoreCurrent 出队', () => {
++    const s = useDropStore()
++    s.init()
++    const ev = h.capturedEvents!
++    const push = (n: string) => (ev.onFileReceived as (e: unknown) => void)({ file: { name: n, mime: '', size: 1, blob: new Blob(['x']) }, from: 'a' })
++    push('1.txt'); push('2.txt')
++    expect(s.receiveQueue.length).toBe(2)
++    s.ignoreCurrent()
++    expect(s.receiveQueue[0].file.name).toBe('2.txt')
++  })
++  it('sendFiles 透传管理器;返回 false 时弹不支持 toast', () => {
++    const s = useDropStore()
++    s.init()
++    s.sendFiles('a', [new File(['x'], 'x')])
++    expect(h.pmSendFiles).toHaveBeenCalled()
++  })
++  it('destroy 断连清态且可再 init', () => {
++    const s = useDropStore()
++    s.init(); s.destroy()
++    expect(h.destroy).toHaveBeenCalledOnce()
++    expect(h.pmDestroy).toHaveBeenCalledOnce()
++    s.init()
++    expect(h.connect).toHaveBeenCalledTimes(2)
++  })
++})
+diff --git a/src/files/drop/stores/drop.ts b/src/files/drop/stores/drop.ts
+new file mode 100644
+index 0000000..5f6eb98
+--- /dev/null
++++ b/src/files/drop/stores/drop.ts
+@@ -0,0 +1,135 @@
++// 引擎↔UI 唯一桥:引擎回调在此落成响应式状态;引擎模块自身不 import Vue/Pinia。
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { refreshAccessToken } from '@nimotech/nimoos-service'
++import { ServerConnection } from '../serverConnection'
++import { PeersManager } from '../peersManager'
++import type { PeerInfo, ReceivedFile, ServerMessage } from '../protocol'
++import { useToast } from '../../../stores/toast'
++import { i18n } from '../../../i18n'
++
++export interface TransferState { progress: number; sending: boolean; count: number }
++
++export const useDropStore = defineStore('drop', () => {
++  const peers = ref<PeerInfo[]>([])
++  const selfId = ref('')
++  const connected = ref(false)
++  const transfers = ref<Record<string, TransferState>>({})
++  const receiveQueue = ref<{ file: ReceivedFile; from: string }[]>([])
++
++  let server: ServerConnection | null = null
++  let manager: PeersManager | null = null
++  let receivingCount: Record<string, number> = {} // 对端 text 报的「将收 N 个」
++  const t = (key: string, arg?: Record<string, unknown>) =>
++    arg ? i18n.global.t(key, arg) : i18n.global.t(key)
++
++  function onVisibility() { if (!document.hidden) void server?.connect() }
++
++  function handleServerMessage(msg: ServerMessage) {
++    switch (msg.type) {
++      case 'peers':
++        peers.value = msg.peers.slice()
++        upsertSelf()
++        break
++      case 'peer-joined': {
++        const idx = peers.value.findIndex((p) => p.id === msg.peer.id)
++        if (idx === -1) peers.value.push(msg.peer)
++        else peers.value[idx] = msg.peer
++        break
++      }
++      case 'peer-left':
++        peers.value = peers.value.filter((p) => p.id !== msg.peerId)
++        delete transfers.value[msg.peerId]
++        break
++      case 'display-name':
++        selfId.value = msg.message.id
++        localStorage.setItem('peerid', msg.message.id) // 与 Vue2 同键,同设备新旧页身份一致
++        upsertSelf(msg.message)
++        break
++      default: break
++    }
++    manager?.handleServerMessage(msg)
++  }
++
++  function upsertSelf(m?: { id: string; deviceName: string; displayName: string }) {
++    if (!selfId.value && !m) return
++    const id = m?.id ?? selfId.value
++    const rest = peers.value.filter((p) => p.id !== id)
++    const existing = peers.value.find((p) => p.id === id)
++    const self: PeerInfo = existing ?? {
++      id,
++      name: { model: 'desktop', deviceName: m?.deviceName ?? '', displayName: m?.displayName ?? '' },
++      rtcSupported: true,
++    }
++    peers.value = [self, ...rest] // self 置顶,UI 恒在第一个位
++  }
++
++  function init() {
++    if (server) return // 幂等守卫(P3b 教训:单例 store × 组件 remount)
++    server = new ServerConnection({
++      getToken: () => localStorage.getItem('access_token'),
++      getPeerId: () => localStorage.getItem('peerid') ?? '',
++      getExpiresAt: () => {
++        const raw = localStorage.getItem('expires_at')
++        return raw != null && raw !== '' ? Number(raw) : null
++      },
++      refresh: refreshAccessToken,
++      now: () => Date.now(),
++      makeSocket: (u) => new WebSocket(u),
++      wsBase: () => `${location.protocol.startsWith('https') ? 'wss:' : 'ws:'}//${location.host}`,
++      onMessage: handleServerMessage,
++      onConnectionChange: (c) => { connected.value = c },
++      onReconnectScheduled: () => useToast().show(t('filesDropLost'), 3000),
++    })
++    manager = new PeersManager(server, {
++      onFileProgress: (e) => {
++        const sending = e.files.length > 0
++        const count = sending ? e.filesQueue : (receivingCount[e.sender] ?? 1)
++        if (e.progress >= 1) { delete transfers.value[e.sender]; return }
++        transfers.value[e.sender] = { progress: Math.round(e.progress * 100), sending, count }
++      },
++      onFileReceived: (e) => { receiveQueue.value.push(e) },
++      onTextReceived: (e) => { receivingCount[e.sender] = Number(e.text) || 1 },
++      onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
++    })
++    document.addEventListener('visibilitychange', onVisibility)
++    void server.connect()
++  }
++
++  function destroy() {
++    document.removeEventListener('visibilitychange', onVisibility)
++    manager?.destroy(); manager = null
++    server?.destroy(); server = null
++    peers.value = []; transfers.value = {}; receiveQueue.value = []
++    receivingCount = {}; connected.value = false
++  }
++
++  function sendFiles(peerId: string, files: File[]) {
++    if (!files.length || !manager) return
++    if (!manager.sendFiles(peerId, files, selfId.value)) {
++      useToast().show(t('filesDropUnsupported'), 3000)
++    }
++  }
++
++  function deviceName(peerId: string): string {
++    return peers.value.find((p) => p.id === peerId)?.name.displayName ?? ''
++  }
++
++  function saveCurrent() {
++    const head = receiveQueue.value[0]
++    if (!head) return
++    const url = URL.createObjectURL(head.file.blob)
++    const a = document.createElement('a')
++    a.href = url
++    a.download = head.file.name
++    document.body.appendChild(a)
++    a.click()
++    a.remove()
++    URL.revokeObjectURL(url)
++    receiveQueue.value.shift()
++  }
++
++  function ignoreCurrent() { receiveQueue.value.shift() }
++
++  return { peers, selfId, connected, transfers, receiveQueue, init, destroy, sendFiles, saveCurrent, ignoreCurrent, deviceName }
++})

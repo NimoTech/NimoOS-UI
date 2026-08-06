@@ -1,0 +1,58 @@
+# Review package: 1ce32c6..bdfe900
+
+## Commits
+bdfe900 feat(files): P2c Files.vue 接线下载(右键 download + 多选工具栏 @download)
+
+## Files changed
+ src/views/Files.vue | 2 ++
+ 1 file changed, 2 insertions(+)
+
+## Diff
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 8d1bc5f..648db3b 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -76,20 +76,21 @@ function onCtxAction(action: string, entry: FileEntry | null) {
+         else favorites.add({ name: entry.name, path: entry.path })
+       }
+       break
+     case 'delete': {
+       const sel = files.entries.filter((e) => files.isSelected(e.path))
+       deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
+       break
+     }
+     case 'copy': ops.copy(selectedOr(entry)); break
+     case 'cut': ops.cut(selectedOr(entry)); break
++    case 'download': ops.download(selectedOr(entry)); break
+     case 'paste-overwrite': ops.paste('overwrite'); break
+     case 'paste-skip': ops.paste('skip'); break
+   }
+ }
+ 
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+@@ -232,20 +233,21 @@ onUnmounted(() => { offOperate?.() })
+         </div>
+         <SelectionToolbar
+           v-if="files.selectedCount > 0"
+           :count="files.selectedCount"
+           :all-selected="files.allSelected"
+           @select-all="files.selectAll"
+           @clear="files.clearSelection"
+           @delete="onToolbarDelete"
+           @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
+           @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
++          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+         />
+         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
+           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+             <FileGridView
+               v-if="files.viewMode === 'grid'"
+               :entries="files.sortedEntries"
+               :selected-paths="files.selected"
+               @open="openEntry"
+               @select="onSelect"
+               @contextmenu="onItemContextmenu"

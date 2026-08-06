@@ -1,0 +1,243 @@
+# Review package: 3b47884..2199e09
+
+## Commits
+2199e09 refactor(storage): 抽取 useDiskHotplug composable(偿还 P1 热插拔重复债)
+
+## Files changed
+ src/composables/useDiskHotplug.test.ts | 63 ++++++++++++++++++++++++++++++++++
+ src/composables/useDiskHotplug.ts      | 29 ++++++++++++++++
+ src/views/StorageDrives.vue            | 26 ++------------
+ src/views/StorageVolumes.vue           | 27 ++-------------
+ 4 files changed, 97 insertions(+), 48 deletions(-)
+
+## Diff
+diff --git a/src/composables/useDiskHotplug.test.ts b/src/composables/useDiskHotplug.test.ts
+new file mode 100644
+index 0000000..92f645c
+--- /dev/null
++++ b/src/composables/useDiskHotplug.test.ts
+@@ -0,0 +1,63 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { defineComponent } from 'vue'
++import { mount } from '@vue/test-utils'
++import { useDiskHotplug } from './useDiskHotplug'
++
++const handlers: Record<string, (...a: unknown[]) => void> = {}
++const offs: Record<string, ReturnType<typeof vi.fn>> = {}
++vi.mock('./useMessageBus', () => ({
++  useMessageBus: () => ({
++    on: (ev: string, cb: (...a: unknown[]) => void) => {
++      handlers[ev] = cb
++      offs[ev] = vi.fn()
++      return offs[ev]
++    },
++  }),
++}))
++
++function host(refresh: () => void, opts?: Record<string, unknown>) {
++  return defineComponent({
++    setup() { useDiskHotplug(refresh, opts); return () => null },
++  })
++}
++
++describe('useDiskHotplug', () => {
++  beforeEach(() => { vi.useFakeTimers(); for (const k in handlers) delete handlers[k]; for (const k in offs) delete offs[k] })
++  afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
++
++  it('mount 时订阅 added/removed 且 loadOnMount 默认立即 refresh 一次', () => {
++    const refresh = vi.fn()
++    mount(host(refresh))
++    expect(refresh).toHaveBeenCalledTimes(1)
++    expect(typeof handlers['local-storage:disk:added']).toBe('function')
++    expect(typeof handlers['local-storage:disk:removed']).toBe('function')
++  })
++
++  it('loadOnMount:false 时 mount 不 refresh', () => {
++    const refresh = vi.fn()
++    mount(host(refresh, { loadOnMount: false }))
++    expect(refresh).not.toHaveBeenCalled()
++  })
++
++  it('500ms 防抖:连发多次事件只刷新一次', () => {
++    const refresh = vi.fn()
++    mount(host(refresh, { loadOnMount: false }))
++    handlers['local-storage:disk:added']()
++    handlers['local-storage:disk:added']()
++    handlers['local-storage:disk:removed']()
++    expect(refresh).not.toHaveBeenCalled()
++    vi.advanceTimersByTime(500)
++    expect(refresh).toHaveBeenCalledTimes(1)
++  })
++
++  it('unmount 调两个 off-fn 且清定时器', () => {
++    const refresh = vi.fn()
++    const w = mount(host(refresh, { loadOnMount: false }))
++    handlers['local-storage:disk:added']() // 挂起一个未触发的防抖
++    w.unmount()
++    expect(offs['local-storage:disk:added']).toHaveBeenCalledTimes(1)
++    expect(offs['local-storage:disk:removed']).toHaveBeenCalledTimes(1)
++    vi.advanceTimersByTime(500)
++    expect(refresh).not.toHaveBeenCalled() // 卸载后不再触发
++  })
++})
+diff --git a/src/composables/useDiskHotplug.ts b/src/composables/useDiskHotplug.ts
+new file mode 100644
+index 0000000..f3dbb31
+--- /dev/null
++++ b/src/composables/useDiskHotplug.ts
+@@ -0,0 +1,29 @@
++import { onMounted, onUnmounted } from 'vue'
++import { useMessageBus } from './useMessageBus'
++
++// 从 StorageVolumes/StorageDrives 抽取的重复热插拔接线(P1 台账债)。
++// MessageBus handler 不可阻塞(buffer=1):防抖后刷新(Vue2 MountList 先例)。
++export function useDiskHotplug(
++  refresh: () => void,
++  opts: { debounceMs?: number; loadOnMount?: boolean } = {},
++): void {
++  const { debounceMs = 500, loadOnMount = true } = opts
++  const bus = useMessageBus()
++  let hotplugTimer: number | undefined
++  function onHotplug() {
++    clearTimeout(hotplugTimer)
++    hotplugTimer = window.setTimeout(() => { refresh() }, debounceMs)
++  }
++  let offAdd: (() => void) | undefined
++  let offRemove: (() => void) | undefined
++  onMounted(() => {
++    if (loadOnMount) refresh()
++    offAdd = bus.on('local-storage:disk:added', onHotplug)
++    offRemove = bus.on('local-storage:disk:removed', onHotplug)
++  })
++  onUnmounted(() => {
++    offAdd?.()
++    offRemove?.()
++    clearTimeout(hotplugTimer)
++  })
++}
+diff --git a/src/views/StorageDrives.vue b/src/views/StorageDrives.vue
+index 2dcf080..2705d76 100644
+--- a/src/views/StorageDrives.vue
++++ b/src/views/StorageDrives.vue
+@@ -1,43 +1,21 @@
+ <script setup lang="ts">
+-import { onMounted, onUnmounted } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import StorageShell from '../storage/components/StorageShell.vue'
+ import DriveCard from '../storage/components/DriveCard.vue'
+ import { useStorageStore } from '../storage/stores/storage'
+-import { useMessageBus } from '../composables/useMessageBus'
++import { useDiskHotplug } from '../composables/useDiskHotplug'
+ 
+ const store = useStorageStore()
+ const { t } = useI18n()
+-const bus = useMessageBus()
+ 
+-// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
+-let hotplugTimer: number | undefined
+-function onHotplug() {
+-  clearTimeout(hotplugTimer)
+-  hotplugTimer = window.setTimeout(() => {
+-    store.loadAll()
+-  }, 500)
+-}
+-
+-let offAdd: (() => void) | undefined
+-let offRemove: (() => void) | undefined
+-onMounted(() => {
+-  store.loadAll()
+-  offAdd = bus.on('local-storage:disk:added', onHotplug)
+-  offRemove = bus.on('local-storage:disk:removed', onHotplug)
+-})
+-onUnmounted(() => {
+-  offAdd?.()
+-  offRemove?.()
+-  clearTimeout(hotplugTimer)
+-})
++useDiskHotplug(() => store.loadAll())
+ </script>
+ 
+ <template>
+   <StorageShell>
+     <div v-if="store.loading && !store.drives.length" class="st-hint">{{ t('storageLoading') }}</div>
+     <p v-else-if="!store.drives.length" class="st-hint">{{ t('storageDrivesEmpty') }}</p>
+     <div v-else>
+       <DriveCard v-for="d in store.drives" :key="d.name" :drive="d" />
+     </div>
+   </StorageShell>
+diff --git a/src/views/StorageVolumes.vue b/src/views/StorageVolumes.vue
+index 34cec91..1320388 100644
+--- a/src/views/StorageVolumes.vue
++++ b/src/views/StorageVolumes.vue
+@@ -1,26 +1,25 @@
+ <script setup lang="ts">
+-import { computed, onMounted, onUnmounted, ref } from 'vue'
++import { computed, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import StorageShell from '../storage/components/StorageShell.vue'
+ import VolumeCard from '../storage/components/VolumeCard.vue'
+ import UnmountDialog from '../storage/components/UnmountDialog.vue'
+ import CreateStorageDialog from '../storage/components/CreateStorageDialog.vue'
+ import FormatDialog from '../storage/components/FormatDialog.vue'
+ import { useStorageStore } from '../storage/stores/storage'
+-import { useMessageBus } from '../composables/useMessageBus'
++import { useDiskHotplug } from '../composables/useDiskHotplug'
+ import { computeNextStorageName, DEFAULT_STORAGE_NAME } from '../storage/util/storageNaming'
+ import type { StorageVolume } from '../storage/util/storageMap'
+ 
+ const store = useStorageStore()
+ const { t } = useI18n()
+-const bus = useMessageBus()
+ 
+ const dialogOpen = ref(false)
+ const pending = ref<StorageVolume | null>(null)
+ function askUnmount(v: StorageVolume) {
+   pending.value = v
+   dialogOpen.value = true
+ }
+ async function doUnmount(password: string) {
+   if (!pending.value) return
+   const ok = await store.unmount(pending.value.disk, password)
+@@ -50,41 +49,21 @@ async function doFormat(password: string) {
+   if (!pendingFormat.value) return
+   // 契约:path=分区路径,volume=挂载点(Vue2 formatStorage 同款)
+   const ok = await store.formatVolume({
+     path: pendingFormat.value.path,
+     volume: pendingFormat.value.mountPoint,
+     password,
+   })
+   if (ok) formatOpen.value = false
+ }
+ 
+-// MessageBus handler 不可阻塞(buffer=1):500ms 防抖后刷新(Vue2 MountList 先例)
+-let hotplugTimer: number | undefined
+-function onHotplug() {
+-  clearTimeout(hotplugTimer)
+-  hotplugTimer = window.setTimeout(() => {
+-    store.loadAll()
+-  }, 500)
+-}
+-
+-let offAdd: (() => void) | undefined
+-let offRemove: (() => void) | undefined
+-onMounted(() => {
+-  store.loadAll()
+-  offAdd = bus.on('local-storage:disk:added', onHotplug)
+-  offRemove = bus.on('local-storage:disk:removed', onHotplug)
+-})
+-onUnmounted(() => {
+-  offAdd?.()
+-  offRemove?.()
+-  clearTimeout(hotplugTimer)
+-})
++useDiskHotplug(() => store.loadAll())
+ </script>
+ 
+ <template>
+   <StorageShell>
+     <div class="sv-toolbar">
+       <button
+         class="sv-create"
+         type="button"
+         :disabled="!store.availDisks.length"
+         :title="store.availDisks.length ? '' : t('storageCreateNoDisk')"

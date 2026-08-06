@@ -1,0 +1,60 @@
+# Review package: 30fc053..6dd2079
+
+## Commits
+6dd2079 fix(sp8): P5a 公共约束行号订正(评审 Important/Minor)
+
+## Files changed
+ .superpowers/sdd/p5a-common-constraints.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/p5a-common-constraints.md b/.superpowers/sdd/p5a-common-constraints.md
+index 7e5b297..9f2c9ef 100644
+--- a/.superpowers/sdd/p5a-common-constraints.md
++++ b/.superpowers/sdd/p5a-common-constraints.md
+@@ -43,21 +43,21 @@
+ - **brief/计划里标了「已核」的数据,评审仍须回权威源复核** —— 计划作者(协调者)也会错。
+ 
+ ## 3. 本期已授权的偏离(照做,并按 §2 三件套申报)
+ 
+ K1–K8 承前期先例与架构差,P1–P4 是本批 Vue2→Pinia 机械替换类偏离。
+ 
+ | # | 偏离 | 依据 |
+ |---|---|---|
+ | **K1** | **单层取数**:共享包 `service.*` 已 `return res.data`,Vue2 的 `r.data.xxx` 在本仓要写成 `body.xxx`。命中点见 §4 数据契约。 | 同一模具第五次(P2a/P3a/P3b/P4) |
+ | **K2** | **主题**:`.knowledge-app` 不照抄蓝本自带的冷蓝/oklch token 值,改 token 映射层(§附录 B);不照抄 `[data-theme="dark"] .knowledge-app` 选择器(在 Vue2 与 New-UI 都永不命中)。 | 用户 D5 |
+-| **K3** | **`.k-toast` 不移植**,改全局 `useToast().show()`。蓝本 `KnowledgeLayout.vue:96-99` 的 toast **无条件**渲染绿勾(`<KIcon name="check" color="white">`),失败提示也顶个成功勾。 | 承 P4 D2 |
++| **K3** | **`.k-toast` 不移植**,改全局 `useToast().show()`。蓝本 `KnowledgeLayout.vue:93-96` 的 toast **无条件**渲染绿勾(`<KIcon name="check" color="white">`),失败提示也顶个成功勾。(计划原文写 96-99,协调者回蓝本复核后订正为 93-96) | 承 P4 D2 |
+ | **K4** | **`KIcon` 移植成独立组件**,不复用 `AgentIcon`(实测 `code`/`download`/`grid`/`pause`/`settings`/`user` 六个同名图标异形,其中 `settings`/`user`/`grid` 被 rail 与移动端 tabs 用到)。 | 设计 §2.5 |
+ | **K5** | **HTTP 失败不回显后端 body**,改 i18n 键;表单类错误走行内。 | 承 P2b/P3b/P4 D5 |
+ | **K6** | **`console.error` 不照抄**。 | 承 P3a/P3b/P4 D4 |
+ | **K7** | **占位页机制**:未迁的 8 个 tab 走 `KnowledgeDeferred.vue`,rail 保持 9 项 1:1。P5f 清空 `DEFERRED_TABS` 但**保留机制**并由用例钉住。 | 承 P2a + P4 I2 |
+ | **K8** | **rail 页脚用户名改走本仓既定写法**(蓝本 `KnowledgeLayout.vue:176-181` 读 Vuex `$store.state.user.user_name` 并 try/catch 兜 `'You'`;本仓无 Vuex)。**照 `src/ai/components/settings/SettingsRail.vue:75-86` 的既有先例逐字复用**:`interface StoredUser { nickname?; username?; role? }` + `computed` 里 `JSON.parse(localStorage.getItem('user'))` 套 try/catch 兜 `{}` + `user.nickname \|\| user.username \|\| t('aiCfgYou')`。**注意:`useUserProfile()`(`src/stores/userProfile.ts`)里只有 `avatarVersion`/`bumpAvatarVersion`,没有用户名 —— 别去那里找。** 回落文案**复用既有键 `aiCfgYou`**(实测 zh=`你` / en=`You`,与蓝本的 `'You'` 语义一致),不新增键。 | 架构差 + i18n 硬约束 |
+ | **P1** | **`Vue.observable` → Pinia setup store** 的机械替换(`state.x` → `x.value`、`Vue.set` → 赋值、`actions.foo()` 互调 → 直接调本地函数)。等价物,非行为改动。 | 承 P2a settingsStore 先例 |
+ | **P2** | **定时器句柄移出 state**:蓝本把 `indexedFiles.pollTimer` 放在响应式 state 里。本仓改成模块级 `let indexedPollTimer`(与 `_toastTimer` 同款),理由:Pinia state 会被 devtools 序列化,句柄不是数据。行为等价(`startIndexedPolling` 的 `if (s.pollTimer) return` 语义原样保留)。 | 协调者按硬约束自定 |
+ | **P3** | **`knowledgeStore` 里两处直调 axios 改走包**:`api.get('/ai/agent/notes', {status:'draft',limit:200})` → `service.notes.list({status:'draft',limit:200})`;全部 `api.*('/ai/parser/...')` → `service.ai.parser*`。 | P0 既定「REST 一律走包」 |
+ | **P4** | **`.k-toast` 退役后 `store.state.toast` 与 `actions.toast()` 的去处**:`toast()` 保留为 store action(蓝本多处调用点依赖它),内部改调 `useToast().show(msg, 2400)`(蓝本自己的超时是 2400ms),`state.toast` 字段删除。 | K3 的连带 |
+ 
+@@ -132,21 +132,21 @@ distill 四条端点         → 设备实测 404 `{"detail":"Not Found"}`(设
+   从 `src/ai/knowledge/views/` 出发的相对路径表:
+   - 图标 `../components/KIcon.vue`
+   - store `../stores/knowledgeStore.ts`
+   - util `../util/dashboardHelpers.ts`
+   - 全局 toast `../../../stores/toast.ts`(`import { useToast } from '../../../stores/toast'`)
+   - i18n `useI18n()` from `'vue-i18n'`(与其它 `src/ai/**` 组件一致,不走相对路径导入 locale 文件)
+   - service 包 `import { service } from '@nimotech/nimoos-service'`(包名导入,非相对路径)
+   从 `src/ai/knowledge/stores/` 出发:util `../util/…`、service 包同上。
+   从 `src/ai/knowledge/components/` 出发:同级无其它组件依赖(`KIcon.vue` 是叶子组件)。
+   从 `src/ai/knowledge/util/` 出发:通常零导入(纯函数),需要 store 类型时 `../stores/knowledgeStore.ts`。
+-- **全局 toast 真实签名**(`src/stores/toast.ts:18`):`show(text: string, duration = 1500, tier: 'info'|'warning'|'danger' = 'info')`。K3/P4 要求的 2400ms 超时须显式传 `useToast().show(msg, 2400)`(不能依赖默认值)。
++- **全局 toast 真实签名**(`src/stores/toast.ts:21`):`show(text: string, duration = 1500, tier: 'info'|'warning'|'danger' = 'info')`。K3/P4 要求的 2400ms 超时须显式传 `useToast().show(msg, 2400)`(不能依赖默认值)。
+ - **`KIcon` 是本批新组件**,不是 `src/ai/components/icons/AgentIcon.vue` 的变体(K4)。落地前**自己 grep 确认**:`AgentIcon.vue` 现有位置是 `src/ai/components/icons/AgentIcon.vue`,新 `KIcon.vue` 按设计 §5.1 落在 `src/ai/knowledge/components/KIcon.vue`,与 `AgentIcon` 并存、互不导入。
+ - **K8 的既定写法**(rail 页脚用户名):**不是** `useUserProfile()`(`src/stores/userProfile.ts` 里只有 `avatarVersion`/`bumpAvatarVersion` 两个导出,已亲自打开核实,没有任何用户名字段)。照 `src/ai/components/settings/SettingsRail.vue:75-86` 的既有写法(已亲自打开核实):
+   ```ts
+   interface StoredUser { nickname?: string; username?: string; role?: string }
+   const user = computed<StoredUser>(() => {
+     try {
+       const raw = localStorage.getItem('user')
+       return raw ? (JSON.parse(raw) as StoredUser) : {}
+     } catch { return {} }
+   })

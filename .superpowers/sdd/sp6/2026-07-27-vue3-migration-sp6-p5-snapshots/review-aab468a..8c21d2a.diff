@@ -1,0 +1,67 @@
+# Review package: aab468a..HEAD
+
+## Commits
+8c21d2a fix(storage): 快照保护开关补可访问名称(P5 T3)
+
+## Files changed
+ src/storage/components/SnapshotPanel.test.ts | 5 +++++
+ src/storage/components/SnapshotPanel.vue     | 1 +
+ 2 files changed, 6 insertions(+)
+
+## Diff
+diff --git a/src/storage/components/SnapshotPanel.test.ts b/src/storage/components/SnapshotPanel.test.ts
+index 738ad1f..505c6bf 100644
+--- a/src/storage/components/SnapshotPanel.test.ts
++++ b/src/storage/components/SnapshotPanel.test.ts
+@@ -46,20 +46,25 @@ describe('SnapshotPanel 三态', () => {
+     expect(w.find('.sp-unsupported').exists()).toBe(true)
+   })
+   it('已关闭态:有开关(未选中)+ 解释行,无状态行/无策略摘要', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
+     const w = mountPanel(); await flush(w)
+     expect(w.find('.sp-switch').attributes('aria-checked')).toBe('false')
+     expect(w.find('.sp-status').exists()).toBe(false)
+     expect(w.find('.sp-policy-summary').exists()).toBe(false)
+     expect(getPolicy).not.toHaveBeenCalled()
+   })
++  it('开关有可访问名称(aria-label),不依赖旁边 .sp-key 的兄弟节点关系', async () => {
++    listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
++    const w = mountPanel(); await flush(w)
++    expect(w.find('.sp-switch').attributes('aria-label')).toBe(zh.snapTitle)
++  })
+   it('已关闭但仍有历史快照 → 额外出"已有快照仍会保留"行', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 3 }])
+     const w = mountPanel(); await flush(w)
+     expect(w.find('.sp-kept').exists()).toBe(true)
+   })
+   it('已启用态:开关选中 + 状态摘要 + 保留承诺 + 策略摘要(且策略只拉一次)', async () => {
+     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 5, last_at: '2026-07-27T01:00:00Z' }])
+     const w = mountPanel(); await flush(w)
+     expect(w.find('.sp-switch').attributes('aria-checked')).toBe('true')
+     expect(w.find('.sp-status').text()).toContain('5')
+diff --git a/src/storage/components/SnapshotPanel.vue b/src/storage/components/SnapshotPanel.vue
+index a1782a8..51513ef 100644
+--- a/src/storage/components/SnapshotPanel.vue
++++ b/src/storage/components/SnapshotPanel.vue
+@@ -54,20 +54,21 @@ function onToggle() {
+     </div>
+ 
+     <template v-else>
+       <div class="sp-row">
+         <span class="sp-key">{{ t('snapTitle') }}</span>
+         <button
+           type="button"
+           class="sp-switch"
+           role="switch"
+           :aria-checked="store.volume?.enabled === true"
++          :aria-label="t('snapTitle')"
+           :class="{ on: store.volume?.enabled }"
+           :disabled="store.toggling"
+           @click="onToggle"
+         ><span class="sp-switch-thumb"></span></button>
+       </div>
+ 
+       <div v-if="state === 'disabled'" class="sp-row">
+         <span class="sp-muted">{{ t('snapDisabledHint') }}</span>
+       </div>
+ 

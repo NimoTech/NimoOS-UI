@@ -1,0 +1,2588 @@
+# Review package: 9080032..HEAD
+
+## Commits
+946c340 fix(files-viewer): 图片缩放停手落盘消除合成器瓦线
+c59dd07 feat(apps): installing task cards on installed page; move install-end handling into store
+e601ff4 feat(apps): detail page inline install progress/error + arch hint
+84fc2ea feat(apps): store page real install wiring + tips dialog + arch disable
+97902f4 feat(apps): store card install button tri-state (install/installing%/incompatible)
+949142c feat(apps): install flow orchestration + pre-install tips dialog + i18n keys
+6d676ec fix(apps): installProgress — revive error task on begin, dismiss/probe race, probe error leniency
+151c31e feat(apps): installProgress store — event reducer + watchdog convergence
+fc9e94e feat(apps): useDeviceArch — local arch cache + compatibility check
+
+## Files changed
+ .../2026-07-21-image-viewer-zoom-commit-design.md  |  47 ++++++
+ src/apps/components/FeaturedStrip.test.ts          |  23 ++-
+ src/apps/components/FeaturedStrip.vue              |  15 +-
+ src/apps/components/InstallingAppCard.test.ts      |  32 ++++
+ src/apps/components/InstallingAppCard.vue          |  47 ++++++
+ src/apps/components/PreInstallTips.test.ts         |  27 +++
+ src/apps/components/PreInstallTips.vue             |  52 ++++++
+ src/apps/components/StoreCard.test.ts              |  16 +-
+ src/apps/components/StoreCard.vue                  |  15 +-
+ src/apps/composables/useDeviceArch.test.ts         |  55 +++++++
+ src/apps/composables/useDeviceArch.ts              |  46 ++++++
+ src/apps/composables/useInstallFlow.test.ts        | 117 +++++++++++++
+ src/apps/composables/useInstallFlow.ts             |  88 ++++++++++
+ src/apps/stores/installProgress.test.ts            | 182 +++++++++++++++++++++
+ src/apps/stores/installProgress.ts                 | 135 +++++++++++++++
+ src/apps/util/storeApp.test.ts                     |  14 +-
+ src/apps/util/storeApp.ts                          |   4 +
+ src/apps/views/InstalledAppsPage.test.ts           |  49 +++++-
+ src/apps/views/InstalledAppsPage.vue               |  18 +-
+ src/apps/views/StoreAppDetailPage.test.ts          | 113 ++++++++++---
+ src/apps/views/StoreAppDetailPage.vue              |  53 +++++-
+ src/apps/views/StorePage.test.ts                   | 119 +++++++++++---
+ src/apps/views/StorePage.vue                       |  42 ++++-
+ src/files/viewers/ImageViewer.test.ts              | 126 ++++++++++++++
+ src/files/viewers/ImageViewer.vue                  |  90 ++++++++--
+ src/i18n/en_us.ts                                  |  12 +-
+ src/i18n/zh_cn.ts                                  |  12 +-
+ 27 files changed, 1457 insertions(+), 92 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/specs/2026-07-21-image-viewer-zoom-commit-design.md b/docs/superpowers/specs/2026-07-21-image-viewer-zoom-commit-design.md
+new file mode 100644
+index 0000000..3119184
+--- /dev/null
++++ b/docs/superpowers/specs/2026-07-21-image-viewer-zoom-commit-design.md
+@@ -0,0 +1,47 @@
++# 图片查看器缩放"停手落盘"设计(消除瓦线)
++
++日期:2026-07-21 · 范围:`src/files/viewers/ImageViewer.vue` 单组件
++
++## 问题
++
++大图(实证样本 4096×3072)在查看器中缩放时画面出现贯穿整宽的 1px 细白线("瓦线"),
++位置随缩放倍数移动。程序化分析真机截图(逐行梯度扫描)确认:线横贯 99-100% 列宽、
++线两侧平均色一致但逐像素相位错开 —— 是渲染接缝,非图片内容。
++
++**根因**:Chrome 把大图光栅化成固定尺寸瓷砖缓存;CSS `transform: scale()` 缩放走合成器
++快路径时直接拉伸旧瓷砖,砖边采样越界露出 1px 缝。倍数变化改变拉伸比,缝随之移动。
++此前已移除 `will-change: transform`(见组件内注释),但 `transition: transform 0.05s`
++使每次滚轮都触发 50ms 合成器动画,连续缩放期间动画首尾相接,始终处于拉伸快路径。
++
++瓦线是合成器固有行为,无 CSS 可"修";唯一杠杆是**何时按最终倍数重画**。
++
++## 方案(已确认:混合式)
++
++两个尺寸状态:
++
++1. **交互中(保持现状)**:滚轮/按钮每步改 `transform: scale()`,合成器拉伸缓存瓷砖,
++   流畅优先,容忍缝一闪而过。
++2. **停手落盘**:缩放操作停止 150ms 后,把当前倍数烙进图片布局尺寸
++   (`width/height = 布局尺寸 × scale`,同时 `max-width/max-height: none`),`scale` 归 1。
++   布局尺寸变化强制浏览器按最终大小重画 —— 该路径逐砖从原图采样,结构上无缝,
++   且比拉伸旧砖更清晰。
++
++## 关键细节
++
++- **落盘零跳动**:图片 flex 居中,宽高增长围绕中心对称,与 `scale()`(默认中心原点)视觉
++  等价;`tx/ty` 写在 transform 列表中 scale 左侧,数值不受 scale 影响,落盘后依然有效。
++- **transition 闪动**:落盘帧 scale N→1 会被 `transition: transform 0.05s` 动画化,而宽高
++  瞬变,会闪一下 —— 落盘那一帧临时 `transition: none`,双 rAF 后恢复。
++- **倍数记账**:`committedZoom`(已落盘总倍数,初始 1)× `scale`(交互增量)= 有效倍数,
++  钳制在 [0.1, 8]。落盘时 `committedZoom *= scale; scale = 1`。
++- **复位/翻页**:清落盘尺寸回 CSS 自适应(contain),`committedZoom=1`,取消挂起的落盘定时器。
++- **旋转**:留在 transform 里,与落盘尺寸正交,不处理。
++- **未加载守卫**:`offsetWidth === 0`(图未加载完)时跳过本次落盘,不破坏显示。
++- 不改后端、不改其他文件。
++
++## 测试与验收
++
++- 单测(vitest,同目录 `ImageViewer.test.ts`):停手 150ms 后 scale 归 1 且写入 width/height;
++  连续缩放期间不落盘;复位/翻页清落盘状态;既有三条用例不回归。
++- 真机验收:`./scripts/deploy.sh` 部署后,对 4096×3072 样本图缩放到最大倍数,截图做
++  逐行梯度扫描 —— 静止画面无贯穿整宽的 1px 突变线;高倍数下文字边缘较拉伸态更锐。
+diff --git a/src/apps/components/FeaturedStrip.test.ts b/src/apps/components/FeaturedStrip.test.ts
+index 1385386..f6f964e 100644
+--- a/src/apps/components/FeaturedStrip.test.ts
++++ b/src/apps/components/FeaturedStrip.test.ts
+@@ -1,48 +1,61 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ import FeaturedStrip from './FeaturedStrip.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ const ITEMS = [
+-  { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: 'https://cdn/t.png', category: 'Media' },
+-  { id: 'nextcloud', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud' },
++  { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: 'https://cdn/t.png', category: 'Media', architectures: [], tips: undefined },
++  { id: 'nextcloud', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud', architectures: [], tips: undefined },
+ ]
+ 
+ describe('FeaturedStrip', () => {
+   it('渲染标题、缩略图与卡片;点卡片 emit open(id);已装徽章走注入函数', async () => {
+     const w = mount(FeaturedStrip, {
+-      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin' },
++      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin', progress: () => null, compatible: () => true },
+       global: { plugins: [i18n] },
+     })
+     expect(w.text()).toContain('精选应用')
+     const cards = w.findAll('.featured-card')
+     expect(cards).toHaveLength(2)
+     expect(cards[0].get('.featured-shot img').attributes('src')).toBe('https://cdn/t.png')
+     expect(cards[1].find('.featured-shot img').exists()).toBe(false) // 无缩略图落占位块
+     expect(cards[1].find('.featured-shot-fallback').exists()).toBe(true)
+     expect(cards[0].text()).toContain('已安装')
+     await cards[1].trigger('click')
+     expect(w.emitted('open')![0]).toEqual(['nextcloud'])
+   })
+   it('未装卡片有安装按钮:emit install(id) 且不冒泡成 open;已装卡片无按钮', async () => {
+     const w = mount(FeaturedStrip, {
+-      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin' },
++      props: { items: ITEMS, installed: (id: string) => id === 'jellyfin', progress: () => null, compatible: () => true },
+       global: { plugins: [i18n] },
+     })
+     const cards = w.findAll('.featured-card')
+     expect(cards[0].find('.featured-install').exists()).toBe(false) // 已装
+     const btn = cards[1].get('.featured-install')
+     await btn.trigger('click')
+     expect(w.emitted('install')![0]).toEqual(['nextcloud'])
+     expect(w.emitted('open')).toBeUndefined()
+   })
+   it('items 空整块不渲染', () => {
+     const w = mount(FeaturedStrip, {
+-      props: { items: [], installed: () => false },
++      props: { items: [], installed: () => false, progress: () => null, compatible: () => true },
+       global: { plugins: [i18n] },
+     })
+     expect(w.find('.featured-strip').exists()).toBe(false)
+   })
++  it('progress/compatible 函数 prop 驱动按钮态', () => {
++    const items = [{ id: 'a', title: 'A', tagline: '', icon: '', thumbnail: '', category: '', architectures: [], tips: undefined }]
++    const w = mount(FeaturedStrip, {
++      props: {
++        items, installed: () => false,
++        progress: () => 60, compatible: () => true,
++      },
++      global: { plugins: [i18n] },
++    })
++    const btn = w.find('.featured-install')
++    expect(btn.text()).toContain('60')
++    expect((btn.element as HTMLButtonElement).disabled).toBe(true)
++  })
+ })
+diff --git a/src/apps/components/FeaturedStrip.vue b/src/apps/components/FeaturedStrip.vue
+index 50fddf4..6a2b501 100644
+--- a/src/apps/components/FeaturedStrip.vue
++++ b/src/apps/components/FeaturedStrip.vue
+@@ -1,16 +1,21 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ import SnapCarousel from '../../components/SnapCarousel.vue'
+ import type { StoreApp } from '../util/storeApp'
+ 
+-defineProps<{ items: StoreApp[]; installed: (id: string) => boolean }>()
++defineProps<{
++  items: StoreApp[]
++  installed: (id: string) => boolean
++  progress: (id: string) => number | null
++  compatible: (id: string) => boolean
++}>()
+ defineEmits<{ open: [id: string]; install: [id: string] }>()
+ const { t } = useI18n()
+ 
+ /** 缩略图 404 时隐藏 img,留下渐变占位底(逐项状态不值得为此建子组件) */
+ function hideBroken(e: Event) {
+   ;(e.target as HTMLImageElement).style.visibility = 'hidden'
+ }
+ </script>
+ 
+ <template>
+@@ -30,21 +35,25 @@ function hideBroken(e: Event) {
+           <div v-else class="featured-shot-fallback">{{ a.title.slice(0, 1) }}</div>
+         </div>
+         <div class="featured-row">
+           <img v-if="a.icon" :src="a.icon" alt="" class="featured-icon" loading="lazy" decoding="async" />
+           <div class="featured-meta">
+             <h3 class="featured-name">{{ a.title }}</h3>
+             <p class="featured-tagline">{{ a.tagline }}</p>
+           </div>
+           <span v-if="installed(a.id)" class="store-badge">{{ t('appsStoreInstalled') }}</span>
+           <button
+-            v-else class="featured-install" type="button"
++            v-else-if="progress(a.id) !== null"
++            class="featured-install" type="button" disabled
++          >{{ t('appsInstallingPercent', { percent: progress(a.id) }) }}</button>
++          <button
++            v-else class="featured-install" type="button" :disabled="!compatible(a.id)"
+             @click.stop="$emit('install', a.id)"
+           >{{ t('appsStoreInstall') }}</button>
+         </div>
+       </article>
+     </SnapCarousel>
+   </section>
+ </template>
+ 
+ <style scoped>
+ .featured-strip { margin-bottom: 18px; }
+@@ -79,11 +88,13 @@ function hideBroken(e: Event) {
+ .store-badge {
+   flex: 0 0 auto; font-size: 11px; padding: 1px 8px; border-radius: 999px;
+   color: var(--accent-text); background: var(--accent-soft);
+ }
+ .featured-install {
+   flex: 0 0 auto; font-size: 12.5px; padding: 5px 14px; cursor: pointer; border-radius: 999px;
+   color: var(--accent-text); background: var(--accent-soft);
+   border: 1px solid var(--accent-soft-bd);
+ }
+ .featured-install:hover { background: var(--accent-soft-2); }
++.featured-install:disabled { opacity: 0.55; cursor: default; }
++.featured-install:disabled:hover { background: var(--accent-soft); }
+ </style>
+diff --git a/src/apps/components/InstallingAppCard.test.ts b/src/apps/components/InstallingAppCard.test.ts
+new file mode 100644
+index 0000000..19fc659
+--- /dev/null
++++ b/src/apps/components/InstallingAppCard.test.ts
+@@ -0,0 +1,32 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++import InstallingAppCard from './InstallingAppCard.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const base = { id: 'jellyfin', title: 'Jellyfin', icon: '', percent: 42, state: 'installing' as const, message: '' }
++
++describe('InstallingAppCard', () => {
++  it('installing:标题 + 进度条 42%', () => {
++    const w = mount(InstallingAppCard, { props: { task: base }, global: { plugins: [i18n] } })
++    expect(w.text()).toContain('Jellyfin')
++    expect(w.find('.op-progress-fill').attributes('style')).toContain('42%')
++    expect(w.find('.iac-dismiss').exists()).toBe(false)
++  })
++
++  it('error:后端 message + dismiss;message 空用 i18n 兜底', async () => {
++    const w = mount(InstallingAppCard, {
++      props: { task: { ...base, state: 'error', message: 'pull failed' } },
++      global: { plugins: [i18n] },
++    })
++    expect(w.text()).toContain('pull failed')
++    await w.find('.iac-dismiss').trigger('click')
++    expect(w.emitted('dismiss')).toBeTruthy()
++    const w2 = mount(InstallingAppCard, {
++      props: { task: { ...base, state: 'error', message: '' } },
++      global: { plugins: [i18n] },
++    })
++    expect(w2.text()).toContain('安装失败') // appsInstallFailed 兜底
++  })
++})
+diff --git a/src/apps/components/InstallingAppCard.vue b/src/apps/components/InstallingAppCard.vue
+new file mode 100644
+index 0000000..bc83c76
+--- /dev/null
++++ b/src/apps/components/InstallingAppCard.vue
+@@ -0,0 +1,47 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import type { InstallTask } from '../stores/installProgress'
++
++const props = defineProps<{ task: InstallTask }>()
++defineEmits<{ dismiss: [] }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <article class="iac" :class="{ err: task.state === 'error' }">
++    <img v-if="task.icon" :src="task.icon" alt="" class="iac-icon" />
++    <div v-else class="iac-icon iac-icon-fallback">{{ task.title.slice(0, 1) }}</div>
++    <div class="iac-meta">
++      <h3 class="iac-title">{{ task.title }}</h3>
++      <template v-if="task.state === 'installing'">
++        <div class="op-progress"><div class="op-progress-fill" :style="{ width: task.percent + '%' }" /></div>
++        <span class="iac-sub">{{ t('appsInstallingPercent', { percent: task.percent }) }}</span>
++      </template>
++      <span v-else class="iac-sub iac-err-text">{{ task.message || t('appsInstallFailed', { name: task.title }) }}</span>
++    </div>
++    <button v-if="task.state === 'error'" class="iac-dismiss" type="button" @click="$emit('dismiss')">
++      {{ t('appsInstallDismiss') }}
++    </button>
++  </article>
++</template>
++
++<style scoped>
++.iac {
++  display: flex; gap: 12px; align-items: center; padding: 14px;
++  background: var(--card-bg); border: 1px solid var(--card-border);
++  border-radius: var(--radius); box-shadow: var(--card-shadow);
++  backdrop-filter: var(--blur);
++}
++.iac-icon { width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto; object-fit: cover; background: var(--chip-bg); }
++.iac-icon-fallback { display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; color: var(--fg-muted); background: var(--chip-bg-hi); }
++.iac-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
++.iac-title { font-size: 14px; font-weight: 600; margin: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.op-progress { height: 6px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
++.op-progress-fill { height: 100%; background: var(--accent); transition: width 0.2s; }
++.iac-sub { font-size: 12px; color: var(--fg-muted); }
++.iac-err-text { color: var(--remove-fg); }
++.iac-dismiss {
++  flex: 0 0 auto; font-size: 12.5px; padding: 5px 14px; cursor: pointer; border-radius: 999px;
++  color: var(--fg); background: var(--chip-bg); border: 1px solid var(--chip-border);
++}
++</style>
+diff --git a/src/apps/components/PreInstallTips.test.ts b/src/apps/components/PreInstallTips.test.ts
+new file mode 100644
+index 0000000..bd37061
+--- /dev/null
++++ b/src/apps/components/PreInstallTips.test.ts
+@@ -0,0 +1,27 @@
++import { describe, it, expect, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++import PreInstallTips from './PreInstallTips.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++describe('PreInstallTips', () => {
++  it('markdown 渲染 + 点继续 emit confirm(portal 到 body,attachTo 真 DOM)', async () => {
++    const w = mount(PreInstallTips, {
++      props: { open: true, text: '先配置 **端口**' },
++      global: { plugins: [i18n] },
++      attachTo: document.body,
++    })
++    await nextTick()
++    const body = document.body.innerHTML
++    expect(body).toContain('<strong>端口</strong>')
++    const btns = Array.from(document.body.querySelectorAll('button'))
++    const confirm = btns.find((b) => b.textContent?.includes('继续安装'))!
++    confirm.click()
++    await nextTick()
++    expect(w.emitted('confirm')).toBeTruthy()
++    w.unmount()
++  })
++})
+diff --git a/src/apps/components/PreInstallTips.vue b/src/apps/components/PreInstallTips.vue
+new file mode 100644
+index 0000000..4210ba3
+--- /dev/null
++++ b/src/apps/components/PreInstallTips.vue
+@@ -0,0 +1,52 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useI18n } from 'vue-i18n'
++import {
++  DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogClose,
++} from 'reka-ui'
++import { renderMarkdown } from '../../files/viewers/renderMarkdown'
++
++const props = defineProps<{ open: boolean; text: string }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm'): void }>()
++const { t } = useI18n()
++/** renderMarkdown 是 html:false 的 markdown-it——原始 HTML 被转义,v-html 其输出安全(§3.8-2) */
++const html = computed(() => renderMarkdown(props.text))
++</script>
++
++<template>
++  <DialogRoot :open="open" @update:open="emit('update:open', $event)">
++    <DialogPortal>
++      <DialogOverlay class="pit-overlay" />
++      <DialogContent class="pit-content">
++        <DialogTitle class="pit-title">{{ t('appsInstallTipsTitle') }}</DialogTitle>
++        <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false,输出已转义 -->
++        <div class="pit-body" v-html="html"></div>
++        <div class="pit-footer">
++          <DialogClose class="pit-btn">{{ t('appsCancel') }}</DialogClose>
++          <button class="pit-btn primary" type="button" @click="emit('confirm')">
++            {{ t('appsInstallTipsConfirm') }}
++          </button>
++        </div>
++      </DialogContent>
++    </DialogPortal>
++  </DialogRoot>
++</template>
++
++<style scoped>
++/* scoped 可用:data-v 属性随组件模板 vnode 走,Portal 后仍带(UninstallConfirm 同款先例) */
++.pit-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
++.pit-content {
++  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
++  min-width: 320px; max-width: min(560px, 92vw); max-height: 80vh; overflow: auto;
++  padding: 20px; border-radius: 18px;
++  background: var(--popup-bg); border: 1px solid var(--card-border); backdrop-filter: blur(20px);
++  color: var(--fg); box-shadow: var(--card-shadow-hi);
++}
++.pit-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
++.pit-body { font-size: 13.5px; line-height: 1.7; color: var(--fg); }
++.pit-body :deep(a) { color: var(--accent); }
++.pit-body :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; }
++.pit-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
++.pit-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px; }
++.pit-btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
++</style>
+diff --git a/src/apps/components/StoreCard.test.ts b/src/apps/components/StoreCard.test.ts
+index 3c6c81b..de89958 100644
+--- a/src/apps/components/StoreCard.test.ts
++++ b/src/apps/components/StoreCard.test.ts
+@@ -1,18 +1,18 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ import StoreCard from './StoreCard.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+-const APP = { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: '', category: 'Media' }
++const APP = { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: '', category: 'Media', architectures: [], tips: undefined }
+ 
+ describe('StoreCard', () => {
+   it('渲染 icon/title/tagline/category;点击 emit open', async () => {
+     const w = mount(StoreCard, { props: { app: APP, installed: false }, global: { plugins: [i18n] } })
+     expect(w.get('img').attributes('src')).toBe('https://cdn/i.png')
+     expect(w.text()).toContain('Jellyfin')
+     expect(w.text()).toContain('个人媒体系统')
+     expect(w.text()).toContain('Media')
+     expect(w.text()).not.toContain('已安装')
+     await w.get('.store-card').trigger('click')
+@@ -29,11 +29,25 @@ describe('StoreCard', () => {
+   it('installed 显示徽章、无安装按钮;icon 空时渲染占位块不渲染 img', () => {
+     const w = mount(StoreCard, {
+       props: { app: { ...APP, icon: '' }, installed: true },
+       global: { plugins: [i18n] },
+     })
+     expect(w.text()).toContain('已安装')
+     expect(w.find('.store-install').exists()).toBe(false)
+     expect(w.find('img').exists()).toBe(false)
+     expect(w.find('.store-icon-fallback').exists()).toBe(true)
+   })
++  it('percent!=null → 安装中禁用钮;!compatible → 禁用;installed 优先', () => {
++    const app = { id: 'a', title: 'A', tagline: '', icon: '', thumbnail: '', category: '', architectures: [], tips: undefined }
++    let w = mount(StoreCard, { props: { app, installed: false, percent: 42 }, global: { plugins: [i18n] } })
++    let btn = w.find('.store-install')
++    expect(btn.text()).toContain('42')
++    expect((btn.element as HTMLButtonElement).disabled).toBe(true)
++
++    w = mount(StoreCard, { props: { app, installed: false, compatible: false }, global: { plugins: [i18n] } })
++    expect((w.find('.store-install').element as HTMLButtonElement).disabled).toBe(true)
++
++    w = mount(StoreCard, { props: { app, installed: true, percent: 42 }, global: { plugins: [i18n] } })
++    expect(w.find('.store-install').exists()).toBe(false)
++    expect(w.find('.store-badge').exists()).toBe(true)
++  })
+ })
+diff --git a/src/apps/components/StoreCard.vue b/src/apps/components/StoreCard.vue
+index 3e099a4..9b9bce6 100644
+--- a/src/apps/components/StoreCard.vue
++++ b/src/apps/components/StoreCard.vue
+@@ -1,34 +1,41 @@
+ <script setup lang="ts">
+ import { useI18n } from 'vue-i18n'
+ import type { StoreApp } from '../util/storeApp'
+ 
+-defineProps<{ app: StoreApp; installed: boolean }>()
++withDefaults(
++  defineProps<{ app: StoreApp; installed: boolean; compatible?: boolean; percent?: number | null }>(),
++  { compatible: true, percent: null },
++)
+ defineEmits<{ open: []; install: [] }>()
+ const { t } = useI18n()
+ </script>
+ 
+ <template>
+   <div class="store-card" role="button" tabindex="0" @click="$emit('open')" @keydown.enter="$emit('open')">
+     <img v-if="app.icon" :src="app.icon" alt="" class="store-icon" loading="lazy" decoding="async" />
+     <div v-else class="store-icon store-icon-fallback">{{ app.title.slice(0, 1) }}</div>
+     <div class="store-meta">
+       <div class="store-title-row">
+         <h3 class="store-title">{{ app.title }}</h3>
+         <span v-if="installed" class="store-badge">{{ t('appsStoreInstalled') }}</span>
+       </div>
+       <p class="store-tagline">{{ app.tagline }}</p>
+       <span class="store-cate">{{ app.category }}</span>
+     </div>
+     <button
+-      v-if="!installed"
+-      class="store-install" type="button"
++      v-if="!installed && percent !== null"
++      class="store-install" type="button" disabled
++    >{{ t('appsInstallingPercent', { percent }) }}</button>
++    <button
++      v-else-if="!installed"
++      class="store-install" type="button" :disabled="!compatible"
+       @click.stop="$emit('install')"
+     >{{ t('appsStoreInstall') }}</button>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .store-card {
+   display: flex; gap: 12px; align-items: flex-start;
+   padding: 14px; cursor: pointer;
+   background: var(--card-bg); border: 1px solid var(--card-border);
+@@ -54,11 +61,13 @@ const { t } = useI18n()
+   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+ }
+ .store-cate { font-size: 11.5px; color: var(--fg-muted); }
+ .store-install {
+   flex: 0 0 auto; align-self: center;
+   font-size: 12.5px; padding: 5px 14px; cursor: pointer; border-radius: 999px;
+   color: var(--accent-text); background: var(--accent-soft);
+   border: 1px solid var(--accent-soft-bd);
+ }
+ .store-install:hover { background: var(--accent-soft-2); }
++.store-install:disabled { opacity: 0.55; cursor: default; }
++.store-install:disabled:hover { background: var(--accent-soft); }
+ </style>
+diff --git a/src/apps/composables/useDeviceArch.test.ts b/src/apps/composables/useDeviceArch.test.ts
+new file mode 100644
+index 0000000..d744cf1
+--- /dev/null
++++ b/src/apps/composables/useDeviceArch.test.ts
+@@ -0,0 +1,55 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++
++const sysMock = vi.hoisted(() => ({ hardwareInfo: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { sys: sysMock } }))
++
++import { useDeviceArch, __resetDeviceArchForTest } from './useDeviceArch'
++
++beforeEach(() => {
++  localStorage.clear()
++  __resetDeviceArchForTest()
++  sysMock.hardwareInfo.mockReset()
++})
++
++describe('useDeviceArch', () => {
++  it('reads cached localStorage arch without fetching (Vue2 同 key)', () => {
++    localStorage.setItem('arch', 'arm64')
++    const { arch } = useDeviceArch()
++    expect(arch.value).toBe('arm64')
++    expect(sysMock.hardwareInfo).not.toHaveBeenCalled()
++  })
++
++  it('fetches once, caches to localStorage, second call does not refetch', async () => {
++    sysMock.hardwareInfo.mockResolvedValue({ arch: 'amd64' })
++    const { arch } = useDeviceArch()
++    await vi.waitFor(() => expect(arch.value).toBe('amd64'))
++    expect(localStorage.getItem('arch')).toBe('amd64')
++    useDeviceArch()
++    expect(sysMock.hardwareInfo).toHaveBeenCalledTimes(1)
++  })
++
++  it('isCompatible: 未声明/未知一律宽容,声明了才判 includes(Vue2 unuseable 同语义)', async () => {
++    sysMock.hardwareInfo.mockResolvedValue({ arch: 'amd64' })
++    const { arch, isCompatible } = useDeviceArch()
++    expect(isCompatible(['arm64'])).toBe(true) // arch 未知(未返回)→ 宽容
++    await vi.waitFor(() => expect(arch.value).toBe('amd64'))
++    expect(isCompatible(undefined)).toBe(true)
++    expect(isCompatible([])).toBe(true)
++    expect(isCompatible(['amd64', 'arm64'])).toBe(true)
++    expect(isCompatible(['arm64'])).toBe(false)
++  })
++
++  it('archLabel: arm 显示为 armv7(Vue2 archTitle 对齐)', () => {
++    localStorage.setItem('arch', 'arm')
++    const { archLabel } = useDeviceArch()
++    expect(archLabel.value).toBe('armv7')
++  })
++
++  it('fetch 失败静默(console.warn),arch 留空=全宽容', async () => {
++    sysMock.hardwareInfo.mockRejectedValue(new Error('down'))
++    const { arch, isCompatible } = useDeviceArch()
++    await Promise.resolve(); await Promise.resolve()
++    expect(arch.value).toBe('')
++    expect(isCompatible(['arm64'])).toBe(true)
++  })
++})
+diff --git a/src/apps/composables/useDeviceArch.ts b/src/apps/composables/useDeviceArch.ts
+new file mode 100644
+index 0000000..057b224
+--- /dev/null
++++ b/src/apps/composables/useDeviceArch.ts
+@@ -0,0 +1,46 @@
++import { computed, ref, type ComputedRef, type Ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++
++// 模块级单例:全应用一份;localStorage 'arch' 与 Vue2 同 key(同源共享缓存,AppPanel.vue:378 同款)
++const arch = ref('')
++let started = false
++
++export function useDeviceArch(): {
++  arch: Ref<string>
++  archLabel: ComputedRef<string>
++  isCompatible: (architectures?: string[]) => boolean
++} {
++  if (!started) {
++    started = true
++    const cached = localStorage.getItem('arch')
++    if (cached) {
++      arch.value = cached
++    } else {
++      service.sys
++        .hardwareInfo()
++        .then((h) => {
++          if (typeof h.arch === 'string' && h.arch) {
++            arch.value = h.arch
++            localStorage.setItem('arch', h.arch)
++          }
++        })
++        .catch((e) => console.warn('[apps] hardwareInfo', e))
++    }
++  }
++
++  /** Vue2 unuseable 同语义:应用未声明架构 or 本机 arch 未知 → 不禁用(宽容) */
++  function isCompatible(architectures?: string[]): boolean {
++    if (!arch.value || !Array.isArray(architectures) || !architectures.length) return true
++    return architectures.includes(arch.value)
++  }
++
++  // Vue2 archTitle 对齐:arm 的用户可见名是 armv7
++  const archLabel = computed(() => (arch.value === 'arm' ? 'armv7' : arch.value))
++
++  return { arch, archLabel, isCompatible }
++}
++
++export function __resetDeviceArchForTest() {
++  arch.value = ''
++  started = false
++}
+diff --git a/src/apps/composables/useInstallFlow.test.ts b/src/apps/composables/useInstallFlow.test.ts
+new file mode 100644
+index 0000000..da8f545
+--- /dev/null
++++ b/src/apps/composables/useInstallFlow.test.ts
+@@ -0,0 +1,117 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { defineComponent } from 'vue'
++import { createPinia, setActivePinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  appstore: { getAppCompose: vi.fn() },
++  compose: { install: vi.fn(), list: vi.fn().mockResolvedValue({}), get: vi.fn() },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: vi.fn(() => () => {}) }) }))
++
++import { useInstallFlow, beforeInstallText, parseInstallError, type InstallCandidate } from './useInstallFlow'
++import { useInstallProgressStore } from '../stores/installProgress'
++import { useToast } from '../../stores/toast'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++// useInstallFlow 依赖 useI18n → 需在组件 setup 内调用(仓内 composable 测试惯例)
++function mountFlow() {
++  let flow!: ReturnType<typeof useInstallFlow>
++  mount(defineComponent({ setup() { flow = useInstallFlow(); return () => null } }), {
++    global: { plugins: [i18n] },
++  })
++  return flow
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  svc.appstore.getAppCompose.mockReset().mockResolvedValue('services: {}')
++  svc.compose.install.mockReset().mockResolvedValue(undefined)
++})
++
++describe('beforeInstallText', () => {
++  it('null/缺失 → 空串;命中本语言;en_US 大写键 fallback(resolveAppText)', () => {
++    expect(beforeInstallText(null, 'zh_cn')).toBe('')
++    expect(beforeInstallText({ before_install: null }, 'zh_cn')).toBe('')
++    expect(beforeInstallText({ before_install: { zh_cn: '注意' } }, 'zh_cn')).toBe('注意')
++    expect(beforeInstallText({ before_install: { en_US: 'note' } }, 'zh_cn')).toBe('note')
++  })
++})
++
++describe('parseInstallError', () => {
++  it('提取 message + ports_in_use(容忍 tcp/TCP 大小写与数组形态)', () => {
++    const e = { response: { data: { message: 'conflict', data: { ports_in_use: { TCP: [80], udp: [53] } } } } }
++    expect(parseInstallError(e)).toEqual({ message: 'conflict', ports: ['80/tcp', '53/udp'] })
++    expect(parseInstallError({ response: { data: { message: 'bad yaml' } } })).toEqual({ message: 'bad yaml', ports: [] })
++    expect(parseInstallError(new Error('net'))).toEqual({ message: '', ports: [] })
++  })
++})
++
++describe('useInstallFlow', () => {
++  const app: InstallCandidate = { id: 'jellyfin', title: 'Jellyfin', icon: 'i.png' }
++
++  it('无 tips 直装:getAppCompose → dry_run → install → track', async () => {
++    const flow = mountFlow()
++    const progress = useInstallProgressStore()
++    flow.requestInstall(app)
++    await flushPromises()
++    expect(svc.appstore.getAppCompose).toHaveBeenCalledWith('jellyfin')
++    expect(svc.compose.install).toHaveBeenNthCalledWith(1, 'services: {}', { dryRun: true, checkPortConflict: true })
++    expect(svc.compose.install).toHaveBeenNthCalledWith(2, 'services: {}', { checkPortConflict: true })
++    expect(progress.tasks['jellyfin']).toMatchObject({ title: 'Jellyfin', icon: 'i.png' })
++  })
++
++  it('有 tips 先弹确认;confirm 先读后关再装(P1 reka 前车之鉴)', async () => {
++    const flow = mountFlow()
++    flow.requestInstall({ ...app, tips: { before_install: { zh_cn: '先看这个' } } })
++    expect(flow.tipsDlg.value.open).toBe(true)
++    expect(flow.tipsDlg.value.text).toBe('先看这个')
++    expect(svc.compose.install).not.toHaveBeenCalled()
++    flow.confirmTips()
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenCalledTimes(2)
++    expect(flow.tipsDlg.value.open).toBe(false)
++  })
++
++  it('dry_run 400 → toast、不发真装、不 track', async () => {
++    svc.compose.install.mockRejectedValueOnce({ response: { data: { message: 'invalid compose' } } })
++    const flow = mountFlow()
++    const toast = useToast()
++    const spy = vi.spyOn(toast, 'show')
++    flow.requestInstall(app)
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenCalledTimes(1)
++    expect(spy).toHaveBeenCalledWith('invalid compose', 5000)
++    expect(useInstallProgressStore().tasks['jellyfin']).toBeUndefined()
++  })
++
++  it('端口冲突 → appsInstallPortConflict 文案', async () => {
++    svc.compose.install.mockRejectedValueOnce({
++      response: { data: { message: 'conflict', data: { ports_in_use: { tcp: [80] } } } },
++    })
++    const flow = mountFlow()
++    const spy = vi.spyOn(useToast(), 'show')
++    flow.requestInstall(app)
++    await flushPromises()
++    expect(spy.mock.calls[0][0]).toContain('80/tcp')
++  })
++
++  it('安装中重复 requestInstall 被忽略;error 态可重装(track 覆盖)', async () => {
++    const flow = mountFlow()
++    const progress = useInstallProgressStore()
++    flow.requestInstall(app)
++    await flushPromises()
++    flow.requestInstall(app)
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenCalledTimes(2) // 仍是第一轮的 2 次
++    progress.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'x' })
++    flow.requestInstall(app)
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenCalledTimes(4)
++    expect(progress.tasks['jellyfin'].state).toBe('installing')
++  })
++})
+diff --git a/src/apps/composables/useInstallFlow.ts b/src/apps/composables/useInstallFlow.ts
+new file mode 100644
+index 0000000..762fb10
+--- /dev/null
++++ b/src/apps/composables/useInstallFlow.ts
+@@ -0,0 +1,88 @@
++import { ref, type Ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import { useInstallProgressStore } from '../stores/installProgress'
++import { useToast } from '../../stores/toast'
++import { resolveAppText } from '../util/appTitle'
++
++export interface InstallCandidate {
++  id: string
++  title: string
++  icon?: string
++  tips?: unknown // StoreAppInfo.tips 原样传入
++}
++
++/** tips.before_install 的本语言文案(无则 '') */
++export function beforeInstallText(tips: unknown, lang: string): string {
++  const t = (tips && typeof tips === 'object' ? tips : {}) as Record<string, unknown>
++  const bi = t.before_install
++  if (!bi || typeof bi !== 'object') return ''
++  return resolveAppText(bi as Record<string, string>, lang, '')
++}
++
++/** 安装 400 归一化:{message, data:{ports_in_use}} 容忍解析(Vue2 兼容 tcp/TCP,AppPanel.vue:733-741) */
++export function parseInstallError(e: unknown): { message: string; ports: string[] } {
++  const resp = (e as { response?: { data?: unknown } })?.response?.data
++  const body = (resp && typeof resp === 'object' ? resp : {}) as Record<string, unknown>
++  const message = typeof body.message === 'string' ? body.message : ''
++  const data = (body.data && typeof body.data === 'object' ? body.data : {}) as Record<string, unknown>
++  const raw = data.ports_in_use
++  const ports: string[] = []
++  if (Array.isArray(raw)) {
++    raw.forEach((p) => ports.push(String(p)))
++  } else if (raw && typeof raw === 'object') {
++    for (const [proto, arr] of Object.entries(raw as Record<string, unknown>)) {
++      if (Array.isArray(arr)) arr.forEach((p) => ports.push(`${p}/${proto.toLowerCase()}`))
++    }
++  }
++  return { message, ports }
++}
++
++export function useInstallFlow() {
++  const { locale, t } = useI18n()
++  const toast = useToast()
++  const progress = useInstallProgressStore()
++  const tipsDlg: Ref<{ open: boolean; app: InstallCandidate | null; text: string }> =
++    ref({ open: false, app: null, text: '' })
++  const submitting = ref<Record<string, boolean>>({})
++
++  async function doInstall(app: InstallCandidate) {
++    const cur = progress.tasks[app.id]
++    if ((cur && cur.state === 'installing') || submitting.value[app.id]) return
++    submitting.value = { ...submitting.value, [app.id]: true }
++    try {
++      const yaml = await service.appstore.getAppCompose(app.id)
++      // D2:dry_run 预检——校验错/端口冲突在真装前就地拦下(400 reject,响应仅 {message})
++      await service.compose.install(yaml, { dryRun: true, checkPortConflict: true })
++      await service.compose.install(yaml, { checkPortConflict: true })
++      progress.track(app.id, app.title, app.icon)
++    } catch (e) {
++      console.warn('[apps] install', app.id, e)
++      const { message, ports } = parseInstallError(e)
++      toast.show(
++        ports.length
++          ? t('appsInstallPortConflict', { ports: ports.join(', ') })
++          : message || t('appsInstallFailed', { name: app.title }),
++        5000,
++      )
++    } finally {
++      const next = { ...submitting.value }; delete next[app.id]; submitting.value = next
++    }
++  }
++
++  /** 入口:有 before_install 提示先弹确认(D3),无则直装 */
++  function requestInstall(app: InstallCandidate) {
++    const text = beforeInstallText(app.tips, locale.value)
++    if (text) tipsDlg.value = { open: true, app, text }
++    else void doInstall(app)
++  }
++
++  /** 先读 app 再关弹窗(P1 reka AlertDialogAction 教训:update:open 先于 click) */
++  function confirmTips() {
++    const app = tipsDlg.value.app
++    tipsDlg.value = { open: false, app: null, text: '' }
++    if (app) void doInstall(app)
++  }
++
++  return { tipsDlg, requestInstall, confirmTips, submitting }
++}
+diff --git a/src/apps/stores/installProgress.test.ts b/src/apps/stores/installProgress.test.ts
+new file mode 100644
+index 0000000..511fa41
+--- /dev/null
++++ b/src/apps/stores/installProgress.test.ts
+@@ -0,0 +1,182 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { createPinia, setActivePinia } from 'pinia'
++
++const svc = vi.hoisted(() => ({
++  compose: { list: vi.fn(), get: vi.fn() },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
++
++import { useInstallProgressStore, WATCHDOG_MS, WATCHDOG_MAX_PROBES } from './installProgress'
++import { useInstalledAppsStore } from './installedApps'
++import { useAppstoreStore } from './appstore'
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  svc.compose.list.mockResolvedValue({})
++  svc.compose.get.mockResolvedValue(undefined)
++  busOn.mockClear()
++  vi.useFakeTimers()
++})
++afterEach(() => { vi.useRealTimers() })
++
++describe('installProgress store', () => {
++  it('setup 即订阅 4 个 install 事件(应用级=后台继续)', () => {
++    useInstallProgressStore()
++    const evs = busOn.mock.calls.map((c) => c[0])
++    expect(evs).toEqual(expect.arrayContaining([
++      'app:install-begin', 'app:install-progress', 'app:install-end', 'app:install-error',
++    ]))
++  })
++
++  it('track 建任务;progress 事件夹紧 0-100 更新', () => {
++    const s = useInstallProgressStore()
++    s.track('jellyfin', 'Jellyfin', 'i.png')
++    expect(s.tasks['jellyfin']).toMatchObject({ percent: 0, state: 'installing', title: 'Jellyfin' })
++    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '64' })
++    expect(s.tasks['jellyfin'].percent).toBe(64)
++    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '400' })
++    expect(s.tasks['jellyfin'].percent).toBe(100)
++    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': 'garbage' })
++    expect(s.tasks['jellyfin'].percent).toBe(100) // 不可解析 → 保持原值
++  })
++
++  it('D5:未跟踪的 progress 一律忽略(update 流复用同一事件)', () => {
++    const s = useInstallProgressStore()
++    s.onEvent('app:install-progress', { 'app:name': 'syncthing', 'app:progress': '30' })
++    expect(s.tasks['syncthing']).toBeUndefined()
++  })
++
++  it('begin 事件对未跟踪 name 建任务(他端安装也可见),app:title JSON 容忍解析', () => {
++    const s = useInstallProgressStore()
++    s.onEvent('app:install-begin', { 'app:name': 'navidrome', 'app:title': '{"en_us":"Navidrome"}', 'app:icon': 'n.png' })
++    expect(s.tasks['navidrome']).toMatchObject({ title: 'Navidrome', icon: 'n.png', state: 'installing' })
++    s.onEvent('app:install-begin', { 'app:name': 'bad', 'app:title': '{oops' })
++    expect(s.tasks['bad'].title).toBe('bad') // 解析失败退化 name
++  })
++
++  it('end:删任务 + 已装列表 refresh + 商店 installed 乐观 push', async () => {
++    const s = useInstallProgressStore()
++    const installed = useInstalledAppsStore()
++    const store = useAppstoreStore()
++    const spy = vi.spyOn(installed, 'refresh').mockResolvedValue()
++    s.track('jellyfin')
++    s.onEvent('app:install-end', { 'app:name': 'jellyfin' })
++    expect(s.tasks['jellyfin']).toBeUndefined()
++    expect(spy).toHaveBeenCalled()
++    expect(store.installed).toContain('jellyfin')
++  })
++
++  it('end 对未跟踪 name 也 refresh(错过 begin 的兜底)', () => {
++    const s = useInstallProgressStore()
++    const installed = useInstalledAppsStore()
++    const spy = vi.spyOn(installed, 'refresh').mockResolvedValue()
++    s.onEvent('app:install-end', { 'app:name': 'ghost' })
++    expect(spy).toHaveBeenCalled()
++  })
++
++  it('error:任务转 error 态带 message,可 dismiss', () => {
++    const s = useInstallProgressStore()
++    s.track('jellyfin')
++    s.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'pull failed' })
++    expect(s.tasks['jellyfin']).toMatchObject({ state: 'error', message: 'pull failed' })
++    s.dismiss('jellyfin')
++    expect(s.tasks['jellyfin']).toBeUndefined()
++  })
++
++  it('watchdog:60s 静默探测 compose.get——已存在则按 end 收敛', async () => {
++    const s = useInstallProgressStore()
++    const installed = useInstalledAppsStore()
++    vi.spyOn(installed, 'refresh').mockResolvedValue()
++    svc.compose.get.mockResolvedValue({ status: 'running' })
++    s.track('jellyfin')
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS)
++    expect(svc.compose.get).toHaveBeenCalledWith('jellyfin')
++    expect(s.tasks['jellyfin']).toBeUndefined()
++  })
++
++  it('watchdog:连续 5 轮探不到 → error 态(message 空,UI 用 i18n 兜底)', async () => {
++    const s = useInstallProgressStore()
++    svc.compose.get.mockResolvedValue(undefined)
++    s.track('jellyfin')
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * WATCHDOG_MAX_PROBES)
++    expect(s.tasks['jellyfin']).toMatchObject({ state: 'error', message: '' })
++  })
++
++  it('progress 事件重置 watchdog 探测计数', async () => {
++    const s = useInstallProgressStore()
++    svc.compose.get.mockResolvedValue(undefined)
++    s.track('jellyfin')
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
++    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '50' })
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
++    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 progress 重置,尚未到 5
++  })
++
++  // --- Task 3 修复(评审 4 洞) ---
++
++  it('Fix1: begin 复活 error 态任务——回 installing、percent 0、message 清空', () => {
++    const s = useInstallProgressStore()
++    s.track('jellyfin', 'Jellyfin', 'i.png')
++    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '77' })
++    s.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'pull failed' })
++    expect(s.tasks['jellyfin']).toMatchObject({ state: 'error', message: 'pull failed' })
++    s.onEvent('app:install-begin', { 'app:name': 'jellyfin', 'app:title': 'Jellyfin' })
++    expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing', percent: 0, message: '' })
++  })
++
++  it('Fix1: begin 对已 installing 任务状态不变(仅续期看门狗)', () => {
++    const s = useInstallProgressStore()
++    s.track('jellyfin', 'Jellyfin', 'i.png')
++    s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '50' })
++    s.onEvent('app:install-begin', { 'app:name': 'jellyfin' })
++    expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing', percent: 50, title: 'Jellyfin' })
++  })
++
++  it('Fix1(Minor#2): begin 重置探测计数——已探 4 轮后 begin,再过 4 轮不应到 5 轮 error', async () => {
++    const s = useInstallProgressStore()
++    svc.compose.get.mockResolvedValue(undefined)
++    s.track('jellyfin')
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
++    expect(s.tasks['jellyfin'].state).toBe('installing')
++    s.onEvent('app:install-begin', { 'app:name': 'jellyfin' })
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
++    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 begin 重置,尚未到 5
++  })
++
++  it('Fix2: dismiss 与飞行中 probe 竞态——resolve 落定后任务不复活、不触发 finish 副作用、不再排新探测', async () => {
++    const s = useInstallProgressStore()
++    const installed = useInstalledAppsStore()
++    const store = useAppstoreStore()
++    const refreshSpy = vi.spyOn(installed, 'refresh').mockResolvedValue()
++    let resolveGet: (v: unknown) => void = () => {}
++    const callsBefore = svc.compose.get.mock.calls.length
++    svc.compose.get.mockImplementation(() => new Promise((resolve) => { resolveGet = resolve }))
++    s.track('jellyfin')
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS) // 触发 probe,compose.get 挂起
++    expect(svc.compose.get.mock.calls.length - callsBefore).toBe(1)
++    s.dismiss('jellyfin')
++    // 飞行中的 probe 落定时收到「已安装」的真值——若不重新读取 tasks.value,会误当仍在跟踪
++    // 而调用 finish() 产生 refresh()/installed 乐观 push 的副作用(任务明明已被用户 dismiss)
++    resolveGet({ status: 'running' })
++    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
++    expect(s.tasks['jellyfin']).toBeUndefined()
++    expect(refreshSpy).not.toHaveBeenCalled()
++    expect(store.installed).not.toContain('jellyfin')
++    // 且不应遗留死 key 导致后续再探测(退化场景:falsy 落定也不得重新 arm)
++    const callsAfterDismiss = svc.compose.get.mock.calls.length
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * 2)
++    expect(svc.compose.get.mock.calls.length).toBe(callsAfterDismiss) // 没有被重新 arm
++    expect(s.tasks['jellyfin']).toBeUndefined()
++  })
++
++  it('Fix3: probe 网络错不计罚——compose.get 连续 reject,5 轮后仍 installing', async () => {
++    const s = useInstallProgressStore()
++    svc.compose.get.mockRejectedValue(new Error('network down'))
++    s.track('jellyfin')
++    await vi.advanceTimersByTimeAsync(WATCHDOG_MS * WATCHDOG_MAX_PROBES)
++    expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing' })
++  })
++})
+diff --git a/src/apps/stores/installProgress.ts b/src/apps/stores/installProgress.ts
+new file mode 100644
+index 0000000..5341e12
+--- /dev/null
++++ b/src/apps/stores/installProgress.ts
+@@ -0,0 +1,135 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { useMessageBus } from '../../composables/useMessageBus'
++import { useInstalledAppsStore } from './installedApps'
++import { useAppstoreStore } from './appstore'
++import { resolveAppTitle } from '../util/appTitle'
++
++export interface InstallTask {
++  id: string
++  title: string
++  icon: string
++  percent: number
++  state: 'installing' | 'error'
++  message: string
++}
++
++/** 事件静默 60s 后主动探测 compose.get(id) 收敛(spec §5:pending 不许永久卡死) */
++export const WATCHDOG_MS = 60_000
++/** 连续 5 轮(约 5 分钟)探不到 → error 态交用户 dismiss */
++export const WATCHDOG_MAX_PROBES = 5
++
++function titleFromProps(p: Record<string, unknown>, fallback: string): string {
++  // app:title 是 JSON 字符串({"en_us":"…"},AppManagement common/message.go:24-28)
++  if (typeof p['app:title'] === 'string') {
++    try { return resolveAppTitle(JSON.parse(p['app:title']), fallback) } catch { /* 容忍坏 JSON */ }
++  }
++  return fallback
++}
++
++export const useInstallProgressStore = defineStore('install-progress', () => {
++  const tasks = ref<Record<string, InstallTask>>({})
++  const timers: Record<string, ReturnType<typeof setTimeout>> = {}
++  const probes: Record<string, number> = {}
++
++  function arm(id: string) {
++    clearTimeout(timers[id])
++    timers[id] = setTimeout(() => { void probe(id) }, WATCHDOG_MS)
++  }
++
++  async function probe(id: string) {
++    const cur = tasks.value[id]
++    if (!cur || cur.state === 'error') {
++      clearTimeout(timers[id]); delete timers[id]; delete probes[id]
++      return
++    }
++    try {
++      const app = await service.compose.get(id)
++      // Fix2: await 落定后任务可能已被 dismiss/finish——重新读取,不存在就直接退出,
++      // 不再写 probes[id]/arm(id),也不要误触发 finish() 的 refresh/installed 副作用。
++      if (!tasks.value[id]) return
++      if (app) { finish(id); return }
++    } catch {
++      // Fix3: 网络错不计罚——不递增 probes,下一轮再探(装置仍是 installing)
++      arm(id)
++      return
++    }
++    probes[id] = (probes[id] ?? 0) + 1
++    if (probes[id] >= WATCHDOG_MAX_PROBES) fail(id, '')
++    else arm(id)
++  }
++
++  /** 发起端登记(POST /compose 受理后调;begin 事件到达前就有卡可看) */
++  function track(id: string, title?: string, icon?: string) {
++    tasks.value = {
++      ...tasks.value,
++      [id]: { id, title: title || id, icon: icon || '', percent: 0, state: 'installing', message: '' },
++    }
++    probes[id] = 0
++    arm(id)
++  }
++
++  /** 成功收敛:删任务 + 已装列表浮出 + 商店「已安装」徽章乐观更新 */
++  function finish(id: string) {
++    clearTimeout(timers[id]); delete timers[id]; delete probes[id]
++    const next = { ...tasks.value }; delete next[id]; tasks.value = next
++    useInstalledAppsStore().refresh().catch((e) => console.warn('[apps] refresh after install', e))
++    const store = useAppstoreStore()
++    if (!store.installed.includes(id)) store.installed = [...store.installed, id]
++  }
++
++  function fail(id: string, message: string) {
++    clearTimeout(timers[id]); delete timers[id]; delete probes[id]
++    const cur = tasks.value[id]
++    if (!cur) return
++    tasks.value = { ...tasks.value, [id]: { ...cur, state: 'error', message } }
++  }
++
++  function dismiss(id: string) {
++    clearTimeout(timers[id]); delete timers[id]; delete probes[id]
++    const next = { ...tasks.value }; delete next[id]; tasks.value = next
++  }
++
++  function onEvent(name: string, props: unknown) {
++    const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
++    const id = typeof p['app:name'] === 'string' ? p['app:name'] : ''
++    if (!id) return
++    if (name === 'app:install-begin') {
++      const cur = tasks.value[id]
++      if (!cur) {
++        track(id, titleFromProps(p, id), typeof p['app:icon'] === 'string' ? p['app:icon'] : '')
++      } else if (cur.state === 'error') {
++        // Fix1: begin 要能复活 error 态任务(比如用户 dismiss 前又重装/重试)
++        tasks.value = { ...tasks.value, [id]: { ...cur, state: 'installing', percent: 0, message: '' } }
++        probes[id] = 0
++        arm(id)
++      } else {
++        // Minor#2: installing 任务重复 begin 也要重置探测计数,不只是续期定时器
++        probes[id] = 0
++        arm(id)
++      }
++    } else if (name === 'app:install-progress') {
++      // D5:update 流复用本事件(image.go pullImageProgress),只更新已跟踪任务
++      const cur = tasks.value[id]
++      if (!cur || cur.state === 'error') return
++      const n = Number(p['app:progress'])
++      const percent = Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : cur.percent
++      tasks.value = { ...tasks.value, [id]: { ...cur, percent } }
++      probes[id] = 0
++      arm(id)
++    } else if (name === 'app:install-end') {
++      if (tasks.value[id]) finish(id)
++      else useInstalledAppsStore().refresh().catch(() => {}) // 错过 begin 也要浮出新应用(承 P1 行为)
++    } else if (name === 'app:install-error') {
++      fail(id, typeof p['message'] === 'string' ? p['message'] : '')
++    }
++  }
++
++  // 订阅挂 store 生命周期(应用级单例):页面切走安装继续推进 = spec「后台继续」
++  const bus = useMessageBus()
++  ;(['app:install-begin', 'app:install-progress', 'app:install-end', 'app:install-error'] as const)
++    .forEach((ev) => bus.on(ev, (props) => onEvent(ev, props)))
++
++  return { tasks, track, onEvent, dismiss, finish }
++})
+diff --git a/src/apps/util/storeApp.test.ts b/src/apps/util/storeApp.test.ts
+index 8800acc..cb82a8d 100644
+--- a/src/apps/util/storeApp.test.ts
++++ b/src/apps/util/storeApp.test.ts
+@@ -8,32 +8,42 @@ const RAW = {
+   icon: 'https://cdn/icon.png',
+   thumbnail: 'https://cdn/thumbnail.png',
+   category: 'Media',
+ } as never
+ 
+ describe('mapStoreApp', () => {
+   it('按 lang 归一化,title 缺 zh_cn 落 en_us,icon/thumbnail/category 透传', () => {
+     expect(mapStoreApp('jellyfin', RAW, 'zh_cn')).toEqual({
+       id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统',
+       icon: 'https://cdn/icon.png', thumbnail: 'https://cdn/thumbnail.png', category: 'Media',
++      architectures: [], tips: undefined,
+     })
+   })
+   it('全缺字段不炸:title 退 id,其余空串', () => {
+     expect(mapStoreApp('ghost', {} as never, 'zh_cn')).toEqual({
+       id: 'ghost', title: 'ghost', tagline: '', icon: '', thumbnail: '', category: '',
++      architectures: [], tips: undefined,
+     })
+   })
++  it('mapStoreApp 透传 architectures/tips,非法形态退化', () => {
++    const a = mapStoreApp('x', { title: { en_us: 'X' }, architectures: ['amd64'], tips: { before_install: { zh_cn: 'hi' } } } as never, 'zh_cn')
++    expect(a.architectures).toEqual(['amd64'])
++    expect(a.tips).toEqual({ before_install: { zh_cn: 'hi' } })
++    const b = mapStoreApp('y', { title: { en_us: 'Y' }, architectures: 'nope' } as never, 'zh_cn')
++    expect(b.architectures).toEqual([])
++    expect(b.tips).toBeUndefined()
++  })
+ })
+ 
+ describe('filterStoreApps', () => {
+   const items: StoreApp[] = [
+-    { id: 'a', title: 'Jellyfin', tagline: '个人媒体系统', icon: '', thumbnail: '', category: 'Media' },
+-    { id: 'b', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud' },
++    { id: 'a', title: 'Jellyfin', tagline: '个人媒体系统', icon: '', thumbnail: '', category: 'Media', architectures: [], tips: undefined },
++    { id: 'b', title: 'Nextcloud', tagline: 'File sync', icon: '', thumbnail: '', category: 'Cloud', architectures: [], tips: undefined },
+   ]
+   it('空格分词 OR 匹配 title+tagline,大小写不敏感(Vue2 同款)', () => {
+     expect(filterStoreApps(items, 'jelly').map((x) => x.id)).toEqual(['a'])
+     expect(filterStoreApps(items, '媒体').map((x) => x.id)).toEqual(['a'])
+     expect(filterStoreApps(items, 'SYNC jelly').map((x) => x.id)).toEqual(['a', 'b']) // OR
+     expect(filterStoreApps(items, '')).toBe(items)
+     expect(filterStoreApps(items, '  ')).toBe(items)
+   })
+ })
+diff --git a/src/apps/util/storeApp.ts b/src/apps/util/storeApp.ts
+index 80b1c42..5d3b47d 100644
+--- a/src/apps/util/storeApp.ts
++++ b/src/apps/util/storeApp.ts
+@@ -2,30 +2,34 @@ import type { StoreAppInfo } from '@nimotech/nimoos-service'
+ import { resolveAppText } from './appTitle'
+ 
+ /** 商店列表/Featured 卡片用的归一化条目(详情页直接用原始 StoreAppInfo,不走此映射) */
+ export interface StoreApp {
+   id: string
+   title: string
+   tagline: string
+   icon: string
+   thumbnail: string
+   category: string
++  architectures: string[]
++  tips: unknown
+ }
+ 
+ export function mapStoreApp(id: string, raw: StoreAppInfo, lang: string): StoreApp {
+   return {
+     id,
+     title: resolveAppText(raw.title, lang, id),
+     tagline: resolveAppText(raw.tagline, lang, ''),
+     icon: typeof raw.icon === 'string' ? raw.icon : '',
+     thumbnail: typeof raw.thumbnail === 'string' ? raw.thumbnail : '',
+     category: typeof raw.category === 'string' ? raw.category : '',
++    architectures: Array.isArray(raw.architectures) ? raw.architectures.filter((x): x is string => typeof x === 'string') : [],
++    tips: raw.tips ?? undefined,
+   }
+ }
+ 
+ /** Vue2 filteredPageList 同款:空格分词,title+tagline OR 命中,大小写不敏感(AppPanel.vue:269-281) */
+ export function filterStoreApps(items: StoreApp[], key: string): StoreApp[] {
+   const tokens = key.trim().toLowerCase().split(/\s+/).filter(Boolean)
+   if (!tokens.length) return items
+   return items.filter((a) => {
+     const hay = `${a.title} ${a.tagline}`.toLowerCase()
+     return tokens.some((tk) => hay.includes(tk))
+diff --git a/src/apps/views/InstalledAppsPage.test.ts b/src/apps/views/InstalledAppsPage.test.ts
+index e238145..fe07d46 100644
+--- a/src/apps/views/InstalledAppsPage.test.ts
++++ b/src/apps/views/InstalledAppsPage.test.ts
+@@ -1,71 +1,110 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { nextTick } from 'vue'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   list: vi.fn().mockResolvedValue({}),
+   uninstall: vi.fn().mockResolvedValue(undefined),
++  get: vi.fn().mockResolvedValue(undefined),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
+ 
+ const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
+ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
+ vi.mock('vue-router', () => ({
+   useRouter: () => ({ push: vi.fn() }),
+   useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
+ }))
+ 
+ import InstalledAppsPage from './InstalledAppsPage.vue'
+ import InstalledAppCard from '../components/InstalledAppCard.vue'
++import { useInstallProgressStore } from '../stores/installProgress'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
++// 显式把 pinia 实例挂到 mount 的 global.plugins——本页在 setup 里同时挂了
++// useInstalledAppsStore/useInstallProgressStore 两个 composable store,仅靠
++// setActivePinia() 在多用例连续 mount 时曾观测到组件绑定到早前某次 beforeEach
++// 创建的 pinia 实例(参照 StorePage.test.ts 的 T6 踩坑经验)。显式传入杜绝漂移。
++let pinia: ReturnType<typeof createPinia>
++
++function mountPage() {
++  return mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] } })
++}
++
+ describe('InstalledAppsPage', () => {
+-  beforeEach(() => { setActivePinia(createPinia()); svc.list.mockClear(); svc.uninstall.mockClear(); busOn.mockClear() })
++  beforeEach(() => {
++    pinia = createPinia()
++    setActivePinia(pinia)
++    svc.list.mockClear().mockResolvedValue({})
++    svc.uninstall.mockClear()
++    svc.get.mockClear().mockResolvedValue(undefined)
++    busOn.mockClear()
++  })
+ 
+   it('进区拉列表;空列表渲染空态;订阅容器事件与 app 生命周期事件', async () => {
+-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    const w = mountPage()
+     await flushPromises()
+     expect(svc.list).toHaveBeenCalledTimes(1)
+     expect(w.text()).toContain('还没有安装任何应用')
+     const events = busOn.mock.calls.map((c) => c[0])
+     expect(events).toContain('docker:container:state-changed')
+     expect(events).toContain('app:start-begin')
+     expect(events).toContain('app:uninstall-end')
+-    expect(events).toContain('app:install-end')
+   })
+ 
+   it('有应用时渲染卡片网格', async () => {
+     svc.list.mockResolvedValue({
+       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
+     })
+-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    const w = mountPage()
+     await flushPromises()
+     expect(w.find('.apps-grid').exists()).toBe(true)
+     expect(w.text()).toContain('Jellyfin')
+   })
+ 
++  it('installProgress 有任务时页面顶部渲染安装中卡片;end 后消失', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const progress = useInstallProgressStore()
++    progress.track('navidrome', 'Navidrome')
++    await nextTick()
++    expect(w.text()).toContain('Navidrome')
++    expect(w.find('.op-progress').exists()).toBe(true)
++    progress.onEvent('app:install-end', { 'app:name': 'navidrome' })
++    await flushPromises()
++    expect(w.find('.op-progress').exists()).toBe(false)
++  })
++
++  it('页面不再自订阅 app:install-end(D6:职责在 store)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    void w
++    const evs = busOn.mock.calls.map((c) => c[0])
++    expect(evs.filter((e) => e === 'app:install-end').length).toBeLessThanOrEqual(1)
++  })
++
+   // 回归用例(SP5-P1 终审 CRITICAL):reka-ui 的 AlertDialogAction 本身是 DialogClose,
+   // 点击真实的红色确认按钮时先派发 update:open(false) 再派发 @click 里的 confirm —— 旧实现
+   // 用单个 uninstallTarget ref 同时装 open 状态与目标,update:open 处理器抢先把它置空,
+   // confirm 读到 null 直接短路,store.uninstall(=service.compose.uninstall) 永远不会被调用。
+   // 本用例挂载真实页面 + 真实 UninstallConfirm(不 mock reka),点击 Portal 到 document.body
+   // 的真实按钮,复现该事件顺序;仅 mock 最外层的 service.compose 网络层。
+   it('点击真实卸载确认弹窗的确认按钮,真正调用 service.compose.uninstall(id, {deleteConfigFolder:false})', async () => {
+     svc.list.mockResolvedValue({
+       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
+     })
+-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] }, attachTo: document.body })
++    const w = mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
+     await flushPromises()
+ 
+     // 打开卸载确认弹窗:等价于用户点了卡片操作菜单里的「卸载」项(该项只是 emit('uninstall'),
+     // 菜单本身的展开/收起走的是另一套 reka DropdownMenu,与本次要验证的 AlertDialog 事件顺序无关)。
+     const card = w.findComponent(InstalledAppCard)
+     await card.vm.$emit('uninstall')
+     await nextTick() // reka 把 AlertDialogContent Portal 到 document.body 是异步的
+ 
+     expect(document.body.textContent).toContain('确定要卸载 Jellyfin 吗')
+     const confirmBtn = Array.from(document.body.querySelectorAll('button'))
+diff --git a/src/apps/views/InstalledAppsPage.vue b/src/apps/views/InstalledAppsPage.vue
+index bffc617..b0425b5 100644
+--- a/src/apps/views/InstalledAppsPage.vue
++++ b/src/apps/views/InstalledAppsPage.vue
+@@ -1,24 +1,28 @@
+ <script setup lang="ts">
+-import { onMounted, onUnmounted, ref } from 'vue'
++import { computed, onMounted, onUnmounted, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import InstalledAppCard from '../components/InstalledAppCard.vue'
++import InstallingAppCard from '../components/InstallingAppCard.vue'
+ import UninstallConfirm from '../components/UninstallConfirm.vue'
+ import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
++import { useInstallProgressStore } from '../stores/installProgress'
+ import { useMessageBus } from '../../composables/useMessageBus'
+ import { useToast } from '../../stores/toast'
+ import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
+ 
+ const { t } = useI18n()
+ const store = useInstalledAppsStore()
++const progress = useInstallProgressStore()
++const installingTasks = computed(() => Object.values(progress.tasks))
+ const bus = useMessageBus()
+ const toast = useToast()
+ // reka-ui 的 AlertDialogAction 本身是个 DialogClose:点击红色确认按钮时,
+ // update:open(false) 先于 @click 派发的 confirm 事件触发。若 open 标志和 target
+ // 共用一个 ref,update:open 处理器会先把 target 置空,confirm 读到的就是 null,
+ // store.uninstall 永远不会被调用(SP5-P1 终审 CRITICAL)。参照 SharesPage.vue 的
+ // delDlg 模式:open 与 app 打包在同一个 ref 里,只在 confirm 读取后才关闭 open,
+ // update:open 处理器只改 open,不动 app。
+ const uninstallDlg = ref<{ open: boolean; app: InstalledApp | null }>({ open: false, app: null })
+ 
+@@ -44,46 +48,51 @@ async function onUninstallConfirm(deleteConfigFolder: boolean) {
+   try {
+     await store.uninstall(a.id, deleteConfigFolder)
+   } catch (e) {
+     console.warn('[apps] uninstall', a.id, e)
+     toast.show(t('appsOpFailed', { name: a.title }), 4000)
+   } finally {
+     uninstallDlg.value.open = false
+   }
+ }
+ 
+-// app:* 生命周期(spec §2.3);install-end 单列:后台装完新应用要浮出列表
++// app:* 生命周期(spec §2.3);install-* 由 installProgress store 全局订阅收敛(D6)
+ const APP_EVENTS = [
+   'app:start-begin', 'app:start-end', 'app:start-error',
+   'app:stop-begin', 'app:stop-end', 'app:stop-error',
+   'app:restart-begin', 'app:restart-end', 'app:restart-error',
+   'app:update-begin', 'app:update-end', 'app:update-error',
+   'app:uninstall-begin', 'app:uninstall-end', 'app:uninstall-error',
+ ]
+ const offs: Array<() => void> = []
+ const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refresh: () => { store.refresh().catch(() => {}) } })
+ 
+ onMounted(() => {
+   store.refresh().catch((e) => console.warn('[apps] load', e))
+   APP_EVENTS.forEach((ev) => offs.push(bus.on(ev, (props) => store.onAppEvent(ev, props))))
+-  offs.push(bus.on('app:install-end', () => { store.refresh().catch(() => {}) }))
+   offs.push(bus.on(CONTAINER_EVENT, (props) => bridge.handle(props)))
+ })
+ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('appsTitle')">
+     <div class="apps-layout">
+       <AppsSidebar />
+       <main class="apps-main">
+-        <p v-if="!store.loading && !store.apps.length" class="apps-empty">{{ t('appsEmpty') }}</p>
++        <div v-if="installingTasks.length" class="apps-grid iac-grid">
++          <InstallingAppCard
++            v-for="tk in installingTasks" :key="tk.id"
++            :task="tk" @dismiss="progress.dismiss(tk.id)"
++          />
++        </div>
++        <p v-if="!store.loading && !store.apps.length && !installingTasks.length" class="apps-empty">{{ t('appsEmpty') }}</p>
+         <div v-else class="apps-grid">
+           <InstalledAppCard
+             v-for="a in store.apps" :key="a.id"
+             :app="a" :pending-op="store.pending[a.id]"
+             @open="onOpen(a)"
+             @action="(op) => onAction(a, op)"
+             @uninstall="uninstallDlg = { open: true, app: a }"
+           />
+         </div>
+         <UninstallConfirm
+@@ -95,12 +104,13 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+       </main>
+     </div>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
+ .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
+ .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
++.iac-grid { margin-bottom: 14px; }
+ @media (max-width: 768px) { .apps-layout { gap: 0; } }
+ </style>
+diff --git a/src/apps/views/StoreAppDetailPage.test.ts b/src/apps/views/StoreAppDetailPage.test.ts
+index f98d2f8..683d71a 100644
+--- a/src/apps/views/StoreAppDetailPage.test.ts
++++ b/src/apps/views/StoreAppDetailPage.test.ts
+@@ -1,87 +1,162 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
++import { nextTick } from 'vue'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+-  categories: vi.fn().mockResolvedValue([]),
+-  listApps: vi.fn().mockResolvedValue({ installed: ['jellyfin'], list: {} }),
+-  getApp: vi.fn(),
++  appstore: {
++    categories: vi.fn().mockResolvedValue([]),
++    listApps: vi.fn().mockResolvedValue({ installed: ['jellyfin'], list: {} }),
++    getApp: vi.fn(),
++    getAppCompose: vi.fn(),
++  },
++  compose: {
++    install: vi.fn(),
++    get: vi.fn(),
++    list: vi.fn().mockResolvedValue({}),
++  },
++  sys: {
++    hardwareInfo: vi.fn(),
++  },
+ }))
+-vi.mock('@nimotech/nimoos-service', () => ({ service: { appstore: svc } }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
+ 
+ const push = vi.fn()
+ vi.mock('vue-router', () => ({
+   useRouter: () => ({ push }),
+   useRoute: () => ({ name: 'apps-store-detail', fullPath: '/apps/store/jellyfin', params: { id: 'jellyfin' }, query: {} }),
+ }))
+ 
+ import StoreAppDetailPage from './StoreAppDetailPage.vue'
++import { useInstallProgressStore } from '../stores/installProgress'
++import { __resetDeviceArchForTest } from '../composables/useDeviceArch'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++const ID = 'jellyfin'
+ const DETAIL = {
+   title: { en_us: 'Jellyfin' },
+   tagline: { zh_cn: '个人媒体系统' },
+   description: { zh_cn: '**强大**的媒体服务器' },
+   icon: 'https://cdn/icon.png',
+   screenshot_link: ['https://cdn/s1.png', 'https://cdn/s2.png'],
+   category: 'Media',
+   developer: 'Jellyfin',
+ }
+ 
++// 显式把 pinia 实例挂到 mount 的 global.plugins——T6 StorePage.test.ts 同款教训:仅靠
++// setActivePinia() 在连续 mount 同一带多个 composable(useInstallFlow/useDeviceArch/
++// useInstallProgressStore)的页面时,曾观测到组件绑定到早前某次 beforeEach 的 pinia 实例。
++let pinia: ReturnType<typeof createPinia>
++
++/** 沿本文件既有挂载写法:detailOverrides 合入 fixture detail(如 architectures) */
++function mountDetail(detailOverrides: Record<string, unknown> = {}) {
++  svc.appstore.getApp.mockResolvedValue({ ...DETAIL, ...detailOverrides })
++  return mount(StoreAppDetailPage, { global: { plugins: [i18n, pinia] } })
++}
++
+ describe('StoreAppDetailPage', () => {
+   beforeEach(() => {
+-    setActivePinia(createPinia())
+-    svc.getApp.mockReset().mockResolvedValue(DETAIL)
+-    svc.listApps.mockClear()
++    pinia = createPinia()
++    setActivePinia(pinia)
++    localStorage.clear()
++    __resetDeviceArchForTest()
++    svc.appstore.getApp.mockReset().mockResolvedValue(DETAIL)
++    svc.appstore.listApps.mockReset().mockResolvedValue({ installed: ['jellyfin'], list: {} })
++    svc.appstore.categories.mockClear()
++    svc.appstore.getAppCompose.mockReset().mockResolvedValue('services: {}')
++    svc.compose.install.mockReset().mockResolvedValue(undefined)
++    svc.compose.get.mockReset()
++    svc.compose.list.mockReset().mockResolvedValue({})
++    svc.sys.hardwareInfo.mockReset().mockResolvedValue({ arch: 'amd64' })
++    busOn.mockClear()
+     push.mockClear()
+   })
+ 
+   it('进页拉详情+补拉目录(判已装);渲染头部/meta/markdown 描述/截图', async () => {
+-    const w = mount(StoreAppDetailPage, { global: { plugins: [i18n] } })
++    const w = await mountDetail()
+     await flushPromises()
+-    expect(svc.getApp).toHaveBeenCalledWith('jellyfin')
+-    expect(svc.listApps).toHaveBeenCalledWith({}) // catalogLoaded=false 时补拉
++    expect(svc.appstore.getApp).toHaveBeenCalledWith('jellyfin')
++    expect(svc.appstore.listApps).toHaveBeenCalledWith({}) // catalogLoaded=false 时补拉
+     expect(w.text()).toContain('Jellyfin')
+     expect(w.text()).toContain('个人媒体系统')
+     expect(w.text()).toContain('Media')      // meta:分类
+     expect(w.text()).toContain('Jellyfin')   // meta:开发者
+     expect(w.get('.detail-desc').html()).toContain('<strong>强大</strong>') // markdown 渲染
+     expect(w.findAll('.detail-shot')).toHaveLength(2)
+     expect(w.text()).toContain('已安装')     // installed 含 jellyfin
+   })
+ 
+-  it('未安装 → 安装按钮,点击 toast 占位文案(P3 接管真安装)', async () => {
+-    svc.listApps.mockResolvedValue({ installed: [], list: {} })
+-    const w = mount(StoreAppDetailPage, { global: { plugins: [i18n] } })
++  it('未安装 → 点击安装走真实链路:dry_run→install→出现安装中%', async () => {
++    svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
++    const w = await mountDetail()
+     await flushPromises()
+     const btn = w.get('.detail-install')
+     expect(btn.text()).toContain('安装')
+     await btn.trigger('click')
+-    // toast store 是真 pinia:msg = 最新一条 toast 文案
+-    const { useToast } = await import('../../stores/toast')
+-    expect(useToast().msg).toContain('下一期')
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenNthCalledWith(1, 'services: {}', { dryRun: true, checkPortConflict: true })
++    expect(svc.compose.install).toHaveBeenNthCalledWith(2, 'services: {}', { checkPortConflict: true })
++    expect(w.text()).toContain('0') // track 后 percent=0 → 安装中 0%
+   })
+ 
+   it('详情加载失败 → 错误态 + 返回商店', async () => {
+-    svc.getApp.mockResolvedValue(undefined)
+-    const w = mount(StoreAppDetailPage, { global: { plugins: [i18n] } })
++    svc.appstore.getApp.mockResolvedValue(undefined)
++    const w = mount(StoreAppDetailPage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     expect(w.text()).toContain('应用详情加载失败')
+     await w.get('.detail-back').trigger('click')
+     expect(push).toHaveBeenCalledWith({ name: 'apps-store' })
+   })
+ 
+   it('点截图开放大层,ESC 关闭', async () => {
+-    const w = mount(StoreAppDetailPage, { attachTo: document.body, global: { plugins: [i18n] } })
++    svc.appstore.getApp.mockResolvedValue(DETAIL)
++    const w = mount(StoreAppDetailPage, { attachTo: document.body, global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     await w.findAll('.detail-shot')[0].trigger('click')
+     expect(w.find('.shot-zoom').exists()).toBe(true)
+     expect(w.get('.shot-zoom img').attributes('src')).toBe('https://cdn/s1.png')
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+     await w.vm.$nextTick()
+     expect(w.find('.shot-zoom').exists()).toBe(false)
+     w.unmount()
+   })
++
++  it('详情页安装:installing 态显示进度条与百分比', async () => {
++    svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
++    const w = await mountDetail()
++    await flushPromises()
++    await w.find('.detail-install').trigger('click')
++    await flushPromises()
++    // track 后 percent=0;推一个 progress 事件到 64
++    useInstallProgressStore().onEvent('app:install-progress', { 'app:name': ID, 'app:progress': '64' })
++    await nextTick()
++    expect(w.find('.op-progress-fill').attributes('style')).toContain('64%')
++    expect(w.text()).toContain('64')
++  })
++
++  it('install-error → 内联错误文案 + 可重试', async () => {
++    svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
++    const w = await mountDetail()
++    await flushPromises()
++    await w.find('.detail-install').trigger('click')
++    await flushPromises()
++    useInstallProgressStore().onEvent('app:install-error', { 'app:name': ID, message: 'pull failed' })
++    await nextTick()
++    expect(w.text()).toContain('pull failed')
++    expect(w.find('.detail-install').exists()).toBe(true) // 重试按钮
++  })
++
++  it('架构不兼容:按钮禁用 + 提示文案', async () => {
++    localStorage.setItem('arch', 'amd64')
++    svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
++    const w = await mountDetail({ architectures: ['arm64'] })
++    await flushPromises()
++    expect((w.find('.detail-install').element as HTMLButtonElement).disabled).toBe(true)
++    expect(w.text()).toContain('amd64')
++  })
+ })
+diff --git a/src/apps/views/StoreAppDetailPage.vue b/src/apps/views/StoreAppDetailPage.vue
+index 16a4a94..b92b67f 100644
+--- a/src/apps/views/StoreAppDetailPage.vue
++++ b/src/apps/views/StoreAppDetailPage.vue
+@@ -1,46 +1,61 @@
+ <script setup lang="ts">
+ import { computed, onMounted, onUnmounted, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import SnapCarousel from '../../components/SnapCarousel.vue'
++import PreInstallTips from '../components/PreInstallTips.vue'
+ import { useAppstoreStore } from '../stores/appstore'
+ import { resolveAppText } from '../util/appTitle'
+ import { renderMarkdown } from '../../files/viewers/renderMarkdown'
+-import { useToast } from '../../stores/toast'
++import { useInstallFlow } from '../composables/useInstallFlow'
++import { useDeviceArch } from '../composables/useDeviceArch'
++import { useInstallProgressStore } from '../stores/installProgress'
+ 
+ const { t, locale } = useI18n()
+ const route = useRoute()
+ const router = useRouter()
+ const store = useAppstoreStore()
+-const toast = useToast()
++
++const { isCompatible, archLabel } = useDeviceArch()
++const { tipsDlg, requestInstall, confirmTips } = useInstallFlow()
++const progress = useInstallProgressStore()
+ 
+ const id = computed(() => String(route.params.id ?? ''))
+ 
+ onMounted(() => {
+   store.loadDetail(id.value)
+   // 深链直达详情时目录未加载 → 补拉一次以判「已装」(全量目录本就无分页,代价可接受)
+   if (!store.catalogLoaded) store.loadCatalog().catch(() => {})
+ })
+ 
+ const title = computed(() => resolveAppText(store.detail?.title, locale.value, id.value))
+ const tagline = computed(() => resolveAppText(store.detail?.tagline, locale.value, ''))
+ /** renderMarkdown 是 html:false 的 markdown-it——原始 HTML 被转义,v-html 其输出安全(§3.8-2) */
+ const descHtml = computed(() => renderMarkdown(resolveAppText(store.detail?.description, locale.value, '')))
+ const shots = computed(() => (Array.isArray(store.detail?.screenshot_link) ? store.detail.screenshot_link : []))
+ const installed = computed(() => store.isInstalled(id.value))
+ 
+-/** P3 接管:真实安装编排(dry_run→install→进度)。本期占位 toast。 */
++const task = computed(() => progress.tasks[id.value])
++const compatible = computed(() =>
++  isCompatible(Array.isArray(store.detail?.architectures) ? (store.detail!.architectures as string[]) : undefined),
++)
+ function onInstall() {
+-  toast.show(t('appsStoreInstallSoon'))
++  if (!store.detail) return
++  requestInstall({
++    id: id.value,
++    title: title.value,
++    icon: typeof store.detail.icon === 'string' ? store.detail.icon : '',
++    tips: store.detail.tips,
++  })
+ }
+ function backToStore() {
+   router.push({ name: 'apps-store' })
+ }
+ 
+ // 截图放大层(自绘 overlay:P4a viewers 同款内联全屏模式,不引 Dialog)
+ const zoomSrc = ref<string | null>(null)
+ function onZoomKeydown(e: KeyboardEvent) {
+   if (e.key === 'Escape') zoomSrc.value = null
+ }
+@@ -59,21 +74,34 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
+           <p>{{ t('appsStoreDetailFailed') }}</p>
+         </div>
+ 
+         <template v-else-if="store.detail">
+           <header class="detail-head">
+             <img v-if="store.detail.icon" :src="String(store.detail.icon)" alt="" class="detail-icon" />
+             <div class="detail-head-meta">
+               <h2 class="detail-title">{{ title }}</h2>
+               <p class="detail-tagline">{{ tagline }}</p>
+               <span v-if="installed" class="store-badge">{{ t('appsStoreInstalled') }}</span>
+-              <button v-else class="detail-install" type="button" @click="onInstall">{{ t('appsStoreInstall') }}</button>
++              <div v-else-if="task && task.state === 'installing'" class="detail-progress">
++                <div class="op-progress"><div class="op-progress-fill" :style="{ width: task.percent + '%' }" /></div>
++                <span class="detail-progress-text">{{ t('appsInstallingPercent', { percent: task.percent }) }}</span>
++              </div>
++              <div v-else-if="task" class="detail-install-error">
++                <span class="detail-error-text">{{ task.message || t('appsInstallStalled') }}</span>
++                <button class="detail-install" type="button" @click="onInstall">{{ t('appsStoreInstall') }}</button>
++              </div>
++              <template v-else>
++                <button class="detail-install" type="button" :disabled="!compatible" @click="onInstall">
++                  {{ t('appsStoreInstall') }}
++                </button>
++                <p v-if="!compatible" class="detail-incompat">{{ t('appsStoreIncompatible', { arch: archLabel }) }}</p>
++              </template>
+             </div>
+           </header>
+ 
+           <dl class="detail-meta">
+             <div v-if="store.detail.category" class="detail-meta-item">
+               <dt>{{ t('appsStoreCategory') }}</dt>
+               <dd>{{ store.detail.category }}</dd>
+             </div>
+             <div v-if="store.detail.developer" class="detail-meta-item">
+               <dt>{{ t('appsStoreDeveloper') }}</dt>
+@@ -92,20 +120,26 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
+ 
+           <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false,输出已转义 -->
+           <div class="detail-desc" v-html="descHtml"></div>
+         </template>
+       </main>
+     </div>
+ 
+     <div v-if="zoomSrc" class="shot-zoom" role="dialog" :aria-label="t('appsStoreZoomClose')" @click="zoomSrc = null">
+       <img :src="zoomSrc" alt="" />
+     </div>
++
++    <PreInstallTips
++      :open="tipsDlg.open" :text="tipsDlg.text"
++      @update:open="(v) => { if (!v) tipsDlg.open = false }"
++      @confirm="confirmTips"
++    />
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
+ .detail-back { font-size: 13px; margin-bottom: 14px; }
+ .detail-error { padding: 40px 0; text-align: center; color: var(--fg-muted); font-size: 14px; }
+ 
+ .detail-head { display: flex; gap: 16px; align-items: center; margin-bottom: 18px; }
+@@ -116,20 +150,29 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
+ .store-badge {
+   font-size: 12px; padding: 2px 10px; border-radius: 999px;
+   color: var(--accent-text); background: var(--accent-soft);
+ }
+ .detail-install {
+   font-size: 13.5px; padding: 7px 22px; cursor: pointer;
+   color: var(--on-accent); background: var(--accent);
+   border: none; border-radius: 10px;
+ }
+ .detail-install:hover { filter: brightness(1.08); }
++.detail-install:disabled { opacity: 0.55; cursor: default; filter: none; }
++
++.detail-progress { display: flex; align-items: center; gap: 10px; min-width: 240px; }
++.op-progress { flex: 1 1 auto; height: 6px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
++.op-progress-fill { height: 100%; background: var(--accent); transition: width 0.2s; }
++.detail-progress-text { font-size: 12.5px; color: var(--fg-muted); white-space: nowrap; }
++.detail-install-error { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
++.detail-error-text { font-size: 13px; color: var(--remove-fg); }
++.detail-incompat { margin: 8px 0 0; font-size: 12.5px; color: var(--fg-muted); }
+ 
+ .detail-meta { display: flex; gap: 28px; margin: 0 0 18px; }
+ .detail-meta-item dt { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 2px; }
+ .detail-meta-item dd { font-size: 13.5px; margin: 0; color: var(--fg); }
+ 
+ .detail-shots { margin-bottom: 18px; }
+ .detail-shot { height: 210px; border-radius: var(--radius); cursor: zoom-in; object-fit: cover; }
+ 
+ .detail-desc { font-size: 14px; line-height: 1.7; color: var(--fg); max-width: 760px; }
+ .detail-desc :deep(a) { color: var(--accent); }
+diff --git a/src/apps/views/StorePage.test.ts b/src/apps/views/StorePage.test.ts
+index 82f7ae2..abf7ac7 100644
+--- a/src/apps/views/StorePage.test.ts
++++ b/src/apps/views/StorePage.test.ts
+@@ -1,121 +1,196 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+-  categories: vi.fn().mockResolvedValue([{ id: 1, name: 'Media', count: 2 }]),
+-  listApps: vi.fn(),
+-  getApp: vi.fn(),
++  appstore: {
++    categories: vi.fn().mockResolvedValue([{ id: 1, name: 'Media', count: 2 }]),
++    listApps: vi.fn(),
++    getApp: vi.fn(),
++    getAppCompose: vi.fn(),
++  },
++  compose: {
++    install: vi.fn(),
++    get: vi.fn(),
++    list: vi.fn().mockResolvedValue({}),
++  },
++  sys: {
++    hardwareInfo: vi.fn(),
++  },
+ }))
+-vi.mock('@nimotech/nimoos-service', () => ({ service: { appstore: svc } }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
+ 
+ const push = vi.fn()
+ const replace = vi.fn()
+ const routeQuery: Record<string, string> = {}
+ vi.mock('vue-router', () => ({
+   useRouter: () => ({ push, replace }),
+   useRoute: () => ({ name: 'apps-store', fullPath: '/apps/store', query: routeQuery }),
+ }))
+ 
+ import StorePage from './StorePage.vue'
++import { __resetDeviceArchForTest } from '../composables/useDeviceArch'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ const CATALOG = {
+   installed: ['jellyfin'],
+   list: {
+     jellyfin: { title: { en_us: 'Jellyfin' }, tagline: { zh_cn: '个人媒体系统' }, icon: '', category: 'Media' },
+     nextcloud: { title: { en_us: 'Nextcloud' }, tagline: { en_us: 'File sync' }, icon: '', category: 'Cloud' },
+   },
+ }
++// nextcloud 带 tips.before_install:用于「先弹须知」用例(D3),jellyfin 保持已装态不变
++const CATALOG_WITH_TIPS = {
++  installed: ['jellyfin'],
++  list: {
++    jellyfin: CATALOG.list.jellyfin,
++    nextcloud: {
++      ...CATALOG.list.nextcloud,
++      tips: { before_install: { zh_cn: '先看这个' } },
++    },
++  },
++}
++
++// 显式把 pinia 实例挂到 mount 的 global.plugins——仅靠 setActivePinia() 在本文件这种
++// 多用例连续 mount 同一带多个 composable(useInstallFlow/useDeviceArch/useInstallProgressStore)
++// 的页面时,曾观测到后挂载的组件绑定到早前某次 beforeEach 创建的 pinia 实例(Pinia 在无
++// app.use(pinia) 时退化为 getActivePinia() 全局变量,时序上不够稳固)。显式传入杜绝此类漂移。
++let pinia: ReturnType<typeof createPinia>
++
++/** T6 新增两例的挂载 helper:withTips 切换目录/Featured 用的 mock 数据,Portal 断言需要真 DOM */
++function mountPage(opts: { withTips?: boolean } = {}) {
++  svc.appstore.listApps.mockResolvedValue(opts.withTips ? CATALOG_WITH_TIPS : CATALOG)
++  return mount(StorePage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
++}
+ 
+ describe('StorePage', () => {
+   beforeEach(() => {
+-    setActivePinia(createPinia())
++    pinia = createPinia()
++    setActivePinia(pinia)
+     for (const k of Object.keys(routeQuery)) delete routeQuery[k]
+-    svc.listApps.mockReset().mockResolvedValue(CATALOG)
+-    svc.categories.mockClear()
++    localStorage.clear()
++    __resetDeviceArchForTest()
++    svc.appstore.listApps.mockReset().mockResolvedValue(CATALOG)
++    svc.appstore.categories.mockClear()
++    svc.appstore.getAppCompose.mockReset()
++    svc.compose.install.mockReset()
++    svc.compose.get.mockReset()
++    svc.compose.list.mockReset().mockResolvedValue({})
++    svc.sys.hardwareInfo.mockReset().mockResolvedValue({ arch: 'amd64' })
++    busOn.mockClear()
+     push.mockClear(); replace.mockClear()
+   })
+ 
+   it('进区拉目录+Featured;渲染卡片网格与已装徽章', async () => {
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+-    expect(svc.listApps).toHaveBeenCalledWith({})               // 目录
+-    expect(svc.listApps).toHaveBeenCalledWith({ recommend: true }) // Featured
++    expect(svc.appstore.listApps).toHaveBeenCalledWith({})               // 目录
++    expect(svc.appstore.listApps).toHaveBeenCalledWith({ recommend: true }) // Featured
+     // 用同一份 CATALOG 兜底两路调用(目录+Featured),T4 起页面同时挂 FeaturedStrip——
+     // 主网格卡片数收窄到 .apps-grid 范围内断言,避免把 Featured 带的卡片也计入
+     expect(w.find('.apps-grid').findAll('.store-card')).toHaveLength(2)
+     expect(w.text()).toContain('已安装') // jellyfin ∈ installed
+   })
+ 
+   it('目录为空 → 空态提示(非报错,spec §7.5)', async () => {
+-    svc.listApps.mockResolvedValue({ installed: [], list: {} })
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     expect(w.text()).toContain('没有找到应用')
+   })
+ 
+   it('加载失败 → 错误态 + 重试按钮,点击重拉', async () => {
+-    svc.listApps.mockRejectedValue(new Error('boom'))
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    svc.appstore.listApps.mockRejectedValue(new Error('boom'))
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     expect(w.text()).toContain('应用商店加载失败')
+-    svc.listApps.mockResolvedValue(CATALOG)
++    svc.appstore.listApps.mockResolvedValue(CATALOG)
+     await w.get('.store-retry').trigger('click')
+     await flushPromises()
+     expect(w.findAll('.store-card')).toHaveLength(2)
+   })
+ 
+   it('搜索输入 250ms 防抖后 replace 路由 query(前端过滤,深链)', async () => {
+     vi.useFakeTimers()
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     await w.get('.store-search input').setValue('jelly')
+     expect(replace).not.toHaveBeenCalled()
+     vi.advanceTimersByTime(260)
+     expect(replace).toHaveBeenCalledWith({ query: { search: 'jelly' } })
+     vi.useRealTimers()
+   })
+ 
+   it('组件卸载后清理防抖定时器——不应在卸载后(如已跳转详情页)仍触发 replace', async () => {
+     vi.useFakeTimers()
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     await w.get('.store-search input').setValue('jelly')
+     w.unmount()
+     vi.advanceTimersByTime(260)
+     expect(replace).not.toHaveBeenCalled()
+     vi.useRealTimers()
+   })
+ 
+   it('?search= 生效时前端过滤;点卡片进详情', async () => {
+     routeQuery.search = 'jelly'
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     const cards = w.findAll('.store-card')
+     expect(cards).toHaveLength(1)
+     await cards[0].trigger('click')
+     expect(push).toHaveBeenCalledWith({ name: 'apps-store-detail', params: { id: 'jellyfin' } })
+   })
+ 
+   it('点分类 chip → replace query;?category= 变化由 watch 重拉(后端参数)', async () => {
+     routeQuery.category = 'Media'
+-    mount(StorePage, { global: { plugins: [i18n] } })
++    mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+-    expect(svc.listApps).toHaveBeenCalledWith({ category: 'Media' })
++    expect(svc.appstore.listApps).toHaveBeenCalledWith({ category: 'Media' })
+   })
+ 
+   it('Featured 带只在 无搜索+全部分类+全部来源 时显示', async () => {
+-    const w = mount(StorePage, { global: { plugins: [i18n] } })
++    const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     expect(w.find('.featured-strip').exists()).toBe(true)
+     w.unmount()
+ 
+     routeQuery.search = 'jelly'
+-    const w2 = mount(StorePage, { global: { plugins: [i18n] } })
++    const w2 = mount(StorePage, { global: { plugins: [i18n, pinia] } })
+     await flushPromises()
+     expect(w2.find('.featured-strip').exists()).toBe(false)
+   })
++
++  it('点卡片安装钮走真实链路:dry_run→install→出现安装中%', async () => {
++    svc.appstore.getAppCompose.mockResolvedValue('services: {}')
++    svc.compose.install.mockResolvedValue(undefined)
++    const w = await mountPage()
++    await flushPromises()
++    await w.find('.store-install').trigger('click')
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenNthCalledWith(1, 'services: {}', { dryRun: true, checkPortConflict: true })
++    expect(svc.compose.install).toHaveBeenNthCalledWith(2, 'services: {}', { checkPortConflict: true })
++    expect(w.find('.store-install').text()).toContain('0') // track 后 percent=0 → 安装中 0%
++    w.unmount()
++  })
++
++  it('带 before_install 的应用:先弹须知,确认后才安装', async () => {
++    // fixture 的 list 里给该应用带 tips.before_install.zh_cn
++    svc.appstore.getAppCompose.mockResolvedValue('services: {}')
++    const w = await mountPage({ withTips: true })
++    await flushPromises()
++    await w.find('.store-install').trigger('click')
++    await flushPromises()
++    expect(svc.compose.install).not.toHaveBeenCalled()
++    const confirm = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.includes('继续安装'))!
++    confirm.click()
++    await flushPromises()
++    expect(svc.compose.install).toHaveBeenCalledTimes(2)
++    w.unmount()
++  })
+ })
+diff --git a/src/apps/views/StorePage.vue b/src/apps/views/StorePage.vue
+index f145e31..a0e0eff 100644
+--- a/src/apps/views/StorePage.vue
++++ b/src/apps/views/StorePage.vue
+@@ -1,32 +1,53 @@
+ <script setup lang="ts">
+ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import StoreCard from '../components/StoreCard.vue'
+ import CategoryBar from '../components/CategoryBar.vue'
+ import FeaturedStrip from '../components/FeaturedStrip.vue'
++import PreInstallTips from '../components/PreInstallTips.vue'
+ import { useAppstoreStore, ALL } from '../stores/appstore'
+ import { mapStoreApp, filterStoreApps } from '../util/storeApp'
+-import { useToast } from '../../stores/toast'
++import { useInstallFlow } from '../composables/useInstallFlow'
++import { useDeviceArch } from '../composables/useDeviceArch'
++import { useInstallProgressStore } from '../stores/installProgress'
++import type { StoreApp } from '../util/storeApp'
+ 
+ const { t, locale } = useI18n()
+ const route = useRoute()
+ const router = useRouter()
+ const store = useAppstoreStore()
+-const toast = useToast()
+ 
+-/** P3 接管:真实安装编排。本期卡片安装钮与详情页同款占位 toast。 */
+-function onInstall() {
+-  toast.show(t('appsStoreInstallSoon'))
++const { isCompatible } = useDeviceArch()
++const { tipsDlg, requestInstall, confirmTips } = useInstallFlow()
++const progress = useInstallProgressStore()
++
++function onInstall(a: StoreApp) {
++  requestInstall({ id: a.id, title: a.title, icon: a.icon, tips: a.tips })
++}
++/** Featured 卡只带 id:原始数据在 store.featured/list 里查 */
++function onInstallById(id: string) {
++  const raw = store.featured[id] ?? store.list[id]
++  if (!raw) return
++  const a = mapStoreApp(id, raw, locale.value)
++  onInstall(a)
++}
++const percentOf = (id: string) => {
++  const task = progress.tasks[id]
++  return task && task.state === 'installing' ? task.percent : null
++}
++const compatibleOf = (id: string) => {
++  const raw = store.list[id] ?? store.featured[id]
++  return isCompatible(Array.isArray(raw?.architectures) ? (raw!.architectures as string[]) : undefined)
+ }
+ 
+ // 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query
+ const category = computed(() => (typeof route.query.category === 'string' && route.query.category) || ALL)
+ const author = computed(() => (typeof route.query.author === 'string' && route.query.author) || ALL)
+ const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')
+ 
+ // 作者过滤:Vue2 静态菜单(All/official/by_nimoos/community → author_type 参数)
+ const AUTHORS = [
+   { value: ALL, labelKey: 'appsStoreAll' },
+@@ -93,35 +114,42 @@ function openDetail(id: string) {
+                 <option v-for="a in AUTHORS" :key="a.value" :value="a.value">{{ t(a.labelKey) }}</option>
+               </select>
+               <label class="store-search">
+                 <input v-model="searchInput" type="search" :placeholder="t('appsStoreSearch')" />
+               </label>
+             </div>
+           </div>
+           <FeaturedStrip
+             v-if="showFeatured"
+             :items="featuredItems" :installed="store.isInstalled"
++            :progress="percentOf" :compatible="compatibleOf"
+             @open="openDetail"
+-            @install="onInstall"
++            @install="onInstallById"
+           />
+           <p v-if="!store.loading && !shown.length" class="apps-empty">{{ t('appsStoreEmpty') }}</p>
+           <div v-else class="apps-grid">
+             <StoreCard
+               v-for="a in shown" :key="a.id"
+               :app="a" :installed="store.isInstalled(a.id)"
++              :compatible="compatibleOf(a.id)" :percent="percentOf(a.id)"
+               @open="openDetail(a.id)"
+-              @install="onInstall"
++              @install="onInstall(a)"
+             />
+           </div>
+         </template>
+       </main>
+     </div>
++    <PreInstallTips
++      :open="tipsDlg.open" :text="tipsDlg.text"
++      @update:open="(v) => { if (!v) tipsDlg.open = false }"
++      @confirm="confirmTips"
++    />
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
+ .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
+ .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+ 
+ .store-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+diff --git a/src/files/viewers/ImageViewer.test.ts b/src/files/viewers/ImageViewer.test.ts
+new file mode 100644
+index 0000000..faf9d37
+--- /dev/null
++++ b/src/files/viewers/ImageViewer.test.ts
+@@ -0,0 +1,126 @@
++import { describe, it, expect, vi } from 'vitest'
++import { nextTick } from 'vue'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++import ImageViewer from './ImageViewer.vue'
++import type { FileEntry } from '../stores/files'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { file: { fileUrl: (p: string) => `/v3/file?path=${encodeURIComponent(p)}` } },
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++const entry = (name: string): FileEntry => ({ name, path: `/DATA/${name}`, is_dir: false })
++
++const mountViewer = async () => {
++  const list = [entry('a.png'), entry('b.png')]
++  const w = mount(ImageViewer, { props: { item: list[0]!, list }, global: { plugins: [i18n] } })
++  await nextTick() // 工具栏 v-if="isMoving" 在 onMounted 置 true,等一帧渲染
++  return w
++}
++
++describe('ImageViewer', () => {
++  // 历史 bug:.img-stage 的 pointerdown 对冒泡自工具栏按钮的事件也 setPointerCapture,
++  // 指针被 stage 捕获后按钮收不到 click —— 底部工具栏整排按钮全部失效。
++  it('工具栏上按下指针不得进入舞台拖拽(pointer capture 不吞按钮)', async () => {
++    const w = await mountViewer()
++    const btn = w.findAll('.img-toolbar .tb-item')[1]! // ＋ 放大键
++    await btn.trigger('pointerdown', { clientX: 10, clientY: 10 })
++    await w.get('.img-stage').trigger('pointermove', { clientX: 60, clientY: 80 })
++    expect(w.get('img.img-el').attributes('style')).toContain('translate(0px, 0px)')
++  })
++
++  it('工具栏按钮 click 生效:放大改 scale、旋转改 rotate', async () => {
++    const w = await mountViewer()
++    const items = w.findAll('.img-toolbar .tb-item')
++    await items[1]!.trigger('click') // 放大
++    expect(w.get('img.img-el').attributes('style')).toContain('scale(1.1)')
++    await items[2]!.trigger('click') // 旋转
++    expect(w.get('img.img-el').attributes('style')).toContain('rotate(90deg)')
++  })
++
++  it('在舞台空白处拖拽仍可平移图片', async () => {
++    const w = await mountViewer()
++    const stage = w.get('.img-stage')
++    await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
++    await stage.trigger('pointermove', { clientX: 30, clientY: 40 })
++    expect(w.get('img.img-el').attributes('style')).toContain('translate(20px, 30px)')
++  })
++})
++
++// —— 停手落盘:缩放停止 150ms 后倍数烙进布局尺寸,强制重画消除合成器瓦线 ——
++describe('ImageViewer 缩放落盘', () => {
++  const mountWithSize = async () => {
++    vi.useFakeTimers()
++    const w = await mountViewer()
++    const img = w.get('img.img-el').element as HTMLImageElement
++    // jsdom 无布局,手工给出落盘前的布局尺寸(相当于 contain 后的显示大小)
++    Object.defineProperty(img, 'offsetWidth', { value: 800, configurable: true })
++    Object.defineProperty(img, 'offsetHeight', { value: 600, configurable: true })
++    return w
++  }
++  const zoomInBtn = (w: Awaited<ReturnType<typeof mountViewer>>) => w.findAll('.img-toolbar .tb-item')[1]!
++  const resetBtn = (w: Awaited<ReturnType<typeof mountViewer>>) => w.findAll('.img-toolbar .tb-item')[3]!
++
++  it('停手 150ms 后落盘:scale 归 1,倍数写进 width/height', async () => {
++    const w = await mountWithSize()
++    try {
++      await zoomInBtn(w).trigger('click') // 有效倍数 1.1
++      vi.advanceTimersByTime(150)
++      await nextTick()
++      const style = w.get('img.img-el').attributes('style')!
++      expect(style).toContain('scale(1)')
++      expect(style).toContain('width: 880px') // round(800×1.1)
++      expect(style).toContain('height: 660px')
++      expect(style).toContain('max-width: none')
++    } finally { vi.useRealTimers() }
++  })
++
++  it('连续缩放期间不落盘(防抖),停手后才落', async () => {
++    const w = await mountWithSize()
++    try {
++      await zoomInBtn(w).trigger('click')
++      vi.advanceTimersByTime(100)
++      await zoomInBtn(w).trigger('click') // 重置防抖计时
++      vi.advanceTimersByTime(100)
++      await nextTick()
++      let style = w.get('img.img-el').attributes('style')!
++      expect(style).not.toContain('width:') // 尚未落盘
++      expect(style).toContain('scale(1.2')
++      vi.advanceTimersByTime(50) // 距最后一次操作满 150ms
++      await nextTick()
++      style = w.get('img.img-el').attributes('style')!
++      expect(style).toContain('scale(1)')
++      expect(style).toContain('width: 960px') // round(800×1.2)
++    } finally { vi.useRealTimers() }
++  })
++
++  it('复位清除落盘尺寸,回到 CSS 自适应', async () => {
++    const w = await mountWithSize()
++    try {
++      await zoomInBtn(w).trigger('click')
++      vi.advanceTimersByTime(150)
++      await nextTick()
++      expect(w.get('img.img-el').attributes('style')).toContain('width: 880px')
++      await resetBtn(w).trigger('click')
++      await nextTick()
++      const style = w.get('img.img-el').attributes('style')!
++      expect(style).not.toContain('width:')
++      expect(style).toContain('scale(1)')
++    } finally { vi.useRealTimers() }
++  })
++
++  it('图未加载(布局尺寸为 0)时跳过落盘,不破坏显示', async () => {
++    vi.useFakeTimers()
++    const w = await mountViewer() // jsdom 默认 offsetWidth=0
++    try {
++      await w.findAll('.img-toolbar .tb-item')[1]!.trigger('click')
++      vi.advanceTimersByTime(150)
++      await nextTick()
++      const style = w.get('img.img-el').attributes('style')!
++      expect(style).toContain('scale(1.1)') // 保持 transform 缩放,未写入 0 尺寸
++      expect(style).not.toContain('width:')
++    } finally { vi.useRealTimers() }
++  })
++})
+diff --git a/src/files/viewers/ImageViewer.vue b/src/files/viewers/ImageViewer.vue
+index 3867c9c..f57e37e 100644
+--- a/src/files/viewers/ImageViewer.vue
++++ b/src/files/viewers/ImageViewer.vue
+@@ -9,43 +9,93 @@ import type { FileEntry } from '../stores/files'
+ const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
+ const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
+ const { t } = useI18n()
+ 
+ const items = filterImages(props.list.length ? props.list : [props.item])
+ const index = ref(imageIndex(items, props.item))
+ const current = computed(() => items[index.value] ?? props.item)
+ const src = computed(() => service.file.fileUrl(current.value.path))
+ 
+ // —— 变换状态(自实现 缩放/旋转/平移,取代 viewerjs inline)——
+-const scale = ref(1)
++const scale = ref(1) // 交互增量倍数(落盘后归 1)
++const committedZoom = ref(1) // 已落盘总倍数;有效倍数 = committedZoom × scale
++const committedW = ref<number | null>(null)
++const committedH = ref<number | null>(null)
++const suppressTransition = ref(false)
+ const rotation = ref(0)
+ const tx = ref(0)
+ const ty = ref(0)
++const imgEl = ref<HTMLImageElement | null>(null)
+ const imgStyle = computed(() => ({
+   transform: `translate(${tx.value}px, ${ty.value}px) scale(${scale.value}) rotate(${rotation.value}deg)`,
++  ...(committedW.value !== null && committedH.value !== null
++    ? { width: `${committedW.value}px`, height: `${committedH.value}px`, maxWidth: 'none', maxHeight: 'none' }
++    : {}),
++  ...(suppressTransition.value ? { transition: 'none' } : {}),
+ }))
+-function resetTransform() { scale.value = 1; rotation.value = 0; tx.value = 0; ty.value = 0 }
+-function zoomIn() { scale.value = Math.min(scale.value + 0.1, 8) }
+-function zoomOut() { scale.value = Math.max(scale.value - 0.1, 0.1) }
++
++// —— 停手落盘:缩放停止 150ms 后把倍数烙进布局尺寸,强制按最终倍数重画 ——
++// 合成器快路径拉伸缓存瓷砖会在砖缝处露 1px 细线(瓦线);重画路径逐砖从原图采样,
++// 无缝且比拉伸态更锐。交互中仍走 transform 快路径保流畅,缝只可能一闪而过。
++const COMMIT_DELAY = 150
++let commitTimer: ReturnType<typeof setTimeout> | null = null
++let suppressTimer: ReturnType<typeof setTimeout> | null = null
++function scheduleCommit() {
++  if (commitTimer) clearTimeout(commitTimer)
++  commitTimer = setTimeout(commitZoom, COMMIT_DELAY)
++}
++function commitZoom() {
++  commitTimer = null
++  const el = imgEl.value
++  if (!el || scale.value === 1) return
++  const w = el.offsetWidth
++  const h = el.offsetHeight
++  if (!w || !h) return // 图未加载完(布局尺寸为 0),跳过本次落盘
++  committedW.value = Math.round(w * scale.value)
++  committedH.value = Math.round(h * scale.value)
++  committedZoom.value *= scale.value
++  scale.value = 1
++  // 落盘帧 scale N→1 会被 transition 动画化而宽高瞬变 —— 暂禁过渡,过渡时长后恢复
++  suppressTransition.value = true
++  if (suppressTimer) clearTimeout(suppressTimer)
++  suppressTimer = setTimeout(() => { suppressTransition.value = false; suppressTimer = null }, 50)
++}
++
++function resetTransform() {
++  if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
++  scale.value = 1; committedZoom.value = 1
++  committedW.value = null; committedH.value = null
++  rotation.value = 0; tx.value = 0; ty.value = 0
++}
++function setZoom(effective: number) {
++  const clamped = Math.min(Math.max(effective, 0.1), 8)
++  scale.value = clamped / committedZoom.value
++  scheduleCommit()
++}
++function zoomIn() { setZoom(committedZoom.value * scale.value + 0.1) }
++function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
+ function rotate() { rotation.value += 90 }
+ function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
+ 
+ // 换图(翻页)时复位变换
+ watch(index, resetTransform)
+ 
+ // —— 拖拽平移 ——
+ let dragging = false
+ let startX = 0
+ let startY = 0
+ let baseX = 0
+ let baseY = 0
+ function onPointerDown(e: PointerEvent) {
++  // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
++  // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
++  if ((e.target as HTMLElement).closest('.img-toolbar')) return
+   dragging = true
+   startX = e.clientX; startY = e.clientY; baseX = tx.value; baseY = ty.value
+   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+ }
+ function onPointerMove(e: PointerEvent) {
+   if (!dragging) return
+   tx.value = baseX + (e.clientX - startX)
+   ty.value = baseY + (e.clientY - startY)
+ }
+ function onPointerUp() { dragging = false }
+@@ -63,44 +113,49 @@ function onMouseMove() {
+   isMoving.value = true
+   if (hideTimer) clearTimeout(hideTimer)
+   hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
+ }
+ 
+ function onKey(e: KeyboardEvent) {
+   if (e.code === 'ArrowRight') next()
+   else if (e.code === 'ArrowLeft') prev()
+ }
+ onMounted(() => { window.addEventListener('keyup', onKey); onMouseMove() })
+-onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTimer) clearTimeout(hideTimer) })
++onBeforeUnmount(() => {
++  window.removeEventListener('keyup', onKey)
++  if (hideTimer) clearTimeout(hideTimer)
++  if (commitTimer) clearTimeout(commitTimer)
++  if (suppressTimer) clearTimeout(suppressTimer)
++})
+ </script>
+ 
+ <template>
+   <ViewerShell :title="current.name" downloadable @close="emit('close')" @download="emit('download', current)">
+     <div
+       class="img-stage"
+       @mousemove="onMouseMove"
+       @touchmove="onMouseMove"
+       @wheel.prevent="onWheel"
+       @pointerdown="onPointerDown"
+       @pointermove="onPointerMove"
+       @pointerup="onPointerUp"
+       @pointerleave="onPointerUp"
+     >
+-      <img class="img-el" :src="src" :style="imgStyle" alt="" draggable="false" />
++      <img ref="imgEl" class="img-el" :src="src" :style="imgStyle" alt="" draggable="false" />
+ 
+       <div v-if="isMoving" class="img-toolbar">
+-        <button type="button" class="tb-item" :class="{ disabled: disablePrev }" :title="t('filesViewerPrev')" @click="prev">‹</button>
+-        <button type="button" class="tb-item" :title="t('filesViewerZoomIn')" @click="zoomIn">＋</button>
+-        <button type="button" class="tb-item" :title="t('filesViewerRotate')" @click="rotate">⟳</button>
+-        <button type="button" class="tb-item" :title="t('filesViewerReset')" @click="resetTransform">⤢</button>
+-        <button type="button" class="tb-item" :title="t('filesViewerZoomOut')" @click="zoomOut">－</button>
+-        <button type="button" class="tb-item" :class="{ disabled: disableNext }" :title="t('filesViewerNext')" @click="next">›</button>
++        <button type="button" class="tb-item" :class="{ disabled: disablePrev }" @click="prev">{{ t('filesViewerPrev') }}</button>
++        <button type="button" class="tb-item" @click="zoomIn">{{ t('filesViewerZoomIn') }}</button>
++        <button type="button" class="tb-item" @click="rotate">{{ t('filesViewerRotate') }}</button>
++        <button type="button" class="tb-item" @click="resetTransform">{{ t('filesViewerReset') }}</button>
++        <button type="button" class="tb-item" @click="zoomOut">{{ t('filesViewerZoomOut') }}</button>
++        <button type="button" class="tb-item" :class="{ disabled: disableNext }" @click="next">{{ t('filesViewerNext') }}</button>
+       </div>
+     </div>
+   </ViewerShell>
+ </template>
+ 
+ <style scoped>
+ .img-stage {
+   width: 100%;
+   height: 100%;
+   position: relative;
+@@ -114,38 +169,43 @@ onBeforeUnmount(() => { window.removeEventListener('keyup', onKey); if (hideTime
+   background-repeat: repeat;
+ }
+ .img-stage:active { cursor: grabbing; }
+ .img-el {
+   max-width: 100%;
+   max-height: 100%;
+   object-fit: contain;
+   user-select: none;
+   -webkit-user-drag: none;
+   transition: transform 0.05s linear;
+-  will-change: transform;
++  /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
++     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
+ }
+ .img-toolbar {
+   position: absolute;
+   bottom: 40px;
+   left: 50%;
+   transform: translateX(-50%);
+   z-index: 10;
+   display: flex;
+   gap: 4px;
+   padding: 6px 10px;
+   border-radius: 10px;
+   background: var(--popup-bg);
+   backdrop-filter: var(--blur);
+ }
+ .tb-item {
+-  width: 34px;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
+   height: 34px;
++  padding: 0 12px;
+   border: none;
+   background: transparent;
+   color: var(--fg);
+-  font-size: 18px;
++  font-size: 13px;
++  white-space: nowrap;
+   cursor: pointer;
+   border-radius: 6px;
+ }
+ .tb-item:hover { background: var(--tool-bg-hi); }
+ .tb-item.disabled { opacity: 0.35; pointer-events: none; }
+ </style>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 2563f8e..418dd30 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -395,18 +395,28 @@ export const messages = {
+     appsStoreAuthorByNimoos: 'NimoOS',
+     appsStoreAuthorCommunity: 'Community',
+     appsStoreEmpty: 'No apps found',
+     appsStoreLoadFailed: 'Failed to load the app store',
+     appsStoreRetry: 'Retry',
+     appsStoreInstalled: 'Installed',
+     appsStoreFeatured: 'Featured Apps',
+     carouselPrev: 'Previous',
+     carouselNext: 'Next',
+     appsStoreInstall: 'Install',
+-    appsStoreInstallSoon: 'Installing will be available in the next phase',
+     appsStoreBack: 'Back to store',
+     appsStoreCategory: 'Category',
+     appsStoreDeveloper: 'Developer',
+     appsStoreDetailFailed: 'Failed to load app details',
+     appsStoreZoomClose: 'Close preview',
++    appsInstalling: 'Installing',
++    appsInstallingPercent: 'Installing {percent}%',
++    appsInstallFailed: 'Failed to install {name}',
++    appsInstallPortConflict: 'Ports in use: {ports}',
++    appsInstallDismiss: 'Dismiss',
++    appsInstallTipsTitle: 'Before you install',
++    appsInstallTipsConfirm: 'Continue',
++    appsStoreIncompatible: 'Not compatible with this device ({arch})',
++    appsInstallStalled: 'No install progress received — check the app list later',
+   },
+ }
++
++export default messages.en_us
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index f74b022..9baf6fd 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -394,18 +394,28 @@ export const messages = {
+     appsStoreAuthorByNimoos: 'NimoOS',
+     appsStoreAuthorCommunity: '社区',
+     appsStoreEmpty: '没有找到应用',
+     appsStoreLoadFailed: '应用商店加载失败',
+     appsStoreRetry: '重试',
+     appsStoreInstalled: '已安装',
+     appsStoreFeatured: '精选应用',
+     carouselPrev: '上一屏',
+     carouselNext: '下一屏',
+     appsStoreInstall: '安装',
+-    appsStoreInstallSoon: '安装功能将在下一期开放',
+     appsStoreBack: '返回商店',
+     appsStoreCategory: '分类',
+     appsStoreDeveloper: '开发者',
+     appsStoreDetailFailed: '应用详情加载失败',
+     appsStoreZoomClose: '关闭预览',
++    appsInstalling: '安装中',
++    appsInstallingPercent: '安装中 {percent}%',
++    appsInstallFailed: '{name} 安装失败',
++    appsInstallPortConflict: '端口被占用:{ports}',
++    appsInstallDismiss: '知道了',
++    appsInstallTipsTitle: '安装前须知',
++    appsInstallTipsConfirm: '继续安装',
++    appsStoreIncompatible: '与本机架构({arch})不兼容',
++    appsInstallStalled: '长时间未收到安装进度,请稍后在应用列表确认',
+   },
+ }
++
++export default messages.zh_cn

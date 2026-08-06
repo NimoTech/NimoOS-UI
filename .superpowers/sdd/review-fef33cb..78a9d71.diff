@@ -1,0 +1,76 @@
+# Review package: fef33cb..HEAD
+
+## Commits
+78a9d71 feat(drop): 雷达圆环定位纯函数(逐字移植 Vue2 几何)
+
+## Files changed
+ src/files/drop/dropLayout.test.ts | 27 +++++++++++++++++++++++++++
+ src/files/drop/dropLayout.ts      | 26 ++++++++++++++++++++++++++
+ 2 files changed, 53 insertions(+)
+
+## Diff
+diff --git a/src/files/drop/dropLayout.test.ts b/src/files/drop/dropLayout.test.ts
+new file mode 100644
+index 0000000..40b853c
+--- /dev/null
++++ b/src/files/drop/dropLayout.test.ts
+@@ -0,0 +1,27 @@
++import { describe, it, expect } from 'vitest'
++import { positionFor, contentsBox, DISPLAY_ORDER } from './dropLayout'
++
++describe('dropLayout', () => {
++  it('positionFor 与 Vue2 公式逐字一致(index<5 内圈 30°步进;≥5 外圈 45°步进/1.86)', () => {
++    const center = { x: 400, y: 300 }
++    const r = 500
++    // index=0: angle=30°, realRadius=500 → x=400+250*cos30, y=300-250*sin30
++    const p0 = positionFor(0, r, center)
++    expect(parseFloat(p0.left)).toBeCloseTo(400 + 250 * Math.cos(Math.PI / 6), 5)
++    expect(parseFloat(p0.top)).toBeCloseTo(300 - 250 * Math.sin(Math.PI / 6), 5)
++    // index=5: angle=45*(5%5)=0°, realRadius=500/1.86
++    const p5 = positionFor(5, r, center)
++    expect(parseFloat(p5.left)).toBeCloseTo(400 + 500 / 1.86 / 2, 5)
++    expect(parseFloat(p5.top)).toBeCloseTo(300, 5)
++  })
++  it('contentsBox:宽 > 2×高 时以高定宽(Vue2 resize 分支)', () => {
++    const b = contentsBox(2000, 500) // cW=1880, cHeight=500-60-144=296 → 1880>592
++    expect(b.width).toBe(296 * 2)
++    expect(b.height).toBe(296 + 144)
++    expect(b.radius).toBe(b.width)
++    expect(b.center).toEqual({ x: b.width / 2, y: b.height - 144 })
++  })
++  it('展示顺序表与 Vue2 一致', () => {
++    expect(DISPLAY_ORDER).toEqual([8, 6, 2, 3, 1, 7, 4, 0, 9, 5])
++  })
++})
+diff --git a/src/files/drop/dropLayout.ts b/src/files/drop/dropLayout.ts
+new file mode 100644
+index 0000000..1d08f1c
+--- /dev/null
++++ b/src/files/drop/dropLayout.ts
+@@ -0,0 +1,26 @@
++// 雷达圆环几何:逐字移植 Vue2 DropItem.positionStyle 与 DropPage.resize 数学。
++const RATIO = 1.86
++const GAP = 120
++const BOTTOM_GAP = 144
++
++export const DISPLAY_ORDER = [8, 6, 2, 3, 1, 7, 4, 0, 9, 5] // Vue2 桌面 initIndexArray
++
++export function positionFor(index: number, radius: number, center: { x: number; y: number }): { left: string; top: string } {
++  const angle = index < 5 ? 30 * (index + 1) : 45 * (index % 5)
++  const realRadius = index < 5 ? radius : radius / RATIO
++  return {
++    left: center.x + (realRadius / 2) * Math.cos((angle * Math.PI) / 180) + 'px',
++    top: center.y - (realRadius / 2) * Math.sin((angle * Math.PI) / 180) + 'px',
++  }
++}
++
++export function contentsBox(areaW: number, areaH: number): {
++  width: number; height: number; radius: number; center: { x: number; y: number }
++} {
++  const cWidth = areaW - GAP
++  const cHeight = areaH - GAP / 2 - BOTTOM_GAP
++  let width: number, height: number
++  if (cWidth > cHeight * 2) { width = cHeight * 2; height = cHeight + BOTTOM_GAP }
++  else { width = cWidth; height = cWidth / 2 + BOTTOM_GAP }
++  return { width, height, radius: width, center: { x: width / 2, y: height - BOTTOM_GAP } }
++}

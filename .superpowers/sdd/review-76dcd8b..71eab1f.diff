@@ -1,0 +1,1289 @@
+71eab1f feat(kb): P5d T8 NoteEditPane.vue 下半(侧栏 5 卡 + 标签编辑 + 冲突弹窗)
+
+ .superpowers/sdd/p5d-task-8-report.md            | 145 ++++++++
+ src/ai/knowledge/components/NoteEditPane.test.ts | 434 ++++++++++++++++++++++-
+ src/ai/knowledge/components/NoteEditPane.vue     | 410 ++++++++++++++++++++-
+ 3 files changed, 968 insertions(+), 21 deletions(-)
+
+diff --git a/.superpowers/sdd/p5d-task-8-report.md b/.superpowers/sdd/p5d-task-8-report.md
+new file mode 100644
+index 0000000..8ee3ca3
+--- /dev/null
++++ b/.superpowers/sdd/p5d-task-8-report.md
+@@ -0,0 +1,145 @@
++# P5d · T8 报告 —— `NoteEditPane.vue` 下半(侧栏 5 卡 + 标签编辑 + 冲突弹窗)
++
++状态:**DONE**。起点 `sp8-ai@76dcd8b`(T0–T7 八刀已关账)。本刀改 2 文件:
++`src/ai/knowledge/components/NoteEditPane.vue`(+410/-21)·
++`src/ai/knowledge/components/NoteEditPane.test.ts`(+412/-2,含 2 处对既有断言的被迫改动)。
++零新建文件,文件数仍 **331**。
++
++## 0. R16/R16 遗留边界核实(brief §2)
++
++`addTag()` 与 `openConflict()`(状态设置部分)已在 T7 落地(裁定 R16 追认),**本刀未重新实现**——
++`git diff` 逐字确认这两个函数体一字未动。本刀只在模板里接线:标签输入框
++`@blur="addTag"`;冲突弹窗三按钮消费既有 `conflict` 状态。
++🔴 DoD-4 要求的「输入已存在标签 → dirty 不变」用例,核实 T7 **未覆盖**(T7 只测过
++「未提交的新标签」路径,见 `save()` 前置调用测试),本刀补齐该用例(不改实现)。
++
++## 1. DoD 1–11 逐条
++
++1. **K41 另一半**:本地 `interface SourceRef { path?; session_id?; label? }` /
++   `interface Backlink { id: string; title: string }`,字段依据引蓝本 `:128`/`:131`/`:132`/`:139`/`:141`
++   (文件头「═══ T8 · K41 另一半 ═══」段 + 各函数上方逐条注释)。零 `as any`(`grep -n '\bany\b'` 只命中
++   3 处**声明禁止**的注释文字,零实际用法)。
++2. `backlinks` 返回数组、`backlinkList` computed 直接 `as Backlink[]`,不包一层信封;**T7 的 `backlinks`
++   ref 声明一字未改**。
++3. `onTagKey` 三分支 + 反例:4 条用例(Enter / `,` / Backspace-空-有标签 / Backspace-非空反例)。
++4. `addTag()` 去重:新增 1 条用例(输入已存在标签 → `tags`/`dirty` 均不变),核实非重复实现。
++5. 冲突弹窗三动作:`adoptDisk`(`note=latest`+`form.body=latest.body`+`dirty=true`+toast)·
++   `keepMine`(只 rebase revision,body 不动,`dirty=true`,toast 带 `{n}`)·`copyMine`
++   (`writeText(form.body)`)。三条各 1 用例,`dirty` 值均断言。
++6. clipboard HTTP-IP:`copyPath`/`copyMine` 各 2 条用例(成功路径显式 `Object.defineProperty` 注入
++   `navigator.clipboard`;catch 路径显式设为 `undefined`,与 jsdom/真机默认行为一致)。**未加
++   `execCommand` 兜底**。前端票原文(已写入文件头「═══ T8 ═══」段):
++   > 笔记区 `copyPath`/`copyMine` 应复用本仓 Files 区既有的 `execCommand` 兜底,让 HTTP 访问下也能真正
++   > 复制成功,而不是弹『操作失败』。
++7. 冲突弹窗转 reka:`DialogRoot`/`DialogPortal to=".knowledge-app" defer`/`DialogOverlay`/`DialogContent`/
++   `DialogTitle as-child`(对齐 `SettingsView.vue:349-624` / `NotesView.vue:418-452` 先例,非
++   `QueueView.vue` 无标题那套)。K36 a11y 常驻断言 + RED 变异证据见 §3。
++8. §9.9 可点性两侧:状态卡(isNew/三态)、磁盘文件卡(isNew/!isNew)、来源卡(空/非空/isNew)、
++   被引用卡(空/非空/isNew)——共 11 条相关用例。
++9. `refLabel` 三档:直接 `wrapper.vm` 调用验证 3 种输入(有 label / 仅 session_id / 都没有),
++   另有集成用例验证 session_id 分支的渲染文案。
++10. 缺口③:蓝本 `:152` → `var(--warning-soft)`(附录 B §B.4 行 35),RED 探针见 §4。
++11. 定位器加固:见 §2。
++
++## 2. DoD-11 ——「除 2 处外 T7 一字未动」自证 + 加固对照
++
++`git diff` 里对 T7 既有断言的**全部**改动只有以下 2 处(逐行贴 `-`/`+`):
++
++```diff
++-    expect(w.find('.kn-badge[data-s="draft"]').exists()).toBe(true)
+++    expect(w.find('.kn-edit-top .kn-badge[data-s="draft"]').exists()).toBe(true)
++```
++```diff
++-    expect(w.find('.kn-badge[data-s="archived"]').text()).toBe('已归档')
+++    expect(w.find('.kn-edit-top .kn-badge[data-s="archived"]').text()).toBe('已归档')
++```
++
++**加固而非改弱对照**:加固前,`.kn-badge[data-s="draft"]` 在插入侧栏状态卡后会命中 2 个元素,
++`.find()` 巧合返回文档序第一个(顶栏)、文案又相同,断言"仍绿但判别力已退化成'文档序第一个'"。
++加固后钉 `.kn-edit-top` 祖先,新增的两条用例(`定位器加固(DoD-11)`describe 块)用程序化事实
++**证明**加固前的隐患真实存在:
++
++```ts
++expect(w.findAll('.kn-badge[data-s="draft"]')).toHaveLength(2)               // 裸选择器确实命中 2 个
++expect(w.findAll('.kn-edit-top .kn-badge[data-s="draft"]')).toHaveLength(1)  // 加固后精确命中顶栏那个
++expect(w.findAll('.kn-edit-aside .kn-badge[data-s="draft"]')).toHaveLength(1)
++```
++archived 同理(`toHaveLength(2)` → 加固后 `toHaveLength(1)`)。除这 2 处 + 上述新增 describe 块外,
++`NoteEditPane.test.ts` 里 T7 写的其余全部断言(30 条原始用例)本刀零删除、零修改,只在文件尾追加
++新 describe 块(`git diff` 的其余 hunk 全部是纯新增)。
++
++## 3. K36 a11y 变异证据(RED→GREEN,md5 逐字节自证,禁 `git checkout`)
++
++- 备份 md5:`173b677139d9656a29c77e0fe13e6314`
++- 注入:`<DialogTitle as-child>` → `<DialogTitle>`(去掉 `as-child`),python3 行首锚定替换,
++  注入后 md5 `595867cf833fa354ef1831fd8ce21118`(证真落盘)
++- 复跑 `-t "K36 a11y"`:
++  ```
++  AssertionError: expected '' to be 'reka-dialog-title-v-0'
++  Tests 1 failed | 64 skipped (65)
++  ```
++  reka 的默认 `DialogTitle`(未 `as-child`)会渲染自己的元素并把 `id` 打在**那个**元素上,
++  `.k-modal-title` div 变成子节点、自身无 `id` → `titleEl.id` 为空串,与 `aria-labelledby` 不同值。
++- 还原:`cp` 备份覆盖,md5 复核 = `173b677139d9656a29c77e0fe13e6314`(与备份逐字节一致),
++  复跑同一用例转绿,`git status --porcelain -- .../NoteEditPane.vue` 仍是预期的 `M`(无残留污染)。
++
++## 4. 缺口③ RED 探针(蓝本 `:152` 内联色 → token)
++
++- 备份 md5(第二次,还原后再次核实基线一致):`173b677139d9656a29c77e0fe13e6314`
++- 注入:冲突弹窗头图标 `background: var(--warning-soft)` → `background: rgba(255,149,0,.14)`,
++  注入后 md5 `f490b632465c21cffac01f95e5700326`
++- 复跑 `knowledgeStyles.test.ts -t "零 hex"`:
++  ```
++  × components/NoteEditPane.vue —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量
++  AssertionError: 模板里有 rgb()/hsl() 函数色
++  Tests 1 failed | 95 passed | 198 skipped (294)
++  ```
++  精确指名该文件,证明「守卫缺口③′」的贪婪模板扫描确实覆盖到 T8 新增的模板段(不只是 T7 段)。
++- 还原:md5 复核 = `173b677139d9656a29c77e0fe13e6314`,复跑 `knowledgeStyles.test.ts` 全量
++  `294 passed (294)`。
++
++R17(`<script>` 块注释零色字面量)守卫本刀不需要新变异证据——T7 已对同一守卫做过完整 RED/GREEN
++（NotesMarkdownEditor.vue 注入案例），本刀新增的全部文件头/函数级注释复跑该守卫仍 **13/13 全绿**
++（`pnpm exec vitest run src/ai/styles/knowledgeStyles.test.ts -t "块注释"` → `13 passed | 281 skipped`），
++证明本刀新写的申报注释（引蓝本 `:152` + 附录 B §B.4 第 35 行，不写色值）确实不触发该守卫。
++
++## 5. mock 层次 / fixture 出处
++
++- `NOTE_FIXTURE`:沿用 T7 已抄自 `notes-get-one.json` 的常量,零改动。
++- `sourceRefs`/`backlinks` 的**非空**分支:README §4 记录本机 pipeline 笔记 `source_refs` 恒为
++  `[{session_id}]` 形态(无 `path` 形态样本)、`backlinks` 端点恒 `[]`(无非空样本)。这两处按
++  **K41 接口定义**(`SourceRef.path?` 依据蓝本 `:128`;`Backlink{id,title}` 依据蓝本 `:139`/`:141`)
++  构造最小示例,测试注释里逐条声明「本机无真实抓取样本,不算手编信封」,信封层次仍是
++  `service.notes.backlinks()` 已归一化数组(不是 `{backlinks:[]}`)。
++- `service.notes.update` 409 冲突体沿用 T7 既有做法(`{response:{status:409,data:{current_revision}}}`)。
++
++## 6. K/N 命中申报
++
++**K41**(本刀完成另一半,§1 逐条)· **K34 同族**(`conflict.value!` 非空断言,冲突弹窗渲染期间必非空)·
++**K29 同族**(`onConflictOpenChange`,对齐 `NotesView.vue`/`SettingsView.vue` 既定手法)·
++**K36**(`DialogTitle as-child`,零 `VisuallyHidden`,对齐 `SettingsView.vue` 而非 `QueueView.vue`)·
++**K7**(弹窗 portal 到 `.knowledge-app`,测试 `withHost()`)。
++**N 系列纪律**(§9.9,非编号条目):`navigator.clipboard` HTTP-IP 下不存在按蓝本 `:259-264`/`:310-315`
++裸 try/catch 照抄,不加本仓 Files 区的 `execCommand` 兜底。
++
++## 7. 三门与算式
++
++```
++Test Files  331 passed (331)
++     Tests  3958 passed (3958)
++vue-tsc --noEmit  exit=0
++vite build        exit=0
++```
++- 文件数:**331**(零新建,承 T7 收官值)。
++- 用例数:**3923(T7 收官)+ 35(本刀新增)= 3958**。`NoteEditPane.test.ts` 由 30 → 65(单独复跑核实
++  `65 passed (65)`)。
++- `.vue` 计数、color-guard 计数**均不变**(本刀零新建 `.vue`)。
++
++## 8. 提交前自查
++
++```
++$ git status --porcelain
++ M src/ai/knowledge/components/NoteEditPane.test.ts
++ M src/ai/knowledge/components/NoteEditPane.vue
++```
++与预期逐一对应,无多余改动。
+diff --git a/src/ai/knowledge/components/NoteEditPane.test.ts b/src/ai/knowledge/components/NoteEditPane.test.ts
+index 6aa1933..72929c6 100644
+--- a/src/ai/knowledge/components/NoteEditPane.test.ts
++++ b/src/ai/knowledge/components/NoteEditPane.test.ts
+@@ -41,20 +41,30 @@ import NoteEditPane from './NoteEditPane.vue'
+ const notes = vi.hoisted(() => ({
+   get: vi.fn(),
+   backlinks: vi.fn(),
+   create: vi.fn(),
+   update: vi.fn(),
+   curate: vi.fn(),
+   list: vi.fn(),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { notes } }))
+ 
++// T8 —— openInApp 是 T5 的既有产出(全期零改动清单),这里只 spy `openFileInNewTab`/
++// `openAgentSessionInNewTab` 是否被正确的参数调用,不重新实现它们的逻辑(那是 T5
++// 的职责与既有测试范围,见 `openInApp.test.ts`)。手法与 `NotesView.test.ts` 对
++// `openDirInNewTab` 的 spy 同一模具。
++const openInAppMock = vi.hoisted(() => ({
++  openFileInNewTab: vi.fn(),
++  openAgentSessionInNewTab: vi.fn(),
++}))
++vi.mock('../../services/openInApp', () => openInAppMock)
++
+ // FIXTURE-COPY-BEGIN  p5d-fixtures/notes-get-one.json(camelCase 化,K1 归一)
+ // 逐字段取自该文件的真实回包(2026-08-04 抓取):id/title/description/type/
+ // status/createdBy(← created_by)/revision/updatedAt(← updated_at)/path/tags/
+ // sourceRefs(← source_refs)/body 全部原值,`user_id`/`created_at` 被
+ // `normalizeNote` 丢弃(不进 `Note` 类型)。
+ const NOTE_FIXTURE: Note = {
+   id: 'ba20c0ec-0275-497b-9124-58042e1b7336',
+   title: '4×4 fixed size NimoOS todo list widget',
+   description: 'Completed todo list widget for NimoOS locked to 4*4 size with localStorage storage',
+   type: 'insight',
+@@ -108,20 +118,26 @@ async function mountPane(noteId: string) {
+   await flushPromises()
+   await nextTick()
+   return { w, router }
+ }
+ 
+ const flush = async () => {
+   await flushPromises()
+   await nextTick()
+ }
+ 
++/** T8:按 `.kn-aside-title` 的文案精确定位某张侧栏卡(来源卡与被引用卡都用
++ * `.kn-refbtn`,单靠类名区分不了两者,必须靠各自卡片的标题文案区分)。 */
++function findAsideCardByTitle(w: { findAll: (s: string) => Array<{ find: (s: string) => { text: () => string } }> }, title: string) {
++  return w.findAll('.kn-aside-card').find((c) => c.find('.kn-aside-title').text() === title)
++}
++
+ function setupDefaultMocks(): void {
+   notes.get.mockImplementation((id: string) => Promise.resolve({ ...NOTE_FIXTURE, id }))
+   notes.backlinks.mockResolvedValue([])
+   notes.create.mockImplementation((f: { title: string; tags?: unknown[] }) =>
+     Promise.resolve({ ...NOTE_FIXTURE, id: 'new-note-id', status: 'curated', title: f.title, tags: f.tags || [] }),
+   )
+   notes.update.mockImplementation((id: string) =>
+     Promise.resolve({ ...NOTE_FIXTURE, id, revision: (NOTE_FIXTURE.revision as number) + 1 }),
+   )
+   notes.curate.mockImplementation((id: string) => Promise.resolve({ ...NOTE_FIXTURE, id, status: 'curated' }))
+@@ -141,37 +157,43 @@ afterEach(() => {
+ 
+ // ═══════════════════════════════════════════════════════════════════════════
+ describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', () => {
+   it('isNew=false:发 get()+backlinks() 两发,表单被真实数据填充(K41:tags/body 收窄)', async () => {
+     const { w } = await mountPane(NOTE_FIXTURE.id)
+     expect(notes.get).toHaveBeenCalledWith(NOTE_FIXTURE.id)
+     expect(notes.backlinks).toHaveBeenCalledWith(NOTE_FIXTURE.id)
+     expect((w.find('.kn-title-input').element as HTMLInputElement).value).toBe(NOTE_FIXTURE.title)
+     expect((w.find('.kn-desc-input').element as HTMLInputElement).value).toBe(NOTE_FIXTURE.description)
+     // status==='draft' → 顶栏徽标 + 草稿横幅都渲染
+-    expect(w.find('.kn-badge[data-s="draft"]').exists()).toBe(true)
++    // 🔴 T8 加固(brief §3 / DoD-11,被迫改动,「加固而非改弱」对照见任务报告):
++    // T8 在侧栏插入了结构/文案都相同的第二个 `.kn-badge[data-s="draft"]`(状态卡,
++    // 蓝本 :82)。裸 `.kn-badge[data-s="draft"]` 会从「唯一命中」退化成「命中两个,
++    // .find() 巧合仍取到文档序第一个即顶栏那个」——测试仍绿但判别力已经退化。
++    // 钉 `.kn-edit-top` 祖先,恢复「断言到确定元素」而不是「断言到文档序第一个」。
++    expect(w.find('.kn-edit-top .kn-badge[data-s="draft"]').exists()).toBe(true)
+     expect(w.find('.kn-draftbar').exists()).toBe(true)
+   })
+ 
+   it('isNew=true:不发 get()/backlinks(),status 为 null(无徽标、无草稿横幅)', async () => {
+     const { w } = await mountPane('new')
+     expect(notes.get).not.toHaveBeenCalled()
+     expect(notes.backlinks).not.toHaveBeenCalled()
+     expect(w.find('.kn-badge').exists()).toBe(false)
+     expect(w.find('.kn-draftbar').exists()).toBe(false)
+     expect((w.find('.kn-title-input').element as HTMLInputElement).value).toBe('')
+   })
+ 
+   it('status==="archived" 时顶栏只出「已归档」徽标,不出草稿横幅', async () => {
+     notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'archived' })
+     const { w } = await mountPane(NOTE_FIXTURE.id)
+-    expect(w.find('.kn-badge[data-s="archived"]').text()).toBe('已归档')
++    // 🔴 T8 加固,同上一条理由:钉 `.kn-edit-top` 祖先,不再依赖文档序。
++    expect(w.find('.kn-edit-top .kn-badge[data-s="archived"]').text()).toBe('已归档')
+     expect(w.find('.kn-draftbar').exists()).toBe(false)
+   })
+ 
+   it('get() 失败:K5 固定文案 toast,不回显后端 message', async () => {
+     notes.get.mockRejectedValue(new Error('agent offline: super-secret-stack-trace'))
+     await mountPane(NOTE_FIXTURE.id)
+     const texts = useToast().toasts.map((x) => x.text)
+     expect(texts).toContain('操作失败')
+     expect(texts.join(' | ')).not.toContain('super-secret-stack-trace')
+   })
+@@ -490,10 +512,418 @@ describe('NoteEditPane — 定位器边界自查(为 T8 插入做准备)', () =>
+   it('顶栏保存按钮定位器 .kn-edit-top .k-btn.primary 在挂载后恰好命中 1 个', async () => {
+     const { w } = await mountPane(NOTE_FIXTURE.id)
+     expect(w.findAll('.kn-edit-top .k-btn.primary')).toHaveLength(1)
+   })
+ 
+   it('草稿横幅确认按钮定位器 .kn-draftbar .k-btn.primary 在挂载后恰好命中 1 个', async () => {
+     const { w } = await mountPane(NOTE_FIXTURE.id) // status: draft
+     expect(w.findAll('.kn-draftbar .k-btn.primary')).toHaveLength(1)
+   })
+ })
++
++// ═══════════════════════════════════════════════════════════════════════════
++// ═══════════════════════ 以下全部为 T8 新增(侧栏 5 卡 + 标签编辑 + 冲突弹窗) ═══
++// ═══════════════════════════════════════════════════════════════════════════
++
++// 🔴 DoD-11 加固证据:证明「T7 预警的隐性脆弱点」真实存在 —— 裸
++// `.kn-badge[data-s="draft"/"archived"]` 在插入侧栏状态卡后确实命中 2 个,
++// 而不是理论假设。见上方 T7 两条断言的加固注释(钉 `.kn-edit-top` 祖先)。
++describe('NoteEditPane — 定位器加固(DoD-11,证明加固前的隐患真实存在)', () => {
++  it('draft:裸选择器命中 2 个(顶栏 + 侧栏状态卡);加固后的 .kn-edit-top/.kn-edit-aside 定位器各精确命中 1 个', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // status: draft
++    expect(w.findAll('.kn-badge[data-s="draft"]')).toHaveLength(2)
++    expect(w.findAll('.kn-edit-top .kn-badge[data-s="draft"]')).toHaveLength(1)
++    expect(w.findAll('.kn-edit-aside .kn-badge[data-s="draft"]')).toHaveLength(1)
++  })
++
++  it('archived:同理,裸选择器命中 2 个,加固后的 .kn-edit-top 定位器精确命中 1 个', async () => {
++    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'archived' })
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    expect(w.findAll('.kn-badge[data-s="archived"]')).toHaveLength(2)
++    expect(w.findAll('.kn-edit-top .kn-badge[data-s="archived"]')).toHaveLength(1)
++  })
++})
++
++// ═══════════════════════════════════════════════════════════════════════════
++// 侧栏第 1 卡:状态(§9.9 isNew 两侧 + 三态徽标 + Source/Last modified)。
++describe('NoteEditPane — 侧栏状态卡', () => {
++  it('isNew=true → 「保存后成为已确认的正式笔记」提示,无三态徽标', async () => {
++    const { w } = await mountPane('new')
++    const card = w.findAll('.kn-aside-card')[0]
++    expect(card.text()).toContain('保存后成为「已确认」的正式笔记')
++    expect(card.find('.kn-badge').exists()).toBe(false)
++  })
++
++  it('isNew=false, status=draft → 侧栏也出「AI 草稿」徽标 + Source(sourceMeta)+ Last modified(非空)', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // status: draft, createdBy: pipeline
++    const card = w.findAll('.kn-aside-card')[0]
++    expect(card.find('.kn-badge[data-s="draft"]').exists()).toBe(true)
++    const kvs = card.findAll('.kn-kv')
++    // sourceMeta('pipeline') = { labelKey: 'aiKbNoteSrcPipeline' → 'AI 沉淀', icon: 'sparkle' }
++    expect(kvs[1].find('b').text()).toBe('AI 沉淀')
++    expect(kvs[2].find('b').text().length).toBeGreaterThan(0) // relativeTime 边界由 notesViewHelpers.test.ts 单独覆盖(§9.8)
++  })
++
++  it('status="curated"(非 draft 非 archived)→ 侧栏徽标 data-s="curated",文案「已确认」', async () => {
++    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'curated' })
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const card = w.findAll('.kn-aside-card')[0]
++    expect(card.find('.kn-badge[data-s="curated"]').text()).toContain('已确认')
++  })
++})
++
++// ═══════════════════════════════════════════════════════════════════════════
++// 侧栏第 2 卡:磁盘文件(§9.9 isNew 两侧 + revealFile/copyPath)。
++describe('NoteEditPane — 侧栏磁盘文件卡', () => {
++  it('isNew=true → 「保存后在笔记目录创建 .md 文件」提示,无路径/无按钮', async () => {
++    const { w } = await mountPane('new')
++    const card = w.findAll('.kn-aside-card')[1]
++    expect(card.text()).toContain('保存后在笔记目录创建 .md 文件')
++    expect(card.find('.kn-filepath').exists()).toBe(false)
++    expect(card.find('.kn-file-acts').exists()).toBe(false)
++  })
++
++  it('isNew=false → 路径 + 60 秒同步提示 + 「文件管理器」/「复制路径」按钮', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const card = w.findAll('.kn-aside-card')[1]
++    expect(card.find('.kn-filepath').text()).toBe(NOTE_FIXTURE.path)
++    expect(card.text()).toContain('60 秒内同步回来')
++    expect(card.find('.kn-file-acts').exists()).toBe(true)
++  })
++
++  it('点「文件管理器」调用 openFileInNewTab(note.path)', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const btn = w.findAll('.kn-file-acts .k-btn')[0]
++    await btn.trigger('click')
++    expect(openInAppMock.openFileInNewTab).toHaveBeenCalledWith(NOTE_FIXTURE.path)
++  })
++
++  it('copyPath 成功(navigator.clipboard 存在)→ toast「路径已复制」', async () => {
++    const writeText = vi.fn().mockResolvedValue(undefined)
++    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const btn = w.findAll('.kn-file-acts .k-btn')[1]
++    await btn.trigger('click')
++    await flush()
++    expect(writeText).toHaveBeenCalledWith(NOTE_FIXTURE.path)
++    expect(useToast().toasts.map((x) => x.text)).toContain('路径已复制')
++  })
++
++  // 🔴 治理 §9.9 / 记忆 newui-clipboard-insecure-reka:HTTP-IP 真机访问下
++  // navigator.clipboard 不存在(jsdom 默认同样不存在,不需要显式清空即可复现);
++  // 这是蓝本行为(蓝本 `:259-264` 也只有裸 try/catch),按 N 系列照抄,不加
++  // execCommand 兜底(那是 Files 区的既有增强)。前端票见文件头「═══ T8 ═══」。
++  it('🔴 copyPath:navigator.clipboard 在 HTTP-IP 下不存在 → 走 catch,弹「操作失败」(预期,非缺陷)', async () => {
++    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const btn = w.findAll('.kn-file-acts .k-btn')[1]
++    await btn.trigger('click')
++    await flush()
++    expect(useToast().toasts.map((x) => x.text)).toContain('操作失败')
++  })
++})
++
++// ═══════════════════════════════════════════════════════════════════════════
++// 侧栏第 3 卡:属性(类型下拉 + 标签编辑:chip/删除/onTagKey 三分支+反例/
++// focusTagInput/addTag 去重 DoD-4)。
++describe('NoteEditPane — 侧栏属性卡:类型下拉', () => {
++  it('切换类型下拉触发 dirty = true,form.type 跟着变', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // type: insight
++    await flush()
++    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(false)
++    const select = w.find('.kn-aside-select')
++    await select.setValue('summary')
++    await select.trigger('change')
++    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(true)
++    expect((w.vm as unknown as { form: { type: string } }).form.type).toBe('summary')
++  })
++})
++
++describe('NoteEditPane — 侧栏属性卡:标签编辑', () => {
++  it('form.tags 的每个标签渲染成一个 .kn-tagchip', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // tags: ['nimoos','todo-list','widget']
++    const chips = w.findAll('.kn-tagchip')
++    expect(chips.map((c) => c.text().replace('移除', '').trim())).toEqual(NOTE_FIXTURE.tags)
++  })
++
++  it('removeTag:点 chip 的移除按钮删掉该标签 + dirty = true', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    await flush()
++    await w.findAll('.kn-tagchip button')[0].trigger('click')
++    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['todo-list', 'widget'])
++    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(true)
++  })
++
++  it('focusTagInput:点击 .kn-tagedit 容器,标签输入框获得焦点(蓝本 :237 $refs.tagInput.focus())', async () => {
++    const { w } = await mountPane('new')
++    const input = w.find('.kn-tagedit input').element as HTMLInputElement
++    expect(document.activeElement).not.toBe(input)
++    await w.find('.kn-tagedit').trigger('click')
++    expect(document.activeElement).toBe(input)
++  })
++
++  // onTagKey 三条分支 + 一条反例(DoD-3)。
++  it('Enter → preventDefault + addTag()', async () => {
++    const { w } = await mountPane('new')
++    const input = w.find('.kn-tagedit input')
++    await input.setValue('foo')
++    await input.trigger('keydown', { key: 'Enter' })
++    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['foo'])
++    expect((w.find('.kn-tagedit input').element as HTMLInputElement).value).toBe('')
++  })
++
++  it('逗号 "," → preventDefault + addTag()', async () => {
++    const { w } = await mountPane('new')
++    const input = w.find('.kn-tagedit input')
++    await input.setValue('bar')
++    await input.trigger('keydown', { key: ',' })
++    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['bar'])
++  })
++
++  it('Backspace 且输入框为空且已有标签 → 弹掉最后一个 + dirty = true', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // tags: ['nimoos','todo-list','widget']
++    await flush()
++    const input = w.find('.kn-tagedit input')
++    await input.trigger('keydown', { key: 'Backspace' })
++    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(['nimoos', 'todo-list'])
++    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(true)
++  })
++
++  it('🔴 反例:Backspace 但输入框非空 → 不弹标签(两条分支都不成立)', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    await flush()
++    const input = w.find('.kn-tagedit input')
++    await input.setValue('typing')
++    await input.trigger('keydown', { key: 'Backspace' })
++    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(NOTE_FIXTURE.tags)
++  })
++
++  // DoD-4:addTag() 去重,T7 未覆盖这条,本刀补齐(核实:T7 只测过"输入框未提交
++  // 的新标签"路径,未测过"输入已存在的标签"路径,见 §2 核实说明)。
++  it('🔴 addTag() 去重:输入一个已存在的标签 → dirty 不变、tags 不变(仅去重逻辑判别,不重写实现)', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // tags: ['nimoos','todo-list','widget']
++    await flush()
++    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(false)
++    const input = w.find('.kn-tagedit input')
++    await input.setValue('nimoos') // 已存在的标签
++    await input.trigger('blur')
++    expect((w.vm as unknown as { form: { tags: string[] } }).form.tags).toEqual(NOTE_FIXTURE.tags)
++    expect((w.vm as unknown as { dirty: boolean }).dirty).toBe(false)
++  })
++})
++
++// ═══════════════════════════════════════════════════════════════════════════
++// 侧栏第 4 卡:来源(§9.9 两侧 + openRef/openSessionRef + refLabel 三档 DoD-9)。
++describe('NoteEditPane — 侧栏来源卡', () => {
++  it('!isNew && sourceRefs.length → 渲染(fixture 实测:pipeline 笔记 source_refs 恒非空,README §4)', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // sourceRefs: [{ session_id: '...' }]
++    expect(w.find('.kn-aside-card .kn-refbtn').exists()).toBe(true)
++  })
++
++  it('sourceRefs 为空数组 → 不渲染(该条件的反面,fixture: notes-backlinks 同源 README §4 场景之一)', async () => {
++    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, sourceRefs: [] })
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    expect(w.find('.kn-refbtn').exists()).toBe(false)
++  })
++
++  it('isNew=true → 不渲染(即使强行给 sourceRefs,isNew 门槛优先)', async () => {
++    const { w } = await mountPane('new')
++    expect(w.find('.kn-aside-card .kn-refbtn').exists()).toBe(false)
++  })
++
++  it('r.session_id 分支:点击调用 openSessionRef(r.session_id) → openAgentSessionInNewTab,label 取 session_id 前 8 位(refLabel 第②档)', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const btn = w.find('.kn-refbtn')
++    expect(btn.text()).toContain('6fe14460') // session_id 前 8 位,refLabel 无 label 时的兜底
++    await btn.trigger('click')
++    expect(openInAppMock.openAgentSessionInNewTab).toHaveBeenCalledWith('6fe14460-9892-4d7e-b104-db1098c749af')
++  })
++
++  // 🔴 mock 形状说明:本机 fixture(README §4)记录 pipeline 笔记的 source_refs
++  // 恒为 `[{session_id}]` 形态,无 `path` 形态的真实抓取样本 —— 下面这条按 K41
++  // 的 `SourceRef` 接口定义(`path?: string`,依据蓝本 `:128`)构造最小示例,
++  // 字段名/形状取自接口定义与蓝本读取行,不是手编信封(信封层次仍是已归一化
++  // 的 `Note.sourceRefs` 数组,只是数组元素内容本机没有该分支的真实样本)。
++  it('r.path 分支(本机无真实样本,按 K41 接口构造):点击调用 openRef(r.path) → openFileInNewTab', async () => {
++    notes.get.mockResolvedValue({ ...NOTE_FIXTURE, sourceRefs: [{ path: '/DATA/Notes/1/other.md' }] })
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const btn = w.find('.kn-refbtn')
++    expect(btn.text()).toContain('/DATA/Notes/1/other.md')
++    await btn.trigger('click')
++    expect(openInAppMock.openFileInNewTab).toHaveBeenCalledWith('/DATA/Notes/1/other.md')
++  })
++
++  // refLabel(r) 三档(DoD-9),经 wrapper.vm 直调(FolderBrowser.test.ts:390 /
++  // IndexedFilesView.test.ts:1670/1960 已确立的技术先例:<script setup> 顶层
++  // 函数可经 wrapper.vm 直接调用,不是新增功能/不是绕过公开行为——第③档
++  // (label 与 session_id 都没有)在模板里没有任何按钮会渲染那个 ref
++  // (v-if="r.path" / v-else-if="r.session_id" 两条都不成立),UI 摸不到)。
++  it('refLabel 三档:① 有 label 直接用;② 无 label 有 session_id 取前 8 位;③ 都没有 → 空串', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id)
++    const refLabel = (
++      w.vm as unknown as {
++        refLabel: (r: { path?: string; session_id?: string; label?: string }) => string
++      }
++    ).refLabel
++    expect(refLabel({ label: 'my-label', session_id: 'abcdefgh12345' })).toBe('my-label')
++    expect(refLabel({ session_id: '6fe14460-9892-4d7e-b104-db1098c749af' })).toBe('6fe14460')
++    expect(refLabel({})).toBe('')
++  })
++})
++
++// ═══════════════════════════════════════════════════════════════════════════
++// 侧栏第 5 卡:被引用(§9.9 两侧)。
++describe('NoteEditPane — 侧栏被引用卡', () => {
++  it('backlinks 为空(fixture 实测:本机恒 []，README §4)→ 不渲染', async () => {
++    const { w } = await mountPane(NOTE_FIXTURE.id) // notes.backlinks 默认 mock 为 []
++    expect(findAsideCardByTitle(w, '被引用')).toBeUndefined()
++  })
++
++  // 🔴 mock 形状说明:README §4 记录本机 backlinks 端点恒回 `[]`,无非空真实
++  // 抓取样本——下面这条按 K41 的 `Backlink` 接口(`{id: string; title: string}`,
++  // 依据蓝本 `:139`/`:141`)构造最小示例,字段名取自接口定义,信封层次仍是
++  // `service.notes.backlinks()` 已归一化的数组(不是 `{backlinks:[]}`)。
++  it('backlinks 非空(本机无真实样本,按 K41 接口构造)→ 渲染,点击 push 到 ?id=b.id', async () => {
++    notes.backlinks.mockResolvedValue([{ id: 'other-note-id', title: 'Referencing Note' }])
++    const { w, router } = await mountPane(NOTE_FIXTURE.id)
++    await flush()
++    const btn = w.findAll('.kn-refbtn').find((b) => b.text().includes('Referencing Note'))
++    expect(btn).toBeTruthy()
++    await btn!.trigger('click')
++    await flush()
++    expect(router.currentRoute.value.fullPath).toContain('?id=other-note-id')
++  })
++
++  it('isNew=true → 不渲染', async () => {
++    const { w } = await mountPane('new')
++    expect(w.find('.kn-aside-card .kn-refbtn').exists()).toBe(false)
++  })
++})
++
++// ═══════════════════════════════════════════════════════════════════════════
++// 冲突弹窗(DoD-5/6/7):转 reka + K36 a11y + 三个动作 dirty 断言 + clipboard。
++describe('NoteEditPane — 冲突弹窗(reka 化 + 三个动作)', () => {
++  // K7:弹窗 portal 目标 —— 独立挂载时不在 .knowledge-app 子树里(生产环境由
++  // KnowledgeLayout.vue 提供),先例 QueueView.test.ts::withHost() /
++  // NotesView.test.ts::withHost()。
++  function withHost(): HTMLElement {
++    const host = document.createElement('div')
++    host.className = 'knowledge-app'
++    document.body.appendChild(host)
++    return host
++  }
++
++  async function openConflictModal() {
++    const host = withHost()
++    const { w, router } = await mountPane(NOTE_FIXTURE.id)
++    await flush()
++    notes.update.mockRejectedValueOnce({ response: { status: 409, data: { current_revision: 999 } } })
++    await w.find('.kn-title-input').setValue(NOTE_FIXTURE.title + ' conflict-edit')
++    await w.find('.kn-edit-top .k-btn.primary').trigger('click')
++    await flush()
++    return { host, w, router }
++  }
++
++  it('冲突态被设上后,弹窗 portal 到 .knowledge-app,标题/diff 面板正确渲染', async () => {
++    const { host } = await openConflictModal()
++    const modal = host.querySelector('.k-modal')
++    expect(modal).not.toBeNull()
++    expect(modal!.querySelector('.k-modal-title')!.textContent).toBe('有人先保存了这条笔记')
++    // theirs 面板:latest.revision(openConflict() 内部 get() 默认回 NOTE_FIXTURE 同 revision)
++    expect(modal!.querySelector('[data-side="theirs"]')!.textContent).toContain(`rev ${NOTE_FIXTURE.revision}`)
++    // mine 面板:显示 form.body(未提交的标题改动"conflict-edit"不在这里 —— 蓝本
++    // `:169` 就是 `{{ form.body }}`,不是 `form.title`),baseRevision 同样是
++    // NOTE_FIXTURE.revision(loadNote() 首发已把 note.value.revision 设成它)。
++    expect(modal!.querySelector('[data-side="mine"]')!.textContent).toContain(`基于 rev ${NOTE_FIXTURE.revision}`)
++    expect(modal!.querySelector('[data-side="mine"] .kn-diff-body')!.textContent).toContain('Dockerfile')
++  })
++
++  it('点 × 不关闭(反例:只有点遮罩才关闭);点遮罩关闭弹窗(conflict = null)', async () => {
++    const { host } = await openConflictModal()
++    expect(host.querySelector('.k-modal')).not.toBeNull()
++    // reka usePointerDownOutside 用 setTimeout(0) 延后挂 document 监听(先例
++    // QueueView.test.ts/NotesView.test.ts 同款注释),补一次宏任务 tick。
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    const titleEl = host.querySelector('.k-modal-title') as HTMLElement
++    titleEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
++    await flush()
++    expect(host.querySelector('.k-modal')).not.toBeNull()
++    const overlayEl = host.querySelector('.k-modal-bg') as HTMLElement
++    overlayEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
++    await flush()
++    expect(host.querySelector('.k-modal')).toBeNull()
++  })
++
++  it('🔴 K36 a11y —— aria-labelledby 与 .k-modal-title 的 id 同值同元素,弹窗内恰好一个带 id 元素', async () => {
++    const { host } = await openConflictModal()
++    const modal = host.querySelector('.k-modal')!
++    expect(modal.getAttribute('role')).toBe('dialog')
++    const labelId = modal.getAttribute('aria-labelledby')
++    expect(labelId).toBeTruthy()
++    const titleEl = modal.querySelector('.k-modal-title') as HTMLElement
++    expect(titleEl.id).toBe(labelId)
++    expect(titleEl.textContent).toBe('有人先保存了这条笔记')
++    // as-child 不额外插入 VisuallyHidden 节点 —— 弹窗内带 id 的元素应恰好 1 个。
++    expect(modal.querySelectorAll('[id]')).toHaveLength(1)
++  })
++
++  it('adoptDisk:note=latest + form.body=latest.body + conflict 清空 + dirty=true + toast', async () => {
++    const { host, w } = await openConflictModal()
++    const modal = host.querySelector('.k-modal')!
++    const useDiskBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find(
++      (b) => b.textContent === '采用磁盘版本',
++    ) as HTMLElement
++    useDiskBtn.click()
++    await flush()
++    expect(host.querySelector('.k-modal')).toBeNull()
++    const vm = w.vm as unknown as { dirty: boolean; form: { body: string } }
++    expect(vm.dirty).toBe(true)
++    expect(vm.form.body).toBe(NOTE_FIXTURE.body) // latest.body(get() 默认回 NOTE_FIXTURE 同 body)
++    expect(useToast().toasts.map((x) => x.text)).toContain('已加载最新版本,你的正文已被替换')
++  })
++
++  it('keepMine:只 rebase revision(note.revision 变成 latest.revision),body 不动,conflict 清空,dirty=true,toast 带 {n}', async () => {
++    const { host, w } = await openConflictModal()
++    const vmBefore = w.vm as unknown as { form: { body: string } }
++    const bodyBefore = vmBefore.form.body
++    const modal = host.querySelector('.k-modal')!
++    const keepBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find((b) =>
++      b.textContent!.includes('保留我的编辑'),
++    ) as HTMLElement
++    keepBtn.click()
++    await flush()
++    expect(host.querySelector('.k-modal')).toBeNull()
++    const vm = w.vm as unknown as { dirty: boolean; form: { body: string }; note: { revision?: number } }
++    expect(vm.dirty).toBe(true)
++    expect(vm.form.body).toBe(bodyBefore) // body 不动
++    expect(vm.note.revision).toBe(NOTE_FIXTURE.revision) // rebase 到 latest.revision
++    expect(useToast().toasts.map((x) => x.text)).toContain(`保留了你的编辑,保存将覆盖 rev ${NOTE_FIXTURE.revision}`)
++  })
++
++  it('copyMine 成功(navigator.clipboard 存在)→ writeText(form.body),toast「已复制你的正文」,弹窗不关闭', async () => {
++    const writeText = vi.fn().mockResolvedValue(undefined)
++    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
++    const { host } = await openConflictModal()
++    const modal = host.querySelector('.k-modal')!
++    const copyBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find((b) =>
++      b.textContent!.includes('复制我的正文'),
++    ) as HTMLElement
++    copyBtn.click()
++    await flush()
++    expect(writeText).toHaveBeenCalledWith(NOTE_FIXTURE.body)
++    expect(useToast().toasts.map((x) => x.text)).toContain('已复制你的正文')
++    expect(host.querySelector('.k-modal')).not.toBeNull() // copyMine 不碰 conflict
++  })
++
++  // 🔴 治理 §9.9 / 记忆 newui-clipboard-insecure-reka(见文件头「═══ T8 ═══」)。
++  it('🔴 copyMine:navigator.clipboard 在 HTTP-IP 下不存在 → 走 catch,弹「操作失败」(预期,非缺陷)', async () => {
++    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
++    const { host } = await openConflictModal()
++    const modal = host.querySelector('.k-modal')!
++    const copyBtn = Array.from(modal.querySelectorAll('.k-modal-foot button')).find((b) =>
++      b.textContent!.includes('复制我的正文'),
++    ) as HTMLElement
++    copyBtn.click()
++    await flush()
++    expect(useToast().toasts.map((x) => x.text)).toContain('操作失败')
++  })
++})
+diff --git a/src/ai/knowledge/components/NoteEditPane.vue b/src/ai/knowledge/components/NoteEditPane.vue
+index 3e1d836..34b06ae 100644
+--- a/src/ai/knowledge/components/NoteEditPane.vue
++++ b/src/ai/knowledge/components/NoteEditPane.vue
+@@ -1,22 +1,25 @@
+ <!--
+   SP8-P5d Task 7 —— `NoteEditPane.vue` **上半**(顶栏 + 草稿横幅 + 主列编辑器)。
+   1:1 移植自 Vue2 蓝本 `NimoOS-UI`(main@7a6ee6b7)
+   `src/views/AI/Knowledge/NoteEditPane.vue`(338 行,`git show 7a6ee6b7:` 读取)。
+ 
+-  🔴 【范围边界 —— 计划书 §T7/§T8】本刀只写:顶栏(:7-22)· 草稿横幅(:25-32)·
+-  主列(:35-71:标题/描述输入 + kn-editor 工具栏 + rich/md 双模式 + 状态栏)。
+-  **侧栏 5 卡(:74-144)· 冲突弹窗(:148-180)及其渲染归 T8,本刀不写、不留占位符**——
+-  T8 会直接在 `.kn-edit` 关闭标签前插入 `<div class="kn-edit-aside">`,并在本文件
+-  模板根节点后追加冲突弹窗 `<div v-if="conflict" class="k-modal-bg">` 作为第二个
+-  fragment 根。本文件当前是合法的单根 `<div class="k-scroll">` 模板,T8 插入后会
+-  变成两根 fragment —— 这是刻意留的边界,不是缺陷。
++  🔴 【范围边界 —— 计划书 §T7/§T8,T8 已落地】T7(本节以上)写了:顶栏(:7-22)·
++  草稿横幅(:25-32)· 主列(:35-71:标题/描述输入 + kn-editor 工具栏 + rich/md
++  双模式 + 状态栏)。**T8(本次提交)补齐了侧栏 5 卡(:74-144)与冲突弹窗
++  (:148-180)**,规格见文件尾新增的「═══ T8 ═══」大节。
++  T8 在 `.kn-edit` 关闭标签前插入了 `<div class="kn-edit-aside">`;冲突弹窗
++  (转 reka `DialogRoot`,见下方 T8 节)**逐字保持蓝本 `:148` 的原始嵌套**——
++  是 `.k-scroll` 内、`.k-scroll-inner` **之后**的兄弟节点(蓝本 `:146-147`
++  两处收窄标签之间),不是模板的第二个根。`DialogPortal to=".knowledge-app"`
++  会把渲染结果**运行时**传送到别处,但这是 reka 的行为、不改变**源码**里的
++  嵌套关系,本文件全程只有一个 `<template>` 根 `.k-scroll`。
+ 
+   结构对照(蓝本行区间 → 本文件):
+     :7-22    顶栏(返回列表 / 状态徽标 / 保存提示 / 保存按钮)
+     :25-32   草稿横幅(N26 三段式拼接)
+     :35-71   主列(标题/描述输入 · kn-editor 工具栏 8 个 kn-tb-btn · k-seg 双模式切换 ·
+               rich(NotesMarkdownEditor)/md(textarea)· 状态栏字数统计)
+     对应 script:props/data/isNew/status/wordCount/created()/onEditorReady/tbActive/
+     cmd/save/curateInPlace,以及为 save() 成立而必须实现的 addTag()/openConflict()
+     (见下方"任务切分判断"一节)。
+ 
+@@ -36,22 +39,23 @@
+           `string | undefined` 赋给 `string` 报错)。
+         · `save()` 的 update 分支 `expectedRevision: note.value.revision!`
+           (蓝本 `:285` `expectedRevision: this.note.revision`)——此分支只在
+           `!isNew` 时执行,而 `note` 此刻必然是 `loadNote()` 里 `service.notes.get()`
+           真实回包过的对象,`revision` 运行时必有值。
+       🔴 禁 `as any`;上面两处都是**类型层**动作,零运行时校验、零行为改变,符合
+       K41「若需要运行时校验才安全,那就不是 K41」的边界(这两处不需要运行时校验,
+       故仍归 K41)。
+       ⚠️ `status` 只经 `computed` 读出(不被赋值到更严格的类型),不需要断言。
+       ⚠️ `sourceRefs`/`backlinks` 的类型收窄(`SourceRef`/`Backlink` 本地接口)是
+-      K41 的**另一半**,登记在 T8(计划书 §T8-1),本刀不建那两个接口 ——
+-      `backlinks` 在本刀里维持包原始的 `unknown[]`(见下方数据契约一节)。
++      K41 的**另一半**,T7 提交时尚未建、**T8(本次提交)已补齐** —— 见文件尾
++      新增「═══ T8 · K41 另一半 ═══」大节,字段依据引蓝本 `:128`/`:131`/`:132`/
++      `:139`/`:141`。
+ 
+   ═══ N29(本刀最容易被"顺手清理"的一行,不许删)═══
+   `tbActive()` 里 `tbTick.value >= 0 &&` 是**故意的假依赖**(蓝本 `:228` 注释原文
+   "tbTick makes this computed-on-demand check re-run on every transaction")——
+   Vue3 的渲染 effect 会在求值时真正读到 `tbTick.value`,从而把这个 ref 记进依赖,
+   `@transaction="tbTick++"` 每次触发都会让本方法重新求值,工具栏 `data-on` 高亮
+   才会跟着编辑器的选区/格式状态刷新。删掉这半条,工具栏在切换粗体/标题等操作后
+   永远不会更新高亮态。
+   🔴 **裁定 R5**:附录 D §D.6.1 的 tiptap 可测性探针**没有挂载父组件**(只挂了
+   `NotesMarkdownEditor` 这个编辑器 SFC 本身),因此"删掉 tbTick.value >= 0 && 会
+@@ -112,84 +116,202 @@
+      与"backlinks 的取数是本刀的事、卡片渲染才是 T8 的事"(治理 §4.1 明文)是
+      完全相同的模式。本刀因此完整实现 openConflict(),T8 只需要在冲突弹窗模板里
+      消费已经存在的 `conflict` 状态并接线三个按钮(adoptDisk/keepMine/copyMine,
+      T8 DoD 5)。若协调者认为这个判断错了,`openConflict()` 的搬动/删除是一处
+      T8 可以低成本调整的边界(它没有被 T7 自己的断言依赖,只被 save() 的一条
+      "冲突态被设上"用例覆盖,后者断言的是 `conflict` 的值而不是这个函数名本身)。**
+ 
+   ═══ 数据契约(mock 层次,治理 §4.1 / p5d-fixtures/README.md §2)═══
+   `service.notes.get(id)` 返回**已归一化的单个 Note**(camelCase)。
+   `service.notes.backlinks(id)` 返回**数组**,空时 `[]`(不是 `{backlinks:[]}` 信封,
+-  `notes.ts:247-250`)——本刀 `loadNote()` 会发它并存进 `backlinks` ref(维持包
+-  原始的 `unknown[]`,不在本刀声明 `Backlink` 接口,那是 T8 的 K41 另一半)。
++  `notes.ts:247-250`)——T7 的 `loadNote()` 发它并存进 `backlinks` ref(维持包
++  原始的 `unknown[]`,**T8 本刀零改动该 ref 声明**)。T8 在文件尾新增只读
++  computed `sourceRefs`/`backlinkList` 做 K41 另一半的类型收窄消费,不改写
++  `backlinks` 本身、不新增运行时校验。
+   `service.notes.create`/`update`/`curate` 返回**单个 Note**(camelCase)。
+ 
+   ═══ 缺口③(模板零裸色)═══
+-  本刀模板段(:7-71)零内联色字面量 —— 唯一一处内联色在蓝本 `:152`(冲突弹窗
+-  头图标底色,附录 B §B.4 第 35 行是权威映射),归 T8。本刀只需把
+-  `components/NoteEditPane.vue` 加进 `../../styles/knowledgeStyles.test.ts` 的
+-  `KNOWLEDGE_VUE_FILES` 集合(该文件的"守卫缺口③′"贪婪抽取整个 <template> 块
+-  做文本级正则扫描,天然覆盖本刀这段模板),不需要再补重复的定向断言。
++  T7 模板段(:7-71)零内联色字面量。**唯一一处内联色在蓝本 `:152`(冲突弹窗
++  头图标底色,附录 B §B.4 第 35 行是权威映射)——T8(本次提交)已换成
++  `var(--warning-soft)`**,见文件尾冲突弹窗模板。`components/NoteEditPane.vue`
++  已在 T7 时加进 `../../styles/knowledgeStyles.test.ts` 的 `KNOWLEDGE_VUE_FILES`
++  集合(该文件的"守卫缺口③′"贪婪抽取整个 <template> 块做文本级正则扫描,天然
++  覆盖 T8 新增的这段模板),不需要再补重复的定向断言。
+ 
+   ═══ 定位器策略(brief §4,T8 会在这个文件里插入内容,定位器要钉死)═══
+   本刀所有测试定位器一律基于**结构唯一的 class 组合或父子链**,不依赖
+   "文件里现在只有一个 X"这种隐含前提:
+     · `.kn-edit-top` / `.kn-draftbar` / `.kn-edit-main` 三个顶层区块类名各自
+       唯一(T8 插入的 `.kn-edit-aside` 是第四个同级兄弟,不会与前三者的选择器
+       产生歧义);
+     · 工具栏按钮统一用 `.kn-editor-toolbar .kn-tb-btn`(限定在工具栏容器内,
+       不裸用 `.kn-tb-btn`,防止 T8 未来在别处引入同类名元素时误命中);
+     · `.k-seg` 双模式切换按钮用 `.kn-editor-toolbar .k-seg button`(同一限定);
+     · rich/md 容器分别用 `.kn-editor-body-wrap`(rich)与 `.kn-editor-src`
+       (md,textarea 自身类名唯一)——两者 v-if/v-else 互斥,不会同时存在;
+     · 顶栏保存按钮用 `.kn-edit-top .k-btn.primary`(限定在顶栏内,冲突弹窗
+       的 `.k-btn.primary`——T8 新增——在 DOM 树的完全不同分支,不会被这个
+       限定选择器命中)。
+   这样即使 T8 往 `.kn-edit` 里插入 `.kn-edit-aside`(内含自己的 `.k-btn`/
+   `.kn-aside-*` 等)、往模板根后追加冲突弹窗,本刀的定位器都不会被指向错误
+   的元素,T8 不需要动本刀写的任何一条断言。
++
++  ═══════════════════════════════════════════════════════════════════════
++  ═══ T8 —— 下半(侧栏 5 卡 + 标签编辑 + 冲突弹窗),brief/计划书 §T8 ═══
++  ═══════════════════════════════════════════════════════════════════════
++
++  结构对照(蓝本行区间 → 本文件,本节新增):
++    :74-90    状态卡(isNew:提示语;!isNew:三态徽标 + 来源 + 最后修改)
++    :91-108   磁盘文件卡(isNew:提示语;!isNew:路径 + 提示 + 文件管理器/复制路径)
++    :110-123  属性卡(类型下拉 + 标签编辑:chip / 删除 / 键盘事件 / 失焦提交)
++    :125-135  来源卡(v-if !isNew && sourceRefs.length)
++    :137-143  被引用卡(v-if !isNew && backlinkList.length)
++    :148-180  冲突弹窗(转 reka DialogRoot,见下方 K36 一节)
++  对应 script(本刀新增):`sourceRefs`/`backlinkList`(K41 另一半)/
++  `focusTagInput`/`removeTag`/`onTagKey`/`refLabel`/`openRef`/`openSessionRef`/
++  `revealFile`/`copyPath`/`copyMine`/`adoptDisk`/`keepMine`/`onConflictOpenChange`。
++  🔴 **`addTag()`/`openConflict()` 已在 T7 落地(协调者裁定 R16 追认,brief §2),
++  本刀不重复实现** —— 只在模板里接线(标签输入框 `@blur="addTag"`;冲突弹窗
++  三个按钮消费既有的 `conflict` 状态)。
++
++  ═══ K41 另一半(DoD-1,禁 `as any`)═══
++  `Note.sourceRefs`(`NimoOS-Service/src/notes.ts:28`)与
++  `service.notes.backlinks()`(`:247-250`)的返回值都是 `unknown[]`。本地接口:
++    interface SourceRef { path?: string; session_id?: string; label?: string }
++    interface Backlink { id: string; title: string }
++  字段依据(逐条引蓝本行):`:128` 读 `r.path` · `:131` 读 `r.session_id` ·
++  `:132` 经 `refLabel(r)` 读 `r.label` · `:139` 读 `b.id`(`:key="b.id"`)·
++  `:141` 读 `b.title`。
++  消费手法:`sourceRefs` 是新增 computed
++  (`(note.value.sourceRefs as SourceRef[] | undefined) || []`——蓝本 `:206`
++  自己的计算属性也是 `this.note.sourceRefs || []`,`|| []` 是 1:1 保留的蓝本
++  防御写法,不是本刀新增的运行时校验);`backlinkList` 是新增 computed
++  (`backlinks.value as Backlink[]`,**T7 的 `backlinks` ref 声明一字不改**)。
++  两处都是类型层的一次性重断言,零运行时校验、零行为改变,符合 K41 边界
++  (「若需要运行时校验才安全,那就不是 K41」不适用于这两处)。
++
++  ═══ refLabel(r)(DoD-9,三种输入都要用例)═══
++  蓝本 `:255`:`r.label || String(r.session_id || '').slice(0, 8)`——三档:
++  ① 有 `label` 直接用;② 无 `label` 但有 `session_id`,取前 8 位;
++  ③ 两者都没有,`String(undefined || '').slice(0, 8)` = `''`。
++
++  ═══ 冲突弹窗三个动作(DoD-5,`dirty` 的值全部要断言)═══
++  蓝本 `:316-323`(`adoptDisk`)/`:324-331`(`keepMine`)/`:310-315`(`copyMine`)
++  逐字照抄语义:
++    · `adoptDisk()`:`note = latest` + `form.body = latest.body || ''`(K41
++      同族的 `unknown → string` 收窄写法,与 `loadNote()` 同一手法)+
++      `conflict = null` + **`dirty = true`**。
++    · `keepMine()`:蓝本 `:325` 注释原文「Rebase onto the disk revision so the
++      next save overwrites it」——**只 rebase revision**
++      (`note = {...note, revision: rev}`),**body 不动**,`conflict = null`,
++      **`dirty = true`**,toast 带 `{n: rev}`。
++    · `copyMine()`:`navigator.clipboard.writeText(form.body || '')`,成功
++      toast `aiKbNeDraftCopied`。
++  三者内部访问 `conflict.value!` 用非空断言(K34 同族,T6/T7 先例)——它们只在
++  冲突弹窗渲染期间(`v-if="conflict"`)才可能被点击,`conflict.value` 此刻
++  必然非空,与蓝本 `this.conflict.latest` 零防御的隐式假设逐字等价。
++
++  ═══ 🔴 `navigator.clipboard` 在 HTTP-IP 下不存在(治理 §9.9,记忆
++      `newui-clipboard-insecure-reka`)═══
++  `copyPath()`/`copyMine()` 的 `navigator.clipboard.writeText(...)` 在本仓
++  HTTP-IP 真机访问下 `navigator.clipboard` 是 `undefined`,调用同步抛
++  `TypeError`,落进各自 `catch` 弹 `aiKbOpFailed`。**这是蓝本行为**(蓝本
++  `:259-264`/`:310-315` 也只有裸 try/catch,零 `execCommand` 兜底)——按 N
++  系列照抄,**不许**顺手加本仓 Files 区那套 `execCommand` 兜底(那是文件区的
++  既有增强,不是笔记区蓝本行为)。**前端票(登记,交 P5e/P5f)**:「笔记区
++  `copyPath`/`copyMine` 应复用本仓 Files 区既有的 `execCommand` 兜底,让 HTTP
++  访问下也能真正复制成功,而不是弹『操作失败』」。验收清单需显式写明:「这
++  两个按钮在 HTTP 访问下弹『操作失败』= 预期,不是缺陷」。
++
++  ═══ 🔴 冲突弹窗转 reka(DoD-7,K7/K29/K36 同族,对齐 `SettingsView.vue`
++      而非 `QueueView.vue`)═══
++  蓝本 `:149` 是裸 `.k-modal-bg` + `@click`/`@click.stop`。T6 的删除确认弹窗
++  (`NotesView.vue:418-452`)已转并核准跟 `SettingsView.vue:349-624` 的先例——
++  **本弹窗蓝本 `:155` 本来就有可见标题 `.k-modal-title`**,K36 的既定选择是
++  `<DialogTitle as-child>` 直接套在那个 div 上,不额外插入 `VisuallyHidden`
++  隐藏节点(那是 `IndexedFilesView.vue` 无可见标题时的另一套先例,本弹窗不
++  适用)。`DialogPortal to=".knowledge-app" defer`,结构照 `NotesView.vue:418-
++  452` 抄:`DialogRoot :open="!!conflict" @update:open="onConflictOpenChange"`,
++  `onConflictOpenChange(v) { if (!v) conflict.value = null }`(K29 同族——蓝本
++  只有「点遮罩」「点 × 」两条关闭路径,没有独立的「取消」按钮,都收敛成这
++  一句)。K36 a11y 常驻断言(`aria-labelledby` 与 `.k-modal-title` 的 `id`
++  同值同元素 + 弹窗内恰好一个带 `id` 的元素)见 `NoteEditPane.test.ts`,变异
++  证据见任务报告。
++
++  ═══ §9.9 可点性(DoD-8,每个条件两侧都要用例)═══
++  来源卡 `v-if="!isNew && sourceRefs.length"`;被引用卡
++  `v-if="!isNew && backlinkList.length"`;磁盘文件卡的 `<template v-else>`
++  (即 `!isNew`)。🔴 **fixtures 实测(README §4)**:本机 23 条笔记
++  `source_refs` 每条都非空(`pipeline` 来源都带 `[{session_id}]`)→ 来源卡
++  真机**会**渲染(治理原猜"手写笔记通常零 source_refs"对本机不成立);
++  `backlinks` 端点本机恒 `[]` → 被引用卡真机**不**渲染,该条件的「有」那侧
++  只能靠 mock 断言。
++
++  ═══ 定位器加固(DoD-11,T7 评审预警的隐性脆弱点)═══
++  T7 评审已指出:`.kn-badge[data-s="draft"]`/`[data-s="archived"]` 两条既有
++  断言,在本刀插入状态卡(蓝本 `:82-84`,与顶栏 `:12-13` 同构同文案)后,
++  `.find()` 会从「唯一命中」退化成「命中两个、`.find()` 巧合仍取到文档序
++  第一个即顶栏那个」——测试仍绿但判别力已从「断言到确定元素」退化成「断言到
++  文档序第一个且巧合同值的元素」。这两条断言按 brief §3 的要求**加固**(钉
++  `.kn-edit-top` 祖先,不再依赖文档序),属于「被迫改动」,记在任务报告的
++  「除 N 处外 T7 一字未动」一节,附加固前/后对照证据。除这 2 处外,
++  `NoteEditPane.test.ts` 里 T7 写的其余全部断言本刀一字未动(本刀只新增
++  describe 块,零删除、零修改既有 describe 内部)。
+ -->
+ <script setup lang="ts">
+ import { ref, reactive, computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
++import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle } from 'reka-ui'
+ import type { Editor } from '@tiptap/vue-3'
+ import { service } from '@nimotech/nimoos-service'
+ import type { Note } from '@nimotech/nimoos-service'
+ import { useKnowledgeStore } from '../stores/knowledgeStore'
+ import { useToast } from '../../../stores/toast'
+ import KIcon from '../components/KIcon.vue'
+ import NotesMarkdownEditor from './NotesMarkdownEditor.vue'
+ import { parseTags, conflictMessage } from '../util/noteEditHelpers'
++import { NOTE_TYPES, noteSourceMeta, relativeTime } from '../util/notesViewHelpers'
++import { openFileInNewTab, openAgentSessionInNewTab } from '../../services/openInApp'
+ 
+ const props = defineProps<{ noteId: string }>()
+ 
+ const { t } = useI18n()
+ const router = useRouter()
+ const store = useKnowledgeStore()
+ 
++/** 蓝本 `methods: { sourceMeta: noteSourceMeta, timeAgo: relativeTime }`
++ * (`:224-225`)——别名手法与 `NotesView.vue:108-109` 同一模具,模板里保持
++ * 蓝本的调用名 `sourceMeta(...)`/`timeAgo(...)`。 */
++const sourceMeta = noteSourceMeta
++const timeAgo = relativeTime
++
+ const isNew = computed<boolean>(() => props.noteId === 'new')
+ 
+ /**
+  * 蓝本 `data() { note: {} }`(:198)—— 初始为空对象而不是 `null`,与 Vue2 属性
+  * 访问在字段缺失时返回 `undefined`(不抛错)完全对齐;用 `null` 反而要求全文
+  * 到处加可选链,是本刀不做的无关改写。`isNew` 时永远不读它,`!isNew` 分支
+  * 在 `loadNote()` 里被真实数据覆盖前不会被展示层依赖。
+  */
+ const note = ref<Note>({} as Note)
+-/** K41 —— `service.notes.backlinks()` 返回 `unknown[]`(治理 §4.1 / K41 另一半
+- * 归 T8),本刀只负责在 `loadNote()` 里把它取回来存好,不建 `Backlink` 接口、
+- * 不在模板里消费(卡片渲染是 T8 的事)。 */
++/** K41 —— `service.notes.backlinks()` 返回 `unknown[]`(治理 §4.1)。T7 只在
++ * `loadNote()` 里把它取回来存好,ref 声明本身**零改动**;T8 新增下方的
++ * `backlinkList` computed 做 K41 另一半的类型收窄消费(卡片渲染),不改写
++ * 这个 ref。 */
+ const backlinks = ref<unknown[]>([])
+ 
+ const saving = ref(false)
+ const tagInput = ref('')
++/** 蓝本 `ref="tagInput"`(`:120`)—— Vue3 模板 ref,`focusTagInput()` 消费
++ * (蓝本 `:237` `this.$refs.tagInput`)。 */
++const tagInputEl = ref<HTMLInputElement | null>(null)
+ const mode = ref<'rich' | 'md'>('rich')
+ const dirty = ref(false)
+ /** 冲突态(蓝本 `:199` `conflict: null`,`:304-305` 赋值形状)。`baseRevision`
+  * 保持与 `Note.revision` 一致的 `number | undefined`(K41:revision 本身就是
+  * optional),渲染冲突弹窗时的兜底显示是 T8 的事,本刀不额外收窄。 */
+ const conflict = ref<{ latest: Note; baseRevision: number | undefined } | null>(null)
+ const editor = ref<Editor>()
+ const tbTick = ref(0)
+ 
+ const form = reactive({
+@@ -198,20 +320,45 @@ const form = reactive({
+   type: 'note',
+   body: '',
+   tags: [] as string[],
+ })
+ 
+ const status = computed<string | null | undefined>(() => (isNew.value ? null : note.value.status))
+ 
+ /** N28 —— 蓝本 `:207` 正则照抄,不"修正"成 markdown 感知的计数。 */
+ const wordCount = computed<number>(() => (form.body || '').replace(/[#|\-*`>\s]/g, '').length)
+ 
++/**
++ * K41 另一半(文件头「═══ T8 ═══」大节有完整登记)。字段依据:蓝本 `:128`
++ * 读 `r.path`、`:131` 读 `r.session_id`、`:132` 经 `refLabel(r)` 读 `r.label`。
++ */
++interface SourceRef {
++  path?: string
++  session_id?: string
++  label?: string
++}
++/** 蓝本 `:206` `sourceRefs() { return this.note.sourceRefs || [] }` 逐字照抄
++ * (含 `|| []` 防御,note 初始为 `{}` 时 `sourceRefs` 运行时确为 `undefined`,
++ * 尽管 `Note.sourceRefs` 的包类型是必有的 `unknown[]`)。 */
++const sourceRefs = computed<SourceRef[]>(() => (note.value.sourceRefs as SourceRef[] | undefined) || [])
++
++/**
++ * K41 另一半。字段依据:蓝本 `:139` 读 `b.id`(`:key="b.id"`)、`:141` 读
++ * `b.title`。`backlinks` ref 本身维持 T7 声明的 `unknown[]`,这里只做消费侧
++ * 的一次性重断言,不改写 ref。
++ */
++interface Backlink {
++  id: string
++  title: string
++}
++const backlinkList = computed<Backlink[]>(() => backlinks.value as Backlink[])
++
+ function onEditorReady(ed: Editor): void {
+   editor.value = ed
+ }
+ 
+ /**
+  * N29 —— `tbTick.value >= 0 &&` 是故意的假依赖,不许删(见文件头注释)。
+  * `!!(...)` 只是把最终返回值收窄成严格 `boolean`(TS 的函数签名要求),不改变
+  * 短路顺序,也不改变任何可观察行为(蓝本原式在 `editor` 为空时求值到 `null`,
+  * 经 `String(null)` 会是 `"null"`;但这一状态只存在于 `onEditorReady` 触发前的
+  * 那一次同步渲染里,在任何等待过 `nextTick`/`flushPromises` 的观察点都已被
+@@ -246,20 +393,82 @@ function cmd(name: string, arg?: Record<string, unknown>): void {
+ function addTag(): void {
+   const parsed = parseTags(tagInput.value)
+   const fresh = parsed.filter((tg) => !form.tags.includes(tg))
+   if (fresh.length) {
+     form.tags.push(...fresh)
+     dirty.value = true
+   }
+   tagInput.value = ''
+ }
+ 
++/** 蓝本 `:237`:`if (this.$refs.tagInput) this.$refs.tagInput.focus()`
++ * ——Vue3 模板 ref 是 `HTMLInputElement | null`,可选链等价改写。 */
++function focusTagInput(): void {
++  tagInputEl.value?.focus()
++}
++
++/** 蓝本 `:244-247`。 */
++function removeTag(tg: string): void {
++  form.tags = form.tags.filter((x) => x !== tg)
++  dirty.value = true
++}
++
++/**
++ * 蓝本 `:248-254`(DoD-3,三条分支 + 一条反例):`Enter`/`,` → 阻止默认行为 +
++ * `addTag()`;`Backspace` **且输入框为空且已有标签** → 弹掉最后一个 +
++ * `dirty = true`。`Backspace` 但输入框非空 → 两条分支都不成立,什么都不做
++ * (反例,不弹标签)。
++ */
++function onTagKey(e: KeyboardEvent): void {
++  if (e.key === 'Enter' || e.key === ',') {
++    e.preventDefault()
++    addTag()
++  }
++  if (e.key === 'Backspace' && !tagInput.value && form.tags.length) {
++    form.tags = form.tags.slice(0, -1)
++    dirty.value = true
++  }
++}
++
++/** 蓝本 `:255`(DoD-9,三种输入都要用例)。 */
++function refLabel(r: SourceRef): string {
++  return r.label || String(r.session_id || '').slice(0, 8)
++}
++
++/** 蓝本 `:256`。 */
++function openRef(s: SourceRef): void {
++  if (s.path) openFileInNewTab(s.path)
++}
++
++/** 蓝本 `:257`。 */
++function openSessionRef(r: SourceRef): void {
++  openAgentSessionInNewTab(r.session_id)
++}
++
++/** 蓝本 `:258`。 */
++function revealFile(): void {
++  if (note.value.path) openFileInNewTab(note.value.path)
++}
++
++/**
++ * 蓝本 `:259-264`。🔴 `navigator.clipboard` 在 HTTP-IP 下不存在(见文件头
++ * 「═══ T8 ═══」大节的 clipboard 一条)——真机会走 catch,按 N 系列照抄。
++ */
++async function copyPath(): Promise<void> {
++  try {
++    await navigator.clipboard.writeText(note.value.path || '')
++    useToast().show(t('aiKbNePathCopied'), 2400)
++  } catch {
++    useToast().show(t('aiKbOpFailed'), 2400)
++  }
++}
++
+ /**
+  * 蓝本 `:265-271`。K5:不回显 `e.message`,统一 `aiKbOpFailed`。
+  */
+ async function curateInPlace(): Promise<void> {
+   try {
+     note.value = await service.notes.curate(props.noteId)
+     useToast().show(t('aiKbNoteConfirmed'), 2400)
+     store.refreshNotesDraftCount()
+   } catch {
+     useToast().show(t('aiKbOpFailed'), 2400)
+@@ -273,20 +482,66 @@ async function curateInPlace(): Promise<void> {
+  */
+ async function openConflict(): Promise<void> {
+   try {
+     const latest = await service.notes.get(props.noteId)
+     conflict.value = { latest, baseRevision: note.value.revision }
+   } catch {
+     useToast().show(t('aiKbOpFailed'), 2400)
+   }
+ }
+ 
++/**
++ * 蓝本 `:310-315`。🔴 clipboard 见文件头「═══ T8 ═══」大节,HTTP-IP 下真机
++ * 会走 catch,按 N 系列照抄。
++ */
++async function copyMine(): Promise<void> {
++  try {
++    await navigator.clipboard.writeText(form.body || '')
++    useToast().show(t('aiKbNeDraftCopied'), 2400)
++  } catch {
++    useToast().show(t('aiKbOpFailed'), 2400)
++  }
++}
++
++/**
++ * 蓝本 `:316-323`。只在冲突弹窗渲染期间(`v-if="conflict"`)可被点击,
++ * `conflict.value!` 非空断言与蓝本 `this.conflict.latest` 零防御逐字等价
++ * (K34 同族)。`form.body` 的 `unknown → string` 收窄手法与 `loadNote()` 同。
++ */
++function adoptDisk(): void {
++  const latest = conflict.value!.latest
++  note.value = latest
++  form.body = (latest.body as string | undefined) || ''
++  conflict.value = null
++  dirty.value = true
++  useToast().show(t('aiKbNeAdoptedDisk'), 2400)
++}
++
++/**
++ * 蓝本 `:324-331`,注释原文「Rebase onto the disk revision so the next save
++ * overwrites it」——只 rebase revision,**body 不动**。
++ */
++function keepMine(): void {
++  const rev = conflict.value!.latest.revision
++  note.value = { ...note.value, revision: rev }
++  conflict.value = null
++  dirty.value = true
++  useToast().show(t('aiKbNeKeptMine', { n: rev }), 2400)
++}
++
++/** K29 同族(`NotesView.vue` 删除弹窗 / `SettingsView.vue:349-355` 既定手法)——
++ * reka `DialogRoot` 的 `@update:open` 表达「弹窗被关掉了」,蓝本两条关闭路径
++ * (点 × / 点遮罩,蓝本没有独立的「取消」按钮)都收敛成 `conflict = null`。 */
++function onConflictOpenChange(v: boolean): void {
++  if (!v) conflict.value = null
++}
++
+ /**
+  * 蓝本 `:272-301`。两条路:`isNew` → `create` + 路由带 `?id=`;否则 → `update`
+  * (`expectedRevision` 用 K41 非空断言,见文件头)。catch 分岔:409 且非新建 →
+  * `openConflict()`;否则 K5 固定文案。`addTag()` 在最开头被调用(蓝本 `:273`)——
+  * 输入框里未提交的标签会被一并带上再保存。
+  */
+ async function save(): Promise<void> {
+   addTag()
+   saving.value = true
+   try {
+@@ -418,14 +673,131 @@ if (!isNew.value) loadNote()
+               <NotesMarkdownEditor v-model="form.body" @input="dirty = true" @ready="onEditorReady" @transaction="tbTick++" />
+             </div>
+             <textarea v-else class="kn-editor-src" v-model="form.body" :placeholder="t('aiKbNeMdPlaceholder')" @input="dirty = true" />
+             <div class="kn-editor-status">
+               <span>{{ t('aiKbNeNChars', { n: wordCount }) }}</span>
+               <span class="spacer" />
+               <span style="font-family: var(--font-mono)">{{ mode === 'rich' ? 'WYSIWYG' : '.md source' }}</span>
+             </div>
+           </div>
+         </div>
++
++        <!-- aside (T8) -->
++        <div class="kn-edit-aside">
++          <div class="kn-aside-card">
++            <div class="kn-aside-title">{{ t('aiKbStatus') }}</div>
++            <div v-if="isNew" class="kn-kv">
++              <KIcon name="edit" :size="13" color="var(--text-tertiary)" />{{ t('aiKbNeNewStatusHint') }}
++            </div>
++            <template v-else>
++              <div class="kn-kv">
++                <span v-if="status === 'draft'" class="kn-badge" data-s="draft"><KIcon name="sparkle" :size="9" /> {{ t('aiKbAiDraft') }}</span>
++                <span v-else-if="status === 'archived'" class="kn-badge" data-s="archived">{{ t('aiKbArchived') }}</span>
++                <span v-else class="kn-badge" data-s="curated"><KIcon name="check" :size="9" /> {{ t('aiKbCurated') }}</span>
++              </div>
++              <div class="kn-kv"><KIcon :name="sourceMeta(note.createdBy).icon" :size="13" color="var(--text-tertiary)" />{{ t('aiKbNeSource') }}: <b>{{ t(sourceMeta(note.createdBy).labelKey) }}</b></div>
++              <div class="kn-kv"><KIcon name="clock" :size="13" color="var(--text-tertiary)" />{{ t('aiKbNeLastModified') }}: <b>{{ timeAgo(note.updatedAt) }}</b></div>
++            </template>
++          </div>
++
++          <div class="kn-aside-card">
++            <div class="kn-aside-title">{{ t('aiKbNeFileOnDisk') }}</div>
++            <div v-if="isNew" class="kn-kv" style="font-size: 12px">
++              <KIcon name="file" :size="13" color="var(--text-tertiary)" />{{ t('aiKbNeNewFileHint') }}
++            </div>
++            <template v-else>
++              <div class="kn-filepath">{{ note.path }}</div>
++              <div class="kn-kv" style="font-size: 11.5px; color: var(--text-tertiary)">{{ t('aiKbNeEditDirectHint') }}</div>
++              <div class="kn-file-acts">
++                <button class="k-btn outline" style="font-size: 12px; padding: 5px 10px" @click="revealFile">
++                  <KIcon name="folder" :size="12" /> {{ t('aiKbNeFileManager') }}
++                </button>
++                <button class="k-btn ghost" style="font-size: 12px; padding: 5px 10px" @click="copyPath">
++                  <KIcon name="copy" :size="12" /> {{ t('aiKbNeCopyPath') }}
++                </button>
++              </div>
++            </template>
++          </div>
++
++          <div class="kn-aside-card">
++            <div class="kn-aside-title">{{ t('aiKbNeProperties') }}</div>
++            <select class="kn-aside-select" v-model="form.type" @change="dirty = true">
++              <option v-for="(m, k) in NOTE_TYPES" :key="k" :value="k">{{ t(m.labelKey) }}</option>
++            </select>
++            <div class="kn-tagedit" @click="focusTagInput">
++              <span v-for="tg in form.tags" :key="tg" class="kn-tagchip">
++                {{ tg }}
++                <button :title="t('aiKbNeRemoveTag')" @click.stop="removeTag(tg)"><KIcon name="x" :size="9" /></button>
++              </span>
++              <input
++                ref="tagInputEl"
++                :placeholder="form.tags.length ? '' : t('aiKbNeTagsPlaceholder')"
++                v-model="tagInput"
++                @keydown="onTagKey"
++                @blur="addTag"
++              />
++            </div>
++          </div>
++
++          <div v-if="!isNew && sourceRefs.length" class="kn-aside-card">
++            <div class="kn-aside-title">{{ t('aiKbNeSources') }}</div>
++            <template v-for="(r, i) in sourceRefs" :key="i">
++              <button v-if="r.path" class="kn-refbtn" :title="t('aiKbNeRevealFile')" @click="openRef(r)">
++                <KIcon name="file" :size="13" /><span class="mono">{{ r.path }}</span><KIcon name="chev" :size="11" />
++              </button>
++              <button v-else-if="r.session_id" class="kn-refbtn" :title="t('aiKbNeOpenConversation')" @click="openSessionRef(r)">
++                <KIcon name="bot" :size="13" /><span class="lbl">{{ t('aiKbNeSourceConversation') }} · {{ refLabel(r) }}</span><KIcon name="chev" :size="11" />
++              </button>
++            </template>
++          </div>
++
++          <div v-if="!isNew && backlinkList.length" class="kn-aside-card">
++            <div class="kn-aside-title">{{ t('aiKbNeReferencedBy') }}</div>
++            <button v-for="b in backlinkList" :key="b.id" class="kn-refbtn" @click="router.push('/ai/knowledge/notes?id=' + b.id)">
++              <KIcon name="paperclip" :size="13" /><span class="lbl">{{ b.title }}</span><KIcon name="chev" :size="11" />
++            </button>
++          </div>
++        </div>
+       </div>
+     </div>
++
++    <!-- 409 conflict: someone saved first (T8, reka Dialog 原语,见文件头「═══ T8 ═══」大节) -->
++    <DialogRoot :open="!!conflict" @update:open="onConflictOpenChange">
++      <DialogPortal to=".knowledge-app" defer>
++        <DialogOverlay class="k-modal-bg">
++          <DialogContent v-if="conflict" class="k-modal" style="width: min(560px, 100%)" :aria-describedby="undefined">
++            <div class="k-modal-head">
++              <span style="width: 30px; height: 30px; border-radius: 9px; background: var(--warning-soft); color: var(--warning); display: grid; place-items: center">
++                <KIcon name="danger" :size="16" />
++              </span>
++              <DialogTitle as-child>
++                <div class="k-modal-title">{{ t('aiKbNeConflictTitle') }}</div>
++              </DialogTitle>
++              <button class="k-modal-x" @click="conflict = null"><KIcon name="x" :size="13" /></button>
++            </div>
++            <div class="k-modal-body">
++              <div style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.6">
++                {{ t('aiKbNeConflictBody') }}
++              </div>
++              <div class="kn-diff" style="margin-top: 10px">
++                <div class="kn-diff-pane" data-side="theirs">
++                  <div class="kn-diff-pane-head"><KIcon name="drive" :size="11" /> {{ t('aiKbNeConflictTheirs') }} · rev {{ conflict.latest.revision }}</div>
++                  <div class="kn-diff-body">{{ conflict.latest.body }}</div>
++                </div>
++                <div class="kn-diff-pane" data-side="mine">
++                  <div class="kn-diff-pane-head"><KIcon name="edit" :size="11" /> {{ t('aiKbNeConflictMine') }} · {{ t('aiKbNeBasedOnRev', { n: conflict.baseRevision }) }}</div>
++                  <div class="kn-diff-body">{{ form.body }}</div>
++                </div>
++              </div>
++            </div>
++            <div class="k-modal-foot">
++              <button class="k-btn text" @click="copyMine"><KIcon name="copy" :size="12" /> {{ t('aiKbNeCopyMyBody') }}</button>
++              <span style="flex: 1" />
++              <button class="k-btn outline" @click="adoptDisk">{{ t('aiKbNeUseDisk') }}</button>
++              <button class="k-btn primary" @click="keepMine">{{ t('aiKbNeKeepMine') }}</button>
++            </div>
++          </DialogContent>
++        </DialogOverlay>
++      </DialogPortal>
++    </DialogRoot>
+   </div>
+ </template>

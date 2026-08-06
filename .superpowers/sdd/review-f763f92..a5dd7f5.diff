@@ -1,0 +1,58 @@
+# Review package: f763f92..HEAD
+
+## Commits
+a5dd7f5 fix(home): AppTile 仅在 status 已知且非 running 时变暗(防未加载误灰)
+
+## Files changed
+ src/home/components/AppTile.test.ts | 4 +++-
+ src/home/components/AppTile.vue     | 2 +-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/home/components/AppTile.test.ts b/src/home/components/AppTile.test.ts
+index ae19186..51e99b7 100644
+--- a/src/home/components/AppTile.test.ts
++++ b/src/home/components/AppTile.test.ts
+@@ -14,21 +14,23 @@ describe('AppTile', () => {
+     expect(w.find('svg').exists()).toBe(true)
+     expect(w.text()).toContain('文件')
+   })
+   it('renders a remote img for a container app with icon', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jellyfin', title: { zh_cn: '影音' }, icon: 'http://x/i.png' }] as any)
+     const w = mount(AppTile, { props: { item: item('jellyfin') } })
+     expect(w.find('img').attributes('src')).toBe('http://x/i.png')
+     expect(w.text()).toContain('影音')
+   })
+-  it('dims a non-system stopped app but not a running one or a system app', () => {
++  it('dims a non-system stopped app but not a running one, undefined-status one, or a system app', () => {
+     const s = useAppsStore()
+     s.setApps([
+       { name: 'jellyfin', title: { zh_cn: '影音' }, status: 'stopped' },
+       { name: 'plex', title: { zh_cn: '播放' }, status: 'running' },
++      { name: 'emby', title: { zh_cn: '影库' }, status: undefined }, // status unknown (not yet loaded)
+     ] as any)
+     expect(mount(AppTile, { props: { item: item('jellyfin') } }).classes()).toContain('stopped')
+     expect(mount(AppTile, { props: { item: item('plex') } }).classes()).not.toContain('stopped')
++    expect(mount(AppTile, { props: { item: item('emby') } }).classes()).not.toContain('stopped') // undefined status doesn't dim
+     expect(mount(AppTile, { props: { item: item('files') } }).classes()).not.toContain('stopped') // system app never dims
+   })
+ })
+diff --git a/src/home/components/AppTile.vue b/src/home/components/AppTile.vue
+index 3b58466..15aaba8 100644
+--- a/src/home/components/AppTile.vue
++++ b/src/home/components/AppTile.vue
+@@ -1,12 +1,12 @@
+ <template>
+-  <div class="app-tile" :class="{ stopped: !meta?.system && meta?.status !== 'running' }">
++  <div class="app-tile" :class="{ stopped: !meta?.system && !!meta?.status && meta?.status !== 'running' }">
+     <span
+       v-if="meta?.icon"
+       class="app-ic has-img"
+       :class="meta?.cls || 'ic-app'"
+     ><img :src="meta.icon" alt="" loading="lazy" /></span>
+     <span
+       v-else
+       class="app-ic"
+       :class="meta?.cls || 'ic-app'"
+       v-html="glyphSvg"

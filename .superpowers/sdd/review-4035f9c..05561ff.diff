@@ -1,0 +1,1776 @@
+# Review package: 4035f9c..HEAD
+
+## Commits
+05561ff feat: widget-kit.css 设计套件 + 开发者接入文档 + 示例容器
+a5dd7f5 fix(home): AppTile 仅在 status 已知且非 running 时变暗(防未加载误灰)
+f763f92 feat(home): 添加面板列应用小组件(手删可加回)+ AppTile 停止态变暗
+6dd8434 feat(home): appgrid 30s 轮询 + 聚焦刷新,接 autoPin 自动上桌
+0fc4214 test(home): AppIframeWidget 回归用例锁住停止期超时竞态
+46e417b fix(home): AppIframeWidget 超时计时器随条件失效清理 + 停止态重置 failed
+81e7c0c feat(home): AppIframeWidget — 第三方应用 iframe 小组件渲染 + 占位/重试
+aa9bf9a feat(home): autoPin — desktop 应用自动上桌 + seen 名单本地/服务端持久化
+04f5ebd feat(home): 网格新 kind appwidget + APP_WIDGET_SIZE 尺寸约束
+e74d7b4 feat(home): apps store 透传 desktop/widget + desktopDecls + icon 绝对化
+
+## Files changed
+ docs/nimoos-app-label-spec.md                      | 150 +++++++++++++++++++++
+ examples/demo-widget/Dockerfile                    |   2 +
+ examples/demo-widget/html/icon.svg                 |   1 +
+ examples/demo-widget/html/index.html               |   2 +
+ examples/demo-widget/html/widget/index.html        |  18 +++
+ examples/demo-widget/run.sh                        |  16 +++
+ public/widget-kit.css                              |  78 +++++++++++
+ src/home/components/AddPanel.test.ts               |  14 ++
+ src/home/components/AddPanel.vue                   |  30 ++++-
+ src/home/components/AppTile.test.ts                |  12 ++
+ src/home/components/AppTile.vue                    |   3 +-
+ src/home/components/GridItem.vue                   |  10 +-
+ .../components/widgets/AppIframeWidget.test.ts     |  71 ++++++++++
+ src/home/components/widgets/AppIframeWidget.vue    |  78 +++++++++++
+ src/home/components/widgets/WidgetCard.vue         |  17 ++-
+ src/home/composables/useAddPanel.test.ts           |   9 ++
+ src/home/composables/useAddPanel.ts                |  11 +-
+ src/home/composables/useDragResize.ts              |   4 +-
+ src/home/grid/gridMath.test.ts                     |  18 ++-
+ src/home/grid/gridMath.ts                          |   6 +-
+ src/home/grid/types.ts                             |   2 +-
+ src/home/stores/apps.test.ts                       |  39 +++++-
+ src/home/stores/apps.ts                            |  30 ++++-
+ src/home/stores/layout.test.ts                     |  59 +++++++-
+ src/home/stores/layout.ts                          |  60 ++++++++-
+ src/home/util/appWidgetUrl.test.ts                 |  19 +++
+ src/home/util/appWidgetUrl.ts                      |  19 +++
+ src/home/widgets/registry.ts                       |   9 ++
+ src/i18n/en_us.ts                                  |   4 +
+ src/i18n/zh_cn.ts                                  |   4 +
+ src/views/Home.integration.test.ts                 |  60 ++++++++-
+ src/views/Home.vue                                 |  19 ++-
+ 32 files changed, 844 insertions(+), 30 deletions(-)
+
+## Diff
+diff --git a/docs/nimoos-app-label-spec.md b/docs/nimoos-app-label-spec.md
+new file mode 100644
+index 0000000..afa9aba
+--- /dev/null
++++ b/docs/nimoos-app-label-spec.md
+@@ -0,0 +1,150 @@
++# NimoOS 桌面第三方应用接入规范(`nimoos.*` label)
++
++> 面向对象:自己写 `docker run` / `docker-compose` 部署容器,想让应用图标和(可选)小组件
++> 自动出现在 NimoOS 桌面(`/app/`)上的开发者。
++> 机制:纯 **Docker label 约定**,与部署方式无关 —— 手写 `docker run`、compose、还是商店应用,
++> 只要容器带了这些 label,New-UI 桌面就会在 ≤30 秒内自动识别并上桌,无需在商店注册、无需改网关路由。
++
++## 1. label 规范表
++
++| label | 必填 | 缺省值 | 含义 |
++|---|---|---|---|
++| `nimoos.enable` | **是** | 无 —— 不写此 label 就完全不识别,容器展示行为与今天完全一致 | 识别开关,必须是字符串 `"true"` |
++| `nimoos.title` | **是**(缺省仍可识别,但视为规范不完整) | 容器名 | 桌面显示名。首期仅支持单值(zh_cn 优先政策);规范预留 `nimoos.title.<locale>` 后缀式多语言扩展,首期不实现 |
++| `nimoos.icon` | 否 | 无 → 桌面用标题首字母生成圆块图标 | 图标地址。可以是**相对路径**(应用自己伺服,如 `/icon.png`),也可以是完整 `http(s)://` URL |
++| `nimoos.scheme` | 否 | `http` | 点桌面图标打开应用主页时用的协议 |
++| `nimoos.port` | 否 | 无 → 图标可上桌,但点击打开动作缺端口信息 | Web UI 在**宿主机**上监听的端口(即 `docker run -p` 里冒号左边那个),打开链接拼成 `scheme://<NAS地址>:port + index` |
++| `nimoos.index` | 否 | `/` | 应用主页入口路径 |
++| `nimoos.widget.path` | 否(写了即声明有小组件) | 不写 = 该应用没有小组件,只有图标 | 小组件 iframe 页面的路径,由应用自己伺服,**必须免鉴权可访问**(桌面不会向 iframe 传任何 token) |
++| `nimoos.widget.w` | 否 | 前端夹紧默认 `2` | 小组件初始宽度(格子数),前端把非法值 / 越界值夹紧到 `2..4` |
++| `nimoos.widget.h` | 否 | 前端夹紧默认 `2` | 小组件初始高度(格子数),前端夹紧到 `1..4` |
++
++补充:
++- `nimoos.enable=true` 是唯一的识别门槛;v1 老约定 `nimoos=nimoos` 原样保留,两套互不干扰。
++- 容器 `stopped`(而非 `removed`)时:图标变暗,小组件显示"应用未运行"占位,**不会**从桌面移除。
++- 容器被 `docker rm` 删除时:桌面项自动移除;之后重新 `docker run` 会**再次自动上桌**。
++- 用户在桌面上手动删除过的图标/小组件:不再自动加回,但可以在"添加面板"里手动加回。
++
++## 2. widget 页面要求
++
++如果你的应用要做桌面小组件(而不只是一个应用图标),`nimoos.widget.path` 指向的页面必须满足:
++
++1. **免鉴权访问** —— 桌面用 `<iframe>` 直接打开这个 URL,不会附带任何 NimoOS JWT / Cookie。
++   如果这个路径命中了你应用自己的登录检查,小组件会打不开(参见下方"常见问题")。
++2. **透明背景** —— 页面外层卡片壳(玻璃卡片、圆角、投影)由桌面画,widget 页面本身
++   `background` 必须保持透明,只画内容。`widget-kit.css` 已经把 `html, body` 的
++   `background: var(--nk-bg)`(默认 `transparent`)设好了,正常引用即可。
++3. **识别桌面通过 iframe URL 的三个查询参数**,页面加载时读取:
++
++   | 参数 | 取值 | 用途 |
++   |---|---|---|
++   | `theme` | `dark` \| `light` | 当前桌面主题,决定 kit 的深浅色 token |
++   | `lang` | 如 `zh_cn` | 当前桌面语言,widget 自行做多语言可参考 |
++   | `home` | 桌面 origin,如 `http://192.168.1.10:8080` | 用来拼接 `widget-kit.css` 的完整 URL |
++
++   桌面切换主题时会重新加载 iframe(首期不做 postMessage 热切换,故切主题即整体刷新)。
++
++## 3. 引用 `widget-kit.css`(模板)
++
++`widget-kit.css` 由桌面随构建发布在 `/app/widget-kit.css`,不占用网关任何路由。三行模板:
++
++```html
++<script>
++  const q = new URLSearchParams(location.search)
++  document.documentElement.dataset.theme = q.get('theme') || 'dark'
++  const l = document.createElement('link'); l.rel = 'stylesheet'
++  l.href = (q.get('home') || '') + '/app/widget-kit.css'; document.head.appendChild(l)
++</script>
++```
++
++放在 `<head>` 里,越早越好(避免闪一下无样式内容)。也允许把 `widget-kit.css` 整份文件拷进你的
++应用做 vendoring,断网也能正常显示(牺牲的是桌面以后升级 kit 时你不会自动拿到新版本)。
++
++## 4. `.nk-*` 组件类清单
++
++以下类名都定义在 `widget-kit.css` 里,直接在你的 widget 页面 HTML 上使用,颜色/字体会自动跟随
++桌面当前主题(通过 `data-theme` 属性 + CSS 变量)。
++
++| 类名 | 说明 | 最小示例 |
++|---|---|---|
++| `.nk-title` | 小标题(13px、半粗、muted 色),放在组件顶部 | `<p class="nk-title">演示任务</p>` |
++| `.nk-stat` | 大数值(30px、粗体、等宽数字);内嵌 `<small>` 是单位/说明文字 | `<div class="nk-stat">3<small>个进行中</small></div>` |
++| `.nk-label` | 小号说明文字(12px、faint 色) | `<span class="nk-label">上次同步 3 分钟前</span>` |
++| `.nk-accent` | 强调色文字(跟随主题 accent) | `<span class="nk-value nk-accent">2.1 MB/s</span>` |
++| `.nk-good` | 正常/健康状态色文字 | `<span class="nk-good">运行中</span>` |
++| `.nk-bad` | 异常/告警状态色文字 | `<span class="nk-bad">连接失败</span>` |
++| `.nk-list` + `.nk-row` | 无序列表容器 + 单行(两端对齐,行间细分割线);`.nk-value` 修饰右侧数值列 | 见下方完整示例 |
++| `.nk-progress` + 内层 `<i>` | 进度条外壳 + 内层填充条(用内联 `style="width:62%"` 控制百分比) | `<div class="nk-progress"><i style="width:62%"></i></div>` |
++| `.nk-badge` (`.good` / `.bad` 修饰) | 带圆点的状态徽标 | `<span class="nk-badge good">健康</span>` |
++
++完整组合示例(摘自示例容器 `examples/demo-widget/html/widget/index.html`):
++
++```html
++<p class="nk-title">演示任务</p>
++<div class="nk-stat">3<small>个进行中</small></div>
++<div class="nk-progress" style="margin:8px 0"><i style="width:62%"></i></div>
++<ul class="nk-list">
++  <li class="nk-row"><span>速度</span><span class="nk-value nk-accent">2.1 MB/s</span></li>
++  <li class="nk-row"><span>剩余</span><span class="nk-value">14 分钟</span></li>
++  <li class="nk-row"><span>状态</span><span class="nk-badge good">健康</span></li>
++</ul>
++```
++
++## 5. 完整示例
++
++仓库里 `examples/demo-widget/` 是一个可以直接跑起来的最小示例(nginx + 静态页面),对应下面
++两种接入方式的 label 都取自它的 `run.sh`。
++
++### 5.1 `docker run`
++
++```bash
++docker build -t nimoos-demo-widget examples/demo-widget
++docker run -d --name nimoos-demo-widget -p 18080:80 \
++  --label nimoos.enable=true \
++  --label nimoos.title=演示小组件 \
++  --label nimoos.icon=/icon.svg \
++  --label nimoos.port=18080 \
++  --label nimoos.widget.path=/widget/ \
++  --label nimoos.widget.w=2 \
++  --label nimoos.widget.h=2 \
++  nimoos-demo-widget
++```
++
++或者直接执行仓库自带的脚本:`./examples/demo-widget/run.sh`。
++
++### 5.2 `docker-compose.yml`
++
++```yaml
++services:
++  demo-widget:
++    build: .
++    ports:
++      - "18080:80"
++    labels:
++      nimoos.enable: "true"
++      nimoos.title: "演示小组件"
++      nimoos.icon: "/icon.svg"
++      nimoos.port: "18080"
++      nimoos.widget.path: "/widget/"
++      nimoos.widget.w: "2"
++      nimoos.widget.h: "2"
++```
++
++## 6. 常见问题
++
++**应用装完 30 秒后桌面还是没出现图标 / 小组件?**
++1. 先用 `docker inspect <容器名或ID> --format '{{json .Config.Labels}}'` 确认 label 确实写进了容器,
++   而不是只写在 compose 文件里没生效 —— 常见原因是 label 名拼错(比如 `nimoos.widget.Path` 大小写、
++   `nimoos.enabled` 多打了个 `d`)。所有 label 名都是**小写、点分隔**,必须逐字符匹配本文档 §1。
++2. 确认 `nimoos.enable` 的值确实是字符串 `"true"`(不是布尔 `true`,YAML 里裸 `true` 会被解析成
++   布尔类型,和字符串比较可能不相等 —— 建议像 §5.2 那样显式加引号)。
++3. New-UI 桌面对 appgrid 是**轮询**(仅桌面可见时,每 30 秒一次)+ 聚焦刷新,不是实时推送;
++   确认已经等待了至少一个轮询周期,或切走再切回桌面触发一次聚焦刷新。
++
++**小组件卡片显示"无法连接"?**
++1. 先检查 `nimoos.widget.path` 指向的页面是不是要求登录 / 要求 NimoOS JWT —— 桌面的 iframe
++   **不会**携带任何 token,widget 页面必须对匿名请求也能正常返回内容(见 §2 第 1 条)。
++2. 检查端口是否真的映射到了宿主机(`docker run -p <宿主端口>:<容器端口>` 或 compose 的 `ports:`);
++   如果容器只在内部网络监听,桌面所在浏览器是从宿主机地址访问不到的。
++3. 8 秒超时未加载完成也会判定为"无法连接"并显示占位重试按钮 —— 确认页面本身没有阻塞式的
++   慢请求(比如同步等待一个不可达的第三方 API)拖慢首屏。
+diff --git a/examples/demo-widget/Dockerfile b/examples/demo-widget/Dockerfile
+new file mode 100644
+index 0000000..358c860
+--- /dev/null
++++ b/examples/demo-widget/Dockerfile
+@@ -0,0 +1,2 @@
++FROM nginx:alpine
++COPY html /usr/share/nginx/html
+diff --git a/examples/demo-widget/html/icon.svg b/examples/demo-widget/html/icon.svg
+new file mode 100644
+index 0000000..58b69f6
+--- /dev/null
++++ b/examples/demo-widget/html/icon.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#3d6fe0"/><path d="M14 30l7-12 6 8 3-4 4 8z" fill="#fff"/></svg>
+diff --git a/examples/demo-widget/html/index.html b/examples/demo-widget/html/index.html
+new file mode 100644
+index 0000000..914529f
+--- /dev/null
++++ b/examples/demo-widget/html/index.html
+@@ -0,0 +1,2 @@
++<!doctype html><meta charset="utf-8"><title>Demo App</title>
++<body style="font-family:sans-serif"><h1>Demo App 主页面</h1><p>点桌面图标打开的就是这里。</p></body>
+diff --git a/examples/demo-widget/html/widget/index.html b/examples/demo-widget/html/widget/index.html
+new file mode 100644
+index 0000000..44d4a20
+--- /dev/null
++++ b/examples/demo-widget/html/widget/index.html
+@@ -0,0 +1,18 @@
++<!doctype html>
++<html><head><meta charset="utf-8"><title>Demo Widget</title>
++<script>
++  const q = new URLSearchParams(location.search)
++  document.documentElement.dataset.theme = q.get('theme') || 'dark'
++  const l = document.createElement('link'); l.rel = 'stylesheet'
++  l.href = (q.get('home') || '') + '/app/widget-kit.css'; document.head.appendChild(l)
++</script>
++</head><body>
++  <p class="nk-title">演示任务</p>
++  <div class="nk-stat">3<small>个进行中</small></div>
++  <div class="nk-progress" style="margin:8px 0"><i style="width:62%"></i></div>
++  <ul class="nk-list">
++    <li class="nk-row"><span>速度</span><span class="nk-value nk-accent">2.1 MB/s</span></li>
++    <li class="nk-row"><span>剩余</span><span class="nk-value">14 分钟</span></li>
++    <li class="nk-row"><span>状态</span><span class="nk-badge good">健康</span></li>
++  </ul>
++</body></html>
+diff --git a/examples/demo-widget/run.sh b/examples/demo-widget/run.sh
+new file mode 100755
+index 0000000..8e1e0a5
+--- /dev/null
++++ b/examples/demo-widget/run.sh
+@@ -0,0 +1,16 @@
++#!/usr/bin/env bash
++# 桌面识别演示:构建并运行带 nimoos.* label 的示例容器(真机验收工具)
++set -e
++cd "$(dirname "$0")"
++docker build -t nimoos-demo-widget .
++docker rm -f nimoos-demo-widget 2>/dev/null || true
++docker run -d --name nimoos-demo-widget -p 18080:80 \
++  --label nimoos.enable=true \
++  --label nimoos.title=演示小组件 \
++  --label nimoos.icon=/icon.svg \
++  --label nimoos.port=18080 \
++  --label nimoos.widget.path=/widget/ \
++  --label nimoos.widget.w=2 \
++  --label nimoos.widget.h=2 \
++  nimoos-demo-widget
++echo "OK — 30 秒内应出现在 /app/ 桌面"
+diff --git a/public/widget-kit.css b/public/widget-kit.css
+new file mode 100644
+index 0000000..35d575b
+--- /dev/null
++++ b/public/widget-kit.css
+@@ -0,0 +1,78 @@
++/* NimoOS Widget Kit v1 — 第三方桌面小组件设计套件
++ * 用法:桌面以 iframe 打开你的 widget 页,并附 ?theme=dark|light&lang=zh_cn&home=<桌面origin>
++ *   <script>
++ *     const q = new URLSearchParams(location.search)
++ *     document.documentElement.dataset.theme = q.get('theme') || 'dark'
++ *     const l = document.createElement('link'); l.rel = 'stylesheet'
++ *     l.href = (q.get('home') || '') + '/app/widget-kit.css'; document.head.appendChild(l)
++ *   </script>
++ * 也可把本文件拷进你的应用(vendoring),离线可用。
++ * token 与 NimoOS 桌面 theme.css 对齐;组件类以 .nk- 前缀。 */
++
++:root {
++  --nk-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
++  --nk-num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
++  --nk-radius: 18px;
++  --nk-ease: cubic-bezier(0.16, 1, 0.3, 1);
++  /* dark(桌面 blue 主题)为默认 */
++  --nk-bg: transparent;              /* 卡片壳由桌面画,widget 页保持透明底 */
++  --nk-fg: #ffffff;
++  --nk-muted: rgba(255, 255, 255, 0.74);
++  --nk-faint: rgba(255, 255, 255, 0.52);
++  --nk-accent: #8ab4ff;
++  --nk-good: #5fe3b0;
++  --nk-bad: #ff8a80;
++  --nk-divider: rgba(255, 255, 255, 0.1);
++  --nk-track: rgba(255, 255, 255, 0.14);
++}
++:root[data-theme="light"] {
++  --nk-fg: #1b2540;
++  --nk-muted: rgba(27, 37, 64, 0.72);
++  --nk-faint: rgba(27, 37, 64, 0.5);
++  --nk-accent: #3d6fe0;
++  --nk-good: #0e9e6e;
++  --nk-bad: #d64545;
++  --nk-divider: rgba(27, 37, 64, 0.12);
++  --nk-track: rgba(27, 37, 64, 0.14);
++}
++
++html, body { margin: 0; padding: 0; background: var(--nk-bg); }
++body {
++  font-family: var(--nk-font);
++  color: var(--nk-fg);
++  font-size: 14px;
++  line-height: 1.45;
++  -webkit-font-smoothing: antialiased;
++  padding: 4px 2px;
++  box-sizing: border-box;
++}
++*, *::before, *::after { box-sizing: inherit; }
++
++/* ── 组件类 ─────────────────────────────────────────── */
++.nk-title { font-size: 13px; font-weight: 600; color: var(--nk-muted); letter-spacing: 0.02em; margin: 0 0 6px; }
++.nk-stat { font-family: var(--nk-num-font); font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
++.nk-stat small { font-size: 14px; font-weight: 500; color: var(--nk-muted); margin-left: 3px; }
++.nk-label { font-size: 12px; color: var(--nk-faint); }
++.nk-accent { color: var(--nk-accent); }
++.nk-good { color: var(--nk-good); }
++.nk-bad { color: var(--nk-bad); }
++
++.nk-list { margin: 0; padding: 0; list-style: none; }
++.nk-row {
++  display: flex; align-items: center; justify-content: space-between;
++  gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--nk-divider);
++  font-size: 13px;
++}
++.nk-row:last-child { border-bottom: 0; }
++.nk-row .nk-value { color: var(--nk-muted); font-variant-numeric: tabular-nums; }
++
++.nk-progress { height: 6px; border-radius: 999px; background: var(--nk-track); overflow: hidden; }
++.nk-progress > i { display: block; height: 100%; border-radius: inherit; background: var(--nk-accent); transition: width 0.4s var(--nk-ease); }
++
++.nk-badge {
++  display: inline-flex; align-items: center; gap: 5px;
++  font-size: 12px; color: var(--nk-muted);
++}
++.nk-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--nk-accent); }
++.nk-badge.good::before { background: var(--nk-good); }
++.nk-badge.bad::before { background: var(--nk-bad); }
+diff --git a/src/home/components/AddPanel.test.ts b/src/home/components/AddPanel.test.ts
+index c7c8be8..2489029 100644
+--- a/src/home/components/AddPanel.test.ts
++++ b/src/home/components/AddPanel.test.ts
+@@ -1,25 +1,39 @@
+ import { describe, it, expect, beforeEach } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useLayoutStore } from '../stores/layout'
++import { useAppsStore } from '../stores/apps'
+ import { __resetAddPanelForTest } from '../composables/useAddPanel'
+ import AddPanel from './AddPanel.vue'
+ 
+ describe('AddPanel', () => {
+   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetAddPanelForTest() })
+   it('widget tab lists widgets and marks used ones', async () => {
+     const layout = useLayoutStore(); layout.replaceAll([{ kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 }])
+     const w = mount(AddPanel, { props: { open: true } })
+     expect(w.text()).toContain('时间') // clock widget card
+     expect(w.text()).toContain('✓ 已添加') // clock used badge
+   })
++  it('widget tab also lists app-declared widgets, marks used ones, and pins on click', async () => {
++    const apps = useAppsStore()
++    apps.setApps([{ name: 'my-dl', title: { zh_cn: '下载器' }, status: 'running', port: '8080', desktop: true, widget: { path: '/widget', w: 3, h: 2 } }] as any)
++    const layout = useLayoutStore(); layout.replaceAll([])
++    const w = mount(AddPanel, { props: { open: true }, attachTo: document.body })
++    expect(w.text()).toContain('下载器') // app widget card
++    const card = w.get('.lib-card[data-key="aw-my-dl"]')
++    expect(card.find('.lib-used-badge').exists()).toBe(false)
++    await card.trigger('pointerdown', { clientX: 0, clientY: 0 })
++    await card.trigger('pointerup', { clientX: 0, clientY: 0 })
++    expect(layout.items.some((i) => i.kind === 'appwidget' && i.key === 'my-dl')).toBe(true)
++    w.unmount()
++  })
+   it('clicking an app card pins it to the grid', async () => {
+     const layout = useLayoutStore(); layout.replaceAll([])
+     const w = mount(AddPanel, { props: { open: true }, attachTo: document.body })
+     await w.get('[data-tab="app"]').trigger('click')
+     // pointerdown starts the gesture; pointerup (no move) triggers the click-to-pin path
+     const icon = w.get('.lib-icon[data-key="vm"]')
+     await icon.trigger('pointerdown', { clientX: 0, clientY: 0 })
+     await icon.trigger('pointerup', { clientX: 0, clientY: 0 })
+     expect(layout.items.some((i) => i.key === 'vm')).toBe(true)
+     w.unmount()
+diff --git a/src/home/components/AddPanel.vue b/src/home/components/AddPanel.vue
+index 08f9fc4..fe1d27b 100644
+--- a/src/home/components/AddPanel.vue
++++ b/src/home/components/AddPanel.vue
+@@ -26,20 +26,35 @@
+         :data-key="key"
+         @pointerdown="onSpawnDown($event, { kind: 'widget', key: String(key), w: meta.default[0], h: meta.default[1] })"
+       >
+         <svg class="lib-card-icon" viewBox="0 0 24 24" v-html="meta.icon" />
+         <div class="lib-card-info">
+           <span class="lib-card-title">{{ t(meta.title) }}</span>
+           <span class="lib-card-desc">{{ t(meta.desc) }}</span>
+         </div>
+         <span v-if="ap.widgetUsed(String(key))" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
+       </div>
++      <div
++        v-for="d in appWidgetCards"
++        :key="'aw-' + d.key"
++        class="lib-card"
++        :data-key="'aw-' + d.key"
++        @pointerdown="onSpawnDown($event, { kind: 'appwidget', key: d.key, w: d.w, h: d.h })"
++      >
++        <img v-if="d.icon" class="lib-card-icon lib-card-icon-img" :src="d.icon" alt="" />
++        <svg v-else class="lib-card-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" /></svg>
++        <div class="lib-card-info">
++          <span class="lib-card-title">{{ d.name }}</span>
++          <span class="lib-card-desc">{{ t('addPanelAppWidgetDesc') }}</span>
++        </div>
++        <span v-if="ap.appWidgetUsed(d.key)" class="lib-used-badge">{{ t('addPanelAdded') }}</span>
++      </div>
+     </div>
+ 
+     <!-- App tab -->
+     <div v-if="ap.curTab.value === 'app'" class="lib-content lib-app-grid">
+       <div
+         v-for="key in appsStore.order"
+         :key="key"
+         class="lib-icon"
+         :data-key="key"
+         @pointerdown="onSpawnDown($event, { kind: 'app', key, w: 1, h: 1 })"
+@@ -103,21 +118,21 @@
+       <button class="lib-reset-btn" @click="ap.reset()">{{ t('addPanelReset') }}</button>
+     </div>
+   </aside>
+ </template>
+ 
+ <script setup lang="ts">
+ import { computed, onMounted, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useAddPanel } from '../composables/useAddPanel'
+ import { useHomeUiStore } from '../stores/homeUi'
+-import { useAppsStore } from '../stores/apps'
++import { useAppsStore, clampWidgetDecl } from '../stores/apps'
+ import { useFoldersStore } from '../stores/folders'
+ import { usePhotosStore } from '../stores/photos'
+ import { useLiveStatsStore } from '../stores/liveStats'
+ import { WIDGETS } from '../widgets/registry'
+ import type { Kind } from '../grid/types'
+ 
+ const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number; gridEl?: HTMLElement | null }>()
+ defineEmits<{ close: [] }>()
+ 
+ type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string }
+@@ -209,20 +224,32 @@ const TABS = [
+   { key: 'photo',  label: 'addPanelTabPhoto' },
+ ] as const
+ 
+ // Hide gpu widget when no GPU present
+ const visibleWidgets = computed(() => {
+   return Object.fromEntries(
+     Object.entries(WIDGETS).filter(([key]) => key !== 'gpu' || liveStats.gpuPresent)
+   )
+ })
+ 
++// App-declared widgets (Task 5/9: desktop apps with a `widget` decl) — listed
++// alongside the built-in widget cards so a manually-removed app widget can be
++// re-added from here.
++const appWidgetCards = computed(() =>
++  appsStore.desktopDecls()
++    .filter((d) => d.widget)
++    .map((d) => {
++      const a = appsStore.apps[d.key]
++      const [w, h] = clampWidgetDecl(d.widget!.w, d.widget!.h)
++      return { key: d.key, name: a?.name ?? d.key, icon: a?.icon ?? null, w, h }
++    }))
++
+ // Breadcrumbs: from the selected disk root down to the current folder.
+ // Never includes segments above the disk root (so `/` is never reachable).
+ const breadcrumbs = computed(() => {
+   const disk = ap.fsDisk.value
+   if (!disk) return []
+   const root = disk.path.replace(/\/+$/, '') || '/'
+   const cur = ap.fsPath.value || root
+   const rel = cur.startsWith(root) ? cur.slice(root.length) : ''
+   const parts = rel.split('/').filter(Boolean)
+   const segs: { label: string; path: string }[] = [{ label: disk.name, path: root }]
+@@ -344,20 +371,21 @@ function appGlyph(key: string): string {
+   cursor: pointer;
+   backdrop-filter: var(--blur, blur(44px) saturate(1.7) brightness(1.08));
+   transition: transform .18s var(--ease, ease), border-color .18s;
+ }
+ .lib-card:hover { transform: translateY(-2px); border-color: var(--accent, #8ab4ff); }
+ 
+ .lib-card-icon {
+   width: 32px; height: 32px; flex-shrink: 0;
+   fill: none; stroke: var(--accent, #8ab4ff); stroke-width: 1.6; opacity: .9;
+ }
++.lib-card-icon-img { border-radius: 8px; object-fit: cover; }
+ .lib-card-info { flex: 1; }
+ .lib-card-title { display: block; font-size: 14px; font-weight: 500; color: var(--fg, #fff); }
+ .lib-card-desc { display: block; font-size: 14px; color: var(--fg-muted, rgba(255,255,255,.74)); margin-top: 2px; }
+ 
+ /* ✓ 已添加 badge — accent text, top-right */
+ .lib-used-badge {
+   position: absolute; top: 12px; right: 12px;
+   font-size: 14px; font-weight: 600;
+   color: var(--accent, #8ab4ff); white-space: nowrap;
+ }
+diff --git a/src/home/components/AppTile.test.ts b/src/home/components/AppTile.test.ts
+index ca8f5d8..51e99b7 100644
+--- a/src/home/components/AppTile.test.ts
++++ b/src/home/components/AppTile.test.ts
+@@ -14,11 +14,23 @@ describe('AppTile', () => {
+     expect(w.find('svg').exists()).toBe(true)
+     expect(w.text()).toContain('文件')
+   })
+   it('renders a remote img for a container app with icon', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jellyfin', title: { zh_cn: '影音' }, icon: 'http://x/i.png' }] as any)
+     const w = mount(AppTile, { props: { item: item('jellyfin') } })
+     expect(w.find('img').attributes('src')).toBe('http://x/i.png')
+     expect(w.text()).toContain('影音')
+   })
++  it('dims a non-system stopped app but not a running one, undefined-status one, or a system app', () => {
++    const s = useAppsStore()
++    s.setApps([
++      { name: 'jellyfin', title: { zh_cn: '影音' }, status: 'stopped' },
++      { name: 'plex', title: { zh_cn: '播放' }, status: 'running' },
++      { name: 'emby', title: { zh_cn: '影库' }, status: undefined }, // status unknown (not yet loaded)
++    ] as any)
++    expect(mount(AppTile, { props: { item: item('jellyfin') } }).classes()).toContain('stopped')
++    expect(mount(AppTile, { props: { item: item('plex') } }).classes()).not.toContain('stopped')
++    expect(mount(AppTile, { props: { item: item('emby') } }).classes()).not.toContain('stopped') // undefined status doesn't dim
++    expect(mount(AppTile, { props: { item: item('files') } }).classes()).not.toContain('stopped') // system app never dims
++  })
+ })
+diff --git a/src/home/components/AppTile.vue b/src/home/components/AppTile.vue
+index b9a32d1..15aaba8 100644
+--- a/src/home/components/AppTile.vue
++++ b/src/home/components/AppTile.vue
+@@ -1,12 +1,12 @@
+ <template>
+-  <div class="app-tile">
++  <div class="app-tile" :class="{ stopped: !meta?.system && !!meta?.status && meta?.status !== 'running' }">
+     <span
+       v-if="meta?.icon"
+       class="app-ic has-img"
+       :class="meta?.cls || 'ic-app'"
+     ><img :src="meta.icon" alt="" loading="lazy" /></span>
+     <span
+       v-else
+       class="app-ic"
+       :class="meta?.cls || 'ic-app'"
+       v-html="glyphSvg"
+@@ -29,17 +29,18 @@ const displayName = computed(() => {
+   const m = meta.value
+   if (!m) return props.item.key
+   return m.system ? t(m.name) : m.name
+ })
+ const BAG = '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>'
+ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.glyph || BAG}</svg>`)
+ </script>
+ <style scoped>
+ /* kind-app flex column layout lives in global theme.css (.kind-app rule) */
+ .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
++.app-tile.stopped { opacity: 0.45; filter: grayscale(0.6); }
+ /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
+    here we set width/height for the within-tile context (kind-app .app-ic is flex:1 1 auto globally) */
+ .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; /* theme-exception: icon glyph on colored gradient, must be white for contrast */ box-shadow: var(--icon-shadow); }
+ .app-ic :deep(svg) { width: 44%; height: 44%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+ /* has-img: overflow+background handled globally; local transition kept for smooth load */
+ .app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+ </style>
+diff --git a/src/home/components/GridItem.vue b/src/home/components/GridItem.vue
+index e878286..44c6132 100644
+--- a/src/home/components/GridItem.vue
++++ b/src/home/components/GridItem.vue
+@@ -2,36 +2,37 @@
+   <div
+     class="grid-item"
+     :class="[`kind-${item.kind}`, { editing, dragging, resizing, pop: popping }]"
+     :data-id="item.id"
+     :data-kind="item.kind"
+     :style="style"
+     @pointerdown="onRootDown"
+     @click="onClick"
+   >
+     <button v-if="editing" class="remove" :aria-label="t('gridRemove')" @click.stop="onRemove">−</button>
+-    <WidgetCard v-if="item.kind === 'widget'" :item="sized" />
++    <WidgetCard v-if="item.kind === 'widget' || item.kind === 'appwidget'" :item="sized" />
+     <PhotoTile v-else-if="item.kind === 'photo'" :item="item" />
+     <AppTile v-else-if="item.kind === 'app'" :item="item" />
+     <FolderTile v-else-if="item.kind === 'folder'" :item="item" />
+     <span v-else class="item-label">{{ label }}</span>
+     <span v-if="editing && canResize" class="resize-handle" :aria-label="t('gridResize')" @pointerdown.stop="$emit('resize-down', $event)" />
+   </div>
+ </template>
+ 
+ <script setup lang="ts">
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import type { LayoutItem } from '../grid/types'
+ import { WIDGETS } from '../widgets/registry'
+-import { widgetSize } from '../widgets/registry'
++import { sizeOfItem } from '../widgets/registry'
+ import { SYSTEM_APPS } from '../apps/systemApps'
++import { useAppsStore } from '../stores/apps'
+ import { useOpenAction } from '../composables/useOpenAction'
+ import { useEditMode } from '../composables/useEditMode'
+ import { useLayoutStore } from '../stores/layout'
+ import { useHomeUiStore } from '../stores/homeUi'
+ import WidgetCard from './widgets/WidgetCard.vue'
+ import PhotoTile from './PhotoTile.vue'
+ import AppTile from './AppTile.vue'
+ import FolderTile from './FolderTile.vue'
+ 
+ const props = defineProps<{
+@@ -60,27 +61,28 @@ const sized = computed(() =>
+ )
+ 
+ const style = computed(() => ({
+   gridColumn: `${props.item.c} / span ${sized.value.w}`,
+   gridRow: `${props.item.r} / span ${sized.value.h}`,
+ }))
+ 
+ const label = computed(() => {
+   const it = props.item
+   if (it.kind === 'widget') { const k = WIDGETS[it.key]?.title; return k ? t(k) : it.key }
++  if (it.kind === 'appwidget') return useAppsStore().app(it.key)?.name ?? it.key
+   if (it.kind === 'app') { const k = SYSTEM_APPS.find((a) => a.key === it.key)?.label; return k ? t(k) : it.key }
+   return it.key // folder
+ })
+ 
+ const canResize = computed(() => {
+-  if (props.item.kind === 'widget') {
+-    const ws = widgetSize(props.item.key)
++  if (props.item.kind === 'widget' || props.item.kind === 'appwidget') {
++    const ws = sizeOfItem(props.item)
+     if (!ws) return false
+     return ws.min[0] !== ws.max[0] || ws.min[1] !== ws.max[1]
+   }
+   return true
+ })
+ 
+ function onRemove() {
+   layout.remove(props.item.id)
+   layout.save()
+   ui.showToast(t('addPanelRemovedToast'))
+diff --git a/src/home/components/widgets/AppIframeWidget.test.ts b/src/home/components/widgets/AppIframeWidget.test.ts
+new file mode 100644
+index 0000000..0dc9836
+--- /dev/null
++++ b/src/home/components/widgets/AppIframeWidget.test.ts
+@@ -0,0 +1,71 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import AppIframeWidget from './AppIframeWidget.vue'
++import { useAppsStore } from '../../stores/apps'
++import type { LayoutItem } from '../../grid/types'
++
++const item = (): LayoutItem => ({ id: 'i', kind: 'widget', key: 'my-dl', c: 1, r: 1, w: 3, h: 2 })
++
++function seedRunning(s: ReturnType<typeof useAppsStore>) {
++  s.setApps([
++    { name: 'my-dl', title: { en_us: 'DL' }, status: 'running', scheme: 'http', hostname: 'localhost', port: 8080, desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
++  ] as never)
++}
++
++describe('AppIframeWidget', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.useFakeTimers()
++  })
++  afterEach(() => {
++    vi.useRealTimers()
++  })
++
++  it('停止应用不留残余计时器触发假失败态(应显示"应用未运行"占位)', async () => {
++    const s = useAppsStore()
++    seedRunning(s)
++    const w = mount(AppIframeWidget, { props: { item: item() } })
++    await vi.advanceTimersByTimeAsync(0)
++    expect(w.find('iframe').exists()).toBe(true) // running + inView(jsdom 降级立即 true) → iframe 已挂载,8s 计时器已 arm
++
++    // 应用停止:running 翻 false,遗留的 8s 计时器不应再触发 failed
++    s.setApps([
++      { name: 'my-dl', title: { en_us: 'DL' }, status: 'exited', scheme: 'http', hostname: 'localhost', port: 8080, desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
++    ] as never)
++    await vi.advanceTimersByTimeAsync(0)
++    expect(w.find('iframe').exists()).toBe(false)
++    expect(w.text()).toContain('应用未运行')
++
++    await vi.advanceTimersByTimeAsync(8000)
++    await w.vm.$nextTick()
++    // 遗留计时器不应触发失败态覆盖掉"未运行"占位,也不应残留 retry 按钮
++    expect(w.text()).toContain('应用未运行')
++    expect(w.find('.aw-retry').exists()).toBe(false)
++  })
++
++  it('恢复运行后重新 arm 计时器,8s 内未 load 才出现失败态 + 重试按钮', async () => {
++    const s = useAppsStore()
++    seedRunning(s)
++    const w = mount(AppIframeWidget, { props: { item: item() } })
++    await vi.advanceTimersByTimeAsync(0)
++
++    // 停止 → 停止期间推满 8s:修复前遗留计时器会在此触发把 failed 卡死 true,
++    // 恢复运行后 iframe 永不重挂;修复后计时器已清理,failed 保持 false
++    s.setApps([
++      { name: 'my-dl', title: { en_us: 'DL' }, status: 'exited', scheme: 'http', hostname: 'localhost', port: 8080, desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
++    ] as never)
++    await vi.advanceTimersByTimeAsync(8000)
++
++    seedRunning(s)
++    await vi.advanceTimersByTimeAsync(0)
++    expect(w.find('iframe').exists()).toBe(true) // 恢复运行后 iframe 重新挂载(旧代码此处永不重挂)
++
++    // 8s 内没有 load 事件(jsdom 不会真加载 iframe)→ 应该真正超时进入失败态
++    await vi.advanceTimersByTimeAsync(8000)
++    await w.vm.$nextTick()
++    expect(w.find('iframe').exists()).toBe(false)
++    expect(w.text()).toContain('无法连接')
++    expect(w.find('.aw-retry').exists()).toBe(true)
++  })
++})
+diff --git a/src/home/components/widgets/AppIframeWidget.vue b/src/home/components/widgets/AppIframeWidget.vue
+new file mode 100644
+index 0000000..f8550de
+--- /dev/null
++++ b/src/home/components/widgets/AppIframeWidget.vue
+@@ -0,0 +1,78 @@
++<template>
++  <div ref="root" class="aw">
++    <iframe
++      v-if="src && running && inView && !failed"
++      :key="src + retry"
++      class="aw-frame"
++      :src="src"
++      sandbox="allow-scripts allow-same-origin allow-forms"
++      referrerpolicy="no-referrer"
++      @load="onLoad"
++    />
++    <div v-else class="aw-fallback">
++      <img v-if="app?.icon" class="aw-ic" :src="app.icon" alt="" />
++      <span class="aw-msg">{{ running ? t('appWidgetUnavailable') : t('appWidgetNotRunning') }}</span>
++      <button v-if="running && failed" class="aw-retry" type="button" @click="onRetry">{{ t('appWidgetRetry') }}</button>
++    </div>
++  </div>
++</template>
++<script setup lang="ts">
++import { computed, ref, watch, onBeforeUnmount } from 'vue'
++import { useI18n } from 'vue-i18n'
++import type { LayoutItem } from '../../grid/types'
++import { useAppsStore } from '../../stores/apps'
++import { useThemeStore } from '../../../stores/theme'
++import { useInView } from '../../../files/composables/useInView'
++import { appWidgetUrl } from '../../util/appWidgetUrl'
++
++const props = defineProps<{ item: LayoutItem }>()
++const { t, locale } = useI18n()
++const apps = useAppsStore()
++const theme = useThemeStore()
++const root = ref<HTMLElement | null>(null)
++const inView = useInView(root)
++const failed = ref(false)
++const retry = ref(0)
++let timer: ReturnType<typeof setTimeout> | null = null
++
++const app = computed(() => apps.app(props.item.key))
++const running = computed(() => app.value?.status === 'running')
++const src = computed(() => {
++  if (!app.value) return null
++  return appWidgetUrl(app.value, {
++    host: window.location.hostname,
++    origin: window.location.origin,
++    theme: theme.theme === 'light' ? 'light' : 'dark', // blue 主题映射 dark
++    lang: String(locale.value),
++  })
++})
++
++function armTimeout() {
++  if (timer) clearTimeout(timer)
++  timer = setTimeout(() => { failed.value = true }, 8000)
++}
++function onLoad() { if (timer) { clearTimeout(timer); timer = null } }
++function onRetry() { failed.value = false; retry.value++ }
++
++watch([src, inView, running, retry], ([s, v, r]) => {
++  if (s && v && r && !failed.value) {
++    armTimeout()
++  } else {
++    if (timer) { clearTimeout(timer); timer = null }
++    if (!r) failed.value = false
++  }
++}, { immediate: true })
++onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
++</script>
++<style scoped>
++.aw { width: 100%; height: 100%; display: flex; }
++.aw-frame { flex: 1; border: 0; border-radius: var(--radius-sm); background: transparent; }
++.aw-fallback { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
++.aw-ic { width: 36px; height: 36px; border-radius: 10px; opacity: 0.7; }
++.aw-msg { color: var(--fg-muted); font-size: 13px; }
++.aw-retry {
++  border: 1px solid var(--border); background: transparent; color: var(--fg);
++  border-radius: 999px; padding: 3px 14px; font-size: 12px; cursor: pointer;
++}
++.aw-retry:hover { border-color: var(--accent); color: var(--accent); }
++</style>
+diff --git a/src/home/components/widgets/WidgetCard.vue b/src/home/components/widgets/WidgetCard.vue
+index 6474617..131cddb 100644
+--- a/src/home/components/widgets/WidgetCard.vue
++++ b/src/home/components/widgets/WidgetCard.vue
+@@ -1,47 +1,57 @@
+ <template>
+   <div class="card" :class="meta?.extra ? `w-${meta.extra}` : ''">
+-    <div class="card-head"><span class="card-ic" v-html="iconSvg" /><span class="card-title">{{ meta?.title ? t(meta.title) : '' }}</span></div>
++    <div class="card-head">
++      <img v-if="isApp && appMeta?.icon" class="card-ic-img" :src="appMeta.icon" alt="" />
++      <span v-else class="card-ic" v-html="iconSvg" />
++      <span class="card-title">{{ cardTitle }}</span>
++    </div>
+     <div class="card-in">
+       <component :is="bodyComp" v-if="bodyComp" :item="item" />
+     </div>
+   </div>
+ </template>
+ <script setup lang="ts">
+ import { computed, type Component } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import type { LayoutItem } from '../../grid/types'
+ import { WIDGETS } from '../../widgets/registry'
+ import AiWidget from './AiWidget.vue'
+ import ClockWidget from './ClockWidget.vue'
+ import StorageWidget from './StorageWidget.vue'
+ import CpuWidget from './CpuWidget.vue'
+ import GpuWidget from './GpuWidget.vue'
+ import NetworkWidget from './NetworkWidget.vue'
+ import EventsWidget from './EventsWidget.vue'
++import AppIframeWidget from './AppIframeWidget.vue'
++import { useAppsStore } from '../../stores/apps'
+ 
+ const props = defineProps<{ item: LayoutItem }>()
+ const { t } = useI18n()
+ const meta = computed(() => WIDGETS[props.item.key])
+ const iconSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.icon ?? ''}</svg>`)
+ 
++const isApp = computed(() => props.item.kind === 'appwidget')
++const appMeta = computed(() => (isApp.value ? useAppsStore().app(props.item.key) : undefined))
++const cardTitle = computed(() => (isApp.value ? appMeta.value?.name ?? props.item.key : meta.value?.title ? t(meta.value.title) : ''))
++
+ // 各 widget 组件由后续任务(T6 起)逐个 import 并登记进此 map
+ const WIDGET_COMPONENTS: Record<string, Component> = {
+   ai: AiWidget,
+   clock: ClockWidget,
+   storage: StorageWidget,
+   cpu: CpuWidget,
+   gpu: GpuWidget,
+   network: NetworkWidget,
+   events: EventsWidget,
+ }
+-const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
++const bodyComp = computed(() => (isApp.value ? AppIframeWidget : WIDGET_COMPONENTS[props.item.key]))
+ </script>
+ <style scoped>
+ /* ── Base card: glass material (P4c spatial skin) ───────────────────────── */
+ /* overflow:visible lets remove/resize badges on .grid-item show outside card */
+ /* container-type:size + width/height:100% = P2 collapse fix — do NOT split  */
+ .card {
+   overflow: visible;
+   container-type: size;
+   container-name: card;
+   width: 100%;
+@@ -112,20 +122,23 @@ const bodyComp = computed(() => WIDGET_COMPONENTS[props.item.key])
+   display: flex;
+   align-items: center;
+   gap: 9px;
+   font-size: var(--title-size, 14px);
+   font-weight: 600;
+   letter-spacing: -0.1px;
+   color: var(--fg, #fff);
+   text-shadow: 0 1px 3px rgba(8, 12, 28, 0.45); /* theme-exception: Dark text shadow for readability on glass cards; semantic doesn't fit existing shadow tokens */
+ }
+ 
++/* ── App-widget icon (WidgetCard: appwidget kind shows app icon, not svg) ── */
++.card-ic-img { width: 18px; height: 18px; border-radius: 5px; flex: none; }
++
+ /* ── Widget icon (.card-ic wraps the svg injected via v-html) ───────────── */
+ .card-ic :deep(svg) {
+   width: clamp(14px, 6cqmin, 18px);
+   height: clamp(14px, 6cqmin, 18px);
+   color: var(--accent);
+   fill: none;
+   stroke: currentColor;
+   stroke-width: 1.7;
+ }
+ 
+diff --git a/src/home/composables/useAddPanel.test.ts b/src/home/composables/useAddPanel.test.ts
+index 04b80f9..3f173b4 100644
+--- a/src/home/composables/useAddPanel.test.ts
++++ b/src/home/composables/useAddPanel.test.ts
+@@ -23,11 +23,20 @@ describe('useAddPanel', () => {
+   })
+   it('spawnPlace displaces others and adds at target', () => {
+     const layout = useLayoutStore(); layout.replaceAll([{ kind: 'app', key: 'files', c: 1, r: 1, w: 1, h: 1 }])
+     vi.spyOn(layout, 'save').mockImplementation(() => {})
+     const ap = useAddPanel(DIMS)
+     const ok = ap.spawnPlace({ kind: 'app', key: 'vm', w: 1, h: 1 } as any, 1, 1) // 占 files 处 → files 让位
+     expect(ok).toBe(true)
+     expect(layout.items.some((i) => i.key === 'vm' && i.c === 1 && i.r === 1)).toBe(true)
+     expect(layout.items.some((i) => i.key === 'files')).toBe(true) // files 还在(让位)
+   })
++  it('appWidgetUsed 反映桌面上的 appwidget;pinToFree 拒绝重复 appwidget', () => {
++    const layout = useLayoutStore()
++    layout.replaceAll([])
++    const ap = useAddPanel({ cols: 12, rows: 8 })
++    expect(ap.appWidgetUsed('my-dl')).toBe(false)
++    expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(true)
++    expect(ap.appWidgetUsed('my-dl')).toBe(true)
++    expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(false)
++  })
+ })
+diff --git a/src/home/composables/useAddPanel.ts b/src/home/composables/useAddPanel.ts
+index 2a00d7f..cce9a0f 100644
+--- a/src/home/composables/useAddPanel.ts
++++ b/src/home/composables/useAddPanel.ts
+@@ -23,49 +23,52 @@ export function __resetAddPanelForTest() {
+   curTab.value = 'widget'
+   fsDisk.value = null
+   fsPath.value = ''
+ }
+ 
+ export function useAddPanel(dims: Dims) {
+   const layout = useLayoutStore()
+   const ui = useHomeUiStore()
+ 
+   const widgetUsed = (key: string) => layout.items.some((it) => it.kind === 'widget' && it.key === key)
++  const appWidgetUsed = (key: string) => layout.items.some((it) => it.kind === 'appwidget' && it.key === key)
++  const dupWidget = (desc: Desc) =>
++    (desc.kind === 'widget' && widgetUsed(desc.key)) || (desc.kind === 'appwidget' && appWidgetUsed(desc.key))
+ 
+   function defaultSize(kind: string, key: string): [number, number] {
+     if (kind === 'widget') return WIDGETS[key]?.default ?? [2, 2]
+     if (kind === 'photo') return [2, 2]
+     return [1, 1]
+   }
+ 
+   function pinToFree(desc: Desc): boolean {
+-    if (desc.kind === 'widget' && widgetUsed(desc.key)) return false
++    if (dupWidget(desc)) return false
+     const pos = firstFree(desc.w, desc.h, layout.items, dims)
+     if (!pos) { ui.showToast(i18n.global.t('addPanelFull')); return false }
+     layout.pin({ ...desc, c: pos.c, r: pos.r })
+     layout.save()
+     return true
+   }
+ 
+   function spawnPlace(desc: Desc, tc: number, tr: number): boolean {
+-    if (desc.kind === 'widget' && widgetUsed(desc.key)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
++    if (dupWidget(desc)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
+     const others = planFootprint(tc, tr, desc.w, desc.h, null, layout.items, dims)
+     if (!others) { ui.showToast(i18n.global.t('addPanelNoRoom')); return false }
+     layout.applyPlan(others as PlanEntry[])
+     layout.pin({ ...desc, c: tc, r: tr })
+     layout.save(); ui.showToast(i18n.global.t('addPanelAddedToast', { key: desc.key }))
+     return true
+   }
+ 
+   function toggleWidget(key: string, w: number, h: number) {
+-    if (widgetUsed(key)) {
++    if (dupWidget({ kind: 'widget', key, w, h })) {
+       const it = layout.items.find((i) => i.kind === 'widget' && i.key === key)
+       if (it) { layout.remove(it.id); layout.save(); ui.showToast(i18n.global.t('addPanelRemovedToast')) }
+     } else pinToFree({ kind: 'widget', key, w, h })
+   }
+ 
+   function openLib() { ui.toggleEdit(true); curTab.value = 'widget'; open.value = true }
+   function close() { open.value = false }
+   function reset() { layout.reset(); close(); ui.showToast(i18n.global.t('addPanelResetToast')) }
+ 
+-  return { open, curTab, fsDisk, fsPath, widgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
++  return { open, curTab, fsDisk, fsPath, widgetUsed, appWidgetUsed, defaultSize, pinToFree, spawnPlace, toggleWidget, openLib, close, reset }
+ }
+diff --git a/src/home/composables/useDragResize.ts b/src/home/composables/useDragResize.ts
+index cc862f1..80fdfee 100644
+--- a/src/home/composables/useDragResize.ts
++++ b/src/home/composables/useDragResize.ts
+@@ -1,15 +1,15 @@
+ import { ref, type Ref } from 'vue'
+ import type { LayoutItem, Dims } from '../grid/types'
+ import { fits, planMove, clampSize } from '../grid/gridMath'
+ import { dragCell, resizeSize } from '../grid/pointerMath'
+-import { widgetSize } from '../widgets/registry'
++import { sizeOfItem } from '../widgets/registry'
+ import { useLayoutStore } from '../stores/layout'
+ import { useHomeUiStore } from '../stores/homeUi'
+ import { i18n } from '../../i18n'
+ 
+ export function resizePreview(item: LayoutItem, w: number, h: number, layout: LayoutItem[], dims: Dims): { mode: 'wysiwyg' | 'ghost'; ok: boolean } {
+   if (fits(item.c, item.r, w, h, item.id, layout, dims)) return { mode: 'wysiwyg', ok: true }
+   return { mode: 'ghost', ok: !!planMove(item.id, item.c, item.r, w, h, layout, dims) }
+ }
+ 
+ export function useDragResize(opts: { cell: Ref<number>; gap: Ref<number>; cols: number; rows: number; gridEl: Ref<HTMLElement | null> }) {
+@@ -31,21 +31,21 @@ export function useDragResize(opts: { cell: Ref<number>; gap: Ref<number>; cols:
+     if (mode === 'drag') draggingId.value = item.id; else resizingId.value = item.id
+     ;(e.target as HTMLElement)?.setPointerCapture?.(e.pointerId)
+     e.preventDefault()
+   }
+ 
+   function onPointerMove(e: PointerEvent) {
+     if (!active) return
+     const r = gridRect()
+     if (active.mode === 'resize') {
+       const [rw, rh] = resizeSize(e.clientX - r.left, e.clientY - r.top, active.item.c, active.item.r, stride(), dims)
+-      const [w, h] = clampSize(active.item, rw, rh, widgetSize)
++      const [w, h] = clampSize(active.item, rw, rh, sizeOfItem)
+       active.tw = w; active.th = h
+       const pv = resizePreview(active.item, w, h, layout.items, dims)
+       if (pv.mode === 'wysiwyg') { previewSize.value = { ...previewSize.value, [active.item.id]: { w, h } }; ghost.value = null }
+       else { delete previewSize.value[active.item.id]; previewSize.value = { ...previewSize.value }; ghost.value = { c: active.item.c, r: active.item.r, w, h, ok: pv.ok } }
+     } else {
+       const localX = e.clientX - r.left - active.grab.x
+       const localY = e.clientY - r.top - active.grab.y
+       const { c, r: rr } = dragCell(localX, localY, active.item.w, active.item.h, stride(), dims)
+       active.tc = c; active.tr = rr
+       ghost.value = { c, r: rr, w: active.item.w, h: active.item.h, ok: !!planMove(active.item.id, c, rr, active.item.w, active.item.h, layout.items, dims) }
+diff --git a/src/home/grid/gridMath.test.ts b/src/home/grid/gridMath.test.ts
+index 3a8893b..7908042 100644
+--- a/src/home/grid/gridMath.test.ts
++++ b/src/home/grid/gridMath.test.ts
+@@ -1,13 +1,14 @@
+ import { describe, it, expect } from 'vitest'
+ import { cells, occupiedSet, fits, firstFree, firstFreeIn, planFootprint, planMove, applyPlan, clampSize, clampToGrid } from './gridMath'
+ import type { LayoutItem, Dims, WidgetSize } from './types'
++import { sizeOfItem, APP_WIDGET_SIZE } from '../widgets/registry'
+ 
+ const DIMS: Dims = { cols: 12, rows: 8 }
+ const mk = (id: string, c: number, r: number, w: number, h: number): LayoutItem =>
+   ({ id, kind: 'app', key: id, c, r, w, h })
+ 
+ describe('cells', () => {
+   it('lists every occupied "c,r" cell', () => {
+     expect(cells({ c: 2, r: 3, w: 2, h: 2 }).sort()).toEqual(['2,3', '2,4', '3,3', '3,4'].sort())
+   })
+ })
+@@ -109,36 +110,49 @@ describe('applyPlan', () => {
+   it('returns a new array with updated coords, not mutating input', () => {
+     const layout = [mk('a', 1, 1, 1, 1), mk('b', 2, 1, 2, 2)]
+     const out = applyPlan([{ id: 'b', c: 5, r: 5, w: 3, h: 1 }], layout)
+     expect(out).not.toBe(layout)
+     expect(layout[1]).toMatchObject({ c: 2, r: 1, w: 2, h: 2 }) // 原数组未变
+     expect(out.find((i) => i.id === 'b')).toMatchObject({ c: 5, r: 5, w: 3, h: 1 })
+     expect(out.find((i) => i.id === 'a')).toMatchObject({ c: 1, r: 1 })
+   })
+ })
+ 
+-const sizeOf = (key: string): WidgetSize | undefined =>
+-  key === 'cpu' ? { min: [2, 2], max: [4, 3] } : undefined
++const sizeOf = (it: LayoutItem): WidgetSize | undefined =>
++  it.key === 'cpu' ? { min: [2, 2], max: [4, 3] } : undefined
+ 
+ describe('clampSize', () => {
+   it('clamps a widget to its min/max', () => {
+     const w = { id: 'i', kind: 'widget', key: 'cpu', c: 1, r: 1, w: 4, h: 2 } as LayoutItem
+     expect(clampSize(w, 9, 1, sizeOf)).toEqual([4, 2]) // w→max4, h→min2
+   })
+   it('snaps app/folder/photo to nearest of 1x1 or 2x2', () => {
+     const a = { id: 'i', kind: 'app', key: 'files', c: 1, r: 1, w: 1, h: 1 } as LayoutItem
+     expect(clampSize(a, 2, 2, sizeOf)).toEqual([2, 2])
+     expect(clampSize(a, 1, 1, sizeOf)).toEqual([1, 1])
+     expect(clampSize(a, 2, 1, sizeOf)).toEqual([1, 1]) // 距 1×1 更近
+   })
+ })
+ 
++describe('appwidget sizing', () => {
++  it('sizeOfItem: appwidget 用 APP_WIDGET_SIZE,widget 用 registry,其余 undefined', () => {
++    expect(sizeOfItem({ kind: 'appwidget', key: 'any-app' })).toEqual(APP_WIDGET_SIZE)
++    expect(sizeOfItem({ kind: 'widget', key: 'clock' })).toEqual({ min: [2, 1], max: [4, 2] })
++    expect(sizeOfItem({ kind: 'app', key: 'x' })).toBeUndefined()
++  })
++  it('clampSize 对 appwidget 夹紧到 [2,1]..[4,4]', () => {
++    const it = { id: 'i1', kind: 'appwidget', key: 'a', c: 1, r: 1, w: 2, h: 2 } as never
++    expect(clampSize(it, 9, 9, sizeOfItem)).toEqual([4, 4])
++    expect(clampSize(it, 1, 1, sizeOfItem)).toEqual([2, 1])
++  })
++})
++
+ describe('clampToGrid', () => {
+   it('clamps oversize + off-grid items back in bounds', () => {
+     const layout = [{ id: 'i', kind: 'app', key: 'x', c: 12, r: 8, w: 3, h: 3 } as LayoutItem]
+     const out = clampToGrid(layout, DIMS)
+     const o = out[0]
+     expect(o.w).toBeLessThanOrEqual(12)
+     expect(o.c + o.w - 1).toBeLessThanOrEqual(12)
+     expect(o.r + o.h - 1).toBeLessThanOrEqual(8)
+     expect(layout[0].c).toBe(12) // 原数组未变(纯)
+   })
+diff --git a/src/home/grid/gridMath.ts b/src/home/grid/gridMath.ts
+index 2659312..783a19d 100644
+--- a/src/home/grid/gridMath.ts
++++ b/src/home/grid/gridMath.ts
+@@ -83,24 +83,24 @@ export function applyPlan(plan: PlanEntry[], layout: LayoutItem[]): LayoutItem[]
+   const m = Object.fromEntries(plan.map((p) => [p.id, p]))
+   return layout.map((it) => {
+     const p = m[it.id]
+     if (!p) return it
+     return { ...it, c: p.c, r: p.r, ...(p.w !== undefined ? { w: p.w } : {}), ...(p.h !== undefined ? { h: p.h } : {}) }
+   })
+ }
+ 
+ // 移植 engine 441-450
+ export function clampSize(
+-  it: LayoutItem, w: number, h: number, sizeOf: (key: string) => WidgetSize | undefined,
++  it: LayoutItem, w: number, h: number, sizeOf: (it: LayoutItem) => WidgetSize | undefined,
+ ): [number, number] {
+-  if (it.kind === 'widget') {
+-    const spec = sizeOf(it.key)
++  if (it.kind === 'widget' || it.kind === 'appwidget') {
++    const spec = sizeOf(it)
+     if (spec) {
+       return [
+         Math.max(spec.min[0], Math.min(spec.max[0], w)),
+         Math.max(spec.min[1], Math.min(spec.max[1], h)),
+       ]
+     }
+   }
+   const d1 = Math.abs(w - 1) + Math.abs(h - 1)
+   const d2 = Math.abs(w - 2) + Math.abs(h - 2)
+   const s = d2 < d1 ? 2 : 1
+diff --git a/src/home/grid/types.ts b/src/home/grid/types.ts
+index 10538f4..02b1fb5 100644
+--- a/src/home/grid/types.ts
++++ b/src/home/grid/types.ts
+@@ -1,11 +1,11 @@
+-export type Kind = 'widget' | 'app' | 'folder' | 'photo'
++export type Kind = 'widget' | 'app' | 'folder' | 'photo' | 'appwidget'
+ 
+ export interface LayoutItem {
+   id: string
+   kind: Kind
+   key: string
+   c: number
+   r: number
+   w: number
+   h: number
+   path?: string
+diff --git a/src/home/stores/apps.test.ts b/src/home/stores/apps.test.ts
+index 51ef5cf..b7e6f06 100644
+--- a/src/home/stores/apps.test.ts
++++ b/src/home/stores/apps.test.ts
+@@ -1,13 +1,13 @@
+ import { describe, it, expect, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+-import { useAppsStore } from './apps'
++import { useAppsStore, clampWidgetDecl } from './apps'
+ 
+ describe('useAppsStore', () => {
+   beforeEach(() => setActivePinia(createPinia()))
+   it('exposes the 6 system apps immediately', () => {
+     const s = useAppsStore()
+     expect(s.app('files')?.system).toBe(true)
+     expect(s.app('files')?.name).toBe('appFiles') // system apps store an i18n key, translated at render
+     expect(s.order).toContain('appstore')
+   })
+   it('merges container apps without overwriting system keys, picks zh_cn title', () => {
+@@ -21,10 +21,47 @@ describe('useAppsStore', () => {
+     expect(s.app('jellyfin')?.system).toBe(false)
+     expect(s.app('files')?.system).toBe(true) // 系统 files 未被覆盖
+   })
+   it('falls back to en_US (uppercase) title from store-installed apps', () => {
+     const s = useAppsStore()
+     // 应用市场装的 v2 应用 title 键是大写 en_US(来自 store compose 文件),不能退化成裸 id
+     s.setApps([{ name: 'actualbudget', title: { en_US: 'Actual Budget' }, app_type: 'v2app' }] as any)
+     expect(s.app('actualbudget')?.name).toBe('Actual Budget')
+   })
+ })
++
++describe('clampWidgetDecl', () => {
++  it('缺省/非法 → 2×2', () => {
++    expect(clampWidgetDecl(undefined, undefined)).toEqual([2, 2])
++    expect(clampWidgetDecl(0, -1)).toEqual([2, 2])
++  })
++  it('夹紧 w∈[2,4] h∈[1,4]', () => {
++    expect(clampWidgetDecl(1, 1)).toEqual([2, 1])
++    expect(clampWidgetDecl(9, 9)).toEqual([4, 4])
++    expect(clampWidgetDecl(3, 2)).toEqual([3, 2])
++  })
++})
++
++describe('desktop 应用透传', () => {
++  it('setApps 透传 desktop/widget,desktopDecls 只出 desktop 应用', () => {
++    const store = useAppsStore()
++    store.setApps([
++      { name: 'my-dl', title: { en_us: '下载器' }, status: 'running', port: '8080', desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
++      { name: 'plain', title: { en_us: 'P' }, status: 'running' },
++      { name: 'no-widget', title: { en_us: 'N' }, desktop: true },
++    ] as never)
++    expect(store.app('my-dl')?.desktop).toBe(true)
++    expect(store.app('my-dl')?.widget?.path).toBe('/widget')
++    expect(store.app('plain')?.desktop).toBeUndefined()
++    const decls = store.desktopDecls()
++    expect(decls).toEqual([
++      { key: 'my-dl', widget: { w: 3, h: 2 } },
++      { key: 'no-widget', widget: undefined },
++    ])
++  })
++
++  it('desktop 应用相对 icon 绝对化到应用自身端口', () => {
++    const store = useAppsStore()
++    store.setApps([{ name: 'a', desktop: true, icon: '/icon.png', port: '8080', scheme: 'http' }] as never)
++    expect(store.app('a')?.icon).toBe(`http://${window.location.hostname}:8080/icon.png`)
++  })
++})
+diff --git a/src/home/stores/apps.ts b/src/home/stores/apps.ts
+index 985d74d..ae3813a 100644
+--- a/src/home/stores/apps.ts
++++ b/src/home/stores/apps.ts
+@@ -1,48 +1,74 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import { service, type AppGridItem } from '@nimotech/nimoos-service'
+ import { SYSTEM_APPS } from '../apps/systemApps'
+ 
++export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
++
++/** spec §3:w∈[2,4] h∈[1,4],非法/缺省 → 2×2 */
++export function clampWidgetDecl(w?: number, h?: number): [number, number] {
++  const cw = !w || w < 2 ? 2 : Math.min(4, w)
++  const ch = !h || h < 1 ? 2 : Math.min(4, h)
++  return [!w || w <= 0 ? 2 : cw, !h || h <= 0 ? 2 : ch]
++}
++
+ export interface AppMeta {
+   name: string; cls: string; glyph: string; icon: string | null; system: boolean
+   app_type?: string; status?: string; scheme?: string; port?: string | number; index?: string; hostname?: string
++  desktop?: boolean; widget?: { path: string; w?: number; h?: number }
+ }
+ 
+ export const useAppsStore = defineStore('home-apps', () => {
+   const apps = ref<Record<string, AppMeta>>({})
+   const order = ref<string[]>([])
+ 
+   function setApps(container: AppGridItem[]) {
+     const map: Record<string, AppMeta> = {}
+     const ord: string[] = []
+     SYSTEM_APPS.forEach((s) => {
+       map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: null, system: true, status: 'running' }
+       ord.push(s.key)
+     })
+     ;(container || []).forEach((a) => {
+       const key = a.name
+       if (!key || map[key]) return // 不覆盖系统应用
+       // 标题多语言键大小写不统一:应用市场装的 v2 应用来自 store 的 title 用 `en_US`(大写),
+       // 而 v1/容器走 DefaultLanguage=`en_us`(小写)。逐一容忍再回退到任意可用值,最后才用 id。
+       const t = a.title || {}
+       const title = t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || a.name
++      // desktop 应用的相对 icon 由应用自身伺服(spec §3)
++      let icon = a.icon || null
++      if (a.desktop && icon && icon.startsWith('/') && a.port) {
++        icon = `${a.scheme || 'http'}://${a.hostname || window.location.hostname}:${a.port}${icon}`
++      }
+       map[key] = {
+-        name: title, cls: 'ic-app', glyph: '', icon: a.icon || null, system: false,
++        name: title, cls: 'ic-app', glyph: '', icon, system: false,
+         app_type: (a as { appType?: string }).appType || a.app_type, status: a.status, scheme: a.scheme, port: a.port, index: a.index, hostname: a.hostname,
++        desktop: a.desktop, widget: a.widget,
+       }
+       ord.push(key)
+     })
+     apps.value = map
+     order.value = ord
+   }
+ 
+   async function loadGrid() {
+     const list = await service.apps.getGrid()
+     setApps(list || [])
+   }
+ 
+   function app(key: string): AppMeta | undefined { return apps.value[key] }
+ 
++  function desktopDecls(): DesktopAppDecl[] {
++    return order.value
++      .filter((k) => apps.value[k]?.desktop)
++      .map((k) => {
++        const a = apps.value[k]
++        const [w, h] = clampWidgetDecl(a.widget?.w, a.widget?.h)
++        return { key: k, widget: a.widget?.path ? { w, h } : undefined }
++      })
++  }
++
+   setApps([]) // 系统应用立即可用
+-  return { apps, order, setApps, loadGrid, app }
++  return { apps, order, setApps, loadGrid, app, desktopDecls }
+ })
+diff --git a/src/home/stores/layout.test.ts b/src/home/stores/layout.test.ts
+index 75e896b..7abe419 100644
+--- a/src/home/stores/layout.test.ts
++++ b/src/home/stores/layout.test.ts
+@@ -1,14 +1,15 @@
+-import { describe, it, expect, beforeEach } from 'vitest'
++import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useLayoutStore } from './layout'
+ import { DEFAULT } from '../grid/defaultLayout'
++import type { DesktopAppDecl } from './apps'
+ 
+ describe('useLayoutStore', () => {
+   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
+ 
+   it('loadInitial falls back to DEFAULT (tagged with ids) when no localStorage', () => {
+     const s = useLayoutStore()
+     s.loadInitial()
+     expect(s.items).toHaveLength(DEFAULT.length)
+     expect(s.items.every((i) => typeof i.id === 'string' && i.id.startsWith('i'))).toBe(true)
+   })
+@@ -37,10 +38,66 @@ describe('useLayoutStore', () => {
+   })
+ 
+   it('pin appends a tagged item', () => {
+     const s = useLayoutStore(); s.loadInitial()
+     const before = s.items.length
+     s.pin({ kind: 'app', key: 'vm', c: 1, r: 1, w: 1, h: 1 })
+     expect(s.items).toHaveLength(before + 1)
+     expect(s.items[s.items.length - 1].id).toMatch(/^i\d+$/)
+   })
+ })
++
++const DIMS = { cols: 12, rows: 8 }
++const dl = (key: string, widget?: { w: number; h: number }): DesktopAppDecl => ({ key, widget })
++
++describe('autoPin', () => {
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
++
++  it('新应用:图标 1×1 上桌;声明 widget 的再落一块 appwidget', () => {
++    const s = useLayoutStore()
++    s.replaceAll([])
++    s.autoPin([dl('my-dl', { w: 3, h: 2 })], DIMS)
++    const icon = s.items.find((it) => it.kind === 'app' && it.key === 'my-dl')
++    const widget = s.items.find((it) => it.kind === 'appwidget' && it.key === 'my-dl')
++    expect(icon).toMatchObject({ w: 1, h: 1 })
++    expect(widget).toMatchObject({ w: 3, h: 2 })
++  })
++
++  it('已 seen 不重复上桌(含用户手删场景)', () => {
++    const s = useLayoutStore()
++    s.replaceAll([])
++    s.autoPin([dl('a')], DIMS)
++    const id = s.items.find((it) => it.key === 'a')!.id
++    s.remove(id) // 用户手删
++    s.autoPin([dl('a')], DIMS)
++    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
++  })
++
++  it('容器消失:桌面项移除 + 清 seen,重来会再次上桌', () => {
++    const s = useLayoutStore()
++    s.replaceAll([])
++    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
++    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
++    s.autoPin([], DIMS) // 容器被 docker rm
++    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
++    s.autoPin([dl('a')], DIMS) // 重新 run
++    expect(s.items.filter((it) => it.kind === 'app' && it.key === 'a')).toHaveLength(1)
++  })
++
++  it('seen 持久化到 localStorage', () => {
++    const s = useLayoutStore()
++    s.replaceAll([])
++    s.autoPin([dl('a')], DIMS)
++    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
++  })
++
++  it('桌面满:图标放不下也记 seen,不反复尝试', () => {
++    const s = useLayoutStore()
++    // 12×8 全占满
++    const full = [] as never[]
++    for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push({ kind: 'app', key: `f${c}-${r}`, c, r, w: 1, h: 1 } as never)
++    s.replaceAll(full)
++    s.autoPin([dl('a')], DIMS)
++    expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
++    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
++  })
++})
+diff --git a/src/home/stores/layout.ts b/src/home/stores/layout.ts
+index c3907b6..c02f418 100644
+--- a/src/home/stores/layout.ts
++++ b/src/home/stores/layout.ts
+@@ -1,33 +1,55 @@
+ import { defineStore } from 'pinia'
+ import { ref } from 'vue'
+ import type { LayoutItem, PlanEntry, Dims } from '../grid/types'
+ import { DEFAULT } from '../grid/defaultLayout'
+ import { WIDGETS } from '../widgets/registry'
+-import { applyPlan as applyPlanPure, clampToGrid } from '../grid/gridMath'
++import { applyPlan as applyPlanPure, clampToGrid, firstFree } from '../grid/gridMath'
+ import { isAssetId } from '../util/isAssetId'
+ import { service } from '@nimotech/nimoos-service'
++import type { DesktopAppDecl } from './apps'
+ 
+ const KEY = 'nimoos-home-layout-v2'
+ const SERVER_KEY = 'home_layout'
++const SEEN_KEY = 'nimoos-home-seen-apps-v1'
++const SERVER_SEEN_KEY = 'home_seen_apps'
+ 
+ function sanitize(arr: unknown): Omit<LayoutItem, 'id'>[] {
+   if (!Array.isArray(arr)) return []
+   return arr.filter((it) => it && (it.kind !== 'widget' || WIDGETS[it.key]))
+ }
+ 
+ export const useLayoutStore = defineStore('home-layout', () => {
+   const items = ref<LayoutItem[]>([])
+   let uid = 1
+   let saveTimer: ReturnType<typeof setTimeout> | null = null
+   const tag = (it: Omit<LayoutItem, 'id'>): LayoutItem => ({ ...it, id: 'i' + uid++ })
+ 
++  const seen = ref<Set<string>>(loadSeenLocal())
++  let seenTimer: ReturnType<typeof setTimeout> | null = null
++
++  function loadSeenLocal(): Set<string> {
++    try {
++      const a = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')
++      if (Array.isArray(a)) return new Set(a.filter((s) => typeof s === 'string'))
++    } catch { /* ignore */ }
++    return new Set()
++  }
++
++  function saveSeen() {
++    try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen.value])) } catch { /* ignore */ }
++    if (seenTimer) clearTimeout(seenTimer)
++    seenTimer = setTimeout(() => {
++      service.users.setCustomStorage(SERVER_SEEN_KEY, [...seen.value]).catch((e) => console.warn('[home] seen save failed', e))
++    }, 800)
++  }
++
+   function loadFromLocal(): Omit<LayoutItem, 'id'>[] | null {
+     try {
+       const a = JSON.parse(localStorage.getItem(KEY) || 'null')
+       if (Array.isArray(a) && a.length) return sanitize(a)
+     } catch { /* ignore */ }
+     return null
+   }
+ 
+   function loadInitial() {
+     const stored = loadFromLocal()
+@@ -90,12 +112,46 @@ export const useLayoutStore = defineStore('home-layout', () => {
+       if (arr.length) { replaceAll(arr) }
+     } catch (e) { console.warn('[home] server layout load failed', e) }
+   }
+ 
+   function reset() {
+     uid = 1
+     items.value = DEFAULT.map(tag)
+     saveLocal()
+   }
+ 
+-  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset }
++  async function loadServerSeen() {
++    try {
++      let data: unknown = await service.users.getCustomStorage(SERVER_SEEN_KEY)
++      if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
++      if (Array.isArray(data)) data.forEach((s) => { if (typeof s === 'string') seen.value.add(s) })
++    } catch (e) { console.warn('[home] seen load failed', e) }
++  }
++
++  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 的应用(w/h 已夹紧) */
++  function autoPin(decls: DesktopAppDecl[], dims: Dims) {
++    let changed = false
++    const present = new Set(decls.map((d) => d.key))
++    for (const key of [...seen.value]) {
++      if (present.has(key)) continue
++      const before = items.value.length
++      items.value = items.value.filter((it) => !((it.kind === 'app' || it.kind === 'appwidget') && it.key === key))
++      seen.value.delete(key)
++      changed = changed || items.value.length !== before
++      changed = true
++    }
++    for (const d of decls) {
++      if (seen.value.has(d.key)) continue
++      const pos = firstFree(1, 1, items.value, dims)
++      if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
++      if (d.widget) {
++        const wpos = firstFree(d.widget.w, d.widget.h, items.value, dims)
++        if (wpos) items.value = [...items.value, tag({ kind: 'appwidget', key: d.key, c: wpos.c, r: wpos.r, w: d.widget.w, h: d.widget.h })]
++      }
++      seen.value.add(d.key) // 满桌也记 seen:不反复尝试,用户可从添加面板手动加
++      changed = true
++    }
++    if (changed) { save(); saveSeen() }
++  }
++
++  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll, bindPhotos, save, loadServer, reset, autoPin, loadServerSeen }
+ })
+diff --git a/src/home/util/appWidgetUrl.test.ts b/src/home/util/appWidgetUrl.test.ts
+new file mode 100644
+index 0000000..5830ad9
+--- /dev/null
++++ b/src/home/util/appWidgetUrl.test.ts
+@@ -0,0 +1,19 @@
++import { describe, it, expect } from 'vitest'
++import { appWidgetUrl } from './appWidgetUrl'
++
++const OPTS = { host: 'nas.local', origin: 'http://nas.local', theme: 'dark', lang: 'zh_cn' }
++
++describe('appWidgetUrl', () => {
++  it('拼 scheme/host/port/path + theme/lang/home 参数', () => {
++    const u = appWidgetUrl({ scheme: 'http', port: '8080', widget: { path: '/widget' } }, OPTS)
++    expect(u).toBe('http://nas.local:8080/widget?theme=dark&lang=zh_cn&home=http%3A%2F%2Fnas.local')
++  })
++  it('hostname 覆盖 host;path 已带 query 用 & 续接;无斜杠 path 补斜杠', () => {
++    const u = appWidgetUrl({ hostname: '10.0.0.9', port: 81, widget: { path: 'w?x=1' } }, OPTS)
++    expect(u).toBe('http://10.0.0.9:81/w?x=1&theme=dark&lang=zh_cn&home=http%3A%2F%2Fnas.local')
++  })
++  it('无 widget.path 或无 port 返回 null', () => {
++    expect(appWidgetUrl({ port: '80', widget: undefined }, OPTS)).toBeNull()
++    expect(appWidgetUrl({ widget: { path: '/w' } }, OPTS)).toBeNull()
++  })
++})
+diff --git a/src/home/util/appWidgetUrl.ts b/src/home/util/appWidgetUrl.ts
+new file mode 100644
+index 0000000..ea14316
+--- /dev/null
++++ b/src/home/util/appWidgetUrl.ts
+@@ -0,0 +1,19 @@
++export interface AppWidgetTarget {
++  scheme?: string
++  hostname?: string
++  port?: string | number
++  widget?: { path?: string }
++}
++
++export interface AppWidgetUrlOpts { host: string; origin: string; theme: string; lang: string }
++
++// iframe 小组件 URL(spec §5.3):应用自己伺服 widget 页,桌面附 theme/lang/home 三参
++export function appWidgetUrl(a: AppWidgetTarget, opts: AppWidgetUrlOpts): string | null {
++  const path = a.widget?.path
++  if (!path || !a.port) return null
++  const scheme = a.scheme || 'http'
++  const host = a.hostname || opts.host
++  const p = path.startsWith('/') ? path : '/' + path
++  const q = `theme=${encodeURIComponent(opts.theme)}&lang=${encodeURIComponent(opts.lang)}&home=${encodeURIComponent(opts.origin)}`
++  return `${scheme}://${host}:${a.port}${p}${p.includes('?') ? '&' : '?'}${q}`
++}
+diff --git a/src/home/widgets/registry.ts b/src/home/widgets/registry.ts
+index 118c4c3..92e13ce 100644
+--- a/src/home/widgets/registry.ts
++++ b/src/home/widgets/registry.ts
+@@ -25,10 +25,19 @@ export const WIDGETS: Record<string, WidgetMeta> = {
+   gpu:     { title: 'widgetGpuTitle', icon: ICON.gpu, desc: 'widgetGpuDesc', min: [2, 2], max: [4, 2], default: [2, 2], live: true },
+   cpu:     { title: 'widgetCpuTitle', icon: ICON.cpu, desc: 'widgetCpuDesc', extra: 'cpu', min: [2, 2], max: [4, 3], default: [4, 2], live: true },
+ }
+ 
+ export const WIDGET_KEYS = Object.keys(WIDGETS)
+ 
+ export function widgetSize(key: string): WidgetSize | undefined {
+   const w = WIDGETS[key]
+   return w ? { min: w.min, max: w.max } : undefined
+ }
++
++// 第三方应用 iframe 小组件的统一尺寸约束(spec §3 夹紧规则)
++export const APP_WIDGET_SIZE: WidgetSize = { min: [2, 1], max: [4, 4] }
++
++export function sizeOfItem(it: { kind: string; key: string }): WidgetSize | undefined {
++  if (it.kind === 'appwidget') return APP_WIDGET_SIZE
++  if (it.kind === 'widget') return widgetSize(it.key)
++  return undefined
++}
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index e6df95d..0dcde7d 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -258,20 +258,24 @@ export const messages = {
+     addPanelDisks: 'Disks',
+     addPanelNoSubfolders: 'No subfolders',
+     addPanelNoPhotos: 'No photos',
+     addPanelReset: 'Reset to default layout',
+     addPanelFull: 'This screen is full — remove something first',
+     addPanelWidgetExists: 'This widget is already on the home screen',
+     addPanelNoRoom: 'It won’t fit there',
+     addPanelAddedToast: 'Added: {key}',
+     addPanelRemovedToast: 'Removed',
+     addPanelResetToast: 'Reset to default layout',
++    appWidgetUnavailable: 'Unreachable',
++    appWidgetRetry: 'Retry',
++    appWidgetNotRunning: 'App not running',
++    addPanelAppWidgetDesc: 'Widget from app',
+     // ── Home: drag / resize ──
+     dragResized: 'Resized to {w}×{h}',
+     dragNoRoom: 'Not enough space',
+     dragPlaced: 'Placed — nearby widgets moved aside',
+     dragCantFit: 'This screen is full — returned to place',
+     // ── Home: grid item ──
+     gridRemove: 'Remove',
+     gridResize: 'Resize',
+     gridCanvas: 'Home canvas',
+     // ── Home: open action ──
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index b04b8d5..28f5eb5 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -257,20 +257,24 @@ export const messages = {
+     addPanelDisks: '磁盘',
+     addPanelNoSubfolders: '暂无子文件夹',
+     addPanelNoPhotos: '暂无照片',
+     addPanelReset: '恢复默认布局',
+     addPanelFull: '这一屏放满了,先移除点东西',
+     addPanelWidgetExists: '该组件已在主页',
+     addPanelNoRoom: '那儿放不下',
+     addPanelAddedToast: '已添加:{key}',
+     addPanelRemovedToast: '已移除',
+     addPanelResetToast: '已恢复默认布局',
++    appWidgetUnavailable: '无法连接',
++    appWidgetRetry: '重试',
++    appWidgetNotRunning: '应用未运行',
++    addPanelAppWidgetDesc: '来自应用的小组件',
+     // ── 主页:拖拽/缩放 ──
+     dragResized: '已调整为 {w}×{h}',
+     dragNoRoom: '空间不够,放不下',
+     dragPlaced: '已放置,旁边组件已让位',
+     dragCantFit: '这一屏实在放不下了,已归位',
+     // ── 主页:网格项 ──
+     gridRemove: '移除',
+     gridResize: '缩放',
+     gridCanvas: '主页画布',
+     // ── 主页:打开动作 ──
+diff --git a/src/views/Home.integration.test.ts b/src/views/Home.integration.test.ts
+index 2a080d0..2a25286 100644
+--- a/src/views/Home.integration.test.ts
++++ b/src/views/Home.integration.test.ts
+@@ -1,18 +1,72 @@
+-import { describe, it, expect, beforeEach } from 'vitest'
+-import { mount } from '@vue/test-utils'
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { flushPromises, mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../i18n/zh_cn'
++
++vi.mock('@nimotech/nimoos-service', async () => {
++  const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
++  return {
++    ...actual,
++    service: {
++      apps: { getGrid: vi.fn(async () => []) },
++      photos: { listAssets: vi.fn(async () => []), thumbnailUrl: vi.fn(() => '') },
++      sys: { getUtilization: vi.fn(async () => null) },
++      users: {
++        getEvents: vi.fn(async () => []),
++        getCustomStorage: vi.fn(async () => null),
++        setCustomStorage: vi.fn(async () => ({})),
++      },
++      image: { thumbUrl: vi.fn(() => '') },
++    },
++  }
++})
++
++// useMessageBus opens a real socket.io connection; under fake timers that
++// causes unrelated reconnect/heartbeat timers to fire on advanceTimersByTime.
++// Home only needs `on()` to return an unsubscribe fn — it never needs to
++// actually dispatch a message bus event for this test.
++vi.mock('../composables/useMessageBus', () => ({
++  useMessageBus: () => ({ on: () => () => {} }),
++}))
++
++import { useLayoutStore } from '../home/stores/layout'
+ import Home from './Home.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
++function mountHome() {
++  return mount(Home, { global: { plugins: [i18n] } })
++}
++
+ describe('Home integration', () => {
+   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
++
+   it('mounts with topbar, grid items, and toast container', async () => {
+-    const w = mount(Home, { global: { plugins: [i18n] } })
++    const w = mountHome()
+     await w.vm.$nextTick()
+     expect(w.find('.topbar').exists()).toBe(true)
+     expect(w.findAll('[data-id]').length).toBeGreaterThan(0) // DEFAULT 项渲染
+   })
++
++  it('appgrid 加载后触发 autoPin,30s 轮询与 focus 各再触发', async () => {
++    vi.useFakeTimers()
++    const w = mountHome()
++    const layout = useLayoutStore()
++    const spy = vi.spyOn(layout, 'autoPin')
++    await flushPromises()
++    expect(spy).toHaveBeenCalled() // 首次 loadGrid 后
++    const n = spy.mock.calls.length
++
++    vi.advanceTimersByTime(30_000)
++    await flushPromises()
++    expect(spy.mock.calls.length).toBeGreaterThan(n) // 轮询
++
++    window.dispatchEvent(new Event('focus'))
++    await flushPromises()
++    expect(spy.mock.calls.length).toBeGreaterThan(n + 1) // 聚焦
++
++    w.unmount()
++    vi.useRealTimers()
++  })
+ })
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+index 49a8579..aa8b464 100644
+--- a/src/views/Home.vue
++++ b/src/views/Home.vue
+@@ -37,36 +37,53 @@ const homeUi = useHomeUiStore()
+ const live = useLiveStats()
+ const addPanel = useAddPanel({ cols: 12, rows: 8 })
+ useEvents()
+ 
+ // dockEl points to HomeDock root element for useGridMeasure to read dockTop
+ const dockEl = computed(() => dock.value?.root ?? null)
+ 
+ const { cols, rows, cell, gap, relayout } = useGridMeasure(gridEl, dockEl)
+ watch(() => live.gpu, () => reconcileGpu(layout, live))
+ 
++const DIMS = { cols: 12, rows: 8 } // 与 useAddPanel 同一套固定网格(响应式网格是既有 defer 项)
++
+ let onResize: (() => void) | null = null
+ let stopParallax: (() => void) | null = null
++let pollTimer: ReturnType<typeof setInterval> | null = null
++let onFocus: (() => void) | null = null
++
++function refreshApps() {
++  apps.loadGrid().then(() => {
++    useDock().refresh()
++    layout.autoPin(apps.desktopDecls(), DIMS)
++  }).catch((e) => console.warn('[home] appgrid', e))
++}
+ 
+ onMounted(async () => {
+   layout.loadInitial()
+   await nextTick()
+   gridEl.value = canvas.value?.gridEl ?? null
+   relayout()
+   layout.loadServer().then(() => relayout()).catch(() => {})
+   onResize = () => relayout()
+   window.addEventListener('resize', onResize)
+   stopParallax = useParallax().stop
+ 
+-  apps.loadGrid().then(() => useDock().refresh()).catch((e) => console.warn('[home] appgrid', e))
++  layout.loadServerSeen().finally(() => refreshApps())
++  pollTimer = setInterval(() => { if (!document.hidden) refreshApps() }, 30_000)
++  onFocus = () => refreshApps()
++  window.addEventListener('focus', onFocus)
++
+   photos.loadAssets().then(() => layout.bindPhotos(photos.assets.map((a) => a.id))).catch((e) => console.warn('[home] photos', e))
+ })
+ 
+ onUnmounted(() => {
+   if (onResize) window.removeEventListener('resize', onResize)
+   if (stopParallax) stopParallax()
++  if (pollTimer) clearInterval(pollTimer)
++  if (onFocus) window.removeEventListener('focus', onFocus)
+ })
+ </script>
+ 
+ <style scoped>
+ .home-screen { min-height: 100vh; padding: 24px 24px 12px; box-sizing: border-box; }
+ </style>

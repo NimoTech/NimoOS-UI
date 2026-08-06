@@ -1,0 +1,84 @@
+# Review package: 4661fcd..5508546
+
+## Commits
+5508546 feat(files): P2c 下载纯逻辑(planDownload 端点选择 + shouldRefreshBeforeDownload 预刷新判定)
+
+## Files changed
+ src/files/util/download.test.ts | 40 ++++++++++++++++++++++++++++++++++++++++
+ src/files/util/download.ts      | 21 +++++++++++++++++++++
+ 2 files changed, 61 insertions(+)
+
+## Diff
+diff --git a/src/files/util/download.test.ts b/src/files/util/download.test.ts
+new file mode 100644
+index 0000000..ab18844
+--- /dev/null
++++ b/src/files/util/download.test.ts
+@@ -0,0 +1,40 @@
++import { describe, it, expect } from 'vitest'
++import { planDownload, shouldRefreshBeforeDownload } from './download'
++
++describe('planDownload', () => {
++  it('单个文件(非目录)→ /v3/file 计划,带真实路径', () => {
++    expect(planDownload([{ path: '/DATA/a.txt', is_dir: false }]))
++      .toEqual({ kind: 'file', path: '/DATA/a.txt' })
++  })
++
++  it('单个目录 → /v1/batch 计划,files=该目录真实路径', () => {
++    expect(planDownload([{ path: '/DATA/Docs', is_dir: true }]))
++      .toEqual({ kind: 'batch', files: '/DATA/Docs' })
++  })
++
++  it('多选 → /v1/batch 计划,files=逗号连接真实路径(保留原顺序)', () => {
++    expect(planDownload([
++      { path: '/DATA/a.txt', is_dir: false },
++      { path: '/DATA/Docs', is_dir: true },
++    ])).toEqual({ kind: 'batch', files: '/DATA/a.txt,/DATA/Docs' })
++  })
++})
++
++describe('shouldRefreshBeforeDownload', () => {
++  const now = 1_000_000_000_000 // 固定 now(ms)
++  it('expires_at 缺失(null)→ 保守刷新', () => {
++    expect(shouldRefreshBeforeDownload(null, now)).toBe(true)
++  })
++  it('已过期 → 刷新', () => {
++    const expiredSec = Math.floor(now / 1000) - 10
++    expect(shouldRefreshBeforeDownload(expiredSec, now)).toBe(true)
++  })
++  it('≤60s 内过期 → 刷新', () => {
++    const soonSec = Math.floor(now / 1000) + 30 // 30s 后过期,进 60s 缓冲
++    expect(shouldRefreshBeforeDownload(soonSec, now)).toBe(true)
++  })
++  it('充裕(>60s)→ 不刷新', () => {
++    const farSec = Math.floor(now / 1000) + 3600 // 1h 后过期
++    expect(shouldRefreshBeforeDownload(farSec, now)).toBe(false)
++  })
++})
+diff --git a/src/files/util/download.ts b/src/files/util/download.ts
+new file mode 100644
+index 0000000..ea6258c
+--- /dev/null
++++ b/src/files/util/download.ts
+@@ -0,0 +1,21 @@
++// 下载纯逻辑:端点选择 + 过期预刷新判定。DOM 副作用见 iframeDownload.ts。
++
++export type DownloadPlan = { kind: 'file'; path: string } | { kind: 'batch'; files: string }
++
++// 移植 Vue2 getFileUrl:单个非目录 → /v3/file;单目录 或 多选 → /v1/batch(zip),files 逗号连接。
++// 传入的 path 必须是真实路径(含 /DATA),与后端契约一致。
++export function planDownload(entries: { path: string; is_dir: boolean }[]): DownloadPlan {
++  if (entries.length === 1 && !entries[0].is_dir) {
++    return { kind: 'file', path: entries[0].path }
++  }
++  return { kind: 'batch', files: entries.map((e) => e.path).join(',') }
++}
++
++const REFRESH_BUFFER_MS = 60_000
++
++// 下载(fire-and-forget iframe,无法反应式重试)前的条件式预刷新判定。
++// expiresAt 为后端下发的 unix 秒;缺失(null)保守刷新;已过期或 ≤60s 内过期则刷新。
++export function shouldRefreshBeforeDownload(expiresAt: number | null, now: number): boolean {
++  if (expiresAt == null) return true
++  return now > expiresAt * 1000 - REFRESH_BUFFER_MS
++}

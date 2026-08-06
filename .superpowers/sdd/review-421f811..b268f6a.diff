@@ -1,0 +1,591 @@
+# Review package: 421f811..b268f6a
+
+## Commits
+b268f6a SP8-P1b: auto-send ?search/?message + EmptyState send + UserMessage inject seam (debt ③)
+
+## Files changed
+ src/ai/components/stream/EmptyState.test.ts  | 17 +++---
+ src/ai/components/stream/EmptyState.vue      | 13 +++--
+ src/ai/components/stream/UserMessage.test.ts | 22 ++++++++
+ src/ai/components/stream/UserMessage.vue     |  9 ++--
+ src/ai/stores/agentStore.test.ts             |  4 +-
+ src/ai/stores/agentStore.ts                  |  2 -
+ src/ai/views/AgentPage.test.ts               | 81 ++++++++++++++++++++++++----
+ src/ai/views/AgentPage.vue                   | 57 +++++++++++---------
+ src/i18n/en_us.ts                            |  2 +
+ src/i18n/zh_cn.ts                            |  2 +
+ 10 files changed, 148 insertions(+), 61 deletions(-)
+
+## Diff
+diff --git a/src/ai/components/stream/EmptyState.test.ts b/src/ai/components/stream/EmptyState.test.ts
+index d07fadf..99600fa 100644
+--- a/src/ai/components/stream/EmptyState.test.ts
++++ b/src/ai/components/stream/EmptyState.test.ts
+@@ -1,32 +1,31 @@
+-import { describe, expect, it, beforeEach } from 'vitest'
++import { describe, expect, it, vi, beforeEach } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { setActivePinia, createPinia } from 'pinia'
+ import zh from '../../../i18n/zh_cn'
+ import { useAgentStore } from '../../stores/agentStore'
+-import { useToast } from '../../../stores/toast'
+ import EmptyState from './EmptyState.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ 
+ describe('EmptyState', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+   })
+ 
+   it('渲染四张建议卡', () => {
+     const w = mount(EmptyState, { global: { plugins: [i18n] } })
+     expect(w.findAll('.suggest-card').length).toBe(4)
+   })
+ 
+-  it('点击一张卡:store.pendingPrompt 被写入卡片 prompt 且弹出 aiComingSoon toast', async () => {
+-    const w = mount(EmptyState, { global: { plugins: [i18n] } })
++  it('点击一张卡:调用 store.send(prompt)(useProvidedAgentStore 无祖先 provide 时回退到默认 store)', async () => {
+     const store = useAgentStore()
+-    const toast = useToast()
+-    expect(toast.toasts.length).toBe(0)
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
++    const w = mount(EmptyState, { global: { plugins: [i18n] } })
+     await w.findAll('.suggest-card')[0].trigger('click')
+-    expect(store.pendingPrompt).toBeTruthy()
+-    expect(typeof store.pendingPrompt).toBe('string')
+-    expect(toast.toasts.length).toBe(1)
++    expect(sendSpy).toHaveBeenCalledTimes(1)
++    const arg = sendSpy.mock.calls[0][0]
++    expect(typeof arg).toBe('string')
++    expect((arg as string).length).toBeGreaterThan(0)
+   })
+ })
+diff --git a/src/ai/components/stream/EmptyState.vue b/src/ai/components/stream/EmptyState.vue
+index 7564c29..4c50f34 100644
+--- a/src/ai/components/stream/EmptyState.vue
++++ b/src/ai/components/stream/EmptyState.vue
+@@ -1,24 +1,24 @@
+ <!--
+   1:1 移植自 Vue2 src/views/AI/Agent/stream/EmptyState.vue。
+-  @pick 在 1a 不发送(send 是 1b 的事):暂存 store.pendingPrompt + toast aiComingSoon。
++  SP8-P1b Task 11:@pick 直接 store.send(prompt) —— send() 存在后不再需要
++  暂存 pendingPrompt + "coming soon" toast 的占位行为。store 走
++  useProvidedAgentStore(),供 Photos 受限 profile 嵌入时解析到正确的祖先 store。
+ -->
+ <script setup lang="ts">
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+-import { useAgentStore } from '../../stores/agentStore'
+-import { useToast } from '../../../stores/toast'
++import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
+ import AgentIcon from '../icons/AgentIcon.vue'
+ 
+ const { t } = useI18n()
+-const store = useAgentStore()
+-const toast = useToast()
++const store = useProvidedAgentStore()
+ 
+ const suggestions = computed(() => [
+   {
+     icon: 'image', color: 'var(--photos-accent)',
+     title: t('aiEmptyFindPhotos'),
+     desc: t('aiEmptyFindPhotosExample'),
+     prompt: t('aiEmptyFindPhotosPrompt'),
+   },
+   {
+     icon: 'trash', color: 'var(--warning)',
+@@ -34,22 +34,21 @@ const suggestions = computed(() => [
+   },
+   {
+     icon: 'code', color: 'var(--success)',
+     title: t('aiEmptyScript'),
+     desc: t('aiEmptyScriptExample'),
+     prompt: t('aiEmptyScriptPrompt'),
+   },
+ ])
+ 
+ function pick(prompt: string) {
+-  store.pendingPrompt = prompt
+-  toast.show(t('aiComingSoon'))
++  store.send(prompt)
+ }
+ </script>
+ 
+ <template>
+   <div class="empty-state">
+     <div class="empty-orb" />
+     <h1 class="empty-title">{{ t('aiEmptyTitle') }}</h1>
+     <p class="empty-sub">{{ t('aiEmptySubtitle') }}</p>
+     <div class="suggest-grid">
+       <button
+diff --git a/src/ai/components/stream/UserMessage.test.ts b/src/ai/components/stream/UserMessage.test.ts
+index 8b5fc40..359880e 100644
+--- a/src/ai/components/stream/UserMessage.test.ts
++++ b/src/ai/components/stream/UserMessage.test.ts
+@@ -1,25 +1,27 @@
+ import { describe, expect, it, vi, beforeEach } from 'vitest'
++import { defineComponent, h } from 'vue'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { setActivePinia, createPinia } from 'pinia'
+ import zh from '../../../i18n/zh_cn'
+ 
+ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
+   const mod = await importOriginal<Record<string, unknown>>()
+   return {
+     ...mod,
+     service: { ai: { attachmentRawUrl: vi.fn((sid: string, id: string) => `/v1/ai/attachments/${sid}/${id}/raw?token=t`) } },
+   }
+ })
+ import { service } from '@nimotech/nimoos-service'
+ import { useAgentStore } from '../../stores/agentStore'
++import { provideAgentStore } from '../../composables/useProvidedAgentStore'
+ import UserMessage from './UserMessage.vue'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ 
+ describe('UserMessage', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     vi.clearAllMocks()
+   })
+ 
+@@ -77,11 +79,31 @@ describe('UserMessage', () => {
+             { type: 'attachment', attachment_id: 'doc-1', filename: 'report.pdf', kind: 'binary' },
+           ],
+         },
+       },
+       global: { plugins: [i18n] },
+     })
+     expect(w.findAll('.msg-image-link').length).toBe(1)
+     expect(w.findAll('.msg-file-chip').length).toBe(1)
+     expect(w.find('.msg-file-chip').attributes('href')).toBe('/v1/ai/attachments/sess-2/doc-1/raw?token=t')
+   })
++
++  it('债③——祖先 provide 了受限 profile store(如 photos)时,解析祖先的会话 id,而非硬编码的默认 general store', () => {
++    const generalStore = useAgentStore()
++    generalStore.activeSessionId = 'general-sess'
++    const photosStore = useAgentStore('photos')
++    photosStore.activeSessionId = 'photos-sess'
++
++    const Wrapper = defineComponent({
++      setup() {
++        provideAgentStore(photosStore)
++        return () => h(UserMessage, {
++          msg: { content: '', attachments: [{ id: 'att-1', filename: 'cat.png', kind: 'image' }] },
++        })
++      },
++    })
++
++    const w = mount(Wrapper, { global: { plugins: [i18n] } })
++    expect(service.ai.attachmentRawUrl).toHaveBeenCalledWith('photos-sess', 'att-1')
++    expect(w.find('.msg-image-link img').attributes('src')).toBe('/v1/ai/attachments/photos-sess/att-1/raw?token=t')
++  })
+ })
+diff --git a/src/ai/components/stream/UserMessage.vue b/src/ai/components/stream/UserMessage.vue
+index acf5daa..be47b12 100644
+--- a/src/ai/components/stream/UserMessage.vue
++++ b/src/ai/components/stream/UserMessage.vue
+@@ -1,16 +1,16 @@
+ <!-- 1:1 移植自 Vue2 src/views/AI/Agent/stream/UserMessage.vue -->
+ <script setup lang="ts">
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+-import { useAgentStore } from '../../stores/agentStore'
++import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
+ import { isContinueChip, textOf, type UserMsgLike } from '../../util/userMessageView'
+ import KindIcon from '../shell/KindIcon.vue'
+ import AgentIcon from '../icons/AgentIcon.vue'
+ 
+ interface Attachment {
+   id?: string | number
+   filename?: string
+   kind?: string
+   mime?: string
+   url?: string
+@@ -18,23 +18,24 @@ interface Attachment {
+ 
+ function extOf(name?: string): string {
+   if (!name) return ''
+   const i = name.lastIndexOf('.')
+   return i < 1 ? '' : name.slice(i + 1).toLowerCase()
+ }
+ 
+ const props = defineProps<{ msg: UserMsgLike }>()
+ const { t } = useI18n()
+ // Vue2 版本通过 `inject: { agentStore: { default: null } }` 拿会话 id;
+-// Vue3 侧直接调用 Pinia store(工厂形态,默认 'general' profile)。
+-// 1b: 恢复注入缝(Vue2 inject agentStore)——photos profile 嵌入时不能写死 general store
+-const store = useAgentStore()
++// Vue3 侧对应改用 useProvidedAgentStore()(SP8-P1b Task 11,债③已还)——
++// 有祖先 provideAgentStore(如 Photos 受限 profile 嵌入)时解析到那个实例,
++// 独立使用(当前 AgentPage 根)时回退到默认 'general' store,不再写死后者。
++const store = useProvidedAgentStore()
+ 
+ const sessionId = computed(() => store.activeSessionId)
+ const textContent = computed(() => textOf(props.msg))
+ const chip = computed(() => isContinueChip(props.msg))
+ 
+ // Always rebuild raw URLs through service.ai.attachmentRawUrl so the
+ // query-string JWT fallback gets appended. Backend-embedded URLs in
+ // hydrated history blocks lack the token and 401 in <img>/<a> loads.
+ const allAttachments = computed<Attachment[]>(() => {
+   const sid = sessionId.value
+diff --git a/src/ai/stores/agentStore.test.ts b/src/ai/stores/agentStore.test.ts
+index 66a8bb2..17f92ff 100644
+--- a/src/ai/stores/agentStore.test.ts
++++ b/src/ai/stores/agentStore.test.ts
+@@ -208,27 +208,27 @@ describe('agentStore (session slice)', () => {
+     const s = useAgentStore()
+     s.theme = 'light'
+     s.toggleTheme()
+     expect(s.theme).toBe('dark')
+     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('dark')
+     s.toggleTheme()
+     expect(s.theme).toBe('light')
+     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('light')
+   })
+ 
+-  it('初始态(新鲜 store):busy===false、rightCollapsed 恒 true、pendingPrompt 为 null', () => {
++  it('初始态(新鲜 store):busy===false、rightCollapsed 恒 true', () => {
+     // 注:busy 从本任务(P1b)起可被 setBusy/setStreamingDone 翻转,这里只断言
+     // 一个全新 store 的初始值,不再假设 busy "永不写入"。
++    // pendingPrompt 已在 Task 11 移除(1b 起 send() 直接发送,不再需要暂存座)。
+     const s = useAgentStore()
+     expect(s.busy).toBe(false)
+     expect(s.rightCollapsed).toBe(true)
+-    expect(s.pendingPrompt).toBeNull()
+   })
+ 
+   it('toggleLeft:翻转 leftCollapsed', () => {
+     const s = useAgentStore()
+     const before = s.leftCollapsed
+     s.toggleLeft()
+     expect(s.leftCollapsed).toBe(!before)
+   })
+ 
+   it('startAssistant + appendBlock + patchBlock roundtrip', () => {
+diff --git a/src/ai/stores/agentStore.ts b/src/ai/stores/agentStore.ts
+index 9e515f3..9e7f8f9 100644
+--- a/src/ai/stores/agentStore.ts
++++ b/src/ai/stores/agentStore.ts
+@@ -110,21 +110,20 @@ export function useAgentStore(agentType?: string) {
+   return defineStore(storeId, () => {
+     const sessions = ref<AgentSession[]>([])
+     const activeSessionId = ref<string | number | null>(null)
+     const messages = ref<AgentMessage[]>([])
+     // 1a 阶段恒 false——streaming(send/attach)是 1b 的事,这里没有任何路径会翻它。
+     const busy = ref(false)
+     const theme = ref<AgentTheme>('light')
+     const leftCollapsed = ref(false)
+     // 1a 阶段恒 true——右侧面板(活动日志/资源等)要到 streaming 落地才有内容可看。
+     const rightCollapsed = ref(true)
+-    const pendingPrompt = ref<string | null>(null)
+     // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
+     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
+     // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
+     // controller is a real AbortController, pendingCancel is the in-flight
+     // ai.cancelAgentRun() promise (or null when no cancel is pending).
+     const abortController = ref<AbortController | null>(null)
+     const activitySteps = ref<Record<string, unknown>[]>([])
+     const pendingCancel = ref<Promise<unknown> | null>(null)
+ 
+     // ---- Model bootstrap (SP8-P1b Task 7) — agentStore.js:43-52,599-698 ----
+@@ -722,21 +721,20 @@ export function useAgentStore(agentType?: string) {
+     }
+ 
+     return {
+       sessions,
+       activeSessionId,
+       messages,
+       busy,
+       theme,
+       leftCollapsed,
+       rightCollapsed,
+-      pendingPrompt,
+       abortController,
+       activitySteps,
+       pendingCancel,
+       availableModels,
+       selectedModel,
+       lastFallbackNotice,
+       thinking,
+       pendingSkillId,
+       loadSessions,
+       createSession,
+diff --git a/src/ai/views/AgentPage.test.ts b/src/ai/views/AgentPage.test.ts
+index 9472dd1..1a16bb5 100644
+--- a/src/ai/views/AgentPage.test.ts
++++ b/src/ai/views/AgentPage.test.ts
+@@ -64,47 +64,106 @@ describe('AgentPage', () => {
+     const w = mountPage()
+     await flushPromises()
+     const store = useAgentStore()
+     store.messages.push({ id: 'm1', role: 'user', content: 'hi' })
+     await flushPromises()
+     expect(w.find('.stream-wrap').exists()).toBe(true)
+     expect(w.find('.empty-state').exists()).toBe(false)
+     w.unmount()
+   })
+ 
+-  it('?search=foo → pendingPrompt 落 "foo" 且 router.replace 剥掉 search 参数', async () => {
+-    routeQuery.search = 'foo'
++  it('?search=cats → 总是新建会话(createSession)再发送 locale 包装后的搜索文案,且 router.replace 一次性剥掉 search 参数', async () => {
++    routeQuery.search = 'cats'
++    const store = useAgentStore()
++    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+     mountPage()
+     await flushPromises()
+-    const store = useAgentStore()
+-    expect(store.pendingPrompt).toBe('foo')
+     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
++    expect(createSpy).toHaveBeenCalledTimes(1)
++    expect(sendSpy).toHaveBeenCalledTimes(1)
++    expect(sendSpy).toHaveBeenCalledWith('在我的 NAS 中搜索"cats"。')
++    // createSession 必须先于 send 完成(fresh session),顺序不可颠倒
++    expect(createSpy.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
+   })
+ 
+-  it('?message=bar(无 search)→ pendingPrompt 落 "bar" 且 router.replace 剥掉 message 参数', async () => {
+-    routeQuery.message = 'bar'
++  it('?search=cats 即便已有 activeSessionId 仍新建会话(search 恒 fresh,不复用)', async () => {
++    routeQuery.search = 'cats'
++    const store = useAgentStore()
++    store.activeSessionId = 'sess-old'
++    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+     mountPage()
+     await flushPromises()
++    expect(createSpy).toHaveBeenCalledTimes(1)
++    expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('cats'))
++  })
++
++  it('?message=hi(无 search)且无 activeSessionId → 先建会话再原文发送(不做 locale 包装)', async () => {
++    routeQuery.message = 'hi'
+     const store = useAgentStore()
+-    expect(store.pendingPrompt).toBe('bar')
++    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
++    mountPage()
++    await flushPromises()
+     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
++    expect(createSpy).toHaveBeenCalledTimes(1)
++    expect(sendSpy).toHaveBeenCalledWith('hi')
++  })
++
++  it('?message=hi 且已有 activeSessionId → 复用会话,不建新会话', async () => {
++    routeQuery.message = 'hi'
++    const store = useAgentStore()
++    store.activeSessionId = 'sess-existing'
++    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
++    mountPage()
++    await flushPromises()
++    expect(createSpy).not.toHaveBeenCalled()
++    expect(sendSpy).toHaveBeenCalledWith('hi')
+   })
+ 
+-  it('search 与 message 同时存在 → search 生效,message 被跳过(不覆盖 pendingPrompt)', async () => {
++  it('search 与 message 同时存在 → 只有 search 生效(message 被完全跳过,只发一次)', async () => {
+     routeQuery.search = 'foo'
+     routeQuery.message = 'bar'
++    const store = useAgentStore()
++    const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+     mountPage()
+     await flushPromises()
+-    const store = useAgentStore()
+-    expect(store.pendingPrompt).toBe('foo')
++    expect(createSpy).toHaveBeenCalledTimes(1)
++    expect(sendSpy).toHaveBeenCalledTimes(1)
++    expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('foo'))
+     expect(replace).toHaveBeenCalledTimes(1)
+-    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: 'bar' } })
++    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
++  })
++
++  it('one-shot:router.replace 剥离 search/message 但保留其它 query 参数不变', async () => {
++    routeQuery.search = 'cats'
++    routeQuery.tab = 'x'
++    const store = useAgentStore()
++    vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
++    vi.spyOn(store, 'send').mockResolvedValue(undefined)
++    mountPage()
++    await flushPromises()
++    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { tab: 'x' } })
++  })
++
++  it('?skill=abc → 暂存 store.pendingSkillId,不触发发送', async () => {
++    routeQuery.skill = 'abc'
++    const store = useAgentStore()
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
++    mountPage()
++    await flushPromises()
++    expect(store.pendingSkillId).toBe('abc')
++    expect(sendSpy).not.toHaveBeenCalled()
++    expect(replace).not.toHaveBeenCalled()
+   })
+ 
+   it('侧栏 open-settings(设置齿轮)→ 弹 aiSettingsComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {
+     const w = mountPage()
+     await flushPromises()
+     const toast = useToast()
+     const showSpy = vi.spyOn(toast, 'show')
+     await w.find('.sidebar-foot .icon-btn').trigger('click')
+     expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
+     expect(push).not.toHaveBeenCalled()
+diff --git a/src/ai/views/AgentPage.vue b/src/ai/views/AgentPage.vue
+index 40576e3..91cf0d2 100644
+--- a/src/ai/views/AgentPage.vue
++++ b/src/ai/views/AgentPage.vue
+@@ -1,16 +1,17 @@
+ <!--
+   1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
+-  去 AgentComposer(发送链路,1b/1c)、AgentRightPanel(1c),以及
+-  systemMetrics/disks/thinking/models 的装载段(1b/1c)。右侧面板在 1a
+-  永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store 状态——
+-  1a store 里 rightCollapsed 恒 true,直接写死更直白)。
++  去 AgentComposer(1b 无输入框 UI —— 本期唯一发送入口是 Task 11 的
++  ?search=/?message= 自动发送 + EmptyState 建议卡,composer 组件本身留 1c)、
++  AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。右侧面板在
++  本期永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store
++  状态——store 里 rightCollapsed 恒 true,直接写死更直白)。
+ 
+   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
+   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
+ -->
+ <script setup lang="ts">
+ import { computed, onMounted } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useAgentStore } from '../stores/agentStore'
+ import { provideAgentStore } from '../composables/useProvidedAgentStore'
+@@ -61,44 +62,48 @@ onMounted(async () => {
+     /* ignore — mirrors Vue2 Agent.vue's swallow-per-call mounted sequence */
+   }
+   try {
+     // 在 auto-send 交接(Task 11)之前先把默认模型定下来,否则那时
+     // selectedModel 还是 null,send() 会先落一个 "无模型" 的错误 block。
+     await store.loadAvailableModels()
+   } catch {
+     /* ignore — 拉模型失败不该挡住页面渲染,send() 自己会兜底提示无模型 */
+   }
+ 
+-  // 1c: pendingSkillId (?skill= handoff)
++  // Vue2 Agent.vue:145-148 —— ?skill= 挂号:只暂存,消费点在 send()(agentStore.ts
++  // send() 的 X-Skill-Id 组装段),这里不发送。
++  const skill = route.query.skill
++  if (skill) store.pendingSkillId = String(skill)
+ 
+   // Handoff from the global search page / homepage AI widget
+-  // (/ai/agent?search=<query> or ?message=<text>): 1a only stashes the raw
+-  // intent on the store — the Vue2 blueprint's send-immediately behaviour
+-  // (Agent.vue:166-192, including the locale-aware "Search my NAS for…"
+-  // wrapper) is 1b's job once streaming send exists. The one-shot
+-  // router.replace guard is ported verbatim so a page refresh doesn't
+-  // re-populate pendingPrompt from a stale query string. search wins over
+-  // message when both are present (message is skipped entirely, matching
+-  // Vue2's `seedMessage && !seedQuery` guard).
+-  const seedQuery = (route.query.search || '').toString().trim()
+-  if (seedQuery) {
+-    store.pendingPrompt = seedQuery
+-    const cleanQuery = { ...route.query }
+-    delete cleanQuery.search
+-    router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
+-  }
+-  const seedMessage = (route.query.message || '').toString().trim()
+-  if (seedMessage && !seedQuery) {
+-    store.pendingPrompt = seedMessage
+-    const cleanQuery = { ...route.query }
+-    delete cleanQuery.message
+-    router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
++  // (/ai/agent?search=<query> or ?message=<text>) — Vue2 Agent.vue:166-192.
++  // search wins over message when both are present (message is skipped
++  // entirely). One-shot: router.replace strips both query keys BEFORE
++  // sending so a page refresh doesn't re-send the seed turn.
++  const seedSearch = (route.query.search ?? '').toString().trim()
++  const seedMessage = (route.query.message ?? '').toString().trim()
++  if (seedSearch || seedMessage) {
++    const clean = { ...route.query }
++    delete clean.search
++    delete clean.message
++    await router.replace({ path: '/ai/agent', query: clean })
++    try {
++      if (seedSearch) {
++        await store.createSession() // always fresh
++        await store.send(t('ai.searchMyNas', { query: seedSearch }))
++      } else {
++        if (!store.activeSessionId) await store.createSession() // reuse if present
++        await store.send(seedMessage) // raw verbatim
++      }
++    } catch {
++      /* onError already surfaced a block */
++    }
+   }
+ })
+ </script>
+ 
+ <template>
+   <div
+     class="agent-app"
+     :data-theme="store.theme"
+     :data-leftcollapsed="store.leftCollapsed"
+     :data-rightcollapsed="true"
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index fb81fb3..b19859d 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -561,20 +561,22 @@ export default {
+   aiEmptyOrganizePrompt: 'Reorganize /Documents by topic and year, suggest a structure',
+   aiEmptyOrganizeExample: 'Sort /Documents by topic and year',
+   aiEmptyScript: 'Write a script',
+   aiEmptyScriptPrompt: 'Write a Python script that scans /DATA and reports disk usage by folder as a chart',
+   aiEmptyScriptExample: 'Build a small tool or automation',
+   aiConfirm: 'Delete',
+   aiCancel: 'Cancel',
+   aiComingSoon: 'Sending will be enabled in the next phase',
+   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
++  // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
++  'ai.searchMyNas': 'Search my NAS for "{query}".',
+   // SP8-P1b Task 8 —— block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
+   aiMcpConnectFailed: 'MCP server {server} failed to connect: {error}',
+   aiConfirmRequiredTitle: 'Confirmation required: {action}',
+   aiHighRiskOperation: 'High-risk operation',
+   aiConfirmWaitingApproval: 'Agent is waiting for your approval',
+   aiAccept: 'Accept',
+   aiDeny: 'Deny',
+   aiConfirmInvalid: 'Confirmation request invalid (missing confirm_id)',
+   aiConfirmExpired: 'Confirmation expired, please resend the instruction',
+   aiSubmitFailed: 'Submit failed: {detail}',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 77b0182..a3e1533 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -560,20 +560,22 @@ export default {
+   aiEmptyOrganizePrompt: '按主题和年份重新整理 /Documents,给出目录结构建议',
+   aiEmptyOrganizeExample: '按主题和年份整理 /Documents',
+   aiEmptyScript: '写个脚本',
+   aiEmptyScriptPrompt: '写一个 Python 脚本,扫描 /DATA 并用图表展示各文件夹的磁盘占用',
+   aiEmptyScriptExample: '搭一个小工具或自动化脚本',
+   aiConfirm: '删除',
+   aiCancel: '取消',
+   aiComingSoon: '对话发送将在下一期开启',
+   aiSettingsComingSoon: '设置页将在后续阶段开启',
+   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
++  // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
++  'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',
+   // SP8-P1b Task 8 —— 块渲染器批次 A(confirm/mcp 系列卡片),1:1 对齐 Vue2
+   // src/assets/lang/zh_CN.json 里同一批 key 的既有译文。
+   aiMcpConnectFailed: 'MCP 服务「{server}」连接失败：{error}',
+   aiConfirmRequiredTitle: '需要确认：{action}',
+   aiHighRiskOperation: '高危操作',
+   aiConfirmWaitingApproval: 'Agent 等待你的批准',
+   aiAccept: '接受',
+   aiDeny: '拒绝',
+   aiConfirmInvalid: '确认请求无效（缺少 confirm_id）',
+   aiConfirmExpired: '确认已过期，请重新发送指令',

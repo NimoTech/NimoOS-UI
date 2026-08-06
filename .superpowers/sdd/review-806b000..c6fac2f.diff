@@ -1,0 +1,111 @@
+# Review package: 806b000..HEAD
+
+## Commits
+c6fac2f feat(upload): pausedCount + paused→active zone in uploadBatches (SP4-P3 pause)
+
+## Files changed
+ src/files/upload/uploadBatches.test.ts | 16 ++++++++++++++++
+ src/files/upload/uploadBatches.ts      |  5 ++++-
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/files/upload/uploadBatches.test.ts b/src/files/upload/uploadBatches.test.ts
+index 9ec3e9c..c09f107 100644
+--- a/src/files/upload/uploadBatches.test.ts
++++ b/src/files/upload/uploadBatches.test.ts
+@@ -62,10 +62,26 @@ describe('needs_file routing', () => {
+   it('needs_file routes the batch to problem zone with needsFileCount', () => {
+     const q = [
+       { id: 'a', batchId: 'b', batchTotal: 2, status: 'needs_file', size: 10, bytesSent: 0, relativePath: 'a', fileName: 'a' },
+       { id: 'c', batchId: 'b', batchTotal: 2, status: 'pending', size: 10, bytesSent: 0, relativePath: 'c', fileName: 'c' },
+     ] as any
+     const [v] = groupByBatch(q)
+     expect(v.zone).toBe('problem')
+     expect(v.needsFileCount).toBe(1)
+   })
+ })
++
++describe('paused items routing', () => {
++  it('paused items count into pausedCount and keep the batch in active zone', () => {
++    const q = [
++      { id: 'a', batchId: 'b', batchTotal: 1, status: 'paused', size: 10, bytesSent: 3, relativePath: 'a', fileName: 'a' },
++    ] as any
++    const [v] = groupByBatch(q)
++    expect(v.pausedCount).toBe(1)
++    expect(v.zone).toBe('active')
++  })
++
++  it('a fully-paused batch is not settled', () => {
++    const q = [{ id: 'a', batchId: 'b', batchTotal: 1, status: 'paused', size: 10, bytesSent: 3, relativePath: 'a', fileName: 'a' }] as any
++    expect(isBatchSettled(q)).toBe(false)
++  })
++})
+diff --git a/src/files/upload/uploadBatches.ts b/src/files/upload/uploadBatches.ts
+index e7123d8..749836c 100644
+--- a/src/files/upload/uploadBatches.ts
++++ b/src/files/upload/uploadBatches.ts
+@@ -8,20 +8,21 @@ export type BatchLabel =
+ export interface BatchView {
+   batchId: string
+   label: BatchLabel
+   total: number
+   items: UploadItem[]
+   doneCount: number
+   errorCount: number
+   activeCount: number // pending + uploading
+   conflictCount: number
+   needsFileCount: number
++  pausedCount: number
+   progress: number // 0-100, bytes-weighted
+   sentBytes: number // uploaded so far across the batch
+   totalBytes: number // sum of all item sizes in the batch
+   zone: 'problem' | 'active' | 'done'
+   oversize: boolean
+   multi: boolean
+ }
+ 
+ // Label a batch: a folder upload (webkitdirectory) has every item's
+ // relativePath rooted at the same top segment AND at least one nested path
+@@ -48,39 +49,41 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
+     if (!map.has(it.batchId)) { map.set(it.batchId, []); order.push(it.batchId) }
+     map.get(it.batchId)!.push(it)
+   }
+   return order.map((batchId) => {
+     const items = map.get(batchId)!
+     const doneCount = items.filter((i) => i.status === 'done').length
+     const errorCount = items.filter((i) => i.status === 'error').length
+     const conflictCount = items.filter((i) => i.status === 'conflict').length
+     const activeCount = items.filter((i) => i.status === 'pending' || i.status === 'uploading').length
+     const needsFileCount = items.filter((i) => i.status === 'needs_file').length
++    const pausedCount = items.filter((i) => i.status === 'paused').length
+     const totalBytes = items.reduce((s, i) => s + i.size, 0)
+     const sentBytes = items.reduce((s, i) => s + (i.status === 'done' ? i.size : i.bytesSent), 0)
+     const progress = totalBytes > 0 ? Math.floor((sentBytes / totalBytes) * 100) : activeCount > 0 ? 0 : 100
+     const zone: 'problem' | 'active' | 'done' =
+       errorCount > 0 || needsFileCount > 0
+         ? 'problem'
+-        : activeCount > 0 || conflictCount > 0
++        : activeCount > 0 || conflictCount > 0 || pausedCount > 0
+           ? 'active'
+           : 'done'
+     return {
+       batchId,
+       label: batchLabel(items),
+       total: items[0]?.batchTotal ?? items.length,
+       items,
+       doneCount,
+       errorCount,
+       activeCount,
+       conflictCount,
+       needsFileCount,
++      pausedCount,
+       progress,
+       sentBytes,
+       totalBytes,
+       zone,
+       oversize: items.some((i) => i.oversize),
+       multi: items.length > 1,
+     }
+   })
+ }
+ 

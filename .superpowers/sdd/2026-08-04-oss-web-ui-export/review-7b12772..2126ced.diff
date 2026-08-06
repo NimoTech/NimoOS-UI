@@ -1,0 +1,197 @@
+# Review package: 7b12772..HEAD
+
+## Commits
+2126ced fix(oss): 泄漏守卫补 Ai 驼峰漏检 + scanTree 目录读取加固
+
+## Files changed
+ oss/forbidden.mjs      | 34 ++++++++++++++++++++---------
+ oss/forbidden.test.mjs | 58 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 82 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/oss/forbidden.mjs b/oss/forbidden.mjs
+index 5573709..517574e 100644
+--- a/oss/forbidden.mjs
++++ b/oss/forbidden.mjs
+@@ -63,33 +63,37 @@ export const SOFT = [
+     // 词边界:不碰中文、chain、main、Chairman。
+     //
+     // 第二轮复审 Important:第一轮的 alt2(要求 "AI" 前面不挨字母,即只认 "AI" 打头的
+     // camelCase/PascalCase,如 AIService)漏掉了 "AI" 结尾的驼峰,比如 sendToAI/chatAI/
+     // openAIRequest —— sendToAI 恰恰是本仓真实存在、且正是这次要清除的 AI 链路的核心
+     // 函数名(src/home/composables/useOpenAction.ts:54 等 8 处),守卫必须抓到它。
+     //
+     // 改成两条子规则:
+     //   alt1(大小写不敏感):独立词 ai/AI/Ai/aI,前面不挨字母、后面不挨"小写"字母 ——
+     //        覆盖裸词 "ai"/"AI"、"AI 总结"、"AI-powered"、"AIService"(后面跟大写 S 不算挨着)。
+-    //   alt2(精确大小写,只认 "AI" 两个大写字母):前面挨一个小写字母、后面不挨小写字母 ——
+-    //        覆盖 "驼峰词尾的 AI" 这种写法,如 sendToAI、chatAI、openAIRequest。
++    //   alt2(首字母 A 强制大写,第二个字母不区分大小写):前面挨一个小写字母、后面不挨
++    //        小写字母 —— 覆盖"驼峰词尾的 Ai/AI",如 sendToAI、chatAI、openAIRequest,
++    //        以及第三轮复审补的 widgetAiSend、pathFromAiPattern、askNimoAi(本仓 i18n 键/
++    //        函数名的真实书写形态是首字母大写、第二个字母小写的 "Ai",不是全大写 "AI")。
+     //
+-    // alt2 **必须区分大小写、不能套 /i**:src/settings/util/timezones.ts 里有真实存在的
+-    // Asia/Shanghai、Asia/Dubai —— 若 alt2 大小写不敏感,"ai" 前面挨小写字母、后面到词尾
+-    // 的模式会把 Shanghai/Dubai 也当成命中,那是本仓合法的时区字符串,不能误报。
+-    // 同理 Mumbai/Thai/bonsai/Aircraft/Cairo 等词也依赖这条"大小写敏感"的边界才不会被误伤。
+-    // 后人若想"顺手统一大小写标志",请先看这条注释。
++    // ★★★ 警告(两轮复审都在这条上栽过,后人别再栽):alt2 的第一个字母 A 必须
++    // 强制大写(写成 `A[Ii]`),绝不能写成 `[Aa][Ii]`、也不能对这个 alt 整体套 /i。
++    // src/settings/util/timezones.ts 里有真实存在的 Asia/Shanghai、Asia/Dubai —— 那里的
++    // "ai" 是全小写,前面接小写字母、后面到词尾。一旦 alt2 允许首字母小写 a,
++    // Shanghai/Dubai/Thai/bonsai 会立刻全部变成误报,而它们是本仓合法字符串。
++    // 首字母强制大写这条边界,就是把"合法英文单词里的 ai"和"人为造的 Ai/AI 缩写"分开的
++    // 唯一依据 —— 后人若想"顺手统一大小写",请先重新读这段注释再动手。
+     //
+     // 代价:const AIRPORT=1 这类"AI"后面直接接大写字母的全大写标识符仍会被 alt1 命中
+     // (机场号码/常量名一类罕见样式)。按纪律「词表宁可宽」接受这个已知的假阳性,不为它
+     // 收窄规则去冒漏掉真实 AI 代码的风险。
+-    re: /(?<![A-Za-z])[Aa][Ii](?![a-z])|(?<=[a-z])AI(?![a-z])/,
++    re: /(?<![A-Za-z])[Aa][Ii](?![a-z])|(?<=[a-z])A[Ii](?![a-z])/,
+     allow: [
+       // E5:局部变量 ai = anchorIndex(files.ts 的 shift 选区)
+       { file: /src\/files\/stores\/files\.ts$/, re: /\bai\b\s*[=<,)\]]|\[lo,\s*hi\]/ },
+     ],
+   },
+   { word: 'parser', re: /\bparser\b/i, allow: [] },
+   { word: 'wiki', re: /wiki/i, allow: [] },
+   {
+     word: 'folderPermission',
+     re: /folderPermission/i,
+@@ -149,28 +153,38 @@ export function scanText(relPath, text) {
+  *   ① 符号链接(不跟随,不管指向文件还是目录) —— 第二轮复审 Important:本仓
+  *      `.claude/worktrees/NimoOS-Service` 是一个指向目录的符号链接。
+  *      `readdirSync(..., {withFileTypes:true})` 内部用 lstat,`Dirent.isDirectory()`
+  *      对符号链接返回 false(不跟随),会落进"文件"分支;而 `fs.statSync`/
+  *      `fs.readFileSync` 默认跟随符号链接,对指向目录的链接跟读会直接抛
+  *      `EISDIR` 崩掉整个扫描。改成先用 `Dirent.isSymbolicLink()` 识别并跳过 ——
+  *      符号链接指向的真实内容如果本就在树内,会通过它的真实路径被正常扫到,
+  *      不会因为跳过链接本身而漏扫。
+  *   ② 体积超过 MAX_BYTES 的
+  *   ③ 开头 8KB 判定为二进制的(looksBinary)
+- *   ④ 任何 stat/read 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧
++ *   ④ 任何 stat/read/readdir 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧。
++ *      第三轮复审顺带加固:目录本身的 `readdirSync` 之前没包 try/catch,子目录若在遍历
++ *      途中被并发删除、或没有读权限,会像符号链接那次一样让整个 scanTree 崩掉;现在也
++ *      计入 __skipped__。
+  */
+ export function scanTree(rootDir) {
+   const findings = []
+   const skip = (rel, excerpt) => findings.push({ file: rel, word: '__skipped__', line: 0, excerpt })
+ 
+   const walk = (dir) => {
+-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
++    let entries
++    try {
++      entries = fs.readdirSync(dir, { withFileTypes: true })
++    } catch (err) {
++      skip(path.relative(rootDir, dir) || '.', `目录读取失败,未扫描:${err.message}`)
++      return
++    }
++    for (const e of entries) {
+       const abs = path.join(dir, e.name)
+       const rel = path.relative(rootDir, abs)
+ 
+       if (e.isSymbolicLink()) {
+         skip(rel, '符号链接,未跟随、未扫描')
+         continue
+       }
+       if (e.isDirectory()) {
+         if (e.name === '.git' || e.name === 'node_modules' || e.name === 'dist') continue
+         walk(abs)
+diff --git a/oss/forbidden.test.mjs b/oss/forbidden.test.mjs
+index 1166f82..b712d00 100644
+--- a/oss/forbidden.test.mjs
++++ b/oss/forbidden.test.mjs
+@@ -94,20 +94,51 @@ describe('软禁词的精确白名单', () => {
+     }
+     for (const text of [
+       "{ label: '(GMT+08:00) Beijing, Chongqing, Hong Kong, Urumqi', value: 'Asia/Shanghai' },",
+       "{ label: '(GMT+04:00) Abu Dhabi, Muscat', value: 'Asia/Dubai' },",
+       'const country = "Thai"',
+       'const plant = "bonsai"',
+     ]) {
+       expect(scanText('src/settings/util/timezones.ts', text), text).toEqual([])
+     }
+   })
++
++  // 第三轮复审 Important:brief §6.3 纪律 3 明文要求"孤儿 i18n 键不需要另写检查——
++  // 键名本身就是禁词",这套设计显式依赖守卫能按键名抓到 Ai 这种首字母大写、第二个字母
++  // 小写的驼峰(不是全大写 AI)。原规则的 alt2 只认全大写 AI,漏掉了本仓真实存在的
++  // widgetAiSend / pathFromAiPattern / askNimoAi 等 i18n 键与函数名。以下全部用真实文件
++  // 里的原样文本(逐字摘自 src/i18n/zh_cn.ts:258-259、en_us.ts:259-260、
++  // FolderPermissionsPanel.vue:146、folderPermissions.test.ts:29-30、SearchDialog.vue:265),
++  // 不是自己编的简化版。
++  it('驼峰词尾的 Ai(首字母大写、第二字母小写)必须命中,真实机场/航空类词不能被误伤', () => {
++    for (const text of [
++      "  widgetAiSend: '发送',",
++      "  widgetAiPrompt1: '整理最近的照片',",
++      "  widgetAiSend: 'Send',",
++      "        <span class=\"set-fp-title\">{{ t('settingsFpAiHidden') }}</span>",
++      "  it('pathFromAiPattern 反解出目录', () => {",
++      "    expect(pathFromAiPattern('/DATA/Docs/**')).toBe('/DATA/Docs')",
++      'function askNimoAi(): void {',
++    ]) {
++      expect(scanText('src/x.ts', text).length, text).toBeGreaterThan(0)
++    }
++    for (const text of [
++      "{ label: '(GMT+08:00) Beijing, Chongqing, Hong Kong, Urumqi', value: 'Asia/Shanghai' },",
++      "{ label: '(GMT+04:00) Abu Dhabi, Muscat', value: 'Asia/Dubai' },",
++      'const country = "Thai"',
++      'const plant = "bonsai"',
++      'useAirport()',
++      'const x: Aircraft = load()',
++    ]) {
++      expect(scanText('src/x.ts', text), text).toEqual([])
++    }
++  })
+ })
+ 
+ describe('scanTree:排除法,不是扩展名白名单', () => {
+   const mktmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'oss-forbidden-'))
+ 
+   // 评审 Important #2 复现用例:原实现按 TEXT_EXT 扩展名白名单跳过文件,
+   // .env / Dockerfile 这类没有被枚举到扩展名的文件会被整体放过、连读都不读。
+   it('.env / 无扩展名文件必须被扫描到 —— 不能按扩展名放过', () => {
+     const dir = mktmp()
+     try {
+@@ -168,11 +199,38 @@ describe('scanTree:排除法,不是扩展名白名单', () => {
+ 
+       expect(findings.some((f) => f.file === 'link-to-dir' && f.word === '__skipped__')).toBe(true)
+       // 真实目录是通过它自己的真实路径被正常遍历到的(不是通过链接),
+       // 证明"跳过链接本身"没有连带漏扫链接指向的真实内容。
+       const innerFile = path.join('real-target', 'inner.ts')
+       expect(findings.some((f) => f.file === innerFile && f.word === 'qdrant')).toBe(true)
+     } finally {
+       fs.rmSync(dir, { recursive: true, force: true })
+     }
+   })
++
++  // 第三轮复审顺带加固:子目录的 readdirSync 之前没包 try/catch,遇到无读权限的目录
++  // (权限问题、竞态删除等)会像符号链接那次一样让整个 scanTree 崩掉。
++  // 用真实的 chmod 000 目录复现——不是 mock,是真的把权限位清零。
++  // root 用户不受 chmod 限制(DAC 对 root 不生效),这条测试在以 root 跑测试的环境下
++  // 没有意义,跳过。
++  const isRoot = typeof process.getuid === 'function' && process.getuid() === 0
++  it.skipIf(isRoot)('无读权限的子目录不应让 scanTree 抛异常,而是留下 __skipped__ 痕迹', () => {
++    const dir = mktmp()
++    const lockedDir = path.join(dir, 'locked')
++    try {
++      fs.mkdirSync(lockedDir)
++      fs.writeFileSync(path.join(lockedDir, 'x.ts'), 'const q = "qdrant"\n')
++      fs.writeFileSync(path.join(dir, 'clean.ts'), 'export const x = 1\n')
++      fs.chmodSync(lockedDir, 0o000)
++
++      let findings
++      expect(() => {
++        findings = scanTree(dir)
++      }).not.toThrow()
++
++      expect(findings.some((f) => f.file === 'locked' && f.word === '__skipped__')).toBe(true)
++    } finally {
++      fs.chmodSync(lockedDir, 0o755) // 恢复权限,否则 rmSync 递归删除会失败
++      fs.rmSync(dir, { recursive: true, force: true })
++    }
++  })
+ })

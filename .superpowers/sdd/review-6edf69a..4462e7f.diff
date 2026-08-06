@@ -1,0 +1,184 @@
+# Review package: 6edf69a..4462e7f
+
+## Commits
+4462e7f feat(files-p5a): mountsStore — network+usb aggregation, eject
+
+## Files changed
+ src/files/stores/mounts.test.ts | 69 +++++++++++++++++++++++++++++++++++++++++
+ src/files/stores/mounts.ts      | 64 ++++++++++++++++++++++++++++++++++++++
+ src/i18n/zh_cn.ts               |  2 ++
+ 3 files changed, 135 insertions(+)
+
+## Diff
+diff --git a/src/files/stores/mounts.test.ts b/src/files/stores/mounts.test.ts
+new file mode 100644
+index 0000000..63498b1
+--- /dev/null
++++ b/src/files/stores/mounts.test.ts
+@@ -0,0 +1,69 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// service mock:必须在 import store 前(vi.mock 提升)
++const listConnections = vi.fn()
++const deleteConnection = vi.fn()
++const umountUsb = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    samba: { listConnections: (...a: unknown[]) => listConnections(...a), deleteConnection: (...a: unknown[]) => deleteConnection(...a) },
++    disks: { umountUsb: (...a: unknown[]) => umountUsb(...a) },
++  },
++}))
++// toast + i18n mock
++vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: vi.fn() }) }))
++vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
++
++import { useMountsStore } from './mounts'
++import { useFilesStore } from './files'
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  listConnections.mockReset(); deleteConnection.mockReset(); umountUsb.mockReset()
++})
++
++describe('mountsStore', () => {
++  it('loadMounts 把连接映射成 network 条目', async () => {
++    listConnections.mockResolvedValue([{ id: 1, host: 'h', mountPoint: '/mnt/h' }])
++    const m = useMountsStore()
++    await m.loadMounts()
++    expect(m.network).toEqual([{ kind: 'network', id: 1, name: 'h', realPath: '/mnt/h' }])
++  })
++
++  it('loadMounts 失败 → network 置空,不抛', async () => {
++    listConnections.mockRejectedValue(new Error('net'))
++    const m = useMountsStore()
++    await m.loadMounts()
++    expect(m.network).toEqual([])
++  })
++
++  it('usb 从 filesStore.disks 的 usb===true 派生', () => {
++    const files = useFilesStore()
++    files.disks = [{ name: 'HD', path: '/DATA', usb: false }, { name: 'U盘', path: '/media/u', usb: true }] as never
++    const m = useMountsStore()
++    expect(m.usb).toEqual([{ kind: 'usb', name: 'U盘', realPath: '/media/u' }])
++  })
++
++  it('ejectNetwork 成功 → 调 deleteConnection + reload + 返回 true', async () => {
++    listConnections.mockResolvedValue([])
++    deleteConnection.mockResolvedValue(undefined)
++    const m = useMountsStore()
++    const ok = await m.ejectNetwork(1)
++    expect(deleteConnection).toHaveBeenCalledWith(1)
++    expect(ok).toBe(true)
++  })
++
++  it('ejectNetwork 失败 → 返回 false,不抛', async () => {
++    deleteConnection.mockRejectedValue(new Error('x'))
++    const m = useMountsStore()
++    expect(await m.ejectNetwork(1)).toBe(false)
++  })
++
++  it('ejectUsb 成功 → 调 umountUsb + 返回 true', async () => {
++    umountUsb.mockResolvedValue(undefined)
++    const m = useMountsStore()
++    expect(await m.ejectUsb('/media/u')).toBe(true)
++    expect(umountUsb).toHaveBeenCalledWith('/media/u')
++  })
++})
+diff --git a/src/files/stores/mounts.ts b/src/files/stores/mounts.ts
+new file mode 100644
+index 0000000..f5749fe
+--- /dev/null
++++ b/src/files/stores/mounts.ts
+@@ -0,0 +1,64 @@
++import { defineStore } from 'pinia'
++import { ref, computed } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { useFilesStore } from './files'
++import { useToast } from '../../stores/toast'
++import { i18n } from '../../i18n'
++
++export interface MountEntry {
++  kind: 'network' | 'usb'
++  id?: number
++  name: string
++  realPath: string
++}
++
++export const useMountsStore = defineStore('mounts', () => {
++  const network = ref<MountEntry[]>([])
++  const loading = ref(false)
++  const files = useFilesStore()
++  const toast = useToast()
++  const t = i18n.global.t
++
++  async function loadMounts(): Promise<void> {
++    loading.value = true
++    try {
++      const conns = await service.samba.listConnections()
++      network.value = conns.map((c) => ({ kind: 'network' as const, id: c.id, name: c.host, realPath: c.mountPoint }))
++    } catch (e) {
++      network.value = []
++      console.warn('[mounts] loadMounts failed', e)
++    } finally {
++      loading.value = false
++    }
++  }
++
++  // USB 直接派生自 filesStore.disks(不重复请求);热插由 Files.vue 的 socket 触发 files.loadRoots() 更新。
++  const usb = computed<MountEntry[]>(() =>
++    files.disks.filter((d) => d.usb).map((d) => ({ kind: 'usb' as const, name: d.name, realPath: d.path })),
++  )
++
++  async function ejectNetwork(id: number): Promise<boolean> {
++    try {
++      await service.samba.deleteConnection(id)
++      await loadMounts()
++      toast.show(t('filesMountEjectSuccess'))
++      return true
++    } catch {
++      toast.show(t('filesMountEjectFailed'))
++      return false
++    }
++  }
++
++  async function ejectUsb(realPath: string): Promise<boolean> {
++    try {
++      await service.disks.umountUsb(realPath)
++      toast.show(t('filesMountEjectSuccess'))
++      return true
++    } catch {
++      toast.show(t('filesMountEjectFailed'))
++      return false
++    }
++  }
++
++  return { network, usb, loading, loadMounts, ejectNetwork, ejectUsb }
++})
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index e411f65..f92d2d7 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -112,20 +112,22 @@ export const messages = {
+     filesUploadReselect: '重选文件',
+     filesUploadNeedsFile: '需重新选择文件以继续上传',
+     filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
+     filesUploadRestoreDismiss: '知道了',
+     filesUploadPause: '暂停',
+     filesUploadResume: '继续',
+     filesUploadPauseAll: '全部暂停',
+     filesUploadResumeAll: '全部继续',
+     filesUploadPaused: '已暂停',
+     filesUploadClose: '关闭',
++    filesMountEjectSuccess: '弹出成功',
++    filesMountEjectFailed: '弹出失败',
+     authUsername: '用户名',
+     authPassword: '密码',
+     authLogin: '登录',
+     authLoginFailed: '用户名或密码错误',
+     validateRequired: '必填',
+     validateMin6: '至少 6 位',
+     validateConfirm: '两次输入的密码不一致',
+     welcomeTitle: '欢迎使用 NimoOS',
+     welcomeSubtitle: '创建你的初始账户',
+     welcomeGo: '开始 →',

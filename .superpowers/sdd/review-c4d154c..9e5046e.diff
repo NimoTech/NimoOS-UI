@@ -1,0 +1,1627 @@
+# Review package: c4d154c..HEAD
+
+## Commits
+9e5046e feat(apps): 已装应用卡片(启停/重启/检查更新/卸载/打开)+ 下拉操作菜单 + 卸载确认(显式传 deleteConfigFolder,防后端默认删数据)(SP5-P1)
+673e220 feat(apps): /apps 路由 + AppsSidebar + 已装应用页骨架——进区拉取 + app:*/容器事件接线(SP5-P1)
+231f8d9 feat(apps): installedApps store + appTitle/appUrl 纯工具——事件驱动刷新 + pending 30s 兜底,真机信封做 fixture(SP5-P1)
+f512db6 refactor(shell): FilesShell 提升为通用 AreaShell(title 走 prop),useSidebarDrawer 上移通用层;files 三页换壳零行为变化(SP5-P1)
+
+## Files changed
+ src/apps/components/AppActionsMenu.vue             |  39 +++++++
+ src/apps/components/AppsSidebar.test.ts            |  29 +++++
+ src/apps/components/AppsSidebar.vue                |  80 ++++++++++++++
+ src/apps/components/InstalledAppCard.test.ts       |  77 +++++++++++++
+ src/apps/components/InstalledAppCard.vue           |  93 ++++++++++++++++
+ src/apps/components/UninstallConfirm.test.ts       |  32 ++++++
+ src/apps/components/UninstallConfirm.vue           |  52 +++++++++
+ src/apps/stores/installedApps.test.ts              | 109 +++++++++++++++++++
+ src/apps/stores/installedApps.ts                   | 119 +++++++++++++++++++++
+ src/apps/util/appTitle.test.ts                     |  12 +++
+ src/apps/util/appTitle.ts                          |   6 ++
+ src/apps/util/appUrl.test.ts                       |  15 +++
+ src/apps/util/appUrl.ts                            |  11 ++
+ src/apps/views/InstalledAppsPage.test.ts           |  45 ++++++++
+ src/apps/views/InstalledAppsPage.vue               |  99 +++++++++++++++++
+ .../shell/AreaShell.test.ts}                       |  13 +--
+ src/components/shell/AreaShell.vue                 |  44 ++++++++
+ .../composables/useSidebarDrawer.test.ts           |   0
+ src/{files => }/composables/useSidebarDrawer.ts    |   2 +-
+ src/files/components/FilesShell.vue                |  43 --------
+ src/files/components/FilesSidebar.drawer.test.ts   |   2 +-
+ src/files/components/FilesSidebar.vue              |   4 +-
+ src/files/drop/components/DropPage.test.ts         |   4 +-
+ src/files/drop/components/DropPage.vue             |   6 +-
+ src/files/shares/SharesPage.vue                    |   6 +-
+ src/i18n/en_us.ts                                  |  25 +++++
+ src/i18n/zh_cn.ts                                  |  25 +++++
+ src/router/index.ts                                |   2 +
+ src/styles/theme.css                               |   2 +-
+ src/views/Files.vue                                |   6 +-
+ 30 files changed, 937 insertions(+), 65 deletions(-)
+
+## Diff
+diff --git a/src/apps/components/AppActionsMenu.vue b/src/apps/components/AppActionsMenu.vue
+new file mode 100644
+index 0000000..2b27fce
+--- /dev/null
++++ b/src/apps/components/AppActionsMenu.vue
+@@ -0,0 +1,39 @@
++<script setup lang="ts">
++import {
++  DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuPortal, DropdownMenuContent,
++} from 'reka-ui'
++defineProps<{ ariaLabel: string }>()
++</script>
++
++<template>
++  <DropdownMenuRoot>
++    <DropdownMenuTrigger class="ui-drop-trigger" :aria-label="ariaLabel">⋮</DropdownMenuTrigger>
++    <DropdownMenuPortal>
++      <DropdownMenuContent class="ui-drop-content" :collision-padding="8" :side-offset="4" align="end">
++        <slot name="menu" />
++      </DropdownMenuContent>
++    </DropdownMenuPortal>
++  </DropdownMenuRoot>
++</template>
++
++<style>
++/* 非 scoped:Content 经 Portal 渲染到 body,scoped 属性够不到(ContextMenu.vue 先例);
++   菜单项样式给消费方组装的 DropdownMenuItem 复用 */
++.ui-drop-trigger {
++  width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer;
++  background: transparent; color: var(--fg-muted); font-size: 16px; line-height: 1;
++}
++.ui-drop-trigger:hover { background: var(--chip-bg-hi); color: var(--fg); }
++.ui-drop-content {
++  min-width: 170px; padding: 6px; border-radius: 14px; z-index: 120;
++  background: var(--popup-bg); border: 1px solid var(--card-border); backdrop-filter: blur(20px);
++  box-shadow: var(--card-shadow-hi); color: var(--fg);
++}
++.ui-drop-item {
++  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 9px;
++  font-size: 13px; cursor: pointer; user-select: none; outline: none;
++}
++.ui-drop-item[data-highlighted] { background: var(--chip-bg-hi); }
++.ui-drop-item.danger { color: #ff8a8a; /* theme-exception: danger 文字色沿 ui-ctx-item.danger 既有例外 */ }
++.ui-drop-sep { height: 1px; margin: 5px 4px; background: var(--card-border); }
++</style>
+diff --git a/src/apps/components/AppsSidebar.test.ts b/src/apps/components/AppsSidebar.test.ts
+new file mode 100644
+index 0000000..0cac6c9
+--- /dev/null
++++ b/src/apps/components/AppsSidebar.test.ts
+@@ -0,0 +1,29 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++import AppsSidebar from './AppsSidebar.vue'
++import { __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
++
++const push = vi.fn()
++vi.mock('vue-router', () => ({
++  useRouter: () => ({ push }),
++  useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++describe('AppsSidebar', () => {
++  beforeEach(() => { setActivePinia(createPinia()); __resetSidebarDrawerForTest(); push.mockClear() })
++
++  it('渲染区标题、回主页键与「已装应用」导航项(当前路由高亮)', async () => {
++    const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
++    expect(w.text()).toContain('应用')
++    const item = w.get('.side-item')
++    expect(item.text()).toContain('已装应用')
++    expect(item.classes()).toContain('active')
++    await w.get('.side-home-btn').trigger('click')
++    expect(push).toHaveBeenCalledWith('/')
++  })
++})
+diff --git a/src/apps/components/AppsSidebar.vue b/src/apps/components/AppsSidebar.vue
+new file mode 100644
+index 0000000..6e264ec
+--- /dev/null
++++ b/src/apps/components/AppsSidebar.vue
+@@ -0,0 +1,80 @@
++<script setup lang="ts">
++import { watch, onUnmounted } from 'vue'
++import { useRouter, useRoute } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
++
++const router = useRouter()
++const route = useRoute()
++const { t } = useI18n()
++
++// 抽屉态:必须解构(嵌套 ref 在模板里不自动解包,drawer.isNarrow 恒真值是坑)
++const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
++
++// 路由变化后抽屉自动收起;桌面态 close 是 no-op
++watch(() => route.fullPath, () => closeDrawer())
++
++function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
++watch(drawerOpen, (o) => {
++  if (o) document.addEventListener('keydown', onDrawerKeydown)
++  else document.removeEventListener('keydown', onDrawerKeydown)
++})
++onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
++
++// P2+ 增补:商店 /apps/store、自定义 /apps/custom、源 /apps/sources
++const nav = [{ name: 'apps', labelKey: 'appsNavInstalled', to: '/apps' }]
++</script>
++
++<template>
++  <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
++  <aside class="apps-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
++    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏走顶栏,抽屉内不重复 -->
++    <div v-if="!isNarrow" class="side-top">
++      <h1 class="side-app-title">{{ t('appsTitle') }}</h1>
++      <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('areaBackHome') }}</button>
++    </div>
++    <section class="side-section">
++      <ul class="side-list">
++        <li
++          v-for="n in nav" :key="n.name"
++          class="side-item" :class="{ active: route.name === n.name }"
++          @click="router.push(n.to)"
++        >
++          <span class="side-name">{{ t(n.labelKey) }}</span>
++        </li>
++      </ul>
++    </section>
++  </aside>
++</template>
++
++<style scoped>
++/* 与 FilesSidebar 同一壳形态(玻璃面板 + 窄屏抽屉)。第二次出现:第三区(SP6)时抽 AreaSidebar。 */
++.apps-sidebar {
++  flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
++  display: flex; flex-direction: column; gap: 18px;
++  padding: 14px; overflow-y: auto;
++  background: var(--panel-bg); border: 1px solid var(--card-border);
++  border-radius: var(--radius); box-shadow: var(--panel-shadow);
++  backdrop-filter: var(--blur);
++}
++.side-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
++.side-home-btn { font-size: 13px; flex: 0 0 auto; }
++.side-app-title { font-size: clamp(20px, 1.8vw, 28px); font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
++.side-section { min-width: 0; }
++.side-list { list-style: none; margin: 0; padding: 0; }
++.side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
++.side-item:hover { background: var(--chip-bg-hi); }
++.side-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
++.side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++
++.side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
++.apps-sidebar.is-drawer {
++  position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
++  padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
++  border: none; border-right: 1px solid var(--card-border);
++  border-radius: 0; box-shadow: none;
++  transform: translateX(-105%); transition: transform 0.25s var(--ease);
++}
++.apps-sidebar.is-drawer.is-open { transform: none; }
++@media (prefers-reduced-motion: reduce) { .apps-sidebar.is-drawer { transition: none; } }
++</style>
+diff --git a/src/apps/components/InstalledAppCard.test.ts b/src/apps/components/InstalledAppCard.test.ts
+new file mode 100644
+index 0000000..2a56aff
+--- /dev/null
++++ b/src/apps/components/InstalledAppCard.test.ts
+@@ -0,0 +1,77 @@
++import { describe, it, expect, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++import InstalledAppCard from './InstalledAppCard.vue'
++import type { InstalledApp } from '../stores/installedApps'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++// AppActionsMenu 是 Portal 组件,stub 成直接渲染 menu slot。
++// 真实 DropdownMenuItem 在 setup() 里 inject MenuRootContext(由真实 DropdownMenuRoot 提供),
++// stub 掉 Root 后挂载会抛 "must be used within MenuRoot"(FileContextMenu.test 同款坑)——
++// 连 Item/Separator 一起 stub,只验证"渲染哪些项 + 点击 emit"这层纯条件逻辑,定位/键盘留真机验。
++const MenuStub = { template: '<div class="menu"><slot name="menu" /></div>' }
++const ItemStub = { emits: ['select'], template: '<div @click="$emit(\'select\')"><slot /></div>' }
++
++const BASE: InstalledApp = {
++  id: 'jellyfin', title: 'Jellyfin', icon: 'https://cdn/i.svg',
++  status: 'running', updateAvailable: false, isUncontrolled: false,
++  webUrl: 'http://h:8096/',
++}
++
++function mountCard(app: Partial<InstalledApp> = {}, pendingOp?: 'start' | 'stop' | 'restart' | 'update' | 'uninstall') {
++  return mount(InstalledAppCard, {
++    props: { app: { ...BASE, ...app }, pendingOp },
++    global: {
++      plugins: [i18n],
++      stubs: { AppActionsMenu: MenuStub, DropdownMenuItem: ItemStub, DropdownMenuSeparator: true },
++    },
++  })
++}
++
++describe('InstalledAppCard', () => {
++  it('running:主按钮=打开(emit open),菜单含 停止/重启/检查并更新/卸载', async () => {
++    const w = mountCard()
++    await w.get('.card-primary').trigger('click')
++    expect(w.emitted('open')).toBeTruthy()
++    const menu = w.get('.menu').text()
++    expect(menu).toContain('停止')
++    expect(menu).toContain('重启')
++    expect(menu).toContain('检查并更新')
++    expect(menu).toContain('卸载')
++    expect(menu).not.toContain('启动')
++  })
++
++  it('exited:主按钮=启动(emit action start),菜单无 停止/重启', async () => {
++    const w = mountCard({ status: 'exited', webUrl: 'http://h:8096/' })
++    await w.get('.card-primary').trigger('click')
++    expect(w.emitted('action')![0]).toEqual(['start'])
++    const menu = w.get('.menu').text()
++    expect(menu).not.toContain('停止')
++    expect(menu).not.toContain('重启')
++  })
++
++  it('running 但无 webUrl:主按钮禁用', () => {
++    const w = mountCard({ webUrl: null })
++    expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
++  })
++
++  it('is_uncontrolled:菜单无 检查并更新;update_available 显示徽标', () => {
++    const w = mountCard({ isUncontrolled: true, updateAvailable: true })
++    expect(w.get('.menu').text()).not.toContain('检查并更新')
++    expect(w.text()).toContain('可更新')
++  })
++
++  it('pending:卡片处理中态,主按钮禁用', () => {
++    const w = mountCard({}, 'restart')
++    expect(w.text()).toContain('处理中')
++    expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
++  })
++
++  it('状态标签映射:running=运行中,exited=已停止,unknown=未知', () => {
++    expect(mountCard().text()).toContain('运行中')
++    expect(mountCard({ status: 'exited' }).text()).toContain('已停止')
++    expect(mountCard({ status: 'unknown' }).text()).toContain('未知')
++  })
++})
+diff --git a/src/apps/components/InstalledAppCard.vue b/src/apps/components/InstalledAppCard.vue
+new file mode 100644
+index 0000000..bf2b916
+--- /dev/null
++++ b/src/apps/components/InstalledAppCard.vue
+@@ -0,0 +1,93 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { DropdownMenuItem, DropdownMenuSeparator } from 'reka-ui'
++import AppActionsMenu from './AppActionsMenu.vue'
++import type { InstalledApp, AppOp } from '../stores/installedApps'
++
++const props = defineProps<{ app: InstalledApp; pendingOp?: AppOp }>()
++const emit = defineEmits<{
++  (e: 'open'): void
++  (e: 'action', op: 'start' | 'stop' | 'restart' | 'update'): void
++  (e: 'uninstall'): void
++}>()
++const { t } = useI18n()
++
++const running = computed(() => props.app.status === 'running')
++const busy = computed(() => !!props.pendingOp)
++const statusKey = computed(() => {
++  switch (props.app.status) {
++    case 'running': return 'appsStatusRunning'
++    case 'paused': return 'appsStatusPaused'
++    case 'restarting': return 'appsStatusRestarting'
++    case 'unknown': return 'appsStatusUnknown'
++    default: return 'appsStatusStopped' // exited/dead/created/removing
++  }
++})
++// running → 打开(需 webUrl);非 running → 启动
++const primaryDisabled = computed(() => busy.value || (running.value && !props.app.webUrl))
++function onPrimary() {
++  if (running.value) emit('open')
++  else emit('action', 'start')
++}
++</script>
++
++<template>
++  <div class="app-card" :class="{ busy }">
++    <div class="app-card-head">
++      <img v-if="app.icon" class="app-icon" :src="app.icon" alt="" loading="lazy" />
++      <div v-else class="app-icon app-icon-fallback">{{ app.title.slice(0, 1) }}</div>
++      <div class="app-meta">
++        <div class="app-title-row">
++          <span class="app-title">{{ app.title }}</span>
++          <span v-if="app.updateAvailable" class="app-badge">{{ t('appsUpdateBadge') }}</span>
++        </div>
++        <span class="app-status" :class="{ on: running }">
++          <i class="dot" />{{ busy ? t('appsWorking') : t(statusKey) }}
++        </span>
++      </div>
++      <AppActionsMenu :ariaLabel="t('appsMenuAria')">
++        <template #menu>
++          <template v-if="running">
++            <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'stop')">{{ t('appsStop') }}</DropdownMenuItem>
++            <DropdownMenuItem class="ui-drop-item" :disabled="busy" @select="emit('action', 'restart')">{{ t('appsRestart') }}</DropdownMenuItem>
++          </template>
++          <DropdownMenuItem v-if="!app.isUncontrolled" class="ui-drop-item" :disabled="busy" @select="emit('action', 'update')">{{ t('appsCheckUpdate') }}</DropdownMenuItem>
++          <DropdownMenuSeparator class="ui-drop-sep" />
++          <DropdownMenuItem class="ui-drop-item danger" :disabled="busy" @select="emit('uninstall')">{{ t('appsUninstall') }}</DropdownMenuItem>
++        </template>
++      </AppActionsMenu>
++    </div>
++    <button class="bar-btn card-primary" type="button" :disabled="primaryDisabled" @click="onPrimary">
++      {{ running ? t('appsOpen') : t('appsStart') }}
++    </button>
++  </div>
++</template>
++
++<style scoped>
++.app-card {
++  display: flex; flex-direction: column; gap: 12px; padding: 14px;
++  background: var(--card-bg); border: 1px solid var(--card-border);
++  border-radius: var(--radius); box-shadow: var(--card-shadow); backdrop-filter: var(--blur);
++}
++.app-card.busy { opacity: 0.75; }
++.app-card-head { display: flex; align-items: flex-start; gap: 10px; }
++.app-icon { width: 40px; height: 40px; border-radius: 10px; flex: 0 0 auto; object-fit: contain; }
++.app-icon-fallback {
++  display: flex; align-items: center; justify-content: center;
++  background: var(--chip-bg); color: var(--fg); font-weight: 600; font-size: 18px;
++}
++.app-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
++.app-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
++.app-title { font-size: 14px; font-weight: 600; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.app-badge {
++  flex: 0 0 auto; font-size: 11px; padding: 1px 8px; border-radius: 999px;
++  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent);
++  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
++}
++.app-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
++.app-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-muted); }
++.app-status.on .dot { background: var(--good); }
++.card-primary { justify-content: center; }
++.card-primary:disabled { opacity: 0.45; cursor: default; }
++</style>
+diff --git a/src/apps/components/UninstallConfirm.test.ts b/src/apps/components/UninstallConfirm.test.ts
+new file mode 100644
+index 0000000..9391753
+--- /dev/null
++++ b/src/apps/components/UninstallConfirm.test.ts
+@@ -0,0 +1,32 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++import UninstallConfirm from './UninstallConfirm.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++describe('UninstallConfirm', () => {
++  beforeEach(() => { document.body.innerHTML = '' })
++
++  it('默认不勾删数据 → confirm(false);勾选后 → confirm(true)', async () => {
++    const w = mount(UninstallConfirm, {
++      props: { open: true, name: 'Jellyfin' },
++      global: { plugins: [i18n] },
++      attachTo: document.body,
++    })
++    // reka-ui teleports AlertDialogContent to <body> asynchronously (Presence);
++    // one tick is enough for it to land in jsdom (AlertDialog.test.ts precedent).
++    await nextTick()
++    expect(document.body.textContent).toContain('确定要卸载 Jellyfin 吗')
++    const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('卸载'))!
++    confirmBtn.click()
++    expect(w.emitted('confirm')![0]).toEqual([false])
++
++    const box = document.querySelector<HTMLInputElement>('input[type="checkbox"]')!
++    box.click()
++    confirmBtn.click()
++    expect(w.emitted('confirm')![1]).toEqual([true])
++  })
++})
+diff --git a/src/apps/components/UninstallConfirm.vue b/src/apps/components/UninstallConfirm.vue
+new file mode 100644
+index 0000000..9c13011
+--- /dev/null
++++ b/src/apps/components/UninstallConfirm.vue
+@@ -0,0 +1,52 @@
++<script setup lang="ts">
++import { ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import {
++  AlertDialogRoot, AlertDialogPortal, AlertDialogOverlay, AlertDialogContent,
++  AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
++} from 'reka-ui'
++
++const props = defineProps<{ open: boolean; name: string }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', deleteConfigFolder: boolean) : void }>()
++const { t } = useI18n()
++const delData = ref(false)
++watch(() => props.open, (o) => { if (o) delData.value = false }) // 每次打开重置,防上次勾选残留误删
++</script>
++
++<template>
++  <AlertDialogRoot :open="open" @update:open="emit('update:open', $event)">
++    <AlertDialogPortal>
++      <AlertDialogOverlay class="uc-overlay" />
++      <AlertDialogContent class="uc-content">
++        <AlertDialogTitle class="uc-title">{{ t('appsUninstallTitle') }}</AlertDialogTitle>
++        <AlertDialogDescription class="uc-msg">{{ t('appsUninstallMsg', { name }) }}</AlertDialogDescription>
++        <label class="uc-check">
++          <input v-model="delData" type="checkbox" />
++          <span>{{ t('appsUninstallDeleteData') }}</span>
++        </label>
++        <div class="uc-footer">
++          <AlertDialogCancel class="uc-btn">{{ t('appsCancel') }}</AlertDialogCancel>
++          <AlertDialogAction class="uc-btn danger" @click="emit('confirm', delData)">{{ t('appsUninstall') }}</AlertDialogAction>
++        </div>
++      </AlertDialogContent>
++    </AlertDialogPortal>
++  </AlertDialogRoot>
++</template>
++
++<style scoped>
++/* scoped 可用:data-v 属性跟着组件自身模板的 vnode 走,Portal 到 body 后依然带着
++   (AlertDialog.vue 同款先例)。AppActionsMenu 必须非 scoped 是因为其菜单项来自消费方 slot。 */
++.uc-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
++.uc-content {
++  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
++  min-width: 320px; max-width: 92vw; padding: 20px; border-radius: 18px;
++  background: var(--popup-bg); border: 1px solid var(--card-border); backdrop-filter: blur(20px);
++  color: var(--fg); box-shadow: var(--card-shadow-hi);
++}
++.uc-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
++.uc-msg { font-size: 14px; color: var(--fg-muted); margin: 0; }
++.uc-check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--fg); cursor: pointer; }
++.uc-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
++.uc-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px; }
++.uc-btn.danger { background: color-mix(in srgb, #ff5d5d 30%, transparent); border-color: #ff5d5d; /* theme-exception: danger 按钮沿 AlertDialog 既有例外 */ }
++</style>
+diff --git a/src/apps/stores/installedApps.test.ts b/src/apps/stores/installedApps.test.ts
+new file mode 100644
+index 0000000..4683ada
+--- /dev/null
++++ b/src/apps/stores/installedApps.test.ts
+@@ -0,0 +1,109 @@
++import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const svc = vi.hoisted(() => ({
++  list: vi.fn(),
++  setStatus: vi.fn().mockResolvedValue(undefined),
++  update: vi.fn().mockResolvedValue('up to date'),
++  uninstall: vi.fn().mockResolvedValue(undefined),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
++
++import { useInstalledAppsStore, mapInstalled, PENDING_TIMEOUT_MS } from './installedApps'
++
++// 真机实证形态(curl GET /v2/app_management/compose)
++const RAW = {
++  store_info: {
++    title: { en_US: 'Actual Budget' }, icon: 'https://cdn/icon.svg',
++    port_map: '15006', index: '/', scheme: 'http', hostname: null,
++  },
++  status: 'running', update_available: true, is_uncontrolled: false,
++}
++
++describe('mapInstalled', () => {
++  it('映射真机信封:title 容忍大写 en_US、webUrl 拼当前主机、旗标透传', () => {
++    const a = mapInstalled('actualbudget', RAW as never, 'nas.local')
++    expect(a).toEqual({
++      id: 'actualbudget', title: 'Actual Budget', icon: 'https://cdn/icon.svg',
++      status: 'running', updateAvailable: true, isUncontrolled: false,
++      webUrl: 'http://nas.local:15006/',
++    })
++  })
++  it('store_info 缺失(uncontrolled 残骸)不炸:title 退 id,webUrl null,status 退 unknown', () => {
++    const a = mapInstalled('ghost', { status: '' } as never, 'h')
++    expect(a.title).toBe('ghost')
++    expect(a.webUrl).toBeNull()
++    expect(a.status).toBe('unknown')
++  })
++})
++
++describe('installedApps store', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.useFakeTimers()
++    svc.list.mockReset().mockResolvedValue({ b: { ...RAW }, a: { ...RAW, status: 'exited' } })
++    svc.setStatus.mockClear(); svc.update.mockClear(); svc.uninstall.mockClear()
++  })
++  afterEach(() => vi.useRealTimers())
++
++  it('refresh 拉列表并按 title 排序', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    expect(s.apps.map((x) => x.id)).toEqual(['a', 'b']) // 同 title 时按 id 稳定
++    expect(s.loading).toBe(false)
++  })
++
++  it('setStatus:置 pending → 调 service → 完成后清 pending 并重拉', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    const p = s.setStatus('a', 'start')
++    expect(s.pending['a']).toBe('start')
++    await p
++    expect(s.pending['a']).toBeUndefined()
++    expect(svc.setStatus).toHaveBeenCalledWith('a', 'start')
++    expect(svc.list).toHaveBeenCalledTimes(2)
++  })
++
++  it('uninstall 显式透传 deleteConfigFolder(后端缺省 true 的坑)', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    await s.uninstall('a', false)
++    expect(svc.uninstall).toHaveBeenCalledWith('a', { deleteConfigFolder: false })
++  })
++
++  it('onAppEvent:begin 置 pending,end 清 pending 并重拉', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    s.onAppEvent('app:update-begin', { 'app:name': 'b' })
++    expect(s.pending['b']).toBe('update')
++    s.onAppEvent('app:update-end', { 'app:name': 'b' })
++    expect(s.pending['b']).toBeUndefined()
++    await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
++  })
++
++  it('onAppEvent 容忍垃圾输入(非 app:* 事件名 / props 缺 app:name)', async () => {
++    const s = useInstalledAppsStore()
++    s.onAppEvent('docker:image:pull-progress', {})
++    s.onAppEvent('app:start-begin', null)
++    expect(s.pending).toEqual({})
++  })
++
++  it('pending 30s 无事件 → 兜底重拉并清 pending(MessageBus 丢消息不永久卡)', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    s.onAppEvent('app:start-begin', { 'app:name': 'a' })
++    expect(s.pending['a']).toBe('start')
++    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS + 10)
++    expect(s.pending['a']).toBeUndefined()
++    expect(svc.list).toHaveBeenCalledTimes(2)
++  })
++
++  it('evict 立即移除条目并清 pending(容器 destroy / 卸载完成)', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    s.onAppEvent('app:uninstall-begin', { 'app:name': 'a' })
++    s.evict('a')
++    expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
++    expect(s.pending['a']).toBeUndefined()
++  })
++})
+diff --git a/src/apps/stores/installedApps.ts b/src/apps/stores/installedApps.ts
+new file mode 100644
+index 0000000..5517577
+--- /dev/null
++++ b/src/apps/stores/installedApps.ts
+@@ -0,0 +1,119 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service, type ComposeAppWithStoreInfo } from '@nimotech/nimoos-service'
++import { resolveAppTitle } from '../util/appTitle'
++import { composeWebUrl, type WebUrlSource } from '../util/appUrl'
++
++export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall'
++
++export interface InstalledApp {
++  id: string
++  title: string
++  icon: string
++  status: string          // docker 主容器 State;后端取不到时 "unknown"
++  updateAvailable: boolean
++  isUncontrolled: boolean
++  webUrl: string | null
++}
++
++/** pending 兜底:MessageBus buffer=1 可能丢 end 事件,30s 无收敛就主动重拉(spec §5) */
++export const PENDING_TIMEOUT_MS = 30_000
++
++export function mapInstalled(id: string, raw: ComposeAppWithStoreInfo, currentHost: string): InstalledApp {
++  const si = (raw.store_info ?? {}) as WebUrlSource & { title?: Record<string, string>; icon?: unknown }
++  return {
++    id,
++    title: resolveAppTitle(si.title, id),
++    icon: typeof si.icon === 'string' ? si.icon : '',
++    status: raw.status || 'unknown',
++    updateAvailable: !!raw.update_available,
++    isUncontrolled: !!raw.is_uncontrolled,
++    webUrl: composeWebUrl(si, currentHost),
++  }
++}
++
++const EVENT_RE = /^app:(start|stop|restart|update|uninstall)-(begin|end|error)$/
++
++export const useInstalledAppsStore = defineStore('installed-apps', () => {
++  const apps = ref<InstalledApp[]>([])
++  const loading = ref(false)
++  const pending = ref<Record<string, AppOp>>({})
++  const timers: Record<string, ReturnType<typeof setTimeout>> = {}
++
++  async function refresh() {
++    loading.value = true
++    try {
++      const map = await service.compose.list()
++      const host = window.location.hostname
++      apps.value = Object.entries(map)
++        .map(([id, raw]) => mapInstalled(id, raw, host))
++        .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
++    } finally {
++      loading.value = false
++    }
++  }
++
++  function begin(id: string, op: AppOp) {
++    pending.value = { ...pending.value, [id]: op }
++    clearTimeout(timers[id])
++    timers[id] = setTimeout(() => { resolve(id) }, PENDING_TIMEOUT_MS)
++  }
++
++  /** 收敛:清 pending + 重拉列表(操作完成 / 事件到达 / 30s 兜底共用同一出口) */
++  function resolve(id: string) {
++    clearTimeout(timers[id]); delete timers[id]
++    if (pending.value[id]) {
++      const next = { ...pending.value }; delete next[id]
++      pending.value = next
++    }
++    refresh().catch((e) => console.warn('[apps] refresh', e))
++  }
++
++  function clearPendingOnly(id: string) {
++    clearTimeout(timers[id]); delete timers[id]
++    const next = { ...pending.value }; delete next[id]
++    pending.value = next
++  }
++
++  async function setStatus(id: string, action: 'start' | 'stop' | 'restart') {
++    begin(id, action)
++    try { await service.compose.setStatus(id, action) } catch (e) { clearPendingOnly(id); throw e }
++    resolve(id)
++  }
++
++  /** 检查并更新:返回后端 message(「已是最新」/「异步更新中」),真在更新时 app:update-* 事件接管 pending */
++  async function update(id: string): Promise<string> {
++    begin(id, 'update')
++    try {
++      const msg = await service.compose.update(id)
++      resolve(id)
++      return msg
++    } catch (e) { clearPendingOnly(id); throw e }
++  }
++
++  async function uninstall(id: string, deleteConfigFolder: boolean) {
++    begin(id, 'uninstall')
++    try { await service.compose.uninstall(id, { deleteConfigFolder }) } catch (e) { clearPendingOnly(id); throw e }
++    resolve(id)
++  }
++
++  /** 立即移除(容器 destroy / uninstall-end),后续 refresh 再收敛一次 */
++  function evict(id: string) {
++    clearPendingOnly(id)
++    apps.value = apps.value.filter((a) => a.id !== id)
++  }
++
++  /** MessageBus app:* 生命周期事件 → pending 收敛(页面接线调用;props 已被 useMessageBus 解包) */
++  function onAppEvent(name: string, props: unknown) {
++    const m = EVENT_RE.exec(name)
++    if (!m) return
++    const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
++    const id = typeof p['app:name'] === 'string' ? p['app:name'] : ''
++    if (!id) return
++    const [, op, phase] = m
++    if (phase === 'begin') begin(id, op as AppOp)
++    else resolve(id) // end 与 error 都收敛;error 的 toast 由页面层做
++  }
++
++  return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent }
++})
+diff --git a/src/apps/util/appTitle.test.ts b/src/apps/util/appTitle.test.ts
+new file mode 100644
+index 0000000..fcd0ecc
+--- /dev/null
++++ b/src/apps/util/appTitle.test.ts
+@@ -0,0 +1,12 @@
++import { describe, it, expect } from 'vitest'
++import { resolveAppTitle } from './appTitle'
++
++describe('resolveAppTitle', () => {
++  it('容忍语言键大小写:zh_cn > en_us > en_US > zh_CN > 任意值 > fallback', () => {
++    expect(resolveAppTitle({ zh_cn: '甲', en_US: 'A' }, 'x')).toBe('甲')
++    expect(resolveAppTitle({ en_US: 'Actual Budget' }, 'x')).toBe('Actual Budget') // 真机实证:store 应用只有大写 en_US
++    expect(resolveAppTitle({ de_DE: 'B' }, 'x')).toBe('B')
++    expect(resolveAppTitle({}, 'jellyfin')).toBe('jellyfin')
++    expect(resolveAppTitle(undefined, 'jellyfin')).toBe('jellyfin')
++  })
++})
+diff --git a/src/apps/util/appTitle.ts b/src/apps/util/appTitle.ts
+new file mode 100644
+index 0000000..bbda20d
+--- /dev/null
++++ b/src/apps/util/appTitle.ts
+@@ -0,0 +1,6 @@
++/** store 应用 title 的语言键大小写不统一(v2 商店=大写 en_US,v1/容器=小写 en_us),
++ *  逐一容忍再回退任意可用值,最后才用 id。桌面 home/stores/apps.ts 同款约定。 */
++export function resolveAppTitle(t: Record<string, string> | undefined, fallback: string): string {
++  if (!t) return fallback
++  return t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || fallback
++}
+diff --git a/src/apps/util/appUrl.test.ts b/src/apps/util/appUrl.test.ts
+new file mode 100644
+index 0000000..7126694
+--- /dev/null
++++ b/src/apps/util/appUrl.test.ts
+@@ -0,0 +1,15 @@
++import { describe, it, expect } from 'vitest'
++import { composeWebUrl } from './appUrl'
++
++describe('composeWebUrl', () => {
++  it('port_map + index 拼完整地址,hostname 缺省用当前主机', () => {
++    expect(composeWebUrl({ scheme: 'http', hostname: null, port_map: '15006', index: '/' }, 'nas.local'))
++      .toBe('http://nas.local:15006/')
++    expect(composeWebUrl({ port_map: '8080', index: '/admin', hostname: 'box' }, 'nas.local'))
++      .toBe('http://box:8080/admin')
++  })
++  it('无 port_map 且无 index → null(没有可打开的页面)', () => {
++    expect(composeWebUrl({}, 'nas.local')).toBeNull()
++    expect(composeWebUrl({ scheme: 'https' }, 'nas.local')).toBeNull()
++  })
++})
+diff --git a/src/apps/util/appUrl.ts b/src/apps/util/appUrl.ts
+new file mode 100644
+index 0000000..4e1a4b9
+--- /dev/null
++++ b/src/apps/util/appUrl.ts
+@@ -0,0 +1,11 @@
++export interface WebUrlSource { scheme?: string; hostname?: string | null; port_map?: string; index?: string }
++
++/** 已装应用 Web UI 地址(store_info 的 scheme/hostname/port_map/index);
++ *  没有可打开页面时 null(镜像 home useStartApp.appUrl 的判定)。 */
++export function composeWebUrl(s: WebUrlSource, currentHost: string): string | null {
++  const port = (s.port_map || '').trim()
++  if (!port && !s.index) return null
++  const scheme = s.scheme || 'http'
++  const host = s.hostname || currentHost
++  return `${scheme}://${host}${port ? ':' + port : ''}${s.index || '/'}`
++}
+diff --git a/src/apps/views/InstalledAppsPage.test.ts b/src/apps/views/InstalledAppsPage.test.ts
+new file mode 100644
+index 0000000..d8299cc
+--- /dev/null
++++ b/src/apps/views/InstalledAppsPage.test.ts
+@@ -0,0 +1,45 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import { messages } from '../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({ list: vi.fn().mockResolvedValue({}) }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
++
++const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
++vi.mock('vue-router', () => ({
++  useRouter: () => ({ push: vi.fn() }),
++  useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
++}))
++
++import InstalledAppsPage from './InstalledAppsPage.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
++
++describe('InstalledAppsPage', () => {
++  beforeEach(() => { setActivePinia(createPinia()); svc.list.mockClear(); busOn.mockClear() })
++
++  it('进区拉列表;空列表渲染空态;订阅容器事件与 app 生命周期事件', async () => {
++    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(svc.list).toHaveBeenCalledTimes(1)
++    expect(w.text()).toContain('还没有安装任何应用')
++    const events = busOn.mock.calls.map((c) => c[0])
++    expect(events).toContain('docker:container:state-changed')
++    expect(events).toContain('app:start-begin')
++    expect(events).toContain('app:uninstall-end')
++    expect(events).toContain('app:install-end')
++  })
++
++  it('有应用时渲染卡片网格', async () => {
++    svc.list.mockResolvedValue({
++      jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
++    })
++    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    await flushPromises()
++    expect(w.find('.apps-grid').exists()).toBe(true)
++    expect(w.text()).toContain('Jellyfin')
++  })
++})
+diff --git a/src/apps/views/InstalledAppsPage.vue b/src/apps/views/InstalledAppsPage.vue
+new file mode 100644
+index 0000000..a2fdaf0
+--- /dev/null
++++ b/src/apps/views/InstalledAppsPage.vue
+@@ -0,0 +1,99 @@
++<script setup lang="ts">
++import { onMounted, onUnmounted, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import AreaShell from '../../components/shell/AreaShell.vue'
++import AppsSidebar from '../components/AppsSidebar.vue'
++import InstalledAppCard from '../components/InstalledAppCard.vue'
++import UninstallConfirm from '../components/UninstallConfirm.vue'
++import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
++import { useMessageBus } from '../../composables/useMessageBus'
++import { useToast } from '../../stores/toast'
++import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
++
++const { t } = useI18n()
++const store = useInstalledAppsStore()
++const bus = useMessageBus()
++const toast = useToast()
++const uninstallTarget = ref<InstalledApp | null>(null)
++
++function onOpen(a: InstalledApp) {
++  if (a.webUrl) window.open(a.webUrl, '_blank', 'noopener')
++}
++async function onAction(a: InstalledApp, op: 'start' | 'stop' | 'restart' | 'update') {
++  try {
++    if (op === 'update') {
++      const msg = await store.update(a.id)
++      if (msg) toast.show(msg, 4000)
++    } else {
++      await store.setStatus(a.id, op)
++    }
++  } catch (e) {
++    console.warn('[apps]', op, a.id, e)
++    toast.show(t('appsOpFailed', { name: a.title }), 4000)
++  }
++}
++async function onUninstallConfirm(deleteConfigFolder: boolean) {
++  const a = uninstallTarget.value
++  uninstallTarget.value = null
++  if (!a) return
++  try {
++    await store.uninstall(a.id, deleteConfigFolder)
++  } catch (e) {
++    console.warn('[apps] uninstall', a.id, e)
++    toast.show(t('appsOpFailed', { name: a.title }), 4000)
++  }
++}
++
++// app:* 生命周期(spec §2.3);install-end 单列:后台装完新应用要浮出列表
++const APP_EVENTS = [
++  'app:start-begin', 'app:start-end', 'app:start-error',
++  'app:stop-begin', 'app:stop-end', 'app:stop-error',
++  'app:restart-begin', 'app:restart-end', 'app:restart-error',
++  'app:update-begin', 'app:update-end', 'app:update-error',
++  'app:uninstall-begin', 'app:uninstall-end', 'app:uninstall-error',
++]
++const offs: Array<() => void> = []
++const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refresh: () => { store.refresh().catch(() => {}) } })
++
++onMounted(() => {
++  store.refresh().catch((e) => console.warn('[apps] load', e))
++  APP_EVENTS.forEach((ev) => offs.push(bus.on(ev, (props) => store.onAppEvent(ev, props))))
++  offs.push(bus.on('app:install-end', () => { store.refresh().catch(() => {}) }))
++  offs.push(bus.on(CONTAINER_EVENT, (props) => bridge.handle(props)))
++})
++onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
++</script>
++
++<template>
++  <AreaShell :title="t('appsTitle')">
++    <div class="apps-layout">
++      <AppsSidebar />
++      <main class="apps-main">
++        <p v-if="!store.loading && !store.apps.length" class="apps-empty">{{ t('appsEmpty') }}</p>
++        <div v-else class="apps-grid">
++          <InstalledAppCard
++            v-for="a in store.apps" :key="a.id"
++            :app="a" :pending-op="store.pending[a.id]"
++            @open="onOpen(a)"
++            @action="(op) => onAction(a, op)"
++            @uninstall="uninstallTarget = a"
++          />
++        </div>
++        <UninstallConfirm
++          :open="!!uninstallTarget"
++          :name="uninstallTarget?.title ?? ''"
++          @update:open="(v) => { if (!v) uninstallTarget = null }"
++          @confirm="onUninstallConfirm"
++        />
++      </main>
++    </div>
++  </AreaShell>
++</template>
++
++<style scoped>
++.apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
++.apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
++.apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
++.apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
++@media (max-width: 768px) { .apps-layout { gap: 0; } }
++</style>
+diff --git a/src/files/components/FilesShell.test.ts b/src/components/shell/AreaShell.test.ts
+similarity index 68%
+rename from src/files/components/FilesShell.test.ts
+rename to src/components/shell/AreaShell.test.ts
+index 3fcff51..1c3a6ee 100644
+--- a/src/files/components/FilesShell.test.ts
++++ b/src/components/shell/AreaShell.test.ts
+@@ -1,26 +1,27 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+-import FilesShell from './FilesShell.vue'
++import AreaShell from './AreaShell.vue'
+ 
+ const push = vi.fn()
+ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+-describe('FilesShell', () => {
++describe('AreaShell', () => {
+   beforeEach(() => { setActivePinia(createPinia()); push.mockClear() })
+ 
+-  it('renders title, slot content, and back-home button that routes to /', async () => {
+-    const w = mount(FilesShell, {
++  it('渲染 title prop、slot 内容,回主页键 push /', async () => {
++    const w = mount(AreaShell, {
++      props: { title: '应用' },
+       global: { plugins: [i18n] },
+       slots: { default: '<div class="probe">hi</div>' },
+     })
+     expect(w.get('.probe').text()).toBe('hi')
+-    expect(w.text()).toContain('文件')
+-    await w.get('.files-home-btn').trigger('click')
++    expect(w.text()).toContain('应用')
++    await w.get('.area-home-btn').trigger('click')
+     expect(push).toHaveBeenCalledWith('/')
+   })
+ })
+diff --git a/src/components/shell/AreaShell.vue b/src/components/shell/AreaShell.vue
+new file mode 100644
+index 0000000..df89cc9
+--- /dev/null
++++ b/src/components/shell/AreaShell.vue
+@@ -0,0 +1,44 @@
++<script setup lang="ts">
++import { useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
++
++defineProps<{ title: string }>()
++const router = useRouter()
++const { t } = useI18n()
++const { isNarrow, toggle } = useSidebarDrawer()
++function goHome() { router.push('/') }
++</script>
++
++<template>
++  <div class="area-shell">
++    <header class="area-bar">
++      <button v-if="isNarrow" class="bar-btn area-menu-btn" type="button" :aria-label="t('areaSidebarToggle')" @click="toggle">☰</button>
++      <button class="bar-btn area-home-btn" type="button" @click="goHome">‹ {{ t('areaBackHome') }}</button>
++      <h1 class="area-title">{{ title }}</h1>
++    </header>
++    <main class="area-body">
++      <slot />
++    </main>
++  </div>
++</template>
++
++<style scoped>
++/* 100dvh:手机浏览器的 100vh 含被地址栏/工具条遮住的区域,会把最后一行内容压到工具条背后;
++   dvh 随浏览器 UI 伸缩取真实可见高度。前一行 100vh 是旧内核兜底。 */
++.area-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; color: var(--fg); }
++.area-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
++.area-title { font-size: 18px; font-weight: 600; margin: 0; }
++.area-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }
++
++/* 窄屏(≤768px):侧栏变抽屉,头部内边距/间距收紧以省空间 */
++@media (max-width: 768px) {
++  .area-bar { padding: 12px; gap: 10px; }
++  .area-body { padding: 0 12px 12px; }
++}
++/* 桌面态:回主页+标题已并入各区侧栏玻璃面板(Sidebar .side-top),顶栏整条隐藏、内容顶到上缘 */
++@media (min-width: 769px) {
++  .area-bar { display: none; }
++  .area-body { padding: 20px; }
++}
++</style>
+diff --git a/src/files/composables/useSidebarDrawer.test.ts b/src/composables/useSidebarDrawer.test.ts
+similarity index 100%
+rename from src/files/composables/useSidebarDrawer.test.ts
+rename to src/composables/useSidebarDrawer.test.ts
+diff --git a/src/files/composables/useSidebarDrawer.ts b/src/composables/useSidebarDrawer.ts
+similarity index 90%
+rename from src/files/composables/useSidebarDrawer.ts
+rename to src/composables/useSidebarDrawer.ts
+index dcbfa92..77ec938 100644
+--- a/src/files/composables/useSidebarDrawer.ts
++++ b/src/composables/useSidebarDrawer.ts
+@@ -1,13 +1,13 @@
+ import { ref } from 'vue'
+ 
+-// 模块级单例(useDock/useAddPanel 同款):FilesShell(☰ 钮)与 FilesSidebar(抽屉/遮罩)
++// 模块级单例(useDock/useAddPanel 同款):AreaShell(☰ 钮)与各区 Sidebar(files/apps)(抽屉/遮罩)
+ // 以及三个页面(Files/Shares/Drop)共享同一份状态。
+ // matchMedia 不存在时(jsdom)isNarrow 恒 false,一切退化为桌面常驻侧栏。
+ const isNarrow = ref(false)
+ const open = ref(false)
+ let mq: MediaQueryList | null = null
+ let inited = false
+ 
+ function onChange(e: MediaQueryListEvent | { matches: boolean }) {
+   isNarrow.value = e.matches
+   if (!e.matches) open.value = false // 离开窄屏清零抽屉态,桌面恒常驻
+diff --git a/src/files/components/FilesShell.vue b/src/files/components/FilesShell.vue
+deleted file mode 100644
+index 9993a3a..0000000
+--- a/src/files/components/FilesShell.vue
++++ /dev/null
+@@ -1,43 +0,0 @@
+-<script setup lang="ts">
+-import { useRouter } from 'vue-router'
+-import { useI18n } from 'vue-i18n'
+-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+-
+-const router = useRouter()
+-const { t } = useI18n()
+-const { isNarrow, toggle } = useSidebarDrawer()
+-function goHome() { router.push('/') }
+-</script>
+-
+-<template>
+-  <div class="files-shell">
+-    <header class="files-bar">
+-      <button v-if="isNarrow" class="bar-btn files-menu-btn" type="button" :aria-label="t('filesSidebarToggle')" @click="toggle">☰</button>
+-      <button class="bar-btn files-home-btn" type="button" @click="goHome">‹ {{ t('filesBackHome') }}</button>
+-      <h1 class="files-title">{{ t('filesTitle') }}</h1>
+-    </header>
+-    <main class="files-body">
+-      <slot />
+-    </main>
+-  </div>
+-</template>
+-
+-<style scoped>
+-/* 100dvh:手机浏览器的 100vh 含被地址栏/工具条遮住的区域,会把最后一行文件压到工具条背后;
+-   dvh 随浏览器 UI 伸缩取真实可见高度。前一行 100vh 是旧内核兜底。 */
+-.files-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; color: var(--fg); }
+-.files-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; flex: 0 0 auto; }
+-.files-title { font-size: 18px; font-weight: 600; margin: 0; }
+-.files-body { flex: 1 1 auto; overflow: auto; padding: 0 20px 20px; }
+-
+-/* 窄屏(≤768px):侧栏变抽屉,头部内边距/间距收紧以省空间 */
+-@media (max-width: 768px) {
+-  .files-bar { padding: 12px; gap: 10px; }
+-  .files-body { padding: 0 12px 12px; }
+-}
+-/* 桌面态:回主页+标题已并入侧栏玻璃面板(FilesSidebar .side-top),顶栏整条隐藏、内容顶到上缘 */
+-@media (min-width: 769px) {
+-  .files-bar { display: none; }
+-  .files-body { padding: 20px; }
+-}
+-</style>
+diff --git a/src/files/components/FilesSidebar.drawer.test.ts b/src/files/components/FilesSidebar.drawer.test.ts
+index d2050b7..74cdc7b 100644
+--- a/src/files/components/FilesSidebar.drawer.test.ts
++++ b/src/files/components/FilesSidebar.drawer.test.ts
+@@ -1,19 +1,19 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createMemoryHistory } from 'vue-router'
+ import { nextTick } from 'vue'
+ import FilesSidebar from './FilesSidebar.vue'
+ import { useFilesStore } from '../stores/files'
+-import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../composables/useSidebarDrawer'
++import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+     folder: { getList: vi.fn() },
+     driver: { listDrivers: vi.fn().mockResolvedValue([]) },
+     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
+   },
+ }))
+ 
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+index d327ad9..c78b458 100644
+--- a/src/files/components/FilesSidebar.vue
++++ b/src/files/components/FilesSidebar.vue
+@@ -8,21 +8,21 @@ import { useMountsStore } from '../stores/mounts'
+ import { shouldNavigateHome } from '../util/mounts'
+ import { iconUrl } from '../util/icons'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
+ import { buildAuthUrl } from '../util/cloudAuth'
+ import { dropAsset } from '../drop/dropIcons'
+ import type { CloudDriver } from '@nimotech/nimoos-service'
+ import AddMountMenu from './AddMountMenu.vue'
+ import NetworkStorageDialog from './NetworkStorageDialog.vue'
+ import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
+-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
++import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
+ 
+ const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+ const router = useRouter()
+ const route = useRoute()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const mounts = useMountsStore()
+ const dialogOpen = ref(false)
+ const gdriveOpen = ref(false)
+ const { t } = useI18n()
+@@ -116,21 +116,21 @@ function onDiskDrop(i: number) {
+   const order = arr.map((d) => d.path)
+   writeOrder(order)
+   writeDefault(order[0] || '')
+   orderVersion.value++
+ }
+ </script>
+ 
+ <template>
+   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
+   <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(FilesShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
++    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
+     <div v-if="!isNarrow" class="side-top">
+       <h1 class="side-app-title">{{ t('filesTitle') }}</h1>
+       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>
+     </div>
+     <div class="side-head">
+       <span class="side-head-title">{{ t('filesMountManage') }}</span>
+       <AddMountMenu @connect-network="dialogOpen = true" @connect-cloud="openCloudAuth" />
+     </div>
+     <section class="side-section">
+       <ul class="side-list">
+diff --git a/src/files/drop/components/DropPage.test.ts b/src/files/drop/components/DropPage.test.ts
+index 1f922a8..119828e 100644
+--- a/src/files/drop/components/DropPage.test.ts
++++ b/src/files/drop/components/DropPage.test.ts
+@@ -8,21 +8,21 @@ import { i18n } from '../../../i18n'
+ 
+ vi.mock('../serverConnection', () => ({ ServerConnection: class { connect = vi.fn(); destroy = vi.fn(); send = vi.fn() } }))
+ vi.mock('../peersManager', () => ({ PeersManager: class { handleServerMessage = vi.fn(); sendFiles = vi.fn(() => true); destroy = vi.fn() } }))
+ vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () => {}), service: {} }))
+ 
+ const router = createRouter({ history: createWebHashHistory(), routes: [{ path: '/:p(.*)*', component: { template: '<div/>' } }] })
+ 
+ describe('DropPage', () => {
+   let pinia: ReturnType<typeof createPinia>
+   beforeEach(() => { pinia = createPinia(); setActivePinia(pinia) })
+-  const mountPage = () => mount(DropPage, { global: { plugins: [pinia, i18n, router], stubs: { FilesShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
++  const mountPage = () => mount(DropPage, { global: { plugins: [pinia, i18n, router], stubs: { AreaShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
+ 
+   it('mount 调 store.init,unmount 调 destroy', async () => {
+     const s = useDropStore()
+     const initSpy = vi.spyOn(s, 'init')
+     const destroySpy = vi.spyOn(s, 'destroy')
+     const w = mountPage()
+     await flushPromises()
+     expect(initSpy).toHaveBeenCalledOnce()
+     w.unmount()
+     expect(destroySpy).toHaveBeenCalledOnce()
+@@ -37,21 +37,21 @@ describe('DropPage', () => {
+     const w = mountPage()
+     await flushPromises()
+     expect(w.findAllComponents({ name: 'DropItem' }).length).toBe(2)
+     expect(w.text()).toContain('Pad')
+   })
+   it('侧栏 @navigate 事件跳转到目标路径', async () => {
+     const w = mount(DropPage, {
+       global: {
+         plugins: [pinia, i18n, router],
+         stubs: {
+-          FilesShell: { template: '<div><slot/></div>' },
++          AreaShell: { template: '<div><slot/></div>' },
+           FilesSidebar: { template: '<button class="nav-stub" @click="$emit(\'navigate\', \'TestDisk/docs\')" />' },
+         },
+       },
+     })
+     await router.isReady()
+     await flushPromises()
+     w.find('.nav-stub').trigger('click')
+     await flushPromises()
+     expect(router.currentRoute.value.path).toBe('/files/TestDisk/docs')
+   })
+diff --git a/src/files/drop/components/DropPage.vue b/src/files/drop/components/DropPage.vue
+index c7d35cc..773f41b 100644
+--- a/src/files/drop/components/DropPage.vue
++++ b/src/files/drop/components/DropPage.vue
+@@ -1,16 +1,16 @@
+ <!-- src/files/drop/components/DropPage.vue -->
+ <script setup lang="ts">
+ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+ import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+-import FilesShell from '../../components/FilesShell.vue'
++import AreaShell from '../../../components/shell/AreaShell.vue'
+ import FilesSidebar from '../../components/FilesSidebar.vue'
+ import DropItem from './DropItem.vue'
+ import DropCenter from './DropCenter.vue'
+ import DropAddButton from './DropAddButton.vue'
+ import ReceivePrompt from './ReceivePrompt.vue'
+ import { useDropStore } from '../stores/drop'
+ import { useFilesStore } from '../../stores/files'
+ import { contentsBox, positionFor, DISPLAY_ORDER } from '../dropLayout'
+ import { virtualPathToRouteParam } from '../../util/pathUtils'
+ 
+@@ -49,21 +49,21 @@ onMounted(() => {
+   drop.init()
+   if (!files.disks.length) files.loadRoots() // 侧栏盘符列表(对齐 SharesPage;漏掉则 DISKS 区恒空)
+ })
+ onBeforeUnmount(() => {
+   window.removeEventListener('resize', resize)
+   drop.destroy()
+ })
+ </script>
+ 
+ <template>
+-  <FilesShell>
++  <AreaShell :title="t('filesTitle')">
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <main ref="areaEl" class="drop-main" :class="{ narrow: isNarrow }">
+         <h2 class="drop-title">{{ t('filesDropTitle') }}</h2>
+         <div class="drop-pulse" aria-hidden="true"><i /><i /><i /></div>
+         <div class="drop-area" :style="!isNarrow ? { width: box.width + 'px', height: box.height + 'px' } : undefined">
+           <DropItem
+             v-for="p in placed"
+             :key="p.peer.id"
+             :device="p.peer"
+@@ -73,21 +73,21 @@ onBeforeUnmount(() => {
+             :transfer="drop.transfers[p.peer.id]"
+             :suspended="!drop.connected"
+             @select-files="(files) => drop.sendFiles(p.peer.id, files)"
+           />
+         </div>
+         <DropCenter v-if="!isNarrow" />
+         <DropAddButton />
+         <ReceivePrompt />
+       </main>
+     </div>
+-  </FilesShell>
++  </AreaShell>
+ </template>
+ 
+ <style scoped>
+ /* Drop 页与 SharesPage 的关键差异:本页主区内容全是绝对定位(不撑高度),
+    容器必须给出确定高度——height:100%(而非 min-height)+ drop-main 拉伸,
+    否则 .drop-main 塌缩到标题高,resize() 量出 ~56px,contentsBox 算出负几何,气泡全部飞出可视区。 */
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+ .drop-main { position: relative; flex: 1; align-self: stretch; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+ .drop-title { align-self: flex-start; margin: 16px 20px; font-size: 18px; color: var(--fg); }
+ .drop-area { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
+diff --git a/src/files/shares/SharesPage.vue b/src/files/shares/SharesPage.vue
+index 2269ce0..850f4e6 100644
+--- a/src/files/shares/SharesPage.vue
++++ b/src/files/shares/SharesPage.vue
+@@ -1,15 +1,15 @@
+ <script setup lang="ts">
+ import { onMounted, ref } from 'vue'
+ import { useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+-import FilesShell from '../components/FilesShell.vue'
++import AreaShell from '../../components/shell/AreaShell.vue'
+ import FilesSidebar from '../components/FilesSidebar.vue'
+ import ShareRow from './ShareRow.vue'
+ import ShareLinkDialog from './ShareLinkDialog.vue'
+ import AlertDialog from '../../components/ui/AlertDialog.vue'
+ import { useSharesStore, type ShareRow as ShareRowT } from '../stores/shares'
+ import { useFilesStore } from '../stores/files'
+ import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
+ 
+ const router = useRouter()
+ const { t } = useI18n()
+@@ -33,42 +33,42 @@ function onGetLink(row: ShareRowT) { linkDlg.value = { open: true, name: row.nam
+ // await loadRoots() 拿到 displayNames 再映射,不依赖 onMounted 那次 fire-and-forget 调用的时序。
+ async function onGoto(row: ShareRowT) {
+   if (!files.disks.length) await files.loadRoots()
+   goVirtual(toVirtualPath(row.path, files.displayNames))
+ }
+ function onUnshare(row: ShareRowT) { delDlg.value = { open: true, row } }
+ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row.id); delDlg.value.open = false }
+ </script>
+ 
+ <template>
+-  <FilesShell>
++  <AreaShell :title="t('filesTitle')">
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <main class="shares-main">
+         <h2 class="shares-title">{{ t('filesSharesTitle') }}</h2>
+         <p v-if="!shares.loading && !shares.items.length" class="shares-empty">{{ t('filesSharesEmpty') }}</p>
+         <ul class="shares-list">
+           <ShareRow v-for="row in shares.items" :key="row.id" :row="row" @get-link="onGetLink" @goto="onGoto" @unshare="onUnshare" />
+         </ul>
+       </main>
+     </div>
+     <ShareLinkDialog v-model:open="linkDlg.open" :name="linkDlg.name" />
+     <AlertDialog
+       v-model:open="delDlg.open"
+       :title="t('filesUnshareConfirmTitle')"
+       :message="t('filesUnshareConfirmMsg', { name: delDlg.row?.name ?? '' })"
+       :confirm-text="t('filesUnshare')"
+       :cancel-text="t('filesCancel')"
+       destructive
+       @confirm="confirmUnshare"
+     />
+-  </FilesShell>
++  </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .shares-main { flex: 1 1 auto; min-width: 0; }
+ .shares-title { font-size: 16px; font-weight: 600; margin: 4px 0 14px; }
+ .shares-empty { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
+ .shares-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+ @media (max-width: 768px) {
+   .files-layout { gap: 0; }
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 5090b64..8e197da 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1,20 +1,22 @@
+ export const messages = {
+   en_us: {
+     appTitle: 'NimoOS · New Home Base',
+     backToOld: '← Back to main app',
+     cpu: 'CPU',
+     memory: 'Memory',
+     collecting: 'Collecting…',
+     filesTitle: 'Files',
+     filesSidebarToggle: 'Sidebar',
+     filesBackHome: 'Home',
++    areaSidebarToggle: 'Sidebar',
++    areaBackHome: 'Home',
+     filesEmpty: 'This folder is empty',
+     filesViewList: 'List',
+     filesViewGrid: 'Grid',
+     filesColName: 'Name',
+     filesColType: 'Type',
+     filesColDate: 'Date modified',
+     filesColSize: 'Size',
+     filesFavorites: 'Favorites',
+     filesDisks: 'Disks',
+     filesNoFavorites: 'No favorites yet',
+@@ -357,12 +359,35 @@ export const messages = {
+     searchAskTitle: 'Ask Nimo AI about “{query}”',
+     searchAskSub: 'Send this to the AI assistant for an answer grounded in your files',
+     searchAskGo: 'Ask ›',
+     searchAskButton: 'Ask Nimo',
+     searchHint: 'Type a keyword and press Enter to search images, documents, videos, audio and settings',
+     searchTabAll: 'All results',
+     searchTabDocuments: 'Documents',
+     searchTabImages: 'Images',
+     searchTabAudio: 'Audio',
+     searchTabVideos: 'Videos',
++    // ── Apps area ──
++    appsTitle: 'Apps',
++    appsNavInstalled: 'Installed',
++    appsEmpty: 'No apps installed yet',
++    appsOpen: 'Open',
++    appsStart: 'Start',
++    appsStop: 'Stop',
++    appsRestart: 'Restart',
++    appsCheckUpdate: 'Check & update',
++    appsUninstall: 'Uninstall',
++    appsUpdateBadge: 'Update',
++    appsMenuAria: 'More actions',
++    appsStatusRunning: 'Running',
++    appsStatusStopped: 'Stopped',
++    appsStatusPaused: 'Paused',
++    appsStatusRestarting: 'Restarting',
++    appsStatusUnknown: 'Unknown',
++    appsWorking: 'Working…',
++    appsUninstallTitle: 'Uninstall app',
++    appsUninstallMsg: 'Data cannot be recovered after deletion! Uninstall {name}?',
++    appsUninstallDeleteData: 'Also delete user data (AppData folder)',
++    appsCancel: 'Cancel',
++    appsOpFailed: 'Operation failed for {name}',
+   },
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 1f7557f..d8cce1f 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1,20 +1,22 @@
+ export const messages = {
+   zh_cn: {
+     appTitle: 'NimoOS · 新主页地基',
+     backToOld: '← 返回主应用',
+     cpu: '处理器',
+     memory: '内存',
+     collecting: '采集中…',
+     filesTitle: '文件',
+     filesSidebarToggle: '侧栏',
+     filesBackHome: '回主页',
++    areaSidebarToggle: '侧栏',
++    areaBackHome: '回主页',
+     filesEmpty: '此文件夹为空',
+     filesViewList: '列表',
+     filesViewGrid: '网格',
+     filesColName: '名称',
+     filesColType: '类型',
+     filesColDate: '修改日期',
+     filesColSize: '大小',
+     filesFavorites: '收藏',
+     filesDisks: '磁盘',
+     filesNoFavorites: '暂无收藏',
+@@ -356,12 +358,35 @@ export const messages = {
+     searchAskTitle: '向 Nimo AI 询问「{query}」',
+     searchAskSub: '把它发送给 AI 助手,获得基于你文件的回答',
+     searchAskGo: '询问 ›',
+     searchAskButton: 'Ask Nimo',
+     searchHint: '输入关键词并回车,搜索图片、文档、视频、音频与设置',
+     searchTabAll: '全部结果',
+     searchTabDocuments: '文档',
+     searchTabImages: '图片',
+     searchTabAudio: '音频',
+     searchTabVideos: '视频',
++    // ── 应用区 ──
++    appsTitle: '应用',
++    appsNavInstalled: '已装应用',
++    appsEmpty: '还没有安装任何应用',
++    appsOpen: '打开',
++    appsStart: '启动',
++    appsStop: '停止',
++    appsRestart: '重启',
++    appsCheckUpdate: '检查并更新',
++    appsUninstall: '卸载',
++    appsUpdateBadge: '可更新',
++    appsMenuAria: '更多操作',
++    appsStatusRunning: '运行中',
++    appsStatusStopped: '已停止',
++    appsStatusPaused: '已暂停',
++    appsStatusRestarting: '重启中',
++    appsStatusUnknown: '未知',
++    appsWorking: '处理中…',
++    appsUninstallTitle: '卸载应用',
++    appsUninstallMsg: '删除后数据无法恢复!确定要卸载 {name} 吗?',
++    appsUninstallDeleteData: '同时删除用户数据(AppData 目录)',
++    appsCancel: '取消',
++    appsOpFailed: '{name} 操作失败',
+   },
+ }
+diff --git a/src/router/index.ts b/src/router/index.ts
+index fbb642f..7204826 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -1,25 +1,27 @@
+ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import Home from '../views/Home.vue'
+ import Files from '../views/Files.vue'
+ import Login from '../views/Login.vue'
+ import Welcome from '../views/Welcome.vue'
+ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
++import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
++  { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index bc74928..160ef69 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -276,21 +276,21 @@ body {
+   margin: 0;
+   min-height: 100dvh;
+   color: var(--fg);
+   font-family: var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif);
+   overflow: hidden;
+ }
+ button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+ :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+ .icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: var(--stroke, 1.9); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+ 
+-/* 通透玻璃 chip 按钮（全局），HomeTopbar/FilesShell/ViewerShell 共用同一形态 */
++/* 通透玻璃 chip 按钮（全局），HomeTopbar/AreaShell/ViewerShell 共用同一形态 */
+ .bar-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border: 1px solid var(--chip-border); border-radius: var(--chip-radius, 999px); background: var(--chip-bg); color: var(--fg); font-size: 13px; font-weight: 500; cursor: pointer; backdrop-filter: var(--blur); transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; text-decoration: none; }
+ .bar-btn:hover { background: var(--chip-bg-hi); }
+ .bar-btn .icon { width: 16px; height: 16px; }
+ 
+ /* ---- 柔光纵深背景（暗调环境，让通透面板浮起来）+ 视差 ---- */
+ body {
+   background: var(--app-bg);
+   background-attachment: fixed;
+ }
+ /* 散景光斑层（高斯模糊 + 缓动 + 随鼠标视差） */
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 227a006..e26ca80 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,15 +1,15 @@
+ <script setup lang="ts">
+ import { watch, onMounted, onUnmounted, computed, ref, nextTick } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+-import FilesShell from '../files/components/FilesShell.vue'
++import AreaShell from '../components/shell/AreaShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import NewItemDialog from '../files/components/NewItemDialog.vue'
+ import RenameDialog from '../files/components/RenameDialog.vue'
+ import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
+ import AlertDialog from '../components/ui/AlertDialog.vue'
+@@ -371,21 +371,21 @@ onUnmounted(() => { offRecover?.() })
+ let offUnloadGuard: (() => void) | null = null
+ onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+ onUnmounted(() => { offUnloadGuard?.() })
+ 
+ // 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
+ // 失败降级为内存模式,不阻断文件区渲染。
+ onMounted(() => { uploads.initUploads() })
+ </script>
+ 
+ <template>
+-  <FilesShell>
++  <AreaShell :title="t('filesTitle')">
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <div
+         class="files-main"
+         @mousedown="onMarqueeDown"
+         @dragover.prevent="onDragOver"
+         @dragleave="onDragLeave"
+         @drop.prevent="onDrop"
+       >
+         <div v-if="isDragIn" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
+@@ -462,21 +462,21 @@ onMounted(() => { uploads.initUploads() })
+       :message="t('filesDownloadPromptMessage', { name: downloadDlg.entry?.name ?? '' })"
+       :confirm-text="t('filesDownload')"
+       :cancel-text="t('filesCancel')"
+       @confirm="confirmDownload"
+     />
+     <OperationStatusBar />
+     <UploadPanel />
+     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
+     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
+     <ViewerHost />
+-  </FilesShell>
++  </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .files-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+ .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+ .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+ .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+ .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }

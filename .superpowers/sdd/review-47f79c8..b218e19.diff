@@ -1,0 +1,220 @@
+# Review package: 47f79c8..b218e19
+
+## Commits
+b218e19 fix(files-upload): cancel server-origin rows via resolveTusId fallback
+
+## Files changed
+ src/files/stores/uploads.cancel.test.ts | 53 +++++++++++++++++++++++++++++++++
+ src/files/stores/uploads.test.ts        | 10 ++++---
+ src/files/stores/uploads.ts             | 17 +++++++++--
+ 3 files changed, 73 insertions(+), 7 deletions(-)
+
+## Diff
+diff --git a/src/files/stores/uploads.cancel.test.ts b/src/files/stores/uploads.cancel.test.ts
+new file mode 100644
+index 0000000..83a7a85
+--- /dev/null
++++ b/src/files/stores/uploads.cancel.test.ts
+@@ -0,0 +1,53 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { cancelUpload } = vi.hoisted(() => ({ cancelUpload: vi.fn(() => Promise.resolve()) }))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload, listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++
++import { service } from '@nimotech/nimoos-service'
++import { useUploadsStore } from './uploads'
++
++function serverRow(id: string, url: string) {
++  return {
++    id, file: null, fileName: 'a', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'a',
++    status: 'needs_file' as const, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: url,
++    retryCount: 0, error: '', createdAt: 0, batchId: '', batchTotal: 1, restored: true,
++    conflictPolicy: '' as const, oversize: false,
++  }
++}
++
++describe('cancel resolves the tus id for server-origin rows', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  it('uses item.id when there is no upload_url and id is not an fq_ id', () => {
++    const s = useUploadsStore()
++    s.queue.push(serverRow('srvHex', ''))
++    s.cancelItem('srvHex')
++    expect(service.file.cancelUpload).toHaveBeenCalledWith('srvHex')
++  })
++
++  it('parses the id out of upload_url when present', () => {
++    const s = useUploadsStore()
++    s.queue.push(serverRow('srvHex', '/v2/nimoos/file/upload-tus/theTusId'))
++    s.cancelItem('srvHex')
++    expect(service.file.cancelUpload).toHaveBeenCalledWith('theTusId')
++  })
++
++  it('does not cancel for a fresh fq_ item with no url', () => {
++    const s = useUploadsStore()
++    s.queue.push(serverRow('fq_1_0_0.2', ''))
++    s.cancelItem('fq_1_0_0.2')
++    expect(service.file.cancelUpload).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/files/stores/uploads.test.ts b/src/files/stores/uploads.test.ts
+index 80efd1d..50a2aa3 100644
+--- a/src/files/stores/uploads.test.ts
++++ b/src/files/stores/uploads.test.ts
+@@ -331,42 +331,44 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
+ 
+   it('cancelItem on a paused item WITH tusUploadUrl also cancels server-side via service.file.cancelUpload', async () => {
+     const store = useUploadsStore()
+     seed(store, { id: 'p1', tusUploadUrl: '/v2/nimoos/file/upload-tus/abc123' })
+     store.cancelItem('p1')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('abc123')
+     expect(store.queue.some((i: any) => i.id === 'p1')).toBe(false)
+   })
+ 
+   it('cancelItem on an item with NO tusUploadUrl does NOT call service.file.cancelUpload', async () => {
++    // fq_-prefixed id: a genuinely fresh/local item that never got a tus url —
++    // resolveTusId's fallback only kicks in for non-fq_ (server-origin) ids.
+     const store = useUploadsStore()
+-    seed(store, { id: 'p2', tusUploadUrl: null })
+-    store.cancelItem('p2')
++    seed(store, { id: 'fq_p2', tusUploadUrl: null })
++    store.cancelItem('fq_p2')
+     expect(service.file.cancelUpload).not.toHaveBeenCalled()
+   })
+ 
+   it('cancelBatch cancels server-side staging for every item in the batch that has a tusUploadUrl', async () => {
+     const store = useUploadsStore()
+     seed(store, { id: 'b1', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
+-    seed(store, { id: 'b2', batchId: 'batchA', tusUploadUrl: null })
++    seed(store, { id: 'fq_b2', batchId: 'batchA', tusUploadUrl: null })
+     seed(store, { id: 'b3', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/two' })
+     store.cancelBatch('batchA')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
+     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
+     expect(store.queue.length).toBe(0)
+   })
+ 
+   it('cancelAll empties the whole queue and cancels server staging for every item with a tusUploadUrl', async () => {
+     const store = useUploadsStore()
+     seed(store, { id: 'x1', batchId: 'A', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
+-    seed(store, { id: 'x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
++    seed(store, { id: 'fq_x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
+     seed(store, { id: 'x3', batchId: 'B', tusUploadUrl: '/v2/nimoos/file/upload-tus/two', status: 'error' })
+     store.cancelAll()
+     expect(store.queue.length).toBe(0)
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
+     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
+   })
+ })
+ 
+ describe('uploads reattachFiles', () => {
+diff --git a/src/files/stores/uploads.ts b/src/files/stores/uploads.ts
+index 842797c..ea7321d 100644
+--- a/src/files/stores/uploads.ts
++++ b/src/files/stores/uploads.ts
+@@ -38,20 +38,31 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+ 
+   // Extracts the tus upload id (server-side staging id) from a resumable
+   // upload URL like ".../upload-tus/<id>". Returns '' if there is no URL or
+   // it doesn't match the expected shape.
+   function tusIdFromUrl(url: string | null): string {
+     if (!url) return ''
+     const m = String(url).match(/upload-tus\/([^/?#]+)/)
+     return m ? m[1] : ''
+   }
+ 
++  // Resolve the server-side tus staging id to cancel. Fresh/local items carry
++  // an fq_ id + the tus id inside tusUploadUrl; server-origin rows carry the
++  // tus id AS item.id. Mirrors Vue2 fileUpload.js:257-258.
++  function resolveTusId(item: UploadItem | undefined): string {
++    if (!item) return ''
++    const fromUrl = tusIdFromUrl(item.tusUploadUrl)
++    if (fromUrl) return fromUrl
++    if (item.tusUploadUrl) return '' // had a url but unparseable → nothing to cancel
++    return item.id.startsWith('fq_') ? '' : item.id
++  }
++
+   function claimNext(): UploadItem | null {
+     const item = queue.value.find((i) => i.status === 'pending' && i.file)
+     if (!item) return null
+     item.status = 'uploading'
+     return item
+   }
+ 
+   const VOLATILE = new Set(['progress', 'bytesSent', 'speed'])
+   function patch(id: string, p: Partial<UploadItem>) {
+     const item = queue.value.find((i) => i.id === id)
+@@ -193,56 +204,56 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+   }
+ 
+   function retryItem(id: string): void {
+     patch(id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+     startUpload()
+   }
+ 
+   function cancelItem(id: string): void {
+     getScheduler().abort(id)
+     const item = queue.value.find((i) => i.id === id)
+-    const tid = tusIdFromUrl(item ? item.tusUploadUrl : null)
++    const tid = resolveTusId(item)
+     if (tid) service.file.cancelUpload(tid).catch(() => {})
+     dropPersisted(id)
+     queue.value = queue.value.filter((i) => i.id !== id)
+   }
+ 
+   // Batch-level controls (folder / multi-select rows). A single-file batch
+   // routes through these too when the panel renders it as one row.
+   function retryBatch(batchId: string): void {
+     toastedBatches.delete(batchId)
+     for (const i of queue.value) {
+       if (i.batchId === batchId && i.status === 'error') {
+         Object.assign(i, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+       }
+     }
+     startUpload()
+   }
+ 
+   function cancelBatch(batchId: string): void {
+     for (const i of queue.value.filter((x) => x.batchId === batchId)) {
+       getScheduler().abort(i.id)
+-      const tid = tusIdFromUrl(i.tusUploadUrl)
++      const tid = resolveTusId(i)
+       if (tid) service.file.cancelUpload(tid).catch(() => {})
+       dropPersisted(i.id)
+     }
+     queue.value = queue.value.filter((i) => i.batchId !== batchId)
+     toastedBatches.delete(batchId)
+   }
+ 
+   // Delete EVERY upload task: abort in-flight transfers, cancel server-side
+   // staging for any item that has a tusUploadUrl (so nothing leaks), and clear
+   // the queue + IDB. This removes done/error/paused/uploading alike.
+   function cancelAll(): void {
+     for (const i of queue.value) {
+       getScheduler().abort(i.id)
+-      const tid = tusIdFromUrl(i.tusUploadUrl)
++      const tid = resolveTusId(i)
+       if (tid) service.file.cancelUpload(tid).catch(() => {})
+       dropPersisted(i.id)
+     }
+     queue.value = []
+     toastedBatches.clear()
+   }
+ 
+   function pauseItem(id: string): void {
+     const item = queue.value.find((i) => i.id === id)
+     if (!item) return

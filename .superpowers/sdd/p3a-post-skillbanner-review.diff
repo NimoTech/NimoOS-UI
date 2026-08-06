@@ -1,0 +1,252 @@
+e5bfb20 sp8-ai P3a 验收后追加: 输入框内「已挂载技能」提示条
+
+ src/ai/components/shell/AgentComposer.test.ts | 55 +++++++++++++++++++++++++
+ src/ai/components/shell/AgentComposer.vue     | 58 +++++++++++++++++++++++++++
+ src/i18n/en_us.ts                             |  8 ++++
+ src/i18n/zh_cn.ts                             |  7 ++++
+ 4 files changed, 128 insertions(+)
+
+diff --git a/src/ai/components/shell/AgentComposer.test.ts b/src/ai/components/shell/AgentComposer.test.ts
+index 1ed369a..d11cdb1 100644
+--- a/src/ai/components/shell/AgentComposer.test.ts
++++ b/src/ai/components/shell/AgentComposer.test.ts
+@@ -839,10 +839,65 @@ describe('AgentComposer drillIn 光标数学(P1c1 补丁验收第 2 轮 Item B)'
+     expect(pop.props('open')).toBe(true)
+ 
+     await pop.vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
+     await flushPromises()
+ 
+     expect(el.value).toBe('@Drive1/ tail')
+     expect(pop.props('segments')).toEqual(['Drive1'])
+     expect(pop.props('query')).toBe('')
+   })
+ })
++
++// SP8-P3a 验收后追加 —— 「已挂载技能」提示条。逐字取自
++// .superpowers/sdd/p3a-post-skillbanner-brief.md §3。用真实 Pinia store(与本文件
++// 其余 describe 一致,未 mock agentStore),直接读写 store.pendingSkillId。
++describe('AgentComposer 已挂载技能提示条(SP8-P3a 验收后追加)', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((f: any) => f.mockClear?.())
++  })
++
++  it('pendingSkillId 有值时渲染提示条,文案里含该 slug(在 <code> 里)', () => {
++    const store = useAgentStore()
++    store.pendingSkillId = 'duplicate-sweeper'
++    const w = mountComposer()
++    const banner = w.find('.pending-skill')
++    expect(banner.exists()).toBe(true)
++    expect(banner.find('code').text()).toBe('duplicate-sweeper')
++  })
++
++  it('pendingSkillId 为 null 时整条不渲染', () => {
++    const store = useAgentStore()
++    store.pendingSkillId = null
++    const w = mountComposer()
++    expect(w.find('.pending-skill').exists()).toBe(false)
++  })
++
++  it('点关闭按钮把 store.pendingSkillId 置 null,提示条消失', async () => {
++    const store = useAgentStore()
++    store.pendingSkillId = 'duplicate-sweeper'
++    const w = mountComposer()
++    expect(w.find('.pending-skill').exists()).toBe(true)
++    await w.find('.pending-skill-x').trigger('click')
++    expect(store.pendingSkillId).toBeNull()
++    expect(w.find('.pending-skill').exists()).toBe(false)
++  })
++
++  // 发送后自动消失:agentStore.ts:925-927 的 send() 才是真正消费/清空
++  // pendingSkillId 的地方(X-Skill-Id 头),而 AgentComposer 的 submit() 只
++  // emit('send') 交给父组件(AgentPage.vue)去调 store.send() —— 本文件按 brief
++  // 禁令不碰 AgentPage.vue/agentStore.ts 内部实现,也不适合在这里重新拼一套
++  // runAgentRun/SSE 的 mock 去驱动真实 send()。故只钉住 brief §3.4 允许的那一半:
++  // pendingSkillId 被清空后(不论谁清的),提示条靠 v-if 纯反应式消失,组件侧
++  // 不需要任何额外清理代码。
++  it('pendingSkillId 被清空后(模拟 send() 消费一次的效果),提示条自然消失', async () => {
++    const store = useAgentStore()
++    store.pendingSkillId = 'duplicate-sweeper'
++    const w = mountComposer()
++    expect(w.find('.pending-skill').exists()).toBe(true)
++
++    // 模拟 agentStore.ts:927 `pendingSkillId.value = null // 消费一次`。
++    store.pendingSkillId = null
++    await flushPromises()
++    expect(w.find('.pending-skill').exists()).toBe(false)
++  })
++})
+diff --git a/src/ai/components/shell/AgentComposer.vue b/src/ai/components/shell/AgentComposer.vue
+index 4597675..f64da12 100644
+--- a/src/ai/components/shell/AgentComposer.vue
++++ b/src/ai/components/shell/AgentComposer.vue
+@@ -106,20 +106,32 @@
+ 
+   Item B(评审提出的疑点,已用组件测试验证并钉住,非臆测):`drillIn()` 的
+   `nextTick(() => { el.focus(); el.setSelectionRange(caretPos, caretPos); grow() })`
+   原来的顺序在 token 后面还跟着别的文字时(例如 `@Dr tail` 钻成
+   `@Drive1/ tail`)是不安全的——`el.focus()` 会同步再入 `onFocus` →
+   `syncMentionFromCaret`,而此时 `setSelectionRange` 还没执行,读到的
+   `el.selectionStart` 是 textarea `.value` 刚被整体替换后浏览器原生落在的
+   字符串末尾,于是把尾部文字当成了 mentionQuery。改法:调换成先
+   `setSelectionRange` 再 `focus()`——前者不要求元素已经 focus,后者也不会重置
+   已经存在的 selection,顺序调换即可修好,见 `drillIn` 声明处注释。
++
++  SP8-P3a 验收后追加(2026-07-30)—— 「已挂载技能」提示条,**用户当面指令新增的
++  UI,Vue2 同文件没有这个元素**。背景:「在对话中试用」把 skill id 存进
++  `agentStore.pendingSkillId`(挂号,仅暂存),真正生效要等**下一次** `send()`
++  才把它塞进 `X-Skill-Id` 请求头并消费清空(agentStore.ts:925-927,Vue2
++  agentStore.js:357-359 同款,P1 期就有,本组件的贡献只是显性化)——但界面全程
++  没有任何提示,用户验收时问「URL 变了但真的会用这个 skill 吗」,证明这是可复现
++  的体验缺口。本条不改 URL(方案②未选)、不加技能停用提示(方案③未选),纯只读
++  `store.pendingSkillId` 渲染一条可关闭提示,关闭只置 null,不做别的。放在
++  chips 行之前是因为语义一致:两者都是「会跟着下一条消息一起发出去的东西」,且
++  天然继承 `.composer` 的 `pointer-events: auto`。见
++  .superpowers/sdd/p3a-post-skillbanner-brief.md。
+ -->
+ <script setup lang="ts">
+ import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import AgentIcon from '../icons/AgentIcon.vue'
+ import KindIcon from './KindIcon.vue'
+ import ContextUsageBar from '../blocks/ContextUsageBar.vue'
+ import MentionPopover from './MentionPopover.vue'
+ import SlashPopover from './SlashPopover.vue'
+@@ -1059,20 +1071,37 @@ onMounted(() => window.addEventListener('resize', updateAnchor))
+ onBeforeUnmount(() => {
+   window.removeEventListener('resize', updateAnchor)
+   // Vue2 缺陷修复 (a) — 见文件头注释:Vue2 从不清理 onBlur 的 setTimeout 句柄。
+   if (blurTimer.value !== null) clearTimeout(blurTimer.value)
+ })
+ </script>
+ 
+ <template>
+   <div class="composer-wrap">
+     <div class="composer" ref="composerEl">
++      <!-- SP8-P3a 验收后追加 —— 见文件头注释:store.pendingSkillId 挂号提示,
++           Vue2 无对应元素,用户 2026-07-30 当面要求。 -->
++      <div v-if="store.pendingSkillId" class="pending-skill">
++        <AgentIcon name="sparkle" :size="12" color="var(--accent)" />
++        <i18n-t keypath="aiSkPendingBanner" tag="span" class="pending-skill-text">
++          <template #name><code>{{ store.pendingSkillId }}</code></template>
++        </i18n-t>
++        <button
++          class="pending-skill-x"
++          :title="t('aiSkPendingDetach')"
++          :aria-label="t('aiSkPendingDetach')"
++          @click="store.pendingSkillId = null"
++        >
++          <AgentIcon name="x" :size="10" />
++        </button>
++      </div>
++
+       <div v-if="chips.length > 0 || attachments.length > 0" class="composer-chips">
+         <div v-for="c in chips" :key="c.id" class="ctx-chip" :title="c.path">
+           <KindIcon :kind="c.kind === 'file' ? 'file' : 'folder'" :ext="c.ext" :size="12" />
+           <span class="ctx-chip-name">{{ c.name }}</span>
+           <span class="ctx-chip-path">{{ c.parent || '/' }}</span>
+           <button class="ctx-chip-x" @click="removeChip(c)">
+             <AgentIcon name="x" :size="10" />
+           </button>
+         </div>
+         <div
+@@ -1239,20 +1268,49 @@ onBeforeUnmount(() => {
+      browsers won't dispatch synthetic click events on display:none inputs.
+      (Vue2 663-673, verbatim.) */
+   position: absolute;
+   width: 1px;
+   height: 1px;
+   opacity: 0;
+   pointer-events: none;
+   overflow: hidden;
+ }
+ 
++/* SP8-P3a 验收后追加 —— 「已挂载技能」提示条(见文件头注释)。视觉语言参照
++   下方 .ctx-chip(圆角/字号/间距一致),底色用 --accent-softer 以示区别
++   (同 .composer:focus-within 用的那个 token,见 agent-styles.scss:369)。 */
++.pending-skill {
++  display: flex; align-items: center; gap: 6px;
++  padding: 5px 8px;
++  margin-bottom: 8px;
++  background: var(--accent-softer);
++  border: 1px solid var(--accent-soft);
++  border-radius: var(--r-pill);
++  font-size: 12px;
++  color: var(--text-primary);
++}
++.pending-skill-text { flex: 1; }
++.pending-skill-text :deep(code) {
++  font-family: var(--font-mono);
++  color: var(--accent);
++}
++.pending-skill-x {
++  width: 18px; height: 18px;
++  flex-shrink: 0;
++  display: grid; place-items: center;
++  border-radius: 50%;
++  color: var(--text-tertiary);
++  background: transparent; border: none; cursor: pointer;
++  transition: all 120ms ease;
++}
++.pending-skill-x:hover { background: var(--bg-elevated); color: var(--text-primary); }
++
+ .composer-chips {
+   display: flex; gap: 6px; flex-wrap: wrap;
+   margin-bottom: 8px;
+ }
+ .ctx-chip {
+   display: inline-flex; align-items: center; gap: 6px;
+   padding: 4px 4px 4px 7px;
+   background: var(--bg-chip);
+   border: 1px solid var(--line);
+   border-radius: var(--r-pill);
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 43a6ebb..2c9d71d 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1217,12 +1217,20 @@ export default {
+   aiSkNTotal: '{count} total',
+   aiSkDescription: 'Description',
+   aiSkDescHint: 'Nimo reads this to decide when to use the skill.',
+   aiSkMdHint: 'The instructions Nimo loads when the skill runs.',
+   aiSkBundledFiles: 'Bundled files',
+   aiSkNFiles: '{n} files',
+   aiSkNoBundledFiles: 'No bundled files',
+   aiSkTriggerAutomatic: 'Automatic',
+   aiSkAuthorYou: 'You',
+   aiSkTriggerSlash: '/{name}',
++
++  // SP8-P3a post-acceptance addendum — "skill attached" banner inside the
++  // composer (user-requested 2026-07-30, no Vue2 counterpart; see the header
++  // comment in AgentComposer.vue and
++  // .superpowers/sdd/p3a-post-skillbanner-brief.md). {name} is filled by an
++  // <i18n-t> named slot with <code>; the value itself carries no markup.
++  aiSkPendingBanner: 'Skill {name} is attached — it will apply to your next message',
++  aiSkPendingDetach: 'Detach skill',
+   // <<< SP8-P3a
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index cb8b399..d4f70d4 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1220,12 +1220,19 @@ export default {
+   aiSkNTotal: '共 {count} 次',
+   aiSkDescription: '描述',
+   aiSkDescHint: 'Nimo 据此判断何时调用该技能。',
+   aiSkMdHint: '技能运行时 Nimo 加载的指令文件。',
+   aiSkBundledFiles: '附带文件',
+   aiSkNFiles: '{n} 个文件',
+   aiSkNoBundledFiles: '没有附带文件',
+   aiSkTriggerAutomatic: '自动触发',
+   aiSkAuthorYou: '你',
+   aiSkTriggerSlash: '/{name}',
++
++  // SP8-P3a 验收后追加 —— 输入框内「已挂载技能」提示条(用户 2026-07-30 当面要求
++  // 新增,Vue2 无对应 UI;见 AgentComposer.vue 顶部注释与
++  // .superpowers/sdd/p3a-post-skillbanner-brief.md)。{name} 由 <i18n-t> 具名插槽
++  // 用 <code> 填充,值本身不含 <code> 标签。
++  aiSkPendingBanner: '已挂载技能 {name},将应用于下一条消息',
++  aiSkPendingDetach: '取消挂载',
+   // <<< SP8-P3a
+ }

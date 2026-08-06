@@ -1,0 +1,501 @@
+=== commits ===
+7014b22 fix(knowledge): SP8-P5b T5 修复轮 1 —— 4 条 Minor(前缀/恒真断言/遮罩点击/定时器泄漏)
+
+=== stat ===
+ .superpowers/sdd/p5b-task-5-report.md    | 145 ++++++++++++++++++++++++++++++-
+ src/ai/knowledge/views/QueueView.test.ts | 144 +++++++++++++++++++++++++++---
+ src/ai/knowledge/views/QueueView.vue     |  19 ++--
+ 3 files changed, 289 insertions(+), 19 deletions(-)
+
+=== diff -U10 ===
+diff --git a/.superpowers/sdd/p5b-task-5-report.md b/.superpowers/sdd/p5b-task-5-report.md
+index 914349f..8f9e4b8 100644
+--- a/.superpowers/sdd/p5b-task-5-report.md
++++ b/.superpowers/sdd/p5b-task-5-report.md
+@@ -203,18 +203,161 @@ pnpm build                   → exit 0(仅既有第三方包警告 + >500KB chu
+ ```
+ 
+ 基线 `9a98106` = 315 文件 / 2905 例。**实测增量:+1 文件(仅 `QueueView.test.ts`;`.vue` 不计入
+ test files)/ +54 例**(不是 brief 预估的「+2 例(color-guard)+45 例左右」= 47 左右;差异说明:
+ ①color-guard 本任务只新增 1 个 `.vue`(`QueueView.vue`,T8 的 `IndexedFilesView.vue` 不在本任务
+ 范围内)→ +1 例不是 brief 假设两个文件都到位时的 +2;②`QueueView.test.ts` 本身含 53 条用例
+ (不是预估的「45 例左右」),按 DoD「6 种组合」「5 组属性态两侧」「K7/K18/K16/K11 各自独立钉子」
+ 「distillTruncated 边界」等要求逐条实作后自然超出预估;53(新文件)+1(color-guard 新增)=54,
+ 与实测总数增量精确吻合)。
+ 
+-## 12. 遗留疑问
++## 12. 遗留疑问(首轮)
+ 
+ 无。K18 三处证据链、K5 系列 catch 分支、K7 弹窗结构、K11/K12 复用点、K16 i18n、路由反转全部
+ 按治理文件与附录逐条核实落地;`distillIconState`/`basename`/`dirname`/`fmtAgo` 均直接 import
+ 自 T4/T3(P5a)既有产出,未发现"上游漏了"的缺口。唯一值得协调者知晓的一点(非疑问,仅记录):
+ brief 附录 D §D.3 里"`.k-filter-pill` 的 `data-tone`"与"`.k-row-action` 的 `data-tone`"是纯静态
+ 字面量绑定,不存在真正意义上的"假侧"渲染(它就是「有/无这个属性」的结构性差异,不是同一元素
+ 在不同状态下切换出的两个字符串值)——已在 §5 表格脚注里显式说明处理口径,供评审核对时参考。
++
++---
++
++# 修复轮 1(2026-08-01)—— spec ✅ · 质量通过 · 零 Critical 零 Important,四条 Minor 已修
++
++评审结论:逐块回蓝本核了八个区块(零漏零多,`KIcon` 的 `name`+`size` 23 对逐对核对)、build 后
++grep 确认 37/37 类真进产物、属性态 8 组在每个宿主上都验了、评审自做 7 次 RED 探针(含往模板
++`style=` 塞 `#ff0000`,精确报红,同批 `color-guard.test.ts` 全绿,实证守卫缺口③确实被堵上)。
++两条原有 concern 均判「成立」:摘 `String()` 不报红是预期(评审用 `patchAttr` 源码 + 全部 7 处
++一次摘干净仍 53/53 全绿的更强实证复核),多改 `knowledgeRoutes.test.ts`/`deferred.test.ts` 必要
++不越界(治理 §5 要求反转的断言就住在那里,diff 逐行核过,零夹带,两处都是新增断言、无削弱)。
++
++## 四条 Minor 处置
++
++### M-1(协调者裁定:恢复前缀)—— 已修
++
++`cancelDistillRow` 的 409 分支之前误判「`aiKbCannotCancel` 是固定 i18n 串、不是后端 body,砍掉
++`'Cancel failed: '` 前缀不算回显」,协调者裁定这个判断错了:**K5 只授权「不回显后端 body /
++`e.message`」,前缀本身是蓝本 `:388-390` 固有的文案结构,砍掉是与需求无关的纯文案裁剪**,治理
++§2「本期唯一用户可见文案与 Vue2 不同的地方是 K18 的三处重试 toast」也不含这条。
++
++**改动**:`QueueView.vue:283-286` 的 toast 从 `t('aiKbCannotCancel')` 改回
++`` `${t('aiKbCancelFailed')}: ${t('aiKbCannotCancel')}` ``(非 409 分支仍是固定
++`t('aiKbCancelFailed')`,不拼接,因为没有第二句可拼,按 K5 保持现状)。文件头 `:39-45` 的三件套
++申报改成「本条已按协调者裁定回退,不再是偏离」。补两条用例:409 分支钉住完整拼接文案
++`'取消失败: 该任务已无法取消。'`;非 409 分支钉住只出 `'取消失败'`(两侧对照,防止将来又被
++"顺手简化")。
++
++### M-2(评审指出:恒真断言 + 空态侧零覆盖)—— 已修
++
++`QueueView.test.ts` 原「6 种组合」describe 里 `expect(hasTable !== hasEmpty).toBe(true)` 是恒真
++断言——模板 `v-if`/`v-else-if`/`v-else` 三选一互斥链,结构上永远恰好渲染其中一个,任何实现错误
++都不会让它报红(治理 §9「禁空转用例」)。且默认 mock 让六种组合全部有行,空态侧从未被走到。
++
++**改动**:六条组合用例各自换成判别性断言 ——
++index/pending 断言行数 3、index/running 断言行数 1、index/failed 断言行数 2 且首行含
++`3× 重试`、distill/pending 断言 1 行且徽标 `data-s="archived"`(origin=auto)、distill/running
++断言 1 行且徽标 `data-s="curated"`(origin=manual)、distill/failed 断言 2 行且两枚徽标依次
++`['failed','draft']`。另补一条独立的空态侧组合用例(`ai.parserJobs` 返回全空 jobs →
++`.k-empty` 出现、`.k-table` 不出现、标题文案精确等于「队列为空」)。
++
++### M-3(评审指出:弹窗遮罩点击行为零覆盖)—— 已修
++
++K7 那三条用例只覆盖了「打开 / 点取消 / 点确认」,蓝本 `:190-191` 靠 `.k-modal-bg`
++`@click="confirmClear=false"` + `.k-modal` `@click.stop` 实现的「点遮罩关闭、点弹窗内不关闭」
++换成 reka 后由 `DialogContent` 的 `pointerDownOutside` 提供等价机制,但没有任何用例真正验证
++这个机制本身生效。
++
++**改动**:补一条用例——打开弹窗后等一次真实 `setTimeout(0)` 宏任务 tick(reka 的
++`usePointerDownOutside` 用 `setTimeout(0)` 延后挂载 document 的 `pointerdown` 监听,避免打开
++弹窗那次 pointerdown 冒泡到 document 上把自己立刻关掉,见
++`node_modules/reka-ui/dist/DismissableLayer/utils.js` 头注释;`flushPromises()`/`nextTick()`
++只刷微任务,刷不到这个宏任务,必须显式 `await new Promise(r => setTimeout(r, 0))`),然后分别对
++`.k-confirm-title`(弹窗内部)与 `.k-modal-bg`(遮罩本身)派发 `pointerdown` 事件,断言前者不关闭、
++后者关闭。
++
++### M-4(评审指出:测试从不 unmount,定时器泄漏)—— 已修
++
++`mountQueue()` 挂载后 `afterEach` 只清空 `document.body.innerHTML`,没有 `unmount()`,每个用例
++留下一个真实 `setInterval(…, 10000)` 持有 store/router 引用。当前整文件 ~1 秒跑完摸不到 10 秒
++边界所以不 flaky,但 T8/T9/T10 会往这个方向加大量用例。
++
++**改动**:`mountQueue()` 把每次 `mount()` 返回的 wrapper 推进模块级 `mountedWrappers` 数组,
++`afterEach` 里 `while (mountedWrappers.length) mountedWrappers.pop()!.unmount()`,推广「生命周期」
++describe 里原本就有的 `w.unmount()` 手法到公共脚手架。（手动 `mount(QueueView, ...)` 的生命周期
++测试本身已在测试体内显式 `unmount()`,不受影响,也不会被这个数组重复 unmount,因为它没有经过
++`mountQueue()` 助手、未被推入数组。）
++
++## RED 探针(修复轮追加,均已还原,`git status --short` 干净)
++
++**M-1 新用例 —— 把前缀再砍掉一次**
++```diff
++- status === 409 ? `${t('aiKbCancelFailed')}: ${t('aiKbCannotCancel')}` : t('aiKbCancelFailed'),
+++ status === 409 ? t('aiKbCannotCancel') : t('aiKbCancelFailed'),
++```
++报红文本:
++```
++FAIL  ... cancelDistillRow 409(已不可取消):toast 是完整拼接 "取消失败: 该任务已无法取消。"(M-1)
++AssertionError: expected "wrappedAction" to be called with arguments: [ '取消失败: 该任务已无法取消。' ]
++Received:
++  1st wrappedAction call:
++  [
++-   "取消失败: 该任务已无法取消。",
+++   "该任务已无法取消。",
++  ]
++Number of calls: 1
++  at src/ai/knowledge/views/QueueView.test.ts:610
++```
++已还原,前缀拼接恢复,`pnpm test -- --run src/ai/knowledge/views/QueueView.test.ts` 回到 57/57。
++
++**M-3 新用例 —— 把 `DialogOverlay` 换成普通 `div`(协调者建议的手法)**
++```diff
++- <DialogOverlay class="k-modal-bg">
+++ <div class="k-modal-bg">
++    <DialogContent ...>
++      ...
++    </DialogContent>
++- </DialogOverlay>
+++ </div>
++```
++**实测:57/57 全绿,零报红。** 这不是探针失败,是一个诚实
++的发现:reka 的 `pointerDownOutside` 检测机制完全长在 `DialogContent` 的 `DismissableLayer`
++上(靠 `event.target.closest('[data-dismissable-layer]')` 判断"在哪个层内"),与 `DialogOverlay`
++是不是 reka 组件无关——`DialogOverlay` 只是视觉背景层,不参与判定逻辑。换成普通 `div` 后遮罩仍
++在 `document` 冒泡链之外,`pointerdown` 照样被判定为"outside"并正确触发 dismiss。
++
++**追加确认探针(证明测试对这块区域仍有判别力,且精确复现了协调者顾虑清单里的第二个例子)**:
++```diff
++- <DialogRoot :open="confirmClear" @update:open="confirmClear = $event">
+++ <DialogRoot :open="confirmClear" :modal="false" @update:open="confirmClear = $event">
++```
++报红文本(4 条用例同时报红,包括 M-3 新用例本身):
++```
++FAIL  ... 点击「清空失败记录」打开弹窗… expect(modal).not.toBeNull() 失败
++FAIL  ... 点「取消」关闭弹窗… TypeError: Cannot read properties of undefined (reading 'click')
++FAIL  ... 点「确认清空」调用 store.clearFailed… TypeError: Cannot read properties of undefined (reading 'click')
++FAIL  ... 点遮罩(弹窗外部)关闭;点弹窗内部不关闭…
++  AssertionError: expected null not to be null
++  at src/ai/knowledge/views/QueueView.test.ts:826
++```
++`:modal="false"` 恰好就是协调者 M-3 原话举的第二个反面例子("误加 `:modal="false"`")——本仓
++reka-ui 版本下,非模态渲染直接让弹窗整体渲染异常(连打开都检测不到),说明当前 `DialogRoot`
++**必须**保持默认模态(不显式传 `modal`),测试组确实钉住了这条约束,只是钉子的判别点不是
++`DialogOverlay` 换没换,而是 `modal` 有没有被误改。已还原两处改动,`pnpm test -- --run
++src/ai/knowledge/views/QueueView.test.ts` 回到 57/57。
++
++## 修复轮三门实测
++
++```
++pnpm test                    → Test Files 316 passed (316) · Tests 2963 passed (2963) · exit 0
++pnpm exec vue-tsc --noEmit   → exit 0
++pnpm build                   → exit 0(仅既有第三方包警告 + >500KB chunk 警告)
++```
++
++基线 `9a98106` 315/2905 → 首轮提交 316/2959 → 本轮修复 316/2963(+4 例:M-1 加 2 条、M-2 净加
++1 条【6 条替换 + 1 条新增空态用例】、M-3 加 1 条)。`git status --short` 只剩本轮改的两个文件
++(`QueueView.vue`/`QueueView.test.ts`),无遗留探针代码。
++
++## 遗留疑问(修复轮)
++
++无新增。M-3 追加确认探针顺带发现"`:modal="false"` 会让本仓 reka-ui 版本下弹窗整体渲染异常"这
++一点值得记进台账供后续任务(T8/T9/T10 若也要做非模态弹窗时参考),但不影响本任务——本任务的
++弹窗本来就该是模态的,不涉及 `:modal="false"` 的合法使用场景。
+diff --git a/src/ai/knowledge/views/QueueView.test.ts b/src/ai/knowledge/views/QueueView.test.ts
+index 4d37bbd..5a0a98d 100644
+--- a/src/ai/knowledge/views/QueueView.test.ts
++++ b/src/ai/knowledge/views/QueueView.test.ts
+@@ -152,35 +152,44 @@ function makeRouter(query: Record<string, string> = {}) {
+   })
+   router.push({ path: '/ai/knowledge/queue', query })
+   return router
+ }
+ 
+ const flush = async () => {
+   await flushPromises()
+   await nextTick()
+ }
+ 
++// 修复轮 1,M-4(评审指出):mountQueue() 挂载后此前从不 unmount ——每个用例都会
++// 留下一个真实 setInterval(…, 10000)(QueueView.vue 的 10 秒轮询),定时器持有
++// store/router 引用。当前整文件 ~1 秒跑完摸不到 10 秒边界,所以不 flaky;但后面
++// T8/T9/T10 会往这个方向加大量用例,推广「生命周期」describe 里 :766 已经在做的
++// unmount() 到公共脚手架,防止将来跑慢后漏出的 parserJobs 调用污染别的用例。
++const mountedWrappers: Array<ReturnType<typeof mount>> = []
++
+ async function mountQueue(query: Record<string, string> = {}) {
+   const router = makeRouter(query)
+   await router.isReady()
+   const w = mount(QueueView, { global: { plugins: [router, i18n] }, attachTo: document.body } as never)
++  mountedWrappers.push(w)
+   await flush()
+   return { w, router }
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   vi.clearAllMocks()
+   setupServiceMocks()
+ })
+ 
+ afterEach(() => {
++  while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
+   document.body.innerHTML = ''
+ })
+ 
+ describe('QueueView — scope 切换(蓝本 :6-13)', () => {
+   it('默认 scope=index,两个 pill 的 data-on 恰好一真一假', async () => {
+     const { w } = await mountQueue()
+     const pills = w.findAll('.k-filter-pill')
+     expect(pills[0].attributes('data-on')).toBe('true') // index
+     expect(pills[1].attributes('data-on')).toBe('false') // distill
+   })
+@@ -582,58 +591,136 @@ describe('QueueView — distill 表格(蓝本 :145-185)', () => {
+     const { w: w2 } = await mountQueue({ scope: 'distill', filter: 'failed' })
+     const rows = w2.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
+     await rows[0].find('.k-row-action').trigger('click')
+     await flush()
+     expect(notes.distillFile).toHaveBeenCalledWith('/DATA/Notes/failed.md')
+     await rows[1].find('.k-row-action').trigger('click')
+     await flush()
+     expect(notes.distillFile).toHaveBeenCalledWith('/DATA/Notes/skipped.md')
+   })
+ 
++  // 修复轮 1,M-1(协调者裁定):409 分支保留蓝本 `'Cancel failed: ' + msg` 前缀,
++  // 不是纯 aiKbCannotCancel 独立一句。钉住完整拼接文案,防止将来又被"顺手简化"。
++  it('cancelDistillRow 409(已不可取消):toast 是完整拼接 "取消失败: 该任务已无法取消。"(M-1)', async () => {
++    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
++    const s = useKnowledgeStore()
++    const toast = vi.spyOn(s, 'toast')
++    notes.cancelDistillJob.mockRejectedValueOnce({ response: { status: 409 } })
++    await w.find('.k-row-action').trigger('click')
++    await flush()
++    expect(toast).toHaveBeenCalledWith('取消失败: 该任务已无法取消。')
++  })
++
++  it('cancelDistillRow 其它错误(非 409):按 K5 只出固定 aiKbCancelFailed,不拼接前缀(两侧对照)', async () => {
++    const { w } = await mountQueue({ scope: 'distill', filter: 'pending' })
++    const s = useKnowledgeStore()
++    const toast = vi.spyOn(s, 'toast')
++    notes.cancelDistillJob.mockRejectedValueOnce(new Error('network down'))
++    await w.find('.k-row-action').trigger('click')
++    await flush()
++    expect(toast).toHaveBeenCalledWith('取消失败')
++  })
++
+   it('截断提示 distillTruncated 边界:total=499 不出,total=500(DISTILL_JOBS_LIMIT)才出 —— RED 探针②的钉子', async () => {
+     const { w } = await mountQueue({ scope: 'distill' })
+     const s = useKnowledgeStore()
+     s.distillJobs = { ...s.distillJobs, total: 499 }
+     await flush()
+     expect(w.find('.k-table-foot').exists()).toBe(false)
+     s.distillJobs = { ...s.distillJobs, total: 500 }
+     await flush()
+     expect(w.find('.k-table-foot').exists()).toBe(true)
+     expect(w.find('.k-table-foot').text()).toContain('仅展示前 500 条')
+   })
+ })
+ 
+ describe('QueueView — 6 种 scope × filter 组合(DoD 明确要求)', () => {
+-  const combos: Array<{ scope?: string; filter: string }> = [
+-    { filter: 'pending' },
+-    { filter: 'running' },
+-    { filter: 'failed' },
+-    { scope: 'distill', filter: 'pending' },
+-    { scope: 'distill', filter: 'running' },
+-    { scope: 'distill', filter: 'failed' },
++  // 修复轮 1,M-2(评审指出):原来的 `hasTable !== hasEmpty` 是恒真断言 ——
++  // 模板 `:387`/`:423`/`:497` 是 v-if/v-else-if/v-else 的三选一互斥链,结构上
++  // 永远恰好渲染 .k-table 与 .k-empty 中的一个,无论实现怎么错都不会红(治理
++  // §9「禁空转用例」)。且默认 mock 让六种组合全部有行,空态侧从没被走到过。
++  // 改成每种组合各自的判别性断言(行数 / 首行内容 / 徽标值),外加一条独立的
++  // 空态侧组合用例。
++  type W = Awaited<ReturnType<typeof mountQueue>>['w']
++  const combos: Array<{ scope?: string; filter: string; assertRows: (w: W) => void }> = [
++    {
++      filter: 'pending',
++      assertRows: (w) => {
++        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++        expect(rows).toHaveLength(3) // PENDING_JOBS 长度
++      },
++    },
++    {
++      filter: 'running',
++      assertRows: (w) => {
++        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++        expect(rows).toHaveLength(1) // RUNNING_JOBS 长度
++      },
++    },
++    {
++      filter: 'failed',
++      assertRows: (w) => {
++        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++        expect(rows).toHaveLength(2) // FAILED_JOBS 长度
++        expect(rows[0].find('.k-row-retry').text()).toContain('3× 重试') // FAILED_JOBS[0].attempts=3
++      },
++    },
++    {
++      scope: 'distill',
++      filter: 'pending',
++      assertRows: (w) => {
++        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++        expect(rows).toHaveLength(1) // DISTILL_PENDING 长度
++        expect(rows[0].find('.kn-badge').attributes('data-s')).toBe('archived') // origin='auto'
++      },
++    },
++    {
++      scope: 'distill',
++      filter: 'running',
++      assertRows: (w) => {
++        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++        expect(rows).toHaveLength(1) // DISTILL_RUNNING 长度
++        expect(rows[0].find('.kn-badge').attributes('data-s')).toBe('curated') // origin='manual'
++      },
++    },
++    {
++      scope: 'distill',
++      filter: 'failed',
++      assertRows: (w) => {
++        const rows = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))
++        expect(rows).toHaveLength(2) // DISTILL_FAILED:一行 failed,一行 skipped
++        const tones = rows.map((r) => r.findAll('.kn-badge')[1].attributes('data-s'))
++        expect(tones).toEqual(['failed', 'draft'])
++      },
++    },
+   ]
+   for (const c of combos) {
+-    it(`scope=${c.scope || 'index'} filter=${c.filter}:表格/空态渲染不抛错,scope 与 filter 状态一致`, async () => {
++    it(`scope=${c.scope || 'index'} filter=${c.filter}:pill 状态一致 + 行数/内容判别性断言(不是二选一恒真式)`, async () => {
+       const query: Record<string, string> = { filter: c.filter }
+       if (c.scope) query.scope = c.scope
+       const { w } = await mountQueue(query)
+       const pills = w.findAll('.k-filter-pill')
+       const expectedScopeIdx = c.scope === 'distill' ? 1 : 0
+       expect(pills[expectedScopeIdx].attributes('data-on')).toBe('true')
+       const filterIdx = { pending: 2, running: 3, failed: 4 }[c.filter as 'pending' | 'running' | 'failed']
+       expect(pills[filterIdx].attributes('data-on')).toBe('true')
+-      // 表格或空态二选一必须渲染出恰好一种
+-      const hasTable = w.find('.k-table').exists()
+-      const hasEmpty = w.find('.k-empty').exists()
+-      expect(hasTable !== hasEmpty).toBe(true)
++      c.assertRows(w)
+     })
+   }
++
++  it('空态侧组合(补 M-2):三桶全空时 .k-empty 出现、.k-table 不出现,文案正确', async () => {
++    ai.parserJobs.mockImplementation(() => Promise.resolve({ jobs: [] }))
++    const { w } = await mountQueue({ filter: 'pending' })
++    expect(w.find('.k-empty').exists()).toBe(true)
++    expect(w.find('.k-table').exists()).toBe(false)
++    expect(w.find('.k-empty-title').text()).toBe('队列为空')
++  })
+ })
+ 
+ describe('QueueView — K18:三个重试入口统一调用 store.retryFailed(null)', () => {
+   it('retryOne(单行重试按钮)', async () => {
+     const { w } = await mountQueue({ filter: 'failed' })
+     const s = useKnowledgeStore()
+     s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
+     await flush()
+     const toast = vi.spyOn(s, 'toast')
+     const row = w.findAll('.k-row').filter((r) => !r.classes().includes('k-row-head'))[0]
+@@ -716,20 +803,53 @@ describe('QueueView — K7:清空失败确认弹窗(reka Dialog 原语)', () =>
+     await flush()
+     const confirmBtn = Array.from(host.querySelectorAll('.k-modal-foot button')).find((b) =>
+       b.textContent!.includes('确认清空'),
+     ) as HTMLElement
+     confirmBtn.click()
+     await flush()
+     expect(ai.parserClearFailedJobs).toHaveBeenCalled()
+     expect(host.querySelector('.k-modal')).toBeNull()
+     expect(toast).toHaveBeenCalledWith('已清空 1 条失败记录')
+   })
++
++  // 修复轮 1,M-3(评审指出):蓝本 `:190-191` 靠 `.k-modal-bg` 的
++  // `@click="confirmClear=false"` + `.k-modal` 的 `@click.stop` 实现「点遮罩关闭、
++  // 点弹窗内不关闭」;换成 reka 后由 DialogContent 的 pointerDownOutside 提供等价
++  // 行为,但此前三条用例(打开/取消/确认)没有一条覆盖这个机制本身。补上。
++  it('点遮罩(弹窗外部)关闭;点弹窗内部不关闭(reka pointerDownOutside 等价蓝本 @click/@click.stop)', async () => {
++    const host = withHost()
++    const { w } = await mountQueue({ filter: 'failed' })
++    const s = useKnowledgeStore()
++    s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 1, done: 0 } }
++    await flush()
++    await w.find('.k-btn.ghost').trigger('click')
++    await flush()
++    expect(host.querySelector('.k-modal')).not.toBeNull()
++
++    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 的 pointerdown
++    // 监听(避免打开弹窗那次 pointerdown 冒泡到 document 上把自己立刻关掉,见
++    // node_modules/reka-ui/dist/DismissableLayer/utils.js 头注释),这是真实宏任务,
++    // flushPromises()/nextTick() 只刷微任务刷不到,补一次真 setTimeout tick。
++    await new Promise((resolve) => setTimeout(resolve, 0))
++
++    // 点弹窗内部(.k-confirm-title,DialogContent 子树内)不应关闭。
++    const titleEl = host.querySelector('.k-confirm-title') as HTMLElement
++    titleEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
++    await flush()
++    expect(host.querySelector('.k-modal')).not.toBeNull()
++
++    // 点遮罩(.k-modal-bg 本身,DialogOverlay,弹窗外部)应关闭。
++    const overlayEl = host.querySelector('.k-modal-bg') as HTMLElement
++    overlayEl.dispatchEvent(new Event('pointerdown', { bubbles: true }))
++    await flush()
++    expect(host.querySelector('.k-modal')).toBeNull()
++  })
+ })
+ 
+ describe('QueueView — 深链契约(?filter= watcher 立即生效)', () => {
+   it('挂载后 router.replace 改 query.filter,pill 与内容随之切换(非仅初始 immediate)', async () => {
+     const { w, router } = await mountQueue()
+     expect(w.findAll('.k-filter-pill')[2].attributes('data-on')).toBe('true') // pending
+     await router.replace({ query: { filter: 'running' } })
+     await flush()
+     expect(w.findAll('.k-filter-pill')[3].attributes('data-on')).toBe('true') // running
+     expect(w.findAll('.k-filter-pill')[2].attributes('data-on')).toBe('false')
+diff --git a/src/ai/knowledge/views/QueueView.vue b/src/ai/knowledge/views/QueueView.vue
+index 03b7561..12ab4ed 100644
+--- a/src/ai/knowledge/views/QueueView.vue
++++ b/src/ai/knowledge/views/QueueView.vue
+@@ -32,23 +32,27 @@
+   治理文件 §4.3:parser_jobs 表没有 file_id 列(NimoOS-Parser/parser/db.py:30-42),
+   retry_failed_jobs() 的 file_ids 是死形参(repo_jobs.py:107-121,源码注释原文
+   `# file_ids param reserved for §B; for MVP retry all failed`)——蓝本
+   retryOne 传的 file_id 恒 undefined、bulkRetry 的 fileIds 恒空数组(一个请求都不
+   发却弹「已重试 {n} 条」的假成功 toast),只有 retryAllFailed 语义正确。三处
+   改动详见下方各函数内的注释,按钮/禁用条件/图标/排版零变动。
+ 
+   【K5,承 P5a】三处「操作失败」catch 分支不回显后端 body / e.message,改走
+   固定 i18n 键(与 knowledgeStore.ts 的 loadRoots、DashboardView 等既有先例同一
+   模具)。cancelDistillRow 的 409 分支保留蓝本的专属友好提示(aiKbCannotCancel),
+-  但不再拼接 Vue2 的 `'Cancel failed: ' + msg` 前缀——蓝本那个前缀本来就是为了
+-  拼 e.message 设计的,409 分支现在是一句独立的完整提示,重复加前缀反而是蛇足,
+-  不属于「照抄不改」范畴内的可观察行为(纯文案裁剪,不影响任何判断分支/请求)。
++  **且保留蓝本 `'Cancel failed: ' + msg` 的前缀拼接**(`aiKbCancelFailed` + `: ` +
++  `aiKbCannotCancel`)——修复轮 1(协调者 M-1 裁定,2026-08-01):此前误判「409 是
++  固定 i18n 串、不是后端 body,砍前缀不算回显」,但 K5 只授权「不回显后端 body /
++  e.message」,前缀本身是蓝本固有的文案结构(`:388-390`),砍掉是与需求无关的纯
++  文案裁剪,不在 K5 授权范围内。治理 §2「本期唯一用户可见文案与 Vue2 不同的地方
++  是 K18 的三处重试 toast」——409 分支不在这个例外清单里,故文案 1:1 恢复。
++  **本条已按协调者裁定回退,不再是偏离。**
+ 
+   【K12,承 T4】distillIconState / basename / dirname 从 util/queueView.ts 导入,
+   不在本文件重复定义。三处蓝本自身的「怪行为」(failed/skipped 共用 danger 色、
+   空值返回 U+2014、dirname 空路径与单段路径的边界拼接)已在该文件逐字照抄并注释,
+   本文件不再重复解释。
+ 
+   【偏离,类型安全机械改写】蓝本 computed `rows`/`counts`/`doneCount` 混用两种
+   行形状(ParserJob 与 DistillJob)。TS 严格模式下对同一个 union 数组做
+   `.map(r => r.id)`(index-only)或 `row.filePath`(distill-only)access 需要
+   精确的类型收窄,故拆成 `indexRows`/`distillRows` 两个各自强类型的 computed,
+@@ -259,30 +263,33 @@ async function retryDistillRow(row: DistillJob): Promise<void> {
+   try {
+     await store.retryDistill(row, filter.value)
+     store.toast(t('aiKbRequeued'))
+   } catch {
+     store.toast(t('aiKbRetryFailedErr'))
+   }
+ }
+ 
+ /**
+  * 蓝本 cancelDistillRow(row)—— 409(已不可取消)保留蓝本的专属友好提示
+- * aiKbCannotCancel;其余错误按 K5 改固定 aiKbCancelFailed,不再拼接
+- * e.message(见文件头注释)。
++ * aiKbCannotCancel,**且保留 `'Cancel failed: ' + msg` 前缀**(协调者 M-1 裁定,
++ * 见文件头注释);其余错误按 K5 改固定 aiKbCancelFailed(不拼接前缀,因为没有
++ * 第二句可拼——与 bulkCancel/cancelOne 等其它 catch 分支同一模具)。
+  */
+ async function cancelDistillRow(row: DistillJob): Promise<void> {
+   try {
+     await store.cancelDistill(row, filter.value)
+     store.toast(t('aiKbCancelled'))
+   } catch (e) {
+     const status = (e as { response?: { status?: number } } | undefined)?.response?.status
+-    store.toast(status === 409 ? t('aiKbCannotCancel') : t('aiKbCancelFailed'))
++    store.toast(
++      status === 409 ? `${t('aiKbCancelFailed')}: ${t('aiKbCannotCancel')}` : t('aiKbCancelFailed'),
++    )
+   }
+ }
+ 
+ /** 蓝本 created()/beforeDestroy() —— 10 秒轮询,document.hidden 时跳过。 */
+ onMounted(() => {
+   loadForScope()
+   pollTimer = setInterval(() => {
+     if (document.hidden) return
+     loadForScope()
+   }, 10000)

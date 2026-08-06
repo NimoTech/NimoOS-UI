@@ -1,0 +1,156 @@
+# Review package: 5ac4bcfb..7c4020d44ea41056997fb2639a75a8300b76db44
+
+## Commits
+7c4020d4 feat(ai): Agent 页接收 ?message= 种子消息
+ea959bd8 feat(home): Vue2 桌面补「进入新主页」入口药丸
+
+## Files changed
+ src/views/AI/Agent/Agent.vue | 13 ++++++++++
+ src/views/Home.vue           | 60 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 73 insertions(+)
+
+## Diff
+diff --git a/src/views/AI/Agent/Agent.vue b/src/views/AI/Agent/Agent.vue
+index 0ca46185..95490955 100644
+--- a/src/views/AI/Agent/Agent.vue
++++ b/src/views/AI/Agent/Agent.vue
+@@ -170,20 +170,33 @@ export default {
+       const cleanQuery = { ...this.$route.query }
+       delete cleanQuery.search
+       this.$router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
+       try {
+         await this.store.actions.createSession()
+         this.store.actions.send(
+           this.$t('Search my NAS for “{query}”.', { query: seedQuery }),
+         )
+       } catch (e) { /* ignore */ }
+     }
++    // Handoff from the new homepage AI widget (/ai/agent?message=<text>): same as
++    // ?search= but sends the user's raw message verbatim (no search wrapper).
++    // Skipped when ?search= is present so the two never double-send.
++    const seedMessage = (this.$route.query.message || '').toString().trim()
++    if (seedMessage && !seedQuery) {
++      const cleanQuery = { ...this.$route.query }
++      delete cleanQuery.message
++      this.$router.replace({ path: '/ai/agent', query: cleanQuery }).catch(() => {})
++      try {
++        if (!this.store.state.activeSessionId) await this.store.actions.createSession()
++        this.store.actions.send(seedMessage)
++      } catch (e) { /* ignore */ }
++    }
+   },
+   beforeDestroy() {
+     if (this.store.state.abortController) this.store.state.abortController.abort()
+   },
+   methods: {
+     async refreshContextUsage() {
+       const sessionId = this.store.state.activeSessionId
+       if (!sessionId) return
+       const model = this.store.state.selectedModel
+       try {
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+index c958e4af..53cceed8 100644
+--- a/src/views/Home.vue
++++ b/src/views/Home.vue
+@@ -274,20 +274,26 @@ export default {
+       })
+     },
+ 
+   },
+ 
+ }
+ </script>
+ 
+ <template>
+   <div v-if="!isLoading" class="out-container">
++    <!-- 进入新主页（/next/，hash 路由之外，整页跳转） -->
++    <a class="enter-next" href="/next/" :title="$t('Try the new homepage')">
++      <span class="enter-next__spark">✦</span>
++      <span class="enter-next__text">{{ $t('New homepage') }}</span>
++      <span class="enter-next__arrow">→</span>
++    </a>
+     <!-- Content Start -->
+     <div class="contents contextmenu-canvas" @contextmenu.prevent="openHomeContaxtMenu">
+       <div class="container">
+         <div class="columns is-variable is-2">
+           <div class="column is-one-quarter slider-content">
+             <!-- SideBar Start -->
+             <SideBar v-if="!hardwareInfoLoading" />
+             <!-- SideBar End -->
+           </div>
+           <div :class="{ open: sidebarOpen }" class="column is-three-quarters main-content">
+@@ -329,20 +335,74 @@ export default {
+     <!-- KVM Full Page End -->
+   </div>
+ </template>
+ 
+ <style lang="scss" scoped>
+ .out-container {
+     position: relative;
+     height: 100%;
+ }
+ 
++.enter-next {
++    position: absolute;
++    top: 1.4rem;
++    right: 1.6rem;
++    z-index: 30;
++    display: inline-flex;
++    align-items: center;
++    gap: 0.5rem;
++    height: 38px;
++    padding: 0 1rem;
++    border-radius: 999px;
++    font-size: 0.9rem;
++    font-weight: 600;
++    color: #fff;
++    text-decoration: none;
++    background: rgba(255, 255, 255, 0.14);
++    border: 1px solid rgba(255, 255, 255, 0.28);
++    backdrop-filter: blur(14px) saturate(140%);
++    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
++    transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
++
++    &:hover {
++        transform: translateY(-2px);
++        background: rgba(255, 255, 255, 0.24);
++        box-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5);
++    }
++
++    &__spark {
++        font-size: 0.95rem;
++        line-height: 1;
++        opacity: 0.9;
++    }
++
++    &__arrow {
++        transition: transform 0.18s ease;
++    }
++
++    &:hover &__arrow {
++        transform: translateX(3px);
++    }
++}
++
++@media screen and (max-width: 480px) {
++    .enter-next {
++        top: auto;
++        bottom: 1rem;
++        right: 1rem;
++    }
++
++    .enter-next__text {
++        display: none;
++    }
++}
++
+ .contents {
+     flex: 1;
+     overflow-y: hidden;
+     overflow-x: hidden;
+     height: 100%;
+     padding-top: 2rem;
+     padding-bottom: 2rem;
+ 
+     // 让内部 Bulma 容器链继承高度，保证两侧顶底对齐
+     .container {

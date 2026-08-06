@@ -1,0 +1,247 @@
+=== 终审修复轮 diff  仓库: nimo_os_docs  范围: 101ff09..256e922 ===
+
+256e922 fix(raidlab): 终审修复(修复轮 2/2)—— cmd_down 安全命门补测试 + down 失败留档
+
+ ...252\214\346\224\266\346\270\205\345\215\225.md" |  11 ++
+ scripts/raidlab.sh                                 |   8 ++
+ scripts/raidlab.test.sh                            | 146 +++++++++++++++++++++
+ 3 files changed, 165 insertions(+)
+
+diff --git "a/docs/acceptance/2026-07-28-sp6-p5.5-\351\252\214\346\224\266\346\270\205\345\215\225.md" "b/docs/acceptance/2026-07-28-sp6-p5.5-\351\252\214\346\224\266\346\270\205\345\215\225.md"
+index 37d71a7..2428ce4 100644
+--- "a/docs/acceptance/2026-07-28-sp6-p5.5-\351\252\214\346\224\266\346\270\205\345\215\225.md"
++++ "b/docs/acceptance/2026-07-28-sp6-p5.5-\351\252\214\346\224\266\346\270\205\345\215\225.md"
+@@ -137,19 +137,30 @@
+ - [ ] **[你点]** 详情页找到「删除阵列」按钮 → 点击 → 弹出「删除 RAID 阵列」确认对话框，文案提示"这将停止阵列并清除元数据，数据将无法恢复"
+ - [ ] **[你点]** 对话框里有一个输入框，**占位提示文字**会写"输入阵列名「raid-main」以确认删除" → 确认框旁的「删除」按钮此刻应是**灰的、点不动**
+ - [ ] **[你点]** 先随便输入几个字（不是阵列名）→ 确认「删除」按钮**依然不可点**（这是防误删的强度设计：必须一字不差输入阵列名才能点）
+ - [ ] **[你点]** 把输入框内容改成精确的 `raid-main` → 「删除」按钮变为可点 → 点击 → 应弹出"RAID 阵列已删除"，页面自动跳回 RAID 列表页，`raid-main` 卡片不再出现
+ 
+ ---
+ 
+ ## 已知盲区（标 N/A，不算缺陷）
+ 
+ - [ ] 物理硬盘列表页（「物理硬盘」标签）上假盘的「温度」字段会显示 `N/A`（假盘没有真实温度传感器数据）—— 看到这个不算问题
+ - [ ] 假盘出厂尺寸完全一样，测不出"混用不同容量硬盘时的警告提示"这条 —— 这条已经记在项目待办账本里（roadmap 台账 B8），本轮不用管
+ 
++## 如果 `raidlab.sh down` 中途报错退出了
++
++这一节是终审新加的，专门针对"`down` 没有正常走完、而是报错停下"这种情况。**不管是哪一轮、哪一次 `down` 报错，只要报错了就要做这一步**，不要因为后面还要重跑就跳过。
++
++- [ ] **[我跑]** `down` 报错退出后，先执行 `ls /etc/nimoos/allow-pseudo-disks`，看这个"允许假盘"的开关文件还在不在。
++  - **为什么专门查这个**：这个文件是后端"要不要把内存里的假盘当成真实存储设备"的开关——文件存在就接受假盘，不存在就拒绝（拒绝是出厂默认，更安全）。`raidlab.sh down` 在半路报错拒绝时，遵循的是"看不准就什么都不动"的原则——**这是脚本设计对的、不是 bug**——但副作用是这个开关文件会原样留着，而且没有任何弹窗或日志会主动提醒你"这个开关还开着"，容易被忘掉。
++  - 如果 `ls` 显示文件确实还在：执行 `sudo rm /etc/nimoos/allow-pseudo-disks` 把它删掉，关回出厂默认状态。删完再 `ls` 一次，确认变成"文件不存在"的提示。
++  - 如果你打算马上继续排查问题、还要再跑一次 `down`：可以先不删，但**必须在这次验收结束前回来做这一步**——不要让机器长时间停留在"会把内存假盘当真实硬盘"的状态，这会让后端"出厂默认拒绝假盘"这条安全边界一直处于松开的状态。
++
++---
++
+ ## 收尾
+ 
+ - [ ] **[我跑]** `raidlab.sh down` → 最后一行应为「已回到基线」
+ - [ ] **[我跑]** `raidlab.sh status` → 「假盘」一节应显示 `(无)`；`/proc/mdstat` 一节不应再有任何阵列；「后端 avail」一节应为空
+ - [ ] **[我跑]** `ls /etc/nimoos/allow-pseudo-disks` → 应提示文件不存在（假盘白名单开关已被 `down` 撤回，后端恢复出厂默认，重新拒绝假盘）
+ - [ ] **[我跑]** 检查残留：`grep '/dev/md' /etc/fstab` 应无输出（没有残留的 `/dev/mdN` 挂载行）；`grep -c ARRAY /etc/mdadm/mdadm.conf` 应为 `0`
+ - [ ] **[我跑]** 确认备份文件仍保留备查：`ls /etc/fstab.raidlab.bak /etc/mdadm/mdadm.conf.raidlab.bak`（只有本轮实际修改过对应文件时才会生成，属于正常的"改前先备份"证据，不需要删除）
+diff --git a/scripts/raidlab.sh b/scripts/raidlab.sh
+index 151aef0..ce68ef9 100755
+--- a/scripts/raidlab.sh
++++ b/scripts/raidlab.sh
+@@ -51,24 +51,32 @@ is_fake_disk() {
+ 	esac
+ 
+ 	# ③ sysfs 型号必须恰为 scsi_debug(去掉所有空白后比较)。
+ 	local model_file="$RAIDLAB_SYSFS_ROOT/block/$dev/device/model"
+ 	[[ -r "$model_file" ]] || return 1
+ 	local model
+ 	model="$(tr -d '[:space:]' < "$model_file")"
+ 	[[ "$model" == "$FAKE_DISK_MODEL" ]]
+ }
+ 
+ # assert_fake_disk <dev-or-path> —— 接受 sda 或 /dev/sda。
+ # 不是假盘就往 stderr 说明并返回 1(不 exit,由调用方决定怎么处理)。
++#
++# ⚠️ 定位说明(终审 Minor):这是单盘级的护栏,但 cmd_up/cmd_down/main 里目前
++# 没有任何生产调用点——实际在用的是阵列级的 assert_md_all_fake(内部逐个
++# 成员调 is_fake_disk 而不是这个函数),语义上已经等价满足了安全要求。
++# 这个函数目前只被测试练到,是特意保留给"将来如果出现单盘级破坏性操作"
++# 用的护栏,不是被遗忘的死代码。**如果以后要新加任何直接对单个块设备
++# 动手的操作(比如单独 wipefs 一块盘),必须显式调用这个函数把关,不要
++# 想当然地以为阵列级的核查已经顺带盖住了它。**
+ assert_fake_disk() {
+ 	local raw="${1:-}"
+ 	local dev="${raw#/dev/}"
+ 	if ! is_fake_disk "$dev"; then
+ 		echo "raidlab: 拒绝操作 '$raw' —— 它不是 scsi_debug 假盘。" >&2
+ 		echo "         破坏性操作只允许作用于测试台假盘,请先跑 ./raidlab.sh status 确认。" >&2
+ 		return 1
+ 	fi
+ 	return 0
+ }
+ 
+ # list_fake_disks —— 打印所有假盘裸设备名,每行一个,字典序。
+diff --git a/scripts/raidlab.test.sh b/scripts/raidlab.test.sh
+index 893f0ed..22ed858 100755
+--- a/scripts/raidlab.test.sh
++++ b/scripts/raidlab.test.sh
+@@ -420,15 +420,161 @@ DOWN_OUT="$(
+ 	bash -c "source '$HERE/raidlab.sh'; cmd_down" 2>&1
+ )"
+ DOWN_RC=$?
+ 
+ t_eq "备份失败:cmd_down 返回非 0" "1" "$([[ "$DOWN_RC" -ne 0 ]] && echo 1 || echo 0)"
+ t_eq "备份失败:fstab 原文件内容未被改动(没有被写入清理后的内容)" \
+ 	"$FSTAB_ORIG" "$(cat "$DOWNTEST/fstab")"
+ t_eq "备份失败:没有留下 .raidlab.bak(说明备份那次 cp 确实没成功过)" \
+ 	"0" "$([[ -e "$DOWNTEST/fstab.raidlab.bak" ]] && echo 1 || echo 0)"
+ t_eq "备份失败:诊断信息提到「拒绝继续覆写」" \
+ 	"1" "$(printf '%s' "$DOWN_OUT" | grep -c '拒绝继续覆写')"
+ 
++# --- cmd_down 安全命门:混入真盘 / 引用未核实设备,必须整体拒绝、零改动 -----
++#
++# 终审指出:上面那条"备份失败"用例是目前唯一端到端调 cmd_down 的测试,但
++# cmd_down 真正的安全命门——步骤 1/1.5 在混入真盘或引用未核实设备时整体
++# 拒绝、一个文件都不动——只被评审员用临时桩手工验证过一次,没有沉淀成
++# 测试。以后如果有人重排 cmd_down 的步骤顺序(比如把清 fstab 挪到核实
++# 之前),不会有任何测试报红。补两条端到端用例把这条属性锁进套件。
++#
++# 这两条用的桩 sudo 和上面"备份失败"那条刻意不同:上面要证明"备份失败时
++# 不能覆写",桩让 cp 失败;这里要证明"哪怕后续操作全都会顺利成功,只要
++# 前面的核查不过,就一步都不会执行到"——所以桩必须放行(cp 真的执行、
++# mdadm/umount/rm 都直接成功)。如果这里也用会失败的桩,"核查真的挡住了"
++# 和"反正桩太严格操作会失败"这两种原因会分不清,反向验证(下面故意改坏
++# cmd_down、确认用例转红)就证明不了任何事。
++mk_permissive_sudo_stub() {
++	local bindir="$1"
++	mkdir -p "$bindir"
++	cat > "$bindir/sudo" <<'STUB'
++#!/bin/bash
++case "$1" in
++cp)
++	exec /bin/cp "$2" "$3"
++	;;
++mdadm|umount|rmmod|rm)
++	exit 0
++	;;
++*)
++	echo "stub-sudo: 未预期的调用(测试环境搭建有缺陷): $*" >&2
++	exit 1
++	;;
++esac
++STUB
++	chmod +x "$bindir/sudo"
++}
++
++echo
++echo "== cmd_down:混入真盘的阵列必须整体拒绝、零改动(终审 Important #1)=="
++
++MIXED="$TMP/down_mixed_real_disk"
++mkdir -p "$MIXED/sys/block/sda/device" "$MIXED/sys/block/sdc/device" \
++	"$MIXED/sys/block/md127/md/dev-sda" "$MIXED/sys/block/md127/md/dev-sdc" "$MIXED/bin"
++printf 'scsi_debug\n' > "$MIXED/sys/block/sda/device/model"
++printf 'WPBSNM8-512GTP\n' > "$MIXED/sys/block/sdc/device/model"
++
++cat > "$MIXED/mdstat" <<'EOF'
++Personalities : [raid1]
++md127 : active raid1 sdc[1] sda[0]
++      524224 blocks super 1.2 [2/2] [UU]
++
++unused devices: <none>
++EOF
++
++MIXED_FSTAB_ORIG='UUID=78db4224-e926-42c4-a899-8f8f00224d22 /boot ext4 defaults 0 2
++/dev/md127 /DATA/vol1/.snapshots btrfs subvol=/@snapshots,nofail 0 0'
++printf '%s' "$MIXED_FSTAB_ORIG" > "$MIXED/fstab"
++
++MIXED_MDCONF_ORIG='# mdadm.conf
++DEVICE partitions
++ARRAY /dev/md127 metadata=1.2 UUID=1234:5678:9abc:def0
++MAILADDR root'
++printf '%s' "$MIXED_MDCONF_ORIG" > "$MIXED/mdadm.conf"
++
++touch "$MIXED/marker"
++mk_permissive_sudo_stub "$MIXED/bin"
++
++# 记下"改之前"的内容与 mtime。断言 mtime 而不只是内容,是为了排除"读出来
++# 又原样写回去"这种伪未改动;sleep 1 确保如果真的被改写,mtime(秒级精度)
++# 一定能测出差异。
++MIXED_FSTAB_MTIME_BEFORE="$(stat -c %Y "$MIXED/fstab")"
++MIXED_MDCONF_MTIME_BEFORE="$(stat -c %Y "$MIXED/mdadm.conf")"
++MIXED_MARKER_MTIME_BEFORE="$(stat -c %Y "$MIXED/marker")"
++sleep 1
++
++MIXED_OUT="$(
++	PATH="$MIXED/bin:$PATH" \
++	RAIDLAB_LIB_ONLY=1 \
++	RAIDLAB_SYSFS_ROOT="$MIXED/sys" \
++	RAIDLAB_PROC_MDSTAT="$MIXED/mdstat" \
++	RAIDLAB_FSTAB="$MIXED/fstab" \
++	RAIDLAB_MDADM_CONF="$MIXED/mdadm.conf" \
++	RAIDLAB_PSEUDO_MARKER="$MIXED/marker" \
++	bash -c "source '$HERE/raidlab.sh'; cmd_down" 2>&1
++)"
++MIXED_RC=$?
++
++t_eq "混入真盘:cmd_down 返回非 0" "1" "$([[ "$MIXED_RC" -ne 0 ]] && echo 1 || echo 0)"
++t_eq "混入真盘:诊断信息点名真盘成员 sdc" \
++	"1" "$(printf '%s' "$MIXED_OUT" | grep -c "阵列 'md127' 的成员 'sdc' 不是假盘")"
++t_eq "混入真盘:fstab 内容未变" "$MIXED_FSTAB_ORIG" "$(cat "$MIXED/fstab")"
++t_eq "混入真盘:fstab mtime 未变" "$MIXED_FSTAB_MTIME_BEFORE" "$(stat -c %Y "$MIXED/fstab")"
++t_eq "混入真盘:mdadm.conf 内容未变" "$MIXED_MDCONF_ORIG" "$(cat "$MIXED/mdadm.conf")"
++t_eq "混入真盘:mdadm.conf mtime 未变" "$MIXED_MDCONF_MTIME_BEFORE" "$(stat -c %Y "$MIXED/mdadm.conf")"
++t_eq "混入真盘:标记文件 mtime 未变(仍在场)" "$MIXED_MARKER_MTIME_BEFORE" "$(stat -c %Y "$MIXED/marker")"
++t_eq "混入真盘:没有留下任何 .raidlab.bak" \
++	"0" "$([[ -e "$MIXED/fstab.raidlab.bak" || -e "$MIXED/mdadm.conf.raidlab.bak" ]] && echo 1 || echo 0)"
++
++echo
++echo "== cmd_down:mdadm.conf 引用未核实设备(真实但未组装阵列)必须整体拒绝、零改动 =="
++#
++# 模拟"机器上有一个真实但未组装的阵列":/proc/mdstat 里完全看不到它(步骤 1
++# 的 md_arrays() 读不到,无从核查),但 mdadm.conf 里还留着它的 ARRAY 行——
++# 这正是步骤 1.5 前置断言存在的理由:步骤 1 的核查覆盖不到这种情况。
++UNVER="$TMP/down_unverified_device"
++mkdir -p "$UNVER/sys/block" "$UNVER/bin"   # 空 sysfs:没有任何假盘/真盘
++
++printf 'Personalities : [raid1]\nunused devices: <none>\n' > "$UNVER/mdstat"
++
++UNVER_FSTAB_ORIG='UUID=78db4224-e926-42c4-a899-8f8f00224d22 /boot ext4 defaults 0 2'
++printf '%s' "$UNVER_FSTAB_ORIG" > "$UNVER/fstab"
++
++UNVER_MDCONF_ORIG='# mdadm.conf
++DEVICE partitions
++ARRAY /dev/md99 metadata=1.2 UUID=aaaa:bbbb:cccc:dddd
++MAILADDR root'
++printf '%s' "$UNVER_MDCONF_ORIG" > "$UNVER/mdadm.conf"
++
++touch "$UNVER/marker"
++mk_permissive_sudo_stub "$UNVER/bin"
++
++UNVER_FSTAB_MTIME_BEFORE="$(stat -c %Y "$UNVER/fstab")"
++UNVER_MDCONF_MTIME_BEFORE="$(stat -c %Y "$UNVER/mdadm.conf")"
++UNVER_MARKER_MTIME_BEFORE="$(stat -c %Y "$UNVER/marker")"
++sleep 1
++
++UNVER_OUT="$(
++	PATH="$UNVER/bin:$PATH" \
++	RAIDLAB_LIB_ONLY=1 \
++	RAIDLAB_SYSFS_ROOT="$UNVER/sys" \
++	RAIDLAB_PROC_MDSTAT="$UNVER/mdstat" \
++	RAIDLAB_FSTAB="$UNVER/fstab" \
++	RAIDLAB_MDADM_CONF="$UNVER/mdadm.conf" \
++	RAIDLAB_PSEUDO_MARKER="$UNVER/marker" \
++	bash -c "source '$HERE/raidlab.sh'; cmd_down" 2>&1
++)"
++UNVER_RC=$?
++
++t_eq "未核实设备:cmd_down 返回非 0" "1" "$([[ "$UNVER_RC" -ne 0 ]] && echo 1 || echo 0)"
++t_eq "未核实设备:诊断信息点名 md99" \
++	"1" "$(printf '%s' "$UNVER_OUT" | grep -c 'md99')"
++t_eq "未核实设备:fstab 内容未变" "$UNVER_FSTAB_ORIG" "$(cat "$UNVER/fstab")"
++t_eq "未核实设备:mdadm.conf 内容未变" "$UNVER_MDCONF_ORIG" "$(cat "$UNVER/mdadm.conf")"
++t_eq "未核实设备:mdadm.conf mtime 未变" "$UNVER_MDCONF_MTIME_BEFORE" "$(stat -c %Y "$UNVER/mdadm.conf")"
++t_eq "未核实设备:标记文件 mtime 未变(仍在场)" "$UNVER_MARKER_MTIME_BEFORE" "$(stat -c %Y "$UNVER/marker")"
++t_eq "未核实设备:没有留下任何 .raidlab.bak" \
++	"0" "$([[ -e "$UNVER/fstab.raidlab.bak" || -e "$UNVER/mdadm.conf.raidlab.bak" ]] && echo 1 || echo 0)"
++
+ echo
+ echo "通过 $PASS,失败 $FAIL"
+ [[ "$FAIL" -eq 0 ]]

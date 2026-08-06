@@ -1,0 +1,181 @@
+# Review package: f133df1..7d278b6
+
+## Commits
+7d278b6 SP8-P1c1: ContextUsageBar (ring + hover tip) on pure geometry module
+
+## Files changed
+ src/ai/components/blocks/ContextUsageBar.test.ts | 33 +++++++++
+ src/ai/components/blocks/ContextUsageBar.vue     | 87 ++++++++++++++++++++++++
+ src/i18n/en_us.ts                                |  2 +
+ src/i18n/zh_cn.ts                                |  2 +
+ 4 files changed, 124 insertions(+)
+
+## Diff
+diff --git a/src/ai/components/blocks/ContextUsageBar.test.ts b/src/ai/components/blocks/ContextUsageBar.test.ts
+new file mode 100644
+index 0000000..e39f462
+--- /dev/null
++++ b/src/ai/components/blocks/ContextUsageBar.test.ts
+@@ -0,0 +1,33 @@
++// SP8-P1c1 Task 6 —— 1:1 移植自 Vue2 ContextUsageBar.spec.js:54-81(rendering 部分)。
++// 纯几何/格式化逻辑已在 contextUsage.ts 里有自己的测试，此处只测组件渲染。
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../i18n/zh_cn'
++import ContextUsageBar from './ContextUsageBar.vue'
++import { RING_C } from '../../util/contextUsage'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const g = { plugins: [i18n] }
++
++describe('ContextUsageBar(移植 Vue2 ContextUsageBar.spec.js:54-81)', () => {
++  it('渲染 ok 档，提示里带格式化 token 与百分比', () => {
++    const w = mount(ContextUsageBar, { props: { tokens: 48000, window: 200000, pct: 24 }, global: g })
++    const arc = w.find('.ctx-ring-arc')
++    expect(arc.exists()).toBe(true)
++    expect(arc.classes()).toContain('ok')
++    expect(arc.attributes('stroke-dasharray')).toBe(`${((24 / 100) * RING_C).toFixed(2)} ${RING_C.toFixed(2)}`)
++    const tip = w.find('.ctx-usage-tip').text()
++    expect(tip).toContain('48K')
++    expect(tip).toContain('200K')
++    expect(tip).toContain('24%')
++  })
++  it('pct 75 → warn 档', () => {
++    const w = mount(ContextUsageBar, { props: { tokens: 1, window: 2, pct: 75 }, global: g })
++    expect(w.find('.ctx-ring-arc').classes()).toContain('warn')
++  })
++  it('pct 95 → danger 档', () => {
++    const w = mount(ContextUsageBar, { props: { tokens: 1, window: 2, pct: 95 }, global: g })
++    expect(w.find('.ctx-ring-arc').classes()).toContain('danger')
++  })
++})
+diff --git a/src/ai/components/blocks/ContextUsageBar.vue b/src/ai/components/blocks/ContextUsageBar.vue
+new file mode 100644
+index 0000000..c66a1af
+--- /dev/null
++++ b/src/ai/components/blocks/ContextUsageBar.vue
+@@ -0,0 +1,87 @@
++<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue -->
++<!-- 模板: 33-61, 样式: 63-107. 几何/阈值/格式化全部改调 Task 5 的 contextUsage.ts,不在本地重算。 -->
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { formatTokens, levelFor, dashArrayFor } from '../../util/contextUsage'
++
++const props = withDefaults(
++  defineProps<{ tokens?: number; window?: number; pct?: number }>(),
++  { tokens: 0, window: 0, pct: 0 },
++)
++const { t } = useI18n()
++</script>
++
++<template>
++  <div class="ctx-usage">
++    <svg class="ctx-ring" viewBox="0 0 36 36" width="22" height="22" aria-hidden="true">
++      <circle
++        class="ctx-ring-track"
++        cx="18"
++        cy="18"
++        r="15.5"
++        fill="none"
++        stroke-width="3.5"
++      />
++      <circle
++        class="ctx-ring-arc"
++        :class="levelFor(props.pct)"
++        cx="18"
++        cy="18"
++        r="15.5"
++        fill="none"
++        stroke-width="3.5"
++        stroke-linecap="round"
++        :stroke-dasharray="dashArrayFor(props.pct)"
++        transform="rotate(-90 18 18)"
++      />
++    </svg>
++    <div class="ctx-usage-tip">
++      {{ t('aiCtxLabel') }} {{ formatTokens(props.tokens) }} / {{ formatTokens(props.window) }} · {{ props.pct }}%
++    </div>
++  </div>
++</template>
++
++<style scoped>
++.ctx-usage {
++  position: relative;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++}
++
++.ctx-ring {
++  display: block;
++}
++.ctx-ring-track {
++  stroke: var(--line-strong);
++}
++.ctx-ring-arc {
++  transition: stroke-dasharray 0.3s ease, stroke 0.3s ease;
++}
++.ctx-ring-arc.ok     { stroke: var(--accent); }
++.ctx-ring-arc.warn   { stroke: var(--warning); }
++.ctx-ring-arc.danger { stroke: var(--danger); }
++
++.ctx-usage-tip {
++  position: absolute;
++  bottom: calc(100% + 8px);
++  right: 0;
++  padding: 5px 12px;
++  font-size: 12px;
++  line-height: 1.4;
++  white-space: nowrap;
++  color: var(--text-secondary);
++  background: var(--bg-elevated);
++  border: 1px solid var(--line);
++  border-radius: 999px;
++  box-shadow: var(--shadow-pop);
++  opacity: 0;
++  pointer-events: none;
++  transform: translateY(4px);
++  transition: opacity 0.15s ease, transform 0.15s ease;
++}
++.ctx-usage:hover .ctx-usage-tip {
++  opacity: 1;
++  transform: translateY(0);
++}
++</style>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index b19859d..2c93b8a 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -657,11 +657,13 @@ export default {
+   aiViewAllResults: 'View all results',
+   // SP8-P1b Task 10 — ProcessStrip (merged thinking+tool step strip) / TimelineMinimap
+   aiProcWorking: 'Working',
+   aiProcProcessed: 'Processed',
+   aiProcThinkingWord: 'thinking',
+   aiProcSteps: '{n} steps',
+   aiProcReasoned: 'Reasoned',
+   aiProcTool: 'Tool',
+   aiProcNoDetails: 'No details',
+   aiTimelineYou: 'You',
++  // SP8-P1c1 Task 6 — ContextUsageBar (context usage ring)
++  aiCtxLabel: 'Context',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index a3e1533..4d02416 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -657,11 +657,13 @@ export default {
+   aiViewAllResults: '查看全部结果',
+   // SP8-P1b Task 10 — ProcessStrip (合并 thinking+tool 步骤条) / TimelineMinimap
+   aiProcWorking: '处理中',
+   aiProcProcessed: '已处理',
+   aiProcThinkingWord: '思考',
+   aiProcSteps: '{n} 步',
+   aiProcReasoned: '已推理',
+   aiProcTool: '工具',
+   aiProcNoDetails: '无详情',
+   aiTimelineYou: '你',
++  // SP8-P1c1 Task 6 — ContextUsageBar(上下文占用环)
++  aiCtxLabel: '上下文',
+ }

@@ -1,0 +1,1461 @@
+# Review package: 6159be7..59dc605
+
+## Commits
+59dc605 test(files-upload): backfill budget/drop/reattach-autostart/pause coverage gaps
+3f6eb61 fix(files-upload): dirEntry test mock — set read flag before invoking cb
+0da6b2e chore(files-upload): revert inert trampoline, tighten tus interop types, rename reselect flag
+eb30770 fix(files-upload): reattachFiles re-persists blob for repeat-refresh resume
+9933702 refactor(files-upload): extract commitSelectedFiles; strip leading slash in onReselect
+e9a5a46 fix(files-upload): 0-byte files never trigger the oversize banner
+272135d fix(files-upload): retryBatch goes through patch so status persists
+8c66360 fix(files-upload): independent reselect/retry/resume buttons for mixed problem-zone batches
+d01fb9a chore(i18n): files-upload zh_cn audit closeout
+b218e19 fix(files-upload): cancel server-origin rows via resolveTusId fallback
+47f79c8 feat(files-upload): syncServerTasks cross-device recovery wired into initUploads
+2232ec3 feat(files-upload): pure server-task sync planner (contentKey + planServerSync)
+
+## Files changed
+ .../components/UploadPanel.mixed-batch.test.ts     | 38 +++++++++++
+ src/files/components/UploadPanel.vue               | 25 +++++---
+ src/files/stores/uploads.cancel.test.ts            | 53 +++++++++++++++
+ src/files/stores/uploads.oversize.test.ts          | 31 +++++++++
+ src/files/stores/uploads.pauseUploading.test.ts    | 51 +++++++++++++++
+ .../stores/uploads.reattach-autostart.test.ts      | 74 +++++++++++++++++++++
+ src/files/stores/uploads.reattach-persist.test.ts  | 49 ++++++++++++++
+ src/files/stores/uploads.retryBatch.test.ts        | 45 +++++++++++++
+ src/files/stores/uploads.syncServerTasks.test.ts   | 57 ++++++++++++++++
+ src/files/stores/uploads.test.ts                   | 10 +--
+ src/files/stores/uploads.ts                        | 51 ++++++++++++---
+ src/files/upload/dropEntries.test.ts               | 23 ++++++-
+ src/files/upload/dropEntries.ts                    |  2 +-
+ src/files/upload/persist.test.ts                   | 34 ++++++++++
+ src/files/upload/selectedFiles.test.ts             | 36 +++++++++++
+ src/files/upload/selectedFiles.ts                  | 17 +++++
+ src/files/upload/serverSync.test.ts                | 75 ++++++++++++++++++++++
+ src/files/upload/serverSync.ts                     | 69 ++++++++++++++++++++
+ src/files/upload/tusClient.ts                      |  7 +-
+ src/i18n/zh_cn.ts                                  |  1 +
+ src/views/Files.vue                                | 32 ++++-----
+ 21 files changed, 737 insertions(+), 43 deletions(-)
+
+## Diff
+diff --git a/src/files/components/UploadPanel.mixed-batch.test.ts b/src/files/components/UploadPanel.mixed-batch.test.ts
+new file mode 100644
+index 0000000..70a8993
+--- /dev/null
++++ b/src/files/components/UploadPanel.mixed-batch.test.ts
+@@ -0,0 +1,38 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount } from '@vue/test-utils'
++import UploadPanel from './UploadPanel.vue'
++import { useUploadsStore } from '../stores/uploads'
++import { i18n } from '../../i18n'
++import type { UploadItem } from '../upload/types'
++
++function item(over: Partial<UploadItem>): UploadItem {
++  return {
++    id: Math.random().toString(), file: null, fileName: 'f', fileType: '', size: 10,
++    targetPath: '/DATA/x', relativePath: 'f', status: 'error', progress: 0, bytesSent: 0,
++    speed: 0, tusUploadUrl: null, retryCount: 0, error: 'server', createdAt: 0,
++    batchId: 'mix', batchTotal: 3, restored: false, conflictPolicy: '', oversize: false, ...over,
++  }
++}
++
++describe('UploadPanel mixed problem-zone batch', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('shows both 重选文件 and 重试 for a needs_file + error batch', () => {
++    const s = useUploadsStore()
++    s.queue.push(item({ id: 'a', status: 'error' }), item({ id: 'b', status: 'needs_file', file: null }))
++    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
++    const labels = w.findAll('.up-item-actions .up-link-btn').map((b) => b.text())
++    expect(labels).toContain(i18n.global.t('filesUploadReselect'))
++    expect(labels).toContain(i18n.global.t('filesUploadRetry'))
++  })
++
++  it('shows 继续 for a paused + error batch', () => {
++    const s = useUploadsStore()
++    s.queue.push(item({ id: 'a', status: 'error' }), item({ id: 'b', status: 'paused' }))
++    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
++    const labels = w.findAll('.up-item-actions .up-link-btn').map((b) => b.text())
++    expect(labels).toContain(i18n.global.t('filesUploadResume'))
++    expect(labels).toContain(i18n.global.t('filesUploadRetry'))
++  })
++})
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index 1131fe6..69557f5 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -97,20 +97,24 @@ function toggleExpand(batchId: string) {
+ // PATH SAFETY: show only the file's basename, never the real /DATA/... path.
+ function itemName(it: UploadItem): string {
+   const p = it.relativePath || it.fileName
+   return p.split('/').pop() || p
+ }
+ 
+ function onRetry(b: BatchView) {
+   if (b.multi) store.retryBatch(b.batchId)
+   else store.retryItem(b.items[0].id)
+ }
++function onResume(b: BatchView) {
++  if (b.multi) store.resumeBatch(b.batchId)
++  else store.resumeItem(b.items[0].id)
++}
+ function onCancel(b: BatchView) {
+   if (b.multi) store.cancelBatch(b.batchId)
+   else store.cancelItem(b.items[0].id)
+ }
+ 
+ // Delete confirmation (mirrors the file-delete AlertDialog). Each delete
+ // trigger stashes a message + the actual delete closure; confirm runs it.
+ // NOTE: `pendingRun` is intentionally NOT cleared in @update:open. reka-ui's
+ // AlertDialogAction fires update:open(false) on the SAME click as our confirm,
+ // and it can run first — clearing the closure there would drop it before
+@@ -137,34 +141,36 @@ function confirmDelete() {
+ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+   const item = conflictItem.value
+   if (item) store.resolveConflict(item.id, choice)
+ }
+ 
+ // needs_file reselect: user re-picks the same folder/files via a hidden
+ // input; reattachFiles matches them back onto the needs_file queue items by
+ // their own targetPath/relativePath (the SelectedFile.targetPath below is a
+ // placeholder to satisfy the shape, not used for matching).
+ const reselectInput = ref<HTMLInputElement | null>(null)
+-const reselectDismissed = ref(false)
+-const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectDismissed.value)
++const reselectNoticeDismissed = ref(false)
++const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectNoticeDismissed.value)
+ 
+ function triggerReselect() {
+   reselectInput.value?.click()
+ }
+ async function onReselect(e: Event) {
+   const input = e.target as HTMLInputElement
+   const list = input.files
+   if (list && list.length) {
+     const sel = Array.from(list).map((f) => ({
+       file: f,
+       targetPath: files.currentPath,
+-      relativePath: (f as any).webkitRelativePath || f.name,
++      // 与 commitSelectedFiles 一致:剥离前导 '/',避免受保护目录判断
++      // (split('/')[0])被空首段绕过。
++      relativePath: ((f as any).webkitRelativePath || f.name).replace(/^\/+/, ''),
+     }))
+     await store.reattachFiles(sel)
+   }
+   input.value = ''
+ }
+ </script>
+ 
+ <template>
+   <div v-if="totalCount" class="upload-panel-wrap">
+     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
+@@ -174,46 +180,45 @@ async function onReselect(e: Event) {
+     <div v-else class="upload-panel">
+       <div class="up-head">
+         <span class="up-title">{{ t('filesUploadTitle') }}</span>
+         <div class="up-head-actions">
+           <button v-if="anyRunning" class="up-link-btn" @click="store.pauseAll()">{{ t('filesUploadPauseAll') }}</button>
+           <button v-else-if="anyPaused" class="up-link-btn" @click="store.resumeAll()">{{ t('filesUploadResumeAll') }}</button>
+           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
+             {{ t('filesUploadClearDone') }}
+           </button>
+           <button v-if="totalCount" class="up-link-btn up-delete-all" @click="askDelete(t('filesUploadDeleteAllConfirm'), () => store.cancelAll())">{{ t('filesUploadDeleteAll') }}</button>
+-          <button class="up-close" @click="open = false" aria-label="close">×</button>
++          <button class="up-close" @click="open = false" :aria-label="t('filesUploadClose')">×</button>
+         </div>
+       </div>
+ 
+       <div v-if="showRestoreNotice" class="up-restore-notice">
+         <span>{{ t('filesUploadRestoreNotice', { count: store.restoreNoticeCount }) }}</span>
+-        <button class="up-link-btn" @click="reselectDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
++        <button class="up-link-btn" @click="reselectNoticeDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
+       </div>
+ 
+       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
+ 
+       <div v-if="problemBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneProblem') }}</div>
+         <div v-for="b in problemBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
+           </div>
+           <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
+-          <template v-else>
+-            <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+-            <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
+-          </template>
++          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
++          <div v-else-if="b.errorCount > 0 && b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
+           <div class="up-item-actions">
+             <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
+-            <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
++            <button v-if="b.errorCount > 0" class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
++            <button v-if="b.pausedCount > 0" class="up-link-btn" @click="onResume(b)">{{ t('filesUploadResume') }}</button>
+             <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
+           </div>
+         </div>
+       </div>
+ 
+       <div v-if="activeBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneActive') }}</div>
+         <div v-for="b in activeBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+diff --git a/src/files/stores/uploads.cancel.test.ts b/src/files/stores/uploads.cancel.test.ts
+new file mode 100644
+index 0000000..83a7a85
+--- /dev/null
++++ b/src/files/stores/uploads.cancel.test.ts
+@@ -0,0 +1,53 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { cancelUpload } = vi.hoisted(() => ({ cancelUpload: vi.fn(() => Promise.resolve()) }))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload, listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++
++import { service } from '@nimotech/nimoos-service'
++import { useUploadsStore } from './uploads'
++
++function serverRow(id: string, url: string) {
++  return {
++    id, file: null, fileName: 'a', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'a',
++    status: 'needs_file' as const, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: url,
++    retryCount: 0, error: '', createdAt: 0, batchId: '', batchTotal: 1, restored: true,
++    conflictPolicy: '' as const, oversize: false,
++  }
++}
++
++describe('cancel resolves the tus id for server-origin rows', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  it('uses item.id when there is no upload_url and id is not an fq_ id', () => {
++    const s = useUploadsStore()
++    s.queue.push(serverRow('srvHex', ''))
++    s.cancelItem('srvHex')
++    expect(service.file.cancelUpload).toHaveBeenCalledWith('srvHex')
++  })
++
++  it('parses the id out of upload_url when present', () => {
++    const s = useUploadsStore()
++    s.queue.push(serverRow('srvHex', '/v2/nimoos/file/upload-tus/theTusId'))
++    s.cancelItem('srvHex')
++    expect(service.file.cancelUpload).toHaveBeenCalledWith('theTusId')
++  })
++
++  it('does not cancel for a fresh fq_ item with no url', () => {
++    const s = useUploadsStore()
++    s.queue.push(serverRow('fq_1_0_0.2', ''))
++    s.cancelItem('fq_1_0_0.2')
++    expect(service.file.cancelUpload).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/files/stores/uploads.oversize.test.ts b/src/files/stores/uploads.oversize.test.ts
+new file mode 100644
+index 0000000..b532109
+--- /dev/null
++++ b/src/files/stores/uploads.oversize.test.ts
+@@ -0,0 +1,31 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn(),
++    uploadPrecheck: vi.fn(() => Promise.resolve({ results: [] })) } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++vi.mock('../upload/conflict', async (orig) => {
++  const actual = await (orig as any)()
++  return { ...actual, precheckExisting: () => Promise.resolve(new Set<string>()) }
++})
++
++import { useUploadsStore } from './uploads'
++
++describe('addFilesToQueue oversize flag', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('never marks a 0-byte file oversize', async () => {
++    const s = useUploadsStore()
++    const empty = new File([], 'empty.txt')
++    await s.addFilesToQueue([{ file: empty, targetPath: '/DATA/Documents', relativePath: 'empty.txt' }])
++    const row = s.queue.find((i) => i.fileName === 'empty.txt')
++    expect(row?.oversize).toBe(false)
++  })
++})
+diff --git a/src/files/stores/uploads.pauseUploading.test.ts b/src/files/stores/uploads.pauseUploading.test.ts
+new file mode 100644
+index 0000000..148aa01
+--- /dev/null
++++ b/src/files/stores/uploads.pauseUploading.test.ts
+@@ -0,0 +1,51 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { pauseSpy } = vi.hoisted(() => ({ pauseSpy: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta: vi.fn(), dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++// Fake scheduler with an observable `pause` handle — asserts pauseItem routes
++// through the scheduler for an uploading item instead of patching status directly.
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: () => ({ isRunning: () => false, abort: vi.fn(), pause: pauseSpy, run: async () => {} }),
++}))
++
++import { useUploadsStore } from './uploads'
++
++function seedUploading(store: any, over: Record<string, unknown> = {}) {
++  store.queue.push({
++    id: 'u1', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
++    relativePath: 'a', status: 'uploading', progress: 30, bytesSent: 3, speed: 5, tusUploadUrl: 'u',
++    retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
++    conflictPolicy: '', oversize: false, ...over,
++  })
++}
++
++describe('pauseItem on an uploading item', () => {
++  beforeEach(() => { setActivePinia(createPinia()); pauseSpy.mockClear() })
++
++  it('routes through scheduler.pause(id), not a direct status patch', () => {
++    const s = useUploadsStore()
++    seedUploading(s)
++
++    s.pauseItem('u1')
++
++    expect(pauseSpy).toHaveBeenCalledWith('u1')
++    expect(pauseSpy).toHaveBeenCalledTimes(1)
++    // The uploading branch of pauseItem does not patch status itself — only the
++    // (real, unmocked) scheduler flips it to 'paused' once the in-flight upload
++    // handle actually pauses.
++    expect(s.queue[0].status).toBe('uploading')
++  })
++})
+diff --git a/src/files/stores/uploads.reattach-autostart.test.ts b/src/files/stores/uploads.reattach-autostart.test.ts
+new file mode 100644
+index 0000000..51a5e26
+--- /dev/null
++++ b/src/files/stores/uploads.reattach-autostart.test.ts
+@@ -0,0 +1,74 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { persistNewItem, runSpy } = vi.hoisted(() => ({
++  persistNewItem: vi.fn(),
++  runSpy: vi.fn(async () => {}),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++vi.mock('../upload/conflict', async (orig) => {
++  const actual = await (orig as any)()
++  return { ...actual, precheckExisting: () => Promise.resolve(new Set<string>()) }
++})
++// Fake scheduler whose run() is directly observable — this is the side effect
++// we assert on instead of vi.spyOn(store, 'startUpload'), which can't intercept
++// a Pinia setup-store's internal direct call to its own closure (P3b gotcha).
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: () => ({ isRunning: () => false, abort: vi.fn(), pause: vi.fn(), run: runSpy }),
++}))
++vi.mock('../stores/files', () => ({ useFilesStore: () => ({ currentPath: '/DATA', load: vi.fn() }) }))
++
++import { useUploadsStore } from './uploads'
++import type { UploadItem } from '../upload/types'
++
++function needsFileItem(over: Partial<UploadItem> = {}): UploadItem {
++  return {
++    id: 'nf', file: null, fileName: 'a.txt', fileType: '', size: 3, targetPath: '/DATA',
++    relativePath: 'a.txt', status: 'needs_file', progress: 0, bytesSent: 0, speed: 0,
++    tusUploadUrl: null, retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1,
++    restored: true, conflictPolicy: '', oversize: false, ...over,
++  }
++}
++
++describe('reattachFiles auto-starts the upload when idle', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    persistNewItem.mockClear()
++    runSpy.mockClear()
++  })
++
++  it('matches a pending-restore item and triggers the scheduler while uploading===false', async () => {
++    const s = useUploadsStore()
++    s.queue.push(needsFileItem())
++    expect(s.uploading).toBe(false)
++
++    const f = new File(['abc'], 'a.txt')
++    const { matched } = await s.reattachFiles([{ file: f, targetPath: '/DATA', relativePath: 'a.txt' }])
++
++    expect(matched).toBe(1)
++    expect(runSpy).toHaveBeenCalled() // the fake scheduler was actually driven
++  })
++
++  it('does not start a second run when an upload is already in flight', async () => {
++    const s = useUploadsStore()
++    s.queue.push(needsFileItem({ id: 'nf2' }))
++    s.uploading = true // simulate an upload already running
++
++    const f = new File(['abc'], 'a.txt')
++    await s.reattachFiles([{ file: f, targetPath: '/DATA', relativePath: 'a.txt' }])
++
++    expect(runSpy).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/files/stores/uploads.reattach-persist.test.ts b/src/files/stores/uploads.reattach-persist.test.ts
+new file mode 100644
+index 0000000..1a884aa
+--- /dev/null
++++ b/src/files/stores/uploads.reattach-persist.test.ts
+@@ -0,0 +1,49 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { persistNewItem } = vi.hoisted(() => ({ persistNewItem: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++vi.mock('../upload/conflict', async (orig) => {
++  const actual = await (orig as any)()
++  return { ...actual, precheckExisting: () => Promise.resolve(new Set<string>()) }
++})
++// Without this stub, startUpload() drives the REAL scheduler, whose claimNext()
++// synchronously flips the just-reattached item to 'uploading' before this test's
++// assertions run — masking the very persistence bug under test. A no-op run()
++// keeps the item at whatever reattachFiles/patch left it, like the scheduler
++// stub in uploads.retryBatch.test.ts.
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: () => ({ isRunning: () => false, abort: vi.fn(), pause: vi.fn(), run: async () => {} }),
++}))
++
++import { useUploadsStore } from './uploads'
++
++describe('reattachFiles re-persists the blob', () => {
++  beforeEach(() => { setActivePinia(createPinia()); persistNewItem.mockClear() })
++
++  it('stores the re-picked file so a second refresh keeps it resumable', async () => {
++    const s = useUploadsStore()
++    s.queue.push({
++      id: 'nf', file: null, fileName: 'a.txt', fileType: '', size: 3, targetPath: '/DATA',
++      relativePath: 'a.txt', status: 'needs_file', progress: 0, bytesSent: 0, speed: 0,
++      tusUploadUrl: null, retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1,
++      restored: true, conflictPolicy: '', oversize: false,
++    })
++    const f = new File(['abc'], 'a.txt')
++    await s.reattachFiles([{ file: f, targetPath: '/DATA', relativePath: 'a.txt' }])
++    expect(persistNewItem).toHaveBeenCalled()
++    expect(s.queue[0].status).toBe('pending')
++  })
++})
+diff --git a/src/files/stores/uploads.retryBatch.test.ts b/src/files/stores/uploads.retryBatch.test.ts
+new file mode 100644
+index 0000000..2adc60a
+--- /dev/null
++++ b/src/files/stores/uploads.retryBatch.test.ts
+@@ -0,0 +1,45 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++// vi.mock factories are hoisted above the module; a plain top-level `const`
++// referenced inside one throws "Cannot access before initialization". vi.hoisted
++// runs before that hoisting so the mock can safely close over it.
++const { persistItemMeta } = vi.hoisted(() => ({ persistItemMeta: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
++}))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++// Without this stub, startUpload() drives the REAL scheduler, whose claimNext()
++// synchronously flips the just-reset item to 'uploading' (bypassing patch) before
++// this test's assertions run — masking the very persistence bug under test. A
++// no-op run() keeps the item at whatever retryBatch/patch left it, like the
++// scheduler stub in uploads.test.ts.
++vi.mock('../upload/scheduler', () => ({
++  BACKOFF_MS: [1000, 3000, 9000],
++  createScheduler: () => ({ isRunning: () => false, abort: vi.fn(), pause: vi.fn(), run: async () => {} }),
++}))
++
++import { useUploadsStore } from './uploads'
++
++describe('retryBatch persists status via patch', () => {
++  beforeEach(() => { setActivePinia(createPinia()); persistItemMeta.mockClear() })
++
++  it('re-persists each retried error item (not just in-memory)', () => {
++    const s = useUploadsStore()
++    s.queue.push({
++      id: 'e1', file: new Blob(['x']) as unknown as File, fileName: 'a', fileType: '', size: 1,
++      targetPath: '/DATA', relativePath: 'a', status: 'error', progress: 50, bytesSent: 1, speed: 0,
++      tusUploadUrl: null, retryCount: 1, error: 'server', createdAt: 0, batchId: 'b', batchTotal: 1,
++      restored: false, conflictPolicy: '', oversize: false,
++    })
++    s.retryBatch('b')
++    expect(s.queue[0].status).toBe('pending')
++    expect(s.queue[0].error).toBe('')
++    expect(persistItemMeta).toHaveBeenCalled() // proves it went through patch()
++  })
++})
+diff --git a/src/files/stores/uploads.syncServerTasks.test.ts b/src/files/stores/uploads.syncServerTasks.test.ts
+new file mode 100644
+index 0000000..1671ef6
+--- /dev/null
++++ b/src/files/stores/uploads.syncServerTasks.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  refreshAccessToken: () => Promise.resolve(null),
++  service: { file: { listActiveUploads: vi.fn(), cancelUpload: vi.fn(() => Promise.resolve()) } },
++}))
++// Keep persistence + i18n + toast inert for this unit.
++vi.mock('../upload/persist', () => ({
++  persistNewItem: () => {}, persistItemMeta: () => {}, dropPersisted: () => {},
++  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
++  pruneOldItems: () => Promise.resolve(0),
++}))
++
++import { service } from '@nimotech/nimoos-service'
++import { useUploadsStore } from './uploads'
++
++const task = (o = {}) => ({
++  id: 'srv1', filename: 'a.txt', relative_path: 'a.txt', target_path: '/DATA/Documents',
++  size: 100, mime: '', offset: 30, upload_url: '/v2/nimoos/file/upload-tus/srv1',
++  retry_count: 0, created_at: 1700, batch_id: '', ...o,
++})
++
++describe('uploads.syncServerTasks', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  it('appends server-only tasks as needs_file rows', async () => {
++    ;(service.file.listActiveUploads as any).mockResolvedValue({ tasks: [task()] })
++    const s = useUploadsStore()
++    await s.syncServerTasks()
++    expect(s.queue).toHaveLength(1)
++    expect(s.queue[0]).toMatchObject({ id: 'srv1', status: 'needs_file', bytesSent: 30 })
++  })
++
++  it('swallows a listActiveUploads error and leaves the queue untouched', async () => {
++    ;(service.file.listActiveUploads as any).mockRejectedValue(new Error('offline'))
++    const s = useUploadsStore()
++    await s.syncServerTasks()
++    expect(s.queue).toEqual([])
++  })
++
++  it('merges a server offset into a content-matched local item instead of duplicating', async () => {
++    ;(service.file.listActiveUploads as any).mockResolvedValue({ tasks: [task({ id: 'srv1', offset: 55 })] })
++    const s = useUploadsStore()
++    // Seed a local item with the same content key (target+relative+size) but a different id.
++    s.queue.push({
++      id: 'fq_local', file: null, fileName: 'a.txt', fileType: '', size: 100,
++      targetPath: '/DATA/Documents', relativePath: 'a.txt', status: 'needs_file',
++      progress: 0, bytesSent: 10, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
++      createdAt: 1, batchId: 'b', batchTotal: 1, restored: true, conflictPolicy: '', oversize: false,
++    })
++    await s.syncServerTasks()
++    expect(s.queue).toHaveLength(1) // no duplicate row
++    expect(s.queue[0].bytesSent).toBe(55)
++    expect(s.queue[0].tusUploadUrl).toBe('/v2/nimoos/file/upload-tus/srv1')
++  })
++})
+diff --git a/src/files/stores/uploads.test.ts b/src/files/stores/uploads.test.ts
+index 80efd1d..50a2aa3 100644
+--- a/src/files/stores/uploads.test.ts
++++ b/src/files/stores/uploads.test.ts
+@@ -331,42 +331,44 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
+ 
+   it('cancelItem on a paused item WITH tusUploadUrl also cancels server-side via service.file.cancelUpload', async () => {
+     const store = useUploadsStore()
+     seed(store, { id: 'p1', tusUploadUrl: '/v2/nimoos/file/upload-tus/abc123' })
+     store.cancelItem('p1')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('abc123')
+     expect(store.queue.some((i: any) => i.id === 'p1')).toBe(false)
+   })
+ 
+   it('cancelItem on an item with NO tusUploadUrl does NOT call service.file.cancelUpload', async () => {
++    // fq_-prefixed id: a genuinely fresh/local item that never got a tus url —
++    // resolveTusId's fallback only kicks in for non-fq_ (server-origin) ids.
+     const store = useUploadsStore()
+-    seed(store, { id: 'p2', tusUploadUrl: null })
+-    store.cancelItem('p2')
++    seed(store, { id: 'fq_p2', tusUploadUrl: null })
++    store.cancelItem('fq_p2')
+     expect(service.file.cancelUpload).not.toHaveBeenCalled()
+   })
+ 
+   it('cancelBatch cancels server-side staging for every item in the batch that has a tusUploadUrl', async () => {
+     const store = useUploadsStore()
+     seed(store, { id: 'b1', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
+-    seed(store, { id: 'b2', batchId: 'batchA', tusUploadUrl: null })
++    seed(store, { id: 'fq_b2', batchId: 'batchA', tusUploadUrl: null })
+     seed(store, { id: 'b3', batchId: 'batchA', tusUploadUrl: '/v2/nimoos/file/upload-tus/two' })
+     store.cancelBatch('batchA')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
+     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
+     expect(store.queue.length).toBe(0)
+   })
+ 
+   it('cancelAll empties the whole queue and cancels server staging for every item with a tusUploadUrl', async () => {
+     const store = useUploadsStore()
+     seed(store, { id: 'x1', batchId: 'A', tusUploadUrl: '/v2/nimoos/file/upload-tus/one' })
+-    seed(store, { id: 'x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
++    seed(store, { id: 'fq_x2', batchId: 'B', tusUploadUrl: null, status: 'pending' })
+     seed(store, { id: 'x3', batchId: 'B', tusUploadUrl: '/v2/nimoos/file/upload-tus/two', status: 'error' })
+     store.cancelAll()
+     expect(store.queue.length).toBe(0)
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
+     expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
+     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
+   })
+ })
+ 
+ describe('uploads reattachFiles', () => {
+diff --git a/src/files/stores/uploads.ts b/src/files/stores/uploads.ts
+index f6cb10c..99ced01 100644
+--- a/src/files/stores/uploads.ts
++++ b/src/files/stores/uploads.ts
+@@ -1,19 +1,21 @@
+ import { defineStore } from 'pinia'
+ import { ref, computed } from 'vue'
+ import { refreshAccessToken, service } from '@nimotech/nimoos-service'
++import type { ServerUploadTask } from '@nimotech/nimoos-service'
+ import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
+ import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
+ import { canStoreBlob } from '../upload/budget'
+ import { safeRandomUUID } from '../upload/uuid'
+ import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
+ import { persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB, pruneOldItems as prunePersisted } from '../upload/persist'
++import { planServerSync } from '../upload/serverSync'
+ import type { UploadItem, SelectedFile } from '../upload/types'
+ import { PROTECTED } from '../util/protect'
+ import { useFilesStore } from './files'
+ import { useToast } from '../../stores/toast'
+ import { i18n } from '../../i18n'
+ 
+ export const useUploadsStore = defineStore('files-uploads', () => {
+   const queue = ref<UploadItem[]>([])
+   const uploading = ref(false)
+   const restoreNoticeCount = ref(0)
+@@ -36,20 +38,31 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+ 
+   // Extracts the tus upload id (server-side staging id) from a resumable
+   // upload URL like ".../upload-tus/<id>". Returns '' if there is no URL or
+   // it doesn't match the expected shape.
+   function tusIdFromUrl(url: string | null): string {
+     if (!url) return ''
+     const m = String(url).match(/upload-tus\/([^/?#]+)/)
+     return m ? m[1] : ''
+   }
+ 
++  // Resolve the server-side tus staging id to cancel. Fresh/local items carry
++  // an fq_ id + the tus id inside tusUploadUrl; server-origin rows carry the
++  // tus id AS item.id. Mirrors Vue2 fileUpload.js:257-258.
++  function resolveTusId(item: UploadItem | undefined): string {
++    if (!item) return ''
++    const fromUrl = tusIdFromUrl(item.tusUploadUrl)
++    if (fromUrl) return fromUrl
++    if (item.tusUploadUrl) return '' // had a url but unparseable → nothing to cancel
++    return item.id.startsWith('fq_') ? '' : item.id
++  }
++
+   function claimNext(): UploadItem | null {
+     const item = queue.value.find((i) => i.status === 'pending' && i.file)
+     if (!item) return null
+     item.status = 'uploading'
+     return item
+   }
+ 
+   const VOLATILE = new Set(['progress', 'bytesSent', 'speed'])
+   function patch(id: string, p: Partial<UploadItem>) {
+     const item = queue.value.find((i) => i.id === id)
+@@ -154,21 +167,21 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+       bytesSent: 0,
+       speed: 0,
+       tusUploadUrl: null,
+       retryCount: 0,
+       error: '',
+       createdAt: Date.now(),
+       batchId,
+       batchTotal: survivors.length,
+       restored: false,
+       conflictPolicy: '',
+-      oversize: !canStoreBlob(f.file.size),
++      oversize: f.file.size > 0 && !canStoreBlob(f.file.size),
+     }))
+ 
+     try {
+       const set = await precheckExisting(survivors)
+       for (const item of items) {
+         item.status = set.has(conflictKey(item.targetPath, item.relativePath)) ? 'conflict' : 'pending'
+       }
+     } catch {
+       // Precheck unavailable — leave everything pending, server will still
+       // reject/handle actual conflicts.
+@@ -191,56 +204,54 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+   }
+ 
+   function retryItem(id: string): void {
+     patch(id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+     startUpload()
+   }
+ 
+   function cancelItem(id: string): void {
+     getScheduler().abort(id)
+     const item = queue.value.find((i) => i.id === id)
+-    const tid = tusIdFromUrl(item ? item.tusUploadUrl : null)
++    const tid = resolveTusId(item)
+     if (tid) service.file.cancelUpload(tid).catch(() => {})
+     dropPersisted(id)
+     queue.value = queue.value.filter((i) => i.id !== id)
+   }
+ 
+   // Batch-level controls (folder / multi-select rows). A single-file batch
+   // routes through these too when the panel renders it as one row.
+   function retryBatch(batchId: string): void {
+     toastedBatches.delete(batchId)
+-    for (const i of queue.value) {
+-      if (i.batchId === batchId && i.status === 'error') {
+-        Object.assign(i, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+-      }
++    for (const i of queue.value.filter((x) => x.batchId === batchId && x.status === 'error')) {
++      patch(i.id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+     }
+     startUpload()
+   }
+ 
+   function cancelBatch(batchId: string): void {
+     for (const i of queue.value.filter((x) => x.batchId === batchId)) {
+       getScheduler().abort(i.id)
+-      const tid = tusIdFromUrl(i.tusUploadUrl)
++      const tid = resolveTusId(i)
+       if (tid) service.file.cancelUpload(tid).catch(() => {})
+       dropPersisted(i.id)
+     }
+     queue.value = queue.value.filter((i) => i.batchId !== batchId)
+     toastedBatches.delete(batchId)
+   }
+ 
+   // Delete EVERY upload task: abort in-flight transfers, cancel server-side
+   // staging for any item that has a tusUploadUrl (so nothing leaks), and clear
+   // the queue + IDB. This removes done/error/paused/uploading alike.
+   function cancelAll(): void {
+     for (const i of queue.value) {
+       getScheduler().abort(i.id)
+-      const tid = tusIdFromUrl(i.tusUploadUrl)
++      const tid = resolveTusId(i)
+       if (tid) service.file.cancelUpload(tid).catch(() => {})
+       dropPersisted(i.id)
+     }
+     queue.value = []
+     toastedBatches.clear()
+   }
+ 
+   function pauseItem(id: string): void {
+     const item = queue.value.find((i) => i.id === id)
+     if (!item) return
+@@ -320,42 +331,65 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+     }
+ 
+     let matched = 0
+     const conflicts: UploadItem[] = []
+     for (const { it, file } of matches) {
+       if (existing.has(conflictKey(it.targetPath, it.relativePath))) {
+         patch(it.id, { file, status: 'conflict', error: '', restored: true })
+         conflicts.push(it)
+       } else {
+         patch(it.id, { file, status: 'pending', error: '', restored: true })
++        const updated = queue.value.find((x) => x.id === it.id)
++        if (updated) persistNewItem(updated) // re-store blob so a 2nd refresh stays resumable
+         matched++
+       }
+     }
+     if (matched > 0 && !uploading.value) startUpload()
+     return { matched, conflicts }
+   }
+ 
+   async function pruneOldItems(days = 30): Promise<void> {
+     await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
+   }
+ 
++  // Cross-device / cross-browser recovery: pull the server's active upload
++  // tasks and reconcile them against the local queue. Merges resume points
++  // into content-matched local rows; appends server-only tasks as needs_file
++  // (the user re-picks the file to resume from the server offset). Silent on
++  // network error — must never block restore/resume. (Vue2 fileUpload.js:189.)
++  async function syncServerTasks(): Promise<void> {
++    let tasks: ServerUploadTask[] = []
++    try {
++      const res = await service.file.listActiveUploads()
++      tasks = res.tasks || []
++    } catch {
++      return
++    }
++    const { merges, appends } = planServerSync(queue.value, tasks)
++    for (const m of merges) patch(m.id, m.patch)
++    // Server-appended needs_file rows are transient (no blob) — not persisted
++    // to IDB, matching Vue2; they vanish on refresh and re-sync on next init.
++    if (appends.length) queue.value.push(...appends)
++  }
++
+   async function initUploads(): Promise<void> {
+     // Set BEFORE the await: two synchronous mounts in the same tick (e.g. a
+     // fast back-and-forth navigation) must not both observe `false` and both
+     // proceed to restore — that would double-push the same IDB rows before
+     // either call's await yields. Latching first, awaiting second, closes
+     // that race; latching only on success would leave the window open.
+     if (initialized.value) return
+     initialized.value = true
+     try {
+       await restoreQueue()
+       await pruneOldItems(30)
++      await syncServerTasks()
+       resumePending()
+     } catch (e) {
+       console.warn('[uploads] initUploads failed; memory-only mode', e)
+     }
+   }
+ 
+   const hasActive = computed(() =>
+     uploading.value || queue.value.some((i) => i.status === 'pending' && !!i.file),
+   )
+ 
+@@ -378,12 +412,13 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+     pauseBatch,
+     resumeBatch,
+     pauseAll,
+     resumeAll,
+     clearDone,
+     restoreQueue,
+     resumePending,
+     pruneOldItems,
+     initUploads,
+     reattachFiles,
++    syncServerTasks,
+   }
+ })
+diff --git a/src/files/upload/dropEntries.test.ts b/src/files/upload/dropEntries.test.ts
+index 8a924b2..862a4cf 100644
+--- a/src/files/upload/dropEntries.test.ts
++++ b/src/files/upload/dropEntries.test.ts
+@@ -6,21 +6,25 @@ function fileEntry(name: string, fullPath: string, content = 'x') {
+   return {
+     isFile: true, isDirectory: false, name, fullPath,
+     file: (cb: (f: File) => void) => cb(f),
+   }
+ }
+ function dirEntry(name: string, fullPath: string, children: any[]) {
+   let read = false
+   return {
+     isFile: false, isDirectory: true, name, fullPath,
+     createReader: () => ({
+-      readEntries: (cb: (e: any[]) => void) => { cb(read ? [] : children); read = true },
++      // Set the "already read" flag before invoking cb (not after): a real
++      // readEntries callback is always async, but if a caller ever invokes it
++      // synchronously and recurses from inside cb, setting the flag first
++      // avoids a reentrant infinite loop here.
++      readEntries: (cb: (e: any[]) => void) => { const wasRead = read; read = true; cb(wasRead ? [] : children) },
+     }),
+   }
+ }
+ function dtWithEntries(entries: any[]): any {
+   return {
+     items: entries.map((e) => ({ kind: 'file', webkitGetAsEntry: () => e })),
+     files: [],
+   }
+ }
+ 
+@@ -31,20 +35,37 @@ describe('readDroppedEntries', () => {
+         fileEntry('a.txt', '/MyFolder/a.txt'),
+         dirEntry('sub', '/MyFolder/sub', [fileEntry('b.txt', '/MyFolder/sub/b.txt')]),
+       ]),
+     ])
+     const out = await readDroppedEntries(dt)
+     const rels = out.map((o) => o.relativePath).sort()
+     expect(rels).toEqual(['MyFolder/a.txt', 'MyFolder/sub/b.txt'])
+     expect(out[0].file).toBeInstanceOf(File)
+   })
+ 
++  it('does not filter hidden dotfiles or media files out of a dropped folder', async () => {
++    // Unlike Photos' collectFilesFromDataTransfer, the file manager's drop path
++    // must accept everything the OS handed it — no media-type allowlist, no
++    // dotfile skip.
++    const dt = dtWithEntries([
++      dirEntry('Folder', '/Folder', [
++        fileEntry('.hidden', '/Folder/.hidden'),
++        fileEntry('photo.jpg', '/Folder/photo.jpg'),
++        fileEntry('video.mp4', '/Folder/video.mp4'),
++        fileEntry('notes.txt', '/Folder/notes.txt'),
++      ]),
++    ])
++    const out = await readDroppedEntries(dt)
++    const rels = out.map((o) => o.relativePath).sort()
++    expect(rels).toEqual(['Folder/.hidden', 'Folder/notes.txt', 'Folder/photo.jpg', 'Folder/video.mp4'])
++  })
++
+   it('single dropped file → relativePath is the name', async () => {
+     const dt = dtWithEntries([fileEntry('c.txt', '/c.txt')])
+     const out = await readDroppedEntries(dt)
+     expect(out).toHaveLength(1)
+     expect(out[0].relativePath).toBe('c.txt')
+   })
+ 
+   it('falls back to flat dt.files when entries API unavailable', async () => {
+     const f = new File(['x'], 'd.txt')
+     const dt: any = { items: null, files: [f] }
+diff --git a/src/files/upload/dropEntries.ts b/src/files/upload/dropEntries.ts
+index 7082298..be6cb96 100644
+--- a/src/files/upload/dropEntries.ts
++++ b/src/files/upload/dropEntries.ts
+@@ -15,21 +15,21 @@ export interface DroppedFile { file: File; relativePath: string }
+ function stripLead(p: string): string { return p.replace(/^\/+/, '') }
+ 
+ // readEntries returns at most ~100 entries per call (Chrome); loop until empty.
+ function readAllEntries(reader: { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }): Promise<FsEntry[]> {
+   return new Promise((resolve) => {
+     const all: FsEntry[] = []
+     const read = () => {
+       reader.readEntries((entries) => {
+         if (!entries || entries.length === 0) return resolve(all)
+         all.push(...entries)
+-        Promise.resolve().then(read)
++        read()
+       }, () => resolve(all))
+     }
+     read()
+   })
+ }
+ 
+ function entryToFile(entry: FsEntry): Promise<File | null> {
+   return new Promise((resolve) => {
+     if (!entry.file) return resolve(null)
+     entry.file((f) => resolve(f), () => resolve(null))
+diff --git a/src/files/upload/persist.test.ts b/src/files/upload/persist.test.ts
+index 01564cb..34652ce 100644
+--- a/src/files/upload/persist.test.ts
++++ b/src/files/upload/persist.test.ts
+@@ -1,17 +1,18 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { IDBFactory } from 'fake-indexeddb'
+ import { _resetForTest, getAllQueueItems, getBlob, putQueueItem, putBlob } from './idb'
+ import {
+   persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB,
+   pruneOldItems, _resetBudgetForTest,
+ } from './persist'
++import { canStoreBlob, PER_FILE_BLOB_CAP, TOTAL_BLOB_BUDGET } from './budget'
+ import type { UploadItem } from './types'
+ 
+ function mkItem(over: Partial<UploadItem> = {}): UploadItem {
+   return {
+     id: 'i1', file: new Blob(['data']), fileName: 'a.txt', fileType: 'text/plain',
+     size: 4, targetPath: '/DATA/x', relativePath: 'a.txt', status: 'pending',
+     progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0,
+     error: '', createdAt: 1000, batchId: 'b', batchTotal: 1, restored: false,
+     conflictPolicy: '', oversize: false, ...over,
+   }
+@@ -142,20 +143,53 @@ describe('persist', () => {
+     persistItemMeta(updated)
+     await flush()
+ 
+     const rows = await getAllQueueItems()
+     expect(rows).toHaveLength(1)
+     expect(rows[0].id).toBe('m2')
+     expect(rows[0].status).toBe('uploading')
+     expect(rows[0].blobStored).toBe(false) // oversize items never stored
+   })
+ 
++  it('cumulative budget: fills TOTAL_BLOB_BUDGET across many items, then rejects the overflow item and stops accounting growth', async () => {
++    // Fill the budget with as many max-per-file-size items as fit, leaving a
++    // remainder smaller than PER_FILE_BLOB_CAP so the next full-size item cannot fit.
++    const n = Math.floor(TOTAL_BLOB_BUDGET / PER_FILE_BLOB_CAP)
++    for (let i = 0; i < n; i++) {
++      persistNewItem(mkItem({ id: `bulk${i}`, size: PER_FILE_BLOB_CAP }))
++    }
++    await flush()
++    const rowsAfterBulk = await getAllQueueItems()
++    expect(rowsAfterBulk.filter((r) => r.blobStored).length).toBe(n)
++
++    const usedAfterBulk = n * PER_FILE_BLOB_CAP
++    const remaining = TOTAL_BLOB_BUDGET - usedAfterBulk
++    expect(remaining).toBeGreaterThan(0)
++    expect(remaining).toBeLessThan(PER_FILE_BLOB_CAP) // sanity: next full-size item must not fit
++    expect(canStoreBlob(PER_FILE_BLOB_CAP, usedAfterBulk)).toBe(false)
++
++    // One more full-size item goes over budget: meta persists, but no blob is stored.
++    persistNewItem(mkItem({ id: 'overBudget', size: PER_FILE_BLOB_CAP }))
++    await flush()
++    const overRow = (await getAllQueueItems()).find((r) => r.id === 'overBudget')
++    expect(overRow?.blobStored).toBe(false)
++    expect(await getBlob('overBudget')).toBeUndefined()
++
++    // The rejected attempt must not have grown the accounting: an item sized to
++    // exactly the remaining headroom should still fit.
++    persistNewItem(mkItem({ id: 'fitsRemaining', size: remaining }))
++    await flush()
++    const fitsRow = (await getAllQueueItems()).find((r) => r.id === 'fitsRemaining')
++    expect(fitsRow?.blobStored).toBe(true)
++    expect(await getBlob('fitsRemaining')).toBeInstanceOf(Blob)
++  })
++
+   it('dropPersisted frees budget (observable)', async () => {
+     // Persist item A with blob stored
+     persistNewItem(mkItem({ id: 'a', size: 4 }))
+     await flush()
+     expect((await getAllQueueItems())[0].blobStored).toBe(true)
+ 
+     // Drop item A — budget slot is released
+     dropPersisted('a')
+     await flush()
+     expect(await getAllQueueItems()).toEqual([])
+diff --git a/src/files/upload/selectedFiles.test.ts b/src/files/upload/selectedFiles.test.ts
+new file mode 100644
+index 0000000..4c67532
+--- /dev/null
++++ b/src/files/upload/selectedFiles.test.ts
+@@ -0,0 +1,36 @@
++import { describe, it, expect } from 'vitest'
++import { toSelectedFiles } from './selectedFiles'
++
++describe('toSelectedFiles', () => {
++  it('strips a leading slash from relativePath', () => {
++    const f = new File(['x'], 'a.txt')
++    const out = toSelectedFiles([{ file: f, relativePath: '/Docs/a.txt' }], '/DATA/Documents')
++    expect(out).toEqual([{ file: f, targetPath: '/DATA/Documents', relativePath: 'Docs/a.txt' }])
++  })
++
++  it('strips multiple leading slashes', () => {
++    const f = new File(['x'], 'a.txt')
++    const out = toSelectedFiles([{ file: f, relativePath: '///a.txt' }], '/DATA')
++    expect(out[0].relativePath).toBe('a.txt')
++  })
++
++  it('leaves a relativePath with no leading slash untouched', () => {
++    const f = new File(['x'], 'a.txt')
++    const out = toSelectedFiles([{ file: f, relativePath: 'Docs/a.txt' }], '/DATA')
++    expect(out[0].relativePath).toBe('Docs/a.txt')
++  })
++
++  it('propagates targetPath onto every entry', () => {
++    const f1 = new File(['x'], 'a.txt')
++    const f2 = new File(['y'], 'b.txt')
++    const out = toSelectedFiles(
++      [{ file: f1, relativePath: 'a.txt' }, { file: f2, relativePath: 'b.txt' }],
++      '/DATA/Shared',
++    )
++    expect(out.every((e) => e.targetPath === '/DATA/Shared')).toBe(true)
++  })
++
++  it('returns an empty array for empty input', () => {
++    expect(toSelectedFiles([], '/DATA')).toEqual([])
++  })
++})
+diff --git a/src/files/upload/selectedFiles.ts b/src/files/upload/selectedFiles.ts
+new file mode 100644
+index 0000000..3a8ad83
+--- /dev/null
++++ b/src/files/upload/selectedFiles.ts
+@@ -0,0 +1,17 @@
++import type { SelectedFile } from './types'
++
++// Shared normalization for both the file/folder picker (handleSelectedFiles)
++// and drag-drop (onDrop) in Files.vue, plus needs_file reselect in
++// UploadPanel.vue: strip leading slashes from relativePath — the downstream
++// protected-dir check reads split('/')[0] to take the first segment, and a
++// leading slash would produce an empty first segment that bypasses it.
++export function toSelectedFiles(
++  entries: { file: File; relativePath: string }[],
++  targetPath: string,
++): SelectedFile[] {
++  return entries.map((e) => ({
++    file: e.file,
++    targetPath,
++    relativePath: e.relativePath.replace(/^\/+/, ''),
++  }))
++}
+diff --git a/src/files/upload/serverSync.test.ts b/src/files/upload/serverSync.test.ts
+new file mode 100644
+index 0000000..8ec9b0f
+--- /dev/null
++++ b/src/files/upload/serverSync.test.ts
+@@ -0,0 +1,75 @@
++import { describe, it, expect } from 'vitest'
++import { contentKey, planServerSync } from './serverSync'
++import type { UploadItem } from './types'
++
++function localItem(over: Partial<UploadItem> = {}): UploadItem {
++  return {
++    id: 'fq_1_0_0.5', file: null, fileName: 'a.txt', fileType: '', size: 100,
++    targetPath: '/DATA/Documents', relativePath: 'a.txt', status: 'needs_file',
++    progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0,
++    error: '', createdAt: 1, batchId: 'b1', batchTotal: 1, restored: true,
++    conflictPolicy: '', oversize: false, ...over,
++  }
++}
++function serverTask(over: Record<string, unknown> = {}) {
++  return {
++    id: 'abc123', filename: 'a.txt', relative_path: 'a.txt', target_path: '/DATA/Documents',
++    size: 100, mime: 'text/plain', offset: 40, upload_url: '/v2/nimoos/file/upload-tus/abc123',
++    retry_count: 2, created_at: 1700, batch_id: 'srv-b', ...over,
++  } as never
++}
++
++describe('contentKey', () => {
++  it('joins target + relative + size', () => {
++    expect(contentKey('/DATA/x', 'a.txt', 100)).toBe('/DATA/x a.txt 100')
++  })
++  it('tolerates empties', () => {
++    expect(contentKey('', '', 0)).toBe('  0')
++  })
++})
++
++describe('planServerSync', () => {
++  it('skips a task whose id already exists locally', () => {
++    const q = [localItem({ id: 'abc123' })]
++    const plan = planServerSync(q, [serverTask()])
++    expect(plan.merges).toEqual([])
++    expect(plan.appends).toEqual([])
++  })
++
++  it('merges resume point into a content-matched local item (max offset, keep local url if set)', () => {
++    const q = [localItem({ id: 'fq_x', bytesSent: 10, tusUploadUrl: null })]
++    const plan = planServerSync(q, [serverTask({ offset: 40 })])
++    expect(plan.appends).toEqual([])
++    expect(plan.merges).toEqual([
++      { id: 'fq_x', patch: { tusUploadUrl: '/v2/nimoos/file/upload-tus/abc123', bytesSent: 40 } },
++    ])
++  })
++
++  it('keeps the larger of local bytesSent vs server offset', () => {
++    const q = [localItem({ id: 'fq_x', bytesSent: 90, tusUploadUrl: '/keep/url' })]
++    const plan = planServerSync(q, [serverTask({ offset: 40 })])
++    expect(plan.merges[0].patch).toEqual({ tusUploadUrl: '/keep/url', bytesSent: 90 })
++  })
++
++  it('appends a needs_file row for a server-only task (id = tus id, offset preserved)', () => {
++    const plan = planServerSync([], [serverTask()])
++    expect(plan.merges).toEqual([])
++    expect(plan.appends).toHaveLength(1)
++    const a = plan.appends[0]
++    expect(a.id).toBe('abc123')
++    expect(a.status).toBe('needs_file')
++    expect(a.file).toBeNull()
++    expect(a.bytesSent).toBe(40)
++    expect(a.tusUploadUrl).toBe('/v2/nimoos/file/upload-tus/abc123')
++    expect(a.relativePath).toBe('a.txt')
++    expect(a.retryCount).toBe(2)
++    expect(a.createdAt).toBe(1700 * 1000) // created_at is unix seconds
++    expect(a.batchId).toBe('srv-b')
++    expect(a.restored).toBe(true)
++  })
++
++  it('falls back relative_path→filename when relative_path missing', () => {
++    const plan = planServerSync([], [serverTask({ relative_path: '', filename: 'b.png' })])
++    expect(plan.appends[0].relativePath).toBe('b.png')
++  })
++})
+diff --git a/src/files/upload/serverSync.ts b/src/files/upload/serverSync.ts
+new file mode 100644
+index 0000000..bf5e8e7
+--- /dev/null
++++ b/src/files/upload/serverSync.ts
+@@ -0,0 +1,69 @@
++import type { ServerUploadTask } from '@nimotech/nimoos-service'
++import type { UploadItem } from './types'
++
++// Content identity of an upload item/task: target dir + relative path + size.
++// Server tasks are keyed by their tus hex id, IDB-restored items by fq_ ids —
++// different id spaces, so id-dedup alone double-lists the same file. Dedup by
++// content instead: a content match merges the server resume point into the
++// local row; only genuinely server-only tasks become new rows.
++export function contentKey(targetPath: string, relativePath: string, size: number): string {
++  return `${targetPath || ''} ${relativePath || ''} ${size || 0}`
++}
++
++export interface ServerSyncPlan {
++  merges: Array<{ id: string; patch: Partial<UploadItem> }>
++  appends: UploadItem[]
++}
++
++// Reconcile the server's active upload tasks against the local queue.
++// Ported verbatim from Vue2 store/modules/fileUpload.js:189-245.
++// - task.id already present locally → skip (already tracked).
++// - content match with a local item → merge resume point (upload_url + max offset).
++// - otherwise → append as a needs_file row (byte stream can't be recovered
++//   cross-device, only the server offset; user re-picks the file to resume).
++export function planServerSync(queue: UploadItem[], tasks: ServerUploadTask[]): ServerSyncPlan {
++  const localIds = new Set(queue.map((i) => i.id))
++  const byContent = new Map<string, UploadItem>()
++  for (const i of queue) byContent.set(contentKey(i.targetPath, i.relativePath || i.fileName, i.size), i)
++
++  const merges: ServerSyncPlan['merges'] = []
++  const appends: UploadItem[] = []
++  for (const t of tasks) {
++    if (localIds.has(t.id)) continue
++    const rp = t.relative_path || t.filename
++    const local = byContent.get(contentKey(t.target_path, rp, t.size || 0))
++    if (local) {
++      merges.push({
++        id: local.id,
++        patch: {
++          tusUploadUrl: local.tusUploadUrl || t.upload_url || '',
++          bytesSent: Math.max(local.bytesSent || 0, t.offset || 0),
++        },
++      })
++      continue
++    }
++    appends.push({
++      id: t.id,
++      file: null,
++      fileName: t.filename,
++      fileType: t.mime || '',
++      size: t.size || 0,
++      targetPath: t.target_path,
++      relativePath: rp,
++      status: 'needs_file',
++      progress: 0,
++      bytesSent: t.offset || 0,
++      speed: 0,
++      tusUploadUrl: t.upload_url || '',
++      retryCount: t.retry_count || 0,
++      error: '',
++      createdAt: (t.created_at || 0) * 1000,
++      batchId: t.batch_id || '',
++      batchTotal: 1,
++      restored: true,
++      conflictPolicy: '',
++      oversize: false,
++    })
++  }
++  return { merges, appends }
++}
+diff --git a/src/files/upload/tusClient.ts b/src/files/upload/tusClient.ts
+index 74eb1f6..a29a3d3 100644
+--- a/src/files/upload/tusClient.ts
++++ b/src/files/upload/tusClient.ts
+@@ -1,11 +1,12 @@
+ import * as tus from 'tus-js-client'
++import type { HttpRequest, DetailedError } from 'tus-js-client'
+ import { UPLOAD_TUS_ENDPOINT } from '@nimotech/nimoos-service'
+ import { getClientId } from './clientId'
+ import type { TusArgs } from './types'
+ 
+ // NOTE: refreshAccessToken is intentionally NOT re-exported here. 401 handling
+ // belongs to the scheduler (a later task); isRetryableTusError below returns
+ // false for 401 so tus-js-client does not retry it and lets the error bubble
+ // up to the scheduler instead.
+ 
+ interface TusAbortError extends Error {
+@@ -41,21 +42,21 @@ export function tusUpload(args: TusArgs): Promise<void> {
+         filename: args.fileName,
+         filetype: args.fileType,
+         targetPath: args.targetPath || '',
+         relativePath: args.relativePath || args.fileName,
+         batch_id: args.batchId || '',
+         batch_total: String(args.batchTotal != null ? args.batchTotal : 1),
+         resumed: args.resumed ? '1' : '',
+         client_id: getClientId(),
+         conflictPolicy: args.conflictPolicy || '',
+       },
+-      onBeforeRequest: (req: any) => {
++      onBeforeRequest: (req: HttpRequest) => {
+         const t = window.localStorage.getItem('access_token')
+         if (t) req.setHeader('Authorization', t)
+       },
+       onAfterResponse: () => {
+         // upload.url is populated after the creation POST (and stable on resume).
+         // Report it once so the caller can persist it for future resumes.
+         if (upload.url && upload.url !== reportedUrl) {
+           reportedUrl = upload.url
+           if (args.onUrlAvailable) args.onUrlAvailable(upload.url)
+         }
+@@ -93,20 +94,20 @@ export function tusUpload(args: TusArgs): Promise<void> {
+           reject(e)
+         },
+       })
+     }
+     upload.start()
+   })
+ }
+ 
+ export function isRetryableTusError(err: unknown): boolean {
+   if (!err) return false
+-  const status = (err as any).originalResponse && (err as any).originalResponse.getStatus()
++  const status = (err as DetailedError).originalResponse && (err as DetailedError).originalResponse!.getStatus()
+   if (!status) return true
+   if (status >= 500) return true
+   if (status === 408 || status === 429) return true
+   return false
+ }
+ 
+ export function tusErrorStatus(err: unknown): number | null {
+-  return ((err as any)?.originalResponse?.getStatus?.()) ?? null
++  return ((err as DetailedError)?.originalResponse?.getStatus?.()) ?? null
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 6d606fd..82ca7fc 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -90,12 +90,13 @@ export const messages = {
+     filesUploadErrNetwork: '网络错误',
+     filesUploadReselect: '重选文件',
+     filesUploadNeedsFile: '需重新选择文件以继续上传',
+     filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
+     filesUploadRestoreDismiss: '知道了',
+     filesUploadPause: '暂停',
+     filesUploadResume: '继续',
+     filesUploadPauseAll: '全部暂停',
+     filesUploadResumeAll: '全部继续',
+     filesUploadPaused: '已暂停',
++    filesUploadClose: '关闭',
+   },
+ }
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index bfeee83..72e529c 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -16,21 +16,21 @@ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+ import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+-import type { SelectedFile } from '../files/upload/types'
++import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+@@ -104,58 +104,58 @@ const fileInput = ref<HTMLInputElement | null>(null)
+ const folderInput = ref<HTMLInputElement | null>(null)
+ function triggerFileSelect() { fileInput.value?.click() }
+ function triggerFolderSelect() { folderInput.value?.click() }
+ 
+ function onInputChange(e: Event) {
+   const input = e.target as HTMLInputElement
+   if (input.files && input.files.length) handleSelectedFiles(input.files)
+   input.value = '' // 允许重复选择同一文件再次触发 change
+ }
+ 
+-async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
++// Shared enqueue path for both the file/folder picker and drag-drop: normalize
++// leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
++// any files rejected for being in a protected dir.
++async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
+-  const sel: SelectedFile[] = Array.from(list).map((f) => {
+-    const raw = (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name
+-    // 防御:去掉开头的 '/' —— 下游受保护目录判断按 split('/')[0] 取首段,
+-    // 前导斜杠会产生空首段从而绕过检查。
+-    return { file: f, targetPath, relativePath: raw.replace(/^\/+/, '') }
+-  })
++  const sel = toSelectedFiles(entries, targetPath)
+   const { rejected } = await uploads.addFilesToQueue(sel)
+   for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+ }
++
++async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
++  await commitSelectedFiles(
++    Array.from(list).map((f) => ({
++      file: f,
++      relativePath: (f as unknown as { webkitRelativePath?: string }).webkitRelativePath || f.name,
++    })),
++  )
++}
+ defineExpose({ handleSelectedFiles })
+ 
+ // ── 拖拽落区(.files-main 全域可放)──
+ const isDragIn = ref(false)
+ let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
+ function onDragOver() {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = true
+ }
+ function onDragLeave() {
+   // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
+   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
+   dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
+ }
+ async function onDrop(e: DragEvent) {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = false
+   const dropped = await readDroppedEntries(e.dataTransfer)
+   if (!dropped.length) return
+-  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
+-  const sel: SelectedFile[] = dropped.map((d) => ({
+-    file: d.file,
+-    targetPath,
+-    relativePath: d.relativePath.replace(/^\/+/, ''),
+-  }))
+-  const { rejected } = await uploads.addFilesToQueue(sel)
+-  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
++  await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+ }
+ 
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+   if (renameDlg.value.entry) ops.rename(renameDlg.value.entry, name)
+ }
+ function confirmDelete() {

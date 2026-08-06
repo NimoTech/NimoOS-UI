@@ -1,0 +1,4332 @@
+# Review package: 1f8e8f8..HEAD
+
+## Commits
+855e9ad SP8-P1c1: escape bare @ in i18n messages (vue-i18n linked-syntax error) + syntax guard test
+5132005 SP8-P1c1: mount AgentComposer in AgentPage + ctxUsage state & 3 refresh triggers
+6a8d148 SP8-P1c1: AgentComposer @mention + slash wiring + gitignore-409 AlertDialog
+3452e56 SP8-P1c1: stop upload batch on session switch + cover binary/not_installed + doc-badge text (review fixes)
+e1e17ce SP8-P1c1: AgentComposer attachment pipeline (upload/progress/doc-errors/delete)
+c32a9dc SP8-P1c1: generic aiAuthFailed key + restore nextTick in submit + i18n wording (review fixes)
+fd9cf0b SP8-P1c1: AgentComposer skeleton (chips + textarea + toolbar + send/stop)
+22d1dff SP8-P1c1: SlashMenu (/init) 1:1 port
+467c398 SP8-P1c1: MentionPopover sync keydown attach (leak fix) + restore bold query in empty state (review fixes)
+c433ecc SP8-P1c1: MentionPopover (@ mention drill-down panel) + --hairline-ring token
+b0887f2 SP8-P1c1: restore verbatim lang="scss" style block in ContextUsageBar (review fix)
+7d278b6 SP8-P1c1: ContextUsageBar (ring + hover tip) on pure geometry module
+f133df1 SP8-P1c1: strengthen pure-module tests (caret positions, formatTime determinism) + register DRIVE_PALETTE exception (review fixes)
+33d3aef SP8-P1c1: pure modules for composer text/cursor math, attachment meta, mention format, ctx-usage geometry
+f290910 SP8-P1c1: sendInit error-block safety net when createSession fails
+990ef4c SP8-P1c1: store sendInit (slash /init)
+6e9a8a2 SP8-P1c1: store staged-changes domain (load/commit/revert run|batch|item)
+4ab2eec SP8-P1c1: extend legacy store test mock with new loader methods (review fix)
+ce092bf SP8-P1c1: store visible-resources + attachments domains, selectSession loaders, send tail
+17f32f8 SP8-P1c1: store 5 state + 3 stream-fed actions into createStreamActions
+
+## Files changed
+ docs/THEMING.md                                  |   1 +
+ src/ai/components/blocks/ContextUsageBar.test.ts |  33 +
+ src/ai/components/blocks/ContextUsageBar.vue     |  88 +++
+ src/ai/components/shell/AgentComposer.test.ts    | 321 +++++++++
+ src/ai/components/shell/AgentComposer.vue        | 847 +++++++++++++++++++++++
+ src/ai/components/shell/MentionPopover.test.ts   | 149 ++++
+ src/ai/components/shell/MentionPopover.vue       | 477 +++++++++++++
+ src/ai/components/shell/SlashMenu.test.ts        |  45 ++
+ src/ai/components/shell/SlashMenu.vue            | 106 +++
+ src/ai/stores/agentStore.p1c.test.ts             | 344 +++++++++
+ src/ai/stores/agentStore.test.ts                 |   2 +
+ src/ai/stores/agentStore.ts                      | 283 +++++++-
+ src/ai/styles/tokens.scss                        |  10 +
+ src/ai/util/attachmentMeta.test.ts               |  63 ++
+ src/ai/util/attachmentMeta.ts                    |  74 ++
+ src/ai/util/composerText.test.ts                 |  77 +++
+ src/ai/util/composerText.ts                      | 115 +++
+ src/ai/util/contextUsage.test.ts                 |  43 ++
+ src/ai/util/contextUsage.ts                      |  29 +
+ src/ai/util/mentionFormat.test.ts                |  84 +++
+ src/ai/util/mentionFormat.ts                     |  64 ++
+ src/ai/views/AgentPage.test.ts                   |  46 ++
+ src/ai/views/AgentPage.vue                       |  79 ++-
+ src/i18n/en_us.ts                                |  88 ++-
+ src/i18n/messageSyntax.test.ts                   |  94 +++
+ src/i18n/zh_cn.ts                                |  95 ++-
+ 26 files changed, 3646 insertions(+), 11 deletions(-)
+
+## Diff
+diff --git a/docs/THEMING.md b/docs/THEMING.md
+index b023b7b..4924469 100644
+--- a/docs/THEMING.md
++++ b/docs/THEMING.md
+@@ -297,20 +297,21 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue
+ 
+ ## 6. 例外清单（刻意跳过 token，须有代码注释）
+ 
+ 以下颜色**故意不走主题 token**，是有意设计而非残留。每处代码须有注释说明原因：
+ 
+ | 例外 | 位置 | 为何是有意例外 |
+ |---|---|---|
+ | `.ic-*` app 图标渐变（`.ic-files` / `.ic-photos` / `.ic-video` / `.ic-music` / `.ic-ai` / `.ic-backup` / `.ic-download` / `.ic-docker` / `.ic-vm` / `.ic-share` / `.ic-search` / `.ic-settings` / `.ic-users` / `.ic-storage` / `.ic-appstore` / `.ic-terminal` 等） | `theme.css` §「应用图标配色」 | **品牌识别色，皮肤无关**——文件蓝、照片虹彩、音乐粉紫等是产品视觉资产，两套主题都保持一致，不应随皮肤变。用户靠颜色识别应用。 |
+ | 第三方库内部主题（如 CodeMirror 编辑器配色） | 引入该库的组件 | 库有自己的主题机制，颜色由库内部管理，无法用 CSS 变量穿透。应走该库自身的 theme 配置，而非硬塞 token。 |
+ | 生成式、按 seed 取色的占位马赛克色板（`src/ai/components/blocks/VideoCard.vue` 的 `PAL`、`ImageGridCard.vue` 的 `PALETTES`） | AI Agent 区（`src/ai/`，用的是自己一套 `src/ai/styles/tokens.scss`，见该文件头「例外清单」一节的同一登记） | **皮肤无关，占位马赛克**——没有真实视频帧/图片缩略图时按 block 数据里的 `seed` 索引取一组装饰性渐变色，不代表任何语义状态，纯生成式展示效果。与 `.ic-*` 品牌渐变同属"两套主题都原样保留"一类，不接入 token 体系。 |
++| `DRIVE_PALETTE`（按 drive/挂载点标签哈希取色的身份识别色） | `src/ai/util/mentionFormat.ts`（AI Agent 区 `src/ai/`，见该目录 `src/ai/styles/tokens.scss` 文件头「例外清单」一节的同一登记） | **皮肤无关，身份识别色**——按 drive/挂载点标签哈希索引固定色板，标识"这是哪个盘"，不代表语义状态，两套主题都原样保留，与 `.ic-*` 品牌渐变同属一类。 |
+ 
+ 注：`.ic-ai` 与 `.ic-all` / `.ic-app` 例外地**引用了** token（`--accent` / `--accent2` /
+ `--orb-core` / `--all-bg` 等）——这部分仍随主题走，只有各图标的**固定品牌渐变**是例外。
+ 
+ 补充：`.grid-item .remove`、`.resize-handle::after`、`.media-play` 等全局规则里仍有个别
+ `#fff` / `rgba(0,0,0,…)` 字面色（阴影、纯白箭头等中性值）。按 §0 约定，这些在收编硬编码色时
+ 应逐步 token 化；若判定为主题无关的纯中性值而保留，须在该行加注释说明。
+ 
+ ---
+ 
+diff --git a/src/ai/components/blocks/ContextUsageBar.test.ts b/src/ai/components/blocks/ContextUsageBar.test.ts
+new file mode 100644
+index 0000000..e39f462
+--- /dev/null
++++ b/src/ai/components/blocks/ContextUsageBar.test.ts
+@@ -0,0 +1,33 @@
++// SP8-P1c1 Task 6 —— 1:1 移植自 Vue2 ContextUsageBar.spec.js:54-81(rendering 部分)。
++// 纯几何/格式化逻辑已在 contextUsage.ts 里有自己的测试，此处只测组件渲染。
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../i18n/zh_cn'
++import ContextUsageBar from './ContextUsageBar.vue'
++import { RING_C } from '../../util/contextUsage'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const g = { plugins: [i18n] }
++
++describe('ContextUsageBar(移植 Vue2 ContextUsageBar.spec.js:54-81)', () => {
++  it('渲染 ok 档，提示里带格式化 token 与百分比', () => {
++    const w = mount(ContextUsageBar, { props: { tokens: 48000, window: 200000, pct: 24 }, global: g })
++    const arc = w.find('.ctx-ring-arc')
++    expect(arc.exists()).toBe(true)
++    expect(arc.classes()).toContain('ok')
++    expect(arc.attributes('stroke-dasharray')).toBe(`${((24 / 100) * RING_C).toFixed(2)} ${RING_C.toFixed(2)}`)
++    const tip = w.find('.ctx-usage-tip').text()
++    expect(tip).toContain('48K')
++    expect(tip).toContain('200K')
++    expect(tip).toContain('24%')
++  })
++  it('pct 75 → warn 档', () => {
++    const w = mount(ContextUsageBar, { props: { tokens: 1, window: 2, pct: 75 }, global: g })
++    expect(w.find('.ctx-ring-arc').classes()).toContain('warn')
++  })
++  it('pct 95 → danger 档', () => {
++    const w = mount(ContextUsageBar, { props: { tokens: 1, window: 2, pct: 95 }, global: g })
++    expect(w.find('.ctx-ring-arc').classes()).toContain('danger')
++  })
++})
+diff --git a/src/ai/components/blocks/ContextUsageBar.vue b/src/ai/components/blocks/ContextUsageBar.vue
+new file mode 100644
+index 0000000..09adfa9
+--- /dev/null
++++ b/src/ai/components/blocks/ContextUsageBar.vue
+@@ -0,0 +1,88 @@
++<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue -->
++<!-- 模板: 33-61, 样式: 63-107. 几何/阈值/格式化全部改调 Task 5 的 contextUsage.ts,不在本地重算。 -->
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { formatTokens, levelFor, dashArrayFor } from '../../util/contextUsage'
++
++const props = withDefaults(
++  defineProps<{ tokens?: number; window?: number; pct?: number }>(),
++  { tokens: 0, window: 0, pct: 0 },
++)
++const { t } = useI18n()
++</script>
++
++<template>
++  <div class="ctx-usage">
++    <svg class="ctx-ring" viewBox="0 0 36 36" width="22" height="22" aria-hidden="true">
++      <circle
++        class="ctx-ring-track"
++        cx="18"
++        cy="18"
++        r="15.5"
++        fill="none"
++        stroke-width="3.5"
++      />
++      <circle
++        class="ctx-ring-arc"
++        :class="levelFor(props.pct)"
++        cx="18"
++        cy="18"
++        r="15.5"
++        fill="none"
++        stroke-width="3.5"
++        stroke-linecap="round"
++        :stroke-dasharray="dashArrayFor(props.pct)"
++        transform="rotate(-90 18 18)"
++      />
++    </svg>
++    <div class="ctx-usage-tip">
++      {{ t('aiCtxLabel') }} {{ formatTokens(props.tokens) }} / {{ formatTokens(props.window) }} · {{ props.pct }}%
++    </div>
++  </div>
++</template>
++
++<style lang="scss" scoped>
++.ctx-usage {
++  position: relative;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++}
++
++.ctx-ring {
++  display: block;
++}
++.ctx-ring-track {
++  stroke: var(--line-strong);
++}
++.ctx-ring-arc {
++  transition: stroke-dasharray 0.3s ease, stroke 0.3s ease;
++
++  &.ok     { stroke: var(--accent); }
++  &.warn   { stroke: var(--warning); }
++  &.danger { stroke: var(--danger); }
++}
++
++.ctx-usage-tip {
++  position: absolute;
++  bottom: calc(100% + 8px);
++  right: 0;
++  padding: 5px 12px;
++  font-size: 12px;
++  line-height: 1.4;
++  white-space: nowrap;
++  color: var(--text-secondary);
++  background: var(--bg-elevated);
++  border: 1px solid var(--line);
++  border-radius: 999px;
++  box-shadow: var(--shadow-pop);
++  opacity: 0;
++  pointer-events: none;
++  transform: translateY(4px);
++  transition: opacity 0.15s ease, transform 0.15s ease;
++}
++.ctx-usage:hover .ctx-usage-tip {
++  opacity: 1;
++  transform: translateY(0);
++}
++</style>
+diff --git a/src/ai/components/shell/AgentComposer.test.ts b/src/ai/components/shell/AgentComposer.test.ts
+new file mode 100644
+index 0000000..cf6d2ac
+--- /dev/null
++++ b/src/ai/components/shell/AgentComposer.test.ts
+@@ -0,0 +1,321 @@
++// SP8-P1c1 Task 9 —— AgentComposer 骨架:chips + textarea + 工具栏 + 发送/停止。
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue 的对应片段(见组件顶部注释)。
++// 附件上传管线(Task 10)与 @mention/slash 接线(Task 11)不在本任务范围,测试用例
++// 逐字取自 .superpowers/sdd/p1c1-task-9-brief.md Step 1。
++//
++// SP8-P1c1 Task 10 —— 附件管线 describe 块追加自 p1c1-task-10-brief.md Step 1
++// (逐字取自 brief,未改动断言)。
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({
++  listAgentSessions: vi.fn(), createAgentSession: vi.fn(), listAgentMessages: vi.fn(),
++  listMounts: vi.fn().mockResolvedValue([]), listFsEntries: vi.fn().mockResolvedValue([]),
++  removeVisibleResource: vi.fn(), uploadAttachment: vi.fn(), deleteAttachment: vi.fn(),
++  attachmentRawUrl: vi.fn(() => '/raw'),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++
++import AgentComposer from './AgentComposer.vue'
++import { useAgentStore } from '../../stores/agentStore'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const mountComposer = (props = {}) =>
++  mount(AgentComposer, { props, global: { plugins: [i18n] }, attachTo: document.body })
++
++describe('AgentComposer 骨架', () => {
++  beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
++
++  it('空输入时发送键禁用;有文本后启用', async () => {
++    const w = mountComposer()
++    expect(w.find('.send-btn').attributes('disabled')).toBeDefined()
++    await w.find('textarea').setValue('hello')
++    expect(w.find('.send-btn').attributes('disabled')).toBeUndefined()
++  })
++
++  it('Enter 发送并清空;Shift+Enter 不发送', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('hi there')
++    await ta.trigger('keydown', { key: 'Enter', shiftKey: true })
++    expect(w.emitted('send')).toBeFalsy()
++    await ta.trigger('keydown', { key: 'Enter' })
++    expect(w.emitted('send')![0][0]).toEqual({ text: 'hi there', attachmentIds: [], attachmentRefs: [] })
++    expect((ta.element as HTMLTextAreaElement).value).toBe('')
++  })
++
++  it('IME 组合中的 Enter 不发送', async () => {
++    const w = mountComposer()
++    await w.find('textarea').setValue('中')
++    await w.find('textarea').trigger('keydown', { key: 'Enter', isComposing: true })
++    expect(w.emitted('send')).toBeFalsy()
++  })
++
++  it('busy 时显示停止键并 emit stop', async () => {
++    const w = mountComposer({ busy: true })
++    expect(w.find('.send-btn.busy').exists()).toBe(true)
++    await w.find('.send-btn.busy').trigger('click')
++    expect(w.emitted('stop')).toBeTruthy()
++  })
++
++  it('visibleResources 渲染成 chip,× 调 store.removeVisibleResource', async () => {
++    const store = useAgentStore()
++    store.activeSessionId = 'sess-1'
++    store.visibleResources.push({ id: 5, path: '/DATA/docs', kind: 'folder' })
++    const spy = vi.spyOn(store, 'removeVisibleResource').mockResolvedValue(undefined)
++    const w = mountComposer()
++    const chip = w.find('.ctx-chip')
++    expect(chip.text()).toContain('docs')
++    await chip.find('.ctx-chip-x').trigger('click')
++    expect(spy).toHaveBeenCalledWith(5)
++  })
++
++  it('ctxUsage 存在时渲染占用环', () => {
++    const w = mountComposer({ ctxUsage: { tokens: 100, window: 1000, pct: 10 } })
++    expect(w.find('.ctx-usage').exists()).toBe(true)
++  })
++
++  it('Browse 按钮弹 toast 占位(BrowserModal 本期不做)', async () => {
++    const w = mountComposer()
++    const browse = w.findAll('.composer-tool')[0]
++    await browse.trigger('click')
++    // toast store 里应有一条
++    const { useToast } = await import('../../../stores/toast')
++    expect(useToast().toasts.length).toBe(1)
++  })
++})
++
++describe('AgentComposer 附件管线', () => {
++  beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
++
++  const pickFiles = async (w: any, files: File[]) => {
++    const input = w.find('input[type="file"]')
++    Object.defineProperty(input.element, 'files', { value: files, configurable: true })
++    await input.trigger('change')
++  }
++
++  it('无会话时先建会话再上传,成功后 chip 显示已上传', async () => {
++    const store = useAgentStore()
++    vi.spyOn(store, 'createSession').mockImplementation(async () => { store.activeSessionId = 'sess-new' })
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'image', mime: 'image/png' })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'p.png', { type: 'image/png' })])
++    await flushPromises()
++    expect(store.createSession).toHaveBeenCalled()
++    expect(svc.uploadAttachment).toHaveBeenCalledWith('sess-new', expect.any(File), expect.objectContaining({ onProgress: expect.any(Function) }))
++    expect(w.find('.ctx-chip-att').text()).toContain('p.png')
++  })
++
++  it('超过 500MB 直接拒绝、不发请求、给 toast', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    const big = new File(['x'], 'big.bin')
++    Object.defineProperty(big, 'size', { value: 500 * 1024 * 1024 + 1 })
++    const w = mountComposer()
++    await pickFiles(w, [big])
++    await flushPromises()
++    expect(svc.uploadAttachment).not.toHaveBeenCalled()
++    const { useToast } = await import('../../../stores/toast')
++    expect(useToast().toasts.length).toBe(1)
++  })
++
++  it('上传中 chip 显示百分比,且 canSend 为假', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    let emit!: (p: number) => void
++    svc.uploadAttachment.mockImplementation((_s: any, _f: any, o: any) => new Promise((res) => { emit = o.onProgress; setTimeout(() => res({ id: 'a1', kind: 'text' }), 0) }))
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.txt')])
++    emit(42); await w.vm.$nextTick()
++    expect(w.find('.ctx-chip-prog').text()).toContain('42')
++    await w.find('textarea').setValue('hi')
++    expect(w.find('.send-btn').attributes('disabled')).toBeDefined()   // 上传中禁发
++  })
++
++  it('上传失败 chip 标失败态', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockRejectedValue({ response: { data: { detail: 'nope' } } })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.txt')])
++    await flushPromises()
++    expect(w.find('.ctx-chip-att.is-failed').exists()).toBe(true)
++  })
++
++  it('文档抽取报错时 chip 出警告角标(且角标文案对应 docErrorShortKey 的 zh_cn 译文)', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'document', meta: { extract_error: 'timeout' } })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.pdf')])
++    await flushPromises()
++    const chip = w.find('.ctx-chip-att.is-doc-warn')
++    expect(chip.exists()).toBe(true)
++    // Fix 3: pin the actual rendered label text, not just the CSS class — this
++    // must be able to fail if docErrorShortKey('timeout') → 'aiDocErrShortTimedOut'
++    // regresses (e.g. mapped to the wrong key or the zh_cn string changes).
++    expect(chip.find('.ctx-chip-doc-warn').text()).toContain(zh.aiDocErrShortTimedOut)
++  })
++
++  it('kind=binary 且 extract_error=not_installed、文档扩展名:给 7000ms 警告 toast', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'binary', meta: { extract_error: 'not_installed' } })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.pdf')])
++    await flushPromises()
++    const { useToast } = await import('../../../stores/toast')
++    const toasts = useToast().toasts
++    expect(toasts.length).toBe(1)
++    expect(toasts[0].text).toContain(zh.aiDocErrNotInstalled)
++  })
++
++  it('kind=binary 且 extract_error=not_installed、非文档扩展名:不弹该 toast', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'binary', meta: { extract_error: 'not_installed' } })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.bin')])
++    await flushPromises()
++    const { useToast } = await import('../../../stores/toast')
++    expect(useToast().toasts.length).toBe(0)
++  })
++
++  it('批次中途切换会话:后续文件停止上传,不产生跨会话孤儿附件', async () => {
++    // Fix 1 (review): Vue2 (AgentComposer.vue:547) re-reads a *computed*
++    // `this.sessionId` every loop iteration, so a mid-batch session switch just
++    // redirects the remaining uploads into whatever session is now active. This
++    // port instead stops the batch — see the comment at the break site in
++    // AgentComposer.vue for why continuing would only create invisible orphans.
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    let resolveFirst!: (v: unknown) => void
++    svc.uploadAttachment.mockImplementationOnce(
++      () => new Promise((res) => { resolveFirst = res }),
++    )
++    const w = mountComposer()
++    await pickFiles(w, [
++      new File(['x'], 'a.txt'),
++      new File(['x'], 'b.txt'),
++    ])
++    // First upload (a.txt) is in flight — the loop is suspended on its await,
++    // so it has not started processing b.txt yet. Switch sessions now.
++    store.activeSessionId = 'sess-2'
++    resolveFirst({ id: 'a1', kind: 'text' })
++    await flushPromises()
++    expect(svc.uploadAttachment).toHaveBeenCalledTimes(1)
++  })
++
++  it('删除已上传附件:调 deleteAttachment 并移除 chip', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'text' })
++    svc.deleteAttachment.mockResolvedValue({})
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.txt')])
++    await flushPromises()
++    await w.find('.ctx-chip-att .ctx-chip-x').trigger('click')
++    await flushPromises()
++    expect(svc.deleteAttachment).toHaveBeenCalledWith('sess-1', 'a1')
++    expect(w.find('.ctx-chip-att').exists()).toBe(false)
++  })
++
++  it('submit 带上 attachmentIds/attachmentRefs 并清空本地列表', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'image', mime: 'image/png' })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'p.png', { type: 'image/png' })])
++    await flushPromises()
++    await w.find('.send-btn').trigger('click')
++    expect(w.emitted('send')![0][0]).toEqual({
++      text: '', attachmentIds: ['a1'],
++      attachmentRefs: [{ id: 'a1', filename: 'p.png', kind: 'image', mime: 'image/png', url: '/raw' }],
++    })
++    expect(w.find('.ctx-chip-att').exists()).toBe(false)
++  })
++
++  it('切会话清空本地待发附件', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'text' })
++    const w = mountComposer()
++    await pickFiles(w, [new File(['x'], 'a.txt')])
++    await flushPromises()
++    store.activeSessionId = 'sess-2'
++    await w.vm.$nextTick()
++    expect(w.find('.ctx-chip-att').exists()).toBe(false)
++  })
++})
++
++// SP8-P1c1 Task 11 — @提及/斜杠接线 + gitignore 409 确认框 describe 块,
++// 逐字取自 p1c1-task-11-brief.md Step 1(未改断言)。
++describe('AgentComposer @提及 / 斜杠', () => {
++  beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
++
++  it('输入 @ 触发提及面板;输入空格后关闭', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('@doc')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
++    await ta.setValue('@doc ')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
++  })
++
++  it('drill-in 把 "<name>/" 写回输入框并更新 segments', async () => {
++    const w = mountComposer()
++    await w.find('textarea').setValue('@Dr')
++    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
++    await w.vm.$nextTick()
++    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
++    expect(w.findComponent({ name: 'MentionPopover' }).props('segments')).toEqual(['Drive1'])
++  })
++
++  it('pick 文件:删掉 @token、调 addVisibleResource', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    const spy = vi.spyOn(store, 'addVisibleResource').mockResolvedValue(undefined)
++    const w = mountComposer()
++    await w.find('textarea').setValue('@Drive1/a')
++    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pick', { name: 'a.txt', kind: 'file', resolvedPath: '/DATA/a.txt' })
++    await flushPromises()
++    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
++    expect(spy).toHaveBeenCalledWith('/DATA/a.txt', 'file', false)
++  })
++
++  it('pick 命中 409 gitignore:弹确认框,确认后 force 重试', async () => {
++    const store = useAgentStore(); store.activeSessionId = 'sess-1'
++    const err = Object.assign(new Error('x'), { response: { status: 409, data: { detail: 'path blocked by .gitignore' } } })
++    const spy = vi.spyOn(store, 'addVisibleResource').mockRejectedValueOnce(err).mockResolvedValueOnce(undefined)
++    const w = mountComposer()
++    await w.find('textarea').setValue('@Drive1/x')
++    w.findComponent({ name: 'MentionPopover' }).vm.$emit('pick', { name: 'x', kind: 'folder', resolvedPath: '/DATA/x' })
++    await flushPromises()
++    const dlg = w.findComponent({ name: 'AlertDialog' })
++    expect(dlg.props('open')).toBe(true)
++    dlg.vm.$emit('confirm')
++    await flushPromises()
++    expect(spy).toHaveBeenNthCalledWith(2, '/DATA/x', 'folder', true)
++  })
++
++  it('pop-segment 弹掉最后一段', async () => {
++    const w = mountComposer()
++    await w.find('textarea').setValue('@Drive1/docs/')
++    await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pop-segment')
++    await w.vm.$nextTick()
++    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
++  })
++
++  it('单独输入 "/" 打开斜杠菜单;确认 init 后清空输入并 emit send-init', async () => {
++    const store = useAgentStore()
++    store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
++    const w = mountComposer()
++    await w.find('textarea').setValue('/')
++    const menu = w.findComponent({ name: 'SlashMenu' })
++    expect(menu.exists()).toBe(true)
++    expect(menu.props('folders').map((f: any) => f.path)).toEqual(['/DATA/docs'])
++    await menu.vm.$emit('init', '/DATA/docs')
++    expect(w.emitted('send-init')).toEqual([['/DATA/docs']])
++    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
++  })
++
++  it('提及面板打开时 Enter 不发送(交给面板处理)', async () => {
++    const w = mountComposer()
++    const ta = w.find('textarea')
++    await ta.setValue('@doc')
++    await ta.trigger('keydown', { key: 'Enter' })
++    expect(w.emitted('send')).toBeFalsy()
++  })
++})
+diff --git a/src/ai/components/shell/AgentComposer.vue b/src/ai/components/shell/AgentComposer.vue
+new file mode 100644
+index 0000000..212285f
+--- /dev/null
++++ b/src/ai/components/shell/AgentComposer.vue
+@@ -0,0 +1,847 @@
++<!--
++  SP8-P1c1 Task 9 —— AgentComposer 骨架:chips + textarea + 工具栏 + 发送/停止。
++  1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue(830 行)。本任务只做
++  骨架:可见资源 chips(Vue2 5-17)、自增高 textarea(45-54)、工具栏行(56-113)、
++  caption(127-129)。**不做**(留给 Task 10/11,接线处见下方注释):
++    - 附件 chips(Vue2 18-42)、上传/删除管线(onFilesPicked/removeAttachment,
++      Vue2 506-611)——`attachments` 数组在本任务里恒为空数组。
++    - @mention 面板(MentionPopover)与 `/init` 斜杠面板(SlashMenu)——onInput 的
++      mention 扫描(Vue2 306-334)、drillIn/pickItem/popSegment、onInit 均未接入。
++    - Vue2 的 BrowserModal(浏览 NAS 弹窗)——本期用户决定延后,Browse 按钮改为
++      toast 占位提示。
++    - `activeSessionId` watcher(Vue2 275-281)——Vue2 里这个 watcher 同时做两件事
++      (关闭 mention 面板 + 清空待附件列表),两者都属于下一任务范围,若本任务加上
++      一个空 watcher 体只会是死代码,故整体挪到 Task 10。
++
++  SP8-P1c1 Task 10 —— 附件管线(选择/上传/进度/文档错误/删除/清空)。
++  1:1 移植自 Vue2 同文件:附件 chips 模板(18-42)、`attachments` data 形状
++  (220-225)、`onFilesPicked`(506-602)、`removeAttachment`(604-611)、
++  `chipTitle`/`docOkLabel`(488-504)、`attachmentHint`(234-244)、`submit()` 的
++  附件半段(438-452)、`activeSessionId` watcher(275-281,本任务只清附件,
++  `closeMention()` 调用点留给 Task 11 —— 见下方 watch 内注释)。
++
++  SP8-P1c1 Task 11 —— @提及 + 斜杠命令接线 + gitignore 409 确认。
++  1:1 移植自 Vue2 同文件:`onInput` 的斜杠/@ 扫描(300-335,纯文本数学已在
++  Task 5 的 `composerText.ts` 里备好:`scanMention`/`buildDrillText`/
++  `buildPopText`/`stripMentionToken`)、`onBlur`(343-346)、`closeMention`
++  (347-352)、`drillIn`/`pickItem`/`popSegment`(355-428)、`onInit`
++  (613-617)、`activeSessionId` watcher 的 `closeMention()` 调用点(275-281,
++  Task 10 留的座)。MentionPopover 挂载(115-124)、SlashMenu 挂载(131-136)。
++  **不移植** BrowserModal 挂载(138-142)——本期延后,Browse 按钮仍是占位 toast。
++
++  Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1):
++  (a) Vue2 onBlur 的 setTimeout 句柄从未存储/清理,组件卸载后仍可能触发—— 这里
++      存进 `blurTimer` 并在 onBeforeUnmount 里 clearTimeout。
++  (b) 见下方 pickItem 内注释——gitignore 409 确认框的 pending 状态用独立的
++      open/target 两个 ref,而不是字面按 brief 描述"合并成一个 ref、在
++      update:open 里清空"——原因见 pickItem 旁注释。
++
++  gitignore 409 确认(本期唯一有意的交互偏离):Vue2 用阻塞的 `window.confirm`
++  (Vue2 398、630),这里改用仓库的 reka-ui `AlertDialog`。注意 AlertDialog 走
++  `DialogPortal`,渲染在 `.agent-app` 子树之外,`.agent-app` 的 token 不对它生效
++  ——这是既有约定(AgentSidebar 的删除确认已是同样处境),不是本任务引入的新问题。
++-->
++<script setup lang="ts">
++import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import AgentIcon from '../icons/AgentIcon.vue'
++import KindIcon from './KindIcon.vue'
++import ContextUsageBar from '../blocks/ContextUsageBar.vue'
++import MentionPopover from './MentionPopover.vue'
++import SlashMenu from './SlashMenu.vue'
++import AlertDialog from '../../../components/ui/AlertDialog.vue'
++import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
++import { useToast } from '../../../stores/toast'
++import { getExt, basename, dirname, scanMention, buildDrillText, buildPopText, stripMentionToken } from '../../util/composerText'
++import { ACCEPT_TYPES, MAX_ATTACHMENT_BYTES, TEXT_EXTS, docErrorKey, docErrorShortKey } from '../../util/attachmentMeta'
++
++const props = withDefaults(
++  defineProps<{ busy?: boolean; ctxUsage?: { tokens: number; window: number; pct: number } | null }>(),
++  { busy: false, ctxUsage: null },
++)
++
++/** Task 10 Interfaces 段:submit() 的 attachmentRefs 单项形状(逐字取自 brief)。 */
++interface AttachmentRef {
++  id: string
++  filename: string
++  kind?: string
++  mime?: string
++  url: string
++}
++
++// 三个 emit 名与 payload 形状是 Task 12 接线契约,不可改
++// (p1c1-task-9-brief.md Interfaces 段)。`send-init` 本任务无调用方
++// (SlashMenu/onInit 是 Task 11 的事),这里先声明接口占位。
++const emit = defineEmits<{
++  send: [payload: { text: string; attachmentIds: string[]; attachmentRefs: AttachmentRef[] }]
++  stop: []
++  'send-init': [target: string]
++}>()
++
++const { t } = useI18n()
++const store = useProvidedAgentStore()
++const toast = useToast()
++
++/**
++ * Task 10 Interfaces 段:本地 pending 附件列表项形状(仅组件内部,不外泄)。
++ * Vue2 220-225 `attachments` data 的逐字对齐:
++ *   docError: kind=document 时 backend 的 extract_error 码;成功时 undefined。
++ *   docMeta:  document 成功抽取时的 { extractor, pages, truncated }。
++ */
++interface PendingAttachment {
++  tmpId: string
++  file: File
++  status: 'uploading' | 'uploaded' | 'failed'
++  progress: number
++  aid?: string
++  kind?: string
++  mime?: string
++  error?: string
++  docError?: string
++  docMeta?: { extractor?: string; pages?: number; truncated?: boolean }
++}
++
++const text = ref('')
++const composerEl = ref<HTMLElement | null>(null)
++const ta = ref<HTMLTextAreaElement | null>(null)
++const attachFileInput = ref<HTMLInputElement | null>(null)
++// Vue2 295-299 anchorRect: 供 MentionPopover 定位,面板本身留 Task 11,这里先把
++// 计算+resize 联动的骨架搭好,不留半截状态。
++const anchorRect = ref<DOMRect | null>(null)
++// Vue2 219-225 attachments data —— 本地 pending 附件列表(浏览器已选、正在/已
++// 上传的文件),与 store.attachments(右侧面板的服务端列表)是两回事,互不干扰。
++const attachments = ref<PendingAttachment[]>([])
++
++// Vue2 210-216 mention picker / slash menu data。
++const mentionOpen = ref(false)
++const mentionStart = ref(-1)
++const mentionSegs = ref<string[]>([])
++const mentionQuery = ref('')
++const slashOpen = ref(false)
++// Vue2 缺陷修复 (a)(见文件头注释):onBlur 的 setTimeout 句柄要能在
++// onBeforeUnmount 里清掉,Vue2 从未存储这个句柄。
++const blurTimer = ref<ReturnType<typeof setTimeout> | null>(null)
++
++/**
++ * gitignore 409 确认框的 pending 状态。**没有**按 brief 字面描述合并成单个
++ * `ref<{path,kind}|null>` 并在 `update:open===false` 里清空——那样做会撞上
++ * 本仓库已经踩过、并在 AgentSidebar.vue/SourcesPage.vue 里明确写了注释的 reka
++ * 时序坑:`AlertDialogAction` 点击时,`update:open(false)` 先于我们自己的
++ * `@confirm` 处理器派发,如果 pending 数据被 update:open 的回调清空,
++ * onGitignoreConfirm 读到的就已经是 null。这里照搬那两处的既有写法——open 用
++ * 独立的 bool,pending 数据只在 confirm 处理器里读完之后才清,cancel/Escape
++ * 路径下 pending 短暂过期不刷新也无害(下次 pickItem 命中 409 会整体覆盖)。
++ */
++const gitignoreOpen = ref(false)
++const gitignoreTarget = ref<{ path: string; kind: string } | null>(null)
++
++const placeholder = computed(() => t('aiComposerPlaceholder'))
++const acceptTypes = ACCEPT_TYPES
++
++/**
++ * Vue2 234-244 attachmentHint()。**有意偏离**:Vue2 用 Buefy `<b-tooltip
++ * multilined>` 展示这 7 行提示;本仓库无 Buefy,改用原生 `title` 属性 + `\n`
++ * 拼接七行(见模板里 attach 按钮的 title 绑定)。
++ */
++const attachmentHint = computed(() =>
++  [
++    t('aiAttachHint1'),
++    t('aiAttachHint2'),
++    t('aiAttachHint3'),
++    t('aiAttachHint4'),
++    '· ' + t('aiAttachHint5') + ' ' + TEXT_EXTS.join(' '),
++    t('aiAttachHint6'),
++    t('aiAttachHint7'),
++  ].join('\n'),
++)
++
++/** Vue2 289-294 grow() —— 逐字对齐(min(scrollHeight, 220))。 */
++function grow() {
++  const el = ta.value
++  if (!el) return
++  el.style.height = 'auto'
++  el.style.height = Math.min(el.scrollHeight, 220) + 'px'
++}
++
++/** Vue2 295-299 updateAnchor()。 */
++function updateAnchor() {
++  if (composerEl.value) anchorRect.value = composerEl.value.getBoundingClientRect()
++}
++
++/**
++ * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再斜杠触发(307-310——
++ * **仅当**整串正好是 `'/'` 且斜杠菜单未打开时才触发,不会在任何别的位置的
++ * `/` 上误触发),否则走 `scanMention`(Task 5 composerText.ts,逐字对齐 Vue2
++ * 312-334 的"从光标往回扫,遇到非转义 @ 才算命中、遇到空白直接放弃"规则)。
++ */
++function onInput() {
++  grow()
++  const v = text.value
++  const el = ta.value
++  const caret = el ? (el.selectionStart ?? v.length) : v.length
++
++  // Vue2 307-310: slash command only at the very start of input.
++  if (v.length === 1 && v === '/' && !slashOpen.value) {
++    slashOpen.value = true
++    return
++  }
++
++  const scan = scanMention(v, caret)
++  if (scan.open) {
++    mentionStart.value = scan.start
++    mentionSegs.value = scan.segments
++    mentionQuery.value = scan.query
++    mentionOpen.value = true
++    updateAnchor()
++    return
++  }
++  closeMention()
++}
++
++/**
++ * Vue2 336-342 onKeydown()。**补回** Task 9 去掉的 `if (this.mentionOpen)
++ * return` 守卫(336 行)——那时 mention 面板还没接入,守卫是死代码;本任务把
++ * MentionPopover 接上之后,守卫恢复效力:面板打开时键盘交给面板处理(方向键/
++ * Tab/Enter/Esc/Backspace,见 MentionPopover.vue 的 onKey),composer 自己不再
++ * 抢 Enter 发送。IME 双重守卫逐字保留(`e.isComposing || keyCode === 229`,
++ * 后者是历史上部分浏览器/输入法不设置 isComposing 时的兜底,两个都要留)。
++ */
++function onKeydown(e: KeyboardEvent) {
++  if (mentionOpen.value) return // popover handles keys
++  if (e.key !== 'Enter' || e.shiftKey) return
++  if (e.isComposing || (e as unknown as { keyCode?: number }).keyCode === 229) return
++  e.preventDefault()
++  submit()
++}
++
++/**
++ * Vue2 245-250 canSend()。三段式:无就绪附件也无文本→不可发;否则只要没有
++ * 正在上传中的附件就可发(已就绪的附件允许纯附件、空文本发送)。
++ */
++const canSend = computed(() => {
++  const hasReady = attachments.value.some((a) => a.status === 'uploaded' && a.aid)
++  const hasText = text.value.trim().length > 0
++  if (!hasReady && !hasText) return false
++  return !attachments.value.some((a) => a.status === 'uploading')
++})
++
++/** Vue2 260-272 chips()——用 Task 5 composerText.ts 的 basename/dirname/getExt。 */
++const chips = computed(() =>
++  store.visibleResources.map((r) => {
++    const isFile = r.kind === 'file'
++    return {
++      id: r.id,
++      path: r.path,
++      name: basename(r.path),
++      parent: dirname(r.path),
++      kind: r.kind,
++      ext: isFile ? getExt(r.path) : '',
++    }
++  }),
++)
++
++/** Vue2 654-657 toastError()——removeChip/pickItem/onBrowserPick 三处共用的通用
++ *  错误提示,对应 Vue2 的 `$t('Authorization failed: {msg}')`,本任务用
++ *  `aiAuthFailed` 键接住;removeChip 是本任务唯一接入的调用点,否则移除资源失败
++ *  会被静默吞掉。 */
++function toastError(e: unknown) {
++  const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
++  const msg = err?.response?.data?.detail || err?.message || 'unknown'
++  toast.show(t('aiAuthFailed', { msg }), 5000)
++}
++
++/** Vue2 430-434 removeChip()。 */
++async function removeChip(c: { id?: string | number }) {
++  if (c.id === undefined) return
++  try {
++    await store.removeVisibleResource(c.id)
++  } catch (e) {
++    toastError(e)
++  }
++}
++
++/** Vue2 257-259 visibleFolders() —— SlashMenu 的 `folders` prop 喂料。 */
++const visibleFolders = computed(() => store.visibleResources.filter((r) => r.kind === 'folder'))
++
++/** Vue2 347-352 closeMention()。 */
++function closeMention() {
++  mentionOpen.value = false
++  mentionStart.value = -1
++  mentionSegs.value = []
++  mentionQuery.value = ''
++}
++
++/**
++ * Vue2 343-346 onBlur()。180ms 延迟关闭,好让点击面板内条目的 click 先于
++ * blur 关闭生效。**修 Vue2 缺陷 (a)**(见文件头注释):把 timer 句柄存进
++ * `blurTimer`,onBeforeUnmount 里 clearTimeout——Vue2 从未存这个句柄,组件卸载
++ * 后这个 setTimeout 仍可能触发(此时 this 已经是死组件实例)。
++ */
++function onBlur() {
++  blurTimer.value = setTimeout(() => {
++    closeMention()
++    blurTimer.value = null
++  }, 180)
++}
++
++/** Vue2 355-371 drillIn() —— 钻进一层文件夹/挂载点,把 "<name>/" 写回 @token
++ *  末尾。用 Task 5 composerText.ts 的 buildDrillText 做文本+光标数学。 */
++function drillIn(item: { name: string }) {
++  const el = ta.value
++  const caret = el ? (el.selectionStart ?? text.value.length) : text.value.length
++  const result = buildDrillText(text.value, mentionStart.value, caret, mentionSegs.value, item.name)
++  text.value = result.text
++  mentionSegs.value = result.segments
++  mentionQuery.value = ''
++  nextTick(() => {
++    el?.focus()
++    el?.setSelectionRange(result.caretPos, result.caretPos)
++    grow()
++  })
++}
++
++/** Vue2 374-410 pickItem() —— 拾取叶子节点(文件,或回车选中的文件夹):删掉
++ *  @token、创建可见资源。用 Task 5 composerText.ts 的 stripMentionToken 做
++ *  文本+光标数学。 */
++async function pickItem(item: { kind: string; resolvedPath: string }) {
++  const el = ta.value
++  const caret = el ? (el.selectionStart ?? text.value.length) : text.value.length
++  const result = stripMentionToken(text.value, mentionStart.value, caret)
++  text.value = result.text
++
++  const kind = item.kind === 'file' ? 'file' : 'folder'
++  const path = item.resolvedPath
++  closeMention()
++  nextTick(() => {
++    el?.focus()
++    el?.setSelectionRange(result.caretPos, result.caretPos)
++    grow()
++  })
++
++  try {
++    await store.addVisibleResource(path, kind, false)
++  } catch (e) {
++    const err = e as { response?: { status?: number; data?: { detail?: string } } } | null
++    const status = err?.response?.status
++    const detail = err?.response?.data?.detail
++    if (status === 409 && /gitignore/i.test(detail || '')) {
++      // Approved deviation from Vue2 398/630 (window.confirm) — see file-header
++      // comment and the gitignoreOpen/gitignoreTarget declaration above for why
++      // pending state is kept in two separate refs instead of one that gets
++      // cleared from an `update:open` handler.
++      gitignoreTarget.value = { path, kind }
++      gitignoreOpen.value = true
++    } else {
++      toastError(e)
++    }
++  }
++}
++
++/** Vue2 412-428 popSegment() —— 弹掉最后一段。**Vue2 特意不 focus()**(与
++ *  drillIn/pickItem 不同),这里逐字保留这个不对称。用 Task 5 composerText.ts
++ *  的 buildPopText 做文本+光标数学。 */
++function popSegment() {
++  if (mentionSegs.value.length === 0) return
++  const el = ta.value
++  const caret = el ? (el.selectionStart ?? text.value.length) : text.value.length
++  const result = buildPopText(text.value, mentionStart.value, caret, mentionSegs.value)
++  text.value = result.text
++  mentionSegs.value = result.segments
++  mentionQuery.value = ''
++  nextTick(() => {
++    el?.setSelectionRange(result.caretPos, result.caretPos)
++    grow()
++  })
++}
++
++/** Vue2 613-617 onInit() —— `/init` 确认后清空输入并把目标目录上抛给
++ *  AgentPage(Task 12 接线)。 */
++function onInit(target: string) {
++  slashOpen.value = false
++  text.value = ''
++  emit('send-init', target)
++}
++
++/** gitignore 409 确认框的 `@confirm` 处理器 —— 读完 pending 之后才清空(见
++ *  gitignoreOpen/gitignoreTarget 声明处注释),force=true 重试
++ *  addVisibleResource;失败走通用 toastError(Vue2 401-403 同款兜底)。 */
++function onGitignoreConfirm() {
++  const pending = gitignoreTarget.value
++  gitignoreOpen.value = false
++  gitignoreTarget.value = null
++  if (!pending) return
++  store.addVisibleResource(pending.path, pending.kind, true).catch((e2) => toastError(e2))
++}
++
++/**
++ * Vue2 460-472 docErrorLabel()。Codes 来自 attachmentMeta.ts 的 docErrorKey
++ * (与 backend agent/attachments/extract.py 的 extract_error 码对齐);未知码走
++ * 'aiDocErrGeneric' 通用兜底,携带 code 参数(与 Vue2 `{code}` 插值对齐)。
++ */
++function docErrorLabel(code: string): string {
++  const { key, params } = docErrorKey(code)
++  return t(key, params ?? {})
++}
++
++/** Vue2 474-486 docErrorShort()。 */
++function docErrorShort(code: string): string {
++  return t(docErrorShortKey(code))
++}
++
++/** Vue2 488-494 docOkLabel()。 */
++function docOkLabel(entry: PendingAttachment): string {
++  if (!entry.docMeta) return t('aiDocOkExtracted')
++  const parts = [t('aiDocOkExtracted')]
++  if (entry.docMeta.pages) parts.push(t('aiDocPages', { n: entry.docMeta.pages }))
++  if (entry.docMeta.truncated) parts.push(t('aiDocTruncated'))
++  return parts.join(' · ')
++}
++
++/** Vue2 496-504 chipTitle()。 */
++function chipTitle(entry: PendingAttachment): string {
++  if (entry.docError) {
++    return `${entry.file.name} — ${docErrorLabel(entry.docError)}`
++  }
++  if (entry.kind === 'document' && entry.status === 'uploaded') {
++    return `${entry.file.name} — ${docOkLabel(entry)}`
++  }
++  return entry.file.name
++}
++
++/**
++ * Vue2 506-602 onFilesPicked() —— 逐字移植的上传管线,顺序不可打乱:
++ * 1) 复位 input.value(允许重选同一文件)、空选择直接 return。
++ * 2) 无会话时懒建会话(517-527)——失败给 danger toast 并 return。
++ * 3) 逐文件**串行** for-of(不是 Promise.all):500MB 门 → 生成 tmpId → 用
++ *    `reactive()` 建 entry(见下方 entry 声明处注释,这是 Vue3 端口特有的
++ *    坑,不是 Vue2 没有的东西)→ **先 push entry 再 await 上传**(545,让 chip
++ *    立刻可见)→ onProgress 直接改 entry → 成功写 aid/kind/mime/status →
++ *    document 抽取失败给 7000ms 警告 toast、binary+not_installed+文档扩展名
++ *    同款 toast → 失败写 status/error 并给 danger toast。
++ */
++async function onFilesPicked(e: Event) {
++  const target = e.target as HTMLInputElement
++  const files = Array.from(target.files || [])
++  target.value = '' // 允许之后重选同一文件
++  if (!files.length) return
++
++  // 附件按钮不再受 sessionId 门控——刚打开页面还没有 activeSession,这里懒建
++  // 一个,好让"发消息之前先附件"这个操作能用。必须在 OS 文件选择器返回之后
++  // 才建(不能在 .click() 之前),否则用户手势上下文会丢失。
++  if (!store.activeSessionId) {
++    try {
++      await store.createSession()
++    } catch (err) {
++      const msg = (err as Error)?.message || String(err)
++      toast.show(t('aiAttachSessionFailed', { err: msg }), 5000)
++      return
++    }
++  }
++  if (!store.activeSessionId) return
++  const sid = store.activeSessionId // narrow once: TS re-widens the ref across awaits below
++
++  for (const file of files) {
++    if (file.size > MAX_ATTACHMENT_BYTES) {
++      toast.show(t('aiAttachTooLarge', { name: file.name }), 5000)
++      continue
++    }
++    const tmpId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
++    // reactive(), not a plain object: onProgress/success/failure below mutate
++    // `entry` directly (Vue2 relied on Vue2's auto-reactive `data()` array
++    // items for this — a plain object pushed into a Vue3 ref<T[]> array is
++    // NOT itself the reactive proxy the template reads back out of the array,
++    // so in-place field writes on a plain `entry` would silently not trigger
++    // a re-render. Wrapping with reactive() up front makes `entry` itself the
++    // canonical proxy Vue caches for this object, so writes through this same
++    // reference correctly notify the template.
++    const entry = reactive<PendingAttachment>({ tmpId, file, status: 'uploading', progress: 0 })
++    attachments.value.push(entry)
++    // Fix (review, 2026-07-27): Vue2 (AgentComposer.vue:547) reads `this.sessionId`
++    // — a *computed* — fresh on every loop iteration, so a session switch mid-batch
++    // just silently redirects the remaining uploads into whatever session happens
++    // to be active now. That is wrong, not merely different: the `activeSessionId`
++    // watcher above has already cleared every local chip for this batch (including
++    // the one just pushed above, on the very next reactive flush), so the user has
++    // no way to see or manage an attachment that lands in the new session — it's
++    // an orphaned server-side draft. Per project rule (logic follows correctness,
++    // not 1:1 UI parity), we re-read the session id here and stop the whole batch
++    // the moment it no longer matches the id the batch started with, instead of
++    // continuing to upload into it. Drop the entry we just pushed for this file
++    // (it was never uploaded) before breaking, so no stale "uploading" chip can
++    // flash before the watcher's clear takes effect.
++    if (store.activeSessionId !== sid) {
++      attachments.value = attachments.value.filter((a) => a.tmpId !== tmpId)
++      break
++    }
++    try {
++      const body = (await service.ai.uploadAttachment(sid, file, {
++        onProgress: (p: number) => { entry.progress = p },
++      })) as { id?: string; kind?: string; mime?: string; meta?: Record<string, unknown> }
++      entry.aid = body.id
++      entry.kind = body.kind
++      entry.mime = body.mime
++      entry.status = 'uploaded'
++      // kind=document:extraction 可能在上传时(200)就已失败——上传本身仍然
++      // 成功(模型仍能看到文件名+mime),但用户应该知道模型读不到内容。
++      if (body.kind === 'document' && body.meta) {
++        if (body.meta.extract_error) {
++          entry.docError = body.meta.extract_error as string
++          toast.show(`${file.name}:${docErrorLabel(entry.docError)}`, 7000)
++        } else {
++          entry.docMeta = {
++            extractor: (body.meta.extractor as string) || undefined,
++            pages: (body.meta.pages as number) || undefined,
++            truncated: !!body.meta.truncated,
++          }
++        }
++      }
++      // kind=binary 且 extract_error=not_installed 是基础设施问题(服务端缺
++      // 抽取库);文档扩展名匹配时仍要告知用户这份上传无法用于内容问答。
++      if (
++        body.kind === 'binary'
++        && body.meta && body.meta.extract_error === 'not_installed'
++        && /\.(pdf|docx|xlsx|xlsm|pptx)$/i.test(file.name)
++      ) {
++        toast.show(`${file.name}:${docErrorLabel('not_installed')}`, 7000)
++      }
++    } catch (err) {
++      entry.status = 'failed'
++      const errObj = err as { response?: { data?: { detail?: string } }; message?: string } | null
++      entry.error = errObj?.response?.data?.detail || errObj?.message || 'upload failed'
++      toast.show(`${file.name}: ${entry.error}`, 5000)
++    }
++  }
++}
++
++/** Vue2 604-611 removeAttachment()。已上传的先 best-effort 删服务端(失败也
++ *  照样本地移除,不阻塞用户),再从本地列表过滤掉。 */
++async function removeAttachment(entry: PendingAttachment) {
++  const sid = store.activeSessionId
++  if (entry.status === 'uploaded' && entry.aid && sid) {
++    try {
++      await service.ai.deleteAttachment(sid, entry.aid)
++    } catch {
++      /* best-effort */
++    }
++  }
++  attachments.value = attachments.value.filter((a) => a.tmpId !== entry.tmpId)
++}
++
++/**
++ * Vue2 436-454 submit()。附件半段:只把已上传且带 aid 的项算作就绪
++ * (readyAttachments),据此派生 attachmentIds/attachmentRefs;仍在上传中的
++ * 附件存在时二次拦截(与 canSend 的守卫重复,但 submit 也可能被 Enter 键直接
++ * 调用,不经过 disabled 按钮态,所以这层守卫不可省)。
++ */
++function submit() {
++  const trimmed = text.value.trim()
++  const readyAttachments = attachments.value.filter((a) => a.status === 'uploaded' && a.aid)
++  const attachmentIds = readyAttachments.map((a) => a.aid as string)
++  if (!trimmed && attachmentIds.length === 0) return
++  if (attachments.value.some((a) => a.status === 'uploading')) return
++  const attachmentRefs: AttachmentRef[] = readyAttachments.map((a) => ({
++    id: a.aid as string,
++    filename: a.file.name,
++    kind: a.kind,
++    mime: a.mime,
++    url: service.ai.attachmentRawUrl(store.activeSessionId as string, a.aid as string),
++  }))
++  emit('send', { text: trimmed, attachmentIds, attachmentRefs })
++  text.value = ''
++  attachments.value = []
++  nextTick(grow)
++}
++
++/**
++ * Vue2 643-650 openFilePicker()。**必须**挂在 `@mousedown.prevent`(模板里),
++ * 不是 `@click`:mousedown 比 click 提前触发(用户还没松开按钮,OS 对话框已经
++ * 开始打开),`preventDefault` 让 textarea 保持 focus,省掉一趟
++ * blur→mention-面板关闭的往返(Vue2 644-647 注释逐字对齐)。
++ */
++function openFilePicker() {
++  attachFileInput.value?.click()
++}
++
++/** Vue2 651-653 notSupported()(语音键)。Vue2 用 'is-warning' 类型,不是错误,
++ *  用默认 toast 时长。 */
++function notSupported() {
++  toast.show(t('aiNotSupportedYet'))
++}
++
++/**
++ * **本期有意偏离 Vue2**:Vue2 点击 Browse 直接打开 `<BrowserModal>`
++ * (浏览 NAS 弹窗)。该弹窗本阶段不做(用户决定,见 Task 9 brief「Browse 按钮」
++ * 一节),这里改为 toast 占位提示,不设 browserOpen 状态、不渲染
++ * `data-active`(Vue2 59 行的 `:data-active="browserOpen"` 因此一并去掉)。
++ */
++function onBrowseClick() {
++  toast.show(t('aiBrowseComingSoon'))
++}
++
++/**
++ * Vue2 275-281 `activeSessionId` watcher。关闭 mention 面板(`closeMention()`)
++ * + 清空待发附件列表。服务端附件仍归属旧会话,这里只是丢弃本地 chip 引用,
++ * 不发任何请求。
++ */
++watch(
++  () => store.activeSessionId,
++  () => {
++    closeMention()
++    attachments.value = []
++  },
++)
++
++onMounted(() => window.addEventListener('resize', updateAnchor))
++onBeforeUnmount(() => {
++  window.removeEventListener('resize', updateAnchor)
++  // Vue2 缺陷修复 (a) — 见文件头注释:Vue2 从不清理 onBlur 的 setTimeout 句柄。
++  if (blurTimer.value !== null) clearTimeout(blurTimer.value)
++})
++</script>
++
++<template>
++  <div class="composer-wrap">
++    <div class="composer" ref="composerEl">
++      <div v-if="chips.length > 0 || attachments.length > 0" class="composer-chips">
++        <div v-for="c in chips" :key="c.id" class="ctx-chip" :title="c.path">
++          <KindIcon :kind="c.kind === 'file' ? 'file' : 'folder'" :ext="c.ext" :size="12" />
++          <span class="ctx-chip-name">{{ c.name }}</span>
++          <span class="ctx-chip-path">{{ c.parent || '/' }}</span>
++          <button class="ctx-chip-x" @click="removeChip(c)">
++            <AgentIcon name="x" :size="10" />
++          </button>
++        </div>
++        <div
++          v-for="a in attachments"
++          :key="a.tmpId"
++          class="ctx-chip ctx-chip-att"
++          :class="{
++            'is-uploading': a.status === 'uploading',
++            'is-failed': a.status === 'failed',
++            'is-doc-warn': a.docError,
++          }"
++          :title="chipTitle(a)"
++        >
++          <KindIcon
++            :kind="a.kind === 'image' ? 'image' : 'file'"
++            :ext="getExt(a.file.name)"
++            :size="12"
++          />
++          <span class="ctx-chip-name">{{ a.file.name }}</span>
++          <span v-if="a.status === 'uploading'" class="ctx-chip-prog">{{ a.progress }}%</span>
++          <span v-else-if="a.status === 'failed'" class="ctx-chip-err">!</span>
++          <span
++            v-else-if="a.docError"
++            class="ctx-chip-doc-warn"
++          >⚠ {{ docErrorShort(a.docError) }}</span>
++          <button class="ctx-chip-x" @click="removeAttachment(a)">
++            <AgentIcon name="x" :size="10" />
++          </button>
++        </div>
++      </div>
++
++      <textarea
++        ref="ta"
++        class="composer-textarea"
++        :placeholder="placeholder"
++        rows="1"
++        v-model="text"
++        @input="onInput"
++        @keydown="onKeydown"
++        @blur="onBlur"
++      />
++
++      <div class="composer-row">
++        <button
++          class="composer-tool"
++          :title="t('aiComposerBrowseTitle')"
++          @click="onBrowseClick"
++        >
++          <AgentIcon name="folder" :size="14" /> {{ t('aiComposerBrowse') }}
++        </button>
++        <!-- Vue2 663-673: a display:none input does not fire a synthetic
++             .click() in some browsers, hence position+opacity instead of
++             hidden/display:none (kept in .attach-file-input below). -->
++        <input
++          type="file"
++          ref="attachFileInput"
++          :accept="acceptTypes"
++          multiple
++          class="attach-file-input"
++          @change="onFilesPicked"
++        />
++        <!-- Vue2 73-86 wraps this button in a Buefy <b-tooltip multilined> to
++             show attachmentHint; this repo has no Buefy equivalent, so the
++             same 7-line hint is joined with \n into the native `title`
++             attribute instead (approved deviation, see Task 10 brief). -->
++        <button
++          class="composer-tool"
++          :title="attachmentHint"
++          @mousedown.prevent="openFilePicker"
++        >
++          <AgentIcon name="paperclip" :size="14" />
++        </button>
++        <button class="composer-tool" :title="t('aiComposerVoice')" @click="notSupported">
++          <AgentIcon name="mic" :size="14" />
++        </button>
++        <div class="composer-spacer" />
++        <ContextUsageBar
++          v-if="ctxUsage"
++          :tokens="ctxUsage.tokens"
++          :window="ctxUsage.window"
++          :pct="ctxUsage.pct"
++          class="composer-ctx-usage"
++        />
++        <button
++          v-if="props.busy"
++          class="send-btn busy"
++          @click="emit('stop')"
++        >
++          <AgentIcon name="stop" :size="12" />
++        </button>
++        <button
++          v-else
++          class="send-btn"
++          :disabled="!canSend"
++          @click="submit"
++        >
++          <AgentIcon name="send" :size="14" />
++        </button>
++      </div>
++
++      <MentionPopover
++        :open="mentionOpen"
++        :query="mentionQuery"
++        :segments="mentionSegs"
++        :anchor-rect="anchorRect"
++        @drill-in="drillIn"
++        @pick="pickItem"
++        @pop-segment="popSegment"
++        @close="closeMention"
++      />
++    </div>
++
++    <div class="composer-caption">
++      {{ t('aiComposerCaption') }}
++    </div>
++
++    <SlashMenu
++      v-if="slashOpen"
++      :folders="visibleFolders"
++      @init="onInit"
++      @close="slashOpen = false"
++    />
++
++    <AlertDialog
++      v-model:open="gitignoreOpen"
++      :title="t('aiGitignoreBlockedTitle')"
++      :message="t('aiGitignoreBlockedMsg', { path: gitignoreTarget?.path ?? '' })"
++      :confirm-text="t('aiAllow')"
++      :cancel-text="t('aiCancel')"
++      @confirm="onGitignoreConfirm"
++    />
++  </div>
++</template>
++
++<style scoped>
++/* agent-styles.scss:353-406 已经全局定了 .composer-wrap/.composer/
++   .composer-textarea/.composer-row/.composer-tool/.send-btn 的布局(sticky 定位、
++   pointer-events 开关、圆角/边框/阴影、focus-within 高亮、悬停态等)——这里只
++   补它没有的部分,不重复布局规则。 */
++
++.attach-file-input {
++  /* Keep the input in the render tree so $refs.attachFileInput.click()
++     always lands on a live element. `hidden` attribute also works but some
++     browsers won't dispatch synthetic click events on display:none inputs.
++     (Vue2 663-673, verbatim.) */
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  opacity: 0;
++  pointer-events: none;
++  overflow: hidden;
++}
++
++.composer-chips {
++  display: flex; gap: 6px; flex-wrap: wrap;
++  margin-bottom: 8px;
++}
++.ctx-chip {
++  display: inline-flex; align-items: center; gap: 6px;
++  padding: 4px 4px 4px 7px;
++  background: var(--bg-chip);
++  border: 1px solid var(--line);
++  border-radius: var(--r-pill);
++  font-size: 12px;
++  color: var(--text-primary);
++  max-width: 280px;
++}
++.ctx-chip-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.ctx-chip-path {
++  font-family: var(--font-mono); font-size: 10.5px;
++  color: var(--text-tertiary);
++  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
++  max-width: 140px;
++}
++.ctx-chip-x {
++  width: 18px; height: 18px;
++  display: grid; place-items: center;
++  border-radius: 50%;
++  color: var(--text-tertiary);
++  background: transparent; border: none; cursor: pointer;
++  transition: all 120ms ease;
++}
++.ctx-chip-x:hover { background: var(--bg-elevated); color: var(--text-primary); }
++
++/* Vue2 722-747 attachment chip states — colors ported to theme tokens
++   (--danger/--warning/--warning-soft, defined in src/ai/styles/tokens.scss).
++   Vue2's raw hex/rgba literal fallbacks on these declarations are dropped;
++   the tokens above always have a value in both theme blocks. */
++.ctx-chip-att.is-uploading {
++  opacity: 0.7;
++}
++.ctx-chip-att.is-failed {
++  border-color: var(--danger);
++}
++.ctx-chip-prog {
++  font-size: 11px; color: var(--text-tertiary); margin-left: 4px;
++}
++.ctx-chip-err {
++  font-size: 11px; color: var(--danger); margin-left: 4px;
++}
++.ctx-chip-att.is-doc-warn {
++  border-color: var(--warning);
++  max-width: 380px;
++}
++.ctx-chip-doc-warn {
++  display: inline-flex; align-items: center; gap: 3px;
++  font-size: 11px; font-weight: 500;
++  color: var(--warning);
++  background: var(--warning-soft);
++  border-radius: 4px;
++  padding: 1px 6px;
++  margin-left: 4px;
++  white-space: nowrap;
++}
++
++.composer-textarea::placeholder { color: var(--text-tertiary); }
++
++.composer-spacer { flex: 1; }
++
++.send-btn.busy {
++  background: var(--bg-chip);
++  color: var(--text-primary);
++  box-shadow: none;
++}
++
++.composer-caption {
++  text-align: center; margin-top: 8px;
++  font-size: 11px; color: var(--text-quaternary);
++}
++
++.composer-ctx-usage {
++  margin-right: 8px;
++  flex-shrink: 0;
++}
++</style>
+diff --git a/src/ai/components/shell/MentionPopover.test.ts b/src/ai/components/shell/MentionPopover.test.ts
+new file mode 100644
+index 0000000..d67e27f
+--- /dev/null
++++ b/src/ai/components/shell/MentionPopover.test.ts
+@@ -0,0 +1,149 @@
++// 1:1 移植测试见 .superpowers/sdd/p1c1-task-7-brief.md Step 1(逐字照抄,未改动断言)。
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../i18n/zh_cn'
++
++const svc = vi.hoisted(() => ({ listMounts: vi.fn(), listFsEntries: vi.fn() }))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++import MentionPopover from './MentionPopover.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const g = { plugins: [i18n] }
++
++describe('MentionPopover', () => {
++  beforeEach(() => {
++    svc.listMounts.mockReset(); svc.listFsEntries.mockReset()
++    svc.listMounts.mockResolvedValue([{ label: 'Drive1', path: '/DATA', capacity: 100, used: 20 }])
++    svc.listFsEntries.mockResolvedValue([
++      { path: '/DATA/docs', kind: 'dir', name: 'docs' },
++      { path: '/DATA/a.txt', kind: 'file', name: 'a.txt', size: 12 },
++    ])
++  })
++
++  it('open 时拉 mounts 并渲染条目', async () => {
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g })
++    await flushPromises()
++    expect(svc.listMounts).toHaveBeenCalled()
++    expect(w.findAll('.mention-item')).toHaveLength(1)
++    expect(w.text()).toContain('Drive1')
++  })
++
++  it('有 segments 时拉该目录条目', async () => {
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: ['Drive1'] }, global: g })
++    await flushPromises()
++    expect(svc.listFsEntries).toHaveBeenCalledWith('/DATA', false)
++    expect(w.findAll('.mention-item')).toHaveLength(2)
++  })
++
++  it('query 过滤:startsWith 优先于 includes', async () => {
++    svc.listFsEntries.mockResolvedValue([
++      { path: '/DATA/mydoc', kind: 'dir', name: 'mydoc' },
++      { path: '/DATA/doc', kind: 'dir', name: 'doc' },
++    ])
++    const w = mount(MentionPopover, { props: { open: true, query: 'doc', segments: ['Drive1'] }, global: g })
++    await flushPromises()
++    const names = w.findAll('.mention-name').map((n) => n.text())
++    expect(names[0]).toContain('doc')
++    expect(names).toHaveLength(2)
++  })
++
++  it('点击文件 emit pick;点击目录 emit drill-in', async () => {
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: ['Drive1'] }, global: g })
++    await flushPromises()
++    const items = w.findAll('.mention-item')
++    await items[1].trigger('click')            // a.txt
++    expect(w.emitted('pick')).toBeTruthy()
++    await items[0].trigger('click')            // docs
++    expect(w.emitted('drill-in')).toBeTruthy()
++  })
++
++  it('键盘:↓ 移高亮、Escape emit close、无 query 时 Backspace emit pop-segment', async () => {
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: ['Drive1'] }, global: g, attachTo: document.body })
++    await flushPromises()
++    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
++    await w.vm.$nextTick()
++    expect(w.findAll('.mention-item')[1].attributes('data-active')).toBe('true')
++    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
++    expect(w.emitted('close')).toBeTruthy()
++    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }))
++    expect(w.emitted('pop-segment')).toBeTruthy()
++    w.unmount()
++  })
++
++  it('卸载后不再响应 window keydown(监听已摘)', async () => {
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
++    await flushPromises()
++    w.unmount()
++    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
++    expect(w.emitted('close')).toBeFalsy()
++  })
++
++  it('抓取失败时不抛未处理 rejection,退空列表', async () => {
++    svc.listMounts.mockRejectedValue(new Error('net'))
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g })
++    await flushPromises()
++    expect(w.findAll('.mention-item')).toHaveLength(0)
++  })
++
++  // Review fix 1 — capture-phase keydown listener must attach synchronously,
++  // before the mounts fetch resolves (see MentionPopover.vue header comment).
++  it('open 时同步挂载 keydown 监听——mounts 请求未完成时按键也生效', async () => {
++    let resolveMounts: (v: unknown[]) => void = () => {}
++    svc.listMounts.mockReturnValue(new Promise((resolve) => { resolveMounts = resolve }))
++    const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
++    // Deliberately do NOT flush/await before dispatching — listMounts is still pending.
++    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
++    expect(w.emitted('close')).toBeTruthy()
++    resolveMounts([])
++    await flushPromises()
++    w.unmount()
++  })
++
++  // Review fix 1 — unmounting while the first mounts fetch is still in flight
++  // must not leave a dangling capture-phase window listener. Note: this suite
++  // never calls w.unmount() in most earlier tests, so jsdom's shared `window`
++  // can carry stale keydown listeners from sibling tests by the time this one
++  // runs — a live dispatchEvent()/emitted() check would be polluted by that
++  // and can't tell "our listener leaked" from "some earlier test's listener
++  // fired". Instead, track add/remove calls made *during this test* by fn
++  // reference and simulate the resulting attached/detached state directly —
++  // immune to what other tests left on `window`.
++  it('打开后 mounts 请求未完成即卸载——不遗留监听(add/remove 不成对,监听永久挂着)', async () => {
++    const originalAdd = window.addEventListener.bind(window)
++    const originalRemove = window.removeEventListener.bind(window)
++    const attached = new Map<EventListenerOrEventListenerObject, boolean>()
++    const addSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type: any, fn: any, opts?: any) => {
++      if (type === 'keydown' && opts === true) attached.set(fn, true)
++      return originalAdd(type, fn, opts)
++    })
++    const removeSpy = vi.spyOn(window, 'removeEventListener').mockImplementation((type: any, fn: any, opts?: any) => {
++      if (type === 'keydown' && opts === true) attached.set(fn, false)
++      return originalRemove(type, fn, opts)
++    })
++    try {
++      let resolveMounts: (v: unknown[]) => void = () => {}
++      svc.listMounts.mockReturnValue(new Promise((resolve) => { resolveMounts = resolve }))
++      const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
++      w.unmount()
++      resolveMounts([])
++      await flushPromises()
++      const stillAttached = [...attached.values()].some((v) => v)
++      expect(stillAttached).toBe(false)
++    } finally {
++      addSpy.mockRestore()
++      removeSpy.mockRestore()
++    }
++  })
++
++  // Review fix 2 — empty-state "no matches" text must bold the quoted query
++  // (Vue2 MentionPopover.vue:38 wraps it in <b>), even though it's now i18n'd.
++  it('无匹配空态:引号内的 query 用 <b> 加粗渲染', async () => {
++    svc.listFsEntries.mockResolvedValue([])
++    const w = mount(MentionPopover, { props: { open: true, query: 'zzz', segments: ['Drive1'] }, global: g })
++    await flushPromises()
++    const b = w.find('.mention-empty b')
++    expect(b.exists()).toBe(true)
++    expect(b.text()).toContain('zzz')
++  })
++})
+diff --git a/src/ai/components/shell/MentionPopover.vue b/src/ai/components/shell/MentionPopover.vue
+new file mode 100644
+index 0000000..bb486d2
+--- /dev/null
++++ b/src/ai/components/shell/MentionPopover.vue
+@@ -0,0 +1,477 @@
++<!--
++  1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue(409 行)。
++  纯展示/交互组件:props 驱动 open/query/segments/anchorRect,emit
++  drill-in/pick/pop-segment/close——由后续任务(composer)负责检测输入里的
++  "@" 并喂 query/segments、处理 pick。本任务不接线。
++
++  机械转换清单(对应 .superpowers/sdd/p1c1-task-7-brief.md Step 3):
++  1. $set(loadingPaths,...)/$set(entriesByPath,...)(Vue2:215-234)→ ref<Record<...>>
++     直接赋值——Vue3 Proxy 响应式对新 key 赋值天然可追踪,无需 $set。
++  2. beforeDestroy(Vue2:195-197)→ onBeforeUnmount,摘掉 window.keydown 捕获监听;
++     open watcher 里 add/remove 的配对逻辑保留(Vue2:172-181),见下方 watch(open)。
++  3. v-for + v-else 同元素(Vue2:44-46)→ 外层 <template v-else> 包住 v-for。
++  4. <template v-for> 的 key 移到 <template> 上(Vue2:15-18)——Vue2 原写法把
++     chev 图标和 crumb span 分别用 `c${i}`/`s${i}` 两把 key,但 Vue3 的
++     <template v-for> 只能在 <template> 本身挂一把 key,故合并为单一 key。
++  5. >>> 深选择器(Vue2:370)→ :deep(mark)。
++  6. hi watcher 里 $nextTick + querySelector(...).scrollIntoView(...)(Vue2:187-193)
++     → nextTick + ref 取 DOM;jsdom 里 scrollIntoView 可能不存在,调用前 `?.` 守卫
++     (允许的防御性偏离,brief 明确认可)。
++  7. 补 Vue2 缺的 catch——见 loadMounts/loadCurrent 内注释。
++  8. popStyle(Vue2:161-169)照抄。
++  9. 键盘 onKey(Vue2:235-268)逐案照抄。
++  10. 样式:position:fixed + pointer-events:auto 保留(祖先 .composer-wrap 是
++      pointer-events:none);--hairline-ring 新 token 替换裸 rgba 发丝环;
++      [data-theme=dark] 覆盖背景整条删除,统一走 --glass-strong。
++
++  另一处偏离(非 Vue2 缺陷,是本仓库的正确性修复,见下方 watch(open) 内注释):
++  Vue2 的 open watcher 里 loadMounts()/loadCurrent() 是"发了就不等"地并发调用——
++  若 segments 在组件"第一次以 open=true 创建"时就已非空(mounts 此时还是空数组),
++  currentAbsolute 算出来是 '',loadCurrent 会直接空跑且此后再无人重试,导致这类
++  "带初始 segments 打开"的场景永远拉不到条目。这里在需要先加载 mounts 时
++  await 一下再决定是否 loadCurrent,修掉这个时序坑。
++
++  Review fix(2026-07-27):上面这个 await 本身又引入了新问题——window.addEventListener
++  必须在 open 变 true 的同一个 tick、await 之前同步挂上,否则(a)mounts 请求未返回期间
++  按键无效,(b)组件在该 await 挂起期间卸载时,onBeforeUnmount 先跑(摘不掉还没挂上的
++  监听),await 恢复后再挂,监听从此再无人摘,永久挂着一个 capture-phase 的 window
++  监听。修法见下方 watch(open):挂监听这行必须保持在任何 await 之前同步执行,
++  mounts/loadCurrent 的加载移进一个内层 async IIFE,不阻塞挂监听、也不让挂监听这行
++  出现在任何 await 之后。
++-->
++<script setup lang="ts">
++import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
++import AgentIcon from '../icons/AgentIcon.vue'
++import KindIcon from './KindIcon.vue'
++import { driveColor, formatBytes, formatTime, highlightMatch, getExt } from '../../util/mentionFormat'
++
++export interface MentionItem {
++  name: string
++  resolvedPath: string
++  kind: 'drive' | 'folder' | 'file'
++  ext?: string
++  size?: number
++  modified?: number | string
++  ignored?: boolean
++  color?: string
++  capacity?: number
++  used?: number
++}
++
++const props = withDefaults(
++  defineProps<{
++    open?: boolean
++    query?: string
++    segments?: string[]
++    anchorRect?: DOMRect | null
++  }>(),
++  {
++    open: false,
++    query: '',
++    segments: () => [],
++    anchorRect: null,
++  },
++)
++
++const emit = defineEmits<{
++  (e: 'drill-in', item: MentionItem): void
++  (e: 'pick', item: MentionItem): void
++  (e: 'pop-segment'): void
++  (e: 'close'): void
++}>()
++
++const { t } = useI18n()
++
++const hi = ref(0)
++const mounts = ref<MentionItem[]>([])
++const loadingMounts = ref(false)
++const entriesByPath = ref<Record<string, MentionItem[]>>({})
++const loadingPaths = ref<Record<string, boolean>>({})
++const listEl = ref<HTMLElement | null>(null)
++
++const currentAbsolute = computed(() => {
++  // Resolve segments to an absolute filesystem path using mounts.
++  if (props.segments.length === 0) return ''
++  const mount = mounts.value.find((m) => m.name === props.segments[0])
++  if (!mount) return ''
++  const tail = props.segments.slice(1).join('/')
++  return tail ? `${mount.resolvedPath}/${tail}` : mount.resolvedPath
++})
++
++const children = computed(() => {
++  if (props.segments.length === 0) return mounts.value
++  return entriesByPath.value[currentAbsolute.value] || []
++})
++
++const loading = computed(() => {
++  if (props.segments.length === 0) return loadingMounts.value && mounts.value.length === 0
++  const abs = currentAbsolute.value
++  return !!loadingPaths.value[abs] && !entriesByPath.value[abs]
++})
++
++const filtered = computed(() => {
++  if (!props.query) return children.value
++  const q = props.query.toLowerCase()
++  return children.value
++    .map((c) => ({
++      c,
++      score: c.name.toLowerCase().startsWith(q) ? 2 : c.name.toLowerCase().includes(q) ? 1 : 0,
++    }))
++    .filter((x) => x.score > 0)
++    .sort((a, b) => b.score - a.score)
++    .map((x) => x.c)
++})
++
++const popStyle = computed(() => {
++  const r = props.anchorRect
++  if (!r) return { left: '24px', bottom: '120px', width: '460px' }
++  return {
++    left: `${r.left}px`,
++    bottom: `${window.innerHeight - r.top + 8}px`,
++    width: `${Math.min(r.width, 520)}px`,
++  }
++})
++
++async function loadMounts() {
++  loadingMounts.value = true
++  try {
++    const r = (await service.ai.listMounts()) as any[] | null | undefined
++    mounts.value = (r || []).map((m: any) => ({
++      name: m.label || m.path,
++      resolvedPath: m.path,
++      kind: 'drive' as const,
++      color: driveColor(m.label || m.path),
++      capacity: m.total,
++      used: m.used,
++    }))
++  } catch {
++    // Fix for Vue2 MentionPopover.vue:199-213 — try/finally with no catch there
++    // means a rejected listMounts() promise is an unhandled rejection. Leaving
++    // mounts empty is safe: loadMounts only runs while mounts.length === 0, so
++    // the next `open` retries automatically.
++  } finally {
++    loadingMounts.value = false
++  }
++}
++
++async function loadCurrent() {
++  const abs = currentAbsolute.value
++  if (!abs || entriesByPath.value[abs] || loadingPaths.value[abs]) return
++  loadingPaths.value[abs] = true
++  try {
++    const r = (await service.ai.listFsEntries(abs, false)) as any[] | null | undefined
++    entriesByPath.value[abs] = (r || []).map((e: any) => ({
++      name: e.name,
++      resolvedPath: e.path,
++      kind: e.kind === 'dir' ? ('folder' as const) : ('file' as const),
++      ext: e.kind === 'file' ? getExt(e.name) : '',
++      size: e.size,
++      modified: e.modified,
++      ignored: !!e.ignored,
++    }))
++  } catch {
++    // Fix for Vue2 MentionPopover.vue:215-234 — same missing-catch defect as
++    // loadMounts above. Leave entriesByPath[abs] unset so the next open (or
++    // re-drill into this same path) retries the fetch.
++  } finally {
++    loadingPaths.value[abs] = false
++  }
++}
++
++function onKey(e: KeyboardEvent) {
++  if (!props.open) return
++  const list = filtered.value
++  if (e.key === 'ArrowDown') {
++    e.preventDefault()
++    hi.value = Math.min(hi.value + 1, list.length - 1)
++  } else if (e.key === 'ArrowUp') {
++    e.preventDefault()
++    hi.value = Math.max(hi.value - 1, 0)
++  } else if (e.key === 'Tab') {
++    const item = list[hi.value]
++    if (!item) return
++    e.preventDefault()
++    if (item.kind !== 'file') emit('drill-in', item)
++    else emit('pick', item)
++  } else if (e.key === 'Enter' || e.key === ' ') {
++    const item = list[hi.value]
++    if (!item) return
++    e.preventDefault()
++    emit('pick', item)
++  } else if (e.key === '/') {
++    const item = list[hi.value]
++    if (item && item.kind !== 'file') {
++      e.preventDefault()
++      emit('drill-in', item)
++    }
++  } else if (e.key === 'Escape') {
++    e.preventDefault()
++    emit('close')
++  } else if (e.key === 'Backspace' && !props.query && props.segments.length > 0) {
++    e.preventDefault()
++    emit('pop-segment')
++  }
++}
++
++function onClickItem(item: MentionItem) {
++  if (item.kind === 'file') emit('pick', item)
++  else emit('drill-in', item)
++}
++
++function highlight(name: string): string {
++  return highlightMatch(name, props.query)
++}
++
++function formatSize(n: number): string {
++  return formatBytes(n)
++}
++
++watch(
++  () => props.open,
++  (v) => {
++    if (v) {
++      hi.value = 0
++      // Attach the capture-phase listener synchronously, in the same tick
++      // `open` becomes true — before any await. This matters for two reasons:
++      // (1) keys pressed while the mounts fetch is still in flight must work
++      // (Vue2 attached synchronously too, since its fetches were fire-and-forget);
++      // (2) it guarantees nothing ever attaches a listener *after* this watcher
++      // callback has already returned — so if the component unmounts while the
++      // mounts fetch is still pending, onBeforeUnmount's removeEventListener is
++      // always the last word and no listener is left dangling with no cleanup
++      // path (review fix — real trigger: open the popover, then close/navigate
++      // away before the network round-trip finishes).
++      window.addEventListener('keydown', onKey, true)
++      // See file-header note: await the mounts fetch first when it's needed,
++      // so currentAbsolute (which depends on `mounts`) is resolvable before
++      // loadCurrent runs — fixes a Vue2 ordering bug (see header comment).
++      // Run this in an inner async IIFE (rather than making the watcher
++      // callback itself async) so the listener attach above always happens
++      // synchronously and this awaited work never gates it.
++      ;(async () => {
++        if (mounts.value.length === 0) await loadMounts()
++        if (props.segments.length > 0) loadCurrent()
++      })()
++    } else {
++      window.removeEventListener('keydown', onKey, true)
++    }
++  },
++  { immediate: true },
++)
++
++watch(
++  () => props.segments,
++  () => {
++    hi.value = 0
++    if (props.open && props.segments.length > 0) loadCurrent()
++  },
++)
++
++watch(
++  () => props.query,
++  () => { hi.value = 0 },
++)
++
++watch(hi, () => {
++  nextTick(() => {
++    const el = listEl.value?.querySelector(`[data-i="${hi.value}"]`) as HTMLElement | null
++    // jsdom doesn't implement scrollIntoView — guard with `?.` (allowed
++    // defensive deviation from Vue2 MentionPopover.vue:187-193).
++    el?.scrollIntoView?.({ block: 'nearest' })
++  })
++})
++
++onBeforeUnmount(() => {
++  window.removeEventListener('keydown', onKey, true)
++})
++</script>
++
++<template>
++  <div
++    v-if="open"
++    class="mention-pop"
++    :style="popStyle"
++    @mousedown.prevent
++  >
++    <!-- Crumbs -->
++    <div class="mention-crumbs">
++      <span class="mention-at">@</span>
++      <template v-if="segments.length === 0">
++        <span class="mention-crumb" data-root="true">{{ t('aiMentionAllDrives') }}</span>
++      </template>
++      <template v-else>
++        <template v-for="(s, i) in segments" :key="i">
++          <AgentIcon v-if="i > 0" name="chev" :size="11" color="var(--text-quaternary)" />
++          <span class="mention-crumb">{{ s }}</span>
++        </template>
++      </template>
++      <template v-if="query">
++        <AgentIcon name="chev" :size="11" color="var(--text-quaternary)" />
++        <span class="mention-crumb" data-typing>{{ query }}<span class="mention-caret" /></span>
++      </template>
++      <div class="mention-spacer" />
++      <span class="mention-count">
++        {{ filtered.length }} {{ segments.length === 0 ? t('aiMentionDrives') : t('aiMentionItems') }}
++      </span>
++    </div>
++
++    <!-- List -->
++    <div class="mention-list scroll" ref="listEl">
++      <div v-if="loading" class="mention-empty">
++        <AgentIcon name="refresh" :size="18" color="var(--text-quaternary)" />
++        <span>{{ t('aiMentionLoading') }}</span>
++      </div>
++      <div v-else-if="filtered.length === 0" class="mention-empty">
++        <AgentIcon name="search" :size="18" color="var(--text-quaternary)" />
++        <i18n-t v-if="query" keypath="aiMentionNoMatchTpl" tag="span">
++          <template #query><b>"{{ query }}"</b></template>
++        </i18n-t>
++        <span v-else>{{ t('aiMentionEmptyHere') }}</span>
++        <span class="mention-empty-hint">
++          {{ t('aiMentionTryDifferentName') }} <span class="mention-kbd">⌫</span> {{ t('aiMentionUpHint') }}
++        </span>
++      </div>
++      <template v-else>
++        <div
++          v-for="(item, i) in filtered"
++          :key="item.resolvedPath"
++          class="mention-item"
++          :data-i="i"
++          :data-active="i === hi"
++          :data-ignored="item.ignored ? 'true' : null"
++          @mouseenter="hi = i"
++          @mousedown.prevent
++          @click="onClickItem(item)"
++        >
++          <KindIcon :kind="item.kind" :ext="item.ext" :color="item.color" :size="16" />
++          <div class="mention-name" v-html="highlight(item.name)" />
++          <div class="mention-meta">
++            <span v-if="item.kind === 'drive' && item.used && item.capacity">{{ formatSize(item.used) }} / {{ formatSize(item.capacity) }}</span>
++            <span v-else-if="item.kind === 'folder'">{{ t('aiMentionFolder') }}</span>
++            <span v-else-if="item.kind === 'file' && item.size != null">{{ formatSize(item.size) }}</span>
++            <span v-if="item.modified" class="mention-mod">· {{ formatTime(item.modified) }}</span>
++            <span v-if="item.ignored" class="mention-ignored">{{ t('aiMentionIgnored') }}</span>
++          </div>
++          <div v-if="item.kind !== 'file'" class="mention-drill">
++            <AgentIcon name="chev" :size="12" color="var(--text-tertiary)" />
++          </div>
++        </div>
++      </template>
++    </div>
++
++    <!-- Footer hints -->
++    <div class="mention-foot">
++      <span><span class="mention-kbd">↑↓</span> {{ t('aiMentionKbdNav') }}</span>
++      <span><span class="mention-kbd">Tab</span> {{ t('aiMentionKbdDrill') }}</span>
++      <span><span class="mention-kbd">Space</span> {{ t('aiMentionKbdSelect') }}</span>
++      <span><span class="mention-kbd">⌫</span> {{ t('aiMentionKbdUp') }}</span>
++      <span><span class="mention-kbd">esc</span> {{ t('aiMentionKbdClose') }}</span>
++    </div>
++  </div>
++</template>
++
++<style scoped>
++.mention-pop {
++  position: fixed; z-index: 1000;
++  pointer-events: auto;
++  background: var(--glass-strong);
++  backdrop-filter: blur(28px) saturate(180%);
++  -webkit-backdrop-filter: blur(28px) saturate(180%);
++  border: 1px solid var(--line);
++  border-radius: var(--r-lg);
++  box-shadow: var(--shadow-lg), 0 0 0 0.5px var(--hairline-ring);
++  overflow: hidden;
++  display: flex; flex-direction: column;
++  max-height: 360px;
++  animation: mention-rise 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
++  transform-origin: bottom left;
++  font-size: 13px;
++}
++@keyframes mention-rise {
++  from { opacity: 0; transform: translateY(6px) scale(0.98); }
++  to { opacity: 1; transform: translateY(0) scale(1); }
++}
++
++.mention-crumbs {
++  display: flex; align-items: center; gap: 6px;
++  padding: 9px 12px;
++  border-bottom: 1px solid var(--line-faint);
++  font-size: 12px;
++  color: var(--text-secondary);
++  flex-wrap: nowrap;
++  overflow: hidden;
++}
++.mention-spacer { flex: 1; }
++.mention-at { font-family: var(--font-mono); font-weight: 700; color: var(--accent); font-size: 13px; margin-right: 1px; }
++.mention-crumb { font-weight: 500; white-space: nowrap; color: var(--text-secondary); }
++.mention-crumb[data-root="true"] { color: var(--text-tertiary); }
++.mention-crumb[data-typing] { color: var(--text-primary); font-weight: 600; position: relative; }
++.mention-caret {
++  display: inline-block; width: 1.5px; height: 12px;
++  background: var(--accent); margin-left: 2px; vertical-align: -2px;
++  animation: blink 1s steps(2) infinite;
++}
++@keyframes blink { 50% { opacity: 0; } }
++.mention-count {
++  font-size: 11px; color: var(--text-quaternary);
++  font-variant-numeric: tabular-nums; flex-shrink: 0;
++}
++
++.mention-list { flex: 1; overflow-y: auto; padding: 4px; min-height: 0; }
++.mention-item {
++  display: flex; align-items: center; gap: 10px;
++  padding: 7px 10px;
++  border-radius: var(--r-sm);
++  cursor: pointer;
++  transition: background 80ms ease;
++}
++.mention-item[data-active="true"] { background: var(--accent-soft); }
++.mention-item[data-active="true"] .mention-name { color: var(--accent); }
++.mention-item[data-active="true"] .mention-drill { color: var(--accent); opacity: 1; }
++.mention-item[data-ignored="true"] { opacity: 0.55; }
++.mention-name {
++  flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary);
++  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
++}
++.mention-name :deep(mark) {
++  background: transparent; color: var(--accent); font-weight: 700;
++  text-decoration: underline; text-decoration-color: var(--accent-soft);
++  text-underline-offset: 2px;
++}
++.mention-meta {
++  display: flex; gap: 4px; font-size: 11px;
++  color: var(--text-tertiary); font-variant-numeric: tabular-nums; flex-shrink: 0;
++}
++.mention-mod { color: var(--text-quaternary); }
++.mention-ignored { color: var(--warning); margin-left: 4px; }
++.mention-drill { opacity: 0.5; flex-shrink: 0; display: grid; place-items: center; }
++
++.mention-empty {
++  display: flex; flex-direction: column; align-items: center; justify-content: center;
++  padding: 28px 16px; gap: 8px;
++  color: var(--text-tertiary); font-size: 13px;
++}
++.mention-empty-hint { font-size: 11px; color: var(--text-quaternary); }
++
++.mention-foot {
++  display: flex; align-items: center; gap: 12px;
++  padding: 7px 12px;
++  border-top: 1px solid var(--line-faint);
++  background: var(--bg-sunken);
++  font-size: 11px; color: var(--text-tertiary);
++  flex-wrap: wrap;
++}
++.mention-kbd {
++  display: inline-flex; align-items: center; justify-content: center;
++  min-width: 18px; height: 18px; padding: 0 4px;
++  background: var(--bg-elevated);
++  border: 1px solid var(--line);
++  border-radius: 4px;
++  font-family: var(--font-mono);
++  font-size: 10px; font-weight: 600;
++  color: var(--text-secondary); margin-right: 4px;
++  box-shadow: 0 1px 0 var(--line); vertical-align: -2px;
++}
++</style>
+diff --git a/src/ai/components/shell/SlashMenu.test.ts b/src/ai/components/shell/SlashMenu.test.ts
+new file mode 100644
+index 0000000..2a36348
+--- /dev/null
++++ b/src/ai/components/shell/SlashMenu.test.ts
+@@ -0,0 +1,45 @@
++// 1:1 移植测试见 .superpowers/sdd/p1c1-task-8-brief.md Step 1(逐字照抄,未改动断言)。
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../i18n/zh_cn'
++import SlashMenu from './SlashMenu.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const g = { plugins: [i18n] }
++
++describe('SlashMenu', () => {
++  it('点 /init 后展开目录选择;只有一个目录时自动选中', async () => {
++    const w = mount(SlashMenu, { props: { folders: [{ id: 1, path: '/DATA/docs' }] }, global: g })
++    await w.find('.slash-row').trigger('click')
++    expect(w.find('.slash-init').exists()).toBe(true)
++    const confirm = w.findAll('.slash-init-actions button')[1]
++    expect(confirm.attributes('disabled')).toBeUndefined()
++    await confirm.trigger('click')
++    expect(w.emitted('init')).toEqual([['/DATA/docs']])
++  })
++
++  it('无可见目录时给出提示且确认键禁用', async () => {
++    const w = mount(SlashMenu, { props: { folders: [] }, global: g })
++    await w.find('.slash-row').trigger('click')
++    expect(w.find('.slash-status').exists()).toBe(true)
++    expect(w.findAll('.slash-init-actions button')[1].attributes('disabled')).toBeDefined()
++  })
++
++  it('多个目录时需先选一个才可确认', async () => {
++    const w = mount(SlashMenu, { props: { folders: [{ path: '/a' }, { path: '/b' }] }, global: g })
++    await w.find('.slash-row').trigger('click')
++    const confirm = w.findAll('.slash-init-actions button')[1]
++    expect(confirm.attributes('disabled')).toBeDefined()
++    await w.findAll('input[type="radio"]')[1].setValue()
++    expect(w.findAll('.slash-init-actions button')[1].attributes('disabled')).toBeUndefined()
++    await w.findAll('.slash-init-actions button')[1].trigger('click')
++    expect(w.emitted('init')).toEqual([['/b']])
++  })
++
++  it('点遮罩自身 emit close', async () => {
++    const w = mount(SlashMenu, { props: { folders: [] }, global: g })
++    await w.find('.slash-menu').trigger('click')
++    expect(w.emitted('close')).toBeTruthy()
++  })
++})
+diff --git a/src/ai/components/shell/SlashMenu.vue b/src/ai/components/shell/SlashMenu.vue
+new file mode 100644
+index 0000000..1f5e0d3
+--- /dev/null
++++ b/src/ai/components/shell/SlashMenu.vue
+@@ -0,0 +1,106 @@
++<!--
++  1:1 移植自 Vue2 src/views/AI/Agent/shell/SlashMenu.vue(全 70 行)。
++  纯展示/交互组件:props 驱动 folders,emit init(target)/close——composer 负责
++  在输入里检测单独的 "/" 并挂载/卸载本组件,以及处理 init 事件触发 store 的
++  sendInit action。本任务不接线,也不加 Vue2 没有的 Escape 关闭(见下方说明)。
++
++  机械转换清单(对应 .superpowers/sdd/p1c1-task-8-brief.md Step 3):
++  1. data() { picking, initTarget } (Vue2:31) → ref('') / ref(null)。
++  2. methods onPickInit/confirmInit(Vue2:33-40)→ 同名函数,逻辑逐字照抄。
++  3. $emit('close')/$emit('init', ...)(Vue2:2,17,39)→ defineEmits<{...}>()。
++  4. v-model="initTarget"(Vue2:13)在 Vue3 里对 radio input 同样成立,直接照抄。
++  5. $t(...)(Vue2:6,10,17,18)→ 仓库 aiXxx 扁平 key:aiSlashInitDesc/aiSlashNoFolders/
++     aiCancel(复用既有键)/aiSlashInitialize。
++
++  Vue2 没有 Escape 关闭斜杠面板,也没有键盘方向导航——这是一个 UX 缺口,不是缺陷,
++  遵照用户 2026-07-27 决定的移植纪律保持 1:1,不在本任务加。composer 拥有键盘
++  处理,后续任务若做键盘一致性可以统一补上。
++
++  三处裸色换 token(见 src/ai/styles/tokens.scss):
++  - 遮罩的透明黑(alpha 0.3)→ var(--modal-scrim)(该 token 值 alpha 为 0.5,
++    同一"暗遮罩"语义家族,是 SearchFileDrawer 等 modal 遮罩已在用的既有 token,
++    复用而非新增)。
++  - 卡片阴影(0 16px 48px,透明黑 alpha 0.18)→ var(--shadow-pop)。
++  - .primary 的白色文字 → var(--text-on-accent)。
++  半径:Vue2 硬编码 14px/8px/6px。--r-md 恰好是 14px,--r-xs 恰好是 6px——两处精确
++  相等,替换为 token。.slash-row 的 8px 在 --r-xs(6px)和 --r-sm(10px)之间,没有
++  精确匹配的 token;按"视觉 1:1 优先"原则保留原始像素值 8px,不做近似替换。
++-->
++<template>
++  <div class="slash-menu" @click.self="$emit('close')">
++    <div class="slash-card">
++      <div class="slash-row" @click="onPickInit">
++        <span class="slash-name">/init</span>
++        <span class="slash-desc">{{ $t('aiSlashInitDesc') }}</span>
++      </div>
++      <div v-if="picking === 'init'" class="slash-init">
++        <div v-if="folders.length === 0" class="slash-status">
++          {{ $t('aiSlashNoFolders') }}
++        </div>
++        <label v-for="f in folders" :key="f.id || f.path" class="slash-init-row">
++          <input type="radio" :value="f.path" v-model="initTarget" />
++          {{ f.path }}
++        </label>
++        <div class="slash-init-actions">
++          <button @click="$emit('close')">{{ $t('aiCancel') }}</button>
++          <button :disabled="!initTarget" class="primary" @click="confirmInit">{{ $t('aiSlashInitialize') }}</button>
++        </div>
++      </div>
++    </div>
++  </div>
++</template>
++
++<script setup lang="ts">
++import { ref } from 'vue'
++
++interface SlashFolder {
++  id?: string | number
++  path: string
++}
++
++const props = withDefaults(defineProps<{ folders?: SlashFolder[] }>(), {
++  folders: () => [],
++})
++
++const emit = defineEmits<{ init: [target: string]; close: [] }>()
++
++const picking = ref<string | null>(null)
++const initTarget = ref('')
++
++function onPickInit(): void {
++  picking.value = 'init'
++  if (props.folders.length === 1) initTarget.value = props.folders[0].path
++}
++
++function confirmInit(): void {
++  if (!initTarget.value) return
++  emit('init', initTarget.value)
++}
++</script>
++
++<style scoped>
++.slash-menu {
++  position: fixed; inset: 0; background: var(--modal-scrim);
++  z-index: 1000; display: flex; align-items: flex-end; justify-content: center;
++  padding-bottom: 90px;
++  /* Re-enable clicks: ancestor .composer-wrap is pointer-events:none */
++  pointer-events: auto;
++}
++.slash-card {
++  width: min(520px, 90vw);
++  background: var(--bg-elevated); color: var(--text-primary);
++  border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px;
++  box-shadow: var(--shadow-pop);
++}
++.slash-row { display: flex; gap: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
++.slash-row:hover { background: var(--bg-chip); }
++.slash-name { font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); }
++.slash-desc { color: var(--text-secondary); font-size: 13px; }
++.slash-init { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); margin-top: 4px; }
++.slash-init-row { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-primary); }
++.slash-init-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
++.slash-init-actions button { padding: 4px 12px; border-radius: var(--r-xs); border: 1px solid var(--line); background: transparent; cursor: pointer; color: var(--text-primary); }
++.slash-init-actions .primary { background: var(--accent); color: var(--text-on-accent); border-color: transparent; }
++.slash-init-actions .primary:disabled { opacity: 0.4; cursor: not-allowed; }
++.slash-status { font-size: 12px; color: var(--text-tertiary); padding: 4px 0; }
++</style>
+diff --git a/src/ai/stores/agentStore.p1c.test.ts b/src/ai/stores/agentStore.p1c.test.ts
+new file mode 100644
+index 0000000..620f188
+--- /dev/null
++++ b/src/ai/stores/agentStore.p1c.test.ts
+@@ -0,0 +1,344 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const svc = vi.hoisted(() => ({
++  listAgentSessions: vi.fn(), createAgentSession: vi.fn(), deleteAgentSession: vi.fn(),
++  listAgentMessages: vi.fn(), updateAgentSessionTitle: vi.fn(), regenerateAgentSessionTitle: vi.fn(),
++  listModels: vi.fn(), listProviders: vi.fn(), cancelAgentRun: vi.fn(), confirmAgentAction: vi.fn(),
++  listVisibleResources: vi.fn(), addVisibleResource: vi.fn(), removeVisibleResource: vi.fn(),
++  listAttachments: vi.fn(), deleteAttachment: vi.fn(),
++  listStagedChanges: vi.fn(), commitStagedChanges: vi.fn(),
++  revertStagedRun: vi.fn(), revertStagedBatch: vi.fn(), revertStagedItems: vi.fn(),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
++vi.mock('../services/agentTransport', () => ({
++  runAgentRun: vi.fn().mockResolvedValue(undefined),
++  attachAgentStream: vi.fn().mockResolvedValue({ attached: false }),
++}))
++
++import { useAgentStore } from './agentStore'
++
++describe('agentStore P1c Task1:stream-fed 三动作', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    localStorage.clear()
++  })
++
++  it('appendStagedChange:同 run 归组、(seq,path) 去重就地替换', () => {
++    const s = useAgentStore('t1a')
++    s.appendStagedChange({ run_id: 'r1', seq: 1, op: 'mkdir', path: '/a' })
++    s.appendStagedChange({ run_id: 'r1', seq: 2, op: 'write', path: '/b' })
++    s.appendStagedChange({ run_id: 'r1', seq: 1, op: 'mkdir', path: '/a', size_bytes: 9 })
++    expect(s.stagedChanges).toHaveLength(1)
++    expect(s.stagedChanges[0].items).toHaveLength(2)
++    expect(s.stagedChanges[0].items[0]).toMatchObject({ seq: 1, size_bytes: 9 })
++    expect(typeof s.stagedChanges[0].created_at).toBe('number')
++  })
++
++  it('appendStagedChange:不同 run 追加到末尾(newest-run-last)', () => {
++    const s = useAgentStore('t1b')
++    s.appendStagedChange({ run_id: 'r1', seq: 1, op: 'mkdir', path: '/a' })
++    s.appendStagedChange({ run_id: 'r2', seq: 1, op: 'mkdir', path: '/c' })
++    expect(s.stagedChanges.map((g) => g.run_id)).toEqual(['r1', 'r2'])
++  })
++
++  it('appendVisibleResource:按 path 去重、浅拷贝入列', () => {
++    const s = useAgentStore('t1c')
++    s.appendVisibleResource({ path: '/DATA/x', kind: 'folder' })
++    s.appendVisibleResource({ path: '/DATA/x', kind: 'folder' })
++    s.appendVisibleResource({ path: '/DATA/y', kind: 'file' })
++    expect(s.visibleResources.map((r) => r.path)).toEqual(['/DATA/x', '/DATA/y'])
++  })
++
++  it('removeVisibleResourceFromList:按 path 整表过滤', () => {
++    const s = useAgentStore('t1d')
++    s.appendVisibleResource({ path: '/a', kind: 'folder' })
++    s.appendVisibleResource({ path: '/b', kind: 'folder' })
++    s.removeVisibleResourceFromList('/a')
++    expect(s.visibleResources.map((r) => r.path)).toEqual(['/b'])
++  })
++
++  it('createStreamActions:暴露 1c 三动作(reducer 不再 no-op)', () => {
++    const s = useAgentStore('t1e')
++    const a = s.createStreamActions()
++    expect(typeof a.appendStagedChange).toBe('function')
++    expect(typeof a.appendVisibleResource).toBe('function')
++    expect(typeof a.removeVisibleResourceFromList).toBe('function')
++    a.appendVisibleResource!({ path: '/z', kind: 'folder' })
++    expect(s.visibleResources.map((r) => r.path)).toEqual(['/z'])
++  })
++})
++
++describe('agentStore P1c Task2:visible resources + attachments', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    localStorage.clear()
++    svc.createAgentSession.mockResolvedValue({ session_id: 'new-sess' })
++    svc.listAgentSessions.mockResolvedValue([])
++  })
++
++  it('loadVisibleResources:无会话时清空且不发请求', async () => {
++    const s = useAgentStore('t2a')
++    s.visibleResources.push({ path: '/stale', kind: 'folder' })
++    await s.loadVisibleResources()
++    expect(s.visibleResources).toEqual([])
++    expect(svc.listVisibleResources).not.toHaveBeenCalled()
++  })
++
++  it('loadVisibleResources:有会话时用 body 覆盖(null → [])', async () => {
++    const s = useAgentStore('t2b')
++    s.activeSessionId = 'sess-1'
++    svc.listVisibleResources.mockResolvedValue([{ id: 1, path: '/a', kind: 'folder' }])
++    await s.loadVisibleResources()
++    expect(svc.listVisibleResources).toHaveBeenCalledWith('sess-1')
++    expect(s.visibleResources).toEqual([{ id: 1, path: '/a', kind: 'folder' }])
++    svc.listVisibleResources.mockResolvedValue(null)
++    await s.loadVisibleResources()
++    expect(s.visibleResources).toEqual([])
++  })
++
++  it('addVisibleResource:无会话先建会话,服务端值优先、参数兜底', async () => {
++    const s = useAgentStore('t2c')
++    svc.addVisibleResource.mockResolvedValue({ id: 7, path: '/DATA/srv', kind: 'file' })
++    await s.addVisibleResource('/DATA/arg', 'folder', false)
++    expect(svc.createAgentSession).toHaveBeenCalled()
++    expect(svc.addVisibleResource).toHaveBeenCalledWith('new-sess', '/DATA/arg', 'folder', false)
++    expect(s.visibleResources).toEqual([{ id: 7, path: '/DATA/srv', kind: 'file' }])
++  })
++
++  it('addVisibleResource:服务端空 body 时回落到参数值', async () => {
++    const s = useAgentStore('t2d')
++    s.activeSessionId = 'sess-1'
++    svc.addVisibleResource.mockResolvedValue(undefined)
++    await s.addVisibleResource('/DATA/p', 'file', true)
++    expect(svc.addVisibleResource).toHaveBeenCalledWith('sess-1', '/DATA/p', 'file', true)
++    expect(s.visibleResources).toEqual([{ id: undefined, path: '/DATA/p', kind: 'file' }])
++  })
++
++  it('addVisibleResource:错误原样抛出(composer 需读 409 detail)', async () => {
++    const s = useAgentStore('t2e')
++    s.activeSessionId = 'sess-1'
++    const err = Object.assign(new Error('boom'), { response: { status: 409, data: { detail: 'blocked by .gitignore' } } })
++    svc.addVisibleResource.mockRejectedValue(err)
++    await expect(s.addVisibleResource('/x')).rejects.toBe(err)
++    expect(s.visibleResources).toEqual([])
++  })
++
++  it('removeVisibleResource:成功后按已知 path 本地移除', async () => {
++    const s = useAgentStore('t2f')
++    s.activeSessionId = 'sess-1'
++    s.visibleResources.push({ id: 3, path: '/a', kind: 'folder' })
++    svc.removeVisibleResource.mockResolvedValue({})
++    await s.removeVisibleResource(3)
++    expect(svc.removeVisibleResource).toHaveBeenCalledWith('sess-1', 3)
++    expect(s.visibleResources).toEqual([])
++  })
++
++  it('loadAttachments:无会话清空;失败也清空并吞错', async () => {
++    const s = useAgentStore('t2g')
++    await s.loadAttachments()
++    expect(s.attachments).toEqual([])
++    s.activeSessionId = 'sess-1'
++    svc.listAttachments.mockRejectedValue(new Error('nope'))
++    await expect(s.loadAttachments()).resolves.toBeUndefined()
++    expect(s.attachments).toEqual([])
++    svc.listAttachments.mockResolvedValue([{ id: 'a1' }])
++    await s.loadAttachments()
++    expect(s.attachments).toEqual([{ id: 'a1' }])
++  })
++
++  it('removeAttachment:调删除并按 id 过滤;无会话直接返回', async () => {
++    const s = useAgentStore('t2h')
++    await s.removeAttachment('a1')
++    expect(svc.deleteAttachment).not.toHaveBeenCalled()
++    s.activeSessionId = 'sess-1'
++    s.attachments.push({ id: 'a1' }, { id: 'a2' })
++    svc.deleteAttachment.mockResolvedValue({})
++    await s.removeAttachment('a1')
++    expect(svc.deleteAttachment).toHaveBeenCalledWith('sess-1', 'a1')
++    expect(s.attachments).toEqual([{ id: 'a2' }])
++  })
++
++  it('selectSession:装载消息后并发跑三个 loader(顺序在 attach 之前)', async () => {
++    const s = useAgentStore('t2i')
++    svc.listAgentMessages.mockResolvedValue([])
++    svc.listVisibleResources.mockResolvedValue([])
++    svc.listAttachments.mockResolvedValue([])
++    svc.listStagedChanges.mockResolvedValue([])
++    await s.selectSession('sess-9')
++    expect(svc.listVisibleResources).toHaveBeenCalledWith('sess-9')
++    expect(svc.listAttachments).toHaveBeenCalledWith('sess-9')
++    expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-9')
++  })
++
++  it('selectSession:单个 loader 失败不阻断(allSettled)', async () => {
++    const s = useAgentStore('t2j')
++    svc.listAgentMessages.mockResolvedValue([])
++    svc.listVisibleResources.mockRejectedValue(new Error('x'))
++    svc.listAttachments.mockResolvedValue([{ id: 'a1' }])
++    await expect(s.selectSession('sess-10')).resolves.toBeUndefined()
++    expect(s.attachments).toEqual([{ id: 'a1' }])
++  })
++})
++
++describe('agentStore P1c Task3:staged changes', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    localStorage.clear()
++  })
++
++  const seed = (s: any) => {
++    s.stagedChanges.push({
++      run_id: 'r1', created_at: 1,
++      items: [
++        { seq: 1, staged_id: 10, batch_id: 'bx', op: 'mkdir', path: '/a' },
++        { seq: 2, staged_id: 11, batch_id: 'bx', op: 'rename', path: '/b', dst_path: '/c' },
++        { seq: 3, op: 'write', path: '/loose' },
++      ],
++    })
++  }
++
++  it('loadStagedChanges:无会话清空;有会话整表覆盖', async () => {
++    const s = useAgentStore('t3a')
++    await s.loadStagedChanges()
++    expect(s.stagedChanges).toEqual([])
++    s.activeSessionId = 'sess-1'
++    svc.listStagedChanges.mockResolvedValue([{ run_id: 'r9', created_at: 2, items: [] }])
++    await s.loadStagedChanges()
++    expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-1')
++    expect(s.stagedChanges).toHaveLength(1)
++  })
++
++  it('commitStagedAll:成功清空,committing 一定复位', async () => {
++    const s = useAgentStore('t3b')
++    s.activeSessionId = 'sess-1'
++    seed(s)
++    svc.commitStagedChanges.mockResolvedValue({})
++    await s.commitStagedAll()
++    expect(svc.commitStagedChanges).toHaveBeenCalledWith('sess-1')
++    expect(s.stagedChanges).toEqual([])
++    expect(s.committing).toBe(false)
++  })
++
++  it('commitStagedAll:失败时保留列表、committing 复位、错误冒泡', async () => {
++    const s = useAgentStore('t3c')
++    s.activeSessionId = 'sess-1'
++    seed(s)
++    svc.commitStagedChanges.mockRejectedValue(new Error('boom'))
++    await expect(s.commitStagedAll()).rejects.toThrow('boom')
++    expect(s.stagedChanges).toHaveLength(1)
++    expect(s.committing).toBe(false)
++  })
++
++  it('revertStagedRun:成功后整组移除,reverting 键清掉', async () => {
++    const s = useAgentStore('t3d')
++    s.activeSessionId = 'sess-1'
++    seed(s)
++    svc.revertStagedRun.mockResolvedValue({})
++    await s.revertStagedRun('r1')
++    expect(svc.revertStagedRun).toHaveBeenCalledWith('sess-1', 'r1')
++    expect(s.stagedChanges).toEqual([])
++    expect(s.reverting).toEqual({})
++  })
++
++  it('revertStagedBatch:ok 时按 batch_id 剪项并丢空组', async () => {
++    const s = useAgentStore('t3e')
++    s.activeSessionId = 'sess-1'
++    seed(s)
++    svc.revertStagedBatch.mockResolvedValue({ status: 'ok' })
++    await s.revertStagedBatch('bx')
++    expect(svc.revertStagedBatch).toHaveBeenCalledWith('sess-1', 'bx')
++    expect(s.stagedChanges[0].items.map((i: any) => i.seq)).toEqual([3])
++  })
++
++  it('revertStagedBatch:非 ok/partial 状态改为整表重拉', async () => {
++    const s = useAgentStore('t3f')
++    s.activeSessionId = 'sess-1'
++    seed(s)
++    svc.revertStagedBatch.mockResolvedValue({ status: 'conflict' })
++    svc.listStagedChanges.mockResolvedValue([])
++    await s.revertStagedBatch('bx')
++    expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-1')
++    expect(s.stagedChanges).toEqual([])
++  })
++
++  it('revertStagedItem:走复数端点单元素数组,reverting 键带 item: 前缀', async () => {
++    const s = useAgentStore('t3g')
++    s.activeSessionId = 'sess-1'
++    seed(s)
++    let keyDuringCall: string[] = []
++    svc.revertStagedItems.mockImplementation(async () => {
++      keyDuringCall = Object.keys(s.reverting)
++      return { status: 'ok' }
++    })
++    await s.revertStagedItem(10)
++    expect(svc.revertStagedItems).toHaveBeenCalledWith('sess-1', [10])
++    expect(keyDuringCall).toEqual(['item:10'])
++    expect(s.stagedChanges[0].items.map((i: any) => i.seq)).toEqual([2, 3])
++    expect(s.reverting).toEqual({})
++  })
++})
++
++describe('agentStore P1c Task4:sendInit', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    Object.values(svc).forEach((fn) => fn.mockReset())
++    localStorage.clear()
++    svc.createAgentSession.mockResolvedValue({ session_id: 'sess-init' })
++    svc.listAgentSessions.mockResolvedValue([])
++  })
++
++  it('sendInit:先 push [/init] user + assistant 占位,再按 kind=init 发 run', async () => {
++    const { runAgentRun } = await import('../services/agentTransport')
++    const s = useAgentStore('t4a')
++    s.availableModels = [{ key: 'local:llama3', source: 'local', displayName: 'llama3', provider_type: 'ollama' } as any]
++    s.selectedModel = 'local:llama3'
++    await s.sendInit('/DATA/docs')
++    expect(s.messages[0]).toMatchObject({ role: 'user', content: '[/init] /DATA/docs' })
++    expect(s.messages[1]).toMatchObject({ role: 'assistant' })
++    expect(runAgentRun).toHaveBeenCalledWith(
++      'sess-init',
++      { message: 'Please generate agent.md for /DATA/docs.', model: 'llama3', kind: 'init', init_target: '/DATA/docs' },
++      'ollama',
++      expect.anything(), expect.anything(), expect.any(Function), {},
++    )
++    expect(s.busy).toBe(false)
++  })
++
++  it('sendInit:无选中模型时落一个 error tool block 并收尾', async () => {
++    const s = useAgentStore('t4b')
++    s.selectedModel = null
++    await s.sendInit('/DATA/docs')
++    const last: any = s.messages[s.messages.length - 1]
++    expect(last.blocks[0]).toMatchObject({ type: 'tool', state: 'error', name: 'request' })
++    expect(s.busy).toBe(false)
++  })
++
++  it('sendInit:云模型带 X-Agent-Provider-Id 头', async () => {
++    const { runAgentRun } = await import('../services/agentTransport')
++    const s = useAgentStore('t4c')
++    s.activeSessionId = 'sess-1'
++    s.availableModels = [{ key: 'cloud:6:deepseek-chat', source: 'cloud', displayName: 'deepseek-chat', providerId: 6, provider_type: 'deepseek' } as any]
++    s.selectedModel = 'cloud:6:deepseek-chat'
++    await s.sendInit('/DATA/x')
++    expect(runAgentRun).toHaveBeenCalledWith(
++      'sess-1', expect.objectContaining({ model: 'deepseek-chat', kind: 'init' }), 'deepseek',
++      expect.anything(), expect.anything(), expect.any(Function), { 'X-Agent-Provider-Id': '6' },
++    )
++  })
++
++  it('sendInit:createSession 失败时补齐 assistant 占位(安全网)', async () => {
++    const s = useAgentStore('t4d')
++    s.availableModels = [{ key: 'local:llama3', source: 'local', displayName: 'llama3', provider_type: 'ollama' } as any]
++    s.selectedModel = 'local:llama3'
++    svc.createAgentSession.mockRejectedValue(new Error('session creation failed'))
++    await s.sendInit('/DATA/x')
++    const last: any = s.messages[s.messages.length - 1]
++    expect(last.role).toBe('assistant')
++    expect(last.blocks[0]).toMatchObject({ type: 'tool', state: 'error', name: 'request' })
++    expect(s.busy).toBe(false)
++  })
++})
+diff --git a/src/ai/stores/agentStore.test.ts b/src/ai/stores/agentStore.test.ts
+index 17f92ff..f829df6 100644
+--- a/src/ai/stores/agentStore.test.ts
++++ b/src/ai/stores/agentStore.test.ts
+@@ -5,20 +5,22 @@ const svc = vi.hoisted(() => ({
+   listAgentSessions: vi.fn(),
+   createAgentSession: vi.fn(),
+   deleteAgentSession: vi.fn(),
+   listAgentMessages: vi.fn(),
+   updateAgentSessionTitle: vi.fn(),
+   regenerateAgentSessionTitle: vi.fn(),
+   listModels: vi.fn(),
+   listProviders: vi.fn(),
+   cancelAgentRun: vi.fn(),
+   confirmAgentAction: vi.fn(),
++  listVisibleResources: vi.fn(),
++  listAttachments: vi.fn(),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
+ 
+ // Task 6 transport is a separate module — mocked here so Task 7 (send/stop/
+ // continueRun/attach) can be tested without a real SSE/fetch stack.
+ const { runSpy, attachSpy } = vi.hoisted(() => ({
+   runSpy: vi.fn(),
+   attachSpy: vi.fn(),
+ }))
+ vi.mock('../services/agentTransport', () => ({
+diff --git a/src/ai/stores/agentStore.ts b/src/ai/stores/agentStore.ts
+index 9e7f8f9..69eba0e 100644
+--- a/src/ai/stores/agentStore.ts
++++ b/src/ai/stores/agentStore.ts
+@@ -25,20 +25,26 @@ export interface AgentModel {
+ 
+ /** agentStore.js:34,46-52 —— thinking 强度状态(无 ThinkingBar UI,只留状态)。 */
+ export interface ThinkingState {
+   enabled: boolean
+   level: string
+   supportsThinking: boolean
+   providerType: string
+   defaults: { enabled: boolean; level: string }
+ }
+ 
++/** agentStore.js:54 —— 会话已授权的可见资源。stream 注入的条目没有 id(见 dispatchEvent 'visible_resource_added')。 */
++export interface VisibleResource { id?: string | number; path: string; kind: string; has_agent_md?: boolean; [k: string]: unknown }
++/** agentStore.js:56 —— staged 项;loose 项(无 batch_id/staged_id)不可单项回滚。 */
++export interface StagedItem { seq: number; staged_id?: string | number; batch_id?: string | number | null; op: string; path: string; dst_path?: string | null; size_bytes?: number; snapshot_missing?: boolean; [k: string]: unknown }
++export interface StagedGroup { run_id: string | number; created_at: number; items: StagedItem[]; [k: string]: unknown }
++
+ /** send() 接受的 payload 形态 —— agentStore.js:295-301。 */
+ export interface SendPayload {
+   text: string
+   attachmentIds?: string[]
+   attachmentRefs?: AttachmentRef[]
+   contextPhoto?: unknown
+   contextAlbum?: unknown
+ }
+ 
+ /**
+@@ -133,20 +139,28 @@ export function useAgentStore(agentType?: string) {
+     const thinking = ref<ThinkingState>({
+       enabled: true,
+       level: 'medium',
+       supportsThinking: false,
+       providerType: '',
+       defaults: { enabled: true, level: 'medium' },
+     })
+     // agentStore.js:60 —— 待consume一次的技能挂号(X-Skill-Id),1c(?skill=)接入前先留位。
+     const pendingSkillId = ref<string | null>(null)
+ 
++    // ── 1c:资源 / 附件 / 暂存区(agentStore.js:54-59)──
++    const visibleResources = ref<VisibleResource[]>([])
++    const attachments = ref<Record<string, unknown>[]>([])
++    const stagedChanges = ref<StagedGroup[]>([])
++    const committing = ref(false)
++    /** 三种键命名空间共用一张表:raw run_id / raw batch_id / 'item:'+staged_id(agentStore.js:59)。 */
++    const reverting = ref<Record<string, boolean>>({})
++
+     /** agentStore.js:160-164 —— 装载会话列表,body 非数组时兜底空数组。 */
+     async function loadSessions() {
+       const body = await service.ai.listAgentSessions()
+       sessions.value = Array.isArray(body) ? (body as AgentSession[]) : []
+     }
+ 
+     /**
+      * agentStore.js:166-183 —— 新建会话。
+      * id 归一化必须保留:Python agent 建会话时返回 `{ session_id, ... }`,
+      * 而列表接口返回的会话形态是 `{ id, ... }`——统一收敛到 `id` 字段,
+@@ -190,40 +204,44 @@ export function useAgentStore(agentType?: string) {
+         await service.ai.updateAgentSessionTitle(id, trimmed)
+       } catch (e) {
+         sessions.value[idx].title = prev
+         // eslint-disable-next-line no-console
+         console.warn('[agentStore] updateAgentSessionTitle failed', e)
+       }
+     }
+ 
+     /**
+      * agentStore.js:246-293 —— 切 activeSessionId + 拉消息列表 + attach 尾巴。
+-     * 资源/附件/staged 装载仍不搬(1c 的事)。legacy 消息迁移 `migrateLegacyMessages`
++     * 三域装载已在此完成(1c-1):资源/附件/暂存区。
++     * legacy 消息迁移 `migrateLegacyMessages`
+      * (Task 3)在此接入——历史消息装载后立刻跑一遍旧 block 形态迁移
+      * (run_command→terminal 等),再赋值给 messages。
+      *
+      * attach 尾巴与 Vue2 有意的一处偏差:Vue2 里 attachAgentStream(...).then(...) 是
+      * fire-and-forget(不 await),这里改成 `await` —— 让 selectSession() 在 attach
+      * 结果落定后才 resolve,行为更好测试/推理,busy 语义不变(命中运行中的流→保持
+      * busy 到 dispatchEvent 看到 done;未命中→立刻清 busy)。
+      */
+     async function selectSession(id: string | number) {
+       // 切会话前先掐掉上一个会话的在途流,防止其事件混进新会话。
+       if (abortController.value) {
+         abortController.value.abort()
+         abortController.value = null
+       }
+       activeSessionId.value = id
+       const body = await service.ai.listAgentMessages(id)
+       const raw = Array.isArray(body) ? (body as AgentMessage[]) : []
+       messages.value = migrateLegacyMessages(raw as any) as unknown as AgentMessage[]
+ 
++      // agentStore.js:259-265 —— 并发装载,单个失败不阻断整条切换。
++      await Promise.allSettled([loadVisibleResources(), loadAttachments(), loadStagedChanges()])
++
+       // 乐观置 busy,直到 attach 回报为止。send() 会在 busy 上守卫,防止
+       // "刚切换会话就手快发送" 和一次 replay 的 user_message 事件赛跑,
+       // 造成重复的 user 轮次。
+       const ctl = new AbortController()
+       abortController.value = ctl
+       busy.value = true
+       const { attached, error } = await attachAgentStream(id, ctl.signal, createStreamActions())
+       if (error) {
+         // eslint-disable-next-line no-console
+         console.warn('[agentStore] attachAgentStream error', error)
+@@ -369,39 +387,182 @@ export function useAgentStore(agentType?: string) {
+             durationMs: Date.now() - (step.startedAt as number),
+           })
+           return
+         }
+       }
+       // eslint-disable-next-line no-console
+       console.debug('[agentStore] markRunningStepDone: no running step to mark')
+     }
+ 
+     /**
+-     * 把这份 store 的 9 个流式 primitive 装订成一个 `StreamActions`,喂给
++     * agentStore.js:702-720 —— 流式 staged 项入组。按 run_id 归组(不存在则新建,
++     * created_at 用**秒**浮点以对齐服务端 unix 秒);组内按 (seq, path) 对去重,
++     * 命中则就地替换保位置。无上限、不排序、新组追加在末尾。
++     */
++    function appendStagedChange(item: Record<string, unknown>) {
++      const runId = item.run_id as string | number
++      let group = stagedChanges.value.find((g) => g.run_id === runId)
++      if (!group) {
++        group = { run_id: runId, created_at: Date.now() / 1000, items: [] }
++        stagedChanges.value.push(group)
++      }
++      const existingIdx = group.items.findIndex((x) => x.seq === item.seq && x.path === item.path)
++      if (existingIdx >= 0) group.items.splice(existingIdx, 1, item as unknown as StagedItem)
++      else group.items.push(item as unknown as StagedItem)
++    }
++
++    /** agentStore.js:722-726 —— 仅按 path 去重(不看 id),浅拷贝入列。 */
++    function appendVisibleResource(vr: { id?: string | number; path: string; kind: string }) {
++      if (!visibleResources.value.some((r) => r.path === vr.path)) visibleResources.value.push({ ...vr })
++    }
++
++    /** agentStore.js:728-732 —— 按 path 整表过滤。 */
++    function removeVisibleResourceFromList(path: string) {
++      visibleResources.value = visibleResources.value.filter((r) => r.path !== path)
++    }
++
++    // ── 1c:可见资源(agentStore.js:734-758)──
++
++    /** 无会话直接清空、不发请求;有会话则整表覆盖。**不 try/catch** —— 由 selectSession 的 allSettled 兜。 */
++    async function loadVisibleResources() {
++      if (!activeSessionId.value) { visibleResources.value = []; return }
++      const body = await service.ai.listVisibleResources(activeSessionId.value)
++      visibleResources.value = (body as VisibleResource[]) || []
++    }
++
++    /**
++     * agentStore.js:743-752 —— 无会话先懒建会话;服务端返回值优先、参数兜底。
++     * **错误必须原样冒泡**:composer 靠 e.response.status===409 + detail 里的
++     * "gitignore" 判定要不要 force 重试。
++     */
++    async function addVisibleResource(path: string, kind = 'folder', force = false) {
++      if (!activeSessionId.value) await createSession()
++      const body = await service.ai.addVisibleResource(activeSessionId.value as string | number, path, kind, force)
++      const data = (body || {}) as { id?: string | number; path?: string; kind?: string }
++      appendVisibleResource({ id: data.id, path: data.path || path, kind: data.kind || kind })
++    }
++
++    /** agentStore.js:754-758 —— 先抓本地条目拿 path,成功后按 path 移除(id 未知则不动本地)。 */
++    async function removeVisibleResource(resId: string | number) {
++      const target = visibleResources.value.find((r) => r.id === resId)
++      await service.ai.removeVisibleResource(activeSessionId.value as string | number, resId)
++      if (target) removeVisibleResourceFromList(target.path)
++    }
++
++    // ── 1c:附件(agentStore.js:760-777)──
++
++    /** 与 Vue2 一致:**吞错并清空**(不同于 loadVisibleResources 会抛)。 */
++    async function loadAttachments() {
++      if (!activeSessionId.value) { attachments.value = []; return }
++      try {
++        const body = await service.ai.listAttachments(activeSessionId.value)
++        attachments.value = (body as Record<string, unknown>[]) || []
++      } catch { attachments.value = [] }
++    }
++
++    /** agentStore.js:773-777 —— 抛错时本地列表不动。 */
++    async function removeAttachment(aid: string | number) {
++      if (!activeSessionId.value) return
++      await service.ai.deleteAttachment(activeSessionId.value, aid)
++      attachments.value = attachments.value.filter((a) => a.id !== aid)
++    }
++
++    // ── 1c:暂存区(agentStore.js:779-847)──
++
++    /** 无会话直接清空、不发请求;有会话则整表覆盖。 */
++    async function loadStagedChanges() {
++      if (!activeSessionId.value) { stagedChanges.value = []; return }
++      const body = await service.ai.listStagedChanges(activeSessionId.value)
++      stagedChanges.value = (body as StagedGroup[]) || []
++    }
++
++    /** 成功即清空整表;失败保留列表、错误冒泡;committing 一定在 finally 复位。 */
++    async function commitStagedAll() {
++      if (!activeSessionId.value) return
++      committing.value = true
++      try {
++        await service.ai.commitStagedChanges(activeSessionId.value)
++        stagedChanges.value = []
++      } finally { committing.value = false }
++    }
++
++    /** agentStore.js:799-810 —— 整轮回滚;**不看响应状态**,成功即丢整组。 */
++    async function revertStagedRun(runId: string | number) {
++      if (!activeSessionId.value) return
++      const key = String(runId)
++      reverting.value[key] = true
++      try {
++        await service.ai.revertStagedRun(activeSessionId.value, runId)
++        stagedChanges.value = stagedChanges.value.filter((g) => g.run_id !== runId)
++      } finally { delete reverting.value[key] }
++    }
++
++    /**
++     * agentStore.js:812-828 —— 批量回滚。status ∈ ok|partial → 就地剪掉该 batch 的项
++     * 并丢掉变空的组;其余(conflict/nothing_to_revert/snapshot_missing)→ 整表重拉。
++     */
++    async function revertStagedBatch(batchId: string | number) {
++      if (!activeSessionId.value) return
++      const key = String(batchId)
++      reverting.value[key] = true
++      try {
++        const body = (await service.ai.revertStagedBatch(activeSessionId.value, batchId)) as { status?: string } | null
++        const status = (body && body.status) || 'ok'
++        if (status === 'ok' || status === 'partial') {
++          stagedChanges.value.forEach((g) => { g.items = g.items.filter((it) => it.batch_id !== batchId) })
++          stagedChanges.value = stagedChanges.value.filter((g) => g.items.length > 0)
++        } else {
++          await loadStagedChanges()
++        }
++      } finally { delete reverting.value[key] }
++    }
++
++    /** agentStore.js:830-847 —— 单项回滚:复数端点 + 单元素数组;reverting 键前缀 'item:'。 */
++    async function revertStagedItem(stagedId: string | number) {
++      if (!activeSessionId.value) return
++      const revertKey = 'item:' + stagedId
++      reverting.value[revertKey] = true
++      try {
++        const body = (await service.ai.revertStagedItems(activeSessionId.value, [stagedId])) as { status?: string } | null
++        const status = (body && body.status) || 'ok'
++        if (status === 'ok' || status === 'partial') {
++          stagedChanges.value.forEach((g) => { g.items = g.items.filter((it) => it.staged_id !== stagedId) })
++          stagedChanges.value = stagedChanges.value.filter((g) => g.items.length > 0)
++        } else {
++          await loadStagedChanges()
++        }
++      } finally { delete reverting.value[revertKey] }
++    }
++
++    /**
++     * 把这份 store 的流式 primitive 装订成一个 `StreamActions`,喂给
+      * Task 6 transport(runAgentRun/attachAgentStream)→ Task 5 reducer
+-     * (dispatchEvent)。1b 阶段刻意不含 appendStagedChange/appendVisibleResource/
+-     * removeVisibleResourceFromList —— reducer 里这三个都是可选链调用,缺席时
+-     * 静默 no-op,留给 1c 补上。`_lastNimoosSearchQuery` 是 tool_call/tool_result
+-     * 之间传递 query 文本的可变载体,每次调用都给一份新的空字符串起点。
++     * (dispatchEvent)。1c 补上 appendStagedChange/appendVisibleResource/
++     * removeVisibleResourceFromList —— reducer 里这三个可选链调用不再 no-op。
++     * `_lastNimoosSearchQuery` 是 tool_call/tool_result 之间传递 query 文本的
++     * 可变载体,每次调用都给一份新的空字符串起点。
+      */
+     function createStreamActions(): StreamActions {
+       return {
+         pushUserMessage,
+         startAssistant,
+         appendBlock,
+         patchBlock,
+         setStreamingDone,
+         setBusy,
+         patchAssistantStats,
+         pushActivityStep,
+         markRunningStepDone,
+         _lastNimoosSearchQuery: '',
++        appendStagedChange,
++        appendVisibleResource,
++        removeVisibleResourceFromList,
+       }
+     }
+ 
+     /**
+      * agentStore.js:599-645 —— 并行拉 local(ollama)模型 + cloud provider 列表,
+      * 拍平成统一的选择器条目;之前存在 localStorage 里的选择若仍在新列表中就沿用,
+      * 否则本地模型优先兜底(没有本地模型再退 list[0]),兜底发生时记一条
+      * lastFallbackNotice 供 1c 的提示 UI 使用。
+      */
+     async function loadAvailableModels() {
+@@ -591,20 +752,22 @@ export function useAgentStore(agentType?: string) {
+             appendBlock({
+               type: 'tool',
+               state: 'error',
+               name: 'request',
+               sections: [{ label: 'ERROR', code: typeof err === 'string' ? err : JSON.stringify(err, null, 2) }],
+             })
+             setStreamingDone()
+           },
+           extraHeaders,
+         )
++        // 刷新附件:刚上传的草稿此刻服务端已带上 message_id,应显示为"已发送"。
++        loadAttachments().catch(() => {})
+       } catch (e) {
+         errorOccurred = true
+         const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
+         if (!last || last.role !== 'assistant') {
+           startAssistant()
+         }
+         appendBlock({
+           type: 'tool',
+           state: 'error',
+           name: 'request',
+@@ -617,20 +780,109 @@ export function useAgentStore(agentType?: string) {
+         abortController.value = null
+         if (wasFirstTurn && !aborted && !errorOccurred && activeSessionId.value) {
+           const sess = sessions.value.find((s) => s.id === activeSessionId.value)
+           if (sess && (!sess.title || String(sess.title).trim() === '')) {
+             autoTitleFirstTurn(activeSessionId.value)
+           }
+         }
+       }
+     }
+ 
++    /**
++     * agentStore.js:423-489 —— `/init` 斜杠命令的执行体:让 agent 为某个目录生成
++     * agent.md。与 send() 的关键差异(逐字对齐 Vue2,不是疏漏):
++     * 1) user/assistant 两条消息直接 `messages.value.push`,不走
++     *    pushUserMessage/startAssistant(user 消息内容固定为 `[/init] <target>`,
++     *    不是原始输入文本)。
++     * 2) payload 用 `kind: 'init', init_target: target`,**不带 thinking 字段**。
++     * 3) finally **不做首轮自动补标题**(Vue2 sendInit 就没有这段)。
++     * message 文本是发给后端的英文提示词模板,不是 UI 文案,不 i18n。
++     *
++     * 一处**有意偏离** Vue2 逐字顺序:Vue2 源码里两条消息是在 `createSession()`
++     * *之前* push 的(agentStore.js:426-436 先 push,441 才 `await
++     * actions.createSession()`)。但 `createSession()` 会整体覆盖
++     * `messages.value = []`(见上方 createSession),这意味着"无会话时调用
++     * sendInit"会把刚 push 的两条消息立刻冲掉——这是 Vue2 自身的潜在 bug(send()
++     * 就没有这个问题,因为 send() 是先 createSession() 再 push)。这里改成与
++     * send() 一致的顺序:先确保会话存在,再 push 两条消息,payload/校验/收尾
++     * 逻辑其余部分保持逐字对齐。
++     */
++    async function sendInit(target: string): Promise<void> {
++      const message = `Please generate agent.md for ${target}.`
++      busy.value = true
++      abortController.value = new AbortController()
++
++      try {
++        if (!activeSessionId.value) {
++          await createSession()
++        }
++        messages.value.push({
++          id: `u${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
++          role: 'user',
++          content: `[/init] ${target}`,
++        })
++        messages.value.push({
++          id: `a${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
++          role: 'assistant',
++          blocks: [],
++          streaming: true,
++        })
++        if (!selectedModel.value) {
++          throw new Error('No model selected')
++        }
++        const key = selectedModel.value
++        const { source, modelName } = parseModelKey(key)
++        const sel = availableModels.value.find((m) => m.key === key)
++        const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
++
++        const extraHeaders: Record<string, string> = {}
++        if (sel?.source === 'cloud' && sel?.providerId) {
++          extraHeaders['X-Agent-Provider-Id'] = String(sel.providerId)
++        }
++
++        await runAgentRun(
++          activeSessionId.value as string | number,
++          { message, model: modelName, kind: 'init', init_target: target },
++          providerType,
++          (abortController.value as AbortController).signal,
++          createStreamActions(),
++          (err: unknown) => {
++            appendBlock({
++              type: 'tool',
++              state: 'error',
++              name: 'request',
++              sections: [{ label: 'ERROR', code: typeof err === 'string' ? err : JSON.stringify(err, null, 2) }],
++            })
++            setStreamingDone()
++          },
++          extraHeaders,
++        )
++      } catch (e) {
++        // 安全网:与 send() 一致。Vue2 agentStore.js:423-490 无此守卫,是潜在缺陷
++        // (错误会被静默吞掉)。这里补齐确保错误 block 总有宿主 assistant 消息。
++        const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
++        if (!last || last.role !== 'assistant') {
++          startAssistant()
++        }
++        appendBlock({
++          type: 'tool',
++          state: 'error',
++          name: 'request',
++          sections: [{ label: 'ERROR', code: typeof e === 'string' ? e : ((e as Error)?.message || JSON.stringify(e)) }],
++        })
++        setStreamingDone()
++      } finally {
++        if (busy.value) setStreamingDone()
++        abortController.value = null
++      }
++    }
++
+     /**
+      * agentStore.js:491-511 —— 中止当前流。POST /cancel(而非只 abort 请求)有两个理由:
+      * 1) 服务端的 agent task 与请求本身是分离的,只 abort fetch 留任务继续跑,还占着
+      *    per-session 锁 —— 下一次 send() 会 409 agent_busy。
+      * 2) /cancel 会等任务真正终止才响应,给了一个 send() 可以等的同步点。
+      * cancel 的 promise 挂在 pendingCancel 上供 send()/continueRun() 等待;UI 自己可以
+      * 立刻切回非 busy(setStreamingDone 已经做了)。
+      */
+     async function stop(): Promise<void> {
+       const sid = activeSessionId.value
+@@ -729,38 +981,57 @@ export function useAgentStore(agentType?: string) {
+       leftCollapsed,
+       rightCollapsed,
+       abortController,
+       activitySteps,
+       pendingCancel,
+       availableModels,
+       selectedModel,
+       lastFallbackNotice,
+       thinking,
+       pendingSkillId,
++      visibleResources,
++      attachments,
++      stagedChanges,
++      committing,
++      reverting,
+       loadSessions,
+       createSession,
+       deleteSession,
+       setSessionTitle,
+       selectSession,
+       initTheme,
+       toggleTheme,
+       toggleLeft,
+       pushUserMessage,
+       startAssistant,
+       appendBlock,
+       patchBlock,
+       setStreamingDone,
+       setBusy,
+       patchAssistantStats,
+       pushActivityStep,
+       markRunningStepDone,
++      appendStagedChange,
++      appendVisibleResource,
++      removeVisibleResourceFromList,
++      loadVisibleResources,
++      addVisibleResource,
++      removeVisibleResource,
++      loadAttachments,
++      removeAttachment,
++      loadStagedChanges,
++      commitStagedAll,
++      revertStagedRun,
++      revertStagedBatch,
++      revertStagedItem,
+       createStreamActions,
+       loadAvailableModels,
+       selectModel,
+       updateThinkingForModel,
+       send,
++      sendInit,
+       stop,
+       continueRun,
+       confirmAgentAction,
+     }
+   })()
+ }
+diff --git a/src/ai/styles/tokens.scss b/src/ai/styles/tokens.scss
+index 7dc74e1..75c61ae 100644
+--- a/src/ai/styles/tokens.scss
++++ b/src/ai/styles/tokens.scss
+@@ -8,20 +8,23 @@
+ // 除该文档 §6 已登记的 `.ic-*` 品牌图标渐变 / 第三方库内部主题外,本子树(src/ai/)
+ // 再登记一类:**生成式、按 seed 取色的占位马赛克色板**——
+ //   - `VideoCard.vue` 的 `PAL`(视频缩略图占位渐变)
+ //   - `ImageGridCard.vue` 的 `PALETTES`(图片格无缩略图时的占位马赛克)
+ //   - `SearchFullResults.vue` 的 `PALETTES`、`SemanticSearchCard.vue` 的 `PALETTES`
+ //     (SP8-P1b Task 9 —— Vue2 源里就是同一份 PALETTES 数组复制到两个文件,同属
+ //     "图片无缩略图时的占位马赛克"这一类,不是新例外)
+ // 这两处的十六进制字面量是"皮肤无关"的装饰性生成色(按 block 里的 seed 索引取值,
+ // 不代表任何语义状态),与 `.ic-*` 品牌识别色同属"两套主题都原样保留"的例外类目,
+ // 不接入 token 体系。组件内注释均指回本节。
++// 另登记一项(非占位马赛克,是身份识别色):`src/ai/util/mentionFormat.ts` 的
++// `DRIVE_PALETTE`——按 drive/挂载点标签哈希取色,标识"这是哪个盘",皮肤无关,
++// 两套主题都原样保留,与 `.ic-*` 品牌渐变同属一类。
+ // =====================================================================
+ 
+ /* ===== Nimo AI NAS — Design Tokens (light, warm neutral) ===== */
+ .agent-app {
+   /* Surfaces */
+   --bg-app: #FAF9F6;
+   --bg-canvas: #FAF9F6;
+   --bg-elevated: #FFFFFF;
+   --bg-sunken: #F2F0EA;
+   --bg-chip: #ECEAE3;
+@@ -61,20 +64,24 @@
+   --add-bg: rgba(46, 158, 84, 0.08);
+   --add-gutter: rgba(46, 158, 84, 0.16);
+   --del: #D7493B;
+   --del-bg: rgba(215, 73, 59, 0.07);
+ 
+   /* Lines */
+   --line: #E6E2D9;
+   --line-strong: #D8D3C7;
+   --line-faint: #EEEBE3;
+ 
++  /* SP8-P1c1 Task 7 — glass-layer outer hairline ring (MentionPopover popover
++     shadow); a skin-agnostic ultra-faint stroke, not a semantic color. */
++  --hairline-ring: rgba(0, 0, 0, 0.04);
++
+   /* Timeline minimap */
+   --tl-tick: #CFCABD;
+   --tl-active: var(--accent);
+ 
+   /* Radii — unchanged */
+   --r-xs: 6px;
+   --r-sm: 10px;
+   --r-md: 14px;
+   --r-lg: 18px;
+   --r-xl: 24px;
+@@ -219,20 +226,23 @@
+   --add: #4FB870;
+   --add-bg: rgba(46, 160, 67, 0.12);
+   --add-gutter: rgba(46, 160, 67, 0.30);
+   --del: #F0776B;
+   --del-bg: rgba(240, 119, 107, 0.10);
+ 
+   --line: #2E2E31;
+   --line-strong: #3A3A3D;
+   --line-faint: #262628;
+ 
++  /* SP8-P1c1 Task 7 — dark-theme value for --hairline-ring above. */
++  --hairline-ring: rgba(255, 255, 255, 0.06);
++
+   --tl-tick: #3C3C3F;
+ 
+   /* SP8-P1b Task 8 — dark-theme values for the soft-badge tokens added above. */
+   --warning-soft: rgba(224, 165, 59, 0.18);
+   --warning-soft-border: rgba(224, 165, 59, 0.3);
+   --warning-ring: rgba(224, 165, 59, 0.14);
+   --success-soft: rgba(79, 184, 112, 0.18);
+   --success-soft-border: rgba(79, 184, 112, 0.28);
+   --danger-soft: rgba(240, 119, 107, 0.16);
+   --danger-soft-border: rgba(240, 119, 107, 0.24);
+diff --git a/src/ai/util/attachmentMeta.test.ts b/src/ai/util/attachmentMeta.test.ts
+new file mode 100644
+index 0000000..c85a746
+--- /dev/null
++++ b/src/ai/util/attachmentMeta.test.ts
+@@ -0,0 +1,63 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:160-171 / 460-504 / 531
++import { describe, it, expect } from 'vitest'
++import { TEXT_EXTS, DOCUMENT_EXTS, ACCEPT_TYPES, MAX_ATTACHMENT_BYTES, docErrorKey, docErrorShortKey } from './attachmentMeta'
++
++// Inline copy of the Vue2 accept-types build (AgentComposer.vue:167-171) to compare
++// against verbatim, so a future edit to either side gets caught immediately.
++const VUE2_TEXT_EXTS = [
++  'txt', 'md', 'csv', 'json', 'log',
++  'py', 'js', 'ts', 'go', 'rs', 'java', 'c', 'h', 'cpp',
++  'yaml', 'yml', 'ini', 'toml', 'conf',
++  'html', 'css', 'xml', 'sql', 'sh',
++]
++const VUE2_DOCUMENT_EXTS = ['pdf', 'docx', 'xlsx', 'xlsm', 'pptx']
++const VUE2_ACCEPT_TYPES = [
++  'image/*', 'video/*', 'audio/*',
++  ...VUE2_TEXT_EXTS.map((e) => '.' + e),
++  ...VUE2_DOCUMENT_EXTS.map((e) => '.' + e),
++].join(',')
++
++describe('attachmentMeta 常量(AgentComposer.vue:160-171)', () => {
++  it('TEXT_EXTS/DOCUMENT_EXTS 与 Vue2 完全一致', () => {
++    expect(TEXT_EXTS).toEqual(VUE2_TEXT_EXTS)
++    expect(DOCUMENT_EXTS).toEqual(VUE2_DOCUMENT_EXTS)
++  })
++  it('ACCEPT_TYPES 与 Vue2 原串完全一致', () => {
++    expect(ACCEPT_TYPES).toBe(VUE2_ACCEPT_TYPES)
++  })
++  it('MAX_ATTACHMENT_BYTES === 524288000(500 MB, AgentComposer.vue:531)', () => {
++    expect(MAX_ATTACHMENT_BYTES).toBe(524288000)
++  })
++})
++
++describe('docErrorKey(AgentComposer.vue:460-471 docErrorLabel)', () => {
++  it('8 个 extract_error code 各自映射到独立 i18n 键', () => {
++    expect(docErrorKey('empty_scanned')).toEqual({ key: 'aiDocErrEmptyScanned' })
++    expect(docErrorKey('encrypted')).toEqual({ key: 'aiDocErrEncrypted' })
++    expect(docErrorKey('zip_bomb')).toEqual({ key: 'aiDocErrZipBomb' })
++    expect(docErrorKey('timeout')).toEqual({ key: 'aiDocErrTimeout' })
++    expect(docErrorKey('parse_error')).toEqual({ key: 'aiDocErrParseError' })
++    expect(docErrorKey('sidecar_write_failed')).toEqual({ key: 'aiDocErrSidecarWriteFailed' })
++    expect(docErrorKey('not_installed')).toEqual({ key: 'aiDocErrNotInstalled' })
++    expect(docErrorKey('vanished')).toEqual({ key: 'aiDocErrVanished' })
++  })
++  it('未知 code 落 aiDocErrGeneric 且带 { code } 参数', () => {
++    expect(docErrorKey('some_new_code')).toEqual({ key: 'aiDocErrGeneric', params: { code: 'some_new_code' } })
++  })
++})
++
++describe('docErrorShortKey(AgentComposer.vue:474-486 docErrorShort)', () => {
++  it('8 个映射', () => {
++    expect(docErrorShortKey('empty_scanned')).toBe('aiDocErrShortScannedDoc')
++    expect(docErrorShortKey('encrypted')).toBe('aiDocErrShortEncrypted')
++    expect(docErrorShortKey('zip_bomb')).toBe('aiDocErrShortTooLarge')
++    expect(docErrorShortKey('timeout')).toBe('aiDocErrShortTimedOut')
++    expect(docErrorShortKey('parse_error')).toBe('aiDocErrShortParseFailed')
++    expect(docErrorShortKey('sidecar_write_failed')).toBe('aiDocErrShortCacheFailed')
++    expect(docErrorShortKey('not_installed')).toBe('aiDocErrShortParserMissing')
++    expect(docErrorShortKey('vanished')).toBe('aiDocErrShortLost')
++  })
++  it('未知 code 落 aiDocErrShortParse', () => {
++    expect(docErrorShortKey('some_new_code')).toBe('aiDocErrShortParse')
++  })
++})
+diff --git a/src/ai/util/attachmentMeta.ts b/src/ai/util/attachmentMeta.ts
+new file mode 100644
+index 0000000..f3fda6d
+--- /dev/null
++++ b/src/ai/util/attachmentMeta.ts
+@@ -0,0 +1,74 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:
++//   TEXT_EXTS/DOCUMENT_EXTS/ACCEPT_TYPES        :160-171
++//   docErrorLabel/docErrorShort (extract_error → label maps) :460-486
++//   500 MB per-file limit                       :531
++//
++// docErrorKey/docErrorShortKey return i18n KEY NAMES, not translated text —
++// the actual zh_cn/en_us strings are added by a later task (they don't exist
++// yet in this repo's locale files).
++
++// Mirrors agent/attachments/kind.py: text whitelist + native image/video/audio
++// MIME majors + document extensions. Used as the <input accept=...> hint so
++// the OS picker doesn't have to enumerate every plugin handler — and as the
++// tooltip text shown to the user. Keep in sync with the backend or
++// classify() will still call most things "binary".
++export const TEXT_EXTS: string[] = [
++  'txt', 'md', 'csv', 'json', 'log',
++  'py', 'js', 'ts', 'go', 'rs', 'java', 'c', 'h', 'cpp',
++  'yaml', 'yml', 'ini', 'toml', 'conf',
++  'html', 'css', 'xml', 'sql', 'sh',
++]
++
++export const DOCUMENT_EXTS: string[] = ['pdf', 'docx', 'xlsx', 'xlsm', 'pptx']
++
++export const ACCEPT_TYPES: string = [
++  'image/*', 'video/*', 'audio/*',
++  ...TEXT_EXTS.map((e) => '.' + e),
++  ...DOCUMENT_EXTS.map((e) => '.' + e),
++].join(',')
++
++/** Single-attachment size limit: 500 MB (AgentComposer.vue:531). */
++export const MAX_ATTACHMENT_BYTES: number = 500 * 1024 * 1024
++
++export type PendingKind = 'image' | 'document' | 'binary' | 'text' | 'video' | 'audio' | string
++
++// Maps backend extract_error codes (agent/attachments/extract.py) to i18n
++// key names. Codes are authoritative from AgentComposer.vue:461-470/475-484.
++const DOC_ERROR_KEYS: Record<string, string> = {
++  empty_scanned: 'aiDocErrEmptyScanned',
++  encrypted: 'aiDocErrEncrypted',
++  zip_bomb: 'aiDocErrZipBomb',
++  timeout: 'aiDocErrTimeout',
++  parse_error: 'aiDocErrParseError',
++  sidecar_write_failed: 'aiDocErrSidecarWriteFailed',
++  not_installed: 'aiDocErrNotInstalled',
++  vanished: 'aiDocErrVanished',
++}
++
++const DOC_ERROR_SHORT_KEYS: Record<string, string> = {
++  empty_scanned: 'aiDocErrShortScannedDoc',
++  encrypted: 'aiDocErrShortEncrypted',
++  zip_bomb: 'aiDocErrShortTooLarge',
++  timeout: 'aiDocErrShortTimedOut',
++  parse_error: 'aiDocErrShortParseFailed',
++  sidecar_write_failed: 'aiDocErrShortCacheFailed',
++  not_installed: 'aiDocErrShortParserMissing',
++  vanished: 'aiDocErrShortLost',
++}
++
++/** Full-sentence label key for an `extract_error` code (docErrorLabel,
++ *  AgentComposer.vue:460-472). Unknown codes fall back to the generic
++ *  "Document extraction failed: {code}" key, carrying `code` as an i18n param
++ *  (mirrors the Vue2 `this.$t('Document extraction failed: {code}', { code })` fallback). */
++export function docErrorKey(code: string): { key: string; params?: Record<string, unknown> } {
++  const key = DOC_ERROR_KEYS[code]
++  if (key) return { key }
++  return { key: 'aiDocErrGeneric', params: { code } }
++}
++
++/** ≤6-char short label key for an `extract_error` code (docErrorShort,
++ *  AgentComposer.vue:474-486). Unknown codes fall back to the generic
++ *  "Parse failed" short key. */
++export function docErrorShortKey(code: string): string {
++  return DOC_ERROR_SHORT_KEYS[code] || 'aiDocErrShortParse'
++}
+diff --git a/src/ai/util/composerText.test.ts b/src/ai/util/composerText.test.ts
+new file mode 100644
+index 0000000..165fdd1
+--- /dev/null
++++ b/src/ai/util/composerText.test.ts
+@@ -0,0 +1,77 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:180-196 / 300-335 / 355-428
++import { describe, it, expect } from 'vitest'
++import { getExt, basename, dirname, scanMention, buildDrillText, buildPopText, stripMentionToken } from './composerText'
++
++describe('composerText 路径小工具(AgentComposer.vue:180-196)', () => {
++  it('getExt:无点或首字符为点时返回空串', () => {
++    expect(getExt('a.TXT')).toBe('txt')
++    expect(getExt('noext')).toBe('')
++    expect(getExt('.bashrc')).toBe('')
++  })
++  it('basename:先剥尾部斜杠', () => {
++    expect(basename('/DATA/docs/')).toBe('docs')
++    expect(basename('/DATA/a.txt')).toBe('a.txt')
++  })
++  it('dirname:根一级返回 /', () => {
++    expect(dirname('/DATA/docs/a.txt')).toBe('/DATA/docs')
++    expect(dirname('/a')).toBe('/')
++  })
++})
++
++describe('scanMention 触发判定(AgentComposer.vue:300-335)', () => {
++  it('@ 在开头即触发,segments 取除末段外全部', () => {
++    const t = '@Drive1/docs/re'
++    expect(scanMention(t, t.length)).toEqual({ open: true, start: 0, segments: ['Drive1', 'docs'], query: 're' })
++  })
++  it('@ 前是空白也触发', () => {
++    const t = 'look @doc'
++    expect(scanMention(t, t.length)).toMatchObject({ open: true, start: 5, query: 'doc' })
++  })
++  it('@ 前是单词字符(邮箱)不触发', () => {
++    const t = 'me@host'
++    expect(scanMention(t, t.length).open).toBe(false)
++  })
++  it('遇到空白先于 @ 则不触发(mention 路径不含空格)', () => {
++    const t = '@Drive1 docs'
++    expect(scanMention(t, t.length).open).toBe(false)
++  })
++  it('无 @ 时不触发', () => {
++    expect(scanMention('hello', 5).open).toBe(false)
++  })
++  it('caret 在字符串中间:只应扫描到 caret 为止,忽略其后的文本', () => {
++    const t = '@Drive1/do tail'
++    const caret = t.indexOf('do') + 'do'.length // 紧跟在 "do" 之后,tail 部分不应被看到
++    expect(scanMention(t, caret)).toEqual({ open: true, start: 0, segments: ['Drive1'], query: 'do' })
++  })
++})
++
++describe('mention 文本改写与光标(AgentComposer.vue:355-428)', () => {
++  it('buildDrillText:追加 "<name>/" 并把光标落在其后', () => {
++    const r = buildDrillText('@Dr', 0, 3, [], 'Drive1')
++    expect(r.text).toBe('@Drive1/')
++    expect(r.segments).toEqual(['Drive1'])
++    expect(r.caretPos).toBe(8)
++  })
++  it('buildDrillText:保留光标之后的原文', () => {
++    const r = buildDrillText('@Dr tail', 0, 3, [], 'Drive1')
++    expect(r.text).toBe('@Drive1/ tail')
++  })
++  it('buildPopText:弹掉最后一段;段全空时只留 @', () => {
++    const r1 = buildPopText('@Drive1/docs/', 0, 13, ['Drive1', 'docs'])
++    expect(r1.text).toBe('@Drive1/')
++    expect(r1.segments).toEqual(['Drive1'])
++    const r2 = buildPopText('@Drive1/', 0, 8, ['Drive1'])
++    expect(r2.text).toBe('@')
++    expect(r2.segments).toEqual([])
++  })
++  it('buildPopText:保留光标之后的原文(caret 在字符串中间)', () => {
++    const r = buildPopText('@Drive1/docs/ tail', 0, 13, ['Drive1', 'docs'])
++    expect(r.text).toBe('@Drive1/ tail')
++    expect(r.segments).toEqual(['Drive1'])
++  })
++  it('stripMentionToken:整段 @token 删掉、不插入任何文本', () => {
++    const r = stripMentionToken('see @Drive1/a.txt now', 4, 17)
++    expect(r.text).toBe('see  now')
++    expect(r.caretPos).toBe(4)
++  })
++})
+diff --git a/src/ai/util/composerText.ts b/src/ai/util/composerText.ts
+new file mode 100644
+index 0000000..f545989
+--- /dev/null
++++ b/src/ai/util/composerText.ts
+@@ -0,0 +1,115 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:
++//   getExt/basename/dirname            :180-196
++//   mention 触发扫描(onInput 内联逻辑)  :300-335
++//   drillIn/pickItem/popSegment 的文本+光标数学 :355-428
++//
++// Pure text/cursor math extracted so the composer SFC (a later task) can stay
++// thin wiring. No DOM/Vue dependency here — callers pass caret position
++// explicitly instead of reading `this.$refs.ta.selectionStart`.
++
++/** File extension, lowercased, without the dot. '' if there is no extension
++ *  or the name starts with a dot (e.g. dotfiles like `.bashrc`). */
++export function getExt(name: string): string {
++  const i = name.lastIndexOf('.')
++  return i < 1 ? '' : name.slice(i + 1).toLowerCase()
++}
++
++/** Last path segment, after stripping trailing slashes. */
++export function basename(p: string): string {
++  if (!p) return ''
++  const trimmed = p.replace(/\/+$/, '')
++  const i = trimmed.lastIndexOf('/')
++  return i < 0 ? trimmed : trimmed.slice(i + 1)
++}
++
++/** Parent path. Root-level paths (single leading slash) collapse to '/'. */
++export function dirname(p: string): string {
++  if (!p) return ''
++  const trimmed = p.replace(/\/+$/, '')
++  const i = trimmed.lastIndexOf('/')
++  if (i <= 0) return '/'
++  return trimmed.slice(0, i)
++}
++
++export interface MentionScan {
++  open: boolean
++  start: number
++  segments: string[]
++  query: string
++}
++
++/**
++ * Walk back from `caret` to find an active `@mention` trigger.
++ * Ported verbatim from the `onInput` smart-@ scan (AgentComposer.vue:312-334):
++ * an `@` counts as a trigger only if it's at index 0 or preceded by
++ * whitespace (so `me@host` does not trigger); hitting whitespace before
++ * finding such an `@` aborts the scan (mention paths never contain spaces).
++ */
++export function scanMention(text: string, caret: number): MentionScan {
++  let i = caret - 1
++  while (i >= 0) {
++    const ch = text[i]
++    if (ch === '@') {
++      const prev = i > 0 ? text[i - 1] : ''
++      if (i === 0 || /\s/.test(prev)) {
++        const after = text.slice(i + 1, caret)
++        const parts = after.split('/')
++        const segments = parts.slice(0, -1)
++        const query = parts[parts.length - 1] || ''
++        return { open: true, start: i, segments, query }
++      }
++      break
++    }
++    if (/\s/.test(ch)) break
++    i--
++  }
++  return { open: false, start: -1, segments: [], query: '' }
++}
++
++/** Drill into a folder/drive: append "<name>/" after the @ pattern
++ *  (AgentComposer.vue:355-371, `drillIn`). */
++export function buildDrillText(
++  text: string,
++  start: number,
++  caret: number,
++  segments: string[],
++  name: string,
++): { text: string; segments: string[]; caretPos: number } {
++  const newSegs = [...segments, name]
++  const newPath = '@' + newSegs.join('/') + '/'
++  const before = text.slice(0, start)
++  const after = text.slice(caret)
++  return {
++    text: before + newPath + after,
++    segments: newSegs,
++    caretPos: (before + newPath).length,
++  }
++}
++
++/** Pop the last mention segment (AgentComposer.vue:412-428, `popSegment`).
++ *  When no segments remain, collapses back to a bare '@'. */
++export function buildPopText(
++  text: string,
++  start: number,
++  caret: number,
++  segments: string[],
++): { text: string; segments: string[]; caretPos: number } {
++  const newSegs = segments.slice(0, -1)
++  const newPath = '@' + (newSegs.length ? newSegs.join('/') + '/' : '')
++  const before = text.slice(0, start)
++  const after = text.slice(caret)
++  return {
++    text: before + newPath + after,
++    segments: newSegs,
++    caretPos: (before + newPath).length,
++  }
++}
++
++/** Remove the whole @token with nothing inserted in its place
++ *  (AgentComposer.vue:374-379, `pickItem`'s text-splice step). */
++export function stripMentionToken(text: string, start: number, caret: number): { text: string; caretPos: number } {
++  return {
++    text: text.slice(0, start) + text.slice(caret),
++    caretPos: start,
++  }
++}
+diff --git a/src/ai/util/contextUsage.test.ts b/src/ai/util/contextUsage.test.ts
+new file mode 100644
+index 0000000..340e23c
+--- /dev/null
++++ b/src/ai/util/contextUsage.test.ts
+@@ -0,0 +1,43 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28,
++// test cases ported from ContextUsageBar.spec.js:8-52 (pure-function part only;
++// the Vue2 spec's `rendering` describe block covers SFC mounting, which is out
++// of scope for this pure-module task).
++import { describe, it, expect } from 'vitest'
++import { RING_R, RING_C, formatTokens, levelFor, dashArrayFor } from './contextUsage'
++
++describe('RING_R/RING_C', () => {
++  it('RING_R === 15.5, RING_C === 2*PI*R', () => {
++    expect(RING_R).toBe(15.5)
++    expect(RING_C).toBeCloseTo(2 * Math.PI * 15.5, 10)
++  })
++})
++
++describe('formatTokens', () => {
++  it('formats 1200 → "1.2K"', () => { expect(formatTokens(1200)).toBe('1.2K') })
++  it('formats 8192 → "8.2K"', () => { expect(formatTokens(8192)).toBe('8.2K') })
++  it('formats 500 → "500"', () => { expect(formatTokens(500)).toBe('500') })
++  it('formats 128000 → "128K"', () => { expect(formatTokens(128000)).toBe('128K') })
++  it('formats 200000 → "200K"', () => { expect(formatTokens(200000)).toBe('200K') })
++})
++
++describe('levelFor', () => {
++  it('69 → ok', () => { expect(levelFor(69)).toBe('ok') })
++  it('75 → warn', () => { expect(levelFor(75)).toBe('warn') })
++  it('95 → danger', () => { expect(levelFor(95)).toBe('danger') })
++  // Boundary cases not covered by the Vue2 spec.
++  it('70 → warn(边界)', () => { expect(levelFor(70)).toBe('warn') })
++  it('90 → danger(边界)', () => { expect(levelFor(90)).toBe('danger') })
++})
++
++describe('dashArrayFor', () => {
++  const fmt = (p: number) => ((p / 100) * (2 * Math.PI * 15.5)).toFixed(2)
++  it('15 → "<filled> <circumference>"', () => {
++    expect(dashArrayFor(15)).toBe(`${fmt(15)} ${RING_C.toFixed(2)}`)
++  })
++  it('110 → 截顶到满圆', () => {
++    expect(dashArrayFor(110)).toBe(`${RING_C.toFixed(2)} ${RING_C.toFixed(2)}`)
++  })
++  it('0 → 零长弧', () => {
++    expect(dashArrayFor(0)).toBe(`0.00 ${RING_C.toFixed(2)}`)
++  })
++})
+diff --git a/src/ai/util/contextUsage.ts b/src/ai/util/contextUsage.ts
+new file mode 100644
+index 0000000..0e963d3
+--- /dev/null
++++ b/src/ai/util/contextUsage.ts
+@@ -0,0 +1,29 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28
++// Pure geometry/formatting for the context-usage ring, extracted so the
++// component (a later task) only wires props → these functions.
++
++/** SVG ring radius (viewBox 0 0 36 36, matches ContextUsageBar.vue's <circle r="15.5">). */
++export const RING_R = 15.5
++
++/** Ring circumference. */
++export const RING_C = 2 * Math.PI * RING_R
++
++/** '1.2K' style compaction for token counts >= 1000; plain digits below that. */
++export function formatTokens(n: number): string {
++  if (n >= 1000) {
++    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
++  }
++  return String(n)
++}
++
++/** Usage-severity bucket for the ring color (>=90 danger, >=70 warn, else ok). */
++export function levelFor(pct: number): 'ok' | 'warn' | 'danger' {
++  return pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : 'ok'
++}
++
++/** `stroke-dasharray` value: "<filled> <circumference>", pct clamped to [0,100]. */
++export function dashArrayFor(pct: number): string {
++  const p = Math.min(100, Math.max(0, pct))
++  const filled = (p / 100) * RING_C
++  return `${filled.toFixed(2)} ${RING_C.toFixed(2)}`
++}
+diff --git a/src/ai/util/mentionFormat.test.ts b/src/ai/util/mentionFormat.test.ts
+new file mode 100644
+index 0000000..0987963
+--- /dev/null
++++ b/src/ai/util/mentionFormat.test.ts
+@@ -0,0 +1,84 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue:87-107 / 273-299
++import { describe, it, expect } from 'vitest'
++import { DRIVE_PALETTE, driveColor, formatBytes, formatTime, escapeHtml, highlightMatch } from './mentionFormat'
++
++describe('driveColor(MentionPopover.vue:89-93)', () => {
++  it('同名同色(确定性)', () => {
++    expect(driveColor('Drive1')).toBe(driveColor('Drive1'))
++  })
++  it('结果始终落在调色板内', () => {
++    for (const label of ['Drive1', 'Movies', 'a', '云盘', '']) {
++      expect(DRIVE_PALETTE).toContain(driveColor(label))
++    }
++  })
++})
++
++describe('formatBytes(MentionPopover.vue:95-101)', () => {
++  it('四档:B/KB/MB/GB', () => {
++    expect(formatBytes(500)).toBe('500 B')
++    expect(formatBytes(2048)).toBe('2.0 KB')
++    expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB')
++    expect(formatBytes(3 * 1024 * 1024 * 1024)).toBe('3.00 GB')
++  })
++  it('null/NaN 返回空串', () => {
++    expect(formatBytes(null as unknown as number)).toBe('')
++    expect(formatBytes(NaN)).toBe('')
++  })
++})
++
++describe('formatTime(MentionPopover.vue:287-299)', () => {
++  it('unix 秒(≤1e12)要 ×1000:与对应毫秒值渲染同一天(同年:含月日、不含年份)', () => {
++    const currentYear = new Date().getFullYear()
++    // 固定锚点(当年 1 月 15 日正午),不依赖"今天"漂移
++    const anchorMs = new Date(currentYear, 0, 15, 12, 0, 0).getTime()
++    const anchorSeconds = Math.floor(anchorMs / 1000)
++    expect(formatTime(anchorSeconds)).toBe(formatTime(anchorMs))
++    expect(formatTime(anchorSeconds)).not.toMatch(new RegExp(String(currentYear)))
++    expect(formatTime(anchorSeconds)).toContain('15')
++  })
++  it('unix 毫秒直接使用:与手动 ×1000 的秒值渲染一致(跨年:含年份)', () => {
++    const pastYear = new Date().getFullYear() - 3
++    const anchorMs = new Date(pastYear, 5, 20, 12, 0, 0).getTime()
++    const anchorSeconds = Math.floor(anchorMs / 1000)
++    expect(formatTime(anchorMs)).toBe(formatTime(anchorSeconds))
++    expect(formatTime(anchorMs)).toMatch(new RegExp(String(pastYear)))
++  })
++  it('ISO 串同年只出月日,跨年出年月', () => {
++    const now = new Date()
++    const sameYearIso = new Date(now.getFullYear(), 0, 15).toISOString()
++    const out = formatTime(sameYearIso)
++    expect(out).not.toMatch(new RegExp(String(now.getFullYear())))
++    const lastYearIso = new Date(now.getFullYear() - 1, 0, 15).toISOString()
++    const outLast = formatTime(lastYearIso)
++    expect(outLast).toMatch(new RegExp(String(now.getFullYear() - 1)))
++  })
++  it('falsy 输入返回空串', () => {
++    expect(formatTime(0)).toBe('')
++    expect(formatTime('')).toBe('')
++  })
++})
++
++describe('escapeHtml(MentionPopover.vue:282-285)', () => {
++  it('五字符全转义', () => {
++    expect(escapeHtml(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#39;')
++  })
++})
++
++describe('highlightMatch(MentionPopover.vue:273-280)', () => {
++  it('大小写不敏感首次匹配', () => {
++    expect(highlightMatch('MyDocs', 'doc')).toBe('My<mark>Doc</mark>s')
++  })
++  it('三段都转义,且只有 <mark> 是真标签', () => {
++    const out = highlightMatch('<b>abc', 'a')
++    expect(out).toContain('&lt;b&gt;')
++    // strip the one legitimate <mark>...</mark> pair and confirm nothing else looks like a tag
++    const stripped = out.replace('<mark>', '').replace('</mark>', '')
++    expect(stripped).not.toMatch(/<[^&]/)
++  })
++  it('无 query 时只转义不高亮', () => {
++    expect(highlightMatch('<b>abc', '')).toBe('&lt;b&gt;abc')
++  })
++  it('无匹配时只转义', () => {
++    expect(highlightMatch('abc', 'zzz')).toBe('abc')
++  })
++})
+diff --git a/src/ai/util/mentionFormat.ts b/src/ai/util/mentionFormat.ts
+new file mode 100644
+index 0000000..69bafd3
+--- /dev/null
++++ b/src/ai/util/mentionFormat.ts
+@@ -0,0 +1,64 @@
++// 1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue:
++//   DRIVE_PALETTE/driveColor/formatBytes/getExt   :87-107
++//   highlight/escapeHtml/formatTime                :273-299
++//
++// NOTE on getExt: MentionPopover.vue:103-107 defines its own getExt, but it
++// is byte-for-byte identical to AgentComposer.vue:180-183 (same `i < 1`
++// guard, same lowercase). Re-exported from composerText.ts rather than
++// duplicated, per task instructions ("check whether they behave
++// identically; export it once ... if so").
++export { getExt } from './composerText'
++
++// Brand/identity placeholder colors carried over verbatim from Vue2 — one of
++// this repo's registered exceptions to the "no color literals" rule (see
++// src/ai/styles/tokens.scss header lines 7-18, same category as the
++// seed-indexed PALETTES in SearchFullResults.vue).
++export const DRIVE_PALETTE: string[] = ['#007AFF', '#AF52DE', '#34C759', '#FF9500', '#FF3B30', '#30B0C7']
++
++/** Deterministic color for a drive/mount label, hashed into DRIVE_PALETTE. */
++export function driveColor(label: string): string {
++  let h = 0
++  for (const c of label) h = ((h << 5) - h + c.charCodeAt(0)) | 0
++  return DRIVE_PALETTE[Math.abs(h) % DRIVE_PALETTE.length]
++}
++
++/** Human file size, thresholds/format matching MentionPopover.vue:95-101
++ *  exactly (distinct from src/files/util/format.ts's renderSize — that one
++ *  has different thresholds/output and must not be reused here). */
++export function formatBytes(n: number): string {
++  if (n == null || isNaN(n)) return ''
++  if (n < 1024) return `${n} B`
++  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
++  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(1)} MB`
++  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
++}
++
++/** Accepts unix seconds, unix ms, or an ISO string (MentionPopover.vue:287-299).
++ *  Same-year dates render as "month day"; other years as "year month". */
++export function formatTime(t: number | string): string {
++  if (!t) return ''
++  let d: Date
++  if (typeof t === 'number') d = new Date(t > 1e12 ? t : t * 1000)
++  else d = new Date(t)
++  if (isNaN(d.getTime())) return ''
++  const now = new Date()
++  const sameYear = d.getFullYear() === now.getFullYear()
++  return d.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short' })
++}
++
++/** Escape the five HTML-significant characters (MentionPopover.vue:282-285). */
++export function escapeHtml(s: string): string {
++  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
++}
++
++/** Wrap the first case-insensitive match of `query` in `name` with <mark>,
++ *  escaping all three surrounding segments (MentionPopover.vue:273-280). */
++export function highlightMatch(name: string, query: string): string {
++  if (!query) return escapeHtml(name)
++  const i = name.toLowerCase().indexOf(query.toLowerCase())
++  if (i < 0) return escapeHtml(name)
++  const a = name.slice(0, i)
++  const m = name.slice(i, i + query.length)
++  const b = name.slice(i + query.length)
++  return `${escapeHtml(a)}<mark>${escapeHtml(m)}</mark>${escapeHtml(b)}`
++}
+diff --git a/src/ai/views/AgentPage.test.ts b/src/ai/views/AgentPage.test.ts
+index 1a16bb5..adf4743 100644
+--- a/src/ai/views/AgentPage.test.ts
++++ b/src/ai/views/AgentPage.test.ts
+@@ -3,20 +3,21 @@ import { mount, flushPromises } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import zh from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   listAgentSessions: vi.fn(),
+   createAgentSession: vi.fn(),
+   deleteAgentSession: vi.fn(),
+   listAgentMessages: vi.fn(),
+   updateAgentSessionTitle: vi.fn(),
++  getContextUsage: vi.fn(),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
+ 
+ const push = vi.fn()
+ const replace = vi.fn().mockResolvedValue(undefined)
+ const routeQuery: Record<string, string> = {}
+ vi.mock('vue-router', () => ({
+   useRouter: () => ({ push, replace }),
+   useRoute: () => ({ query: routeQuery }),
+ }))
+@@ -162,11 +163,56 @@ describe('AgentPage', () => {
+   it('侧栏 open-settings(设置齿轮)→ 弹 aiSettingsComingSoon toast,不 router.push(P2 路由未落地,防空白死页)', async () => {
+     const w = mountPage()
+     await flushPromises()
+     const toast = useToast()
+     const showSpy = vi.spyOn(toast, 'show')
+     await w.find('.sidebar-foot .icon-btn').trigger('click')
+     expect(showSpy).toHaveBeenCalledWith('设置页将在后续阶段开启')
+     expect(push).not.toHaveBeenCalled()
+     w.unmount()
+   })
++
++  it('挂载 composer,并把 send/stop/send-init 接到 store', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const composer = w.findComponent({ name: 'AgentComposer' })
++    expect(composer.exists()).toBe(true)
++    const store = useAgentStore()
++    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
++    const stopSpy = vi.spyOn(store, 'stop').mockResolvedValue(undefined)
++    const initSpy = vi.spyOn(store, 'sendInit').mockResolvedValue(undefined)
++    composer.vm.$emit('send', { text: 'hi', attachmentIds: [], attachmentRefs: [] })
++    composer.vm.$emit('stop')
++    composer.vm.$emit('send-init', '/DATA/docs')
++    expect(sendSpy).toHaveBeenCalledWith({ text: 'hi', attachmentIds: [], attachmentRefs: [] })
++    expect(stopSpy).toHaveBeenCalled()
++    expect(initSpy).toHaveBeenCalledWith('/DATA/docs')
++  })
++
++  it('ctxUsage:挂载后拉一次;切会话拉一次;busy 由 true→false 再拉一次', async () => {
++    svc.getContextUsage.mockResolvedValue({ tokens: 10, window: 100, pct: 10 })
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    const base = svc.getContextUsage.mock.calls.length
++    store.activeSessionId = 'sess-x'
++    await flushPromises()
++    expect(svc.getContextUsage.mock.calls.length).toBe(base + 1)
++    store.busy = true
++    await flushPromises()
++    expect(svc.getContextUsage.mock.calls.length).toBe(base + 1) // 上升沿不拉
++    store.busy = false
++    await flushPromises()
++    expect(svc.getContextUsage.mock.calls.length).toBe(base + 2) // 下降沿拉
++    expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toEqual({ tokens: 10, window: 100, pct: 10 })
++  })
++
++  it('ctxUsage:无会话不拉;请求失败置 null', async () => {
++    svc.getContextUsage.mockRejectedValue(new Error('x'))
++    const w = mountPage()
++    await flushPromises()
++    const store = useAgentStore()
++    store.activeSessionId = 'sess-y'
++    await flushPromises()
++    expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
++  })
+ })
+diff --git a/src/ai/views/AgentPage.vue b/src/ai/views/AgentPage.vue
+index 91cf0d2..83a22e2 100644
+--- a/src/ai/views/AgentPage.vue
++++ b/src/ai/views/AgentPage.vue
+@@ -1,30 +1,41 @@
+ <!--
+   1:1 移植自 Vue2 src/views/AI/Agent/Agent.vue(242 行),1a 裁剪版:
+   去 AgentComposer(1b 无输入框 UI —— 本期唯一发送入口是 Task 11 的
+-  ?search=/?message= 自动发送 + EmptyState 建议卡,composer 组件本身留 1c)、
++  ?search=/?message= 自动发送 + EmptyState 建议卡)、
+   AgentRightPanel(1c),以及 systemMetrics/disks 的装载段(1c)。右侧面板在
+   本期永久折叠(data-rightcollapsed 写死 true,而不是像 Vue2 那样绑 store
+   状态——store 里 rightCollapsed 恒 true,直接写死更直白)。
+ 
++  SP8-P1c1 Task 12 —— AgentComposer 已挂载(Vue2 Agent.vue:38-42 挂载契约,
++  1:1):props busy/ctx-usage,emits send/stop/send-init 直连 store 同名 action。
++  ctxUsage 状态 + refreshContextUsage() 移植自 Vue2 Agent.vue:99/198-207,
++  三个刷新触发点(mounted 一次、activeSessionId 变化一次、busy true→false 下降
++  沿一次)移植自 Vue2 120-132(**不**移植同一会话 watcher 里的
++  loadSessionThinking/updateThinkingForModel,也**不**移植 lastFallbackNotice
++  toast watcher——两者都属于 ThinkingBar/ModelPicker,留给 1c-2)。
++  右栏(AgentRightPanel)、ModelPicker、ThinkingBar 仍留 1c-2。
++
+   主题持久化已下沉到 store.toggleTheme(Task 2 里直接 localStorage.setItem),
+   这里不再像 Vue2 Agent.vue:117-119 那样额外 watch store.theme 落盘。
+ -->
+ <script setup lang="ts">
+-import { computed, onMounted } from 'vue'
++import { computed, onMounted, ref, watch } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
++import { service } from '@nimotech/nimoos-service'
+ import { useAgentStore } from '../stores/agentStore'
+ import { provideAgentStore } from '../composables/useProvidedAgentStore'
+ import { useToast } from '../../stores/toast'
+ import AgentSidebar from '../components/shell/AgentSidebar.vue'
+ import AgentTopbar from '../components/shell/AgentTopbar.vue'
++import AgentComposer from '../components/shell/AgentComposer.vue'
+ import MessageList from '../components/stream/MessageList.vue'
+ import EmptyState from '../components/stream/EmptyState.vue'
+ import '../styles/tokens.scss'
+ import '../styles/agent-styles.scss'
+ 
+ const store = useAgentStore()
+ provideAgentStore(store)
+ const route = useRoute()
+ const router = useRouter()
+ const { t } = useI18n()
+@@ -47,34 +58,80 @@ const currentSessionTitle = computed(() => {
+ function onOpenSettings() {
+   // P2: router.push('/ai/settings') — 路由该期才存在,先占位(评审跟进:
+   // 路由不存在且无 catch-all,push 会落到空白死页)。
+   toast.show(t('aiSettingsComingSoon'))
+ }
+ 
+ function onUpdateTitle(title: string) {
+   if (store.activeSessionId) store.setSessionTitle(store.activeSessionId, title)
+ }
+ 
++// Agent.vue:99 ctxUsage state, populated by refreshContextUsage() below.
++const ctxUsage = ref<{ tokens: number; window: number; pct: number } | null>(null)
++
++// Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1)—— Agent.vue
++// 198-207 的 refreshContextUsage 没有 in-flight/顺序守卫:一次快速切会话可能触发
++// 两次重叠请求,若旧请求晚落地,会用上一个会话的用量覆盖当前会话的 ctxUsage。这里
++// 加一个自增序号,只有仍是"最新一次调用"的结果才写回 ctxUsage,过期结果直接丢弃 ——
++// 不改变三个触发点各自的调用次数/时机语义,修复面仅限"谁能写回"。
++let ctxUsageSeq = 0
++
++/**
++ * Agent.vue:198-207 —— 无会话早退;传**原始 model key**(如 'local:llama3'),
++ * 不是裸模型名;失败置 null。
++ */
++async function refreshContextUsage() {
++  if (!store.activeSessionId) return
++  const seq = ++ctxUsageSeq
++  try {
++    const usage = (await service.ai.getContextUsage(
++      store.activeSessionId,
++      store.selectedModel as string,
++    )) as { tokens: number; window: number; pct: number }
++    if (seq === ctxUsageSeq) ctxUsage.value = usage
++  } catch {
++    if (seq === ctxUsageSeq) ctxUsage.value = null
++  }
++}
++
++// Agent.vue:120-126 会话 watcher —— 本任务只接 ctxUsage。**不移植**同一个 watcher
++// 里的 loadSessionThinking/updateThinkingForModel(那两条属于 ThinkingBar,留给 1c-2,
++// 提前塞会是死代码)。
++watch(
++  () => store.activeSessionId,
++  () => refreshContextUsage(),
++)
++// Agent.vue:127-132 —— 只在 busy true→false 下降沿刷新(一轮结束之后);没有针对
++// selectedModel 的 watcher,与 Vue2 一致(切模型不会自动重拉用量)。
++watch(
++  () => store.busy,
++  (v, old) => {
++    if (old === true && v === false) refreshContextUsage()
++  },
++)
++
+ onMounted(async () => {
+   store.initTheme()
+   try {
+     await store.loadSessions()
+   } catch {
+     /* ignore — mirrors Vue2 Agent.vue's swallow-per-call mounted sequence */
+   }
+   try {
+     // 在 auto-send 交接(Task 11)之前先把默认模型定下来,否则那时
+     // selectedModel 还是 null,send() 会先落一个 "无模型" 的错误 block。
+     await store.loadAvailableModels()
+   } catch {
+     /* ignore — 拉模型失败不该挡住页面渲染,send() 自己会兜底提示无模型 */
+   }
++  // Agent.vue:154 —— models 加载完之后拉一次 ctxUsage(mounted 触发,三个触发点之一)。
++  refreshContextUsage()
+ 
+   // Vue2 Agent.vue:145-148 —— ?skill= 挂号:只暂存,消费点在 send()(agentStore.ts
+   // send() 的 X-Skill-Id 组装段),这里不发送。
+   const skill = route.query.skill
+   if (skill) store.pendingSkillId = String(skill)
+ 
+   // Handoff from the global search page / homepage AI widget
+   // (/ai/agent?search=<query> or ?message=<text>) — Vue2 Agent.vue:166-192.
+   // search wins over message when both are present (message is skipped
+   // entirely). One-shot: router.replace strips both query keys BEFORE
+@@ -121,15 +178,31 @@ onMounted(async () => {
+       <AgentTopbar
+         :session-id="String(store.activeSessionId ?? '')"
+         :stored-title="currentSessionTitle"
+         :theme="store.theme"
+         @toggle-left="store.toggleLeft"
+         @toggle-theme="store.toggleTheme"
+         @update-title="onUpdateTitle"
+       />
+       <EmptyState v-if="store.messages.length === 0" />
+       <MessageList v-else :messages="messagesForList" :busy="store.busy" />
+-      <!-- 1b/1c: composer -->
++      <!--
++        Agent.vue:38-42 挂载契约 —— 1:1(props/emits 名与语义)。emit 处理器写成
++        内联箭头函数、而不是像 Vue2 那样直接 `@send="store.actions.send"` 裸引用
++        方法 —— Vue3 里裸方法引用会在渲染时把 `store.send` 这个函数值本身固化进
++        vnode 的 onSend prop;此后若外部整体替换了 `store.send`(如测试用
++        `vi.spyOn(store, 'send')`,底层走 `Object.defineProperty`,不经过 Vue
++        reactive 的 set 陷阱,不会触发 AgentPage 重渲染),裸引用不会跟着变,仍会
++        调到替换前的旧函数。内联箭头在**调用时**才去读 `store.send`,读到的是
++        当前值,行为才和"调用方法当前实现"一致。
++      -->
++      <AgentComposer
++        :busy="store.busy"
++        :ctx-usage="ctxUsage"
++        @send="(payload) => store.send(payload)"
++        @stop="() => store.stop()"
++        @send-init="(target) => store.sendInit(target)"
++      />
+     </main>
+     <!-- 1c: right panel -->
+   </div>
+ </template>
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index b19859d..86868cc 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -558,21 +558,20 @@ export default {
+   aiEmptyCleanDupPrompt: 'Scan /Downloads folder, find duplicate or similar files, list recoverable space',
+   aiEmptyCleanDupExample: 'Scan /Downloads for redundant files',
+   aiEmptyOrganize: 'Organize folders',
+   aiEmptyOrganizePrompt: 'Reorganize /Documents by topic and year, suggest a structure',
+   aiEmptyOrganizeExample: 'Sort /Documents by topic and year',
+   aiEmptyScript: 'Write a script',
+   aiEmptyScriptPrompt: 'Write a Python script that scans /DATA and reports disk usage by folder as a chart',
+   aiEmptyScriptExample: 'Build a small tool or automation',
+   aiConfirm: 'Delete',
+   aiCancel: 'Cancel',
+-  aiComingSoon: 'Sending will be enabled in the next phase',
+   aiSettingsComingSoon: 'Settings will be enabled in a later phase',
+   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
+   // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
+   'ai.searchMyNas': 'Search my NAS for "{query}".',
+   // SP8-P1b Task 8 —— block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
+   aiMcpConnectFailed: 'MCP server {server} failed to connect: {error}',
+   aiConfirmRequiredTitle: 'Confirmation required: {action}',
+   aiHighRiskOperation: 'High-risk operation',
+   aiConfirmWaitingApproval: 'Agent is waiting for your approval',
+   aiAccept: 'Accept',
+@@ -657,11 +656,98 @@ export default {
+   aiViewAllResults: 'View all results',
+   // SP8-P1b Task 10 — ProcessStrip (merged thinking+tool step strip) / TimelineMinimap
+   aiProcWorking: 'Working',
+   aiProcProcessed: 'Processed',
+   aiProcThinkingWord: 'thinking',
+   aiProcSteps: '{n} steps',
+   aiProcReasoned: 'Reasoned',
+   aiProcTool: 'Tool',
+   aiProcNoDetails: 'No details',
+   aiTimelineYou: 'You',
++  // SP8-P1c1 Task 6 — ContextUsageBar (context usage ring)
++  aiCtxLabel: 'Context',
++  // SP8-P1c1 Task 7 — MentionPopover (@ mention / file-drawer drill-down panel),
++  // verbatim English strings from Vue2 src/views/AI/Agent/shell/MentionPopover.vue
++  // template lines 1-80.
++  aiMentionAllDrives: 'All drives',
++  aiMentionDrives: 'drives',
++  aiMentionItems: 'items',
++  aiMentionLoading: 'Loading…',
++  // aiMentionNoMatchTpl's {query} is an <i18n-t> named-slot placeholder, filled by
++  // MentionPopover.vue with <b>"{{ query }}"</b> — quotes+bold live in the slot
++  // markup, not the translated string (see Fix 2; restores Vue2's <b> wrap).
++  aiMentionNoMatchTpl: 'No matches for {query}',
++  aiMentionEmptyHere: 'No items here',
++  aiMentionTryDifferentName: 'Try a different name, or press',
++  aiMentionUpHint: 'to go up',
++  aiMentionFolder: 'folder',
++  aiMentionIgnored: '.gitignore',
++  aiMentionKbdNav: 'Navigate',
++  aiMentionKbdDrill: 'Drill in',
++  aiMentionKbdSelect: 'Select',
++  aiMentionKbdUp: 'Up',
++  aiMentionKbdClose: 'Close',
++  // SP8-P1c1 Task 8 — SlashMenu (`/init` slash panel), verbatim English strings
++  // from Vue2 src/views/AI/Agent/shell/SlashMenu.vue template lines 1-23
++  // (the `/init` literal itself is not translated).
++  aiSlashInitDesc: 'Generate agent.md for a directory',
++  aiSlashNoFolders: "No visible directories — use {'@'} to select one first",
++  aiSlashInitialize: 'Initialize',
++  // SP8-P1c1 Task 9 — AgentComposer (input skeleton: chips + textarea + toolbar).
++  // aiComposerPlaceholder reuses the existing English string from Vue2
++  // src/assets/lang/en_US.json's agent.composerPlaceholder key, verbatim.
++  aiComposerPlaceholder: "Ask Nimo, or type {'@'} to reference a file…",
++  aiComposerVoice: 'Voice',
++  // Full sentence from Vue2 AgentComposer.vue:128 (matches existing en_US.json translation).
++  aiComposerCaption: 'Files stay on your NAS. Nimo can read, organize, and manage them.',
++  aiComposerBrowse: 'Browse',
++  aiComposerBrowseTitle: 'Browse NAS',
++  // BrowserModal is deferred this phase (user decision, see Task 9 brief) — placeholder toast.
++  aiBrowseComingSoon: 'The browser dialog is coming in a later release',
++  aiNotSupportedYet: 'This feature is not yet supported',
++  // Not enumerated by the brief — Vue2 toastError() (654-657) is the generic error
++  // helper shared by removeChip/pickItem/onBrowserPick, mapping to Vue2 en_US.json's
++  // "Authorization failed: {msg}" key verbatim (not a "remove"-specific string).
++  aiAuthFailed: 'Authorization failed: {msg}',
++  // SP8-P1c1 Task 10 — AgentComposer attachment pipeline. All English strings are
++  // the literal source text Vue2 passes to this.$t(...) (AgentComposer.vue) —
++  // en_US.json is an identity map (key === value) for these, so quoting the Vue2
++  // source verbatim is equivalent to reusing the shipped translation.
++  aiDocErrEmptyScanned: 'Appears to be a scanned document; text cannot be recognized. Please provide a text-based PDF or paste the content directly.',
++  aiDocErrEncrypted: 'PDF is encrypted and cannot be read. Please provide an unencrypted version.',
++  aiDocErrZipBomb: 'File is too large after decompression; read rejected.',
++  aiDocErrTimeout: 'Parse timed out; document may be too large or complex. Try splitting it before uploading.',
++  aiDocErrParseError: 'Cannot parse; file may be corrupted or in an unsupported format.',
++  aiDocErrSidecarWriteFailed: 'Server failed to cache extraction result; please re-upload.',
++  aiDocErrNotInstalled: 'Server is missing the required parser; contact your administrator.',
++  aiDocErrVanished: 'Extraction result has been lost; please re-upload.',
++  aiDocErrGeneric: 'Document extraction failed: {code}',
++  aiDocErrShortScannedDoc: 'Scanned doc',
++  aiDocErrShortEncrypted: 'Encrypted',
++  aiDocErrShortTooLarge: 'Too large',
++  aiDocErrShortTimedOut: 'Timed out',
++  aiDocErrShortParseFailed: 'Parse failed',
++  aiDocErrShortCacheFailed: 'Cache failed',
++  aiDocErrShortParserMissing: 'Parser missing',
++  aiDocErrShortLost: 'Lost',
++  aiDocErrShortParse: 'Parse failed',
++  aiDocOkExtracted: 'Extracted to Markdown; model can read contents',
++  aiDocPages: '{n} pages',
++  aiDocTruncated: 'Content truncated (too long)',
++  aiAttachHint1: 'Supported attachment types',
++  aiAttachHint2: '· Images: PNG / JPG / GIF / WebP / AVIF etc. (model reads images directly)',
++  aiAttachHint3: '· Documents: PDF / DOCX / XLSX / XLSM / PPTX (extracted to Markdown for model)',
++  aiAttachHint4: '· Video / Audio: metadata only (duration, resolution, codec)',
++  aiAttachHint5: 'Text / Code:',
++  aiAttachHint6: '· Other files can be uploaded but the model can only see the filename',
++  aiAttachHint7: 'Single file limit 500 MB, session total 50 files',
++  aiAttachTooLarge: '{name} exceeds 500 MB limit',
++  aiAttachSessionFailed: 'Failed to create session: {err}',
++  // SP8-P1c1 Task 11 — AgentComposer @mention/slash wiring, gitignore 409 confirm
++  // (AlertDialog replaces Vue2's window.confirm, see the pickItem comment in
++  // AgentComposer.vue). aiGitignoreBlockedMsg is Vue2's exact source string
++  // (AgentComposer.vue:398/631, en_US.json is an identity map for it).
++  // aiGitignoreBlockedTitle is new — AlertDialog needs a title, window.confirm
++  // never had one.
++  aiGitignoreBlockedTitle: 'Blocked by .gitignore',
++  aiGitignoreBlockedMsg: '{path} is blocked by .gitignore. Authorize anyway?',
+ }
+diff --git a/src/i18n/messageSyntax.test.ts b/src/i18n/messageSyntax.test.ts
+new file mode 100644
+index 0000000..62e62c8
+--- /dev/null
++++ b/src/i18n/messageSyntax.test.ts
+@@ -0,0 +1,94 @@
++import { describe, it, expect } from 'vitest'
++import { createI18n } from 'vue-i18n'
++import zh from './zh_cn'
++import en from './en_us'
++
++describe('i18n message syntax', () => {
++  describe('aiComposerPlaceholder and aiSlashNoFolders keys', () => {
++    it('should resolve correctly in zh_cn and contain literal @', () => {
++      const i18nZh = createI18n({
++        legacy: false,
++        locale: 'zh_cn',
++        messages: { zh_cn: zh },
++      })
++      const message = i18nZh.global.t('aiComposerPlaceholder')
++      expect(message).toContain('@')
++      expect(message).toBe('问 Nimo，或输入 @ 引用文件…')
++    })
++
++    it('should resolve correctly in en_us aiComposerPlaceholder and contain literal @', () => {
++      const i18nEn = createI18n({
++        legacy: false,
++        locale: 'en_us',
++        messages: { en_us: en },
++      })
++      const message = i18nEn.global.t('aiComposerPlaceholder')
++      expect(message).toContain('@')
++      expect(message).toBe('Ask Nimo, or type @ to reference a file…')
++    })
++
++    it('should resolve correctly in en_us aiSlashNoFolders and contain literal @', () => {
++      const i18nEn = createI18n({
++        legacy: false,
++        locale: 'en_us',
++        messages: { en_us: en },
++      })
++      const message = i18nEn.global.t('aiSlashNoFolders')
++      expect(message).toContain('@')
++      expect(message).toBe('No visible directories — use @ to select one first')
++    })
++
++    it('should resolve correctly in zh_cn aiSlashNoFolders and contain literal @', () => {
++      const i18nZh = createI18n({
++        legacy: false,
++        locale: 'zh_cn',
++        messages: { zh_cn: zh },
++      })
++      const message = i18nZh.global.t('aiSlashNoFolders')
++      expect(message).toContain('@')
++      expect(message).toBe('还没有可见目录 —— 先用 @ 选一个')
++    })
++  })
++
++  describe('bare @ guard (unescaped @ detection)', () => {
++    it('should not allow bare @ in any key (only {@} escapes or @:key references)', () => {
++      const locales = [
++        { name: 'zh_cn', messages: zh },
++        { name: 'en_us', messages: en },
++      ]
++
++      const violations: Array<{ locale: string; key: string; value: string }> = []
++
++      for (const { name, messages } of locales) {
++        for (const [key, value] of Object.entries(messages)) {
++          if (typeof value !== 'string') continue
++
++          // Look for bare @ that is NOT:
++          // 1. Part of {'@'} escape (vue-i18n literal interpolation)
++          // 2. Part of @:key linked-message reference
++
++          // Replace all valid @ patterns so we can detect any remaining bare @
++          let testValue = value
++          // Remove {'@'} escapes (handles both {'@'} and {'something'} patterns)
++          testValue = testValue.replace(/\{'[^']*'\}/g, '')
++          // Remove @:key patterns
++          testValue = testValue.replace(/@:[a-zA-Z0-9_.]+/g, '')
++
++          // Now check if there's any remaining @ in the string
++          if (testValue.includes('@')) {
++            violations.push({ locale: name, key, value })
++          }
++        }
++      }
++
++      if (violations.length > 0) {
++        const details = violations
++          .map((v) => `${v.locale}::${v.key} = "${v.value}"`)
++          .join('\n')
++        expect.fail(
++          `Found bare @ in messages (must use {'@'} for literal @ or @:key for linked messages):\n${details}`
++        )
++      }
++    })
++  })
++})
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index a3e1533..384b127 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -557,21 +557,20 @@ export default {
+   aiEmptyCleanDupPrompt: '扫描 /Downloads 文件夹,找出重复或相似文件,列出可回收空间',
+   aiEmptyCleanDupExample: '扫描 /Downloads 里的冗余文件',
+   aiEmptyOrganize: '整理文件夹',
+   aiEmptyOrganizePrompt: '按主题和年份重新整理 /Documents,给出目录结构建议',
+   aiEmptyOrganizeExample: '按主题和年份整理 /Documents',
+   aiEmptyScript: '写个脚本',
+   aiEmptyScriptPrompt: '写一个 Python 脚本,扫描 /DATA 并用图表展示各文件夹的磁盘占用',
+   aiEmptyScriptExample: '搭一个小工具或自动化脚本',
+   aiConfirm: '删除',
+   aiCancel: '取消',
+-  aiComingSoon: '对话发送将在下一期开启',
+   aiSettingsComingSoon: '设置页将在后续阶段开启',
+   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
+   // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
+   'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',
+   // SP8-P1b Task 8 —— 块渲染器批次 A(confirm/mcp 系列卡片),1:1 对齐 Vue2
+   // src/assets/lang/zh_CN.json 里同一批 key 的既有译文。
+   aiMcpConnectFailed: 'MCP 服务「{server}」连接失败：{error}',
+   aiConfirmRequiredTitle: '需要确认：{action}',
+   aiHighRiskOperation: '高危操作',
+   aiConfirmWaitingApproval: 'Agent 等待你的批准',
+@@ -657,11 +656,105 @@ export default {
+   aiViewAllResults: '查看全部结果',
+   // SP8-P1b Task 10 — ProcessStrip (合并 thinking+tool 步骤条) / TimelineMinimap
+   aiProcWorking: '处理中',
+   aiProcProcessed: '已处理',
+   aiProcThinkingWord: '思考',
+   aiProcSteps: '{n} 步',
+   aiProcReasoned: '已推理',
+   aiProcTool: '工具',
+   aiProcNoDetails: '无详情',
+   aiTimelineYou: '你',
++  // SP8-P1c1 Task 6 — ContextUsageBar(上下文占用环)
++  aiCtxLabel: '上下文',
++  // SP8-P1c1 Task 7 — MentionPopover(@ 提及/文件抽屉钻取面板),对齐 Vue2
++  // src/views/AI/Agent/shell/MentionPopover.vue 模板 1-80 的全部可见文案。
++  aiMentionAllDrives: '全部磁盘',
++  aiMentionDrives: '个磁盘',
++  aiMentionItems: '项',
++  aiMentionLoading: '加载中…',
++  // aiMentionNoMatchTpl 的 {query} 是 <i18n-t> 具名插槽占位符,由 MentionPopover.vue
++  // 用 <b>"{{ query }}"</b> 填充——引号+加粗都在插槽里,不在译文字符串里(见 Fix 2)。
++  aiMentionNoMatchTpl: '没有匹配 {query} 的结果',
++  aiMentionEmptyHere: '这里没有内容',
++  aiMentionTryDifferentName: '换个名字试试,或按',
++  aiMentionUpHint: '返回上一级',
++  aiMentionFolder: '文件夹',
++  aiMentionIgnored: '.gitignore',
++  aiMentionKbdNav: '导航',
++  aiMentionKbdDrill: '进入',
++  aiMentionKbdSelect: '选择',
++  aiMentionKbdUp: '上一级',
++  aiMentionKbdClose: '关闭',
++  // SP8-P1c1 Task 8 — SlashMenu(`/init` 斜杠面板),对齐 Vue2
++  // src/views/AI/Agent/shell/SlashMenu.vue 模板 1-23 的全部可见文案(`/init` 字面量不译)。
++  aiSlashInitDesc: '为某个目录生成 agent.md',
++  aiSlashNoFolders: "还没有可见目录 —— 先用 {'@'} 选一个",
++  aiSlashInitialize: '初始化',
++  // SP8-P1c1 Task 9 — AgentComposer(输入框骨架:chips + textarea + 工具栏)。
++  // aiComposerPlaceholder 取自 Vue2 src/assets/lang/zh_CN.json 里
++  // agent.composerPlaceholder 的既有译文,逐字复用。
++  aiComposerPlaceholder: "问 Nimo，或输入 {'@'} 引用文件…",
++  aiComposerVoice: '语音',
++  // Vue2 AgentComposer.vue:128 的整句 caption(对齐既有 zh_CN.json 译文)。
++  aiComposerCaption: '文件保留在你的 NAS。Nimo 可以读取、整理、操作它们。',
++  aiComposerBrowse: '浏览',
++  aiComposerBrowseTitle: '浏览 NAS',
++  // Browse 弹窗(BrowserModal)本期不做,点击后的占位提示(用户决定,见 Task 9 brief)。
++  aiBrowseComingSoon: '浏览弹窗将在后续版本开启',
++  aiNotSupportedYet: '该功能尚未支持',
++  // brief 未列举此键——Vue2 toastError()(654-657)是 removeChip/pickItem/onBrowserPick
++  // 三处共用的通用错误提示,对应 Vue2 zh_CN.json "Authorization failed: {msg}" 键
++  // (译文"授权失败：{msg}"),不是"移除失败"专属文案。
++  aiAuthFailed: '授权失败：{msg}',
++  // SP8-P1c1 Task 10 — AgentComposer 附件管线。以下中文全部逐字复用 Vue2 既有
++  // src/assets/lang/zh_CN.json 的既有译文(用与 Vue2 源码里 this.$t(...) 调用时
++  // 完全相同的英文字符串去查 zh_CN.json,取回对应中文),未在该文件里出现的键
++  // (仅 aiAttachSessionFailed 因 zh_CN.json 里实际键是 "Failed to create session:
++  // {err}" → "创建会话失败：{err}"，与 brief 建议的“建会话失败”不同，按“复用既有
++  // 译文优先”取 zh_CN.json 原文)。
++  //
++  // docErrorKey/docErrorShortKey(attachmentMeta.ts)的 8 长句 + 8 短标签 + 2 个
++  // 通用兜底键,对应 Vue2 docErrorLabel/docErrorShort 里的 8 组 code→label 映射
++  // (AgentComposer.vue:460-486)。
++  aiDocErrEmptyScanned: '看起来是扫描件，无法识别其中的文字。请提供文字版 PDF 或直接粘贴内容。',
++  aiDocErrEncrypted: 'PDF 已加密，无法读取。请提供未加密的版本。',
++  aiDocErrZipBomb: '文件解压后过大，已拒绝读取。',
++  aiDocErrTimeout: '解析超时，文档过大或过于复杂。请尝试切分后再上传。',
++  aiDocErrParseError: '无法解析，文件可能已损坏或格式异常。',
++  aiDocErrSidecarWriteFailed: '服务端缓存抽取结果失败，请重新上传。',
++  aiDocErrNotInstalled: '服务端缺少解析器，请联系管理员。',
++  aiDocErrVanished: '抽取结果已丢失，请重新上传。',
++  aiDocErrGeneric: '文档抽取失败：{code}',
++  aiDocErrShortScannedDoc: '扫描件',
++  aiDocErrShortEncrypted: '已加密',
++  aiDocErrShortTooLarge: '文件过大',
++  aiDocErrShortTimedOut: '解析超时',
++  aiDocErrShortParseFailed: '解析失败',
++  aiDocErrShortCacheFailed: '缓存失败',
++  aiDocErrShortParserMissing: '解析器缺失',
++  aiDocErrShortLost: '已丢失',
++  aiDocErrShortParse: '解析失败',
++  // docOkLabel(AgentComposer.vue:488-494)三段拼接文案。
++  aiDocOkExtracted: '已抽取为 Markdown，模型可读取内容',
++  aiDocPages: '{n} 页',
++  aiDocTruncated: '内容过长已截断',
++  // attachmentHint(AgentComposer.vue:234-244)七行,顺序与 Vue2 数组顺序一致。
++  aiAttachHint1: '支持的附件类型',
++  aiAttachHint2: '· 图片：PNG / JPG / GIF / WebP / AVIF 等（模型直接识图）',
++  aiAttachHint3: '· 文档：PDF / DOCX / XLSX / XLSM / PPTX（抽取成 Markdown 供模型阅读）',
++  aiAttachHint4: '· 视频 / 音频：仅读元数据（时长、分辨率、编码）',
++  aiAttachHint5: '文本/代码：',
++  aiAttachHint6: '· 其他文件可上传但模型只能看到文件名',
++  aiAttachHint7: '单文件上限 500 MB，会话累计 50 个',
++  // onFilesPicked(AgentComposer.vue:531-537,517-527)的两条 toast 文案,逐字复用
++  // zh_CN.json 既有译文(见上方注释——500MB 提示的既有译文实际写的是 "500MB"
++  // 无空格,与 zh_CN.json 保持一致而非按 brief 字面拼写)。
++  aiAttachTooLarge: '{name} 超过 500MB 上限',
++  aiAttachSessionFailed: '创建会话失败：{err}',
++  // SP8-P1c1 Task 11 — AgentComposer @提及/斜杠接线,gitignore 409 确认框
++  // (AlertDialog 取代 Vue2 window.confirm,见 AgentComposer.vue pickItem 注释)。
++  // aiGitignoreBlockedMsg 逐字复用 Vue2 既有 zh_CN.json 对 "{path} is blocked by
++  // .gitignore. Authorize anyway?" 的译文;aiGitignoreBlockedTitle 是 AlertDialog
++  // 需要而 window.confirm 没有的标题,新写,词根与既有译文的"屏蔽"保持一致。
++  aiGitignoreBlockedTitle: '路径被 .gitignore 屏蔽',
++  aiGitignoreBlockedMsg: '{path} 被 .gitignore 屏蔽，确认仍要授权？',
+ }

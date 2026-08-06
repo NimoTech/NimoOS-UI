@@ -1,0 +1,133 @@
+# Review package: aef7f02..HEAD
+
+## Commits
+d24babd fix(storage): 时间线补折叠过渡+换卷重置展开态真回归测试(P5 T5)
+
+## Files changed
+ src/storage/components/SnapshotTimeline.test.ts | 21 ++++++++++--
+ src/storage/components/SnapshotTimeline.vue     | 43 +++++++++++++++++--------
+ 2 files changed, 48 insertions(+), 16 deletions(-)
+
+## Diff
+diff --git a/src/storage/components/SnapshotTimeline.test.ts b/src/storage/components/SnapshotTimeline.test.ts
+index 26d9423..986e064 100644
+--- a/src/storage/components/SnapshotTimeline.test.ts
++++ b/src/storage/components/SnapshotTimeline.test.ts
+@@ -74,18 +74,35 @@ describe('SnapshotTimeline', () => {
+     expect(item.find('.st-badge').text()).toBe(zh.snapTypeManual)
+     expect(item.find('.st-label').text()).toBe('升级前')
+     expect(item.find('.st-dot').classes()).toContain('manual')
+   })
+   it('不渲染[浏览]入口(文件区快照套件推迟)', async () => {
+     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
+     const w = mountIt(); await flush(w)
+     expect(w.find('.st-browse').exists()).toBe(false)
+     expect(w.text()).not.toContain(zh.filesTitle ?? '文件')
+   })
+-  it('换卷 → 重置展开态并重拉', async () => {
+-    listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
++  it('换卷 → 重置展开态并重拉(不沿用旧卷的展开集合)', async () => {
++    // 旧卷:单条,落在与新卷完全不同的日期(2026-07-15),默认展开。
++    // 新卷:3 组(2+1+1),默认展开规则是"最近 2 组" —— 若换卷不重置
++    // expandedKeys/expandInitialized,旧卷的展开键('2026-07-15')在新卷分组里
++    // 找不到任何匹配,会导致新卷的三组全部维持"收起"(0 条可见),而不是新卷
++    // 自己应有的默认展开结果(2 条 + 1 条 = 3 条可见、第三组收起)。
++    listMock
++      .mockResolvedValueOnce([{ id: 1, name: 'old', type: 'manual', created_at: day(15, 9) }])
++      .mockResolvedValueOnce([
++        { id: 2, name: 'a', type: 'auto-hourly', created_at: day(27, 9) },
++        { id: 3, name: 'b', type: 'manual', label: '新卷', created_at: day(27, 20) },
++        { id: 4, name: 'c', type: 'preop', created_at: day(26, 8) },
++        { id: 5, name: 'd', type: 'auto-daily', created_at: day(20, 8) },
++      ])
+     const w = mountIt(); await flush(w)
++    expect(w.findAll('.st-item')).toHaveLength(1)   // 旧卷:单条,默认展开
+     listMock.mockClear()
+     await w.setProps({ volumeUuid: 'u2' }); await flush(w)
+     expect(listMock).toHaveBeenCalledWith('u2')
++    expect(w.findAll('.st-group-header')).toHaveLength(3)
++    // 新卷按默认展开最近 2 组渲染(2 条 + 1 条 = 3 条可见,第三组收起)——
++    // 这就是"展开态被重置、按新卷重新计算默认展开"的直接证据。
++    expect(w.findAll('.st-item')).toHaveLength(3)
+   })
+ })
+diff --git a/src/storage/components/SnapshotTimeline.vue b/src/storage/components/SnapshotTimeline.vue
+index c81fe00..9913aa5 100644
+--- a/src/storage/components/SnapshotTimeline.vue
++++ b/src/storage/components/SnapshotTimeline.vue
+@@ -51,34 +51,36 @@ function toggleGroup(dayKey: string) {
+       <p>{{ t('snapEmptyHint') }}</p>
+     </div>
+ 
+     <div v-else class="st-body">
+       <div v-for="group in groups" :key="group.dayKey" class="st-group">
+         <button type="button" class="st-group-header" @click="toggleGroup(group.dayKey)">
+           <span class="st-chevron" :class="{ open: isExpanded(group.dayKey) }">›</span>
+           <span class="st-group-label">{{ group.label.i18nKey ? t(group.label.i18nKey) : group.label.text }}</span>
+           <span class="st-group-count">{{ group.items.length }}</span>
+         </button>
+-        <ul v-if="isExpanded(group.dayKey)" class="st-list">
+-          <li v-for="item in group.items" :key="item.id != null ? item.id : item.name" class="st-item">
+-            <span class="st-dot" :class="item.typeKind"></span>
+-            <div class="st-info">
+-              <span class="st-time">{{ item.time }}</span>
+-              <span class="st-badge" :class="item.typeKind">{{ t(item.typeLabelKey) }}</span>
+-              <span v-if="item.label" class="st-label">{{ item.label }}</span>
+-            </div>
+-            <div class="st-actions">
+-              <!-- [浏览] 未迁:跳文件区快照只读浏览属文件区快照套件(只读横幅/禁写/退出),
+-                   SP4 未迁、SP6-P5 决策推迟到独立一期(见 P5 计划台账)。删除按钮:P5 T6 -->
+-            </div>
+-          </li>
+-        </ul>
++        <transition name="st-collapse">
++          <ul v-if="isExpanded(group.dayKey)" class="st-list">
++            <li v-for="item in group.items" :key="item.id != null ? item.id : item.name" class="st-item">
++              <span class="st-dot" :class="item.typeKind"></span>
++              <div class="st-info">
++                <span class="st-time">{{ item.time }}</span>
++                <span class="st-badge" :class="item.typeKind">{{ t(item.typeLabelKey) }}</span>
++                <span v-if="item.label" class="st-label">{{ item.label }}</span>
++              </div>
++              <div class="st-actions">
++                <!-- [浏览] 未迁:跳文件区快照只读浏览属文件区快照套件(只读横幅/禁写/退出),
++                     SP4 未迁、SP6-P5 决策推迟到独立一期(见 P5 计划台账)。删除按钮:P5 T6 -->
++              </div>
++            </li>
++          </ul>
++        </transition>
+       </div>
+     </div>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .st { border-top: 1px solid var(--card-border); }
+ .st-header { padding: 8px 12px 2px; font-size: 11px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+ .st-empty { padding: 12px; text-align: center; }
+ .st-empty p { margin: 0 0 4px; font-size: 12px; color: var(--fg-muted); }
+@@ -112,11 +114,24 @@ function toggleGroup(dayKey: string) {
+ .st-time { font-size: 12px; font-weight: 500; font-family: var(--num-font); }
+ .st-badge { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 500; }
+ .st-badge.auto { background: var(--nrm-bg); color: var(--nrm-fg); }
+ .st-badge.manual { background: var(--accent-soft); color: var(--accent); }
+ .st-badge.preop { background: var(--dem-bg); color: var(--dem-fg); }
+ .st-label { font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
+ /* hover 才显形,但保留在 DOM 里可 tab(Vue2 注释同款理由) */
+ .st-actions { display: flex; flex: none; gap: 6px; opacity: 0; pointer-events: none; transition: opacity 0.15s var(--ease); }
+ 
+ @keyframes st-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
++
++/* Vue2 SnapshotTimeline.vue:353-361 的折叠/展开过渡 1:1 移植 —— 颜色/时长照搬,
++   仅类名按 Vue3 Transition 语义改写:Vue2 用 `-enter`,Vue3 用 `-enter-from`
++  (`-leave-to`/`-enter-active`/`-leave-active` 两版同名)。 */
++.st-collapse-enter-active,
++.st-collapse-leave-active {
++  transition: opacity 0.15s ease, transform 0.15s ease;
++}
++.st-collapse-enter-from,
++.st-collapse-leave-to {
++  opacity: 0;
++  transform: translateY(-4px);
++}
+ </style>

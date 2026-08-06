@@ -1,0 +1,327 @@
+# Review package: e601ff4..HEAD
+
+## Commits
+c59dd07 feat(apps): installing task cards on installed page; move install-end handling into store
+
+## Files changed
+ src/apps/components/InstallingAppCard.test.ts | 32 +++++++++++++++++
+ src/apps/components/InstallingAppCard.vue     | 47 +++++++++++++++++++++++++
+ src/apps/views/InstalledAppsPage.test.ts      | 49 ++++++++++++++++++++++++---
+ src/apps/views/InstalledAppsPage.vue          | 18 +++++++---
+ 4 files changed, 137 insertions(+), 9 deletions(-)
+
+## Diff
+diff --git a/src/apps/components/InstallingAppCard.test.ts b/src/apps/components/InstallingAppCard.test.ts
+new file mode 100644
+index 0000000..19fc659
+--- /dev/null
++++ b/src/apps/components/InstallingAppCard.test.ts
+@@ -0,0 +1,32 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import zh from '../../i18n/zh_cn'
++import InstallingAppCard from './InstallingAppCard.vue'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const base = { id: 'jellyfin', title: 'Jellyfin', icon: '', percent: 42, state: 'installing' as const, message: '' }
++
++describe('InstallingAppCard', () => {
++  it('installing:标题 + 进度条 42%', () => {
++    const w = mount(InstallingAppCard, { props: { task: base }, global: { plugins: [i18n] } })
++    expect(w.text()).toContain('Jellyfin')
++    expect(w.find('.op-progress-fill').attributes('style')).toContain('42%')
++    expect(w.find('.iac-dismiss').exists()).toBe(false)
++  })
++
++  it('error:后端 message + dismiss;message 空用 i18n 兜底', async () => {
++    const w = mount(InstallingAppCard, {
++      props: { task: { ...base, state: 'error', message: 'pull failed' } },
++      global: { plugins: [i18n] },
++    })
++    expect(w.text()).toContain('pull failed')
++    await w.find('.iac-dismiss').trigger('click')
++    expect(w.emitted('dismiss')).toBeTruthy()
++    const w2 = mount(InstallingAppCard, {
++      props: { task: { ...base, state: 'error', message: '' } },
++      global: { plugins: [i18n] },
++    })
++    expect(w2.text()).toContain('安装失败') // appsInstallFailed 兜底
++  })
++})
+diff --git a/src/apps/components/InstallingAppCard.vue b/src/apps/components/InstallingAppCard.vue
+new file mode 100644
+index 0000000..bc83c76
+--- /dev/null
++++ b/src/apps/components/InstallingAppCard.vue
+@@ -0,0 +1,47 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import type { InstallTask } from '../stores/installProgress'
++
++const props = defineProps<{ task: InstallTask }>()
++defineEmits<{ dismiss: [] }>()
++const { t } = useI18n()
++</script>
++
++<template>
++  <article class="iac" :class="{ err: task.state === 'error' }">
++    <img v-if="task.icon" :src="task.icon" alt="" class="iac-icon" />
++    <div v-else class="iac-icon iac-icon-fallback">{{ task.title.slice(0, 1) }}</div>
++    <div class="iac-meta">
++      <h3 class="iac-title">{{ task.title }}</h3>
++      <template v-if="task.state === 'installing'">
++        <div class="op-progress"><div class="op-progress-fill" :style="{ width: task.percent + '%' }" /></div>
++        <span class="iac-sub">{{ t('appsInstallingPercent', { percent: task.percent }) }}</span>
++      </template>
++      <span v-else class="iac-sub iac-err-text">{{ task.message || t('appsInstallFailed', { name: task.title }) }}</span>
++    </div>
++    <button v-if="task.state === 'error'" class="iac-dismiss" type="button" @click="$emit('dismiss')">
++      {{ t('appsInstallDismiss') }}
++    </button>
++  </article>
++</template>
++
++<style scoped>
++.iac {
++  display: flex; gap: 12px; align-items: center; padding: 14px;
++  background: var(--card-bg); border: 1px solid var(--card-border);
++  border-radius: var(--radius); box-shadow: var(--card-shadow);
++  backdrop-filter: var(--blur);
++}
++.iac-icon { width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto; object-fit: cover; background: var(--chip-bg); }
++.iac-icon-fallback { display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; color: var(--fg-muted); background: var(--chip-bg-hi); }
++.iac-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
++.iac-title { font-size: 14px; font-weight: 600; margin: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.op-progress { height: 6px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
++.op-progress-fill { height: 100%; background: var(--accent); transition: width 0.2s; }
++.iac-sub { font-size: 12px; color: var(--fg-muted); }
++.iac-err-text { color: var(--remove-fg); }
++.iac-dismiss {
++  flex: 0 0 auto; font-size: 12.5px; padding: 5px 14px; cursor: pointer; border-radius: 999px;
++  color: var(--fg); background: var(--chip-bg); border: 1px solid var(--chip-border);
++}
++</style>
+diff --git a/src/apps/views/InstalledAppsPage.test.ts b/src/apps/views/InstalledAppsPage.test.ts
+index e238145..fe07d46 100644
+--- a/src/apps/views/InstalledAppsPage.test.ts
++++ b/src/apps/views/InstalledAppsPage.test.ts
+@@ -1,71 +1,110 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { nextTick } from 'vue'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { messages } from '../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   list: vi.fn().mockResolvedValue({}),
+   uninstall: vi.fn().mockResolvedValue(undefined),
++  get: vi.fn().mockResolvedValue(undefined),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
+ 
+ const busOn = vi.hoisted(() => vi.fn((..._args: unknown[]) => () => {}))
+ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
+ vi.mock('vue-router', () => ({
+   useRouter: () => ({ push: vi.fn() }),
+   useRoute: () => ({ name: 'apps', fullPath: '/apps' }),
+ }))
+ 
+ import InstalledAppsPage from './InstalledAppsPage.vue'
+ import InstalledAppCard from '../components/InstalledAppCard.vue'
++import { useInstallProgressStore } from '../stores/installProgress'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
++// 显式把 pinia 实例挂到 mount 的 global.plugins——本页在 setup 里同时挂了
++// useInstalledAppsStore/useInstallProgressStore 两个 composable store,仅靠
++// setActivePinia() 在多用例连续 mount 时曾观测到组件绑定到早前某次 beforeEach
++// 创建的 pinia 实例(参照 StorePage.test.ts 的 T6 踩坑经验)。显式传入杜绝漂移。
++let pinia: ReturnType<typeof createPinia>
++
++function mountPage() {
++  return mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] } })
++}
++
+ describe('InstalledAppsPage', () => {
+-  beforeEach(() => { setActivePinia(createPinia()); svc.list.mockClear(); svc.uninstall.mockClear(); busOn.mockClear() })
++  beforeEach(() => {
++    pinia = createPinia()
++    setActivePinia(pinia)
++    svc.list.mockClear().mockResolvedValue({})
++    svc.uninstall.mockClear()
++    svc.get.mockClear().mockResolvedValue(undefined)
++    busOn.mockClear()
++  })
+ 
+   it('进区拉列表;空列表渲染空态;订阅容器事件与 app 生命周期事件', async () => {
+-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    const w = mountPage()
+     await flushPromises()
+     expect(svc.list).toHaveBeenCalledTimes(1)
+     expect(w.text()).toContain('还没有安装任何应用')
+     const events = busOn.mock.calls.map((c) => c[0])
+     expect(events).toContain('docker:container:state-changed')
+     expect(events).toContain('app:start-begin')
+     expect(events).toContain('app:uninstall-end')
+-    expect(events).toContain('app:install-end')
+   })
+ 
+   it('有应用时渲染卡片网格', async () => {
+     svc.list.mockResolvedValue({
+       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
+     })
+-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] } })
++    const w = mountPage()
+     await flushPromises()
+     expect(w.find('.apps-grid').exists()).toBe(true)
+     expect(w.text()).toContain('Jellyfin')
+   })
+ 
++  it('installProgress 有任务时页面顶部渲染安装中卡片;end 后消失', async () => {
++    const w = mountPage()
++    await flushPromises()
++    const progress = useInstallProgressStore()
++    progress.track('navidrome', 'Navidrome')
++    await nextTick()
++    expect(w.text()).toContain('Navidrome')
++    expect(w.find('.op-progress').exists()).toBe(true)
++    progress.onEvent('app:install-end', { 'app:name': 'navidrome' })
++    await flushPromises()
++    expect(w.find('.op-progress').exists()).toBe(false)
++  })
++
++  it('页面不再自订阅 app:install-end(D6:职责在 store)', async () => {
++    const w = mountPage()
++    await flushPromises()
++    void w
++    const evs = busOn.mock.calls.map((c) => c[0])
++    expect(evs.filter((e) => e === 'app:install-end').length).toBeLessThanOrEqual(1)
++  })
++
+   // 回归用例(SP5-P1 终审 CRITICAL):reka-ui 的 AlertDialogAction 本身是 DialogClose,
+   // 点击真实的红色确认按钮时先派发 update:open(false) 再派发 @click 里的 confirm —— 旧实现
+   // 用单个 uninstallTarget ref 同时装 open 状态与目标,update:open 处理器抢先把它置空,
+   // confirm 读到 null 直接短路,store.uninstall(=service.compose.uninstall) 永远不会被调用。
+   // 本用例挂载真实页面 + 真实 UninstallConfirm(不 mock reka),点击 Portal 到 document.body
+   // 的真实按钮,复现该事件顺序;仅 mock 最外层的 service.compose 网络层。
+   it('点击真实卸载确认弹窗的确认按钮,真正调用 service.compose.uninstall(id, {deleteConfigFolder:false})', async () => {
+     svc.list.mockResolvedValue({
+       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
+     })
+-    const w = mount(InstalledAppsPage, { global: { plugins: [i18n] }, attachTo: document.body })
++    const w = mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
+     await flushPromises()
+ 
+     // 打开卸载确认弹窗:等价于用户点了卡片操作菜单里的「卸载」项(该项只是 emit('uninstall'),
+     // 菜单本身的展开/收起走的是另一套 reka DropdownMenu,与本次要验证的 AlertDialog 事件顺序无关)。
+     const card = w.findComponent(InstalledAppCard)
+     await card.vm.$emit('uninstall')
+     await nextTick() // reka 把 AlertDialogContent Portal 到 document.body 是异步的
+ 
+     expect(document.body.textContent).toContain('确定要卸载 Jellyfin 吗')
+     const confirmBtn = Array.from(document.body.querySelectorAll('button'))
+diff --git a/src/apps/views/InstalledAppsPage.vue b/src/apps/views/InstalledAppsPage.vue
+index bffc617..b0425b5 100644
+--- a/src/apps/views/InstalledAppsPage.vue
++++ b/src/apps/views/InstalledAppsPage.vue
+@@ -1,24 +1,28 @@
+ <script setup lang="ts">
+-import { onMounted, onUnmounted, ref } from 'vue'
++import { computed, onMounted, onUnmounted, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import AreaShell from '../../components/shell/AreaShell.vue'
+ import AppsSidebar from '../components/AppsSidebar.vue'
+ import InstalledAppCard from '../components/InstalledAppCard.vue'
++import InstallingAppCard from '../components/InstallingAppCard.vue'
+ import UninstallConfirm from '../components/UninstallConfirm.vue'
+ import { useInstalledAppsStore, type InstalledApp } from '../stores/installedApps'
++import { useInstallProgressStore } from '../stores/installProgress'
+ import { useMessageBus } from '../../composables/useMessageBus'
+ import { useToast } from '../../stores/toast'
+ import { createContainerEventHandler, CONTAINER_EVENT } from '../../home/containerEventBridge'
+ 
+ const { t } = useI18n()
+ const store = useInstalledAppsStore()
++const progress = useInstallProgressStore()
++const installingTasks = computed(() => Object.values(progress.tasks))
+ const bus = useMessageBus()
+ const toast = useToast()
+ // reka-ui 的 AlertDialogAction 本身是个 DialogClose:点击红色确认按钮时,
+ // update:open(false) 先于 @click 派发的 confirm 事件触发。若 open 标志和 target
+ // 共用一个 ref,update:open 处理器会先把 target 置空,confirm 读到的就是 null,
+ // store.uninstall 永远不会被调用(SP5-P1 终审 CRITICAL)。参照 SharesPage.vue 的
+ // delDlg 模式:open 与 app 打包在同一个 ref 里,只在 confirm 读取后才关闭 open,
+ // update:open 处理器只改 open,不动 app。
+ const uninstallDlg = ref<{ open: boolean; app: InstalledApp | null }>({ open: false, app: null })
+ 
+@@ -44,46 +48,51 @@ async function onUninstallConfirm(deleteConfigFolder: boolean) {
+   try {
+     await store.uninstall(a.id, deleteConfigFolder)
+   } catch (e) {
+     console.warn('[apps] uninstall', a.id, e)
+     toast.show(t('appsOpFailed', { name: a.title }), 4000)
+   } finally {
+     uninstallDlg.value.open = false
+   }
+ }
+ 
+-// app:* 生命周期(spec §2.3);install-end 单列:后台装完新应用要浮出列表
++// app:* 生命周期(spec §2.3);install-* 由 installProgress store 全局订阅收敛(D6)
+ const APP_EVENTS = [
+   'app:start-begin', 'app:start-end', 'app:start-error',
+   'app:stop-begin', 'app:stop-end', 'app:stop-error',
+   'app:restart-begin', 'app:restart-end', 'app:restart-error',
+   'app:update-begin', 'app:update-end', 'app:update-error',
+   'app:uninstall-begin', 'app:uninstall-end', 'app:uninstall-error',
+ ]
+ const offs: Array<() => void> = []
+ const bridge = createContainerEventHandler({ evict: (k) => store.evict(k), refresh: () => { store.refresh().catch(() => {}) } })
+ 
+ onMounted(() => {
+   store.refresh().catch((e) => console.warn('[apps] load', e))
+   APP_EVENTS.forEach((ev) => offs.push(bus.on(ev, (props) => store.onAppEvent(ev, props))))
+-  offs.push(bus.on('app:install-end', () => { store.refresh().catch(() => {}) }))
+   offs.push(bus.on(CONTAINER_EVENT, (props) => bridge.handle(props)))
+ })
+ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('appsTitle')">
+     <div class="apps-layout">
+       <AppsSidebar />
+       <main class="apps-main">
+-        <p v-if="!store.loading && !store.apps.length" class="apps-empty">{{ t('appsEmpty') }}</p>
++        <div v-if="installingTasks.length" class="apps-grid iac-grid">
++          <InstallingAppCard
++            v-for="tk in installingTasks" :key="tk.id"
++            :task="tk" @dismiss="progress.dismiss(tk.id)"
++          />
++        </div>
++        <p v-if="!store.loading && !store.apps.length && !installingTasks.length" class="apps-empty">{{ t('appsEmpty') }}</p>
+         <div v-else class="apps-grid">
+           <InstalledAppCard
+             v-for="a in store.apps" :key="a.id"
+             :app="a" :pending-op="store.pending[a.id]"
+             @open="onOpen(a)"
+             @action="(op) => onAction(a, op)"
+             @uninstall="uninstallDlg = { open: true, app: a }"
+           />
+         </div>
+         <UninstallConfirm
+@@ -95,12 +104,13 @@ onUnmounted(() => { offs.forEach((off) => off()); bridge.dispose() })
+       </main>
+     </div>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
+ .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; }
+ .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
++.iac-grid { margin-bottom: 14px; }
+ @media (max-width: 768px) { .apps-layout { gap: 0; } }
+ </style>

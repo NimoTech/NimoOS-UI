@@ -1,0 +1,1617 @@
+# Review package: 244258a..HEAD
+
+## Commits
+291924d chore(upload): remove dead uploadListGroups (superseded by groupByBatch) (SP4-P3b)
+4c0e04f feat(upload): needs_file reselect + restore notice in UploadPanel (SP4-P3b)
+a7e5655 feat(upload): folder drag-drop + auto-restore on files mount (SP4-P3b)
+5868256 feat(upload): recursive folder drag-drop reader (dropEntries.ts) (SP4-P3b)
+b13bb05 feat(upload): route needs_file batches to problem zone (SP4-P3b)
+f26ccc2 feat(upload): reattachFiles for needs_file re-attach (SP4-P3b)
+f83a80e fix(upload): resumePending uses bare startUpload; test asserts uploading flag (SP4-P3b)
+357432e feat(upload): restore/resume/prune + initUploads orchestrator (SP4-P3b)
+c24b675 feat(upload): wire persistence hooks into uploads store (SP4-P3b)
+397b9a7 test(upload): cover persistItemMeta + budget-freeing in persist tests (SP4-P3b)
+76d8f9b feat(upload): blob-budgeted persist/restore pure logic (persist.ts) (SP4-P3b)
+d0db4f3 fix(upload): store blobs natively in IDB; move Blob workaround to test env (SP4-P3b)
+790a200 feat(upload): IndexedDB low-level CRUD (idb.ts) + fake-indexeddb dev dep (SP4-P3b)
+
+## Files changed
+ package.json                              |   1 +
+ pnpm-lock.yaml                            |   9 ++
+ src/files/components/UploadPanel.vue      |  49 ++++++++-
+ src/files/stores/uploads.test.ts          | 153 ++++++++++++++++++++++++++
+ src/files/stores/uploads.ts               |  92 +++++++++++++++-
+ src/files/upload/dropEntries.test.ts      |  58 ++++++++++
+ src/files/upload/dropEntries.ts           |  72 +++++++++++++
+ src/files/upload/idb.test.ts              |  58 ++++++++++
+ src/files/upload/idb.ts                   | 113 ++++++++++++++++++++
+ src/files/upload/persist.test.ts          | 171 ++++++++++++++++++++++++++++++
+ src/files/upload/persist.ts               | 100 +++++++++++++++++
+ src/files/upload/uploadBatches.test.ts    |  12 +++
+ src/files/upload/uploadBatches.ts         |   9 +-
+ src/files/upload/uploadListGroups.test.ts |  18 ----
+ src/files/upload/uploadListGroups.ts      |  39 -------
+ src/i18n/zh_cn.ts                         |   4 +
+ src/views/Files.vue                       |  19 +++-
+ vite.config.ts                            |   1 +
+ vitest.setup.ts                           |   5 +
+ 19 files changed, 918 insertions(+), 65 deletions(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index b300c3c..9c8dff6 100644
+--- a/package.json
++++ b/package.json
+@@ -16,17 +16,18 @@
+     "reka-ui": "^2.10.1",
+     "socket.io-client": "2.5.0",
+     "tus-js-client": "^4",
+     "vue": "^3.4",
+     "vue-i18n": "^9.9",
+     "vue-router": "^4.3"
+   },
+   "devDependencies": {
+     "@vitejs/plugin-vue": "^6",
+     "@vue/test-utils": "^2",
++    "fake-indexeddb": "^6.2.5",
+     "jsdom": "^24",
+     "typescript": "^5",
+     "vite": "^7",
+     "vitest": "^4",
+     "vue-tsc": "^2"
+   }
+ }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index eff7104..ce68282 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -35,20 +35,23 @@ importers:
+       vue-router:
+         specifier: ^4.3
+         version: 4.6.4(vue@3.5.39(typescript@5.9.3))
+     devDependencies:
+       '@vitejs/plugin-vue':
+         specifier: ^6
+         version: 6.0.7(vite@7.3.6)(vue@3.5.39(typescript@5.9.3))
+       '@vue/test-utils':
+         specifier: ^2
+         version: 2.4.11(@vue/compiler-dom@3.5.39)(@vue/server-renderer@3.5.39(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
++      fake-indexeddb:
++        specifier: ^6.2.5
++        version: 6.2.5
+       jsdom:
+         specifier: ^24
+         version: 24.1.3
+       typescript:
+         specifier: ^5
+         version: 5.9.3
+       vite:
+         specifier: ^7
+         version: 7.3.6
+       vitest:
+@@ -794,20 +797,24 @@ packages:
+   estree-walker@2.0.2:
+     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==}
+ 
+   estree-walker@3.0.3:
+     resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
+ 
+   expect-type@1.4.0:
+     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
+     engines: {node: '>=12.0.0'}
+ 
++  fake-indexeddb@6.2.5:
++    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
++    engines: {node: '>=18'}
++
+   fdir@6.5.0:
+     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
+     engines: {node: '>=12.0.0'}
+     peerDependencies:
+       picomatch: ^3 || ^4
+     peerDependenciesMeta:
+       picomatch:
+         optional: true
+ 
+   follow-redirects@1.16.0:
+@@ -2089,20 +2096,22 @@ snapshots:
+       '@esbuild/win32-x64': 0.28.1
+ 
+   estree-walker@2.0.2: {}
+ 
+   estree-walker@3.0.3:
+     dependencies:
+       '@types/estree': 1.0.9
+ 
+   expect-type@1.4.0: {}
+ 
++  fake-indexeddb@6.2.5: {}
++
+   fdir@6.5.0(picomatch@4.0.4):
+     optionalDependencies:
+       picomatch: 4.0.4
+ 
+   follow-redirects@1.16.0: {}
+ 
+   foreground-child@3.3.1:
+     dependencies:
+       cross-spawn: 7.0.6
+       signal-exit: 4.1.0
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index ca5e8c1..2f9b569 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -75,52 +75,86 @@ function onRetry(b: BatchView) {
+ }
+ function onCancel(b: BatchView) {
+   if (b.multi) store.cancelBatch(b.batchId)
+   else store.cancelItem(b.items[0].id)
+ }
+ 
+ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+   const item = conflictItem.value
+   if (item) store.resolveConflict(item.id, choice)
+ }
++
++// needs_file reselect: user re-picks the same folder/files via a hidden
++// input; reattachFiles matches them back onto the needs_file queue items by
++// their own targetPath/relativePath (the SelectedFile.targetPath below is a
++// placeholder to satisfy the shape, not used for matching).
++const reselectInput = ref<HTMLInputElement | null>(null)
++const reselectDismissed = ref(false)
++const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectDismissed.value)
++
++function triggerReselect() {
++  reselectInput.value?.click()
++}
++async function onReselect(e: Event) {
++  const input = e.target as HTMLInputElement
++  const list = input.files
++  if (list && list.length) {
++    const sel = Array.from(list).map((f) => ({
++      file: f,
++      targetPath: files.currentPath,
++      relativePath: (f as any).webkitRelativePath || f.name,
++    }))
++    await store.reattachFiles(sel)
++  }
++  input.value = ''
++}
+ </script>
+ 
+ <template>
+   <div v-if="totalCount" class="upload-panel-wrap">
+     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
+       {{ t('filesUploadTitle') }} ({{ totalCount }})
+     </button>
+ 
+     <div v-else class="upload-panel">
+       <div class="up-head">
+         <span class="up-title">{{ t('filesUploadTitle') }}</span>
+         <div class="up-head-actions">
+           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
+             {{ t('filesUploadClearDone') }}
+           </button>
+           <button class="up-close" @click="open = false" aria-label="close">×</button>
+         </div>
+       </div>
+ 
++      <div v-if="showRestoreNotice" class="up-restore-notice">
++        <span>{{ t('filesUploadRestoreNotice', { count: store.restoreNoticeCount }) }}</span>
++        <button class="up-link-btn" @click="reselectDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
++      </div>
++
+       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
+ 
+       <div v-if="problemBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneProblem') }}</div>
+         <div v-for="b in problemBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
+           </div>
+-          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+-          <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
++          <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
++          <template v-else>
++            <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
++            <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
++          </template>
+           <div class="up-item-actions">
+-            <button class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
++            <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
++            <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
+             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+           </div>
+         </div>
+       </div>
+ 
+       <div v-if="activeBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneActive') }}</div>
+         <div v-for="b in activeBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+@@ -152,20 +186,22 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+     </div>
+ 
+     <Dialog :open="!!conflictItem" :title="t('filesUploadConflictTitle')" @update:open="(v) => { if (!v) resolve('skip') }">
+       <p>{{ conflictItem ? t('filesUploadConflictMsg', { name: conflictItem.fileName || conflictItem.relativePath }) : '' }}</p>
+       <template #footer>
+         <button class="ui-btn" @click="resolve('skip')">{{ t('filesUploadSkip') }}</button>
+         <button class="ui-btn" @click="resolve('rename')">{{ t('filesUploadRename') }}</button>
+         <button class="ui-btn primary" @click="resolve('overwrite')">{{ t('filesUploadOverwrite') }}</button>
+       </template>
+     </Dialog>
++
++    <input ref="reselectInput" type="file" webkitdirectory multiple class="up-hidden-input" @change="onReselect" />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .upload-panel-wrap { position: fixed; right: 24px; bottom: 24px; z-index: 60; }
+ .upload-panel-toggle {
+   padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+   background: var(--popup-bg, rgba(20,23,35,0.96)); color: var(--fg); cursor: pointer; font-size: 13px;
+   backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5);
+ }
+@@ -199,11 +235,18 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+ .up-item-size { margin-left: auto; text-align: right; font-size: 11px; color: var(--fg-muted, #9aa4bf); font-variant-numeric: tabular-nums; }
+ .up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }
+ .up-progress { height: 5px; border-radius: 999px; background: var(--chip-bg, rgba(255,255,255,0.1)); overflow: hidden; margin-top: 4px; }
+ .up-progress-fill { height: 100%; background: var(--accent, #6ea8fe); transition: width .2s; }
+ .up-item-actions { display: flex; gap: 10px; margin-top: 4px; }
+ .up-link-btn {
+   background: transparent; border: none; padding: 0; color: var(--accent, #6ea8fe); cursor: pointer; font-size: 12px;
+ }
+ .ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
++.up-restore-notice {
++  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px;
++  padding: 8px 10px; border-radius: 10px; font-size: 12px;
++  background: color-mix(in srgb, var(--accent, #6ea8fe) 16%, transparent);
++  border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 40%, transparent);
++}
++.up-hidden-input { display: none; }
+ </style>
+diff --git a/src/files/stores/uploads.test.ts b/src/files/stores/uploads.test.ts
+index e5833bc..d9220ad 100644
+--- a/src/files/stores/uploads.test.ts
++++ b/src/files/stores/uploads.test.ts
+@@ -18,22 +18,31 @@ vi.mock('../upload/scheduler', () => ({
+     run: async () => {
+       if (!h.autoComplete) return
+       let it
+       while ((it = deps.claimNext())) deps.patch(it.id, { status: 'done', progress: 100 })
+     },
+   }),
+ }))
+ vi.mock('../stores/files', () => ({ useFilesStore: () => ({ currentPath: '/DATA/x', load: vi.fn() }) }))
+ vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: h.showSpy }) }))
+ vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string, p?: any) => `${k}:${p?.name ?? ''}` } } }))
++vi.mock('../upload/persist', () => ({
++  persistNewItem: vi.fn(),
++  persistItemMeta: vi.fn(),
++  dropPersisted: vi.fn(),
++  restoreFromIDB: vi.fn().mockResolvedValue({ items: [], resumedCount: 0 }),
++  pruneOldItems: vi.fn().mockResolvedValue(0),
++}))
+ 
+ import { useUploadsStore } from './uploads'
++import * as persist from '../upload/persist'
++import { service } from '@nimotech/nimoos-service'
+ 
+ const sel = (name: string, target = '/DATA/x') =>
+   ({ file: new File(['x'], name), targetPath: target, relativePath: name })
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   localStorage.clear()
+   h.autoComplete = false
+   h.showSpy.mockClear()
+ })
+@@ -124,10 +133,154 @@ describe('uploads store', () => {
+       const s = useUploadsStore()
+       const { rejected } = await s.addFilesToQueue([sel('a.txt')])
+       expect(rejected).toEqual([])
+       expect(s.queue.some(i => i.relativePath === 'a.txt')).toBe(true)
+       expect(s.queue[0].batchId).toBeTruthy()
+     } finally {
+       ;(globalThis.crypto as { randomUUID?: unknown }).randomUUID = real
+     }
+   })
+ })
++
++describe('uploads persistence hooks', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.clearAllMocks()
++  })
++
++  it('addFilesToQueue persists each new item', async () => {
++    const store = useUploadsStore()
++    const file = new File(['x'], 'a.txt', { type: 'text/plain' })
++    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(persist.persistNewItem).toHaveBeenCalledTimes(1)
++  })
++
++  it('volatile-only patch (progress/bytesSent/speed) does NOT persist meta', async () => {
++    const store = useUploadsStore()
++    const file = new File(['x'], 'a.txt')
++    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    vi.clearAllMocks()
++    const id = store.queue[0].id
++    store.patch(id, { progress: 50, bytesSent: 10, speed: 5 })
++    expect(persist.persistItemMeta).not.toHaveBeenCalled()
++    expect(persist.dropPersisted).not.toHaveBeenCalled()
++  })
++
++  it('status→done patch drops persisted record', async () => {
++    const store = useUploadsStore()
++    const file = new File(['x'], 'a.txt')
++    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    vi.clearAllMocks()
++    const id = store.queue[0].id
++    store.patch(id, { status: 'done', progress: 100 })
++    expect(persist.dropPersisted).toHaveBeenCalledWith(id)
++  })
++
++  it('non-volatile status patch persists meta', async () => {
++    const store = useUploadsStore()
++    const file = new File(['x'], 'a.txt')
++    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    vi.clearAllMocks()
++    const id = store.queue[0].id
++    store.patch(id, { tusUploadUrl: '/v2/nimoos/file/upload-tus/abc' })
++    expect(persist.persistItemMeta).toHaveBeenCalled()
++  })
++
++  it('cancelItem drops persisted record', async () => {
++    const store = useUploadsStore()
++    const file = new File(['x'], 'a.txt')
++    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    const id = store.queue[0].id
++    vi.clearAllMocks()
++    store.cancelItem(id)
++    expect(persist.dropPersisted).toHaveBeenCalledWith(id)
++  })
++})
++
++describe('uploads restore/resume', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  it('restoreQueue loads items and sets restore notice count', async () => {
++    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({
++      items: [{ id: 'r1', status: 'pending', file: new Blob(['x']), batchId: 'b', batchTotal: 1, size: 1, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1, targetPath: '/DATA', relativePath: 'a', fileName: 'a', fileType: '', restored: true, conflictPolicy: '', oversize: false }],
++      resumedCount: 1,
++    })
++    const store = useUploadsStore()
++    await store.restoreQueue()
++    expect(store.queue).toHaveLength(1)
++    expect(store.restoreNoticeCount).toBe(1)
++  })
++
++  it('resumePending starts upload only when a pending item has a file', () => {
++    // No spy on startUpload (that would reshape production code to fit the
++    // test). Instead observe startUpload's real, synchronous side effect:
++    // `uploading` flips to true immediately, before the (mocked) scheduler's
++    // run() promise resolves and the .finally() flips it back. The mocked
++    // scheduler's run() is an async no-op here, so `uploading` is still true
++    // at this point in the synchronous test body.
++    const store = useUploadsStore()
++    store.queue.push({ id: 'n', status: 'needs_file', file: null } as any)
++    store.resumePending()
++    expect(store.uploading).toBe(false)
++    store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
++    store.resumePending()
++    expect(store.uploading).toBe(true)
++  })
++
++  it('initUploads restores, prunes, then resumes', async () => {
++    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({ items: [], resumedCount: 0 })
++    const store = useUploadsStore()
++    await store.initUploads()
++    expect(persist.restoreFromIDB).toHaveBeenCalled()
++    expect(persist.pruneOldItems).toHaveBeenCalled()
++  })
++})
++
++describe('uploads reattachFiles', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  function seedNeedsFile(store: ReturnType<typeof useUploadsStore>, over: any = {}) {
++    store.queue.push({
++      id: 'nf', file: null, fileName: 'a.txt', fileType: 'text/plain', size: 4,
++      targetPath: '/DATA/x', relativePath: 'a.txt', status: 'needs_file', progress: 0,
++      bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1,
++      batchId: 'b', batchTotal: 1, restored: true, conflictPolicy: '', oversize: false, ...over,
++    } as any)
++  }
++
++  it('size mismatch does not match', async () => {
++    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [] })
++    const store = useUploadsStore()
++    seedNeedsFile(store)
++    const wrong = new File(['different-bytes'], 'a.txt') // size != 4
++    const res = await store.reattachFiles([{ file: wrong, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(res.matched).toBe(0)
++    expect(store.queue[0].status).toBe('needs_file')
++  })
++
++  it('match + not existing → pending', async () => {
++    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: false }] })
++    const store = useUploadsStore()
++    vi.spyOn(store, 'startUpload').mockImplementation(() => {})
++    seedNeedsFile(store)
++    const f = new File(['data'], 'a.txt') // size 4
++    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(res.matched).toBe(1)
++    expect(store.queue[0].status).toBe('pending')
++    // jsdom's File does not inherit from the Node Blob that vitest.setup.ts
++    // installs as globalThis.Blob (for fake-indexeddb structuredClone compat),
++    // so `toBeInstanceOf(Blob)` is unreliable here; assert the real intent —
++    // the picked file got attached to the queue item.
++    expect(store.queue[0].file).toBe(f)
++  })
++
++  it('match + existing on server → conflict', async () => {
++    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: true }] })
++    const store = useUploadsStore()
++    seedNeedsFile(store)
++    const f = new File(['data'], 'a.txt')
++    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(res.matched).toBe(0)
++    expect(res.conflicts).toHaveLength(1)
++    expect(store.queue[0].status).toBe('conflict')
++  })
++})
+diff --git a/src/files/stores/uploads.ts b/src/files/stores/uploads.ts
+index d8393a6..960c3fc 100644
+--- a/src/files/stores/uploads.ts
++++ b/src/files/stores/uploads.ts
+@@ -1,18 +1,19 @@
+ import { defineStore } from 'pinia'
+ import { ref, computed } from 'vue'
+ import { refreshAccessToken } from '@nimotech/nimoos-service'
+ import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
+ import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
+ import { canStoreBlob } from '../upload/budget'
+ import { safeRandomUUID } from '../upload/uuid'
+ import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
++import { persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB, pruneOldItems as prunePersisted } from '../upload/persist'
+ import type { UploadItem, SelectedFile } from '../upload/types'
+ import { PROTECTED } from '../util/protect'
+ import { useFilesStore } from './files'
+ import { useToast } from '../../stores/toast'
+ import { i18n } from '../../i18n'
+ 
+ export const useUploadsStore = defineStore('files-uploads', () => {
+   const queue = ref<UploadItem[]>([])
+   const uploading = ref(false)
+   const restoreNoticeCount = ref(0)
+@@ -23,24 +24,32 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+ 
+   let scheduler: ReturnType<typeof createScheduler> | null = null
+ 
+   function claimNext(): UploadItem | null {
+     const item = queue.value.find((i) => i.status === 'pending' && i.file)
+     if (!item) return null
+     item.status = 'uploading'
+     return item
+   }
+ 
++  const VOLATILE = new Set(['progress', 'bytesSent', 'speed'])
+   function patch(id: string, p: Partial<UploadItem>) {
+     const item = queue.value.find((i) => i.id === id)
+     if (!item) return
+     Object.assign(item, p)
++    // Persistence: skip high-frequency progress ticks; done → drop; else re-persist meta.
++    const keys = Object.keys(p)
++    const volatileOnly = keys.length > 0 && keys.every((k) => VOLATILE.has(k))
++    if (!volatileOnly) {
++      if (item.status === 'done') dropPersisted(item.id)
++      else persistItemMeta(item)
++    }
+     // Reactivation (retry/resume) re-arms the batch toast.
+     if (item.status === 'pending' || item.status === 'uploading') toastedBatches.delete(item.batchId)
+     // Terminal transition → maybe the whole batch just finished.
+     if (item.status === 'done' || item.status === 'error') settleBatch(item.batchId)
+   }
+ 
+   // Fire ONE toast per batch when it settles (all items done/error), then clear
+   // the batch's done rows after 5s (errors stay for retry). A single-file batch
+   // is just a batch of one, so this also covers single uploads.
+   function settleBatch(batchId: string) {
+@@ -65,20 +74,21 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+           ? t('filesUploadFolderPartial', { name: label.name, failed: errorCount })
+           : t('filesUploadFilesPartial', { count: label.count, failed: errorCount })
+       } else {
+         msg = label.kind === 'folder'
+           ? t('filesUploadFolderDone', { name: label.name })
+           : t('filesUploadFilesDone', { count: label.count })
+       }
+       useToast().show(msg, 5000)
+     }
+     setTimeout(() => {
++      for (const i of queue.value.filter((i) => i.batchId === batchId && i.status === 'done')) dropPersisted(i.id)
+       queue.value = queue.value.filter((i) => i.batchId !== batchId || i.status !== 'done')
+       if (!queue.value.some((i) => i.batchId === batchId)) toastedBatches.delete(batchId)
+     }, 5000)
+   }
+ 
+   function getScheduler() {
+     if (!scheduler) {
+       const deps: SchedulerDeps = {
+         claimNext,
+         patch,
+@@ -139,20 +149,21 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+       const set = await precheckExisting(survivors)
+       for (const item of items) {
+         item.status = set.has(conflictKey(item.targetPath, item.relativePath)) ? 'conflict' : 'pending'
+       }
+     } catch {
+       // Precheck unavailable — leave everything pending, server will still
+       // reject/handle actual conflicts.
+     }
+ 
+     queue.value.push(...items)
++    for (const it of items) persistNewItem(it)
+     if (items.some((i) => i.status === 'pending')) startUpload()
+     return { rejected }
+   }
+ 
+   function resolveConflict(id: string, choice: string): void {
+     const policy = decideConflictPolicy(choice)
+     if (policy === 'skip') {
+       patch(id, { status: 'done' })
+     } else {
+       patch(id, { conflictPolicy: policy, status: 'pending' })
+@@ -160,54 +171,133 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+     startUpload()
+   }
+ 
+   function retryItem(id: string): void {
+     patch(id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+     startUpload()
+   }
+ 
+   function cancelItem(id: string): void {
+     getScheduler().abort(id)
++    dropPersisted(id)
+     queue.value = queue.value.filter((i) => i.id !== id)
+   }
+ 
+   // Batch-level controls (folder / multi-select rows). A single-file batch
+   // routes through these too when the panel renders it as one row.
+   function retryBatch(batchId: string): void {
+     toastedBatches.delete(batchId)
+     for (const i of queue.value) {
+       if (i.batchId === batchId && i.status === 'error') {
+         Object.assign(i, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+       }
+     }
+     startUpload()
+   }
+ 
+   function cancelBatch(batchId: string): void {
+-    for (const i of queue.value.filter((x) => x.batchId === batchId)) getScheduler().abort(i.id)
++    for (const i of queue.value.filter((x) => x.batchId === batchId)) {
++      getScheduler().abort(i.id)
++      dropPersisted(i.id)
++    }
+     queue.value = queue.value.filter((i) => i.batchId !== batchId)
+     toastedBatches.delete(batchId)
+   }
+ 
+   function clearDone(): void {
++    for (const i of queue.value.filter((i) => i.status === 'done')) dropPersisted(i.id)
+     queue.value = queue.value.filter((i) => i.status !== 'done')
+   }
+ 
++  async function restoreQueue(): Promise<void> {
++    const { items, resumedCount } = await restoreFromIDB()
++    if (items.length) queue.value.push(...items)
++    restoreNoticeCount.value = resumedCount
++  }
++
++  function resumePending(): void {
++    if (queue.value.some((i) => i.status === 'pending' && !!i.file)) startUpload()
++  }
++
++  async function reattachFiles(files: SelectedFile[]): Promise<{ matched: number; conflicts: UploadItem[] }> {
++    const byRel = new Map<string, File>()
++    const byName = new Map<string, File>()
++    for (const f of files) {
++      const rel = f.relativePath || f.file.name
++      if (rel) byRel.set(rel, f.file)
++      if (f.file.name) byName.set(f.file.name, f.file)
++    }
++
++    const matches: { it: UploadItem; file: File }[] = []
++    for (const it of queue.value) {
++      if (it.status !== 'needs_file') continue
++      const f = byRel.get(it.relativePath) || byName.get(it.fileName)
++      if (!f) continue
++      // Name matched — size must also match, else it's a different file (skip; let user re-pick).
++      if (it.size && f.size && f.size !== it.size) continue
++      matches.push({ it, file: f })
++    }
++    if (matches.length === 0) return { matched: 0, conflicts: [] }
++
++    let existing = new Set<string>()
++    try {
++      existing = await precheckExisting(
++        matches.map(({ it, file }) => ({ file, targetPath: it.targetPath, relativePath: it.relativePath })),
++      )
++    } catch {
++      // Precheck unavailable — upload everything.
++    }
++
++    let matched = 0
++    const conflicts: UploadItem[] = []
++    for (const { it, file } of matches) {
++      if (existing.has(conflictKey(it.targetPath, it.relativePath))) {
++        patch(it.id, { file, status: 'conflict', error: '', restored: true })
++        conflicts.push(it)
++      } else {
++        patch(it.id, { file, status: 'pending', error: '', restored: true })
++        matched++
++      }
++    }
++    if (matched > 0 && !uploading.value) startUpload()
++    return { matched, conflicts }
++  }
++
++  async function pruneOldItems(days = 30): Promise<void> {
++    await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
++  }
++
++  async function initUploads(): Promise<void> {
++    try {
++      await restoreQueue()
++      await pruneOldItems(30)
++      resumePending()
++    } catch (e) {
++      console.warn('[uploads] initUploads failed; memory-only mode', e)
++    }
++  }
++
+   const hasActive = computed(() =>
+     uploading.value || queue.value.some((i) => i.status === 'pending' && !!i.file),
+   )
+ 
+   return {
+     queue,
+     uploading,
+     restoreNoticeCount,
+     hasActive,
++    patch,
+     addFilesToQueue,
+     resolveConflict,
+     startUpload,
+     retryItem,
+     cancelItem,
+     retryBatch,
+     cancelBatch,
+     clearDone,
++    restoreQueue,
++    resumePending,
++    pruneOldItems,
++    initUploads,
++    reattachFiles,
+   }
+ })
+diff --git a/src/files/upload/dropEntries.test.ts b/src/files/upload/dropEntries.test.ts
+new file mode 100644
+index 0000000..8a924b2
+--- /dev/null
++++ b/src/files/upload/dropEntries.test.ts
+@@ -0,0 +1,58 @@
++import { describe, it, expect } from 'vitest'
++import { readDroppedEntries } from './dropEntries'
++
++function fileEntry(name: string, fullPath: string, content = 'x') {
++  const f = new File([content], name)
++  return {
++    isFile: true, isDirectory: false, name, fullPath,
++    file: (cb: (f: File) => void) => cb(f),
++  }
++}
++function dirEntry(name: string, fullPath: string, children: any[]) {
++  let read = false
++  return {
++    isFile: false, isDirectory: true, name, fullPath,
++    createReader: () => ({
++      readEntries: (cb: (e: any[]) => void) => { cb(read ? [] : children); read = true },
++    }),
++  }
++}
++function dtWithEntries(entries: any[]): any {
++  return {
++    items: entries.map((e) => ({ kind: 'file', webkitGetAsEntry: () => e })),
++    files: [],
++  }
++}
++
++describe('readDroppedEntries', () => {
++  it('flattens a dropped folder, preserving relativePath (leading slash stripped)', async () => {
++    const dt = dtWithEntries([
++      dirEntry('MyFolder', '/MyFolder', [
++        fileEntry('a.txt', '/MyFolder/a.txt'),
++        dirEntry('sub', '/MyFolder/sub', [fileEntry('b.txt', '/MyFolder/sub/b.txt')]),
++      ]),
++    ])
++    const out = await readDroppedEntries(dt)
++    const rels = out.map((o) => o.relativePath).sort()
++    expect(rels).toEqual(['MyFolder/a.txt', 'MyFolder/sub/b.txt'])
++    expect(out[0].file).toBeInstanceOf(File)
++  })
++
++  it('single dropped file → relativePath is the name', async () => {
++    const dt = dtWithEntries([fileEntry('c.txt', '/c.txt')])
++    const out = await readDroppedEntries(dt)
++    expect(out).toHaveLength(1)
++    expect(out[0].relativePath).toBe('c.txt')
++  })
++
++  it('falls back to flat dt.files when entries API unavailable', async () => {
++    const f = new File(['x'], 'd.txt')
++    const dt: any = { items: null, files: [f] }
++    const out = await readDroppedEntries(dt)
++    expect(out).toEqual([{ file: f, relativePath: 'd.txt' }])
++  })
++
++  it('null → empty', async () => {
++    expect(await readDroppedEntries(null)).toEqual([])
++  })
++})
+diff --git a/src/files/upload/dropEntries.ts b/src/files/upload/dropEntries.ts
+new file mode 100644
+index 0000000..7082298
+--- /dev/null
++++ b/src/files/upload/dropEntries.ts
+@@ -0,0 +1,72 @@
++// 拖拽文件夹上传:用 webkitGetAsEntry 递归读取目录,保留 relativePath(供受保护
++// 目录判断 + 批聚合)。与 Photos 的 collectFilesFromDataTransfer 不同:不按媒体
++// 类型过滤(文件管理器通用),不跳过隐藏文件。纯逻辑,无 Vue/store 依赖。
++
++interface FsEntry {
++  isFile: boolean
++  isDirectory: boolean
++  name: string
++  fullPath: string
++  file?: (ok: (f: File) => void, err?: () => void) => void
++  createReader?: () => { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }
++}
++export interface DroppedFile { file: File; relativePath: string }
++
++function stripLead(p: string): string { return p.replace(/^\/+/, '') }
++
++// readEntries returns at most ~100 entries per call (Chrome); loop until empty.
++function readAllEntries(reader: { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }): Promise<FsEntry[]> {
++  return new Promise((resolve) => {
++    const all: FsEntry[] = []
++    const read = () => {
++      reader.readEntries((entries) => {
++        if (!entries || entries.length === 0) return resolve(all)
++        all.push(...entries)
++        Promise.resolve().then(read)
++      }, () => resolve(all))
++    }
++    read()
++  })
++}
++
++function entryToFile(entry: FsEntry): Promise<File | null> {
++  return new Promise((resolve) => {
++    if (!entry.file) return resolve(null)
++    entry.file((f) => resolve(f), () => resolve(null))
++  })
++}
++
++async function walk(entry: FsEntry | null, out: DroppedFile[]): Promise<void> {
++  if (!entry) return
++  if (entry.isFile) {
++    const f = await entryToFile(entry)
++    if (f) out.push({ file: f, relativePath: stripLead(entry.fullPath || entry.name) })
++    return
++  }
++  if (entry.isDirectory && entry.createReader) {
++    const children = await readAllEntries(entry.createReader())
++    for (const child of children) await walk(child, out)
++  }
++}
++
++export async function readDroppedEntries(dt: DataTransfer | null): Promise<DroppedFile[]> {
++  const out: DroppedFile[] = []
++  if (!dt) return out
++  const items = dt.items as unknown as (DataTransferItem & { webkitGetAsEntry?: () => FsEntry | null })[] | null
++  const supportsEntries = !!(items && items.length && items[0].webkitGetAsEntry)
++  if (supportsEntries) {
++    // Snapshot entries synchronously: DataTransferItemList is invalidated once the
++    // event loop yields (after any await).
++    const entries: (FsEntry | null)[] = []
++    for (let i = 0; i < items!.length; i++) {
++      if (items![i].kind === 'file') entries.push(items![i].webkitGetAsEntry!())
++    }
++    for (const entry of entries) {
++      try { await walk(entry, out) } catch (e) { console.error('[files][drop] walk failed', e) }
++    }
++    return out
++  }
++  // Fallback: flat file list (no folder traversal possible).
++  for (const f of Array.from(dt.files || [])) out.push({ file: f, relativePath: f.name })
++  return out
++}
+diff --git a/src/files/upload/idb.test.ts b/src/files/upload/idb.test.ts
+new file mode 100644
+index 0000000..97c897c
+--- /dev/null
++++ b/src/files/upload/idb.test.ts
+@@ -0,0 +1,58 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { IDBFactory } from 'fake-indexeddb'
++import {
++  openUploadDB, putQueueItem, getAllQueueItems, removeQueueItem,
++  putBlob, getBlob, removeBlob, removeItemAndBlob, pruneOld, _resetForTest,
++} from './idb'
++
++beforeEach(() => {
++  // 每例一套全新 IndexedDB,避免跨例污染
++  ;(globalThis as any).indexedDB = new IDBFactory()
++  _resetForTest()
++})
++
++describe('idb', () => {
++  it('opens and round-trips a queue item', async () => {
++    await openUploadDB()
++    await putQueueItem({ id: 'a', status: 'pending', createdAt: 1 })
++    const all = await getAllQueueItems()
++    expect(all).toEqual([{ id: 'a', status: 'pending', createdAt: 1 }])
++  })
++
++  it('stores and reads a blob by id', async () => {
++    const blob = new Blob(['hello'])
++    await putBlob('b1', blob)
++    const got = await getBlob('b1')
++    expect(got).toBeInstanceOf(Blob)
++    expect(await getBlob('missing')).toBeUndefined()
++  })
++
++  it('removeItemAndBlob deletes both stores', async () => {
++    await putQueueItem({ id: 'x', createdAt: 1 })
++    await putBlob('x', new Blob(['z']))
++    await removeItemAndBlob('x')
++    expect(await getAllQueueItems()).toEqual([])
++    expect(await getBlob('x')).toBeUndefined()
++  })
++
++  it('removeQueueItem / removeBlob delete individually', async () => {
++    await putQueueItem({ id: 'q', createdAt: 1 })
++    await putBlob('q', new Blob(['z']))
++    await removeQueueItem('q')
++    expect(await getAllQueueItems()).toEqual([])
++    expect(await getBlob('q')).toBeInstanceOf(Blob)
++    await removeBlob('q')
++    expect(await getBlob('q')).toBeUndefined()
++  })
++
++  it('pruneOld removes items older than cutoff, keeps missing/zero createdAt', async () => {
++    await putQueueItem({ id: 'old', createdAt: 100 })
++    await putQueueItem({ id: 'new', createdAt: 5000 })
++    await putQueueItem({ id: 'nodate' }) // missing createdAt → keep
++    await putQueueItem({ id: 'zero', createdAt: 0 }) // zero → keep
++    const removed = await pruneOld(1000)
++    expect(removed).toBe(1)
++    const ids = (await getAllQueueItems()).map((i) => i.id).sort()
++    expect(ids).toEqual(['new', 'nodate', 'zero'])
++  })
++})
+diff --git a/src/files/upload/idb.ts b/src/files/upload/idb.ts
+new file mode 100644
+index 0000000..6ed7949
+--- /dev/null
++++ b/src/files/upload/idb.ts
+@@ -0,0 +1,113 @@
++export const DB_NAME = 'nimo_files_upload'
++const DB_VERSION = 1
++const QUEUE_STORE = 'queue'
++const BLOB_STORE = 'blobs'
++
++let dbPromise: Promise<IDBDatabase> | null = null
++
++/** Reset cached connection — only call this in tests. */
++export function _resetForTest(): void {
++  dbPromise = null
++}
++
++function hasStores(db: IDBDatabase): boolean {
++  return db.objectStoreNames.contains(QUEUE_STORE) && db.objectStoreNames.contains(BLOB_STORE)
++}
++
++// Open at the given version, creating our stores in onupgradeneeded.
++function openAtVersion(version: number): Promise<IDBDatabase> {
++  return new Promise((resolve, reject) => {
++    const req = indexedDB.open(DB_NAME, version)
++    req.onupgradeneeded = () => {
++      const db = req.result
++      if (!db.objectStoreNames.contains(QUEUE_STORE)) db.createObjectStore(QUEUE_STORE, { keyPath: 'id' })
++      if (!db.objectStoreNames.contains(BLOB_STORE)) db.createObjectStore(BLOB_STORE, { keyPath: 'id' })
++    }
++    req.onsuccess = () => {
++      const db = req.result
++      // Self-heal: a prior open without an upgrade handler could leave the DB at this
++      // version with our stores missing; onupgradeneeded won't fire again at the same
++      // version so every read/write would throw forever. Detect and reopen at the next
++      // version to force store creation.
++      if (!hasStores(db)) {
++        const nextVersion = db.version + 1
++        db.close()
++        resolve(openAtVersion(nextVersion))
++        return
++      }
++      resolve(db)
++    }
++    req.onerror = () => reject(req.error)
++  })
++}
++
++export function openUploadDB(): Promise<IDBDatabase> {
++  if (dbPromise) return dbPromise
++  dbPromise = openAtVersion(DB_VERSION).catch((e) => {
++    // Don't cache a rejected promise — allow a later retry to re-open.
++    dbPromise = null
++    throw e
++  })
++  return dbPromise
++}
++
++function tx(storeName: string, mode: IDBTransactionMode): Promise<IDBObjectStore> {
++  return openUploadDB().then((db) => db.transaction(storeName, mode).objectStore(storeName))
++}
++
++function wrap<T>(req: IDBRequest<T>): Promise<T> {
++  return new Promise((resolve, reject) => {
++    req.onsuccess = () => resolve(req.result)
++    req.onerror = () => reject(req.error)
++  })
++}
++
++export async function putQueueItem(item: Record<string, unknown>): Promise<void> {
++  const store = await tx(QUEUE_STORE, 'readwrite')
++  await wrap(store.put(item))
++}
++
++export async function getAllQueueItems(): Promise<any[]> {
++  const store = await tx(QUEUE_STORE, 'readonly')
++  return wrap(store.getAll())
++}
++
++export async function removeQueueItem(id: string): Promise<void> {
++  const store = await tx(QUEUE_STORE, 'readwrite')
++  await wrap(store.delete(id))
++}
++
++export async function putBlob(id: string, blob: Blob): Promise<void> {
++  const store = await tx(BLOB_STORE, 'readwrite')
++  await wrap(store.put({ id, blob }))
++}
++
++export async function getBlob(id: string): Promise<Blob | undefined> {
++  const store = await tx(BLOB_STORE, 'readonly')
++  const rec = await wrap<{ id: string; blob: Blob } | undefined>(store.get(id))
++  return rec ? rec.blob : undefined
++}
++
++export async function removeBlob(id: string): Promise<void> {
++  const store = await tx(BLOB_STORE, 'readwrite')
++  await wrap(store.delete(id))
++}
++
++export async function removeItemAndBlob(id: string): Promise<void> {
++  await removeQueueItem(id)
++  await removeBlob(id)
++}
++
++export async function pruneOld(cutoffMs: number): Promise<number> {
++  const all = await getAllQueueItems()
++  let removed = 0
++  for (const it of all) {
++    // Missing/0 createdAt = "unknown age" → do NOT prune. Only prune items with an
++    // explicit createdAt predating the cutoff.
++    if (typeof it.createdAt === 'number' && it.createdAt > 0 && it.createdAt < cutoffMs) {
++      await removeItemAndBlob(it.id)
++      removed++
++    }
++  }
++  return removed
++}
+diff --git a/src/files/upload/persist.test.ts b/src/files/upload/persist.test.ts
+new file mode 100644
+index 0000000..4c50d30
+--- /dev/null
++++ b/src/files/upload/persist.test.ts
+@@ -0,0 +1,171 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { IDBFactory } from 'fake-indexeddb'
++import { _resetForTest, getAllQueueItems, getBlob, putQueueItem, putBlob } from './idb'
++import {
++  persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB,
++  pruneOldItems, _resetBudgetForTest,
++} from './persist'
++import type { UploadItem } from './types'
++
++function mkItem(over: Partial<UploadItem> = {}): UploadItem {
++  return {
++    id: 'i1', file: new Blob(['data']), fileName: 'a.txt', fileType: 'text/plain',
++    size: 4, targetPath: '/DATA/x', relativePath: 'a.txt', status: 'pending',
++    progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0,
++    error: '', createdAt: 1000, batchId: 'b', batchTotal: 1, restored: false,
++    conflictPolicy: '', oversize: false, ...over,
++  }
++}
++
++// persist writes are fire-and-forget; flush microtasks/timers before asserting.
++const flush = () => new Promise((r) => setTimeout(r, 0))
++
++beforeEach(() => {
++  ;(globalThis as any).indexedDB = new IDBFactory()
++  _resetForTest()
++  _resetBudgetForTest()
++})
++
++describe('persist', () => {
++  it('persistNewItem within budget writes meta + blob, blobStored true', async () => {
++    persistNewItem(mkItem())
++    await flush()
++    const rows = await getAllQueueItems()
++    expect(rows).toHaveLength(1)
++    expect(rows[0].id).toBe('i1')
++    expect(rows[0].blobStored).toBe(true)
++    expect(rows[0].file).toBeUndefined() // stripped
++    expect(await getBlob('i1')).toBeInstanceOf(Blob)
++  })
++
++  it('persistNewItem over per-file cap writes meta only, blobStored false', async () => {
++    persistNewItem(mkItem({ size: 300 * 1024 * 1024, oversize: true }))
++    await flush()
++    const rows = await getAllQueueItems()
++    expect(rows[0].blobStored).toBe(false)
++    expect(await getBlob('i1')).toBeUndefined()
++  })
++
++  it('dropPersisted removes record + blob and frees budget', async () => {
++    persistNewItem(mkItem({ id: 'a', size: 4 }))
++    await flush()
++    dropPersisted('a')
++    await flush()
++    expect(await getAllQueueItems()).toEqual([])
++    expect(await getBlob('a')).toBeUndefined()
++  })
++
++  it('restoreFromIDB: blob present → pending+file; counts resumed', async () => {
++    await putQueueItem({ ...stripFile(mkItem({ id: 'r1' })), blobStored: true })
++    await putBlob('r1', new Blob(['data']))
++    const { items, resumedCount } = await restoreFromIDB()
++    expect(items).toHaveLength(1)
++    expect(items[0].status).toBe('pending')
++    expect(items[0].file).toBeInstanceOf(Blob)
++    expect(items[0].restored).toBe(true)
++    expect(resumedCount).toBe(1)
++  })
++
++  it('restoreFromIDB: blobStored but blob gone → needs_file', async () => {
++    await putQueueItem({ ...stripFile(mkItem({ id: 'r2' })), blobStored: true })
++    const { items, resumedCount } = await restoreFromIDB()
++    expect(items[0].status).toBe('needs_file')
++    expect(items[0].file).toBeNull()
++    expect(resumedCount).toBe(0)
++  })
++
++  it('restoreFromIDB: no blobStored → needs_file', async () => {
++    await putQueueItem({ ...stripFile(mkItem({ id: 'r3' })), blobStored: false })
++    const { items } = await restoreFromIDB()
++    expect(items[0].status).toBe('needs_file')
++  })
++
++  it('restoreFromIDB prunes leftover done items', async () => {
++    await putQueueItem({ ...stripFile(mkItem({ id: 'd1', status: 'done' })), blobStored: false })
++    const { items } = await restoreFromIDB()
++    expect(items).toEqual([])
++    expect(await getAllQueueItems()).toEqual([])
++  })
++
++  it('restoreFromIDB swallows open errors → empty (memory-only mode)', async () => {
++    vi.stubGlobal('indexedDB', undefined as any)
++    _resetForTest()
++    const { items, resumedCount } = await restoreFromIDB()
++    expect(items).toEqual([])
++    expect(resumedCount).toBe(0)
++    vi.unstubAllGlobals()
++  })
++
++  it('pruneOldItems forwards to idb.pruneOld', async () => {
++    await putQueueItem({ ...stripFile(mkItem({ id: 'old', createdAt: 10 })), blobStored: false })
++    const removed = await pruneOldItems(1000)
++    expect(removed).toBe(1)
++  })
++
++  it('persistItemMeta re-persists metadata, preserving blobStored=true for in-budget item', async () => {
++    persistNewItem(mkItem({ id: 'm1', size: 4 }))
++    await flush()
++    expect((await getAllQueueItems())[0].blobStored).toBe(true)
++
++    // Mutate status and tusUploadUrl via persistItemMeta
++    const updated = mkItem({ id: 'm1', size: 4, status: 'uploading', tusUploadUrl: '/v2/nimoos/file/upload-tus/abc' })
++    persistItemMeta(updated)
++    await flush()
++
++    const rows = await getAllQueueItems()
++    expect(rows).toHaveLength(1)
++    expect(rows[0].id).toBe('m1')
++    expect(rows[0].status).toBe('uploading')
++    expect(rows[0].tusUploadUrl).toBe('/v2/nimoos/file/upload-tus/abc')
++    expect(rows[0].blobStored).toBe(true) // preserved from storedBlob map
++    expect(rows[0].file).toBeUndefined() // stripped
++    expect(rows[0].thumbUrl).toBeUndefined() // stripped
++  })
++
++  it('persistItemMeta preserves blobStored=false for over-cap item', async () => {
++    persistNewItem(mkItem({ id: 'm2', size: 300 * 1024 * 1024, oversize: true }))
++    await flush()
++    expect((await getAllQueueItems())[0].blobStored).toBe(false)
++
++    // Update status via persistItemMeta
++    const updated = mkItem({ id: 'm2', size: 300 * 1024 * 1024, oversize: true, status: 'uploading' })
++    persistItemMeta(updated)
++    await flush()
++
++    const rows = await getAllQueueItems()
++    expect(rows).toHaveLength(1)
++    expect(rows[0].id).toBe('m2')
++    expect(rows[0].status).toBe('uploading')
++    expect(rows[0].blobStored).toBe(false) // oversize items never stored
++  })
++
++  it('dropPersisted frees budget (observable)', async () => {
++    // Persist item A with blob stored
++    persistNewItem(mkItem({ id: 'a', size: 4 }))
++    await flush()
++    expect((await getAllQueueItems())[0].blobStored).toBe(true)
++
++    // Drop item A — budget slot is released
++    dropPersisted('a')
++    await flush()
++    expect(await getAllQueueItems()).toEqual([])
++
++    // Restore from IDB — rebuilds storedBlob map (now empty after drop)
++    const { items: restored } = await restoreFromIDB()
++    expect(restored).toEqual([])
++
++    // Persist item B — the freed budget from A is available
++    persistNewItem(mkItem({ id: 'b', size: 4 }))
++    await flush()
++    const rows = await getAllQueueItems()
++    expect(rows).toHaveLength(1)
++    expect(rows[0].id).toBe('b')
++    expect(rows[0].blobStored).toBe(true) // B gets stored because A freed its budget
++  })
++})
++
++// helper: strip File before writing to IDB (mirrors persist stripForQueue)
++function stripFile(it: UploadItem): Record<string, unknown> {
++  const { file, thumbUrl, ...rest } = it
++  return rest
++}
+diff --git a/src/files/upload/persist.ts b/src/files/upload/persist.ts
+new file mode 100644
+index 0000000..eb4a43f
+--- /dev/null
++++ b/src/files/upload/persist.ts
+@@ -0,0 +1,100 @@
++import type { UploadItem } from './types'
++import { canStoreBlob } from './budget'
++import {
++  openUploadDB, putQueueItem, putBlob, getBlob, getAllQueueItems, removeItemAndBlob, pruneOld,
++} from './idb'
++
++// id -> persisted blob size; running sum = budget used. Kept in memory, rebuilt
++// from IDB on restore so it survives a refresh.
++const storedBlob = new Map<string, number>()
++function blobBudgetUsed(): number {
++  let n = 0
++  for (const v of storedBlob.values()) n += v
++  return n
++}
++export function _resetBudgetForTest(): void { storedBlob.clear() }
++
++function blobSizeOf(item: { size?: number; file?: Blob | File | null }): number {
++  if (typeof item.size === 'number' && item.size > 0) return item.size
++  return item.file && typeof item.file.size === 'number' ? item.file.size : 0
++}
++
++// Persist metadata only (no File/Blob, no thumbUrl) to the queue store.
++function stripForQueue(item: UploadItem): Record<string, unknown> {
++  const { file, thumbUrl, ...rest } = item
++  void file; void thumbUrl
++  return rest
++}
++
++// Serialize writes per item id so a late meta-write can't resurrect a record a
++// later drop already removed (writes are async and not awaited by the caller).
++const writeChains = new Map<string, Promise<unknown>>()
++function enqueueWrite(id: string, fn: () => Promise<unknown>): Promise<unknown> {
++  const prev = writeChains.get(id) || Promise.resolve()
++  const next = prev.then(fn, fn).catch((e) => {
++    console.warn('[file upload persist] write failed', id, e)
++  })
++  writeChains.set(id, next)
++  next.finally(() => { if (writeChains.get(id) === next) writeChains.delete(id) })
++  return next
++}
++
++export function persistNewItem(item: UploadItem): void {
++  const size = blobSizeOf(item)
++  const willStore = !!(item.file && canStoreBlob(size, blobBudgetUsed()))
++  if (willStore) storedBlob.set(item.id, size)
++  const meta = stripForQueue(item)
++  meta.blobStored = willStore
++  const blob = item.file
++  enqueueWrite(item.id, async () => {
++    await putQueueItem(meta)
++    if (willStore && blob) await putBlob(item.id, blob)
++  })
++}
++
++export function persistItemMeta(item: UploadItem): void {
++  const meta = stripForQueue(item)
++  meta.blobStored = storedBlob.has(item.id)
++  enqueueWrite(item.id, () => putQueueItem(meta))
++}
++
++export function dropPersisted(id: string): void {
++  storedBlob.delete(id)
++  enqueueWrite(id, () => removeItemAndBlob(id))
++}
++
++export async function restoreFromIDB(): Promise<{ items: UploadItem[]; resumedCount: number }> {
++  try {
++    await openUploadDB()
++    const rows = await getAllQueueItems()
++    storedBlob.clear()
++    const items: UploadItem[] = []
++    for (const it of rows) {
++      if (it.status === 'done') {
++        // Leftover from an interrupted cleanup — drop defensively.
++        await removeItemAndBlob(it.id).catch(() => {})
++        continue
++      }
++      if (it.blobStored) {
++        const blob = await getBlob(it.id)
++        if (blob) {
++          const size = blobSizeOf({ size: it.size, file: blob })
++          storedBlob.set(it.id, size)
++          items.push({ ...it, status: 'pending', file: blob, restored: true })
++          continue
++        }
++        // Bytes gone (evicted/quota) — fall through to re-select.
++      }
++      items.push({ ...it, status: 'needs_file', file: null, restored: true })
++    }
++    const resumedCount = items.filter((it) => it.status === 'pending' && it.file).length
++    return { items, resumedCount }
++  } catch (e) {
++    console.warn('[file upload persist] restoreFromIDB failed; memory-only mode', e)
++    return { items: [], resumedCount: 0 }
++  }
++}
++
++export function pruneOldItems(cutoffMs: number): Promise<number> {
++  return pruneOld(cutoffMs)
++}
+diff --git a/src/files/upload/uploadBatches.test.ts b/src/files/upload/uploadBatches.test.ts
+index 1c3aa86..9ec3e9c 100644
+--- a/src/files/upload/uploadBatches.test.ts
++++ b/src/files/upload/uploadBatches.test.ts
+@@ -50,10 +50,22 @@ describe('groupByBatch', () => {
+ })
+ 
+ describe('isBatchSettled', () => {
+   it('true only when every item is done/error', () => {
+     expect(isBatchSettled([mk({ status: 'done' }), mk({ status: 'error' })])).toBe(true)
+     expect(isBatchSettled([mk({ status: 'done' }), mk({ status: 'uploading' })])).toBe(false)
+     expect(isBatchSettled([mk({ status: 'conflict' })])).toBe(false)
+     expect(isBatchSettled([])).toBe(false)
+   })
+ })
++
++describe('needs_file routing', () => {
++  it('needs_file routes the batch to problem zone with needsFileCount', () => {
++    const q = [
++      { id: 'a', batchId: 'b', batchTotal: 2, status: 'needs_file', size: 10, bytesSent: 0, relativePath: 'a', fileName: 'a' },
++      { id: 'c', batchId: 'b', batchTotal: 2, status: 'pending', size: 10, bytesSent: 0, relativePath: 'c', fileName: 'c' },
++    ] as any
++    const [v] = groupByBatch(q)
++    expect(v.zone).toBe('problem')
++    expect(v.needsFileCount).toBe(1)
++  })
++})
+diff --git a/src/files/upload/uploadBatches.ts b/src/files/upload/uploadBatches.ts
+index 9e8389f..e7123d8 100644
+--- a/src/files/upload/uploadBatches.ts
++++ b/src/files/upload/uploadBatches.ts
+@@ -7,20 +7,21 @@ export type BatchLabel =
+ 
+ export interface BatchView {
+   batchId: string
+   label: BatchLabel
+   total: number
+   items: UploadItem[]
+   doneCount: number
+   errorCount: number
+   activeCount: number // pending + uploading
+   conflictCount: number
++  needsFileCount: number
+   progress: number // 0-100, bytes-weighted
+   sentBytes: number // uploaded so far across the batch
+   totalBytes: number // sum of all item sizes in the batch
+   zone: 'problem' | 'active' | 'done'
+   oversize: boolean
+   multi: boolean
+ }
+ 
+ // Label a batch: a folder upload (webkitdirectory) has every item's
+ // relativePath rooted at the same top segment AND at least one nested path
+@@ -46,34 +47,40 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
+   for (const it of queue) {
+     if (!map.has(it.batchId)) { map.set(it.batchId, []); order.push(it.batchId) }
+     map.get(it.batchId)!.push(it)
+   }
+   return order.map((batchId) => {
+     const items = map.get(batchId)!
+     const doneCount = items.filter((i) => i.status === 'done').length
+     const errorCount = items.filter((i) => i.status === 'error').length
+     const conflictCount = items.filter((i) => i.status === 'conflict').length
+     const activeCount = items.filter((i) => i.status === 'pending' || i.status === 'uploading').length
++    const needsFileCount = items.filter((i) => i.status === 'needs_file').length
+     const totalBytes = items.reduce((s, i) => s + i.size, 0)
+     const sentBytes = items.reduce((s, i) => s + (i.status === 'done' ? i.size : i.bytesSent), 0)
+     const progress = totalBytes > 0 ? Math.floor((sentBytes / totalBytes) * 100) : activeCount > 0 ? 0 : 100
+     const zone: 'problem' | 'active' | 'done' =
+-      errorCount > 0 ? 'problem' : activeCount > 0 || conflictCount > 0 ? 'active' : 'done'
++      errorCount > 0 || needsFileCount > 0
++        ? 'problem'
++        : activeCount > 0 || conflictCount > 0
++          ? 'active'
++          : 'done'
+     return {
+       batchId,
+       label: batchLabel(items),
+       total: items[0]?.batchTotal ?? items.length,
+       items,
+       doneCount,
+       errorCount,
+       activeCount,
+       conflictCount,
++      needsFileCount,
+       progress,
+       sentBytes,
+       totalBytes,
+       zone,
+       oversize: items.some((i) => i.oversize),
+       multi: items.length > 1,
+     }
+   })
+ }
+ 
+diff --git a/src/files/upload/uploadListGroups.test.ts b/src/files/upload/uploadListGroups.test.ts
+deleted file mode 100644
+index 8257be3..0000000
+--- a/src/files/upload/uploadListGroups.test.ts
++++ /dev/null
+@@ -1,18 +0,0 @@
+-import { describe, it, expect } from 'vitest'
+-import { groupUploadQueue } from './uploadListGroups'
+-import type { UploadItem } from './types'
+-const mk = (p: Partial<UploadItem>): UploadItem => ({
+-  id: 'x', file: null, fileName: 'f', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'f',
+-  status: 'pending', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
+-  createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '', oversize: false, ...p,
+-})
+-describe('groupUploadQueue', () => {
+-  it('splits into problem/active/done with active uploading-first', () => {
+-    const q = [mk({ id: 'e', status: 'error' }), mk({ id: 'p', status: 'pending' }),
+-      mk({ id: 'u', status: 'uploading' }), mk({ id: 'd', status: 'done', doneAt: 5 })]
+-    const g = groupUploadQueue(q)
+-    expect(g.problemItems.map(i => i.id)).toEqual(['e'])
+-    expect(g.activeItems.map(i => i.id)).toEqual(['u', 'p'])
+-    expect(g.doneItems.map(i => i.id)).toEqual(['d'])
+-  })
+-})
+diff --git a/src/files/upload/uploadListGroups.ts b/src/files/upload/uploadListGroups.ts
+deleted file mode 100644
+index f2dccd3..0000000
+--- a/src/files/upload/uploadListGroups.ts
++++ /dev/null
+@@ -1,39 +0,0 @@
+-import type { UploadItem } from './types'
+-
+-export interface UploadQueueGroups {
+-  problemItems: UploadItem[]
+-  activeItems: UploadItem[]
+-  doneItems: UploadItem[]
+-}
+-
+-export function groupUploadQueue(queue: UploadItem[]): UploadQueueGroups {
+-  const problemItems: UploadItem[] = []
+-  const activeItems: UploadItem[] = []
+-  const doneItems: UploadItem[] = []
+-
+-  for (const item of queue) {
+-    if (['error', 'needs_file', 'conflict'].includes(item.status)) {
+-      problemItems.push(item)
+-    } else if (item.status === 'done') {
+-      doneItems.push(item)
+-    } else if (['uploading', 'pending'].includes(item.status)) {
+-      activeItems.push(item)
+-    }
+-  }
+-
+-  // Sort active items: uploading first, then pending
+-  activeItems.sort((a, b) => {
+-    if (a.status === 'uploading' && b.status !== 'uploading') return -1
+-    if (a.status !== 'uploading' && b.status === 'uploading') return 1
+-    return 0
+-  })
+-
+-  // Sort done items by doneAt ?? createdAt ascending
+-  doneItems.sort((a, b) => {
+-    const aTime = a.doneAt ?? a.createdAt
+-    const bTime = b.doneAt ?? b.createdAt
+-    return aTime - bTime
+-  })
+-
+-  return { problemItems, activeItems, doneItems }
+-}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 76a46b3..0e33814 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -78,12 +78,16 @@ export const messages = {
+     filesUploadZoneActive: '上传中',
+     filesUploadZoneDone: '已完成',
+     filesUploadProtected: '「{name}」位于受保护目录,已跳过。',
+     filesUploadErrDuplicate: '文件已存在(已跳过)',
+     filesUploadErrExpired: '会话已过期',
+     filesUploadErrNoSpace: 'NAS 存储空间不足',
+     filesUploadErrProtected: '该目录受保护,不允许上传',
+     filesUploadErrBadName: '文件名或路径无效',
+     filesUploadErrServer: '服务器错误',
+     filesUploadErrNetwork: '网络错误',
++    filesUploadReselect: '重选文件',
++    filesUploadNeedsFile: '需重新选择文件以继续上传',
++    filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
++    filesUploadRestoreDismiss: '知道了',
+   },
+ }
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 39c8c6f..bfeee83 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -15,20 +15,21 @@ import AlertDialog from '../components/ui/AlertDialog.vue'
+ import OperationStatusBar from '../files/components/OperationStatusBar.vue'
+ import UploadPanel from '../files/components/UploadPanel.vue'
+ import { useFileOps } from '../files/composables/useFileOps'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
++import { readDroppedEntries } from '../files/upload/dropEntries'
+ import type { SelectedFile } from '../files/upload/types'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+@@ -128,25 +129,33 @@ const isDragIn = ref(false)
+ let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
+ function onDragOver() {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = true
+ }
+ function onDragLeave() {
+   // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
+   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
+   dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
+ }
+-function onDrop(e: DragEvent) {
++async function onDrop(e: DragEvent) {
+   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+   isDragIn.value = false
+-  const list = e.dataTransfer?.files
+-  if (list && list.length) handleSelectedFiles(list)
++  const dropped = await readDroppedEntries(e.dataTransfer)
++  if (!dropped.length) return
++  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
++  const sel: SelectedFile[] = dropped.map((d) => ({
++    file: d.file,
++    targetPath,
++    relativePath: d.relativePath.replace(/^\/+/, ''),
++  }))
++  const { rejected } = await uploads.addFilesToQueue(sel)
++  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+ }
+ 
+ function confirmNew(name: string) {
+   if (newDlg.value.mode === 'folder') ops.createFolder(name)
+   else ops.createFile(name)
+ }
+ function confirmRename(name: string) {
+   if (renameDlg.value.entry) ops.rename(renameDlg.value.entry, name)
+ }
+ function confirmDelete() {
+@@ -260,20 +269,24 @@ onMounted(async () => {
+ })
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ 
+ let offOperate: (() => void) | null = null
+ onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+ onUnmounted(() => { offOperate?.() })
+ 
+ let offUnloadGuard: (() => void) | null = null
+ onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+ onUnmounted(() => { offUnloadGuard?.() })
++
++// 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
++// 失败降级为内存模式,不阻断文件区渲染。
++onMounted(() => { uploads.initUploads() })
+ </script>
+ 
+ <template>
+   <FilesShell>
+     <div class="files-layout">
+       <FilesSidebar @navigate="goVirtual" />
+       <div
+         class="files-main"
+         @mousedown="onMarqueeDown"
+         @dragover.prevent="onDragOver"
+diff --git a/vite.config.ts b/vite.config.ts
+index 27436a4..df4a28d 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -1,17 +1,18 @@
+ import { defineConfig } from 'vite'
+ import vue from '@vitejs/plugin-vue'
+ 
+ export default defineConfig({
+   base: '/app/',
+   plugins: [vue()],
+   server: { port: 5273 },
+   test: {
+     environment: 'jsdom',
+     globals: true,
++    setupFiles: ['./vitest.setup.ts'],
+     server: {
+       deps: {
+         inline: ['@nimotech/nimoos-service'],
+       },
+     },
+   },
+ })
+diff --git a/vitest.setup.ts b/vitest.setup.ts
+new file mode 100644
+index 0000000..569e1a0
+--- /dev/null
++++ b/vitest.setup.ts
+@@ -0,0 +1,5 @@
++// fake-indexeddb clones values via structuredClone, which does not recognize
++// jsdom's Blob class (a jsdom Blob silently serializes to {}). Node's native
++// Blob IS recognized, so tests that round-trip blobs through IndexedDB use it.
++import { Blob as NodeBlob } from 'node:buffer'
++globalThis.Blob = NodeBlob as unknown as typeof Blob

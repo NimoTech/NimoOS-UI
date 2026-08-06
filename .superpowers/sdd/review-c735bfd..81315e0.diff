@@ -1,0 +1,575 @@
+# Review package: c735bfd..81315e0
+
+## Commits
+81315e0 test(files-viewer): ppt/pptx 落下载回归(Vue2 parity)
+a70d64e feat(files-viewer): ExcelViewer(@vue-office/excel: xls/xlsx/csv)
+c174ad1 feat(files-viewer): DocViewer(@vue-office/docx: doc/docx/wps)
+fffeff3 feat(files-viewer): PdfViewer(@vue-office/pdf, useOfficeBytes)+ panelMap/registry 接入
+b6710f0 feat(files-viewer): useOfficeBytes composable(取字节/三态/卸载守卫)+ 共享样式 + i18n
+e98e476 chore(sp4-p4b): 安装 @vue-office Vue3 依赖(pdf/docx/excel + vue-demi)
+
+## Files changed
+ package.json                             |  4 ++
+ pnpm-lock.yaml                           | 57 ++++++++++++++++++++++++++++
+ src/files/viewers/DocViewer.vue          | 28 ++++++++++++++
+ src/files/viewers/ExcelViewer.vue        | 28 ++++++++++++++
+ src/files/viewers/PdfViewer.vue          | 27 ++++++++++++++
+ src/files/viewers/ViewerHost.vue         |  3 ++
+ src/files/viewers/panelMap.test.ts       | 18 +++++++++
+ src/files/viewers/panelMap.ts            |  7 +++-
+ src/files/viewers/useOfficeBytes.test.ts | 64 ++++++++++++++++++++++++++++++++
+ src/files/viewers/useOfficeBytes.ts      | 37 ++++++++++++++++++
+ src/files/viewers/viewers.css            | 12 ++++++
+ src/i18n/zh_cn.ts                        |  3 ++
+ 12 files changed, 286 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index 9e79107..e4289d0 100644
+--- a/package.json
++++ b/package.json
+@@ -22,32 +22,36 @@
+     "@codemirror/lang-rust": "^6.0.2",
+     "@codemirror/lang-sql": "^6.10.0",
+     "@codemirror/lang-xml": "^6.1.0",
+     "@codemirror/lang-yaml": "^6.1.3",
+     "@codemirror/language": "^6.12.4",
+     "@codemirror/state": "^6.7.1",
+     "@codemirror/view": "^6.43.5",
+     "@nimotech/nimoos-service": "file:../NimoOS-Service",
+     "@types/markdown-it": "^14.1.2",
+     "@uiw/codemirror-theme-monokai": "^4.25.10",
++    "@vue-office/docx": "^1.6.0",
++    "@vue-office/excel": "^1.6.0",
++    "@vue-office/pdf": "^1.6.0",
+     "aplayer": "^1.10.1",
+     "artplayer": "^5.4.0",
+     "axios": "^1.7",
+     "codemirror": "^6.0.2",
+     "lottie-web": "^5.13.0",
+     "markdown-it": "^14.3.0",
+     "music-metadata-browser": "^2.5.11",
+     "pinia": "^2.1",
+     "reka-ui": "^2.10.1",
+     "socket.io-client": "2.5.0",
+     "tus-js-client": "^4",
+     "vue": "^3.4",
++    "vue-demi": "^0.14.10",
+     "vue-i18n": "^9.9",
+     "vue-router": "^4.3"
+   },
+   "devDependencies": {
+     "@vitejs/plugin-vue": "^6",
+     "@vue/test-utils": "^2",
+     "fake-indexeddb": "^6.2.5",
+     "jsdom": "^24",
+     "typescript": "^5",
+     "vite": "^7",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 576a0d9..5f4e2c8 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -58,20 +58,29 @@ importers:
+         version: 6.43.5
+       '@nimotech/nimoos-service':
+         specifier: file:../NimoOS-Service
+         version: file:../NimoOS-Service
+       '@types/markdown-it':
+         specifier: ^14.1.2
+         version: 14.1.2
+       '@uiw/codemirror-theme-monokai':
+         specifier: ^4.25.10
+         version: 4.25.10(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.5)
++      '@vue-office/docx':
++        specifier: ^1.6.0
++        version: 1.6.3(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
++      '@vue-office/excel':
++        specifier: ^1.6.0
++        version: 1.7.14(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
++      '@vue-office/pdf':
++        specifier: ^1.6.0
++        version: 1.6.5(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))
+       aplayer:
+         specifier: ^1.10.1
+         version: 1.10.1
+       artplayer:
+         specifier: ^5.4.0
+         version: 5.4.0
+       axios:
+         specifier: ^1.7
+         version: 1.18.1
+       codemirror:
+@@ -94,20 +103,23 @@ importers:
+         version: 2.10.1(vue@3.5.39(typescript@5.9.3))
+       socket.io-client:
+         specifier: 2.5.0
+         version: 2.5.0
+       tus-js-client:
+         specifier: ^4
+         version: 4.3.1
+       vue:
+         specifier: ^3.4
+         version: 3.5.39(typescript@5.9.3)
++      vue-demi:
++        specifier: ^0.14.10
++        version: 0.14.10(vue@3.5.39(typescript@5.9.3))
+       vue-i18n:
+         specifier: ^9.9
+         version: 9.14.5(vue@3.5.39(typescript@5.9.3))
+       vue-router:
+         specifier: ^4.3
+         version: 4.6.4(vue@3.5.39(typescript@5.9.3))
+     devDependencies:
+       '@vitejs/plugin-vue':
+         specifier: ^6
+         version: 6.0.7(vite@7.3.6)(vue@3.5.39(typescript@5.9.3))
+@@ -699,20 +711,50 @@ packages:
+ 
+   '@volar/language-core@2.4.15':
+     resolution: {integrity: sha512-3VHw+QZU0ZG9IuQmzT68IyN4hZNd9GchGPhbD9+pa8CVv7rnoOZwo7T8weIbrRmihqy3ATpdfXFnqRrfPVK6CA==}
+ 
+   '@volar/source-map@2.4.15':
+     resolution: {integrity: sha512-CPbMWlUN6hVZJYGcU/GSoHu4EnCHiLaXI9n8c9la6RaI9W5JHX+NqG+GSQcB0JdC2FIBLdZJwGsfKyBB71VlTg==}
+ 
+   '@volar/typescript@2.4.15':
+     resolution: {integrity: sha512-2aZ8i0cqPGjXb4BhkMsPYDkkuc2ZQ6yOpqwAuNwUoncELqoy5fRgOQtLR9gB0g902iS0NAkvpIzs27geVyVdPg==}
+ 
++  '@vue-office/docx@1.6.3':
++    resolution: {integrity: sha512-Cs+3CAaRBOWOiW4XAhTwwxJ0dy8cPIf6DqfNvYcD3YACiLwO4kuawLF2IAXxyijhbuOeoFsfvoVbOc16A/4bZA==}
++    peerDependencies:
++      '@vue/composition-api': ^1.7.1
++      vue: ^2.0.0 || >=3.0.0
++      vue-demi: ^0.14.6
++    peerDependenciesMeta:
++      '@vue/composition-api':
++        optional: true
++
++  '@vue-office/excel@1.7.14':
++    resolution: {integrity: sha512-pVUgt+emDQUnW7q22CfnQ+jl43mM/7IFwYzOg7lwOwPEbiVB4K4qEQf+y/bc4xGXz75w1/e3Kz3G6wAafmFBFg==}
++    peerDependencies:
++      '@vue/composition-api': ^1.7.1
++      vue: ^2.0.0 || >=3.0.0
++      vue-demi: ^0.14.6
++    peerDependenciesMeta:
++      '@vue/composition-api':
++        optional: true
++
++  '@vue-office/pdf@1.6.5':
++    resolution: {integrity: sha512-3BePzeA5wji2JoZGJhdlc3XEXs6gMcSnBXrBXlGGfhZHjNijxcHa9V5Ibm8dDKoEwPPsfg+kf4TGP9/2GBR8jQ==}
++    peerDependencies:
++      '@vue/composition-api': ^1.7.1
++      vue: ^2.0.0 || >=3.0.0
++      vue-demi: ^0.14.6
++    peerDependenciesMeta:
++      '@vue/composition-api':
++        optional: true
++
+   '@vue/compiler-core@3.5.39':
+     resolution: {integrity: sha512-16KBTEXAJCpDr0mwlw+AZyhu8iyC7R3S2vBwsI7QnWJU6X3WKc9VKeNEZpiMdZ569qWhz9574L3vV55qRL0Vtw==}
+ 
+   '@vue/compiler-dom@3.5.39':
+     resolution: {integrity: sha512-oQPigALqYbNxTNPvNgSOe+czwVExfbVF02lz8jP0S3AXJiu3jxYDygNUiqSep4ezzW8XgnubqH63My2A7JR/vg==}
+ 
+   '@vue/compiler-sfc@3.5.39':
+     resolution: {integrity: sha512-d0ki86iOyN8LoZPBmk5SJWNwHP19CnDDCfuo//+2WJa2g5Ke0Jay983PIBIcSSzldC68I8DrD5GrHV3OSDfodg==}
+ 
+   '@vue/compiler-ssr@3.5.39':
+@@ -2332,20 +2374,35 @@ snapshots:
+       '@volar/source-map': 2.4.15
+ 
+   '@volar/source-map@2.4.15': {}
+ 
+   '@volar/typescript@2.4.15':
+     dependencies:
+       '@volar/language-core': 2.4.15
+       path-browserify: 1.0.1
+       vscode-uri: 3.1.0
+ 
++  '@vue-office/docx@1.6.3(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))':
++    dependencies:
++      vue: 3.5.39(typescript@5.9.3)
++      vue-demi: 0.14.10(vue@3.5.39(typescript@5.9.3))
++
++  '@vue-office/excel@1.7.14(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))':
++    dependencies:
++      vue: 3.5.39(typescript@5.9.3)
++      vue-demi: 0.14.10(vue@3.5.39(typescript@5.9.3))
++
++  '@vue-office/pdf@1.6.5(vue-demi@0.14.10(vue@3.5.39(typescript@5.9.3)))(vue@3.5.39(typescript@5.9.3))':
++    dependencies:
++      vue: 3.5.39(typescript@5.9.3)
++      vue-demi: 0.14.10(vue@3.5.39(typescript@5.9.3))
++
+   '@vue/compiler-core@3.5.39':
+     dependencies:
+       '@babel/parser': 7.29.7
+       '@vue/shared': 3.5.39
+       entities: 7.0.1
+       estree-walker: 2.0.2
+       source-map-js: 1.2.1
+ 
+   '@vue/compiler-dom@3.5.39':
+     dependencies:
+diff --git a/src/files/viewers/DocViewer.vue b/src/files/viewers/DocViewer.vue
+new file mode 100644
+index 0000000..3516029
+--- /dev/null
++++ b/src/files/viewers/DocViewer.vue
+@@ -0,0 +1,28 @@
++<script setup lang="ts">
++import VueOfficeDocx from '@vue-office/docx'
++import '@vue-office/docx/lib/index.css'
++import { useI18n } from 'vue-i18n'
++import ViewerShell from './ViewerShell.vue'
++import { useOfficeBytes } from './useOfficeBytes'
++import type { FileEntry } from '../stores/files'
++
++const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
++const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
++const { t } = useI18n()
++const { state, buffer, onRendered, onRenderError } = useOfficeBytes(props.item)
++</script>
++
++<template>
++  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
++    <div class="office-body">
++      <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
++      <div v-else-if="state === 'error'" class="viewer-status">
++        <p>{{ t('filesViewerError') }}</p>
++        <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
++      </div>
++      <div v-show="state !== 'error'" class="office-scroll">
++        <VueOfficeDocx v-if="buffer" :src="buffer" @rendered="onRendered" @error="onRenderError" />
++      </div>
++    </div>
++  </ViewerShell>
++</template>
+diff --git a/src/files/viewers/ExcelViewer.vue b/src/files/viewers/ExcelViewer.vue
+new file mode 100644
+index 0000000..b4deab9
+--- /dev/null
++++ b/src/files/viewers/ExcelViewer.vue
+@@ -0,0 +1,28 @@
++<script setup lang="ts">
++import VueOfficeExcel from '@vue-office/excel'
++import '@vue-office/excel/lib/index.css'
++import { useI18n } from 'vue-i18n'
++import ViewerShell from './ViewerShell.vue'
++import { useOfficeBytes } from './useOfficeBytes'
++import type { FileEntry } from '../stores/files'
++
++const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
++const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
++const { t } = useI18n()
++const { state, buffer, onRendered, onRenderError } = useOfficeBytes(props.item)
++</script>
++
++<template>
++  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
++    <div class="office-body">
++      <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
++      <div v-else-if="state === 'error'" class="viewer-status">
++        <p>{{ t('filesViewerError') }}</p>
++        <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
++      </div>
++      <div v-show="state !== 'error'" class="office-scroll">
++        <VueOfficeExcel v-if="buffer" :src="buffer" @rendered="onRendered" @error="onRenderError" />
++      </div>
++    </div>
++  </ViewerShell>
++</template>
+diff --git a/src/files/viewers/PdfViewer.vue b/src/files/viewers/PdfViewer.vue
+new file mode 100644
+index 0000000..d9ba4be
+--- /dev/null
++++ b/src/files/viewers/PdfViewer.vue
+@@ -0,0 +1,27 @@
++<script setup lang="ts">
++import VueOfficePdf from '@vue-office/pdf'
++import { useI18n } from 'vue-i18n'
++import ViewerShell from './ViewerShell.vue'
++import { useOfficeBytes } from './useOfficeBytes'
++import type { FileEntry } from '../stores/files'
++
++const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
++const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
++const { t } = useI18n()
++const { state, buffer, onRendered, onRenderError } = useOfficeBytes(props.item)
++</script>
++
++<template>
++  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
++    <div class="office-body">
++      <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
++      <div v-else-if="state === 'error'" class="viewer-status">
++        <p>{{ t('filesViewerError') }}</p>
++        <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
++      </div>
++      <div v-show="state !== 'error'" class="office-scroll">
++        <VueOfficePdf v-if="buffer" :src="buffer" @rendered="onRendered" @error="onRenderError" />
++      </div>
++    </div>
++  </ViewerShell>
++</template>
+diff --git a/src/files/viewers/ViewerHost.vue b/src/files/viewers/ViewerHost.vue
+index 8d46170..6194a5e 100644
+--- a/src/files/viewers/ViewerHost.vue
++++ b/src/files/viewers/ViewerHost.vue
+@@ -5,20 +5,23 @@ import { useFileOps } from '../composables/useFileOps'
+ import type { PanelType } from './panelMap'
+ import type { FileEntry } from '../stores/files'
+ 
+ const v = useViewer()
+ const ops = useFileOps()
+ const registry: Record<PanelType, ReturnType<typeof defineAsyncComponent>> = {
+   'image-viewer': defineAsyncComponent(() => import('./ImageViewer.vue')),
+   'code-editor': defineAsyncComponent(() => import('./CodeViewer.vue')),
+   'video-player': defineAsyncComponent(() => import('./MediaViewer.vue')),
+   'markdown': defineAsyncComponent(() => import('./MarkdownViewer.vue')),
++  'pdf-viewer': defineAsyncComponent(() => import('./PdfViewer.vue')),
++  'doc-viewer': defineAsyncComponent(() => import('./DocViewer.vue')),
++  'excel-viewer': defineAsyncComponent(() => import('./ExcelViewer.vue')),
+ }
+ const current = computed(() => (v.panelType.value ? registry[v.panelType.value] : null))
+ 
+ function onDownload(entry?: FileEntry) {
+   const items = [entry ?? v.currentItem.value].filter(Boolean) as FileEntry[]
+   if (items.length) ops.download(items)
+ }
+ 
+ function onKeydown(e: KeyboardEvent) {
+   if (e.key === 'Escape' && v.open.value) v.close()
+diff --git a/src/files/viewers/panelMap.test.ts b/src/files/viewers/panelMap.test.ts
+index 5cd4101..93c8364 100644
+--- a/src/files/viewers/panelMap.test.ts
++++ b/src/files/viewers/panelMap.test.ts
+@@ -22,11 +22,29 @@ describe('getPanelType', () => {
+       expect(getPanelType(n)).toBeNull()
+   })
+   it('音频全套 → video-player', () => {
+     for (const n of ['a.mp3', 'b.flac', 'c.m4a', 'd.wav', 'e.ogg', 'f.opus', 'g.aac'])
+       expect(getPanelType(n)).toBe('video-player')
+   })
+   it('未知扩展名 → null', () => {
+     expect(getPanelType('a.zip')).toBeNull()
+     expect(getPanelType('a.exe')).toBeNull()
+   })
++  it('pdf → pdf-viewer', () => {
++    expect(getPanelType('report.pdf')).toBe('pdf-viewer')
++    expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
++  })
++  it('word → doc-viewer', () => {
++    expect(getPanelType('a.doc')).toBe('doc-viewer')
++    expect(getPanelType('a.docx')).toBe('doc-viewer')
++    expect(getPanelType('a.wps')).toBe('doc-viewer')
++  })
++  it('excel → excel-viewer', () => {
++    expect(getPanelType('a.xls')).toBe('excel-viewer')
++    expect(getPanelType('a.xlsx')).toBe('excel-viewer')
++    expect(getPanelType('a.csv')).toBe('excel-viewer')
++  })
++  it('ppt/pptx stay unmapped → download (Vue2 parity)', () => {
++    expect(getPanelType('deck.ppt')).toBeNull()
++    expect(getPanelType('deck.pptx')).toBeNull()
++  })
+ })
+diff --git a/src/files/viewers/panelMap.ts b/src/files/viewers/panelMap.ts
+index 3ede657..5836d87 100644
+--- a/src/files/viewers/panelMap.ts
++++ b/src/files/viewers/panelMap.ts
+@@ -1,25 +1,28 @@
+ import { fileExt } from '../util/ext'
+-import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO } from '../util/fileCategories'
++import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_WORD, APPLICATION_VND_MS_EXCEL } from '../util/fileCategories'
+ 
+-export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown'
++export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer' | 'doc-viewer' | 'excel-viewer'
+ 
+ function union(...groups: string[][]): string[] {
+   return Array.from(new Set(groups.flat()))
+ }
+ 
+ // Vue2 filePanelMap(mixin.js:43-51),markdown 键启用(spec D-MD);分类数组单一真源见 ../util/fileCategories
+ const filePanelMap: Record<PanelType, string[]> = {
+   'code-editor': union(TEXT_X_GENERIC, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE),
+   'video-player': union(BROWSER_PLAYABLE_VIDEO, AUDIO_X_GENERIC),
+   'image-viewer': IMAGE_X_GENERIC,
+   'markdown': TEXT_MARKDOWN,
++  'pdf-viewer': APPLICATION_PDF,
++  'doc-viewer': APPLICATION_VND_MS_WORD,
++  'excel-viewer': APPLICATION_VND_MS_EXCEL,
+ }
+ 
+ export function getPanelType(name: string): PanelType | null {
+   const ext = fileExt(name) // 已小写
+   // 与 Vue2 getPanelType 一致:遍历映射,命中返回其键
+   for (const key of Object.keys(filePanelMap) as PanelType[]) {
+     if (filePanelMap[key].includes(ext)) return key
+   }
+   return null
+ }
+diff --git a/src/files/viewers/useOfficeBytes.test.ts b/src/files/viewers/useOfficeBytes.test.ts
+new file mode 100644
+index 0000000..847ebcf
+--- /dev/null
++++ b/src/files/viewers/useOfficeBytes.test.ts
+@@ -0,0 +1,64 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { defineComponent, h, nextTick } from 'vue'
++import { mount } from '@vue/test-utils'
++import { useOfficeBytes } from './useOfficeBytes'
++import type { FileEntry } from '../stores/files'
++
++const getBytesMock = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { file: { getBytes: (...a: unknown[]) => getBytesMock(...a) } },
++}))
++
++const item = { name: 'a.pdf', path: '/DATA/a.pdf', is_dir: false } as FileEntry
++
++// 在组件 setup 内实例化 composable,拿到其 API + wrapper(便于卸载)
++function makeViewer() {
++  let api!: ReturnType<typeof useOfficeBytes>
++  const Host = defineComponent({ setup() { api = useOfficeBytes(item); return () => h('div') } })
++  const wrapper = mount(Host)
++  return { api, wrapper }
++}
++
++beforeEach(() => { getBytesMock.mockReset() })
++
++describe('useOfficeBytes', () => {
++  it('starts loading, fetches bytes with real path, stays loading until onRendered', async () => {
++    const buf = new ArrayBuffer(4)
++    getBytesMock.mockResolvedValue(buf)
++    const { api } = makeViewer()
++    expect(api.state.value).toBe('loading')
++    await nextTick(); await nextTick()
++    expect(getBytesMock).toHaveBeenCalledWith('/DATA/a.pdf')
++    expect(api.buffer.value).toBe(buf)
++    expect(api.state.value).toBe('loading')   // 字节到位仍 loading
++    api.onRendered()
++    expect(api.state.value).toBe('ready')
++  })
++
++  it('goes error on fetch failure', async () => {
++    getBytesMock.mockRejectedValue(new Error('boom'))
++    const { api } = makeViewer()
++    await nextTick(); await nextTick()
++    expect(api.state.value).toBe('error')
++    expect(api.buffer.value).toBeNull()
++  })
++
++  it('onRenderError sets error', async () => {
++    getBytesMock.mockResolvedValue(new ArrayBuffer(4))
++    const { api } = makeViewer()
++    await nextTick(); await nextTick()
++    api.onRenderError()
++    expect(api.state.value).toBe('error')
++  })
++
++  it('disposed guard: unmount before resolve → no state/buffer flip', async () => {
++    let resolve!: (b: ArrayBuffer) => void
++    getBytesMock.mockReturnValue(new Promise<ArrayBuffer>((r) => { resolve = r }))
++    const { api, wrapper } = makeViewer()
++    wrapper.unmount()                 // 在 getBytes resolve 前卸载
++    resolve(new ArrayBuffer(4))
++    await nextTick(); await nextTick()
++    expect(api.buffer.value).toBeNull()
++    expect(api.state.value).toBe('loading')  // 卸载后不再翻状态
++  })
++})
+diff --git a/src/files/viewers/useOfficeBytes.ts b/src/files/viewers/useOfficeBytes.ts
+new file mode 100644
+index 0000000..9f493ae
+--- /dev/null
++++ b/src/files/viewers/useOfficeBytes.ts
+@@ -0,0 +1,37 @@
++import { ref, shallowRef, onMounted, onBeforeUnmount, type Ref, type ShallowRef } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import type { FileEntry } from '../stores/files'
++
++export type OfficeViewerState = 'loading' | 'ready' | 'error'
++
++// 三个重查看器(PDF/Word/Excel)共用:取字节 + 三态机 + 卸载守卫。
++// 字节走共享 service.file.getBytes(/v1/file, arraybuffer, 401 自愈);真实路径进 API。
++// @vue-office 组件挂 @rendered → onRendered()、@error → onRenderError()。
++export function useOfficeBytes(item: FileEntry): {
++  state: Ref<OfficeViewerState>
++  buffer: ShallowRef<ArrayBuffer | null>
++  onRendered: () => void
++  onRenderError: () => void
++} {
++  const state = ref<OfficeViewerState>('loading')
++  const buffer = shallowRef<ArrayBuffer | null>(null)
++  // 异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——卸载后放弃后续渲染。
++  let disposed = false
++
++  onMounted(async () => {
++    try {
++      const buf = await service.file.getBytes(item.path)
++      if (disposed) return
++      buffer.value = buf               // state 维持 loading,直到 @rendered
++    } catch {
++      if (disposed) return
++      state.value = 'error'
++    }
++  })
++  onBeforeUnmount(() => { disposed = true })
++
++  function onRendered() { if (!disposed) state.value = 'ready' }
++  function onRenderError() { if (!disposed) state.value = 'error' }
++
++  return { state, buffer, onRendered, onRenderError }
++}
+diff --git a/src/files/viewers/viewers.css b/src/files/viewers/viewers.css
+index 0e45fb9..48766db 100644
+--- a/src/files/viewers/viewers.css
++++ b/src/files/viewers/viewers.css
+@@ -1,7 +1,19 @@
+ .c-zoom-in-enter-active, .c-zoom-in-leave-active {
+   transition: opacity 0.18s ease, transform 0.18s ease;
+ }
+ .c-zoom-in-enter-from, .c-zoom-in-leave-to {
+   opacity: 0;
+   transform: scale(0.96);
+ }
++
++.office-body { width: 100%; height: 100%; position: relative; }
++.office-scroll { width: 100%; height: 100%; overflow: auto; background: #fff; }
++.viewer-status {
++  position: absolute; inset: 0; z-index: 1;
++  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
++  color: var(--fg, #fff);
++}
++.viewer-status .chip {
++  padding: 6px 14px; border: none; border-radius: 999px; cursor: pointer;
++  background: rgba(255, 255, 255, 0.16); color: var(--fg, #fff);
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 318433d..077e201 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -24,20 +24,23 @@ export const messages = {
+     filesProtectedDelete: '此项目受保护,无法删除',
+     filesProtectedRename: '此项目受保护,无法重命名',
+     filesProtectedMove: '此项目受保护,无法移动',
+     filesCopiedPath: '已复制路径',
+     filesNewFolder: '新建文件夹',
+     filesNewFile: '新建文件',
+     filesPaste: '粘贴',
+     filesDownloadPreparing: '正在准备下载…',
+     filesDownload: '下载',
+     filesViewerClose: '关闭',
++    filesViewerLoading: '加载中…',
++    filesViewerError: '无法预览此文件',
++    filesViewerDownloadInstead: '改为下载',
+     filesViewerPrev: '上一张',
+     filesViewerNext: '下一张',
+     filesViewerZoomIn: '放大',
+     filesViewerZoomOut: '缩小',
+     filesViewerRotate: '旋转',
+     filesViewerReset: '重置',
+     filesViewerSave: '保存',
+     filesViewerSaved: '已保存',
+     filesViewerSaveFailed: '保存失败',
+     filesViewerWantSave: '要保存吗?',

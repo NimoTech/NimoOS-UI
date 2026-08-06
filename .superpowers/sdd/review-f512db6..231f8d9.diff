@@ -1,0 +1,323 @@
+# Review package: f512db6..HEAD
+
+## Commits
+231f8d9 feat(apps): installedApps store + appTitle/appUrl 纯工具——事件驱动刷新 + pending 30s 兜底,真机信封做 fixture(SP5-P1)
+
+## Files changed
+ src/apps/stores/installedApps.test.ts | 109 +++++++++++++++++++++++++++++++
+ src/apps/stores/installedApps.ts      | 119 ++++++++++++++++++++++++++++++++++
+ src/apps/util/appTitle.test.ts        |  12 ++++
+ src/apps/util/appTitle.ts             |   6 ++
+ src/apps/util/appUrl.test.ts          |  15 +++++
+ src/apps/util/appUrl.ts               |  11 ++++
+ 6 files changed, 272 insertions(+)
+
+## Diff
+diff --git a/src/apps/stores/installedApps.test.ts b/src/apps/stores/installedApps.test.ts
+new file mode 100644
+index 0000000..4683ada
+--- /dev/null
++++ b/src/apps/stores/installedApps.test.ts
+@@ -0,0 +1,109 @@
++import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const svc = vi.hoisted(() => ({
++  list: vi.fn(),
++  setStatus: vi.fn().mockResolvedValue(undefined),
++  update: vi.fn().mockResolvedValue('up to date'),
++  uninstall: vi.fn().mockResolvedValue(undefined),
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
++
++import { useInstalledAppsStore, mapInstalled, PENDING_TIMEOUT_MS } from './installedApps'
++
++// 真机实证形态(curl GET /v2/app_management/compose)
++const RAW = {
++  store_info: {
++    title: { en_US: 'Actual Budget' }, icon: 'https://cdn/icon.svg',
++    port_map: '15006', index: '/', scheme: 'http', hostname: null,
++  },
++  status: 'running', update_available: true, is_uncontrolled: false,
++}
++
++describe('mapInstalled', () => {
++  it('映射真机信封:title 容忍大写 en_US、webUrl 拼当前主机、旗标透传', () => {
++    const a = mapInstalled('actualbudget', RAW as never, 'nas.local')
++    expect(a).toEqual({
++      id: 'actualbudget', title: 'Actual Budget', icon: 'https://cdn/icon.svg',
++      status: 'running', updateAvailable: true, isUncontrolled: false,
++      webUrl: 'http://nas.local:15006/',
++    })
++  })
++  it('store_info 缺失(uncontrolled 残骸)不炸:title 退 id,webUrl null,status 退 unknown', () => {
++    const a = mapInstalled('ghost', { status: '' } as never, 'h')
++    expect(a.title).toBe('ghost')
++    expect(a.webUrl).toBeNull()
++    expect(a.status).toBe('unknown')
++  })
++})
++
++describe('installedApps store', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.useFakeTimers()
++    svc.list.mockReset().mockResolvedValue({ b: { ...RAW }, a: { ...RAW, status: 'exited' } })
++    svc.setStatus.mockClear(); svc.update.mockClear(); svc.uninstall.mockClear()
++  })
++  afterEach(() => vi.useRealTimers())
++
++  it('refresh 拉列表并按 title 排序', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    expect(s.apps.map((x) => x.id)).toEqual(['a', 'b']) // 同 title 时按 id 稳定
++    expect(s.loading).toBe(false)
++  })
++
++  it('setStatus:置 pending → 调 service → 完成后清 pending 并重拉', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    const p = s.setStatus('a', 'start')
++    expect(s.pending['a']).toBe('start')
++    await p
++    expect(s.pending['a']).toBeUndefined()
++    expect(svc.setStatus).toHaveBeenCalledWith('a', 'start')
++    expect(svc.list).toHaveBeenCalledTimes(2)
++  })
++
++  it('uninstall 显式透传 deleteConfigFolder(后端缺省 true 的坑)', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    await s.uninstall('a', false)
++    expect(svc.uninstall).toHaveBeenCalledWith('a', { deleteConfigFolder: false })
++  })
++
++  it('onAppEvent:begin 置 pending,end 清 pending 并重拉', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    s.onAppEvent('app:update-begin', { 'app:name': 'b' })
++    expect(s.pending['b']).toBe('update')
++    s.onAppEvent('app:update-end', { 'app:name': 'b' })
++    expect(s.pending['b']).toBeUndefined()
++    await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
++  })
++
++  it('onAppEvent 容忍垃圾输入(非 app:* 事件名 / props 缺 app:name)', async () => {
++    const s = useInstalledAppsStore()
++    s.onAppEvent('docker:image:pull-progress', {})
++    s.onAppEvent('app:start-begin', null)
++    expect(s.pending).toEqual({})
++  })
++
++  it('pending 30s 无事件 → 兜底重拉并清 pending(MessageBus 丢消息不永久卡)', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    s.onAppEvent('app:start-begin', { 'app:name': 'a' })
++    expect(s.pending['a']).toBe('start')
++    await vi.advanceTimersByTimeAsync(PENDING_TIMEOUT_MS + 10)
++    expect(s.pending['a']).toBeUndefined()
++    expect(svc.list).toHaveBeenCalledTimes(2)
++  })
++
++  it('evict 立即移除条目并清 pending(容器 destroy / 卸载完成)', async () => {
++    const s = useInstalledAppsStore()
++    await s.refresh()
++    s.onAppEvent('app:uninstall-begin', { 'app:name': 'a' })
++    s.evict('a')
++    expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
++    expect(s.pending['a']).toBeUndefined()
++  })
++})
+diff --git a/src/apps/stores/installedApps.ts b/src/apps/stores/installedApps.ts
+new file mode 100644
+index 0000000..5517577
+--- /dev/null
++++ b/src/apps/stores/installedApps.ts
+@@ -0,0 +1,119 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service, type ComposeAppWithStoreInfo } from '@nimotech/nimoos-service'
++import { resolveAppTitle } from '../util/appTitle'
++import { composeWebUrl, type WebUrlSource } from '../util/appUrl'
++
++export type AppOp = 'start' | 'stop' | 'restart' | 'update' | 'uninstall'
++
++export interface InstalledApp {
++  id: string
++  title: string
++  icon: string
++  status: string          // docker 主容器 State;后端取不到时 "unknown"
++  updateAvailable: boolean
++  isUncontrolled: boolean
++  webUrl: string | null
++}
++
++/** pending 兜底:MessageBus buffer=1 可能丢 end 事件,30s 无收敛就主动重拉(spec §5) */
++export const PENDING_TIMEOUT_MS = 30_000
++
++export function mapInstalled(id: string, raw: ComposeAppWithStoreInfo, currentHost: string): InstalledApp {
++  const si = (raw.store_info ?? {}) as WebUrlSource & { title?: Record<string, string>; icon?: unknown }
++  return {
++    id,
++    title: resolveAppTitle(si.title, id),
++    icon: typeof si.icon === 'string' ? si.icon : '',
++    status: raw.status || 'unknown',
++    updateAvailable: !!raw.update_available,
++    isUncontrolled: !!raw.is_uncontrolled,
++    webUrl: composeWebUrl(si, currentHost),
++  }
++}
++
++const EVENT_RE = /^app:(start|stop|restart|update|uninstall)-(begin|end|error)$/
++
++export const useInstalledAppsStore = defineStore('installed-apps', () => {
++  const apps = ref<InstalledApp[]>([])
++  const loading = ref(false)
++  const pending = ref<Record<string, AppOp>>({})
++  const timers: Record<string, ReturnType<typeof setTimeout>> = {}
++
++  async function refresh() {
++    loading.value = true
++    try {
++      const map = await service.compose.list()
++      const host = window.location.hostname
++      apps.value = Object.entries(map)
++        .map(([id, raw]) => mapInstalled(id, raw, host))
++        .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
++    } finally {
++      loading.value = false
++    }
++  }
++
++  function begin(id: string, op: AppOp) {
++    pending.value = { ...pending.value, [id]: op }
++    clearTimeout(timers[id])
++    timers[id] = setTimeout(() => { resolve(id) }, PENDING_TIMEOUT_MS)
++  }
++
++  /** 收敛:清 pending + 重拉列表(操作完成 / 事件到达 / 30s 兜底共用同一出口) */
++  function resolve(id: string) {
++    clearTimeout(timers[id]); delete timers[id]
++    if (pending.value[id]) {
++      const next = { ...pending.value }; delete next[id]
++      pending.value = next
++    }
++    refresh().catch((e) => console.warn('[apps] refresh', e))
++  }
++
++  function clearPendingOnly(id: string) {
++    clearTimeout(timers[id]); delete timers[id]
++    const next = { ...pending.value }; delete next[id]
++    pending.value = next
++  }
++
++  async function setStatus(id: string, action: 'start' | 'stop' | 'restart') {
++    begin(id, action)
++    try { await service.compose.setStatus(id, action) } catch (e) { clearPendingOnly(id); throw e }
++    resolve(id)
++  }
++
++  /** 检查并更新:返回后端 message(「已是最新」/「异步更新中」),真在更新时 app:update-* 事件接管 pending */
++  async function update(id: string): Promise<string> {
++    begin(id, 'update')
++    try {
++      const msg = await service.compose.update(id)
++      resolve(id)
++      return msg
++    } catch (e) { clearPendingOnly(id); throw e }
++  }
++
++  async function uninstall(id: string, deleteConfigFolder: boolean) {
++    begin(id, 'uninstall')
++    try { await service.compose.uninstall(id, { deleteConfigFolder }) } catch (e) { clearPendingOnly(id); throw e }
++    resolve(id)
++  }
++
++  /** 立即移除(容器 destroy / uninstall-end),后续 refresh 再收敛一次 */
++  function evict(id: string) {
++    clearPendingOnly(id)
++    apps.value = apps.value.filter((a) => a.id !== id)
++  }
++
++  /** MessageBus app:* 生命周期事件 → pending 收敛(页面接线调用;props 已被 useMessageBus 解包) */
++  function onAppEvent(name: string, props: unknown) {
++    const m = EVENT_RE.exec(name)
++    if (!m) return
++    const p = (props && typeof props === 'object' ? props : {}) as Record<string, unknown>
++    const id = typeof p['app:name'] === 'string' ? p['app:name'] : ''
++    if (!id) return
++    const [, op, phase] = m
++    if (phase === 'begin') begin(id, op as AppOp)
++    else resolve(id) // end 与 error 都收敛;error 的 toast 由页面层做
++  }
++
++  return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent }
++})
+diff --git a/src/apps/util/appTitle.test.ts b/src/apps/util/appTitle.test.ts
+new file mode 100644
+index 0000000..fcd0ecc
+--- /dev/null
++++ b/src/apps/util/appTitle.test.ts
+@@ -0,0 +1,12 @@
++import { describe, it, expect } from 'vitest'
++import { resolveAppTitle } from './appTitle'
++
++describe('resolveAppTitle', () => {
++  it('容忍语言键大小写:zh_cn > en_us > en_US > zh_CN > 任意值 > fallback', () => {
++    expect(resolveAppTitle({ zh_cn: '甲', en_US: 'A' }, 'x')).toBe('甲')
++    expect(resolveAppTitle({ en_US: 'Actual Budget' }, 'x')).toBe('Actual Budget') // 真机实证:store 应用只有大写 en_US
++    expect(resolveAppTitle({ de_DE: 'B' }, 'x')).toBe('B')
++    expect(resolveAppTitle({}, 'jellyfin')).toBe('jellyfin')
++    expect(resolveAppTitle(undefined, 'jellyfin')).toBe('jellyfin')
++  })
++})
+diff --git a/src/apps/util/appTitle.ts b/src/apps/util/appTitle.ts
+new file mode 100644
+index 0000000..bbda20d
+--- /dev/null
++++ b/src/apps/util/appTitle.ts
+@@ -0,0 +1,6 @@
++/** store 应用 title 的语言键大小写不统一(v2 商店=大写 en_US,v1/容器=小写 en_us),
++ *  逐一容忍再回退任意可用值,最后才用 id。桌面 home/stores/apps.ts 同款约定。 */
++export function resolveAppTitle(t: Record<string, string> | undefined, fallback: string): string {
++  if (!t) return fallback
++  return t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || fallback
++}
+diff --git a/src/apps/util/appUrl.test.ts b/src/apps/util/appUrl.test.ts
+new file mode 100644
+index 0000000..7126694
+--- /dev/null
++++ b/src/apps/util/appUrl.test.ts
+@@ -0,0 +1,15 @@
++import { describe, it, expect } from 'vitest'
++import { composeWebUrl } from './appUrl'
++
++describe('composeWebUrl', () => {
++  it('port_map + index 拼完整地址,hostname 缺省用当前主机', () => {
++    expect(composeWebUrl({ scheme: 'http', hostname: null, port_map: '15006', index: '/' }, 'nas.local'))
++      .toBe('http://nas.local:15006/')
++    expect(composeWebUrl({ port_map: '8080', index: '/admin', hostname: 'box' }, 'nas.local'))
++      .toBe('http://box:8080/admin')
++  })
++  it('无 port_map 且无 index → null(没有可打开的页面)', () => {
++    expect(composeWebUrl({}, 'nas.local')).toBeNull()
++    expect(composeWebUrl({ scheme: 'https' }, 'nas.local')).toBeNull()
++  })
++})
+diff --git a/src/apps/util/appUrl.ts b/src/apps/util/appUrl.ts
+new file mode 100644
+index 0000000..4e1a4b9
+--- /dev/null
++++ b/src/apps/util/appUrl.ts
+@@ -0,0 +1,11 @@
++export interface WebUrlSource { scheme?: string; hostname?: string | null; port_map?: string; index?: string }
++
++/** 已装应用 Web UI 地址(store_info 的 scheme/hostname/port_map/index);
++ *  没有可打开页面时 null(镜像 home useStartApp.appUrl 的判定)。 */
++export function composeWebUrl(s: WebUrlSource, currentHost: string): string | null {
++  const port = (s.port_map || '').trim()
++  if (!port && !s.index) return null
++  const scheme = s.scheme || 'http'
++  const host = s.hostname || currentHost
++  return `${scheme}://${host}${port ? ':' + port : ''}${s.index || '/'}`
++}

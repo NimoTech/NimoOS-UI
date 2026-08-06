@@ -1,0 +1,951 @@
+=== commits ===
+a21a0b2 SP8-P2a Task 9: ModelsSection(本地模型)
+
+=== stat ===
+ .../settings/sections/ModelsSection.test.ts        | 369 +++++++++++++++++++++
+ .../components/settings/sections/ModelsSection.vue | 282 ++++++++++++++++
+ src/ai/util/formatModelSize.test.ts                |  39 +++
+ src/ai/util/formatModelSize.ts                     |  27 ++
+ src/ai/views/SettingsPage.vue                      |   3 +-
+ src/i18n/en_us.ts                                  |  50 +++
+ src/i18n/zh_cn.ts                                  |  47 +++
+ 7 files changed, 816 insertions(+), 1 deletion(-)
+
+=== diff -U10 ===
+diff --git a/src/ai/components/settings/sections/ModelsSection.test.ts b/src/ai/components/settings/sections/ModelsSection.test.ts
+new file mode 100644
+index 0000000..d8b6f72
+--- /dev/null
++++ b/src/ai/components/settings/sections/ModelsSection.test.ts
+@@ -0,0 +1,369 @@
++// SP8-P2a Task 9 —— 移植自 Vue2 src/views/AI/Settings/sections/ModelsSection.vue
++// (222 行)。brief Step 3 的 21 条用例清单,逐条落地(部分拆成多个 it() 便于
++// 精确定位失败点,数量只增不减)。
++//
++// 真 store(setActivePinia + useSettingsStore()),不 mock @nimotech/nimoos-service
++// ——组件从不直接调 service,只调 store 的 action,故 spy store 方法即可隔离
++// 网络层,同 settingsStore.test.ts 的既定写法。
++//
++// 真 i18n(zh_cn 完整 locale,不手写子集)——P1c-2 记账过手写子集会让拼错的键名
++// 抓不到。
++//
++// AlertDialog 走真实挂载 + attachTo document.body(不 mock reka-ui)——同
++// AgentSidebar.test.ts:60-91 的既定手法:reka 的 AlertDialogAction 点击时先
++// update:open(false) 再派发 confirm,deleteDlg 把 open 与待删 name 打包在同一个
++// ref、v-model:open 只改 .open,故 confirm 处理器仍能读到正确的 name。
++
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { setActivePinia, createPinia } from 'pinia'
++import { createI18n } from 'vue-i18n'
++import zh from '../../../../i18n/zh_cn'
++import ModelsSection from './ModelsSection.vue'
++import { useSettingsStore, type ImportJob } from '../../../stores/settingsStore'
++import { useToast } from '../../../../stores/toast'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++function mountSection() {
++  return mount(ModelsSection, { global: { plugins: [i18n] }, attachTo: document.body })
++}
++
++/** ImportJob 类型要求全字段;测试只关心的字段用 overrides 覆盖,其余给最小合法默认值。 */
++function makeJob(overrides: Partial<ImportJob>): ImportJob {
++  return {
++    repo: 'qwen/Qwen2.5',
++    filename: 'model.gguf',
++    status: 'downloading',
++    completed: 0,
++    total: 0,
++    error: '',
++    speed: 0,
++    etaSecs: null,
++    _prevCompleted: 0,
++    _prevTime: Date.now(),
++    _timer: null,
++    ...overrides,
++  }
++}
++
++describe('ModelsSection', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++  })
++
++  // ── 1. 已装模型:空态 / 加载中 / 有数据 ──
++
++  it('1. installedModels 为空 → 渲染空态文案,不渲染 .set-table', () => {
++    const w = mountSection()
++    expect(w.text()).toContain('暂无已安装模型')
++    expect(w.find('.set-table').exists()).toBe(false)
++  })
++
++  it('2. modelsLoading → 渲染「加载中…」', () => {
++    const store = useSettingsStore()
++    store.modelsLoading = true
++    const w = mountSection()
++    expect(w.text()).toContain('加载中…')
++    expect(w.find('.set-table').exists()).toBe(false)
++  })
++
++  it('3. 有模型 → 表格行数正确,体积列走 formatModelSize', () => {
++    const store = useSettingsStore()
++    store.installedModels = [
++      { name: 'llama3:8b', size_bytes: 4.7 * 1024 ** 3 },
++      { name: 'phi3:mini', size_bytes: 500 * 1024 ** 2 },
++    ]
++    const w = mountSection()
++    const rows = w.findAll('.set-table tbody tr')
++    expect(rows).toHaveLength(2)
++    const cells = rows[0].findAll('td')
++    expect(cells[0].text()).toBe('llama3:8b')
++    expect(cells[1].text()).toBe('4.7 GB')
++    expect(rows[1].findAll('td')[1].text()).toBe('500 MB')
++  })
++
++  it('4. 卡头计数等于 installedModels.length', () => {
++    const store = useSettingsStore()
++    store.installedModels = [{ name: 'a' }, { name: 'b' }, { name: 'c' }]
++    const w = mountSection()
++    expect(w.find('.set-cardhead .ct').text()).toBe('3')
++  })
++
++  it('5. 刷新按钮调 store.loadModels', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'loadModels').mockResolvedValue()
++    const w = mountSection()
++    await w.find('.set-cardhead .set-minibtn').trigger('click')
++    expect(spy).toHaveBeenCalledTimes(1)
++  })
++
++  // ── 6-8. 删除模型:确认框 → deleteModel → toast ──
++
++  it('6. 删除按钮先弹确认框(AlertDialog open 变 true),此时还没调 deleteModel', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'deleteModel').mockResolvedValue()
++    store.installedModels = [{ name: 'llama3:8b' }]
++    const w = mountSection()
++    await w.find('.set-tbtn.danger').trigger('click')
++    await nextTick()
++    expect(document.body.textContent).toContain('确定删除模型 "llama3:8b"')
++    expect(spy).not.toHaveBeenCalled()
++    w.unmount()
++  })
++
++  it('7. 确认后才调 store.deleteModel(name) 并弹成功 toast', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'deleteModel').mockResolvedValue()
++    const toast = useToast()
++    store.installedModels = [{ name: 'llama3:8b' }]
++    const w = mountSection()
++    await w.find('.set-tbtn.danger').trigger('click')
++    await nextTick()
++    const confirmBtn = Array.from(document.body.querySelectorAll('button'))
++      .find((b) => b.textContent?.trim() === '删除' && b.className.includes('ui-btn'))
++    expect(confirmBtn).toBeTruthy()
++    confirmBtn!.click()
++    await nextTick()
++    await nextTick()
++    expect(spy).toHaveBeenCalledWith('llama3:8b')
++    expect(toast.toasts[0].text).toBe('已删除 llama3:8b')
++    expect(toast.toasts[0].tier).toBe('info')
++    w.unmount()
++  })
++
++  it('8. deleteModel reject → 弹 danger 档 toast', async () => {
++    const store = useSettingsStore()
++    vi.spyOn(store, 'deleteModel').mockRejectedValue(new Error('boom'))
++    const toast = useToast()
++    store.installedModels = [{ name: 'llama3:8b' }]
++    const w = mountSection()
++    await w.find('.set-tbtn.danger').trigger('click')
++    await nextTick()
++    const confirmBtn = Array.from(document.body.querySelectorAll('button'))
++      .find((b) => b.textContent?.trim() === '删除' && b.className.includes('ui-btn'))
++    confirmBtn!.click()
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('删除失败')
++    expect(toast.toasts[0].tier).toBe('danger')
++    w.unmount()
++  })
++
++  // ── 9-11. 从 Ollama 拉取 ──
++
++  it('9. 拉取:输入为空时按钮 disabled', () => {
++    const w = mountSection()
++    expect(w.find('.set-addbtn:not(.ghost)').attributes('disabled')).toBeDefined()
++  })
++
++  it('10. 拉取:有输入 → 点击调 store.pullModel,成功弹 toast', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'pullModel').mockResolvedValue()
++    const toast = useToast()
++    store.pullModelInput = 'llama3:8b'
++    const w = mountSection()
++    const btn = w.find('.set-addbtn:not(.ghost)')
++    expect(btn.attributes('disabled')).toBeUndefined()
++    await btn.trigger('click')
++    expect(spy).toHaveBeenCalledTimes(1)
++    await nextTick()
++    await nextTick()
++    expect(toast.toasts[0].text).toBe('已发起拉取 llama3:8b')
++  })
++
++  it('11. 拉取:回车等同点击', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'pullModel').mockResolvedValue()
++    store.pullModelInput = 'llama3:8b'
++    const w = mountSection()
++    await w.find('.set-input.mono').trigger('keydown.enter')
++    expect(spy).toHaveBeenCalledTimes(1)
++  })
++
++  it('12. pullingModels 非空 → 渲染在途提示;为空 → 不渲染(对照组)', () => {
++    const empty = mountSection()
++    expect(empty.find('.set-actions .hint').exists()).toBe(false)
++
++    const store = useSettingsStore()
++    store.pullingModels = { 'llama3:8b': true }
++    const w = mountSection()
++    expect(w.find('.set-actions .hint').text()).toContain('llama3:8b')
++  })
++
++  // ── 13-17. HuggingFace 导入 ──
++
++  it('13a. HF 搜索:空 query 时按钮 disabled', () => {
++    const w = mountSection()
++    expect(w.find('.set-addbtn.ghost').attributes('disabled')).toBeDefined()
++  })
++
++  it('13b. HF 搜索:有 query 时点击调 store.searchHF', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'searchHF').mockResolvedValue()
++    store.hfQuery = 'qwen gguf'
++    const w = mountSection()
++    const btn = w.find('.set-addbtn.ghost')
++    expect(btn.attributes('disabled')).toBeUndefined()
++    await btn.trigger('click')
++    expect(spy).toHaveBeenCalledTimes(1)
++  })
++
++  it('14. HF 搜索中 → 渲染「搜索中…」', () => {
++    const store = useSettingsStore()
++    store.hfSearchLoading = true
++    const w = mountSection()
++    expect(w.text()).toContain('搜索中…')
++  })
++
++  it('15. HF 结果列表渲染,点某项调 store.selectHFRepo(id),选中项 data-active="true"', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'selectHFRepo')
++    store.hfResults = [
++      { id: 'qwen/Qwen2.5', downloads: 120 },
++      { id: 'meta/llama3', downloads: 50 },
++    ]
++    store.hfSelectedRepo = 'meta/llama3'
++    const w = mountSection()
++    const repos = w.findAll('.hf-repo')
++    expect(repos).toHaveLength(2)
++    expect(repos[0].attributes('data-active')).toBe('false')
++    expect(repos[1].attributes('data-active')).toBe('true')
++    await repos[0].trigger('click')
++    expect(spy).toHaveBeenCalledWith('qwen/Qwen2.5')
++  })
++
++  it('16. 选中 repo 后渲染文件区;点「加载文件」调 store.loadHFFiles', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'loadHFFiles').mockResolvedValue()
++    const none = mountSection()
++    expect(none.find('.hf-files-area').exists()).toBe(false)
++
++    store.hfSelectedRepo = 'qwen/Qwen2.5'
++    const w = mountSection()
++    expect(w.find('.hf-files-area').exists()).toBe(true)
++    await w.find('.hf-files-header .set-minibtn').trigger('click')
++    expect(spy).toHaveBeenCalledTimes(1)
++  })
++
++  it('17. 文件列表每项的导入按钮调 store.importHF(file)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'importHF').mockResolvedValue()
++    store.hfSelectedRepo = 'qwen/Qwen2.5'
++    store.hfFiles = ['a.gguf', 'b.gguf']
++    const w = mountSection()
++    const files = w.findAll('.hf-file')
++    expect(files).toHaveLength(2)
++    await files[1].find('.set-tbtn').trigger('click')
++    expect(spy).toHaveBeenCalledWith('b.gguf')
++  })
++
++  // ── 18. 下载进度横幅四态(四条独立用例) ──
++
++  it('18a. downloading → 标题「正在导入」、有「勿关机」警告、取消按钮文案「取消」', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ status: 'downloading' }) }
++    const w = mountSection()
++    const banner = w.find('.dl-banner')
++    expect(banner.find('.dl-banner-title').text()).toContain('正在导入')
++    expect(banner.find('.dl-warn').exists()).toBe(true)
++    expect(banner.find('.dl-cancel-btn').text()).toBe('取消')
++  })
++
++  it('18b. creating model → 标题「正在注册模型…」、仍有警告', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ status: 'creating model' }) }
++    const w = mountSection()
++    const banner = w.find('.dl-banner')
++    expect(banner.find('.dl-banner-title').text()).toContain('正在注册模型…')
++    expect(banner.find('.dl-warn').exists()).toBe(true)
++    expect(banner.find('.dl-cancel-btn').text()).toBe('取消')
++  })
++
++  it('18c. success → 标题「导入完成」、无取消按钮、无警告', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ status: 'success', completed: 100, total: 100 }) }
++    const w = mountSection()
++    const banner = w.find('.dl-banner')
++    expect(banner.find('.dl-banner-title').text()).toContain('导入完成')
++    expect(banner.find('.dl-cancel-btn').exists()).toBe(false)
++    expect(banner.find('.dl-warn').exists()).toBe(false)
++  })
++
++  it('18d. error → 标题「导入失败」、按钮文案「关闭」、渲染错误文本、无统计行', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ status: 'error', error: 'disk full' }) }
++    const w = mountSection()
++    const banner = w.find('.dl-banner')
++    expect(banner.find('.dl-banner-title').text()).toContain('导入失败')
++    expect(banner.find('.dl-cancel-btn').text()).toBe('关闭')
++    expect(banner.find('.dl-stats').text()).toBe('disk full')
++    // error 态无百分比/速度/ETA 统计行(那些字段全部套在 v-if="status !== 'error'" 里)。
++    expect(banner.find('.dl-stats b').exists()).toBe(false)
++  })
++
++  // ── 19. 进度条宽度:total===0 防除零(对照组,Step 7 有专门 RED 验证) ──
++
++  it('19a. total > 0 → 进度条宽度按百分比(一位小数)', () => {
++    const store = useSettingsStore()
++    // 特意选不能整除的一组数字(1/3 → 33.3%),而不是 30/120 → 25.0%:jsdom(与真
++    // 实浏览器 CSSOM 序列化规则一致)会把整数值的百分比字符串 "25.0%" 规整成
++    // "25%",尾随的 .0 读不回来,导致这条断言测不出 toFixed(1) 与 toFixed(0)
++    // 的区别。33.3% 不是整数,序列化后原样保留,能真正验证一位小数逻辑。
++    store.hfImportJobs = { 'model.gguf': makeJob({ completed: 1, total: 3 }) }
++    const w = mountSection()
++    expect((w.find('.dl-prog-fill').element as HTMLElement).style.width).toBe('33.3%')
++  })
++
++  it('19b. total === 0 → 进度条宽度是 0%,不是 NaN%(对照组)', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ completed: 0, total: 0 }) }
++    const w = mountSection()
++    expect((w.find('.dl-prog-fill').element as HTMLElement).style.width).toBe('0%')
++  })
++
++  // ── 20. speed / eta 各自独立的渲染开关(两条对照) ──
++
++  it('20a. speed > 0 才渲染速度行;speed === 0 不渲染', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ speed: 3.2 }) }
++    const withSpeed = mountSection()
++    expect(withSpeed.find('.dl-stats').text()).toContain('3.2 MB/s')
++
++    store.hfImportJobs = { 'model.gguf': makeJob({ speed: 0 }) }
++    const noSpeed = mountSection()
++    expect(noSpeed.find('.dl-stats').text()).not.toContain('MB/s')
++  })
++
++  it('20b. etaSecs 非 null 才渲染 ETA;null 不渲染', () => {
++    const store = useSettingsStore()
++    store.hfImportJobs = { 'model.gguf': makeJob({ etaSecs: 90 }) }
++    const withEta = mountSection()
++    expect(withEta.find('.dl-stats').text()).toContain('约 2 分钟')
++
++    store.hfImportJobs = { 'model.gguf': makeJob({ etaSecs: null }) }
++    const noEta = mountSection()
++    expect(noEta.find('.dl-stats').text()).not.toContain('约')
++  })
++
++  // ── 21. 取消/关闭按钮的分流(两条,证明 error 走 dismiss、其余走 cancel) ──
++
++  it('21a. error 态点「关闭」调 store.dismissImportJob(filename)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'dismissImportJob')
++    store.hfImportJobs = { 'model.gguf': makeJob({ status: 'error', error: 'x' }) }
++    const w = mountSection()
++    await w.find('.dl-cancel-btn').trigger('click')
++    expect(spy).toHaveBeenCalledWith('model.gguf')
++  })
++
++  it('21b. downloading 态点「取消」调 store.cancelImportJob(filename)', async () => {
++    const store = useSettingsStore()
++    const spy = vi.spyOn(store, 'cancelImportJob').mockResolvedValue()
++    store.hfImportJobs = { 'model.gguf': makeJob({ status: 'downloading' }) }
++    const w = mountSection()
++    await w.find('.dl-cancel-btn').trigger('click')
++    expect(spy).toHaveBeenCalledWith('model.gguf')
++  })
++})
+diff --git a/src/ai/components/settings/sections/ModelsSection.vue b/src/ai/components/settings/sections/ModelsSection.vue
+new file mode 100644
+index 0000000..a6e3568
+--- /dev/null
++++ b/src/ai/components/settings/sections/ModelsSection.vue
+@@ -0,0 +1,282 @@
++<!--
++  SP8-P2a Task 9 —— 1:1 移植自 Vue2
++  `src/views/AI/Settings/sections/ModelsSection.vue`(222 行)。三张卡:
++
++    1. 已装模型:卡头(标题 + 计数 + 刷新)· 下载进度横幅(每个
++       store.hfImportJobs 条目一条,四态:downloading / creating model /
++       success / error)· 加载中 / 空态 / 表格(名称 / 体积 / 删除)
++    2. 从 Ollama 拉取:输入框 + 拉取按钮 + 在途提示
++    3. 从 HuggingFace 导入 GGUF:搜索框 + 仓库结果列表 + 选中仓库的文件列表
++
++  【Buefy → New-UI 替换】
++  - $buefy.dialog.confirm(删模型)→ 共享 AlertDialog,destructive。
++    reka-ui 的 AlertDialogAction 点击时先派发 update:open(false) 再派发
++    confirm——deleteDlg 把 open 与待删 name 打包在同一个 ref、v-model:open
++    只改 .open,confirm 处理器仍能读到正确的 name(同
++    AgentSidebar.vue:111-120 的既定手法,及其头注释引用的
++    InstalledAppsPage.vue:25-70 SP5-P1 教训)。
++  - $buefy.toast.open({type:'is-success'}) → toast.show(msg)(info 档)。
++  - type:'is-danger' → toast.show(msg, 1500, 'danger')。
++
++  【结构调整,非行为改动】formatSize/etaLabel 原是 Vue2 组件 methods,抽成独立
++  纯函数 formatModelSize/formatEtaSeconds(../../../util/formatModelSize.ts),
++  这样能精确单测 GB/MB 边界、sec/min/hr 边界、0/null/undefined —— 抽出只是让
++  测试够到边界,行为逐字未变。
++
++  【i18n 结构差】etaLabel 原是 Vue2 组件内的 `this.$t('{n} sec' | '{n} min' |
++  '{n} hr', {n})`;纯函数只返回 { unit, n } 结构体(不持地化文本,与 P1c2
++  formatDuration 同款),本组件里再按 unit 挑 aiCfgEtaSec/Min/Hr 三个键过 t()。
++
++  【观察项,照搬不改,settingsStore.ts:218-224 已登记】pullingModels[name] 在
++  store 的 finally 里立即删除,"拉取中" 提示实际只在 HTTP 请求在途的那一瞬间
++  显示,与文案宣称的"后台运行中"语义不符。后端 POST /pull 是否同步阻塞未知,
++  这里不擅自改。
++
++  【AlertDialog 需要 title,Buefy 原调用没有】共享 AlertDialog 组件要求
++  title/confirmText/cancelText 三个必填 prop,而 Vue2 的
++  `$buefy.dialog.confirm({message, type})` 没有单独的标题概念(Buefy 自带默认
++  外观)。这不是在修 Vue2 的 bug,是接一个更严格的共享原语时必须补的参数——
++  照 AgentSidebar.vue:192-200 的先例,title 与 confirmText 都复用「删除」这个
++  动作名(aiCfgDelete),不新造一个通用「确认」文案。
++-->
++<script setup lang="ts">
++import { computed, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { useSettingsStore } from '../../../stores/settingsStore'
++import { useToast } from '../../../../stores/toast'
++import AgentIcon from '../../icons/AgentIcon.vue'
++import AlertDialog from '../../../../components/ui/AlertDialog.vue'
++import { formatModelSize, formatEtaSeconds } from '../../../util/formatModelSize'
++
++const store = useSettingsStore()
++const toast = useToast()
++const { t } = useI18n()
++
++const pullingNames = computed(() => Object.keys(store.pullingModels))
++const hasPulling = computed(() => pullingNames.value.length > 0)
++
++function formatSize(bytes: number | null | undefined): string {
++  return formatModelSize(bytes)
++}
++
++/** ModelsSection.vue:176-180 `etaLabel` —— 纯函数分档 + 本组件挑 i18n 键。 */
++function etaLabel(secs: number): string {
++  const { unit, n } = formatEtaSeconds(secs)
++  const key = unit === 'sec' ? 'aiCfgEtaSec' : unit === 'min' ? 'aiCfgEtaMin' : 'aiCfgEtaHr'
++  return t(key, { n })
++}
++
++// ── 删除模型确认(见文件头「Buefy → New-UI 替换」说明)──
++const deleteDlg = ref<{ open: boolean; name: string | null }>({ open: false, name: null })
++
++function requestDelete(name: string) {
++  deleteDlg.value = { open: true, name }
++}
++
++async function onDeleteConfirm() {
++  const name = deleteDlg.value.name
++  if (name === null) return
++  try {
++    await store.deleteModel(name)
++    toast.show(t('aiCfgDeletedName', { name }))
++  } catch {
++    toast.show(t('aiCfgDeleteFailed'), 1500, 'danger')
++  }
++}
++
++// ── 从 Ollama 拉取(ModelsSection.vue:195-204)──
++async function onPull() {
++  const name = store.pullModelInput.trim()
++  if (!name) return
++  try {
++    await store.pullModel()
++    toast.show(t('aiCfgPullStartedFor', { name }))
++  } catch {
++    toast.show(t('aiCfgPullRequestFailed'), 1500, 'danger')
++  }
++}
++
++// ── HuggingFace 搜索 / 导入(ModelsSection.vue:205-219)──
++async function onSearch() {
++  try {
++    await store.searchHF()
++  } catch {
++    toast.show(t('aiCfgSearchFailed'), 1500, 'danger')
++  }
++}
++
++async function onImport(file: string) {
++  try {
++    await store.importHF(file)
++    toast.show(t('aiCfgImportStartedFor', { file }))
++  } catch {
++    toast.show(t('aiCfgImportFailed'), 1500, 'danger')
++  }
++}
++</script>
++
++<template>
++  <div class="set-inner">
++    <div class="set-page-head">
++      <h1 class="set-h1">{{ t('aiCfgLocalModels') }}</h1>
++      <p class="set-desc">{{ t('aiCfgModelsDesc') }}</p>
++    </div>
++
++    <!-- 已装模型 -->
++    <div class="sk-section">
++      <div class="sk-section-body">
++        <div class="set-cardhead">
++          <span class="t">{{ t('aiCfgInstalledModels') }}</span>
++          <span class="ct">{{ store.installedModels.length }}</span>
++          <span class="sp"></span>
++          <button class="set-minibtn" @click="store.loadModels()">
++            <AgentIcon name="refresh" :size="13" /> {{ t('aiCfgRefresh') }}
++          </button>
++        </div>
++
++        <!-- Download progress banners -->
++        <div
++          v-for="(job, filename) in store.hfImportJobs"
++          :key="filename"
++          class="dl-banner"
++          :class="job.status"
++        >
++          <div class="dl-banner-header">
++            <div class="dl-banner-title">
++              <div class="dl-dot"></div>
++              <span v-if="job.status === 'success'">{{ t('aiCfgImportComplete') }}</span>
++              <span v-else-if="job.status === 'error'">{{ t('aiCfgImportFailed') }}</span>
++              <span v-else-if="job.status === 'creating model'">{{ t('aiCfgRegisteringModel') }}</span>
++              <span v-else>{{ t('aiCfgImporting') }}</span>
++            </div>
++            <button
++              v-if="job.status !== 'success'"
++              class="dl-cancel-btn"
++              @click="job.status === 'error'
++                ? store.dismissImportJob(filename)
++                : store.cancelImportJob(filename)"
++            >{{ job.status === 'error' ? t('aiCfgClose') : t('aiCfgCancel') }}</button>
++          </div>
++          <div class="dl-filename">{{ filename }}</div>
++          <div class="dl-prog-track">
++            <div
++              class="dl-prog-fill"
++              :style="{ width: job.total > 0 ? ((job.completed / job.total) * 100).toFixed(1) + '%' : '0%' }"
++            ></div>
++          </div>
++          <div v-if="job.status !== 'error'" class="dl-stats">
++            <span><b>{{ job.total > 0 ? ((job.completed / job.total) * 100).toFixed(0) + '%' : '—' }}</b></span>
++            <span>{{ formatSize(job.completed) }} / {{ formatSize(job.total) }}</span>
++            <span v-if="job.speed > 0">{{ job.speed.toFixed(1) }} MB/s</span>
++            <span v-if="job.etaSecs">{{ t('aiCfgEtaApprox', { eta: etaLabel(job.etaSecs) }) }}</span>
++          </div>
++          <div v-else class="dl-stats" style="color: var(--danger);">{{ job.error }}</div>
++          <div v-if="job.status === 'downloading' || job.status === 'creating model'" class="dl-warn">
++            {{ t('aiCfgDownloadWarning') }}
++          </div>
++        </div>
++
++        <div v-if="store.modelsLoading" class="set-note">{{ t('aiCfgLoadingEllipsis') }}</div>
++        <div v-else-if="store.installedModels.length === 0" class="set-note">
++          {{ t('aiCfgNoModelsYet') }}
++        </div>
++        <table v-else class="set-table">
++          <thead>
++            <tr><th>{{ t('aiCfgColName') }}</th><th class="num">{{ t('aiCfgColSize') }}</th><th class="act">{{ t('aiCfgColActions') }}</th></tr>
++          </thead>
++          <tbody>
++            <tr v-for="m in store.installedModels" :key="m.name">
++              <td><span class="mono">{{ m.name }}</span></td>
++              <td class="num">{{ formatSize(m.size_bytes) }}</td>
++              <td class="act">
++                <button class="set-tbtn danger" @click="requestDelete(m.name)">
++                  <AgentIcon name="trash" :size="13" /> {{ t('aiCfgDelete') }}
++                </button>
++              </td>
++            </tr>
++          </tbody>
++        </table>
++      </div>
++    </div>
++
++    <!-- Pull from Ollama -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgPullFromOllama') }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div class="set-addrow">
++          <input type="text" class="set-input mono"
++                 :placeholder="t('aiCfgModelNamePlaceholder')"
++                 v-model="store.pullModelInput"
++                 @keydown.enter="onPull" />
++          <button class="set-addbtn" :disabled="!store.pullModelInput"
++                  @click="onPull">
++            <AgentIcon name="download" :size="13" /> {{ t('aiCfgPull') }}
++          </button>
++        </div>
++        <div v-if="hasPulling" class="set-actions">
++          <span class="hint">
++            {{ t('aiCfgPullingHint', { names: pullingNames.join(', ') }) }}
++          </span>
++        </div>
++      </div>
++    </div>
++
++    <!-- HuggingFace import -->
++    <div class="sk-section">
++      <div class="sk-section-head">
++        <div class="sk-section-title">{{ t('aiCfgImportGgufTitle') }}</div>
++      </div>
++      <div class="sk-section-body">
++        <div class="set-addrow">
++          <input type="text" class="set-input"
++                 :placeholder="t('aiCfgSearchModelsPlaceholder')"
++                 v-model="store.hfQuery"
++                 @keydown.enter="onSearch" />
++          <button class="set-addbtn ghost" @click="onSearch"
++                  :disabled="!store.hfQuery.trim() || store.hfSearchLoading">
++            <AgentIcon name="search" :size="13" /> {{ t('aiCfgSearchBtn') }}
++          </button>
++        </div>
++
++        <div v-if="store.hfSearchLoading" class="set-note">{{ t('aiCfgSearchingEllipsis') }}</div>
++
++        <div v-if="store.hfResults.length > 0" class="hf-results">
++          <button v-for="r in store.hfResults" :key="r.id" class="hf-repo"
++                  :data-active="store.hfSelectedRepo === r.id"
++                  @click="store.selectHFRepo(r.id)">
++            <span>{{ r.id }}</span>
++            <span class="hf-meta">↓ {{ r.downloads || 0 }}</span>
++          </button>
++        </div>
++
++        <div v-if="store.hfSelectedRepo" class="hf-files-area">
++          <div class="hf-files-header">
++            <span>{{ t('aiCfgSelectedRepo', { repo: store.hfSelectedRepo }) }}</span>
++            <button class="set-minibtn" @click="store.loadHFFiles()"
++                    :disabled="store.hfFilesLoading">
++              {{ t('aiCfgLoadFiles') }}
++            </button>
++          </div>
++          <div v-for="f in store.hfFiles" :key="f" class="hf-file">
++            <span>{{ f }}</span>
++            <button class="set-tbtn" @click="onImport(f)">
++              <AgentIcon name="download" :size="13" /> {{ t('aiCfgImportBtn') }}
++            </button>
++          </div>
++        </div>
++      </div>
++    </div>
++
++    <AlertDialog
++      v-model:open="deleteDlg.open"
++      :title="t('aiCfgDelete')"
++      :message="t('aiCfgConfirmDeleteModel', { name: deleteDlg.name || '' })"
++      :confirm-text="t('aiCfgDelete')"
++      :cancel-text="t('aiCfgCancel')"
++      destructive
++      @confirm="onDeleteConfirm"
++    />
++  </div>
++</template>
+diff --git a/src/ai/util/formatModelSize.test.ts b/src/ai/util/formatModelSize.test.ts
+new file mode 100644
+index 0000000..bb88ad6
+--- /dev/null
++++ b/src/ai/util/formatModelSize.test.ts
+@@ -0,0 +1,39 @@
++// SP8-P2a Task 9 —— brief Step 1,逐字取自任务简报,未改写。
++import { describe, it, expect } from 'vitest'
++import { formatModelSize, formatEtaSeconds } from './formatModelSize'
++
++describe('formatModelSize', () => {
++  it('1 GB 及以上用 GB,一位小数', () => {
++    expect(formatModelSize(1024 ** 3)).toBe('1.0 GB')
++    expect(formatModelSize(4.7 * 1024 ** 3)).toBe('4.7 GB')
++  })
++  it('1 GB 以下用 MB,整数', () => {
++    expect(formatModelSize(500 * 1024 ** 2)).toBe('500 MB')
++  })
++  it('恰好 1 GB 的边界走 GB 分支', () => {
++    expect(formatModelSize(1024 ** 3)).toBe('1.0 GB')
++    expect(formatModelSize(1024 ** 3 - 1)).toMatch(/MB$/)
++  })
++  it('0 / null / undefined 都是破折号(Vue2 :171 是真值判断,0 也落这里)', () => {
++    expect(formatModelSize(0)).toBe('—')
++    expect(formatModelSize(null)).toBe('—')
++    expect(formatModelSize(undefined)).toBe('—')
++  })
++})
++
++describe('formatEtaSeconds', () => {
++  it('60 秒以下按秒', () => {
++    expect(formatEtaSeconds(45)).toEqual({ unit: 'sec', n: 45 })
++    expect(formatEtaSeconds(59.6)).toEqual({ unit: 'sec', n: 60 })
++  })
++  it('60 是分钟分支的下边界', () => {
++    expect(formatEtaSeconds(60)).toEqual({ unit: 'min', n: 1 })
++  })
++  it('3600 是小时分支的下边界', () => {
++    expect(formatEtaSeconds(3599)).toEqual({ unit: 'min', n: 60 })
++    expect(formatEtaSeconds(3600)).toEqual({ unit: 'hr', n: 1 })
++  })
++  it('小时保留一位小数', () => {
++    expect(formatEtaSeconds(5400)).toEqual({ unit: 'hr', n: 1.5 })
++  })
++})
+diff --git a/src/ai/util/formatModelSize.ts b/src/ai/util/formatModelSize.ts
+new file mode 100644
+index 0000000..981db2e
+--- /dev/null
++++ b/src/ai/util/formatModelSize.ts
+@@ -0,0 +1,27 @@
++// SP8-P2a Task 9 —— 抽自 Vue2 src/views/AI/Settings/sections/ModelsSection.vue
++// 的两个组件 methods(结构调整,非行为改动 —— 抽出是为了能精确测边界,组件里
++// 原本混在 `methods` 对象上,单测不到)。
++
++/**
++ * 逐字对齐 Vue2 ModelsSection.vue:170-175(`formatSize`)。
++ * 注意:`!bytes` 是真值判断,`0` 也落这条分支返回破折号——Vue2 如此,照搬,
++ * 不"改好"(brief 明确点名)。
++ */
++export function formatModelSize(bytes: number | null | undefined): string {
++  if (!bytes) return '—'
++  const gb = bytes / 1024 / 1024 / 1024
++  if (gb >= 1) return gb.toFixed(1) + ' GB'
++  return (bytes / 1024 / 1024).toFixed(0) + ' MB'
++}
++
++/**
++ * 逐字对齐 Vue2 ModelsSection.vue:176-180(`etaLabel`)的分支/取整逻辑,但返回
++ * 结构体而非已格式化的字符串——单位文案要在组件里过 `$t`(单位是 sec/min/hr
++ * 三选一,复数形式因 locale 而异),纯函数不持本地化文本。与 P1c2 Task 10
++ * `formatDuration` 的处理同款(见该文件头注释)。
++ */
++export function formatEtaSeconds(secs: number): { unit: 'sec' | 'min' | 'hr'; n: number } {
++  if (secs < 60) return { unit: 'sec', n: Math.round(secs) }
++  if (secs < 3600) return { unit: 'min', n: Math.round(secs / 60) }
++  return { unit: 'hr', n: Number((secs / 3600).toFixed(1)) }
++}
+diff --git a/src/ai/views/SettingsPage.vue b/src/ai/views/SettingsPage.vue
+index 5fbc27b..e0a4c23 100644
+--- a/src/ai/views/SettingsPage.vue
++++ b/src/ai/views/SettingsPage.vue
+@@ -34,20 +34,21 @@
+ <script setup lang="ts">
+ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+ import type { Component } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useSettingsStore } from '../stores/settingsStore'
+ import { useAiTheme } from '../stores/aiTheme'
+ import { useToast } from '../../stores/toast'
+ import SettingsRail from '../components/settings/SettingsRail.vue'
+ import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
++import ModelsSection from '../components/settings/sections/ModelsSection.vue'
+ import AgentIcon from '../components/icons/AgentIcon.vue'
+ import {
+   ALL_ITEMS,
+   DEFERRED_SECTIONS,
+   SPLIT_SECTIONS,
+   VALID_SECTIONS,
+   groupOf,
+   type SectionId,
+ } from '../components/settings/sections'
+ import '../styles/tokens.scss'
+@@ -57,21 +58,21 @@ import '../styles/settings-styles.scss'
+ // SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
+ // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
+ //
+ // 本期(P2a)只实现「模型」组的 4 个;其余 9 个渲染 SectionPlaceholder:
+ //   blacklist / execution / search / memory / observability / mcptokens / channels → P2b
+ //   skills → P3 · mcp → P4
+ //
+ // 本任务先让四个模型组分区也指向 SectionPlaceholder(Task 9/10/11 各自替换
+ // 对应一行 + 加一个 import),这样本任务可独立通过测试,不用等分区实现。
+ const SECTION_COMPONENTS: Record<SectionId, Component> = {
+-  models: SectionPlaceholder, // Task 9 替换
++  models: ModelsSection, // Task 9 —— 已替换
+   providers: SectionPlaceholder, // Task 10 替换
+   privacy: SectionPlaceholder, // Task 11 替换
+   thinking: SectionPlaceholder, // Task 11 替换
+   blacklist: SectionPlaceholder,
+   execution: SectionPlaceholder,
+   search: SectionPlaceholder,
+   memory: SectionPlaceholder,
+   observability: SectionPlaceholder,
+   skills: SectionPlaceholder,
+   mcp: SectionPlaceholder,
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 5c171a3..4894d02 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -610,20 +610,70 @@ export default {
+   // Verbatim from Vue2 production en_US.json's matching keys (Settings.vue:23/26/29).
+   aiCfgDetails: 'Details',
+   aiCfgRefresh: 'Refresh',
+   aiCfgToggleTheme: 'Toggle theme',
+   aiCfgParserNotRunning: 'Parser not running',
+   aiCfgParserPaused: 'Paused · pending: {pending} · concurrency: {concurrency}',
+   aiCfgParserRunning: 'Running · pending: {pending} · concurrency: {concurrency}',
+   aiCfgSectionDeferred: 'This section will be enabled in a later phase',
+   aiCfgKnowledgeSoon: 'The knowledge details page will be enabled in a later phase',
+   aiCfgPlaceholderBody: 'This section has not been migrated yet — coming in a later phase.',
++  // SP8-P2a Task 9 — ModelsSection (local models). Verbatim from Vue2
++  // production en_US.json's matching keys (all 39 $t() call sites verified,
++  // see task report's "self-authored copy" list — it's empty).
++  // aiCfgLocalModels / aiCfgRefresh reuse the existing Task 3/8 keys (Vue2
++  // itself reuses the same $t('Local models') / $t('Refresh') key in both
++  // the nav and this page).
++  aiCfgModelsDesc: 'Models that run offline on the NAS. Pull from Ollama or import GGUF from HuggingFace — all without leaving this device.',
++  aiCfgInstalledModels: 'Installed models',
++  aiCfgImportComplete: 'Import complete',
++  aiCfgImportFailed: 'Import failed',
++  aiCfgRegisteringModel: 'Registering model…',
++  aiCfgImporting: 'Importing',
++  aiCfgClose: 'Close',
++  aiCfgCancel: 'Cancel',
++  // Vue2 baked the emoji into the key itself (`$t('⚠️ Do not shut down...')`);
++  // this repo's key is aiCfgDownloadWarning, but the value keeps the leading
++  // ⚠️ emoji (visual 1:1).
++  aiCfgDownloadWarning: '⚠️ Do not shut down the NimoOS machine during download, or the download will need to restart.',
++  aiCfgEtaApprox: '~{eta}',
++  aiCfgEtaSec: '{n} sec',
++  aiCfgEtaMin: '{n} min',
++  aiCfgEtaHr: '{n} hr',
++  aiCfgLoadingEllipsis: 'Loading…',
++  aiCfgNoModelsYet: 'No models installed yet.',
++  aiCfgColName: 'Name',
++  aiCfgColSize: 'Size',
++  aiCfgColActions: 'Actions',
++  aiCfgDelete: 'Delete',
++  aiCfgPullFromOllama: 'Pull from Ollama',
++  aiCfgModelNamePlaceholder: 'Model name, e.g. llama3:8b',
++  aiCfgPull: 'Pull',
++  aiCfgPullingHint: 'Pulling: {names} (running in background — refresh manually to check progress)',
++  aiCfgImportGgufTitle: 'Import GGUF from HuggingFace',
++  aiCfgSearchModelsPlaceholder: 'Search models, e.g. Qwen GGUF',
++  // Distinct from aiCfgSearch (the "Search" nav section label, P2b's agent
++  // search settings) — a separate key even though the current literal text
++  // happens to be identical, to avoid coupling two different concepts to one
++  // translation (see the task report's "deviations" entry).
++  aiCfgSearchBtn: 'Search',
++  aiCfgSearchingEllipsis: 'Searching…',
++  aiCfgSelectedRepo: 'Selected: {repo}',
++  aiCfgLoadFiles: 'Load files',
++  aiCfgImportBtn: 'Import',
++  aiCfgConfirmDeleteModel: 'Are you sure you want to delete model "{name}"? This cannot be undone.',
++  aiCfgDeletedName: 'Deleted {name}',
++  aiCfgDeleteFailed: 'Delete failed',
++  aiCfgPullStartedFor: 'Pull started for {name}',
++  aiCfgPullRequestFailed: 'Pull request failed',
++  aiCfgSearchFailed: 'Search failed',
++  aiCfgImportStartedFor: 'Import started for {file}',
+   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
+   // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
+   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2
+   // Agent.vue:133-142). English values are Vue2's exact literal strings
+   // (Vue2 uses raw English text as i18n keys, e.g. src/assets/lang/en_US.json).
+   aiLocalOllama: 'Local Ollama',
+   aiCloudModels: 'Cloud',
+   aiSearchModelsPlaceholder: 'Search models…',
+   aiModelSelect: 'Select model',
+   aiModelNotSelected: 'Not selected',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 51561ee..af9a094 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -620,20 +620,67 @@ export default {
+   // 待处理:{pending} · 并发:{concurrency}」(待处理/并发后带冒号)。全局约束
+   // 「中文值优先逐字复用 Vue2 生产译文」要求以 zh_CN.json 权威查法为准 ——
+   // 实测查得的生产译文是「已暂停 · 待处理 {pending} · 并发 {concurrency}」
+   // (不带冒号,纯空格分隔)。两者冲突时以生产译文(1:1 口径的权威源)为准,
+   // 这里没有照抄 brief 给的字面文案,已在报告里申报。
+   aiCfgParserPaused: '已暂停 · 待处理 {pending} · 并发 {concurrency}',
+   aiCfgParserRunning: '运行中 · 待处理 {pending} · 并发 {concurrency}',
+   aiCfgSectionDeferred: '该分区将在后续阶段开启',
+   aiCfgKnowledgeSoon: '知识库详情页将在后续阶段开启',
+   aiCfgPlaceholderBody: '该分区尚未迁移到新界面,将在后续阶段开启。',
++  // SP8-P2a Task 9 —— ModelsSection(本地模型)。中文值逐字取自 Vue2 生产
++  // zh_CN.json 对应英文 key 的既有译文(命令见 brief Global Constraints);
++  // 全部 39 处 $t() 调用逐条查证,一条自拟都没有(见任务报告的自拟文案清单)。
++  // aiCfgLocalModels / aiCfgRefresh 复用 Task 3/8 已建的既有键(Vue2 本身也是
++  // 同一个 $t('Local models') / $t('Refresh') 键在导航与本页面两处复用)。
++  aiCfgModelsDesc: '在 NAS 上离线运行的模型。可从 Ollama 拉取或从 HuggingFace 导入 GGUF —— 全程不出本机。',
++  aiCfgInstalledModels: '已安装模型',
++  aiCfgImportComplete: '导入完成',
++  aiCfgImportFailed: '导入失败',
++  aiCfgRegisteringModel: '正在注册模型…',
++  aiCfgImporting: '正在导入',
++  aiCfgClose: '关闭',
++  aiCfgCancel: '取消',
++  // Vue2 把 emoji 写进了 key 本身(`$t('⚠️ Do not shut down...')`);本仓键名
++  // 用 aiCfgDownloadWarning,但文案值保留开头的 ⚠️ emoji(视觉 1:1)。
++  aiCfgDownloadWarning: '⚠️ 下载期间请勿关闭 NimoOS 机器，否则需重新下载',
++  aiCfgEtaApprox: '约 {eta}',
++  aiCfgEtaSec: '{n} 秒',
++  aiCfgEtaMin: '{n} 分钟',
++  aiCfgEtaHr: '{n} 小时',
++  aiCfgLoadingEllipsis: '加载中…',
++  aiCfgNoModelsYet: '暂无已安装模型',
++  aiCfgColName: '名称',
++  aiCfgColSize: '大小',
++  aiCfgColActions: '操作',
++  aiCfgDelete: '删除',
++  aiCfgPullFromOllama: '从 Ollama 拉取',
++  aiCfgModelNamePlaceholder: '模型名，如 llama3:8b',
++  aiCfgPull: '拉取',
++  aiCfgPullingHint: '正在拉取：{names} （拉取在后台进行，请稍后手动刷新查看）',
++  aiCfgImportGgufTitle: '从 HuggingFace 导入 GGUF',
++  aiCfgSearchModelsPlaceholder: '搜索模型，如 Qwen GGUF',
++  // 与 aiCfgSearch(导航「搜索」分区标签,P2b 的 Agent 检索设置)是两个不同
++  // 语义的键,即便当前字面值恰好都是「搜索」——分开建键,避免把两处耦合在
++  // 同一条译文上(见任务报告「偏离」条目)。
++  aiCfgSearchBtn: '搜索',
++  aiCfgSearchingEllipsis: '搜索中…',
++  aiCfgSelectedRepo: '已选: {repo}',
++  aiCfgLoadFiles: '加载文件',
++  aiCfgImportBtn: '导入',
++  aiCfgConfirmDeleteModel: '确定删除模型 "{name}"？此操作不可恢复。',
++  aiCfgDeletedName: '已删除 {name}',
++  aiCfgDeleteFailed: '删除失败',
++  aiCfgPullStartedFor: '已发起拉取 {name}',
++  aiCfgPullRequestFailed: '拉取请求失败',
++  aiCfgSearchFailed: '搜索失败',
++  aiCfgImportStartedFor: '已发起导入 {file}',
+   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
+   // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
+   // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
+   // 中文值取自 Vue2 src/assets/lang/zh_CN.json 里对应英文 key 的既有译文,保持
+   // 与旧应用一致的措辞。
+   aiLocalOllama: '本地 Ollama',
+   aiCloudModels: '云端',
+   aiSearchModelsPlaceholder: '搜索模型…',
+   aiModelSelect: '选择模型',
+   aiModelNotSelected: '未选择',

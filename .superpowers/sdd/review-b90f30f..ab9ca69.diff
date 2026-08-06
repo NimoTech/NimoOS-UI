@@ -1,0 +1,153 @@
+# Review package: b90f30f..HEAD
+
+## Commits
+ab9ca69 feat(files): 接住旧格式深链 ?path=/?highlight=(归一跳转+定位闪烁)
+
+## Files changed
+ src/styles/theme.css |  4 ++++
+ src/views/Files.vue  | 36 +++++++++++++++++++++++++++++++++---
+ 2 files changed, 37 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index 0059f0e..0ef7bdf 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -480,10 +480,14 @@ body::after {
+ }
+ /* 文件夹是无底板 SVG:悬停保留抬升缩放,但去掉方块底板发光/投影(否则会在透明图标上画出一圈发光矩形) */
+ .grid-item:not(.editing).kind-folder:hover .folder-ic { box-shadow: none; filter: none; }
+ /* NOTE: .tile-2up is NOT emitted by GridItem in New-UI (item.w/h are available but no class is set).
+    Deferred: add .tile-2up emission to GridItem when w>=2 && h>=2 for gentler var(--card-hover) scale.
+    For now, scale(1.2) applies uniformly to all tile sizes. */
+ /* 按压下沉 */
+ .grid-item:not(.editing).kind-app:active .app-ic,
+ .grid-item:not(.editing).kind-folder:active .folder-tile,
+ .grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }
++
++/* 文件区深链 ?highlight= 定位闪烁(挂在 FileRow/FileTile 根上,跨组件 class 放全局)*/
++@keyframes file-flash-kf { 0%, 100% { background: transparent; } 30%, 70% { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
++.file-flash { animation: file-flash-kf 1.25s ease 2; border-radius: 10px; }
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 5138840..edaf036 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,12 +1,12 @@
+ <script setup lang="ts">
+-import { watch, onMounted, onUnmounted, computed, ref } from 'vue'
++import { watch, onMounted, onUnmounted, computed, ref, nextTick } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import FilesShell from '../files/components/FilesShell.vue'
+ import FilesSidebar from '../files/components/FilesSidebar.vue'
+ import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import NewItemDialog from '../files/components/NewItemDialog.vue'
+@@ -27,21 +27,21 @@ import { useUploadsStore } from '../files/stores/uploads'
+ import { useMountsStore } from '../files/stores/mounts'
+ import { useSharesStore } from '../files/stores/shares'
+ import { shareName } from '../files/util/sambaPath'
+ import { useToast } from '../stores/toast'
+ import { installUnloadGuard } from '../files/upload/unloadGuard'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+ import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+-  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
++  toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath,
+ } from '../files/util/pathUtils'
+ import { readDefault } from '../files/util/locationOrder'
+ import { parseRecover } from '../files/util/recoverEvent'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
+ const favorites = useFavoritesStore()
+ const ops = useFileOps()
+ const viewer = useViewer()
+@@ -202,28 +202,57 @@ function onToolbarDelete() {
+   if (!sel.length) return
+   deleteDlg.value = { open: true, entries: sel }
+ }
+ 
+ const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
+ 
+ function goVirtual(vp: string) {
+   router.push('/files/' + virtualPathToRouteParam(vp))
+ }
+ async function sync() {
++  // 旧格式深链:/files?path=X(X 真实或虚拟;来源:Vue2 AI「打开文件位置」、上传通知、
++  // Home 文件夹瓦片)→ 归一化成规范 /files/<虚拟段>,highlight 透传。
++  // displayNames 已由 onMounted 的 loadRoots() 就绪(P6 SharesPage 竞态教训)。
++  const qp = route.query.path
++  if (typeof qp === 'string' && qp) {
++    const { virtualPath } = resolveInputPath(qp, files.displayNames)
++    router.replace({
++      path: '/files/' + virtualPathToRouteParam(virtualPath),
++      query: typeof route.query.highlight === 'string' ? { highlight: route.query.highlight } : undefined,
++    })
++    return
++  }
+   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
+   if (vp === '/') {
+     const rootReal = readDefault() || files.defaultRootReal()
+     if (!rootReal) return
+     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
+     return
+   }
+   await files.load(toRealPath(vp, files.displayNames))
++  applyHighlight()
++}
++// 深链 ?highlight=<文件名>:目录加载后按名定位 → 滚动到可视区 + 闪烁 2.5s(Vue2 _highlight
++// 同款体验)。找不到(已删/改名)静默;URL 不清 highlight,刷新重闪无害(与 Vue2 一致)。
++// 命令式 DOM class(而非 prop 下钻):瞬态视觉,列表重渲染丢 class 可接受。
++function applyHighlight() {
++  const name = typeof route.query.highlight === 'string' ? route.query.highlight : ''
++  if (!name) return
++  const entry = files.sortedEntries.find((e) => e.name === name)
++  if (!entry) return
++  nextTick(() => {
++    const el = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
++    if (!el) return
++    el.scrollIntoView({ block: 'center' })
++    el.classList.add('file-flash')
++    setTimeout(() => el.classList.remove('file-flash'), 2500)
++  })
+ }
+ function openEntry(entry: FileEntry) {
+   const r = resolveOpen(entry, files.sortedEntries)
+   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
+   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
+   // 不可预览的文件类型:先征询,由用户决定是否下载,而非直接触发下载。
+   downloadDlg.value = { open: true, entry }
+ }
+ function confirmDownload() {
+   if (downloadDlg.value.entry) ops.download([downloadDlg.value.entry])
+@@ -301,21 +330,22 @@ function onMarqueeUp() {
+     window.addEventListener('click', swallow, true)
+     setTimeout(() => window.removeEventListener('click', swallow, true), 0)
+   }
+ }
+ 
+ onMounted(async () => {
+   await files.loadRoots()
+   favorites.load()
+   await sync()
+ })
+-watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
++// params.path(常规导航)或 query.path(?path= 深链落到同组件)变化都要重新 sync。
++watch(() => [route.params.path, route.query.path], () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ 
+ let offOperate: (() => void) | null = null
+ onMounted(() => { offOperate = bus.on('nimoos:file:operate', (props) => fileOps.ingest(props)) })
+ onUnmounted(() => { offOperate?.() })
+ 
+ let offDiskAdd: (() => void) | undefined
+ let offDiskRemove: (() => void) | undefined
+ onMounted(() => { mounts.loadMounts() })
+ onMounted(() => {
+   // local-storage:storage_status 是每 5s 定时上报的心跳,不是变更事件 —— 不要订阅它,

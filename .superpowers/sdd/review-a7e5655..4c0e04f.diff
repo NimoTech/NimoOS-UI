@@ -1,0 +1,168 @@
+# Review package: a7e5655..HEAD
+
+## Commits
+4c0e04f feat(upload): needs_file reselect + restore notice in UploadPanel (SP4-P3b)
+
+## Files changed
+ src/files/components/UploadPanel.vue | 49 +++++++++++++++++++++++++++++++++---
+ src/i18n/zh_cn.ts                    |  4 +++
+ 2 files changed, 50 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/files/components/UploadPanel.vue b/src/files/components/UploadPanel.vue
+index ca5e8c1..2f9b569 100644
+--- a/src/files/components/UploadPanel.vue
++++ b/src/files/components/UploadPanel.vue
+@@ -75,52 +75,86 @@ function onRetry(b: BatchView) {
+ }
+ function onCancel(b: BatchView) {
+   if (b.multi) store.cancelBatch(b.batchId)
+   else store.cancelItem(b.items[0].id)
+ }
+ 
+ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+   const item = conflictItem.value
+   if (item) store.resolveConflict(item.id, choice)
+ }
++
++// needs_file reselect: user re-picks the same folder/files via a hidden
++// input; reattachFiles matches them back onto the needs_file queue items by
++// their own targetPath/relativePath (the SelectedFile.targetPath below is a
++// placeholder to satisfy the shape, not used for matching).
++const reselectInput = ref<HTMLInputElement | null>(null)
++const reselectDismissed = ref(false)
++const showRestoreNotice = computed(() => store.restoreNoticeCount > 0 && !reselectDismissed.value)
++
++function triggerReselect() {
++  reselectInput.value?.click()
++}
++async function onReselect(e: Event) {
++  const input = e.target as HTMLInputElement
++  const list = input.files
++  if (list && list.length) {
++    const sel = Array.from(list).map((f) => ({
++      file: f,
++      targetPath: files.currentPath,
++      relativePath: (f as any).webkitRelativePath || f.name,
++    }))
++    await store.reattachFiles(sel)
++  }
++  input.value = ''
++}
+ </script>
+ 
+ <template>
+   <div v-if="totalCount" class="upload-panel-wrap">
+     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
+       {{ t('filesUploadTitle') }} ({{ totalCount }})
+     </button>
+ 
+     <div v-else class="upload-panel">
+       <div class="up-head">
+         <span class="up-title">{{ t('filesUploadTitle') }}</span>
+         <div class="up-head-actions">
+           <button v-if="doneBatches.length" class="up-link-btn" @click="store.clearDone()">
+             {{ t('filesUploadClearDone') }}
+           </button>
+           <button class="up-close" @click="open = false" aria-label="close">×</button>
+         </div>
+       </div>
+ 
++      <div v-if="showRestoreNotice" class="up-restore-notice">
++        <span>{{ t('filesUploadRestoreNotice', { count: store.restoreNoticeCount }) }}</span>
++        <button class="up-link-btn" @click="reselectDismissed = true">{{ t('filesUploadRestoreDismiss') }}</button>
++      </div>
++
+       <div v-if="hasOversizeActive" class="up-oversize-banner">{{ t('filesUploadOversize') }}</div>
+ 
+       <div v-if="problemBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneProblem') }}</div>
+         <div v-for="b in problemBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
+           </div>
+-          <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
+-          <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
++          <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
++          <template v-else>
++            <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
++            <div v-else-if="b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
++          </template>
+           <div class="up-item-actions">
+-            <button class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
++            <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
++            <button v-else class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
+             <button class="up-link-btn" @click="onCancel(b)">{{ t('filesUploadCancel') }}</button>
+           </div>
+         </div>
+       </div>
+ 
+       <div v-if="activeBatches.length" class="up-zone">
+         <div class="up-zone-title">{{ t('filesUploadZoneActive') }}</div>
+         <div v-for="b in activeBatches" :key="b.batchId" class="up-item">
+           <div class="up-item-line">
+             <span class="up-item-name">{{ labelText(b.label) }}</span>
+@@ -152,20 +186,22 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+     </div>
+ 
+     <Dialog :open="!!conflictItem" :title="t('filesUploadConflictTitle')" @update:open="(v) => { if (!v) resolve('skip') }">
+       <p>{{ conflictItem ? t('filesUploadConflictMsg', { name: conflictItem.fileName || conflictItem.relativePath }) : '' }}</p>
+       <template #footer>
+         <button class="ui-btn" @click="resolve('skip')">{{ t('filesUploadSkip') }}</button>
+         <button class="ui-btn" @click="resolve('rename')">{{ t('filesUploadRename') }}</button>
+         <button class="ui-btn primary" @click="resolve('overwrite')">{{ t('filesUploadOverwrite') }}</button>
+       </template>
+     </Dialog>
++
++    <input ref="reselectInput" type="file" webkitdirectory multiple class="up-hidden-input" @change="onReselect" />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .upload-panel-wrap { position: fixed; right: 24px; bottom: 24px; z-index: 60; }
+ .upload-panel-toggle {
+   padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-border, rgba(255,255,255,0.12));
+   background: var(--popup-bg, rgba(20,23,35,0.96)); color: var(--fg); cursor: pointer; font-size: 13px;
+   backdrop-filter: blur(20px); box-shadow: 0 18px 48px rgba(0,0,0,0.5);
+ }
+@@ -199,11 +235,18 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
+ .up-item-size { margin-left: auto; text-align: right; font-size: 11px; color: var(--fg-muted, #9aa4bf); font-variant-numeric: tabular-nums; }
+ .up-item-error { font-size: 11px; color: #ff8a8a; margin-top: 2px; }
+ .up-progress { height: 5px; border-radius: 999px; background: var(--chip-bg, rgba(255,255,255,0.1)); overflow: hidden; margin-top: 4px; }
+ .up-progress-fill { height: 100%; background: var(--accent, #6ea8fe); transition: width .2s; }
+ .up-item-actions { display: flex; gap: 10px; margin-top: 4px; }
+ .up-link-btn {
+   background: transparent; border: none; padding: 0; color: var(--accent, #6ea8fe); cursor: pointer; font-size: 12px;
+ }
+ .ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
++.up-restore-notice {
++  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px;
++  padding: 8px 10px; border-radius: 10px; font-size: 12px;
++  background: color-mix(in srgb, var(--accent, #6ea8fe) 16%, transparent);
++  border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 40%, transparent);
++}
++.up-hidden-input { display: none; }
+ </style>
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 76a46b3..0e33814 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -78,12 +78,16 @@ export const messages = {
+     filesUploadZoneActive: '上传中',
+     filesUploadZoneDone: '已完成',
+     filesUploadProtected: '「{name}」位于受保护目录,已跳过。',
+     filesUploadErrDuplicate: '文件已存在(已跳过)',
+     filesUploadErrExpired: '会话已过期',
+     filesUploadErrNoSpace: 'NAS 存储空间不足',
+     filesUploadErrProtected: '该目录受保护,不允许上传',
+     filesUploadErrBadName: '文件名或路径无效',
+     filesUploadErrServer: '服务器错误',
+     filesUploadErrNetwork: '网络错误',
++    filesUploadReselect: '重选文件',
++    filesUploadNeedsFile: '需重新选择文件以继续上传',
++    filesUploadRestoreNotice: '已恢复 {count} 个未完成的上传',
++    filesUploadRestoreDismiss: '知道了',
+   },
+ }

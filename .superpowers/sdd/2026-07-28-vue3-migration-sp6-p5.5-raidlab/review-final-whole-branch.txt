@@ -1,0 +1,821 @@
+######## 整支终审包 — SP6-P5.5 ########
+
+======== 仓库 1: NimoOS-LocalStorage  1ab91a9..2e8edcd ========
+2e8edcd fix(disk): scsi_debug 伪盘白名单默认关闭,需标记文件显式开启
+c0d0861 feat(disk): IsDiskSupported 接受 block:scsi:pseudo,并补齐该函数单测
+
+ service/disk.go      | 31 +++++++++++++++++++++++
+ service/disk_test.go | 71 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 102 insertions(+)
+
+diff --git a/service/disk.go b/service/disk.go
+index 7e4503d..64029f8 100644
+--- a/service/disk.go
++++ b/service/disk.go
+@@ -764,29 +764,60 @@ func (d *diskService) GetSystemDf() (model.DFDiskSpace, error) {
+ 			continue
+ 		}
+ 	}
+ 	return model.DFDiskSpace{}, errors.New("not found")
+ }
+ 
+ func NewDiskService(db *gorm.DB) DiskService {
+ 	return &diskService{db: db}
+ }
+ 
++// allowPseudoDisksMarkerFile 是"允许 scsi_debug 伪盘"开关的标记文件路径。
++//
++// 用包级变量而不是 const:测试需要把它指向临时目录里的文件(改完 defer 还原),
++// const 做不到这件事。
++//
++// 为什么用标记文件而不是环境变量/配置项来控制这个开关:服务跑在 systemd 下,
++// 改环境变量要改 unit 或写 drop-in 才能生效,配置项通常要重启服务才会被重新
++// 读取;标记文件在每次调用 IsDiskSupported 时实时 os.Stat,测试台脚本一句
++// touch/rm 就能开关,不用碰 systemd、不用重启任何服务。
++//
++// 为什么不用 build tag 编两个二进制:那样测试台验证的就不是出厂那个二进制了,
++// "在真实产品二进制上验证 RAID/快照界面"这个目的会被削掉一半。要的是同一个
++// 二进制、运行时的显式开关,默认关闭。
++var allowPseudoDisksMarkerFile = "/etc/nimoos/allow-pseudo-disks"
++
++// allowPseudoDisks 报告 scsi_debug 伪盘白名单开关是否打开。只看标记文件是否
++// 存在,不看内容、不看权限。
++func allowPseudoDisks() bool {
++	_, err := os.Stat(allowPseudoDisksMarkerFile)
++	return err == nil
++}
++
++// IsDiskSupported 会被 route/v1/disk.go 在磁盘列表循环里对每一块盘调用一次
++// (盘数通常是个位数,这里每次调用都做一次 os.Stat 检查开关标记文件,开销可以
++// 接受;如果未来盘数规模变大,这里可能需要加缓存)。
+ func IsDiskSupported(d model.LSBLKModel) bool {
+ 	return d.Tran == "sata" ||
+ 		d.Tran == "nvme" ||
+ 		d.Tran == "spi" ||
+ 		d.Tran == "sas" ||
+ 		strings.Contains(d.SubSystems, "virtio") ||
+ 		strings.Contains(d.SubSystems, "block:scsi:vmbus:acpi") || // Microsoft Hyper-V
+ 		strings.Contains(d.SubSystems, "block:mmc:mmc_host:pci") ||
+ 		strings.Contains(d.SubSystems, "block:mmc:mmc_host:platform") ||
++		// scsi_debug 伪 SCSI 主机(SP6-P5.5 存储区实盘验收测试台)。这是一道
++		// 安全边界:IsDiskSupported 决定"什么设备可以被格式化/建 RAID",出厂
++		// 产品必须默认拒绝这类伪盘,只有显式 touch 标记文件后才认它,防止
++		// 万一某台机器意外 modprobe scsi_debug(管理员手滑/诊断脚本/镜像
++		// 预置)时,把内存盘当真实存储推给用户建阵列。
++		(strings.Contains(d.SubSystems, "block:scsi:pseudo") && allowPseudoDisks()) ||
+ 		strings.Contains(d.SubSystems, "block:scsi:pci") || d.Tran == "usb"
+ }
+ 
+ func IsFormatSupported(d model.LSBLKModel) bool {
+ 	if d.FsType == "vfat" || d.FsType == "ext4" || d.FsType == "ext3" || d.FsType == "ext2" || d.FsType == "exfat" || d.FsType == "ntfs-3g" || d.FsType == "iso9660" {
+ 		return true
+ 	}
+ 	return false
+ }
+ 
+diff --git a/service/disk_test.go b/service/disk_test.go
+index 1725939..37b3424 100644
+--- a/service/disk_test.go
++++ b/service/disk_test.go
+@@ -1,14 +1,16 @@
+ package service
+ 
+ import (
+ 	"encoding/json"
++	"os"
++	"path/filepath"
+ 	"testing"
+ 
+ 	"github.com/NimoTech/NimoOS-LocalStorage/model"
+ 	"gotest.tools/v3/assert"
+ )
+ 
+ func TestWalkDisk(t *testing.T) {
+ 	jsonText := `{"name":"sda","kname":"sda","path":"/dev/sda","maj:min":"8:0","fsavail":null,"fssize":null,"fstype":null,"fsused":null,"fsuse%":null,"fsroots":[null],"fsver":null,"mountpoint":null,"mountpoints":[null],"label":null,"uuid":null,"ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":null,"parttypename":null,"partlabel":null,"partuuid":null,"partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":"QEMU HARDDISK","serial":"drive-scsi0","size":12884901888,"state":"running","owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"disk","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":null,"hctl":"2:0:0:0","tran":null,"subsystems":"block:scsi:virtio:pci","rev":"2.5+","vendor":"QEMU    ","zoned":"none","dax":false,"children":[{"name":"sda1","kname":"sda1","path":"/dev/sda1","maj:min":"8:1","fsavail":null,"fssize":null,"fstype":null,"fsused":null,"fsuse%":null,"fsroots":[null],"fsver":null,"mountpoint":null,"mountpoints":[null],"label":null,"uuid":null,"ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":"21686148-6449-6e6f-744e-656564454649","parttypename":"BIOS boot","partlabel":null,"partuuid":"6114973f-adb1-468e-9feb-b49c762ae245","partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":1048576,"state":null,"owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"part","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":"sda","hctl":null,"tran":null,"subsystems":"block:scsi:virtio:pci","rev":null,"vendor":null,"zoned":"none","dax":false},{"name":"sda2","kname":"sda2","path":"/dev/sda2","maj:min":"8:2","fsavail":"1441812480","fssize":"1810489344","fstype":"ext4","fsused":"257949696","fsuse%":"14%","fsroots":["/"],"fsver":"1.0","mountpoint":"/boot","mountpoints":["/boot"],"label":null,"uuid":"78db4224-e926-42c4-a899-8f8f00224d22","ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":"0fc63daf-8483-4772-8e79-3d69d8477de4","parttypename":"Linux filesystem","partlabel":null,"partuuid":"a11c27be-8929-49e4-b30a-99dc6bfe2e67","partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":1879048192,"state":null,"owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"part","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":"sda","hctl":null,"tran":null,"subsystems":"block:scsi:virtio:pci","rev":null,"vendor":null,"zoned":"none","dax":false},{"name":"sda3","kname":"sda3","path":"/dev/sda3","maj:min":"8:3","fsavail":null,"fssize":null,"fstype":"LVM2_member","fsused":null,"fsuse%":null,"fsroots":[null],"fsver":"LVM2 001","mountpoint":null,"mountpoints":[null],"label":null,"uuid":"O7mLM9-q5mc-qNNe-hemy-6giu-Ocvg-V1MMuZ","ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":"0fc63daf-8483-4772-8e79-3d69d8477de4","parttypename":"Linux filesystem","partlabel":null,"partuuid":"5a9bd7c3-eab1-4511-baf2-7e816d5042a5","partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":11002707968,"state":null,"owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"part","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":"sda","hctl":null,"tran":null,"subsystems":"block:scsi:virtio:pci","rev":null,"vendor":null,"zoned":"none","dax":false,"children":[{"name":"ubuntu--vg-ubuntu--lv","kname":"dm-0","path":"/dev/mapper/ubuntu--vg-ubuntu--lv","maj:min":"253:0","fsavail":"2965307392","fssize":"10464022528","fstype":"ext4","fsused":"6945067008","fsuse%":"66%","fsroots":["/"],"fsver":"1.0","mountpoint":"/","mountpoints":["/"],"label":null,"uuid":"19dae839-3805-4240-a05d-288e903719d6","ptuuid":null,"pttype":null,"parttype":null,"parttypename":null,"partlabel":null,"partuuid":null,"partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":10737418240,"state":"running","owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":null,"rq-size":128,"type":"lvm","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":false,"pkname":"sda3","hctl":null,"tran":null,"subsystems":"block","rev":null,"vendor":null,"zoned":"none","dax":false}]}]}`
+ 
+ 	blk := model.LSBLKModel{}
+@@ -52,10 +54,79 @@ func TestParseBlockDevices_MountPointsPlural(t *testing.T) {
+ 	blkList, err := ParseBlockDevices([]byte(jsonText))
+ 
+ 	assert.NilError(t, err)
+ 	assert.Equal(t, len(blkList), 1)
+ 
+ 	assert.Equal(t, blkList[0].MountPoint, "/media/RAID_0/.snapshots")
+ 	assert.Equal(t, len(blkList[0].MountPoints), 2)
+ 	assert.Equal(t, blkList[0].MountPoints[0], "")
+ 	assert.Equal(t, blkList[0].MountPoints[1], "/media/RAID_0")
+ }
++
++// scsi_debug 假盘(SP6-P5.5 测试台)的 subsystems 是 block:scsi:pseudo,
++// tran 为空。IsDiskSupported 是一道安全边界(决定什么设备能被格式化/建 RAID),
++// 所以对这条子系统链默认拒绝,只有标记文件 /etc/nimoos/allow-pseudo-disks
++// 存在时才放行——这组用例跑在"标记文件不存在"的出厂默认状态下。
++func TestIsDiskSupported(t *testing.T) {
++	// 显式指向一个保证不存在的路径,不依赖测试机上是否真的存在
++	// /etc/nimoos/allow-pseudo-disks,跑完还原,避免影响同包其他测试。
++	old := allowPseudoDisksMarkerFile
++	allowPseudoDisksMarkerFile = filepath.Join(t.TempDir(), "allow-pseudo-disks")
++	defer func() { allowPseudoDisksMarkerFile = old }()
++
++	cases := []struct {
++		name       string
++		tran       string
++		subSystems string
++		want       bool
++	}{
++		{"nvme 真盘", "nvme", "block:nvme:pci", true},
++		{"sata 真盘", "sata", "block:scsi:pci", true},
++		{"usb 盘", "usb", "block:scsi:usb:pci", true},
++		{"virtio 虚拟盘", "", "block:scsi:virtio:pci", true},
++		{"scsi_debug 假盘(标记文件不存在,出厂默认拒绝)", "", "block:scsi:pseudo", false},
++		{"zram 之类裸 block", "", "block", false},
++		{"未知传输方式", "fibre", "block:unknown", false},
++	}
++	for _, c := range cases {
++		t.Run(c.name, func(t *testing.T) {
++			got := IsDiskSupported(model.LSBLKModel{Tran: c.tran, SubSystems: c.subSystems})
++			assert.Equal(t, got, c.want)
++		})
++	}
++}
++
++// TestIsDiskSupported_AllowPseudoDisks 验证标记文件存在时(测试台
++// raidlab.sh up 会 touch 它),scsi_debug 假盘同一份输入转为放行,且其余判定
++// 条件的结果与标记文件不存在时完全一致——证明开关只影响 pseudo 这一条分支,
++// 不会顺带放宽别的白名单条件。
++func TestIsDiskSupported_AllowPseudoDisks(t *testing.T) {
++	markerPath := filepath.Join(t.TempDir(), "allow-pseudo-disks")
++	f, err := os.Create(markerPath)
++	assert.NilError(t, err)
++	assert.NilError(t, f.Close())
++
++	old := allowPseudoDisksMarkerFile
++	allowPseudoDisksMarkerFile = markerPath
++	defer func() { allowPseudoDisksMarkerFile = old }()
++
++	cases := []struct {
++		name       string
++		tran       string
++		subSystems string
++		want       bool
++	}{
++		{"nvme 真盘", "nvme", "block:nvme:pci", true},
++		{"sata 真盘", "sata", "block:scsi:pci", true},
++		{"usb 盘", "usb", "block:scsi:usb:pci", true},
++		{"virtio 虚拟盘", "", "block:scsi:virtio:pci", true},
++		{"scsi_debug 假盘(标记文件存在,显式放行)", "", "block:scsi:pseudo", true},
++		{"zram 之类裸 block", "", "block", false},
++		{"未知传输方式", "fibre", "block:unknown", false},
++	}
++	for _, c := range cases {
++		t.Run(c.name, func(t *testing.T) {
++			got := IsDiskSupported(model.LSBLKModel{Tran: c.tran, SubSystems: c.subSystems})
++			assert.Equal(t, got, c.want)
++		})
++	}
++}
+
+======== 仓库 2: nimo_os_docs  0c7329e..101ff09 ========
+101ff09 docs(acceptance): SP6-P5.5 实盘验收清单(两轮建台)
+a1a1e13 fix(raidlab): 备份 cp 失败必须拒绝覆写(修复轮 1/5,评审 Important)
+0428fef feat(raidlab): up/down 子命令 + main 分派与执行守卫
+9cdd46d fix(raidlab): 补 fstab tab 分隔真实行形状用例 + 三条 minor(修复轮 1/5)
+340ee51 feat(raidlab): md 阵列成员核查 + fstab/mdadm.conf 过滤
+a7ca719 fix(raidlab): avail_disk_names 加类型闸门(修复轮 1/5)
+bc57887 feat(raidlab): avail 解析/核对 + status 子命令
+bc8f043 fix(raidlab): is_fake_disk 加设备名路径穿越护栏(修复轮 1/5)
+e07cafe feat(raidlab): 测试台骨架 + 假盘护栏 + 手写测试 harness
+
+ ...252\214\346\224\266\346\270\205\345\215\225.md" | 155 +++++
+ scripts/raidlab.sh                                 | 627 +++++++++++++++++++++
+ scripts/raidlab.test.sh                            | 434 ++++++++++++++
+ 3 files changed, 1216 insertions(+)
+
+---- 最终 raidlab.sh 全文 ----
+#!/bin/bash
+# NimoOS 存储区实盘验收测试台(SP6-P5.5)
+#
+# 在单盘设备上用 scsi_debug 造若干假盘,好让 RAID 与 btrfs 快照这两条链路
+# 能真机验证。设备只有一块 NVMe,而后端「快照卷 == RAID 阵列」
+# (route/snapshot.go 的 currentVolumes = VolumesFromRAIDArrays),没有阵列
+# 就没有快照卷,P3/P4/P5 三期全都无从验起。
+#
+# 用法: ./raidlab.sh up | down | status
+#
+# ⚠️ 安全:后端创建 RAID 前会清扫成员盘,选错盘等于抹掉 /DATA。所以本脚本
+#    每个涉及具体块设备的破坏性操作前都必须先过 assert_fake_disk —— 它同时
+#    要求「设备名不含 nvme」和「sysfs model 恰为 scsi_debug」,缺一不可。
+set -uo pipefail
+
+# 外部依赖全部经环境变量注入,测试可替换成临时目录。
+RAIDLAB_SYSFS_ROOT="${RAIDLAB_SYSFS_ROOT:-/sys}"
+RAIDLAB_API_BASE="${RAIDLAB_API_BASE:-http://127.0.0.1}"
+RAIDLAB_NUM_TGTS="${RAIDLAB_NUM_TGTS:-4}"
+RAIDLAB_DEV_SIZE_MB="${RAIDLAB_DEV_SIZE_MB:-512}"
+RAIDLAB_PROC_MDSTAT="${RAIDLAB_PROC_MDSTAT:-/proc/mdstat}"
+RAIDLAB_FSTAB="${RAIDLAB_FSTAB:-/etc/fstab}"
+RAIDLAB_MDADM_CONF="${RAIDLAB_MDADM_CONF:-/etc/mdadm/mdadm.conf}"
+# 后端白名单标记文件:NimoOS-LocalStorage 只在它存在时才承认 scsi_debug 假盘
+# (出厂产品默认拒绝伪盘,防止把内存假盘当真存储推给用户)。up 建、down 撤。
+RAIDLAB_PSEUDO_MARKER="${RAIDLAB_PSEUDO_MARKER:-/etc/nimoos/allow-pseudo-disks}"
+
+# scsi_debug 假盘在 sysfs 里的型号标识。真实内容尾部带空格,判定时会 trim。
+FAKE_DISK_MODEL="scsi_debug"
+
+# --- 假盘护栏 ---------------------------------------------------------------
+
+# is_fake_disk <dev> —— <dev> 为裸设备名(sda),不带 /dev/。
+# 两道条件必须同时满足,缺一不可。
+is_fake_disk() {
+	local dev="${1:-}"
+	[[ -n "$dev" ]] || return 1
+
+	# ① 名字硬否决。model 文件理论上可被伪造(scsi_debug 允许自定义型号),
+	#    而 nvme0n1 是本机唯一真盘、承载 /DATA,所以名字这层不给任何余地。
+	# ② 路径穿越防护:dev 这个值后面会被外部输入驱动(Task 3 的
+	#    verify_avail_only_fake 把后端 HTTP 响应 JSON 的 name 字段原样喂
+	#    进来),而这条护栏的下游是 mdadm --create(会清扫成员盘),必须在
+	#    入口把设备名的合法形状钉死——只允许字母、数字、_、-、. 组成(真实
+	#    块设备名如 sda/nvme0n1/md127/dm-0 都在这个集合内),含 / 或恰为
+	#    ./.. 一律拒绝,防止 model_file 拼出的路径逃出 RAIDLAB_SYSFS_ROOT。
+	case "$dev" in
+	*nvme*) return 1 ;;
+	.|..) return 1 ;;
+	*[!A-Za-z0-9._-]*) return 1 ;;
+	esac
+
+	# ③ sysfs 型号必须恰为 scsi_debug(去掉所有空白后比较)。
+	local model_file="$RAIDLAB_SYSFS_ROOT/block/$dev/device/model"
+	[[ -r "$model_file" ]] || return 1
+	local model
+	model="$(tr -d '[:space:]' < "$model_file")"
+	[[ "$model" == "$FAKE_DISK_MODEL" ]]
+}
+
+# assert_fake_disk <dev-or-path> —— 接受 sda 或 /dev/sda。
+# 不是假盘就往 stderr 说明并返回 1(不 exit,由调用方决定怎么处理)。
+assert_fake_disk() {
+	local raw="${1:-}"
+	local dev="${raw#/dev/}"
+	if ! is_fake_disk "$dev"; then
+		echo "raidlab: 拒绝操作 '$raw' —— 它不是 scsi_debug 假盘。" >&2
+		echo "         破坏性操作只允许作用于测试台假盘,请先跑 ./raidlab.sh status 确认。" >&2
+		return 1
+	fi
+	return 0
+}
+
+# list_fake_disks —— 打印所有假盘裸设备名,每行一个,字典序。
+list_fake_disks() {
+	local path dev
+	for path in "$RAIDLAB_SYSFS_ROOT"/block/*; do
+		[[ -e "$path" ]] || continue
+		dev="$(basename "$path")"
+		if is_fake_disk "$dev"; then
+			echo "$dev"
+		fi
+	done | sort
+}
+
+# --- API 视图 ---------------------------------------------------------------
+
+# api_get <path> —— 取 $RAIDLAB_API_BASE<path>。走本机 Gateway,localhost
+# 免 JWT,所以不需要带令牌。
+api_get() {
+	curl -sS -m 20 "$RAIDLAB_API_BASE$1"
+}
+
+# avail_disk_names —— stdin 读 GET /v1/disks 响应,stdout 打 avail 里的设备名。
+# 用 python3 而不是 grep/sed:响应是嵌套 JSON,文本切割在 children 数组上必错。
+# 任何解析失败都输出空 + 退出 0,由调用方(verify_avail_only_fake)去判定。
+#
+# 类型闸门:后端字段形状不可信,每一层取值前都要判类型,不能只包 json.load。
+# avail 不是 list(int/bool/字符串等标量)就整体当空处理——字符串虽然可
+# 迭代、不会崩,但会被逐字符当成"设备名"吐出来,是比崩溃更隐蔽的错误,
+# 必须在这里连同 int/bool 一起挡掉。entry.name / entry.path 也一样,非
+# 字符串就不能直接参与拼接或打印(例如 path 是数字会在 .rsplit 上崩)。
+avail_disk_names() {
+	python3 -c '
+import json, sys
+try:
+    doc = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+data = doc.get("data") if isinstance(doc, dict) else None
+if not isinstance(data, dict):
+    sys.exit(0)
+avail = data.get("avail")
+if not isinstance(avail, list):
+    sys.exit(0)
+for entry in avail:
+    if not isinstance(entry, dict):
+        continue
+    name = entry.get("name")
+    if not (isinstance(name, str) and name):
+        path = entry.get("path")
+        name = path.rsplit("/", 1)[-1] if isinstance(path, str) and path else None
+    if name:
+        print(name)
+'
+}
+
+# verify_avail_only_fake —— stdin 读设备名清单(每行一个)。
+# 全是假盘返回 0;出现非假盘返回 1;空清单也返回 1 —— 空 avail 正是 Task 1
+# 白名单补丁未部署时的表现,当成失败才能给出准确诊断。
+verify_avail_only_fake() {
+	local dev
+	local count=0
+	while IFS= read -r dev; do
+		[[ -n "$dev" ]] || continue
+		count=$((count + 1))
+		if ! is_fake_disk "$dev"; then
+			echo "raidlab: 后端 avail 里出现非假盘 '$dev',中止。" >&2
+			echo "         测试台不能在真盘可被选中的状态下使用。" >&2
+			return 1
+		fi
+	done
+	if [[ "$count" -eq 0 ]]; then
+		echo "raidlab: 后端 avail 为空 —— 假盘存在但后端看不见。" >&2
+		echo "         几乎肯定是 IsDiskSupported 白名单补丁未部署:" >&2
+		echo "         cd ~/NimoTech && nimo_os_docs/scripts/deploy.sh local-storage" >&2
+		return 1
+	fi
+	return 0
+}
+
+# --- md 阵列核查 ------------------------------------------------------------
+
+# md_arrays —— 从 /proc/mdstat 列出所有 md 设备名,每行一个。
+# mdstat 的阵列行形如 "md127 : active raid1 sdb[1] sda[0]",但也可能是
+# "md1 : inactive sdg[1](S)"(未组装/降级,状态与成员之间没有 raid level
+# 字段)或 "md127 : active (auto-read-only) raid1 ..."。正则只锚定到冒号
+# 为止,不要求出现 "active" 或具体 level,三种形状都能匹配 —— 对照
+# NimoOS-LocalStorage 自己的 pkg/mdadm/parse.go,它专门为 inactive 形态
+# 写了第二条正则,注释明说"不加这条,这类阵列会从解析结果里静默消失,
+# 它占着的盘也会被误判为空闲"。这里用单一宽松正则一次性覆盖,不需要
+# 后端那样分两条规则。
+md_arrays() {
+	[[ -r "$RAIDLAB_PROC_MDSTAT" ]] || return 0
+	awk '/^md[0-9]+ +:/ { print $1 }' "$RAIDLAB_PROC_MDSTAT"
+}
+
+# md_members <md> —— 打印成员盘裸设备名,每行一个,字典序。
+# 读 sysfs 的 <md>/md/dev-<name> 目录名,而不是 mdadm --detail:down 要在
+# 停阵列「之前」核查成员,而 mdadm --detail 需要 root;sysfs 普通用户可读。
+#
+# 成员盘处于 faulty 态(mdadm --fail 打过、但尚未 --remove)时,dev-<name>
+# 目录依然在场——内核只是把它 sysfs 下的 state 文件内容改成 faulty,并不
+# 删目录;真正消失只发生在 --remove 之后。Task 6 的验收流程会用 --fail
+# 人工制造故障盘来验证 down 的行为,这意味着该盘依然会被这里认作成员:
+# 这是符合预期的——它没有被踢出阵列,仍应纳入"是否全假盘"的核查。
+md_members() {
+	local md="${1:-}"
+	[[ -n "$md" ]] || return 0
+	# 路径穿越防护:目前唯一调用方是 md_arrays() 的输出(保证形如
+	# md[0-9]+),但这里是"停阵列 / 改 fstab"之前唯一的核查关卡,不能假设
+	# 调用方永远守规矩——同 is_fake_disk 那道护栏一样的教训。含 / 或恰为
+	# ./.. 的值不允许拼进 sysfs 路径,以免 dir 逃出 RAIDLAB_SYSFS_ROOT。
+	#
+	# 这里特意往 stderr 打一行诊断(而不是像空参数那样静默 return):
+	# 调用方 assert_md_all_fake 在拿到空输出后只会说"读不到任何成员盘",
+	# 如果不在这里先说明"是设备名不合法",使用者会把"阵列真的没有成员"
+	# 和"传参写错了"混为一谈,排查方向就错了(评审 M-8)。
+	case "$md" in
+	*[!A-Za-z0-9._-]*|.|..)
+		echo "raidlab: md_members: 非法的阵列设备名 '$md'(应为形如 md<数字>),拒绝解析。" >&2
+		return 0
+		;;
+	esac
+	local dir="$RAIDLAB_SYSFS_ROOT/block/$md/md"
+	[[ -d "$dir" ]] || return 0
+	local path base
+	# 排序细节:bash 的 glob 展开本身已按 LC_COLLATE 排序,对这里会出现的
+	# 简单 ASCII 设备名(sda/sdb/...)其结果与 `sort` 恒同构——没有输入能
+	# 让"删掉 | sort"和"保留 | sort"产生可观测差异。保留 `| sort` 是防御性
+	# 写法(不依赖 glob 排序这个隐性行为、对非 ASCII/怪异 LC_COLLATE 更稳),
+	# 但不要指望靠测试断言证明它"在起作用"(评审 M-1)。
+	for path in "$dir"/dev-*; do
+		[[ -e "$path" ]] || continue
+		base="$(basename "$path")"
+		echo "${base#dev-}"
+	done | sort
+}
+
+# assert_md_all_fake <md> —— 阵列所有成员都是假盘才返回 0。
+# 无成员也算失败:那意味着我们读不到成员信息,不能据此做破坏性操作。
+# 这一支同时覆盖两种情况——阵列确实存在但 sysfs 下读不到任何 dev-*
+# (异常态),以及传入的 md 根本不对应任何阵列(拼写错误 / 阵列已停)。
+# 两种情况都判失败是刻意的保守选择:调用方(Task 5 的 cmd_down)只会拿
+# md_arrays() 报告「确实在场」的阵列来调用这个函数,所以这里选"读不到
+# 就拒绝",而不是"读不到就当作没有非假盘、放行"。
+assert_md_all_fake() {
+	local md="${1:-}"
+	local members
+	members="$(md_members "$md")"
+	if [[ -z "$members" ]]; then
+		echo "raidlab: 阵列 '$md' 读不到任何成员盘,拒绝对它做破坏性操作。" >&2
+		return 1
+	fi
+	local dev
+	while IFS= read -r dev; do
+		[[ -n "$dev" ]] || continue
+		if ! is_fake_disk "$dev"; then
+			echo "raidlab: 阵列 '$md' 的成员 '$dev' 不是假盘,拒绝操作该阵列。" >&2
+			echo "         这不是测试台建的阵列,可能承载真实数据。" >&2
+			return 1
+		fi
+	done <<< "$members"
+	return 0
+}
+
+# --- 配置文件清理(纯文本过滤,不落盘)--------------------------------------
+
+# fstab_drop_snapshots —— stdin 读 fstab,删掉后端写的 @snapshots 条目。
+# 两个条件同时满足才删:源精确等于 /dev/md<数字>(不是前缀匹配!),挂载点
+# 以独立的 "/.snapshots" 路径段结尾(不是任意以 ".snapshots" 结尾的字符串)。
+#
+# 两处都刻意收紧到"精确匹配真实写法",依据是读 NimoOS-LocalStorage 源码
+# 而非只信计划文本的转述:
+#   - service/v2/raid.go 的 validDevicePath 只放行恰好 /dev/md[0-9]+,
+#     mdadm.NextAvailableDevice() 生成的 device 也恒为该形状——分区形式
+#     /dev/md0p1、符号路径 /dev/md/name 从未被这条持久化路径使用过。
+#     前缀正则 ^\/dev\/md 会连 /dev/md0p1、/dev/mdanything 这类用户自己
+#     写的条目一起删掉,是不必要的误伤面。
+#   - service/snapshot/mount.go 的 SnapshotsDir = filepath.Join(挂载点,
+#     ".snapshots"),挂载点恒以「路径分隔符 + .snapshots」作为独立的最后
+#     一段。后缀正则 \.snapshots$(不要求前面的 /)会连 "/mnt/foo.snapshots"
+#     这种目录名字面上凑巧以该串结尾、但根本不是这个功能挂载点的条目也
+#     一起删掉。
+fstab_drop_snapshots() {
+	awk '$1 ~ /^\/dev\/md[0-9]+$/ && $2 ~ /\/\.snapshots$/ { next } { print }'
+}
+
+# mdadm_conf_drop_arrays —— stdin 读 mdadm.conf,删掉 ARRAY 行,其余原样。
+# 调用方必须先对每个在场阵列跑过 assert_md_all_fake。
+mdadm_conf_drop_arrays() {
+	awk '$1 == "ARRAY" { next } { print }'
+}
+
+# --- down 前置断言:配置文件里的 md 设备是否都已核实 ------------------------
+#
+# fstab_drop_snapshots / mdadm_conf_drop_arrays 都是按行全局删除,只问"这行
+# 长得像不像该删的样子",不问"这个阵列有没有被核实过"。assert_md_all_fake
+# 只核查 md_arrays()(读 /proc/mdstat)能看到的、已组装的阵列——一台有真实
+# 但未组装阵列的机器,该阵列不会出现在 md_arrays() 里,assert_md_all_fake
+# 就没机会核查它,但它在 fstab/mdadm.conf 里的条目照样会被两个过滤器删掉。
+# 下面这组函数把"配置文件提到的 md 设备,必须都在已核实集合里"做成可单测
+# 的纯函数,供 cmd_down 在清理前调用;对不上就该看作"未核实",拒绝而不是猜
+# ——不管对不上的原因是"这确实是别的阵列",还是"同一阵列在两个文件里的
+# 写法不一致导致认不出来"(如 fstab 的 /dev/md127 与 mdadm.conf 里可能出现
+# 的 /dev/md/<name> 符号链接形式),两种情况都不能证明安全。
+#
+# ⚠️ TASK 6 待验证项(评审判定:全篇最大的开放风险点)——
+# 读 NimoOS-LocalStorage 源码只能确认 mdadm.Create() 从不传 --name=、
+# NextAvailableDevice() 恒生成 /dev/md<数字>;但 SaveConfig() 是
+# `mdadm --detail --scan > /etc/mdadm/mdadm.conf`(整份覆盖),而 mdadm 的
+# 1.x 超级块即使没有显式命名,也可能带隐式 hostname:index 名并生成
+# /dev/md/<name> 符号链接——`--detail --scan` 在这种情况下有没有可能选用
+# 符号链接形式而不是 /dev/mdN 作为 ARRAY 行的设备字段,仅凭代码审查无法
+# 100% 排除。如果实际是后者,mdadm_conf_md_devices 提出来的就是
+# "md/<name>"而不是"md127",永远对不上 $arrays 里的核实结果——这道前置
+# 断言就会在**每一次正常 down** 上都拒绝,把"安全拒绝"变成"功能不可用"。
+#
+# Task 6 真机 up 一次之后,第一件事就是核对 /etc/mdadm/mdadm.conf 的真实
+# ARRAY 行长什么样。如果证实是符号链接形式,补救方向是给 mdadm_conf_md_devices
+# 或它的调用点加一步解析:设备字段形如 /dev/md/<name> 时,用
+# `readlink -f "/dev/md/<name>"` 解出它实际指向的 /dev/mdN,再拿解出来的
+# mdN 去跟 $arrays 比对(需要注入一个类似 RAIDLAB_DEV_ROOT 的环境变量,
+# 测试里用假 symlink 模拟 /dev/md/*,不能直接读真实 /dev)。在此之前,
+# 保守选择是"解不出对应关系就拒绝",不是尝试证明它安全。
+
+# fstab_md_sources —— stdin 读 fstab,打印所有源设备字段以 /dev/md 开头的行,
+# 裸名(去掉 /dev/ 前缀),每行一个。刻意比 fstab_drop_snapshots 的删除条件
+# (精确 /dev/md[0-9]+ 且挂载点为 .snapshots)更宽:这里要回答的是"fstab 里
+# 究竟提到了哪些看起来像 md 设备的东西",不是"这一行会不会被删"——核实关口
+# 宁可多疑一个,也不要漏看一个。
+fstab_md_sources() {
+	awk '$1 ~ /^\/dev\/md/ { sub(/^\/dev\//, "", $1); print $1 }'
+}
+
+# mdadm_conf_md_devices —— stdin 读 mdadm.conf,打印每条 ARRAY 行的设备字段
+# (第 2 列),裸名(去掉 /dev/ 前缀),每行一个。
+mdadm_conf_md_devices() {
+	awk '$1 == "ARRAY" { dev = $2; sub(/^\/dev\//, "", dev); print dev }'
+}
+
+# devices_not_in_set <verified-集合,换行分隔> —— stdin 读候选裸设备名,把不在
+# verified 集合里的原样打到 stdout;全部命中则不输出任何内容。纯字符串比较
+# ——"/dev/md127"和"/dev/md/nimo1"是否实指同一阵列,这里不通过解析符号链接
+# 去证明,解不出对应关系本身就该判"未核实"(调用方据此拒绝),而不是想办法
+# 证明它安全。
+devices_not_in_set() {
+	local set="$1" dev line hit
+	while IFS= read -r dev; do
+		[[ -n "$dev" ]] || continue
+		hit=0
+		while IFS= read -r line; do
+			if [[ -n "$line" && "$dev" == "$line" ]]; then
+				hit=1
+				break
+			fi
+		done <<< "$set"
+		[[ "$hit" -eq 1 ]] || echo "$dev"
+	done
+}
+
+# --- status ----------------------------------------------------------------
+
+# cmd_status —— 打印测试台四视图,验收时对账用。始终返回 0(纯观测)。
+cmd_status() {
+	echo "=== 假盘(sysfs model == scsi_debug)==="
+	local fakes
+	fakes="$(list_fake_disks)"
+	if [[ -n "$fakes" ]]; then
+		echo "$fakes"
+	else
+		echo "(无)"
+	fi
+
+	echo
+	echo "=== /proc/mdstat ==="
+	cat "$RAIDLAB_PROC_MDSTAT" 2>/dev/null || echo "(读不到)"
+
+	echo
+	echo "=== lsblk ==="
+	lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL 2>/dev/null || echo "(lsblk 失败)"
+
+	echo
+	echo "=== 后端 avail(GET /v1/disks)==="
+	local names
+	names="$(api_get /v1/disks 2>/dev/null | avail_disk_names)"
+	if [[ -n "$names" ]]; then
+		echo "$names"
+	else
+		echo "(空 —— 若假盘已在场,说明白名单补丁未部署)"
+	fi
+
+	echo
+	echo "=== 后端快照卷(GET /v2/snapshot/volumes)==="
+	api_get /v2/snapshot/volumes 2>/dev/null || echo "(请求失败)"
+	echo
+
+	echo "=== 后端 RAID 阵列(GET /v2/raid)==="
+	api_get /v2/raid 2>/dev/null || echo "(请求失败)"
+	echo
+}
+
+# --- up ----------------------------------------------------------------------
+
+# cmd_up —— 加载 scsi_debug、等设备就绪、建后端白名单标记、核对后端能看见
+# 且只看见假盘。
+cmd_up() {
+	if [[ -n "$(list_fake_disks)" ]]; then
+		echo "raidlab: 假盘已在场,无需重复 up。当前状态:" >&2
+		list_fake_disks >&2
+		echo "         要重建请先 ./raidlab.sh down。" >&2
+		return 1
+	fi
+
+	echo "raidlab: 加载 scsi_debug(num_tgts=$RAIDLAB_NUM_TGTS dev_size_mb=$RAIDLAB_DEV_SIZE_MB)..."
+	sudo modprobe scsi_debug \
+		"num_tgts=$RAIDLAB_NUM_TGTS" \
+		"dev_size_mb=$RAIDLAB_DEV_SIZE_MB" || {
+		echo "raidlab: modprobe scsi_debug 失败。" >&2
+		return 1
+	}
+
+	# 建后端白名单标记:NimoOS-LocalStorage 只在 $RAIDLAB_PSEUDO_MARKER 存在
+	# 时才承认 scsi_debug 假盘,否则 IsDiskSupported 会把它们当不支持的设备
+	# 过滤掉,avail 永远看不见——放在 modprobe 成功之后、核对 avail 之前建,
+	# 让后面的重试轮次一开始就有机会看见假盘。
+	echo "raidlab: 建立假盘白名单标记 $RAIDLAB_PSEUDO_MARKER..."
+	sudo touch "$RAIDLAB_PSEUDO_MARKER" || {
+		echo "raidlab: 建立标记文件 $RAIDLAB_PSEUDO_MARKER 失败。" >&2
+		return 1
+	}
+
+	# 等设备节点出现(udev 异步)。10 次 × 1s 足够;实测约 2s。
+	echo "raidlab: 等待设备节点..."
+	local i count
+	for i in $(seq 1 10); do
+		count="$(list_fake_disks | wc -l)"
+		[[ "$count" -ge "$RAIDLAB_NUM_TGTS" ]] && break
+		sleep 1
+	done
+	count="$(list_fake_disks | wc -l)"
+	if [[ "$count" -lt "$RAIDLAB_NUM_TGTS" ]]; then
+		echo "raidlab: 只出现 $count 块假盘,期望 $RAIDLAB_NUM_TGTS 块。" >&2
+		return 1
+	fi
+	echo "raidlab: 假盘就位:"
+	list_fake_disks | sed 's/^/  /'
+
+	# 后端磁盘列表有 100s 缓存(GetDiskList 走 LSBLK(false) 不吃缓存,但
+	# SMART 缓存与 udev 仍需时间),重试几轮再判定。
+	echo "raidlab: 核对后端 avail..."
+	for i in $(seq 1 6); do
+		if api_get /v1/disks 2>/dev/null | avail_disk_names | verify_avail_only_fake 2>/dev/null; then
+			echo "raidlab: 后端已看见全部假盘,且 avail 里没有真盘。"
+			echo
+			echo "raidlab: 测试台就绪。下一步按验收清单在 5273 预览页操作。"
+			return 0
+		fi
+		sleep 3
+	done
+
+	# 最后一次不吞 stderr,把准确诊断打给用户
+	echo "raidlab: 核对失败,详情:" >&2
+	api_get /v1/disks 2>/dev/null | avail_disk_names | verify_avail_only_fake
+	echo "raidlab: 另一个常见原因:标记文件 $RAIDLAB_PSEUDO_MARKER 没建成功" >&2
+	echo "         (后端只在它存在时才承认 scsi_debug 假盘),确认它确实存在。" >&2
+	return 1
+}
+
+# --- down ----------------------------------------------------------------------
+
+# cmd_down 步骤 2/4 用的临时文件路径。刻意声明为脚本级变量而不是函数局部
+# (下面 cmd_down 里不用 local tmp_fstab/tmp_mdconf):EXIT trap 在整个进程
+# 退出时才触发,那时函数早已 return、局部变量已经出栈——如果 trap 引用的是
+# 局部变量,在 set -u 下会踩到"unbound variable",反倒在正常收尾时打出一句
+# 吓人的错误。声明成脚本级、默认空字符串,trap 无论何时触发都能安全地
+# rm -f 一个可能为空的路径(rm -f 对空参数/已删除路径都是no-op)。
+RAIDLAB_TMP_FSTAB=""
+RAIDLAB_TMP_MDCONF=""
+
+# cmd_down —— 拆台并复核回基线。顺序不可调换:必须在停阵列「之前」核查成员
+# 并核对配置文件引用,停完阵列成员信息就没了。
+cmd_down() {
+	local md rc=0
+
+	# 中途被 Ctrl-C 打断(尤其是卡在 diff/sudo cp 期间)不留孤儿临时文件。
+	# 本脚本此前没有任何脚本级 trap,这里直接设,不存在覆盖谁的问题。
+	trap 'rm -f "$RAIDLAB_TMP_FSTAB" "$RAIDLAB_TMP_MDCONF" 2>/dev/null' EXIT
+
+	# 1. 核查所有在场阵列都是测试台建的
+	local arrays
+	arrays="$(md_arrays)"
+	if [[ -n "$arrays" ]]; then
+		while IFS= read -r md; do
+			[[ -n "$md" ]] || continue
+			assert_md_all_fake "$md" || return 1
+		done <<< "$arrays"
+	fi
+
+	# 1.5 前置断言:fstab_drop_snapshots / mdadm_conf_drop_arrays 都是按行
+	#     全局删除,只问"这行像不像该删的样子",不问"这个阵列有没有被核实
+	#     过"。上一步的 $arrays 只覆盖 md_arrays()(读 /proc/mdstat)能看到
+	#     的、已组装的阵列——一台有真实但未组装阵列的机器,该阵列不会出现
+	#     在 $arrays 里,上一步就没机会核查它,但它在 fstab/mdadm.conf 里的
+	#     条目照样会被两个过滤器删掉。这里把"配置文件提到的 md 设备,必须
+	#     都在 $arrays(已逐个核实为全假盘)里"当作继续往下走的前提,对不上
+	#     就拒绝、一个文件都不动——不管对不上是因为"这确实是别的阵列",还是
+	#     "同一阵列在两个文件里的写法不一致导致认不出来"。
+	local unverified
+	unverified="$(
+		{
+			[[ -r "$RAIDLAB_FSTAB" ]] && fstab_md_sources < "$RAIDLAB_FSTAB"
+			[[ -r "$RAIDLAB_MDADM_CONF" ]] && mdadm_conf_md_devices < "$RAIDLAB_MDADM_CONF"
+		} | devices_not_in_set "$arrays" | sort -u
+	)"
+	if [[ -n "$unverified" ]]; then
+		echo "raidlab: $RAIDLAB_FSTAB / $RAIDLAB_MDADM_CONF 里引用了未核实的 md 设备,拒绝继续,一个文件都不动:" >&2
+		echo "$unverified" | sed 's/^/  /' >&2
+		echo "         可能是台上有真实但未组装的阵列(md_arrays 看不到它,上一步没机会核查)," >&2
+		echo "         也可能是同一阵列在两处文件里的写法不一致(如 /dev/md127 与" >&2
+		echo "         /dev/md/<name>)导致认不出对应关系——两种情况都不能证明安全,请手动" >&2
+		echo "         核实后再清理。" >&2
+		return 1
+	fi
+
+	# 2. 清 fstab(在停阵列前做,条目里的 /dev/md* 此刻还有意义)
+	if [[ -r "$RAIDLAB_FSTAB" ]]; then
+		RAIDLAB_TMP_FSTAB="$(mktemp)"
+		fstab_drop_snapshots < "$RAIDLAB_FSTAB" > "$RAIDLAB_TMP_FSTAB"
+		if ! diff -q "$RAIDLAB_FSTAB" "$RAIDLAB_TMP_FSTAB" >/dev/null 2>&1; then
+			echo "raidlab: 清理 $RAIDLAB_FSTAB 里的 @snapshots 条目..."
+			# 备份失败(权限/磁盘满/只读文件系统)必须拒绝继续覆写——脚本
+			# 顶部只有 set -uo pipefail,没有 -e,这次 cp 若不显式检查返回码,
+			# 静默失败也挡不住下一行把清理后的内容写回原文件,"改前必留
+			# .bak"这条安全承诺就会被击穿(评审 Important #1)。
+			sudo cp "$RAIDLAB_FSTAB" "$RAIDLAB_FSTAB.raidlab.bak" || {
+				echo "raidlab: 备份 $RAIDLAB_FSTAB 失败,拒绝继续覆写。" >&2
+				rm -f "$RAIDLAB_TMP_FSTAB"
+				return 1
+			}
+			if ! sudo cp "$RAIDLAB_TMP_FSTAB" "$RAIDLAB_FSTAB"; then
+				echo "raidlab: 写回 $RAIDLAB_FSTAB 失败——它现在可能处于半写状态," >&2
+				echo "         备份已保存在 $RAIDLAB_FSTAB.raidlab.bak,请手动核对/恢复。" >&2
+				rc=1
+			fi
+		fi
+		rm -f "$RAIDLAB_TMP_FSTAB"
+		RAIDLAB_TMP_FSTAB=""
+	fi
+
+	# 3. 卸挂载点并停阵列。同一设备可能有多个独立挂载点(基础子卷 + 各自
+	#    的 .snapshots 子卷各占一行 fstab,共用同一个源设备)——用 -A
+	#    (unmount all mountpoints for the given device),而不是 -R(对某个
+	#    目录递归卸掉它下面的子挂载,处理的是另一种场景:目录树里嵌套的
+	#    bind mount,不是"同一设备的多个平级挂载点")。
+	if [[ -n "$arrays" ]]; then
+		while IFS= read -r md; do
+			[[ -n "$md" ]] || continue
+			echo "raidlab: 停止阵列 /dev/$md..."
+			sudo umount -A "/dev/$md" 2>/dev/null || true
+			sudo mdadm --stop "/dev/$md" || rc=1
+		done <<< "$arrays"
+	fi
+
+	# 4. 清 mdadm.conf
+	if [[ -r "$RAIDLAB_MDADM_CONF" ]]; then
+		RAIDLAB_TMP_MDCONF="$(mktemp)"
+		mdadm_conf_drop_arrays < "$RAIDLAB_MDADM_CONF" > "$RAIDLAB_TMP_MDCONF"
+		if ! diff -q "$RAIDLAB_MDADM_CONF" "$RAIDLAB_TMP_MDCONF" >/dev/null 2>&1; then
+			echo "raidlab: 清理 $RAIDLAB_MDADM_CONF 里的 ARRAY 行..."
+			# 同上:备份失败必须拒绝继续覆写,不能假装成功。
+			sudo cp "$RAIDLAB_MDADM_CONF" "$RAIDLAB_MDADM_CONF.raidlab.bak" || {
+				echo "raidlab: 备份 $RAIDLAB_MDADM_CONF 失败,拒绝继续覆写。" >&2
+				rm -f "$RAIDLAB_TMP_MDCONF"
+				return 1
+			}
+			if ! sudo cp "$RAIDLAB_TMP_MDCONF" "$RAIDLAB_MDADM_CONF"; then
+				echo "raidlab: 写回 $RAIDLAB_MDADM_CONF 失败——它现在可能处于半写状态," >&2
+				echo "         备份已保存在 $RAIDLAB_MDADM_CONF.raidlab.bak,请手动核对/恢复。" >&2
+				rc=1
+			fi
+		fi
+		rm -f "$RAIDLAB_TMP_MDCONF"
+		RAIDLAB_TMP_MDCONF=""
+	fi
+
+	# 5. 卸模块
+	if lsmod | grep -q '^scsi_debug'; then
+		echo "raidlab: 卸载 scsi_debug..."
+		sudo rmmod scsi_debug || rc=1
+	fi
+
+	# 6. 撤回后端白名单标记(在 rmmod 之后:模块还在的时候没必要急着撤)
+	if [[ -e "$RAIDLAB_PSEUDO_MARKER" ]]; then
+		echo "raidlab: 撤回假盘白名单标记 $RAIDLAB_PSEUDO_MARKER..."
+		sudo rm -f "$RAIDLAB_PSEUDO_MARKER" || rc=1
+	fi
+
+	# 7. 复核基线
+	echo "raidlab: 复核基线..."
+	local left
+	left="$(list_fake_disks)"
+	if [[ -n "$left" ]]; then
+		echo "raidlab: 仍有假盘残留:" >&2
+		echo "$left" >&2
+		rc=1
+	fi
+	if [[ -n "$(md_arrays)" ]]; then
+		echo "raidlab: 仍有 md 阵列残留:" >&2
+		md_arrays >&2
+		rc=1
+	fi
+
+	if [[ "$rc" -eq 0 ]]; then
+		echo "raidlab: 已回到基线。"
+	else
+		echo "raidlab: 拆台未完全成功,请跑 ./raidlab.sh status 查看。" >&2
+	fi
+	return "$rc"
+}
+
+# --- 分派 ------------------------------------------------------------------
+
+usage() {
+	cat <<'EOF'
+用法: ./raidlab.sh <子命令>
+
+  up      加载 scsi_debug 造假盘,核对后端能看见且只看见假盘
+  down    核查并停阵列、清 fstab/mdadm.conf、卸模块、复核回基线
+  status  打印假盘/mdstat/lsblk/后端 avail/快照卷/RAID 六视图(纯观测)
+
+环境变量(默认值):
+  RAIDLAB_NUM_TGTS=4          假盘数量
+  RAIDLAB_DEV_SIZE_MB=512     每块假盘大小
+  RAIDLAB_API_BASE=http://127.0.0.1
+  RAIDLAB_PSEUDO_MARKER=/etc/nimoos/allow-pseudo-disks
+  RAIDLAB_FSTAB=/etc/fstab
+  RAIDLAB_MDADM_CONF=/etc/mdadm/mdadm.conf
+EOF
+}
+
+main() {
+	case "${1:-}" in
+	up) cmd_up ;;
+	down) cmd_down ;;
+	status) cmd_status ;;
+	*)
+		usage >&2
+		return 1
+		;;
+	esac
+}
+
+# 执行守卫:被 source 时(测试)只定义函数,不跑 main。
+if [[ "${RAIDLAB_LIB_ONLY:-0}" != "1" ]]; then
+	main "$@"
+fi

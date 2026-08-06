@@ -1,0 +1,585 @@
+# Review package: eea4a85..HEAD
+
+## Commits
+95f0602 chore(home): 接手前遗留 WIP 原样入库(系统应用图标 + 搜索面板排序)
+
+## Files changed
+ src/home/apps/icons/ai.svg           |  31 +++++++
+ src/home/apps/icons/appstore.svg     | 169 +++++++++++++++++++++++++++++++++++
+ src/home/apps/icons/files.svg        | 125 ++++++++++++++++++++++++++
+ src/home/apps/icons/kvm.svg          |  54 +++++++++++
+ src/home/apps/icons/photos.svg       |  26 ++++++
+ src/home/apps/icons/settings.png     | Bin 0 -> 6418 bytes
+ src/home/apps/systemApps.ts          |  22 +++--
+ src/home/components/AppTile.test.ts  |   4 +-
+ src/home/components/SearchDialog.vue |   2 +-
+ src/home/stores/apps.ts              |   2 +-
+ 10 files changed, 424 insertions(+), 11 deletions(-)
+
+## Diff
+diff --git a/src/home/apps/icons/ai.svg b/src/home/apps/icons/ai.svg
+new file mode 100644
+index 0000000..72215aa
+--- /dev/null
++++ b/src/home/apps/icons/ai.svg
+@@ -0,0 +1,31 @@
++<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
++  <rect width="64" height="64" rx="12" fill="url(#paint0_linear_ai)"/>
++  <g filter="url(#filter0_f_ai)">
++    <rect x="8" y="8" width="48" height="48" rx="8" fill="white" fill-opacity="0.2"/>
++  </g>
++  <!-- Brain/AI circuit nodes -->
++  <circle cx="32" cy="22" r="5" fill="white" fill-opacity="0.95"/>
++  <circle cx="19" cy="32" r="4" fill="white" fill-opacity="0.85"/>
++  <circle cx="45" cy="32" r="4" fill="white" fill-opacity="0.85"/>
++  <circle cx="24" cy="44" r="3.5" fill="white" fill-opacity="0.75"/>
++  <circle cx="40" cy="44" r="3.5" fill="white" fill-opacity="0.75"/>
++  <!-- Connection lines -->
++  <line x1="32" y1="27" x2="21" y2="29" stroke="white" stroke-opacity="0.6" stroke-width="1.5" stroke-linecap="round"/>
++  <line x1="32" y1="27" x2="43" y2="29" stroke="white" stroke-opacity="0.6" stroke-width="1.5" stroke-linecap="round"/>
++  <line x1="20" y1="36" x2="24" y2="41" stroke="white" stroke-opacity="0.5" stroke-width="1.5" stroke-linecap="round"/>
++  <line x1="44" y1="36" x2="40" y2="41" stroke="white" stroke-opacity="0.5" stroke-width="1.5" stroke-linecap="round"/>
++  <line x1="27" y1="44" x2="37" y2="44" stroke="white" stroke-opacity="0.4" stroke-width="1.5" stroke-linecap="round"/>
++  <line x1="22" y1="33" x2="37.5" y2="43" stroke="white" stroke-opacity="0.3" stroke-width="1" stroke-linecap="round"/>
++  <line x1="42" y1="33" x2="26.5" y2="43" stroke="white" stroke-opacity="0.3" stroke-width="1" stroke-linecap="round"/>
++  <defs>
++    <filter id="filter0_f_ai" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
++      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
++      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++      <feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur"/>
++    </filter>
++    <linearGradient id="paint0_linear_ai" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
++      <stop stop-color="#0EA5E9"/>
++      <stop offset="1" stop-color="#6366F1"/>
++    </linearGradient>
++  </defs>
++</svg>
+diff --git a/src/home/apps/icons/appstore.svg b/src/home/apps/icons/appstore.svg
+new file mode 100644
+index 0000000..8bb66f5
+--- /dev/null
++++ b/src/home/apps/icons/appstore.svg
+@@ -0,0 +1,169 @@
++<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<rect width="64" height="64" rx="12" fill="url(#paint0_linear_254_4641)"/>
++	<g filter="url(#filter0_f_254_4641)">
++		<rect x="13" y="13" width="17" height="17" rx="4" fill="#273D5C" fill-opacity="0.15"/>
++	</g>
++	<g filter="url(#filter1_f_254_4641)">
++		<rect x="13" y="34" width="17" height="17" rx="4" fill="#273D5C" fill-opacity="0.15"/>
++	</g>
++	<g filter="url(#filter2_f_254_4641)">
++		<rect x="34" y="34" width="17" height="17" rx="4" fill="#273D5C" fill-opacity="0.15"/>
++	</g>
++	<g filter="url(#filter3_f_254_4641)">
++		<rect x="34" y="13" width="17" height="17" rx="4" fill="#273D5C" fill-opacity="0.15"/>
++	</g>
++	<g filter="url(#filter4_di_254_4641)">
++		<rect x="13" y="13" width="17" height="17" rx="4" fill="white"/>
++	</g>
++	<g filter="url(#filter5_di_254_4641)">
++		<rect x="34" y="13" width="17" height="17" rx="4" fill="white"/>
++	</g>
++	<g filter="url(#filter6_di_254_4641)">
++		<rect x="13" y="34" width="17" height="17" rx="4" fill="white"/>
++	</g>
++	<g filter="url(#filter7_di_254_4641)">
++		<rect x="34" y="34" width="17" height="17" rx="4" fill="white"/>
++	</g>
++	<g filter="url(#filter8_f_254_4641)">
++		<rect x="15.5" y="15.5" width="12" height="12" fill="white" fill-opacity="0.5"/>
++	</g>
++	<g filter="url(#filter9_f_254_4641)">
++		<rect x="36.5" y="15.5" width="12" height="12" fill="white" fill-opacity="0.5"/>
++	</g>
++	<g filter="url(#filter10_f_254_4641)">
++		<rect x="15.5" y="36.5" width="12" height="12" fill="white" fill-opacity="0.5"/>
++	</g>
++	<g filter="url(#filter11_f_254_4641)">
++		<rect x="36.5" y="36.5" width="12" height="12" fill="white" fill-opacity="0.5"/>
++	</g>
++	<defs>
++		<filter id="filter0_f_254_4641" x="5" y="5" width="33" height="33" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter1_f_254_4641" x="5" y="26" width="33" height="33" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter2_f_254_4641" x="26" y="26" width="33" height="33" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter3_f_254_4641" x="26" y="5" width="33" height="33" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter4_di_254_4641" x="9" y="12" width="25" height="25" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="3"/>
++			<feGaussianBlur stdDeviation="2"/>
++			<feComposite in2="hardAlpha" operator="out"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.0717014 0 0 0 0 0.16225 0 0 0 0 0.245833 0 0 0 0.2 0"/>
++			<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_254_4641"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_254_4641" result="shape"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="-1"/>
++			<feGaussianBlur stdDeviation="1.5"/>
++			<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.10599 0 0 0 0 0.254536 0 0 0 0 0.4625 0 0 0 0.4 0"/>
++			<feBlend mode="normal" in2="shape" result="effect2_innerShadow_254_4641"/>
++		</filter>
++		<filter id="filter5_di_254_4641" x="30" y="12" width="25" height="25" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="3"/>
++			<feGaussianBlur stdDeviation="2"/>
++			<feComposite in2="hardAlpha" operator="out"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.0717014 0 0 0 0 0.16225 0 0 0 0 0.245833 0 0 0 0.2 0"/>
++			<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_254_4641"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_254_4641" result="shape"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="-1"/>
++			<feGaussianBlur stdDeviation="1.5"/>
++			<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.10599 0 0 0 0 0.254536 0 0 0 0 0.4625 0 0 0 0.4 0"/>
++			<feBlend mode="normal" in2="shape" result="effect2_innerShadow_254_4641"/>
++		</filter>
++		<filter id="filter6_di_254_4641" x="9" y="33" width="25" height="25" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="3"/>
++			<feGaussianBlur stdDeviation="2"/>
++			<feComposite in2="hardAlpha" operator="out"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.0717014 0 0 0 0 0.16225 0 0 0 0 0.245833 0 0 0 0.2 0"/>
++			<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_254_4641"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_254_4641" result="shape"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="-1"/>
++			<feGaussianBlur stdDeviation="1.5"/>
++			<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.10599 0 0 0 0 0.254536 0 0 0 0 0.4625 0 0 0 0.4 0"/>
++			<feBlend mode="normal" in2="shape" result="effect2_innerShadow_254_4641"/>
++		</filter>
++		<filter id="filter7_di_254_4641" x="30" y="33" width="25" height="25" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="3"/>
++			<feGaussianBlur stdDeviation="2"/>
++			<feComposite in2="hardAlpha" operator="out"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.0717014 0 0 0 0 0.16225 0 0 0 0 0.245833 0 0 0 0.2 0"/>
++			<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_254_4641"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_254_4641" result="shape"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="-1"/>
++			<feGaussianBlur stdDeviation="1.5"/>
++			<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.10599 0 0 0 0 0.254536 0 0 0 0 0.4625 0 0 0 0.4 0"/>
++			<feBlend mode="normal" in2="shape" result="effect2_innerShadow_254_4641"/>
++		</filter>
++		<filter id="filter8_f_254_4641" x="7.5" y="7.5" width="28" height="28" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter9_f_254_4641" x="28.5" y="7.5" width="28" height="28" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter10_f_254_4641" x="7.5" y="28.5" width="28" height="28" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<filter id="filter11_f_254_4641" x="28.5" y="28.5" width="28" height="28" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_254_4641"/>
++		</filter>
++		<linearGradient id="paint0_linear_254_4641" x1="28.5" y1="1" x2="44" y2="61" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#40DFFF"/>
++			<stop offset="1" stop-color="#3F53FE"/>
++		</linearGradient>
++	</defs>
++</svg>
+diff --git a/src/home/apps/icons/files.svg b/src/home/apps/icons/files.svg
+new file mode 100644
+index 0000000..72f1cf7
+--- /dev/null
++++ b/src/home/apps/icons/files.svg
+@@ -0,0 +1,125 @@
++<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
++	<rect width="64" height="64" rx="12" fill="url(#paint0_linear_171_4402)"/>
++	<g filter="url(#filter0_f_171_4402)">
++		<rect x="8" y="8" width="48" height="48" rx="8" fill="white" fill-opacity="0.2"/>
++	</g>
++	<g filter="url(#filter1_f_171_4402)">
++		<path d="M10 17C10 14.7909 11.7909 13 14 13H23.3937C24.2072 13 24.9859 13.3304 25.5512 13.9154L28.0385 16.4897C28.2269 16.6847 28.4865 16.7949 28.7576 16.7949H50C52.2091 16.7949 54 18.5857 54 20.7949V46C54 48.2091 52.2091 50 50 50H14C11.7909 50 10 48.2091 10 46V17Z"
++			  fill="url(#paint1_linear_171_4402)" fill-opacity="0.3"/>
++	</g>
++	<g filter="url(#filter2_f_171_4402)">
++		<path d="M10 45H54V48C54 49.6569 52.6569 51 51 51H13C11.3431 51 10 49.6569 10 48V45Z" fill="#114775"
++			  fill-opacity="0.3"/>
++	</g>
++	<g filter="url(#filter3_d_171_4402)">
++		<path d="M10 17C10 14.7909 11.7909 13 14 13H23.347C24.1879 13 24.9902 13.3529 25.5584 13.9728L28.0361 16.6757C28.2255 16.8824 28.4929 17 28.7732 17H50C52.2091 17 54 18.7909 54 21V46C54 48.2091 52.2091 50 50 50H14C11.7909 50 10 48.2091 10 46V17Z"
++			  fill="url(#paint2_linear_171_4402)"/>
++	</g>
++	<g filter="url(#filter4_f_171_4402)">
++		<path d="M11 20C11 18.8954 11.8954 18 13 18H51C52.1046 18 53 18.8954 53 20V49H11V20Z"
++			  fill="url(#paint3_linear_171_4402)" fill-opacity="0.5"/>
++	</g>
++	<g filter="url(#filter5_i_171_4402)">
++		<path d="M12 21C12 19.8954 12.8954 19 14 19H50C51.1046 19 52 19.8954 52 21V46C52 47.1046 51.1046 48 50 48H14C12.8954 48 12 47.1046 12 46V21Z"
++			  fill="url(#paint4_linear_171_4402)"/>
++	</g>
++	<g filter="url(#filter6_i_171_4402)">
++		<path d="M8.15207 26.1417C8.06989 24.9842 8.9867 24 10.147 24H23.1952C24.1139 24 25.0046 23.6838 25.7176 23.1045L27.481 21.6717C28.0158 21.2372 28.6838 21 29.3728 21H53.8686C55.0232 21 55.9379 21.9748 55.8646 23.1271L54.3923 46.2541C54.2582 48.3603 52.5109 50 50.4004 50H13.5722C11.473 50 9.73093 48.3772 9.58225 46.2833L8.15207 26.1417Z"
++			  fill="url(#paint5_linear_171_4402)"/>
++	</g>
++	<defs>
++		<filter id="filter0_f_171_4402" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_171_4402"/>
++		</filter>
++		<filter id="filter1_f_171_4402" x="0" y="3" width="64" height="57" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="5" result="effect1_foregroundBlur_171_4402"/>
++		</filter>
++		<filter id="filter2_f_171_4402" x="6" y="41" width="52" height="14" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_171_4402"/>
++		</filter>
++		<filter id="filter3_d_171_4402" x="6" y="12" width="52" height="45" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="3"/>
++			<feGaussianBlur stdDeviation="2"/>
++			<feComposite in2="hardAlpha" operator="out"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.144219 0 0 0 0 0.325109 0 0 0 0 0.4875 0 0 0 0.2 0"/>
++			<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_171_4402"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_171_4402" result="shape"/>
++		</filter>
++		<filter id="filter4_f_171_4402" x="7" y="14" width="50" height="39" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_171_4402"/>
++		</filter>
++		<filter id="filter5_i_171_4402" x="12" y="19" width="40" height="30" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="1"/>
++			<feGaussianBlur stdDeviation="0.5"/>
++			<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 0.9555 0 0 0 0 0.967538 0 0 0 0 0.975 0 0 0 1 0"/>
++			<feBlend mode="normal" in2="shape" result="effect1_innerShadow_171_4402"/>
++		</filter>
++		<filter id="filter6_i_171_4402" x="8.14697" y="21" width="47.7217" height="30" filterUnits="userSpaceOnUse"
++				color-interpolation-filters="sRGB">
++			<feFlood flood-opacity="0" result="BackgroundImageFix"/>
++			<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++			<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
++						   result="hardAlpha"/>
++			<feOffset dy="1"/>
++			<feGaussianBlur stdDeviation="1.5"/>
++			<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
++			<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.35 0"/>
++			<feBlend mode="normal" in2="shape" result="effect1_innerShadow_171_4402"/>
++		</filter>
++		<linearGradient id="paint0_linear_171_4402" x1="32" y1="4.65656e-09" x2="32" y2="64"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#F7FAFC"/>
++			<stop offset="0.885386" stop-color="#E7ECF2"/>
++			<stop offset="1" stop-color="#DADFE6"/>
++		</linearGradient>
++		<linearGradient id="paint1_linear_171_4402" x1="16.4167" y1="15.8462" x2="34.0339" y2="35.1685"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#26629E"/>
++			<stop offset="1" stop-color="#15395E"/>
++		</linearGradient>
++		<linearGradient id="paint2_linear_171_4402" x1="16.4167" y1="15.8462" x2="34.0339" y2="35.1685"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#1577D9"/>
++			<stop offset="1" stop-color="#0B5FB3"/>
++		</linearGradient>
++		<linearGradient id="paint3_linear_171_4402" x1="32" y1="18" x2="32" y2="37.375" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0A4E92"/>
++			<stop offset="1" stop-color="white"/>
++			<stop offset="1" stop-color="#002E5C"/>
++		</linearGradient>
++		<linearGradient id="paint4_linear_171_4402" x1="32" y1="19.9063" x2="32" y2="37.125"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="white"/>
++			<stop offset="0.282519" stop-color="#B6CBD7"/>
++			<stop offset="1" stop-color="white"/>
++			<stop offset="1" stop-color="#A3BBCB"/>
++		</linearGradient>
++		<linearGradient id="paint5_linear_171_4402" x1="18.1538" y1="25.6774" x2="40.5775" y2="45.9598"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#28B2FF"/>
++			<stop offset="1" stop-color="#1B89E6"/>
++		</linearGradient>
++	</defs>
++</svg>
+diff --git a/src/home/apps/icons/kvm.svg b/src/home/apps/icons/kvm.svg
+new file mode 100644
+index 0000000..ece9eb2
+--- /dev/null
++++ b/src/home/apps/icons/kvm.svg
+@@ -0,0 +1,54 @@
++<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
++  <rect width="64" height="64" rx="12" fill="url(#paint0_linear_kvm)"/>
++  <g filter="url(#filter0_f_kvm)">
++    <rect x="8" y="8" width="48" height="48" rx="8" fill="white" fill-opacity="0.2"/>
++  </g>
++  <!-- Monitor frame -->
++  <g filter="url(#filter1_d_kvm)">
++    <rect x="12" y="14" width="40" height="28" rx="3" fill="url(#paint1_linear_kvm)"/>
++    <rect x="14" y="16" width="36" height="24" rx="2" fill="url(#paint2_linear_kvm)"/>
++  </g>
++  <!-- Screen content: terminal lines -->
++  <rect x="17" y="20" width="14" height="2" rx="1" fill="white" fill-opacity="0.9"/>
++  <rect x="17" y="24" width="20" height="2" rx="1" fill="white" fill-opacity="0.7"/>
++  <rect x="17" y="28" width="10" height="2" rx="1" fill="white" fill-opacity="0.7"/>
++  <rect x="17" y="32" width="16" height="2" rx="1" fill="white" fill-opacity="0.5"/>
++  <!-- Cursor blink -->
++  <rect x="31" y="20" width="3" height="2" rx="0.5" fill="white"/>
++  <!-- Stand -->
++  <rect x="28" y="42" width="8" height="5" rx="1" fill="url(#paint3_linear_kvm)"/>
++  <rect x="24" y="47" width="16" height="3" rx="2" fill="url(#paint3_linear_kvm)"/>
++  <defs>
++    <filter id="filter0_f_kvm" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
++      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
++      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++      <feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur"/>
++    </filter>
++    <filter id="filter1_d_kvm" x="8" y="12" width="48" height="38" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
++      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
++      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
++      <feOffset dy="2"/>
++      <feGaussianBlur stdDeviation="2"/>
++      <feComposite in2="hardAlpha" operator="out"/>
++      <feColorMatrix type="matrix" values="0 0 0 0 0.3 0 0 0 0 0.1 0 0 0 0 0.5 0 0 0 0.25 0"/>
++      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
++      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
++    </filter>
++    <linearGradient id="paint0_linear_kvm" x1="32" y1="0" x2="32" y2="64" gradientUnits="userSpaceOnUse">
++      <stop stop-color="#A875FF"/>
++      <stop offset="1" stop-color="#6B2FD9"/>
++    </linearGradient>
++    <linearGradient id="paint1_linear_kvm" x1="12" y1="14" x2="52" y2="42" gradientUnits="userSpaceOnUse">
++      <stop stop-color="#C9A0FF" stop-opacity="0.5"/>
++      <stop offset="1" stop-color="#7C3FE4" stop-opacity="0.3"/>
++    </linearGradient>
++    <linearGradient id="paint2_linear_kvm" x1="14" y1="16" x2="50" y2="40" gradientUnits="userSpaceOnUse">
++      <stop stop-color="#1A0A3D"/>
++      <stop offset="1" stop-color="#0D1B2E"/>
++    </linearGradient>
++    <linearGradient id="paint3_linear_kvm" x1="32" y1="42" x2="32" y2="50" gradientUnits="userSpaceOnUse">
++      <stop stop-color="#C9A0FF" stop-opacity="0.6"/>
++      <stop offset="1" stop-color="#8950F2" stop-opacity="0.4"/>
++    </linearGradient>
++  </defs>
++</svg>
+diff --git a/src/home/apps/icons/photos.svg b/src/home/apps/icons/photos.svg
+new file mode 100644
+index 0000000..8416da7
+--- /dev/null
++++ b/src/home/apps/icons/photos.svg
+@@ -0,0 +1,26 @@
++<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
++  <rect width="64" height="64" rx="12" fill="url(#paint0_linear_photos)"/>
++  <g filter="url(#filter0_f_photos)">
++    <rect x="8" y="8" width="48" height="48" rx="8" fill="white" fill-opacity="0.2"/>
++  </g>
++  <!-- Photo frame outer -->
++  <rect x="13" y="16" width="38" height="32" rx="4" fill="white" fill-opacity="0.15" stroke="white" stroke-opacity="0.6" stroke-width="1.5"/>
++  <!-- Mountain landscape inside frame -->
++  <path d="M13 36 L22 24 L30 32 L37 20 L51 36 L51 44 Q51 48 47 48 L17 48 Q13 48 13 44 Z" fill="white" fill-opacity="0.25"/>
++  <path d="M13 40 L22 28 L30 36 L37 24 L51 40 L51 44 Q51 48 47 48 L17 48 Q13 48 13 44 Z" fill="white" fill-opacity="0.45"/>
++  <!-- Sun circle -->
++  <circle cx="42" cy="25" r="4" fill="white" fill-opacity="0.8"/>
++  <!-- Small photo stack hint (bottom right) -->
++  <rect x="38" y="40" width="14" height="11" rx="2" fill="white" fill-opacity="0" stroke="white" stroke-opacity="0" stroke-width="0"/>
++  <defs>
++    <filter id="filter0_f_photos" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
++      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
++      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
++      <feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur"/>
++    </filter>
++    <linearGradient id="paint0_linear_photos" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
++      <stop stop-color="#8950F2"/>
++      <stop offset="1" stop-color="#C084FC"/>
++    </linearGradient>
++  </defs>
++</svg>
+diff --git a/src/home/apps/icons/settings.png b/src/home/apps/icons/settings.png
+new file mode 100644
+index 0000000..e711bc3
+Binary files /dev/null and b/src/home/apps/icons/settings.png differ
+diff --git a/src/home/apps/systemApps.ts b/src/home/apps/systemApps.ts
+index 71b9304..711c3ba 100644
+--- a/src/home/apps/systemApps.ts
++++ b/src/home/apps/systemApps.ts
+@@ -1,22 +1,30 @@
++import iconFiles from './icons/files.svg'
++import iconPhotos from './icons/photos.svg'
++import iconAi from './icons/ai.svg'
++import iconVm from './icons/kvm.svg'
++import iconSettings from './icons/settings.png'
++import iconAppstore from './icons/appstore.svg'
++
+ // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
+-export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string }
++// `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
++export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string; icon: string }
+ 
+ const G = {
+   folder: '<path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1 1.3h7.1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"/>',
+   photos: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="8.8" cy="9.3" r="1.5"/><path d="m4 17 5-4 3.5 2.6L16 13l4.5 3.5"/>',
+   vm: '<rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M8 19.5h8M12 15.5v4"/>',
+   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.8m0 13.4v2.8M2.5 12h2.8m13.4 0h2.8M5.1 5.1l2 2m9.8 9.8 2 2m0-13.8-2 2M7.1 16.9l-2 2"/>',
+   bag: '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>',
+   ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
+ }
+ 
+ export const SYSTEM_APPS: SystemApp[] = [
+-  { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder },
+-  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos },
+-  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai },
+-  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm },
+-  { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear },
+-  { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag },
++  { key: 'files', name: 'Files', label: 'appFiles', cls: 'ic-files', glyph: G.folder, icon: iconFiles },
++  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },
++  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },
++  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm },
++  { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
++  { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },
+ ]
+ 
+ export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)
+diff --git a/src/home/components/AppTile.test.ts b/src/home/components/AppTile.test.ts
+index 51e99b7..537b28c 100644
+--- a/src/home/components/AppTile.test.ts
++++ b/src/home/components/AppTile.test.ts
+@@ -2,23 +2,23 @@ import { describe, it, expect, beforeEach } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useAppsStore } from '../stores/apps'
+ import AppTile from './AppTile.vue'
+ import type { LayoutItem } from '../grid/types'
+ 
+ const item = (key: string): LayoutItem => ({ id: 'i', kind: 'app', key, c: 1, r: 1, w: 1, h: 1 })
+ 
+ describe('AppTile', () => {
+   beforeEach(() => setActivePinia(createPinia()))
+-  it('renders an inline glyph + label for a system app', () => {
++  it('renders the bundled Vue2 icon img + label for a system app', () => {
+     const w = mount(AppTile, { props: { item: item('files') } })
+-    expect(w.find('svg').exists()).toBe(true)
++    expect(w.find('img').attributes('src')).toContain('files.svg')
+     expect(w.text()).toContain('文件')
+   })
+   it('renders a remote img for a container app with icon', () => {
+     const s = useAppsStore()
+     s.setApps([{ name: 'jellyfin', title: { zh_cn: '影音' }, icon: 'http://x/i.png' }] as any)
+     const w = mount(AppTile, { props: { item: item('jellyfin') } })
+     expect(w.find('img').attributes('src')).toBe('http://x/i.png')
+     expect(w.text()).toContain('影音')
+   })
+   it('dims a non-system stopped app but not a running one, undefined-status one, or a system app', () => {
+diff --git a/src/home/components/SearchDialog.vue b/src/home/components/SearchDialog.vue
+index f2f56a6..049617d 100644
+--- a/src/home/components/SearchDialog.vue
++++ b/src/home/components/SearchDialog.vue
+@@ -117,22 +117,22 @@ const DOCS: DocResult[] = [
+ 
+ // 相册媒体（图片 + 视频合并），按准确率排序。真实文件在 /DATA/Gallery/Fishing/。
+ // 视频用预抽的海报帧（/app/demo/），图片走缩略图接口。
+ const GALLERY = '/DATA/Gallery/Fishing'
+ const VIDEO_POSTER = import.meta.env.BASE_URL + 'demo/fish_video_poster.jpg'
+ // ocr=true 的媒体表示「靠 OCR 文字识别命中」——徽标显示 "OCR" 而非准确率百分比。
+ interface Media { name: string; path: string; accuracy: number; isVideo?: boolean; ocr?: boolean }
+ const ALBUM: Media[] = [
+   // 收据图片：靠图片内 OCR 文字命中（放第一张，徽标标 OCR）。真实文件在 /DATA/Documents/life/。
+   { name: "Nick's receipt.jpg", path: "/DATA/Documents/life/Nick's receipt.jpg", accuracy: 0, ocr: true },
+-  { name: '16240722_2160_3840_30fps.mp4', path: `${GALLERY}/16240722_2160_3840_30fps.mp4`, accuracy: 95, isVideo: true },
+   { name: 'images.jpg', path: `${GALLERY}/images.jpg`, accuracy: 98 },
++  { name: '16240722_2160_3840_30fps.mp4', path: `${GALLERY}/16240722_2160_3840_30fps.mp4`, accuracy: 95, isVideo: true },
+   { name: 'images (2).jpg', path: `${GALLERY}/images (2).jpg`, accuracy: 94 },
+   { name: 'images (1).jpg', path: `${GALLERY}/images (1).jpg`, accuracy: 90 },
+   { name: 'images (3).jpg', path: `${GALLERY}/images (3).jpg`, accuracy: 85 },
+ ]
+ 
+ function mediaThumb(m: Media): string {
+   return m.isVideo ? VIDEO_POSTER : service.image.thumbUrl(m.path)
+ }
+ function onThumbErr(e: Event, m: Media): void {
+   const img = e.target as HTMLImageElement
+diff --git a/src/home/stores/apps.ts b/src/home/stores/apps.ts
+index 7a43917..df153b7 100644
+--- a/src/home/stores/apps.ts
++++ b/src/home/stores/apps.ts
+@@ -19,21 +19,21 @@ export interface AppMeta {
+ }
+ 
+ export const useAppsStore = defineStore('home-apps', () => {
+   const apps = ref<Record<string, AppMeta>>({})
+   const order = ref<string[]>([])
+ 
+   function setApps(container: AppGridItem[]) {
+     const map: Record<string, AppMeta> = {}
+     const ord: string[] = []
+     SYSTEM_APPS.forEach((s) => {
+-      map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: null, system: true, status: 'running' }
++      map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
+       ord.push(s.key)
+     })
+     ;(container || []).forEach((a) => {
+       const key = a.name
+       if (!key || map[key]) return // 不覆盖系统应用
+       // 标题多语言键大小写不统一:应用市场装的 v2 应用来自 store 的 title 用 `en_US`(大写),
+       // 而 v1/容器走 DefaultLanguage=`en_us`(小写)。逐一容忍再回退到任意可用值,最后才用 id。
+       const t = a.title || {}
+       const title = t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || a.name
+       // desktop 应用的相对 icon 由应用自身伺服(spec §3)

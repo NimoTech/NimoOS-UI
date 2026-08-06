@@ -1,0 +1,236 @@
+# Review package: eca2cb7..d025c7b
+
+## Commits
+d025c7b feat(storage): 迁移 RAID 级别元数据与纯计算(P4 T1,不含故障模拟器)
+
+## Files changed
+ src/storage/util/raidLevels.test.ts |  73 +++++++++++++++++++
+ src/storage/util/raidLevels.ts      | 140 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 213 insertions(+)
+
+## Diff
+diff --git a/src/storage/util/raidLevels.test.ts b/src/storage/util/raidLevels.test.ts
+new file mode 100644
+index 0000000..f6c242c
+--- /dev/null
++++ b/src/storage/util/raidLevels.test.ts
+@@ -0,0 +1,73 @@
++import { describe, it, expect } from 'vitest'
++import { RAID_LEVELS, recommendRaidLevel, isDiskAtRisk, groupColorKey, diskSpecKey, type RaidDisk } from './raidLevels'
++
++describe('RAID_LEVELS', () => {
++  it('含 5 个级别,顺序 0,1,5,6,10', () => {
++    expect(RAID_LEVELS.map(l => l.id)).toEqual([0, 1, 5, 6, 10])
++  })
++  it('每级最少盘数逐字对齐 Vue2', () => {
++    const min = Object.fromEntries(RAID_LEVELS.map(l => [l.id, l.min]))
++    expect(min).toEqual({ 0: 2, 1: 2, 5: 3, 6: 4, 10: 4 })
++  })
++  it('容量公式:4 盘 × 1000 → RAID0=4000 / RAID1=1000 / RAID5=3000 / RAID6=2000 / RAID10=2000', () => {
++    const cap = (id: number) => RAID_LEVELS.find(l => l.id === id)!.capacity(4, 1000)
++    expect(cap(0)).toBe(4000)
++    expect(cap(1)).toBe(1000)
++    expect(cap(5)).toBe(3000)
++    expect(cap(6)).toBe(2000)
++    expect(cap(10)).toBe(2000)
++  })
++  it('布局角色数量随盘数:RAID5 3盘 = 2 data + 1 parity', () => {
++    const roles = RAID_LEVELS.find(l => l.id === 5)!.layout(3)
++    expect(roles.filter(r => r === 'data')).toHaveLength(2)
++    expect(roles.filter(r => r === 'parity')).toHaveLength(1)
++  })
++})
++
++describe('recommendRaidLevel', () => {
++  it('2盘→1, 3盘→5, 4盘→10, 6盘→10, 5盘→5', () => {
++    expect(recommendRaidLevel(2)).toBe(1)
++    expect(recommendRaidLevel(3)).toBe(5)
++    expect(recommendRaidLevel(4)).toBe(10)
++    expect(recommendRaidLevel(6)).toBe(10)
++    expect(recommendRaidLevel(5)).toBe(5)
++  })
++})
++
++describe('isDiskAtRisk', () => {
++  it('health 字符串 "false" 视为风险,其余不是', () => {
++    expect(isDiskAtRisk({ path: '/dev/sda', size: 1, health: 'false' } as RaidDisk)).toBe(true)
++    expect(isDiskAtRisk({ path: '/dev/sda', size: 1, health: 'true' } as RaidDisk)).toBe(false)
++    expect(isDiskAtRisk({ path: '/dev/sda', size: 1 } as RaidDisk)).toBe(false)
++  })
++})
++
++// groupColorKey/diskSpecKey 未在 brief 给定的测试代码块中出现,但属于 Produces 接口的一部分——
++// 补测以确保分组语义 key 行为正确、且绝不泄露字面色。
++describe('groupColorKey', () => {
++  const diskA: RaidDisk = { path: '/dev/sda', size: 1000, disk_type: 'ssd' }
++  const diskB: RaidDisk = { path: '/dev/sdb', size: 2000, disk_type: 'hdd' }
++
++  it('diskSpecKey 按 size|disk_type 组合', () => {
++    expect(diskSpecKey(diskA)).toBe('1000|ssd')
++    expect(diskSpecKey({ path: '/dev/sdc', size: 500 } as RaidDisk)).toBe('500|')
++  })
++
++  it('按 groups 中的位置返回分组语义 key,不返回字面色', () => {
++    const groups = [{ key: diskSpecKey(diskA) }, { key: diskSpecKey(diskB) }]
++    expect(groupColorKey(diskA, groups)).toBe('group-a')
++    expect(groupColorKey(diskB, groups)).toBe('group-b')
++  })
++
++  it('未匹配任何分组时回退到第一个语义 key', () => {
++    const unknown: RaidDisk = { path: '/dev/sdz', size: 999, disk_type: 'nvme' }
++    expect(groupColorKey(unknown, [{ key: diskSpecKey(diskA) }])).toBe('group-a')
++  })
++
++  it('返回值不含字面色特征(不以 # 开头,不含 rgb)', () => {
++    const groups = [{ key: diskSpecKey(diskA) }]
++    const result = groupColorKey(diskA, groups)
++    expect(result).not.toMatch(/^#/)
++    expect(result).not.toMatch(/rgb/i)
++  })
++})
+diff --git a/src/storage/util/raidLevels.ts b/src/storage/util/raidLevels.ts
+new file mode 100644
+index 0000000..287b068
+--- /dev/null
++++ b/src/storage/util/raidLevels.ts
+@@ -0,0 +1,140 @@
++// 从 NimoOS-UI/src/utils/raidUtils.js 逐字移植(P4);故障模拟器 survival()/rebuildable() 推迟。
++// 迁移范围:RAID_LEVELS(min/tolerance/read/write/cost/desc/usecase/capacity()/layout(),raidUtils.js:1-76)、
++// recommendRaidLevel(raidUtils.js:158-166)、isDiskAtRisk(raidUtils.js:108-110)。
++// 混规格分组配色(groupDisksBySpec L148-156 + assignGroupColors/GROUP_COLOR_COUNT L168-178)改造为
++// groupColorKey:输出分组语义 key('group-a'..'group-e'),不输出字面色 —— 由组件层再映射到 --nrm-*/--accent 等 token。
++// 未迁移(有意推迟,故障模拟器):survival()、rebuildable()。
++
++// 本地最小磁盘视图类型,对齐 Vue2 disk.path/size/disk_type/health 读法(raidView.ts 未导出等价类型)。
++export interface RaidDisk {
++  path: string
++  size: number
++  disk_type?: string
++  health?: string
++}
++
++export type RaidRole = 'data' | 'mirror' | 'parity' | 'parity2'
++
++export interface RaidLevelInfo {
++  id: number
++  name: string
++  min: number
++  tolerance: string
++  read: number
++  write: number
++  cost: number
++  desc: string
++  usecase: string
++  capacity: (n: number, sizeBytes: number) => number
++  layout: (n: number) => RaidRole[]
++}
++
++export const RAID_LEVELS: RaidLevelInfo[] = [
++  {
++    id: 0,
++    name: 'RAID 0',
++    min: 2,
++    // Vue2 原始 tolerance 为数字 0(raidUtils.js:4)。
++    tolerance: '0',
++    read: 5,
++    write: 5,
++    cost: 5,
++    desc: 'RAID 0 Description',
++    usecase: 'Video scratch disks, caches, render farms',
++    capacity: (n, s) => n * s,
++    layout: (n) => Array.from({ length: n }, () => 'data'),
++  },
++  {
++    id: 1,
++    name: 'RAID 1',
++    min: 2,
++    // Vue2 原始 tolerance 为函数 (n) => n - 1(raidUtils.js:15)。
++    tolerance: 'n-1',
++    read: 4,
++    write: 2,
++    cost: 1,
++    desc: 'RAID 1 Description',
++    usecase: 'Photo library, personal NAS, boot volumes',
++    capacity: (_n, s) => s,
++    layout: (n) => Array.from({ length: n }, (_, i) => (i === 0 ? 'data' : 'mirror')),
++  },
++  {
++    id: 5,
++    name: 'RAID 5',
++    min: 3,
++    tolerance: '1',
++    read: 4,
++    write: 3,
++    cost: 3,
++    desc: 'RAID 5 Description',
++    usecase: 'General NAS, media servers, small business',
++    capacity: (n, s) => Math.max(0, (n - 1) * s),
++    layout: (n) => Array.from({ length: n }, (_, i) => (i === n - 1 ? 'parity' : 'data')),
++  },
++  {
++    id: 6,
++    name: 'RAID 6',
++    min: 4,
++    tolerance: '2',
++    read: 4,
++    write: 2,
++    cost: 3,
++    desc: 'RAID 6 Description',
++    usecase: 'Large arrays, archives, anything important',
++    capacity: (n, s) => Math.max(0, (n - 2) * s),
++    layout: (n) =>
++      Array.from({ length: n }, (_, i) => (i === n - 1 ? 'parity' : i === n - 2 ? 'parity2' : 'data')),
++  },
++  {
++    id: 10,
++    name: 'RAID 10',
++    min: 4,
++    // Vue2 原始 tolerance 为字符串 'half'(raidUtils.js:50)。
++    tolerance: 'half',
++    read: 5,
++    write: 4,
++    cost: 2,
++    desc: 'RAID 10 Description',
++    usecase: 'Databases, virtualization, heavy-write loads',
++    capacity: (n, s) => Math.floor(n / 2) * s,
++    layout: (n) => {
++      const pairs = Math.floor(n / 2)
++      const arr: RaidRole[] = []
++      for (let p = 0; p < pairs; p++) {
++        arr.push('data')
++        arr.push('mirror')
++      }
++      return arr
++    },
++  },
++]
++
++// raidUtils.js:158-166,简化为纯盘数决策(不含 groupDisksBySpec 的混规格/长度校验,由调用方在选盘阶段处理)。
++export function recommendRaidLevel(n: number): number {
++  if (n === 2) return 1
++  if (n === 3) return 5
++  return n % 2 === 0 ? 10 : 5
++}
++
++// raidUtils.js:108-110 —— 注意判定是字符串 'false',不是布尔值。
++export function isDiskAtRisk(disk: RaidDisk): boolean {
++  return disk.health === 'false'
++}
++
++// raidUtils.js groupDisksBySpec(L148-156):分组键 = `${size}|${disk_type}`。
++export function diskSpecKey(disk: RaidDisk): string {
++  return `${disk.size}|${disk.disk_type ?? ''}`
++}
++
++// 与 Vue2 assignGroupColors 的 GROUP_COLOR_COUNT(=5,raidUtils.js:168)对齐的分组语义 key 表,
++// 循环复用;组件层负责把这些 key 映射到具体 theme token(如 --nrm-a/--nrm-b/--accent 等)。
++const GROUP_KEYS = ['group-a', 'group-b', 'group-c', 'group-d', 'group-e'] as const
++
++// 输入磁盘 + 已知分组列表(每组以 diskSpecKey 格式的 key 标识),按分组在列表中的位置(mod 5)
++// 返回分组语义 key —— 绝不返回字面色,只返回 token 语义标识供组件层再映射。
++export function groupColorKey(disk: RaidDisk, groups: Array<{ key: string }>): string {
++  const key = diskSpecKey(disk)
++  const idx = groups.findIndex((g) => g.key === key)
++  const safeIdx = idx < 0 ? 0 : idx
++  return GROUP_KEYS[safeIdx % GROUP_KEYS.length]
++}

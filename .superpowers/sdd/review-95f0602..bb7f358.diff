@@ -1,0 +1,107 @@
+# Review package: 95f0602..HEAD
+
+## Commits
+bb7f358 feat(home): appWidgetRange — label 自定义尺寸范围夹进全局 2×1..4×4
+
+## Files changed
+ src/home/widgets/appWidgetSize.test.ts | 27 +++++++++++++++++++++++++++
+ src/home/widgets/appWidgetSize.ts      | 19 +++++++++++++++++++
+ src/home/widgets/registry.ts           |  4 ++--
+ 3 files changed, 48 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/home/widgets/appWidgetSize.test.ts b/src/home/widgets/appWidgetSize.test.ts
+new file mode 100644
+index 0000000..a2dee75
+--- /dev/null
++++ b/src/home/widgets/appWidgetSize.test.ts
+@@ -0,0 +1,27 @@
++import { describe, it, expect } from 'vitest'
++import { APP_WIDGET_SIZE, appWidgetRange } from './appWidgetSize'
++
++describe('appWidgetRange', () => {
++  it('未声明/空对象 → 全局范围', () => {
++    expect(appWidgetRange(undefined)).toEqual(APP_WIDGET_SIZE)
++    expect(appWidgetRange({})).toEqual(APP_WIDGET_SIZE)
++  })
++
++  it('部分声明:缺的轴补全局值', () => {
++    expect(appWidgetRange({ maxw: 3 })).toEqual({ min: [2, 1], max: [3, 4] })
++    expect(appWidgetRange({ minh: 2 })).toEqual({ min: [2, 2], max: [4, 4] })
++  })
++
++  it('min==max 锁死(canResize 据此隐藏把手)', () => {
++    expect(appWidgetRange({ minw: 3, maxw: 3, minh: 2, maxh: 2 })).toEqual({ min: [3, 2], max: [3, 2] })
++  })
++
++  it('越界值夹进全局 2×1..4×4', () => {
++    expect(appWidgetRange({ minw: 1, maxw: 9, minh: 0, maxh: 9 })).toEqual({ min: [2, 1], max: [4, 4] })
++  })
++
++  it('min > max 时以 min 为准(max 抬到 min)', () => {
++    expect(appWidgetRange({ minw: 4, maxw: 2 })).toEqual({ min: [4, 1], max: [4, 4] })
++    expect(appWidgetRange({ minh: 3, maxh: 1 })).toEqual({ min: [2, 3], max: [4, 3] })
++  })
++})
+diff --git a/src/home/widgets/appWidgetSize.ts b/src/home/widgets/appWidgetSize.ts
+new file mode 100644
+index 0000000..ab94a5d
+--- /dev/null
++++ b/src/home/widgets/appWidgetSize.ts
+@@ -0,0 +1,19 @@
++import type { WidgetSize } from '../grid/types'
++
++// 第三方应用 iframe 小组件的全局硬边界(spec §3 夹紧规则)——从 registry.ts 移入
++export const APP_WIDGET_SIZE: WidgetSize = { min: [2, 1], max: [4, 4] }
++
++export interface AppWidgetRangeDecl { minw?: number; minh?: number; maxw?: number; maxh?: number }
++
++const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
++
++/** label 声明的自定义可调整范围 → 有效范围:缺省轴补全局值,越界夹进全局,min>max 时 min 说了算。 */
++export function appWidgetRange(w?: AppWidgetRangeDecl): WidgetSize {
++  if (!w || (!w.minw && !w.minh && !w.maxw && !w.maxh)) return APP_WIDGET_SIZE
++  const g = APP_WIDGET_SIZE
++  const minw = clamp(w.minw || g.min[0], g.min[0], g.max[0])
++  const minh = clamp(w.minh || g.min[1], g.min[1], g.max[1])
++  const maxw = Math.max(minw, clamp(w.maxw || g.max[0], g.min[0], g.max[0]))
++  const maxh = Math.max(minh, clamp(w.maxh || g.max[1], g.min[1], g.max[1]))
++  return { min: [minw, minh], max: [maxw, maxh] }
++}
+diff --git a/src/home/widgets/registry.ts b/src/home/widgets/registry.ts
+index 92e13ce..7c19c19 100644
+--- a/src/home/widgets/registry.ts
++++ b/src/home/widgets/registry.ts
+@@ -1,11 +1,12 @@
+ import type { WidgetSize } from '../grid/types'
++import { APP_WIDGET_SIZE } from './appWidgetSize'
+ 
+ const ICON = {
+   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 1.8"/>',
+   storage: '<ellipse cx="12" cy="5.6" rx="7" ry="2.6"/><path d="M5 5.6v12.8c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5.6"/><path d="M5 12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"/>',
+   network: '<path d="M2.5 9.2a14 14 0 0 1 19 0"/><path d="M6 12.8a9 9 0 0 1 12 0"/><path d="M9.4 16.4a4 4 0 0 1 5.2 0"/><path d="M12 20h.01"/>',
+   ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
+   events: '<path d="M8.5 6h11M8.5 12h11M8.5 18h11"/><circle cx="4.3" cy="6" r="1.1"/><circle cx="4.3" cy="12" r="1.1"/><circle cx="4.3" cy="18" r="1.1"/>',
+   gpu: '<rect x="3" y="6.5" width="18" height="11" rx="2"/>',
+   cpu: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/><rect x="10" y="10" width="4" height="4" rx="1"/>',
+ }
+@@ -26,18 +27,17 @@ export const WIDGETS: Record<string, WidgetMeta> = {
+   cpu:     { title: 'widgetCpuTitle', icon: ICON.cpu, desc: 'widgetCpuDesc', extra: 'cpu', min: [2, 2], max: [4, 3], default: [4, 2], live: true },
+ }
+ 
+ export const WIDGET_KEYS = Object.keys(WIDGETS)
+ 
+ export function widgetSize(key: string): WidgetSize | undefined {
+   const w = WIDGETS[key]
+   return w ? { min: w.min, max: w.max } : undefined
+ }
+ 
+-// 第三方应用 iframe 小组件的统一尺寸约束(spec §3 夹紧规则)
+-export const APP_WIDGET_SIZE: WidgetSize = { min: [2, 1], max: [4, 4] }
++export { APP_WIDGET_SIZE } from './appWidgetSize'
+ 
+ export function sizeOfItem(it: { kind: string; key: string }): WidgetSize | undefined {
+   if (it.kind === 'appwidget') return APP_WIDGET_SIZE
+   if (it.kind === 'widget') return widgetSize(it.key)
+   return undefined
+ }

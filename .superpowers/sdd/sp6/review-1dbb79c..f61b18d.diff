@@ -1,0 +1,310 @@
+# Review package: 1dbb79c..f61b18d
+
+## Commits
+f61b18d feat(storage): StorageRaid 列表视图 + 路由 + Shell RAID 页签 + 5000ms 单飞状态重拉
+
+## Files changed
+ src/i18n/en_us.ts                           |  1 +
+ src/i18n/zh_cn.ts                           |  1 +
+ src/router/index.ts                         |  2 +
+ src/storage/components/StorageShell.test.ts | 12 ++++-
+ src/storage/components/StorageShell.vue     |  1 +
+ src/views/StorageRaid.test.ts               | 68 +++++++++++++++++++++++++++++
+ src/views/StorageRaid.vue                   | 40 +++++++++++++++++
+ 7 files changed, 123 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index c144364..0ffc213 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -539,20 +539,21 @@ export default {
+   appsSourcesLoading: 'Loading…',
+   appsSourcesLoadFailed: 'Failed to load, please retry',
+   appsSourcesRetry: 'Retry',
+   appsSourcesEmpty: 'No app sources',
+   // ── storage 存储区 ──
+   storageUnmountSuccess: 'Storage removed',
+   storageUnmountFailed: 'Failed to remove, check your password and try again',
+   storageTitle: 'Storage',
+   storageTabVolumes: 'Volumes',
+   storageTabDrives: 'Drives',
++  storageTabRaid: 'RAID',
+   storageLoading: 'Loading…',
+   storageVolumesEmpty: 'No storage volumes yet',
+   storageVolumeSingle: 'Single drive storage',
+   storageUnmount: 'Remove',
+   storageUnmountTitle: 'Remove storage',
+   storageUnmountMsg: 'Storage "{name}" will be removed. Data is not deleted and becomes available again after remounting. Enter your login password to continue:',
+   storageUnmountPassword: 'Login password',
+   storageUnmountOk: 'Remove',
+   storageCancel: 'Cancel',
+   storageDrivesEmpty: 'No drives detected',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index e44533b..8f3583e 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -538,20 +538,21 @@ export default {
+   appsSourcesLoading: '加载中…',
+   appsSourcesLoadFailed: '加载失败,请重试',
+   appsSourcesRetry: '重试',
+   appsSourcesEmpty: '暂无商店源',
+   // ── storage 存储区 ──
+   storageUnmountSuccess: '存储已移除',
+   storageUnmountFailed: '移除失败,请检查密码后重试',
+   storageTitle: '存储',
+   storageTabVolumes: '存储卷',
+   storageTabDrives: '物理硬盘',
++  storageTabRaid: 'RAID',
+   storageLoading: '加载中…',
+   storageVolumesEmpty: '还没有存储卷',
+   storageVolumeSingle: '单盘存储',
+   storageUnmount: '移除',
+   storageUnmountTitle: '移除存储',
+   storageUnmountMsg: '将移除存储「{name}」,数据不会被删除,重新插入或挂载后可再次访问。输入登录密码以继续:',
+   storageUnmountPassword: '登录密码',
+   storageUnmountOk: '确认移除',
+   storageCancel: '取消',
+   storageDrivesEmpty: '未检测到硬盘',
+diff --git a/src/router/index.ts b/src/router/index.ts
+index fe05cbc..8f4ac70 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -8,36 +8,38 @@ import SharesPage from '../files/shares/SharesPage.vue'
+ import DropPage from '../files/drop/components/DropPage.vue'
+ import InstalledAppsPage from '../apps/views/InstalledAppsPage.vue'
+ import StorePage from '../apps/views/StorePage.vue'
+ import StoreAppDetailPage from '../apps/views/StoreAppDetailPage.vue'
+ import AppSettingsPage from '../apps/views/AppSettingsPage.vue'
+ import AppConsolePage from '../apps/views/AppConsolePage.vue'
+ import CustomAppsPage from '../apps/views/CustomAppsPage.vue'
+ import SourcesPage from '../apps/views/SourcesPage.vue'
+ import StorageVolumes from '../views/StorageVolumes.vue'
+ import StorageDrives from '../views/StorageDrives.vue'
++import StorageRaid from '../views/StorageRaid.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+   { path: '/', name: 'home', component: Home },
+   { path: '/files', name: 'files', component: Files },
+   { path: '/files/shares', name: 'files-shares', component: SharesPage },
+   { path: '/files/drop', name: 'files-drop', component: DropPage },
+   { path: '/apps', name: 'apps', component: InstalledAppsPage },
+   { path: '/apps/store', name: 'apps-store', component: StorePage },
+   { path: '/apps/store/:id', name: 'apps-store-detail', component: StoreAppDetailPage },
+   { path: '/apps/custom', name: 'apps-custom', component: CustomAppsPage },
+   { path: '/apps/sources', name: 'apps-sources', component: SourcesPage },
+   { path: '/apps/:name/settings', name: 'apps-settings', component: AppSettingsPage },
+   { path: '/apps/:name/console', name: 'apps-console', component: AppConsolePage },
+   { path: '/storage', name: 'storage', component: StorageVolumes },
+   { path: '/storage/drives', name: 'storage-drives', component: StorageDrives },
++  { path: '/storage/raid', name: 'storage-raid', component: StorageRaid },
+   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+   { path: '/login', name: 'login', component: Login, meta: { public: true } },
+   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+diff --git a/src/storage/components/StorageShell.test.ts b/src/storage/components/StorageShell.test.ts
+index 6456415..dcb9d6e 100644
+--- a/src/storage/components/StorageShell.test.ts
++++ b/src/storage/components/StorageShell.test.ts
+@@ -6,38 +6,46 @@ import StorageShell from './StorageShell.vue'
+ 
+ const Stub = defineComponent({ template: '<div />' })
+ 
+ async function mountShell(path: string) {
+   const router = createRouter({
+     history: createMemoryHistory(),
+     routes: [
+       { path: '/', component: Stub },
+       { path: '/storage', component: Stub },
+       { path: '/storage/drives', component: Stub },
++      { path: '/storage/raid', component: Stub },
++      { path: '/storage/raid/:id', component: Stub },
+     ],
+   })
+   await router.push(path)
+   await router.isReady()
+   const w = mount(StorageShell, { global: { plugins: [router] }, slots: { default: '<p class="probe">body</p>' } })
+   return { w, router }
+ }
+ 
+ describe('StorageShell', () => {
+-  it('渲染标题、两个页签和 slot 内容', async () => {
++  it('渲染标题、三个页签和 slot 内容', async () => {
+     const { w } = await mountShell('/storage')
+     expect(w.find('.st-title').exists()).toBe(true)
+-    expect(w.findAll('.st-tab')).toHaveLength(2)
++    expect(w.findAll('.st-tab')).toHaveLength(3)
+     expect(w.find('.probe').text()).toBe('body')
+   })
+   it('当前路由的页签带 active', async () => {
+     const { w } = await mountShell('/storage/drives')
+     const tabs = w.findAll('.st-tab')
+     expect(tabs[0].classes()).not.toContain('active')
+     expect(tabs[1].classes()).toContain('active')
++    expect(tabs[2].classes()).not.toContain('active')
++  })
++  it('RAID 详情页(startsWith)也高亮 RAID 页签', async () => {
++    const { w } = await mountShell('/storage/raid/9')
++    const tabs = w.findAll('.st-tab')
++    expect(tabs[2].classes()).toContain('active')
+   })
+   it('回主页按钮 push /', async () => {
+     const { w, router } = await mountShell('/storage')
+     await w.find('.st-home').trigger('click')
+     await flushPromises()
+     expect(router.currentRoute.value.path).toBe('/')
+   })
+ })
+diff --git a/src/storage/components/StorageShell.vue b/src/storage/components/StorageShell.vue
+index 3dac19a..4048d10 100644
+--- a/src/storage/components/StorageShell.vue
++++ b/src/storage/components/StorageShell.vue
+@@ -11,20 +11,21 @@ function goHome() {
+ </script>
+ 
+ <template>
+   <div class="storage-shell">
+     <header class="st-bar">
+       <button class="st-home" type="button" @click="goHome">‹ {{ t('areaBackHome') }}</button>
+       <h1 class="st-title">{{ t('storageTitle') }}</h1>
+       <nav class="st-tabs">
+         <RouterLink to="/storage" class="st-tab" :class="{ active: route.path === '/storage' }">{{ t('storageTabVolumes') }}</RouterLink>
+         <RouterLink to="/storage/drives" class="st-tab" :class="{ active: route.path === '/storage/drives' }">{{ t('storageTabDrives') }}</RouterLink>
++        <RouterLink to="/storage/raid" class="st-tab" :class="{ active: route.path.startsWith('/storage/raid') }">{{ t('storageTabRaid') }}</RouterLink>
+       </nav>
+     </header>
+     <main class="st-body"><slot /></main>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .storage-shell { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
+ .st-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; }
+ .st-home {
+diff --git a/src/views/StorageRaid.test.ts b/src/views/StorageRaid.test.ts
+new file mode 100644
+index 0000000..ad3e61e
+--- /dev/null
++++ b/src/views/StorageRaid.test.ts
+@@ -0,0 +1,68 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createRouter, createMemoryHistory } from 'vue-router'
++import { createI18n } from 'vue-i18n'
++import { defineComponent } from 'vue'
++import StorageRaid from './StorageRaid.vue'
++import zh from '../i18n/zh_cn'
++
++const raidList = vi.fn().mockResolvedValue([])
++const raidGetStatus = vi.fn().mockResolvedValue({ live_state: 'active', members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0, rebuild_pct: 0 })
++const listTasks = vi.fn().mockResolvedValue([])
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    storage: { list: vi.fn().mockResolvedValue([]) },
++    disks: { getDiskList: vi.fn().mockResolvedValue({ disks: [] }) },
++    raid: { list: (...a: unknown[]) => raidList(...a), getStatus: (...a: unknown[]) => raidGetStatus(...a), listTasks: (...a: unknown[]) => listTasks(...a) },
++  },
++}))
++const handlers: Record<string, (...a: unknown[]) => void> = {}
++vi.mock('../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: (ev: string, cb: (...a: unknown[]) => void) => { handlers[ev] = cb; return vi.fn() } }) }))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++const Stub = defineComponent({ render: () => null })
++const router = createRouter({ history: createMemoryHistory(), routes: [
++  { path: '/storage/raid', name: 'storage-raid', component: StorageRaid },
++  { path: '/storage/raid/:id', name: 'storage-raid-detail', component: Stub },
++  { path: '/', name: 'home', component: Stub },
++] })
++
++describe('StorageRaid', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); vi.useFakeTimers() })
++  afterEach(() => vi.useRealTimers())
++
++  it('mount 调 loadRaid,空态显示 raidNoArrays', async () => {
++    await router.push('/storage/raid'); await router.isReady()
++    const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
++    await vi.runOnlyPendingTimersAsync()
++    expect(raidList).toHaveBeenCalled()
++    expect(w.text()).toContain(zh.raidNoArrays)
++  })
++
++  it('有阵列时渲染 RaidCard', async () => {
++    raidList.mockResolvedValue([{ id: 1, name: 'md0', level: 1, state: 'active' }])
++    await router.push('/storage/raid'); await router.isReady()
++    const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
++    await vi.runOnlyPendingTimersAsync(); await w.vm.$nextTick()
++    expect(w.find('.raid-card').exists()).toBe(true)
++    expect(w.text()).toContain('md0')
++  })
++
++  it('点击 RaidCard select → 跳详情路由', async () => {
++    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 1, state: 'active' }])
++    await router.push('/storage/raid'); await router.isReady()
++    const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
++    await vi.runOnlyPendingTimersAsync(); await w.vm.$nextTick()
++    const push = vi.spyOn(router, 'push')
++    await w.find('.raid-card').trigger('click')
++    expect(push).toHaveBeenCalledWith('/storage/raid/9')
++  })
++
++  it('订阅热插拔事件(经 useDiskHotplug)', async () => {
++    await router.push('/storage/raid'); await router.isReady()
++    mount(StorageRaid, { global: { plugins: [router, i18n] } })
++    expect(typeof handlers['local-storage:disk:added']).toBe('function')
++    expect(typeof handlers['local-storage:disk:removed']).toBe('function')
++  })
++})
+diff --git a/src/views/StorageRaid.vue b/src/views/StorageRaid.vue
+new file mode 100644
+index 0000000..724269e
+--- /dev/null
++++ b/src/views/StorageRaid.vue
+@@ -0,0 +1,40 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
++import StorageShell from '../storage/components/StorageShell.vue'
++import RaidCard from '../storage/components/RaidCard.vue'
++import { useStorageStore } from '../storage/stores/storage'
++import { useDiskHotplug } from '../composables/useDiskHotplug'
++import { useGuardedPoll } from '../composables/useGuardedPoll'
++import { resolveRaidState, isRebuildingList } from '../storage/util/raidView'
++
++const store = useStorageStore()
++const router = useRouter()
++const { t } = useI18n()
++
++// 热插拔:第三个消费者,复用 T1 composable
++useDiskHotplug(() => store.loadRaid())
++
++// 重建中时 5000ms 单飞重拉状态(活体进度);无重建则不发请求
++const anyRebuilding = () =>
++  isRebuildingList(store.raidArrays.map((a) => resolveRaidState(a, store.raidStatusMap[String(a.id)])))
++useGuardedPoll(() => store.loadRaid(), { intervalMs: 5000, active: anyRebuilding })
++
++const arrays = computed(() => store.raidArrays)
++function openDetail(id: number | string) { router.push(`/storage/raid/${id}`) }
++</script>
++
++<template>
++  <StorageShell>
++    <div v-if="store.raidLoading && !arrays.length" class="st-hint">{{ t('storageLoading') }}</div>
++    <div v-else-if="!arrays.length" class="st-hint">{{ t('raidNoArrays') }}</div>
++    <template v-else>
++      <RaidCard v-for="a in arrays" :key="a.id" :array="a" :status="store.raidStatusMap[String(a.id)]" @select="openDetail(a.id)" />
++    </template>
++  </StorageShell>
++</template>
++
++<style scoped>
++.st-hint { padding: 24px 4px; color: var(--fg-muted); font-size: 14px; }
++</style>

@@ -1,0 +1,414 @@
+# Review package: 93286cb..247a626
+
+## Commits
+247a626 fix(home): dock more-zone stored ref + separator drop-zone rule
+4dbfd6c fix(home): wire drag-spawn on app/folder/photo in AddPanel
+
+## Files changed
+ src/home/components/AddPanel.test.ts         |  8 ++-
+ src/home/components/AddPanel.vue             |  8 +--
+ src/home/components/HomeDock.vue             | 83 ++++++++--------------------
+ src/home/composables/useDock.reorder.test.ts | 42 ++++++++++++++
+ src/home/composables/useDock.ts              | 31 ++++++++---
+ 5 files changed, 99 insertions(+), 73 deletions(-)
+
+## Diff
+diff --git a/src/home/components/AddPanel.test.ts b/src/home/components/AddPanel.test.ts
+index bf8f9da..c7c8be8 100644
+--- a/src/home/components/AddPanel.test.ts
++++ b/src/home/components/AddPanel.test.ts
+@@ -8,16 +8,20 @@ import AddPanel from './AddPanel.vue'
+ describe('AddPanel', () => {
+   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetAddPanelForTest() })
+   it('widget tab lists widgets and marks used ones', async () => {
+     const layout = useLayoutStore(); layout.replaceAll([{ kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 }])
+     const w = mount(AddPanel, { props: { open: true } })
+     expect(w.text()).toContain('时间') // clock widget card
+     expect(w.text()).toContain('✓ 已添加') // clock used badge
+   })
+   it('clicking an app card pins it to the grid', async () => {
+     const layout = useLayoutStore(); layout.replaceAll([])
+-    const w = mount(AddPanel, { props: { open: true } })
++    const w = mount(AddPanel, { props: { open: true }, attachTo: document.body })
+     await w.get('[data-tab="app"]').trigger('click')
+-    await w.get('.lib-icon[data-key="vm"]').trigger('click')
++    // pointerdown starts the gesture; pointerup (no move) triggers the click-to-pin path
++    const icon = w.get('.lib-icon[data-key="vm"]')
++    await icon.trigger('pointerdown', { clientX: 0, clientY: 0 })
++    await icon.trigger('pointerup', { clientX: 0, clientY: 0 })
+     expect(layout.items.some((i) => i.key === 'vm')).toBe(true)
++    w.unmount()
+   })
+ })
+diff --git a/src/home/components/AddPanel.vue b/src/home/components/AddPanel.vue
+index 00a7bb8..69cebb8 100644
+--- a/src/home/components/AddPanel.vue
++++ b/src/home/components/AddPanel.vue
+@@ -35,21 +35,21 @@
+       </div>
+     </div>
+ 
+     <!-- App tab -->
+     <div v-if="ap.curTab.value === 'app'" class="lib-content lib-app-grid">
+       <div
+         v-for="key in appsStore.order"
+         :key="key"
+         class="lib-icon"
+         :data-key="key"
+-        @click="ap.pinToFree({ kind: 'app', key, w: 1, h: 1 })"
++        @pointerdown="onSpawnDown($event, { kind: 'app', key, w: 1, h: 1 })"
+       >
+         <span v-if="appsStore.apps[key]?.icon" class="lib-app-ic has-img">
+           <img :src="appsStore.apps[key].icon!" alt="" loading="lazy" />
+         </span>
+         <span v-else class="lib-app-ic" v-html="appGlyph(key)" />
+         <span class="lib-app-label">{{ appsStore.apps[key]?.name ?? key }}</span>
+       </div>
+     </div>
+ 
+     <!-- Folder tab -->
+@@ -64,32 +64,32 @@
+         >{{ seg.label }}</span>
+       </div>
+       <!-- Folder list -->
+       <div v-if="currentFolders.length === 0" class="lib-empty">暂无子文件夹</div>
+       <div
+         v-for="folder in currentFolders"
+         :key="folder.path"
+         class="lib-folder-row"
+       >
+         <span class="lib-folder-name" @click="enterFolder(folder.path)">{{ folder.name }}</span>
+-        <button class="lib-pin-btn" @click="ap.pinToFree({ kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
++        <button class="lib-pin-btn" @pointerdown="onSpawnDown($event, { kind: 'folder', key: folder.name, path: folder.path, w: 1, h: 1 })">拖到主页</button>
+       </div>
+     </div>
+ 
+     <!-- Photo tab -->
+     <div v-if="ap.curTab.value === 'photo'" class="lib-content lib-photo-grid">
+       <div v-if="photosStore.assets.length === 0" class="lib-empty">暂无照片</div>
+       <div
+         v-for="asset in photosStore.assets"
+         :key="asset.id"
+         class="lib-photo-thumb"
+-        @click="ap.pinToFree({ kind: 'photo', key: String(asset.id), w: 2, h: 2 })"
++        @pointerdown="onSpawnDown($event, { kind: 'photo', key: String(asset.id), w: 2, h: 2 })"
+       >
+         <img :src="photosStore.thumbnailUrl(asset.id)" :alt="String(asset.id)" loading="lazy" />
+       </div>
+     </div>
+ 
+     <!-- Reset button -->
+     <div class="lib-footer">
+       <button class="lib-reset-btn" @click="ap.reset()">恢复默认布局</button>
+     </div>
+   </aside>
+@@ -101,21 +101,21 @@ import { useAddPanel } from '../composables/useAddPanel'
+ import { useAppsStore } from '../stores/apps'
+ import { useFoldersStore } from '../stores/folders'
+ import { usePhotosStore } from '../stores/photos'
+ import { useLiveStatsStore } from '../stores/liveStats'
+ import { WIDGETS } from '../widgets/registry'
+ import type { Kind } from '../grid/types'
+ 
+ const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number }>()
+ defineEmits<{ close: [] }>()
+ 
+-type SpawnDesc = { kind: Kind; key: string; w: number; h: number }
++type SpawnDesc = { kind: Kind; key: string; w: number; h: number; path?: string }
+ 
+ // Singleton — shares state with Home.vue's useAddPanel call
+ // cols/rows from props (passed by Home.vue) are used for spawn clamping
+ const ap = useAddPanel({ cols: props.cols ?? 12, rows: props.rows ?? 8 })
+ const appsStore = useAppsStore()
+ 
+ // ─── Spawn drag/click logic ───────────────────────────────────────────────────
+ // State for the in-progress spawn gesture
+ let spawnStart: { desc: SpawnDesc; x: number; y: number; moved: boolean } | null = null
+ 
+diff --git a/src/home/components/HomeDock.vue b/src/home/components/HomeDock.vue
+index b2c45b2..e259255 100644
+--- a/src/home/components/HomeDock.vue
++++ b/src/home/components/HomeDock.vue
+@@ -18,21 +18,21 @@
+     <!-- floating drag ghost -->
+     <div v-if="drag.active" class="dock-ghost" :style="drag.ghostStyle" aria-hidden="true">
+       <span class="dock-ic" :class="drag.ghostCls">
+         <img v-if="drag.ghostIcon" :src="drag.ghostIcon" alt="" />
+         <span v-else v-html="drag.ghostGlyph" />
+       </span>
+     </div>
+   </nav>
+ </template>
+ <script setup lang="ts">
+-import { ref, reactive, computed } from 'vue'
++import { ref, reactive } from 'vue'
+ import DockApp from './DockApp.vue'
+ import { useDock } from '../composables/useDock'
+ import { useAppsStore } from '../stores/apps'
+ import { magScale } from '../grid/dockMath'
+ 
+ const dock = useDock()
+ const apps = useAppsStore()
+ const root = ref<HTMLElement | null>(null)
+ 
+ // ── magnification ────────────────────────────────────────────────────────────
+@@ -174,95 +174,58 @@ function resetDragState() {
+   drag.active = false
+   drag.key = ''
+   drag.pointerId = -1
+   drag.ghostStyle = {}
+ }
+ 
+ /**
+  * Given the drop position, find the target zone ('fav'|'more') and the key of the item
+  * the dragged icon should be inserted before (null = end of zone).
+  *
+- * Strategy: find all visible dock-app buttons with data-app, pick nearest midpoint.
+- * The zone is determined by which data-zone ancestor the nearest item lives in.
++ * Zone decision: separator midpoint rule — drop left of sep midX → 'fav', right → 'more'.
++ * beforeKey: find nearest item in the chosen zone by midX; insert-before if clientX < its
++ * midX, else end (beforeKey = null).
+  */
+ function computeDropTarget(clientX: number, _clientY: number): { toZone: 'fav' | 'more'; beforeKey: string | null } {
+   if (!root.value) return { toZone: 'more', beforeKey: null }
+ 
++  // Separator-midpoint zone decision
++  const sep = root.value.querySelector<HTMLElement>('.dock-sep')
++  const sepRect = sep?.getBoundingClientRect()
++  const toZone: 'fav' | 'more' = (sepRect && clientX < (sepRect.left + sepRect.right) / 2) ? 'fav' : 'more'
++
+   const favZone = root.value.querySelector<HTMLElement>('[data-zone="fav"]')
+   const moreZone = root.value.querySelector<HTMLElement>('[data-zone="more"]')
+ 
+-  // Collect all app buttons (excluding the dragged one) with their midpoints and zone
+-  interface Candidate { key: string; midX: number; zone: 'fav' | 'more' }
++  // Collect candidates in the chosen zone (excluding the item being dragged)
++  interface Candidate { key: string; midX: number }
+   const candidates: Candidate[] = []
++  const targetZoneEl = toZone === 'fav' ? favZone : moreZone
++  targetZoneEl?.querySelectorAll<HTMLElement>('.dock-app[data-app]').forEach((btn) => {
++    if (btn.dataset.app === drag.key) return
++    const r = btn.getBoundingClientRect()
++    candidates.push({ key: btn.dataset.app!, midX: r.left + r.width / 2 })
++  })
+ 
+-  const collectFrom = (zone: HTMLElement | null, zoneName: 'fav' | 'more') => {
+-    if (!zone) return
+-    zone.querySelectorAll<HTMLElement>('.dock-app[data-app]').forEach((btn) => {
+-      if (btn.dataset.app === drag.key) return
+-      const r = btn.getBoundingClientRect()
+-      candidates.push({ key: btn.dataset.app!, midX: r.left + r.width / 2, zone: zoneName })
+-    })
+-  }
+-  collectFrom(favZone, 'fav')
+-  collectFrom(moreZone, 'more')
+-
+-  if (candidates.length === 0) {
+-    // No other items — decide by horizontal position relative to zones
+-    const favRect = favZone?.getBoundingClientRect()
+-    const moreRect = moreZone?.getBoundingClientRect()
+-    if (moreRect && clientX > moreRect.left) return { toZone: 'more', beforeKey: null }
+-    return { toZone: 'fav', beforeKey: null }
+-  }
++  if (candidates.length === 0) return { toZone, beforeKey: null }
+ 
+-  // Find the candidate whose midpoint is closest horizontally
+-  let best: Candidate | null = null
+-  let bestDist = Infinity
++  // Find nearest item in target zone by midX
++  let best = candidates[0]
++  let bestDist = Math.abs(clientX - best.midX)
+   for (const c of candidates) {
+     const d = Math.abs(clientX - c.midX)
+     if (d < bestDist) { bestDist = d; best = c }
+   }
+ 
+-  if (!best) return { toZone: 'more', beforeKey: null }
+-
+-  // Insert before the best candidate if drop is to its left, after if to its right
++  // Insert before best if drop is to its left, otherwise end of zone
+   const beforeKey = clientX < best.midX ? best.key : null
+-  // If we're inserting "after last", beforeKey=null; zone is from best candidate
+-  // But if clientX > best.midX and best is last in its zone, beforeKey is null
+-  // Determine zone: where the drop landed — if moreZone exists and clientX is past fav boundary, prefer more
+-  const moreRect = moreZone?.getBoundingClientRect()
+-  const favRect = favZone?.getBoundingClientRect()
+-
+-  let toZone: 'fav' | 'more'
+-  if (moreRect && moreZone?.style.display !== 'none' && clientX >= moreRect.left) {
+-    toZone = 'more'
+-  } else if (favRect && clientX <= (favRect.right ?? Infinity)) {
+-    toZone = 'fav'
+-  } else {
+-    toZone = best.zone
+-  }
+-
+-  // Compute beforeKey within the target zone
+-  const zoneKeys = toZone === 'fav' ? dock.favKeys.value : dock.moreKeys.value
+-  // Find nearest item in target zone by midX
+-  const zoneCandidates = candidates.filter((c) => c.zone === toZone)
+-  if (zoneCandidates.length === 0) return { toZone, beforeKey: null }
+-
+-  let zoneBest = zoneCandidates[0]
+-  let zoneBestDist = Math.abs(clientX - zoneBest.midX)
+-  for (const c of zoneCandidates) {
+-    const d = Math.abs(clientX - c.midX)
+-    if (d < zoneBestDist) { zoneBestDist = d; zoneBest = c }
+-  }
+-
+-  const finalBeforeKey = clientX < zoneBest.midX ? zoneBest.key : null
+-
+-  return { toZone, beforeKey: finalBeforeKey }
++  return { toZone, beforeKey }
+ }
+ 
+ defineExpose({ root })
+ </script>
+ <style scoped>
+ .dock { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30; }
+ .dock-main { display: flex; align-items: flex-end; gap: 10px; padding: 8px 14px; background: rgba(30,34,40,.6); backdrop-filter: blur(20px); border-radius: 22px; }
+ .dock-zone { display: flex; align-items: flex-end; gap: 10px; }
+ .dock-sep { width: 1px; align-self: stretch; background: rgba(255,255,255,.18); margin: 0 2px; }
+ .dock-toggle .ic-all { font-size: 18px; }
+diff --git a/src/home/composables/useDock.reorder.test.ts b/src/home/composables/useDock.reorder.test.ts
+index 32d1ff6..7094b6b 100644
+--- a/src/home/composables/useDock.reorder.test.ts
++++ b/src/home/composables/useDock.reorder.test.ts
+@@ -11,11 +11,53 @@ describe('useDock.reorder', () => {
+     d.reorder('settings', 'fav', 'photos') // settings(more) 插到 photos 前
+     expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
+   })
+   it('moves a fav-key out to more (drop at end of more)', () => {
+     useAppsStore()
+     const d = useDock()
+     d.setFav(['files', 'photos', 'ai'])
+     d.reorder('ai', 'more', null)
+     expect(d.favKeys.value).not.toContain('ai')
+   })
++  it('reorder fav→more: key ends up in moreKeys', () => {
++    useAppsStore()
++    const d = useDock()
++    // appstore is in fav by default; move it to more
++    d.reorder('appstore', 'more', null)
++    expect(d.favKeys.value).not.toContain('appstore')
++    expect(d.moreKeys.value).toContain('appstore')
++  })
++  it('reorder more→fav: inserts before a given fav key', () => {
++    useAppsStore()
++    const d = useDock()
++    d.setFav(['files', 'photos'])
++    // settings is in more; reorder into fav before 'photos'
++    d.reorder('settings', 'fav', 'photos')
++    expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
++    expect(d.moreKeys.value).not.toContain('settings')
++  })
++  it('reorder within more honors beforeKey', () => {
++    useAppsStore()
++    const d = useDock()
++    // Set fav so that more has at least 2 items (e.g. settings + kvm if present, else just settings)
++    d.setFav(['files'])
++    // moreKeys should now contain all other apps including 'photos', 'ai', etc.
++    const initialMore = [...d.moreKeys.value]
++    if (initialMore.length < 2) return // skip if not enough items for this test
++    const [first, second] = initialMore
++    // Move second item before first
++    d.reorder(second, 'more', first)
++    expect(d.moreKeys.value[0]).toBe(second)
++    expect(d.moreKeys.value[1]).toBe(first)
++  })
++  it('reorder within more to end (beforeKey null) puts item last', () => {
++    useAppsStore()
++    const d = useDock()
++    d.setFav(['files'])
++    const initialMore = [...d.moreKeys.value]
++    if (initialMore.length < 2) return
++    const first = initialMore[0]
++    // Move first item to end of more
++    d.reorder(first, 'more', null)
++    expect(d.moreKeys.value[d.moreKeys.value.length - 1]).toBe(first)
++  })
+ })
+diff --git a/src/home/composables/useDock.ts b/src/home/composables/useDock.ts
+index f20b8b0..c0fffd3 100644
+--- a/src/home/composables/useDock.ts
++++ b/src/home/composables/useDock.ts
+@@ -1,55 +1,72 @@
+-import { ref, computed } from 'vue'
++import { ref } from 'vue'
+ import { useAppsStore } from '../stores/apps'
+ import { useOpenAction } from './useOpenAction'
+ 
+ const FAV_KEY = 'nimoos.home.dockfav'
+ const DEFAULT_FAV = ['files', 'photos', 'ai', 'vm', 'appstore']
+ 
+ // Module-level singleton refs so all useDock() calls share state
+ const favKeys = ref<string[]>([])
++const moreKeys = ref<string[]>([])
+ const expanded = ref(false)
+ const justDragged = ref(false)
+ let _initialized = false
+ 
+ function loadFav(apps: ReturnType<typeof useAppsStore>): string[] | null {
+   try { const a = JSON.parse(localStorage.getItem(FAV_KEY) || 'null'); if (Array.isArray(a) && a.length) return a.filter((k) => apps.app(k)) } catch { /* ignore */ }
+   return null
+ }
+ 
+ /** Reset singleton state — call in test beforeEach after localStorage.clear() */
+ export function __resetDockForTest() {
+   favKeys.value = []
++  moreKeys.value = []
+   expanded.value = false
+   _initialized = false
+ }
+ 
+ export function useDock() {
+   const apps = useAppsStore()
+   const { openApp } = useOpenAction()
+ 
+   // (Re-)initialize singleton state: if not yet initialized or favKeys is empty, load from storage/defaults
+   if (!_initialized || favKeys.value.length === 0) {
+     favKeys.value = loadFav(apps) || DEFAULT_FAV.filter((k) => apps.app(k))
++    moreKeys.value = apps.order.filter((k) => !favKeys.value.includes(k))
+     _initialized = true
+   }
+ 
+-  const moreKeys = computed(() => apps.order.filter((k) => !favKeys.value.includes(k)))
+-
+   function persist() { try { localStorage.setItem(FAV_KEY, JSON.stringify(favKeys.value)) } catch { /* ignore */ } }
+-  function setFav(keys: string[]) { favKeys.value = keys.filter((k) => apps.app(k)); persist() }
++  function setFav(keys: string[]) {
++    favKeys.value = keys.filter((k) => apps.app(k))
++    moreKeys.value = apps.order.filter((k) => !favKeys.value.includes(k))
++    persist()
++  }
+   function toggleExpanded() { expanded.value = !expanded.value; if (!expanded.value) persist() }
+-  function refresh() { favKeys.value = favKeys.value.filter((k) => apps.app(k)) }
++  function refresh() {
++    // Keep current fav order, drop invalid keys; recompute more from order minus fav
++    favKeys.value = favKeys.value.filter((k) => apps.app(k))
++    moreKeys.value = apps.order.filter((k) => !favKeys.value.includes(k))
++  }
+   function openDockApp(key: string) { openApp(key) }
+   function reorder(key: string, toZone: 'fav' | 'more', beforeKey: string | null) {
++    // Remove key from both arrays
+     const fav = favKeys.value.filter((k) => k !== key)
++    const more = moreKeys.value.filter((k) => k !== key)
++
+     if (toZone === 'fav') {
+-      const idx = beforeKey ? fav.indexOf(beforeKey) : fav.length
++      const idx = beforeKey != null ? fav.indexOf(beforeKey) : fav.length
+       fav.splice(idx < 0 ? fav.length : idx, 0, key)
++    } else {
++      // toZone === 'more'
++      const idx = beforeKey != null ? more.indexOf(beforeKey) : more.length
++      more.splice(idx < 0 ? more.length : idx, 0, key)
+     }
+-    // toZone==='more' → 仅从 fav 移除即可(more 是 computed);顺序由 order 决定
++
+     favKeys.value = fav
++    moreKeys.value = more
+     persist()
+   }
+ 
+   return { favKeys, expanded, moreKeys, justDragged, setFav, toggleExpanded, refresh, openDockApp, reorder }
+ }

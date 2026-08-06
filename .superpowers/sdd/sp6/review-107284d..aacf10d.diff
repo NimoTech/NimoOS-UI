@@ -1,0 +1,328 @@
+# Review package: 107284d..aacf10d
+
+## Commits
+aacf10d feat(storage): RAID 删除 type-to-confirm 弹窗+详情头按钮(P4 T6,路线B)
+
+## Files changed
+ src/i18n/en_us.ts                               |  6 +++
+ src/i18n/zh_cn.ts                               |  6 +++
+ src/storage/components/RaidDeleteDialog.test.ts | 55 +++++++++++++++++++++++++
+ src/storage/components/RaidDeleteDialog.vue     | 53 ++++++++++++++++++++++++
+ src/views/StorageRaidDetail.test.ts             | 10 +++--
+ src/views/StorageRaidDetail.vue                 | 26 +++++++++++-
+ 6 files changed, 152 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 7d9eb6a..314a8e9 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -590,20 +590,26 @@ export default {
+   raidRebuildSpeed: 'Speed',
+   raidMemberActive: 'Active',
+   raidMemberFaulty: 'Faulty',
+   raidMemberRebuilding: 'Rebuilding',
+   raidNoArrays: 'No RAID arrays',
+   raidCreating: 'Creating',
+   raidCreateFailed: 'Creation failed',
+   raidCreateFailedToast: 'Failed to create RAID',
+   raidRemoveSuccess: 'RAID array deleted',
+   raidRemoveFailed: 'Failed to delete array',
++  raidRemove: 'Delete Array',
++  raidRemoveTitle: 'Delete RAID Array',
++  raidRemoveMsg: 'This will stop the array and clear mdadm metadata. Data will be unrecoverable.',
++  raidRemoveWarning: 'Ensure all member disks are connected. Offline disks will retain mdadm superblocks and may need manual cleanup.',
++  raidRemoveTypeName: 'Type the array name "{name}" to confirm',
++  raidRemoveOk: 'Delete',
+   raidReplaceSuccess: 'Disk replacement started',
+   raidReplaceFailed: 'Failed to replace disk',
+   raidRecoverSuccess: 'Array recovered',
+   raidRecoverFailed: 'Discovery failed, check disk connections',
+   raidBaySelectAll: 'Select all healthy',
+   raidBayClear: 'Clear',
+   raidBayFilterAll: 'All',
+   raidBaySelected: '{n} selected · {size}',
+   raidTaskMeta: 'RAID-{level} · {n} disks · {fs}',
+   raidDetailsBtn: 'Details',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 9282ff8..68b7652 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -589,20 +589,26 @@ export default {
+   raidRebuildSpeed: '速度',
+   raidMemberActive: '活动',
+   raidMemberFaulty: '故障',
+   raidMemberRebuilding: '重建中',
+   raidNoArrays: '暂无 RAID 阵列',
+   raidCreating: '创建中',
+   raidCreateFailed: '创建失败',
+   raidCreateFailedToast: 'RAID 创建失败',
+   raidRemoveSuccess: 'RAID 阵列已删除',
+   raidRemoveFailed: '删除失败',
++  raidRemove: '删除阵列',
++  raidRemoveTitle: '删除 RAID 阵列',
++  raidRemoveMsg: '这将停止阵列并清除 mdadm 元数据,数据将无法恢复。',
++  raidRemoveWarning: '请确保所有成员磁盘已连接。离线磁盘将保留 mdadm 超块,可能需要手动清除。',
++  raidRemoveTypeName: '输入阵列名「{name}」以确认删除',
++  raidRemoveOk: '删除',
+   raidReplaceSuccess: '已开始更换硬盘',
+   raidReplaceFailed: '更换失败',
+   raidRecoverSuccess: '阵列已恢复',
+   raidRecoverFailed: '识别失败,请检查磁盘连接',
+   raidBaySelectAll: '全选健康盘',
+   raidBayClear: '清空',
+   raidBayFilterAll: '全部',
+   raidBaySelected: '已选 {n} 块 · {size}',
+   raidTaskMeta: 'RAID-{level} · {n} 块盘 · {fs}',
+   raidDetailsBtn: '详情',
+diff --git a/src/storage/components/RaidDeleteDialog.test.ts b/src/storage/components/RaidDeleteDialog.test.ts
+new file mode 100644
+index 0000000..ddb8a93
+--- /dev/null
++++ b/src/storage/components/RaidDeleteDialog.test.ts
+@@ -0,0 +1,55 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import RaidDeleteDialog from './RaidDeleteDialog.vue'
++import zh from '../../i18n/zh_cn'
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++// attachTo: document.body 挂载的实例不会在测试间自动 unmount(Dialog 内容还经
++// reka-ui Portal Teleport 到 body,脱离 wrapper 根节点),不清空的话下一测试的
++// querySelector 会先命中上一测试留在 body 里的旧节点——同目录 FormatDialog.test.ts/
++// UnmountDialog.test.ts 均以此 beforeEach 处理,这里沿用同一模式。
++beforeEach(() => {
++  document.body.innerHTML = ''
++})
++
++describe('RaidDeleteDialog', () => {
++  const mountIt = () => mount(RaidDeleteDialog, {
++    props: { open: true, name: 'vault' }, global: { plugins: [i18n] },
++    attachTo: document.body,
++  })
++  it('输入不等于阵列名 → 删除按钮禁用', async () => {
++    const w = mountIt()
++    // Dialog 底座(reka-ui DialogPortal)把内容 Teleport 进 body 是异步的(onMounted 里翻 isMounted
++    // 再触发一次渲染),挂载后必须先等一次 nextTick 才能查到内容——同目录 FormatDialog.test.ts/
++    // UnmountDialog.test.ts 均遵循这个模式;brief 给的样例测试代码在第一次查询前漏了这次 await,
++    // 实测会导致 querySelector 恒为 null(与阵列名是否匹配无关),故在此补上,不改变任何断言意图。
++    await w.vm.$nextTick()
++    const input = document.body.querySelector('.rdd-input') as HTMLInputElement
++    input.value = 'vaul'; input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    const ok = document.body.querySelector('.rdd-ok') as HTMLButtonElement
++    expect(ok.disabled).toBe(true)
++  })
++  it('输入等于阵列名 → 启用,点击 emit confirm(无 payload)', async () => {
++    const w = mountIt()
++    await w.vm.$nextTick()
++    const input = document.body.querySelector('.rdd-input') as HTMLInputElement
++    input.value = 'vault'; input.dispatchEvent(new Event('input'))
++    await w.vm.$nextTick()
++    const ok = document.body.querySelector('.rdd-ok') as HTMLButtonElement
++    expect(ok.disabled).toBe(false)
++    ok.click()
++    expect(w.emitted('confirm')).toHaveLength(1)
++    expect(w.emitted('confirm')![0]).toEqual([])
++  })
++  it('开/关都清空输入', async () => {
++    const w = mountIt()
++    await w.vm.$nextTick()
++    const input = document.body.querySelector('.rdd-input') as HTMLInputElement
++    input.value = 'vault'; input.dispatchEvent(new Event('input'))
++    await w.setProps({ open: false }); await w.setProps({ open: true })
++    await w.vm.$nextTick()
++    expect((document.body.querySelector('.rdd-input') as HTMLInputElement).value).toBe('')
++  })
++})
+diff --git a/src/storage/components/RaidDeleteDialog.vue b/src/storage/components/RaidDeleteDialog.vue
+new file mode 100644
+index 0000000..0cdc4a6
+--- /dev/null
++++ b/src/storage/components/RaidDeleteDialog.vue
+@@ -0,0 +1,53 @@
++<script setup lang="ts">
++import { ref, watch } from 'vue'
++import { useI18n } from 'vue-i18n'
++import Dialog from '../../components/ui/Dialog.vue'
++
++const props = defineProps<{ open: boolean; name: string; busy?: boolean }>()
++const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm'): void }>()
++const { t } = useI18n()
++const confirmText = ref('')
++// 开/关都清空:防止残留输入让下一次打开误判为已确认
++watch(
++  () => props.open,
++  () => {
++    confirmText.value = ''
++  },
++)
++</script>
++
++<template>
++  <Dialog :open="open" :title="t('raidRemoveTitle')" @update:open="emit('update:open', $event)">
++    <p class="rdd-msg">{{ t('raidRemoveMsg') }}</p>
++    <p class="rdd-warning">⚠️ {{ t('raidRemoveWarning') }}</p>
++    <input
++      v-model="confirmText"
++      type="text"
++      class="rdd-input"
++      :placeholder="t('raidRemoveTypeName', { name })"
++    />
++    <template #footer>
++      <button class="rdd-cancel" type="button" :disabled="busy" @click="emit('update:open', false)">{{ t('storageCancel') }}</button>
++      <button class="rdd-ok danger" type="button" :disabled="confirmText !== name || busy" @click="emit('confirm')">
++        {{ t('raidRemoveOk') }}
++      </button>
++    </template>
++  </Dialog>
++</template>
++
++<style scoped>
++.rdd-msg { margin: 0 0 8px; font-size: 14px; color: var(--fg-muted); }
++.rdd-warning { margin: 0 0 12px; font-size: 12px; color: var(--dem-fg); }
++.rdd-input {
++  width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
++  border-radius: 10px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); outline: none;
++}
++.rdd-input:focus { border-color: var(--accent); }
++.rdd-cancel, .rdd-ok {
++  padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
++  background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
++}
++.rdd-cancel:disabled, .rdd-ok:disabled { opacity: 0.45; cursor: not-allowed; }
++.rdd-ok.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
++</style>
+diff --git a/src/views/StorageRaidDetail.test.ts b/src/views/StorageRaidDetail.test.ts
+index 21e29e8..0c7bde8 100644
+--- a/src/views/StorageRaidDetail.test.ts
++++ b/src/views/StorageRaidDetail.test.ts
+@@ -29,19 +29,23 @@ describe('StorageRaidDetail', () => {
+     await router.push('/storage/raid/7'); await router.isReady()
+     const store = (await import('../storage/stores/storage')).useStorageStore()
+     await store.loadRaid() // 先填 raidArrays 让 detail 找得到 array
+     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+     expect(w.text()).toContain('md7')
+     expect(w.text()).toContain('RAID 5')
+     expect(w.text()).toContain('/dev/sda')
+     expect(raidGetUsage).toHaveBeenCalledWith('7')
+   })
+-  it('不渲染写操作按钮(recover/delete/replace)——P4 边界', async () => {
++  it('写操作按钮边界:delete 出现,recover/replace 仍缺席——P4 T6', async () => {
++    // P3 终审加的是硬计数不变式(===2);P4 T6 加了 .rd-delete 后计数必然变化,
++    // 改为语义化断言:该出现的(back + delete)出现,不该出现的(recover/replace)缺席。
++    // recover 是 T8 的事——T8 完成后需回来把 recover 按钮也纳入本测试(brief 明确要求留此注释)。
+     await router.push('/storage/raid/7'); await router.isReady()
+     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+-    // P4 边界守卫:只读页只应有 2 个按钮(StorageShell 回主页 + rd-back 返回列表);新增任何写操作按钮(recover/delete/replace)会使计数上升而红
+-    expect(w.findAll('button').length).toBe(2)
+     expect(w.find('.rd-back').exists()).toBe(true)
++    expect(w.find('.rd-delete').exists()).toBe(true)
++    expect(w.find('.rd-recover').exists()).toBe(false)
++    expect(w.find('.rd-replace').exists()).toBe(false)
+   })
+ })
+diff --git a/src/views/StorageRaidDetail.vue b/src/views/StorageRaidDetail.vue
+index 12d8e04..b27b535 100644
+--- a/src/views/StorageRaidDetail.vue
++++ b/src/views/StorageRaidDetail.vue
+@@ -1,16 +1,17 @@
+ <script setup lang="ts">
+-import { computed, onMounted } from 'vue'
++import { computed, onMounted, ref } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import StorageShell from '../storage/components/StorageShell.vue'
+ import RaidMemberList from '../storage/components/RaidMemberList.vue'
++import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
+ import { useStorageStore } from '../storage/stores/storage'
+ import { useGuardedPoll } from '../composables/useGuardedPoll'
+ import { fmtSize } from '../home/util/format'
+ import {
+   resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo,
+   type RaidArray,
+ } from '../storage/util/raidView'
+ 
+ const store = useStorageStore()
+ const route = useRoute()
+@@ -84,32 +85,50 @@ const btrfsCachedAtLabel = computed(() => {
+   const d = new Date(ts)
+   return Number.isNaN(d.getTime()) ? String(ts) : d.toLocaleString()
+ })
+ const showBtrfsRows = computed(() => filesystem.value === 'btrfs' && btrfsFreeBytes.value > 0)
+ 
+ const members = computed(() => status.value?.members || [])
+ 
+ function backToList() {
+   router.push('/storage/raid')
+ }
++
++const deleteOpen = ref(false)
++async function onDelete() {
++  const ok = await store.removeRaid(idStr.value)
++  if (ok) {
++    deleteOpen.value = false
++    router.push('/storage/raid')
++  }
++}
+ </script>
+ 
+ <template>
+   <StorageShell>
+     <div class="rd">
+       <header class="rd-head">
+         <button class="rd-back" type="button" @click="backToList">‹ {{ t('storageTabRaid') }}</button>
+         <h2 class="rd-name">{{ array.name }}</h2>
+         <span class="rd-level">RAID {{ array.level }}</span>
+         <span class="rc-badge" :class="severity">{{ t(labelKey) }}</span>
++        <button class="rd-delete" type="button" @click="deleteOpen = true">{{ t('raidRemove') }}</button>
+       </header>
+ 
++      <RaidDeleteDialog
++        :open="deleteOpen"
++        :name="array.name"
++        :busy="store.raidRemoving"
++        @update:open="deleteOpen = $event"
++        @confirm="onDelete"
++      />
++
+       <div class="rd-cols">
+         <div class="rd-col-left">
+           <div class="rd-card rd-donut-card">
+             <div class="rd-donut" :style="donutStyle">
+               <div class="rd-donut-center">
+                 <div class="rd-donut-pct">{{ pct }}%</div>
+               </div>
+             </div>
+             <div class="rd-legend">
+               <div class="rd-legend-row">
+@@ -168,20 +187,25 @@ function backToList() {
+   border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+ }
+ .rd-back:hover { background: var(--chip-bg-hi); }
+ .rd-name { margin: 0; font-size: 17px; font-weight: 600; }
+ .rd-level { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--nrm-bg); color: var(--nrm-fg); border: 1px solid var(--nrm-bd); }
+ .rc-badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--nrm-bg); border: 1px solid var(--nrm-bd); }
+ .rc-badge.ok { color: var(--sem-fg); }
+ .rc-badge.info { color: var(--accent); }
+ .rc-badge.warning { color: var(--dem-fg); }
+ .rc-badge.danger { color: var(--remove-fg); }
++.rd-delete {
++  margin-left: auto; border: 1px solid var(--remove-fg); background: var(--chip-bg); color: var(--remove-fg);
++  border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
++}
++.rd-delete:hover { background: var(--chip-bg-hi); }
+ 
+ .rd-cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: start; }
+ @media (max-width: 768px) { .rd-cols { grid-template-columns: 1fr; } }
+ 
+ .rd-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }
+ .rd-card-title { font-size: 11px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+ .rd-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--card-border); font-size: 12.5px; }
+ .rd-row:last-child { border-bottom: none; }
+ .rd-key { color: var(--fg-muted); }
+ .rd-val { font-weight: 500; font-family: var(--num-font); }

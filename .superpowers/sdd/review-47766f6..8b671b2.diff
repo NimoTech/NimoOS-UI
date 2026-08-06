@@ -1,0 +1,182 @@
+# Review package: 47766f6..HEAD
+
+## Commits
+8b671b2 feat(apps-settings): command 输入格式引导 + 多网络下拉只读防护
+
+## Files changed
+ .../components/settings/ComposeSettingsForm.test.ts | 21 +++++++++++++++++++++
+ .../components/settings/ComposeSettingsForm.vue     | 10 ++++++++--
+ src/i18n/en_us.ts                                   |  3 +++
+ src/i18n/zh_cn.ts                                   |  3 +++
+ 4 files changed, 35 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/apps/components/settings/ComposeSettingsForm.test.ts b/src/apps/components/settings/ComposeSettingsForm.test.ts
+index 6748bea..76edc3e 100644
+--- a/src/apps/components/settings/ComposeSettingsForm.test.ts
++++ b/src/apps/components/settings/ComposeSettingsForm.test.ts
+@@ -83,20 +83,41 @@ describe('ComposeSettingsForm', () => {
+     const select = w.find('[data-test="svc-network"]')
+     expect(select.exists()).toBe(true)
+     const groups = select.findAll('optgroup')
+     expect(groups.length).toBeGreaterThan(0)
+     expect(select.html()).toContain('mynet')
+     expect(select.html()).toContain('vlan1')
+     await select.setValue('host')
+     expect(model.services[0].network).toBe('host')
+     expect(model.services[0].networkDirty).toBe(true)
+   })
++  it('command 区展示格式引导文案,token 输入框有 placeholder', async () => {
++    const { w } = mk()
++    await w.find('[data-test="cmd-add"]').trigger('click')
++    expect(w.text()).toContain('每格填一个参数')
++    const inputs = w.findAll('[data-test="cmd-input"]')
++    expect(inputs[0].attributes('placeholder')).toBeTruthy()
++  })
++  it('多网络服务:网络下拉禁用 + 展示说明', async () => {
++    const model = reactive(parseSettings(YAML2, 'zh_cn'))
++    model.services[0].networksMultiple = true
++    const w = mount(ComposeSettingsForm, { props: { model }, global: { plugins: [i18n] } })
++    const sel = w.find('[data-test="svc-network"]')
++    expect(sel.attributes('disabled')).toBeDefined()
++    expect(w.text()).toContain('多个网络')
++  })
++  it('单网络服务:下拉可用、无多网络说明', () => {
++    const { w } = mk()
++    const sel = w.find('[data-test="svc-network"]')
++    expect(sel.attributes('disabled')).toBeUndefined()
++    expect(w.text()).not.toContain('多个网络')
++  })
+   it('stableTags 有值时 tag 下拉出现,选 stable 改写 image tag;非商店应用(null)不渲染', async () => {
+     const model = reactive(parseSettings(YAML2, 'zh_cn'))
+     const w = mount(ComposeSettingsForm, {
+       props: { model, stableTags: { a: '1.2.3', b: null } },
+       global: { plugins: [i18n] },
+     })
+     const tagSelect = w.find('[data-test="tag-select"]')
+     expect(tagSelect.exists()).toBe(true)
+     expect(tagSelect.html()).toContain('1.2.3')
+     await tagSelect.setValue('stable')
+diff --git a/src/apps/components/settings/ComposeSettingsForm.vue b/src/apps/components/settings/ComposeSettingsForm.vue
+index 4572994..aa14aba 100644
+--- a/src/apps/components/settings/ComposeSettingsForm.vue
++++ b/src/apps/components/settings/ComposeSettingsForm.vue
+@@ -103,31 +103,35 @@ const tagSelect = computed<string>({
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionVolumes') }}</h3>
+       <PairRowsEditor :rows="svc.volumes" :label-a="t('appsSettingsVolHost')" :label-b="t('appsSettingsVolContainer')" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsSectionDevices') }}</h3>
+       <PairRowsEditor :rows="svc.devices" :label-a="t('appsSettingsDevHost')" :label-b="t('appsSettingsDevContainer')" />
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsCommand') }}</h3>
++      <p class="set-hint">{{ t('appsSettingsCmdHint') }}</p>
+       <div class="pair-editor">
+         <div v-for="(tok, i) in svc.commandTokens" :key="i" class="cmd-row">
+-          <input :value="tok" class="set-input" type="text" data-test="cmd-input" @input="setCmd(i, $event)" />
++          <input :value="tok" class="set-input" type="text" data-test="cmd-input"
++            :placeholder="t('appsSettingsCmdTokenPh')" @input="setCmd(i, $event)" />
+           <button class="row-del" type="button" data-test="cmd-del" :aria-label="t('appsSettingsRemove')" @click="delCmd(i)">✕</button>
+         </div>
+         <button class="row-add" type="button" data-test="cmd-add" @click="addCmd">+ {{ t('appsSettingsAdd') }}</button>
+       </div>
+     </section>
+     <section class="set-section">
+       <h3>{{ t('appsSettingsNetwork') }}</h3>
+-      <select v-model="svc.network" class="set-input" data-test="svc-network" @change="onNetworkChange">
++      <p v-if="svc.networksMultiple" class="set-hint">{{ t('appsSettingsNetworkMulti') }}</p>
++      <select v-model="svc.network" class="set-input" data-test="svc-network"
++        :disabled="svc.networksMultiple" @change="onNetworkChange">
+         <option value="">—</option>
+         <option value="bridge">bridge</option>
+         <option value="host">host</option>
+         <option value="none">none</option>
+         <optgroup v-for="g in networkGroups" :key="g.driver" :label="g.driver">
+           <option v-for="n in g.nets" :key="n.id" :value="n.name">{{ n.name }}</option>
+         </optgroup>
+       </select>
+     </section>
+ 
+@@ -195,20 +199,22 @@ const tagSelect = computed<string>({
+ .set-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+ .set-check { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 13px !important; color: var(--fg) !important; }
+ 
+ .set-input {
+   width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 13px;
+   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
+ }
+ .set-input:focus { border-color: var(--accent); }
+ .tips-area { resize: vertical; font-family: inherit; }
+ 
++.set-hint { margin: 2px 0 8px; font-size: 12px; color: var(--fg-muted); }
++
+ .pair-editor { display: flex; flex-direction: column; gap: 8px; }
+ .cmd-row { display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: center; }
+ 
+ .image-row { display: flex; gap: 8px; }
+ .image-row .set-input { flex: 1 1 auto; min-width: 0; }
+ .tag-select { flex: 0 0 auto; width: auto; }
+ 
+ .row-add { align-self: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; }
+ .row-add:hover { background: var(--chip-bg-hi); }
+ .row-add.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-bd); }
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 3b7b326..986d505 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -450,21 +450,24 @@ export default {
+   appsSettingsPortContainer: 'Container port',
+   appsSettingsPortProtocol: 'Protocol',
+   appsSettingsPortExtraNote: 'The following port entries are preserved as-is and cannot be edited here',
+   // ── App settings: form (service tabs / WebUI / advanced / tips) ──
+   appsSettingsSectionWeb: 'Web UI',
+   appsSettingsSectionPorts: 'Ports',
+   appsSettingsSectionEnv: 'Environment',
+   appsSettingsSectionVolumes: 'Volumes',
+   appsSettingsSectionDevices: 'Devices',
+   appsSettingsCommand: 'Container command',
++  appsSettingsCmdHint: 'One argument per field, e.g. redis-server / --appendonly / yes. Split a full command with spaces into separate fields.',
++  appsSettingsCmdTokenPh: 'Single argument',
+   appsSettingsNetwork: 'Network',
++  appsSettingsNetworkMulti: 'This service is attached to multiple networks, which cannot be edited here.',
+   appsSettingsTagStable: 'Stable',
+   appsSettingsTagLatest: 'Latest',
+   appsSettingsSectionAdvanced: 'Advanced',
+   appsSettingsSectionTips: 'Usage tips',
+   appsSettingsAppTitle: 'App name',
+   appsSettingsIconUrl: 'Icon URL',
+   appsSettingsScheme: 'Scheme',
+   appsSettingsHostname: 'Host',
+   appsSettingsHostnamePh: 'Empty = current host',
+   appsSettingsWebPort: 'Web port',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index dd948db..79fd7d3 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -449,21 +449,24 @@ export default {
+   appsSettingsPortContainer: '容器端口',
+   appsSettingsPortProtocol: '协议',
+   appsSettingsPortExtraNote: '以下端口条目由系统原样保留,不支持在表单中编辑',
+   // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
+   appsSettingsSectionWeb: 'Web 界面',
+   appsSettingsSectionPorts: '端口',
+   appsSettingsSectionEnv: '环境变量',
+   appsSettingsSectionVolumes: '存储卷',
+   appsSettingsSectionDevices: '设备',
+   appsSettingsCommand: '容器命令',
++  appsSettingsCmdHint: '每格填一个参数,如:redis-server、--appendonly、yes;含空格的整句命令请拆成多格填写',
++  appsSettingsCmdTokenPh: '单个参数',
+   appsSettingsNetwork: '网络',
++  appsSettingsNetworkMulti: '该服务配置了多个网络,暂不支持在界面修改',
+   appsSettingsTagStable: '稳定版',
+   appsSettingsTagLatest: '最新',
+   appsSettingsSectionAdvanced: '高级',
+   appsSettingsSectionTips: '使用提示',
+   appsSettingsAppTitle: '应用名称',
+   appsSettingsIconUrl: '图标 URL',
+   appsSettingsScheme: '协议',
+   appsSettingsHostname: '主机',
+   appsSettingsHostnamePh: '留空=当前访问地址',
+   appsSettingsWebPort: 'Web 端口',

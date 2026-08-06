@@ -1,0 +1,224 @@
+# Review package: 4aedf52..ea1c737
+
+## Commits
+ea1c737 feat(storage): Pinia store——卷/盘装载、RAID 排除、卸载动作(SP6-P1)
+
+## Files changed
+ src/i18n/en_us.ts                  |  3 ++
+ src/i18n/zh_cn.ts                  |  3 ++
+ src/storage/stores/storage.test.ts | 93 ++++++++++++++++++++++++++++++++++++++
+ src/storage/stores/storage.ts      | 68 ++++++++++++++++++++++++++++
+ 4 files changed, 167 insertions(+)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 55d78ca..53f7c19 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -532,11 +532,14 @@ export default {
+   appsSourcesRemove: 'Remove',
+   appsSourcesRemoveTitle: 'Remove app source',
+   appsSourcesRemoveMsg: 'Remove "{name}"? Its apps will disappear from the store; installed apps are not affected.',
+   appsSourcesRemoveOk: 'App source removed',
+   appsSourcesRemoveFail: 'Failed to remove: {msg}',
+   appsSourcesBusy: 'A source registration is already in progress',
+   appsSourcesLoading: 'Loading…',
+   appsSourcesLoadFailed: 'Failed to load, please retry',
+   appsSourcesRetry: 'Retry',
+   appsSourcesEmpty: 'No app sources',
++  // ── storage 存储区 ──
++  storageUnmountSuccess: 'Storage removed',
++  storageUnmountFailed: 'Failed to remove, check your password and try again',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 1bd83fc..dc7d183 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -531,11 +531,14 @@ export default {
+   appsSourcesRemove: '移除',
+   appsSourcesRemoveTitle: '移除商店源',
+   appsSourcesRemoveMsg: '确定移除「{name}」?该源的应用将从商店中消失,已安装的应用不受影响。',
+   appsSourcesRemoveOk: '已移除商店源',
+   appsSourcesRemoveFail: '移除失败:{msg}',
+   appsSourcesBusy: '已有一个源正在注册,请等它完成',
+   appsSourcesLoading: '加载中…',
+   appsSourcesLoadFailed: '加载失败,请重试',
+   appsSourcesRetry: '重试',
+   appsSourcesEmpty: '暂无商店源',
++  // ── storage 存储区 ──
++  storageUnmountSuccess: '存储已移除',
++  storageUnmountFailed: '移除失败,请检查密码后重试',
+ }
+diff --git a/src/storage/stores/storage.test.ts b/src/storage/stores/storage.test.ts
+new file mode 100644
+index 0000000..db8216f
+--- /dev/null
++++ b/src/storage/stores/storage.test.ts
+@@ -0,0 +1,93 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++
++const storageList = vi.fn()
++const raidList = vi.fn()
++const getDiskList = vi.fn()
++const umount = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    storage: { list: (...a: unknown[]) => storageList(...a) },
++    raid: { list: (...a: unknown[]) => raidList(...a) },
++    disks: { getDiskList: (...a: unknown[]) => getDiskList(...a), umount: (...a: unknown[]) => umount(...a) },
++  },
++}))
++const toastShow = vi.fn()
++vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) }))
++vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string) => k } } }))
++
++import { useStorageStore } from './storage'
++
++const GROUPS = [
++  { disk_name: 'System', path: '/dev/nvme0n1', children: [{ label: 'NimoOS-HD', mount_point: '/', size: '100', avail: '40', type: 'ext4', drive_name: 'p7', path: '/dev/nvme0n1p7', uuid: 'u1' }] },
++  { disk_name: 'S1', path: '/dev/sda', children: [{ label: 'raidvol', mount_point: '/mnt/r0', size: '10', avail: '5', type: 'ext4', drive_name: 'sda1', path: '/dev/sda1', uuid: 'u2' }] },
++]
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('loadVolumes', () => {
++  it('storage+raid 并取,RAID 挂载点被排除', async () => {
++    storageList.mockResolvedValue(GROUPS)
++    raidList.mockResolvedValue([{ id: 1, mount_point: '/mnt/r0' }])
++    const s = useStorageStore()
++    await s.loadVolumes()
++    expect(storageList).toHaveBeenCalledWith({ system: 'show' })
++    expect(s.volumes).toHaveLength(1)
++    expect(s.volumes[0].name).toBe('NimoOS-HD')
++  })
++  it('raid.list 失败不影响卷列表', async () => {
++    storageList.mockResolvedValue(GROUPS)
++    raidList.mockRejectedValue(new Error('404'))
++    const s = useStorageStore()
++    await s.loadVolumes()
++    expect(s.volumes).toHaveLength(2)
++  })
++  it('storage.list 失败置空,不抛', async () => {
++    storageList.mockRejectedValue(new Error('boom'))
++    raidList.mockResolvedValue([])
++    const s = useStorageStore()
++    await expect(s.loadVolumes()).resolves.toBeUndefined()
++    expect(s.volumes).toEqual([])
++  })
++})
++
++describe('loadDrives', () => {
++  it('取 disks 字段映射', async () => {
++    getDiskList.mockResolvedValue({ disks: [{ name: 'nvme0n1', model: 'M', size: 100, disk_type: 'SSD', health: 'true', temperature: 35 }], avail: [] })
++    const s = useStorageStore()
++    await s.loadDrives()
++    expect(s.drives).toHaveLength(1)
++    expect(s.drives[0].healthy).toBe(true)
++  })
++  it('失败置空不抛', async () => {
++    getDiskList.mockRejectedValue(new Error('x'))
++    const s = useStorageStore()
++    await expect(s.loadDrives()).resolves.toBeUndefined()
++    expect(s.drives).toEqual([])
++  })
++})
++
++describe('unmount', () => {
++  it('成功:发 {path,password}、toast 成功文案、重载、返回 true', async () => {
++    umount.mockResolvedValue({})
++    storageList.mockResolvedValue([])
++    raidList.mockResolvedValue([])
++    getDiskList.mockResolvedValue({ disks: [] })
++    const s = useStorageStore()
++    const ok = await s.unmount('/dev/sda', 'pw')
++    expect(umount).toHaveBeenCalledWith({ path: '/dev/sda', password: 'pw' })
++    expect(toastShow).toHaveBeenCalledWith('storageUnmountSuccess')
++    expect(storageList).toHaveBeenCalled()
++    expect(ok).toBe(true)
++  })
++  it('失败:toast 失败文案、返回 false、不抛', async () => {
++    umount.mockRejectedValue(new Error('wrong password'))
++    const s = useStorageStore()
++    const ok = await s.unmount('/dev/sda', 'bad')
++    expect(toastShow).toHaveBeenCalledWith('storageUnmountFailed')
++    expect(ok).toBe(false)
++  })
++})
+diff --git a/src/storage/stores/storage.ts b/src/storage/stores/storage.ts
+new file mode 100644
+index 0000000..d662f1d
+--- /dev/null
++++ b/src/storage/stores/storage.ts
+@@ -0,0 +1,68 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import { i18n } from '../../i18n'
++import { useToast } from '../../stores/toast'
++import { mapVolumes, mapDrives, type StorageVolume, type PhysicalDrive } from '../util/storageMap'
++
++export const useStorageStore = defineStore('storage', () => {
++  const volumes = ref<StorageVolume[]>([])
++  const drives = ref<PhysicalDrive[]>([])
++  const loading = ref(false)
++  const t = i18n.global.t
++
++  async function loadVolumes() {
++    try {
++      // raid.list 兜底空数组:老后端无 /v2/raid 时卷列表照常工作
++      const [storageRes, raidRes] = await Promise.all([
++        service.storage.list({ system: 'show' }),
++        service.raid.list().catch(() => [] as unknown[]),
++      ])
++      const raidMounts = new Set(
++        (Array.isArray(raidRes) ? raidRes : [])
++          .map((r) => (r as { mount_point?: string })?.mount_point)
++          .filter((m): m is string => !!m),
++      )
++      volumes.value = mapVolumes(storageRes, raidMounts)
++    } catch (e) {
++      console.warn('[storage] volumes load failed', e)
++      volumes.value = []
++    }
++  }
++
++  async function loadDrives() {
++    try {
++      const res = (await service.disks.getDiskList()) as { disks?: unknown } | null
++      drives.value = mapDrives(res?.disks)
++    } catch (e) {
++      console.warn('[storage] drives load failed', e)
++      drives.value = []
++    }
++  }
++
++  async function loadAll() {
++    loading.value = true
++    try {
++      await Promise.all([loadVolumes(), loadDrives()])
++    } finally {
++      loading.value = false
++    }
++  }
++
++  async function unmount(diskPath: string, password: string): Promise<boolean> {
++    const toast = useToast()
++    try {
++      // 契约:DELETE /v1/disks {path: 父盘路径, password}(Vue2 StorageItem 同款)
++      await service.disks.umount({ path: diskPath, password })
++      toast.show(t('storageUnmountSuccess'))
++      await loadAll()
++      return true
++    } catch (e) {
++      console.warn('[storage] unmount failed', e)
++      toast.show(t('storageUnmountFailed'))
++      return false
++    }
++  }
++
++  return { volumes, drives, loading, loadVolumes, loadDrives, loadAll, unmount }
++})

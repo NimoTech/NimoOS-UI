@@ -1,0 +1,316 @@
+4e871fb sp8-ai P3a Task 7: wire SkillsSection into SettingsPage
+
+ src/ai/components/settings/sections.test.ts |  4 +--
+ src/ai/components/settings/sections.ts      |  8 +++---
+ src/ai/views/SettingsPage.test.ts           | 43 +++++++++++++++++++++++++----
+ src/ai/views/SettingsPage.vue               | 24 ++++++++--------
+ 4 files changed, 57 insertions(+), 22 deletions(-)
+
+diff --git a/src/ai/components/settings/sections.test.ts b/src/ai/components/settings/sections.test.ts
+index 748fe94..daeccfc 100644
+--- a/src/ai/components/settings/sections.test.ts
++++ b/src/ai/components/settings/sections.test.ts
+@@ -47,21 +47,21 @@ describe('sections 导航配置', () => {
+   })
+ 
+   it('groupOf 对未知 id 回落到第一个组(Vue2 sections.js:62-64 同款兜底)', () => {
+     expect(groupOf('nope').id).toBe('model')
+   })
+ 
+   it('SPLIT_SECTIONS 恰为 skills / mcp', () => {
+     expect([...SPLIT_SECTIONS].sort()).toEqual(['mcp', 'skills'])
+   })
+ 
+-  it('DEFERRED_SECTIONS(P3/P4 占位)恰为 skills / mcp', () => {
+-    expect([...DEFERRED_SECTIONS].sort()).toEqual(['mcp', 'skills'])
++  it('DEFERRED_SECTIONS(P4 占位)恰为 mcp(skills 已于 P3a 接入真组件）', () => {
++    expect([...DEFERRED_SECTIONS].sort()).toEqual(['mcp'])
+   })
+ 
+   it('每个分区都有图标名与 i18n 键,且 labelKey 走 aiCfg 前缀', () => {
+     for (const it of ALL_ITEMS) {
+       expect(it.icon.length).toBeGreaterThan(0)
+       expect(it.labelKey).toMatch(/^aiCfg/)
+     }
+   })
+ })
+diff --git a/src/ai/components/settings/sections.ts b/src/ai/components/settings/sections.ts
+index f187b47..88b7209 100644
+--- a/src/ai/components/settings/sections.ts
++++ b/src/ai/components/settings/sections.ts
+@@ -80,20 +80,20 @@ export const ALL_ITEMS: SectionItem[] = GROUPS.reduce<SectionItem[]>(
+   (acc, g) => acc.concat(g.items),
+   [],
+ )
+ 
+ export const VALID_SECTIONS: SectionId[] = ALL_ITEMS.map((i) => i.id)
+ 
+ /** 双栏满高布局(左列表 + 右详情),不能竖排。Vue2 `Settings.vue:92`。 */
+ export const SPLIT_SECTIONS: SectionId[] = ['skills', 'mcp']
+ 
+ /**
+- * SP8-P2a 范围外、留给后续阶段的分区:`skills` → P3、`mcp` → P4。
+- * 导航里照 Vue2 1:1 显示(用户 2026-07-28 决定),但内容区渲染
+- * `SectionPlaceholder` 并弹一条 info toast,不实现真功能。
++ * 留给后续阶段、内容区仍渲染 `SectionPlaceholder` 并弹一条 info toast 的分区。
++ * `skills` 已于 SP8-P3a 接入真组件（`SkillsSection`），从本列表移出；
++ * `mcp` 仍待 P4。导航里照 Vue2 1:1 显示（用户 2026-07-28 决定）。
+  */
+-export const DEFERRED_SECTIONS: SectionId[] = ['skills', 'mcp']
++export const DEFERRED_SECTIONS: SectionId[] = ['mcp']
+ 
+ /** 某个分区所属的组;未知 id 回落到第一个组(Vue2 `sections.js:62-64` 同款兜底)。 */
+ export function groupOf(sectionId: string): SectionGroup {
+   return GROUPS.find((g) => g.items.some((i) => i.id === sectionId)) || GROUPS[0]
+ }
+diff --git a/src/ai/views/SettingsPage.test.ts b/src/ai/views/SettingsPage.test.ts
+index 73e2536..977bc94 100644
+--- a/src/ai/views/SettingsPage.test.ts
++++ b/src/ai/views/SettingsPage.test.ts
+@@ -25,20 +25,27 @@ import { createI18n } from 'vue-i18n'
+ import { createRouter, createMemoryHistory, type Router } from 'vue-router'
+ import zh from '../../i18n/zh_cn'
+ 
+ const ai = vi.hoisted(() => ({
+   getServicesStatus: vi.fn(),
+   listModels: vi.fn(),
+   listProviders: vi.fn(),
+   getPolicy: vi.fn(),
+   getImportStatus: vi.fn(),
+   cancelImport: vi.fn(),
++  // SP8-P3a Task 7 —— skills 分区不再是占位,挂载真组件 SkillsSection 会在
++  // onMounted 里调 service.ai.listSkills()。裸 vi.fn()(无 mockResolvedValue)
++  // 调用返回 undefined,`await undefined` 合法且 SkillsSection 的
++  // `Array.isArray(list)` 兜底把它当空列表处理,不抛错、不弹 toast —— 足够
++  // 让本文件里与 skills 无关的用例（换到该分区只是路过）保持沉默；需要断言
++  // 列表内容的用例会自己 `mockResolvedValue`。
++  listSkills: vi.fn(),
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
+ 
+ import SettingsPage from './SettingsPage.vue'
+ import { useSettingsStore } from '../stores/settingsStore'
+ import type { ImportJob } from '../stores/settingsStore'
+ import type { SectionId } from '../components/settings/sections'
+ import { useAiTheme } from '../stores/aiTheme'
+ import { useToast } from '../../stores/toast'
+ 
+@@ -285,46 +292,50 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
+   })
+ 
+   // SP8-P2b Task 14 修复轮 1 —— 收口守卫,取代原先直接断言内部常量
+   // `SECTION_COMPONENTS` 的写法(协调者裁定:`export` 会让 `<script setup>`
+   // 编译失败,而为了可测去拆额外 `<script>` 块是不必要的公开面扩张;改成断言
+   // *渲染结果*,不碰组件内部实现)。
+   //
+   // 判别依据:`SectionPlaceholder.vue` 把 `bodyKey` prop 渲染成
+   // `<p class="set-desc">{{ t(props.bodyKey) }}</p>`,而 `SettingsPage.vue`
+   // 的 `placeholderProps()` 对占位分区永远传 `bodyKey: 'aiCfgPlaceholderBody'`
+-  // ——这段文案(`zh.aiCfgPlaceholderBody`)是占位面板独有的,11 个真分区各自
++  // ——这段文案(`zh.aiCfgPlaceholderBody`)是占位面板独有的,真分区各自
+   // 用的是自己的 `aiCfgXxxDesc` 文案键(逐一核对过 `sections/*.vue` 源码,没有
+   // 一个真分区复用这个键),所以「页面渲染文本里是否出现这段占位文案」可以
+   // 精确区分「真组件」与「SectionPlaceholder」,不需要拿到 `SECTION_COMPONENTS`
+   // 本身。
+   //
+   // agent 组(blacklist/execution/search/memory/observability)是 stack 组,
+   // 一次 setActiveSection 会把组内 5 个分区一起渲染出来,断言力度比逐个切更强
+   // (5 个分区的真实现只要有 1 个不小心留了占位就会被抓到)。
+-  it('SP8-P2b 收口 —— 11 个已实现分区渲染后页面不含占位文案，skills/mcp 仍含占位文案', async () => {
++  //
++  // SP8-P3a Task 7 —— `skills` 已接入真组件 `SkillsSection`,从「仍含占位文案」
++  // 的 deferred 列表移到「已实现」列表;现在只剩 `mcp` 还在渲染
++  // `SectionPlaceholder`(留给 P4)。
++  it('SP8-P3a 收口 —— 12 个已实现分区渲染后页面不含占位文案，mcp 仍含占位文案', async () => {
+     const store = useSettingsStore()
+     stubNetworkActions(store)
+     const { w } = await mountPage()
+     await flushPromises()
+ 
+     const implemented: SectionId[] = [
+       'models', 'providers', 'privacy', 'thinking',
+-      'blacklist', 'execution', 'search', 'memory', 'observability', 'mcptokens', 'channels',
++      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcptokens', 'channels',
+     ]
+     for (const id of implemented) {
+       store.setActiveSection(id)
+       await flushPromises()
+       expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
+     }
+ 
+-    const deferred: SectionId[] = ['skills', 'mcp']
++    const deferred: SectionId[] = ['mcp']
+     for (const id of deferred) {
+       store.setActiveSection(id)
+       await flushPromises()
+       expect(w.text()).toContain(zh.aiCfgPlaceholderBody)
+     }
+ 
+     w.unmount()
+   })
+ })
+ 
+@@ -394,29 +405,51 @@ describe('SettingsPage — ⑤+⑥ 深链契约与生命周期', () => {
+     await flushPromises()
+     const replaceSpy = vi.spyOn(router, 'replace')
+     const item = w.findAll('.set-nav-item').find((n) => n.text().includes('隐私与云端'))!
+     await item.trigger('click')
+     await flushPromises()
+     expect(replaceSpy).not.toHaveBeenCalled()
+     expect(store.activeSection).toBe('privacy')
+     w.unmount()
+   })
+ 
+-  it('19. 选中 skills → 弹一条 toast(DEFERRED_SECTIONS 契约)', async () => {
++  // SP8-P3a Task 7 —— skills 已接入真组件 SkillsSection,不再属于
++  // DEFERRED_SECTIONS,这条原本断言「弹一条占位 toast」的用例改为断言反面:
++  // 渲染出 SkillsSection 真实内容(`.sk-list`,来自 SkillsSection.vue:135,
++  // `SectionPlaceholder.vue` 没有这个 class)、页面不含占位文案、且不弹任何
++  // toast。下一条('19b')补上 mcp 仍走占位 toast 的对照,保证 DEFERRED_SECTIONS
++  // 的占位契约本身没有被整个删掉。
++  it('19. 选中 skills → 渲染 SkillsSection 真实内容,不弹 toast(不再是占位)', async () => {
+     const store = useSettingsStore()
+     stubNetworkActions(store)
+     const { w } = await mountPage()
+     await flushPromises()
+     const toast = useToast()
+     const showSpy = vi.spyOn(toast, 'show')
+     const item = w.findAll('.set-nav-item').find((n) => n.text().includes('技能'))!
+     await item.trigger('click')
++    await flushPromises()
++    expect(w.find('.sk-list').exists()).toBe(true)
++    expect(w.text()).not.toContain(zh.aiCfgPlaceholderBody)
++    expect(showSpy).not.toHaveBeenCalled()
++    w.unmount()
++  })
++
++  it('19b. 选中 mcp → 仍弹一条占位 toast(DEFERRED_SECTIONS 契约仍在,只是不再含 skills)', async () => {
++    const store = useSettingsStore()
++    stubNetworkActions(store)
++    const { w } = await mountPage()
++    await flushPromises()
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++    const item = w.findAll('.set-nav-item').find((n) => n.text().includes('MCP 连接'))!
++    await item.trigger('click')
+     expect(showSpy).toHaveBeenCalledWith('该分区将在后续阶段开启', 3000)
+     w.unmount()
+   })
+ 
+   it('20. 选中 providers(非 deferred)→ 不弹 toast(对照组)', async () => {
+     const store = useSettingsStore()
+     stubNetworkActions(store)
+     const { w } = await mountPage()
+     await flushPromises()
+     const toast = useToast()
+diff --git a/src/ai/views/SettingsPage.vue b/src/ai/views/SettingsPage.vue
+index 0856340..6549448 100644
+--- a/src/ai/views/SettingsPage.vue
++++ b/src/ai/views/SettingsPage.vue
+@@ -20,93 +20,95 @@
+ 
+   D3(申报,见下方恢复循环上方的完整注释)—— Vue2 的下载恢复循环因为
+   `createSettingsStore()` 每次新建而从未真正执行过;Pinia 单例下第一次有了
+   意义。`&& !job._timer` 守卫逐字保留。
+ 
+   【新增,非 Vue2 蓝本】
+   - 顶栏「详情」原为 `<router-link to="/ai/knowledge">`(Settings.vue:22-24)。
+     `/ai/knowledge` 要到 SP8-P5 才存在,`router.push` 到不存在的路由会落空白
+     死页 —— 改成 `<button>` + info toast 占位,样式类名 `.set-detail-link`
+     保持不变(视觉 1:1),仅交互目标变了。
+-  - 选中 `skills`/`mcp`(`DEFERRED_SECTIONS`)时弹一条 info toast —— Vue2 没有
+-    这个概念(它们本就是真组件),本仓这两个分区的真实现要等 SP8-P3/P4,
+-    这里只是本阶段的范围提示,不是对 Vue2 行为的偏离。
++  - 选中 `mcp`(`DEFERRED_SECTIONS`)时弹一条 info toast —— Vue2 没有这个概念
++    (它本就是真组件),本仓这个分区的真实现要等 SP8-P4,这里只是本阶段的范围
++    提示,不是对 Vue2 行为的偏离。`skills` 已于 SP8-P3a 接入真组件
++    `SkillsSection`,不再弹这条 toast。
+ -->
+ <script setup lang="ts">
+ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+ import type { Component } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import { useSettingsStore } from '../stores/settingsStore'
+ import { useAiTheme } from '../stores/aiTheme'
+ import { useToast } from '../../stores/toast'
+ import SettingsRail from '../components/settings/SettingsRail.vue'
+ import SectionPlaceholder from '../components/settings/SectionPlaceholder.vue'
+ import ModelsSection from '../components/settings/sections/ModelsSection.vue'
+ import ProvidersSection from '../components/settings/sections/ProvidersSection.vue'
+ import PrivacySection from '../components/settings/sections/PrivacySection.vue'
+ import ThinkingDefaultsSection from '../components/settings/sections/ThinkingDefaultsSection.vue'
+ import BlacklistSection from '../components/settings/sections/BlacklistSection.vue'
+ import ExecutionSection from '../components/settings/sections/ExecutionSection.vue'
+ import SearchSection from '../components/settings/sections/SearchSection.vue'
+ import MemorySection from '../components/settings/sections/MemorySection.vue'
+ import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
++import SkillsSection from '../components/settings/sections/SkillsSection.vue'
+ import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
+ import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
+ import AgentIcon from '../components/icons/AgentIcon.vue'
+ import {
+   ALL_ITEMS,
+   DEFERRED_SECTIONS,
+   SPLIT_SECTIONS,
+   VALID_SECTIONS,
+   groupOf,
+   type SectionId,
+ } from '../components/settings/sections'
+ import '../styles/tokens.scss'
+ import '../styles/sk-shared.scss'
+ import '../styles/settings-styles.scss'
+ import '../styles/skills-styles.scss'
+ 
+ // SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
+ // 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
+ //
+-// SP8-P2b 收官接线(本任务)后,只剩 skills / mcp 两个仍渲染 SectionPlaceholder:
+-//   skills → P3 · mcp → P4
+-// 其余 11 个(models/providers/privacy/thinking 为 P2a 已接;
+-// blacklist/execution/search/memory/observability/mcptokens/channels 为
+-// P2b 本任务接)均已指向各自的真组件。
++// SP8-P2b 收官接线后曾只剩 skills / mcp 两个仍渲染 SectionPlaceholder;
++// SP8-P3a 把 skills 接上真组件 SkillsSection 后,现在只剩 mcp 一个仍渲染
++// SectionPlaceholder(留给 P4)。其余 12 个(models/providers/privacy/thinking
++// 为 P2a 已接;blacklist/execution/search/memory/observability/mcptokens/
++// channels 为 P2b 已接;skills 为本任务 P3a 已接)均已指向各自的真组件。
+ //
+ // SP8-P2b Task 14 修复轮 1 —— 不 export 这个常量:`<script setup>` 不允许 ES
+ // module 具名导出(试过,编译直接报错),而协调者裁定"可测试性"不值得为此拆
+ // 出额外的 `<script>` 块(公开面收窄)。收口守卫测试改成断言渲染结果(是否
+ // 渗出占位文案),不再需要拿到这个常量本身。
+ const SECTION_COMPONENTS: Record<SectionId, Component> = {
+   models: ModelsSection, // Task 9 —— 已替换
+   providers: ProvidersSection, // Task 10 —— 已替换
+   privacy: PrivacySection, // Task 11 —— 已替换
+   thinking: ThinkingDefaultsSection, // Task 11 —— 已替换
+   blacklist: BlacklistSection, // SP8-P2b Task 4 —— 已实现,收官接线
+   execution: ExecutionSection, // SP8-P2b Task 5 —— 已实现,收官接线
+   search: SearchSection, // SP8-P2b Task 7 —— 已实现,收官接线
+   memory: MemorySection, // SP8-P2b Task 6 —— 已实现,收官接线
+   observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
+-  skills: SectionPlaceholder, // SP8-P3 才实现,保持占位
++  skills: SkillsSection, // SP8-P3a Task 7 —— 已实现,收官接线
+   mcp: SectionPlaceholder, // SP8-P4 才实现,保持占位
+   mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线
+   channels: ChannelsSection, // SP8-P2b Task 12 —— 已实现,收官接线
+ }
+ 
+ // 非 Vue2 蓝本 —— SectionPlaceholder 需要 { titleKey, bodyKey } 两个 prop,而
+ // Vue2 的 SECTION_COMPONENTS 只是纯 id→组件映射、渲染处不传任何 prop
+ // (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(已换上真组件的
+-// 11 个分区里,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
+-// 占位场景(现仅 skills/mcp)下用来源分区自己的导航文案(sections.ts 的
++// 12 个分区里,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能),
++// 占位场景(现仅 mcp)下用来源分区自己的导航文案(sections.ts 的
+ // labelKey)作标题,统一的 `aiCfgPlaceholderBody` 作说明文字。
+ function placeholderProps(id: SectionId): Record<string, string> {
+   if (SECTION_COMPONENTS[id] !== SectionPlaceholder) return {}
+   const item = ALL_ITEMS.find((i) => i.id === id)
+   return { titleKey: item ? item.labelKey : '', bodyKey: 'aiCfgPlaceholderBody' }
+ }
+ 
+ const store = useSettingsStore()
+ const aiTheme = useAiTheme()
+ const route = useRoute()

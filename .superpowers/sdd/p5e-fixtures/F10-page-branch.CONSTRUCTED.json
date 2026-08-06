@@ -1,0 +1,34 @@
+{
+  "_provenance": "CONSTRUCTED, not captured (D-6 mould, same as P5d). Reason: every one of the 7 files indexed on this device is text/plain; the Qdrant payload therefore never carries a `page` key, so `cite.page` is null in 100% of real hits. FileDetailDrawer's `c.page ? $t('Page {n}') : $t('Section {n}')` / `$t('Passage')` branch has NO real-machine sample.",
+  "_field_shapes_are_authoritative": "Taken from NimoOS-Search/service/search.go:46-53 (Cite) and :295-337 (buildHitFromPayload): `page` is *int with json tag `page` and NO omitempty -> the key is always present, value null when the payload has no page. chunk_no is a plain int -> always present, 0 is a legal value.",
+  "files": [
+    {
+      "file_id": "cafe0000000000000000000000000001",
+      "paths": [ { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "path": "/DATA/Documents/report.pdf", "mtime_ms": 1784404128499 } ],
+      "mime": "application/pdf",
+      "kind": "body",
+      "score": 0.7104,
+      "chunks": [
+        { "score": 0.7104, "raw_score": 0.7104, "collection": "text_chunks",
+          "file_id": "cafe0000000000000000000000000001", "paths": null,
+          "mime": "application/pdf", "kind": "body",
+          "cite": { "page": 12, "offset_start": 4096, "offset_end": 5120, "frame_ms_start": null, "frame_ms_end": null, "chunk_no": 7 },
+          "preview": { "text": "page-bearing chunk", "thumbnail_url": null }, "payload_extra": {} },
+        { "score": 0.6011, "raw_score": 0.6011, "collection": "text_chunks",
+          "file_id": "cafe0000000000000000000000000001", "paths": null,
+          "mime": "application/pdf", "kind": "body",
+          "cite": { "page": 0, "offset_start": 0, "offset_end": 1024, "frame_ms_start": null, "frame_ms_end": null, "chunk_no": 0 },
+          "preview": { "text": "page ZERO - legal page number, must NOT fall through to Section {n}", "thumbnail_url": null }, "payload_extra": {} },
+        { "score": 0.4903, "raw_score": 0.4903, "collection": "text_chunks",
+          "file_id": "cafe0000000000000000000000000001", "paths": null,
+          "mime": "application/pdf", "kind": "body",
+          "cite": { "page": null, "offset_start": 8192, "offset_end": 9216, "frame_ms_start": null, "frame_ms_end": null, "chunk_no": 13 },
+          "preview": { "text": null, "thumbnail_url": null }, "payload_extra": {} }
+      ]
+    }
+  ],
+  "hits": [],
+  "stats": { "total_candidates": 3, "rerank_ms": 0, "embed_ms": 5027, "vector_search_ms": 4, "expand_ms": 9 },
+  "warnings": [],
+  "_landmine": "page: 0 is a LEGAL page number but `c.page ? ... : ...` is FALSY on 0 -> the blueprint renders `Section {n}` for page 0. That is BLUEPRINT BEHAVIOUR (N-series: copy as-is), not something to fix. It is registered in appendix D and must have its own test case."
+}

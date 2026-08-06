@@ -1,0 +1,83 @@
+# Review package: 4c0ab8c..25b1a95
+
+## Commits
+25b1a95 P7: invalidate() 孤儿化在途 loadCatalog(终审修复)+ 竞态测试
+
+## Files changed
+ src/apps/stores/appstore.test.ts | 22 ++++++++++++++++++++++
+ src/apps/stores/appstore.ts      |  8 ++++++--
+ 2 files changed, 28 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/apps/stores/appstore.test.ts b/src/apps/stores/appstore.test.ts
+index a2fc0ed..aaba7a2 100644
+--- a/src/apps/stores/appstore.test.ts
++++ b/src/apps/stores/appstore.test.ts
+@@ -129,11 +129,33 @@ describe('appstore store', () => {
+ 
+     await s.loadCatalog()
+     await s.loadCatalog()
+     expect(svc.categories).toHaveBeenCalledTimes(1) // length 守卫命中
+ 
+     s.invalidate()
+     expect(s.catalogLoaded).toBe(false)
+     await s.loadCatalog()
+     expect(svc.categories).toHaveBeenCalledTimes(2) // 缓存已失效,重拉
+   })
++
++  it('invalidate 孤儿化在途 loadCatalog:陈旧响应落地不应复活 catalogLoaded/categories', async () => {
++    const s = useAppstoreStore()
++    await s.loadCatalog() // 先跑一次,让 list/installed 落一个基线值
++    const prevList = s.list
++    const prevInstalled = s.installed
++
++    let resolveInFlight: (v: unknown) => void = () => {}
++    svc.listApps.mockImplementationOnce(() => new Promise((res) => { resolveInFlight = res }))
++
++    const p = s.loadCatalog('Media', ALL) // 在途请求
++    s.invalidate() // 商店源变了,孤儿化上面这次在途请求
++
++    resolveInFlight({ installed: ['ghost'], list: { ghost: { title: { en_us: 'Ghost' }, category: 'Media' } } })
++    await p
++
++    expect(s.catalogLoaded).toBe(false)
++    expect(s.categories).toEqual([])
++    expect(s.loading).toBe(false)
++    expect(s.list).toBe(prevList) // invalidate 本身不碰 list/installed,陈旧响应也不应写入
++    expect(s.installed).toBe(prevInstalled)
++  })
+ })
+diff --git a/src/apps/stores/appstore.ts b/src/apps/stores/appstore.ts
+index c6fead4..2b5ddc7 100644
+--- a/src/apps/stores/appstore.ts
++++ b/src/apps/stores/appstore.ts
+@@ -83,23 +83,27 @@ export const useAppstoreStore = defineStore('appstore', () => {
+       if (info) detail.value = info
+       else detailError.value = true
+     } catch (e) {
+       detailError.value = true
+       console.warn('[appstore] loadDetail', e)
+     } finally {
+       detailLoading.value = false
+     }
+   }
+ 
+-  /** 商店源增删后目录已变:清 categories 缓存(loadCatalog 有 length 守卫,不清不会重拉)
+-   *  并复位 catalogLoaded,下次进商店页整体重拉。featured 每次 mounted 都重拉,无缓存守卫,不用清。 */
++  /** 商店源增删后目录已变:seq++ 孤儿化在途 loadCatalog(防陈旧响应复活缓存),
++   *  清 categories 缓存(loadCatalog 有 length 守卫,不清不会重拉)并复位 catalogLoaded;
++   *  loading 一并复位——被孤儿化的请求的 finally 因 mySeq !== seq 不会再翻转它。
++   *  featured 每次 mounted 都重拉,无缓存守卫,不用清。 */
+   function invalidate() {
++    seq++
++    loading.value = false
+     categories.value = []
+     catalogLoaded.value = false
+   }
+ 
+   const isInstalled = (id: string) => installed.value.includes(id)
+ 
+   return {
+     categories, list, installed, featured, loading, error, catalogLoaded,
+     detail, detailLoading, detailError,
+     loadCatalog, retry, loadFeatured, loadDetail, invalidate, isInstalled,

@@ -1,0 +1,523 @@
+{
+ "hits": [
+  {
+   "score": 0.738,
+   "raw_score": 0.738,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 0,
+    "offset_end": 2343,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 0
+   },
+   "preview": {
+    "text": "{\"log\":\"/usr/share/nimoos/agent/main.py:201: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738908774Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738952219Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738954927Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738956078Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738957126Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738958158Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738959023Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:206: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738960073Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738961049Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738961974Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738962812Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.73896371Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738964717Z\"}\n{\"log\":\"  @app.on_event(\\\"shutdown\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738965618Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:245: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749300591Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749311192Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749313156Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749314262Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749315267Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749316299Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749317178Z\"}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.7354,
+   "raw_score": 0.7354,
+   "collection": "text_chunks",
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 2023,
+    "offset_end": 4341,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1
+   },
+   "preview": {
+    "text": "stAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749315267Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749316299Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749317178Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:263: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749318188Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749319106Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749320025Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749320843Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.74932169Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749322699Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749323657Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:274: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749324566Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749325431Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749326311Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749327086Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749327926Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749328835Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.74932965Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:280: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749330537Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749331403Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749338818Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.74934Z\"}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.6118,
+   "raw_score": 0.6118,
+   "collection": "text_chunks",
+   "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/log.log",
+     "mtime_ms": 1784404128499
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 0,
+    "offset_end": 2286,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 0
+   },
+   "preview": {
+    "text": "2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: images path mismatch, self-healing\t{\"configured\": \"/DATA/.system_data/.docker\", \"actual\": \"/var/lib/docker\", \"func\": \"route.InitPathConfig\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/init.go\", \"line\": 179}\n2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: path config saved\t{\"images\": \"/var/lib/docker\", \"func\": \"route.InitPathConfig\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/init.go\", \"line\": 196}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PUT\", \"path\": \"/v2/nimoos/local_storage/display_name\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/zt/info\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"CONNECT\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"OPTIONS\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"POST\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"REPORT\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/file/test\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"POST\", \"path\": \"/v2/nimoos/file/upload\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/ports\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.6002,
+   "raw_score": 0.6002,
+   "collection": "text_chunks",
+   "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/log.log",
+     "mtime_ms": 1784404128499
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 1966,
+    "offset_end": 4328,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1
+   },
+   "preview": {
+    "text": "nimoos/file/upload\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/ports\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"TRACE\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"HEAD\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PATCH\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PUT\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/local_storage/display_names\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PUT\", \"path\": \"/v2/nimoos/zt/:network_id/status\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/services\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"DELETE\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PROPFIND\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.5127,
+   "raw_score": 0.5127,
+   "collection": "text_chunks",
+   "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+     "mtime_ms": 1784359333549
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 0,
+    "offset_end": 2337,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 0
+   },
+   "preview": {
+    "text": "{\"log\":\"/usr/share/nimoos/agent/main.py:127: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986113876Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986160427Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986163229Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986164448Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986165507Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986166519Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986167593Z\"}\n{\"log\":\"INFO:     Started server process [7]\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.031310812Z\"}\n{\"log\":\"INFO:     Waiting for application startup.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.031334264Z\"}\n{\"log\":\"INFO:     Application startup complete.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.031511798Z\"}\n{\"log\":\"INFO:     Uvicorn running on http://127.0.0.1:8282 (Press CTRL+C to quit)\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.032338406Z\"}\n{\"log\":\"INFO:     127.0.0.1:34342 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:35:33.675829667Z\"}\n{\"log\":\"INFO:     127.0.0.1:48338 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:36:03.678732633Z\"}\n{\"log\":\"INFO:     127.0.0.1:48670 - \\\"GET /healthz HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:36:05.855229005Z\"}\n{\"log\":\"INFO:     127.0.0.1:49998 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:36:33.681519469Z\"}\n{\"log\":\"INFO:     127.0.0.1:46452 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:37:03.684508521Z\"}\n{\"log\":\"INFO:     127.0.0.1:43198 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:37:33.686913167Z\"}\n{\"log\":\"INFO:     127.0.0.1:55858 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:03.69056577Z\"}\n{\"log\":\"INFO:     127.0.0.1:54650 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:33.693500978Z\"}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.5044,
+   "raw_score": 0.5044,
+   "collection": "text_chunks",
+   "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+     "mtime_ms": 1784359333549
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 2017,
+    "offset_end": 4397,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1
+   },
+   "preview": {
+    "text": "stdout\",\"time\":\"2026-07-16T06:37:33.686913167Z\"}\n{\"log\":\"INFO:     127.0.0.1:55858 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:03.69056577Z\"}\n{\"log\":\"INFO:     127.0.0.1:54650 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:33.693500978Z\"}\n{\"log\":\"INFO:     127.0.0.1:58036 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:39:03.696748313Z\"}\n{\"log\":\"INFO:     127.0.0.1:60460 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:39:33.699198695Z\"}\n{\"log\":\"INFO:     127.0.0.1:42348 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:40:03.703106017Z\"}\n{\"log\":\"INFO:     127.0.0.1:40776 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:40:33.705930875Z\"}\n{\"log\":\"INFO:     127.0.0.1:54466 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:41:03.70849183Z\"}\n{\"log\":\"INFO:     127.0.0.1:47466 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:41:33.710743656Z\"}\n{\"log\":\"INFO:     127.0.0.1:39290 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:42:03.714609455Z\"}\n{\"log\":\"INFO:     127.0.0.1:58680 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:42:33.718265504Z\"}\n{\"log\":\"INFO:     127.0.0.1:36278 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:43:03.721087653Z\"}\n{\"log\":\"INFO:     127.0.0.1:40000 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:43:33.723239532Z\"}\n{\"log\":\"INFO:     127.0.0.1:42596 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:03.725720394Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"GET /agent/user-settings/thinking HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:21.146516523Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"GET /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:21.228305712Z\"}\n{\"log\":\"INFO:     127.0.0.1:35496 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:33.728850513Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"POST /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:39.797983808Z\"}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.4824,
+   "raw_score": 0.4824,
+   "collection": "text_chunks",
+   "file_id": "4018267c2ec373cddb244ac220a06cc2",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/app-management.log",
+     "mtime_ms": 1784434525914
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 0,
+    "offset_end": 2272,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 0
+   },
+   "preview": {
+    "text": "2026-07-13T16:10:05.000+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:10:10.001+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://codeload.github.com/bigbeartechworld/big-bear-casaos/zip/refs/heads/master\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:20:05.001+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:20:10.001+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:30:01.336+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  },
+  {
+   "score": 0.4666,
+   "raw_score": 0.4666,
+   "collection": "text_chunks",
+   "file_id": "4018267c2ec373cddb244ac220a06cc2",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/app-management.log",
+     "mtime_ms": 1784434525914
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "cite": {
+    "page": null,
+    "offset_start": 1952,
+    "offset_end": 4109,
+    "frame_ms_start": null,
+    "frame_ms_end": null,
+    "chunk_no": 1
+   },
+   "preview": {
+    "text": "ce/appstore_management.go\", \"line\": 442}\n2026-07-13T16:30:01.336+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:30:03.083+0800\tinfo\tappstore size not changed\t{\"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:40:01.669+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:40:06.669+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:50:00.623+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:50:05.624+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://codeload.github.com/bigbeartechworld/big-bear-casaos/zip/refs/heads/master\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}",
+    "thumbnail_url": null
+   },
+   "payload_extra": {}
+  }
+ ],
+ "files": [
+  {
+   "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+     "mtime_ms": 1784424392240
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.738,
+   "chunks": [
+    {
+     "score": 0.738,
+     "raw_score": 0.738,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 0,
+      "offset_end": 2343,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 0
+     },
+     "preview": {
+      "text": "{\"log\":\"/usr/share/nimoos/agent/main.py:201: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738908774Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738952219Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738954927Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738956078Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738957126Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738958158Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738959023Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:206: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738960073Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738961049Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738961974Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738962812Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.73896371Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738964717Z\"}\n{\"log\":\"  @app.on_event(\\\"shutdown\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.738965618Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:245: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749300591Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749311192Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749313156Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749314262Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749315267Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749316299Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749317178Z\"}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.7354,
+     "raw_score": 0.7354,
+     "collection": "text_chunks",
+     "file_id": "dce79e8ea5d48719cd4ad16fe48da843",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log",
+       "mtime_ms": 1784424392240
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 2023,
+      "offset_end": 4341,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1
+     },
+     "preview": {
+      "text": "stAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749315267Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749316299Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749317178Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:263: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749318188Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749319106Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749320025Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749320843Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.74932169Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749322699Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749323657Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:274: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749324566Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749325431Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749326311Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749327086Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749327926Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749328835Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.74932965Z\"}\n{\"log\":\"/usr/share/nimoos/agent/main.py:280: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749330537Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749331403Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.749338818Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-18T07:59:48.74934Z\"}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  },
+  {
+   "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/log.log",
+     "mtime_ms": 1784404128499
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.6118,
+   "chunks": [
+    {
+     "score": 0.6118,
+     "raw_score": 0.6118,
+     "collection": "text_chunks",
+     "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/log.log",
+       "mtime_ms": 1784404128499
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 0,
+      "offset_end": 2286,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 0
+     },
+     "preview": {
+      "text": "2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: images path mismatch, self-healing\t{\"configured\": \"/DATA/.system_data/.docker\", \"actual\": \"/var/lib/docker\", \"func\": \"route.InitPathConfig\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/init.go\", \"line\": 179}\n2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: path config saved\t{\"images\": \"/var/lib/docker\", \"func\": \"route.InitPathConfig\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/init.go\", \"line\": 196}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PUT\", \"path\": \"/v2/nimoos/local_storage/display_name\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/zt/info\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"CONNECT\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"OPTIONS\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"POST\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"REPORT\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/file/test\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"POST\", \"path\": \"/v2/nimoos/file/upload\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/ports\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.6002,
+     "raw_score": 0.6002,
+     "collection": "text_chunks",
+     "file_id": "05d732586959ea3f480b5feb4b0d17c8",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/log.log",
+       "mtime_ms": 1784404128499
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 1966,
+      "offset_end": 4328,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1
+     },
+     "preview": {
+      "text": "nimoos/file/upload\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/ports\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"TRACE\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"HEAD\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PATCH\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PUT\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/local_storage/display_names\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PUT\", \"path\": \"/v2/nimoos/zt/:network_id/status\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"GET\", \"path\": \"/v2/nimoos/health/services\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"DELETE\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}\n2026-04-13T15:38:19.417-0400\tinfo\tRegistered V2 Route\t{\"method\": \"PROPFIND\", \"path\": \"/v2/nimoos/testecho\", \"func\": \"route.InitV2Router\", \"file\": \"/home/rootvg/NimoOSWeb/NimoOS/route/v2.go\", \"line\": 155}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  },
+  {
+   "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+     "mtime_ms": 1784359333549
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.5127,
+   "chunks": [
+    {
+     "score": 0.5127,
+     "raw_score": 0.5127,
+     "collection": "text_chunks",
+     "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+       "mtime_ms": 1784359333549
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 0,
+      "offset_end": 2337,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 0
+     },
+     "preview": {
+      "text": "{\"log\":\"/usr/share/nimoos/agent/main.py:127: DeprecationWarning: \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986113876Z\"}\n{\"log\":\"        on_event is deprecated, use lifespan event handlers instead.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986160427Z\"}\n{\"log\":\"\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986163229Z\"}\n{\"log\":\"        Read more about it in the\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986164448Z\"}\n{\"log\":\"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986165507Z\"}\n{\"log\":\"        \\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986166519Z\"}\n{\"log\":\"  @app.on_event(\\\"startup\\\")\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:29.986167593Z\"}\n{\"log\":\"INFO:     Started server process [7]\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.031310812Z\"}\n{\"log\":\"INFO:     Waiting for application startup.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.031334264Z\"}\n{\"log\":\"INFO:     Application startup complete.\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.031511798Z\"}\n{\"log\":\"INFO:     Uvicorn running on http://127.0.0.1:8282 (Press CTRL+C to quit)\\n\",\"stream\":\"stderr\",\"time\":\"2026-07-16T06:35:30.032338406Z\"}\n{\"log\":\"INFO:     127.0.0.1:34342 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:35:33.675829667Z\"}\n{\"log\":\"INFO:     127.0.0.1:48338 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:36:03.678732633Z\"}\n{\"log\":\"INFO:     127.0.0.1:48670 - \\\"GET /healthz HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:36:05.855229005Z\"}\n{\"log\":\"INFO:     127.0.0.1:49998 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:36:33.681519469Z\"}\n{\"log\":\"INFO:     127.0.0.1:46452 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:37:03.684508521Z\"}\n{\"log\":\"INFO:     127.0.0.1:43198 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:37:33.686913167Z\"}\n{\"log\":\"INFO:     127.0.0.1:55858 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:03.69056577Z\"}\n{\"log\":\"INFO:     127.0.0.1:54650 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:33.693500978Z\"}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.5044,
+     "raw_score": 0.5044,
+     "collection": "text_chunks",
+     "file_id": "e531767d0b917dfb86ea6c8451c4bf65",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log",
+       "mtime_ms": 1784359333549
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 2017,
+      "offset_end": 4397,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1
+     },
+     "preview": {
+      "text": "stdout\",\"time\":\"2026-07-16T06:37:33.686913167Z\"}\n{\"log\":\"INFO:     127.0.0.1:55858 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:03.69056577Z\"}\n{\"log\":\"INFO:     127.0.0.1:54650 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:38:33.693500978Z\"}\n{\"log\":\"INFO:     127.0.0.1:58036 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:39:03.696748313Z\"}\n{\"log\":\"INFO:     127.0.0.1:60460 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:39:33.699198695Z\"}\n{\"log\":\"INFO:     127.0.0.1:42348 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:40:03.703106017Z\"}\n{\"log\":\"INFO:     127.0.0.1:40776 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:40:33.705930875Z\"}\n{\"log\":\"INFO:     127.0.0.1:54466 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:41:03.70849183Z\"}\n{\"log\":\"INFO:     127.0.0.1:47466 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:41:33.710743656Z\"}\n{\"log\":\"INFO:     127.0.0.1:39290 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:42:03.714609455Z\"}\n{\"log\":\"INFO:     127.0.0.1:58680 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:42:33.718265504Z\"}\n{\"log\":\"INFO:     127.0.0.1:36278 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:43:03.721087653Z\"}\n{\"log\":\"INFO:     127.0.0.1:40000 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:43:33.723239532Z\"}\n{\"log\":\"INFO:     127.0.0.1:42596 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:03.725720394Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"GET /agent/user-settings/thinking HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:21.146516523Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"GET /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:21.228305712Z\"}\n{\"log\":\"INFO:     127.0.0.1:35496 - \\\"GET /agent/health HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:33.728850513Z\"}\n{\"log\":\"INFO:     192.168.1.162:0 - \\\"POST /agent/sessions HTTP/1.1\\\" 200 OK\\n\",\"stream\":\"stdout\",\"time\":\"2026-07-16T06:44:39.797983808Z\"}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  },
+  {
+   "file_id": "4018267c2ec373cddb244ac220a06cc2",
+   "paths": [
+    {
+     "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+     "path": "/DATA/.system_data/log/nimoos/app-management.log",
+     "mtime_ms": 1784434525914
+    }
+   ],
+   "mime": "text/plain",
+   "kind": "body",
+   "score": 0.4824,
+   "chunks": [
+    {
+     "score": 0.4824,
+     "raw_score": 0.4824,
+     "collection": "text_chunks",
+     "file_id": "4018267c2ec373cddb244ac220a06cc2",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/app-management.log",
+       "mtime_ms": 1784434525914
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 0,
+      "offset_end": 2272,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 0
+     },
+     "preview": {
+      "text": "2026-07-13T16:10:05.000+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:10:10.001+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://codeload.github.com/bigbeartechworld/big-bear-casaos/zip/refs/heads/master\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:20:05.001+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:20:10.001+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:30:01.336+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    },
+    {
+     "score": 0.4666,
+     "raw_score": 0.4666,
+     "collection": "text_chunks",
+     "file_id": "4018267c2ec373cddb244ac220a06cc2",
+     "paths": [
+      {
+       "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
+       "path": "/DATA/.system_data/log/nimoos/app-management.log",
+       "mtime_ms": 1784434525914
+      }
+     ],
+     "mime": "text/plain",
+     "kind": "body",
+     "cite": {
+      "page": null,
+      "offset_start": 1952,
+      "offset_end": 4109,
+      "frame_ms_start": null,
+      "frame_ms_end": null,
+      "chunk_no": 1
+     },
+     "preview": {
+      "text": "ce/appstore_management.go\", \"line\": 442}\n2026-07-13T16:30:01.336+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:30:03.083+0800\tinfo\tappstore size not changed\t{\"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:40:01.669+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:40:06.669+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}\n2026-07-13T16:50:00.623+0800\tinfo\tappstore size not changed\t{\"url\": \"https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip\", \"func\": \"service.(*appStore).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore.go\", \"line\": 91}\n2026-07-13T16:50:05.624+0800\terror\terror while updating catalog for app store\t{\"error\": \"Head \\\"https://codeload.github.com/bigbeartechworld/big-bear-casaos/zip/refs/heads/master\\\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)\", \"url\": \"https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip\", \"func\": \"service.(*AppStoreManagement).UpdateCatalog\", \"file\": \"/home/nimo/nimoos/NimoOS-AppManagement/service/appstore_management.go\", \"line\": 442}",
+      "thumbnail_url": null
+     },
+     "payload_extra": {}
+    }
+   ]
+  }
+ ],
+ "stats": {
+  "total_candidates": 8,
+  "rerank_ms": 0,
+  "embed_ms": 345,
+  "vector_search_ms": 62,
+  "expand_ms": 4
+ },
+ "warnings": [],
+ "_provenance": "REPLAYED(含 2 处已申报的人工成分)—— 用途:让 relLevel 三档 + 多文件聚合在同一个 fixture 里都有样本。\nGo 路径与 F5 完全相同(service/search.go:298-337 / 205-231 / 243-259 / 263-290)。\n🔴 人工成分 (1):8 个 score 是从本机实测区间 0.4666–0.7380 里取的档位代表值\n   (真值分布见 F0:40 个点全部落在 0.7340–0.7380,三档分不开)。high 1 / mid 2 / low 1。\n🔴 人工成分 (2):「4 个文件 × 每文件 2 chunk」这个场景本身是设计的 —— 源点选取规则见 F0b._selection。\n🔴 stats.total_candidates = 源点数(8),不是某次真查询的候选数;embed_ms/vector_search_ms 沿用 F0 那次真查询的耗时。\n除上述之外:preview.text 零截断、cite/mime/kind/file_id/paths 全部来自真 payload 或真 Parser 回填。\n🔴 抄进测试时删掉所有 _ 前缀的键。"
+}

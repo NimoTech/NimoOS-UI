@@ -1,0 +1,138 @@
+# Review package: 3ec29ca8..ed9a2ac4
+
+## Commits
+ed9a2ac4 feat(storage): Vue2 桌面存储入口改跳 /app/#/storage(SP6-P6)
+
+## Files changed
+ src/views/Home.vue                              |  8 +++
+ src/views/__tests__/Home.storageCutover.spec.js | 67 +++++++++++++++++++++++++
+ 2 files changed, 75 insertions(+)
+
+## Diff
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+index 53cceed8..5b6a6206 100644
+--- a/src/views/Home.vue
++++ b/src/views/Home.vue
+@@ -2,20 +2,21 @@
+ import { nanoid } from 'nanoid'
+ import SearchBar from '@/components/SearchBar.vue'
+ import SideBar from '@/components/SideBar.vue'
+ import CoreService from '@/components/CoreService.vue'
+ import AppSection from '@/components/Apps/AppSection.vue'
+ import { buildFilesTabHref, FILES_TAB_TARGET } from '@/components/filebrowser/upload/filesTab.js'
+ import UpdateCompleteModal from '@/components/settings/UpdateCompleteModal.vue'
+ import SettingsPanel from '@/components/settings/SettingsPanel.vue'
+ import { mixin } from '@/mixins/mixin'
+ import KVMFullPage from '@/components/KVM/KVMFullPage.vue'
++import { resolveEntryTarget } from '@/router/strangler'
+ import events from '@/events/events'
+ import vueCustomScrollbar from 'vue-custom-scrollbar'
+ import 'vue-custom-scrollbar/dist/vueScrollbar.css'
+ 
+ const wallpaperConfig = 'wallpaper'
+ 
+ export default {
+   name: 'HomePage',
+   components: {
+     SideBar,
+@@ -255,20 +256,27 @@ export default {
+       console.log('[DEBUG] After set, isKVMFullPageActive =', this.isKVMFullPageActive)
+     },
+ 
+     closeKVMFullPage() {
+       this.isKVMFullPageActive = false
+     },
+ 
+     // show storage settings modal
+     async showStorageManagerPanelModal() {
+       this.$messageBus('widget_storagemanager')
++      // SP6-P6 cutover:存储区已迁到 New-UI(/app/#/storage)。
++      // localStorage['strangler:disabled:/storage'] === '1' 时返回 null,落到下面的老弹窗(可逆回退)。
++      const target = resolveEntryTarget('/storage')
++      if (target) {
++        window.location.href = target
++        return
++      }
+       this.$buefy.modal.open({
+         parent: this,
+         component: () => import('@/components/Storage/StorageManagerPanel.vue'),
+         hasModalCard: true,
+         customClass: 'storage-modal',
+         trapFocus: true,
+         canCancel: [],
+         scroll: 'keep',
+         animation: 'zoom-in',
+       })
+diff --git a/src/views/__tests__/Home.storageCutover.spec.js b/src/views/__tests__/Home.storageCutover.spec.js
+new file mode 100644
+index 00000000..51a73470
+--- /dev/null
++++ b/src/views/__tests__/Home.storageCutover.spec.js
+@@ -0,0 +1,67 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
++
++// 说明:Home.vue 的 created() 会打三个 $api 请求、components 里挂着 SideBar/CoreService/
++// AppSection/KVMFullPage 等,shallowMount 需要一大堆与本改动无关的 mock。本用例测的是
++// showStorageManagerPanelModal 里的 cutover 分支,故在桩 this 上直调该方法。
++// 模板绑定与 mounted() 里的 EventBus 接线(casaUI:openStorageManager)本期未改动,由真机验收覆盖。
++//
++// 下面这些 vi.mock 与上面那条取舍是两回事:Home.vue 顶部静态 import 的子组件(及其自身的子
++// 依赖)大量使用 webpack 专有的无扩展名 `.vue` import / `require.context`,Vite/Vitest 默认
++// resolver 无法解析,哪怕只是 `import Home from '@/views/Home.vue'` 这一行本身也会在模块加载期
++// 崩溃(与是否 shallowMount 无关)。用最小 stub 顶替这些子组件,阻止 Vite 去 transform 它们的
++// 真实源码,不代表要测它们的行为。
++vi.mock('@/components/SideBar.vue', () => ({ default: { name: 'SideBarStub', render: () => null } }))
++vi.mock('@/components/SearchBar.vue', () => ({ default: { name: 'SearchBarStub', render: () => null } }))
++vi.mock('@/components/CoreService.vue', () => ({ default: { name: 'CoreServiceStub', render: () => null } }))
++vi.mock('@/components/Apps/AppSection.vue', () => ({ default: { name: 'AppSectionStub', render: () => null } }))
++vi.mock('@/components/settings/UpdateCompleteModal.vue', () => ({ default: { name: 'UpdateCompleteModalStub', render: () => null } }))
++vi.mock('@/components/settings/SettingsPanel.vue', () => ({ default: { name: 'SettingsPanelStub', render: () => null } }))
++vi.mock('@/components/KVM/KVMFullPage.vue', () => ({ default: { name: 'KVMFullPageStub', render: () => null } }))
++
++import Home from '@/views/Home.vue'
++function stubThis() {
++  return {
++    $messageBus: vi.fn(),
++    $buefy: { modal: { open: vi.fn() } },
++  }
++}
++
++let savedLocation
++let hrefs
++beforeEach(() => {
++  hrefs = []
++  savedLocation = window.location
++  Object.defineProperty(window, 'location', {
++    configurable: true,
++    value: { set href(v) { hrefs.push(v) }, get href() { return '' } },
++  })
++  localStorage.removeItem('strangler:disabled:/storage')
++})
++afterEach(() => {
++  Object.defineProperty(window, 'location', { configurable: true, value: savedLocation })
++  localStorage.removeItem('strangler:disabled:/storage')
++})
++
++describe('Home.vue 存储入口 cutover(SP6-P6)', () => {
++  it('未回退时整页跳 /app/#/storage,不开老弹窗', async () => {
++    const vm = stubThis()
++    await Home.methods.showStorageManagerPanelModal.call(vm)
++    expect(hrefs).toEqual(['/app/#/storage'])
++    expect(vm.$buefy.modal.open).not.toHaveBeenCalled()
++  })
++
++  it('埋点 widget_storagemanager 仍然上报', async () => {
++    const vm = stubThis()
++    await Home.methods.showStorageManagerPanelModal.call(vm)
++    expect(vm.$messageBus).toHaveBeenCalledWith('widget_storagemanager')
++  })
++
++  it('回退 flag == "1" 时开老弹窗,不跳转', async () => {
++    localStorage.setItem('strangler:disabled:/storage', '1')
++    const vm = stubThis()
++    await Home.methods.showStorageManagerPanelModal.call(vm)
++    expect(hrefs).toEqual([])
++    expect(vm.$buefy.modal.open).toHaveBeenCalledTimes(1)
++    expect(vm.$messageBus).toHaveBeenCalledWith('widget_storagemanager')
++  })
++})

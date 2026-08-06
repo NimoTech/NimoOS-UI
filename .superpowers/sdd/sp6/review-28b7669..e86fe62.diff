@@ -1,0 +1,389 @@
+# Review package: 28b7669..e86fe62
+
+## Commits
+e86fe62 feat(storage): RAID 级别对比矩阵主体(P4 T4,故障模拟器推迟)
+
+## Files changed
+ src/i18n/en_us.ts                         |  16 ++
+ src/i18n/zh_cn.ts                         |  16 ++
+ src/storage/components/RaidMatrix.test.ts |  31 ++++
+ src/storage/components/RaidMatrix.vue     | 269 ++++++++++++++++++++++++++++++
+ 4 files changed, 332 insertions(+)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 8de8f86..dfd2436 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -652,11 +652,27 @@ export default {
+   // read/write are that table's raw 1-5 ratings (5, 4), transcribed as rating text.
+   raidLevel10Tolerance: 'Up to half the disks (1 per mirror pair)',
+   raidLevel10Read: '—',
+   raidLevel10Write: '—',
+   // desc: raidUtils.js source literally has placeholder desc strings (e.g. 'RAID 0 Description') — transcribed verbatim, not invented
+   raidLevel0Desc: 'RAID 0 Description',
+   raidLevel1Desc: 'RAID 1 Description',
+   raidLevel5Desc: 'RAID 5 Description',
+   raidLevel6Desc: 'RAID 6 Description',
+   raidLevel10Desc: 'RAID 10 Description',
++  // RaidMatrix (P4 T4) level comparison matrix: row labels + per-level usecase (verbatim from raidLevels.ts)
++  raidMatrixLayout: 'Layout',
++  raidMatrixMinDrives: 'Min. drives',
++  raidMatrixSurvives: 'Survives failure of',
++  raidMatrixCapacity: 'Usable capacity',
++  raidMatrixRead: 'Read speed',
++  raidMatrixWrite: 'Write speed',
++  raidMatrixCost: 'Cost efficiency',
++  raidMatrixBestFor: 'Best for',
++  raidMatrixSelect: 'Select',
++  raidMatrixDetails: 'Details',
++  raidLevel0Usecase: 'Video scratch disks, caches, render farms',
++  raidLevel1Usecase: 'Photo library, personal NAS, boot volumes',
++  raidLevel5Usecase: 'General NAS, media servers, small business',
++  raidLevel6Usecase: 'Large arrays, archives, anything important',
++  raidLevel10Usecase: 'Databases, virtualization, heavy-write loads',
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index a091728..24dc7b0 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -651,11 +651,27 @@ export default {
+   // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。
+   raidLevel10Tolerance: '至多一半磁盘(每镜像对 1 块)',
+   raidLevel10Read: '—',
+   raidLevel10Write: '—',
+   // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)
+   raidLevel0Desc: 'RAID 0 说明',
+   raidLevel1Desc: 'RAID 1 说明',
+   raidLevel5Desc: 'RAID 5 说明',
+   raidLevel6Desc: 'RAID 6 说明',
+   raidLevel10Desc: 'RAID 10 说明',
++  // RaidMatrix(P4 T4)级别对比矩阵:行标签 + 各级别适用场景(usecase,逐字翻译自 raidLevels.ts 的英文常量)
++  raidMatrixLayout: '布局',
++  raidMatrixMinDrives: '最少盘数',
++  raidMatrixSurvives: '可承受故障',
++  raidMatrixCapacity: '可用容量',
++  raidMatrixRead: '读取速度',
++  raidMatrixWrite: '写入速度',
++  raidMatrixCost: '成本效率',
++  raidMatrixBestFor: '适用场景',
++  raidMatrixSelect: '选择',
++  raidMatrixDetails: '详情',
++  raidLevel0Usecase: '视频草稿盘、缓存、渲染农场',
++  raidLevel1Usecase: '照片库、个人 NAS、启动卷',
++  raidLevel5Usecase: '通用 NAS、媒体服务器、小型企业',
++  raidLevel6Usecase: '大型阵列、归档、任何重要数据',
++  raidLevel10Usecase: '数据库、虚拟化、高写入负载',
+ }
+diff --git a/src/storage/components/RaidMatrix.test.ts b/src/storage/components/RaidMatrix.test.ts
+new file mode 100644
+index 0000000..4a0c5c0
+--- /dev/null
++++ b/src/storage/components/RaidMatrix.test.ts
+@@ -0,0 +1,31 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import RaidMatrix from './RaidMatrix.vue'
++import zh from '../../i18n/zh_cn'
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
++
++// tsconfig lib 目标为 ES2020,Array.prototype.at() 需 ES2022+ 才有类型定义(vue-tsc 报 TS2550);
++// 用等价的 arr[arr.length-1] 代替 .at(-1)(与 RaidDriveBay.test.ts 同款写法)。
++function lastCall<T>(calls: T[][] | undefined): T[] {
++  const list = calls!
++  return list[list.length - 1]
++}
++
++describe('RaidMatrix', () => {
++  it('渲染 5 个级别列', () => {
++    const w = mount(RaidMatrix, { props: { diskCount: 4, sizeBytes: 1000, selectedLevel: null }, global: { plugins: [i18n] } })
++    expect(w.findAll('.rm-col')).toHaveLength(5)
++  })
++  it('点 Select → emit update:selectedLevel(级别 id)', async () => {
++    const w = mount(RaidMatrix, { props: { diskCount: 4, sizeBytes: 1000, selectedLevel: null }, global: { plugins: [i18n] } })
++    await w.findAll('.rm-select')[2].trigger('click') // 第3列 = RAID5
++    expect(lastCall(w.emitted('update:selectedLevel'))).toEqual([5])
++  })
++  it('不渲染故障模拟器入口(推迟)', () => {
++    const w = mount(RaidMatrix, { props: { diskCount: 4, sizeBytes: 1000, selectedLevel: null }, global: { plugins: [i18n] } })
++    expect(w.find('.rm-simulator').exists()).toBe(false)
++    expect(w.text().toLowerCase()).not.toContain('failure simulator')
++  })
++})
+diff --git a/src/storage/components/RaidMatrix.vue b/src/storage/components/RaidMatrix.vue
+new file mode 100644
+index 0000000..c29c61c
+--- /dev/null
++++ b/src/storage/components/RaidMatrix.vue
+@@ -0,0 +1,269 @@
++<!-- 故障模拟器 P4 决策2 推迟 -->
++<!--
++  迁移自 NimoOS-UI/src/components/Storage/raid/RaidMatrix.vue(:12-121 矩阵主体)。
++  只迁矩阵本身(Layout/Min drives/Survives/Capacity/Read/Write/Cost/Best for/Actions 九行 × 5 级别列)。
++  明确不迁 Vue2 源 :123-200 的故障模拟器 modal(openModal/failDrive/modalStatus/rebuildAll/resetModal
++  及 survival() 判定),也不迁顶部图例(rm__legend)与 recommendedLevel 推荐徽章 —— 均超出本任务契约
++  (props 只有 diskCount/sizeBytes/selectedLevel)。
++-->
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import { fmtSize } from '../../home/util/format'
++import { RAID_LEVELS, type RaidLevelSpec, type RaidRole } from '../util/raidLevels'
++
++const props = defineProps<{ diskCount: number; sizeBytes: number; selectedLevel: number | null }>()
++const emit = defineEmits<{
++  (e: 'update:selectedLevel', id: number): void
++  (e: 'details', id: number): void
++}>()
++const { t } = useI18n()
++
++const levels = RAID_LEVELS
++
++// Vue2 源 isAvailable(RaidMatrix.vue:244-246):RAID 10 需要 >=4 且为偶数盘,其余按 lv.min 判定。
++function isAvailable(lv: RaidLevelSpec): boolean {
++  if (lv.id === 10) return props.diskCount >= 4 && props.diskCount % 2 === 0
++  return props.diskCount >= lv.min
++}
++
++// Vue2 源 diskLayout(RaidMatrix.vue:255-258):盘数不足时仍按 lv.min 预览布局,而非空白。
++function diskLayout(lv: RaidLevelSpec): RaidRole[] {
++  const n = Math.max(isAvailable(lv) ? props.diskCount : lv.min, lv.min)
++  return lv.layout(n)
++}
++
++// Vue2 源 capPct(RaidMatrix.vue:248-254),这里 sizeBytes 是调用方已算好的单盘有效容量(非磁盘数组)。
++function capPct(lv: RaidLevelSpec): number {
++  const n = props.diskCount
++  const s = props.sizeBytes
++  if (n === 0 || s === 0) return 0
++  const used = lv.capacity(n, s)
++  return Math.round((used / (n * s)) * 100)
++}
++
++function selectLevel(lv: RaidLevelSpec): void {
++  if (isAvailable(lv)) emit('update:selectedLevel', lv.id)
++}
++</script>
++
++<template>
++  <div class="rm">
++    <div class="rm-grid">
++      <div class="rm-lbl rm-lbl--corner"></div>
++      <div
++        v-for="lv in levels"
++        :key="lv.id"
++        class="rm-col"
++        :class="{ 'rm-col--selected': lv.id === selectedLevel, 'rm-col--dim': !isAvailable(lv) }"
++      >
++        <div class="rm-col-title">{{ lv.name }}</div>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixLayout') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'layout-' + lv.id"
++        class="rm-cell rm-cell--viz"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <div class="rm-disks">
++          <span v-for="(role, i) in diskLayout(lv)" :key="i" class="rm-disk" :class="`rm-disk--${role}`"></span>
++        </div>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixMinDrives') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'min-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >{{ lv.min }}</div>
++
++      <div class="rm-lbl">{{ t('raidMatrixSurvives') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'tol-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <span class="rm-pill">{{ t(`raidLevel${lv.id}Tolerance`) }}</span>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixCapacity') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'cap-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <template v-if="isAvailable(lv) && sizeBytes > 0">
++          {{ fmtSize(lv.capacity(diskCount, sizeBytes)) }}
++          <span class="rm-cap-pct"> · {{ capPct(lv) }}%</span>
++        </template>
++        <template v-else>—</template>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixRead') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'read-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <div class="rm-meter">
++          <span v-for="i in 5" :key="i" class="rm-pip" :class="{ 'rm-pip--on': i <= lv.read }"></span>
++        </div>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixWrite') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'write-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <div class="rm-meter">
++          <span v-for="i in 5" :key="i" class="rm-pip" :class="{ 'rm-pip--on': i <= lv.write }"></span>
++        </div>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixCost') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'cost-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <div class="rm-meter">
++          <span v-for="i in 5" :key="i" class="rm-pip" :class="{ 'rm-pip--on': i <= lv.cost }"></span>
++        </div>
++      </div>
++
++      <div class="rm-lbl">{{ t('raidMatrixBestFor') }}</div>
++      <div
++        v-for="lv in levels"
++        :key="'use-' + lv.id"
++        class="rm-cell"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel, 'rm-cell--dim': !isAvailable(lv) }"
++      >
++        <span class="rm-usecase">{{ t(`raidLevel${lv.id}Usecase`) }}</span>
++      </div>
++
++      <div class="rm-lbl rm-lbl--action"></div>
++      <div
++        v-for="lv in levels"
++        :key="'act-' + lv.id"
++        class="rm-cell rm-cell--action"
++        :class="{ 'rm-cell--selected': lv.id === selectedLevel }"
++      >
++        <button type="button" class="rm-btn rm-btn--primary rm-select" :disabled="!isAvailable(lv)" @click="selectLevel(lv)">
++          {{ t('raidMatrixSelect') }}
++        </button>
++        <button type="button" class="rm-btn rm-btn--ghost rm-details" @click="emit('details', lv.id)">
++          {{ t('raidMatrixDetails') }}
++        </button>
++      </div>
++    </div>
++  </div>
++</template>
++
++<style scoped>
++.rm { position: relative; }
++
++.rm-grid {
++  display: grid;
++  grid-template-columns: minmax(96px, 140px) repeat(5, minmax(0, 1fr));
++  border: 1px solid var(--card-border);
++  border-radius: var(--radius-xs);
++  overflow: hidden;
++  background: var(--card-bg);
++}
++
++.rm-lbl {
++  padding: 10px 12px;
++  border-bottom: 1px solid var(--card-border);
++  border-right: 1px solid var(--card-border);
++  background: var(--nrm-bg);
++  color: var(--fg-muted);
++  font-size: 11.5px;
++  display: flex;
++  align-items: center;
++}
++.rm-lbl--corner { background: transparent; }
++.rm-lbl--action { border-bottom: 0; }
++
++.rm-col {
++  padding: 14px 12px 10px;
++  border-bottom: 1px solid var(--card-border);
++  border-right: 1px solid var(--card-border);
++  text-align: center;
++  transition: background 0.15s;
++}
++.rm-col:last-child { border-right: 0; }
++.rm-col--selected { background: var(--accent-soft); }
++.rm-col--dim { opacity: 0.55; }
++.rm-col-title { font-size: 15px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; }
++
++.rm-cell {
++  padding: 10px 12px;
++  border-bottom: 1px solid var(--card-border);
++  border-right: 1px solid var(--card-border);
++  font-size: 12.5px;
++  color: var(--fg);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  flex-direction: column;
++  gap: 4px;
++  min-height: 44px;
++}
++.rm-cell:last-child { border-right: 0; }
++.rm-cell--selected { background: var(--accent-soft); }
++.rm-cell--dim { opacity: 0.55; }
++.rm-cell--viz { min-height: 60px; }
++.rm-cell--action { padding: 10px 8px; border-bottom: 0; gap: 6px; align-items: stretch; }
++
++.rm-disks { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
++.rm-disk { width: 12px; height: 22px; border-radius: 3px; }
++.rm-disk--data { background: var(--accent); }
++.rm-disk--mirror { background: var(--sem-fg); }
++.rm-disk--parity { background: var(--dem-fg); }
++.rm-disk--parity2 { background: var(--remove-fg); }
++
++.rm-pill {
++  display: inline-flex;
++  padding: 2px 8px;
++  border-radius: 999px;
++  font-size: 11px;
++  font-weight: 500;
++  background: var(--nrm-bg);
++  color: var(--nrm-fg);
++  border: 1px solid var(--nrm-bd);
++}
++
++.rm-cap-pct { font-size: 11px; color: var(--fg-muted); font-weight: 400; }
++.rm-usecase { font-size: 11px; color: var(--fg-muted); line-height: 1.4; }
++
++.rm-meter { display: inline-flex; gap: 3px; }
++.rm-pip { width: 6px; height: 10px; border-radius: 2px; background: var(--nrm-bg); }
++.rm-pip--on { background: var(--accent); }
++
++.rm-btn {
++  padding: 6px 10px;
++  border-radius: 999px;
++  font-size: 11.5px;
++  font-weight: 500;
++  cursor: pointer;
++  border: 1px solid var(--chip-border);
++  background: var(--card-bg);
++  color: var(--fg);
++  text-align: center;
++  transition: background 0.15s;
++}
++.rm-btn:hover:not(:disabled) { background: var(--hover); }
++.rm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
++.rm-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
++.rm-btn--primary:hover:not(:disabled) { background: var(--accent-text); }
++.rm-btn--ghost { background: transparent; border-color: transparent; color: var(--fg-muted); }
++.rm-btn--ghost:hover { color: var(--fg); }
++</style>

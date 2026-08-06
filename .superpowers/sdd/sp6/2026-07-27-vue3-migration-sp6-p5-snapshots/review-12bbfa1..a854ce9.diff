@@ -1,0 +1,41 @@
+# Review package: 12bbfa1..HEAD
+
+## Commits
+a854ce9 fix(i18n): 快照 toast 中文文案对齐计划附录 A(P5 T2)
+
+## Files changed
+ src/i18n/zh_cn.ts | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index aef6795..cf0df72 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -705,20 +705,20 @@ export default {
+   raidCreateNameExists: '阵列名称已存在',
+   raidCreateFilesystem: '文件系统',
+   raidCreateSnapshot: '启用快照保护',
+   raidCreateSnapshotHint: '定期自动生成快照,文件误删或损坏时可快速恢复',
+   raidCreateBack: '返回',
+   raidCreateNext: '确认创建 →',
+   raidCreateConfirmBtn: '创建阵列',
+   raidCreateConfirmTitle: '创建 RAID 阵列',
+   raidCreateConfirmMsg: '确定创建 RAID {level}「{name}」,使用 {n} 块磁盘?',
+   raidCreateConfirmOk: '创建',
+-  snapToggleOn: '快照保护已开启',
+-  snapToggleOff: '快照保护已关闭',
+-  snapToggleFailed: '更新快照保护状态失败',
++  snapToggleOn: '已开启快照保护',
++  snapToggleOff: '已关闭快照保护',
++  snapToggleFailed: '快照保护设置失败',
+   snapPolicySaved: '快照计划已更新',
+-  snapPolicySaveFailed: '更新快照计划失败',
++  snapPolicySaveFailed: '快照计划更新失败',
+   snapCreated: '快照已创建',
+-  snapCreateFailed: '创建快照失败',
++  snapCreateFailed: '快照创建失败',
+   snapDeleted: '快照已删除',
+-  snapDeleteFailed: '删除快照失败',
++  snapDeleteFailed: '快照删除失败',
+ }

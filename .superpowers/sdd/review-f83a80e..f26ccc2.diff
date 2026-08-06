@@ -1,0 +1,181 @@
+# Review package: f83a80e..HEAD
+
+## Commits
+f26ccc2 feat(upload): reattachFiles for needs_file re-attach (SP4-P3b)
+
+## Files changed
+ src/files/stores/uploads.test.ts | 51 ++++++++++++++++++++++++++++++++++++++++
+ src/files/stores/uploads.ts      | 45 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 96 insertions(+)
+
+## Diff
+diff --git a/src/files/stores/uploads.test.ts b/src/files/stores/uploads.test.ts
+index 8518118..d9220ad 100644
+--- a/src/files/stores/uploads.test.ts
++++ b/src/files/stores/uploads.test.ts
+@@ -28,20 +28,21 @@ vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string, p?: any) => `${k
+ vi.mock('../upload/persist', () => ({
+   persistNewItem: vi.fn(),
+   persistItemMeta: vi.fn(),
+   dropPersisted: vi.fn(),
+   restoreFromIDB: vi.fn().mockResolvedValue({ items: [], resumedCount: 0 }),
+   pruneOldItems: vi.fn().mockResolvedValue(0),
+ }))
+ 
+ import { useUploadsStore } from './uploads'
+ import * as persist from '../upload/persist'
++import { service } from '@nimotech/nimoos-service'
+ 
+ const sel = (name: string, target = '/DATA/x') =>
+   ({ file: new File(['x'], name), targetPath: target, relativePath: name })
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   localStorage.clear()
+   h.autoComplete = false
+   h.showSpy.mockClear()
+ })
+@@ -226,10 +227,60 @@ describe('uploads restore/resume', () => {
+   })
+ 
+   it('initUploads restores, prunes, then resumes', async () => {
+     ;(persist.restoreFromIDB as any).mockResolvedValueOnce({ items: [], resumedCount: 0 })
+     const store = useUploadsStore()
+     await store.initUploads()
+     expect(persist.restoreFromIDB).toHaveBeenCalled()
+     expect(persist.pruneOldItems).toHaveBeenCalled()
+   })
+ })
++
++describe('uploads reattachFiles', () => {
++  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
++
++  function seedNeedsFile(store: ReturnType<typeof useUploadsStore>, over: any = {}) {
++    store.queue.push({
++      id: 'nf', file: null, fileName: 'a.txt', fileType: 'text/plain', size: 4,
++      targetPath: '/DATA/x', relativePath: 'a.txt', status: 'needs_file', progress: 0,
++      bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1,
++      batchId: 'b', batchTotal: 1, restored: true, conflictPolicy: '', oversize: false, ...over,
++    } as any)
++  }
++
++  it('size mismatch does not match', async () => {
++    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [] })
++    const store = useUploadsStore()
++    seedNeedsFile(store)
++    const wrong = new File(['different-bytes'], 'a.txt') // size != 4
++    const res = await store.reattachFiles([{ file: wrong, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(res.matched).toBe(0)
++    expect(store.queue[0].status).toBe('needs_file')
++  })
++
++  it('match + not existing → pending', async () => {
++    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: false }] })
++    const store = useUploadsStore()
++    vi.spyOn(store, 'startUpload').mockImplementation(() => {})
++    seedNeedsFile(store)
++    const f = new File(['data'], 'a.txt') // size 4
++    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(res.matched).toBe(1)
++    expect(store.queue[0].status).toBe('pending')
++    // jsdom's File does not inherit from the Node Blob that vitest.setup.ts
++    // installs as globalThis.Blob (for fake-indexeddb structuredClone compat),
++    // so `toBeInstanceOf(Blob)` is unreliable here; assert the real intent —
++    // the picked file got attached to the queue item.
++    expect(store.queue[0].file).toBe(f)
++  })
++
++  it('match + existing on server → conflict', async () => {
++    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: true }] })
++    const store = useUploadsStore()
++    seedNeedsFile(store)
++    const f = new File(['data'], 'a.txt')
++    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
++    expect(res.matched).toBe(0)
++    expect(res.conflicts).toHaveLength(1)
++    expect(store.queue[0].status).toBe('conflict')
++  })
++})
+diff --git a/src/files/stores/uploads.ts b/src/files/stores/uploads.ts
+index 6ff6735..960c3fc 100644
+--- a/src/files/stores/uploads.ts
++++ b/src/files/stores/uploads.ts
+@@ -211,20 +211,64 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+   async function restoreQueue(): Promise<void> {
+     const { items, resumedCount } = await restoreFromIDB()
+     if (items.length) queue.value.push(...items)
+     restoreNoticeCount.value = resumedCount
+   }
+ 
+   function resumePending(): void {
+     if (queue.value.some((i) => i.status === 'pending' && !!i.file)) startUpload()
+   }
+ 
++  async function reattachFiles(files: SelectedFile[]): Promise<{ matched: number; conflicts: UploadItem[] }> {
++    const byRel = new Map<string, File>()
++    const byName = new Map<string, File>()
++    for (const f of files) {
++      const rel = f.relativePath || f.file.name
++      if (rel) byRel.set(rel, f.file)
++      if (f.file.name) byName.set(f.file.name, f.file)
++    }
++
++    const matches: { it: UploadItem; file: File }[] = []
++    for (const it of queue.value) {
++      if (it.status !== 'needs_file') continue
++      const f = byRel.get(it.relativePath) || byName.get(it.fileName)
++      if (!f) continue
++      // Name matched — size must also match, else it's a different file (skip; let user re-pick).
++      if (it.size && f.size && f.size !== it.size) continue
++      matches.push({ it, file: f })
++    }
++    if (matches.length === 0) return { matched: 0, conflicts: [] }
++
++    let existing = new Set<string>()
++    try {
++      existing = await precheckExisting(
++        matches.map(({ it, file }) => ({ file, targetPath: it.targetPath, relativePath: it.relativePath })),
++      )
++    } catch {
++      // Precheck unavailable — upload everything.
++    }
++
++    let matched = 0
++    const conflicts: UploadItem[] = []
++    for (const { it, file } of matches) {
++      if (existing.has(conflictKey(it.targetPath, it.relativePath))) {
++        patch(it.id, { file, status: 'conflict', error: '', restored: true })
++        conflicts.push(it)
++      } else {
++        patch(it.id, { file, status: 'pending', error: '', restored: true })
++        matched++
++      }
++    }
++    if (matched > 0 && !uploading.value) startUpload()
++    return { matched, conflicts }
++  }
++
+   async function pruneOldItems(days = 30): Promise<void> {
+     await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
+   }
+ 
+   async function initUploads(): Promise<void> {
+     try {
+       await restoreQueue()
+       await pruneOldItems(30)
+       resumePending()
+     } catch (e) {
+@@ -247,12 +291,13 @@ export const useUploadsStore = defineStore('files-uploads', () => {
+     startUpload,
+     retryItem,
+     cancelItem,
+     retryBatch,
+     cancelBatch,
+     clearDone,
+     restoreQueue,
+     resumePending,
+     pruneOldItems,
+     initUploads,
++    reattachFiles,
+   }
+ })

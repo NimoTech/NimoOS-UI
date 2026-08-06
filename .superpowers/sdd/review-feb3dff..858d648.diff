@@ -1,0 +1,204 @@
+# Review package: feb3dff..858d648
+
+## Commits
+858d648 feat(home/p4c): skin app/folder/photo tiles + icon color set
+
+## Files changed
+ src/home/components/AppTile.vue    | 27 +++++++++----
+ src/home/components/FolderTile.vue | 10 +++--
+ src/home/components/PhotoTile.vue  |  7 +++-
+ src/styles/theme.css               | 77 ++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 107 insertions(+), 14 deletions(-)
+
+## Diff
+diff --git a/src/home/components/AppTile.vue b/src/home/components/AppTile.vue
+index 0a431d0..3e3d8cd 100644
+--- a/src/home/components/AppTile.vue
++++ b/src/home/components/AppTile.vue
+@@ -1,26 +1,37 @@
+ <template>
+   <div class="app-tile">
+-    <span v-if="meta?.icon" class="app-ic has-img"><img :src="meta.icon" alt="" loading="lazy" /></span>
+-    <span v-else class="app-ic" v-html="glyphSvg" />
++    <span
++      v-if="meta?.icon"
++      class="app-ic has-img"
++      :class="meta?.cls || 'ic-app'"
++    ><img :src="meta.icon" alt="" loading="lazy" /></span>
++    <span
++      v-else
++      class="app-ic"
++      :class="meta?.cls || 'ic-app'"
++      v-html="glyphSvg"
++    />
+     <span class="app-label">{{ meta?.name ?? item.key }}</span>
+   </div>
+ </template>
+ <script setup lang="ts">
+ import { computed } from 'vue'
+ import type { LayoutItem } from '../grid/types'
+ import { useAppsStore } from '../stores/apps'
+ 
+ const props = defineProps<{ item: LayoutItem }>()
+ const store = useAppsStore()
+ const meta = computed(() => store.app(props.item.key))
+ const BAG = '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>'
+ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.value?.glyph || BAG}</svg>`)
+ </script>
+ <style scoped>
+-.app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 100%; }
+-.app-ic { width: var(--app-size, 48px); height: var(--app-size, 48px); display: grid; place-items: center; background: rgba(255,255,255,.08); border-radius: 22%; }
+-.app-ic.has-img { background: none; }
+-.app-ic :deep(svg) { width: 60%; height: 60%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+-.app-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: 22%; }
+-.app-label { font-size: 11px; opacity: .85; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++/* kind-app flex column layout lives in global theme.css (.kind-app rule) */
++.app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
++/* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;
++   here we set width/height for the within-tile context (kind-app .app-ic is flex:1 1 auto globally) */
++.app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; box-shadow: var(--icon-shadow); }
++.app-ic :deep(svg) { width: 44%; height: 44%; fill: none; stroke: currentColor; stroke-width: 1.6; }
++/* has-img: overflow+background handled globally; local transition kept for smooth load */
++.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: clamp(12.5px, 1.05vw, 14.5px); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+ </style>
+diff --git a/src/home/components/FolderTile.vue b/src/home/components/FolderTile.vue
+index fc34b93..3af5957 100644
+--- a/src/home/components/FolderTile.vue
++++ b/src/home/components/FolderTile.vue
+@@ -2,15 +2,17 @@
+   <div class="folder-tile-wrap">
+     <span class="folder-tile" aria-hidden="true"><i /><i /><i /><i /></span>
+     <span class="app-label">{{ item.key }}</span>
+   </div>
+ </template>
+ <script setup lang="ts">
+ import type { LayoutItem } from '../grid/types'
+ defineProps<{ item: LayoutItem }>()
+ </script>
+ <style scoped>
+-.folder-tile-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 100%; }
+-.folder-tile { width: var(--app-size, 48px); height: var(--app-size, 48px); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; padding: 6px; background: rgba(255,255,255,.08); border-radius: 22%; box-sizing: border-box; }
+-.folder-tile i { background: linear-gradient(145deg, #9fd0ff, #4c8dff); border-radius: 4px; }
+-.app-label { font-size: 11px; opacity: .85; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++/* kind-folder flex column layout lives in global theme.css (.kind-folder rule) */
++.folder-tile-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 100%; }
++/* .folder-tile glass + 2×2 grid lives in global theme.css; local scoped provides sizing context */
++.folder-tile { width: 100%; height: 100%; }
++/* .folder-tile i mini-cell coloring also lives in global theme.css */
++.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: clamp(12.5px, 1.05vw, 14.5px); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+ </style>
+diff --git a/src/home/components/PhotoTile.vue b/src/home/components/PhotoTile.vue
+index 9219655..a1a462f 100644
+--- a/src/home/components/PhotoTile.vue
++++ b/src/home/components/PhotoTile.vue
+@@ -8,13 +8,16 @@ import type { LayoutItem } from '../grid/types'
+ import { usePhotosStore } from '../stores/photos'
+ import { isAssetId } from '../util/isAssetId'
+ import { PHOTO_PLACEHOLDERS } from '../grid/defaultLayout'
+ const props = defineProps<{ item: LayoutItem }>()
+ const store = usePhotosStore()
+ const isReal = computed(() => isAssetId(props.item.key))
+ const src = computed(() => store.thumbnailUrl(props.item.key))
+ const gradient = computed(() => (isAssetId(props.item.key) ? PHOTO_PLACEHOLDERS[0] : props.item.key))
+ </script>
+ <style scoped>
+-.photo-thumb { width: 100%; height: 100%; border-radius: 14px; overflow: hidden; background-size: cover; background-position: center; }
+-.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
++/* photo-thumb glass border + shadow live in global theme.css (.photo-thumb rule);
++   local keeps sizing + background-position for the gradient placeholder path */
++.photo-thumb { width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); background-size: cover; background-position: center; box-shadow: var(--icon-shadow); }
++/* has-img: overflow + img rules live in global theme.css (.photo-thumb.has-img); img duplicated locally for scoped certainty */
++.photo-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+ </style>
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index 2641526..58ce6cc 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -207,10 +207,87 @@ body::after {
+ .cell {
+   pointer-events: none;
+   border-radius: var(--radius-sm, 18px);
+   border: 1.5px dashed var(--grid-dot, rgba(255,255,255,.26));
+   background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.02));
+ }
+ 
+ /* 拖拽落点提示 */
+ .drop-ghost { z-index: 1; border: 2px dashed var(--accent); border-radius: var(--radius); background: var(--drop-bg); pointer-events: none; }
+ .drop-ghost.bad { border-color: var(--remove-bg); background: var(--drop-bad, rgba(255,80,100,.12)); }
++
++/* ---- P4c: 应用 / 文件夹 / 照片 磁贴结构 ---- */
++/* 画布上的 app/folder：纵向排布 → 图标在上、标签在下 */
++.kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
++/* 图标方格：圆角玻璃 + 白色前景 + icon-shadow */
++.app-ic, .folder-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 22px); color: #fff; box-shadow: var(--icon-shadow); }
++.app-ic .icon, .folder-ic .icon { width: 44%; height: 44%; }
++.folder-ic { background: var(--folder-bg); color: var(--folder-fg, #fff); }
++/* 画布图标填充"方格高度 − 标签行"的正方形 */
++.kind-app .app-ic, .kind-folder .folder-ic, .kind-folder .folder-tile { flex: 1 1 auto; min-height: 0; width: auto; height: auto; aspect-ratio: 1; }
++/* 标签 */
++.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: clamp(12.5px, 1.05vw, 14.5px); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
++/* 文件夹：磨砂圆角容器 + 2×2 内容缩略（iPad 风） */
++.folder-tile { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12%; width: 100%; height: 100%; padding: 17%; border-radius: var(--icon-radius, 22px); background: var(--folder-glass, rgba(255,255,255,.16)); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); backdrop-filter: var(--blur); }
++.folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }
++/* 照片磁贴 */
++.kind-photo { padding: 0; }
++.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); background: var(--thumb); background-size: cover; background-position: center; box-shadow: var(--icon-shadow); }
++
++/* ---- P4c: 应用图标配色（皮肤无关，鲜明渐变） ---- */
++.ic-files    { background: linear-gradient(145deg, #88dbff, #168cff 62%, #1765db); }
++.ic-photos   { background: conic-gradient(from 20deg, #ff735f, #ffd54f, #60e27c, #55baff, #ca83ff, #ff735f); }
++.ic-video    { background: linear-gradient(145deg, #ff8a8a, #ef4444 60%, #b91c1c); }
++.ic-music    { background: linear-gradient(145deg, #ff9a8b, #ff4d8d 60%, #c026d3); }
++.ic-ai       { background: radial-gradient(circle at 64% 24%, var(--accent2), transparent 40%), radial-gradient(circle at 28% 80%, var(--accent), transparent 46%), var(--orb-core, #1a2050); }
++.ic-backup   { background: linear-gradient(145deg, #6ee7b7, #10b981 60%, #059669); }
++.ic-download { background: linear-gradient(145deg, #7dd3fc, #0ea5e9 60%, #0369a1); }
++.ic-docker   { background: linear-gradient(145deg, #7cc6ff, #2496ed 60%, #1d6fb8); }
++.ic-vm       { background: linear-gradient(145deg, #94a3b8, #475569 60%, #334155); }
++.ic-share    { background: linear-gradient(145deg, #fdba74, #fb923c 60%, #ea580c); }
++.ic-search   { background: linear-gradient(145deg, #c4b5fd, #8b5cf6 60%, #6d28d9); }
++.ic-settings { background: linear-gradient(145deg, #cbd5e1, #64748b 60%, #475569); }
++.ic-users    { background: linear-gradient(145deg, #67e8f9, #06b6d4 60%, #0e7490); }
++.ic-storage  { background: linear-gradient(145deg, #fcd34d, #f59e0b 60%, #b45309); }
++.ic-appstore { background: linear-gradient(145deg, #a5b4fc, #6366f1 60%, #4338ca); }
++.ic-terminal { background: linear-gradient(145deg, #52525b, #18181b); }
++.ic-all      { background: var(--all-bg); color: var(--all-fg); border: 1px solid var(--all-border, transparent); }
++/* 容器应用：无专属配色，用中性玻璃底承载远程图标 */
++.ic-app      { background: linear-gradient(145deg, rgba(255,255,255,.22), rgba(255,255,255,.08)); border: 1px solid var(--card-border); }
++
++/* ---- P4c: 真实数据图标 / 缩略图（has-img：远程 <img> 填充圆角方格） ---- */
++.app-ic.has-img, .dock-ic.has-img { overflow: hidden; background: var(--card-bg, rgba(255,255,255,.1)); }
++.app-ic.has-img img, .dock-ic.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
++.photo-thumb.has-img { background: none; overflow: hidden; }
++.photo-thumb.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
++
++/* ---- P4c: 磁贴悬停 / 按压反馈（编辑态 .editing 不触发，避让 jiggle/拖拽） ---- */
++/* 图标基础过渡 */
++.kind-app .app-ic,
++.kind-folder .folder-tile,
++.kind-folder .folder-ic,
++.kind-photo .photo-thumb { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), filter .18s var(--ease, ease); }
++/* 悬停时将当前项提到邻居之上，防止放大后被相邻格子裁剪 */
++/* NOTE: In New-UI, .kind-* and .editing are BOTH on .grid-item root (no parent .grid.editing wrapper),
++   so the mapping is .grid-item:not(.editing).kind-*:hover (compound, not descendant). */
++.grid-item:not(.editing).kind-app:hover,
++.grid-item:not(.editing).kind-folder:hover,
++.grid-item:not(.editing).kind-photo:hover { z-index: 6; }
++/* 悬停放大：抬升 + accent 内发光 + 底部投影 */
++.grid-item:not(.editing).kind-app:hover .app-ic,
++.grid-item:not(.editing).kind-folder:hover .folder-tile,
++.grid-item:not(.editing).kind-folder:hover .folder-ic,
++.grid-item:not(.editing).kind-photo:hover .photo-thumb {
++  transform: translateY(-7px) scale(1.2);
++  box-shadow:
++    inset 0 1px 0 rgba(255, 255, 255, .6),
++    inset 0 0 22px -4px var(--accent),
++    0 26px 48px -10px rgba(6, 10, 26, .66);
++  filter: brightness(1.1);
++}
++/* NOTE: .tile-2up is NOT emitted by GridItem in New-UI (item.w/h are available but no class is set).
++   Deferred: add .tile-2up emission to GridItem when w>=2 && h>=2 for gentler var(--card-hover) scale.
++   For now, scale(1.2) applies uniformly to all tile sizes. */
++/* 按压下沉 */
++.grid-item:not(.editing).kind-app:active .app-ic,
++.grid-item:not(.editing).kind-folder:active .folder-tile,
++.grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }

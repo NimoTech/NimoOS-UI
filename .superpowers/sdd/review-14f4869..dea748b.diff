@@ -1,0 +1,154 @@
+# Review package: 14f4869..dea748b
+
+## Commits
+dea748b feat(files): favorites store (Vue2-compatible real-path blob via users custom storage)
+
+## Files changed
+ src/files/stores/favorites.test.ts | 70 ++++++++++++++++++++++++++++++++++++++
+ src/files/stores/favorites.ts      | 61 +++++++++++++++++++++++++++++++++
+ 2 files changed, 131 insertions(+)
+
+## Diff
+diff --git a/src/files/stores/favorites.test.ts b/src/files/stores/favorites.test.ts
+new file mode 100644
+index 0000000..c9a1c55
+--- /dev/null
++++ b/src/files/stores/favorites.test.ts
+@@ -0,0 +1,70 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useFavoritesStore, moveItem } from './favorites'
++
++const getCustomStorage = vi.fn()
++const setCustomStorage = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { users: {
++    getCustomStorage: (k: string) => getCustomStorage(k),
++    setCustomStorage: (k: string, d: unknown) => setCustomStorage(k, d),
++  } },
++}))
++
++describe('moveItem', () => {
++  it('moves an element and returns a new array', () => {
++    expect(moveItem(['a', 'b', 'c'], 0, 2)).toEqual(['b', 'c', 'a'])
++    expect(moveItem(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b'])
++  })
++  it('is a no-op for out-of-range indices', () => {
++    expect(moveItem(['a', 'b'], 5, 0)).toEqual(['a', 'b'])
++  })
++})
++
++describe('favorites store', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    getCustomStorage.mockReset()
++    setCustomStorage.mockReset().mockResolvedValue(undefined)
++  })
++
++  it('load: null / non-array yields empty list', async () => {
++    getCustomStorage.mockResolvedValue(null)
++    const s = useFavoritesStore()
++    await s.load()
++    expect(s.list).toEqual([])
++    expect(getCustomStorage).toHaveBeenCalledWith('favorites')
++  })
++
++  it('load: reads the favorites array', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'Docs', path: '/DATA/Documents' }])
++    const s = useFavoritesStore()
++    await s.load()
++    expect(s.list).toEqual([{ name: 'Docs', path: '/DATA/Documents' }])
++  })
++
++  it('add: appends real-path entry, persists, dedupes by path', async () => {
++    const s = useFavoritesStore()
++    await s.add({ name: 'Docs', path: '/DATA/Documents' })
++    await s.add({ name: 'dup', path: '/DATA/Documents' })
++    expect(s.list).toEqual([{ name: 'Docs', path: '/DATA/Documents' }])
++    expect(setCustomStorage).toHaveBeenCalledWith('favorites', [{ name: 'Docs', path: '/DATA/Documents' }])
++  })
++
++  it('isFavorite + remove persist', async () => {
++    const s = useFavoritesStore()
++    await s.add({ name: 'M', path: '/DATA/Media' })
++    expect(s.isFavorite('/DATA/Media')).toBe(true)
++    await s.remove('/DATA/Media')
++    expect(s.isFavorite('/DATA/Media')).toBe(false)
++    expect(setCustomStorage).toHaveBeenLastCalledWith('favorites', [])
++  })
++
++  it('reorder moves items and persists', async () => {
++    const s = useFavoritesStore()
++    await s.add({ name: 'A', path: '/DATA/A' })
++    await s.add({ name: 'B', path: '/DATA/B' })
++    await s.reorder(0, 1)
++    expect(s.list.map((f) => f.name)).toEqual(['B', 'A'])
++  })
++})
+diff --git a/src/files/stores/favorites.ts b/src/files/stores/favorites.ts
+new file mode 100644
+index 0000000..6e6a52c
+--- /dev/null
++++ b/src/files/stores/favorites.ts
+@@ -0,0 +1,61 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++
++export interface Favorite {
++  name: string
++  path: string // 真实路径(与 Vue2 /users/current/custom/favorites blob 兼容)
++}
++
++// 纯函数:数组元素移动(便于单测,DnD 几何留真机验)
++export function moveItem<T>(arr: T[], from: number, to: number): T[] {
++  const out = [...arr]
++  if (from < 0 || from >= out.length || to < 0 || to >= out.length) return out
++  const [moved] = out.splice(from, 1)
++  out.splice(to, 0, moved)
++  return out
++}
++
++export const useFavoritesStore = defineStore('favorites', () => {
++  const list = ref<Favorite[]>([])
++
++  async function persist() {
++    try {
++      await service.users.setCustomStorage('favorites', list.value)
++    } catch (e) {
++      console.warn('[favorites] persist failed', e)
++    }
++  }
++
++  async function load() {
++    try {
++      const data = await service.users.getCustomStorage('favorites')
++      list.value = Array.isArray(data) ? (data as Favorite[]) : []
++    } catch (e) {
++      console.warn('[favorites] load failed', e)
++      list.value = []
++    }
++  }
++
++  function isFavorite(realPath: string): boolean {
++    return list.value.some((f) => f.path === realPath)
++  }
++
++  async function add(fav: Favorite) {
++    if (list.value.some((f) => f.path === fav.path)) return
++    list.value = [...list.value, { name: fav.name, path: fav.path }]
++    await persist()
++  }
++
++  async function remove(realPath: string) {
++    list.value = list.value.filter((f) => f.path !== realPath)
++    await persist()
++  }
++
++  async function reorder(from: number, to: number) {
++    list.value = moveItem(list.value, from, to)
++    await persist()
++  }
++
++  return { list, load, isFavorite, add, remove, reorder }
++})

@@ -1,0 +1,183 @@
+# Review package: 82c7db4..cc5adf0
+
+## Commits
+cc5adf0 feat(storage): RAID 恢复/重新识别详情头按钮(P4 T8)
+
+## Files changed
+ src/i18n/en_us.ts                   |  1 +
+ src/i18n/zh_cn.ts                   |  1 +
+ src/views/StorageRaidDetail.test.ts | 32 ++++++++++++++++++++++++++++++--
+ src/views/StorageRaidDetail.vue     | 14 ++++++++++++++
+ 4 files changed, 46 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 85f3dac..302960f 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -605,20 +605,21 @@ export default {
+   raidRemoveOk: 'Delete',
+   raidReplace: 'Replace Disk',
+   raidReplaceTitle: 'Replace Faulty Disk',
+   raidReplaceFaulty: 'Faulty Disk',
+   raidReplaceRemoveHint: 'This disk will be removed from the array',
+   raidReplaceNew: 'Replacement Disk',
+   raidReplaceSelect: 'Select a disk',
+   raidReplaceWarning: 'Replacing triggers an array rebuild; performance is reduced during rebuild.',
+   raidReplaceSuccess: 'Disk replacement started',
+   raidReplaceFailed: 'Failed to replace disk',
++  raidRecover: 'Rediscover',
+   raidRecoverSuccess: 'Array recovered',
+   raidRecoverFailed: 'Discovery failed, check disk connections',
+   raidBaySelectAll: 'Select all healthy',
+   raidBayClear: 'Clear',
+   raidBayFilterAll: 'All',
+   raidBaySelected: '{n} selected · {size}',
+   raidTaskMeta: 'RAID-{level} · {n} disks · {fs}',
+   raidDetailsBtn: 'Details',
+   raidDismiss: 'Dismiss',
+   raidStep1: 'Load kernel modules',
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index e0cf0e6..e4b06dd 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -604,20 +604,21 @@ export default {
+   raidRemoveOk: '删除',
+   raidReplace: '更换硬盘',
+   raidReplaceTitle: '更换故障硬盘',
+   raidReplaceFaulty: '故障硬盘',
+   raidReplaceRemoveHint: '该硬盘将从阵列中移除',
+   raidReplaceNew: '更换硬盘',
+   raidReplaceSelect: '选择一块硬盘',
+   raidReplaceWarning: '更换将触发阵列重建,期间性能下降。',
+   raidReplaceSuccess: '已开始更换硬盘',
+   raidReplaceFailed: '更换失败',
++  raidRecover: '重新识别',
+   raidRecoverSuccess: '阵列已恢复',
+   raidRecoverFailed: '识别失败,请检查磁盘连接',
+   raidBaySelectAll: '全选健康盘',
+   raidBayClear: '清空',
+   raidBayFilterAll: '全部',
+   raidBaySelected: '已选 {n} 块 · {size}',
+   raidTaskMeta: 'RAID-{level} · {n} 块盘 · {fs}',
+   raidDetailsBtn: '详情',
+   raidDismiss: '关闭',
+   raidStep1: '加载内核模块',
+diff --git a/src/views/StorageRaidDetail.test.ts b/src/views/StorageRaidDetail.test.ts
+index 0c7bde8..6b56abf 100644
+--- a/src/views/StorageRaidDetail.test.ts
++++ b/src/views/StorageRaidDetail.test.ts
+@@ -29,23 +29,51 @@ describe('StorageRaidDetail', () => {
+     await router.push('/storage/raid/7'); await router.isReady()
+     const store = (await import('../storage/stores/storage')).useStorageStore()
+     await store.loadRaid() // 先填 raidArrays 让 detail 找得到 array
+     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+     expect(w.text()).toContain('md7')
+     expect(w.text()).toContain('RAID 5')
+     expect(w.text()).toContain('/dev/sda')
+     expect(raidGetUsage).toHaveBeenCalledWith('7')
+   })
+-  it('写操作按钮边界:delete 出现,recover/replace 仍缺席——P4 T6', async () => {
++  it('写操作按钮边界:active 阵列头部写按钮 = [delete](P4 T8 回填:recover 缺席)', async () => {
+     // P3 终审加的是硬计数不变式(===2);P4 T6 加了 .rd-delete 后计数必然变化,
+     // 改为语义化断言:该出现的(back + delete)出现,不该出现的(recover/replace)缺席。
+-    // recover 是 T8 的事——T8 完成后需回来把 recover 按钮也纳入本测试(brief 明确要求留此注释)。
+     await router.push('/storage/raid/7'); await router.isReady()
+     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+     expect(w.find('.rd-back').exists()).toBe(true)
+     expect(w.find('.rd-delete').exists()).toBe(true)
+     expect(w.find('.rd-recover').exists()).toBe(false)
+     expect(w.find('.rd-replace').exists()).toBe(false)
+   })
++  it('写操作按钮边界:retrying 阵列头部写按钮 = [delete, recover]', async () => {
++    // getStatus 被调两次:loadRaid() 拉列表状态一次 + loadRaidDetail() 拉详情状态一次——两次都须是 retrying
++    const retryingStatus = { live_state: 'retrying', state: 'retrying', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [] }
++    raidGetStatus.mockResolvedValueOnce(retryingStatus).mockResolvedValueOnce(retryingStatus)
++    await router.push('/storage/raid/7'); await router.isReady()
++    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
++    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
++    expect(w.find('.rd-delete').exists()).toBe(true)
++    expect(w.find('.rd-recover').exists()).toBe(true)
++    expect(w.find('.rd-replace').exists()).toBe(false)
++  })
++  it('recover 按钮:failed 也渲染;点击调用 store.recoverRaid(id) 一次;busy 时禁用', async () => {
++    const failedStatus = { live_state: 'failed', state: 'failed', rebuild_pct: 0, total_bytes: 100, used_bytes: 40, free_bytes: 60, members: [] }
++    raidGetStatus.mockResolvedValueOnce(failedStatus).mockResolvedValueOnce(failedStatus)
++    await router.push('/storage/raid/7'); await router.isReady()
++    const store = (await import('../storage/stores/storage')).useStorageStore()
++    const recoverSpy = vi.spyOn(store, 'recoverRaid').mockResolvedValue({ state: 'active' })
++    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
++    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
++    const btn = w.find('.rd-recover')
++    expect(btn.exists()).toBe(true)
++    await btn.trigger('click')
++    expect(recoverSpy).toHaveBeenCalledTimes(1)
++    expect(recoverSpy).toHaveBeenCalledWith('7')
++
++    store.raidRecovering = true
++    await w.vm.$nextTick()
++    expect(w.find('.rd-recover').attributes('disabled')).toBeDefined()
++  })
+ })
+diff --git a/src/views/StorageRaidDetail.vue b/src/views/StorageRaidDetail.vue
+index bdd408a..f3326f8 100644
+--- a/src/views/StorageRaidDetail.vue
++++ b/src/views/StorageRaidDetail.vue
+@@ -118,20 +118,27 @@ async function onReplace(newDiskPath: string) {
+ </script>
+ 
+ <template>
+   <StorageShell>
+     <div class="rd">
+       <header class="rd-head">
+         <button class="rd-back" type="button" @click="backToList">‹ {{ t('storageTabRaid') }}</button>
+         <h2 class="rd-name">{{ array.name }}</h2>
+         <span class="rd-level">RAID {{ array.level }}</span>
+         <span class="rc-badge" :class="severity">{{ t(labelKey) }}</span>
++        <button
++          v-if="flags.isRetrying || flags.isFailed"
++          class="rd-recover"
++          type="button"
++          :disabled="store.raidRecovering"
++          @click="store.recoverRaid(idStr)"
++        >{{ t('raidRecover') }}</button>
+         <button class="rd-delete" type="button" @click="deleteOpen = true">{{ t('raidRemove') }}</button>
+       </header>
+ 
+       <RaidDeleteDialog
+         :open="deleteOpen"
+         :name="array.name"
+         :busy="store.raidRemoving"
+         @update:open="deleteOpen = $event"
+         @confirm="onDelete"
+       />
+@@ -216,20 +223,27 @@ async function onReplace(newDiskPath: string) {
+   border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+ }
+ .rd-back:hover { background: var(--chip-bg-hi); }
+ .rd-name { margin: 0; font-size: 17px; font-weight: 600; }
+ .rd-level { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--nrm-bg); color: var(--nrm-fg); border: 1px solid var(--nrm-bd); }
+ .rc-badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--nrm-bg); border: 1px solid var(--nrm-bd); }
+ .rc-badge.ok { color: var(--sem-fg); }
+ .rc-badge.info { color: var(--accent); }
+ .rc-badge.warning { color: var(--dem-fg); }
+ .rc-badge.danger { color: var(--remove-fg); }
++.rd-recover {
++  margin-left: auto; border: 1px solid var(--dem-fg); background: var(--chip-bg); color: var(--dem-fg);
++  border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
++}
++.rd-recover:hover { background: var(--chip-bg-hi); }
++.rd-recover:disabled { opacity: 0.6; cursor: not-allowed; }
++.rd-recover + .rd-delete { margin-left: 0; }
+ .rd-delete {
+   margin-left: auto; border: 1px solid var(--remove-fg); background: var(--chip-bg); color: var(--remove-fg);
+   border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+ }
+ .rd-delete:hover { background: var(--chip-bg-hi); }
+ 
+ .rd-cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: start; }
+ @media (max-width: 768px) { .rd-cols { grid-template-columns: 1fr; } }
+ 
+ .rd-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }

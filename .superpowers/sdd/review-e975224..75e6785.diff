@@ -1,0 +1,73 @@
+# Review package: e975224..HEAD
+
+## Commits
+75e6785 style(files): ≤768px 单列布局 + 工具栏换行(跨断点 polish,真机眼验项)
+
+## Files changed
+ src/files/drop/components/DropPage.vue | 3 +++
+ src/files/shares/SharesPage.vue        | 3 +++
+ src/views/Files.vue                    | 7 +++++++
+ 3 files changed, 13 insertions(+)
+
+## Diff
+diff --git a/src/files/drop/components/DropPage.vue b/src/files/drop/components/DropPage.vue
+index 74daedb..c7d35cc 100644
+--- a/src/files/drop/components/DropPage.vue
++++ b/src/files/drop/components/DropPage.vue
+@@ -103,11 +103,14 @@ onBeforeUnmount(() => {
+   animation: dropPulse 6s linear infinite; opacity: 0;
+ }
+ .drop-pulse i:nth-child(1) { width: 300px; height: 300px; }
+ .drop-pulse i:nth-child(2) { width: 300px; height: 300px; animation-delay: 2s; }
+ .drop-pulse i:nth-child(3) { width: 300px; height: 300px; animation-delay: 4s; }
+ @keyframes dropPulse {
+   0% { transform: translateX(-50%) scale(0.4); opacity: 0; }
+   20% { opacity: 0.6; }
+   100% { transform: translateX(-50%) scale(3.2); opacity: 0; }
+ }
++@media (max-width: 768px) {
++  .files-layout { gap: 0; }
++}
+ </style>
+diff --git a/src/files/shares/SharesPage.vue b/src/files/shares/SharesPage.vue
+index 911dccc..2269ce0 100644
+--- a/src/files/shares/SharesPage.vue
++++ b/src/files/shares/SharesPage.vue
+@@ -63,11 +63,14 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
+     />
+   </FilesShell>
+ </template>
+ 
+ <style scoped>
+ .files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .shares-main { flex: 1 1 auto; min-width: 0; }
+ .shares-title { font-size: 16px; font-weight: 600; margin: 4px 0 14px; }
+ .shares-empty { font-size: 13px; color: var(--fg-muted, #9aa4bf); }
+ .shares-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
++@media (max-width: 768px) {
++  .files-layout { gap: 0; }
++}
+ </style>
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index ed6d050..5138840 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -452,11 +452,18 @@ onMounted(() => { uploads.initUploads() })
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+ .files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+ .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
+ .files-drop-mask {
+   position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+   border: 2px dashed var(--accent, #6ea8fe); border-radius: 12px;
+   background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
+   color: var(--fg); font-size: 14px; font-weight: 600; pointer-events: none;
+ }
++/* ≤768px:侧栏已收抽屉(FilesSidebar.is-drawer 脱离文档流),布局单列;工具栏允许换行 */
++@media (max-width: 768px) {
++  .files-layout { gap: 0; }
++  .files-topbar { flex-wrap: wrap; }
++  .files-topbar-right { flex-wrap: wrap; justify-content: flex-end; }
++  .files-actions { flex-wrap: wrap; }
++}
+ </style>

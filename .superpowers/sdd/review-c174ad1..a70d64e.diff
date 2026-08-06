@@ -1,0 +1,129 @@
+# Review package: c174ad1..a70d64e
+
+## Commits
+a70d64e feat(files-viewer): ExcelViewer(@vue-office/excel: xls/xlsx/csv)
+
+## Files changed
+ src/files/viewers/ExcelViewer.vue  | 28 ++++++++++++++++++++++++++++
+ src/files/viewers/ViewerHost.vue   |  1 +
+ src/files/viewers/panelMap.test.ts |  5 +++++
+ src/files/viewers/panelMap.ts      |  5 +++--
+ 4 files changed, 37 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/files/viewers/ExcelViewer.vue b/src/files/viewers/ExcelViewer.vue
+new file mode 100644
+index 0000000..b4deab9
+--- /dev/null
++++ b/src/files/viewers/ExcelViewer.vue
+@@ -0,0 +1,28 @@
++<script setup lang="ts">
++import VueOfficeExcel from '@vue-office/excel'
++import '@vue-office/excel/lib/index.css'
++import { useI18n } from 'vue-i18n'
++import ViewerShell from './ViewerShell.vue'
++import { useOfficeBytes } from './useOfficeBytes'
++import type { FileEntry } from '../stores/files'
++
++const props = defineProps<{ item: FileEntry; list: FileEntry[] }>()
++const emit = defineEmits<{ (e: 'close'): void; (e: 'download', entry: FileEntry): void }>()
++const { t } = useI18n()
++const { state, buffer, onRendered, onRenderError } = useOfficeBytes(props.item)
++</script>
++
++<template>
++  <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
++    <div class="office-body">
++      <div v-if="state === 'loading'" class="viewer-status">{{ t('filesViewerLoading') }}</div>
++      <div v-else-if="state === 'error'" class="viewer-status">
++        <p>{{ t('filesViewerError') }}</p>
++        <button type="button" class="chip" @click="emit('download', props.item)">{{ t('filesViewerDownloadInstead') }}</button>
++      </div>
++      <div v-show="state !== 'error'" class="office-scroll">
++        <VueOfficeExcel v-if="buffer" :src="buffer" @rendered="onRendered" @error="onRenderError" />
++      </div>
++    </div>
++  </ViewerShell>
++</template>
+diff --git a/src/files/viewers/ViewerHost.vue b/src/files/viewers/ViewerHost.vue
+index e7148f6..6194a5e 100644
+--- a/src/files/viewers/ViewerHost.vue
++++ b/src/files/viewers/ViewerHost.vue
+@@ -7,20 +7,21 @@ import type { FileEntry } from '../stores/files'
+ 
+ const v = useViewer()
+ const ops = useFileOps()
+ const registry: Record<PanelType, ReturnType<typeof defineAsyncComponent>> = {
+   'image-viewer': defineAsyncComponent(() => import('./ImageViewer.vue')),
+   'code-editor': defineAsyncComponent(() => import('./CodeViewer.vue')),
+   'video-player': defineAsyncComponent(() => import('./MediaViewer.vue')),
+   'markdown': defineAsyncComponent(() => import('./MarkdownViewer.vue')),
+   'pdf-viewer': defineAsyncComponent(() => import('./PdfViewer.vue')),
+   'doc-viewer': defineAsyncComponent(() => import('./DocViewer.vue')),
++  'excel-viewer': defineAsyncComponent(() => import('./ExcelViewer.vue')),
+ }
+ const current = computed(() => (v.panelType.value ? registry[v.panelType.value] : null))
+ 
+ function onDownload(entry?: FileEntry) {
+   const items = [entry ?? v.currentItem.value].filter(Boolean) as FileEntry[]
+   if (items.length) ops.download(items)
+ }
+ 
+ function onKeydown(e: KeyboardEvent) {
+   if (e.key === 'Escape' && v.open.value) v.close()
+diff --git a/src/files/viewers/panelMap.test.ts b/src/files/viewers/panelMap.test.ts
+index e097af6..2091726 100644
+--- a/src/files/viewers/panelMap.test.ts
++++ b/src/files/viewers/panelMap.test.ts
+@@ -31,11 +31,16 @@ describe('getPanelType', () => {
+   })
+   it('pdf → pdf-viewer', () => {
+     expect(getPanelType('report.pdf')).toBe('pdf-viewer')
+     expect(getPanelType('REPORT.PDF')).toBe('pdf-viewer')
+   })
+   it('word → doc-viewer', () => {
+     expect(getPanelType('a.doc')).toBe('doc-viewer')
+     expect(getPanelType('a.docx')).toBe('doc-viewer')
+     expect(getPanelType('a.wps')).toBe('doc-viewer')
+   })
++  it('excel → excel-viewer', () => {
++    expect(getPanelType('a.xls')).toBe('excel-viewer')
++    expect(getPanelType('a.xlsx')).toBe('excel-viewer')
++    expect(getPanelType('a.csv')).toBe('excel-viewer')
++  })
+ })
+diff --git a/src/files/viewers/panelMap.ts b/src/files/viewers/panelMap.ts
+index 8a109c0..5836d87 100644
+--- a/src/files/viewers/panelMap.ts
++++ b/src/files/viewers/panelMap.ts
+@@ -1,27 +1,28 @@
+ import { fileExt } from '../util/ext'
+-import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_WORD } from '../util/fileCategories'
++import { IMAGE_X_GENERIC, AUDIO_X_GENERIC, TEXT_X_GENERIC, TEXT_MARKDOWN, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE, BROWSER_PLAYABLE_VIDEO, APPLICATION_PDF, APPLICATION_VND_MS_WORD, APPLICATION_VND_MS_EXCEL } from '../util/fileCategories'
+ 
+-export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer' | 'doc-viewer'
++export type PanelType = 'image-viewer' | 'code-editor' | 'video-player' | 'markdown' | 'pdf-viewer' | 'doc-viewer' | 'excel-viewer'
+ 
+ function union(...groups: string[][]): string[] {
+   return Array.from(new Set(groups.flat()))
+ }
+ 
+ // Vue2 filePanelMap(mixin.js:43-51),markdown 键启用(spec D-MD);分类数组单一真源见 ../util/fileCategories
+ const filePanelMap: Record<PanelType, string[]> = {
+   'code-editor': union(TEXT_X_GENERIC, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE),
+   'video-player': union(BROWSER_PLAYABLE_VIDEO, AUDIO_X_GENERIC),
+   'image-viewer': IMAGE_X_GENERIC,
+   'markdown': TEXT_MARKDOWN,
+   'pdf-viewer': APPLICATION_PDF,
+   'doc-viewer': APPLICATION_VND_MS_WORD,
++  'excel-viewer': APPLICATION_VND_MS_EXCEL,
+ }
+ 
+ export function getPanelType(name: string): PanelType | null {
+   const ext = fileExt(name) // 已小写
+   // 与 Vue2 getPanelType 一致:遍历映射,命中返回其键
+   for (const key of Object.keys(filePanelMap) as PanelType[]) {
+     if (filePanelMap[key].includes(ext)) return key
+   }
+   return null
+ }

@@ -1,0 +1,244 @@
+=== Task 1 返工 diff  仓库: NimoOS-LocalStorage  范围: c0d0861..2e8edcd ===
+
+=== git log --oneline ===
+2e8edcd fix(disk): scsi_debug 伪盘白名单默认关闭,需标记文件显式开启
+
+=== git diff --stat ===
+ service/disk.go      | 34 +++++++++++++++++++++++++++++++---
+ service/disk_test.go | 51 ++++++++++++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 79 insertions(+), 6 deletions(-)
+
+=== git diff -U15 ===
+diff --git a/service/disk.go b/service/disk.go
+index b289982..64029f8 100644
+--- a/service/disk.go
++++ b/service/disk.go
+@@ -759,42 +759,70 @@ func (d *diskService) GetSystemDf() (model.DFDiskSpace, error) {
+ 			m.Blocks = strconv.FormatInt(b*1024, 10)
+ 			m.Used = strconv.FormatInt(u*1024, 10)
+ 			m.Available = strconv.FormatInt(a*1024, 10)
+ 			return m, nil
+ 		} else {
+ 			continue
+ 		}
+ 	}
+ 	return model.DFDiskSpace{}, errors.New("not found")
+ }
+ 
+ func NewDiskService(db *gorm.DB) DiskService {
+ 	return &diskService{db: db}
+ }
+ 
++// allowPseudoDisksMarkerFile 是"允许 scsi_debug 伪盘"开关的标记文件路径。
++//
++// 用包级变量而不是 const:测试需要把它指向临时目录里的文件(改完 defer 还原),
++// const 做不到这件事。
++//
++// 为什么用标记文件而不是环境变量/配置项来控制这个开关:服务跑在 systemd 下,
++// 改环境变量要改 unit 或写 drop-in 才能生效,配置项通常要重启服务才会被重新
++// 读取;标记文件在每次调用 IsDiskSupported 时实时 os.Stat,测试台脚本一句
++// touch/rm 就能开关,不用碰 systemd、不用重启任何服务。
++//
++// 为什么不用 build tag 编两个二进制:那样测试台验证的就不是出厂那个二进制了,
++// "在真实产品二进制上验证 RAID/快照界面"这个目的会被削掉一半。要的是同一个
++// 二进制、运行时的显式开关,默认关闭。
++var allowPseudoDisksMarkerFile = "/etc/nimoos/allow-pseudo-disks"
++
++// allowPseudoDisks 报告 scsi_debug 伪盘白名单开关是否打开。只看标记文件是否
++// 存在,不看内容、不看权限。
++func allowPseudoDisks() bool {
++	_, err := os.Stat(allowPseudoDisksMarkerFile)
++	return err == nil
++}
++
++// IsDiskSupported 会被 route/v1/disk.go 在磁盘列表循环里对每一块盘调用一次
++// (盘数通常是个位数,这里每次调用都做一次 os.Stat 检查开关标记文件,开销可以
++// 接受;如果未来盘数规模变大,这里可能需要加缓存)。
+ func IsDiskSupported(d model.LSBLKModel) bool {
+ 	return d.Tran == "sata" ||
+ 		d.Tran == "nvme" ||
+ 		d.Tran == "spi" ||
+ 		d.Tran == "sas" ||
+ 		strings.Contains(d.SubSystems, "virtio") ||
+ 		strings.Contains(d.SubSystems, "block:scsi:vmbus:acpi") || // Microsoft Hyper-V
+ 		strings.Contains(d.SubSystems, "block:mmc:mmc_host:pci") ||
+ 		strings.Contains(d.SubSystems, "block:mmc:mmc_host:platform") ||
+-		// scsi_debug 伪 SCSI 主机(SP6-P5.5 存储区实盘验收测试台)。生产机上
+-		// 这个子系统链只可能来自主动 modprobe scsi_debug,不会自然出现。
+-		strings.Contains(d.SubSystems, "block:scsi:pseudo") ||
++		// scsi_debug 伪 SCSI 主机(SP6-P5.5 存储区实盘验收测试台)。这是一道
++		// 安全边界:IsDiskSupported 决定"什么设备可以被格式化/建 RAID",出厂
++		// 产品必须默认拒绝这类伪盘,只有显式 touch 标记文件后才认它,防止
++		// 万一某台机器意外 modprobe scsi_debug(管理员手滑/诊断脚本/镜像
++		// 预置)时,把内存盘当真实存储推给用户建阵列。
++		(strings.Contains(d.SubSystems, "block:scsi:pseudo") && allowPseudoDisks()) ||
+ 		strings.Contains(d.SubSystems, "block:scsi:pci") || d.Tran == "usb"
+ }
+ 
+ func IsFormatSupported(d model.LSBLKModel) bool {
+ 	if d.FsType == "vfat" || d.FsType == "ext4" || d.FsType == "ext3" || d.FsType == "ext2" || d.FsType == "exfat" || d.FsType == "ntfs-3g" || d.FsType == "iso9660" {
+ 		return true
+ 	}
+ 	return false
+ }
+ 
+ func WalkDisk(rootBlk model.LSBLKModel, depth uint, shouldStopAt func(blk model.LSBLKModel) bool) *model.LSBLKModel {
+ 	if shouldStopAt(rootBlk) {
+ 		return &rootBlk
+ 	}
+ 
+diff --git a/service/disk_test.go b/service/disk_test.go
+index 10102b3..37b3424 100644
+--- a/service/disk_test.go
++++ b/service/disk_test.go
+@@ -1,19 +1,21 @@
+ package service
+ 
+ import (
+ 	"encoding/json"
++	"os"
++	"path/filepath"
+ 	"testing"
+ 
+ 	"github.com/NimoTech/NimoOS-LocalStorage/model"
+ 	"gotest.tools/v3/assert"
+ )
+ 
+ func TestWalkDisk(t *testing.T) {
+ 	jsonText := `{"name":"sda","kname":"sda","path":"/dev/sda","maj:min":"8:0","fsavail":null,"fssize":null,"fstype":null,"fsused":null,"fsuse%":null,"fsroots":[null],"fsver":null,"mountpoint":null,"mountpoints":[null],"label":null,"uuid":null,"ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":null,"parttypename":null,"partlabel":null,"partuuid":null,"partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":"QEMU HARDDISK","serial":"drive-scsi0","size":12884901888,"state":"running","owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"disk","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":null,"hctl":"2:0:0:0","tran":null,"subsystems":"block:scsi:virtio:pci","rev":"2.5+","vendor":"QEMU    ","zoned":"none","dax":false,"children":[{"name":"sda1","kname":"sda1","path":"/dev/sda1","maj:min":"8:1","fsavail":null,"fssize":null,"fstype":null,"fsused":null,"fsuse%":null,"fsroots":[null],"fsver":null,"mountpoint":null,"mountpoints":[null],"label":null,"uuid":null,"ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":"21686148-6449-6e6f-744e-656564454649","parttypename":"BIOS boot","partlabel":null,"partuuid":"6114973f-adb1-468e-9feb-b49c762ae245","partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":1048576,"state":null,"owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"part","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":"sda","hctl":null,"tran":null,"subsystems":"block:scsi:virtio:pci","rev":null,"vendor":null,"zoned":"none","dax":false},{"name":"sda2","kname":"sda2","path":"/dev/sda2","maj:min":"8:2","fsavail":"1441812480","fssize":"1810489344","fstype":"ext4","fsused":"257949696","fsuse%":"14%","fsroots":["/"],"fsver":"1.0","mountpoint":"/boot","mountpoints":["/boot"],"label":null,"uuid":"78db4224-e926-42c4-a899-8f8f00224d22","ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":"0fc63daf-8483-4772-8e79-3d69d8477de4","parttypename":"Linux filesystem","partlabel":null,"partuuid":"a11c27be-8929-49e4-b30a-99dc6bfe2e67","partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":1879048192,"state":null,"owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"part","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":"sda","hctl":null,"tran":null,"subsystems":"block:scsi:virtio:pci","rev":null,"vendor":null,"zoned":"none","dax":false},{"name":"sda3","kname":"sda3","path":"/dev/sda3","maj:min":"8:3","fsavail":null,"fssize":null,"fstype":"LVM2_member","fsused":null,"fsuse%":null,"fsroots":[null],"fsver":"LVM2 001","mountpoint":null,"mountpoints":[null],"label":null,"uuid":"O7mLM9-q5mc-qNNe-hemy-6giu-Ocvg-V1MMuZ","ptuuid":"09f61536-3032-4f7c-915e-a4d78c07da51","pttype":"gpt","parttype":"0fc63daf-8483-4772-8e79-3d69d8477de4","parttypename":"Linux filesystem","partlabel":null,"partuuid":"5a9bd7c3-eab1-4511-baf2-7e816d5042a5","partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":11002707968,"state":null,"owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":"mq-deadline","rq-size":256,"type":"part","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":true,"pkname":"sda","hctl":null,"tran":null,"subsystems":"block:scsi:virtio:pci","rev":null,"vendor":null,"zoned":"none","dax":false,"children":[{"name":"ubuntu--vg-ubuntu--lv","kname":"dm-0","path":"/dev/mapper/ubuntu--vg-ubuntu--lv","maj:min":"253:0","fsavail":"2965307392","fssize":"10464022528","fstype":"ext4","fsused":"6945067008","fsuse%":"66%","fsroots":["/"],"fsver":"1.0","mountpoint":"/","mountpoints":["/"],"label":null,"uuid":"19dae839-3805-4240-a05d-288e903719d6","ptuuid":null,"pttype":null,"parttype":null,"parttypename":null,"partlabel":null,"partuuid":null,"partflags":null,"ra":128,"ro":false,"rm":false,"hotplug":false,"model":null,"serial":null,"size":10737418240,"state":"running","owner":"root","group":"disk","mode":"brw-rw----","alignment":0,"min-io":512,"opt-io":0,"phy-sec":512,"log-sec":512,"rota":true,"sched":null,"rq-size":128,"type":"lvm","disc-aln":0,"disc-gran":4096,"disc-max":1073741824,"disc-zero":false,"wsame":2147483136,"wwn":null,"rand":false,"pkname":"sda3","hctl":null,"tran":null,"subsystems":"block","rev":null,"vendor":null,"zoned":"none","dax":false}]}]}`
+ 
+ 	blk := model.LSBLKModel{}
+ 
+ 	err := json.Unmarshal([]byte(jsonText), &blk)
+ 
+ 	assert.NilError(t, err)
+ 
+@@ -49,39 +51,82 @@ func TestParseBlockDevices(t *testing.T) {
+ func TestParseBlockDevices_MountPointsPlural(t *testing.T) {
+ 	jsonText := `{"blockdevices":[{"name":"md0","path":"/dev/md0","mountpoint":"/media/RAID_0/.snapshots","mountpoints":[null,"/media/RAID_0"]}]}`
+ 
+ 	blkList, err := ParseBlockDevices([]byte(jsonText))
+ 
+ 	assert.NilError(t, err)
+ 	assert.Equal(t, len(blkList), 1)
+ 
+ 	assert.Equal(t, blkList[0].MountPoint, "/media/RAID_0/.snapshots")
+ 	assert.Equal(t, len(blkList[0].MountPoints), 2)
+ 	assert.Equal(t, blkList[0].MountPoints[0], "")
+ 	assert.Equal(t, blkList[0].MountPoints[1], "/media/RAID_0")
+ }
+ 
+ // scsi_debug 假盘(SP6-P5.5 测试台)的 subsystems 是 block:scsi:pseudo,
+-// tran 为空 —— 白名单必须认它,否则 route/v1/disk.go:128 会把它从
+-// disks/avail 两个数组同时抹掉,存储区实盘验收就无盘可用。
++// tran 为空。IsDiskSupported 是一道安全边界(决定什么设备能被格式化/建 RAID),
++// 所以对这条子系统链默认拒绝,只有标记文件 /etc/nimoos/allow-pseudo-disks
++// 存在时才放行——这组用例跑在"标记文件不存在"的出厂默认状态下。
+ func TestIsDiskSupported(t *testing.T) {
++	// 显式指向一个保证不存在的路径,不依赖测试机上是否真的存在
++	// /etc/nimoos/allow-pseudo-disks,跑完还原,避免影响同包其他测试。
++	old := allowPseudoDisksMarkerFile
++	allowPseudoDisksMarkerFile = filepath.Join(t.TempDir(), "allow-pseudo-disks")
++	defer func() { allowPseudoDisksMarkerFile = old }()
++
++	cases := []struct {
++		name       string
++		tran       string
++		subSystems string
++		want       bool
++	}{
++		{"nvme 真盘", "nvme", "block:nvme:pci", true},
++		{"sata 真盘", "sata", "block:scsi:pci", true},
++		{"usb 盘", "usb", "block:scsi:usb:pci", true},
++		{"virtio 虚拟盘", "", "block:scsi:virtio:pci", true},
++		{"scsi_debug 假盘(标记文件不存在,出厂默认拒绝)", "", "block:scsi:pseudo", false},
++		{"zram 之类裸 block", "", "block", false},
++		{"未知传输方式", "fibre", "block:unknown", false},
++	}
++	for _, c := range cases {
++		t.Run(c.name, func(t *testing.T) {
++			got := IsDiskSupported(model.LSBLKModel{Tran: c.tran, SubSystems: c.subSystems})
++			assert.Equal(t, got, c.want)
++		})
++	}
++}
++
++// TestIsDiskSupported_AllowPseudoDisks 验证标记文件存在时(测试台
++// raidlab.sh up 会 touch 它),scsi_debug 假盘同一份输入转为放行,且其余判定
++// 条件的结果与标记文件不存在时完全一致——证明开关只影响 pseudo 这一条分支,
++// 不会顺带放宽别的白名单条件。
++func TestIsDiskSupported_AllowPseudoDisks(t *testing.T) {
++	markerPath := filepath.Join(t.TempDir(), "allow-pseudo-disks")
++	f, err := os.Create(markerPath)
++	assert.NilError(t, err)
++	assert.NilError(t, f.Close())
++
++	old := allowPseudoDisksMarkerFile
++	allowPseudoDisksMarkerFile = markerPath
++	defer func() { allowPseudoDisksMarkerFile = old }()
++
+ 	cases := []struct {
+ 		name       string
+ 		tran       string
+ 		subSystems string
+ 		want       bool
+ 	}{
+ 		{"nvme 真盘", "nvme", "block:nvme:pci", true},
+ 		{"sata 真盘", "sata", "block:scsi:pci", true},
+ 		{"usb 盘", "usb", "block:scsi:usb:pci", true},
+ 		{"virtio 虚拟盘", "", "block:scsi:virtio:pci", true},
+-		{"scsi_debug 假盘", "", "block:scsi:pseudo", true},
++		{"scsi_debug 假盘(标记文件存在,显式放行)", "", "block:scsi:pseudo", true},
+ 		{"zram 之类裸 block", "", "block", false},
+ 		{"未知传输方式", "fibre", "block:unknown", false},
+ 	}
+ 	for _, c := range cases {
+ 		t.Run(c.name, func(t *testing.T) {
+ 			got := IsDiskSupported(model.LSBLKModel{Tran: c.tran, SubSystems: c.subSystems})
+ 			assert.Equal(t, got, c.want)
+ 		})
+ 	}
+ }
+
+=== 当前 IsDiskSupported 全文 ===
+func NewDiskService(db *gorm.DB) DiskService {
+	return &diskService{db: db}
+}
+
+// allowPseudoDisksMarkerFile 是"允许 scsi_debug 伪盘"开关的标记文件路径。
+//
+// 用包级变量而不是 const:测试需要把它指向临时目录里的文件(改完 defer 还原),
+// const 做不到这件事。
+//
+// 为什么用标记文件而不是环境变量/配置项来控制这个开关:服务跑在 systemd 下,
+// 改环境变量要改 unit 或写 drop-in 才能生效,配置项通常要重启服务才会被重新
+// 读取;标记文件在每次调用 IsDiskSupported 时实时 os.Stat,测试台脚本一句
+// touch/rm 就能开关,不用碰 systemd、不用重启任何服务。
+//
+// 为什么不用 build tag 编两个二进制:那样测试台验证的就不是出厂那个二进制了,
+// "在真实产品二进制上验证 RAID/快照界面"这个目的会被削掉一半。要的是同一个
+// 二进制、运行时的显式开关,默认关闭。
+var allowPseudoDisksMarkerFile = "/etc/nimoos/allow-pseudo-disks"
+
+// allowPseudoDisks 报告 scsi_debug 伪盘白名单开关是否打开。只看标记文件是否
+// 存在,不看内容、不看权限。
+func allowPseudoDisks() bool {
+	_, err := os.Stat(allowPseudoDisksMarkerFile)
+	return err == nil
+}
+
+// IsDiskSupported 会被 route/v1/disk.go 在磁盘列表循环里对每一块盘调用一次
+// (盘数通常是个位数,这里每次调用都做一次 os.Stat 检查开关标记文件,开销可以
+// 接受;如果未来盘数规模变大,这里可能需要加缓存)。
+func IsDiskSupported(d model.LSBLKModel) bool {
+	return d.Tran == "sata" ||
+		d.Tran == "nvme" ||
+		d.Tran == "spi" ||
+		d.Tran == "sas" ||
+		strings.Contains(d.SubSystems, "virtio") ||
+		strings.Contains(d.SubSystems, "block:scsi:vmbus:acpi") || // Microsoft Hyper-V
+		strings.Contains(d.SubSystems, "block:mmc:mmc_host:pci") ||
+		strings.Contains(d.SubSystems, "block:mmc:mmc_host:platform") ||
+		// scsi_debug 伪 SCSI 主机(SP6-P5.5 存储区实盘验收测试台)。这是一道
+		// 安全边界:IsDiskSupported 决定"什么设备可以被格式化/建 RAID",出厂
+		// 产品必须默认拒绝这类伪盘,只有显式 touch 标记文件后才认它,防止

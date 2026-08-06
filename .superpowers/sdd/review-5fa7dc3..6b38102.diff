@@ -1,0 +1,2379 @@
+# Review package: 5fa7dc3..6b38102
+
+## Commits
+6b38102 feat(files): list/grid views + view toggle + sortable columns in Files.vue
+5ddddd6 feat(files): FileRow (list) + FileTile (grid) presentational components
+2ddf279 feat(files): view mode + sort state (folders-first) in filesStore
+4665d29 feat(files): renderSize + dateFmt formatters (Vue2 port)
+67f7362 fix(files): match Vue2 icon resolution (getFileExt fidelity + text-dockerfile)
+5749464 feat(files): file-type icon set + iconNameFor/iconUrl (typeMap port)
+
+## Files changed
+ src/files/assets/icons/application-apk.svg         |  23 +++
+ src/files/assets/icons/application-illustrator.svg |  17 ++
+ src/files/assets/icons/application-pdf.svg         |  16 ++
+ src/files/assets/icons/application-photoshop.svg   |  17 ++
+ .../assets/icons/application-vnd.ms-excel.svg      |  20 ++
+ .../assets/icons/application-vnd.ms-powerpoint.svg |  20 ++
+ src/files/assets/icons/application-vnd.ms-word.svg |  20 ++
+ src/files/assets/icons/application-x-apple.svg     |  29 +++
+ src/files/assets/icons/application-x-cd-image.svg  |  32 ++++
+ src/files/assets/icons/application-x-pem-key.svg   |  21 +++
+ .../icons/application-x-wine-extension-cpl.svg     |  28 +++
+ src/files/assets/icons/application-x-zip.svg       |  20 ++
+ src/files/assets/icons/audio-x-generic.svg         |  28 +++
+ src/files/assets/icons/folder-application.svg      |  69 +++++++
+ src/files/assets/icons/folder-default.svg          |  75 ++++++++
+ src/files/assets/icons/folder-documents.svg        | 117 ++++++++++++
+ src/files/assets/icons/folder-download.svg         |  98 ++++++++++
+ src/files/assets/icons/folder-hdd.svg              | 127 +++++++++++++
+ src/files/assets/icons/folder-pictures.svg         |  88 +++++++++
+ src/files/assets/icons/folder-root.svg             | 114 +++++++++++
+ src/files/assets/icons/folder-usb.svg              | 119 ++++++++++++
+ src/files/assets/icons/folder-video.svg            | 209 +++++++++++++++++++++
+ src/files/assets/icons/image-x-generic.svg         |  21 +++
+ src/files/assets/icons/text-css.svg                |  32 ++++
+ src/files/assets/icons/text-dockerfile.svg         |  20 ++
+ src/files/assets/icons/text-html.svg               |  33 ++++
+ src/files/assets/icons/text-markdown.svg           |  34 ++++
+ src/files/assets/icons/text-x-cmake.svg            |  15 ++
+ src/files/assets/icons/text-x-generic.svg          |  24 +++
+ src/files/assets/icons/unknown.svg                 |  16 ++
+ src/files/assets/icons/video-x-generic.svg         |  16 ++
+ src/files/components/FileGridView.vue              |  16 ++
+ src/files/components/FileListView.vue              |  40 ++++
+ src/files/components/FileRow.test.ts               |  23 +++
+ src/files/components/FileRow.vue                   |  28 +++
+ src/files/components/FileTile.vue                  |  24 +++
+ src/files/stores/files.test.ts                     |  28 +++
+ src/files/stores/files.ts                          |  44 ++++-
+ src/files/util/format.test.ts                      |  24 +++
+ src/files/util/format.ts                           |  22 +++
+ src/files/util/icons.test.ts                       |  47 +++++
+ src/files/util/icons.ts                            |  67 +++++++
+ src/i18n/zh_cn.ts                                  |   6 +
+ src/views/Files.test.ts                            |  28 ++-
+ src/views/Files.vue                                |  44 ++---
+ 45 files changed, 1926 insertions(+), 33 deletions(-)
+
+## Diff
+diff --git a/src/files/assets/icons/application-apk.svg b/src/files/assets/icons/application-apk.svg
+new file mode 100644
+index 0000000..d538f96
+--- /dev/null
++++ b/src/files/assets/icons/application-apk.svg
+@@ -0,0 +1,23 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:xlink="http://www.w3.org/1999/xlink">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333 0 0 2.3333 -68.667 -72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#84c835" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-14.713 -.1522)">
++		<path d="m22.651 6.7667v1.7198c0 0.073288 0.059 0.13229 0.13229 0.13229h0.79374c0.07329 0 0.13229-0.059001 0.13229-0.13229v-1.7198zm0.26458 1.0583h0.52916v0.52916h-0.52916z"
++			  color="#000000" fill="#fff"/>
++		<path d="m23.18 1.2105h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916z"
++			  color="#000000" fill="#fff"/>
++		<path d="m25.359 10.922 0.80255-0.80255c0.12347-0.12347 0.12347-0.31485 0-0.43832s-0.31485-0.12347-0.43832 0l-0.91368 0.91368c-0.4877-0.24694-1.0433-0.38893-1.6298-0.38893-0.59266 0-1.1483 0.14199-1.6421 0.38893l-0.91985-0.91368c-0.12347-0.12347-0.31485-0.12347-0.43832 0s-0.12347 0.31485 0 0.43832l0.80873 0.80873c-0.91368 0.67291-1.5125 1.7533-1.5125 2.9818h7.4082c0-1.2285-0.59883-2.3151-1.5249-2.988zm-3.5021 1.6651h-0.52916v-0.52916h0.52916zm3.1749 0h-0.52916v-0.52916h0.52916z"
++			  enable-background="new" fill="#0c2809" opacity=".5" stroke-width=".61735"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/application-illustrator.svg b/src/files/assets/icons/application-illustrator.svg
+new file mode 100644
+index 0000000..2ea37ee
+--- /dev/null
++++ b/src/files/assets/icons/application-illustrator.svg
+@@ -0,0 +1,17 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#341c05" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".5"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path class="st1"
++		  d="m6.8166 9.7034-0.3832 1.4552c-0.0097 0.03881-0.02425 0.0485-0.07276 0.0485h-0.71304c-0.04851 0-0.05821-0.01455-0.04851-0.07276l1.3776-4.8215c0.02425-0.08731 0.0388-0.16492 0.04851-0.4026 0-0.03395 0.01455-0.0485 0.0388-0.0485h1.0186c0.03395 0 0.04851 0.0097 0.05821 0.0485l1.5425 5.2338c0.0097 0.03881 0 0.06306-0.0388 0.06306h-0.8052c-0.0388 0-0.06306-0.0097-0.07276-0.04366l-0.4026-1.46zm1.3485-0.7858c-0.13582-0.53842-0.45596-1.7123-0.57722-2.2798h-0.0097c-0.10186 0.56752-0.35894 1.5279-0.56267 2.2798zm2.1828-2.6969c0-0.31044 0.21828-0.49476 0.49476-0.49476 0.29589 0 0.49476 0.19887 0.49476 0.49476 0 0.32014-0.20858 0.49476-0.50446 0.49476-0.28134 0-0.48506-0.17462-0.48506-0.49476zm0.05821 1.1011c0-0.0388 0.01455-0.05821 0.05821-0.05821h0.76154c0.0388 0 0.05821 0.01455 0.05821 0.05821v3.8271c0 0.0388-0.0097 0.05821-0.05821 0.05821h-0.75185c-0.04851 0-0.06306-0.02425-0.06306-0.06306v-3.8223z"
++		  enable-background="new" fill="#ff7c00" stroke-width=".048506"/>
++</svg>
+diff --git a/src/files/assets/icons/application-pdf.svg b/src/files/assets/icons/application-pdf.svg
+new file mode 100644
+index 0000000..45d8569
+--- /dev/null
++++ b/src/files/assets/icons/application-pdf.svg
+@@ -0,0 +1,16 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#e84f43" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path d="m6.942 9.1745c0.26366-0.51679 0.56331-1.099 0.80315-1.6836l0.09483-0.23076c-0.31327-1.1921-0.50112-2.149-0.3333-2.7677 0.04518-0.16131 0.23201-0.25919 0.43176-0.25919l0.12172 0.0018h0.02234c0.27347-0.0042 0.40223 0.34367 0.41685 0.47892 0.02413 0.22525-0.08008 0.60646-0.08008 0.60646 0-0.15394 6e-3 -0.40268-0.09113-0.61733-0.1131-0.24837-0.22113-0.39674-0.31798-0.42026-0.0489 0.03266-0.09643 0.1003-0.11272 0.23041-0.03372 0.18243-0.04383 0.4127-0.04383 0.5314 0 0.41939 0.08258 0.97295 0.24486 1.5436 0.03061-0.08835 0.05755-0.17324 0.07897-0.25278 0.03328-0.12535 0.24483-0.95628 0.24483-0.95628s-0.05331 1.1061-0.12778 1.4408c-0.01596 0.07072-0.03356 0.14067-0.05189 0.21226 0.2676 0.7477 0.6988 1.415 1.2132 1.8953 0.20281 0.18954 0.45896 0.34238 0.70139 0.48168 0.52942-0.07565 1.0169-0.11138 1.4235-0.10688 0.53953 0.0071 0.93557 0.08691 1.0959 0.24488 0.07852 0.07678 0.11039 0.16951 0.12028 0.27346 0.0023 0.04044-0.01734 0.13546-0.02312 0.15931 0.0058-0.02887 0.0058-0.17083-0.42733-0.30908-0.34111-0.10904-0.9795-0.10565-1.7455-0.02411 0.88603 0.43348 1.7492 0.64886 2.0228 0.51974 0.06688-0.03259 0.148-0.14373 0.148-0.14373s-0.04822 0.21908-0.08284 0.27384c-0.04419 0.0595-0.13086 0.12396-0.21304 0.14569-0.43202 0.11526-1.5566-0.15146-2.537-0.71164-1.0953 0.16131-2.2982 0.45931-3.2625 0.77558-0.94754 1.6606-1.6599 2.4232-2.2394 2.1331l-0.21306-0.10714c-0.08661-0.04954-0.09983-0.17013-0.0798-0.26833 0.06757-0.33057 0.48208-0.82846 1.3147-1.3256 0.08962-0.05423 0.48884-0.26531 0.48884-0.26531s-0.29555 0.28605-0.36479 0.34219c-0.66458 0.5446-1.1551 1.2298-1.1428 1.4954l0.0024 0.02316c0.56454-0.08045 1.4111-1.2295 2.4995-3.3591m0.34492 0.17661c-0.18179 0.34238-0.35948 0.65982-0.52353 0.95129 0.90746-0.3802 1.8841-0.6235 2.8139-0.79634-0.12495-0.08628-0.24624-0.17764-0.36038-0.27422-0.51198-0.43346-0.90232-0.97424-1.1853-1.5433-0.17944 0.48342-0.39281 0.99712-0.7447 1.6626"
++		  enable-background="new" fill="#fff" stroke-width=".025916"/>
++</svg>
+diff --git a/src/files/assets/icons/application-photoshop.svg b/src/files/assets/icons/application-photoshop.svg
+new file mode 100644
+index 0000000..b9a83c6
+--- /dev/null
++++ b/src/files/assets/icons/application-photoshop.svg
+@@ -0,0 +1,17 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#262626" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".5"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path class="st1"
++		  d="m5.4058 5.8326c0-0.03396 0.06791-0.05821 0.10671-0.05821 0.31044-0.01455 0.77124-0.02425 1.2515-0.02425 1.3436 0 1.8675 0.73729 1.8675 1.6832 0 1.2321-0.89251 1.7608-1.9887 1.7608-0.18432 0-0.24738-0.0097-0.37835-0.0097v1.8626c0 0.0388-0.01455 0.05821-0.05821 0.05821h-0.74214c-0.0388 0-0.05821-0.01455-0.05821-0.05821zm0.86341 2.5757c0.11156 0.0097 0.19888 0.0097 0.3929 0.0097 0.56752 0 1.1011-0.19887 1.1011-0.97012 0-0.61603-0.3832-0.92646-1.0283-0.92646-0.19402 0-0.37835 0.0097-0.46566 0.01455zm4.1715-0.57722c-0.3832 0-0.51416 0.19402-0.51416 0.35409 0 0.17462 0.08731 0.29589 0.60147 0.56267 0.76154 0.36865 0.99922 0.72274 0.99922 1.2418 0 0.7761-0.59177 1.1932-1.3921 1.1932-0.422 0-0.7858-0.08731-0.99437-0.20858-0.03395-0.01455-0.03881-0.0388-0.03881-0.07761v-0.71304c0-0.04851 0.02425-0.06306 0.05821-0.0388 0.30559 0.19888 0.65483 0.28618 0.97497 0.28618 0.3832 0 0.54327-0.16007 0.54327-0.37835 0-0.17462-0.11156-0.32984-0.60148-0.58207-0.68878-0.32984-0.97497-0.66453-0.97497-1.2224 0-0.62573 0.48991-1.1447 1.3388-1.1447 0.41715 0 0.70819 0.06306 0.86826 0.13582 0.03881 0.02425 0.04851 0.06306 0.04851 0.09701v0.66453c0 0.0388-0.02425 0.06306-0.07276 0.04851-0.21343-0.13582-0.52872-0.21828-0.844-0.21828z"
++		  enable-background="new" fill="#00c8ff" stroke-width=".048506"/>
++</svg>
+diff --git a/src/files/assets/icons/application-vnd.ms-excel.svg b/src/files/assets/icons/application-vnd.ms-excel.svg
+new file mode 100644
+index 0000000..a5db345
+--- /dev/null
++++ b/src/files/assets/icons/application-vnd.ms-excel.svg
+@@ -0,0 +1,20 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#008a50" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-20.433 -.26906)" fill="#fff" stroke-width=".088193">
++		<path d="m29.199 5.0315c-1.2902 0.22976-2.5811 0.53459-3.8713 0.76014 0 1.9626-8.4e-4 3.9261 0 5.8896 1.2835 0.22471 2.5676 0.5245 3.8485 0.75847h0.38446v-7.4082zm-0.86117 2.3092c-0.22469 0.46033-0.45024 0.9207-0.67914 1.3793 0.23143 0.47127 0.46794 0.93908 0.7002 1.4104-0.20281-0.01178-0.40476-0.02445-0.60757-0.03876-0.14306-0.35093-0.31732-0.68998-0.41999-1.0569-0.11445 0.34167-0.27773 0.66395-0.40901 0.99889-0.1843-0.0025-0.36863-0.01013-0.55293-0.0177 0.21628-0.4233 0.425-0.85005 0.64801-1.2708-0.18935-0.4334-0.39722-0.8583-0.59246-1.2892 0.18514-0.01094 0.37037-0.02181 0.55551-0.03191 0.12539 0.32905 0.26248 0.6538 0.36599 0.99126 0.11108-0.35766 0.27687-0.69422 0.41909-1.0401 0.19019-0.01346 0.38127-0.02524 0.5723-0.03449z"
++			  enable-background="new"/>
++		<path d="m29.825 6.0898v0.52916h0.79373v0.52916h-0.79373v0.26458h0.79373v0.53006h-0.79373v0.26367h0.79373v0.52916h-0.79373v0.26458h0.79373v0.52916h-0.79373v0.26458h0.79373v0.52916h-0.79373v0.26458h0.79373v0.52916h-0.79373v0.52916h2.6458v-5.5561zm1.0583 0.52916h1.0583v0.52916h-1.0583zm0 0.79374h1.0583v0.53006h-1.0583zm0 0.79373h1.0583v0.52916h-1.0583zm0 0.79373h1.0583v0.52916h-1.0583zm0 0.79374h1.0583v0.52916h-1.0583zm0 0.79373h1.0583v0.52916h-1.0583z"
++			  enable-background="new"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/application-vnd.ms-powerpoint.svg b/src/files/assets/icons/application-vnd.ms-powerpoint.svg
+new file mode 100644
+index 0000000..ca413b5
+--- /dev/null
++++ b/src/files/assets/icons/application-vnd.ms-powerpoint.svg
+@@ -0,0 +1,20 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#e34e2b" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-17.672 1.3286)" fill="#fff" stroke-width=".088193">
++		<path d="m26.438 3.4338c-1.2902 0.22976-2.5811 0.53459-3.8713 0.76014 0 1.9626-8.5e-4 3.9261 0 5.8896 1.2835 0.22471 2.5676 0.5245 3.8485 0.75847h0.38446v-7.4082zm-1.9413 2.3328c0.25455-0.0054 0.4988 0.03123 0.69723 0.21071 0.38011 0.46125 0.27959 1.3096-0.28396 1.5857-0.2002 0.1023-0.42953 0.08832-0.64736 0.08126-8.75e-4 0.34483-0.0018 0.68958-9e-4 1.0344-0.17462-0.01499-0.35001-0.02994-0.52463-0.04405-0.0079-0.9419-0.0098-1.8411 7.75e-4 -2.783 0.24834-0.03094 0.50431-0.07957 0.75885-0.08497zm-0.02933 0.51107c-0.06946-0.0018-0.14052 0.0045-0.20567 0.0075-0.0026 0.29633-0.0043 0.59169 0.01421 0.88714 0.1755-0.02117 0.40304-0.0035 0.50358-0.18513 0.08378-0.17815 0.08904-0.40578-0.0115-0.57864-0.07331-0.10197-0.18485-0.12777-0.30062-0.13087z"
++			  enable-background="new"/>
++		<path d="m27.065 4.4921v0.87939c0.124-0.02662 0.25872-0.0767 0.39674-0.085v1.19h1.1827c-0.04202 0.36101-0.20295 0.73206-0.52128 0.92073-0.3122 0.2099-0.70894 0.2126-1.0582 0.10413 8.75e-4 0.17286-8.75e-4 0.52205 0 0.6949h2.1165v0.26458h-2.1165v0.52916h2.1165v0.26458h-2.1165v0.79374h2.6457v-5.5561zm0.66132 0.63406c0.56254 0.05826 1.0277 0.52454 1.0889 1.0857h-1.0889z"
++			  enable-background="new"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/application-vnd.ms-word.svg b/src/files/assets/icons/application-vnd.ms-word.svg
+new file mode 100644
+index 0000000..07169ef
+--- /dev/null
++++ b/src/files/assets/icons/application-vnd.ms-word.svg
+@@ -0,0 +1,20 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#3374d4" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-20.002 1.3094)" fill="#fff" stroke-width=".088193">
++		<path d="m28.768 3.453c-1.2902 0.22976-2.5811 0.53461-3.8713 0.76016 0 1.9626-8.5e-4 3.9261 0 5.8896 1.2835 0.22471 2.5677 0.52447 3.8486 0.75844h0.38441v-7.4082zm-0.49905 2.3996-0.5944 2.4951-0.48788-0.03847c-0.11193-0.55714-0.24233-1.1109-0.34248-1.6706-0.09847 0.54368-0.2265 1.0823-0.33928 1.6226-0.16159-0.0084-0.32392-0.01852-0.48635-0.02946-0.13971-0.74062-0.30388-1.4762-0.43432-2.2185 0.14392-0.0067 0.28868-0.01258 0.4326-0.01763 0.08668 0.53611 0.18512 1.0697 0.26087 1.6066 0.11867-0.55041 0.23994-1.1008 0.35777-1.6512 0.15991-0.0093 0.31979-0.01599 0.47969-0.02441 0.11193 0.56809 0.22634 1.1352 0.34753 1.7008 0.0951-0.58408 0.20033-1.1664 0.30217-1.7496 0.16832-0.0059 0.33662-0.01517 0.5041-0.02527z"
++			  enable-background="new"/>
++		<path d="m29.395 4.5113h2.6458v5.2916h-2.6458v-0.52916h2.1166v-0.26458h-2.1166v-0.52916h2.1166v-0.26458h-2.1166v-0.52916h2.1166v-0.26458h-2.1166v-0.52916h2.1166v-0.26458h-2.1166v-0.52823h2.1166v-0.2655h-2.1166v-0.52916h2.1166v-0.26458h-2.1166z"
++			  enable-background="new"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/application-x-apple.svg b/src/files/assets/icons/application-x-apple.svg
+new file mode 100644
+index 0000000..8becf49
+--- /dev/null
++++ b/src/files/assets/icons/application-x-apple.svg
+@@ -0,0 +1,29 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Generator: Adobe Illustrator 25.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
++<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
++	 viewBox="0 0 64 64" style="enable-background:new 0 0 64 64;" xml:space="preserve">
++<style type="text/css">
++	.st0{fill:#F4F4F4;}
++	.st1{opacity:0.1;fill-rule:evenodd;clip-rule:evenodd;fill:url(#SVGID_1_);enable-background:new    ;}
++	.st2{fill:#999999;}
++</style>
++	<g id="图层_1">
++	<g transform="scale(.26458)">
++		<path class="st0" d="M49.1,15.1h143.6c10.4,0,18.9,8.5,18.9,18.9v173.9c0,10.4-8.5,18.9-18.9,18.9H49.1
++			c-10.4,0-18.9-8.5-18.9-18.9V34C30.2,23.6,38.7,15.1,49.1,15.1z"/>
++
++		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-957.3084" y1="2609.5137" x2="-955.1654"
++						y2="2607.3706" gradientTransform="matrix(2.3333 0 0 -2.3333 2411.3325 6281.5693)">
++			<stop offset="0" style="stop-color:#000000"/>
++			<stop offset="1" style="stop-color:#000000;stop-opacity:0"/>
++		</linearGradient>
++		<path class="st1" d="M211.7,173.9l-52.9,52.9h34c10.5,0,18.9-8.4,18.9-18.9V173.9z"/>
++	</g>
++</g>
++	<g id="图层_2">
++	<path class="st2" d="M41.1,31.4c0-4.2,3.4-6.2,3.6-6.3c-2-2.9-5-3.3-6.1-3.3c-2.6-0.3-5.1,1.5-6.4,1.5c-1.3,0-3.3-1.5-5.5-1.4
++		c-2.8,0-5.4,1.6-6.9,4.2c-2.9,5.1-0.8,12.6,2.1,16.8c1.4,2,3.1,4.3,5.3,4.2c2.1-0.1,2.9-1.4,5.4-1.4c2.5,0,3.3,1.4,5.5,1.3
++		c2.3,0,3.7-2.1,5.1-4.1c1.6-2.3,2.3-4.6,2.3-4.7C45.5,38.1,41.1,36.4,41.1,31.4L41.1,31.4z M36.9,19c1.2-1.4,1.9-3.4,1.7-5.3
++		c-1.7,0.1-3.7,1.1-4.9,2.5c-1.1,1.2-2,3.2-1.8,5.1C33.8,21.5,35.7,20.5,36.9,19L36.9,19z"/>
++</g>
++</svg>
+diff --git a/src/files/assets/icons/application-x-cd-image.svg b/src/files/assets/icons/application-x-cd-image.svg
+new file mode 100644
+index 0000000..6c42150
+--- /dev/null
++++ b/src/files/assets/icons/application-x-cd-image.svg
+@@ -0,0 +1,32 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
++	 xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++				<dc:title/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#666" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path d="m12.7 8.4665a4.2223 4.2223 0 0 0-4.2332-4.2332 4.2223 4.2223 0 0 0-4.2332 4.2332 4.2223 4.2223 0 0 0 4.2332 4.2332 4.2223 4.2223 0 0 0 4.2332-4.2332zm-2.6848 0c0 0.85305-0.679 1.5492-1.5484 1.5492a1.5414 1.5414 0 0 1-1.55-1.5492c0-0.85227 0.62827-1.5484 1.5492-1.5484s1.5484 0.71334 1.5484 1.5484z"
++		  fill="#fff" opacity=".75"/>
++	<path d="m8.4664 6.349a2.1175 2.1175 0 1 0 1e-3 4.235 2.1175 2.1175 0 0 0-1e-3 -4.235zm0 1.058a1.059 1.059 0 1 1-1e-3 2.118 1.059 1.059 0 0 1 0-2.118z"
++		  fill="#fff" opacity=".5" overflow="visible"/>
++	<path d="m8.4664 6.4815a1.985 1.985 0 1 0 1e-3 3.97 1.985 1.985 0 0 0-1e-3 -3.97zm0 0.992a0.993 0.993 0 1 1-1e-3 1.985 0.993 0.993 0 0 1 0-1.985z"
++		  fill="none" overflow="visible"/>
++</svg>
+diff --git a/src/files/assets/icons/application-x-pem-key.svg b/src/files/assets/icons/application-x-pem-key.svg
+new file mode 100644
+index 0000000..f51c462
+--- /dev/null
++++ b/src/files/assets/icons/application-x-pem-key.svg
+@@ -0,0 +1,21 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(1)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#51db51" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g color="#000000" color-rendering="auto" fill="#fff" image-rendering="auto" shape-rendering="auto"
++	   text-rendering="auto">
++		<path d="m35.734 22.01c-3.983 0-7.211 3.228-7.211 7.207 0 1.082.245 2.103.672 3.02l-1.234 1.461-.107 1.369c-.011.01-1.344.049-1.344.049l-.686.496c0 0 .006 1.495 0 1.475l-.002.002-1.467.023-.621.709-.014 1.34c0 0-1.266-.083-1.395.035-.81.746-1.355 1.277-1.355 1.277l.006 3.506c0 0 .469-.002.688-.002l9.338-9.336c.495.431 1.049.794 1.648 1.078l.002-.002c.936.444 1.979.701 3.084.701 3.983 0 7.211-3.227 7.211-7.207 0-3.979-3.228-7.206-7.213-7.205m1.377 3.434c1.327 0 2.402 1.077 2.402 2.404 0 1.327-1.075 2.402-2.402 2.402-1.328 0-2.404-1.075-2.404-2.402 0-1.327 1.076-2.404 2.404-2.404"
++			  opacity=".75"/>
++		<path d="m37.11 25.445c-1.328 0-2.404 1.077-2.404 2.404s1.076 2.402 2.404 2.402c1.327 0 2.402-1.075 2.402-2.402s-1.075-2.404-2.402-2.404m0 1.373c0.569 0 1.029 0.462 1.029 1.031s-0.461 1.029-1.029 1.029c-0.569 0-1.031-0.461-1.031-1.029 0-0.569 0.463-1.031 1.031-1.031m-6.109 7.828-9.342 9.34h3.434l8.154-8.01c-0.832-0.307-1.59-0.757-2.246-1.328"
++			  opacity=".5"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/application-x-wine-extension-cpl.svg b/src/files/assets/icons/application-x-wine-extension-cpl.svg
+new file mode 100644
+index 0000000..1c888f6
+--- /dev/null
++++ b/src/files/assets/icons/application-x-wine-extension-cpl.svg
+@@ -0,0 +1,28 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
++	 xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++				<dc:title/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#2196f3" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path d="m5.5748 8.2549-0.0024001-2.0641 2.3153-0.34481v2.4089zm2.6993-2.4705 3.0857-0.49282v2.9633h-3.0857zm3.0865 2.8937-8e-4 2.9633-3.0857-0.47602v-2.4873zm-3.4722 2.4337-2.3137-0.34802v-2.0865h2.3129v2.4337z"
++		  fill="#fff" stroke-width=".80003"/>
++</svg>
+diff --git a/src/files/assets/icons/application-x-zip.svg b/src/files/assets/icons/application-x-zip.svg
+new file mode 100644
+index 0000000..b4de90d
+--- /dev/null
++++ b/src/files/assets/icons/application-x-zip.svg
+@@ -0,0 +1,20 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#ebad51" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-26.734 1.1705)" fill="#fff">
++		<path d="m34.671 7.0315v1.7198c0 0.07329 0.059 0.13229 0.13229 0.13229h0.79374c0.07329 0 0.13229-0.059 0.13229-0.13229v-1.7198zm0.26458 1.0583h0.52916v0.52916h-0.52916z"
++			  color="#000000"/>
++		<path d="m35.2-0.11215v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916zm0 0.52916h-0.52916v0.52916h0.52916zm0 0.52916v0.52916h0.52916v-0.52916z"
++			  color="#000000"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/audio-x-generic.svg b/src/files/assets/icons/audio-x-generic.svg
+new file mode 100644
+index 0000000..98de66a
+--- /dev/null
++++ b/src/files/assets/icons/audio-x-generic.svg
+@@ -0,0 +1,28 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
++	 xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++				<dc:title/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#eb577a" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path d="m10.848 5.2916c-0.09398-1e-3 -0.21892 0.01361-0.38515 0.03859l-2.7661 0.42296c-0.66784 0.14221-0.66555 0.18644-0.66781 0.75066v4.578c-0.02785-0.01951-0.05533-0.03913-0.08412-0.05843v1.98e-4c-0.21218-0.14219-0.43832-0.24338-0.74206-0.24338-0.38046 0-0.60735 0.14568-0.7447 0.33757s-0.1829 0.43375-0.1829 0.62072c0 0.22546 0.07698 0.46608 0.24397 0.64944s0.42373 0.31177 0.79287 0.31177c0.41684 0 0.71006-0.1164 0.87582-0.34372 0.13051-0.17898 0.20268-0.4181 0.22843-0.71305v-8.5e-4c0.0036-0.03578 0.0062-0.07254 0.0085-0.1104 0.0035-0.0583 0.0027-0.16737 0.0027-0.16737v-3.5053c0-0.50076-2.4e-5 -0.53065 0.668-0.64485l1.9671-0.30855c0.66923-0.08756 0.66937-0.02667 0.66937 0.3494v3.2169c-0.0271-0.01899-0.05387-0.0381-0.08188-0.05686v1.98e-4c-0.21218-0.14219-0.43822-0.24338-0.74197-0.24338-0.38046 0-0.60745 0.14568-0.7448 0.33757-0.13735 0.19188-0.1829 0.43375-0.1829 0.62072 0 0.22546 0.07708 0.46608 0.24406 0.64944 0.16699 0.18337 0.42373 0.31187 0.79287 0.31187 0.41684 0 0.71006-0.1165 0.87582-0.34382 0.13051-0.17898 0.20258-0.418 0.22833-0.71295v-9.25e-4c0.0036-0.03578 0.0062-0.07244 0.0085-0.11031 0.0035-0.0583 0.0028-0.16746 0.0028-0.16746v-4.8767c0-0.4392-0.0029-0.58465-0.28481-0.58779z"
++		  enable-background="new" fill="#fff"/>
++</svg>
+diff --git a/src/files/assets/icons/folder-application.svg b/src/files/assets/icons/folder-application.svg
+new file mode 100644
+index 0000000..751f19d
+--- /dev/null
++++ b/src/files/assets/icons/folder-application.svg
+@@ -0,0 +1,69 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Created with Inkscape (http://www.inkscape.org/) -->
++<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933"
++	 xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="linearGradient2121" x1="1.5652" x2="1.5652" y1="25.244" y2="28.82"
++						gradientTransform="translate(7.6401,-13.958)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#b0e2f9" offset="0"/>
++			<stop stop-color="#daf0f9" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient2190" x1="-1.1093" x2="1.2942" y1="30.48" y2="29.185"
++						gradientTransform="matrix(1.4311,0,0,1.4311,7.3533,-26.773)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#c9e9f6" offset="0"/>
++			<stop stop-color="#e3f5ff" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient2195" x1="-.92444" x2="1.2942" y1="30.48" y2="29.185"
++						gradientTransform="matrix(-1.4311,0,0,1.4311,11.057,-26.773)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#a8dbf0" offset="0"/>
++			<stop stop-color="#85bbe8" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1911-3-2" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="translate(-17.898 -21.385)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951-6" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(.26458 0 0 .26458 -20.108 -.13536)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110-7" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="translate(-2.538e-4,4.18e-5)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientTransform="translate(-.0002538 -.015458)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++	</defs>
++	<path d="m1.1974 2.2489c-0.3653 0-0.66145 0.32575-0.66145 0.72759v2.9636c-0.0026 0.02629-0.0072 0.052-0.0072 0.07906v7.9373c0 0.40184 0.29614 0.72759 0.66144 0.72759h14.552c0.36531 0 0.66144-0.32575 0.66144-0.72759v-9.393c0-0.40184-0.29614-0.72759-0.66144-0.72759v5.16e-4h-8.1993l-0.89864-1.1095s-0.36607-0.478-1.0583-0.478h-1.3229z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911-3-2)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<path d="m8.3601 3.8209c-0.11312 0.0018-0.30848-0.01542-0.51986 0.09508-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.2775c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21138-0.1105 0.40673-0.09328 0.51986-0.09508h7.3828c0.18216 3.65e-4 0.3472 0.08101 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.2775c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11943-0.13137-0.28447-0.21202-0.46663-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.2775c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="#1e5992" opacity=".001" stroke-width=".26458"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22042 0.33333-0.2253 0.54569v0.51675c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v7.3953c0 0.20092 0.07357 0.3825 0.19327 0.51417 0.1197 0.13167 0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342 0.1197-0.13167 0.19378-0.31325 0.19378-0.51417v-8.851c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28449-0.21202-0.46665-0.21239h-7.4821z"
++		  fill="url(#linearGradient1951-6)"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38446c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.03568-0.0055 0.06806-0.01118 0.10077-0.01705 0.75911-0.26303 1.2883-0.79218 1.2883-0.79218h8.0707c0.18216 3.7e-4 0.34718 0.08102 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38446c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28447-0.21202-0.46663-0.21239h-7.4821zm-7.0062 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.38447c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="url(#linearGradient11110-7)" opacity=".3"/>
++	<path d="m0.52895 13.658v0.28215c0 0.20092 0.07357 0.3825 0.19327 0.51417 0.1197 0.13167 0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-0.28215c0 0.20092-0.07409 0.3825-0.19378 0.51417-0.1197 0.13167-0.28501 0.21342-0.46766 0.21342h-14.552c-0.18265 0-0.34848-0.08176-0.46818-0.21342-0.1197-0.13166-0.19327-0.31325-0.19327-0.51417z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<g transform="translate(12.658 -1.8581)">
++		<image x="-12.658" y="1.8581" width="16.933" height="16.933" image-rendering="optimizeQuality"
++			   preserveAspectRatio="none"
++			   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA GXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAA1ZJREFUeJzt2c9uG1UUBvDvnDt/ bCdukioJrVOKQKiqKDvDfrZ9gLxC2fEM8wx0geiGB8iqK4ud1V1RvWt3pUorxSEJjZM68XjGc85h YQS0qqggYxvo/S1t+dxzP48s33MBz/M8z/M8z/M8z/M8z/M8z/PeF7SYZY3a7a+CZrPlAGA47Euv 910JkM27k3kHQEmSuiDIlhpiV8xkAwCI3NHI0c+DwWDU690rAcwtiHkFQEmSOOCzWlMbG2DbUsES QMH0bSvBOnKEfUzCg1dhI+t2U8Ecgph5ANvb22787FaM+mDdXLjFsGVRitjpa2ursDHRRCFnDN7P azgsikd5t9stZ9nfzAJI05Sf/HAaZ3VcxgRbyrzCZiEx+K8+p8Lm2AojG6KUPrLsl9ong3xnZ0dm 0WflAaRpyt0uogbOV4l0C6ZrpBS9a+NvMoUac+HAJ4EUe8dudZAkKNI01Sr7rTSAdvtOuNmIV10Q tlBinZgikLmL1DSFwiFXcy9NxnuHo/yk17s3qarnCzX3Z0mSBOvuWovJ3WAK1sAWg/7et/42RCAC QjYssdHqShRPrn4cj3Z3dyt5Ei7c4B+SAEFwXeGWDRJUV/c3ZE7hls2560BSWf3KAtjIT0nNhW/+ uleJnZKoRBv5aWVrVPgE/Df5ABbdwKL5ABbdwKL5ABbdwKL5ABbdwKL5AKoqdBSvGGClCs9sijOt beV0rWpUFsBw2BcL5IAJ2SxCmE6MkFlAB8Nhv7LhSGXH4f39nn1684uzWKKxQGIy51SJie1CBxcV NoJOjPBK2D1DLe8/ePDtv28eAABPn/4on3/ZOh/J2stYgzFYYqjjfxKECps5lACfSVC8KKPwp0uX d0/u3/++ss0Ds5sJUpKkDjisXUJ8pVRugbVB4ty7jsvTjYs4QQbHBzRxe7OcEs96Kkzt9p1gM4jr URRdE0ebCqkROcf2liCMRGFjEB9pPX9xeJhns74nmNu9wPatNMTVrD4q5UNVbAZk8e/zQiOBUS5M x1SePW8MPjjfeZJO8H+4F3id0e3bX0dBFjWV8BEZNaev2pANz8t6Mex0vinmeUU25z9CZJ3O3byd NI+1Vjyu5/KwnstDrRWP20nzuNO5my/iftDzPM/zPM/z3kO/AvHmdl9Pu5REAAAAAElFTkSuQmCC  "/>
++		<g transform="translate(-13.403 -3.0272)" stroke-linecap="round" stroke-linejoin="round">
++			<path d="m9.195 11.287a0.67236 0.67236 0 0 0-0.035657 0.0016 0.67236 0.67236 0 0 0-0.03514 0.0031 0.67236 0.67236 0 0 0-0.034623 0.0057 0.67236 0.67236 0 0 0-0.03514 0.0067 0.67236 0.67236 0 0 0-0.034623 0.0088 0.67236 0.67236 0 0 0-0.033073 0.01085 0.67236 0.67236 0 0 0-0.033073 0.0124 0.67236 0.67236 0 0 0-0.033073 0.01395 0.67236 0.67236 0 0 0-0.03204 0.01602l-2.7689 1.4908c-0.097887 0.05273-0.17689 0.12779-0.23151 0.216s-0.08475 0.1897-0.08475 0.29508v2.9818c0 0.10537 0.03013 0.20686 0.08475 0.29507 0.05462 0.0882 0.13362 0.16328 0.23151 0.216l2.7689 1.4908c0.097887 0.05273 0.20753 0.07906 0.31678 0.07906 0.10924 0 0.21837-0.02635 0.31626-0.07906l2.7689-1.4908c0.09788-0.05273 0.17689-0.12779 0.23151-0.216s0.08526-0.1897 0.08526-0.29508v-2.9818c0-0.10537-0.03064-0.20686-0.08526-0.29508-0.05462-0.08817-0.1331-0.16328-0.23099-0.216l-2.7694-1.4908a0.67236 0.67236 0 0 0-0.018086-0.0093 0.67236 0.67236 0 0 0-0.03204-0.01499 0.67236 0.67236 0 0 0-0.033073-0.01292 0.67236 0.67236 0 0 0-0.033073-0.01137 0.67236 0.67236 0 0 0-0.034623-0.0098 0.67236 0.67236 0 0 0-0.034624-0.0077 0.67236 0.67236 0 0 0-0.03514-0.0062 0.67236 0.67236 0 0 0-0.03514-0.0041 0.67236 0.67236 0 0 0-0.03514-0.0021 0.67236 0.67236 0 0 0-0.03514-5.29e-4zm-2.849 2.4758 2.5885 1.3751v2.6541l-2.543-1.3694c-0.028061-0.01513-0.045475-0.04275-0.045475-0.07286zm5.7185 0.06563v2.5212a0.083344 0.083344 0 0 1 0 0.0031 0.083344 0.083344 0 0 1-0.0016 0.01241 0.083344 0.083344 0 0 1-0.0026 0.01188 0.083344 0.083344 0 0 1-0.0057 0.01138 0.083344 0.083344 0 0 1-0.0067 0.01034 0.083344 0.083344 0 0 1-0.0083 0.0093 0.083344 0.083344 0 0 1-0.0098 0.0083 0.083344 0.083344 0 0 1-0.01033 0.0062l-2.5435 1.3694v-2.5885z"
++				  fill="url(#linearGradient2121)" stroke-width=".26458" style="paint-order:stroke fill markers"/>
++			<path d="m5.8817 13.097c-0.046567 0.08303-0.078032 0.17441-0.078032 0.27131v2.9819c0 0.10537 0.030131 0.20686 0.08475 0.29507 0.054618 0.0882 0.13362 0.16328 0.23151 0.21601l2.7689 1.4909c0.097889 0.05273 0.20754 0.07906 0.31679 0.07906v-3.5682z"
++				  fill="url(#linearGradient2190)" stroke-width=".37862" style="paint-order:stroke fill markers"/>
++			<path d="m12.529 13.097-3.3235 1.7658v3.5682c0.10924 0 0.21838-0.02635 0.31626-0.07906l2.7689-1.4909c0.09788-0.05273 0.17689-0.1278 0.23151-0.21601s0.08527-0.1897 0.08527-0.29507v-2.9819c0-0.0969-0.03191-0.18828-0.07855-0.2713z"
++				  fill="url(#linearGradient2195)" stroke-width=".37862" style="paint-order:stroke fill markers"/>
++		</g>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/folder-default.svg b/src/files/assets/icons/folder-default.svg
+new file mode 100644
+index 0000000..28f7cd3
+--- /dev/null
++++ b/src/files/assets/icons/folder-default.svg
+@@ -0,0 +1,75 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" width="64" height="64"
++	 version="1.1" viewBox="0 0 16.933 16.933"
++	 xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<style type="text/css"/>
++		<linearGradient id="linearGradient1911-3-3" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="translate(-17.898 -21.385)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951-6" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(.26458 0 0 .26458 -20.108 -.13536)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110-7" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="translate(-2.54e-4,4.144e-5)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientTransform="translate(-.000254 -.015458)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++	</defs>
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<g fill="#5e4aa6" stroke-width=".26458">
++		<circle cx="-330.35" cy="-328.38" r="0"/>
++		<circle cx="-312.11" cy="-326.25" r="0"/>
++		<circle cx="-306.02" cy="-333.07" r="0"/>
++		<circle cx="-308.84" cy="-326.01" r="0"/>
++		<g transform="translate(.000295 -.00032978)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++		<circle cx="-330.35" cy="-328.38" r="0"/>
++		<circle cx="-312.11" cy="-326.25" r="0"/>
++		<circle cx="-306.02" cy="-333.07" r="0"/>
++		<circle cx="-308.84" cy="-326.01" r="0"/>
++		<circle cx="-328.8" cy="-330.45" r="0"/>
++		<g transform="translate(2.95e-4,-3.2978e-4)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++	</g>
++	<path d="m1.1974 2.2489c-0.3653 0-0.66145 0.32575-0.66145 0.72759v2.9636c-0.0026 0.02629-0.0072 0.052-0.0072 0.07906v7.9373c0 0.40184 0.29614 0.72759 0.66144 0.72759h14.552c0.36531 0 0.66144-0.32575 0.66144-0.72759v-9.393c0-0.40184-0.29614-0.72759-0.66144-0.72759v5.16e-4h-8.1993l-0.89864-1.1095s-0.36607-0.478-1.0583-0.478h-1.3229z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911-3-3)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<path d="m8.3601 3.8209c-0.11312 0.0018-0.30848-0.01542-0.51986 0.09508-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.2775c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21138-0.1105 0.40673-0.09328 0.51986-0.09508h7.3828c0.18216 3.65e-4 0.3472 0.08101 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.2775c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11943-0.13137-0.28447-0.21202-0.46663-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.2775c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="#1e5992" opacity=".001" stroke-width=".26458"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22042 0.33333-0.2253 0.54569v0.51675c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v7.3953c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-8.851c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28449-0.21202-0.46665-0.21239h-7.4821z"
++		  fill="url(#linearGradient1951-6)"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38446c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.03568-0.0055 0.06806-0.01118 0.10077-0.01705 0.75911-0.26303 1.2883-0.79218 1.2883-0.79218h8.0707c0.18216 3.7e-4 0.34718 0.08102 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38446c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28447-0.21202-0.46663-0.21239h-7.4821zm-7.0062 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.38447c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="url(#linearGradient11110-7)" opacity=".3"/>
++	<path d="m0.52894 13.658v0.28215c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-0.28215c0 0.20092-0.07409 0.3825-0.19378 0.51417-0.1197 0.13167-0.28501 0.21342-0.46766 0.21342h-14.552c-0.18265 0-0.34848-0.08176-0.46818-0.21342s-0.19327-0.31325-0.19327-0.51417z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++</svg>
+diff --git a/src/files/assets/icons/folder-documents.svg b/src/files/assets/icons/folder-documents.svg
+new file mode 100644
+index 0000000..d07b150
+--- /dev/null
++++ b/src/files/assets/icons/folder-documents.svg
+@@ -0,0 +1,117 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="64"
++	 height="64" version="1.1"
++	 viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style id="current-color-scheme" type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css"/>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css"/>
++		<linearGradient id="linearGradient1911-3-3" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="translate(-17.898 -21.385)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951-6" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(.26458 0 0 .26458 -20.108 -.13536)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110-7" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="translate(-2.54e-4,4.18e-5)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientTransform="translate(-.000254 -.015458)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient15150" x1="8.7" x2="8.7" y1="6.6565" y2="12.916"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fbfdfe" offset="0"/>
++			<stop stop-color="#c7e8f5" offset="1"/>
++		</linearGradient>
++	</defs>
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<path d="m1.1974 2.2489c-0.3653 0-0.66145 0.32575-0.66145 0.72759v2.9636c-0.0026 0.02629-0.0072 0.052-0.0072 0.07906v7.9373c0 0.40184 0.29614 0.72759 0.66144 0.72759h14.552c0.36531 0 0.66144-0.32575 0.66144-0.72759v-9.393c0-0.40184-0.29614-0.72759-0.66144-0.72759v5.16e-4h-8.1993l-0.89864-1.1095s-0.36607-0.478-1.0583-0.478h-1.3229z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911-3-3)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<path d="m8.3601 3.8209c-0.11312 0.0018-0.30848-0.01542-0.51986 0.09508-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.2775c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21138-0.1105 0.40673-0.09328 0.51986-0.09508h7.3828c0.18216 3.65e-4 0.3472 0.08101 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.2775c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11943-0.13137-0.28447-0.21202-0.46663-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.2775c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="#1e5992" opacity=".001" stroke-width=".26458"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22042 0.33333-0.2253 0.54569v0.51675c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v7.3953c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-8.851c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28449-0.21202-0.46665-0.21239h-7.4821z"
++		  fill="url(#linearGradient1951-6)"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38446c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.03568-0.0055 0.06806-0.01118 0.10077-0.01705 0.75911-0.26303 1.2883-0.79218 1.2883-0.79218h8.0707c0.18216 3.7e-4 0.34718 0.08102 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38446c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28447-0.21202-0.46663-0.21239h-7.4821zm-7.0062 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.38447c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="url(#linearGradient11110-7)" opacity=".3"/>
++	<path d="m0.52894 13.658v0.28215c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-0.28215c0 0.20092-0.07409 0.3825-0.19378 0.51417-0.1197 0.13167-0.28501 0.21342-0.46766 0.21342h-14.552c-0.18265 0-0.34848-0.08176-0.46818-0.21342s-0.19327-0.31325-0.19327-0.51417z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<image x="-2.8229e-7" y="-2.8229e-7" width="16.933" height="16.933" image-rendering="optimizeQuality"
++		   preserveAspectRatio="none"
++		   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA GXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAATxJREFUeJzt11FrwjAUhuHXtm4M EXax/f97f5pMGLgbpTW7SIYbmkGTQ0/V7wHBC3PSnDb9IoiIiIiIiIiIiIhMJIRNG8Km9byGxnNy EXG3MKrTEd8nY+sFYEif35pUM1cvAD1wGjnfha62ANAC78Br+j7GAHwCW85NaFKtN+ApM+4IfKSx VU2wasAaeKH8CdhxbkBHXPyKfEot09gvYjOKWTRgAPbERpQ8AXv+boEF8c7/F9EN8IzBFrZqwJZ4 F63eAZOxaAA4L6LGw58ErZ4A6xiczBxjcFJzjMFAjLYl+S16Ag7pt1XmGIM98ZAD+YPQgdi0fuR8 F6yOwj+Lv7mjsDw673+Dpczi0zsGS5nFp3cMlroWn0W8Y7B2zuot4B2DpdyP0HIvFIP116IYVAyi GFQMioiIiIiI3JRvBY9s3aHjWwcAAAAASUVORK5CYII= "/>
++	<g fill="url(#linearGradient15150)">
++		<path d="m4.8947 6.6145h3.4395c0.21986 0 0.39687 0.177 0.39687 0.39687s-0.177 0.39687-0.39687 0.39687h-3.4395c-0.21986 0-0.39687-0.177-0.39687-0.39687s0.177-0.39687 0.39687-0.39687z"
++			  style="paint-order:stroke fill markers"/>
++		<path d="m4.8947 8.4665h3.4395c0.21986 0 0.39687 0.177 0.39687 0.39687s-0.177 0.39687-0.39687 0.39687h-3.4395c-0.21986 0-0.39687-0.177-0.39687-0.39687s0.177-0.39687 0.39687-0.39687z"
++			  style="paint-order:stroke fill markers"/>
++		<path d="m4.8947 10.319h7.1436c0.21986 0 0.39687 0.177 0.39687 0.39687 0 0.21986-0.177 0.39687-0.39687 0.39687h-7.1436c-0.21986 0-0.39687-0.177-0.39687-0.39687 0-0.21986 0.177-0.39687 0.39687-0.39687z"
++			  style="paint-order:stroke fill markers"/>
++		<path d="m4.8947 12.171h7.1436c0.21986 0 0.39687 0.177 0.39687 0.39687 0 0.21986-0.177 0.39687-0.39687 0.39687h-7.1436c-0.21986 0-0.39687-0.177-0.39687-0.39687 0-0.21986 0.177-0.39687 0.39687-0.39687z"
++			  style="paint-order:stroke fill markers"/>
++		<rect x="9.7894" y="6.6145" width="2.6458" height="2.6458" ry=".52916" style="paint-order:stroke fill markers"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/folder-download.svg b/src/files/assets/icons/folder-download.svg
+new file mode 100644
+index 0000000..cc256de
+--- /dev/null
++++ b/src/files/assets/icons/folder-download.svg
+@@ -0,0 +1,98 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="64"
++	 height="64" version="1.1"
++	 viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<style type="text/css"/>
++		<style id="current-color-scheme" type="text/css">.ColorScheme-Text { color:#727272; } .ColorScheme-Highlight {
++			color:#5294e2; }
++		</style>
++		<linearGradient id="linearGradient5239" x1=".52916" x2="16.404" y1="5.3972" y2="5.3972"
++						gradientTransform="translate(-21.696)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1911-3-3" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="translate(-17.898 -21.385)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951-6" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(.26458 0 0 .26458 -20.108 -.13536)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110-7" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="translate(-2.54e-4,4.169e-5)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientTransform="translate(-.000254 -.015458)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient5231" x1="8.5239" x2="8.5239" y1="6.1041" y2="13.492"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fafdfe" offset="0"/>
++			<stop stop-color="#c7e8f5" offset="1"/>
++		</linearGradient>
++	</defs>
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<g fill="#5e4aa6" stroke-width=".26458">
++		<circle cx="-330.35" cy="-328.38" r="0"/>
++		<circle cx="-312.11" cy="-326.25" r="0"/>
++		<circle cx="-306.02" cy="-333.07" r="0"/>
++		<circle cx="-308.84" cy="-326.01" r="0"/>
++		<circle cx="-328.8" cy="-330.45" r="0"/>
++		<g transform="translate(-21.76 -10.352)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++		<g transform="translate(.000295 -.00033978)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++	</g>
++	<path d="m-13.335 4.1139c-0.11312 0.0018-0.30848-0.015417-0.51985 0.095083-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.088549-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38395c0.0049-0.21236 0.08594-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21137-0.1105 0.40673-0.093283 0.51985-0.095083h7.3828c0.18216 3.704e-4 0.3472 0.081015 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38395c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.1194-0.13137-0.28444-0.21202-0.4666-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.052013-0.0067 0.079063v0.38395c0-0.02705 0.0041-0.052773 0.0067-0.079063v-0.2775z"
++		  fill="url(#linearGradient5239)" opacity=".3" style="paint-order:stroke fill markers"/>
++	<path d="m1.1974 2.2489c-0.3653 0-0.66145 0.32575-0.66145 0.72759v2.9636c-0.0026 0.02629-0.0072 0.052-0.0072 0.07906v7.9373c0 0.40184 0.29614 0.72759 0.66144 0.72759h14.552c0.36531 0 0.66144-0.32575 0.66144-0.72759v-9.393c0-0.40184-0.29614-0.72759-0.66144-0.72759v5.161e-4h-8.1993l-0.89864-1.1095s-0.36607-0.478-1.0583-0.478h-1.3229z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911-3-3)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<path d="m8.3601 3.8209c-0.11312 0.0018-0.30848-0.01542-0.51986 0.09508-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.2775c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21138-0.1105 0.40673-0.09328 0.51986-0.09508h7.3828c0.18216 3.65e-4 0.3472 0.08101 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.2775c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11943-0.13137-0.28447-0.21202-0.46663-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.2775c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="#1e5992" opacity=".001" stroke-width=".26458"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22042 0.33333-0.2253 0.54569v0.51675c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v7.3953c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-8.851c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28449-0.21202-0.46665-0.21239h-7.4821z"
++		  fill="url(#linearGradient1951-6)"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38446c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.03568-0.0055 0.06806-0.01118 0.10077-0.01705 0.75911-0.26303 1.2883-0.79218 1.2883-0.79218h8.0707c0.18216 3.7e-4 0.34718 0.08102 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38446c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28447-0.21202-0.46663-0.21239h-7.4821zm-7.0062 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.38447c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="url(#linearGradient11110-7)" opacity=".3"/>
++	<path d="m0.52894 13.658v0.28215c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-0.28215c0 0.20092-0.07409 0.3825-0.19378 0.51417-0.1197 0.13167-0.28501 0.21342-0.46766 0.21342h-14.552c-0.18265 0-0.34848-0.08176-0.46818-0.21342s-0.19327-0.31325-0.19327-0.51417z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<image x="-2.8229e-7" y="-2.8229e-7" width="16.933" height="16.933" preserveAspectRatio="none"
++		   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA GXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABH5JREFUeJztmk1v2zgQht/hhyTG XqfZxjCQ5lCgORTNUf//FwQ95tBD3Z4aGC6aOK1iSqRm9hBpN03a3cVGtrO7fADBsixRnJdDzgxh IJFIJBKJRCKRSCQSiUQikUgkEluDumOnHdjVewmA6r4zAOmOraK3/UJ0hh8fH+daa+ecyw4PD+n6 +pp30JedCKBevnyZxRjHSqlnWmtHRPL8+fP26uqq94StYbb5sg6qqsoYY0bGmH0AYGauqsoDCNvu jPrrW4Ynxqi11jbGmMcY8+58F964Gw/oP40x6v61bXdmJx4AACJCPzrfNjsT4KmQBNh1B3bN/16A TUWBu4vaYxObIdt6wCYEIACqLEsFAG/fvmX8kevvop0/ZejkgwCY6XRaeO/3qqrKnXP0+vVrubi4 kO535ZzLrLVjAHvdc+sQQuW9D7g1kMqyNMycr9frvaqq8jzP1c3NzeAF09BrAB0dHVkAYxE5ZOap MeZgPp/vlWVp8PcSHSrL0nz48MEZYw6YeSoihwDGXduD5gxDTwEKIShrbSYio7ZtcxEpnHNqPp/j 9PR0XRSFvH///oERIkJlWZL33sznc+ec2w8hHBCR01rX1lofQlB44gJInuet9z5oraPW2gEYhxCo KAr69OkTRqNRM5lMqG3b7x6cTCa0WCxMVVWZc26fiH41xowAoG3b2LZtKIqixROfAnJychKYudJa r0IINwBgrR3FGA+KongmIntN05j7qXDTNAaA64w/EJERACKiSil1zczVyclJv0YMxuAV2MePH+XN mze8XC45y7K+8su11hkRmRgjaa0VMzsiKgAQMwelFMcYndb6QETGuHX1SkQuvfdXR0dH/uzsLOKp CwAAFxcX8urVK768vGzviJAByIjIMrNRSuUAcgBKKcVt2xql1C+4jQy98V8649fn5+eDjz6wwR2h 5XLJPxOhMz5TSlki0iKie0GICHho/OAj37PRTYj7IiiltIj0AlgRsSKiiUgTkRKRloh+ZPzG9gs3 vgtzVwStNYhIM7PFrQAaXVjr1oGv2zQe2NKm6H0ROk8w3ciLiNRKqa/MfOm9X7148WIrxgObFYDu HFgul3J8fCyr1Yo7EfpQGImoYuYv3vvVdDpdv3v3rp/z37WxqU5uok1VlqXy3hMA1HVNABBjpG/f vlml1J61dr+L9SCiKoSwYuab8XgcjDECAHmeCwAURSGbKoaGFoBOT0/tYrHIsyzLY4z6fsLjnKMY o1VK5THGDACMMQ0z18aYsF6vhYh+N5KIxBjTNk1Tz2azeuhwOLQAejqduizLnrVtO+lWe/rBpieJ iOqvE5EQ0YPR7YQQZq611tdN01wtl8s1gBYDMWQtQLgthkye5wWAkYgUIvKzdJu6mA8AEJEHoyoi 6IQxRNSEEPqKkjCQFwwpgAAQY0zLzDWAGyKKdLvM/yNP6z1ARGoR8caYvhgabAoMXQ3ybDarF4vF VZZl627EHo21NtZ1Xc9ms/rz58+DhsatRIHH8m+KAptse+v/HUgkEolEIpH4T/MbZHqJfTpshTQA AAAASUVORK5CYII= "/>
++	<g fill="url(#linearGradient5231)">
++		<path d="m5.953 12.7h5.027c0.21986 0 0.39687 0.177 0.39687 0.39687 0 0.21986-0.177 0.39687-0.39687 0.39687h-5.027c-0.21986 0-0.39687-0.177-0.39687-0.39687 0-0.21986 0.177-0.39687 0.39687-0.39687z"
++			  style="paint-order:stroke fill markers"/>
++		<path d="m8.1862 11.757 2.4321-2.4321c0.15546-0.15546 0.40579-0.15547 0.56126 0 0.15546 0.15546 0.15547 0.40579 0 0.56126l-2.4321 2.4321c-0.15546 0.15546-0.40579 0.15547-0.56126 0-0.15546-0.15546-0.15547-0.40579 0-0.56126z"
++			  style="paint-order:stroke fill markers"/>
++		<path d="m8.7465 11.757-2.4321-2.4321c-0.15547-0.15547-0.40579-0.15547-0.56126 0s-0.15547 0.40579 0 0.56126l2.4321 2.4321c0.15547 0.15546 0.40579 0.15547 0.56126 0s0.15547-0.40579 0-0.56126z"
++			  style="paint-order:stroke fill markers"/>
++		<path d="m8.0696 12.038v-5.5561c0-0.21986 0.177-0.39687 0.39687-0.39687s0.39687 0.177 0.39687 0.39687v5.5561c0 0.21986-0.177 0.39687-0.39687 0.39687s-0.39687-0.177-0.39687-0.39687z"
++			  style="paint-order:stroke fill markers"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/folder-hdd.svg b/src/files/assets/icons/folder-hdd.svg
+new file mode 100644
+index 0000000..fed2d0c
+--- /dev/null
++++ b/src/files/assets/icons/folder-hdd.svg
+@@ -0,0 +1,127 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Generator: Adobe Illustrator 25.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
++<svg xmlns:cc="http://creativecommons.org/ns#"
++	 xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink"
++	 version="1.1"
++	 id="图层_1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 64 64"
++	 style="enable-background:new 0 0 64 64;" xml:space="preserve">
++<style type="text/css">
++	.st0{fill:#5E4AA6;}
++	.st1{fill:url(#SVGID_1_);}
++	.st2{opacity:1.000000e-03;fill:#1E5992;enable-background:new    ;}
++	.st3{fill:url(#SVGID_2_);}
++	.st4{opacity:0.3;fill:url(#SVGID_3_);enable-background:new    ;}
++	.st5{fill:url(#SVGID_4_);}
++	.st6{fill:url(#SVGID_5_);}
++	.st7{fill:url(#SVGID_6_);}
++</style>
++	<g>
++	<rect x="-1248.6" y="-1241.1" class="st0" width="0" height="0"/>
++		<rect x="-1179.7" y="-1233.1" class="st0" width="0" height="0"/>
++		<rect x="-1156.6" y="-1258.9" class="st0" width="0" height="0"/>
++		<rect x="-1167.3" y="-1232.2" class="st0" width="0" height="0"/>
++		<g transform="translate(.000295 -.00032978)">
++		<rect x="-1248.6" y="-1241.1" class="st0" width="0" height="0"/>
++			<rect x="-1179.7" y="-1233.1" class="st0" width="0" height="0"/>
++			<rect x="-1156.6" y="-1258.9" class="st0" width="0" height="0"/>
++			<rect x="-1167.3" y="-1232.2" class="st0" width="0" height="0"/>
++			<rect x="-1242.7" y="-1249" class="st0" width="0" height="0"/>
++	</g>
++		<rect x="-1248.6" y="-1241.1" class="st0" width="0" height="0"/>
++		<rect x="-1179.7" y="-1233.1" class="st0" width="0" height="0"/>
++		<rect x="-1156.6" y="-1258.9" class="st0" width="0" height="0"/>
++		<rect x="-1167.3" y="-1232.2" class="st0" width="0" height="0"/>
++		<rect x="-1242.7" y="-1249" class="st0" width="0" height="0"/>
++		<g transform="translate(2.95e-4,-3.2978e-4)">
++		<rect x="-1248.6" y="-1241.1" class="st0" width="0" height="0"/>
++			<rect x="-1179.7" y="-1233.1" class="st0" width="0" height="0"/>
++			<rect x="-1156.6" y="-1258.9" class="st0" width="0" height="0"/>
++			<rect x="-1167.3" y="-1232.2" class="st0" width="0" height="0"/>
++			<rect x="-1242.7" y="-1249" class="st0" width="0" height="0"/>
++	</g>
++</g>
++	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-363.3979" y1="913.4439" x2="-363.3979"
++					y2="911.0629" gradientTransform="matrix(3.7796 0 0 -3.7796 1405.5416 3462.4551)">
++	<stop offset="0" style="stop-color:#0272CB"/>
++		<stop offset="1" style="stop-color:#0768BA"/>
++</linearGradient>
++	<path image-rendering="auto" shape-rendering="auto" color-rendering="auto" class="st1" d="M4.6,8.5c-1.4,0-2.5,1.2-2.5,2.8v11.2
++	c0,0.1,0,0.2,0,0.3v30c0,1.5,1.1,2.8,2.5,2.8h55c1.4,0,2.5-1.2,2.5-2.8V17.2c0-1.5-1.1-2.8-2.5-2.8v0h-31l-3.4-4.2
++	c0,0-1.4-1.8-4-1.8h-5L4.6,8.5z"/>
++	<path class="st2" d="M31.6,14.4c-0.4,0-1.2-0.1-2,0.4c-2.8,1.4-2.9,2.2-5.9,2.7H5c-0.8,0-1.6,0.3-2.1,0.9c-0.5,0.5-0.8,1.3-0.9,2.1
++	v1c0-0.8,0.3-1.5,0.9-2.1c0.5-0.5,1.3-0.9,2.1-0.9h18.7c3-0.5,3.1-1.3,5.9-2.7c0.8-0.4,1.5-0.4,2-0.4h27.9c0.7,0,1.3,0.3,1.8,0.8
++	c0.5,0.5,0.7,1.2,0.7,1.9v-1c0-0.8-0.3-1.4-0.7-1.9c-0.5-0.5-1.1-0.8-1.8-0.8h-4.4H31.6z M2.1,22.4c0,0.1,0,0.2,0,0.3v1
++	c0-0.1,0-0.2,0-0.3V22.4z"/>
++	<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="95.1452" y1="43.801" x2="128.3352" y2="9.648"
++					gradientTransform="matrix(1 0 0 -1 -75.9965 65.4973)">
++	<stop offset="0" style="stop-color:#27AEE9"/>
++		<stop offset="1" style="stop-color:#0669BC"/>
++</linearGradient>
++	<path class="st3" d="M28.5,15.5c0,0-1.4,1.8-4.4,3c-0.1,0-0.2,0-0.4,0.1H5c-0.8,0-1.6,0.3-2.1,0.9c-0.5,0.5-0.8,1.3-0.9,2.1v2
++	c0,0.1,0,0.2,0,0.3v28c0,0.8,0.3,1.4,0.7,1.9c0.5,0.5,1.1,0.8,1.8,0.8h55c0.7,0,1.3-0.3,1.8-0.8c0.5-0.5,0.7-1.2,0.7-1.9V18.2
++	c0-0.8-0.3-1.4-0.7-1.9c-0.5-0.5-1.1-0.8-1.8-0.8H31.3L28.5,15.5z"/>
++	<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="-389.233" y1="932.0934" x2="-373.3582"
++					y2="932.0934" gradientTransform="matrix(3.7796 0 0 -3.7796 1473.188 3543.282)">
++	<stop offset="0" style="stop-color:#FFFFFF"/>
++		<stop offset="1" style="stop-color:#FFFFFF;stop-opacity:0"/>
++</linearGradient>
++	<path class="st4" d="M28.5,15.5c0,0-1.4,1.8-4.4,3c-0.1,0-0.2,0-0.4,0.1H5c-0.8,0-1.6,0.3-2.1,0.9c-0.5,0.5-0.8,1.3-0.9,2.1v1.5
++	c0-0.8,0.3-1.5,0.9-2.1C3.5,20.3,4.2,20,5,20h18.7c0.1,0,0.3,0,0.4-0.1c2.9-1,4.9-3,4.9-3h30.5c0.7,0,1.3,0.3,1.8,0.8
++	c0.5,0.5,0.7,1.2,0.7,1.9v-1.5c0-0.8-0.3-1.4-0.7-1.9c-0.5-0.5-1.1-0.8-1.8-0.8H31.3H28.5z M2.1,23.4c0,0.1,0,0.2,0,0.3v1.5
++	c0-0.1,0-0.2,0-0.3V23.4z"/>
++	<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="-389.2331" y1="923.2966" x2="-373.3582"
++					y2="923.2966" gradientTransform="matrix(3.7796 0 0 -3.7796 1473.188 3543.2234)">
++	<stop offset="0" style="stop-color:#0A5BA8;stop-opacity:0.9961"/>
++		<stop offset="1" style="stop-color:#104A8C;stop-opacity:0.9961"/>
++</linearGradient>
++	<path image-rendering="auto" shape-rendering="auto" color-rendering="auto" class="st5" d="M2,51.6v1.1c0,0.8,0.3,1.4,0.7,1.9
++	c0.5,0.5,1.1,0.8,1.8,0.8h55c0.7,0,1.3-0.3,1.8-0.8c0.5-0.5,0.7-1.2,0.7-1.9v-1.1c0,0.8-0.3,1.4-0.7,1.9c-0.5,0.5-1.1,0.8-1.8,0.8
++	h-55c-0.7,0-1.3-0.3-1.8-0.8S2,52.4,2,51.6z"/>
++	<g>
++	
++		<image style="overflow:visible;opacity:0.25;" width="34" height="44" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACIAAAAsCAYAAAAATWqyAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
++GXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA/JJREFUeNrMmFtv00AQhX2LyYUk
++pS0VIEA88P9/ES8IqZTShtI0JXHsmE31TXW6dRzb7UMtHSVO1rvHM2cuu0HwQq6wwX/hM61Vep97
++iYQgAqGgKwHDBpQ+IX9yWzx26IGE+y5kbMHCIXdYg0JI3V2JRypi8b7D0GHkMOC3uCORgsX/OSwc
++bh2W/HZvGZ9IDImJw7HDEd/7kGljFVtkzcLXDpcOF/yvbronotYYQeKLwyeHE4exwyvGBHWi84hu
++F1o5zB3OHX7weyEuuiOcePowIkeQ+OrwwWEKkdATnopORR7K2C2Rv1g2gNQNbsog88AiIffmmreQ
+++Ohw4JB6Ps+BEkmAairDooEQ6jPunnCVRnoIdIIlpnyPxd9m8gwy9lKpRN4rEX6JJSa7xJ9U5I9Y
++Jk1FpDmKv+LNrrlXIkN5gQPcbC63+SrTQbIjmemggtC7RfFnCO83vl4xbmuB17h0K/B3iH5oOtgx
++fyURX/m5xP8Fqv/u8JNQXHgWMaG/FzEeY5W8rmQkDRLRDdbYkvgGkXN8nnliTXHZgmftGnrh2prI
++ku8ziGxxymK56EldaBFlgt2K9RAXdiayYuIZmrjEQgVuGLNQAOk51rth7BRXpURaKyKlR2RDpFxh
++8g2mfgemkiPOwIqx9twYCxVVlbfOIsY+A5oJI6LjhOx7yDMznpnLcwvRWCpVt7FrAknjVsJtgphJ
++zTVjxi4lY0Ze+S+0wLUlEkpvkgg2kpBKWWgFLO1rcoylBrUiEsmbJ2TLiYSlpfuFRJeJ+RayZrXX
++aCoSQo2IaKq30v8G9WcsOpBK+hdcQOYfz45I85bqN3WdXl1mjSUPmAZ6fNrbhpLA5rgmwQpHpPtD
++7ld1Xd4+In2vYk6xSgyWEt5Grsfin8BbXBM+hUjK29hbHkvqzrHGBncE/DcktD9DxGpNJ4somQGT
++j6VeWJT0JULe8H2CW6z6jrBi0iVqNHwTyQ+aW+ztB5BY8oyR1n6k7Bq+fhhbYxMKmVx+n3AfisAH
++kneW+7r/fUQCb9cXSQmIvIa79PpW08N6nzWaEvHzSyATR+KyoOK/TdN9UBsiVaTKHZmy9Qa+K5Gg
++7UJBAzG+iCvZs2/deGh7+c+XTTs0XdyOETLZMkQdiNhGbC19zaPeJKkgkUurZ9U1kF1cWyIZc8yZ
++cyWEyl1ECmkNZ/SfATUl7Xg+kkHijDlvZPP9iEgp3ZZtK0+lKR7tqxU1RHIsMWPOK9mqVh7UqDV+
++MeCSqps+8cTI5v3D5kytUmsRK/NX0i4+5QwtZ+Fb6eofWCSsaZbTpo1vAzK6G8iqOvuw5jTAP958
++6hlr1fFmuS9FP/dhb6ND3xdx/RdgADBglifWgXLhAAAAAElFTkSuQmCC" transform="matrix(1 0 0 1 15 15)">
++	</image>
++		<g>
++		<g>
++			<g>
++				<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="32" y1="21.5142" x2="32" y2="51.1873">
++					<stop offset="0" style="stop-color:#FBFDFE"/>
++					<stop offset="0.9716" style="stop-color:#C6E8F5"/>
++				</linearGradient>
++				<path class="st6" d="M22.9,51.9h18.2c1,0,1.8-0.8,1.8-1.8V22.7c0-1-0.8-1.8-1.8-1.8H22.9c-1,0-1.8,0.8-1.8,1.8v27.4
++					C21.1,51.1,21.9,51.9,22.9,51.9z M39.8,49.7c-0.6,0-1.1-0.5-1.1-1.1c0-0.6,0.5-1.1,1.1-1.1c0.6,0,1.1,0.5,1.1,1.1
++					C40.9,49.3,40.4,49.7,39.8,49.7z M39.8,23.4c0.6,0,1.1,0.5,1.1,1.1s-0.5,1.1-1.1,1.1c-0.6,0-1.1-0.5-1.1-1.1
++					S39.2,23.4,39.8,23.4z M32,24.2c4.6,0,8.4,3.7,8.4,8.4s-3.7,8.4-8.4,8.4c-0.7,0-1.4-0.1-2.1-0.3l1.6-2.7
++					c0.5-0.8-0.4-1.7-1.2-1.2l-3.6,2.1c0,0,0,0,0,0c-1.8-1.5-2.9-3.8-2.9-6.4C23.6,27.9,27.4,24.2,32,24.2z M24.4,23.4
++					c0.6,0,1.1,0.5,1.1,1.1s-0.5,1.1-1.1,1.1s-1.1-0.5-1.1-1.1S23.8,23.4,24.4,23.4z M24.4,47.6c0.6,0,1.1,0.5,1.1,1.1
++					c0,0.6-0.5,1.1-1.1,1.1s-1.1-0.5-1.1-1.1C23.3,48.1,23.8,47.6,24.4,47.6z"/>
++				<linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="31.9994" y1="32.4788" x2="32.0716"
++								y2="36.9457">
++					<stop offset="0" style="stop-color:#FBFDFE"/>
++					<stop offset="1" style="stop-color:#C6E8F5"/>
++				</linearGradient>
++				<circle class="st7" cx="32" cy="32.5" r="2.2"/>
++			</g>
++		</g>
++	</g>
++</g>
++</svg>
+diff --git a/src/files/assets/icons/folder-pictures.svg b/src/files/assets/icons/folder-pictures.svg
+new file mode 100644
+index 0000000..bc29d88
+--- /dev/null
++++ b/src/files/assets/icons/folder-pictures.svg
+@@ -0,0 +1,88 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="64"
++	 height="64" version="1.1"
++	 viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<style id="current-color-scheme" type="text/css">.ColorScheme-Text { color:#727272; } .ColorScheme-Highlight {
++			color:#5294e2; }
++		</style>
++		<style type="text/css">.ColorScheme-Text { color:#727272; } .ColorScheme-Highlight { color:#5294e2; }</style>
++		<linearGradient id="linearGradient1009" x1="33.949" x2="33.949" y1="31" y2="56"
++						gradientTransform="matrix(.26458 0 0 .26458 -.04756 -.28453)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#cde0fc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(.26458 0 0 .26458 -20.108 -.11989)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="translate(-5.5e-7 .015503)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1911" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="translate(-17.897 -21.369)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++	</defs>
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<path d="m1.1977 2.2644c-0.3653 0-0.66145 0.32575-0.66145 0.72759v2.9636c-0.0026 0.02629-0.0072 0.052-0.0072 0.07906v7.9373c0 0.40184 0.29614 0.72759 0.66144 0.72759h14.552c0.36531 0 0.66144-0.32575 0.66144-0.72759v-9.393c0-0.40184-0.29614-0.72759-0.66144-0.72759v5.16e-4h-8.1993l-0.89864-1.1095s-0.36607-0.478-1.0583-0.478h-1.3229z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<g>
++		<path d="m8.3606 3.8364c-0.11312 0.0018-0.30848-0.01542-0.51986 0.09508-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.2775c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21138-0.1105 0.40673-0.09328 0.51986-0.09508h7.3828c0.18216 3.65e-4 0.3472 0.08101 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.2775c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11943-0.13137-0.28447-0.21202-0.46663-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.2775c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++			  fill="#1e5992" opacity=".001" stroke-width=".26458"/>
++		<path d="m7.542 4.1134s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.00587-0.06509 0.011575-0.10077 0.017052h-4.9608c-0.21986 0-0.41824 0.088552-0.56171 0.23202-0.13937 0.13936-0.22042 0.33333-0.2253 0.54569v0.51675c-0.0026 0.026291-0.0067 0.052014-0.0067 0.079064v7.3953c0 0.20092 0.07357 0.3825 0.19327 0.51417 0.1197 0.13167 0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342 0.1197-0.13167 0.19378-0.31325 0.19378-0.51417v-8.851c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28449-0.21202-0.46665-0.21239h-7.4821z"
++			  fill="url(#linearGradient1951)"/>
++		<path d="m7.542 4.1134s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.00587-0.06509 0.011575-0.10077 0.017052h-4.9608c-0.21986 0-0.41824 0.088552-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38446c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.03568-0.00548 0.06806-0.011184 0.10077-0.017052 0.75911-0.26303 1.2883-0.79218 1.2883-0.79218h8.0707c0.18216 3.704e-4 0.34718 0.081016 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38446c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28447-0.21202-0.46663-0.21239h-7.4821zm-7.0062 2.1037c-0.0026 0.026291-0.0067 0.052013-0.0067 0.079063v0.38447c0-0.02705 0.0041-0.052773 0.0067-0.079063z"
++			  fill="url(#linearGradient11110)" opacity=".3"/>
++	</g>
++	<g fill="#5e4aa6" stroke-width=".26458">
++		<circle cx="-330.35" cy="-328.38" r="0"/>
++		<circle cx="-312.11" cy="-326.25" r="0"/>
++		<circle cx="-306.02" cy="-333.07" r="0"/>
++		<circle cx="-308.84" cy="-326.01" r="0"/>
++		<circle cx="-328.8" cy="-330.45" r="0"/>
++		<g transform="translate(-1.4001e-4,5e-6)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++		<g transform="translate(.000295 -.00032978)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++	</g>
++	<path d="m0.52916 13.674v0.28215c0 0.20092 0.07357 0.3825 0.19327 0.51417 0.1197 0.13167 0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342 0.1197-0.13167 0.19378-0.31325 0.19378-0.51417v-0.28215c0 0.20092-0.07409 0.3825-0.19378 0.51417-0.1197 0.13167-0.28501 0.21342-0.46766 0.21342h-14.552c-0.18265 0-0.34848-0.08176-0.46818-0.21342-0.1197-0.13166-0.19327-0.31325-0.19327-0.51417z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<image x="-2.8229e-7" y="-2.8229e-7" width="16.933" height="16.933" image-rendering="optimizeQuality"
++		   preserveAspectRatio="none"
++		   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA GXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABVFJREFUeJztmUtvG1UUx///c2fG j5QkTvO0W0hJ4pDG4aGwRgVWPCohKrNnExYVLMoHwP0MFQvyEWIJCVHUFaQS60gsIOJRJKAlhYbQ kjp+xHPvYVGFopQkTjJ2IjG/peW595zfPXPnnhkgJiYmJiYmJiYmJiYmJiYmJiYmJuZ/BI86gFbI vv9pf33TDiYb5s7K/Pk/ohz72AsYuPjJC6p4EQ9iVRrzxeqV17+ManyJaqB2kJ37tP9fyQMA1dqX chc/PhnVHMdaQD1hB/FolbImMhTVHMdaQLJh7gDQbT9ryrnfo5rjqAUQu+xDK/Pn/6AxX+ChBCXk 818/fHMtygCOACWKZRkfPuEBwI3fKiHKRQdw+2oDAHIXPz5ZC2Uo5bnfo0weOAoBqpy+vOyv3r2R sU3bBwDGN38OZMbvfvPB2Sb43xLaRYcFKMffvRZUmo0Ra7yzCmThAApWjPWWT/h6+8aVVzZ3qoR2 0ME9QDldKvtrYodCYwrqNA8NR0A3ok7zoYQzG06Hp0tlH9COLYzp0DycnTvv3fxrfciDFAidANEN 0AAQED4UXUpr1uupypNPfFVfXS67TgTWEQGzcx/5PyPoV98WAMmD6Nk2t4DwlejyQiuVbq8y9eyL 9dtLV9t+K7T9FjhXWvRupob7VDanqJwAdHvyWxhV7bHghKpM/eJlTp4rLbZ9gdoqoLig5vv7lV4N MQnoJMAMCW/nYMSA6IV1eTCR/3atljlXWtzx/1HQPsPFBbO+fqun1nB5OkxD2E/C3+syEgIyAWgX lOG96kbl/uiFTSyX23I7tEdAccH05vzHbB0TAjujwgGCLe/uhIhCkyDTIRAGqUSlceaNZjskRC+g VJJMOPCYh8SYws4AMkzoPh9tSoKiipQ4pEW1GYhs1CcuRC4hWgGlkvRXn+vyNDjjHJ4mkCUR4GAH LpIQBVIQl/aMNJI9qUrt1Ykmrl+PTEJ0AlQ59NlmWho6akP3DOhyVCbAQ502SYUBTUoFKc/aRrra V6m+Nh1GJSGaHVaV2XeuphoBTlNdAdAcHROQCI7aAtK5hJJZB7XOBmF2ZfanFdVaFH3D4R+Dqjx1 qZxsJpET62bgcJrKZCTJbyEgVZMQkzOeFDaNO33qUjkJPfyR+XACVDn+3rVgc8PPutDNKPE4wFSk yW8hIJymVPG4UxYajURu9O3ricNKOISAB8lXmo0R65sCFaNQdoHavsMVVaBIC3TUqRRqJ+6PjL93 LThM83TQYDldLPtrDTsUQgsEzoBob/L/zKwCahdpz1jHwmE7yIM8BTg795F3q6tv0BhXcJQJAt0H HOtgkAToE5p21pr1v1A5+3y1dntpft+b4r6DftDZ9fdDcFbJPIBedjL5hwiAQClpULiOu5Wp2Zfr t5eu7quN3lfJnisterdkIAPPewqUPBS9cjTJb2EA7aFoHp731E033Lff5qllAcXigvl+pdLrxM9D MQnVvt06u07xIAZmoDKpCUx+u7aaKS5oy4vS2sZRXDCnutFT9bxJMaag4CBBD3DH5NOaqEJDKlYd 3dcpuu9+vRPeQ/ktu9eVe5sqqfQGP3RbBuNGpKDKQar6HXxv2QIKOogaJkU1HRqvGSSDjVY6yD1K WJlduZqs+yZH6pgquwFYJe0j32uOGgJwAMBuWh0TbVazmVRjBVrb7S3z7gJKl1m990zgNb0E4dad Sh1qj0nZ/zdKo0JsGuMH1WQYoHS5jtLOy7VHMsrZuSXvx/TNrnTV81zCHOvkt5DAatWG4Vj19MbS /Gy4WwW0khChx63eW4QEHv24GhMTExMTExMTAwB/A8FdFVM0cv9EAAAAAElFTkSuQmCC "/>
++	<path d="m14.751 14.4-5.8166-6.2724c-0.12964-0.13981-0.29899-0.2098-0.46818-0.2098-0.16919 0-0.33854 0.069993-0.46818 0.2098l-5.8166 6.2724h0.17621z"
++		  fill="url(#linearGradient1009)" style="paint-order:stroke fill markers"/>
++	<circle cx="11.245" cy="6.4822" r=".66145" fill="#feffff" stroke-linecap="round" stroke-linejoin="round"
++			stroke-width=".26458" style="paint-order:stroke fill markers"/>
++</svg>
+diff --git a/src/files/assets/icons/folder-root.svg b/src/files/assets/icons/folder-root.svg
+new file mode 100644
+index 0000000..57b3926
+--- /dev/null
++++ b/src/files/assets/icons/folder-root.svg
+@@ -0,0 +1,114 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="64"
++	 height="64" version="1.1"
++	 xmlns="http://www.w3.org/2000/svg">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<style id="current-color-scheme" type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<style type="text/css">.ColorScheme-Text {
++			color:#4d4d4d;
++			}
++		</style>
++		<linearGradient id="linearGradient1911-3-3" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="matrix(3.7796 0 0 3.7796 -67.648 -80.827)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951-6" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(1 0 0 1 -76.001 -.51162)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110-7" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="matrix(3.7796 0 0 3.7796 -.000963 .0001318)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientTransform="matrix(3.7796 0 0 3.7796 -.000963 -.05845)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1055" x1="35" x2="35" y1="24" y2="50.843" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fbfdfe" offset="0"/>
++			<stop stop-color="#c6e8f5" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g fill="#5e4aa6" stroke-width=".26458">
++		<g transform="matrix(12.283,0,0,12.283,-3.9957,-3.994)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++		<g transform="matrix(12.283,0,0,12.283,-271.27,-131.15)">
++			<circle cx="-330.35" cy="-328.38" r="0"/>
++			<circle cx="-312.11" cy="-326.25" r="0"/>
++			<circle cx="-306.02" cy="-333.07" r="0"/>
++			<circle cx="-308.84" cy="-326.01" r="0"/>
++			<circle cx="-328.8" cy="-330.45" r="0"/>
++		</g>
++		<g transform="matrix(11.929 0 0 11.929 -.9997 -.99913)">
++			<g transform="translate(-3.2526e-7,4.7281e-5)">
++				<g transform="translate(-3.2526e-7,4.7281e-5)">
++					<g transform="translate(-3.2526e-7,4.7281e-5)">
++						<g transform="translate(-3.2526e-7,4.7281e-5)">
++							<g transform="translate(-3.2526e-7,4.7281e-5)">
++								<circle cx="-284.2" cy="-325.31" r="0"/>
++								<circle cx="-284.2" cy="-325.31" r="0"/>
++								<circle cx="-317.65" cy="-326.53" r="0"/>
++							</g>
++							<circle cx="-281.6" cy="-325.38" r="0"/>
++							<circle cx="-281.6" cy="-325.38" r="0"/>
++						</g>
++						<circle cx="-283.03" cy="-325.16" r="0"/>
++						<circle cx="-283.03" cy="-325.16" r="0"/>
++					</g>
++					<circle cx="-283.95" cy="-325.66" r="0"/>
++					<circle cx="-283.95" cy="-325.66" r="0"/>
++				</g>
++				<circle cx="-277.78" cy="-325.72" r="0"/>
++				<circle cx="-277.78" cy="-325.72" r="0"/>
++			</g>
++			<circle cx="-280.05" cy="-325.41" r="0"/>
++			<circle cx="-280.05" cy="-325.41" r="0"/>
++		</g>
++	</g>
++	<path d="m4.5259 8.5001c-1.3807 0-2.5 1.2312-2.5 2.75v11.201c-0.0098 0.09937-0.02721 0.19654-0.02721 0.29882v30c0 1.5188 1.1193 2.75 2.5 2.75h55.001c1.3807 0 2.5-1.2312 2.5-2.75v-35.502c0-1.5188-1.1193-2.75-2.5-2.75v2e-3h-30.99l-3.3965-4.1935s-1.3836-1.8066-4-1.8066h-5z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911-3-3)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000" stroke-width="3.7796"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<path d="m31.598 14.442c-0.42755 0.0068-1.1659-0.05828-1.9649 0.35936-2.7836 1.4342-2.9188 2.2438-5.8848 2.6992h-18.75c-0.83098 0-1.5808 0.33468-2.123 0.87694-0.52676 0.52672-0.83306 1.2599-0.85154 2.0625v1.0488c0.01852-0.80264 0.32478-1.5358 0.85154-2.0625 0.54226-0.54226 1.2921-0.87694 2.123-0.87694h18.75c2.9659-0.45544 3.1012-1.265 5.8848-2.6992 0.79893-0.41765 1.5373-0.35256 1.9649-0.35936h27.904c0.68849 0.0014 1.3123 0.30618 1.7637 0.80275 0.45242 0.49766 0.73241 1.1859 0.73241 1.9453v-1.0488c0-0.7594-0.27999-1.4477-0.73241-1.9453-0.4514-0.49653-1.0752-0.80135-1.7637-0.80275h-4.404zm-29.574 7.9511c-0.0098 0.09937-0.02532 0.19658-0.02532 0.29882v1.0488c0-0.10224 0.0155-0.19945 0.02532-0.29882z"
++		  fill="#1e5992" opacity=".001"/>
++	<g stroke-width="3.7796">
++		<path d="m28.506 15.489s-1.3576 1.8092-4.3749 2.9941c-0.12363 0.0223-0.24601 0.04377-0.38087 0.06444h-18.75c-0.83098 0-1.5808 0.33468-2.123 0.87694-0.52676 0.52673-0.8331 1.2599-0.85154 2.0625v1.9531c-0.0098 0.09937-0.02532 0.19658-0.02532 0.29882v27.951c0 0.7594 0.27806 1.4457 0.73048 1.9434 0.45242 0.49766 1.0792 0.80664 1.7695 0.80664h55.001c0.69034 0 1.3152-0.30898 1.7676-0.80664 0.45242-0.49766 0.73241-1.184 0.73241-1.9434v-33.453c0-0.7594-0.27999-1.4477-0.73241-1.9453-0.45147-0.49653-1.0753-0.80135-1.7638-0.80275h-28.279z"
++			  fill="url(#linearGradient1951-6)"/>
++		<path d="m28.506 15.489s-1.3576 1.8092-4.3749 2.9941c-0.12363 0.0223-0.24601 0.04377-0.38087 0.06444h-18.75c-0.83098 0-1.5808 0.33468-2.123 0.87694-0.52676 0.52673-0.83306 1.2599-0.85154 2.0625v1.4531c0.01852-0.80264 0.32478-1.5358 0.85154-2.0625 0.54226-0.54226 1.2921-0.87694 2.123-0.87694h18.75c0.13486-0.02079 0.25724-0.04226 0.38087-0.06444 2.8691-0.99415 4.8693-2.9941 4.8693-2.9941h30.504c0.68849 0.0014 1.3122 0.30622 1.7637 0.80275 0.45242 0.49766 0.73241 1.1859 0.73241 1.9453v-1.4531c0-0.7594-0.27999-1.4477-0.73241-1.9453-0.45147-0.49653-1.0752-0.80135-1.7637-0.80275h-28.279zm-26.481 7.9511c-0.0098 0.09936-0.02532 0.19658-0.02532 0.29882v1.4531c0-0.10224 0.0155-0.19945 0.02532-0.29882z"
++			  fill="url(#linearGradient11110-7)" opacity=".3"/>
++		<path d="m1.9992 51.622v1.0664c0 0.7594 0.27807 1.4457 0.73048 1.9434 0.45242 0.49766 1.0792 0.80664 1.7695 0.80664h55.001c0.69034 0 1.3152-0.30898 1.7676-0.80664 0.45242-0.49766 0.73241-1.184 0.73241-1.9434v-1.0664c0 0.7594-0.28003 1.4457-0.73241 1.9434-0.45242 0.49766-1.0772 0.80664-1.7676 0.80664h-55.001c-0.69034 0-1.3171-0.30902-1.7695-0.80664s-0.73048-1.184-0.73048-1.9434z"
++			  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++			  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++			  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	</g>
++	<image width="64" height="64" opacity=".5" preserveAspectRatio="none"
++		   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA GXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABI1JREFUeJztmk1vE0kQht+q7rGd cZLxEDbZJNYuCBAHX0AW99z4BfxKfggnxAkkEAevFJEPG9uMv+KZ6ao9YO96o8CyYI8tth+p5ZOn uut9+2OqB/B4PB6Px+PxeDwej8fj8Xg8Ho/nfwNtQPzFPui135Vjigp0A3xycmIABGEYBlEUmQcP HuDs7KywwQPrSwA1m0379u3bMMuyCEA0nU7LIoLj42PXbrcVBblgHQkgAJxl2VYQBHtEdOSc2yOi EjOnk8kkHQwGOQpKABcR5Dr379+3RFQlotsADph5j5krIlJ4f4oOSABMt9stq2rknNsDsA1AReTK OTeN47gw9YE1JODOnTuWmavGmFhVdwCAiAZE9Mk5N3n9+rUrskNFJoAAMDOXS6VSJCI1Iiqr6sQ5 12Pm5ODgYApAUKADbFGBMFM/SZIqM8cAdohIACTM3BeRcdHqA8U5gGaxKkEQRKpaI6LSovr7+/sp ClYfKG4b5Hq9XhqNRhGAXwHcZmYioi4zn4vIp1arlaLgwQPFOGA+9/+hPoCxiPSMMWtTHygoAfV6 PXDOVUUkBrAtIo6IEmbur2PlX2TVCSAAhpkrzrn5yh8YY8bOuZ4xZlCv19em/ryDq3w2HR0dVQDs ZVn2O4BjVSUAZ9baP1S1fXFxMcHnwa8lASt1QLPZnKtfm819a4wZMfOi+msbPLC6XYAA0OygU3PO HRLRLQCiqp0gCM4BJO/evctWFP+bWZkDms2mIaKtPM9rzBwRkVXVETP3mHl4eHiYYc3qA6txAAFg ESkDqDnnDlX1FgAhoo619lxVB5ugPrAiBzQaDWOM2XLO1YwxETMbVR0yc89aO/zw4cNGqA8sPwEE gDudTiAi28wcO+dCVc2YuW+t7YvIFQCHDRg8sAIHLKqvqhEzGwDD2co/Oj09nau/ESwzAQSALy8v S865HWNMDCBU1YyI+tbaTzP113bouYmlOmBB/VhEIlVlAANjTM9au3HqA8tLwF/qi8iuMSYmoi1V TYmon6ZpAmDj1AeW6IBGo2GYORSRmqruztW31vaiKBq2Wq3rtb75pQh/R7t+ofLdLKMiRAD44uKi TES7s7m/JSJTZu6naZqUSqXrpS569uwZv3r1yo7HY5NlGc/eEb4eiEiDIJAwDN3jx4/z58+f/7Cj lpFFajQaQafTqTnn6sz8GxGFqvpRRFrOufNerzfC31sfYVYgyfN8G0A1z/NyEAT/6sYsy8RaOwUw stYOT09Pf/hNchknQS6XywER7arqbXyu9U2Z+VJVL+M4Hna73cV9n05OTjhJknA6nd4ion1m/kVE YhGpfanNttQdACURkUqlkj569ChrtVo/5IClFEVFhJhZRGQC4KMx5gpAW1VH79+/L7TO/19Z2hQY jUZhkiTbQRAEeZ6nqjq4e/fu5OXLlzctfj/VFKB2u6337t3L0zSdEtEoDMPxw4cPpy9evPhi554+ fSrdbjfL83wiIkPn3EBEkq81IkqstcNqtXr15MmT7M2bNxuxCC4+5/pd/9c6d9N/vpXCvyPweDwe j8fz8/EnumWULTKhD1IAAAAASUVORK5CYII= "/>
++	<g transform="translate(.5)" fill="url(#linearGradient1055)">
++		<path d="m35 24h-3l-14 27h3z" color="#4d4d4d" stroke-width=".35525"/>
++		<rect x="31" y="49" width="14" height="2" color="#4d4d4d" stroke-width=".34109"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/folder-usb.svg b/src/files/assets/icons/folder-usb.svg
+new file mode 100644
+index 0000000..e67f22d
+--- /dev/null
++++ b/src/files/assets/icons/folder-usb.svg
+@@ -0,0 +1,119 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Generator: Adobe Illustrator 25.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
++<svg xmlns:cc="http://creativecommons.org/ns#"
++	 xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink"
++	 version="1.1"
++	 id="图层_1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 64 64"
++	 style="enable-background:new 0 0 64 64;" xml:space="preserve">
++<style type="text/css">
++	.st0{fill:#5E4AA6;}
++	.st1{fill:url(#SVGID_1_);}
++	.st2{opacity:1.000000e-03;fill:#1E5992;enable-background:new    ;}
++	.st3{fill:url(#SVGID_2_);}
++	.st4{opacity:0.3;fill:url(#SVGID_3_);enable-background:new    ;}
++	.st5{fill:url(#SVGID_4_);}
++	.st6{fill:url(#SVGID_5_);}
++</style>
++	<g>
++	<polygon class="st0" points="-1248.6,-1241.1 -1248.6,-1241.1 -1248.6,-1241.1 	"/>
++		<polygon class="st0" points="-1179.7,-1233.1 -1179.7,-1233.1 -1179.7,-1233.1 	"/>
++		<polygon class="st0" points="-1156.6,-1258.9 -1156.6,-1258.9 -1156.6,-1258.9 	"/>
++		<polygon class="st0" points="-1167.3,-1232.2 -1167.3,-1232.2 -1167.3,-1232.2 	"/>
++		<g transform="translate(.000295 -.00032978)">
++		<polygon class="st0" points="-1248.6,-1241.1 -1248.6,-1241.1 -1248.6,-1241.1 		"/>
++			<polygon class="st0" points="-1179.7,-1233.1 -1179.7,-1233.1 -1179.7,-1233.1 		"/>
++			<polygon class="st0" points="-1156.6,-1258.9 -1156.6,-1258.9 -1156.6,-1258.9 		"/>
++			<polygon class="st0" points="-1167.3,-1232.2 -1167.3,-1232.2 -1167.3,-1232.2 		"/>
++			<polygon class="st0" points="-1242.7,-1249 -1242.7,-1249 -1242.7,-1249 		"/>
++	</g>
++		<polygon class="st0" points="-1248.6,-1241.1 -1248.6,-1241.1 -1248.6,-1241.1 	"/>
++		<polygon class="st0" points="-1179.7,-1233.1 -1179.7,-1233.1 -1179.7,-1233.1 	"/>
++		<polygon class="st0" points="-1156.6,-1258.9 -1156.6,-1258.9 -1156.6,-1258.9 	"/>
++		<polygon class="st0" points="-1167.3,-1232.2 -1167.3,-1232.2 -1167.3,-1232.2 	"/>
++		<polygon class="st0" points="-1242.7,-1249 -1242.7,-1249 -1242.7,-1249 	"/>
++		<g transform="translate(2.95e-4,-3.2978e-4)">
++		<polygon class="st0" points="-1248.6,-1241.1 -1248.6,-1241.1 -1248.6,-1241.1 		"/>
++			<polygon class="st0" points="-1179.7,-1233.1 -1179.7,-1233.1 -1179.7,-1233.1 		"/>
++			<polygon class="st0" points="-1156.6,-1258.9 -1156.6,-1258.9 -1156.6,-1258.9 		"/>
++			<polygon class="st0" points="-1167.3,-1232.2 -1167.3,-1232.2 -1167.3,-1232.2 		"/>
++			<polygon class="st0" points="-1242.7,-1249 -1242.7,-1249 -1242.7,-1249 		"/>
++	</g>
++</g>
++	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-753.1828" y1="651.0814" x2="-753.1828"
++					y2="653.4623" gradientTransform="matrix(3.7796 0 0 3.7796 2878.7295 -2450.8245)">
++	<stop offset="0" style="stop-color:#0272CB"/>
++		<stop offset="1" style="stop-color:#0768BA"/>
++</linearGradient>
++	<path image-rendering="auto" shape-rendering="auto" color-rendering="auto" class="st1" d="M4.5,8.5C3.1,8.5,2,9.7,2,11.2v11.2
++	c0,0.1,0,0.2,0,0.3v30c0,1.5,1.1,2.8,2.5,2.8h55c1.4,0,2.5-1.2,2.5-2.8V17.2c0-1.5-1.1-2.8-2.5-2.8l0,0h-31l-3.4-4.2
++	c0,0-1.4-1.8-4-1.8h-5L4.5,8.5z"/>
++	<path class="st2" d="M31.6,14.4c-0.4,0-1.2-0.1-2,0.4c-2.8,1.4-2.9,2.2-5.9,2.7H5c-0.8,0-1.6,0.3-2.1,0.9c-0.6,0.5-0.9,1.2-0.9,2v1
++	c0-0.8,0.3-1.5,0.9-2.1c0.5-0.5,1.3-0.9,2.1-0.9h18.7c3-0.5,3.1-1.3,5.9-2.7c0.8-0.4,1.5-0.4,2-0.4h27.9c0.7,0,1.3,0.3,1.8,0.8
++	S62,17.3,62,18v-1c0-0.8-0.3-1.4-0.7-1.9c-0.5-0.5-1.1-0.8-1.8-0.8h-4.4L31.6,14.4L31.6,14.4z M2,22.4c0,0.1,0,0.2,0,0.3v1
++	c0-0.1,0-0.2,0-0.3V22.4z"/>
++	<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="95.0853" y1="2392.217" x2="128.2754" y2="2426.3699"
++					gradientTransform="matrix(1 0 0 1 -75.9965 -2370.5027)">
++	<stop offset="0" style="stop-color:#27AEE9"/>
++		<stop offset="1" style="stop-color:#0669BC"/>
++</linearGradient>
++	<path class="st3" d="M28.5,15.5c0,0-1.4,1.8-4.4,3c-0.1,0-0.2,0-0.4,0.1H5c-0.8,0-1.6,0.3-2.1,0.9C2.4,20,2,20.7,2,21.5v2
++	c0,0.1,0,0.2,0,0.3v28c0,0.8,0.3,1.4,0.7,1.9c0.5,0.5,1.1,0.8,1.8,0.8h55c0.7,0,1.3-0.3,1.8-0.8s0.7-1.2,0.7-1.9V18.2
++	c0-0.8-0.3-1.4-0.7-1.9c-0.5-0.5-1.1-0.8-1.8-0.8H31.2L28.5,15.5z"/>
++	<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="-779.0179" y1="632.4208" x2="-763.1432"
++					y2="632.4208" gradientTransform="matrix(3.7796 0 0 3.7796 2946.376 -2369.9976)">
++	<stop offset="0" style="stop-color:#FFFFFF"/>
++		<stop offset="1" style="stop-color:#FFFFFF;stop-opacity:0"/>
++</linearGradient>
++	<path class="st4" d="M28.5,15.5c0,0-1.4,1.8-4.4,3c-0.1,0-0.2,0-0.4,0.1H5c-0.8,0-1.6,0.3-2.1,0.9C2.4,20,2,20.7,2,21.5V23
++	c0-0.8,0.3-1.5,0.9-2.1C3.4,20.3,4.2,20,5,20h18.7c0.1,0,0.3,0,0.4-0.1c2.9-1,4.9-3,4.9-3h30.5c0.7,0,1.3,0.3,1.8,0.8
++	s0.7,1.2,0.7,1.9v-1.5c0-0.8-0.3-1.4-0.7-1.9c-0.5-0.5-1.1-0.8-1.8-0.8H31.2h-2.7V15.5z M2,23.4c0,0.1,0,0.2,0,0.3v1.5
++	c0-0.1,0-0.2,0-0.3V23.4z"/>
++	<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="-779.0179" y1="641.2203" x2="-763.1432"
++					y2="641.2203" gradientTransform="matrix(3.7796 0 0 3.7796 2946.376 -2370.0562)">
++	<stop offset="0" style="stop-color:#0A5BA8;stop-opacity:0.9961"/>
++		<stop offset="1" style="stop-color:#104A8C;stop-opacity:0.9961"/>
++</linearGradient>
++	<path image-rendering="auto" shape-rendering="auto" color-rendering="auto" class="st5" d="M2,51.6v1.1c0,0.8,0.3,1.4,0.7,1.9
++	c0.5,0.5,1.1,0.8,1.8,0.8h55c0.7,0,1.3-0.3,1.8-0.8s0.7-1.2,0.7-1.9v-1.1c0,0.8-0.3,1.4-0.7,1.9c-0.5,0.5-1.1,0.8-1.8,0.8h-55
++	c-0.7,0-1.3-0.3-1.8-0.8S2,52.4,2,51.6z"/>
++	<g>
++	
++		<image style="overflow:visible;opacity:0.25;" width="33" height="45" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACEAAAAtCAYAAAAgJgIUAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
++GXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAABD9JREFUeNrMmAlv20YQhcXLoi6f
++cRzkQAv0//+m1i6ay67pIxYjiuR2CXwDvNCURSpOUgMPNKnl7tuZN8dyNPof/AXP/K77WSQCELbe
++bwjUXN2PJBGCyCMGIYuXoOK+7jtpNJBwMz7xmHgsPPY95tzHYpFB1ogGEAghMPU49HjhceZxAqFE
++XDLIEvFAK4zZ/SuPtx4vPVKPrx6X/B4IiXUfi8QDhNjsdOZx7PHG4w+ujWVyjwPGNbooRB9bXRMP
++cNseJBrzv/b4zeMdz3KssPJ48PiCddYSMd9FImRciitOscAbyMxYMIDArUcGkRUWedIacU9XmB4W
++uOOE6yHumOCCDJ188LiGVCEidbuSsKhIWXBBWE55ZmKcStgusFCKS0aSPx5ZJX4igYVCwBBjFYuA
++SsQXoBsjc4BWAq4rCD1KZtGGnVtSGjPpTHZ5zAK205DJl+jggf8riapENvcomUUdBGIWt4UPxcTm
++/5RdW4IqIJCLBiyxTZkvEsupa74hoVGwQHwvJSvuM1ncyh1OLOEgNxcBH7KhAIKFuMWpJnTSKRO8
++IzO+gFhFKFZMdA/MbWsINJY6Yt5m3A2bcvKORU3VFqbpYE4u+B2cSSK6Jg9Y/K8gNuI+lSjaw+RT
++rhlzp2LNUZclzB0HuOItCWmMv1PI3kiErEWcY+Yzizp2a+GctPqQ5uriDaU6FVEecb9k5xYBgSxi
++FlFdpTKm7hJkWxObOqdQmhfLEboTs8QaclY1E8ZGPDct5KIF15WsnEy64oVcdlgIylbJrhlXSNKy
++zTQ6+uTxGTcupbB9Q8KSRykmz5hgn+e5KHvFu04WM1IrFgp5ryHwj8dHSOTt6hq1UrUmLEtGewzO
++iYwv7DhBwBYJIxmfYPJm/HuPvyByKe/XmzKmamEPWEjV4oqQfHCMpSwrTiSBPeCCc48LLHErucZt
++6zG1ek5YIBELWaN7KnXExFiy2yt2f0Fpz7r00KfRNdckYpVZK3zn/G7izFj0AqgbVl2d1iYSrker
++f8DVMmNj/n9Z9BwYgfsuN/SxhGvV/Uiq6xwyE+kXrhDhnyLE5tkdv5eb+s34icULdqcnrrG4opax
++X1nsipC8JLy3EniqvXNSLR+EwJzyfMpVBWaJroBUu5Ma3Og6qYwFu1lK/ahFtBFuURdZoep1Uo+3
++aGLUKj6VRE0kYTsVsWoCi/ocuoccAwMJ16QVujUkjiRsUzm1V9vywNDPCO2GNRDNpNJ/xh3fMHa2
++hBOhrhGd6SNnjJXzcpcPJX1JlCx+TxheYvIQ/5eEZCZhud6UnIaScC0St+SBfUlSM37P+tSJXS1R
++Sz+RIcYRteCzNLJ3EPgbqyy3Jamh0WHNyr1o4IbUPGaRJc+upXkp+7gjGBAZejqbyElMT2G5CFaz
++5bN9vetqfjUzVhIhg6Jk6CdEPbG3v2Vq1R0Uos/9RXfnr7q//O8/AQYAxhWve3m9fqQAAAAASUVO
++RK5CYII=" transform="matrix(1 0 0 1 16 15)">
++	</image>
++		<g>
++		<g>
++			<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="32.3842" y1="22.1772" x2="32.3842"
++							y2="51.1664">
++				<stop offset="0" style="stop-color:#FBFDFE"/>
++				<stop offset="0.9716" style="stop-color:#C6E8F5"/>
++			</linearGradient>
++			<path class="st6" d="M28.6,34.1c0-1.7-1.4-3.2-3.1-3.2c-1.8,0-3.3,1.4-3.3,3.2c0,1.4,0.9,2.6,2.2,3v1.2c0,0.7,0.4,1.5,1,1.9
++				l6.2,4.7c-1.6,0.5-2.7,1.9-2.7,3.6c0,2.1,1.7,3.8,3.8,3.8s3.8-1.7,3.8-3.8c0-1.7-1.2-3.2-2.8-3.7v-1.8l5.7-3.9c0.6-0.4,1-1.2,1-2
++				v-1.7h0.6c0.9,0,1.7-0.8,1.7-1.7V31c0-0.9-0.8-1.7-1.7-1.7h-3.3c-0.9,0-1.7,0.8-1.7,1.7v2.8c0,0.9,0.8,1.7,1.7,1.7h0.6v1.9
++				l-4.7,3.3V28.2h1.7c1.2,0,1.9-1.3,1.3-2.3L34,21.7c-0.7-1.1-2.2-1.1-2.9,0l-2.6,4.2c-0.6,1,0.1,2.3,1.3,2.3h1.8v14.3l-5.2-3.9
++				v-1.4C27.6,36.7,28.6,35.5,28.6,34.1z"/>
++		</g>
++	</g>
++</g>
++</svg>
+diff --git a/src/files/assets/icons/folder-video.svg b/src/files/assets/icons/folder-video.svg
+new file mode 100644
+index 0000000..1369ea0
+--- /dev/null
++++ b/src/files/assets/icons/folder-video.svg
+@@ -0,0 +1,209 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="64"
++	 height="64" version="1.1"
++	 viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<style id="current-color-scheme" type="text/css">.ColorScheme-Text { color:#727272; } .ColorScheme-Highlight {
++			color:#5294e2; }
++		</style>
++		<style type="text/css"/>
++		<style type="text/css"/>
++		<linearGradient id="linearGradient1911-3-3" x1="25.085" x2="25.085" y1="24.031" y2="26.412"
++						gradientTransform="translate(-17.898 -21.385)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0272cb" offset="0"/>
++			<stop stop-color="#0768ba" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1951-6" x1="100" x2="133.19" y1="17.453" y2="51.606"
++						gradientTransform="matrix(.26458 0 0 .26458 -20.108 -.13536)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#27aee9" offset="0"/>
++			<stop stop-color="#0669bc" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient11110-7" x1=".52917" x2="16.404" y1="5.3815" y2="5.3815"
++						gradientTransform="translate(-2.54e-4,4.181e-5)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#fff" stop-opacity="0" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient29077" x1=".52916" x2="16.404" y1="14.179" y2="14.179"
++						gradientTransform="translate(-.000254 -.015458)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#0a5ba8" stop-opacity=".99608" offset="0"/>
++			<stop stop-color="#104a8c" stop-opacity=".99608" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient1006" x1="8.5259" x2="8.5259" y1="6.0936" y2="13.269"
++						gradientTransform="translate(-14.035 -5.777e-5)" gradientUnits="userSpaceOnUse">
++			<stop stop-color="#fff" offset="0"/>
++			<stop stop-color="#c5e7f5" offset="1"/>
++		</linearGradient>
++		<linearGradient id="linearGradient996" x1="-26.058" x2="-26.058" y1="25.064" y2="49.089"
++						gradientTransform="matrix(.26458 0 0 .26458 15.307 0)" gradientUnits="userSpaceOnUse"
++						xlink:href="#linearGradient1006"/>
++		<linearGradient id="linearGradient1100" x1="9.7472" x2="9.7472" y1="5.8598" y2="13.798"
++						gradientUnits="userSpaceOnUse" xlink:href="#linearGradient1006"/>
++	</defs>
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<g fill="#5e4aa6" stroke-width=".26458">
++		<circle cx="-330.35" cy="-328.38" r="0"/>
++		<circle cx="-312.11" cy="-326.25" r="0"/>
++		<circle cx="-306.02" cy="-333.07" r="0"/>
++		<circle cx="-308.84" cy="-326.01" r="0"/>
++		<circle cx="-328.8" cy="-330.45" r="0"/>
++	</g>
++	<g transform="translate(.000295 -.00032978)" fill="#5e4aa6" stroke-width=".26458">
++		<circle cx="-330.35" cy="-328.38" r="0"/>
++		<circle cx="-312.11" cy="-326.25" r="0"/>
++		<circle cx="-306.02" cy="-333.07" r="0"/>
++		<circle cx="-308.84" cy="-326.01" r="0"/>
++		<circle cx="-328.8" cy="-330.45" r="0"/>
++	</g>
++	<style type="text/css">.st0{opacity:0.15;fill:#45413C;}
++		.st1{fill:#FFE500;}
++		.st2{fill:#EBCB00;}
++		.st3{fill:none;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st4{fill:#FFAA54;}
++		.st5{fill:#FF8A14;}
++		.st6{fill:#FFB0CA;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st7{fill:#FF87AF;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st8{fill:#FFCC99;}
++		.st9{fill:#FFFFFF;}
++		.st10{fill:#F0F0F0;}
++		.st11{fill:#BF8256;}
++		.st12{fill:#915E3A;}
++		.st13{fill:#DEA47A;}
++		.st14{fill:#F0D5A8;}
++		.st15{fill:#DEBB7E;}
++		.st16{fill:#F7E5C6;}
++		.st17{fill:#FF8A14;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st18{fill:#FFF5E3;}
++		.st19{fill:#FFF48C;}
++		.st20{fill:#FFFACF;}
++		.st21{fill:#FFFCE5;}
++		.st22{fill:#FF87AF;}
++		.st23{fill:#FFB0CA;}
++		.st24{fill:#FFE500;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st25{fill:#9CEB60;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st26{fill:#FFFACF;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st27{fill:#00F5BC;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st28{fill:#BF8256;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st29{fill:#FFE3CF;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st30{fill:#FF6242;}
++		.st31{fill:#FF866E;}
++		.st32{fill:none;stroke:#E04122;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st33{fill:#FFFEF2;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st34{fill:#FF6242;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st35{fill:#FFA694;}
++		.st36{fill:#FFFFFF;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st37{fill:#FFFEF2;}
++		.st38{fill:#FF6196;}
++		.st39{fill:#B89558;}
++		.st40{fill:none;stroke:#915E3A;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st41{fill:#DEBB7E;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st42{fill:#6DD627;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st43{fill:#E5F8FF;}
++		.st44{fill:#E8F4FA;}
++		.st45{fill:#E8F4FA;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st46{fill:#FFCCDD;}
++		.st47{fill:#E5F8FF;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st48{fill:#00B8F0;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st49{fill:#00B8F0;}
++		.st50{fill:#4ACFFF;}
++		.st51{fill:#E04122;}
++		.st52{fill:#E04122;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st53{fill:#87898C;}
++		.st54{fill:#BDBEC0;}
++		.st55{fill:#656769;}
++		.st56{fill:#525252;}
++		.st57{fill:#FFF48C;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st58{fill:#6DD627;}
++		.st59{fill:#EB6D00;}
++		.st60{fill:#46B000;}
++		.st61{fill:#80DDFF;}
++		.st62{fill:#DAEDF7;}
++		.st63{fill:#BF8DF2;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st64{fill:#9F5AE5;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st65{fill:#C8FFA1;}
++		.st66{fill:#E4FFD1;}
++		.st67{fill:#9CEB60;}
++		.st68{fill:#E5FEFF;}
++		.st69{fill:#B8ECFF;}
++		.st70{fill:#E0E0E0;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st71{fill:#E0E0E0;}
++		.st72{fill:none;stroke:#4F4B45;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st73{fill:none;stroke:#4F4B45;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st74{fill:#E0366F;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st75{fill:none;stroke:#45413C;stroke-miterlimit:10;}
++		.st76{fill:#FF866E;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st77{fill:#45413C;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st78{fill:#9F5AE5;}
++		.st79{fill:#803EC2;}
++		.st80{fill:#803EC2;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st81{fill:#BF8DF2;}
++		.st82{fill:#FFAA54;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st83{fill:none;stroke:#45413C;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st84{fill:#FFCCDD;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st85{fill:#FF6196;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st86{fill:#FFE5EE;}
++		.st87{fill:#F7E5C6;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st88{fill:#E5FFF9;}
++		.st89{fill:none;stroke:#45413C;stroke-width:1.0064;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st90{fill:#4AEFF7;}
++		.st91{fill:#A6FBFF;}
++		.st92{fill:#E5FEFF;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st93{fill:#46B000;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st94{fill:#FFFFFF;stroke:#45413C;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st95{fill:#FFFFFF;stroke:#45413C;stroke-miterlimit:10;}
++		.st96{fill:#009FD9;}
++		.st97{fill:#00DFEB;}
++		.st98{fill:#C0DCEB;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st99{fill:#00DFEB;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st100{fill:#FFE5EE;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st101{fill:#8CA4B8;}
++		.st102{fill:#ADC4D9;}
++		.st103{fill:#656769;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st104{fill:#F0F0F0;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st105{fill:#C0DCEB;}
++		.st106{fill:#45413C;}
++		.st107{fill:#FFCABF;}
++		.st108{fill:#87898C;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++		.st109{fill:#EBCB00;stroke:#45413C;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
++	</style>
++	<circle cx="-295.25" cy="-363.02" r="0" fill="#5e4aa6" stroke-width=".24253"/>
++	<path d="m1.1974 2.2489c-0.3653 0-0.66145 0.32575-0.66145 0.72759v2.9636c-0.0026 0.02629-0.0072 0.052-0.0072 0.07906v7.9373c0 0.40184 0.29614 0.72759 0.66144 0.72759h14.552c0.36531 0 0.66144-0.32575 0.66144-0.72759v-9.393c0-0.40184-0.29614-0.72759-0.66144-0.72759v5.16e-4h-8.1993l-0.89864-1.1095s-0.36607-0.478-1.0583-0.478h-1.3229z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient1911-3-3)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<path d="m8.3601 3.8209c-0.11312 0.0018-0.30848-0.01542-0.51986 0.09508-0.73647 0.37946-0.77226 0.59366-1.557 0.71415h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.2775c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.78472-0.1205 0.82051-0.33469 1.557-0.71415 0.21138-0.1105 0.40673-0.09328 0.51986-0.09508h7.3828c0.18216 3.65e-4 0.3472 0.08101 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.2775c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11943-0.13137-0.28447-0.21202-0.46663-0.21239h-1.1652zm-7.8247 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.2775c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="#1e5992" opacity=".001" stroke-width=".26458"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22042 0.33333-0.2253 0.54569v0.51675c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v7.3953c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-8.851c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28449-0.21202-0.46665-0.21239h-7.4821z"
++		  fill="url(#linearGradient1951-6)"/>
++	<path d="m7.5421 4.0979s-0.35919 0.47868-1.1575 0.79218c-0.03271 0.0059-0.06509 0.01158-0.10077 0.01705h-4.9608c-0.21986 0-0.41824 0.08855-0.56171 0.23202-0.13937 0.13936-0.22041 0.33333-0.2253 0.54569v0.38446c0.0049-0.21236 0.08593-0.40633 0.2253-0.54569 0.14347-0.14347 0.34185-0.23202 0.56171-0.23202h4.9608c0.03568-0.0055 0.06806-0.01118 0.10077-0.01705 0.75911-0.26303 1.2883-0.79218 1.2883-0.79218h8.0707c0.18216 3.7e-4 0.34718 0.08102 0.46663 0.21239 0.1197 0.13167 0.19378 0.31377 0.19378 0.51469v-0.38446c0-0.20092-0.07408-0.38302-0.19378-0.51469-0.11945-0.13137-0.28447-0.21202-0.46663-0.21239h-7.4821zm-7.0062 2.1037c-0.0026 0.02629-0.0067 0.05201-0.0067 0.07906v0.38447c0-0.02705 0.0041-0.05277 0.0067-0.07906z"
++		  fill="url(#linearGradient11110-7)" opacity=".3"/>
++	<path d="m0.52894 13.658v0.28215c0 0.20092 0.07357 0.3825 0.19327 0.51417s0.28553 0.21342 0.46818 0.21342h14.552c0.18265 0 0.34796-0.08175 0.46766-0.21342s0.19378-0.31325 0.19378-0.51417v-0.28215c0 0.20092-0.07409 0.3825-0.19378 0.51417-0.1197 0.13167-0.28501 0.21342-0.46766 0.21342h-14.552c-0.18265 0-0.34848-0.08176-0.46818-0.21342s-0.19327-0.31325-0.19327-0.51417z"
++		  color="#000000" color-rendering="auto" dominant-baseline="auto" fill="url(#linearGradient29077)"
++		  image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000"
++		  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++	<image x="-2.8229e-7" y="-2.8229e-7" width="16.933" height="16.933" opacity=".5" preserveAspectRatio="none"
++		   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAA GXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAA+BJREFUeJztmc1OG0kUhc+tdjem eyJbRAkjIIpiodEgLy2UXd6CrLPLa/h9eAmv2GVHCEhohOMBBIwIf7Gxq+qeWQCSxxMlHolqj5T6 pLvsvlWnzumu6gYikUgkEolEIpFIJBKJRCKRSCQSifwsJCX0kHa7bZ49e2bevn0rnU6nhJbTI6Hv 32q1KpVKZd45lwGwz58/v339+rVtt9sEwMD9f0hQB2xsbCS3t7dPrLUvAKwAeDIYDGR7e9u9efPG 7+zshGw/FSEFkPn5+cQ599R7/xvJVwAWVHUOAM/Pz93y8rI/Pj6eqQuCCrCwsJCIyFMADZK/knyi qr8YY6oAxHvv1tbW/Lt373RWz4agAtRqtUqapnUAL0jWRSQDUCWZk5xX1aTf77vd3d2ZRSK4A7Is q3vvV0Skdt/PkMxI5iKSi0iaJInOKhKmrEaq+lBC0ohIDmCR5Kq1ds1a+1JV66urq1m73S5tXMEd QLJOcgVAjWRCUsYqITlHshCR+dFolGRZ5u8joWVEIrgAxpi6iIxHYHzvIbhzYQogJ5kDSL332uv1 bKPRCB6JUqzmvR+PwGQJyURVcxFZVNVVkr+nafry8vIyeCRKcQDJFZLjEcBEjUeiCqAAUMXdAvlu t2vfv3/vO53Oo7uhNAEAfCsC/7oG928JALmI5MaYirXWbm1tDa+vr91jD7KUCHzH/t+LREFy0Xv/ SlVf5HlebGxsPPp4K499w0lGoxGMuRu3qk57mQCAMaYCoOqcm1PV5Ozs7NEPb8EFAO4eggAgMvX4 laRzzt2IyCmAM2PMoNPpTK3gtJQiwANTOODhiDwEcCEiRyJykGXZUVEUfQQ4PpfmABH5kQNI0gO4 FZG/VLWXpmmX5FlRFP0PHz44BBBgFlvhbxW995bktar2SO5lWbZ3c3Nz3Gq1bkJNHijBAcPhEABg jPlWBB4sPxKRC5JHJA/SND0GcHVycmI3NzcfPffjlOqACUjSq2pfRE5EZJ/kpyzLurVa7WJ/f38E IOjkgRIFAP4RA5K0InIN4E9V3XXO7Vlrj0JbfpLgO0HnXF1Vx7fCFJGRql4A6InIfrVa/WyM+XJ4 eDjc2dkJvurjlOUA3q+6B9D33p8aY/ZF5FOapt16vf7l4OBgiBIsP0lQAebm5mit9SSHAG4BXJE8 JLkLYM85d7i+vn5dpuUnCfpZvNlsyunpaXp/wnMkTwH8ISKfq9Xq+b3lZ/p/IPSPEbO0tFQdjUZ1 EcnTNB0OBoOrRqMRbGPzXwktAACYZrNZ+fr1qymKQj9+/Pgw8ZlPHihHgMk+/4uJRyKRSCQSiUQi Pzl/A8xTtJHcax4mAAAAAElFTkSuQmCC "/>
++	<g transform="translate(-4e-4)" fill="url(#linearGradient1100)" stroke-linecap="round" stroke-linejoin="round"
++	   stroke-width=".31749">
++		<path d="m14.288 5.8207h1.0583c0.14658 0 0.26458 0.118 0.26458 0.26458v1.0583c0 0.14658-0.118 0.26458-0.26458 0.26458h-1.0583c-0.14658 0-0.26458-0.118-0.26458-0.26458v-1.0583c0-0.14658 0.118-0.26458 0.26458-0.26458z"
++			  color="#000000" style="-inkscape-stroke:none;paint-order:stroke fill markers"/>
++		<path d="m14.288 12.171h1.0583c0.14658 0 0.26458 0.118 0.26458 0.26458v1.0583c0 0.14658-0.118 0.26458-0.26458 0.26458h-1.0583c-0.14658 0-0.26458-0.118-0.26458-0.26458v-1.0583c0-0.14658 0.118-0.26458 0.26458-0.26458z"
++			  color="#000000" style="-inkscape-stroke:none;paint-order:stroke fill markers"/>
++		<path d="m14.288 8.9957h1.0583c0.14658 0 0.26458 0.118 0.26458 0.26458v1.0583c0 0.14658-0.118 0.26458-0.26458 0.26458h-1.0583c-0.14658 0-0.26458-0.118-0.26458-0.26458v-1.0583c0-0.14658 0.118-0.26458 0.26458-0.26458z"
++			  color="#000000" style="-inkscape-stroke:none;paint-order:stroke fill markers"/>
++		<path d="m1.5875 5.8207h1.0583c0.14658 0 0.26458 0.118 0.26458 0.26458v1.0583c0 0.14658-0.118 0.26458-0.26458 0.26458h-1.0583c-0.14658 0-0.26458-0.118-0.26458-0.26458v-1.0583c0-0.14658 0.118-0.26458 0.26458-0.26458z"
++			  color="#000000" style="-inkscape-stroke:none;paint-order:stroke fill markers"/>
++		<path d="m1.5875 12.171h1.0583c0.14658 0 0.26458 0.118 0.26458 0.26458v1.0583c0 0.14658-0.118 0.26458-0.26458 0.26458h-1.0583c-0.14658 0-0.26458-0.118-0.26458-0.26458v-1.0583c0-0.14658 0.118-0.26458 0.26458-0.26458z"
++			  color="#000000" style="-inkscape-stroke:none;paint-order:stroke fill markers"/>
++		<path d="m1.5875 8.9957h1.0583c0.14658 0 0.26458 0.118 0.26458 0.26458v1.0583c0 0.14658-0.118 0.26458-0.26458 0.26458h-1.0583c-0.14658 0-0.26458-0.118-0.26458-0.26458v-1.0583c0-0.14658 0.118-0.26458 0.26458-0.26458z"
++			  color="#000000" style="-inkscape-stroke:none;paint-order:stroke fill markers"/>
++	</g>
++	<path d="m6.5821 6.6155a0.39422 0.35787 0 0 0-0.36896 0.36121v5.6254a0.39422 0.35787 0 0 0 0.64646 0.27956l3.7217-2.8199a0.39422 0.35787 0 0 0 0.04754-0.50125l-0.04754-0.042891-3.7217-2.8199a0.39422 0.35787 0 0 0-0.2775-0.082164z"
++		  fill="url(#linearGradient996)" stroke-linecap="round" stroke-linejoin="round" stroke-width=".052916"/>
++</svg>
+diff --git a/src/files/assets/icons/image-x-generic.svg b/src/files/assets/icons/image-x-generic.svg
+new file mode 100644
+index 0000000..2bdfa0e
+--- /dev/null
++++ b/src/files/assets/icons/image-x-generic.svg
+@@ -0,0 +1,21 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="matrix(0 .26458 .26458 0 -6e-5 -6e-5)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#7f7fff" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g fill="#fff">
++		<path transform="scale(.26458)" d="m37.25 31-4 6.1543 5.75 8.8457h8l-9.75-15z" color="#000000" opacity=".25"
++			  stroke-width="2.8347"/>
++		<path d="m6.879 6.879-3.4395 5.2916h6.879z" color="#000000" opacity=".65"/>
++		<path d="m11.377 4.7624c-0.73061 0-1.3229 0.5923-1.3229 1.3229 0 0.73064 0.59228 1.3229 1.3229 1.3229 0.73061 0 1.3229-0.5923 1.3229-1.3229 0-0.73064-0.59228-1.3229-1.3229-1.3229z"
++			  color="#000000" opacity=".65"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/text-css.svg b/src/files/assets/icons/text-css.svg
+new file mode 100644
+index 0000000..f109cc5
+--- /dev/null
++++ b/src/files/assets/icons/text-css.svg
+@@ -0,0 +1,32 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
++	 xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++				<dc:title/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#5884f4" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-22.43 -.41462)" fill="#fff">
++		<path d="m29.122 4.6483c-0.20914 2e-3 -0.38722 0.02588-0.53247 0.07299-0.14762 0.0451-0.26644 0.11272-0.35666 0.20294-0.09021 0.08611-0.15389 0.19482-0.19079 0.32604-0.03691 0.13122-0.05529 0.28089-0.05529 0.44902v2.3638c0 0.07381-0.01234 0.1476-0.03695 0.22141-0.0205 0.06971-0.0553 0.13326-0.1045 0.19066-0.04511 0.05331-0.10261 0.09834-0.17232 0.13525-0.06076 0.02859-0.13303 0.04399-0.2156 0.04767v0.44631c0.08257 0.0041 0.15484 0.02131 0.2156 0.05348 0.06971 0.0328 0.12721 0.07797 0.17232 0.13538 0.04921 0.05331 0.084 0.11686 0.1045 0.19066 0.0246 0.06971 0.03695 0.14153 0.03695 0.21534v2.3637c0 0.16812 0.01838 0.31793 0.05529 0.44915 0.0369 0.13122 0.10058 0.24177 0.19079 0.33198s0.20904 0.15796 0.35666 0.20307c0.14525 0.04318 0.32333 0.06507 0.53247 0.06691h0.18731v-0.44967h-0.18731c-0.20656-0.0061-0.35784-0.04836-0.45251-0.12788-0.09841-0.08201-0.14765-0.2418-0.14765-0.47963v-2.2039c0-0.27064-0.0369-0.47979-0.1107-0.62741-0.06971-0.14762-0.17015-0.26237-0.30137-0.34438 0.13122-0.08201 0.23166-0.19689 0.30137-0.34451 0.07381-0.14762 0.1107-0.35677 0.1107-0.62741v-2.2039c0-0.23783 0.04924-0.39762 0.14765-0.47963 0.09467-0.07952 0.24595-0.12191 0.45251-0.12801h0.18731v-0.4494z"
++			  enable-background="new"/>
++		<path d="m32.484 4.6483v0.4494h0.18731c0.20656 0.0061 0.35784 0.04849 0.45251 0.12801 0.09841 0.08201 0.14765 0.2418 0.14765 0.47963v2.2039c0 0.27064 0.0369 0.47979 0.1107 0.62741 0.06971 0.14762 0.17015 0.2625 0.30137 0.34451-0.13122 0.08201-0.23166 0.19676-0.30137 0.34438-0.07381 0.14762-0.1107 0.35678-0.1107 0.62741v2.2039c0 0.23783-0.04924 0.39762-0.14765 0.47963-0.09467 0.07952-0.24595 0.1218-0.45251 0.12788h-0.18731v0.44966h0.18731c0.20914-0.0018 0.38722-0.02373 0.53247-0.06691 0.14762-0.04511 0.26644-0.11285 0.35666-0.20307 0.09021-0.09021 0.15389-0.20076 0.19079-0.33198 0.03691-0.13122 0.05529-0.28102 0.05529-0.44915v-2.3637c0-0.07381 0.01234-0.14563 0.03694-0.21534 0.0205-0.07381 0.0553-0.13736 0.1045-0.19066 0.04511-0.05741 0.10261-0.10257 0.17232-0.13538 0.06076-0.03216 0.13303-0.04935 0.2156-0.05348v-0.44631c-0.08257-0.0037-0.15484-0.01907-0.2156-0.04767-0.06971-0.0369-0.12721-0.08194-0.17232-0.13525-0.0492-0.05741-0.084-0.12096-0.1045-0.19066-0.0246-0.07381-0.03694-0.1476-0.03694-0.22141v-2.3638c0-0.16812-0.01838-0.3178-0.05529-0.44902-0.0369-0.13122-0.10058-0.23993-0.19079-0.32604-0.09021-0.09021-0.20904-0.15783-0.35666-0.20294-0.14525-0.04711-0.32333-0.07097-0.53247-0.07299z"
++			  enable-background="new"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/text-dockerfile.svg b/src/files/assets/icons/text-dockerfile.svg
+new file mode 100644
+index 0000000..a6c61f8
+--- /dev/null
++++ b/src/files/assets/icons/text-dockerfile.svg
+@@ -0,0 +1,20 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(1)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#66d7fc" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="matrix(7.5591 0 0 7.5591 17 15.012)" opacity=".4" stroke-width=".13229">
++		<path transform="scale(.26458)"
++			  d="m6.0098 3.9883v1.5586h1.5586v-1.5586zm2 0v1.5586h1.5586v-1.5586zm4.2598 1.2832c-0.52394 0.35908-0.76491 1.0092-0.60156 1.623 0.16516 0.61336 0.69874 1.0562 1.332 1.1055 0.21163 0.59859 0.77721 0.99911 1.4121 1 0.6349-8.906e-4 1.2005-0.40141 1.4121-1-0.21163-0.59859-0.77721-0.99911-1.4121-1-0.30289 9.283e-4 -0.5984 0.093532-0.84766 0.26562 0.10129-0.28586 0.11354-0.59571 0.03516-0.88867-0.16492-0.61272-0.69753-1.0554-1.3301-1.1055zm0.73047 2.7285h-12c-4.2e-7 3.3137 2.6863 5 6 5s6-1.6863 6-5zm-9.5586-2.0039v1.5586h1.5586v-1.5586zm2 0v1.5586h1.5586v-1.5586zm2 0v1.5586h1.5586v-1.5586zm2 0v1.5586h1.5586v-1.5586zm-5.9414 3.0039a0.5 0.5 0 0 1 0.5 0.5 0.5 0.5 0 0 1-0.5 0.5 0.5 0.5 0 0 1-0.5-0.5 0.5 0.5 0 0 1 0.5-0.5z"
++			  color="#000000" color-rendering="auto" image-rendering="auto" opacity="1" shape-rendering="auto"
++			  solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/text-html.svg b/src/files/assets/icons/text-html.svg
+new file mode 100644
+index 0000000..eaa25df
+--- /dev/null
++++ b/src/files/assets/icons/text-html.svg
+@@ -0,0 +1,33 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
++	 xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++				<dc:title/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#5884f4" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".15"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g transform="translate(-16.547 -1.6323)" fill="#fff">
++		<path d="m21.4 10.099 2.1358 0.87841-0.15643 0.46327-2.5991-1.101v-0.48132l2.5991-1.101 0.15643 0.46327z"
++			  enable-background="new"/>
++		<path d="m24.284 13.011h-0.57156l2.0396-5.824h0.55953z" enable-background="new"/>
++		<path d="m26.491 9.2204 0.15643-0.46327 2.5991 1.101v0.48132l-2.5991 1.101-0.15643-0.46327 2.1358-0.87841z"
++			  enable-background="new"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/text-markdown.svg b/src/files/assets/icons/text-markdown.svg
+new file mode 100644
+index 0000000..2dbb892
+--- /dev/null
++++ b/src/files/assets/icons/text-markdown.svg
+@@ -0,0 +1,34 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg"
++	 xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
++	 xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
++	<metadata>
++		<rdf:RDF>
++			<cc:Work rdf:about="">
++				<dc:format>image/svg+xml</dc:format>
++				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
++				<dc:title/>
++			</cc:Work>
++		</rdf:RDF>
++	</metadata>
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(.61734 0 0 .61734 -18.168 -19.05)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<rect x="2.1166" y="1.0583" width="12.7" height="14.816" ry="1.3229" fill="#455a64" stroke-width=".26458"
++		  style="paint-order:stroke fill markers"/>
++	<path d="m14.816 12.171-3.7041 3.7041h2.3812c0.73289 0 1.3229-0.59001 1.3229-1.3229z" fill="url(#a)"
++		  fill-rule="evenodd" opacity=".15" stroke-width="2.3334" style="paint-order:stroke fill markers"/>
++	<g transform="translate(-20.849 -2.0766)" fill="#fff">
++		<path d="m26.141 8.4258c-0.28858 0-0.5293 0.24072-0.5293 0.5293v3.1758c0 0.28858 0.24072 0.5293 0.5293 0.5293h6.3496c0.28858 0 0.5293-0.24072 0.5293-0.5293v-3.1758c0-0.28858-0.24072-0.5293-0.5293-0.5293zm0 0.5293h6.3496v3.1758h-6.3496z"
++			  color="#000000" color-rendering="auto" dominant-baseline="auto" enable-background="new"
++			  image-rendering="auto" shape-rendering="auto" solid-color="#000000"
++			  style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;isolation:auto;mix-blend-mode:normal;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
++		<path d="m26.934 11.601v-2.1166h0.52916l0.66144 0.82681 0.66145-0.82681h0.52916v2.1166h-0.52916v-1.2898l-0.66145 0.82681-0.66144-0.82681v1.2898z"
++			  enable-background="new"/>
++		<path d="m30.903 11.601-0.79373-1.0583h0.52916v-1.0583h0.52916v1.0583h0.52916z" enable-background="new"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/text-x-cmake.svg b/src/files/assets/icons/text-x-cmake.svg
+new file mode 100644
+index 0000000..c169bd5
+--- /dev/null
++++ b/src/files/assets/icons/text-x-cmake.svg
+@@ -0,0 +1,15 @@
++<svg width="64" height="64" version="1.1" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<rect x="8" y="4" width="48" height="56" ry="5" fill="#f4f4f4" style="paint-order:stroke fill markers"/>
++	<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".1" stroke-width="8.8191"
++		  style="paint-order:stroke fill markers"/>
++	<path d="m26.375 44c2.845-2.962 5.445-6.041 5.777-6.843 0.332-0.801 1.64-2.385 2.909-3.518 3.32-2.966 5.256-2.733 6.922 0.832 0.425 0.909 1.01 1.652 1.3 1.652 0.662 0 3.717-2.974 3.717-3.62 0-0.835-1.568-2.275-2.477-2.275-0.96 0-1.878-1.377-1.878-2.815 0-1.09-3-4.124-5.177-5.236-1.038-0.53-2.825-0.791-5.415-0.791-3.917 0-5.554 0.649-3.047 1.208 0.753 0.168 2.17 0.975 3.15 1.795 2.52 2.11 2.419 3.695-0.457 7.112-1.23 1.461-2.537 2.657-2.906 2.657-0.815 0-11.793 10.207-11.793 10.964 0 0.572 3.37 4.264 3.893 4.264 0.17 0 2.637-2.423 5.482-5.386z"
++		  color="#000000" fill="#919caf" overflow="visible" solid-color="#000000"
++		  style="isolation:auto;mix-blend-mode:normal"/>
++</svg>
+diff --git a/src/files/assets/icons/text-x-generic.svg b/src/files/assets/icons/text-x-generic.svg
+new file mode 100644
+index 0000000..6467887
+--- /dev/null
++++ b/src/files/assets/icons/text-x-generic.svg
+@@ -0,0 +1,24 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#f4f4f4" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".1"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<g fill="#b3b3b3">
++		<g stroke-width="1.4142">
++			<path d="m4.7624 5.5561h7.4082v0.52916h-7.4082z" enable-background="new"/>
++			<path d="m4.7624 6.6145h7.4082v0.52916h-7.4082z" enable-background="new"/>
++			<path d="m4.7624 7.6728h7.4082v0.52916h-7.4082z" enable-background="new"/>
++			<path d="m4.7624 8.7311h7.4082v0.52916h-7.4082z" enable-background="new"/>
++			<path d="m4.7624 9.7894h7.4082v0.52916h-7.4082z" enable-background="new"/>
++		</g>
++		<path d="m4.7624 10.848h3.9687v0.52916h-3.9687z" enable-background="new" stroke-width="1.0351"/>
++	</g>
++</svg>
+diff --git a/src/files/assets/icons/unknown.svg b/src/files/assets/icons/unknown.svg
+new file mode 100644
+index 0000000..64c085b
+--- /dev/null
++++ b/src/files/assets/icons/unknown.svg
+@@ -0,0 +1,16 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="scale(.26458)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#f4f4f4" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".1"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path d="m8.2284 3.7041c-0.42332 0-0.81144 0.048441-1.1642 0.14545-0.34395 0.097012-0.60845 0.19845-0.79366 0.30428l0.25126 0.71436c0.48506-0.26458 1.023-0.39683 1.6139-0.39683 0.21166 0 0.41453 0.017627 0.60856 0.052903 0.19402 0.035277 0.36164 0.10146 0.50275 0.19847 0.14993 0.097011 0.26899 0.22926 0.35718 0.39683 0.08819 0.15875 0.1322 0.36162 0.1322 0.60856 0 0.2734-0.05288 0.52027-0.15871 0.74075-0.10583 0.21166-0.23808 0.41453-0.39683 0.60856-0.15875 0.18521-0.3308 0.37045-0.516 0.55565-0.1852 0.17638-0.35714 0.36595-0.51589 0.56879s-0.291 0.42334-0.39683 0.66146c-0.10583 0.2293-0.15882 0.49392-0.15882 0.79377 0 0.10583 0.0044 0.21158 0.01326 0.31742 0.0088 0.09701 0.02201 0.18969 0.03965 0.27788h0.68797c-0.0088-0.0441-0.01325-0.08822-0.01325-0.13231v-0.22487c0-0.29104 0.05731-0.55565 0.17196-0.79377s0.26021-0.45861 0.43659-0.66146c0.17638-0.21166 0.36163-0.41453 0.55565-0.60856 0.20284-0.19402 0.39241-0.39678 0.56879-0.60844 0.17639-0.21166 0.32194-0.44103 0.43659-0.68797s0.17196-0.52918 0.17196-0.84668c0-0.2293-0.03969-0.46299-0.11906-0.70111-0.079386-0.23812-0.21175-0.44974-0.39696-0.63495-0.1852-0.19402-0.43652-0.34834-0.75401-0.46299-0.30868-0.12347-0.69667-0.18522-1.1641-0.18522zm-0.17196 8.0696c-0.2293 0-0.41011 0.07062-0.5424 0.21173-0.12347 0.14111-0.18522 0.31304-0.18522 0.51589 0 0.20284 0.06175 0.37478 0.18522 0.51589 0.13229 0.14111 0.3131 0.21173 0.5424 0.21173s0.40567-0.07062 0.52914-0.21173c0.13229-0.14111 0.19836-0.31304 0.19836-0.51589 0-0.20284-0.06607-0.37478-0.19836-0.51589-0.12347-0.14111-0.29984-0.21173-0.52914-0.21173z"
++		  enable-background="new" fill="#999"/>
++</svg>
+diff --git a/src/files/assets/icons/video-x-generic.svg b/src/files/assets/icons/video-x-generic.svg
+new file mode 100644
+index 0000000..58c4493
+--- /dev/null
++++ b/src/files/assets/icons/video-x-generic.svg
+@@ -0,0 +1,16 @@
++<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
++	<defs>
++		<linearGradient id="a" x1="49.571" x2="51.714" y1="52.714" y2="54.857"
++						gradientTransform="matrix(2.3333,0,0,2.3333,-68.667,-72.001)" gradientUnits="userSpaceOnUse">
++			<stop offset="0"/>
++			<stop stop-opacity="0" offset="1"/>
++		</linearGradient>
++	</defs>
++	<g transform="matrix(0 .26458 .26458 0 -5.9992e-5 -5.9978e-5)">
++		<rect x="8" y="4" width="48" height="56" ry="5" fill="#4c37d1" style="paint-order:stroke fill markers"/>
++		<path d="m56 46-14 14h9c2.77 0 5-2.23 5-5z" fill="url(#a)" fill-rule="evenodd" opacity=".25"
++			  stroke-width="8.8191" style="paint-order:stroke fill markers"/>
++	</g>
++	<path d="m8.4665 4.7624c-2.0457 0-3.7041 1.6584-3.7041 3.7041s1.6584 3.7041 3.7041 3.7041 3.7041-1.6584 3.7041-3.7041-1.6584-3.7041-3.7041-3.7041zm0 0.79373c1.6073 0 2.9104 1.303 2.9104 2.9104 0 1.6073-1.303 2.9104-2.9104 2.9104-1.6073 0-2.9104-1.303-2.9104-2.9104 0-1.6073 1.303-2.9104 2.9104-2.9104zm-1.0583 1.1906v3.4395l2.9104-1.7198z"
++		  fill="#fff"/>
++</svg>
+diff --git a/src/files/components/FileGridView.vue b/src/files/components/FileGridView.vue
+new file mode 100644
+index 0000000..5fc547f
+--- /dev/null
++++ b/src/files/components/FileGridView.vue
+@@ -0,0 +1,16 @@
++<script setup lang="ts">
++import type { FileEntry } from '../stores/files'
++import FileTile from './FileTile.vue'
++const props = defineProps<{ entries: FileEntry[] }>()
++const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
++</script>
++
++<template>
++  <div class="file-grid">
++    <FileTile v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
++  </div>
++</template>
++
++<style scoped>
++.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
++</style>
+diff --git a/src/files/components/FileListView.vue b/src/files/components/FileListView.vue
+new file mode 100644
+index 0000000..b1b5281
+--- /dev/null
++++ b/src/files/components/FileListView.vue
+@@ -0,0 +1,40 @@
++<script setup lang="ts">
++import { useI18n } from 'vue-i18n'
++import type { FileEntry } from '../stores/files'
++import FileRow from './FileRow.vue'
++
++const props = defineProps<{ entries: FileEntry[]; sort: string; order: string }>()
++const emit = defineEmits<{ (e: 'open', entry: FileEntry): void; (e: 'reorder', sort: string): void }>()
++const { t } = useI18n()
++
++const COLS = [
++  { key: 'name', label: 'filesColName', cls: 'col-name' },
++  { key: 'format', label: 'filesColType', cls: 'col-format' },
++  { key: 'date', label: 'filesColDate', cls: 'col-date' },
++  { key: 'size', label: 'filesColSize', cls: 'col-size' },
++]
++function arrow(key: string) { return props.sort === key ? (props.order === 'asc' ? ' ▲' : ' ▼') : '' }
++</script>
++
++<template>
++  <div class="file-listview">
++    <div class="file-listhead">
++      <span
++        v-for="c in COLS"
++        :key="c.key"
++        :class="['head-cell', c.cls]"
++        @click="emit('reorder', c.key)"
++      >{{ t(c.label) }}{{ arrow(c.key) }}</span>
++    </div>
++    <FileRow v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
++  </div>
++</template>
++
++<style scoped>
++.file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
++.head-cell { cursor: pointer; user-select: none; }
++.col-name { flex: 1 1 auto; margin-left: 40px; }
++.col-format { flex: 0 0 48px; }
++.col-date { flex: 0 0 160px; }
++.col-size { flex: 0 0 80px; text-align: right; }
++</style>
+diff --git a/src/files/components/FileRow.test.ts b/src/files/components/FileRow.test.ts
+new file mode 100644
+index 0000000..deef1fc
+--- /dev/null
++++ b/src/files/components/FileRow.test.ts
+@@ -0,0 +1,23 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import FileRow from './FileRow.vue'
++
++describe('FileRow', () => {
++  it('renders name, icon img, size for files; emits open on click', async () => {
++    const entry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 1536, date: '2026-01-02T10:00:00Z' }
++    const w = mount(FileRow, { props: { entry } })
++    expect(w.text()).toContain('a.txt')
++    expect(w.get('img.file-icon').attributes('src')).toBeTruthy()
++    expect(w.text()).toContain('1.5 KB')
++    await w.trigger('click')
++    expect(w.emitted('open')).toBeTruthy()
++    expect(w.emitted('open')![0][0]).toEqual(entry)
++  })
++
++  it('hides size for directories', () => {
++    const entry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
++    const w = mount(FileRow, { props: { entry } })
++    expect(w.text()).toContain('Docs')
++    expect(w.find('.file-size').exists()).toBe(false)
++  })
++})
+diff --git a/src/files/components/FileRow.vue b/src/files/components/FileRow.vue
+new file mode 100644
+index 0000000..d026b9b
+--- /dev/null
++++ b/src/files/components/FileRow.vue
+@@ -0,0 +1,28 @@
++<script setup lang="ts">
++import type { FileEntry } from '../stores/files'
++import { iconNameFor, iconUrl } from '../util/icons'
++import { renderSize, dateFmt } from '../util/format'
++
++const props = defineProps<{ entry: FileEntry }>()
++const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
++</script>
++
++<template>
++  <div class="file-row" @click="emit('open', props.entry)">
++    <img class="file-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
++    <span class="file-name">{{ props.entry.name }}</span>
++    <span class="file-format">{{ props.entry.is_dir ? '' : (props.entry.name.split('.').length > 1 ? props.entry.name.split('.').pop() : '') }}</span>
++    <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
++    <span v-if="!props.entry.is_dir" class="file-size">{{ renderSize(props.entry.size ?? 0) }}</span>
++  </div>
++</template>
++
++<style scoped>
++.file-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; cursor: pointer; color: var(--fg); }
++.file-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
++.file-icon { width: 28px; height: 28px; flex: 0 0 auto; }
++.file-name { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }
++.file-date { flex: 0 0 160px; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
++.file-size { flex: 0 0 80px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-align: right; }
++</style>
+diff --git a/src/files/components/FileTile.vue b/src/files/components/FileTile.vue
+new file mode 100644
+index 0000000..d7fc3af
+--- /dev/null
++++ b/src/files/components/FileTile.vue
+@@ -0,0 +1,24 @@
++<script setup lang="ts">
++import type { FileEntry } from '../stores/files'
++import { iconNameFor, iconUrl } from '../util/icons'
++import { dateFmt } from '../util/format'
++
++const props = defineProps<{ entry: FileEntry }>()
++const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
++</script>
++
++<template>
++  <div class="file-tile" @click="emit('open', props.entry)">
++    <img class="tile-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
++    <span class="tile-name">{{ props.entry.name }}</span>
++    <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
++  </div>
++</template>
++
++<style scoped>
++.file-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: var(--card-bg, rgba(255,255,255,0.04)); border: 1px solid var(--card-border, transparent); }
++.file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
++.tile-icon { width: 56px; height: 56px; }
++.tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
++.tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
++</style>
+diff --git a/src/files/stores/files.test.ts b/src/files/stores/files.test.ts
+index d7f7fe8..a1e7a68 100644
+--- a/src/files/stores/files.test.ts
++++ b/src/files/stores/files.test.ts
+@@ -33,11 +33,39 @@ describe('filesStore', () => {
+     expect(files.displayNames).toEqual({ '/DATA': 'NimoOS-HD', '/media/usb1': 'MyUSB' })
+     expect(files.defaultRootReal()).toBe('/DATA')
+   })
+ 
+   it('load lists a dir, drops hidden + lost+found, sets currentPath', async () => {
+     const files = useFilesStore()
+     await files.load('/DATA')
+     expect(files.currentPath).toBe('/DATA')
+     expect(files.entries.map((e) => e.name)).toEqual(['Documents', 'a.txt'])
+   })
++
++  it('sortedEntries puts folders first then sorts by key/order', async () => {
++    const files = useFilesStore()
++    // seed entries directly
++    files.entries = [
++      { name: 'b.txt', path: '/DATA/b.txt', is_dir: false, size: 20, date: '2026-01-02' },
++      { name: 'Zeta', path: '/DATA/Zeta', is_dir: true },
++      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 10, date: '2026-01-03' },
++      { name: 'Alpha', path: '/DATA/Alpha', is_dir: true },
++    ] as any
++    files.setSort('name', 'asc')
++    expect(files.sortedEntries.map((e) => e.name)).toEqual(['Alpha', 'Zeta', 'a.txt', 'b.txt'])
++    files.setSort('size', 'desc')
++    // folders first (no size) then files by size desc
++    const names = files.sortedEntries.map((e) => e.name)
++    expect(names.slice(0, 2).sort()).toEqual(['Alpha', 'Zeta'])
++    expect(names.slice(2)).toEqual(['b.txt', 'a.txt'])
++  })
++
++  it('setSort toggles order when same column clicked; setView persists', () => {
++    const files = useFilesStore()
++    files.setSort('name', 'asc')
++    files.setSort('name')            // same col → toggle
++    expect(files.order).toBe('desc')
++    files.setView('grid')
++    expect(files.viewMode).toBe('grid')
++    expect(localStorage.getItem('nimoos:file-view')).toBe('grid')
++  })
+ })
+diff --git a/src/files/stores/files.ts b/src/files/stores/files.ts
+index ecb7cac..b99e6a0 100644
+--- a/src/files/stores/files.ts
++++ b/src/files/stores/files.ts
+@@ -1,12 +1,12 @@
+ import { defineStore } from 'pinia'
+-import { ref } from 'vue'
++import { ref, computed } from 'vue'
+ import { service } from '@nimotech/nimoos-service'
+ import { useFoldersStore } from '../../home/stores/folders'
+ import type { DisplayNames } from '../util/pathUtils'
+ 
+ export interface FileEntry {
+   name: string
+   path: string
+   is_dir: boolean
+   size?: number | string
+   date?: string
+@@ -45,12 +45,52 @@ export const useFilesStore = defineStore('files', () => {
+       currentPath.value = realPath
+     } catch (e) {
+       console.warn('[files] load failed', realPath, e)
+       entries.value = []
+       currentPath.value = realPath
+     } finally {
+       loading.value = false
+     }
+   }
+ 
+-  return { displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load }
++  const viewMode = ref<'list' | 'grid'>((localStorage.getItem('nimoos:file-view') as 'list' | 'grid') || 'grid')
++  const sort = ref<'name' | 'format' | 'date' | 'size'>((localStorage.getItem('nimoos:file-sort') as any) || 'name')
++  const order = ref<'asc' | 'desc'>((localStorage.getItem('nimoos:file-order') as any) || 'asc')
++
++  function extOf(name: string): string {
++    const i = name.lastIndexOf('.')
++    return i > 0 ? name.slice(i + 1).toLowerCase() : ''
++  }
++  const KEY_FN: Record<string, (e: FileEntry) => string | number> = {
++    name: (e) => e.name.toLowerCase(),
++    format: (e) => extOf(e.name),
++    date: (e) => new Date(e.date || 0).getTime() || 0,
++    size: (e) => Number(e.size) || 0,
++  }
++
++  const sortedEntries = computed<FileEntry[]>(() => {
++    const keyFn = KEY_FN[sort.value] || KEY_FN.name
++    const dir = order.value === 'desc' ? -1 : 1
++    return [...entries.value].sort((a, b) => {
++      // folders first
++      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1
++      const ka = keyFn(a), kb = keyFn(b)
++      if (ka < kb) return -1 * dir
++      if (ka > kb) return 1 * dir
++      return 0
++    })
++  })
++
++  function setView(v: 'list' | 'grid') {
++    viewMode.value = v
++    localStorage.setItem('nimoos:file-view', v)
++  }
++  function setSort(s: string, o?: 'asc' | 'desc') {
++    const next = (o ?? (s === sort.value ? (order.value === 'asc' ? 'desc' : 'asc') : 'asc')) as 'asc' | 'desc'
++    sort.value = s as typeof sort.value
++    order.value = next
++    localStorage.setItem('nimoos:file-sort', sort.value)
++    localStorage.setItem('nimoos:file-order', order.value)
++  }
++
++  return { displayNames, disks, entries, currentPath, loading, loadRoots, defaultRootReal, load, viewMode, sort, order, sortedEntries, setView, setSort }
+ })
+diff --git a/src/files/util/format.test.ts b/src/files/util/format.test.ts
+new file mode 100644
+index 0000000..ea97f6f
+--- /dev/null
++++ b/src/files/util/format.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect } from 'vitest'
++import { renderSize, dateFmt } from './format'
++
++describe('renderSize', () => {
++  it('humanizes bytes across units', () => {
++    expect(renderSize(0)).toBe('0 Bytes')
++    expect(renderSize(512)).toBe('512 Bytes')
++    expect(renderSize(1024)).toBe('1 KB')
++    expect(renderSize(1536)).toBe('1.5 KB')
++    expect(renderSize(1048576)).toBe('1 MB')
++    expect(renderSize('2097152')).toBe('2 MB')
++  })
++})
++
++describe('dateFmt', () => {
++  it('returns a non-empty string for a valid date and stable for a fixed input', () => {
++    const out = dateFmt('2026-01-15T09:05:00Z')
++    expect(typeof out).toBe('string')
++    expect(out.length).toBeGreaterThan(0)
++  })
++  it('empty/invalid input yields empty string', () => {
++    expect(dateFmt('')).toBe('')
++  })
++})
+diff --git a/src/files/util/format.ts b/src/files/util/format.ts
+new file mode 100644
+index 0000000..96f9546
+--- /dev/null
++++ b/src/files/util/format.ts
+@@ -0,0 +1,22 @@
++const SIZES = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
++
++export function renderSize(bytes: number | string): string {
++  const n = typeof bytes === 'string' ? Number(bytes) : bytes
++  if (!n || n <= 0) return '0 Bytes'
++  const i = Math.floor(Math.log(n) / Math.log(1024))
++  if (i === 0) return `${n} ${SIZES[0]}`
++  return `${parseFloat((n / 1024 ** i).toFixed(2))} ${SIZES[i]}`
++}
++
++export function dateFmt(value: string | number | Date): string {
++  if (!value) return ''
++  const d = new Date(value)
++  if (isNaN(d.getTime())) return ''
++  const now = new Date()
++  const sameYear = d.getFullYear() === now.getFullYear()
++  const locale = (localStorage.getItem('lang') || navigator.language || 'en').replace('_', '-')
++  const opts: Intl.DateTimeFormatOptions = sameYear
++    ? { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }
++    : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }
++  return new Intl.DateTimeFormat(locale, opts).format(d)
++}
+diff --git a/src/files/util/icons.test.ts b/src/files/util/icons.test.ts
+new file mode 100644
+index 0000000..ea164e7
+--- /dev/null
++++ b/src/files/util/icons.test.ts
+@@ -0,0 +1,47 @@
++import { describe, it, expect } from 'vitest'
++import { iconNameFor, iconUrl } from './icons'
++
++describe('iconNameFor', () => {
++  it('maps file extensions to icon names (case-insensitive)', () => {
++    expect(iconNameFor({ name: 'a.PNG', is_dir: false })).toBe('image-x-generic')
++    expect(iconNameFor({ name: 'v.mp4', is_dir: false })).toBe('video-x-generic')
++    expect(iconNameFor({ name: 'readme.md', is_dir: false })).toBe('text-markdown')
++    expect(iconNameFor({ name: 'main.go', is_dir: false })).toBe('text-css')
++    expect(iconNameFor({ name: 'doc.docx', is_dir: false })).toBe('application-vnd.ms-word')
++    expect(iconNameFor({ name: 'x.unknownext', is_dir: false })).toBe('unknown')
++    expect(iconNameFor({ name: 'noext', is_dir: false })).toBe('unknown')
++  })
++
++  it('maps folders by type then by well-known name then default', () => {
++    expect(iconNameFor({ name: 'x', is_dir: true, type: 'usb' })).toBe('folder-usb')
++    expect(iconNameFor({ name: 'x', is_dir: true, type: 'nvme' })).toBe('folder-hdd')
++    expect(iconNameFor({ name: 'x', is_dir: true, type: 'home' })).toBe('folder-root')
++    expect(iconNameFor({ name: 'AppData', is_dir: true })).toBe('folder-application')
++    expect(iconNameFor({ name: 'Media', is_dir: true })).toBe('folder-video')
++    expect(iconNameFor({ name: 'Downloads', is_dir: true })).toBe('folder-download')
++    expect(iconNameFor({ name: 'Documents', is_dir: true })).toBe('folder-documents')
++    expect(iconNameFor({ name: 'Gallery', is_dir: true })).toBe('folder-pictures')
++    expect(iconNameFor({ name: 'whatever', is_dir: true })).toBe('folder-default')
++  })
++
++  it('iconUrl returns a string URL and falls back to unknown for missing names', () => {
++    expect(typeof iconUrl('image-x-generic')).toBe('string')
++    expect(iconUrl('image-x-generic').length).toBeGreaterThan(0)
++    expect(typeof iconUrl('does-not-exist')).toBe('string')
++    expect(iconUrl('does-not-exist')).toBe(iconUrl('unknown'))
++  })
++
++  it('Vue2 fidelity: getFileExt edge cases (no dot guard, last-match-wins)', () => {
++    // dockerfile: text-x-cmake entry comes first, text-dockerfile entry comes last → last wins
++    expect(iconNameFor({ name: 'Dockerfile', is_dir: false })).toBe('text-dockerfile')
++    expect(iconNameFor({ name: 'x.dockerfile', is_dir: false })).toBe('text-dockerfile')
++    // makefile: only in text-x-cmake
++    expect(iconNameFor({ name: 'Makefile', is_dir: false })).toBe('text-x-cmake')
++    // dotfiles: no i>0 guard, so ".gitignore" → ext "gitignore" → text-x-generic
++    expect(iconNameFor({ name: '.gitignore', is_dir: false })).toBe('text-x-generic')
++    expect(iconNameFor({ name: '.env', is_dir: false })).toBe('text-x-generic')
++    // iconUrl sanity for newly reachable icon
++    expect(typeof iconUrl('text-dockerfile')).toBe('string')
++    expect(iconUrl('text-dockerfile').length).toBeGreaterThan(0)
++  })
++})
+diff --git a/src/files/util/icons.ts b/src/files/util/icons.ts
+new file mode 100644
+index 0000000..7018be2
+--- /dev/null
++++ b/src/files/util/icons.ts
+@@ -0,0 +1,67 @@
++// 扩展名 → 图标名(逐字移植自 Vue2 mixins/mixin.js typeMap)
++const TYPE_MAP: Record<string, string[]> = {
++  'image-x-generic': ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff'],
++  'video-x-generic': ['mkv', 'mp4', '3gp', 'avi', 'm2ts', 'webm', 'flv', 'vob', 'ts', 'mts', 'mov', 'wmv', 'rm', 'rmvb', 'asf', 'mpg', 'm4v', 'mpeg', 'f4v'],
++  'audio-x-generic': ['aac', 'aiff', 'alac', 'amr', 'ape', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wma', 'wav'],
++  'text-x-generic': ['txt', 'log', 'pages', 'conf', 'config', 'list', 'ini', 'toml', 'cfg', 'rc', 'env', 'service', 'conf.d', 'htaccess', 'gitconfig', 'vim', 'curlrc', 'wgetrc', 'gitignore'],
++  'text-markdown': ['md'],
++  'text-css': ['php', 'css', 'less', 'scss', 'sass', 'aspx', 'lua', 'vue', 'js', 'go', 'asp', 'bat', 'c', 'cpp', 'cs', 'json', 'py', 'perl', 'sh', 'xml', 'yaml', 'vb', 'vbs', 'sql', 'swift', 'rust', 'rs', 'jsp', 'yml', 'r', 'pl', 'rb', 'src', 'h', 'tex', 'rtf', 'jsonld', 'ttl', 'n3', 'rss', 'atom', 'srt', 'ass', 'tsv', 'vcard', 'asc', 'url', 'diff', 'plaintext'],
++  'text-html': ['html', 'htm', 'shtml', 'shtm'],
++  'application-vnd.ms-word': ['doc', 'docx', 'wps'],
++  'application-vnd.ms-excel': ['xls', 'xlsx', 'csv'],
++  'application-vnd.ms-powerpoint': ['ppt', 'pptx'],
++  'application-pdf': ['pdf'],
++  'application-photoshop': ['psd', 'psb'],
++  'application-illustrator': ['ai', 'eps'],
++  'application-x-wine-extension-cpl': ['exe'],
++  'application-apk': ['apk'],
++  'application-x-zip': ['zip', 'rar', '7z', 'gz', 'ace', 'xz'],
++  'application-x-cd-image': ['iso', 'img', 'vmdk', 'raw', 'vhd'],
++  'application-x-apple': ['dmg', 'ipa', 'pkg'],
++  'application-x-pem-key': ['pem', 'crt', 'ca-bundle', 'p7b', 'p7s', 'der', 'cer', 'pfx', 'p12'],
++  'text-x-cmake': ['makefile', 'cmake', 'dockerfile'],
++  'text-dockerfile': ['dockerfile'],
++}
++
++// 反向索引:ext → iconName(一次构建)
++const EXT_TO_ICON: Record<string, string> = {}
++for (const [icon, exts] of Object.entries(TYPE_MAP)) {
++  for (const e of exts) EXT_TO_ICON[e] = icon
++}
++
++const FOLDER_BY_NAME: Record<string, string> = {
++  AppData: 'folder-application',
++  Media: 'folder-video',
++  Downloads: 'folder-download',
++  Documents: 'folder-documents',
++  Gallery: 'folder-pictures',
++}
++
++function ext(name: string): string {
++  return name.slice(name.lastIndexOf('.') + 1).toLowerCase()
++}
++
++export function iconNameFor(entry: { name: string; is_dir: boolean; type?: string }): string {
++  if (entry.is_dir) {
++    const t = entry.type
++    if (t === 'application') return 'folder-application'
++    if (t === 'usb') return 'folder-usb'
++    if (t && ['sata', 'nvme', 'spi', 'sas'].includes(t)) return 'folder-hdd'
++    if (t === 'home') return 'folder-root'
++    if (FOLDER_BY_NAME[entry.name]) return FOLDER_BY_NAME[entry.name]
++    return 'folder-default'
++  }
++  return EXT_TO_ICON[ext(entry.name)] || 'unknown'
++}
++
++// Vite: eager-glob 所有图标为 URL
++const ICONS = import.meta.glob('../assets/icons/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
++const URL_BY_NAME: Record<string, string> = {}
++for (const [path, url] of Object.entries(ICONS)) {
++  const m = path.match(/\/([^/]+)\.svg$/)
++  if (m) URL_BY_NAME[m[1]] = url
++}
++
++export function iconUrl(iconName: string): string {
++  return URL_BY_NAME[iconName] || URL_BY_NAME['unknown']
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 1c254eb..2345031 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1,12 +1,18 @@
+ export const messages = {
+   zh_cn: {
+     appTitle: 'NimoOS · 新主页地基',
+     backToOld: '← 返回主应用',
+     cpu: '处理器',
+     memory: '内存',
+     collecting: '采集中…',
+     filesTitle: '文件',
+     filesBackHome: '回主页',
+     filesEmpty: '此文件夹为空',
++    filesViewList: '列表',
++    filesViewGrid: '网格',
++    filesColName: '名称',
++    filesColType: '类型',
++    filesColDate: '修改日期',
++    filesColSize: '大小',
+   },
+ }
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+index b15b7f7..b1ee096 100644
+--- a/src/views/Files.test.ts
++++ b/src/views/Files.test.ts
+@@ -63,18 +63,40 @@ describe('Files.vue browse pipe', () => {
+     expect(w.text()).toContain('Documents')
+   })
+ 
+   it('clicking a folder row navigates to that folder\'s virtual route', async () => {
+     const folders = useFoldersStore()
+     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+     const router = makeRouter()
+     router.push('/files/NimoOS-HD'); await router.isReady()
+     const w = mount(Files, { global: { plugins: [router, i18n] } })
+     await flushPromises()
+-    const folderRow = w.find('.files-row.is-dir')
+-    expect(folderRow.exists()).toBe(true)
+-    await folderRow.trigger('click')
++    // default view is grid; directories render as .file-tile (sorted first)
++    const folderTile = w.find('.file-tile')
++    expect(folderTile.exists()).toBe(true)
++    await folderTile.trigger('click')
+     await flushPromises()
+     expect(router.currentRoute.value.fullPath).toContain('/files/NimoOS-HD/Documents')
+     expect(router.currentRoute.value.fullPath).not.toContain('/DATA')
+   })
++
++  it('renders grid tiles by default and can switch to list; clicking a column reorders', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    localStorage.clear()
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    const files = useFilesStore()
++    // default grid
++    expect(files.viewMode).toBe('grid')
++    expect(w.findAll('.file-tile').length).toBeGreaterThan(0)
++    // switch to list
++    await w.get('.view-toggle-list').trigger('click')
++    expect(files.viewMode).toBe('list')
++    expect(w.findAll('.file-row').length).toBeGreaterThan(0)
++    // click a sortable header
++    await w.get('.col-name').trigger('click')
++    expect(files.sort).toBe('name')
++  })
+ })
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 6cadc40..6e449aa 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,63 +1,51 @@
+ <script setup lang="ts">
+ import { watch, onMounted } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
++import { useI18n } from 'vue-i18n'
+ import FilesShell from '../files/components/FilesShell.vue'
++import FileListView from '../files/components/FileListView.vue'
++import FileGridView from '../files/components/FileGridView.vue'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
++const { t } = useI18n()
+ 
+ async function sync() {
+   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
+   if (vp === '/') {
+     const rootReal = files.defaultRootReal()
+     if (!rootReal) return
+-    const rootVirtual = toVirtualPath(rootReal, files.displayNames)
+-    router.replace('/files/' + virtualPathToRouteParam(rootVirtual))
++    router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
+     return
+   }
+   await files.load(toRealPath(vp, files.displayNames))
+ }
+-
+ function openEntry(entry: FileEntry) {
+   if (!entry.is_dir) return
+-  const vp = toVirtualPath(entry.path, files.displayNames)
+-  router.push('/files/' + virtualPathToRouteParam(vp))
++  router.push('/files/' + virtualPathToRouteParam(toVirtualPath(entry.path, files.displayNames)))
+ }
+-
+-onMounted(async () => {
+-  await files.loadRoots()
+-  await sync()
+-})
+-
++onMounted(async () => { await files.loadRoots(); await sync() })
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ </script>
+ 
+ <template>
+   <FilesShell>
+-    <ul class="files-list">
+-      <li
+-        v-for="entry in files.entries"
+-        :key="entry.path"
+-        class="files-row"
+-        :class="{ 'is-dir': entry.is_dir }"
+-        @click="openEntry(entry)"
+-      >
+-        <span class="files-row-mark">{{ entry.is_dir ? '📁' : '📄' }}</span>
+-        <span class="files-row-name">{{ entry.name }}</span>
+-      </li>
+-    </ul>
++    <div class="files-toolbar">
++      <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
++      <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
++    </div>
++    <FileGridView v-if="files.viewMode === 'grid'" :entries="files.sortedEntries" @open="openEntry" />
++    <FileListView v-else :entries="files.sortedEntries" :sort="files.sort" :order="files.order" @open="openEntry" @reorder="files.setSort" />
+   </FilesShell>
+ </template>
+ 
+ <style scoped>
+-.files-list { list-style: none; margin: 0; padding: 0; }
+-.files-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; cursor: default; }
+-.files-row.is-dir { cursor: pointer; }
+-.files-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+-.files-row-name { font-size: 14px; }
++.files-toolbar { display: flex; gap: 8px; padding: 4px 0 14px; }
++.chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
++.chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+ </style>

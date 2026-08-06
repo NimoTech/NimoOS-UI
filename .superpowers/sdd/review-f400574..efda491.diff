@@ -1,0 +1,544 @@
+# Review package: f400574..efda491
+
+## Commits
+efda491 feat(home): GridItem + GridCanvas + Home view, route / to Home
+8a27986 feat(home): computeCell + useGridMeasure (two-pass relayout)
+7ef4d5b feat(home): layout Pinia store (load/sanitize/applyPlan/pin/remove)
+58299eb feat(home): widget registry + systemApps + DEFAULT layout data
+
+## Files changed
+ src/home/apps/systemApps.ts            | 12 +++++++
+ src/home/components/GridCanvas.test.ts | 25 +++++++++++++
+ src/home/components/GridCanvas.vue     | 25 +++++++++++++
+ src/home/components/GridItem.vue       | 48 +++++++++++++++++++++++++
+ src/home/composables/useGridMeasure.ts | 45 ++++++++++++++++++++++++
+ src/home/grid/defaultLayout.test.ts    | 31 ++++++++++++++++
+ src/home/grid/defaultLayout.ts         | 31 ++++++++++++++++
+ src/home/grid/measure.test.ts          | 13 +++++++
+ src/home/grid/measure.ts               |  7 ++++
+ src/home/stores/layout.test.ts         | 46 ++++++++++++++++++++++++
+ src/home/stores/layout.ts              | 64 ++++++++++++++++++++++++++++++++++
+ src/home/widgets/registry.ts           | 33 ++++++++++++++++++
+ src/router/index.ts                    |  4 +--
+ src/views/Home.vue                     | 37 ++++++++++++++++++++
+ 14 files changed, 419 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/home/apps/systemApps.ts b/src/home/apps/systemApps.ts
+new file mode 100644
+index 0000000..793fb36
+--- /dev/null
++++ b/src/home/apps/systemApps.ts
+@@ -0,0 +1,12 @@
++export interface SystemApp { key: string; name: string; label: string; cls: string }
++
++export const SYSTEM_APPS: SystemApp[] = [
++  { key: 'files', name: 'Files', label: '文件', cls: 'ic-files' },
++  { key: 'photos', name: 'Photos', label: '照片', cls: 'ic-photos' },
++  { key: 'ai', name: 'AI', label: 'AI 助手', cls: 'ic-ai' },
++  { key: 'vm', name: 'KVM', label: '虚拟机', cls: 'ic-vm' },
++  { key: 'settings', name: 'Settings', label: '设置', cls: 'ic-settings' },
++  { key: 'appstore', name: 'App Store', label: 'AppStore', cls: 'ic-appstore' },
++]
++
++export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)
+diff --git a/src/home/components/GridCanvas.test.ts b/src/home/components/GridCanvas.test.ts
+new file mode 100644
+index 0000000..d3faee1
+--- /dev/null
++++ b/src/home/components/GridCanvas.test.ts
+@@ -0,0 +1,25 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { useLayoutStore } from '../stores/layout'
++import GridCanvas from './GridCanvas.vue'
++
++describe('GridCanvas', () => {
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
++
++  it('renders one positioned GridItem per layout item', async () => {
++    const s = useLayoutStore()
++    s.replaceAll([
++      { kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 },
++      { kind: 'app', key: 'files', c: 11, r: 1, w: 1, h: 1 },
++    ])
++    const w = mount(GridCanvas)
++    const cells = w.findAll('[data-id]')
++    expect(cells).toHaveLength(2)
++    const clock = w.get('[data-kind="widget"]')
++    // grid-column 起始列 = c
++    expect(clock.attributes('style')).toContain('grid-column: 1 / span 2')
++    expect(clock.attributes('style')).toContain('grid-row: 1 / span 2')
++    expect(clock.text()).toContain('时间')
++  })
++})
+diff --git a/src/home/components/GridCanvas.vue b/src/home/components/GridCanvas.vue
+new file mode 100644
+index 0000000..2e79429
+--- /dev/null
++++ b/src/home/components/GridCanvas.vue
+@@ -0,0 +1,25 @@
++<template>
++  <section ref="gridEl" class="grid" aria-label="主页画布">
++    <GridItem v-for="item in layout.items" :key="item.id" :item="item" />
++  </section>
++</template>
++
++<script setup lang="ts">
++import { ref } from 'vue'
++import GridItem from './GridItem.vue'
++import { useLayoutStore } from '../stores/layout'
++
++const layout = useLayoutStore()
++const gridEl = ref<HTMLElement | null>(null)
++defineExpose({ gridEl })
++</script>
++
++<style scoped>
++.grid {
++  display: grid;
++  grid-template-columns: repeat(var(--cols, 12), var(--cell, 92px));
++  grid-auto-rows: var(--cell, 92px);
++  gap: 16px;
++  margin: 0 auto;
++}
++</style>
+diff --git a/src/home/components/GridItem.vue b/src/home/components/GridItem.vue
+new file mode 100644
+index 0000000..4d04415
+--- /dev/null
++++ b/src/home/components/GridItem.vue
+@@ -0,0 +1,48 @@
++<template>
++  <div
++    class="grid-item"
++    :class="`kind-${item.kind}`"
++    :data-id="item.id"
++    :data-kind="item.kind"
++    :style="style"
++  >
++    <div v-if="item.kind === 'photo'" class="photo-fill" :style="{ background: item.key }" />
++    <span v-else class="item-label">{{ label }}</span>
++  </div>
++</template>
++
++<script setup lang="ts">
++import { computed } from 'vue'
++import type { LayoutItem } from '../grid/types'
++import { WIDGETS } from '../widgets/registry'
++import { SYSTEM_APPS } from '../apps/systemApps'
++
++const props = defineProps<{ item: LayoutItem }>()
++
++const style = computed(() => ({
++  gridColumn: `${props.item.c} / span ${props.item.w}`,
++  gridRow: `${props.item.r} / span ${props.item.h}`,
++}))
++
++const label = computed(() => {
++  const it = props.item
++  if (it.kind === 'widget') return WIDGETS[it.key]?.title ?? it.key
++  if (it.kind === 'app') return SYSTEM_APPS.find((a) => a.key === it.key)?.label ?? it.key
++  return it.key // folder
++})
++</script>
++
++<style scoped>
++.grid-item {
++  background: rgba(255, 255, 255, 0.06);
++  border-radius: 16px;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  overflow: hidden;
++  min-width: 0;
++  min-height: 0;
++}
++.item-label { font-size: 13px; opacity: 0.85; padding: 6px; text-align: center; }
++.photo-fill { width: 100%; height: 100%; }
++</style>
+diff --git a/src/home/composables/useGridMeasure.ts b/src/home/composables/useGridMeasure.ts
+new file mode 100644
+index 0000000..ec6efe9
+--- /dev/null
++++ b/src/home/composables/useGridMeasure.ts
+@@ -0,0 +1,45 @@
++import { ref, type Ref } from 'vue'
++import { computeCell } from '../grid/measure'
++import { useLayoutStore } from '../stores/layout'
++
++const COLS = 12
++const ROWS = 8
++
++export function useGridMeasure(gridEl: Ref<HTMLElement | null>, dockEl: Ref<HTMLElement | null>) {
++  const cols = ref(COLS)
++  const rows = ref(ROWS)
++  const cell = ref(92)
++  const gap = ref(16)
++  const appSize = ref(70)
++  const layout = useLayoutStore()
++
++  function measure() {
++    const grid = gridEl.value
++    if (!grid) return
++    gap.value = parseFloat(getComputedStyle(grid).gap) || 16
++    const screen = grid.parentElement
++    if (!screen) return
++    const cs = getComputedStyle(screen)
++    const availW = Math.min(
++      1480,
++      screen.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0'),
++    )
++    const gridTop = grid.getBoundingClientRect().top
++    const dockTop = dockEl.value ? dockEl.value.getBoundingClientRect().top : window.innerHeight
++    const availH = dockTop - gridTop - 14
++    const M = computeCell(availW, availH, COLS, ROWS, gap.value)
++    cell.value = M
++    grid.style.setProperty('--cols', String(COLS))
++    grid.style.setProperty('--cell', M + 'px')
++    appSize.value = Math.max(40, M - 22)
++    document.documentElement.style.setProperty('--app-size', appSize.value + 'px')
++    grid.style.width = COLS * M + (COLS - 1) * gap.value + 'px'
++    grid.style.height = ROWS * M + (ROWS - 1) * gap.value + 'px'
++    layout.clampAll({ cols: COLS, rows: ROWS })
++  }
++
++  // --app-size 影响 Dock 高度→可用高度→格子尺寸,量两遍收敛(engine 383)
++  function relayout() { measure(); measure() }
++
++  return { cols, rows, cell, gap, appSize, measure, relayout }
++}
+diff --git a/src/home/grid/defaultLayout.test.ts b/src/home/grid/defaultLayout.test.ts
+new file mode 100644
+index 0000000..1be7599
+--- /dev/null
++++ b/src/home/grid/defaultLayout.test.ts
+@@ -0,0 +1,31 @@
++import { describe, it, expect } from 'vitest'
++import { DEFAULT } from './defaultLayout'
++import { WIDGETS } from '../widgets/registry'
++import { cells } from './gridMath'
++
++describe('DEFAULT layout', () => {
++  it('every widget item references a known widget key', () => {
++    DEFAULT.filter((i) => i.kind === 'widget').forEach((i) => {
++      expect(WIDGETS[i.key], `unknown widget ${i.key}`).toBeTruthy()
++    })
++  })
++  it('has no overlapping cells and stays within 12x8', () => {
++    const seen = new Set<string>()
++    DEFAULT.forEach((i) => {
++      expect(i.c >= 1 && i.r >= 1 && i.c + i.w - 1 <= 12 && i.r + i.h - 1 <= 8).toBe(true)
++      cells(i).forEach((k) => {
++        expect(seen.has(k), `overlap at ${k}`).toBe(false)
++        seen.add(k)
++      })
++    })
++  })
++})
++
++describe('WIDGETS registry', () => {
++  it('carries min/max/default for the 7 widgets', () => {
++    expect(Object.keys(WIDGETS).sort()).toEqual(['ai', 'clock', 'cpu', 'events', 'gpu', 'network', 'storage'])
++    expect(WIDGETS.cpu.min).toEqual([2, 2])
++    expect(WIDGETS.cpu.max).toEqual([4, 3])
++    expect(WIDGETS.clock.default).toEqual([2, 2])
++  })
++})
+diff --git a/src/home/grid/defaultLayout.ts b/src/home/grid/defaultLayout.ts
+new file mode 100644
+index 0000000..ca76fd7
+--- /dev/null
++++ b/src/home/grid/defaultLayout.ts
+@@ -0,0 +1,31 @@
++import type { LayoutItem } from './types'
++
++export const PHOTO_PLACEHOLDERS = [
++  'linear-gradient(145deg,#84e9ff,#328fff 45%,#f1d291 46%,#49c89c 68%,#18639f)',
++  'linear-gradient(145deg,#f8cc88,#ff7d82 48%,#4f86ff)',
++  'linear-gradient(145deg,#ced7e5,#35445f 48%,#d59b76)',
++  'linear-gradient(145deg,#b8f3d0,#2bb673 60%,#0d6b8a)',
++]
++
++export const DEFAULT: Omit<LayoutItem, 'id'>[] = [
++  { kind: 'widget', key: 'clock', c: 1, r: 1, w: 2, h: 2 },
++  { kind: 'widget', key: 'storage', c: 3, r: 1, w: 4, h: 2 },
++  { kind: 'app', key: 'files', c: 11, r: 1, w: 1, h: 1 },
++  { kind: 'app', key: 'photos', c: 12, r: 1, w: 1, h: 1 },
++  { kind: 'app', key: 'ai', c: 11, r: 2, w: 1, h: 1 },
++  { kind: 'app', key: 'settings', c: 12, r: 2, w: 1, h: 1 },
++  { kind: 'widget', key: 'ai', c: 1, r: 3, w: 4, h: 4 },
++  { kind: 'widget', key: 'cpu', c: 5, r: 3, w: 4, h: 2 },
++  { kind: 'widget', key: 'events', c: 9, r: 3, w: 2, h: 4 },
++  { kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 11, r: 3, w: 1, h: 1 },
++  { kind: 'folder', key: 'Documents', path: '/DATA/Documents', c: 12, r: 3, w: 1, h: 1 },
++  { kind: 'photo', key: PHOTO_PLACEHOLDERS[0], c: 11, r: 4, w: 2, h: 2 },
++  { kind: 'widget', key: 'network', c: 5, r: 5, w: 4, h: 4 },
++  { kind: 'app', key: 'appstore', c: 11, r: 6, w: 1, h: 1 },
++  { kind: 'app', key: 'vm', c: 12, r: 6, w: 1, h: 1 },
++  { kind: 'photo', key: PHOTO_PLACEHOLDERS[3], c: 1, r: 7, w: 2, h: 2 },
++  { kind: 'folder', key: 'Downloads', path: '/DATA/Downloads', c: 3, r: 7, w: 1, h: 1 },
++  { kind: 'folder', key: 'Media', path: '/DATA/Media', c: 4, r: 7, w: 1, h: 1 },
++  { kind: 'photo', key: PHOTO_PLACEHOLDERS[1], c: 9, r: 7, w: 2, h: 2 },
++  { kind: 'widget', key: 'gpu', c: 11, r: 7, w: 2, h: 2 },
++]
+diff --git a/src/home/grid/measure.test.ts b/src/home/grid/measure.test.ts
+new file mode 100644
+index 0000000..c63c1d8
+--- /dev/null
++++ b/src/home/grid/measure.test.ts
+@@ -0,0 +1,13 @@
++import { describe, it, expect } from 'vitest'
++import { computeCell } from './measure'
++
++describe('computeCell', () => {
++  it('takes the min of width- and height-constrained cell size, floored', () => {
++    // availW 限制:(1480-11*16)/12 = 108.66 → 108;availH 限制更小则取它
++    const byW = computeCell(1480, 10000, 12, 8, 16)
++    expect(byW).toBe(Math.floor((1480 - 11 * 16) / 12))
++  })
++  it('never goes below 40', () => {
++    expect(computeCell(100, 100, 12, 8, 16)).toBe(40)
++  })
++})
+diff --git a/src/home/grid/measure.ts b/src/home/grid/measure.ts
+new file mode 100644
+index 0000000..0b6dafa
+--- /dev/null
++++ b/src/home/grid/measure.ts
+@@ -0,0 +1,7 @@
++// 移植 engine.js 367
++export function computeCell(availW: number, availH: number, cols: number, rows: number, gap: number): number {
++  return Math.max(
++    40,
++    Math.floor(Math.min((availW - (cols - 1) * gap) / cols, (availH - (rows - 1) * gap) / rows)),
++  )
++}
+diff --git a/src/home/stores/layout.test.ts b/src/home/stores/layout.test.ts
+new file mode 100644
+index 0000000..75e896b
+--- /dev/null
++++ b/src/home/stores/layout.test.ts
+@@ -0,0 +1,46 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useLayoutStore } from './layout'
++import { DEFAULT } from '../grid/defaultLayout'
++
++describe('useLayoutStore', () => {
++  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
++
++  it('loadInitial falls back to DEFAULT (tagged with ids) when no localStorage', () => {
++    const s = useLayoutStore()
++    s.loadInitial()
++    expect(s.items).toHaveLength(DEFAULT.length)
++    expect(s.items.every((i) => typeof i.id === 'string' && i.id.startsWith('i'))).toBe(true)
++  })
++
++  it('loadInitial sanitizes unknown widget keys from stored layout', () => {
++    localStorage.setItem('nimoos-home-layout-v2', JSON.stringify([
++      { kind: 'widget', key: 'health', c: 1, r: 1, w: 2, h: 2 }, // 已下线
++      { kind: 'app', key: 'files', c: 3, r: 1, w: 1, h: 1 },
++    ]))
++    const s = useLayoutStore()
++    s.loadInitial()
++    expect(s.items).toHaveLength(1)
++    expect(s.items[0].key).toBe('files')
++  })
++
++  it('serialize strips id', () => {
++    const s = useLayoutStore(); s.loadInitial()
++    expect(s.serialize()[0]).not.toHaveProperty('id')
++  })
++
++  it('remove drops the item by id', () => {
++    const s = useLayoutStore(); s.loadInitial()
++    const id = s.items[0].id
++    s.remove(id)
++    expect(s.items.find((i) => i.id === id)).toBeUndefined()
++  })
++
++  it('pin appends a tagged item', () => {
++    const s = useLayoutStore(); s.loadInitial()
++    const before = s.items.length
++    s.pin({ kind: 'app', key: 'vm', c: 1, r: 1, w: 1, h: 1 })
++    expect(s.items).toHaveLength(before + 1)
++    expect(s.items[s.items.length - 1].id).toMatch(/^i\d+$/)
++  })
++})
+diff --git a/src/home/stores/layout.ts b/src/home/stores/layout.ts
+new file mode 100644
+index 0000000..82d776c
+--- /dev/null
++++ b/src/home/stores/layout.ts
+@@ -0,0 +1,64 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import type { LayoutItem, PlanEntry, Dims } from '../grid/types'
++import { DEFAULT } from '../grid/defaultLayout'
++import { WIDGETS } from '../widgets/registry'
++import { applyPlan as applyPlanPure, clampToGrid } from '../grid/gridMath'
++
++const KEY = 'nimoos-home-layout-v2'
++
++function sanitize(arr: unknown): Omit<LayoutItem, 'id'>[] {
++  if (!Array.isArray(arr)) return []
++  return arr.filter((it) => it && (it.kind !== 'widget' || WIDGETS[it.key]))
++}
++
++export const useLayoutStore = defineStore('home-layout', () => {
++  const items = ref<LayoutItem[]>([])
++  let uid = 1
++  const tag = (it: Omit<LayoutItem, 'id'>): LayoutItem => ({ ...it, id: 'i' + uid++ })
++
++  function loadFromLocal(): Omit<LayoutItem, 'id'>[] | null {
++    try {
++      const a = JSON.parse(localStorage.getItem(KEY) || 'null')
++      if (Array.isArray(a) && a.length) return sanitize(a)
++    } catch { /* ignore */ }
++    return null
++  }
++
++  function loadInitial() {
++    uid = 1
++    const stored = loadFromLocal()
++    items.value = (stored && stored.length ? stored : DEFAULT).map(tag)
++  }
++
++  function serialize(): Omit<LayoutItem, 'id'>[] {
++    return items.value.map(({ id, ...rest }) => rest)
++  }
++
++  function saveLocal() {
++    try { localStorage.setItem(KEY, JSON.stringify(serialize())) } catch { /* ignore */ }
++  }
++
++  function applyPlan(plan: PlanEntry[]) {
++    items.value = applyPlanPure(plan, items.value)
++  }
++
++  function pin(desc: Omit<LayoutItem, 'id'>) {
++    items.value = [...items.value, tag(desc)]
++  }
++
++  function remove(id: string) {
++    items.value = items.value.filter((it) => it.id !== id)
++  }
++
++  function replaceAll(next: Omit<LayoutItem, 'id'>[]) {
++    uid = 1
++    items.value = sanitize(next).map(tag)
++  }
++
++  function clampAll(dims: Dims) {
++    items.value = clampToGrid(items.value, dims)
++  }
++
++  return { items, loadInitial, serialize, saveLocal, applyPlan, pin, remove, replaceAll, clampAll }
++})
+diff --git a/src/home/widgets/registry.ts b/src/home/widgets/registry.ts
+new file mode 100644
+index 0000000..3731cbd
+--- /dev/null
++++ b/src/home/widgets/registry.ts
+@@ -0,0 +1,33 @@
++import type { WidgetSize } from '../grid/types'
++
++const ICON = {
++  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 1.8"/>',
++  storage: '<ellipse cx="12" cy="5.6" rx="7" ry="2.6"/><path d="M5 5.6v12.8c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5.6"/><path d="M5 12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"/>',
++  network: '<path d="M2.5 9.2a14 14 0 0 1 19 0"/><path d="M6 12.8a9 9 0 0 1 12 0"/><path d="M9.4 16.4a4 4 0 0 1 5.2 0"/><path d="M12 20h.01"/>',
++  ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
++  events: '<path d="M8.5 6h11M8.5 12h11M8.5 18h11"/><circle cx="4.3" cy="6" r="1.1"/><circle cx="4.3" cy="12" r="1.1"/><circle cx="4.3" cy="18" r="1.1"/>',
++  gpu: '<rect x="3" y="6.5" width="18" height="11" rx="2"/>',
++  cpu: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/><rect x="10" y="10" width="4" height="4" rx="1"/>',
++}
++
++export interface WidgetMeta {
++  title: string; icon: string; desc: string; extra?: string
++  min: [number, number]; max: [number, number]; default: [number, number]; live?: boolean
++}
++
++export const WIDGETS: Record<string, WidgetMeta> = {
++  clock:   { title: '时间', icon: ICON.clock, desc: '本地时间与日期', extra: 'clock', min: [2, 1], max: [4, 2], default: [2, 2] },
++  storage: { title: '存储', icon: ICON.storage, desc: '容量使用与磁盘状态', min: [2, 2], max: [4, 2], default: [4, 2], live: true },
++  network: { title: '网络', icon: ICON.network, desc: '实时上下行速率与设备', min: [2, 2], max: [4, 4], default: [4, 3], live: true },
++  ai:      { title: 'AI 助手', icon: ICON.ai, desc: '对话与智能建议', min: [2, 2], max: [4, 4], default: [4, 4] },
++  events:  { title: '最近事件', icon: ICON.events, desc: '系统活动时间线', extra: 'events', min: [2, 2], max: [2, 4], default: [2, 4], live: true },
++  gpu:     { title: 'GPU', icon: ICON.gpu, desc: '显卡使用率、温度与显存', min: [2, 2], max: [4, 2], default: [2, 2], live: true },
++  cpu:     { title: '处理器', icon: ICON.cpu, desc: 'CPU 与内存使用率', extra: 'cpu', min: [2, 2], max: [4, 3], default: [4, 2], live: true },
++}
++
++export const WIDGET_KEYS = Object.keys(WIDGETS)
++
++export function widgetSize(key: string): WidgetSize | undefined {
++  const w = WIDGETS[key]
++  return w ? { min: w.min, max: w.max } : undefined
++}
+diff --git a/src/router/index.ts b/src/router/index.ts
+index 0d3fb14..5d40b3d 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -1,16 +1,16 @@
+ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+-import Skeleton from '../views/Skeleton.vue'
++import Home from '../views/Home.vue'
+ import { authGuard } from './guard'
+ 
+ const routes: RouteRecordRaw[] = [
+-  { path: '/', name: 'skeleton', component: Skeleton },
++  { path: '/', name: 'home', component: Home },
+ ]
+ 
+ export const router = createRouter({
+   history: createWebHashHistory('/app/'),
+   routes,
+ })
+ 
+ // 无 token 跳回 Vue 2 应用登录页(同源 hash 路由)
+ router.beforeEach(
+   authGuard(
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+new file mode 100644
+index 0000000..852662d
+--- /dev/null
++++ b/src/views/Home.vue
+@@ -0,0 +1,37 @@
++<template>
++  <main class="home-screen">
++    <GridCanvas ref="canvas" />
++    <div ref="dockEl" class="dock-placeholder" aria-hidden="true" />
++  </main>
++</template>
++
++<script setup lang="ts">
++import { ref, onMounted, onUnmounted, nextTick } from 'vue'
++import GridCanvas from '../home/components/GridCanvas.vue'
++import { useLayoutStore } from '../home/stores/layout'
++import { useGridMeasure } from '../home/composables/useGridMeasure'
++
++const canvas = ref<InstanceType<typeof GridCanvas> | null>(null)
++const dockEl = ref<HTMLElement | null>(null)
++const gridEl = ref<HTMLElement | null>(null)
++const layout = useLayoutStore()
++const { relayout } = useGridMeasure(gridEl, dockEl)
++
++let onResize: (() => void) | null = null
++
++onMounted(async () => {
++  layout.loadInitial()
++  await nextTick()
++  gridEl.value = canvas.value?.gridEl ?? null
++  relayout()
++  onResize = () => relayout()
++  window.addEventListener('resize', onResize)
++})
++
++onUnmounted(() => { if (onResize) window.removeEventListener('resize', onResize) })
++</script>
++
++<style scoped>
++.home-screen { min-height: 100vh; padding: 24px 24px 12px; box-sizing: border-box; }
++.dock-placeholder { height: 64px; }
++</style>

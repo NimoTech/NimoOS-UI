@@ -1,0 +1,129 @@
+=== 修复轮 diff  仓库: nimo_os_docs  范围: e07cafe..bc8f043 ===
+
+=== git log --oneline ===
+bc8f043 fix(raidlab): is_fake_disk 加设备名路径穿越护栏(修复轮 1/5)
+
+=== git diff --stat ===
+ scripts/raidlab.sh      |  8 ++++++++
+ scripts/raidlab.test.sh | 28 ++++++++++++++++++++++++++--
+ 2 files changed, 34 insertions(+), 2 deletions(-)
+
+=== git diff -U10 ===
+diff --git a/scripts/raidlab.sh b/scripts/raidlab.sh
+index e4c4ffb..5f811f8 100755
+--- a/scripts/raidlab.sh
++++ b/scripts/raidlab.sh
+@@ -25,22 +25,30 @@ FAKE_DISK_MODEL="scsi_debug"
+ # --- 假盘护栏 ---------------------------------------------------------------
+ 
+ # is_fake_disk <dev> —— <dev> 为裸设备名(sda),不带 /dev/。
+ # 两道条件必须同时满足,缺一不可。
+ is_fake_disk() {
+ 	local dev="${1:-}"
+ 	[[ -n "$dev" ]] || return 1
+ 
+ 	# ① 名字硬否决。model 文件理论上可被伪造(scsi_debug 允许自定义型号),
+ 	#    而 nvme0n1 是本机唯一真盘、承载 /DATA,所以名字这层不给任何余地。
++	# ② 路径穿越防护:dev 这个值后面会被外部输入驱动(Task 3 的
++	#    verify_avail_only_fake 把后端 HTTP 响应 JSON 的 name 字段原样喂
++	#    进来),而这条护栏的下游是 mdadm --create(会清扫成员盘),必须在
++	#    入口把设备名的合法形状钉死——只允许字母、数字、_、-、. 组成(真实
++	#    块设备名如 sda/nvme0n1/md127/dm-0 都在这个集合内),含 / 或恰为
++	#    ./.. 一律拒绝,防止 model_file 拼出的路径逃出 RAIDLAB_SYSFS_ROOT。
+ 	case "$dev" in
+ 	*nvme*) return 1 ;;
++	.|..) return 1 ;;
++	*[!A-Za-z0-9._-]*) return 1 ;;
+ 	esac
+ 
+ 	# ② sysfs 型号必须恰为 scsi_debug(去掉所有空白后比较)。
+ 	local model_file="$RAIDLAB_SYSFS_ROOT/block/$dev/device/model"
+ 	[[ -r "$model_file" ]] || return 1
+ 	local model
+ 	model="$(tr -d '[:space:]' < "$model_file")"
+ 	[[ "$model" == "$FAKE_DISK_MODEL" ]]
+ }
+ 
+diff --git a/scripts/raidlab.test.sh b/scripts/raidlab.test.sh
+index a20fa31..f00674e 100755
+--- a/scripts/raidlab.test.sh
++++ b/scripts/raidlab.test.sh
+@@ -1,21 +1,22 @@
+ #!/bin/bash
+ # raidlab.sh 的测试 harness。
+ # 设备上没有 bats/shellcheck,所以手写:source 被测脚本(RAIDLAB_LIB_ONLY=1
+ # 让它只定义函数不执行 main),用临时目录伪造 sysfs/fstab 等外部依赖。
+ # 用法: ./raidlab.test.sh
+ set -uo pipefail
+ 
+ HERE="$(cd "$(dirname "$0")" && pwd)"
+ # shellcheck source=raidlab.sh
+ RAIDLAB_LIB_ONLY=1 source "$HERE/raidlab.sh"
+-set +e   # source 进来的 set -e 会让第一个失败断言直接杀掉 harness
++set +e   # 防御性关闭 -e:两个脚本目前都只用 set -uo pipefail,没有 -e;
++         # 但万一以后给 raidlab.sh 加上 -e,这行能保证它不会拖垮这个 harness。
+ 
+ PASS=0
+ FAIL=0
+ 
+ # t_ok <用例名> <命令...>   —— 命令应成功(退出 0)
+ t_ok() {
+ 	local name="$1"; shift
+ 	if "$@" >/dev/null 2>&1; then
+ 		echo "  ok   $name"; PASS=$((PASS + 1))
+ 	else
+@@ -65,30 +66,53 @@ export RAIDLAB_SYSFS_ROOT="$TMP/sys"
+ 
+ echo "== is_fake_disk / assert_fake_disk / list_fake_disks =="
+ 
+ # 真实 scsi_debug 的 model 文件内容尾部带 6 个空格(lsblk 实测),必须 trim
+ mk_disk sda "scsi_debug      "
+ mk_disk sdb "scsi_debug"
+ mk_disk sdc "WPBSNM8-512GTP"
+ mk_bare_block zram0
+ # 名字硬否决用例:model 骗人也不能放行
+ mk_disk nvme0n1 "scsi_debug"
++# 合法带连字符名字:证明路径穿越加固没有误杀正常设备名
++mk_disk dm-0 "scsi_debug"
+ 
+ t_ok "带尾随空格的 scsi_debug 认得出"        is_fake_disk sda
+ t_ok "无空格的 scsi_debug 认得出"            is_fake_disk sdb
+ t_no "真盘型号被拒"                          is_fake_disk sdc
+ t_no "无 device/model 的裸块设备被拒"        is_fake_disk zram0
+ t_no "不存在的设备被拒"                      is_fake_disk sdz
+ t_no "空设备名被拒"                          is_fake_disk ""
+ t_no "名字含 nvme 一律拒(即便 model 是 scsi_debug)" is_fake_disk nvme0n1
++t_ok "合法带连字符名字认得出(dm-0)"          is_fake_disk dm-0
++
++# 路径穿越:外部输入(Task 3 会把后端 HTTP 响应里的 name 字段原样喂进来)
++# 不能让 model_file 拼出的路径逃出 RAIDLAB_SYSFS_ROOT。
++#
++# 光是"传入这个字符串会失败"不够——如果穿越路径根本读不到任何文件,
++# 不加护栏它也一样会失败(假阳性的安全感)。所以这里在攻击字符串实际
++# 会解析到的位置埋"诱饵"model 文件,让 model 检查本身也会判定通过;
++# 只有护栏在场才能在到达 model 检查之前就把它拦下。
++#   dev="."               -> $TMP/sys/block/./device/model      = $TMP/sys/block/device/model
++#   dev=".."              -> $TMP/sys/block/../device/model     = $TMP/sys/device/model
++#   dev="sda/../../etc"   -> $TMP/sys/block/sda/../../etc/device/model = $TMP/sys/etc/device/model
++mkdir -p "$TMP/sys/block/device" "$TMP/sys/device" "$TMP/sys/etc/device"
++printf 'scsi_debug\n' > "$TMP/sys/block/device/model"
++printf 'scsi_debug\n' > "$TMP/sys/device/model"
++printf 'scsi_debug\n' > "$TMP/sys/etc/device/model"
++
++t_no "路径穿越:名字含 / 被拒(诱饵已埋,不靠文件不存在侥幸过关)" is_fake_disk "sda/../../etc"
++t_no "路径穿越:名字恰为 .. 被拒(诱饵已埋)"                     is_fake_disk ".."
++t_no "路径穿越:名字恰为 . 被拒(诱饵已埋)"                      is_fake_disk "."
+ 
+ t_ok "assert 接受裸设备名"                   assert_fake_disk sda
+ t_ok "assert 接受 /dev/ 全路径"              assert_fake_disk /dev/sda
+ t_no "assert 拒绝真盘路径"                   assert_fake_disk /dev/sdc
+ t_no "assert 拒绝 nvme 路径"                 assert_fake_disk /dev/nvme0n1
+ 
+-t_eq "list_fake_disks 只列假盘且排序" "sda
++t_eq "list_fake_disks 只列假盘且排序" "dm-0
++sda
+ sdb" "$(list_fake_disks)"
+ 
+ echo
+ echo "通过 $PASS,失败 $FAIL"
+ [[ "$FAIL" -eq 0 ]]

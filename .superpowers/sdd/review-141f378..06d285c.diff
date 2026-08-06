@@ -1,0 +1,1120 @@
+# Review package: 141f378..06d285c
+
+## Commits
+06d285c feat(files): P1c layout — sidebar + breadcrumb + view toggle in Files.vue; favorites load; i18n
+70b25d3 feat(files): FilesSidebar (favorites + read-only disk roots, virtual-path navigate)
+aafeff6 feat(files): Breadcrumb (virtual-path segments + current-folder favorite star)
+81f456b feat(files): FavoriteStar (hover on row/tile + active), aligned list star column
+dea748b feat(files): favorites store (Vue2-compatible real-path blob via users custom storage)
+14f4869 feat(files): lazy image thumbnails (FileThumb + useInView), wired into tile/row
+d746f61 refactor(files): single fileExt util + IMAGE_EXTS; consolidate 3 ext call sites
+
+## Files changed
+ src/files/components/Breadcrumb.test.ts   | 26 ++++++++++
+ src/files/components/Breadcrumb.vue       | 39 ++++++++++++++
+ src/files/components/FavoriteStar.test.ts | 34 ++++++++++++
+ src/files/components/FavoriteStar.vue     | 21 ++++++++
+ src/files/components/FileListView.vue     |  2 +
+ src/files/components/FileRow.test.ts      | 12 ++---
+ src/files/components/FileRow.vue          | 12 +++--
+ src/files/components/FileThumb.test.ts    | 40 ++++++++++++++
+ src/files/components/FileThumb.vue        | 28 ++++++++++
+ src/files/components/FileTile.vue         | 11 ++--
+ src/files/components/FilesSidebar.test.ts | 56 ++++++++++++++++++++
+ src/files/components/FilesSidebar.vue     | 86 +++++++++++++++++++++++++++++++
+ src/files/composables/useInView.ts        | 22 ++++++++
+ src/files/stores/favorites.test.ts        | 70 +++++++++++++++++++++++++
+ src/files/stores/favorites.ts             | 61 ++++++++++++++++++++++
+ src/files/stores/files.ts                 |  7 +--
+ src/files/util/ext.test.ts                | 16 ++++++
+ src/files/util/ext.ts                     |  6 +++
+ src/files/util/icons.ts                   | 11 ++--
+ src/files/util/isImage.test.ts            | 15 ++++++
+ src/files/util/isImage.ts                 |  6 +++
+ src/i18n/zh_cn.ts                         |  3 ++
+ src/views/Files.test.ts                   | 30 ++++++++++-
+ src/views/Files.vue                       | 42 +++++++++++----
+ 24 files changed, 624 insertions(+), 32 deletions(-)
+
+## Diff
+diff --git a/src/files/components/Breadcrumb.test.ts b/src/files/components/Breadcrumb.test.ts
+new file mode 100644
+index 0000000..61142ab
+--- /dev/null
++++ b/src/files/components/Breadcrumb.test.ts
+@@ -0,0 +1,26 @@
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import Breadcrumb from './Breadcrumb.vue'
++
++const opts = { global: { stubs: { FavoriteStar: true } } }
++
++describe('Breadcrumb', () => {
++  it('renders clickable segments from the virtual path', () => {
++    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
++    expect(w.findAll('.crumb').map((c) => c.text())).toEqual(['NimoOS-HD', 'Documents', 'Reports'])
++  })
++
++  it('emits navigate with the accumulated VIRTUAL path (never a real /DATA path)', async () => {
++    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
++    await w.findAll('.crumb')[1].trigger('click') // "Documents"
++    const ev = w.emitted('navigate')
++    expect(ev).toBeTruthy()
++    expect(ev![0][0]).toBe('/NimoOS-HD/Documents')
++    expect(ev![0][0]).not.toContain('/DATA')
++  })
++
++  it('renders a favorite star for the current folder', () => {
++    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents', currentRealPath: '/DATA/Documents' }, ...opts })
++    expect(w.find('.crumb-star').exists()).toBe(true)
++  })
++})
+diff --git a/src/files/components/Breadcrumb.vue b/src/files/components/Breadcrumb.vue
+new file mode 100644
+index 0000000..5496f5e
+--- /dev/null
++++ b/src/files/components/Breadcrumb.vue
+@@ -0,0 +1,39 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import FavoriteStar from './FavoriteStar.vue'
++
++const props = defineProps<{ virtualPath: string; currentRealPath: string }>()
++const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
++
++interface Seg { label: string; vpath: string }
++const segments = computed<Seg[]>(() => {
++  const parts = props.virtualPath.replace(/^\/+/, '').split('/').filter(Boolean)
++  const segs: Seg[] = []
++  let acc = ''
++  for (const p of parts) {
++    acc += '/' + p
++    segs.push({ label: p, vpath: acc })
++  }
++  return segs
++})
++const lastName = computed(() => (segments.value.length ? segments.value[segments.value.length - 1].label : ''))
++</script>
++
++<template>
++  <nav class="breadcrumb">
++    <template v-for="(seg, i) in segments" :key="seg.vpath">
++      <span v-if="i > 0" class="crumb-sep">›</span>
++      <button class="crumb" :class="{ current: i === segments.length - 1 }" @click="emit('navigate', seg.vpath)">{{ seg.label }}</button>
++    </template>
++    <FavoriteStar v-if="currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
++  </nav>
++</template>
++
++<style scoped>
++.breadcrumb { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
++.crumb { background: none; border: none; cursor: pointer; color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
++.crumb:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); }
++.crumb.current { color: var(--fg); font-weight: 600; }
++.crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: 12px; }
++.crumb-star { margin-left: 4px; }
++</style>
+diff --git a/src/files/components/FavoriteStar.test.ts b/src/files/components/FavoriteStar.test.ts
+new file mode 100644
+index 0000000..0eb8cd0
+--- /dev/null
++++ b/src/files/components/FavoriteStar.test.ts
+@@ -0,0 +1,34 @@
++import { describe, it, expect, beforeEach, vi } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount } from '@vue/test-utils'
++import FavoriteStar from './FavoriteStar.vue'
++import { useFavoritesStore } from '../stores/favorites'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { users: {
++    getCustomStorage: vi.fn().mockResolvedValue([]),
++    setCustomStorage: vi.fn().mockResolvedValue(undefined),
++  } },
++}))
++
++describe('FavoriteStar', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('shows ☆ when not favorited, adds and flips to ★ on click', async () => {
++    const w = mount(FavoriteStar, { props: { path: '/DATA/Docs', name: 'Docs' } })
++    expect(w.text()).toBe('☆')
++    await w.trigger('click')
++    const fav = useFavoritesStore()
++    expect(fav.isFavorite('/DATA/Docs')).toBe(true)
++    expect(w.text()).toBe('★')
++  })
++
++  it('shows ★ when already favorited and removes on click', async () => {
++    const fav = useFavoritesStore()
++    await fav.add({ name: 'Docs', path: '/DATA/Docs' })
++    const w = mount(FavoriteStar, { props: { path: '/DATA/Docs', name: 'Docs' } })
++    expect(w.text()).toBe('★')
++    await w.trigger('click')
++    expect(fav.isFavorite('/DATA/Docs')).toBe(false)
++  })
++})
+diff --git a/src/files/components/FavoriteStar.vue b/src/files/components/FavoriteStar.vue
+new file mode 100644
+index 0000000..0b1285e
+--- /dev/null
++++ b/src/files/components/FavoriteStar.vue
+@@ -0,0 +1,21 @@
++<script setup lang="ts">
++import { computed } from 'vue'
++import { useFavoritesStore } from '../stores/favorites'
++
++const props = defineProps<{ path: string; name: string }>()
++const favorites = useFavoritesStore()
++const active = computed(() => favorites.isFavorite(props.path))
++function toggle() {
++  if (active.value) favorites.remove(props.path)
++  else favorites.add({ name: props.name, path: props.path })
++}
++</script>
++
++<template>
++  <button class="favorite-star" :class="{ active }" :aria-pressed="active" @click.stop="toggle">{{ active ? '★' : '☆' }}</button>
++</template>
++
++<style scoped>
++.favorite-star { background: none; border: none; cursor: pointer; color: var(--fg-muted, #9aa4bf); font-size: 15px; line-height: 1; padding: 2px 4px; }
++.favorite-star.active { color: var(--accent, #f5c451); }
++</style>
+diff --git a/src/files/components/FileListView.vue b/src/files/components/FileListView.vue
+index b1b5281..cd85424 100644
+--- a/src/files/components/FileListView.vue
++++ b/src/files/components/FileListView.vue
+@@ -18,23 +18,25 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
+ 
+ <template>
+   <div class="file-listview">
+     <div class="file-listhead">
+       <span
+         v-for="c in COLS"
+         :key="c.key"
+         :class="['head-cell', c.cls]"
+         @click="emit('reorder', c.key)"
+       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
++      <span class="head-cell col-star"></span>
+     </div>
+     <FileRow v-for="entry in props.entries" :key="entry.path" :entry="entry" @open="emit('open', $event)" />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
+ .head-cell { cursor: pointer; user-select: none; }
+ .col-name { flex: 1 1 auto; margin-left: 40px; }
+ .col-format { flex: 0 0 48px; }
+ .col-date { flex: 0 0 160px; }
+ .col-size { flex: 0 0 80px; text-align: right; }
++.col-star { flex: 0 0 32px; }
+ </style>
+diff --git a/src/files/components/FileRow.test.ts b/src/files/components/FileRow.test.ts
+index 97a29ca..ab22e9e 100644
+--- a/src/files/components/FileRow.test.ts
++++ b/src/files/components/FileRow.test.ts
+@@ -1,26 +1,26 @@
+ import { describe, it, expect } from 'vitest'
+ import { mount } from '@vue/test-utils'
+ import FileRow from './FileRow.vue'
+ 
++const mountOpts = { global: { stubs: { FileThumb: true, FavoriteStar: true } } }
++
+ describe('FileRow', () => {
+-  it('renders name, icon img, size for files; emits open on click', async () => {
++  it('renders name, a FileThumb, size for files; emits open on click', async () => {
+     const entry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false, size: 1536, date: '2026-01-02T10:00:00Z' }
+-    const w = mount(FileRow, { props: { entry } })
++    const w = mount(FileRow, { props: { entry }, ...mountOpts })
+     expect(w.text()).toContain('a.txt')
+-    expect(w.get('img.file-icon').attributes('src')).toBeTruthy()
++    expect(w.find('.file-icon').exists()).toBe(true)   // FileThumb stub 根带 file-icon 类
+     expect(w.text()).toContain('1.5 KB')
+     await w.trigger('click')
+     expect(w.emitted('open')).toBeTruthy()
+     expect(w.emitted('open')![0][0]).toEqual(entry)
+   })
+ 
+   it('keeps the size column but shows no size text for directories (column alignment)', () => {
+     const entry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
+-    const w = mount(FileRow, { props: { entry } })
++    const w = mount(FileRow, { props: { entry }, ...mountOpts })
+     expect(w.text()).toContain('Docs')
+-    // The .file-size cell is retained (so folder rows align with file rows and
+-    // the sortable header) but renders empty — folders have no size number.
+     expect(w.find('.file-size').exists()).toBe(true)
+     expect(w.find('.file-size').text()).toBe('')
+   })
+ })
+diff --git a/src/files/components/FileRow.vue b/src/files/components/FileRow.vue
+index 14856e0..6ec5b0e 100644
+--- a/src/files/components/FileRow.vue
++++ b/src/files/components/FileRow.vue
+@@ -1,28 +1,34 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+-import { iconNameFor, iconUrl } from '../util/icons'
+ import { renderSize, dateFmt } from '../util/format'
++import { fileExt } from '../util/ext'
++import FileThumb from './FileThumb.vue'
++import FavoriteStar from './FavoriteStar.vue'
+ 
+ const props = defineProps<{ entry: FileEntry }>()
+ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
+ </script>
+ 
+ <template>
+   <div class="file-row" @click="emit('open', props.entry)">
+-    <img class="file-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
++    <FileThumb class="file-icon" :entry="props.entry" />
+     <span class="file-name">{{ props.entry.name }}</span>
+-    <span class="file-format">{{ props.entry.is_dir ? '' : (props.entry.name.split('.').length > 1 ? props.entry.name.split('.').pop() : '') }}</span>
++    <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
+     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
+     <span class="file-size">{{ props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0) }}</span>
++    <span class="file-star"><FavoriteStar :path="props.entry.path" :name="props.entry.name" /></span>
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; cursor: pointer; color: var(--fg); }
+ .file-row:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
+ .file-icon { width: 28px; height: 28px; flex: 0 0 auto; }
+ .file-name { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }
+ .file-date { flex: 0 0 160px; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
+ .file-size { flex: 0 0 80px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-align: right; }
++.file-star { flex: 0 0 32px; display: flex; justify-content: center; }
++.file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
++.file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
+ </style>
+diff --git a/src/files/components/FileThumb.test.ts b/src/files/components/FileThumb.test.ts
+new file mode 100644
+index 0000000..2299599
+--- /dev/null
++++ b/src/files/components/FileThumb.test.ts
+@@ -0,0 +1,40 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import FileThumb from './FileThumb.vue'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` } },
++}))
++
++// fake IntersectionObserver:observe 时立即回报 intersecting
++beforeEach(() => {
++  ;(globalThis as any).IntersectionObserver = class {
++    cb: (entries: { isIntersecting: boolean }[]) => void
++    constructor(cb: any) { this.cb = cb }
++    observe() { this.cb([{ isIntersecting: true }]) }
++    disconnect() {}
++  }
++})
++
++describe('FileThumb', () => {
++  it('renders a lazy thumbnail img for image entries once in view', async () => {
++    const w = mount(FileThumb, { props: { entry: { name: 'p.png', path: '/DATA/p.png', is_dir: false } } })
++    await nextTick()
++    const img = w.get('img.thumb-img')
++    expect(img.attributes('src')).toContain('type=thumbnail')
++    expect(decodeURIComponent(img.attributes('src')!)).toContain('/DATA/p.png')
++  })
++  it('renders the type icon for non-image entries', () => {
++    const w = mount(FileThumb, { props: { entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false } } })
++    expect(w.find('img.thumb-img').exists()).toBe(false)
++    expect(w.get('img.thumb-icon').attributes('src')).toBeTruthy()
++  })
++  it('falls back to the type icon when the thumbnail errors', async () => {
++    const w = mount(FileThumb, { props: { entry: { name: 'p.png', path: '/DATA/p.png', is_dir: false } } })
++    await nextTick()
++    await w.get('img.thumb-img').trigger('error')
++    expect(w.find('img.thumb-img').exists()).toBe(false)
++    expect(w.get('img.thumb-icon').attributes('src')).toBeTruthy()
++  })
++})
+diff --git a/src/files/components/FileThumb.vue b/src/files/components/FileThumb.vue
+new file mode 100644
+index 0000000..f00c2d4
+--- /dev/null
++++ b/src/files/components/FileThumb.vue
+@@ -0,0 +1,28 @@
++<script setup lang="ts">
++import { ref, computed } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++import type { FileEntry } from '../stores/files'
++import { iconNameFor, iconUrl } from '../util/icons'
++import { isImageEntry } from '../util/isImage'
++import { useInView } from '../composables/useInView'
++
++const props = defineProps<{ entry: FileEntry }>()
++const el = ref<HTMLElement | null>(null)
++const inView = useInView(el)
++const errored = ref(false)
++const showThumb = computed(() => isImageEntry(props.entry) && inView.value && !errored.value)
++</script>
++
++<template>
++  <span ref="el" class="file-thumb">
++    <img v-if="showThumb" class="thumb-img" :src="service.image.thumbUrl(props.entry.path)" alt="" @error="errored = true" />
++    <img v-else class="thumb-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
++  </span>
++</template>
++
++<style scoped>
++/* 尺寸由父级类名(.tile-icon / .file-icon)给到本组件根元素;这里只管填充与裁切 */
++.file-thumb { display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
++.thumb-img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
++.thumb-icon { width: 100%; height: 100%; object-fit: contain; }
++</style>
+diff --git a/src/files/components/FileTile.vue b/src/files/components/FileTile.vue
+index 23cdc93..dfe3f96 100644
+--- a/src/files/components/FileTile.vue
++++ b/src/files/components/FileTile.vue
+@@ -1,24 +1,29 @@
+ <script setup lang="ts">
+ import type { FileEntry } from '../stores/files'
+-import { iconNameFor, iconUrl } from '../util/icons'
+ import { dateFmt } from '../util/format'
++import FileThumb from './FileThumb.vue'
++import FavoriteStar from './FavoriteStar.vue'
+ 
+ const props = defineProps<{ entry: FileEntry }>()
+ const emit = defineEmits<{ (e: 'open', entry: FileEntry): void }>()
+ </script>
+ 
+ <template>
+   <div class="file-tile" @click="emit('open', props.entry)">
+-    <img class="tile-icon" :src="iconUrl(iconNameFor(props.entry))" alt="" />
++    <FavoriteStar class="tile-star" :path="props.entry.path" :name="props.entry.name" />
++    <FileThumb class="tile-icon" :entry="props.entry" />
+     <span class="tile-name">{{ props.entry.name }}</span>
+     <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
+   </div>
+ </template>
+ 
+ <style scoped>
+-.file-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: transparent; border: 1px solid transparent; }
++.file-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; cursor: pointer; color: var(--fg); background: transparent; border: 1px solid transparent; }
+ .file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
+ .tile-icon { width: var(--app-size, 64px); height: var(--app-size, 64px); }
+ .tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+ .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
++.tile-star { position: absolute; top: 6px; right: 6px; }
++.file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
++.file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
+ </style>
+diff --git a/src/files/components/FilesSidebar.test.ts b/src/files/components/FilesSidebar.test.ts
+new file mode 100644
+index 0000000..d83adfc
+--- /dev/null
++++ b/src/files/components/FilesSidebar.test.ts
+@@ -0,0 +1,56 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { mount } from '@vue/test-utils'
++import { createI18n } from 'vue-i18n'
++import FilesSidebar from './FilesSidebar.vue'
++import { useFilesStore } from '../stores/files'
++import { useFavoritesStore } from '../stores/favorites'
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
++    folder: { getList: vi.fn() },
++  },
++}))
++
++const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏' } } })
++
++function seedFiles() {
++  const files = useFilesStore()
++  files.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any
++  files.displayNames = { '/DATA': 'NimoOS-HD' }
++  files.currentPath = '/DATA'
++  return files
++}
++
++describe('FilesSidebar', () => {
++  beforeEach(() => setActivePinia(createPinia()))
++
++  it('renders disks and an empty-favorites hint', () => {
++    seedFiles()
++    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++    expect(w.text()).toContain('暂无收藏')
++    expect(w.text()).toContain('NimoOS-HD')
++  })
++
++  it('clicking a disk emits navigate with the virtual path (not /DATA)', async () => {
++    seedFiles()
++    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++    await w.findAll('.side-item')[0].trigger('click')
++    const ev = w.emitted('navigate')
++    expect(ev![0][0]).toBe('/NimoOS-HD')
++    expect(ev![0][0]).not.toContain('/DATA')
++  })
++
++  it('clicking a favorite emits its virtual path; remove mutates the store', async () => {
++    seedFiles()
++    const fav = useFavoritesStore()
++    fav.list = [{ name: 'Docs', path: '/DATA/Documents' }] as any
++    const w = mount(FilesSidebar, { global: { plugins: [i18n] } })
++    const favItem = w.findAll('.side-item').find((li) => li.text().includes('Docs'))!
++    await favItem.trigger('click')
++    expect(w.emitted('navigate')!.some((e) => e[0] === '/NimoOS-HD/Documents')).toBe(true)
++    await favItem.get('.side-remove').trigger('click')
++    expect(fav.list.find((f) => f.path === '/DATA/Documents')).toBeUndefined()
++  })
++})
+diff --git a/src/files/components/FilesSidebar.vue b/src/files/components/FilesSidebar.vue
+new file mode 100644
+index 0000000..6b614b2
+--- /dev/null
++++ b/src/files/components/FilesSidebar.vue
+@@ -0,0 +1,86 @@
++<script setup lang="ts">
++import { ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { useFilesStore } from '../stores/files'
++import { useFavoritesStore } from '../stores/favorites'
++import { iconUrl } from '../util/icons'
++import { toVirtualPath } from '../util/pathUtils'
++
++const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
++const files = useFilesStore()
++const favorites = useFavoritesStore()
++const { t } = useI18n()
++
++function go(realPath: string) {
++  emit('navigate', toVirtualPath(realPath, files.displayNames))
++}
++function isActive(realPath: string): boolean {
++  return files.currentPath === realPath
++}
++function diskIcon(usb: boolean): string {
++  return iconUrl(usb ? 'folder-usb' : 'folder-hdd')
++}
++
++const dragIndex = ref<number | null>(null)
++function onDragStart(i: number) { dragIndex.value = i }
++function onDrop(i: number) {
++  if (dragIndex.value !== null && dragIndex.value !== i) favorites.reorder(dragIndex.value, i)
++  dragIndex.value = null
++}
++</script>
++
++<template>
++  <aside class="files-sidebar">
++    <section class="side-section">
++      <h4 class="side-title">{{ t('filesFavorites') }}</h4>
++      <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>
++      <ul class="side-list">
++        <li
++          v-for="(fav, i) in favorites.list"
++          :key="fav.path"
++          class="side-item"
++          :class="{ active: isActive(fav.path) }"
++          draggable="true"
++          @click="go(fav.path)"
++          @dragstart="onDragStart(i)"
++          @dragover.prevent
++          @drop="onDrop(i)"
++        >
++          <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
++          <span class="side-name">{{ fav.name }}</span>
++          <button class="side-remove" @click.stop="favorites.remove(fav.path)">×</button>
++        </li>
++      </ul>
++    </section>
++    <section class="side-section">
++      <h4 class="side-title">{{ t('filesDisks') }}</h4>
++      <ul class="side-list">
++        <li
++          v-for="disk in files.disks"
++          :key="disk.path"
++          class="side-item"
++          :class="{ active: isActive(disk.path) }"
++          @click="go(disk.path)"
++        >
++          <img class="side-icon" :src="diskIcon(disk.usb)" alt="" />
++          <span class="side-name">{{ disk.name }}</span>
++        </li>
++      </ul>
++    </section>
++  </aside>
++</template>
++
++<style scoped>
++.files-sidebar { flex: 0 0 220px; display: flex; flex-direction: column; gap: 18px; padding: 4px 12px 4px 0; overflow-y: auto; }
++.side-section { min-width: 0; }
++.side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; }
++.side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }
++.side-list { list-style: none; margin: 0; padding: 0; }
++.side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
++.side-item:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); }
++.side-item.active { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
++.side-icon { width: 20px; height: 20px; flex: 0 0 auto; }
++.side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
++.side-item:hover .side-remove { opacity: 1; }
++</style>
+diff --git a/src/files/composables/useInView.ts b/src/files/composables/useInView.ts
+new file mode 100644
+index 0000000..754de93
+--- /dev/null
++++ b/src/files/composables/useInView.ts
+@@ -0,0 +1,22 @@
++import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue'
++
++// 一次性进入视口检测:元素进入视口即置 true 并停止观察。
++// 环境无 IntersectionObserver(如 jsdom)时降级为立即可见。
++export function useInView(el: Ref<HTMLElement | null>): Ref<boolean> {
++  const inView = ref(false)
++  let observer: IntersectionObserver | null = null
++  onMounted(() => {
++    if (inView.value) return
++    if (typeof IntersectionObserver === 'undefined') { inView.value = true; return }
++    observer = new IntersectionObserver((entries) => {
++      if (entries.some((e) => e.isIntersecting)) {
++        inView.value = true
++        observer?.disconnect()
++        observer = null
++      }
++    })
++    if (el.value) observer.observe(el.value)
++  })
++  onBeforeUnmount(() => { observer?.disconnect(); observer = null })
++  return inView
++}
+diff --git a/src/files/stores/favorites.test.ts b/src/files/stores/favorites.test.ts
+new file mode 100644
+index 0000000..c9a1c55
+--- /dev/null
++++ b/src/files/stores/favorites.test.ts
+@@ -0,0 +1,70 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { setActivePinia, createPinia } from 'pinia'
++import { useFavoritesStore, moveItem } from './favorites'
++
++const getCustomStorage = vi.fn()
++const setCustomStorage = vi.fn()
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: { users: {
++    getCustomStorage: (k: string) => getCustomStorage(k),
++    setCustomStorage: (k: string, d: unknown) => setCustomStorage(k, d),
++  } },
++}))
++
++describe('moveItem', () => {
++  it('moves an element and returns a new array', () => {
++    expect(moveItem(['a', 'b', 'c'], 0, 2)).toEqual(['b', 'c', 'a'])
++    expect(moveItem(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b'])
++  })
++  it('is a no-op for out-of-range indices', () => {
++    expect(moveItem(['a', 'b'], 5, 0)).toEqual(['a', 'b'])
++  })
++})
++
++describe('favorites store', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    getCustomStorage.mockReset()
++    setCustomStorage.mockReset().mockResolvedValue(undefined)
++  })
++
++  it('load: null / non-array yields empty list', async () => {
++    getCustomStorage.mockResolvedValue(null)
++    const s = useFavoritesStore()
++    await s.load()
++    expect(s.list).toEqual([])
++    expect(getCustomStorage).toHaveBeenCalledWith('favorites')
++  })
++
++  it('load: reads the favorites array', async () => {
++    getCustomStorage.mockResolvedValue([{ name: 'Docs', path: '/DATA/Documents' }])
++    const s = useFavoritesStore()
++    await s.load()
++    expect(s.list).toEqual([{ name: 'Docs', path: '/DATA/Documents' }])
++  })
++
++  it('add: appends real-path entry, persists, dedupes by path', async () => {
++    const s = useFavoritesStore()
++    await s.add({ name: 'Docs', path: '/DATA/Documents' })
++    await s.add({ name: 'dup', path: '/DATA/Documents' })
++    expect(s.list).toEqual([{ name: 'Docs', path: '/DATA/Documents' }])
++    expect(setCustomStorage).toHaveBeenCalledWith('favorites', [{ name: 'Docs', path: '/DATA/Documents' }])
++  })
++
++  it('isFavorite + remove persist', async () => {
++    const s = useFavoritesStore()
++    await s.add({ name: 'M', path: '/DATA/Media' })
++    expect(s.isFavorite('/DATA/Media')).toBe(true)
++    await s.remove('/DATA/Media')
++    expect(s.isFavorite('/DATA/Media')).toBe(false)
++    expect(setCustomStorage).toHaveBeenLastCalledWith('favorites', [])
++  })
++
++  it('reorder moves items and persists', async () => {
++    const s = useFavoritesStore()
++    await s.add({ name: 'A', path: '/DATA/A' })
++    await s.add({ name: 'B', path: '/DATA/B' })
++    await s.reorder(0, 1)
++    expect(s.list.map((f) => f.name)).toEqual(['B', 'A'])
++  })
++})
+diff --git a/src/files/stores/favorites.ts b/src/files/stores/favorites.ts
+new file mode 100644
+index 0000000..6e6a52c
+--- /dev/null
++++ b/src/files/stores/favorites.ts
+@@ -0,0 +1,61 @@
++import { defineStore } from 'pinia'
++import { ref } from 'vue'
++import { service } from '@nimotech/nimoos-service'
++
++export interface Favorite {
++  name: string
++  path: string // 真实路径(与 Vue2 /users/current/custom/favorites blob 兼容)
++}
++
++// 纯函数:数组元素移动(便于单测,DnD 几何留真机验)
++export function moveItem<T>(arr: T[], from: number, to: number): T[] {
++  const out = [...arr]
++  if (from < 0 || from >= out.length || to < 0 || to >= out.length) return out
++  const [moved] = out.splice(from, 1)
++  out.splice(to, 0, moved)
++  return out
++}
++
++export const useFavoritesStore = defineStore('favorites', () => {
++  const list = ref<Favorite[]>([])
++
++  async function persist() {
++    try {
++      await service.users.setCustomStorage('favorites', list.value)
++    } catch (e) {
++      console.warn('[favorites] persist failed', e)
++    }
++  }
++
++  async function load() {
++    try {
++      const data = await service.users.getCustomStorage('favorites')
++      list.value = Array.isArray(data) ? (data as Favorite[]) : []
++    } catch (e) {
++      console.warn('[favorites] load failed', e)
++      list.value = []
++    }
++  }
++
++  function isFavorite(realPath: string): boolean {
++    return list.value.some((f) => f.path === realPath)
++  }
++
++  async function add(fav: Favorite) {
++    if (list.value.some((f) => f.path === fav.path)) return
++    list.value = [...list.value, { name: fav.name, path: fav.path }]
++    await persist()
++  }
++
++  async function remove(realPath: string) {
++    list.value = list.value.filter((f) => f.path !== realPath)
++    await persist()
++  }
++
++  async function reorder(from: number, to: number) {
++    list.value = moveItem(list.value, from, to)
++    await persist()
++  }
++
++  return { list, load, isFavorite, add, remove, reorder }
++})
+diff --git a/src/files/stores/files.ts b/src/files/stores/files.ts
+index b99e6a0..ff70b17 100644
+--- a/src/files/stores/files.ts
++++ b/src/files/stores/files.ts
+@@ -1,15 +1,16 @@
+ import { defineStore } from 'pinia'
+ import { ref, computed } from 'vue'
+ import { service } from '@nimotech/nimoos-service'
+ import { useFoldersStore } from '../../home/stores/folders'
+ import type { DisplayNames } from '../util/pathUtils'
++import { fileExt } from '../util/ext'
+ 
+ export interface FileEntry {
+   name: string
+   path: string
+   is_dir: boolean
+   size?: number | string
+   date?: string
+   write?: boolean
+   extensions?: { share?: { shared?: string } } | null
+ }
+@@ -49,27 +50,23 @@ export const useFilesStore = defineStore('files', () => {
+       currentPath.value = realPath
+     } finally {
+       loading.value = false
+     }
+   }
+ 
+   const viewMode = ref<'list' | 'grid'>((localStorage.getItem('nimoos:file-view') as 'list' | 'grid') || 'grid')
+   const sort = ref<'name' | 'format' | 'date' | 'size'>((localStorage.getItem('nimoos:file-sort') as any) || 'name')
+   const order = ref<'asc' | 'desc'>((localStorage.getItem('nimoos:file-order') as any) || 'asc')
+ 
+-  function extOf(name: string): string {
+-    const i = name.lastIndexOf('.')
+-    return i > 0 ? name.slice(i + 1).toLowerCase() : ''
+-  }
+   const KEY_FN: Record<string, (e: FileEntry) => string | number> = {
+     name: (e) => e.name.toLowerCase(),
+-    format: (e) => extOf(e.name),
++    format: (e) => fileExt(e.name),
+     date: (e) => new Date(e.date || 0).getTime() || 0,
+     size: (e) => Number(e.size) || 0,
+   }
+ 
+   const sortedEntries = computed<FileEntry[]>(() => {
+     const keyFn = KEY_FN[sort.value] || KEY_FN.name
+     const dir = order.value === 'desc' ? -1 : 1
+     return [...entries.value].sort((a, b) => {
+       // folders first
+       if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1
+diff --git a/src/files/util/ext.test.ts b/src/files/util/ext.test.ts
+new file mode 100644
+index 0000000..b0865eb
+--- /dev/null
++++ b/src/files/util/ext.test.ts
+@@ -0,0 +1,16 @@
++import { describe, it, expect } from 'vitest'
++import { fileExt } from './ext'
++
++describe('fileExt', () => {
++  it('extracts the lowercase extension after the last dot', () => {
++    expect(fileExt('a.PNG')).toBe('png')
++    expect(fileExt('archive.tar.gz')).toBe('gz')
++    expect(fileExt('readme.md')).toBe('md')
++  })
++  it('matches Vue2 getFileExt for extensionless names and dotfiles', () => {
++    expect(fileExt('Dockerfile')).toBe('dockerfile')
++    expect(fileExt('Makefile')).toBe('makefile')
++    expect(fileExt('.gitignore')).toBe('gitignore')
++    expect(fileExt('.env')).toBe('env')
++  })
++})
+diff --git a/src/files/util/ext.ts b/src/files/util/ext.ts
+new file mode 100644
+index 0000000..eb35cb3
+--- /dev/null
++++ b/src/files/util/ext.ts
+@@ -0,0 +1,6 @@
++// 单一文件扩展名提取,逐字对齐 Vue2 mixins/mixin.js getFileExt:
++//   name.substring(name.lastIndexOf('.') + 1) —— 无点名返回整名(Dockerfile→dockerfile),
++//   dotfile 返回点后段(.gitignore→gitignore)。全库唯一实现,勿再复制。
++export function fileExt(name: string): string {
++  return name.slice(name.lastIndexOf('.') + 1).toLowerCase()
++}
+diff --git a/src/files/util/icons.ts b/src/files/util/icons.ts
+index 7018be2..8efaa95 100644
+--- a/src/files/util/icons.ts
++++ b/src/files/util/icons.ts
+@@ -1,10 +1,12 @@
++import { fileExt } from './ext'
++
+ // 扩展名 → 图标名(逐字移植自 Vue2 mixins/mixin.js typeMap)
+ const TYPE_MAP: Record<string, string[]> = {
+   'image-x-generic': ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff'],
+   'video-x-generic': ['mkv', 'mp4', '3gp', 'avi', 'm2ts', 'webm', 'flv', 'vob', 'ts', 'mts', 'mov', 'wmv', 'rm', 'rmvb', 'asf', 'mpg', 'm4v', 'mpeg', 'f4v'],
+   'audio-x-generic': ['aac', 'aiff', 'alac', 'amr', 'ape', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wma', 'wav'],
+   'text-x-generic': ['txt', 'log', 'pages', 'conf', 'config', 'list', 'ini', 'toml', 'cfg', 'rc', 'env', 'service', 'conf.d', 'htaccess', 'gitconfig', 'vim', 'curlrc', 'wgetrc', 'gitignore'],
+   'text-markdown': ['md'],
+   'text-css': ['php', 'css', 'less', 'scss', 'sass', 'aspx', 'lua', 'vue', 'js', 'go', 'asp', 'bat', 'c', 'cpp', 'cs', 'json', 'py', 'perl', 'sh', 'xml', 'yaml', 'vb', 'vbs', 'sql', 'swift', 'rust', 'rs', 'jsp', 'yml', 'r', 'pl', 'rb', 'src', 'h', 'tex', 'rtf', 'jsonld', 'ttl', 'n3', 'rss', 'atom', 'srt', 'ass', 'tsv', 'vcard', 'asc', 'url', 'diff', 'plaintext'],
+   'text-html': ['html', 'htm', 'shtml', 'shtm'],
+   'application-vnd.ms-word': ['doc', 'docx', 'wps'],
+@@ -22,43 +24,42 @@ const TYPE_MAP: Record<string, string[]> = {
+   'text-x-cmake': ['makefile', 'cmake', 'dockerfile'],
+   'text-dockerfile': ['dockerfile'],
+ }
+ 
+ // 反向索引:ext → iconName(一次构建)
+ const EXT_TO_ICON: Record<string, string> = {}
+ for (const [icon, exts] of Object.entries(TYPE_MAP)) {
+   for (const e of exts) EXT_TO_ICON[e] = icon
+ }
+ 
++// 图片扩展集(供 isImage 复用,来源同 typeMap 的 image-x-generic)
++export const IMAGE_EXTS: ReadonlySet<string> = new Set(TYPE_MAP['image-x-generic'])
++
+ const FOLDER_BY_NAME: Record<string, string> = {
+   AppData: 'folder-application',
+   Media: 'folder-video',
+   Downloads: 'folder-download',
+   Documents: 'folder-documents',
+   Gallery: 'folder-pictures',
+ }
+ 
+-function ext(name: string): string {
+-  return name.slice(name.lastIndexOf('.') + 1).toLowerCase()
+-}
+-
+ export function iconNameFor(entry: { name: string; is_dir: boolean; type?: string }): string {
+   if (entry.is_dir) {
+     const t = entry.type
+     if (t === 'application') return 'folder-application'
+     if (t === 'usb') return 'folder-usb'
+     if (t && ['sata', 'nvme', 'spi', 'sas'].includes(t)) return 'folder-hdd'
+     if (t === 'home') return 'folder-root'
+     if (FOLDER_BY_NAME[entry.name]) return FOLDER_BY_NAME[entry.name]
+     return 'folder-default'
+   }
+-  return EXT_TO_ICON[ext(entry.name)] || 'unknown'
++  return EXT_TO_ICON[fileExt(entry.name)] || 'unknown'
+ }
+ 
+ // Vite: eager-glob 所有图标为 URL
+ const ICONS = import.meta.glob('../assets/icons/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+ const URL_BY_NAME: Record<string, string> = {}
+ for (const [path, url] of Object.entries(ICONS)) {
+   const m = path.match(/\/([^/]+)\.svg$/)
+   if (m) URL_BY_NAME[m[1]] = url
+ }
+ 
+diff --git a/src/files/util/isImage.test.ts b/src/files/util/isImage.test.ts
+new file mode 100644
+index 0000000..029a3ea
+--- /dev/null
++++ b/src/files/util/isImage.test.ts
+@@ -0,0 +1,15 @@
++import { describe, it, expect } from 'vitest'
++import { isImageEntry } from './isImage'
++
++describe('isImageEntry', () => {
++  it('true for image files (case-insensitive)', () => {
++    expect(isImageEntry({ name: 'p.png', is_dir: false })).toBe(true)
++    expect(isImageEntry({ name: 'P.JPG', is_dir: false })).toBe(true)
++    expect(isImageEntry({ name: 'a.webp', is_dir: false })).toBe(true)
++  })
++  it('false for non-images and directories', () => {
++    expect(isImageEntry({ name: 'a.txt', is_dir: false })).toBe(false)
++    expect(isImageEntry({ name: 'v.mp4', is_dir: false })).toBe(false)
++    expect(isImageEntry({ name: 'Pics', is_dir: true })).toBe(false)
++  })
++})
+diff --git a/src/files/util/isImage.ts b/src/files/util/isImage.ts
+new file mode 100644
+index 0000000..51dc107
+--- /dev/null
++++ b/src/files/util/isImage.ts
+@@ -0,0 +1,6 @@
++import { IMAGE_EXTS } from './icons'
++import { fileExt } from './ext'
++
++export function isImageEntry(entry: { name: string; is_dir: boolean }): boolean {
++  return !entry.is_dir && IMAGE_EXTS.has(fileExt(entry.name))
++}
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 2345031..45f3046 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -7,12 +7,15 @@ export const messages = {
+     collecting: '采集中…',
+     filesTitle: '文件',
+     filesBackHome: '回主页',
+     filesEmpty: '此文件夹为空',
+     filesViewList: '列表',
+     filesViewGrid: '网格',
+     filesColName: '名称',
+     filesColType: '类型',
+     filesColDate: '修改日期',
+     filesColSize: '大小',
++    filesFavorites: '收藏',
++    filesDisks: '磁盘',
++    filesNoFavorites: '暂无收藏',
+   },
+ }
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+index b1ee096..bdeca4c 100644
+--- a/src/views/Files.test.ts
++++ b/src/views/Files.test.ts
+@@ -1,49 +1,60 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createWebHashHistory } from 'vue-router'
+ import { messages } from '../i18n/zh_cn'
+ import Files from './Files.vue'
+ import { useFilesStore } from '../files/stores/files'
+ import { useFoldersStore } from '../home/stores/folders'
++import { useFavoritesStore } from '../files/stores/favorites'
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     folder: {
+       getList: vi.fn(async (path: string) => ({
+         content: [
+           { name: 'Documents', path: (path === '/DATA' ? '/DATA' : path) + '/Documents', is_dir: true },
+           { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+         ],
+       })),
+     },
++    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
++    image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
+   },
+   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
+ }))
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages })
+ 
+ function makeRouter() {
+   return createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+       { path: '/', name: 'home', component: { template: '<div/>' } },
+       { path: '/files', name: 'files', component: Files },
+       { path: '/files/:path(.*)*', name: 'files-path', component: Files },
+     ],
+   })
+ }
+ 
+ describe('Files.vue browse pipe', () => {
+-  beforeEach(() => { setActivePinia(createPinia()) })
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    ;(globalThis as any).IntersectionObserver = class {
++      cb: (e: { isIntersecting: boolean }[]) => void
++      constructor(cb: any) { this.cb = cb }
++      observe() { this.cb([{ isIntersecting: true }]) }
++      disconnect() {}
++    }
++  })
+ 
+   it('bare /files redirects to default disk root (virtual) and lists it', async () => {
+     const folders = useFoldersStore()
+     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+     const router = makeRouter()
+     router.push('/files'); await router.isReady()
+     const w = mount(Files, { global: { plugins: [router, i18n] } })
+     await flushPromises()
+     expect(router.currentRoute.value.fullPath).toContain('/files/NimoOS-HD')
+     const files = useFilesStore()
+@@ -92,11 +103,28 @@ describe('Files.vue browse pipe', () => {
+     expect(files.viewMode).toBe('grid')
+     expect(w.findAll('.file-tile').length).toBeGreaterThan(0)
+     // switch to list
+     await w.get('.view-toggle-list').trigger('click')
+     expect(files.viewMode).toBe('list')
+     expect(w.findAll('.file-row').length).toBeGreaterThan(0)
+     // click a sortable header
+     await w.get('.col-name').trigger('click')
+     expect(files.sort).toBe('name')
+   })
++
++  it('renders the sidebar (disks) and breadcrumb for the current folder', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD/Documents'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    // sidebar shows the disk root
++    expect(w.find('.files-sidebar').exists()).toBe(true)
++    expect(w.find('.files-sidebar').text()).toContain('NimoOS-HD')
++    // breadcrumb shows virtual segments, never the real path
++    const crumbs = w.findAll('.crumb').map((c) => c.text())
++    expect(crumbs).toContain('NimoOS-HD')
++    expect(crumbs).toContain('Documents')
++    expect(w.find('.breadcrumb').text()).not.toContain('/DATA')
++  })
+ })
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 6e449aa..c4fd5b4 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -1,51 +1,75 @@
+ <script setup lang="ts">
+-import { watch, onMounted } from 'vue'
++import { watch, onMounted, computed } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+ import { useI18n } from 'vue-i18n'
+ import FilesShell from '../files/components/FilesShell.vue'
++import FilesSidebar from '../files/components/FilesSidebar.vue'
++import Breadcrumb from '../files/components/Breadcrumb.vue'
+ import FileListView from '../files/components/FileListView.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
++import { useFavoritesStore } from '../files/stores/favorites'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath,
+ } from '../files/util/pathUtils'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const files = useFilesStore()
++const favorites = useFavoritesStore()
+ const { t } = useI18n()
+ 
++const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
++
++function goVirtual(vp: string) {
++  router.push('/files/' + virtualPathToRouteParam(vp))
++}
+ async function sync() {
+   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
+   if (vp === '/') {
+     const rootReal = files.defaultRootReal()
+     if (!rootReal) return
+     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
+     return
+   }
+   await files.load(toRealPath(vp, files.displayNames))
+ }
+ function openEntry(entry: FileEntry) {
+   if (!entry.is_dir) return
+-  router.push('/files/' + virtualPathToRouteParam(toVirtualPath(entry.path, files.displayNames)))
++  goVirtual(toVirtualPath(entry.path, files.displayNames))
+ }
+-onMounted(async () => { await files.loadRoots(); await sync() })
++onMounted(async () => {
++  await files.loadRoots()
++  favorites.load()
++  await sync()
++})
+ watch(() => route.params.path, () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
+ </script>
+ 
+ <template>
+   <FilesShell>
+-    <div class="files-toolbar">
+-      <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+-      <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
++    <div class="files-layout">
++      <FilesSidebar @navigate="goVirtual" />
++      <div class="files-main">
++        <div class="files-topbar">
++          <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
++          <div class="files-viewtoggle">
++            <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
++            <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
++          </div>
++        </div>
++        <FileGridView v-if="files.viewMode === 'grid'" :entries="files.sortedEntries" @open="openEntry" />
++        <FileListView v-else :entries="files.sortedEntries" :sort="files.sort" :order="files.order" @open="openEntry" @reorder="files.setSort" />
++      </div>
+     </div>
+-    <FileGridView v-if="files.viewMode === 'grid'" :entries="files.sortedEntries" @open="openEntry" />
+-    <FileListView v-else :entries="files.sortedEntries" :sort="files.sort" :order="files.order" @open="openEntry" @reorder="files.setSort" />
+   </FilesShell>
+ </template>
+ 
+ <style scoped>
+-.files-toolbar { display: flex; gap: 8px; padding: 4px 0 14px; }
++.files-layout { display: flex; gap: 16px; align-items: flex-start; }
++.files-main { flex: 1 1 auto; min-width: 0; }
++.files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
++.files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+ .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
+ .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+ </style>

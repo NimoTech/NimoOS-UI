@@ -1,0 +1,290 @@
+cf24465 sp8-ai P3a Task 2: skill types, skillsFormat util, 30 aiSk* i18n keys
+
+ src/ai/types/skill.ts            | 36 +++++++++++++++++++
+ src/ai/util/skillsFormat.test.ts | 76 ++++++++++++++++++++++++++++++++++++++++
+ src/ai/util/skillsFormat.ts      | 55 +++++++++++++++++++++++++++++
+ src/i18n/en_us.ts                | 32 +++++++++++++++++
+ src/i18n/zh_cn.ts                | 32 +++++++++++++++++
+ 5 files changed, 231 insertions(+)
+
+diff --git a/src/ai/types/skill.ts b/src/ai/types/skill.ts
+new file mode 100644
+index 0000000..d28262f
+--- /dev/null
++++ b/src/ai/types/skill.ts
+@@ -0,0 +1,36 @@
++// SP8-P3a Task 2 —— 逐字照后端 DTO `NimoOS-AI/service/skills.go:10-32` 的 json tag。
++// 字段顺序与命名与后端 struct 一一对应,不新增/不省略字段(`trigger_human` 见下方
++// 单独说明)。后端 `GET /v2/ai/skills`、`GET /v2/ai/skills/:id` 均直接
++// `c.JSON(200, out)` 裸序列化该 struct(或其数组)——无信封,消费端单层取数
++// (公共约束 §4)。
++
++/** 对齐后端 `SkillFile`(skills.go:29-32)。`size` 是后端已格式化好的展示串
++ *  (如 `"12 B"` / `"1.0 KB"` / `"(3 files)"`),不是原始字节数。 */
++export interface SkillFile {
++  name: string
++  size: string
++}
++
++/** 对齐后端 `Skill`(skills.go:10-27)。 */
++export interface Skill {
++  id: string
++  name: string
++  title: string
++  description: string
++  trigger: string
++  /** 后端 `manifestToSkill`(skills.go:191-199)按 trigger 枚举现填
++   *  `"Automatic"` / `"/"+name` / `"Manual"`。**本仓弃用这个字段,不得在界面上
++   *  渲染** —— 改由 `trigger` 枚举经 `skillsFormat.ts` 的 `triggerLabel()` 映射到
++   *  本地化 i18n 键(公共约束 §3 偏离 4)。留字段只是为了如实描述后端契约。 */
++  trigger_human: string
++  color: string
++  icon: string
++  enabled: boolean
++  system: boolean
++  author: string
++  last_used: string
++  calls: number
++  files: SkillFile[]
++  examples: string[]
++  md: string
++}
+diff --git a/src/ai/util/skillsFormat.test.ts b/src/ai/util/skillsFormat.test.ts
+new file mode 100644
+index 0000000..637dd04
+--- /dev/null
++++ b/src/ai/util/skillsFormat.test.ts
+@@ -0,0 +1,76 @@
++// SP8-P3a Task 2 —— 覆盖 brief §2.4 列的用例:三种 trigger + 未知 trigger 回 null、
++// 'You' vs 任意人名、"(3 files)" / "(1 file)" / "12 B" / "1.0 KB" / 空串。
++import { describe, it, expect } from 'vitest'
++import { triggerLabel, authorLabel, fileSizeLabel } from './skillsFormat'
++
++describe('triggerLabel', () => {
++  it('auto → aiSkTriggerAutomatic, no params', () => {
++    expect(triggerLabel('auto', 'deploy')).toEqual({ key: 'aiSkTriggerAutomatic' })
++  })
++
++  it('slash → aiSkTriggerSlash with the skill name as param', () => {
++    expect(triggerLabel('slash', 'deploy')).toEqual({
++      key: 'aiSkTriggerSlash',
++      params: { name: 'deploy' },
++    })
++  })
++
++  it('slash carries the given name through, not a fixed literal', () => {
++    expect(triggerLabel('slash', 'backup')).toEqual({
++      key: 'aiSkTriggerSlash',
++      params: { name: 'backup' },
++    })
++  })
++
++  it('manual → reuses aiSkTagManual (not a dedicated manual-detail key)', () => {
++    expect(triggerLabel('manual', 'deploy')).toEqual({ key: 'aiSkTagManual' })
++  })
++
++  it('unknown trigger value → null (caller falls back to raw string)', () => {
++    expect(triggerLabel('cron', 'deploy')).toBeNull()
++  })
++
++  it('empty trigger → null', () => {
++    expect(triggerLabel('', 'deploy')).toBeNull()
++  })
++})
++
++describe('authorLabel', () => {
++  it("'You' → aiSkAuthorYou", () => {
++    expect(authorLabel('You')).toEqual({ key: 'aiSkAuthorYou' })
++  })
++
++  it('an arbitrary author name is data, not a key → null', () => {
++    expect(authorLabel('Alice')).toBeNull()
++  })
++
++  it('is case-sensitive: "you" (lowercase) is not the sentinel → null', () => {
++    expect(authorLabel('you')).toBeNull()
++  })
++
++  it('empty author → null', () => {
++    expect(authorLabel('')).toBeNull()
++  })
++})
++
++describe('fileSizeLabel', () => {
++  it('"(3 files)" → aiSkNFiles with n=3', () => {
++    expect(fileSizeLabel('(3 files)')).toEqual({ key: 'aiSkNFiles', params: { n: 3 } })
++  })
++
++  it('"(1 file)" (singular, no trailing s) → aiSkNFiles with n=1', () => {
++    expect(fileSizeLabel('(1 file)')).toEqual({ key: 'aiSkNFiles', params: { n: 1 } })
++  })
++
++  it('"12 B" byte-unit string passes through untouched → null', () => {
++    expect(fileSizeLabel('12 B')).toBeNull()
++  })
++
++  it('"1.0 KB" byte-unit string passes through untouched → null', () => {
++    expect(fileSizeLabel('1.0 KB')).toBeNull()
++  })
++
++  it('empty string → null', () => {
++    expect(fileSizeLabel('')).toBeNull()
++  })
++})
+diff --git a/src/ai/util/skillsFormat.ts b/src/ai/util/skillsFormat.ts
+new file mode 100644
+index 0000000..f3eda4c
+--- /dev/null
++++ b/src/ai/util/skillsFormat.ts
+@@ -0,0 +1,55 @@
++// SP8-P3a Task 2 —— 纯函数,**不 import `vue-i18n`**(与 `channelsFormat.ts`/
++// `mcpConnect.ts` 同一分工:抽成纯函数好脱离 vue-i18n 单测,文案由调用方 t() 出来)。
++//
++// 三个函数对齐的后端产出坐标,均在 `NimoOS-AI/service/skills.go`:
++//   - `triggerLabel` 对齐 `manifestToSkill` 的 trigger→trigger_human 映射
++//     (skills.go:191-199,`"auto"→"Automatic"` / `"slash"→"/"+name` / `"manual"→"Manual"`)。
++//   - `authorLabel` 对齐 `manifestToSkill` 的 author 兜底(skills.go:184-190,
++//     用户技能未显式指定作者时后端填字面量 `"You"`)。
++//   - `fileSizeLabel` 对齐 `humanSize`/`listBundleFiles`(skills.go:138-148,
++//     文件夹在文件列表里显示为 `"(N files)"`,内部子项个数而非字节数)。
++//
++// **界面永不回显后端原文** —— 与 `channelsFormat.addBotErrorKey` 同一先例:后端吐出的
++// 英文字面量只作为「键」去匹配,匹配到的一律返回本地化 i18n 键交给调用方 t()、
++// 认不出的返回 `null` 交给调用方原样显示原串(后端仍然可能吐出 UI 认不出的新
++// trigger/author 值,这时 null 让调用方兜底展示原文,而不是抛错或吞掉)。
++
++export interface LabelRef {
++  key: string
++  params?: Record<string, unknown>
++}
++
++/** 对齐 Vue2 `trigger_human` 的语义,但输入是原始 `trigger` 枚举 + skill `name`
++ *  (公共约束 §3 偏离 4:本仓弃用后端算好的 `trigger_human` 字符串,自己按枚举映射)。
++ *  `'manual'` 复用 `aiSkTagManual`(左栏「手动」短标签)—— Vue2 里 slash/manual 只有
++ *  一种「手动」文案,不新建重复键。未知 trigger 回 `null`,调用方原样显示原串。 */
++export function triggerLabel(trigger: string, name: string): LabelRef | null {
++  switch (trigger) {
++    case 'auto':
++      return { key: 'aiSkTriggerAutomatic' }
++    case 'slash':
++      return { key: 'aiSkTriggerSlash', params: { name } }
++    case 'manual':
++      return { key: 'aiSkTagManual' }
++    default:
++      return null
++  }
++}
++
++/** 后端把「用户新建技能且未显式指定作者」的默认值硬编码成字面量 `"You"`
++ *  (skills.go:188)。只有这一个值需要本地化 —— 其它值是真实人名/系统作者数据,
++ *  原样显示,回 `null`。 */
++export function authorLabel(author: string): LabelRef | null {
++  if (author === 'You') return { key: 'aiSkAuthorYou' }
++  return null
++}
++
++/** 后端文件夹条目的 size 字段是 `"(N files)"` / `"(1 file)"` 这种整串(skills.go:175
++ *  `"(" + itoaSkill(len(subs)) + " files)"`,单复数由后端拼接,该拼接从不产出单数
++ *  形式的 "file" 但正则容错兼容)。**普通文件的 `"12 B"` / `"1.0 KB"` / `"1.0 MB"`
++ *  这类字节单位原样透传**,回 `null`。 */
++export function fileSizeLabel(size: string): LabelRef | null {
++  const m = /^\((\d+) files?\)$/.exec(size)
++  if (!m) return null
++  return { key: 'aiSkNFiles', params: { n: Number(m[1]) } }
++}
+diff --git a/src/i18n/en_us.ts b/src/i18n/en_us.ts
+index 05a14b6..43a6ebb 100644
+--- a/src/i18n/en_us.ts
++++ b/src/i18n/en_us.ts
+@@ -1186,11 +1186,43 @@ export default {
+   aiCfgChannelsBindingDefaultModel: 'Default model',
+   aiCfgChannelsBindingDownloadDir: 'Download folder',
+   aiCfgChannelsUnbind: 'Unlink',
+   aiCfgChannelsUnbindConfirm: 'Unlink this account? It will no longer be able to message the agent.',
+   aiCfgChannelsDeleteBotConfirm: 'Delete this bot? All pairings for it will stop working.',
+   aiCfgChannelsCodeTitle: 'Pairing code',
+   aiCfgChannelsCodeWarn: 'This code is valid for 10 minutes and can be used once.',
+   aiCfgChannelsCreateCodeFailed: 'Could not generate a pairing code.',
+   aiCfgChannelsPairInstructions: 'Open Telegram, message {\'@\'}{\'{\'}bot{\'}\'}, and send: /pair {\'{\'}code{\'}\'}',
+   // <<< SP8-P2b Task 12
++  // >>> SP8-P3a — skills section
++  aiSkSearchPlaceholder: 'Search skills…',
++  aiSkBuiltIn: 'Built-in skills',
++  aiSkYours: 'Your skills',
++  aiSkNoMatch: 'No skills match',
++  aiSkEmpty: 'No skills yet. Click the + to add one.',
++  aiSkLoadFailed: 'Could not load skills',
++  aiSkTagAuto: 'Auto',
++  aiSkTagSlash: 'Slash',
++  aiSkTagManual: 'Manual',
++  aiSkNRuns: '{count} runs',
++  aiSkOff: 'Off',
++  aiSkPickLeft: 'Pick a skill on the left',
++  aiSkPickLeftSub: 'Or add a new one — Nimo will use it whenever its trigger fires.',
++  aiSkTryInChat: 'Try in chat',
++  aiSkStatus: 'Status',
++  aiSkActive: 'Active',
++  aiSkPaused: 'Paused',
++  aiSkTrigger: 'Trigger',
++  aiSkAddedBy: 'Added by',
++  aiSkLastRun: 'Last run',
++  aiSkNTotal: '{count} total',
++  aiSkDescription: 'Description',
++  aiSkDescHint: 'Nimo reads this to decide when to use the skill.',
++  aiSkMdHint: 'The instructions Nimo loads when the skill runs.',
++  aiSkBundledFiles: 'Bundled files',
++  aiSkNFiles: '{n} files',
++  aiSkNoBundledFiles: 'No bundled files',
++  aiSkTriggerAutomatic: 'Automatic',
++  aiSkAuthorYou: 'You',
++  aiSkTriggerSlash: '/{name}',
++  // <<< SP8-P3a
+ }
+diff --git a/src/i18n/zh_cn.ts b/src/i18n/zh_cn.ts
+index 0591bf8..cb8b399 100644
+--- a/src/i18n/zh_cn.ts
++++ b/src/i18n/zh_cn.ts
+@@ -1189,11 +1189,43 @@ export default {
+   aiCfgChannelsBindingDefaultModel: '默认模型',
+   aiCfgChannelsBindingDownloadDir: '下载目录',
+   aiCfgChannelsUnbind: '解绑',
+   aiCfgChannelsUnbindConfirm: '确定解绑该账号？解绑后它将无法再与智能体对话。',
+   aiCfgChannelsDeleteBotConfirm: '删除该机器人？其所有配对将失效。',
+   aiCfgChannelsCodeTitle: '配对码',
+   aiCfgChannelsCodeWarn: '此配对码 10 分钟内有效，且仅可使用一次。',
+   aiCfgChannelsCreateCodeFailed: '生成配对码失败。',
+   aiCfgChannelsPairInstructions: '打开 Telegram，给 {\'@\'}{\'{\'}bot{\'}\'} 发送：/pair {\'{\'}code{\'}\'}',
+   // <<< SP8-P2b Task 12
++  // >>> SP8-P3a —— 技能分区
++  aiSkSearchPlaceholder: '搜索技能…',
++  aiSkBuiltIn: '内置技能',
++  aiSkYours: '我的技能',
++  aiSkNoMatch: '没有匹配的技能',
++  aiSkEmpty: '还没有技能,点击 + 添加一个。',
++  aiSkLoadFailed: '无法加载技能列表',
++  aiSkTagAuto: '自动',
++  aiSkTagSlash: '命令',
++  aiSkTagManual: '手动',
++  aiSkNRuns: '{count} 次运行',
++  aiSkOff: '已关闭',
++  aiSkPickLeft: '在左侧选择一个技能',
++  aiSkPickLeftSub: '或者新建一个 —— Nimo 会在触发器命中时自动调用。',
++  aiSkTryInChat: '在对话中试用',
++  aiSkStatus: '状态',
++  aiSkActive: '已启用',
++  aiSkPaused: '已暂停',
++  aiSkTrigger: '触发方式',
++  aiSkAddedBy: '来源',
++  aiSkLastRun: '上次运行',
++  aiSkNTotal: '共 {count} 次',
++  aiSkDescription: '描述',
++  aiSkDescHint: 'Nimo 据此判断何时调用该技能。',
++  aiSkMdHint: '技能运行时 Nimo 加载的指令文件。',
++  aiSkBundledFiles: '附带文件',
++  aiSkNFiles: '{n} 个文件',
++  aiSkNoBundledFiles: '没有附带文件',
++  aiSkTriggerAutomatic: '自动触发',
++  aiSkAuthorYou: '你',
++  aiSkTriggerSlash: '/{name}',
++  // <<< SP8-P3a
+ }

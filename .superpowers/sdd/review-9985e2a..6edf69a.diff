@@ -1,0 +1,202 @@
+# Review package: 9985e2a..6edf69a
+
+## Commits
+6edf69a feat(files-p5a): pure utils — shouldNavigateHome, samba address/history, location order
+
+## Files changed
+ src/files/util/locationOrder.test.ts | 24 ++++++++++++++++++++++++
+ src/files/util/locationOrder.ts      | 36 ++++++++++++++++++++++++++++++++++++
+ src/files/util/mounts.test.ts        | 17 +++++++++++++++++
+ src/files/util/mounts.ts             |  5 +++++
+ src/files/util/sambaHistory.test.ts  | 33 +++++++++++++++++++++++++++++++++
+ src/files/util/sambaHistory.ts       | 36 ++++++++++++++++++++++++++++++++++++
+ 6 files changed, 151 insertions(+)
+
+## Diff
+diff --git a/src/files/util/locationOrder.test.ts b/src/files/util/locationOrder.test.ts
+new file mode 100644
+index 0000000..fd5de5f
+--- /dev/null
++++ b/src/files/util/locationOrder.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { applyOrder, readOrder, writeOrder, readDefault, writeDefault } from './locationOrder'
++
++beforeEach(() => localStorage.clear())
++
++describe('applyOrder', () => {
++  const disks = [{ path: '/a' }, { path: '/b' }, { path: '/c' }]
++  it('无保存顺序 → 原样', () => {
++    expect(applyOrder(disks, []).map((d) => d.path)).toEqual(['/a', '/b', '/c'])
++  })
++  it('按保存顺序重排', () => {
++    expect(applyOrder(disks, ['/c', '/a']).map((d) => d.path)).toEqual(['/c', '/a', '/b'])
++  })
++  it('未记录的新盘排到已知项之后、保持相对序', () => {
++    expect(applyOrder([{ path: '/a' }, { path: '/x' }, { path: '/b' }], ['/b', '/a']).map((d) => d.path))
++      .toEqual(['/b', '/a', '/x'])
++  })
++})
++
++describe('order/default 持久化', () => {
++  it('order 往返', () => { writeOrder(['/a', '/b']); expect(readOrder()).toEqual(['/a', '/b']) })
++  it('default 往返', () => { writeDefault('/a'); expect(readDefault()).toBe('/a') })
++  it('缺失/损坏 → 空', () => { expect(readOrder()).toEqual([]); expect(readDefault()).toBe('') })
++})
+diff --git a/src/files/util/locationOrder.ts b/src/files/util/locationOrder.ts
+new file mode 100644
+index 0000000..9305e5f
+--- /dev/null
++++ b/src/files/util/locationOrder.ts
+@@ -0,0 +1,36 @@
++const ORDER_KEY = 'nimoos:location-order'
++const DEFAULT_KEY = 'nimoos:location-default'
++
++// 按保存顺序重排;未记录项(新盘)保持原相对位置、排到已知项之后。对齐 Vue2 applyLocationOrder。
++export function applyOrder<T extends { path: string }>(disks: T[], order: string[]): T[] {
++  if (!order.length) return disks
++  const rank = (p: string) => {
++    const i = order.indexOf(p)
++    return i === -1 ? Number.MAX_SAFE_INTEGER : i
++  }
++  return disks
++    .map((item, idx) => ({ item, idx }))
++    .sort((a, b) => rank(a.item.path) - rank(b.item.path) || a.idx - b.idx)
++    .map((x) => x.item)
++}
++
++export function readOrder(): string[] {
++  try {
++    const v = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]')
++    return Array.isArray(v) ? v : []
++  } catch {
++    return []
++  }
++}
++
++export function writeOrder(order: string[]): void {
++  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)) } catch { /* 忽略 */ }
++}
++
++export function readDefault(): string {
++  try { return localStorage.getItem(DEFAULT_KEY) || '' } catch { return '' }
++}
++
++export function writeDefault(path: string): void {
++  try { localStorage.setItem(DEFAULT_KEY, path) } catch { /* 忽略 */ }
++}
+diff --git a/src/files/util/mounts.test.ts b/src/files/util/mounts.test.ts
+new file mode 100644
+index 0000000..dc583fb
+--- /dev/null
++++ b/src/files/util/mounts.test.ts
+@@ -0,0 +1,17 @@
++import { describe, it, expect } from 'vitest'
++import { shouldNavigateHome } from './mounts'
++
++describe('shouldNavigateHome', () => {
++  it('当前就在被弹出挂载点 → true', () => {
++    expect(shouldNavigateHome('/mnt/host', '/mnt/host')).toBe(true)
++  })
++  it('当前在其子目录 → true', () => {
++    expect(shouldNavigateHome('/mnt/host/share/a', '/mnt/host')).toBe(true)
++  })
++  it('前缀相同但非同一挂载点(host vs host2)→ false', () => {
++    expect(shouldNavigateHome('/mnt/host2', '/mnt/host')).toBe(false)
++  })
++  it('无关路径 → false', () => {
++    expect(shouldNavigateHome('/DATA/Documents', '/mnt/host')).toBe(false)
++  })
++})
+diff --git a/src/files/util/mounts.ts b/src/files/util/mounts.ts
+new file mode 100644
+index 0000000..2d0dbe9
+--- /dev/null
++++ b/src/files/util/mounts.ts
+@@ -0,0 +1,5 @@
++// 弹出某挂载点后,若用户当前正处在它(或其子目录)内,需导航回 /DATA。
++// 注意 Vue2 用裸 startsWith 会把 /mnt/host2 误判为 /mnt/host 之下;这里用精确 + 分隔符边界修正。
++export function shouldNavigateHome(currentReal: string, ejectedReal: string): boolean {
++  return currentReal === ejectedReal || currentReal.startsWith(ejectedReal + '/')
++}
+diff --git a/src/files/util/sambaHistory.test.ts b/src/files/util/sambaHistory.test.ts
+new file mode 100644
+index 0000000..6e9cdeb
+--- /dev/null
++++ b/src/files/util/sambaHistory.test.ts
+@@ -0,0 +1,33 @@
++import { describe, it, expect, beforeEach } from 'vitest'
++import { parseAddress, readHosts, addHost, writeHosts } from './sambaHistory'
++
++beforeEach(() => localStorage.clear())
++
++describe('parseAddress', () => {
++  it('解析 smb:// 并取 / 前主机', () => {
++    expect(parseAddress('smb://192.168.1.10/share')).toEqual({ protocol: 'smb', host: '192.168.1.10' })
++  })
++  it('解析 nfs://', () => {
++    expect(parseAddress('nfs://10.0.0.2')).toEqual({ protocol: 'nfs', host: '10.0.0.2' })
++  })
++  it('无合法前缀 → protocol null', () => {
++    expect(parseAddress('192.168.1.1')).toEqual({ protocol: null, host: '' })
++  })
++})
++
++describe('samba host history', () => {
++  it('addHost 去重(host+guest)且不含密码字段', () => {
++    let list = addHost([], { host: 'h', guest: true, username: '' })
++    list = addHost(list, { host: 'h', guest: true, username: '' }) // 重复
++    expect(list).toEqual([{ host: 'h', guest: true, username: '' }])
++    expect(Object.keys(list[0])).not.toContain('password')
++  })
++  it('write→read 往返', () => {
++    writeHosts([{ host: 'h', guest: false, username: 'u' }])
++    expect(readHosts()).toEqual([{ host: 'h', guest: false, username: 'u' }])
++  })
++  it('localStorage 损坏时 readHosts 返回 []', () => {
++    localStorage.setItem('nimoos:samba-hosts', '{bad json')
++    expect(readHosts()).toEqual([])
++  })
++})
+diff --git a/src/files/util/sambaHistory.ts b/src/files/util/sambaHistory.ts
+new file mode 100644
+index 0000000..3a990b4
+--- /dev/null
++++ b/src/files/util/sambaHistory.ts
+@@ -0,0 +1,36 @@
++const KEY = 'nimoos:samba-hosts'
++
++export interface SambaHost {
++  host: string
++  guest: boolean
++  username: string // 仅存用户名,绝不存密码(对齐 Vue2)
++}
++
++export function parseAddress(input: string): { protocol: 'smb' | 'nfs' | null; host: string } {
++  const m = /^(smb|nfs):\/\/(.+)$/i.exec(input.trim())
++  if (!m) return { protocol: null, host: '' }
++  return { protocol: m[1].toLowerCase() as 'smb' | 'nfs', host: m[2].split('/')[0] }
++}
++
++export function readHosts(): SambaHost[] {
++  try {
++    const v = JSON.parse(localStorage.getItem(KEY) || '[]')
++    return Array.isArray(v) ? v : []
++  } catch {
++    return []
++  }
++}
++
++export function addHost(list: SambaHost[], h: SambaHost): SambaHost[] {
++  const entry: SambaHost = { host: h.host, guest: h.guest, username: h.guest ? '' : h.username }
++  if (list.some((x) => x.host === entry.host && x.guest === entry.guest)) return list
++  return [...list, entry]
++}
++
++export function writeHosts(list: SambaHost[]): void {
++  try {
++    localStorage.setItem(KEY, JSON.stringify(list))
++  } catch {
++    /* 非安全上下文/隐私模式:忽略 */
++  }
++}
