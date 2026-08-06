@@ -130,14 +130,8 @@ export const DELETE = [
   // 这里能一行删掉,不必打上百条锚点补丁 × 2 语言(改一条 AI 文案就打红导出)。
   'src/i18n/zh_cn.ai.ts',
   'src/i18n/en_us.ai.ts',
-  // SP8-P6-T4 新建的**四分片**不相交守卫(base / photos / ai / sp9)。剥掉 photos 与 ai
-  // 两片之后产出树里只剩 base + sp9 两片,而它守的三件事已被保留下来的 parity.test.ts
-  // 逐条覆盖:① base × sp9 不相交 == parity 的「分片不得覆盖基座已有 key(静默改文案)」
-  // 同义;② 两语言键集一致 == parity 第一条(对合并后集合断言);③「四片键数之和 ==
-  // 真实 messages 键数」这条无损划分在只剩两片时退化成前两条的推论。
-  // 要靠 PATCH 改成两片版需约 10 条锚点(4 个 import + 4 个 describe 体 + 2 段注释),
-  // 换来一份与 parity.test.ts 重复的守卫 —— 与上面 photosSlice.test.ts 同一判断,整体删。
-  'src/i18n/__tests__/shardDisjoint.test.ts',
+  // (shardDisjoint.test.ts **不在这里** —— 修复轮 1 撤回了原先的整体删除,改成
+  //  PATCH 成两片版保留,理由见下方 PATCH 段 SP8-P6-T7 那节的「两片版守卫」小节。)
   // 整份文件是 **AI 文案**的 vue-i18n 语法守卫:13 个 describe 里 12 个直接点名
   // aiComposer* / aiSlash* / aiSk* / aiKb*,这些键全在已删的 ai 分片里。
   // 唯一看起来通用的末条「bare @ guard」(遍历全部键找未转义的 @)同样只服务 AI ——
@@ -2210,6 +2204,229 @@ describe('AI 区 cutover(SP8-P6)', () => {
     find: '    "dompurify": "^3.4.12",\n', replace: '' },
   { path: 'package.json',
     find: '    "@types/dompurify": "^3.2.0",\n', replace: '' },
+
+  // ── 两片版守卫:src/i18n/__tests__/shardDisjoint.test.ts(修复轮 1 · Important 1)─
+  //    第一版把整份文件放进了 DELETE,理由是"它守的三件事 parity.test.ts 都有"。
+  //    独立评审逐条驳回,复核后**三条全部不成立**,已撤回:
+  //      ① parity 的「分片不得覆盖基座已有 key」只查 zh 侧
+  //         (parity.test.ts:31 `Object.keys(zhSp9).filter(k => k in zhBase)`),
+  //         **没有 en 侧对应断言**。只在英文侧撞车时:合并后两语言键集仍相等 →
+  //         parity 第一条绿;zh 侧没撞 → parity 那条也绿 —— 英文文案被静默覆盖而
+  //         零守卫。而基座与 sp9 分片**都是保留面**,这个盲区会真的留在产出树里。
+  //      ② 「键数之和 == 真实 messages 键数」刻意 import '../index' 走**真实装配
+  //         路径**(见该文件 20-22 / 63-65 行)。全仓**只有这一个文件**碰
+  //         src/i18n/index.ts 的装配结果 —— parity.test.ts 自己手写
+  //         `{...zhBase, ...zhSp9}`,根本不 import index.ts。删掉之后"index.ts 有没有
+  //         真把分片并进去"在产出树里零覆盖,而 index.ts 与分片都是保留面。
+  //      ③ parity 断言的是**合并后**集合;跨片错位(某键在 zh 的基座里却在 en 的
+  //         分片里)合并后仍相等,per-shard 对称性丢失 —— 该文件 106-108 行自己就
+  //         写着"base / ai / sp9 三条是本文件独有,此前没有任何测试守这三片的中英对称"。
+  //
+  //    🔴 为什么用 PATCH 而不是评审建议的 REPLACE + 哈希钉:**REPLACE 这条路走不通**。
+  //    冻结分身要能跑就必须含 `import zhSp9 from '../zh_cn.sp9'`(ESM 裸说明符,不带
+  //    .ts),而 tree.test.mjs 的「REPLACE 表里每一个冻结分身都不含固定清单里的词」
+  //    会把它按 /\bsp[789]\b(?!\.ts)/i 判成期号泄漏 —— 那条 (?!\.ts) 豁免只覆盖**带
+  //    扩展名**的文件名引用,覆盖不到 import 说明符。已用正则实测确认命中。
+  //    走通它只有两条路:放宽那条豁免(= 削弱别人的守卫,本项目明令禁止),或把
+  //    import 写成动态拼字符串(为躲守卫而混淆,更糟)。PATCH 没有这个问题:import
+  //    行属**保留原文**,不经 replace payload,那道守卫按设计就不管它;而 replace
+  //    payload 本身仍受同一条守卫约束(下面每段措辞都按它写,期号一律用文件名形式)。
+  //    评审要的产物("产物树里放一份两片版守卫")一条不少地达成,只是换了载体。
+  //
+  //    🔴 变异实测(2026-08-06,在产物树上做,两次都已还原):
+  //      · 往产物树 zh_cn.sp9.ts 插一个与 zh_cn.base.ts 重名的键 → zh 侧那条红 ✔
+  //      · 只往 en_us.sp9.ts 插 en-only 撞车(zh 侧不插)→ **en 侧那条红** ✔
+  //        (这正是 parity.test.ts 漏掉、第一版删除会放回去的那一类)
+  //    详见 .superpowers/sdd/p6-task-7-report.md §9。
+
+  //    (a) 文件头:整段重写成两片版(原文点名 photosSlice.test.ts / photos / ai)
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: `// SP8-P6-T4:i18n 分片不相交守卫(常驻)。
+//
+// 背景与三条安全前提见 photosSlice.test.ts 顶部注释:分片靠对象展开合并
+// (\`{...base, ...photos, ...ai}\`),重复键会被后展开的静默覆盖 —— git 不报冲突,
+// parity.test.ts 只测「合并后」的键集,两语言若以同样方式撞车、合并结果仍然相等,
+// parity 也照过。这类错误此前完全无声。
+//
+// 本文件补 photosSlice.test.ts 没覆盖的三个缺口(该文件已经守住了「三片(base/
+// photos/ai)两两不相交」「出口是纯合并」,不在此重复):
+//
+//   ① 真实分片是 **4 片**,不是 3 片。\`zh_cn.sp9.ts\` / \`en_us.sp9.ts\` 不经过
+//      \`zh_cn.ts\` / \`en_us.ts\` 那个出口 —— 它在 \`src/i18n/index.ts\` 里单独并入
+//      (\`{ ...zh, ...zhSp9 }\`),是第二条独立的装配路径。photosSlice.test.ts 只验
+//      \`zh_cn.ts\` 出口(base+photos+ai),漏掉了 sp9 这一片与其余三片的撞车风险,
+//      而 sp9 是整个 SP9 期文案,体量(459 键)不小。
+//   ② ai 分片自身的前缀守卫(该分片是 T3 新建的,还没有专属守卫)。
+//   ③ 两语言分片结构对称 —— 每一片 zh 与 en 的键集须完全一致。若两语言各自以
+//      不同方式撞车,「合并后键数相等」这类聚合检查会失明(键数凑巧相等但键不同)。
+//
+// 「无损划分」这条刻意验证**真实装配路径**:import '../index' 拿到的 createI18n
+// 实例(index.ts 里 \`messages.zh_cn\` / \`messages.en_us\`),而不是只测 zh_cn.ts 那个
+// 不含 sp9 的出口 —— 后者会漏掉 sp9 分片撞车的可能性。`,
+    replace: `// i18n 分片不相交守卫(常驻)。
+//
+// 文案分成两片文件,靠对象展开合并(\`{ ...base, ...shard }\`),重复键会被后展开的
+// 静默覆盖 —— git 不报冲突,而 parity.test.ts 只测「合并后」的键集:两语言若以同样
+// 方式撞车、合并结果仍然相等,parity 也照过。这类错误此前完全无声。
+//
+// 本文件补 parity.test.ts 没覆盖的三个缺口:
+//
+//   ① parity 的「分片不得覆盖基座已有 key」**只查了 zh 一侧**
+//      (parity.test.ts 里 \`Object.keys(zhSp9).filter((k) => k in zhBase)\`)。
+//      只在英文侧撞车时:合并后两语言键集仍然相等 → parity 第一条绿;zh 侧没撞 →
+//      parity 那条也绿。结果是英文文案被静默覆盖而无人看守。下面双语各查一遍。
+//   ② **真实装配路径**。\`src/i18n/index.ts\` 才是产线把两片并起来的地方
+//      (\`{ ...zh, ...zhSp9 }\`),而 parity.test.ts 自己手写了一遍合并公式、根本不
+//      import index.ts。本文件的「无损划分」刻意读 index.ts 装出来的 createI18n
+//      实例,「index.ts 有没有真把分片并进去」才有覆盖 —— 全仓仅此一处。
+//   ③ 两语言**逐片**结构对称。parity 断言的是「合并后」的集合,跨片错位(某键在
+//      zh 的基座里、却在 en 的分片里)合并后仍然相等,逐片比较才看得见。` },
+
+  //    (b)(c) 摘掉两组 import(4 行)。⚠️ 剩下的 sp9 两行是**保留原文**,不经
+  //           replace payload —— 冻结分身守卫按设计不管它们(见上方长注释)。
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: "import zhPhotos from '../zh_cn.photos'\nimport zhAi from '../zh_cn.ai'\n", replace: '' },
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: "import enPhotos from '../en_us.photos'\nimport enAi from '../en_us.ai'\n", replace: '' },
+
+  //    (d) zh 侧不相交:六对 → 一对
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: `describe('zh 四片两两不相交(base / photos / ai / sp9)', () => {
+  it('六对组合全部不相交', () => {
+    expect(overlap(zhBase as Dict, zhPhotos as Dict), 'base × photos').toEqual([])
+    expect(overlap(zhBase as Dict, zhAi as Dict), 'base × ai').toEqual([])
+    expect(overlap(zhBase as Dict, zhSp9 as Dict), 'base × sp9').toEqual([])
+    expect(overlap(zhPhotos as Dict, zhAi as Dict), 'photos × ai').toEqual([])
+    expect(overlap(zhPhotos as Dict, zhSp9 as Dict), 'photos × sp9').toEqual([])
+    expect(overlap(zhAi as Dict, zhSp9 as Dict), 'ai × sp9').toEqual([])
+  })
+})`,
+    replace: `describe('zh 两片不相交(基座 / zh_cn.sp9.ts)', () => {
+  it('基座与分片不相交', () => {
+    expect(overlap(zhBase as Dict, zhSp9 as Dict), '基座 × 分片').toEqual([])
+  })
+})`},
+
+  //    (e) en 侧不相交:这条是 parity 缺的那一条,注释里把理由钉死,免得后人又删
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: `describe('en 四片两两不相交(base / photos / ai / sp9)', () => {
+  it('六对组合全部不相交', () => {
+    expect(overlap(enBase as Dict, enPhotos as Dict), 'base × photos').toEqual([])
+    expect(overlap(enBase as Dict, enAi as Dict), 'base × ai').toEqual([])
+    expect(overlap(enBase as Dict, enSp9 as Dict), 'base × sp9').toEqual([])
+    expect(overlap(enPhotos as Dict, enAi as Dict), 'photos × ai').toEqual([])
+    expect(overlap(enPhotos as Dict, enSp9 as Dict), 'photos × sp9').toEqual([])
+    expect(overlap(enAi as Dict, enSp9 as Dict), 'ai × sp9').toEqual([])
+  })
+})`,
+    replace: `// ⚠️ 别删这个 describe:它是 parity.test.ts **没有**的那一条。parity 的
+// 「分片不得覆盖基座已有 key」只查 zh 侧,只在英文侧撞车时它整套断言全绿
+// (合并后两语言键集仍相等、zh 侧确实没撞),英文文案就这么被静默覆盖。
+describe('en 两片不相交(基座 / en_us.sp9.ts)', () => {
+  it('基座与分片不相交', () => {
+    expect(overlap(enBase as Dict, enSp9 as Dict), '基座 × 分片').toEqual([])
+  })
+})`},
+
+  //    (f) 无损划分:判别力边界注释重写 + 两个求和从四项收到两项
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: `  // 用真实 i18n 实例的 messages,而不是重新手写一遍 {...a, ...b, ...c, ...d} ——
+  // 否则本测试和被测代码用同一条(可能同样错的)装配公式,查不出装配路径本身写错的情况。
+  //
+  // 这条断言的判别力边界(独立评审做过变异实测,结论记在这里免得后人误读):
+  //   能抓:某个分片游离在真实装配路径之外(比如以后新增第五片却忘了在 index.ts 里并进
+  //     去),或真实 messages 里混进了这四个已知分片之外的来源。sp9×ai 定向撞车的变异
+  //     (往 zh_cn.sp9.ts 塞一个与 zh_cn.ai.ts 重名的键)会同时把这条和「两两不相交」
+  //     一起打红 —— 这也是 shardDisjoint.test.ts 存在的核心理由:同一变异下
+  //     photosSlice.test.ts 的 12 条断言全绿、完全失明(它没有 sp9 这一片)。
+  //   抓不到:某个分片内部纯删除/纯增加而不撞名的情况 —— 例如从 zh_cn.sp9.ts 删掉
+  //     一个键。这时「四片键数之和」与「真实装配后键数」两边同步减 1,等式在集合论上
+  //     恒成立(只要「四片两两不相交」这个前提没被破坏),此断言必然保持绿,不代表
+  //     文案没被误删。防"误删文案"要靠别的手段(比如 messageSyntax.test.ts 那类值域
+  //     检查,或对已知键名做存在性断言),不归本条断言管。
+  const realMessages = i18n.global.messages.value as Record<string, Dict>
+
+  it('zh_cn: base+photos+ai+sp9 键数之和 == messages.zh_cn 键数', () => {
+    const sum = Object.keys(zhBase as Dict).length + Object.keys(zhPhotos as Dict).length +
+      Object.keys(zhAi as Dict).length + Object.keys(zhSp9 as Dict).length
+    expect(sum).toBe(Object.keys(realMessages.zh_cn).length)
+  })
+
+  it('en_us: base+photos+ai+sp9 键数之和 == messages.en_us 键数', () => {
+    const sum = Object.keys(enBase as Dict).length + Object.keys(enPhotos as Dict).length +
+      Object.keys(enAi as Dict).length + Object.keys(enSp9 as Dict).length
+    expect(sum).toBe(Object.keys(realMessages.en_us).length)
+  })
+})
+
+describe('ai 分片前缀守卫', () => {
+  it('zh_cn.ai.ts 键全部以 ai 开头', () => {
+    const bad = Object.keys(zhAi as Dict).filter((k) => !k.startsWith('ai'))
+    expect(bad, \`非 ai 前缀键: \${bad.join(', ')}\`).toEqual([])
+  })
+
+  it('en_us.ai.ts 键全部以 ai 开头', () => {
+    const bad = Object.keys(enAi as Dict).filter((k) => !k.startsWith('ai'))
+    expect(bad, \`非 ai 前缀键: \${bad.join(', ')}\`).toEqual([])
+  })
+})`,
+    replace: `  // 用真实 i18n 实例的 messages,而不是重新手写一遍 {...a, ...b} —— 否则本测试和
+  // 被测代码用同一条(可能同样错的)装配公式,查不出装配路径本身写错的情况。
+  // **全仓只有这里**对 src/i18n/index.ts 的真实装配结果下断言。
+  //
+  // 这条断言的判别力边界(记在这里免得后人误读):
+  //   能抓:某个分片游离在真实装配路径之外(比如以后新增一片却忘了在 index.ts 里
+  //     并进去),或真实 messages 里混进了这两个已知分片之外的来源。
+  //   抓不到:某个分片内部纯删除/纯增加而不撞名的情况 —— 例如从分片里删掉一个键。
+  //     这时「两片键数之和」与「真实装配后键数」两边同步减 1,等式在集合论上恒成立
+  //     (只要「两片不相交」这个前提没被破坏),此断言必然保持绿,不代表文案没被
+  //     误删。防"误删文案"要靠别的手段(对已知键名做存在性断言之类),不归本条管。
+  const realMessages = i18n.global.messages.value as Record<string, Dict>
+
+  it('zh_cn: 两片键数之和 == messages.zh_cn 键数', () => {
+    const sum = Object.keys(zhBase as Dict).length + Object.keys(zhSp9 as Dict).length
+    expect(sum).toBe(Object.keys(realMessages.zh_cn).length)
+  })
+
+  it('en_us: 两片键数之和 == messages.en_us 键数', () => {
+    const sum = Object.keys(enBase as Dict).length + Object.keys(enSp9 as Dict).length
+    expect(sum).toBe(Object.keys(realMessages.en_us).length)
+  })
+})`},
+
+  //    (g) 逐片中英对称:摘掉 photos / ai 两条,注释改写
+  { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
+    find: `describe('两语言分片结构对称(每一片 zh 与 en 键集完全一致)', () => {
+  // photos 这一条与 photosSlice.test.ts「两语言键集完全一致」重复 —— 保留是为了让
+  // 本文件本身就是「四片对称性」的完整清单,不必跳去另一个文件才能确认 photos 也被
+  // 覆盖到。base / ai / sp9 三条是本文件独有,此前没有任何测试守这三片的中英对称。
+  it('base 分片: zh 与 en 键集完全一致', () => {
+    expect(Object.keys(zhBase as Dict).sort()).toEqual(Object.keys(enBase as Dict).sort())
+  })
+
+  it('photos 分片: zh 与 en 键集完全一致', () => {
+    expect(Object.keys(zhPhotos as Dict).sort()).toEqual(Object.keys(enPhotos as Dict).sort())
+  })
+
+  it('ai 分片: zh 与 en 键集完全一致', () => {
+    expect(Object.keys(zhAi as Dict).sort()).toEqual(Object.keys(enAi as Dict).sort())
+  })
+
+  it('sp9 分片: zh 与 en 键集完全一致', () => {
+    expect(Object.keys(zhSp9 as Dict).sort()).toEqual(Object.keys(enSp9 as Dict).sort())
+  })
+})`,
+    replace: `describe('两语言逐片结构对称(每一片 zh 与 en 键集完全一致)', () => {
+  // parity.test.ts 断言的是「合并后」的集合,跨片错位(某键在 zh 的基座里、却在
+  // en 的分片里)合并后仍然相等 —— 只有逐片比较才看得见。这两条是本文件独有。
+  it('基座: zh 与 en 键集完全一致', () => {
+    expect(Object.keys(zhBase as Dict).sort()).toEqual(Object.keys(enBase as Dict).sort())
+  })
+
+  it('分片: zh 与 en 键集完全一致', () => {
+    expect(Object.keys(zhSp9 as Dict).sort()).toEqual(Object.keys(enSp9 as Dict).sort())
+  })
+})`},
 
   // ── src/components/AppToast.zIndex.test.ts:取数有效性闸的样式表计数阈值 ────
   //    这条是 T3 加的"守卫别空转"元断言,产出树里**实跑会红**(2026-08-06 在产物树上

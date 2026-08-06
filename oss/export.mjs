@@ -94,6 +94,34 @@ try {
         .replaceAll('directory: ../NimoOS-Service', 'directory: packages/service'),
   )
 
+  // ── 4.5 重算 lockfile(SP8-P6-T7 修复轮 1 · Important 2)──────────────────
+  // 背景:清单从这一刀起会**摘 package.json 的 dependencies**(AI 独占的 4 个 tiptap +
+  // dompurify + @types/dompurify)。上面那段只重写 file: 路径,importers 段里被摘掉的
+  // 那几条 specifier 原样留着 —— 于是产出树的 pnpm-lock.yaml 与 package.json 自相矛盾:
+  //   · `CI=true pnpm install`(CI 环境 frozen-lockfile 默认为 true)直接
+  //     ERR_PNPM_OUTDATED_LOCKFILE —— 对一个**公开仓**来说就是"clone 下来装不上"。
+  //     产出仓是跟踪 pnpm-lock.yaml 的(根目录 + packages/service 各一份)。
+  //   · 而且 packages/snapshots 段还留着约 150 行被摘掉的包的元数据,弱信号泄露
+  //     "私有版有个富文本编辑器"。
+  // 修法二选一(补 importers 段的锚点补丁 / 在这里重算)。选重算:
+  //   ① 锚点补丁只能修 importers,修不掉 packages/snapshots 段那 150 行;重算两个一起解。
+  //   ② 手写 lockfile 锚点在依赖升级一次后就全部作废,起不到"拦住手工夹带"的作用 ——
+  //      forbidden.mjs 对 pnpm-lock.yaml 改用"形状规则"而非精确锚点,同一条理由。
+  // --lockfile-only:只算依赖图、不落 node_modules。--no-frozen-lockfile 显式写死,
+  // 否则在 CI 里跑导出时 pnpm 会因为默认 frozen 而拒绝更新(正是我们要修的那个默认值)。
+  // 失败一律抛出:lockfile 算不出来就不该出包,绝不静默带着漂移的 lockfile 落盘。
+  log('4.5/6 重算 lockfile(package.json 的依赖已被清单改动)')
+  try {
+    execFileSync('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile',
+                          '--prefer-offline', '--ignore-scripts'],
+      { cwd: tmp, stdio: 'pipe', encoding: 'utf8', env: { ...process.env, CI: '' } })
+  } catch (e) {
+    throw new Error(
+      'pnpm install --lockfile-only 失败,产出树的 lockfile 会与 package.json 不一致。\n' +
+      `pnpm 输出:\n${(e.stdout || '') + (e.stderr || '')}`,
+    )
+  }
+
   // ── 5. 泄漏守卫(在临时目录上跑,不过就一个字节都不落盘)────────────────
   // scanTree 对每次跳过(未做内容扫描)都会留痕一条 word: '__skipped__' 的记录(见
   // forbidden.mjs 里 scanTree 的注释)。跳过分两类,处理方式不同:

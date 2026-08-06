@@ -403,3 +403,248 @@ AssertionError: PATCH[112] src/i18n/zh_cn.ts :: /\bSP\d(?!\.ts)/i:
    已按「扩锚点到 2 行」处理(见 §3.1)。记在这里是因为 dispatch 的另一条纪律
    ——「同样的报错文字 ⇒ 同样的根因不成立」——反过来也成立:
    **同样的预告不等于同样的现场**,7 条失配是逐条核出来的,不是照单接收的。
+
+---
+---
+
+# 修复轮 1/5(2026-08-06)—— 独立评审 2 Important + 2 Minor
+
+评审结论:Spec ✅,放水检查全项通过,漏删扫描零「第三种情况」,真泄漏 0 处。
+下面逐条记处理。**改动文件 2 个**:`oss/manifest.mjs`、`oss/export.mjs`。
+
+## 9. Important 1 —— `shardDisjoint.test.ts` 撤回整体删除,改成两片版保留
+
+### 9.1 先认账:我 §2 的覆盖等价性论证,三条全错
+
+复核评审的驳斥,**三条全部成立**,原论证不能用:
+
+| 我的原 claim | 为什么错(已现场核实) |
+|---|---|
+| ①「base × sp9 不相交 == parity 的『分片不得覆盖基座』逐字同义」 | **只对 zh 侧成立**。`parity.test.ts:31` 是 `Object.keys(zhSp9).filter(k => k in zhBase)` —— **没有 en 侧对应断言**。见 §9.4 变异 B′ 实测:en-only 撞车时 parity **5/5 全绿**。 |
+| ③「无损划分在两片时退化成前两条的推论」 | 不成立。那条刻意 `import { i18n } from '../index'` 走**真实装配路径**(文件 20-22 / 63-65 行写着)。实测 `grep -rln "from '\.\./index'\|from './index'" src/i18n` → **全仓只有 `shardDisjoint.test.ts` 摸 `src/i18n/index.ts` 的真实装配**;`parity.test.ts:8-9` 自己手写 `{...zhBase, ...zhSp9}`,根本不 import index.ts。删掉 = 「index.ts 有没有真把分片并进去」零覆盖,而 index.ts 与分片**都是保留面**。 |
+| ②「两语言键集一致 == parity 第一条」 | parity 断言的是**合并后**集合。跨片错位(某键在 `zhBase` 却在 `enSp9`)合并后仍相等,per-shard 对称性丢失。该文件 106-108 行自己就写着「base / ai / sp9 三条是本文件独有,此前没有任何测试守这三片的中英对称」。 |
+
+**教训**:我把「守卫 A 与守卫 B 都提到同一个概念」当成了「A 覆盖 B」。
+判断覆盖等价性必须**逐条比对断言的实际取数与作用域**(zh/en 哪一侧、合并前还是合并后、
+手写公式还是真实装配路径),而不是比对它们的**标题措辞**。三条错误全部出自这一个偷懒。
+
+### 9.2 采纳评审目标,但换载体:PATCH 而不是 REPLACE(有实测理由)
+
+评审建议 `REPLACE` + 哈希钉。**实测这条路走不通,已改用 PATCH,产物完全一致。**
+
+冻结分身要能跑,就必须含这一行:
+
+```typescript
+import zhSp9 from '../zh_cn.sp9'      // ESM 裸说明符,不带 .ts
+```
+
+而 `oss/tree.test.mjs:527` 那道「REPLACE 表里每一个冻结分身都不含固定清单里的词」会用
+`/\bsp[789]\b(?!\.ts)/i` 把它判成期号泄漏 —— 那条 `(?!\.ts)` 豁免**只覆盖带扩展名的
+文件名引用**(`zh_cn.sp9.ts`),覆盖不到 import 说明符。正则实测:
+
+```
+❌ 命中 /\bSP\d(?!\.ts)/i /\bsp[789]\b(?!\.ts)/i  :: "import zhSp9 from '../zh_cn.sp9'"
+✅ 通过                                           :: "zh_cn.sp9.ts 那一片"
+✅ 通过                                           :: "const sum = Object.keys(zhSp9).length"   ← 标识符无词边界,安全
+❌ 命中 …                                         :: "sp9 分片"
+```
+
+走通 REPLACE 只有两条路,**都不可接受**:
+1. 放宽那条 `(?!\.ts)` 豁免 —— 削弱别人的守卫,本项目明令禁止;
+2. 把 import 写成动态拼字符串躲守卫 —— 为过检而混淆,更糟。
+
+**PATCH 没有这个问题**:import 行属**保留原文**,不经 `replace` payload,该守卫按设计
+就不管它;而我写进去的 replace payload 仍**全部**受同一条守卫约束(措辞里期号一律用
+文件名形式,已过词表脚本,0 违规)。评审要的产物 ——「产物树里放一份两片版守卫」——
+一条不少地达成,只是换了载体。附带好处:不引入第 5 个冻结分身与哈希钉。
+
+`DELETE` 里那条已撤回,新增 **7 条 PATCH**(a 文件头 / b·c 两组 import / d zh 不相交 /
+e en 不相交 / f 无损划分 / g 逐片对称)。
+
+### 9.3 产物树里两片版守卫的最终形态
+
+保留全部三项能力,并把「别再删 en 那条」的理由钉进注释:
+
+```
+describe('zh 两片不相交(基座 / zh_cn.sp9.ts)')          → zhBase × zhSp9
+describe('en 两片不相交(基座 / en_us.sp9.ts)')          → enBase × enSp9   ← parity 缺的那条
+describe('无损划分 · 真实装配路径(…createI18n 实例)')   → 两片键数之和 == i18n.global.messages
+describe('两语言逐片结构对称')                            → 基座 / 分片 各一条
+```
+
+### 9.4 🔴 变异实测(在产物树上做,两次都已还原)
+
+基线(未变异):`shardDisjoint + parity` → **11 passed**。
+
+**变异 A —— 往产物树 `zh_cn.sp9.ts` 插一个与 `zh_cn.base.ts` 重名的键(`cpu`)**
+
+```
+× 基座与分片不相交                                 ← zh 侧,红 ✔
+× zh_cn: 两片键数之和 == messages.zh_cn 键数
+× 分片: zh 与 en 键集完全一致
+AssertionError: 基座 × 分片: expected [ 'cpu' ] to deeply equal []
+  at shardDisjoint.test.ts:35  expect(overlap(zhBase as Dict, zhSp9 as Dict), …)
+Tests  3 failed | 3 passed (6)
+```
+
+**变异 B′ —— 只往 `en_us.sp9.ts` 插 en-only 撞车,zh 侧一字不动**
+
+> 第一次做变异 B 时我选了 `cpu`,parity 也红了 —— 但红在它的**硬编码抽查**
+> `expect(en.cpu).toBe('CPU')` 上,不是结构性断言。那会**高估** parity 的能力、
+> 也说不清盲区。改选 `collecting`(不在 parity 的 4 个抽查键里)重做,才是干净的判别。
+
+```
+### 两片版守卫
+× 基座与分片不相交                                 ← en 侧,红 ✔
+× en_us: 两片键数之和 == messages.en_us 键数
+× 分片: zh 与 en 键集完全一致
+AssertionError: 基座 × 分片: expected [ 'collecting' ] to deeply equal []
+  at shardDisjoint.test.ts:44  expect(overlap(enBase as Dict, enSp9 as Dict), …)
+Tests  3 failed | 3 passed (6)
+
+### parity.test.ts(同一变异)
+Test Files  1 passed (1)
+Tests  5 passed (5)                                ← 完全失明 ✔
+```
+
+**这就是评审 claim ① 的直接证明**:en-only 撞车下 parity 结构性断言 5/5 全绿,
+英文文案被静默覆盖而无人看守;两片版守卫立刻打红。第一版整体删除会把这个盲区放回去。
+
+还原核对:`zh 还原 OK` / `en 还原 OK`,还原后基线复跑 **11 passed**。
+
+> `messageSyntax.test.ts` 的整体删除评审判**成立**(复算 @ 行数一致),未改动。
+
+---
+
+## 10. Important 2 —— lockfile 漂移(本刀引入,已闭掉)
+
+### 10.1 补上我漏掉的两个事实
+
+- **公开仓确实跟踪 lockfile**:`git ls-files | grep pnpm-lock` → New-UI 根目录 1 份、
+  `NimoOS-Service` 1 份(内嵌后成为 `packages/service/pnpm-lock.yaml`)。
+- **这是本刀引入的,不是既有债**:本刀之前 manifest 的 6 条 `package.json` 补丁
+  没有一条动 `dependencies`(只改 `name` 与内嵌包的 `main/module/types/exports/files`)。
+
+所以定性从「建议发布前决定」抬成「必须现在闭掉」,我原来的挂账定级错了。
+
+### 10.2 复现(修复前,fresh 导出)
+
+```
+$ cd <fresh 产物树> && CI=true pnpm install --frozen-lockfile
+ ERR_PNPM_OUTDATED_LOCKFILE  Cannot install with "frozen-lockfile" because
+ pnpm-lock.yaml is not up to date with package.json
+    Failure reason:
+    specifiers in the lockfile ({… "@tiptap/pm":"^2.27.2", "@tiptap/starter-kit":…,
+    "@tiptap/vue-3":…, "dompurify":"^3.4.12", "tiptap-markdown":…, "@types/dompurify":… })
+    don't match specs in package.json ({… 已无这 6 条 …})
+$ grep -c "tiptap\|dompurify" pnpm-lock.yaml
+153
+```
+
+### 10.3 选的修法:在 `export.mjs` 里重算 lockfile(不是补 importers 锚点)
+
+新增 **步骤 4.5**(在「内嵌共享包」改完 `package.json` 之后、泄漏守卫之前):
+
+```js
+execFileSync('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile',
+                      '--prefer-offline', '--ignore-scripts'],
+  { cwd: tmp, stdio: 'pipe', encoding: 'utf8', env: { ...process.env, CI: '' } })
+```
+
+**为什么不选「给 importers 段补锚点补丁」**:
+1. 锚点补丁只能修 `importers` 段,**修不掉 `packages:` / `snapshots:` 段那 ~150 行**
+   被摘掉的包的元数据 —— 也就是解不掉 Minor 3。重算两个一起解。
+2. 手写 lockfile 锚点在依赖升级一次后全部作废,起不到「拦住手工夹带」的作用 ——
+   `forbidden.mjs` 对 `pnpm-lock.yaml` 改用「形状规则」而非精确锚点,同一条理由。
+
+放在守卫**之前**是刻意的:重算后的 lockfile 才是被扫描和落盘的那一份。
+`--no-frozen-lockfile` + `CI: ''` 显式写死,否则在 CI 里跑导出时 pnpm 会因为默认
+frozen 而拒绝更新(正是我们要修的那个默认值)。失败一律抛出,绝不静默带漂移落盘。
+
+### 10.4 🔴 修复后实测
+
+```
+$ node oss/export.mjs --out <fresh> --skip-guard --no-commit --allow-dirty-oss
+[oss] 4/6 内嵌共享包
+[oss] 4.5/6 重算 lockfile(package.json 的依赖已被清单改动)
+[oss] 6/6 落盘
+[oss] 完成 → …/fresh
+
+$ grep -c "tiptap\|dompurify" <fresh>/pnpm-lock.yaml
+0                                    ← Minor 3 一并解掉(153 → 0)
+
+$ cd <fresh> && CI=true pnpm install --frozen-lockfile
+…
++ vue-tsc 2.2.12
+Done in 860ms                        ← 不再 ERR_PNPM_OUTDATED_LOCKFILE ✔
+```
+
+---
+
+## 11. Minor 3 —— 产物树 lockfile 残留 tiptap/dompurify
+
+由 §10.3 的重算一并解决:`grep -c "tiptap\|dompurify"` **153 → 0**。
+
+## 12. Minor 4 —— 报告措辞订正
+
+原文写产物树「374 文件 / 3683 例**全绿**」不准确。当时并行跑确有 1 条失败
+(`src/files/upload/persist.test.ts`,fake-indexeddb),我在正文只写了「全绿」、
+把它归进了脚注里的私有仓 flaky —— 两处混为一谈了。订正为:
+
+> 产物树 `vitest`:**1 条既有 flaky**(`src/files/upload/persist.test.ts`,
+> fake-indexeddb,并行跑时偶发;单独复跑与本轮复跑均全绿)。manifest 未触及该文件,
+> **不归本刀**。
+
+本轮复跑(修复后)产物树为 **375 文件 / 3689 例全部通过,0 failed** ——
+比修复前多 1 文件 / 6 例,正是撤回删除、恢复回来的两片版守卫。
+
+---
+
+## 13. 评审点名要补的验证 —— 产物树 `pnpm build`(真 vite 构建)
+
+评审说得对:摘了 6 个依赖,而「删完之后 vite 真能打出包」此前**零验证**
+(`tree.test.mjs` 那道门因前面 Service 泄漏 abort 而根本没走到)。已手工补跑:
+
+```
+$ cd <fresh 产物树> && pnpm build
+…
+dist/assets/ExcelViewer-Cnh-_KNl.js          1,681.55 kB │ gzip: 503.45 kB
+dist/assets/index-CHFMDjij.js                3,427.66 kB │ gzip: 975.97 kB
+(!) Some chunks are larger than 500 kB after minification.   ← 既有告警,非本刀引入
+✓ built in 11.78s
+BUILD_EXIT=0
+```
+
+**通过**。`pnpm build` 含 `vue-tsc --noEmit` + `vite build` 两步,即摘掉 tiptap ×4 +
+dompurify ×2 之后类型检查与真实打包都成立。chunk 体积告警是既有状况(私有仓同样有)。
+
+---
+
+## 14. 修复轮 1 后的完整验证矩阵
+
+| 检查 | 结果 |
+|---|---|
+| 锚点核对 | `DELETE 71 / 0 不存在`、`PATCH 252 / 0 失配`、`SERVICE_* 全绿` |
+| `replace` payload 词表 | **0 处违规** |
+| 泄漏分区扫描 | **NEW-UI 0** / SERVICE 977 |
+| 产物树 `CI=true pnpm install --frozen-lockfile` | **通过**(修复前 ERR_PNPM_OUTDATED_LOCKFILE) |
+| 产物树 `vue-tsc --noEmit` | exit 0 |
+| 产物树 `pnpm build`(真 vite 构建) | **exit 0** |
+| 产物树 `vitest run` | **375 文件 / 3689 例全部通过** |
+| 两片版守卫变异 A(zh 撞车) | **红** ✔(已还原) |
+| 两片版守卫变异 B′(en-only 撞车) | **红** ✔,同变异下 parity **5/5 绿**(盲区证明,已还原) |
+| 私有仓 `vitest`(排除 `oss/`) | 595 文件 / 9785 例全部通过 |
+| `oss/` 自测 | 5 文件通过;`tree.test.mjs` 余 **2 条**失败,**均 Service 侧泄漏**(与修复前同,无回归) |
+| `NimoOS-Web` 公开仓 | **未碰**,仍 `748aa8f` + 既有 ` M README.md` |
+| `NimoOS-Service` | **干净**,未写入任何临时文件 |
+
+计数变化:`DELETE` 72 → **71**(撤回 shardDisjoint);`PATCH` 245 → **252**(+7 两片版)。
+
+## 15. 修复轮 1 后仍挂账
+
+1. **`sortablejs` + `@types/sortablejs` 是产物树里的孤儿依赖**(SP7 相册轮遗留,
+   消费方 4 个全在既有 DELETE 表里)。非本刀引入,未动;但现在 §10.3 的 lockfile
+   重算已就位,顺手摘掉的成本比之前低,建议一并清。
+2. **`sass` devDep** 在产物树里失去直接理由(9 个 `.scss` 全在 `src/ai/styles/`)。
+   构建期依赖,留着无害,未动。
+3. **Service 侧 977 处泄漏**归 T8,线索见 §7。
