@@ -117,6 +117,34 @@ export const DELETE = [
   //  直接删除 —— 它在私有版也是零引用的孤儿,不必再由本清单剥离。DELETE 条目路径
   //  不存在会 exit 1,所以这条必须一并撤掉。)
 
+  // ═══ SP8-P6 合流(2026-08-06):AI 区整块不进开源版 ═══════════════════════════
+  // 本表开篇那条"两支合流后必须为 src/photos/** 与 src/ai/** 两个完整功能区扩张"的
+  // 备注,上一节兑现了相册那一半,这一节兑现 AI 那一半。开源版没有 AI 助手 / 知识库 /
+  // Parser / 技能 / MCP。
+  // 实测(2026-08-06):`find src/ai -type f | wc -l` = 276 —— 组件 / store / composable /
+  // 知识库 / parser / 技能 / MCP / 样式 / util / 类型 / 测试全部收在这一个域目录里
+  // (含 src/ai/styles/tokens.scss 那组 AI 专用 token),一条目录规则即整块剥除,
+  // 与相册的 'src/photos' 同一形状。
+  'src/ai',
+  // i18n 分片:AI 区那 1207 个 ai* 键。与相册分片同理 —— 当初从主文件拆出去,就是为了
+  // 这里能一行删掉,不必打上百条锚点补丁 × 2 语言(改一条 AI 文案就打红导出)。
+  'src/i18n/zh_cn.ai.ts',
+  'src/i18n/en_us.ai.ts',
+  // SP8-P6-T4 新建的**四分片**不相交守卫(base / photos / ai / sp9)。剥掉 photos 与 ai
+  // 两片之后产出树里只剩 base + sp9 两片,而它守的三件事已被保留下来的 parity.test.ts
+  // 逐条覆盖:① base × sp9 不相交 == parity 的「分片不得覆盖基座已有 key(静默改文案)」
+  // 同义;② 两语言键集一致 == parity 第一条(对合并后集合断言);③「四片键数之和 ==
+  // 真实 messages 键数」这条无损划分在只剩两片时退化成前两条的推论。
+  // 要靠 PATCH 改成两片版需约 10 条锚点(4 个 import + 4 个 describe 体 + 2 段注释),
+  // 换来一份与 parity.test.ts 重复的守卫 —— 与上面 photosSlice.test.ts 同一判断,整体删。
+  'src/i18n/__tests__/shardDisjoint.test.ts',
+  // 整份文件是 **AI 文案**的 vue-i18n 语法守卫:13 个 describe 里 12 个直接点名
+  // aiComposer* / aiSlash* / aiSk* / aiKb*,这些键全在已删的 ai 分片里。
+  // 唯一看起来通用的末条「bare @ guard」(遍历全部键找未转义的 @)同样只服务 AI ——
+  // 实测 `grep -c "@"`:zh_cn.ai.ts 13 处、en_us.ai.ts 12 处,而 base / photos / sp9
+  // 这 6 个分片文件全是 0。产出树里它会遍历一组永远不含 @ 的键,是零判别力的空壳。
+  'src/i18n/messageSyntax.test.ts',
+
   // 测试同步:整体删除的 9 个孤儿测试(T13;每个都已核实其唯一/主要消费的模块已在
   // 上面 DELETE 掉,不是"混合型",不能靠 PATCH 抠用例保留部分覆盖率——见 task-13-report.md)
   'src/home/stores/photos.test.ts',                       // import photos.ts(已删)+ isAssetId.ts(已删)
@@ -199,11 +227,16 @@ export const PATCH = [
     replace: "const DEFAULT_FAV = ['files', 'storage', 'vm', 'appstore']" },
 
   // ── useOpenAction.ts:SYS_ROUTE 拍成内部路由(§8.2 的有意偏离)──────────
+  //    ⚠️ SP8-P6-T7 重抓锚点:T5(c547c9d)的 AI cutover 把本文件四处都改了 ——
+  //    注释多了 AI 区那一段、SYS_ROUTE 多了 ai 一条、cutoverDisabled 注释多了 /ai 一行、
+  //    openApp 多了 ai 分支、openItem 的 widget 分支与 sendToAI 整体重写。四条既有锚点
+  //    因此全部 hits=0。下面是 T5 之后现场 sed 抓到的逐字文本;replace 侧一律不变
+  //    (开源版的目标形态与 SP9-P8 那轮定下的一致:无 cutover flag、无 AI、无相册)。
   { path: 'src/home/composables/useOpenAction.ts',
     find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)、相册区
-// (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)已活在本应用;
-// 其余系统入口仍指 Vue2,各自 SP 迁移时再改。
-// photos / vm 这两条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它们,所以是"回退目标"
+// (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)、AI 区(/ai,SP8-P6)
+// 已全部活在本应用;SP1-SP9 迁移至此收官。
+// photos / ai / vm 这三条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它们,所以是"回退目标"
 // 而不是"主路径";这也是它们与 appstore/storage/settings 的区别(那三个在 Vue2 侧是模态弹窗、
 // 没有自己的路由,回退只能落 /#/legacy 老桌面 —— settings 因此也用 '/#/legacy' 作回退目标,
 // 落到老桌面后再点「设置」磁贴,由 Vue2 侧的 resolveEntryTarget('/settings') 判定弹老模态)。
@@ -225,6 +258,7 @@ const SYS_ROUTE: Record<string, string> = {
 // strangler.js 的 migratedRoutes 里那条 /photos 共用同一把键,同理置一次两侧同时回退);
 // /kvm 与 /settings = SP9-P8,同理一把键管两侧(/kvm 在 Vue2 的 migratedRoutes、
 // /settings 在 migratedEntries)。
+// /ai = SP8-P6,同理一把键管两侧(Vue2 侧在 migratedRoutes)。
 // ⚠️ 键名取的是**路由路径**,不是磁贴 key —— vm 磁贴对应的键是 '/kvm'。
 function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
@@ -236,6 +270,7 @@ function cutoverDisabled(from: string): boolean {
       if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
+      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
     // 开源版没有任何 cutover flag(私有主干那五个分支全靠 cutoverDisabled 才存在),
@@ -254,12 +289,23 @@ function cutoverDisabled(from: string): boolean {
       if (cutoverDisabled('/photos')) window.location.href = '/#/photos'
       else router.push('/photos')
     }
-    else if (it.kind === 'widget' && it.key === 'ai') window.location.href = '/#/ai/agent'
+    // 桌面 AI 小组件:cutover 后进应用内 Agent 页。flag 置 1 时退回 Vue2 老 Agent。
+    else if (it.kind === 'widget' && it.key === 'ai') {
+      if (cutoverDisabled('/ai')) window.location.href = '/#/ai/agent'
+      else router.push('/ai/agent')
+    }
   }
 
   function sendToAI(text?: string) {
     const q = (text || '').trim()
-    window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
+    // cutover 后走应用内路由:query 用对象形式交给 vue-router 编码,不手工拼串
+    // (AgentPage.vue 的 onMounted 读 route.query.message,一次性消费后 router.replace 抹掉)。
+    // flag 置 1 时退回 Vue2,那边只认拼好的 hash URL,所以保留 encodeURIComponent。
+    if (cutoverDisabled('/ai')) {
+      window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
+      return
+    }
+    router.push(q ? { path: '/ai/agent', query: { message: q } } : { path: '/ai/agent' })
   }
 
   return { openApp, openItem, sendToAI }`,
@@ -1041,36 +1087,54 @@ describe('photosPlaces 键(SP7-P6a)', () => {
 `,
     replace: '' },
 
-  // ── src/i18n/{zh_cn,en_us}.ts:3 行合并出口去掉 photos 那一路 ──────────────
+  // ── src/i18n/{zh_cn,en_us}.ts:合并出口去掉 photos 与 ai 两路 ──────────────
   //    分片文件已在 DELETE 表,这里只需把出口里的 import 与展开摘掉。**改一行文案不会
-  //    动这里** —— 这正是 SP7-P8b 把相册文案拆出去换来的:开源侧对相册文案的耦合从
-  //    约 90 条锚点收敛成下面这 4 条,且锚的是结构、不是文案。
+  //    动这里** —— 这正是 SP7-P8b / SP8-P6 把相册与 AI 文案拆出去换来的:开源侧对这两区
+  //    文案的耦合从上百条锚点收敛成下面这 4 条,且锚的是结构、不是文案。
+  //    ⚠️ SP8-P6-T7 重抓:T3 把出口从 3 行改成 4 行(多一片 ai),下面两条 find 因此
+  //    hits=0,已按现场 sed 的逐字文本换成 4 行版。
   { path: 'src/i18n/zh_cn.ts',
-    find: "import base from './zh_cn.base'\nimport photos from './zh_cn.photos'\n\nexport default { ...base, ...photos }\n",
+    find: "import base from './zh_cn.base'\nimport photos from './zh_cn.photos'\nimport ai from './zh_cn.ai'\n\nexport default { ...base, ...photos, ...ai }\n",
     replace: "import base from './zh_cn.base'\n\nexport default { ...base }\n" },
   { path: 'src/i18n/en_us.ts',
-    find: "import base from './en_us.base'\nimport photos from './en_us.photos'\n\nexport default { ...base, ...photos }\n",
+    find: "import base from './en_us.base'\nimport photos from './en_us.photos'\nimport ai from './en_us.ai'\n\nexport default { ...base, ...photos, ...ai }\n",
     replace: "import base from './en_us.base'\n\nexport default { ...base }\n" },
-  //    出口文件头那段"为什么拆"的注释整段撤掉:开源版里没有相册区,解释"相册文案怎么
-  //    剥离"既无意义又泄露内部流程(E7)。zh 侧是长段、en 侧是一行,分别处理。
+  //    出口文件头那段"为什么拆"的注释整段撤掉:开源版里既没有相册区也没有 AI 区,解释
+  //    "这两区文案怎么剥离"既无意义又泄露内部流程(E7)。zh 侧是长段、en 侧是两行,分别处理。
+  //    ⚠️ SP8-P6-T7 重抓:T3 重写了 zh 侧整段文件头(多了 ai 分片那一行、多了末尾那段
+  //    "sp9 不在本出口里"的装配说明),原锚点 hits=0;en 侧原锚点仍命中,但 T3 在它下面
+  //    加了第二行点名 en_us.ai.ts —— 只换第一行会把那行 AI 说明留在公开仓,故把锚点扩到两行。
+  //    末尾那段"sp9 走第二条装配路径"的提醒与相册/AI 无关、在产出树里依然成立(sp9 分片
+  //    是保留面),故不整段丢掉,改写成只提 base 的版本一并留下。
   { path: 'src/i18n/zh_cn.ts',
-    find: `// SP7-P8b:本文件从"一整份文案表"改成 3 行的**合并出口**,真正的内容拆成两块:
+    find: `// SP7-P8b:本文件从"一整份文案表"改成几行的**合并出口**,真正的内容拆成几块:
 //   zh_cn.base.ts   —— 全区共用 + 各区自己的文案
 //   zh_cn.photos.ts —— 相册区那 702 个 photos* 键
+//   zh_cn.ai.ts     —— AI 区那 1207 个 ai* 键(SP8-P6 合流时加入)
 //
-// 为什么拆:开源版没有相册区,\`oss/manifest.mjs\` 要把相册文案剥掉。原先那 702 个键散在
-// 主文件 90 多个区段里,剥它们意味着 ~90 条锚点补丁 × 2 语言 —— 而 PATCH 要求锚点命中恰好
-// 1 次,以后**改任何一条相册文案都会把开源导出打红**。拆开之后开源侧只需:删掉
-// zh_cn.photos.ts 一个文件 + 把下面那行 photos 展开补丁掉。
+// 为什么拆:开源版没有相册区、也没有 AI 区,\`oss/manifest.mjs\` 要把这两块文案剥掉。
+// 原先那些键散在主文件 90 多个区段里,剥它们意味着上百条锚点补丁 × 2 语言 —— 而 PATCH
+// 要求锚点命中恰好 1 次,以后**改任何一条相册/AI 文案都会把开源导出打红**。拆开之后
+// 开源侧只需:删掉 zh_cn.photos.ts / zh_cn.ai.ts 两个文件 + 把下面那两行展开补丁掉。
 //
-// 为什么保留本文件作为出口(而不是让消费方各自 import 两块):全仓有 40+ 个测试
+// 为什么保留本文件作为出口(而不是让消费方各自 import 几块):全仓有 40+ 个测试
 // \`import zh from '…/i18n/zh_cn'\` 自建 createI18n,把它们逐个改成"再多 import 一块"既吵
 // 又会在下次分片时重演。出口不动,消费方就一行都不用改。
+//
+// 注意:SP9 那一片(zh_cn.sp9.ts)**不在本出口里** —— 它在 i18n/index.ts 与
+// parity.test.ts 里各自单独并进来,与这里的 base/photos/ai 是两套装配路径。
 `,
+    //    ⚠️ 措辞受 tree.test.mjs「PATCH 的 replace 内容也不含固定清单里的词」那道守卫约束:
+    //    期号只允许以**文件名**形式出现(正则 /\bSP\d(?!\.ts)/i 的 (?!\.ts) 豁免),所以
+    //    下面写 "zh_cn.sp9.ts 那一片" 而不是 "sp9 那一片"。第一版写成后者被守卫逮到。
     replace: `// 中文文案(默认 / fallback locale)。
+//
+// 注意:zh_cn.sp9.ts 那一片**不在本出口里** —— 它在 i18n/index.ts 与
+// parity.test.ts 里各自单独并进来,与这里的 base 是两套装配路径。
 ` },
   { path: 'src/i18n/en_us.ts',
     find: `// SP7-P8b:合并出口 —— 拆分理由与结构说明见 zh_cn.ts 的文件头注释(两语言逐条成对)。
+// SP8-P6 合流:新增 ai 一片(en_us.ai.ts),与 zh 侧逐条对应。
 `,
     replace: `// English copy. Key set must stay in parity with zh_cn (see parity.test.ts).
 ` },
@@ -1922,6 +1986,291 @@ function mountHome() {
   { path: 'scripts/deploy.sh',
     find: '# 构建 NimoOS-New-UI 并部署到 Gateway 的 /app/ 静态目录。',
     replace: '# 构建本项目并部署到 Gateway 的 /app/ 静态目录。' },
+
+  // ═══════════════ SP8-P6-T7 合流(2026-08-06):AI 区剥离 ═══════════════════
+  // src/ai 整域与两个 i18n 分片走 DELETE。下面收的是**域外**那些引用它的文件 ——
+  // Step 1 实测清单(`grep -rln` 排除 src/ai 自身)共 8 个:AppToast.vue /
+  // AppToast.test.ts / router/index.ts / router/index.test.ts / i18n/zh_cn.ts /
+  // i18n/en_us.ts / __tests__/shardDisjoint.test.ts / __tests__/photosSlice.test.ts。
+  // 后两个与 messageSyntax.test.ts 走 DELETE(理由见 DELETE 表),两个 i18n 出口在
+  // 上面 T8 那节处理,余下 4 个在这里打补丁。
+
+  // ── src/router/index.ts:三个 import + 四条 /ai 路由 ───────────────────────
+  //    /ai/skills 与 /ai/mcp 没有独立路由(T5 提交信息记明:REDIRECT_BEFORE_GUARD=true,
+  //    Step 6 那两条 redirect 按实证结论跳过),所以这里只有 redirect + agent +
+  //    settings + 展开的 knowledgeRoutes 四条。
+  { path: 'src/router/index.ts',
+    find: "import AgentPage from '../ai/views/AgentPage.vue'\nimport SettingsPage from '../ai/views/SettingsPage.vue'\nimport { knowledgeRoutes } from '../ai/knowledge/knowledgeRoutes'\n",
+    replace: '' },
+  { path: 'src/router/index.ts',
+    find: "  { path: '/ai', redirect: '/ai/agent' },\n  { path: '/ai/agent', name: 'ai-agent', component: AgentPage },\n  { path: '/ai/settings', name: 'ai-settings', component: SettingsPage },\n  ...knowledgeRoutes,\n",
+    replace: '' },
+
+  // ── src/router/index.test.ts:knowledge 路由那条用例 ───────────────────────
+  //    上面 T13 那节的补丁已经摘掉 14 条相册断言(那条锚点未受本次合流影响,实测仍
+  //    hits=1),这里补 T3 新加的这一条。它断言 /ai/knowledge、/ai/knowledge/notes、
+  //    /ai/parser/test 三条路径存在 —— knowledgeRoutes 已随上一条补丁摘掉,留着必红。
+  //    锚点从块前的空行开始吃,避免删完在上一条用例与 `})` 之间留一个空行。
+  { path: 'src/router/index.test.ts',
+    find: `
+  it('主路由表已展开 knowledge 路由', async () => {
+    const { router } = await import('./index')
+    const paths = router.getRoutes().map((r) => r.path)
+    expect(paths).toContain('/ai/knowledge')
+    expect(paths).toContain('/ai/knowledge/notes')
+    expect(paths).toContain('/ai/parser/test')
+  })
+`,
+    replace: '' },
+
+  // ── src/components/AppToast.vue:AI 主题作用域 ─────────────────────────────
+  //    本组件是**全局**提示条(开源版保留),但 SP8-P2b 给它接了 AI 区的明暗跟随:
+  //    模板上两个绑定 + 一个 import + 一行 store 取用 + 顶部那段解释注释。aiTheme 这个
+  //    store 在 src/ai/stores/ 下(已整域删除),不摘 import 直接构建失败。
+  //    ⚠️ 三处 token(--toast-warn-* / --toast-danger-*)与 [data-tier] 两条 CSS 规则
+  //    **保留** —— 实测(2026-08-06)它们是 SP8-P1c2 的通用 severity 分级,消费方就是本
+  //    组件自己(`grep -rn -- '--toast-warn'` 只有 theme.css 定义 + 本文件使用 +
+  //    src/ai/styles/tokens.scss 的 AI 侧覆写,后者随 src/ai 一起没了),不是 AI 专用。
+  //    spec D8 原写"AI 专用 theme token 整组删"是笔误,已按实测收窄为"theme.css 不动"。
+  { path: 'src/components/AppToast.vue',
+    find: `  <!-- SP8-P2b 验收第 3 轮(2026-07-30):AI 区在前台时,给自己套上 AI 的 toast 作用域与
+       明暗。不这么做的话本组件读的是全局蓝黑主题的半透明白底 + 白字,画在 AI 浅色页面上
+       完全看不见(AI 区所有 toast 都收不到反馈)。根因与 token 取值见
+       src/ai/stores/aiTheme.ts 的 aiSurfaces 注释、样式在 tokens.scss 的 .ai-toast-scope。
+       不在 AI 区时两个绑定都不生效 —— 桌面/文件/应用区观感零变化(用户明确要求)。 -->
+  <transition-group
+    name="toast" tag="div" class="toast-stack"
+    :class="{ 'ai-toast-scope': aiTheme.aiSurfaceActive }"
+    :data-theme="aiTheme.aiSurfaceActive ? aiTheme.theme : undefined"
+  >`,
+    replace: `  <transition-group name="toast" tag="div" class="toast-stack">` },
+  { path: 'src/components/AppToast.vue',
+    find: "import { useAiTheme } from '../ai/stores/aiTheme'\n", replace: '' },
+  { path: 'src/components/AppToast.vue',
+    find: 'const aiTheme = useAiTheme()\n', replace: '' },
+  //    z-index 那段注释点名了 AI 区三个已删组件并写着"SP8-P6-T3 合流"。**数值 10100 不动**
+  //    (它仍高于产出树里最高的 .sk-modal-bg = 1100,改小反而要重新论证,且下方
+  //    AppToast.test.ts 末条守卫断言 > 10000);只把理由改写成不点名 AI 的版本。
+  { path: 'src/components/AppToast.vue',
+    find: `   —— 用户以为按钮没响应,反复重试(2026-07-30 用户在「创建令牌」弹窗里点复制复现)。
+   【SP8-P6-T3 合流】取 sp8 的 10100 而非 master 的 1100:AI 区随本次合流进入主干,
+   它的 SearchImageLightbox / SearchFileDrawer 坐在 10000、SearchFullResults 9999,
+   1100 会被它们压住。10100 是"高于全仓最高的 10000、且留出余量"的最小安全值。
+   本元素 pointer-events: none,置顶不会拦截任何点击。守卫见 AppToast.test.ts 末条。 */`,
+    replace: `   —— 用户以为按钮没响应,反复重试(2026-07-30 用户在「创建令牌」弹窗里点复制复现)。
+   取值 10100:留足余量,高于全仓任何浮层。本元素 pointer-events: none,置顶不会拦截
+   任何点击。守卫见 AppToast.test.ts 末条。 */`,
+  },
+
+  // ── src/components/AppToast.test.ts:AI 作用域那 4 条用例 + import ──────────
+  //    本文件是混合型:前 8 条(渲染/堆叠/action/三档 tier)与 AI 无关,保留;
+  //    中间那个 describe 整块测的是 aiTheme 跟随(store 已删),整块摘掉;
+  //    末尾 z-index 守卫保留(它读 AppToast.vue 源文本断言 > 10000,与 AI 无关),
+  //    只洗掉注释里点名的两个 AI 组件。
+  { path: 'src/components/AppToast.test.ts',
+    find: "import { useAiTheme } from '../ai/stores/aiTheme'\n", replace: '' },
+  { path: 'src/components/AppToast.test.ts',
+    find: `
+// 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板】AI 区在前台时,提示条要跟随 AI 的明暗主题
+// (否则白底白字看不见,详见 aiTheme.test.ts 的说明)。离开 AI 区必须完全恢复原样 ——
+// 用户明确要求「桌面零影响」,所以「不在 AI 区时不带任何额外 class / data-theme」这条
+// 同样要钉住。
+describe('AppToast —— AI 区 toast 作用域', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('不在 AI 区:不带 ai-toast-scope、不带 data-theme(桌面零影响)', () => {
+    const w = mount(AppToast)
+    const root = w.find('.toast-stack')
+    expect(root.classes()).not.toContain('ai-toast-scope')
+    expect(root.attributes('data-theme')).toBeUndefined()
+  })
+
+  it('AI 区在前台:带 ai-toast-scope,且 data-theme 跟随 AI 主题', async () => {
+    const ai = useAiTheme()
+    ai.enterAiSurface()
+    const w = mount(AppToast)
+    const root = w.find('.toast-stack')
+    expect(root.classes()).toContain('ai-toast-scope')
+    expect(root.attributes('data-theme')).toBe(ai.theme)
+  })
+
+  it('AI 区内切换明暗:data-theme 跟着变(弹窗/提示不用关掉重开)', async () => {
+    const ai = useAiTheme()
+    ai.enterAiSurface()
+    const w = mount(AppToast)
+    const before = w.find('.toast-stack').attributes('data-theme')
+    ai.toggleTheme()
+    await w.vm.$nextTick()
+    const after = w.find('.toast-stack').attributes('data-theme')
+    expect(after).not.toBe(before)
+    expect(after).toBe(ai.theme)
+  })
+
+  it('离开 AI 区后恢复:class 与 data-theme 都撤掉', async () => {
+    const ai = useAiTheme()
+    ai.enterAiSurface()
+    const w = mount(AppToast)
+    expect(w.find('.toast-stack').classes()).toContain('ai-toast-scope')
+    ai.leaveAiSurface()
+    await w.vm.\$nextTick()
+    expect(w.find('.toast-stack').classes()).not.toContain('ai-toast-scope')
+    expect(w.find('.toast-stack').attributes('data-theme')).toBeUndefined()
+  })
+})
+`,
+    replace: '' },
+  { path: 'src/components/AppToast.test.ts',
+    find: `// \`1100\`,AI 区的 SearchImageLightbox/SearchFileDrawer 是 \`10000\`、SearchFullResults 是 \`9999\`
+// (全仓 grep 实测的最高层)。提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时`,
+    replace: `// \`1100\`,而全仓 grep 实测的最高浮层坐在 \`10000\`。
+// 提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时` },
+
+  // ── src/home/composables/useOpenAction.test.ts:T5 新加的 AI cutover 整块 ──
+  //    上面 T13 / 修复波两节已有 11 条锚点打在本文件上(实测均未受本次合流影响,
+  //    仍 hits=1)。这里补 T5(c547c9d)追加的两处:beforeEach 里的 /ai flag 清理,
+  //    与文件末尾那个 7 条用例的 describe(测 openApp('ai') / widget 小组件 / sendToAI,
+  //    三者在开源版都已由上面的产品码补丁摘掉)。
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: "  localStorage.removeItem('strangler:disabled:/ai')\n", replace: '' },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: `
+describe('AI 区 cutover(SP8-P6)', () => {
+  it('ai 磁贴应用内 router.push /ai/agent', () => {
+    const { openApp } = useOpenAction()
+    openApp('ai')
+    expect(router.push).toHaveBeenCalledWith('/ai/agent')
+    expect(hrefs.length).toBe(0)
+  })
+
+  it('flag 置 1 时 ai 磁贴退回 Vue2 /#/ai/agent', () => {
+    localStorage.setItem('strangler:disabled:/ai', '1')
+    const { openApp } = useOpenAction()
+    openApp('ai')
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs).toEqual(['/#/ai/agent'])
+  })
+
+  it('桌面 AI 小组件应用内 router.push /ai/agent', () => {
+    const { openItem } = useOpenAction()
+    openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
+    expect(router.push).toHaveBeenCalledWith('/ai/agent')
+    expect(hrefs.length).toBe(0)
+  })
+
+  it('flag 置 1 时 AI 小组件退回 Vue2', () => {
+    localStorage.setItem('strangler:disabled:/ai', '1')
+    const { openItem } = useOpenAction()
+    openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs).toEqual(['/#/ai/agent'])
+  })
+
+  it('sendToAI 应用内带 message query(对象形式,不手工编码)', () => {
+    const { sendToAI } = useOpenAction()
+    sendToAI('帮我找 发票 & 收据')
+    expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: '帮我找 发票 & 收据' } })
+    expect(hrefs.length).toBe(0)
+  })
+
+  it('sendToAI 空文本不带 query', () => {
+    const { sendToAI } = useOpenAction()
+    sendToAI('   ')
+    expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
+  })
+
+  it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {
+    localStorage.setItem('strangler:disabled:/ai', '1')
+    const { sendToAI } = useOpenAction()
+    sendToAI('发票 & 收据')
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs).toEqual(['/#/ai/agent?message=' + encodeURIComponent('发票 & 收据')])
+  })
+})
+`,
+    replace: '' },
+
+  // ── package.json:AI 独占的 5 个运行时/类型依赖 ────────────────────────────
+  //    逐个用 \`grep -rl <包名> src | grep -v '^src/ai/'\` 实测过消费方(2026-08-06):
+  //      @tiptap/pm · @tiptap/starter-kit · @tiptap/vue-3 · tiptap-markdown
+  //        —— 笔记编辑器,src/ai 之外零消费方(总消费文件 1/1/4/2,全在 src/ai 下)。
+  //      dompurify + @types/dompurify —— 唯一消费方 src/ai/markdown/renderMarkdown.ts。
+  //    对照组(**不删**):markdown-it 有 4 个域外消费方(文件预览器 / 应用商店详情 /
+  //    预装提示 / 更新弹窗),vue-advanced-cropper / composerize / yaml 同理都有域外消费方。
+  //    ⚠️ pnpm-lock.yaml 里对应的 importers 记录不会跟着删(export.mjs 只重写 file: 路径),
+  //    产出树的 lockfile 因此与 package.json 有漂移。tree.test.mjs 的"产物树能构建"门
+  //    用的是 \`pnpm install --no-frozen-lockfile\`(见该文件注释),不受影响;但产出仓里
+  //    \`CI=true pnpm install\` 会因 ERR_PNPM_OUTDATED_LOCKFILE 失败 —— 已知代价,记在
+  //    p6-task-7-report.md,留给发布前统一处理。
+  { path: 'package.json',
+    find: '    "@tiptap/pm": "^2.27.2",\n    "@tiptap/starter-kit": "^2.27.2",\n    "@tiptap/vue-3": "^2.27.2",\n',
+    replace: '' },
+  { path: 'package.json',
+    find: '    "tiptap-markdown": "^0.8.10",\n', replace: '' },
+  { path: 'package.json',
+    find: '    "dompurify": "^3.4.12",\n', replace: '' },
+  { path: 'package.json',
+    find: '    "@types/dompurify": "^3.2.0",\n', replace: '' },
+
+  // ── src/components/AppToast.zIndex.test.ts:取数有效性闸的样式表计数阈值 ────
+  //    这条是 T3 加的"守卫别空转"元断言,产出树里**实跑会红**(2026-08-06 在产物树上
+  //    `pnpm exec vitest run` 实测到,vue-tsc 抓不到这类失败,故必须真跑一遍)。
+  //    原因:阈值 `> 5` 是按私有仓 14 个独立样式表(5 个 .css + 9 个 .scss)定的,而那
+  //    9 个 .scss **全部**在 src/ai/styles/ 下(实测 `find src -name '*.scss'`,9/9),
+  //    随 src/ai 一起删掉之后产出树只剩 5 个 .css —— `expect(5).toBeGreaterThan(5)` 必红。
+  //    改成 `> 4` 而不是删掉这条断言:产出树共 5 个样式表,阈值 4 的语义正是"5 个一个
+  //    不少地读到了非空内容",`?raw` 恒空的老坑一旦复发(读到 0 个)照样立刻打红,
+  //    判别力与私有侧等价 —— 这不是放宽,是按产出树的真实规模重新钉紧。
+  { path: 'src/components/AppToast.zIndex.test.ts',
+    find: "    expect(sheets.length, '独立样式表一个都没读到(`?raw` 恒空的老坑)').toBeGreaterThan(5)",
+    replace: "    // 本树共 5 个独立样式表(全部是 .css);阈值 4 = 「5 个一个不少地读到了非空内容」。\n    expect(sheets.length, '独立样式表一个都没读到(`?raw` 恒空的老坑)').toBeGreaterThan(4)" },
+
+  // ── 注释洗白:sp8-ai 合流往**保留面**的文件里带进来的 7 处点名 ────────────
+  //    这 7 处是 2026-08-06 实测跑完整导出、泄漏守卫在 New-UI 侧命中的全部内容
+  //    (Service 侧另有 977 处,归 T8)。全是注释,与 T7/T14 两轮"注释洗白"同性质:
+  //    代码行为一字不改,只把指向已删功能区的点名换成不点名的等价措辞。
+
+  //    ① AppToast.zIndex.test.ts:引用了两个已删测试文件当"先例"。守卫本身保留。
+  { path: 'src/components/AppToast.zIndex.test.ts',
+    find: `// 空壳 —— 守卫会"绿"得毫无判别力。这正是 photosSlice.test.ts / knowledgeStyles.test.ts
+// 文件头记的同一个坑(「读盘一律 node:fs,\`?raw\` 恒空」),这里沿用它们的既定手法。`,
+    replace: `// 空壳 —— 守卫会"绿"得毫无判别力。本仓另有几处样式守卫踩过同一个坑,
+// 既定手法是「读盘一律 node:fs,\`?raw\` 恒空」,这里沿用。` },
+
+  //    ②③ clipboard.ts / clipboard.test.ts:reka 焦点陷阱那段根因说明里点名了
+  //       复现路径所在的页面。根因与修法与那个页面无关(是 reka DialogContent 的
+  //       通用行为),把页面名换成"设置页/弹窗"即可,技术内容一字不动。
+  { path: 'src/files/util/clipboard.ts',
+    find: `// 原本一律挂 document.body,结果**弹窗里的复制全部失败**(用户实测:AI 设置页页面上的复制
+// 正常,「创建令牌」弹窗里三个都复制不到东西)。根因在 reka 的焦点陷阱`,
+    replace: `// 原本一律挂 document.body,结果**弹窗里的复制全部失败**(用户实测:设置页页面上的复制
+// 正常,弹窗里的复制按钮一个都复制不到东西)。根因在 reka 的焦点陷阱` },
+  { path: 'src/files/util/clipboard.test.ts',
+    find: `// 【SP8-P2b 验收第 4 轮,2026-07-30】用户实测:AI 设置页**页面上**的复制正常,**「创建令牌」
+// 弹窗里的三个复制全部失败(剪贴板里什么都没有)**。`,
+    replace: `// 【2026-07-30 用户实测】设置页**页面上**的复制正常,**弹窗里的复制按钮
+// 全部失败(剪贴板里什么都没有)**。` },
+
+  //    ④⑤⑥ userProfile.ts:三处点名(AI 侧栏 / AgentSidebar / AI 区)。这个 store
+  //         本身是保留面(任何渲染头像的组件都能用),只是它的文件头讲的是"能力从
+  //         哪个组件搬过来的"。搬出处已随 src/ai 删除,改成不点名的等价描述。
+  { path: 'src/stores/userProfile.ts',
+    find: "// `$EventBus` 'avatar-changed' event and every subscriber (incl. the AI\n// sidebar) re-fetched it. New-UI has no event bus, and — more importantly —\n",
+    replace: "// `$EventBus` 'avatar-changed' event and every subscriber re-fetched it.\n// New-UI has no event bus, and — more importantly —\n" },
+  { path: 'src/stores/userProfile.ts',
+    find: "// right place: `avatarVersion` used to be a local ref inside AgentSidebar\n// (only the AI sidebar's `<img>` would ever change); it now lives here, at\n",
+    replace: "// right place: `avatarVersion` used to be a local ref inside one sidebar\n// component (the only `<img>` that would ever change); it now lives here, at\n" },
+  { path: 'src/stores/userProfile.ts',
+    find: '// and reloads the image. No event bus, no changes needed in the AI area.\n',
+    replace: '// and reloads the image. No event bus, no changes needed anywhere else.\n' },
+
+  //    ⑦ vite.config.ts:dev proxy 那段合流说明拿 /app/#/ai/* 当例子。转发规则本身
+  //      与举的例子无关(它转发的是 /app/ 之外的一切),去掉 ai 这一段路径即可。
+  //      ⚠️ 锚点**只吃带 ai 的那一行**,不连上一行一起换:上一行含 "Vue2",而
+  //      tree.test.mjs 那道守卫禁止 replace 内容出现该词(第一版连着换被逮到)。
+  //      上一行属于"保留原文"、不经 replace 写入,不受该守卫管辖,也不在泄漏词表里。
+  { path: 'vite.config.ts',
+    find: '  // /app/#/ai/* 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。',
+    replace: '  // /app/#/ 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。' },
 ]
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
