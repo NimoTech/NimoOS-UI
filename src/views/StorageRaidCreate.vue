@@ -340,6 +340,15 @@ async function doCreate(): Promise<void> {
   width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
   border-radius: 10px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
 }
+/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
+ * 作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option **不渲染 gradient**
+ * (退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的 color-scheme: dark 救不了
+ * (作者背景优先)。所以这里显式钉住实心底色与字色。守卫:styles/selectPopup.test.ts。 */
+.rcv-fs-select option,
+.rcv-fs-select optgroup {
+  background-color: var(--set-option-bg);
+  color: var(--set-option-fg);
+}
 .rc-name-error { margin: 6px 0 0; font-size: 11.5px; color: var(--remove-fg); }
 .rcv-snapshot { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg); }
 .rcv-snapshot-hint { font-size: 11px; color: var(--fg-muted); margin: -4px 0 0 24px; }

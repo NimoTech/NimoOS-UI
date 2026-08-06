@@ -76,6 +76,15 @@ watch(
   background: var(--chip-bg); color: var(--fg); outline: none;
 }
 .rrd-select:focus { border-color: var(--accent); }
+/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
+ * 作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option **不渲染 gradient**
+ * (退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的 color-scheme: dark 救不了
+ * (作者背景优先)。所以这里显式钉住实心底色与字色。守卫:styles/selectPopup.test.ts。 */
+.rrd-select option,
+.rrd-select optgroup {
+  background-color: var(--set-option-bg);
+  color: var(--set-option-fg);
+}
 .rrd-hint { margin: 4px 0 0; font-size: 12px; color: var(--remove-fg); }
 .rrd-warning { margin: 0 0 12px; font-size: 12px; color: var(--dem-fg); }
 .rrd-cancel, .rrd-ok {

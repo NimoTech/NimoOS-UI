@@ -76,6 +76,16 @@ function submit(format: boolean) {
 }
 .cs-input:focus { border-color: var(--accent); }
 .cs-select { appearance: auto; }
+/* `.cs-input` 把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
+ * 作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option **不渲染 gradient**
+ * (退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的 color-scheme: dark 救不了
+ * (作者背景优先)。注意背景来自 `.cs-input` 这个**共用类**,不是 select 专用的 `.cs-select` ——
+ * 只盯 select 专用类会找不到源头。守卫:styles/selectPopup.test.ts。 */
+.cs-select option,
+.cs-select optgroup {
+  background-color: var(--set-option-bg);
+  color: var(--set-option-fg);
+}
 .cs-warn { margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; border: 1px solid var(--chip-border); }
 .cs-warn strong { display: block; margin-bottom: 4px; font-size: 13px; }
 .cs-warn p { margin: 0 0 4px; color: var(--fg-muted); }

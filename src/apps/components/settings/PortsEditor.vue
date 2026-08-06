@@ -39,6 +39,15 @@ function extraLabel(e: unknown): string {
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
 }
 .set-input:focus { border-color: var(--accent); }
+/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
+ * 协议列是 <select class="set-input">:作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,
+ * 而原生 option **不渲染 gradient**(退回浏览器默认白底),配上近白的 --fg 就是白底白字。
+ * 根节点的 color-scheme: dark 救不了(作者背景优先)。守卫:styles/selectPopup.test.ts。 */
+.set-input option,
+.set-input optgroup {
+  background-color: var(--set-option-bg);
+  color: var(--set-option-fg);
+}
 .port-row.conflict .set-input { border-color: var(--remove-fg); }
 .row-del { width: 28px; height: 28px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--fg-muted); }
 .row-del:hover { background: var(--chip-bg-hi); color: var(--remove-fg); }

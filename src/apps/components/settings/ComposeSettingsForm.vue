@@ -204,6 +204,16 @@ const tagSelect = computed<string>({
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
 }
 .set-input:focus { border-color: var(--accent); }
+/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
+ * 本文件有 5 个 <select class="set-input">:作者一旦给 <select> 指定背景,Chrome 就把它带到
+ * 弹出列表上,而原生 option **不渲染 gradient**(退回浏览器默认白底),配上近白的 --fg 就是
+ * 白底白字。根节点的 color-scheme: dark 救不了(作者背景优先)。`.set-input` 同时给文本框用,
+ * 多这条后代规则对文本框无影响。守卫:styles/selectPopup.test.ts。 */
+.set-input option,
+.set-input optgroup {
+  background-color: var(--set-option-bg);
+  color: var(--set-option-fg);
+}
 .tips-area { resize: vertical; font-family: inherit; }
 
 .set-hint { margin: 2px 0 8px; font-size: 12px; color: var(--fg-muted); }
