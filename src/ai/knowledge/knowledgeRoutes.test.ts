@@ -8,6 +8,9 @@ import IndexedFilesView from './views/IndexedFilesView.vue'
 import SettingsView from './views/SettingsView.vue'
 import NotesView from './views/NotesView.vue'
 import SearchView from './views/SearchView.vue'
+import WikiView from './views/WikiView.vue'
+import RootsView from './views/RootsView.vue'
+import AllowlistView from './views/AllowlistView.vue'
 import ParserStatus from './parser/ParserStatus.vue'
 import ParserTest from './parser/ParserTest.vue'
 
@@ -265,7 +268,66 @@ describe('knowledgeRoutes', () => {
   // `allowlist`)仍钉成 KnowledgeDeferred(承 P4 I2 的教训 —— 清空后要仍有用例
   // 证明它有能力,而不是只剩一段没人测的代码)。三项归哪一期反转见 `deferred.ts`
   // 文件头(全部归 P5f)。
-  it('父路由(布局位)是 KnowledgeLayout,"" / "queue" / "indexed-files" / "settings" / "notes" / "search" 六个子路由与两条 parser 路由都是真组件,其余 3 个子路由仍是占位页 KnowledgeDeferred', () => {
+  // 【SP8-P5f Task 8,2026-08-06,第七次反转(不是删除)—— 收官刀】上面这条断言把
+  // `wiki` / `roots` / `allowlist` 三个子路由算进「仍是占位页」的 3 条里 —— 本刀一次
+  // 反转**三条**:`wiki` → WikiView(T6 上半 + T7 下半)、`roots` → RootsView(T5)、
+  // `allowlist` → AllowlistView(T4),这条断言必须跟着反转,否则会精确报红(承 T12
+  // R8 comment 里预告、T5 / P5b T10 / P5c T10 / P5d T10 / P5e T8 已复现五次的同一模式)。
+  // 🔴 **本刀是本期(P5f)最后一环,也是 SP8-P5 六批的收官** —— rail 第 3 项「Wiki」/
+  // 第 7 项「索引目录」/ 第 8 项「白名单」第一次真正可达,`/ai/knowledge` 全区零占位页。
+  // 🔴 **K7 占位机制的守法在本刀发生形态变化**:此前每一代都靠「剩下 N 条仍 ===
+  // KnowledgeDeferred」来证明机制活着;清空之后那种写法会退化成**空循环、零判别力**
+  // (承 P4 I2)。故改成两条**方向相反**的守卫:
+  //   ① 11 条路由的 component 里 KnowledgeDeferred 出现 **0 次**(正向钉住「零占位」);
+  //   ② 防空转锚点 —— 必须确实取到了 **11** 个 component 且**每一个都非 undefined**,
+  //      否则「0 次」可能只是因为根本没取到东西。
+  // 判定机制本身「仍有牙」的证明移交 deferred.test.ts 的**临时非空清单**用例。
+  //
+  // 改前(P5e T8 原文,反转前):
+  //   it('父路由(布局位)是 KnowledgeLayout,"" / "queue" / "indexed-files" / "settings" / "notes" / "search" 六个子路由与两条 parser 路由都是真组件,其余 3 个子路由仍是占位页 KnowledgeDeferred', () => {
+  //     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
+  //
+  //     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
+  //     expect(dashboardChild?.component).toBe(DashboardView)
+  //     expect(dashboardChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const queueChild = knowledgeRoutes[0].children!.find((c) => c.path === 'queue')
+  //     expect(queueChild?.component).toBe(QueueView)
+  //     expect(queueChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const indexedFilesChild = knowledgeRoutes[0].children!.find((c) => c.path === 'indexed-files')
+  //     expect(indexedFilesChild?.component).toBe(IndexedFilesView)
+  //     expect(indexedFilesChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const settingsChild = knowledgeRoutes[0].children!.find((c) => c.path === 'settings')
+  //     expect(settingsChild?.component).toBe(SettingsView)
+  //     expect(settingsChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const notesChild = knowledgeRoutes[0].children!.find((c) => c.path === 'notes')
+  //     expect(notesChild?.component).toBe(NotesView)
+  //     expect(notesChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     const searchChild = knowledgeRoutes[0].children!.find((c) => c.path === 'search')
+  //     expect(searchChild?.component).toBe(SearchView)
+  //     expect(searchChild?.component).not.toBe(KnowledgeDeferred)
+  //
+  //     expect(knowledgeRoutes[1].component).toBe(ParserStatus)
+  //     expect(knowledgeRoutes[1].component).not.toBe(KnowledgeDeferred)
+  //     expect(knowledgeRoutes[2].component).toBe(ParserTest)
+  //     expect(knowledgeRoutes[2].component).not.toBe(KnowledgeDeferred)
+  //
+  //     // K7 机制钉子:剩下 3 个子路由仍必须指向占位页(承 P4 I2)。
+  //     const migrated = ['', 'queue', 'indexed-files', 'settings', 'notes', 'search']
+  //     const stillDeferred = knowledgeRoutes[0]
+  //       .children!.filter((c) => !migrated.includes(c.path))
+  //       .map((c) => c.component)
+  //     expect(
+  //       knowledgeRoutes[0].children!.filter((c) => !migrated.includes(c.path)).map((c) => c.path),
+  //     ).toEqual(['wiki', 'roots', 'allowlist'])
+  //     expect(stillDeferred).toHaveLength(3)
+  //     for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+  //   })
+  it('父路由(布局位)是 KnowledgeLayout,9 个子路由与两条 parser 路由**全部**是真组件 —— 占位页零残留(SP8-P5 六批收官)', () => {
     expect(knowledgeRoutes[0].component).toBe(KnowledgeLayout)
 
     const dashboardChild = knowledgeRoutes[0].children!.find((c) => c.path === '')
@@ -292,20 +354,40 @@ describe('knowledgeRoutes', () => {
     expect(searchChild?.component).toBe(SearchView)
     expect(searchChild?.component).not.toBe(KnowledgeDeferred)
 
+    // ── 🔴 P5f T8 新增:三条反转路由各一条正向断言(判据:任一条改回
+    //    KnowledgeDeferred → 对应的 `toBe(真组件)` 与「零占位」那条同时报红)。
+    const wikiChild = knowledgeRoutes[0].children!.find((c) => c.path === 'wiki')
+    expect(wikiChild?.component).toBe(WikiView)
+    expect(wikiChild?.component).not.toBe(KnowledgeDeferred)
+
+    const rootsChild = knowledgeRoutes[0].children!.find((c) => c.path === 'roots')
+    expect(rootsChild?.component).toBe(RootsView)
+    expect(rootsChild?.component).not.toBe(KnowledgeDeferred)
+
+    const allowlistChild = knowledgeRoutes[0].children!.find((c) => c.path === 'allowlist')
+    expect(allowlistChild?.component).toBe(AllowlistView)
+    expect(allowlistChild?.component).not.toBe(KnowledgeDeferred)
+
     expect(knowledgeRoutes[1].component).toBe(ParserStatus)
     expect(knowledgeRoutes[1].component).not.toBe(KnowledgeDeferred)
     expect(knowledgeRoutes[2].component).toBe(ParserTest)
     expect(knowledgeRoutes[2].component).not.toBe(KnowledgeDeferred)
 
-    // K7 机制钉子:剩下 3 个子路由仍必须指向占位页(承 P4 I2)。
-    const migrated = ['', 'queue', 'indexed-files', 'settings', 'notes', 'search']
-    const stillDeferred = knowledgeRoutes[0]
-      .children!.filter((c) => !migrated.includes(c.path))
-      .map((c) => c.component)
-    expect(
-      knowledgeRoutes[0].children!.filter((c) => !migrated.includes(c.path)).map((c) => c.path),
-    ).toEqual(['wiki', 'roots', 'allowlist'])
-    expect(stillDeferred).toHaveLength(3)
-    for (const c of stillDeferred) expect(c).toBe(KnowledgeDeferred)
+    // 🔴 K7 机制钉子(P5f T8 形态反转):此前是「剩下 N 条仍 === KnowledgeDeferred」,
+    // 清空后那种写法退化成空循环 ⇒ 改成正向钉「零占位」+ 防空转锚点(承 P4 I2)。
+    const allComponents = [
+      ...knowledgeRoutes[0].children!.map((c) => c.component),
+      knowledgeRoutes[1].component,
+      knowledgeRoutes[2].component,
+    ]
+    // 防空转①:必须确实取到 11 个 —— 否则「零占位」可能只是因为压根没取到东西。
+    expect(allComponents).toHaveLength(11)
+    // 防空转②:11 个都得是真值(undefined 既 !== KnowledgeDeferred 又什么都不渲染)。
+    expect(allComponents.filter((c) => c != null)).toHaveLength(11)
+    // 正题:占位页在 11 条路由里出现 0 次。
+    expect(allComponents.filter((c) => c === KnowledgeDeferred)).toEqual([])
+    // 子路由 path 清单同步钉住,防止「删掉一条路由」也让上面那条绿着过。
+    expect(knowledgeRoutes[0].children!.map((c) => c.path)).toEqual(
+      ['', 'search', 'wiki', 'indexed-files', 'queue', 'roots', 'allowlist', 'notes', 'settings'])
   })
 })

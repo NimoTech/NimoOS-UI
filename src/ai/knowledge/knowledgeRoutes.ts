@@ -63,6 +63,11 @@
 // P5b T10 / P5c T10 四次同款先例)。**本刀是本期(P5d)最后一环** —— `/ai/knowledge`
 // 左栏第 4 项「笔记」第一次真正可达。剩下 4 个子路由(`search` / `wiki` / `roots` /
 // `allowlist`)仍指 KnowledgeDeferred,归属见 `deferred.ts` 文件头。
+// 【M-5 复发,P5f-T8 顺手订正,2026-08-06 —— 只改语气,不改它描述的历史事实】
+// 🔴 上面那句「剩下 4 个子路由**仍指** KnowledgeDeferred」是 **P5d-T10 落笔当时
+// (2026-08-05)的状态快照**,用的是现在时;它此后已被 P5e-T8(4→3)推进过一次。
+// 按「反转不删」原文整体保留,**读作历史记录**:*于 P5d-T10 完成的那一刻*,那 4 个
+// 子路由确实都还指向占位页。当前状态见文件末尾最近一次反转记录。
 //
 // 【SP8-P5e Task 8,2026-08-05,第六次反转(不是删除)】`search` 子路由(搜索位)同样
 // 从占位页 KnowledgeDeferred 反转成真正的 SearchView(T4-T7 四刀收官的产出;K7 占位
@@ -70,7 +75,42 @@
 // P5b T10 / P5c T10 / P5d T10 五次同款先例)。**本刀是本期(P5e)最后一环** ——
 // `/ai/knowledge` 左栏第 2 项「搜索」第一次真正可达。剩下 3 个子路由(`wiki` /
 // `roots` / `allowlist`)仍指 KnowledgeDeferred,全部归 P5f(见 `deferred.ts` 文件头)。
+// 【M-5 复发,P5f-T8 顺手订正,2026-08-06 —— 只改语气,不改它描述的历史事实】
+// 🔴 同上:「剩下 3 个子路由**仍指** KnowledgeDeferred」是 **P5e-T8 落笔当时
+// (2026-08-05)的状态快照**;本刀(P5f-T8)已把这 3 条全部反转成真组件(3→0)。
+// 按「反转不删」原文保留,**读作历史记录**。
+// 🔴 **通用读法(M-5 已连续复发三期,写死在这里)**:本文件头是一条**逐代追加的
+// 谱系**,每一段都只描述「该刀落笔那一刻」的状态。**当前最新状态永远以最后一段
+// 反转记录为准,不要引用中间任何一段的「剩下 N 个」。**
+//
+// 【SP8-P5f Task 8,2026-08-06,第七次反转(不是删除)—— 收官刀】本刀一次反转**三条**
+// (承 T12 / P5b T5 / P5b T10 / P5c T10 / P5d T10 / P5e T8 六次同款先例):
+//   · `wiki`      子路由 → 真正的 **WikiView**(T6 上半 + T7 下半的产出);
+//   · `roots`     子路由 → 真正的 **RootsView**(T5 的产出);
+//   · `allowlist` 子路由 → 真正的 **AllowlistView**(T4 的产出)。
+// 🔴 **本刀是本期(P5f)最后一环,也是 SP8-P5 六批的收官** —— `/ai/knowledge` 左栏
+// rail 第 3 项「Wiki」/ 第 7 项「索引目录」/ 第 8 项「白名单」第一次真正可达。
+// 🔴 **本刀之后,本文件 11 条路由(9 子路由 + 2 条 parser 顶层路由)再无任何一条指向
+// KnowledgeDeferred** —— 占位页从此在 `/ai/knowledge` 全区零残留。
+// 🔴 但 `KnowledgeDeferred.vue` 与 `deferred.ts` 的 K7 机制**都保留**(K8 / 承 P4 I2):
+// knowledgeRoutes.test.ts 用「所有 component 里 KnowledgeDeferred 出现 0 次」+ 一条
+// 「取到的组件确实是 11 个」的防空转锚点钉住这个状态;deferred.test.ts 则用临时非空
+// 清单证明判定机制本身仍有牙。将来要挂新占位页,直接指回 KnowledgeDeferred 即可。
+// 🔴 这也是 `WikiView.vue` / `RootsView.vue` / `AllowlistView.vue` **第一次被入口可达地
+// import** —— 在此之前三者全仓零生产 import,模块不进 Vite 图(治理 §12.3 的 E-13:
+// `.vue` 光「存在」进不了产物)。本刀已按治理 §8 的构建管线门实测:改前
+// `dist/assets/*.js` 里 `__name:"WikiView"` / `"RootsView"` / `"AllowlistView"` 与
+// `kw-split` 全部 **0 命中**,改后全部命中(证据见 p5f-task-8-report.md)。
 import type { RouteRecordRaw } from 'vue-router'
+// 🔴 【P5f T8 申报】本刀反转最后三条路由之后,**本文件已无任何一条路由指向
+// KnowledgeDeferred** ⇒ 这行 import 在本文件里成了「未被引用的 import」。
+// **刻意保留,不删**(K8 / 承 P4 I2 的「留代码要留能力」+ 治理 §9.10「只许加固」):
+//   · 它是 K7 占位机制在生产侧的唯一锚点 —— 删掉后 `KnowledgeDeferred.vue` 全仓零
+//     生产 import、彻底掉出 Vite 图,机制就只剩一个没人引的文件;
+//   · 将来要给新页面挂占位,只需把某条路由的 component 改回它,一行即可;
+//   · `noUnusedLocals` 未开启,`vue-tsc --noEmit` 与 `vite build` 均 exit 0(已实测)。
+// knowledgeRoutes.test.ts 侧仍逐条 `not.toBe(KnowledgeDeferred)` 消费它,并用
+// 「KnowledgeDeferred 在 11 个 component 里出现 0 次」+ 防空转锚点钉住当前状态。
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
 import DashboardView from './views/DashboardView.vue'
@@ -79,6 +119,9 @@ import IndexedFilesView from './views/IndexedFilesView.vue'
 import SettingsView from './views/SettingsView.vue'
 import NotesView from './views/NotesView.vue'
 import SearchView from './views/SearchView.vue'
+import WikiView from './views/WikiView.vue'
+import RootsView from './views/RootsView.vue'
+import AllowlistView from './views/AllowlistView.vue'
 import ParserStatus from './parser/ParserStatus.vue'
 import ParserTest from './parser/ParserTest.vue'
 
@@ -89,11 +132,14 @@ export const knowledgeRoutes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'KnowledgeDashboard', component: DashboardView },
       { path: 'search', name: 'KnowledgeSearch', component: SearchView },
-      { path: 'wiki', name: 'KnowledgeWiki', component: KnowledgeDeferred },
+      // 改前(P5e T8 原文,反转前):component: KnowledgeDeferred —— 见文件头 P5f T8 记录。
+      { path: 'wiki', name: 'KnowledgeWiki', component: WikiView },
       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: IndexedFilesView },
       { path: 'queue', name: 'KnowledgeQueue', component: QueueView },
-      { path: 'roots', name: 'KnowledgeRoots', component: KnowledgeDeferred },
-      { path: 'allowlist', name: 'KnowledgeAllowlist', component: KnowledgeDeferred },
+      // 改前(P5e T8 原文,反转前):component: KnowledgeDeferred。
+      { path: 'roots', name: 'KnowledgeRoots', component: RootsView },
+      // 改前(P5e T8 原文,反转前):component: KnowledgeDeferred。
+      { path: 'allowlist', name: 'KnowledgeAllowlist', component: AllowlistView },
       { path: 'notes', name: 'KnowledgeNotes', component: NotesView },
       { path: 'settings', name: 'KnowledgeSettings', component: SettingsView },
     ],

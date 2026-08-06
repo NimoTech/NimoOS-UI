@@ -1895,3 +1895,28 @@ describe('WikiView —— kw-foot(蓝本 :134-140)', () => {
     expect(norm(w.find('.kw-foot').text())).toContain('/DATA/Documents/.wiki.md')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 【SP8-P5f Task 8 追加,2026-08-06】T7 独立评审 Important I-1 的闭合:
+// `kw-sec-en` 的两处装饰文案**此前零守卫**。
+// 治理 §3.5 / 附录 A §A.4 明令:蓝本这两处**未过 `$t()`**,照抄字面量、不许顺手
+// i18n 化;`WikiView.vue` 的模板注释里也写了这句话两次。但整仓没有任何断言绑住它 ——
+// 评审把两处 i18n 化后,单文件 100 例与全仓 4658 例**全绿**(「产品代码对、守卫为零」
+// 家族)。⚠️ 同组的 `.kw-sec-title` 中文**有**断言、`kw-title` 的 `TREE` **有**断言,
+// **唯独 `kw-sec-en` 这一对裸奔** ⇒ 是漏了,不是「这类都不测」。
+// 🔴 判据(本刀已实测,见 p5f-task-8-report.md):把这两处改成 `{{ t('…') }}`
+//    → 本条必须报红。
+// 🔴 本块**只新增**,`WikiView.test.ts` 既有每一行零改动(报告给 `git diff` 自证)。
+describe('WikiView —— kw-sec-en 装饰文案照抄字面量(附录 A §A.4 / T7 评审 I-1)', () => {
+  it('🔴 两处 `kw-sec-en` 必须是英文字面量,不许过 $t()', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    // 防空转:这两块(目录区 / 最近变更)得真渲染出来,否则下面断的是空数组。
+    expect(w.find('.kw-children').exists(), '前置:目录区没渲染 ⇒ 本条无从判别').toBe(true)
+    expect(w.find('.kw-changes').exists(), '前置:最近变更没渲染 ⇒ 本条无从判别').toBe(true)
+    expect(
+      w.findAll('.kw-sec-en').map((n) => norm(n.text())),
+      'kw-sec-en 被 i18n 化了 —— 蓝本这两处未过 $t(),照抄字面量(附录 A §A.4)',
+    ).toEqual(['Contents', 'Recent changes'])
+  })
+})
