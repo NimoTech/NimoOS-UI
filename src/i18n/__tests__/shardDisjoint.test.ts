@@ -63,6 +63,18 @@ describe('en 四片两两不相交(base / photos / ai / sp9)', () => {
 describe('无损划分 · 真实装配路径(src/i18n/index.ts 的 createI18n 实例)', () => {
   // 用真实 i18n 实例的 messages,而不是重新手写一遍 {...a, ...b, ...c, ...d} ——
   // 否则本测试和被测代码用同一条(可能同样错的)装配公式,查不出装配路径本身写错的情况。
+  //
+  // 这条断言的判别力边界(独立评审做过变异实测,结论记在这里免得后人误读):
+  //   能抓:某个分片游离在真实装配路径之外(比如以后新增第五片却忘了在 index.ts 里并进
+  //     去),或真实 messages 里混进了这四个已知分片之外的来源。sp9×ai 定向撞车的变异
+  //     (往 zh_cn.sp9.ts 塞一个与 zh_cn.ai.ts 重名的键)会同时把这条和「两两不相交」
+  //     一起打红 —— 这也是 shardDisjoint.test.ts 存在的核心理由:同一变异下
+  //     photosSlice.test.ts 的 12 条断言全绿、完全失明(它没有 sp9 这一片)。
+  //   抓不到:某个分片内部纯删除/纯增加而不撞名的情况 —— 例如从 zh_cn.sp9.ts 删掉
+  //     一个键。这时「四片键数之和」与「真实装配后键数」两边同步减 1,等式在集合论上
+  //     恒成立(只要「四片两两不相交」这个前提没被破坏),此断言必然保持绿,不代表
+  //     文案没被误删。防"误删文案"要靠别的手段(比如 messageSyntax.test.ts 那类值域
+  //     检查,或对已知键名做存在性断言),不归本条断言管。
   const realMessages = i18n.global.messages.value as Record<string, Dict>
 
   it('zh_cn: base+photos+ai+sp9 键数之和 == messages.zh_cn 键数', () => {

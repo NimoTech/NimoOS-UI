@@ -31,14 +31,22 @@ brief 假设三片(base/photos/ai),实测是 **四片**:
 - photos 分片:两语言键集一致、非空、`photos` 前缀、值非空字符串
 - base 里不残留 `photos*` 键(正向)、分片键不被相册面之外引用(反向)
 
-`shardDisjoint.test.ts` 补的是它没覆盖的三个缺口(不重复其已有断言):
-1. **sp9 这第四片**与其余三片的不相交检查(base×sp9 / photos×sp9 / ai×sp9),以及
-   「四片之和 == 真实装配路径(`i18n.global.messages.value`)键数」—— photosSlice 只验
-   `zh_cn.ts` 出口,验不到 sp9 撞车。
+`shardDisjoint.test.ts` 补的是它没覆盖的缺口:
+1. **sp9 这第四片**与其余三片的不相交检查,以及「四片之和 == 真实装配路径
+   (`i18n.global.messages.value`)键数」—— photosSlice 只验 `zh_cn.ts` 出口,验不到 sp9
+   撞车。**独立评审做了定向变异实证这一点**:往 `zh_cn.sp9.ts` 插一个与 `zh_cn.ai.ts`
+   重名的键,`shardDisjoint.test.ts` 报红,而 `photosSlice.test.ts` 12 条断言全绿、
+   完全失明。
 2. **ai 分片前缀守卫**(该分片是 T3 新建,此前没有专属测试)。
-3. **两语言分片结构对称**(base/ai/sp9 三片此前无人守;photos 一条与
-   photosSlice 已有断言重复,保留是为了让本文件自身是「四片对称性」的完整清单,不必跳去
-   另一文件确认覆盖 —— 代价极低,注释里已说明重复是有意的)。
+3. **两语言分片结构对称**(base/ai/sp9 三片此前无人守)。
+
+关于「六对组合全部不相交」这条:**准确表述是 3 对净新增、3 对与既有断言重叠**,不是
+"补缺口不重复"。带 sp9 的 3 对(base×sp9 / photos×sp9 / ai×sp9)是净新增;另外 3 对
+(base×photos / base×ai / photos×ai)与 `photosSlice.test.ts`「三片两两不相交」逐字
+重复(独立评审逐字比对后指出)。保留重叠这 3 对是良性冗余:合写成一条「zh 四片两两
+不相交」的 `it` 比再拆开省事,也让本文件自身是「四片两两不相交」的完整清单,不必跳去
+另一文件确认覆盖。「两语言分片结构对称」里的 photos 一条同理与 photosSlice 已有断言
+重复,保留理由相同。
 
 未把新断言并入 photosSlice.test.ts:该文件的注释体系是围绕「相册文案分片」这个开源导出
 场景组织的(正向/反向引用扫描等 photos 专属逻辑),混入 ai/sp9/跨语言对称会打乱其叙事;
@@ -112,3 +120,46 @@ pnpm exec vitest run src/i18n --reporter=verbose
   刻意绕开这条出口、直接读 `index.ts` 的 `i18n` 实例,以后如果有人重构装配方式(比如把 sp9
   也并进 `zh_cn.ts` 出口),这里的断言仍然成立(仍然验证「四片之和 == 真实装配结果」),
   不需要跟着改。
+
+## 5. 独立评审(修复轮 1/5)—— Spec ✅ / Approved,两处文字收尾
+
+独立评审做了 4 轮单断言变异 + 1 轮 sp9×ai 定向撞车(往 `zh_cn.sp9.ts` 插一个与
+`zh_cn.ai.ts` 重名的键),确认「不相交 / ai 前缀 / 跨语言对称」三条判别力真实、隔离干净,
+并且**实证了 shardDisjoint.test.ts 存在的核心理由**:同一 sp9×ai 撞车变异下,本文件报红,
+`photosSlice.test.ts` 12 条断言全绿、完全失明(它没有 sp9 这一片)。结论:Spec ✅ Approved,
+两条文字收尾,不动逻辑。
+
+### 5.1 「无损划分」断言补充判别力边界注释
+
+评审做了一次未在原计划内的变异:从 `zh_cn.sp9.ts` **删除**一个键(不撞名,只是键数变化)。
+结果「无损划分」两条断言**仍然绿**。这不是实现缺陷 —— 在「四片两两不相交」这个前提成立
+的情况下,`sum(|shard_i|) == |装配总数|` 是集合论恒等式:删一个键两边同步减 1,恒成立。
+问题出在评审 dispatch 时给的 RED 判据描述有误(以为"删键"能触发这条断言),不是断言写
+错了。
+
+已在 `src/i18n/__tests__/shardDisjoint.test.ts` 的「无损划分」describe 块上方补充注释,
+写清这条断言的判别力边界:
+- **能抓**:某个分片游离在真实装配路径之外,或真实 `messages` 里混进了四个已知分片之外
+  的来源(sp9×ai 定向撞车变异实证)。
+- **不能抓**:某个分片内部纯删除/纯增加而不撞名 —— 那种情况下等式两边同步变化,恒绿。
+  防误删文案要靠别的手段(值域检查、已知键存在性断言),不归这条断言管。
+
+只加了注释,断言逻辑本身未改动(它是对的)。
+
+### 5.2 报告措辞修正:「不重复 photosSlice.test.ts」改为准确的「3 对新增 + 3 对重叠」
+
+原报告 §1 说 `shardDisjoint.test.ts`"补缺口、不重复既有断言",评审逐字比对指出这不准确:
+「六对组合」里 `base×photos`/`base×ai`/`photos×ai` 这 3 对与 `photosSlice.test.ts`
+现有的「三片两两不相交」逐字重复,只有带 sp9 的 3 对(base×sp9/photos×sp9/ai×sp9)是
+净新增。这是良性冗余(合写成一条 `it` 比拆开省事,也让本文件自身是完整清单),**不需要
+改代码**,已按要求改准确本报告 §1 的表述(见上方,已就地更新,未新开小节)。
+
+### 5.3 收尾验证
+
+```
+pnpm exec vitest run src/i18n --reporter=verbose
+```
+`Test Files 7 passed (7)` / `Tests 189 passed (189)`,与修复前一致。
+
+提交:`git add src/i18n/__tests__/shardDisjoint.test.ts .superpowers/sdd/p6-task-4-report.md`
+(带 pathspec)。`git status --short` 结束时仍恰好 3 行既有的 `D design-export/...`。
