@@ -13,8 +13,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
-// 源文件文本(Vite `?raw` 导入,见 node_modules/vite/client.d.ts:243——不需要 @types/node,
-// 本仓本就没有装它)。用途见下方"追加不重排"用例的注释。
+// 源文件文本(Vite `?raw` 导入,类型来自 node_modules/vite/client.d.ts:243,不依赖 @types/node)。
+// 【SP8-P6 T10 订正】原文尾巴「本仓本就没有装它」已不成立 —— 合流后 `@types/node` 已装
+// (devDependencies `^26.1.2`)。本行结论不变:`?raw` 对 **`.ts`/`.vue`** 有效且只需 vite/client;
+// 换句话说这里用 `?raw` 不是被迫,而是够用。(⚠️ `?raw` 对 **`.css`/`.scss`** 才是恒空的坑。)
+// 用途见下方"追加不重排"用例的注释。
 import routerSource from '../../router/index.ts?raw'
 // 评审 I1:面包屑图标 glyph 回源核对同样只能读源文件文本判定(同上一条 ?raw 手法)。
 import photosPlaceAssetsRaw from '../PhotosPlaceAssets.vue?raw'

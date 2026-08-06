@@ -341,10 +341,22 @@ describe('.map-detail 进场 transition(评审 I2)', () => {
 
 // ── 面板底完全不透明(真机验收反馈)────────────────────────────────
 // 这块面板绝对定位压在地图画布上,半透明底会把地图网格点透上来。只守组件这一头:
-// token 本身在两套主题块里是否真的不带 alpha,在 vitest 里验不了——theme.css 的文本
-// 取不到(`?raw` 与 `?inline` 两种 glob 实测都返回空串,Vite 的 CSS 管线吃掉了原文;
-// 本仓也没装 @types/node,node:fs 会让 vue-tsc 报 TS2307)。这正是 color-guard.test.ts
-// 把 styles/theme.css 整个跳过的原因。token 取值的记录归 docs/THEMING.md。
+// token 本身在两套主题块里是否真的不带 alpha,本文件不验,取值的记录归 docs/THEMING.md。
+//
+// 【SP8-P6 T10 订正 —— 上面这个「只守组件一头」的**理由**已经不成立了,但决定本身本刀不改】
+// 原注释给的两条理由里:
+//   ✅ 仍成立:`?raw` / `?inline` 两种 glob 对 `.css` 实测都返回空串
+//      (vitest 自带的 CSSEnablerPlugin 把样式源整体替换成空串,且**不看查询串**)。
+//   ❌ 已不成立:「本仓也没装 `@types/node`,`node:fs` 会让 `vue-tsc` 报 TS2307」——
+//      合流后 `@types/node` 已装(devDependencies `^26.1.2`),`node:fs` 直接导入即可,
+//      `vue-tsc --noEmit` exit 0。**读 theme.css 文本这条路今天是通的。**
+//   ❌ 已不成立:「这正是 color-guard.test.ts 把 styles/theme.css 整个跳过的原因」——
+//      `color-guard.test.ts` 现在正是**用 `node:fs` 直读全部 `.css`**(`listCss()`),
+//      它跳过 `theme.css`/`theme.sp9.css` 的真实理由写在源码里:那是 **token 定义档**,
+//      「裸字面量是它的本职工作」,与能不能读到文本无关。
+// ⇒ 「本文件要不要改成用 `node:fs` 读 theme.css、程序化断言 `--panel-bg-solid` 两套主题块
+//    下都不带 alpha」现在是一个**纯设计取舍**,不再有技术阻塞。**T10 只动注释,不改实现**,
+//    该取舍已登记为债务(见 VUE2 `docs/vue3-migration-roadmap.md` §SP8 债务台账 I4)。
 describe('面板底完全不透明', () => {
   it('.map-detail 的 background 用 --panel-bg-solid,不用半透的 --panel-bg', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)

@@ -6,8 +6,16 @@
 // 允许:  color: #fff /* theme-exception: 叠在缩略图上的图标, 皮肤无关 */  (注释在值行或其上一行)
 // 失败:  color: #fff               (裸字面量, 未走 token)
 /// <reference types="node" />
-// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node" —— 全局加会把 NodeJS 的
-// setTimeout/Timer 等声明灌进整个 src,改变既有代码的类型推断。这里只作用于本文件。
+// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"。
+// 🔴 【SP8-P6 T10 订正】原注释末句「这里只作用于本文件」**是错的** —— `/// <reference types="…" />`
+// 是**程序级**指令,它把 `@types/node` 整包(含 `globals.d.ts` 里的 `declare var process`
+// / `NodeJS.Timeout` 等全局声明)拉进整个编译程序,对**所有**源文件可见,并不局限于本文件。
+// 实证(T10 双向探针):新建一个既不 import `node:` 也无 reference 的文件,只写
+// `export const b = process.platform` → `vue-tsc --noEmit` exit 0;同一文件加
+// `const wrong: number = 'string'` → TS2322 exit 2 ⇒ 前一次 exit 0 不是空过。
+// 现测全仓共 **7** 个文件写了这条指令(`/usr/bin/grep -rln 'reference types="node"' src`),
+// 所以那点「全局污染」其实早就发生了。保留这一行仍然是对的(本文件确实要用 node:fs,
+// 且不依赖别处的 reference),但**别再拿「只作用于本文件」当理由**。
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

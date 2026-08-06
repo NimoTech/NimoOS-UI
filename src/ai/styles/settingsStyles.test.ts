@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 // SP8-P2a Task 2 —— 落地时踩了两处环境差异,均只改「怎么读文件」,不改任何断言内容:
 // ① brief 原文用 resolve(__dirname, ...);本仓 package.json 是 "type": "module",
 //    __dirname 在 ESM 下不可用,改用 import.meta.url + fileURLToPath 的等价写法。
-// ② 本仓 tsconfig.json 的 "types" 只有 ["vite/client","vitest/globals"],未装
+// ② ⚠️【此条是 2026-07-30 P2a 当时的历史记录,现已不成立 —— 直接跳到本段末尾那条
+//    「SP8-P6 T10 订正」看现状,别照这段判断今天的环境】
+//    本仓 tsconfig.json 的 "types" 只有 ["vite/client","vitest/globals"],未装
 //    @types/node —— node:fs / node:path / node:url 没有类型声明,`pnpm exec
 //    vue-tsc --noEmit`(任务门三条命令之一)会报 TS2307。
 //    曾尝试改用 Vite 静态 `?raw` 导入替代 node:fs(仿 src/styles/color-guard.test.ts
@@ -23,8 +25,16 @@ import { describe, it, expect } from 'vitest'
 //    已装 `@types/node`(devDependencies ^26.1.2)。tsconfig 的 `types` 数组仍只列
 //    `["vite/client","vitest/globals"]`,但那只管**全局**类型的自动引入;`node:fs` 这类
 //    **显式模块导入**照样解析得到 @types/node 的模块声明 ⇒ vue-tsc 直接通过,本文件的
-//    `@ts-expect-error` 抑制行已在合流时删除。反过来,全局 `process` 之类仍然没有类型
-//    (见 knowledge/views/DashboardView.test.ts 里那处 globalThis 窄化,那条注释依然成立)。
+//    `@ts-expect-error` 抑制行已在合流时删除。
+//    🔴 **本条自己也被订正过一次(T10 复评抓到,留痕)**:我最初在这里写「反过来,全局
+//    `process` 之类仍然没有类型」—— **那是错的**。全仓有 7 个文件写了
+//    `/// <reference types="node" />`,该指令是**程序级**的,把 `@types/node/globals.d.ts`
+//    (含 `declare var process`)拉进整个编译程序 ⇒ 全局 `process` **是有类型的**。
+//    双向探针实证:一个既不 import `node:` 也无 reference 的新文件里写
+//    `export const b = process.platform` → `vue-tsc --noEmit` exit 0;同文件加
+//    `const wrong: number = 'string'` → TS2322 exit 2(证明探针真的进了编译程序)。
+//    `knowledge/views/DashboardView.test.ts` 那处 globalThis 窄化的注释因此**也已订正**。
+//    教训:订正别人的过时注释时,别顺手写下一条自己没验过的新断言。
 //    结论未变:仍然用 node:fs、仍然不用 `?raw`(CSSEnablerPlugin 那条坑与类型无关)。
 //    另:上面提到的「color-guard.test.ts 的 `?raw` glob 对 .css 空转」也**已经修掉了**
 //    (它现在 .css 走 node:fs、只有 .vue 保留 glob);剩下的缺口是它**不收 `.scss`**

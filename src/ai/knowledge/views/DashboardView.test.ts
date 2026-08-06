@@ -580,9 +580,18 @@ describe('DashboardView — 生命周期(N3)', () => {
       if (reason instanceof Error && reason.message === 'wiki timeout') return
       throw reason
     }
-    // tsconfig.json 的 `types` 只声明了 `vite/client`/`vitest/globals`,没有
-    // `@types/node`,故不能直接引用全局 `process` 的类型 —— 这里只声明用到的
-    // 两个方法,经 `globalThis` 窄化访问,不新增 `@types/node` 依赖也不用 `any`。
+    // 【SP8-P6 T10 订正 —— 原注释「本仓没有 `@types/node`,故不能直接引用全局 `process`
+    // 的类型」已不成立】合流后 `@types/node` 已装,且全仓有 7 个文件写了
+    // `/// <reference types="node" />`(`color-guard.test.ts` 等),该指令是**程序级**的:
+    // 它把 `@types/node/globals.d.ts` 拉进整个编译程序,其中 `declare var process: NodeJS.Process`
+    // 于是对**所有**源文件可见。`tsconfig` 的 `types` 数组只挡「自动包含」,挡不住显式 reference。
+    // 实证(T10 双向探针):新建一个既不 import `node:` 也无 reference 的文件,只写
+    // `export const b = process.platform` → `vue-tsc --noEmit` **exit 0**;同一文件加一行
+    // `const wrong: number = 'string'` → **TS2322 exit 2** ⇒ 前一次的 exit 0 不是空过。
+    // ⇒ 下面这段 `globalThis` 窄化在类型上**已经不是必需的**,直接写 `process.on(...)` 也能编译。
+    // 本刀只订正注释、不改实现(T10 纪律:只动注释)。它仍有一点独立价值:显式列出用到的两个
+    // 方法,不依赖「某个别的文件恰好写了 reference 指令」这条隐式链路 —— 那 7 个 reference
+    // 一旦被删光,裸 `process` 会立刻编译不过,而这段窄化不会。
     const proc = (globalThis as unknown as {
       process: {
         on(event: 'unhandledRejection', listener: (reason: unknown) => void): void
