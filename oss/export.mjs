@@ -54,7 +54,26 @@ const headNewUi = git(NEW_UI, 'rev-parse', 'HEAD')
 const headService = git(SERVICE, 'rev-parse', 'HEAD')
 log(`  New-UI ${headNewUi.slice(0, 8)} · Service ${headService.slice(0, 8)}`)
 
-// ── 2. 取源(git archive:.git / node_modules / dist / .superpowers / tmlab 自动排除)──
+// ── 2. 取源(git archive HEAD)────────────────────────────────────────────────
+// 🔴 这里原来写的是「.git / node_modules / dist / .superpowers / tmlab 自动排除」——
+// **那句话是错的,而且它就是让 437 处台账泄漏藏了几个月的机制本身**(SP8-P6-T8 实测:
+// 产物树泄漏命中 977 处,其中 437 处出自 packages/service/.superpowers/**)。改成准确的:
+//
+//   `git archive HEAD` 只有两条排除依据 ——
+//     ① **未被 git 跟踪的文件**(.git 自身、node_modules/、dist/、scripts/tmlab/ 都属此类:
+//        前三个在 .gitignore 里,tmlab 也是 `git ls-files | grep tmlab` = 0 条);
+//     ② `.gitattributes` 里标了 `export-ignore` 的路径 —— **本项目两个仓都没有
+//        .gitattributes 文件**(实测 New-UI 与 NimoOS-Service 均无),所以这条依据
+//        在这里等于不存在。
+//
+//   ⇒ **凡是被跟踪的文件,一律会进产物树**,只能靠清单显式剔除。`.superpowers/` 正是
+//     这种情况:2026-08-05 起两个仓都把台账**入库**了(New-UI 1718 份 / Service 32 份,
+//     `git ls-files .superpowers | wc -l` 现测),因此需要 **两条独立的清单条目**:
+//       · New-UI 侧 → manifest.mjs 的 `DELETE` 表里的 '.superpowers'
+//       · Service 侧 → `SERVICE_DELETE` 表里的 '.superpowers'(SP8-P6-T8 补,此前漏着)
+//     漏掉任何一条都不会有人报错 —— 兜底的只有泄漏守卫的词命中,而台账里恰好一个禁词
+//     都没有的那天,它就静默上公网了。tree.test.mjs 因此另有两条**目录存在性**断言
+//     (不依赖词表),见那边「台账目录两个仓都不能进产物树」那条用例。
 log('2/6 取源')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-export-'))
 // try 从这里开始(mkdtempSync 之后、第一次可能失败的操作 archiveInto 之前),覆盖取源 +

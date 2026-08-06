@@ -3,8 +3,10 @@
 - 日期：2026-08-06
 - 工作区：`/home/nimo/NimoTech/NimoOS-New-UI`（分支 `master`，BASE `3ebeaf3`）
 - 参照仓：`/home/nimo/NimoTech/NimoOS-Service`（`ac39cd7`，全程只读，未写入任何文件）
-- 改动文件：`oss/manifest.mjs` 一个（`SERVICE_DELETE` + `SERVICE_PATCH` 两段）
-- 结论：**四道 oss 门全绿；「产物树能构建」那道门第一次真跑起来并通过；产物树人工抽查零泄漏。**
+- 改动文件：初版 `oss/manifest.mjs` 一个；**复审后按协调者裁定追加两个**
+  （`oss/export.mjs` 的一段假注释、`oss/tree.test.mjs` 的一条新断言 —— 见 §9~§11）
+- 结论：**oss 门全绿（428 例）；「产物树能构建」那道门第一次真跑起来并通过；产物树人工抽查零泄漏。**
+- 独立评审：**Spec ✅ / Approved，无 Critical**
 
 ---
 
@@ -438,17 +440,170 @@ exit=0
 
 ---
 
-## 9. 新记的债务 / concern
+## 9. 债务的最终处置（复审后，协调者裁定）
 
-| 编号 | 内容 |
-|---|---|
-| T8-D1 | **`oss/export.mjs` 第 57 行的注释是错的**：`// 2. 取源（git archive:.git / node_modules / dist / .superpowers / tmlab 自动排除）`。实测两个仓**都没有 `.gitattributes`**，`git archive` 不会自动排除 `.superpowers` / `scripts/tmlab`；它们全靠 `DELETE` / `SERVICE_DELETE` 的显式条目删。**Service 侧漏了 437 处正是被这句注释掩护的**。本刀按「只改 manifest.mjs」的任务边界没有改 `export.mjs`，但这句误导性注释应尽早改掉 |
-| T8-D2 | `tree.test.mjs:243` 那条 `.superpowers/` 断言只查产物树**根目录**的 `.gitignore` 文本，**没有一条断言「产物树里不存在 `packages/service/.superpowers` 目录」**。今天靠泄漏守卫兜住（437 处词命中），但假如某天台账里恰好一个禁词都不含，就会静默漏出去。建议补一条 `expect(exists('packages/service/.superpowers')).toBe(false)` |
-| T8-D3 | 「产物树能构建」门只跑 `pnpm install` + `vue-tsc --noEmit`，**不跑 `vite build`、也不跑产物树自己的 `pnpm test`**。类型能过 ≠ 打包能过（例如被删文件仍被某个 `import()` 动态引用、或 vite 插件配置指向已删目录）。本刀已用 §7.1 的反向 grep 手工兜了一层，但那仍是「扫词」 |
+独立评审结论 **Spec ✅ / Approved，无 Critical**。协调者裁定 **T8-D1 / T8-D2 本刀一并闭掉**
+（虽然超出「只改 manifest.mjs」的原边界）—— 理由：**这两条正是让 437 处泄漏藏了几个月的机制本身**，
+成本各只有一两行，跨期等于让同一个陷阱继续张着。
+
+| 编号 | 处置 | 落地 |
+|---|---|---|
+| T8-D1 | **✅ 本刀闭掉** | 改写 `oss/export.mjs` 第 57 行那句假注释，见 §10.1 |
+| T8-D2 | **✅ 本刀闭掉** | `oss/tree.test.mjs` 新增目录存在性断言 + 变异验证，见 §10.2 / §11 |
+| T8-D3 | **⚠️ 挂账到发布前**，但必须**连同下面三条陷阱一起挂** | 见 §9.1 |
+
+### 9.1 T8-D3 —— 挂账内容（🔴 别照字面加门）
+
+「产物树能构建」门当前 = `pnpm install --ignore-scripts` + `vue-tsc --noEmit`。想把它加严之前，
+下一个人必须先知道这三条，否则会加出一道**恒红的假门**：
+
+1. **🔴 照字面加 `vite build` 会恒红。** 门用的是 `--ignore-scripts`，而 `@vue-office/docx` 靠
+   `postinstall` 生成 `lib/index.js`。评审实测：`--ignore-scripts` 下 `vite build` →
+   `Failed to resolve entry for package "@vue-office/docx"`，`exit=1`；允许脚本重装后 →
+   `✓ built in 11.73s`，`exit=0`。⇒ 要加 `vite build` 就必须同时**放开 postinstall**，
+   两者是一套，不能只加一半。
+2. **`vue-tsc` 对「运行时入口不存在」是瞎的。** `lib/index.js` 根本不存在时它**照样 `exit=0`**
+   ——它只认 `index.d.ts`。所以现在这道门验证不了「包的运行时入口在不在」。
+3. **构建门是「可达性作用域」的**（评审新发现）。它只检查从 `src/**` 经 `index.ts` 能 import
+   到的文件。`packages/service/src/*.test.ts` 确实随 `files: ['src']` 发到开源仓，**却完全在
+   检查范围外** —— 探针：往产物树的 `apps.test.ts` 塞 `const __probe: number = "boom"`，
+   `vue-tsc` 仍 `exit=0`，没抓到。今天零泄漏、206 例全绿，但**这个半径要如实记着**：
+   「构建门绿」不等于「产物树里每个文件都健康」，只等于「主入口可达的那部分类型正确」。
 
 ---
 
-## 10. 收尾状态
+## 10. 复审 Important 1 / 2 的落地
+
+### 10.1 Important 1 —— 改掉 `oss/export.mjs:57` 那句假注释
+
+原文（**错的**）：
+
+```js
+// ── 2. 取源(git archive:.git / node_modules / dist / .superpowers / tmlab 自动排除)──
+```
+
+现测反证（两条都是本刀现场跑的）：
+
+```
+$ ls .gitattributes ; ls /home/nimo/NimoTech/NimoOS-Service/.gitattributes
+ls: cannot access '.gitattributes': No such file or directory
+ls: cannot access '/home/nimo/NimoTech/NimoOS-Service/.gitattributes': No such file or directory
+
+$ git ls-files .superpowers | wc -l                                  # New-UI
+1718
+$ git -C /home/nimo/NimoTech/NimoOS-Service ls-files .superpowers | wc -l   # Service
+32
+$ git ls-files | /usr/bin/grep -c tmlab
+0
+```
+
+⇒ `git archive HEAD` 只有两条排除依据：① **未被跟踪**（`.git` / `node_modules` / `dist` /
+`scripts/tmlab` 都属此类 —— 所以对这四个而言「自动排除」碰巧是对的，但**理由不是
+`.gitattributes`**）；② `.gitattributes` 的 `export-ignore` —— **本项目两个仓都没有这个文件**，
+这条依据等于不存在。
+**`.superpowers` 是被跟踪的（1718 + 32 份），只能靠清单显式剔除，且两个仓各需一条。**
+
+新注释把上面这套如实写进去了（`export.mjs` 第 57 行起，19 行），并点明「漏掉任何一条都不会
+有人报错，兜底的只有词命中」，同时指向 §10.2 那条不依赖词表的存在性断言。
+
+### 10.2 Important 2 —— `oss/tree.test.mjs` 补目录存在性断言
+
+评审核实：`tree.test.mjs:243` 那条 E9 断言的是产物树**根 `.gitignore` 的文本内容**不含
+`.superpowers/`，与「目录存不存在」无关；**全部 `oss/*.mjs` 里没有任何一条目录存在性断言**。
+
+新增（放在「类 1 · 整体删除」describe 里，紧跟 E7/E8 那条）：
+
+```js
+it('台账目录两个仓都不能进产物树(存在性判据,不依赖词表)', () => {
+  expect(exists('.superpowers'), 'New-UI 侧台账进了产物树 —— DELETE 表的 .superpowers 条目没生效').toBe(false)
+  expect(exists('packages/service/.superpowers'),
+    'Service 侧台账进了产物树 —— SERVICE_DELETE 表的 .superpowers 条目没生效').toBe(false)
+})
+```
+
+**两个仓各写一条**（而不是合并成一条）：两处台账由 `DELETE` / `SERVICE_DELETE` 两条**不同的**
+清单条目负责，漏哪条都可能，失败消息也因此各自点名是哪张表没生效。
+
+---
+
+## 11. 🔴 D2 的变异验证 —— 新断言红了没有 / 词表守卫是不是照样绿
+
+判据分两半，**必须两半都成立**这条断言才有存在价值：
+「词表守卫抓不到」+「新断言抓得到」。分别取证如下。
+
+### 11.1 Part A —— 造一份**一个禁词都不含**的台账，看词表守卫是否照样绿
+
+这正是要防的场景：台账里恰好没有敏感词，词命中数为 0。往 scratch 产物树注入：
+
+```
+$ cat <scratch>/oss-out/packages/service/.superpowers/sdd/x.md
+# Task 3 report
+
+fix typo in the button label. all gates green.
+```
+
+用 `forbidden.mjs` 的 `scanTree()` 直接扫（即导出流程第 5 步用的同一个函数）：
+
+```
+【词表守卫】整棵被污染的产物树命中数 = 0 → 照样全绿(抓不到)
+【词表守卫】只扫注入的台账目录,命中数 = 0
+【新断言】exists("packages/service/.superpowers") = true → expect(...).toBe(false) 会抛
+```
+
+⇒ **词表守卫对这份台账完全瞎。** 若只有词表守卫，它会静默上公网 —— 这就是新断言存在的全部理由。
+
+### 11.2 Part B —— 真让 vitest 报红（不是纸上推演）
+
+把 `SERVICE_DELETE` 里的 `'.superpowers'` **临时注释掉**（模拟「这条清单条目没写/写漏」），
+跑真实的门：
+
+```
+$ pnpm exec vitest run oss/tree.test.mjs --reporter=verbose
+
+× oss/tree.test.mjs > 类 1 · 整体删除 > 台账目录两个仓都不能进产物树(存在性判据,不依赖词表) 16ms
+  → Service 侧台账进了产物树 —— SERVICE_DELETE 表的 .superpowers 条目没生效:
+    expected true to be false // Object.is equality
+
+FAIL  oss/tree.test.mjs > 类 1 · 整体删除 > 台账目录两个仓都不能进产物树(存在性判据,不依赖词表)
+AssertionError: Service 侧台账进了产物树 —— SERVICE_DELETE 表的 .superpowers 条目没生效
+     96|       'Service 侧台账进了产物树 —— SERVICE_DELETE 表的 .superpowers 条目没生效').toBe…
+
+Test Files  1 failed (1)
+     Tests  3 failed | 63 passed (66)
+```
+
+**新断言确实报红，且失败消息精确点名了是哪张清单表没生效。**
+（同时红的另外 2 条是「泄漏守卫不带 --skip-guard」与「手工抽查」—— 因为这次注入的是**真台账**、
+含 437 处词命中。那两条红属于预期，正好反衬 Part A：**换成不含禁词的台账时，只有新断言会红。**）
+
+### 11.3 还原与清理
+
+```
+$ git diff --stat -- oss/manifest.mjs          # 相对上次提交
+(空 —— 已完全还原,字节级一致)
+$ /usr/bin/grep -rn "MUTATION-TEST-TEMP" oss/
+(无残留)
+$ rm -rf <scratch>/oss-out/packages/service/.superpowers   # 注入的台账已删
+```
+
+**全程没有往 `NimoOS-Service` 仓写任何文件**（保持 0 行），**没有碰 `NimoOS-Web` 公开仓**。
+
+### 11.4 修复后的全量门
+
+```
+$ pnpm exec vitest run oss --reporter=verbose
+✓ oss/tree.test.mjs > 类 1 · 整体删除 > 台账目录两个仓都不能进产物树(存在性判据,不依赖词表) 0ms
+✓ oss/tree.test.mjs > 产物树能构建 > pnpm install + vue-tsc --noEmit 在产物树上全绿
+                                 (只扫词的守卫抓不到构建断裂) 10690ms
+ Test Files  17 passed (17)
+      Tests  428 passed (428)
+```
+
+**427 → 428**（+1 = 新增的那条存在性断言），零失败。
+
+---
+
+## 12. 收尾状态
 
 ```
 $ cd /home/nimo/NimoTech/NimoOS-New-UI && git status --short
@@ -460,7 +615,10 @@ $ git -C /home/nimo/NimoTech/NimoOS-Service status --short
 （0 行）
 ```
 
-- 改动文件：`oss/manifest.mjs`（+9 `SERVICE_DELETE` / +13 `SERVICE_PATCH`）
+- 改动文件（复审后共 3 个）：
+  - `oss/manifest.mjs` —— +9 `SERVICE_DELETE` / +13 `SERVICE_PATCH`
+  - `oss/export.mjs` —— 只改第 57 行那段**注释**（Important 1），无任何可执行代码改动
+  - `oss/tree.test.mjs` —— +1 条目录存在性用例（Important 2），无既有用例被改动或删除
 - `NimoOS-Service` 全程只读，**未写入任何临时文件**
 - `NimoOS-Web` 公开仓工作副本**未触碰**，仍停在 `748aa8f`；本刀**不 push 公开仓**
 

@@ -76,6 +76,25 @@ describe('类 1 · 整体删除', () => {
     expect(exists('CLAUDE.md')).toBe(false)
     expect(exists('design-export')).toBe(false)
   })
+
+  // ─── SP8-P6-T8 复审 Important 2:台账目录的**存在性**断言 ────────────────────
+  // 为什么单列一条、而不是并进上面那条:
+  //   · 上面第 243 行附近那条 E9 用例查的是产物树**根 .gitignore 的文本内容**里不含
+  //     '.superpowers/' —— 那和「这个目录在不在产物树里」是两码事,此前全部 oss/*.mjs
+  //     里**没有任何一条目录存在性断言**。
+  //   · T8 实测:Service 仓的 32 份台账此前一直随 `git archive HEAD` 进产物树,能被发现
+  //     纯属侥幸 —— 靠的是那 437 处**词表命中**。台账里恰好一个禁词都不含的那天(比如
+  //     一份只写 "fix typo" 的报告),词表守卫会全绿,东西照样上公网。
+  //   · 所以判据必须是「目录在不在」,不能是「里面有没有敏感词」。两个仓**各要一条**:
+  //     两处台账由两条不同的清单条目(DELETE / SERVICE_DELETE)负责,漏哪条都可能。
+  // 变异验证见 p6-task-8-report.md §11:手工造一个**不含任何禁词**的
+  // packages/service/.superpowers/x.md,本条断言报红而泄漏守卫照样绿 —— 后者绿正是
+  // 本条断言存在的全部理由。
+  it('台账目录两个仓都不能进产物树(存在性判据,不依赖词表)', () => {
+    expect(exists('.superpowers'), 'New-UI 侧台账进了产物树 —— DELETE 表的 .superpowers 条目没生效').toBe(false)
+    expect(exists('packages/service/.superpowers'),
+      'Service 侧台账进了产物树 —— SERVICE_DELETE 表的 .superpowers 条目没生效').toBe(false)
+  })
 })
 
 describe('内嵌共享包', () => {
