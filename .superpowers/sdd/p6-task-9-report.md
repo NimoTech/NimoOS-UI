@@ -43,11 +43,33 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short && fi
 
 **没有 `git add`,也没有删除,保持原状。**
 
-读了全部 179 行。内容:面向"接手重构 `Home.vue` 的开发者"的 Vue2 前端架构说明——技术栈清单、目录地图、第 3 节(核心)讲 axios 单例的 `baseURL`/`/v1` 前缀自动补全规则、鉴权机制(token 存 localStorage、`Authorization` 头**没有 `Bearer` 前缀**这种容易踩的坑、401 自动刷新+并发队列、会话管理、关机时静默丢错误)、标准响应结构 `{success,message,data}`(及 KVM 例外)、`$api`/`$openAPI` 两个全局对象清单。纯描述性,**无密钥无敏感数据**,内容与代码/CLAUDE.md 核对一致,没发现错误。
+### §2.0 🔴 订正:上一版本报告「读了全部 179 行」是错的,实际全文 333 行
 
-**我的建议:入库。** 理由:内容有长期价值(不止服务于一次性的 Home.vue 重构任务),是 Vue2 前端 HTTP/鉴权层唯一一份字段级细节文档,现有 CLAUDE.md 没有这个颗粒度;没有需要保密或丢弃的理由。
+三种独立方法交叉验证:`wc -l` → 333;`awk 'END{print NR}'` → 333;文件内容第 333 行是文末「一句话给后续 AI」段落的最后一句,第 334 行是尾随空行。**333 与 brief 背景段自己写的数字、以及机主长期记忆里记的数字一致。**
 
-**这条需要机主本人答复,我没有替他决定。**
+**误读是怎么发生的**:第一次探查这份文件时,我先用 `Read(limit=60)` 读了第 1-60 行,接着用 `Read(offset=60, limit=120)` 读了第 61-180 行——但那次调用返回的实际内容在第 179 行(3.5 节「`$openAPI`」小节)处刚好收尾,读起来像一个自然的段落结束点。**我把"我这次调用的 `limit` 窗口到此为止"当成了"文件到此为止"**,没有跑任何独立的行数命令(`wc -l`/`find`/文件大小)去核实"179"是不是真的是 EOF,就直接在两份文档里写下了「读了全部 179 行」。真实情况是第 4-8 节(实时通信三套机制、Vuex、i18n、Home.vue 结构、9 条重构红线)全部落在 179 行之后,当时完全没读到,却在摘要与建议里被我说成"读了全部"。
+
+**下次怎么防**:任何要写「读了全部 N 行」这类过程性断言之前,先跑一条独立的行数确认命令(`wc -l <file>`),把这个数字当成读取目标的上限,而不是拿"最后一次 Read 调用碰巧在哪里停"去反推文件长度。这条和本刀 Minor 里"取数命令要支撑结论"是同一类问题——**工具窗口的边界不是真相的边界**,过程性断言和数字断言一样需要独立验证,不能凭一次调用的表面结果下结论。
+
+### §2.1 内容判断(已补读第 4-8 节,基于完整 333 行)
+
+面向"接手重构 `Home.vue` 的开发者"的 Vue2 前端架构说明,共 8 节:
+
+- **第 1-2 节**:技术栈清单(Vue2/Buefy/Vuex/vue-router/axios/socket.io/vue-i18n 等版本号)、目录地图。
+- **第 3 节(HTTP 对接核心)**:axios 单例的 `baseURL` 规则、`/v1` 前缀自动补全逻辑(`testVisionNum()`)、鉴权机制(token 存 localStorage、**`Authorization` 头没有 `Bearer` 前缀**这个容易踩的坑、401 自动刷新+并发队列、会话管理、关机时静默丢错误)、标准响应结构 `{success,message,data}`(及 KVM 例外)、`$api`/`$openAPI` 两个全局对象清单与调用范式、Buefy 错误提示组件用法。
+- **第 4 节(实时通信,三套机制)**:Socket.io 主力推送(`sockets:{}` 声明式订阅,payload 在 `res.Properties.*` 且多为 JSON 字符串)、原生 WebSocket(备用,当前基本注释掉)、Vue EventBus(组件间通信,`casaUI:` 前缀历史命名,主页常用事件如 `showSettingsPanel`/`showKVMPanel`/`showStorageManager`)、埋点上报 `$messageBus`。
+- **第 5 节(Vuex 状态管理)**:主页会读写的关键 state(`access_token`/`hardwareInfo`/`sidebarOpen`/`wallpaperObject` 等)、常用 mutation、`photos`/`fileUpload` 两个用 IndexedDB 持久化上传任务的模块(明确提示"不要在主页重构里动它们")。
+- **第 6 节(i18n)**:`vue-i18n` 配置、语言包位置、`$t()` 用法、无 `this` 场景的 `ice_i18n()`、切换语言的 `setLang()`。
+- **第 7 节(当前主页结构,重构对象)**:`Home.vue` 的组件树(SideBar/widgets、SearchBar、CoreService、Apps/AppSection)、初始化流程、后端自定义存储 key(`system`/`widgets_config`/`app_order`/`wallpaper`)。
+- **第 8 节(重构红线,9 条)**:鉴权层别碰、响应解构固定、保留事件名常量、`$EventBus.$on` 要随组件迁移不能删、Socket.io 用声明式订阅、配置持久化走 `getCustomStorage`/`setCustomStorage`、新版接口优先 v2、文案全部走 `$t`、技术栈维持 Vue2+Buefy+pnpm(除非另立项做 Vue3 整体升级)。结尾有一段「一句话给后续 AI」的总结。
+
+补读后的判断:全篇纯描述性,**无密钥无敏感数据**,内容与代码/CLAUDE.md 核对一致(含第 4-8 节),没发现错误。第 4-8 节进一步印证了这份文档的价值不止第 3 节的 HTTP 对接——第 8 节的"9 条重构红线"和第 5 节"别动 IndexedDB 持久化模块"这类提示,是**任何后续要动 Home.vue 或其依赖的人都需要的护栏**,不是只服务于 HTTP 层的窄范围文档。
+
+### §2.2 建议(结论不变,但现在基于完整内容):入库
+
+理由:① 内容有长期价值,不止服务于一次性的 Home.vue 重构任务,覆盖了 Vue2 前端从 HTTP、鉴权、实时通信、状态管理到 i18n 的完整消费层图景,现有 CLAUDE.md 没有这个颗粒度(尤其是 `Authorization` 头无 `Bearer` 前缀、`sockets:{}` 声明式订阅、`getCustomStorage`/`setCustomStorage` 持久化约定这几条,别处找不到);② 第 8 节的"重构红线"本身就是一份可复用的验收清单,对任何后续 Vue2→Vue3 迁移或重构工作都有参考价值,不止 Home.vue;③ 没有需要保密或丢弃的理由,全篇无密钥无敏感数据。
+
+**这条仍然需要机主本人答复,我没有替他决定,文件保持原状(不 add 不删)。**
 
 ---
 
@@ -161,3 +183,42 @@ SERVICE:本刀未写任何东西(遵守全局约束"不要往 SERVICE 仓写任�
 - SERVICE `git status --short`:0 行。
 - VUE2:除 `FRONTEND_API_GUIDE.md`(等机主拍板,故意保持未跟踪)外,全部改动已提交。
 - `.sp8/NimoOS-Service/.superpowers/`:内容未变(不需要变,已在 gitignore 里且信息已妥善处置),T10 撤 worktree 时会被一并丢弃,按 §3 结论这是安全的。
+
+---
+
+## §8 修复轮 1/5(独立评审:1 Important + 1 Minor,均文档,零代码改动)
+
+### 8.1 Important —「读了全部 179 行」——处置见 §2.0/§2.1/§2.2(已订正为 333 行,已补读并重写第 4-8 节摘要与建议)
+
+不再重复,完整内容见上。
+
+### 8.2 Minor ——`strangler.js:28` 那条取数命令支不上「13」这个结论,已自查全部同类命令
+
+**原问题**:`roadmap.md` 里那行写的是 `/usr/bin/grep -n "'/ai" NimoOS-UI/src/router/route.js | wc -l` → 实测输出 **9**,而旁边结论写「11 条真实路由 + 2 条 redirect = 13」。命令能跑、有输出,但输出既不支持 11、也不支持 13、也不支持 8——是一条自己都验证不了自己旁边那句话的命令。
+
+**修法**:改成三段式、每段都单独现测验证过的命令(现测输出见括号):
+
+```bash
+cd NimoOS-UI
+/usr/bin/grep -cE "^\s*path: '/ai/(agent|settings|parser|parser/test|knowledge)',"  src/router/route.js   # → 5(4 个独立页面 + /ai/knowledge 布局父路由)
+sed -n "/path: '\/ai\/knowledge',/,/\],\$/p" src/router/route.js | /usr/bin/grep -c "path: '[a-z]"           # → 6(/ai/knowledge 下 6 个非空子路由,第 7 个 child 是 path:'' 落地页,与父路由是同一条不重复计)
+/usr/bin/grep -c "redirect: {" src/router/route.js                                                          # → 2
+# 5 + 6 + 2 = 13
+```
+
+三段分别实测输出 5 / 6 / 2,加总 13,与结论一致。已写进 `roadmap.md` §SP8 债务表。
+
+### 8.3 🔴 自查了本刀落盘的其它全部取数命令,再改出 4 个同类问题(评审没抽到,自己巡查发现)
+
+评审提醒"自查一遍其它命令有没有同样的毛病"后,把 §SP8 债务台账里每一条带反引号命令的 cell 全部重新在本机实跑一遍,除 Minor 里那条外,还发现并修了 4 处:
+
+| 位置 | 原问题 | 修法(现测通过) |
+|---|---|---|
+| `T8-D3`「产物树能构建」门的复跑命令 | 写的是 `cd NimoOS-Service/oss && node export.mjs`——**`oss/` 目录根本不在 `NimoOS-Service` 仓,在 `NimoOS-New-UI/oss/`**,原命令会直接报「目录不存在」 | 改成 `cd NimoOS-New-UI && node oss/export.mjs`,现测该路径下 `export.mjs` 确实存在 |
+| 同上,附带的安全隐患(自查时新发现,不只是路径错) | 🔴 `oss/manifest.mjs` 的 `DEFAULT_OUT` 硬编码成 `../../NimoOS-Web`——**不带 `--out` 直接跑这条"复跑门"命令,会真的往公开仓 `NimoOS-Web` 的实际路径写**,且不带 `--no-commit` 默认会提交,与本刀"不要碰 `NimoOS-Web`"的全局约束正面冲突 | 命令改成 `node oss/export.mjs --out /tmp/oss-dry-run --no-commit`,并在旁边加了 🔴 警告,同时**没有自己真的跑它**(只验证了参数存在、路径存在,没有执行实际导出,避免任何触碰 `NimoOS-Web` 的风险) |
+| `D47` 泄漏统计的产物树取数命令 | 占位符 `cd <产物树或 NimoOS-Service/oss 导出结果目录>` 隐含同一个"跑默认导出"风险,且路径同样写错 | 改成先引用上面 T8-D3 那条安全的 `--out /tmp/oss-dry-run --no-commit` 方式,再对 `/tmp/oss-dry-run` 取数;`NimoOS-Web` 现有值那半边命令**已现测跑过**,输出 **37**,与旁边结论一致 |
+| 守卫常量表:`aiKb*` 键 / 全表键 那一行 | 原命令 `wc -l src/i18n/zh_cn.*.ts` 给的是**整个文件的物理行数**(789/913/1527/586),根本不是键数,离旁边写的「757/702/1207/459」差几百行,是同款「命令能跑但支不上结论」的错 | 改成精确正则 `^  ('[^']+'|[A-Za-z0-9_]+):`(同时匹配裸标识符键与带引号的点号键,如 `'ai.searchMyNas'`),现测四片输出**恰好 757/702/1207/459,合计 3125**,与 Task 4 台账原话逐字对上;顺带把 `aiKb*` 单独那格也从近似的 `grep -c "aiKb"`(568,含误命中)换成精确锚定 `^  aiKb[A-Za-z0-9]+:`,现测**恰好 520**,与 P5f 收官值完全一致 |
+
+**没问题、抽查后确认支持结论的**(不改):`.vue` 总数(`find src -name "*.vue" | wc -l` → 340)、`WHITELIST_425`/`NON_K_HELPER_CLASSES` 两条(`toHaveLength(425)`/`toHaveLength(20)` 现测两行都还在)、`?raw` 空转排查命令(跑出真实的 4 个命中文件)、color-guard 实扫文件数(换成具体的 `find src -name "*.vue" -o -name "*.css" | wc -l` → 345,取代了原来"读 glob 结果集大小"这种非可执行的描述性建议)。
+
+**这次自查的教训**(同一条,写进 `roadmap.md` 引言段):**「命令能跑」不等于「输出支持旁边写的结论」,也不等于「路径是对的仓」**——本刀一次性踩中路径错(strangler.js/T8-D3/D47 共 3 处指向错仓或错目录)、取数口径错(aiKb/全表用错了行数 vs 键数)两类问题,且都是在"看起来像能用"的状态下混进文档的。以后落盘任何取数命令前,都要**在目标仓库实际跑一次**,确认输出数字与旁边的中文结论对得上,而不是凭命令语法「看起来对」就收录。
