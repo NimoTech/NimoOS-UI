@@ -20,6 +20,7 @@ beforeEach(() => {
   localStorage.removeItem('strangler:disabled:/photos')
   localStorage.removeItem('strangler:disabled:/settings')
   localStorage.removeItem('strangler:disabled:/kvm')
+  localStorage.removeItem('strangler:disabled:/ai')
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
   vi.mocked(router.push).mockClear()
@@ -182,5 +183,58 @@ describe('useOpenAction.openItem', () => {
     expect(hrefs[0]).toBe('/#/photos')
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/photos')
+  })
+})
+
+describe('AI 区 cutover(SP8-P6)', () => {
+  it('ai 磁贴应用内 router.push /ai/agent', () => {
+    const { openApp } = useOpenAction()
+    openApp('ai')
+    expect(router.push).toHaveBeenCalledWith('/ai/agent')
+    expect(hrefs.length).toBe(0)
+  })
+
+  it('flag 置 1 时 ai 磁贴退回 Vue2 /#/ai/agent', () => {
+    localStorage.setItem('strangler:disabled:/ai', '1')
+    const { openApp } = useOpenAction()
+    openApp('ai')
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs).toEqual(['/#/ai/agent'])
+  })
+
+  it('桌面 AI 小组件应用内 router.push /ai/agent', () => {
+    const { openItem } = useOpenAction()
+    openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
+    expect(router.push).toHaveBeenCalledWith('/ai/agent')
+    expect(hrefs.length).toBe(0)
+  })
+
+  it('flag 置 1 时 AI 小组件退回 Vue2', () => {
+    localStorage.setItem('strangler:disabled:/ai', '1')
+    const { openItem } = useOpenAction()
+    openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs).toEqual(['/#/ai/agent'])
+  })
+
+  it('sendToAI 应用内带 message query(对象形式,不手工编码)', () => {
+    const { sendToAI } = useOpenAction()
+    sendToAI('帮我找 发票 & 收据')
+    expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: '帮我找 发票 & 收据' } })
+    expect(hrefs.length).toBe(0)
+  })
+
+  it('sendToAI 空文本不带 query', () => {
+    const { sendToAI } = useOpenAction()
+    sendToAI('   ')
+    expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
+  })
+
+  it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {
+    localStorage.setItem('strangler:disabled:/ai', '1')
+    const { sendToAI } = useOpenAction()
+    sendToAI('发票 & 收据')
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs).toEqual(['/#/ai/agent?message=' + encodeURIComponent('发票 & 收据')])
   })
 })

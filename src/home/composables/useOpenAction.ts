@@ -4,9 +4,9 @@ import { useStartApp, appUrl } from './useStartApp'
 import { router } from '../../router'
 
 // 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)、相册区
-// (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)已活在本应用;
-// 其余系统入口仍指 Vue2,各自 SP 迁移时再改。
-// photos / vm 这两条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它们,所以是"回退目标"
+// (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)、AI 区(/ai,SP8-P6)
+// 已全部活在本应用;SP1-SP9 迁移至此收官。
+// photos / ai / vm 这三条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它们,所以是"回退目标"
 // 而不是"主路径";这也是它们与 appstore/storage/settings 的区别(那三个在 Vue2 侧是模态弹窗、
 // 没有自己的路由,回退只能落 /#/legacy 老桌面 —— settings 因此也用 '/#/legacy' 作回退目标,
 // 落到老桌面后再点「设置」磁贴,由 Vue2 侧的 resolveEntryTarget('/settings') 判定弹老模态)。
@@ -23,6 +23,7 @@ const SYS_ROUTE: Record<string, string> = {
 // strangler.js 的 migratedRoutes 里那条 /photos 共用同一把键,同理置一次两侧同时回退);
 // /kvm 与 /settings = SP9-P8,同理一把键管两侧(/kvm 在 Vue2 的 migratedRoutes、
 // /settings 在 migratedEntries)。
+// /ai = SP8-P6,同理一把键管两侧(Vue2 侧在 migratedRoutes)。
 // ⚠️ 键名取的是**路由路径**,不是磁贴 key —— vm 磁贴对应的键是 '/kvm'。
 function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(`strangler:disabled:${from}`) === '1' } catch { return false }
@@ -42,6 +43,7 @@ export function useOpenAction() {
       if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
+      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }
@@ -66,12 +68,23 @@ export function useOpenAction() {
       if (cutoverDisabled('/photos')) window.location.href = '/#/photos'
       else router.push('/photos')
     }
-    else if (it.kind === 'widget' && it.key === 'ai') window.location.href = '/#/ai/agent'
+    // 桌面 AI 小组件:cutover 后进应用内 Agent 页。flag 置 1 时退回 Vue2 老 Agent。
+    else if (it.kind === 'widget' && it.key === 'ai') {
+      if (cutoverDisabled('/ai')) window.location.href = '/#/ai/agent'
+      else router.push('/ai/agent')
+    }
   }
 
   function sendToAI(text?: string) {
     const q = (text || '').trim()
-    window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
+    // cutover 后走应用内路由:query 用对象形式交给 vue-router 编码,不手工拼串
+    // (AgentPage.vue 的 onMounted 读 route.query.message,一次性消费后 router.replace 抹掉)。
+    // flag 置 1 时退回 Vue2,那边只认拼好的 hash URL,所以保留 encodeURIComponent。
+    if (cutoverDisabled('/ai')) {
+      window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
+      return
+    }
+    router.push(q ? { path: '/ai/agent', query: { message: q } } : { path: '/ai/agent' })
   }
 
   return { openApp, openItem, sendToAI }
