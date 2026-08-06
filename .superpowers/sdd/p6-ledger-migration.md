@@ -46,7 +46,7 @@ cd /home/nimo/NimoTech/.sp8/NimoOS-Service && git status --ignored --short && fi
 
 **已执行**:`cd NimoOS-UI && git add FRONTEND_API_GUIDE.md`(带 pathspec)→ commit **`6c5c632f`**。VUE2 工作树自此归零。
 
-**但这是机主的判断,不是我能替他做的决定** —— 我只给结论供参考,实际处置等答复。
+（历史记录:本节原本等机主拍板,不入库也不删;2026-08-06 机主已拍板入库并执行,见上——此事已完结,不是未决事项。）
 
 ---
 
