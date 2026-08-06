@@ -246,6 +246,14 @@ export const SOFT = [
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("expect(replace).toHaveBeenCalledWith({ query: { search: 'jelly' } })") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('?search= 生效时前端过滤;点卡片进详情', async () => {") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("routeQuery.search = 'jelly'") },
+      // write-root-redirect.sh / writeRootRedirect.test.ts:这里的 'search' 是浏览器
+      // Location 接口的 .search 属性(URL 查询串),根重定向页把它原样透传给 /app/
+      // 目标应用(连同 .hash),与被剥离的 NimoOS-Search 服务/SearchDialog.vue 毫无关系。
+      // 整行精确匹配而不是给这两个文件按子串开洞——这两行以后如果混进真实的
+      // Search 服务泄漏(比如意外拼进一个私有 API 路径),文本就不再逐字相同,
+      // 匹配失效,回落到"未豁免、按词表判断",不会带着新增泄漏一起被放行。
+      { file: /scripts\/write-root-redirect\.sh$/, re: exactLine("<script>location.replace('/app/' + location.search + location.hash)</script>") },
+      { file: /scripts\/writeRootRedirect\.test\.ts$/, re: exactLine('expect(html).toContain("location.replace(\'/app/\' + location.search + location.hash)")') },
       // findIndex / findLastIndex 等标准库方法名里没有 search;binarySearch 之类若出现须显式登记
       // pnpm-lock.yaml(根目录 + 内嵌的 packages/service):第三方依赖名/resolution/
       // integrity 哈希里含 "search" 子串纯属噪声(@codemirror/search 等)——这是自动生成
