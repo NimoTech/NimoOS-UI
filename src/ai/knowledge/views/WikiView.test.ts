@@ -41,6 +41,9 @@ import type { WikiNode, WikiRoot, WikiTreeNode } from '@nimotech/nimoos-service'
 // i18n 由 `vitest.setup.ts` 全局装好,本文件不再自己装 —— 也**不许**另建 `createI18n`
 // (与 setup 的单例重复安装,记忆 `vitest-reporter-hides-warnings`)。
 import { useKnowledgeStore } from '../stores/knowledgeStore'
+// 🔴 T7 / §9.15:**真**的 markdown 渲染器(含 DOMPurify),导进来只为了程序化自证
+// 「它没有被 mock」——**不是**拿它替代组件层的 DOM 断言。
+import { renderMarkdown } from '../../markdown/renderMarkdown'
 import WikiView from './WikiView.vue'
 // @ts-expect-error -- 本仓未装 @types/node,node:fs 无类型声明
 import { readFileSync } from 'node:fs'
@@ -67,9 +70,18 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
 // `openDirInNewTab` 是 P5a-T5 的既有产出(全期零改动清单),这里只 spy「有没有以正确
 // 入参被调到」,不测它自己的行为(先例 `NotesView.test.ts:68`)。
 const openDirInNewTab = vi.hoisted(() => vi.fn())
+// T7:`childClick` 的「未命中 byPath」那一支打的是 `openFileInNewTab`(蓝本 `:290`)。
+const openFileInNewTab = vi.hoisted(() => vi.fn())
 vi.mock('../../services/openInApp', () => ({
   openDirInNewTab: (...args: unknown[]) => openDirInNewTab(...args),
+  openFileInNewTab: (...args: unknown[]) => openFileInNewTab(...args),
 }))
+
+// 🔴 **`renderMarkdown` 一律不 mock**(治理 §9.15 明令:mock 掉再声称验过 XSS = 安慰剂测试)。
+// 本文件的「§9.15 XSS」一组走的是真 `src/ai/markdown/renderMarkdown.ts`(内含 DOMPurify),
+// 挂载真组件后查真实 DOM。那一组里第一条断言把「没被 mock」这件事**程序化钉死**
+// (`vi.isMockFunction(renderMarkdown) === false` + 真渲染产物自检)——
+// 判据:谁将来加一句 `vi.mock('../../markdown/renderMarkdown', …)`,那一条立刻报红。
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-tree.CONSTRUCTED.json  (只取 `normal` / `crossLevel` 两组)
@@ -128,6 +140,137 @@ const ROOTS_NORMALIZED: WikiRoot[] = [
 ]
 // FIXTURE-COPY-END
 
+// ── T7 新增的两份抄本 ──────────────────────────────────────────────────────
+// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-node.CONSTRUCTED.json  (只取 `raw_response`)
+// 三级出处标签:**`.CONSTRUCTED`** —— 🔴 **不是真机数据**。`__meta` 转成本注释(裁定 R14),
+// 原文要点(逐条抄自 fixture 的 `__meta`):
+//   · label       : .CONSTRUCTED
+//   · why         : GET /v1/wiki/node 本机实测 90 秒超时、0 字节(D1)⇒ 无真机样本。
+//   · built_from  : NimoOS-Wiki/route/v1/wiki.go:16-42 的 nodeResponse / nodeChildEntry /
+//                   nodeRecentEntry(**snake_case json tag**)
+//   · omitempty_note: 🔴 nodeChildEntry 的 file_count / last_modified / is_opaque 都带
+//                   omitempty ⇒ 零值时**整个键缺失**,不是 0/''/false。样本里 'Archive'
+//                   一项刻意省掉这三个键来复现这个形态(N49 的 `|| []`、`|| 0`、`!!` 兜底就是为它)
+//   · summary_note: Summary 是 *string,后端当前恒送 null
+//   · op_values   : op 四个已知值 create/modify/delete/rename → opToType 映射成 add/mod/del/ren;
+//                   未知值兜底 'mod'。样本刻意含一个未知值 'chmod' 来钉兜底分支
+//   · recent_changes_count: 🔴 刻意给 12 条 —— changes 的 `.slice(0, 10)` 要 12 条才测得出上限
+//   · normalized_shape: 经 wiki.ts:112 normalizeNode → camelCase
+//                   { path, level, aiLabel, summary, childMap[{name,fileCount,lastModified,isOpaque}],
+//                     recentChanges[{path,op,at}], userNotes, parentWiki, subwikis, etag }
+// 🔴 `key_sources` / `pending_count` 是响应里真有、但 `normalizeNode` **不承接**的字段 ——
+//   抄本保留它们,`toNodeShape()` 照 `normalizeNode` 一样丢掉(页面永远读不到)。
+interface RawChildEntry {
+  name: string
+  file_count?: number
+  last_modified?: string
+  is_opaque?: boolean
+}
+interface RawNodeResponse {
+  path: string
+  level: string
+  ai_label: string
+  summary: null
+  child_map: RawChildEntry[]
+  key_sources: unknown[]
+  recent_changes: Array<{ path: string; op: string; at: string }>
+  pending_count: number
+  user_notes: string
+  subwikis: unknown[]
+  etag: string
+}
+const NODE_RAW_DATA: RawNodeResponse = {
+  "path": "/DATA",
+  "level": "space",
+  "ai_label": "主数据盘",
+  "summary": null,
+  "child_map": [
+    { "name": "Documents", "file_count": 128, "last_modified": "2026-08-05T10:12:00+08:00" },
+    { "name": "Downloads", "file_count": 4,   "last_modified": "2026-08-04T22:01:00+08:00", "is_opaque": true },
+    { "name": "notes.md",  "file_count": 1,   "last_modified": "2026-08-03T09:00:00+08:00" },
+    { "name": "Archive" }
+  ],
+  "key_sources": [],
+  "recent_changes": [
+    { "path": "/DATA/Documents/a1.md", "op": "create", "at": "2026-08-05T11:00:00+08:00" },
+    { "path": "/DATA/Documents/a2.md", "op": "modify", "at": "2026-08-05T10:59:00+08:00" },
+    { "path": "/DATA/Documents/a3.md", "op": "delete", "at": "2026-08-05T10:58:00+08:00" },
+    { "path": "/DATA/Documents/a4.md", "op": "rename", "at": "2026-08-05T10:57:00+08:00" },
+    { "path": "/DATA/Documents/a5.md", "op": "chmod",  "at": "2026-08-05T10:56:00+08:00" },
+    { "path": "/outside/a6.md",        "op": "modify", "at": "2026-08-05T10:55:00+08:00" },
+    { "path": "/DATA/Documents/a7.md", "op": "modify", "at": "2026-08-05T10:54:00+08:00" },
+    { "path": "/DATA/Documents/a8.md", "op": "modify", "at": "2026-08-05T10:53:00+08:00" },
+    { "path": "/DATA/Documents/a9.md", "op": "modify", "at": "2026-08-05T10:52:00+08:00" },
+    { "path": "/DATA/Documents/a10.md","op": "modify", "at": "2026-08-05T10:51:00+08:00" },
+    { "path": "/DATA/Documents/a11.md","op": "modify", "at": "2026-08-05T10:50:00+08:00" },
+    { "path": "/DATA/Documents/a12.md","op": "modify", "at": "" }
+  ],
+  "pending_count": 0,
+  "user_notes": "",
+  "subwikis": [],
+  "etag": "W/\"9f2c1b\""
+}
+// FIXTURE-COPY-END
+
+// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-raw-DATA.REAL.md  (**节选**:前 22 行,逐字照抄)
+// 三级出处标签:**`.REAL`** —— 这是**本机 `GET /v1/wiki/raw?path=/DATA` 的真响应正文**
+// (README §0 表:`wiki-raw-DATA.REAL.md` 是四份 `.REAL` 里唯一**逐字节未改**的一份,
+//  md5 `c0449363eb1069a36c9941a0fb842e18` / 3430 字节)。
+// 🔴 **节选**:整份 78 行里只抄前 22 行(front-matter + system 段头 + Summary + Child Map 开头)——
+//   足够覆盖 markdown 的 front-matter / HTML 注释 / 标题 / 斜体 / 无序列表 / 行内 code 六种结构,
+//   §9.15 的「正常路径仍渲染得出来」用它当输入。**值一字未改**,只是截断。
+const WIKI_RAW_REAL_EXCERPT = [
+  '---',
+  'wiki_version: 1',
+  'root_id: dfcd1840f5dab439cd9d7050aa5bafd0',
+  'path: /DATA',
+  'level: space',
+  'generated_at: 2026-08-05T11:32:01+08:00',
+  'generator: nimoos-wiki/1.9.0-alpha1',
+  'checksum: 431cf74b0f811ea3606bf8330b530af197411893039dd9604ec650045da9d9ac',
+  '---',
+  '',
+  '<!-- BEGIN: system -->',
+  '<!-- 这段由系统自动维护,请勿手动编辑。要写笔记请在文件末尾的 User Notes 区域。 -->',
+  '',
+  '## Summary',
+  '_暂未生成（待 AI 摘要 worker 处理）_',
+  '',
+  '## Child Map',
+  '- `.snapshots/` — 0 个文件 (已跳过)',
+  '- `.system_data/` — 目录',
+  '- `Amalfi Coast/` — 目录',
+  '- `AppData/` — 目录',
+  '- `Documents/` — 目录',
+].join('\n')
+// FIXTURE-COPY-END
+
+/**
+ * 共享包 `wiki.ts:112 normalizeNode` 的等价物(T7)—— 与 `toStoreShape` 同一个理由:
+ * 抄本记录的是**后端真形状**(snake_case + omitempty 缺键),归一化这一步必须留在视线里。
+ * 🔴 `|| 0` / `|| ''` / `!!` 三个兜底照抄 —— 'Archive' 那一项三个键全缺,靠它们兜住(N49 同族)。
+ */
+function toNodeShape(n: RawNodeResponse): WikiNode {
+  return {
+    path: n.path,
+    level: n.level || '',
+    aiLabel: n.ai_label || '',
+    summary: n.summary || null,
+    childMap: n.child_map.map((c) => ({
+      name: c.name,
+      fileCount: c.file_count || 0,
+      lastModified: c.last_modified || '',
+      isOpaque: !!c.is_opaque,
+    })),
+    recentChanges: n.recent_changes.map((c) => ({ path: c.path, op: c.op, at: c.at || '' })),
+    userNotes: n.user_notes || '',
+    parentWiki: '',
+    subwikis: n.subwikis || [],
+    etag: n.etag || '',
+  }
+}
+const NODE_DATA: WikiNode = toNodeShape(NODE_RAW_DATA)
+
 /**
  * 共享包 `wiki.ts:102 normalizeTreeNode` 的等价物 —— 把 HTTP 原文 snake_case 过成
  * store 出口的 camelCase。🔴 **本文件不许把 fixture 直接抄成 camelCase**:
@@ -144,7 +287,22 @@ function toStoreShape(n: Record<string, string>): WikiTreeNode {
 }
 const TREE_NORMAL: WikiTreeNode[] = TREE_RAW_NORMAL.map(toStoreShape)
 
-/** `/wiki/node` 的最小归一化形状(T6 不渲染它,只需要一个非 null 的合法值)。 */
+/**
+ * T7 —— 给 `node` 造一个**可观测**的差异面。
+ * 🔴 T6 评审的「改黑盒」清单第 1/2 条要求把 `vm.node` 的断言换成 DOM 断言,而
+ * `node.aiLabel` 在整页里**没有任何渲染落点**(`kw-meta` 里的 `<b>` 读的是**树节点**的
+ * `selTreeNode.aiLabel`,不是文章节点)⇒ 唯一能观测到 `node` 的地方是 `childMap`
+ * (目录区)与 `recentChanges`(最近变更)。本 helper 给 `childMap` 塞一个具名子项,
+ * 断言就落在 `.kw-child-name` 上。
+ */
+function nodeWithChild(path: string, childName: string): WikiNode {
+  return {
+    ...nodeFor(path),
+    childMap: [{ name: childName, fileCount: 1, lastModified: '', isOpaque: false }],
+  }
+}
+
+/** `/wiki/node` 的最小归一化形状(只需要一个非 null 的合法值;**带数据的断言一律用 fixture 抄本**)。 */
 function nodeFor(path: string): WikiNode {
   return {
     path,
@@ -289,6 +447,69 @@ describe('WikiView —— fixture 抄本自检(N46:HTTP 原文 snake_case → st
     // 第三条 last_modified 是空串(后端 formatTS(ms<=0) 的真形态)—— updatedFmt 兜底用它。
     expect(TREE_NORMAL[2].lastModified).toBe('')
     expect(TREE_NORMAL[2].aiLabel).toBe('')
+  })
+
+  // ── T7 新增的两份抄本 ──────────────────────────────────────────────────
+  it('🔴 T7 —— node 抄本零 __meta,且是 HTTP 原文 snake_case(不是 camelCase)', () => {
+    expect(Object.keys(NODE_RAW_DATA)).not.toContain('__meta')
+    expect(Object.keys(NODE_RAW_DATA).sort()).toEqual([
+      'ai_label',
+      'child_map',
+      'etag',
+      'key_sources',
+      'level',
+      'path',
+      'pending_count',
+      'recent_changes',
+      'subwikis',
+      'summary',
+      'user_notes',
+    ])
+    expect(Object.keys(NODE_RAW_DATA)).not.toContain('childMap')
+    expect(Object.keys(NODE_RAW_DATA)).not.toContain('recentChanges')
+    // 防空转 + 上限判据的前提:必须**真的**有 12 条,少于 11 条就测不出 slice(0, 10)。
+    expect(NODE_RAW_DATA.recent_changes.length, '抄本不是 12 条 —— slice(0,10) 那条会退化').toBe(12)
+    expect(NODE_RAW_DATA.child_map.length).toBe(4)
+  })
+
+  it('🔴 T7 —— node 抄本复现了后端 omitempty 的「整个键缺失」形态(不是 0 / "" / false)', () => {
+    const archive = NODE_RAW_DATA.child_map[3]!
+    expect(archive.name).toBe('Archive')
+    expect(Object.keys(archive), 'Archive 项应当只有 name 一个键(omitempty)').toEqual(['name'])
+    expect('file_count' in archive).toBe(false)
+    expect('last_modified' in archive).toBe(false)
+    expect('is_opaque' in archive).toBe(false)
+    // toNodeShape(= normalizeNode)把三个缺席键兜成 0 / '' / false。
+    const norm3 = NODE_DATA.childMap[3]!
+    expect(norm3).toEqual({ name: 'Archive', fileCount: 0, lastModified: '', isOpaque: false })
+  })
+
+  it('🔴 T7 —— toNodeShape 与共享包 normalizeNode 同解;`key_sources`/`pending_count` 被丢掉', () => {
+    expect(NODE_DATA.path).toBe('/DATA')
+    expect(NODE_DATA.aiLabel).toBe('主数据盘')
+    expect(NODE_DATA.summary).toBeNull()
+    expect(NODE_DATA.childMap[1]).toEqual({
+      name: 'Downloads',
+      fileCount: 4,
+      lastModified: '2026-08-04T22:01:00+08:00',
+      isOpaque: true,
+    })
+    expect(NODE_DATA.recentChanges[11]).toEqual({ path: '/DATA/Documents/a12.md', op: 'modify', at: '' })
+    expect(Object.keys(NODE_DATA)).not.toContain('key_sources')
+    expect(Object.keys(NODE_DATA)).not.toContain('pending_count')
+  })
+
+  it('🔴 T7 —— `.REAL` 的 .wiki.md 节选:22 行、逐字照抄、覆盖六种 markdown 结构', () => {
+    const lines = WIKI_RAW_REAL_EXCERPT.split('\n')
+    expect(lines.length, '节选行数变了 —— 抄本被动过').toBe(22)
+    expect(lines[0]).toBe('---')
+    expect(lines[8]).toBe('---')
+    expect(lines[3]).toBe('path: /DATA')
+    expect(lines[10]).toBe('<!-- BEGIN: system -->')
+    expect(lines[13]).toBe('## Summary')
+    expect(lines[17]).toBe('- `.snapshots/` — 0 个文件 (已跳过)')
+    // 🔴 `.REAL` 的定语:它是真机响应正文,**不是** .CONSTRUCTED —— 别混用两个标签。
+    expect(WIKI_RAW_REAL_EXCERPT).toContain('nimoos-wiki/1.9.0-alpha1')
   })
 })
 
@@ -677,18 +898,23 @@ describe('WikiView —— N55 fetchArticle 过期守卫(蓝本 :261-281)', () =>
     await treeRows(w)[1].trigger('click') // 选 /DATA/Documents(B)
     await flush()
     // B 先回
-    nodes.get('/DATA/Documents').resolve({ ...nodeFor('/DATA/Documents'), aiLabel: 'B' })
-    raws.get('/DATA/Documents').resolve('# B')
+    nodes.get('/DATA/Documents').resolve(nodeWithChild('/DATA/Documents', 'child-of-B'))
+    raws.get('/DATA/Documents').resolve('# raw-B')
     await flush()
     // A 后回 —— 迟到的成功响应必须被守卫丢弃
-    nodes.get('/DATA').resolve({ ...nodeFor('/DATA'), aiLabel: 'A' })
-    raws.get('/DATA').resolve('# A')
+    nodes.get('/DATA').resolve(nodeWithChild('/DATA', 'child-of-A'))
+    raws.get('/DATA').resolve('# raw-A')
     await flush()
-    // `node` / `raw` 在 T6 的模板里还没有渲染面(归 T7)⇒ 直接读 setup 绑定。
-    const vm = w.vm as unknown as { node: WikiNode | null; raw: string | null; sel: string }
-    expect(vm.sel).toBe('/DATA/Documents')
-    expect(vm.raw, '迟到的 A 覆盖了 B 的原文 —— try 里的过期守卫丢了').toBe('# B')
-    expect(vm.node?.aiLabel, '迟到的 A 覆盖了 B 的节点').toBe('B')
+    // 🔴 T7:`node` / `raw` 现在**都有渲染面**了 ⇒ 断言全部改成黑盒(T6 评审清单第 1 条)。
+    expect(w.find('.kw-crumb .cur').text()).toBe('Documents')
+    expect(
+      norm(w.find('.kw-summary').text()),
+      '迟到的 A 覆盖了 B 的原文 —— try 里的过期守卫丢了',
+    ).toBe('raw-B')
+    expect(
+      w.findAll('.kw-child-name').map((n) => n.text()),
+      '迟到的 A 覆盖了 B 的节点',
+    ).toEqual(['child-of-B'])
   })
 
   it('🔴 ② 两实例交错守**作用域**(判据:把 `sel` 挪到模块级 → 本条必须报红)', async () => {
@@ -725,17 +951,18 @@ describe('WikiView —— N55 fetchArticle 过期守卫(蓝本 :261-281)', () =>
     await treeRows(w)[1].trigger('click') // 切到 B
     await flush()
     // B 成功
-    nodes.get('/DATA/Documents').resolve({ ...nodeFor('/DATA/Documents'), aiLabel: 'B' })
-    raws.get('/DATA/Documents').resolve('# B')
+    nodes.get('/DATA/Documents').resolve(nodeWithChild('/DATA/Documents', 'child-of-B'))
+    raws.get('/DATA/Documents').resolve('# raw-B')
     await flush()
     // A(已过期)失败
     nodes.get('/DATA').reject(httpError(500, 'stale-failure'))
-    raws.get('/DATA').resolve('# A')
+    raws.get('/DATA').resolve('# raw-A')
     await flush()
     expect(toast, '迟到的失败弹了 toast —— catch 里的过期守卫丢了').not.toHaveBeenCalled()
-    const vm = w.vm as unknown as { node: WikiNode | null; raw: string | null }
-    expect(vm.raw, '迟到的失败把 B 的原文清空了').toBe('# B')
-    expect(vm.node?.aiLabel).toBe('B')
+    // 🔴 T7:改黑盒(T6 评审清单第 2 条)。
+    expect(norm(w.find('.kw-summary').text()), '迟到的失败把 B 的原文清空了').toBe('raw-B')
+    expect(w.findAll('.kw-child-name').map((n) => n.text())).toEqual(['child-of-B'])
+    expect(w.find('.kw-pending-title').exists(), '迟到的失败把页面打到「还没有摘要」那屏了').toBe(false)
   })
 
   it('🔴 ④ finally 的 nodeLoading 也带守卫:迟到的响应不许提前收掉新选中的骨架(蓝本 :279)', async () => {
@@ -786,9 +1013,11 @@ describe('WikiView —— N55 fetchArticle 过期守卫(蓝本 :261-281)', () =>
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await flush()
-    const vm = w.vm as unknown as { node: WikiNode | null; raw: string | null }
-    expect(vm.node).toBeNull()
-    expect(vm.raw).toBeNull()
+    // 🔴 T7:改黑盒(T6 评审清单第 3 条)—— 404 的可观测面就是「此目录还没有 wiki 摘要」那屏。
+    expect(norm(w.find('.kw-pending-title').text())).toBe('此目录还没有 wiki 摘要')
+    expect(w.find('.kw-summary').exists(), 'raw 为 null 却渲染了摘要区').toBe(false)
+    expect(w.find('.kw-rawsrc').exists()).toBe(false)
+    expect(w.find('.kw-foot').exists(), 'raw 为 null 时页脚也不该在').toBe(false)
     expect(toast, '404 走成了错误分支 —— N48 的分层被拉平了').not.toHaveBeenCalled()
     expect(w.findAll('.kw-article-inner .k-skel').length).toBe(0)
   })
@@ -804,19 +1033,28 @@ describe('WikiView —— N55 fetchArticle 过期守卫(蓝本 :261-281)', () =>
     expect(toast.mock.calls[0][0]).toBe('操作失败')
     expect(String(toast.mock.calls[0][0])).not.toContain('PROBE-K58-T6WV')
     expect(w.html(), '后端串漏进了页面').not.toContain('PROBE-K58-T6WV')
-    const vm = w.vm as unknown as { node: WikiNode | null; raw: string | null }
-    expect(vm.node).toBeNull()
-    expect(vm.raw).toBeNull()
+    // 🔴 T7:改黑盒(T6 评审清单第 4 条)—— catch 把 node/raw 清空的可观测面同 404 那条。
+    expect(norm(w.find('.kw-pending-title').text())).toBe('此目录还没有 wiki 摘要')
+    expect(w.find('.kw-summary').exists()).toBe(false)
+    expect(w.find('.kw-rawsrc').exists()).toBe(false)
   })
 
-  it('每次取文章都把 showSource 重置回 false(蓝本 :264)', async () => {
+  it('🔴 每次取文章都把 showSource 重置回 false(蓝本 :264)—— 换选中后回到渲染视图', async () => {
+    // 🔴 T7:改黑盒(T6 评审清单第 5 条)—— 从「点按钮切到源码视图」走到「换文章后自动回渲染视图」,
+    //   全程零 `w.vm` 写入。
     const { w } = await mountPage()
-    const vm = w.vm as unknown as { showSource: boolean }
-    vm.showSource = true
-    await nextTick()
+    await w.find('.kw-foot button').trigger('click')
+    await flush()
+    expect(w.find('pre.kw-rawsrc').exists(), '点了「查看原文」却没切到源码视图').toBe(true)
+    expect(w.find('.kw-summary').exists()).toBe(false)
+    // 换一篇文章
     await treeRows(w)[1].trigger('click')
     await flush()
-    expect(vm.showSource, 'fetchArticle 没重置 showSource —— 换文章后仍停在源码视图').toBe(false)
+    expect(
+      w.find('pre.kw-rawsrc').exists(),
+      'fetchArticle 没重置 showSource —— 换文章后仍停在源码视图',
+    ).toBe(false)
+    expect(w.find('.kw-summary').exists(), '换文章后没回到渲染视图').toBe(true)
   })
 })
 
@@ -934,22 +1172,74 @@ function blankComments(src: string): string {
     .replace(/^[ \t]*\/\/.*$/gm, blank)
 }
 
-/** 贪婪抽取根 `<template>` 块(取**最后一个**第 0 列 `</template>`,防嵌套截断)。 */
-function extractTemplate(src: string): string {
-  const start = src.indexOf('<template>')
-  const end = src.lastIndexOf('\n</template>')
-  if (start < 0 || end < 0 || end <= start) return ''
-  return src.slice(start, end + '\n</template>'.length)
+/**
+ * 🔴🔴 **T7 开工前置(裁定 R28 —— T6 评审 Important I-1 的闭合)**。
+ *
+ * **T6 的原实现**(留档,不删,守「反转不删」):
+ * ```
+ * function extractTemplate(src: string): string {
+ *   const start = src.indexOf('<template>')          // ← 裸 indexOf,无列锚定
+ *   const end = src.lastIndexOf('\n</template>')
+ *   if (start < 0 || end < 0 || end <= start) return ''
+ *   return src.slice(start, end + '\n</template>'.length)
+ * }
+ * ```
+ * **它错在哪**:`WikiView.vue` 的**文件头 HTML 注释**里有一句说明 K56 的散文
+ * 「…写在 `<template>` 自身…」—— 裸 `indexOf('<template>')` 撞上那个**同名字面串**,
+ * 起点被锚到文件头注释中间,抽出 448 行(**含整个 `<script setup>`**)。三条后果:
+ *   ① 在文件头注释里写 `class="kw-summary …"` 会**假上膛报红** —— 而 T7(本刀)按本档文风
+ *      一定会在文件头写下这句话 ⇒ 必踩;
+ *   ② `/showSource/` 那条退化成**恒真填充断言**(抽出块里有 script 的 `const showSource = ref(false)`);
+ *   ③ 「模板真的抽出来了」那条断言的措辞与事实不符。
+ *
+ * 🔴 **本刀的修法 = 只加固不放宽(§9.10)**,照抄本仓已有的正确写法
+ * (`src/ai/styles/knowledgeStyles.test.ts` 的同名函数):
+ *   · **第 0 列锚定** —— `<template>` 必须**独占一行**(前面是行首或 `\n`,后面紧跟 `\n`);
+ *     `</template>` 同样要求整行严格等于它;
+ *   · **覆盖度自检** —— 两条**独立推导**(字符串 `indexOf/lastIndexOf` vs **逐行**倒扫)
+ *     必须逐字相等,且片段必须以模板**原始最后 3 行**收尾;
+ *   · **反向防空转** —— 抽出块**不许**含 `<script setup`(判据:改回裸 `indexOf` → 该条必报红)。
+ */
+function extractTemplate(src: string): { tmpl: string; byLine: string; tail: string } {
+  const OPEN = '<template>\n'
+  const CLOSE = '\n</template>'
+  const EMPTY = { tmpl: '', byLine: '', tail: '' }
+  // 🔴 第 0 列锚定:只认「行首 + `<template>` + 换行」这一种形态。
+  let openAt = -1
+  for (let i = src.indexOf(OPEN); i >= 0; i = src.indexOf(OPEN, i + 1)) {
+    if (i === 0 || src[i - 1] === '\n') {
+      openAt = i
+      break
+    }
+  }
+  const closeAt = src.lastIndexOf(CLOSE)
+  if (openAt < 0 || closeAt <= openAt) return EMPTY
+  const tmpl = src.slice(openAt + OPEN.length, closeAt)
+
+  // ── 独立推导:逐行扫(与上面的字符串推导互不复用)──
+  const lines: string[] = src.split('\n')
+  const openLine = lines.findIndex((l: string) => l === '<template>')
+  let closeLine = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i] === '</template>') {
+      closeLine = i
+      break
+    }
+  }
+  if (openLine < 0 || closeLine <= openLine) return EMPTY
+  const body = lines.slice(openLine + 1, closeLine)
+  return { tmpl, byLine: body.join('\n'), tail: body.slice(-3).join('\n') }
 }
 
 describe('WikiView —— 自动上膛守卫:模板出现 kw-summary ⇒ 必须同时有 showSource 切换按钮', () => {
-  const TMPL_RAW = extractTemplate(SRC)
+  const EX = extractTemplate(SRC)
+  const TMPL_RAW = EX.tmpl
   const TMPL = blankComments(TMPL_RAW)
 
   it('防空转① —— 模板真的抽出来了,且剥注释后**真 markup 仍在**(不是把整块吃空)', () => {
     expect(SRC.length, 'WikiView.vue 读出来是空的 —— node:fs 读法失效了').toBeGreaterThan(0)
     expect(TMPL_RAW.length, '根 <template> 块没抽出来').toBeGreaterThan(0)
-    // 🔴 真 markup 锚点:这三个 class 是本刀写下的、绝不在注释里独占的结构。
+    // 🔴 真 markup 锚点:这三个 class 是 T6 写下的、绝不在注释里独占的结构。
     expect(TMPL, '剥注释把真 markup 也吃掉了(R26-3 的路径字面量坑)').toMatch(
       /class="kw-node"/,
     )
@@ -960,6 +1250,62 @@ describe('WikiView —— 自动上膛守卫:模板出现 kw-summary ⇒ 必须�
     expect(TMPL).not.toMatch(/<!--/)
   })
 
+  it('🔴 覆盖度自检(裁定 R28)—— 两条独立推导逐字相等 + 片段延伸到模板最后一行', () => {
+    expect(EX.tail, '找不到模板尾部特征串').not.toBe('')
+    // ① 片段必须以模板**原始最后 3 行**收尾 —— 提前截断则报红。
+    expect(
+      TMPL_RAW.endsWith(EX.tail),
+      `抽出的模板片段没延伸到最后一行(尾部特征串:\n${EX.tail}\n)—— 被提前截断了`,
+    ).toBe(true)
+    // ② 字符串推导 vs 逐行倒扫必须逐字相等 —— 与文本内容无关,边界错一行就报红。
+    expect(TMPL_RAW, '字符串抽取与逐行推导不一致 —— 抽取边界错了').toBe(EX.byLine)
+  })
+
+  it('🔴 反向防空转(裁定 R28)—— 抽出块**不许**含 `<script setup`(判据:改回裸 indexOf → 本条必报红)', () => {
+    // T6 的裸 `indexOf('<template>')` 会锚到**文件头注释**里的同名字面串,
+    // 把整个 `<script setup>` 一起抽进来 ⇒ 谓词与「模板里有没有 markup」彻底脱钩。
+    expect(TMPL_RAW, '抽出块里混进了 <script setup> —— 起点锚错了(R28)').not.toContain(
+      '<script setup',
+    )
+    // 同族:script 里的 `const showSource = ref(false)` 也不许出现在模板片段里,
+    // 否则 `/showSource/` 那条就成了恒真填充断言(T6 评审 I-1 的后果 ②)。
+    expect(TMPL_RAW).not.toContain('const showSource = ref(')
+    // 防空转:确认文件里**真的有**这两个串(否则上面两条是对空集断言)。
+    expect(SRC, 'WikiView.vue 里没有 <script setup> —— 上面两条成了空断言').toContain(
+      '<script setup',
+    )
+    expect(SRC).toContain('const showSource = ref(')
+  })
+
+  it('🔴 真实文件偏态 A(裁定 R28)—— 文件头注释里写了 kw-summary,但只有注释 ⇒ 必须判「没上膛」', () => {
+    // 🔴 用**真的文件头**,只把模板体换成一段不含摘要区的最小 markup。
+    //   这就是 T6 评审实测报红的那个偏态,而且**位置必须挑对**:
+    //   裸 `indexOf('<template>')` 的起点会落在文件头注释里那个说明 K56 的 `<template>` 字面串上,
+    //   ⇒ 只有**排在它之后**的那半截注释会被切进「模板块」,而且开头的 `<!--` 已被切掉
+    //   ⇒ 剥注释器剥不掉它 ⇒ 谓词直接读到注释里的 `class="kw-summary kw-md"`。
+    //   排在**它之前**的注释反而不会进来 —— 所以偏态必须构造在「之后」,否则零判别力。
+    const headStart = SRC.indexOf('<template>\n')
+    expect(headStart, '找不到根 <template> —— 本条构造失败').toBeGreaterThan(0)
+    const head = SRC.slice(0, headStart)
+    // 防空转 ①:文件头注释里**真的**有一个 `<template>` 字面串(裸 indexOf 会锚到它)。
+    const nakedAnchor = head.indexOf('<template>')
+    expect(nakedAnchor, '文件头注释里没有 <template> 字面串 —— 本条退化成空转').toBeGreaterThan(-1)
+    // 在文件头注释的**收尾 `-->` 之前**插一句说明 —— 即「裸锚点之后」。
+    const lastClose = head.lastIndexOf('-->')
+    expect(lastClose, '找不到文件头注释的收尾').toBeGreaterThan(nakedAnchor)
+    const note = '  【偏态】摘要区写成 <div class="kw-summary kw-md" v-html="html"/>(仅注释,非真 markup)。\n'
+    const injectedHead = head.slice(0, lastClose) + note + head.slice(lastClose)
+    // 防空转 ②:注入点确实排在裸锚点之后(否则本条不复现 R28 的失效形态)。
+    expect(injectedHead.indexOf(note.trim())).toBeGreaterThan(nakedAnchor)
+    const headerOnly = injectedHead + '<template>\n  <div class="kw-meta"/>\n</template>\n'
+    expect(
+      hasSummaryMarkup(blankComments(extractTemplate(headerOnly).tmpl)),
+      '文件头注释里的 kw-summary 被当成真 markup —— 起点锚错了(R28 的 ①)',
+    ).toBe(false)
+    // 对照:同一份源码上,**裸子串**谓词会判真 —— 这正是要防的形态。
+    expect(headerOnly.includes('class="kw-summary kw-md"')).toBe(true)
+  })
+
   it('防空转② —— 谓词双向可分辨(注释里写了不算;真 class 属性才算)', () => {
     const commentOnly = [
       '<template>',
@@ -967,7 +1313,7 @@ describe('WikiView —— 自动上膛守卫:模板出现 kw-summary ⇒ 必须�
       '  <div class="kw-meta"/>',
       '</template>',
     ].join('\n')
-    expect(hasSummaryMarkup(blankComments(extractTemplate(commentOnly)))).toBe(false)
+    expect(hasSummaryMarkup(blankComments(extractTemplate(commentOnly).tmpl))).toBe(false)
     // 对照:裸子串谓词在同一份源码上会判真 —— 这正是 R19 要防的形态。
     expect(commentOnly.includes('kw-summary')).toBe(true)
 
@@ -976,18 +1322,18 @@ describe('WikiView —— 自动上膛守卫:模板出现 kw-summary ⇒ 必须�
       '  <div class="kw-summary kw-md" v-html="html"/>',
       '</template>',
     ].join('\n')
-    expect(hasSummaryMarkup(blankComments(extractTemplate(realMarkup)))).toBe(true)
+    expect(hasSummaryMarkup(blankComments(extractTemplate(realMarkup).tmpl))).toBe(true)
     // `kw-summary-foo` 这类同名开头的类不许蒙混过关(E-25 的词边界坑)。
     const lookalike = '<template>\n  <div class="kw-summary-note"/>\n</template>'
-    expect(hasSummaryMarkup(blankComments(extractTemplate(lookalike)))).toBe(false)
+    expect(hasSummaryMarkup(blankComments(extractTemplate(lookalike).tmpl))).toBe(false)
   })
 
-  it('🔴 本体条件断言:模板尚无 kw-summary ⇒ 惰性通过(非 skip/todo);一旦写了则必须有 showSource 按钮', () => {
+  it('🔴 本体条件断言:模板一旦出现 kw-summary,就必须同时有 showSource 切换按钮(T7 起已上膛)', () => {
     if (!hasSummaryMarkup(TMPL)) {
-      // 惰性分支:断言仍被执行到,只是判据真空成立。T7 写下 markup 的那一刻本条自动上膛。
+      // 惰性分支(T6 期间走这里)。T7 已写下 markup ⇒ 现在**不再**走这一支。
       expect(
         hasSummaryMarkup(TMPL),
-        'kw-summary 尚未写入模板(T7 的活)—— 本条处于「上膛待发」状态',
+        'kw-summary 尚未写入模板 —— 本条处于「上膛待发」状态',
       ).toBe(false)
       return
     }
@@ -999,9 +1345,553 @@ describe('WikiView —— 自动上膛守卫:模板出现 kw-summary ⇒ 必须�
     // 按钮而不是别的元素:切换必须是可点的。
     expect(/<button[^>]*showSource|showSource[^<]*<\/button>|@click="showSource/.test(TMPL)).toBe(true)
   })
+
+  it('🔴 上膛状态自证(T7)—— 本文件模板**确实**已经含 kw-summary(上一条不再走惰性分支)', () => {
+    expect(
+      hasSummaryMarkup(TMPL),
+      'T7 已搬入摘要区,但谓词判「没上膛」—— 要么 markup 写错了,要么谓词失效了',
+    ).toBe(true)
+  })
 })
 
 /** `kw-summary` 是否**真的**作为 class 属性里的一个完整 token 出现(不是子串、不是注释)。 */
 function hasSummaryMarkup(strippedTmpl: string): boolean {
   return /class="[^"]*(?<![\w-])kw-summary(?![\w-])[^"]*"/.test(strippedTmpl)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════ SP8-P5f Task 7 —— 下半的用例 ═══════════════════════
+//
+// 覆盖:§9.15 XSS · `raw` 两分支 · `showSource` 切换 · `childMap` 目录区 ·
+//       `changes` 最近变更 · `rescan()` · `kw-foot`。
+// 🔴 带数据的断言一律取 `p5f-fixtures/` 的抄本(`NODE_DATA` / `WIKI_RAW_REAL_EXCERPT`),
+//    `nodeFor` / `nodeWithChild` 只在「只需要一个合法非 null 值」的场合用。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 让当前选中的文章走 `.CONSTRUCTED` 的 node 抄本(12 条 recent_changes / 4 项 child_map)。 */
+function useNodeFixture(): void {
+  wiki.getNode.mockImplementation((p: string) =>
+    Promise.resolve(p === '/DATA' ? NODE_DATA : nodeFor(p)),
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 §9.15 —— `v-html` 的 XSS 面(K49 同族第二次,本刀唯一 XSS 面)
+//
+// 🔴 **全程走真 `renderMarkdown`(含 DOMPurify),一行都没 mock。**
+//    治理 §9.15 明令:mock 掉 `renderMarkdown` 之后还声称验过 XSS = 安慰剂测试。
+// 🔴 判据落在**本刀的代码**上:挂载真组件 → 查真实 DOM,**不是**直接调 `renderWikiMarkdown`
+//    (那条「就是转发 renderMarkdown」的断言在 T3 的 `wikiViewHelpers.test.ts` 里,另一层)。
+describe('WikiView —— §9.15 v-html 的 XSS 面(真 renderMarkdown + 真实 DOM)', () => {
+  it('🔴 前置自证:`renderMarkdown` **没有**被 mock(判据:谁去 vi.mock 它,本条立刻报红)', () => {
+    expect(vi.isMockFunction(renderMarkdown), 'renderMarkdown 被 mock 了 —— XSS 用例退化成安慰剂').toBe(
+      false,
+    )
+    // 真渲染产物自检:真实现会把 markdown 变成 HTML(mock 出来的空壳不会)。
+    expect(renderMarkdown('# hi')).toContain('<h1>')
+    expect(renderMarkdown('')).toBe('')
+  })
+
+  it('🔴 注入 <script> 与 onerror ⇒ DOM 里没有 script 元素、没有 onerror 属性', async () => {
+    const evil = [
+      '# 标题仍在',
+      '',
+      '<script>alert(1)</script>',
+      '',
+      '<img src=x onerror=1>',
+      '',
+      '- 列表项仍在',
+      '',
+      '`inline code 仍在`',
+    ].join('\n')
+    wiki.getRaw.mockResolvedValue(evil)
+    const { w } = await mountPage()
+    const summary = w.find('.kw-summary')
+    expect(summary.exists(), '摘要区没渲染 —— 本条测不到 v-html').toBe(true)
+    const el = summary.element as HTMLElement
+
+    // ① 一个 <script> 都不许有(整页范围内也不许有)。
+    expect(el.querySelector('script'), 'v-html 放进了一个 <script> 元素').toBeNull()
+    expect(w.element.querySelectorAll('script').length).toBe(0)
+    // ② 一个带 onerror 的元素都不许有(逐元素查属性,不查 innerHTML 文本 ——
+    //    markdown-it 的 `html:false` 会把它转义成**可见文本**,文本里当然还有那几个字)。
+    const all = Array.from(el.querySelectorAll('*')) as HTMLElement[]
+    expect(all.filter((n) => n.hasAttribute('onerror')).map((n) => n.tagName)).toEqual([])
+    expect(el.querySelector('img'), '注入的 <img> 变成了真元素').toBeNull()
+    // ③ 防空转:正常 markdown 结构**仍在**(不是靠「整块被吃空」蒙混过关)。
+    expect(el.querySelector('h1')?.textContent).toBe('标题仍在')
+    expect(el.querySelector('li')?.textContent).toBe('列表项仍在')
+    expect(el.querySelector('code')?.textContent).toBe('inline code 仍在')
+    // ④ 危险串以**转义后的纯文本**留在页面上(证明它确实被喂进来了,不是没到达)。
+    expect(el.textContent).toContain('alert(1)')
+  })
+
+  it('🔴 正常路径:`.REAL` 的真 .wiki.md 原文渲染出标题 / 列表 / 行内 code,且零 script', async () => {
+    wiki.getRaw.mockResolvedValue(WIKI_RAW_REAL_EXCERPT)
+    const { w } = await mountPage()
+    const el = w.find('.kw-summary').element as HTMLElement
+    // ⚠️ front-matter 的收尾 `---` 会被 markdown-it 当成 setext 二级标题的下划线 ⇒
+    //   前面那段 yaml 变成第 1 个 <h2>。这是**真实渲染结果**,照实断言(不去「修」输入)。
+    const h2s = Array.from(el.querySelectorAll('h2')).map((n) => n.textContent)
+    expect(h2s.length).toBe(3)
+    expect(h2s.slice(-2)).toEqual(['Summary', 'Child Map'])
+    expect(h2s[0]).toContain('wiki_version: 1')
+    expect(el.querySelectorAll('li').length, 'Child Map 的 5 条列表项没渲染出来').toBe(5)
+    expect(el.querySelector('li code')?.textContent).toBe('.snapshots/')
+    expect(el.querySelectorAll('script').length).toBe(0)
+    // 真文件里的 HTML 注释(`<!-- BEGIN: system -->`)不许变成活元素/被当成 HTML 注入。
+    expect(el.innerHTML).not.toContain('<!-- BEGIN: system -->')
+  })
+
+  it('源码视图走的是 `{{ raw }}` 文本插值,不是 v-html —— 危险串一个元素都变不出来', async () => {
+    wiki.getRaw.mockResolvedValue('<script>alert(2)</script>\n\n<b>bold</b>')
+    const { w } = await mountPage()
+    await w.find('.kw-foot button').trigger('click')
+    await flush()
+    const pre = w.find('pre.kw-rawsrc')
+    expect(pre.exists()).toBe(true)
+    expect(pre.text()).toContain('<script>alert(2)</script>')
+    expect((pre.element as HTMLElement).querySelectorAll('*').length, 'pre 里冒出了子元素').toBe(0)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `raw !== null` vs `null` 两个分支(计划书 T7-3)—— 四条
+describe('WikiView —— raw 两分支(蓝本 :84-95)', () => {
+  it('① raw 非 null + showSource=false → 渲染 `.kw-summary`,不渲染 `.kw-rawsrc`', async () => {
+    const { w } = await mountPage()
+    expect(w.find('.kw-summary').exists()).toBe(true)
+    expect(w.find('.kw-summary').classes()).toContain('kw-md')
+    expect(w.find('.kw-rawsrc').exists()).toBe(false)
+    expect(w.find('.kw-pending-title').exists(), 'raw 非 null 却出了「还没有摘要」那屏').toBe(false)
+  })
+
+  it('② raw 非 null + showSource=true → `pre.kw-rawsrc` 逐字显示原文,`.kw-summary` 消失', async () => {
+    wiki.getRaw.mockResolvedValue('# 原文\n\n第二行')
+    const { w } = await mountPage()
+    await w.find('.kw-foot button').trigger('click')
+    await flush()
+    const pre = w.find('pre.kw-rawsrc')
+    expect(pre.exists()).toBe(true)
+    expect(pre.text()).toBe('# 原文\n\n第二行')
+    expect(w.find('.kw-summary').exists()).toBe(false)
+  })
+
+  it('③ raw 为 null → `kw-pending` 那屏 + 重扫按钮(owningRoot 非空时)', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404)) // N48:store 层转 null
+    const { w } = await mountPage()
+    expect(norm(w.find('.kw-pending-title').text())).toBe('此目录还没有 wiki 摘要')
+    expect(norm(w.find('.kw-pending-sub').text())).toBe('下次定期扫描时会自动生成。')
+    const btn = w.find('.kw-pending button')
+    expect(btn.exists(), 'owningRoot 存在却没渲染重扫按钮').toBe(true)
+    expect(norm(btn.text())).toBe('重新扫描该根')
+    // §9.17:先确认它真是**可点**元素(不是渲染了但 disabled)。
+    expect((btn.element as HTMLButtonElement).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('🔴 ④ `owningRoot` 为 null 时重扫按钮**整块不渲染**(§9.17 可点性;判据:去掉 v-if → 报红)', async () => {
+    // 本机 D1 的真实态:`/v1/wiki/roots` 超时 ⇒ store.wikiRoots 恒空 ⇒ owningRoot 恒 null。
+    wiki.getRoots.mockResolvedValue([])
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    expect(store.wikiRoots.length, '前置:roots 必须真的是空的').toBe(0)
+    expect(norm(w.find('.kw-pending-title').text())).toBe('此目录还没有 wiki 摘要')
+    expect(
+      w.find('.kw-pending button').exists(),
+      'owningRoot 为 null 却渲染了重扫按钮 —— 点了必然打空',
+    ).toBe(false)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `showSource` 切换(计划书 T7-4)—— 文案翻转那一半(重置那一半在 N55 组里)
+describe('WikiView —— showSource 切换的按钮文案(蓝本 :137-139)', () => {
+  it('🔴 文案在「查看原文」/「渲染视图」之间翻转,点一次翻一次', async () => {
+    const { w } = await mountPage()
+    const btn = () => w.find('.kw-foot button')
+    expect(norm(btn().text())).toBe('查看原文 →')
+    await btn().trigger('click')
+    await flush()
+    expect(norm(btn().text()), '切到源码视图后按钮该变成「渲染视图」').toBe('渲染视图 →')
+    await btn().trigger('click')
+    await flush()
+    expect(norm(btn().text()), '再点一次该翻回来').toBe('查看原文 →')
+    expect(w.find('.kw-summary').exists()).toBe(true)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `childMap` 目录区(计划书 T7-5)
+describe('WikiView —— childMap 目录区(蓝本 :97-117)', () => {
+  it('🔴 `v-if="node && node.childMap.length"` 两侧:有子项才渲染整块', async () => {
+    useNodeFixture()
+    const withChildren = await mountPage()
+    const secs = withChildren.w.findAll('.kw-sec')
+    expect(secs.length, '目录区 + 最近变更两块都该在').toBeGreaterThanOrEqual(1)
+    expect(withChildren.w.find('.kw-children').exists()).toBe(true)
+    expect(norm(withChildren.w.findAll('.kw-sec-title')[0]!.text())).toBe('子项清单')
+    // 反面:childMap 为空 → 整块不渲染(nodeFor 的 childMap 是 [])。
+    wiki.getNode.mockImplementation((p: string) => Promise.resolve(nodeFor(p)))
+    const empty = await mountPage()
+    expect(empty.w.find('.kw-children').exists(), 'childMap 为空却渲染了目录区').toBe(false)
+    // 反面之二:node 为 null(404)⇒ 同样不渲染(`node &&` 那一半)。
+    wiki.getNode.mockRejectedValue(httpError(404))
+    const noNode = await mountPage()
+    expect(noNode.w.find('.kw-children').exists()).toBe(false)
+  })
+
+  it('🔴 计数用 `{n} 项` + 逐项渲染名字(抄本 4 项,顺序照抄不排序)', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    expect(norm(w.find('.kw-sec-count').text())).toBe('4 项')
+    expect(w.findAll('.kw-child-name').map((n) => n.text())).toEqual([
+      'Documents',
+      'Downloads',
+      'notes.md',
+      'Archive',
+    ])
+  })
+
+  it('🔴 `childIsDir` 决定 data-kind 与图标:树里有的算目录,其余算文件', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    // 树里有 /DATA/Documents ⇒ dir;Downloads(被折叠)/ notes.md / Archive 都不在树里 ⇒ file。
+    expect(w.findAll('.kw-child-ico').map((n) => n.attributes('data-kind'))).toEqual([
+      'dir',
+      'file',
+      'file',
+      'file',
+    ])
+  })
+
+  it('🔴 `c.isOpaque` → 「已折叠」提示,两侧', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    const rows = w.findAll('.kw-child')
+    // Downloads 是抄本里唯一 is_opaque: true 的一项。
+    expect(rows[1]!.find('.kw-child-sum').exists()).toBe(true)
+    expect(norm(rows[1]!.find('.kw-child-sum').text())).toBe('已折叠 — 内容不逐项索引')
+    for (const i of [0, 2, 3]) {
+      expect(rows[i]!.find('.kw-child-sum').exists(), `第 ${i} 行不该有「已折叠」提示`).toBe(false)
+    }
+  })
+
+  it('🔴 `c.lastModified ? fmtTs(...) : ""` 两侧(Archive 的 last_modified 整个键缺失 → 空)', async () => {
+    // 🔴 **申报(N58 同族的第二处恒等)**:模板里的这个三元与 `fmtTs` 自带的 `ms ? … : ''`
+    //   **互为冗余** —— 实测(probe15)单去掉模板三元 → 100 全绿,因为 `fmtTs('')` 本来就回空串。
+    //   ⇒ 本条守的是**可观测行为**(缺时间戳的那一格必须是空的),不是那个三元本身。
+    //   判据:**两处兜底同时去掉** → 本条报红(probe21 实证:`1 failed | 99 passed`,红的正是本条)。
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-05T12:12:00+08:00'))
+    useNodeFixture()
+    const { w } = await mountPage()
+    const metas = w.findAll('.kw-child-meta').map((n) => norm(n.text()))
+    expect(metas[0], 'Documents 的 last_modified 是 10:12,离 12:12 正好 2 小时').toBe('2 小时前')
+    expect(metas[3], 'Archive 的 last_modified 缺席 ⇒ 归一成空串 ⇒ 这一格必须是空的').toBe('')
+  })
+
+  it('🔴 `childClick` 分支 A —— byPath 命中 ⇒ `select(full)`(判据:改成一律 openFileInNewTab → 报红)', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    const first = w.findAll('.kw-child')[0]!
+    expect(norm(first.find('.kw-child-name').text())).toBe('Documents')
+    await first.trigger('click')
+    await flush()
+    expect(norm(w.find('.kw-crumb .cur').text()), '点目录型子项没有就地换文章').toBe('Documents')
+    expect(openFileInNewTab, '目录型子项不该丢给文件管理器').not.toHaveBeenCalled()
+  })
+
+  it('🔴 `childClick` 分支 B —— byPath 未命中 ⇒ `openFileInNewTab(full)`(判据:改成一律 select → 报红)', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    const third = w.findAll('.kw-child')[2]!
+    expect(norm(third.find('.kw-child-name').text())).toBe('notes.md')
+    await third.trigger('click')
+    await flush()
+    expect(openFileInNewTab).toHaveBeenCalledTimes(1)
+    expect(openFileInNewTab).toHaveBeenCalledWith('/DATA/notes.md')
+    // 选中没动(没有 select 到一个树里不存在的路径)。
+    expect(norm(w.find('.kw-crumb .cur').text())).toBe('/DATA')
+  })
+
+  it('🔴 N58 —— `childPath` 的根路径分支:`sel` 是 `/` 时拼出 `/DATA`,不是 `//DATA`', async () => {
+    // 造一棵含 `/` 根的树:buildWikiTree 里 `/` 的 lastIndexOf('/') === 0 ⇒ 它是顶层根。
+    wiki.getTree.mockResolvedValue(
+      [{ path: '/' }, { path: '/DATA' }].map((n) =>
+        toStoreShape({ path: n.path, level: '', ai_label: '', user_notes_updated_at: '', last_modified: '' }),
+      ),
+    )
+    wiki.getNode.mockImplementation((p: string) =>
+      Promise.resolve(p === '/' ? nodeWithChild('/', 'DATA') : nodeFor(p)),
+    )
+    const { w } = await mountPage()
+    expect(norm(w.find('.kw-crumb .cur').text()), '前置:初始选中必须是 `/`').toBe('/')
+    const row = w.findAll('.kw-child')[0]!
+    // 🔴 `/` 的 `replace(/\/+$/, '')` 剥成空串 ⇒ 恒等式的「空」那一支 ⇒ `'' + '/' + 'DATA'`。
+    //   拼成 `//DATA` 的话 `byPath['//DATA']` 落空 ⇒ data-kind 会变成 'file' ⇒ 本条报红。
+    expect(row.find('.kw-child-ico').attributes('data-kind'), 'childPath 拼成了 //DATA').toBe('dir')
+    await row.trigger('click')
+    await flush()
+    // ⚠️ `/DATA` 在这棵树里也是**顶层根**(findParent 的 `i <= 0` 让 `/` 永远当不成父)
+    //   ⇒ 它的 name 是全路径,面包屑显示 `/DATA`。这是 buildWikiTree 的既有行为,照实断言。
+    expect(norm(w.find('.kw-crumb .cur').text()), '点根下子项没有就地换文章').toBe('/DATA')
+    expect(openFileInNewTab, 'childPath 拼错了 ⇒ 落到「未命中」那一支').not.toHaveBeenCalled()
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `changes` 最近变更(计划书 T7-6)
+describe('WikiView —— changes 最近变更(蓝本 :119-132 / :198-208)', () => {
+  it('🔴 `v-if="changes.length"` 两侧', async () => {
+    useNodeFixture()
+    const withChanges = await mountPage()
+    expect(withChanges.w.find('.kw-changes').exists()).toBe(true)
+    expect(
+      withChanges.w.findAll('.kw-sec-title').map((n) => norm(n.text())),
+    ).toEqual(['子项清单', '最近变化'])
+    wiki.getNode.mockImplementation((p: string) => Promise.resolve(nodeFor(p)))
+    const none = await mountPage()
+    expect(none.w.find('.kw-changes').exists(), 'recentChanges 为空却渲染了时间线').toBe(false)
+  })
+
+  it('🔴 `.slice(0, 10)` 上限:抄本 12 条只渲染 10 条(判据:去掉 slice → 本条必须报红)', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    expect(NODE_DATA.recentChanges.length, '前置:抄本必须是 12 条').toBe(12)
+    const rows = w.findAll('.kw-change')
+    expect(rows.length, 'changes 没有 slice(0, 10) —— 12 条全渲染出来了').toBe(10)
+    // 第 11、12 条(a11 / a12)不许出现。
+    const names = rows.map((r) => r.find('.kw-change-name').text())
+    expect(names).not.toContain('Documents/a11.md')
+    expect(names).not.toContain('Documents/a12.md')
+    expect(names[0]).toBe('Documents/a1.md')
+    expect(names[9]).toBe('Documents/a10.md')
+  })
+
+  it('🔴 前缀剥离两侧:命中根前缀 → 相对路径;不命中 → 全路径(title 恒为全路径)', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    const rows = w.findAll('.kw-change')
+    // 命中侧:root.path = '/DATA' ⇒ prefix '/DATA/' 被剥掉。
+    expect(rows[0]!.find('.kw-change-name').text()).toBe('Documents/a1.md')
+    expect(rows[0]!.find('.kw-change-name').attributes('title')).toBe('/DATA/Documents/a1.md')
+    // 不命中侧:'/outside/a6.md' 不以 '/DATA/' 开头 ⇒ 原样显示全路径。
+    expect(
+      rows[5]!.find('.kw-change-name').text(),
+      '跨根条目被错误地剥了前缀',
+    ).toBe('/outside/a6.md')
+    expect(rows[5]!.find('.kw-change-name').attributes('title')).toBe('/outside/a6.md')
+  })
+
+  it('🔴 owningRoot 为 null ⇒ prefix 为空串 ⇒ 一条都不剥(前缀剥离的第三侧)', async () => {
+    wiki.getRoots.mockResolvedValue([])
+    useNodeFixture()
+    const { w, store } = await mountPage()
+    expect(store.wikiRoots.length).toBe(0)
+    expect(w.findAll('.kw-change-name')[0]!.text()).toBe('/DATA/Documents/a1.md')
+  })
+
+  it('🔴 `opToType(c.op)` → `data-type`(四个已知值 + 未知值兜底 mod)', async () => {
+    useNodeFixture()
+    const { w } = await mountPage()
+    const types = w.findAll('.kw-change').map((r) => r.attributes('data-type'))
+    // a1 create → add · a2 modify → mod · a3 delete → del · a4 rename → ren · a5 chmod(未知)→ mod
+    expect(types.slice(0, 6)).toEqual(['add', 'mod', 'del', 'ren', 'mod', 'mod'])
+  })
+
+  it('🔴 `c.at ? fmtAgo(parseTs(c.at)) : ""` 两侧', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-05T12:00:00+08:00'))
+    // 🔴 抄本的空 `at` 那条(a12)排在第 12 位,被 slice(0,10) 切掉了 ⇒ 这里从抄本里
+    //    **逐字挑出两条**(a1 有 at / a12 无 at)组成一个 2 条的 recentChanges,值一字未改。
+    const picked = [NODE_DATA.recentChanges[0]!, NODE_DATA.recentChanges[11]!]
+    expect(picked[0]!.at).toBe('2026-08-05T11:00:00+08:00')
+    expect(picked[1]!.at, '前置:第 12 条的 at 必须是空串').toBe('')
+    wiki.getNode.mockImplementation((p: string) =>
+      Promise.resolve(p === '/DATA' ? { ...NODE_DATA, recentChanges: picked } : nodeFor(p)),
+    )
+    const { w } = await mountPage()
+    const times = w.findAll('.kw-change-time').map((n) => norm(n.text()))
+    expect(times[0], 'at 非空 ⇒ 该走 fmtAgo').toBe('1 小时前')
+    expect(times[1], 'at 为空串 ⇒ 这一格必须是空的(不是「—」也不是 1970)').toBe('')
+  })
+
+  // 🔴 参数化守卫 —— §9.14-4 防空循环:先钉死用例条数,再逐条 it。
+  const OP_LABEL_CASES: Array<{ op: string; zh: string }> = [
+    { op: 'create', zh: '新增' },
+    { op: 'modify', zh: '更新' },
+    { op: 'delete', zh: '已删除' },
+    { op: 'rename', zh: '重命名' },
+    { op: 'chmod', zh: '更新' }, // 未知 op 兜底 → 'Updated'(蓝本 :205)
+  ]
+  it('🔴 参数化守卫防空循环:OP_LABEL_CASES 必须正好 5 条(否则下面的 it.each 是空转)', () => {
+    expect(OP_LABEL_CASES.length).toBe(5)
+    expect(new Set(OP_LABEL_CASES.map((c) => c.op)).size).toBe(5)
+  })
+
+  it.each(OP_LABEL_CASES)(
+    '🔴 OP_LABEL_KEYS —— op=$op 的标签文案是「$zh」',
+    async ({ op, zh }) => {
+      wiki.getNode.mockImplementation((p: string) =>
+        Promise.resolve(
+          p === '/DATA'
+            ? { ...NODE_DATA, recentChanges: [{ path: '/DATA/x.md', op, at: '' }] }
+            : nodeFor(p),
+        ),
+      )
+      const { w } = await mountPage()
+      const rows = w.findAll('.kw-change')
+      expect(rows.length, `op=${op} 那一行没渲染出来 —— 本条测不到标签`).toBe(1)
+      expect(norm(rows[0]!.find('.kw-change-type').text())).toBe(zh)
+    },
+  )
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `rescan()`(计划书 T7-7)
+//
+// ⚠️ 🔴 **验「函数门」必须走无 `:disabled` 的入口**(裁定 R27 的常驻教训,T5 栽过):
+//    jsdom **不向 `:disabled` 元素派发 click** ⇒ 直接点那个带 `:disabled="rescanBusy"` 的
+//    重扫按钮,第二发根本没发生过点击,`rescanBusy` 那道**函数门**从未被执行到 = 零判别力。
+// 🔴 **本页没有第二个不带 disabled 的入口**(蓝本只有这一个按钮)⇒ **显式申报**:
+//    `rescanBusy` 这道函数门在**产品 UI 上**只由 `:disabled` 保护;函数门本身用
+//    **直调 `vm.rescan()`** 来验(那是它唯一能被到达的路径)。两层各有一条用例,分开钉。
+describe('WikiView —— rescan()(蓝本 :295-307)', () => {
+  /** `<script setup>` 的 setup 绑定在 VTU 下可从 `w.vm` 读到(T6 已实证可读写)。 */
+  function rescanOf(w: ReturnType<typeof mount>): () => Promise<void> {
+    const vm = w.vm as unknown as { rescan: () => Promise<void> }
+    expect(typeof vm.rescan, 'rescan 没暴露到 vm —— 本组的函数门用例全部失效').toBe('function')
+    return vm.rescan
+  }
+
+  it('🔴 owningRoot 为 null ⇒ **静默返回**,零请求、零 toast(蓝本 :297 的 `!root` 那一半)', async () => {
+    // 🔴 申报:只断「`rescanRoot` 没被调到」**零判别力** —— 实测(probe13:去掉 `!root ||` → 100 全绿)
+    //   证明:门去掉后 `root.id` 会先抛 TypeError,`rescanRoot` **照样没被调到**,只是多弹一个
+    //   「操作失败」toast。⇒ 真正的判别轴是「有没有副作用」,断言必须落在 toast 与按钮态上。
+    wiki.getRoots.mockResolvedValue([])
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    expect(store.wikiRoots.length, '前置:roots 必须真的是空的').toBe(0)
+    const rescanRoot = vi.spyOn(store, 'rescanRoot')
+    const toast = vi.spyOn(store, 'toast')
+    await rescanOf(w)()
+    await flush()
+    expect(rescanRoot, 'owningRoot 为 null 却发了重扫请求').not.toHaveBeenCalled()
+    expect(
+      toast,
+      'owningRoot 为 null 时弹了 toast —— `!root` 那道门丢了(会因 root.id 抛 TypeError 落进 catch)',
+    ).not.toHaveBeenCalled()
+  })
+
+  it('🔴 rescanBusy 在飞 ⇒ 第二发不发(函数门;判据:去掉 `|| rescanBusy` → 本条必须报红)', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    const d = makeDeferred<void>()
+    const rescanRoot = vi.spyOn(store, 'rescanRoot').mockReturnValue(d.promise)
+    const rescan = rescanOf(w)
+    const p1 = rescan() // 第一发,挂起
+    const p2 = rescan() // 🔴 同步紧跟第二发 —— 必须被函数门挡住
+    expect(rescanRoot, 'rescanBusy 门没挡住第二发').toHaveBeenCalledTimes(1)
+    d.resolve()
+    await Promise.all([p1, p2])
+    await flush()
+  })
+
+  it('🔴 对照层:第一发在飞时按钮真的是 `disabled`(UI 侧的那一层)', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    const d = makeDeferred<void>()
+    vi.spyOn(store, 'rescanRoot').mockReturnValue(d.promise)
+    const btn = w.find('.kw-pending button')
+    expect((btn.element as HTMLButtonElement).hasAttribute('disabled'), '起手不该是 disabled').toBe(
+      false,
+    )
+    await btn.trigger('click')
+    await nextTick()
+    expect(
+      (w.find('.kw-pending button').element as HTMLButtonElement).hasAttribute('disabled'),
+      'rescanBusy 期间按钮没变 disabled',
+    ).toBe(true)
+    d.resolve()
+    await flush()
+  })
+
+  it('🔴 成功 → `rescanRoot(root.id)` + 「已开始重新扫描」toast(点真按钮,§9.17 先证可点)', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    const rescanRoot = vi.spyOn(store, 'rescanRoot').mockResolvedValue(undefined)
+    const toast = vi.spyOn(store, 'toast')
+    const btn = w.find('.kw-pending button')
+    expect(btn.exists()).toBe(true)
+    expect((btn.element as HTMLButtonElement).hasAttribute('disabled')).toBe(false)
+    await btn.trigger('click')
+    await flush()
+    // 🔴 id 而不是 path —— 传错了后端 404,而三门不会响。
+    expect(rescanRoot).toHaveBeenCalledWith('dfcd1840f5dab439cd9d7050aa5bafd0')
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast.mock.calls[0]![0]).toBe('已开始重新扫描')
+  })
+
+  it('🔴 失败 → 「操作失败」toast,且**不回显后端 body**(K58 形态 A)', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    vi.spyOn(store, 'rescanRoot').mockRejectedValue(new Error('PROBE-T7-RESCAN-500'))
+    const toast = vi.spyOn(store, 'toast')
+    await w.find('.kw-pending button').trigger('click')
+    await flush()
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast.mock.calls[0]![0]).toBe('操作失败')
+    expect(String(toast.mock.calls[0]![0])).not.toContain('PROBE-T7-RESCAN')
+    expect(w.html(), '后端串漏进了页面').not.toContain('PROBE-T7-RESCAN')
+  })
+
+  it('🔴 `finally` 里 rescanBusy 归位:失败之后**还能再发一次**(判据:删掉 finally → 本条必须报红)', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w, store } = await mountPage()
+    const rescanRoot = vi
+      .spyOn(store, 'rescanRoot')
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(undefined)
+    const rescan = rescanOf(w)
+    await rescan()
+    await flush()
+    // 按钮也必须解除 disabled(finally 没归位的话它会永远灰着)。
+    expect(
+      (w.find('.kw-pending button').element as HTMLButtonElement).hasAttribute('disabled'),
+      '失败后按钮还灰着 —— finally 没把 rescanBusy 放回来',
+    ).toBe(false)
+    await rescan()
+    await flush()
+    expect(rescanRoot, '第二发没发出去 —— rescanBusy 卡死了').toHaveBeenCalledTimes(2)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `kw-foot`(计划书 T7-8)
+describe('WikiView —— kw-foot(蓝本 :134-140)', () => {
+  it('🔴 `{path}` 插值 = `sel + "/.wiki.md"`', async () => {
+    const { w } = await mountPage({ query: { path: '/DATA/Documents' } })
+    const foot = w.find('.kw-foot')
+    expect(foot.exists()).toBe(true)
+    expect(norm(foot.text())).toContain('本页由 /DATA/Documents/.wiki.md 渲染')
+    // E-45:vue-i18n 对未匹配占位符是**静默替换成空串** ⇒ 反向断言不许写「含 {path} 字面量」,
+    // 要断真实插值出来的值(上面那条)。这里只顺带钉一下花括号没漏出来。
+    expect(norm(foot.text())).not.toContain('{path}')
+  })
+
+  it('🔴 `v-if="raw !== null"` —— raw 为 null 时整个页脚不渲染', async () => {
+    wiki.getRaw.mockRejectedValue(httpError(404))
+    const { w } = await mountPage()
+    expect(w.find('.kw-foot').exists(), 'raw 为 null 却渲染了页脚(那里的按钮会切到一个空的源码视图)').toBe(
+      false,
+    )
+  })
+
+  it('换选中之后 `{path}` 跟着变(不是挂载时那个)', async () => {
+    const { w } = await mountPage()
+    expect(norm(w.find('.kw-foot').text())).toContain('/DATA/.wiki.md')
+    await treeRows(w)[1].trigger('click')
+    await flush()
+    expect(norm(w.find('.kw-foot').text())).toContain('/DATA/Documents/.wiki.md')
+  })
+})

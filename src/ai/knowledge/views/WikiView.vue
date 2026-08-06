@@ -1,5 +1,6 @@
 <!--
-  SP8-P5f Task 6 —— 「Wiki 导航」页(rail 第 3 项,路由 `/ai/knowledge/wiki`)的**上半**,
+  SP8-P5f Task 6(上半)+ **Task 7(下半,本刀)** —— 「Wiki 导航」页
+  (rail 第 3 项,路由 `/ai/knowledge/wiki`),
   1:1 移植自 Vue2 蓝本 `NimoOS-UI` @ `7a6ee6b7`
   `src/views/AI/Knowledge/WikiView.vue`(314 行,`git -C ../../NimoOS-UI show 7a6ee6b7:` 读取
   —— 治理 §0.4:那个仓的工作树是别的分支,不可信)。
@@ -21,17 +22,48 @@
       `selAiLabel` / `updatedFmt` / `owningRoot` · `loadTree` / `isOpen` / `toggle` /
       `nodeClick` / `select` / `fetchArticle` / `openFolder` · `$route.query.path` 的 watch。
 
-  🔴 **本刀不搬、留给 T7 的**(模板 `:83-141` + script):
+  🔴 **T6 不搬、留给 T7 的**(模板 `:83-141` + script):
     摘要渲染(`kw-summary` / `kw-rawsrc` / `v-html`)· 「此目录还没有 wiki 摘要」那屏 + 重扫按钮 ·
     目录区(`kw-sec` / `kw-children`)· 最近变更(`kw-changes`)· 页脚(`kw-foot`)与「查看原文」切换;
     以及 `html` / `changes` / `childIsDir` / `childPath` / `childClick` / `rescan` / `fmtTs` /
     `OP_LABEL_KEYS` / `rescanBusy`。
-    ⚠️ **本刀刻意没有为了「能看见」提前写摘要区 markup**(brief 明令)。
-    ⚠️ `showSource` 在本刀已声明 —— 它不是 T7 专属:蓝本 `fetchArticle`(`:264`)每次取文章
-      都把它重置为 `false`,那一行在**本刀的范围内**,ref 不声明就写不出来。
-    🔴 T7 续写时:`WikiView.test.ts` 里有一条**自动上膛**守卫 ——
-      「本文件模板一旦出现 `kw-summary`,就必须同时出现 `showSource` 切换按钮」。
-      现在惰性通过,T7 写下摘要 markup 的那一刻立刻上膛。
+    ⚠️ **T6 刻意没有为了「能看见」提前写摘要区 markup**(brief 明令)。
+    ⚠️ `showSource` 在 T6 已声明 —— 它不是 T7 专属:蓝本 `fetchArticle`(`:264`)每次取文章
+      都把它重置为 `false`,那一行在**T6 的范围内**,ref 不声明就写不出来。
+
+  ═══════════════════════ 🔴 T7(本刀)搬入的 ═══════════════════════
+
+    · 模板 `:83-141` —— 摘要区(`class="kw-summary kw-md"` 的 `v-html` / `kw-rawsrc` 源码视图)·
+      「此目录还没有 wiki 摘要」那屏(`kw-pending` + `v-if="owningRoot"` 的重扫按钮)·
+      目录区(`kw-sec` / `kw-children` / `kw-child*`)· 最近变更(`kw-changes` / `kw-change*`)·
+      页脚 `kw-foot`(「查看原文 / 渲染视图」切换);
+    · script:`rescanBusy` · `OP_LABEL_KEYS` · `html` / `changes` 两个 computed ·
+      `childIsDir` / `childPath` / `childClick` / `rescan` / `fmtTs`。
+    🔴 T6 布下的**自动上膛**守卫(`WikiView.test.ts`「自动上膛守卫」那一组)
+      ——「本文件模板一旦出现 `kw-summary`,就必须同时出现 `showSource` 切换按钮」——
+      **本刀写下 `class="kw-summary kw-md"` 的那一刻已上膛,并且已满足**:
+      页脚 `kw-foot` 里的 `@click="showSource = !showSource"` 就是那个切换入口。
+      ⚠️ 上面这句话本身含 `kw-summary` 字面串,而它在**文件头注释**里 ——
+      那条守卫的模板抽取器已按裁定 **R28** 改成**第 0 列锚定**,不会再被文件头注释骗到
+      (T6 的裸 `indexOf('<template>')` 会,评审实测报红过)。
+
+  【§9.15 —— `v-html` 是本期唯一 XSS 面(K49 同族第二次)】
+    `html` = `renderWikiMarkdown(raw || '')` = `util/wikiViewHelpers.ts` 转发本仓
+    `src/ai/markdown/renderMarkdown.ts`(**内含 DOMPurify**)。`.wiki.md` 的正文是
+    **后端从用户目录里的文件名/用户笔记拼出来的**,含攻击者可控串 ⇒ 必须走消毒后再 `v-html`。
+    🔴 守卫落在**本刀的代码**上:`WikiView.test.ts` 的「§9.15 XSS」一组**挂载真组件、查真实 DOM**,
+    且**全程不 mock `renderMarkdown`**(mock 掉再声称验过 XSS = 安慰剂测试,治理 §9.15 明令)。
+
+  【N58 —— `childPath` 的 `base === '' ? '' : base` 是恒等表达式,照抄不化简】
+    蓝本 `:283-286`。两支结果**完全相同**(都返回 `base`)⇒ 它是蓝本原文的意图痕迹,
+    化简掉之后再有人改这里就看不出「作者当年考虑过 `sel` 为根时 base 会被剥成空串」这件事。
+    **照抄、不化简、在报告里点明**(治理 §3.5 的 N58 原文要求)。
+
+  【N49 —— Go nil slice 的兜底】`node.childMap` / `node.recentChanges` 的 `|| []` 兜底
+    **在共享包的 `normalizeNode` 里**(`NimoOS-Service/src/wiki.ts:113-114`)⇒ 页面拿到的
+    永远是数组。本刀模板照抄蓝本的 `v-if="node && node.childMap.length"`
+    ——「`node` 为 null」这一半仍是页面必须自己挡的(N48 的 404→null 业务态)。
+    `changes` 里的 `(node ? node.recentChanges : [])` 同理,照抄。
 
   结构对照(蓝本行区间 → 本文件):
     :2      `.kw-split` 两栏壳
@@ -41,7 +73,13 @@
     :57-66  标题行 + 「打开文件夹」
     :69-74  文章骨架
     :76-81  `<template v-else>` + `kw-meta`
-    :161-176 `data()` 的十一项页面级瞬态 → 组件本地 `ref`(本刀落其中十项,`rescanBusy` 归 T7)
+    :83-95  摘要区二选一(`kw-rawsrc` / `kw-summary`)+ 「还没有摘要」那屏(**T7**)
+    :97-117 目录区 `kw-sec` / `kw-children`(**T7**)
+    :119-132 最近变更 `kw-sec` / `kw-changes`(**T7**)
+    :134-140 页脚 `kw-foot` + 「查看原文 / 渲染视图」切换(**T7**)
+    :156    `OP_LABEL_KEYS`(**T7**)
+    :161-176 `data()` 的十一项页面级瞬态(**不含 `store` 那一项**;蓝本 `data()` 共 12 个键)
+             → 组件本地 `ref`(T6 落其中十项,第十一项 `rescanBusy` 由 **T7** 落)
     :177-209 `computed` → `computed()`
     :210-214 `watch '$route.query.path'` → `watch(() => route.query.path, …)`
     :215-218 `created()` → `onMounted()`
@@ -152,17 +190,33 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import type { WikiNode } from '@nimotech/nimoos-service'
+import type { WikiChildMapEntry, WikiNode } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
 import { useKnowledgeStore, fmtAgo } from '../stores/knowledgeStore'
-import { openDirInNewTab } from '../../services/openInApp'
+import { openDirInNewTab, openFileInNewTab } from '../../services/openInApp'
 import {
   buildWikiTree,
   trailFor,
+  opToType,
   parseTs,
   rootForPath,
+  renderWikiMarkdown,
 } from '../util/wikiViewHelpers'
 import type { WikiViewTreeNode } from '../util/wikiViewHelpers'
+
+/**
+ * 蓝本 `:156` —— 文件事件 `op` → 标签文案。**四个值过 `$t()`**(动态键,同 P5e 的 `MTIMES` 模具)
+ * ⇒ 蓝本的 `'Added'/'Updated'/'Removed'/'Renamed'` 在本仓换成对应的 `aiKbWkOp*` 键
+ * (i18n 由 T1 落,见 `zh_cn.ts` / `en_us.ts`;两档值逐字照蓝本 `zh_CN.json` / `en_US.json`)。
+ * 🔴 **未知 op 兜底 `Updated`** 是蓝本 `:205` 的 `OP_LABEL_KEYS[c.op] || 'Updated'`,照抄
+ * —— 与 `opToType` 的「modify + 任何未知值 → 'mod'」是**两条各自独立的兜底**,别合并。
+ */
+const OP_LABEL_KEYS: Record<string, string> = {
+  create: 'aiKbWkOpAdded',
+  modify: 'aiKbWkOpUpdated',
+  delete: 'aiKbWkOpRemoved',
+  rename: 'aiKbWkOpRenamed',
+}
 
 const { t } = useI18n()
 const route = useRoute()
@@ -190,9 +244,11 @@ const node = ref<WikiNode | null>(null)
 const raw = ref<string | null>(null)
 /** 蓝本 `:172`。 */
 const nodeLoading = ref(false)
-/** 蓝本 `:173` —— T7 的「查看原文 / 渲染视图」开关;**本刀已声明**,因为蓝本
- *  `fetchArticle`(`:264`)每次取文章都把它重置为 false,那一行在本刀范围内。 */
+/** 蓝本 `:173` —— 「查看原文 / 渲染视图」开关(页脚 `kw-foot` 的按钮翻它);**T6 已声明**,
+ *  因为蓝本 `fetchArticle`(`:264`)每次取文章都把它重置为 false,那一行在 T6 范围内。 */
 const showSource = ref(false)
+/** 蓝本 `:174`(**T7**)—— 重扫在飞的门;`rescan()` 的函数门与按钮的 `:disabled` 都读它。 */
+const rescanBusy = ref(false)
 
 /**
  * 蓝本 `:178-186` —— 把森林压平成「可见行」(带缩进深度),折叠的子树不出现在里面。
@@ -226,8 +282,47 @@ const updatedFmt = computed<string>(() => {
   const ms = selTreeNode.value ? parseTs(selTreeNode.value.lastModified) : 0
   return ms ? fmtAgo(ms) : ''
 })
-/** 蓝本 `:196`(K1 降层)—— 当前选中路径归哪个索引根(最长前缀);T7 的重扫按钮要它的 `id`。 */
+/** 蓝本 `:196`(K1 降层)—— 当前选中路径归哪个索引根(最长前缀);重扫按钮要它的 `id`。 */
 const owningRoot = computed(() => rootForPath(store.wikiRoots, sel.value))
+
+/**
+ * 蓝本 `:197`(**T7**)—— 🔴 **§9.15:本期唯一的 XSS 面**。
+ * `renderWikiMarkdown` 只是转发本仓 `renderMarkdown`(含 DOMPurify),消毒发生在那里。
+ * 🔴 `raw || ''` 照抄 —— `raw` 为 `null` 时模板走的是另一支(`kw-pending`),
+ *    但 computed 本身会先求值一次,`null` 直接喂 markdown 渲染器会炸,兜底不许删。
+ */
+const html = computed<string>(() => renderWikiMarkdown(raw.value || ''))
+
+/** `changes` 的行形状(蓝本 `:201-207` 那个对象字面量,零 `any`)。 */
+interface WikiChangeRow {
+  path: string
+  name: string
+  type: ReturnType<typeof opToType>
+  label: string
+  timeFmt: string
+}
+
+/**
+ * 蓝本 `:198-208`(**T7**)—— 「最近变更」时间线的行数据。四件事,逐条照抄:
+ *   ① **`.slice(0, 10)` 上限** —— 后端一次能送几十条,页面只列最近 10 条;
+ *   ② **前缀剥离** —— 属于当前索引根的路径显示**相对路径**,不命中前缀的显示**全路径**
+ *      (`/outside/...` 这类跨根条目会原样保留,蓝本 `:203` 的 `indexOf(prefix) === 0` 判据);
+ *   ③ `opToType(c.op)` → `data-type`(CSS 的 `--tone` 靠它上色);
+ *   ④ **`OP_LABEL_KEYS[c.op] || 'Updated'`** 的未知 op 兜底 + `c.at` 为空串时 `timeFmt` 为 `''`。
+ * 🔴 `root.path.replace(/\/+$/, '') + '/'` 照抄(根是 `/` 时会拼成 `//`,与蓝本同解 —— 不「修」)。
+ * 🔴 `(node ? node.recentChanges : [])` 照抄(N48 的 `null` 业务态由这里挡)。
+ */
+const changes = computed<WikiChangeRow[]>(() => {
+  const root = owningRoot.value
+  const prefix = root ? root.path.replace(/\/+$/, '') + '/' : ''
+  return (node.value ? node.value.recentChanges : []).slice(0, 10).map((c) => ({
+    path: c.path,
+    name: prefix && c.path.indexOf(prefix) === 0 ? c.path.slice(prefix.length) : c.path,
+    type: opToType(c.op),
+    label: t(OP_LABEL_KEYS[c.op] || 'aiKbWkOpUpdated'),
+    timeFmt: c.at ? fmtAgo(parseTs(c.at)) : '',
+  }))
+})
 
 /**
  * `route.query.path` 的类型收窄(见文件头「强制改写」表最后一条)。
@@ -354,9 +449,73 @@ async function fetchArticle(): Promise<void> {
   }
 }
 
+/** 蓝本 `:282`(**T7**)—— 子项是不是目录 = 它的全路径在树里有没有节点。
+ *  🔴 判据是 `byPath`,不是文件名有没有后缀 —— 「有 `.wiki.md` 的目录」才算目录,
+ *  被折叠的目录(`is_opaque`)不在树里 ⇒ 这里判 `false`,点它走文件管理器(与蓝本同解)。 */
+function childIsDir(c: WikiChildMapEntry): boolean {
+  return !!byPath.value[childPath(c)]
+}
+
+/**
+ * 蓝本 `:283-286`(**T7**)。
+ * 🔴 **N58 —— `base === '' ? '' : base` 是恒等表达式,两支结果相同,照抄不化简。**
+ *   触发它的唯一场景:`sel` 是 `'/'` ⇒ `replace(/\/+$/, '')` 把它剥成 `''`
+ *   ⇒ 拼出 `'' + '/' + name` = `/name`(而不是 `//name`)。作者当年写下这个三元
+ *   显然是在标注「这里 base 可能为空」,化简掉就把那处意图痕迹擦了。
+ */
+function childPath(c: WikiChildMapEntry): string {
+  const base = sel.value.replace(/\/+$/, '')
+  return (base === '' ? '' : base) + '/' + c.name
+}
+
+/**
+ * 蓝本 `:287-291`(**T7**)—— 两分支:
+ *   · 树里有这个路径(= 有自己的 `.wiki.md` 的目录)→ 就地 `select()` 换文章;
+ *   · 否则(普通文件,或被折叠的目录)→ 到「文件」应用里打开并高亮它。
+ */
+function childClick(c: WikiChildMapEntry): void {
+  const full = childPath(c)
+  if (byPath.value[full]) select(full)
+  else openFileInNewTab(full) // plain file (or opaque dir) → file manager, highlighted(蓝本 `:290` 原注释)
+}
+
 /** 蓝本 `:292-294` —— 在「文件」应用里打开当前目录本身(不高亮任何文件)。 */
 function openFolder(): void {
   openDirInNewTab(sel.value)
+}
+
+/**
+ * 蓝本 `:295-307`(**T7**)—— 手动重扫当前选中所属的索引根。
+ * 🔴 **函数门 `if (!root || rescanBusy) return`** 照抄(治理 §5.2 第 4 行):
+ *   · `!root` —— 选中不属于任何索引根时不发请求(模板里那个按钮本来就 `v-if="owningRoot"`,
+ *     但函数门是**第二道**,不许因为「按钮不渲染」就省掉);
+ *   · `rescanBusy` —— 第一发在飞时不发第二发。
+ * ⚠️ 模板上的 `:disabled="rescanBusy"` 与这道函数门是**两层**;jsdom 不向 `:disabled` 元素
+ *   派发 click(裁定 R27 的常驻教训)⇒ 测试验函数门时**直接调 `vm.rescan()`**,
+ *   不去点那个带 `:disabled` 的按钮(点它测到的是 `:disabled` 绑定,不是函数门)。
+ * 🔴 **K58 形态 A**:catch 只弹固定键,不回显 `e.message`(蓝本 `:303` 回显,本仓不照抄)。
+ * 🔴 `finally` 里无条件 `rescanBusy = false` 照抄(**不带过期守卫** —— 蓝本如此,且门本身
+ *   保证同一时刻只有一发在飞)。
+ */
+async function rescan(): Promise<void> {
+  const root = owningRoot.value
+  if (!root || rescanBusy.value) return
+  rescanBusy.value = true
+  try {
+    await store.rescanRoot(root.id)
+    store.toast(t('aiKbRescanStarted'))
+  } catch {
+    store.toast(t('aiKbOpFailed'))
+  } finally {
+    rescanBusy.value = false
+  }
+}
+
+/** 蓝本 `:308-311`(**T7**)—— RFC3339 → 「x 分钟前」;后端 `formatTS` 的空串 / 非法值
+ *  经 `parseTs` 得 0 ⇒ 返回空串(不显示 `1970`,承 P5d-T3 的单位教训)。 */
+function fmtTs(rfc3339: string): string {
+  const ms = parseTs(rfc3339)
+  return ms ? fmtAgo(ms) : ''
 }
 
 /**
@@ -499,10 +658,70 @@ onMounted(() => {
               <span>{{ t('aiKbWkMaintained') }}</span>
             </div>
 
-            <!-- 🔴 T7 从这里往下续写(蓝本 :83-141):摘要 / 目录 / 最近变更 / 页脚。
-                 本刀刻意不提前写摘要区 markup(brief 明令);`WikiView.test.ts` 里那条
-                 「出现 kw-summary 就必须同时出现 showSource 切换按钮」的自动上膛守卫
-                 现在惰性通过,T7 写下 markup 的那一刻立刻上膛。 -->
+            <!-- Summary: sanitized .wiki.md markdown (or its raw source)(蓝本 :83 原注释)
+                 🔴 §9.15:`v-html` 的输入必须是 renderWikiMarkdown 的产物(DOMPurify 消毒过)。 -->
+            <template v-if="raw !== null">
+              <pre v-if="showSource" class="kw-rawsrc">{{ raw }}</pre>
+              <div v-else class="kw-summary kw-md" v-html="html" />
+            </template>
+            <div v-else class="kw-pending">
+              <div class="kw-pending-orb"><KIcon name="layers" :size="20" /></div>
+              <div class="kw-pending-title">{{ t('aiKbWkNoSummaryTitle') }}</div>
+              <div class="kw-pending-sub">{{ t('aiKbWkNoSummarySub') }}</div>
+              <!-- 🔴 §9.17 可点性:`owningRoot` 为 null(选中不属于任何索引根)时**整个按钮不渲染**,
+                   点不到 —— 不是「渲染出来但 disabled」。`:disabled="rescanBusy"` 是另一层。 -->
+              <button v-if="owningRoot" class="k-btn primary" :disabled="rescanBusy" @click="rescan">
+                <KIcon name="refresh" :size="12" /> {{ t('aiKbWkRescanRoot') }}
+              </button>
+            </div>
+
+            <!-- Contents (child_map)(蓝本 :97 原注释)-->
+            <div v-if="node && node.childMap.length" class="kw-sec">
+              <div class="kw-sec-head">
+                <span class="kw-sec-title">{{ t('aiKbWkContents') }}</span>
+                <!-- 🔴 附录 A §A.4:`kw-sec-en` 的英文是蓝本**未过 $t()** 的装饰文案,
+                     照抄字面量,不许顺手 i18n 化。 -->
+                <span class="kw-sec-en">Contents</span>
+                <span class="kw-sec-count">{{ t('aiKbWkItemCount', { n: node.childMap.length }) }}</span>
+              </div>
+              <div class="kw-children">
+                <button v-for="c in node.childMap" :key="c.name" class="kw-child" @click="childClick(c)">
+                  <span class="kw-child-ico" :data-kind="childIsDir(c) ? 'dir' : 'file'">
+                    <KIcon :name="childIsDir(c) ? 'folder' : 'file'" :size="14" />
+                  </span>
+                  <span class="kw-child-body">
+                    <span class="kw-child-name">{{ c.name }}</span>
+                    <div v-if="c.isOpaque" class="kw-child-sum">{{ t('aiKbWkCollapsed') }}</div>
+                  </span>
+                  <span class="kw-child-meta">{{ c.lastModified ? fmtTs(c.lastModified) : '' }}</span>
+                  <span class="kw-child-chev"><KIcon name="chev" :size="12" /></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Recent changes (root-wide timeline)(蓝本 :119 原注释)-->
+            <div v-if="changes.length" class="kw-sec">
+              <div class="kw-sec-head">
+                <span class="kw-sec-title">{{ t('aiKbWkRecentChanges') }}</span>
+                <!-- 同上:蓝本未过 $t() 的装饰文案,照抄字面量(附录 A §A.4)。 -->
+                <span class="kw-sec-en">Recent changes</span>
+              </div>
+              <div class="kw-changes">
+                <div v-for="(c, i) in changes" :key="i" class="kw-change" :data-type="c.type">
+                  <span class="kw-change-type">{{ c.label }}</span>
+                  <span class="kw-change-name" :title="c.path">{{ c.name }}</span>
+                  <span class="kw-change-time">{{ c.timeFmt }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="raw !== null" class="kw-foot">
+              <KIcon name="info" :size="12" />
+              {{ t('aiKbWkRenderNote', { path: sel + '/.wiki.md' }) }}
+              <button @click="showSource = !showSource">
+                {{ showSource ? t('aiKbWkRenderedView') : t('aiKbWkViewSource') }} →
+              </button>
+            </div>
           </template>
         </template>
       </div>
