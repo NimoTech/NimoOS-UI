@@ -25,11 +25,28 @@ pnpm exec vue-tsc --noEmit  # 只做类型检查
 
 **实机部署约定(用户指定,长期有效)**:部署到设备一律执行 `./scripts/deploy.sh`(它做 pnpm build + rsync --delete dist/ → `/var/lib/nimoos/www/app/`)——**不要**绕过脚本手写 rsync/cp 到 `/var/lib`。脚本是部署的唯一入口;部署完成后在浏览器 `/app/` 验证。
 
-## 共享 service 包(已知漂移坑)
+## 共享 service 包(SP13 起已内联,无构建步骤)
 
-HTTP/认证内核来自 **`@nimotech/nimoos-service`**,通过 `file:../NimoOS-Service` 链接(见 `package.json`)。`main.ts` 用 `initService({...})` 注入 token 取存、`onAuthFail`、语言等回调。
+HTTP/认证内核是 **`@nimotech/nimoos-service`**,**源码就在本仓 `packages/service/`**
+(`package.json` 里写的是 `file:packages/service`)。`main.ts` 用 `initService({...})` 注入
+token 取存、`onAuthFail`、语言等回调。
 
-**改动该包后必须 `cd ../NimoOS-Service && pnpm build` 重新构建**;若消费端(本仓库)构建报 `Module not found`,通常需要 `pnpm install` 重新同步 `file:` 链接。首次搭环境:先 `cd ../NimoOS-Service && pnpm install && pnpm build`,再回本仓库 `pnpm install`。
+**改完存盘即生效,没有任何构建步骤** —— 包入口直接指 `packages/service/src/index.ts`(TS 源码),
+Vite / Vitest / vue-tsc 都按源码解析。
+
+> **SP13(2026-08-07)之前不是这样**:该包曾是同级仓库 `../NimoOS-Service` 的 `file:` 依赖,
+> 改完必须 `cd ../NimoOS-Service && pnpm build`,而且 dev server 还会因预打包缓存喂旧包
+> (缓存失效只看版本号、不看内容,那个包版本号恒为 0.0.1)。**这条坑已根治,别再照旧文档操作。**
+
+**⚠️ `../NimoOS-Service` 仓还在,但它现在只服务 Vue2(`NimoOS-UI`)。改那边不会影响本仓。**
+
+`packages/service/` 里的 `tsconfig.json` 与 `vitest.config.ts` 是从原仓一并搬来的,
+**从本仓根跑 `vue-tsc` / `vitest` 时两者都不生效**(TS 与 Vitest 都只认根配置,本仓无
+workspace / projects 声明)。留着是为与开源产物树同形,别去改它们指望有效果。
+
+包内 37 个测试文件 / 377 例已并入根 `pnpm test`。个别文件头带 `// @vitest-environment node`
+—— 原仓是 node 环境,本仓根配置是全局 jsdom,那几个用 Blob/File/FormData 的文件逐个回落,
+不动根配置。
 
 ## 认证与路由
 

@@ -57,8 +57,8 @@ importers:
         specifier: ^6.43.5
         version: 6.43.5
       '@nimotech/nimoos-service':
-        specifier: file:../NimoOS-Service
-        version: file:../NimoOS-Service
+        specifier: file:packages/service
+        version: file:packages/service
       '@novnc/novnc':
         specifier: ^1.7.0
         version: 1.7.0
@@ -608,8 +608,8 @@ packages:
     resolution: {integrity: sha512-EYEqlMYaCbpZDz+IgDH5xp9MTd3ui4dmGqbQYryhMLnSRxrhHKq5KQWHHKxFUcEP4Hp8/BWgvqXocX4j7iSbOQ==}
     engines: {node: '>= 10'}
 
-  '@nimotech/nimoos-service@file:../NimoOS-Service':
-    resolution: {directory: ../NimoOS-Service, type: directory}
+  '@nimotech/nimoos-service@file:packages/service':
+    resolution: {directory: packages/service, type: directory}
 
   '@novnc/novnc@1.7.0':
     resolution: {integrity: sha512-ucEJOx4T2avIRCleodk7YobZj5O2Ga2AeLfQ69A/yjG9HHba2+PDgwSkN3FttrmG+70ZGx21sElNFouK13RzyA==}
@@ -2801,7 +2801,7 @@ snapshots:
       '@napi-rs/canvas-win32-x64-msvc': 1.0.2
     optional: true
 
-  '@nimotech/nimoos-service@file:../NimoOS-Service':
+  '@nimotech/nimoos-service@file:packages/service':
     dependencies:
       axios: 1.18.1
     transitivePeerDependencies:
