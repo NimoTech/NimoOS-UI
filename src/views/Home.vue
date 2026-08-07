@@ -3,7 +3,9 @@
     <HomeTopbar @add="addPanel.openLib" />
     <!-- ≤720px:只读手机启动器;否则桌面网格。数据生命周期(下方 onMounted)与分支无关 -->
     <MobileHome v-if="isMobile" />
-    <GridCanvas v-else ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
+    <DesktopContextMenu v-else>
+      <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
+    </DesktopContextMenu>
     <HomeDock ref="dock" />
     <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" :cols="cols" :rows="rows" :grid-el="gridEl" @close="addPanel.close" />
     <SearchDialog />
@@ -15,6 +17,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import GridCanvas from '../home/components/GridCanvas.vue'
 import MobileHome from '../home/components/MobileHome.vue'
+import DesktopContextMenu from '../home/components/DesktopContextMenu.vue'
 import HomeTopbar from '../home/components/HomeTopbar.vue'
 import HomeDock from '../home/components/HomeDock.vue'
 import AddPanel from '../home/components/AddPanel.vue'

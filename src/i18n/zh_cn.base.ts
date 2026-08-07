@@ -799,6 +799,7 @@ export default {
   wpTooLarge: '图片不能超过 10 MB',
   wpUploadFailed: '上传失败,请重试',
   wpSetOk: '已设为壁纸',
+  wpChangeWallpaper: '更换壁纸',
   themePhoto: '照片…',
 
 }

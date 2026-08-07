@@ -799,6 +799,7 @@ export default {
   wpTooLarge: 'Image must be 10 MB or smaller',
   wpUploadFailed: 'Upload failed, please try again',
   wpSetOk: 'Wallpaper updated',
+  wpChangeWallpaper: 'Change wallpaper',
   themePhoto: 'Photo…',
 
 }
