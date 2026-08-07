@@ -94,9 +94,14 @@ export const useWallpaperStore = defineStore('wallpaper', () => {
   const dialogOpen = ref(false)
   const busy = ref(false)
   let snapshot: Snapshot | null = null
+  // Bumped by every preview() so an in-flight load() can tell whether the user
+  // acted while its read was pending. Store-scoped, not module-scoped: each
+  // store instance (i.e. each Pinia app) tracks its own interaction history.
+  let epoch = 0
 
   /** Live-apply without persisting: the dialog previews against the real desktop. */
   function preview(r: WallpaperRecord): void {
+    epoch += 1
     record.value = r
     applyWallpaper(r)
   }
@@ -119,14 +124,22 @@ export const useWallpaperStore = defineStore('wallpaper', () => {
   }
 
   async function commit(): Promise<void> {
-    await service.users.setCustomStorage(WALLPAPER_CUSTOM_KEY, record.value)
-    cacheRecord(record.value)
+    // Capture once: if the user previews something else while this await is in
+    // flight, record.value moves on, but the save (and the cache) must stay
+    // consistent with the value that was actually sent to the server.
+    const toSave = record.value
+    await service.users.setCustomStorage(WALLPAPER_CUSTOM_KEY, toSave)
+    cacheRecord(toSave)
     snapshot = null
   }
 
   async function load(): Promise<void> {
+    const startEpoch = epoch
     try {
       const raw = await service.users.getCustomStorage(WALLPAPER_CUSTOM_KEY)
+      // If the user previewed something while this read was in flight, their
+      // choice wins over the slower server read: don't apply, don't cache.
+      if (epoch !== startEpoch) return
       // An unset key comes back as '' from the backend, which parseRecord maps to none.
       preview(parseRecord(raw))
       cacheRecord(record.value)

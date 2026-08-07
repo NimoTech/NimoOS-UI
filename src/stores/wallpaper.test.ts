@@ -165,6 +165,21 @@ describe('wallpaper store', () => {
     expect(s.record).toEqual(NONE)
   })
 
+  it('load does not clobber a live preview that happened while the read was in flight', async () => {
+    let resolveRead!: (v: unknown) => void
+    getCustomStorage.mockImplementation(() => new Promise((resolve) => { resolveRead = resolve }))
+    const s = useWallpaperStore()
+    const loading = s.load()
+    // The user picks something in the dialog before the server read comes back.
+    s.preview({ kind: 'builtin', id: 'w01' })
+    resolveRead({ kind: 'builtin', id: 'w02' })
+    await loading
+    expect(s.record).toEqual({ kind: 'builtin', id: 'w01' })
+    expect(document.documentElement.dataset.wallpaper).toBe('')
+    // load() must not have cached the stale server value either.
+    expect(localStorage.getItem(WALLPAPER_CACHE_KEY)).toBeNull()
+  })
+
   it('preview applies live but writes neither cache nor server', () => {
     const s = useWallpaperStore()
     s.preview({ kind: 'builtin', id: 'w01' })
@@ -211,6 +226,21 @@ describe('wallpaper store', () => {
     await expect(s.commit()).rejects.toThrow('save failed')
   })
 
+  it('commit caches the record it actually sent, not a later preview that landed while the save was in flight', async () => {
+    let resolveSave!: () => void
+    setCustomStorage.mockImplementation(() => new Promise<void>((resolve) => { resolveSave = resolve }))
+    const s = useWallpaperStore()
+    s.preview({ kind: 'builtin', id: 'w01' })
+    const committing = s.commit()
+    // User keeps browsing the dialog while the save is still in flight.
+    s.preview({ kind: 'builtin', id: 'w02' })
+    resolveSave()
+    await committing
+    expect(setCustomStorage).toHaveBeenCalledWith('wallpaper_v3', { kind: 'builtin', id: 'w01' })
+    expect(JSON.parse(localStorage.getItem(WALLPAPER_CACHE_KEY) as string))
+      .toEqual({ kind: 'builtin', id: 'w01' })
+  })
+
   it('uploadAndPreview rejects an oversized file before touching the network', async () => {
     // The backend POST has no size limit of its own (spec section 8 item 2).
     const s = useWallpaperStore()
@@ -249,11 +279,26 @@ describe('wallpaper store', () => {
     expect(setCustomStorage).not.toHaveBeenCalled()
   })
 
-  it('openDialog snapshots, closeDialog does not roll back', () => {
+  it('openDialog snapshots the record so cancelPreview rolls back to it; closeDialog alone leaves the preview as-is', () => {
+    // Guards against two regressions the old assertion (dialogOpen toggling
+    // only) would have let through: openDialog forgetting its beginPreview()
+    // call, and closeDialog accidentally wired to cancelPreview().
     const s = useWallpaperStore()
+    s.preview({ kind: 'builtin', id: 'w01' }) // the record in place before the dialog opens
+
     s.openDialog()
     expect(s.dialogOpen).toBe(true)
+    s.preview({ kind: 'builtin', id: 'w02' }) // user browses inside the dialog
+    s.cancelPreview()
+    expect(s.record).toEqual({ kind: 'builtin', id: 'w01' })
+    expect(document.documentElement.dataset.wallpaper).toBe('')
+
+    // Re-open and this time just close: closeDialog must NOT roll back.
+    s.openDialog()
+    s.preview({ kind: 'builtin', id: 'w02' })
     s.closeDialog()
     expect(s.dialogOpen).toBe(false)
+    expect(s.record).toEqual({ kind: 'builtin', id: 'w02' })
+    expect(document.documentElement.dataset.wallpaper).toBe('')
   })
 })
