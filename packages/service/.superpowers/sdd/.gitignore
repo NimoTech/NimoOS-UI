@@ -1,0 +1,14 @@
+# 台账入库规则 —— 与 NimoOS-New-UI/.superpowers/.gitignore 保持一致。
+#
+# 2026-08-05 之前这里是一条 `*`(全量忽略),SP7-P0 的 15 份台账因此只活在 .sp7 worktree 里、
+# git 完全救不回 —— 与 SP7 当初弄丢 NimoOS-UI/.superpowers 整个目录是同一条向量。撤 worktree
+# 前发现并改掉。
+#
+# 入库:*.md(台账、任务简报、实现报告、评审记录)、*.png(配色/真机自查截图)
+# 不入库:评审 diff 包(能用 git diff 重放)、测试运行日志、编辑备份、快照环境变量
+
+*.diff
+review-*.txt
+*.log
+*.bak
+snap.env

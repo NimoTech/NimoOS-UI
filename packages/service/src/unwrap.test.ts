@@ -1,0 +1,15 @@
+import { describe, it, expect } from 'vitest'
+import { unwrap } from './unwrap'
+
+describe('unwrap', () => {
+  it('returns data on success===200', () => {
+    expect(unwrap({ success: 200, data: { a: 1 } })).toEqual({ a: 1 })
+  })
+  it('throws with server message and code on non-200', () => {
+    try { unwrap({ success: 404, message: 'nope' }); throw new Error('should not reach') }
+    catch (e) {
+      expect((e as Error).message).toBe('nope')
+      expect((e as Error & { code?: number }).code).toBe(404)
+    }
+  })
+})
