@@ -34,14 +34,33 @@ const DEV_PROXY = {
 export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
-  // ⚠️ 历史(SP1–SP12):共享包曾是 `file:../NimoOS-Service` 外部依赖,被 Vite 当普通
-  // node_modules 依赖预打包;而预打包缓存的失效判据是 lockfile / config / 依赖版本号,
-  // **不看依赖内容**,那个包版本号恒为 0.0.1 —— 于是 `cd ../NimoOS-Service && pnpm build`
-  // 之后缓存不失效,dev server 一直喂旧包,新加的方法在浏览器里全是 undefined
-  // (表现为被调用处 catch 成"保存失败")。单测走源码、生产 build 走 node_modules,
-  // 两边都是新的,所以只在 dev 复现。当年靠 optimizeDeps.exclude 绕开。
-  // **SP13 内联后此坑根治**:包在仓内 packages/service/、入口直指 TS 源码,
-  // Vite 按源码文件加载,永远是新的。exclude 与配套的 include: ['axios'] 一并删除。
+  // ⚠️ 共享包 @nimotech/nimoos-service 必须排除出依赖预打包(SP9-P1 验收踩到,
+  // SP13 内联时误删过一次、实测证明坑还在,已恢复 —— 见下方"SP13 教训")。
+  // 它是 `file:` 依赖(SP1-SP12 指向 `../NimoOS-Service`,SP13 起指向仓内
+  // `packages/service`),pnpm 都会把它的文件硬链进 `.pnpm` 目录 —— 在 Vite 眼里
+  // 始终是个普通的 node_modules 依赖(解析链路最终落在 node_modules 下),
+  // 于是会被预打包进 node_modules/.vite/deps/。而预打包缓存的失效判据是
+  // lockfile / config / 依赖版本号,**不看依赖内容**——SP13 之前那个包版本号恒为
+  // 0.0.1,`cd ../NimoOS-Service && pnpm build` 之后缓存不失效,dev server 一直喂
+  // 浏览器旧包;新加的方法在浏览器里全是 undefined(表现为 `xxx is not a function`,
+  // 被调用处 catch 成"保存失败")。单测走源码、生产 build 走 node_modules,两边都是
+  // 新的,所以只在 dev 复现。exclude 后 dev 直接按需加载真实文件,永远是新的。
+  //
+  // **SP13(2026-08-07)教训,别再删这段**:内联把包搬进本仓 `packages/service/`、
+  // 入口从 `dist/index.js` 改指 `src/index.ts`,当时误判"入口指源码 ⇒ Vite 按源码
+  // 解析、预打包缓存的坑自然消失",把这段 exclude 删了。**实测证伪**:该包依旧是
+  // `file:` 依赖、依旧经 `node_modules` 解析,Vite 照样把它当普通依赖预打包 ——
+  // 就地编辑 `packages/service/src/*.ts`(不重启、不 `pnpm install`)后,浏览器拿到的
+  // `.vite/deps/@nimotech_nimoos-service.js` 仍是编辑前的旧内容;连"重启 dev
+  // server"都救不了,因为 `pnpm-lock.yaml` 对 `file:` 目录依赖只记目录路径
+  // (`resolution: {directory: packages/service, type: directory}`),不记内容哈希,
+  // 编辑源码从不触发这条失效判据。**内联真正根治的只是"构建步骤"**(不用再
+  // `cd ../NimoOS-Service && pnpm build`),**没有根治预打包缓存喂旧包**——两件事
+  // 是分开的,这段 exclude 因此必须留着,不因为入口指向源码就可以删。
+  optimizeDeps: {
+    exclude: ['@nimotech/nimoos-service'],
+    include: ['axios'], // 上面 exclude 掉的包内部 import 它,显式登记以免触发"发现新依赖 → 整页重载"
+  },
   // dev 与 preview 用同一条转发规则:/app/ 之外(API /v1|/v2|/v3、MessageBus WS、
   // Vue2 登录页)全部转发真机网关 80。
   // SP9-P0 补 dev 这一份 —— 此前只有 preview 有,dev server 上登录必 404(踩过)。

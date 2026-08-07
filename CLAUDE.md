@@ -25,18 +25,24 @@ pnpm exec vue-tsc --noEmit  # 只做类型检查
 
 **实机部署约定(用户指定,长期有效)**:部署到设备一律执行 `./scripts/deploy.sh`(它做 pnpm build + rsync --delete dist/ → `/var/lib/nimoos/www/app/`)——**不要**绕过脚本手写 rsync/cp 到 `/var/lib`。脚本是部署的唯一入口;部署完成后在浏览器 `/app/` 验证。
 
-## 共享 service 包(SP13 起已内联,无构建步骤)
+## 共享 service 包(SP13 起已内联,但预打包坑没有跟着消失 —— 见下方教训)
 
 HTTP/认证内核是 **`@nimotech/nimoos-service`**,**源码就在本仓 `packages/service/`**
 (`package.json` 里写的是 `file:packages/service`)。`main.ts` 用 `initService({...})` 注入
 token 取存、`onAuthFail`、语言等回调。
 
-**改完存盘即生效,没有任何构建步骤** —— 包入口直接指 `packages/service/src/index.ts`(TS 源码),
-Vite / Vitest / vue-tsc 都按源码解析。
+**内联消掉的是构建步骤,不是构建本身**:包入口从 `dist/index.js` 改指
+`packages/service/src/index.ts`(TS 源码),所以不用再 `cd ../NimoOS-Service && pnpm build`
+单独构建一遍——改完包代码,本仓的 Vite / Vitest / vue-tsc 都会按源码重新解析。
 
-> **SP13(2026-08-07)之前不是这样**:该包曾是同级仓库 `../NimoOS-Service` 的 `file:` 依赖,
-> 改完必须 `cd ../NimoOS-Service && pnpm build`,而且 dev server 还会因预打包缓存喂旧包
-> (缓存失效只看版本号、不看内容,那个包版本号恒为 0.0.1)。**这条坑已根治,别再照旧文档操作。**
+> **⚠️ dev server 里"改完存盘即生效"靠的是 `vite.config.ts` 的 `optimizeDeps.exclude`
+> 撑着,不要删它。** SP13(2026-08-07)上线时曾经以为"入口指向源码 ⇒ 预打包缓存喂旧包这条链路
+> 自然消失",把这段 exclude 删掉过一次——**实测证伪**:该包依旧是 `file:` 依赖、依旧经
+> `node_modules` 解析,Vite 照样把它当普通依赖预打包进 `node_modules/.vite/deps/`;
+> 就地编辑 `packages/service/src/*.ts`(不重启、不 `pnpm install`)后,dev server 喂给
+> 浏览器的仍是编辑前的旧代码,连重启 dev server 都救不了(`pnpm-lock.yaml` 对 `file:`
+> 目录依赖只记目录路径,不记内容哈希,不会因为编辑源码而失效)。`src/viteOptimizeDepsGuard.test.ts`
+> 专门守着这条 exclude,别绕开它、别删它守卫的配置。
 
 **⚠️ `../NimoOS-Service` 仓还在,但它现在只服务 Vue2(`NimoOS-UI`)。改那边不会影响本仓。**
 
@@ -44,9 +50,9 @@ Vite / Vitest / vue-tsc 都按源码解析。
 **从本仓根跑 `vue-tsc` / `vitest` 时两者都不生效**(TS 与 Vitest 都只认根配置,本仓无
 workspace / projects 声明)。留着是为与开源产物树同形,别去改它们指望有效果。
 
-包内 37 个测试文件 / 377 例已并入根 `pnpm test`。个别文件头带 `// @vitest-environment node`
-—— 原仓是 node 环境,本仓根配置是全局 jsdom,那几个用 Blob/File/FormData 的文件逐个回落,
-不动根配置。
+包内 37 个测试文件 / 377 例已并入根 `pnpm test`。原仓测试环境是 node,本仓根配置是全局
+jsdom;**实测 377 例在 jsdom 下全绿,无需任何逐文件 `// @vitest-environment node` 回落**
+(`grep -rl "@vitest-environment node" packages/service/` 为空)。
 
 ## 认证与路由
 
