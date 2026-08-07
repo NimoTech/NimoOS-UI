@@ -200,6 +200,10 @@ export const SOFT = [
       { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine('expect(w.find(\'[data-test="tt-photo"]\').attributes(\'aria-checked\')).toBe(\'true\')') },
       { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine("it('Photo opens the picker rather than applying anything itself', async () => {") },
       { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine('await w.find(\'[data-test="tt-photo"]\').trigger(\'click\')') },
+      // Task 10: files-area "Set as wallpaper" extension gate. 'photos.jpg' is
+      // a plain negative-case filename (a directory named like an image), not
+      // the photos app.
+      { file: /src\/files\/util\/wallpaperExt\.test\.ts$/, re: exactLine("expect(canBeWallpaper({ name: 'photos.jpg', is_dir: true })).toBe(false)") },
     ],
   },
   {
@@ -245,6 +249,12 @@ export const SOFT = [
       // Task 6: same reserved-path sample, this time in WallpaperDialog's "choose
       // from NAS" test -- the pick payload's NAS path, not the photos app.
       { file: /src\/components\/WallpaperDialog\.test\.ts$/, re: exactLine(".vm.$emit('pick', { path: '/DATA/Gallery/a.png', src: '/v1/image?path=/DATA/Gallery/a.png' })") },
+      // Task 10: files-area context menu's "Set as wallpaper" tests. Same
+      // reserved-path sample as the wallpaper store/dialog entries above --
+      // '/DATA/Gallery/a.jpg' is a generic NAS image fixture and 'Gallery' the
+      // folder name in a plain non-image negative case, not the photos app.
+      { file: /src\/files\/components\/FileContextMenu\.test\.ts$/, re: exactLine("const img = { name: 'a.jpg', path: '/DATA/Gallery/a.jpg', is_dir: false } as FileEntry") },
+      { file: /src\/files\/components\/FileContextMenu\.test\.ts$/, re: exactLine("const w = mountMenu({ entry: { name: 'Gallery', path: '/DATA/Gallery', is_dir: true }, selectedCount: 1 })") },
     ],
   },
   {
