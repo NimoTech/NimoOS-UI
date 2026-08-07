@@ -44,6 +44,10 @@ watcher 依然看不到它的变化),所以进程内缓存的 transform 结果�
 让 Vite 重新读盘。2026-08-07(SP13)实测走过一轮弯路才定下这条准确说法,详见
 `vite.config.ts` 顶部注释与 `.superpowers/sdd/2026-08-07-vue3-migration-sp13-service-inline/task-3-report.md`。
 
+> **操作口诀**:改 `packages/service/` 里的代码 → **重启 dev server** → **硬刷新浏览器**
+> (`Ctrl-Shift-R`)。不需要 `pnpm build`、不需要清 `.vite`、不需要 `pnpm install`。
+> (若连硬刷新都还是旧的 → 多半是硬链接被断了,见下方"硬链接陷阱",跑一次 `pnpm install`。)
+
 > **⚠️ `vite.config.ts` 的 `optimizeDeps.exclude` 不要删。** 它守的是"服真源码 vs 服
 > 预打包陈旧产物"这条线——不是"即时性"(即时性靠上面那条"重启"生效,不靠 exclude)。
 > SP13 上线时曾经以为"入口指向源码 ⇒ exclude 不再需要",删掉过一次——**实测证伪**:
@@ -66,6 +70,19 @@ watcher 依然看不到它的变化),所以进程内缓存的 transform 结果�
 >   node_modules/.pnpm/@nimotech+nimoos-service@file+packages+service/node_modules/@nimotech/nimoos-service/src/sys.ts
 > # 两个 inode 不同 ⇒ 硬链已断,跑一次 pnpm install 重新链上即可(不需要 --force、不需要删 .vite)
 > ```
+
+> **⚠️ 浏览器磁盘缓存陷阱:改了源码、也重启了 dev server,浏览器里还是旧行为,按多少次
+> F5 都没用。** 症状看起来跟"硬链接断了"一样(重启也没用),但自查 inode 会发现两侧一致——
+> 卡的不是服务端,是浏览器自己。原因:这个包的模块 URL 带 `?v=<hash>` 查询串,响应头是
+> `Cache-Control: max-age=31536000, immutable`;那个 `?v=` 哈希取自 **lockfile / config**
+> (deps-optimizer 元数据),**不随 `packages/service/src/*.ts` 的内容变**——只改包源码、
+> 不碰 `vite.config.ts`/`pnpm-lock.yaml` 时这个哈希纹丝不动,已经加载过该页的标签页会一直
+> 命中磁盘缓存,永远吃不到重启后的新代码。处置:**硬刷新**(`Ctrl-Shift-R`),或 DevTools
+> 勾上 "Disable cache",或换个新的无痕窗口——这几种都会绕开磁盘缓存,强制发一次真实网络
+> 请求。**实测边界**(2026-08-07 SP13-T4,无头 chromium + CDP 真机 A/B 隔离过):重启**前**
+> 硬刷新 → 看不到新代码(证明确实是"重启"这一步在起作用,不是缓存在演戏);重启**后**
+> 硬刷新 → 立刻看到。两种情况下普通 F5 都看不到。这条是 curl 测不出来的——curl 没有浏览器
+> 磁盘缓存这层,只有真浏览器才会撞见,与上面"重启即生效"的结论**不矛盾**,是补充。
 
 **⚠️ `../NimoOS-Service` 仓还在,但它现在只服务 Vue2(`NimoOS-UI`)。改那边不会影响本仓。**
 

@@ -142,7 +142,7 @@ Vue2（`NimoOS-UI`）与 `NimoOS-Service` 仓本期**一行代码都不改**。
 | 构建 | `pnpm build` ✓ |
 | 开源面 | `pnpm exec vitest run oss/` 全绿（内含产物树真跑 `pnpm install` + `vue-tsc`） |
 | Vue2 零影响 | `cd ../NimoOS-UI && pnpm build` 仍通过 |
-| **漂移根治的正向取证** | ~~改 `packages/service/` 里一个方法 → **不做任何构建** → dev 页面立刻拿到新行为~~(原判据，2026-08-07 实测证伪，见下)→ 改 `packages/service/` 里一个方法 → **重启 dev server**(不用 `pnpm build`、不用清 `.vite` 缓存、不用 `pnpm install`)→ dev 页面拿到新行为 |
+| **漂移根治的正向取证** | ~~改 `packages/service/` 里一个方法 → **不做任何构建** → dev 页面立刻拿到新行为~~(原判据，2026-08-07 实测证伪，见下)→ ~~改 `packages/service/` 里一个方法 → **重启 dev server**(不用 `pnpm build`、不用清 `.vite` 缓存、不用 `pnpm install`)→ dev 页面拿到新行为~~(第二版判据，2026-08-07 Task 4 真机复测再证伪一层，见下)→ 改 `packages/service/` 里一个方法 → **重启 dev server** → **硬刷新浏览器**(`Ctrl-Shift-R`，不用 `pnpm build`、不用清 `.vite` 缓存、不用 `pnpm install`)→ dev 页面拿到新行为 |
 
 最后一条是本期的**核心收益，必须单独取证**。只看测试绿不够：测试一直走源码、本来就绿；
 这条坑从来只在 dev server 上现形。同理见 SP10-T4 的判据修正 —— 主判据必须落在**生效载体**上，
@@ -159,6 +159,20 @@ Vue2（`NimoOS-UI`）与 `NimoOS-Service` 仓本期**一行代码都不改**。
 的核心收益 —— 对比 SP13 之前"即使反复重启也拿不到新代码,只能 `--force` 或手动删缓存硬破"的
 状态,是实质性的改善,只是没有做到"存盘即生效"这么强。详见
 `.superpowers/sdd/2026-08-07-vue3-migration-sp13-service-inline/task-3-report.md` 的两轮修复记录。
+
+**2026-08-07 判据第三次修订(Task 4 真机取证 + 控制器复核)**:上一版判据"改源码 → 重启
+dev server → 拿到新行为"本身没错(用 curl 验证过),但 Task 4 用无头 chromium + CDP 在**真
+浏览器**里复测时发现它不完整 —— curl 没有浏览器磁盘缓存这一层,而真浏览器有。实测:该包
+模块 URL 带 `?v=<hash>` 查询串,响应头 `Cache-Control: max-age=31536000, immutable`;
+控制器独立复核确认这个 hash 取自 **lockfile / config**(前后两次观察到 `?v=262bd7ea` →
+`?v=4539fc70`,变化恰好发生在 Task 3 修复轮改了 `vite.config.ts` 注释 + 跑了 `pnpm install`
+之后),**不随 `packages/service/src/*.ts` 的内容变**。于是:只改包源码、重启 dev server,
+`?v=` 不变、`immutable` 缓存依旧有效,**已经加载过该页的标签页做普通 F5 拿不到新代码**,
+必须硬刷新(`Ctrl-Shift-R`)或 DevTools 勾 "Disable cache" 才能绕开缓存拿到最新代码。
+Task 4 做过 A/B 隔离:重启**前**硬刷新 → 看不到新代码(证明"重启"这一步本身确有必要,
+不是缓存在演戏);重启**后**硬刷新 → 立刻看到。**最终判据**(即上表这一行现在写的版本):
+改包源码 → 重启 dev server → **硬刷新浏览器** → 拿到新行为。已同步写入
+`CLAUDE.md`「共享 service 包」节的第三条警告(与"重启才生效""硬链接陷阱"并列)。
 
 ## 7. 风险与回退
 
