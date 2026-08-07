@@ -511,4 +511,74 @@ describe('scanTree:排除法,不是扩展名白名单', () => {
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  // 2026-08-07:SP11 Task 1 加入的 wallpaper01.jpg(2,281,371 字节)是超限**二进制**文件,
+  // 曾被旧实现误判成"超过体积上限"(预期外、fatal),导致 oss/tree.test.mjs 红、
+  // export.mjs 拒绝导出。MAX_BYTES 是扫描成本上限,不是信任边界——超限的二进制文件
+  // 应该和体积在上限内的二进制文件享受同一种分类(SKIP_REASON_BINARY,预期内)。
+  it('超过体积上限但开头 8KB 判定为二进制的文件,按 SKIP_REASON_BINARY 分类(预期内),不是"超过上限"(预期外)', () => {
+    const dir = mktmp()
+    try {
+      const size = 2 * 1024 * 1024 + 1 // MAX_BYTES + 1
+      const buf = Buffer.alloc(size, 0x61) // 'a' 填充
+      buf[100] = 0 // NUL 字节落在 looksBinary 只嗅探的开头 8KB 范围内
+      fs.writeFileSync(path.join(dir, 'big.bin'), buf)
+      const findings = scanTree(dir)
+      const hit = findings.find((f) => f.file === 'big.bin')
+      expect(hit).toBeTruthy()
+      expect(hit.word).toBe('__skipped__')
+      expect(hit.excerpt).toBe(SKIP_REASON_BINARY)
+      expect(isExpectedSkip(hit.excerpt)).toBe(true)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // 反向断言:证明上限本身没有被悄悄关掉——超限的**文本**文件(开头 8KB 不含 NUL)
+  // 仍然必须落回"超过体积上限"(预期外、仍 fatal),因为这类文件真的可能在没人读过的
+  // 区域里藏着泄漏。这条在旧实现下本就通过(旧实现从不区分二进制/文本,一律按超限
+  // 分类),修复后必须继续通过,防止"重排后连文本超限也被误放行"的回归。
+  it('超过体积上限且不是二进制的文本文件,仍按"超过体积上限"分类(预期外)—— 证明上限没有被悄悄关掉', () => {
+    const dir = mktmp()
+    try {
+      const size = 2 * 1024 * 1024 + 1
+      const text = 'a'.repeat(size)
+      fs.writeFileSync(path.join(dir, 'big.txt'), text)
+      const findings = scanTree(dir)
+      const hit = findings.find((f) => f.file === 'big.txt')
+      expect(hit).toBeTruthy()
+      expect(hit.word).toBe('__skipped__')
+      expect(hit.excerpt).toBe('超过 2097152 字节上限,未扫描')
+      expect(isExpectedSkip(hit.excerpt)).toBe(false)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // 嗅探超限文件时只读文件开头(fs.openSync/readSync),这一步头部读取本身也可能失败
+  // (权限问题等)——必须仍然报成"读取失败"(预期外),不能因为走的是新加的头部读取
+  // 分支就静默吞掉。用真实的 chmod 000 文件复现,同上面无读权限目录的用例同一手法。
+  it.skipIf(isRoot)('超过体积上限且开头读取失败(无读权限)的文件,报"读取失败"(预期外),不静默吞掉', () => {
+    const dir = mktmp()
+    const bigPath = path.join(dir, 'big-locked.bin')
+    try {
+      const size = 2 * 1024 * 1024 + 1
+      fs.writeFileSync(bigPath, Buffer.alloc(size, 0x61))
+      fs.chmodSync(bigPath, 0o000)
+
+      let findings
+      expect(() => {
+        findings = scanTree(dir)
+      }).not.toThrow()
+
+      const hit = findings.find((f) => f.file === 'big-locked.bin')
+      expect(hit).toBeTruthy()
+      expect(hit.word).toBe('__skipped__')
+      expect(hit.excerpt.startsWith('读取失败,未扫描:')).toBe(true)
+      expect(isExpectedSkip(hit.excerpt)).toBe(false)
+    } finally {
+      fs.chmodSync(bigPath, 0o644) // 恢复权限,否则 rmSync 递归删除会失败
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

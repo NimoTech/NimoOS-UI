@@ -491,9 +491,18 @@ export function scanText(relPath, text) {
  *      `EISDIR` 崩掉整个扫描。改成先用 `Dirent.isSymbolicLink()` 识别并跳过 ——
  *      符号链接指向的真实内容如果本就在树内,会通过它的真实路径被正常扫到,
  *      不会因为跳过链接本身而漏扫。
- *   ② 体积超过 MAX_BYTES 的
- *   ③ 开头 8KB 判定为二进制的(looksBinary)
+ *   ② 体积超过 MAX_BYTES 的 —— 但不是无条件按"超限"分类:先只读文件开头 SNIFF_BYTES
+ *      字节做 ③ 的二进制嗅探(fs.openSync/readSync,不读整个大文件),嗅出二进制就按
+ *      ③ 的 SKIP_REASON_BINARY 分类(预期内、非 fatal,与体积在上限内的二进制文件
+ *      一视同仁);嗅探不出二进制才落回"超过体积上限"(预期外、仍 fatal)。2026-08-07
+ *      (SP11 wallpaper 收尾票):MAX_BYTES is a scan-cost limit, not a trust boundary —
+ *      a 2.2MB JPEG is no more dangerous than the sub-cap binary assets this guard
+ *      already skips-and-logs. What the cap must keep catching is an oversized
+ *      *text* file, which could genuinely hide a secret in a region nobody read.
+ *   ③ 开头 SNIFF_BYTES(8KB)判定为二进制的(looksBinary)—— 未超限文件读整份内容后
+ *      嗅探;超限文件复用同一嗅探函数,但只读开头这一段。
  *   ④ 任何 stat/read/readdir 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧。
+ *      超限文件的"只读开头"这一步本身也可能失败,同样归入这一类,不静默吞掉。
  *      第三轮复审顺带加固:目录本身的 `readdirSync` 之前没包 try/catch,子目录若在遍历
  *      途中被并发删除、或没有读权限,会像符号链接那次一样让整个 scanTree 崩掉;现在也
  *      计入 __skipped__。
@@ -532,7 +541,32 @@ export function scanTree(rootDir) {
         continue
       }
       if (stat.size > MAX_BYTES) {
-        skip(rel, `超过 ${MAX_BYTES} 字节上限,未扫描`)
+        // Reorder rationale (2026-08-07, SP11 wallpaper cleanup): don't classify an
+        // oversized file as "over the cap" purely by size. Read only the head bytes
+        // looksBinary actually inspects (SNIFF_BYTES, ~8KB) via openSync/readSync —
+        // never the whole oversized file — and sniff it first. An oversized binary
+        // file (e.g. a 2.2MB built-in wallpaper JPEG) is no more dangerous than the
+        // sub-cap binary assets this guard already skips-and-logs as SKIP_REASON_BINARY
+        // (an expected, non-fatal skip); it should get the same classification. Only
+        // when the head does NOT look binary does this fall through to the "over the
+        // cap" skip (still unexpected/fatal) — MAX_BYTES is a scan-cost limit, not a
+        // trust boundary, and what it must keep catching is an oversized *text* file,
+        // which could genuinely hide a secret in a region nobody read.
+        let head
+        try {
+          const fd = fs.openSync(abs, 'r')
+          try {
+            const headBuf = Buffer.alloc(Math.min(stat.size, SNIFF_BYTES))
+            const bytesRead = fs.readSync(fd, headBuf, 0, headBuf.length, 0)
+            head = headBuf.subarray(0, bytesRead)
+          } finally {
+            fs.closeSync(fd)
+          }
+        } catch (err) {
+          skip(rel, `读取失败,未扫描:${err.message}`)
+          continue
+        }
+        skip(rel, looksBinary(head) ? SKIP_REASON_BINARY : `超过 ${MAX_BYTES} 字节上限,未扫描`)
         continue
       }
 
