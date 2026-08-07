@@ -179,6 +179,27 @@ export const SOFT = [
       { file: /src\/styles\/theme\.css$/, re: exactLine("/* SP11: the paper theme's text is near-black (#1c1b19); over a dark photo it") },
       { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine("it('kills the bokeh layer, which would smear coloured fog over a photo', () => {") },
       { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine('// text loses its white veil over a dark photo -- invisible to tsc, build,') },
+      // 2026-08-07 Task 8: ThemeToggle's topbar menu grew a third "Photo…" entry
+      // (data-test="tt-photo", the `active === 'photo'` branch, `pickPhoto()`,
+      // and the `.sw-photo` preview swatch). All are wallpaper-picker UI wired
+      // to the pre-existing wallpaper store, not the album app — same
+      // justification as the SP11 block above, entered per-line as precedent.
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine('<button class="theme-opt" role="menuitemradio" data-test="tt-photo"') },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine(":class=\"{ on: active === 'photo' }\" :aria-checked=\"active === 'photo'\" @click=\"pickPhoto()\">") },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine('<span class="sw sw-photo" />') },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine("<span class=\"lbl\">{{ t('themePhoto') }}</span>") },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine('<span v-if="active === \'photo\'" class="ck">✓</span>') },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine("const active = computed<'blue' | 'light' | 'photo'>(() =>") },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine("wp.record.kind !== 'none' ? 'photo' : theme.theme === 'light' ? 'light' : 'blue',") },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine('function pickPhoto() {') },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine('/* theme-exception: preview swatch shows what the photo option looks like, not') },
+      { file: /src\/home\/components\/ThemeToggle\.vue$/, re: exactLine('.sw-photo { background: linear-gradient(135deg, #7a8ea8, #3c4a5e); }') },
+      { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine('expect(w.find(\'[data-test="tt-photo"]\').exists()).toBe(true)') },
+      { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine('expect(w.find(\'[data-test="tt-photo"]\').attributes(\'aria-checked\')).toBe(\'false\')') },
+      { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine("it('checks Photo whenever any image is set, regardless of theme', async () => {") },
+      { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine('expect(w.find(\'[data-test="tt-photo"]\').attributes(\'aria-checked\')).toBe(\'true\')') },
+      { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine("it('Photo opens the picker rather than applying anything itself', async () => {") },
+      { file: /src\/home\/components\/ThemeToggle\.test\.ts$/, re: exactLine('await w.find(\'[data-test="tt-photo"]\').trigger(\'click\')') },
     ],
   },
   {
