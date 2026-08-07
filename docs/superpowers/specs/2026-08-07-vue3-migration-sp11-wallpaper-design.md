@@ -133,9 +133,10 @@ type WallpaperRecord =
 
 **为什么顶栏不直接铺 4 个缩略图**(用户 2026-08-07 提出):那个菜单只有 `min-width: 148px`,塞 4 个缩略图会小到看不出是什么。三档粗选 + 弹窗细选。
 
-### 4.2 弹窗 `WallpaperDialog.vue`
+### 4.2 弹窗 `src/components/WallpaperDialog.vue`
 
-- **挂 `App.vue`**,与 `AppToast` 并列。理由:设置页是**独立路由** `/settings/:tab`(`settings/settingsRoutes.ts`),桌面右键在 `/` —— 两个入口在不同路由下,弹窗只能是应用级单例。`SearchDialog` 用的 `homeUi` store 是主页作用域的,够不到 `/settings`,不能照它。开关放 `stores/wallpaper.ts` 自己身上。
+- **挂 `App.vue`**,与 `AppToast` 并列(所以落 `src/components/`,不落 `settings/`)。理由:设置页是**独立路由** `/settings/:tab`(`settings/settingsRoutes.ts`),桌面右键在 `/` —— 两个入口在不同路由下,弹窗只能是应用级单例。`SearchDialog` 用的 `homeUi` store 是主页作用域的,够不到 `/settings`,不能照它。开关放 `stores/wallpaper.ts` 自己身上。
+- **⚠️ 不能用共享的 `src/components/ui/Dialog.vue`。** 它的 `.ui-dialog-overlay` 带 `backdrop-filter: var(--overlay-blur)` + `--overlay-bg`,会把我们正要预览的壁纸糊掉、实时预览直接失效。照 `SearchDialog.vue:308` 的先例直接用 reka-ui 的 `DialogRoot :modal="false"` + 自绘定位:**底部贴边、无遮罩**,上半屏留给真实桌面。
 - **async chunk**(`defineAsyncComponent`)⇒ 那 3MB 内置 jpg 只在用户真的点开换壁纸时下载,不进首屏。这是不动图片资源就能拿到的唯一缓解。
 - 内容:`[蓝色底板][白色底板][图1][图2]` + `[↑ 上传]` `[从 NAS 选择]` + `[取消][应用]`。**不做预览卡**(见 4.3)。
 - 4 个预设并列 ⇒ 从设置页 / 桌面右键进来也能切回蓝色白色,不必绕回顶栏。
@@ -170,7 +171,7 @@ type WallpaperRecord =
 
 需要一处改动:`pick` 事件从 `[src: string]` 扩成 `[{ path: string; src: string }]` —— 壁纸要 NAS **文件路径**才能发 `PUT`,头像要**显示 URL**。改 1 个调用点(`AccountPanel.vue`)。
 
-**不移动该组件。** 它已在 `settings/` 下且依赖 `settings/styles/settings.css`;搬到 `components/` 会让一个全局组件反向依赖设置区样式,换来的只是目录观感。壁纸弹窗本身也在设置区(`settings/panels/general/`),import 路径正常。
+**不移动该组件。** 它已在 `settings/` 下且依赖 `settings/styles/settings.css`;搬到 `components/` 会让它把设置区样式表拖进全局包,换来的只是目录观感。代价是弹窗(在 `src/components/`)要跨区 import 它一次 —— 这一次跨区 import 比搬家 + 改样式归属便宜,登记在案。
 
 ### 4.6 内置图资源
 
