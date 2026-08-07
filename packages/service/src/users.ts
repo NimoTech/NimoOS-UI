@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios'
 import type {
-  EventModel, LoginResult, MemberInfo, UserFolderPermission, UserInfo, UserStatus,
+  EventModel, LoginResult, MemberInfo, UserFolderPermission, UserImageResult, UserInfo, UserStatus,
 } from './types.js'
 import { unwrap } from './unwrap.js'
 
@@ -145,7 +145,39 @@ export function createUsers(http: AxiosInstance) {
       await http.delete(`/users/members/${memberId}/folders?perm_id=${permId}`)
     },
 
-    // 不进包的两个:deleteAllUser()(DELETE /users,核按钮,Vue2 AccountPanel 零引用)与
-    // get/set/deleteUserImage(壁纸/自定义图,不属 account tab)。判据 = 界面里没有就不进包。
+    // ── SP11 wallpaper: user image endpoints ────────────────────────────────
+    // These two were explicitly kept out of the package during SP9-P4 ("not part
+    // of the account tab"); SP11 is the consumer that pays that debt off.
+
+    /** POST /v1/users/current/image/{key} -- multipart upload.
+     *  Standard envelope. Writes to {UserDataPath}/{userId}/{key}{ext}, so it
+     *  ALWAYS overwrites one fixed filename per user: the URL never changes and
+     *  callers must add their own cache-busting stamp.
+     *  WARNING the backend enforces NO size limit here (user.go:928-961 has no
+     *  size check, unlike the PUT below) -- callers must cap it themselves. */
+    async uploadImage(key: string, file: File): Promise<UserImageResult> {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await http.post(`/users/current/image/${key}`, form)
+      return unwrap<UserImageResult>(res.data)
+    },
+
+    /** PUT /v1/users/current/image/{key} -- copy an existing on-disk file into
+     *  the user's image slot. body is { path }.
+     *  Same fixed-filename overwrite as uploadImage.
+     *  WARNING every failure returns HTTP 200 with success != 200
+     *  (user.go:888/891/896/905): FILE_DOES_NOT_EXIST, NOT_IMAGE and
+     *  IMAGE_TOO_LARGE (hard 10 MB cap at user.go:904). unwrap turns those into
+     *  thrown errors -- never read res.data directly here. */
+    async setImageFromPath(key: string, path: string): Promise<UserImageResult> {
+      const res = await http.put(`/users/current/image/${key}`, { path })
+      return unwrap<UserImageResult>(res.data)
+    },
+
+    // Kept out of the package: deleteAllUser() (DELETE /users -- the nuclear
+    // button, zero call sites in Vue2's AccountPanel) and deleteUserImage()
+    // (no consumer in either UI).
+    // uploadImage / setImageFromPath used to sit on this list as "not part of the
+    // account tab"; SP11's wallpaper picker is their consumer, so they moved in.
   }
 }

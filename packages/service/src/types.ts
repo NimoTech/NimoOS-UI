@@ -325,3 +325,6 @@ export interface WifiScanResult {
   secure: boolean
   connected: boolean
 }
+
+/** Result of POST/PUT /v1/users/current/image/{key}. */
+export interface UserImageResult { path: string; file_name: string; online_path: string }

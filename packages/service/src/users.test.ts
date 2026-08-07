@@ -189,3 +189,50 @@ describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 G
     expect(calls[0].url).toBe('/users/current')
   })
 })
+
+describe('user image (SP11 wallpaper)', () => {
+  it('uploadImage posts multipart with the file under `file`', async () => {
+    const calls: { url: string; body: unknown }[] = []
+    const http = {
+      post: async (url: string, body: unknown) => {
+        calls.push({ url, body })
+        return { data: { success: 200, message: 'ok', data: { path: '/d/1/wallpaper.jpg', file_name: 'wallpaper.jpg', online_path: '/v1/users/image?path=/d/1/wallpaper.jpg' } } }
+      },
+    }
+    const users = createUsers(http as never)
+    const file = new File([new Uint8Array([1, 2, 3])], 'a.jpg', { type: 'image/jpeg' })
+    const res = await users.uploadImage('wallpaper', file)
+
+    expect(calls[0].url).toBe('/users/current/image/wallpaper')
+    expect(calls[0].body).toBeInstanceOf(FormData)
+    expect((calls[0].body as FormData).get('file')).toBe(file)
+    expect(res.online_path).toContain('/v1/users/image?path=')
+  })
+
+  it('setImageFromPath puts the nas path as json', async () => {
+    const calls: { url: string; body: unknown }[] = []
+    const http = {
+      put: async (url: string, body: unknown) => {
+        calls.push({ url, body })
+        return { data: { success: 200, message: 'ok', data: { path: '/d/1/wallpaper.png', file_name: 'wallpaper.png', online_path: '/v1/users/image?path=/d/1/wallpaper.png' } } }
+      },
+    }
+    const users = createUsers(http as never)
+    await users.setImageFromPath('wallpaper', '/DATA/Gallery/a.png')
+
+    expect(calls[0].url).toBe('/users/current/image/wallpaper')
+    expect(calls[0].body).toEqual({ path: '/DATA/Gallery/a.png' })
+  })
+
+  it.each([
+    [60001, 'File does not exist'],
+    [10009, 'Not an image'],
+    [10010, 'Image too large'],
+  ])('setImageFromPath rejects on success=%i even though the status is 200', async (code, msg) => {
+    // PutUserImage returns http.StatusOK for every failure (user.go:880-916), so a
+    // caller reading res.data directly would treat "image too large" as success.
+    const http = { put: async () => ({ data: { success: code, message: msg, data: null } }) }
+    const users = createUsers(http as never)
+    await expect(users.setImageFromPath('wallpaper', '/DATA/huge.jpg')).rejects.toThrow(msg)
+  })
+})
