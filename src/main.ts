@@ -7,6 +7,7 @@ import { i18n } from './i18n'
 import { useSessionStore } from './stores/session'
 import { makeAuthFailHandler } from './router/onAuthFail'
 import { applyTheme, initialTheme } from './stores/theme'
+import { applyWallpaper, initialWallpaper } from './stores/wallpaper'
 import { installChunkReloadGuard } from './chunkReloadGuard'
 import './styles/theme.css'
 import './styles/theme.sp9.css'
@@ -41,4 +42,7 @@ app.use(i18n)
 app.use(router)
 // 冷启动:mount 前先把 data-theme 贴到 <html>,避免先渲染默认蓝再跳白的闪烁。
 applyTheme(initialTheme())
+// Same reason for the wallpaper: without this the first paint is the gradient
+// and the photo snaps in a frame later.
+applyWallpaper(initialWallpaper())
 app.mount('#app')

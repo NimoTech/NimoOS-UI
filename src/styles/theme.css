@@ -299,6 +299,12 @@
     radial-gradient(58% 50% at 84% 10%, #6a5aa0 0%, transparent 60%),
     radial-gradient(64% 58% at 62% 96%, #356f86 0%, transparent 62%),
     linear-gradient(180deg, #2a3354 0%, #1c2339 58%, #141a2b 100%);
+
+  /* SP11: overlay for body::after when a wallpaper is on. Dark theme keeps the
+     existing sheen + vignette shape so white text stays readable on any photo. */
+  --wallpaper-scrim:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 20%),
+    radial-gradient(130% 90% at 50% 118%, rgba(0, 0, 0, 0.5), transparent 58%);
 }
 
 /* ═══ 白色 / 米白纸感主题:覆盖全部颜色 token(结构 token 沿用 :root)。权威取值见 docs/THEMING.md §2 ═══ */
@@ -389,6 +395,11 @@
   --remove-bg: #e0466a;
   --drop-bg: rgba(59, 91, 219, 0.12);
   --app-bg: #f7f5ef;
+
+  /* SP11: the paper theme's text is near-black (#1c1b19); over a dark photo it
+     disappears. A white veil, not a dark vignette, is what keeps it legible.
+     This is a readability floor, not polish. */
+  --wallpaper-scrim: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55));
 
   /* 2.10 模糊(纸感不用玻璃) */
   --blur: none;
@@ -753,3 +764,20 @@ body::after {
 /* 文件区深链 ?highlight= 定位闪烁(挂在 FileRow/FileTile 根上,跨组件 class 放全局)*/
 @keyframes file-flash-kf { 0%, 100% { background: transparent; } 30%, 70% { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
 .file-flash { animation: file-flash-kf 1.25s ease 2; border-radius: 10px; }
+
+/* ══ SP11 wallpaper layer ══════════════════════════════════════════════════
+   Painted on <html>, not on a self-drawn element: the html background is always
+   the bottom-most paint (no z-index reasoning against body's pseudo-elements),
+   and listing --app-bg as the final background layer means a 404 image simply
+   is not painted and the theme gradient shows through -- a free fallback that
+   needs no JS onerror handler.
+   The shorthand (not background-image) is mandatory: --app-bg is a bare colour
+   in the light theme, and a colour is only legal in the last layer.
+   MUST stay after the light-theme `body::after { background: none }` rule above
+   -- equal specificity, source order decides. See styles/wallpaper.css.test.ts. */
+:root[data-wallpaper] {
+  background: var(--wallpaper-img) center / cover no-repeat, var(--app-bg);
+}
+:root[data-wallpaper] body { background: transparent; }
+:root[data-wallpaper] body::before { display: none; }
+:root[data-wallpaper] body::after { background: var(--wallpaper-scrim); }
