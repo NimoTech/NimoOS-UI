@@ -46,6 +46,7 @@ import SnapshotSettingsDialog from '../files/snapshot/SnapshotSettingsDialog.vue
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
 import { resolveExitTarget, relPathUnderMount } from '../files/util/snapshotPath'
 import { service } from '@nimotech/nimoos-service'
+import { useWallpaperStore } from '../stores/wallpaper'
 
 const route = useRoute()
 const router = useRouter()
@@ -146,6 +147,20 @@ function onCtxAction(action: string, entry: FileEntry | null) {
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry); break
     case 'restore-original': if (entry) browse.restore([entry]); break
+    case 'set-wallpaper': onSetWallpaper(entry); break
+  }
+}
+
+async function onSetWallpaper(entry: FileEntry | null) {
+  if (!entry) return
+  try {
+    await useWallpaperStore().setFromNasPath(entry.path)
+    toast.show(t('wpSetOk'))
+  } catch (e) {
+    // The backend caps this path at 10 MB and reports failures as HTTP 200
+    // with success != 200; surface its message rather than failing silently
+    // the way Vue2's error branches did.
+    toast.show(String((e as Error)?.message || t('wpUploadFailed')), 5000, 'danger')
   }
 }
 

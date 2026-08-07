@@ -87,6 +87,7 @@ export default {
   filesDeleteConfirm: '确定删除选中的 {count} 项?此操作不可恢复。',
   filesCtxUploadFile: '上传文件',
   filesCtxUploadFolder: '上传文件夹',
+  filesCtxSetWallpaper: '设为壁纸',
   filesUpload: '上传',
   filesUploadTitle: '上传',
   filesUploadTo: '上传到 {name}',

@@ -87,6 +87,7 @@ export default {
   filesDeleteConfirm: 'Delete the selected {count} item(s)? This cannot be undone.',
   filesCtxUploadFile: 'Upload files',
   filesCtxUploadFolder: 'Upload folder',
+  filesCtxSetWallpaper: 'Set as wallpaper',
   filesUpload: 'Upload',
   filesUploadTitle: 'Upload',
   filesUploadTo: 'Upload to {name}',

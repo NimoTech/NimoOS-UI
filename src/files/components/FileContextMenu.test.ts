@@ -39,6 +39,27 @@ function mountMenu(props: { entry: FileEntry | null; selectedCount: number }) {
   })
 }
 
+// mountMenu 内部各造一份新 pinia,与这里手动 mutate 的 store 不是同一份实例
+// (useStore() 在组件 setup 内会用 inject 到的 pinia 覆盖 activePinia)——须自己建
+// pinia、setActive、写好 state,再把同一个 pinia 实例传进 mount 的 global.plugins。
+// Hoisted to file scope (SP11 T10) so both the snapshot-menu suite and the
+// "set as wallpaper" suite can enter snapshot view the same way.
+function mountSnapshotMenu(props: { entry: FileEntry | null; selectedCount: number }) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const browse = useSnapshotBrowseStore()
+  browse.status = 'ready'
+  browse.volumes = [{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]
+  useFilesStore().currentPath = '/DATA/.snapshots/snap1'
+  return mount(FileContextMenu, {
+    props,
+    global: {
+      plugins: [pinia, i18n],
+      stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub },
+    },
+  })
+}
+
 describe('FileContextMenu', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
@@ -202,26 +223,6 @@ describe('FileContextMenu', () => {
   })
 
   describe('快照只读态菜单', () => {
-    // mountMenu 内部各造一份新 pinia,与这里手动 mutate 的 store 不是同一份实例
-    // (useStore() 在组件 setup 内会用 inject 到的 pinia 覆盖 activePinia)——须仿照上面
-    // "有剪贴板内容"那个用例的写法:自己建 pinia、setActive、写好 state,再把同一个
-    // pinia 实例传进 mount 的 global.plugins。
-    function mountSnapshotMenu(props: { entry: FileEntry | null; selectedCount: number }) {
-      const pinia = createPinia()
-      setActivePinia(pinia)
-      const browse = useSnapshotBrowseStore()
-      browse.status = 'ready'
-      browse.volumes = [{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]
-      useFilesStore().currentPath = '/DATA/.snapshots/snap1'
-      return mount(FileContextMenu, {
-        props,
-        global: {
-          plugins: [pinia, i18n],
-          stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub },
-        },
-      })
-    }
-
     it('空白区菜单只剩刷新', () => {
       const w = mountSnapshotMenu({ entry: null, selectedCount: 0 })
       const txt = w.find('.menu').text()
@@ -252,6 +253,36 @@ describe('FileContextMenu', () => {
       const w = mountSnapshotMenu({ entry, selectedCount: 1 })
       await w.find('.ctx-restore-original').trigger('click')
       expect(w.emitted('action')?.[0]?.[0]).toBe('restore-original')
+    })
+  })
+
+  describe('set as wallpaper (SP11)', () => {
+    const img = { name: 'a.jpg', path: '/DATA/Gallery/a.jpg', is_dir: false } as FileEntry
+
+    it('appears for a single image outside snapshot view', () => {
+      const w = mountMenu({ entry: img, selectedCount: 1 })
+      expect(w.find('.ctx-set-wallpaper').exists()).toBe(true)
+    })
+    it('hides for a non-image', () => {
+      const w = mountMenu({ entry: { name: 'a.mp4', path: '/DATA/a.mp4', is_dir: false }, selectedCount: 1 })
+      expect(w.find('.ctx-set-wallpaper').exists()).toBe(false)
+    })
+    it('hides for a folder', () => {
+      const w = mountMenu({ entry: { name: 'Gallery', path: '/DATA/Gallery', is_dir: true }, selectedCount: 1 })
+      expect(w.find('.ctx-set-wallpaper').exists()).toBe(false)
+    })
+    it('hides on multi-select, like Copy Path and Rename', () => {
+      const w = mountMenu({ entry: img, selectedCount: 3 })
+      expect(w.find('.ctx-set-wallpaper').exists()).toBe(false)
+    })
+    it('hides in snapshot view, which is read-only', () => {
+      const w = mountSnapshotMenu({ entry: img, selectedCount: 1 })
+      expect(w.find('.ctx-set-wallpaper').exists()).toBe(false)
+    })
+    it('emits the set-wallpaper action with the entry', async () => {
+      const w = mountMenu({ entry: img, selectedCount: 1 })
+      await w.find('.ctx-set-wallpaper').trigger('click')
+      expect(w.emitted('action')?.[0]).toEqual(['set-wallpaper', img])
     })
   })
 })

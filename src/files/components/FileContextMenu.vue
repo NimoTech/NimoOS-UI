@@ -5,6 +5,7 @@ import { ContextMenuItem, ContextMenuSeparator } from 'reka-ui'
 import ContextMenu from '../../components/ui/ContextMenu.vue'
 import type { FileEntry } from '../stores/files'
 import { canOperate } from '../util/protect'
+import { canBeWallpaper } from '../util/wallpaperExt'
 import { useFavoritesStore } from '../stores/favorites'
 import { useClipboardStore } from '../stores/clipboard'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
@@ -30,6 +31,9 @@ const showRename = computed(() => single.value && operable.value && !inSnapshot.
 const showFavorite = computed(() => single.value && !!props.entry?.is_dir && !inSnapshot.value)
 // 共享仅对文件夹,且未共享(已共享的走「共享」列表页取消,不重复弹入口 → 避免后端 SHARE_ALREADY_EXISTS)
 const showShare = computed(() => single.value && !!props.entry?.is_dir && !alreadyShared.value && !inSnapshot.value)
+// Same gating as Vue2 ContextMenu.vue:96 -- single selection, image file, and
+// hidden in the read-only snapshot view.
+const showSetWallpaper = computed(() => single.value && !inSnapshot.value && canBeWallpaper(props.entry))
 const showCopy = computed(() => !inSnapshot.value)
 const showCut = computed(() => operable.value && !inSnapshot.value)
 const showDelete = computed(() => operable.value && !inSnapshot.value)
@@ -37,7 +41,8 @@ const showDelete = computed(() => operable.value && !inSnapshot.value)
 const showRestoreOriginal = computed(() => inSnapshot.value && single.value)
 // 分割线只在"删除之上确实有其它项"时出现(否则只剩删除会出现悬空分割线)
 const showSeparator = computed(
-  () => showDelete.value && (showCopyPath.value || showRename.value || showFavorite.value || showShare.value),
+  () => showDelete.value
+    && (showCopyPath.value || showRename.value || showFavorite.value || showShare.value || showSetWallpaper.value),
 )
 
 function fire(action: string) { emit('action', action, props.entry) }
@@ -72,6 +77,7 @@ function fire(action: string) { emit('action', action, props.entry) }
         <ContextMenuItem v-if="showRename" class="ui-ctx-item ctx-rename" @select="fire('rename')">{{ t('filesRename') }}</ContextMenuItem>
         <ContextMenuItem v-if="showFavorite" class="ui-ctx-item ctx-fav" @select="fire('toggle-favorite')">{{ favorited ? t('filesCtxRemoveFavorite') : t('filesCtxAddFavorite') }}</ContextMenuItem>
         <ContextMenuItem v-if="showShare" class="ui-ctx-item ctx-share" @select="fire('share')">{{ t('filesShareToLan') }}</ContextMenuItem>
+        <ContextMenuItem v-if="showSetWallpaper" class="ui-ctx-item ctx-set-wallpaper" @select="fire('set-wallpaper')">{{ t('filesCtxSetWallpaper') }}</ContextMenuItem>
         <ContextMenuSeparator v-if="showSeparator" class="ui-ctx-sep" />
         <ContextMenuItem v-if="showDelete" class="ui-ctx-item danger ctx-delete" @select="fire('delete')">{{ t('filesCtxDelete') }}</ContextMenuItem>
       </template>
