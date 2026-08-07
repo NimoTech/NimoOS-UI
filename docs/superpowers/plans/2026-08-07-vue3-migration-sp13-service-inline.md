@@ -471,17 +471,17 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" -- CLAUDE.md
 
 **为什么单独立一个任务：** 测试一直走源码、**本来就绿**，`pnpm test` 全绿证明不了这条坑被修好。这条坑从来只在 dev server 上现形。同理见 SP10-T4 的判据修正 —— **主判据必须落在生效载体上**，不能用一个"无论如何都成立"的间接指标充数。
 
-- [ ] **Step 1: 起 dev server**
+- [x] **Step 1: 起 dev server**
 
 ```bash
 cd /home/nimo/NimoTech/NimoOS-New-UI && pnpm dev
 ```
 
-- [ ] **Step 2: 浏览器打开并确认页面正常**
+- [x] **Step 2: 浏览器打开并确认页面正常**
 
 `http://localhost:5273/app/` —— 登录进去，随便进一个会发请求的页面（首页小组件即可）。控制台不该有 `is not a function` 这类错误。
 
-- [ ] **Step 3: 在包源码里插一个可观察的改动，只存盘、不构建**
+- [x] **Step 3: 在包源码里插一个可观察的改动，只存盘、不构建**
 
 > **⚠️ 2026-08-07 判据修订(机主拍板，见 spec §6)**：本 Step 原文只说"存盘"，隐含"不重启也该生效"。
 > Task 3 修复轮 + 控制器独立复现，两轮实测都证明**这个隐含前提是错的**——Vite 的文件 watcher
@@ -497,7 +497,7 @@ console.log('[SP13-取证] packages/service 的改动无需构建即生效')
 
 存盘。**不跑 `pnpm build`，不跑 `pnpm install`，什么都不做。**
 
-- [ ] **Step 4: 看浏览器 → 若没出现，重启 dev server 再看**
+- [x] **Step 4: 看浏览器 → 若没出现，重启 dev server 再看**
 
 先看浏览器控制台：**多数情况下不会立刻出现**（这是正常的，见上方 Step 3 的修订说明，不是失败）。
 
@@ -516,7 +516,7 @@ console.log('[SP13-取证] packages/service 的改动无需构建即生效')
 文件的 inode 不一致），大概率是硬链接被原子写断开了——跑一次 `pnpm install` 重新链上，
 再重启 dev server。详见 `CLAUDE.md`「共享 service 包」节的"硬链接陷阱"。
 
-- [ ] **Step 5: 还原**
+- [x] **Step 5: 还原**
 
 删掉那行 `console.log`，存盘，确认浏览器控制台不再出现它。
 
@@ -524,7 +524,7 @@ console.log('[SP13-取证] packages/service 的改动无需构建即生效')
 git status --short packages/service    # 期望空 —— 改动已还原干净
 ```
 
-- [ ] **Step 6: 停 dev server，把取证结果记进本计划的「取证留痕」小节**
+- [x] **Step 6: 停 dev server，把取证结果记进本计划的「取证留痕」小节**
 
 本任务**不产生提交**（Step 5 之后工作树应当是干净的）。
 
@@ -785,12 +785,75 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" -- docs/vue3-migration-ro
 
 ## 取证留痕
 
-> Task 4 执行时填这里，别只写"通过"。
+> 2026-08-07 执行记录（无头 chromium + CDP 实测，非 curl）。
 
-- 改的文件与那一行：
-- 是否跑过任何构建命令：
-- 浏览器控制台出现取证输出的时间/表现：
-- 还原后 `git status packages/service` 是否干净：
+**改的文件与那一行**：`packages/service/src/sys.ts` 文件末尾追加
+`console.log('[SP13-取证] packages/service 的改动无需构建即生效')`（用 `cat >>`
+就地写，不走 rename，全程未跑 `pnpm build`/`pnpm install`/`--force`，直到中途一次事故性
+`pnpm install`，见下方"硬链接陷阱"一节）。
+
+**驱动方式**：本机未装 playwright 包，但 `~/.cache/ms-playwright/chromium-1228/` 有真
+chrome 二进制。用 `--headless=new --remote-debugging-port=9333` 起它，手写 CDP 客户端
+（`ws@8.21.0` 从 `node_modules/.pnpm/` 直接 require，未装顶层 `ws`）驱动
+`Page.navigate/reload`、`Runtime.evaluate`、`Runtime.consoleAPICalled`/`Log.entryAdded`
+订阅。脚本留在 scratchpad（`cdp.mjs`/`cdp-hardreload.mjs`/`cdp-disablecache-test.mjs`/
+`cdp-clear.mjs`），未写入仓库。
+
+**是否需要登录**：需要。空 token 落在 `#/login`。往 `localStorage` 塞了
+`access_token`/`refresh_token`/`version`/`user` 四项（**特别带上 `version`**——
+`src/router/guard.ts` 有 token 但缺 `version` 会被判"半初始化"，清 token 打回登录页），
+才能放行到首页小组件区。本机没起任何后端服务（`dev-up.sh --status` 确认无进程），
+小组件发的请求全部 401/连接失败，触发 `onAuthFail` 清 token 打回登录页——这是网络层
+的预期表现，不是 JS 报错；全程控制台**没有出现任何 `is not a function` 类脚本错误**，
+Step 2 的"页面正常加载"判据成立。
+
+**主判据实测（改包源码 → 重启 dev server → 生效）**：
+
+| 步骤 | 操作 | 控制台出现 `[SP13-取证]`？ |
+|---|---|---|
+| 1 | 清浏览器缓存 + 打开页面（无探针，基线） | 否（0 次，符合预期） |
+| 2 | 就地追加探针，**不重启** dev server，硬刷新（`ignoreCache:true`，排除浏览器缓存干扰） | 否（0 次——证明"不重启不生效"这条卡在 Vite 进程内 transform 缓存，不是浏览器缓存） |
+| 3 | **重启一次** `pnpm dev`（`Ctrl-C` 等效 `kill` + 重新 `pnpm dev`，未加 `--force`，未删 `.vite`，未跑 `pnpm install`） | — |
+| 4a | 同一个早就打开过该页面的 tab，**普通刷新**（等效 F5，缓存默认开启） | **否**（0 次——见下方"意外发现"） |
+| 4b | 同一个 tab，**硬刷新**（`Page.reload({ignoreCache:true})`，绕开浏览器缓存） | **是**（1 次，原文 `[SP13-取证] packages/service 的改动无需构建即生效`） |
+
+**主判据结论**：`packages/service` 内联后"改源码 → 重启 dev server（不 build/不清 `.vite`/
+不 `pnpm install`）→ 拿到新代码"这条链路本身成立——**前提是发起的是一次真实网络请求**
+（curl,或浏览器硬刷新/绕开缓存）。4a/4b 的对照证明这条链路本身没问题，卡的是另一层。
+
+**⚠️ 意外发现（超出 brief 字面要求，但直接关系到"重启即生效"这句话对真实开发者管不管用）**：
+
+对同一个 URL（`.../nimoos-service/src/sys.ts?v=4539fc70`）实测响应头：
+
+```
+Cache-Control: max-age=31536000,immutable
+```
+
+这个 `?v=` 查询串是 Vite 给"从 `node_modules` 解析到的依赖"统一打的版本号，取自
+deps-optimizer 的元数据哈希，**不是按单文件内容算的**——编辑 `packages/service/src/` 下
+任意文件、甚至反复重启 dev server，只要 `vite.config.ts`/`pnpm-lock.yaml` 没变，这个
+`?v=` 值就不变（本次从头到尾全程是 `4539fc70`）。于是：**任何已经加载过这个 URL 的浏览器
+tab，普通刷新（F5）会被浏览器自己的磁盘缓存挡住，永远拿不到新内容**，需要硬刷新
+（Ctrl+Shift+R / DevTools "Disable cache" 勾选后刷新 / 清缓存）才能看到。补测："disable
+cache"（DevTools 常开的那个勾选框，`Network.setCacheDisabled(true)`）+ 普通刷新 = 0 次
+（正确反映最新代码）——所以这不是无解,常年开着 DevTools 且勾了 disable cache 的开发者
+不受影响，但"什么都不勾、只是刷新页面"的最朴素工作流会被卡住。这条与 Task 3 报告的
+"exclude 恢复后重启即生效"结论**不矛盾**（那条结论用 curl 验证,curl 没有浏览器磁盘缓存
+这层),只是补上了 curl 测不出来、必须真浏览器才能测出的这一层。是否要把这条写进
+`CLAUDE.md`/`vite.config.ts` 注释,留给控制器裁定,本任务未越权去改。
+
+**⚠️ 硬链接陷阱：本次执行中"实测复现"了一次（不是纸上谈兵）**。清理探针时先用了
+`sed -i '$d'`（GNU sed 的 `-i` 默认是"写临时文件再 rename"），仓库侧 `sys.ts` 换成了
+新 inode（`2516054`），而 `.pnpm` 那份镜像还停在旧 inode（`2516052`，内容里还带着探针）——
+两侧就此断开，`git diff` 显示仓库侧已清空但 `.pnpm` 镜像仍是带探针的旧内容。跑一次
+`pnpm install` 后两侧 inode 重新一致（`2516054`），镜像内容也跟着变回干净。**之后的还原
+改用 `git show HEAD:packages/service/src/sys.ts > packages/service/src/sys.ts`**（shell
+`>` 重定向是 `O_TRUNC` 就地写、不 rename），验证 inode 前后不变——这条路径是安全的，
+`cat >>` 追加同理安全，`sed -i`/多数编辑器"保存"不安全。
+
+**还原后 `git status packages/service`**：干净（`git status --short packages/service`
+无输出，`git diff --stat -- packages/service` 无输出）。dev server 与无头 chromium 均已
+停止，端口 5273/9333 收尾时均为空闲。
 
 ---
 
