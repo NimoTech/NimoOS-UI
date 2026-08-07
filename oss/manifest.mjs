@@ -220,7 +220,7 @@ export const REPLACE = [
   // T12:README 重写(面向外部开发者,私有版讲的是与 Vue 2 并存/绞杀迁移/同级克隆
   // Service —— 受众不同且后两条在开源包里都是假的,没有可继承内容,整文件替换)
   { path: 'README.md', from: 'README.md',
-    privateSha256: 'ae7e30a5e63f2c66af4e0ecbf7a08cd5500aec89e9d2de86d6db05b2b79027aa' },
+    privateSha256: '316642c3587379f8bd6797d768c62730df38f0b2df3f331a0045292fabec96bd' },
 ]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */

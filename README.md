@@ -53,8 +53,16 @@ pnpm exec vue-tsc --noEmit  # 只做类型检查
 
 ### 部署到设备
 
+首次准备目录(只需一次,`deploy.sh` 的 rsync 目标必须存在且当前用户可写):
+
 ```bash
-# 首次:sudo mkdir -p /var/lib/nimoos/www/app && sudo chown $USER /var/lib/nimoos/www/app
+sudo mkdir -p /var/lib/nimoos/www/app
+sudo chown "$USER:$USER" /var/lib/nimoos/www/app
+```
+
+之后每次部署:
+
+```bash
 ./scripts/deploy.sh   # pnpm build + rsync --delete dist/ → /var/lib/nimoos/www/app/
 ```
 
