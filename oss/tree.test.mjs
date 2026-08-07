@@ -105,7 +105,10 @@ describe('内嵌共享包', () => {
     expect(pkg.dependencies['@nimotech/nimoos-service']).toBe('file:packages/service')
   })
 
-  it('lockfile 里不再有 ../NimoOS-Service 路径', () => {
+  // SP13 之后私有仓本身就写 file:packages/service,「不含 NimoOS-Service」变成没有任何
+  // 路径能违反的恒真断言(守卫价值归零)。改成正向断言:锁文件必须真的指到内嵌包。
+  it('lockfile 指向内嵌的 packages/service', () => {
+    expect(read('pnpm-lock.yaml')).toContain('packages/service')
     expect(read('pnpm-lock.yaml')).not.toContain('NimoOS-Service')
   })
 })

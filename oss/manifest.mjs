@@ -8,7 +8,6 @@ import path from 'node:path'
 const HERE = path.dirname(new URL(import.meta.url).pathname)
 export const OSS_DIR = HERE
 export const NEW_UI = path.resolve(HERE, '..')
-export const SERVICE = path.resolve(HERE, '../../NimoOS-Service')
 export const DEFAULT_OUT = path.resolve(HERE, '../../NimoOS-Web')
 
 // 主工作树 index 里长期躺着 3 个 design-export/* 的删除态,不属任何一方(spec §10.3)
@@ -2519,30 +2518,12 @@ describe('ai 分片前缀守卫', () => {
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */
 export const SERVICE_PATCH = [
-  // ── T13 复审 Critical:内嵌包不带构建产物,`pnpm test` 编译不过 ─────────────
-  // export.mjs 用 `git archive HEAD` 取源(见该文件"取源"注释),NimoOS-Service
-  // 的 dist/ 是构建产物、.gitignore 里就没进 git,git archive 天然拿不到它 ——
-  // package.json 却指向 ./dist/index.js,导致 pnpm install 按 "files": ["dist"]
-  // 打包出的 @nimotech/nimoos-service 里只剩一个 package.json,任何消费它的测试
-  // 文件全部 "Failed to resolve entry for package"(T13 是第一个真的在产出树里跑
-  // `pnpm install && pnpm test` 的任务,此前 T5-T12 都没有实测暴露过这个洞)。
-  // 修法:改 main/module/types/exports 直接指向 TS 源码入口,不依赖预构建产物 ——
-  // 源文件内部互相 import 都写成 NodeNext 风格的 `./xxx.js`(为了配合 tsc 构建后
-  // 的真实产物路径),Vite/esbuild 的 bundler 模式解析能把 `.js` 说明符按 TS 源码
-  // 惯例映射回同名 `.ts` 文件(已实测 vitest 与 vue-tsc 都能正确解析,见
-  // task-13-report.md)。这样出包既不需要在 export 流程里新增构建步骤,也不需要
-  // 把构建产物提交进 git——两者都会违反"只改 manifest.mjs"的任务边界。
-  { path: 'package.json',
-    find: `  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],`,
-    replace: `  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": { ".": { "types": "./src/index.ts", "import": "./src/index.ts" } },
-  "files": ["src"],` },
+  // 注:这里原本的第 1 条补丁把内嵌包的入口从 ./dist/index.js 改指 ./src/index.ts
+  // (理由:export.mjs 用 git archive 取源,而 dist/ 在 .gitignore 里拿不到,消费方
+  // 会 "Failed to resolve entry for package" —— T13 是第一个真在产出树里跑
+  // pnpm install && pnpm test 的任务,才暴露出这个洞)。
+  // **SP13(2026-08-07)起该补丁已上游化**:私有仓 packages/service/package.json
+  // 本身就指 ./src/index.ts,原补丁的 find 锚点必然失配,故删除。
   { path: 'src/index.ts', find: "import { createPhotos } from './photos.js'\n", replace: '' },
   { path: 'src/index.ts', find: 'PhotoAsset, ', replace: '' },
   { path: 'src/index.ts',

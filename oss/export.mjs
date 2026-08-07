@@ -5,7 +5,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
   DELETE, SERVICE_DELETE, REPLACE, PATCH, SERVICE_PATCH,
-  NEW_UI, SERVICE, DEFAULT_OUT, OSS_DIR, DIRTY_ALLOW,
+  NEW_UI, DEFAULT_OUT, OSS_DIR, DIRTY_ALLOW,
 } from './manifest.mjs'
 import { checkClean, applyDelete, applyReplace, applyPatch } from './apply.mjs'
 import { scanTree, isExpectedSkip } from './forbidden.mjs'
@@ -49,10 +49,8 @@ log('1/6 前置检查')
 const OSS_RENAME_SAFE = /^.{2}\s+oss\/(?:(?!\s->\s).)*(?:\s->\s+oss\/.*)?$/
 const dirtyAllowNewUi = ALLOW_DIRTY_OSS ? [...DIRTY_ALLOW, OSS_RENAME_SAFE] : DIRTY_ALLOW
 checkClean(NEW_UI, dirtyAllowNewUi)
-checkClean(SERVICE, [])
 const headNewUi = git(NEW_UI, 'rev-parse', 'HEAD')
-const headService = git(SERVICE, 'rev-parse', 'HEAD')
-log(`  New-UI ${headNewUi.slice(0, 8)} · Service ${headService.slice(0, 8)}`)
+log(`  New-UI ${headNewUi.slice(0, 8)}(共享包已内联,不再取第二个仓)`)
 
 // ── 2. 取源(git archive HEAD)────────────────────────────────────────────────
 // 🔴 这里原来写的是「.git / node_modules / dist / .superpowers / tmlab 自动排除」——
@@ -85,8 +83,9 @@ try {
     execFileSync('sh', ['-c', `git -C '${repo}' archive HEAD | tar -x -C '${dest}'`])
   }
   archiveInto(NEW_UI, tmp)
+  // SP13 内联后 packages/service/ 已经在 New-UI 自己的 archive 里,不再取第二个仓。
+  // 这个变量保留:下面 SERVICE_DELETE / SERVICE_PATCH 两张表仍以它为基准目录。
   const svcDir = path.join(tmp, 'packages/service')
-  archiveInto(SERVICE, svcDir)
 
   // ── 3. 应用清单:顺序固定 DELETE → REPLACE → PATCH ──────────────────────
   log(`3/6 应用清单(DELETE ${DELETE.length} · REPLACE ${REPLACE.length} · PATCH ${PATCH.length})`)
@@ -96,22 +95,9 @@ try {
   applyPatch(tmp, PATCH)
   applyPatch(svcDir, SERVICE_PATCH)
 
-  // ── 4. 内嵌 Service:改 package.json 的 file: 一行 + lockfile 路径 ────────
-  log('4/6 内嵌共享包')
-  const pkgPath = path.join(tmp, 'package.json')
-  const pkg = fs.readFileSync(pkgPath, 'utf8')
-  const FROM = '"@nimotech/nimoos-service": "file:../NimoOS-Service"'
-  const TO = '"@nimotech/nimoos-service": "file:packages/service"'
-  if (pkg.split(FROM).length - 1 !== 1) throw new Error(`package.json 的 file: 锚点未唯一命中:${FROM}`)
-  fs.writeFileSync(pkgPath, pkg.replace(FROM, TO))
-  const lockPath = path.join(tmp, 'pnpm-lock.yaml')
-  const lock = fs.readFileSync(lockPath, 'utf8')
-  if (!lock.includes('../NimoOS-Service')) throw new Error('pnpm-lock.yaml 里没有 ../NimoOS-Service,锚点已漂')
-  fs.writeFileSync(
-    lockPath,
-    lock.replaceAll('file:../NimoOS-Service', 'file:packages/service')
-        .replaceAll('directory: ../NimoOS-Service', 'directory: packages/service'),
-  )
+  // ── 4. 内嵌共享包 ── SP13 起私有仓本身就是内联形态(package.json 写死
+  //    file:packages/service、包入口直指 TS 源码),产物树天然正确,无需任何重写。
+  //    原先这里有:file: 一行重写 + lockfile 两处 replaceAll + 两个"锚点未命中"守卫。
 
   // ── 4.5 重算 lockfile(SP8-P6-T7 修复轮 1 · Important 2)──────────────────
   // 背景:清单从这一刀起会**摘 package.json 的 dependencies**(AI 独占的 4 个 tiptap +
@@ -220,7 +206,7 @@ try {
   execFileSync('rsync', ['-a', '--delete', '--exclude', '.git', '--exclude', 'node_modules', `${tmp}/`, `${OUT}/`])
   fs.writeFileSync(
     path.join(OUT, '.export-report.txt'),
-    `NimoOS-New-UI HEAD: ${headNewUi}\nNimoOS-Service HEAD: ${headService}\n` +
+    `NimoOS-New-UI HEAD: ${headNewUi}(共享包已内联)\n` +
     `DELETE ${DELETE.length} · REPLACE ${REPLACE.length} · PATCH ${PATCH.length}\n` +
     `泄漏守卫未扫描清单(预期内,二进制/符号链接):\n` +
     (skipReportLines.length ? skipReportLines.map((l) => `  ${l}`).join('\n') + '\n' : '  (无)\n') +
