@@ -12,10 +12,15 @@ describe('buildAuthUrl', () => {
 })
 
 describe('driverIconUrl', () => {
-  it('把 ./img/driver/X.svg 归一到设备源根', () => {
-    expect(driverIconUrl('./img/driver/Dropbox.svg', 'http://h')).toBe('http://h/img/driver/Dropbox.svg')
+  const base = import.meta.env.BASE_URL // 构建/测试同一份 vite 配置 ⇒ '/app/'
+
+  it('把后端的站点根路径改挂到本应用 base 下(不再依赖 Vue2 留在站点根的 img/)', () => {
+    expect(driverIconUrl('./img/driver/Dropbox.svg', 'http://h')).toBe(`http://h${base}img/driver/Dropbox.svg`)
   })
   it('去掉源尾部斜杠、无前缀点也可', () => {
-    expect(driverIconUrl('img/driver/X.svg', 'http://h/')).toBe('http://h/img/driver/X.svg')
+    expect(driverIconUrl('img/driver/X.svg', 'http://h/')).toBe(`http://h${base}img/driver/X.svg`)
+  })
+  it('只取文件名 —— 后端换成别的目录层级也照样落到本应用的 img/driver/', () => {
+    expect(driverIconUrl('/static/icons/OneDrive.svg', 'http://h')).toBe(`http://h${base}img/driver/OneDrive.svg`)
   })
 })

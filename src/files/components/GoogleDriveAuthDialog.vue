@@ -15,8 +15,8 @@ const toast = useToast()
 const clientId = ref('')
 const clientSecret = ref('')
 const connecting = ref(false)
-// 指引页由设备静态根(Vue2 www)伺服,非 /app/ —— 与驱动图标同款 SP10 迁移债
-const guideUrl = window.location.origin + '/guide/google-drive.html'
+// 指引页现在随本应用发布(public/guide/,构建后落在 /app/guide/),不再依赖 Vue2 留在站点根的那份
+const guideUrl = window.location.origin + import.meta.env.BASE_URL + 'guide/google-drive.html'
 
 watch(() => props.open, (o) => {
   if (!o) return

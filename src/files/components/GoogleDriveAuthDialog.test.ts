@@ -57,12 +57,12 @@ beforeEach(() => {
 })
 
 describe('GoogleDriveAuthDialog', () => {
-  it('渲染标题/提示/指引链接(指向设备根 guide 页)', async () => {
+  it('渲染标题/提示/指引链接(指向本应用自带的 guide 页)', async () => {
     mountDlg()
     await nextTick()
     expect(document.body.textContent).toContain('绑定 Google 云端硬盘')
     const a = q<HTMLAnchorElement>('.gdrive-hint a')
-    expect(a.getAttribute('href')).toBe(window.location.origin + '/guide/google-drive.html')
+    expect(a.getAttribute('href')).toBe(window.location.origin + import.meta.env.BASE_URL + 'guide/google-drive.html')
     expect(a.getAttribute('target')).toBe('_blank')
   })
 
