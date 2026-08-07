@@ -209,6 +209,10 @@ export const SOFT = [
     word: 'search',
     re: /search/i,
     allow: [
+      // 2026-08-07:Google Drive 自建凭据指引页随本仓发布(Vue2 下线后站点根不再有 guide/)。
+      // 这里的 "search for" 是让用户在 Google Cloud 控制台里搜索 API 的普通英文动词,与
+      // NimoOS-Search 服务无关。整行精确匹配,不给整个文件开洞。
+      { file: /public\/guide\/google-drive\.html$/, re: exactLine('<p>In the left menu <span class="path">APIs &amp; Services → Library</span>, search for <b>Google Drive API</b>, open it → <b>Enable</b>.</p>') },
       { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
       // 2026-08-05(SP7-P8b):两个 locale 主文件改名 *.base.ts,路径跟着改。
       { file: /src\/i18n\/(zh_cn|en_us)\.base\.ts$/, re: /appsStoreSearch/ },
@@ -312,6 +316,8 @@ export const SOFT = [
     word: '搜索',
     re: /搜索/,
     allow: [
+      // 2026-08-07:上面 'search' 那条的中文孪生行 —— 同一份 Google Drive 指引页的中文半。
+      { file: /public\/guide\/google-drive\.html$/, re: exactLine('<p>左侧菜单 <span class="path">API 和服务 → 库</span>,搜索 <b>Google Drive API</b>,点进去 → <b>启用</b>。</p>') },
       // appsStoreSearch:应用商店筛选框(brief 指定保留面),与 NimoOS-Search 服务无关。锚定整行。
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("appsStoreSearch: '搜索应用…',") },
       // StorePage 这三行注释是"应用商店按关键字过滤"语义,与 AI 语义搜索无关。逐行精确匹配,
@@ -379,6 +385,10 @@ export const SOFT = [
       { file: /src\/files\/assets\/icons\/folder-root\.svg$/, re: /data:image\/png;base64,/ },
       { file: /src\/files\/assets\/icons\/folder-hdd\.svg$/, re: /^\s*[A-Za-z0-9+/=]+\s*$/ },
       { file: /src\/files\/assets\/icons\/folder-usb\.svg$/, re: /^\s*[A-Za-z0-9+/=]+\s*$/ },
+      // 2026-08-07:云盘驱动图标改由本仓自带(Vue2 下线后站点根不再有 img/)。OneDrive.svg
+      // 整张图就是一个内嵌 base64 PNG,"ai" 是 base64 字符集里随机出现的子串 —— 与上面三个
+      // 文件夹图标同一情形,按同一形状规则(整条 data URI 在同一行)精确限定到这个文件。
+      { file: /public\/img\/driver\/OneDrive\.svg$/, re: /data:image\/png;base64,/ },
       // pnpm-lock.yaml:同 search 词条的注释 —— 自动生成文件,用"像不像 pnpm-lock 记录行"
       // 的形状规则,而不是逐字锚定(依赖升级就作废)。
       { file: /(^|\/)pnpm-lock\.yaml$/, re: PNPM_LOCK_LINE },
