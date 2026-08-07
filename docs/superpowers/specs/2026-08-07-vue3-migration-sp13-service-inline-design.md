@@ -159,8 +159,9 @@ Vue2（`NimoOS-UI`）与 `NimoOS-Service` 仓本期**一行代码都不改**。
 
 ## 8. 任务切分（供 writing-plans 展开）
 
-1. **T0 先探** —— 在临时副本上验证「入口指 TS 源码」在私有仓能过 `vue-tsc`，以及 377 例在 jsdom
-   下的红/绿情况。探完再动手（§7 第二条）。
+1. **T0 先探** —— 在 scratchpad 里的一份仓库副本上（**不动真仓一个字节**）验证两件事：
+   「入口指 TS 源码」在私有仓的 tsconfig 下能否过 `vue-tsc`；377 例在 jsdom + 全局 Blob 替换下
+   哪些会红。探完再动手（§7 第二条）。
 2. **T1 搬源码** —— 复制 69 个源文件 + 台账到 `packages/service/`，一条 commit 写明来源 `ac39cd7`。
 3. **T2 接五处缝** —— §3.2 那张表 + `.gitignore`。
 4. **T3 修测试并入的红** —— 逐文件 `// @vitest-environment node`，不动全局配置。
