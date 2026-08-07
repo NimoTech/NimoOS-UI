@@ -18,7 +18,6 @@ export default {
   settingsDeviceDetecting: 'Detecting...',
   settingsWallpaper: 'Wallpaper',
   settingsWallpaperChange: 'Change',
-  settingsWallpaperNa: 'Wallpapers are not available in the new UI yet',
   settingsLanguage: 'Language',
   settingsLanguageNa: 'The new UI currently ships Simplified Chinese and English only',
   settingsTimezone: 'Timezone',

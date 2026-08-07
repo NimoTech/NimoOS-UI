@@ -20,7 +20,6 @@ export default {
   settingsDeviceDetecting: '检测中…',
   settingsWallpaper: '壁纸',
   settingsWallpaperChange: '更改',
-  settingsWallpaperNa: '新版界面暂未提供壁纸功能',
   settingsLanguage: '语言',
   settingsLanguageNa: '新版界面目前只有简体中文与英文',
   settingsTimezone: '时区',

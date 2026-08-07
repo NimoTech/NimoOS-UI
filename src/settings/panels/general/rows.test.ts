@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import zhSp9 from '../../../i18n/zh_cn.sp9'
 import { useToast } from '../../../stores/toast'
+import { useWallpaperStore } from '../../../stores/wallpaper'
 
 const blob: Record<string, unknown> = {}
 const standbyCalls: { minutes: number }[] = []
@@ -14,6 +15,13 @@ const persisted: string[] = []
 // 不能只靠事后检查 blob 内容(内容可能因为幂等写入而恰好没变化,详见 fix 1 说明)。
 const getCustomStorage = vi.fn(async () => ({ ...blob }))
 const setCustomStorage = vi.fn(async (_k: string, d: Record<string, unknown>) => { Object.assign(blob, d) })
+// Stubs for the wallpaper store's service surface (imported transitively via
+// WallpaperRow -> useWallpaperStore). None of this file's tests exercise
+// upload or NAS-path flows, but the mock factory must still provide these
+// members since the store module references service.users.uploadImage /
+// service.users.setImageFromPath.
+const uploadImage = vi.fn()
+const setImageFromPath = vi.fn()
 
 // vi.mock 工厂会被提升、先于上面两个 const 执行,所以工厂内部不能直接把
 // getCustomStorage/setCustomStorage 当值取用(那会在初始化前解引用,ReferenceError)。
@@ -24,6 +32,8 @@ vi.mock('@nimotech/nimoos-service', () => ({
     users: {
       getCustomStorage: (...args: Parameters<typeof getCustomStorage>) => getCustomStorage(...args),
       setCustomStorage: (...args: Parameters<typeof setCustomStorage>) => setCustomStorage(...args),
+      uploadImage: (...args: Parameters<typeof uploadImage>) => uploadImage(...args),
+      setImageFromPath: (...args: Parameters<typeof setImageFromPath>) => setImageFromPath(...args),
     },
     sys: { setDiskStandby: async (p: { minutes: number }) => { standbyCalls.push(p) } },
   },
@@ -59,14 +69,19 @@ beforeEach(() => {
   __resetSystemConfigQueue()
 })
 
-describe('WallpaperRow(债务 D5:New-UI 无壁纸系统)', () => {
-  it('渲染壁纸标签,「更改」按钮禁用', () => {
+describe('WallpaperRow (SP11: debt D5 paid off)', () => {
+  it('renders the label with an enabled change button', () => {
     const w = mountRow(WallpaperRow)
     expect(w.find('.set-row-label').text()).toBe('壁纸')
-    expect(w.find('.set-btn').attributes('disabled')).toBeDefined()
+    expect(w.find('.set-btn').attributes('disabled')).toBeUndefined()
   })
-  it('行下方有说明,写清为什么不可用', () => {
-    expect(mountRow(WallpaperRow).find('.set-row-hint').text()).toBe('新版界面暂未提供壁纸功能')
+  it('no longer explains why it is unavailable', () => {
+    expect(mountRow(WallpaperRow).find('.set-row-hint').exists()).toBe(false)
+  })
+  it('opens the app-level picker', async () => {
+    const w = mountRow(WallpaperRow)
+    await w.find('.set-btn').trigger('click')
+    expect(useWallpaperStore().dialogOpen).toBe(true)
   })
 })
 
