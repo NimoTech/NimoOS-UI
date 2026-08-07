@@ -1990,7 +1990,7 @@ function mountHome() {
   // ── I6:vite.config.ts 直接点名 Claude Code,与「删 CLAUDE.md 因为它是最直白的
   //    AI 辅助开发标记」的理由自相矛盾。exclude 数组本身保留(功能无害)。────────
   { path: 'vite.config.ts',
-    find: '    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),',
+    find: '    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本),',
     replace: '    // 本机可能存在 .claude/ 等工具目录(含整个仓库副本),' },
 
   // ── I7a:注释里泄露内部 SDD 台账路径(.superpowers/sdd/sp9/...)与债务编号。──
