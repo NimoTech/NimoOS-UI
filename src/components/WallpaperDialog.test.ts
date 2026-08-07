@@ -1,0 +1,153 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
+import zh from '../i18n/zh_cn'
+import zhSp9 from '../i18n/zh_cn.sp9'
+
+const setCustomStorage = vi.fn(async () => undefined)
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    users: {
+      getCustomStorage: async () => '',
+      setCustomStorage: (...a: unknown[]) => setCustomStorage(...(a as [])),
+      uploadImage: async () => ({ path: '/d/1/wallpaper.jpg', file_name: 'wallpaper.jpg', online_path: 'x' }),
+      setImageFromPath: async () => ({ path: '/d/1/wallpaper.png', file_name: 'wallpaper.png', online_path: 'x' }),
+    },
+    image: { imageUrl: (p: string) => `/v1/image?path=${p}` },
+    storage: { list: async () => [] },
+    raid: { list: async () => [] },
+    folder: { getList: async () => ({ items: [] }) },
+  },
+}))
+
+import WallpaperDialog from './WallpaperDialog.vue'
+import { useWallpaperStore } from '../stores/wallpaper'
+import { useThemeStore } from '../stores/theme'
+
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
+
+// This component builds its sheet on reka-ui's DialogRoot/DialogPortal (see
+// WallpaperDialog.vue header comment for why it does not reuse the shared
+// Dialog.vue wrapper), which Teleports DialogContent to document.body. That
+// puts it outside the subtree `mount()` returns, so `wrapper.find(...)` alone
+// never sees it -- the same gap already documented in UpdateDialog.test.ts /
+// DeviceInfoDialog.test.ts / ShareLinkDialog.test.ts. We attach to
+// document.body and query through a DOMWrapper on it instead.
+//
+// Second, undeclared-in-the-brief adaptation: reka-ui's DialogPortal/DialogContent
+// only teleport their content into document.body on the microtask after mount,
+// not synchronously -- the same behaviour KvmDialog.test.ts and
+// components/ui/Dialog.test.ts already document for this reka-ui version. The
+// brief's `mountOpen` is synchronous and its callers assert immediately after
+// calling it; run as written this is red on every test for a reason that has
+// nothing to do with this component (a missing tick, not a missing feature).
+// `mountOpen` is made async with a `nextTick()` after mount, and every call
+// site awaits it -- the assertions themselves are unchanged from the brief.
+let activeWrapper: ReturnType<typeof mount> | null = null
+
+async function mountOpen() {
+  const wp = useWallpaperStore()
+  wp.openDialog()
+  activeWrapper = mount(WallpaperDialog, { global: { plugins: [i18n] }, attachTo: document.body })
+  await nextTick()
+  return activeWrapper
+}
+
+const body = () => new DOMWrapper(document.body)
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  localStorage.clear()
+  delete document.documentElement.dataset.wallpaper
+  delete document.documentElement.dataset.theme
+  setCustomStorage.mockClear()
+})
+
+afterEach(() => {
+  activeWrapper?.unmount()
+  activeWrapper = null
+  document.body.innerHTML = ''
+})
+
+describe('WallpaperDialog presets', () => {
+  it('renders four presets plus upload and nas entries', async () => {
+    await mountOpen()
+    for (const id of ['blue', 'light', 'w01', 'w02']) {
+      expect(body().find(`[data-test="wp-preset-${id}"]`).exists(), id).toBe(true)
+    }
+    expect(body().find('[data-test="wp-upload"]').exists()).toBe(true)
+    expect(body().find('[data-test="wp-nas"]').exists()).toBe(true)
+  })
+
+  it('has no "restore default" button -- the blue base preset IS the default', async () => {
+    await mountOpen()
+    expect(body().find('[data-test="wp-restore"]').exists()).toBe(false)
+  })
+
+  it('picking a builtin previews live without persisting', async () => {
+    await mountOpen()
+    await body().find('[data-test="wp-preset-w01"]').trigger('click')
+    expect(document.documentElement.dataset.wallpaper).toBe('')
+    expect(setCustomStorage).not.toHaveBeenCalled()
+  })
+
+  it('picking a builtin leaves the theme alone', async () => {
+    const theme = useThemeStore()
+    theme.setTheme('light')
+    await mountOpen()
+    await body().find('[data-test="wp-preset-w01"]').trigger('click')
+    expect(theme.theme).toBe('light')
+  })
+
+  it('picking the white base clears the wallpaper and switches the theme', async () => {
+    const theme = useThemeStore()
+    await mountOpen()
+    await body().find('[data-test="wp-preset-w01"]').trigger('click')
+    await body().find('[data-test="wp-preset-light"]').trigger('click')
+    expect(document.documentElement.dataset.wallpaper).toBeUndefined()
+    expect(theme.theme).toBe('light')
+  })
+
+  it('marks the active preset', async () => {
+    await mountOpen()
+    await body().find('[data-test="wp-preset-w02"]').trigger('click')
+    expect(body().find('[data-test="wp-preset-w02"]').classes()).toContain('on')
+    expect(body().find('[data-test="wp-preset-blue"]').classes()).not.toContain('on')
+  })
+})
+
+describe('WallpaperDialog apply / cancel', () => {
+  it('apply persists and closes', async () => {
+    const wp = useWallpaperStore()
+    await mountOpen()
+    await body().find('[data-test="wp-preset-w01"]').trigger('click')
+    await body().find('[data-test="wp-apply"]').trigger('click')
+    await flushPromises()
+    expect(setCustomStorage).toHaveBeenCalledWith('wallpaper_v3', { kind: 'builtin', id: 'w01' })
+    expect(wp.dialogOpen).toBe(false)
+  })
+
+  it('cancel rolls back the record and the theme, and closes', async () => {
+    const theme = useThemeStore()
+    theme.setTheme('blue')
+    await mountOpen()
+    await body().find('[data-test="wp-preset-light"]').trigger('click')
+    await body().find('[data-test="wp-cancel"]').trigger('click')
+    expect(theme.theme).toBe('blue')
+    expect(useWallpaperStore().dialogOpen).toBe(false)
+  })
+
+  it('a failed apply shows an inline error and keeps the dialog open', async () => {
+    // Inline, not a toast: the toast layer is z-index 60 and a dialog overlay sits
+    // above it, so a toast fired from inside a dialog is covered and blurred.
+    setCustomStorage.mockRejectedValueOnce(new Error('boom'))
+    await mountOpen()
+    await body().find('[data-test="wp-preset-w01"]').trigger('click')
+    await body().find('[data-test="wp-apply"]').trigger('click')
+    await flushPromises()
+    expect(body().find('[data-test="wp-error"]').text()).toBe('保存失败,请重试')
+    expect(useWallpaperStore().dialogOpen).toBe(true)
+  })
+})

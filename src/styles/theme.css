@@ -305,6 +305,13 @@
   --wallpaper-scrim:
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 20%),
     radial-gradient(130% 90% at 50% 118%, rgba(0, 0, 0, 0.5), transparent 58%);
+
+  /* SP11: preset tiles in the wallpaper picker must show each base's REAL look
+     regardless of the theme in effect, so they cannot read --app-bg. */
+  --app-bg-preview-blue: linear-gradient(160deg, #4a5d92, #2a3354 55%, #141a2b);
+  --app-bg-preview-light: linear-gradient(160deg, #ffffff, #f7f5ef);
+  --wallpaper-tile-label-bg: rgba(0, 0, 0, 0.45);
+  --wallpaper-tile-label-fg: #ffffff;
 }
 
 /* ═══ 白色 / 米白纸感主题:覆盖全部颜色 token(结构 token 沿用 :root)。权威取值见 docs/THEMING.md §2 ═══ */
@@ -400,6 +407,14 @@
      disappears. A white veil, not a dark vignette, is what keeps it legible.
      This is a readability floor, not polish. */
   --wallpaper-scrim: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55));
+
+  /* SP11: first two values are deliberately identical to the dark block above --
+     these paint "what that base looks like", independent of the active theme.
+     The last two switch to paper-toned values for this theme. */
+  --app-bg-preview-blue: linear-gradient(160deg, #4a5d92, #2a3354 55%, #141a2b);
+  --app-bg-preview-light: linear-gradient(160deg, #ffffff, #f7f5ef);
+  --wallpaper-tile-label-bg: rgba(255, 255, 255, 0.72);
+  --wallpaper-tile-label-fg: #1c1b19;
 
   /* 2.10 模糊(纸感不用玻璃) */
   --blur: none;

@@ -786,4 +786,19 @@ export default {
   tmItemCount: '{n} 项',
   tmRailJumpTo: '跳转到 {time} 的快照',
 
+  wpTitle: '更换壁纸',
+  wpPresetBlue: '蓝色底板',
+  wpPresetLight: '白色底板',
+  wpBuiltin1: '内置壁纸 1',
+  wpBuiltin2: '内置壁纸 2',
+  wpUpload: '上传图片',
+  wpFromNas: '从 NAS 选择',
+  wpApply: '应用',
+  wpCancel: '取消',
+  wpSaveFailed: '保存失败,请重试',
+  wpTooLarge: '图片不能超过 10 MB',
+  wpUploadFailed: '上传失败,请重试',
+  wpSetOk: '已设为壁纸',
+  themePhoto: '照片…',
+
 }

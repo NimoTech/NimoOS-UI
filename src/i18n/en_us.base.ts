@@ -786,4 +786,19 @@ export default {
   tmItemCount: '{n} items',
   tmRailJumpTo: 'Jump to the snapshot from {time}',
 
+  wpTitle: 'Change wallpaper',
+  wpPresetBlue: 'Blue base',
+  wpPresetLight: 'White base',
+  wpBuiltin1: 'Built-in 1',
+  wpBuiltin2: 'Built-in 2',
+  wpUpload: 'Upload image',
+  wpFromNas: 'Choose from NAS',
+  wpApply: 'Apply',
+  wpCancel: 'Cancel',
+  wpSaveFailed: 'Save failed, please try again',
+  wpTooLarge: 'Image must be 10 MB or smaller',
+  wpUploadFailed: 'Upload failed, please try again',
+  wpSetOk: 'Wallpaper updated',
+  themePhoto: 'Photo…',
+
 }
