@@ -36,12 +36,12 @@ export default defineConfig({
   plugins: [vue(), copyPdfjsAssets()],
   // ⚠️ 共享包 @nimotech/nimoos-service 必须排除出依赖预打包(SP9-P1 验收踩到,
   // SP13 内联时误删过一次、实测证明坑还在,已恢复 —— 见下方"SP13 教训")。
-  // 它是 `file:` 依赖(SP1-SP12 指向 `../NimoOS-Service`,SP13 起指向仓内
+  // 它是 `file:` 依赖(SP1-SP12 指向外部同级仓库,SP13 起指向仓内
   // `packages/service`),pnpm 都会把它的文件硬链进 `.pnpm` 目录 —— 在 Vite 眼里
   // 始终是个普通的 node_modules 依赖(解析链路最终落在 node_modules 下),
   // 于是会被预打包进 node_modules/.vite/deps/。而预打包缓存的失效判据是
   // lockfile / config / 依赖版本号,**不看依赖内容**——SP13 之前那个包版本号恒为
-  // 0.0.1,`cd ../NimoOS-Service && pnpm build` 之后缓存不失效,dev server 一直喂
+  // 0.0.1,手动对着外部仓单独重新构建一遍之后缓存也不失效,dev server 一直喂
   // 浏览器旧包;新加的方法在浏览器里全是 undefined(表现为 `xxx is not a function`,
   // 被调用处 catch 成"保存失败")。单测走源码、生产 build 走 node_modules,两边都是
   // 新的,所以只在 dev 复现。exclude 后 dev 直接按需加载真实文件——**重启一次 dev
@@ -57,9 +57,9 @@ export default defineConfig({
   // `.vite/deps/@nimotech_nimoos-service.js` 仍是编辑前的旧内容;连"重启 dev
   // server"都救不了,因为 `pnpm-lock.yaml` 对 `file:` 目录依赖只记目录路径
   // (`resolution: {directory: packages/service, type: directory}`),不记内容哈希,
-  // 编辑源码从不触发这条失效判据。**内联真正根治的只是"构建步骤"**(不用再
-  // `cd ../NimoOS-Service && pnpm build`),**没有根治预打包缓存喂旧包**——两件事
-  // 是分开的,这段 exclude 因此必须留着,不因为入口指向源码就可以删。
+  // 编辑源码从不触发这条失效判据。**内联真正根治的只是"构建步骤"**(此前这个包曾是
+  // 外部依赖,改完要单独跑一次那个仓自己的构建才能生效),**没有根治预打包缓存喂旧包**
+  // ——两件事是分开的,这段 exclude 因此必须留着,不因为入口指向源码就可以删。
   optimizeDeps: {
     exclude: ['@nimotech/nimoos-service'],
     include: ['axios'], // 上面 exclude 掉的包内部 import 它,显式登记以免触发"发现新依赖 → 整页重载"
@@ -85,8 +85,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本 + NimoOS-Service 软链),
+    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本),
     // 不排除的话 vitest 会递归进去跑别的会话的测试并大片报错。
+    // (SP13 内联前这里还需要额外给 NimoOS-Service 一条软链才能装上依赖——内联后
+    // `file:packages/service` 是仓内相对路径,worktree 里天然可解析,不再需要软链
+    // 这个附带收益。)
     exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
     setupFiles: ['./vitest.setup.ts'],
   },

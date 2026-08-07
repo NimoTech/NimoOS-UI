@@ -1,10 +1,37 @@
 # SP13 共享包内联 New-UI · 实施计划
 
+> ## 🔴 2026-08-07 执行后修订横幅 —— 本计划的核心前提在执行中被实测推翻
+>
+> 这份计划写的时候,"包入口指 TS 源码 ⇒ `optimizeDeps.exclude` 与 `vitest
+> server.deps.inline` 两处补丁可以删掉"是**核心论点**,写进了 Architecture 段
+> (:7)、File Structure 表(:59)、Task 3 Step 4/7(:317-332、:372-390)、Task 3
+> Step 10 的 commit message(:443)、以及要回填进 roadmap 的收尾文案(:757)。
+> **执行中三轮独立实测(Task 3 修复轮 1/2、Task 4 无头 chromium 真机取证)把这条
+> 前提逐步推翻**:
+>
+> 1. `optimizeDeps.exclude` **不能删**——删掉后即使反复重启 dev server 也拿不到
+>    新代码(预打包缓存的失效判据是 lockfile/版本号,不看依赖内容),已经原样恢复。
+> 2. **做不到"存盘即生效"**,必须**重启 dev server**——Vite 的文件 watcher 默认
+>    忽略 `node_modules/**`,而这个包正是经这条路径服出去的。
+> 3. 重启后浏览器**仍可能命中磁盘缓存**(模块 URL 带 `immutable` 缓存头,查询串
+>    哈希取自 lockfile/config、不随包源码变),已经加载过页面的 tab 必须**硬刷新**
+>    (`Ctrl-Shift-R`)才能看到新代码。
+>
+> **最终口径(以 spec §6 与 `CLAUDE.md` 为准)**:改包源码 → 重启 dev server →
+> 硬刷新浏览器。无需 `pnpm build` / 清 `.vite` / `pnpm install`(硬链接断开时例外,
+> 见 `CLAUDE.md`「硬链接陷阱」)。
+>
+> **下面**逐处按"原文 X(已证伪)→ 实际 Y"的写法就地标注,**不删除原文**——保留
+> 「原判据已证伪」的历史正是这套 SDD 流程的价值所在,别把这份计划当模板照抄,
+> 尤其是 Task 3 Step 4/7 与要写进 `CLAUDE.md` 的那段模板文案。完整取证记录见
+> `.superpowers/sdd/2026-08-07-vue3-migration-sp13-service-inline/progress.md`
+> 与 `final-review.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 `@nimotech/nimoos-service` 的源码搬进 `NimoOS-New-UI/packages/service/`，让 New-UI 只依赖仓内那一份；Vue2（`NimoOS-UI`）继续吃独立仓 `NimoOS-Service`，两侧从此各自演进。
 
-**Architecture:** 包身份保留（import 说明符 `@nimotech/nimoos-service` 一个字不改，涉及 457 个文件 / 578 处），只把 `package.json` 的依赖从 `file:../NimoOS-Service` 改成 `file:packages/service`，并把包入口从 `./dist/index.js` 改指 `./src/index.ts`。入口指 TS 源码之后，「改完包要 `pnpm build`、dev server 还喂旧预打包缓存」那条漂移链路对 New-UI 侧彻底消失，`optimizeDeps.exclude` 与 `vitest server.deps.inline` 两处补丁随之删除。开源导出流水线（`oss/`）从「archive 两个仓」改成「archive 一个仓 + 在同树子目录上应用 `SERVICE_*` 清单」。
+**Architecture:** 包身份保留（import 说明符 `@nimotech/nimoos-service` 一个字不改，涉及 457 个文件 / 578 处），只把 `package.json` 的依赖从 `file:../NimoOS-Service` 改成 `file:packages/service`，并把包入口从 `./dist/index.js` 改指 `./src/index.ts`。~~入口指 TS 源码之后，「改完包要 `pnpm build`、dev server 还喂旧预打包缓存」那条漂移链路对 New-UI 侧彻底消失，`optimizeDeps.exclude` 与 `vitest server.deps.inline` 两处补丁随之删除。~~（**已证伪**——见文件顶部修订横幅：`pnpm build` 那一半确实消失了，但 `optimizeDeps.exclude` 守的是另一半坑（预打包缓存喂旧包），实测删了之后连重启 dev server 都救不回来，已恢复；`vitest server.deps.inline` 那一处删除本身没问题，与前者是两件独立的事。）开源导出流水线（`oss/`）从「archive 两个仓」改成「archive 一个仓 + 在同树子目录上应用 `SERVICE_*` 清单」。
 
 **Tech Stack:** pnpm 9 · Vite 7 · Vitest 4 · vue-tsc 2 · TypeScript 5（`moduleResolution: Bundler`）· Node `git archive`
 
@@ -56,7 +83,7 @@
 |---|---|---|
 | `packages/service/package.json` | 入口 `dist` → `src`，`files` 同改 | 3 |
 | `package.json:29` | `file:../NimoOS-Service` → `file:packages/service` | 3 |
-| `vite.config.ts:46-49` | 删 `optimizeDeps.exclude`，坑注释改写成历史说明 | 3 |
+| `vite.config.ts:46-49` | ~~删 `optimizeDeps.exclude`，坑注释改写成历史说明~~（**已证伪并恢复**——见文件顶部修订横幅；实际改动是坑注释补写"SP13 教训"一段,`exclude` 本身原样保留） | 3 |
 | `vite.config.ts:75-79` | 删 `server.deps.inline` | 3 |
 | `CLAUDE.md:28-32` | 「共享 service 包（已知漂移坑）」整节重写 | 3 |
 | `../NimoOS-Service/CLAUDE.md` | **新建**：本包只服务 Vue2 | 3 |
@@ -120,6 +147,10 @@ ls "$SPIKE/packages/service/src" | wc -l   # 期望 69
 根依赖（`$SPIKE/package.json`）：`"@nimotech/nimoos-service": "file:../NimoOS-Service"` → `"@nimotech/nimoos-service": "file:packages/service"`
 
 根 `$SPIKE/vite.config.ts`：删掉 `optimizeDeps` 整块（46-49 行）与 `server: { deps: { inline: [...] } }` 整块（75-79 行）。
+
+> **已证伪（见文件顶部修订横幅）**：这一步在 spike 里做没问题（spike 只探 `vue-tsc`/jsdom，不碰
+> dev server），但 Task 3 把它照搬到真仓后，删掉 `optimizeDeps.exclude` 这一半在真机上被证明是错的
+> ——已在 Task 3 恢复。`server.deps.inline` 那一半删除本身没问题。
 
 - [ ] **Step 3: 装依赖**
 
@@ -316,7 +347,19 @@ ls -l node_modules/@nimotech/nimoos-service
 
 - [ ] **Step 4: 删 `optimizeDeps`，把坑注释改写成历史说明**
 
-`vite.config.ts` 第 45-49 行整块（那段 20 行注释 + `optimizeDeps`）替换为：
+> ## 🔴 修订横幅(2026-08-07,执行中证伪)—— 本 Step 原文的核心动作被推翻
+>
+> 原文（下面代码块）的论点是「入口指 TS 源码 ⇒ 预打包缓存的坑自然消失 ⇒ `exclude` 可以删」。
+> **Task 3 修复轮 1 + 控制器独立复现，两轮实测都证明这是错的**：删掉 `optimizeDeps.exclude`
+> 后，即使反复重启 dev server 也拿不到新代码（该包依旧是 `file:` 依赖、依旧经
+> `node_modules` 解析，Vite 照样把它当普通依赖预打包；预打包缓存的失效判据是
+> lockfile/config/依赖版本号，不看依赖内容——`pnpm-lock.yaml` 对 `file:` 目录依赖只记
+> 路径不记内容哈希）。**实际处置：`optimizeDeps.exclude` 原样恢复保留**，坑注释改写成
+> 「SP13 教训」一段说明"入口指源码"与"预打包缓存喂旧包"是两件独立的事，前者被内联解决，
+> 后者仍要靠 `exclude` 顶着。现状见 `vite.config.ts:37-62` 的实际注释。下面代码块**仅作为
+> 已被推翻的历史记录保留**，不要照它执行。
+
+`vite.config.ts` 第 45-49 行整块（那段 20 行注释 + `optimizeDeps`）~~替换为~~（原计划这样写，**已证伪**）：
 
 ```ts
   // ⚠️ 历史(SP1–SP12):共享包曾是 `file:../NimoOS-Service` 外部依赖,被 Vite 当普通
@@ -330,6 +373,10 @@ ls -l node_modules/@nimotech/nimoos-service
 ```
 
 **注意 `include: ['axios']` 也在这块里** —— 它是为配合 exclude 才加的（"exclude 掉的包内部 import 它，显式登记以免触发发现新依赖 → 整页重载"）。exclude 没了之后它大概率多余，但**必须实测**：Step 8 起 dev server 时若控制台出现 `new dependencies optimized: axios` 并整页重载，就把 `optimizeDeps: { include: ['axios'] }` 加回来并注释说明原因。
+
+**（实际结果，2026-08-07）**：exclude 与 `include: ['axios']` 都没删——机主裁定（见 Task 3 台账
+「fix round 1/5」）：入口指 src 消掉 `pnpm build` 这一半仍然成立，`exclude` 负责另一半（dev
+即时性），两条都要才是本期完整收益。
 
 - [ ] **Step 5: 删 vitest 的 `server.deps.inline`**
 
@@ -360,7 +407,26 @@ pnpm build 2>&1 | tail -5
 
 - [ ] **Step 7: 重写 `CLAUDE.md` 的「共享 service 包」整节**
 
-把第 28-32 行整节换成：
+> ## 🔴 修订横幅(2026-08-07,执行中证伪)—— 下面这份模板文案有三处已被证伪的说法
+>
+> 这是**计划里最危险的一段**：它是"要写进 `CLAUDE.md` 的替换文本"，`CLAUDE.md` 正本
+> 早已按三次判据修订改准了（见 `CLAUDE.md`「共享 service 包」一节的现状），**但这份模板
+> 没有跟着改**——后人翻计划抄模板会把错的说法重新写回 `CLAUDE.md`。三处具体错误：
+>
+> 1. 「**改完存盘即生效,没有任何构建步骤**」——错。做不到"存盘即生效"，必须**重启 dev
+>    server**（Vite 的文件 watcher 默认忽略 `node_modules/**`），重启后浏览器还可能命中
+>    磁盘缓存，需要再**硬刷新**。
+> 2. 「**这条坑已根治,别再照旧文档操作**」——错。只有"改完要 `pnpm build`"这一半坑被
+>    根治；"dev server 预打包缓存喂旧包"这一半坑**没有**根治，`optimizeDeps.exclude`
+>    因此原样保留（原模板下文自己也漏写了这条 —— 它完全没提 exclude 要不要留）。
+> 3. 「**个别文件头带 `// @vitest-environment node`**」——错，实测为 **0 个文件**带这个
+>    回落注释（Task 1 探测：377 例在全局 jsdom 下全绿，未触发 §3.3 预判的红）。
+>
+> 下面代码块**仅作为已被推翻的历史记录保留**，不要照它抄。真正落地的文案见
+> `CLAUDE.md`「共享 service 包」一节（含硬链接陷阱、浏览器磁盘缓存陷阱两段附加警告，
+> 是本模板完全没有的）。
+
+把第 28-32 行整节~~换成~~（原计划这样写，**已证伪，勿照抄**）：
 
 ```markdown
 ## 共享 service 包(SP13 起已内联,无构建步骤)
@@ -386,6 +452,9 @@ workspace / projects 声明)。留着是为与开源产物树同形,别去改它
 —— 原仓是 node 环境,本仓根配置是全局 jsdom,那几个用 Blob/File/FormData 的文件逐个回落,
 不动根配置。
 ```
+
+**（实际落地的文案）**：见 `CLAUDE.md`「共享 service 包」一节的现状——经三次判据修订后的
+最终版本，多出"硬刷新浏览器"「硬链接陷阱」「浏览器磁盘缓存陷阱」三段本模板完全没有的内容。
 
 - [ ] **Step 8: 起 dev server 实测 `include: ['axios']` 该不该留**
 
@@ -440,8 +509,9 @@ git commit -m "feat(sp13): 翻依赖到仓内包 + 删两处预打包补丁 + �
 
 package.json: file:../NimoOS-Service → file:packages/service
 packages/service/package.json: 入口 dist → src(与产物树 SERVICE_PATCH 第 1 条同形)
-vite.config.ts: 删 optimizeDeps.exclude 与 vitest server.deps.inline
-  —— 入口指 TS 源码后,预打包缓存喂旧包那条漂移链路对 New-UI 侧不复存在
+vite.config.ts: 删 vitest server.deps.inline(optimizeDeps.exclude 原样保留 ——
+  见文件顶部修订横幅,「删 optimizeDeps.exclude」那句计划原文已证伪,exclude 顶的是
+  预打包缓存喂旧包这条独立坑,入口指 TS 源码不能替代它)
 CLAUDE.md: 「共享 service 包」整节重写 —— 旧文本的
   「改动该包后必须 cd ../NimoOS-Service && pnpm build」内联后是错误指引
 
@@ -754,7 +824,7 @@ grep -rn "NimoOS-Service" package.json pnpm-lock.yaml vite.config.ts tsconfig.js
 
 ```diff
 -| **SP13** 共享包内联 New-UI | 由 SP10-T3 机主拍板(2026-08-07)派生:New-UI 把 `@nimotech/nimoos-service` 内联进自己仓库、只依赖仓内那一份;**Vue2 继续依赖原来的独立包**,两侧从此各自演进 | M | ⬜ **与 SP11/SP12 无依赖,可任意穿插** |
-+| **SP13** 共享包内联 New-UI | 由 SP10-T3 机主拍板(2026-08-07)派生:New-UI 把 `@nimotech/nimoos-service` 内联进自己仓库、只依赖仓内那一份;**Vue2 继续依赖原来的独立包**,两侧从此各自演进 | M | ✅ **T1-T6 全部关账(填执行当天日期,格式 2026-MM-DD)**;包落 `packages/service/`(源自 Service@`ac39cd7`)、入口指 TS 源码、`optimizeDeps.exclude` 与 `server.deps.inline` 两处补丁已删;导出流水线改为只 archive 一个仓;**未部署未推 origin** |
++| **SP13** 共享包内联 New-UI | 由 SP10-T3 机主拍板(2026-08-07)派生:New-UI 把 `@nimotech/nimoos-service` 内联进自己仓库、只依赖仓内那一份;**Vue2 继续依赖原来的独立包**,两侧从此各自演进 | M | ✅ **T1-T6 全部关账(填执行当天日期,格式 2026-MM-DD)**;包落 `packages/service/`(源自 Service@`ac39cd7`)、入口指 TS 源码、~~`optimizeDeps.exclude` 与 `server.deps.inline` 两处补丁已删~~(**已证伪,见文件顶部修订横幅** —— 实际只删了 `server.deps.inline`;`optimizeDeps.exclude` 经两轮实测证明仍必需,原样保留);导出流水线改为只 archive 一个仓;**未部署未推 origin** |
 ```
 
 - [ ] **Step 6: 更新路线图 —— §4 SP13 段落**

@@ -17,22 +17,13 @@ NimoOS Web UI 的 **Vue 3 + TypeScript + Vite** 重写。
 ## 环境要求
 
 - Node.js ≥ 20,**pnpm**(勿用 yarn / npm)
-- **必须与 [`NimoOS-Service`](https://github.com/NimoTech/NimoOS-Service) 克隆为同级目录** —— 本仓库通过 `file:../NimoOS-Service` 链接共享的 HTTP/认证内核包 `@nimotech/nimoos-service`,单独克隆无法安装依赖:
-
-```
-workspace/
-├── NimoOS-Service/     # 共享 service 包(必需)
-└── NimoOS-New-UI/      # 本仓库
-```
+- 共享的 HTTP/认证内核包 `@nimotech/nimoos-service` 已内联在本仓 `packages/service/`
+  (`package.json` 里写的是 `file:packages/service`)——**单独克隆本仓即可安装依赖**,
+  不需要额外克隆或构建任何同级仓库。
 
 ## 快速开始
 
 ```bash
-# 1. 首次:先构建共享包
-git clone git@github.com:NimoTech/NimoOS-Service.git
-cd NimoOS-Service && pnpm install && pnpm build && cd ..
-
-# 2. 本仓库
 git clone git@github.com:NimoTech/NimoOS-New-UI.git
 cd NimoOS-New-UI
 pnpm install
@@ -101,6 +92,13 @@ docs/
 - JWT(access/refresh)存 localStorage,401 时由共享包单飞刷新兜底。
 - 认证失败处理顺序不可颠倒:**先清废 token,再跳 `/app/#/login`**(否则路由守卫会造成无限重定向环)。
 
-### 共享包漂移
+### 共享包(`@nimotech/nimoos-service`)
 
-改动 `../NimoOS-Service` 后必须 `cd ../NimoOS-Service && pnpm build`;若本仓库构建报 `Module not found`,执行 `pnpm install` 重新同步 `file:` 链接。
+源码内联在本仓 `packages/service/`,无需单独构建。改动它之后:**重启 dev server**
+(`Ctrl-C` 再 `pnpm dev`)才会生效——Vite 的文件 watcher 默认忽略 `node_modules/**`,
+而这个包正是经这条路径服出去的,存盘不会自动触发热更新。重启之后浏览器仍可能命中
+磁盘缓存(该模块的 URL 带 `immutable` 缓存头),需要**硬刷新**(`Ctrl-Shift-R`)才能
+看到新代码。都不需要 `pnpm build`、清 `.vite` 缓存或 `pnpm install`——除非
+`packages/service/src/*.ts` 与其在 `node_modules/.pnpm/` 下的硬链接镜像断开(重启 +
+硬刷新后仍是旧代码时,跑一次 `pnpm install` 重新链上即可)。完整说明见 `CLAUDE.md`
+「共享 service 包」一节。

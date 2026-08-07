@@ -12,14 +12,21 @@
 
 `oss/export.mjs` 单文件编排,固定六步(见该文件内 `1/6`..`6/6` 的 log):
 
-1. **前置检查** —— 两个源仓(`NimoOS-New-UI` 本仓 + 同级 `NimoOS-Service`)工作树必须干净
-   (`checkClean`),记录两边 HEAD。
+1. **前置检查** —— 本仓(`NimoOS-New-UI`)工作树必须干净(`checkClean`),记录 HEAD。
+   (共享包 `@nimotech/nimoos-service` 已内联在 `packages/service/`——SP13 之前这里
+   还要额外检查同级仓 `NimoOS-Service` 是否干净,内联后那个仓已经不在导出路径里了。)
 2. **取源** —— `git archive HEAD | tar -x` 到临时目录(天然排除 `.git`/`node_modules`/
-   `dist`/`.superpowers` 等未跟踪或被 gitignore 的内容),`NimoOS-Service` 取到
-   `packages/service/` 子目录下。
-3. **应用清单** —— 顺序固定 `DELETE → REPLACE → PATCH`(`manifest.mjs` 的五张表)。
-4. **内嵌 Service** —— 改 `package.json` 的 `file:` 依赖路径 + `pnpm-lock.yaml` 的对应路径,
-   把 `../NimoOS-Service` 变成仓内的 `packages/service`。
+   `dist`/`.superpowers` 等未跟踪或被 gitignore 的内容);`packages/service/` 是本仓的
+   子目录,随这一次 `archive` 一起取出,不再需要对另一个仓再 archive 一遍。
+3. **应用清单** —— 顺序固定 `DELETE → REPLACE → PATCH`(`manifest.mjs` 的五张表);
+   `SERVICE_DELETE`/`SERVICE_PATCH` 额外应用在 `packages/service/` 子目录上(参见
+   `export.mjs` 里那两条独立表存在的理由——不是"两个仓各自一套",是"同一棵树里
+   两个各自独立入库的台账目录都要剔除")。
+4. **重算 lockfile** —— 清单摘掉了部分 `package.json` 依赖(`dependencies`),
+   `pnpm install --lockfile-only` 让 `pnpm-lock.yaml` 与之保持一致。(SP13 内联前这一步
+   还要把 `package.json`/`pnpm-lock.yaml` 里 `file:../NimoOS-Service` 的路径重写成
+   `file:packages/service`;内联后私有仓本身写的就是 `file:packages/service`,这项
+   路径重写已经不存在,只剩 lockfile 重算这一件事。)
 5. **泄漏守卫** —— `forbidden.mjs` 的 `scanTree` 扫全部文本文件(HARD 硬禁词 + SOFT 中文
    软禁词,逐条白名单),命中即 `throw`,一个字节都不落盘。
 6. **落盘 + 零历史提交** —— `rsync --delete` 覆盖 `--out` 目录,`git init -b main`(或

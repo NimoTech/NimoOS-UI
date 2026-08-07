@@ -31,13 +31,16 @@ HTTP/认证内核是 **`@nimotech/nimoos-service`**,**源码就在本仓 `packag
 (`package.json` 里写的是 `file:packages/service`)。`main.ts` 用 `initService({...})` 注入
 token 取存、`onAuthFail`、语言等回调。
 
-**内联消掉的是构建步骤,不是构建本身**:包入口从 `dist/index.js` 改指
+**内联消掉的是构建步骤,没有消掉预打包缓存**:包入口从 `dist/index.js` 改指
 `packages/service/src/index.ts`(TS 源码),所以不用再 `cd ../NimoOS-Service && pnpm build`
-单独构建一遍——改完包代码,本仓的 Vite / Vitest / vue-tsc 都会按源码重新解析。
+单独构建一遍——改完包代码,本仓的 Vite / Vitest / vue-tsc 都会按源码重新解析。但这只是
+两件独立的事之一;`node_modules` 预打包缓存喂旧包这条坑依旧在,靠下方 `optimizeDeps.exclude`
+顶着。
 
 **dev server 的实际生效方式**:改完包源码 → **重启 dev server**(`Ctrl-C` 再 `pnpm dev`)
-→ 生效。不用 `pnpm build`、不用清 `.vite` 缓存、不用 `pnpm install`(前提是 hardlink 没断,
-见下方"硬链接陷阱")。**做不到"存盘即 HMR"**——Vite 的文件 watcher 默认忽略
+→ 生效(浏览器侧还要硬刷新,见下)。不用 `pnpm build`、不用清 `.vite` 缓存、不用
+`pnpm install`(前提是 hardlink 没断,见下方"硬链接陷阱")。**做不到"存盘即 HMR"**——
+Vite 的文件 watcher 默认忽略
 `node_modules/**`,而这个包正是经 `node_modules/.pnpm/@nimotech+nimoos-service@.../src/*.ts`
 这条路径服出去的(即使 `optimizeDeps.exclude` 让 Vite 服的是真源码而不是预打包产物,
 watcher 依然看不到它的变化),所以进程内缓存的 transform 结果不会自动失效,必须重启才能

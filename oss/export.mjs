@@ -60,18 +60,27 @@ log(`  New-UI ${headNewUi.slice(0, 8)}(共享包已内联,不再取第二个仓)
 //   `git archive HEAD` 只有两条排除依据 ——
 //     ① **未被 git 跟踪的文件**(.git 自身、node_modules/、dist/、scripts/tmlab/ 都属此类:
 //        前三个在 .gitignore 里,tmlab 也是 `git ls-files | grep tmlab` = 0 条);
-//     ② `.gitattributes` 里标了 `export-ignore` 的路径 —— **本项目两个仓都没有
-//        .gitattributes 文件**(实测 New-UI 与 NimoOS-Service 均无),所以这条依据
-//        在这里等于不存在。
+//     ② `.gitattributes` 里标了 `export-ignore` 的路径 —— **本仓没有 .gitattributes
+//        文件**(实测确认),所以这条依据在这里等于不存在。
 //
 //   ⇒ **凡是被跟踪的文件,一律会进产物树**,只能靠清单显式剔除。`.superpowers/` 正是
-//     这种情况:2026-08-05 起两个仓都把台账**入库**了(New-UI 1718 份 / Service 32 份,
-//     `git ls-files .superpowers | wc -l` 现测),因此需要 **两条独立的清单条目**:
-//       · New-UI 侧 → manifest.mjs 的 `DELETE` 表里的 '.superpowers'
-//       · Service 侧 → `SERVICE_DELETE` 表里的 '.superpowers'(SP8-P6-T8 补,此前漏着)
+//     这种情况:2026-08-05 起台账入库成了纪律,而这里恰好有**两处**各自独立入库的
+//     台账目录 —— New-UI 根的 `.superpowers/`,与 `packages/service/.superpowers/`
+//     (SP13 内联前是独立仓 `NimoOS-Service` 自己的台账;内联后随同一次 `archive`
+//     一起进了这棵树,但它是**它自己那份**,没有跟着并进根 `.superpowers/`)。
+//     **"两个仓各自的台账"这句旧描述已经不准确(现在只 archive 一个仓),但结论没变**:
+//     仍然需要 **两条独立的清单条目**,分别剔除这两处:
+//       · New-UI 根 → manifest.mjs 的 `DELETE` 表里的 '.superpowers'
+//       · `packages/service/` 子目录 → `SERVICE_DELETE` 表里的 '.superpowers'
+//         (SP8-P6-T8 补,此前漏着;SP13 内联只是把它的基准目录从"另一次 archive 的
+//         根"换成"同一棵树里的子目录",条目本身原样保留)
 //     漏掉任何一条都不会有人报错 —— 兜底的只有泄漏守卫的词命中,而台账里恰好一个禁词
-//     都没有的那天,它就静默上公网了。tree.test.mjs 因此另有两条**目录存在性**断言
-//     (不依赖词表),见那边「台账目录两个仓都不能进产物树」那条用例。
+//     都没有的那天,它就静默上公网了。**⚠️ 具体后果**:若有人因为"现在只剩一个仓了"
+//     推出"一条 DELETE 就够,SERVICE_DELETE 那条 '.superpowers' 是多余的"并把它删掉,
+//     437 处台账内容会原样落进公开产物树,而 `forbidden.mjs` 的词表里一个禁词都没有,
+//     **泄漏守卫不会响**——这正是这段注释想提前挡住的那种事故。tree.test.mjs 因此
+//     另有两条**目录存在性**断言(不依赖词表),见那边「两处台账目录都不能进产物树」
+//     那条用例。
 log('2/6 取源')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-export-'))
 // try 从这里开始(mkdtempSync 之后、第一次可能失败的操作 archiveInto 之前),覆盖取源 +
