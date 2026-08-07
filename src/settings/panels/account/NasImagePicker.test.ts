@@ -135,7 +135,10 @@ describe('NasImagePicker —— 对位 Vue2 state 6(:763-846)', () => {
     await w.findAll('[data-test="nas-storage"]')[0].trigger('click')
     await flush()
     await w.findAll('[data-test="nas-item"]')[0].trigger('click')
-    expect(w.emitted('pick')).toEqual([[`/v1/image?path=${encodeURIComponent('/DATA/a.png')}&type=original`]])
+    expect(w.emitted('pick')).toEqual([[{
+      path: '/DATA/a.png',
+      src: `/v1/image?path=${encodeURIComponent('/DATA/a.png')}&type=original`,
+    }]])
   })
 
   it('目录为空 → 显示「此处没有图片文件」', async () => {

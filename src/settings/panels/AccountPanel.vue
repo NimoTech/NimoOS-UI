@@ -97,9 +97,9 @@ function onOpenMember(m: MemberInfo) {
   goto(5)
 }
 
-function onNasPick(src: string) {
-  // NAS 选图给的是 /v1/image URL,不是 objectURL → 不需要 revoke(第二个参数 false)。
-  setPickedImage(src, false)
+function onNasPick(picked: { path: string; src: string }) {
+  // NAS picks are /v1/image URLs, not objectURLs, so no revoke is needed (second arg false).
+  setPickedImage(picked.src, false)
   goto(4)
 }
 

@@ -9,21 +9,26 @@
 // reka-ui DialogRoot with :modal="false", anchored to the bottom, no overlay,
 // so the top of the screen keeps showing the real desktop.
 //
-// Task 5 scope: preset tiles + apply/cancel only. The upload and "choose from
-// NAS" buttons render here with their final labels and data-test hooks, but
-// have no click behaviour yet -- Task 6 wires the hidden file input and the
-// NAS sub-view onto them.
+// Task 5 shipped the preset tiles + apply/cancel and the two source buttons
+// with their final labels and data-test hooks. Task 6 wired the hidden file
+// input (upload) and the NAS sub-view onto them.
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DialogRoot, DialogPortal, DialogContent, DialogTitle } from 'reka-ui'
 import { useWallpaperStore, BUILTIN_IDS, NONE, builtinUrl, type BuiltinId } from '../stores/wallpaper'
 import { useThemeStore, type Theme } from '../stores/theme'
+// Cross-area import, registered in spec section 4.5: NasImagePicker stays under
+// settings/ because it depends on settings.css, and dragging that stylesheet into
+// the global bundle would cost more than this one import.
+import NasImagePicker from '../settings/panels/account/NasImagePicker.vue'
 
 const { t } = useI18n()
 const wp = useWallpaperStore()
 const theme = useThemeStore()
 const error = ref('')
 const saving = ref(false)
+const fileEl = ref<HTMLInputElement | null>(null)
+const nasOpen = ref(false)
 
 const activeId = computed<string>(() => {
   const r = wp.record
@@ -62,6 +67,37 @@ function cancel() {
   wp.closeDialog()
 }
 
+async function onFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  error.value = ''
+  try {
+    await wp.uploadAndPreview(file)
+  } catch (err) {
+    // The size check throws before any request; anything else is a real upload failure.
+    error.value = /too large/i.test(String(err)) ? t('wpTooLarge') : t('wpUploadFailed')
+  } finally {
+    input.value = ''   // allow re-picking the same file after a failure
+  }
+}
+
+async function onNasPick(picked: { path: string; src: string }) {
+  error.value = ''
+  try {
+    await wp.setFromNasPath(picked.path)
+    // setFromNasPath already persisted on the backend (it also serves the files
+    // context-menu one-shot path with no dialog to confirm in), so a later
+    // Cancel must not pretend to roll this back -- reset the snapshot to now.
+    wp.beginPreview()
+    nasOpen.value = false
+  } catch (err) {
+    // The backend caps this path at 10 MB and reports it as HTTP 200 + success!=200;
+    // show its message rather than a generic one.
+    error.value = String((err as Error)?.message || t('wpUploadFailed'))
+  }
+}
+
 function onOpenChange(open: boolean) {
   // Esc / outside-dismiss must behave like Cancel, not like silently keeping an
   // unconfirmed preview.
@@ -97,9 +133,18 @@ function onOpenChange(open: boolean) {
           </button>
         </div>
 
-        <div class="wp-actions">
-          <button type="button" class="bar-btn" data-test="wp-upload">{{ t('wpUpload') }}</button>
-          <button type="button" class="bar-btn" data-test="wp-nas">{{ t('wpFromNas') }}</button>
+        <div v-if="!nasOpen" class="wp-actions">
+          <button type="button" class="bar-btn" data-test="wp-upload" :disabled="wp.busy"
+            @click="fileEl?.click()">{{ t('wpUpload') }}</button>
+          <!-- Hidden native input rather than a drop zone: mirrors Vue2's single
+               "pick a file" affordance, and needs no new dependency. -->
+          <input ref="fileEl" class="wp-file" type="file" data-test="wp-file"
+            accept="image/png,image/jpeg,image/bmp,image/gif,image/svg+xml" @change="onFile" />
+          <button type="button" class="bar-btn" data-test="wp-nas"
+            @click="nasOpen = true">{{ t('wpFromNas') }}</button>
+        </div>
+        <div v-else class="wp-nas" data-test="wp-nas-picker">
+          <NasImagePicker @pick="onNasPick" />
         </div>
 
         <p v-if="error" class="wp-error" data-test="wp-error">{{ error }}</p>
@@ -143,6 +188,8 @@ function onOpenChange(open: boolean) {
   background: var(--wallpaper-tile-label-bg); color: var(--wallpaper-tile-label-fg);
 }
 .wp-actions { display: flex; gap: 10px; margin-top: 14px; }
+.wp-file { display: none; }
+.wp-nas { max-height: 46vh; overflow: auto; }
 .wp-error { margin: 12px 0 0; font-size: 13px; color: var(--remove-fg); }
 .wp-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .wp-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }

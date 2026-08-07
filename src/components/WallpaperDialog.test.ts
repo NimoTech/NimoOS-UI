@@ -151,3 +151,44 @@ describe('WallpaperDialog apply / cancel', () => {
     expect(useWallpaperStore().dialogOpen).toBe(true)
   })
 })
+
+describe('WallpaperDialog sources', () => {
+  it('rejects an oversized upload inline without hitting the network', async () => {
+    await mountOpen()
+    const input = body().find('[data-test="wp-file"]')
+    const big = new File([new Uint8Array(1)], 'big.jpg')
+    Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 })
+    Object.defineProperty(input.element, 'files', { value: [big] })
+    await input.trigger('change')
+    await flushPromises()
+    expect(body().find('[data-test="wp-error"]').text()).toBe('图片不能超过 10 MB')
+  })
+
+  it('a successful upload previews the uploaded image without persisting', async () => {
+    await mountOpen()
+    const input = body().find('[data-test="wp-file"]')
+    const small = new File([new Uint8Array([1])], 'a.jpg')
+    Object.defineProperty(input.element, 'files', { value: [small] })
+    await input.trigger('change')
+    await flushPromises()
+    expect(useWallpaperStore().record).toMatchObject({ kind: 'image', path: '/d/1/wallpaper.jpg' })
+    expect(setCustomStorage).not.toHaveBeenCalled()
+  })
+
+  it('the nas button swaps in the picker, and a pick previews then returns to the grid', async () => {
+    // Note: findComponent runs on the root VueWrapper, not the document.body
+    // DOMWrapper -- Teleport only moves rendered DOM nodes, not the Vue
+    // component (VNode) tree, so the mounted wrapper still sees this child.
+    const w = await mountOpen()
+    await body().find('[data-test="wp-nas"]').trigger('click')
+    await flushPromises()
+    expect(body().find('[data-test="wp-nas-picker"]').exists()).toBe(true)
+
+    await w.findComponent({ name: 'NasImagePicker' })
+      .vm.$emit('pick', { path: '/DATA/Gallery/a.png', src: '/v1/image?path=/DATA/Gallery/a.png' })
+    await flushPromises()
+    expect(useWallpaperStore().record).toMatchObject({ kind: 'image', path: '/d/1/wallpaper.png' })
+    expect(body().find('[data-test="wp-nas-picker"]').exists()).toBe(false)
+    expect(body().find('[data-test="wp-preset-w01"]').exists()).toBe(true)
+  })
+})

@@ -19,7 +19,10 @@ import {
 } from '../../util/nasStorages'
 import '../../styles/settings.css'
 
-const emit = defineEmits<{ pick: [src: string] }>()
+// SP11: the payload carries both halves because the two consumers need different
+// ones -- the avatar cropper wants a displayable URL, the wallpaper picker needs
+// the on-disk NAS path to hand to PUT /users/current/image/wallpaper.
+const emit = defineEmits<{ pick: [{ path: string; src: string }] }>()
 const { t } = useI18n()
 
 const view = ref<'storages' | 'browse'>('storages')
@@ -126,7 +129,7 @@ const atRoot = computed(() => nasPath.value === nasRootPath.value)
 
 function onItemClick(item: { path: string; is_dir: boolean }) {
   if (item.is_dir) openFolder(item.path)
-  else emit('pick', service.image.imageUrl(item.path, 'original'))
+  else emit('pick', { path: item.path, src: service.image.imageUrl(item.path, 'original') })
 }
 
 function sizeText(s: NasStorage): string {

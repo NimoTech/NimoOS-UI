@@ -266,7 +266,10 @@ describe('AccountPanel 宿主状态机', () => {
     await w.find('[data-test="acc-nas"]').trigger('click')
     await flush()
     // 直接用子组件的 pick 事件(真实点击路径已在 NasImagePicker.test.ts 覆盖)
-    w.findComponent({ name: 'NasImagePicker' }).vm.$emit('pick', '/v1/image?path=%2FDATA%2Fa.png&type=original')
+    w.findComponent({ name: 'NasImagePicker' }).vm.$emit('pick', {
+      path: '/DATA/a.png',
+      src: '/v1/image?path=%2FDATA%2Fa.png&type=original',
+    })
     await flush()
     expect(w.find('[data-test="acc-cropper"]').attributes('data-src')).toBe('/v1/image?path=%2FDATA%2Fa.png&type=original')
     expect(create).not.toHaveBeenCalled()

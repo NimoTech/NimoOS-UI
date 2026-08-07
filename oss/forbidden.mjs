@@ -221,6 +221,9 @@ export const SOFT = [
       { file: /packages\/service\/src\/users\.test\.ts$/, re: exactLine("expect(calls[0].body).toEqual({ path: '/DATA/Gallery/a.png' })") },
       { file: /src\/stores\/wallpaper\.test\.ts$/, re: exactLine("await s.setFromNasPath('/DATA/Gallery/a.png')") },
       { file: /src\/stores\/wallpaper\.test\.ts$/, re: exactLine("expect(setImageFromPath).toHaveBeenCalledWith('wallpaper', '/DATA/Gallery/a.png')") },
+      // Task 6: same reserved-path sample, this time in WallpaperDialog's "choose
+      // from NAS" test -- the pick payload's NAS path, not the photos app.
+      { file: /src\/components\/WallpaperDialog\.test\.ts$/, re: exactLine(".vm.$emit('pick', { path: '/DATA/Gallery/a.png', src: '/v1/image?path=/DATA/Gallery/a.png' })") },
     ],
   },
   {
