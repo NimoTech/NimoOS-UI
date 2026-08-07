@@ -56,6 +56,22 @@ describe('Home integration', () => {
     expect(w.findAll('[data-id]').length).toBeGreaterThan(0) // DEFAULT 项渲染
   })
 
+  // SP11 review round 1, Critical finding: DesktopContextMenu must not put any
+  // element between GridCanvas's root (.grid) and .home-screen. useGridMeasure
+  // reads `grid.parentElement.clientWidth` (src/home/composables/useGridMeasure.ts);
+  // an intermediary box -- even a `display: contents` div -- has clientWidth 0
+  // in every real browser, which permanently clamps the whole desktop grid to
+  // its minimum cell size. jsdom has no layout engine, so it cannot catch this
+  // by measuring size; it can only catch it structurally, by checking that no
+  // node sits between .grid and its expected host.
+  it('does not introduce a wrapper element between .grid and .home-screen', async () => {
+    const w = mountHome()
+    await w.vm.$nextTick()
+    const grid = w.find('.grid').element
+    const screen = w.find('.home-screen').element
+    expect(grid.parentElement).toBe(screen)
+  })
+
   it('appgrid 加载后触发 autoPin,30s 轮询与 focus 各再触发', async () => {
     vi.useFakeTimers()
     const w = mountHome()
