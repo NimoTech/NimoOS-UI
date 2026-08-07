@@ -169,6 +169,16 @@ export const SOFT = [
       { file: /src\/views\/Files\.test\.ts$/, re: exactLine("router.push('/files/NimoOS-HD/Photos'); await router.isReady()") },
       { file: /src\/views\/Files\.test\.ts$/, re: exactLine("router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()") },
       { file: /src\/views\/Files\.test\.ts$/, re: exactLine("const w = await mountFiles('/DATA/Photos')") },
+      // 2026-08-07:SP11 壁纸功能新增文件里的 'photo' 全部是普通英文单词或 themePhoto
+      // 这个 i18n 键名本身(键名字面含 "Photo" 子串,与相册 app 无关),不是 AI/相册
+      // 语义。已用 oss/export.mjs 实测确认这批命中,逐条登记,不给整个文件开洞。
+      { file: /src\/i18n\/en_us\.base\.ts$/, re: exactLine("themePhoto: 'Photo…',") },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("themePhoto: '照片…',") },
+      { file: /src\/main\.ts$/, re: exactLine('// and the photo snaps in a frame later.') },
+      { file: /src\/styles\/theme\.css$/, re: exactLine('existing sheen + vignette shape so white text stays readable on any photo. */') },
+      { file: /src\/styles\/theme\.css$/, re: exactLine("/* SP11: the paper theme's text is near-black (#1c1b19); over a dark photo it") },
+      { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine("it('kills the bokeh layer, which would smear coloured fog over a photo', () => {") },
+      { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine('// text loses its white veil over a dark photo -- invisible to tsc, build,') },
     ],
   },
   {
@@ -203,6 +213,14 @@ export const SOFT = [
       { file: /src\/settings\/panels\/AppsPanel\.test\.ts$/, re: exactLine("expect(w.findAll('.set-app-row')[2].text()).toContain('/Documents & Downloads & Gallery & Media')") },
       { file: /src\/settings\/util\/migrateBrowse\.test\.ts$/, re: exactLine("'/media/Backup/Gallery', '/media/Backup/Media',") },
       { file: /src\/settings\/util\/migrateBrowse\.test\.ts$/, re: exactLine("it.each(['AppData', 'Documents', 'Downloads', 'Gallery', 'Media', '.docker', '.containerd'])(") },
+      // 2026-08-07:SP11 壁纸功能——用户头像/壁纸上传接口(setImageFromPath)与
+      // wallpaper store 的测试用例里,'/DATA/Gallery/a.png' 是普通的 NAS 图片示例路径
+      // (与既有的 protect.ts/defaultLayout.ts 那批 Gallery=系统默认文件夹是同一保留面),
+      // 不是相册 app。已用 oss/export.mjs 实测确认这批命中,逐条登记。
+      { file: /packages\/service\/src\/users\.test\.ts$/, re: exactLine("await users.setImageFromPath('wallpaper', '/DATA/Gallery/a.png')") },
+      { file: /packages\/service\/src\/users\.test\.ts$/, re: exactLine("expect(calls[0].body).toEqual({ path: '/DATA/Gallery/a.png' })") },
+      { file: /src\/stores\/wallpaper\.test\.ts$/, re: exactLine("await s.setFromNasPath('/DATA/Gallery/a.png')") },
+      { file: /src\/stores\/wallpaper\.test\.ts$/, re: exactLine("expect(setImageFromPath).toHaveBeenCalledWith('wallpaper', '/DATA/Gallery/a.png')") },
     ],
   },
   {
@@ -266,6 +284,11 @@ export const SOFT = [
       // 记录行"的形状规则。只豁免这一个词,photo/gallery/transcript/wiki 在 lockfile 里
       // 仍然报(见下方 parser 的窄口径对比)。
       { file: /(^|\/)pnpm-lock\.yaml$/, re: PNPM_LOCK_LINE },
+      // 2026-08-07:SP11 壁纸功能——WallpaperDialog.vue 的注释引用 SearchDialog.vue
+      // 只是"同类无遮罩浮层组件"的实现先例(reka-ui DialogRoot + :modal="false" 的
+      // 既有写法参考),不依赖被剥离的 NimoOS-Search 服务或 SearchDialog.vue 本身的
+      // 任何功能。已用 oss/export.mjs 实测确认这条命中,逐行精确匹配登记。
+      { file: /src\/components\/WallpaperDialog\.vue$/, re: exactLine('// wallpaper this dialog previews. Following SearchDialog.vue instead --') },
     ],
   },
   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
@@ -310,6 +333,10 @@ export const SOFT = [
       // 不是被剥离的 Photos 相册 app。--media-overlay-shadow 同一 token 只被这里消费(已 grep 核实)。
       { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */') },
       { file: /src\/styles\/theme\.css$/, re: exactLine('/* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,') },
+      // 2026-08-07:SP11 壁纸功能——themePhoto 是顶栏主题菜单第三个入口的中文文案
+      // ("照片…"),产品拷贝按计划固定如此,与相册 app 无关。已用 oss/export.mjs
+      // 实测确认这条命中,逐行精确匹配登记(不是给整个文件的"照片"二字开洞)。
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("themePhoto: '照片…',") },
     ],
   },
   {
