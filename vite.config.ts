@@ -44,7 +44,10 @@ export default defineConfig({
   // 0.0.1,`cd ../NimoOS-Service && pnpm build` 之后缓存不失效,dev server 一直喂
   // 浏览器旧包;新加的方法在浏览器里全是 undefined(表现为 `xxx is not a function`,
   // 被调用处 catch 成"保存失败")。单测走源码、生产 build 走 node_modules,两边都是
-  // 新的,所以只在 dev 复现。exclude 后 dev 直接按需加载真实文件,永远是新的。
+  // 新的,所以只在 dev 复现。exclude 后 dev 直接按需加载真实文件——**重启一次 dev
+  // server** 就能拿到最新代码(不用 --force、不用清 .vite 缓存、不用 pnpm install)。
+  // 注意这不等于"存盘即热更新":Vite 的 watcher 默认忽略 node_modules/**,这个包正是
+  // 经 node_modules/.pnpm/... 路径服出去的,进程存活期间不会自动感知源码变化,必须重启。
   //
   // **SP13(2026-08-07)教训,别再删这段**:内联把包搬进本仓 `packages/service/`、
   // 入口从 `dist/index.js` 改指 `src/index.ts`,当时误判"入口指源码 ⇒ Vite 按源码

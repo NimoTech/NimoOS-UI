@@ -483,6 +483,12 @@ cd /home/nimo/NimoTech/NimoOS-New-UI && pnpm dev
 
 - [ ] **Step 3: 在包源码里插一个可观察的改动，只存盘、不构建**
 
+> **⚠️ 2026-08-07 判据修订(机主拍板，见 spec §6)**：本 Step 原文只说"存盘"，隐含"不重启也该生效"。
+> Task 3 修复轮 + 控制器独立复现，两轮实测都证明**这个隐含前提是错的**——Vite 的文件 watcher
+> 默认忽略 `node_modules/**`，而这个包正是经 `node_modules/.pnpm/@nimotech+nimoos-service@.../src/*.ts`
+> 路径服出去的，dev server 进程存活期间不会自动感知源码变化。**存盘之后还要重启一次 dev server**
+> 才能看到，Step 4 的期望已同步改写，别再照原文验收成"存盘立刻生效"。
+
 `packages/service/src/sys.ts` 顶部加一行：
 
 ```ts
@@ -491,11 +497,24 @@ console.log('[SP13-取证] packages/service 的改动无需构建即生效')
 
 存盘。**不跑 `pnpm build`，不跑 `pnpm install`，什么都不做。**
 
-- [ ] **Step 4: 看浏览器**
+- [ ] **Step 4: 看浏览器 → 若没出现，重启 dev server 再看**
 
-期望：Vite 触发热更新 / 整页重载，浏览器控制台**立刻**出现 `[SP13-取证] …`。
+先看浏览器控制台：**多数情况下不会立刻出现**（这是正常的，见上方 Step 3 的修订说明，不是失败）。
 
-**这就是主判据。** 内联之前，这一步必须先 `cd ../NimoOS-Service && pnpm build`、且因为预打包缓存**即便 build 了也可能仍看不到**。
+`Ctrl-C` 停掉 dev server，`pnpm dev` 重新起一次（不用 `--force`、不用清 `.vite` 缓存、不用
+`pnpm install`），刷新浏览器页面。
+
+期望：**重启后**浏览器控制台出现 `[SP13-取证] …`。
+
+**这就是主判据（2026-08-07 修订版）：改包源码 → 重启一次 dev server → 生效，不需要
+`pnpm build` / 清 `.vite` 缓存 / `pnpm install`。** 内联之前，这一步必须先
+`cd ../NimoOS-Service && pnpm build`、且因为预打包缓存**即便 build 了、即便重启 dev server，
+也可能仍看不到**（预打包缓存的失效判据是 lockfile / 版本号，不看内容）——这才是本期真正要
+根治、且已经根治的那部分；"存盘不重启也生效"从来不是能拿到的收益，原计划这里写错了。
+
+若重启之后**仍然**看不到（`stat -c '%i %n' packages/service/src/sys.ts` 与 `.pnpm` 里对应
+文件的 inode 不一致），大概率是硬链接被原子写断开了——跑一次 `pnpm install` 重新链上，
+再重启 dev server。详见 `CLAUDE.md`「共享 service 包」节的"硬链接陷阱"。
 
 - [ ] **Step 5: 还原**
 

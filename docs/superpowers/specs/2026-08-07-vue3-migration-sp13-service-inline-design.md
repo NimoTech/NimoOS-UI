@@ -142,11 +142,23 @@ Vue2（`NimoOS-UI`）与 `NimoOS-Service` 仓本期**一行代码都不改**。
 | 构建 | `pnpm build` ✓ |
 | 开源面 | `pnpm exec vitest run oss/` 全绿（内含产物树真跑 `pnpm install` + `vue-tsc`） |
 | Vue2 零影响 | `cd ../NimoOS-UI && pnpm build` 仍通过 |
-| **漂移根治的正向取证** | 改 `packages/service/` 里一个方法 → **不做任何构建** → dev 页面立刻拿到新行为 |
+| **漂移根治的正向取证** | ~~改 `packages/service/` 里一个方法 → **不做任何构建** → dev 页面立刻拿到新行为~~(原判据，2026-08-07 实测证伪，见下)→ 改 `packages/service/` 里一个方法 → **重启 dev server**(不用 `pnpm build`、不用清 `.vite` 缓存、不用 `pnpm install`)→ dev 页面拿到新行为 |
 
 最后一条是本期的**核心收益，必须单独取证**。只看测试绿不够：测试一直走源码、本来就绿；
 这条坑从来只在 dev server 上现形。同理见 SP10-T4 的判据修正 —— 主判据必须落在**生效载体**上，
 不能靠一个「无论如何都成立」的间接指标。
+
+**2026-08-07 判据修订(机主拍板)**:原判据"不做任何构建 → dev 页面立刻拿到新行为"里的
+"立刻"经两轮独立实测(Task 3 修复轮 + 控制器复现)**证伪** —— Vite 的文件 watcher 默认忽略
+`node_modules/**`,而这个包正是经 `node_modules/.pnpm/@nimotech+nimoos-service@.../src/*.ts`
+路径服出去的,dev server 进程存活期间不会自动感知源码变化,**存盘即热更新做不到**。
+`optimizeDeps.exclude` 曾在 Task 3 中被误判为"入口指源码后不再需要"而删除,复测发现删了之后
+即使反复重启也拿不到新代码(预打包缓存的失效判据是 lockfile/版本号、不看内容),已恢复。
+**改后的正向判据**:改包源码 → **重启一次 dev server**(`Ctrl-C` 再 `pnpm dev`,不需要
+`--force`、不需要清 `.vite`、不需要 `pnpm install`)→ dev 页面拿到新行为。这仍然是本期要保住
+的核心收益 —— 对比 SP13 之前"即使反复重启也拿不到新代码,只能 `--force` 或手动删缓存硬破"的
+状态,是实质性的改善,只是没有做到"存盘即生效"这么强。详见
+`.superpowers/sdd/2026-08-07-vue3-migration-sp13-service-inline/task-3-report.md` 的两轮修复记录。
 
 ## 7. 风险与回退
 

@@ -35,14 +35,37 @@ token 取存、`onAuthFail`、语言等回调。
 `packages/service/src/index.ts`(TS 源码),所以不用再 `cd ../NimoOS-Service && pnpm build`
 单独构建一遍——改完包代码,本仓的 Vite / Vitest / vue-tsc 都会按源码重新解析。
 
-> **⚠️ dev server 里"改完存盘即生效"靠的是 `vite.config.ts` 的 `optimizeDeps.exclude`
-> 撑着,不要删它。** SP13(2026-08-07)上线时曾经以为"入口指向源码 ⇒ 预打包缓存喂旧包这条链路
-> 自然消失",把这段 exclude 删掉过一次——**实测证伪**:该包依旧是 `file:` 依赖、依旧经
-> `node_modules` 解析,Vite 照样把它当普通依赖预打包进 `node_modules/.vite/deps/`;
-> 就地编辑 `packages/service/src/*.ts`(不重启、不 `pnpm install`)后,dev server 喂给
-> 浏览器的仍是编辑前的旧代码,连重启 dev server 都救不了(`pnpm-lock.yaml` 对 `file:`
-> 目录依赖只记目录路径,不记内容哈希,不会因为编辑源码而失效)。`src/viteOptimizeDepsGuard.test.ts`
-> 专门守着这条 exclude,别绕开它、别删它守卫的配置。
+**dev server 的实际生效方式**:改完包源码 → **重启 dev server**(`Ctrl-C` 再 `pnpm dev`)
+→ 生效。不用 `pnpm build`、不用清 `.vite` 缓存、不用 `pnpm install`(前提是 hardlink 没断,
+见下方"硬链接陷阱")。**做不到"存盘即 HMR"**——Vite 的文件 watcher 默认忽略
+`node_modules/**`,而这个包正是经 `node_modules/.pnpm/@nimotech+nimoos-service@.../src/*.ts`
+这条路径服出去的(即使 `optimizeDeps.exclude` 让 Vite 服的是真源码而不是预打包产物,
+watcher 依然看不到它的变化),所以进程内缓存的 transform 结果不会自动失效,必须重启才能
+让 Vite 重新读盘。2026-08-07(SP13)实测走过一轮弯路才定下这条准确说法,详见
+`vite.config.ts` 顶部注释与 `.superpowers/sdd/2026-08-07-vue3-migration-sp13-service-inline/task-3-report.md`。
+
+> **⚠️ `vite.config.ts` 的 `optimizeDeps.exclude` 不要删。** 它守的是"服真源码 vs 服
+> 预打包陈旧产物"这条线——不是"即时性"(即时性靠上面那条"重启"生效,不靠 exclude)。
+> SP13 上线时曾经以为"入口指向源码 ⇒ exclude 不再需要",删掉过一次——**实测证伪**:
+> 该包依旧是 `file:` 依赖、依旧经 `node_modules` 解析,Vite 照样把它当普通依赖预打包进
+> `node_modules/.vite/deps/`;而预打包缓存的失效判据是 lockfile / config / 依赖版本号,
+> **不看依赖内容**(`pnpm-lock.yaml` 对 `file:` 目录依赖只记目录路径,不记内容哈希),
+> 删了 exclude 之后即使反复重启 dev server 也拿不到新代码,只能靠 `--force` 或手动删
+> `.vite` 缓存硬破。`src/viteOptimizeDepsGuard.test.ts` 专门守着这条 exclude,别绕开它、
+> 别删它守卫的配置。
+
+> **⚠️ 硬链接陷阱:改了源码但 dev server(哪怕重启)还是喂旧代码,先查 hardlink 有没有断。**
+> `file:` 依赖被 pnpm 硬链进 `.pnpm/` 目录——`packages/service/src/x.ts` 与
+> `node_modules/.pnpm/@nimotech+nimoos-service@file+packages+service/node_modules/@nimotech/nimoos-service/src/x.ts`
+> 本是**同一个 inode**。多数编辑器的"保存"、以及 Claude Code 的 Edit/Write 类工具,都是
+> 原子写(先写临时文件再 rename)——这会让仓库那一侧换成**新** inode,`.pnpm` 那一侧还留着
+> **旧** inode 的旧内容,两边就此断开,此后无论怎么重启 dev server 都只会读到断开前的旧代码。
+> 自查:
+> ```bash
+> stat -c '%i %n' packages/service/src/sys.ts \
+>   node_modules/.pnpm/@nimotech+nimoos-service@file+packages+service/node_modules/@nimotech/nimoos-service/src/sys.ts
+> # 两个 inode 不同 ⇒ 硬链已断,跑一次 pnpm install 重新链上即可(不需要 --force、不需要删 .vite)
+> ```
 
 **⚠️ `../NimoOS-Service` 仓还在,但它现在只服务 Vue2(`NimoOS-UI`)。改那边不会影响本仓。**
 
