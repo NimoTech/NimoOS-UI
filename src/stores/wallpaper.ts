@@ -1,3 +1,7 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import { service } from '@nimotech/nimoos-service'
+import { useThemeStore, applyTheme, type Theme } from './theme'
 import wallpaper01 from '../assets/wallpaper/wallpaper01.jpg'
 import wallpaper02 from '../assets/wallpaper/wallpaper02.jpg'
 
@@ -82,3 +86,87 @@ export function initialWallpaper(): WallpaperRecord {
     return NONE
   }
 }
+
+interface Snapshot { record: WallpaperRecord; theme: Theme }
+
+export const useWallpaperStore = defineStore('wallpaper', () => {
+  const record = ref<WallpaperRecord>(initialWallpaper())
+  const dialogOpen = ref(false)
+  const busy = ref(false)
+  let snapshot: Snapshot | null = null
+
+  /** Live-apply without persisting: the dialog previews against the real desktop. */
+  function preview(r: WallpaperRecord): void {
+    record.value = r
+    applyWallpaper(r)
+  }
+
+  /** Snapshot MUST include the theme: the "blue base" / "white base" presets switch
+   *  the theme as well as clearing the wallpaper, so a record-only snapshot leaves
+   *  the palette on one theme and the background on the other after Cancel. */
+  function beginPreview(): void {
+    snapshot = { record: record.value, theme: useThemeStore().theme }
+  }
+
+  function cancelPreview(): void {
+    if (!snapshot) return
+    preview(snapshot.record)
+    // applyTheme directly rather than setTheme: rolling back must not rewrite
+    // localStorage with a value the user never confirmed.
+    useThemeStore().theme = snapshot.theme
+    applyTheme(snapshot.theme)
+    snapshot = null
+  }
+
+  async function commit(): Promise<void> {
+    await service.users.setCustomStorage(WALLPAPER_CUSTOM_KEY, record.value)
+    cacheRecord(record.value)
+    snapshot = null
+  }
+
+  async function load(): Promise<void> {
+    try {
+      const raw = await service.users.getCustomStorage(WALLPAPER_CUSTOM_KEY)
+      // An unset key comes back as '' from the backend, which parseRecord maps to none.
+      preview(parseRecord(raw))
+      cacheRecord(record.value)
+    } catch {
+      // Never let a cold-start read failure blank the screen: keep whatever the
+      // cache already applied. Vue2 swallowed this silently with no catch at all.
+    }
+  }
+
+  async function uploadAndPreview(file: File): Promise<void> {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error(`Wallpaper file is too large (max ${MAX_UPLOAD_BYTES} bytes)`)
+    }
+    busy.value = true
+    try {
+      const res = await service.users.uploadImage(WALLPAPER_IMAGE_KEY, file)
+      preview({ kind: 'image', path: res.path, stamp: Date.now() })
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** Files context menu: one shot, persists straight away (no dialog to confirm in). */
+  async function setFromNasPath(path: string): Promise<void> {
+    busy.value = true
+    try {
+      const res = await service.users.setImageFromPath(WALLPAPER_IMAGE_KEY, path)
+      preview({ kind: 'image', path: res.path, stamp: Date.now() })
+      await commit()
+    } finally {
+      busy.value = false
+    }
+  }
+
+  function openDialog(): void { beginPreview(); dialogOpen.value = true }
+  function closeDialog(): void { dialogOpen.value = false }
+
+  return {
+    record, dialogOpen, busy,
+    preview, beginPreview, cancelPreview, commit, load,
+    uploadAndPreview, setFromNasPath, openDialog, closeDialog,
+  }
+})
