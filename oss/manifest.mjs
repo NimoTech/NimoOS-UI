@@ -203,8 +203,14 @@ export const SERVICE_DELETE = [
 /** 类 2 · 整文件替换,各带私有侧哈希钉。T10-T13 填。 */
 export const REPLACE = [
   // T9:桌面默认布局重排(开源版无照片磁贴/AI 组件,坐标整体重排,PATCH 无可继承内容)
+  //
+  // SP14 T9(commit d4d3771)复核:私有侧新增一条 `{ kind: 'app', key: 'knowledge', c: 10,
+  // r: 2, ... }`(见 task-9 报告)—— knowledge 是 AI 区磁贴,`oss/files/defaultLayout.ts`
+  // 本就不含任何 photos/ai 磁贴(整份布局早已重排,见上一行注释),所以这次漂移**不需要**
+  // 同步 OSS 侧,只需把下面的哈希钉更新为新值(已现场核过 `oss/files/defaultLayout.ts`
+  // 内容,不是删哈希钉绕过检查)。
   { path: 'src/home/grid/defaultLayout.ts', from: 'defaultLayout.ts',
-    privateSha256: '15da0c4b305f9cdf5cee5ce6a8126cc441d18a889eadc28681ee1b14785e87ed' },
+    privateSha256: '952b6427d6e61832395b6133cb9e51e2c2747dcf98c7c6a2d4d7788b016cba34' },
 
   // T10:MediaViewer 拆转录面板(摘要/转录/Ask 三 tab、说话人分色、章节过滤全删;
   // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
