@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -9,6 +10,7 @@ import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useUploadsStore } from '../files/stores/uploads'
 import { useToast } from '../stores/toast'
+import { service } from '@nimotech/nimoos-service'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -27,6 +29,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
       listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]),
       list: vi.fn().mockResolvedValue([]),
     },
+    // Consumed by UploadBatchModal, opened via the torn badge's open-batch forwarding
+    // chain (FileTile/FileRow -> FileGridView/FileListView -> Files.vue).
+    uploadBatches: { getBatch: vi.fn(), interruptBatch: vi.fn(), abandonBatch: vi.fn() },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
 }))
@@ -44,6 +49,11 @@ function makeRouter() {
   })
 }
 
+// UploadBatchModal's Dialog (reka-ui) teleports its content to <body>, outside the
+// mounted wrapper's own DOM subtree — see UploadBatchModal.test.ts. Query document.body
+// directly for anything inside it.
+const body = () => new DOMWrapper(document.body)
+
 describe('Files.vue upload wiring', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -54,6 +64,8 @@ describe('Files.vue upload wiring', () => {
       disconnect() {}
     }
   })
+
+  afterEach(() => { document.body.innerHTML = '' })
 
   it('enqueues a selected file against the real current path', async () => {
     const folders = useFoldersStore()
@@ -224,5 +236,74 @@ describe('Files.vue upload wiring', () => {
     expect(spy).toHaveBeenCalledWith([
       { file: unrelated, targetPath: files.currentPath, relativePath: 'z.jpg' },
     ])
+  })
+
+  // Merge-gate finding: FileGridView.vue and FileListView.vue each hand-declare and
+  // forward `open-batch` from their leaf component (FileTile/FileRow) up to Files.vue.
+  // vue-tsc catches a wrong payload type but NOT a missing `@open-batch` forward line —
+  // deleting it is a silent, total feature failure with an otherwise-green suite,
+  // because the leaf components and UploadBatchModal are each tested in isolation and
+  // never together. These two tests exercise the whole chain for real, one per view
+  // mode (grid and list are two independent forwarding chains).
+  it('grid view: clicking the torn badge opens the batch dialog (open-batch forwarding)', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    vi.mocked(service.folder.getList).mockResolvedValueOnce({
+      content: [
+        { name: 'Trip', path: '/DATA/Trip', is_dir: true, extensions: { upload: { broken: true, batchId: 'b1' } } },
+      ],
+    } as any)
+    vi.mocked(service.uploadBatches.getBatch).mockResolvedValue({
+      batch: { id: 'b1', target_path: '/DATA/Trip', status: 'interrupted', total: 3, done: 1 },
+      missing: [{ batch_id: 'b1', relative_path: 'Trip/a.jpg', size: 1024, done: false }],
+    } as any)
+
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+
+    const files = useFilesStore()
+    files.setView('grid')
+    await nextTick()
+
+    expect(w.find('.upload-broken-badge').exists()).toBe(true)
+    await w.find('.upload-broken-badge').trigger('click')
+    await flushPromises()
+
+    expect(service.uploadBatches.getBatch).toHaveBeenCalledWith('b1')
+    expect(body().find('.ubm-missing-title').exists()).toBe(true)
+    expect(body().text()).toContain('Trip/a.jpg')
+  })
+
+  it('list view: clicking the torn badge opens the batch dialog (open-batch forwarding)', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    vi.mocked(service.folder.getList).mockResolvedValueOnce({
+      content: [
+        { name: 'Trip', path: '/DATA/Trip', is_dir: true, extensions: { upload: { broken: true, batchId: 'b1' } } },
+      ],
+    } as any)
+    vi.mocked(service.uploadBatches.getBatch).mockResolvedValue({
+      batch: { id: 'b1', target_path: '/DATA/Trip', status: 'interrupted', total: 3, done: 1 },
+      missing: [{ batch_id: 'b1', relative_path: 'Trip/a.jpg', size: 1024, done: false }],
+    } as any)
+
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+
+    const files = useFilesStore()
+    files.setView('list')
+    await nextTick()
+
+    expect(w.find('.upload-broken-badge').exists()).toBe(true)
+    await w.find('.upload-broken-badge').trigger('click')
+    await flushPromises()
+
+    expect(service.uploadBatches.getBatch).toHaveBeenCalledWith('b1')
+    expect(body().find('.ubm-missing-title').exists()).toBe(true)
+    expect(body().text()).toContain('Trip/a.jpg')
   })
 })
