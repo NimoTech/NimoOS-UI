@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
-import { useThemeStore, applyTheme, type Theme } from './theme'
+import { useThemeStore, type Theme } from './theme'
 import wallpaper01 from '../assets/wallpaper/wallpaper01.jpg'
 import wallpaper02 from '../assets/wallpaper/wallpaper02.jpg'
 
@@ -116,10 +116,17 @@ export const useWallpaperStore = defineStore('wallpaper', () => {
   function cancelPreview(): void {
     if (!snapshot) return
     preview(snapshot.record)
-    // applyTheme directly rather than setTheme: rolling back must not rewrite
-    // localStorage with a value the user never confirmed.
-    useThemeStore().theme = snapshot.theme
-    applyTheme(snapshot.theme)
+    // I2 (final review): this used to write snapshot.theme back through
+    // useThemeStore().theme + applyTheme() directly, reasoning that going
+    // through setTheme() would "rewrite localStorage with a value the user
+    // never confirmed". That had it backwards: theme.previewTheme() (see
+    // WallpaperDialog pickBase) is what actually applies a preset's theme
+    // switch, and it is preview-only by construction (in-memory + DOM, no
+    // localStorage write) -- so by the time Cancel runs here, localStorage
+    // still holds the last *confirmed* theme, never the unconfirmed pick.
+    // Restoring through previewTheme() (rather than poking the ref directly)
+    // keeps this store from reaching into theme's internals.
+    useThemeStore().previewTheme(snapshot.theme)
     snapshot = null
   }
 
@@ -130,6 +137,16 @@ export const useWallpaperStore = defineStore('wallpaper', () => {
     const toSave = record.value
     await service.users.setCustomStorage(WALLPAPER_CUSTOM_KEY, toSave)
     cacheRecord(toSave)
+    // I2: preset tiles only preview a theme switch (theme.previewTheme(), see
+    // WallpaperDialog pickBase) so Cancel can discard it -- Apply is what turns
+    // an accepted choice into the confirmed one. commit() is that point for
+    // every caller (the dialog's Apply button, and the NAS/upload one-shot
+    // paths that call commit() directly with no dialog to Apply from), so it
+    // persists whatever theme is currently live. A no-op write when the theme
+    // was never touched during this preview -- it just re-confirms what's
+    // already there.
+    const themeStore = useThemeStore()
+    themeStore.setTheme(themeStore.theme)
     snapshot = null
   }
 
@@ -174,12 +191,34 @@ export const useWallpaperStore = defineStore('wallpaper', () => {
     }
   }
 
-  function openDialog(): void { beginPreview(); dialogOpen.value = true }
+  function openDialog(): void {
+    // M7 (final review): a second entry point opening an already-open sheet must
+    // not re-snapshot -- that would make the rollback target the current
+    // unconfirmed preview instead of the value the user actually confirmed last.
+    if (!dialogOpen.value) beginPreview()
+    dialogOpen.value = true
+  }
   function closeDialog(): void { dialogOpen.value = false }
+
+  /** I1 (final review): logout must not leave the previous user's photo painted
+   *  through the login screen. GET /v1/users/image is unauthenticated by
+   *  backend design, so nothing server-side stops it rendering; session.clear()
+   *  only drops localStorage keys, it never touches <html data-wallpaper> or
+   *  --wallpaper-img. Called from App.vue's watcher on the authed->false
+   *  transition. cacheRecord(NONE) duplicates what session.clear() already does
+   *  to the shared 'wallpaper' key (see WALLPAPER_CACHE_KEY above), so this
+   *  store stays correct even if it is ever called from somewhere other than
+   *  that exact logout path. */
+  function reset(): void {
+    dialogOpen.value = false
+    snapshot = null
+    preview(NONE)
+    cacheRecord(NONE)
+  }
 
   return {
     record, dialogOpen, busy,
     preview, beginPreview, cancelPreview, commit, load,
-    uploadAndPreview, setFromNasPath, openDialog, closeDialog,
+    uploadAndPreview, setFromNasPath, openDialog, closeDialog, reset,
   }
 })

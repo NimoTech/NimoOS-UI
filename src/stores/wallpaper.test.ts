@@ -219,6 +219,33 @@ describe('wallpaper store', () => {
       .toEqual({ kind: 'builtin', id: 'w02' })
   })
 
+  it('I2: commit also persists whatever theme is currently live, not just the wallpaper record', async () => {
+    // theme.previewTheme() is what WallpaperDialog's preset tiles now call
+    // during preview (in-memory + DOM only, no localStorage write) -- commit()
+    // is the point that is supposed to turn that into the confirmed value.
+    // Without the fix, localStorage.getItem('theme') stays null here because
+    // nothing ever wrote it.
+    const theme = useThemeStore()
+    theme.previewTheme('light')
+    const s = useWallpaperStore()
+    s.preview({ kind: 'builtin', id: 'w01' })
+    await s.commit()
+    expect(localStorage.getItem('theme')).toBe('light')
+    expect(theme.theme).toBe('light')
+  })
+
+  it('I2: commit is a no-op on the theme when the preview never touched it', async () => {
+    // Guards against commit() clobbering an already-confirmed theme with a
+    // wrong value -- it must write back the SAME value that's already live,
+    // not e.g. reset to the default.
+    const theme = useThemeStore()
+    theme.setTheme('light')
+    const s = useWallpaperStore()
+    s.preview({ kind: 'builtin', id: 'w01' }) // no theme interaction at all
+    await s.commit()
+    expect(localStorage.getItem('theme')).toBe('light')
+  })
+
   it('commit propagates a failed save so the dialog can stay open', async () => {
     setCustomStorage.mockRejectedValue(new Error('save failed'))
     const s = useWallpaperStore()
@@ -300,5 +327,40 @@ describe('wallpaper store', () => {
     expect(s.dialogOpen).toBe(false)
     expect(s.record).toEqual({ kind: 'builtin', id: 'w02' })
     expect(document.documentElement.dataset.wallpaper).toBe('')
+  })
+
+  it('M7: openDialog does not re-snapshot when the sheet is already open (a second entry point)', () => {
+    // Repro: topbar photo entry opens the sheet (snapshots w01), user browses to
+    // w02 inside it, then a second entry point (e.g. desktop right-click) calls
+    // openDialog() again while it's still open. Without the `!dialogOpen.value`
+    // guard, that second call re-snapshots the CURRENT unconfirmed preview
+    // (w02), so Cancel would "roll back" to w02 instead of the real baseline w01.
+    const s = useWallpaperStore()
+    s.preview({ kind: 'builtin', id: 'w01' }) // confirmed baseline before any dialog opens
+
+    s.openDialog()
+    s.preview({ kind: 'builtin', id: 'w02' }) // user browses inside the dialog
+    s.openDialog() // second entry point, sheet already open
+
+    s.cancelPreview()
+    expect(s.record).toEqual({ kind: 'builtin', id: 'w01' })
+  })
+
+  it('reset (I1): clears the record, closes the dialog, wipes the cache, and drops any pending snapshot', () => {
+    const s = useWallpaperStore()
+    s.preview({ kind: 'builtin', id: 'w01' })
+    cacheRecord({ kind: 'builtin', id: 'w01' })
+    s.openDialog()
+    s.preview({ kind: 'builtin', id: 'w02' })
+
+    s.reset()
+
+    expect(s.record).toEqual(NONE)
+    expect(s.dialogOpen).toBe(false)
+    expect(document.documentElement.dataset.wallpaper).toBeUndefined()
+    expect(localStorage.getItem(WALLPAPER_CACHE_KEY)).toBeNull()
+    // The dropped snapshot must not resurrect w01 through some later cancelPreview() call.
+    s.cancelPreview()
+    expect(s.record).toEqual(NONE)
   })
 })

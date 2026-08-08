@@ -27,5 +27,16 @@ export const useThemeStore = defineStore('theme', () => {
     applyTheme(t)
     localStorage.setItem('theme', t)
   }
-  return { theme, setTheme }
+  // I2 (SP11 final review, stores/wallpaper.ts): preview-only counterpart to
+  // setTheme -- updates the in-memory theme and repaints <html>, but never
+  // touches localStorage. WallpaperDialog's preset tiles (pickBase) use this
+  // so a theme switch bundled into a preset can be discarded by Cancel;
+  // wallpaper.ts's commit() calls setTheme() to turn an accepted preview into
+  // the confirmed value. The topbar ThemeToggle stays one-step by design (no
+  // Apply step) and keeps calling setTheme() directly.
+  function previewTheme(t: Theme) {
+    theme.value = t
+    applyTheme(t)
+  }
+  return { theme, setTheme, previewTheme }
 })

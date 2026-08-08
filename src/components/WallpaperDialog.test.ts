@@ -7,12 +7,17 @@ import zh from '../i18n/zh_cn'
 import zhSp9 from '../i18n/zh_cn.sp9'
 
 const setCustomStorage = vi.fn(async () => undefined)
+// Explicit function-type generic (see stores/wallpaper.test.ts precedent): the
+// M2 test below needs to override this per-call with a promise it controls
+// the resolution of, which vi.fn(async () => ...) doesn't support typing for.
+const uploadImage = vi.fn<(key: string, file: File) => Promise<{ path: string; file_name: string; online_path: string }>>()
+  .mockResolvedValue({ path: '/d/1/wallpaper.jpg', file_name: 'wallpaper.jpg', online_path: 'x' })
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     users: {
       getCustomStorage: async () => '',
       setCustomStorage: (...a: unknown[]) => setCustomStorage(...(a as [])),
-      uploadImage: async () => ({ path: '/d/1/wallpaper.jpg', file_name: 'wallpaper.jpg', online_path: 'x' }),
+      uploadImage: (...a: unknown[]) => uploadImage(...(a as [string, File])),
       setImageFromPath: async () => ({ path: '/d/1/wallpaper.png', file_name: 'wallpaper.png', online_path: 'x' }),
     },
     image: { imageUrl: (p: string) => `/v1/image?path=${p}` },
@@ -63,6 +68,7 @@ beforeEach(() => {
   delete document.documentElement.dataset.wallpaper
   delete document.documentElement.dataset.theme
   setCustomStorage.mockClear()
+  uploadImage.mockClear()
 })
 
 afterEach(() => {
@@ -137,6 +143,75 @@ describe('WallpaperDialog apply / cancel', () => {
     await body().find('[data-test="wp-cancel"]').trigger('click')
     expect(theme.theme).toBe('blue')
     expect(useWallpaperStore().dialogOpen).toBe(false)
+  })
+
+  it('I2: cancelling a previewed theme switch does not leave it in localStorage (survives reload)', async () => {
+    // Repro from the finding: blue + no wallpaper -> open picker -> pick white
+    // base -> Cancel (looks right) -> F5 -> the cancelled theme used to come
+    // back, because the old pickBase() called theme.setTheme() (which writes
+    // localStorage) immediately on pick, before Cancel ever ran. This is red
+    // against that old code (localStorage would read 'light' here) and green
+    // now that pickBase() only calls theme.previewTheme() (in-memory + DOM).
+    const theme = useThemeStore()
+    theme.setTheme('blue')
+    await mountOpen()
+    await body().find('[data-test="wp-preset-light"]').trigger('click')
+    await body().find('[data-test="wp-cancel"]').trigger('click')
+    expect(localStorage.getItem('theme')).toBe('blue')
+  })
+
+  it('I2: applying a previewed theme switch does persist it to localStorage', async () => {
+    // The flip side of the test above: Apply (not Cancel) is what must turn the
+    // preview into the confirmed value now that pickBase() itself no longer
+    // persists anything.
+    const theme = useThemeStore()
+    theme.setTheme('blue')
+    await mountOpen()
+    await body().find('[data-test="wp-preset-light"]').trigger('click')
+    await body().find('[data-test="wp-apply"]').trigger('click')
+    await flushPromises()
+    expect(localStorage.getItem('theme')).toBe('light')
+  })
+
+  it('Esc dismisses the sheet the same way Cancel does (M8: onOpenChange -> cancel)', async () => {
+    // Esc/outside-dismiss is reka-ui's own DismissableLayer calling the root's
+    // onOpenChange(false) -- nothing in this codebase's own code fires that
+    // path directly, so this is the only test that exercises onOpenChange at
+    // all. Not vacuous: onOpenChange's `if (!open) cancel()` guard means a stub
+    // handler (or one that called closeDialog() instead of cancel()) would
+    // leave the theme on 'light' here, same failure shape as the Cancel-button
+    // test just above.
+    const theme = useThemeStore()
+    theme.setTheme('blue')
+    await mountOpen()
+    await body().find('[data-test="wp-preset-light"]').trigger('click')
+    expect(document.documentElement.dataset.theme).toBe('light') // preview took effect
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+    expect(theme.theme).toBe('blue')
+    expect(useWallpaperStore().dialogOpen).toBe(false)
+  })
+
+  it('M2: apply stays disabled while an upload is in flight (wp.busy), not just the local saving flag', async () => {
+    // Old code was `:disabled="saving"` -- saving only flips true once apply()
+    // itself starts, so it says nothing about an upload still in flight. This
+    // is red against that: the button would be enabled right after the file
+    // input change (saving is still false at that point) with the old binding.
+    let resolveUpload!: (v: { path: string; file_name: string; online_path: string }) => void
+    uploadImage.mockImplementationOnce(() => new Promise((resolve) => { resolveUpload = resolve }))
+    await mountOpen()
+    const input = body().find('[data-test="wp-file"]')
+    const small = new File([new Uint8Array([1])], 'a.jpg')
+    Object.defineProperty(input.element, 'files', { value: [small] })
+    await input.trigger('change')
+    await nextTick()
+    expect(useWallpaperStore().busy).toBe(true)
+    expect(body().find('[data-test="wp-apply"]').attributes('disabled')).toBeDefined()
+
+    resolveUpload({ path: '/d/1/wallpaper.jpg', file_name: 'wallpaper.jpg', online_path: 'x' })
+    await flushPromises()
+    expect(useWallpaperStore().busy).toBe(false)
+    expect(body().find('[data-test="wp-apply"]').attributes('disabled')).toBeUndefined()
   })
 
   it('a failed apply shows an inline error and keeps the dialog open', async () => {

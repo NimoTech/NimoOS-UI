@@ -42,4 +42,17 @@ describe('theme store', () => {
     expect(document.documentElement.dataset.theme).toBeUndefined()
     expect(localStorage.getItem('theme')).toBe('blue')
   })
+
+  it('previewTheme (I2): updates state + data-theme but never touches localStorage', () => {
+    // This is the mechanism the I2 fix relies on: WallpaperDialog's preset
+    // tiles call this instead of setTheme() during preview, so Cancel can
+    // discard the pick without a localStorage write ever having happened.
+    // Pins it directly against the store this bug actually lived in.
+    const store = useThemeStore()
+    store.setTheme('blue') // confirmed baseline, persisted
+    store.previewTheme('light')
+    expect(store.theme).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(localStorage.getItem('theme')).toBe('blue') // still the confirmed value, not 'light'
+  })
 })

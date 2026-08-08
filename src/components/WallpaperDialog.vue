@@ -40,7 +40,11 @@ const activeId = computed<string>(() => {
 function pickBase(which: Theme) {
   error.value = ''
   wp.preview(NONE)
-  theme.setTheme(which)
+  // I2 (final review): preview only -- in-memory + DOM, no localStorage write.
+  // setTheme() (which does persist) now runs inside wp.commit() on Apply, so a
+  // theme bundled into a preset pick can be discarded by Cancel like everything
+  // else this dialog previews.
+  theme.previewTheme(which)
 }
 
 function pickBuiltin(id: BuiltinId) {
@@ -152,7 +156,7 @@ function onOpenChange(open: boolean) {
         <div class="wp-foot">
           <button type="button" class="bar-btn" data-test="wp-cancel" @click="cancel">{{ t('wpCancel') }}</button>
           <button
-            type="button" class="bar-btn wp-primary" data-test="wp-apply" :disabled="saving"
+            type="button" class="bar-btn wp-primary" data-test="wp-apply" :disabled="saving || wp.busy"
             @click="apply"
           >{{ t('wpApply') }}</button>
         </div>
