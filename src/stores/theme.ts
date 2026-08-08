@@ -31,9 +31,13 @@ export const useThemeStore = defineStore('theme', () => {
   // setTheme -- updates the in-memory theme and repaints <html>, but never
   // touches localStorage. WallpaperDialog's preset tiles (pickBase) use this
   // so a theme switch bundled into a preset can be discarded by Cancel;
-  // wallpaper.ts's commit() calls setTheme() to turn an accepted preview into
-  // the confirmed value. The topbar ThemeToggle stays one-step by design (no
-  // Apply step) and keeps calling setTheme() directly.
+  // WallpaperDialog's own apply() calls setTheme() to turn an accepted preview
+  // into the confirmed value -- deliberately NOT wallpaper.ts's commit()
+  // (review round 2: commit() is also called by setFromNasPath(), which never
+  // offers a theme to confirm, so commit() confirming one anyway silently
+  // persisted whatever theme happened to be live). The topbar ThemeToggle
+  // stays one-step by design (no Apply step) and keeps calling setTheme()
+  // directly.
   function previewTheme(t: Theme) {
     theme.value = t
     applyTheme(t)

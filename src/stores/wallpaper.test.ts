@@ -219,31 +219,61 @@ describe('wallpaper store', () => {
       .toEqual({ kind: 'builtin', id: 'w02' })
   })
 
-  it('I2: commit also persists whatever theme is currently live, not just the wallpaper record', async () => {
-    // theme.previewTheme() is what WallpaperDialog's preset tiles now call
-    // during preview (in-memory + DOM only, no localStorage write) -- commit()
-    // is the point that is supposed to turn that into the confirmed value.
-    // Without the fix, localStorage.getItem('theme') stays null here because
-    // nothing ever wrote it.
+  it('I2 round 2: commit() never touches the theme, even when a preset preview changed it in memory', async () => {
+    // Final review round 2: commit() used to also call
+    // themeStore.setTheme(themeStore.theme) here, on the reasoning that it was
+    // "the one point every caller shares" -- but setFromNasPath() is also a
+    // caller (see below), and it never offers a theme to confirm. commit() is
+    // now purely about the wallpaper record; confirming a previewed theme is
+    // WallpaperDialog's apply()'s job (see WallpaperDialog.test.ts's
+    // 'I2: applying a previewed theme switch does persist it to localStorage').
+    // Pins the negative directly against this store, where the bug lived.
     const theme = useThemeStore()
-    theme.previewTheme('light')
+    theme.setTheme('blue') // confirmed baseline
+    theme.previewTheme('light') // what a preset tile's preview does -- in-memory only
     const s = useWallpaperStore()
     s.preview({ kind: 'builtin', id: 'w01' })
     await s.commit()
-    expect(localStorage.getItem('theme')).toBe('light')
+    expect(localStorage.getItem('theme')).toBe('blue')
+    // The in-memory preview itself is untouched by commit() either way --
+    // only the *persisting* is not commit()'s job.
     expect(theme.theme).toBe('light')
   })
 
-  it('I2: commit is a no-op on the theme when the preview never touched it', async () => {
-    // Guards against commit() clobbering an already-confirmed theme with a
-    // wrong value -- it must write back the SAME value that's already live,
-    // not e.g. reset to the default.
+  it('I2 round 2: setFromNasPath does not silently confirm a theme previewed earlier in the same dialog session', async () => {
+    // Exact repro from the final review: open the picker, click a base preset
+    // (previews the theme in memory only, per I2), change your mind and pick
+    // an image from NAS instead -- WallpaperDialog.vue's onNasPick() calls
+    // setFromNasPath() with no Apply click in between. setFromNasPath() calls
+    // commit() internally; before this fix, commit() confirmed whatever theme
+    // was currently live as a side effect, silently persisting a theme the
+    // user never applied. Verified this goes red against the code as it stood
+    // right before this fix (commit() ending in
+    // `themeStore.setTheme(themeStore.theme)`): localStorage read back 'light'
+    // here instead of 'blue'.
+    setImageFromPath.mockResolvedValue({ path: '/d/1/wallpaper.png', file_name: 'wallpaper.png', online_path: 'x' })
     const theme = useThemeStore()
-    theme.setTheme('light')
+    theme.setTheme('blue') // confirmed baseline before the dialog ever opens
     const s = useWallpaperStore()
-    s.preview({ kind: 'builtin', id: 'w01' }) // no theme interaction at all
-    await s.commit()
-    expect(localStorage.getItem('theme')).toBe('light')
+    s.preview(NONE) // pickBase('light') also clears the wallpaper
+    theme.previewTheme('light') // pickBase('light')'s theme half -- preview only
+    await s.setFromNasPath('/DATA/Gallery/a.png') // user changes their mind mid-session
+    expect(localStorage.getItem('theme')).toBe('blue')
+  })
+
+  it('I2 round 2: setFromNasPath never touches the theme when called with no dialog/preview at all (Files.vue context menu)', async () => {
+    // Files.vue's "Set as wallpaper" context-menu action calls
+    // setFromNasPath() directly -- no WallpaperDialog, no preset preview, no
+    // theme interaction of any kind beforehand. This path must be a no-op on
+    // the theme under both the old and new code (nothing here ever called
+    // previewTheme()), but it's worth pinning explicitly since it's the
+    // caller the final review specifically asked to double-check.
+    setImageFromPath.mockResolvedValue({ path: '/d/1/wallpaper.png', file_name: 'wallpaper.png', online_path: 'x' })
+    const theme = useThemeStore()
+    theme.setTheme('blue')
+    const s = useWallpaperStore()
+    await s.setFromNasPath('/DATA/Gallery/a.png')
+    expect(localStorage.getItem('theme')).toBe('blue')
   })
 
   it('commit propagates a failed save so the dialog can stay open', async () => {

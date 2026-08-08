@@ -41,9 +41,11 @@ function pickBase(which: Theme) {
   error.value = ''
   wp.preview(NONE)
   // I2 (final review): preview only -- in-memory + DOM, no localStorage write.
-  // setTheme() (which does persist) now runs inside wp.commit() on Apply, so a
-  // theme bundled into a preset pick can be discarded by Cancel like everything
-  // else this dialog previews.
+  // apply() below is what persists it, so a theme bundled into a preset pick
+  // can be discarded by Cancel like everything else this dialog previews.
+  // Deliberately NOT wp.commit()'s job (round 2 of the same review): commit()
+  // is also called by setFromNasPath(), which this dialog's own "from NAS"
+  // sub-view can reach without ever confirming a theme -- see apply()'s comment.
   theme.previewTheme(which)
 }
 
@@ -57,6 +59,19 @@ async function apply() {
   saving.value = true
   try {
     await wp.commit()
+    // I2 follow-up (final review round 2): confirming a previewed theme used
+    // to happen inside wp.commit() itself, on the reasoning that it was "the
+    // one point every caller of commit() shares" -- but setFromNasPath() is
+    // also a caller (this dialog's own "from NAS" sub-view, and independently
+    // Files.vue's context menu with no dialog at all), and neither of those
+    // ever offers a theme to confirm. That let a preset's previewed theme
+    // (previewTheme() in pickBase, in-memory + DOM only) get silently
+    // persisted as a side effect of picking "from NAS" in the same session,
+    // with no Apply click in between -- exactly what I2 exists to prevent.
+    // apply() is the only caller that ever previews a theme, so it is the one
+    // that persists it; only re-confirms the same value when the theme was
+    // never touched during this preview.
+    theme.setTheme(theme.theme)
     wp.closeDialog()
   } catch {
     error.value = t('wpSaveFailed')

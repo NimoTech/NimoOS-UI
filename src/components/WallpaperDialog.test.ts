@@ -160,6 +160,30 @@ describe('WallpaperDialog apply / cancel', () => {
     expect(localStorage.getItem('theme')).toBe('blue')
   })
 
+  it('I2 round 2: picking a base preset then switching to "from NAS" does not silently confirm the previewed theme', async () => {
+    // Exact repro from the final review: open the picker, pick 白色底板
+    // (previews the theme only, per the I2 fix above), change your mind and
+    // choose 从 NAS 选择 instead, pick an image -- no Apply click anywhere in
+    // this sequence. Verified this goes red against the code as it stood
+    // right before this fix (wallpaper.ts's commit() ended with
+    // `themeStore.setTheme(themeStore.theme)`): localStorage read back
+    // 'light' here instead of 'blue', because setFromNasPath() (which
+    // onNasPick calls) internally calls commit() too.
+    const theme = useThemeStore()
+    theme.setTheme('blue')
+    const w = await mountOpen()
+    await body().find('[data-test="wp-preset-light"]').trigger('click')
+    expect(document.documentElement.dataset.theme).toBe('light') // preview took effect
+
+    await body().find('[data-test="wp-nas"]').trigger('click')
+    await flushPromises()
+    await w.findComponent({ name: 'NasImagePicker' })
+      .vm.$emit('pick', { path: '/DATA/Gallery/a.png', src: '/v1/image?path=/DATA/Gallery/a.png' })
+    await flushPromises()
+
+    expect(localStorage.getItem('theme')).toBe('blue')
+  })
+
   it('I2: applying a previewed theme switch does persist it to localStorage', async () => {
     // The flip side of the test above: Apply (not Cancel) is what must turn the
     // preview into the confirmed value now that pickBase() itself no longer

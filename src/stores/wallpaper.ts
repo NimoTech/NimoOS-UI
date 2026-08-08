@@ -137,16 +137,21 @@ export const useWallpaperStore = defineStore('wallpaper', () => {
     const toSave = record.value
     await service.users.setCustomStorage(WALLPAPER_CUSTOM_KEY, toSave)
     cacheRecord(toSave)
-    // I2: preset tiles only preview a theme switch (theme.previewTheme(), see
-    // WallpaperDialog pickBase) so Cancel can discard it -- Apply is what turns
-    // an accepted choice into the confirmed one. commit() is that point for
-    // every caller (the dialog's Apply button, and the NAS/upload one-shot
-    // paths that call commit() directly with no dialog to Apply from), so it
-    // persists whatever theme is currently live. A no-op write when the theme
-    // was never touched during this preview -- it just re-confirms what's
-    // already there.
-    const themeStore = useThemeStore()
-    themeStore.setTheme(themeStore.theme)
+    // I2 follow-up (final review round 2): this function used to also call
+    // themeStore.setTheme(themeStore.theme) here, reasoning that commit() was
+    // "the one point every caller shares". That reasoning broke on a caller
+    // this store already has: setFromNasPath() calls commit() as a one-shot
+    // (files-area context menu with NO dialog at all, and also reachable
+    // *inside* an open WallpaperDialog session via onNasPick -- pick a base
+    // preset, which now only previews via theme.previewTheme(), then change
+    // your mind and choose "from NAS" instead). Neither caller ever asked to
+    // confirm a theme; commit() confirming one anyway silently persisted
+    // whatever theme happened to be live, undercutting the exact "preview,
+    // Apply confirms" invariant I2 exists to protect. commit() is now back to
+    // being purely about the wallpaper record. Confirming a previewed theme
+    // is WallpaperDialog's apply()'s job (see pickBase's comment) -- it is the
+    // only caller that ever offers a theme preview to confirm in the first
+    // place.
     snapshot = null
   }
 
