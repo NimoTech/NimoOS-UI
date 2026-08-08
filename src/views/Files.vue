@@ -573,6 +573,11 @@ onMounted(() => { browse.ensureVolumes() })
         />
         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+            <div v-if="files.error && !files.loading" class="files-error" role="alert">
+              <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
+              <span class="files-error-detail">{{ files.error }}</span>
+              <button class="chip" @click="files.load(files.currentPath)">{{ t('filesRetry') }}</button>
+            </div>
             <FileGridView
               v-if="files.viewMode === 'grid'"
               :entries="files.sortedEntries"
@@ -663,6 +668,16 @@ onMounted(() => { browse.ensureVolumes() })
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+/* A failed listing is not an empty folder: say so, show the backend's own text
+   (which is usually the actionable part), and offer the retry. */
+.files-error {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  margin-bottom: 12px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--remove-fg) 40%, transparent);
+  background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
+}
+.files-error-title { font-size: 13px; font-weight: 600; color: var(--remove-fg); }
+.files-error-detail { font-size: 12px; color: var(--fg-muted); word-break: break-all; }
 .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
 .files-drop-mask {
   position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;

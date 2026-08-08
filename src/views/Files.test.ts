@@ -359,3 +359,48 @@ describe('时间机器入口', () => {
     expect(w.find('.tm-overlay').exists()).toBe(true)
   })
 })
+
+// SP12-T9:目录加载失败以前被吞成"空文件夹",与真的空目录一模一样。
+describe('Files.vue 目录加载失败', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
+
+  async function mountAt(realPath: string) {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/' + realPath.replace(/^\/DATA/, 'NimoOS-HD')); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    return w
+  }
+
+  it('显示错误条与后端原文,点重试重新加载', async () => {
+    const w = await mountAt('/DATA')
+    const files = useFilesStore()
+    files.error = 'open /DATA/x: permission denied'
+    files.loading = false
+    await w.vm.$nextTick()
+    expect(w.find('.files-error').exists()).toBe(true)
+    expect(w.find('.files-error-detail').text()).toBe('open /DATA/x: permission denied')
+    const spy = vi.spyOn(files, 'load')
+    await w.find('.files-error button').trigger('click')
+    expect(spy).toHaveBeenCalled()
+  })
+
+  it('加载在途时不显示错误条', async () => {
+    const w = await mountAt('/DATA')
+    const files = useFilesStore()
+    files.error = 'boom'
+    files.loading = true
+    await w.vm.$nextTick()
+    expect(w.find('.files-error').exists()).toBe(false)
+  })
+})

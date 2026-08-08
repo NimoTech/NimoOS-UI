@@ -104,6 +104,8 @@ export default {
   filesUploadFailedCount: '{count} failed',
   filesUploadBatchProgress: '{done}/{total}',
   filesUploadRetry: 'Retry',
+  filesLoadFailed: 'Failed to load',
+  filesRetry: 'Retry',
   filesUploadCancel: 'Delete',
   filesUploadDeleteAll: 'Delete all',
   filesUploadDeleteOne: 'Delete "{name}"? Any uploaded portion will also be cancelled.',

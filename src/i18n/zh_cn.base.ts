@@ -104,6 +104,8 @@ export default {
   filesUploadFailedCount: '{count} 个失败',
   filesUploadBatchProgress: '{done}/{total}',
   filesUploadRetry: '重试',
+  filesLoadFailed: '加载失败',
+  filesRetry: '重试',
   filesUploadCancel: '删除',
   filesUploadDeleteAll: '删除全部',
   filesUploadDeleteOne: '确定删除「{name}」?已上传的部分会一并取消。',

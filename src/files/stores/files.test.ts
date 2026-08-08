@@ -20,6 +20,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 // foldersStore.loadDisks is stubbed by seeding disks directly in the test.
 import { useFilesStore } from './files'
 import { useFoldersStore } from '../../home/stores/folders'
+import { service } from '@nimotech/nimoos-service'
 
 describe('filesStore', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -134,5 +135,23 @@ describe('filesStore selection', () => {
     expect(files.selectedCount).toBe(1)
     await files.load('/DATA')
     expect(files.selectedCount).toBe(0)
+  })
+
+  it('surfaces the backend error text instead of showing an empty folder', async () => {
+    const err = Object.assign(new Error('Fail'), { detail: 'open /DATA/x: permission denied' })
+    vi.mocked(service.folder.getList).mockRejectedValueOnce(err)
+    const files = useFilesStore()
+    await files.load('/DATA/x')
+    expect(files.error).toBe('open /DATA/x: permission denied')
+    expect(files.entries).toEqual([])
+  })
+
+  it('clears a previous error once a later load succeeds', async () => {
+    const files = useFilesStore()
+    vi.mocked(service.folder.getList).mockRejectedValueOnce(new Error('boom'))
+    await files.load('/DATA/x')
+    expect(files.error).toBe('boom')
+    await files.load('/DATA')
+    expect(files.error).toBe('')
   })
 })

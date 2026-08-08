@@ -12,4 +12,17 @@ describe('unwrap', () => {
       expect((e as Error & { code?: number }).code).toBe(404)
     }
   })
+  it('carries the envelope data string as `detail` when it fails', () => {
+    try { unwrap({ success: 500, message: 'Fail', data: 'open /DATA/x: permission denied' } as never); throw new Error('should not reach') }
+    catch (e) {
+      expect((e as Error).message).toBe('Fail')
+      expect((e as Error & { detail?: string }).detail).toBe('open /DATA/x: permission denied')
+    }
+  })
+  it('leaves `detail` undefined when data is not a string', () => {
+    try { unwrap({ success: 500, message: 'Fail', data: { a: 1 } }); throw new Error('should not reach') }
+    catch (e) {
+      expect((e as Error & { detail?: string }).detail).toBeUndefined()
+    }
+  })
 })
