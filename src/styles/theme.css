@@ -291,6 +291,12 @@
   --toast-danger-bg: rgba(255, 80, 100, 0.22);
   --toast-danger-fg: #ff8a8a;
 
+  /* SP12 Plan B: ghost-red destructive button (conflict dialog's Overwrite).
+     Distinct from --toast-danger-* which is a filled toast surface. */
+  --danger-fg: #ff8a8a;
+  --danger-bg: rgba(255, 80, 100, 0.10);
+  --danger-border: rgba(255, 80, 100, 0.40);
+
   --app-size: 64px;
 
   /* 主页深色纵深背景（body 与文件预览浮层共用，保持一致观感） */
@@ -360,6 +366,10 @@
   --toast-warn-fg: #92600c;
   --toast-danger-bg: #fbe4e4;
   --toast-danger-fg: #c0392b;
+
+  --danger-fg: #c0392b;
+  --danger-bg: rgba(192, 57, 43, 0.08);
+  --danger-border: rgba(192, 57, 43, 0.35);
 
   /* 2.5 工具 / 内嵌面 */
   --tool-bg: #f0eee8;
