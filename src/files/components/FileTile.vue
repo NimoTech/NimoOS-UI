@@ -40,7 +40,7 @@ function onClick(e: MouseEvent) {
       />
     </span>
     <button
-      v-if="isUploadBroken(props.entry)"
+      v-if="isUploadBroken(props.entry) && uploadBatchIdOf(props.entry)"
       type="button"
       class="upload-broken-badge"
       :title="$t('filesUploadBrokenBadge')"
@@ -67,12 +67,22 @@ function onClick(e: MouseEvent) {
 .file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
 .file-tile.cut { opacity: 0.45; }
+/* --remove-bg is a solid-fill token meant to pair with white text (see
+   .grid-item .remove above); pairing it with --remove-fg as the glyph color
+   gives ~1.2:1 contrast in both themes (near-identical hues) — invisible.
+   AppSettingsPage.vue's .set-conflict already hit this same mistake and
+   settled on --drop-bad (translucent tint) + --remove-fg text/border, which
+   composites to ~6:1 (dark) / ~4.3:1 (light) against the page background.
+   Adopt that pairing here instead of inventing a new one. */
 .upload-broken-badge {
   position: absolute; right: 6px; top: 6px; width: 20px; height: 20px;
   display: grid; place-items: center; padding: 0;
-  border-radius: 999px; border: 1px solid var(--card-border);
-  background: var(--remove-bg); color: var(--remove-fg);
+  border-radius: 999px; border: 1px solid var(--remove-fg);
+  background: var(--drop-bad); color: var(--remove-fg);
   font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer;
 }
-.upload-broken-badge:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
+/* Hover must read as a *stronger* signal than resting, not weaker — a ring
+   layered on top of the same legible fill, rather than swapping to a fainter
+   translucent background (the bug this replaces). */
+.upload-broken-badge:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--remove-fg) 30%, transparent); }
 </style>

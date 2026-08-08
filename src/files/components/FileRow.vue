@@ -42,7 +42,7 @@ function onClick(e: MouseEvent) {
     </span>
     <FileThumb class="file-icon" :entry="props.entry" />
     <button
-      v-if="isUploadBroken(props.entry)"
+      v-if="isUploadBroken(props.entry) && uploadBatchIdOf(props.entry)"
       type="button"
       class="upload-broken-badge"
       :title="$t('filesUploadBrokenBadge')"
@@ -72,12 +72,18 @@ function onClick(e: MouseEvent) {
 .file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
 .file-row.cut { opacity: 0.45; }
+/* See FileTile.vue's identical badge for why this pairs --drop-bad (fill) with
+   --remove-fg (text/border) instead of --remove-bg — that combination reads
+   as ~1.2:1 contrast in both themes (near-identical hues), same mistake
+   AppSettingsPage.vue's .set-conflict already made and fixed. */
 .upload-broken-badge {
   flex: 0 0 auto; width: 16px; height: 16px;
   display: grid; place-items: center; padding: 0;
-  border-radius: 999px; border: 1px solid var(--card-border);
-  background: var(--remove-bg); color: var(--remove-fg);
+  border-radius: 999px; border: 1px solid var(--remove-fg);
+  background: var(--drop-bad); color: var(--remove-fg);
   font-size: 10px; font-weight: 700; line-height: 1; cursor: pointer;
 }
-.upload-broken-badge:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
+/* Hover adds emphasis on top of the legible resting fill rather than
+   replacing it with a fainter one — stronger signal, not weaker. */
+.upload-broken-badge:hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--remove-fg) 30%, transparent); }
 </style>
