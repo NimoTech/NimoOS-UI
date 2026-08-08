@@ -45,14 +45,14 @@ export function validateArrayFields(
     const raw = values ? values[f.key] : undefined
     const v = Array.isArray(raw) ? raw : []
     const label = f.title || f.key
-    if (f.required && v.length === 0) return t('{label}: is required', { label })
+    if (f.required && v.length === 0) return t('aiMcpElicitErrRequired', { label })
     // Note: this deliberately does NOT continue on an empty array -- min_items is
     // independent of required, so a field with required: false but min_items: 1 still
     // violates the rule when 0 items are selected.
     if (f.min_items !== null && f.min_items !== undefined && v.length < f.min_items)
-      return t('{label}: pick at least {n}', { label, n: f.min_items })
+      return t('aiMcpElicitErrMinItems', { label, n: f.min_items })
     if (f.max_items !== null && f.max_items !== undefined && v.length > f.max_items)
-      return t('{label}: pick at most {n}', { label, n: f.max_items })
+      return t('aiMcpElicitErrMaxItems', { label, n: f.max_items })
   }
   return null
 }
