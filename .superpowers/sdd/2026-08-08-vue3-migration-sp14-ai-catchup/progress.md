@@ -30,3 +30,10 @@ Task 9: minor (deferred): .ic-knowledge 琥珀色与 .ic-storage 相近,相邻�
 Task 10: complete (closeout 提交 bb08862 + 修复 6 个 commit;门数见 .superpowers/sdd/sp14/closeout.md)
 FINAL REVIEW (opus, 全支 65c7928..bb08862): 0 Critical;3 Important + 3 必修测试项已在 df91b6b/03e6ba1/0cf986a 修完并过定向复审
 FINAL: 未采纳项(交机主定): McpInstallCard 仍是旧 409 形态+「更改」按钮(Vue2 #136 也没动它,属范围外)
+
+FINAL GATES (控制者复跑于修复轮之后,2026-08-09):
+- vitest 全量: 655 文件 / 10499 例 全绿 (exit 0)
+- vue-tsc --noEmit: 0 错
+- pnpm build: 成功(仅 chunk>500kB 的既有告警)
+- oss 导出: 一度红 —— 修复轮给 useOpenAction.ts 补注释又打断了 PATCH 锚点(T10 刚重锚过),已在 df3847c 修并把锚点拆细;现 6 文件/141 例全绿,导出树里 knowledge//ai/agent/sendToAI 零命中
+⚠️ 我曾把这次 oss 红判成「工作树脏」,干净树复跑才证伪 —— 记一笔防复发
