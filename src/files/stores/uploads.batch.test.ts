@@ -47,6 +47,22 @@ describe('addFilesToQueue reports the batch manifest', () => {
     expect(s.queue[0].status).toBe('pending')
   })
 
+  it('reports the manifest before the items are queued', async () => {
+    // Pins the ordering invariant itself, not just the final state: capture the
+    // queue's length synchronously inside the mock, at the exact moment
+    // createBatch is invoked — before any of its internal awaits run. If the
+    // manifest call were moved after `queue.value.push(...items)`, this would
+    // observe length 1 instead of 0.
+    const s = useUploadsStore()
+    let queueLengthAtCallTime = -1
+    createBatch.mockImplementationOnce(() => {
+      queueLengthAtCallTime = s.queue.length
+      return Promise.resolve(undefined)
+    })
+    await s.addFilesToQueue([pick('a.txt', 3)])
+    expect(queueLengthAtCallTime).toBe(0)
+  })
+
   it('does not report a manifest when every file was rejected as protected', async () => {
     const s = useUploadsStore()
     await s.addFilesToQueue([{ file: new File(['x'], 'a'), targetPath: '/DATA', relativePath: 'AppData/a' }])
