@@ -20,9 +20,12 @@ interface TusPauseError extends Error {
 export function tusUpload(args: TusArgs): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     // We own resume ourselves: the upload URL is reported back via onUrlAvailable,
-    // persisted by the caller, and passed back in as resumeUrl on the next run. So
-    // tus-js-client must NOT keep its own fingerprint store — a second writer to the
-    // same record would race the caller's persistence and clobber the resume URL.
+    // held in-memory on the queue item (uploads.ts) for the tab's lifetime — not
+    // persisted anywhere, so it does not survive a refresh — and passed back in as
+    // resumeUrl on a same-session retry (a paused item, or a mid-transfer 5xx/network
+    // retry). So tus-js-client must NOT keep its own fingerprint store — a second
+    // writer to the same record would race the caller's in-memory copy and clobber
+    // the resume URL.
     let reportedUrl: string | null = null
     const upload = new tus.Upload(args.file, {
       endpoint: UPLOAD_TUS_ENDPOINT,

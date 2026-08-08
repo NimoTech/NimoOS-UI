@@ -25,11 +25,14 @@ function harness(item: UploadItem, uploadImpl: any) {
 describe('scheduler', () => {
   it('has the outer backoff sequence', () => expect(BACKOFF_MS).toEqual([1000, 3000, 9000]))
 
-  // A local/fresh pick always gets an `fq_`-prefixed id (addFilesToQueue); a
-  // server-reported tus id (syncServerTasks/reattachFiles) does not. `resumed`
-  // tells the server whether a name collision should overwrite instead of
-  // creating a "(1)" duplicate — see scheduler.ts's comment for why this only
-  // matters when tus-js-client actually issues a create request.
+  // addFilesToQueue is the only source of queue items today (SP12 Plan A removed
+  // syncServerTasks/reattachFiles, the server-side resume sources a non-`fq_` id
+  // used to come from), and it always mints an `fq_`-prefixed id. So the `true`
+  // branch below is unreachable in current production code — these two tests pin
+  // the wire-format contract (what `resumed` would carry for either id shape) for
+  // whenever a future server-resume source reappears, not a state the app can
+  // reach today. Collapsing the expression to a literal `false` is a deliberate
+  // follow-up, not something to do in this pass — see scheduler.ts's comment.
   it('sends resumed:false for a fresh local (fq_-id) item', async () => {
     let seenArgs: any
     const upload = (args: any) => { seenArgs = args; return Promise.resolve() }
@@ -38,6 +41,8 @@ describe('scheduler', () => {
     expect(seenArgs.resumed).toBe(false)
   })
 
+  // Pins the `resumed:true` branch of the same expression for a hypothetical
+  // non-`fq_`-id item — nothing in the app mints such an id today.
   it('sends resumed:true for a server-reported (non fq_-id) item', async () => {
     let seenArgs: any
     const upload = (args: any) => { seenArgs = args; return Promise.resolve() }

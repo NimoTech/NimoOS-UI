@@ -64,14 +64,19 @@ export function createScheduler(deps: SchedulerDeps) {
           relativePath: item.relativePath || item.fileName,
           batchId: item.batchId || '',
           batchTotal: item.batchTotal != null ? item.batchTotal : 1,
-          // A fresh local pick always gets an `fq_`-prefixed id (addFilesToQueue).
-          // A non-`fq_` id would mean this item came from a server-side resume
-          // source and the server already has (partial) content for it under
-          // this same name — tell it to overwrite a name collision instead of
-          // creating a "(1)" duplicate. Note this only has any effect when
-          // tus-js-client actually performs a create request: whenever
-          // resumeUrl below is set, it resumes that URL directly (a plain
-          // HEAD, no metadata) and this flag is never transmitted either way.
+          // Every item the app can currently produce gets an `fq_`-prefixed id
+          // (addFilesToQueue is the only source of queue items since SP12 Plan A
+          // removed the server-side resume sources this flag was originally meant
+          // for — syncServerTasks/reattachFiles are gone). So this is `false` for
+          // everything today and the `true` branch is unreachable in production;
+          // it's left in place (rather than collapsed to a literal `false`) as a
+          // deliberate follow-up, not an oversight — see scheduler.test.ts. If a
+          // non-`fq_` id ever did reach here, it would mean the server already has
+          // (partial) content under this name — tell it to overwrite a name
+          // collision instead of creating a "(1)" duplicate. Note this only has any
+          // effect when tus-js-client actually performs a create request: whenever
+          // resumeUrl below is set, it resumes that URL directly (a plain HEAD, no
+          // metadata) and this flag is never transmitted either way.
           resumed: !item.id.startsWith('fq_'),
           conflictPolicy: item.conflictPolicy || '',
           resumeUrl: item.tusUploadUrl || undefined,

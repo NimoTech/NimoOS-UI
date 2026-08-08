@@ -496,8 +496,13 @@ let offUnloadGuard: (() => void) | null = null
 onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue, undefined, (id) => service.uploadBatches.interruptBatch(id)) })
 onUnmounted(() => { offUnloadGuard?.() })
 
-// 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
-// 失败降级为内存模式,不阻断文件区渲染。
+// Cross-refresh resume was removed in SP12 Plan A — a reload always starts with an
+// empty in-memory queue, so there is nothing here to recover. In practice this call
+// is a no-op today as well: the queue only becomes non-empty via addFilesToQueue(),
+// which starts the scheduler itself and drains every pending-with-file item before
+// returning, so resumePending() inside initUploads() never finds anything left
+// pending. Kept as a one-shot latch for a possible future recovery path rather than
+// deleted — see uploads.ts's initUploads()/resumePending().
 onMounted(() => { uploads.initUploads() })
 
 // 每会话拉一次快照卷列表:入口按钮(canShowEntry)与只读锁(browseInfo)都依赖它就绪。

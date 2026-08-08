@@ -26,9 +26,13 @@ describe.each([['FileTile', FileTile], ['FileRow', FileRow]] as const)('%s torn 
     const w = mount(Comp, { props: { entry: broken }, global: { plugins: [i18n] } })
     await w.find('.upload-broken-badge').trigger('click')
     expect(w.emitted('open-batch')?.[0]).toEqual(['b1'])
-    // The badge lives inside the card, so without stopping propagation the
-    // card's own open/select would fire alongside it — that exact regression
-    // is what Vue 2 (#91) had to go back and fix.
+    // The badge is a <button> nested inside the card's own @click handler
+    // (FileTile.vue / FileRow.vue), so without .stop the click would bubble up
+    // and also fire the card's open/select — this guard exists for that reason.
+    // (Not the same bug Vue 2's #91 fixed: there, a card style set
+    // pointer-events:none on every inner span, which swallowed the badge's
+    // click entirely rather than double-firing it — a different mechanism,
+    // not applicable here.)
     expect(w.emitted('open')).toBeUndefined()
     expect(w.emitted('select')).toBeUndefined()
   })
