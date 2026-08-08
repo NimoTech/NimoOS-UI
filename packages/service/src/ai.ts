@@ -389,9 +389,16 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 连通性测试可能较慢,超时单独放宽到 110s(而非全局默认超时)。 */
+    // The probe timeout chain must nest outside-in: axios > Go > Python, so the
+    // layer holding the subprocess and socket -- the one that can report an
+    // accurate reason -- always gives up first. The Go proxy is 43s (http) /
+    // 125s (stdio) (NimoOS-AI route/v2/mcp.go); the Python fallback is
+    // TEST_TIMEOUT / STDIO_TEST_TIMEOUT (NimoOS-AI agent/mcp_client/client.py).
+    // If this were the smallest of the three, a slow-but-healthy stdio server
+    // would be cut off in the browser and the accurate probe error would never
+    // reach the user.
     async testMCPServer(id: string | number): Promise<unknown> {
-      const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 110000 })
+      const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 135000 })
       return res.data
     },
 

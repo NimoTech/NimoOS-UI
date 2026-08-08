@@ -487,11 +487,11 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(ai.exportSkillURL('a b')).toBe(`/v1/ai/skills/${encodeURIComponent('a b')}/export`)
   })
 
-  it('testMCPServer body {} + config timeout 110000 透传', async () => {
+  it('testMCPServer body {} + config timeout 135000 透传', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).testMCPServer(1)
     expect(calls[0].body).toEqual({})
-    expect(calls[0].cfg).toEqual({ timeout: 110000 })
+    expect(calls[0].cfg).toEqual({ timeout: 135000 })
   })
 
   it('parseMCPCommand body {command_line}', async () => {
