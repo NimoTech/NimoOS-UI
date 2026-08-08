@@ -112,14 +112,28 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
       const conflicts = computeUploadConflicts(entries, existing)
       if (!conflicts.length) return passthrough()
 
-      // Round 1: two independent queues, each with its own apply-to-all.
+      // Round 1: two independent queues, each with its own apply-to-all —
+      // that independence is only about applyToAll, not about Cancel.
+      // FileConflictDialog.vue documents Cancel (Esc / outside click) as
+      // "stop asking about the rest of THIS BATCH", and resolveConflictQueue
+      // only cancels the rest of the one queue it was given. So a Cancel in
+      // the folder queue must not let the file queue re-open the dialog for
+      // an unrelated conflict — the folder queue runs first, so checking its
+      // outcome before ever touching the file queue is enough to cover the
+      // whole batch. The file conflicts are synthesized as 'cancelled'
+      // resolutions rather than skipped over, so applyUploadResolutions still
+      // folds them into cancelledCount instead of silently dropping them (and
+      // they must not be miscounted as skipped either).
       const { folderConflicts, fileConflicts } = splitConflictsByKind(conflicts, entries, existing)
       const folderResolutions = folderConflicts.length
         ? await resolveConflictQueue(folderConflicts, (c, ctx) => ask(c, targetPath, ctx))
         : []
-      const fileResolutions = fileConflicts.length
-        ? await resolveConflictQueue(fileConflicts, (c, ctx) => ask(c, targetPath, ctx))
-        : []
+      const folderCancelled = folderResolutions.some((r) => r.action === 'cancelled')
+      const fileResolutions = !fileConflicts.length
+        ? []
+        : folderCancelled
+          ? fileConflicts.map((conflict) => ({ conflict, action: 'cancelled' as const }))
+          : await resolveConflictQueue(fileConflicts, (c, ctx) => ask(c, targetPath, ctx))
 
       const existingNames = new Set(existing.keys())
       const applied = applyUploadResolutions(entries, [...folderResolutions, ...fileResolutions], existingNames)

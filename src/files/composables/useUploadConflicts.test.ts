@@ -129,4 +129,48 @@ describe('useUploadConflicts', () => {
     expect(r1.skippedCount).toBe(1)
     expect(r2.skippedCount).toBe(1)
   })
+
+  it('cancel in the folder queue also cancels every pending file conflict — the dialog does not reopen', async () => {
+    const c = useUploadConflicts({
+      listFolder: listing([{ name: 'Trip', is_dir: true }, { name: 'a.txt', is_dir: false }]),
+    })
+    const p = c.resolveEntries([e('Trip/1.jpg'), e('a.txt')], '/DATA')
+    await answer(c, null) // cancel on the folder prompt — the folder queue runs first
+    // Give the file queue every chance it would need to (wrongly) reopen the
+    // dialog for a.txt before asserting it stayed closed.
+    for (let i = 0; i < 50; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(false)
+    const out = await p
+    expect(out.accepted).toEqual([])
+    expect(out.cancelledCount).toBe(2)
+  })
+
+  it('answering the folder prompt normally still lets the file prompt open afterwards', async () => {
+    const c = useUploadConflicts({
+      listFolder: listing([{ name: 'Trip', is_dir: true }, { name: 'a.txt', is_dir: false }]),
+    })
+    const p = c.resolveEntries([e('Trip/1.jpg'), e('a.txt')], '/DATA')
+    await answer(c, { action: 'skip' }) // answers the folder prompt — not a cancel
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('a.txt')
+    c.onChoose({ action: 'skip' } as never)
+    const out = await p
+    expect(out.skippedCount).toBe(2)
+  })
+
+  it('exposes the queue position to the dialog for a multi-conflict queue', async () => {
+    const c = useUploadConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
+    const p = c.resolveEntries([e('a.txt'), e('b.txt')], '/DATA')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.queueIndex).toBe(0)
+    expect(c.dialog.value.queueTotal).toBe(2)
+    c.onChoose({ action: 'skip' } as never)
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.queueIndex).toBe(1)
+    expect(c.dialog.value.queueTotal).toBe(2)
+    c.onChoose({ action: 'skip' } as never)
+    const out = await p
+    expect(out.skippedCount).toBe(2)
+  })
 })
