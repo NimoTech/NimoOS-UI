@@ -176,7 +176,6 @@ export const SOFT = [
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("themePhoto: '照片…',") },
       { file: /src\/main\.ts$/, re: exactLine('// and the photo snaps in a frame later.') },
       { file: /src\/styles\/theme\.css$/, re: exactLine('existing sheen + vignette shape so white text stays readable on any photo. */') },
-      { file: /src\/styles\/theme\.css$/, re: exactLine("/* SP11: the paper theme's text is near-black (#1c1b19); over a dark photo it") },
       { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine("it('kills the bokeh layer, which would smear coloured fog over a photo', () => {") },
       { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine('// text loses its white veil over a dark photo -- invisible to tsc, build,') },
       // 2026-08-07 Task 8: ThemeToggle's topbar menu grew a third "Photo…" entry
@@ -218,8 +217,13 @@ export const SOFT = [
       // image the scrim sits on top of, not the deleted photos app. Same
       // reasoning duplicated in the CSS and its guard test, entered per-line.
       { file: /src\/styles\/theme\.css$/, re: exactLine('   ENTIRE app (cards, buttons, text), not just the wallpaper photo beneath it. That') },
-      { file: /src\/styles\/theme\.css$/, re: exactLine('   scrim belongs: modulating the photo, not the UI on top of it. */') },
+      { file: /src\/styles\/theme\.css$/, re: exactLine('   the app content -- which is where a scrim belongs: modulating the photo, not') },
       { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine('// text) instead of just the wallpaper photo underneath it. jsdom cannot compute') },
+      // Acceptance fix 2 (2026-08-08): the comment recording why the owner took the
+      // paper theme's veil from 55% down to 15%. Same sense of "photo" as above.
+      { file: /src\/styles\/theme\.css$/, re: exactLine("/* SP11: the paper theme's text is near-black (#1c1b19), so a dark photo needs") },
+      { file: /src\/styles\/theme\.css$/, re: exactLine('     15% on 2026-08-08, down from the 55% this shipped with: at 55% the photo was') },
+      { file: /src\/styles\/theme\.css$/, re: exactLine('     the photo and almost all of its text. Anything the veil alone has to carry') },
     ],
   },
   {
