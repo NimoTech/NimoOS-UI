@@ -125,8 +125,6 @@ export default {
   filesUploadErrBadName: 'Invalid file name or path',
   filesUploadErrServer: 'Server error',
   filesUploadErrNetwork: 'Network error',
-  filesUploadReselect: 'Reselect file',
-  filesUploadNeedsFile: 'Reselect the file to continue uploading',
   filesUploadPause: 'Pause',
   filesUploadResume: 'Resume',
   filesUploadPauseAll: 'Pause all',

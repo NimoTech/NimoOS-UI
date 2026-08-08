@@ -151,7 +151,7 @@ describe('uploads restore/resume', () => {
     // scheduler's run() is an async no-op here, so `uploading` is still true
     // at this point in the synchronous test body.
     const store = useUploadsStore()
-    store.queue.push({ id: 'n', status: 'needs_file', file: null } as any)
+    store.queue.push({ id: 'n', status: 'error', file: null } as any)
     store.resumePending()
     expect(store.uploading).toBe(false)
     store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
@@ -159,30 +159,27 @@ describe('uploads restore/resume', () => {
     expect(store.uploading).toBe(true)
   })
 
-  it('initUploads calls syncServerTasks then resumes pending items', async () => {
-    ;(service.file.listActiveUploads as any).mockResolvedValueOnce({ tasks: [] })
-    const store = useUploadsStore()
-    await store.initUploads()
-    expect(service.file.listActiveUploads).toHaveBeenCalled()
-  })
-
-  it('initUploads is idempotent: a second call on the same store instance does not re-sync', async () => {
+  it('initUploads is a one-shot latch: a second call on the same store instance is a no-op', () => {
     // Regression test for SP4-P3b: Files.vue calls initUploads() from
     // onMounted, but the uploads Pinia store is an app-lifetime singleton
     // while Files.vue unmounts/remounts on every SPA navigation (App.vue's
-    // <router-view /> has no <keep-alive>). Before the guard, every revisit
-    // re-ran server sync and could double-append the same needs_file rows.
-    ;(service.file.listActiveUploads as any).mockResolvedValue({
-      tasks: [{
-        id: 'srv1', filename: 'a', relative_path: 'a', target_path: '/DATA', size: 1,
-        mime: '', offset: 0, upload_url: '', retry_count: 0, created_at: 1, batch_id: '',
-      }],
-    })
+    // <router-view /> has no <keep-alive>). The `initialized` latch keeps a
+    // revisit from re-running init logic (here: resumePending()).
+    //
+    // Not awaited: initUploads' body is synchronous (no I/O left in it), so
+    // its side effect (uploading flips true via the mocked scheduler's
+    // synchronous no-op run()) is observable immediately, same technique as
+    // the resumePending test above.
     const store = useUploadsStore()
-    await store.initUploads()
-    await store.initUploads()
-    expect(service.file.listActiveUploads).toHaveBeenCalledTimes(1)
-    expect(store.queue).toHaveLength(1)
+    store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
+    store.initUploads().catch(() => {})
+    expect(store.uploading).toBe(true)
+    // Pretend the in-flight upload finished, then call initUploads() again —
+    // the latch must skip resumePending() this time, so uploading must NOT
+    // flip back to true even though the same pending item is still queued.
+    store.uploading = false
+    store.initUploads().catch(() => {})
+    expect(store.uploading).toBe(false)
   })
 })
 
@@ -296,55 +293,5 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
     expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
-  })
-})
-
-describe('uploads reattachFiles', () => {
-  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
-
-  function seedNeedsFile(store: ReturnType<typeof useUploadsStore>, over: any = {}) {
-    store.queue.push({
-      id: 'nf', file: null, fileName: 'a.txt', fileType: 'text/plain', size: 4,
-      targetPath: '/DATA/x', relativePath: 'a.txt', status: 'needs_file', progress: 0,
-      bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1,
-      batchId: 'b', batchTotal: 1, conflictPolicy: '', ...over,
-    } as any)
-  }
-
-  it('size mismatch does not match', async () => {
-    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [] })
-    const store = useUploadsStore()
-    seedNeedsFile(store)
-    const wrong = new File(['different-bytes'], 'a.txt') // size != 4
-    const res = await store.reattachFiles([{ file: wrong, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(res.matched).toBe(0)
-    expect(store.queue[0].status).toBe('needs_file')
-  })
-
-  it('match + not existing → pending', async () => {
-    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: false }] })
-    const store = useUploadsStore()
-    vi.spyOn(store, 'startUpload').mockImplementation(() => {})
-    seedNeedsFile(store)
-    const f = new File(['data'], 'a.txt') // size 4
-    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(res.matched).toBe(1)
-    expect(store.queue[0].status).toBe('pending')
-    // jsdom's File does not inherit from the Node Blob that vitest.setup.ts
-    // installs as globalThis.Blob (for fake-indexeddb structuredClone compat),
-    // so `toBeInstanceOf(Blob)` is unreliable here; assert the real intent —
-    // the picked file got attached to the queue item.
-    expect(store.queue[0].file).toBe(f)
-  })
-
-  it('match + existing on server → conflict', async () => {
-    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: true }] })
-    const store = useUploadsStore()
-    seedNeedsFile(store)
-    const f = new File(['data'], 'a.txt')
-    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(res.matched).toBe(0)
-    expect(res.conflicts).toHaveLength(1)
-    expect(store.queue[0].status).toBe('conflict')
   })
 })

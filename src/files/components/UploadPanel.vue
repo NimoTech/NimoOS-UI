@@ -140,31 +140,6 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
   const item = conflictItem.value
   if (item) store.resolveConflict(item.id, choice)
 }
-
-// needs_file reselect: user re-picks the same folder/files via a hidden
-// input; reattachFiles matches them back onto the needs_file queue items by
-// their own targetPath/relativePath (the SelectedFile.targetPath below is a
-// placeholder to satisfy the shape, not used for matching).
-const reselectInput = ref<HTMLInputElement | null>(null)
-
-function triggerReselect() {
-  reselectInput.value?.click()
-}
-async function onReselect(e: Event) {
-  const input = e.target as HTMLInputElement
-  const list = input.files
-  if (list && list.length) {
-    const sel = Array.from(list).map((f) => ({
-      file: f,
-      targetPath: files.currentPath,
-      // 与 commitSelectedFiles 一致:剥离前导 '/',避免受保护目录判断
-      // (split('/')[0])被空首段绕过。
-      relativePath: ((f as any).webkitRelativePath || f.name).replace(/^\/+/, ''),
-    }))
-    await store.reattachFiles(sel)
-  }
-  input.value = ''
-}
 </script>
 
 <template>
@@ -194,11 +169,9 @@ async function onReselect(e: Event) {
             <span class="up-item-name">{{ labelText(b.label) }}</span>
             <span v-if="batchDir(b)" class="up-item-dir">{{ batchDir(b) }}</span>
           </div>
-          <div v-if="b.needsFileCount > 0" class="up-item-error">{{ t('filesUploadNeedsFile') }}</div>
           <div v-if="singleErrorText(b)" class="up-item-error">{{ singleErrorText(b) }}</div>
           <div v-else-if="b.errorCount > 0 && b.multi" class="up-item-error">{{ t('filesUploadFailedCount', { count: b.errorCount }) }}</div>
           <div class="up-item-actions">
-            <button v-if="b.needsFileCount > 0" class="up-link-btn" @click="triggerReselect">{{ t('filesUploadReselect') }}</button>
             <button v-if="b.errorCount > 0" class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
             <button v-if="b.pausedCount > 0" class="up-link-btn" @click="onResume(b)">{{ t('filesUploadResume') }}</button>
             <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
@@ -270,8 +243,6 @@ async function onReselect(e: Event) {
       @update:open="(v) => { deleteOpen = v }"
       @confirm="confirmDelete"
     />
-
-    <input ref="reselectInput" type="file" webkitdirectory multiple class="up-hidden-input" @change="onReselect" />
   </div>
 </template>
 
@@ -326,5 +297,4 @@ async function onReselect(e: Event) {
 .up-subitem-pct { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
 .ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
-.up-hidden-input { display: none; }
 </style>

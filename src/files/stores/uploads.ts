@@ -1,12 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { refreshAccessToken, service } from '@nimotech/nimoos-service'
-import type { ServerUploadTask } from '@nimotech/nimoos-service'
 import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
 import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
 import { safeRandomUUID } from '../upload/uuid'
 import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
-import { planServerSync } from '../upload/serverSync'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -271,90 +269,10 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     if (queue.value.some((i) => i.status === 'pending' && !!i.file)) startUpload()
   }
 
-  async function reattachFiles(files: SelectedFile[]): Promise<{ matched: number; conflicts: UploadItem[] }> {
-    const byRel = new Map<string, File>()
-    const byName = new Map<string, File>()
-    for (const f of files) {
-      const rel = f.relativePath || f.file.name
-      if (rel) byRel.set(rel, f.file)
-      if (f.file.name) byName.set(f.file.name, f.file)
-    }
-
-    const matches: { it: UploadItem; file: File }[] = []
-    for (const it of queue.value) {
-      if (it.status !== 'needs_file') continue
-      const f = byRel.get(it.relativePath) || byName.get(it.fileName)
-      if (!f) continue
-      // Name matched — size must also match, else it's a different file (skip; let user re-pick).
-      if (it.size && f.size && f.size !== it.size) continue
-      matches.push({ it, file: f })
-    }
-    if (matches.length === 0) return { matched: 0, conflicts: [] }
-
-    let existing = new Set<string>()
-    try {
-      existing = await precheckExisting(
-        matches.map(({ it, file }) => ({ file, targetPath: it.targetPath, relativePath: it.relativePath })),
-      )
-    } catch {
-      // Precheck unavailable — upload everything.
-    }
-
-    let matched = 0
-    const conflicts: UploadItem[] = []
-    for (const { it, file } of matches) {
-      if (existing.has(conflictKey(it.targetPath, it.relativePath))) {
-        patch(it.id, { file, status: 'conflict', error: '' })
-        conflicts.push(it)
-      } else {
-        patch(it.id, { file, status: 'pending', error: '' })
-        matched++
-      }
-    }
-    if (matched > 0 && !uploading.value) startUpload()
-    return { matched, conflicts }
-  }
-
-  // Cross-device / cross-browser recovery: pull the server's active upload
-  // tasks and reconcile them against the local queue. Merges resume points
-  // into content-matched local rows; appends server-only tasks as needs_file
-  // (the user re-picks the file to resume from the server offset). Silent on
-  // network error — must never block restore/resume. (Vue2 fileUpload.js:189.)
-  async function syncServerTasks(): Promise<void> {
-    let tasks: ServerUploadTask[] = []
-    try {
-      const res = await service.file.listActiveUploads()
-      tasks = res.tasks || []
-    } catch {
-      return
-    }
-    const { merges, appends } = planServerSync(queue.value, tasks)
-    for (const m of merges) patch(m.id, m.patch)
-    // Server-appended needs_file rows are transient (no blob) — not persisted
-    // to IDB, matching Vue2; they vanish on refresh and re-sync on next init.
-    if (appends.length) queue.value.push(...appends)
-  }
-
   async function initUploads(): Promise<void> {
-    // One-shot latch: Files.vue calls this on every SPA navigation, but the
-    // Pinia store is app-scoped (a single instance for the whole app
-    // lifetime). A real page reload rebuilds the store and resets this flag,
-    // so this is still "once per page load", not "once per mount".
-    //
-    // Set BEFORE the await: two synchronous mounts in the same tick (e.g. a
-    // fast back-and-forth navigation) must not both observe `false` and both
-    // proceed to sync — that would double-run syncServerTasks (and could
-    // double-append the same server-reported rows) before either call's
-    // await yields. Latching first, awaiting second, closes that race;
-    // latching only on success would leave the window open.
     if (initialized.value) return
     initialized.value = true
-    try {
-      await syncServerTasks()
-      resumePending()
-    } catch (e) {
-      console.warn('[uploads] initUploads failed', e)
-    }
+    resumePending()
   }
 
   const hasActive = computed(() =>
@@ -383,7 +301,5 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     clearDone,
     resumePending,
     initUploads,
-    reattachFiles,
-    syncServerTasks,
   }
 })

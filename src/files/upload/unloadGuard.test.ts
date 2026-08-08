@@ -7,10 +7,10 @@ const mk = (p: Partial<UploadItem>): UploadItem => ({
   createdAt: 0, batchId: 'b', batchTotal: 1, conflictPolicy: '', ...p,
 })
 describe('hasActiveUploads', () => {
-  it('true for uploading or pending-with-file, false for needs_file', () => {
+  it('true for uploading or pending-with-file, false for paused/done', () => {
     expect(hasActiveUploads([mk({ status: 'uploading' })])).toBe(true)
     expect(hasActiveUploads([mk({ status: 'pending', file: new Blob(['x']) })])).toBe(true)
-    expect(hasActiveUploads([mk({ status: 'needs_file', file: null })])).toBe(false)
+    expect(hasActiveUploads([mk({ status: 'paused', file: null })])).toBe(false)
     expect(hasActiveUploads([mk({ status: 'done' })])).toBe(false)
   })
 })

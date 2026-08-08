@@ -15,7 +15,7 @@ import { useUploadsStore } from './uploads'
 function serverRow(id: string, url: string) {
   return {
     id, file: null, fileName: 'a', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'a',
-    status: 'needs_file' as const, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: url,
+    status: 'paused' as const, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: url,
     retryCount: 0, error: '', createdAt: 0, batchId: '', batchTotal: 1,
     conflictPolicy: '' as const,
   }

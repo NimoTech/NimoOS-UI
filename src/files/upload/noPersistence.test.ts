@@ -23,4 +23,11 @@ describe('upload layer carries no client-side byte persistence', () => {
       .filter((n) => readFileSync(resolve(dir, n), 'utf8').includes('indexedDB'))
     expect(hits).toEqual([])
   })
+
+  it('has no needs_file status left in the upload layer', () => {
+    const hits = readdirSync(dir)
+      .filter((n) => n.endsWith('.ts') && !n.endsWith('.test.ts'))
+      .filter((n) => readFileSync(resolve(dir, n), 'utf8').includes('needs_file'))
+    expect(hits).toEqual([])
+  })
 })

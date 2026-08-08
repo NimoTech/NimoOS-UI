@@ -64,13 +64,13 @@ export function createScheduler(deps: SchedulerDeps) {
           relativePath: item.relativePath || item.fileName,
           batchId: item.batchId || '',
           batchTotal: item.batchTotal != null ? item.batchTotal : 1,
-          // A fresh local pick always gets an `fq_`-prefixed id (addFilesToQueue);
-          // anything else is a server-reported tus id, meaning this item came from
-          // syncServerTasks/reattachFiles and the server already has (partial)
-          // content for it under this same name — tell it to overwrite a
-          // name collision instead of creating a "(1)" duplicate. Note this only
-          // has any effect when tus-js-client actually performs a create request:
-          // whenever resumeUrl below is set, it resumes that URL directly (a plain
+          // A fresh local pick always gets an `fq_`-prefixed id (addFilesToQueue).
+          // A non-`fq_` id would mean this item came from a server-side resume
+          // source and the server already has (partial) content for it under
+          // this same name — tell it to overwrite a name collision instead of
+          // creating a "(1)" duplicate. Note this only has any effect when
+          // tus-js-client actually performs a create request: whenever
+          // resumeUrl below is set, it resumes that URL directly (a plain
           // HEAD, no metadata) and this flag is never transmitted either way.
           resumed: !item.id.startsWith('fq_'),
           conflictPolicy: item.conflictPolicy || '',
@@ -157,8 +157,8 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
-  // Abort an in-flight upload. No-op if there's no active handle (pending/needs_file/
-  // error). Doesn't await the underlying DELETE so the caller can drop the row now.
+  // Abort an in-flight upload. No-op if there's no active handle (pending/error).
+  // Doesn't await the underlying DELETE so the caller can drop the row now.
   function abort(id: string): void {
     const h = active.get(id)
     if (h) {

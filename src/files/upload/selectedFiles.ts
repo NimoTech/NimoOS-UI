@@ -1,10 +1,10 @@
 import type { SelectedFile } from './types'
 
 // Shared normalization for both the file/folder picker (handleSelectedFiles)
-// and drag-drop (onDrop) in Files.vue, plus needs_file reselect in
-// UploadPanel.vue: strip leading slashes from relativePath — the downstream
-// protected-dir check reads split('/')[0] to take the first segment, and a
-// leading slash would produce an empty first segment that bypasses it.
+// and drag-drop (onDrop) in Files.vue: strip leading slashes from
+// relativePath — the downstream protected-dir check reads split('/')[0] to
+// take the first segment, and a leading slash would produce an empty first
+// segment that bypasses it.
 export function toSelectedFiles(
   entries: { file: File; relativePath: string }[],
   targetPath: string,

@@ -6,7 +6,8 @@ import type { UploadItem } from './types'
  * - Items with status 'uploading' (in flight)
  * - Items with status 'pending' that still have their File attached
  *
- * Excludes 'needs_file' items since they have no data to lose.
+ * Any other status (done, error, paused, conflict) has no in-flight bytes to
+ * lose, so those items don't count.
  */
 export function hasActiveUploads(queue: UploadItem[]): boolean {
   if (!Array.isArray(queue)) {
