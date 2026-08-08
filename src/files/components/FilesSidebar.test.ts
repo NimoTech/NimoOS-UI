@@ -9,6 +9,7 @@ import AddMountMenu from './AddMountMenu.vue'
 import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
 import { useFilesStore } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
+import { useDiskUsageStore } from '../stores/diskUsage'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -18,10 +19,13 @@ vi.mock('@nimotech/nimoos-service', () => ({
     // ejectCloud/loadMounts 走 service.cloud —— 均需 mock 以避免未处理拒绝的控制台告警。
     driver: { listDrivers: vi.fn().mockResolvedValue([]) },
     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
+    // FilesSidebar 的 onMounted 拉磁盘用量(SP12-T9),同样要 mock 掉才没有告警。
+    storage: { list: vi.fn().mockResolvedValue([]) },
+    raid: { list: vi.fn().mockResolvedValue([]), getStatus: vi.fn() },
   },
 }))
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏', filesSharesNav: '共享' } } })
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { filesFavorites: '收藏', filesDisks: '磁盘', filesNoFavorites: '暂无收藏', filesSharesNav: '共享', filesDiskUsed: '已用', filesDiskAvailable: '可用', filesDiskCapacity: '容量', filesDiskDetails: '容量详情' } } })
 
 // FilesSidebar now reads useRoute()/useRouter() for the shares nav item's active state — a
 // router plugin must be installed or vue-router's injection throws on mount.
@@ -141,6 +145,49 @@ describe('FilesSidebar', () => {
       expect(String(url)).toContain(encodeURI(window.location.origin))
       expect(name).toBe('Google Drive')
       openSpy.mockRestore()
+    })
+  })
+
+  // SP12-T9:侧栏原本只有图标+名字,没有任何用量显示。
+  describe('磁盘容量悬浮窗', () => {
+    function seedUsage() {
+      const usage = useDiskUsageStore()
+      usage.details = { '/DATA': { space: { used: 4, total: 10, avail: 6 }, raid: null } }
+      return usage
+    }
+
+    it('只有拿到用量的磁盘才出现 ⋮ 把手', async () => {
+      const files = seedFiles()
+      files.disks = [
+        { name: 'NimoOS-HD', path: '/DATA', usb: false },
+        { name: 'Unknown', path: '/mnt/x', usb: false },
+      ] as any
+      seedUsage()
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      await nextTick()
+      expect(w.findAll('.side-dots').length).toBe(1)
+    })
+
+    it('悬停打开、移出关闭', async () => {
+      seedFiles()
+      seedUsage()
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      await nextTick()
+      expect(w.find('.disk-tip').exists()).toBe(false)
+      await w.find('.side-dots').trigger('mouseenter')
+      expect(w.find('.disk-tip').exists()).toBe(true)
+      expect(w.find('.disk-tip').text()).toContain('40%')
+      await w.find('.side-dots').trigger('mouseleave')
+      expect(w.find('.disk-tip').exists()).toBe(false)
+    })
+
+    it('点 ⋮ 不导航', async () => {
+      seedFiles()
+      seedUsage()
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      await nextTick()
+      await w.find('.side-dots').trigger('click')
+      expect(w.emitted('navigate')).toBeFalsy()
     })
   })
 })

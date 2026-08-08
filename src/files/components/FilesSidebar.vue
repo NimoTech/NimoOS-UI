@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '../stores/files'
@@ -13,6 +13,8 @@ import { buildAuthUrl } from '../util/cloudAuth'
 import { dropAsset } from '../drop/dropIcons'
 import type { CloudDriver } from '@nimotech/nimoos-service'
 import AddMountMenu from './AddMountMenu.vue'
+import DiskUsageTip from './DiskUsageTip.vue'
+import { useDiskUsageStore } from '../stores/diskUsage'
 import NetworkStorageDialog from './NetworkStorageDialog.vue'
 import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
 import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
@@ -23,6 +25,7 @@ const route = useRoute()
 const files = useFilesStore()
 const favorites = useFavoritesStore()
 const mounts = useMountsStore()
+const diskUsage = useDiskUsageStore()
 const dialogOpen = ref(false)
 const gdriveOpen = ref(false)
 const { t } = useI18n()
@@ -41,6 +44,26 @@ watch(drawerOpen, (o) => {
   else document.removeEventListener('keydown', onDrawerKeydown)
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
+
+onMounted(() => { diskUsage.load().catch((e) => console.warn('[files] disk usage load failed', e)) })
+
+// Fixed positioning, anchored to the viewport: the sidebar is itself a scroll
+// container, so an absolutely-positioned tip would be clipped by it.
+// z-index 160 clears the narrow-screen drawer (150/151, see the styles below).
+const tipFor = ref<string | null>(null)
+const tipStyle = ref<Record<string, string>>({})
+function showTip(mountPoint: string, e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  tipStyle.value = {
+    position: 'fixed',
+    left: `${r.right + 8}px`,
+    top: `${r.top + r.height / 2}px`,
+    transform: 'translateY(-50%)',
+    zIndex: '160',
+  }
+  tipFor.value = mountPoint
+}
+function hideTip() { tipFor.value = null }
 
 function go(realPath: string) {
   emit('navigate', toVirtualPath(realPath, files.displayNames))
@@ -181,6 +204,16 @@ function onDiskDrop(i: number) {
         >
           <img class="side-icon" :src="diskIcon(disk.usb)" alt="" />
           <span class="side-name">{{ disk.name }}</span>
+          <!-- @click.stop: the ⋮ sits inside the row, and the row navigates. -->
+          <button
+            v-if="diskUsage.detailFor(disk.path)"
+            class="side-dots"
+            type="button"
+            :aria-label="t('filesDiskDetails')"
+            @click.stop
+            @mouseenter="showTip(disk.path, $event)"
+            @mouseleave="hideTip"
+          >⋮</button>
           <button v-if="disk.usb" class="side-remove" :title="t('filesMountEject')" @click.stop="onEjectUsb({ realPath: disk.path })">⏏</button>
         </li>
       </ul>
@@ -217,6 +250,7 @@ function onDiskDrop(i: number) {
         </li>
       </ul>
     </section>
+    <DiskUsageTip v-if="tipFor && diskUsage.detailFor(tipFor)" :detail="diskUsage.detailFor(tipFor)!" :style="tipStyle" />
     <NetworkStorageDialog v-model:open="dialogOpen" @connected="onConnected" />
     <GoogleDriveAuthDialog v-model:open="gdriveOpen" @auth-url="(u) => openAuthWindow('Google Drive', u)" />
   </aside>
@@ -252,6 +286,10 @@ function onDiskDrop(i: number) {
 .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
 .side-item:hover .side-remove { opacity: 1; }
+/* 容量详情把手:与 eject 同一 hover 显隐节奏。default 光标(不是 pointer)——它不导航,
+   悬停即出信息,点击刻意无动作。 */
+.side-dots { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: default; font-size: 14px; line-height: 1; padding: 0 2px; }
+.side-item:hover .side-dots { opacity: 1; }
 
 /* 窄屏抽屉:遮罩 + 侧栏浮层覆盖(z-index 备忘:ViewerShell=200、MediaViewer ask 面板=240、
    ui-ctx 默认 120 → 抽屉 150/151 压住内容、避让预览器) */

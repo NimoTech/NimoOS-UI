@@ -147,6 +147,9 @@
   --wave-none: var(--fg-subtle);   /* 波形:静场/无人声竖条 */
   --wave-dim: var(--fg-faint);     /* 波形:过滤时被弱化的竖条 */
   --remove-fg: #ff8a8a; --drop-bad: rgba(255, 80, 100, 0.12); --skeleton-bg: rgba(255, 255, 255, 0.06);
+  /* 容量条的槽底(SP12-T9 侧栏用量悬浮窗)。不复用 --chip-bg:它在纸感主题是纯白
+     #ffffff,刷在同为白底的浮层上等于不可见。 */
+  --usage-track: rgba(255, 255, 255, 0.16);
   /* 警告/降级语义(SP7-P5:人脸识别关闭、Photos AI 后端离线两条横幅)。对齐 Vue2 的
      #FF9F0A 系;深色主题直接取原值,浅色主题按本仓 --dem-* 的既有做法压暗前景保证对比度。 */
   --warn-fg: #ff9f0a;
@@ -491,6 +494,8 @@
   --wave-none: var(--fg-subtle);
   --wave-dim: var(--fg-faint);
   --remove-fg: #c0392b; --drop-bad: rgba(224, 70, 106, 0.12); --skeleton-bg: rgba(28, 27, 25, 0.05);
+  /* 容量条槽底(见 :root 同名注释):纸感主题反过来压暗,才在白底上看得见。 */
+  --usage-track: rgba(28, 27, 25, 0.12);
   /* 警告/降级语义(见 :root 同名注释)。#FF9F0A 直接铺在纸感白底上只有 ~1.9:1,
      故前景压到深琥珀(同 --dem-fg 的 #92600c 一档),底/描边给纸感主题的实色。 */
   --warn-fg: #96610a;
