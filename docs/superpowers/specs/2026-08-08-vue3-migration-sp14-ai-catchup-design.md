@@ -136,10 +136,13 @@ POST .../test 200 裸响应体
   「协议 {version} · 另支持 {list}」；`modern` 且只有一个 → 「协议 {version}」；**其余一律返回 `null`**
   （`protocol_era: 'unknown'`、以及整个不给这些字段的旧后端 → 不渲染任何行，绝不打印 `undefined`）。
 - 错误键表补 `connect_timeout`。
-- `packages/service/src/ai.ts` 探测超时 `110000 → 135000`。**超时链必须外层最大**：axios 135s > Go 代理 125s（stdio）
-  > Python `STDIO_TEST_TIMEOUT`，这样最先放弃的永远是持有子进程与套接字、能报出准确原因的那一层。
+- `packages/service/src/ai.ts` 探测超时 `110000 → 135000`。**超时链必须外层最大**：axios > Go 代理的 stdio 上限
+  > Python 的 stdio 上限，这样最先放弃的永远是持有子进程与套接字、能报出准确原因的那一层。
   Vue2 在这里栽过：Python 把预算拆成分阶段后 stdio 上限超过了浏览器的 110s，任何跑过 110s 的 stdio 探测都在
   浏览器侧被掐断，用户只看到笼统的「连接失败」。
+  实测值（NimoOS-AI main@c15e47c，2026-08-06；两仓独立发版会漂，这只是当时的快照，不是契约）：
+  Go 代理 25s（http）/ 100s（stdio）（`route/v2/mcp.go:344,346`）；Python `TEST_TIMEOUT`=20s /
+  `STDIO_TEST_TIMEOUT`=90s（`agent/mcp_client/client.py:738-739`）。`135000 > 100s > 90s` 成立。
 - stdio 等待提示改成**不带数字**的说法。那个数字（90s → 115s）在 Vue2 一个改动集里跨仓漂了两次。
 
 ### 3.5 #98 桌面磁贴
@@ -218,7 +221,10 @@ POST .../test 200 裸响应体
 
 - **验收 = 起 dev server**：`pnpm dev --host --port 5279`（5273 归主工作树那条线，5277/5288 是 .sp7/.sp8 旧占位）。
   本期不是 cutover 期，照 SP9/SP11 既有约定，**不** `deploy.sh`。
-- #141 与 #98 真机直接可验。
+- #98 真机直接可验。**#141 不可验**——现在跑的 NimoOS-AI 后端(`agent/mcp_client/client.py::test_server`)
+  只回 `{ok, tool_count, tools}`,通仓 grep 零命中 `protocol_era`/`protocol_version`/`supported_versions`,
+  `connect_timeout` 也不是任何地方的错误键。对着今天这个后端,`protocolLine()` 恒为 `null`,协议版本行
+  永远不会渲染——不是待触发的功能,是后端还没给字段。别去真机上找这一行。
 - **elicitation 两张卡真机不好触发** —— 需要一个真会 elicit 的 MCP 服务端。实施计划里写成明确步骤：
   先探设备端 agent 是否支持（见 §7 风险 1），能触发就真触发；不能就用 CDP 往流里注入一条事件看渲染，
   并在验收报告里如实标注「渲染已验、端到端未验」。
