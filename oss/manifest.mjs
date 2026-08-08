@@ -290,6 +290,10 @@ function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
     replace: '' },
+  // SP14 T9(commit d4d3771)重抓锚点:私有侧在 `ai` 分支之后插入了三行注释 + 一条
+  // `knowledge` 分支(desktop 磁贴新入口,见 task-9-report.md),原六行锚点因此 hits=0。
+  // knowledge 与 ai/photos 同属 AI 区,开源版本就不存在这个 key(defaultLayout.ts 早已
+  // 不含任何 AI 磁贴),处理方式与 ai/photos 一致:整段落在 replace 里一并去掉,不补等价行。
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
@@ -297,12 +301,16 @@ function cutoverDisabled(from: string): boolean {
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
       if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
+      // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
+      // Vue 2 has no counterpart entry for it, so there is nowhere to fall back to
+      // and no strangler:disabled flag is set here (unlike ai/photos/vm/settings above).
+      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
-    // 开源版没有任何 cutover flag(私有主干那五个分支全靠 cutoverDisabled 才存在),
+    // 开源版没有任何 cutover flag(私有主干那几个分支全靠 cutoverDisabled 才存在),
     // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
     // 所以这两个 key 由下面那句 router.push(SYS_ROUTE[key] || '/') 兜底即可,
-    // 不再重复写成两个 if(那只是一层无谓的间接)。photos 在开源版整个不存在。
+    // 不再重复写成两个 if(那只是一层无谓的间接)。photos / ai / knowledge 在开源版整个不存在。
     replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
       if (key === 'storage') { router.push('/storage'); return }
       router.push(SYS_ROUTE[key] || '/')
