@@ -1107,6 +1107,32 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
+     * Vue2 agentStore.js:519-530 —— MCP elicitation 的三态决议。
+     *
+     * 与 confirmAgentAction 的两处差别,都是刻意的:
+     * 1) elicitation 是三态(accept / decline / cancel)且 accept 可带答案,所以
+     *    action / content 经 extra 透传;`confirmed` 仍照发(action === 'accept'),
+     *    让后端既有的簿记逐字不变。
+     * 2) 无会话时**抛**而不是像 confirmAgentAction 那样静默 return —— 静默 return 会
+     *    resolve 掉这个 promise,卡片于是翻到「已把回答发给 X」/「已在新标签页打开」,
+     *    而实际上一个字节都没发出去:后端回调还挂在 wait_elicit 里(最长 24h),整次
+     *    工具调用就这么无声地卡死。抛出去,卡片的 catch 才能把它显示出来。
+     *    confirmAgentAction 那条路径不阻塞工具调用,所以保持原样不动。
+     */
+    async function resolveElicitation(
+      confirmId: string,
+      action: 'accept' | 'decline' | 'cancel',
+      content: Record<string, unknown> | null = null,
+    ): Promise<void> {
+      if (!activeSessionId.value) throw new Error('no active session')
+      if (!confirmId) throw new Error('confirm_id missing')
+      await service.ai.confirmAgentAction(
+        activeSessionId.value, confirmId, action === 'accept', false,
+        content === null ? { action } : { action, content },
+      )
+    }
+
+    /**
      * agentStore.js:519-597 —— 继续一个因 max_turns 而暂停的 run。busy 守卫 + 等
      * pendingCancel 落定,与 send() 同一套节奏。先把最近一张未继续的 max_turns 卡
      * 标记为 resumed=true(幂等:防止 busy 恢复后或 run-stream 重连回放时被误点
@@ -1246,6 +1272,7 @@ export function useAgentStore(agentType?: string) {
       stop,
       continueRun,
       confirmAgentAction,
+      resolveElicitation,
     }
   })()
 }
