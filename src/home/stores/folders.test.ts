@@ -44,11 +44,31 @@ describe('useFoldersStore', () => {
         { name: 'U盘', path: '/mnt/u1', usb: true },
       ])
     })
-    it('失败置空不抛', async () => {
+    it('失败置空不抛(重试用尽之后)', async () => {
+      // 假时钟:loadDisks 现在会重试两次(约 4s 窗口),真时钟会白等 4 秒。
+      vi.useFakeTimers()
       vi.mocked(service.storage.list).mockRejectedValue(new Error('x'))
       const s = useFoldersStore()
-      await expect(s.loadDisks()).resolves.toBeUndefined()
+      const p = s.loadDisks()
+      await vi.advanceTimersByTimeAsync(4000)
+      await expect(p).resolves.toBeUndefined()
+      expect(service.storage.list).toHaveBeenCalledTimes(3)
       expect(s.disks).toEqual([])
+      vi.useRealTimers()
+    })
+
+    it('瞬时失败先重试,不再一次判死', async () => {
+      vi.useFakeTimers()
+      vi.mocked(service.storage.list)
+        .mockRejectedValueOnce(new Error('transient'))
+        .mockResolvedValue([{ type: 'nvme', children: [{ mount_point: '/DATA', label: 'NimoOS-HD' }] }] as any)
+      const s = useFoldersStore()
+      const p = s.loadDisks()
+      await vi.advanceTimersByTimeAsync(1000)
+      await p
+      expect(service.storage.list).toHaveBeenCalledTimes(2)
+      expect(s.disks).toEqual([{ name: 'NimoOS-HD', path: '/DATA', usb: false }])
+      vi.useRealTimers()
     })
   })
 })
