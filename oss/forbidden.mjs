@@ -204,6 +204,15 @@ export const SOFT = [
       // a plain negative-case filename (a directory named like an image), not
       // the photos app.
       { file: /src\/files\/util\/wallpaperExt\.test\.ts$/, re: exactLine("expect(canBeWallpaper({ name: 'photos.jpg', is_dir: true })).toBe(false)") },
+      // SP11 final review fix wave (2026-08-08): comments added while fixing
+      // C1/I1 findings use "photo" as a plain English word (the wallpaper
+      // picker previews a "photo", and this is the multipart caller comment
+      // shared with ai.ts/photos.ts/sys.ts) -- not the deleted photos app.
+      // Already verified with oss/export.mjs; entered per-line, not per-file.
+      { file: /packages\/service\/src\/users\.ts$/, re: exactLine('// matches every other multipart caller in this package (ai.ts, photos.ts, sys.ts).') },
+      { file: /src\/App\.test\.ts$/, re: exactLine("// Sanity: the previous user's photo is actually painted before we log out --") },
+      { file: /src\/stores\/wallpaper\.test\.ts$/, re: exactLine('// Repro: topbar photo entry opens the sheet (snapshots w01), user browses to') },
+      { file: /src\/stores\/wallpaper\.ts$/, re: exactLine("/** I1 (final review): logout must not leave the previous user's photo painted") },
     ],
   },
   {
@@ -453,6 +462,13 @@ export const SOFT = [
       // pnpm-lock.yaml:同 search 词条的注释 —— 自动生成文件,用"像不像 pnpm-lock 记录行"
       // 的形状规则,而不是逐字锚定(依赖升级就作废)。
       { file: /(^|\/)pnpm-lock\.yaml$/, re: PNPM_LOCK_LINE },
+      // SP11 final review fix wave (2026-08-08): C1's fix comment names the
+      // three sibling files (ai.ts, photos.ts, sys.ts) that already send
+      // multipart correctly -- "ai.ts" here is a filename reference to the
+      // AI service package's HTTP client, not a mention of an AI feature.
+      // Same line also needed a 'photo' allow entry above; already verified
+      // with oss/export.mjs.
+      { file: /packages\/service\/src\/users\.ts$/, re: exactLine('// matches every other multipart caller in this package (ai.ts, photos.ts, sys.ts).') },
     ],
   },
   {
