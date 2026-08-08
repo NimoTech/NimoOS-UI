@@ -14,3 +14,16 @@ Task 4: complete (commits b90f891..00536b1, review clean)
 Task 4: minor (deferred): title 为空串时回落 key(后端不会给空 title)
 Task 4: minor (deferred): min_items+max_items 同时满足的合法用例未覆盖
 DECISION 2026-08-09: 代码注释一律英文(用户裁定),计划已在 254f902 改约束;台账/简报/设计文档仍中文
+Task 5: complete (commit 7e1d59e, review clean; 全量 650 文件/10451 例通过)
+Task 5: minor (deferred, 建议终审优先): FORMAT_INPUT_TYPE 的 uri 不得映射成 type=url 无回归守卫(设计文档点名的载重规则)
+Task 5: minor (deferred): boolean/multi_enum 渲染与 cancel 按钮无用例
+NOTE: sdd 工作台目录的 .gitignore(裸 *)由 superpowers 脚本每次重建且自我忽略 ⇒ 台账提交一律 git add -f
+Task 6: complete (commit b6b7022, review clean; ⚠️ trailer 已自查)
+Task 6: minor (deferred): 模板注释措辞含糊(实际护的是 message 不走 v-html)
+Task 7: complete (commit 3f184c7, review clean; aiChange 因 McpInstallCard 仍在用而保留)
+Task 7: minor (deferred): BlockRenderer 两条新断言只查 .mcc-perm,form/url 映射对调也能过
+Task 8: complete (commits 35a4006 前端 + ebd525c 包超时,两 commit 分离已自查, review clean)
+Task 8: minor (deferred): 组件级无「旧后端整个不给协议字段」的端到端用例(单元层已证)
+Task 9: complete (commit d4d3771, review clean; 网格空格 c10,r2 已独立复算,brief 建议的 c9,r6 会与 events 撞)
+Task 9: minor (deferred): useOpenAction.test.ts 新用例名仍是中文(我在派单里说过测试名可中文,与「新写的一律英文」裁定有张力)
+Task 9: minor (deferred): .ic-knowledge 琥珀色与 .ic-storage 相近,相邻磁贴视觉易混(待机主眼验)

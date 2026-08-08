@@ -3,6 +3,10 @@ dist
 
 # Claude Code 本地状态(隔离 worktree、会话配置),不入库
 .claude/
+
+# Task 10 (SP14 closeout) throwaway browser-render harness -- never enters git.
+/harness.html
+/harness.ts
 # .superpowers/ **入库** —— 台账是各期唯一的决策记录。SP7 曾把整个目录弄丢且 git 救不回,
 # SP9-P7 又发现 P5/P6 的台账只活在 gitignore 里。规则见 .superpowers/.gitignore:
 # 台账(.md)与自查截图(.png)进库,评审 diff / 备份 / 快照环境这类机器产物不进。
