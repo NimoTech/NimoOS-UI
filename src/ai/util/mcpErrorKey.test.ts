@@ -113,10 +113,16 @@ describe('parseCommandErrorKey —— mcpparse 的五条 400', () => {
 describe('toTestView —— 200 响应体 → 视图', () => {
   it('成功', () => {
     expect(toTestView({ ok: true, tool_count: 3, tools: ['a', 'b', 'c'] }))
-      .toEqual({ ok: true, toolCount: 3, tools: ['a', 'b', 'c'] })
+      .toEqual({
+        ok: true, toolCount: 3, tools: ['a', 'b', 'c'],
+        protocolEra: '', protocolVersion: '', supportedVersions: [],
+      })
   })
   it('成功但 tools 缺失 → 空数组,tool_count 缺失 → 0', () => {
-    expect(toTestView({ ok: true })).toEqual({ ok: true, toolCount: 0, tools: [] })
+    expect(toTestView({ ok: true })).toEqual({
+      ok: true, toolCount: 0, tools: [],
+      protocolEra: '', protocolVersion: '', supportedVersions: [],
+    })
   })
   it('probe_timeout', () => {
     expect(toTestView({ ok: false, error_key: 'probe_timeout', error: 'Probe timed out' }))
@@ -165,6 +171,30 @@ describe('toTestView —— 200 响应体 → 视图', () => {
     const v = toTestView({ ok: false, error_key: null, detail: 'x' })
     expect(v).toEqual({ ok: false, msgKey: 'aiMcpSrvTestFailed', detail: 'x' })
     expect(JSON.stringify(v)).not.toContain('null')
+  })
+
+  it('toTestView carries the three protocol fields through', () => {
+    expect(toTestView({
+      ok: true, tool_count: 2, tools: ['a', 'b'],
+      protocol_era: 'modern', protocol_version: '2025-06-18',
+      supported_versions: ['2025-06-18', '2024-11-05'],
+    })).toEqual({
+      ok: true, toolCount: 2, tools: ['a', 'b'],
+      protocolEra: 'modern', protocolVersion: '2025-06-18',
+      supportedVersions: ['2025-06-18', '2024-11-05'],
+    })
+  })
+
+  it('toTestView: older backend omitting the protocol fields normalizes to empty, not undefined', () => {
+    expect(toTestView({ ok: true, tool_count: 0, tools: [] })).toEqual({
+      ok: true, toolCount: 0, tools: [],
+      protocolEra: '', protocolVersion: '', supportedVersions: [],
+    })
+  })
+
+  it('toTestView: connect_timeout has its own key', () => {
+    expect(toTestView({ ok: false, error_key: 'connect_timeout', detail: 'x' }))
+      .toEqual({ ok: false, msgKey: 'aiMcpSrvTestErrConnectTimeout', detail: 'x' })
   })
 })
 

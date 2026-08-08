@@ -69,7 +69,7 @@
   `mcp-styles.scss`(`mcp-config*`/`mcp-code`)。
 -->
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import {
@@ -77,6 +77,7 @@ import {
 } from 'reka-ui'
 import type { McpServer, McpTestView } from '../../../types/mcpServer'
 import { toTestView, toTestViewFromError } from '../../../util/mcpErrorKey'
+import { protocolLine } from '../../../util/mcpProtocol'
 import { serverColor, transportLabel, SERVER_GLYPH } from '../../../util/mcpServerVisual'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import SkillTile from '../skills/SkillTile.vue'
@@ -119,6 +120,10 @@ const testView = ref<McpTestView | null>(null)
 // 三处落地前都比对号是否还是自己发出时的那个,不是就整体丢弃(包括不复位
 // `testing`,因为那已经是新一轮的状态,由新一轮自己的 finally 负责)。
 const reqSeq = ref(0)
+
+// #141: the protocol-version line shown under the success panel, derived from
+// the current testView via the T8 pure function (see mcpProtocol.ts).
+const protoLine = computed(() => (testView.value ? protocolLine(testView.value) : null))
 
 // 对齐 Vue2 `runTest()`(:158-171)。
 async function runTest() {
@@ -310,7 +315,10 @@ function doDelete() {
                 </template>
               </div>
 
-              <!-- 对齐 Vue2 :87-100,stdio 90 秒提示照抄。 -->
+              <!-- Aligns with Vue2 :87-100. The wording dropped its hard-coded
+                   duration (was "~90s") — that number was copied across a repo
+                   boundary and drifted twice in one change set; a number-free
+                   phrasing cannot go stale. -->
               <div v-if="testing && server.transport === 'stdio'" class="mcp-test-hint">
                 {{ t('aiMcpSrvTestStdioHint') }}
               </div>
@@ -319,6 +327,10 @@ function doDelete() {
                   <div class="mcp-test-line">✓ {{ t('aiMcpSrvTestOk', { n: testView.toolCount }) }}</div>
                   <div class="mcp-test-tools">
                     <span v-for="tool in testView.tools" :key="tool" class="mcp-tool-chip">{{ tool }}</span>
+                  </div>
+                  <!-- #141: which MCP protocol version the server negotiated. -->
+                  <div v-if="protoLine" class="mcp-test-proto" :class="{ 'is-legacy': protoLine.key === 'aiMcpSrvProtoLegacy' }">
+                    {{ t(protoLine.key, protoLine.params) }}
                   </div>
                 </template>
                 <template v-else>
