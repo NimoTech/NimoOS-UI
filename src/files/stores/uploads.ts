@@ -177,7 +177,10 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   }
 
   function retryItem(id: string): void {
-    patch(id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+    // Also clears tusUploadUrl: the staging area behind it may already be gone
+    // (interrupt clears it at once, the sweeper after the idle grace period),
+    // and resuming a dead URL loops forever on a misleading "network error".
+    patch(id, { status: 'pending', progress: 0, bytesSent: 0, error: '', tusUploadUrl: null })
     startUpload()
   }
 
@@ -194,7 +197,9 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   function retryBatch(batchId: string): void {
     toastedBatches.delete(batchId)
     for (const i of queue.value.filter((x) => x.batchId === batchId && x.status === 'error')) {
-      patch(i.id, { status: 'pending', progress: 0, bytesSent: 0, error: '' })
+      // See retryItem: a stale tusUploadUrl points at staging the server may
+      // have already swept away.
+      patch(i.id, { status: 'pending', progress: 0, bytesSent: 0, error: '', tusUploadUrl: null })
     }
     startUpload()
   }

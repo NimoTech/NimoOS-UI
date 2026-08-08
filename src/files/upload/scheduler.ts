@@ -118,6 +118,15 @@ export function createScheduler(deps: SchedulerDeps) {
           return
         }
         const status = tusErrorStatus(err)
+        // The staging area this URL points at is gone (interrupt clears it
+        // immediately; the server's sweeper clears it after the idle grace
+        // period). Keeping the URL would make every retry HEAD the same dead
+        // endpoint forever, reported as a bare "network error" — drop it so
+        // the next attempt creates a fresh upload instead.
+        if (status === 404 || status === 410) {
+          deps.patch(item.id, { tusUploadUrl: null, bytesSent: 0, progress: 0 })
+          item.tusUploadUrl = null
+        }
         if (status === 409) {
           deps.patch(item.id, { status: 'done', progress: 100, error: 'duplicate', speed: 0 })
           return

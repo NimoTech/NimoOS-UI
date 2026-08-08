@@ -131,4 +131,25 @@ describe('scheduler', () => {
     expect(patches.some(p => p.status === 'error')).toBe(false)
     expect(patches.some(p => p.status === 'done')).toBe(false)
   })
+
+  it('drops a dead resume URL on 404 so the next attempt creates a fresh upload', async () => {
+    const err: any = { originalResponse: { getStatus: () => 404 } }
+    const { deps, patches } = harness(mkItem({ tusUploadUrl: 'http://nas/upload-tus/gone' }), () => Promise.reject(err))
+    await createScheduler(deps).run()
+    expect(patches.some(p => p.tusUploadUrl === null)).toBe(true)
+  })
+
+  it('does the same for 410 Gone', async () => {
+    const err: any = { originalResponse: { getStatus: () => 410 } }
+    const { deps, patches } = harness(mkItem({ tusUploadUrl: 'http://nas/upload-tus/gone' }), () => Promise.reject(err))
+    await createScheduler(deps).run()
+    expect(patches.some(p => p.tusUploadUrl === null)).toBe(true)
+  })
+
+  it('keeps the resume URL on a retryable 5xx', async () => {
+    const err: any = { originalResponse: { getStatus: () => 503 } }
+    const { deps, patches } = harness(mkItem({ tusUploadUrl: 'http://nas/upload-tus/gone' }), () => Promise.reject(err))
+    await createScheduler(deps).run()
+    expect(patches.some(p => p.tusUploadUrl === null)).toBe(false)
+  })
 })
