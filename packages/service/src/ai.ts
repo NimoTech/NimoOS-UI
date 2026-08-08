@@ -41,9 +41,10 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       confirmId: string,
       confirmed: boolean,
       remember = false,
-      // MCP elicitation 的 action / content 走这里透传:elicitation 是三态
-      // (accept/decline/cancel)且可带答案,两态的 confirmed 表达不了。其它卡片
-      // 一律不传,后端既有的两态路径逐字不变。
+      // MCP elicitation's action / content pass through here: elicitation is a
+      // three-state outcome (accept/decline/cancel) that can carry an answer,
+      // which the two-state `confirmed` cannot express. Every other card never
+      // passes this, so the existing two-state path is unchanged byte-for-byte.
       extra?: Record<string, unknown>,
     ): Promise<unknown> {
       const res = await http.post(`${PREFIX}/agent/sessions/${sessionId}/confirm`, {
@@ -391,12 +392,16 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
 
     // The probe timeout chain must nest outside-in: axios > Go > Python, so the
     // layer holding the subprocess and socket -- the one that can report an
-    // accurate reason -- always gives up first. The Go proxy is 43s (http) /
-    // 125s (stdio) (NimoOS-AI route/v2/mcp.go); the Python fallback is
-    // TEST_TIMEOUT / STDIO_TEST_TIMEOUT (NimoOS-AI agent/mcp_client/client.py).
-    // If this were the smallest of the three, a slow-but-healthy stdio server
-    // would be cut off in the browser and the accurate probe error would never
-    // reach the user.
+    // accurate reason -- always gives up first. If this axios timeout were not
+    // the largest of the three, a slow-but-healthy stdio server would be cut
+    // off in the browser and the accurate probe error would never reach the
+    // user.
+    //
+    // Observed values as of NimoOS-AI main@c15e47c (2026-08-06) -- these live in
+    // a separate repo and drift silently, so treat them as a snapshot, not a
+    // contract: Go proxy 25s (http) / 100s (stdio) (route/v2/mcp.go:344,346);
+    // Python TEST_TIMEOUT=20s / STDIO_TEST_TIMEOUT=90s
+    // (agent/mcp_client/client.py:738-739). 135000 > 100s > 90s holds.
     async testMCPServer(id: string | number): Promise<unknown> {
       const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 135000 })
       return res.data
