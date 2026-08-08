@@ -403,10 +403,14 @@
   --drop-bg: rgba(59, 91, 219, 0.12);
   --app-bg: #f7f5ef;
 
-  /* SP11: the paper theme's text is near-black (#1c1b19); over a dark photo it
-     disappears. A white veil, not a dark vignette, is what keeps it legible.
-     This is a readability floor, not polish. */
-  --wallpaper-scrim: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55));
+  /* SP11: the paper theme's text is near-black (#1c1b19), so a dark photo needs
+     a white veil rather than a dark vignette behind it. Owner set the strength to
+     15% on 2026-08-08, down from the 55% this shipped with: at 55% the photo was
+     washed out, and the veil earns much less than it looks like it does here --
+     the paper theme's own surfaces (cards, chips, the topbar) already sit between
+     the photo and almost all of its text. Anything the veil alone has to carry
+     lives on the desktop, where labels have their own shadow. */
+  --wallpaper-scrim: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.15));
 
   /* SP11: first two values are deliberately identical to the dark block above --
      these paint "what that base looks like", independent of the active theme.
