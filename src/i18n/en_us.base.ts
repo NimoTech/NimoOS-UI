@@ -223,6 +223,7 @@ export default {
   appStorage: 'Storage',
   appPhotos: 'Photos',
   appAi: 'Nimo AI',
+  appKnowledge: 'Knowledge',
   appVm: 'KVM',
   appSettings: 'Settings',
   appAppStore: 'App Store',

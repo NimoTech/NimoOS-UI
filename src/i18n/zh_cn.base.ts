@@ -222,6 +222,7 @@ export default {
   appStorage: '存储',
   appPhotos: '照片',
   appAi: 'Nimo AI',
+  appKnowledge: '知识库',
   appVm: 'KVM',
   appSettings: '设置',
   appAppStore: 'AppStore',
