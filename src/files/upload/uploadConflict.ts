@@ -9,7 +9,7 @@
 // relativePath's TOP segment — the thing that actually lands as a sibling of
 // an existing name — and every entry sharing that top segment is resolved as
 // one unit.
-import { findConflicts, type ConflictCandidate } from './fileConflict'
+import { findConflicts, type ConflictCandidate, type ConflictResolution, type ConflictAction } from './fileConflict'
 
 export interface UploadEntry {
   file: File
@@ -96,4 +96,125 @@ export function splitConflictsByKind(
     }
   }
   return { folderConflicts, fileConflicts }
+}
+
+export interface AcceptedEntry {
+  file: File
+  relativePath: string
+  conflictPolicy: '' | 'overwrite' | 'rename'
+  /** Set by a Merge choice: this entry still needs a second, per-file
+   *  conflict round against the target folder's actual contents. Never
+   *  reaches the upload queue. */
+  pendingInnerCheck?: boolean
+}
+
+export interface ApplyResult {
+  accepted: AcceptedEntry[]
+  skippedCount: number
+  cancelledCount: number
+}
+
+/**
+ * Directory-naming helper for Keep both on a FOLDER group: appends the
+ * smallest "(n)" suffix not already taken. Files get the simpler 'rename'
+ * policy instead and let the backend pick name(1).ext.
+ */
+export function nextAvailableName(name: string, existingNames: Set<string>): string {
+  if (!existingNames.has(name)) return name
+  let n = 1
+  let candidate = `${name}(${n})`
+  while (existingNames.has(candidate)) {
+    n++
+    candidate = `${name}(${n})`
+  }
+  return candidate
+}
+
+/**
+ * Applies one resolution per GROUP back onto the FULL entry list, producing
+ * the per-entry conflictPolicy the upload queue submits.
+ *
+ * `existingNames` is MUTATED: every folder group's newly picked name is added
+ * immediately, so a second keep_both group with the same top name picks the
+ * next free suffix instead of colliding. Callers must reuse ONE set across
+ * every group of a batch.
+ *
+ * Skipped and cancelled groups are dropped HERE, before the batch manifest is
+ * ever reported — so reconciliation never lists them and the interrupted-
+ * upload badge cannot misreport them as missing.
+ */
+export function applyUploadResolutions(
+  entries: UploadEntry[],
+  resolutions: ConflictResolution[],
+  existingNames: Set<string>,
+): ApplyResult {
+  const groups = groupByTopSegment(entries)
+  // Carries the action AND the conflict's own mergeable flag, so the merge
+  // branch can tell a real Merge choice from one that only arrived via
+  // "apply to all" propagating onto a group the dialog never offered Merge for.
+  const resolutionByGroup = new Map<string, { action: ConflictAction; mergeable: boolean }>()
+  for (const { conflict, action } of resolutions || []) {
+    resolutionByGroup.set(conflict.groupKey, { action, mergeable: !!conflict.mergeable })
+  }
+
+  const accepted: AcceptedEntry[] = []
+  let skippedCount = 0
+  let cancelledCount = 0
+
+  for (const [topName, group] of groups) {
+    const resolution = resolutionByGroup.get(topName)
+    const action = resolution?.action
+
+    if (!action) {
+      for (const entry of group.entries) {
+        accepted.push({ file: entry.file, relativePath: entry.relativePath, conflictPolicy: '' })
+      }
+      continue
+    }
+    if (action === 'skip') {
+      skippedCount += group.entries.length
+      continue
+    }
+    if (action === 'cancelled') {
+      cancelledCount += group.entries.length
+      continue
+    }
+    if (action === 'merge' && resolution!.mergeable) {
+      for (const entry of group.entries) {
+        accepted.push({ file: entry.file, relativePath: entry.relativePath, conflictPolicy: '', pendingInnerCheck: true })
+      }
+      continue
+    }
+    // A non-mergeable 'merge' falls through to keep_both below: it can only
+    // arrive from "apply to all" propagating onto a type-mismatch collision,
+    // which can be neither merged nor overwritten. Degrading to keep_both is
+    // what the dialog would have produced had Merge simply not been offered.
+    if (action === 'overwrite') {
+      for (const entry of group.entries) {
+        accepted.push({ file: entry.file, relativePath: entry.relativePath, conflictPolicy: 'overwrite' })
+      }
+      continue
+    }
+
+    // keep_both
+    if (!group.isFolderGroup) {
+      for (const entry of group.entries) {
+        accepted.push({ file: entry.file, relativePath: entry.relativePath, conflictPolicy: 'rename' })
+      }
+      continue
+    }
+    // Folder: the front end picks the new top-level name, because the backend
+    // has no concept of "this whole tree is one renamed unit" — every entry is
+    // an independent tus upload with its own relativePath.
+    const newTop = nextAvailableName(topName, existingNames)
+    existingNames.add(newTop)
+    for (const entry of group.entries) {
+      const rel = entry.relativePath || ''
+      const slashIdx = rel.indexOf('/')
+      const rest = slashIdx !== -1 ? rel.slice(slashIdx) : ''
+      accepted.push({ file: entry.file, relativePath: `${newTop}${rest}`, conflictPolicy: '' })
+    }
+  }
+
+  return { accepted, skippedCount, cancelledCount }
 }
