@@ -437,7 +437,7 @@ onMounted(() => {
 onUnmounted(() => { offRecover?.() })
 
 let offUnloadGuard: (() => void) | null = null
-onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue, undefined, (id) => service.uploadBatches.interruptBatch(id)) })
 onUnmounted(() => { offUnloadGuard?.() })
 
 // 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,

@@ -166,6 +166,22 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       // reject/handle actual conflicts.
     }
 
+    // Report the manifest before enqueuing: it is the server's sole basis for
+    // deciding which files belong to this batch, so it must reach the NAS
+    // before the first chunk does. A failed report only warns — reconciliation
+    // being unavailable is not a reason to refuse the upload.
+    if (items.length > 0) {
+      try {
+        await service.uploadBatches.createBatch({
+          id: batchId,
+          targetPath: items[0].targetPath,
+          items: items.map((i) => ({ relativePath: i.relativePath, size: i.size })),
+        })
+      } catch (e) {
+        console.warn('[uploads] createBatch failed — batch reconciliation unavailable', e)
+      }
+    }
+
     queue.value.push(...items)
     if (items.some((i) => i.status === 'pending')) startUpload()
     return { rejected }
