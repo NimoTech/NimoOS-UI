@@ -169,8 +169,22 @@ async function onSetWallpaper(entry: FileEntry | null) {
 // ── 上传:隐藏 input 触发 + 拖拽落区 ──
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
-function triggerFileSelect() { fileInput.value?.click() }
-function triggerFolderSelect() { folderInput.value?.click() }
+
+// Re-upload missing files: the dialog only tells us *which* files are wanted —
+// the bytes themselves must be re-picked by the user, because the browser
+// cannot recover them once the page reloads or the tab closes.
+const refillPending = ref<{ targetPath: string; missing: Set<string> } | null>(null)
+
+// Code review fix (cancel leak): cancelling the native folder-picker dialog never fires
+// `change`, so nothing else would clear refillPending on its own — the flag would then
+// silently filter whatever unrelated upload the user tries next. `<input type=file>` does
+// gain a `cancel` event in newer Chromium, but it isn't implemented across browsers this
+// self-hosted UI has to support, so instead every *other* entry point into file selection
+// clears the flag before it can be observed as pending. Only onRefill's own direct click
+// on folderInput (bypassing this wrapper) leaves it set, so it can only ever be consumed
+// by the very picker it opened.
+function triggerFileSelect() { refillPending.value = null; fileInput.value?.click() }
+function triggerFolderSelect() { refillPending.value = null; folderInput.value?.click() }
 
 function onInputChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -178,17 +192,15 @@ function onInputChange(e: Event) {
   input.value = '' // 允许重复选择同一文件再次触发 change
 }
 
-// Re-upload missing files: the dialog only tells us *which* files are wanted —
-// the bytes themselves must be re-picked by the user, because the browser
-// cannot recover them once the page reloads or the tab closes.
-const refillPending = ref<{ targetPath: string; missing: Set<string> } | null>(null)
-
 function onRefill(p: { targetPath: string; missing: string[] }): void {
   refillPending.value = { targetPath: p.targetPath, missing: new Set(p.missing) }
   // Use the folder picker, not the single-file picker: missing entries can carry
   // a sub-path (e.g. "Trip/a.jpg"), and only a webkitdirectory input yields
   // webkitRelativePath — a single-file picker would give back a bare filename.
-  triggerFolderSelect()
+  // Click the input directly rather than calling triggerFolderSelect(): that wrapper
+  // clears refillPending as its first step for every other caller, which would erase
+  // the filter this line just set.
+  folderInput.value?.click()
 }
 defineExpose({ handleSelectedFiles, onRefill })
 
@@ -196,6 +208,15 @@ defineExpose({ handleSelectedFiles, onRefill })
 // leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
 // any files rejected for being in a protected dir.
 async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+  // Code review fix (ordering leak): consume any pending refill filter immediately,
+  // before any guard below can return early. Reading it into a local and nulling the
+  // ref in the same breath makes it strictly single-use no matter which branch exits
+  // next — previously the read lived only inside the `if (pending)` block further down,
+  // so the snapshot-view guard's early return skipped it entirely and left the flag set
+  // for whatever unrelated upload came after the user left the read-only view.
+  const pending = refillPending.value
+  refillPending.value = null
+
   // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
   // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
@@ -203,9 +224,7 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // Refill branch: the target directory is the batch's own target_path (not the
   // current directory — the user may have navigated elsewhere before clicking),
   // and only entries named in the missing list are let through.
-  const pending = refillPending.value
   if (pending) {
-    refillPending.value = null
     const wanted = entries.filter((e) => pending.missing.has(e.relativePath))
     if (!wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
     const sel = toSelectedFiles(wanted, pending.targetPath)
@@ -244,6 +263,10 @@ function onDragLeave() {
 async function onDrop(e: DragEvent) {
   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
   isDragIn.value = false
+  // Drag-drop never goes through the refill folder picker, so a stale refillPending
+  // (left behind by a cancelled "re-upload missing files" dialog) must not silently
+  // filter it — see the note on triggerFileSelect/triggerFolderSelect above.
+  refillPending.value = null
   const dropped = await readDroppedEntries(e.dataTransfer)
   if (!dropped.length) return
   await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
@@ -261,6 +284,9 @@ async function onPaste(e: ClipboardEvent) {
   const pasted = extractClipboardFiles(e.clipboardData, t('filesPastedImage'), new Date())
   if (!pasted.length) return
   e.preventDefault()
+  // Paste never goes through the refill folder picker either — same stale-flag
+  // concern as onDrop above.
+  refillPending.value = null
   await commitSelectedFiles(pasted)
 }
 onMounted(() => window.addEventListener('paste', onPaste))

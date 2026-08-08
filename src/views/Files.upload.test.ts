@@ -22,6 +22,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
     },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
+    // Needed to drive browse.isSnapshotView true for the stale-refill-flag regression test.
+    snapshot: {
+      listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]),
+      list: vi.fn().mockResolvedValue([]),
+    },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
 }))
@@ -141,5 +146,83 @@ describe('Files.vue upload wiring', () => {
 
     expect(spy).not.toHaveBeenCalled()
     expect(showSpy).toHaveBeenCalledWith(zh.filesBatchRefillNoMatch)
+  })
+
+  // Code review finding: cancelling the native folder-picker dialog never fires `change`,
+  // so nothing would clear refillPending on its own. The next ordinary upload — through the
+  // normal folder chip, drag-drop, or paste — must not be silently filtered against a stale
+  // missing list. This drives the real DOM entry point (the toolbar chip's real @click
+  // handler), not a re-exposed test hook, so it actually exercises the clearing fix.
+  it('refill: clicking the ordinary upload-folder chip clears a stale pending refill filter', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+
+    // Simulate: user clicked "re-upload missing files", then cancelled the native
+    // folder picker instead of picking anything.
+    ;(w.vm as any).onRefill({ targetPath: '/DATA/x', missing: ['Trip/a.jpg'] })
+
+    // The user now starts a completely unrelated, ordinary folder upload via the
+    // real toolbar chip — this is the actual triggerFolderSelect() code path, not a
+    // stand-in.
+    await w.find('.tb-upload-folder').trigger('click')
+
+    const unrelated = { name: 'z.jpg', webkitRelativePath: 'Somewhere/z.jpg' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([unrelated])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith([
+      { file: unrelated, targetPath: files.currentPath, relativePath: 'Somewhere/z.jpg' },
+    ])
+  })
+
+  // Code review finding: the browse.isSnapshotView early return sits before the pending
+  // read, so an early return while a refill is pending used to leave the flag set for
+  // whatever unrelated upload happens next, once the user leaves the read-only view.
+  it('refill: a stale flag does not survive an early return in the snapshot-guard branch', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    // Land inside the read-only snapshot view: browse.isSnapshotView is derived from the
+    // route, so this forces commitSelectedFiles's snapshot-guard branch to return early
+    // while a refill is pending.
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Trip'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+
+    ;(w.vm as any).onRefill({ targetPath: '/DATA/x', missing: ['Trip/a.jpg'] })
+
+    // The folder dialog "completes" while still inside the read-only view: the
+    // snapshot guard fires and returns early, before ever reaching the pending branch.
+    const wanted = { name: 'a.jpg', webkitRelativePath: 'Trip/a.jpg' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([wanted])
+    await flushPromises()
+    expect(spy).not.toHaveBeenCalled()
+
+    // Now leave the read-only view and do a completely unrelated ordinary upload.
+    router.push('/files/NimoOS-HD/Elsewhere')
+    await router.isReady()
+    await flushPromises()
+
+    const files = useFilesStore()
+    const unrelated = { name: 'z.jpg', webkitRelativePath: 'z.jpg' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([unrelated])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith([
+      { file: unrelated, targetPath: files.currentPath, relativePath: 'z.jpg' },
+    ])
   })
 })
