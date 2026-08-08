@@ -90,9 +90,18 @@ describe('DesktopContextMenu', () => {
     // reaching Teleported content.
     let w: ReturnType<typeof mount> | null = null
 
-    afterEach(() => {
+    // Tearing the menu down by wiping document.body pulled the open portal out
+    // from under reka-ui while its global layer state still referenced it, and
+    // the NEXT mount then refused to open at all -- the trigger stayed
+    // data-state="closed" with an empty teleport, no matter how long the test
+    // waited. Close it the way a user would first, let that settle, and only
+    // then unmount; the body wipe is kept as a belt-and-braces final sweep.
+    afterEach(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
       w?.unmount()
       w = null
+      await flushPromises()
       document.body.innerHTML = ''
     })
 
