@@ -31,7 +31,6 @@ import { useMountsStore } from '../files/stores/mounts'
 import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { useToast } from '../stores/toast'
-import { installUnloadGuard } from '../files/upload/unloadGuard'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
 import { toSelectedFiles } from '../files/upload/selectedFiles'
@@ -514,10 +513,6 @@ onMounted(() => {
   })
 })
 onUnmounted(() => { offRecover?.() })
-
-let offUnloadGuard: (() => void) | null = null
-onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue, undefined, (id) => service.uploadBatches.interruptBatch(id)) })
-onUnmounted(() => { offUnloadGuard?.() })
 
 // Cross-refresh resume was removed in SP12 Plan A — a reload always starts with an
 // empty in-memory queue, so there is nothing here to recover. In practice this call
