@@ -1773,6 +1773,7 @@ const COMPONENTS_VUE_FILES = [
   'blocks/MaxTurnsCard.vue',
   'blocks/McpCallCard.vue',
   'blocks/McpElicitFormCard.vue',
+  'blocks/McpElicitUrlCard.vue',
   'blocks/McpInstallCard.vue',
   'blocks/McpPermissionCard.vue',
   'blocks/McpWarningCard.vue',
