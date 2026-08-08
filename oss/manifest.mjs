@@ -2162,8 +2162,11 @@ describe('AppToast —— AI 区 toast 作用域', () => {
   // ── src/home/composables/useOpenAction.test.ts:T5 新加的 AI cutover 整块 ──
   //    上面 T13 / 修复波两节已有 11 条锚点打在本文件上(实测均未受本次合流影响,
   //    仍 hits=1)。这里补 T5(c547c9d)追加的两处:beforeEach 里的 /ai flag 清理,
-  //    与文件末尾那个 7 条用例的 describe(测 openApp('ai') / widget 小组件 / sendToAI,
+  //    与文件末尾那个 describe(测 openApp('ai') / widget 小组件 / sendToAI,
   //    三者在开源版都已由上面的产品码补丁摘掉)。
+  //    SP14 T9(commit d4d3771)重抓:describe 内部中间插了一条 knowledge 用例(现共 8 条),
+  //    原 7-用例锚点因此 hits=0。knowledge 与 ai 同属被摘掉的产品码分支,replace 仍是
+  //    整块清空,find 只是照现场文本扩到 8 条,不需要单独处理 knowledge 那一条。
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: "  localStorage.removeItem('strangler:disabled:/ai')\n", replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
@@ -2210,6 +2213,13 @@ describe('AI 区 cutover(SP8-P6)', () => {
     const { sendToAI } = useOpenAction()
     sendToAI('   ')
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
+  })
+
+  it('knowledge 磁贴走应用内路由 /ai/knowledge(SP14 #98,无回退目标)', () => {
+    const { openApp } = useOpenAction()
+    openApp('knowledge')
+    expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
+    expect(hrefs.length).toBe(0)
   })
 
   it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {
