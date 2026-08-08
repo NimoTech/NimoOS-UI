@@ -27,3 +27,6 @@ Task 8: minor (deferred): 组件级无「旧后端整个不给协议字段」的
 Task 9: complete (commit d4d3771, review clean; 网格空格 c10,r2 已独立复算,brief 建议的 c9,r6 会与 events 撞)
 Task 9: minor (deferred): useOpenAction.test.ts 新用例名仍是中文(我在派单里说过测试名可中文,与「新写的一律英文」裁定有张力)
 Task 9: minor (deferred): .ic-knowledge 琥珀色与 .ic-storage 相近,相邻磁贴视觉易混(待机主眼验)
+Task 10: complete (closeout 提交 bb08862 + 修复 6 个 commit;门数见 .superpowers/sdd/sp14/closeout.md)
+FINAL REVIEW (opus, 全支 65c7928..bb08862): 0 Critical;3 Important + 3 必修测试项已在 df91b6b/03e6ba1/0cf986a 修完并过定向复审
+FINAL: 未采纳项(交机主定): McpInstallCard 仍是旧 409 形态+「更改」按钮(Vue2 #136 也没动它,属范围外)
