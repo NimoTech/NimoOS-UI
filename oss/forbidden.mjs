@@ -213,6 +213,13 @@ export const SOFT = [
       { file: /src\/App\.test\.ts$/, re: exactLine("// Sanity: the previous user's photo is actually painted before we log out --") },
       { file: /src\/stores\/wallpaper\.test\.ts$/, re: exactLine('// Repro: topbar photo entry opens the sheet (snapshots w01), user browses to') },
       { file: /src\/stores\/wallpaper\.ts$/, re: exactLine("/** I1 (final review): logout must not leave the previous user's photo painted") },
+      // Acceptance fix 1 (2026-08-08): comments explaining why body::after needs a
+      // negative z-index in wallpaper mode -- "photo" here means the wallpaper
+      // image the scrim sits on top of, not the deleted photos app. Same
+      // reasoning duplicated in the CSS and its guard test, entered per-line.
+      { file: /src\/styles\/theme\.css$/, re: exactLine('   ENTIRE app (cards, buttons, text), not just the wallpaper photo beneath it. That') },
+      { file: /src\/styles\/theme\.css$/, re: exactLine('   scrim belongs: modulating the photo, not the UI on top of it. */') },
+      { file: /src\/styles\/wallpaper\.css\.test\.ts$/, re: exactLine('// text) instead of just the wallpaper photo underneath it. jsdom cannot compute') },
     ],
   },
   {
