@@ -12,7 +12,13 @@ export interface FileEntry {
   size?: number | string
   date?: string
   write?: boolean
-  extensions?: { share?: { shared?: string } } | null
+  extensions?: {
+    share?: { shared?: string }
+    // Upload batch status the backend attaches to listing entries (NimoOS
+    // route/v1/file.go:441). `broken` may arrive as a boolean or as a string —
+    // see the leniency in util/uploadBadge.ts.
+    upload?: { broken?: boolean | string; batchId?: string }
+  } | null
 }
 
 const HIDDEN = new Set(['lost+found'])

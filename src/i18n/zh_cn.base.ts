@@ -131,6 +131,7 @@ export default {
   filesUploadResumeAll: '全部继续',
   filesUploadPaused: '已暂停',
   filesUploadClose: '关闭',
+  filesUploadBrokenBadge: '上传中断 —— 点击查看详情',
   filesMountEjectSuccess: '弹出成功',
   filesMountEjectFailed: '弹出失败',
   filesMountAdd: '添加挂载',

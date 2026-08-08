@@ -131,6 +131,7 @@ export default {
   filesUploadResumeAll: 'Resume all',
   filesUploadPaused: 'Paused',
   filesUploadClose: 'Close',
+  filesUploadBrokenBadge: 'Upload interrupted — click for details',
   filesMountEjectSuccess: 'Eject succeeded',
   filesMountEjectFailed: 'Eject failed',
   filesMountAdd: 'Add mount',

@@ -5,6 +5,7 @@ import { fileExt } from '../util/ext'
 import FileThumb from './FileThumb.vue'
 import FavoriteStar from './FavoriteStar.vue'
 import { useClipboardStore } from '../stores/clipboard'
+import { isUploadBroken, uploadBatchIdOf } from '../util/uploadBadge'
 
 const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
 const clipboard = useClipboardStore()
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+  (e: 'open-batch', batchId: string): void
 }>()
 
 function onClick(e: MouseEvent) {
@@ -39,6 +41,13 @@ function onClick(e: MouseEvent) {
       />
     </span>
     <FileThumb class="file-icon" :entry="props.entry" />
+    <button
+      v-if="isUploadBroken(props.entry)"
+      type="button"
+      class="upload-broken-badge"
+      :title="$t('filesUploadBrokenBadge')"
+      @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry))"
+    >!</button>
     <span class="file-name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
@@ -63,4 +72,12 @@ function onClick(e: MouseEvent) {
 .file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
 .file-row.cut { opacity: 0.45; }
+.upload-broken-badge {
+  flex: 0 0 auto; width: 16px; height: 16px;
+  display: grid; place-items: center; padding: 0;
+  border-radius: 999px; border: 1px solid var(--card-border);
+  background: var(--remove-bg); color: var(--remove-fg);
+  font-size: 10px; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.upload-broken-badge:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
 </style>

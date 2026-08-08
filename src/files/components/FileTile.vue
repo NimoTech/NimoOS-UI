@@ -4,6 +4,7 @@ import { dateFmt } from '../util/format'
 import FileThumb from './FileThumb.vue'
 import FavoriteStar from './FavoriteStar.vue'
 import { useClipboardStore } from '../stores/clipboard'
+import { isUploadBroken, uploadBatchIdOf } from '../util/uploadBadge'
 
 const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
 const clipboard = useClipboardStore()
@@ -11,6 +12,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+  (e: 'open-batch', batchId: string): void
 }>()
 
 function onClick(e: MouseEvent) {
@@ -37,6 +39,13 @@ function onClick(e: MouseEvent) {
         @change="emit('select', { entry: props.entry, mode: 'toggle' })"
       />
     </span>
+    <button
+      v-if="isUploadBroken(props.entry)"
+      type="button"
+      class="upload-broken-badge"
+      :title="$t('filesUploadBrokenBadge')"
+      @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry))"
+    >!</button>
     <FavoriteStar v-if="props.entry.is_dir" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
     <FileThumb class="tile-icon" :entry="props.entry" />
     <span class="tile-name">{{ props.entry.name }}</span>
@@ -58,4 +67,12 @@ function onClick(e: MouseEvent) {
 .file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
 .file-tile.cut { opacity: 0.45; }
+.upload-broken-badge {
+  position: absolute; right: 6px; top: 6px; width: 20px; height: 20px;
+  display: grid; place-items: center; padding: 0;
+  border-radius: 999px; border: 1px solid var(--card-border);
+  background: var(--remove-bg); color: var(--remove-fg);
+  font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.upload-broken-badge:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
 </style>
