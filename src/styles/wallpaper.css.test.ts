@@ -50,6 +50,20 @@ describe('scrim', () => {
     expect(scrim).toBeGreaterThan(lightKill)
   })
 
+  it('paints behind the app content, not on top of it', () => {
+    // body::after is `position: fixed; z-index: 0` (the shared rule earlier in this
+    // file), while #app is a plain non-positioned block. Per CSS painting order, a
+    // positioned z-index:0 element paints ABOVE all non-positioned content -- so
+    // without a negative z-index here, the scrim fogs the whole UI (cards, buttons,
+    // text) instead of just the wallpaper photo underneath it. jsdom cannot compute
+    // paint order, so this guard is deliberately structural: pin the declaration
+    // that makes the difference, not the visual result.
+    const rule = /:root\[data-wallpaper\]\s+body::after\s*\{([^}]*)\}/.exec(CSS)?.[1]
+    expect(rule, ':root[data-wallpaper] body::after block must exist').toBeTruthy()
+    expect(rule as string).toMatch(/background\s*:\s*var\(--wallpaper-scrim\)/)
+    expect(rule as string).toMatch(/z-index\s*:\s*-\d/)
+  })
+
   it('--wallpaper-scrim is defined in both themes', () => {
     // Scoped by theme block: a token defined only in one block reads as "present"
     // to a naive count while one theme silently falls back to nothing.

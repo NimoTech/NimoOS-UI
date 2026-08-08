@@ -795,4 +795,17 @@ body::after {
 }
 :root[data-wallpaper] body { background: transparent; }
 :root[data-wallpaper] body::before { display: none; }
-:root[data-wallpaper] body::after { background: var(--wallpaper-scrim); }
+/* body::after is `position: fixed; z-index: 0` (see the shared rule above), while
+   #app is a plain non-positioned block. Per CSS painting order, a positioned
+   element at z-index:0 paints ABOVE every non-positioned sibling/descendant that
+   follows it in the DOM -- so unmodified, this pseudo-element sits on top of the
+   ENTIRE app (cards, buttons, text), not just the wallpaper photo beneath it. That
+   was invisible with the default sheen (a 6%-white top gradient + a bottom
+   vignette reads as atmosphere), but the light theme's scrim is a near-opaque
+   white sheet, and painting that over the whole UI is what fogs every surface to
+   ~55% white and washes out near-black paper-theme text. `body` establishes no
+   stacking context, so a negative z-index here drops the pseudo behind the
+   canvas's <html> wallpaper paint and in front of nothing static -- it ends up
+   sandwiched between the wallpaper image and the app content, which is where a
+   scrim belongs: modulating the photo, not the UI on top of it. */
+:root[data-wallpaper] body::after { background: var(--wallpaper-scrim); z-index: -1; }
