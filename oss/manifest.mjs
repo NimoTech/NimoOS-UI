@@ -24,6 +24,8 @@ export const DELETE = [
   'src/home/stores/photos.ts',
   'src/home/apps/icons/photos.svg',
   'src/home/apps/icons/ai.svg',
+  // SP14 T9(d4d3771):knowledge 桌面磁贴用的图标,同属 AI 区,同一批删除。
+  'src/home/apps/icons/knowledge.svg',
   // 零消费方孤儿工具(T6 删完 bindPhotos、PhotoTile.vue 已在本表):
   // src/home/stores/photos.test.ts 仍直接 import 它,但那份测试本身是
   // "测试同步:整体删除的 9 个"之一(T13 填齐),不在本任务改动范围。
@@ -150,6 +152,12 @@ export const DELETE = [
   'src/settings/util/folderPermissionsSnapshot.test.ts',  // import folderPermissionsSnapshot.ts(已删)
   'src/settings/util/folderPermissionsView.test.ts',      // import folderPermissionsView.ts(已删)
   // FolderPickerDialog.test.ts 不用单列:它在 'src/settings/panels/folderPerm'(上面已整目录删除)里面。
+
+  // SP14 T9(d4d3771)新增的孤儿测试:整份文件只有两条用例,一条直接断言 knowledge
+  // 系统应用条目(已在上面 PATCH 摘掉),另一条"keys 去重"虽然本身与 AI 无关,但
+  // 挂在同一个以 knowledge 命名的 describe 下、文件本身也是这次才新建的,不值得为它
+  // PATCH 出一个只剩一条用例的空壳文件——整体删除。
+  'src/home/apps/systemApps.test.ts',
 ]
 
 /** Service 侧的整体删除(相对 packages/service/)。 */
@@ -244,6 +252,18 @@ export const PATCH = [
     replace: '' },
   { path: 'src/home/apps/systemApps.ts',
     find: "  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },\n  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },\n",
+    replace: '' },
+
+  // ── systemApps.ts:去 knowledge 系统应用(SP14 T9,commit d4d3771)── 同上一段
+  //    photos/ai 的处理是同一批加进来的第三条系统应用,同样按 import/glyph/条目三处摘除。
+  { path: 'src/home/apps/systemApps.ts',
+    find: "import iconKnowledge from './icons/knowledge.svg'\n",
+    replace: '' },
+  { path: 'src/home/apps/systemApps.ts',
+    find: "  book: '<path d=\"M4.5 5.5A2 2 0 0 1 6.5 3.5H19v15H6.5a2 2 0 0 0-2 2Z\"/><path d=\"M9 7.5h6M9 11h6\"/>',\n",
+    replace: '' },
+  { path: 'src/home/apps/systemApps.ts',
+    find: "  { key: 'knowledge', name: 'Knowledge', label: 'appKnowledge', cls: 'ic-knowledge', glyph: G.book, icon: iconKnowledge },\n",
     replace: '' },
 
   // ── useDock.ts:DEFAULT_FAV 换成开源版的 4 项(补上 storage —— 它在开源版
@@ -565,9 +585,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  audioSummary: '摘要',\n  audioTranscript: '转录文稿',\n  audioAsk: '问 Nimo',\n  audioAskPlaceholder: '关于这段音频，尽管问…',\n  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',\n  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',\n  audioHighlightsOnly: '只看重点',\n  audioShowAll: '显示全部',\n  audioSpeakerAll: '全部',\n  audioChapters: '章节',\n  audioAllChapters: '全部章节',\n",
     replace: "" },
-  // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除
+  // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除;appKnowledge 是 SP14 T9 追加的
+  // 第三个同类孤儿键(knowledge 系统应用条目已在上面的 systemApps.ts PATCH 段摘掉)。
   { path: 'src/i18n/zh_cn.base.ts',
-    find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n",
+    find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n  appKnowledge: '知识库',\n",
     replace: "" },
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  widgetAiTitle: 'AI 助手',\n  widgetAiDesc: '对话与智能建议',\n",
@@ -597,7 +618,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "  audioSummary: 'Summary',\n  audioTranscript: 'Transcript',\n  audioAsk: 'Ask Nimo',\n  audioAskPlaceholder: 'Ask anything about this audio…',\n  audioAskEmpty: 'This transcript is vectorized — ask Nimo about anything in it.',\n  audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',\n  audioHighlightsOnly: 'Highlights only',\n  audioShowAll: 'Show all',\n  audioSpeakerAll: 'All',\n  audioChapters: 'Chapters',\n  audioAllChapters: 'All chapters',\n",
     replace: "" },
   { path: 'src/i18n/en_us.base.ts',
-    find: "  appPhotos: 'Photos',\n  appAi: 'Nimo AI',\n",
+    find: "  appPhotos: 'Photos',\n  appAi: 'Nimo AI',\n  appKnowledge: 'Knowledge',\n",
     replace: "" },
   { path: 'src/i18n/en_us.base.ts',
     find: "  widgetAiTitle: 'AI Assistant',\n  widgetAiDesc: 'Chat and smart suggestions',\n",
@@ -1269,6 +1290,11 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   // .ic-ai 消费的 --orb-core 已随上面删除,该规则本身也删
   { path: 'src/styles/theme.css',
     find: ".ic-ai       { background: radial-gradient(circle at 64% 24%, var(--accent2), transparent 40%), radial-gradient(circle at 28% 80%, var(--accent), transparent 46%), var(--orb-core, #1a2050); }\n",
+    replace: "" },
+  // .ic-knowledge:SP14 T9(d4d3771)追加,同属 AI 区磁贴配色,连注释一起删
+  // (systemApps.ts 里 cls: 'ic-knowledge' 那条已在上面摘掉,这里是零消费方孤儿规则)。
+  { path: 'src/styles/theme.css',
+    find: "/* SP14 #98: matches the amber gradient baked into knowledge.svg's own <linearGradient>\n   (#D97706 -> #FBBF24) -- same brand-identity exception as the rest of this block. */\n.ic-knowledge { background: linear-gradient(145deg, #fbbf24, #d97706 65%, #b45309); }\n",
     replace: "" },
   { path: 'src/styles/theme.css',
     find: ".ic-search   { background: linear-gradient(145deg, #c4b5fd, #8b5cf6 60%, #6d28d9); }\n",
