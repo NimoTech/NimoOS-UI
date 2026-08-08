@@ -63,6 +63,21 @@ async function waitForDialogOpen(w: ReturnType<typeof mount>) {
   throw new Error('conflict dialog never opened')
 }
 
+// Mirrors waitForDialogOpen for the other direction: after emitting choose/cancel
+// on the real child, poll for `open` to flip back to false. A broken @choose/@cancel
+// forward means conflicts.onChoose/onCancel is never called, so the resolver inside
+// useUploadConflicts.ts never settles and `open` stays true forever — polling with a
+// bounded loop turns that into a fast, NAMED failure here rather than the caller's
+// `await p` silently hanging until vitest's default 5000ms test timeout (which reads
+// as CI flake, not as "this exact binding is missing").
+async function waitForDialogClose(w: ReturnType<typeof mount>) {
+  for (let i = 0; i < 50; i++) {
+    await nextTick()
+    if (!w.findComponent(FileConflictDialog).props('open')) return
+  }
+  throw new Error('conflict dialog never closed after choose/cancel — the @choose/@cancel forwarding is broken')
+}
+
 describe('Files.vue upload-conflict wiring', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -88,6 +103,7 @@ describe('Files.vue upload-conflict wiring', () => {
     expect(w.findComponent(FileConflictDialog).props('name')).toBe('a.txt')
 
     await w.findComponent(FileConflictDialog).vm.$emit('choose', { action: 'overwrite', applyToAll: false })
+    await waitForDialogClose(w)
     await p
     await flushPromises()
 
@@ -110,6 +126,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const p = (w.vm as any).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     await w.findComponent(FileConflictDialog).vm.$emit('choose', { action: 'skip', applyToAll: false })
+    await waitForDialogClose(w)
     await p
     await flushPromises()
 
@@ -129,6 +146,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const p = (w.vm as any).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     await w.findComponent(FileConflictDialog).vm.$emit('cancel')
+    await waitForDialogClose(w)
     await p
     await flushPromises()
 
@@ -168,9 +186,11 @@ describe('Files.vue upload-conflict wiring', () => {
   // emits genuinely reaches addFilesToQueue as the item's conflictPolicy.
   //
   // Forced-RED self-proof (see task-9-report.md for the exact commands/output):
-  // deleting `@choose="conflicts.onChoose"` from Files.vue's template makes `await p`
-  // below hang until the test's timeout, failing this test — restoring the line makes
-  // it pass again.
+  // deleting `@choose="conflicts.onChoose"` from Files.vue's template makes
+  // waitForDialogClose below throw its own named error (the dialog never closes,
+  // because conflicts.onChoose is never called to settle it) — fast and clearly
+  // attributable to this exact binding, not a vague default-timeout failure.
+  // Restoring the line makes it pass again.
   it('forwards the dialog choose event — deleting the @choose handler must fail this test', async () => {
     vi.mocked(service.folder.getList).mockImplementation(async () => ({ content: [{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }] }))
     const w = await mountFiles()
@@ -181,6 +201,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const p = (w.vm as any).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     await w.findComponent(FileConflictDialog).vm.$emit('choose', { action: 'keep_both', applyToAll: false })
+    await waitForDialogClose(w)
     await p
     await flushPromises()
 
@@ -207,6 +228,53 @@ describe('Files.vue upload-conflict wiring', () => {
     expect(w.findComponent(FileConflictDialog).props('isDir')).toBe(true)
 
     await w.findComponent(FileConflictDialog).vm.$emit('cancel')
+    await waitForDialogClose(w)
+    await p
+    await flushPromises()
+  })
+
+  // Coverage gap found in review: :open, :name and @choose/@cancel were each proven
+  // to fail loudly if deleted, but :allow-merge and :queue-total have defaults in
+  // FileConflictDialog's withDefaults (allowMerge: false, queueTotal: 1) — deleting
+  // either binding produces neither a type error nor (previously) a test failure,
+  // because every other test here only ever has ONE conflict in its queue. This test
+  // forces a queue of TWO folder-kind conflicts so both defaults would visibly differ
+  // from the real values: 'Trip' (a nested upload landing on an existing folder — a
+  // genuine mergeable folder-into-folder collision) queues ahead of 'Vacation' (a flat
+  // FILE upload landing on an existing folder — a type mismatch, not mergeable).
+  // splitConflictsByKind puts both in the SAME folder queue (existingIsDir is true for
+  // either), so 'Trip' opens first with allowMerge:true and queueTotal:2 — exactly the
+  // snapshot where a missing :allow-merge or :queue-total binding would go unnoticed
+  // by every other test in this file.
+  //
+  // Forced-RED self-proof (see task-9-report.md): deleting `:allow-merge` makes the
+  // allowMerge assertion below fail (prop falls back to its `false` default instead of
+  // the real `true`); deleting `:queue-total` makes the queueTotal assertion fail the
+  // same way (falls back to `1` instead of `2`). Both restored afterwards.
+  it('opens the folder prompt with the real allowMerge and queue position, not the dialog defaults', async () => {
+    vi.mocked(service.folder.getList).mockImplementation(async () => ({
+      content: [
+        { name: 'Trip', path: '/DATA/Trip', is_dir: true },
+        { name: 'Vacation', path: '/DATA/Vacation', is_dir: true },
+      ],
+    }))
+    const w = await mountFiles()
+    const uploads = useUploadsStore()
+    vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+
+    const nested = { name: 'photo.jpg', webkitRelativePath: 'Trip/photo.jpg' } as unknown as File
+    const flat = { name: 'Vacation', webkitRelativePath: '' } as unknown as File
+    const p = (w.vm as any).handleSelectedFiles([nested, flat])
+    await waitForDialogOpen(w)
+
+    const dlg = w.findComponent(FileConflictDialog)
+    expect(dlg.props('name')).toBe('Trip')
+    expect(dlg.props('allowMerge')).toBe(true)
+    expect(dlg.props('queueTotal')).toBe(2)
+    expect(dlg.props('queueIndex')).toBe(0)
+
+    await dlg.vm.$emit('cancel')
+    await waitForDialogClose(w)
     await p
     await flushPromises()
   })

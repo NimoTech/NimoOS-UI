@@ -230,7 +230,7 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   const wanted = pending ? entries.filter((e) => pending.missing.has(e.relativePath)) : entries
   if (pending && !wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
 
-  const targetPath = pending ? pending.targetPath : files.currentPath // REAL 路径,受保护目录判断按此展开
+  const targetPath = pending ? pending.targetPath : files.currentPath // REAL path — the protected-dir check expands against this.
 
   // Both branches resolve same-name conflicts BEFORE enqueuing: skipped and
   // cancelled entries must never reach the batch manifest, or reconciliation
