@@ -1,4 +1,4 @@
-export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'conflict' | 'paused'
+export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'paused'
 
 export interface UploadItem {
   id: string
@@ -19,7 +19,10 @@ export interface UploadItem {
   doneAt?: number
   batchId: string
   batchTotal: number
-  conflictPolicy: '' | 'overwrite' | 'rename' | 'skip'
+  // Decided BEFORE enqueue by the conflict dialog flow (see
+  // composables/useUploadConflicts.ts). 'skip' is not a policy — a skipped
+  // entry never reaches the queue at all.
+  conflictPolicy: '' | 'overwrite' | 'rename'
   thumbUrl?: string
 }
 
@@ -27,6 +30,8 @@ export interface SelectedFile {
   file: File
   targetPath: string
   relativePath: string
+  /** Already-resolved policy from the conflict dialog; absent means no conflict. */
+  conflictPolicy?: '' | 'overwrite' | 'rename'
 }
 
 export interface TusArgs {

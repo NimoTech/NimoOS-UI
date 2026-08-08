@@ -13,7 +13,6 @@ export interface BatchView {
   doneCount: number
   errorCount: number
   activeCount: number // pending + uploading
-  conflictCount: number
   pausedCount: number
   progress: number // 0-100, bytes-weighted
   sentBytes: number // uploaded so far across the batch
@@ -51,7 +50,6 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
     const items = map.get(batchId)!
     const doneCount = items.filter((i) => i.status === 'done').length
     const errorCount = items.filter((i) => i.status === 'error').length
-    const conflictCount = items.filter((i) => i.status === 'conflict').length
     const activeCount = items.filter((i) => i.status === 'pending' || i.status === 'uploading').length
     const pausedCount = items.filter((i) => i.status === 'paused').length
     const totalBytes = items.reduce((s, i) => s + i.size, 0)
@@ -60,7 +58,7 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
     const zone: 'problem' | 'active' | 'done' =
       errorCount > 0
         ? 'problem'
-        : activeCount > 0 || conflictCount > 0 || pausedCount > 0
+        : activeCount > 0 || pausedCount > 0
           ? 'active'
           : 'done'
     return {
@@ -71,7 +69,6 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
       doneCount,
       errorCount,
       activeCount,
-      conflictCount,
       pausedCount,
       progress,
       sentBytes,
@@ -82,9 +79,9 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
   })
 }
 
-// A batch is "settled" once nothing is pending/uploading/awaiting a conflict
-// decision — every item is terminal (done or error). Used to fire ONE toast
-// per batch and to clear the batch afterwards.
+// A batch is "settled" once nothing is pending/uploading — every item is
+// terminal (done or error). Used to fire ONE toast per batch and to clear
+// the batch afterwards.
 export function isBatchSettled(items: UploadItem[]): boolean {
   return items.length > 0 && items.every((i) => i.status === 'done' || i.status === 'error')
 }

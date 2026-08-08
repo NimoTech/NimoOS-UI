@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { refreshAccessToken, service } from '@nimotech/nimoos-service'
 import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
-import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
 import { safeRandomUUID } from '../upload/uuid'
 import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
 import type { UploadItem, SelectedFile } from '../upload/types'
@@ -153,18 +152,8 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       createdAt: Date.now(),
       batchId,
       batchTotal: survivors.length,
-      conflictPolicy: '',
+      conflictPolicy: f.conflictPolicy || '',
     }))
-
-    try {
-      const set = await precheckExisting(survivors)
-      for (const item of items) {
-        item.status = set.has(conflictKey(item.targetPath, item.relativePath)) ? 'conflict' : 'pending'
-      }
-    } catch {
-      // Precheck unavailable — leave everything pending, server will still
-      // reject/handle actual conflicts.
-    }
 
     // Report the manifest before enqueuing: it is the server's sole basis for
     // deciding which files belong to this batch, so it must reach the NAS
@@ -185,16 +174,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     queue.value.push(...items)
     if (items.some((i) => i.status === 'pending')) startUpload()
     return { rejected }
-  }
-
-  function resolveConflict(id: string, choice: string): void {
-    const policy = decideConflictPolicy(choice)
-    if (policy === 'skip') {
-      patch(id, { status: 'done' })
-    } else {
-      patch(id, { conflictPolicy: policy, status: 'pending' })
-    }
-    startUpload()
   }
 
   function retryItem(id: string): void {
@@ -301,7 +280,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     hasActive,
     patch,
     addFilesToQueue,
-    resolveConflict,
     startUpload,
     retryItem,
     cancelItem,

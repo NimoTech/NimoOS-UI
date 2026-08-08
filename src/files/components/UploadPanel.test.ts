@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mount, DOMWrapper } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -21,13 +23,6 @@ function seed(status: string, extra: any = {}) {
   return s
 }
 
-// reka-ui's Dialog (used for the conflict dialog) teleports its content to
-// <body>, outside the mounted wrapper's own DOM subtree (see
-// src/components/ui/Dialog.test.ts and NewItemDialog.test.ts) — so
-// `wrapper.text()` never sees it regardless of `attachTo`. Query
-// document.body directly for that one assertion.
-const body = () => new DOMWrapper(document.body)
-
 describe('UploadPanel', () => {
   it('renders active item without leaking /DATA', () => {
     seed('uploading')
@@ -40,13 +35,6 @@ describe('UploadPanel', () => {
     seed('uploading', { size: 5 * 1024 * 1024, bytesSent: 1 * 1024 * 1024 })
     const w = mount(UploadPanel, { global: { plugins: [i18n] } })
     expect(w.text()).toContain('1 MB / 5 MB')
-  })
-
-  it('shows conflict dialog for a conflict item', async () => {
-    seed('conflict')
-    mount(UploadPanel, { global: { plugins: [i18n] }, attachTo: document.body })
-    await nextTick()
-    expect(body().text()).toContain(zh.filesUploadOverwrite)
   })
 
   it('auto-opens the panel when the queue grows from empty', async () => {
@@ -63,11 +51,18 @@ describe('UploadPanel', () => {
     expect(w.text()).toContain(zh.filesUploadErrNoSpace)
   })
 
-  it('resolveConflict is called with the chosen policy', async () => {
-    const s = seed('conflict')
-    mount(UploadPanel, { global: { plugins: [i18n] }, attachTo: document.body })
-    await nextTick()
-    await body().find('.ui-btn.primary').trigger('click')
-    expect(s.queue.find((i) => i.id === 'i1')?.conflictPolicy).toBe('overwrite')
+  // Guard against the old per-file conflict dialog coming back. Reading the
+  // source with node:fs rather than a `?raw` import — `?raw` returns empty
+  // under this repo's vitest setup and has silently no-op'd a guard before
+  // (see task-8 brief). Checked against source rather than by seeding a
+  // 'conflict' status: that status no longer exists on UploadStatus, so a
+  // rendering-based assertion would either not compile or trivially pass for
+  // an unrelated reason. Proven RED before the removal (Dialog import + the
+  // conflict block present) and GREEN after, per task-8-report.md.
+  it('no longer imports the per-file conflict Dialog or references its resolveConflict path', () => {
+    const source = readFileSync(path.join(__dirname, 'UploadPanel.vue'), 'utf-8')
+    expect(source).not.toMatch(/import\s+Dialog\s+from/)
+    expect(source).not.toContain('resolveConflict')
+    expect(source).not.toContain('conflictItem')
   })
 })
