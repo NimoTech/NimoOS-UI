@@ -25,6 +25,27 @@ function harness(item: UploadItem, uploadImpl: any) {
 describe('scheduler', () => {
   it('has the outer backoff sequence', () => expect(BACKOFF_MS).toEqual([1000, 3000, 9000]))
 
+  // A local/fresh pick always gets an `fq_`-prefixed id (addFilesToQueue); a
+  // server-reported tus id (syncServerTasks/reattachFiles) does not. `resumed`
+  // tells the server whether a name collision should overwrite instead of
+  // creating a "(1)" duplicate — see scheduler.ts's comment for why this only
+  // matters when tus-js-client actually issues a create request.
+  it('sends resumed:false for a fresh local (fq_-id) item', async () => {
+    let seenArgs: any
+    const upload = (args: any) => { seenArgs = args; return Promise.resolve() }
+    const { deps } = harness(mkItem({ id: 'fq_123_0_abc' }), upload)
+    await createScheduler(deps).run()
+    expect(seenArgs.resumed).toBe(false)
+  })
+
+  it('sends resumed:true for a server-reported (non fq_-id) item', async () => {
+    let seenArgs: any
+    const upload = (args: any) => { seenArgs = args; return Promise.resolve() }
+    const { deps } = harness(mkItem({ id: 'serverTusHexId' }), upload)
+    await createScheduler(deps).run()
+    expect(seenArgs.resumed).toBe(true)
+  })
+
   it('marks done on success', async () => {
     const { deps, patches } = harness(mkItem({}), () => Promise.resolve())
     await createScheduler(deps).run()

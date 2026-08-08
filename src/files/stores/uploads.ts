@@ -340,6 +340,13 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     // Pinia store is app-scoped (a single instance for the whole app
     // lifetime). A real page reload rebuilds the store and resets this flag,
     // so this is still "once per page load", not "once per mount".
+    //
+    // Set BEFORE the await: two synchronous mounts in the same tick (e.g. a
+    // fast back-and-forth navigation) must not both observe `false` and both
+    // proceed to sync — that would double-run syncServerTasks (and could
+    // double-append the same server-reported rows) before either call's
+    // await yields. Latching first, awaiting second, closes that race;
+    // latching only on success would leave the window open.
     if (initialized.value) return
     initialized.value = true
     try {

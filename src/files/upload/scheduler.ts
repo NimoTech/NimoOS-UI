@@ -64,9 +64,15 @@ export function createScheduler(deps: SchedulerDeps) {
           relativePath: item.relativePath || item.fileName,
           batchId: item.batchId || '',
           batchTotal: item.batchTotal != null ? item.batchTotal : 1,
-          // Client-side upload resume (IDB byte cache) has been retired, so this is
-          // always a fresh start from the scheduler's point of view.
-          resumed: false,
+          // A fresh local pick always gets an `fq_`-prefixed id (addFilesToQueue);
+          // anything else is a server-reported tus id, meaning this item came from
+          // syncServerTasks/reattachFiles and the server already has (partial)
+          // content for it under this same name — tell it to overwrite a
+          // name collision instead of creating a "(1)" duplicate. Note this only
+          // has any effect when tus-js-client actually performs a create request:
+          // whenever resumeUrl below is set, it resumes that URL directly (a plain
+          // HEAD, no metadata) and this flag is never transmitted either way.
+          resumed: !item.id.startsWith('fq_'),
           conflictPolicy: item.conflictPolicy || '',
           resumeUrl: item.tusUploadUrl || undefined,
           onUrlAvailable: (url) => {
