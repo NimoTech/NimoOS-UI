@@ -3,8 +3,10 @@ import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useConfirmResolve } from './useConfirmResolve'
 
-// useI18n() 需要组件实例,所以经一个宿主组件取 composable 的返回值。
-// i18n 由 vitest.setup.ts 全局装好,这里不要再 createI18n。
+// useI18n() needs a component instance, so the composable's return value is obtained
+// through a host component.
+// i18n is already set up globally by vitest.setup.ts -- do not create another
+// createI18n here.
 function host() {
   let api!: ReturnType<typeof useConfirmResolve<'accept' | 'decline' | 'cancel'>>
   const C = defineComponent({

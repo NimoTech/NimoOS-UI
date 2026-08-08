@@ -1107,17 +1107,20 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * Vue2 agentStore.js:519-530 —— MCP elicitation 的三态决议。
+     * Vue2 agentStore.js:519-530 -- The three-state resolution for MCP elicitation.
      *
-     * 与 confirmAgentAction 的两处差别,都是刻意的:
-     * 1) elicitation 是三态(accept / decline / cancel)且 accept 可带答案,所以
-     *    action / content 经 extra 透传;`confirmed` 仍照发(action === 'accept'),
-     *    让后端既有的簿记逐字不变。
-     * 2) 无会话时**抛**而不是像 confirmAgentAction 那样静默 return —— 静默 return 会
-     *    resolve 掉这个 promise,卡片于是翻到「已把回答发给 X」/「已在新标签页打开」,
-     *    而实际上一个字节都没发出去:后端回调还挂在 wait_elicit 里(最长 24h),整次
-     *    工具调用就这么无声地卡死。抛出去,卡片的 catch 才能把它显示出来。
-     *    confirmAgentAction 那条路径不阻塞工具调用,所以保持原样不动。
+     * Two differences from confirmAgentAction, both deliberate:
+     * 1) Elicitation is three-state (accept / decline / cancel) and an accept can
+     *    carry an answer, so action / content are passed through via `extra`;
+     *    `confirmed` is still sent as before (action === 'accept'), so the backend's
+     *    existing bookkeeping stays exactly as it was.
+     * 2) With no active session this **throws** instead of silently returning the way
+     *    confirmAgentAction does -- a silent return would resolve this promise, the
+     *    card would then flip to "answer sent to X" / "opened in a new tab", while in
+     *    reality not a single byte was sent: the backend callback stays parked in
+     *    wait_elicit (for up to 24h) with the whole tool call hung silently behind it.
+     *    Throwing lets the card's catch surface it instead. confirmAgentAction's path
+     *    does not block the tool call, so it is left as-is.
      */
     async function resolveElicitation(
       confirmId: string,

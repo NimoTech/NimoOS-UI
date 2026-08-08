@@ -1,9 +1,12 @@
-// SP14 T1 —— 三张确认卡(McpPermissionCard / McpElicitFormCard / McpElicitUrlCard)
-// 共用的提交状态机,对齐 Vue2 #136 的最终形态。
+// SP14 T1 -- Shared submission state machine for the three confirm cards
+// (McpPermissionCard / McpElicitFormCard / McpElicitUrlCard), matching Vue2 #136's
+// final shape.
 //
-// 为什么抽出来而不是各卡复制:#136 的要求就是「三卡行为一致」。confirm_id 是一次性的
-// (后端 ConfirmManager.resolve 会把它从 _pending 移除),此后每次 POST 都是 409。
-// 复制三份判据必漂,而漂掉的后果是用户对着一张永远点不动的卡反复点。
+// Why extract this instead of copying it into each card: #136's requirement was
+// exactly "the three cards must behave identically". confirm_id is single-use (the
+// backend's ConfirmManager.resolve removes it from _pending), so every POST after the
+// first is a 409. Three hand-copied judgements would inevitably drift, and the
+// consequence of drift is a user clicking a card that will never respond again.
 import { ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -24,7 +27,8 @@ export function useConfirmResolve<A extends string>(): ConfirmResolveApi<A> {
   const submitError = ref('')
 
   async function run(action: A, send: () => Promise<void>): Promise<void> {
-    // expired 是单向的:后端已经不认这个 confirm_id 了,再发多少次都是 409。
+    // expired is one-way: the backend no longer recognizes this confirm_id, so any
+    // further sends will all be 409.
     if (expired.value || submitting.value) return
     submitting.value = true
     submitError.value = ''
@@ -33,8 +37,9 @@ export function useConfirmResolve<A extends string>(): ConfirmResolveApi<A> {
       decision.value = action
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } } | null)?.response?.status
-      // 只有 409 是终态。500 或断连时 confirm_id 可能还活在 _pending 里,
-      // 卡片保持可用、表单内容不清空,允许用户重试。
+      // Only 409 is terminal. On a 500 or a dropped connection, the confirm_id may
+      // still be alive in _pending, so the card stays usable and the form content is
+      // not cleared, allowing the user to retry.
       if (status === 409) {
         expired.value = true
         submitError.value = t('aiConfirmExpired')
@@ -47,7 +52,8 @@ export function useConfirmResolve<A extends string>(): ConfirmResolveApi<A> {
     }
   }
 
-  // 请求还没发出去就判失败的路径(缺 confirm_id、URL scheme 不在白名单)。
+  // Path for failures decided before the request is even sent (missing confirm_id,
+  // URL scheme not in the allowlist).
   function fail(msgKey: string): void {
     submitError.value = t(msgKey)
   }

@@ -1,29 +1,39 @@
-// SP14 T4 —— 前端唯一一条手写的 elicitation 校验规则。1:1 移植自 Vue2
-// src/views/AI/Agent/blocks/mcpElicitValidate.js。
+// SP14 T4 -- The one hand-written elicitation validation rule on the frontend. Ported
+// 1:1 from Vue2's src/views/AI/Agent/blocks/mcpElicitValidate.js.
 //
-// 这里**故意**没有别的:其余全部约束由控件结构(select / checkbox 只产合法值)与
-// 浏览器原生约束(required / minlength / maxlength / min / max / step / type=email
-// / type=date / type=datetime-local)执行,权威规则只有后端
-// agent/mcp_client/elicitation_schema.py::validate_content 那一份。
+// There is deliberately nothing else here: every other constraint is enforced either
+// by the control's own structure (a select / checkbox can only ever produce a valid
+// value) or by native browser constraints (required / minlength / maxlength / min /
+// max / step / type=email / type=date / type=datetime-local). The authoritative copy
+// of the rules lives solely in the backend's
+// agent/mcp_client/elicitation_schema.py::validate_content.
 //
-// 为什么不在这里把后端规则再写一遍:那就是两份实现,而 NimoOS-AI 与本仓是两个独立
-// 发版的 git 仓库,靠人工同步必然漂移,而漂移的后果曾经是「用户填的答案被后端静默
-// 丢弃、卡片已 resolve、没有回头路」。现在是:规则一份 + 浏览器执行 + 后端退回时
-// 带原因重问(见 elicitation.py::MAX_ANSWER_ATTEMPTS)。
+// Why not restate the backend rules here too: that would be a second implementation,
+// and NimoOS-AI and this repo are two independently released git repos -- keeping them
+// in sync by hand is bound to drift, and the last time they drifted the consequence
+// was the user's answers being silently dropped by the backend after the card had
+// already resolved, with no way back. The current setup is: one copy of the rules +
+// browser enforcement + the backend re-asking with a reason when it rejects an answer
+// (see elicitation.py::MAX_ANSWER_ATTEMPTS).
 //
-// 数组是唯一没有原生对应物的:checkbox 组没有有意义的 required,minItems/maxItems
-// HTML 也表达不了。所以只有它落在这里。
+// Arrays are the one case with no native equivalent: a checkbox group has no
+// meaningful `required`, and HTML has no way to express minItems/maxItems either. So
+// that is the only rule that lives on this side.
 import type { ElicitField } from '../types/mcpElicit'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
 
 /**
- * 全部数组字段合法时返回 null,否则返回一条已翻译的 "Title: reason"。
+ * Returns null when every array field is valid, otherwise a translated
+ * "Title: reason" string.
  *
- * `t` 由调用方传入(组件里就是 useI18n 的 t)。为什么要传而不是在这里写死英文:
- * 这条 reason 会直接显示成 submitError,而卡片里其余每一条文案都走了 i18n ——
- * 只有错误路径给中文用户看英文,恰好是最需要看懂的那一条。文案字面量留在 t('…')
- * 调用里,提取脚本照样扫得到。默认值 s => s 保持这个 helper 单独可测。
+ * `t` is passed in by the caller (in components, that is useI18n's `t`). Why pass it
+ * in instead of hardcoding English here: this reason string is displayed directly as
+ * submitError, and every other piece of copy on the card already goes through i18n --
+ * only the error path would show a Chinese user English text, which is exactly the
+ * one message they most need to understand. The copy literals stay inside the
+ * `t('…')` calls, so the extraction script still picks them up. The default `s => s`
+ * keeps this helper independently testable.
  */
 export function validateArrayFields(
   fields: ElicitField[] | null | undefined,
@@ -36,8 +46,9 @@ export function validateArrayFields(
     const v = Array.isArray(raw) ? raw : []
     const label = f.title || f.key
     if (f.required && v.length === 0) return t('{label}: is required', { label })
-    // 注意:这里**不**对空数组 continue —— min_items 独立于 required,
-    // 一个 required:false 但 min_items:1 的字段选了 0 项时仍然违规。
+    // Note: this deliberately does NOT continue on an empty array -- min_items is
+    // independent of required, so a field with required: false but min_items: 1 still
+    // violates the rule when 0 items are selected.
     if (f.min_items !== null && f.min_items !== undefined && v.length < f.min_items)
       return t('{label}: pick at least {n}', { label, n: f.min_items })
     if (f.max_items !== null && f.max_items !== undefined && v.length > f.max_items)

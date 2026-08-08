@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { validateArrayFields } from './mcpElicitValidate'
 import type { ElicitField } from '../types/mcpElicit'
 
-// 字段形状逐字取自后端 elicitation_schema.py:134-143 的 _blank(),不手编。
+// Field shape taken verbatim from the backend's _blank() in
+// elicitation_schema.py:134-143, not hand-authored.
 function multiEnum(over: Partial<ElicitField> = {}): ElicitField {
   return {
     key: 'tags', type: 'multi_enum', title: '标签', description: '',
