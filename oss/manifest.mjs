@@ -310,30 +310,48 @@ function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
     replace: '' },
-  // SP14 T9(commit d4d3771)重抓锚点:私有侧在 `ai` 分支之后插入了三行注释 + 一条
-  // `knowledge` 分支(desktop 磁贴新入口,见 task-9-report.md),原六行锚点因此 hits=0。
-  // knowledge 与 ai/photos 同属 AI 区,开源版本就不存在这个 key(defaultLayout.ts 早已
-  // 不含任何 AI 磁贴),处理方式与 ai/photos 一致:整段落在 replace 里一并去掉,不补等价行。
+  // SP14 T9(commit d4d3771)重抓锚点,03e6ba1 又把 knowledge 分支上方的解释性注释从
+  // 3 行拉长到 7 行,同一个六行代码 + 注释 + knowledge 分支的大锚点两期内碎了两次——
+  // 碎因都不是代码变了,是注释被改写/加长。原来这是一条从 appstore 到 tail 的单一
+  // find/replace,注释文本被夹在中间,锚点体量因此跟着注释一起膨胀,每次改注释都要
+  // 重新过一遍整段 replace。拆成三条,把"会变"和"不会变"分开:
+  //   A —— appstore..ai 六行 if,纯代码,两次注释改写都没动过它,不会再因为改注释碎。
+  //   B1 —— knowledge 分支上方那段解释性注释,单独摘掉;它是唯一真正会变的部分,
+  //         下次被改写只碎这一条,四行触达,不牵连 A/B2。
+  //   B2 —— knowledge 分支 + 尾部兜底,纯代码,同样不含注释文本。
+  // 这是 apply.mjs 纯字面子串匹配(无正则)能做到的极限:删除注释这件事本身必须
+  // 逐字匹配到被删的注释,做不到"锚点完全免疫于注释重写";能做的只是不让它
+  // 拖着两侧的代码锚点一起碎。三条拼起来产出与拆分前逐字相同。
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
       if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
-      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
-      // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
-      // Vue 2 has no counterpart entry for it, so there is nowhere to fall back to
-      // and no strangler:disabled flag is set here (unlike ai/photos/vm/settings above).
-      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
-      window.location.href = SYS_ROUTE[key] || '/#/legacy'
-      return`,
+      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }`,
     // 开源版没有任何 cutover flag(私有主干那几个分支全靠 cutoverDisabled 才存在),
     // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
-    // 所以这两个 key 由下面那句 router.push(SYS_ROUTE[key] || '/') 兜底即可,
-    // 不再重复写成两个 if(那只是一层无谓的间接)。photos / ai / knowledge 在开源版整个不存在。
+    // 所以这两个 key 由 B2 兜底的 router.push(SYS_ROUTE[key] || '/') 即可,不再重复
+    // 写成两个 if(那只是一层无谓的间接)。photos / ai 在开源版整个不存在。
     replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
-      if (key === 'storage') { router.push('/storage'); return }
-      router.push(SYS_ROUTE[key] || '/')
+      if (key === 'storage') { router.push('/storage'); return }` },
+  { path: 'src/home/composables/useOpenAction.ts',
+    find: `      // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
+      // Vue 2 has no counterpart entry for it, so there is nowhere to fall back to
+      // and no strangler:disabled flag is set here (unlike ai/photos/vm/settings above).
+      // Consequence: setting strangler:disabled:/ai = '1' only rolls the AI tile
+      // back to Vue 2 (line above) -- the Knowledge tile keeps routing into this
+      // app regardless, because it has no Vue 2 counterpart to roll back to. That
+      // partial rollback is correct by necessity, not an oversight.
+`,
+    replace: '' },
+  { path: 'src/home/composables/useOpenAction.ts',
+    // knowledge 与 ai/photos 同属 AI 区,开源版本就不存在这个 key(defaultLayout.ts
+    // 早已不含任何 AI 磁贴),处理方式与 ai/photos 一致:整行去掉,不补等价行。
+    find: `      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
+      window.location.href = SYS_ROUTE[key] || '/#/legacy'
+      return`,
+    replace: `      router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
     find: `    // 桌面照片磁贴:cutover 后进应用内时间线。刻意不带 asset —— Vue2 这里也只是跳
