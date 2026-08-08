@@ -92,8 +92,6 @@ export default {
   filesUploadTitle: 'Upload',
   filesUploadTo: 'Upload to {name}',
   filesUploadDrop: 'Drop files here to upload',
-  filesUploadOversize:
-    'Uploading a large file — keep this page open until it finishes; if interrupted, you’ll need to reselect the file to continue.',
   filesUploadClearDone: 'Clear completed',
   filesUploadDone: '"{name}" uploaded successfully',
   filesUploadExists: '"{name}" already exists, skipped',
@@ -129,8 +127,6 @@ export default {
   filesUploadErrNetwork: 'Network error',
   filesUploadReselect: 'Reselect file',
   filesUploadNeedsFile: 'Reselect the file to continue uploading',
-  filesUploadRestoreNotice: 'Restored {count} unfinished upload(s)',
-  filesUploadRestoreDismiss: 'Got it',
   filesUploadPause: 'Pause',
   filesUploadResume: 'Resume',
   filesUploadPauseAll: 'Pause all',

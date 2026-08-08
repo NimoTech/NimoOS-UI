@@ -7,8 +7,8 @@ function localItem(over: Partial<UploadItem> = {}): UploadItem {
     id: 'fq_1_0_0.5', file: null, fileName: 'a.txt', fileType: '', size: 100,
     targetPath: '/DATA/Documents', relativePath: 'a.txt', status: 'needs_file',
     progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0,
-    error: '', createdAt: 1, batchId: 'b1', batchTotal: 1, restored: true,
-    conflictPolicy: '', oversize: false, ...over,
+    error: '', createdAt: 1, batchId: 'b1', batchTotal: 1,
+    conflictPolicy: '', ...over,
   }
 }
 function serverTask(over: Record<string, unknown> = {}) {
@@ -65,7 +65,6 @@ describe('planServerSync', () => {
     expect(a.retryCount).toBe(2)
     expect(a.createdAt).toBe(1700 * 1000) // created_at is unix seconds
     expect(a.batchId).toBe('srv-b')
-    expect(a.restored).toBe(true)
   })
 
   it('falls back relative_path→filename when relative_path missing', () => {

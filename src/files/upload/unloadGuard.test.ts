@@ -4,7 +4,7 @@ import type { UploadItem } from './types'
 const mk = (p: Partial<UploadItem>): UploadItem => ({
   id: 'x', file: new Blob(['x']), fileName: 'f', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'f',
   status: 'pending', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
-  createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '', oversize: false, ...p,
+  createdAt: 0, batchId: 'b', batchTotal: 1, conflictPolicy: '', ...p,
 })
 describe('hasActiveUploads', () => {
   it('true for uploading or pending-with-file, false for needs_file', () => {

@@ -20,7 +20,6 @@ export interface BatchView {
   sentBytes: number // uploaded so far across the batch
   totalBytes: number // sum of all item sizes in the batch
   zone: 'problem' | 'active' | 'done'
-  oversize: boolean
   multi: boolean
 }
 
@@ -81,7 +80,6 @@ export function groupByBatch(queue: UploadItem[]): BatchView[] {
       sentBytes,
       totalBytes,
       zone,
-      oversize: items.some((i) => i.oversize),
       multi: items.length > 1,
     }
   })

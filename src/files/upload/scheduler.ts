@@ -64,10 +64,9 @@ export function createScheduler(deps: SchedulerDeps) {
           relativePath: item.relativePath || item.fileName,
           batchId: item.batchId || '',
           batchTotal: item.batchTotal != null ? item.batchTotal : 1,
-          // Restored-from-IDB items are re-uploads of a file the user already started.
-          // Tell the server so a name collision with the original overwrites instead
-          // of creating a "(1)" duplicate.
-          resumed: !!item.restored,
+          // Client-side upload resume (IDB byte cache) has been retired, so this is
+          // always a fresh start from the scheduler's point of view.
+          resumed: false,
           conflictPolicy: item.conflictPolicy || '',
           resumeUrl: item.tusUploadUrl || undefined,
           onUrlAvailable: (url) => {

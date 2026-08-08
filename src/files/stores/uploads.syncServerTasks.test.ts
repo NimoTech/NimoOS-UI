@@ -5,12 +5,6 @@ vi.mock('@nimotech/nimoos-service', () => ({
   refreshAccessToken: () => Promise.resolve(null),
   service: { file: { listActiveUploads: vi.fn(), cancelUpload: vi.fn(() => Promise.resolve()) } },
 }))
-// Keep persistence + i18n + toast inert for this unit.
-vi.mock('../upload/persist', () => ({
-  persistNewItem: () => {}, persistItemMeta: () => {}, dropPersisted: () => {},
-  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
-  pruneOldItems: () => Promise.resolve(0),
-}))
 
 import { service } from '@nimotech/nimoos-service'
 import { useUploadsStore } from './uploads'
@@ -47,7 +41,7 @@ describe('uploads.syncServerTasks', () => {
       id: 'fq_local', file: null, fileName: 'a.txt', fileType: '', size: 100,
       targetPath: '/DATA/Documents', relativePath: 'a.txt', status: 'needs_file',
       progress: 0, bytesSent: 10, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
-      createdAt: 1, batchId: 'b', batchTotal: 1, restored: true, conflictPolicy: '', oversize: false,
+      createdAt: 1, batchId: 'b', batchTotal: 1, conflictPolicy: '',
     })
     await s.syncServerTasks()
     expect(s.queue).toHaveLength(1) // no duplicate row

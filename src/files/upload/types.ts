@@ -19,9 +19,7 @@ export interface UploadItem {
   doneAt?: number
   batchId: string
   batchTotal: number
-  restored: boolean
   conflictPolicy: '' | 'overwrite' | 'rename' | 'skip'
-  oversize: boolean
   thumbUrl?: string
 }
 

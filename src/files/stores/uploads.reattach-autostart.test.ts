@@ -4,18 +4,12 @@ import { setActivePinia, createPinia } from 'pinia'
 // vi.mock factories are hoisted above the module; a plain top-level `const`
 // referenced inside one throws "Cannot access before initialization". vi.hoisted
 // runs before that hoisting so the mock can safely close over it.
-const { persistNewItem, runSpy } = vi.hoisted(() => ({
-  persistNewItem: vi.fn(),
+const { runSpy } = vi.hoisted(() => ({
   runSpy: vi.fn(async () => {}),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({
   refreshAccessToken: () => Promise.resolve(null),
   service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
-}))
-vi.mock('../upload/persist', () => ({
-  persistNewItem, persistItemMeta: () => {}, dropPersisted: () => {},
-  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
-  pruneOldItems: () => Promise.resolve(0),
 }))
 vi.mock('../upload/conflict', async (orig) => {
   const actual = await (orig as any)()
@@ -38,14 +32,13 @@ function needsFileItem(over: Partial<UploadItem> = {}): UploadItem {
     id: 'nf', file: null, fileName: 'a.txt', fileType: '', size: 3, targetPath: '/DATA',
     relativePath: 'a.txt', status: 'needs_file', progress: 0, bytesSent: 0, speed: 0,
     tusUploadUrl: null, retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1,
-    restored: true, conflictPolicy: '', oversize: false, ...over,
+    conflictPolicy: '', ...over,
   }
 }
 
 describe('reattachFiles auto-starts the upload when idle', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    persistNewItem.mockClear()
     runSpy.mockClear()
   })
 

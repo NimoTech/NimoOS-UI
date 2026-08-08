@@ -60,9 +60,7 @@ export function planServerSync(queue: UploadItem[], tasks: ServerUploadTask[]): 
       createdAt: (t.created_at || 0) * 1000,
       batchId: t.batch_id || '',
       batchTotal: 1,
-      restored: true,
       conflictPolicy: '',
-      oversize: false,
     })
   }
   return { merges, appends }

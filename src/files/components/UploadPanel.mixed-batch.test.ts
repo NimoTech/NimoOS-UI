@@ -11,7 +11,7 @@ function item(over: Partial<UploadItem>): UploadItem {
     id: Math.random().toString(), file: null, fileName: 'f', fileType: '', size: 10,
     targetPath: '/DATA/x', relativePath: 'f', status: 'error', progress: 0, bytesSent: 0,
     speed: 0, tusUploadUrl: null, retryCount: 0, error: 'server', createdAt: 0,
-    batchId: 'mix', batchTotal: 3, restored: false, conflictPolicy: '', oversize: false, ...over,
+    batchId: 'mix', batchTotal: 3, conflictPolicy: '', ...over,
   }
 }
 

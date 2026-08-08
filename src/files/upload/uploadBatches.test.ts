@@ -6,7 +6,7 @@ const mk = (p: Partial<UploadItem>): UploadItem => ({
   id: Math.random().toString(36), file: null, fileName: 'f', fileType: '', size: 100,
   targetPath: '/DATA/x', relativePath: 'f', status: 'pending', progress: 0, bytesSent: 0, speed: 0,
   tusUploadUrl: null, retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1,
-  restored: false, conflictPolicy: '', oversize: false, ...p,
+  conflictPolicy: '', ...p,
 })
 
 describe('batchLabel', () => {

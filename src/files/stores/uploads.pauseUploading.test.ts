@@ -9,11 +9,6 @@ vi.mock('@nimotech/nimoos-service', () => ({
   refreshAccessToken: () => Promise.resolve(null),
   service: { file: { cancelUpload: vi.fn(), listActiveUploads: vi.fn() } },
 }))
-vi.mock('../upload/persist', () => ({
-  persistNewItem: () => {}, persistItemMeta: vi.fn(), dropPersisted: () => {},
-  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
-  pruneOldItems: () => Promise.resolve(0),
-}))
 // Fake scheduler with an observable `pause` handle — asserts pauseItem routes
 // through the scheduler for an uploading item instead of patching status directly.
 vi.mock('../upload/scheduler', () => ({
@@ -27,8 +22,8 @@ function seedUploading(store: any, over: Record<string, unknown> = {}) {
   store.queue.push({
     id: 'u1', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
     relativePath: 'a', status: 'uploading', progress: 30, bytesSent: 3, speed: 5, tusUploadUrl: 'u',
-    retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
-    conflictPolicy: '', oversize: false, ...over,
+    retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1,
+    conflictPolicy: '', ...over,
   })
 }
 

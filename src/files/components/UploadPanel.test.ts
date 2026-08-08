@@ -16,8 +16,8 @@ function seed(status: string, extra: any = {}) {
   const s = useUploadsStore()
   s.queue.push({ id: 'i1', file: null, fileName: 'a.txt', fileType: '', size: 1, targetPath: '/DATA/x',
     relativePath: 'a.txt', status: status as any, progress: 40, bytesSent: 0, speed: 0, tusUploadUrl: null,
-    retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '',
-    oversize: false, ...extra })
+    retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1, conflictPolicy: '',
+    ...extra })
   return s
 }
 
@@ -40,12 +40,6 @@ describe('UploadPanel', () => {
     seed('uploading', { size: 5 * 1024 * 1024, bytesSent: 1 * 1024 * 1024 })
     const w = mount(UploadPanel, { global: { plugins: [i18n] } })
     expect(w.text()).toContain('1 MB / 5 MB')
-  })
-
-  it('shows oversize banner when an active item is oversize', () => {
-    seed('uploading', { oversize: true })
-    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
-    expect(w.text()).toContain(zh.filesUploadOversize)
   })
 
   it('shows conflict dialog for a conflict item', async () => {

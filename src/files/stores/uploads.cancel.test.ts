@@ -9,12 +9,6 @@ vi.mock('@nimotech/nimoos-service', () => ({
   refreshAccessToken: () => Promise.resolve(null),
   service: { file: { cancelUpload, listActiveUploads: vi.fn() } },
 }))
-vi.mock('../upload/persist', () => ({
-  persistNewItem: () => {}, persistItemMeta: () => {}, dropPersisted: () => {},
-  restoreFromIDB: () => Promise.resolve({ items: [], resumedCount: 0 }),
-  pruneOldItems: () => Promise.resolve(0),
-}))
-
 import { service } from '@nimotech/nimoos-service'
 import { useUploadsStore } from './uploads'
 
@@ -22,8 +16,8 @@ function serverRow(id: string, url: string) {
   return {
     id, file: null, fileName: 'a', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'a',
     status: 'needs_file' as const, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: url,
-    retryCount: 0, error: '', createdAt: 0, batchId: '', batchTotal: 1, restored: true,
-    conflictPolicy: '' as const, oversize: false,
+    retryCount: 0, error: '', createdAt: 0, batchId: '', batchTotal: 1,
+    conflictPolicy: '' as const,
   }
 }
 
