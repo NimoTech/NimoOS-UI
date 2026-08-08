@@ -41,11 +41,16 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       confirmId: string,
       confirmed: boolean,
       remember = false,
+      // MCP elicitation 的 action / content 走这里透传:elicitation 是三态
+      // (accept/decline/cancel)且可带答案,两态的 confirmed 表达不了。其它卡片
+      // 一律不传,后端既有的两态路径逐字不变。
+      extra?: Record<string, unknown>,
     ): Promise<unknown> {
       const res = await http.post(`${PREFIX}/agent/sessions/${sessionId}/confirm`, {
         confirm_id: confirmId,
         confirmed,
         remember,
+        ...(extra || {}),
       })
       return res.data
     },

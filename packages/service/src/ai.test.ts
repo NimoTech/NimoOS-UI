@@ -100,6 +100,21 @@ describe('createAi — agent 会话核心组', () => {
     expect(calls[0].body).toEqual({ confirm_id: 'c1', confirmed: false, remember: true })
   })
 
+  it('confirmAgentAction 不传 extra 时,body 与今天逐字相同', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).confirmAgentAction('s1', 'c1', true)
+    expect(calls[0].body).toEqual({ confirm_id: 'c1', confirmed: true, remember: false })
+  })
+
+  it('confirmAgentAction 把 extra 展开进 body(elicitation 的 action/content 走这里)', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).confirmAgentAction('s1', 'c1', true, false, { action: 'accept', content: { name: 'Ada' } })
+    expect(calls[0].body).toEqual({
+      confirm_id: 'c1', confirmed: true, remember: false,
+      action: 'accept', content: { name: 'Ada' },
+    })
+  })
+
   it('cancelAgentRun / commitStagedChanges / revertStagedRun 发空 body {}', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
