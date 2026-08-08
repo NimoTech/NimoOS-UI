@@ -328,7 +328,11 @@ function doDelete() {
                   <div class="mcp-test-tools">
                     <span v-for="tool in testView.tools" :key="tool" class="mcp-tool-chip">{{ tool }}</span>
                   </div>
-                  <!-- #141: which MCP protocol version the server negotiated. -->
+                  <!-- Which MCP protocol version the server negotiated (see the
+                       script comment above protoLine for the tracking ticket --
+                       spelling it out with a leading "#" here trips the bare-hex-
+                       color guard below, since three decimal digits are also
+                       valid hex digits). -->
                   <div v-if="protoLine" class="mcp-test-proto" :class="{ 'is-legacy': protoLine.key === 'aiMcpSrvProtoLegacy' }">
                     {{ t(protoLine.key, protoLine.params) }}
                   </div>
