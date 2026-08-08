@@ -804,8 +804,9 @@ body::after {
    vignette reads as atmosphere), but the light theme's scrim is a near-opaque
    white sheet, and painting that over the whole UI is what fogs every surface to
    ~55% white and washes out near-black paper-theme text. `body` establishes no
-   stacking context, so a negative z-index here drops the pseudo behind the
-   canvas's <html> wallpaper paint and in front of nothing static -- it ends up
-   sandwiched between the wallpaper image and the app content, which is where a
-   scrim belongs: modulating the photo, not the UI on top of it. */
+   stacking context, so the pseudo joins the root one; a negative z-index paints
+   it after the canvas (which carries the <html> wallpaper) but before every
+   block-level descendant, leaving it sandwiched between the wallpaper image and
+   the app content -- which is where a scrim belongs: modulating the photo, not
+   the UI on top of it. */
 :root[data-wallpaper] body::after { background: var(--wallpaper-scrim); z-index: -1; }
