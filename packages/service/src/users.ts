@@ -158,7 +158,13 @@ export function createUsers(http: AxiosInstance) {
     async uploadImage(key: string, file: File): Promise<UserImageResult> {
       const form = new FormData()
       form.append('file', file)
-      const res = await http.post(`/users/current/image/${key}`, form)
+      // The shared axios instance defaults to application/json (http.ts). Without
+      // this override, axios's transformRequest sees a JSON content-type already
+      // set and flattens the FormData to `{}` instead of sending multipart --
+      // matches every other multipart caller in this package (ai.ts, photos.ts, sys.ts).
+      const res = await http.post(`/users/current/image/${key}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       return unwrap<UserImageResult>(res.data)
     },
 

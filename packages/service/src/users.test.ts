@@ -191,11 +191,17 @@ describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 G
 })
 
 describe('user image (SP11 wallpaper)', () => {
-  it('uploadImage posts multipart with the file under `file`', async () => {
-    const calls: { url: string; body: unknown }[] = []
+  it('uploadImage posts multipart with the file under `file` and an explicit multipart Content-Type', async () => {
+    // C1 (final review): the shared axios instance defaults to
+    // application/json (http.ts:51). A mock at this level cannot see axios's
+    // real transformRequest, which is what actually flattens a FormData body
+    // to `{}` when a JSON content-type is already set -- so the only way to
+    // catch a missing override here is to assert the header this call site
+    // must pass, the same way sys.test.ts's 'uploadSSLCert 走 multipart' does.
+    const calls: { url: string; body: unknown; config?: unknown }[] = []
     const http = {
-      post: async (url: string, body: unknown) => {
-        calls.push({ url, body })
+      post: async (url: string, body: unknown, config?: unknown) => {
+        calls.push({ url, body, config })
         return { data: { success: 200, message: 'ok', data: { path: '/d/1/wallpaper.jpg', file_name: 'wallpaper.jpg', online_path: '/v1/users/image?path=/d/1/wallpaper.jpg' } } }
       },
     }
@@ -206,6 +212,7 @@ describe('user image (SP11 wallpaper)', () => {
     expect(calls[0].url).toBe('/users/current/image/wallpaper')
     expect(calls[0].body).toBeInstanceOf(FormData)
     expect((calls[0].body as FormData).get('file')).toBe(file)
+    expect(calls[0].config).toEqual({ headers: { 'Content-Type': 'multipart/form-data' } })
     expect(res.online_path).toContain('/v1/users/image?path=')
   })
 
