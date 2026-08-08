@@ -5,6 +5,7 @@ import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
+import FileGridView from '../files/components/FileGridView.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
@@ -406,6 +407,38 @@ describe('Files.vue 目录加载失败', () => {
     await flushPromises()
     expect(router.currentRoute.value.fullPath).toContain('DATA')
     expect(useFilesStore().currentPath).toBe('/DATA')
+  })
+
+  // SP12-T11:网格虚拟化后,量 DOM 只能量到可视那几行。
+  // 断言落在结果上,不在内部调用上:jsdom 不做布局,量 DOM 拿到的全是 0×0 矩形,
+  // 一个都框不中;走几何这条路才有真实矩形(列宽/行高有兜底常量),因而能选中。
+  it('网格视图的框选矩形取自组件几何,而不是量 DOM', async () => {
+    const files = useFilesStore()
+    files.setView('grid')
+    const w = await mountAt('/DATA')
+    expect(w.findComponent(FileGridView).exists()).toBe(true)
+    expect(files.sortedEntries.length).toBeGreaterThan(0)
+    const wrap = w.find('.files-listwrap')
+    await wrap.trigger('mousedown', { clientX: 0, clientY: 0, button: 0 })
+    // 移动监听装在 window 上(见 Files.vue onMarqueeDown),必须往 window 派发
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }))
+    await w.vm.$nextTick()
+    expect(files.selectedCount).toBeGreaterThan(0)
+  })
+
+  it('列表视图仍走量 DOM 那条路(未虚拟化)', async () => {
+    const files = useFilesStore()
+    files.setView('list')
+    const w = await mountAt('/DATA')
+    expect(w.findComponent(FileGridView).exists()).toBe(false)
+    const wrap = w.find('.files-listwrap')
+    await wrap.trigger('mousedown', { clientX: 0, clientY: 0, button: 0 })
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }))
+    await w.vm.$nextTick()
+    // 判别式:量 DOM 在 jsdom 下拿到的是 0×0 矩形,一个都框不中。上面那条网格
+    // 用例选中了 >0 个,两条一起钉住「分流真的按视图走」,而不是两边都跑同一条路。
+    expect(files.selectedCount).toBe(0)
+    files.setView('grid')
   })
 
   it('加载在途时不显示错误条', async () => {

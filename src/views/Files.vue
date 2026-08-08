@@ -367,6 +367,18 @@ function applyHighlight() {
   const entry = files.sortedEntries.find((e) => e.name === name)
   if (!entry) return
   nextTick(() => {
+    // 网格视图虚拟化后,目标若在窗口外根本没有元素可以 scrollIntoView ——
+    // 先按行索引把它滚进来,元素随之渲染出来,下一帧再闪。
+    if (files.viewMode === 'grid' && gridRef.value) {
+      gridRef.value.scrollToPath(entry.path)
+      requestAnimationFrame(() => {
+        const node = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
+        if (!node) return
+        node.classList.add('file-flash')
+        setTimeout(() => node.classList.remove('file-flash'), 2500)
+      })
+      return
+    }
     const el = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
     if (!el) return
     el.scrollIntoView({ block: 'center' })
@@ -391,6 +403,7 @@ function onSelect(payload: { entry: FileEntry; mode: 'toggle' | 'range' }) {
 
 // ── 框选(几何真机验;纯 marqueeSelect/rectFromPoints 已单测)──
 const listwrap = ref<HTMLElement | null>(null)
+const gridRef = ref<InstanceType<typeof FileGridView> | null>(null)
 const marquee = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 const marqueeStyle = computed(() => {
   if (!marquee.value) return {}
@@ -408,14 +421,22 @@ let dragging = false // 已越过阈值,框选进行中
 // preventDefault 它可稳跨浏览器阻止选中文件名/日期/大小等文字(user-select:none 并不可靠)。
 function preventSelectStart(e: Event) { e.preventDefault() }
 
-function collectSelection() {
-  if (!marquee.value) return
-  const selRect = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
+// 列表视图未虚拟化,照旧量 DOM。
+function rectsFromDom(): ItemRect[] {
   const items: ItemRect[] = []
   listwrap.value?.querySelectorAll<HTMLElement>('[data-path]').forEach((node) => {
     const b = node.getBoundingClientRect()
     items.push({ path: node.dataset.path as string, rect: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } })
   })
+  return items
+}
+
+function collectSelection() {
+  if (!marquee.value) return
+  const selRect = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
+  // 网格视图是虚拟化的:屏幕外的行没有 DOM,量节点只会量到可视那几行,
+  // 拖过视口就什么都选不中。改由组件按布局几何给出全部矩形。
+  const items = files.viewMode === 'grid' && gridRef.value ? gridRef.value.itemRects() : rectsFromDom()
   files.setSelection(marqueeSelect(items, selRect))
 }
 
@@ -583,6 +604,7 @@ onMounted(() => { browse.ensureVolumes() })
             </div>
             <FileGridView
               v-if="files.viewMode === 'grid'"
+              ref="gridRef"
               :entries="files.sortedEntries"
               :selected-paths="files.selected"
               @open="openEntry"
