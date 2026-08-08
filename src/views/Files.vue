@@ -16,7 +16,9 @@ import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
 import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
+import FileConflictDialog from '../files/components/FileConflictDialog.vue'
 import { useFileOps } from '../files/composables/useFileOps'
+import { useUploadConflicts } from '../files/composables/useUploadConflicts'
 import { useViewer } from '../files/viewers/useViewer'
 import ViewerHost from '../files/viewers/ViewerHost.vue'
 import { resolveOpen } from '../files/viewers/resolveOpen'
@@ -61,6 +63,7 @@ const uploads = useUploadsStore()
 const mounts = useMountsStore()
 const shares = useSharesStore()
 const browse = useSnapshotBrowseStore()
+const conflicts = useUploadConflicts()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -204,9 +207,9 @@ function onRefill(p: { targetPath: string; missing: string[] }): void {
 }
 defineExpose({ handleSelectedFiles, onRefill })
 
-// Shared enqueue path for both the file/folder picker and drag-drop: normalize
-// leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
-// any files rejected for being in a protected dir.
+// Shared enqueue path for both the file/folder picker and drag-drop: resolve
+// same-name conflicts, enqueue what survives, and toast anything skipped,
+// cancelled, or rejected for being in a protected dir.
 async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
   // Code review fix (ordering leak): consume any pending refill filter immediately,
   // before any guard below can return early. Reading it into a local and nulling the
@@ -224,19 +227,39 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // Refill branch: the target directory is the batch's own target_path (not the
   // current directory — the user may have navigated elsewhere before clicking),
   // and only entries named in the missing list are let through.
-  if (pending) {
-    const wanted = entries.filter((e) => pending.missing.has(e.relativePath))
-    if (!wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
-    const sel = toSelectedFiles(wanted, pending.targetPath)
-    const { rejected } = await uploads.addFilesToQueue(sel)
-    for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+  const wanted = pending ? entries.filter((e) => pending.missing.has(e.relativePath)) : entries
+  if (pending && !wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
+
+  const targetPath = pending ? pending.targetPath : files.currentPath // REAL 路径,受保护目录判断按此展开
+
+  // Both branches resolve same-name conflicts BEFORE enqueuing: skipped and
+  // cancelled entries must never reach the batch manifest, or reconciliation
+  // would report them as missing. Normalize leading slashes FIRST, not after:
+  // conflict grouping keys off the FIRST segment of relativePath
+  // (groupByTopSegment in uploadConflict.ts), and an un-stripped leading slash
+  // produces an empty top segment that matches nothing in the target listing —
+  // the conflict would be silently missed rather than detected. toSelectedFiles
+  // is the one place this stripping rule lives (it also feeds the downstream
+  // protected-dir check, which has the exact same split('/')[0] hazard); reuse
+  // it here rather than duplicating the regex.
+  const normalized = toSelectedFiles(wanted, targetPath)
+  const resolved = await conflicts.resolveEntries(normalized, targetPath)
+  const dropped = resolved.skippedCount + resolved.cancelledCount
+
+  if (!resolved.accepted.length) {
+    if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
     return
   }
 
-  const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
-  const sel = toSelectedFiles(entries, targetPath)
+  const sel = resolved.accepted.map((a) => ({
+    file: a.file,
+    targetPath,
+    relativePath: a.relativePath,
+    conflictPolicy: a.conflictPolicy,
+  }))
   const { rejected } = await uploads.addFilesToQueue(sel)
   for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+  if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
 }
 
 async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
@@ -621,6 +644,17 @@ onMounted(() => { browse.ensureVolumes() })
     />
     <OperationStatusBar />
     <UploadPanel />
+    <FileConflictDialog
+      :open="conflicts.dialog.value.open"
+      :name="conflicts.dialog.value.name"
+      :target-path="conflicts.dialog.value.targetPath"
+      :is-dir="conflicts.dialog.value.isDir"
+      :allow-merge="conflicts.dialog.value.allowMerge"
+      :queue-index="conflicts.dialog.value.queueIndex"
+      :queue-total="conflicts.dialog.value.queueTotal"
+      @choose="conflicts.onChoose"
+      @cancel="conflicts.onCancel"
+    />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
