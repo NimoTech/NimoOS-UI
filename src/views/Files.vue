@@ -39,6 +39,7 @@ import {
   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath,
 } from '../files/util/pathUtils'
 import { readDefault } from '../files/util/locationOrder'
+import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
@@ -347,8 +348,10 @@ async function sync() {
   }
   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
   if (vp === '/') {
-    const rootReal = readDefault() || files.defaultRootReal()
-    if (!rootReal) return
+    // Never bail out here: with no persisted default AND no disk roots (which is
+    // exactly what a failed storage list looks like) returning left the page
+    // blank forever -- no listing, no error, no navigation out of it.
+    const rootReal = resolveDefaultRoot({ persisted: readDefault(), diskRoot: files.defaultRootReal() })
     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
     return
   }

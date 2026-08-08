@@ -395,6 +395,19 @@ describe('Files.vue 目录加载失败', () => {
     expect(spy).toHaveBeenCalled()
   })
 
+  it('磁盘列表加载失败时落到 /DATA,而不是停在空白页', async () => {
+    localStorage.removeItem('nimoos:location-default')
+    const folders = useFoldersStore()
+    // 磁盘列表整体失败的样子:disks 保持空
+    folders.loadDisks = vi.fn(async () => { folders.disks = [] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toContain('DATA')
+    expect(useFilesStore().currentPath).toBe('/DATA')
+  })
+
   it('加载在途时不显示错误条', async () => {
     const w = await mountAt('/DATA')
     const files = useFilesStore()
