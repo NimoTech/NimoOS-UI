@@ -15,6 +15,11 @@
 - **工作树 `.claude/worktrees/ai-catchup`，分支 `sp14-ai-catchup`**。所有命令从该目录跑，不要 `cd` 回主仓。
 - **提交信息一律英文**（`commit-messages-english-only`，2026-08-07 起）。正文说明**为什么**，不复述 diff。结尾加：
   `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
+- **🔴 代码注释一律英文**（用户 2026-08-09 裁定，照顶层 `NimoOS-CLAUDE.md` 的硬要求）。
+  **本文件下方各任务代码块里的中文注释是 2026-08-08 落笔时的写法，一律按英文重写**——
+  内容（尤其是「为什么」那部分的因果链）逐条保留，只换语言，不许趁机删短。
+  台账 / 简报 / 设计文档等 `.md` 仍写中文；只有代码里的注释改英文。
+  已落的 Task 1 / 3 / 4 的中文注释由一次专门的翻译提交收回（见台账 `Task 4: fix round 1`）。
 - **颜色只能用 theme token**（`var(--…)`）。禁止新写 `#hex` / `rgb()` / `rgba()` / 具名色。本期用到的 token 全部已存在于 `src/ai/styles/tokens.scss`：`--purple` `--purple-soft` `--purple-soft-border` `--danger` `--danger-soft` `--success` `--success-soft` `--warning` `--text-on-accent` `--bg-chip` `--bg-canvas` `--bg-elevated` `--line` `--line-faint` `--text-primary` `--text-secondary` `--text-tertiary` `--font-mono` `--r-sm` `--r-lg` `--shadow-sm`。**一个新 token 都不需要加。**
 - **i18n 键必须同时加进 `src/i18n/zh_cn.ai.ts` 与 `src/i18n/en_us.ai.ts`**，否则 `src/i18n/parity.test.ts` 直接红。中文文案以 Vue2 `src/assets/lang/zh_CN.json` 为准，不要自己译。
 - **测试里不要另建 `createI18n`** —— `vitest.setup.ts:24-26` 已把 i18n 全局装进 `config.global.plugins`，再建一个会重复安装并刷 `[Vue warn]`。
