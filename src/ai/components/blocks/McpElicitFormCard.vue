@@ -28,7 +28,13 @@ const form = ref<HTMLFormElement | null>(null)
 // Spec: clients that support defaults SHOULD pre-fill the form with them.
 const values = reactive<Record<string, unknown>>({})
 for (const f of props.fields) {
-  if (f.type === 'multi_enum') values[f.key] = Array.isArray(f.default) ? [...f.default] : []
+  // Deviation from Vue2 (which copied the raw default as-is): the backend
+  // stringifies multi_enum option values (elicitation_schema.py's array branch
+  // renders `options` as strings because ElicitResult.content types arrays as
+  // list[str]) but leaves the array `default` untouched. options=["1","2"] with
+  // default=[1] would fail every `v-model` identity match and pre-check nothing,
+  // silently dropping a default the MCP spec asks clients to honour.
+  if (f.type === 'multi_enum') values[f.key] = Array.isArray(f.default) ? f.default.map(String) : []
   else if (f.type === 'boolean') values[f.key] = f.default === true
   else values[f.key] = f.default === null || f.default === undefined ? '' : f.default
 }

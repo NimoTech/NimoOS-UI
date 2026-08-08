@@ -26,6 +26,3 @@ npm-debug.log*
 scripts/tmlab/
 vite.config.tmlab.ts
 
-# Task 10 (SP14 closeout) throwaway browser-render harness -- never enters git.
-/harness.html
-/harness.ts

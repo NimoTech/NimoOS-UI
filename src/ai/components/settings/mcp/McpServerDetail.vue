@@ -331,8 +331,12 @@ function doDelete() {
                   <!-- Which MCP protocol version the server negotiated (see the
                        script comment above protoLine for the tracking ticket --
                        spelling it out with a leading "#" here trips the bare-hex-
-                       color guard below, since three decimal digits are also
-                       valid hex digits). -->
+                       color guard in src/ai/styles/knowledgeStyles.test.ts (the
+                       template-scanning guard driven by COMPONENTS_VUE_FILES),
+                       since three decimal digits are also valid hex digits;
+                       the sister guard for this file's <script> block comments
+                       is pinned to a different file list, which is why the
+                       identical ticket number there is not flagged). -->
                   <div v-if="protoLine" class="mcp-test-proto" :class="{ 'is-legacy': protoLine.key === 'aiMcpSrvProtoLegacy' }">
                     {{ t(protoLine.key, protoLine.params) }}
                   </div>

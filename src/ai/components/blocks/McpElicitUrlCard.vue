@@ -56,14 +56,18 @@ async function openAndAccept(): Promise<void> {
   if (submitting.value || expired.value) return
   // Scheme allowlist: see the comment at the top of the file. The "not HTTPS" line
   // on the card is only advice, not a gate -- the gate is here, and a rejected
-  // scheme reports an error instead of opening anything.
-  if (!OPENABLE_URL_RE.test(String(props.url || '').trim())) {
+  // scheme reports an error instead of opening anything. Trim once and reuse the
+  // same string for both the test and the open: `trim()` strips characters the
+  // URL parser does not, so testing one string and opening a differently-trimmed
+  // one would mean the allowlist never actually covers what gets opened.
+  const target = String(props.url || '').trim()
+  if (!OPENABLE_URL_RE.test(target)) {
     fail('aiMcpElicitUrlBlocked')
     return
   }
   // noopener,noreferrer: don't hand the third-party page a window.opener, and don't
   // leak the referrer.
-  window.open(props.url, '_blank', 'noopener,noreferrer')
+  window.open(target, '_blank', 'noopener,noreferrer')
   // Reply accept immediately. Per spec, accept only means "the user agreed to go
   // through with this interaction", not that the interaction has completed. Against
   // a real OAuth server the authorization has most likely not landed yet by the time

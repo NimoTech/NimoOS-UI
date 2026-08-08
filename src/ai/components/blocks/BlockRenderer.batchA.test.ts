@@ -46,22 +46,29 @@ describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
     expect(w.find('.block-chip').text()).toBe('[still_unmapped]')
   })
 
-  it('mcp_elicit_form 分发到 McpElicitFormCard,不降级为灰 chip', () => {
+  it('mcp_elicit_form 分发到 McpElicitFormCard(非灰 chip,且是表单卡而非 URL 卡)', () => {
     const w = mount(BlockRenderer, {
       props: { block: { type: 'mcp_elicit_form', confirmId: 'c1', fields: [] } },
       global: globalOpts,
     })
     expect(w.find('.block-chip').exists()).toBe(false)
-    expect(w.find('.mcc-perm').exists()).toBe(true)
+    // .mcc-perm 是两张卡共有的根类,不足以区分分发到了哪一张 —— 用各卡独有的
+    // 结构判定:表单卡有 .mcc-fields / <form>,URL 卡没有。
+    expect(w.find('.mcc-fields').exists()).toBe(true)
+    expect(w.find('form').exists()).toBe(true)
+    expect(w.find('.mcc-url').exists()).toBe(false)
   })
 
-  it('mcp_elicit_url 分发到 McpElicitUrlCard,不降级为灰 chip', () => {
+  it('mcp_elicit_url 分发到 McpElicitUrlCard(非灰 chip,且是 URL 卡而非表单卡)', () => {
     const w = mount(BlockRenderer, {
       props: { block: { type: 'mcp_elicit_url', confirmId: 'c2', url: 'https://x.example' } },
       global: globalOpts,
     })
     expect(w.find('.block-chip').exists()).toBe(false)
-    expect(w.find('.mcc-perm').exists()).toBe(true)
+    // 同上:用 URL 卡独有的 .mcc-url 结构区分,不是共享的 .mcc-perm 根类。
+    expect(w.find('.mcc-url').exists()).toBe(true)
+    expect(w.find('.mcc-fields').exists()).toBe(false)
+    expect(w.find('form').exists()).toBe(false)
   })
 })
 

@@ -119,6 +119,16 @@ describe('McpElicitFormCard', () => {
     expect(w.find('.mcc-bounced').text()).toContain('must be at least 3 characters')
   })
 
+  it('multi_enum 的数字 default 能对上字符串化的 options 并预勾选(后端把 options 转成字符串但 default 保持原样)', () => {
+    const w = mountCard({
+      fields: [field({ key: 'tags', type: 'multi_enum', title: '标签', required: false,
+        default: [1], options: [{ value: '1', title: 'One' }, { value: '2', title: 'Two' } ] })],
+    })
+    const boxes = w.findAll('.mcc-multi input[type="checkbox"]')
+    expect((boxes[0].element as HTMLInputElement).checked).toBe(true)
+    expect((boxes[1].element as HTMLInputElement).checked).toBe(false)
+  })
+
   it('缺 confirmId 时点发送不发请求,只报无效', async () => {
     const w = mountCard({ confirmId: '' })
     const form = w.find('form').element as HTMLFormElement
@@ -137,5 +147,31 @@ describe('McpElicitFormCard', () => {
     const opts = w.findAll('select.mcc-input option')
     expect(opts[0].text()).toBe('（未作答）')
     expect(opts[1].text()).toBe('Pro')
+  })
+
+  it('format:uri 不渲染 type="url"(比后端规则严,会拒掉 mailto: 等后端接受的值)', () => {
+    const w = mountCard({
+      fields: [field({ key: 'contact', title: '联系方式', required: false, format: 'uri' })],
+    })
+    const input = w.find('input.mcc-input').element as HTMLInputElement
+    expect(input.type).not.toBe('url')
+    expect(input.type).toBe('text')
+  })
+
+  it('format:email/date/date-time 各自映射到对应的原生 input type', () => {
+    const email = mountCard({
+      fields: [field({ key: 'contact', title: '邮箱', required: false, format: 'email' })],
+    })
+    expect((email.find('input.mcc-input').element as HTMLInputElement).type).toBe('email')
+
+    const date = mountCard({
+      fields: [field({ key: 'day', title: '日期', required: false, format: 'date' })],
+    })
+    expect((date.find('input.mcc-input').element as HTMLInputElement).type).toBe('date')
+
+    const dateTime = mountCard({
+      fields: [field({ key: 'when', title: '时间', required: false, format: 'date-time' })],
+    })
+    expect((dateTime.find('input.mcc-input').element as HTMLInputElement).type).toBe('datetime-local')
   })
 })
