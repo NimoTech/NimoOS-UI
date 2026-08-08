@@ -26,6 +26,8 @@ import McpPermissionCard from './McpPermissionCard.vue'
 import McpCallCard from './McpCallCard.vue'
 import McpWarningCard from './McpWarningCard.vue'
 import McpInstallCard from './McpInstallCard.vue'
+import McpElicitFormCard from './McpElicitFormCard.vue'
+import McpElicitUrlCard from './McpElicitUrlCard.vue'
 
 interface Block {
   type: string
@@ -56,6 +58,8 @@ const BLOCK_MAP: Record<string, Component> = {
   mcp_call: McpCallCard,
   mcp_warning: McpWarningCard,
   mcp_install: McpInstallCard,
+  mcp_elicit_form: McpElicitFormCard,
+  mcp_elicit_url: McpElicitUrlCard,
 }
 
 const resolved = computed(() => BLOCK_MAP[props.block.type] || null)

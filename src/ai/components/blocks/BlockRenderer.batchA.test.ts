@@ -29,6 +29,8 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const globalOpts = { plugins: [i18n] }
 
 describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
   it('已映射类型(如 tool/thinking)分发到真实渲染器,不再降级为 chip', () => {
     const w1 = mount(BlockRenderer, { props: { block: { type: 'tool', name: 'x' } } }, )
     expect(w1.find('.block-chip').exists()).toBe(false)
@@ -42,6 +44,24 @@ describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
   it('未映射类型仍降级为灰 chip', () => {
     const w = mount(BlockRenderer, { props: { block: { type: 'still_unmapped' } } })
     expect(w.find('.block-chip').text()).toBe('[still_unmapped]')
+  })
+
+  it('mcp_elicit_form 分发到 McpElicitFormCard,不降级为灰 chip', () => {
+    const w = mount(BlockRenderer, {
+      props: { block: { type: 'mcp_elicit_form', confirmId: 'c1', fields: [] } },
+      global: globalOpts,
+    })
+    expect(w.find('.block-chip').exists()).toBe(false)
+    expect(w.find('.mcc-perm').exists()).toBe(true)
+  })
+
+  it('mcp_elicit_url 分发到 McpElicitUrlCard,不降级为灰 chip', () => {
+    const w = mount(BlockRenderer, {
+      props: { block: { type: 'mcp_elicit_url', confirmId: 'c2', url: 'https://x.example' } },
+      global: globalOpts,
+    })
+    expect(w.find('.block-chip').exists()).toBe(false)
+    expect(w.find('.mcc-perm').exists()).toBe(true)
   })
 })
 

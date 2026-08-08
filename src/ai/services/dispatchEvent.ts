@@ -220,6 +220,33 @@ export function dispatchEvent(event: Record<string, unknown>, actions: StreamAct
           args: e.args || [],
           url: e.url || '',
         })
+      } else if (e.kind === 'mcp_elicit_form') {
+        // When the backend bounces a previous answer it re-sends the same question
+        // with a NEW confirm_id -- so this is always a fresh card, never a patch of
+        // an existing one. The old card already resolved and is frozen on "sent".
+        actions.appendBlock({
+          type: 'mcp_elicit_form',
+          confirmId: e.confirm_id || '',
+          server: e.server || '',
+          message: e.message || '',
+          fields: Array.isArray(e.fields) ? e.fields : [],
+          error: e.error || '',
+        })
+      } else if (e.kind === 'mcp_elicit_url') {
+        actions.appendBlock({
+          type: 'mcp_elicit_url',
+          confirmId: e.confirm_id || '',
+          server: e.server || '',
+          message: e.message || '',
+          url: e.url || '',
+          host: e.host || '',
+          // Punycode spelling of host. The backend only sends this when it differs
+          // from `host` -- i.e. exactly the homograph case the user cannot tell
+          // apart by eye (see elicitation.py::_host_flags).
+          hostAscii: e.host_ascii || '',
+          punycode: !!e.punycode,
+          insecure: !!e.insecure,
+        })
       } else {
         actions.appendBlock({
           type: 'confirm',
