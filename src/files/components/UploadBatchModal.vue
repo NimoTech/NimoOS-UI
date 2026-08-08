@@ -46,9 +46,12 @@ async function abandon(): Promise<void> {
       emit('abandoned')
       emit('close')
     } else {
-      // Errors inside the dialog must be shown inline: a toast sits at z-index 60, while
-      // the dialog backdrop is z-index 1000 and carries a blur, so a toast raised from
-      // inside a dialog would be both covered by the backdrop and smeared by the blur.
+      // Errors inside the dialog must be shown inline, not as a toast: this failure is
+      // the answer to the button the user just pressed inside this dialog, so it needs
+      // to stay pinned next to that button and stay on screen while they decide what to
+      // do next. A toast auto-dismisses and renders away from the control that caused
+      // it, so it would not stick around long enough, or in the right place, to answer
+      // "why didn't abandoning work?".
       errorText.value = t('filesBatchAbandonFailed')
     }
   } finally {

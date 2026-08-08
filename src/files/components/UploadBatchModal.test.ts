@@ -90,8 +90,10 @@ describe('UploadBatchModal', () => {
     await flushPromises()
     expect(w.emitted('abandoned')).toBeFalsy()
     expect(w.emitted('close')).toBeFalsy()
-    // Inline error inside the dialog, not a toast: the toast sits at z-index 60, which
-    // gets covered by the dialog backdrop (1000) and smeared by its blur.
+    // Inline error inside the dialog, not a toast: this failure answers the button the
+    // user just pressed in this dialog, so it must stay pinned next to that button and
+    // stay on screen while they decide what to do — a toast auto-dismisses and renders
+    // away from the control that caused it.
     expect(body().find('.ubm-error').exists()).toBe(true)
   })
 })
