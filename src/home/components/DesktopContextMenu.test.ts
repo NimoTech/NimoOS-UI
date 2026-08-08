@@ -90,19 +90,20 @@ describe('DesktopContextMenu', () => {
     // reaching Teleported content.
     let w: ReturnType<typeof mount> | null = null
 
-    // Tearing the menu down by wiping document.body pulled the open portal out
-    // from under reka-ui while its global layer state still referenced it, and
-    // the NEXT mount then refused to open at all -- the trigger stayed
-    // data-state="closed" with an empty teleport, no matter how long the test
-    // waited. Close it the way a user would first, let that settle, and only
-    // then unmount; the body wipe is kept as a belt-and-braces final sweep.
+    // This used to tear the menu down by wiping document.body, which did two
+    // bad things: it pulled the open portal out from under reka-ui while its
+    // global layer state still referenced it -- so the NEXT mount refused to
+    // open at all, staying data-state="closed" with an empty teleport however
+    // long the test waited -- and it also yanked nodes out from under Vue's
+    // pending render jobs, which surfaced as an unhandled insertBefore-on-null
+    // rejection. Close the menu the way a user would, let that settle, then
+    // unmount and let Vue's own teardown remove what it created. No wipe.
     afterEach(async () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
       await flushPromises()
       w?.unmount()
       w = null
       await flushPromises()
-      document.body.innerHTML = ''
     })
 
     async function openMenu() {
