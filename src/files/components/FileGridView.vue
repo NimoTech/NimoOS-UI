@@ -6,6 +6,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+  (e: 'open-batch', batchId: string): void
 }>()
 </script>
 
@@ -19,6 +20,7 @@ const emit = defineEmits<{
       @open="emit('open', $event)"
       @select="emit('select', $event)"
       @contextmenu="emit('contextmenu', $event)"
+      @open-batch="emit('open-batch', $event)"
     />
   </div>
 </template>

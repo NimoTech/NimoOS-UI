@@ -10,6 +10,7 @@ import FileListView from '../files/components/FileListView.vue'
 import FileGridView from '../files/components/FileGridView.vue'
 import FileContextMenu from '../files/components/FileContextMenu.vue'
 import NewItemDialog from '../files/components/NewItemDialog.vue'
+import UploadBatchModal from '../files/components/UploadBatchModal.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
 import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
@@ -71,6 +72,7 @@ const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mo
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+const batchModalId = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
@@ -519,6 +521,7 @@ onMounted(() => { browse.ensureVolumes() })
               @open="openEntry"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
+              @open-batch="(id: string) => (batchModalId = id)"
             />
             <FileListView
               v-else
@@ -530,6 +533,7 @@ onMounted(() => { browse.ensureVolumes() })
               @reorder="files.setSort"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
+              @open-batch="(id: string) => (batchModalId = id)"
             />
             <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
           </div>
@@ -579,6 +583,12 @@ onMounted(() => { browse.ensureVolumes() })
       :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
       :mount-point="browse.currentVolume?.mount ?? ''"
       @snapshot-created="overlayRef?.reload()"
+    />
+    <UploadBatchModal
+      v-if="batchModalId"
+      :batch-id="batchModalId"
+      @close="batchModalId = ''"
+      @abandoned="files.load(files.currentPath)"
     />
   </AreaShell>
 </template>
