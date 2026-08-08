@@ -24,7 +24,10 @@ export function activeBatchIds(queue: UploadItem[]): string[] {
   const ids = new Set<string>()
   if (!Array.isArray(queue)) return []
   for (const it of queue) {
-    if ((it.status === 'uploading' || it.status === 'pending') && it.batchId) ids.add(it.batchId)
+    // Same shape as hasActiveUploads' pending check (a pending item only counts
+    // if its File is still attached) — kept in sync so the two guards over the
+    // same event flow don't quietly drift apart.
+    if ((it.status === 'uploading' || (it.status === 'pending' && it.file)) && it.batchId) ids.add(it.batchId)
   }
   return [...ids]
 }

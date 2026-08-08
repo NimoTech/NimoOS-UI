@@ -30,6 +30,15 @@ describe('installUnloadGuard', () => {
     off()
     expect(listeners.beforeunload).toBeUndefined()
   })
+
+  it('removes the pagehide listener on unsubscribe too', () => {
+    const listeners: Record<string, any> = {}
+    const win: any = { addEventListener: (k: string, f: any) => (listeners[k] = f), removeEventListener: (k: string) => delete listeners[k] }
+    const off = installUnloadGuard(() => [], win, vi.fn())
+    expect(listeners.pagehide).toBeDefined()
+    off()
+    expect(listeners.pagehide).toBeUndefined()
+  })
 })
 
 describe('pagehide interrupt signal', () => {
