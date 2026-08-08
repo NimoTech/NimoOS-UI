@@ -79,7 +79,10 @@ export interface ServerUploadTask {
 }
 
 export interface UploadPrecheckResult {
-  results: { relativePath: string; exists: boolean }[]
+  // size_match / is_dir are optional in the type but always present from the
+  // NimoOS core handler (route/v2/precheck_file.go) — optional only so an old
+  // or degraded body can't break the type contract.
+  results: { relativePath: string; exists: boolean; size_match?: boolean; is_dir?: boolean }[]
 }
 
 export interface UserInfo {
