@@ -218,3 +218,66 @@ export function applyUploadResolutions(
 
   return { accepted, skippedCount, cancelledCount }
 }
+
+/** One entry of the backend's per-path precheck response. */
+export interface InnerPrecheckResult {
+  relativePath: string
+  exists: boolean
+  size_match?: boolean
+  is_dir?: boolean
+}
+
+/**
+ * The SECOND round of the merge flow: takes the pendingInnerCheck entries, the
+ * backend's per-path precheck results for them, and the user's resolutions for
+ * whichever actually collided, and produces the final policies.
+ *
+ * There is no grouping here — a merge entry's relativePath is already unique
+ * inside the tree being merged in, so each one resolves on its own. A path
+ * with no collision always lands unchanged: not touching files that have no
+ * counterpart is the whole point of Merge. A colliding path with no matching
+ * resolution is treated as skipped rather than silently accepted (defensive —
+ * every exists:true path was fed into the queue, so this should not happen).
+ */
+export function applyInnerResolutions(
+  entries: AcceptedEntry[],
+  innerResults: InnerPrecheckResult[],
+  resolutions: ConflictResolution[],
+): ApplyResult {
+  const resultByPath = new Map((innerResults || []).map((r) => [r.relativePath, r]))
+  const actionByPath = new Map<string, ConflictAction>()
+  for (const { conflict, action } of resolutions || []) actionByPath.set(conflict.groupKey, action)
+
+  const accepted: AcceptedEntry[] = []
+  let skippedCount = 0
+  let cancelledCount = 0
+
+  for (const entry of entries || []) {
+    const rel = entry.relativePath
+    const result = resultByPath.get(rel)
+
+    if (!result || !result.exists) {
+      accepted.push({ file: entry.file, relativePath: rel, conflictPolicy: '' })
+      continue
+    }
+
+    const action = actionByPath.get(rel)
+    if (!action || action === 'skip') {
+      skippedCount++
+      continue
+    }
+    if (action === 'cancelled') {
+      cancelledCount++
+      continue
+    }
+    if (action === 'overwrite') {
+      accepted.push({ file: entry.file, relativePath: rel, conflictPolicy: 'overwrite' })
+      continue
+    }
+    // keep_both — always a single file here, so the backend's name(1).ext
+    // auto-rename applies, same as a single-file keep_both in round one.
+    accepted.push({ file: entry.file, relativePath: rel, conflictPolicy: 'rename' })
+  }
+
+  return { accepted, skippedCount, cancelledCount }
+}
