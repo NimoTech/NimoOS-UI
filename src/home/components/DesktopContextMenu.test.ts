@@ -107,7 +107,19 @@ describe('DesktopContextMenu', () => {
       // Same reka-ui timing note as the "handles a right-click on blank canvas"
       // test above: the portal content appears only after an internal
       // await nextTick(), not synchronously within dispatchEvent().
+      //
+      // A bare flushPromises() only drains microtasks, and reka-ui's portal also
+      // waits on timer-backed work before the content lands in the body. That
+      // was enough for the first mount in this block but not reliably for the
+      // second, so this used to fail in the full suite while passing when the
+      // file ran on its own. Poll for the content instead of guessing how many
+      // turns of the event loop it needs; the assertions are unchanged, so a
+      // genuinely missing menu item still fails (it just takes ~200ms to do so).
       await flushPromises()
+      for (let i = 0; i < 20 && !document.body.querySelector('.ctx-change-wallpaper'); i++) {
+        await new Promise((r) => setTimeout(r, 10))
+        await flushPromises()
+      }
       return new DOMWrapper(document.body)
     }
 
