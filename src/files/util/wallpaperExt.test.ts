@@ -19,7 +19,14 @@ describe('canBeWallpaper', () => {
     expect(canBeWallpaper({ name: 'a.webp', is_dir: false })).toBe(false)
     expect(canBeWallpaper({ name: 'a.mp4', is_dir: false })).toBe(false)
     expect(canBeWallpaper({ name: 'README', is_dir: false })).toBe(false)
-    expect(canBeWallpaper({ name: '.jpg', is_dir: false })).toBe(true)
     expect(canBeWallpaper(null)).toBe(false)
+  })
+  it('accepts a dotfile literally named ".jpg" -- lastIndexOf(".") finds the leading dot, so the "extension" is the whole name minus that dot, which is a listed extension', () => {
+    // M5 (final review): this was previously buried as a same-signed assertion
+    // inside the "rejects ..." case above (name/behaviour mismatch). Documented
+    // here rather than silently fixed, because it is arguably correct given the
+    // implementation (lastIndexOf, not a real basename/extension parse) -- a
+    // policy call, not a bug this fix wave is asked to change.
+    expect(canBeWallpaper({ name: '.jpg', is_dir: false })).toBe(true)
   })
 })

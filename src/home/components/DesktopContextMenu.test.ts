@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
@@ -77,5 +77,52 @@ describe('DesktopContextMenu', () => {
     // The menu content is portalled; call the handler the item is bound to.
     ;(w.vm as unknown as { onChangeWallpaper: () => void }).onChangeWallpaper()
     expect(useWallpaperStore().dialogOpen).toBe(true)
+  })
+
+  describe('rendered menu item (M3)', () => {
+    // M3 (final review): the test above calls onChangeWallpaper() directly --
+    // nothing asserted that the menu actually renders an item carrying the
+    // wpChangeWallpaper label with onSelect wired to it. Deleting the
+    // `onSelect: onChangeWallpaper` binding in DesktopContextMenu.vue (leaving
+    // the item inert) would leave every test in this file green. This suite
+    // goes through the real right-click -> reka-ui portal -> click path
+    // instead, the same technique WallpaperDialog.test.ts documents for
+    // reaching Teleported content.
+    let w: ReturnType<typeof mount> | null = null
+
+    afterEach(() => {
+      w?.unmount()
+      w = null
+      document.body.innerHTML = ''
+    })
+
+    async function openMenu() {
+      w = mount(DesktopContextMenu, {
+        global: { plugins: [i18n] },
+        slots: { default: () => h('div', { class: 'grid' }) },
+        attachTo: document.body,
+      })
+      const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+      w.find('.grid').element.dispatchEvent(ev)
+      // Same reka-ui timing note as the "handles a right-click on blank canvas"
+      // test above: the portal content appears only after an internal
+      // await nextTick(), not synchronously within dispatchEvent().
+      await flushPromises()
+      return new DOMWrapper(document.body)
+    }
+
+    it('renders a menu item carrying the wpChangeWallpaper label', async () => {
+      const body = await openMenu()
+      const item = body.find('.ctx-change-wallpaper')
+      expect(item.exists()).toBe(true)
+      expect(item.text()).toBe(zh.wpChangeWallpaper)
+    })
+
+    it('clicking the rendered item opens the wallpaper picker', async () => {
+      const body = await openMenu()
+      expect(useWallpaperStore().dialogOpen).toBe(false)
+      await body.find('.ctx-change-wallpaper').trigger('click')
+      expect(useWallpaperStore().dialogOpen).toBe(true)
+    })
   })
 })
