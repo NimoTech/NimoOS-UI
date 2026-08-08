@@ -27,13 +27,14 @@ import { createAi } from './ai.js'
 import { sseRequest } from './sse.js'
 import { createNotes } from './notes.js'
 import { createWiki } from './wiki.js'
+import { createUploadBatches } from './uploadBatches.js'
 
 export { initService, getHttp, refreshAccessToken, parseUtil, UPLOAD_TUS_ENDPOINT, networkErrorText, sseRequest }
 export { isDistillableName, DISTILL_EXTS } from './notes.js'
 export { createRootBody } from './wiki.js'
 export type { SseOptions, SseOutcome } from './sse.js'
 export type { ServiceConfig } from './config.js'
-export type { Utilization, UtilSection, StdEnvelope, EventModel, FolderEntry, FolderListing, AppGridWidget, AppGridItem, PhotoAsset, FileContent, ServerUploadTask, UploadPrecheckResult, LoginResult, UserStatus, UserInfo, MemberInfo, UserFolderPermission, SambaConnection, CloudMount, CloudDriver, HardwareInfo, DockerNetwork, PruneReport, AppCategory, StoreAppInfo, StoreAppCatalog, UpgradableAppInfo, AppStoreSource, ComposeAppWithStoreInfo, UpdateCheck, SysBaseInfo, SystemPathEntry, SystemPaths, SSLConfig, SSLConfigInput, GatewayComponent, GatewayDeviceInfo, MigrateStatus, NetworkIPv4Config, NetworkWirelessConfig, NetworkInterfaceConfig, NetworkInterfaceUpdate, WifiScanResult } from './types.js'
+export type { Utilization, UtilSection, StdEnvelope, EventModel, FolderEntry, FolderListing, AppGridWidget, AppGridItem, PhotoAsset, FileContent, ServerUploadTask, UploadPrecheckResult, LoginResult, UserStatus, UserInfo, MemberInfo, UserFolderPermission, SambaConnection, CloudMount, CloudDriver, HardwareInfo, DockerNetwork, PruneReport, AppCategory, StoreAppInfo, StoreAppCatalog, UpgradableAppInfo, AppStoreSource, ComposeAppWithStoreInfo, UpdateCheck, SysBaseInfo, SystemPathEntry, SystemPaths, SSLConfig, SSLConfigInput, GatewayComponent, GatewayDeviceInfo, MigrateStatus, NetworkIPv4Config, NetworkWirelessConfig, NetworkInterfaceConfig, NetworkInterfaceUpdate, WifiScanResult, CreateBatchInput, UploadBatch, UploadBatchItem, BatchDetail } from './types.js'
 export type { ComposeContainerSummary, ComposeContainersInfo } from './compose.js'
 export type { RaidStatus, RaidMemberDisk } from './raid.js'
 export type { SnapshotVolume, SnapshotPolicy } from './snapshot.js'
@@ -61,6 +62,9 @@ export const service = {
   },
   get file(): ReturnType<typeof createFile> {
     return createFile(getHttp() as AxiosInstance, () => getConfig().getToken())
+  },
+  get uploadBatches(): ReturnType<typeof createUploadBatches> {
+    return createUploadBatches(getHttp() as AxiosInstance, () => getConfig().getToken())
   },
   get batch(): ReturnType<typeof createBatch> {
     return createBatch(getHttp() as AxiosInstance, () => getConfig().getToken())

@@ -328,3 +328,36 @@ export interface WifiScanResult {
 
 /** Result of POST/PUT /v1/users/current/image/{key}. */
 export interface UserImageResult { path: string; file_name: string; online_path: string }
+
+// Upload-batch reconciliation (SP12). Backend shapes are RAW JSON with no
+// standard {success,data} envelope — see service/upload/batch.go in NimoOS.
+export interface CreateBatchInput {
+  id: string
+  targetPath: string
+  items: { relativePath: string; size: number }[]
+}
+
+export interface UploadBatch {
+  id: string
+  owner_user_id: string
+  target_path: string
+  status: string
+  total: number
+  done: number
+  last_progress_at: number
+  interrupted_at: number
+  created_at: number
+  updated_at: number
+}
+
+export interface UploadBatchItem {
+  batch_id: string
+  relative_path: string
+  size: number
+  done: boolean
+}
+
+export interface BatchDetail {
+  batch: UploadBatch | null
+  missing: UploadBatchItem[]
+}
